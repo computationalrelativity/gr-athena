@@ -78,7 +78,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) {
   dt   = (FLT_MAX*0.4);
   nbnew=0; nbdel=0;
 
-  four_pi_G_=0.0, grav_eps_=-1.0;
+  four_pi_G_=0.0, grav_eps_=-1.0, grav_mean_rho_=-1.0;
 
   turb_flag = 0;
 
@@ -525,7 +525,7 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) {
   nreal_user_mesh_data_=0;
   nuser_history_output_=0;
 
-  four_pi_G_=0.0, grav_eps_=-1.0;
+  four_pi_G_=0.0, grav_eps_=-1.0, grav_mean_rho_=-1.0;
 
   turb_flag = 0;
 
@@ -1203,7 +1203,6 @@ void Mesh::AllocateIntUserMeshDataField(int n) {
   return;
 }
 
-
 //----------------------------------------------------------------------------------------
 //! \fn void Mesh::EnrollUserMGBoundaryFunction(enum BoundaryFace dir
 //                                              MGBoundaryFunc_t my_bc)
@@ -1220,28 +1219,10 @@ void Mesh::EnrollUserMGBoundaryFunction(enum BoundaryFace dir, MGBoundaryFunc_t 
   return;
 }
 
-
-//----------------------------------------------------------------------------------------
-//! \fn void Mesh::EnrollUserGravityBoundaryFunction(enum BoundaryFace dir,
-//                                                   GravityBoundaryFunc_t my_bc)
-//  \brief Enroll a user-defined boundary function
-
-void Mesh::EnrollUserGravityBoundaryFunction(enum BoundaryFace dir,
-                                             GravityBoundaryFunc_t my_bc) {
-  std::stringstream msg;
-  if (dir<0 || dir>5) {
-    msg << "### FATAL ERROR in EnrollBoundaryCondition function" << std::endl
-        << "dirName = " << dir << " not valid" << std::endl;
-    throw std::runtime_error(msg.str().c_str());
-  }
-  GravityBoundaryFunction_[dir]=my_bc;
-  return;
-}
-
-
 //----------------------------------------------------------------------------------------
 // \!fn void Mesh::ApplyUserWorkBeforeOutput(ParameterInput *pin)
 // \brief Apply MeshBlock::UserWorkBeforeOutput
+
 void Mesh::ApplyUserWorkBeforeOutput(ParameterInput *pin) {
   MeshBlock *pmb = pblock;
   while (pmb != NULL)  {
@@ -1280,8 +1261,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       }
     }
 
-    // add perturbation from turbulence
-    if ((turb_flag > 0) && (res_flag==0))
+    // add initial perturbation for decaying or impulsive turbulence
+    if (((turb_flag == 1) || (turb_flag == 2)) && (res_flag == 0))
       ptrbd->Driving();
 
     // solve gravity for the first time
@@ -1661,7 +1642,7 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
 
   // allocate memory for the location arrays
   LogicalLocation *lref, *lderef, *clderef;
-  if (tnref!=0)
+  if (tnref>0)
     lref = new LogicalLocation[tnref];
   if (tnderef>=nlbl) {
     lderef = new LogicalLocation[tnderef];
@@ -1779,8 +1760,8 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
 
 #ifdef MPI_PARALLEL
   // share the cost list
-  MPI_Allgatherv(MPI_IN_PLACE, nblist[Globals::my_rank], MPI_INT,
-                 costlist, nblist, nslist, MPI_INT, MPI_COMM_WORLD);
+  MPI_Allgatherv(MPI_IN_PLACE, nblist[Globals::my_rank], MPI_ATHENA_REAL,
+                 costlist, nblist, nslist, MPI_ATHENA_REAL, MPI_COMM_WORLD);
 #endif
 
   current_level=0;
@@ -1809,9 +1790,9 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
   int nbe=nbs+nblist[Globals::my_rank]-1;
 
   int f2, f3;
-  int &bnx1=pblock->block_size.nx1;
-  int &bnx2=pblock->block_size.nx2;
-  int &bnx3=pblock->block_size.nx3;
+  int bnx1=pblock->block_size.nx1;
+  int bnx2=pblock->block_size.nx2;
+  int bnx3=pblock->block_size.nx3;
   if (mesh_size.nx2>1) f2=1;
   else f2=0;
   if (mesh_size.nx3>1) f3=1;
@@ -1859,6 +1840,7 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           +(bnx1/2+2)*(((bnx2+1)/2)+f2+2*f2)*((bnx3+1)/2+2*f3)
           +(bnx1/2+2)*((bnx2+1)/2+2*f2)*(((bnx3+1)/2)+f3+2*f3);
   }
+  bssame++; // for derefinement counter
 
   MPI_Request *req_send, *req_recv;
   // Step 5. allocate and start receiving buffers
@@ -1927,6 +1909,8 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           BufferUtility::Pack3DData(pb->pfield->b.x3f, sendbuf[k],
                          pb->is, pb->ie, pb->js, pb->je, pb->ks, pb->ke+f3, p);
         }
+        int *dcp = reinterpret_cast<int *>(&(sendbuf[k][p]));
+        *dcp=pb->pmr->deref_count_;
         int tag=CreateAMRMPITag(nn-nslist[newrank[nn]], 0, 0, 0);
         MPI_Isend(sendbuf[k], bssame, MPI_ATHENA_REAL, newrank[nn],
                   tag, MPI_COMM_WORLD, &(req_send[k]));
@@ -1940,11 +1924,11 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           // pack
           int is, ie, js, je, ks, ke;
           if (ox1==0) is=pb->is-1,                       ie=pb->is+pb->block_size.nx1/2;
-          else       is=pb->is+pb->block_size.nx1/2-1,  ie=pb->ie+1;
+          else        is=pb->is+pb->block_size.nx1/2-1,  ie=pb->ie+1;
           if (ox2==0) js=pb->js-f2,                      je=pb->js+pb->block_size.nx2/2;
-          else       js=pb->js+pb->block_size.nx2/2-f2, je=pb->je+f2;
+          else        js=pb->js+pb->block_size.nx2/2-f2, je=pb->je+f2;
           if (ox3==0) ks=pb->ks-f3,                      ke=pb->ks+pb->block_size.nx3/2;
-          else       ks=pb->ks+pb->block_size.nx3/2-f3, ke=pb->ke+f3;
+          else        ks=pb->ks+pb->block_size.nx3/2-f3, ke=pb->ke+f3;
           int p=0;
           BufferUtility::Pack4DData(pb->phydro->u, sendbuf[k], 0, NHYDRO-1,
                                     is, ie, js, je, ks, ke, p);
@@ -2018,8 +2002,8 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
   // Step 7. construct a new MeshBlock list
   // move the data within the node
   MeshBlock *newlist=NULL;
+
   RegionSize block_size=pblock->block_size;
-  enum BoundaryFlag block_bcs[6];
 
   for (int n=nbs; n<=nbe; n++) {
     int on=newtoold[n];
@@ -2032,7 +2016,8 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
       pob->next=NULL;
       if (n==nbs) { // first
         pob->prev=NULL;
-        newlist=pmb=pob;
+        newlist=pob;
+        pmb=newlist;
       } else {
         pmb->next=pob;
         pob->prev=pmb;
@@ -2040,6 +2025,8 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
       }
       pmb->gid=n; pmb->lid=n-nbs;
     } else {
+      enum BoundaryFlag block_bcs[6];
+      block_size.nx1 = bnx1, block_size.nx2 = bnx2, block_size.nx3 = bnx3;
       // on a different level or node - create a new block
       SetBlockSizeAndBoundaries(newloc[n], block_size, block_bcs);
       if (n==nbs) { // first
@@ -2272,6 +2259,8 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
             }
           }
         }
+        int *dcp=reinterpret_cast<int *>(&(recvbuf[k][p]));
+        pb->pmr->deref_count_=*dcp;
         k++;
       } else if (oloc.level>nloc.level) { // f2c
         for (int l=0; l<nlbl; l++) {
@@ -2280,11 +2269,11 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           int ox1=lloc.lx1&1L, ox2=lloc.lx2&1L, ox3=lloc.lx3&1L;
           int p=0, is, ie, js, je, ks, ke;
           if (ox1==0) is=pb->is,                      ie=pb->is+pb->block_size.nx1/2-1;
-          else       is=pb->is+pb->block_size.nx1/2, ie=pb->ie;
+          else        is=pb->is+pb->block_size.nx1/2, ie=pb->ie;
           if (ox2==0) js=pb->js,                      je=pb->js+pb->block_size.nx2/2-f2;
-          else       js=pb->js+pb->block_size.nx2/2, je=pb->je;
+          else        js=pb->js+pb->block_size.nx2/2, je=pb->je;
           if (ox3==0) ks=pb->ks,                      ke=pb->ks+pb->block_size.nx3/2-f3;
-          else       ks=pb->ks+pb->block_size.nx3/2, ke=pb->ke;
+          else        ks=pb->ks+pb->block_size.nx3/2, ke=pb->ke;
           MPI_Wait(&(req_recv[k]), MPI_STATUS_IGNORE);
           BufferUtility::Unpack4DData(recvbuf[k], pb->phydro->u, 0, NHYDRO-1,
                          is, ie, js, je, ks, ke, p);

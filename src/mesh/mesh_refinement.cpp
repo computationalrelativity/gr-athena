@@ -1008,6 +1008,7 @@ void MeshRefinement::CheckRefinementCondition(void) {
   } else if (aret<0) {
     if (pmb->loc.level == pmb->pmy_mesh->root_level) {
       refine_flag_=0;
+      deref_count_=0;
     } else {
       deref_count_++;
       int ec=0, js, je, ks, ke;
