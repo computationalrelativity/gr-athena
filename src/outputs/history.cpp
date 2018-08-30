@@ -25,10 +25,12 @@
 #include "../field/field.hpp"
 #include "../globals.hpp"
 #include "../hydro/hydro.hpp"
+#include "../wave/wave.hpp"
+#include "../vwave/vwave.hpp"
 #include "../mesh/mesh.hpp"
 #include "outputs.hpp"
 
-#define NHISTORY_VARS ((NHYDRO)+(NFIELD)+3)
+#define NHISTORY_VARS ((NHYDRO)+(NFIELD)+3+1)
 
 //----------------------------------------------------------------------------------------
 // HistoryOutput constructor
@@ -57,6 +59,8 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   while (pmb != NULL) {
     Hydro *phyd = pmb->phydro;
     Field *pfld = pmb->pfield;
+    Wave  *pwave = pmb->pwave;
+    Vwave *pvwave = pmb->pvwave;
 
     // Sum history variables over cells.  Note ghost cells are never included in sums
     for (int k=pmb->ks; k<=pmb->ke; ++k) {
@@ -68,25 +72,34 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         Real& u_my = phyd->u(IM2,k,j,i);
         Real& u_mz = phyd->u(IM3,k,j,i);
 
-        data_sum[0] += vol(i)*u_d;
-        data_sum[1] += vol(i)*u_mx;
-        data_sum[2] += vol(i)*u_my;
-        data_sum[3] += vol(i)*u_mz;
-        data_sum[4] += vol(i)*0.5*SQR(u_mx)/u_d;
-        data_sum[5] += vol(i)*0.5*SQR(u_my)/u_d;
-        data_sum[6] += vol(i)*0.5*SQR(u_mz)/u_d;
+        int isum = 0;
+        data_sum[isum++] += vol(i)*u_d;
+        data_sum[isum++] += vol(i)*u_mx;
+        data_sum[isum++] += vol(i)*u_my;
+        data_sum[isum++] += vol(i)*u_mz;
+        data_sum[isum++] += vol(i)*0.5*SQR(u_mx)/u_d;
+        data_sum[isum++] += vol(i)*0.5*SQR(u_my)/u_d;
+        data_sum[isum++] += vol(i)*0.5*SQR(u_mz)/u_d;
 
         if (NON_BAROTROPIC_EOS) {
           Real& u_e = phyd->u(IEN,k,j,i);;
-          data_sum[7] += vol(i)*u_e;
+          data_sum[isum++] += vol(i)*u_e;
         }
         if (MAGNETIC_FIELDS_ENABLED) {
           Real& bcc1 = pfld->bcc(IB1,k,j,i);
           Real& bcc2 = pfld->bcc(IB2,k,j,i);
           Real& bcc3 = pfld->bcc(IB3,k,j,i);
-          data_sum[NHYDRO + 3] += vol(i)*0.5*bcc1*bcc1;
-          data_sum[NHYDRO + 4] += vol(i)*0.5*bcc2*bcc2;
-          data_sum[NHYDRO + 5] += vol(i)*0.5*bcc3*bcc3;
+          data_sum[isum++] += vol(i)*0.5*bcc1*bcc1;
+          data_sum[isum++] += vol(i)*0.5*bcc2*bcc2;
+          data_sum[isum++] += vol(i)*0.5*bcc3*bcc3;
+        }
+        if (WAVE_ENABLED) {
+          Real & wave_u = pwave->u(0,k,j,i);
+          data_sum[isum++] += vol(i)*wave_u;
+        }
+        if (VWAVE_ENABLED) {
+          Real & vwave_u = pvwave->u(0,k,j,i);
+          data_sum[isum++] += vol(i)*vwave_u;
         }
       }
     }}
@@ -128,7 +141,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     int iout = 1;
     if (output_params.file_number == 0) {
       fprintf(pfile,"# Athena++ history data\n"); // descriptor is first line
-      fprintf(pfile,"# [%d]=time     ", iout++);
+      fprintf(pfile,"# [%d]=time   ", iout++);
       fprintf(pfile,"[%d]=dt       ", iout++);
       fprintf(pfile,"[%d]=mass     ", iout++);
       fprintf(pfile,"[%d]=1-mom    ", iout++);
@@ -143,6 +156,9 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         fprintf(pfile,"[%d]=2-ME    ", iout++);
         fprintf(pfile,"[%d]=3-ME    ", iout++);
       }
+      if (WAVE_ENABLED)  fprintf(pfile,"[%d]=wave    ", iout++);
+      if (VWAVE_ENABLED) fprintf(pfile,"[%d]=vwave   ", iout++);
+
       for (int n=0; n<pm->nuser_history_output_; n++)
         fprintf(pfile,"[%d]=%-8s", iout++, pm->user_history_output_names_[n].c_str());
       fprintf(pfile,"\n");                              // terminate line

@@ -28,6 +28,12 @@
 // Riemann solver
 #define RIEMANN_SOLVER "@RSOLVER@"
 
+// evolve the wave equation? default=0 (false)
+#define WAVE_ENABLED @WAVE_ENABLED@
+
+// evolve the vector wave equation? default=0 (false)
+#define VWAVE_ENABLED @VWAVE_ENABLED@
+
 // include magnetic fields? default=0 (false)
 #define MAGNETIC_FIELDS_ENABLED @MAGNETIC_FIELDS_ENABLED@
 

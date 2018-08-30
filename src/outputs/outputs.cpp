@@ -17,7 +17,7 @@
 // created for each and every <outputN> block in the input file.
 //
 // Required parameters that must be specified in an <outputN> block are:
-//   - variable     = cons,prim,D,d,E,e,m,v
+//   - variable     = cons,prim,D,d,E,e,m,v,wave,wave_u,wave_pi,vwave,vwave_u,vwave_pi
 //   - file_type    = rst,tab,vtk,hst
 //   - dt           = problem time between outputs
 //
@@ -65,6 +65,8 @@
 #include "../field/field.hpp"
 #include "../gravity/gravity.hpp"
 #include "../hydro/hydro.hpp"
+#include "../wave/wave.hpp"
+#include "../vwave/vwave.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "outputs.hpp"
@@ -301,6 +303,8 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   Hydro *phyd = pmb->phydro;
   Field *pfld = pmb->pfield;
   Gravity *pgrav = pmb->pgrav;
+  Wave  *pwave = pmb->pwave;
+  Vwave *pvwave = pmb->pvwave;
   num_vars_ = 0;
   OutputData *pod;
 
@@ -449,6 +453,50 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     pod->data.InitWithShallowSlice(phyd->w,4,IVZ,1);
     AppendOutputDataNode(pod);
     num_vars_++;
+  }
+
+  if (WAVE_ENABLED) {
+    if (output_params.variable.compare("wave") == 0 ||
+        output_params.variable.compare("wave_u") == 0) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "wU";
+      pod->data.InitWithShallowSlice(pwave->u,4,0,1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+
+    if (output_params.variable.compare("wave") == 0 ||
+        output_params.variable.compare("wave_pi") == 0) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "wPI";
+      pod->data.InitWithShallowSlice(pwave->u,4,1,1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+  }
+
+  if (VWAVE_ENABLED) {
+    if (output_params.variable.compare("vwave") == 0 ||
+        output_params.variable.compare("vwave_u") == 0) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "vwU";
+      pod->data.InitWithShallowSlice(pvwave->u,4,0,1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+
+    if (output_params.variable.compare("vwave") == 0 ||
+        output_params.variable.compare("vwave_pi") == 0) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "vwPI";
+      pod->data.InitWithShallowSlice(pvwave->u,4,1,1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
   }
 
   if (SELF_GRAVITY_ENABLED) {
@@ -862,7 +910,7 @@ void OutputType::SumOutputData(MeshBlock* pmb, int dim) {
     }
 
     ReplaceOutputDataNode(pdata,pnew);
-    pdata = pdata->pnext;
+    pdata = pnew->pnext;
   }
 
   // modify array indices

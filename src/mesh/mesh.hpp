@@ -36,6 +36,8 @@ class TaskState;
 class Coordinates;
 class Reconstruction;
 class Hydro;
+class Wave;
+class Vwave;
 class Field;
 class Gravity;
 class MGGravityDriver;
@@ -54,6 +56,8 @@ class MeshBlock {
   friend class GravityBoundaryValues;
   friend class Mesh;
   friend class Hydro;
+  friend class Wave;
+  friend class Vwave;
   friend class TaskList;
 #ifdef HDF5OUTPUT
   friend class ATHDF5Output;
@@ -100,6 +104,8 @@ public:
   Field *pfield;
   Gravity *pgrav;
   EquationOfState *peos;
+  Wave *pwave;
+  Vwave *pvwave;
 
   MeshBlock *prev, *next;
 
@@ -142,6 +148,8 @@ class Mesh {
   friend class MeshRefinement;
   friend class HydroSourceTerms;
   friend class Hydro;
+  friend class Wave;
+  friend class Vwave;
   friend class FFTDriver;
   friend class FFTGravityDriver;
   friend class TurbulenceDriver;

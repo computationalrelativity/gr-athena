@@ -153,6 +153,20 @@ void BoundaryValues::SendCellCenteredBoundaryBuffers(AthenaArray<Real> &src,
         cbuf.InitWithShallowCopy(pmb->pmr->coarse_prim_);
     }
   }
+  if (type==WAVE_SOL) {
+    pbd=&bd_wave_;
+    ns=0, ne=1;
+    if (pmb->pmy_mesh->multilevel) {
+        cbuf.InitWithShallowCopy(pmb->pmr->coarse_wave_);
+    }
+  }
+  if (type==VWAVE_SOL) {
+    pbd=&bd_vwave_;
+    ns=0, ne=1;
+    if (pmb->pmy_mesh->multilevel) {
+        cbuf.InitWithShallowCopy(pmb->pmr->coarse_vwave_);
+    }
+  }
 
   for (int n=0; n<nneighbor; n++) {
     NeighborBlock& nb = neighbor[n];
@@ -169,6 +183,10 @@ void BoundaryValues::SendCellCenteredBoundaryBuffers(AthenaArray<Real> &src,
     if (nb.rank == Globals::my_rank) {
       if (type==HYDRO_CONS || type==HYDRO_PRIM)
         ptarget=&(pbl->pbval->bd_hydro_);
+      if (type==WAVE_SOL)
+          ptarget=&(pbl->pbval->bd_wave_);
+      if (type==VWAVE_SOL)
+          ptarget=&(pbl->pbval->bd_vwave_);
       std::memcpy(ptarget->recv[nb.targetid], pbd->send[nb.bufid], ssize*sizeof(Real));
       ptarget->flag[nb.targetid]=BNDRY_ARRIVED;
     }
@@ -412,6 +430,20 @@ bool BoundaryValues::ReceiveCellCenteredBoundaryBuffers(AthenaArray<Real> &dst,
         cbuf.InitWithShallowCopy(pmb->pmr->coarse_prim_);
     }
   }
+  if (type==WAVE_SOL) {
+    pbd=&bd_wave_;
+    ns=0, ne=1;
+    if (pmb->pmy_mesh->multilevel) {
+        cbuf.InitWithShallowCopy(pmb->pmr->coarse_wave_);
+    }
+  }
+  if (type==VWAVE_SOL) {
+    pbd=&bd_vwave_;
+    ns=0, ne=1;
+    if (pmb->pmy_mesh->multilevel) {
+        cbuf.InitWithShallowCopy(pmb->pmr->coarse_vwave_);
+    }
+  }
 
   for (int n=0; n<nneighbor; n++) {
     NeighborBlock& nb = neighbor[n];
@@ -473,6 +505,22 @@ void BoundaryValues::ReceiveCellCenteredBoundaryBuffersWithWait(AthenaArray<Real
         cbuf.InitWithShallowCopy(pmb->pmr->coarse_cons_);
       if (type==HYDRO_PRIM)
         cbuf.InitWithShallowCopy(pmb->pmr->coarse_prim_);
+    }
+  }
+
+  if (type==WAVE_SOL) {
+    pbd=&bd_wave_;
+    ns=0, ne=1;
+    if (pmb->pmy_mesh->multilevel) {
+        cbuf.InitWithShallowCopy(pmb->pmr->coarse_wave_);
+    }
+  }
+
+  if (type==VWAVE_SOL) {
+    pbd=&bd_vwave_;
+    ns=0, ne=1;
+    if (pmb->pmy_mesh->multilevel) {
+        cbuf.InitWithShallowCopy(pmb->pmr->coarse_vwave_);
     }
   }
 

@@ -16,6 +16,8 @@
 #   -b                enable magnetic fields
 #   -s                enable special relativity
 #   -g                enable general relativity
+#   -w                enable wave equation
+#   -vw               enable vector wave equation
 #   -t                enable interface frame transformations for GR
 #   -shear            enable shearing periodic boundary conditions
 #   -debug            enable debug flags (-g -O0); override other compiler options
@@ -106,6 +108,18 @@ parser.add_argument('-t',
     action='store_true',
     default=False,
     help='enable interface frame transformations for GR')
+
+# -w argument
+parser.add_argument("-w",
+    action='store_true',
+    default=False,
+    help='enable wave equation')
+
+# -vw argument
+parser.add_argument("-vw",
+    action='store_true',
+    default=False,
+    help='enable vector wave equation')
 
 # -shear argument
 parser.add_argument('-shear',
@@ -312,6 +326,18 @@ if args['g']:
   if not args['t']:
     makefile_options['RSOLVER_FILE'] += '_no_transform'
 
+# -w argument
+if args['w']:
+  definitions['WAVE_ENABLED'] = '1'
+else:
+  definitions['WAVE_ENABLED'] = '0'
+  
+# -vw argument
+if args['vw']:
+  definitions['VWAVE_ENABLED'] = '1'
+else:
+  definitions['VWAVE_ENABLED'] = '0'
+  
 # -shear argument
 if args['shear']:
   definitions['SHEARING_BOX'] = '1'
@@ -551,6 +577,8 @@ print('  Self Gravity:            ' + ('OFF' if args['grav'] == 'none' else args
 print('  Magnetic fields:         ' + ('ON' if args['b'] else 'OFF'))
 print('  Special relativity:      ' + ('ON' if args['s'] else 'OFF'))
 print('  General relativity:      ' + ('ON' if args['g'] else 'OFF'))
+print('  Wave equation:           ' + ('ON' if args['w'] else 'OFF'))
+print('  Vector wave equation:    ' + ('ON' if args['vw'] else 'OFF'))
 print('  Frame transformations:   ' + ('ON' if args['t'] else 'OFF'))
 print('  ShearingBox:             ' + ('ON' if args['shear'] else 'OFF'))
 print('  Debug flags:             ' + ('ON' if args['debug'] else 'OFF'))

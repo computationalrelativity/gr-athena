@@ -23,6 +23,8 @@
 #include "../athena_arrays.hpp"
 #include "../field/field.hpp"
 #include "../hydro/hydro.hpp"
+#include "../wave/wave.hpp"
+#include "../vwave/vwave.hpp"
 #include "../globals.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
@@ -159,6 +161,14 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
       pdata+=pmb->phydro->w.GetSizeInBytes();
       memcpy(pdata,pmb->phydro->w1.data(), pmb->phydro->w1.GetSizeInBytes());
       pdata+=pmb->phydro->w1.GetSizeInBytes();
+    }
+    if (WAVE_ENABLED) {
+      memcpy(pdata, pmb->pwave->u.data(), pmb->pwave->u.GetSizeInBytes());
+      pdata += pmb->pwave->u.GetSizeInBytes();
+    }
+    if (VWAVE_ENABLED) {
+      memcpy(pdata, pmb->pvwave->u.data(), pmb->pvwave->u.GetSizeInBytes());
+      pdata += pmb->pvwave->u.GetSizeInBytes();
     }
     if (MAGNETIC_FIELDS_ENABLED) {
       memcpy(pdata,pmb->pfield->b.x1f.data(),pmb->pfield->b.x1f.GetSizeInBytes());
