@@ -254,32 +254,20 @@ TimeIntegratorTaskList::TimeIntegratorTaskList(ParameterInput *pin, Mesh *pm)
       }
     }
 
-    // integrate wave equation
-    if(WAVE_ENABLED) {
+    // integrate wave (or vector wave) equation
+    if(WAVE_ENABLED || VWAVE_ENABLED) {
       AddTimeIntegratorTask(CALC_WAVERHS, START_ALLRECV);
       AddTimeIntegratorTask(INT_WAVE, CALC_WAVERHS);
       AddTimeIntegratorTask(SEND_WAVE, INT_WAVE);
       AddTimeIntegratorTask(RECV_WAVE, START_ALLRECV);
     }
 
-    // integrate vector wave equation
-    if(VWAVE_ENABLED) {
-      AddTimeIntegratorTask(CALC_VWAVERHS, START_ALLRECV);
-      AddTimeIntegratorTask(INT_VWAVE, CALC_VWAVERHS);
-      AddTimeIntegratorTask(SEND_VWAVE, INT_VWAVE);
-      AddTimeIntegratorTask(RECV_VWAVE, START_ALLRECV);
-    }
-
     // prolongate, compute new primitives
     if (MAGNETIC_FIELDS_ENABLED) { // MHD
       if (pm->multilevel==true) { // SMR or AMR
-        if(WAVE_ENABLED) {
+        if(WAVE_ENABLED || VWAVE_ENABLED) {
           AddTimeIntegratorTask(PROLONG,
              (SEND_HYD|RECV_HYD|SEND_FLD|RECV_FLD|SEND_WAVE|RECV_WAVE));
-        }
-        else if(VWAVE_ENABLED) {
-          AddTimeIntegratorTask(PROLONG,
-              (SEND_HYD|RECV_HYD|SEND_FLD|RECV_FLD|SEND_VWAVE|RECV_VWAVE));
         }
         else {
             AddTimeIntegratorTask(PROLONG,(SEND_HYD|RECV_HYD|SEND_FLD|RECV_FLD));
@@ -295,11 +283,8 @@ TimeIntegratorTaskList::TimeIntegratorTaskList(ParameterInput *pin, Mesh *pm)
       }
     } else {  // HYDRO
       if (pm->multilevel==true) { // SMR or AMR
-         if(WAVE_ENABLED) {
+         if(WAVE_ENABLED || VWAVE_ENABLED) {
             AddTimeIntegratorTask(PROLONG,(SEND_HYD|RECV_HYD|SEND_WAVE|RECV_WAVE));
-         }
-         else if(VWAVE_ENABLED) {
-            AddTimeIntegratorTask(PROLONG,(SEND_HYD|RECV_HYD|SEND_VWAVE|RECV_VWAVE));
          }
          else {
             AddTimeIntegratorTask(PROLONG,(SEND_HYD|RECV_HYD));
@@ -369,11 +354,6 @@ void TimeIntegratorTaskList::AddTimeIntegratorTask(uint64_t id, uint64_t dep) {
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
         (&TimeIntegratorTaskList::CalculateWaveRHS);
       break;
-    case (CALC_VWAVERHS):
-      task_list_[ntasks].TaskFunc=
-        static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&TimeIntegratorTaskList::CalculateVwaveRHS);
-      break;
 
     case (SEND_HYDFLX):
       task_list_[ntasks].TaskFunc=
@@ -412,11 +392,6 @@ void TimeIntegratorTaskList::AddTimeIntegratorTask(uint64_t id, uint64_t dep) {
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
         (&TimeIntegratorTaskList::WaveIntegrate);
       break;
-    case (INT_VWAVE):
-      task_list_[ntasks].TaskFunc=
-        static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&TimeIntegratorTaskList::VwaveIntegrate);
-      break;
 
     case (SRCTERM_HYD):
       task_list_[ntasks].TaskFunc=
@@ -439,11 +414,6 @@ void TimeIntegratorTaskList::AddTimeIntegratorTask(uint64_t id, uint64_t dep) {
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
         (&TimeIntegratorTaskList::WaveSend);
       break;
-    case (SEND_VWAVE):
-      task_list_[ntasks].TaskFunc=
-        static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&TimeIntegratorTaskList::VwaveSend);
-      break;
 
     case (RECV_HYD):
       task_list_[ntasks].TaskFunc=
@@ -459,11 +429,6 @@ void TimeIntegratorTaskList::AddTimeIntegratorTask(uint64_t id, uint64_t dep) {
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
         (&TimeIntegratorTaskList::WaveReceive);
-      break;
-    case (RECV_VWAVE):
-      task_list_[ntasks].TaskFunc=
-        static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&TimeIntegratorTaskList::VwaveReceive);
       break;
 
     case (SEND_HYDSH):
@@ -728,8 +693,8 @@ enum TaskStatus TimeIntegratorTaskList::WaveIntegrate(MeshBlock *pmb, int step)
     return TASK_NEXT;
   }
 
-  if((step == 2) && (integrator == "vl2")) {
-    // Van-Leer is not appropriate for the wave equation
+  if((step == 2) && (integrator != "rk2")) {
+    // We only allow rk2 for the wave equation
     return TASK_FAIL;
   }
 
@@ -750,8 +715,8 @@ enum TaskStatus TimeIntegratorTaskList::VwaveIntegrate(MeshBlock *pmb, int step)
     return TASK_NEXT;
   }
 
-  if((step == 2) && (integrator == "vl2")) {
-    // Van-Leer is not appropriate for the vector wave equation
+  if((step == 2) && (integrator != "rk2")) {
+    // We only allow rk2 for the wave equation
     return TASK_FAIL;
   }
 

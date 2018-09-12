@@ -1365,12 +1365,10 @@ void BoundaryValues::ClearBoundaryForInit(bool cons_and_field) {
   for (int n=0;n<nneighbor;n++) {
     NeighborBlock& nb = neighbor[n];
     bd_hydro_.flag[nb.bufid] = BNDRY_WAITING;
-    if (WAVE_ENABLED) {
-      wave_flag_[nb.bufid] = BNDRY_WAITING;
-    }
-    if (VWAVE_ENABLED) {
-      vwave_flag_[nb.bufid] = BNDRY_WAITING;
-    }
+    if (WAVE_ENABLED)
+      bd_wave_.flag[nb.bufid] = BNDRY_WAITING;
+    if (VWAVE_ENABLED)
+      bd_vwave_.flag[nb.bufid] = BNDRY_WAITING;
     if (MAGNETIC_FIELDS_ENABLED)
       bd_field_.flag[nb.bufid] = BNDRY_WAITING;
     if (GENERAL_RELATIVITY and pmy_mesh_->multilevel)
@@ -1410,12 +1408,10 @@ void BoundaryValues::ClearBoundaryAll(void) {
   for (int n=0;n<nneighbor;n++) {
     NeighborBlock& nb = neighbor[n];
     bd_hydro_.flag[nb.bufid] = BNDRY_WAITING;
-    if (WAVE_ENABLED) {
-      wave_flag_[nb.bufid] = BNDRY_WAITING;
-    }
-    if (VWAVE_ENABLED) {
-      vwave_flag_[nb.bufid] = BNDRY_WAITING;
-    }
+    if (WAVE_ENABLED)
+      bd_wave_.flag[nb.bufid] = BNDRY_WAITING;
+    if (VWAVE_ENABLED)
+      bd_vwave_.flag[nb.bufid] = BNDRY_WAITING;
     if (nb.type==NEIGHBOR_FACE)
       bd_flcor_.flag[nb.bufid] = BNDRY_WAITING;
     if (MAGNETIC_FIELDS_ENABLED) {
@@ -1616,14 +1612,13 @@ void BoundaryValues::ApplyPhysicalBoundaries(AthenaArray<Real> &pdst,
 
 //----------------------------------------------------------------------------------------
 //! \fn void BoundaryValues::ProlongateBoundaries(AthenaArray<Real> &pdst,
-//           AthenaArray<Real> &cdst, FaceField &bdst, AthenaArray<Real> &bcdst,
-//           const Real time, const Real dt)
+//           AthenaArray<Real> &cdst, AthenaArray<Real> &waveu, AthenaArray<Real> &vwaveu,
+//           FaceField &bdst, AthenaArray<Real> &bcdst, const Real time, const Real dt)
 //  \brief Prolongate the level boundary using the coarse data
 
 void BoundaryValues::ProlongateBoundaries(AthenaArray<Real> &pdst,
-     AthenaArray<Real> &cdst, FaceField &bfdst, AthenaArray<Real> &bcdst,
-     AthenaArray<Real> &waveu, AthenaArray<Real> &vwaveu,
-     const Real time, const Real dt) {
+     AthenaArray<Real> &cdst, AthenaArray<Real> &waveu, AthenaArray<Real> &vwaveu,
+     FaceField &bfdst, AthenaArray<Real> &bcdst, const Real time, const Real dt) {
   MeshBlock *pmb=pmy_block_;
   MeshRefinement *pmr=pmb->pmr;
   int64_t &lx1=pmb->loc.lx1;

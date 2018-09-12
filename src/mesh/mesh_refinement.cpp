@@ -546,7 +546,7 @@ void MeshRefinement::ProlongateCellCenteredValues(const AthenaArray<Real> &coars
         Real dx1fp= fx1p-x1c;
         Real ccval=coarse(n,k,j,i);
 
-        Real gx1c
+        Real gx1c;
         // calculate 1D gradient using the min-mod limiter
         if (slope_limit) {
             Real gx1m = (ccval - coarse(n,k,j,i-1))/dx1m;
