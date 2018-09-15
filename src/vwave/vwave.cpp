@@ -7,7 +7,7 @@
 //  \brief implementation of functions in the VWave class
 
 // Athena++ headers
-#include "vect_wave.hpp"
+#include "vwave.hpp"
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../mesh/mesh.hpp"

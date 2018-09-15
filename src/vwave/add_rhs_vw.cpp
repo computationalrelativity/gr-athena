@@ -7,7 +7,7 @@
 //  \brief adds the vectorial wave equation RHS to the state vector
 
 // Athena++ headers
-#include "vect_wave.hpp"
+#include "vwave.hpp"
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../athena_tensor.hpp"

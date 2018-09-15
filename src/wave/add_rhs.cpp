@@ -23,7 +23,7 @@
 //  previous step(s) of the time integrator
 
 void Wave::AddRHSToVals(AthenaArray<Real> & u1, AthenaArray<Real> & u2,
-    IntegratorWeight wght, AthenaArray<Real> &u_out) {
+    IntegratorWeight w, AthenaArray<Real> &u_out) {
   MeshBlock *pmb=pmy_block;
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
@@ -40,10 +40,15 @@ void Wave::AddRHSToVals(AthenaArray<Real> & u1, AthenaArray<Real> & u2,
       for(int j=js; j<=je; ++j) {
 #pragma simd
         for(int i=is; i<=ie; ++i) {
-          u_out(0,k,j,i) = wght.a*u1(0,k,j,i) + wght.b*u2(0,k,j,i) +
-            wght.c*(pmb->pmy_mesh->dt)*rhs(0,k,j,i);
-          u_out(1,k,j,i) = wght.a*u1(1,k,j,i) + wght.b*u2(1,k,j,i) +
-            wght.c*(pmb->pmy_mesh->dt)*rhs(1,k,j,i);
+
+          u_out(0,k,j,i) = w.gamma_2*u1(0,k,j,i) + w.gamma_1*u2(0,k,j,i) +
+            w.beta*(pmb->pmy_mesh->dt)*rhs(0,k,j,i);
+          u_out(1,k,j,i) = w.gamma_2*u1(1,k,j,i) + w.gamma_1*u2(1,k,j,i) +
+            w.beta*(pmb->pmy_mesh->dt)*rhs(1,k,j,i);
+//          u_out(0,k,j,i) = wght.a*u1(0,k,j,i) + wght.b*u2(0,k,j,i) +
+//            wght.c*(pmb->pmy_mesh->dt)*rhs(0,k,j,i);
+//          u_out(1,k,j,i) = wght.a*u1(1,k,j,i) + wght.b*u2(1,k,j,i) +
+//            wght.c*(pmb->pmy_mesh->dt)*rhs(1,k,j,i);
         }
       }
     }

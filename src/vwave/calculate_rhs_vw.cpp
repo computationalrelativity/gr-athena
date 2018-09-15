@@ -12,7 +12,7 @@
 #include <stdexcept>  // runtime_error
 
 // Athena++ headers
-#include "vect_wave.hpp"
+#include "vwave.hpp"
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../athena_tensor.hpp"

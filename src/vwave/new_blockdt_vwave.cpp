@@ -12,7 +12,7 @@
 #include <cmath>      // fabs(), sqrt()
 
 // Athena++ headers
-#include "vect_wave.hpp"
+#include "vwave.hpp"
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../athena_tensor.hpp"

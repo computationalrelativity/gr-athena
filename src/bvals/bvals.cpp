@@ -774,6 +774,10 @@ void BoundaryValues::InitBoundaryData(BoundaryData &bd, enum BoundaryType type) 
         }
       }
       break;
+      case BNDRY_WAVE: {
+        std::cout << "Pim!" << std::endl;
+      }
+        break;
       default: {
         std::stringstream msg;
         msg << "### FATAL ERROR in InitBoundaryData" << std::endl
