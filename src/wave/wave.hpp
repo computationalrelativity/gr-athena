@@ -34,8 +34,8 @@ class Wave {
 
     // functions
     Real NewBlockTimeStep(void);       // compute new timestep on a MeshBlock
-    void CalculateRHS(AthenaArray<Real> & u, int order);
-    void AddRHSToVals(AthenaArray<Real> & u1, AthenaArray<Real> & u2,
+    void WaveRHS(AthenaArray<Real> & u, int order);
+    void AddWaveRHSToVals(AthenaArray<Real> & u1, AthenaArray<Real> & u2,
         IntegratorWeight step_wghts, AthenaArray<Real> &u_out);
   private:
     AthenaArray<Real> dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep

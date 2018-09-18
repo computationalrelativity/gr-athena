@@ -35,9 +35,9 @@ class Vwave {
 
     // functions
     Real NewBlockTimeStep(void);       // compute new timestep on a MeshBlock
-    void CalculateRHS(AthenaArray<Real> & u, int order);
-    void AddRHSToVals(AthenaArray<Real> & u1, AthenaArray<Real> & u2,
-        IntegratorWeight wght, AthenaArray<Real> &u_out);
+    void VwaveRHS(AthenaArray<Real> & u, int order);
+    void AddVwaveRHSToVals(AthenaArray<Real> & u1, AthenaArray<Real> & u2,
+        IntegratorWeight w, AthenaArray<Real> &u_out);
   private:
     AthenaArray<Real> dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep
 };

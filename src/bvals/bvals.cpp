@@ -775,9 +775,39 @@ void BoundaryValues::InitBoundaryData(BoundaryData &bd, enum BoundaryType type) 
       }
       break;
       case BNDRY_WAVE: {
-        std::cout << "Pim!" << std::endl;
+        size=((BoundaryValues::ni[n].ox1==0)?pmb->block_size.nx1:NGHOST)
+            *((BoundaryValues::ni[n].ox2==0)?pmb->block_size.nx2:NGHOST)
+            *((BoundaryValues::ni[n].ox3==0)?pmb->block_size.nx3:NGHOST);
+        if (multilevel) {
+          int f2c=((BoundaryValues::ni[n].ox1==0) ? ((pmb->block_size.nx1+1)/2):NGHOST)
+                 *((BoundaryValues::ni[n].ox2==0) ? ((pmb->block_size.nx2+1)/2):NGHOST)
+                 *((BoundaryValues::ni[n].ox3==0) ? ((pmb->block_size.nx3+1)/2):NGHOST);
+          int c2f=((BoundaryValues::ni[n].ox1==0) ? ((pmb->block_size.nx1+1)/2+cng1):cng)
+                 *((BoundaryValues::ni[n].ox2==0) ? ((pmb->block_size.nx2+1)/2+cng2):cng)
+                 *((BoundaryValues::ni[n].ox3==0) ? ((pmb->block_size.nx3+1)/2+cng3):cng);
+          size=std::max(size,c2f);
+          size=std::max(size,f2c);
+        }
+        size*=NWAVE;
       }
         break;
+    case BNDRY_VWAVE: {
+      size=((BoundaryValues::ni[n].ox1==0)?pmb->block_size.nx1:NGHOST)
+          *((BoundaryValues::ni[n].ox2==0)?pmb->block_size.nx2:NGHOST)
+          *((BoundaryValues::ni[n].ox3==0)?pmb->block_size.nx3:NGHOST);
+      if (multilevel) {
+        int f2c=((BoundaryValues::ni[n].ox1==0) ? ((pmb->block_size.nx1+1)/2):NGHOST)
+               *((BoundaryValues::ni[n].ox2==0) ? ((pmb->block_size.nx2+1)/2):NGHOST)
+               *((BoundaryValues::ni[n].ox3==0) ? ((pmb->block_size.nx3+1)/2):NGHOST);
+        int c2f=((BoundaryValues::ni[n].ox1==0) ? ((pmb->block_size.nx1+1)/2+cng1):cng)
+               *((BoundaryValues::ni[n].ox2==0) ? ((pmb->block_size.nx2+1)/2+cng2):cng)
+               *((BoundaryValues::ni[n].ox3==0) ? ((pmb->block_size.nx3+1)/2+cng3):cng);
+        size=std::max(size,c2f);
+        size=std::max(size,f2c);
+      }
+      size*=NWAVE;
+    }
+      break;
       default: {
         std::stringstream msg;
         msg << "### FATAL ERROR in InitBoundaryData" << std::endl

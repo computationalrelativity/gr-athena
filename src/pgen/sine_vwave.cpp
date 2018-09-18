@@ -15,7 +15,7 @@
 #include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
 #include "../hydro/hydro.hpp"
-#include "../vect_wave/vect_wave.hpp"
+#include "../vwave/vwave.hpp"
 
 //========================================================================================
 //! \fn void MeshBlock::ProblemGenerator(ParameterInput *pin)

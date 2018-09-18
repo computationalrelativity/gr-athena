@@ -350,9 +350,16 @@ void TimeIntegratorTaskList::AddTimeIntegratorTask(uint64_t id, uint64_t dep) {
         (&TimeIntegratorTaskList::CalculateEMF);
       break;
     case (CALC_WAVERHS):
-      task_list_[ntasks].TaskFunc=
-        static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&TimeIntegratorTaskList::CalculateWaveRHS);
+      if (WAVE_ENABLED) {
+          task_list_[ntasks].TaskFunc=
+            static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
+            (&TimeIntegratorTaskList::CalculateWaveRHS);
+      }
+      if (VWAVE_ENABLED) {
+          task_list_[ntasks].TaskFunc=
+            static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
+            (&TimeIntegratorTaskList::CalculateVwaveRHS);
+      }
       break;
 
     case (SEND_HYDFLX):
@@ -388,11 +395,17 @@ void TimeIntegratorTaskList::AddTimeIntegratorTask(uint64_t id, uint64_t dep) {
         (&TimeIntegratorTaskList::FieldIntegrate);
       break;
     case (INT_WAVE):
-      task_list_[ntasks].TaskFunc=
-        static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&TimeIntegratorTaskList::WaveIntegrate);
+      if (WAVE_ENABLED) {
+        task_list_[ntasks].TaskFunc=
+            static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
+            (&TimeIntegratorTaskList::WaveIntegrate);
+      }
+      if (VWAVE_ENABLED) {
+        task_list_[ntasks].TaskFunc=
+            static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
+            (&TimeIntegratorTaskList::VwaveIntegrate);
+      }
       break;
-
     case (SRCTERM_HYD):
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
@@ -410,9 +423,16 @@ void TimeIntegratorTaskList::AddTimeIntegratorTask(uint64_t id, uint64_t dep) {
         (&TimeIntegratorTaskList::FieldSend);
       break;
     case (SEND_WAVE):
+      if (WAVE_ENABLED) {
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
         (&TimeIntegratorTaskList::WaveSend);
+      }
+      if (VWAVE_ENABLED) {
+      task_list_[ntasks].TaskFunc=
+        static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
+        (&TimeIntegratorTaskList::VwaveSend);
+      }
       break;
 
     case (RECV_HYD):
@@ -426,9 +446,16 @@ void TimeIntegratorTaskList::AddTimeIntegratorTask(uint64_t id, uint64_t dep) {
         (&TimeIntegratorTaskList::FieldReceive);
       break;
     case (RECV_WAVE):
+      if (WAVE_ENABLED) {
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
         (&TimeIntegratorTaskList::WaveReceive);
+      }
+      if (VWAVE_ENABLED) {
+      task_list_[ntasks].TaskFunc=
+        static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
+        (&TimeIntegratorTaskList::VwaveReceive);
+      }
       break;
 
     case (SEND_HYDSH):
@@ -580,11 +607,11 @@ enum TaskStatus TimeIntegratorTaskList::CalculateEMF(MeshBlock *pmb, int step) {
 enum TaskStatus TimeIntegratorTaskList::CalculateWaveRHS(MeshBlock *pmb, int step)
 {
   if(step == 1) {
-    pmb->pwave->CalculateRHS(pmb->pwave->u, 2*NGHOST);
+    pmb->pwave->WaveRHS(pmb->pwave->u, 2*NGHOST);
     return TASK_NEXT;
   }
   if(step == 2) {
-    pmb->pwave->CalculateRHS(pmb->pwave->u1, 2*NGHOST);
+    pmb->pwave->WaveRHS(pmb->pwave->u1, 2*NGHOST);
     return TASK_NEXT;
   }
   return TASK_FAIL;
@@ -593,11 +620,11 @@ enum TaskStatus TimeIntegratorTaskList::CalculateWaveRHS(MeshBlock *pmb, int ste
 enum TaskStatus TimeIntegratorTaskList::CalculateVwaveRHS(MeshBlock *pmb, int step)
 {
   if(step == 1) {
-    pmb->pvwave->CalculateRHS(pmb->pvwave->u, 2*NGHOST);
+    pmb->pvwave->VwaveRHS(pmb->pvwave->u, 2*NGHOST);
     return TASK_NEXT;
   }
   if(step == 2) {
-    pmb->pvwave->CalculateRHS(pmb->pvwave->u1, 2*NGHOST);
+    pmb->pvwave->VwaveRHS(pmb->pvwave->u1, 2*NGHOST);
     return TASK_NEXT;
   }
   return TASK_FAIL;
@@ -688,40 +715,36 @@ enum TaskStatus TimeIntegratorTaskList::WaveIntegrate(MeshBlock *pmb, int step)
 {
   Wave * pwave = pmb->pwave;
 
-  if(step == 1) {
-    pmb->pwave->AddRHSToVals(pwave->u, pwave->u, step_wghts[0], pwave->u1);
-    return TASK_NEXT;
-  }
-
-  if((step == 2) && (integrator != "rk2")) {
-    // We only allow rk2 for the wave equation
+  if (integrator != "rk2") {
+      std::cout << "Only rk2 integrator is allowed for the wave eqn." << std::endl;
     return TASK_FAIL;
   }
 
-  if((step == 2) && (integrator == "rk2")) {
-    pmb->pwave->AddRHSToVals(pwave->u, pwave->u1, step_wghts[1], pwave->u);
+  if(step == 1) {
+    pmb->pwave->AddWaveRHSToVals(pwave->u, pwave->u, step_wghts[0], pwave->u1);
     return TASK_NEXT;
   }
-
-  return TASK_FAIL;
+  if(step == 2) {
+    pmb->pwave->AddWaveRHSToVals(pwave->u, pwave->u1, step_wghts[1], pwave->u);
+    return TASK_NEXT;
+  }  
 }
 
 enum TaskStatus TimeIntegratorTaskList::VwaveIntegrate(MeshBlock *pmb, int step)
 {
   Vwave * pvwave = pmb->pvwave;
 
-  if(step == 1) {
-    pmb->pvwave->AddRHSToVals(pvwave->u, pvwave->u, step_wghts[0], pvwave->u1);
-    return TASK_NEXT;
-  }
-
-  if((step == 2) && (integrator != "rk2")) {
-    // We only allow rk2 for the wave equation
+  if (integrator != "rk2") {
+      std::cout << "Only rk2 integrator is allowed for the wave eqn." << std::endl;
     return TASK_FAIL;
   }
 
-  if((step == 2) && (integrator == "rk2")) {
-    pmb->pvwave->AddRHSToVals(pvwave->u, pvwave->u1, step_wghts[1], pvwave->u);
+  if(step == 1) {
+    pmb->pvwave->AddVwaveRHSToVals(pvwave->u, pvwave->u, step_wghts[0], pvwave->u1);
+    return TASK_NEXT;
+  }
+  if(step == 2) {
+    pmb->pvwave->AddVwaveRHSToVals(pvwave->u, pvwave->u1, step_wghts[1], pvwave->u);
     return TASK_NEXT;
   }
 

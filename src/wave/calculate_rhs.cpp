@@ -39,7 +39,7 @@ static Real const diff_2_ord_8[] = {
 //! \fn void Wave::CalculateRHS
 //  \brief Calculate RHS for the wave equation using finite-differencing
 
-void Wave::CalculateRHS(AthenaArray<Real> & u, int order)
+void Wave::WaveRHS(AthenaArray<Real> & u, int order)
 {
   std::stringstream msg;
 

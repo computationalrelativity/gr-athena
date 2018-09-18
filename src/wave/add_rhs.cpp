@@ -22,7 +22,7 @@
 //  \brief Adds the RHS to the weighted average of conservative variables from
 //  previous step(s) of the time integrator
 
-void Wave::AddRHSToVals(AthenaArray<Real> & u1, AthenaArray<Real> & u2,
+void Wave::AddWaveRHSToVals(AthenaArray<Real> & u1, AthenaArray<Real> & u2,
     IntegratorWeight w, AthenaArray<Real> &u_out) {
   MeshBlock *pmb=pmy_block;
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
@@ -40,7 +40,6 @@ void Wave::AddRHSToVals(AthenaArray<Real> & u1, AthenaArray<Real> & u2,
       for(int j=js; j<=je; ++j) {
 #pragma simd
         for(int i=is; i<=ie; ++i) {
-
           u_out(0,k,j,i) = w.gamma_2*u1(0,k,j,i) + w.gamma_1*u2(0,k,j,i) +
             w.beta*(pmb->pmy_mesh->dt)*rhs(0,k,j,i);
           u_out(1,k,j,i) = w.gamma_2*u1(1,k,j,i) + w.gamma_1*u2(1,k,j,i) +

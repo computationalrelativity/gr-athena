@@ -40,7 +40,7 @@ static Real const diff_2_ord_8[] = {
 //! \fn void Vwave::CalculateRHS
 //  \brief Calculate RHS for the vectorial wave equation using finite-differencing
 
-void Vwave::CalculateRHS(AthenaArray<Real> & u, int order)
+void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
 {
   std::stringstream msg;
 
