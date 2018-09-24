@@ -11,16 +11,19 @@
 //  Convention: indices a,b,c,d are tensor indices. Indices n,i,j,k are grid indices.
 
 #include "athena_arrays.hpp"
+#include "athena.hpp"
 
 // tensor symmetries
-enum class TensorSymm {
-  none,     // no symmetries
-  sym2,     // symmetric in the last 2 indices
-  sym22,    // symmetric in the last 2 pairs of indices
+/* enum class TensorSymm {
+  NONE,     // no symmetries
+  SYM2,     // symmetric in the last 2 indices
+  SYM22,    // symmetric in the last 2 pairs of indices
 };
+*/
+
 
 // this is the abstract base class
-template<typename T, TensorSymm sym, int ndim, int rank>
+template<typename T, enum TensorSymm sym, int ndim, int rank>
 class AthenaTensor;
 
 //----------------------------------------------------------------------------------------
@@ -357,14 +360,14 @@ private:
 template<typename T, TensorSymm sym, int ndim>
 AthenaTensor<T, sym, ndim, 2>::AthenaTensor() {
   switch(sym) {
-    case TensorSymm::none:
+    case TensorSymm::NONE:
       ndof_ = 0;
       for(int a = 0; a < ndim; ++a)
       for(int b = 0; b < ndim; ++b) {
         idxmap_[a][b] = ndof_++;
       }
       break;
-    case TensorSymm::sym2:
+    case TensorSymm::SYM2:
       ndof_ = 0;
       for(int a = 0; a < ndim; ++a)
       for(int b = a; b < ndim; ++b) {
@@ -381,7 +384,7 @@ AthenaTensor<T, sym, ndim, 2>::AthenaTensor() {
 template<typename T, TensorSymm sym, int ndim>
 AthenaTensor<T, sym, ndim, 3>::AthenaTensor() {
   switch(sym) {
-    case TensorSymm::none:
+    case TensorSymm::NONE:
       ndof_ = 0;
       for(int a = 0; a < ndim; ++a)
       for(int b = 0; b < ndim; ++b)
@@ -389,7 +392,7 @@ AthenaTensor<T, sym, ndim, 3>::AthenaTensor() {
         idxmap_[a][b][c] = ndof_++;
       }
       break;
-    case TensorSymm::sym2:
+    case TensorSymm::SYM2:
       ndof_ = 0;
       for(int a = 0; a < ndim; ++a)
       for(int b = 0; b < ndim; ++b)
@@ -407,7 +410,7 @@ AthenaTensor<T, sym, ndim, 3>::AthenaTensor() {
 template<typename T, TensorSymm sym, int ndim>
 AthenaTensor<T, sym, ndim, 4>::AthenaTensor() {
   switch(sym) {
-    case TensorSymm::none:
+    case TensorSymm::NONE:
       ndof_ = 0;
       for(int a = 0; a < ndim; ++a)
       for(int b = 0; b < ndim; ++b)
@@ -416,7 +419,7 @@ AthenaTensor<T, sym, ndim, 4>::AthenaTensor() {
         idxmap_[a][b][c][d] = ndof_++;
       }
       break;
-    case TensorSymm::sym2:
+    case TensorSymm::SYM2:
       ndof_ = 0;
       for(int a = 0; a < ndim; ++a)
       for(int b = 0; b < ndim; ++b)
@@ -426,7 +429,7 @@ AthenaTensor<T, sym, ndim, 4>::AthenaTensor() {
         idxmap_[a][b][d][c] = idxmap_[a][b][c][d];
       }
       break;
-    case TensorSymm::sym22:
+    case TensorSymm::SYM22:
       ndof_ = 0;
       for(int a = 0; a < ndim; ++a)
       for(int b = a; b < ndim; ++b)

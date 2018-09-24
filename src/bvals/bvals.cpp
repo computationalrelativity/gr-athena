@@ -1298,6 +1298,7 @@ void BoundaryValues::StartReceivingAll(const Real time) {
         MPI_Start(&req_wave_recv_[nb.bufid]);
       }
       if (VWAVE_ENABLED) {
+                    std::cout << "Paam" << std::endl;
         MPI_Start(&req_vwave_recv_[nb.bufid]);
       }
       if (nb.type==NEIGHBOR_FACE && nb.level>mylevel)

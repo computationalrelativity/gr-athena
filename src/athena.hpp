@@ -16,6 +16,7 @@
 
 // Athena++ headers
 #include "athena_arrays.hpp"
+//#include "athena_tensor.hpp"
 #include "defs.hpp"
 
 // typedefs that allow code to run with either floats or doubles
@@ -119,6 +120,8 @@ enum BoundaryType {BNDRY_HYDRO=0, BNDRY_FIELD=1, BNDRY_GRAVITY=2, BNDRY_MGGRAV=3
                    BNDRY_MGGRAVF=4, BNDRY_FLCOR=5, BNDRY_EMFCOR=6, BNDRY_WAVE=7, BNDRY_VWAVE=8};
 enum CCBoundaryType {HYDRO_CONS=0, HYDRO_PRIM=1, WAVE_SOL=2, VWAVE_SOL=3};
 enum FluxCorrectionType {FLUX_HYDRO=0};
+
+enum TensorSymm {NONE, SYM2, SYM22};
 
 //----------------------------------------------------------------------------------------
 // function pointer prototypes for user-defined modules set at runtime

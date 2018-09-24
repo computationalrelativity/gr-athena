@@ -49,6 +49,11 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
 
+  // TensorArray * pg = pmb->pvwave->g;
+
+  // StateVector * active = pmb->pvwave->StateVectorActive;
+  // StateVector * rhs = pmb->pvwave->StateVectorRHS;
+
   Real const * stencil;
   switch(order) {
     case 2:
@@ -78,51 +83,38 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
     tid = omp_get_thread_num();
 #endif
 
-//..........................................................................................
-/*
-        for(int k=ks; k<=ke; ++k) {
-            for(int j=js; j<=je; ++j) {
-       
-                for (int a=0; a<NDIM; ++a) {
-                    for (int b=a; b<NDIM; ++b) {
-#pragma omp simd alingned (...) //what goes in the parenthesis?
-                        for(int i=is; i<=ie; ++i) {
-                        //compute K here
-                        rhs[a][b][i] = -2.*K[a][b][i];
-                        }
-                        
-                        
-                        /*
-                        u_out(0,k,j,i) = wght.a*u1(0,k,j,i) + wght.b*u2(0,k,j,i) +
-                        wght.c*(pmb->pmy_mesh->dt)*rhs(0,k,j,i);
-                        u_out(1,k,j,i) = wght.a*u1(1,k,j,i) + wght.b*u2(1,k,j,i) +
-                        wght.c*(pmb->pmy_mesh->dt)*rhs(1,k,j,i);
-                        */
-//                    }
-                    
-/*
-                    for (int a=0; a<NDIM; ++a) {
-                        for (int b=a; b<NDIM; ++b) {
-#pragma omp simd alingned (...) //parenthesis?
-                            for(int i=is; i<=ie; ++i) {
-                                //get [ijk]
-                                R[a][b][ijk]= 0.;
-                                for (int c=0; c<NDIM; ++c) {
-                                    for (int d=0; d<NDIM; ++d) {
-                                    //Compute Ricci tensor
-                                    rhs[a][b][ijk] = R[a][b][ijk];                                
-                                    }
-                                }
-                            }
-                        }
-                    }
+    //..........................................................................................
+    // The following mimics the RedForest implementation
+
+    for(int a = 0; a < 2; ++a)
+    for(int b = a; b < 2; ++b) {
+        memset(rhs->h[a][b], 0, BLK_NDOF*sizeof(*rhs->h[a][b]));
+        memset(rhs->K[a][b], 0, BLK_NDOF*sizeof(*rhs->K[a][b]));
+  }
+
+    update_eta(u);
+    compute_Ricci(u,eta,h);
+
+//#pragma omp parallel for collapse(2) schedule(static)
+    for(int i = is; i < ie; ++i) {
+    for(int j = js; j < je; ++j) {
+        for(int a = 0; a < NDIM; ++a) {
+            for(int b = a; b < NDIM; ++b) {
+//#if VECTORIZE==1
+//#pragma vector aligned
+//#pragma omp simd
+//#endif
+                for(int k = ks; k < ke; ++k) {
+                    int const ijk = GFINDEX3D(i, j, k);
+                    rhs->h[a][b][ijk] = -2*u->K[a][b][ijk];
+                    rhs->K[a][b][ijk] = R[a][b][ijk];
                 }
             }
         }
-*/
-//..........................................................................................    
-    
-    
+    }
+    }
+
+/*
 //----------------------------------------------------------------------------------------
 // i-direction
 
@@ -186,6 +178,6 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
       }
     }
   } // end of parallel region
-
+*/
   return;
 }

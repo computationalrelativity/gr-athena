@@ -8,6 +8,7 @@
 
 // needed for vector of pointers in DoTaskListOneSubstep()
 #include <vector>
+#include <iostream>
 
 // Athena++ classes headers
 #include "../athena.hpp"
@@ -82,6 +83,7 @@ void TaskList::DoTaskListOneSubstep(Mesh *pmesh, int step) {
 
   // initialize a vector of MeshBlock pointers
   int nmb = pmesh->GetNumMeshBlocksThisRank(Globals::my_rank);
+  std::cout << "Number of Mesh Blocks (nmb) = " << nmb << std::endl;
   std::vector<MeshBlock*> pmb_array(nmb);
   pmb = pmesh->pblock;
   for (int i=0; i<nmb; ++i) {

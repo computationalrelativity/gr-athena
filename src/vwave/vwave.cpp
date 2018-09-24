@@ -3,7 +3,7 @@
 // Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
 // Licensed under the 3-clause BSD License, see LICENSE file for details
 //========================================================================================
-//! \file vect_wave.hpp
+//! \file vwave.hpp
 //  \brief implementation of functions in the VWave class
 
 // Athena++ headers
@@ -11,7 +11,7 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../mesh/mesh.hpp"
-#include "../athena_tensor.hpp"
+//#include "../athena_tensor.hpp"
 
 // constructor, initializes data structures and parameters
 
@@ -25,9 +25,13 @@ Vwave::Vwave(MeshBlock *pmb, ParameterInput *pin)
   if(pmy_block->block_size.nx2 > 1) ncells2 = pmy_block->block_size.nx2 + 2*(NGHOST);
   if(pmy_block->block_size.nx3 > 1) ncells3 = pmy_block->block_size.nx3 + 2*(NGHOST);
 
-  u.NewAthenaArray(2, ncells3, ncells2, ncells1);
-  u1.NewAthenaArray(2, ncells3, ncells2, ncells1);
+  u.  NewAthenaArray(2, ncells3, ncells2, ncells1);
+  u1. NewAthenaArray(2, ncells3, ncells2, ncells1);
   rhs.NewAthenaArray(2, ncells3, ncells2, ncells1);
+
+  g.NewAthenaTensor(2, ncells3, ncells2, ncells1);
+  K.NewAthenaTensor(2, ncells3, ncells2, ncells1);
+  R.NewAthenaTensor(2, ncells3, ncells2, ncells1);
 
   c = pin->GetOrAddReal("vwave", "c", 1.0);
 
@@ -44,6 +48,10 @@ Vwave::~Vwave()
   u.DeleteAthenaArray();
   u1.DeleteAthenaArray();
   rhs.DeleteAthenaArray();
+
+  g.DeleteAthenaTensor();
+  K.DeleteAthenaTensor();
+  R.DeleteAthenaTensor();
 
   dt1_.DeleteAthenaArray();
   dt2_.DeleteAthenaArray();
