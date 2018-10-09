@@ -27,6 +27,7 @@ Wave::Wave(MeshBlock *pmb, ParameterInput *pin)
   u.NewAthenaArray(2, ncells3, ncells2, ncells1);
   u1.NewAthenaArray(2, ncells3, ncells2, ncells1);
   rhs.NewAthenaArray(2, ncells3, ncells2, ncells1);
+  exact.NewAthenaArray(1, ncells3, ncells2, ncells1);
 
   c = pin->GetOrAddReal("wave", "c", 1.0);
 
@@ -43,6 +44,7 @@ Wave::~Wave()
   u.DeleteAthenaArray();
   u1.DeleteAthenaArray();
   rhs.DeleteAthenaArray();
+  exact.DeleteAthenaArray();
 
   dt1_.DeleteAthenaArray();
   dt2_.DeleteAthenaArray();

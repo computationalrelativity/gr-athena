@@ -29,6 +29,7 @@ class Wave {
     AthenaArray<Real> u;               // solution of the wave equation
     AthenaArray<Real> u1;              // solution of the wave equation at intermediate step
     AthenaArray<Real> rhs;             // wave equation rhs
+    AthenaArray<Real> exact;           // exact solution of of the wave equation
 
     Real c;                            // light speed
 
@@ -37,6 +38,8 @@ class Wave {
     void WaveRHS(AthenaArray<Real> & u, int order);
     void AddWaveRHSToVals(AthenaArray<Real> & u1, AthenaArray<Real> & u2,
         IntegratorWeight step_wghts, AthenaArray<Real> &u_out);
+    void ComputeExactSol();
+
   private:
     AthenaArray<Real> dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep
 };

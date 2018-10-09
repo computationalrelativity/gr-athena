@@ -122,6 +122,8 @@ public:
   enum TaskStatus WaveIntegrate(MeshBlock *pmb, int step);
   enum TaskStatus VwaveIntegrate(MeshBlock *pmb, int step);
 
+  enum TaskStatus WaveExact(MeshBlock *pmb, int step);
+
   enum TaskStatus HydroSourceTerms(MeshBlock *pmb, int step);
 
   enum TaskStatus HydroDiffusion(MeshBlock *pmb, int step);
@@ -242,6 +244,9 @@ namespace HydroIntegratorTaskNames {
   const uint64_t DIFFUSE_HYD=1LL<<58;
   const uint64_t DIFFUSE_FLD=1LL<<59;
   const uint64_t CALC_DIFFUSIVITY=1LL<<60;
+
+  const uint64_t EXACT_WAVE=1LL<<61;
+
 } // namespace HydroIntegratorTaskNames
 
 #endif // TASK_LIST_TASK_LIST_HPP_

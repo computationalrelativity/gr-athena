@@ -77,6 +77,8 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
 
   int tid = 0;
   int nthreads = pmb->pmy_mesh->GetNumMeshThreads();
+
+  /*
 #pragma omp parallel default(shared) private(tid) num_threads(nthreads)
   {
 #ifdef OPENMP_PARALLEL
@@ -179,5 +181,6 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
     }
   } // end of parallel region
 */
+
   return;
 }

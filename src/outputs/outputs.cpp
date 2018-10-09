@@ -17,7 +17,7 @@
 // created for each and every <outputN> block in the input file.
 //
 // Required parameters that must be specified in an <outputN> block are:
-//   - variable     = cons,prim,D,d,E,e,m,v,wave,wave_u,wave_pi,vwave,vwave_u,vwave_pi
+//   - variable     = cons,prim,D,d,E,e,m,v,wave,wave_u,wave_pi,exact,vwave,vwave_u,vwave_pi
 //   - file_type    = rst,tab,vtk,hst
 //   - dt           = problem time between outputs
 //
@@ -472,6 +472,15 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       pod->type = "SCALARS";
       pod->name = "wPI";
       pod->data.InitWithShallowSlice(pwave->u,4,1,1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+    if (output_params.variable.compare("wave") == 0 ||
+        output_params.variable.compare("wave_exact") == 0) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "wExact";
+      pod->data.InitWithShallowSlice(pwave->exact,4,0,1);
       AppendOutputDataNode(pod);
       num_vars_++;
     }

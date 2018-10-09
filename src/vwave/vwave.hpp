@@ -32,9 +32,9 @@ class Vwave {
     AthenaArray<Real> rhs; // vectorial wave equation rhs
 
 
-    AthenaTensor<Real, SYM2, 3, 2> g; // Metric tensor
-    AthenaTensor<Real, SYM2, 3, 2> K; // Extrinsic curvature tensor
-    AthenaTensor<Real, SYM2, 3, 2> R; // Ricci tensor
+//    AthenaTensor<Real, SYM2, 3, 2> g; // Metric tensor
+//    AthenaTensor<Real, SYM2, 3, 2> K; // Extrinsic curvature tensor
+//    AthenaTensor<Real, SYM2, 3, 2> R; // Ricci tensor
     Real c;                // light speed
 
     // functions

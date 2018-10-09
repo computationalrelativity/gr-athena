@@ -29,9 +29,9 @@ Vwave::Vwave(MeshBlock *pmb, ParameterInput *pin)
   u1. NewAthenaArray(2, ncells3, ncells2, ncells1);
   rhs.NewAthenaArray(2, ncells3, ncells2, ncells1);
 
-  g.NewAthenaTensor(2, ncells3, ncells2, ncells1);
-  K.NewAthenaTensor(2, ncells3, ncells2, ncells1);
-  R.NewAthenaTensor(2, ncells3, ncells2, ncells1);
+  //g.NewAthenaTensor(2, ncells3, ncells2, ncells1);
+  //K.NewAthenaTensor(2, ncells3, ncells2, ncells1);
+  //R.NewAthenaTensor(2, ncells3, ncells2, ncells1);
 
   c = pin->GetOrAddReal("vwave", "c", 1.0);
 
@@ -49,9 +49,9 @@ Vwave::~Vwave()
   u1.DeleteAthenaArray();
   rhs.DeleteAthenaArray();
 
-  g.DeleteAthenaTensor();
-  K.DeleteAthenaTensor();
-  R.DeleteAthenaTensor();
+//  g.DeleteAthenaTensor();
+//  K.DeleteAthenaTensor();
+//  R.DeleteAthenaTensor();
 
   dt1_.DeleteAthenaArray();
   dt2_.DeleteAthenaArray();

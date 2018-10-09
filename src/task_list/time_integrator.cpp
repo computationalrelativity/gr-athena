@@ -260,6 +260,7 @@ TimeIntegratorTaskList::TimeIntegratorTaskList(ParameterInput *pin, Mesh *pm)
       AddTimeIntegratorTask(INT_WAVE,     CALC_WAVERHS);
       AddTimeIntegratorTask(SEND_WAVE,    INT_WAVE);
       AddTimeIntegratorTask(RECV_WAVE,    START_ALLRECV);
+      AddTimeIntegratorTask(EXACT_WAVE,   INT_WAVE);
     }
 
     // prolongate, compute new primitives
@@ -406,6 +407,13 @@ void TimeIntegratorTaskList::AddTimeIntegratorTask(uint64_t id, uint64_t dep) {
             (&TimeIntegratorTaskList::VwaveIntegrate);
       }
       break;
+    case (EXACT_WAVE):
+      if (WAVE_ENABLED) {
+        task_list_[ntasks].TaskFunc=
+        static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
+        (&TimeIntegratorTaskList::WaveExact);
+        }
+    break;
     case (SRCTERM_HYD):
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
@@ -457,7 +465,6 @@ void TimeIntegratorTaskList::AddTimeIntegratorTask(uint64_t id, uint64_t dep) {
         (&TimeIntegratorTaskList::VwaveReceive);
       }
       break;
-
     case (SEND_HYDSH):
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
@@ -751,6 +758,13 @@ enum TaskStatus TimeIntegratorTaskList::VwaveIntegrate(MeshBlock *pmb, int step)
   }
 
   return TASK_FAIL;
+}
+
+enum TaskStatus TimeIntegratorTaskList::WaveExact(MeshBlock *pmb, int step)
+{
+  Wave * pwave = pmb->pwave;
+  pmb->pwave->ComputeExactSol();
+  return TASK_NEXT;
 }
 
 //----------------------------------------------------------------------------------------

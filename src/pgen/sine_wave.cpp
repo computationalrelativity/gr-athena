@@ -40,8 +40,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     Real y = pcoord->x2v(j);
     Real z = pcoord->x3v(k);
 
-    pwave->u(0,k,j,i) = sin(2*M_PI*x)*cos(2*M_PI*y)*cos(2*M_PI*z);
+    pwave->u(0,k,j,i) = exp(-x*x/0.05);
+    //pwave->u(0,k,j,i) = sin(2*M_PI*x)*cos(2*M_PI*y)*cos(2*M_PI*z);
     pwave->u(1,k,j,i) = 0.0;
+    pwave->exact(0,k,j,i) = 1.0; //exp(-x*x/0.05);
   }
   return;
 }
