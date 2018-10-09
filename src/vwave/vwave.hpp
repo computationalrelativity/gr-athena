@@ -11,7 +11,7 @@
 // Athena++ classes headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
-#include "../athena_tensor.hpp"
+//#include "../athena_tensor.hpp"
 #include "../task_list/task_list.hpp"
 
 class MeshBlock;

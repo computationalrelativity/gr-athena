@@ -10,7 +10,7 @@
 #include "vwave.hpp"
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
-#include "../athena_tensor.hpp"
+//#include "../athena_tensor.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
 
