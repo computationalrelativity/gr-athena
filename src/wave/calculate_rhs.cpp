@@ -83,7 +83,7 @@ void Wave::WaveRHS(AthenaArray<Real> & u, int order)
     for(int k = ks; k <= ke; ++k) {
 #pragma omp for schedule(static)
       for(int j = js; j <= je; ++j) {
-#pragma simd
+#pragma omp simd
         for(int i = is; i <= ie; ++i) {
           rhs(0,k,j,i) = u(1,k,j,i);
 
@@ -105,7 +105,7 @@ void Wave::WaveRHS(AthenaArray<Real> & u, int order)
       for(int k = ks; k <= ke; ++k) {
 #pragma omp for schedule(static)
         for(int j = js; j <= je; ++j) {
-#pragma simd
+#pragma omp simd
           for(int i = is; i <= ie; ++i) {
             // assume Cartesian coordinates!
             Real rhs_loc = 0;
@@ -126,7 +126,7 @@ void Wave::WaveRHS(AthenaArray<Real> & u, int order)
       for(int k = ks; k <= ke; ++k) {
 #pragma omp for schedule(static)
         for(int j = js; j <= je; ++j) {
-#pragma simd
+#pragma omp simd
           for(int i = is; i <= ie; ++i) {
             // assume Cartesian coordinates!
             Real rhs_loc = 0;
