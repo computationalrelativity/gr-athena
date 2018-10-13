@@ -17,6 +17,11 @@
 class MeshBlock;
 class ParameterInput;
 
+// Metric indexes defined in athena.hpp : I00, ..., I33, NMETRIC
+#define gab_IDX (0) // Metric components are the first vars ...
+#define Kab_IDX (NMETRIC) // ... then curvature components
+#define NDIM (4) 
+
 //! \class Vwave
 //  \brief Vwave data and functions
 
@@ -31,10 +36,10 @@ class Vwave {
     AthenaArray<Real> u1;  // solution of the vectorial wave equation at intermediate step
     AthenaArray<Real> rhs; // vectorial wave equation rhs
 
+   //AthenaTensor<Real, SYM2> g; // Metric 
+   //AthenaTensor<Real, SYM2> K; // Extrinsic curvature tensor
+   //AthenaTensor<Real, SYM2> R; // Ricci tensor
 
-//    AthenaTensor<Real, SYM2, 3, 2> g; // Metric tensor
-//    AthenaTensor<Real, SYM2, 3, 2> K; // Extrinsic curvature tensor
-//    AthenaTensor<Real, SYM2, 3, 2> R; // Ricci tensor
     Real c;                // light speed
 
     // functions

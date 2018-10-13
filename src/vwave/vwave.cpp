@@ -29,10 +29,6 @@ Vwave::Vwave(MeshBlock *pmb, ParameterInput *pin)
   u1. NewAthenaArray(2, ncells3, ncells2, ncells1);
   rhs.NewAthenaArray(2, ncells3, ncells2, ncells1);
 
-  //g.NewAthenaTensor(2, ncells3, ncells2, ncells1);
-  //K.NewAthenaTensor(2, ncells3, ncells2, ncells1);
-  //R.NewAthenaTensor(2, ncells3, ncells2, ncells1);
-
   c = pin->GetOrAddReal("vwave", "c", 1.0);
 
   int nthreads = pmy_block->pmy_mesh->GetNumMeshThreads();
@@ -49,11 +45,43 @@ Vwave::~Vwave()
   u1.DeleteAthenaArray();
   rhs.DeleteAthenaArray();
 
-//  g.DeleteAthenaTensor();
-//  K.DeleteAthenaTensor();
-//  R.DeleteAthenaTensor();
-
   dt1_.DeleteAthenaArray();
   dt2_.DeleteAthenaArray();
   dt3_.DeleteAthenaArray();
+}
+
+
+
+static inline Real spatial_det(
+			       Real const gxx,
+			       Real const gxy,
+			       Real const gxz,
+			       Real const gyy,
+			       Real const gyz,
+			       Real const gzz) {
+  return - SQ(gxz)*gyy + 2*gxy*gxz*gyz - gxx*SQ(gyz) - SQ(gxy)*gzz +
+    gxx*gyy*gzz;
+}
+
+
+static void spatial_inv(
+			Real const det,
+			Real const gxx,
+			Real const gxy,
+			Real const gxz,
+			Real const gyy,
+			Real const gyz,
+			Real const gzz,
+			Real * uxx,
+			Real * uxy,
+			Real * uxz,
+			Real * uyy,
+			Real * uyz,
+			Real * uzz) {
+  *uxx = (-SQ(gyz) + gyy*gzz)/det;
+  *uxy = (gxz*gyz  - gxy*gzz)/det;
+  *uyy = (-SQ(gxz) + gxx*gzz)/det;
+  *uxz = (-gxz*gyy + gxy*gyz)/det;
+  *uyz = (gxy*gxz  - gxx*gyz)/det;
+  *uzz = (-SQ(gxy) + gxx*gyy)/det;
 }
