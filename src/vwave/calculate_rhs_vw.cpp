@@ -131,11 +131,11 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
 
 #pragma omp simd
 	for(int i = is; i <= ie; ++i) {
-	  Real det = spatial_det( g(0,0,i,j,k), g(0,1,i,j,k), g(0,2,i,j,k), 
-				  g(1,1,i,j,k), g(1,2,i,j,k), g(2,2,i,j,k) );
+	  Real det = spatial_det( g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
+				  g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i) );
 	  spatial_inv( det,
-		       g(0,0,i,j,k), g(0,1,i,j,k), g(0,2,i,j,k), 
-		       g(1,1,i,j,k), g(1,2,i,j,k), g(2,2,i,j,k), 
+		       g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
+		       g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i), 
 		       &ig(0,0,i), &ig(0,1,i), &ig(0,2,i), 
 		       &ig(1,1,i), &ig(1,2,i), &ig(2,2,i) );
 	  
@@ -144,17 +144,21 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
 	//----------------------------------------------------------------------------------------
 	// Metric drvts i-direction
 	
-	for(int a = 0; a < NDIM; ++a) {
-	  for(int b = a; b < NDIM; ++b) {
+	for(int c = 0; c < NDIM; ++c) {
+	  for(int d = c; d < NDIM; ++d) {
+	    for(int a = 0; a < NDIM; ++a) {
+	      for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
-	    for(int i = is; i <= ie; ++i) {
-	      // assume Cartesian coordinates!
-	      Real dd_loc = 0;
-	      for(int n = 0; n < stencil_size; ++n) {
-		dd_loc += stencil[n]*u(0, k, j, i + n - stencil_offset);
+		for(int i = is; i <= ie; ++i) {
+		  // assume Cartesian coordinates!
+		  Real dd_loc = 0;
+		  for(int n = 0; n < stencil_size; ++n) {
+		    dd_loc += stencil[n]*u(a,b, k, j, i + n - stencil_offset);
+		  }
+		  dd_loc /= SQR(pco->dx1v(i));
+		  ddg(c,d,a,b,i) = dd_loc;
+		}
 	      }
-	      dd_loc *= SQR(c)/SQR(pco->dx1v(i));
-	      ddg(a,b,i) = dd_loc;
 	    }
 	  }
 	}
@@ -163,16 +167,20 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
 	// Metric drvts j-direction
 	
 	if(pmb->block_size.nx2 > 1) {
-	  for(int a = 0; a < NDIM; ++a) {
-	    for(int b = a; b < NDIM; ++b) {
+	  for(int c = 0; c < NDIM; ++c) {
+	    for(int d = c; d < NDIM; ++d) {
+	      for(int a = 0; a < NDIM; ++a) {
+		for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
-	      for(int i = is; i <= ie; ++i) {
-		Real dd_loc = 0;
-		for(int n = 0; n < stencil_size; ++n) {
-		  dd_loc += stencil[n]*u(0, k, j + n - stencil_offset, i);
+		  for(int i = is; i <= ie; ++i) {
+		    Real dd_loc = 0;
+		    for(int n = 0; n < stencil_size; ++n) {
+		      dd_loc += stencil[n]*g(a,b, k, j + n - stencil_offset, i);
+		    }
+		    dd_loc /= SQR(pco->dx2v(j));
+		    ddg(c,d,a,b,i) += dd_loc;
+		  }
 		}
-		dd_loc *= SQR(c)/SQR(pco->dx2v(j));
-		ddg(a,b,i) += dd_loc;
 	      }
 	    }
 	  }
@@ -182,16 +190,20 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
 	// Metric drvts k-direction
 	
 	if(pmb->block_size.nx3 > 1) {
-	  for(int a = 0; a < NDIM; ++a) {
-	    for(int b = a; b < NDIM; ++b) {
+	  for(int c = 0; c < NDIM; ++c) {
+	    for(int d = c; d < NDIM; ++d) {
+	      for(int a = 0; a < NDIM; ++a) {
+		for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
-	      for(int i = is; i <= ie; ++i) {
-		Real dd_loc = 0;
-		for(int n = 0; n < stencil_size; ++n) {
-		  dd_loc += stencil[n]*u(0, k + n - stencil_offset, j, i);
+		  for(int i = is; i <= ie; ++i) {
+		    Real dd_loc = 0;
+		    for(int n = 0; n < stencil_size; ++n) {
+		      dd_loc += stencil[n]*g(a,b, k + n - stencil_offset, j, i);
+		    }
+		    dd_loc /= SQR(pco->dx3v(k));
+		    ddg(c,d,a,b,i) += dd_loc;
+		  }
 		}
-		dd_loc *= SQR(c)/SQR(pco->dx3v(k));
-		ddg(a,b,i) += dd_loc;
 	      }
 	    }
 	  }
@@ -221,7 +233,7 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
 	  for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
 	    for(int i = is; i <= ie; ++i) {
-	      rhs_K(a,b,i,j,k) = R(a,b,i);
+	      rhs_K(a,b,k,j,i) = R(a,b,i);
 	    }
 	  }
 	}
