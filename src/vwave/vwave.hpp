@@ -21,7 +21,7 @@ class ParameterInput;
 #define gab_IDX (0) // Metric components are the first vars ...
 #define Kab_IDX (NMETRIC) // ... then curvature components
 #define NVARS (2*NMETRIC) 
-#define NDIM (4) 
+#define NDIM (3)    // check! 
 
 //! \class Vwave
 //  \brief Vwave data and functions
