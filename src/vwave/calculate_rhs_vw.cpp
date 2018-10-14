@@ -221,7 +221,8 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
         for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
           for(int i = is; i <= ie; ++i) {
-            ddg(c,d,a,b,i) = fd.diff_2(c, d, g(a,b), k, j, i);
+            Real idx[3] = {1.0/pco->dx1v(i), 1.0/pco->dx2v(j), 1.0/pco->dx3v(k)};
+            ddg(c,d,a,b,i) = fd.diff_2(c, d, g(a,b), k, j, i)*idx[c]*idx[d];
           }
         }
       
