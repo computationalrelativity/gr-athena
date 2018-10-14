@@ -37,9 +37,9 @@ void Vwave::AddVwaveRHSToVals(AthenaArray<Real> & u1, AthenaArray<Real> & u2,
     tid=omp_get_thread_num();
 #endif
 #pragma omp for schedule(static)
-    for(int k=ks; k<=ke; ++k) {
-      for(int j=js; j<=je; ++j) {
-	for(int v=0; n<NVARS; ++v) {
+    for(int v=0; n<NVARS; ++v) {
+      for(int k=ks; k<=ke; ++k) {
+	for(int j=js; j<=je; ++j) {
 #pragma simd
 	  for(int i=is; i<=ie; ++i) {
 	    u_out(v,k,j,i) = w.gamma_2*u1(v,k,j,i) + w.gamma_1*u2(v,k,j,i) +

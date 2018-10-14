@@ -26,24 +26,31 @@
 
 // FD stencils
 static Real const __diff_1_stencil_2[] = {
-    1./12., -2./3., 0., 2./3., -1./12.,
+  1./2., 0., -1./2.,
 };
 static Real const __diff_2_stencil_2[] = {
-    -1./12., 4./3., -5./2., 4./3., -1./12.
+  1., -2., 1.,
 };
 
 static Real const __diff_1_stencil_4[] = {
-    -1./60., 3./20., -3./4., 0., 3./4., -3./20., 1/60
+  1./12., -2./3., 0., 2./3., -1./12.,
 };
 static Real const __diff_2_stencil_4[] = {
-    1./90., -3./20., 3./2., -49./18., 3./2., -3./20., 1./90.
+  -1./12., 4./3., -5./2., 4./3., -1./12.
+};
+
+static Real const __diff_1_stencil_6[] = {
+  -1./60., 3./20., -3./4., 0., 3./4., -3./20., 1/60
+};
+static Real const __diff_2_stencil_6[] = {
+  1./90., -3./20., 3./2., -49./18., 3./2., -3./20., 1./90.
 };
 
 static Real const __diff_1_stencil_8[] = {
-    1./280., -4./105., 1./5., -4./5., 0., 4./5., -1./5., 4./105., -1./280.
+  1./280., -4./105., 1./5., -4./5., 0., 4./5., -1./5., 4./105., -1./280.
 };
 static Real const __diff_2_stencil_8[] = {
-    -1./560., 8./315., -1./5., 8./5., -205./72., 8./5., -1./5., 8./315., -1./560.
+  -1./560., 8./315., -1./5., 8./5., -205./72., 8./5., -1./5., 8./315., -1./560.
 };
 
 //! \fn void Vwave::CalculateRHS
@@ -76,10 +83,10 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
       _diff_2_stencil = &__diff_2_stencil_4[0];
       _diff_1_stencil = &__diff_1_stencil_4[0];
       break;
-    //case 6:
-    //  _diff_2_stencil = &__diff_2_stencil_6[0];
-    //  _diff_1_stencil = &__diff_1_stencil_6[0];
-    //  break;
+    case 6:
+     _diff_2_stencil = &__diff_2_stencil_6[0];
+     _diff_1_stencil = &__diff_1_stencil_6[0];
+     break;
     case 8:
       _diff_2_stencil = &__diff_2_stencil_8[0];
       _diff_1_stencil = &__diff_1_stencil_8[0];
