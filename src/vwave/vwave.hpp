@@ -26,28 +26,42 @@ class ParameterInput;
 //  \brief Vwave data and functions
 
 class Vwave {
-  public:
-    Vwave(MeshBlock *pmb, ParameterInput *pin);
-    ~Vwave();
+public:
+  Vwave(MeshBlock *pmb, ParameterInput *pin);
+  ~Vwave();
+  
+  // data
+  MeshBlock * pmy_block; // pointer to MeshBlock containing this Vwave
+  AthenaArray<Real> u;   // solution of the vectorial wave equation
+  AthenaArray<Real> u1;  // solution of the vectorial wave equation at intermediate step
+  AthenaArray<Real> rhs; // vectorial wave equation rhs
+  
+  // functions
+  Real NewBlockTimeStep(void);       // compute new timestep on a MeshBlock
+  void VwaveRHS(AthenaArray<Real> & u, int order);
+  void AddVwaveRHSToVals(AthenaArray<Real> & u1, AthenaArray<Real> & u2,
+			 IntegratorWeight w, AthenaArray<Real> &u_out);
 
-    // data
-    MeshBlock * pmy_block; // pointer to MeshBlock containing this Vwave
-    AthenaArray<Real> u;   // solution of the vectorial wave equation
-    AthenaArray<Real> u1;  // solution of the vectorial wave equation at intermediate step
-    AthenaArray<Real> rhs; // vectorial wave equation rhs
+  Real Vwave::SpatiaDet(Real const gxx, Real const gxy, Real const gxz,
+			Real const gyy, Real const gyz, Real const gzz);
+  void Vwave::SpatialInv(Real const det,
+			 Real const gxx, Real const gxy, Real const gxz,
+			 Real const gyy, Real const gyz, Real const gzz,
+			 Real * uxx, Real * uxy, Real * uxz,
+			 Real * uyy, Real * uyz, Real * uzz);
 
-   //AthenaTensor<Real, SYM2> g; // Metric 
-   //AthenaTensor<Real, SYM2> K; // Extrinsic curvature tensor
-   //AthenaTensor<Real, SYM2> R; // Ricci tensor
+private:
+  AthenaArray<Real> dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep
+  
+  AthenaTensor<Real, SYM2> g; // Metric tensor
+  AthenaTensor<Real, SYM2> K; // Curvature
+  AthenaTensor<Real, SYM2> rhs_g; 
+  AthenaTensor<Real, SYM2> rhs_K; 
 
-    Real c;                // light speed
-
-    // functions
-    Real NewBlockTimeStep(void);       // compute new timestep on a MeshBlock
-    void VwaveRHS(AthenaArray<Real> & u, int order);
-    void AddVwaveRHSToVals(AthenaArray<Real> & u1, AthenaArray<Real> & u2,
-        IntegratorWeight w, AthenaArray<Real> &u_out);
-  private:
-    AthenaArray<Real> dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep
+  // Auxiliary 1d vars
+  AthenaTensor<Real, SYM2, 2> eta;   // flat Metric tensor     //TODO: check def
+  AthenaTensor<Real, SYM2, 2> ieta;  // inverse Metric tensor 
+  AthenaTensor<Real, SYM2, 4> ddg;   // metric drvts           //FIXME: symmetries
+  AthenaTensor<Real, SYM2, 2> R;     // Ricci 
 };
 #endif // VWAVE_HPP

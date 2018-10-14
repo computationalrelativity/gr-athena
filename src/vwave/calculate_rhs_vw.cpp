@@ -58,26 +58,11 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
 
-  AthenaTensor<Real, SYM2> g; // Metric tensor
-  AthenaTensor<Real, SYM2> K; // Curvature
   g.array().InitWithShallowSlice(u, 4, gab_IDX, 6);
   K.array().InitWithShallowSlice(u, 4, Kab_IDX, 6);
 
-  AthenaTensor<Real, SYM2> rhs_g; 
-  AthenaTensor<Real, SYM2> rhs_K; 
   rhs_g.array().InitWithShallowSlice(rhs, 4, gab_IDX, 6);
   rhs_K.array().InitWithShallowSlice(rhs, 4, Kab_IDX, 6);
-
-  // aux 1d vars
-  AthenaTensor<Real, SYM2, 2> eta;  // flat Metric tensor //TODO: check def
-  AthenaTensor<Real, SYM2, 2> ieta;  // inverse Metric tensor 
-  AthenaTensor<Real, SYM2, 4> ddg; // metric drvts //FIXME: symmetries
-  AthenaTensor<Real, SYM2, 2> R;   // Ricci 
-  
-  eta.NewAthenaTensor(2, ncells1); //TODO:check
-  ieta.NewAthenaTensor(2, ncells1); 
-  ddg.NewAthenaTensor(4, ncells1);
-  R.NewAthenaTensor(2, ncells1);
 
   //TODO: define routines for drvts
   Real const * _diff_1_stencil;
@@ -140,23 +125,22 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
       for(int j = js; j <= je; ++j) {
 	
 	//----------------------------------------------------------------------------------------
-	// Flat metric and its Inverse metric 
+	// Flat metric and its Inverse 
 
 #pragma omp simd
 	for(int i = is; i <= ie; ++i) {
 	  eta(a, b, i) = (a == b) ? (1.0) : (0.0);
 	}
 
-	//TODO: spatial_det() and spatial_inv() are temporary defined in vwave.cpp
 #pragma omp simd
 	for(int i = is; i <= ie; ++i) {
-	  Real det = spatial_det( eta(0,0,k,j,i), eta(0,1,k,j,i), eta(0,2,k,j,i), 
-				  eta(1,1,k,j,i), eta(1,2,k,j,i), eta(2,2,k,j,i) );
-	  spatial_inv( det,
-		       eta(0,0,k,j,i), eta(0,1,k,j,i), eta(0,2,k,j,i), 
-		       eta(1,1,k,j,i), eta(1,2,k,j,i), eta(2,2,k,j,i), 
-		       &ieta(0,0,i), &ieta(0,1,i), &ieta(0,2,i), 
-		       &ieta(1,1,i), &ieta(1,2,i), &ieta(2,2,i) );
+	  Real det = SpatialDet( eta(0,0,i), eta(0,1,i), eta(0,2,i), 
+				 eta(1,1,i), eta(1,2,i), eta(2,2,i) );
+	  SpatialInv( det,
+		      eta(0,0,i), eta(0,1,i), eta(0,2,i), 
+		      eta(1,1,i), eta(1,2,i), eta(2,2,i), 
+		      &ieta(0,0,i), &ieta(0,1,i), &ieta(0,2,i), 
+		      &ieta(1,1,i), &ieta(1,2,i), &ieta(2,2,i) );
 	  
 	}
 	
@@ -262,10 +246,5 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
     
   } // end of parallel region
 
-  eta.DeleteAthenaTensor();
-  ieta.DeleteAthenaTensor();
-  ddg.DeleteAthenaTensor();
-  R.DeleteAthenaTensor();
-  
   return;
 }

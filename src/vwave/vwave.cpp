@@ -29,12 +29,16 @@ Vwave::Vwave(MeshBlock *pmb, ParameterInput *pin)
   u1. NewAthenaArray(2, ncells3, ncells2, ncells1);
   rhs.NewAthenaArray(2, ncells3, ncells2, ncells1);
 
-  c = pin->GetOrAddReal("vwave", "c", 1.0);
-
   int nthreads = pmy_block->pmy_mesh->GetNumMeshThreads();
   dt1_.NewAthenaArray(nthreads,ncells1);
   dt2_.NewAthenaArray(nthreads,ncells1);
   dt3_.NewAthenaArray(nthreads,ncells1);
+
+  // Allocate memory for aux vars
+  eta.NewAthenaTensor(2, ncells1); //TODO:check
+  ieta.NewAthenaTensor(2, ncells1); 
+  ddg.NewAthenaTensor(4, ncells1);
+  R.NewAthenaTensor(2, ncells1);
 }
 
 // destructor
@@ -48,40 +52,42 @@ Vwave::~Vwave()
   dt1_.DeleteAthenaArray();
   dt2_.DeleteAthenaArray();
   dt3_.DeleteAthenaArray();
+
+  eta.DeleteAthenaTensor();
+  ieta.DeleteAthenaTensor();
+  ddg.DeleteAthenaTensor();
+  R.DeleteAthenaTensor();
 }
 
+//----------------------------------------------------------------------------------------
+// \!fn Real Vwave::SpatiaDet(Real gxx, ... , Real gzz)
+// \brief returns determinant of 3-metric
 
-
-static inline Real spatial_det(
-			       Real const gxx,
-			       Real const gxy,
-			       Real const gxz,
-			       Real const gyy,
-			       Real const gyz,
-			       Real const gzz) {
-  return - SQ(gxz)*gyy + 2*gxy*gxz*gyz - gxx*SQ(gyz) - SQ(gxy)*gzz +
-    gxx*gyy*gzz;
+Real Vwave::SpatiaDet(Real const gxx, Real const gxy, Real const gxz,
+		      Real const gyy, Real const gyz, Real const gzz)
+{
+  return std::(- SQ(gxz)*gyy + 2*gxy*gxz*gyz - gxx*SQ(gyz) - SQ(gxy)*gzz + gxx*gyy*gzz);
 }
 
+//----------------------------------------------------------------------------------------
+// \!fn void Vwave::SpatialInv(Real const det,
+//		       Real const gxx, Real const gxy, Real const gxz,
+//		       Real const gyy, Real const gyz, Real const gzz,
+//		       Real * uxx, Real * uxy, Real * uxz,
+//		       Real * uyy, Real * uyz, Real * uzz)
+// \brief returns inverse of 3-metric
 
-static void spatial_inv(
-			Real const det,
-			Real const gxx,
-			Real const gxy,
-			Real const gxz,
-			Real const gyy,
-			Real const gyz,
-			Real const gzz,
-			Real * uxx,
-			Real * uxy,
-			Real * uxz,
-			Real * uyy,
-			Real * uyz,
-			Real * uzz) {
+void Vwave::SpatialInv(Real const det,
+		       Real const gxx, Real const gxy, Real const gxz,
+		       Real const gyy, Real const gyz, Real const gzz,
+		       Real * uxx, Real * uxy, Real * uxz,
+		       Real * uyy, Real * uyz, Real * uzz)
+{
   *uxx = (-SQ(gyz) + gyy*gzz)/det;
   *uxy = (gxz*gyz  - gxy*gzz)/det;
   *uyy = (-SQ(gxz) + gxx*gzz)/det;
   *uxz = (-gxz*gyy + gxy*gyz)/det;
   *uyz = (gxy*gxz  - gxx*gyz)/det;
   *uzz = (-SQ(gxy) + gxx*gyy)/det;
+  return;
 }
