@@ -24,17 +24,26 @@
 #include <omp.h>
 #endif
 
-static Real const diff_2_ord_2[] = {
-  1., -2., 1.
+// FD stencils
+static Real const __diff_1_stencil_2[] = {
+    1./12., -2./3., 0., 2./3., -1./12.,
 };
-static Real const diff_2_ord_4[] = {
-  -1./12., 4./3., -5./2., 4./3., -1./12.
+static Real const __diff_2_stencil_2[] = {
+    -1./12., 4./3., -5./2., 4./3., -1./12.
 };
-static Real const diff_2_ord_6[] = {
-  1./90., -3./20., 3./2., -49./18., 3./2., -3./20., 1./90.
+
+static Real const __diff_1_stencil_4[] = {
+    -1./60., 3./20., -3./4., 0., 3./4., -3./20., 1/60
 };
-static Real const diff_2_ord_8[] = {
-  -1./560., 8./315., -1./5., 8./5., -205./72., 8./5., -1./5., 8./315., -1./560.
+static Real const __diff_2_stencil_4[] = {
+    1./90., -3./20., 3./2., -49./18., 3./2., -3./20., 1./90.
+};
+
+static Real const __diff_1_stencil_8[] = {
+    1./280., -4./105., 1./5., -4./5., 0., 4./5., -1./5., 4./105., -1./280.
+};
+static Real const __diff_2_stencil_8[] = {
+    -1./560., 8./315., -1./5., 8./5., -205./72., 8./5., -1./5., 8./315., -1./560.
 };
 
 //! \fn void Vwave::CalculateRHS
@@ -60,28 +69,35 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
   rhs_K.array().InitWithShallowSlice(rhs, 4, Kab_IDX, 6);
 
   // aux 1d vars
-  AthenaTensor<Real, SYM2, 2> ig;  // inverse Metric tensor //TODO: check def
+  AthenaTensor<Real, SYM2, 2> eta;  // flat Metric tensor //TODO: check def
+  AthenaTensor<Real, SYM2, 2> ieta;  // inverse Metric tensor 
   AthenaTensor<Real, SYM2, 4> ddg; // metric drvts //FIXME: symmetries
   AthenaTensor<Real, SYM2, 2> R;   // Ricci 
   
-  ig.NewAthenaTensor(2, ncells1); //TODO:check
+  eta.NewAthenaTensor(2, ncells1); //TODO:check
+  ieta.NewAthenaTensor(2, ncells1); 
   ddg.NewAthenaTensor(4, ncells1);
   R.NewAthenaTensor(2, ncells1);
 
   //TODO: define routines for drvts
-  Real const * stencil;
+  Real const * _diff_1_stencil;
+  Real const * _diff_2_stencil;
   switch(order) {
     case 2:
-      stencil = &diff_2_ord_2[0];
+      _diff_2_stencil = &_diff_2_stencil_2[0];
+      _diff_1_stencil = &_diff_1_stencil_2[0];
       break;
     case 4:
-      stencil = &diff_2_ord_4[0];
+      _diff_2_stencil = &_diff_2_stencil_4[0];
+      _diff_1_stencil = &_diff_1_stencil_4[0];
       break;
     case 6:
-      stencil = &diff_2_ord_6[0];
+      _diff_2_stencil = &_diff_2_stencil_6[0];
+      _diff_1_stencil = &_diff_1_stencil_6[0];
       break;
     case 8:
-      stencil = &diff_2_ord_8[0];
+      _diff_2_stencil = &_diff_2_stencil_8[0];
+      _diff_1_stencil = &_diff_1_stencil_8[0];
       break;
     default:
       msg << "FD order not supported: " << order << std::endl;
@@ -89,7 +105,6 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
   }
   int const stencil_offset = order/2;
   int const stencil_size = order + 1;
-
 
   int tid = 0;
   int nthreads = pmb->pmy_mesh->GetNumMeshThreads();
@@ -118,94 +133,98 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
     }
     
     //----------------------------------------------------------------------------------------
-    // K rhs , broken in several pieces along i-direction
+    // K rhs 
     
     for(int k = ks; k <= ke; ++k) {
 #pragma omp for schedule(static)
       for(int j = js; j <= je; ++j) {
 	
 	//----------------------------------------------------------------------------------------
-	// Inverse metric 
-	
-	//TODO: spatial_det() and spatial_inv() are temporary defined in vwave.cpp
+	// Flat metric and its Inverse metric 
 
 #pragma omp simd
 	for(int i = is; i <= ie; ++i) {
-	  Real det = spatial_det( g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
-				  g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i) );
+	  eta(a, b, i) = (a == b) ? (1.0) : (0.0);
+	}
+
+	//TODO: spatial_det() and spatial_inv() are temporary defined in vwave.cpp
+#pragma omp simd
+	for(int i = is; i <= ie; ++i) {
+	  Real det = spatial_det( eta(0,0,k,j,i), eta(0,1,k,j,i), eta(0,2,k,j,i), 
+				  eta(1,1,k,j,i), eta(1,2,k,j,i), eta(2,2,k,j,i) );
 	  spatial_inv( det,
-		       g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
-		       g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i), 
-		       &ig(0,0,i), &ig(0,1,i), &ig(0,2,i), 
-		       &ig(1,1,i), &ig(1,2,i), &ig(2,2,i) );
+		       eta(0,0,k,j,i), eta(0,1,k,j,i), eta(0,2,k,j,i), 
+		       eta(1,1,k,j,i), eta(1,2,k,j,i), eta(2,2,k,j,i), 
+		       &ieta(0,0,i), &ieta(0,1,i), &ieta(0,2,i), 
+		       &ieta(1,1,i), &ieta(1,2,i), &ieta(2,2,i) );
 	  
 	}
 	
 	//----------------------------------------------------------------------------------------
-	// Metric drvts i-direction
+	// Metric drvts 
 	
-	for(int c = 0; c < NDIM; ++c) {
-	  for(int d = c; d < NDIM; ++d) {
-	    for(int a = 0; a < NDIM; ++a) {
-	      for(int b = a; b < NDIM; ++b) {
+	for(int a = 0; a < NDIM; ++a) {
+	  for(int b = a; b < NDIM; ++b) { 
 #pragma omp simd
 		for(int i = is; i <= ie; ++i) {
-		  // assume Cartesian coordinates!
 		  Real dd_loc = 0;
 		  for(int n = 0; n < stencil_size; ++n) {
-		    dd_loc += stencil[n]*u(a,b, k, j, i + n - stencil_offset);
+		    dd_loc += _diff_2_stencil[n]*g(a,b, k, j, i + n - stencil_offset);
 		  }
 		  dd_loc /= SQR(pco->dx1v(i));
-		  ddg(c,d,a,b,i) = dd_loc;
+		  ddg(0,0,a,b,i) = dd_loc;
 		}
-	      }
-	    }
-	  }
-	}
-	
-	//----------------------------------------------------------------------------------------
-	// Metric drvts j-direction
-	
-	if(pmb->block_size.nx2 > 1) {
-	  for(int c = 0; c < NDIM; ++c) {
-	    for(int d = c; d < NDIM; ++d) {
-	      for(int a = 0; a < NDIM; ++a) {
-		for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
-		  for(int i = is; i <= ie; ++i) {
-		    Real dd_loc = 0;
-		    for(int n = 0; n < stencil_size; ++n) {
-		      dd_loc += stencil[n]*g(a,b, k, j + n - stencil_offset, i);
-		    }
-		    dd_loc /= SQR(pco->dx2v(j));
-		    ddg(c,d,a,b,i) += dd_loc;
+		for(int i = is; i <= ie; ++i) {
+		  Real dd_loc = 0;
+		  for(int n = 0; n < stencil_size; ++n) {
+		    dd_loc += _diff_2_stencil[n]*g(a,b, k, j + n - stencil_offset, i);
 		  }
+		  dd_loc /= SQR(pco->dx2v(j));
+		  ddg(1,1,a,b,i) = dd_loc;
 		}
-	      }
-	    }
-	  }
-	}
-	
-	//----------------------------------------------------------------------------------------
-	// Metric drvts k-direction
-	
-	if(pmb->block_size.nx3 > 1) {
-	  for(int c = 0; c < NDIM; ++c) {
-	    for(int d = c; d < NDIM; ++d) {
-	      for(int a = 0; a < NDIM; ++a) {
-		for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
-		  for(int i = is; i <= ie; ++i) {
-		    Real dd_loc = 0;
-		    for(int n = 0; n < stencil_size; ++n) {
-		      dd_loc += stencil[n]*g(a,b, k + n - stencil_offset, j, i);
-		    }
-		    dd_loc /= SQR(pco->dx3v(k));
-		    ddg(c,d,a,b,i) += dd_loc;
+		for(int i = is; i <= ie; ++i) {
+		  Real dd_loc = 0;
+		  for(int n = 0; n < stencil_size; ++n) {
+		    dd_loc += _diff_2_stencil[n]*g(a,b, k + n - stencil_offset, j, i);
 		  }
+		  dd_loc /= SQR(pco->dx3v(k));
+		  ddg(2,2,a,b,i) = dd_loc;
 		}
-	      }
-	    }
+#pragma omp simd
+		for(int i = is; i <= ie; ++i) {
+		  Real dd_loc = 0;
+		  for(int n = 0; n < stencil_size; ++n) {
+		    for(int m = 0; m < stencil_size; ++m) {
+		      dd_loc += _diff_1_stencil[n]*_diff_1_stencil[m]*g(a,b, k, j + m - stencil_offset, i + n - stencil_offset);
+		    }
+		  }
+		  dd_loc /= (pco->dx1v(i)*pco->dx2v(j));
+		  ddg(0,1,a,b,i) = dd_loc;
+		}
+#pragma omp simd
+		for(int i = is; i <= ie; ++i) {
+		  Real dd_loc = 0;
+		  for(int n = 0; n < stencil_size; ++n) {
+		    for(int m = 0; m < stencil_size; ++m) {
+		      dd_loc += _diff_1_stencil[n]*_diff_1_stencil[m]*g(a,b, k + m - stencil_offset, j, i + n - stencil_offset);
+		    }
+		  }
+		  dd_loc /= (pco->dx1v(i)*pco->dx3v(k));
+		  ddg(0,2,a,b,i) = dd_loc;
+		}
+#pragma omp simd
+		for(int i = is; i <= ie; ++i) {
+		  Real dd_loc = 0;
+		  for(int n = 0; n < stencil_size; ++n) {
+		    for(int m = 0; m < stencil_size; ++m) {
+		      dd_loc += _diff_1_stencil[n]*_diff_1_stencil[m]*g(a,b, k + m - stencil_offset, j + n - stencil_offset, i);
+		    }
+		  }
+		  dd_loc /= (pco->dx2v(j)*pco->dx3v(k));
+		  ddg(1,2,a,b,i) = dd_loc;
+		}
 	  }
 	}
 	
@@ -219,7 +238,7 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
 	      R(a,b,i) = 0.;
 	      for(int c = 0; c < NDIM; ++c) {
 		for(int d = 0; d < NDIM; ++d) {
-		  R(a,b,i) -= 0.5*ig(c,d,i)*ddg(c,d,a,b,i);
+		  R(a,b,i) -= 0.5*ieta(c,d,i)*ddg(c,d,a,b,i);
 		}
 	      }
 	    }
@@ -243,8 +262,8 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
     
   } // end of parallel region
 
-
-  ig.DeleteAthenaTensor();
+  eta.DeleteAthenaTensor();
+  ieta.DeleteAthenaTensor();
   ddg.DeleteAthenaTensor();
   R.DeleteAthenaTensor();
   
