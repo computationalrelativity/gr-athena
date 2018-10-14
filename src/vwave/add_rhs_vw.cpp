@@ -39,13 +39,13 @@ void Vwave::AddVwaveRHSToVals(AthenaArray<Real> & u1, AthenaArray<Real> & u2,
 #pragma omp for schedule(static)
     for(int k=ks; k<=ke; ++k) {
       for(int j=js; j<=je; ++j) {
+	for(int v=0; n<NVARS; ++v) {
 #pragma simd
-        for(int i=is; i<=ie; ++i) {
-          u_out(0,k,j,i) = w.gamma_2*u1(0,k,j,i) + w.gamma_1*u2(0,k,j,i) +
-            w.beta*(pmb->pmy_mesh->dt)*rhs(0,k,j,i);
-          u_out(1,k,j,i) = w.gamma_2*u1(1,k,j,i) + w.gamma_1*u2(1,k,j,i) +
-            w.beta*(pmb->pmy_mesh->dt)*rhs(1,k,j,i);
-        }
+	  for(int i=is; i<=ie; ++i) {
+	    u_out(v,k,j,i) = w.gamma_2*u1(v,k,j,i) + w.gamma_1*u2(v,k,j,i) +
+	      w.beta*(pmb->pmy_mesh->dt)*rhs(v,k,j,i);
+	  }
+	}
       }
     }
   } // end of omp parallel region
