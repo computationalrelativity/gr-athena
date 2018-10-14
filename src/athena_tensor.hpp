@@ -14,7 +14,7 @@
 #include "athena.hpp"
 
 // tensor symmetries
- enum class TensorSymm {
+enum class TensorSymm {
   NONE,     // no symmetries
   SYM2,     // symmetric in the last 2 indices
   SYM22,    // symmetric in the last 2 pairs of indices
@@ -22,7 +22,7 @@
 
 
 // this is the abstract base class
-template<typename T, enum TensorSymm sym, int ndim, int rank>
+template<typename T, TensorSymm sym, int ndim, int rank>
 class AthenaTensor;
 
 //----------------------------------------------------------------------------------------

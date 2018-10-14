@@ -13,6 +13,8 @@
 #include "../mesh/mesh.hpp"
 //#include "../athena_tensor.hpp"
 
+#define SQ(X) ((X)*(X))
+
 // constructor, initializes data structures and parameters
 
 Vwave::Vwave(MeshBlock *pmb, ParameterInput *pin)
@@ -60,13 +62,13 @@ Vwave::~Vwave()
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn Real Vwave::SpatiaDet(Real gxx, ... , Real gzz)
+// \!fn Real Vwave::SpatialDet(Real gxx, ... , Real gzz)
 // \brief returns determinant of 3-metric
 
-Real Vwave::SpatiaDet(Real const gxx, Real const gxy, Real const gxz,
+Real Vwave::SpatialDet(Real const gxx, Real const gxy, Real const gxz,
 		      Real const gyy, Real const gyz, Real const gzz)
 {
-  return std::(- SQ(gxz)*gyy + 2*gxy*gxz*gyz - gxx*SQ(gyz) - SQ(gxy)*gzz + gxx*gyy*gzz);
+  return - SQ(gxz)*gyy + 2*gxy*gxz*gyz - gxx*SQ(gyz) - SQ(gxy)*gzz + gxx*gyy*gzz;
 }
 
 //----------------------------------------------------------------------------------------

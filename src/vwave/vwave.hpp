@@ -11,7 +11,7 @@
 // Athena++ classes headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
-//#include "../athena_tensor.hpp"
+#include "../athena_tensor.hpp"
 #include "../task_list/task_list.hpp"
 
 class MeshBlock;
@@ -35,6 +35,8 @@ public:
   AthenaArray<Real> u;   // solution of the vectorial wave equation
   AthenaArray<Real> u1;  // solution of the vectorial wave equation at intermediate step
   AthenaArray<Real> rhs; // vectorial wave equation rhs
+    
+  Real c;                            // light speed
   
   // functions
   Real NewBlockTimeStep(void);       // compute new timestep on a MeshBlock
@@ -42,9 +44,9 @@ public:
   void AddVwaveRHSToVals(AthenaArray<Real> & u1, AthenaArray<Real> & u2,
 			 IntegratorWeight w, AthenaArray<Real> &u_out);
 
-  Real Vwave::SpatiaDet(Real const gxx, Real const gxy, Real const gxz,
+  Real SpatialDet(Real const gxx, Real const gxy, Real const gxz,
 			Real const gyy, Real const gyz, Real const gzz);
-  void Vwave::SpatialInv(Real const det,
+  void SpatialInv(Real const det,
 			 Real const gxx, Real const gxy, Real const gxz,
 			 Real const gyy, Real const gyz, Real const gzz,
 			 Real * uxx, Real * uxy, Real * uxz,
@@ -53,15 +55,15 @@ public:
 private:
   AthenaArray<Real> dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep
   
-  AthenaTensor<Real, SYM2> g; // Metric tensor
-  AthenaTensor<Real, SYM2> K; // Curvature
-  AthenaTensor<Real, SYM2> rhs_g; 
-  AthenaTensor<Real, SYM2> rhs_K; 
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> g; // Metric tensor
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> K; // Curvature
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> rhs_g; 
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> rhs_K; 
 
   // Auxiliary 1d vars
-  AthenaTensor<Real, SYM2, 2> eta;   // flat Metric tensor     //TODO: check def
-  AthenaTensor<Real, SYM2, 2> ieta;  // inverse Metric tensor 
-  AthenaTensor<Real, SYM2, 4> ddg;   // metric drvts           //FIXME: symmetries
-  AthenaTensor<Real, SYM2, 2> R;     // Ricci 
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> eta;   // flat Metric tensor     //TODO: check def
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> ieta;  // inverse Metric tensor 
+  AthenaTensor<Real, TensorSymm::SYM22, 3, 4> ddg;   // metric drvts           //FIXME: symmetries
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> R;     // Ricci 
 };
 #endif // VWAVE_HPP

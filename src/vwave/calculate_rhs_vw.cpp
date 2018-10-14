@@ -69,20 +69,20 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
   Real const * _diff_2_stencil;
   switch(order) {
     case 2:
-      _diff_2_stencil = &_diff_2_stencil_2[0];
-      _diff_1_stencil = &_diff_1_stencil_2[0];
+      _diff_2_stencil = &__diff_2_stencil_2[0];
+      _diff_1_stencil = &__diff_1_stencil_2[0];
       break;
     case 4:
-      _diff_2_stencil = &_diff_2_stencil_4[0];
-      _diff_1_stencil = &_diff_1_stencil_4[0];
+      _diff_2_stencil = &__diff_2_stencil_4[0];
+      _diff_1_stencil = &__diff_1_stencil_4[0];
       break;
-    case 6:
-      _diff_2_stencil = &_diff_2_stencil_6[0];
-      _diff_1_stencil = &_diff_1_stencil_6[0];
-      break;
+    //case 6:
+    //  _diff_2_stencil = &__diff_2_stencil_6[0];
+    //  _diff_1_stencil = &__diff_1_stencil_6[0];
+    //  break;
     case 8:
-      _diff_2_stencil = &_diff_2_stencil_8[0];
-      _diff_1_stencil = &_diff_1_stencil_8[0];
+      _diff_2_stencil = &__diff_2_stencil_8[0];
+      _diff_1_stencil = &__diff_1_stencil_8[0];
       break;
     default:
       msg << "FD order not supported: " << order << std::endl;
@@ -128,9 +128,12 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
 	// Flat metric and its Inverse 
 
 #pragma omp simd
-	for(int i = is; i <= ie; ++i) {
-	  eta(a, b, i) = (a == b) ? (1.0) : (0.0);
-	}
+        for(int i = is; i <= ie; ++i) {
+          for(int a = 0; a < 3; ++a)
+          for(int b = a; b < 3; ++b) {
+            eta(a, b, i) = (a == b) ? (1.0) : (0.0);
+          }
+        }
 
 #pragma omp simd
 	for(int i = is; i <= ie; ++i) {

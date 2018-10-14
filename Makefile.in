@@ -37,8 +37,8 @@ SRC_FILES := $(wildcard src/*.cpp) \
 	     $(wildcard src/reconstruct/*.cpp) \
 	     $(wildcard src/task_list/*.cpp) \
 	     $(wildcard src/utils/*.cpp) \
-             $(wildcard src/wave/*.cpp) \
-             $(wildcard src/vwave/*.cpp) \
+	     $(wildcard src/wave/*.cpp) \
+	     $(wildcard src/vwave/*.cpp) \
 	     $(wildcard src/fft/*.cpp) \
 	     $(wildcard src/multigrid/*.cpp) \
 	     $(wildcard src/gravity/*.cpp) \
