@@ -126,7 +126,7 @@ void TurbulenceDriver::Generate(void) {
     for (int igid=nbs, nb=0;igid<=nbe;igid++, nb++) {
       MeshBlock *pmb=pm->FindMeshBlock(igid);
       if (pmb != NULL) {
-        dv_mb.InitWithShallowSlice(dv, 4, nb, 1);
+        dv_mb.InitWithShallowSlice(dv, nb, 1);
         pfb->RetrieveResult(dv_mb,1,NGHOST,pmb->loc,pmb->block_size);
       }
     }

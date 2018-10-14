@@ -205,7 +205,7 @@ void Mesh::UserWorkAfterLoop(ParameterInput *pin) {
   int js=pblock->js, je=pblock->je;
   int ks=pblock->ks, ke=pblock->ke;
   AthenaArray<Real> pr;
-  pr.InitWithShallowSlice(pblock->phydro->w,4,IPR,1);
+  pr.InitWithShallowSlice(pblock->phydro->w,IPR,1);
 
   // get coordinate location of the center, convert to Cartesian
   Real x1_0   = pin->GetOrAddReal("problem","x1_0",0.0);

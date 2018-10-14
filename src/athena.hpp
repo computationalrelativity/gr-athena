@@ -11,6 +11,7 @@
 // C headers
 #include <math.h>
 #include <stdint.h>  // int64_t
+#include <stdlib.h>  // abort
 
 // C++ headers
 

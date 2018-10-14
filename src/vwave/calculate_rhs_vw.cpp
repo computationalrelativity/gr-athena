@@ -53,6 +53,91 @@ static Real const __diff_2_stencil_8[] = {
   -1./560., 8./315., -1./5., 8./5., -205./72., 8./5., -1./5., 8./315., -1./560.
 };
 
+class FDKernel {
+  public:
+    FDKernel(int order): 
+      st_order_(order),
+      st_siz_(order + 1),
+      st_offset_(order/2) {
+      switch(order) {
+        case 2:
+          diff_1_st_ = __diff_1_stencil_2;
+          diff_2_st_ = __diff_2_stencil_2;
+          break;
+        case 4:
+          diff_1_st_ = __diff_1_stencil_4;
+          diff_2_st_ = __diff_2_stencil_4;
+          break;
+        case 6:
+          diff_1_st_ = __diff_1_stencil_6;
+          diff_2_st_ = __diff_2_stencil_6;
+          break;
+        case 8:
+          diff_1_st_ = __diff_1_stencil_8;
+          diff_2_st_ = __diff_2_stencil_8;
+          break;
+        default:
+          std::stringstream msg;
+          msg << "FD order not supported: " << order << std::endl;
+          throw std::runtime_error(msg.str().c_str());
+      }
+    }
+
+    inline Real diff_1(int const da,
+        AthenaArray<Real> const & fun, int const i, int const j, int const k) {
+      Real out = 0.0;
+      for(int n = 0; n < st_siz_; ++n) {
+        out += diff_1_st_[n]*fun(
+            i + (da == 0)*(n - st_offset_),
+            j + (da == 1)*(n - st_offset_),
+            k + (da == 2)*(n - st_offset_));
+      }
+      return out;
+    }
+
+    inline Real diff_2(int const da, int const db,
+        AthenaArray<Real> const & fun, int const i, int const j, int const k) {
+      if(da == db) {
+        return diff_aa_(da, fun, i, j, k);
+      }
+      else {
+        return diff_ab_(da, db, fun, i, j, k);
+      }
+    }
+  private:
+    int const st_order_;
+    int const st_siz_;
+    int const st_offset_;
+    Real const * diff_1_st_;
+    Real const * diff_2_st_;
+
+    inline Real diff_aa_(int const da,
+        AthenaArray<Real> const & fun, int const i, int const j, int const k) {
+      Real out = 0.0;
+      for(int n = 0; n < st_siz_; ++n) {
+        out += diff_2_st_[n]*fun(
+            i + (da == 0)*(n - st_offset_),
+            j + (da == 1)*(n - st_offset_),
+            k + (da == 2)*(n - st_offset_));
+      }
+      return out;
+    }
+    inline Real diff_ab_(int const da, int const db,
+        AthenaArray<Real> const & fun, int const i, int const j, int const k) {
+      Real out = 0.0;
+      for(int na = 0; na < st_siz_; ++na)
+      for(int nb = 0; nb < st_siz_; ++nb) {
+        out += diff_1_st_[na]*diff_1_st_[nb]*fun(
+          i + (da == 0)*(na - st_offset_) + (db == 0)*(nb - st_offset_),
+          j + (da == 1)*(na - st_offset_) + (db == 1)*(nb - st_offset_),
+          k + (da == 2)*(na - st_offset_) + (db == 2)*(nb - st_offset_));
+      }
+      return out;
+    }
+};
+
+
+
 //! \fn void Vwave::CalculateRHS
 //  \brief Calculate RHS for the vectorial wave equation using finite-differencing
 
@@ -65,38 +150,13 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
 
-  g.array().InitWithShallowSlice(u, 4, gab_IDX, 6);
-  K.array().InitWithShallowSlice(u, 4, Kab_IDX, 6);
+  g.array().InitWithShallowSlice(u, gab_IDX, 6);
+  K.array().InitWithShallowSlice(u, Kab_IDX, 6);
 
-  rhs_g.array().InitWithShallowSlice(rhs, 4, gab_IDX, 6);
-  rhs_K.array().InitWithShallowSlice(rhs, 4, Kab_IDX, 6);
+  rhs_g.array().InitWithShallowSlice(rhs, gab_IDX, 6);
+  rhs_K.array().InitWithShallowSlice(rhs, Kab_IDX, 6);
 
-  //TODO: define routines for drvts
-  Real const * _diff_1_stencil;
-  Real const * _diff_2_stencil;
-  switch(order) {
-    case 2:
-      _diff_2_stencil = &__diff_2_stencil_2[0];
-      _diff_1_stencil = &__diff_1_stencil_2[0];
-      break;
-    case 4:
-      _diff_2_stencil = &__diff_2_stencil_4[0];
-      _diff_1_stencil = &__diff_1_stencil_4[0];
-      break;
-    case 6:
-     _diff_2_stencil = &__diff_2_stencil_6[0];
-     _diff_1_stencil = &__diff_1_stencil_6[0];
-     break;
-    case 8:
-      _diff_2_stencil = &__diff_2_stencil_8[0];
-      _diff_1_stencil = &__diff_1_stencil_8[0];
-      break;
-    default:
-      msg << "FD order not supported: " << order << std::endl;
-      throw std::runtime_error(msg.str().c_str());
-  }
-  int const stencil_offset = order/2;
-  int const stencil_size = order + 1;
+  FDKernel fd(order);
 
   int tid = 0;
   int nthreads = pmb->pmy_mesh->GetNumMeshThreads();
@@ -113,14 +173,13 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
     for(int k = ks; k <= ke; ++k) {
 #pragma omp for schedule(static)
       for(int j = js; j <= je; ++j) {
-	for(int a = 0; a < NDIM; ++a) {
-	  for(int b = a; b < NDIM; ++b) {
+        for(int a = 0; a < NDIM; ++a)
+        for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
-	    for(int i = is; i <= ie; ++i) {
-	      rhs_g(a,b,k,j,i) = -2*K(a,b,k,j,i);
-	    }
-	  }
-	}
+          for(int i = is; i <= ie; ++i) {
+            rhs_g(a,b,k,j,i) = -2*K(a,b,k,j,i);
+          }
+        }
       }
     }
     
@@ -130,127 +189,68 @@ void Vwave::VwaveRHS(AthenaArray<Real> & u, int order)
     for(int k = ks; k <= ke; ++k) {
 #pragma omp for schedule(static)
       for(int j = js; j <= je; ++j) {
-	
-	//----------------------------------------------------------------------------------------
-	// Flat metric and its Inverse 
+      
+        //----------------------------------------------------------------------------------------
+        // Flat metric and its Inverse 
 
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-          for(int a = 0; a < 3; ++a)
-          for(int b = a; b < 3; ++b) {
+          for(int a = 0; a < NDIM; ++a)
+          for(int b = a; b < NDIM; ++b) {
             eta(a, b, i) = (a == b) ? (1.0) : (0.0);
           }
         }
 
 #pragma omp simd
-	for(int i = is; i <= ie; ++i) {
-	  Real det = SpatialDet( eta(0,0,i), eta(0,1,i), eta(0,2,i), 
-				 eta(1,1,i), eta(1,2,i), eta(2,2,i) );
-	  SpatialInv( det,
-		      eta(0,0,i), eta(0,1,i), eta(0,2,i), 
-		      eta(1,1,i), eta(1,2,i), eta(2,2,i), 
-		      &ieta(0,0,i), &ieta(0,1,i), &ieta(0,2,i), 
-		      &ieta(1,1,i), &ieta(1,2,i), &ieta(2,2,i) );
-	  
-	}
-	
-	//----------------------------------------------------------------------------------------
-	// Metric drvts 
-	
-	for(int a = 0; a < NDIM; ++a) {
-	  for(int b = a; b < NDIM; ++b) { 
+        for(int i = is; i <= ie; ++i) {
+            Real det = SpatialDet( eta(0,0,i), eta(0,1,i), eta(0,2,i), 
+                             eta(1,1,i), eta(1,2,i), eta(2,2,i) );
+            SpatialInv( det,
+                      eta(0,0,i), eta(0,1,i), eta(0,2,i), 
+                      eta(1,1,i), eta(1,2,i), eta(2,2,i), 
+                      &ieta(0,0,i), &ieta(0,1,i), &ieta(0,2,i), 
+                      &ieta(1,1,i), &ieta(1,2,i), &ieta(2,2,i) );
+            
+        }
+      
+        //----------------------------------------------------------------------------------------
+        // Metric drvts 
+        for(int c = 0; c < NDIM; ++c)
+        for(int d = c; d < NDIM; ++d)
+        for(int a = 0; a < NDIM; ++a)
+        for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
-		for(int i = is; i <= ie; ++i) {
-		  Real dd_loc = 0;
-		  for(int n = 0; n < stencil_size; ++n) {
-		    dd_loc += _diff_2_stencil[n]*g(a,b, k, j, i + n - stencil_offset);
-		  }
-		  dd_loc /= SQR(pco->dx1v(i));
-		  ddg(0,0,a,b,i) = dd_loc;
-		}
+          for(int i = is; i <= ie; ++i) {
+            ddg(c,d,a,b,i) = fd.diff_2(c, d, g(a,b), k, j, i);
+          }
+        }
+      
+      
+        //----------------------------------------------------------------------------------------
+        // Ricci tensor
+      
+        for(int a = 0; a < NDIM; ++a)
+        for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
-		for(int i = is; i <= ie; ++i) {
-		  Real dd_loc = 0;
-		  for(int n = 0; n < stencil_size; ++n) {
-		    dd_loc += _diff_2_stencil[n]*g(a,b, k, j + n - stencil_offset, i);
-		  }
-		  dd_loc /= SQR(pco->dx2v(j));
-		  ddg(1,1,a,b,i) = dd_loc;
-		}
+          for(int i = is; i <= ie; ++i) {
+            R(a,b,i) = 0.;
+            for(int c = 0; c < NDIM; ++c)
+            for(int d = 0; d < NDIM; ++d) {
+              R(a,b,i) -= 0.5*ieta(c,d,i)*ddg(c,d,a,b,i);
+            }
+          }
+        }
+      
+        //----------------------------------------------------------------------------------------
+        // K rhs 
+      
+        for(int a = 0; a < NDIM; ++a)
+        for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
-		for(int i = is; i <= ie; ++i) {
-		  Real dd_loc = 0;
-		  for(int n = 0; n < stencil_size; ++n) {
-		    dd_loc += _diff_2_stencil[n]*g(a,b, k + n - stencil_offset, j, i);
-		  }
-		  dd_loc /= SQR(pco->dx3v(k));
-		  ddg(2,2,a,b,i) = dd_loc;
-		}
-#pragma omp simd
-		for(int i = is; i <= ie; ++i) {
-		  Real dd_loc = 0;
-		  for(int n = 0; n < stencil_size; ++n) {
-		    for(int m = 0; m < stencil_size; ++m) {
-		      dd_loc += _diff_1_stencil[n]*_diff_1_stencil[m]*g(a,b, k, j + m - stencil_offset, i + n - stencil_offset);
-		    }
-		  }
-		  dd_loc /= (pco->dx1v(i)*pco->dx2v(j));
-		  ddg(0,1,a,b,i) = dd_loc;
-		}
-#pragma omp simd
-		for(int i = is; i <= ie; ++i) {
-		  Real dd_loc = 0;
-		  for(int n = 0; n < stencil_size; ++n) {
-		    for(int m = 0; m < stencil_size; ++m) {
-		      dd_loc += _diff_1_stencil[n]*_diff_1_stencil[m]*g(a,b, k + m - stencil_offset, j, i + n - stencil_offset);
-		    }
-		  }
-		  dd_loc /= (pco->dx1v(i)*pco->dx3v(k));
-		  ddg(0,2,a,b,i) = dd_loc;
-		}
-#pragma omp simd
-		for(int i = is; i <= ie; ++i) {
-		  Real dd_loc = 0;
-		  for(int n = 0; n < stencil_size; ++n) {
-		    for(int m = 0; m < stencil_size; ++m) {
-		      dd_loc += _diff_1_stencil[n]*_diff_1_stencil[m]*g(a,b, k + m - stencil_offset, j + n - stencil_offset, i);
-		    }
-		  }
-		  dd_loc /= (pco->dx2v(j)*pco->dx3v(k));
-		  ddg(1,2,a,b,i) = dd_loc;
-		}
-	  }
-	}
-	
-	//----------------------------------------------------------------------------------------
-	// Ricci tensor
-	
-	for(int a = 0; a < NDIM; ++a) {
-	  for(int b = a; b < NDIM; ++b) {
-#pragma omp simd
-	    for(int i = is; i <= ie; ++i) {
-	      R(a,b,i) = 0.;
-	      for(int c = 0; c < NDIM; ++c) {
-		for(int d = 0; d < NDIM; ++d) {
-		  R(a,b,i) -= 0.5*ieta(c,d,i)*ddg(c,d,a,b,i);
-		}
-	      }
-	    }
-	  }
-	}
-	
-	//----------------------------------------------------------------------------------------
-	// K rhs 
-	
-	for(int a = 0; a < NDIM; ++a) {
-	  for(int b = a; b < NDIM; ++b) {
-#pragma omp simd
-	    for(int i = is; i <= ie; ++i) {
-	      rhs_K(a,b,k,j,i) = R(a,b,i);
-	    }
-	  }
-	}
-	
+          for(int i = is; i <= ie; ++i) {
+            rhs_K(a,b,k,j,i) = R(a,b,i);
+          }
+        }
       } // j - loop
     } // k - loop
     

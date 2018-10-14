@@ -314,7 +314,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     pod = new OutputData;
     pod->type = "SCALARS";
     pod->name = "dens";
-    pod->data.InitWithShallowSlice(phyd->u,4,IDN,1);
+    pod->data.InitWithShallowSlice(phyd->u,IDN,1);
     AppendOutputDataNode(pod);
     num_vars_++;
   }
@@ -325,7 +325,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     pod = new OutputData;
     pod->type = "SCALARS";
     pod->name = "rho";
-    pod->data.InitWithShallowSlice(phyd->w,4,IDN,1);
+    pod->data.InitWithShallowSlice(phyd->w,IDN,1);
     AppendOutputDataNode(pod);
     num_vars_++;
   }
@@ -337,7 +337,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = "Etot";
-      pod->data.InitWithShallowSlice(phyd->u,4,IEN,1);
+      pod->data.InitWithShallowSlice(phyd->u,IEN,1);
       AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -350,7 +350,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = "press";
-      pod->data.InitWithShallowSlice(phyd->w,4,IPR,1);
+      pod->data.InitWithShallowSlice(phyd->w,IPR,1);
       AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -362,12 +362,12 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     pod = new OutputData;
     pod->type = "VECTORS";
     pod->name = "mom";
-    pod->data.InitWithShallowSlice(phyd->u,4,IM1,3);
+    pod->data.InitWithShallowSlice(phyd->u,IM1,3);
     AppendOutputDataNode(pod);
     num_vars_+=3;
     if (output_params.cartesian_vector) {
       AthenaArray<Real> src;
-      src.InitWithShallowSlice(phyd->u,4,IM1,3);
+      src.InitWithShallowSlice(phyd->u,IM1,3);
       pod = new OutputData;
       pod->type = "VECTORS";
       pod->name = "mom_xyz";
@@ -383,7 +383,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     pod = new OutputData;
     pod->type = "SCALARS";
     pod->name = "mom1";
-    pod->data.InitWithShallowSlice(phyd->u,4,IM1,1);
+    pod->data.InitWithShallowSlice(phyd->u,IM1,1);
     AppendOutputDataNode(pod);
     num_vars_++;
   }
@@ -391,7 +391,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     pod = new OutputData;
     pod->type = "SCALARS";
     pod->name = "mom2";
-    pod->data.InitWithShallowSlice(phyd->u,4,IM2,1);
+    pod->data.InitWithShallowSlice(phyd->u,IM2,1);
     AppendOutputDataNode(pod);
     num_vars_++;
   }
@@ -399,7 +399,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     pod = new OutputData;
     pod->type = "SCALARS";
     pod->name = "mom3";
-    pod->data.InitWithShallowSlice(phyd->u,4,IM3,1);
+    pod->data.InitWithShallowSlice(phyd->u,IM3,1);
     AppendOutputDataNode(pod);
     num_vars_++;
   }
@@ -410,12 +410,12 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     pod = new OutputData;
     pod->type = "VECTORS";
     pod->name = "vel";
-    pod->data.InitWithShallowSlice(phyd->w,4,IVX,3);
+    pod->data.InitWithShallowSlice(phyd->w,IVX,3);
     AppendOutputDataNode(pod);
     num_vars_+=3;
     if (output_params.cartesian_vector) {
       AthenaArray<Real> src;
-      src.InitWithShallowSlice(phyd->w,4,IVX,3);
+      src.InitWithShallowSlice(phyd->w,IVX,3);
       pod = new OutputData;
       pod->type = "VECTORS";
       pod->name = "vel_xyz";
@@ -432,7 +432,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     pod = new OutputData;
     pod->type = "SCALARS";
     pod->name = "vel1";
-    pod->data.InitWithShallowSlice(phyd->w,4,IVX,1);
+    pod->data.InitWithShallowSlice(phyd->w,IVX,1);
     AppendOutputDataNode(pod);
     num_vars_++;
   }
@@ -441,7 +441,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     pod = new OutputData;
     pod->type = "SCALARS";
     pod->name = "vel2";
-    pod->data.InitWithShallowSlice(phyd->w,4,IVY,1);
+    pod->data.InitWithShallowSlice(phyd->w,IVY,1);
     AppendOutputDataNode(pod);
     num_vars_++;
   }
@@ -450,7 +450,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     pod = new OutputData;
     pod->type = "SCALARS";
     pod->name = "vel3";
-    pod->data.InitWithShallowSlice(phyd->w,4,IVZ,1);
+    pod->data.InitWithShallowSlice(phyd->w,IVZ,1);
     AppendOutputDataNode(pod);
     num_vars_++;
   }
@@ -461,7 +461,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = "wU";
-      pod->data.InitWithShallowSlice(pwave->u,4,0,1);
+      pod->data.InitWithShallowSlice(pwave->u,0,1);
       AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -471,7 +471,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = "wPI";
-      pod->data.InitWithShallowSlice(pwave->u,4,1,1);
+      pod->data.InitWithShallowSlice(pwave->u,1,1);
       AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -480,7 +480,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = "wExact";
-      pod->data.InitWithShallowSlice(pwave->exact,4,0,1);
+      pod->data.InitWithShallowSlice(pwave->exact,0,1);
       AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -492,7 +492,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = "vwU";
-      pod->data.InitWithShallowSlice(pvwave->u,4,0,1);
+      pod->data.InitWithShallowSlice(pvwave->u,0,1);
       AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -502,7 +502,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = "vwPI";
-      pod->data.InitWithShallowSlice(pvwave->u,4,1,1);
+      pod->data.InitWithShallowSlice(pvwave->u,1,1);
       AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -515,7 +515,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = "Phi";
-      pod->data.InitWithShallowSlice(pgrav->phi,4,0,1);
+      pod->data.InitWithShallowSlice(pgrav->phi,0,1);
       AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -530,12 +530,12 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       pod = new OutputData;
       pod->type = "VECTORS";
       pod->name = "Bcc";
-      pod->data.InitWithShallowSlice(pfld->bcc,4,IB1,3);
+      pod->data.InitWithShallowSlice(pfld->bcc,IB1,3);
       AppendOutputDataNode(pod);
       num_vars_+=3;
       if (output_params.cartesian_vector) {
         AthenaArray<Real> src;
-        src.InitWithShallowSlice(pfld->bcc,4,IB1,3);
+        src.InitWithShallowSlice(pfld->bcc,IB1,3);
         pod = new OutputData;
         pod->type = "VECTORS";
         pod->name = "Bcc_xyz";
@@ -552,7 +552,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = "Bcc1";
-      pod->data.InitWithShallowSlice(pfld->bcc,4,IB1,1);
+      pod->data.InitWithShallowSlice(pfld->bcc,IB1,1);
       AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -560,7 +560,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = "Bcc2";
-      pod->data.InitWithShallowSlice(pfld->bcc,4,IB2,1);
+      pod->data.InitWithShallowSlice(pfld->bcc,IB2,1);
       AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -568,7 +568,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = "Bcc3";
-      pod->data.InitWithShallowSlice(pfld->bcc,4,IB3,1);
+      pod->data.InitWithShallowSlice(pfld->bcc,IB3,1);
       AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -578,7 +578,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = "B1";
-      pod->data.InitWithShallowSlice(pfld->b.x1f,4,0,1);
+      pod->data.InitWithShallowSlice(pfld->b.x1f,0,1);
       AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -586,7 +586,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = "B2";
-      pod->data.InitWithShallowSlice(pfld->b.x2f,4,0,1);
+      pod->data.InitWithShallowSlice(pfld->b.x2f,0,1);
       AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -594,7 +594,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = "B3";
-      pod->data.InitWithShallowSlice(pfld->b.x3f,4,0,1);
+      pod->data.InitWithShallowSlice(pfld->b.x3f,0,1);
       AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -621,7 +621,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
         sprintf(vn, "user_out_var%d", n);
         pod->name = vn;
       }
-      pod->data.InitWithShallowSlice(pmb->user_out_var,4,n,1);
+      pod->data.InitWithShallowSlice(pmb->user_out_var,n,1);
       AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -633,7 +633,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
         pod = new OutputData;
         pod->type = "SCALARS";
         pod->name=pmb->user_out_var_names_[n];
-        pod->data.InitWithShallowSlice(pmb->user_out_var,4,n,1);
+        pod->data.InitWithShallowSlice(pmb->user_out_var,n,1);
         AppendOutputDataNode(pod);
         num_vars_++;
       }

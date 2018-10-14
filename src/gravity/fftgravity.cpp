@@ -70,7 +70,7 @@ void FFTGravityDriver::Solve(int step, int mode) {
   for (int igid=nbs;igid<=nbe;igid++) {
     MeshBlock *pmb=pmy_mesh_->FindMeshBlock(igid);
     if (pmb!=NULL) {
-      in.InitWithShallowSlice(pmb->phydro->u,4,IDN,1);
+      in.InitWithShallowSlice(pmb->phydro->u,IDN,1);
       pfb->LoadSource(in, 1, NGHOST, pmb->loc, pmb->block_size);
     }
 //    else { // on another process

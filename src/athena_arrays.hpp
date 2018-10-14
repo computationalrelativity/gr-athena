@@ -78,20 +78,20 @@ public:
 
   // functions that initialize an array with shallow copy or slice from another array
   void InitWithShallowCopy(AthenaArray<T> &src);
-  void InitWithShallowSlice(AthenaArray<T> &src, const int dim, const int indx,
-    const int nvar);
+  void InitWithShallowSlice(AthenaArray<T> &src, const int indx, const int nvar);
 
 private:
   T *pdata_;
   int nx1_, nx2_, nx3_, nx4_, nx5_;
   bool scopy_;  // true if shallow copy (prevents source from being deleted)
+  int dim_;
 };
 
 //constructor
 
 template<typename T>
 AthenaArray<T>::AthenaArray()
-  : pdata_(NULL), nx1_(0), nx2_(0), nx3_(0), nx4_(0), nx5_(0), scopy_(true) {
+  : pdata_(NULL), nx1_(0), nx2_(0), nx3_(0), nx4_(0), nx5_(0), scopy_(true), dim_(0) {
 }
 
 // destructor
@@ -118,6 +118,7 @@ AthenaArray<T>::AthenaArray(const AthenaArray<T>& src) {
     }
     scopy_=false;
   }
+  dim_ = src.dim_;
 }
 
 // assignment operator (does a deep copy).  Does not allocate memory for destination.
@@ -131,6 +132,7 @@ AthenaArray<T> &AthenaArray<T>::operator= (const AthenaArray<T> &src) {
       this->pdata_[i] = src.pdata_[i]; // copy data (not just addresses!)
     }
     scopy_=false;
+    dim_ = src.dim_;
   }
   return *this;
 }
@@ -148,6 +150,7 @@ void AthenaArray<T>::InitWithShallowCopy(AthenaArray<T> &src) {
   nx5_=src.nx5_;
   pdata_ = src.pdata_;
   scopy_ = true;
+  dim_ = src.dim_;
   return;
 }
 
@@ -157,45 +160,55 @@ void AthenaArray<T>::InitWithShallowCopy(AthenaArray<T> &src) {
 //  index=indx.  Copies pointers to data, but not data itself.
 
 template<typename T>
-void AthenaArray<T>::InitWithShallowSlice(AthenaArray<T> &src, const int dim,
+void AthenaArray<T>::InitWithShallowSlice(AthenaArray<T> &src,
   const int indx, const int nvar) {
   pdata_ = src.pdata_;
 
-  if (dim == 5) {
-    nx5_=nvar;
-    nx4_=src.nx4_;
-    nx3_=src.nx3_;
-    nx2_=src.nx2_;
-    nx1_=src.nx1_;
-    pdata_ += indx*(nx1_*nx2_*nx3_*nx4_);
-  } else if (dim == 4) {
-    nx5_=1;
-    nx4_=nvar;
-    nx3_=src.nx3_;
-    nx2_=src.nx2_;
-    nx1_=src.nx1_;
-    pdata_ += indx*(nx1_*nx2_*nx3_);
-  } else if (dim == 3) {
-    nx5_=1;
-    nx4_=1;
-    nx3_=nvar;
-    nx2_=src.nx2_;
-    nx1_=src.nx1_;
-    pdata_ += indx*(nx1_*nx2_);
-  } else if (dim == 2) {
-    nx5_=1;
-    nx4_=1;
-    nx3_=1;
-    nx2_=nvar;
-    nx1_=src.nx1_;
-    pdata_ += indx*(nx1_);
-  } else if (dim == 1) {
-    nx5_=1;
-    nx4_=1;
-    nx3_=1;
-    nx2_=1;
-    nx1_=nvar;
-    pdata_ += indx;
+  switch(src.dim_) {
+    case 5:
+      nx5_=nvar;
+      nx4_=src.nx4_;
+      nx3_=src.nx3_;
+      nx2_=src.nx2_;
+      nx1_=src.nx1_;
+      pdata_ += indx*(nx1_*nx2_*nx3_*nx4_);
+      break;
+    case 4:
+      nx5_=1;
+      nx4_=nvar;
+      nx3_=src.nx3_;
+      nx2_=src.nx2_;
+      nx1_=src.nx1_;
+      pdata_ += indx*(nx1_*nx2_*nx3_);
+      break;
+    case 3:
+      nx5_=1;
+      nx4_=1;
+      nx3_=nvar;
+      nx2_=src.nx2_;
+      nx1_=src.nx1_;
+      pdata_ += indx*(nx1_*nx2_);
+      break;
+    case 2:
+      nx5_=1;
+      nx4_=1;
+      nx3_=1;
+      nx2_=nvar;
+      nx1_=src.nx1_;
+      pdata_ += indx*(nx1_);
+      break;
+    case 1:
+      nx5_=1;
+      nx4_=1;
+      nx3_=1;
+      nx2_=1;
+      nx1_=nvar;
+      pdata_ += indx;
+      break;
+    case 0:
+      break;
+    default:
+      abort(); // you should not be here
   }
   scopy_ = true;
   return;

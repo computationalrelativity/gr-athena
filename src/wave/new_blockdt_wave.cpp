@@ -46,9 +46,9 @@ Real Wave::NewBlockTimeStep(void)
     tid = omp_get_thread_num();
 #endif
     AthenaArray<Real> dt1, dt2, dt3;
-    dt1.InitWithShallowSlice(dt1_, 2, tid, 1);
-    dt2.InitWithShallowSlice(dt2_, 2, tid, 1);
-    dt3.InitWithShallowSlice(dt3_, 2, tid, 1);
+    dt1.InitWithShallowSlice(dt1_, tid, 1);
+    dt2.InitWithShallowSlice(dt2_, tid, 1);
+    dt3.InitWithShallowSlice(dt3_, tid, 1);
 
     for (int k = ks; k <= ke; ++k) {
 #pragma omp for schedule(static)

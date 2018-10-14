@@ -37,10 +37,10 @@ Vwave::Vwave(MeshBlock *pmb, ParameterInput *pin)
   dt3_.NewAthenaArray(nthreads,ncells1);
 
   // Allocate memory for aux vars
-  eta.NewAthenaTensor(2, ncells1); //TODO:check
-  ieta.NewAthenaTensor(2, ncells1); 
-  ddg.NewAthenaTensor(4, ncells1);
-  R.NewAthenaTensor(2, ncells1);
+  eta.NewAthenaTensor(ncells1); //TODO:check
+  ieta.NewAthenaTensor(ncells1); 
+  ddg.NewAthenaTensor(ncells1);
+  R.NewAthenaTensor(ncells1);
 }
 
 // destructor

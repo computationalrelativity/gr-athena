@@ -31,6 +31,10 @@ template<typename T, TensorSymm sym, int ndim>
 class AthenaTensor<T, sym, ndim, 1> {
 public:
   // the default constructor/destructor/copy operators are sufficient
+  AthenaTensor() = default;
+  ~AthenaTensor() = default;
+  AthenaTensor(AthenaTensor<T, sym, ndim, 1> const &) = default;
+  AthenaTensor<T, sym, ndim, 1> & operator=(AthenaTensor<T, sym, ndim, 1> const &) = default;
 
   // functions to allocate/de-allocate the data
   void NewAthenaTensor(int nx1) {
@@ -66,6 +70,10 @@ public:
   }
 
   // operators to access the data
+  AthenaArray<Real> const & operator()(int const a) {
+    slice_.InitWithShallowSlice(data_, a, 1);
+    return slice_;
+  }
   T & operator()(int const a,
                  int const i) {
     return data_(a,i);
@@ -100,6 +108,7 @@ public:
   }
 private:
   AthenaArray<T> data_;
+  AthenaArray<T> slice_;
 };
 
 //----------------------------------------------------------------------------------------
@@ -147,6 +156,10 @@ public:
   }
 
   // operators to access the data
+  AthenaArray<Real> const & operator()(int const a, int const b) {
+    slice_.InitWithShallowSlice(data_, idxmap_[a][b], 1);
+    return slice_;
+  }
   T & operator()(int const a, int const b,
                  int const i) {
     return data_(idxmap_[a][b],i);
@@ -181,6 +194,7 @@ public:
   }
 private:
   AthenaArray<T> data_;
+  AthenaArray<T> slice_;
   int idxmap_[ndim][ndim];
   int ndof_;
 };
@@ -230,6 +244,10 @@ public:
   }
 
   // operators to access the data
+  AthenaArray<Real> const & operator()(int const a, int const b, int const c) {
+    slice_.InitWithShallowSlice(data_, idxmap_[a][b][c], 1);
+    return slice_;
+  }
   T & operator()(int const a, int const b, int const c,
                  int const i) {
     return data_(idxmap_[a][b][c],i);
@@ -264,6 +282,7 @@ public:
   }
 private:
   AthenaArray<T> data_;
+  AthenaArray<T> slice_;
   int idxmap_[ndim][ndim][ndim];
   int ndof_;
 };
@@ -313,6 +332,10 @@ public:
   }
 
   // operators to access the data
+  AthenaArray<Real> const & operator()(int const a, int const b, int const c, int const d) {
+    slice_.InitWithShallowSlice(data_, idxmap_[a][b][c][d], 1);
+    return slice_;
+  }
   T & operator()(int const a, int const b, int const c, int const d,
                  int const i) {
     return data_(idxmap_[a][b][c][d],i);
@@ -347,6 +370,7 @@ public:
   }
 private:
   AthenaArray<T> data_;
+  AthenaArray<T> slice_;
   int idxmap_[ndim][ndim][ndim][ndim];
   int ndof_;
 };
