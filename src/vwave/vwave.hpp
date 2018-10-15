@@ -36,7 +36,12 @@ public:
   AthenaArray<Real> u;   // solution of the vectorial wave equation
   AthenaArray<Real> u1;  // solution of the vectorial wave equation at intermediate step
   AthenaArray<Real> rhs; // vectorial wave equation rhs
-    
+
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> g; // Metric tensor
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> K; // Curvature
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> rhs_g;
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> rhs_K;
+
   Real c;                            // light speed
   
   // functions
@@ -56,11 +61,6 @@ public:
 private:
   AthenaArray<Real> dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep
   
-  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> g; // Metric tensor
-  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> K; // Curvature
-  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> rhs_g; 
-  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> rhs_K; 
-
   // Auxiliary 1d vars
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> eta;   // flat Metric tensor     //TODO: check def
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> ieta;  // inverse Metric tensor 

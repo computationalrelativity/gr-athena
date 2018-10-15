@@ -25,8 +25,8 @@
 void MeshBlock::ProblemGenerator(ParameterInput *pin)
 {
 
-  pvwave->g.array().InitWithShallowSlice(pvwave->u, 4, gab_IDX, 6);
-  pvwave->K.array().InitWithShallowSlice(pvwave->u, 4, Kab_IDX, 6);
+  pvwave->g.array().InitWithShallowSlice(pvwave->u, gab_IDX, 6);
+  pvwave->K.array().InitWithShallowSlice(pvwave->u, Kab_IDX, 6);
 
   for(int a = 0; a < NDIM; ++a)
   for(int b = a; b < NDIM; ++b)
@@ -46,7 +46,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     Real y = pcoord->x2v(j);
     Real z = pcoord->x3v(k);
 
-    pvwave->g(a,b,,k,j,i) = sin(2*M_PI*x)*cos(2*M_PI*y)*cos(2*M_PI*z);
+    pvwave->g(a,b,k,j,i) = sin(2*M_PI*x)*cos(2*M_PI*y)*cos(2*M_PI*z);
     pvwave->K(a,b,k,j,i) = 0.0;
   }
   return;
