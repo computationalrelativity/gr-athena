@@ -38,7 +38,7 @@ void Wave::AddWaveRHSToVals(AthenaArray<Real> & u1, AthenaArray<Real> & u2,
 #pragma omp for schedule(static)
     for(int k=ks; k<=ke; ++k) {
       for(int j=js; j<=je; ++j) {
-#pragma simd
+#pragma omp simd
         for(int i=is; i<=ie; ++i) {
           u_out(0,k,j,i) = w.gamma_2*u1(0,k,j,i) + w.gamma_1*u2(0,k,j,i) +
             w.beta*(pmb->pmy_mesh->dt)*rhs(0,k,j,i);

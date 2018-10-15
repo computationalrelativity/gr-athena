@@ -47,7 +47,7 @@ void Wave::ComputeExactSol()
    for(int k = ks; k <= ke; ++k) {
 #pragma omp for schedule(static)
       for(int j = js; j <= je; ++j) {
-#pragma simd
+#pragma omp simd
         for(int i = is; i <= ie; ++i) {
             Real x = pco->x1v(i);
             Real y = pco->x2v(j);
