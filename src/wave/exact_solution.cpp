@@ -49,14 +49,38 @@ void Wave::ComputeExactSol()
       for(int j = js; j <= je; ++j) {
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
+
+            Real t = pmb->pmy_mesh->time;
             Real x = pco->x1v(i);
             Real y = pco->x2v(j);
             Real z = pco->x3v(k);
-            exact(0,k,j,i) = x;
+
+            Real plus   = WaveProfile(x+t);
+            Real minus  = WaveProfile(x-t);
+
+            Real plusp  = WaveProfile(fmod(x+t-c,2.0)-c);
+            Real minusp = WaveProfile(fmod(x-t+c,2.0)+c);
+
+            exact(0,k,j,i) = (plus  + minus )/2.0
+                           + (plusp + minusp)/2.0;
+            error(0,k,j,i) = abs( exact(0,k,j,i) - u(0,k,j,i) );
         }
       }
     }
   } // end of parallel region
 
   return;
+}
+
+Real Wave::WaveProfile(Real argument)
+{
+    Real const a = 1.0;
+    Real const sigma = 0.2;
+
+    Real profile = a*exp(-SQR(argument)/SQR(sigma)); //Gaussian
+
+    //Real profile = sin(2*M_PI*x)*cos(2*M_PI*y)*cos(2*M_PI*z);
+    //Real profile = pow(cos(0.5*M_PI*x), 6);
+
+    return profile;
 }

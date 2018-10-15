@@ -573,7 +573,6 @@ void TimeIntegratorTaskList::AddTimeIntegratorTask(uint64_t id, uint64_t dep) {
 // Functions to start/end MPI communication
 
 enum TaskStatus TimeIntegratorTaskList::StartAllReceive(MeshBlock *pmb, int step) {
-  //std::cout << "Doing 'StartAllReceive'" << std::endl;
   Real dt = (step_wghts[(step-1)].beta)*(pmb->pmy_mesh->dt);
   Real time = pmb->pmy_mesh->time+dt;
   pmb->pbval->StartReceivingAll(time);
@@ -627,7 +626,6 @@ enum TaskStatus TimeIntegratorTaskList::CalculateWaveRHS(MeshBlock *pmb, int ste
 
 enum TaskStatus TimeIntegratorTaskList::CalculateVwaveRHS(MeshBlock *pmb, int step)
 {
-  //std::cout << "Doing task 'CalculateVwaveRHS'" << std::endl;
   if(step == 1) {
     pmb->pvwave->VwaveRHS(pmb->pvwave->u, 2*NGHOST);
     return TASK_NEXT;
@@ -741,7 +739,6 @@ enum TaskStatus TimeIntegratorTaskList::WaveIntegrate(MeshBlock *pmb, int step)
 
 enum TaskStatus TimeIntegratorTaskList::VwaveIntegrate(MeshBlock *pmb, int step)
 {
-  //std::cout << "Doing task 'VwaveIntegrate'" << std::endl;
   Vwave * pvwave = pmb->pvwave;
   if (integrator != "rk2") {
       std::cout << "Only rk2 integrator is allowed for the vwave eqn." << std::endl;
@@ -762,7 +759,6 @@ enum TaskStatus TimeIntegratorTaskList::VwaveIntegrate(MeshBlock *pmb, int step)
 
 enum TaskStatus TimeIntegratorTaskList::WaveExact(MeshBlock *pmb, int step)
 {
-  Wave * pwave = pmb->pwave;
   pmb->pwave->ComputeExactSol();
   return TASK_NEXT;
 }
@@ -861,7 +857,6 @@ enum TaskStatus TimeIntegratorTaskList::WaveSend(MeshBlock *pmb, int step)
 
 enum TaskStatus TimeIntegratorTaskList::VwaveSend(MeshBlock *pmb, int step)
 {
-  //std::cout << "Doing task 'VwaveSend'" << std::endl;
   if(step == 1) {
     pmb->pbval->SendCellCenteredBoundaryBuffers(pmb->pvwave->u1, VWAVE_SOL);
   } else if(step == 2) {
@@ -924,13 +919,10 @@ enum TaskStatus TimeIntegratorTaskList::WaveReceive(MeshBlock *pmb, int step)
 
 enum TaskStatus TimeIntegratorTaskList::VwaveReceive(MeshBlock *pmb, int step)
 {
-  //std::cout << "Doing task 'VwaveReceive'" << std::endl;
   bool ret;
   if(step == 1) {
-//    std::cout << "Step 1 in 'VwaveReceive'" << std::endl;
     ret = pmb->pbval->ReceiveCellCenteredBoundaryBuffers(pmb->pvwave->u1, VWAVE_SOL);
   } else if(step == 2) {
-//    std::cout << "Step 2 in 'VwaveReceive'" << std::endl;
     ret = pmb->pbval->ReceiveCellCenteredBoundaryBuffers(pmb->pvwave->u, VWAVE_SOL);
   } else {
     return TASK_FAIL;

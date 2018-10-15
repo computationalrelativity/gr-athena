@@ -484,6 +484,15 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       AppendOutputDataNode(pod);
       num_vars_++;
     }
+    if (output_params.variable.compare("wave") == 0 ||
+        output_params.variable.compare("wave_error") == 0) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "wError";
+      pod->data.InitWithShallowSlice(pwave->error,0,1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
   }
 
   if (VWAVE_ENABLED) {

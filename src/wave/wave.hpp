@@ -25,20 +25,22 @@ class Wave {
     ~Wave();
 
     // data
-    MeshBlock * pmy_block;             // ptr to MeshBlock containing this Wave
-    AthenaArray<Real> u;               // solution of the wave equation
-    AthenaArray<Real> u1;              // solution of the wave equation at intermediate step
-    AthenaArray<Real> rhs;             // wave equation rhs
-    AthenaArray<Real> exact;           // exact solution of of the wave equation
+    MeshBlock * pmy_block;        // ptr to MeshBlock containing this Wave
+    AthenaArray<Real> u;          // solution of the wave equation
+    AthenaArray<Real> u1;         // solution of the wave equation at intermediate step
+    AthenaArray<Real> rhs;        // wave equation rhs
+    AthenaArray<Real> exact;      // exact solution of of the wave equation
+    AthenaArray<Real> error;      // error with respect to the exact solution
 
-    Real c;                            // light speed
+    Real c;                       // light speed
 
     // functions
-    Real NewBlockTimeStep(void);       // compute new timestep on a MeshBlock
+    Real NewBlockTimeStep(void);  // compute new timestep on a MeshBlock
     void WaveRHS(AthenaArray<Real> & u, int order);
     void AddWaveRHSToVals(AthenaArray<Real> & u1, AthenaArray<Real> & u2,
         IntegratorWeight step_wghts, AthenaArray<Real> &u_out);
     void ComputeExactSol();
+    Real WaveProfile(Real argument);
 
   private:
     AthenaArray<Real> dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep

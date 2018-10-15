@@ -30,7 +30,7 @@
 #include "../mesh/mesh.hpp"
 #include "outputs.hpp"
 
-#define NHISTORY_VARS ((NHYDRO)+(NFIELD)+3+1)
+#define NHISTORY_VARS ((NHYDRO)+(NFIELD)+3+3)
 
 //----------------------------------------------------------------------------------------
 // HistoryOutput constructor
@@ -61,6 +61,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     Field *pfld = pmb->pfield;
     Wave  *pwave = pmb->pwave;
     Vwave *pvwave = pmb->pvwave;
+    Real infty_norm = 0.0;
 
     // Sum history variables over cells.  Note ghost cells are never included in sums
     for (int k=pmb->ks; k<=pmb->ke; ++k) {
@@ -94,8 +95,13 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
           data_sum[isum++] += vol(i)*0.5*bcc3*bcc3;
         }
         if (WAVE_ENABLED) {
-          Real & wave_u = pwave->u(0,k,j,i);
-          data_sum[isum++] += vol(i)*wave_u;
+           Real & wave_error = pwave->error(0,k,j,i);
+           data_sum[isum++] += vol(i)*wave_error; //L1-norm of error
+           data_sum[isum++] += vol(i)*SQR(wave_error); //L2-norm of error
+           if (wave_error > infty_norm) {
+               infty_norm = wave_error; //LInfty-norm of error
+               data_sum[isum++] = infty_norm;
+           }
         }
         if (VWAVE_ENABLED) {
           Real & vwave_u = pvwave->u(0,k,j,i);
@@ -156,7 +162,11 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         fprintf(pfile,"[%d]=2-ME    ", iout++);
         fprintf(pfile,"[%d]=3-ME    ", iout++);
       }
-      if (WAVE_ENABLED)  fprintf(pfile,"[%d]=wave    ", iout++);
+      if (WAVE_ENABLED) {
+          fprintf(pfile,"[%d]=L1-norm ", iout++);
+          fprintf(pfile,"[%d]=L2-norm ", iout++);
+          fprintf(pfile,"[%d]=Infty-n ", iout++);
+      }
       if (VWAVE_ENABLED) fprintf(pfile,"[%d]=vwave   ", iout++);
 
       for (int n=0; n<pm->nuser_history_output_; n++)
