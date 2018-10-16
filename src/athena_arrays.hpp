@@ -226,6 +226,7 @@ void AthenaArray<T>::NewAthenaArray(int nx1) {
   nx3_ = 1;
   nx4_ = 1;
   nx5_ = 1;
+  dim_ = 1;
   pdata_ = new T[nx1](); // allocate memory and initialize to zero
 }
 
@@ -241,6 +242,7 @@ void AthenaArray<T>::NewAthenaArray(int nx2, int nx1) {
   nx3_ = 1;
   nx4_ = 1;
   nx5_ = 1;
+  dim_ = 2;
   pdata_ = new T[nx1*nx2](); // allocate memory and initialize to zero
 }
 
@@ -256,6 +258,7 @@ void AthenaArray<T>::NewAthenaArray(int nx3, int nx2, int nx1) {
   nx3_ = nx3;
   nx4_ = 1;
   nx5_ = 1;
+  dim_ = 3;
   pdata_ = new T[nx1*nx2*nx3](); // allocate memory and initialize to zero
 }
 
@@ -271,6 +274,7 @@ void AthenaArray<T>::NewAthenaArray(int nx4, int nx3, int nx2, int nx1) {
   nx3_ = nx3;
   nx4_ = nx4;
   nx5_ = 1;
+  dim_ = 4;
   pdata_ = new T[nx1*nx2*nx3*nx4](); // allocate memory and initialize to zero
 }
 
@@ -286,6 +290,7 @@ void AthenaArray<T>::NewAthenaArray(int nx5, int nx4, int nx3, int nx2, int nx1)
   nx3_ = nx3;
   nx4_ = nx4;
   nx5_ = nx5;
+  dim_ = 5;
   pdata_ = new T[nx1*nx2*nx3*nx4*nx5](); // allocate memory and initialize to zero
 }
 
@@ -302,6 +307,7 @@ void AthenaArray<T>::DeleteAthenaArray() {
     pdata_ = NULL;
     scopy_ = true;
   }
+  dim_ = 0;
 }
 
 //----------------------------------------------------------------------------------------
