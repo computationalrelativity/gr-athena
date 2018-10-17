@@ -26,6 +26,10 @@ Wave::Wave(MeshBlock *pmb, ParameterInput *pin)
 
   u.NewAthenaArray(2, ncells3, ncells2, ncells1);
   u1.NewAthenaArray(2, ncells3, ncells2, ncells1);
+  // If user-requested time integrator is type 3S*, allocate additional memory registers
+  std::string integrator = pin->GetOrAddString("time","integrator","vl2");
+  if (integrator == "ssprk5_4") u2.NewAthenaArray(2,ncells3,ncells2,ncells1);
+
   rhs.NewAthenaArray(2, ncells3, ncells2, ncells1);
   exact.NewAthenaArray(1, ncells3, ncells2, ncells1);
   error.NewAthenaArray(1, ncells3, ncells2, ncells1);
@@ -44,6 +48,7 @@ Wave::~Wave()
 {
   u.DeleteAthenaArray();
   u1.DeleteAthenaArray();
+  u2.DeleteAthenaArray(); // only allocated in case of 3S*-type of integrator
   rhs.DeleteAthenaArray();
   exact.DeleteAthenaArray();
   error.DeleteAthenaArray();

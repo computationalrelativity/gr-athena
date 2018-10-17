@@ -27,7 +27,7 @@ class Wave {
     // data
     MeshBlock * pmy_block;        // ptr to MeshBlock containing this Wave
     AthenaArray<Real> u;          // solution of the wave equation
-    AthenaArray<Real> u1;         // solution of the wave equation at intermediate step
+    AthenaArray<Real> u1, u2;     // solutions of the wave equation at intermediate steps
     AthenaArray<Real> rhs;        // wave equation rhs
     AthenaArray<Real> exact;      // exact solution of of the wave equation
     AthenaArray<Real> error;      // error with respect to the exact solution
@@ -37,8 +37,11 @@ class Wave {
     // functions
     Real NewBlockTimeStep(void);  // compute new timestep on a MeshBlock
     void WaveRHS(AthenaArray<Real> & u, int order);
-    void AddWaveRHSToVals(AthenaArray<Real> & u1, AthenaArray<Real> & u2,
-        IntegratorWeight step_wghts, AthenaArray<Real> &u_out);
+//    void AddWaveRHSToVals(AthenaArray<Real> & u1, AthenaArray<Real> & u2,
+//        IntegratorWeight step_wghts, AthenaArray<Real> &u_out);
+    void WeightedAveW(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
+      AthenaArray<Real> &u_in2, const Real wght[3]);
+    void AddWaveRHS(const Real wght, AthenaArray<Real> &u_out);
     void ComputeExactSol();
     Real WaveProfile(Real argument);
 
