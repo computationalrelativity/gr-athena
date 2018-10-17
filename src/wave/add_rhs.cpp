@@ -18,41 +18,6 @@
 #include <omp.h>
 #endif
 
-//! \fn void Wave::AddRHSToVals
-//  \brief Adds the RHS to the weighted average of conservative variables from
-//  previous step(s) of the time integrator
-
-//void Wave::AddWaveRHSToVals(AthenaArray<Real> & u1, AthenaArray<Real> & u2,
-//    IntegratorWeight w, AthenaArray<Real> &u_out) {
-//  MeshBlock *pmb=pmy_block;
-//  int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
-//  int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
-
-//  int tid=0;
-//  int nthreads = pmb->pmy_mesh->GetNumMeshThreads();
-//#pragma omp parallel default(shared) private(tid) num_threads(nthreads)
-//  {
-//#ifdef OPENMP_PARALLEL
-//    tid=omp_get_thread_num();
-//#endif
-//#pragma omp for schedule(static)
-//    for(int k=ks; k<=ke; ++k) {
-//      for(int j=js; j<=je; ++j) {
-//#pragma omp simd
-//        for(int i=is; i<=ie; ++i) {
-//          // RK2:
-//          u_out(0,k,j,i) = w.gamma_2*u1(0,k,j,i) + w.gamma_1*u2(0,k,j,i) +
-//            w.beta*(pmb->pmy_mesh->dt)*rhs(0,k,j,i);
-//          u_out(1,k,j,i) = w.gamma_2*u1(1,k,j,i) + w.gamma_1*u2(1,k,j,i) +
-//            w.beta*(pmb->pmy_mesh->dt)*rhs(1,k,j,i);
-//        }
-//      }
-//    }
-//  } // end of omp parallel region
-
-//  return;
-//}
-//................................................................................
 //----------------------------------------------------------------------------------------
 //! \fn  void Wave::AddWaveRHS
 //  \brief Adds RHS to weighted average of variables from
