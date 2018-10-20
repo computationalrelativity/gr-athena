@@ -37,11 +37,13 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   dt3_.NewAthenaArray(nthreads,ncells1);
 
   // Allocate memory for aux vars
-  
+
+  ginv.NewAthenaTensor(ncells1); // inverse of conf metric
   detg.NewAthenaTensor(ncells1); // det(g)
   epsg.NewAthenaTensor(ncells1); // 1 - det(g) 
-  detginv.NewAthenaTensor(ncells1); // 1/det(g)
+  detginv.NewAthenaTensor(ncells1); // 1 / det(g)
   TrA.NewAthenaTensor(ncells1); // Tr(A)
+  oopsi4.NewAthenaTensor(ncells1); // 1 / Psi^4
 
   // a
   da.NewAthenaTensor(ncells1); // lapse 1st drvts 
@@ -156,10 +158,11 @@ void Z4c::SpatialInv(Real const det,
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn Real Z4c::Trace(Real gxx, ... , Real gzz, Real Axx, ..., Real Azz)
+// \!fn Real Z4c::Trace(Real detginv, Real gxx, ... , Real gzz, Real Axx, ..., Real Azz)
 // \brief returns Trace of extrinsic curvature
 
-Real Z4c::Trace(Real const gxx, Real const gxy, Real const gxz,
+Real Z4c::Trace(Real const detginv,
+		Real const gxx, Real const gxy, Real const gxz,
 		Real const gyy, Real const gyz, Real const gzz,
 		Real const Axx, Real const Axy, Real const Axz,
 		Real const Ayy, Real const Ayz, Real const Azz)
@@ -206,29 +209,29 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
 #pragma omp for schedule(static)
       for(int j = js; j <= je; ++j) {
 	
-	// Determinant of the metric
+	// Determinant of the 3-metric
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  detg[i] = SpatialDet( g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
+	  detg(i) = SpatialDet( g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
 				g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i) );            
         }
 
 	// Enforce detg = 1 
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  detg[i] = (detg[i] <=0.) ? (1.0) : (detg[i]);
+	  detg(i) = (detg(i) <=0.) ? (1.0) : (detg(i));
 	}
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  detginv[i] = 1.0/detg[i];
+	  detginv(i) = 1.0/detg(i);
 	}
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  epsg[i] = -1.0 + detg[i];  
+	  epsg(i) = -1.0 + detg(i);  
         }
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  Real aux = (fabs(epsg[i]) < eps_floor) ?  (aux = 1.0-oot*epsg[i]) : (pow(detg[i],-oot));
+	  Real aux = (fabs(epsg(i)) < eps_floor) ?  (aux = 1.0-oot*epsg(i)) : (pow(detg(i),-oot));
 	  for(int a = 0; a < NDIM; ++a) {
 	    for(int b = a; b < NDIM; ++b) {
 	      g(a,b,k,j,i) = aux * g(a,b,k,j,i); 
@@ -239,17 +242,14 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
 	// Trace of extrinsic curvature using new metric if rescaled 
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  detg[i] = SpatialDet( g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
+	  detg(i) = SpatialDet( g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
 				g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i) );            
         }
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  detginv[i] = 1.0/detg[i];
-	}
-#pragma omp simd
-        for(int i = is; i <= ie; ++i) {
-	  // Note following variable is actually 1/3 * Tr(A)  
-	  TrA[i] = oot * Trace( g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
+	  // Note following variable actually contains 1/3 * Tr(A)  
+	  TrA(i) = oot * Trace( 1.0/detg(i),
+				g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
 				g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i),
 				A(0,0,k,j,i), A(0,1,k,j,i), A(0,2,k,j,i), 
 				A(1,1,k,j,i), A(1,2,k,j,i), A(2,2,k,j,i) );
@@ -260,7 +260,7 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
 	  for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
 	    for(int i = is; i <= ie; ++i) {
-	      A(a,b,k,j,i) = A(a,b,k,j,i) - TrA[i] * g(a,b,k,j,i); 
+	      A(a,b,k,j,i) = A(a,b,k,j,i) - TrA(i) * g(a,b,k,j,i); 
 	    }
 	  }
 	}
@@ -287,14 +287,15 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
 
   g.array().InitWithShallowSlice(u, gxx_IDX, NCab);
   A.array().InitWithShallowSlice(u, Axx_IDX, NCab);
-  Khat.array().InitWithShallowSlice(u, Khat_IDX, 1);//TODO: check khat or K?
+  Khat.array().InitWithShallowSlice(u, Khat_IDX, 1);//TODO: check Khat or K?
   chi.array().InitWithShallowSlice(u, chi_IDX, 1);
 
   ADM_g.array().InitWithShallowSlice(u_adm, ADM_gxx_IDX, NCab);
   ADM_K.array().InitWithShallowSlice(u_adm, ADM_Kxx_IDX, NCab);
+  Psi4.array().InitWithShallowSlice(u_adm, ADM_Psi4_IDX, 1);
 
   const Real chipsipower = - 4.0; //Getd("z4_chi_psipower");//TODO get from pars
-  const Real oot = 1./3.;
+  const Real oot = 1.0/3.0;
   
   int tid = 0;
   int nthreads = pmb->pmy_mesh->GetNumMeshThreads();
@@ -306,31 +307,40 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
 #endif
     
     //----------------------------------------------------------------------------------------
-
+    // Psi^4
+    
+    for(int k = ks; k <= ke; ++k) {
+#pragma omp for schedule(static)
+      for(int j = js; j <= je; ++j) {
+#pragma omp simd
+        for(int i = is; i <= ie; ++i) {
+	  Real psi  = pow(chi(k,j,i),1./chipsipower);
+	  Psi4(k,j,i) = pow(psi,4.);
+	}
+      }
+    }
+    
+    //----------------------------------------------------------------------------------------
+    // ADM g_{ij} and K_{ij}
+    
     for(int k = ks; k <= ke; ++k) {
 #pragma omp for schedule(static)
       for(int j = js; j <= je; ++j) {
 	
-#pragma omp simd
-        for(int i = is; i <= ie; ++i) {
-	  Real psi  = pow(chi(k,j,i),1./chipsipower);
-	  psi4[i] = pow(psi,4.);
-	}
-
 	for(int a = 0; a < NDIM; ++a) {
 	  for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
 	    for(int i = is; i <= ie; ++i) {
-	      ADM_g(a,b,k,j,i) = psi4[i] * g(a,b,k,j,i);
+	      ADM_g(a,b,k,j,i) = Psi4(k,j,i) * g(a,b,k,j,i);
 	    }
 	  }
 	}
-
+	
 	for(int a = 0; a < NDIM; ++a) {
 	  for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
 	    for(int i = is; i <= ie; ++i) {
-	      ADM_K(a,b,k,j,i) = psi4[i] * A(a,b,k,j,i) +  oot * Khat(k,j,i) * g(a,b,k,j,i);
+	      ADM_K(a,b,k,j,i) = Psi4(k,j,i) * A(a,b,k,j,i) +  oot * Khat(k,j,i) * g(a,b,k,j,i);
 	    }
 	  }
 	}
@@ -345,24 +355,24 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
 
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::ADMToZ4c(AthenaArray<Real> & w, AthenaArray<Real> & u)
-// \brief compute Z4c vars from ADM vars
-
+// \brief derive Z4c variables from ADM variables
+//
+// p  = detgbar^(-1/3) 
+// p0 = psi^(-4)
+//
+// gtilde_ij = p gbar_ij
+// Ktilde_ij = p p0 K_ij
+//
+// phi = - log(p) / 4
+// K   = gtildeinv^ij Ktilde_ij
+// Atilde_ij = Ktilde_ij - gtilde_ij K / 3
+//
+// G^i = - del_j gtildeinv^ji
+//
 
 // BAM: Z4c_init()
-
-/* derive z4 variables from ADM variables
-   p  = detgbar^(-1/3) 
-   p0 = psi^(-4)
-
-   gtilde_ij = p gbar_ij
-   Ktilde_ij = p p0 K_ij
-
-   phi = - log(p) / 4
-   K   = gtildeinv^ij Ktilde_ij
-   Atilde_ij = Ktilde_ij - gtilde_ij K / 3
-
-   G^i = - del_j gtildeinv^ji
-*/
+// https://git.tpi.uni-jena.de/bamdev/z4
+// https://git.tpi.uni-jena.de/bamdev/z4/blob/master/z4_init.m
 
 void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 {
@@ -375,14 +385,16 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 
   g.array().InitWithShallowSlice(u, gxx_IDX, NCab);
   A.array().InitWithShallowSlice(u, Axx_IDX, NCab);
-  Khat.array().InitWithShallowSlice(u, Khat_IDX, 1); //TODO Khat or K
+  K.array().InitWithShallowSlice(u, Khat_IDX, 1); // K = Khat 
   chi.array().InitWithShallowSlice(u, chi_IDX, 1);
+  Theta.array().InitWithShallowSlice(u, Theta_IDX, 1);
+  Gam().InitWithShallowSlice(u, Gamx_IDX, NCa);
 
   ADM_g.array().InitWithShallowSlice(u_adm, gxx_IDX, NCab);
   ADM_K.array().InitWithShallowSlice(u_adm, Kxx_IDX, NCab);
 
   const Real chipsipower = - 4.0; //Getd("z4_chi_psipower");//TODO get from pars
-  const Real oot = 1./3.;
+  const Real oot = 1.0/3.0;
   
   int tid = 0;
   int nthreads = pmb->pmy_mesh->GetNumMeshThreads();
@@ -394,28 +406,135 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 #endif
     
     //----------------------------------------------------------------------------------------
+    // Conf. factor, metric, extrisic traceless curvature and trace
+    
+    for(int k = ks; k <= ke; ++k) {
+#pragma omp for schedule(static)
+      for(int j = js; j <= je; ++j) {
+
+	// Determinant of the ADM metric
+#pragma omp simd
+        for(int i = is; i <= ie; ++i) {
+	  detg(i) = SpatialDet( ADM_g(0,0,k,j,i), ADM_g(0,1,k,j,i), ADM_g(0,2,k,j,i), 
+				ADM_g(1,1,k,j,i), ADM_g(1,2,k,j,i), ADM_g(2,2,k,j,i) );            
+        }
+	
+	// Inverse of the Conf. factor 1/Psi^4
+#pragma omp simd
+        for(int i = is; i <= ie; ++i) {
+	  oopsi4(i) = pow(detg(i), - 1.0/3.0);
+        }
+
+	// Conf. factor chi
+#pragma omp simd
+        for(int i = is; i <= ie; ++i) {
+	  chi(k,j,i) = pow(detg(i), 1.0/12.0 * chipsipower);
+        }
+	
+	// Conf. metric
+	for(int a = 0; a < NDIM; ++a) {
+	  for(int b = a; b < NDIM; ++b) {
+#pragma omp simd
+	    for(int i = is; i <= ie; ++i) {
+	      g(a,b,k,j,i) = oopsi4(i) * ADM_g(a,b,k,j,i) 
+	    }
+	  }
+	}
+
+	// Conf. Extr. Curvature
+	for(int a = 0; a < NDIM; ++a) {
+	  for(int b = a; b < NDIM; ++b) {
+#pragma omp simd
+	    for(int i = is; i <= ie; ++i) {
+	      K(a,b,k,j,i) = oopsi4(i) * ADM_K(a,b,k,j,i) 
+	    }
+	  }
+	}
+
+	// Determinant of the Conf. metric
+#pragma omp simd
+        for(int i = is; i <= ie; ++i) {
+	  detg(i) = SpatialDet( g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
+				g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i) );            
+        }
+
+	// Trace of conf. extr. curvature
+#pragma omp simd
+        for(int i = is; i <= ie; ++i) {
+	  K(k,j,i) = Trace( 1.0/detg(i),
+			    g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
+			    g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i),
+			    K(0,0,k,j,i), K(0,1,k,j,i), K(0,2,k,j,i), 
+			    K(1,1,k,j,i), K(1,2,k,j,i), K(2,2,k,j,i) );
+	}
+	
+	// Conf. Traceless Extr. Curvature
+	for(int a = 0; a < NDIM; ++a) {
+	  for(int b = a; b < NDIM; ++b) {
+#pragma omp simd
+	    for(int i = is; i <= ie; ++i) {
+	      A(a,b,k,j,i) = ( ADM_K(a,b,k,j,i) - oot * K(k,j,i) * ADM_g(a,b,k,j,i) ) * oopsi4(i)
+	    }
+	  }
+	}
+	
+      } // j - loop
+    } // k - loop
+
+    //----------------------------------------------------------------------------------------
+    // Theta
+    
+    for(int k = ks; k <= ke; ++k) {
+#pragma omp for schedule(static)
+      for(int j = js; j <= je; ++j) {
+#pragma omp simd
+        for(int i = is; i <= ie; ++i) {
+	  Theta(k,j,i) = 0.0;
+	}
+      }
+    }
+    
+    //----------------------------------------------------------------------------------------
+    // Gamma's
 
     for(int k = ks; k <= ke; ++k) {
 #pragma omp for schedule(static)
       for(int j = js; j <= je; ++j) {
 	
+	// Inverse Conf. metric
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  // ...
-	}
+	  SpatialInv( detg(i),
+		      g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
+		      g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i),
+		      &ginv(0,0,i), &ginv(0,1,i), & ginv(0,2,i), 
+		      &ginv(1,1,i), &ginv(1,2,i), & ginv(2,2,i) );            
+        }
 
+	// Derivatives of Inverse Conf. metric // TODO
 	for(int a = 0; a < NDIM; ++a) {
 	  for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
 	    for(int i = is; i <= ie; ++i) {
-	      //...
+	      //ddginv(a,b,c, i) = d( ginv(a,b) , c  );            	
 	    }
 	  }
 	}
-
 	
-      } // j - loop
+	// Inverse Conf. metric
+	for(int a = 0; a < NDIM; ++a) {
+	  for(int i = is; i <= ie; ++i) {
+	    Gam(a, k,j,i) = 0.
+#pragma omp simd
+	      for(int b = a; b < NDIM; ++b) {
+		Gam(a, k,j,i) += dginv(b,a,b, i);            
+	    }
+	  }
+	}
+	
+      } // j -loop
     } // k - loop
+    
   } // parallel block
 
   return;
@@ -426,6 +545,8 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 // \brief compute constraints ADM vars
 
 // BAM: adm_constraints_N()
+// https://git.tpi.uni-jena.de/bamdev/adm
+// https://git.tpi.uni-jena.de/bamdev/adm/blob/master/adm_constraints_N.m
 
 void Z4c::ADMConstraints(AthenaArray<Real> & u)
 {
@@ -470,7 +591,6 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u)
 	  }
 	}
 
-	
       } // j - loop
     } // k - loop
   } // parallel block

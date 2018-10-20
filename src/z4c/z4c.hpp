@@ -19,6 +19,7 @@ class ParameterInput;
 
 // Indexes for variables in AthenaArray
 #define NDIM (3) // Manifold dimension
+#define NCa  (3) // No components in tensors with 1 index
 #define NCab (6) // No components in tensors with 2 indexes
 
 // Indexes of evolved variables
@@ -34,10 +35,11 @@ enum{
   NVARS
 }
 
-// Indexes of ADM variables
+// Indexes of ADM variables + auxiliary fields
 enum{
   ADM_gxx_IDX, ADM_gxy_IDX, ADM_gxz_IDX, ADM_gyy_IDX, ADM_gyz_IDX, ADM_gzz_IDX, // 1...6
   ADM_Kxx_IDX, ADM_Kxy_IDX, ADM_Kxz_IDX, ADM_Kyy_IDX, ADM_Kyz_IDX, ADM_Kzz_IDX, // 7...12
+  ADM_Psi4_IDX, // 13
   ADMVARS
 }
 
@@ -78,11 +80,12 @@ public:
   Real SpatialDet(Real const gxx, Real const gxy, Real const gxz,
 			Real const gyy, Real const gyz, Real const gzz);
   void SpatialInv(Real const det,
-			 Real const gxx, Real const gxy, Real const gxz,
-			 Real const gyy, Real const gyz, Real const gzz,
-			 Real * uxx, Real * uxy, Real * uxz,
-			 Real * uyy, Real * uyz, Real * uzz);
-  Real Trace(Real const gxx, Real const gxy, Real const gxz,
+		  Real const gxx, Real const gxy, Real const gxz,
+		  Real const gyy, Real const gyz, Real const gzz,
+		  Real * uxx, Real * uxy, Real * uxz,
+		  Real * uyy, Real * uyz, Real * uzz);
+  Real Trace(Real const detginv,
+	     Real const gxx, Real const gxy, Real const gxz,
 	     Real const gyy, Real const gyz, Real const gzz,
 	     Real const Axx, Real const Axy, Real const Axz,
 	     Real const Ayy, Real const Ayz, Real const Azz);
