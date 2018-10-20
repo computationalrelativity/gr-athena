@@ -19,7 +19,7 @@ class ParameterInput;
 
 // Indexes for variables in AthenaArray
 #define NDIM (3) // Manifold dimension
-#define Cab (6)  // No components in tensors with 2 indexes
+#define NCab (6) // No components in tensors with 2 indexes
 
 // Indexes of evolved variables
 enum{
@@ -51,10 +51,12 @@ public:
   
   // data
   MeshBlock * pmy_block; // pointer to MeshBlock containing this Vwave
-  AthenaArray<Real> u;   // solution of the vectorial wave equation
-  AthenaArray<Real> u1;  // solution of the vectorial wave equation at intermediate step
-  AthenaArray<Real> rhs; // vectorial wave equation rhs
-
+  AthenaArray<Real> u;   // solution of Z4c evolution system
+  AthenaArray<Real> u1;  // solution at intermediate step
+  AthenaArray<Real> rhs; // Z4c rhs
+  AthenaArray<Real> adm; // ADM variables
+  
+  // ptrs for tensors vars TODO...
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> g; // Metric tensor
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> K; // Curvature
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> rhs_g;
@@ -64,13 +66,13 @@ public:
   
   // functions
   Real NewBlockTimeStep(void);       // compute new timestep on a MeshBlock
-  void Z4cRHS(AthenaArray<Real> & u, int order);
   void AddVwaveRHSToVals(AthenaArray<Real> & u1, AthenaArray<Real> & u2,
 			 IntegratorWeight w, AthenaArray<Real> &u_out);
-
+  
+  void Z4cRHS(AthenaArray<Real> & u, int order);
   void AlgConstr(AthenaArray<Real> & u);
-  void ADMToZ4c(AthenaArray<Real> & u, AthenaArray<Real> & w);
-  void Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & w);
+  void ADMToZ4c(AthenaArray<Real> & u, AthenaArray<Real> & u_adm);
+  void Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm);
   
   Real SpatialDet(Real const gxx, Real const gxy, Real const gxz,
 			Real const gyy, Real const gyz, Real const gzz);
@@ -85,17 +87,13 @@ public:
 	     Real const Ayy, Real const Ayz, Real const Azz);
 
 
-  
 private:
   AthenaArray<Real> dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep
   
   // Auxiliary 1d vars // TODO
-  
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> eta;   // flat Metric tensor     //TODO: check def
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> ieta;  // inverse Metric tensor 
-
   AthenaTensor<Real, TensorSymm::SYM22, 3, 4> ddg;  // metric 2d drvts
-  
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> R;     // Ricci 
 
 };

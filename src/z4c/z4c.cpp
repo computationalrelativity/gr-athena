@@ -26,9 +26,10 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   if(pmy_block->block_size.nx2 > 1) ncells2 = pmy_block->block_size.nx2 + 2*(NGHOST);
   if(pmy_block->block_size.nx3 > 1) ncells3 = pmy_block->block_size.nx3 + 2*(NGHOST);
 
-  u.  NewAthenaArray(2, ncells3, ncells2, ncells1);
-  u1. NewAthenaArray(2, ncells3, ncells2, ncells1);
-  rhs.NewAthenaArray(2, ncells3, ncells2, ncells1);
+  u.  NewAthenaArray(NVARS, ncells3, ncells2, ncells1);
+  u1. NewAthenaArray(NVARS, ncells3, ncells2, ncells1);
+  rhs.NewAthenaArray(NVARS, ncells3, ncells2, ncells1);
+  adm.NewAthenaArray(ADMVARS, ncells3, ncells2, ncells1);
 
   int nthreads = pmy_block->pmy_mesh->GetNumMeshThreads();
   dt1_.NewAthenaArray(nthreads,ncells1);
@@ -80,6 +81,7 @@ Z4c::~Z4c()
   u.DeleteAthenaArray();
   u1.DeleteAthenaArray();
   rhs.DeleteAthenaArray();
+  adm.DeleteAthenaArray();
 
   dt1_.DeleteAthenaArray();
   dt2_.DeleteAthenaArray();
@@ -182,8 +184,8 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
 
-  g.array().InitWithShallowSlice(u, gab_IDX, 6);
-  A.array().InitWithShallowSlice(u, Aab_IDX, 6);
+  g.array().InitWithShallowSlice(u, gxx_IDX, NCab);
+  A.array().InitWithShallowSlice(u, Axx_IDX, Ncab);
 
   int tid = 0;
   int nthreads = pmb->pmy_mesh->GetNumMeshThreads();
@@ -274,7 +276,7 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
 // \!fn void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & w)
 // \brief compute ADM vars from Z4c vars
 
-void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & w)
+void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
 {
   std::stringstream msg;
 
@@ -283,13 +285,13 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & w)
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
 
-  g.array().InitWithShallowSlice(u, gab_IDX, 6);
-  A.array().InitWithShallowSlice(u, Aab_IDX, 6);
-  K.array().InitWithShallowSlice(u, K_IDX, 1);
-  Chi.array().InitWithShallowSlice(u, Chi_IDX, 1);
+  g.array().InitWithShallowSlice(u, gxx_IDX, NCab);
+  A.array().InitWithShallowSlice(u, Axx_IDX, NCab);
+  Khat.array().InitWithShallowSlice(u, Khat_IDX, 1);//TODO: check khat or K?
+  chi.array().InitWithShallowSlice(u, chi_IDX, 1);
 
-  ADM_g.array().InitWithShallowSlice(w, gab_IDX, 6);
-  ADM_K.array().InitWithShallowSlice(w, Kab_IDX, 6);
+  ADM_g.array().InitWithShallowSlice(u_adm, ADM_gxx_IDX, NCab);
+  ADM_K.array().InitWithShallowSlice(u_adm, ADM_Kxx_IDX, NCab);
 
   const Real chipsipower = - 4.0; //Getd("z4_chi_psipower");//TODO get from pars
   const Real oot = 1./3.;
@@ -328,7 +330,7 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & w)
 	  for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
 	    for(int i = is; i <= ie; ++i) {
-	      ADM_K(a,b,k,j,i) = psi4[i] * A(a,b,k,j,i) +  oot * K(k,j,i) * g(a,b,k,j,i);
+	      ADM_K(a,b,k,j,i) = psi4[i] * A(a,b,k,j,i) +  oot * Khat(k,j,i) * g(a,b,k,j,i);
 	    }
 	  }
 	}
@@ -362,7 +364,7 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & w)
    G^i = - del_j gtildeinv^ji
 */
 
-void Z4c::ADMToZ4c(AthenaArray<Real> & w, AthenaArray<Real> & u)
+void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 {
   std::stringstream msg;
 
@@ -371,13 +373,13 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & w, AthenaArray<Real> & u)
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
 
-  g.array().InitWithShallowSlice(u, gab_IDX, 6);
-  A.array().InitWithShallowSlice(u, Aab_IDX, 6);
-  K.array().InitWithShallowSlice(u, K_IDX, 1);
-  Chi.array().InitWithShallowSlice(u, Chi_IDX, 1);
+  g.array().InitWithShallowSlice(u, gxx_IDX, NCab);
+  A.array().InitWithShallowSlice(u, Axx_IDX, NCab);
+  Khat.array().InitWithShallowSlice(u, Khat_IDX, 1); //TODO Khat or K
+  chi.array().InitWithShallowSlice(u, chi_IDX, 1);
 
-  ADM_g.array().InitWithShallowSlice(w, gab_IDX, 6);
-  ADM_K.array().InitWithShallowSlice(w, Kab_IDX, 6);
+  ADM_g.array().InitWithShallowSlice(u_adm, gxx_IDX, NCab);
+  ADM_K.array().InitWithShallowSlice(u_adm, Kxx_IDX, NCab);
 
   const Real chipsipower = - 4.0; //Getd("z4_chi_psipower");//TODO get from pars
   const Real oot = 1./3.;
