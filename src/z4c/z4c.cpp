@@ -312,16 +312,18 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
     for(int k = ks; k <= ke; ++k) {
 #pragma omp for schedule(static)
       for(int j = js; j <= je; ++j) {
+
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
 	  Real psi  = pow(chi(k,j,i),1./chipsipower);
 	  Psi4(k,j,i) = pow(psi,4.);
 	}
+	
       }
     }
     
     //----------------------------------------------------------------------------------------
-    // ADM g_{ij} and K_{ij}
+    // ADM g_{ij} 
     
     for(int k = ks; k <= ke; ++k) {
 #pragma omp for schedule(static)
@@ -336,6 +338,16 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
 	  }
 	}
 	
+      }
+    }
+
+    //----------------------------------------------------------------------------------------
+    // ADM K_{ij}
+    
+    for(int k = ks; k <= ke; ++k) {
+#pragma omp for schedule(static)
+      for(int j = js; j <= je; ++j) {
+
 	for(int a = 0; a < NDIM; ++a) {
 	  for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
@@ -345,8 +357,9 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
 	  }
 	}
 	
-      } // j - loop
-    } // k - loop
+      } 
+    } 
+
   } // parallel block
 
   return;
