@@ -203,7 +203,7 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
 #endif
     
     //----------------------------------------------------------------------------------------
-    // 
+    // det(g) - 1 = 0
 
     for(int k = ks; k <= ke; ++k) {
 #pragma omp for schedule(static)
@@ -216,35 +216,49 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
 				g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i) );            
         }
 
-	// Enforce detg = 1 
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
 	  detg(i) = (detg(i) <=0.) ? (1.0) : (detg(i));
 	}
+	
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
 	  detginv(i) = 1.0/detg(i);
 	}
+	
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
 	  epsg(i) = -1.0 + detg(i);  
         }
+
+	// Enforce detg = 1 
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  Real aux = (fabs(epsg(i)) < eps_floor) ?  (aux = 1.0-oot*epsg(i)) : (pow(detg(i),-oot));
+	  Real aux = (fabs(epsg(i)) < eps_floor) ?  (1.0-oot*epsg(i)) : (pow(detg(i),-oot));
 	  for(int a = 0; a < NDIM; ++a) {
 	    for(int b = a; b < NDIM; ++b) {
 	      g(a,b,k,j,i) = aux * g(a,b,k,j,i); 
 	    }
 	  }
 	}
+	
+      } // j - loop
+    } // k - loop
 
+    //----------------------------------------------------------------------------------------
+    // Tr( A ) = 0
+    
+    for(int k = ks; k <= ke; ++k) {
+#pragma omp for schedule(static)
+      for(int j = js; j <= je; ++j) {
+	
 	// Trace of extrinsic curvature using new metric if rescaled 
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
 	  detg(i) = SpatialDet( g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
 				g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i) );            
         }
+	
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
 	  // Note following variable actually contains 1/3 * Tr(A)  
@@ -267,6 +281,7 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
 	
       } // j - loop
     } // k - lopp
+
   }// parallel block
 
   return;
@@ -459,26 +474,26 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 	  for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
 	    for(int i = is; i <= ie; ++i) {
-	      K(a,b,k,j,i) = oopsi4(i) * ADM_K(a,b,k,j,i) 
+	      Kt(a,b,i) = oopsi4(i) * ADM_K(a,b,k,j,i) 
 	    }
 	  }
 	}
-
+	
 	// Determinant of the Conf. metric
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
 	  detg(i) = SpatialDet( g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
 				g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i) );            
         }
-
+	
 	// Trace of conf. extr. curvature
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
 	  K(k,j,i) = Trace( 1.0/detg(i),
 			    g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
 			    g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i),
-			    K(0,0,k,j,i), K(0,1,k,j,i), K(0,2,k,j,i), 
-			    K(1,1,k,j,i), K(1,2,k,j,i), K(2,2,k,j,i) );
+			    Kt(0,0,i), Kt(0,1,i), Kt(0,2,i), 
+			    Kt(1,1,i), Kt(1,2,i), Kt(2,2,i) );
 	}
 	
 	// Conf. Traceless Extr. Curvature
@@ -537,10 +552,10 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 	// Inverse Conf. metric
 	for(int a = 0; a < NDIM; ++a) {
 	  for(int i = is; i <= ie; ++i) {
-	    Gam(a, k,j,i) = 0.
+	    Gam(a, k,j,i) = 0.;
 #pragma omp simd
 	      for(int b = a; b < NDIM; ++b) {
-		Gam(a, k,j,i) += dginv(b,a,b, i);            
+		Gam(a, k,j,i) -= dginv(b,a,b, i);            
 	    }
 	  }
 	}
