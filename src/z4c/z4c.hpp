@@ -29,8 +29,8 @@ enum{
   Axx_IDX, Axy_IDX, Axz_IDX, Ayy_IDX, Ayz_IDX, Azz_IDX, // 8...13
   Gamx_IDX, Gamx_IDX, Gamz_IDX, // 14...16       
   Theta_IDX, // 17
-  alpha_IDx, // 18
-  betax_IDx, betay_IDx, betaz_IDx // 19...21
+  alpha_IDX, // 18
+  betax_IDX, betay_IDX, betaz_IDX, // 19...21
   NVARS
 }
 
