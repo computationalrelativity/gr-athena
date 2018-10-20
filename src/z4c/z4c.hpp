@@ -37,7 +37,7 @@ enum{
 // Indexes of ADM variables
 enum{
   ADM_gxx_IDX, ADM_gxy_IDX, ADM_gxz_IDX, ADM_gyy_IDX, ADM_gyz_IDX, ADM_gzz_IDX, // 1...6
-  ADM_Kxx_IDX, AMD_Kxy_IDX, ADM_Kxz_IDX, ADM_Kyy_IDX, ADM_Kyz_IDX, ADM_Kzz_IDX, // 7...12
+  ADM_Kxx_IDX, ADM_Kxy_IDX, ADM_Kxz_IDX, ADM_Kyy_IDX, ADM_Kyz_IDX, ADM_Kzz_IDX, // 7...12
   ADMVARS
 }
 
