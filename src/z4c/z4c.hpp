@@ -73,6 +73,7 @@ public:
   void AlgConstr(AthenaArray<Real> & u);
   void ADMToZ4c(AthenaArray<Real> & u, AthenaArray<Real> & u_adm);
   void Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm);
+  void ADMConstraints(AthenaArray<Real> & u);
   
   Real SpatialDet(Real const gxx, Real const gxy, Real const gxz,
 			Real const gyy, Real const gyz, Real const gzz);

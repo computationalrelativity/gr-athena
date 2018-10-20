@@ -420,3 +420,62 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 
   return;
 }
+
+//----------------------------------------------------------------------------------------
+// \!fn void Z4c::ADMConstraints(AthenaArray<Real> & u)
+// \brief compute constraints ADM vars
+
+// BAM: adm_constraints_N()
+
+void Z4c::ADMConstraints(AthenaArray<Real> & u)
+{
+  std::stringstream msg;
+
+  MeshBlock *pmb = pmy_block;
+  Coordinates * pco = pmb->pcoord;
+  int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
+  int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
+
+  ADM_g.array().InitWithShallowSlice(u_adm, gxx_IDX, NCab);
+  ADM_K.array().InitWithShallowSlice(u_adm, Kxx_IDX, NCab);
+
+  const Real oot = 1./3.;
+  
+  int tid = 0;
+  int nthreads = pmb->pmy_mesh->GetNumMeshThreads();
+
+#pragma omp parallel default(shared) private(tid) num_threads(nthreads)
+  {
+#ifdef OPENMP_PARALLEL
+    tid = omp_get_thread_num();
+#endif
+    
+    //----------------------------------------------------------------------------------------
+
+    for(int k = ks; k <= ke; ++k) {
+#pragma omp for schedule(static)
+      for(int j = js; j <= je; ++j) {
+	
+#pragma omp simd
+        for(int i = is; i <= ie; ++i) {
+	  // ...
+	}
+
+	for(int a = 0; a < NDIM; ++a) {
+	  for(int b = a; b < NDIM; ++b) {
+#pragma omp simd
+	    for(int i = is; i <= ie; ++i) {
+	      //...
+	    }
+	  }
+	}
+
+	
+      } // j - loop
+    } // k - loop
+  } // parallel block
+
+  return;
+}
+
+
