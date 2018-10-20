@@ -58,13 +58,33 @@ public:
   AthenaArray<Real> rhs; // Z4c rhs
   AthenaArray<Real> adm; // ADM variables
   
-  // ptrs for tensors vars TODO...
-  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> g; // Metric tensor
-  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> K; // Curvature
-  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> rhs_g;
-  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> rhs_K;
+  // ptrs for tensors vars 
+  AthenaTensor<Real, TensorSymm::NONE, 3, 0> chi;   // Conf. factor
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> g;     // Conf. 3-Metric 
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> A;     // Conf. Traceless Extr. Curvature
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 0> Khat;  // Trace Extr. Curvature
+  AthenaTensor<Real, TensorSymm::NONE, 3, 0> Theta; // Theta var in Z4c
+  AthenaTensor<Real, TensorSymm::NONE, 3, 1> Gam;   // Gamma functions (BSSN)
+  AthenaTensor<Real, TensorSymm::NONE, 3, 0> alpha; // Lapse
+  AthenaTensor<Real, TensorSymm::NONE, 3, 1> beta;  // Shift
 
-  Real c;                            // light speed
+  AthenaTensor<Real, TensorSymm::NONE, 3, 0> rhs_chi;   // Conf. factor
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> rhs_g;     // Conf. 3-Metric 
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> rhs_A;     // Conf. Traceless Extr. Curvature
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 0> rhs_Khat;  // Trace Extr. Curvature
+  AthenaTensor<Real, TensorSymm::NONE, 3, 0> rhs_Theta; // Theta var in Z4c
+  AthenaTensor<Real, TensorSymm::NONE, 3, 1> rhs_Gam;   // Gamma functions (BSSN)
+  AthenaTensor<Real, TensorSymm::NONE, 3, 0> rhs_alpha; // Lapse
+  AthenaTensor<Real, TensorSymm::NONE, 3, 1> rhs_beta;  // Shift
+
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> ADM_g; // 3-Metric 
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> ADM_K; // Curvature
+  AthenaTensor<Real, TensorSymm::NONE, 3, 0> Psi4;  // Conformal factor
+  
+  Real c;             // Light speed
+  Real chi_psi_power; // chi = psi^N, N = chi_psi_power
+  Real chi_div_floor; // Puncture's floor value for chi, use max(chi, chi_div_floor) in non-differentiated chi
+  Real z4c_kappa_damp1, z4c_kappa_damp2; // Constrain damping parameters
   
   // functions
   Real NewBlockTimeStep(void);       // compute new timestep on a MeshBlock
@@ -90,14 +110,19 @@ public:
 	     Real const Axx, Real const Axy, Real const Axz,
 	     Real const Ayy, Real const Ayz, Real const Azz);
 
-
+  void ADMFlat(AthenaArray<Real> & u_adm);
+  void GaugeFlat(AthenaArray<Real> & u);
+  
 private:
   AthenaArray<Real> dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep
   
-  // Auxiliary 1d vars // TODO
-  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> eta;   // flat Metric tensor     //TODO: check def
-  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> ieta;  // inverse Metric tensor 
-  AthenaTensor<Real, TensorSymm::SYM22, 3, 4> ddg;  // metric 2d drvts
+  // Auxiliary 1D vars  //TODO
+  AthenaTensor<Real, TensorSymm::NONE, 3, 2> ginv;  // flat Metric tensor   
+  AthenaTensor<Real, TensorSymm::NONE, 3, 2> detg;  // inverse Metric tensor
+  AthenaTensor<Real, TensorSymm::NONE, 3, 2> epsg;  // inverse Metric tensor 
+
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> dg;  // metric 1st drvts
+  AthenaTensor<Real, TensorSymm::SYM22, 3, 4> ddg;  // metric 2nd drvts
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> R;     // Ricci 
 
 };

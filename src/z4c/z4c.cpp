@@ -36,7 +36,14 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   dt2_.NewAthenaArray(nthreads,ncells1);
   dt3_.NewAthenaArray(nthreads,ncells1);
 
-  // Allocate memory for aux vars
+  // Parameters
+  c = pin->GetOrAddReal("z4c", "c", 1.0);
+  chi_psi_power = pin->GetOrAddReal("z4c", "chi_psi_power", -4.0);
+  chi_div_floor = pin->GetOrAddReal("z4c", "chi_div_floor", -1000.0);
+  z4c_kappa_damp1 = pin->GetOrAddReal("z4c", "z4c_kappa_damp1", 0.0);
+  z4c_kappa_damp2 = pin->GetOrAddReal("z4c", "z4c_kappa_damp2", 0.0);
+  
+  // Allocate memory for aux 1D vars
 
   ginv.NewAthenaTensor(ncells1); // inverse of conf metric
   detg.NewAthenaTensor(ncells1); // det(g)
@@ -50,6 +57,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   dchi.NewAthenaTensor(ncells1); // conf.factor 1st drvts 
   dTheta.NewAthenaTensor(ncells1); // Theta 1st drvts 
   // a,b
+  Kt.NewAthenaTensor(ncells1); // extrisic curvature conformally rescaled 
   dda.NewAthenaTensor(ncells1); // lapse 2nd drvts
   db.NewAthenaTensor(ncells1); // shift 1st drvts
   ddchi.NewAthenaTensor(ncells1); // conf. factor 2nd drvts
@@ -309,7 +317,6 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
   ADM_K.array().InitWithShallowSlice(u_adm, ADM_Kxx_IDX, NCab);
   Psi4.array().InitWithShallowSlice(u_adm, ADM_Psi4_IDX, 1);
 
-  const Real chipsipower = - 4.0; //Getd("z4_chi_psipower");//TODO get from pars
   const Real oot = 1.0/3.0;
   
   int tid = 0;
@@ -380,7 +387,6 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
   return;
 }
 
-
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::ADMToZ4c(AthenaArray<Real> & w, AthenaArray<Real> & u)
 // \brief derive Z4c variables from ADM variables
@@ -412,16 +418,15 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
 
   g.array().InitWithShallowSlice(u, gxx_IDX, NCab);
-  A.array().InitWithShallowSlice(u, Axx_IDX, NCab);
-  K.array().InitWithShallowSlice(u, Khat_IDX, 1); // K = Khat 
   chi.array().InitWithShallowSlice(u, chi_IDX, 1);
-  Theta.array().InitWithShallowSlice(u, Theta_IDX, 1);
+  A.array().InitWithShallowSlice(u, Axx_IDX, NCab);
+  Khat.array().InitWithShallowSlice(u, Khat_IDX, 1); // Set Khat = K ...
+  Theta.array().InitWithShallowSlice(u, Theta_IDX, 1); // ... Theta = 0 
   Gam().InitWithShallowSlice(u, Gamx_IDX, NCa);
 
   ADM_g.array().InitWithShallowSlice(u_adm, gxx_IDX, NCab);
   ADM_K.array().InitWithShallowSlice(u_adm, Kxx_IDX, NCab);
 
-  const Real chipsipower = - 4.0; //Getd("z4_chi_psipower");//TODO get from pars
   const Real oot = 1.0/3.0;
   
   int tid = 0;
@@ -489,7 +494,7 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 	// Trace of conf. extr. curvature
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  K(k,j,i) = Trace( 1.0/detg(i),
+	  Khat(k,j,i) = Trace( 1.0/detg(i),
 			    g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
 			    g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i),
 			    Kt(0,0,i), Kt(0,1,i), Kt(0,2,i), 
@@ -501,7 +506,7 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 	  for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
 	    for(int i = is; i <= ie; ++i) {
-	      A(a,b,k,j,i) = ( ADM_K(a,b,k,j,i) - oot * K(k,j,i) * ADM_g(a,b,k,j,i) ) * oopsi4(i)
+	      A(a,b,k,j,i) = ( ADM_K(a,b,k,j,i) - oot * Khat(k,j,i) * ADM_g(a,b,k,j,i) ) * oopsi4(i)
 	    }
 	  }
 	}
@@ -542,9 +547,11 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 	// Derivatives of Inverse Conf. metric // TODO
 	for(int a = 0; a < NDIM; ++a) {
 	  for(int b = a; b < NDIM; ++b) {
+	    for(int c = 0; c < NDIM; ++c) {
 #pragma omp simd
-	    for(int i = is; i <= ie; ++i) {
-	      //ddginv(a,b,c, i) = d( ginv(a,b) , c  );            	
+	      for(int i = is; i <= ie; ++i) {
+		//ddginv(a,b,c, i) = d( ginv(a,b) , c  );            	
+	      }
 	    }
 	  }
 	}
@@ -622,6 +629,102 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u)
       } // j - loop
     } // k - loop
   } // parallel block
+
+  return;
+}
+
+//----------------------------------------------------------------------------------------
+// \!fn void Z4c::ADMFlat(AthenaArray<Real> & u)
+// \brief Initialize ADM vars to Minkowski
+
+void Z4c::ADMFlat(AthenaArray<Real> & u_adm)
+{
+  std::stringstream msg;
+
+  MeshBlock *pmb = pmy_block;
+  Coordinates * pco = pmb->pcoord;
+  int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
+  int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
+
+  ADM_g.array().InitWithShallowSlice(u_adm, ADM_gxx_IDX, NCab);
+  ADM_K.array().InitWithShallowSlice(u_adm, ADM_Kxx_IDX, NCab);
+  Psi4.array().InitWithShallowSlice(u_adm, ADM_Psi4_IDX, 1);
+  
+  int tid = 0;
+  int nthreads = pmb->pmy_mesh->GetNumMeshThreads();
+
+#pragma omp parallel default(shared) private(tid) num_threads(nthreads)
+  {
+#ifdef OPENMP_PARALLEL
+    tid = omp_get_thread_num();
+#endif
+    
+    for(int k = ks; k <= ke; ++k) {
+#pragma omp for schedule(static)
+      for(int j = js; j <= je; ++j) {
+
+#pragma omp simd
+        for(int i = is; i <= ie; ++i) 
+	  Psi4(k,j,i) = 1.0;
+
+#pragma omp simd
+	for(int i = is; i <= ie; ++i) 
+	  for(int a = 0; a < NDIM; ++a) 
+	    for(int b = a; b < NDIM; ++b) 
+	      ADM_g(a,b,k,j,i) = (a == b) ? (1.0) : (0.0);
+
+#pragma omp simd
+	for(int i = is; i <= ie; ++i) 
+	  for(int a = 0; a < NDIM; ++a) 
+	    for(int b = a; b < NDIM; ++b) 
+	      ADM_K(a,b,k,j,i) = 0.0;
+	
+      }
+    }
+
+  } // parallel block
+
+  return;
+}
+
+//----------------------------------------------------------------------------------------
+// \!fn void Z4c::GaugeFlat(AthenaArray<Real> & u)
+// \brief Initialize lapse to 1 and shift to 0 
+
+void Z4c::GaugeFlat(AthenaArray<Real> & u)
+{
+  std::stringstream msg;
+
+  MeshBlock *pmb = pmy_block;
+  Coordinates * pco = pmb->pcoord;
+  int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
+  int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
+
+  alpha.array().InitWithShallowSlice(u, alpha_IDX, 1);
+  beta.array().InitWithShallowSlice(u, betax_IDX, NCa);
+  
+  int tid = 0;
+  int nthreads = pmb->pmy_mesh->GetNumMeshThreads();
+
+#pragma omp parallel default(shared) private(tid) num_threads(nthreads)
+  {
+#ifdef OPENMP_PARALLEL
+    tid = omp_get_thread_num();
+#endif
+    
+    for(int k = ks; k <= ke; ++k) {
+#pragma omp for schedule(static)
+      for(int j = js; j <= je; ++j) {
+#pragma omp simd
+        for(int i = is; i <= ie; ++i) 
+	  alpha(k,j,i) = 1.0;
+#pragma omp simd
+	for(int i = is; i <= ie; ++i) 
+	  for(int a = 0; a < NDIM; ++a) 
+	    beta(a,k,j,i) = 0.0;	
+      }
+    }
+  }
 
   return;
 }
