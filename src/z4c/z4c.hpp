@@ -40,6 +40,8 @@ enum{
   ADM_gxx_IDX, ADM_gxy_IDX, ADM_gxz_IDX, ADM_gyy_IDX, ADM_gyz_IDX, ADM_gzz_IDX, // 1...6
   ADM_Kxx_IDX, ADM_Kxy_IDX, ADM_Kxz_IDX, ADM_Kyy_IDX, ADM_Kyz_IDX, ADM_Kzz_IDX, // 7...12
   ADM_Psi4_IDX, // 13
+  ADM_Ham_IDX, // 14
+  ADM_Momx_IDX, ADM_Momy_IDX, ADM_Momz_IDX, // 15...17
   ADMVARS
 }
 

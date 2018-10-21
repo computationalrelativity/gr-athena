@@ -533,6 +533,13 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
     for(int k = ks; k <= ke; ++k) {
 #pragma omp for schedule(static)
       for(int j = js; j <= je; ++j) {
+
+	// Determinant of the Conf. metric
+#pragma omp simd
+        for(int i = is; i <= ie; ++i) {
+	  detg(i) = SpatialDet( g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
+				g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i) );            
+        }
 	
 	// Inverse Conf. metric
 #pragma omp simd
@@ -592,9 +599,11 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u)
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
 
-  ADM_g.array().InitWithShallowSlice(u_adm, gxx_IDX, NCab);
-  ADM_K.array().InitWithShallowSlice(u_adm, Kxx_IDX, NCab);
-
+  ADM_g.array().InitWithShallowSlice(u_adm, ADM_gxx_IDX, NCab);
+  ADM_K.array().InitWithShallowSlice(u_adm, ADM_Kxx_IDX, NCab);
+  ADM_Ham.array().InitWithShallowSlice(u_adm, ADM_Ham_IDX, 1);
+  ADM_Mom.array().InitWithShallowSlice(u_adm, ADM_Momx_IDX, NCa);
+  
   const Real oot = 1./3.;
   
   int tid = 0;
@@ -614,18 +623,143 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u)
 	
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  // ...
+	  // ... dg[a,b,c] ddg[a,b,c,d] dK[a,b,c] ...
 	}
 
+	// Determinant 
+#pragma omp simd
+        for(int i = is; i <= ie; ++i) {
+	  detg(i) = SpatialDet( ADM_g(0,0,k,j,i), ADM_g(0,1,k,j,i), ADM_g(0,2,k,j,i), 
+				ADM_g(1,1,k,j,i), ADM_g(1,2,k,j,i), ADM_g(2,2,k,j,i) );            
+        }
+	
+	// Inverse Conf. metric
+#pragma omp simd
+        for(int i = is; i <= ie; ++i) {
+	  SpatialInv( detg(i),
+		      ADM_g(0,0,k,j,i), ADM_g(0,1,k,j,i), ADM_g(0,2,k,j,i), 
+		      ADM_g(1,1,k,j,i), ADM_g(1,2,k,j,i), ADM_g(2,2,k,j,i),
+		      &ginv(0,0,i), &ginv(0,1,i), & ginv(0,2,i), 
+		      &ginv(1,1,i), &ginv(1,2,i), & ginv(2,2,i) );            
+        }
+
+	// Gamma_{abc}
 	for(int a = 0; a < NDIM; ++a) {
 	  for(int b = a; b < NDIM; ++b) {
+	    for(int c = 0; c < NDIM; ++c) {
 #pragma omp simd
-	    for(int i = is; i <= ie; ++i) {
-	      //...
+	      for(int i = is; i <= ie; ++i) {
+		gammado(c,a,b, i) = 0.5 * ( dg(a,b,c, i) + dg(b,a,c, i) - dg(c,a,b, i) );
+	      }
+	    }
+	  }
+	}
+	
+	// Gamma_{ab}^c
+	for(int a = 0; a < NDIM; ++a) {
+	  for(int b = a; b < NDIM; ++b) {
+	    for(int c = 0; c < NDIM; ++c) {
+#pragma omp simd
+	      for(int i = is; i <= ie; ++i) {
+		gamma(c,a,b, i) = 0.0;
+		for(int d = 0; d < NDIM; ++d) {
+		  gamma(c,a,b, i) += ginv(c,d, i) * gammado(d,a,b, i);
+		}
+	      }
 	    }
 	  }
 	}
 
+	// D_a( K_{bc} )
+	for(int a = 0; a < NDIM; ++a) {
+	  for(int b = a; b < NDIM; ++b) {
+	    for(int c = 0; c < NDIM; ++c) {
+#pragma omp simd
+	      for(int i = is; i <= ie; ++i) {
+		cdK(a,b,c, i) = dK(a,b,c, i);
+		for(int d = 0; d < NDIM; ++d) {
+		  cdK(a,b,c, i) -= ( gamma(d,a,b, i) * K(d,c, k,j,i) - gamma(d,a,c, i) * K(b,d, k,j,i) );
+		}
+	      }
+	    }
+	  }
+	}
+
+	// D^a K_{bc}
+	for(int a = 0; a < NDIM; ++a) {
+	  for(int b = a; b < NDIM; ++b) {
+	    for(int c = 0; c < NDIM; ++c) {
+#pragma omp simd
+	      for(int i = is; i <= ie; ++i) {
+		cdKuud(a,b,c, i) = 0.0;
+		for(int d = 0; d < NDIM; ++d) {
+		  cdKuud(a,b,c, i) += ginv(a,d, i) * codelK(d,b,c, i);
+		}
+	      }
+	    }
+	  }
+	}
+	
+	// R_{ab} 
+	for(int a = 0; a < NDIM; ++a) {
+	  for(int b = a; b < NDIM; ++b) {
+#pragma omp simd
+	    for(int i = is; i <= ie; ++i) {
+	      R(a,b, i) = 0.0;
+	      for(int c = 0; c < NDIM; ++c) {
+		for(int d = 0; d < NDIM; ++d) {
+		  R(a,b, i) += 0.5 * ginv(c,d, i) * ( - ddg(c,d,a,b, i) - ddg(a,b,c,d, i) + ddg(a,c,b,d, i) + ddg(b,c,a,d, i) );
+		  for(int e = 0; e < NDIM; ++e) { // check this ...
+		    R(a,b, i) += 0.5* ginv(c,d, i) * (  gamma(e,a,c, i) * gammado(e,b,d, i) - gamma(e,a,b, i) * gammado(e,c,d, i) ) ;
+		  }
+		}
+	      }
+	    }
+	  }
+	}
+
+	// K^a_b
+	for(int a = 0; a < NDIM; ++a) {
+	  for(int b = a; b < NDIM; ++b) {
+#pragma omp simd
+	    for(int i = is; i <= ie; ++i) {
+	      Kud(a,b, i) = 0.0;
+	      for(int c = 0; c < NDIM; ++c) {
+		Kud(a,b, i) += ginv(a,c, i) * K(c,b, k,j,i);
+	      }
+	    }
+	  }
+	}
+	
+	// Ham
+#pragma omp simd
+	for(int i = is; i <= ie; ++i)
+	  Ham(k,j,i) = 0.0; // - 16.0 * PI * ADM_rho(k,j,i);
+	for(int a = 0; a < NDIM; ++a) 
+#pragma omp simd
+	  for(int i = is; i <= ie; ++i) 
+	    Ham(k,j,i) += Kud(a,a, i) * Kud(a,a, i); // K^2
+	for(int a = 0; a < NDIM; ++a) 
+	  for(int b = a; b < NDIM; ++b) 
+#pragma omp simd
+	      for(int i = is; i <= ie; ++i) 
+		Ham(k,j,i) += ginv(a,b, i) * R(a,b, i) - Kud(a,b, i) * Kud(b,a, i);  // R + K^2
+
+	
+	// Mom^a
+	for(int a = 0; a < NDIM; ++a) {
+#pragma omp simd
+	  for(int i = is; i <= ie; ++i)
+	    Mom(a, k,j,i) = 0.0; // - 8.0 * PI * ADM_S(a, k,j,i);
+	  for(int b = 0; b < NDIM; ++b) 
+	    for(int c = 0; c < NDIM; ++c)
+	      for(int d = 0; d < NDIM; ++d) 
+#pragma omp simd
+	      for(int i = is; i <= ie; ++i)
+		Mom(a, k,j,i) += ginv(a,b, i) * cdKudd(c,b,c, i) - ginv(b,c, i) * cdKudd(a,b,c, i);
+	}
+	
+	
       } // j - loop
     } // k - loop
   } // parallel block
