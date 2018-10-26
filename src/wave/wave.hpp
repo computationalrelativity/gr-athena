@@ -29,6 +29,8 @@ class Wave {
     AthenaArray<Real> u;          // solution of the wave equation
     AthenaArray<Real> u1, u2;     // auxiliary arrays at intermediate steps
     AthenaArray<Real> rhs;        // wave equation rhs
+    // Use the following with the alternative RK4 implementation...........
+    //AthenaArray<Real> k1, k2, k3, k4; // auxiliar
     AthenaArray<Real> exact;      // exact solution of of the wave equation
     AthenaArray<Real> error;      // error with respect to the exact solution
 
@@ -40,6 +42,9 @@ class Wave {
     void WeightedAveW(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
       AthenaArray<Real> &u_in2, const Real wght[3]);
     void AddWaveRHS(const Real wght, AthenaArray<Real> &u_out);
+    // Use the following with the alternative RK4 implementation...........
+    //void WaveRHS(AthenaArray<Real> & u, AthenaArray<Real> &k, int order);
+    //void AddWaveRHS(const Real wght, AthenaArray<Real> &u_out, int step);
     void ComputeExactSol();
     Real WaveProfile(Real argument);
 

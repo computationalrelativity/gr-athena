@@ -24,19 +24,30 @@
 //  previous step(s) of time integrator algorithm
 
 void Wave::AddWaveRHS(const Real wght, AthenaArray<Real> &u_out) {
-
   MeshBlock *pmb=pmy_block;
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
 
   for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
-
       // update variables
-      for (int n=0; n<2; ++n) { //Gotta fix this. We need the analog of NHYDRO
+      for (int n=0; n<2; ++n) { //We should have an analog of NHYDRO here
 #pragma omp simd
         for (int i=is; i<=ie; ++i) {
           u_out(n,k,j,i) += wght*(pmb->pmy_mesh->dt)*rhs(n,k,j,i);
+
+// Use the following for an alternative RK4 implementation ..........................
+//void Wave::AddWaveRHS(const Real wght, AthenaArray<Real> &u_out, int step) {
+//          if (step == 1)
+//            u_out(n,k,j,i) = u(n,k,j,i) + 0.5*(pmb->pmy_mesh->dt)*k1(n,k,j,i);
+//          if (step == 2)
+//            u_out(n,k,j,i) = u(n,k,j,i) + 0.5*(pmb->pmy_mesh->dt)*k2(n,k,j,i);
+//          if (step == 3)
+//            u_out(n,k,j,i) = u(n,k,j,i) + 1.0*(pmb->pmy_mesh->dt)*k3(n,k,j,i);
+//          if (step == 4)
+//            u_out(n,k,j,i) = u(n,k,j,i)
+//                    + ( k1(n,k,j,i) + 2.0*k2(n,k,j,i) + 2.0*k3(n,k,j,i) + k4(n,k,j,i) )
+//                    * (pmb->pmy_mesh->dt)/6.0;
         }
       }
     }

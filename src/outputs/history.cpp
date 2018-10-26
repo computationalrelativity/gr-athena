@@ -97,7 +97,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         if (WAVE_ENABLED) {
            Real & wave_error = pwave->error(0,k,j,i);
            data_sum[isum++] += vol(i)*wave_error; //L1-norm of error
-           data_sum[isum++] += vol(i)*SQR(wave_error); //L2-norm of error
+           data_sum[isum++] += vol(i)*SQR(wave_error); // (L2-norm)^2 of error
            if (wave_error > infty_norm) {
                infty_norm = wave_error; //LInfty-norm of error
                data_sum[isum++] = infty_norm;
@@ -163,9 +163,9 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         fprintf(pfile,"[%d]=3-ME    ", iout++);
       }
       if (WAVE_ENABLED) {
-          fprintf(pfile,"[%d]=L1-norm ", iout++);
-          fprintf(pfile,"[%d]=L2-norm ", iout++);
-          fprintf(pfile,"[%d]=Infty-n ", iout++);
+          fprintf(pfile,"[%d]=L1-norm ",    iout++);
+          fprintf(pfile,"[%d]=[L2-norm]^2 ",iout++);
+          fprintf(pfile,"[%d]=Infty-n ",    iout++);
       }
       if (VWAVE_ENABLED) fprintf(pfile,"[%d]=vwave   ", iout++);
 

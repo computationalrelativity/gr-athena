@@ -33,6 +33,8 @@ void Wave::ComputeExactSol()
 
   MeshBlock *pmb = pmy_block;
   Coordinates * pco = pmb->pcoord;
+  Real t = pmb->pmy_mesh->time;
+
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
 
@@ -50,19 +52,23 @@ void Wave::ComputeExactSol()
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
 
-            Real t = pmb->pmy_mesh->time;
             Real x = pco->x1v(i);
             Real y = pco->x2v(j);
             Real z = pco->x3v(k);
 
-            Real plus   = WaveProfile(x+t);
-            Real minus  = WaveProfile(x-t);
+            //Gaussian ----------------------------------------------
+            //Real plus   = WaveProfile(x+t);
+            //Real minus  = WaveProfile(x-t);
 
-            Real plusp  = WaveProfile(fmod(x+t-c,2.0)-c);
-            Real minusp = WaveProfile(fmod(x-t+c,2.0)+c);
+            //Real plusp  = WaveProfile(fmod(x+t-c,2.0)-c);
+            //Real minusp = WaveProfile(fmod(x-t+c,2.0)+c);
 
-            exact(0,k,j,i) = (plus  + minus )/2.0
-                           + (plusp + minusp)/2.0;
+            //exact(0,k,j,i) = (plus+minus)/2.0 + (plusp+minusp)/2.0;
+            //-------------------------------------------------------
+
+            //Sine---------------------------------------------------
+            exact(0,k,j,i) = cos(2.*M_PI*t)*WaveProfile(x);
+
             error(0,k,j,i) = abs( exact(0,k,j,i) - u(0,k,j,i) );
         }
       }
@@ -77,10 +83,10 @@ Real Wave::WaveProfile(Real argument)
     Real const a = 1.0;
     Real const sigma = 0.2;
 
-    Real profile = a*exp(-SQR(argument)/SQR(sigma)); //Gaussian
-
+    //Real profile = a*exp(-SQR(argument)/SQR(sigma));
+    Real profile = a*sin(2.*M_PI*argument);
     //Real profile = sin(2*M_PI*x)*cos(2*M_PI*y)*cos(2*M_PI*z);
-    //Real profile = pow(cos(0.5*M_PI*x), 6);
+    //Real profile = pow(cos(0.5*M_PI*argument), 6);
 
     return profile;
 }
