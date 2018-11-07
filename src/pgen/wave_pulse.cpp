@@ -6,8 +6,9 @@
 //! \file wave_pulse.cpp
 //  \brief Initial conditions for the wave equation
 
-#include <iostream>
+#include <cassert> // assert
 #include <cmath> // abs, exp, sin, fmod
+#include <iostream>
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -55,6 +56,8 @@ typedef Real (*unary_function)(Real);
 unary_function prof = NULL;
 unary_function prof_diff = NULL;
 
+int direction = 0;
+
 } // namespace
 
 //========================================================================================
@@ -64,8 +67,15 @@ unary_function prof_diff = NULL;
 
 void MeshBlock::ProblemGenerator(ParameterInput *pin)
 {
+  direction = pin->GetOrAddInteger("problem", "direction", 1);
+  if(abs(direction) > 1) {
+    cerr << "Invalid direction: " << direction << endl;
+    cerr << "Valid values are: -1, 0, and 1" << endl;
+    cerr << flush;
+    abort();
+  }
 
-  std::string profile = pin->GetOrAddString("problem", "profile", "linear");
+  string profile = pin->GetOrAddString("problem", "profile", "linear");
   if(profile == "bump") {
     prof = bump;
     prof_diff = bump_diff;
@@ -92,12 +102,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     Real z = pcoord->x3v(k);
     Real c = pwave->c;
 
-    // Exact solution is u(x,t) = prof[sin(pi*(x - c*t))]
     Real sin_x = sin(M_PI*x);
     Real cos_x = cos(M_PI*x);
 
     pwave->u(0,k,j,i) = prof(sin_x);
-    pwave->u(1,k,j,i) = -M_PI*c*cos_x*prof_diff(sin_x);
+    pwave->u(1,k,j,i) = -direction*M_PI*c*cos_x*prof_diff(sin_x);
 
     pwave->exact(0,k,j,i) = pwave->u(0,k,j,i);
     pwave->error(0,k,j,i) = 0.0;
@@ -116,9 +125,25 @@ void MeshBlock::UserWorkInLoop()
     Real t = pmy_mesh->time;
     Real c = pwave->c;
 
-    Real sin_x = sin(M_PI*(x - c*t));
-
-    pwave->exact(0,k,j,i) = prof(sin_x);
+    Real xp, xm;
+    switch(direction) {
+      case -1:
+        xp = sin(M_PI*(x + c*t));
+        pwave->exact(0,k,j,i) = prof(xp);
+        break;
+      case 0:
+        xp = sin(M_PI*(x + c*t));
+        xm = sin(M_PI*(x - c*t));
+        pwave->exact(0,k,j,i) = 0.5*(prof(xm) + prof(xp));
+        break;
+      case 1:
+        xm = sin(M_PI*(x - c*t));
+        pwave->exact(0,k,j,i) = prof(xm);
+        break;
+      default:
+        assert(false); // you shouldn't be here
+        abort();
+    }
     pwave->error(0,k,j,i) = pwave->u(0,k,j,i) - pwave->exact(0,k,j,i);
   }
   return;
