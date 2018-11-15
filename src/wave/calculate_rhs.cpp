@@ -140,18 +140,5 @@ void Wave::WaveRHS(AthenaArray<Real> & u, int order)
     }
   } // end of parallel region
 
-// Use the following for an lternative RK4 implementation......................
-//void Wave::WaveRHS(AthenaArray<Real> & u, AthenaArray<Real> & RKk, int order)
-//  for(int k = ks; k <= ke; ++k) {
-//#pragma omp for schedule(static)
-//    for(int j = js; j <= je; ++j) {
-//#pragma omp simd
-//      for(int i = is; i <= ie; ++i) {
-//        RKk(0,k,j,i) = rhs(0,k,j,i);
-//        RKk(1,k,j,i) = rhs(1,k,j,i);
-//      }
-//    }
-//  }
-
   return;
 }

@@ -361,7 +361,6 @@ void TimeIntegratorTaskList::AddTimeIntegratorTask(uint64_t id, uint64_t dep) {
             (&TimeIntegratorTaskList::CalculateVwaveRHS);
       }
       break;
-
     case (SEND_HYDFLX):
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
@@ -724,22 +723,7 @@ enum TaskStatus TimeIntegratorTaskList::WaveIntegrate(MeshBlock *pmb, int step)
       pwave->WeightedAveW(pwave->u,pwave->u1,pwave->u2,ave_wghts);
       pwave->AddWaveRHS(step_wghts[step-1].beta,pwave->u);
 
-      pmb->pwave->ComputeExactSol();
-
-// Alternative RK4 implementation ......................................
-//    if (step <= nsub_steps) {
-//        if (step == 1) pwave->WaveRHS(pwave->u,  pwave->k1, 2*NGHOST);
-//        if (step == 2) pwave->WaveRHS(pwave->u1, pwave->k2, 2*NGHOST);
-//        if (step == 3) pwave->WaveRHS(pwave->u1, pwave->k3, 2*NGHOST);
-//        if (step == 4) pwave->WaveRHS(pwave->u1, pwave->k4, 2*NGHOST);
-//        if (step != 4) {
-//          pwave->AddWaveRHS(1., pwave->u1, step);
-//        }
-//        else
-//        {
-//          pwave->AddWaveRHS(1., pwave->u, step);
-//          pwave->ComputeExactSol();
-//        }
+      if (step==nsub_steps) pmb->pwave->ComputeExactSol();
 
       return TASK_NEXT;
     }
@@ -849,16 +833,6 @@ enum TaskStatus TimeIntegratorTaskList::FieldSend(MeshBlock *pmb, int step) {
 enum TaskStatus TimeIntegratorTaskList::WaveSend(MeshBlock *pmb, int step) {
   if (step <= nsub_steps) {
       pmb->pbval->SendCellCenteredBoundaryBuffers(pmb->pwave->u, WAVE_SOL);
-
-// Use the following with the alternative RK4 implementation.....................
-//      if (step == 4) {
-//        pmb->pbval->SendCellCenteredBoundaryBuffers(pmb->pwave->u,  WAVE_SOL);
-//      }
-//      else
-//      {
-//        pmb->pbval->SendCellCenteredBoundaryBuffers(pmb->pwave->u1, WAVE_SOL);
-//      }
-
   } else {
     return TASK_FAIL;
   }
@@ -914,16 +888,6 @@ enum TaskStatus TimeIntegratorTaskList::WaveReceive(MeshBlock *pmb, int step) {
   bool ret;
   if(step <= nsub_steps) {
       ret=pmb->pbval->ReceiveCellCenteredBoundaryBuffers(pmb->pwave->u, WAVE_SOL);
-
-// Use the following with the alternative RK4 implementation.....................
-//      if (step == 4) {
-//        ret=pmb->pbval->ReceiveCellCenteredBoundaryBuffers(pmb->pwave->u,  WAVE_SOL);
-//      }
-//      else
-//      {
-//        ret=pmb->pbval->ReceiveCellCenteredBoundaryBuffers(pmb->pwave->u1, WAVE_SOL);
-//      }
-
   } else {
     return TASK_FAIL;
   }

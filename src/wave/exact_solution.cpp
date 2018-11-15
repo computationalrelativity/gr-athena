@@ -33,7 +33,7 @@ void Wave::ComputeExactSol()
 
   MeshBlock *pmb = pmy_block;
   Coordinates * pco = pmb->pcoord;
-  Real t = pmb->pmy_mesh->time;
+  Real t = (pmb->pmy_mesh->time) + (pmb->pmy_mesh->dt);
 
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
@@ -57,13 +57,13 @@ void Wave::ComputeExactSol()
             Real z = pco->x3v(k);
 
             //Gaussian ----------------------------------------------
-            //Real plus   = WaveProfile(x+t);
-            //Real minus  = WaveProfile(x-t);
+//            Real plus   = WaveProfile(x+t);
+//            Real minus  = WaveProfile(x-t);
 
-            //Real plusp  = WaveProfile(fmod(x+t-c,2.0)-c);
-            //Real minusp = WaveProfile(fmod(x-t+c,2.0)+c);
+//            Real plusp  = WaveProfile(fmod(x+t-c,2.0)-c);
+//            Real minusp = WaveProfile(fmod(x-t+c,2.0)+c);
 
-            //exact(0,k,j,i) = (plus+minus)/2.0 + (plusp+minusp)/2.0;
+//            exact(0,k,j,i) = (plus+minus)/2.0 + (plusp+minusp)/2.0;
             //-------------------------------------------------------
 
             //Sine---------------------------------------------------
