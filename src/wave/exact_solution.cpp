@@ -66,8 +66,8 @@ void Wave::ComputeExactSol()
 //            exact(0,k,j,i) = (plus+minus)/2.0 + (plusp+minusp)/2.0;
             //-------------------------------------------------------
 
-            //Sine---------------------------------------------------
-            exact(0,k,j,i) = cos(2.*M_PI*t)*WaveProfile(x);
+            //Sinusoids----------------------------------------------
+            exact(0,k,j,i) = cos(2.*M_PI*t)*WaveProfile(x,y,z);
 
             error(0,k,j,i) = abs( exact(0,k,j,i) - u(0,k,j,i) );
         }
@@ -78,15 +78,15 @@ void Wave::ComputeExactSol()
   return;
 }
 
-Real Wave::WaveProfile(Real argument)
+Real Wave::WaveProfile(Real x, Real y, Real z)
 {
     Real const a = 1.0;
     Real const sigma = 0.2;
 
-    //Real profile = a*exp(-SQR(argument)/SQR(sigma));
-    Real profile = a*sin(2.*M_PI*argument);
-    //Real profile = sin(2*M_PI*x)*cos(2*M_PI*y)*cos(2*M_PI*z);
-    //Real profile = pow(cos(0.5*M_PI*argument), 6);
+    //Real profile = a*exp(-SQR(x)/SQR(sigma));
+    //Real profile = a*sin(2.*M_PI*x);
+    Real profile = a*sin(2.*M_PI*x)*cos(2.*M_PI*y); //*cos(2.*M_PI*z);
+    //Real profile = pow(cos(0.5*M_PI*x), 6);
 
     return profile;
 }

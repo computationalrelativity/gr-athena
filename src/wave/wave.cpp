@@ -32,12 +32,6 @@ Wave::Wave(MeshBlock *pmb, ParameterInput *pin)
 
   rhs.NewAthenaArray(2, ncells3, ncells2, ncells1);
 
-// Use the following with the alternative RK4 implementation.........
-//  k1.NewAthenaArray(2, ncells3, ncells2, ncells1);
-//  k2.NewAthenaArray(2, ncells3, ncells2, ncells1);
-//  k3.NewAthenaArray(2, ncells3, ncells2, ncells1);
-//  k4.NewAthenaArray(2, ncells3, ncells2, ncells1);
-
   exact.NewAthenaArray(1, ncells3, ncells2, ncells1);
   error.NewAthenaArray(1, ncells3, ncells2, ncells1);
 
@@ -57,12 +51,6 @@ Wave::~Wave()
   u1.DeleteAthenaArray();
   u2.DeleteAthenaArray(); // only allocated in case of 3S*-type of integrator
   rhs.DeleteAthenaArray();
-
-// Use the following with the alternative RK4 implementation.........
-//  k1.DeleteAthenaArray();
-//  k2.DeleteAthenaArray();
-//  k3.DeleteAthenaArray();
-//  k4.DeleteAthenaArray();
 
   exact.DeleteAthenaArray();
   error.DeleteAthenaArray();
