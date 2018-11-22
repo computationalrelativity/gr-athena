@@ -41,14 +41,55 @@ public:
   int GetDim3() const { return nx3_; }
   int GetDim4() const { return nx4_; }
   int GetDim5() const { return nx5_; }
+  int GetDim(int dim) const;
 
   // a function to get the total size of the array
   int GetSize() const { return nx1_*nx2_*nx3_*nx4_*nx5_; }
   size_t GetSizeInBytes() const {return nx1_*nx2_*nx3_*nx4_*nx5_*sizeof(T); }
 
+  // function to get the stride used to access the data
+  int GetStride1() const { return 1; }
+  int GetStride2() const { return nx1_; }
+  int GetStride3() const { return nx2_*GetStride2(); }
+  int GetStride4() const { return nx3_*GetStride3(); }
+  int GetStride5() const { return nx4_*GetStride4(); }
+  int GetStride(int dim) const;
+
   bool IsShallowCopy() { return (scopy_ == true); }
   T *data() { return pdata_; }
   const T *data() const { return pdata_; }
+
+  // overload data to access pointer with different offsets
+  T *data(const int n) {
+    return pdata_ + n;
+  }
+  const T *data(const int n) const {
+    return pdata_ + n;
+  }
+  T *data(const int n, const int i) {
+    return pdata_ + i + nx1_*n;
+  }
+  const T *data(const int n, const int i) const {
+    return pdata_ + i + nx1_*n;
+  }
+  T *data(const int n, const int j, const int i) {
+    return pdata_ + i + nx1_*(j + nx2_*n);
+  }
+  const T *data(const int n, const int j, const int i) const {
+    return pdata_ + i + nx1_*(j + nx2_*n);
+  }
+  T *data(const int n, const int k, const int j, const int i) {
+    return pdata_ + i + nx1_*(j + nx2_*(k + nx3_*n));
+  }
+  const T *data(const int n, const int k, const int j, const int i) const {
+    return pdata_ + i + nx1_*(j + nx2_*(k + nx3_*n));
+  }
+  T *data(const int m, const int n, const int k, const int j, const int i) {
+    return pdata_ + i + nx1_*(j + nx2_*(k + nx3_*(n + nx4_*m)));
+  }
+  const T *data(const int m, const int n, const int k, const int j, const int i) const {
+    return pdata_ + i + nx1_*(j + nx2_*(k + nx3_*(n + nx4_*m)));
+  }
 
   // overload operator() to access 1d-5d data
   T &operator() (const int n) {
@@ -292,6 +333,48 @@ void AthenaArray<T>::NewAthenaArray(int nx5, int nx4, int nx3, int nx2, int nx1)
   nx5_ = nx5;
   dim_ = 5;
   pdata_ = new T[nx1*nx2*nx3*nx4*nx5](); // allocate memory and initialize to zero
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn AthenaArray::GetDim()
+//  \brief  get dimension of the data in a given dimension (between 1 and 5)
+template<typename T>
+int AthenaArray<T>::GetDim(int const dim) const {
+  switch(dim) {
+    case 1:
+      return GetDim1();
+    case 2:
+      return GetDim2();
+    case 3:
+      return GetDim3();
+    case 4:
+      return GetDim4();
+    case 5:
+      return GetDim5();
+    default:
+      return 0;
+  }
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn AthenaArray::GetStride()
+//  \brief  get stride used to access the data in a given dimension (between 1 and 5)
+template<typename T>
+int AthenaArray<T>::GetStride(int const dim) const {
+  switch(dim) {
+    case 1:
+      return GetStride1();
+    case 2:
+      return GetStride2();
+    case 3:
+      return GetStride3();
+    case 4:
+      return GetStride4();
+    case 5:
+      return GetStride5();
+    default:
+      return 0;
+  }
 }
 
 //----------------------------------------------------------------------------------------

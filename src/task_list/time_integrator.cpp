@@ -604,7 +604,7 @@ enum TaskStatus TimeIntegratorTaskList::CalculateEMF(MeshBlock *pmb, int step) {
 
 enum TaskStatus TimeIntegratorTaskList::CalculateWaveRHS(MeshBlock *pmb, int step) {
   if (step <= nsub_steps) {
-    pmb->pwave->WaveRHS(pmb->pwave->u, 2*NGHOST);
+    pmb->pwave->WaveRHS(pmb->pwave->u);
     return TASK_NEXT;
   }
   return TASK_FAIL;

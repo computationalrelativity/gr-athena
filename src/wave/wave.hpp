@@ -36,7 +36,7 @@ class Wave {
 
     // functions
     Real NewBlockTimeStep(void);  // compute new timestep on a MeshBlock
-    void WaveRHS(AthenaArray<Real> & u, int order);
+    void WaveRHS(AthenaArray<Real> & u);
     void WeightedAveW(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
       AthenaArray<Real> &u_in2, const Real wght[3]);
     void AddWaveRHS(const Real wght, AthenaArray<Real> &u_out);
