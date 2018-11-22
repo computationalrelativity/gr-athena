@@ -48,7 +48,7 @@ void Wave::WaveRHS(AthenaArray<Real> & u)
     for(int j = js; j <= je; ++j) {
 #pragma omp simd
       for(int i = is; i <= ie; ++i) {
-        rhs(0,k,j,i) = u(1,k,j,i);
+        rhs(0,k,j,i) = wpi(k,j,i);
         rhs(1,k,j,i) = 0.0;
       }
       for(int a = 0; a < 3; ++a) {
