@@ -136,11 +136,6 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     num_variables = new int[num_datasets];
     num_variables[0] = 2;
   }
-  else if (variable.compare("vwave") == 0) {
-    num_datasets = 1;
-    num_variables = new int[num_datasets];
-    num_variables[0] = 2;
-  }
   else {
     num_datasets = 1;
     num_variables = new int[num_datasets];
@@ -161,9 +156,6 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   }
   else if(variable.compare("wave") == 0) {
     std::strncpy(dataset_names[n_dataset++], "wave", max_name_length+1);
-  }
-  else if(variable.compare("vwave") == 0) {
-    std::strncpy(dataset_names[n_dataset++], "vwave", max_name_length+1);
   }
   else { // single data
     if (variable.compare(0,1,"B") == 0 && MAGNETIC_FIELDS_ENABLED)

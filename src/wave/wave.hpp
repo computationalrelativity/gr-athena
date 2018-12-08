@@ -11,7 +11,7 @@
 // Athena++ classes headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
-#include "../task_list/task_list.hpp"
+#include "../task_list/wave_task_list.hpp"
 
 class MeshBlock;
 class ParameterInput;
@@ -37,7 +37,7 @@ class Wave {
     // functions
     Real NewBlockTimeStep(void);  // compute new timestep on a MeshBlock
     void WaveRHS(AthenaArray<Real> & u);
-    void WeightedAveW(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
+    void WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
       AthenaArray<Real> &u_in2, const Real wght[3]);
     void AddWaveRHS(const Real wght, AthenaArray<Real> &u_out);
     void ComputeExactSol();

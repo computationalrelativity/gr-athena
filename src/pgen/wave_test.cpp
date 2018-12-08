@@ -122,7 +122,7 @@ void MeshBlock::UserWorkInLoop()
     Real x = pcoord->x1v(i);
     Real y = pcoord->x2v(j);
     Real z = pcoord->x3v(k);
-    Real t = pmy_mesh->time;
+    Real t = pmy_mesh->time + pmy_mesh->dt;
     Real c = pwave->c;
 
     Real xp, xm;

@@ -65,7 +65,6 @@ private:
   Coordinates *pcoarsec;
   AthenaArray<Real> coarse_cons_, coarse_prim_, coarse_bcc_;
   AthenaArray<Real> coarse_wave_;
-  AthenaArray<Real> coarse_vwave_;
   FaceField coarse_b_;
   AthenaArray<Real> fvol_[2][2], sarea_x1_[2][2], sarea_x2_[2][3], sarea_x3_[3][2];
   int refine_flag_, neighbor_rflag_, deref_count_, deref_threshold_;

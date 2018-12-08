@@ -5,8 +5,8 @@
 // Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
 // Licensed under the 3-clause BSD License, see LICENSE file for details
 //========================================================================================
-//! \file vwave.hpp
-//  \brief definitions for the Vwave class
+//! \file z4c.hpp
+//  \brief definitions for the Z4c class
 
 // Athena++ classes headers
 #include "../athena.hpp"

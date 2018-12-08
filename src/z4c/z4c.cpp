@@ -3,8 +3,8 @@
 // Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
 // Licensed under the 3-clause BSD License, see LICENSE file for details
 //========================================================================================
-//! \file vwave.hpp
-//  \brief implementation of functions in the VWave class
+//! \file z4c.cpp
+//  \brief implementation of functions in the Z4c class
 
 // Athena++ headers
 #include "z4c.hpp"

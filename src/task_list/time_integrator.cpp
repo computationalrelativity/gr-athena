@@ -23,9 +23,8 @@
 #include "../hydro/hydro.hpp"
 #include "../hydro/srcterms/hydro_srcterms.hpp"
 #include "../hydro/hydro_diffusion/hydro_diffusion.hpp"
-#include "../mesh/mesh.hpp"
 #include "../wave/wave.hpp"
-#include "../vwave/vwave.hpp"
+#include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "../reconstruct/reconstruction.hpp"
 #include "task_list.hpp"
@@ -257,24 +256,10 @@ TimeIntegratorTaskList::TimeIntegratorTaskList(ParameterInput *pin, Mesh *pm)
       }
     }
 
-    // Adding tasks for wave (or vector wave) equation
-    if(WAVE_ENABLED || VWAVE_ENABLED) {
-      AddTimeIntegratorTask(CALC_WAVERHS,START_ALLRECV);
-      AddTimeIntegratorTask(INT_WAVE,    START_ALLRECV);
-      AddTimeIntegratorTask(SEND_WAVE,   INT_WAVE);
-      AddTimeIntegratorTask(RECV_WAVE,   START_ALLRECV);
-    }
-
     // prolongate, compute new primitives
     if (MAGNETIC_FIELDS_ENABLED) { // MHD
       if (pm->multilevel==true) { // SMR or AMR
-        if(WAVE_ENABLED || VWAVE_ENABLED) {
-          AddTimeIntegratorTask(PROLONG,
-             (SEND_HYD|RECV_HYD|SEND_FLD|RECV_FLD|SEND_WAVE|RECV_WAVE));
-        }
-        else {
-            AddTimeIntegratorTask(PROLONG,(SEND_HYD|RECV_HYD|SEND_FLD|RECV_FLD));
-        }
+        AddTimeIntegratorTask(PROLONG,(SEND_HYD|RECV_HYD|SEND_FLD|RECV_FLD));
         AddTimeIntegratorTask(CON2PRIM,PROLONG);
       } else {
         if (SHEARING_BOX) {
@@ -286,12 +271,7 @@ TimeIntegratorTaskList::TimeIntegratorTaskList(ParameterInput *pin, Mesh *pm)
       }
     } else {  // HYDRO
       if (pm->multilevel==true) { // SMR or AMR
-         if(WAVE_ENABLED || VWAVE_ENABLED) {
-            AddTimeIntegratorTask(PROLONG,(SEND_HYD|RECV_HYD|SEND_WAVE|RECV_WAVE));
-         }
-         else {
-            AddTimeIntegratorTask(PROLONG,(SEND_HYD|RECV_HYD));
-         }
+        AddTimeIntegratorTask(PROLONG,(SEND_HYD|RECV_HYD));
         AddTimeIntegratorTask(CON2PRIM,PROLONG);
       } else {
         if (SHEARING_BOX) {
@@ -352,18 +332,6 @@ void TimeIntegratorTaskList::AddTimeIntegratorTask(uint64_t id, uint64_t dep) {
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
         (&TimeIntegratorTaskList::CalculateEMF);
       break;
-    case (CALC_WAVERHS):
-      if (WAVE_ENABLED) {
-          task_list_[ntasks].TaskFunc=
-            static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-            (&TimeIntegratorTaskList::CalculateWaveRHS);
-      }
-      if (VWAVE_ENABLED) {
-          task_list_[ntasks].TaskFunc=
-            static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-            (&TimeIntegratorTaskList::CalculateVwaveRHS);
-      }
-      break;
     case (SEND_HYDFLX):
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
@@ -396,18 +364,6 @@ void TimeIntegratorTaskList::AddTimeIntegratorTask(uint64_t id, uint64_t dep) {
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
         (&TimeIntegratorTaskList::FieldIntegrate);
       break;
-    case (INT_WAVE):
-      if (WAVE_ENABLED) {
-        task_list_[ntasks].TaskFunc=
-            static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-            (&TimeIntegratorTaskList::WaveIntegrate);
-      }
-      if (VWAVE_ENABLED) {
-        task_list_[ntasks].TaskFunc=
-            static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-            (&TimeIntegratorTaskList::VwaveIntegrate);
-      }
-      break;
     case (SRCTERM_HYD):
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
@@ -424,18 +380,6 @@ void TimeIntegratorTaskList::AddTimeIntegratorTask(uint64_t id, uint64_t dep) {
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
         (&TimeIntegratorTaskList::FieldSend);
       break;
-    case (SEND_WAVE):
-      if (WAVE_ENABLED) {
-      task_list_[ntasks].TaskFunc=
-        static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&TimeIntegratorTaskList::WaveSend);
-      }
-      if (VWAVE_ENABLED) {
-      task_list_[ntasks].TaskFunc=
-        static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&TimeIntegratorTaskList::VwaveSend);
-      }
-      break;
 
     case (RECV_HYD):
       task_list_[ntasks].TaskFunc=
@@ -446,18 +390,6 @@ void TimeIntegratorTaskList::AddTimeIntegratorTask(uint64_t id, uint64_t dep) {
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
         (&TimeIntegratorTaskList::FieldReceive);
-      break;
-    case (RECV_WAVE):
-      if (WAVE_ENABLED) {
-      task_list_[ntasks].TaskFunc=
-        static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&TimeIntegratorTaskList::WaveReceive);
-      }
-      if (VWAVE_ENABLED) {
-      task_list_[ntasks].TaskFunc=
-        static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&TimeIntegratorTaskList::VwaveReceive);
-      }
       break;
     case (SEND_HYDSH):
       task_list_[ntasks].TaskFunc=
@@ -598,23 +530,6 @@ enum TaskStatus TimeIntegratorTaskList::CalculateEMF(MeshBlock *pmb, int stage) 
   return TASK_FAIL;
 }
 
-enum TaskStatus TimeIntegratorTaskList::CalculateWaveRHS(MeshBlock *pmb, int stage) {
-  if (stage <= nstages) {
-    pmb->pwave->WaveRHS(pmb->pwave->u);
-    return TASK_NEXT;
-  }
-  return TASK_FAIL;
-}
-
-enum TaskStatus TimeIntegratorTaskList::CalculateVwaveRHS(MeshBlock *pmb, int stage)
-{
-  if(stage <= nstages) {
-    pmb->pvwave->VwaveRHS(pmb->pvwave->u, 2*NGHOST);
-    return TASK_NEXT;
-  }
-  return TASK_FAIL;
-}
-
 //----------------------------------------------------------------------------------------
 // Functions to communicate fluxes between MeshBlocks for flux correction with AMR
 
@@ -690,52 +605,6 @@ enum TaskStatus TimeIntegratorTaskList::FieldIntegrate(MeshBlock *pmb, int stage
     pf->WeightedAveB(pf->b,pf->b1,pf->b2,ave_wghts);
     pf->CT(stage_wghts[stage-1].beta, pf->b);
 
-    return TASK_NEXT;
-  }
-
-  return TASK_FAIL;
-}
-
-enum TaskStatus TimeIntegratorTaskList::WaveIntegrate(MeshBlock *pmb, int stage)
-{
-    Wave *pwave = pmb->pwave;
-
-    if (stage <= nstages) {
-      // This time-integrator-specific averaging operation logic is identical to HydroInt
-
-      Real ave_wghts[3];
-      ave_wghts[0] = 1.0;
-      ave_wghts[1] = stage_wghts[stage-1].delta;
-      ave_wghts[2] = 0.0;
-      pwave->WeightedAveW(pwave->u1,pwave->u,pwave->u2,ave_wghts);
-
-      ave_wghts[0] = stage_wghts[stage-1].gamma_1;
-      ave_wghts[1] = stage_wghts[stage-1].gamma_2;
-      ave_wghts[2] = stage_wghts[stage-1].gamma_3;
-      pwave->WeightedAveW(pwave->u,pwave->u1,pwave->u2,ave_wghts);
-      pwave->AddWaveRHS(stage_wghts[stage-1].beta,pwave->u);
-
-      if (stage==nstages) pmb->pwave->ComputeExactSol();
-
-      return TASK_NEXT;
-    }
-    return TASK_FAIL;
-}
-
-enum TaskStatus TimeIntegratorTaskList::VwaveIntegrate(MeshBlock *pmb, int stage)
-{
-  Vwave * pvwave = pmb->pvwave;
-  if (integrator != "rk2") {
-      std::cout << "Only rk2 integrator is allowed for the vwave eqn." << std::endl;
-    return TASK_FAIL;
-  }
-
-  if(stage == 1) {
-    pmb->pvwave->AddVwaveRHSToVals(pvwave->u, pvwave->u, stage_wghts[0], pvwave->u1);
-    return TASK_NEXT;
-  }
-  if(stage == 2) {
-    pmb->pvwave->AddVwaveRHSToVals(pvwave->u, pvwave->u1, stage_wghts[1], pvwave->u);
     return TASK_NEXT;
   }
 
@@ -822,27 +691,6 @@ enum TaskStatus TimeIntegratorTaskList::FieldSend(MeshBlock *pmb, int stage) {
   return TASK_SUCCESS;
 }
 
-enum TaskStatus TimeIntegratorTaskList::WaveSend(MeshBlock *pmb, int stage) {
-  if (stage <= nstages) {
-      pmb->pbval->SendCellCenteredBoundaryBuffers(pmb->pwave->u, WAVE_SOL);
-  } else {
-    return TASK_FAIL;
-  }
-  return TASK_SUCCESS;
-}
-
-enum TaskStatus TimeIntegratorTaskList::VwaveSend(MeshBlock *pmb, int stage)
-{
-  if(stage == 1) {
-    pmb->pbval->SendCellCenteredBoundaryBuffers(pmb->pvwave->u1, VWAVE_SOL);
-  } else if(stage == 2) {
-    pmb->pbval->SendCellCenteredBoundaryBuffers(pmb->pvwave->u, VWAVE_SOL);
-  } else{
-    return TASK_FAIL;
-  }
-  return TASK_SUCCESS;
-}
-
 //----------------------------------------------------------------------------------------
 // Functions to receive conserved variables between MeshBlocks
 
@@ -870,38 +718,6 @@ enum TaskStatus TimeIntegratorTaskList::FieldReceive(MeshBlock *pmb, int stage) 
   }
 
   if (ret==true) {
-    return TASK_SUCCESS;
-  } else {
-    return TASK_FAIL;
-  }
-}
-
-enum TaskStatus TimeIntegratorTaskList::WaveReceive(MeshBlock *pmb, int step) {
-  bool ret;
-  if(step <= nstages) {
-      ret=pmb->pbval->ReceiveCellCenteredBoundaryBuffers(pmb->pwave->u, WAVE_SOL);
-  } else {
-    return TASK_FAIL;
-  }
-
-  if(ret == true) {
-    return TASK_SUCCESS;
-  } else {
-    return TASK_FAIL;
-  }
-}
-
-enum TaskStatus TimeIntegratorTaskList::VwaveReceive(MeshBlock *pmb, int step)
-{
-  bool ret;
-  if(step == 1) {
-    ret = pmb->pbval->ReceiveCellCenteredBoundaryBuffers(pmb->pvwave->u1, VWAVE_SOL);
-  } else if(step == 2) {
-    ret = pmb->pbval->ReceiveCellCenteredBoundaryBuffers(pmb->pvwave->u, VWAVE_SOL);
-  } else {
-    return TASK_FAIL;
-  }
-  if(ret == true) {
     return TASK_SUCCESS;
   } else {
     return TASK_FAIL;
@@ -974,7 +790,6 @@ enum TaskStatus TimeIntegratorTaskList::Prolongation(MeshBlock *pmb, int stage) 
   Hydro *phydro=pmb->phydro;
   Field *pfield=pmb->pfield;
   Wave *pwave=pmb->pwave;
-  Vwave *pvwave=pmb->pvwave;
   BoundaryValues *pbval=pmb->pbval;
 
   if (stage <= nstages) {
@@ -982,7 +797,7 @@ enum TaskStatus TimeIntegratorTaskList::Prolongation(MeshBlock *pmb, int stage) 
     Real t_end_stage = pmb->pmy_mesh->time + pmb->stage_abscissae[stage][0];
     // Scaled coefficient for RHS time-advance within stage
     Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
-    pbval->ProlongateBoundaries(phydro->w,  phydro->u, pwave->u, pvwave->u, 
+    pbval->ProlongateBoundaries(phydro->w,  phydro->u, pwave->u,
                                 pfield->b,  pfield->bcc, t_end_stage, dt);
   } else {
     return TASK_FAIL;
@@ -1051,15 +866,7 @@ enum TaskStatus TimeIntegratorTaskList::UserWork(MeshBlock *pmb, int stage) {
 enum TaskStatus TimeIntegratorTaskList::NewBlockTimeStep(MeshBlock *pmb, int stage) {
   if (stage != nstages) return TASK_SUCCESS; // only do on last stage
 
-  if (WAVE_ENABLED) {
-    pmb->pwave->NewBlockTimeStep();
-  }
-  else if (VWAVE_ENABLED) {
-    pmb->pvwave->NewBlockTimeStep();
-  }
-  else {
-    pmb->phydro->NewBlockTimeStep();
-  }
+  pmb->phydro->NewBlockTimeStep();
   return TASK_SUCCESS;
 }
 
@@ -1125,16 +932,6 @@ enum TaskStatus TimeIntegratorTaskList::StartupIntegrator(MeshBlock *pmb, int st
       ave_wghts[1] = 0.0;
       ave_wghts[2] = 0.0;
       pf->WeightedAveB(pf->b1,pf->b,pf->b,ave_wghts);
-    }
-
-    if (WAVE_ENABLED) {
-      // Auxiliar var u1 needs to be initialized to 0 at the beginning of each cycle
-      Wave *pwave = pmb->pwave;
-      Real ave_wghts[3];
-      ave_wghts[0] = 0.0;
-      ave_wghts[1] = 0.0;
-      ave_wghts[2] = 0.0;
-      pwave->WeightedAveW(pwave->u1,pwave->u,pwave->u,ave_wghts);
     }
 
     // 2nd set of registers, including u1, need to be initialized to 0 each cycle

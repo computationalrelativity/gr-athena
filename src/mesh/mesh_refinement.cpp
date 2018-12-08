@@ -83,7 +83,6 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) {
   sarea_x3_[2][1].NewAthenaArray(nc1);
 
   if (WAVE_ENABLED)  coarse_wave_.NewAthenaArray(2,ncc3,ncc2,ncc1);
-  if (VWAVE_ENABLED) coarse_vwave_.NewAthenaArray(2,ncc3,ncc2,ncc1);
   if (MAGNETIC_FIELDS_ENABLED) {
     coarse_b_.x1f.NewAthenaArray(ncc3,ncc2,ncc1+1);
     coarse_b_.x2f.NewAthenaArray(ncc3,ncc2+1,ncc1);
@@ -121,7 +120,6 @@ MeshRefinement::~MeshRefinement() {
   sarea_x3_[2][0].DeleteAthenaArray();
   sarea_x3_[2][1].DeleteAthenaArray();
   if (WAVE_ENABLED)  coarse_wave_.DeleteAthenaArray();
-  if (VWAVE_ENABLED) coarse_vwave_.DeleteAthenaArray();
   if (MAGNETIC_FIELDS_ENABLED) {
     coarse_b_.x1f.DeleteAthenaArray();
     coarse_b_.x2f.DeleteAthenaArray();

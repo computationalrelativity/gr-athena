@@ -51,11 +51,6 @@ void ShowConfig(void) {
   } else {
     std::cout<<"  Wave equation:              OFF" << std::endl;
   }
-  if (VWAVE_ENABLED) {
-    std::cout<<"  Vector wave equation:       ON" << std::endl;
-  } else {
-    std::cout<<"  Vector wave equation:       OFF" << std::endl;
-  }
   if (RELATIVISTIC_DYNAMICS) {
     std::cout<<"  Relativistic dynamics:      ON " << std::endl;
   } else {

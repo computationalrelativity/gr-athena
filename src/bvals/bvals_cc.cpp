@@ -160,13 +160,6 @@ void BoundaryValues::SendCellCenteredBoundaryBuffers(AthenaArray<Real> &src,
         cbuf.InitWithShallowCopy(pmb->pmr->coarse_wave_);
     }
   }
-  if (type==VWAVE_SOL) {
-    pbd=&bd_vwave_;
-    ns=0, ne=1;
-    if (pmb->pmy_mesh->multilevel) {
-        cbuf.InitWithShallowCopy(pmb->pmr->coarse_vwave_);
-    }
-  }
 
   for (int n=0; n<nneighbor; n++) {
     NeighborBlock& nb = neighbor[n];
@@ -185,8 +178,6 @@ void BoundaryValues::SendCellCenteredBoundaryBuffers(AthenaArray<Real> &src,
         ptarget=&(pbl->pbval->bd_hydro_);
       if (type==WAVE_SOL)
           ptarget=&(pbl->pbval->bd_wave_);
-      if (type==VWAVE_SOL)
-          ptarget=&(pbl->pbval->bd_vwave_);
       std::memcpy(ptarget->recv[nb.targetid], pbd->send[nb.bufid], ssize*sizeof(Real));
       ptarget->flag[nb.targetid]=BNDRY_ARRIVED;
     }
@@ -437,13 +428,6 @@ bool BoundaryValues::ReceiveCellCenteredBoundaryBuffers(AthenaArray<Real> &dst,
         cbuf.InitWithShallowCopy(pmb->pmr->coarse_wave_);
     }
   }
-  if (type==VWAVE_SOL) {
-    pbd=&bd_vwave_;
-    ns=0, ne=1;
-    if (pmb->pmy_mesh->multilevel) {
-        cbuf.InitWithShallowCopy(pmb->pmr->coarse_vwave_);
-    }
-  }
 
   for (int n=0; n<nneighbor; n++) {
     NeighborBlock& nb = neighbor[n];
@@ -513,14 +497,6 @@ void BoundaryValues::ReceiveCellCenteredBoundaryBuffersWithWait(AthenaArray<Real
     ns=0, ne=1;
     if (pmb->pmy_mesh->multilevel) {
         cbuf.InitWithShallowCopy(pmb->pmr->coarse_wave_);
-    }
-  }
-
-  if (type==VWAVE_SOL) {
-    pbd=&bd_vwave_;
-    ns=0, ne=1;
-    if (pmb->pmy_mesh->multilevel) {
-        cbuf.InitWithShallowCopy(pmb->pmr->coarse_vwave_);
     }
   }
 

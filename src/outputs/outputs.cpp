@@ -17,7 +17,7 @@
 // created for each and every <outputN> block in the input file.
 //
 // Required parameters that must be specified in an <outputN> block are:
-//   - variable     = cons,prim,D,d,E,e,m,v,wave,wave_u,wave_pi,exact,vwave,vwave_u,vwave_pi
+//   - variable     = cons,prim,D,d,E,e,m,v,wave,wave_u,wave_pi,wave_exact,wave_error
 //   - file_type    = rst,tab,vtk,hst
 //   - dt           = problem time between outputs
 //
@@ -66,7 +66,6 @@
 #include "../gravity/gravity.hpp"
 #include "../hydro/hydro.hpp"
 #include "../wave/wave.hpp"
-#include "../vwave/vwave.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "outputs.hpp"
@@ -304,7 +303,6 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   Field *pfld = pmb->pfield;
   Gravity *pgrav = pmb->pgrav;
   Wave  *pwave = pmb->pwave;
-  Vwave *pvwave = pmb->pvwave;
   num_vars_ = 0;
   OutputData *pod;
 
@@ -490,28 +488,6 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       pod->type = "SCALARS";
       pod->name = "wError";
       pod->data.InitWithShallowSlice(pwave->error,0,1);
-      AppendOutputDataNode(pod);
-      num_vars_++;
-    }
-  }
-
-  if (VWAVE_ENABLED) {
-    if (output_params.variable.compare("vwave") == 0 ||
-        output_params.variable.compare("vwave_u") == 0) {
-      pod = new OutputData;
-      pod->type = "SCALARS";
-      pod->name = "vwU";
-      pod->data.InitWithShallowSlice(pvwave->u,0,1);
-      AppendOutputDataNode(pod);
-      num_vars_++;
-    }
-
-    if (output_params.variable.compare("vwave") == 0 ||
-        output_params.variable.compare("vwave_pi") == 0) {
-      pod = new OutputData;
-      pod->type = "SCALARS";
-      pod->name = "vwPI";
-      pod->data.InitWithShallowSlice(pvwave->u,1,1);
       AppendOutputDataNode(pod);
       num_vars_++;
     }

@@ -47,8 +47,8 @@ void Wave::AddWaveRHS(const Real wght, AthenaArray<Real> &u_out) {
 //! \fn  void Wave::WeightedAveW
 //  \brief Compute weighted average of cell-averaged U in time integrator step
 
-void Wave::WeightedAveW(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
-                         AthenaArray<Real> &u_in2, const Real wght[3]) {
+void Wave::WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
+                       AthenaArray<Real> &u_in2, const Real wght[3]) {
   MeshBlock *pmb=pmy_block;
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;

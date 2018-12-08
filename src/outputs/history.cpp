@@ -26,7 +26,6 @@
 #include "../globals.hpp"
 #include "../hydro/hydro.hpp"
 #include "../wave/wave.hpp"
-#include "../vwave/vwave.hpp"
 #include "../mesh/mesh.hpp"
 #include "outputs.hpp"
 
@@ -60,7 +59,6 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     Hydro *phyd = pmb->phydro;
     Field *pfld = pmb->pfield;
     Wave  *pwave = pmb->pwave;
-    Vwave *pvwave = pmb->pvwave;
     Real infty_norm = 0.0;
 
     // Sum history variables over cells.  Note ghost cells are never included in sums
@@ -102,10 +100,6 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
                infty_norm = wave_error; //LInfty-norm of error
                data_sum[isum++] = infty_norm;
            }
-        }
-        if (VWAVE_ENABLED) {
-          Real & vwave_u = pvwave->u(0,k,j,i);
-          data_sum[isum++] += vol(i)*vwave_u;
         }
       }
     }}
@@ -167,7 +161,6 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
           fprintf(pfile,"[%d]=[L2-norm]^2 ",iout++);
           fprintf(pfile,"[%d]=Infty-n ",    iout++);
       }
-      if (VWAVE_ENABLED) fprintf(pfile,"[%d]=vwave   ", iout++);
 
       for (int n=0; n<pm->nuser_history_output_; n++)
         fprintf(pfile,"[%d]=%-8s", iout++, pm->user_history_output_names_[n].c_str());

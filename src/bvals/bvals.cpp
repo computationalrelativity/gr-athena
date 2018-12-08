@@ -239,8 +239,6 @@ BoundaryValues::BoundaryValues(MeshBlock *pmb, enum BoundaryFlag *input_bcs,
     InitBoundaryData(bd_flcor_, BNDRY_FLCOR);
   if (WAVE_ENABLED)
     InitBoundaryData(bd_wave_, BNDRY_WAVE);
-  if (VWAVE_ENABLED)
-    InitBoundaryData(bd_vwave_, BNDRY_VWAVE);
   if (MAGNETIC_FIELDS_ENABLED) {
     InitBoundaryData(bd_field_, BNDRY_FIELD);
     InitBoundaryData(bd_emfcor_, BNDRY_EMFCOR);
@@ -519,8 +517,6 @@ BoundaryValues::~BoundaryValues() {
     DestroyBoundaryData(bd_flcor_);
   if (WAVE_ENABLED)
       DestroyBoundaryData(bd_wave_);
-  if (VWAVE_ENABLED)
-      DestroyBoundaryData(bd_vwave_);
   if (MAGNETIC_FIELDS_ENABLED) {
     DestroyBoundaryData(bd_field_);
     DestroyBoundaryData(bd_emfcor_);
@@ -957,16 +953,6 @@ void BoundaryValues::Initialize(void) {
         MPI_Recv_init(wave_recv_[nb.bufid], w_rsize, MPI_ATHENA_REAL,
             nb.rank, tag, MPI_COMM_WORLD, &req_wave_recv_[nb.bufid]);
       }
-      if (VWAVE_ENABLED) {
-        int w_ssize = ssize*2;
-        int w_rsize = rsize*2;
-        tag=CreateBvalsMPITag(nb.lid, TAG_VWAVE, nb.targetid);
-        MPI_Send_init(vwave_send_[nb.bufid], w_ssize, MPI_ATHENA_REAL,
-            nb.rank, tag, MPI_COMM_WORLD, &req_vwave_send_[nb.bufid]);
-        tag=CreateBvalsMPITag(pmb->lid, TAG_VWAVE, nb.bufid);
-        MPI_Recv_init(vwave_recv_[nb.bufid], w_rsize, MPI_ATHENA_REAL,
-            nb.rank, tag, MPI_COMM_WORLD, &req_vwave_recv_[nb.bufid]);
-      }
       ssize*=NHYDRO; rsize*=NHYDRO;
       // specify the offsets in the view point of the target block: flip ox? signs
       tag=CreateBvalsMPITag(nb.lid, TAG_HYDRO, nb.targetid);
@@ -1265,9 +1251,6 @@ void BoundaryValues::StartReceivingForInit(bool cons_and_field) {
       if (WAVE_ENABLED) {
         MPI_Start(&req_wave_recv_[nb.bufid]);
       }
-      if (VWAVE_ENABLED) {
-        MPI_Start(&req_vwave_recv_[nb.bufid]);
-      }
     }
   }
 #endif
@@ -1296,10 +1279,6 @@ void BoundaryValues::StartReceivingAll(const Real time) {
       MPI_Start(&(bd_hydro_.req_recv[nb.bufid]));
       if (WAVE_ENABLED) {
         MPI_Start(&req_wave_recv_[nb.bufid]);
-      }
-      if (VWAVE_ENABLED) {
-                    std::cout << "Paam" << std::endl;
-        MPI_Start(&req_vwave_recv_[nb.bufid]);
       }
       if (nb.type==NEIGHBOR_FACE && nb.level>mylevel)
         MPI_Start(&(bd_flcor_.req_recv[nb.bufid]));
@@ -1402,8 +1381,6 @@ void BoundaryValues::ClearBoundaryForInit(bool cons_and_field) {
     bd_hydro_.flag[nb.bufid] = BNDRY_WAITING;
     if (WAVE_ENABLED)
       bd_wave_.flag[nb.bufid] = BNDRY_WAITING;
-    if (VWAVE_ENABLED)
-      bd_vwave_.flag[nb.bufid] = BNDRY_WAITING;
     if (MAGNETIC_FIELDS_ENABLED)
       bd_field_.flag[nb.bufid] = BNDRY_WAITING;
     if (GENERAL_RELATIVITY and pmy_mesh_->multilevel)
@@ -1421,9 +1398,6 @@ void BoundaryValues::ClearBoundaryForInit(bool cons_and_field) {
       }
       if (WAVE_ENABLED) {
         MPI_Wait(&req_wave_send_[nb.bufid], MPI_STATUS_IGNORE);
-      }
-      if (VWAVE_ENABLED) {
-        MPI_Wait(&req_vwave_send_[nb.bufid], MPI_STATUS_IGNORE);
       }
     }
 #endif
@@ -1445,8 +1419,6 @@ void BoundaryValues::ClearBoundaryAll(void) {
     bd_hydro_.flag[nb.bufid] = BNDRY_WAITING;
     if (WAVE_ENABLED)
       bd_wave_.flag[nb.bufid] = BNDRY_WAITING;
-    if (VWAVE_ENABLED)
-      bd_vwave_.flag[nb.bufid] = BNDRY_WAITING;
     if (nb.type==NEIGHBOR_FACE)
       bd_flcor_.flag[nb.bufid] = BNDRY_WAITING;
     if (MAGNETIC_FIELDS_ENABLED) {
@@ -1460,9 +1432,6 @@ void BoundaryValues::ClearBoundaryAll(void) {
       MPI_Wait(&(bd_hydro_.req_send[nb.bufid]),MPI_STATUS_IGNORE);
       if (WAVE_ENABLED) {
         MPI_Wait(&req_wave_send_[nb.bufid], MPI_STATUS_IGNORE); // Wait for Isend
-      }
-      if (VWAVE_ENABLED) {
-        MPI_Wait(&req_vwave_send_[nb.bufid], MPI_STATUS_IGNORE); // Wait for Isend
       }
       if (nb.type==NEIGHBOR_FACE && nb.level<pmb->loc.level)
         MPI_Wait(&(bd_flcor_.req_send[nb.bufid]),MPI_STATUS_IGNORE);
@@ -1647,13 +1616,13 @@ void BoundaryValues::ApplyPhysicalBoundaries(AthenaArray<Real> &pdst,
 
 //----------------------------------------------------------------------------------------
 //! \fn void BoundaryValues::ProlongateBoundaries(AthenaArray<Real> &pdst,
-//           AthenaArray<Real> &cdst, AthenaArray<Real> &waveu, AthenaArray<Real> &vwaveu,
+//           AthenaArray<Real> &cdst, AthenaArray<Real> &waveu,
 //           FaceField &bdst, AthenaArray<Real> &bcdst, const Real time, const Real dt)
 //  \brief Prolongate the level boundary using the coarse data
 
-void BoundaryValues::ProlongateBoundaries(AthenaArray<Real> &pdst,
-     AthenaArray<Real> &cdst, AthenaArray<Real> &waveu, AthenaArray<Real> &vwaveu,
-     FaceField &bfdst, AthenaArray<Real> &bcdst, const Real time, const Real dt) {
+void BoundaryValues::ProlongateBoundaries(AthenaArray<Real> &pdst, AthenaArray<Real> &cdst,
+        AthenaArray<Real> &waveu, FaceField &bfdst, AthenaArray<Real> &bcdst,
+        const Real time, const Real dt) {
   MeshBlock *pmb=pmy_block_;
   MeshRefinement *pmr=pmb->pmr;
   int64_t &lx1=pmb->loc.lx1;
@@ -1716,10 +1685,6 @@ void BoundaryValues::ProlongateBoundaries(AthenaArray<Real> &pdst,
                                                  ris, rie, rjs, rje, rks, rke);
           if (WAVE_ENABLED) {
             pmb->pmr->RestrictCellCenteredValues(waveu, pmr->coarse_wave_, 0, 1,
-                ris, rie, rjs, rje, rks, rke);
-          }
-          if (VWAVE_ENABLED) {
-            pmb->pmr->RestrictCellCenteredValues(vwaveu, pmr->coarse_vwave_, 0, 1,
                 ris, rie, rjs, rje, rks, rke);
           }
           if (MAGNETIC_FIELDS_ENABLED) {
@@ -1865,10 +1830,6 @@ void BoundaryValues::ProlongateBoundaries(AthenaArray<Real> &pdst,
                                       si, ei, sj, ej, sk, ek, true);
     if (WAVE_ENABLED) {
       pmr->ProlongateCellCenteredValues(pmr->coarse_wave_, waveu, 0, 1,
-          si, ei, sj, ej, sk, ek, false);
-    }
-    if (VWAVE_ENABLED) {
-      pmr->ProlongateCellCenteredValues(pmr->coarse_vwave_, vwaveu, 0, 1,
           si, ei, sj, ej, sk, ek, false);
     }
     // prolongate magnetic fields

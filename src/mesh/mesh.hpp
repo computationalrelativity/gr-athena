@@ -108,7 +108,6 @@ public:
   Gravity *pgrav;
   EquationOfState *peos;
   Wave *pwave;
-  Vwave *pvwave;
 
   MeshBlock *prev, *next;
 
