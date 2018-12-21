@@ -1290,7 +1290,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 #pragma omp for private(pmb,pbval)
     for (int i=0; i<nmb; ++i) {
       pmb=pmb_array[i]; pbval=pmb->pbval;
-      pbval->SendCellCenteredBoundaryBuffers(pmb->phydro->u, HYDRO_CONS);
+      if (HYDRO_ENABLED)
+        pbval->SendCellCenteredBoundaryBuffers(pmb->phydro->u, HYDRO_CONS);
       if (WAVE_ENABLED)
         pbval->SendCellCenteredBoundaryBuffers(pmb->pwave->u, WAVE_SOL);
       if (MAGNETIC_FIELDS_ENABLED)
@@ -1301,7 +1302,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 #pragma omp for private(pmb,pbval)
     for (int i=0; i<nmb; ++i) {
       pmb=pmb_array[i]; pbval=pmb->pbval;
-      pbval->ReceiveCellCenteredBoundaryBuffersWithWait(pmb->phydro->u, HYDRO_CONS);
+      if (HYDRO_ENABLED)
+        pbval->ReceiveCellCenteredBoundaryBuffersWithWait(pmb->phydro->u, HYDRO_CONS);
       if (WAVE_ENABLED)
         pbval->ReceiveCellCenteredBoundaryBuffersWithWait(pmb->pwave->u, WAVE_SOL);
       if (MAGNETIC_FIELDS_ENABLED)
@@ -1357,9 +1359,11 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         if (pbval->nblevel[0][1][1]!=-1) kl-=NGHOST;
         if (pbval->nblevel[2][1][1]!=-1) ku+=NGHOST;
       }
-      pmb->peos->ConservedToPrimitive(phydro->u, phydro->w1, pfield->b,
-                                      phydro->w, pfield->bcc, pmb->pcoord,
-                                      il, iu, jl, ju, kl, ku);
+      if (HYDRO_ENABLED) {
+        pmb->peos->ConservedToPrimitive(phydro->u, phydro->w1, pfield->b,
+                                        phydro->w, pfield->bcc, pmb->pcoord,
+                                        il, iu, jl, ju, kl, ku);
+      }
       pbval->ApplyPhysicalBoundaries(phydro->w, phydro->u, pfield->b, pfield->bcc,
                                      time, 0.0);
     }
@@ -1368,7 +1372,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 #pragma omp for private(pmb,phydro,pfield)
     for (int i=0; i<nmb; ++i) {
       pmb=pmb_array[i]; phydro=pmb->phydro, pfield=pmb->pfield;
-      if (phydro->phdif->hydro_diffusion_defined)
+      if (HYDRO_ENABLED && phydro->phdif->hydro_diffusion_defined)
         phydro->phdif->SetHydroDiffusivity(phydro->w, pfield->bcc);
       if (MAGNETIC_FIELDS_ENABLED) {
         if (pfield->pfdif->field_diffusion_defined)
@@ -1408,11 +1412,14 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
   // calculate the first time step
 #pragma omp parallel for num_threads(nthreads)
   for (int i=0; i<nmb; ++i) {
-      if (WAVE_ENABLED) {
+      if (HYDRO_ENABLED) {
+        pmb_array[i]->phydro->NewBlockTimeStep();
+      }
+      else if (WAVE_ENABLED) {
         pmb_array[i]->pwave->NewBlockTimeStep();
       }
-      else{
-        pmb_array[i]->phydro->NewBlockTimeStep();
+      else {
+        abort(); // something must be very wrong
       }
   }
 
@@ -1819,9 +1826,9 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
 
   // Step 4. calculate buffer sizes
   Real **sendbuf, **recvbuf;
-  int bssame=bnx1*bnx2*bnx3*(NHYDRO + 2*WAVE_ENABLED + 2*VWAVE_ENABLED);
-  int bsf2c=(bnx1/2)*((bnx2+1)/2)*((bnx3+1)/2)*(NHYDRO + 2*WAVE_ENABLED + 2*VWAVE_ENABLED);
-  int bsc2f=(bnx1/2+2)*((bnx2+1)/2+2*f2)*((bnx3+1)/2+2*f3)*(NHYDRO + 2*WAVE_ENABLED + 2*VWAVE_ENABLED);
+  int bssame=bnx1*bnx2*bnx3*(NHYDRO*HYDRO_ENABLED + 2*WAVE_ENABLED);
+  int bsf2c=(bnx1/2)*((bnx2+1)/2)*((bnx3+1)/2)*(NHYDRO*HYDRO_ENABLED + 2*WAVE_ENABLED);
+  int bsc2f=(bnx1/2+2)*((bnx2+1)/2+2*f2)*((bnx3+1)/2+2*f3)*(NHYDRO*HYDRO_ENABLED + 2*WAVE_ENABLED);
   if (MAGNETIC_FIELDS_ENABLED) {
     bssame+=(bnx1+1)*bnx2*bnx3+bnx1*(bnx2+f2)*bnx3+bnx1*bnx2*(bnx3+f3);
     bsf2c+=((bnx1/2)+1)*((bnx2+1)/2)*((bnx3+1)/2)
@@ -1882,9 +1889,11 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
         sendbuf[k] = new Real[bssame];
         // pack
         int p=0;
-        BufferUtility::Pack4DData(pb->phydro->u, sendbuf[k], 0, NHYDRO-1,
-                       pb->is, pb->ie, pb->js, pb->je, pb->ks, pb->ke, p);
-        if(WAVE_ENABLED) {
+        if (HYDRO_ENABLED) {
+          BufferUtility::Pack4DData(pb->phydro->u, sendbuf[k], 0, NHYDRO-1,
+                        pb->is, pb->ie, pb->js, pb->je, pb->ks, pb->ke, p);
+        }
+        if (WAVE_ENABLED) {
           BufferUtility::Pack4DData(pb->pwave->u, sendbuf[k], 0, 1,
                         pb->is, pb->ie, pb->js, pb->je, pb->ks, pb->ke, p);
         }
@@ -1917,9 +1926,11 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           if (ox3==0) ks=pb->ks-f3,                      ke=pb->ks+pb->block_size.nx3/2;
           else        ks=pb->ks+pb->block_size.nx3/2-f3, ke=pb->ke+f3;
           int p=0;
-          BufferUtility::Pack4DData(pb->phydro->u, sendbuf[k], 0, NHYDRO-1,
-                                    is, ie, js, je, ks, ke, p);
-          if(WAVE_ENABLED) {
+          if (HYDRO_ENABLED) {
+            BufferUtility::Pack4DData(pb->phydro->u, sendbuf[k], 0, NHYDRO-1,
+                                      is, ie, js, je, ks, ke, p);
+          }
+          if (WAVE_ENABLED) {
             BufferUtility::Pack4DData(pb->pwave->u, sendbuf[k], 0, 1,
                                       is, ie, js, je, ks, ke, p);
           }
@@ -1942,12 +1953,14 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
         sendbuf[k] = new Real[bsf2c];
         // restrict and pack
         MeshRefinement *pmr=pb->pmr;
-        pmr->RestrictCellCenteredValues(pb->phydro->u, pmr->coarse_cons_,
-             0, NHYDRO-1, pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke);
         int p=0;
-        BufferUtility::Pack4DData(pmr->coarse_cons_, sendbuf[k], 0, NHYDRO-1,
-                       pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke, p);
-        if(WAVE_ENABLED) {
+        if (HYDRO_ENABLED) {
+          pmr->RestrictCellCenteredValues(pb->phydro->u, pmr->coarse_cons_,
+              0, NHYDRO-1, pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke);
+          BufferUtility::Pack4DData(pmr->coarse_cons_, sendbuf[k], 0, NHYDRO-1,
+              pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke, p);
+        }
+        if (WAVE_ENABLED) {
           pmr->RestrictCellCenteredValues(pb->pwave->u, pmr->coarse_wave_,
               0, 1, pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke);
           BufferUtility::Pack4DData(pmr->coarse_wave_, sendbuf[k], 0, 1,
@@ -2028,15 +2041,17 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           int is=pmb->is+(loclist[on+ll].lx1&1L)*pmb->block_size.nx1/2;
           int js=pmb->js+(loclist[on+ll].lx2&1L)*pmb->block_size.nx2/2;
           int ks=pmb->ks+(loclist[on+ll].lx3&1L)*pmb->block_size.nx3/2;
-          AthenaArray<Real> &src=pmr->coarse_cons_;
-          AthenaArray<Real> &dst=pmb->phydro->u;
-          for (int nv=0; nv<NHYDRO; nv++) {
-            for (int k=ks, fk=pob->cks; fk<=pob->cke; k++, fk++) {
-              for (int j=js, fj=pob->cjs; fj<=pob->cje; j++, fj++) {
-                for (int i=is, fi=pob->cis; fi<=pob->cie; i++, fi++)
-                  dst(nv, k, j, i)=src(nv, fk, fj, fi);
-          }}}
-          if(WAVE_ENABLED) {
+          if (HYDRO_ENABLED) {
+            AthenaArray<Real> &src=pmr->coarse_cons_;
+            AthenaArray<Real> &dst=pmb->phydro->u;
+            for (int nv=0; nv<NHYDRO; nv++) {
+              for (int k=ks, fk=pob->cks; fk<=pob->cke; k++, fk++) {
+                for (int j=js, fj=pob->cjs; fj<=pob->cje; j++, fj++) {
+                  for (int i=is, fi=pob->cis; fi<=pob->cie; i++, fi++)
+                    dst(nv, k, j, i)=src(nv, fk, fj, fi);
+            }}}
+          }
+          if (WAVE_ENABLED) {
             pmr->RestrictCellCenteredValues(pob->pwave->u, pmr->coarse_wave_,
                 0, 1, pob->cis, pob->cie, pob->cjs, pob->cje, pob->cks, pob->cke);
             int is=pmb->is+(loclist[on+ll].lx1&1L)*pmb->block_size.nx1/2;
@@ -2099,18 +2114,20 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
         int cis=(newloc[n].lx1&1L)*pob->block_size.nx1/2+pob->is-1;
         int cjs=(newloc[n].lx2&1L)*pob->block_size.nx2/2+pob->js-f2;
         int cks=(newloc[n].lx3&1L)*pob->block_size.nx3/2+pob->ks-f3;
-        AthenaArray<Real> &src=pob->phydro->u;
-        AthenaArray<Real> &dst=pmr->coarse_cons_;
-        // fill the coarse buffer
-        for (int nv=0; nv<NHYDRO; nv++) {
-          for (int k=ks, ck=cks; k<=ke; k++, ck++) {
-            for (int j=js, cj=cjs; j<=je; j++, cj++) {
-              for (int i=is, ci=cis; i<=ie; i++, ci++)
-                dst(nv, k, j, i)=src(nv, ck, cj, ci);
-        }}}
-        pmr->ProlongateCellCenteredValues(dst, pmb->phydro->u, 0, NHYDRO-1,
-                       pob->cis, pob->cie, pob->cjs, pob->cje, pob->cks, pob->cke,true);
-        if(WAVE_ENABLED) {
+        if (HYDRO_ENABLED) {
+          AthenaArray<Real> &src=pob->phydro->u;
+          AthenaArray<Real> &dst=pmr->coarse_cons_;
+          // fill the coarse buffer
+          for (int nv=0; nv<NHYDRO; nv++) {
+            for (int k=ks, ck=cks; k<=ke; k++, ck++) {
+              for (int j=js, cj=cjs; j<=je; j++, cj++) {
+                for (int i=is, ci=cis; i<=ie; i++, ci++)
+                  dst(nv, k, j, i)=src(nv, ck, cj, ci);
+          }}}
+          pmr->ProlongateCellCenteredValues(dst, pmb->phydro->u, 0, NHYDRO-1,
+                        pob->cis, pob->cie, pob->cjs, pob->cje, pob->cks, pob->cke,true);
+        }
+        if (WAVE_ENABLED) {
           AthenaArray<Real> &src=pob->pwave->u;
           AthenaArray<Real> &dst=pmr->coarse_wave_;
           // fill the coarse buffer
@@ -2179,8 +2196,10 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
         if (ranklist[on]==Globals::my_rank) continue;
         MPI_Wait(&(req_recv[k]), MPI_STATUS_IGNORE);
         int p=0;
-        BufferUtility::Unpack4DData(recvbuf[k], pb->phydro->u, 0, NHYDRO-1,
-                       pb->is, pb->ie, pb->js, pb->je, pb->ks, pb->ke, p);
+        if (HYDRO_ENABLED) {
+          BufferUtility::Unpack4DData(recvbuf[k], pb->phydro->u, 0, NHYDRO-1,
+                        pb->is, pb->ie, pb->js, pb->je, pb->ks, pb->ke, p);
+        }
         if(WAVE_ENABLED) {
           BufferUtility::Unpack4DData(recvbuf[k], pb->pwave->u, 0, 1,
                         pb->is, pb->ie, pb->js, pb->je, pb->ks, pb->ke, p);
@@ -2220,9 +2239,11 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           if (ox3==0) ks=pb->ks,                      ke=pb->ks+pb->block_size.nx3/2-f3;
           else        ks=pb->ks+pb->block_size.nx3/2, ke=pb->ke;
           MPI_Wait(&(req_recv[k]), MPI_STATUS_IGNORE);
-          BufferUtility::Unpack4DData(recvbuf[k], pb->phydro->u, 0, NHYDRO-1,
-                         is, ie, js, je, ks, ke, p);
-          if(WAVE_ENABLED) {
+          if (HYDRO_ENABLED) {
+            BufferUtility::Unpack4DData(recvbuf[k], pb->phydro->u, 0, NHYDRO-1,
+                          is, ie, js, je, ks, ke, p);
+          }
+          if (WAVE_ENABLED) {
             BufferUtility::Unpack4DData(recvbuf[k], pb->pwave->u, 0, 1,
                           is, ie, js, je, ks, ke, p);
           }
@@ -2254,11 +2275,13 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
         int is=pb->cis-1, ie=pb->cie+1, js=pb->cjs-f2,
             je=pb->cje+f2, ks=pb->cks-f3, ke=pb->cke+f3;
         MPI_Wait(&(req_recv[k]), MPI_STATUS_IGNORE);
-        BufferUtility::Unpack4DData(recvbuf[k], pmr->coarse_cons_,
-                                    0, NHYDRO-1, is, ie, js, je, ks, ke, p);
-        pmr->ProlongateCellCenteredValues(pmr->coarse_cons_, pb->phydro->u, 0, NHYDRO-1,
-                                   pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke,true);
-        if(WAVE_ENABLED) {
+        if (HYDRO_ENABLED) {
+          BufferUtility::Unpack4DData(recvbuf[k], pmr->coarse_cons_,
+                                      0, NHYDRO-1, is, ie, js, je, ks, ke, p);
+          pmr->ProlongateCellCenteredValues(pmr->coarse_cons_, pb->phydro->u, 0, NHYDRO-1,
+                                    pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke,true);
+        }
+        if (WAVE_ENABLED) {
           BufferUtility::Unpack4DData(recvbuf[k], pmr->coarse_wave_,
                                       0, 1, is, ie, js, je, ks, ke, p);
           pmr->ProlongateCellCenteredValues(pmr->coarse_wave_, pb->pwave->u, 0, 1,

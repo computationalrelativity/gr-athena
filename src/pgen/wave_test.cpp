@@ -89,12 +89,14 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   for(int j = js; j <= je; ++j)
   for(int i = is; i <= ie; ++i) {
     // Dummy hydrodynamics state
-    phydro->u(IDN,k,j,i) = 1.0;
-    phydro->u(IM1,k,j,i) = 0.0;
-    phydro->u(IM2,k,j,i) = 0.0;
-    phydro->u(IM3,k,j,i) = 0.0;
-    if (NON_BAROTROPIC_EOS) {
-      phydro->u(IEN,k,j,i) = 1.0;
+    if(HYDRO_ENABLED) {
+      phydro->u(IDN,k,j,i) = 1.0;
+      phydro->u(IM1,k,j,i) = 0.0;
+      phydro->u(IM2,k,j,i) = 0.0;
+      phydro->u(IM3,k,j,i) = 0.0;
+      if (NON_BAROTROPIC_EOS) {
+        phydro->u(IEN,k,j,i) = 1.0;
+      }
     }
 
     Real x = pcoord->x1v(i);

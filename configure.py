@@ -243,7 +243,9 @@ parser.add_argument(
 args = vars(parser.parse_args())
 
 # --- Step 2. Test for incompatible arguments ----------------------------
-if not args['w'] and not args['o']:
+if not args['o'] and not args['w']:
+    raise SystemExit('### CONFIGURE ERROR: either hydro or the wave equation should be enabled')
+if args['o'] and args['w']:
     raise SystemExit('### CONFIGURE ERROR: either hydro or the wave equation should be enabled')
 
 if not args['o']:

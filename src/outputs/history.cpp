@@ -66,31 +66,33 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     for (int j=pmb->js; j<=pmb->je; ++j) {
       pmb->pcoord->CellVolume(k,j,pmb->is,pmb->ie,vol);
       for (int i=pmb->is; i<=pmb->ie; ++i) {
-        Real& u_d  = phyd->u(IDN,k,j,i);
-        Real& u_mx = phyd->u(IM1,k,j,i);
-        Real& u_my = phyd->u(IM2,k,j,i);
-        Real& u_mz = phyd->u(IM3,k,j,i);
-
         int isum = 0;
-        data_sum[isum++] += vol(i)*u_d;
-        data_sum[isum++] += vol(i)*u_mx;
-        data_sum[isum++] += vol(i)*u_my;
-        data_sum[isum++] += vol(i)*u_mz;
-        data_sum[isum++] += vol(i)*0.5*SQR(u_mx)/u_d;
-        data_sum[isum++] += vol(i)*0.5*SQR(u_my)/u_d;
-        data_sum[isum++] += vol(i)*0.5*SQR(u_mz)/u_d;
+        if (HYDRO_ENABLED) {
+          Real& u_d  = phyd->u(IDN,k,j,i);
+          Real& u_mx = phyd->u(IM1,k,j,i);
+          Real& u_my = phyd->u(IM2,k,j,i);
+          Real& u_mz = phyd->u(IM3,k,j,i);
 
-        if (NON_BAROTROPIC_EOS) {
-          Real& u_e = phyd->u(IEN,k,j,i);;
-          data_sum[isum++] += vol(i)*u_e;
-        }
-        if (MAGNETIC_FIELDS_ENABLED) {
-          Real& bcc1 = pfld->bcc(IB1,k,j,i);
-          Real& bcc2 = pfld->bcc(IB2,k,j,i);
-          Real& bcc3 = pfld->bcc(IB3,k,j,i);
-          data_sum[isum++] += vol(i)*0.5*bcc1*bcc1;
-          data_sum[isum++] += vol(i)*0.5*bcc2*bcc2;
-          data_sum[isum++] += vol(i)*0.5*bcc3*bcc3;
+          data_sum[isum++] += vol(i)*u_d;
+          data_sum[isum++] += vol(i)*u_mx;
+          data_sum[isum++] += vol(i)*u_my;
+          data_sum[isum++] += vol(i)*u_mz;
+          data_sum[isum++] += vol(i)*0.5*SQR(u_mx)/u_d;
+          data_sum[isum++] += vol(i)*0.5*SQR(u_my)/u_d;
+          data_sum[isum++] += vol(i)*0.5*SQR(u_mz)/u_d;
+
+          if (NON_BAROTROPIC_EOS) {
+            Real& u_e = phyd->u(IEN,k,j,i);;
+            data_sum[isum++] += vol(i)*u_e;
+          }
+          if (MAGNETIC_FIELDS_ENABLED) {
+            Real& bcc1 = pfld->bcc(IB1,k,j,i);
+            Real& bcc2 = pfld->bcc(IB2,k,j,i);
+            Real& bcc3 = pfld->bcc(IB3,k,j,i);
+            data_sum[isum++] += vol(i)*0.5*bcc1*bcc1;
+            data_sum[isum++] += vol(i)*0.5*bcc2*bcc2;
+            data_sum[isum++] += vol(i)*0.5*bcc3*bcc3;
+          }
         }
         if (WAVE_ENABLED) {
            Real & wave_error = pwave->error(0,k,j,i);
@@ -143,18 +145,20 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
       fprintf(pfile,"# Athena++ history data\n"); // descriptor is first line
       fprintf(pfile,"# [%d]=time   ", iout++);
       fprintf(pfile,"[%d]=dt       ", iout++);
-      fprintf(pfile,"[%d]=mass     ", iout++);
-      fprintf(pfile,"[%d]=1-mom    ", iout++);
-      fprintf(pfile,"[%d]=2-mom    ", iout++);
-      fprintf(pfile,"[%d]=3-mom    ", iout++);
-      fprintf(pfile,"[%d]=1-KE     ", iout++);
-      fprintf(pfile,"[%d]=2-KE     ", iout++);
-      fprintf(pfile,"[%d]=3-KE     ", iout++);
-      if (NON_BAROTROPIC_EOS) fprintf(pfile,"[%d]=tot-E   ", iout++);
-      if (MAGNETIC_FIELDS_ENABLED) {
-        fprintf(pfile,"[%d]=1-ME    ", iout++);
-        fprintf(pfile,"[%d]=2-ME    ", iout++);
-        fprintf(pfile,"[%d]=3-ME    ", iout++);
+      if (HYDRO_ENABLED) {
+        fprintf(pfile,"[%d]=mass     ", iout++);
+        fprintf(pfile,"[%d]=1-mom    ", iout++);
+        fprintf(pfile,"[%d]=2-mom    ", iout++);
+        fprintf(pfile,"[%d]=3-mom    ", iout++);
+        fprintf(pfile,"[%d]=1-KE     ", iout++);
+        fprintf(pfile,"[%d]=2-KE     ", iout++);
+        fprintf(pfile,"[%d]=3-KE     ", iout++);
+        if (NON_BAROTROPIC_EOS) fprintf(pfile,"[%d]=tot-E   ", iout++);
+        if (MAGNETIC_FIELDS_ENABLED) {
+          fprintf(pfile,"[%d]=1-ME    ", iout++);
+          fprintf(pfile,"[%d]=2-ME    ", iout++);
+          fprintf(pfile,"[%d]=3-ME    ", iout++);
+        }
       }
       if (WAVE_ENABLED) {
           fprintf(pfile,"[%d]=L1-norm ",    iout++);

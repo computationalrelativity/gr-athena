@@ -41,6 +41,11 @@ void ShowConfig(void) {
     std::cout<<"  Self Gravity:               OFF" << std::endl;
   }
 
+  if (HYDRO_ENABLED) {
+    std::cout<<"  Hydrodynamics:              ON" << std::endl;
+  } else {
+    std::cout<<"  Hydrodynamics:              OFF" << std::endl;
+  }
   if (MAGNETIC_FIELDS_ENABLED) {
     std::cout<<"  Magnetic fields:            ON" << std::endl;
   } else {

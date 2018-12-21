@@ -153,8 +153,10 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
   pmb=pm->pblock;
   while (pmb != NULL) {
     char *pdata=&(data[pmb->lid*datasize]);
-    memcpy(pdata,pmb->phydro->u.data(), pmb->phydro->u.GetSizeInBytes());
-    pdata+=pmb->phydro->u.GetSizeInBytes();
+    if (HYDRO_ENABLED) {
+      memcpy(pdata,pmb->phydro->u.data(), pmb->phydro->u.GetSizeInBytes());
+      pdata+=pmb->phydro->u.GetSizeInBytes();
+    }
     if (GENERAL_RELATIVITY) {
       memcpy(pdata,pmb->phydro->w.data(), pmb->phydro->w.GetSizeInBytes());
       pdata+=pmb->phydro->w.GetSizeInBytes();

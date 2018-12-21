@@ -298,11 +298,11 @@ int main(int argc, char *argv[]) {
 
   TaskList *ptlist;
   try {
-    if(HYDRO_ENABLED) {
-      ptlist = new TimeIntegratorTaskList(pinput, pmesh);
-    }
-    else if(WAVE_ENABLED) {
+    if(WAVE_ENABLED) {
       ptlist = new WaveIntegratorTaskList(pinput, pmesh);
+    }
+    else if(HYDRO_ENABLED) {
+      ptlist = new TimeIntegratorTaskList(pinput, pmesh);
     }
     else {
       throw std::logic_error("No tasklist enabled!");

@@ -307,150 +307,152 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   OutputData *pod;
 
   // (lab-frame) density
-  if (output_params.variable.compare("D") == 0 ||
-      output_params.variable.compare("cons") == 0) {
-    pod = new OutputData;
-    pod->type = "SCALARS";
-    pod->name = "dens";
-    pod->data.InitWithShallowSlice(phyd->u,IDN,1);
-    AppendOutputDataNode(pod);
-    num_vars_++;
-  }
-
-  // (rest-frame) density
-  if (output_params.variable.compare("d") == 0 ||
-      output_params.variable.compare("prim") == 0) {
-    pod = new OutputData;
-    pod->type = "SCALARS";
-    pod->name = "rho";
-    pod->data.InitWithShallowSlice(phyd->w,IDN,1);
-    AppendOutputDataNode(pod);
-    num_vars_++;
-  }
-
-  // total energy
-  if (NON_BAROTROPIC_EOS) {
-    if (output_params.variable.compare("E") == 0 ||
+  if (HYDRO_ENABLED) {
+    if (output_params.variable.compare("D") == 0 ||
         output_params.variable.compare("cons") == 0) {
       pod = new OutputData;
       pod->type = "SCALARS";
-      pod->name = "Etot";
-      pod->data.InitWithShallowSlice(phyd->u,IEN,1);
+      pod->name = "dens";
+      pod->data.InitWithShallowSlice(phyd->u,IDN,1);
       AppendOutputDataNode(pod);
       num_vars_++;
     }
-  }
 
-  // pressure
-  if (NON_BAROTROPIC_EOS) {
-    if (output_params.variable.compare("p") == 0 ||
+    // (rest-frame) density
+    if (output_params.variable.compare("d") == 0 ||
         output_params.variable.compare("prim") == 0) {
       pod = new OutputData;
       pod->type = "SCALARS";
-      pod->name = "press";
-      pod->data.InitWithShallowSlice(phyd->w,IPR,1);
+      pod->name = "rho";
+      pod->data.InitWithShallowSlice(phyd->w,IDN,1);
       AppendOutputDataNode(pod);
       num_vars_++;
     }
-  }
 
-  // momentum vector
-  if (output_params.variable.compare("m") == 0 ||
-      output_params.variable.compare("cons") == 0) {
-    pod = new OutputData;
-    pod->type = "VECTORS";
-    pod->name = "mom";
-    pod->data.InitWithShallowSlice(phyd->u,IM1,3);
-    AppendOutputDataNode(pod);
-    num_vars_+=3;
-    if (output_params.cartesian_vector) {
-      AthenaArray<Real> src;
-      src.InitWithShallowSlice(phyd->u,IM1,3);
+    // total energy
+    if (NON_BAROTROPIC_EOS) {
+      if (output_params.variable.compare("E") == 0 ||
+          output_params.variable.compare("cons") == 0) {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "Etot";
+        pod->data.InitWithShallowSlice(phyd->u,IEN,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
+
+    // pressure
+    if (NON_BAROTROPIC_EOS) {
+      if (output_params.variable.compare("p") == 0 ||
+          output_params.variable.compare("prim") == 0) {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "press";
+        pod->data.InitWithShallowSlice(phyd->w,IPR,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
+
+    // momentum vector
+    if (output_params.variable.compare("m") == 0 ||
+        output_params.variable.compare("cons") == 0) {
       pod = new OutputData;
       pod->type = "VECTORS";
-      pod->name = "mom_xyz";
-      pod->data.NewAthenaArray(3,phyd->u.GetDim3(),phyd->u.GetDim2(),phyd->u.GetDim1());
-      CalculateCartesianVector(src, pod->data, pmb->pcoord);
+      pod->name = "mom";
+      pod->data.InitWithShallowSlice(phyd->u,IM1,3);
       AppendOutputDataNode(pod);
       num_vars_+=3;
+      if (output_params.cartesian_vector) {
+        AthenaArray<Real> src;
+        src.InitWithShallowSlice(phyd->u,IM1,3);
+        pod = new OutputData;
+        pod->type = "VECTORS";
+        pod->name = "mom_xyz";
+        pod->data.NewAthenaArray(3,phyd->u.GetDim3(),phyd->u.GetDim2(),phyd->u.GetDim1());
+        CalculateCartesianVector(src, pod->data, pmb->pcoord);
+        AppendOutputDataNode(pod);
+        num_vars_+=3;
+      }
     }
-  }
 
-  // each component of momentum
-  if (output_params.variable.compare("m1") == 0) {
-    pod = new OutputData;
-    pod->type = "SCALARS";
-    pod->name = "mom1";
-    pod->data.InitWithShallowSlice(phyd->u,IM1,1);
-    AppendOutputDataNode(pod);
-    num_vars_++;
-  }
-  if (output_params.variable.compare("m2") == 0) {
-    pod = new OutputData;
-    pod->type = "SCALARS";
-    pod->name = "mom2";
-    pod->data.InitWithShallowSlice(phyd->u,IM2,1);
-    AppendOutputDataNode(pod);
-    num_vars_++;
-  }
-  if (output_params.variable.compare("m3") == 0) {
-    pod = new OutputData;
-    pod->type = "SCALARS";
-    pod->name = "mom3";
-    pod->data.InitWithShallowSlice(phyd->u,IM3,1);
-    AppendOutputDataNode(pod);
-    num_vars_++;
-  }
+    // each component of momentum
+    if (output_params.variable.compare("m1") == 0) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "mom1";
+      pod->data.InitWithShallowSlice(phyd->u,IM1,1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+    if (output_params.variable.compare("m2") == 0) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "mom2";
+      pod->data.InitWithShallowSlice(phyd->u,IM2,1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+    if (output_params.variable.compare("m3") == 0) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "mom3";
+      pod->data.InitWithShallowSlice(phyd->u,IM3,1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
 
-  // velocity vector
-  if (output_params.variable.compare("v") == 0 ||
-      output_params.variable.compare("prim") == 0) {
-    pod = new OutputData;
-    pod->type = "VECTORS";
-    pod->name = "vel";
-    pod->data.InitWithShallowSlice(phyd->w,IVX,3);
-    AppendOutputDataNode(pod);
-    num_vars_+=3;
-    if (output_params.cartesian_vector) {
-      AthenaArray<Real> src;
-      src.InitWithShallowSlice(phyd->w,IVX,3);
+    // velocity vector
+    if (output_params.variable.compare("v") == 0 ||
+        output_params.variable.compare("prim") == 0) {
       pod = new OutputData;
       pod->type = "VECTORS";
-      pod->name = "vel_xyz";
-      pod->data.NewAthenaArray(3,phyd->w.GetDim3(),phyd->w.GetDim2(),phyd->w.GetDim1());
-      CalculateCartesianVector(src, pod->data, pmb->pcoord);
+      pod->name = "vel";
+      pod->data.InitWithShallowSlice(phyd->w,IVX,3);
       AppendOutputDataNode(pod);
       num_vars_+=3;
+      if (output_params.cartesian_vector) {
+        AthenaArray<Real> src;
+        src.InitWithShallowSlice(phyd->w,IVX,3);
+        pod = new OutputData;
+        pod->type = "VECTORS";
+        pod->name = "vel_xyz";
+        pod->data.NewAthenaArray(3,phyd->w.GetDim3(),phyd->w.GetDim2(),phyd->w.GetDim1());
+        CalculateCartesianVector(src, pod->data, pmb->pcoord);
+        AppendOutputDataNode(pod);
+        num_vars_+=3;
+      }
     }
-  }
 
-  // each component of velocity
-  if (output_params.variable.compare("vx") == 0 ||
-      output_params.variable.compare("v1") == 0) {
-    pod = new OutputData;
-    pod->type = "SCALARS";
-    pod->name = "vel1";
-    pod->data.InitWithShallowSlice(phyd->w,IVX,1);
-    AppendOutputDataNode(pod);
-    num_vars_++;
-  }
-  if (output_params.variable.compare("vy") == 0 ||
-      output_params.variable.compare("v2") == 0) {
-    pod = new OutputData;
-    pod->type = "SCALARS";
-    pod->name = "vel2";
-    pod->data.InitWithShallowSlice(phyd->w,IVY,1);
-    AppendOutputDataNode(pod);
-    num_vars_++;
-  }
-  if (output_params.variable.compare("vz") == 0 ||
-      output_params.variable.compare("v3") == 0) {
-    pod = new OutputData;
-    pod->type = "SCALARS";
-    pod->name = "vel3";
-    pod->data.InitWithShallowSlice(phyd->w,IVZ,1);
-    AppendOutputDataNode(pod);
-    num_vars_++;
+    // each component of velocity
+    if (output_params.variable.compare("vx") == 0 ||
+        output_params.variable.compare("v1") == 0) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "vel1";
+      pod->data.InitWithShallowSlice(phyd->w,IVX,1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+    if (output_params.variable.compare("vy") == 0 ||
+        output_params.variable.compare("v2") == 0) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "vel2";
+      pod->data.InitWithShallowSlice(phyd->w,IVY,1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+    if (output_params.variable.compare("vz") == 0 ||
+        output_params.variable.compare("v3") == 0) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "vel3";
+      pod->data.InitWithShallowSlice(phyd->w,IVZ,1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
   }
 
   if (WAVE_ENABLED) {
