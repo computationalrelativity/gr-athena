@@ -26,15 +26,17 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   if(pmy_block->block_size.nx2 > 1) ncells2 = pmy_block->block_size.nx2 + 2*(NGHOST);
   if(pmy_block->block_size.nx3 > 1) ncells3 = pmy_block->block_size.nx3 + 2*(NGHOST);
 
-  u.  NewAthenaArray(NVARS, ncells3, ncells2, ncells1);
-  u1. NewAthenaArray(NVARS, ncells3, ncells2, ncells1);
-  rhs.NewAthenaArray(NVARS, ncells3, ncells2, ncells1);
-  adm.NewAthenaArray(ADMVARS, ncells3, ncells2, ncells1);
+  u.  NewAthenaArray(N_Z4c, ncells3, ncells2, ncells1);
+  u1. NewAthenaArray(N_Z4c, ncells3, ncells2, ncells1);
+  // If user-requested time integrator is type 3S*, allocate additional memory registers
+  std::string integrator = pin->GetOrAddString("time","integrator","vl2");
+  if (integrator == "ssprk5_4") u2.NewAthenaArray(N_Z4c, ncells3, ncells2, ncells1);
+  rhs.NewAthenaArray(N_Z4c, ncells3, ncells2, ncells1);
+  adm.NewAthenaArray(N_ADM, ncells3, ncells2, ncells1);
 
-  int nthreads = pmy_block->pmy_mesh->GetNumMeshThreads();
-  dt1_.NewAthenaArray(nthreads,ncells1);
-  dt2_.NewAthenaArray(nthreads,ncells1);
-  dt3_.NewAthenaArray(nthreads,ncells1);
+  dt1_.NewAthenaArray(ncells1);
+  dt2_.NewAthenaArray(ncells1);
+  dt3_.NewAthenaArray(ncells1);
 
   // Parameters
   c = pin->GetOrAddReal("z4c", "c", 1.0);
@@ -137,24 +139,24 @@ Z4c::~Z4c()
 // \brief returns determinant of 3-metric
 
 Real Z4c::SpatialDet(Real const gxx, Real const gxy, Real const gxz,
-		     Real const gyy, Real const gyz, Real const gzz)
+         Real const gyy, Real const gyz, Real const gzz)
 {
   return - SQ(gxz)*gyy + 2*gxy*gxz*gyz - gxx*SQ(gyz) - SQ(gxy)*gzz + gxx*gyy*gzz;
 }
 
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::SpatialInv(Real const det,
-//		       Real const gxx, Real const gxy, Real const gxz,
-//		       Real const gyy, Real const gyz, Real const gzz,
-//		       Real * uxx, Real * uxy, Real * uxz,
-//		       Real * uyy, Real * uyz, Real * uzz)
+//           Real const gxx, Real const gxy, Real const gxz,
+//           Real const gyy, Real const gyz, Real const gzz,
+//           Real * uxx, Real * uxy, Real * uxz,
+//           Real * uyy, Real * uyz, Real * uzz)
 // \brief returns inverse of 3-metric
 
 void Z4c::SpatialInv(Real const det,
-		     Real const gxx, Real const gxy, Real const gxz,
-		     Real const gyy, Real const gyz, Real const gzz,
-		     Real * uxx, Real * uxy, Real * uxz,
-		     Real * uyy, Real * uyz, Real * uzz)
+         Real const gxx, Real const gxy, Real const gxz,
+         Real const gyy, Real const gyz, Real const gzz,
+         Real * uxx, Real * uxy, Real * uxz,
+         Real * uyy, Real * uyz, Real * uzz)
 {
   *uxx = (-SQ(gyz) + gyy*gzz)/det;
   *uxy = (gxz*gyz  - gxy*gzz)/det;
@@ -170,16 +172,16 @@ void Z4c::SpatialInv(Real const det,
 // \brief returns Trace of extrinsic curvature
 
 Real Z4c::Trace(Real const detginv,
-		Real const gxx, Real const gxy, Real const gxz,
-		Real const gyy, Real const gyz, Real const gzz,
-		Real const Axx, Real const Axy, Real const Axz,
-		Real const Ayy, Real const Ayz, Real const Azz)
+    Real const gxx, Real const gxy, Real const gxz,
+    Real const gyy, Real const gyz, Real const gzz,
+    Real const Axx, Real const Axy, Real const Axz,
+    Real const Ayy, Real const Ayz, Real const Azz)
 {
   return (detginv*(
-		   - 2.*Ayz*gxx*gyz + Axx*gyy*gzz +  gxx*(Azz*gyy + Ayy*gzz)  
-		   + 2.*(gxz*(Ayz*gxy - Axz*gyy + Axy*gyz) + gxy*(Axz*gyz - Axy*gzz)) 
-		   - Azz*SQ(gxy) - Ayy*SQ(gxz) - Axx*SQ(gyz)
-		   ));
+       - 2.*Ayz*gxx*gyz + Axx*gyy*gzz +  gxx*(Azz*gyy + Ayy*gzz)  
+       + 2.*(gxz*(Ayz*gxy - Axz*gyy + Axy*gyz) + gxy*(Axz*gyz - Axy*gzz)) 
+       - Azz*SQ(gxy) - Ayy*SQ(gxz) - Axx*SQ(gyz)
+       ));
 }
 
 //----------------------------------------------------------------------------------------
@@ -216,40 +218,40 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
     for(int k = ks; k <= ke; ++k) {
 #pragma omp for schedule(static)
       for(int j = js; j <= je; ++j) {
-	
-	// Determinant of the 3-metric
+  
+  // Determinant of the 3-metric
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  detg(i) = SpatialDet( g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
-				g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i) );            
+    detg(i) = SpatialDet( g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
+        g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i) );            
         }
 
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  detg(i) = (detg(i) <=0.) ? (1.0) : (detg(i));
-	}
-	
+    detg(i) = (detg(i) <=0.) ? (1.0) : (detg(i));
+  }
+  
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  detginv(i) = 1.0/detg(i);
-	}
-	
+    detginv(i) = 1.0/detg(i);
+  }
+  
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  epsg(i) = -1.0 + detg(i);  
+    epsg(i) = -1.0 + detg(i);  
         }
 
-	// Enforce detg = 1 
+  // Enforce detg = 1 
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  Real aux = (fabs(epsg(i)) < eps_floor) ?  (1.0-oot*epsg(i)) : (pow(detg(i),-oot));
-	  for(int a = 0; a < NDIM; ++a) {
-	    for(int b = a; b < NDIM; ++b) {
-	      g(a,b,k,j,i) = aux * g(a,b,k,j,i); 
-	    }
-	  }
-	}
-	
+    Real aux = (fabs(epsg(i)) < eps_floor) ?  (1.0-oot*epsg(i)) : (pow(detg(i),-oot));
+    for(int a = 0; a < NDIM; ++a) {
+      for(int b = a; b < NDIM; ++b) {
+        g(a,b,k,j,i) = aux * g(a,b,k,j,i); 
+      }
+    }
+  }
+  
       } // j - loop
     } // k - loop
 
@@ -259,34 +261,34 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
     for(int k = ks; k <= ke; ++k) {
 #pragma omp for schedule(static)
       for(int j = js; j <= je; ++j) {
-	
-	// Trace of extrinsic curvature using new metric if rescaled 
+  
+  // Trace of extrinsic curvature using new metric if rescaled 
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  detg(i) = SpatialDet( g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
-				g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i) );            
+    detg(i) = SpatialDet( g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
+        g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i) );            
         }
-	
+  
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  // Note following variable actually contains 1/3 * Tr(A)  
-	  TrA(i) = oot * Trace( 1.0/detg(i),
-				g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
-				g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i),
-				A(0,0,k,j,i), A(0,1,k,j,i), A(0,2,k,j,i), 
-				A(1,1,k,j,i), A(1,2,k,j,i), A(2,2,k,j,i) );
-	}
-	
-	// Enforce Tr A = 0
-	for(int a = 0; a < NDIM; ++a) {
-	  for(int b = a; b < NDIM; ++b) {
+    // Note following variable actually contains 1/3 * Tr(A)  
+    TrA(i) = oot * Trace( 1.0/detg(i),
+        g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
+        g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i),
+        A(0,0,k,j,i), A(0,1,k,j,i), A(0,2,k,j,i), 
+        A(1,1,k,j,i), A(1,2,k,j,i), A(2,2,k,j,i) );
+  }
+  
+  // Enforce Tr A = 0
+  for(int a = 0; a < NDIM; ++a) {
+    for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
-	    for(int i = is; i <= ie; ++i) {
-	      A(a,b,k,j,i) = A(a,b,k,j,i) - TrA(i) * g(a,b,k,j,i); 
-	    }
-	  }
-	}
-	
+      for(int i = is; i <= ie; ++i) {
+        A(a,b,k,j,i) = A(a,b,k,j,i) - TrA(i) * g(a,b,k,j,i); 
+      }
+    }
+  }
+  
       } // j - loop
     } // k - lopp
 
@@ -337,10 +339,10 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
 
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  Real psi  = pow(chi(k,j,i),1./chipsipower);
-	  Psi4(k,j,i) = pow(psi,4.);
-	}
-	
+    Real psi  = pow(chi(k,j,i),1./chipsipower);
+    Psi4(k,j,i) = pow(psi,4.);
+  }
+  
       }
     }
     
@@ -350,16 +352,16 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
     for(int k = ks; k <= ke; ++k) {
 #pragma omp for schedule(static)
       for(int j = js; j <= je; ++j) {
-	
-	for(int a = 0; a < NDIM; ++a) {
-	  for(int b = a; b < NDIM; ++b) {
+  
+  for(int a = 0; a < NDIM; ++a) {
+    for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
-	    for(int i = is; i <= ie; ++i) {
-	      ADM_g(a,b,k,j,i) = Psi4(k,j,i) * g(a,b,k,j,i);
-	    }
-	  }
-	}
-	
+      for(int i = is; i <= ie; ++i) {
+        ADM_g(a,b,k,j,i) = Psi4(k,j,i) * g(a,b,k,j,i);
+      }
+    }
+  }
+  
       }
     }
 
@@ -370,15 +372,15 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
 #pragma omp for schedule(static)
       for(int j = js; j <= je; ++j) {
 
-	for(int a = 0; a < NDIM; ++a) {
-	  for(int b = a; b < NDIM; ++b) {
+  for(int a = 0; a < NDIM; ++a) {
+    for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
-	    for(int i = is; i <= ie; ++i) {
-	      ADM_K(a,b,k,j,i) = Psi4(k,j,i) * A(a,b,k,j,i) +  oot * Khat(k,j,i) * g(a,b,k,j,i);
-	    }
-	  }
-	}
-	
+      for(int i = is; i <= ie; ++i) {
+        ADM_K(a,b,k,j,i) = Psi4(k,j,i) * A(a,b,k,j,i) +  oot * Khat(k,j,i) * g(a,b,k,j,i);
+      }
+    }
+  }
+  
       } 
     } 
 
@@ -445,72 +447,72 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 #pragma omp for schedule(static)
       for(int j = js; j <= je; ++j) {
 
-	// Determinant of the ADM metric
+  // Determinant of the ADM metric
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  detg(i) = SpatialDet( ADM_g(0,0,k,j,i), ADM_g(0,1,k,j,i), ADM_g(0,2,k,j,i), 
-				ADM_g(1,1,k,j,i), ADM_g(1,2,k,j,i), ADM_g(2,2,k,j,i) );            
+    detg(i) = SpatialDet( ADM_g(0,0,k,j,i), ADM_g(0,1,k,j,i), ADM_g(0,2,k,j,i), 
+        ADM_g(1,1,k,j,i), ADM_g(1,2,k,j,i), ADM_g(2,2,k,j,i) );            
         }
-	
-	// Inverse of the Conf. factor 1/Psi^4
+  
+  // Inverse of the Conf. factor 1/Psi^4
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  oopsi4(i) = pow(detg(i), - 1.0/3.0);
+    oopsi4(i) = pow(detg(i), - 1.0/3.0);
         }
 
-	// Conf. factor chi
+  // Conf. factor chi
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  chi(k,j,i) = pow(detg(i), 1.0/12.0 * chipsipower);
+    chi(k,j,i) = pow(detg(i), 1.0/12.0 * chipsipower);
         }
-	
-	// Conf. metric
-	for(int a = 0; a < NDIM; ++a) {
-	  for(int b = a; b < NDIM; ++b) {
+  
+  // Conf. metric
+  for(int a = 0; a < NDIM; ++a) {
+    for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
-	    for(int i = is; i <= ie; ++i) {
-	      g(a,b,k,j,i) = oopsi4(i) * ADM_g(a,b,k,j,i) 
-	    }
-	  }
-	}
+      for(int i = is; i <= ie; ++i) {
+        g(a,b,k,j,i) = oopsi4(i) * ADM_g(a,b,k,j,i) 
+      }
+    }
+  }
 
-	// Conf. Extr. Curvature
-	for(int a = 0; a < NDIM; ++a) {
-	  for(int b = a; b < NDIM; ++b) {
+  // Conf. Extr. Curvature
+  for(int a = 0; a < NDIM; ++a) {
+    for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
-	    for(int i = is; i <= ie; ++i) {
-	      Kt(a,b,i) = oopsi4(i) * ADM_K(a,b,k,j,i) 
-	    }
-	  }
-	}
-	
-	// Determinant of the Conf. metric
+      for(int i = is; i <= ie; ++i) {
+        Kt(a,b,i) = oopsi4(i) * ADM_K(a,b,k,j,i) 
+      }
+    }
+  }
+  
+  // Determinant of the Conf. metric
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  detg(i) = SpatialDet( g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
-				g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i) );            
+    detg(i) = SpatialDet( g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
+        g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i) );            
         }
-	
-	// Trace of conf. extr. curvature
+  
+  // Trace of conf. extr. curvature
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  Khat(k,j,i) = Trace( 1.0/detg(i),
-			    g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
-			    g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i),
-			    Kt(0,0,i), Kt(0,1,i), Kt(0,2,i), 
-			    Kt(1,1,i), Kt(1,2,i), Kt(2,2,i) );
-	}
-	
-	// Conf. Traceless Extr. Curvature
-	for(int a = 0; a < NDIM; ++a) {
-	  for(int b = a; b < NDIM; ++b) {
+    Khat(k,j,i) = Trace( 1.0/detg(i),
+          g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
+          g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i),
+          Kt(0,0,i), Kt(0,1,i), Kt(0,2,i), 
+          Kt(1,1,i), Kt(1,2,i), Kt(2,2,i) );
+  }
+  
+  // Conf. Traceless Extr. Curvature
+  for(int a = 0; a < NDIM; ++a) {
+    for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
-	    for(int i = is; i <= ie; ++i) {
-	      A(a,b,k,j,i) = ( ADM_K(a,b,k,j,i) - oot * Khat(k,j,i) * ADM_g(a,b,k,j,i) ) * oopsi4(i)
-	    }
-	  }
-	}
-	
+      for(int i = is; i <= ie; ++i) {
+        A(a,b,k,j,i) = ( ADM_K(a,b,k,j,i) - oot * Khat(k,j,i) * ADM_g(a,b,k,j,i) ) * oopsi4(i)
+      }
+    }
+  }
+  
       } // j - loop
     } // k - loop
 
@@ -522,8 +524,8 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
       for(int j = js; j <= je; ++j) {
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  Theta(k,j,i) = 0.0;
-	}
+    Theta(k,j,i) = 0.0;
+  }
       }
     }
     
@@ -534,46 +536,46 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 #pragma omp for schedule(static)
       for(int j = js; j <= je; ++j) {
 
-	// Determinant of the Conf. metric
+  // Determinant of the Conf. metric
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  detg(i) = SpatialDet( g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
-				g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i) );            
+    detg(i) = SpatialDet( g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
+        g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i) );            
         }
-	
-	// Inverse Conf. metric
+  
+  // Inverse Conf. metric
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  SpatialInv( detg(i),
-		      g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
-		      g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i),
-		      &ginv(0,0,i), &ginv(0,1,i), & ginv(0,2,i), 
-		      &ginv(1,1,i), &ginv(1,2,i), & ginv(2,2,i) );            
+    SpatialInv( detg(i),
+          g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i), 
+          g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i),
+          &ginv(0,0,i), &ginv(0,1,i), & ginv(0,2,i), 
+          &ginv(1,1,i), &ginv(1,2,i), & ginv(2,2,i) );            
         }
 
-	// Derivatives of Inverse Conf. metric // TODO
-	for(int a = 0; a < NDIM; ++a) {
-	  for(int b = a; b < NDIM; ++b) {
-	    for(int c = 0; c < NDIM; ++c) {
+  // Derivatives of Inverse Conf. metric // TODO
+  for(int a = 0; a < NDIM; ++a) {
+    for(int b = a; b < NDIM; ++b) {
+      for(int c = 0; c < NDIM; ++c) {
 #pragma omp simd
-	      for(int i = is; i <= ie; ++i) {
-		//ddginv(a,b,c, i) = d( ginv(a,b) , c  );            	
-	      }
-	    }
-	  }
-	}
-	
-	// Inverse Conf. metric
-	for(int a = 0; a < NDIM; ++a) {
-	  for(int i = is; i <= ie; ++i) {
-	    Gam(a, k,j,i) = 0.;
+        for(int i = is; i <= ie; ++i) {
+    //ddginv(a,b,c, i) = d( ginv(a,b) , c  );              
+        }
+      }
+    }
+  }
+  
+  // Inverse Conf. metric
+  for(int a = 0; a < NDIM; ++a) {
+    for(int i = is; i <= ie; ++i) {
+      Gam(a, k,j,i) = 0.;
 #pragma omp simd
-	      for(int b = a; b < NDIM; ++b) {
-		Gam(a, k,j,i) -= dginv(b,a,b, i);            
-	    }
-	  }
-	}
-	
+        for(int b = a; b < NDIM; ++b) {
+    Gam(a, k,j,i) -= dginv(b,a,b, i);            
+      }
+    }
+  }
+  
       } // j -loop
     } // k - loop
     
@@ -620,146 +622,146 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u)
     for(int k = ks; k <= ke; ++k) {
 #pragma omp for schedule(static)
       for(int j = js; j <= je; ++j) {
-	
+  
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  // ... dg[a,b,c] ddg[a,b,c,d] dK[a,b,c] ...
-	}
+    // ... dg[a,b,c] ddg[a,b,c,d] dK[a,b,c] ...
+  }
 
-	// Determinant 
+  // Determinant 
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  detg(i) = SpatialDet( ADM_g(0,0,k,j,i), ADM_g(0,1,k,j,i), ADM_g(0,2,k,j,i), 
-				ADM_g(1,1,k,j,i), ADM_g(1,2,k,j,i), ADM_g(2,2,k,j,i) );            
+    detg(i) = SpatialDet( ADM_g(0,0,k,j,i), ADM_g(0,1,k,j,i), ADM_g(0,2,k,j,i), 
+        ADM_g(1,1,k,j,i), ADM_g(1,2,k,j,i), ADM_g(2,2,k,j,i) );            
         }
-	
-	// Inverse Conf. metric
+  
+  // Inverse Conf. metric
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-	  SpatialInv( detg(i),
-		      ADM_g(0,0,k,j,i), ADM_g(0,1,k,j,i), ADM_g(0,2,k,j,i), 
-		      ADM_g(1,1,k,j,i), ADM_g(1,2,k,j,i), ADM_g(2,2,k,j,i),
-		      &ginv(0,0,i), &ginv(0,1,i), & ginv(0,2,i), 
-		      &ginv(1,1,i), &ginv(1,2,i), & ginv(2,2,i) );            
+    SpatialInv( detg(i),
+          ADM_g(0,0,k,j,i), ADM_g(0,1,k,j,i), ADM_g(0,2,k,j,i), 
+          ADM_g(1,1,k,j,i), ADM_g(1,2,k,j,i), ADM_g(2,2,k,j,i),
+          &ginv(0,0,i), &ginv(0,1,i), & ginv(0,2,i), 
+          &ginv(1,1,i), &ginv(1,2,i), & ginv(2,2,i) );            
         }
 
-	// Gamma_{abc}
-	for(int a = 0; a < NDIM; ++a) {
-	  for(int b = a; b < NDIM; ++b) {
-	    for(int c = 0; c < NDIM; ++c) {
+  // Gamma_{abc}
+  for(int a = 0; a < NDIM; ++a) {
+    for(int b = a; b < NDIM; ++b) {
+      for(int c = 0; c < NDIM; ++c) {
 #pragma omp simd
-	      for(int i = is; i <= ie; ++i) {
-		gammado(c,a,b, i) = 0.5 * ( dg(a,b,c, i) + dg(b,a,c, i) - dg(c,a,b, i) );
-	      }
-	    }
-	  }
-	}
-	
-	// Gamma_{ab}^c
-	for(int a = 0; a < NDIM; ++a) {
-	  for(int b = a; b < NDIM; ++b) {
-	    for(int c = 0; c < NDIM; ++c) {
+        for(int i = is; i <= ie; ++i) {
+    gammado(c,a,b, i) = 0.5 * ( dg(a,b,c, i) + dg(b,a,c, i) - dg(c,a,b, i) );
+        }
+      }
+    }
+  }
+  
+  // Gamma_{ab}^c
+  for(int a = 0; a < NDIM; ++a) {
+    for(int b = a; b < NDIM; ++b) {
+      for(int c = 0; c < NDIM; ++c) {
 #pragma omp simd
-	      for(int i = is; i <= ie; ++i) {
-		gamma(c,a,b, i) = 0.0;
-		for(int d = 0; d < NDIM; ++d) {
-		  gamma(c,a,b, i) += ginv(c,d, i) * gammado(d,a,b, i);
-		}
-	      }
-	    }
-	  }
-	}
+        for(int i = is; i <= ie; ++i) {
+    gamma(c,a,b, i) = 0.0;
+    for(int d = 0; d < NDIM; ++d) {
+      gamma(c,a,b, i) += ginv(c,d, i) * gammado(d,a,b, i);
+    }
+        }
+      }
+    }
+  }
 
-	// D_a( K_{bc} )
-	for(int a = 0; a < NDIM; ++a) {
-	  for(int b = a; b < NDIM; ++b) {
-	    for(int c = 0; c < NDIM; ++c) {
+  // D_a( K_{bc} )
+  for(int a = 0; a < NDIM; ++a) {
+    for(int b = a; b < NDIM; ++b) {
+      for(int c = 0; c < NDIM; ++c) {
 #pragma omp simd
-	      for(int i = is; i <= ie; ++i) {
-		cdK(a,b,c, i) = dK(a,b,c, i);
-		for(int d = 0; d < NDIM; ++d) {
-		  cdK(a,b,c, i) -= ( gamma(d,a,b, i) * K(d,c, k,j,i) - gamma(d,a,c, i) * K(b,d, k,j,i) );
-		}
-	      }
-	    }
-	  }
-	}
+        for(int i = is; i <= ie; ++i) {
+    cdK(a,b,c, i) = dK(a,b,c, i);
+    for(int d = 0; d < NDIM; ++d) {
+      cdK(a,b,c, i) -= ( gamma(d,a,b, i) * K(d,c, k,j,i) - gamma(d,a,c, i) * K(b,d, k,j,i) );
+    }
+        }
+      }
+    }
+  }
 
-	// D^a K_{bc}
-	for(int a = 0; a < NDIM; ++a) {
-	  for(int b = a; b < NDIM; ++b) {
-	    for(int c = 0; c < NDIM; ++c) {
+  // D^a K_{bc}
+  for(int a = 0; a < NDIM; ++a) {
+    for(int b = a; b < NDIM; ++b) {
+      for(int c = 0; c < NDIM; ++c) {
 #pragma omp simd
-	      for(int i = is; i <= ie; ++i) {
-		cdKuud(a,b,c, i) = 0.0;
-		for(int d = 0; d < NDIM; ++d) {
-		  cdKuud(a,b,c, i) += ginv(a,d, i) * codelK(d,b,c, i);
-		}
-	      }
-	    }
-	  }
-	}
-	
-	// R_{ab} 
-	for(int a = 0; a < NDIM; ++a) {
-	  for(int b = a; b < NDIM; ++b) {
+        for(int i = is; i <= ie; ++i) {
+    cdKuud(a,b,c, i) = 0.0;
+    for(int d = 0; d < NDIM; ++d) {
+      cdKuud(a,b,c, i) += ginv(a,d, i) * codelK(d,b,c, i);
+    }
+        }
+      }
+    }
+  }
+  
+  // R_{ab} 
+  for(int a = 0; a < NDIM; ++a) {
+    for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
-	    for(int i = is; i <= ie; ++i) {
-	      R(a,b, i) = 0.0;
-	      for(int c = 0; c < NDIM; ++c) {
-		for(int d = 0; d < NDIM; ++d) {
-		  R(a,b, i) += 0.5 * ginv(c,d, i) * ( - ddg(c,d,a,b, i) - ddg(a,b,c,d, i) + ddg(a,c,b,d, i) + ddg(b,c,a,d, i) );
-		  for(int e = 0; e < NDIM; ++e) { // check this ...
-		    R(a,b, i) += 0.5* ginv(c,d, i) * (  gamma(e,a,c, i) * gammado(e,b,d, i) - gamma(e,a,b, i) * gammado(e,c,d, i) ) ;
-		  }
-		}
-	      }
-	    }
-	  }
-	}
+      for(int i = is; i <= ie; ++i) {
+        R(a,b, i) = 0.0;
+        for(int c = 0; c < NDIM; ++c) {
+    for(int d = 0; d < NDIM; ++d) {
+      R(a,b, i) += 0.5 * ginv(c,d, i) * ( - ddg(c,d,a,b, i) - ddg(a,b,c,d, i) + ddg(a,c,b,d, i) + ddg(b,c,a,d, i) );
+      for(int e = 0; e < NDIM; ++e) { // check this ...
+        R(a,b, i) += 0.5* ginv(c,d, i) * (  gamma(e,a,c, i) * gammado(e,b,d, i) - gamma(e,a,b, i) * gammado(e,c,d, i) ) ;
+      }
+    }
+        }
+      }
+    }
+  }
 
-	// K^a_b
-	for(int a = 0; a < NDIM; ++a) {
-	  for(int b = a; b < NDIM; ++b) {
+  // K^a_b
+  for(int a = 0; a < NDIM; ++a) {
+    for(int b = a; b < NDIM; ++b) {
 #pragma omp simd
-	    for(int i = is; i <= ie; ++i) {
-	      Kud(a,b, i) = 0.0;
-	      for(int c = 0; c < NDIM; ++c) {
-		Kud(a,b, i) += ginv(a,c, i) * K(c,b, k,j,i);
-	      }
-	    }
-	  }
-	}
-	
-	// Ham
+      for(int i = is; i <= ie; ++i) {
+        Kud(a,b, i) = 0.0;
+        for(int c = 0; c < NDIM; ++c) {
+    Kud(a,b, i) += ginv(a,c, i) * K(c,b, k,j,i);
+        }
+      }
+    }
+  }
+  
+  // Ham
 #pragma omp simd
-	for(int i = is; i <= ie; ++i)
-	  Ham(k,j,i) = 0.0; // - 16.0 * PI * ADM_rho(k,j,i);
-	for(int a = 0; a < NDIM; ++a) 
+  for(int i = is; i <= ie; ++i)
+    Ham(k,j,i) = 0.0; // - 16.0 * PI * ADM_rho(k,j,i);
+  for(int a = 0; a < NDIM; ++a) 
 #pragma omp simd
-	  for(int i = is; i <= ie; ++i) 
-	    Ham(k,j,i) += Kud(a,a, i) * Kud(a,a, i); // K^2
-	for(int a = 0; a < NDIM; ++a) 
-	  for(int b = a; b < NDIM; ++b) 
+    for(int i = is; i <= ie; ++i) 
+      Ham(k,j,i) += Kud(a,a, i) * Kud(a,a, i); // K^2
+  for(int a = 0; a < NDIM; ++a) 
+    for(int b = a; b < NDIM; ++b) 
 #pragma omp simd
-	      for(int i = is; i <= ie; ++i) 
-		Ham(k,j,i) += ginv(a,b, i) * R(a,b, i) - Kud(a,b, i) * Kud(b,a, i);  // R + K^2
+        for(int i = is; i <= ie; ++i) 
+    Ham(k,j,i) += ginv(a,b, i) * R(a,b, i) - Kud(a,b, i) * Kud(b,a, i);  // R + K^2
 
-	
-	// Mom^a
-	for(int a = 0; a < NDIM; ++a) {
+  
+  // Mom^a
+  for(int a = 0; a < NDIM; ++a) {
 #pragma omp simd
-	  for(int i = is; i <= ie; ++i)
-	    Mom(a, k,j,i) = 0.0; // - 8.0 * PI * ADM_S(a, k,j,i);
-	  for(int b = 0; b < NDIM; ++b) 
-	    for(int c = 0; c < NDIM; ++c)
-	      for(int d = 0; d < NDIM; ++d) 
+    for(int i = is; i <= ie; ++i)
+      Mom(a, k,j,i) = 0.0; // - 8.0 * PI * ADM_S(a, k,j,i);
+    for(int b = 0; b < NDIM; ++b) 
+      for(int c = 0; c < NDIM; ++c)
+        for(int d = 0; d < NDIM; ++d) 
 #pragma omp simd
-	      for(int i = is; i <= ie; ++i)
-		Mom(a, k,j,i) += ginv(a,b, i) * cdKudd(c,b,c, i) - ginv(b,c, i) * cdKudd(a,b,c, i);
-	}
-	
-	
+        for(int i = is; i <= ie; ++i)
+    Mom(a, k,j,i) += ginv(a,b, i) * cdKudd(c,b,c, i) - ginv(b,c, i) * cdKudd(a,b,c, i);
+  }
+  
+  
       } // j - loop
     } // k - loop
   } // parallel block
@@ -799,20 +801,20 @@ void Z4c::ADMFlat(AthenaArray<Real> & u_adm)
 
 #pragma omp simd
         for(int i = is; i <= ie; ++i) 
-	  Psi4(k,j,i) = 1.0;
+    Psi4(k,j,i) = 1.0;
 
 #pragma omp simd
-	for(int i = is; i <= ie; ++i) 
-	  for(int a = 0; a < NDIM; ++a) 
-	    for(int b = a; b < NDIM; ++b) 
-	      ADM_g(a,b,k,j,i) = (a == b) ? (1.0) : (0.0);
+  for(int i = is; i <= ie; ++i) 
+    for(int a = 0; a < NDIM; ++a) 
+      for(int b = a; b < NDIM; ++b) 
+        ADM_g(a,b,k,j,i) = (a == b) ? (1.0) : (0.0);
 
 #pragma omp simd
-	for(int i = is; i <= ie; ++i) 
-	  for(int a = 0; a < NDIM; ++a) 
-	    for(int b = a; b < NDIM; ++b) 
-	      ADM_K(a,b,k,j,i) = 0.0;
-	
+  for(int i = is; i <= ie; ++i) 
+    for(int a = 0; a < NDIM; ++a) 
+      for(int b = a; b < NDIM; ++b) 
+        ADM_K(a,b,k,j,i) = 0.0;
+  
       }
     }
 
@@ -851,11 +853,11 @@ void Z4c::GaugeFlat(AthenaArray<Real> & u)
       for(int j = js; j <= je; ++j) {
 #pragma omp simd
         for(int i = is; i <= ie; ++i) 
-	  alpha(k,j,i) = 1.0;
+    alpha(k,j,i) = 1.0;
 #pragma omp simd
-	for(int i = is; i <= ie; ++i) 
-	  for(int a = 0; a < NDIM; ++a) 
-	    beta(a,k,j,i) = 0.0;	
+  for(int i = is; i <= ie; ++i) 
+    for(int a = 0; a < NDIM; ++a) 
+      beta(a,k,j,i) = 0.0;  
       }
     }
   }
