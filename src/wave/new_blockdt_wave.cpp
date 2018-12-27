@@ -3,8 +3,8 @@
 // Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
 // Licensed under the 3-clause BSD License, see LICENSE file for details
 //========================================================================================
-//! \file new_blockdt.cpp
-//  \brief computes timestep using CFL condition on a MEshBlock
+//! \file new_blockdt_wave.cpp
+//  \brief computes timestep using CFL condition on a MeshBlock
 
 // C/C++ headers
 #include <algorithm>  // min()
@@ -18,18 +18,8 @@
 #include "../mesh/mesh.hpp"
 #include "../coordinates/coordinates.hpp"
 
-// MPI/OpenMP header
-#ifdef MPI_PARALLEL
-#include <mpi.h>
-#endif
-
-#ifdef OPENMP_PARALLEL
-#include <omp.h>
-#endif
-
 //! \fn Real Wave::NewBlockTimeStep(void)
 //  \brief calculate the minimum timestep within a MeshBlock
-
 Real Wave::NewBlockTimeStep(void)
 {
   MeshBlock * pmb = pmy_block;

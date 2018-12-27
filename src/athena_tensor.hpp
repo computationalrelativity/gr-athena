@@ -73,6 +73,9 @@ public:
     return 1;
   }
 
+  // zero out the tensor
+  void Zero() { data_.Zero(); }
+
   // operators to access the data
   AthenaArray<Real> const & operator()() {
     return data_;
@@ -106,6 +109,14 @@ public:
   }
   T operator()(int const m, int const n, int const k, int const j, int const i) const {
     return data_(m,n,k,j,i);
+  }
+
+  // functions that initialize a tensor with shallow copy or slice from an array
+  void InitWithShallowCopy(AthenaArray<T> &src) {
+    data_.InitWithShallowCopy(src);
+  }
+  void InitWithShallowSlice(AthenaArray<T> &src, const int indx) {
+    data_.InitWithShallowSlice(src, indx, ndof());
   }
 private:
   AthenaArray<T> data_;
@@ -155,6 +166,9 @@ public:
     return ndim;
   }
 
+  // zero out the tensor
+  void Zero() { data_.Zero(); }
+
   // operators to access the data
   AthenaArray<Real> const & operator()(int const a) {
     slice_.InitWithShallowSlice(data_, a, 1);
@@ -191,6 +205,14 @@ public:
   T operator()(int const a,
                int const n, int const k, int const j, int const i) const {
     return data_(a,n,k,j,i);
+  }
+
+  // functions that initialize a tensor with shallow copy or slice from an array
+  void InitWithShallowCopy(AthenaArray<T> &src) {
+    data_.InitWithShallowCopy(src);
+  }
+  void InitWithShallowSlice(AthenaArray<T> &src, const int indx) {
+    data_.InitWithShallowSlice(src, indx, ndof());
   }
 private:
   AthenaArray<T> data_;
@@ -241,6 +263,9 @@ public:
     return ndof_;
   }
 
+  // zero out the tensor
+  void Zero() { data_.Zero(); }
+
   // operators to access the data
   AthenaArray<Real> const & operator()(int const a, int const b) {
     slice_.InitWithShallowSlice(data_, idxmap_[a][b], 1);
@@ -277,6 +302,14 @@ public:
   T operator()(int const a, int const b,
                int const n, int const k, int const j, int const i) const {
     return data_(idxmap_[a][b],n,k,j,i);
+  }
+
+  // functions that initialize a tensor with shallow copy or slice from an array
+  void InitWithShallowCopy(AthenaArray<T> &src) {
+    data_.InitWithShallowCopy(src);
+  }
+  void InitWithShallowSlice(AthenaArray<T> &src, const int indx) {
+    data_.InitWithShallowSlice(src, indx, ndof());
   }
 private:
   AthenaArray<T> data_;
@@ -329,6 +362,9 @@ public:
     return ndof_;
   }
 
+  // zero out the tensor
+  void Zero() { data_.Zero(); }
+
   // operators to access the data
   AthenaArray<Real> const & operator()(int const a, int const b, int const c) {
     slice_.InitWithShallowSlice(data_, idxmap_[a][b][c], 1);
@@ -365,6 +401,14 @@ public:
   T operator()(int const a, int const b, int const c,
                int const n, int const k, int const j, int const i) const {
     return data_(idxmap_[a][b][c],n,k,j,i);
+  }
+
+  // functions that initialize a tensor with shallow copy or slice from an array
+  void InitWithShallowCopy(AthenaArray<T> &src) {
+    data_.InitWithShallowCopy(src);
+  }
+  void InitWithShallowSlice(AthenaArray<T> &src, const int indx) {
+    data_.InitWithShallowSlice(src, indx, ndof());
   }
 private:
   AthenaArray<T> data_;
@@ -417,6 +461,9 @@ public:
     return ndof_;
   }
 
+  // zero out the tensor
+  void Zero() { data_.Zero(); }
+
   // operators to access the data
   AthenaArray<Real> const & operator()(int const a, int const b, int const c, int const d) {
     slice_.InitWithShallowSlice(data_, idxmap_[a][b][c][d], 1);
@@ -453,6 +500,14 @@ public:
   T operator()(int const a, int const b, int const c, int const d,
                int const n, int const k, int const j, int const i) const {
     return data_(idxmap_[a][b][c][d],n,k,j,i);
+  }
+
+  // functions that initialize a tensor with shallow copy or slice from an array
+  void InitWithShallowCopy(AthenaArray<T> &src) {
+    data_.InitWithShallowCopy(src);
+  }
+  void InitWithShallowSlice(AthenaArray<T> &src, const int indx) {
+    data_.InitWithShallowSlice(src, indx, ndof());
   }
 private:
   AthenaArray<T> data_;

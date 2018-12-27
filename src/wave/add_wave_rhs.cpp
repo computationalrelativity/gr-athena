@@ -3,7 +3,7 @@
 // Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
 // Licensed under the 3-clause BSD License, see LICENSE file for details
 //========================================================================================
-//! \file add_rhs.cpp
+//! \file add_wave_rhs.cpp
 //  \brief adds the wave equation RHS to the state vector
 
 // Athena++ headers
@@ -12,11 +12,6 @@
 #include "../athena_arrays.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
-
-// OpenMP header
-#ifdef OPENMP_PARALLEL
-#include <omp.h>
-#endif
 
 //----------------------------------------------------------------------------------------
 //! \fn  void Wave::AddWaveRHS
@@ -45,7 +40,7 @@ void Wave::AddWaveRHS(const Real wght, AthenaArray<Real> &u_out) {
 
 //----------------------------------------------------------------------------------------
 //! \fn  void Wave::WeightedAveW
-//  \brief Compute weighted average of cell-averaged U in time integrator step
+//  \brief Compute weighted average of state vector U in time integrator step
 
 void Wave::WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
                        AthenaArray<Real> &u_in2, const Real wght[3]) {
@@ -59,7 +54,7 @@ void Wave::WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
 
   // u_in2 may be an unallocated AthenaArray if using a 2S time integrator
   if (wght[2] != 0.0) {
-    for (int n=0; n<2; ++n) { //Will fix this. We need the analog of NHYDRO instead of '2'
+    for (int n=0; n<2; ++n) {
       for (int k=ks; k<=ke; ++k) {
         for (int j=js; j<=je; ++j) {
 #pragma omp simd
@@ -72,7 +67,7 @@ void Wave::WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
     }
   } else { // do not dereference u_in2
     if (wght[1] != 0.0) {
-      for (int n=0; n<2; ++n) { //Will fix this. We need the analog of NHYDRO instead of '2'
+      for (int n=0; n<2; ++n) {
         for (int k=ks; k<=ke; ++k) {
           for (int j=js; j<=je; ++j) {
 #pragma omp simd
@@ -84,7 +79,7 @@ void Wave::WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
       }
     } else { // do not dereference u_in1
       if (wght[0] != 0.0) {
-        for (int n=0; n<2; ++n) { //Will fix this. We need the analog of NHYDRO instead of '2'
+        for (int n=0; n<2; ++n) {
           for (int k=ks; k<=ke; ++k) {
             for (int j=js; j<=je; ++j) {
 #pragma omp simd
@@ -95,7 +90,7 @@ void Wave::WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
           }
         }
       } else { // directly initialize u_out to 0
-        for (int n=0; n<2; ++n) { //Will fix this. We need the analog of NHYDRO instead of '2'
+        for (int n=0; n<2; ++n) {
           for (int k=ks; k<=ke; ++k) {
             for (int j=js; j<=je; ++j) {
 #pragma omp simd

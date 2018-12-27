@@ -13,6 +13,7 @@
 //  NOTE THE TRAILING INDEX INSIDE THE PARENTHESES IS INDEXED FASTEST
 
 // C++ headers
+#include <cstring>  // memset
 #include <cstddef>  // size_t
 
 template<typename T>
@@ -47,6 +48,9 @@ public:
   // a function to get the total size of the array
   int GetSize() const { return nx1_*nx2_*nx3_*nx4_*nx5_; }
   size_t GetSizeInBytes() const {return nx1_*nx2_*nx3_*nx4_*nx5_*sizeof(T); }
+
+  // zero out the array
+  void Zero() { std::memset(pdata_, 0, GetSizeInBytes()); }
 
   // function to get the stride used to access the data
   int GetStride1() const { return 1; }
