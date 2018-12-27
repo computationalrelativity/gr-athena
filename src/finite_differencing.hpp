@@ -12,40 +12,50 @@
 #include "athena.hpp"
 #include "athena_arrays.hpp"
 
-// Finite differencing stencil
-// * degree : Degree of the derivative, eg, 1 for 1st derivative
-// * order  : Order of the finite differencing, eg, 2 for 2nd order accurate
-// * offset : Position at which the derivative is computed wrt the stencil.
-//            Example: offset=order/2 for central finite differencing
-template<int degree_, int order_, int offset_>
-class FDStencil {
-  public:
-    // Degree of the derivative to be approximated
-    enum {degree = degree_};
-    // Order of the finite differencing
-    enum {order = order_};
-    // Position at which the derivative is computed wrt the beginning of the stencil
-    enum {offset = offset_};
-    // Width of the stencil
-    enum {width = order + 1};
-    // Finite differencing coefficients
-    static Real const coeff[width];
-};
-
 // Centered finite differencing stencils
 // * degree : Degree of the derivative, eg, 1 for 1st derivative
-// * order  : Order of the finite differencing, eg, 2 for 2nd order accurate
+// * nghost : Number of ghost points used for the derivative
 template<int degree_, int nghost_>
 class FDCenteredStencil {
   public:
     // Degree of the derivative to be approximated
     enum {degree = degree_};
-    // Order of the finite differencing
-    enum {order = 2*nghost_};
     // Position at which the derivative is computed wrt the beginning of the stencil
     enum {offset = nghost_};
     // Width of the stencil
-    enum {width = order + 1};
+    enum {width = 2*nghost_ + 1};
+    // Finite differencing coefficients
+    static Real const coeff[width];
+};
+
+// Left-biased finite differencing stencils
+// * degree : Degree of the derivative, eg, 1 for 1st derivative
+// * nghost : Number of ghost points used for the derivative
+template<int degree_, int nghost_>
+class FDLeftBiasedStencil {
+  public:
+    // Degree of the derivative to be approximated
+    enum {degree = degree_};
+    // Position at which the derivative is computed wrt the beginning of the stencil
+    enum {offset = nghost_ + 1};
+    // Width of the stencil
+    enum {width = 2*nghost_};
+    // Finite differencing coefficients
+    static Real const coeff[width];
+};
+
+// Right-biased finite differencing stencils
+// * degree : Degree of the derivative, eg, 1 for 1st derivative
+// * nghost : Number of ghost points used for the derivative
+template<int degree_, int nghost_>
+class FDRightBiasedStencil {
+  public:
+    // Degree of the derivative to be approximated
+    enum {degree = degree_};
+    // Position at which the derivative is computed wrt the beginning of the stencil
+    enum {offset = nghost_ - 1};
+    // Width of the stencil
+    enum {width = 2*nghost_};
     // Finite differencing coefficients
     static Real const coeff[width];
 };
@@ -55,8 +65,8 @@ template<typename stencil, typename T>
 class FDKernelH {
   public:
     // Initialize a finite differencing kernel
-    // . da  -> direction in which to take the derivative, between 0 and 4
-    // . fun -> function to differentiate
+    // * da  : direction in which to take the derivative, between 0 and 4
+    // * fun : function to differentiate
     FDKernelH(int da, AthenaArray<T> & fun);
     // Compute the undivided finite differences at a given location
     T operator()(int const n) const {

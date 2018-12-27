@@ -26,7 +26,6 @@
 
 //! \fn void Wave::CalculateRHS
 //  \brief Calculate RHS for the wave equation using finite-differencing
-
 void Wave::WaveRHS(AthenaArray<Real> & u)
 {
   std::stringstream msg;
