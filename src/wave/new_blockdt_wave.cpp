@@ -37,49 +37,40 @@ Real Wave::NewBlockTimeStep(void)
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
 
-  int nthreads = pmb->pmy_mesh->GetNumMeshThreads();
-
   Real min_dt = (FLT_MAX);
-#pragma omp parallel default(shared) private(tid) num_threads(nthreads) reduction(min: min_dt)
-  {
-#ifdef OPENMP_PARALLEL
-    tid = omp_get_thread_num();
-#endif
-    AthenaArray<Real> dt1, dt2, dt3;
-    dt1.InitWithShallowSlice(dt1_, tid, 1);
-    dt2.InitWithShallowSlice(dt2_, tid, 1);
-    dt3.InitWithShallowSlice(dt3_, tid, 1);
+  AthenaArray<Real> dt1, dt2, dt3;
+  dt1.InitWithShallowCopy(dt1_);
+  dt2.InitWithShallowCopy(dt2_);
+  dt3.InitWithShallowCopy(dt3_);
 
-    for (int k = ks; k <= ke; ++k) {
-#pragma omp for schedule(static)
-      for (int j = js; j <= je; ++j) {
-        pmb->pcoord->CenterWidth1(k,j,is,ie,dt1);
-        pmb->pcoord->CenterWidth2(k,j,is,ie,dt2);
-        pmb->pcoord->CenterWidth3(k,j,is,ie,dt3);
+  for (int k = ks; k <= ke; ++k) {
+    for (int j = js; j <= je; ++j) {
+      pmb->pcoord->CenterWidth1(k,j,is,ie,dt1);
+      pmb->pcoord->CenterWidth2(k,j,is,ie,dt2);
+      pmb->pcoord->CenterWidth3(k,j,is,ie,dt3);
+      for (int i = is; i <= ie; ++i) {
+        dt1(i) /= c;
+        dt2(i) /= c;
+        dt3(i) /= c;
+      }
+      for (int i = is; i <= ie; ++i) {
+        Real & dt_1 = dt1(i);
+        min_dt = std::min(min_dt, dt_1);
+      }
+      if (pmb->block_size.nx2 > 1) {
         for (int i = is; i <= ie; ++i) {
-          dt1(i) /= c;
-          dt2(i) /= c;
-          dt3(i) /= c;
+          Real & dt_2 = dt2(i);
+          min_dt = std::min(min_dt, dt_2);
         }
+      }
+      if (pmb->block_size.nx3 > 1) {
         for (int i = is; i <= ie; ++i) {
-          Real & dt_1 = dt1(i);
-          min_dt = std::min(min_dt, dt_1);
-        }
-        if (pmb->block_size.nx2 > 1) {
-          for (int i = is; i <= ie; ++i) {
-            Real & dt_2 = dt2(i);
-            min_dt = std::min(min_dt, dt_2);
-          }
-        }
-        if (pmb->block_size.nx3 > 1) {
-          for (int i = is; i <= ie; ++i) {
-            Real & dt_3 = dt3(i);
-            min_dt = std::min(min_dt, dt_3);
-          }
+          Real & dt_3 = dt3(i);
+          min_dt = std::min(min_dt, dt_3);
         }
       }
     }
-  } // end of omp parallel region
+  }
   min_dt *= pmb->pmy_mesh->cfl_number;
 
   pmb->new_block_dt = min_dt;

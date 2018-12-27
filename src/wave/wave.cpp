@@ -37,10 +37,9 @@ Wave::Wave(MeshBlock *pmb, ParameterInput *pin)
 
   c = pin->GetOrAddReal("wave", "c", 1.0);
 
-  int nthreads = pmy_block->pmy_mesh->GetNumMeshThreads();
-  dt1_.NewAthenaArray(nthreads,ncells1);
-  dt2_.NewAthenaArray(nthreads,ncells1);
-  dt3_.NewAthenaArray(nthreads,ncells1);
+  dt1_.NewAthenaArray(ncells1);
+  dt2_.NewAthenaArray(ncells1);
+  dt3_.NewAthenaArray(ncells1);
 }
 
 // destructor
