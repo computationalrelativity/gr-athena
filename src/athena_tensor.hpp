@@ -26,7 +26,89 @@ template<typename T, TensorSymm sym, int ndim, int rank>
 class AthenaTensor;
 
 //----------------------------------------------------------------------------------------
-// rank 1 AthenaTensor, vector and co-vector fields
+// rank 0 AthenaTensor: scalar fields
+template<typename T, TensorSymm sym, int ndim>
+class AthenaTensor<T, sym, ndim, 0> {
+public:
+  // the default constructor/destructor/copy operators are sufficient
+  AthenaTensor() = default;
+  ~AthenaTensor() = default;
+  AthenaTensor(AthenaTensor<T, sym, ndim, 0> const &) = default;
+  AthenaTensor<T, sym, ndim, 0> & operator=(AthenaTensor<T, sym, ndim, 0> const &) = default;
+
+  // functions to allocate/de-allocate the data
+  void NewAthenaTensor(int nx1) {
+    data_.NewAthenaArray(nx1);
+  }
+  void NewAthenaTensor(int nx1, int nx2) {
+    data_.NewAthenaArray(nx1, nx2);
+  }
+  void NewAthenaTensor(int nx1, int nx2, int nx3) {
+    data_.NewAthenaArray(nx1, nx2, nx3);
+  }
+  void NewAthenaTensor(int nx1, int nx2, int nx3, int nx4) {
+    data_.NewAthenaArray(nx1, nx2, nx3, nx4);
+  }
+  void NewAthenaTensor(int nx1, int nx2, int nx3, int nx4, int nx5) {
+    data_.NewAthenaArray(nx1, nx2, nx3, nx4, nx5);
+  }
+  void DeleteAthenaTensor() {
+    data_.DeleteAthenaArray();
+  }
+
+  // get a reference to the array
+  AthenaArray<T> & array() {
+    return data_;
+  }
+  AthenaArray<T> const & array() const {
+    return data_;
+  }
+
+  // index map
+  int idxmap() const {
+    return 0;
+  }
+  int ndof() const {
+    return 1;
+  }
+
+  // operators to access the data
+  T & operator()(int const i) {
+    return data_(i);
+  }
+  T & operator()(int const j, int const i) {
+    return data_(j,i);
+  }
+  T & operator()(int const k, int const j, int const i) {
+    return data_(k,j,i);
+  }
+  T & operator()(int const n, int const k, int const j, int const i) {
+    return data_(n,k,j,i);
+  }
+  T & operator()(int const m, int const n, int const k, int const j, int const i) {
+    return data_(m,n,k,j,i);
+  }
+  T operator()(int const i) const {
+    return data_(i);
+  }
+  T operator()(int const j, int const i) const {
+    return data_(j,i);
+  }
+  T operator()(int const k, int const j, int const i) const {
+    return data_(k,j,i);
+  }
+  T operator()(int const n, int const k, int const j, int const i) const {
+    return data_(n,k,j,i);
+  }
+  T operator()(int const m, int const n, int const k, int const j, int const i) const {
+    return data_(m,n,k,j,i);
+  }
+private:
+  AthenaArray<T> data_;
+};
+
+//----------------------------------------------------------------------------------------
+// rank 1 AthenaTensor: vector and co-vector fields
 template<typename T, TensorSymm sym, int ndim>
 class AthenaTensor<T, sym, ndim, 1> {
 public:
