@@ -17,6 +17,7 @@
 enum class TensorSymm {
   NONE,     // no symmetries
   SYM2,     // symmetric in the last 2 indices
+  ISYM2,    // symmetric in the first 2 indices
   SYM22,    // symmetric in the last 2 pairs of indices
 };
 
@@ -73,6 +74,9 @@ public:
   }
 
   // operators to access the data
+  AthenaArray<Real> const & operator()() {
+    return data_;
+  }
   T & operator()(int const i) {
     return data_(i);
   }
@@ -473,6 +477,7 @@ AthenaTensor<T, sym, ndim, 2>::AthenaTensor() {
       }
       break;
     case TensorSymm::SYM2:
+    case TensorSymm::ISYM2:
       ndof_ = 0;
       for(int a = 0; a < ndim; ++a)
       for(int b = a; b < ndim; ++b) {
@@ -506,6 +511,15 @@ AthenaTensor<T, sym, ndim, 3>::AthenaTensor() {
         idxmap_[a][c][b] = idxmap_[a][b][c];
       }
       break;
+    case TensorSymm::ISYM2:
+      ndof_ = 0;
+      for(int a = 0; a < ndim; ++a)
+      for(int b = a; b < ndim; ++b)
+      for(int c = 0; c < ndim; ++c) {
+        idxmap_[a][b][c] = ndof_++;
+        idxmap_[b][a][c] = idxmap_[a][b][c];
+      }
+      break;
     default:
       assert(false); // you shouldn't be here
       abort();
@@ -532,6 +546,16 @@ AthenaTensor<T, sym, ndim, 4>::AthenaTensor() {
       for(int d = c; d < ndim; ++d) {
         idxmap_[a][b][c][d] = ndof_++;
         idxmap_[a][b][d][c] = idxmap_[a][b][c][d];
+      }
+      break;
+    case TensorSymm::ISYM2:
+      ndof_ = 0;
+      for(int a = 0; a < ndim; ++a)
+      for(int b = a; b < ndim; ++b)
+      for(int c = 0; c < ndim; ++c)
+      for(int d = 0; d < ndim; ++d) {
+        idxmap_[a][b][c][d] = ndof_++;
+        idxmap_[b][a][c][d] = idxmap_[a][b][c][d];
       }
       break;
     case TensorSymm::SYM22:
