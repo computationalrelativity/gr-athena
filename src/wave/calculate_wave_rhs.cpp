@@ -15,9 +15,7 @@
 #include "wave.hpp"
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
-#include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
-#include "../finite_differencing.hpp"
 
 // OpenMP header
 #ifdef OPENMP_PARALLEL
@@ -31,13 +29,8 @@ void Wave::WaveRHS(AthenaArray<Real> & u)
   std::stringstream msg;
 
   MeshBlock *pmb = pmy_block;
-  Coordinates * pco = pmb->pcoord;
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
-
-  // Note: we are assuming uniform mesh here!
-  Real const dx[3] = {pco->dx1v(0), pco->dx2v(0), pco->dx3v(0)};
-  Real const idx[3] = {1.0/dx[0], 1.0/dx[1], 1.0/dx[2]};
 
   AthenaArray<Real> wu, wpi;
   wu.InitWithShallowSlice(u,0,1);
@@ -51,10 +44,9 @@ void Wave::WaveRHS(AthenaArray<Real> & u)
         rhs(1,k,j,i) = 0.0;
       }
       for(int a = 0; a < 3; ++a) {
-        FDKernelH<FDCenteredStencil<2, NGHOST>, Real> dwu(a, wu);
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-          rhs(1,k,j,i) += dwu(k,j,i)*SQR(idx[a]);
+          rhs(1,k,j,i) += FD.Dxx(a, wu(k,j,i));
         }
       }
     }

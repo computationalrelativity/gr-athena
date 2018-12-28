@@ -36,8 +36,6 @@ class TaskState;
 class Coordinates;
 class Reconstruction;
 class Hydro;
-class Wave;
-class Vwave;
 class Field;
 class Gravity;
 class MGGravityDriver;
@@ -45,6 +43,8 @@ class EquationOfState;
 class FFTDriver;
 class FFTGravityDriver;
 class TurbulenceDriver;
+class Wave;
+class Z4c;
 
 //----------------------------------------------------------------------------------------
 //! \class MeshBlock
@@ -56,9 +56,9 @@ class MeshBlock {
   friend class GravityBoundaryValues;
   friend class Mesh;
   friend class Hydro;
-  friend class Wave;
-  friend class Vwave;
   friend class TaskList;
+  friend class Wave;
+  friend class Z4c;
 #ifdef HDF5OUTPUT
   friend class ATHDF5Output;
 #endif
@@ -150,8 +150,6 @@ class Mesh {
   friend class MeshRefinement;
   friend class HydroSourceTerms;
   friend class Hydro;
-  friend class Wave;
-  friend class Vwave;
   friend class FFTDriver;
   friend class FFTGravityDriver;
   friend class TurbulenceDriver;
@@ -160,6 +158,8 @@ class Mesh {
   friend class Gravity;
   friend class HydroDiffusion;
   friend class FieldDiffusion;
+  friend class Wave;
+  friend class Z4c;
 #ifdef HDF5OUTPUT
   friend class ATHDF5Output;
 #endif

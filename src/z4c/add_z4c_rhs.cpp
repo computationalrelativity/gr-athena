@@ -17,7 +17,7 @@
 //! \fn  void Z4c::AddZ4cRHS
 //  \brief Adds RHS to weighted average of variables from
 //  previous step(s) of time integrator algorithm
-void Z4c::AddZ4cRHS(const Real wght, AthenaArray<Real> &u_out) {
+void Z4c::AddZ4cRHS(AthenaArray<Real> & rhs, Real const wght, AthenaArray<Real> &u_out) {
   MeshBlock *pmb=pmy_block;
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
@@ -28,7 +28,7 @@ void Z4c::AddZ4cRHS(const Real wght, AthenaArray<Real> &u_out) {
       for (int n=0; n<N_Z4c; ++n) {
 #pragma omp simd
         for (int i=is; i<=ie; ++i) {
-          u_out(n,k,j,i) += wght*(pmb->pmy_mesh->dt)*storage.rhs(n,k,j,i);
+          u_out(n,k,j,i) += wght*(pmb->pmy_mesh->dt)*rhs(n,k,j,i);
         }
       }
     }

@@ -73,7 +73,8 @@ public:
     return 1;
   }
 
-  // zero out the tensor
+  // fill a tensor field with a constant value
+  void Fill(T const val) { data_.Fill(val); }
   void Zero() { data_.Zero(); }
 
   // operators to access the data
@@ -166,7 +167,8 @@ public:
     return ndim;
   }
 
-  // zero out the tensor
+  // fill a tensor field with a constant value
+  void Fill(T const val) { data_.Fill(val); }
   void Zero() { data_.Zero(); }
 
   // operators to access the data
@@ -263,7 +265,8 @@ public:
     return ndof_;
   }
 
-  // zero out the tensor
+  // fill a tensor field with a constant value
+  void Fill(T const val) { data_.Fill(val); }
   void Zero() { data_.Zero(); }
 
   // operators to access the data
@@ -362,7 +365,8 @@ public:
     return ndof_;
   }
 
-  // zero out the tensor
+  // fill a tensor field with a constant value
+  void Fill(T const val) { data_.Fill(val); }
   void Zero() { data_.Zero(); }
 
   // operators to access the data
@@ -461,7 +465,8 @@ public:
     return ndof_;
   }
 
-  // zero out the tensor
+  // fill a tensor field with a constant value
+  void Fill(T const val) { data_.Fill(val); }
   void Zero() { data_.Zero(); }
 
   // operators to access the data

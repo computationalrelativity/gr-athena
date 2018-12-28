@@ -1,0 +1,41 @@
+#ifndef Z4c_MACRO_HPP
+#define Z4c_MACRO_HPP
+//========================================================================================
+// Athena++ astrophysical MHD code
+// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
+// Licensed under the 3-clause BSD License, see LICENSE file for details
+//========================================================================================
+//! \file z4c_macro.hpp
+//  \brief common macros for the Z4c class
+
+// 2D loop over k and j in the interior of the block
+#define LOOP2(k,j)                                                            \
+  for(int k = pmy_block->ks; k <= pmy_block->ke; ++k)                         \
+  for(int j = pmy_block->js; j <= pmy_block->je; ++j)
+
+// 2D loop over k and j on the whole block
+#define LOOP2G(k,j)                                                           \
+  for(int k = pmy_block->ks - NGHOST; k <= pmy_block->ke + NGHOST; ++k)       \
+  for(int j = pmy_block->js - NGHOST; j <= pmy_block->je + NGHOST; ++j)
+
+// 1D loop over i in the interior of the block
+#define LOOP1(i)                                                              \
+  _Pragma("omp simd")                                                         \
+  for(int i = pmy_block->is; i <= pmy_block->ie; ++i)
+
+// 1D loop over i in the interior of the block
+#define LOOP1G(i)                                                             \
+  _Pragma("omp simd")                                                         \
+  for(int i = pmy_block->is - NGHOST; i <= pmy_block->ie + NGHOST; ++i)
+
+// 3D loop over the interior of the block
+#define LOOP3(k,j,i)                                                          \
+    LOOP2(k,j)                                                                \
+    LOOP1(i)
+
+// 3D loop over the whole block
+#define LOOP3G(k,j,i)                                                         \
+    LOOP2G(k,j)                                                               \
+    LOOP1G(i)
+
+#endif

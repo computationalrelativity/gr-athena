@@ -1,0 +1,368 @@
+//========================================================================================
+// Athena++ astrophysical MHD code
+// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
+// Licensed under the 3-clause BSD License, see LICENSE file for details
+//========================================================================================
+//! \file adm_z4c.cpp
+//  \brief implementation of functions in the Z4c class related to ADM decomposition
+
+// C++ standard headers
+#include <cmath> // pow
+
+// Athena++ headers
+#include "z4c.hpp"
+#include "z4c_macro.hpp"
+#include "../mesh/mesh.hpp"
+
+//----------------------------------------------------------------------------------------
+// \!fn void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
+// \brief Compute Z4c variables from ADM variables
+//
+// p  = detgbar^(-1/3)
+// p0 = psi^(-4)
+//
+// gtilde_ij = p gbar_ij
+// Ktilde_ij = p p0 K_ij
+//
+// phi = - log(p) / 4
+// K   = gtildeinv^ij Ktilde_ij
+// Atilde_ij = Ktilde_ij - gtilde_ij K / 3
+//
+// G^i = - del_j gtildeinv^ji
+//
+//
+// BAM: Z4c_init()
+// https://git.tpi.uni-jena.de/bamdev/z4
+// https://git.tpi.uni-jena.de/bamdev/z4/blob/master/z4_init.m
+
+void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
+{
+  ADM_vars adm;
+  SetADMAliases(u_adm, adm);
+  Z4c_vars z4c;
+  SetZ4cAliases(u, z4c);
+
+  //--------------------------------------------------------------------------------------
+  // Conformal factor, conformal metric, and trace of extrinsic curvature
+  LOOP2G(k,j) {
+    // Conformal factor
+    LOOP1G(i) {
+      detg(i) = SpatialDet(adm.g_dd, k, j, i);
+      oopsi4(i) = pow(detg(i), -1./3.);
+      z4c.chi(k,j,i) = pow(detg(i), 1./12.*opt.chi_psi_power);
+    }
+    // Conformal metric and extrinsic curvature
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b) {
+      LOOP1G(i) {
+        z4c.g_dd(a,b,k,j,i) = oopsi4(i) * adm.g_dd(a,b,k,j,i);
+        Kt_dd(a,b,i) = oopsi4(i) * adm.K_dd(a,b,k,j,i);
+      }
+    }
+    // Determinant of the conformal metric and trace of conf. extr. curvature
+    LOOP1G(i) {
+      detg(i) = SpatialDet(z4c.g_dd, k, j, i);
+      z4c.Khat(k,j,i) = Trace(1.0/detg(i),
+          z4c.g_dd(0,0,k,j,i), z4c.g_dd(0,1,k,j,i), z4c.g_dd(0,2,k,j,i),
+          z4c.g_dd(1,1,k,j,i), z4c.g_dd(1,2,k,j,i), z4c.g_dd(2,2,k,j,i),
+          Kt_dd(0,0,i), Kt_dd(0,1,i), Kt_dd(0,2,i),
+          Kt_dd(1,1,i), Kt_dd(1,2,i), Kt_dd(2,2,i));
+    }
+    // Conformal traceless extrinsic curvatore
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b) {
+      LOOP1G(i) {
+        z4c.A_dd(a,b,k,j,i) = (adm.K_dd(a,b,k,j,i) -
+            (1./3.) * z4c.Khat(k,j,i) * adm.g_dd(a,b,k,j,i))*oopsi4(i);
+      }
+    }
+  }
+
+  //--------------------------------------------------------------------------------------
+  // Gamma's
+  //
+  // Allocate temporary memory for the inverse conformal metric
+  int ncells1 = pmy_block->block_size.nx1 + 2*(NGHOST);
+  int ncells2 = 1, ncells3 = 1;
+  if(pmy_block->block_size.nx2 > 1) ncells2 = pmy_block->block_size.nx2 + 2*(NGHOST);
+  if(pmy_block->block_size.nx3 > 1) ncells3 = pmy_block->block_size.nx3 + 2*(NGHOST);
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g_uu;
+  g_uu.NewAthenaTensor(ncells3, ncells2, ncells1);
+
+  // Inverse conformal metric
+  LOOP3G(k,j,i) {
+    detg(i) = SpatialDet(z4c.g_dd, k, j, i);
+    SpatialInv(1.0/detg(i),
+        z4c.g_dd(0,0,k,j,i), z4c.g_dd(0,1,k,j,i), z4c.g_dd(0,2,k,j,i),
+        z4c.g_dd(1,1,k,j,i), z4c.g_dd(1,2,k,j,i), z4c.g_dd(2,2,k,j,i),
+        &g_uu(0,0,k,j,i),    &g_uu(0,1,k,j,i),    &g_uu(0,2,k,j,i),
+        &g_uu(1,1,k,j,i),    &g_uu(1,2,k,j,i),    &g_uu(2,2,k,j,i));
+  }
+
+  // Compute Gamma's
+  z4c.Gam_u.Zero();
+  LOOP2(k,j) {
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = 0; b < NDIM; ++b) {
+      LOOP1(i) {
+        z4c.Gam_u(a,k,j,i) -= FD.Dx(b, g_uu(a,b,k,j,i));
+      }
+    }
+  }
+
+  g_uu.DeleteAthenaTensor();
+
+  //--------------------------------------------------------------------------------------
+  // Theta
+  z4c.Theta.Zero();
+}
+
+//----------------------------------------------------------------------------------------
+// \!fn void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
+// \brief Compute ADM Psi4, g_ij, and K_ij from Z4c variables
+
+void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
+{
+  ADM_vars adm;
+  SetADMAliases(u_adm, adm);
+  Z4c_vars z4c;
+  SetZ4cAliases(u, z4c);
+
+  LOOP2(k,j) {
+    // psi4
+    LOOP1(i) {
+      adm.psi4(k,j,i) = std::pow(z4c.chi(k,j,i), 4./opt.chi_psi_power);
+    }
+    // g_ab
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b) {
+      LOOP1(i) {
+        adm.g_dd(a,b,k,j,i) = adm.psi4(k,j,i) * z4c.g_dd(a,b,k,j,i);
+      }
+    }
+    // K_ab
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b) {
+      LOOP1(i) {
+        adm.K_dd(a,b,k,j,i) = adm.psi4(k,j,i) * z4c.A_dd(a,b,k,j,i) +
+          (1./3.) * (z4c.Khat(k,j,i) + 2.*z4c.Theta(k,j,i)) * adm.g_dd(a,b,k,j,i);
+      }
+    }
+  }
+}
+
+//----------------------------------------------------------------------------------------
+// \!fn void Z4c::ADMConstraints(AthenaArray<Real> & u_adm)
+// \brief compute constraints ADM vars
+//
+// Note: we are assuming that u_adm has been initialized with the correct
+// metric and matter quantities
+//
+// BAM: adm_constraints_N()
+// https://git.tpi.uni-jena.de/bamdev/adm
+// https://git.tpi.uni-jena.de/bamdev/adm/blob/master/adm_constraints_N.m
+
+void Z4c::ADMConstraints(AthenaArray<Real> & u_adm)
+{
+  ADM_vars adm;
+  SetADMAliases(u_adm, adm);
+  adm.Mom_d.Zero();
+
+  LOOP2(k,j) {
+    // -----------------------------------------------------------------------------------
+    // derivatives
+    //
+    // first derivatives of g and K
+    for(int c = 0; c < NDIM; ++c)
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b) {
+      LOOP1(i) {
+        dg_ddd(c,a,b,i) = FD.Dx(c, adm.g_dd(a,b,k,j,i));
+        dK_ddd(c,a,b,i) = FD.Dx(c, adm.K_dd(a,b,k,j,i));
+      }
+    }
+    // second derivatives of g
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b)
+    for(int c = 0; c < NDIM; ++c)
+    for(int d = c; d < NDIM; ++d) {
+      if(a == b) {
+        LOOP1(i) {
+          ddg_dddd(a,a,c,d,i) = FD.Dxx(a, adm.g_dd(c,d,k,j,i));
+        }
+      }
+      else {
+        LOOP1(i) {
+          ddg_dddd(a,b,c,d,i) = FD.Dxy(a, b, adm.g_dd(c,d,k,j,i));
+        }
+      }
+    }
+
+    // -----------------------------------------------------------------------------------
+    // inverse metric
+    //
+    LOOP1(i) {
+      detg(i) = SpatialDet(adm.g_dd,k,j,i);
+      SpatialInv(1./detg(i),
+          adm.g_dd(0,0,k,j,i), adm.g_dd(0,1,k,j,i), adm.g_dd(0,2,k,j,i),
+          adm.g_dd(1,1,k,j,i), adm.g_dd(1,2,k,j,i), adm.g_dd(2,2,k,j,i),
+          &g_uu(0,0,i), &g_uu(0,1,i), &g_uu(0,2,i),
+          &g_uu(1,1,i), &g_uu(1,2,i), &g_uu(2,2,i));
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Christoffel symbols
+    //
+    for(int c = 0; c < NDIM; ++c)
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b) {
+      LOOP1(i) {
+        Gamma_ddd(c,a,b,i) = 0.5*(dg_ddd(a,b,c,i) + dg_ddd(b,a,c,i) - dg_ddd(c,a,b,i));
+        Gamma_udd(c,a,b,i) = 0.0;
+      }
+    }
+    for(int c = 0; c < NDIM; ++c)
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b)
+    for(int d = 0; d < NDIM; ++d) {
+      LOOP1(i) {
+        Gamma_udd(c,a,b,i) += g_uu(c,d,i)*Gamma_ddd(d,a,b,i);
+      }
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Ricci tensor and Ricci scalar
+    //
+    R.Zero();
+    R_dd.Zero();
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b) {
+      for(int c = 0; c < NDIM; ++c)
+      for(int d = 0; d < NDIM; ++d) {
+        // Part with the Christoffel symbols
+        for(int e = 0; e < NDIM; ++e) {
+          LOOP1(i) {
+            R_dd(a,b,i) += g_uu(c,d,i) * Gamma_udd(e,a,c,i) * Gamma_ddd(e,b,d,i);
+            R_dd(a,b,i) -= g_uu(c,d,i) * Gamma_udd(e,a,b,i) * Gamma_ddd(e,c,d,i);
+          }
+        }
+        // Wave operator part of the Ricci
+        LOOP1(i) {
+          R_dd(a,b,i) += 0.5*g_uu(c,d,i)*(
+              - ddg_dddd(c,d,a,b,i) - ddg_dddd(a,b,c,d,i) +
+                ddg_dddd(a,c,b,d,i) + ddg_dddd(b,c,a,d,i));
+        }
+      }
+      LOOP1(i) {
+        R(i) += g_uu(a,b,i) * R(a,b,i);
+      }
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Extrinsic curvature: traces and derivatives
+    //
+    K.Zero();
+    K_ud.Zero();
+    for(int a = 0; a < NDIM; ++a) {
+      for(int b = a; b < NDIM; ++b) {
+        for(int c = 0; c < NDIM; ++c) {
+          LOOP1(i) {
+            K_ud(a,b,i) += g_uu(a,c,i) * adm.K_dd(c,b,k,j,i);
+          }
+        }
+      }
+      LOOP1(i) {
+        K(i) += K_ud(a,a,i);
+      }
+    }
+    // K^a_b K^b_a
+    KK.Zero();
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = 0; b < NDIM; ++b) {
+      LOOP1(i) {
+        KK(i) += K_ud(a,b,i) * K_ud(b,a,i);
+      }
+    }
+    // Covariant derivative of K
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = 0; b < NDIM; ++b)
+    for(int c = b; c < NDIM; ++c) {
+      LOOP1(i) {
+        DK_ddd(a,b,c,i) = dK_ddd(a,b,c,i);
+      }
+      for(int d = 0; d < NDIM; ++d) {
+        LOOP1(i) {
+          DK_ddd(a,b,c,i) -= Gamma_udd(d,a,b,i) * adm.K_dd(d,c,k,j,i);
+          DK_ddd(a,b,c,i) -= Gamma_udd(d,a,c,i) * adm.K_dd(b,d,k,j,i);
+        }
+      }
+    }
+    DK_udd.Zero();
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = 0; b < NDIM; ++b)
+    for(int c = b; c < NDIM; ++c)
+    for(int d = 0; d < NDIM; ++d) {
+      LOOP1(i) {
+        DK_udd(a,b,c,i) += g_uu(a,d,i) * DK_ddd(d,b,c,i);
+      }
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Actual constraints
+    //
+    // Hamiltonian constraint
+    LOOP1(i) {
+      adm.H(k,j,i) = R(i) + SQR(K(i)) - KK(i) - 16*M_PI * adm.rho(k,j,i);
+    }
+    // Momentum constraint (contravariant)
+    Mom_u.Zero();
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = 0; b < NDIM; ++b) {
+      LOOP1(i) {
+        Mom_u(a,i) -= 8*M_PI * g_uu(a,b,i) * adm.S_d(b,k,j,i);
+      }
+      for(int c = 0; c < NDIM; ++c) {
+        LOOP1(i) {
+          Mom_u(a,i) += g_uu(a,b,i) * DK_udd(c,b,c,i);
+          Mom_u(a,i) -= g_uu(b,c,i) * DK_udd(a,b,c,i);
+        }
+      }
+    }
+    // Momentum constraint (covariant)
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = 0; b < NDIM; ++b) {
+      LOOP1(i) {
+        adm.Mom_d(a,k,j,i) += adm.g_dd(a,b,k,j,i) * Mom_u(a,i);
+      }
+    }
+  }
+}
+
+//----------------------------------------------------------------------------------------
+// \!fn void Z4c::ADMMinkowski(AthenaArray<Real> & u)
+// \brief Initialize ADM vars to Minkowski
+
+void Z4c::ADMMinkowski(AthenaArray<Real> & u_adm)
+{
+  ADM_vars adm;
+  SetADMAliases(u_adm, adm);
+  adm.psi4.Fill(1.);
+  adm.K_dd.Fill(0.);
+  for(int a = 0; a < NDIM; ++a)
+  for(int b = a; b < NDIM; ++b) {
+    adm.g_dd.Fill(a == b ? 1. : 0.);
+  }
+}
+
+//----------------------------------------------------------------------------------------
+// \!fn void Z4c::ADMVacuum(AthenaArray<Real> & u)
+// \brief Initialize ADM vars to vacuum
+
+void Z4c::ADMVacuum(AthenaArray<Real> & u_adm)
+{
+  ADM_vars adm;
+  SetADMAliases(u_adm, adm);
+  adm.rho.Zero();
+  adm.S_d.Zero();
+  adm.S_dd.Zero();
+}

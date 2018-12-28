@@ -10,6 +10,7 @@
 #include "wave.hpp"
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
+#include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
 
 // constructor, initializes data structures and parameters
@@ -17,6 +18,7 @@
 Wave::Wave(MeshBlock *pmb, ParameterInput *pin)
 {
   pmy_block = pmb;
+  Coordinates * pco = pmb->pcoord;
 
   // Allocate memory for the solution and its time derivative
   int ncells1 = pmy_block->block_size.nx1 + 2*(NGHOST);
@@ -40,6 +42,21 @@ Wave::Wave(MeshBlock *pmb, ParameterInput *pin)
   dt1_.NewAthenaArray(ncells1);
   dt2_.NewAthenaArray(ncells1);
   dt3_.NewAthenaArray(ncells1);
+
+  FD.stride[0] = 1;
+  FD.stride[1] = 0;
+  FD.stride[2] = 0;
+  FD.idx[0] = 1.0/pco->dx1v(0);
+  FD.idx[1] = 0.0;
+  FD.idx[2] = 0.0;
+  if(ncells2 > 1) {
+    FD.stride[1] = ncells1;
+    FD.idx[1] = 1.0/pco->dx2v(0);
+  }
+  if(ncells3 > 1) {
+    FD.stride[2] = ncells2*ncells1;
+    FD.idx[2] = 1.0/pco->dx3v(0);
+  }
 }
 
 // destructor

@@ -13,8 +13,8 @@
 //  NOTE THE TRAILING INDEX INSIDE THE PARENTHESES IS INDEXED FASTEST
 
 // C++ headers
-#include <cstring>  // memset
-#include <cstddef>  // size_t
+#include <algorithm>  // std::fill
+#include <cstddef>    // size_t
 
 template<typename T>
 class AthenaArray {
@@ -49,8 +49,9 @@ public:
   int GetSize() const { return nx1_*nx2_*nx3_*nx4_*nx5_; }
   size_t GetSizeInBytes() const {return nx1_*nx2_*nx3_*nx4_*nx5_*sizeof(T); }
 
-  // zero out the array
-  void Zero() { std::memset(pdata_, 0, GetSizeInBytes()); }
+  // fill an array with constant data
+  void Fill(T const val) { std::fill(pdata_, pdata_ + GetSize(), T(val)); }
+  void Zero() { Fill(T(0)); }
 
   // function to get the stride used to access the data
   int GetStride1() const { return 1; }
@@ -63,38 +64,6 @@ public:
   bool IsShallowCopy() { return (scopy_ == true); }
   T *data() { return pdata_; }
   const T *data() const { return pdata_; }
-
-  // overload data to access pointer with different offsets
-  T *data(const int n) {
-    return pdata_ + n;
-  }
-  const T *data(const int n) const {
-    return pdata_ + n;
-  }
-  T *data(const int n, const int i) {
-    return pdata_ + i + nx1_*n;
-  }
-  const T *data(const int n, const int i) const {
-    return pdata_ + i + nx1_*n;
-  }
-  T *data(const int n, const int j, const int i) {
-    return pdata_ + i + nx1_*(j + nx2_*n);
-  }
-  const T *data(const int n, const int j, const int i) const {
-    return pdata_ + i + nx1_*(j + nx2_*n);
-  }
-  T *data(const int n, const int k, const int j, const int i) {
-    return pdata_ + i + nx1_*(j + nx2_*(k + nx3_*n));
-  }
-  const T *data(const int n, const int k, const int j, const int i) const {
-    return pdata_ + i + nx1_*(j + nx2_*(k + nx3_*n));
-  }
-  T *data(const int m, const int n, const int k, const int j, const int i) {
-    return pdata_ + i + nx1_*(j + nx2_*(k + nx3_*(n + nx4_*m)));
-  }
-  const T *data(const int m, const int n, const int k, const int j, const int i) const {
-    return pdata_ + i + nx1_*(j + nx2_*(k + nx3_*(n + nx4_*m)));
-  }
 
   // overload operator() to access 1d-5d data
   T &operator() (const int n) {
