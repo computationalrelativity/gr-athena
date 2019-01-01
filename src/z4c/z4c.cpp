@@ -247,6 +247,8 @@ Real Z4c::Trace(Real const detginv,
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::AlgConstr(AthenaArray<Real> & u)
 // \brief algebraic constraints projection
+//
+// This function operates only on the interior points of the MeshBlock
 
 void Z4c::AlgConstr(AthenaArray<Real> & u)
 {

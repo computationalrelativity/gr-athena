@@ -14,7 +14,7 @@
   for(int j = pmy_block->js; j <= pmy_block->je; ++j)
 
 // 2D loop over k and j on the whole block
-#define LOOP2G(k,j)                                                           \
+#define GLOOP2(k,j)                                                           \
   for(int k = pmy_block->ks - NGHOST; k <= pmy_block->ke + NGHOST; ++k)       \
   for(int j = pmy_block->js - NGHOST; j <= pmy_block->je + NGHOST; ++j)
 
@@ -24,7 +24,7 @@
   for(int i = pmy_block->is; i <= pmy_block->ie; ++i)
 
 // 1D loop over i in the interior of the block
-#define LOOP1G(i)                                                             \
+#define GLOOP1(i)                                                             \
   _Pragma("omp simd")                                                         \
   for(int i = pmy_block->is - NGHOST; i <= pmy_block->ie + NGHOST; ++i)
 
@@ -34,8 +34,8 @@
     LOOP1(i)
 
 // 3D loop over the whole block
-#define LOOP3G(k,j,i)                                                         \
-    LOOP2G(k,j)                                                               \
-    LOOP1G(i)
+#define GLOOP3(k,j,i)                                                         \
+    GLOOP2(k,j)                                                               \
+    GLOOP1(i)
 
 #endif

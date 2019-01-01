@@ -30,10 +30,13 @@
 //
 // G^i = - del_j gtildeinv^ji
 //
-//
 // BAM: Z4c_init()
 // https://git.tpi.uni-jena.de/bamdev/z4
 // https://git.tpi.uni-jena.de/bamdev/z4/blob/master/z4_init.m
+//
+// The Z4c variables will be set only in the interior of the MeshBlock. The
+// conformal metric is also set in the ghost zones, since its derivative is
+// needed to define the Gamma's.
 
 void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 {
@@ -44,9 +47,9 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 
   //--------------------------------------------------------------------------------------
   // Conformal factor, conformal metric, and trace of extrinsic curvature
-  LOOP2G(k,j) {
+  GLOOP2(k,j) {
     // Conformal factor
-    LOOP1G(i) {
+    GLOOP1(i) {
       detg(i) = SpatialDet(adm.g_dd, k, j, i);
       oopsi4(i) = pow(detg(i), -1./3.);
       z4c.chi(k,j,i) = pow(detg(i), 1./12.*opt.chi_psi_power);
@@ -54,13 +57,13 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
     // Conformal metric and extrinsic curvature
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b) {
-      LOOP1G(i) {
+      GLOOP1(i) {
         z4c.g_dd(a,b,k,j,i) = oopsi4(i) * adm.g_dd(a,b,k,j,i);
         Kt_dd(a,b,i) = oopsi4(i) * adm.K_dd(a,b,k,j,i);
       }
     }
     // Determinant of the conformal metric and trace of conf. extr. curvature
-    LOOP1G(i) {
+    GLOOP1(i) {
       detg(i) = SpatialDet(z4c.g_dd, k, j, i);
       z4c.Khat(k,j,i) = Trace(1.0/detg(i),
           z4c.g_dd(0,0,k,j,i), z4c.g_dd(0,1,k,j,i), z4c.g_dd(0,2,k,j,i),
@@ -71,7 +74,7 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
     // Conformal traceless extrinsic curvatore
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b) {
-      LOOP1G(i) {
+      GLOOP1(i) {
         z4c.A_dd(a,b,k,j,i) = (adm.K_dd(a,b,k,j,i) -
             (1./3.) * z4c.Khat(k,j,i) * adm.g_dd(a,b,k,j,i))*oopsi4(i);
       }
@@ -90,7 +93,7 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
   g_uu.NewAthenaTensor(ncells3, ncells2, ncells1);
 
   // Inverse conformal metric
-  LOOP3G(k,j,i) {
+  GLOOP3(k,j,i) {
     detg(i) = SpatialDet(z4c.g_dd, k, j, i);
     SpatialInv(1.0/detg(i),
         z4c.g_dd(0,0,k,j,i), z4c.g_dd(0,1,k,j,i), z4c.g_dd(0,2,k,j,i),
@@ -120,6 +123,8 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
 // \brief Compute ADM Psi4, g_ij, and K_ij from Z4c variables
+//
+// This sets the ADM variables everywhere in the MeshBlock
 
 void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
 {
@@ -128,22 +133,22 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
   Z4c_vars z4c;
   SetZ4cAliases(u, z4c);
 
-  LOOP2(k,j) {
+  GLOOP2(k,j) {
     // psi4
-    LOOP1(i) {
+    GLOOP1(i) {
       adm.psi4(k,j,i) = std::pow(z4c.chi(k,j,i), 4./opt.chi_psi_power);
     }
     // g_ab
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b) {
-      LOOP1(i) {
+      GLOOP1(i) {
         adm.g_dd(a,b,k,j,i) = adm.psi4(k,j,i) * z4c.g_dd(a,b,k,j,i);
       }
     }
     // K_ab
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b) {
-      LOOP1(i) {
+      GLOOP1(i) {
         adm.K_dd(a,b,k,j,i) = adm.psi4(k,j,i) * z4c.A_dd(a,b,k,j,i) +
           (1./3.) * (z4c.Khat(k,j,i) + 2.*z4c.Theta(k,j,i)) * adm.g_dd(a,b,k,j,i);
       }
@@ -161,6 +166,9 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
 // BAM: adm_constraints_N()
 // https://git.tpi.uni-jena.de/bamdev/adm
 // https://git.tpi.uni-jena.de/bamdev/adm/blob/master/adm_constraints_N.m
+//
+// The constraints are set only in the MeshBlock interior, because derivatives
+// of the ADM quantities are neded to compute them.
 
 void Z4c::ADMConstraints(AthenaArray<Real> & u_adm)
 {
