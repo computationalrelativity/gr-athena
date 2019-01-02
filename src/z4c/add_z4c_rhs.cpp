@@ -49,19 +49,22 @@ void Z4c::WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
         u_out(n,k,j,i) = wght[0]*u_out(n,k,j,i) + wght[1]*u_in1(n,k,j,i) + wght[2]*u_in2(n,k,j,i);
       }
     }
-  } else if (wght[1] != 0.0) {
+  }
+  else if (wght[1] != 0.0) {
     for (int n=0; n<N_Z4c; ++n) {
       GLOOP3(k,j,i) {
         u_out(n,k,j,i) = wght[0]*u_out(n,k,j,i) + wght[1]*u_in1(n,k,j,i);
       }
     }
-  } else if (wght[0] != 0.0) {
+  }
+  else if (wght[0] != 0.0) {
     for (int n=0; n<N_Z4c; ++n) {
       GLOOP3(k,j,i) {
         u_out(n,k,j,i) = wght[0]*u_out(n,k,j,i);
       }
     }
-  } else {
+  }
+  else {
     u_out.Zero();
   }
   return;

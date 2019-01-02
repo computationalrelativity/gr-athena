@@ -171,6 +171,7 @@ private:
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> K;           // trace of extrinsic curvature
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> KK;          // K^a_b K^b_a
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> Mom_u;       // momentum constraint
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> Gamma_u;     // Gamma computed from the metric
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g_uu;        // inverse of conf. metric
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> R_dd;        // Ricci tensor
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> Kt_dd;       // conformal extrinsic curvature
@@ -183,13 +184,15 @@ private:
   // auxiliary derivatives
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dalpha_d;    // lapse 1st drvts
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dchi_d;      // chi 1st drvts
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 1> dKhat_d;     // Khat 1st drvts
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dK_d;        // K 1st drvts
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dKhat_d;     // Khat 1st drvts
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dTheta_d;    // Theta 1st drvts
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> ddalpha_dd;  // lapse 2nd drvts
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> dbeta_du;    // shift 1st drvts
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> ddchi_dd;    // chi 2nd drvts
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> dGam_du;     // Gamma 1st drvts
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> dg_ddd;      // metric 1st drvts
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> dg_duu;      // inverse metric 1st drvts
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> dK_ddd;      // K 1st drvts
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> dA_ddd;      // A 1st drvts
   AthenaTensor<Real, TensorSymm::ISYM2, NDIM, 3> ddbeta_ddu; // shift 2nd drvts
@@ -208,6 +211,8 @@ private:
 private:
   struct {
     typedef FDCenteredStencil<1, NGHOST> s1;
+    typedef FDLeftBiasedStencil<1, NGHOST> sl;
+    typedef FDRightBiasedStencil<1, NGHOST> sr;
     typedef FDCenteredStencil<2, NGHOST> s2;
 
     int stride[3];
@@ -220,6 +225,18 @@ private:
         out += s1::coeff[n] * pu[(n - s1::offset)*stride[dir]];
       }
       return out*SQR(idx[dir]);
+    }
+    Real Lx(int dir, Real & vx, Real & u) {
+      Real * pu = &u;
+      Real dl(0.);
+      for(int n = 0; n < sl::width; ++n) {
+        dl += sl::coeff[n] * pu[(n - sl::offset)*stride[dir]];
+      }
+      Real dr(0.);
+      for(int n = 0; n < sr::width; ++n) {
+        dr += sr::coeff[n] * pu[(n - sr::offset)*stride[dir]];
+      }
+      return ((vx > 0) ? (vx*dl) : (vx*dr))*idx[dir];
     }
     Real Dxx(int dir, Real & u) {
       Real * pu = &u;

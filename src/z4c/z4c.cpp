@@ -59,6 +59,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   K.NewAthenaTensor(ncells1);
   KK.NewAthenaTensor(ncells1);
   Mom_u.NewAthenaTensor(ncells1);
+  Gamma_u.NewAthenaTensor(ncells1);
   g_uu.NewAthenaTensor(ncells1);
   R_dd.NewAthenaTensor(ncells1);
   Kt_dd.NewAthenaTensor(ncells1);
@@ -70,6 +71,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
 
   dalpha_d.NewAthenaTensor(ncells1);
   dchi_d.NewAthenaTensor(ncells1);
+  dK_d.NewAthenaTensor(ncells1);
   dKhat_d.NewAthenaTensor(ncells1);
   dTheta_d.NewAthenaTensor(ncells1);
   ddalpha_dd.NewAthenaTensor(ncells1);
@@ -77,6 +79,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   ddchi_dd.NewAthenaTensor(ncells1);
   dGam_du.NewAthenaTensor(ncells1);
   dg_ddd.NewAthenaTensor(ncells1);
+  dg_duu.NewAthenaTensor(ncells1);
   dK_ddd.NewAthenaTensor(ncells1);
   dA_ddd.NewAthenaTensor(ncells1);
   ddbeta_ddu.NewAthenaTensor(ncells1);
@@ -129,6 +132,7 @@ Z4c::~Z4c()
   K.DeleteAthenaTensor();
   KK.DeleteAthenaTensor();
   Mom_u.DeleteAthenaTensor();
+  Gamma_u.DeleteAthenaTensor();
   g_uu.DeleteAthenaTensor();
   R_dd.DeleteAthenaTensor();
   Kt_dd.DeleteAthenaTensor();
@@ -140,6 +144,7 @@ Z4c::~Z4c()
 
   dalpha_d.DeleteAthenaTensor();
   dchi_d.DeleteAthenaTensor();
+  dK_d.DeleteAthenaTensor();
   dKhat_d.DeleteAthenaTensor();
   dTheta_d.DeleteAthenaTensor();
   ddalpha_dd.DeleteAthenaTensor();
@@ -147,6 +152,7 @@ Z4c::~Z4c()
   ddchi_dd.DeleteAthenaTensor();
   dGam_du.DeleteAthenaTensor();
   dg_ddd.DeleteAthenaTensor();
+  dg_duu.DeleteAthenaTensor();
   dK_ddd.DeleteAthenaTensor();
   dA_ddd.DeleteAthenaTensor();
   ddbeta_ddu.DeleteAthenaTensor();
