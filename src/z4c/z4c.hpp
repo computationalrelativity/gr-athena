@@ -43,18 +43,22 @@ public:
     I_Z4c_betax = 19, I_Z4c_betay = 20, I_Z4c_betaz = 21,
     N_Z4c = 22
   };
-  // Indexes of ADM variables + auxiliary fields
+  // Indexes of ADM variables
   enum {
     I_ADM_gxx = 0, I_ADM_gxy = 1, I_ADM_gxz = 2, I_ADM_gyy = 3, I_ADM_gyz = 4, I_ADM_gzz = 5,
     I_ADM_Kxx = 6, I_ADM_Kxy = 7, I_ADM_Kxz = 8, I_ADM_Kyy = 9, I_ADM_Kyz = 10, I_ADM_Kzz = 11,
     I_ADM_Psi4 = 12,
     I_ADM_Ham = 13,
     I_ADM_Momx = 14, I_ADM_Momy = 15, I_ADM_Momz = 16,
-    I_ADM_rho = 17,
-    I_ADM_Sx = 18, I_ADM_Sy = 19, I_ADM_Sz = 20,
-    I_ADM_Sxx = 21, I_ADM_Sxy = 22, I_ADM_Sxz = 23, I_ADM_Syy = 24, I_ADM_Syz = 25, I_ADM_S_zz = 26,
-    I_ADM_psi4 = 27,
-    N_ADM = 28
+    I_ADM_psi4 = 17,
+    N_ADM = 18
+  };
+  // Indexes of matter fields
+  enum {
+    I_MAT_rho = 0,
+    I_MAT_Sx = 1, I_MAT_Sy = 2, I_MAT_Sz = 3,
+    I_MAT_Sxx = 4, I_MAT_Sxy = 5, I_MAT_Sxz = 6, I_MAT_Syy = 7, I_MAT_Syz = 8, I_MAT_S_zz = 9,
+    N_MAT = 10
   };
 public:
   Z4c(MeshBlock *pmb, ParameterInput *pin);
@@ -69,6 +73,7 @@ public:
     AthenaArray<Real> u2;    // solution at intermediate steps
     AthenaArray<Real> rhs;   // Z4c rhs
     AthenaArray<Real> adm;   // ADM variables
+    AthenaArray<Real> mat;   // matter variables
   } storage;
 
   // aliases for variables and RHS
@@ -91,26 +96,42 @@ public:
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> Mom_d;     // momentum constraint
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g_dd;      // 3-metric
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> K_dd;      // curvature
+  };
+  ADM_vars adm;
+
+  // aliases for the matter variables
+  struct Matter_vars {
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> rho;       // matter energy density
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> S_d;       // matter momentum density
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> S_dd;      // matter stress tensor
   };
-  ADM_vars adm;
+  Matter_vars mat;
 
   // user settings and options
   struct {
-    Real chi_psi_power; // chi = psi^N, N = chi_psi_power
-    Real chi_div_floor; // Puncture's floor value for chi, use max(chi, chi_div_floor) in non-differentiated chi
-    Real eps_floor;     // A small number O(10^-12)
-    Real z4c_kappa_damp1, z4c_kappa_damp2; // Constrain damping parameters
+    Real chi_psi_power;   // chi = psi^N, N = chi_psi_power
+    Real chi_div_floor;   // puncture's floor value for chi, use max(chi, chi_div_floor) in non-differentiated chi
+    Real diss;            // amount of numerical dissipation
+    Real eps_floor;       // a small number O(10^-12)
+    // constraint damping parameters
+    Real damp_kappa1;
+    Real damp_kappa2;
+    // Gauge conditions for the lapse
+    Real lapse_oplog;
+    Real lapse_harmonicf;
+    Real lapse_harmonic;
+    Real lapse_advect;
+    // Gauge condition for the shift
+    Real shift_advect;
+    Real shift_eta;
   } opt;
 public:
   // scheduled functions
   //
   // compute new timestep on a MeshBlock
   Real NewBlockTimeStep(void);
-  // compute the RHS given the Z4c variables
-  void Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & rhs);
+  // compute the RHS given the Z4c and matter variables
+  void Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & mat, AthenaArray<Real> & rhs);
   // compute linear combination of states
   void WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
                    AthenaArray<Real> &u_in2, const Real wght[3]);
@@ -123,14 +144,17 @@ public:
   // enforce algebraic constraints on the solution
   void AlgConstr(AthenaArray<Real> & u);
   // compute ADM constraints
-  void ADMConstraints(AthenaArray<Real> & u_adm);
+  void ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat);
 
   // utility fnuctions
   //
   // set ADM aliases given u_adm
   void SetADMAliases(AthenaArray<Real> & u_adm, ADM_vars & adm);
+  // set matter aliases given a state
+  void SetMatterAliases(AthenaArray<Real> & u_mat, Matter_vars & mat);
   // set Z4c aliases given a state
   void SetZ4cAliases(AthenaArray<Real> & u, Z4c_vars & z4c);
+
   // compute spatial determinant of a 3x3  matrix
   Real SpatialDet(Real const gxx, Real const gxy, Real const gxz,
       Real const gyy, Real const gyz, Real const gzz);
@@ -156,34 +180,48 @@ public:
   //
   // setup a Minkowski spacetime
   void ADMMinkowski(AthenaArray<Real> & u_adm);
-  // set the ADM matter variables to zero
-  void ADMVacuum(AthenaArray<Real> & u_adm);
   // set the gauge condition to geodesic slicing
   void GaugeGeodesic(AthenaArray<Real> & u);
+  // set the matter variables to zero
+  void MatterVacuum(AthenaArray<Real> & u_adm);
 private:
   AthenaArray<Real> dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep
 
   // auxiliary tensors
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> detg;        // det(g)
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> chi_guarded; // bounded version of chi
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> oopsi4;      // 1/psi4
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> A;           // trace of A
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> AA;          // trace of AA
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> R;           // Ricci scalar
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Ht;          // tilde H
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> K;           // trace of extrinsic curvature
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> KK;          // K^a_b K^b_a
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Ddalpha;     // Trace of Ddalpha_dd
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> S;           // Trace of S_ik
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> Mom_u;       // momentum constraint
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> Gamma_u;     // Gamma computed from the metric
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> DA_u;        // Covariant derivative of A
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g_uu;        // inverse of conf. metric
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> A_uu;        // inverse of A
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> AA_dd;       // g^cd A_ac A_db
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> R_dd;        // Ricci tensor
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> Rphi_dd;     // Ricci tensor, conformal contribution
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> Kt_dd;       // conformal extrinsic curvature
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> K_ud;        // extrinsic curvature
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> Ddalpha_dd;  // 2nd differential of the lapse
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> Ddphi_dd;    // 2nd differential of phi
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> Gamma_ddd;   // Christoffel symbols of 1st kind
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> Gamma_udd;   // Christoffel symbols of 2nd kind
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> DK_ddd;      // differential of K
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> DK_udd;      // differential of K
 
   // auxiliary derivatives
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> dbeta;       // d_a beta^a
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dalpha_d;    // lapse 1st drvts
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> ddbeta_d;    // 2nd "divergence" of beta
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dchi_d;      // chi 1st drvts
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dphi_d;      // phi 1st drvts
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dK_d;        // K 1st drvts
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dKhat_d;     // Khat 1st drvts
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dTheta_d;    // Theta 1st drvts
@@ -210,13 +248,15 @@ private:
 
 private:
   struct {
-    typedef FDCenteredStencil<1, NGHOST> s1;
-    typedef FDLeftBiasedStencil<1, NGHOST> sl;
-    typedef FDRightBiasedStencil<1, NGHOST> sr;
-    typedef FDCenteredStencil<2, NGHOST> s2;
+    typedef FDCenteredStencil<1, NGHOST-1> s1;               // 1st drvtv stencil
+    typedef FDCenteredStencil<2, NGHOST-1> s2;               // 2nd drvtv stencil
+    typedef FDCenteredStencil<2*NGHOST, NGHOST> sd;          // diffusion operator
+    typedef FDLeftBiasedStencil<1, NGHOST> sl;               // 1st drvtv left biased
+    typedef FDRightBiasedStencil<1, NGHOST> sr;              // 1st drvtv right biased
 
     int stride[3];
     Real idx[3];
+    Real diss;
 
     Real Dx(int dir, Real & u) {
       Real * pu = &u;
@@ -255,6 +295,14 @@ private:
           pu[(n1 - s1::offset)*stride[dir1] + (n2 - s1::offset)*stride[dir2]];
       }
       return out*idx[dir1]*idx[dir2];
+    }
+    Real Diss(int dir, Real & u) {
+      Real * pu = &u;
+      Real out = 0.0;
+      for(int n = 0; n < sd::width; ++n) {
+        out += sd::coeff[n] * pu[(n - sd::offset)*stride[dir]];
+      }
+      return out * idx[dir] * diss;
     }
   } FD;
 };

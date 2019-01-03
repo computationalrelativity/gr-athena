@@ -47,6 +47,7 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 
   //--------------------------------------------------------------------------------------
   // Conformal factor, conformal metric, and trace of extrinsic curvature
+  //
   GLOOP2(k,j) {
     // Conformal factor
     GLOOP1(i) {
@@ -117,6 +118,7 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 
   //--------------------------------------------------------------------------------------
   // Theta
+  //
   z4c.Theta.Zero();
 }
 
@@ -157,7 +159,7 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn void Z4c::ADMConstraints(AthenaArray<Real> & u_adm)
+// \!fn void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat)
 // \brief compute constraints ADM vars
 //
 // Note: we are assuming that u_adm has been initialized with the correct
@@ -170,11 +172,14 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
 // The constraints are set only in the MeshBlock interior, because derivatives
 // of the ADM quantities are neded to compute them.
 
-void Z4c::ADMConstraints(AthenaArray<Real> & u_adm)
+void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat)
 {
   ADM_vars adm;
   SetADMAliases(u_adm, adm);
   adm.Mom_d.Zero();
+
+  Matter_vars mat;
+  SetMatterAliases(u_mat, mat);
 
   LOOP2(k,j) {
     // -----------------------------------------------------------------------------------
@@ -320,14 +325,14 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_adm)
     //
     // Hamiltonian constraint
     LOOP1(i) {
-      adm.H(k,j,i) = R(i) + SQR(K(i)) - KK(i) - 16*M_PI * adm.rho(k,j,i);
+      adm.H(k,j,i) = R(i) + SQR(K(i)) - KK(i) - 16*M_PI * mat.rho(k,j,i);
     }
     // Momentum constraint (contravariant)
     Mom_u.Zero();
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
       LOOP1(i) {
-        Mom_u(a,i) -= 8*M_PI * g_uu(a,b,i) * adm.S_d(b,k,j,i);
+        Mom_u(a,i) -= 8*M_PI * g_uu(a,b,i) * mat.S_d(b,k,j,i);
       }
       for(int c = 0; c < NDIM; ++c) {
         LOOP1(i) {
@@ -355,7 +360,7 @@ void Z4c::ADMMinkowski(AthenaArray<Real> & u_adm)
   ADM_vars adm;
   SetADMAliases(u_adm, adm);
   adm.psi4.Fill(1.);
-  adm.K_dd.Fill(0.);
+  adm.K_dd.Zero();
   for(int a = 0; a < NDIM; ++a)
   for(int b = a; b < NDIM; ++b) {
     adm.g_dd.Fill(a == b ? 1. : 0.);
@@ -363,14 +368,21 @@ void Z4c::ADMMinkowski(AthenaArray<Real> & u_adm)
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn void Z4c::ADMVacuum(AthenaArray<Real> & u)
+// \!fn void Z4c::GaugeGeodesic(AthenaArray<Real> & u)
+// \brief Initialize lapse to 1 and shift to 0
+
+void Z4c::GaugeGeodesic(AthenaArray<Real> & u)
+{
+  Z4c_vars z4c;
+  SetZ4cAliases(u, z4c);
+  z4c.alpha.Fill(1.);
+  z4c.beta_u.Fill(0.);
+}
+//----------------------------------------------------------------------------------------
+// \!fn void Z4c::MatterVacuum(AthenaArray<Real> & u_mat)
 // \brief Initialize ADM vars to vacuum
 
-void Z4c::ADMVacuum(AthenaArray<Real> & u_adm)
+void Z4c::MatterVacuum(AthenaArray<Real> & u_mat)
 {
-  ADM_vars adm;
-  SetADMAliases(u_adm, adm);
-  adm.rho.Zero();
-  adm.S_d.Zero();
-  adm.S_dd.Zero();
+  u_mat.Zero();
 }

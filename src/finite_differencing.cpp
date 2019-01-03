@@ -50,6 +50,27 @@ Real const FDCenteredStencil<2, 4>::coeff[] = {
   -1./560., 8./315., -1./5., 8./5., -205./72., 8./5., -1./5., 8./315., -1./560.
 };
 
+// High order derivative operators for Kreiss-Oliger dissipation
+template<>
+Real const FDCenteredStencil<4, 2>::coeff[] = {
+  1., -4., 6., -4., 1.,
+};
+
+template<>
+Real const FDCenteredStencil<6, 3>::coeff[] = {
+  1., -6., 15., -20., 15., -6., 1.,
+};
+
+template<>
+Real const FDCenteredStencil<8, 4>::coeff[] = {
+  1., -8., 28., -56., 70., -56., 28., -8., 1.,
+};
+
+template<>
+Real const FDCenteredStencil<10, 5>::coeff[] = {
+  1., -10., 45., -120., 210., -252., 210., -120., 45., -10., 1.,
+};
+
 // Left-biased finite differencing 1st derivative
 template<>
 Real const FDLeftBiasedStencil<1, 1>::coeff[] = {
@@ -71,6 +92,11 @@ Real const FDLeftBiasedStencil<1, 4>::coeff[] = {
   1./140., -1./15., 3./10., -1., 1./4., 3./5., -1./10., 1./105.,
 };
 
+template<>
+Real const FDLeftBiasedStencil<1, 5>::coeff[] = {
+  -1./630., 1./56., -2./21., 1./3., -1., 1./5., 2./3., -1./7., 1./42., -1./504.,
+};
+
 // Right-biased finite differencing 1st derivative
 template<>
 Real const FDRightBiasedStencil<1, 1>::coeff[] = {
@@ -90,4 +116,9 @@ Real const FDRightBiasedStencil<1, 3>::coeff[] = {
 template<>
 Real const FDRightBiasedStencil<1, 4>::coeff[] = {
   -1./105., 1./10., -3./5., -1./4., 1., -3./10., 1./15., -1./140.,
+};
+
+template<>
+Real const FDRightBiasedStencil<1, 5>::coeff[] ={
+  1./504., -1./42., 1./7., -2./3., -1./5., 1., -1./3., 2./21., -1./56., 1./630.,
 };

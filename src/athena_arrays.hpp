@@ -14,6 +14,7 @@
 
 // C++ headers
 #include <algorithm>  // std::fill
+#include <cstring>    // memset
 #include <cstddef>    // size_t
 
 template<typename T>
@@ -51,7 +52,7 @@ public:
 
   // fill an array with constant data
   void Fill(T const val) { std::fill(pdata_, pdata_ + GetSize(), T(val)); }
-  void Zero() { Fill(T(0)); }
+  void Zero() { std::memset(pdata_, 0, GetSizeInBytes()); }
 
   // function to get the stride used to access the data
   int GetStride1() const { return 1; }

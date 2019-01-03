@@ -37,7 +37,7 @@ public:
   // Degree of the derivative to be approximated
   enum {degree = degree_};
   // Position at which the derivative is computed wrt the beginning of the stencil
-  enum {offset = nghost_ + 1};
+  enum {offset = nghost_};
   // Width of the stencil
   enum {width = 2*nghost_};
   // Finite differencing coefficients

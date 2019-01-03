@@ -7,6 +7,7 @@
 //  \brief implementation of functions in the Z4c class related to ADM decomposition
 
 // C++ standard headers
+#include <algorithm> // max
 #include <cmath> // exp, pow
 
 // Athena++ headers
@@ -14,12 +15,21 @@
 #include "z4c_macro.hpp"
 #include "../mesh/mesh.hpp"
 
-void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs)
+//----------------------------------------------------------------------------------------
+// \!fn void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<Real> & u_rhs)
+// \brief compute the RHS given the state vector and matter state
+//
+// This function operates only on the interior points of the MeshBlock
+
+void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<Real> & u_rhs)
 {
   Z4c_vars z4c, rhs;
   SetZ4cAliases(u, z4c);
   SetZ4cAliases(u_rhs, rhs);
-  u_rhs.Zero();
+
+  Matter_vars mat;
+  SetMatterAliases(u_mat, mat);
+
   LOOP2(k,j) {
     // -----------------------------------------------------------------------------------
     // 1st derivatives
@@ -179,9 +189,9 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs)
     for(int b = a; b < NDIM; ++b) {
       LOOP1(i) {
         Gamma_ddd(c,a,b,i) = 0.5*(dg_ddd(a,b,c,i) + dg_ddd(b,a,c,i) - dg_ddd(c,a,b,i));
-        Gamma_udd(c,a,b,i) = 0.0;
       }
     }
+    Gamma_udd.Zero();
     for(int c = 0; c < NDIM; ++c)
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b)
@@ -190,6 +200,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs)
         Gamma_udd(c,a,b,i) += g_uu(c,d,i)*Gamma_ddd(d,a,b,i);
       }
     }
+    // Gamma's computed from the metric (not evolved)
     Gamma_u.Zero();
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b)
@@ -203,6 +214,292 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs)
     // Curvature of conformal metric
     //
     R_dd.Zero();
-#warning "TODO: finish to implement me!"
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b) {
+      for(int c = 0; c < NDIM; ++c) {
+        LOOP1(i) {
+          R_dd(a,b,i) += 0.5*(z4c.g_dd(c,a,k,j,i)*dGam_du(b,c,i) +
+                              z4c.g_dd(c,b,k,j,i)*dGam_du(a,c,i) +
+                              Gamma_u(c,i)*(Gamma_ddd(a,b,c,i) + Gamma_ddd(b,a,c,i)));
+        }
+      }
+      for(int c = 0; c < NDIM; ++c)
+      for(int d = 0; d < NDIM; ++d) {
+        LOOP1(i) {
+          R_dd(a,b,i) -= 0.5*g_uu(c,d,i)*ddg_dddd(c,d,a,b,i);
+        }
+      }
+      for(int c = 0; c < NDIM; ++c)
+      for(int d = 0; d < NDIM; ++d)
+      for(int e = 0; e < NDIM; ++e) {
+        LOOP1(i) {
+          R_dd(a,b,i) += g_uu(c,d,i)*(Gamma_udd(e,c,a,i)*Gamma_ddd(b,e,d,i) +
+              Gamma_udd(e,c,b,i)*Gamma_ddd(a,e,d,i) + Gamma_udd(e,a,d,i)*Gamma_ddd(e,c,b,i));
+        }
+      }
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Derivatives of conformal factor phi
+    //
+    LOOP1(i) {
+      chi_guarded(i) = std::max(z4c.chi(k,j,i), opt.chi_div_floor);
+      oopsi4(i) = pow(chi_guarded(i), 4./opt.chi_psi_power);
+    }
+    for(int a = 0; a < NDIM; ++a) {
+      LOOP1(i) {
+        dphi_d(a,i) = dchi_d(a,i)/(chi_guarded(i) * opt.chi_psi_power);
+      }
+    }
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b) {
+      LOOP1(i) {
+        Real const ddphi_ab = ddchi_dd(a,b,i)/(chi_guarded(i) * opt.chi_psi_power) -
+          opt.chi_psi_power * dphi_d(a,i) * dphi_d(b,i);
+        Ddphi_dd(a,b,i) = ddphi_ab;
+      }
+      for(int c = 0; c < NDIM; ++c) {
+        LOOP1(i) {
+          Ddphi_dd(a,b,i) -= Gamma_udd(c,a,b,i)*dphi_d(c,i);
+        }
+      }
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Curvature contribution from conformal factor
+    //
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b) {
+      LOOP1(i) {
+        Rphi_dd(a,b,i) = 4*dphi_d(a,i)*dphi_d(b,i) - 2*Ddphi_dd(a,b,i);
+      }
+      for(int c = 0; c < NDIM; ++c)
+      for(int d = 0; d < NDIM; ++d) {
+        LOOP1(i) {
+          Rphi_dd(a,b,i) -= 2. * z4c.g_dd(a,b,k,j,i) * g_uu(c,d,i)*(Ddphi_dd(c,d,i) +
+              2. * dphi_d(c,i) * dphi_d(d,i));
+        }
+      }
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Trace of the matter stress tensor
+    //
+    S.Zero();
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = 0; b < NDIM; ++b) {
+      LOOP1(i) {
+        S(i) += oopsi4(i) * g_uu(a,b,i) * mat.S_dd(a,b,k,j,i);
+      }
+    }
+
+    // -----------------------------------------------------------------------------------
+    // 2nd covariant derivative of the lapse
+    //
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b) {
+      LOOP1(i) {
+        Ddalpha_dd(a,b,i) = ddalpha_dd(a,b,i) -
+          2.*(dphi_d(a,i)*dalpha_d(a,i) + dphi_d(b,i)*dalpha_d(a,i));
+      }
+      for(int c = 0; c < NDIM; ++c) {
+        LOOP1(i) {
+          Ddalpha_dd(a,b,i) -= Gamma_udd(c,a,b,i)*dalpha_d(c,i);
+        }
+        for(int d = 0; d < NDIM; ++d) {
+          LOOP1(i) {
+            Ddalpha_dd(a,b,i) += 2. * z4c.g_dd(a,b,k,j,i) * g_uu(c,d,i) * dphi_d(c,i) * dalpha_d(d,i);
+          }
+        }
+      }
+    }
+    Ddalpha.Zero();
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = 0; b < NDIM; ++b) {
+      LOOP1(i) {
+        Ddalpha(i) += oopsi4(i) * g_uu(a,b,i) * Ddalpha_dd(a,b,i);
+      }
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Contractions of A_ab, inverse, and derivatives
+    //
+    AA_dd.Zero();
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b)
+    for(int c = 0; c < NDIM; ++c)
+    for(int d = 0; d < NDIM; ++d) {
+      LOOP1(i) {
+        AA_dd(a,b,i) += g_uu(c,d,i) * z4c.A_dd(a,c,k,j,i) * z4c.A_dd(d,b,k,j,i);
+      }
+    }
+    AA.Zero();
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = 0; b < NDIM; ++b) {
+      LOOP1(i) {
+        AA(i) += g_uu(a,b,i) * AA_dd(a,b,i);
+      }
+    }
+    A_uu.Zero();
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b)
+    for(int c = 0; c < NDIM; ++c)
+    for(int d = 0; d < NDIM; ++d) {
+      LOOP1(i) {
+        A_uu(a,b,i) += g_uu(a,c,i) * g_uu(b,d,i) * z4c.A_dd(c,d,k,j,i);
+      }
+    }
+    DA_u.Zero();
+    for(int a = 0; a < NDIM; ++a) {
+      for(int b = 0; b < NDIM; ++b) {
+        LOOP1(i) {
+          DA_u(a,i) -= (2./3.) * A_uu(a,b,i) * dchi_d(b,i) / chi_guarded(i);
+          DA_u(a,i) -= (1./3.) * g_uu(a,b,i) * (2.*dKhat_d(b,i) + dTheta_d(b,i));
+        }
+      }
+      for(int b = 0; b < NDIM; ++b)
+      for(int c = 0; c < NDIM; ++c) {
+        LOOP1(i) {
+          DA_u(a,i) += Gamma_udd(a,b,c,i) * A_uu(b,c,i);
+        }
+      }
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Ricci scalar
+    //
+    R.Zero();
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = 0; b < NDIM; ++b) {
+      LOOP1(i) {
+        R(i) += oopsi4(i) * g_uu(a,b,i) * (R_dd(a,b,i) + Rphi_dd(a,b,i));
+      }
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Hamiltonian constraint
+    //
+    LOOP1(i) {
+      Ht(i) = R(i) - (2./3.)*SQR(K(i)) - AA(i);
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Finalize advective (Lie) derivatives
+    //
+    // Shift vector contractions
+    dbeta.Zero();
+    for(int a = 0; a < NDIM; ++a) {
+      LOOP1(i) {
+        dbeta(i) += dbeta_du(a,a,i);
+      }
+    }
+    ddbeta_d.Zero();
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = 0; b < NDIM; ++b) {
+      LOOP1(i) {
+        ddbeta_d(a,i) += (1./3.) * ddbeta_ddu(a,b,b,i);
+      }
+    }
+    // Finalize Lchi
+    LOOP1(i) {
+      Lchi(i) += (1./6.) * opt.chi_psi_power * chi_guarded(i) * dbeta(i);
+    }
+    // Finalize LGam_u (note that this is not a real Lie derivative)
+    for(int a = 0; a < NDIM; ++a) {
+      LOOP1(i) {
+        LGam_u(a,i) += (2./3.) * Gamma_u(a,i) * dbeta(i);
+      }
+      for(int b = 0; b < NDIM; ++b) {
+        LOOP1(i) {
+          LGam_u(a,i) += g_uu(a,b,i) * ddbeta_d(b,i) - Gamma_u(b,i) * dbeta_du(b,a,i);
+        }
+        for(int c = 0; c < NDIM; ++c) {
+          LOOP1(i) {
+            LGam_u(a,i) += g_uu(b,c,i) * ddbeta_ddu(b,c,a,i);
+          }
+        }
+      }
+    }
+    // Finalize Lg_dd and LA_dd
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b) {
+      LOOP1(i) {
+        Lg_dd(a,b,i) -= (2./3.) * z4c.g_dd(a,b,k,j,i) * dbeta(i);
+        LA_dd(a,b,i) -= (2./3.) * z4c.A_dd(a,b,k,j,i) * dbeta(i);
+      }
+      for(int c = 0; c < NDIM; ++c) {
+        LOOP1(i) {
+          Lg_dd(a,b,i) += dbeta_du(a,c,i) * z4c.g_dd(b,c,k,j,i);
+          LA_dd(a,b,i) += dbeta_du(b,c,i) * z4c.A_dd(a,c,k,j,i);
+          Lg_dd(a,b,i) += dbeta_du(b,c,i) * z4c.g_dd(a,c,k,j,i);
+          LA_dd(a,b,i) += dbeta_du(a,c,i) * z4c.A_dd(b,c,k,j,i);
+        }
+      }
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Assemble RHS
+    //
+    // Khat, chi, and Theta
+    LOOP1(i) {
+      rhs.Khat(k,j,i) = - Ddalpha(i) + z4c.alpha(k,j,i) * (AA(i) + (1./3.)*SQR(K(i))) +
+        LKhat(i) + opt.damp_kappa1*(1 - opt.damp_kappa2) * z4c.alpha(k,j,i) * z4c.Theta(k,j,i);
+      rhs.Khat(k,j,i) += 4*M_PI * z4c.alpha(k,j,i) * (S(i) + mat.rho(k,j,i));
+      rhs.chi(k,j,i) = Lchi(i) - (1./6.) * opt.chi_psi_power *
+        chi_guarded(i) * z4c.alpha(k,j,i) * K(i);
+      rhs.Theta(k,j,i) = LTheta(i) + z4c.alpha(k,j,i) * (
+          0.5*Ht(i) - (2. + opt.damp_kappa2) * opt.damp_kappa1 * z4c.Theta(k,j,i));
+      rhs.Theta(k,j,i) -= 8*M_PI * z4c.alpha(k,j,i) * mat.rho(k,j,i);
+    }
+    // Gamma's
+    for(int a = 0; a < NDIM; ++a) {
+      LOOP1(i) {
+        rhs.Gam_u(a,k,j,i) = 2.*z4c.alpha(k,j,i)*DA_u(a,i) + LGam_u(a,i);
+        rhs.Gam_u(a,k,j,i) -= z4c.alpha(k,j,i) * opt.damp_kappa1 *
+            (z4c.Gam_u(a,k,j,i) - Gamma_u(a,i));
+      }
+      for(int b = 0; b < NDIM; ++b) {
+        LOOP1(i) {
+          rhs.Gam_u(a,k,j,i) -= 2. * A_uu(a,b,i) * dalpha_d(b,i);
+          rhs.Gam_u(a,k,j,i) -= 16.*M_PI * z4c.alpha(k,j,i) * g_uu(a,b,i) * mat.S_d(b,k,j,i);
+        }
+      }
+    }
+    // g and A
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b) {
+      LOOP1(i) {
+        rhs.g_dd(a,b,k,j,i) = - 2. * z4c.alpha(k,j,i) * z4c.A_dd(a,b,k,j,i) + Lg_dd(a,b,i);
+        rhs.A_dd(a,b,k,j,i) = oopsi4(i) *
+            (-Ddalpha_dd(a,b,i) + z4c.alpha(k,j,i) * (R_dd(a,b,i) + Rphi_dd(a,b,i)));
+        rhs.A_dd(a,b,k,j,i) -= (1./3.) * z4c.g_dd(a,b,k,j,i) * (-Ddalpha(i) + z4c.alpha(k,j,i)*R(i));
+        rhs.A_dd(a,b,k,j,i) += z4c.alpha(k,j,i) * (K(i)*z4c.A_dd(a,b,k,j,i) - 2.*AA_dd(a,b,i));
+        rhs.A_dd(a,b,k,j,i) += LA_dd(a,b,i);
+        rhs.A_dd(a,b,k,j,i) -= 8.*M_PI * z4c.alpha(k,j,i) *
+            (oopsi4(i)*mat.S_dd(a,b,k,j,i) - (1./3.)*S(i)*z4c.g_dd(a,b,k,j,i));
+      }
+    }
+    // lapse function
+    LOOP1(i) {
+      Real const f = opt.lapse_oplog * opt.lapse_harmonicf + opt.lapse_harmonic * z4c.alpha(k,j,i);
+      rhs.alpha(k,j,i) = opt.lapse_advect * Lalpha(i) - f * z4c.alpha(k,j,i) * z4c.Khat(k,j,i);
+    }
+    // shift vector
+    for(int a = 0; a < NDIM; ++a) {
+      LOOP1(i) {
+        rhs.beta_u(a,k,j,i) = z4c.Gam_u(a,k,j,i) + opt.shift_advect * Lbeta_u(a,i);
+        rhs.beta_u(a,k,j,i) -= opt.shift_eta * z4c.beta_u(a,k,j,i);
+      }
+    }
+  }
+
+  // ===================================================================================
+  // Add dissipation for stability
+  //
+  for(int n = 0; n < N_Z4c; ++n)
+  for(int a = 0; a < NDIM; ++a) {
+    LOOP3(k,j,i) {
+      u_rhs(n,k,j,i) += FD.Diss(a, u(n,k,j,i));
+    }
   }
 }

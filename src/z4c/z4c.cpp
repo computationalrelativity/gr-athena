@@ -35,6 +35,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   if (integrator == "ssprk5_4") storage.u2.NewAthenaArray(N_Z4c, ncells3, ncells2, ncells1);
   storage.rhs.NewAthenaArray(N_Z4c, ncells3, ncells2, ncells1);
   storage.adm.NewAthenaArray(N_ADM, ncells3, ncells2, ncells1);
+  storage.mat.NewAthenaArray(N_MAT, ncells3, ncells2, ncells1);
 
   dt1_.NewAthenaArray(ncells1);
   dt2_.NewAthenaArray(ncells1);
@@ -43,9 +44,17 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   // Parameters
   opt.chi_psi_power = pin->GetOrAddReal("z4c", "chi_psi_power", -4.0);
   opt.chi_div_floor = pin->GetOrAddReal("z4c", "chi_div_floor", -1000.0);
+  opt.diss = pin->GetOrAddReal("z4c", "diss", 0.0);
   opt.eps_floor = pin->GetOrAddReal("z4c", "eps_floor", 1e-12);
-  opt.z4c_kappa_damp1 = pin->GetOrAddReal("z4c", "z4c_kappa_damp1", 0.0);
-  opt.z4c_kappa_damp2 = pin->GetOrAddReal("z4c", "z4c_kappa_damp2", 0.0);
+  opt.damp_kappa1 = pin->GetOrAddReal("z4c", "damp_kappa1", 0.0);
+  opt.damp_kappa2 = pin->GetOrAddReal("z4c", "damp_kappa2", 0.0);
+  // Gauge conditions (default to moving puncture gauge)
+  opt.lapse_oplog = pin->GetOrAddReal("z4c", "lapse_oplog", 1.0);
+  opt.lapse_harmonicf = pin->GetOrAddReal("z4c", "lapse_harmonicf", 2.0);
+  opt.lapse_harmonic = pin->GetOrAddReal("z4c", "lapse_harmonic", 0.0);
+  opt.lapse_advect = pin->GetOrAddReal("z4c", "lapse_advect", 1.0);
+  opt.shift_advect = pin->GetOrAddReal("z4c", "shift_advect", 1.0);
+  opt.shift_eta = pin->GetOrAddReal("z4c", "shift_eta", 0.0);
 
   // Set aliases
   SetZ4cAliases(storage.rhs, rhs);
@@ -53,24 +62,38 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
 
   // Allocate memory for aux 1D vars
   detg.NewAthenaTensor(ncells1);
+  chi_guarded.NewAthenaTensor(ncells1);
   oopsi4.NewAthenaTensor(ncells1);
   A.NewAthenaTensor(ncells1);
+  AA.NewAthenaTensor(ncells1);
   R.NewAthenaTensor(ncells1);
+  Ht.NewAthenaTensor(ncells1);
   K.NewAthenaTensor(ncells1);
   KK.NewAthenaTensor(ncells1);
+  Ddalpha.NewAthenaTensor(ncells1);
+  S.NewAthenaTensor(ncells1);
   Mom_u.NewAthenaTensor(ncells1);
   Gamma_u.NewAthenaTensor(ncells1);
+  DA_u.NewAthenaTensor(ncells1);
   g_uu.NewAthenaTensor(ncells1);
+  A_uu.NewAthenaTensor(ncells1);
+  AA_dd.NewAthenaTensor(ncells1);
   R_dd.NewAthenaTensor(ncells1);
+  Rphi_dd.NewAthenaTensor(ncells1);
   Kt_dd.NewAthenaTensor(ncells1);
   K_ud.NewAthenaTensor(ncells1);
+  Ddalpha_dd.NewAthenaTensor(ncells1);
+  Ddphi_dd.NewAthenaTensor(ncells1);
   Gamma_ddd.NewAthenaTensor(ncells1);
   Gamma_udd.NewAthenaTensor(ncells1);
   DK_ddd.NewAthenaTensor(ncells1);
   DK_udd.NewAthenaTensor(ncells1);
 
+  dbeta.NewAthenaTensor(ncells1);
   dalpha_d.NewAthenaTensor(ncells1);
+  ddbeta_d.NewAthenaTensor(ncells1);
   dchi_d.NewAthenaTensor(ncells1);
+  dphi_d.NewAthenaTensor(ncells1);
   dK_d.NewAthenaTensor(ncells1);
   dKhat_d.NewAthenaTensor(ncells1);
   dTheta_d.NewAthenaTensor(ncells1);
@@ -109,6 +132,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
     FD.stride[2] = ncells2*ncells1;
     FD.idx[2] = 1.0/pco->dx3v(0);
   }
+  FD.diss = opt.diss*pow(2, -2*NGHOST);
 }
 
 // destructor
@@ -120,30 +144,45 @@ Z4c::~Z4c()
   storage.u2.DeleteAthenaArray();
   storage.rhs.DeleteAthenaArray();
   storage.adm.DeleteAthenaArray();
+  storage.mat.DeleteAthenaArray();
 
   dt1_.DeleteAthenaArray();
   dt2_.DeleteAthenaArray();
   dt3_.DeleteAthenaArray();
 
   detg.DeleteAthenaTensor();
+  chi_guarded.DeleteAthenaTensor();
   oopsi4.DeleteAthenaTensor();
   A.DeleteAthenaTensor();
+  AA.DeleteAthenaTensor();
   R.DeleteAthenaTensor();
+  Ht.DeleteAthenaTensor();
   K.DeleteAthenaTensor();
   KK.DeleteAthenaTensor();
+  Ddalpha.DeleteAthenaTensor();
+  S.DeleteAthenaTensor();
   Mom_u.DeleteAthenaTensor();
   Gamma_u.DeleteAthenaTensor();
+  DA_u.DeleteAthenaTensor();
   g_uu.DeleteAthenaTensor();
+  A_uu.DeleteAthenaTensor();
+  AA_dd.DeleteAthenaTensor();
   R_dd.DeleteAthenaTensor();
+  Rphi_dd.DeleteAthenaTensor();
   Kt_dd.DeleteAthenaTensor();
   K_ud.DeleteAthenaTensor();
+  Ddalpha_dd.DeleteAthenaTensor();
+  Ddphi_dd.DeleteAthenaTensor();
   Gamma_ddd.DeleteAthenaTensor();
   Gamma_udd.DeleteAthenaTensor();
   DK_ddd.DeleteAthenaTensor();
   DK_udd.DeleteAthenaTensor();
 
+  dbeta.DeleteAthenaTensor();
   dalpha_d.DeleteAthenaTensor();
+  ddbeta_d.DeleteAthenaTensor();
   dchi_d.DeleteAthenaTensor();
+  dphi_d.DeleteAthenaTensor();
   dK_d.DeleteAthenaTensor();
   dKhat_d.DeleteAthenaTensor();
   dTheta_d.DeleteAthenaTensor();
@@ -169,6 +208,30 @@ Z4c::~Z4c()
 }
 
 //----------------------------------------------------------------------------------------
+// \!fn void Z4c::SetADMAliases(AthenaArray<Real> & u, ADM_vars & z4c)
+// \brief Set ADM aliases
+
+void Z4c::SetADMAliases(AthenaArray<Real> & u_adm, Z4c::ADM_vars & adm)
+{
+  adm.psi4.InitWithShallowSlice(u_adm, I_ADM_psi4);
+  adm.H.InitWithShallowSlice(u_adm, I_ADM_Ham);
+  adm.Mom_d.InitWithShallowSlice(u_adm, I_ADM_Momx);
+  adm.g_dd.InitWithShallowSlice(u_adm, I_ADM_gxx);
+  adm.K_dd.InitWithShallowSlice(u_adm, I_ADM_Kxx);
+}
+
+//----------------------------------------------------------------------------------------
+// \!fn void Z4c::SetMatterAliases(AthenaArray<Real> & u_mat, Matter_vars & mat)
+// \brief Set matter aliases
+
+void Z4c::SetMatterAliases(AthenaArray<Real> & u_mat, Z4c::Matter_vars & mat)
+{
+  mat.rho.InitWithShallowSlice(u_mat, I_MAT_rho);
+  mat.S_d.InitWithShallowSlice(u_mat, I_MAT_Sx);
+  mat.S_dd.InitWithShallowSlice(u_mat, I_MAT_Sxx);
+}
+
+//----------------------------------------------------------------------------------------
 // \!fn void Z4c::SetZ4cAliases(AthenaArray<Real> & u, Z4c_vars & z4c)
 // \brief Set Z4c aliases
 
@@ -182,22 +245,6 @@ void Z4c::SetZ4cAliases(AthenaArray<Real> & u, Z4c::Z4c_vars & z4c)
   z4c.beta_u.InitWithShallowSlice(u, I_Z4c_betax);
   z4c.g_dd.InitWithShallowSlice(u, I_Z4c_gxx);
   z4c.A_dd.InitWithShallowSlice(u, I_Z4c_Axx);
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn void Z4c::SetADMAliases(AthenaArray<Real> & u, ADM_vars & z4c)
-// \brief Set ADM aliases
-
-void Z4c::SetADMAliases(AthenaArray<Real> & u_adm, Z4c::ADM_vars & adm)
-{
-  adm.psi4.InitWithShallowSlice(u_adm, I_ADM_psi4);
-  adm.H.InitWithShallowSlice(u_adm, I_ADM_Ham);
-  adm.Mom_d.InitWithShallowSlice(u_adm, I_ADM_Momx);
-  adm.g_dd.InitWithShallowSlice(u_adm, I_ADM_gxx);
-  adm.K_dd.InitWithShallowSlice(u_adm, I_ADM_Kxx);
-  adm.rho.InitWithShallowSlice(u_adm, I_ADM_rho);
-  adm.S_d.InitWithShallowSlice(u_adm, I_ADM_Sx);
-  adm.S_dd.InitWithShallowSlice(u_adm, I_ADM_Sxx);
 }
 
 //----------------------------------------------------------------------------------------
@@ -294,16 +341,4 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
       }
     }
   }
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn void Z4c::GaugeGeodesic(AthenaArray<Real> & u)
-// \brief Initialize lapse to 1 and shift to 0
-
-void Z4c::GaugeGeodesic(AthenaArray<Real> & u)
-{
-  Z4c_vars z4c;
-  SetZ4cAliases(u, z4c);
-  z4c.alpha.Fill(1.);
-  z4c.beta_u.Fill(0.);
 }
