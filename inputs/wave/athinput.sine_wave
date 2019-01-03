@@ -1,0 +1,55 @@
+<comment>
+problem         = Sinusoidal wave
+configure       = --prob=wave_test -w --nghost=2
+
+<problem>
+profile         = linear
+direction       = 1
+
+<job>
+problem_id      = wave      # problem ID: basename of output filenames
+
+<output1>
+file_type       = tab       # Athena++ ASCII data dump
+variable        = wave      # variables to be output
+dt              = 0.1       # time increment between outputs
+data_format     = %.16e     # data format
+
+<time>
+cfl_number      = 0.8       # The Courant, Friedrichs, & Lewy (CFL) number
+tlim            = 10.0      # time limit
+integrator      = rk4       # Use rk4 time integrator
+ncycle_out      = 200       # Print to stdout every so many timesteps
+
+<mesh>
+refinement      = static    # Static mesh refinement
+
+nx1             = 512       # Number of zones in X1-direction
+x1min           = -1.0      # minimum value of X1
+x1max           = 1.0       # maximum value of X1
+ix1_bc          = periodic  # inner-X1 boundary flag
+ox1_bc          = periodic  # inner-X1 boundary flag
+
+nx2             = 1         # Number of zones in X2-direction
+x2min           = -1.0      # minimum value of X2
+x2max           = 1.0       # maximum value of X2
+ix2_bc          = periodic  # inner-X2 boundary flag
+ox2_bc          = periodic  # inner-X2 boundary flag
+
+nx3             = 1         # Number of zones in X3-direction
+x3min           = -1.0      # minimum value of X3
+x3max           = 1.0       # maximum value of X3
+ix3_bc          = periodic  # inner-X3 boundary flag
+ox3_bc          = periodic  # inner-X3 boundary flag
+
+<meshblock>
+nx1             = 64
+nx2             = 1
+nx3             = 1
+
+<hydro>
+iso_sound_speed = 1.0
+gamma           = 1.4  # gamma = C_p/C_v
+
+<wave>
+c               = 1.0

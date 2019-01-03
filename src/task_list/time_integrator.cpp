@@ -23,6 +23,7 @@
 #include "../hydro/hydro.hpp"
 #include "../hydro/srcterms/hydro_srcterms.hpp"
 #include "../hydro/hydro_diffusion/hydro_diffusion.hpp"
+#include "../wave/wave.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "../reconstruct/reconstruction.hpp"
@@ -331,7 +332,6 @@ void TimeIntegratorTaskList::AddTimeIntegratorTask(uint64_t id, uint64_t dep) {
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
         (&TimeIntegratorTaskList::CalculateEMF);
       break;
-
     case (SEND_HYDFLX):
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
@@ -364,7 +364,6 @@ void TimeIntegratorTaskList::AddTimeIntegratorTask(uint64_t id, uint64_t dep) {
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
         (&TimeIntegratorTaskList::FieldIntegrate);
       break;
-
     case (SRCTERM_HYD):
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
@@ -790,6 +789,7 @@ enum TaskStatus TimeIntegratorTaskList::EMFShearRemap(MeshBlock *pmb, int stage)
 enum TaskStatus TimeIntegratorTaskList::Prolongation(MeshBlock *pmb, int stage) {
   Hydro *phydro=pmb->phydro;
   Field *pfield=pmb->pfield;
+  Wave *pwave=pmb->pwave;
   BoundaryValues *pbval=pmb->pbval;
 
   if (stage <= nstages) {
@@ -797,8 +797,8 @@ enum TaskStatus TimeIntegratorTaskList::Prolongation(MeshBlock *pmb, int stage) 
     Real t_end_stage = pmb->pmy_mesh->time + pmb->stage_abscissae[stage][0];
     // Scaled coefficient for RHS time-advance within stage
     Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
-    pbval->ProlongateBoundaries(phydro->w,  phydro->u,  pfield->b,  pfield->bcc,
-                                t_end_stage, dt);
+    pbval->ProlongateBoundaries(phydro->w,  phydro->u, pwave->u,
+                                pfield->b,  pfield->bcc, t_end_stage, dt);
   } else {
     return TASK_FAIL;
   }
@@ -933,12 +933,14 @@ enum TaskStatus TimeIntegratorTaskList::StartupIntegrator(MeshBlock *pmb, int st
       ave_wghts[2] = 0.0;
       pf->WeightedAveB(pf->b1,pf->b,pf->b,ave_wghts);
     }
+
     // 2nd set of registers, including u1, need to be initialized to 0 each cycle
     Real ave_wghts[3];
     ave_wghts[0] = 0.0;
     ave_wghts[1] = 0.0;
     ave_wghts[2] = 0.0;
-    ph->WeightedAveU(ph->u1,ph->u,ph->u,ave_wghts);
+    ph->WeightedAveU(ph->u1,ph->u,ph->u,ave_wghts);    
+
     return TASK_SUCCESS;
   }
 }

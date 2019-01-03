@@ -43,6 +43,7 @@ class EquationOfState;
 class FFTDriver;
 class FFTGravityDriver;
 class TurbulenceDriver;
+class Wave;
 
 //----------------------------------------------------------------------------------------
 //! \class MeshBlock
@@ -55,6 +56,7 @@ class MeshBlock {
   friend class Mesh;
   friend class Hydro;
   friend class TaskList;
+  friend class Wave;
 #ifdef HDF5OUTPUT
   friend class ATHDF5Output;
 #endif
@@ -103,6 +105,7 @@ public:
   Field *pfield;
   Gravity *pgrav;
   EquationOfState *peos;
+  Wave *pwave;
 
   MeshBlock *prev, *next;
 
@@ -153,6 +156,7 @@ class Mesh {
   friend class Gravity;
   friend class HydroDiffusion;
   friend class FieldDiffusion;
+  friend class Wave;
 #ifdef HDF5OUTPUT
   friend class ATHDF5Output;
 #endif

@@ -1,0 +1,152 @@
+//========================================================================================
+// Athena++ astrophysical MHD code
+// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
+// Licensed under the 3-clause BSD License, see LICENSE file for details
+//========================================================================================
+//! \file wave_pulse.cpp
+//  \brief Initial conditions for the wave equation
+
+#include <cassert> // assert
+#include <cmath> // abs, exp, sin, fmod
+#include <iostream>
+
+// Athena++ headers
+#include "../athena.hpp"
+#include "../athena_arrays.hpp"
+#include "../parameter_input.hpp"
+#include "../coordinates/coordinates.hpp"
+#include "../mesh/mesh.hpp"
+#include "../hydro/hydro.hpp"
+#include "../wave/wave.hpp"
+
+using namespace std;
+
+namespace {
+
+Real linear(Real x) {
+  return x;
+}
+
+Real linear_diff(Real x) {
+  return 1;
+}
+
+Real bump(Real x) {
+  //return sin(2*M_PI*x/5.);
+  if(abs(x) < 1.) {
+    return exp(-1./(1. - SQR(x)));
+  }
+  else {
+    return 0.;
+  }
+}
+
+Real bump_diff(Real x) {
+  //return 2*M_PI/5.*cos(2*M_PI*x/5.);
+  if(abs(x) < 1.) {
+    return -2.*x*bump(x)/SQR(-1. + SQR(x));
+  }
+  else {
+    return 0.;
+  }
+}
+
+typedef Real (*unary_function)(Real);
+
+unary_function prof = NULL;
+unary_function prof_diff = NULL;
+
+int direction = 0;
+
+} // namespace
+
+//========================================================================================
+//! \fn void MeshBlock::ProblemGenerator(ParameterInput *pin)
+//  \brief Sets the initial conditions.
+//========================================================================================
+
+void MeshBlock::ProblemGenerator(ParameterInput *pin)
+{
+  direction = pin->GetOrAddInteger("problem", "direction", 1);
+  if(abs(direction) > 1) {
+    cerr << "Invalid direction: " << direction << endl;
+    cerr << "Valid values are: -1, 0, and 1" << endl;
+    cerr << flush;
+    abort();
+  }
+
+  string profile = pin->GetOrAddString("problem", "profile", "linear");
+  if(profile == "bump") {
+    prof = bump;
+    prof_diff = bump_diff;
+  }
+  else {
+    prof = linear;
+    prof_diff = linear_diff;
+  }
+
+  for(int k = ks; k <= ke; ++k)
+  for(int j = js; j <= je; ++j)
+  for(int i = is; i <= ie; ++i) {
+    // Dummy hydrodynamics state
+    if(HYDRO_ENABLED) {
+      phydro->u(IDN,k,j,i) = 1.0;
+      phydro->u(IM1,k,j,i) = 0.0;
+      phydro->u(IM2,k,j,i) = 0.0;
+      phydro->u(IM3,k,j,i) = 0.0;
+      if (NON_BAROTROPIC_EOS) {
+        phydro->u(IEN,k,j,i) = 1.0;
+      }
+    }
+
+    Real x = pcoord->x1v(i);
+    Real y = pcoord->x2v(j);
+    Real z = pcoord->x3v(k);
+    Real c = pwave->c;
+
+    Real sin_x = sin(M_PI*x);
+    Real cos_x = cos(M_PI*x);
+
+    pwave->u(0,k,j,i) = prof(sin_x);
+    pwave->u(1,k,j,i) = -direction*M_PI*c*cos_x*prof_diff(sin_x);
+
+    pwave->exact(0,k,j,i) = pwave->u(0,k,j,i);
+    pwave->error(0,k,j,i) = 0.0;
+  }
+  return;
+}
+
+void MeshBlock::UserWorkInLoop()
+{
+  for(int k = ks; k <= ke; ++k)
+  for(int j = js; j <= je; ++j)
+  for(int i = is; i <= ie; ++i) {
+    Real x = pcoord->x1v(i);
+    Real y = pcoord->x2v(j);
+    Real z = pcoord->x3v(k);
+    Real t = pmy_mesh->time + pmy_mesh->dt;
+    Real c = pwave->c;
+
+    Real xp, xm;
+    switch(direction) {
+      case -1:
+        xp = sin(M_PI*(x + c*t));
+        pwave->exact(0,k,j,i) = prof(xp);
+        break;
+      case 0:
+        xp = sin(M_PI*(x + c*t));
+        xm = sin(M_PI*(x - c*t));
+        pwave->exact(0,k,j,i) = 0.5*(prof(xm) + prof(xp));
+        break;
+      case 1:
+        xm = sin(M_PI*(x - c*t));
+        pwave->exact(0,k,j,i) = prof(xm);
+        break;
+      default:
+        assert(false); // you shouldn't be here
+        abort();
+    }
+    pwave->error(0,k,j,i) = pwave->u(0,k,j,i) - pwave->exact(0,k,j,i);
+  }
+  return;
+}

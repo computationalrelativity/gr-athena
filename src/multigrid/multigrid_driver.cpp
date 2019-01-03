@@ -146,6 +146,7 @@ void MultigridDriver::SolveCoarsestGrid(void) {
 //  \brief calculate the defect norm
 
 Real MultigridDriver::CalculateDefectNorm(int n, int nrm) {
+  return 0.0;
 }
 
 
@@ -154,4 +155,5 @@ Real MultigridDriver::CalculateDefectNorm(int n, int nrm) {
 //  \brief return the Multigrid whose gid is tgid
 
 Multigrid* MultigridDriver::FindMultigrid(int tgid) {
+  return NULL;
 }

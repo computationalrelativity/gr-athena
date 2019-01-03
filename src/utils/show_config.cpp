@@ -41,10 +41,20 @@ void ShowConfig(void) {
     std::cout<<"  Self Gravity:               OFF" << std::endl;
   }
 
+  if (HYDRO_ENABLED) {
+    std::cout<<"  Hydrodynamics:              ON" << std::endl;
+  } else {
+    std::cout<<"  Hydrodynamics:              OFF" << std::endl;
+  }
   if (MAGNETIC_FIELDS_ENABLED) {
     std::cout<<"  Magnetic fields:            ON" << std::endl;
   } else {
     std::cout<<"  Magnetic fields:            OFF" << std::endl;
+  }
+  if (WAVE_ENABLED) {
+    std::cout<<"  Wave equation:              ON" << std::endl;
+  } else {
+    std::cout<<"  Wave equation:              OFF" << std::endl;
   }
   if (RELATIVISTIC_DYNAMICS) {
     std::cout<<"  Relativistic dynamics:      ON " << std::endl;

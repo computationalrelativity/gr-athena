@@ -69,6 +69,7 @@ class TaskState {
 class TaskList {
 friend class TimeIntegratorTaskList;
 friend class GravitySolverTaskList;
+friend class WaveIntegratorTaskList;
 public:
   explicit TaskList(Mesh *pm);
   virtual ~TaskList();
@@ -155,7 +156,7 @@ public:
 
 
 //----------------------------------------------------------------------------------------
-// 64-bit integers with "1" in different bit positions used to ID  each hydro task.
+// 64-bit integers with "1" in different bit positions used to ID each hydro task.
 
 namespace HydroIntegratorTaskNames {
   const uint64_t NONE=0;
@@ -228,6 +229,7 @@ namespace HydroIntegratorTaskNames {
   const uint64_t DIFFUSE_HYD=1LL<<53;
   const uint64_t DIFFUSE_FLD=1LL<<54;
   const uint64_t CALC_DIFFUSIVITY=1LL<<55;
-}; // namespace HydroIntegratorTaskNames
+
+} // namespace HydroIntegratorTaskNames
 
 #endif // TASK_LIST_TASK_LIST_HPP_

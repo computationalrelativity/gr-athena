@@ -13,7 +13,9 @@
 //  NOTE THE TRAILING INDEX INSIDE THE PARENTHESES IS INDEXED FASTEST
 
 // C++ headers
-#include <cstddef>  // size_t
+#include <algorithm>  // std::fill
+#include <cstring>    // memset
+#include <cstddef>    // size_t
 
 template<typename T>
 class AthenaArray {
@@ -42,10 +44,23 @@ public:
   int GetDim3() const { return nx3_; }
   int GetDim4() const { return nx4_; }
   int GetDim5() const { return nx5_; }
+  int GetDim(int dim) const;
 
   // a function to get the total size of the array
   int GetSize() const { return nx1_*nx2_*nx3_*nx4_*nx5_; }
   size_t GetSizeInBytes() const {return nx1_*nx2_*nx3_*nx4_*nx5_*sizeof(T); }
+
+  // fill an array with constant data
+  void Fill(T const val) { std::fill(pdata_, pdata_ + GetSize(), T(val)); }
+  void Zero() { std::memset(pdata_, 0, GetSizeInBytes()); }
+
+  // function to get the stride used to access the data
+  int GetStride1() const { return 1; }
+  int GetStride2() const { return nx1_; }
+  int GetStride3() const { return nx2_*GetStride2(); }
+  int GetStride4() const { return nx3_*GetStride3(); }
+  int GetStride5() const { return nx4_*GetStride4(); }
+  int GetStride(int dim) const;
 
   bool IsShallowCopy() { return (scopy_ == true); }
   T *data() { return pdata_; }
@@ -79,20 +94,20 @@ public:
 
   // functions that initialize an array with shallow copy or slice from another array
   void InitWithShallowCopy(AthenaArray<T> &src);
-  void InitWithShallowSlice(AthenaArray<T> &src, const int dim, const int indx,
-    const int nvar);
+  void InitWithShallowSlice(AthenaArray<T> &src, const int indx, const int nvar);
 
 private:
   T *pdata_;
   int nx1_, nx2_, nx3_, nx4_, nx5_;
   bool scopy_;  // true if shallow copy (prevents source from being deleted)
+  int dim_;
 };
 
 //constructor
 
 template<typename T>
 AthenaArray<T>::AthenaArray()
-  : pdata_(NULL), nx1_(0), nx2_(0), nx3_(0), nx4_(0), nx5_(0), scopy_(true) {
+  : pdata_(NULL), nx1_(0), nx2_(0), nx3_(0), nx4_(0), nx5_(0), scopy_(true), dim_(0) {
 }
 
 // destructor
@@ -119,6 +134,7 @@ __attribute__((nothrow)) AthenaArray<T>::AthenaArray(const AthenaArray<T>& src) 
     }
     scopy_=false;
   }
+  dim_ = src.dim_;
 }
 
 // assignment operator (does a deep copy).  Does not allocate memory for destination.
@@ -133,6 +149,7 @@ AthenaArray<T> &AthenaArray<T>::operator= (const AthenaArray<T> &src) {
       this->pdata_[i] = src.pdata_[i]; // copy data (not just addresses!)
     }
     scopy_=false;
+    dim_ = src.dim_;
   }
   return *this;
 }
@@ -150,6 +167,7 @@ void AthenaArray<T>::InitWithShallowCopy(AthenaArray<T> &src) {
   nx5_=src.nx5_;
   pdata_ = src.pdata_;
   scopy_ = true;
+  dim_ = src.dim_;
   return;
 }
 
@@ -159,45 +177,55 @@ void AthenaArray<T>::InitWithShallowCopy(AthenaArray<T> &src) {
 //  index=indx.  Copies pointers to data, but not data itself.
 
 template<typename T>
-void AthenaArray<T>::InitWithShallowSlice(AthenaArray<T> &src, const int dim,
+void AthenaArray<T>::InitWithShallowSlice(AthenaArray<T> &src,
   const int indx, const int nvar) {
   pdata_ = src.pdata_;
 
-  if (dim == 5) {
-    nx5_=nvar;
-    nx4_=src.nx4_;
-    nx3_=src.nx3_;
-    nx2_=src.nx2_;
-    nx1_=src.nx1_;
-    pdata_ += indx*(nx1_*nx2_*nx3_*nx4_);
-  } else if (dim == 4) {
-    nx5_=1;
-    nx4_=nvar;
-    nx3_=src.nx3_;
-    nx2_=src.nx2_;
-    nx1_=src.nx1_;
-    pdata_ += indx*(nx1_*nx2_*nx3_);
-  } else if (dim == 3) {
-    nx5_=1;
-    nx4_=1;
-    nx3_=nvar;
-    nx2_=src.nx2_;
-    nx1_=src.nx1_;
-    pdata_ += indx*(nx1_*nx2_);
-  } else if (dim == 2) {
-    nx5_=1;
-    nx4_=1;
-    nx3_=1;
-    nx2_=nvar;
-    nx1_=src.nx1_;
-    pdata_ += indx*(nx1_);
-  } else if (dim == 1) {
-    nx5_=1;
-    nx4_=1;
-    nx3_=1;
-    nx2_=1;
-    nx1_=nvar;
-    pdata_ += indx;
+  switch(src.dim_) {
+    case 5:
+      nx5_=nvar;
+      nx4_=src.nx4_;
+      nx3_=src.nx3_;
+      nx2_=src.nx2_;
+      nx1_=src.nx1_;
+      pdata_ += indx*(nx1_*nx2_*nx3_*nx4_);
+      break;
+    case 4:
+      nx5_=1;
+      nx4_=nvar;
+      nx3_=src.nx3_;
+      nx2_=src.nx2_;
+      nx1_=src.nx1_;
+      pdata_ += indx*(nx1_*nx2_*nx3_);
+      break;
+    case 3:
+      nx5_=1;
+      nx4_=1;
+      nx3_=nvar;
+      nx2_=src.nx2_;
+      nx1_=src.nx1_;
+      pdata_ += indx*(nx1_*nx2_);
+      break;
+    case 2:
+      nx5_=1;
+      nx4_=1;
+      nx3_=1;
+      nx2_=nvar;
+      nx1_=src.nx1_;
+      pdata_ += indx*(nx1_);
+      break;
+    case 1:
+      nx5_=1;
+      nx4_=1;
+      nx3_=1;
+      nx2_=1;
+      nx1_=nvar;
+      pdata_ += indx;
+      break;
+    case 0:
+      break;
+    default:
+      abort(); // you should not be here
   }
   scopy_ = true;
   return;
@@ -215,6 +243,7 @@ __attribute__((nothrow)) void AthenaArray<T>::NewAthenaArray(int nx1) {
   nx3_ = 1;
   nx4_ = 1;
   nx5_ = 1;
+  dim_ = 1;
   pdata_ = new T[nx1](); // allocate memory and initialize to zero
 }
 
@@ -230,6 +259,7 @@ __attribute__((nothrow)) void AthenaArray<T>::NewAthenaArray(int nx2, int nx1) {
   nx3_ = 1;
   nx4_ = 1;
   nx5_ = 1;
+  dim_ = 2;
   pdata_ = new T[nx1*nx2](); // allocate memory and initialize to zero
 }
 
@@ -245,6 +275,7 @@ __attribute__((nothrow)) void AthenaArray<T>::NewAthenaArray(int nx3, int nx2, i
   nx3_ = nx3;
   nx4_ = 1;
   nx5_ = 1;
+  dim_ = 3;
   pdata_ = new T[nx1*nx2*nx3](); // allocate memory and initialize to zero
 }
 
@@ -261,6 +292,7 @@ __attribute__((nothrow)) void AthenaArray<T>::NewAthenaArray(int nx4, int nx3, i
   nx3_ = nx3;
   nx4_ = nx4;
   nx5_ = 1;
+  dim_ = 4;
   pdata_ = new T[nx1*nx2*nx3*nx4](); // allocate memory and initialize to zero
 }
 
@@ -277,7 +309,50 @@ __attribute__((nothrow)) void AthenaArray<T>::NewAthenaArray(int nx5, int nx4, i
   nx3_ = nx3;
   nx4_ = nx4;
   nx5_ = nx5;
+  dim_ = 5;
   pdata_ = new T[nx1*nx2*nx3*nx4*nx5](); // allocate memory and initialize to zero
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn AthenaArray::GetDim()
+//  \brief  get dimension of the data in a given dimension (between 1 and 5)
+template<typename T>
+int AthenaArray<T>::GetDim(int const dim) const {
+  switch(dim) {
+    case 1:
+      return GetDim1();
+    case 2:
+      return GetDim2();
+    case 3:
+      return GetDim3();
+    case 4:
+      return GetDim4();
+    case 5:
+      return GetDim5();
+    default:
+      return 0;
+  }
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn AthenaArray::GetStride()
+//  \brief  get stride used to access the data in a given dimension (between 1 and 5)
+template<typename T>
+int AthenaArray<T>::GetStride(int const dim) const {
+  switch(dim) {
+    case 1:
+      return GetStride1();
+    case 2:
+      return GetStride2();
+    case 3:
+      return GetStride3();
+    case 4:
+      return GetStride4();
+    case 5:
+      return GetStride5();
+    default:
+      return 0;
+  }
 }
 
 //----------------------------------------------------------------------------------------
@@ -293,6 +368,7 @@ void AthenaArray<T>::DeleteAthenaArray() {
     pdata_ = NULL;
     scopy_ = true;
   }
+  dim_ = 0;
 }
 
 //----------------------------------------------------------------------------------------

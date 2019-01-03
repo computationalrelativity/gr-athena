@@ -1,0 +1,77 @@
+//========================================================================================
+// Athena++ astrophysical MHD code
+// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
+// Licensed under the 3-clause BSD License, see LICENSE file for details
+//========================================================================================
+//! \file wave.hpp
+//  \brief implementation of functions in the Wave class
+
+// Athena++ headers
+#include "wave.hpp"
+#include "../athena.hpp"
+#include "../athena_arrays.hpp"
+#include "../coordinates/coordinates.hpp"
+#include "../mesh/mesh.hpp"
+
+// constructor, initializes data structures and parameters
+
+Wave::Wave(MeshBlock *pmb, ParameterInput *pin)
+{
+  pmy_block = pmb;
+  Coordinates * pco = pmb->pcoord;
+
+  // Allocate memory for the solution and its time derivative
+  int ncells1 = pmy_block->block_size.nx1 + 2*(NGHOST);
+  int ncells2 = 1, ncells3 = 1;
+  if(pmy_block->block_size.nx2 > 1) ncells2 = pmy_block->block_size.nx2 + 2*(NGHOST);
+  if(pmy_block->block_size.nx3 > 1) ncells3 = pmy_block->block_size.nx3 + 2*(NGHOST);
+
+  u.NewAthenaArray(2, ncells3, ncells2, ncells1);
+  u1.NewAthenaArray(2, ncells3, ncells2, ncells1);
+  // If user-requested time integrator is type 3S*, allocate additional memory registers
+  std::string integrator = pin->GetOrAddString("time","integrator","vl2");
+  if (integrator == "ssprk5_4") u2.NewAthenaArray(2,ncells3,ncells2,ncells1);
+
+  rhs.NewAthenaArray(2, ncells3, ncells2, ncells1);
+
+  exact.NewAthenaArray(1, ncells3, ncells2, ncells1);
+  error.NewAthenaArray(1, ncells3, ncells2, ncells1);
+
+  c = pin->GetOrAddReal("wave", "c", 1.0);
+
+  dt1_.NewAthenaArray(ncells1);
+  dt2_.NewAthenaArray(ncells1);
+  dt3_.NewAthenaArray(ncells1);
+
+  FD.stride[0] = 1;
+  FD.stride[1] = 0;
+  FD.stride[2] = 0;
+  FD.idx[0] = 1.0/pco->dx1v(0);
+  FD.idx[1] = 0.0;
+  FD.idx[2] = 0.0;
+  if(ncells2 > 1) {
+    FD.stride[1] = ncells1;
+    FD.idx[1] = 1.0/pco->dx2v(0);
+  }
+  if(ncells3 > 1) {
+    FD.stride[2] = ncells2*ncells1;
+    FD.idx[2] = 1.0/pco->dx3v(0);
+  }
+}
+
+// destructor
+
+Wave::~Wave()
+{
+  u.DeleteAthenaArray();
+  u1.DeleteAthenaArray();
+  u2.DeleteAthenaArray(); // only allocated in case of 3S*-type of integrator
+  rhs.DeleteAthenaArray();
+
+  exact.DeleteAthenaArray();
+  error.DeleteAthenaArray();
+
+  dt1_.DeleteAthenaArray();
+  dt2_.DeleteAthenaArray();
+  dt3_.DeleteAthenaArray();
+}

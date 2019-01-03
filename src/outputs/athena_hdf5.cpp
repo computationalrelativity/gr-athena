@@ -130,7 +130,13 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
       if (output_params.cartesian_vector)
         num_variables[n_dataset-1] += 3;
     }
-  } else {
+  }
+  else if (variable.compare("wave") == 0) {
+    num_datasets = 1;
+    num_variables = new int[num_datasets];
+    num_variables[0] = 2;
+  }
+  else {
     num_datasets = 1;
     num_variables = new int[num_datasets];
     num_variables[0] = num_vars_;
@@ -147,7 +153,11 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
       std::strncpy(dataset_names[n_dataset++], "cons", max_name_length+1);
     if (MAGNETIC_FIELDS_ENABLED)
       std::strncpy(dataset_names[n_dataset++], "B", max_name_length+1);
-  } else { // single data
+  }
+  else if(variable.compare("wave") == 0) {
+    std::strncpy(dataset_names[n_dataset++], "wave", max_name_length+1);
+  }
+  else { // single data
     if (variable.compare(0,1,"B") == 0 && MAGNETIC_FIELDS_ENABLED)
       std::strncpy(dataset_names[n_dataset++], "B", max_name_length+1);
     else if (variable.compare(0,1,"uov") == 0

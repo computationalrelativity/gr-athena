@@ -30,6 +30,7 @@
 #include "../globals.hpp"
 #include "../gravity/gravity.hpp"
 #include "../hydro/hydro.hpp"
+#include "../wave/wave.hpp"
 #include "../parameter_input.hpp"
 #include "../utils/buffer_utils.hpp"
 #include "../reconstruct/reconstruction.hpp"
@@ -129,9 +130,10 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   if (pm->multilevel==true) pmr = new MeshRefinement(this, pin);
 
   // physics-related objects: may depend on Coordinates for diffusion terms
-  phydro = new Hydro(this, pin);
+  if (HYDRO_ENABLED) phydro = new Hydro(this, pin);
+  if (WAVE_ENABLED) pwave = new Wave(this, pin);
   if (MAGNETIC_FIELDS_ENABLED) pfield = new Field(this, pin);
-  peos = new EquationOfState(this, pin);
+  if (HYDRO_ENABLED) peos = new EquationOfState(this, pin);
 
   // Create user mesh data
   InitUserMeshBlockData(pin);
@@ -226,22 +228,30 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   if (pm->multilevel==true) pmr = new MeshRefinement(this, pin);
 
   // (re-)create physics-related objects in MeshBlock
-  phydro = new Hydro(this, pin);
+  if (HYDRO_ENABLED) phydro = new Hydro(this, pin);
+  if (WAVE_ENABLED) pwave = new Wave(this, pin);
   if (MAGNETIC_FIELDS_ENABLED) pfield = new Field(this, pin);
-  peos = new EquationOfState(this, pin);
+  if (HYDRO_ENABLED) peos = new EquationOfState(this, pin);
   InitUserMeshBlockData(pin);
 
   int os=0;
-  // load hydro and field data
-  memcpy(phydro->u.data(), &(mbdata[os]), phydro->u.GetSizeInBytes());
-  // load it into the half-step arrays too
-  memcpy(phydro->u1.data(), &(mbdata[os]), phydro->u1.GetSizeInBytes());
-  os += phydro->u.GetSizeInBytes();
+  if (HYDRO_ENABLED) {
+    // load hydro and field data
+    memcpy(phydro->u.data(), &(mbdata[os]), phydro->u.GetSizeInBytes());
+    // load it into the half-step arrays too
+    memcpy(phydro->u1.data(), &(mbdata[os]), phydro->u1.GetSizeInBytes());
+    os += phydro->u.GetSizeInBytes();
+  }
   if (GENERAL_RELATIVITY) {
     memcpy(phydro->w.data(), &(mbdata[os]), phydro->w.GetSizeInBytes());
     os += phydro->w.GetSizeInBytes();
     memcpy(phydro->w1.data(), &(mbdata[os]), phydro->w1.GetSizeInBytes());
     os += phydro->w1.GetSizeInBytes();
+  }
+  if (WAVE_ENABLED) {
+    memcpy(pwave->u.data(), &(mbdata[os]), pwave->u.GetSizeInBytes());
+    memcpy(pwave->u1.data(), &(mbdata[os]), pwave->u1.GetSizeInBytes());
+    os += pwave->u.GetSizeInBytes();
   }
   if (MAGNETIC_FIELDS_ENABLED) {
     memcpy(pfield->b.x1f.data(), &(mbdata[os]), pfield->b.x1f.GetSizeInBytes());
@@ -288,9 +298,10 @@ MeshBlock::~MeshBlock() {
   delete precon;
   if (pmy_mesh->multilevel == true) delete pmr;
 
-  delete phydro;
+  if (HYDRO_ENABLED) delete phydro;
+  if (WAVE_ENABLED) delete pwave;
   if (MAGNETIC_FIELDS_ENABLED) delete pfield;
-  delete peos;
+  if (HYDRO_ENABLED) delete peos;
   if (SELF_GRAVITY_ENABLED) delete pgrav;
   if (SELF_GRAVITY_ENABLED==1) delete pgbval;
 
@@ -386,12 +397,17 @@ void MeshBlock::SetUserOutputVariableName(int n, const char *name) {
 //  \brief Calculate the block data size required for restart.
 
 size_t MeshBlock::GetBlockSizeInBytes(void) {
-  size_t size;
+  size_t size = 0;
 
-  size=phydro->u.GetSizeInBytes();
+  if (HYDRO_ENABLED) {
+    size+=phydro->u.GetSizeInBytes();
+  }
   if (GENERAL_RELATIVITY) {
     size+=phydro->w.GetSizeInBytes();
     size+=phydro->w1.GetSizeInBytes();
+  }
+  if (WAVE_ENABLED) {
+    size+=pwave->u.GetSizeInBytes();
   }
   if (MAGNETIC_FIELDS_ENABLED)
     size+=(pfield->b.x1f.GetSizeInBytes()+pfield->b.x2f.GetSizeInBytes()

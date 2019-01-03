@@ -40,6 +40,7 @@ SRC_FILES := $(wildcard src/*.cpp) \
 	     $(wildcard src/fft/*.cpp) \
 	     $(wildcard src/multigrid/*.cpp) \
 	     $(wildcard src/gravity/*.cpp) \
+	     $(wildcard src/wave/*.cpp) \
 	     $(MPIFFT_FILE) \
 	     src/pgen/$(PROBLEM_FILE) \
 	     src/pgen/default_pgen.cpp

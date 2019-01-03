@@ -13,9 +13,11 @@
 #   --eos=xxx         use xxx as the equation of state
 #   --flux=xxx        use xxx as the Riemann solver
 #   --nghost=xxx      set NGHOST=xxx
+#   -o                enable hydrodynamics
 #   -b                enable magnetic fields
 #   -s                enable special relativity
 #   -g                enable general relativity
+#   -w                enable wave equation
 #   -t                enable interface frame transformations for GR
 #   -shear            enable shearing periodic boundary conditions
 #   -debug            enable debug flags (-g -O0); override other compiler options
@@ -92,6 +94,12 @@ parser.add_argument('--nghost',
                     default='2',
                     help='set number of ghost zones')
 
+# -h argument
+parser.add_argument('-o',
+                    action='store_true',
+                    default=False,
+                    help='enable hydrodynamics')
+
 # -b argument
 parser.add_argument('-b',
                     action='store_true',
@@ -115,6 +123,12 @@ parser.add_argument('-t',
                     action='store_true',
                     default=False,
                     help='enable interface frame transformations for GR')
+
+# -w argument
+parser.add_argument("-w",
+                    action='store_true',
+                    default=False,
+                    help='enable wave equation')
 
 # -shear argument
 parser.add_argument('-shear',
@@ -229,6 +243,14 @@ parser.add_argument(
 args = vars(parser.parse_args())
 
 # --- Step 2. Test for incompatible arguments ----------------------------
+if not args['o'] and not args['w']:
+    raise SystemExit('### CONFIGURE ERROR: either hydro or the wave equation should be enabled')
+if args['o'] and args['w']:
+    raise SystemExit('### CONFIGURE ERROR: either hydro or the wave equation should be enabled')
+
+if not args['o']:
+    if args['b'] or args['s'] or args['g']:
+        raise SystemExit('### CONFIGURE ERROR: MHD, SR*, and GR* require hydro to be on')
 
 # Set default flux; HLLD for MHD, HLLC for hydro, HLLE for isothermal hydro or any GR
 if args['flux'] == 'default':
@@ -297,6 +319,12 @@ definitions['RSOLVER'] = makefile_options['RSOLVER_FILE'] = args['flux']
 # --nghost=[value] argument
 definitions['NUMBER_GHOST_CELLS'] = args['nghost']
 
+# -h argument
+if args['o']:
+    definitions['HYDRO_ENABLED'] = '1'
+else:
+    definitions['HYDRO_ENABLED'] = '0'
+
 # -b argument
 # set variety of macros based on whether MHD/hydro or adi/iso are defined
 if args['b']:
@@ -335,6 +363,12 @@ if args['g']:
     if not args['t']:
         makefile_options['RSOLVER_FILE'] += '_no_transform'
 
+# -w argument
+if args['w']:
+  definitions['WAVE_ENABLED'] = '1'
+else:
+  definitions['WAVE_ENABLED'] = '0'
+  
 # -shear argument
 if args['shear']:
     definitions['SHEARING_BOX'] = '1'
@@ -614,9 +648,11 @@ print('  Coordinate system:       ' + args['coord'])
 print('  Equation of state:       ' + args['eos'])
 print('  Riemann solver:          ' + args['flux'])
 print('  Self Gravity:            ' + ('OFF' if args['grav'] == 'none' else args['grav']))
+print('  Hydrodynamics:           ' + ('ON' if args['o'] else 'OFF'))
 print('  Magnetic fields:         ' + ('ON' if args['b'] else 'OFF'))
 print('  Special relativity:      ' + ('ON' if args['s'] else 'OFF'))
 print('  General relativity:      ' + ('ON' if args['g'] else 'OFF'))
+print('  Wave equation:           ' + ('ON' if args['w'] else 'OFF'))
 print('  Frame transformations:   ' + ('ON' if args['t'] else 'OFF'))
 print('  ShearingBox:             ' + ('ON' if args['shear'] else 'OFF'))
 print('  Debug flags:             ' + ('ON' if args['debug'] else 'OFF'))
