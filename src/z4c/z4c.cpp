@@ -328,16 +328,16 @@ Real Z4c::Trace(Real const detginv,
 // \!fn void Z4c::AlgConstr(AthenaArray<Real> & u)
 // \brief algebraic constraints projection
 //
-// This function operates only on the interior points of the MeshBlock
+// This function operates on all grid points of the MeshBlock
 
 void Z4c::AlgConstr(AthenaArray<Real> & u)
 {
   Z4c_vars z4c;
   SetZ4cAliases(u, z4c);
 
-  LOOP2(k,j) {
+  GLOOP2(k,j) {
     // compute determinant and "conformal conformal factor"
-    LOOP1(i) {
+    GLOOP1(i) {
       detg(i) = SpatialDet(z4c.g_dd,k,j,i);
       detg(i) = detg(i) > 0. ? detg(i) : 1.;
       Real eps = detg(i) - 1.;
@@ -346,13 +346,13 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
     // enforce unitary determinant for conformal metric
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b) {
-      LOOP1(i) {
+      GLOOP1(i) {
         z4c.g_dd(a,b,k,j,j,i) *= oopsi4(i);
       }
     }
 
     // compute trace of A
-    LOOP1(i) {
+    GLOOP1(i) {
       // note: here we are assuming that det g = 1, which we enforced above
       A(i) = Trace(1.0,
           z4c.g_dd(0,0,k,j,i), z4c.g_dd(0,1,k,j,i), z4c.g_dd(0,2,k,j,i),
@@ -363,7 +363,7 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
     // enforce trace of A to be zero
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b) {
-      LOOP1(i) {
+      GLOOP1(i) {
         z4c.A_dd(a,b,k,j,i) -= (1.0/3.0) * A(i) * z4c.g_dd(a,b,k,j,i);
       }
     }
