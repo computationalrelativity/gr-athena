@@ -26,10 +26,9 @@
 #include "../globals.hpp"
 #include "../hydro/hydro.hpp"
 #include "../wave/wave.hpp"
+#include "../z4c/z4c.hpp"
 #include "../mesh/mesh.hpp"
 #include "outputs.hpp"
-
-#define NHISTORY_VARS ((NHYDRO)+(NFIELD)+3+3)
 
 //----------------------------------------------------------------------------------------
 // HistoryOutput constructor
@@ -49,7 +48,23 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
 
   int ncells1 = pmb->block_size.nx1 + 2*(NGHOST);
   vol.NewAthenaArray(ncells1);
-  int nhistory_output=NHISTORY_VARS+pm->nuser_history_output_;
+  int nhistory_output = 0;
+  if (HYDRO_ENABLED) {
+    nhistory_output += 7;
+    if (NON_BAROTROPIC_EOS) {
+      nhistory_output += 1;
+    }
+    if (MAGNETIC_FIELDS_ENABLED) {
+      nhistory_output += 3;
+    }
+  }
+  if (WAVE_ENABLED) {
+    nhistory_output += 2;
+  }
+  if (Z4C_ENABLED) {
+    nhistory_output += 8;
+  }
+  nhistory_output += pm->nuser_history_output_;
 
   Real *data_sum = new Real[nhistory_output];
   for (int n=0; n<nhistory_output; ++n) data_sum[n]=0.0;
@@ -59,7 +74,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     Hydro *phyd = pmb->phydro;
     Field *pfld = pmb->pfield;
     Wave  *pwave = pmb->pwave;
-    Real infty_norm = 0.0;
+    Z4c *pz4c = pmb->pz4c;
 
     // Sum history variables over cells.  Note ghost cells are never included in sums
     for (int k=pmb->ks; k<=pmb->ke; ++k) {
@@ -95,19 +110,31 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
           }
         }
         if (WAVE_ENABLED) {
-           Real & wave_error = pwave->error(0,k,j,i);
-           data_sum[isum++] += vol(i)*wave_error; //L1-norm of error
-           data_sum[isum++] += vol(i)*SQR(wave_error); // (L2-norm)^2 of error
-           if (wave_error > infty_norm) {
-               infty_norm = wave_error; //LInfty-norm of error
-               data_sum[isum++] = infty_norm;
-           }
+          Real & wave_error = pwave->error(0,k,j,i);
+          data_sum[isum++] += vol(i)*wave_error;
+          data_sum[isum++] += vol(i)*SQR(wave_error);
         }
+        if (Z4C_ENABLED) {
+          Real const H_err = std::abs(pz4c->adm.H(k,j,i));
+          Real const Mx_err = std::abs(pz4c->adm.M_d(0,k,j,i));
+          Real const My_err = std::abs(pz4c->adm.M_d(1,k,j,i));
+          Real const Mz_err = std::abs(pz4c->adm.M_d(2,k,j,i));
+
+          data_sum[isum++] += vol(i)*H_err;
+          data_sum[isum++] += vol(i)*Mx_err;
+          data_sum[isum++] += vol(i)*My_err;
+          data_sum[isum++] += vol(i)*Mz_err;
+          data_sum[isum++] += vol(i)*SQR(H_err);
+          data_sum[isum++] += vol(i)*SQR(Mx_err);
+          data_sum[isum++] += vol(i)*SQR(My_err);
+          data_sum[isum++] += vol(i)*SQR(Mz_err);
+        }
+        nhistory_output = isum;
       }
     }}
     for (int n=0; n<pm->nuser_history_output_; n++) { // user-defined history outputs
       if (pm->user_history_func_[n]!=NULL)
-        data_sum[NHISTORY_VARS+n] += pm->user_history_func_[n](pmb, n);
+        data_sum[nhistory_output+n] += pm->user_history_func_[n](pmb, n);
     }
     pmb=pmb->next;
   }  // end loop over MeshBlocks
@@ -161,9 +188,18 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         }
       }
       if (WAVE_ENABLED) {
-          fprintf(pfile,"[%d]=L1-norm ",    iout++);
-          fprintf(pfile,"[%d]=[L2-norm]^2 ",iout++);
-          fprintf(pfile,"[%d]=Infty-n ",    iout++);
+        fprintf(pfile,"[%d]=err-norm1 ", iout++);
+        fprintf(pfile,"[%d]=err-norm2 ", iout++);
+      }
+      if (Z4C_ENABLED) {
+        fprintf(pfile,"[%d]=H-norm1 ",  iout++);
+        fprintf(pfile,"[%d]=Mx-norm1 ", iout++);
+        fprintf(pfile,"[%d]=My-norm1 ", iout++);
+        fprintf(pfile,"[%d]=Mz-norm1 ", iout++);
+        fprintf(pfile,"[%d]=H-norm2 ",  iout++);
+        fprintf(pfile,"[%d]=Mx-norm2 ", iout++);
+        fprintf(pfile,"[%d]=My-norm2 ", iout++);
+        fprintf(pfile,"[%d]=Mz-norm2 ", iout++);
       }
 
       for (int n=0; n<pm->nuser_history_output_; n++)

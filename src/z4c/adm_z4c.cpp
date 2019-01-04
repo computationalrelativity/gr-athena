@@ -176,7 +176,7 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat)
 {
   ADM_vars adm;
   SetADMAliases(u_adm, adm);
-  adm.Mom_d.Zero();
+  adm.M_d.Zero();
 
   Matter_vars mat;
   SetMatterAliases(u_mat, mat);
@@ -328,16 +328,16 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat)
       adm.H(k,j,i) = R(i) + SQR(K(i)) - KK(i) - 16*M_PI * mat.rho(k,j,i);
     }
     // Momentum constraint (contravariant)
-    Mom_u.Zero();
+    M_u.Zero();
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
       LOOP1(i) {
-        Mom_u(a,i) -= 8*M_PI * g_uu(a,b,i) * mat.S_d(b,k,j,i);
+        M_u(a,i) -= 8*M_PI * g_uu(a,b,i) * mat.S_d(b,k,j,i);
       }
       for(int c = 0; c < NDIM; ++c) {
         LOOP1(i) {
-          Mom_u(a,i) += g_uu(a,b,i) * DK_udd(c,b,c,i);
-          Mom_u(a,i) -= g_uu(b,c,i) * DK_udd(a,b,c,i);
+          M_u(a,i) += g_uu(a,b,i) * DK_udd(c,b,c,i);
+          M_u(a,i) -= g_uu(b,c,i) * DK_udd(a,b,c,i);
         }
       }
     }
@@ -345,7 +345,7 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat)
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
       LOOP1(i) {
-        adm.Mom_d(a,k,j,i) += adm.g_dd(a,b,k,j,i) * Mom_u(a,i);
+        adm.M_d(a,k,j,i) += adm.g_dd(a,b,k,j,i) * M_u(a,i);
       }
     }
   }

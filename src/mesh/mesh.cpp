@@ -30,6 +30,7 @@
 #include "../coordinates/coordinates.hpp"
 #include "../hydro/hydro.hpp"
 #include "../wave/wave.hpp"
+#include "../z4c/z4c.hpp"
 #include "../eos/eos.hpp"
 #include "../field/field.hpp"
 #include "../fft/athena_fft.hpp"
@@ -1275,6 +1276,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
     MeshBlock *pmb;
     Hydro *phydro;
     Wave *pwave;
+    Z4c *pz4c;
     Field *pfield;
     BoundaryValues *pbval;
 
@@ -1294,6 +1296,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         pbval->SendCellCenteredBoundaryBuffers(pmb->phydro->u, HYDRO_CONS);
       if (WAVE_ENABLED)
         pbval->SendCellCenteredBoundaryBuffers(pmb->pwave->u, WAVE_SOL);
+      if (Z4C_ENABLED)
+        pbval->SendCellCenteredBoundaryBuffers(pmb->pz4c->storage.u, Z4C_SOL);
       if (MAGNETIC_FIELDS_ENABLED)
         pbval->SendFieldBoundaryBuffers(pmb->pfield->b);
     }
@@ -1306,6 +1310,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         pbval->ReceiveCellCenteredBoundaryBuffersWithWait(pmb->phydro->u, HYDRO_CONS);
       if (WAVE_ENABLED)
         pbval->ReceiveCellCenteredBoundaryBuffersWithWait(pmb->pwave->u, WAVE_SOL);
+      if (Z4C_ENABLED)
+        pbval->ReceiveCellCenteredBoundaryBuffersWithWait(pmb->pz4c->storage.u, Z4C_SOL);
       if (MAGNETIC_FIELDS_ENABLED)
         pbval->ReceiveFieldBoundaryBuffersWithWait(pmb->pfield->b);
       // send and receive shearingbox boundary conditions
@@ -1340,12 +1346,12 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
     }
 
     // Now do prolongation, compute primitives, apply BCs
-#pragma omp for private(pmb,pbval,phydro,pfield)
+#pragma omp for private(pmb,pbval,phydro,pfield,pwave,pz4c)
     for (int i=0; i<nmb; ++i) {
-      pmb=pmb_array[i]; pbval=pmb->pbval, phydro=pmb->phydro,
-                        pwave=pmb->pwave, pfield=pmb->pfield;
+      pmb=pmb_array[i]; pbval=pmb->pbval, phydro=pmb->phydro, pwave=pmb->pwave,
+                        pz4c=pmb->pz4c,   pfield=pmb->pfield;
       if (multilevel==true)
-        pbval->ProlongateBoundaries(phydro->w, phydro->u, pwave->u,
+        pbval->ProlongateBoundaries(phydro->w, phydro->u, pwave->u, pz4c->storage.u,
                                     pfield->b, pfield->bcc, time, 0.0);
 
       int il=pmb->is, iu=pmb->ie, jl=pmb->js, ju=pmb->je, kl=pmb->ks, ku=pmb->ke;
@@ -1417,6 +1423,9 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       }
       else if (WAVE_ENABLED) {
         pmb_array[i]->pwave->NewBlockTimeStep();
+      }
+      else if (Z4C_ENABLED) {
+        pmb_array[i]->pz4c->NewBlockTimeStep();
       }
       else {
         abort(); // something must be very wrong
@@ -1826,9 +1835,9 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
 
   // Step 4. calculate buffer sizes
   Real **sendbuf, **recvbuf;
-  int bssame=bnx1*bnx2*bnx3*(NHYDRO*HYDRO_ENABLED + 2*WAVE_ENABLED);
-  int bsf2c=(bnx1/2)*((bnx2+1)/2)*((bnx3+1)/2)*(NHYDRO*HYDRO_ENABLED + 2*WAVE_ENABLED);
-  int bsc2f=(bnx1/2+2)*((bnx2+1)/2+2*f2)*((bnx3+1)/2+2*f3)*(NHYDRO*HYDRO_ENABLED + 2*WAVE_ENABLED);
+  int bssame=bnx1*bnx2*bnx3*(NHYDRO*HYDRO_ENABLED + 2*WAVE_ENABLED + Z4c::N_Z4c*Z4C_ENABLED);
+  int bsf2c=(bnx1/2)*((bnx2+1)/2)*((bnx3+1)/2)*(NHYDRO*HYDRO_ENABLED + 2*WAVE_ENABLED + Z4c::N_Z4c*Z4C_ENABLED);
+  int bsc2f=(bnx1/2+2)*((bnx2+1)/2+2*f2)*((bnx3+1)/2+2*f3)*(NHYDRO*HYDRO_ENABLED + 2*WAVE_ENABLED + Z4c::N_Z4c*Z4C_ENABLED);
   if (MAGNETIC_FIELDS_ENABLED) {
     bssame+=(bnx1+1)*bnx2*bnx3+bnx1*(bnx2+f2)*bnx3+bnx1*bnx2*(bnx3+f3);
     bsf2c+=((bnx1/2)+1)*((bnx2+1)/2)*((bnx3+1)/2)
@@ -1897,6 +1906,10 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           BufferUtility::Pack4DData(pb->pwave->u, sendbuf[k], 0, 1,
                         pb->is, pb->ie, pb->js, pb->je, pb->ks, pb->ke, p);
         }
+        if (Z4C_ENABLED) {
+          BufferUtility::Pack4DData(pb->pz4c->storage.u, sendbuf[k], 0, Z4c::N_Z4c-1,
+                        pb->is, pb->ie, pb->js, pb->je, pb->ks, pb->ke, p);
+        }
         if (MAGNETIC_FIELDS_ENABLED) {
           BufferUtility::Pack3DData(pb->pfield->b.x1f, sendbuf[k],
                          pb->is, pb->ie+1, pb->js, pb->je, pb->ks, pb->ke, p);
@@ -1934,6 +1947,10 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
             BufferUtility::Pack4DData(pb->pwave->u, sendbuf[k], 0, 1,
                                       is, ie, js, je, ks, ke, p);
           }
+          if (Z4C_ENABLED) {
+            BufferUtility::Pack4DData(pb->pz4c->storage.u, sendbuf[k], 0, Z4c::N_Z4c-1,
+                                      is, ie, js, je, ks, ke, p);
+          }
           if (MAGNETIC_FIELDS_ENABLED) {
             BufferUtility::Pack3DData(pb->pfield->b.x1f, sendbuf[k],
                                       is, ie+1, js, je, ks, ke, p);
@@ -1964,6 +1981,12 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           pmr->RestrictCellCenteredValues(pb->pwave->u, pmr->coarse_wave_,
               0, 1, pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke);
           BufferUtility::Pack4DData(pmr->coarse_wave_, sendbuf[k], 0, 1,
+              pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke, p);
+        }
+        if (Z4C_ENABLED) {
+          pmr->RestrictCellCenteredValues(pb->pz4c->storage.u, pmr->coarse_z4c_,
+              0, Z4c::N_Z4c-1, pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke);
+          BufferUtility::Pack4DData(pmr->coarse_z4c_, sendbuf[k], 0, Z4c::N_Z4c-1,
               pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke, p);
         }
         if (MAGNETIC_FIELDS_ENABLED) {
@@ -2066,6 +2089,21 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
                     dst(nv, k, j, i)=src(nv, fk, fj, fi);
             }}}
           }
+          if (Z4C_ENABLED) {
+            pmr->RestrictCellCenteredValues(pob->pz4c->storage.u, pmr->coarse_z4c_,
+                0, Z4c::N_Z4c-1, pob->cis, pob->cie, pob->cjs, pob->cje, pob->cks, pob->cke);
+            int is=pmb->is+(loclist[on+ll].lx1&1L)*pmb->block_size.nx1/2;
+            int js=pmb->js+(loclist[on+ll].lx2&1L)*pmb->block_size.nx2/2;
+            int ks=pmb->ks+(loclist[on+ll].lx3&1L)*pmb->block_size.nx3/2;
+            AthenaArray<Real> &src=pmr->coarse_z4c_;
+            AthenaArray<Real> &dst=pmb->pz4c->storage.u;
+            for(int nv=0; nv<=Z4c::N_Z4c-1; nv++) {
+              for(int k=ks, fk=pob->cks; fk<=pob->cke; k++, fk++) {
+                for(int j=js, fj=pob->cjs; fj<=pob->cje; j++, fj++) {
+                  for(int i=is, fi=pob->cis; fi<=pob->cie; i++, fi++)
+                    dst(nv, k, j, i)=src(nv, fk, fj, fi);
+            }}}
+          }
           if (MAGNETIC_FIELDS_ENABLED) {
             pmr->RestrictFieldX1(pob->pfield->b.x1f, pmr->coarse_b_.x1f,
                          pob->cis, pob->cie+1, pob->cjs, pob->cje, pob->cks, pob->cke);
@@ -2125,7 +2163,7 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
                   dst(nv, k, j, i)=src(nv, ck, cj, ci);
           }}}
           pmr->ProlongateCellCenteredValues(dst, pmb->phydro->u, 0, NHYDRO-1,
-                        pob->cis, pob->cie, pob->cjs, pob->cje, pob->cks, pob->cke,true);
+                        pob->cis, pob->cie, pob->cjs, pob->cje, pob->cks, pob->cke, true);
         }
         if (WAVE_ENABLED) {
           AthenaArray<Real> &src=pob->pwave->u;
@@ -2138,7 +2176,20 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
                   dst(nv, k, j, i)=src(nv, ck, cj, ci);
           }}}
           pmr->ProlongateCellCenteredValues(dst, pmb->pwave->u, 0, 1,
-             is, ie, js, je, ks, ke, false);
+                        pob->cis, pob->cie, pob->cjs, pob->cje, pob->cks, pob->cke, false);
+        }
+        if (Z4C_ENABLED) {
+          AthenaArray<Real> &src=pob->pz4c->storage.u;
+          AthenaArray<Real> &dst=pmr->coarse_z4c_;
+          // fill the coarse buffer
+          for (int nv=0; nv<Z4c::N_Z4c; nv++) {
+            for (int k=ks, ck=cks; k<=ke; k++, ck++) {
+              for (int j=js, cj=cjs; j<=je; j++, cj++) {
+                for (int i=is, ci=cis; i<=ie; i++, ci++)
+                  dst(nv, k, j, i)=src(nv, ck, cj, ci);
+          }}}
+          pmr->ProlongateCellCenteredValues(dst, pmb->pz4c->storage.u, 0, Z4c::N_Z4c-1,
+                        pob->cis, pob->cie, pob->cjs, pob->cje, pob->cks, pob->cke, false);
         }
         if (MAGNETIC_FIELDS_ENABLED) {
           FaceField &src=pob->pfield->b;
@@ -2204,6 +2255,10 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           BufferUtility::Unpack4DData(recvbuf[k], pb->pwave->u, 0, 1,
                         pb->is, pb->ie, pb->js, pb->je, pb->ks, pb->ke, p);
         }
+        if(Z4C_ENABLED) {
+          BufferUtility::Unpack4DData(recvbuf[k], pb->pz4c->storage.u, 0, Z4c::N_Z4c-1,
+                        pb->is, pb->ie, pb->js, pb->je, pb->ks, pb->ke, p);
+        }
         if (MAGNETIC_FIELDS_ENABLED) {
           FaceField &dst=pb->pfield->b;
           BufferUtility::Unpack3DData(recvbuf[k], dst.x1f,
@@ -2247,6 +2302,10 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
             BufferUtility::Unpack4DData(recvbuf[k], pb->pwave->u, 0, 1,
                           is, ie, js, je, ks, ke, p);
           }
+          if (Z4C_ENABLED) {
+            BufferUtility::Unpack4DData(recvbuf[k], pb->pz4c->storage.u, 0, Z4c::N_Z4c-1,
+                          is, ie, js, je, ks, ke, p);
+          }
           if (MAGNETIC_FIELDS_ENABLED) {
             FaceField &dst=pb->pfield->b;
             BufferUtility::Unpack3DData(recvbuf[k], dst.x1f,
@@ -2279,13 +2338,19 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           BufferUtility::Unpack4DData(recvbuf[k], pmr->coarse_cons_,
                                       0, NHYDRO-1, is, ie, js, je, ks, ke, p);
           pmr->ProlongateCellCenteredValues(pmr->coarse_cons_, pb->phydro->u, 0, NHYDRO-1,
-                                    pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke,true);
+                                    pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke, true);
         }
         if (WAVE_ENABLED) {
           BufferUtility::Unpack4DData(recvbuf[k], pmr->coarse_wave_,
                                       0, 1, is, ie, js, je, ks, ke, p);
           pmr->ProlongateCellCenteredValues(pmr->coarse_wave_, pb->pwave->u, 0, 1,
-                                            is, ie, js, je, ks, ke, false);
+                                    pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke, false);
+        }
+        if (Z4C_ENABLED) {
+          BufferUtility::Unpack4DData(recvbuf[k], pmr->coarse_z4c_,
+                                      0, Z4c::N_Z4c-1, is, ie, js, je, ks, ke, p);
+          pmr->ProlongateCellCenteredValues(pmr->coarse_z4c_, pb->pz4c->storage.u, 0, Z4c::N_Z4c-1,
+                                    pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke, false);
         }
         if (MAGNETIC_FIELDS_ENABLED) {
           BufferUtility::Unpack3DData(recvbuf[k], pmr->coarse_b_.x1f,

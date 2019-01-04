@@ -18,6 +18,7 @@
 #include "../hydro/hydro.hpp"
 #include "../field/field.hpp"
 #include "../parameter_input.hpp"
+#include "../z4c/z4c.hpp"
 #include "mesh.hpp"
 #include "mesh_refinement.hpp"
 
@@ -85,6 +86,7 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) {
   sarea_x3_[2][1].NewAthenaArray(nc1);
 
   if (WAVE_ENABLED)  coarse_wave_.NewAthenaArray(2,ncc3,ncc2,ncc1);
+  if (Z4C_ENABLED) coarse_z4c_.NewAthenaArray(Z4c::N_Z4c,ncc3,ncc2,ncc1);
   if (MAGNETIC_FIELDS_ENABLED) {
     coarse_b_.x1f.NewAthenaArray(ncc3,ncc2,ncc1+1);
     coarse_b_.x2f.NewAthenaArray(ncc3,ncc2+1,ncc1);

@@ -24,6 +24,7 @@
 #include "../hydro/srcterms/hydro_srcterms.hpp"
 #include "../hydro/hydro_diffusion/hydro_diffusion.hpp"
 #include "../wave/wave.hpp"
+#include "../z4c/z4c.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "../reconstruct/reconstruction.hpp"
@@ -790,6 +791,7 @@ enum TaskStatus TimeIntegratorTaskList::Prolongation(MeshBlock *pmb, int stage) 
   Hydro *phydro=pmb->phydro;
   Field *pfield=pmb->pfield;
   Wave *pwave=pmb->pwave;
+  Z4c *pz4c=pmb->pz4c;
   BoundaryValues *pbval=pmb->pbval;
 
   if (stage <= nstages) {
@@ -797,7 +799,7 @@ enum TaskStatus TimeIntegratorTaskList::Prolongation(MeshBlock *pmb, int stage) 
     Real t_end_stage = pmb->pmy_mesh->time + pmb->stage_abscissae[stage][0];
     // Scaled coefficient for RHS time-advance within stage
     Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
-    pbval->ProlongateBoundaries(phydro->w,  phydro->u, pwave->u,
+    pbval->ProlongateBoundaries(phydro->w,  phydro->u, pwave->u, pz4c->storage.u,
                                 pfield->b,  pfield->bcc, t_end_stage, dt);
   } else {
     return TASK_FAIL;

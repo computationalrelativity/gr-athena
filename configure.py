@@ -18,6 +18,7 @@
 #   -s                enable special relativity
 #   -g                enable general relativity
 #   -w                enable wave equation
+#   -z                enable z4c equations
 #   -t                enable interface frame transformations for GR
 #   -shear            enable shearing periodic boundary conditions
 #   -debug            enable debug flags (-g -O0); override other compiler options
@@ -129,6 +130,12 @@ parser.add_argument("-w",
                     action='store_true',
                     default=False,
                     help='enable wave equation')
+
+# -z argument
+parser.add_argument("-z",
+                    action='store_true',
+                    default=False,
+                    help='enable Z4c equations')
 
 # -shear argument
 parser.add_argument('-shear',
@@ -243,10 +250,10 @@ parser.add_argument(
 args = vars(parser.parse_args())
 
 # --- Step 2. Test for incompatible arguments ----------------------------
-if not args['o'] and not args['w']:
-    raise SystemExit('### CONFIGURE ERROR: either hydro or the wave equation should be enabled')
-if args['o'] and args['w']:
-    raise SystemExit('### CONFIGURE ERROR: either hydro or the wave equation should be enabled')
+if not args['o'] and not args['w'] and not args['z']:
+    raise SystemExit('### CONFIGURE ERROR: one of the hydro, wave, or Z4c equations should be enabled')
+if args['o'] and args['w'] and args['z']:
+    raise SystemExit('### CONFIGURE ERROR: one of the hydro, wave, or Z4c equations should be enabled')
 
 if not args['o']:
     if args['b'] or args['s'] or args['g']:
@@ -368,6 +375,12 @@ if args['w']:
   definitions['WAVE_ENABLED'] = '1'
 else:
   definitions['WAVE_ENABLED'] = '0'
+
+# -z argument
+if args['z']:
+  definitions['Z4C_ENABLED'] = '1'
+else:
+  definitions['Z4C_ENABLED'] = '0'
   
 # -shear argument
 if args['shear']:
@@ -653,6 +666,7 @@ print('  Magnetic fields:         ' + ('ON' if args['b'] else 'OFF'))
 print('  Special relativity:      ' + ('ON' if args['s'] else 'OFF'))
 print('  General relativity:      ' + ('ON' if args['g'] else 'OFF'))
 print('  Wave equation:           ' + ('ON' if args['w'] else 'OFF'))
+print('  Z4c equations:           ' + ('ON' if args['z'] else 'OFF'))
 print('  Frame transformations:   ' + ('ON' if args['t'] else 'OFF'))
 print('  ShearingBox:             ' + ('ON' if args['shear'] else 'OFF'))
 print('  Debug flags:             ' + ('ON' if args['debug'] else 'OFF'))

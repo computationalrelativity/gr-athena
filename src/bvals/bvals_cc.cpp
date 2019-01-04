@@ -28,6 +28,7 @@
 #include "../coordinates/coordinates.hpp"
 #include "../parameter_input.hpp"
 #include "../utils/buffer_utils.hpp"
+#include "../z4c/z4c.hpp"
 
 // MPI header
 #ifdef MPI_PARALLEL
@@ -160,6 +161,13 @@ void BoundaryValues::SendCellCenteredBoundaryBuffers(AthenaArray<Real> &src,
         cbuf.InitWithShallowCopy(pmb->pmr->coarse_wave_);
     }
   }
+  if (type==Z4C_SOL) {
+    pbd=&bd_z4c_;
+    ns=0, ne=Z4c::N_Z4c-1;
+    if (pmb->pmy_mesh->multilevel) {
+        cbuf.InitWithShallowCopy(pmb->pmr->coarse_z4c_);
+    }
+  }
 
   for (int n=0; n<nneighbor; n++) {
     NeighborBlock& nb = neighbor[n];
@@ -178,6 +186,8 @@ void BoundaryValues::SendCellCenteredBoundaryBuffers(AthenaArray<Real> &src,
         ptarget=&(pbl->pbval->bd_hydro_);
       if (type==WAVE_SOL)
         ptarget=&(pbl->pbval->bd_wave_);
+      if (type==Z4C_SOL)
+        ptarget=&(pbl->pbval->bd_z4c_);
       std::memcpy(ptarget->recv[nb.targetid], pbd->send[nb.bufid], ssize*sizeof(Real));
       ptarget->flag[nb.targetid]=BNDRY_ARRIVED;
     }
@@ -428,6 +438,13 @@ bool BoundaryValues::ReceiveCellCenteredBoundaryBuffers(AthenaArray<Real> &dst,
         cbuf.InitWithShallowCopy(pmb->pmr->coarse_wave_);
     }
   }
+  if (type==Z4C_SOL) {
+    pbd=&bd_z4c_;
+    ns=0, ne=Z4c::N_Z4c-1;
+    if (pmb->pmy_mesh->multilevel) {
+        cbuf.InitWithShallowCopy(pmb->pmr->coarse_z4c_);
+    }
+  }
 
   for (int n=0; n<nneighbor; n++) {
     NeighborBlock& nb = neighbor[n];
@@ -491,12 +508,18 @@ void BoundaryValues::ReceiveCellCenteredBoundaryBuffersWithWait(AthenaArray<Real
         cbuf.InitWithShallowCopy(pmb->pmr->coarse_prim_);
     }
   }
-
   if (type==WAVE_SOL) {
     pbd=&bd_wave_;
     ns=0, ne=1;
     if (pmb->pmy_mesh->multilevel) {
         cbuf.InitWithShallowCopy(pmb->pmr->coarse_wave_);
+    }
+  }
+  if (type==Z4C_SOL) {
+    pbd=&bd_z4c_;
+    ns=0, ne=Z4c::N_Z4c-1;
+    if (pmb->pmy_mesh->multilevel) {
+        cbuf.InitWithShallowCopy(pmb->pmr->coarse_z4c_);
     }
   }
 

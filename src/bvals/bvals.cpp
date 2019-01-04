@@ -32,6 +32,7 @@
 #include "../multigrid/multigrid.hpp"
 #include "../parameter_input.hpp"
 #include "../utils/buffer_utils.hpp"
+#include "../z4c/z4c.hpp"
 
 
 // MPI header
@@ -240,6 +241,8 @@ BoundaryValues::BoundaryValues(MeshBlock *pmb, enum BoundaryFlag *input_bcs,
     InitBoundaryData(bd_flcor_, BNDRY_FLCOR);
   if (WAVE_ENABLED)
     InitBoundaryData(bd_wave_, BNDRY_WAVE);
+  if (Z4C_ENABLED)
+    InitBoundaryData(bd_z4c_, BNDRY_Z4C);
   if (MAGNETIC_FIELDS_ENABLED) {
     InitBoundaryData(bd_field_, BNDRY_FIELD);
     InitBoundaryData(bd_emfcor_, BNDRY_EMFCOR);
@@ -519,6 +522,8 @@ BoundaryValues::~BoundaryValues() {
     DestroyBoundaryData(bd_flcor_);
   if (WAVE_ENABLED)
     DestroyBoundaryData(bd_wave_);
+  if (Z4C_ENABLED)
+    DestroyBoundaryData(bd_z4c_);
   if (MAGNETIC_FIELDS_ENABLED) {
     DestroyBoundaryData(bd_field_);
     DestroyBoundaryData(bd_emfcor_);
@@ -789,6 +794,23 @@ void BoundaryValues::InitBoundaryData(BoundaryData &bd, enum BoundaryType type) 
         size*=2; // both wU and wPi need to be communicated (wPi only for [A|S]MR)
       }
       break;
+      case BNDRY_Z4C: {
+        size=((BoundaryValues::ni[n].ox1==0)?pmb->block_size.nx1:NGHOST)
+            *((BoundaryValues::ni[n].ox2==0)?pmb->block_size.nx2:NGHOST)
+            *((BoundaryValues::ni[n].ox3==0)?pmb->block_size.nx3:NGHOST);
+        if (multilevel) {
+          int f2c=((BoundaryValues::ni[n].ox1==0) ? ((pmb->block_size.nx1+1)/2):NGHOST)
+                 *((BoundaryValues::ni[n].ox2==0) ? ((pmb->block_size.nx2+1)/2):NGHOST)
+                 *((BoundaryValues::ni[n].ox3==0) ? ((pmb->block_size.nx3+1)/2):NGHOST);
+          int c2f=((BoundaryValues::ni[n].ox1==0) ? ((pmb->block_size.nx1+1)/2+cng1):cng)
+                 *((BoundaryValues::ni[n].ox2==0) ? ((pmb->block_size.nx2+1)/2+cng2):cng)
+                 *((BoundaryValues::ni[n].ox3==0) ? ((pmb->block_size.nx3+1)/2+cng3):cng);
+          size=std::max(size,c2f);
+          size=std::max(size,f2c);
+        }
+        size*=Z4c::N_Z4c; // all evolved variables need to be exchanged
+      }
+      break;
       default: {
         std::stringstream msg;
         msg << "### FATAL ERROR in InitBoundaryData" << std::endl
@@ -944,6 +966,24 @@ void BoundaryValues::Initialize(void) {
         }
         MPI_Recv_init(bd_wave_.recv[nb.bufid], w_rsize, MPI_ATHENA_REAL,
             nb.rank, tag, MPI_COMM_WORLD, &(bd_wave_.req_recv[nb.bufid]));
+      }
+      if (Z4C_ENABLED) {
+        int z4_ssize = ssize*Z4c::N_Z4c;
+        int z4_rsize = rsize*Z4c::N_Z4c;
+
+        tag = CreateBvalsMPITag(nb.lid, TAG_Z4C, nb.targetid);
+        if (bd_z4c_.req_send[nb.bufid] != MPI_REQUEST_NULL) {
+          MPI_Request_free(&bd_z4c_.req_send[nb.bufid]);
+        }
+        MPI_Send_init(bd_z4c_.send[nb.bufid], z4_ssize, MPI_ATHENA_REAL,
+            nb.rank, tag, MPI_COMM_WORLD, &(bd_z4c_.req_send[nb.bufid]));
+
+        tag = CreateBvalsMPITag(pmb->lid, TAG_Z4C, nb.bufid);
+        if(bd_z4c_.req_recv[nb.bufid] != MPI_REQUEST_NULL) {
+          MPI_Request_free(&bd_z4c_.req_recv[nb.bufid]);
+        }
+        MPI_Recv_init(bd_z4c_.recv[nb.bufid], z4_rsize, MPI_ATHENA_REAL,
+            nb.rank, tag, MPI_COMM_WORLD, &(bd_z4c_.req_recv[nb.bufid]));
       }
       if (HYDRO_ENABLED) {
         ssize*=NHYDRO; rsize*=NHYDRO;
@@ -1247,6 +1287,9 @@ void BoundaryValues::StartReceivingForInit(bool cons_and_field) {
       if (WAVE_ENABLED) {
         MPI_Start(&(bd_wave_.req_recv[nb.bufid]));
       }
+      if (Z4C_ENABLED) {
+        MPI_Start(&(bd_z4c_.req_recv[nb.bufid]));
+      }
     }
   }
 #endif
@@ -1276,6 +1319,9 @@ void BoundaryValues::StartReceivingAll(const Real time) {
         MPI_Start(&(bd_hydro_.req_recv[nb.bufid]));
       if (WAVE_ENABLED) {
         MPI_Start(&(bd_wave_.req_recv[nb.bufid]));
+      }
+      if (Z4C_ENABLED) {
+        MPI_Start(&(bd_z4c_.req_recv[nb.bufid]));
       }
       if (nb.type==NEIGHBOR_FACE && nb.level>mylevel)
         MPI_Start(&(bd_flcor_.req_recv[nb.bufid]));
@@ -1379,6 +1425,8 @@ void BoundaryValues::ClearBoundaryForInit(bool cons_and_field) {
       bd_hydro_.flag[nb.bufid] = BNDRY_WAITING;
     if (WAVE_ENABLED)
       bd_wave_.flag[nb.bufid] = BNDRY_WAITING;
+    if (Z4C_ENABLED)
+      bd_z4c_.flag[nb.bufid] = BNDRY_WAITING;
     if (MAGNETIC_FIELDS_ENABLED)
       bd_field_.flag[nb.bufid] = BNDRY_WAITING;
     if (GENERAL_RELATIVITY and pmy_mesh_->multilevel)
@@ -1397,6 +1445,9 @@ void BoundaryValues::ClearBoundaryForInit(bool cons_and_field) {
       }
       if (WAVE_ENABLED) {
         MPI_Wait(&(bd_wave_.req_send[nb.bufid]), MPI_STATUS_IGNORE);
+      }
+      if (Z4C_ENABLED) {
+        MPI_Wait(&(bd_z4c_.req_send[nb.bufid]), MPI_STATUS_IGNORE);
       }
     }
 #endif
@@ -1419,6 +1470,8 @@ void BoundaryValues::ClearBoundaryAll(void) {
       bd_hydro_.flag[nb.bufid] = BNDRY_WAITING;
     if (WAVE_ENABLED)
       bd_wave_.flag[nb.bufid] = BNDRY_WAITING;
+    if (Z4C_ENABLED)
+      bd_z4c_.flag[nb.bufid] = BNDRY_WAITING;
     if (nb.type==NEIGHBOR_FACE)
       bd_flcor_.flag[nb.bufid] = BNDRY_WAITING;
     if (MAGNETIC_FIELDS_ENABLED) {
@@ -1433,6 +1486,9 @@ void BoundaryValues::ClearBoundaryAll(void) {
         MPI_Wait(&(bd_hydro_.req_send[nb.bufid]),MPI_STATUS_IGNORE);
       if (WAVE_ENABLED) {
         MPI_Wait(&(bd_wave_.req_send[nb.bufid]), MPI_STATUS_IGNORE); // Wait for Isend
+      }
+      if (Z4C_ENABLED) {
+        MPI_Wait(&(bd_z4c_.req_send[nb.bufid]), MPI_STATUS_IGNORE); // Wait for Isend
       }
       if (nb.type==NEIGHBOR_FACE && nb.level<pmb->loc.level)
         MPI_Wait(&(bd_flcor_.req_send[nb.bufid]),MPI_STATUS_IGNORE);
@@ -1617,13 +1673,13 @@ void BoundaryValues::ApplyPhysicalBoundaries(AthenaArray<Real> &pdst,
 
 //----------------------------------------------------------------------------------------
 //! \fn void BoundaryValues::ProlongateBoundaries(AthenaArray<Real> &pdst,
-//           AthenaArray<Real> &cdst, AthenaArray<Real> &waveu,
+//           AthenaArray<Real> &cdst, AthenaArray<Real> &waveu, AthenaArray<Real> &z4cu
 //           FaceField &bdst, AthenaArray<Real> &bcdst, const Real time, const Real dt)
 //  \brief Prolongate the level boundary using the coarse data
 
 void BoundaryValues::ProlongateBoundaries(AthenaArray<Real> &pdst, AthenaArray<Real> &cdst,
-        AthenaArray<Real> &waveu, FaceField &bfdst, AthenaArray<Real> &bcdst,
-        const Real time, const Real dt) {
+        AthenaArray<Real> &waveu, AthenaArray<Real> &z4cu, FaceField &bfdst,
+        AthenaArray<Real> &bcdst, const Real time, const Real dt) {
   MeshBlock *pmb=pmy_block_;
   MeshRefinement *pmr=pmb->pmr;
   int64_t &lx1=pmb->loc.lx1;
@@ -1687,6 +1743,10 @@ void BoundaryValues::ProlongateBoundaries(AthenaArray<Real> &pdst, AthenaArray<R
                                                  ris, rie, rjs, rje, rks, rke);
           if (WAVE_ENABLED) {
             pmb->pmr->RestrictCellCenteredValues(waveu, pmr->coarse_wave_, 0, 1,
+                                                 ris, rie, rjs, rje, rks, rke);
+          }
+          if (Z4C_ENABLED) {
+            pmb->pmr->RestrictCellCenteredValues(z4cu, pmr->coarse_z4c_, 0, Z4c::N_Z4c-1,
                                                  ris, rie, rjs, rje, rks, rke);
           }
           if (MAGNETIC_FIELDS_ENABLED) {
@@ -1836,6 +1896,10 @@ void BoundaryValues::ProlongateBoundaries(AthenaArray<Real> &pdst, AthenaArray<R
     }
     if (WAVE_ENABLED) {
       pmr->ProlongateCellCenteredValues(pmr->coarse_wave_, waveu, 0, 1,
+          si, ei, sj, ej, sk, ek, false);
+    }
+    if (Z4C_ENABLED) {
+      pmr->ProlongateCellCenteredValues(pmr->coarse_z4c_, z4cu, 0, Z4c::N_Z4c-1,
           si, ei, sj, ej, sk, ek, false);
     }
     // prolongate magnetic fields

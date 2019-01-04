@@ -31,6 +31,7 @@
 #include "../gravity/gravity.hpp"
 #include "../hydro/hydro.hpp"
 #include "../wave/wave.hpp"
+#include "../z4c/z4c.hpp"
 #include "../parameter_input.hpp"
 #include "../utils/buffer_utils.hpp"
 #include "../reconstruct/reconstruction.hpp"
@@ -132,6 +133,7 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   // physics-related objects: may depend on Coordinates for diffusion terms
   if (HYDRO_ENABLED) phydro = new Hydro(this, pin);
   if (WAVE_ENABLED) pwave = new Wave(this, pin);
+  if (Z4C_ENABLED) pz4c = new Z4c(this, pin);
   if (MAGNETIC_FIELDS_ENABLED) pfield = new Field(this, pin);
   if (HYDRO_ENABLED) peos = new EquationOfState(this, pin);
 
@@ -230,6 +232,7 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   // (re-)create physics-related objects in MeshBlock
   if (HYDRO_ENABLED) phydro = new Hydro(this, pin);
   if (WAVE_ENABLED) pwave = new Wave(this, pin);
+  if (Z4C_ENABLED) pz4c = new Z4c(this, pin);
   if (MAGNETIC_FIELDS_ENABLED) pfield = new Field(this, pin);
   if (HYDRO_ENABLED) peos = new EquationOfState(this, pin);
   InitUserMeshBlockData(pin);
@@ -250,8 +253,13 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   }
   if (WAVE_ENABLED) {
     memcpy(pwave->u.data(), &(mbdata[os]), pwave->u.GetSizeInBytes());
-    memcpy(pwave->u1.data(), &(mbdata[os]), pwave->u1.GetSizeInBytes());
     os += pwave->u.GetSizeInBytes();
+  }
+  if (Z4C_ENABLED) {
+    memcpy(pz4c->storage.u.data(), &(mbdata[os]), pz4c->storage.u.GetSizeInBytes());
+    os += pz4c->storage.u.GetSizeInBytes();
+    memcpy(pz4c->storage.mat.data(), &(mbdata[os]), pz4c->storage.mat.GetSizeInBytes());
+    os += pz4c->storage.mat.GetSizeInBytes();
   }
   if (MAGNETIC_FIELDS_ENABLED) {
     memcpy(pfield->b.x1f.data(), &(mbdata[os]), pfield->b.x1f.GetSizeInBytes());
@@ -300,6 +308,7 @@ MeshBlock::~MeshBlock() {
 
   if (HYDRO_ENABLED) delete phydro;
   if (WAVE_ENABLED) delete pwave;
+  if (Z4C_ENABLED) delete pz4c;
   if (MAGNETIC_FIELDS_ENABLED) delete pfield;
   if (HYDRO_ENABLED) delete peos;
   if (SELF_GRAVITY_ENABLED) delete pgrav;
@@ -408,6 +417,9 @@ size_t MeshBlock::GetBlockSizeInBytes(void) {
   }
   if (WAVE_ENABLED) {
     size+=pwave->u.GetSizeInBytes();
+  }
+  if (Z4C_ENABLED) {
+    size+=pz4c->storage.u.GetSizeInBytes();
   }
   if (MAGNETIC_FIELDS_ENABLED)
     size+=(pfield->b.x1f.GetSizeInBytes()+pfield->b.x2f.GetSizeInBytes()

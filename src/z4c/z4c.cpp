@@ -17,6 +17,31 @@
 
 // constructor, initializes data structures and parameters
 
+char const * const Z4c_names[Z4c::N_Z4c] = {
+  "z4c.chi",
+  "z4c.gxx", "z4c.gxy", "z4c.gxz", "z4c.gyy", "z4c.gyz", "z4c.gzz",
+  "z4c.Khat",
+  "z4c.Axx", "z4c.Axy", "z4c.Axz", "z4c.Ayy", "z4c.Ayz", "z4c.Azz",
+  "z4c.Gamx", "z4c.Gamy", "z4c.Gamz",
+  "z4c.Theta",
+  "z4c.alpha",
+  "z4c.betax", "z4c.betay", "z4c.betaz",
+};
+
+char const * const Z4c::ADM_names[Z4c::N_ADM] = {
+  "adm.gxx", "adm.gxy", "adm.gyy", "adm.gyz", "adm.gzz",
+  "adm.Kxx", "adm.Kxy", "adm.Kyy", "adm.Kyz", "adm.Kzz",
+  "adm.psi4",
+  "adm.H",
+  "adm.Mx", "adm.My", "adm.Mz",
+};
+
+char const * const Matter_names[Z4c::N_MAT] = {
+  "mat.rho",
+  "mat.Sx", "mat.Sy", "mat.Sz",
+  "mat.Sxx", "mat.Sxy", "mat.Sxz", "mat.Syy", "mat.Syz", "mat.Szz",
+};
+
 Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
 {
   pmy_block = pmb;
@@ -57,8 +82,10 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   opt.shift_eta = pin->GetOrAddReal("z4c", "shift_eta", 0.0);
 
   // Set aliases
-  SetZ4cAliases(storage.rhs, rhs);
   SetADMAliases(storage.adm, adm);
+  SetMatterAliases(storage.mat, mat);
+  SetZ4cAliases(storage.rhs, rhs);
+  SetZ4cAliases(storage.u, z4c);
 
   // Allocate memory for aux 1D vars
   detg.NewAthenaTensor(ncells1);
@@ -72,7 +99,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   KK.NewAthenaTensor(ncells1);
   Ddalpha.NewAthenaTensor(ncells1);
   S.NewAthenaTensor(ncells1);
-  Mom_u.NewAthenaTensor(ncells1);
+  M_u.NewAthenaTensor(ncells1);
   Gamma_u.NewAthenaTensor(ncells1);
   DA_u.NewAthenaTensor(ncells1);
   g_uu.NewAthenaTensor(ncells1);
@@ -161,7 +188,7 @@ Z4c::~Z4c()
   KK.DeleteAthenaTensor();
   Ddalpha.DeleteAthenaTensor();
   S.DeleteAthenaTensor();
-  Mom_u.DeleteAthenaTensor();
+  M_u.DeleteAthenaTensor();
   Gamma_u.DeleteAthenaTensor();
   DA_u.DeleteAthenaTensor();
   g_uu.DeleteAthenaTensor();
@@ -214,8 +241,8 @@ Z4c::~Z4c()
 void Z4c::SetADMAliases(AthenaArray<Real> & u_adm, Z4c::ADM_vars & adm)
 {
   adm.psi4.InitWithShallowSlice(u_adm, I_ADM_psi4);
-  adm.H.InitWithShallowSlice(u_adm, I_ADM_Ham);
-  adm.Mom_d.InitWithShallowSlice(u_adm, I_ADM_Momx);
+  adm.H.InitWithShallowSlice(u_adm, I_ADM_H);
+  adm.M_d.InitWithShallowSlice(u_adm, I_ADM_Mx);
   adm.g_dd.InitWithShallowSlice(u_adm, I_ADM_gxx);
   adm.K_dd.InitWithShallowSlice(u_adm, I_ADM_Kxx);
 }

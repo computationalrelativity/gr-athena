@@ -24,6 +24,7 @@
 #include "../field/field.hpp"
 #include "../hydro/hydro.hpp"
 #include "../wave/wave.hpp"
+#include "../z4c/z4c.hpp"
 #include "../globals.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
@@ -166,6 +167,12 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
     if (WAVE_ENABLED) {
       memcpy(pdata, pmb->pwave->u.data(), pmb->pwave->u.GetSizeInBytes());
       pdata += pmb->pwave->u.GetSizeInBytes();
+    }
+    if (Z4C_ENABLED) {
+      memcpy(pdata, pmb->pz4c->storage.u.data(), pmb->pz4c->storage.u.GetSizeInBytes());
+      pdata += pmb->pz4c->storage.u.GetSizeInBytes();
+      memcpy(pdata, pmb->pz4c->storage.mat.data(), pmb->pz4c->storage.mat.GetSizeInBytes());
+      pdata += pmb->pz4c->storage.mat.GetSizeInBytes();
     }
     if (MAGNETIC_FIELDS_ENABLED) {
       memcpy(pdata,pmb->pfield->b.x1f.data(),pmb->pfield->b.x1f.GetSizeInBytes());

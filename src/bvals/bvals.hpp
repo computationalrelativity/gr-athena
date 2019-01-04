@@ -216,7 +216,8 @@ public:
   void ApplyPhysicalBoundaries(AthenaArray<Real> &pdst, AthenaArray<Real> &cdst,
        FaceField &bfdst, AthenaArray<Real> &bcdst, const Real time, const Real dt);
   void ProlongateBoundaries(AthenaArray<Real> &pdst, AthenaArray<Real> &cdst,
-          AthenaArray<Real> &waveu, FaceField &bfdst, AthenaArray<Real> &bcdst,
+          AthenaArray<Real> &waveu, AthenaArray<Real> &z4cu,
+          FaceField &bfdst, AthenaArray<Real> &bcdst,
           const Real time, const Real dt);
 
   int LoadCellCenteredBoundaryBufferSameLevel(AthenaArray<Real> &src,
@@ -308,7 +309,7 @@ private:
   int nedge_fine_[12];
   bool firsttime_;
 
-  BoundaryData bd_hydro_, bd_field_, bd_flcor_, bd_emfcor_, bd_wave_;
+  BoundaryData bd_hydro_, bd_field_, bd_flcor_, bd_emfcor_, bd_wave_, bd_z4c_;
   enum BoundaryStatus *emf_north_flag_;
   enum BoundaryStatus *emf_south_flag_;
   Real **emf_north_send_, **emf_north_recv_;

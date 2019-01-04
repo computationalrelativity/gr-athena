@@ -17,7 +17,7 @@
 // created for each and every <outputN> block in the input file.
 //
 // Required parameters that must be specified in an <outputN> block are:
-//   - variable     = cons,prim,D,d,E,e,m,v,wave,wave_u,wave_pi,wave_exact,wave_error
+//   - variable     = cons,prim,D,d,E,e,m,v
 //   - file_type    = rst,tab,vtk,hst
 //   - dt           = problem time between outputs
 //
@@ -66,6 +66,7 @@
 #include "../gravity/gravity.hpp"
 #include "../hydro/hydro.hpp"
 #include "../wave/wave.hpp"
+#include "../z4c/z4c.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "outputs.hpp"
@@ -303,6 +304,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   Field *pfld = pmb->pfield;
   Gravity *pgrav = pmb->pgrav;
   Wave  *pwave = pmb->pwave;
+  Z4c *pz4c = pmb->pz4c;
   num_vars_ = 0;
   OutputData *pod;
 
@@ -492,6 +494,42 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       pod->data.InitWithShallowSlice(pwave->error,0,1);
       AppendOutputDataNode(pod);
       num_vars_++;
+    }
+  }
+
+  if (Z4C_ENABLED) {
+    for (int v = 0; v < Z4c::N_Z4c; ++v) {
+      if (output_params.variable.compare("z4c") == 0 ||
+          output_params.variable.compare(Z4c::Z4c_names[v]) == 0) {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = Z4c::Z4c_names[v];
+        pod->data.InitWithShallowSlice(pz4c->storage.u,v,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
+    for (int v = 0; v < Z4c::N_ADM; ++v) {
+      if (output_params.variable.compare("adm") == 0 ||
+          output_params.variable.compare(Z4c::ADM_names[v]) == 0) {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = Z4c::ADM_names[v];
+        pod->data.InitWithShallowSlice(pz4c->storage.adm,v,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
+    for (int v = 0; v < Z4c::N_MAT; ++v) {
+      if (output_params.variable.compare("mat") == 0 ||
+          output_params.variable.compare(Z4c::Matter_names[v]) == 0) {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = Z4c::Matter_names[v];
+        pod->data.InitWithShallowSlice(pz4c->storage.mat,v,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
     }
   }
 

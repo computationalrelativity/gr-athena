@@ -3,8 +3,8 @@
 // Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
 // Licensed under the 3-clause BSD License, see LICENSE file for details
 //========================================================================================
-//! \file wave_task_list.cpp
-//  \brief time integrator for the wave equation (based on time_integrator.cpp)
+//! \file z4c_task_list.cpp
+//  \brief time integrator for z4c (based on time_integrator.cpp)
 
 // C/C++ headers
 #include <iostream>   // endl
@@ -22,11 +22,11 @@
 #include "../z4c/z4c.hpp"
 #include "../parameter_input.hpp"
 #include "task_list.hpp"
-#include "wave_task_list.hpp"
+#include "z4c_task_list.hpp"
 
 //----------------------------------------------------------------------------------------
-//  WaveIntegratorTaskList constructor
-WaveIntegratorTaskList::WaveIntegratorTaskList(ParameterInput *pin, Mesh *pm)
+//  Z4cIntegratorTaskList constructor
+Z4cIntegratorTaskList::Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm)
   : TaskList(pm)
 {
   // First, define each time-integrator by setting weights for each step of the algorithm
@@ -203,101 +203,113 @@ WaveIntegratorTaskList::WaveIntegratorTaskList(ParameterInput *pin, Mesh *pm)
   pm->cfl_number = cfl_number;
 
   // Now assemble list of tasks for each stage of time integrator
-  {using namespace WaveIntegratorTaskNames;
-    AddWaveIntegratorTask(STARTUP_INT, NONE);
-    AddWaveIntegratorTask(START_ALLRECV, STARTUP_INT);
-    AddWaveIntegratorTask(CALC_WAVERHS, START_ALLRECV);
-    AddWaveIntegratorTask(INT_WAVE, CALC_WAVERHS);
-    AddWaveIntegratorTask(SEND_WAVE, INT_WAVE);
-    AddWaveIntegratorTask(RECV_WAVE, START_ALLRECV);
+  {using namespace Z4cIntegratorTaskNames;
+    AddZ4cIntegratorTask(STARTUP_INT, NONE);
+    AddZ4cIntegratorTask(START_ALLRECV, STARTUP_INT);
+    AddZ4cIntegratorTask(CALC_Z4CRHS, START_ALLRECV);
+    AddZ4cIntegratorTask(INT_Z4C, CALC_Z4CRHS);
+    AddZ4cIntegratorTask(SEND_Z4C, INT_Z4C);
+    AddZ4cIntegratorTask(RECV_Z4C, START_ALLRECV);
     if (pm->multilevel) { // SMR or AMR
-      AddWaveIntegratorTask(PROLONG, (SEND_WAVE|RECV_WAVE));
-      AddWaveIntegratorTask(PHY_BVAL, PROLONG);
+      AddZ4cIntegratorTask(PROLONG, (SEND_Z4C|RECV_Z4C));
+      AddZ4cIntegratorTask(PHY_BVAL, PROLONG);
     }
     else {
-      AddWaveIntegratorTask(PHY_BVAL, (SEND_WAVE|RECV_WAVE));
+      AddZ4cIntegratorTask(PHY_BVAL, (SEND_Z4C|RECV_Z4C));
     }
-    AddWaveIntegratorTask(USERWORK, PHY_BVAL);
-    AddWaveIntegratorTask(NEW_DT, USERWORK);
+    AddZ4cIntegratorTask(ALG_CONSTR, PHY_BVAL);
+    AddZ4cIntegratorTask(Z4C_TO_ADM, ALG_CONSTR);
+    AddZ4cIntegratorTask(USERWORK, PHY_BVAL);
+    AddZ4cIntegratorTask(NEW_DT, USERWORK);
     if (pm->adaptive==true) {
-      AddWaveIntegratorTask(AMR_FLAG, USERWORK);
-      AddWaveIntegratorTask(CLEAR_ALLBND, AMR_FLAG);
+      AddZ4cIntegratorTask(AMR_FLAG, USERWORK);
+      AddZ4cIntegratorTask(CLEAR_ALLBND, AMR_FLAG);
     } else {
-      AddWaveIntegratorTask(CLEAR_ALLBND, NEW_DT);
+      AddZ4cIntegratorTask(CLEAR_ALLBND, NEW_DT);
     }
-  } // using namespace WaveIntegratorTaskNames
+  } // using namespace Z4cIntegratorTaskNames
 }
 
-void WaveIntegratorTaskList::AddWaveIntegratorTask(uint64_t id, uint64_t dep) {
+void Z4cIntegratorTaskList::AddZ4cIntegratorTask(uint64_t id, uint64_t dep) {
   task_list_[ntasks].task_id=id;
   task_list_[ntasks].dependency=dep;
 
-  using namespace WaveIntegratorTaskNames;
+  using namespace Z4cIntegratorTaskNames;
   switch((id)) {
     case (START_ALLRECV):
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&WaveIntegratorTaskList::StartAllReceive);
+        (&Z4cIntegratorTaskList::StartAllReceive);
       break;
     case (CLEAR_ALLBND):
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&WaveIntegratorTaskList::ClearAllBoundary);
+        (&Z4cIntegratorTaskList::ClearAllBoundary);
       break;
-    case (CALC_WAVERHS):
+    case (CALC_Z4CRHS):
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&WaveIntegratorTaskList::CalculateWaveRHS);
+        (&Z4cIntegratorTaskList::CalculateZ4cRHS);
       break;
-    case (INT_WAVE):
+    case (INT_Z4C):
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&WaveIntegratorTaskList::WaveIntegrate);
+        (&Z4cIntegratorTaskList::Z4cIntegrate);
       break;
-    case (SEND_WAVE):
+    case (SEND_Z4C):
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&WaveIntegratorTaskList::WaveSend);
+        (&Z4cIntegratorTaskList::Z4cSend);
       break;
-    case (RECV_WAVE):
+    case (RECV_Z4C):
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&WaveIntegratorTaskList::WaveReceive);
+        (&Z4cIntegratorTaskList::Z4cReceive);
       break;
     case (PROLONG):
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&WaveIntegratorTaskList::Prolongation);
+        (&Z4cIntegratorTaskList::Prolongation);
       break;
     case (PHY_BVAL):
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&WaveIntegratorTaskList::PhysicalBoundary);
+        (&Z4cIntegratorTaskList::PhysicalBoundary);
+      break;
+    case (ALG_CONSTR):
+      task_list_[ntasks].TaskFunc=
+        static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
+        (&Z4cIntegratorTaskList::EnforceAlgConstr);
+      break;
+    case (Z4C_TO_ADM):
+      task_list_[ntasks].TaskFunc=
+        static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
+        (&Z4cIntegratorTaskList::Z4cToADM);
       break;
     case (USERWORK):
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&WaveIntegratorTaskList::UserWork);
+        (&Z4cIntegratorTaskList::UserWork);
       break;
     case (NEW_DT):
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&WaveIntegratorTaskList::NewBlockTimeStep);
+        (&Z4cIntegratorTaskList::NewBlockTimeStep);
       break;
     case (AMR_FLAG):
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&WaveIntegratorTaskList::CheckRefinement);
+        (&Z4cIntegratorTaskList::CheckRefinement);
       break;
     case (STARTUP_INT):
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&WaveIntegratorTaskList::StartupIntegrator);
+        (&Z4cIntegratorTaskList::StartupIntegrator);
       break;
 
     default:
       std::stringstream msg;
-      msg << "### FATAL ERROR in AddTimeIntegratorTask" << std::endl
+      msg << "### FATAL ERROR in AddZ4cIntegratorTask" << std::endl
           << "Invalid Task "<< id << " is specified" << std::endl;
       throw std::runtime_error(msg.str().c_str());
   }
@@ -308,14 +320,14 @@ void WaveIntegratorTaskList::AddWaveIntegratorTask(uint64_t id, uint64_t dep) {
 //----------------------------------------------------------------------------------------
 // Functions to start/end MPI communication
 
-enum TaskStatus WaveIntegratorTaskList::StartAllReceive(MeshBlock *pmb, int stage) {
+enum TaskStatus Z4cIntegratorTaskList::StartAllReceive(MeshBlock *pmb, int stage) {
   Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
   Real time = pmb->pmy_mesh->time+dt;
   pmb->pbval->StartReceivingAll(time);
   return TASK_SUCCESS;
 }
 
-enum TaskStatus WaveIntegratorTaskList::ClearAllBoundary(MeshBlock *pmb, int stage) {
+enum TaskStatus Z4cIntegratorTaskList::ClearAllBoundary(MeshBlock *pmb, int stage) {
   pmb->pbval->ClearBoundaryAll();
   return TASK_SUCCESS;
 }
@@ -323,20 +335,20 @@ enum TaskStatus WaveIntegratorTaskList::ClearAllBoundary(MeshBlock *pmb, int sta
 //----------------------------------------------------------------------------------------
 // Functions to calculate the RHS
 
-enum TaskStatus WaveIntegratorTaskList::CalculateWaveRHS(MeshBlock *pmb, int stage) {
+enum TaskStatus Z4cIntegratorTaskList::CalculateZ4cRHS(MeshBlock *pmb, int stage) {
   if (stage <= nstages) {
-    pmb->pwave->WaveRHS(pmb->pwave->u);
+    pmb->pz4c->Z4cRHS(pmb->pz4c->storage.u, pmb->pz4c->storage.mat, pmb->pz4c->storage.rhs);
     return TASK_NEXT;
   }
   return TASK_FAIL;
 }
 
 //----------------------------------------------------------------------------------------
-// Functions to integrate conserved variables
+// Functions to integrate state variables
 
-enum TaskStatus WaveIntegratorTaskList::WaveIntegrate(MeshBlock *pmb, int stage)
+enum TaskStatus Z4cIntegratorTaskList::Z4cIntegrate(MeshBlock *pmb, int stage)
 {
-    Wave *pwave = pmb->pwave;
+    Z4c *pz4c = pmb->pz4c;
 
     if (stage <= nstages) {
       // This time-integrator-specific averaging operation logic is identical to HydroInt
@@ -345,13 +357,13 @@ enum TaskStatus WaveIntegratorTaskList::WaveIntegrate(MeshBlock *pmb, int stage)
       ave_wghts[0] = 1.0;
       ave_wghts[1] = stage_wghts[stage-1].delta;
       ave_wghts[2] = 0.0;
-      pwave->WeightedAve(pwave->u1,pwave->u,pwave->u2,ave_wghts);
+      pz4c->WeightedAve(pz4c->storage.u1, pz4c->storage.u, pz4c->storage.u2, ave_wghts);
 
       ave_wghts[0] = stage_wghts[stage-1].gamma_1;
       ave_wghts[1] = stage_wghts[stage-1].gamma_2;
       ave_wghts[2] = stage_wghts[stage-1].gamma_3;
-      pwave->WeightedAve(pwave->u,pwave->u1,pwave->u2,ave_wghts);
-      pwave->AddWaveRHS(stage_wghts[stage-1].beta,pwave->u);
+      pz4c->WeightedAve(pz4c->storage.u, pz4c->storage.u1, pz4c->storage.u2, ave_wghts);
+      pz4c->AddZ4cRHS(pz4c->storage.rhs, stage_wghts[stage-1].beta, pz4c->storage.u);
 
       return TASK_NEXT;
     }
@@ -361,9 +373,9 @@ enum TaskStatus WaveIntegratorTaskList::WaveIntegrate(MeshBlock *pmb, int stage)
 //----------------------------------------------------------------------------------------
 // Functions to communicate variables between MeshBlocks
 
-enum TaskStatus WaveIntegratorTaskList::WaveSend(MeshBlock *pmb, int stage) {
+enum TaskStatus Z4cIntegratorTaskList::Z4cSend(MeshBlock *pmb, int stage) {
   if (stage <= nstages) {
-      pmb->pbval->SendCellCenteredBoundaryBuffers(pmb->pwave->u, WAVE_SOL);
+      pmb->pbval->SendCellCenteredBoundaryBuffers(pmb->pz4c->storage.u, Z4C_SOL);
   } else {
     return TASK_FAIL;
   }
@@ -373,10 +385,10 @@ enum TaskStatus WaveIntegratorTaskList::WaveSend(MeshBlock *pmb, int stage) {
 //----------------------------------------------------------------------------------------
 // Functions to receive variables between MeshBlocks
 
-enum TaskStatus WaveIntegratorTaskList::WaveReceive(MeshBlock *pmb, int step) {
+enum TaskStatus Z4cIntegratorTaskList::Z4cReceive(MeshBlock *pmb, int step) {
   bool ret;
   if(step <= nstages) {
-      ret=pmb->pbval->ReceiveCellCenteredBoundaryBuffers(pmb->pwave->u, WAVE_SOL);
+    ret=pmb->pbval->ReceiveCellCenteredBoundaryBuffers(pmb->pz4c->storage.u, Z4C_SOL);
   } else {
     return TASK_FAIL;
   }
@@ -391,7 +403,7 @@ enum TaskStatus WaveIntegratorTaskList::WaveReceive(MeshBlock *pmb, int step) {
 //--------------------------------------------------------------------------------------
 // Functions for everything else
 
-enum TaskStatus WaveIntegratorTaskList::Prolongation(MeshBlock *pmb, int stage) {
+enum TaskStatus Z4cIntegratorTaskList::Prolongation(MeshBlock *pmb, int stage) {
   Hydro *phydro=pmb->phydro;
   Field *pfield=pmb->pfield;
   Wave *pwave=pmb->pwave;
@@ -413,30 +425,50 @@ enum TaskStatus WaveIntegratorTaskList::Prolongation(MeshBlock *pmb, int stage) 
 }
 
 // TODO this should be implemented
-enum TaskStatus WaveIntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int stage) {
+enum TaskStatus Z4cIntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int stage) {
   return TASK_SUCCESS;
 }
 
-enum TaskStatus WaveIntegratorTaskList::UserWork(MeshBlock *pmb, int stage) {
+enum TaskStatus Z4cIntegratorTaskList::EnforceAlgConstr(MeshBlock *pmb, int stage) {
+  if (stage <= nstages) {
+    pmb->pz4c->AlgConstr(pmb->pz4c->storage.u);
+  }
+  else {
+    return TASK_FAIL;
+  }
+
+  return TASK_SUCCESS;
+}
+
+enum TaskStatus Z4cIntegratorTaskList::Z4cToADM(MeshBlock *pmb, int stage) {
+  if (stage <= nstages) {
+    pmb->pz4c->Z4cToADM(pmb->pz4c->storage.u, pmb->pz4c->storage.adm);
+    return TASK_SUCCESS;
+  }
+  else {
+    return TASK_FAIL;
+  }
+}
+
+enum TaskStatus Z4cIntegratorTaskList::UserWork(MeshBlock *pmb, int stage) {
   if (stage != nstages) return TASK_SUCCESS; // only do on last stage
   pmb->UserWorkInLoop();
   return TASK_SUCCESS;
 }
 
-enum TaskStatus WaveIntegratorTaskList::NewBlockTimeStep(MeshBlock *pmb, int stage) {
+enum TaskStatus Z4cIntegratorTaskList::NewBlockTimeStep(MeshBlock *pmb, int stage) {
   if (stage != nstages) return TASK_SUCCESS; // only do on last stage
-  pmb->pwave->NewBlockTimeStep();
+  pmb->pz4c->NewBlockTimeStep();
   return TASK_SUCCESS;
 }
 
-enum TaskStatus WaveIntegratorTaskList::CheckRefinement(MeshBlock *pmb, int stage) {
+enum TaskStatus Z4cIntegratorTaskList::CheckRefinement(MeshBlock *pmb, int stage) {
   if (stage != nstages) return TASK_SUCCESS; // only do on last stage
-
   pmb->pmr->CheckRefinementCondition();
   return TASK_SUCCESS;
 }
 
-enum TaskStatus WaveIntegratorTaskList::StartupIntegrator(MeshBlock *pmb, int stage) {
+enum TaskStatus Z4cIntegratorTaskList::StartupIntegrator(MeshBlock *pmb, int stage) {
   // Initialize time-integrator only on first stage
   if (stage != 1) {
     return TASK_SUCCESS;
@@ -465,12 +497,7 @@ enum TaskStatus WaveIntegratorTaskList::StartupIntegrator(MeshBlock *pmb, int st
     }
 
     // Auxiliar var u1 needs to be initialized to 0 at the beginning of each cycle
-    Wave *pwave = pmb->pwave;
-    Real ave_wghts[3];
-    ave_wghts[0] = 0.0;
-    ave_wghts[1] = 0.0;
-    ave_wghts[2] = 0.0;
-    pwave->WeightedAve(pwave->u1,pwave->u,pwave->u,ave_wghts);
+    pmb->pz4c->storage.u1.Zero();
 
     return TASK_SUCCESS;
   }

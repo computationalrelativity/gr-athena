@@ -41,6 +41,7 @@
 #include "outputs/outputs.hpp"
 #include "parameter_input.hpp"
 #include "task_list/wave_task_list.hpp"
+#include "task_list/z4c_task_list.hpp"
 #include "utils/utils.hpp"
 
 // MPI/OpenMP headers
@@ -298,11 +299,14 @@ int main(int argc, char *argv[]) {
 
   TaskList *ptlist;
   try {
-    if(WAVE_ENABLED) {
+    if (HYDRO_ENABLED) {
+      ptlist = new TimeIntegratorTaskList(pinput, pmesh);
+    }
+    else if (WAVE_ENABLED) {
       ptlist = new WaveIntegratorTaskList(pinput, pmesh);
     }
-    else if(HYDRO_ENABLED) {
-      ptlist = new TimeIntegratorTaskList(pinput, pmesh);
+    else if (Z4C_ENABLED) {
+      ptlist = new Z4cIntegratorTaskList(pinput, pmesh);
     }
     else {
       throw std::logic_error("No tasklist enabled!");

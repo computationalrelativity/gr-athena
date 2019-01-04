@@ -19,6 +19,8 @@ class Mesh;
 class MeshBlock;
 class TaskList;
 class GravitySolverTaskList;
+class WaveIntegratorTaskList;
+class Z4cIntegratorTaskList;
 
 // return codes for functions working on individual Tasks and TaskList
 enum TaskStatus {TASK_FAIL, TASK_SUCCESS, TASK_NEXT};
@@ -70,6 +72,7 @@ class TaskList {
 friend class TimeIntegratorTaskList;
 friend class GravitySolverTaskList;
 friend class WaveIntegratorTaskList;
+friend class Z4cIntegratorTaskList;
 public:
   explicit TaskList(Mesh *pm);
   virtual ~TaskList();

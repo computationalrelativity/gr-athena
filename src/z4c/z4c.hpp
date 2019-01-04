@@ -43,16 +43,19 @@ public:
     I_Z4c_betax = 19, I_Z4c_betay = 20, I_Z4c_betaz = 21,
     N_Z4c = 22
   };
+  // Names of Z4c variables
+  static char const * const Z4c_names[N_Z4c];
   // Indexes of ADM variables
   enum {
     I_ADM_gxx = 0, I_ADM_gxy = 1, I_ADM_gxz = 2, I_ADM_gyy = 3, I_ADM_gyz = 4, I_ADM_gzz = 5,
     I_ADM_Kxx = 6, I_ADM_Kxy = 7, I_ADM_Kxz = 8, I_ADM_Kyy = 9, I_ADM_Kyz = 10, I_ADM_Kzz = 11,
-    I_ADM_Psi4 = 12,
-    I_ADM_Ham = 13,
-    I_ADM_Momx = 14, I_ADM_Momy = 15, I_ADM_Momz = 16,
-    I_ADM_psi4 = 17,
-    N_ADM = 18
+    I_ADM_psi4 = 12,
+    I_ADM_H = 13,
+    I_ADM_Mx = 14, I_ADM_My = 15, I_ADM_Mz = 16,
+    N_ADM = 17
   };
+  // Names of ADM variables
+  static char const * const ADM_names[N_ADM];
   // Indexes of matter fields
   enum {
     I_MAT_rho = 0,
@@ -60,6 +63,8 @@ public:
     I_MAT_Sxx = 4, I_MAT_Sxy = 5, I_MAT_Sxz = 6, I_MAT_Syy = 7, I_MAT_Syz = 8, I_MAT_S_zz = 9,
     N_MAT = 10
   };
+  // Names of matter variables
+  static char const * const Matter_names[N_MAT];
 public:
   Z4c(MeshBlock *pmb, ParameterInput *pin);
   ~Z4c();
@@ -87,13 +92,14 @@ public:
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g_dd;      // conf. 3-metric
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> A_dd;      // conf. traceless extr. curvature
   };
+  Z4c_vars z4c;
   Z4c_vars rhs;
 
   // aliases for the ADM variables
   struct ADM_vars {
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> psi4;      // conformal factor
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> H;         // hamiltonian constraint
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> Mom_d;     // momentum constraint
+    AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> M_d;        // momentum constraint
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g_dd;      // 3-metric
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> K_dd;      // curvature
   };
@@ -199,7 +205,7 @@ private:
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> KK;          // K^a_b K^b_a
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Ddalpha;     // Trace of Ddalpha_dd
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> S;           // Trace of S_ik
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> Mom_u;       // momentum constraint
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> M_u;         // momentum constraint
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> Gamma_u;     // Gamma computed from the metric
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> DA_u;        // Covariant derivative of A
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g_uu;        // inverse of conf. metric

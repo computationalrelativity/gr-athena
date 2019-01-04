@@ -56,6 +56,11 @@ void ShowConfig(void) {
   } else {
     std::cout<<"  Wave equation:              OFF" << std::endl;
   }
+  if (Z4C_ENABLED) {
+    std::cout<<"  Z4c equations:              ON" << std::endl;
+  } else {
+    std::cout<<"  Z4c equations:              OFF" << std::endl;
+  }
   if (RELATIVISTIC_DYNAMICS) {
     std::cout<<"  Relativistic dynamics:      ON " << std::endl;
   } else {
