@@ -9,7 +9,7 @@
 //  \brief common macros for the Z4c class
 
 // 2D loop over k and j in the interior of the block
-#define LOOP2(k,j)                                                            \
+#define ILOOP2(k,j)                                                           \
   for(int k = pmy_block->ks; k <= pmy_block->ke; ++k)                         \
   for(int j = pmy_block->js; j <= pmy_block->je; ++j)
 
@@ -19,7 +19,7 @@
   for(int j = pmy_block->js - NGHOST; j <= pmy_block->je + NGHOST; ++j)
 
 // 1D loop over i in the interior of the block
-#define LOOP1(i)                                                              \
+#define ILOOP1(i)                                                             \
   _Pragma("omp simd")                                                         \
   for(int i = pmy_block->is; i <= pmy_block->ie; ++i)
 
@@ -29,9 +29,9 @@
   for(int i = pmy_block->is - NGHOST; i <= pmy_block->ie + NGHOST; ++i)
 
 // 3D loop over the interior of the block
-#define LOOP3(k,j,i)                                                          \
-    LOOP2(k,j)                                                                \
-    LOOP1(i)
+#define ILOOP3(k,j,i)                                                         \
+    ILOOP2(k,j)                                                               \
+    ILOOP1(i)
 
 // 3D loop over the whole block
 #define GLOOP3(k,j,i)                                                         \

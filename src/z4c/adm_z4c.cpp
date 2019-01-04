@@ -105,10 +105,10 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 
   // Compute Gamma's
   z4c.Gam_u.Zero();
-  LOOP2(k,j) {
+  ILOOP2(k,j) {
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
-      LOOP1(i) {
+      ILOOP1(i) {
         z4c.Gam_u(a,k,j,i) -= FD.Dx(b, g_uu(a,b,k,j,i));
       }
     }
@@ -181,7 +181,7 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat)
   Matter_vars mat;
   SetMatterAliases(u_mat, mat);
 
-  LOOP2(k,j) {
+  ILOOP2(k,j) {
     // -----------------------------------------------------------------------------------
     // derivatives
     //
@@ -189,7 +189,7 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat)
     for(int c = 0; c < NDIM; ++c)
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b) {
-      LOOP1(i) {
+      ILOOP1(i) {
         dg_ddd(c,a,b,i) = FD.Dx(c, adm.g_dd(a,b,k,j,i));
         dK_ddd(c,a,b,i) = FD.Dx(c, adm.K_dd(a,b,k,j,i));
       }
@@ -200,12 +200,12 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat)
     for(int c = 0; c < NDIM; ++c)
     for(int d = c; d < NDIM; ++d) {
       if(a == b) {
-        LOOP1(i) {
+        ILOOP1(i) {
           ddg_dddd(a,a,c,d,i) = FD.Dxx(a, adm.g_dd(c,d,k,j,i));
         }
       }
       else {
-        LOOP1(i) {
+        ILOOP1(i) {
           ddg_dddd(a,b,c,d,i) = FD.Dxy(a, b, adm.g_dd(c,d,k,j,i));
         }
       }
@@ -214,7 +214,7 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat)
     // -----------------------------------------------------------------------------------
     // inverse metric
     //
-    LOOP1(i) {
+    ILOOP1(i) {
       detg(i) = SpatialDet(adm.g_dd,k,j,i);
       SpatialInv(1./detg(i),
           adm.g_dd(0,0,k,j,i), adm.g_dd(0,1,k,j,i), adm.g_dd(0,2,k,j,i),
@@ -229,7 +229,7 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat)
     for(int c = 0; c < NDIM; ++c)
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b) {
-      LOOP1(i) {
+      ILOOP1(i) {
         Gamma_ddd(c,a,b,i) = 0.5*(dg_ddd(a,b,c,i) + dg_ddd(b,a,c,i) - dg_ddd(c,a,b,i));
         Gamma_udd(c,a,b,i) = 0.0;
       }
@@ -238,7 +238,7 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat)
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b)
     for(int d = 0; d < NDIM; ++d) {
-      LOOP1(i) {
+      ILOOP1(i) {
         Gamma_udd(c,a,b,i) += g_uu(c,d,i)*Gamma_ddd(d,a,b,i);
       }
     }
@@ -254,19 +254,19 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat)
       for(int d = 0; d < NDIM; ++d) {
         // Part with the Christoffel symbols
         for(int e = 0; e < NDIM; ++e) {
-          LOOP1(i) {
+          ILOOP1(i) {
             R_dd(a,b,i) += g_uu(c,d,i) * Gamma_udd(e,a,c,i) * Gamma_ddd(e,b,d,i);
             R_dd(a,b,i) -= g_uu(c,d,i) * Gamma_udd(e,a,b,i) * Gamma_ddd(e,c,d,i);
           }
         }
         // Wave operator part of the Ricci
-        LOOP1(i) {
+        ILOOP1(i) {
           R_dd(a,b,i) += 0.5*g_uu(c,d,i)*(
               - ddg_dddd(c,d,a,b,i) - ddg_dddd(a,b,c,d,i) +
                 ddg_dddd(a,c,b,d,i) + ddg_dddd(b,c,a,d,i));
         }
       }
-      LOOP1(i) {
+      ILOOP1(i) {
         R(i) += g_uu(a,b,i) * R(a,b,i);
       }
     }
@@ -279,12 +279,12 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat)
     for(int a = 0; a < NDIM; ++a) {
       for(int b = a; b < NDIM; ++b) {
         for(int c = 0; c < NDIM; ++c) {
-          LOOP1(i) {
+          ILOOP1(i) {
             K_ud(a,b,i) += g_uu(a,c,i) * adm.K_dd(c,b,k,j,i);
           }
         }
       }
-      LOOP1(i) {
+      ILOOP1(i) {
         K(i) += K_ud(a,a,i);
       }
     }
@@ -292,7 +292,7 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat)
     KK.Zero();
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
-      LOOP1(i) {
+      ILOOP1(i) {
         KK(i) += K_ud(a,b,i) * K_ud(b,a,i);
       }
     }
@@ -300,11 +300,11 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat)
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b)
     for(int c = b; c < NDIM; ++c) {
-      LOOP1(i) {
+      ILOOP1(i) {
         DK_ddd(a,b,c,i) = dK_ddd(a,b,c,i);
       }
       for(int d = 0; d < NDIM; ++d) {
-        LOOP1(i) {
+        ILOOP1(i) {
           DK_ddd(a,b,c,i) -= Gamma_udd(d,a,b,i) * adm.K_dd(d,c,k,j,i);
           DK_ddd(a,b,c,i) -= Gamma_udd(d,a,c,i) * adm.K_dd(b,d,k,j,i);
         }
@@ -315,7 +315,7 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat)
     for(int b = 0; b < NDIM; ++b)
     for(int c = b; c < NDIM; ++c)
     for(int d = 0; d < NDIM; ++d) {
-      LOOP1(i) {
+      ILOOP1(i) {
         DK_udd(a,b,c,i) += g_uu(a,d,i) * DK_ddd(d,b,c,i);
       }
     }
@@ -324,18 +324,18 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat)
     // Actual constraints
     //
     // Hamiltonian constraint
-    LOOP1(i) {
+    ILOOP1(i) {
       adm.H(k,j,i) = R(i) + SQR(K(i)) - KK(i) - 16*M_PI * mat.rho(k,j,i);
     }
     // Momentum constraint (contravariant)
     M_u.Zero();
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
-      LOOP1(i) {
+      ILOOP1(i) {
         M_u(a,i) -= 8*M_PI * g_uu(a,b,i) * mat.S_d(b,k,j,i);
       }
       for(int c = 0; c < NDIM; ++c) {
-        LOOP1(i) {
+        ILOOP1(i) {
           M_u(a,i) += g_uu(a,b,i) * DK_udd(c,b,c,i);
           M_u(a,i) -= g_uu(b,c,i) * DK_udd(a,b,c,i);
         }
@@ -344,7 +344,7 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat)
     // Momentum constraint (covariant)
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
-      LOOP1(i) {
+      ILOOP1(i) {
         adm.M_d(a,k,j,i) += adm.g_dd(a,b,k,j,i) * M_u(a,i);
       }
     }
