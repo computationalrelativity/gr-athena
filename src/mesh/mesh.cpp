@@ -1370,8 +1370,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
                                         phydro->w, pfield->bcc, pmb->pcoord,
                                         il, iu, jl, ju, kl, ku);
       }
-      pbval->ApplyPhysicalBoundaries(phydro->w, phydro->u, pfield->b, pfield->bcc,
-                                     time, 0.0);
+      pbval->ApplyPhysicalBoundaries(phydro->w, phydro->u, pz4c->storage.u,
+                                     pfield->b, pfield->bcc, time, 0.0);
     }
 
     // Calc initial diffusion coefficients

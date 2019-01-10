@@ -88,6 +88,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   SetZ4cAliases(storage.u, z4c);
 
   // Allocate memory for aux 1D vars
+  r.NewAthenaTensor(ncells1);
   detg.NewAthenaTensor(ncells1);
   chi_guarded.NewAthenaTensor(ncells1);
   oopsi4.NewAthenaTensor(ncells1);
@@ -102,6 +103,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   M_u.NewAthenaTensor(ncells1);
   Gamma_u.NewAthenaTensor(ncells1);
   DA_u.NewAthenaTensor(ncells1);
+  s_u.NewAthenaTensor(ncells1);
   g_uu.NewAthenaTensor(ncells1);
   A_uu.NewAthenaTensor(ncells1);
   AA_dd.NewAthenaTensor(ncells1);
@@ -145,6 +147,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   LA_dd.NewAthenaTensor(ncells1);
 
   // Setup finite differencing kernel
+  // NOTE: this will need to be changed if the Z4c variables become vertex center
   FD.stride[0] = 1;
   FD.stride[1] = 0;
   FD.stride[2] = 0;
@@ -177,6 +180,7 @@ Z4c::~Z4c()
   dt2_.DeleteAthenaArray();
   dt3_.DeleteAthenaArray();
 
+  r.DeleteAthenaTensor();
   detg.DeleteAthenaTensor();
   chi_guarded.DeleteAthenaTensor();
   oopsi4.DeleteAthenaTensor();
@@ -191,6 +195,7 @@ Z4c::~Z4c()
   M_u.DeleteAthenaTensor();
   Gamma_u.DeleteAthenaTensor();
   DA_u.DeleteAthenaTensor();
+  s_u.DeleteAthenaTensor();
   g_uu.DeleteAthenaTensor();
   A_uu.DeleteAthenaTensor();
   AA_dd.DeleteAthenaTensor();

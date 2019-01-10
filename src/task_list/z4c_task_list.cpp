@@ -219,8 +219,8 @@ Z4cIntegratorTaskList::Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm)
     }
     AddZ4cIntegratorTask(ALG_CONSTR, PHY_BVAL);
     AddZ4cIntegratorTask(Z4C_TO_ADM, ALG_CONSTR);
-    AddZ4cIntegratorTask(USERWORK, PHY_BVAL);
-    AddZ4cIntegratorTask(NEW_DT, USERWORK);
+    AddZ4cIntegratorTask(USERWORK, Z4C_TO_ADM);
+    AddZ4cIntegratorTask(NEW_DT, STARTUP_INT);
     if (pm->adaptive==true) {
       AddZ4cIntegratorTask(AMR_FLAG, USERWORK);
       AddZ4cIntegratorTask(CLEAR_ALLBND, AMR_FLAG);
@@ -338,6 +338,7 @@ enum TaskStatus Z4cIntegratorTaskList::ClearAllBoundary(MeshBlock *pmb, int stag
 enum TaskStatus Z4cIntegratorTaskList::CalculateZ4cRHS(MeshBlock *pmb, int stage) {
   if (stage <= nstages) {
     pmb->pz4c->Z4cRHS(pmb->pz4c->storage.u, pmb->pz4c->storage.mat, pmb->pz4c->storage.rhs);
+    pmb->pz4c->Z4cBoundaryRHS(pmb->pz4c->storage.u, pmb->pz4c->storage.mat, pmb->pz4c->storage.rhs);
     return TASK_NEXT;
   }
   return TASK_FAIL;
@@ -348,26 +349,26 @@ enum TaskStatus Z4cIntegratorTaskList::CalculateZ4cRHS(MeshBlock *pmb, int stage
 
 enum TaskStatus Z4cIntegratorTaskList::Z4cIntegrate(MeshBlock *pmb, int stage)
 {
-    Z4c *pz4c = pmb->pz4c;
+  Z4c *pz4c = pmb->pz4c;
 
-    if (stage <= nstages) {
-      // This time-integrator-specific averaging operation logic is identical to HydroInt
+  if (stage <= nstages) {
+    // This time-integrator-specific averaging operation logic is identical to HydroInt
 
-      Real ave_wghts[3];
-      ave_wghts[0] = 1.0;
-      ave_wghts[1] = stage_wghts[stage-1].delta;
-      ave_wghts[2] = 0.0;
-      pz4c->WeightedAve(pz4c->storage.u1, pz4c->storage.u, pz4c->storage.u2, ave_wghts);
+    Real ave_wghts[3];
+    ave_wghts[0] = 1.0;
+    ave_wghts[1] = stage_wghts[stage-1].delta;
+    ave_wghts[2] = 0.0;
+    pz4c->WeightedAve(pz4c->storage.u1, pz4c->storage.u, pz4c->storage.u2, ave_wghts);
 
-      ave_wghts[0] = stage_wghts[stage-1].gamma_1;
-      ave_wghts[1] = stage_wghts[stage-1].gamma_2;
-      ave_wghts[2] = stage_wghts[stage-1].gamma_3;
-      pz4c->WeightedAve(pz4c->storage.u, pz4c->storage.u1, pz4c->storage.u2, ave_wghts);
-      pz4c->AddZ4cRHS(pz4c->storage.rhs, stage_wghts[stage-1].beta, pz4c->storage.u);
+    ave_wghts[0] = stage_wghts[stage-1].gamma_1;
+    ave_wghts[1] = stage_wghts[stage-1].gamma_2;
+    ave_wghts[2] = stage_wghts[stage-1].gamma_3;
+    pz4c->WeightedAve(pz4c->storage.u, pz4c->storage.u1, pz4c->storage.u2, ave_wghts);
+    pz4c->AddZ4cRHS(pz4c->storage.rhs, stage_wghts[stage-1].beta, pz4c->storage.u);
 
-      return TASK_NEXT;
-    }
-    return TASK_FAIL;
+    return TASK_NEXT;
+  }
+  return TASK_FAIL;
 }
 
 //----------------------------------------------------------------------------------------
@@ -424,8 +425,23 @@ enum TaskStatus Z4cIntegratorTaskList::Prolongation(MeshBlock *pmb, int stage) {
   return TASK_SUCCESS;
 }
 
-// TODO this should be implemented
 enum TaskStatus Z4cIntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int stage) {
+  Hydro *phydro=pmb->phydro;
+  Field *pfield=pmb->pfield;
+  Z4c *pz4c=pmb->pz4c;
+  BoundaryValues *pbval=pmb->pbval;
+
+  if (stage <= nstages) {
+    // Time at the end of stage for (u, b) register pair
+    Real t_end_stage = pmb->pmy_mesh->time + pmb->stage_abscissae[stage][0];
+    // Scaled coefficient for RHS time-advance within stage
+    Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
+    pbval->ApplyPhysicalBoundaries(phydro->w,  phydro->u, pz4c->storage.u,
+                                   pfield->b,  pfield->bcc, t_end_stage, dt);
+  } else {
+    return TASK_FAIL;
+  }
+
   return TASK_SUCCESS;
 }
 

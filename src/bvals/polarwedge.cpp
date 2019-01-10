@@ -6,6 +6,10 @@
 //! \file polarwedge.cpp
 //  \brief implementation of polar wedge BCs in x2 direction
 
+// Standard C++ headers
+#include <cassert>
+#include <iostream> // cerr
+
 // Athena++ headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
@@ -14,13 +18,19 @@
 
 //----------------------------------------------------------------------------------------
 //! \fn void PolarWedgeInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-//                         FaceField &b, const Real time, const Real dt,
+//                         AthenaArray<Real> &z4c, FaceField &b, const Real time, const Real dt,
 //                         int is, int ie, int js, int je, int ks, int ke, int ngh)
 //  \brief polar wedge boundary conditions, inner x2 boundary
 
 void PolarWedgeInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    FaceField &b, Real time, Real dt,
+                    AthenaArray<Real> &z4c, FaceField &b, Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh) {
+  if (Z4C_ENABLED) {
+    std::cerr << "PolarWedge BCs not implemented for Z4c!" << std::endl << std::flush;
+    assert(false); // PolarWedge BCs not implemented for Z4c!
+    abort();
+  }
+
   // copy hydro variables into ghost zones, reflecting v2
   for (int n=0; n<(NHYDRO); ++n) {
     Real sign = flip_across_pole_hydro[n] ? -1.0 : 1.0;
@@ -75,13 +85,19 @@ void PolarWedgeInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim
 
 //----------------------------------------------------------------------------------------
 //! \fn void PolarWedgeOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-//                          FaceField &b, const Real time, const Real dt,
+//                          AthenaArray<Real> &z4c, FaceField &b, const Real time, const Real dt,
 //                          int is, int ie, int js, int je, int ks, int ke, int ngh)
 //  \brief polar wedge boundary conditions, outer x2 boundary
 
 void PolarWedgeOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    FaceField &b, Real time, Real dt,
+                    AthenaArray<Real> &z4c, FaceField &b, Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh) {
+  if (Z4C_ENABLED) {
+    std::cerr << "PolarWedge BCs not implemented for Z4c!" << std::endl << std::flush;
+    assert(false); // PolarWedge BCs not implemented for Z4c!
+    abort();
+  }
+
   // copy hydro variables into ghost zones, reflecting v2
   for (int n=0; n<(NHYDRO); ++n) {
     Real sign = flip_across_pole_hydro[n] ? -1.0 : 1.0;

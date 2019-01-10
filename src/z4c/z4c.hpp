@@ -138,6 +138,8 @@ public:
   Real NewBlockTimeStep(void);
   // compute the RHS given the Z4c and matter variables
   void Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & mat, AthenaArray<Real> & rhs);
+  // compute the boundary RHS given the Z4c and matter variables
+  void Z4cBoundaryRHS(AthenaArray<Real> & u, AthenaArray<Real> & mat, AthenaArray<Real> & rhs);
   // compute linear combination of states
   void WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
                    AthenaArray<Real> &u_in2, const Real wght[3]);
@@ -194,6 +196,7 @@ private:
   AthenaArray<Real> dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep
 
   // auxiliary tensors
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> r;           // radial coordinate
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> detg;        // det(g)
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> chi_guarded; // bounded version of chi
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> oopsi4;      // 1/psi4
@@ -208,6 +211,7 @@ private:
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> M_u;         // momentum constraint
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> Gamma_u;     // Gamma computed from the metric
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> DA_u;        // Covariant derivative of A
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> s_u;         // x^i/r where r is the coord. radius
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g_uu;        // inverse of conf. metric
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> A_uu;        // inverse of A
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> AA_dd;       // g^cd A_ac A_db
@@ -253,6 +257,10 @@ private:
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> LA_dd;       // Lie derivative of A
 
 private:
+  void Z4cSommerfeld_(AthenaArray<Real> & u, AthenaArray<Real> & rhs,
+      int const is, int const ie, int const js, int const je, int const ks, int const ke);
+
+private:
   struct {
     typedef FDCenteredStencil<1, NGHOST-1> s1;               // 1st drvtv stencil
     typedef FDCenteredStencil<2, NGHOST-1> s2;               // 2nd drvtv stencil
@@ -264,14 +272,21 @@ private:
     Real idx[3];
     Real diss;
 
+    // 1st derivative (high order centered)
     Real Dx(int dir, Real & u) {
       Real * pu = &u;
       Real out = 0.0;
       for(int n = 0; n < s1::width; ++n) {
         out += s1::coeff[n] * pu[(n - s1::offset)*stride[dir]];
       }
-      return out*SQR(idx[dir]);
+      return out*idx[dir];
     }
+    // 1st derivative 2nd order centered
+    Real Ds(int dir, Real & u) {
+      Real * pu = &u;
+      return 0.5 * idx[dir] * (pu[stride[dir]] - pu[-stride[dir]]);
+    }
+    // Advective derivative
     Real Lx(int dir, Real & vx, Real & u) {
       Real * pu = &u;
       Real dl(0.);
@@ -284,6 +299,7 @@ private:
       }
       return ((vx > 0) ? (vx*dl) : (vx*dr))*idx[dir];
     }
+    // Homogeneous 2nd derivative
     Real Dxx(int dir, Real & u) {
       Real * pu = &u;
       Real out = 0.0;
@@ -292,6 +308,7 @@ private:
       }
       return out*SQR(idx[dir]);
     }
+    // Mixed 2nd derivative
     Real Dxy(int dir1, int dir2, Real & u) {
       Real * pu = &u;
       Real out = 0.0;
@@ -302,6 +319,7 @@ private:
       }
       return out*idx[dir1]*idx[dir2];
     }
+    // Kreiss-Oliger dissipation operator
     Real Diss(int dir, Real & u) {
       Real * pu = &u;
       Real out = 0.0;

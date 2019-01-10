@@ -8,11 +8,12 @@
 
 // C++ standard headers
 #include <algorithm> // max
-#include <cmath> // exp, pow
+#include <cmath> // exp, pow, sqrt
 
 // Athena++ headers
 #include "z4c.hpp"
 #include "z4c_macro.hpp"
+#include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
 
 //----------------------------------------------------------------------------------------
@@ -47,14 +48,14 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
       ILOOP1(i) {
-        dbeta_du(a,b,i) = FD.Dx(a, z4c.beta_u(b,k,j,i));
-        dGam_du(a,b,i) = FD.Dx(a, z4c.Gam_u(b,k,j,i));
+        dbeta_du(b,a,i) = FD.Dx(b, z4c.beta_u(a,k,j,i));
+        dGam_du(b,a,i) = FD.Dx(b, z4c.Gam_u(a,k,j,i));
       }
     }
     // Tensors
-    for(int c = 0; c < NDIM; ++c)
     for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b) {
+    for(int b = a; b < NDIM; ++b)
+    for(int c = 0; c < NDIM; ++c) {
       ILOOP1(i) {
         dg_ddd(c,a,b,i) = FD.Dx(c, z4c.g_dd(a,b,k,j,i));
         dA_ddd(c,a,b,i) = FD.Dx(c, z4c.A_dd(a,b,k,j,i));
@@ -78,9 +79,9 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
       }
     }
     // Vectors
+    for(int c = 0; c < NDIM; ++c)
     for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b)
-    for(int c = 0; c < NDIM; ++c) {
+    for(int b = a; b < NDIM; ++b) {
       if(a == b) {
         ILOOP1(i) {
           ddbeta_ddu(a,b,c,i) = FD.Dxx(a, z4c.beta_u(c,k,j,i));
@@ -93,10 +94,10 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
       }
     }
     // Tensors
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b)
     for(int c = 0; c < NDIM; ++c)
-    for(int d = c; d < NDIM; ++d) {
+    for(int d = c; d < NDIM; ++d)
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b) {
       if(a == b) {
         ILOOP1(i) {
           ddg_dddd(a,b,c,d,i) = FD.Dxx(a, z4c.g_dd(c,d,k,j,i));
@@ -138,9 +139,9 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     // Tensors
     Lg_dd.Zero();
     LA_dd.Zero();
-    for(int c = 0; c < NDIM; ++c)
     for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b) {
+    for(int b = a; b < NDIM; ++b)
+    for(int c = 0; c < NDIM; ++c) {
       ILOOP1(i) {
         Lg_dd(a,b,i) += FD.Lx(c, z4c.beta_u(c,k,j,i), z4c.g_dd(a,b,k,j,i));
         LA_dd(a,b,i) += FD.Lx(c, z4c.beta_u(c,k,j,i), z4c.A_dd(a,b,k,j,i));
@@ -500,6 +501,146 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
   for(int a = 0; a < NDIM; ++a) {
     ILOOP3(k,j,i) {
       u_rhs(n,k,j,i) += FD.Diss(a, u(n,k,j,i));
+    }
+  }
+}
+
+//----------------------------------------------------------------------------------------
+// \!fn void Z4c::Z4cBoundaryRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<Real> & u_rhs)
+// \brief compute the boundary RHS given the state vector and matter state
+//
+// This function operates only on a thin layer of points at the physical
+// boundary of the domain.
+
+void Z4c::Z4cBoundaryRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<Real> & u_rhs)
+{
+  MeshBlock * pmb = pmy_block;
+  if(pmb->pbval->block_bcs[INNER_X1]==OUTFLOW_BNDRY) {
+    Z4cSommerfeld_(u, u_rhs, pmb->is, pmb->is, pmb->js, pmb->je, pmb->ks, pmb->ke);
+  }
+  if(pmb->pbval->block_bcs[OUTER_X1]==OUTFLOW_BNDRY) {
+    Z4cSommerfeld_(u, u_rhs, pmb->ie, pmb->ie, pmb->js, pmb->je, pmb->ks, pmb->ke);
+  }
+  if(pmb->pbval->block_bcs[INNER_X2]==OUTFLOW_BNDRY) {
+    Z4cSommerfeld_(u, u_rhs, pmb->is, pmb->ie, pmb->js, pmb->js, pmb->ks, pmb->ke);
+  }
+  if(pmb->pbval->block_bcs[OUTER_X2]==OUTFLOW_BNDRY) {
+    Z4cSommerfeld_(u, u_rhs, pmb->is, pmb->ie, pmb->je, pmb->je, pmb->ks, pmb->ke);
+  }
+  if(pmb->pbval->block_bcs[INNER_X3]==OUTFLOW_BNDRY) {
+    Z4cSommerfeld_(u, u_rhs, pmb->is, pmb->ie, pmb->js, pmb->je, pmb->ks, pmb->ks);
+  }
+  if(pmb->pbval->block_bcs[OUTER_X3]==OUTFLOW_BNDRY) {
+    Z4cSommerfeld_(u, u_rhs, pmb->is, pmb->ie, pmb->js, pmb->je, pmb->ke, pmb->ke);
+  }
+}
+
+//----------------------------------------------------------------------------------------
+// \!fn void Z4c::Z4cSommerfeld_(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs,
+//      int const is, int const ie, int const js, int const je, int const ks, int const ke);
+// \brief apply Sommerfeld BCs to the given set of points
+//
+
+void Z4c::Z4cSommerfeld_(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs,
+  int const is, int const ie, int const js, int const je, int const ks, int const ke)
+{
+  Z4c_vars z4c, rhs;
+  SetZ4cAliases(u, z4c);
+  SetZ4cAliases(u_rhs, rhs);
+
+  MeshBlock * pmb = pmy_block;
+  Coordinates * pco = pmb->pcoord;
+
+  for(int k = ks; k <= ke; ++k)
+  for(int j = js; j <= je; ++j) {
+    // -----------------------------------------------------------------------------------
+    // 1st derivatives
+    //
+    // Scalars
+    for(int a = 0; a < NDIM; ++a) {
+#pragma omp simd
+      for(int i = is; i <= ie; ++i) {
+        dKhat_d(a,i) = FD.Ds(a, z4c.Khat(k,j,i));
+        dTheta_d(a,i) = FD.Ds(a, z4c.Theta(k,j,i));
+      }
+    }
+    // Vectors
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = 0; b < NDIM; ++b) {
+#pragma omp simd
+      for(int i = is; i <= ie; ++i) {
+        dGam_du(b,a,i) = FD.Ds(b, z4c.Gam_u(a,k,j,i));
+      }
+    }
+    // Tensors
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b)
+    for(int c = 0; c < NDIM; ++c) {
+#pragma omp simd
+      for(int i = is; i <= ie; ++i) {
+        dA_ddd(c,a,b,i) = FD.Ds(c, z4c.A_dd(a,b,k,j,i));
+      }
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Compute pseudo-radial vector
+    //
+#pragma omp simd
+    for(int i = is; i <= ie; ++i) {
+      // NOTE: this will need to be changed if the Z4c variables become vertex center
+      r(i) = std::sqrt(SQR(pco->x1v(i)) + SQR(pco->x2v(j)) + SQR(pco->x3v(k)));
+      s_u(0,i) = pco->x1v(i)/r(i);
+      s_u(1,i) = pco->x2v(j)/r(i);
+      s_u(2,i) = pco->x3v(k)/r(i);
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Boundary RHS for scalars
+    //
+#pragma omp simd
+    for(int i = is; i <= ie; ++i) {
+      rhs.Theta(k,j,i) = - z4c.Theta(k,j,i)/r(i);
+      rhs.Khat(k,j,i) = - std::sqrt(2.) * z4c.Khat(k,j,i)/r(i);
+    }
+    for(int a = 0; a < NDIM; ++a) {
+#pragma omp simd
+      for(int i = is; i <= ie; ++i) {
+        rhs.Theta(k,j,i) -= s_u(a,i) * dTheta_d(a,i);
+        rhs.Khat(k,j,i) -= std::sqrt(2.) * s_u(a,i) * dKhat_d(a,i);
+      }
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Boundary RHS for the Gamma's
+    //
+    for(int a = 0; a < NDIM; ++a) {
+#pragma omp simd
+      for(int i = is; i <= ie; ++i) {
+        rhs.Gam_u(a,k,j,i) = - z4c.Gam_u(a,k,j,i)/r(i);
+      }
+      for(int b = 0; b < NDIM; ++b) {
+#pragma omp simd
+        for(int i = is; i <= ie; ++i) {
+          rhs.Gam_u(a,k,j,i) -= s_u(b,i) * dGam_du(b,a,i);
+        }
+      }
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Boundary RHS for the A_ab
+    //
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b) {
+#pragma omp simd
+      for(int i = is; i <= ie; ++i) {
+        rhs.A_dd(a,b,k,j,i) = - z4c.A_dd(a,b,k,j,i)/r(i);
+      }
+      for(int c = 0; c < NDIM; ++c) {
+#pragma omp simd
+        for(int i = is; i <= ie; ++i) {
+          rhs.A_dd(a,b,k,j,i) -= s_u(c,i) * dA_ddd(c,a,b,i);
+        }
+      }
     }
   }
 }

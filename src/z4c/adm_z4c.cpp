@@ -34,9 +34,8 @@
 // https://git.tpi.uni-jena.de/bamdev/z4
 // https://git.tpi.uni-jena.de/bamdev/z4/blob/master/z4_init.m
 //
-// The Z4c variables will be set only in the interior of the MeshBlock. The
-// conformal metric is also set in the ghost zones, since its derivative is
-// needed to define the Gamma's.
+// The Z4c variables will be set on the whole MeshBlock with the exception of
+// the Gamma's that can only be set in the interior of the MeshBlock.
 
 void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 {
