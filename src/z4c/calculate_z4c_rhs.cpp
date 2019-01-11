@@ -381,7 +381,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     // Hamiltonian constraint
     //
     ILOOP1(i) {
-      Ht(i) = R(i) - (2./3.)*SQR(K(i)) - AA(i);
+      Ht(i) = R(i) + (2./3.)*SQR(K(i)) - AA(i);
     }
 
     // -----------------------------------------------------------------------------------
