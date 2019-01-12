@@ -65,6 +65,7 @@ public:
   };
   // Names of matter variables
   static char const * const Matter_names[N_MAT];
+
 public:
   Z4c(MeshBlock *pmb, ParameterInput *pin);
   ~Z4c();
@@ -131,6 +132,7 @@ public:
     Real shift_advect;
     Real shift_eta;
   } opt;
+
 public:
   // scheduled functions
   //
@@ -192,6 +194,7 @@ public:
   void GaugeGeodesic(AthenaArray<Real> & u);
   // set the matter variables to zero
   void MatterVacuum(AthenaArray<Real> & u_adm);
+
 private:
   AthenaArray<Real> dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep
 
@@ -278,7 +281,7 @@ private:
     Real diss;
 
     // 1st derivative (high order centered)
-    Real Dx(int dir, Real & u) {
+    inline Real Dx(int dir, Real & u) {
       Real * pu = &u;
       Real out = 0.0;
       for(int n = 0; n < s1::width; ++n) {
@@ -287,12 +290,12 @@ private:
       return out * idx[dir];
     }
     // 1st derivative 2nd order centered
-    Real Ds(int dir, Real & u) {
+    inline Real Ds(int dir, Real & u) {
       Real * pu = &u;
       return 0.5 * idx[dir] * (pu[stride[dir]] - pu[-stride[dir]]);
     }
     // Advective derivative
-    Real Lx(int dir, Real & vx, Real & u) {
+    inline Real Lx(int dir, Real & vx, Real & u) {
       Real * pu = &u;
       Real dl(0.);
       for(int n = 0; n < sl::width; ++n) {
@@ -305,7 +308,7 @@ private:
       return ((vx > 0) ? (vx * dl) : (vx * dr)) * idx[dir];
     }
     // Homogeneous 2nd derivative
-    Real Dxx(int dir, Real & u) {
+    inline Real Dxx(int dir, Real & u) {
       Real * pu = &u;
       Real out = 0.0;
       for(int n = 0; n < s2::width; ++n) {
@@ -314,7 +317,7 @@ private:
       return out * SQR(idx[dir]);
     }
     // Mixed 2nd derivative
-    Real Dxy(int dir1, int dir2, Real & u) {
+    inline Real Dxy(int dir1, int dir2, Real & u) {
       Real * pu = &u;
       Real out = 0.0;
       for(int n1 = 0; n1 < s1::width; ++n1)
@@ -325,7 +328,7 @@ private:
       return out * idx[dir1] * idx[dir2];
     }
     // Kreiss-Oliger dissipation operator
-    Real Diss(int dir, Real & u) {
+    inline Real Diss(int dir, Real & u) {
       Real * pu = &u;
       Real out = 0.0;
       for(int n = 0; n < sd::width; ++n) {
