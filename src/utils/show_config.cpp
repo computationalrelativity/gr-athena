@@ -77,6 +77,9 @@ void ShowConfig(void) {
     std::cout<<"  Floating point precision:   double" << std::endl;
   }
   std::cout<<"  Number of ghost cells:      " << NGHOST << std::endl;
+  std::cout<<"  Stencil for centered FD:    " << NFDCEN << std::endl;
+  std::cout<<"  Stencil for dissipation:    " << NFDDIS << std::endl;
+  std::cout<<"  Stencil for upwind FD:      " << NFDUPW << std::endl;
 #ifdef MPI_PARALLEL
   std::cout<<"  MPI parallelism:            ON" << std::endl;
 #else

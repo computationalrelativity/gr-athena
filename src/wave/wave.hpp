@@ -47,7 +47,7 @@ private:
   AthenaArray<Real> dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep
 private:
   struct {
-    typedef FDCenteredStencil<2, NGHOST> stencil;
+    typedef FDCenteredStencil<2, NFDCEN> stencil;
     int stride[3];
     Real idx[3];
     Real Dxx(int dir, Real & u) {

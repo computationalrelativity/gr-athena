@@ -262,11 +262,16 @@ private:
 
 private:
   struct {
-    typedef FDCenteredStencil<1, NGHOST-1> s1;               // 1st drvtv stencil
-    typedef FDCenteredStencil<2, NGHOST-1> s2;               // 2nd drvtv stencil
-    typedef FDCenteredStencil<2*NGHOST, NGHOST> sd;          // diffusion operator
-    typedef FDLeftBiasedStencil<1, NGHOST> sl;               // 1st drvtv left biased
-    typedef FDRightBiasedStencil<1, NGHOST> sr;              // 1st drvtv right biased
+    // 1st derivative stecil
+    typedef FDCenteredStencil<1, NFDCEN> s1;
+    // 2nd derivative stencil
+    typedef FDCenteredStencil<2, NFDCEN> s2;
+    // dissipation operator
+    typedef FDCenteredStencil<2*NFDDIS, NFDDIS> sd;
+    // left-biased derivative
+    typedef FDLeftBiasedStencil<1, NFDUPW> sl;
+    // right-biased derivative
+    typedef FDRightBiasedStencil<1, NFDUPW> sr;
 
     int stride[3];
     Real idx[3];
@@ -279,7 +284,7 @@ private:
       for(int n = 0; n < s1::width; ++n) {
         out += s1::coeff[n] * pu[(n - s1::offset)*stride[dir]];
       }
-      return out*idx[dir];
+      return out * idx[dir];
     }
     // 1st derivative 2nd order centered
     Real Ds(int dir, Real & u) {
@@ -297,7 +302,7 @@ private:
       for(int n = 0; n < sr::width; ++n) {
         dr += sr::coeff[n] * pu[(n - sr::offset)*stride[dir]];
       }
-      return ((vx > 0) ? (vx*dl) : (vx*dr))*idx[dir];
+      return ((vx > 0) ? (vx * dl) : (vx * dr)) * idx[dir];
     }
     // Homogeneous 2nd derivative
     Real Dxx(int dir, Real & u) {
@@ -306,7 +311,7 @@ private:
       for(int n = 0; n < s2::width; ++n) {
         out += s2::coeff[n] * pu[(n - s2::offset)*stride[dir]];
       }
-      return out*SQR(idx[dir]);
+      return out * SQR(idx[dir]);
     }
     // Mixed 2nd derivative
     Real Dxy(int dir1, int dir2, Real & u) {
@@ -317,7 +322,7 @@ private:
         out += s1::coeff[n1] * s1::coeff[n2] *
           pu[(n1 - s1::offset)*stride[dir1] + (n2 - s1::offset)*stride[dir2]];
       }
-      return out*idx[dir1]*idx[dir2];
+      return out * idx[dir1] * idx[dir2];
     }
     // Kreiss-Oliger dissipation operator
     Real Diss(int dir, Real & u) {

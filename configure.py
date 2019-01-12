@@ -95,6 +95,21 @@ parser.add_argument('--nghost',
                     default='2',
                     help='set number of ghost zones')
 
+# --nfdcen=[value] argument
+parser.add_argument('--nfdcen',
+                    default='2',
+                    help='number of points used for centered finite differencing')
+
+# --nfddis=[value] argument
+parser.add_argument('--nfddis',
+                    default='2',
+                    help='number of points used for Kreiss-Oliger dissipation')
+
+# --nfdupw=[value] argument
+parser.add_argument('--nfdupw',
+                    default='2',
+                    help='number of points used for upwind finite differencing')
+
 # -h argument
 parser.add_argument('-o',
                     action='store_true',
@@ -270,6 +285,14 @@ if args['flux'] == 'default':
     else:
         args['flux'] = 'hllc'
 
+# Check FD order
+if int(args['nfdcen']) > int(args['nghost']):
+    raise SystemExit('### CONFIGURE ERROR: finite differencing stencil larger than NGHOST')
+if int(args['nfddis']) > int(args['nghost']):
+    raise SystemExit('### CONFIGURE ERROR: finite differencing stencil larger than NGHOST')
+if int(args['nfdupw']) > int(args['nghost']):
+    raise SystemExit('### CONFIGURE ERROR: finite differencing stencil larger than NGHOST')
+
 # Check Riemann solver compatibility
 if args['flux'] == 'hllc' and args['eos'] == 'isothermal':
     raise SystemExit('### CONFIGURE ERROR: HLLC flux cannot be used with isothermal EOS')
@@ -325,6 +348,11 @@ definitions['RSOLVER'] = makefile_options['RSOLVER_FILE'] = args['flux']
 
 # --nghost=[value] argument
 definitions['NUMBER_GHOST_CELLS'] = args['nghost']
+
+# finite differencing options 
+definitions['NFDCEN'] = args['nfdcen']
+definitions['NFDDIS'] = args['nfddis']
+definitions['NFDUPW'] = args['nfdupw']
 
 # -h argument
 if args['o']:
@@ -674,6 +702,9 @@ print('  Linker flags:            ' + makefile_options['LINKER_FLAGS'] + ' '
       + makefile_options['LIBRARY_FLAGS'])
 print('  Precision:               ' + ('single' if args['float'] else 'double'))
 print('  Number of ghost cells:   ' + args['nghost'])
+print('  Stencil for centered FD: ' + args['nfdcen'])
+print('  Stencil for dissipation: ' + args['nfddis'])
+print('  Stencil for upwind FD:   ' + args['nfdupw'])
 print('  MPI parallelism:         ' + ('ON' if args['mpi'] else 'OFF'))
 print('  OpenMP parallelism:      ' + ('ON' if args['omp'] else 'OFF'))
 print('  FFT:                     ' + ('ON' if args['fft'] else 'OFF'))
