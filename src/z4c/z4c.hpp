@@ -120,7 +120,7 @@ public:
     Real chi_div_floor;   // puncture's floor value for chi, use max(chi, chi_div_floor) in non-differentiated chi
     Real diss;            // amount of numerical dissipation
     Real eps_floor;       // a small number O(10^-12)
-    // constraint damping parameters
+    // Constraint damping parameters
     Real damp_kappa1;
     Real damp_kappa2;
     // Gauge conditions for the lapse
@@ -131,6 +131,8 @@ public:
     // Gauge condition for the shift
     Real shift_advect;
     Real shift_eta;
+    // Single puncture parameters
+    Real punc_ADM_mass;
   } opt;
 
 public:

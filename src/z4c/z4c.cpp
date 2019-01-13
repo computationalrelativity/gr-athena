@@ -80,7 +80,9 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   opt.lapse_advect = pin->GetOrAddReal("z4c", "lapse_advect", 1.0);
   opt.shift_advect = pin->GetOrAddReal("z4c", "shift_advect", 1.0);
   opt.shift_eta = pin->GetOrAddReal("z4c", "shift_eta", 0.0);
-
+  // Single puncture parameters
+  opt.punc_ADM_mass = pin->GetOrAddReal("z4c", "punc_ADM_mass", 1.0);
+    
   // Set aliases
   SetADMAliases(storage.adm, adm);
   SetMatterAliases(storage.mat, mat);
