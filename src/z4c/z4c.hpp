@@ -133,6 +133,10 @@ public:
     Real shift_eta;
     // Single puncture parameters
     Real punc_ADM_mass;
+    // AwA parameters
+    Real AwA_amplitude; // amplitude parameter
+    Real AwA_sigma; // sigma, width, etc parameter
+    int AwA_direction; // direction of the test
   } opt;
 
 public:

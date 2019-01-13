@@ -65,14 +65,14 @@ void Z4c::GaugePreCollapsedLapse(AthenaArray<Real> & u)
     GLOOP1(i) {
       r(i) = std::sqrt(SQR(pco->x1v(i)) + SQR(pco->x2v(j)) + SQR(pco->x3v(k)));
     }
-    // psi4
+    // lapse
     GLOOP1(i) {
       z4c.alpha(k,j,i) = 1.0/std::pow(1.0+0.5*opt.punc_ADM_mass/r(i),2);
     }  
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn void Z4c::OnePunctureSpin(AthenaArray<Real> & u)
+// \!fn void Z4c::ADMOnePunctureSpin(AthenaArray<Real> & u)
 // \brief Initialize ADM vars to single puncture with spin
 
 void Z4c::ADMOnePunctureSpin(AthenaArray<Real> & u_adm)
@@ -85,7 +85,7 @@ void Z4c::ADMOnePunctureSpin(AthenaArray<Real> & u_adm)
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn void Z4c::TwoPunctures(AthenaArray<Real> & u)
+// \!fn void Z4c::ADMTwoPunctures(AthenaArray<Real> & u)
 // \brief Initialize ADM vars to two punctures
 
 void Z4c::ADMTwoPunctures(AthenaArray<Real> & u_adm)
