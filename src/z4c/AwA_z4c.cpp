@@ -76,15 +76,14 @@ void Z4c::ADMLinearWave1(AthenaArray<Real> & u_adm)
   
   // Set direction
   const int alldirections[3][3] = { {0,1,2}, {2,0,1}, {1,2,0} };
-  int *dir = alldirections[opt.AwA_direction];			     
-  
+  int *dir = alldirections[opt.AwA_direction];
+
   // For propagation along x ...
   GLOOP2(k,j) {
-    // x
-    GLOOP1(i) {
-      if      (opt.AwA_direction==0) r(i) = pco->x1v(i);//this should be improved
-      else if (opt.AwA_direction==1) r(i) = pco->x2v(i);
-      else                           r(i) = pco->x3v(i);
+    switch (opt.AwA_direction) {
+    case 0: GLOOP1(i) { r(i) = pco->x1v(i); } break;
+    case 1: GLOOP1(i) { r(i) = pco->x2v(j); } break;
+    case 2: GLOOP1(i) { r(i) = pco->x3v(k); } break; 
     }    
     // g_yy
     GLOOP1(i) {
@@ -172,11 +171,10 @@ void Z4c::ADMGaugeWave1(AthenaArray<Real> & u_adm)
 
   // For propagation along x ...
   GLOOP2(k,j) {
-    // x
-    GLOOP1(i) {
-      if      (opt.AwA_direction==0) r(i) = pco->x1v(i);//this should be improved
-      else if (opt.AwA_direction==1) r(i) = pco->x2v(i);
-      else                           r(i) = pco->x3v(i);
+    switch (opt.AwA_direction) {
+    case 0: GLOOP1(i) { r(i) = pco->x1v(i); } break;
+    case 1: GLOOP1(i) { r(i) = pco->x2v(j); } break;
+    case 2: GLOOP1(i) { r(i) = pco->x3v(k); } break; 
     }    
     // g_xx
     GLOOP1(i) {
@@ -207,11 +205,11 @@ void Z4c::GaugeGaugeWaveLapse(AthenaArray<Real> & u)
   int *dir = alldirections[opt.AwA_direction];			     
   
   GLOOP2(k,j) {
-    GLOOP1(i) {
-      if      (opt.AwA_direction==0) r(i) = pco->x1v(i);//this should be improved
-      else if (opt.AwA_direction==1) r(i) = pco->x2v(i);
-      else                           r(i) = pco->x3v(i);
-    }
+    switch (opt.AwA_direction) {
+    case 0: GLOOP1(i) { r(i) = pco->x1v(i); } break;
+    case 1: GLOOP1(i) { r(i) = pco->x2v(j); } break;
+    case 2: GLOOP1(i) { r(i) = pco->x3v(k); } break; 
+    }    
     // alpha
     GLOOP1(i) {
       z4c.alpha(k,j,i) = std::sqrt(1.0 - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i)));
@@ -235,11 +233,11 @@ void Z4c::GaugeGaugeWaveLapseShift(AthenaArray<Real> & u)
   int *dir = alldirections[opt.AwA_direction];			     
   
   GLOOP2(k,j) {
-    GLOOP1(i) {
-      if      (opt.AwA_direction==0) r(i) = pco->x1v(i);//this should be improved
-      else if (opt.AwA_direction==1) r(i) = pco->x2v(i);
-      else                           r(i) = pco->x3v(i);
-    }
+    switch (opt.AwA_direction) {
+    case 0: GLOOP1(i) { r(i) = pco->x1v(i); } break;
+    case 1: GLOOP1(i) { r(i) = pco->x2v(j); } break;
+    case 2: GLOOP1(i) { r(i) = pco->x3v(k); } break; 
+    }    
     // alpha 
     GLOOP1(i) {
       z4c.alpha(k,j,i) = 1.0/(std::sqrt(1.0 + SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i))));
