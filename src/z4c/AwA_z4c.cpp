@@ -75,7 +75,7 @@ void Z4c::ADMLinearWave1(AthenaArray<Real> & u_adm)
   ADMMinkowski(u_adm);
   
   // Set direction
-  const int alldirections[3][3] = { {0,1,2}, {2,0,1}, {1,2,0} };
+  const int alldirections[3][3] = { {0,1,2}, {1,2,0}, {2,0,1} };
   int *dir = alldirections[opt.AwA_direction];
 
   // For propagation along x ...
@@ -166,7 +166,7 @@ void Z4c::ADMGaugeWave1(AthenaArray<Real> & u_adm)
   ADMMinkowski(u_adm);
 
   // Set direction
-  const int alldirections[3][3] = { {0,1,2}, {2,0,1}, {1,2,0} };
+  const int alldirections[3][3] = { {0,1,2}, {1,2,0}, {2,0,1} };
   int *dir = alldirections[opt.AwA_direction];			     
 
   // For propagation along x ...
@@ -201,7 +201,7 @@ void Z4c::GaugeGaugeWaveLapse(AthenaArray<Real> & u)
   z4c.beta_u.Fill(0.);
 
   // Set direction
-  const int alldirections[3][3] = { {0,1,2}, {2,0,1}, {1,2,0} };
+  const int alldirections[3][3] = { {0,1,2}, {1,2,0}, {2,0,1} };
   int *dir = alldirections[opt.AwA_direction];			     
   
   GLOOP2(k,j) {
