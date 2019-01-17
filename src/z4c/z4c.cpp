@@ -83,10 +83,10 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   // Single puncture parameters
   opt.punc_ADM_mass = pin->GetOrAddReal("z4c", "punc_ADM_mass", 1.0);
   // AwA parameters (default to linear wave test)
-  opt.AwA_amplitude = pin->GetOrAddReal("z4c", "AwA_amplitude", 1e-8); 
-  opt.AwA_sigma = pin->GetOrAddReal("z4c", "AwA_sigma", 1.0); 
+  opt.AwA_amplitude = pin->GetOrAddReal("z4c", "AwA_amplitude", 1e-8);
+  opt.AwA_sigma = pin->GetOrAddReal("z4c", "AwA_sigma", 1.0);
   opt.AwA_direction = pin->GetOrAddInteger("z4c", "AwA_direction", 0);
-  
+
   // Set aliases
   SetADMAliases(storage.adm, adm);
   SetMatterAliases(storage.mat, mat);

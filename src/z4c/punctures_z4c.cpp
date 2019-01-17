@@ -12,6 +12,7 @@
 // Athena++ headers
 #include "z4c.hpp"
 #include "z4c_macro.hpp"
+#include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
 
 //----------------------------------------------------------------------------------------
@@ -25,10 +26,10 @@ void Z4c::ADMOnePuncture(AthenaArray<Real> & u_adm)
 
   MeshBlock * pmb = pmy_block;
   Coordinates * pco = pmb->pcoord;
-  
+
   // Flat spacetime
   ADMMinkowski(u_adm);
-  
+
   GLOOP2(k,j) {
     // Isotropic radius
     GLOOP1(i) {
@@ -41,9 +42,9 @@ void Z4c::ADMOnePuncture(AthenaArray<Real> & u_adm)
     // g_ab
     for(int a = 0; a < NDIM; ++a)
       for(int b = a; b < NDIM; ++b) {
-	GLOOP1(i) {
-        adm.g_dd(a,b,k,j,i) *= adm.psi4(k,j,i);
-	}
+        GLOOP1(i) {
+          adm.g_dd(a,b,k,j,i) *= adm.psi4(k,j,i);
+        }
       }
   }
 
@@ -51,7 +52,7 @@ void Z4c::ADMOnePuncture(AthenaArray<Real> & u_adm)
 
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::GaugePreCollapsedLapse(AthenaArray<Real> & u)
-// \brief Initialize precollapsed lapse and zero shift for single punture evolution 
+// \brief Initialize precollapsed lapse and zero shift for single punture evolution
 
 void Z4c::GaugePreCollapsedLapse(AthenaArray<Real> & u)
 {
@@ -59,6 +60,9 @@ void Z4c::GaugePreCollapsedLapse(AthenaArray<Real> & u)
   SetZ4cAliases(u, z4c);
   z4c.alpha.Fill(1.);
   z4c.beta_u.Fill(0.);
+
+  MeshBlock * pmb = pmy_block;
+  Coordinates * pco = pmb->pcoord;
 
   GLOOP2(k,j) {
     // Isotropic radius
@@ -68,7 +72,8 @@ void Z4c::GaugePreCollapsedLapse(AthenaArray<Real> & u)
     // lapse
     GLOOP1(i) {
       z4c.alpha(k,j,i) = 1.0/std::pow(1.0+0.5*opt.punc_ADM_mass/r(i),2);
-    }  
+    }
+  }
 }
 
 //----------------------------------------------------------------------------------------

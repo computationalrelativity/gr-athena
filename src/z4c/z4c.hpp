@@ -201,6 +201,23 @@ public:
   // set the matter variables to zero
   void MatterVacuum(AthenaArray<Real> & u_adm);
 
+  // initial data for the AwA tests
+  void ADMRobustStability(AthenaArray<Real> & u_adm);
+  void ADMLinearWave1(AthenaArray<Real> & u_adm);
+  void ADMLinearWave2(AthenaArray<Real> & u_adm);
+  void ADMGaugeWave1(AthenaArray<Real> & u_adm);
+  void GaugeGaugeWaveLapse(AthenaArray<Real> & u);
+  void GaugeGaugeWaveLapseShift(AthenaArray<Real> & u);
+  void ADMGaugeWave2(AthenaArray<Real> & u_adm);
+
+  // initial data for a single BH
+  void ADMOnePuncture(AthenaArray<Real> & u_adm);
+  void GaugePreCollapsedLapse(AthenaArray<Real> & u);
+  void ADMOnePunctureSpin(AthenaArray<Real> & u_adm);
+
+  // initial data for binary BHs
+  void ADMTwoPunctures(AthenaArray<Real> & u_adm);
+
 private:
   AthenaArray<Real> dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep
 
