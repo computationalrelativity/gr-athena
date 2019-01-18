@@ -104,49 +104,49 @@ typedef struct BoundaryData {
 
 //---------------------- prototypes for all BC functions ---------------------------------
 void ReflectInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    AthenaArray<Real> &z4c, FaceField &b, Real time, Real dt,
-                    int is, int ie, int js, int je, int ks, int ke, int ngh);
+                    AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+                    Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
 void ReflectInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    AthenaArray<Real> &z4c, FaceField &b, Real time, Real dt,
-                    int is, int ie, int js, int je, int ks, int ke, int ngh);
+                    AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+                    Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
 void ReflectInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    AthenaArray<Real> &z4c, FaceField &b, Real time, Real dt,
-                    int is, int ie, int js, int je, int ks, int ke, int ngh);
+                    AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+                    Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
 void ReflectOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    AthenaArray<Real> &z4c, FaceField &b, Real time, Real dt,
-                    int is, int ie, int js, int je, int ks, int ke, int ngh);
+                    AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+                    Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
 void ReflectOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    AthenaArray<Real> &z4c, FaceField &b, Real time, Real dt,
-                    int is, int ie, int js, int je, int ks, int ke, int ngh);
+                    AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+                    Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
 void ReflectOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    AthenaArray<Real> &z4c, FaceField &b, Real time, Real dt,
-                    int is, int ie, int js, int je, int ks, int ke, int ngh);
+                    AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+                    Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
 
 void OutflowInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    AthenaArray<Real> &z4c, FaceField &b, Real time, Real dt,
-                    int is, int ie, int js, int je, int ks, int ke, int ngh);
+                    AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+                    Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
 void OutflowInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    AthenaArray<Real> &z4c, FaceField &b, Real time, Real dt,
-                    int is, int ie, int js, int je, int ks, int ke, int ngh);
+                    AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+                    Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
 void OutflowInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    AthenaArray<Real> &z4c, FaceField &b, Real time, Real dt,
-                    int is, int ie, int js, int je, int ks, int ke, int ngh);
+                    AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+                    Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
 void OutflowOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    AthenaArray<Real> &z4c, FaceField &b, Real time, Real dt,
-                    int is, int ie, int js, int je, int ks, int ke, int ngh);
+                    AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+                    Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
 void OutflowOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    AthenaArray<Real> &z4c, FaceField &b, Real time, Real dt,
-                    int is, int ie, int js, int je, int ks, int ke, int ngh);
+                    AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+                    Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
 void OutflowOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    AthenaArray<Real> &z4c, FaceField &b, Real time, Real dt,
-                    int is, int ie, int js, int je, int ks, int ke, int ngh);
+                    AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+                    Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
 
 void PolarWedgeInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    AthenaArray<Real> &z4c, FaceField &b, Real time, Real dt,
-                    int is, int ie, int js, int je, int ks, int ke, int ngh);
+                    AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+                    Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
 void PolarWedgeOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    AthenaArray<Real> &z4c, FaceField &b, Real time, Real dt,
-                    int is, int ie, int js, int je, int ks, int ke, int ngh);
+                    AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+                    Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
 
 
 // function to return boundary flag given input string
@@ -214,7 +214,7 @@ public:
   void ClearBoundaryForInit(bool cons_and_field);
   void ClearBoundaryAll(void);
   void ApplyPhysicalBoundaries(AthenaArray<Real> &pdst, AthenaArray<Real> &cdst,
-          AthenaArray<Real> & z4c, FaceField &bfdst,
+          AthenaArray<Real> &  waveu, AthenaArray<Real> & z4c, FaceField &bfdst,
           AthenaArray<Real> &bcdst, const Real time, const Real dt);
   void ProlongateBoundaries(AthenaArray<Real> &pdst, AthenaArray<Real> &cdst,
           AthenaArray<Real> &waveu, AthenaArray<Real> &z4cu,

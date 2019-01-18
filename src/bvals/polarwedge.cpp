@@ -18,13 +18,18 @@
 
 //----------------------------------------------------------------------------------------
 //! \fn void PolarWedgeInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-//                         AthenaArray<Real> &z4c, FaceField &b, const Real time, const Real dt,
-//                         int is, int ie, int js, int je, int ks, int ke, int ngh)
+//                         AthenaArray<Real> &waveu, AthenaArray<Real> &z4c, FaceField &b,
+//                         Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh)
 //  \brief polar wedge boundary conditions, inner x2 boundary
 
 void PolarWedgeInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    AthenaArray<Real> &z4c, FaceField &b, Real time, Real dt,
-                    int is, int ie, int js, int je, int ks, int ke, int ngh) {
+                    AthenaArray<Real> &waveu, AthenaArray<Real> &z4c, FaceField &b,
+                    Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh) {
+  if (WAVE_ENABLED) {
+    std::cerr << "PolarWedge BCs not implemented for the wave equation!" << std::endl << std::flush;
+    assert(false); // PolarWedge BCs not implemented for the wave equation!
+    abort();
+  }
   if (Z4C_ENABLED) {
     std::cerr << "PolarWedge BCs not implemented for Z4c!" << std::endl << std::flush;
     assert(false); // PolarWedge BCs not implemented for Z4c!
@@ -85,13 +90,18 @@ void PolarWedgeInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim
 
 //----------------------------------------------------------------------------------------
 //! \fn void PolarWedgeOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-//                          AthenaArray<Real> &z4c, FaceField &b, const Real time, const Real dt,
-//                          int is, int ie, int js, int je, int ks, int ke, int ngh)
+//                          AthenaArray<Real> &waveu, AthenaArray<Real> &z4c, FaceField &b,
+//                          Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh)
 //  \brief polar wedge boundary conditions, outer x2 boundary
 
 void PolarWedgeOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    AthenaArray<Real> &z4c, FaceField &b, Real time, Real dt,
-                    int is, int ie, int js, int je, int ks, int ke, int ngh) {
+                    AthenaArray<Real> &waveu, AthenaArray<Real> &z4c, FaceField &b,
+                    Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh) {
+  if (WAVE_ENABLED) {
+    std::cerr << "PolarWedge BCs not implemented for the wave equation!" << std::endl << std::flush;
+    assert(false); // PolarWedge BCs not implemented for the wave equation!
+    abort();
+  }
   if (Z4C_ENABLED) {
     std::cerr << "PolarWedge BCs not implemented for Z4c!" << std::endl << std::flush;
     assert(false); // PolarWedge BCs not implemented for Z4c!

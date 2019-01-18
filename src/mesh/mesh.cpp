@@ -1370,7 +1370,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
                                         phydro->w, pfield->bcc, pmb->pcoord,
                                         il, iu, jl, ju, kl, ku);
       }
-      pbval->ApplyPhysicalBoundaries(phydro->w, phydro->u, pz4c->storage.u,
+      pbval->ApplyPhysicalBoundaries(phydro->w, phydro->u, pwave->u, pz4c->storage.u,
                                      pfield->b, pfield->bcc, time, 0.0);
     }
 

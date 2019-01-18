@@ -15,13 +15,13 @@
 
 //----------------------------------------------------------------------------------------
 //! \fn void ReflectInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-//                          AthenaArray<Real> &z4c, FaceField &b, const Real time, const Real dt,
-//                          int is, int ie, int js, int je, int ks, int ke, int ngh)
+//                          AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+//                          Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh)
 //  \brief REFLECTING boundary conditions, inner x1 boundary
 
 void ReflectInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    AthenaArray<Real> &z4c, FaceField &b, Real time, Real dt,
-                    int is, int ie, int js, int je, int ks, int ke, int ngh) {
+                    AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+                    Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh) {
   // copy hydro variables into ghost zones, reflecting v1
   if (HYDRO_ENABLED) {
     for (int n=0; n<(NHYDRO); ++n) {
@@ -42,6 +42,19 @@ void ReflectInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
           }
         }}
       }
+    }
+  }
+
+  // copy wave equation variables into ghost zones
+  if (WAVE_ENABLED) {
+    for (int n = 0; n < 2; ++n) {
+      for (int k=ks; k<=ke; ++k) {
+      for (int j=js; j<=je; ++j) {
+#pragma omp simd
+        for (int i=1; i<=ngh; ++i) {
+          waveu(n,k,j,is-i) = waveu(n,k,j,(is+i-1));
+        }
+      }}
     }
   }
 
@@ -102,13 +115,13 @@ void ReflectInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
 
 //----------------------------------------------------------------------------------------
 //! \fn void ReflectOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-//                          AthenaArray<Real> &z4c, FaceField &b, const Real time, const Real dt,
-//                          int is, int ie, int js, int je, int ks, int ke, int ngh)
+//                          AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+//                          Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh)
 //  \brief REFLECTING boundary conditions, outer x1 boundary
 
 void ReflectOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    AthenaArray<Real> &z4c, FaceField &b, Real time, Real dt,
-                    int is, int ie, int js, int je, int ks, int ke, int ngh) {
+                    AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+                    Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh) {
   // copy hydro variables into ghost zones, reflecting v1
   if (HYDRO_ENABLED) {
     for (int n=0; n<(NHYDRO); ++n) {
@@ -129,6 +142,19 @@ void ReflectOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
           }
         }}
       }
+    }
+  }
+  
+  // copy wave equation variables into ghost zones
+  if (WAVE_ENABLED) {
+    for (int n = 0; n < 2; ++n) {
+      for (int k=ks; k<=ke; ++k) {
+      for (int j=js; j<=je; ++j) {
+#pragma omp simd
+        for (int i=1; i<=ngh; ++i) {
+          waveu(n,k,j,ie+i) = waveu(n,k,j,(ie-i+1));
+        }
+      }}
     }
   }
 
@@ -189,13 +215,13 @@ void ReflectOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
 
 //----------------------------------------------------------------------------------------
 //! \fn void ReflecInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-//                         AthenaArray<Real> &z4c, FaceField &b, const Real time, const Real dt,
-//                         int is, int ie, int js, int je, int ks, int ke, int ngh)
+//                          AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+//                          Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh)
 //  \brief REFLECTING boundary conditions, inner x2 boundary
 
 void ReflectInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    AthenaArray<Real> &z4c, FaceField &b, Real time, Real dt,
-                    int is, int ie, int js, int je, int ks, int ke, int ngh) {
+                    AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+                    Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh) {
   // copy hydro variables into ghost zones, reflecting v2
   if (HYDRO_ENABLED) {
     for (int n=0; n<(NHYDRO); ++n) {
@@ -216,6 +242,19 @@ void ReflectInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
           }
         }}
       }
+    }
+  }
+ 
+  // copy wave equation variables into ghost zones
+  if (WAVE_ENABLED) {
+    for (int n = 0; n < 2; ++n) {
+      for (int k=ks; k<=ke; ++k) {
+      for (int j=1; j<=ngh; ++j) {
+#pragma omp simd
+        for (int i=is; i<=ie; ++i) {
+          waveu(n,k,js-j,i) = waveu(n,k,js+j-1,i);
+        }
+      }}
     }
   }
 
@@ -276,13 +315,13 @@ void ReflectInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
 
 //----------------------------------------------------------------------------------------
 //! \fn void ReflectOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-//                          AthenaArray<Real> &z4c, FaceField &b, const Real time, const Real dt,
-//                          int is, int ie, int js, int je, int ks, int ke, int ngh)
+//                          AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+//                          Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh)
 //  \brief REFLECTING boundary conditions, outer x2 boundary
 
 void ReflectOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    AthenaArray<Real> &z4c, FaceField &b, Real time, Real dt,
-                    int is, int ie, int js, int je, int ks, int ke, int ngh) {
+                    AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+                    Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh) {
   // copy hydro variables into ghost zones, reflecting v2
   if (HYDRO_ENABLED) {
     for (int n=0; n<(NHYDRO); ++n) {
@@ -303,6 +342,19 @@ void ReflectOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
           }
         }}
       }
+    }
+  }
+
+  // copy wave equation variables into ghost zones
+  if (WAVE_ENABLED) {
+    for (int n = 0; n < 2; ++n) {
+      for (int k=ks; k<=ke; ++k) {
+      for (int j=1; j<=ngh; ++j) {
+#pragma omp simd
+        for (int i=is; i<=ie; ++i) {
+          waveu(n,k,je+j,i) = waveu(n,k,je-j+1,i);
+        }
+      }}
     }
   }
 
@@ -363,13 +415,13 @@ void ReflectOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
 
 //----------------------------------------------------------------------------------------
 //! \fn void ReflectInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-//                          AthenaArray<Real> &z4c, FaceField &b, const Real time, const Real dt,
-//                          int is, int ie, int js, int je, int ks, int ke, int ngh)
+//                          AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+//                          Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh)
 //  \brief REFLECTING boundary conditions, inner x3 boundary
 
 void ReflectInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    AthenaArray<Real> &z4c, FaceField &b, Real time, Real dt,
-                    int is, int ie, int js, int je, int ks, int ke, int ngh) {
+                    AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+                    Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh) {
   // copy hydro variables into ghost zones, reflecting v3
   if (HYDRO_ENABLED) {
     for (int n=0; n<(NHYDRO); ++n) {
@@ -390,6 +442,19 @@ void ReflectInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
           }
         }}
       }
+    }
+  }
+
+  // copy wave equation variables into ghost zones
+  if (WAVE_ENABLED) {
+    for (int n = 0; n < 2; ++n) {
+      for (int k=1; k<=ngh; ++k) {
+      for (int j=js; j<=je; ++j) {
+#pragma omp simd
+        for (int i=is; i<=ie; ++i) {
+          waveu(n,ks-k,j,i) = waveu(n,ks+k-1,j,i);
+        }
+      }}
     }
   }
 
@@ -450,13 +515,13 @@ void ReflectInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
 
 //----------------------------------------------------------------------------------------
 //! \fn void ReflectOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-//                          AthenaArray<Real> &z4c, FaceField &b, const Real time, const Real dt,
-//                          int is, int ie, int js, int je, int ks, int ke, int ngh)
+//                          AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+//                          Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh)
 //  \brief REFLECTING boundary conditions, outer x3 boundary
 
 void ReflectOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    AthenaArray<Real> &z4c, FaceField &b, Real time, Real dt,
-                    int is, int ie, int js, int je, int ks, int ke, int ngh) {
+                    AthenaArray<Real> & waveu, AthenaArray<Real> &z4c, FaceField &b,
+                    Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh) {
   // copy hydro variables into ghost zones, reflecting v3
   if (HYDRO_ENABLED) {
     for (int n=0; n<(NHYDRO); ++n) {
@@ -477,6 +542,19 @@ void ReflectOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
           }
         }}
       }
+    }
+  }
+
+  // copy wave equation variables into ghost zones
+  if (WAVE_ENABLED) {
+    for (int n = 0; n < 2; ++n) {
+      for (int k=1; k<=ngh; ++k) {
+      for (int j=js; j<=je; ++j) {
+#pragma omp simd
+        for (int i=is; i<=ie; ++i) {
+          waveu(n,ke+k,j,i) = waveu(n,ke-k+1,j,i);
+        }
+      }}
     }
   }
 

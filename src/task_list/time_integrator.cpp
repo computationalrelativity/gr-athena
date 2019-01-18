@@ -842,6 +842,7 @@ enum TaskStatus TimeIntegratorTaskList::Primitives(MeshBlock *pmb, int stage) {
 enum TaskStatus TimeIntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int stage) {
   Hydro *phydro=pmb->phydro;
   Field *pfield=pmb->pfield;
+  Wave *pwave=pmb->pwave;
   Z4c *pz4c=pmb->pz4c;
   BoundaryValues *pbval=pmb->pbval;
 
@@ -850,7 +851,7 @@ enum TaskStatus TimeIntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int sta
     Real t_end_stage = pmb->pmy_mesh->time + pmb->stage_abscissae[stage][0];
     // Scaled coefficient for RHS time-advance within stage
     Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
-    pbval->ApplyPhysicalBoundaries(phydro->w,  phydro->u, pz4c->storage.u,
+    pbval->ApplyPhysicalBoundaries(phydro->w,  phydro->u, pwave->u, pz4c->storage.u,
                                    pfield->b,  pfield->bcc, t_end_stage, dt);
   } else {
     return TASK_FAIL;

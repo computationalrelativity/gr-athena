@@ -38,6 +38,7 @@ public:
   // functions
   Real NewBlockTimeStep(void);  // compute new timestep on a MeshBlock
   void WaveRHS(AthenaArray<Real> & u);
+  void WaveBoundaryRHS(AthenaArray<Real> & u);
   void WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
     AthenaArray<Real> &u_in2, const Real wght[3]);
   void AddWaveRHS(const Real wght, AthenaArray<Real> &u_out);
@@ -46,11 +47,20 @@ public:
 private:
   AthenaArray<Real> dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep
 private:
+  void WaveSommerfeld_(AthenaArray<Real> & u,
+      int const is, int const ie, int const js, int const je, int const ks, int const ke);
+private:
   struct {
     typedef FDCenteredStencil<2, NFDCEN> stencil;
+
     int stride[3];
     Real idx[3];
-    Real Dxx(int dir, Real & u) {
+
+    inline Real Ds(int dir, Real & u) {
+      Real * pu = &u;
+      return 0.5 * idx[dir] * (pu[stride[dir]] - pu[-stride[dir]]);
+    }
+    inline Real Dxx(int dir, Real & u) {
       Real * pu = &u;
       Real out = 0.0;
       for(int n = 0; n < stencil::width; ++n) {
