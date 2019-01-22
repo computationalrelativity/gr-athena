@@ -10,8 +10,8 @@ test            = minkowski # See possibilities in src/pgen/AwA_test.cpp
 
 <output1>
 file_type       = tab       # Athena++ ASCII data
-variable        = C         # variables to be output
-dt              = 0.2       # time increment between outputs
+variable        = z4c       # variables to be output
+dt              = 0.01      # time increment between outputs
 data_format     = %.16e
 
 #<output2>
@@ -21,7 +21,7 @@ data_format     = %.16e
 
 <time>
 cfl_number      = 0.25      # The Courant, Friedrichs, & Lewy (CFL) number
-tlim            = 2.0       # time limit
+tlim            = 0.1       # time limit
 integrator      = rk4       # time integrator
 
 <mesh>
