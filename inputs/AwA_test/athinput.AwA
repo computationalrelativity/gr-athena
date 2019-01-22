@@ -1,0 +1,46 @@
+<comment>
+problem         = Apples with Apples Test
+configure       = --prob=AwA_test -z
+
+<job>
+problem_id      = AwA       # Basename of output filenames
+
+<problem>
+test            = minkowski # See possibilities in src/pgen/AwA_test.cpp
+
+<output1>
+file_type       = tab       # Athena++ ASCII data
+variable        = C         # variables to be output
+dt              = 0.2       # time increment between outputs
+data_format     = %.16e
+
+#<output2>
+#file_type       = hst       # History data
+#dt              = 0.1       # time increment between outputs
+#data_format     = %.16e
+
+<time>
+cfl_number      = 0.25      # The Courant, Friedrichs, & Lewy (CFL) number
+tlim            = 2.0       # time limit
+integrator      = rk4       # time integrator
+
+<mesh>
+refinement      = static    # Static mesh refinement
+
+nx1             = 64        # Number of zones in X1-direction
+x1min           = -0.5      # minimum value of X1
+x1max           =  0.5      # maximum value of X1
+ix1_bc          = periodic  # inner-X1 boundary flag
+ox1_bc          = periodic  # inner-X1 boundary flag
+
+nx2             = 1         # Number of zones in X2-direction
+x2min           = -0.5      # minimum value of X2
+x2max           =  0.5      # maximum value of X2
+ix2_bc          = periodic  # inner-X2 boundary flag
+ox2_bc          = periodic  # inner-X2 boundary flag
+
+nx3             = 1         # Number of zones in X3-direction
+x3min           = -0.5      # minimum value of X3
+x3max           =  0.5      # maximum value of X3
+ix3_bc          = periodic  # inner-X3 boundary flag
+ox3_bc          = periodic  # inner-X3 boundary flag

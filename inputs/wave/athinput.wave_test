@@ -1,0 +1,54 @@
+<comment>
+problem         = Wave equation
+configure       = --prob=wave_test -w
+
+<job>
+problem_id      = wave      # Basename of output filenames
+
+<problem>
+profile         = linear    # Either 'linear' or 'bump'
+direction       = 0         # of propagation. Allowed values are -1, 0, 1
+
+<output1>
+file_type       = tab       # Athena++ ASCII data
+variable        = wave      # variables to be output
+dt              = 0.2       # time increment between outputs
+data_format     = %.16e
+
+#<output2>
+#file_type       = hst       # History data
+#dt              = 0.1       # time increment between outputs
+#data_format     = %.16e
+
+<time>
+cfl_number      = 0.2       # The Courant, Friedrichs, & Lewy (CFL) number
+tlim            = 2.0       # time limit
+integrator      = rk4       # time integrator
+
+<mesh>
+refinement      = static    # Static mesh refinement
+
+nx1             = 50       # Number of zones in X1-direction
+x1min           = -1.0      # minimum value of X1
+x1max           =  1.0      # maximum value of X1
+ix1_bc          = periodic  # inner-X1 boundary flag
+ox1_bc          = periodic  # inner-X1 boundary flag
+
+nx2             = 50       # Number of zones in X2-direction
+x2min           = -1.0      # minimum value of X2
+x2max           =  1.0      # maximum value of X2
+ix2_bc          = periodic  # inner-X2 boundary flag
+ox2_bc          = periodic  # inner-X2 boundary flag
+
+nx3             = 1         # Number of zones in X3-direction
+x3min           = -1.0      # minimum value of X3
+x3max           =  1.0      # maximum value of X3
+ix3_bc          = periodic  # inner-X3 boundary flag
+ox3_bc          = periodic  # inner-X3 boundary flag
+
+<hydro>
+iso_sound_speed = 1.0
+gamma           = 1.4  # gamma = C_p/C_v
+
+<wave>
+c               = 1.0

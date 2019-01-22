@@ -29,7 +29,7 @@
 // \!fn void Z4c::ADMRobustStability(AthenaArray<Real> & u)
 // \brief Initialize ADM vars for robust stability test
 
-// Note the amplitude of the noise (~1e10) should be also rescaled by
+// Note the amplitude of the noise (~1e-10) should be also rescaled by
 // the square of the grid spacing
 
 void Z4c::ADMRobustStability(AthenaArray<Real> & u_adm)

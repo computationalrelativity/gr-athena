@@ -348,10 +348,11 @@ int main(int argc, char *argv[]) {
 // Change to run directory, initialize outputs object, and make output of ICs
 
   Outputs *pouts;
+
   try {
     ChangeRunDir(prundir);
     pouts = new Outputs(pmesh, pinput);
-    if (res_flag==0) pouts->MakeOutputs(pmesh,pinput);
+    if (res_flag==0) {pouts->MakeOutputs(pmesh,pinput);}
   }
   catch(std::bad_alloc& ba) {
     std::cout << "### FATAL ERROR in main" << std::endl
@@ -366,7 +367,7 @@ int main(int argc, char *argv[]) {
     std::cout << ex.what() << std::endl;  // prints diagnostic message
 #ifdef MPI_PARALLEL
     MPI_Finalize();
-#endif
+#endif    
     return(0);
   }
 

@@ -17,7 +17,7 @@
 
 // constructor, initializes data structures and parameters
 
-char const * const Z4c_names[Z4c::N_Z4c] = {
+char const * const Z4c::Z4c_names[Z4c::N_Z4c] = {
   "z4c.chi",
   "z4c.gxx", "z4c.gxy", "z4c.gxz", "z4c.gyy", "z4c.gyz", "z4c.gzz",
   "z4c.Khat",
@@ -29,14 +29,14 @@ char const * const Z4c_names[Z4c::N_Z4c] = {
 };
 
 char const * const Z4c::ADM_names[Z4c::N_ADM] = {
-  "adm.gxx", "adm.gxy", "adm.gyy", "adm.gyz", "adm.gzz",
-  "adm.Kxx", "adm.Kxy", "adm.Kyy", "adm.Kyz", "adm.Kzz",
+  "adm.gxx", "adm.gxy", "adm.gxz", "adm.gyy", "adm.gyz", "adm.gzz",
+  "adm.Kxx", "adm.Kxy", "adm.Kxz", "adm.Kyy", "adm.Kyz", "adm.Kzz",
   "adm.psi4",
   "adm.H",
   "adm.Mx", "adm.My", "adm.Mz",
 };
 
-char const * const Matter_names[Z4c::N_MAT] = {
+char const * const Z4c::Matter_names[Z4c::N_MAT] = {
   "mat.rho",
   "mat.Sx", "mat.Sy", "mat.Sz",
   "mat.Sxx", "mat.Sxy", "mat.Sxz", "mat.Syy", "mat.Syz", "mat.Szz",

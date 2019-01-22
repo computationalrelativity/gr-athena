@@ -365,7 +365,6 @@ enum TaskStatus Z4cIntegratorTaskList::Z4cIntegrate(MeshBlock *pmb, int stage)
     ave_wghts[2] = stage_wghts[stage-1].gamma_3;
     pz4c->WeightedAve(pz4c->storage.u, pz4c->storage.u1, pz4c->storage.u2, ave_wghts);
     pz4c->AddZ4cRHS(pz4c->storage.rhs, stage_wghts[stage-1].beta, pz4c->storage.u);
-
     return TASK_NEXT;
   }
   return TASK_FAIL;
