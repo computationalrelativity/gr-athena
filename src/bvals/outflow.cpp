@@ -39,7 +39,7 @@ void OutflowInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
   if (WAVE_ENABLED) {
     for (int n = 0; n < 2; ++n) {
       for (int k = ks; k <= ke; ++k)
-      for (int j = js; j <= js; ++j) {
+      for (int j = js; j <= je; ++j) {
 #pragma omp simd
         for (int i = is-1; i >= is-ngh; --i) {
           waveu(n,k,j,i) = 4.*waveu(n,k,j,i+1) - 6.*waveu(n,k,j,i+2) +
@@ -53,7 +53,7 @@ void OutflowInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
   if (Z4C_ENABLED) {
     for (int n = 0; n < Z4c::N_Z4c; ++n) {
       for (int k = ks; k <= ke; ++k)
-      for (int j = js; j <= js; ++j) {
+      for (int j = js; j <= je; ++j) {
 #pragma omp simd
         for (int i = is-1; i >= is-ngh; --i) {
           z4c(n,k,j,i) = 4.*z4c(n,k,j,i+1) - 6.*z4c(n,k,j,i+2) +
@@ -119,7 +119,7 @@ void OutflowOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
   if (WAVE_ENABLED) {
     for (int n = 0; n < 2; ++n) {
       for (int k = ks; k <= ke; ++k)
-      for (int j = js; j <= js; ++j) {
+      for (int j = js; j <= je; ++j) {
 #pragma omp simd
         for (int i = ie+1; i <= ie+ngh; ++i) {
           waveu(n,k,j,i) = 4.*waveu(n,k,j,i-1) - 6.*waveu(n,k,j,i-2) +
@@ -133,7 +133,7 @@ void OutflowOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
   if (Z4C_ENABLED) {
     for (int n = 0; n < Z4c::N_Z4c; ++n) {
       for (int k = ks; k <= ke; ++k)
-      for (int j = js; j <= js; ++j) {
+      for (int j = js; j <= je; ++j) {
 #pragma omp simd
         for (int i = ie+1; i <= ie+ngh; ++i) {
           z4c(n,k,j,i) = 4.*z4c(n,k,j,i-1) - 6.*z4c(n,k,j,i-2) +
@@ -359,7 +359,7 @@ void OutflowInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
   if (WAVE_ENABLED) {
     for (int n = 0; n < 2; ++n) {
       for (int k = ks-1; k >= ks-ngh; --k)
-      for (int j = js; j <= js; ++j) {
+      for (int j = js; j <= je; ++j) {
 #pragma omp simd
         for (int i = is; i <= ie; ++i) {
           waveu(n,k,j,i) = 4.*waveu(n,k+1,j,i) - 6.*waveu(n,k+2,j,i) +
@@ -373,7 +373,7 @@ void OutflowInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
   if (Z4C_ENABLED) {
     for (int n = 0; n < Z4c::N_Z4c; ++n) {
       for (int k = ks-1; k >= ks-ngh; --k)
-      for (int j = js; j <= js; ++j) {
+      for (int j = js; j <= je; ++j) {
 #pragma omp simd
         for (int i = is; i <= ie; ++i) {
           z4c(n,k,j,i) = 4.*z4c(n,k+1,j,i) - 6.*z4c(n,k+2,j,i) +
@@ -439,7 +439,7 @@ void OutflowOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
   if (WAVE_ENABLED) {
     for (int n = 0; n < 2; ++n) {
       for (int k = ke+1; k <= ke+ngh; ++k)
-      for (int j = js; j <= js; ++j) {
+      for (int j = js; j <= je; ++j) {
 #pragma omp simd
         for (int i = is; i <= ie; ++i) {
           waveu(n,k,j,i) = 4.*waveu(n,k-1,j,i) - 6.*waveu(n,k-2,j,i) +
@@ -453,7 +453,7 @@ void OutflowOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
   if (Z4C_ENABLED) {
     for (int n = 0; n < Z4c::N_Z4c; ++n) {
       for (int k = ke+1; k <= ke+ngh; ++k)
-      for (int j = js; j <= js; ++j) {
+      for (int j = js; j <= je; ++j) {
 #pragma omp simd
         for (int i = is; i <= ie; ++i) {
           z4c(n,k,j,i) = 4.*z4c(n,k-1,j,i) - 6.*z4c(n,k-2,j,i) +
