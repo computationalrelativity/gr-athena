@@ -32,7 +32,6 @@ Real linear_diff(Real x) {
 }
 
 Real bump(Real x) {
-  //return sin(2*M_PI*x/5.);
   if(abs(x) < 1.) {
     return exp(-1./(1. - SQR(x)));
   }
@@ -42,7 +41,6 @@ Real bump(Real x) {
 }
 
 Real bump_diff(Real x) {
-  //return 2*M_PI/5.*cos(2*M_PI*x/5.);
   if(abs(x) < 1.) {
     return -2.*x*bump(x)/SQR(-1. + SQR(x));
   }
@@ -88,17 +86,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   for(int k = ks; k <= ke; ++k)
   for(int j = js; j <= je; ++j)
   for(int i = is; i <= ie; ++i) {
-    // Dummy hydrodynamics state
-    if(HYDRO_ENABLED) {
-      phydro->u(IDN,k,j,i) = 1.0;
-      phydro->u(IM1,k,j,i) = 0.0;
-      phydro->u(IM2,k,j,i) = 0.0;
-      phydro->u(IM3,k,j,i) = 0.0;
-      if (NON_BAROTROPIC_EOS) {
-        phydro->u(IEN,k,j,i) = 1.0;
-      }
-    }
-
     Real x = pcoord->x1v(i);
     Real y = pcoord->x2v(j);
     Real z = pcoord->x3v(k);
@@ -106,12 +93,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
     Real sin_x = sin(M_PI*x);
     Real cos_x = cos(M_PI*x);
-
-    Real sin_y = sin(M_PI*y);
-    Real cos_y = cos(M_PI*y);
-
-    Real sin_z = sin(M_PI*z);
-    Real cos_z = cos(M_PI*z);
 
     pwave->u(0,k,j,i) = prof(sin_x);
     pwave->u(1,k,j,i) = -direction*M_PI*c*cos_x*prof_diff(sin_x);
