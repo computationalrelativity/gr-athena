@@ -14,6 +14,12 @@ variable        = z4c       # variables to be output
 dt              = 0.01      # time increment between outputs
 data_format     = %.16e
 
+<output2>
+file_type       = tab       # Athena++ ASCII data
+variable        = adm       # variables to be output
+dt              = 0.01      # time increment between outputs
+data_format     = %.16e
+
 #<output2>
 #file_type       = hst       # History data
 #dt              = 0.1       # time increment between outputs

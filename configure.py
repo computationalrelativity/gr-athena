@@ -95,21 +95,6 @@ parser.add_argument('--nghost',
                     default='2',
                     help='set number of ghost zones')
 
-# --nfdcen=[value] argument
-parser.add_argument('--nfdcen',
-                    default='2',
-                    help='number of points used for centered finite differencing')
-
-# --nfddis=[value] argument
-parser.add_argument('--nfddis',
-                    default='2',
-                    help='number of points used for Kreiss-Oliger dissipation')
-
-# --nfdupw=[value] argument
-parser.add_argument('--nfdupw',
-                    default='2',
-                    help='number of points used for upwind finite differencing')
-
 # -h argument
 parser.add_argument('-o',
                     action='store_true',
@@ -270,6 +255,9 @@ if not args['o'] and not args['w'] and not args['z']:
 if args['o'] and args['w'] and args['z']:
     raise SystemExit('### CONFIGURE ERROR: one of the hydro, wave, or Z4c equations should be enabled')
 
+if args['z'] and int(args['nghost']) < 2:
+    raise SystemExit('### CONFIGURE ERROR: at least two ghost points are needed for Z4c')
+
 if not args['o']:
     if args['b'] or args['s'] or args['g']:
         raise SystemExit('### CONFIGURE ERROR: MHD, SR*, and GR* require hydro to be on')
@@ -284,14 +272,6 @@ if args['flux'] == 'default':
         args['flux'] = 'hlle'
     else:
         args['flux'] = 'hllc'
-
-# Check FD order
-if int(args['nfdcen']) > int(args['nghost']):
-    raise SystemExit('### CONFIGURE ERROR: finite differencing stencil larger than NGHOST')
-if int(args['nfddis']) > int(args['nghost']):
-    raise SystemExit('### CONFIGURE ERROR: finite differencing stencil larger than NGHOST')
-if int(args['nfdupw']) > int(args['nghost']):
-    raise SystemExit('### CONFIGURE ERROR: finite differencing stencil larger than NGHOST')
 
 # Check Riemann solver compatibility
 if args['flux'] == 'hllc' and args['eos'] == 'isothermal':
@@ -349,11 +329,6 @@ definitions['RSOLVER'] = makefile_options['RSOLVER_FILE'] = args['flux']
 # --nghost=[value] argument
 definitions['NUMBER_GHOST_CELLS'] = args['nghost']
 
-# finite differencing options 
-definitions['NFDCEN'] = args['nfdcen']
-definitions['NFDDIS'] = args['nfddis']
-definitions['NFDUPW'] = args['nfdupw']
-
 # -h argument
 if args['o']:
     definitions['HYDRO_ENABLED'] = '1'
@@ -398,6 +373,9 @@ if args['g']:
     if not args['t']:
         makefile_options['RSOLVER_FILE'] += '_no_transform'
 
+# Default FD stencils
+args['nfdcen'] = args['nfddis'] = args['nfdupw'] = args['nghost']
+
 # -w argument
 if args['w']:
   definitions['WAVE_ENABLED'] = '1'
@@ -407,8 +385,34 @@ else:
 # -z argument
 if args['z']:
   definitions['Z4C_ENABLED'] = '1'
+  nghost = int(args['nghost'])
+  # 2nd order accurate
+  if nghost == 2:
+    args['nfdcen'] = "1"
+    args['nfdupw'] = "2"
+    args['nfddis'] = "2"
+  # 4th order accurate
+  elif nghost == 3:
+    args['nfdcen'] = "2"
+    args['nfdupw'] = "3"
+    args['nfddis'] = "3"
+  # 6th order accurate
+  elif nghost == 4 or nghost == 5:
+    args['nfdcen'] = "3"
+    args['nfdupw'] = "4"
+    args['nfddis'] = "4"
+  # 8th order accurate
+  else:
+    args['nfdcen'] = "4"
+    args['nfdupw'] = "5"
+    args['nfddis'] = "5"
 else:
   definitions['Z4C_ENABLED'] = '0'
+
+# finite differencing options
+definitions['NFDCEN'] = args['nfdcen']
+definitions['NFDDIS'] = args['nfddis']
+definitions['NFDUPW'] = args['nfdupw']
   
 # -shear argument
 if args['shear']:
@@ -705,6 +709,7 @@ print('  Number of ghost cells:   ' + args['nghost'])
 print('  Stencil for centered FD: ' + args['nfdcen'])
 print('  Stencil for dissipation: ' + args['nfddis'])
 print('  Stencil for upwind FD:   ' + args['nfdupw'])
+print('  FD Order of accuracy:    ' + str(2*int(args['nfdcen'])))
 print('  MPI parallelism:         ' + ('ON' if args['mpi'] else 'OFF'))
 print('  OpenMP parallelism:      ' + ('ON' if args['omp'] else 'OFF'))
 print('  FFT:                     ' + ('ON' if args['fft'] else 'OFF'))
