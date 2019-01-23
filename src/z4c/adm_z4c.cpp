@@ -8,6 +8,7 @@
 
 // C++ standard headers
 #include <cmath> // pow
+#include <iostream>
 
 // Athena++ headers
 #include "z4c.hpp"
@@ -52,6 +53,7 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
     GLOOP1(i) {
       detg(i) = SpatialDet(adm.g_dd, k, j, i);
       oopsi4(i) = pow(detg(i), -1./3.);
+
       z4c.chi(k,j,i) = pow(detg(i), 1./12.*opt.chi_psi_power);
     }
     // Conformal metric and extrinsic curvature
@@ -109,6 +111,7 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
     for(int b = 0; b < NDIM; ++b) {
       ILOOP1(i) {
         z4c.Gam_u(a,k,j,i) -= FD.Dx(b, g_uu(a,b,k,j,i));
+        std::cout << a << ", " << b << ", " << z4c.Gam_u(a,k,j,i) << std::endl;
       }
     }
   }
@@ -360,9 +363,12 @@ void Z4c::ADMMinkowski(AthenaArray<Real> & u_adm)
   SetADMAliases(u_adm, adm);
   adm.psi4.Fill(1.);
   adm.K_dd.Zero();
-  for(int a = 0; a < NDIM; ++a)
-  for(int b = a; b < NDIM; ++b) {
-    adm.g_dd.Fill(a == b ? 1. : 0.);
+
+  GLOOP3(k,j,i) {
+      for(int a = 0; a < NDIM; ++a)
+      for(int b = a; b < NDIM; ++b) {
+        adm.g_dd(a,b,k,j,i) = (a == b ? 1. : 0.);
+      }
   }
 }
 

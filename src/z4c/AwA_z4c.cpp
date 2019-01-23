@@ -216,7 +216,8 @@ void Z4c::GaugeGaugeWaveLapse(AthenaArray<Real> & u)
     }
     // alpha
     GLOOP1(i) {
-      z4c.alpha(k,j,i) = std::sqrt(1.0 - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i)));
+      //z4c.alpha(k,j,i) = std::sqrt(1.0 - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i)));
+        z4c.alpha(k,j,i) = 1.0;
     }
   }
 }

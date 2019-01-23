@@ -58,12 +58,16 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       //Gauge
   }
   else { // Minkowski test
+
     pz4c->ADMMinkowski(pz4c->storage.adm);
     pz4c->GaugeGaugeWaveLapse(pz4c->storage.u); //Setting gauge
   }
 
   //Constructing Z4c vars from ADM ones:
   pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
+
+//  std::cout << pz4c->z4c.g_dd(1,1,1,1,10) << std::endl;
+//  std::cout << pz4c->u.K_dd(1,1,1,1,10) << std::endl;
 
   return;
 }
