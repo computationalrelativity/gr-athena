@@ -20,6 +20,8 @@ class FDCenteredStencil {
 public:
   // Degree of the derivative to be approximated
   enum {degree = degree_};
+  // Number of ghost points required for the differencing
+  enum {nghost = nghost_};
   // Position at which the derivative is computed wrt the beginning of the stencil
   enum {offset = nghost_};
   // Width of the stencil
@@ -36,6 +38,8 @@ class FDLeftBiasedStencil {
 public:
   // Degree of the derivative to be approximated
   enum {degree = degree_};
+  // Number of ghost points required for the differencing
+  enum {nghost = nghost_};
   // Position at which the derivative is computed wrt the beginning of the stencil
   enum {offset = nghost_};
   // Width of the stencil
@@ -52,6 +56,8 @@ class FDRightBiasedStencil {
 public:
   // Degree of the derivative to be approximated
   enum {degree = degree_};
+  // Number of ghost points required for the differencing
+  enum {nghost = nghost_};
   // Position at which the derivative is computed wrt the beginning of the stencil
   enum {offset = nghost_ - 1};
   // Width of the stencil

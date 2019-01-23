@@ -61,11 +61,17 @@ private:
       return 0.5 * idx[dir] * (pu[stride[dir]] - pu[-stride[dir]]);
     }
     inline Real Dxx(int dir, Real & u) {
-      Real * pu = &u;
-      Real out = 0.0;
-      for(int n = 0; n < stencil::width; ++n) {
-        out += stencil::coeff[n] * pu[(n - stencil::offset)*stride[dir]];
+      Real * pu = &u - stencil::offset*stride[dir];
+
+      Real out(0.);
+      for(int n1 = 0; n1 < stencil::nghost; ++n1) {
+        int const n2  = stencil::width - n1 - 1;
+        Real const c1 = stencil::coeff[n1] * pu[n1*stride[dir]];
+        Real const c2 = stencil::coeff[n2] * pu[n2*stride[dir]];
+        out += (c1 + c2);
       }
+      out += stencil::coeff[stencil::nghost] * pu[stencil::nghost*stride[dir]];
+
       return out*SQR(idx[dir]);
     }
   } FD;
