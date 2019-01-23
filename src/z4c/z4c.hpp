@@ -369,9 +369,11 @@ private:
           Real const c21 = s1::coeff[nx2] * s1::coeff[ny1] * pu[nx2*stride[dirx] + ny1*stride[diry]];
           Real const c22 = s1::coeff[nx2] * s1::coeff[ny2] * pu[nx2*stride[dirx] + ny2*stride[diry]];
 
-          out += (1./3.)*((c11 + c12) + (c21 + c22)) +
-                 (1./3.)*((c11 + c21) + (c12 + c22)) +
-                 (1./3.)*((c11 + c22) + (c12 + c21));
+          Real const ca = (1./3.)*((c11 + c12) + (c21 + c22));
+          Real const cb = (1./3.)*((c11 + c21) + (c12 + c22));
+          Real const cc = (1./3.)*((c11 + c22) + (c12 + c21));
+
+          out += (0.5*((ca + cb) + cc) + 0.5*((ca + cc) + cb));
         }
         int const ny = s1::nghost;
 
