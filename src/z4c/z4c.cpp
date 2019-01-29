@@ -85,6 +85,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   // AwA parameters (default to linear wave test)
   opt.AwA_amplitude = pin->GetOrAddReal("z4c", "AwA_amplitude", 1e-8);
   opt.AwA_sigma = pin->GetOrAddReal("z4c", "AwA_sigma", 1.0);
+  opt.AwA_rho = pin->GetOrAddInteger("z4c", "AwA_rho", 1);
   opt.AwA_direction = pin->GetOrAddInteger("z4c", "AwA_direction", 0);
 
   // Set aliases

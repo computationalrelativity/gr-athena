@@ -128,7 +128,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
           data_sum[isum++] += vol(i)*M_err;
           data_sum[isum++] += vol(i)*theta;
           data_sum[isum++] += vol(i)*Z_err;
-          data_sum[isum++] += SQR(H_err) + M_err + SQR(theta) + 4.*Z_err;
+          data_sum[isum++] += vol(i)*( SQR(H_err) + M_err + SQR(theta) + 4.*Z_err );
 
 //          data_sum[isum++] += vol(i)*Mx_err;
 //          data_sum[isum++] += vol(i)*My_err;

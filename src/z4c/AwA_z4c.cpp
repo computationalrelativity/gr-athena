@@ -11,9 +11,15 @@
 // C++ standard headers
 #include <cmath> // pow, rand, sin, sqrt
 #include <ctime>
+#include <random>
+//#include <iomanip>
 
 // random number in [-1,1]
-#define RANDOMNUMBER (2.0*(std::rand() % RAND_MAX)-1.0)
+std::default_random_engine generator;
+std::uniform_real_distribution<double> distribution(-1.,1.);
+
+#define RANDOMNUMBER (distribution(generator))
+//#define RANDOMNUMBER (2.0*(std::rand() % RAND_MAX)-1.0)
 
 // sin wave for various wave tests
 #define SINWAVE(a,d,x) ((a)*std::sin(2*M_PI*(x)/(d)))
@@ -48,7 +54,8 @@ void Z4c::ADMRobustStability(AthenaArray<Real> & u_adm)
       for(int b = a; b < NDIM; ++b) {
         GLOOP1(i) {
           adm.g_dd(a,b,k,j,i) += RANDOMNUMBER*opt.AwA_amplitude;
-          std::cout << adm.g_dd(a,b,k,j,i) << std::endl;
+//          std::cout << "Random: " << RANDOMNUMBER << std::endl;
+//          std::cout << std::setprecision(15) << adm.g_dd(a,b,k,j,i) << std::endl;
         }
       }
     // K_ab

@@ -29,15 +29,13 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   string test = pin->GetOrAddString("problem", "test", "minkowski");
 
-  Real rho = 1;
-  pz4c->opt.AwA_amplitude = pz4c->opt.AwA_amplitude/SQR(rho);
-  pz4c->opt.AwA_sigma = pz4c->opt.AwA_sigma/SQR(rho);
+  pz4c->opt.AwA_amplitude = pz4c->opt.AwA_amplitude/SQR(pz4c->opt.AwA_rho);
+  pz4c->opt.AwA_sigma     = pz4c->opt.AwA_sigma    /SQR(pz4c->opt.AwA_rho);
 
   if(test == "robust_stab") {
     pz4c->ADMRobustStability(pz4c->storage.adm);
     pz4c->TrivialGauge(pz4c->storage.u);
     std::cout << "Robust stability test initialized" << std::endl;
-    std::cout << "amplitude = " << pz4c->opt.AwA_amplitude << ", sigma = " << pz4c->opt.AwA_sigma << std::endl;
   }
   else if(test == "linear_wave1") {
       pz4c->ADMLinearWave1(pz4c->storage.adm);

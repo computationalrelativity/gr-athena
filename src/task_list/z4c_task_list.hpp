@@ -38,6 +38,7 @@ public:
   enum TaskStatus EnforceAlgConstr(MeshBlock *pmb, int stage);
   enum TaskStatus Z4cToADM(MeshBlock *pmb, int stage);
   enum TaskStatus UserWork(MeshBlock *pmb, int stage);
+  enum TaskStatus ADM_Constraints(MeshBlock *pmb, int stage);
   enum TaskStatus NewBlockTimeStep(MeshBlock *pmb, int stage);
   enum TaskStatus CheckRefinement(MeshBlock *pmb, int stage);
 
@@ -64,6 +65,7 @@ namespace Z4cIntegratorTaskNames {
   const uint64_t NEW_DT  =1LL<<12;
   const uint64_t AMR_FLAG=1LL<<13;
   const uint64_t STARTUP_INT=1LL<<14;
+  const uint64_t ADM_CONSTRS=1LL<<15;
 } // namespace Z4cIntegratorTaskNames
 
 #endif

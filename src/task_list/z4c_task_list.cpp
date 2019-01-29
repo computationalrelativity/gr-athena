@@ -220,6 +220,7 @@ Z4cIntegratorTaskList::Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm)
     AddZ4cIntegratorTask(ALG_CONSTR, PHY_BVAL);
     AddZ4cIntegratorTask(Z4C_TO_ADM, ALG_CONSTR);
     AddZ4cIntegratorTask(USERWORK, Z4C_TO_ADM);
+    AddZ4cIntegratorTask(ADM_CONSTRS, USERWORK);
     AddZ4cIntegratorTask(NEW_DT, STARTUP_INT);
     if (pm->adaptive==true) {
       AddZ4cIntegratorTask(AMR_FLAG, USERWORK);
@@ -290,6 +291,11 @@ void Z4cIntegratorTaskList::AddZ4cIntegratorTask(uint64_t id, uint64_t dep) {
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
         (&Z4cIntegratorTaskList::UserWork);
+      break;
+    case (ADM_CONSTRS):
+      task_list_[ntasks].TaskFunc=
+        static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
+        (&Z4cIntegratorTaskList::ADM_Constraints);
       break;
     case (NEW_DT):
       task_list_[ntasks].TaskFunc=
@@ -470,6 +476,16 @@ enum TaskStatus Z4cIntegratorTaskList::UserWork(MeshBlock *pmb, int stage) {
   if (stage != nstages) return TASK_SUCCESS; // only do on last stage
   pmb->UserWorkInLoop();
   return TASK_SUCCESS;
+}
+
+enum TaskStatus Z4cIntegratorTaskList::ADM_Constraints(MeshBlock *pmb, int stage) {
+  if (stage <= nstages) {
+    pmb->pz4c->ADMConstraints(pmb->pz4c->storage.adm, pmb->pz4c->storage.u, pmb->pz4c->storage.mat);
+    return TASK_SUCCESS;
+  }
+  else {
+    return TASK_FAIL;
+  }
 }
 
 enum TaskStatus Z4cIntegratorTaskList::NewBlockTimeStep(MeshBlock *pmb, int stage) {

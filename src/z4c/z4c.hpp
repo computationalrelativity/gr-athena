@@ -139,6 +139,7 @@ public:
     // AwA parameters
     Real AwA_amplitude; // amplitude parameter
     Real AwA_sigma; // sigma, width, etc parameter
+    int AwA_rho; // Resolution index
     int AwA_direction; // direction of the test
   } opt;
 
