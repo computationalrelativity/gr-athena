@@ -62,7 +62,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     nhistory_output += 2;
   }
   if (Z4C_ENABLED) {
-    nhistory_output += 8;
+    nhistory_output += 5; //8;
   }
   nhistory_output += pm->nuser_history_output_;
 
@@ -116,18 +116,29 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         }
         if (Z4C_ENABLED) {
           Real const H_err = std::abs(pz4c->adm.H(k,j,i));
-          Real const Mx_err = std::abs(pz4c->adm.M_d(0,k,j,i));
-          Real const My_err = std::abs(pz4c->adm.M_d(1,k,j,i));
-          Real const Mz_err = std::abs(pz4c->adm.M_d(2,k,j,i));
+          Real const M_err = std::abs(pz4c->adm.M(k,j,i));
+          Real const theta = std::abs(pz4c->z4c.Theta(k,j,i));
+          Real const Z_err = std::abs(pz4c->adm.Z(k,j,i));
+
+//          Real const Mx_err = std::abs(pz4c->adm.M_d(0,k,j,i));
+//          Real const My_err = std::abs(pz4c->adm.M_d(1,k,j,i));
+//          Real const Mz_err = std::abs(pz4c->adm.M_d(2,k,j,i));
 
           data_sum[isum++] += vol(i)*H_err;
-          data_sum[isum++] += vol(i)*Mx_err;
-          data_sum[isum++] += vol(i)*My_err;
-          data_sum[isum++] += vol(i)*Mz_err;
-          data_sum[isum++] += vol(i)*SQR(H_err);
-          data_sum[isum++] += vol(i)*SQR(Mx_err);
-          data_sum[isum++] += vol(i)*SQR(My_err);
-          data_sum[isum++] += vol(i)*SQR(Mz_err);
+          data_sum[isum++] += vol(i)*M_err;
+          data_sum[isum++] += vol(i)*theta;
+          data_sum[isum++] += vol(i)*Z_err;
+          data_sum[isum++] += SQR(H_err) + M_err + SQR(theta) + 4.*Z_err;
+
+//          data_sum[isum++] += vol(i)*Mx_err;
+//          data_sum[isum++] += vol(i)*My_err;
+//          data_sum[isum++] += vol(i)*Mz_err;
+//          data_sum[isum++] += vol(i)*SQR(H_err);
+//          data_sum[isum++] += vol(i)*SQR(Mx_err);
+//          data_sum[isum++] += vol(i)*SQR(My_err);
+//          data_sum[isum++] += vol(i)*SQR(Mz_err);
+          //......................................
+
         }
         nhistory_output = isum;
       }
@@ -193,13 +204,18 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
       }
       if (Z4C_ENABLED) {
         fprintf(pfile,"[%d]=H-norm1 ",  iout++);
-        fprintf(pfile,"[%d]=Mx-norm1 ", iout++);
-        fprintf(pfile,"[%d]=My-norm1 ", iout++);
-        fprintf(pfile,"[%d]=Mz-norm1 ", iout++);
-        fprintf(pfile,"[%d]=H-norm2 ",  iout++);
-        fprintf(pfile,"[%d]=Mx-norm2 ", iout++);
-        fprintf(pfile,"[%d]=My-norm2 ", iout++);
-        fprintf(pfile,"[%d]=Mz-norm2 ", iout++);
+        fprintf(pfile,"[%d]=M-norm1 ",  iout++);
+        fprintf(pfile,"[%d]=theta-norm1 ",  iout++);
+        fprintf(pfile,"[%d]=Z-norm1 ",  iout++);
+        fprintf(pfile,"[%d]=C_monitor ", iout++);
+
+//        fprintf(pfile,"[%d]=Mx-norm1 ", iout++);
+//        fprintf(pfile,"[%d]=My-norm1 ", iout++);
+//        fprintf(pfile,"[%d]=Mz-norm1 ", iout++);
+//        fprintf(pfile,"[%d]=H-norm2 ",  iout++);
+//        fprintf(pfile,"[%d]=Mx-norm2 ", iout++);
+//        fprintf(pfile,"[%d]=My-norm2 ", iout++);
+//        fprintf(pfile,"[%d]=Mz-norm2 ", iout++);
       }
 
       for (int n=0; n<pm->nuser_history_output_; n++)

@@ -48,6 +48,7 @@ void Z4c::ADMRobustStability(AthenaArray<Real> & u_adm)
       for(int b = a; b < NDIM; ++b) {
         GLOOP1(i) {
           adm.g_dd(a,b,k,j,i) += RANDOMNUMBER*opt.AwA_amplitude;
+          std::cout << adm.g_dd(a,b,k,j,i) << std::endl;
         }
       }
     // K_ab
@@ -216,8 +217,7 @@ void Z4c::GaugeGaugeWaveLapse(AthenaArray<Real> & u)
     }
     // alpha
     GLOOP1(i) {
-      //z4c.alpha(k,j,i) = std::sqrt(1.0 - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i)));
-        z4c.alpha(k,j,i) = 1.0;
+      z4c.alpha(k,j,i) = std::sqrt(1.0 - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i)));
     }
   }
 }
@@ -302,4 +302,16 @@ void Z4c::ADMGaugeWave2(AthenaArray<Real> & u_adm)
         -0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma, (pco->x1v(i) - pco->x2v(i)) );
     }
   }
+}
+
+//----------------------------------------------------------------------------------------
+// \!fn void Z4c::TrivialGauge(AthenaArray<Real> & u)
+// \brief Initialize lapse = 1 shift = 0
+
+void Z4c::TrivialGauge(AthenaArray<Real> & u)
+{
+  Z4c_vars z4c;
+  SetZ4cAliases(u, z4c);
+  z4c.alpha.Fill(1.);
+  z4c.beta_u.Fill(0.);
 }

@@ -111,7 +111,6 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
     for(int b = 0; b < NDIM; ++b) {
       ILOOP1(i) {
         z4c.Gam_u(a,k,j,i) -= FD.Dx(b, g_uu(a,b,k,j,i));
-        std::cout << a << ", " << b << ", " << z4c.Gam_u(a,k,j,i) << std::endl;
       }
     }
   }
@@ -174,11 +173,14 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
 // The constraints are set only in the MeshBlock interior, because derivatives
 // of the ADM quantities are neded to compute them.
 
-void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat)
+void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u, AthenaArray<Real> & u_mat)
 {
   ADM_vars adm;
   SetADMAliases(u_adm, adm);
   adm.M_d.Zero();
+
+  Z4c_vars z4c;
+  SetZ4cAliases(u, z4c);
 
   Matter_vars mat;
   SetMatterAliases(u_mat, mat);
@@ -233,15 +235,25 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat)
     for(int b = a; b < NDIM; ++b) {
       ILOOP1(i) {
         Gamma_ddd(c,a,b,i) = 0.5*(dg_ddd(a,b,c,i) + dg_ddd(b,a,c,i) - dg_ddd(c,a,b,i));
-        Gamma_udd(c,a,b,i) = 0.0;
       }
     }
+
+    Gamma_udd.Zero();
     for(int c = 0; c < NDIM; ++c)
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b)
     for(int d = 0; d < NDIM; ++d) {
       ILOOP1(i) {
         Gamma_udd(c,a,b,i) += g_uu(c,d,i)*Gamma_ddd(d,a,b,i);
+      }
+    }
+
+    Gamma_u.Zero();
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = 0; b < NDIM; ++b)
+    for(int c = 0; c < NDIM; ++c) {
+      ILOOP1(i) {
+        Gamma_u(a,i) += g_uu(b,c,i)*Gamma_udd(a,b,c,i);
       }
     }
 
@@ -347,7 +359,22 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat)
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
       ILOOP1(i) {
-        adm.M_d(a,k,j,i) += adm.g_dd(a,b,k,j,i) * M_u(a,i);
+        adm.M_d(a,k,j,i) += adm.g_dd(a,b,k,j,i) * M_u(b,i);
+      }
+    }
+    // Momentum constraint (norm squared)
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = 0; b < NDIM; ++b) {
+      ILOOP1(i) {
+        adm.M(k,j,i) += adm.g_dd(a,b,k,j,i) * M_u(a,i) * M_u(b,i);
+      }
+    }
+    // Constraint violation Z (norm squared)
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = 0; b < NDIM; ++b) {
+      ILOOP1(i) {
+        adm.Z(k,j,i) += 0.25*adm.g_dd(a,b,k,j,i)*(z4c.Gam_u(a,k,j,i) - Gamma_u(a,i))
+                                                *(z4c.Gam_u(b,k,j,i) - Gamma_u(b,i));
       }
     }
   }

@@ -42,6 +42,7 @@ public:
     I_Z4c_alpha = 18,
     I_Z4c_betax = 19, I_Z4c_betay = 20, I_Z4c_betaz = 21,
     N_Z4c = 22
+
   };
   // Names of Z4c variables
   static char const * const Z4c_names[N_Z4c];
@@ -50,9 +51,9 @@ public:
     I_ADM_gxx = 0, I_ADM_gxy = 1, I_ADM_gxz = 2, I_ADM_gyy = 3, I_ADM_gyz = 4, I_ADM_gzz = 5,
     I_ADM_Kxx = 6, I_ADM_Kxy = 7, I_ADM_Kxz = 8, I_ADM_Kyy = 9, I_ADM_Kyz = 10, I_ADM_Kzz = 11,
     I_ADM_psi4 = 12,
-    I_ADM_H = 13,
-    I_ADM_Mx = 14, I_ADM_My = 15, I_ADM_Mz = 16,
-    N_ADM = 17
+    I_ADM_H = 13, I_ADM_Z = 14,
+    I_ADM_Mx = 15, I_ADM_My = 16, I_ADM_Mz = 17, I_ADM_M = 18,
+    N_ADM = 19
   };
   // Names of ADM variables
   static char const * const ADM_names[N_ADM];
@@ -100,7 +101,9 @@ public:
   struct ADM_vars {
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> psi4;      // conformal factor
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> H;         // hamiltonian constraint
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> M_d;        // momentum constraint
+    AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> M_d;       // momentum constraint
+    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> M;         // norm squared of M_d
+    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Z;         // Z constraint
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g_dd;      // 3-metric
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> K_dd;      // curvature
   };
@@ -160,7 +163,7 @@ public:
   // enforce algebraic constraints on the solution
   void AlgConstr(AthenaArray<Real> & u);
   // compute ADM constraints
-  void ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat);
+  void ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> &u, AthenaArray<Real> & u_mat);
 
   // utility fnuctions
   //
@@ -209,6 +212,7 @@ public:
   void GaugeGaugeWaveLapse(AthenaArray<Real> & u);
   void GaugeGaugeWaveLapseShift(AthenaArray<Real> & u);
   void ADMGaugeWave2(AthenaArray<Real> & u_adm);
+  void TrivialGauge(AthenaArray<Real> & u);
 
   // initial data for a single BH
   void ADMOnePuncture(AthenaArray<Real> & u_adm);

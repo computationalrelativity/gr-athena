@@ -29,9 +29,15 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   string test = pin->GetOrAddString("problem", "test", "minkowski");
 
+  Real rho = 1;
+  pz4c->opt.AwA_amplitude = pz4c->opt.AwA_amplitude/SQR(rho);
+  pz4c->opt.AwA_sigma = pz4c->opt.AwA_sigma/SQR(rho);
+
   if(test == "robust_stab") {
     pz4c->ADMRobustStability(pz4c->storage.adm);
-    //Gauge
+    pz4c->TrivialGauge(pz4c->storage.u);
+    std::cout << "Robust stability test initialized" << std::endl;
+    std::cout << "amplitude = " << pz4c->opt.AwA_amplitude << ", sigma = " << pz4c->opt.AwA_sigma << std::endl;
   }
   else if(test == "linear_wave1") {
       pz4c->ADMLinearWave1(pz4c->storage.adm);
@@ -60,14 +66,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   else { // Minkowski test
 
     pz4c->ADMMinkowski(pz4c->storage.adm);
-    pz4c->GaugeGaugeWaveLapse(pz4c->storage.u); //Setting gauge
+    pz4c->TrivialGauge(pz4c->storage.u);
   }
 
-  //Constructing Z4c vars from ADM ones:
+  //Constructing Z4c vars from ADM ones
   pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
-
-//  std::cout << pz4c->z4c.g_dd(1,1,1,1,10) << std::endl;
-//  std::cout << pz4c->u.K_dd(1,1,1,1,10) << std::endl;
 
   return;
 }
