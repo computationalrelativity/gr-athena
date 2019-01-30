@@ -46,7 +46,7 @@ void Z4c::ADMRobustStability(AthenaArray<Real> & u_adm)
   // Flat spacetime
   ADMMinkowski(u_adm);
 
-  std::srand(std::time(0)); // seed ?
+  //std::srand(std::time(0)); // seed ?
 
   ILOOP2(k,j) {
     // g_ab
