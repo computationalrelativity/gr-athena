@@ -391,11 +391,10 @@ void Z4c::ADMMinkowski(AthenaArray<Real> & u_adm)
   adm.psi4.Fill(1.);
   adm.K_dd.Zero();
 
+  adm.g_dd.Zero();
   GLOOP3(k,j,i) {
-      for(int a = 0; a < NDIM; ++a)
-      for(int b = a; b < NDIM; ++b) {
-        adm.g_dd(a,b,k,j,i) = (a == b ? 1. : 0.);
-      }
+    for(int a = 0; a < NDIM; ++a)
+      adm.g_dd(a,a,k,j,i) = 1.0;
   }
 }
 
