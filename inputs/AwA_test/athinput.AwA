@@ -9,15 +9,19 @@ problem_id      = AwA       # Basename of output filenames
 test            = robust_stab # See possibilities in src/pgen/AwA_test.cpp
 
 <z4c>
+lapse_harmonic  = 0.0       # Harmonic lapse parameter mu_L
+lapse_oplog     = 1.0       # 1+log lapse parameter
 shift_eta       = 2.0       # Shift damping term
+diss            = 0.02      # Kreiss-Oliger dissipation parameter
+damp_kappa1     = 0.0       # Constraint damping factor 1
 AwA_amplitude   = 1.0e-10     
 AwA_sigma       = 1.0
-Awa_rho         = 1         # Resolution index
+AwA_rho         = 1         # Resolution index
 
 #<output1>
 #file_type       = tab       # Athena++ ASCII data
 #variable        = adm       # variables to be output
-#dt              = 0.01      # time increment between outputs
+#dt              = 0.1      # time increment between outputs
 #data_format     = %.16e
 
 <output2>
@@ -27,7 +31,7 @@ data_format     = %.16e
 
 <time>
 cfl_number      = 0.5       # The Courant, Friedrichs, & Lewy (CFL) number
-tlim            = 10.       # time limit
+tlim            = 50.       # time limit
 integrator      = rk4       # time integrator
 
 <mesh>

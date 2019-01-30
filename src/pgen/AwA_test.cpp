@@ -26,11 +26,10 @@ using namespace std;
 
 void MeshBlock::ProblemGenerator(ParameterInput *pin)
 {
-
-  string test = pin->GetOrAddString("problem", "test", "minkowski");
-
   pz4c->opt.AwA_amplitude = pz4c->opt.AwA_amplitude/SQR(pz4c->opt.AwA_rho);
   pz4c->opt.AwA_sigma     = pz4c->opt.AwA_sigma    /SQR(pz4c->opt.AwA_rho);
+
+  string test = pin->GetOrAddString("problem", "test", "minkowski");
 
   if(test == "robust_stab") {
     pz4c->ADMRobustStability(pz4c->storage.adm);

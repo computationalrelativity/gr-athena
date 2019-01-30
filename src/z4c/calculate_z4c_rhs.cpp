@@ -456,7 +456,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     for(int a = 0; a < NDIM; ++a) {
       ILOOP1(i) {
         rhs.Gam_u(a,k,j,i) = 2.*z4c.alpha(k,j,i)*DA_u(a,i) + LGam_u(a,i);
-        rhs.Gam_u(a,k,j,i) -= z4c.alpha(k,j,i) * opt.damp_kappa1 *
+        rhs.Gam_u(a,k,j,i) -= 2.*z4c.alpha(k,j,i) * opt.damp_kappa1 *
             (z4c.Gam_u(a,k,j,i) - Gamma_u(a,i));
       }
       for(int b = 0; b < NDIM; ++b) {
@@ -500,7 +500,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
   for(int n = 0; n < N_Z4c; ++n)
   for(int a = 0; a < NDIM; ++a) {
     ILOOP3(k,j,i) {
-      u_rhs(n,k,j,i) += FD.Diss(a, u(n,k,j,i));
+      u_rhs(n,k,j,i) -= FD.Diss(a, u(n,k,j,i));
     }
   }
 }

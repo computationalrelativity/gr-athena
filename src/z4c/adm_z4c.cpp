@@ -373,7 +373,7 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u, Athen
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
       ILOOP1(i) {
-        adm.Z(k,j,i) += 0.25*adm.g_dd(a,b,k,j,i)*(z4c.Gam_u(a,k,j,i) - Gamma_u(a,i))
+        z4c.Z(k,j,i) += 0.25*adm.g_dd(a,b,k,j,i)*(z4c.Gam_u(a,k,j,i) - Gamma_u(a,i))
                                                 *(z4c.Gam_u(b,k,j,i) - Gamma_u(b,i));
       }
     }

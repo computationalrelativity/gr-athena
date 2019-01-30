@@ -76,6 +76,8 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     Wave  *pwave = pmb->pwave;
     Z4c *pz4c = pmb->pz4c;
 
+    Real infty_norm = 0.0;
+
     // Sum history variables over cells.  Note ghost cells are never included in sums
     for (int k=pmb->ks; k<=pmb->ke; ++k) {
     for (int j=pmb->js; j<=pmb->je; ++j) {
@@ -118,17 +120,21 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
           Real const H_err = std::abs(pz4c->adm.H(k,j,i));
           Real const M_err = std::abs(pz4c->adm.M(k,j,i));
           Real const theta = std::abs(pz4c->z4c.Theta(k,j,i));
-          Real const Z_err = std::abs(pz4c->adm.Z(k,j,i));
+          Real const Z_err = std::abs(pz4c->z4c.Z(k,j,i));
+          Real const C_err = std::sqrt(SQR(pz4c->adm.H(k,j,i)) + pz4c->adm.M(k,j,i)
+                           + SQR(pz4c->z4c.Theta(k,j,i)) + 4.*pz4c->z4c.Z(k,j,i));
 
 //          Real const Mx_err = std::abs(pz4c->adm.M_d(0,k,j,i));
 //          Real const My_err = std::abs(pz4c->adm.M_d(1,k,j,i));
 //          Real const Mz_err = std::abs(pz4c->adm.M_d(2,k,j,i));
 
-          data_sum[isum++] += vol(i)*H_err;
-          data_sum[isum++] += vol(i)*M_err;
-          data_sum[isum++] += vol(i)*theta;
-          data_sum[isum++] += vol(i)*Z_err;
-          data_sum[isum++] += vol(i)*( SQR(H_err) + M_err + SQR(theta) + 4.*Z_err );
+          data_sum[isum++] += vol(i)*SQR(H_err);
+          data_sum[isum++] += vol(i)*SQR(M_err);
+          data_sum[isum++] += vol(i)*SQR(theta);
+          data_sum[isum++] += vol(i)*SQR(Z_err);
+          data_sum[isum++] += vol(i)*SQR(C_err);
+          //if (C_err > infty_norm) infty_norm = C_err ; //LInfty-norm of error
+          //data_sum[isum++] = infty_norm;
 
 //          data_sum[isum++] += vol(i)*Mx_err;
 //          data_sum[isum++] += vol(i)*My_err;

@@ -41,7 +41,8 @@ public:
     I_Z4c_Theta = 17,
     I_Z4c_alpha = 18,
     I_Z4c_betax = 19, I_Z4c_betay = 20, I_Z4c_betaz = 21,
-    N_Z4c = 22
+    I_Z4c_Z = 22,
+    N_Z4c = 23
 
   };
   // Names of Z4c variables
@@ -51,9 +52,9 @@ public:
     I_ADM_gxx = 0, I_ADM_gxy = 1, I_ADM_gxz = 2, I_ADM_gyy = 3, I_ADM_gyz = 4, I_ADM_gzz = 5,
     I_ADM_Kxx = 6, I_ADM_Kxy = 7, I_ADM_Kxz = 8, I_ADM_Kyy = 9, I_ADM_Kyz = 10, I_ADM_Kzz = 11,
     I_ADM_psi4 = 12,
-    I_ADM_H = 13, I_ADM_Z = 14,
-    I_ADM_Mx = 15, I_ADM_My = 16, I_ADM_Mz = 17, I_ADM_M = 18,
-    N_ADM = 19
+    I_ADM_H = 13,
+    I_ADM_Mx = 14, I_ADM_My = 15, I_ADM_Mz = 16, I_ADM_M = 17,
+    N_ADM = 18
   };
   // Names of ADM variables
   static char const * const ADM_names[N_ADM];
@@ -93,6 +94,7 @@ public:
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u;    // shift
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g_dd;      // conf. 3-metric
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> A_dd;      // conf. traceless extr. curvature
+    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Z;         // Z constraint violation
   };
   Z4c_vars z4c;
   Z4c_vars rhs;
@@ -103,7 +105,6 @@ public:
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> H;         // hamiltonian constraint
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> M_d;       // momentum constraint
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> M;         // norm squared of M_d
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Z;         // Z constraint
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g_dd;      // 3-metric
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> K_dd;      // curvature
   };
