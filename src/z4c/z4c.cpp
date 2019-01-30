@@ -170,7 +170,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
     FD.stride[2] = ncells2*ncells1;
     FD.idx[2] = 1.0/pco->dx3v(0);
   }
-  FD.diss = opt.diss*pow(2, -2*NGHOST);
+  FD.diss = opt.diss*pow(2, -2*NFDDIS)*(NFDDIS % 2 == 0 ? -1 : 1);
 }
 
 // destructor
