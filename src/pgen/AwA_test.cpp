@@ -38,7 +38,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   }
   else if(test == "linear_wave1") {
       pz4c->ADMLinearWave1(pz4c->storage.adm);
-      //Gauge
+      pz4c->TrivialGauge(pz4c->storage.u);
+      std::cout << "Linear Wave test 1 initialized" << std::endl;
   }
   else if(test == "linear_wave2") {
       pz4c->ADMLinearWave2(pz4c->storage.adm);
