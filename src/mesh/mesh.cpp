@@ -106,10 +106,6 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) {
     throw std::runtime_error(msg.str().c_str());
   }
 
-  if (Z4C_ENABLED) {
-      mesh_size.nx1 = mesh_size.nx1*(pin->GetInteger("z4c","AwA_rho"));
-  }
-
   mesh_size.nx2 = pin->GetInteger("mesh","nx2");
   if (mesh_size.nx2 < 1) {
     msg << "### FATAL ERROR in Mesh constructor" << std::endl

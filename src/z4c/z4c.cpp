@@ -26,7 +26,7 @@ char const * const Z4c::Z4c_names[Z4c::N_Z4c] = {
   "z4c.Theta",
   "z4c.alpha",
   "z4c.betax", "z4c.betay", "z4c.betaz",
-  "z4c.Z",
+  "z4c.Z", "z4c.C",
 };
 
 char const * const Z4c::ADM_names[Z4c::N_ADM] = {
@@ -84,9 +84,8 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   // Single puncture parameters
   opt.punc_ADM_mass = pin->GetOrAddReal("z4c", "punc_ADM_mass", 1.0);
   // AwA parameters (default to linear wave test)
-  opt.AwA_amplitude = pin->GetOrAddReal("z4c", "AwA_amplitude", 1e-8);
+  opt.AwA_amplitude = pin->GetOrAddReal("z4c", "AwA_amplitude", 1e-10);
   opt.AwA_sigma = pin->GetOrAddReal("z4c", "AwA_sigma", 1.0);
-  opt.AwA_rho = pin->GetOrAddInteger("z4c", "AwA_rho", 1);
   opt.AwA_direction = pin->GetOrAddInteger("z4c", "AwA_direction", 0);
 
   // Set aliases
@@ -287,6 +286,7 @@ void Z4c::SetZ4cAliases(AthenaArray<Real> & u, Z4c::Z4c_vars & z4c)
   z4c.g_dd.InitWithShallowSlice(u, I_Z4c_gxx);
   z4c.A_dd.InitWithShallowSlice(u, I_Z4c_Axx);
   z4c.Z.InitWithShallowSlice(u, I_Z4c_Z);
+  z4c.C.InitWithShallowSlice(u, I_Z4c_C);
 }
 
 //----------------------------------------------------------------------------------------

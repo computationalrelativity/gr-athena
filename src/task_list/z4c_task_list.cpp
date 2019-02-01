@@ -220,7 +220,7 @@ Z4cIntegratorTaskList::Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm)
     AddZ4cIntegratorTask(ALG_CONSTR, PHY_BVAL);
     AddZ4cIntegratorTask(Z4C_TO_ADM, ALG_CONSTR);
     AddZ4cIntegratorTask(USERWORK, Z4C_TO_ADM);
-    AddZ4cIntegratorTask(ADM_CONSTRS, USERWORK);
+    AddZ4cIntegratorTask(ADM_CONSTRS, USERWORK);//This happens after every timestep, we need them only at output
     AddZ4cIntegratorTask(NEW_DT, STARTUP_INT);
     if (pm->adaptive==true) {
       AddZ4cIntegratorTask(AMR_FLAG, USERWORK);

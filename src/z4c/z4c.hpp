@@ -41,8 +41,8 @@ public:
     I_Z4c_Theta = 17,
     I_Z4c_alpha = 18,
     I_Z4c_betax = 19, I_Z4c_betay = 20, I_Z4c_betaz = 21,
-    I_Z4c_Z = 22,
-    N_Z4c = 23
+    I_Z4c_Z = 22, I_Z4c_C = 23,
+    N_Z4c = 24
 
   };
   // Names of Z4c variables
@@ -95,6 +95,7 @@ public:
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g_dd;      // conf. 3-metric
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> A_dd;      // conf. traceless extr. curvature
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Z;         // Z constraint violation
+    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> C;         // Z constraint monitor
   };
   Z4c_vars z4c;
   Z4c_vars rhs;

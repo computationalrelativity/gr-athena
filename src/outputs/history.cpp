@@ -62,7 +62,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     nhistory_output += 2;
   }
   if (Z4C_ENABLED) {
-    nhistory_output += 5; //8;
+    nhistory_output += 11; //8;
   }
   nhistory_output += pm->nuser_history_output_;
 
@@ -117,34 +117,32 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
           data_sum[isum++] += vol(i)*SQR(wave_error);
         }
         if (Z4C_ENABLED) {
-          Real const H_err = std::abs(pz4c->adm.H(k,j,i));
-          Real const M_err = std::abs(pz4c->adm.M(k,j,i));
-          Real const theta = std::abs(pz4c->z4c.Theta(k,j,i));
-          Real const Z_err = std::abs(pz4c->z4c.Z(k,j,i));
-          Real const C_err = std::sqrt(SQR(pz4c->adm.H(k,j,i)) + pz4c->adm.M(k,j,i)
-                           + SQR(pz4c->z4c.Theta(k,j,i)) + 4.*pz4c->z4c.Z(k,j,i));
-
-//          Real const Mx_err = std::abs(pz4c->adm.M_d(0,k,j,i));
-//          Real const My_err = std::abs(pz4c->adm.M_d(1,k,j,i));
-//          Real const Mz_err = std::abs(pz4c->adm.M_d(2,k,j,i));
+          Real const H_err  = std::abs(pz4c->adm.H(k,j,i));
+          Real const M_err  = std::abs(pz4c->adm.M(k,j,i));
+          Real const Mx_err = std::abs(pz4c->adm.M_d(0,k,j,i));
+          Real const My_err = std::abs(pz4c->adm.M_d(1,k,j,i));
+          Real const Mz_err = std::abs(pz4c->adm.M_d(2,k,j,i));
+          Real const Gx_err = std::abs(pz4c->z4c.Gam_u(0,k,j,i));
+          Real const Gy_err = std::abs(pz4c->z4c.Gam_u(1,k,j,i));
+          Real const Gz_err = std::abs(pz4c->z4c.Gam_u(2,k,j,i));
+          Real const Z_err  = std::abs(pz4c->z4c.Z(k,j,i));
+          Real const theta  = std::abs(pz4c->z4c.Theta(k,j,i));
+          Real const C_err  = std::abs(pz4c->z4c.C(k,j,i));
 
           data_sum[isum++] += vol(i)*SQR(H_err);
-          data_sum[isum++] += vol(i)*SQR(M_err);
+          data_sum[isum++] += vol(i)*M_err; //M is already squared
+          data_sum[isum++] += vol(i)*SQR(Mx_err);
+          data_sum[isum++] += vol(i)*SQR(My_err);
+          data_sum[isum++] += vol(i)*SQR(Mz_err);
+          data_sum[isum++] += vol(i)*SQR(Gx_err);
+          data_sum[isum++] += vol(i)*SQR(Gy_err);
+          data_sum[isum++] += vol(i)*SQR(Gz_err);
+          data_sum[isum++] += vol(i)*Z_err; //Z is already squared
           data_sum[isum++] += vol(i)*SQR(theta);
-          data_sum[isum++] += vol(i)*SQR(Z_err);
-          data_sum[isum++] += vol(i)*SQR(C_err);
+          data_sum[isum++] += vol(i)*C_err; //C is already squared
+
           //if (C_err > infty_norm) infty_norm = C_err ; //LInfty-norm of error
           //data_sum[isum++] = infty_norm;
-
-//          data_sum[isum++] += vol(i)*Mx_err;
-//          data_sum[isum++] += vol(i)*My_err;
-//          data_sum[isum++] += vol(i)*Mz_err;
-//          data_sum[isum++] += vol(i)*SQR(H_err);
-//          data_sum[isum++] += vol(i)*SQR(Mx_err);
-//          data_sum[isum++] += vol(i)*SQR(My_err);
-//          data_sum[isum++] += vol(i)*SQR(Mz_err);
-          //......................................
-
         }
         nhistory_output = isum;
       }
@@ -209,19 +207,17 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         fprintf(pfile,"[%d]=err-norm2 ", iout++);
       }
       if (Z4C_ENABLED) {
-        fprintf(pfile,"[%d]=H-norm1 ",  iout++);
-        fprintf(pfile,"[%d]=M-norm1 ",  iout++);
-        fprintf(pfile,"[%d]=theta-norm1 ",  iout++);
-        fprintf(pfile,"[%d]=Z-norm1 ",  iout++);
-        fprintf(pfile,"[%d]=C_monitor ", iout++);
-
-//        fprintf(pfile,"[%d]=Mx-norm1 ", iout++);
-//        fprintf(pfile,"[%d]=My-norm1 ", iout++);
-//        fprintf(pfile,"[%d]=Mz-norm1 ", iout++);
-//        fprintf(pfile,"[%d]=H-norm2 ",  iout++);
-//        fprintf(pfile,"[%d]=Mx-norm2 ", iout++);
-//        fprintf(pfile,"[%d]=My-norm2 ", iout++);
-//        fprintf(pfile,"[%d]=Mz-norm2 ", iout++);
+        fprintf(pfile,"[%d]=H-norm2 ",     iout++);
+        fprintf(pfile,"[%d]=M-norm2 ",     iout++);
+        fprintf(pfile,"[%d]=Mx-norm2 ",    iout++);
+        fprintf(pfile,"[%d]=My-norm2 ",    iout++);
+        fprintf(pfile,"[%d]=Mz-norm2 ",    iout++);
+        fprintf(pfile,"[%d]=Gx-norm2 ",    iout++);
+        fprintf(pfile,"[%d]=Gy-norm2 ",    iout++);
+        fprintf(pfile,"[%d]=Gz-norm2 ",    iout++);
+        fprintf(pfile,"[%d]=Z-norm2 ",     iout++);
+        fprintf(pfile,"[%d]=Theta-norm2 ", iout++);
+        fprintf(pfile,"[%d]=C-norm2 ",     iout++);
       }
 
       for (int n=0; n<pm->nuser_history_output_; n++)

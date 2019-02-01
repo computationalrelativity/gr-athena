@@ -338,6 +338,7 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u, Athen
     // Actual constraints
     //
     // Hamiltonian constraint
+
     ILOOP1(i) {
       adm.H(k,j,i) = R(i) + SQR(K(i)) - KK(i) - 16*M_PI * mat.rho(k,j,i);
     }
@@ -373,9 +374,13 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u, Athen
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
       ILOOP1(i) {
-        z4c.Z(k,j,i) += 0.25*adm.g_dd(a,b,k,j,i)*(z4c.Gam_u(a,k,j,i) - Gamma_u(a,i))
-                                                *(z4c.Gam_u(b,k,j,i) - Gamma_u(b,i));
+        z4c.Z(k,j,i) += adm.g_dd(a,b,k,j,i)*(z4c.Gam_u(a,k,j,i) - Gamma_u(a,i))
+                                           *(z4c.Gam_u(b,k,j,i) - Gamma_u(b,i));
       }
+   // Constraint violation monitor C^2
+        ILOOP1(i) {
+          z4c.C(k,j,i) += SQR(adm.H(k,j,i)) + adm.M(k,j,i) + SQR(z4c.Theta(k,j,i)) + 4.0*z4c.Z(k,j,i);
+        }
     }
   }
 }
@@ -390,6 +395,13 @@ void Z4c::ADMMinkowski(AthenaArray<Real> & u_adm)
   SetADMAliases(u_adm, adm);
   adm.psi4.Fill(1.);
   adm.K_dd.Zero();
+
+//  GLOOP3(k,j,i) {
+//    for(int a = 0; a < NDIM; ++a)
+//    for(int b = a; b < NDIM; ++b) {
+//      adm.g_dd(a,b,k,j,i) = (a == b ? 1. : 0.);
+//    }
+//  }
 
   adm.g_dd.Zero();
   GLOOP3(k,j,i) {

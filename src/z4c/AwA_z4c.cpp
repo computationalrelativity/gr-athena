@@ -19,7 +19,6 @@ std::default_random_engine generator;
 std::uniform_real_distribution<double> distribution(-1.,1.);
 
 #define RANDOMNUMBER (distribution(generator))
-//#define RANDOMNUMBER (2.0*(std::rand() % RAND_MAX)-1.0)
 
 // sin wave for various wave tests
 #define SINWAVE(a,d,x) ((a)*std::sin(2*M_PI*(x)/(d)))
