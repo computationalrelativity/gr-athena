@@ -176,6 +176,8 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
 void Z4c::ADMConstraints(AthenaArray<Real> & u_con, AthenaArray<Real> & u_adm,
                          AthenaArray<Real> & u_mat, AthenaArray<Real> & u_z4c)
 {
+  u_con.Zero();
+
   Constraint_vars con;
   SetConstraintAliases(u_con, con);
 
@@ -360,7 +362,6 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_con, AthenaArray<Real> & u_adm,
         }
       }
     }
-    con.M_d.Zero();
     // Momentum constraint (covariant)
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
@@ -368,7 +369,6 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_con, AthenaArray<Real> & u_adm,
         con.M_d(a,k,j,i) += adm.g_dd(a,b,k,j,i) * M_u(b,i);
       }
     }
-    con.M.Zero();
     // Momentum constraint (norm squared)
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
@@ -376,7 +376,6 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_con, AthenaArray<Real> & u_adm,
         con.M(k,j,i) += adm.g_dd(a,b,k,j,i) * M_u(a,i) * M_u(b,i);
       }
     }
-    con.Z.Zero();
     // Constraint violation Z (norm squared)
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
