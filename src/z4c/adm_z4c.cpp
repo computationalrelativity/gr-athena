@@ -173,17 +173,20 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
 // The constraints are set only in the MeshBlock interior, because derivatives
 // of the ADM quantities are neded to compute them.
 
-void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u, AthenaArray<Real> & u_mat)
+void Z4c::ADMConstraints(AthenaArray<Real> & u_con, AthenaArray<Real> & u_adm,
+                         AthenaArray<Real> & u_mat, AthenaArray<Real> & u_z4c)
 {
+  Constraint_vars con;
+  SetConstraintAliases(u_con, con);
+
   ADM_vars adm;
   SetADMAliases(u_adm, adm);
-  adm.M_d.Zero();
-
-  Z4c_vars z4c;
-  SetZ4cAliases(u, z4c);
 
   Matter_vars mat;
   SetMatterAliases(u_mat, mat);
+
+  Z4c_vars z4c;
+  SetZ4cAliases(u_z4c, z4c);
 
   ILOOP2(k,j) {
     // -----------------------------------------------------------------------------------
@@ -338,11 +341,12 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u, Athen
     // Actual constraints
     //
     // Hamiltonian constraint
-
+    //
     ILOOP1(i) {
-      adm.H(k,j,i) = R(i) + SQR(K(i)) - KK(i) - 16*M_PI * mat.rho(k,j,i);
+      con.H(k,j,i) = R(i) + SQR(K(i)) - KK(i) - 16*M_PI * mat.rho(k,j,i);
     }
     // Momentum constraint (contravariant)
+    //
     M_u.Zero();
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
@@ -356,31 +360,34 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u, Athen
         }
       }
     }
+    con.M_d.Zero();
     // Momentum constraint (covariant)
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
       ILOOP1(i) {
-        adm.M_d(a,k,j,i) += adm.g_dd(a,b,k,j,i) * M_u(b,i);
+        con.M_d(a,k,j,i) += adm.g_dd(a,b,k,j,i) * M_u(b,i);
       }
     }
+    con.M.Zero();
     // Momentum constraint (norm squared)
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
       ILOOP1(i) {
-        adm.M(k,j,i) += adm.g_dd(a,b,k,j,i) * M_u(a,i) * M_u(b,i);
+        con.M(k,j,i) += adm.g_dd(a,b,k,j,i) * M_u(a,i) * M_u(b,i);
       }
     }
+    con.Z.Zero();
     // Constraint violation Z (norm squared)
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
       ILOOP1(i) {
-        z4c.Z(k,j,i) += adm.g_dd(a,b,k,j,i)*(z4c.Gam_u(a,k,j,i) - Gamma_u(a,i))
+        con.Z(k,j,i) += adm.g_dd(a,b,k,j,i)*(z4c.Gam_u(a,k,j,i) - Gamma_u(a,i))
                                            *(z4c.Gam_u(b,k,j,i) - Gamma_u(b,i));
       }
-   // Constraint violation monitor C^2
-        ILOOP1(i) {
-          z4c.C(k,j,i) += SQR(adm.H(k,j,i)) + adm.M(k,j,i) + SQR(z4c.Theta(k,j,i)) + 4.0*z4c.Z(k,j,i);
-        }
+    }
+    // Constraint violation monitor C^2
+    ILOOP1(i) {
+      con.C(k,j,i) = SQR(con.H(k,j,i)) + con.M(k,j,i) + SQR(z4c.Theta(k,j,i)) + 4.0*con.Z(k,j,i);
     }
   }
 }
@@ -396,17 +403,11 @@ void Z4c::ADMMinkowski(AthenaArray<Real> & u_adm)
   adm.psi4.Fill(1.);
   adm.K_dd.Zero();
 
-//  GLOOP3(k,j,i) {
-//    for(int a = 0; a < NDIM; ++a)
-//    for(int b = a; b < NDIM; ++b) {
-//      adm.g_dd(a,b,k,j,i) = (a == b ? 1. : 0.);
-//    }
-//  }
-
-  adm.g_dd.Zero();
   GLOOP3(k,j,i) {
     for(int a = 0; a < NDIM; ++a)
-      adm.g_dd(a,a,k,j,i) = 1.0;
+    for(int b = a; b < NDIM; ++b) {
+      adm.g_dd(a,b,k,j,i) = (a == b ? 1. : 0.);
+    }
   }
 }
 
@@ -419,7 +420,7 @@ void Z4c::GaugeGeodesic(AthenaArray<Real> & u)
   Z4c_vars z4c;
   SetZ4cAliases(u, z4c);
   z4c.alpha.Fill(1.);
-  z4c.beta_u.Fill(0.);
+  z4c.beta_u.Zero();
 }
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::MatterVacuum(AthenaArray<Real> & u_mat)

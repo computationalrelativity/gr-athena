@@ -33,37 +33,44 @@ class Z4c {
 public:
   // Indexes of evolved variables
   enum {
-    I_Z4c_chi = 0,
-    I_Z4c_gxx = 1, I_Z4c_gxy = 2, I_Z4c_gxz = 3, I_Z4c_gyy = 4, I_Z4c_gyz = 5, I_Z4c_gzz = 6,
-    I_Z4c_Khat = 7,
-    I_Z4c_Axx = 8, I_Z4c_Axy = 9, I_Z4c_Axz = 10, I_Z4c_Ayy = 11, I_Z4c_Ayz = 12, I_Z4c_Azz = 13,
-    I_Z4c_Gamx = 14, I_Z4c_Gamy = 15, I_Z4c_Gamz = 16,
-    I_Z4c_Theta = 17,
-    I_Z4c_alpha = 18,
-    I_Z4c_betax = 19, I_Z4c_betay = 20, I_Z4c_betaz = 21,
-    I_Z4c_Z = 22, I_Z4c_C = 23,
-    N_Z4c = 24
-
+    I_Z4c_chi,
+    I_Z4c_gxx, I_Z4c_gxy, I_Z4c_gxz, I_Z4c_gyy, I_Z4c_gyz, I_Z4c_gzz,
+    I_Z4c_Khat,
+    I_Z4c_Axx, I_Z4c_Axy, I_Z4c_Axz, I_Z4c_Ayy, I_Z4c_Ayz, I_Z4c_Azz,
+    I_Z4c_Gamx, I_Z4c_Gamy, I_Z4c_Gamz,
+    I_Z4c_Theta,
+    I_Z4c_alpha,
+    I_Z4c_betax, I_Z4c_betay, I_Z4c_betaz,
+    N_Z4c
   };
   // Names of Z4c variables
   static char const * const Z4c_names[N_Z4c];
   // Indexes of ADM variables
   enum {
-    I_ADM_gxx = 0, I_ADM_gxy = 1, I_ADM_gxz = 2, I_ADM_gyy = 3, I_ADM_gyz = 4, I_ADM_gzz = 5,
-    I_ADM_Kxx = 6, I_ADM_Kxy = 7, I_ADM_Kxz = 8, I_ADM_Kyy = 9, I_ADM_Kyz = 10, I_ADM_Kzz = 11,
-    I_ADM_psi4 = 12,
-    I_ADM_H = 13,
-    I_ADM_Mx = 14, I_ADM_My = 15, I_ADM_Mz = 16, I_ADM_M = 17,
-    N_ADM = 18
+    I_ADM_gxx, I_ADM_gxy, I_ADM_gxz, I_ADM_gyy, I_ADM_gyz, I_ADM_gzz,
+    I_ADM_Kxx, I_ADM_Kxy, I_ADM_Kxz, I_ADM_Kyy, I_ADM_Kyz, I_ADM_Kzz,
+    I_ADM_psi4,
+    N_ADM
   };
   // Names of ADM variables
   static char const * const ADM_names[N_ADM];
+  // Indexes of Constraint variables
+  enum {
+    I_CON_C,
+    I_CON_H,
+    I_CON_M,
+    I_CON_Z,
+    I_CON_Mx, I_CON_My, I_CON_Mz,
+    N_CON,
+  };
+  // Names of costraint variables
+  static char const * const Constraint_names[N_CON];
   // Indexes of matter fields
   enum {
-    I_MAT_rho = 0,
-    I_MAT_Sx = 1, I_MAT_Sy = 2, I_MAT_Sz = 3,
-    I_MAT_Sxx = 4, I_MAT_Sxy = 5, I_MAT_Sxz = 6, I_MAT_Syy = 7, I_MAT_Syz = 8, I_MAT_S_zz = 9,
-    N_MAT = 10
+    I_MAT_rho,
+    I_MAT_Sx, I_MAT_Sy, I_MAT_Sz,
+    I_MAT_Sxx, I_MAT_Sxy, I_MAT_Sxz, I_MAT_Syy, I_MAT_Syz, I_MAT_S_zz,
+    N_MAT
   };
   // Names of matter variables
   static char const * const Matter_names[N_MAT];
@@ -81,6 +88,7 @@ public:
     AthenaArray<Real> u2;    // solution at intermediate steps
     AthenaArray<Real> rhs;   // Z4c rhs
     AthenaArray<Real> adm;   // ADM variables
+    AthenaArray<Real> con;   // constraints
     AthenaArray<Real> mat;   // matter variables
   } storage;
 
@@ -94,8 +102,6 @@ public:
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u;    // shift
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g_dd;      // conf. 3-metric
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> A_dd;      // conf. traceless extr. curvature
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Z;         // Z constraint violation
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> C;         // Z constraint monitor
   };
   Z4c_vars z4c;
   Z4c_vars rhs;
@@ -103,13 +109,20 @@ public:
   // aliases for the ADM variables
   struct ADM_vars {
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> psi4;      // conformal factor
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> H;         // hamiltonian constraint
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> M_d;       // momentum constraint
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> M;         // norm squared of M_d
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g_dd;      // 3-metric
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> K_dd;      // curvature
   };
   ADM_vars adm;
+
+  // aliases for the constraints
+  struct Constraint_vars {
+    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> C;         // Z constraint monitor
+    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> H;         // hamiltonian constraint
+    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> M;         // norm squared of M_d
+    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Z;         // Z constraint violation
+    AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> M_d;       // momentum constraint
+  };
+  Constraint_vars con;
 
   // aliases for the matter variables
   struct Matter_vars {
@@ -160,18 +173,21 @@ public:
   // add RHS to state
   void AddZ4cRHS(AthenaArray<Real> & rhs, Real const wght, AthenaArray<Real> &u_out);
   // compute Z4c variables from ADM variables
-  void ADMToZ4c(AthenaArray<Real> & u, AthenaArray<Real> & u_adm);
+  void ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u);
   // compute ADM variables from Z4c variables
   void Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm);
   // enforce algebraic constraints on the solution
   void AlgConstr(AthenaArray<Real> & u);
   // compute ADM constraints
-  void ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> &u, AthenaArray<Real> & u_mat);
+  void ADMConstraints(AthenaArray<Real> & u_con, AthenaArray<Real> & u_adm,
+                      AthenaArray<Real> & u_mat, AthenaArray<Real> & u_z4c);
 
   // utility fnuctions
   //
   // set ADM aliases given u_adm
   void SetADMAliases(AthenaArray<Real> & u_adm, ADM_vars & adm);
+  // set constraint aliases for a given u_con
+  void SetConstraintAliases(AthenaArray<Real> & u_con, Constraint_vars & con);
   // set matter aliases given a state
   void SetMatterAliases(AthenaArray<Real> & u_mat, Matter_vars & mat);
   // set Z4c aliases given a state

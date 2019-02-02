@@ -26,15 +26,19 @@ char const * const Z4c::Z4c_names[Z4c::N_Z4c] = {
   "z4c.Theta",
   "z4c.alpha",
   "z4c.betax", "z4c.betay", "z4c.betaz",
-  "z4c.Z", "z4c.C",
 };
 
 char const * const Z4c::ADM_names[Z4c::N_ADM] = {
   "adm.gxx", "adm.gxy", "adm.gxz", "adm.gyy", "adm.gyz", "adm.gzz",
   "adm.Kxx", "adm.Kxy", "adm.Kxz", "adm.Kyy", "adm.Kyz", "adm.Kzz",
   "adm.psi4",
-  "adm.H",
-  "adm.Mx", "adm.My", "adm.Mz", "adm_M",
+};
+
+char const * const Z4c::Constraint_names[Z4c::N_CON] = {
+  "con.C",
+  "con.H",
+  "con.M",
+  "con.Mx", "con.My", "con.Mz",
 };
 
 char const * const Z4c::Matter_names[Z4c::N_MAT] = {
@@ -61,6 +65,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   if (integrator == "ssprk5_4") storage.u2.NewAthenaArray(N_Z4c, ncells3, ncells2, ncells1);
   storage.rhs.NewAthenaArray(N_Z4c, ncells3, ncells2, ncells1);
   storage.adm.NewAthenaArray(N_ADM, ncells3, ncells2, ncells1);
+  storage.con.NewAthenaArray(N_CON, ncells3, ncells2, ncells1);
   storage.mat.NewAthenaArray(N_MAT, ncells3, ncells2, ncells1);
 
   dt1_.NewAthenaArray(ncells1);
@@ -90,6 +95,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
 
   // Set aliases
   SetADMAliases(storage.adm, adm);
+  SetConstraintAliases(storage.con, con);
   SetMatterAliases(storage.mat, mat);
   SetZ4cAliases(storage.rhs, rhs);
   SetZ4cAliases(storage.u, z4c);
@@ -181,6 +187,7 @@ Z4c::~Z4c()
   storage.u2.DeleteAthenaArray();
   storage.rhs.DeleteAthenaArray();
   storage.adm.DeleteAthenaArray();
+  storage.con.DeleteAthenaArray();
   storage.mat.DeleteAthenaArray();
 
   dt1_.DeleteAthenaArray();
@@ -253,11 +260,21 @@ Z4c::~Z4c()
 void Z4c::SetADMAliases(AthenaArray<Real> & u_adm, Z4c::ADM_vars & adm)
 {
   adm.psi4.InitWithShallowSlice(u_adm, I_ADM_psi4);
-  adm.H.InitWithShallowSlice(u_adm, I_ADM_H);
-  adm.M_d.InitWithShallowSlice(u_adm, I_ADM_Mx);
-  adm.M.InitWithShallowSlice(u_adm, I_ADM_M);
   adm.g_dd.InitWithShallowSlice(u_adm, I_ADM_gxx);
   adm.K_dd.InitWithShallowSlice(u_adm, I_ADM_Kxx);
+}
+
+//----------------------------------------------------------------------------------------
+// \!fn void Z4c::SetConstraintAliases(AthenaArray<Real> & u, ADM_vars & z4c)
+// \brief Set ADM aliases
+
+void Z4c::SetConstraintAliases(AthenaArray<Real> & u_con, Z4c::Constraint_vars & con)
+{
+  con.C.InitWithShallowSlice(u_con, I_CON_C);
+  con.H.InitWithShallowSlice(u_con, I_CON_H);
+  con.Z.InitWithShallowSlice(u_con, I_CON_M);
+  con.M.InitWithShallowSlice(u_con, I_CON_Z);
+  con.M_d.InitWithShallowSlice(u_con, I_CON_Mx);
 }
 
 //----------------------------------------------------------------------------------------
@@ -285,8 +302,6 @@ void Z4c::SetZ4cAliases(AthenaArray<Real> & u, Z4c::Z4c_vars & z4c)
   z4c.beta_u.InitWithShallowSlice(u, I_Z4c_betax);
   z4c.g_dd.InitWithShallowSlice(u, I_Z4c_gxx);
   z4c.A_dd.InitWithShallowSlice(u, I_Z4c_Axx);
-  z4c.Z.InitWithShallowSlice(u, I_Z4c_Z);
-  z4c.C.InitWithShallowSlice(u, I_Z4c_C);
 }
 
 //----------------------------------------------------------------------------------------

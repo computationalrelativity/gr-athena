@@ -47,20 +47,20 @@ void Z4c::ADMRobustStability(AthenaArray<Real> & u_adm)
 
   //std::srand(std::time(0)); // seed ?
 
-  ILOOP2(k,j) {
+  GLOOP2(k,j) {
     // g_ab
     for(int a = 0; a < NDIM; ++a)
       for(int b = a; b < NDIM; ++b) {
-        ILOOP1(i) {
+        GLOOP1(i) {
           adm.g_dd(a,b,k,j,i) += RANDOMNUMBER*opt.AwA_amplitude;
-	  //std::cout << "Random: " << RANDOMNUMBER << std::endl;
-	  //std::cout << std::setprecision(15) << adm.g_dd(a,b,k,j,i) << std::endl;
+          //std::cout << "Random: " << RANDOMNUMBER << std::endl;
+          //std::cout << std::setprecision(15) << adm.g_dd(a,b,k,j,i) << std::endl;
         }
       }
     // K_ab
     for(int a = 0; a < NDIM; ++a)
       for(int b = a; b < NDIM; ++b) {
-        ILOOP1(i) {
+        GLOOP1(i) {
           adm.K_dd(a,b,k,j,i) += RANDOMNUMBER*opt.AwA_amplitude;
         }
       }
@@ -87,26 +87,26 @@ void Z4c::ADMLinearWave1(AthenaArray<Real> & u_adm)
   const int *dir = alldirections[opt.AwA_direction];
 
   // For propagation along x ...
-  ILOOP2(k,j) {
+  GLOOP2(k,j) {
     switch (opt.AwA_direction) {
-    case 0: ILOOP1(i) { r(i) = pco->x1v(i); } break;
-    case 1: ILOOP1(i) { r(i) = pco->x2v(j); } break;
-    case 2: ILOOP1(i) { r(i) = pco->x3v(k); } break;
+    case 0: GLOOP1(i) { r(i) = pco->x1v(i); } break;
+    case 1: GLOOP1(i) { r(i) = pco->x2v(j); } break;
+    case 2: GLOOP1(i) { r(i) = pco->x3v(k); } break;
     }
     // g_yy
-    ILOOP1(i) {
+    GLOOP1(i) {
       adm.g_dd(dir[1],dir[1],k,j,i) += SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));
     }
     // g_zz
-    ILOOP1(i) {
+    GLOOP1(i) {
       adm.g_dd(dir[2],dir[2],k,j,i) -= SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));
     }
     // K_yy
-    ILOOP1(i) {
+    GLOOP1(i) {
       adm.K_dd(dir[1],dir[1],k,j,i) += 0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));;
     }
     // K_zz
-    ILOOP1(i) {
+    GLOOP1(i) {
       adm.K_dd(dir[2],dir[2],k,j,i) -= 0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));
     }
   }
@@ -130,29 +130,29 @@ void Z4c::ADMLinearWave2(AthenaArray<Real> & u_adm)
   // Flat spacetime
   ADMMinkowski(u_adm);
 
-  ILOOP2(k,j) {
+  GLOOP2(k,j) {
     // g_xx, g_xy
     for(int a = 0; a < NDIM-1; ++a)
-      ILOOP1(i) {
+      GLOOP1(i) {
         adm.g_dd(a,a,k,j,i) += 0.5*SINWAVE(opt.AwA_amplitude,opt.AwA_sigma, (pco->x1v(i) - pco->x2v(i)) );
       }
     // g_xy
-    ILOOP1(i) {
+    GLOOP1(i) {
       adm.g_dd(0,1,k,j,i) = 0.5*SINWAVE(opt.AwA_amplitude,opt.AwA_sigma, (pco->x1v(i) - pco->x2v(i)) );
     }
     // g_zz
-    ILOOP1(i) {
+    GLOOP1(i) {
       adm.g_dd(2,2,k,j,i) -= SINWAVE(opt.AwA_amplitude,opt.AwA_sigma, (pco->x1v(i) - pco->x2v(i)) );
     }
     // K_xx, K_xy, K_yy
     for(int a = 0; a < NDIM-1; ++a)
       for(int b = a; b < NDIM-1; ++b) {
-        ILOOP1(i) {
+        GLOOP1(i) {
           adm.K_dd(a,b,k,j,i) = 0.25*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma, (pco->x1v(i) - pco->x2v(i)) );
         }
       }
     // K_zz
-    ILOOP1(i) {
+    GLOOP1(i) {
       adm.K_dd(2,2,k,j,i) = -0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma, (pco->x1v(i) - pco->x2v(i)) );
     }
   }
@@ -178,18 +178,18 @@ void Z4c::ADMGaugeWave1(AthenaArray<Real> & u_adm)
   const int *dir = alldirections[opt.AwA_direction];
 
   // For propagation along x ...
-  ILOOP2(k,j) {
+  GLOOP2(k,j) {
     switch (opt.AwA_direction) {
-    case 0: ILOOP1(i) { r(i) = pco->x1v(i); } break;
-    case 1: ILOOP1(i) { r(i) = pco->x2v(j); } break;
-    case 2: ILOOP1(i) { r(i) = pco->x3v(k); } break;
+    case 0: GLOOP1(i) { r(i) = pco->x1v(i); } break;
+    case 1: GLOOP1(i) { r(i) = pco->x2v(j); } break;
+    case 2: GLOOP1(i) { r(i) = pco->x3v(k); } break;
     }
     // g_xx
-    ILOOP1(i) {
+    GLOOP1(i) {
       adm.g_dd(dir[0],dir[0],k,j,i) += SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));
     }
     // K_xx
-    ILOOP1(i) {
+    GLOOP1(i) {
       adm.K_dd(dir[0],dir[0],k,j,i) =
         0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i))/
         (std::sqrt(1.0 - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i))));
@@ -215,14 +215,14 @@ void Z4c::GaugeGaugeWaveLapse(AthenaArray<Real> & u)
   const int alldirections[3][3] = { {0,1,2}, {1,2,0}, {2,0,1} };
   const int *dir = alldirections[opt.AwA_direction];
 
-  ILOOP2(k,j) {
+  GLOOP2(k,j) {
     switch (opt.AwA_direction) {
-    case 0: ILOOP1(i) { r(i) = pco->x1v(i); } break;
-    case 1: ILOOP1(i) { r(i) = pco->x2v(j); } break;
-    case 2: ILOOP1(i) { r(i) = pco->x3v(k); } break;
+    case 0: GLOOP1(i) { r(i) = pco->x1v(i); } break;
+    case 1: GLOOP1(i) { r(i) = pco->x2v(j); } break;
+    case 2: GLOOP1(i) { r(i) = pco->x3v(k); } break;
     }
     // alpha
-    ILOOP1(i) {
+    GLOOP1(i) {
       z4c.alpha(k,j,i) = std::sqrt(1.0 - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i)));
     }
   }
@@ -246,18 +246,18 @@ void Z4c::GaugeGaugeWaveLapseShift(AthenaArray<Real> & u)
   const int alldirections[3][3] = { {0,1,2}, {2,0,1}, {1,2,0} };
   const int *dir = alldirections[opt.AwA_direction];
 
-  ILOOP2(k,j) {
+  GLOOP2(k,j) {
     switch (opt.AwA_direction) {
-    case 0: ILOOP1(i) { r(i) = pco->x1v(i); } break;
-    case 1: ILOOP1(i) { r(i) = pco->x2v(j); } break;
-    case 2: ILOOP1(i) { r(i) = pco->x3v(k); } break;
+    case 0: GLOOP1(i) { r(i) = pco->x1v(i); } break;
+    case 1: GLOOP1(i) { r(i) = pco->x2v(j); } break;
+    case 2: GLOOP1(i) { r(i) = pco->x3v(k); } break;
     }
     // alpha
-    ILOOP1(i) {
+    GLOOP1(i) {
       z4c.alpha(k,j,i) = 1.0/(std::sqrt(1.0 + SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i))));
     }
     // shift
-    ILOOP1(i) {
+    GLOOP1(i) {
       z4c.beta_u(dir[0],k,j,i) = - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i))/(SQR(z4c.alpha(k,j,i)));
     }
   }
@@ -281,29 +281,29 @@ void Z4c::ADMGaugeWave2(AthenaArray<Real> & u_adm)
   // Flat spacetime
   ADMMinkowski(u_adm);
 
-  ILOOP2(k,j) {
+  GLOOP2(k,j) {
     // g_xx, g_xy
     for(int a = 0; a < NDIM-1; ++a)
-      ILOOP1(i) {
+      GLOOP1(i) {
         adm.g_dd(a,a,k,j,i) -= 0.5*SINWAVE(opt.AwA_amplitude,opt.AwA_sigma, (pco->x1v(i) - pco->x2v(i)) );
       }
     // g_xy
-    ILOOP1(i) {
+    GLOOP1(i) {
       adm.g_dd(0,1,k,j,i) = 0.5*SINWAVE(opt.AwA_amplitude,opt.AwA_sigma, (pco->x1v(i) - pco->x2v(i)) );
     }
     // K_xx, K_yy
     for(int a = 0; a < NDIM-1; ++a)
-      ILOOP1(i) {
+      GLOOP1(i) {
         adm.K_dd(a,a,k,j,i) =
           0.25*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i))/
           (std::sqrt(1.0-SINWAVE(opt.AwA_amplitude,opt.AwA_sigma, (pco->x1v(i) - pco->x2v(i)) )));
       }
     // K_xy
-    ILOOP1(i) {
+    GLOOP1(i) {
       adm.K_dd(0,1,k,j,i) = - adm.K_dd(0,0,k,j,i);
     }
     // K_zz
-    ILOOP1(i) {
+    GLOOP1(i) {
       adm.K_dd(2,2,k,j,i) =
         -0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma, (pco->x1v(i) - pco->x2v(i)) );
     }

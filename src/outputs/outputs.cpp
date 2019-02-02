@@ -520,6 +520,17 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
         num_vars_++;
       }
     }
+    for (int v = 0; v < Z4c::N_CON; ++v) {
+      if (output_params.variable.compare("con") == 0 ||
+          output_params.variable.compare(Z4c::Constraint_names[v]) == 0) {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = Z4c::Constraint_names[v];
+        pod->data.InitWithShallowSlice(pz4c->storage.con,v,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
     for (int v = 0; v < Z4c::N_MAT; ++v) {
       if (output_params.variable.compare("mat") == 0 ||
           output_params.variable.compare(Z4c::Matter_names[v]) == 0) {

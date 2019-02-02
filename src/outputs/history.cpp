@@ -117,17 +117,17 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
           data_sum[isum++] += vol(i)*SQR(wave_error);
         }
         if (Z4C_ENABLED) {
-          Real const H_err  = std::abs(pz4c->adm.H(k,j,i));
-          Real const M_err  = std::abs(pz4c->adm.M(k,j,i));
-          Real const Mx_err = std::abs(pz4c->adm.M_d(0,k,j,i));
-          Real const My_err = std::abs(pz4c->adm.M_d(1,k,j,i));
-          Real const Mz_err = std::abs(pz4c->adm.M_d(2,k,j,i));
+          Real const H_err  = std::abs(pz4c->con.H(k,j,i));
+          Real const M_err  = std::abs(pz4c->con.M(k,j,i));
+          Real const Mx_err = std::abs(pz4c->con.M_d(0,k,j,i));
+          Real const My_err = std::abs(pz4c->con.M_d(1,k,j,i));
+          Real const Mz_err = std::abs(pz4c->con.M_d(2,k,j,i));
           Real const Gx_err = std::abs(pz4c->z4c.Gam_u(0,k,j,i));
           Real const Gy_err = std::abs(pz4c->z4c.Gam_u(1,k,j,i));
           Real const Gz_err = std::abs(pz4c->z4c.Gam_u(2,k,j,i));
-          Real const Z_err  = std::abs(pz4c->z4c.Z(k,j,i));
+          Real const Z_err  = std::abs(pz4c->con.Z(k,j,i));
           Real const theta  = std::abs(pz4c->z4c.Theta(k,j,i));
-          Real const C_err  = std::abs(pz4c->z4c.C(k,j,i));
+          Real const C_err  = std::abs(pz4c->con.C(k,j,i));
 
           data_sum[isum++] += vol(i)*SQR(H_err);
           data_sum[isum++] += vol(i)*M_err; //M is already squared
