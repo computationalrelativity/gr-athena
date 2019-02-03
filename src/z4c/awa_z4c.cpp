@@ -3,7 +3,7 @@
 // Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
 // Licensed under the 3-clause BSD License, see LICENSE file for details
 //========================================================================================
-//! \file puncture_z4c.cpp
+//! \file awa_z4c.cpp
 //  \brief implementation of functions in the Z4c class for initializing Apples with Apples tests
 //  See  https://arxiv.org/abs/gr-qc/0305023
 //       https://arxiv.org/abs/1111.2177
@@ -33,7 +33,7 @@ std::uniform_real_distribution<double> distribution(-1.,1.);
 // \brief Initialize ADM vars for robust stability test
 
 // Note the amplitude of the noise (~1e-10) should be also rescaled by
-// the square of the grid spacing
+// the square of the rho parameter
 
 void Z4c::ADMRobustStability(AthenaArray<Real> & u_adm)
 {
