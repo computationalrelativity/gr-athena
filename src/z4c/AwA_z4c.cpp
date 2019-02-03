@@ -304,14 +304,3 @@ void Z4c::ADMGaugeWave2(AthenaArray<Real> & u_adm)
   }
 }
 
-//----------------------------------------------------------------------------------------
-// \!fn void Z4c::TrivialGauge(AthenaArray<Real> & u)
-// \brief Initialize lapse = 1 shift = 0
-
-void Z4c::TrivialGauge(AthenaArray<Real> & u)
-{
-  Z4c_vars z4c;
-  SetZ4cAliases(u, z4c);
-  z4c.alpha.Fill(1.);
-  z4c.beta_u.Fill(0.);
-}

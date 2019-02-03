@@ -215,7 +215,7 @@ public:
              Real const Ayy, Real const Ayz, Real const Azz);
 
   // additional global functions
-  //
+
   // setup a Minkowski spacetime
   void ADMMinkowski(AthenaArray<Real> & u_adm);
   // set the gauge condition to geodesic slicing
@@ -231,7 +231,6 @@ public:
   void GaugeGaugeWaveLapse(AthenaArray<Real> & u);
   void GaugeGaugeWaveLapseShift(AthenaArray<Real> & u);
   void ADMGaugeWave2(AthenaArray<Real> & u_adm);
-  void TrivialGauge(AthenaArray<Real> & u);
 
   // initial data for a single BH
   void ADMOnePuncture(AthenaArray<Real> & u_adm);

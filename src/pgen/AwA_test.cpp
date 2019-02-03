@@ -30,17 +30,17 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   if(test == "robust_stab") {
     pz4c->ADMRobustStability(pz4c->storage.adm);
-    pz4c->TrivialGauge(pz4c->storage.u);
+    pz4c->GaugeGeodesic(pz4c->storage.u);
     std::cout << "Robust stability test initialized" << std::endl;
   }
   else if(test == "linear_wave1") {
       pz4c->ADMLinearWave1(pz4c->storage.adm);
-      pz4c->TrivialGauge(pz4c->storage.u);
+      pz4c->GaugeGeodesic(pz4c->storage.u);
       std::cout << "Linear Wave test 1d initialized" << std::endl;
   }
   else if(test == "linear_wave2") {
       pz4c->ADMLinearWave2(pz4c->storage.adm);
-      pz4c->TrivialGauge(pz4c->storage.u);
+      pz4c->GaugeGeodesic(pz4c->storage.u);
       std::cout << "Linear Wave test 2d initialized" << std::endl;
   }
   else if(test == "gauge_wave1_lapse") {
@@ -60,7 +60,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   }
   else {
     pz4c->ADMMinkowski(pz4c->storage.adm);
-    pz4c->TrivialGauge(pz4c->storage.u);
+    pz4c->GaugeGeodesic(pz4c->storage.u);
     std::cout << "Minkowski initialized" << std::endl;
   }
   

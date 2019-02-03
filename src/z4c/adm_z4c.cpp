@@ -421,6 +421,7 @@ void Z4c::GaugeGeodesic(AthenaArray<Real> & u)
   z4c.alpha.Fill(1.);
   z4c.beta_u.Zero();
 }
+
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::MatterVacuum(AthenaArray<Real> & u_mat)
 // \brief Initialize ADM vars to vacuum
