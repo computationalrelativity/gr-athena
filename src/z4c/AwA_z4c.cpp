@@ -12,12 +12,10 @@
 #include <cmath> // pow, rand, sin, sqrt
 #include <ctime>
 #include <random>
-//#include <iomanip>
 
 // random number in [-1,1]
 std::default_random_engine generator;
 std::uniform_real_distribution<double> distribution(-1.,1.);
-
 #define RANDOMNUMBER (distribution(generator))
 
 // sin wave for various wave tests
@@ -45,16 +43,12 @@ void Z4c::ADMRobustStability(AthenaArray<Real> & u_adm)
   // Flat spacetime
   ADMMinkowski(u_adm);
 
-  //std::srand(std::time(0)); // seed ?
-
   GLOOP2(k,j) {
     // g_ab
     for(int a = 0; a < NDIM; ++a)
       for(int b = a; b < NDIM; ++b) {
         GLOOP1(i) {
           adm.g_dd(a,b,k,j,i) += RANDOMNUMBER*opt.AwA_amplitude;
-          //std::cout << "Random: " << RANDOMNUMBER << std::endl;
-          //std::cout << std::setprecision(15) << adm.g_dd(a,b,k,j,i) << std::endl;
         }
       }
     // K_ab

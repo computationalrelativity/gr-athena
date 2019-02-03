@@ -26,9 +26,6 @@ using namespace std;
 
 void MeshBlock::ProblemGenerator(ParameterInput *pin)
 {
-//  pz4c->opt.AwA_amplitude = pz4c->opt.AwA_amplitude/SQR(pz4c->opt.AwA_rho);
-//  pz4c->opt.AwA_sigma     = pz4c->opt.AwA_sigma    /SQR(pz4c->opt.AwA_rho);
-
   string test = pin->GetOrAddString("problem", "test", "minkowski");
 
   if(test == "robust_stab") {
@@ -39,35 +36,35 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   else if(test == "linear_wave1") {
       pz4c->ADMLinearWave1(pz4c->storage.adm);
       pz4c->TrivialGauge(pz4c->storage.u);
-      std::cout << "Linear Wave test 1 initialized" << std::endl;
+      std::cout << "Linear Wave test 1d initialized" << std::endl;
   }
   else if(test == "linear_wave2") {
       pz4c->ADMLinearWave2(pz4c->storage.adm);
-      //Gauge
+      pz4c->TrivialGauge(pz4c->storage.u);
+      std::cout << "Linear Wave test 2d initialized" << std::endl;
   }
-  else if(test == "gauge_wave1") {
+  else if(test == "gauge_wave1_lapse") {
       pz4c->ADMGaugeWave1(pz4c->storage.adm);
-      //Gauge
+      pz4c->GaugeGaugeWaveLapse(pz4c->storage.u);
+      std::cout << "Gauge wave test 1d initialized" << std::endl;
+  }
+  else if(test == "gauge_wave_lapse_shift") {
+      pz4c->ADMGaugeWave1(pz4c->storage.adm);
+      pz4c->GaugeGaugeWaveLapseShift(pz4c->storage.u);
+      std::cout << "Gauge wave test with shift 1d initialized" << std::endl;
   }
   else if(test == "gauge_wave2") {
       pz4c->ADMGaugeWave2(pz4c->storage.adm);
-      //Gauge
-  }
-  else if(test == "gauge_wave_lapse") {
       pz4c->GaugeGaugeWaveLapse(pz4c->storage.u);
-      //Gauge
+      std::cout << "Gauge wave test 2d initialized" << std::endl;
   }
-  else if(test == "gauge_wave_lapse_shift") {
-      pz4c->GaugeGaugeWaveLapseShift(pz4c->storage.u);
-      //Gauge
-  }
-  else { // Minkowski test
-
+  else {
     pz4c->ADMMinkowski(pz4c->storage.adm);
     pz4c->TrivialGauge(pz4c->storage.u);
+    std::cout << "Minkowski initialized" << std::endl;
   }
-
-  //Constructing Z4c vars from ADM ones
+  
+  // Constructing Z4c vars from ADM ones
   pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
 
   return;
