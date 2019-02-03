@@ -62,7 +62,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     nhistory_output += 2;
   }
   if (Z4C_ENABLED) {
-    nhistory_output += 11; //8;
+    nhistory_output += 8;
   }
   nhistory_output += pm->nuser_history_output_;
 
@@ -118,31 +118,22 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         }
         if (Z4C_ENABLED) {
           Real const H_err  = std::abs(pz4c->con.H(k,j,i));
-          Real const M_err  = std::abs(pz4c->con.M(k,j,i));
+          Real const M2_err = std::abs(pz4c->con.M(k,j,i));
           Real const Mx_err = std::abs(pz4c->con.M_d(0,k,j,i));
           Real const My_err = std::abs(pz4c->con.M_d(1,k,j,i));
           Real const Mz_err = std::abs(pz4c->con.M_d(2,k,j,i));
-          Real const Gx_err = std::abs(pz4c->z4c.Gam_u(0,k,j,i));
-          Real const Gy_err = std::abs(pz4c->z4c.Gam_u(1,k,j,i));
-          Real const Gz_err = std::abs(pz4c->z4c.Gam_u(2,k,j,i));
-          Real const Z_err  = std::abs(pz4c->con.Z(k,j,i));
+          Real const Z2_err = std::abs(pz4c->con.Z(k,j,i));
           Real const theta  = std::abs(pz4c->z4c.Theta(k,j,i));
-          Real const C_err  = std::abs(pz4c->con.C(k,j,i));
+          Real const C2_err = std::abs(pz4c->con.C(k,j,i));
 
           data_sum[isum++] += vol(i)*SQR(H_err);
-          data_sum[isum++] += vol(i)*M_err; //M is already squared
+          data_sum[isum++] += vol(i)*M2_err; //M is already squared
           data_sum[isum++] += vol(i)*SQR(Mx_err);
           data_sum[isum++] += vol(i)*SQR(My_err);
           data_sum[isum++] += vol(i)*SQR(Mz_err);
-          data_sum[isum++] += vol(i)*SQR(Gx_err);
-          data_sum[isum++] += vol(i)*SQR(Gy_err);
-          data_sum[isum++] += vol(i)*SQR(Gz_err);
-          data_sum[isum++] += vol(i)*Z_err; //Z is already squared
+          data_sum[isum++] += vol(i)*Z2_err; //Z is already squared
           data_sum[isum++] += vol(i)*SQR(theta);
-          data_sum[isum++] += vol(i)*C_err; //C is already squared
-
-          //if (C_err > infty_norm) infty_norm = C_err ; //LInfty-norm of error
-          //data_sum[isum++] = infty_norm;
+          data_sum[isum++] += vol(i)*C2_err; //C is already squared
         }
         nhistory_output = isum;
       }
@@ -212,9 +203,6 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         fprintf(pfile,"[%d]=Mx-norm2 ",    iout++);
         fprintf(pfile,"[%d]=My-norm2 ",    iout++);
         fprintf(pfile,"[%d]=Mz-norm2 ",    iout++);
-        fprintf(pfile,"[%d]=Gx-norm2 ",    iout++);
-        fprintf(pfile,"[%d]=Gy-norm2 ",    iout++);
-        fprintf(pfile,"[%d]=Gz-norm2 ",    iout++);
         fprintf(pfile,"[%d]=Z-norm2 ",     iout++);
         fprintf(pfile,"[%d]=Theta-norm2 ", iout++);
         fprintf(pfile,"[%d]=C-norm2 ",     iout++);
