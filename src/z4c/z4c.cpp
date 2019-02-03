@@ -38,6 +38,7 @@ char const * const Z4c::Constraint_names[Z4c::N_CON] = {
   "con.C",
   "con.H",
   "con.M",
+  "con.Z",
   "con.Mx", "con.My", "con.Mz",
 };
 
