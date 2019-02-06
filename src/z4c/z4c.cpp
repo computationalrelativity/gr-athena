@@ -309,11 +309,11 @@ void Z4c::SetZ4cAliases(AthenaArray<Real> & u, Z4c::Z4c_vars & z4c)
 // \!fn Real Z4c::SpatialDet(Real gxx, ... , Real gzz)
 // \brief returns determinant of 3-metric
 
-Real Z4c::SpatialDet(Real const gxx, Real const gxy, Real const gxz,
-                     Real const gyy, Real const gyz, Real const gzz)
-{
-  return - SQ(gxz)*gyy + 2*gxy*gxz*gyz - gxx*SQ(gyz) - SQ(gxy)*gzz + gxx*gyy*gzz;
-}
+//Real Z4c::SpatialDet(Real const gxx, Real const gxy, Real const gxz,
+//                     Real const gyy, Real const gyz, Real const gzz)
+//{
+//  return - SQ(gxz)*gyy + 2*gxy*gxz*gyz - gxx*SQ(gyz) - SQ(gxy)*gzz + gxx*gyy*gzz;
+//}
 
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::SpatialInv(Real const detginv,
@@ -378,7 +378,7 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b) {
       GLOOP1(i) {
-        z4c.g_dd(a,b,k,j,j,i) *= oopsi4(i);
+        z4c.g_dd(a,b,k,j,i) *= oopsi4(i);
       }
     }
 

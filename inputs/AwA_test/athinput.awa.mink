@@ -1,0 +1,57 @@
+<comment>
+problem         = Apples with Apples Test
+configure       = --prob=awa_test -z
+
+<job>
+problem_id      = Mink      # Basename of output filenames
+
+<problem>
+test            = minkowski # See possibilities in src/pgen/AwA_test.cpp
+
+<z4c>
+lapse_harmonic  = 0.0       # Harmonic lapse parameter mu_L
+lapse_oplog     = 1.0       # 1+log lapse parameter
+shift_eta       = 2.0       # Shift damping term
+diss            = 0.0       # Kreiss-Oliger dissipation parameter
+damp_kappa1     = 0.0       # Constraint damping factor 1
+damp_kappa2     = 0.0       # Constraint damping factor 2
+AwA_amplitude   = 0.0     
+AwA_sigma       = 1.0
+
+<output1>
+file_type       = tab       # Athena++ ASCII data
+variable        = adm       # variables to be output
+dt              = 1.0       # time increment between outputs
+data_format     = %.16e
+
+<output2>
+file_type       = hst       # History data
+dt              = 1.0       # time increment between outputs
+data_format     = %.16e
+
+<time>
+cfl_number      = 0.3       # Courant, Friedrichs, & Lewy (CFL) number
+tlim            = 100.      # time limit
+integrator      = rk4       # time integrator
+ncycle_out      = 1         # Print to stdout every so many timesteps
+
+<mesh>
+refinement      = static    # Static mesh refinement
+
+nx1             = 16        # Number of zones in X1-direction
+x1min           = 0.        # minimum value of X1
+x1max           = 1.        # maximum value of X1
+ix1_bc          = periodic  # inner-X1 boundary flag
+ox1_bc          = periodic  # inner-X1 boundary flag
+
+nx2             = 16        # Number of zones in X2-direction
+x2min           = 0.        # minimum value of X2
+x2max           = 1.        # maximum value of X2
+ix2_bc          = periodic  # inner-X2 boundary flag
+ox2_bc          = periodic  # inner-X2 boundary flag
+
+nx3             = 16        # Number of zones in X3-direction
+x3min           = 0.        # minimum value of X3
+x3max           = 1.        # maximum value of X3
+ix3_bc          = periodic  # inner-X3 boundary flag
+ox3_bc          = periodic  # inner-X3 boundary flag

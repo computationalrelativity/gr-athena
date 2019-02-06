@@ -357,7 +357,6 @@ enum TaskStatus Z4cIntegratorTaskList::CalculateZ4cRHS(MeshBlock *pmb, int stage
 enum TaskStatus Z4cIntegratorTaskList::Z4cIntegrate(MeshBlock *pmb, int stage)
 {
   Z4c *pz4c = pmb->pz4c;
-
   if (stage <= nstages) {
     // This time-integrator-specific averaging operation logic is identical to HydroInt
 
@@ -448,7 +447,6 @@ enum TaskStatus Z4cIntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int stag
   } else {
     return TASK_FAIL;
   }
-
   return TASK_SUCCESS;
 }
 
@@ -459,7 +457,6 @@ enum TaskStatus Z4cIntegratorTaskList::EnforceAlgConstr(MeshBlock *pmb, int stag
   else {
     return TASK_FAIL;
   }
-
   return TASK_SUCCESS;
 }
 

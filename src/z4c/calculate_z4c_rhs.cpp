@@ -168,8 +168,8 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
       SpatialInv(1.0/detg(i),
           z4c.g_dd(0,0,k,j,i), z4c.g_dd(0,1,k,j,i), z4c.g_dd(0,2,k,j,i),
           z4c.g_dd(1,1,k,j,i), z4c.g_dd(1,2,k,j,i), z4c.g_dd(2,2,k,j,i),
-          &g_uu(0,0,k,j,i),    &g_uu(0,1,k,j,i),    &g_uu(0,2,k,j,i),
-          &g_uu(1,1,k,j,i),    &g_uu(1,2,k,j,i),    &g_uu(2,2,k,j,i));
+          &g_uu(0,0,i), &g_uu(0,1,i), &g_uu(0,2,i),
+          &g_uu(1,1,i), &g_uu(1,2,i), &g_uu(2,2,i));
     }
     dg_duu.Zero();
     for(int a = 0; a < NDIM; ++a)

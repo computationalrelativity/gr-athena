@@ -298,6 +298,7 @@ int main(int argc, char *argv[]) {
 // Construct and initialize TaskList
 
   TaskList *ptlist;
+
   try {
     if (HYDRO_ENABLED) {
       ptlist = new TimeIntegratorTaskList(pinput, pmesh);
