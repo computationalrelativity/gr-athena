@@ -194,15 +194,12 @@ public:
   void SetZ4cAliases(AthenaArray<Real> & u, Z4c_vars & z4c);
 
   // compute spatial determinant of a 3x3  matrix
-//  Real SpatialDet(Real const gxx, Real const gxy, Real const gxz,
-//      Real const gyy, Real const gyz, Real const gzz);
+  Real SpatialDet(Real const gxx, Real const gxy, Real const gxz,
+      Real const gyy, Real const gyz, Real const gzz);
   Real SpatialDet(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & g,
                   int const k, int const j, int const i) {
-    return -SQR(g(0,2,k,j,i))*g(1,1,k,j,i) + 2.*g(0,1,k,j,i)*g(0,2,k,j,i)*g(1,2,k,j,i) - g(0,0,k,j,i)*SQR(g(1,2,k,j,i)) - SQR(g(0,1,k,j,i))*g(2,2,k,j,i) + g(0,0,k,j,i)*g(1,1,k,j,i)*g(2,2,k,j,i);
-    //     -SQ(gxz)*gyy                    + 2.*gxy*gxz*gyz                            - gxx*SQ(gyz)                    - SQ(gxy)*gzz                    + gxx*gyy*gzz;
-
-//    return SpatialDet(g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i),
-//                      g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i));
+    return SpatialDet(g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i),
+                      g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i));
   }
   // compute inverse of a 3x3 matrix
   void SpatialInv(Real const detginv,

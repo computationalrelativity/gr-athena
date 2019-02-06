@@ -25,9 +25,6 @@ void Z4c::AddZ4cRHS(AthenaArray<Real> & rhs, Real const wght, AthenaArray<Real> 
   for(int n = 0; n < N_Z4c; ++n) {
     ILOOP3(k,j,i) {
       u_out(n,k,j,i) += wght*(pmy_block->pmy_mesh->dt)*rhs(n,k,j,i);
-//      if (u_out(n,k,j,i) != u_out(n,k,j,i)) {
-//          std::cout << "PAM" << std::endl;
-//      }
     }
   }
   return;
