@@ -121,6 +121,11 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
   // Theta
   //
   z4c.Theta.Zero();
+
+  //--------------------------------------------------------------------------------------
+  // Algebraic constraints enforcement
+  //
+  AlgConstr(u);
 }
 
 //----------------------------------------------------------------------------------------
@@ -380,8 +385,8 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_con, AthenaArray<Real> & u_adm,
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
       ILOOP1(i) {
-        con.Z(k,j,i) += adm.g_dd(a,b,k,j,i)*(z4c.Gam_u(a,k,j,i) - Gamma_u(a,i))
-                                           *(z4c.Gam_u(b,k,j,i) - Gamma_u(b,i));
+        con.Z(k,j,i) += 0.25*adm.g_dd(a,b,k,j,i)*(z4c.Gam_u(a,k,j,i) - Gamma_u(a,i))
+                                                *(z4c.Gam_u(b,k,j,i) - Gamma_u(b,i));
       }
     }
     // Constraint violation monitor C^2

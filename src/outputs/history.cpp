@@ -117,23 +117,47 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
           data_sum[isum++] += vol(i)*SQR(wave_error);
         }
         if (Z4C_ENABLED) {
-          Real const H_err  = std::abs(pz4c->con.H(k,j,i));
-          Real const M2_err = std::abs(pz4c->con.M(k,j,i));
-          Real const Mx_err = std::abs(pz4c->con.M_d(0,k,j,i));
-          Real const My_err = std::abs(pz4c->con.M_d(1,k,j,i));
-          Real const Mz_err = std::abs(pz4c->con.M_d(2,k,j,i));
-          Real const Z2_err = std::abs(pz4c->con.Z(k,j,i));
-          Real const theta  = std::abs(pz4c->z4c.Theta(k,j,i));
-          Real const C2_err = std::abs(pz4c->con.C(k,j,i));
+//          Real const H_err  = std::abs(pz4c->con.H(k,j,i));
+//          Real const M2_err = std::abs(pz4c->con.M(k,j,i));
+//          Real const Mx_err = std::abs(pz4c->con.M_d(0,k,j,i));
+//          Real const My_err = std::abs(pz4c->con.M_d(1,k,j,i));
+//          Real const Mz_err = std::abs(pz4c->con.M_d(2,k,j,i));
+//          Real const Z2_err = std::abs(pz4c->con.Z(k,j,i));
+//          Real const theta  = std::abs(pz4c->z4c.Theta(k,j,i));
+//          Real const C2_err = std::abs(pz4c->con.C(k,j,i));
 
-          data_sum[isum++] += vol(i)*SQR(H_err);
-          data_sum[isum++] += vol(i)*M2_err; //M is already squared
-          data_sum[isum++] += vol(i)*SQR(Mx_err);
-          data_sum[isum++] += vol(i)*SQR(My_err);
-          data_sum[isum++] += vol(i)*SQR(Mz_err);
-          data_sum[isum++] += vol(i)*Z2_err; //Z is already squared
-          data_sum[isum++] += vol(i)*SQR(theta);
-          data_sum[isum++] += vol(i)*C2_err; //C is already squared
+//          data_sum[isum++] += vol(i)*SQR(H_err);
+//          data_sum[isum++] += vol(i)*M2_err; //M is already squared
+//          data_sum[isum++] += vol(i)*SQR(Mx_err);
+//          data_sum[isum++] += vol(i)*SQR(My_err);
+//          data_sum[isum++] += vol(i)*SQR(Mz_err);
+//          data_sum[isum++] += vol(i)*Z2_err; //Z is already squared
+//          data_sum[isum++] += vol(i)*SQR(theta);
+//          data_sum[isum++] += vol(i)*C2_err; //C is already squared
+
+//          Real const alpha  = std::abs(pz4c->z4c.alpha(k,j,i));
+//          Real const beta_x = std::abs(pz4c->z4c.beta_u(0,k,j,i));
+//          Real const beta_y = std::abs(pz4c->z4c.beta_u(1,k,j,i));
+//          Real const beta_z = std::abs(pz4c->z4c.beta_u(2,k,j,i));
+//          Real const g_xx   = std::abs(pz4c->adm.g_dd(0,0,k,j,i));
+//          Real const g_xy   = std::abs(pz4c->adm.g_dd(0,1,k,j,i));
+//          Real const g_xz   = std::abs(pz4c->adm.g_dd(0,2,k,j,i));
+//          Real const g_yy   = std::abs(pz4c->adm.g_dd(1,1,k,j,i));
+//          Real const g_yz   = std::abs(pz4c->adm.g_dd(1,2,k,j,i));
+//          Real const g_zz   = std::abs(pz4c->adm.g_dd(2,2,k,j,i));
+//          Real const theta  = std::abs(pz4c->z4c.Theta(k,j,i));
+//          Real const f_x    = std::abs(pz4c->con.f_u(0,k,j,i));
+//          Real const f_y    = std::abs(pz4c->con.f_u(1,k,j,i));
+//          Real const f_z    = std::abs(pz4c->con.f_u(2,k,j,i));
+//          Real const K_xx   = std::abs(pz4c->adm.K_dd(0,0,k,j,i));
+//          Real const K_xy   = std::abs(pz4c->adm.K_dd(0,1,k,j,i));
+//          Real const K_xz   = std::abs(pz4c->adm.K_dd(0,2,k,j,i));
+//          Real const K_yy   = std::abs(pz4c->adm.K_dd(1,1,k,j,i));
+//          Real const K_yz   = std::abs(pz4c->adm.K_dd(1,2,k,j,i));
+//          Real const K_zz   = std::abs(pz4c->adm.K_dd(2,2,k,j,i));
+//          Real const Dalpha = std::abs(pz4c->z4c.Dalpha(k,j,i));
+
+//          data_sum[isum++] += vol(i)*(SQR(alpha) + SQR(theta) );
         }
         nhistory_output = isum;
       }
