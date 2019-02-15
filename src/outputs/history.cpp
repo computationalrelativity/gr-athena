@@ -199,14 +199,13 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
       }
       if (Z4C_ENABLED) {
         fprintf(pfile,"[%d]=H-norm2 ",     iout++);
-        fprintf(pfile,"[%d]=D-norm2 ",     iout++);
-//        fprintf(pfile,"[%d]=M-norm2 ",     iout++);
-//        fprintf(pfile,"[%d]=Mx-norm2 ",    iout++);
-//        fprintf(pfile,"[%d]=My-norm2 ",    iout++);
-//        fprintf(pfile,"[%d]=Mz-norm2 ",    iout++);
-//        fprintf(pfile,"[%d]=Z-norm2 ",     iout++);
-//        fprintf(pfile,"[%d]=Theta-norm2 ", iout++);
-//        fprintf(pfile,"[%d]=C-norm2 ",     iout++);
+        fprintf(pfile,"[%d]=M-norm2 ",     iout++);
+        fprintf(pfile,"[%d]=Mx-norm2 ",    iout++);
+        fprintf(pfile,"[%d]=My-norm2 ",    iout++);
+        fprintf(pfile,"[%d]=Mz-norm2 ",    iout++);
+        fprintf(pfile,"[%d]=Z-norm2 ",     iout++);
+        fprintf(pfile,"[%d]=Theta-norm2 ", iout++);
+        fprintf(pfile,"[%d]=C-norm2 ",     iout++);
       }
 
       for (int n=0; n<pm->nuser_history_output_; n++)
