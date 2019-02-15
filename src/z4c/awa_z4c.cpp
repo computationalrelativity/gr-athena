@@ -72,36 +72,30 @@ void Z4c::ADMLinearWave1(AthenaArray<Real> & u_adm)
 
   MeshBlock * pmb = pmy_block;
   Coordinates * pco = pmb->pcoord;
-
+  
   // Flat spacetime
   ADMMinkowski(u_adm);
-
-  // Set direction
-  const int alldirections[3][3] = { {0,1,2}, {1,2,0}, {2,0,1} };
-  const int *dir = alldirections[opt.AwA_direction];
-
+  
   // For propagation along x ...
-  GLOOP2(k,j) {
-    switch (opt.AwA_direction) {
-    case 0: GLOOP1(i) { r(i) = pco->x1v(i); } break;
-    case 1: GLOOP1(i) { r(i) = pco->x2v(j); } break;
-    case 2: GLOOP1(i) { r(i) = pco->x3v(k); } break;
-    }
+  GLOOP2(k,j) {    
+    GLOOP1(i) {
+      r(i) = pco->x1v(i); 
+    } 
     // g_yy
     GLOOP1(i) {
-      adm.g_dd(dir[1],dir[1],k,j,i) += SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));
+      adm.g_dd(1,1,k,j,i) += SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));
     }
     // g_zz
     GLOOP1(i) {
-      adm.g_dd(dir[2],dir[2],k,j,i) -= SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));
+      adm.g_dd(2,2,k,j,i) -= SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));
     }
     // K_yy
     GLOOP1(i) {
-      adm.K_dd(dir[1],dir[1],k,j,i) += 0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));;
+      adm.K_dd(1,1,k,j,i) += 0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));;
     }
     // K_zz
     GLOOP1(i) {
-      adm.K_dd(dir[2],dir[2],k,j,i) -= 0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));
+      adm.K_dd(2,2,k,j,i) -= 0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));
     }
   }
 }
@@ -166,25 +160,19 @@ void Z4c::ADMGaugeWave1(AthenaArray<Real> & u_adm)
 
   // Flat spacetime
   ADMMinkowski(u_adm);
-
-  // Set direction
-  const int alldirections[3][3] = { {0,1,2}, {1,2,0}, {2,0,1} };
-  const int *dir = alldirections[opt.AwA_direction];
-
+  
   // For propagation along x ...
   GLOOP2(k,j) {
-    switch (opt.AwA_direction) {
-    case 0: GLOOP1(i) { r(i) = pco->x1v(i); } break;
-    case 1: GLOOP1(i) { r(i) = pco->x2v(j); } break;
-    case 2: GLOOP1(i) { r(i) = pco->x3v(k); } break;
-    }
+    GLOOP1(i) { 
+      r(i) = pco->x1v(i); 
+    } 
     // g_xx
     GLOOP1(i) {
-      adm.g_dd(dir[0],dir[0],k,j,i) += SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));
+      adm.g_dd(0,0,k,j,i) += SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));
     }
     // K_xx
     GLOOP1(i) {
-      adm.K_dd(dir[0],dir[0],k,j,i) =
+      adm.K_dd(0,0,k,j,i) =
         0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i))/
         (std::sqrt(1.0 - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i))));
     }
@@ -205,16 +193,10 @@ void Z4c::GaugeGaugeWaveLapse(AthenaArray<Real> & u)
   MeshBlock * pmb = pmy_block;
   Coordinates * pco = pmb->pcoord;
 
-  // Set direction
-  const int alldirections[3][3] = { {0,1,2}, {1,2,0}, {2,0,1} };
-  const int *dir = alldirections[opt.AwA_direction];
-
   GLOOP2(k,j) {
-    switch (opt.AwA_direction) {
-    case 0: GLOOP1(i) { r(i) = pco->x1v(i); } break;
-    case 1: GLOOP1(i) { r(i) = pco->x2v(j); } break;
-    case 2: GLOOP1(i) { r(i) = pco->x3v(k); } break;
-    }
+    GLOOP1(i) { 
+      r(i) = pco->x1v(i); 
+    } 
     // alpha
     GLOOP1(i) {
       z4c.alpha(k,j,i) = std::sqrt(1.0 - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i)));
@@ -236,15 +218,9 @@ void Z4c::GaugeGaugeWaveLapseShift(AthenaArray<Real> & u)
   MeshBlock * pmb = pmy_block;
   Coordinates * pco = pmb->pcoord;
 
-  // Set direction
-  const int alldirections[3][3] = { {0,1,2}, {2,0,1}, {1,2,0} };
-  const int *dir = alldirections[opt.AwA_direction];
-
   GLOOP2(k,j) {
-    switch (opt.AwA_direction) {
-    case 0: GLOOP1(i) { r(i) = pco->x1v(i); } break;
-    case 1: GLOOP1(i) { r(i) = pco->x2v(j); } break;
-    case 2: GLOOP1(i) { r(i) = pco->x3v(k); } break;
+    GLOOP1(i) { 
+      r(i) = pco->x1v(i); 
     }
     // alpha
     GLOOP1(i) {
@@ -252,7 +228,7 @@ void Z4c::GaugeGaugeWaveLapseShift(AthenaArray<Real> & u)
     }
     // shift
     GLOOP1(i) {
-      z4c.beta_u(dir[0],k,j,i) = - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i))/(SQR(z4c.alpha(k,j,i)));
+      z4c.beta_u(0,k,j,i) = - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i))/(SQR(z4c.alpha(k,j,i)));
     }
   }
 }
