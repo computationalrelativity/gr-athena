@@ -372,7 +372,7 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
       detg(i) = SpatialDet(z4c.g_dd,k,j,i);
       detg(i) = detg(i) > 0. ? detg(i) : 1.;
       Real eps = detg(i) - 1.;
-      oopsi4(i) = (eps < opt.eps_floor) ? (1. - opt.eps_floor/3.) : (pow(1./detg(i), 3));
+      oopsi4(i) = (eps < opt.eps_floor) ? (1. - opt.eps_floor/3.) : (pow(1./detg(i), 1./3.);
     }
     // enforce unitary determinant for conformal metric
     for(int a = 0; a < NDIM; ++a)
