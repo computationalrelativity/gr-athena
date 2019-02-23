@@ -22,6 +22,10 @@ std::uniform_real_distribution<double> distribution(-1.,1.);
 #define SINWAVE(a,d,x) ((a)*std::sin(2*M_PI*(x)/(d)))
 #define DSINWAVE(a,d,x) (-(a)*2.0*M_PI/(d)*std::cos(2*M_PI*(x)/(d)))
 
+// Gaussian profile for various wave tests
+#define GAUSSIAN(a,d,x)  (           (a)*std::exp(-SQR(x)/(2.*SQR(d))))
+#define DGAUSSIAN(a,d,x) ((x)/SQR(d)*(a)*std::exp(-SQR(x)/(2.*SQR(d))))
+
 // Athena++ headers
 #include "z4c.hpp"
 #include "z4c_macro.hpp"

@@ -11,7 +11,7 @@
 // Centered finite differencing 1st derivative
 template<>
 Real const FDCenteredStencil<1, 1>::coeff[] = {
-  1./2., 0., -1./2.,
+  -1./2., 0., 1./2.,
 };
 
 template<>
