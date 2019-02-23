@@ -122,6 +122,9 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 Loop in 3 indices
 el down es el primero o el ultimo?
 Donde va el signo -?
+simetrias
+new branch
+....................................
 
   ILOOP2(k,j){
   for(int a = 0; a < NDIM; ++a)
