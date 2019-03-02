@@ -162,11 +162,11 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   // Setup finite differencing kernel
   // NOTE: this will need to be changed if the Z4c variables become vertex center
   FD.stride[0] = 1;
-  FD.stride[1] = 0;
-  FD.stride[2] = 0;
+  FD.stride[1] = 0; //1; //0;
+  FD.stride[2] = 0; //1; //0;
   FD.idx[0] = 1.0/pco->dx1v(0);
-  FD.idx[1] = 0.0;
-  FD.idx[2] = 0.0;
+  FD.idx[1] = 0.; //1.0/pco->dx1v(0); //0.0;
+  FD.idx[2] = 0.; //1.0/pco->dx1v(0); //0.0;
   if(ncells2 > 1) {
     FD.stride[1] = ncells1;
     FD.idx[1] = 1.0/pco->dx2v(0);
