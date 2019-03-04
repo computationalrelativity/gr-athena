@@ -94,9 +94,6 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g_uu;
   g_uu.NewAthenaTensor(ncells3, ncells2, ncells1);
 
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 3> Gam_aux_duu; //simetrias de Gam_aux??
-  Gam_aux_duu.NewAthenaTensor(ncells3, ncells2, ncells1);
-
   // Inverse conformal metric
   GLOOP3(k,j,i) {
     detg(i) = SpatialDet(z4c.g_dd, k, j, i);
@@ -109,41 +106,14 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 
   // Compute Gamma's
   z4c.Gam_u.Zero();
-
   ILOOP2(k,j) {
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
       ILOOP1(i) {
         z4c.Gam_u(a,k,j,i) -= FD.Dx(b, g_uu(a,b,k,j,i));
-//                z4c.Gam_u(a,k,j,i) = adm.g_dd(1,1,k,j,i); // z4c.g_dd(1,1,k,j,i); //g_uu(1,1,k,j,i);
       }
     }
   }
-
-//  ILOOP2(k,j) {
-//    for(int a = 0; a < NDIM; ++a)
-//    for(int b = 0; b < NDIM; ++b)
-//    for(int c = 0; c < NDIM; ++c) {
-//      ILOOP1(i) {
-//        Gam_aux_duu(c,a,b,k,j,i) -= FD.Dx(c, g_uu(a,b,k,j,i));
-//      }
-//    }
-
-//    for(int a = 0; a < NDIM; ++a)
-//    for(int b = 0; b < NDIM; ++b)
-//    for(int f = 0; f < NDIM; ++f)
-//    for(int c = 0; c < NDIM; ++c) {
-//      ILOOP1(i) {
-//        z4c.Gam_u(a,k,j,i) += z4c.g_dd(b,f,k,j,i)*g_uu(f,c,k,j,i)*Gam_aux_duu(c,a,b,k,j,i);
-//      }
-//    }
-//  }
-
-//  ILOOP1(i) {
-//      std::cout << i << "  " << std::setprecision(30) << z4c.Gam_u(0,0,0,i) - 1. << std::endl;
-//  }
-
-  Gam_aux_duu.DeleteAthenaTensor();
 
   g_uu.DeleteAthenaTensor();
 
