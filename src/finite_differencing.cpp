@@ -74,7 +74,7 @@ Real const FDCenteredStencil<10, 5>::coeff[] = {
 // Left-biased finite differencing 1st derivative
 template<>
 Real const FDLeftBiasedStencil<1, 1>::coeff[] = {
-  1., -1.,
+  -1., 1.,
 };
 
 template<>
@@ -100,7 +100,7 @@ Real const FDLeftBiasedStencil<1, 5>::coeff[] = {
 // Right-biased finite differencing 1st derivative
 template<>
 Real const FDRightBiasedStencil<1, 1>::coeff[] = {
-  1., -1.,
+  -1., 1.,
 };
 
 template<>
