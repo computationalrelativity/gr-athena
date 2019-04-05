@@ -12,6 +12,8 @@
 #include <cmath> // pow, rand, sin, sqrt
 #include <ctime>
 #include <random>
+#include <iostream>
+#include <fstream>
 
 // random number in [-1,1]
 std::default_random_engine generator;
@@ -172,7 +174,7 @@ void Z4c::ADMGaugeWave1(AthenaArray<Real> & u_adm)
     } 
     // g_xx
     GLOOP1(i) {
-      adm.g_dd(0,0,k,j,i) += SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));
+      adm.g_dd(0,0,k,j,i) -= SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));
     }
     // K_xx
     GLOOP1(i) {

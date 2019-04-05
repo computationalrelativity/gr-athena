@@ -6,6 +6,9 @@
 //! \file z4c.cpp
 //  \brief implementation of functions in the Z4c class
 
+#include <iostream>
+#include <fstream>
+
 // Athena++ headers
 #include "z4c.hpp"
 #include "z4c_macro.hpp"
@@ -362,10 +365,22 @@ Real Z4c::Trace(Real const detginv,
 
 void Z4c::AlgConstr(AthenaArray<Real> & u)
 {
+//std::cout << "AlgConstr happening" << std::endl;
   Z4c_vars z4c;
   SetZ4cAliases(u, z4c);
 
   GLOOP2(k,j) {
+
+//      //////////////////////////////////////////// TESTING ARRAYS
+//      std::cout << "Writig test output to file..." << std::endl;
+//      std::ofstream outdata;
+//      outdata.open ("output.dat");
+//      ILOOP1(i) {
+//          outdata << i << "  " << z4c.A_dd(0,0,k,j,i) << std::endl;
+//      }
+//      outdata.close();
+//      ///////////////////////////////////////////////////////////
+
     // compute determinant and "conformal conformal factor"
     GLOOP1(i) {
       detg(i) = SpatialDet(z4c.g_dd,k,j,i);

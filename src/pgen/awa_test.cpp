@@ -36,27 +36,27 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   else if(test == "linear_wave1") {
       pz4c->ADMLinearWave1(pz4c->storage.adm);
       pz4c->GaugeGeodesic(pz4c->storage.u);
-      std::cout << "Linear Wave test 1d initialized" << std::endl;
+      std::cout << "Linear 1D wave test initialized" << std::endl;
   }
   else if(test == "linear_wave2") {
       pz4c->ADMLinearWave2(pz4c->storage.adm);
       pz4c->GaugeGeodesic(pz4c->storage.u);
-      std::cout << "Linear Wave test 2d initialized" << std::endl;
+      std::cout << "Linear 2D wave test initialized" << std::endl;
   }
   else if(test == "gauge_wave1_lapse") {
       pz4c->ADMGaugeWave1(pz4c->storage.adm);
       pz4c->GaugeGaugeWaveLapse(pz4c->storage.u);
-      std::cout << "Gauge wave test 1d initialized" << std::endl;
+      std::cout << "Gauge 1D wave test initialized" << std::endl;
   }
   else if(test == "gauge_wave_lapse_shift") {
       pz4c->ADMGaugeWave1(pz4c->storage.adm);
       pz4c->GaugeGaugeWaveLapseShift(pz4c->storage.u);
-      std::cout << "Gauge wave test with shift 1d initialized" << std::endl;
+      std::cout << "Gauge 1D wave test with shift initialized" << std::endl;
   }
   else if(test == "gauge_wave2") {
       pz4c->ADMGaugeWave2(pz4c->storage.adm);
       pz4c->GaugeGaugeWaveLapse(pz4c->storage.u);
-      std::cout << "Gauge wave test 2d initialized" << std::endl;
+      std::cout << "Gauge 2D wave test initialized" << std::endl;
   }
   else {
     pz4c->ADMMinkowski(pz4c->storage.adm);

@@ -9,6 +9,8 @@
 // C++ standard headers
 #include <algorithm> // max
 #include <cmath> // exp, pow, sqrt
+#include <iostream>
+#include <fstream>
 
 // Athena++ headers
 #include "z4c.hpp"
@@ -24,6 +26,7 @@
 
 void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<Real> & u_rhs)
 {
+//std::cout << "Z4cRHS happening" << std::endl;
   Z4c_vars z4c, rhs;
   SetZ4cAliases(u, z4c);
   SetZ4cAliases(u_rhs, rhs);
@@ -245,8 +248,9 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     //
     ILOOP1(i) {
       chi_guarded(i) = std::max(z4c.chi(k,j,i), opt.chi_div_floor);
-      oopsi4(i) = pow(chi_guarded(i), 4./opt.chi_psi_power);
+      oopsi4(i) = pow(chi_guarded(i), -4./opt.chi_psi_power);
     }
+
     for(int a = 0; a < NDIM; ++a) {
       ILOOP1(i) {
         dphi_d(a,i) = dchi_d(a,i)/(chi_guarded(i) * opt.chi_psi_power);
@@ -272,13 +276,13 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b) {
       ILOOP1(i) {
-        Rphi_dd(a,b,i) = 4*dphi_d(a,i)*dphi_d(b,i) - 2*Ddphi_dd(a,b,i);
+        Rphi_dd(a,b,i) = 4.*dphi_d(a,i)*dphi_d(b,i) - 2.*Ddphi_dd(a,b,i);
       }
       for(int c = 0; c < NDIM; ++c)
       for(int d = 0; d < NDIM; ++d) {
         ILOOP1(i) {
-          Rphi_dd(a,b,i) -= 2. * z4c.g_dd(a,b,k,j,i) * g_uu(c,d,i)*(Ddphi_dd(c,d,i) +
-              2. * dphi_d(c,i) * dphi_d(d,i));
+          Rphi_dd(a,b,i) -= 2.*z4c.g_dd(a,b,k,j,i) * g_uu(c,d,i)*(Ddphi_dd(c,d,i) +
+              2.*dphi_d(c,i)*dphi_d(d,i));
         }
       }
     }
@@ -298,10 +302,10 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     // 2nd covariant derivative of the lapse
     //
     for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b) {
+    for(int b = 0; b < NDIM; ++b) { //From b=a or b=0?
       ILOOP1(i) {
-        Ddalpha_dd(a,b,i) = ddalpha_dd(a,b,i) -
-          2.*(dphi_d(a,i)*dalpha_d(a,i) + dphi_d(b,i)*dalpha_d(a,i));
+        Ddalpha_dd(a,b,i) = ddalpha_dd(a,b,i)
+                          - 2.*(dphi_d(a,i)*dalpha_d(b,i) + dphi_d(b,i)*dalpha_d(a,i));
       }
       for(int c = 0; c < NDIM; ++c) {
         ILOOP1(i) {
@@ -309,11 +313,12 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
         }
         for(int d = 0; d < NDIM; ++d) {
           ILOOP1(i) {
-            Ddalpha_dd(a,b,i) += 2. * z4c.g_dd(a,b,k,j,i) * g_uu(c,d,i) * dphi_d(c,i) * dalpha_d(d,i);
+            Ddalpha_dd(a,b,i) += 2.*z4c.g_dd(a,b,k,j,i) * g_uu(c,d,i) * dphi_d(c,i) * dalpha_d(d,i);
           }
         }
       }
     }
+
     Ddalpha.Zero();
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
@@ -327,7 +332,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     //
     AA_dd.Zero();
     for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b)
+    for(int b = a; b < NDIM; ++b) //** Should it be b=0? **//
     for(int c = 0; c < NDIM; ++c)
     for(int d = 0; d < NDIM; ++d) {
       ILOOP1(i) {
@@ -373,9 +378,27 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
       ILOOP1(i) {
-        R(i) += oopsi4(i) * g_uu(a,b,i) * (R_dd(a,b,i) + Rphi_dd(a,b,i));
+        //R(i) += oopsi4(i) * g_uu(a,b,i) * (R_dd(a,b,i) + Rphi_dd(a,b,i));
       }
     }
+
+    ILOOP1(i) {
+        //R(i) = Rphi_dd(2,2,i); // ok
+        //R(i) = R_dd(0,0,i) + Rphi_dd(0,0,i) + R_dd(1,1,i) + R_dd(2,2,i) + Rphi_dd(1,1,i);                  //ok
+        //R(i) = Rphi_dd(0,0,i) + Rphi_dd(1,1,i) + Rphi_dd(2,2,i) + R_dd(0,0,i) + R_dd(1,1,i);               //ok
+        //R(i) = Rphi_dd(0,0,i) + Rphi_dd(1,1,i) + Rphi_dd(2,2,i) + R_dd(1,1,i) + R_dd(2,2,i);               //ok
+        R(i) = R_dd(0,0,i) + R_dd(1,1,i) + R_dd(2,2,i) + Rphi_dd(0,0,i) + Rphi_dd(1,1,i)+ Rphi_dd(2,2,i); //NOT ok
+    }
+
+    //////////////////////////////////////////// TESTING ARRAYS
+    std::cout << "Writing test output to file..." << std::endl;
+    std::ofstream outdata;
+    outdata.open ("output.dat");
+    ILOOP1(i) {
+        outdata << i << "  " << R(i) << std::endl;
+    }
+    outdata.close();
+    ///////////////////////////////////////////////////////////
 
     // -----------------------------------------------------------------------------------
     // Hamiltonian constraint
@@ -450,7 +473,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
         chi_guarded(i) * z4c.alpha(k,j,i) * K(i);
       rhs.Theta(k,j,i) = LTheta(i) + z4c.alpha(k,j,i) * (
           0.5*Ht(i) - (2. + opt.damp_kappa2) * opt.damp_kappa1 * z4c.Theta(k,j,i));
-      rhs.Theta(k,j,i) -= 8*M_PI * z4c.alpha(k,j,i) * mat.rho(k,j,i);
+      rhs.Theta(k,j,i) -= 8.*M_PI * z4c.alpha(k,j,i) * mat.rho(k,j,i);
     }
     // Gamma's
     for(int a = 0; a < NDIM; ++a) {
@@ -488,8 +511,8 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     // shift vector
     for(int a = 0; a < NDIM; ++a) {
       ILOOP1(i) {
-        rhs.beta_u(a,k,j,i) = z4c.Gam_u(a,k,j,i) + opt.shift_advect * Lbeta_u(a,i);
-        rhs.beta_u(a,k,j,i) -= opt.shift_eta * z4c.beta_u(a,k,j,i);
+        rhs.beta_u(a,k,j,i) = 0.; //z4c.Gam_u(a,k,j,i) + opt.shift_advect * Lbeta_u(a,i);
+        //rhs.beta_u(a,k,j,i) -= opt.shift_eta * z4c.beta_u(a,k,j,i);
       }
     }
   }

@@ -9,6 +9,7 @@
 // C++ standard headers
 #include <cmath> // pow
 #include <iostream>
+#include <fstream>
 
 // Athena++ headers
 #include "z4c.hpp"
@@ -40,6 +41,7 @@
 
 void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 {
+//std::cout << "ADMtoZ4c happening" << std::endl;
   ADM_vars adm;
   SetADMAliases(u_adm, adm);
   Z4c_vars z4c;
@@ -64,6 +66,7 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
         Kt_dd(a,b,i) = oopsi4(i) * adm.K_dd(a,b,k,j,i);
       }
     }
+
     // Determinant of the conformal metric and trace of conf. extr. curvature
     GLOOP1(i) {
       detg(i) = SpatialDet(z4c.g_dd, k, j, i);
@@ -77,8 +80,8 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b) {
       GLOOP1(i) {
-        z4c.A_dd(a,b,k,j,i) = (adm.K_dd(a,b,k,j,i) -
-            (1./3.) * z4c.Khat(k,j,i) * adm.g_dd(a,b,k,j,i))*oopsi4(i);
+          z4c.A_dd(a,b,k,j,i) =
+                  Kt_dd(a,b,i) - (1./3.) * z4c.Khat(k,j,i) * z4c.g_dd(a,b,k,j,i);
       }
     }
   }
@@ -125,7 +128,10 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
   //--------------------------------------------------------------------------------------
   // Algebraic constraints enforcement
   //
-  AlgConstr(u);
+//  AlgConstr(u);
+  //This should not be enforced during tests
+  //where intial data are constraint-violating,
+  //like gauge wave tests, for example.
 }
 
 //----------------------------------------------------------------------------------------
@@ -136,6 +142,7 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 
 void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
 {
+//std::cout << "Z4cToADM happening!!!" << std::endl;
   ADM_vars adm;
   SetADMAliases(u_adm, adm);
   Z4c_vars z4c;
