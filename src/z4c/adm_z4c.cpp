@@ -298,7 +298,7 @@ void Z4c::ADMConstraints(AthenaArray<Real> & u_con, AthenaArray<Real> & u_adm,
         }
       }
       ILOOP1(i) {
-        R(i) += g_uu(a,b,i) * R(a,b,i);
+        R(i) += g_uu(a,b,i) * R_dd(a,b,i);
       }
     }
 
