@@ -9,6 +9,7 @@
 // C++ standard headers
 #include <algorithm> // max
 #include <cmath> // exp, pow, sqrt
+#include <iomanip>
 #include <iostream>
 #include <fstream>
 
@@ -378,16 +379,16 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
       ILOOP1(i) {
-        //R(i) += oopsi4(i) * g_uu(a,b,i) * (R_dd(a,b,i) + Rphi_dd(a,b,i));
+        R(i) += oopsi4(i) * g_uu(a,b,i) * (R_dd(a,b,i) + Rphi_dd(a,b,i));
       }
     }
 
     ILOOP1(i) {
-        //R(i) = Rphi_dd(2,2,i); // ok
+        //R(i) = R_dd(0,0,i); // ok
         //R(i) = R_dd(0,0,i) + Rphi_dd(0,0,i) + R_dd(1,1,i) + R_dd(2,2,i) + Rphi_dd(1,1,i);                  //ok
         //R(i) = Rphi_dd(0,0,i) + Rphi_dd(1,1,i) + Rphi_dd(2,2,i) + R_dd(0,0,i) + R_dd(1,1,i);               //ok
         //R(i) = Rphi_dd(0,0,i) + Rphi_dd(1,1,i) + Rphi_dd(2,2,i) + R_dd(1,1,i) + R_dd(2,2,i);               //ok
-        R(i) = R_dd(0,0,i) + R_dd(1,1,i) + R_dd(2,2,i) + Rphi_dd(0,0,i) + Rphi_dd(1,1,i)+ Rphi_dd(2,2,i); //NOT ok
+        //R(i) = Rphi_dd(0,0,i) + Rphi_dd(1,1,i) + Rphi_dd(2,2,i) + R_dd(0,0,i) + R_dd(1,1,i) + R_dd(2,2,i);               //NOT ok
     }
 
     //////////////////////////////////////////// TESTING ARRAYS
@@ -395,7 +396,16 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     std::ofstream outdata;
     outdata.open ("output.dat");
     ILOOP1(i) {
-        outdata << i << "  " << R(i) << std::endl;
+        outdata << i << "  "
+                << std::setprecision(17)
+                << R_dd(0,0,i) << " "
+                << R_dd(1,1,i) << " "
+                << R_dd(2,2,i) << " "
+                << Rphi_dd(0,0,i) << " "
+                << Rphi_dd(1,1,i) << " "
+                << Rphi_dd(2,2,i) << " "
+                << R(i) << " "
+                << std::endl;
     }
     outdata.close();
     ///////////////////////////////////////////////////////////
