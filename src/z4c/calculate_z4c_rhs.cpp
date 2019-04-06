@@ -27,7 +27,7 @@
 
 void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<Real> & u_rhs)
 {
-//std::cout << "Z4cRHS happening" << std::endl;
+
   Z4c_vars z4c, rhs;
   SetZ4cAliases(u, z4c);
   SetZ4cAliases(u_rhs, rhs);
@@ -306,7 +306,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     // 2nd covariant derivative of the lapse
     //
     for(int a = 0; a < NDIM; ++a)
-    for(int b = 0; b < NDIM; ++b) { //From b=a or b=0?
+    for(int b = 0; b < NDIM; ++b) { 
       ILOOP1(i) {
         Ddalpha_dd(a,b,i) = ddalpha_dd(a,b,i)
                           - 2.*(dphi_d(a,i)*dalpha_d(b,i) + dphi_d(b,i)*dalpha_d(a,i));
@@ -386,18 +386,12 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
       }
     }
 
-    ILOOP1(i) {
-        //R(i) = R_dd(0,0,i); // ok
-        //R(i) = R_dd(0,0,i) + Rphi_dd(0,0,i) + R_dd(1,1,i) + R_dd(2,2,i) + Rphi_dd(1,1,i);                  //ok
-        //R(i) = Rphi_dd(0,0,i) + Rphi_dd(1,1,i) + Rphi_dd(2,2,i) + R_dd(0,0,i) + R_dd(1,1,i);               //ok
-        //R(i) = Rphi_dd(0,0,i) + Rphi_dd(1,1,i) + Rphi_dd(2,2,i) + R_dd(1,1,i) + R_dd(2,2,i);               //ok
-        //R(i) = Rphi_dd(0,0,i) + Rphi_dd(1,1,i) + Rphi_dd(2,2,i) + R_dd(0,0,i) + R_dd(1,1,i) + R_dd(2,2,i);               //NOT ok
-    }
-
-    //////////////////////////////////////////// TESTING ARRAYS
+    // DEBUG
+    
     std::cout << "Writing test output to file..." << std::endl;
     std::ofstream outdata;
     outdata.open ("output.dat");
+    //outdata.open ("output1.dat");// for conv test
     ILOOP1(i) {
         outdata << i << "  "
                 << std::setprecision(17)
@@ -411,8 +405,9 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
                 << std::endl;
     }
     outdata.close();
-    ///////////////////////////////////////////////////////////
 
+    // ENDDEBUG
+    
     // -----------------------------------------------------------------------------------
     // Hamiltonian constraint
     //
@@ -524,8 +519,15 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     // shift vector
     for(int a = 0; a < NDIM; ++a) {
       ILOOP1(i) {
-        rhs.beta_u(a,k,j,i) = 0.; //z4c.Gam_u(a,k,j,i) + opt.shift_advect * Lbeta_u(a,i);
+
+	//rhs.beta_u(a,k,j,i) = z4c.Gam_u(a,k,j,i) + opt.shift_advect * Lbeta_u(a,i);
         //rhs.beta_u(a,k,j,i) -= opt.shift_eta * z4c.beta_u(a,k,j,i);
+	
+	// DEBUG
+	// zero shift:
+	rhs.beta_u(a,k,j,i) = 0.;
+	// ENDDEBUG
+
       }
     }
   }
