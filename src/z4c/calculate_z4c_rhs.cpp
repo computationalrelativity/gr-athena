@@ -520,11 +520,12 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     for(int a = 0; a < NDIM; ++a) {
       ILOOP1(i) {
 
+	// DEBUG
+	
 	//rhs.beta_u(a,k,j,i) = z4c.Gam_u(a,k,j,i) + opt.shift_advect * Lbeta_u(a,i);
         //rhs.beta_u(a,k,j,i) -= opt.shift_eta * z4c.beta_u(a,k,j,i);
-	
-	// DEBUG
-	// zero shift:
+
+	// force zero shift:
 	rhs.beta_u(a,k,j,i) = 0.;
 	// ENDDEBUG
 
