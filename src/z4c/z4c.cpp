@@ -275,8 +275,8 @@ void Z4c::SetConstraintAliases(AthenaArray<Real> & u_con, Z4c::Constraint_vars &
 {
   con.C.InitWithShallowSlice(u_con, I_CON_C);
   con.H.InitWithShallowSlice(u_con, I_CON_H);
-  con.Z.InitWithShallowSlice(u_con, I_CON_M);
-  con.M.InitWithShallowSlice(u_con, I_CON_Z);
+  con.M.InitWithShallowSlice(u_con, I_CON_M);
+  con.Z.InitWithShallowSlice(u_con, I_CON_Z);
   con.M_d.InitWithShallowSlice(u_con, I_CON_Mx);
 }
 
