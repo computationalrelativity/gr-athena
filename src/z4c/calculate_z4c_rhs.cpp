@@ -175,16 +175,17 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
           &g_uu(0,0,i), &g_uu(0,1,i), &g_uu(0,2,i),
           &g_uu(1,1,i), &g_uu(1,2,i), &g_uu(2,2,i));
     }
-    dg_duu.Zero();
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = 0; b < NDIM; ++b)
-    for(int c = b; c < NDIM; ++c)
-    for(int d = 0; d < NDIM; ++d)
-    for(int e = 0; e < NDIM; ++e) {
-      ILOOP1(i) {
-        dg_duu(a,b,c,i) -= g_uu(b,d,i) * g_uu(c,e,i) * dg_ddd(a,d,e,i);
-      }
-    }
+    // TODO: remove dg_duu as it is not needed
+    //dg_duu.Zero();
+    //for(int a = 0; a < NDIM; ++a)
+    //for(int b = 0; b < NDIM; ++b)
+    //for(int c = b; c < NDIM; ++c)
+    //for(int d = 0; d < NDIM; ++d)
+    //for(int e = 0; e < NDIM; ++e) {
+    //  ILOOP1(i) {
+    //    dg_duu(a,b,c,i) -= g_uu(b,d,i) * g_uu(c,e,i) * dg_ddd(a,d,e,i);
+    //  }
+    //}
 
     // -----------------------------------------------------------------------------------
     // Christoffel symbols
@@ -238,8 +239,10 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
       for(int d = 0; d < NDIM; ++d)
       for(int e = 0; e < NDIM; ++e) {
         ILOOP1(i) {
-          R_dd(a,b,i) += g_uu(c,d,i)*(Gamma_udd(e,c,a,i)*Gamma_ddd(b,e,d,i) +
-              Gamma_udd(e,c,b,i)*Gamma_ddd(a,e,d,i) + Gamma_udd(e,a,d,i)*Gamma_ddd(e,c,b,i));
+          R_dd(a,b,i) += g_uu(c,d,i)*(
+              Gamma_udd(e,c,a,i)*Gamma_ddd(b,e,d,i) +
+              Gamma_udd(e,c,b,i)*Gamma_ddd(a,e,d,i) +
+              Gamma_udd(e,a,d,i)*Gamma_ddd(e,c,b,i));
         }
       }
     }
