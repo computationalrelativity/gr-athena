@@ -53,7 +53,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     for(int b = 0; b < NDIM; ++b) {
       ILOOP1(i) {
         dbeta_du(b,a,i) = FD.Dx(b, z4c.beta_u(a,k,j,i));
-        dGam_du(b,a,i) = FD.Dx(b, z4c.Gam_u(a,k,j,i));
+        dGam_du(b,a,i)  = FD.Dx(b, z4c.Gam_u(a,k,j,i));
       }
     }
     // Tensors
@@ -363,7 +363,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     for(int a = 0; a < NDIM; ++a) {
       for(int b = 0; b < NDIM; ++b) {
         ILOOP1(i) {
-          DA_u(a,i) -= (2./3.) * A_uu(a,b,i) * dchi_d(b,i) / chi_guarded(i);
+          DA_u(a,i) -= (3./2.) * A_uu(a,b,i) * dchi_d(b,i) / chi_guarded(i);
           DA_u(a,i) -= (1./3.) * g_uu(a,b,i) * (2.*dKhat_d(b,i) + dTheta_d(b,i));
         }
       }
@@ -385,28 +385,6 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
         R(i) += oopsi4(i) * g_uu(a,b,i) * (R_dd(a,b,i) + Rphi_dd(a,b,i));
       }
     }
-
-    // DEBUG
-    
-    std::cout << "Writing test output to file..." << std::endl;
-    std::ofstream outdata;
-    outdata.open ("output.dat");
-    //outdata.open ("output1.dat");// for conv test
-    ILOOP1(i) {
-        outdata << i << "  "
-                << std::setprecision(17)
-                << R_dd(0,0,i) << " "
-                << R_dd(1,1,i) << " "
-                << R_dd(2,2,i) << " "
-                << Rphi_dd(0,0,i) << " "
-                << Rphi_dd(1,1,i) << " "
-                << Rphi_dd(2,2,i) << " "
-                << R(i) << " "
-                << std::endl;
-    }
-    outdata.close();
-
-    // ENDDEBUG
     
     // -----------------------------------------------------------------------------------
     // Hamiltonian constraint
@@ -531,6 +509,26 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
 
       }
     }
+
+    // DEBUG
+
+    std::cout << "Writing test output to file..." << std::endl;
+    std::ofstream outdata;
+    outdata.open ("output.dat");
+    ILOOP1(i) {
+        outdata
+                << std::setprecision(17)
+                << rhs.A_dd(0,0,k,j,i) << " "
+                << rhs.A_dd(1,1,k,j,i) << " "
+                << rhs.A_dd(2,2,k,j,i) << " "
+                << std::endl;
+    }
+    outdata.close();
+
+    // ENDDEBUG
+
+
+
   }
 
   // ===================================================================================

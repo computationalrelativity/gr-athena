@@ -401,7 +401,7 @@ int main(int argc, char *argv[]) {
 
     // DEBUG
 
-    // for (int stage=1; stage<=ptlist->nstages; ++stage) {
+    //for (int stage=1; stage<=ptlist->nstages; ++stage) {
     // force Euler tstep
     for (int stage=1; stage<=1; ++stage) {
 
