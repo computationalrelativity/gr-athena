@@ -109,19 +109,19 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     //pwave->u(1,k,j,i) = 2.*direction/sigma_2*c*x*prof(gauss);
        
     //2D
-    // Real cos_x = cos(3.*M_PI*x);
-    // Real cos_y = cos(4.*M_PI*y);
+    Real cos_x = cos(3.*M_PI*x);
+    Real cos_y = cos(4.*M_PI*y);
     // T = 0.4
-    // pwave->u(0,k,j,i) = prof(cos_x)*prof(cos_y);
-    // pwave->u(1,k,j,i) = 0.;
+    pwave->u(0,k,j,i) = prof(cos_x)*prof(cos_y);
+    pwave->u(1,k,j,i) = 0.;
     
     //3D
-    Real cos_x = cos(1.*M_PI*x);
-    Real cos_y = cos(2.*M_PI*y);
-    Real cos_z = cos(2.*M_PI*z);
+    // Real cos_x = cos(1.*M_PI*x);
+    // Real cos_y = cos(2.*M_PI*y);
+    // Real cos_z = cos(2.*M_PI*z);
     // T = 2/3
-    pwave->u(0,k,j,i) = prof(cos_x)*prof(cos_y)*prof(cos_z);
-    pwave->u(1,k,j,i) = 0.;
+    // pwave->u(0,k,j,i) = prof(cos_x)*prof(cos_y)*prof(cos_z);
+    // pwave->u(1,k,j,i) = 0.;
     
     pwave->exact(0,k,j,i) = pwave->u(0,k,j,i);
     pwave->error(0,k,j,i) = 0.0;
