@@ -107,31 +107,29 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     
     //pwave->u(0,k,j,i) = prof(gauss);
     //pwave->u(1,k,j,i) = 2.*direction/sigma_2*c*x*prof(gauss);
-    
-    
-    //pwave->exact(0,k,j,i) = pwave->u(0,k,j,i);
-    //pwave->error(0,k,j,i) = 0.0;
-    
-    
+       
     //2D
-    Real cos_x = cos(3.*M_PI*x);
-    Real cos_y = cos(4.*M_PI*y);
+    // Real cos_x = cos(3.*M_PI*x);
+    // Real cos_y = cos(4.*M_PI*y);
     // T = 0.4
+    // pwave->u(0,k,j,i) = prof(cos_x)*prof(cos_y);
+    // pwave->u(1,k,j,i) = 0.;
     
     //3D
     Real cos_x = cos(1.*M_PI*x);
     Real cos_y = cos(2.*M_PI*y);
     Real cos_z = cos(2.*M_PI*z);
     // T = 2/3
+    pwave->u(0,k,j,i) = prof(cos_x)*prof(cos_y)*prof(cos_z);
+    pwave->u(1,k,j,i) = 0.;
     
-    pwave->u(0,k,j,i) = prof(cos_x)*prof(cos_y);
-    pwave->u(1,k,j,i) = 0.;//M_PI*c*prof(cos_x)*prof(cos_y);
+    pwave->exact(0,k,j,i) = pwave->u(0,k,j,i);
+    pwave->error(0,k,j,i) = 0.0;
   }
   return;
 }
 
 //2D
-/*
 void MeshBlock::UserWorkInLoop()
 {
   for(int k = ks; k <= ke; ++k)
@@ -142,37 +140,7 @@ void MeshBlock::UserWorkInLoop()
     Real z = pcoord->x3v(k);
     Real t = pmy_mesh->time + pmy_mesh->dt;
     Real c = pwave->c;
-    cout<<SQRT2<<'\t';
-    cout<<x/SQRT2<<'\t';
-    cout<<cos(M_PI*x/SQRT2)<<'\t';
-    cout<<pwave->u(0,k,j,i)<<'\t';
-    cout<<(cos(M_PI*t*c) + sin(M_PI*t*c))*cos(M_PI*x/SQRT2)*cos(M_PI*y/SQRT2)<<'\t';
-    
-    pwave->exact(0,k,j,i) = (cos(M_PI*t*c) + sin(M_PI*t*c))*cos(M_PI*x/SQRT2)*cos(M_PI*y/SQRT2);
-    cout<<pwave->exact(0,k,j,i)<<'\n';
-    pwave->error(0,k,j,i) = pwave->u(0,k,j,i) - pwave->exact(0,k,j,i);
-  }
-  return;
-}
-*/
-void MeshBlock::UserWorkInLoop()
-{
-  for(int k = ks; k <= ke; ++k)
-  for(int j = js; j <= je; ++j)
-  for(int i = is; i <= ie; ++i) {
-    Real x = pcoord->x1v(i);
-    Real y = pcoord->x2v(j);
-    Real z = pcoord->x3v(k);
-    Real t = pmy_mesh->time + pmy_mesh->dt;
-    Real c = pwave->c;
-    //cout<<SQRT2<<'\t';
-    //cout<<x/SQRT2<<'\t';
-    //cout<<cos(M_PI*x/SQRT2)<<'\t';
-    //cout<<pwave->u(0,k,j,i)<<'\t';
-    //cout<<(cos(M_PI*t*c) + sin(M_PI*t*c))*cos(M_PI*x/SQRT2)*cos(M_PI*y/SQRT2)<<'\t';
-    
-    pwave->exact(0,k,j,i) = (cos(M_PI*t*c) + sin(M_PI*t*c))*cos(M_PI*x/SQRT2)*cos(M_PI*y/SQRT2);
-    //cout<<pwave->exact(0,k,j,i)<<'\n';
+    pwave->exact(0,k,j,i) = cos(M_PI*t*5.)*cos(M_PI*x*3.)*cos(M_PI*y*4.);
     pwave->error(0,k,j,i) = pwave->u(0,k,j,i) - pwave->exact(0,k,j,i);
   }
   return;
