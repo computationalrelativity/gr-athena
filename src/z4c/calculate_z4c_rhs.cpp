@@ -43,8 +43,8 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     for(int a = 0; a < NDIM; ++a) {
       ILOOP1(i) {
         dalpha_d(a,i) = FD.Dx(a, z4c.alpha(k,j,i));
-        dchi_d(a,i) = FD.Dx(a, z4c.chi(k,j,i));
-        dKhat_d(a,i) = FD.Dx(a, z4c.Khat(k,j,i));
+        dchi_d(a,i)   = FD.Dx(a, z4c.chi(k,j,i));
+        dKhat_d(a,i)  = FD.Dx(a, z4c.Khat(k,j,i));
         dTheta_d(a,i) = FD.Dx(a, z4c.Theta(k,j,i));
       }
     }
@@ -137,7 +137,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     for(int b = 0; b < NDIM; ++b) {
       ILOOP1(i) {
         Lbeta_u(b,i) += FD.Lx(a, z4c.beta_u(a,k,j,i), z4c.beta_u(b,k,j,i));
-        LGam_u(b,i) += FD.Lx(a, z4c.beta_u(a,k,j,i), z4c.Gam_u(b,k,j,i));
+        LGam_u(b,i)  += FD.Lx(a, z4c.beta_u(a,k,j,i), z4c.Gam_u(b,k,j,i));
       }
     }
     // Tensors
@@ -158,11 +158,12 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     ILOOP1(i) {
       K(i) = z4c.Khat(k,j,i) + 2*z4c.Theta(k,j,i);
     }
-    for(int a = 0; a < NDIM; ++a) {
-      ILOOP1(i) {
-        dK_d(a,i) = dKhat_d(a,i) + 2*dTheta_d(a,i);
-      }
-    }
+// TODO: remove dg_duu as it is not needed
+//    for(int a = 0; a < NDIM; ++a) {
+//      ILOOP1(i) {
+//        dK_d(a,i) = dKhat_d(a,i) + 2*dTheta_d(a,i);
+//      }
+//    }
 
     // -----------------------------------------------------------------------------------
     // Inverse metric
@@ -206,7 +207,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
         Gamma_udd(c,a,b,i) += g_uu(c,d,i)*Gamma_ddd(d,a,b,i);
       }
     }
-    // Gamma's computed from the metric (not evolved)
+    // Gamma's computed from the conformal metric (not evolved)
     Gamma_u.Zero();
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b)
@@ -500,11 +501,11 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
 
 	// DEBUG
 	
-	//rhs.beta_u(a,k,j,i) = z4c.Gam_u(a,k,j,i) + opt.shift_advect * Lbeta_u(a,i);
-        //rhs.beta_u(a,k,j,i) -= opt.shift_eta * z4c.beta_u(a,k,j,i);
+    //rhs.beta_u(a,k,j,i) = z4c.Gam_u(a,k,j,i) + opt.shift_advect * Lbeta_u(a,i);
+    //rhs.beta_u(a,k,j,i) -= opt.shift_eta * z4c.beta_u(a,k,j,i);
 
 	// force zero shift:
-	rhs.beta_u(a,k,j,i) = 0.;
+    rhs.beta_u(a,k,j,i) = 0.;
 	// ENDDEBUG
 
       }
@@ -512,18 +513,27 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
 
     // DEBUG
 
-    std::cout << "Writing test output to file..." << std::endl;
-    std::ofstream outdata;
-    outdata.open ("output.dat");
-    ILOOP1(i) {
-        outdata
-                << std::setprecision(17)
-                << rhs.A_dd(0,0,k,j,i) << " "
-                << rhs.A_dd(1,1,k,j,i) << " "
-                << rhs.A_dd(2,2,k,j,i) << " "
-                << std::endl;
-    }
-    outdata.close();
+//    std::cout << "Writing test output to file..." << std::endl;
+//    std::ofstream outdata;
+//    outdata.open ("output.dat");
+//    ILOOP1(i) {
+//        outdata
+//                << std::setprecision(17)
+//                << rhs.g_dd(0,0,k,j,i) << " "
+//                << rhs.g_dd(1,1,k,j,i) << " "
+//                << rhs.g_dd(2,2,k,j,i) << " "
+//                << rhs.A_dd(0,0,k,j,i) << " "
+//                << rhs.A_dd(1,1,k,j,i) << " "
+//                << rhs.A_dd(2,2,k,j,i) << " "
+//                << rhs.Gam_u(0,k,j,i) << " "
+//                << rhs.Khat(k,j,i) << " "
+//                << rhs.chi(k,j,i) << " "
+//                << rhs.Theta(k,j,i) << " "
+//                << rhs.alpha(k,j,i) << " "
+//                << rhs.beta_u(0,k,j,i) << " "
+//                << std::endl;
+//    }
+//    outdata.close();
 
     // ENDDEBUG
 

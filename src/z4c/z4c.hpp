@@ -227,10 +227,10 @@ public:
   void ADMRobustStability(AthenaArray<Real> & u_adm);
   void ADMLinearWave1(AthenaArray<Real> & u_adm);
   void ADMLinearWave2(AthenaArray<Real> & u_adm);
-  void ADMGaugeWave1(AthenaArray<Real> & u_adm);
-  void GaugeGaugeWaveLapse(AthenaArray<Real> & u);
-  void GaugeGaugeWaveLapseShift(AthenaArray<Real> & u);
-  void ADMGaugeWave2(AthenaArray<Real> & u_adm);
+  void ADMGaugeWave1(AthenaArray<Real> & u_adm, bool shifted);
+  void GaugeGaugeWave1(AthenaArray<Real> & u, bool shifted);
+  void ADMGaugeWave2(AthenaArray<Real> & u_adm, bool shifted);
+  void GaugeGaugeWave2(AthenaArray<Real> & u, bool shifted);
 
   // initial data for a single BH
   void ADMOnePuncture(AthenaArray<Real> & u_adm);

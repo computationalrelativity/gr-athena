@@ -153,10 +153,10 @@ void Z4c::ADMLinearWave2(AthenaArray<Real> & u_adm)
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn void Z4c::ADMGaugeWave1(AthenaArray<Real> & u)
-// \brief Initialize ADM vars for gauge wave test in 1d
+// \!fn void Z4c::ADMGaugeWave1Lapse(AthenaArray<Real> & u)
+// \brief Initialize ADM vars for 1D gauge wave test
 
-void Z4c::ADMGaugeWave1(AthenaArray<Real> & u_adm)
+void Z4c::ADMGaugeWave1(AthenaArray<Real> & u_adm, bool shifted)
 {
   ADM_vars adm;
   SetADMAliases(u_adm, adm);
@@ -166,30 +166,41 @@ void Z4c::ADMGaugeWave1(AthenaArray<Real> & u_adm)
 
   // Flat spacetime
   ADMMinkowski(u_adm);
-  
+
   // For propagation along x ...
   GLOOP2(k,j) {
     GLOOP1(i) { 
       r(i) = pco->x1v(i); 
     } 
-    // g_xx
-    GLOOP1(i) {
-      adm.g_dd(0,0,k,j,i) -= SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));
+
+    if (shifted == false) { // Vanishing shift
+      GLOOP1(i) {
+        // g_xx
+        adm.g_dd(0,0,k,j,i) -= SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));
+        // K_xx
+        adm.K_dd(0,0,k,j,i) =
+          0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i))/
+          (std::sqrt(1.0 - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i))));
+      }
     }
-    // K_xx
-    GLOOP1(i) {
-      adm.K_dd(0,0,k,j,i) =
-        0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i))/
-        (std::sqrt(1.0 - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i))));
+    else { // Non-trivial shift
+      GLOOP1(i) {
+        // g_xx
+        adm.g_dd(0,0,k,j,i) += SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));
+        // K_xx
+        adm.K_dd(0,0,k,j,i) =
+          0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i))/
+          (std::sqrt(1.0 + SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i))));
+      }
     }
   }
 }
 
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::GaugeGaugeWave(AthenaArray<Real> & u)
-// \brief Initialize lapse and zero shift for gauge wave test
+// \brief Initialize lapse and shift for 1D gauge wave test
 
-void Z4c::GaugeGaugeWaveLapse(AthenaArray<Real> & u)
+void Z4c::GaugeGaugeWave1(AthenaArray<Real> & u, bool shifted)
 {
   Z4c_vars z4c;
   SetZ4cAliases(u, z4c);
@@ -203,50 +214,32 @@ void Z4c::GaugeGaugeWaveLapse(AthenaArray<Real> & u)
     GLOOP1(i) { 
       r(i) = pco->x1v(i); 
     } 
-    // alpha
-    GLOOP1(i) {
-      z4c.alpha(k,j,i) = std::sqrt(1.0 - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i)));
+
+    if (shifted == false) { // Vanishing shift
+      GLOOP1(i) {
+        // lapse
+        z4c.alpha(k,j,i) = std::sqrt(1.0 - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i)));
+      }
     }
-  }
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn void Z4c::GaugeGaugeWave(AthenaArray<Real> & u)
-// \brief Initialize lapse and shift for shifted gauge wave test
-
-void Z4c::GaugeGaugeWaveLapseShift(AthenaArray<Real> & u)
-{
-  Z4c_vars z4c;
-  SetZ4cAliases(u, z4c);
-  z4c.alpha.Fill(1.);
-  z4c.beta_u.Fill(0.);
-
-  MeshBlock * pmb = pmy_block;
-  Coordinates * pco = pmb->pcoord;
-
-  GLOOP2(k,j) {
-    GLOOP1(i) { 
-      r(i) = pco->x1v(i); 
-    }
-    // alpha
-    GLOOP1(i) {
-      z4c.alpha(k,j,i) = 1.0/(std::sqrt(1.0 + SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i))));
-    }
-    // shift
-    GLOOP1(i) {
-      z4c.beta_u(0,k,j,i) = - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i))/(SQR(z4c.alpha(k,j,i)));
+    else { // Non-trivial shift
+      GLOOP1(i) {
+        // lapse
+        z4c.alpha(k,j,i) = 1.0/(std::sqrt(1.0 + SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i))));
+        // shift
+        z4c.beta_u(0,k,j,i) = - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i)) * (SQR(z4c.alpha(k,j,i)));
+      }
     }
   }
 }
 
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::ADMGaugeWave2(AthenaArray<Real> & u)
-// \brief Initialize ADM vars for gauge wave test in 2d
+// \brief Initialize ADM vars for 2D gauge wave test
 
 // Note we use the same macro as for the 1d,
 // so there's a factor of sqrt(2) in the normalization different from literature
 
-void Z4c::ADMGaugeWave2(AthenaArray<Real> & u_adm)
+void Z4c::ADMGaugeWave2(AthenaArray<Real> & u_adm, bool shifted)
 {
   ADM_vars adm;
   SetADMAliases(u_adm, adm);
@@ -282,6 +275,42 @@ void Z4c::ADMGaugeWave2(AthenaArray<Real> & u_adm)
     GLOOP1(i) {
       adm.K_dd(2,2,k,j,i) =
         -0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma, (pco->x1v(i) - pco->x2v(i)) );
+    }
+  }
+}
+
+//----------------------------------------------------------------------------------------
+// \!fn void Z4c::GaugeGaugeWave(AthenaArray<Real> & u)
+// \brief Initialize lapse and shift for 2D gauge wave test
+
+void Z4c::GaugeGaugeWave2(AthenaArray<Real> & u, bool shifted)
+{
+  Z4c_vars z4c;
+  SetZ4cAliases(u, z4c);
+  z4c.alpha.Fill(1.);
+  z4c.beta_u.Fill(0.);
+
+  MeshBlock * pmb = pmy_block;
+  Coordinates * pco = pmb->pcoord;
+
+  GLOOP2(k,j) {
+    GLOOP1(i) {
+      r(i) = pco->x1v(i);
+    }
+
+    if (shifted == false) { // Vanishing shift
+      GLOOP1(i) {
+        // lapse
+        z4c.alpha(k,j,i) = 0.; // To be implemented soon.
+      }
+    }
+    else { // Non-trivial shift
+      GLOOP1(i) {
+        // lapse
+        z4c.alpha(k,j,i) = 0.; // To be implemented soon.
+        // shift
+        z4c.beta_u(0,k,j,i) = 0.; // To be implemented soon.
+      }
     }
   }
 }
