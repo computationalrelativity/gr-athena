@@ -228,9 +228,8 @@ public:
   void ADMLinearWave1(AthenaArray<Real> & u_adm);
   void ADMLinearWave2(AthenaArray<Real> & u_adm);
   void ADMGaugeWave1(AthenaArray<Real> & u_adm, bool shifted);
-  void GaugeGaugeWave1(AthenaArray<Real> & u, bool shifted);
   void ADMGaugeWave2(AthenaArray<Real> & u_adm, bool shifted);
-  void GaugeGaugeWave2(AthenaArray<Real> & u, bool shifted);
+  void GaugeGaugeWave(AthenaArray<Real> & u, bool shifted);
 
   // initial data for a single BH
   void ADMOnePuncture(AthenaArray<Real> & u_adm);

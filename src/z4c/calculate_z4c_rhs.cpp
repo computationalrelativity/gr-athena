@@ -501,11 +501,11 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
 
 	// DEBUG
 	
-    //rhs.beta_u(a,k,j,i) = z4c.Gam_u(a,k,j,i) + opt.shift_advect * Lbeta_u(a,i);
-    //rhs.beta_u(a,k,j,i) -= opt.shift_eta * z4c.beta_u(a,k,j,i);
+    rhs.beta_u(a,k,j,i) = z4c.Gam_u(a,k,j,i) + opt.shift_advect * Lbeta_u(a,i);
+    rhs.beta_u(a,k,j,i) -= opt.shift_eta * z4c.beta_u(a,k,j,i);
 
 	// force zero shift:
-    rhs.beta_u(a,k,j,i) = 0.;
+    //rhs.beta_u(a,k,j,i) = 0.;
 	// ENDDEBUG
 
       }
@@ -513,27 +513,17 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
 
     // DEBUG
 
-//    std::cout << "Writing test output to file..." << std::endl;
-//    std::ofstream outdata;
-//    outdata.open ("output.dat");
-//    ILOOP1(i) {
-//        outdata
-//                << std::setprecision(17)
-//                << rhs.g_dd(0,0,k,j,i) << " "
-//                << rhs.g_dd(1,1,k,j,i) << " "
-//                << rhs.g_dd(2,2,k,j,i) << " "
-//                << rhs.A_dd(0,0,k,j,i) << " "
-//                << rhs.A_dd(1,1,k,j,i) << " "
-//                << rhs.A_dd(2,2,k,j,i) << " "
-//                << rhs.Gam_u(0,k,j,i) << " "
-//                << rhs.Khat(k,j,i) << " "
-//                << rhs.chi(k,j,i) << " "
-//                << rhs.Theta(k,j,i) << " "
-//                << rhs.alpha(k,j,i) << " "
-//                << rhs.beta_u(0,k,j,i) << " "
-//                << std::endl;
-//    }
-//    outdata.close();
+    std::cout << "Writing test output to file..." << std::endl;
+    std::ofstream outdata;
+    outdata.open ("output.dat");
+    ILOOP1(i) {
+        outdata
+                << std::setprecision(17)
+                << z4c.Gam_u(0,k,j,i) << " "
+                << z4c.Gam_u(1,k,j,i) << " "
+                << std::endl;
+    }
+    outdata.close();
 
     // ENDDEBUG
 
