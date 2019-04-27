@@ -212,22 +212,19 @@ void Z4c::GaugeGaugeWave(AthenaArray<Real> & u, bool shifted)
   Coordinates * pco = pmb->pcoord;
 
   GLOOP2(k,j) {
-    GLOOP1(i) { 
-      r(i) = pco->x1v(i); 
-    } 
 
     if (shifted == false) { // Vanishing shift
       GLOOP1(i) {
         // lapse
-        z4c.alpha(k,j,i) = std::sqrt(1.0 - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i)));
+        z4c.alpha(k,j,i) = std::sqrt(1.0 - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,(pco->x1v(i) - pco->x2v(j))) );
       }
     }
     else { // Non-trivial shift
       GLOOP1(i) {
         // lapse
-        z4c.alpha(k,j,i) = 1.0/(std::sqrt(1.0 + SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i))));
+        z4c.alpha(k,j,i) = 1.0/(std::sqrt(1.0 + SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,(pco->x1v(i) - pco->x2v(j)))) );
         // shift
-        z4c.beta_u(0,k,j,i) = - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i)) * (SQR(z4c.alpha(k,j,i)));
+        z4c.beta_u(0,k,j,i) = - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,(pco->x1v(i) - pco->x2v(j)))*(SQR(z4c.alpha(k,j,i)));
       }
     }
   }

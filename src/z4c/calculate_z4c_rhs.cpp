@@ -11,7 +11,9 @@
 #include <cmath> // exp, pow, sqrt
 #include <iomanip>
 #include <iostream>
+//DEBUG
 #include <fstream>
+//ENDDEBUG
 
 // Athena++ headers
 #include "z4c.hpp"
@@ -512,23 +514,33 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     }
 
     // DEBUG
+    MeshBlock * pmb = pmy_block;
+    Coordinates * pco = pmb->pcoord;
 
-    std::cout << "Writing test output to file..." << std::endl;
-    std::ofstream outdata;
-    outdata.open ("output.dat");
-    ILOOP1(i) {
+    if (j == pmy_block->je) {
+      std::cout << "Writing test output to file..." << std::endl;
+      std::cout << "(j,y(j)) = (" << j << "," << pco->x2v(j) << ")" << std::endl;
+
+      std::ofstream outdata;
+      outdata.open ("output.dat");
+      ILOOP1(i) {
         outdata
-                << std::setprecision(17)
-                << z4c.Gam_u(0,k,j,i) << " "
-                << z4c.Gam_u(1,k,j,i) << " "
-                << std::endl;
+        << std::setprecision(17)
+        << dg_ddd(1,0,0,i) << " "
+        << dg_ddd(1,0,1,i) << " "
+        << dg_ddd(1,1,0,i) << " "
+        << dg_ddd(1,1,1,i) << " "
+        << dg_ddd(1,2,2,i) << " "
+        << pco->x1v(i) //x-grid
+        << std::endl;
+      }
+      outdata // To evaluate Mathematica functions
+      << 0. << " "   // t
+      << pco->x2v(j) // y
+      << std::endl;
+      outdata.close();
     }
-    outdata.close();
-
     // ENDDEBUG
-
-
-
   }
 
   // ===================================================================================
