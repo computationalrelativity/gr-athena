@@ -380,6 +380,8 @@ private:
       Real * pu = &u - s1::offset*(stride[dirx] + stride[diry]);
 
       Real out(0.);
+      // DEBUG
+#if 0
       for(int nx1 = 0; nx1 < s1::nghost; ++nx1) {
         int const nx2 = s1::width - nx1 - 1;
         for(int ny1 = 0; ny1 < s1::nghost; ++ny1) {
@@ -414,7 +416,13 @@ private:
       }
       int const ny = s1::nghost;
       out += s1::coeff[nx] * s1::coeff[ny] * pu[nx*stride[dirx] + ny*stride[diry]];
-
+#else
+      for(int i = 0; i < s1::width; ++i)
+      for(int j = 0; j < s1::width; ++j) {
+        out += s1::coeff[i] * s1::coeff[j] * pu[i*stride[dirx] + j*stride[diry]];
+      }
+#endif
+      // ENDDEBUG
       return out * idx[dirx] * idx[diry];
     }
     // Kreiss-Oliger dissipation operator
