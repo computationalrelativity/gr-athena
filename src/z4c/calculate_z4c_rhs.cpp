@@ -37,6 +37,18 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
   Matter_vars mat;
   SetMatterAliases(u_mat, mat);
 
+  // DEBUG
+  MeshBlock * pmb = pmy_block;
+  Coordinates * pco = pmb->pcoord;
+  // END DEBUG
+
+//  //DEBUG (for output in y-direction)
+//  Real i_test = pmy_block->is; //where to evaluate things
+//  std::cout << "Writing test output to file..." << std::endl;
+//  std::ofstream outdata;
+//  outdata.open ("output.dat");
+//  //END DEBUG
+
   ILOOP2(k,j) {
     // -----------------------------------------------------------------------------------
     // 1st derivatives
@@ -158,7 +170,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     // Get K from Khat
     //
     ILOOP1(i) {
-      K(i) = z4c.Khat(k,j,i) + 2*z4c.Theta(k,j,i);
+      K(i) = z4c.Khat(k,j,i) + 2.*z4c.Theta(k,j,i);
     }
 // TODO: remove dg_duu as it is not needed
 //    for(int a = 0; a < NDIM; ++a) {
@@ -339,7 +351,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     //
     AA_dd.Zero();
     for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b) //** Should it be b=0? **//
+    for(int b = a; b < NDIM; ++b)
     for(int c = 0; c < NDIM; ++c)
     for(int d = 0; d < NDIM; ++d) {
       ILOOP1(i) {
@@ -500,25 +512,42 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     // shift vector
     for(int a = 0; a < NDIM; ++a) {
       ILOOP1(i) {
-
-	// DEBUG
-	
-    rhs.beta_u(a,k,j,i) = z4c.Gam_u(a,k,j,i) + opt.shift_advect * Lbeta_u(a,i);
-    rhs.beta_u(a,k,j,i) -= opt.shift_eta * z4c.beta_u(a,k,j,i);
-
-	// force zero shift:
-    //rhs.beta_u(a,k,j,i) = 0.;
-	// ENDDEBUG
-
+        rhs.beta_u(a,k,j,i) = z4c.Gam_u(a,k,j,i) + opt.shift_advect * Lbeta_u(a,i);
+        rhs.beta_u(a,k,j,i) -= opt.shift_eta * z4c.beta_u(a,k,j,i);
       }
     }
 
-    // DEBUG
-    MeshBlock * pmb = pmy_block;
-    Coordinates * pco = pmb->pcoord;
+    // DEBUG (forcing zero shift)
+    for(int a = 0; a < NDIM; ++a) {
+      ILOOP1(i) {
+        rhs.beta_u(a,k,j,i) = 0.;
+      }
+    }
+    // ENDDEBUG
 
+//    // DEBUG
+//      outdata //(output in y-direction)
+//      << std::setprecision(17)
+//      << z4c.alpha(k,j,i_test) << " "
+//      << dalpha_d(0,i_test) << " "
+//      << dalpha_d(1,i_test) << " "
+//      << pco->x2v(j) //y-grid
+//      << std::endl;
+//    // END DEBUG
+
+//    //DEBUG
+//      trA.Zero();
+//      for(int a = 0; a < NDIM; ++a)
+//      for(int b = 0; b < NDIM; ++b) {
+//        ILOOP1(i) {
+//          trA(i) += g_uu(a,b,i) * z4c.A_dd(a,b,k,j,i);
+//        }
+//      }
+//    //ENDDEBUG
+
+    // DEBUG (output in x-direction)
     if (j == pmy_block->je) {
-      std::cout << "Writing test output to file..." << std::endl;
+      std::cout << "---> Writing test output to file..." << std::endl;
       std::cout << "(j,y(j)) = (" << j << "," << pco->x2v(j) << ")" << std::endl;
 
       std::ofstream outdata;
@@ -526,11 +555,26 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
       ILOOP1(i) {
         outdata
         << std::setprecision(17)
-        << dg_ddd(1,0,0,i) << " "
-        << dg_ddd(1,0,1,i) << " "
-        << dg_ddd(1,1,0,i) << " "
-        << dg_ddd(1,1,1,i) << " "
-        << dg_ddd(1,2,2,i) << " "
+//        << trA(i) << " "
+//        << detg(i) << " "
+
+        << z4c.alpha(k,j,i) << " "
+        << dalpha_d(0,i) << " "
+        << dalpha_d(1,i) << " "
+
+//        << rhs.g_dd(0,0,k,j,i) << " "
+//        << rhs.g_dd(1,1,k,j,i) << " "
+//        << rhs.g_dd(2,2,k,j,i) << " "
+//        << rhs.A_dd(0,0,k,j,i) << " "
+//        << rhs.A_dd(1,1,k,j,i) << " "
+//        << rhs.A_dd(2,2,k,j,i) << " "
+//        << rhs.Gam_u(0,k,j,i) << " "
+//        << rhs.Khat(k,j,i) << " "
+//        << rhs.chi(k,j,i) << " "
+//        << rhs.Theta(k,j,i) << " "
+//        << rhs.alpha(k,j,i) << " "
+//        << rhs.beta_u(0,k,j,i) << " "
+
         << pco->x1v(i) //x-grid
         << std::endl;
       }
@@ -542,6 +586,14 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     }
     // ENDDEBUG
   }
+
+//  // DEBUG (for output in y-direction)
+//  outdata // To evaluate Mathematica functions
+//  << 0. << " "   // t
+//  << pco->x1v(i_test) // x
+//  << std::endl;
+//  outdata.close();
+//  // ENDDEBUG
 
   // ===================================================================================
   // Add dissipation for stability

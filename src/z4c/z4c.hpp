@@ -153,7 +153,8 @@ public:
     Real punc_ADM_mass;
     // AwA parameters
     Real AwA_amplitude; // amplitude parameter
-    Real AwA_sigma; // sigma, width, etc parameter
+    Real AwA_d_x; // d_x (width) parameter
+    Real AwA_d_y; // d_y (width) parameter
     int AwA_rho; // Resolution index
     int AwA_direction; // direction of the test
   } opt;
@@ -249,6 +250,9 @@ private:
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> oopsi4;      // 1/psi4
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> A;           // trace of A
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> AA;          // trace of AA
+  //DEBUG
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> trA;
+  //ENDDEBUG
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> R;           // Ricci scalar
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Ht;          // tilde H
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> K;           // trace of extrinsic curvature
@@ -378,10 +382,8 @@ private:
     // Mixed 2nd derivative
     inline Real Dxy(int dirx, int diry, Real & u) {
       Real * pu = &u - s1::offset*(stride[dirx] + stride[diry]);
-
       Real out(0.);
-      // DEBUG
-#if 0
+
       for(int nx1 = 0; nx1 < s1::nghost; ++nx1) {
         int const nx2 = s1::width - nx1 - 1;
         for(int ny1 = 0; ny1 < s1::nghost; ++ny1) {
@@ -416,13 +418,7 @@ private:
       }
       int const ny = s1::nghost;
       out += s1::coeff[nx] * s1::coeff[ny] * pu[nx*stride[dirx] + ny*stride[diry]];
-#else
-      for(int i = 0; i < s1::width; ++i)
-      for(int j = 0; j < s1::width; ++j) {
-        out += s1::coeff[i] * s1::coeff[j] * pu[i*stride[dirx] + j*stride[diry]];
-      }
-#endif
-      // ENDDEBUG
+
       return out * idx[dirx] * idx[diry];
     }
     // Kreiss-Oliger dissipation operator

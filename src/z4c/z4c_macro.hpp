@@ -32,7 +32,7 @@
   _Pragma("omp simd")                                                         \
   for(int i = pmy_block->is; i <= pmy_block->ie; ++i)
 
-// 1D loop over i in the interior of the block
+// 1D loop over i on the whole block
 #define GLOOP1(i)                                                             \
   _Pragma("omp simd")                                                         \
   for(int i = pmy_block->is - GSIZEI; i <= pmy_block->ie + GSIZEI; ++i)

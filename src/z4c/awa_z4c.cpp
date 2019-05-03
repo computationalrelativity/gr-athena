@@ -21,12 +21,12 @@ std::uniform_real_distribution<double> distribution(-1.,1.);
 #define RANDOMNUMBER (distribution(generator))
 
 // sin wave for various wave tests
-#define SINWAVE(a,d,x) ((a)*std::sin(2*M_PI*(x)/(d)))
-#define DSINWAVE(a,d,x) (-(a)*2.0*M_PI/(d)*std::cos(2*M_PI*(x)/(d)))
+#define  SINWAVE(a,dx,dy,x,y) ( (a)*        std::sin(2.*M_PI*((x)/(dx) - (y)/(dy))) )
+#define DSINWAVE(a,dx,dy,x,y) (-(a)*2.*M_PI*std::cos(2.*M_PI*((x)/(dx) - (y)/(dy))) )
 
 // Gaussian profile for various wave tests
-#define GAUSSIAN(a,d,x)  (           (a)*std::exp(-SQR(x)/(2.*SQR(d))))
-#define DGAUSSIAN(a,d,x) ((x)/SQR(d)*(a)*std::exp(-SQR(x)/(2.*SQR(d))))
+#define  GAUSSIAN(a,d,x) (           (a)*std::exp(-SQR(x)/(2.*SQR(d))) )
+#define DGAUSSIAN(a,d,x) ((x)/SQR(d)*(a)*std::exp(-SQR(x)/(2.*SQR(d))) )
 
 // Athena++ headers
 #include "z4c.hpp"
@@ -84,24 +84,21 @@ void Z4c::ADMLinearWave1(AthenaArray<Real> & u_adm)
   
   // For propagation along x ...
   GLOOP2(k,j) {    
-    GLOOP1(i) {
-      r(i) = pco->x1v(i); 
-    } 
     // g_yy
     GLOOP1(i) {
-      adm.g_dd(1,1,k,j,i) += SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));
+      adm.g_dd(1,1,k,j,i) += SINWAVE(opt.AwA_amplitude,opt.AwA_d_x,opt.AwA_d_y,pco->x1v(i),0.);
     }
     // g_zz
     GLOOP1(i) {
-      adm.g_dd(2,2,k,j,i) -= SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));
+      adm.g_dd(2,2,k,j,i) -= SINWAVE(opt.AwA_amplitude,opt.AwA_d_x,opt.AwA_d_y,pco->x1v(i),0.);
     }
     // K_yy
     GLOOP1(i) {
-      adm.K_dd(1,1,k,j,i) += 0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));;
+      adm.K_dd(1,1,k,j,i) += 0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_d_x,opt.AwA_d_y,pco->x1v(i),0.);
     }
     // K_zz
     GLOOP1(i) {
-      adm.K_dd(2,2,k,j,i) -= 0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));
+      adm.K_dd(2,2,k,j,i) -= 0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_d_x,opt.AwA_d_y,pco->x1v(i),0.);
     }
   }
 }
@@ -128,27 +125,27 @@ void Z4c::ADMLinearWave2(AthenaArray<Real> & u_adm)
     // g_xx, g_yy
     for(int a = 0; a < NDIM-1; ++a) {
       GLOOP1(i) {
-        adm.g_dd(a,a,k,j,i) += 0.5*SINWAVE(opt.AwA_amplitude,opt.AwA_sigma, (pco->x1v(i) - pco->x2v(j)) );
+        adm.g_dd(a,a,k,j,i) += 0.5*SINWAVE(opt.AwA_amplitude,opt.AwA_d_x,opt.AwA_d_y,pco->x1v(i),pco->x2v(j));
       }
     }
 
     // g_xy, g_zz
     GLOOP1(i) {
-      adm.g_dd(0,1,k,j,i) = 0.5*SINWAVE(opt.AwA_amplitude,opt.AwA_sigma, (pco->x1v(i) - pco->x2v(j)) );
-      adm.g_dd(2,2,k,j,i) -= SINWAVE(opt.AwA_amplitude,opt.AwA_sigma, (pco->x1v(i) - pco->x2v(j)) );
+      adm.g_dd(0,1,k,j,i)  = 0.5*SINWAVE(opt.AwA_amplitude,opt.AwA_d_x,opt.AwA_d_y,pco->x1v(i),pco->x2v(j));
+      adm.g_dd(2,2,k,j,i) -=     SINWAVE(opt.AwA_amplitude,opt.AwA_d_x,opt.AwA_d_y,pco->x1v(i),pco->x2v(j));
     }
 
     // K_xx, K_xy, K_yy
     for(int a = 0; a < NDIM-1; ++a) {
       for(int b = a; b < NDIM-1; ++b) {
         GLOOP1(i) {
-          adm.K_dd(a,b,k,j,i) = 0.25*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma, (pco->x1v(i) - pco->x2v(j)) );
+          adm.K_dd(a,b,k,j,i) = 0.25*DSINWAVE(opt.AwA_amplitude,opt.AwA_d_x,opt.AwA_d_y,pco->x1v(i),pco->x2v(j));
         }
       }
     }
     // K_zz
     GLOOP1(i) {
-      adm.K_dd(2,2,k,j,i) = -0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma, (pco->x1v(i) - pco->x2v(j)) );
+      adm.K_dd(2,2,k,j,i) = -0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_d_x,opt.AwA_d_y,pco->x1v(i),pco->x2v(j));
     }
   }
 }
@@ -170,28 +167,25 @@ void Z4c::ADMGaugeWave1(AthenaArray<Real> & u_adm, bool shifted)
 
   // For propagation along x ...
   GLOOP2(k,j) {
-    GLOOP1(i) { 
-      r(i) = pco->x1v(i); 
-    } 
 
     if (shifted == false) { // Vanishing shift
       GLOOP1(i) {
         // g_xx
-        adm.g_dd(0,0,k,j,i) -= SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));
+        adm.g_dd(0,0,k,j,i) -= SINWAVE(opt.AwA_amplitude,opt.AwA_d_x,opt.AwA_d_y,pco->x1v(i),0.);
         // K_xx
         adm.K_dd(0,0,k,j,i) =
-          0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i))/
-          (std::sqrt(1.0 - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i))));
+                     0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_d_x,opt.AwA_d_y,pco->x1v(i),0.)/
+          std::sqrt(1.0 - SINWAVE(opt.AwA_amplitude,opt.AwA_d_x,opt.AwA_d_y,pco->x1v(i),0.));
       }
     }
     else { // Non-trivial shift
       GLOOP1(i) {
         // g_xx
-        adm.g_dd(0,0,k,j,i) += SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i));
+        adm.g_dd(0,0,k,j,i) += SINWAVE(opt.AwA_amplitude,opt.AwA_d_x,opt.AwA_d_y,pco->x1v(i),0.);
         // K_xx
         adm.K_dd(0,0,k,j,i) =
-          0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i))/
-          (std::sqrt(1.0 + SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,r(i))));
+                     0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_d_x,opt.AwA_d_y,pco->x1v(i),0.)/
+          std::sqrt(1.0 + SINWAVE(opt.AwA_amplitude,opt.AwA_d_x,opt.AwA_d_y,pco->x1v(i),0.));
       }
     }
   }
@@ -216,15 +210,15 @@ void Z4c::GaugeGaugeWave(AthenaArray<Real> & u, bool shifted)
     if (shifted == false) { // Vanishing shift
       GLOOP1(i) {
         // lapse
-        z4c.alpha(k,j,i) = std::sqrt(1.0 - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,(pco->x1v(i) - pco->x2v(j))) );
+        z4c.alpha(k,j,i) = std::sqrt(1.0 - SINWAVE(opt.AwA_amplitude,opt.AwA_d_x,opt.AwA_d_y,pco->x1v(i),pco->x2v(j)));
       }
     }
     else { // Non-trivial shift
       GLOOP1(i) {
         // lapse
-        z4c.alpha(k,j,i) = 1.0/(std::sqrt(1.0 + SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,(pco->x1v(i) - pco->x2v(j)))) );
+        z4c.alpha(k,j,i) = 1.0/(std::sqrt(1.0 + SINWAVE(opt.AwA_amplitude,opt.AwA_d_x,opt.AwA_d_y,pco->x1v(i),pco->x2v(j))));
         // shift
-        z4c.beta_u(0,k,j,i) = - SINWAVE(opt.AwA_amplitude,opt.AwA_sigma,(pco->x1v(i) - pco->x2v(j)))*(SQR(z4c.alpha(k,j,i)));
+        z4c.beta_u(0,k,j,i) = - SINWAVE(opt.AwA_amplitude,opt.AwA_d_x,opt.AwA_d_y,pco->x1v(i),pco->x2v(j))*SQR(z4c.alpha(k,j,i));
       }
     }
   }
@@ -252,28 +246,28 @@ void Z4c::ADMGaugeWave2(AthenaArray<Real> & u_adm, bool shifted)
     // g_xx, g_yy
     for(int a = 0; a < NDIM-1; ++a) {
       GLOOP1(i) {
-        adm.g_dd(a,a,k,j,i) -= 0.5*SINWAVE(opt.AwA_amplitude,opt.AwA_sigma, (pco->x1v(i) - pco->x2v(j)) );
+        adm.g_dd(a,a,k,j,i) -= 0.5*SINWAVE(opt.AwA_amplitude,opt.AwA_d_x,opt.AwA_d_y,pco->x1v(i),pco->x2v(j));
       }
     }
 
     // g_xy
     GLOOP1(i) {
-      adm.g_dd(0,1,k,j,i) = 0.5*SINWAVE(opt.AwA_amplitude,opt.AwA_sigma, (pco->x1v(i) - pco->x2v(j)) );
+      adm.g_dd(0,1,k,j,i) = 0.5*SINWAVE(opt.AwA_amplitude,opt.AwA_d_x,opt.AwA_d_y,pco->x1v(i),pco->x2v(j));
     }
 
     // K_xx, K_yy
     for(int a = 0; a < NDIM-1; ++a) {
       GLOOP1(i) {
         adm.K_dd(a,a,k,j,i) =
-          0.25*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma, (pco->x1v(i) - pco->x2v(j)) ) /
-          (std::sqrt(1.0-SINWAVE(opt.AwA_amplitude,opt.AwA_sigma, (pco->x1v(i) - pco->x2v(j)) )));
+                  0.25*DSINWAVE(opt.AwA_amplitude,opt.AwA_d_x,opt.AwA_d_y,pco->x1v(i),pco->x2v(j))/
+          std::sqrt(1.0-SINWAVE(opt.AwA_amplitude,opt.AwA_d_x,opt.AwA_d_y,pco->x1v(i),pco->x2v(j)));
       }
     }
 
     // K_xy, K_zz
     GLOOP1(i) {
       adm.K_dd(0,1,k,j,i) = - adm.K_dd(0,0,k,j,i);
-      adm.K_dd(2,2,k,j,i) = -0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_sigma, (pco->x1v(i) - pco->x2v(j)) );
+      adm.K_dd(2,2,k,j,i) = -0.5*DSINWAVE(opt.AwA_amplitude,opt.AwA_d_x,opt.AwA_d_y,pco->x1v(i),pco->x2v(j));
     }    
   }
 }

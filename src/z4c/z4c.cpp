@@ -94,7 +94,8 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   opt.punc_ADM_mass = pin->GetOrAddReal("z4c", "punc_ADM_mass", 1.0);
   // AwA parameters (default to linear wave test)
   opt.AwA_amplitude = pin->GetOrAddReal("z4c", "AwA_amplitude", 1e-10);
-  opt.AwA_sigma = pin->GetOrAddReal("z4c", "AwA_sigma", 1.0);
+  opt.AwA_d_x = pin->GetOrAddReal("z4c", "AwA_d_x", 1.0);
+  opt.AwA_d_y = pin->GetOrAddReal("z4c", "AwA_d_y", 1.0);
 
   // Set aliases
   SetADMAliases(storage.adm, adm);
@@ -110,6 +111,9 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   oopsi4.NewAthenaTensor(ncells1);
   A.NewAthenaTensor(ncells1);
   AA.NewAthenaTensor(ncells1);
+  //DEBUG
+    trA.NewAthenaTensor(ncells1);
+  //ENDDEBUG
   R.NewAthenaTensor(ncells1);
   Ht.NewAthenaTensor(ncells1);
   K.NewAthenaTensor(ncells1);
@@ -203,6 +207,9 @@ Z4c::~Z4c()
   oopsi4.DeleteAthenaTensor();
   A.DeleteAthenaTensor();
   AA.DeleteAthenaTensor();
+  //DEBUG
+    trA.DeleteAthenaTensor();
+  //ENDDEBUG
   R.DeleteAthenaTensor();
   Ht.DeleteAthenaTensor();
   K.DeleteAthenaTensor();
@@ -365,21 +372,10 @@ Real Z4c::Trace(Real const detginv,
 
 void Z4c::AlgConstr(AthenaArray<Real> & u)
 {
-//std::cout << "AlgConstr happening" << std::endl;
   Z4c_vars z4c;
   SetZ4cAliases(u, z4c);
 
   GLOOP2(k,j) {
-
-//      //////////////////////////////////////////// TESTING ARRAYS
-//      std::cout << "Writig test output to file..." << std::endl;
-//      std::ofstream outdata;
-//      outdata.open ("output.dat");
-//      ILOOP1(i) {
-//          outdata << i << "  " << z4c.A_dd(0,0,k,j,i) << std::endl;
-//      }
-//      outdata.close();
-//      ///////////////////////////////////////////////////////////
 
     // compute determinant and "conformal conformal factor"
     GLOOP1(i) {

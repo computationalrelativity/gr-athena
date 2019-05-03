@@ -218,8 +218,7 @@ Z4cIntegratorTaskList::Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm)
       AddZ4cIntegratorTask(PHY_BVAL, (SEND_Z4C|RECV_Z4C));
     }
     AddZ4cIntegratorTask(ALG_CONSTR, PHY_BVAL);
-    AddZ4cIntegratorTask(Z4C_TO_ADM, ALG_CONSTR);
-    // This happens after every timestep, we need them only at output
+    AddZ4cIntegratorTask(Z4C_TO_ADM, ALG_CONSTR); // This happens after every timestep, we need it only at output
     AddZ4cIntegratorTask(ADM_CONSTRS, Z4C_TO_ADM);
     AddZ4cIntegratorTask(USERWORK, ADM_CONSTRS);
     AddZ4cIntegratorTask(NEW_DT, USERWORK);
