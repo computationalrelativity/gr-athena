@@ -91,45 +91,21 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     Real z = pcoord->x3v(k);
     Real c = pwave->c;
     
-    
-    //1D
-    //Sinusoidal initial profile
-    //Real sin_x = sin(M_PI*x);
-    //Real cos_x = cos(M_PI*x);
-    
-    //pwave->u(0,k,j,i) = prof(sin_x);
-    //pwave->u(1,k,j,i) = direction*M_PI*c*cos_x*prof_diff(sin_x);
-    
-    
-    //Gaussian initial profile
-    //Real sigma_2 = 0.1*0.1;
-    //Real gauss = exp(-x*x/sigma_2);
-    
-    //pwave->u(0,k,j,i) = prof(gauss);
-    //pwave->u(1,k,j,i) = 2.*direction/sigma_2*c*x*prof(gauss);
-       
-    //2D
     Real cos_x = cos(3.*M_PI*x);
     Real cos_y = cos(4.*M_PI*y);
+    Real sin_x = sin(3.*M_PI*x);
+    Real sin_y = sin(4.*M_PI*y);
     // T = 0.4
     pwave->u(0,k,j,i) = prof(cos_x)*prof(cos_y);
     pwave->u(1,k,j,i) = 0.;
-    
-    //3D
-    // Real cos_x = cos(1.*M_PI*x);
-    // Real cos_y = cos(2.*M_PI*y);
-    // Real cos_z = cos(2.*M_PI*z);
-    // T = 2/3
-    // pwave->u(0,k,j,i) = prof(cos_x)*prof(cos_y)*prof(cos_z);
-    // pwave->u(1,k,j,i) = 0.;
-    
+    pwave->u(0,k,j,i) = prof(sin_x)*prof(sin_y);
+    pwave->u(1,k,j,i) = 5.*M_PI*prof(sin_x)*prof(sin_y);    
+
     pwave->exact(0,k,j,i) = pwave->u(0,k,j,i);
     pwave->error(0,k,j,i) = 0.0;
   }
   return;
 }
-
-//2D
 void MeshBlock::UserWorkInLoop()
 {
   for(int k = ks; k <= ke; ++k)
@@ -145,56 +121,3 @@ void MeshBlock::UserWorkInLoop()
   }
   return;
 }
-/* 
-//1D
-void MeshBlock::UserWorkInLoop()
-{
-  for(int k = ks; k <= ke; ++k)
-  for(int j = js; j <= je; ++j)
-  for(int i = is; i <= ie; ++i) {
-    Real x = pcoord->x1v(i);
-    Real y = pcoord->x2v(j);
-    Real z = pcoord->x3v(k);
-    Real t = pmy_mesh->time + pmy_mesh->dt;
-    Real c = pwave->c;
-    Real sigma_2 = 0.1*0.1;
-    Real xp, xm;
-    switch(direction) {
-      case -1:
-        //Sine
-        xp = sin(M_PI*(x + c*t));
-        
-        //Gaussian
-        //xp = exp(-SQR(x + c*t)/sigma_2) + exp(-SQR(fmod(x + c*t -1.0, 2.0) -1.0)/sigma_2);
-        
-        pwave->exact(0,k,j,i) = prof(xp);
-        break;
-      case 0:
-        //Sine
-        xp = sin(M_PI*(x + c*t));
-        xm = sin(M_PI*(x - c*t));
-        
-        //Gaussian  
-        //xp = exp(-(x + c*t)*(x + c*t)/sigma_2)+ exp(-SQR(fmod(x + c*t -1.0, 2.0) -1.0)/sigma_2);
-        //xm = exp(-(x - c*t)*(x - c*t)/sigma_2)+ exp(-SQR(fmod(x - c*t + 1.0, 2.0) + 1.0)/sigma_2);        
-        
-        pwave->exact(0,k,j,i) = 0.5*(prof(xm) + prof(xp));
-        break;
-      case 1:
-        //Sine
-        xm = sin(M_PI*(x - c*t));
-        
-        //Gaussian
-        //xm = exp(-SQR(x - c*t)/sigma_2) + exp(-SQR(fmod(x - c*t + 1.0, 2.0) + 1.0)/sigma_2);
-        
-        pwave->exact(0,k,j,i) = prof(xm);
-        break;
-      default:
-        assert(false); // you shouldn't be here
-        abort();
-    }
-    pwave->error(0,k,j,i) = pwave->u(0,k,j,i) - pwave->exact(0,k,j,i);
-  }
-  return;
-}
-*/
