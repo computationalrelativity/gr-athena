@@ -115,7 +115,6 @@ void MeshBlock::UserWorkInLoop()
     Real z = pcoord->x3v(k);
     Real t = pmy_mesh->time + pmy_mesh->dt;
     Real c = pwave->c;
-    Real sigma_2 = 0.1*0.1;
     Real xp, xm;
     switch(direction) {
       case -1:

@@ -95,9 +95,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     Real cos_y = cos(4.*M_PI*y);
     Real sin_x = sin(3.*M_PI*x);
     Real sin_y = sin(4.*M_PI*y);
-    // T = 0.4
-    pwave->u(0,k,j,i) = prof(cos_x)*prof(cos_y);
-    pwave->u(1,k,j,i) = 0.;
+    // T = 2/5
+    //pwave->u(0,k,j,i) = prof(cos_x)*prof(cos_y);
+    //pwave->u(1,k,j,i) = 0.;
     pwave->u(0,k,j,i) = prof(sin_x)*prof(sin_y);
     pwave->u(1,k,j,i) = 5.*M_PI*prof(sin_x)*prof(sin_y);    
 
