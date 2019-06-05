@@ -98,8 +98,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     // T = 2/5
     //pwave->u(0,k,j,i) = prof(cos_x)*prof(cos_y);
     //pwave->u(1,k,j,i) = 0.;
-    pwave->u(0,k,j,i) = prof(sin_x)*prof(sin_y);
-    pwave->u(1,k,j,i) = 5.*M_PI*prof(sin_x)*prof(sin_y);    
+    //pwave->u(0,k,j,i) = 0;//prof(sin_x)*prof(sin_y);
+    //pwave->u(1,k,j,i) = 5.*M_PI*prof(sin_x)*prof(sin_y);    
+    pwave->u(0,k,j,i) = sin(M_PI*(3.*x+4.*y));
+    pwave->u(1,k,j,i) = 5.*M_PI*cos(M_PI*(3.*x+4.*y));
 
     pwave->exact(0,k,j,i) = pwave->u(0,k,j,i);
     pwave->error(0,k,j,i) = 0.0;
@@ -116,7 +118,8 @@ void MeshBlock::UserWorkInLoop()
     Real z = pcoord->x3v(k);
     Real t = pmy_mesh->time + pmy_mesh->dt;
     Real c = pwave->c;
-    pwave->exact(0,k,j,i) = cos(M_PI*t*5.)*cos(M_PI*x*3.)*cos(M_PI*y*4.);
+    //pwave->exact(0,k,j,i) = sin(M_PI*t*5.)*sin(M_PI*x*3.)*sin(M_PI*y*4.);
+    pwave->exact(0,k,j,i) = sin(M_PI*((x*3.+y*4.)+t*5.));
     pwave->error(0,k,j,i) = pwave->u(0,k,j,i) - pwave->exact(0,k,j,i);
   }
   return;

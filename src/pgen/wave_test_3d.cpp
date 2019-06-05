@@ -92,17 +92,13 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     Real c = pwave->c;
 
     //3D
-    Real cos_x = cos(1.*M_PI*x);
-    Real cos_y = cos(2.*M_PI*y);
-    Real cos_z = cos(2.*M_PI*z);
-    Real sin_x = sin(1.*M_PI*x);
-    Real sin_y = sin(2.*M_PI*y);
-    Real sin_z = sin(2.*M_PI*z);         
     // T = 2/3
     //pwave->u(0,k,j,i) = prof(cos_x)*prof(cos_y)*prof(cos_z);
     //pwave->u(1,k,j,i) = 0.;
-    pwave->u(0,k,j,i) = prof(sin_x)*prof(sin_y)*prof(sin_z);
-    pwave->u(1,k,j,i) = -3.*M_PI*prof(sin_x)*prof(sin_y)*prof(sin_z);    
+    //pwave->u(0,k,j,i) = prof(sin_x)*prof(sin_y)*prof(sin_z);
+    //pwave->u(1,k,j,i) = 3.*M_PI*prof(sin_x)*prof(sin_y)*prof(sin_z);    
+    pwave->u(0,k,j,i) = sin(M_PI*(1.*x+2.*y+2.*z));
+    pwave->u(1,k,j,i) = 3.*M_PI*cos(M_PI*(1.*x+2.*y+2.*z));    
 
     pwave->exact(0,k,j,i) = pwave->u(0,k,j,i);
     pwave->error(0,k,j,i) = 0.0;
@@ -119,7 +115,8 @@ void MeshBlock::UserWorkInLoop()
     Real z = pcoord->x3v(k);
     Real t = pmy_mesh->time + pmy_mesh->dt;
     Real c = pwave->c;
-    pwave->exact(0,k,j,i) = cos(M_PI*t*3.)*cos(M_PI*x*1.)*cos(M_PI*y*2.)*cos(M_PI*z*2.);
+    //pwave->exact(0,k,j,i) = sin(M_PI*t*3.)*sin(M_PI*x*1.)*sin(M_PI*y*2.)*sin(M_PI*z*2.);
+    pwave->exact(0,k,j,i) = sin(M_PI*(1.*x+2.*y+2.*z+3.*t));
     pwave->error(0,k,j,i) = pwave->u(0,k,j,i) - pwave->exact(0,k,j,i);
   }
   return;
