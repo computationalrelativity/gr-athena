@@ -42,12 +42,12 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
   Coordinates * pco = pmb->pcoord;
   // END DEBUG
 
-//  //DEBUG (for output in y-direction)
-//  Real i_test = pmy_block->is; //where to evaluate things
-//  std::cout << "Writing test output to file..." << std::endl;
-//  std::ofstream outdata;
-//  outdata.open ("output.dat");
-//  //END DEBUG
+#if (0)  //DEBUG (for output in y-direction)
+  Real i_test = pmy_block->is; //where to evaluate things
+  std::cout << "Writing test output to file..." << std::endl;
+  std::ofstream outdata;
+  outdata.open ("output.dat");
+#endif  //END DEBUG
 
   ILOOP2(k,j) {
     // -----------------------------------------------------------------------------------
@@ -491,6 +491,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
       }
     }
     // g and A
+    //LOOK
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b) {
       ILOOP1(i) {
@@ -517,35 +518,35 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
       }
     }
 
-    // DEBUG (forcing zero shift)
+#if (0)// DEBUG (forcing zero shift)
     for(int a = 0; a < NDIM; ++a) {
       ILOOP1(i) {
         rhs.beta_u(a,k,j,i) = 0.;
       }
     }
-    // ENDDEBUG
+#endif // ENDDEBUG
 
-//    // DEBUG
-//      outdata //(output in y-direction)
-//      << std::setprecision(17)
-//      << z4c.alpha(k,j,i_test) << " "
-//      << dalpha_d(0,i_test) << " "
-//      << dalpha_d(1,i_test) << " "
-//      << pco->x2v(j) //y-grid
-//      << std::endl;
-//    // END DEBUG
+#if (0)    // DEBUG
+      outdata //(output in y-direction)
+      << std::setprecision(17)
+      << z4c.alpha(k,j,i_test) << " "
+      << dalpha_d(0,i_test) << " "
+      << dalpha_d(1,i_test) << " "
+      << pco->x2v(j) //y-grid
+      << std::endl;
+#endif// END DEBUG
 
-//    //DEBUG
-//      trA.Zero();
-//      for(int a = 0; a < NDIM; ++a)
-//      for(int b = 0; b < NDIM; ++b) {
-//        ILOOP1(i) {
-//          trA(i) += g_uu(a,b,i) * z4c.A_dd(a,b,k,j,i);
-//        }
-//      }
-//    //ENDDEBUG
+#if (0)    //DEBUG
+      trA.Zero();
+      for(int a = 0; a < NDIM; ++a)
+      for(int b = 0; b < NDIM; ++b) {
+        ILOOP1(i) {
+          trA(i) += g_uu(a,b,i) * z4c.A_dd(a,b,k,j,i);
+        }
+      }
+#endif//ENDDEBUG
 
-    // DEBUG (output in x-direction)
+#if (0) // DEBUG (output in x-direction)
     if (j == pmy_block->je) {
       std::cout << "---> Writing test output to file..." << std::endl;
       std::cout << "(j,y(j)) = (" << j << "," << pco->x2v(j) << ")" << std::endl;
@@ -555,25 +556,25 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
       ILOOP1(i) {
         outdata
         << std::setprecision(17)
-//        << trA(i) << " "
-//        << detg(i) << " "
+        << trA(i) << " "
+        << detg(i) << " "
 
         << z4c.alpha(k,j,i) << " "
         << dalpha_d(0,i) << " "
         << dalpha_d(1,i) << " "
 
-//        << rhs.g_dd(0,0,k,j,i) << " "
-//        << rhs.g_dd(1,1,k,j,i) << " "
-//        << rhs.g_dd(2,2,k,j,i) << " "
-//        << rhs.A_dd(0,0,k,j,i) << " "
-//        << rhs.A_dd(1,1,k,j,i) << " "
-//        << rhs.A_dd(2,2,k,j,i) << " "
-//        << rhs.Gam_u(0,k,j,i) << " "
-//        << rhs.Khat(k,j,i) << " "
-//        << rhs.chi(k,j,i) << " "
-//        << rhs.Theta(k,j,i) << " "
-//        << rhs.alpha(k,j,i) << " "
-//        << rhs.beta_u(0,k,j,i) << " "
+        << rhs.g_dd(0,0,k,j,i) << " "
+        << rhs.g_dd(1,1,k,j,i) << " "
+        << rhs.g_dd(2,2,k,j,i) << " "
+        << rhs.A_dd(0,0,k,j,i) << " "
+        << rhs.A_dd(1,1,k,j,i) << " "
+        << rhs.A_dd(2,2,k,j,i) << " "
+        << rhs.Gam_u(0,k,j,i) << " "
+        << rhs.Khat(k,j,i) << " "
+        << rhs.chi(k,j,i) << " "
+        << rhs.Theta(k,j,i) << " "
+        << rhs.alpha(k,j,i) << " "
+        << rhs.beta_u(0,k,j,i) << " "
 
         << pco->x1v(i) //x-grid
         << std::endl;
@@ -584,16 +585,16 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
       << std::endl;
       outdata.close();
     }
-    // ENDDEBUG
+#endif// ENDDEBUG
   }
 
-//  // DEBUG (for output in y-direction)
-//  outdata // To evaluate Mathematica functions
-//  << 0. << " "   // t
-//  << pco->x1v(i_test) // x
-//  << std::endl;
-//  outdata.close();
-//  // ENDDEBUG
+#if (0)  // DEBUG (for output in y-direction)
+  outdata // To evaluate Mathematica functions
+  << 0. << " "   // t
+  << pco->x1v(i_test) // x
+  << std::endl;
+  outdata.close();
+#endif  // ENDDEBUG
 
   // ===================================================================================
   // Add dissipation for stability

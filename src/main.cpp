@@ -399,13 +399,12 @@ int main(int argc, char *argv[]) {
 
     if (pmesh->turb_flag > 1) pmesh->ptrbd->Driving(); // driven turbulence
 
-    // DEBUG
-
-    //for (int stage=1; stage<=ptlist->nstages; ++stage) {
+  #if (0) // DEBUG
     // force Euler tstep
-    for (int stage=1; stage<=1; ++stage) {
-
-      // ENDDEBUG
+    for (int stage=1; stage<=1; ++stage){
+  #else
+    for (int stage=1; stage<=ptlist->nstages; ++stage){
+  #endif
       
       if (SELF_GRAVITY_ENABLED == 1) // fft (flag 0 for discrete kernel, 1 for continuous)
         pmesh->pfgrd->Solve(stage, 0);
