@@ -48,8 +48,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       pz4c->GaugeGaugeWave(pz4c->storage.u, false);
       std::cout << "Gauge 1D wave initialized with no shift" << std::endl;
   }
-  else if(test == "gauge_wave1_shifted") {
-      pz4c->ADMGaugeWave1(pz4c->storage.adm, true);
+  else if(test == "gauge_wave1_shifted") {/////////////////////////////////////////////
+      pz4c->ADMGaugeWave1(pz4c->storage.adm, false);////////////////////////////////////
       pz4c->GaugeGaugeWave(pz4c->storage.u, true);
       std::cout << "Gauge 1D shifted wave initialized" << std::endl;
   }

@@ -472,9 +472,12 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
       rhs.Khat(k,j,i) += 4*M_PI * z4c.alpha(k,j,i) * (S(i) + mat.rho(k,j,i));
       rhs.chi(k,j,i) = Lchi(i) - (1./6.) * opt.chi_psi_power *
         chi_guarded(i) * z4c.alpha(k,j,i) * K(i);
+      //DEBUG
+//      rhs.Theta(k,j,i) = 0.;
       rhs.Theta(k,j,i) = LTheta(i) + z4c.alpha(k,j,i) * (
           0.5*Ht(i) - (2. + opt.damp_kappa2) * opt.damp_kappa1 * z4c.Theta(k,j,i));
       rhs.Theta(k,j,i) -= 8.*M_PI * z4c.alpha(k,j,i) * mat.rho(k,j,i);
+      //ENDDEBUG
     }
     // Gamma's
     for(int a = 0; a < NDIM; ++a) {
@@ -506,16 +509,17 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
     }
     // lapse function
     ILOOP1(i) {
-      Real const f = opt.lapse_oplog * opt.lapse_harmonicf + opt.lapse_harmonic * z4c.alpha(k,j,i);
-      rhs.alpha(k,j,i) = opt.lapse_advect * Lalpha(i) - f * z4c.alpha(k,j,i) * z4c.Khat(k,j,i);
+//      Real const f = opt.lapse_oplog * opt.lapse_harmonicf + opt.lapse_harmonic * z4c.alpha(k,j,i);
+//      rhs.alpha(k,j,i) = opt.lapse_advect * Lalpha(i) - f * z4c.alpha(k,j,i) * z4c.Khat(k,j,i);
+        rhs.alpha(k,j,i) = - 2. * z4c.alpha(k,j,i) * z4c.Khat(k,j,i);
     }
     // shift vector
-    for(int a = 0; a < NDIM; ++a) {
-      ILOOP1(i) {
-        rhs.beta_u(a,k,j,i) = z4c.Gam_u(a,k,j,i) + opt.shift_advect * Lbeta_u(a,i);
-        rhs.beta_u(a,k,j,i) -= opt.shift_eta * z4c.beta_u(a,k,j,i);
-      }
-    }
+//    for(int a = 0; a < NDIM; ++a) {
+//      ILOOP1(i) {
+//        rhs.beta_u(a,k,j,i) = z4c.Gam_u(a,k,j,i) + opt.shift_advect * Lbeta_u(a,i);
+//        rhs.beta_u(a,k,j,i) -= opt.shift_eta * z4c.beta_u(a,k,j,i);
+//      }
+//    }
 
     // DEBUG (forcing zero shift)
     for(int a = 0; a < NDIM; ++a) {
@@ -545,22 +549,19 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
 //      }
 //    //ENDDEBUG
 
-    // DEBUG (output in x-direction)
-    if (j == pmy_block->je) {
-      std::cout << "---> Writing test output to file..." << std::endl;
-      std::cout << "(j,y(j)) = (" << j << "," << pco->x2v(j) << ")" << std::endl;
+//    // DEBUG (output in x-direction)
+//    if (j == pmy_block->je) {
+//      std::cout << "---> Writing test output to file..." << std::endl;
+//      std::cout << "(j,y(j)) = (" << j << "," << pco->x2v(j) << ")" << std::endl;
 
-      std::ofstream outdata;
-      outdata.open ("output.dat");
-      ILOOP1(i) {
-        outdata
-        << std::setprecision(17)
-//        << trA(i) << " "
-//        << detg(i) << " "
+//      std::ofstream outdata;
+//      outdata.open ("output.dat");
+//      ILOOP1(i) {
+//        outdata
+//        << std::setprecision(17)
 
-        << z4c.alpha(k,j,i) << " "
-        << dalpha_d(0,i) << " "
-        << dalpha_d(1,i) << " "
+////        << trA(i) << " "
+////        << detg(i) << " "
 
 //        << rhs.g_dd(0,0,k,j,i) << " "
 //        << rhs.g_dd(1,1,k,j,i) << " "
@@ -572,19 +573,19 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
 //        << rhs.Khat(k,j,i) << " "
 //        << rhs.chi(k,j,i) << " "
 //        << rhs.Theta(k,j,i) << " "
-//        << rhs.alpha(k,j,i) << " "
 //        << rhs.beta_u(0,k,j,i) << " "
+//        << rhs.alpha(k,j,i) << " "
 
-        << pco->x1v(i) //x-grid
-        << std::endl;
-      }
-      outdata // To evaluate Mathematica functions
-      << 0. << " "   // t
-      << pco->x2v(j) // y
-      << std::endl;
-      outdata.close();
-    }
-    // ENDDEBUG
+//        << pco->x1v(i) //x-grid
+//        << std::endl;
+//      }
+//      outdata // To evaluate Mathematica functions
+//      << 0. << " "   // t
+//      << pco->x2v(j) // y
+//      << std::endl;
+//      outdata.close();
+//    }
+//    // ENDDEBUG
   }
 
 //  // DEBUG (for output in y-direction)

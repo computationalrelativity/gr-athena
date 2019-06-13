@@ -87,6 +87,9 @@ public:
     AthenaArray<Real> u1;    // solution at intermediate steps
     AthenaArray<Real> u2;    // solution at intermediate steps
     AthenaArray<Real> rhs;   // Z4c rhs
+    //DEBUG
+    AthenaArray<Real> rhs1;    // intermediate storage
+    //ENDDEBUG
     AthenaArray<Real> adm;   // ADM variables
     AthenaArray<Real> con;   // constraints
     AthenaArray<Real> mat;   // matter variables
@@ -173,6 +176,10 @@ public:
                    AthenaArray<Real> &u_in2, const Real wght[3]);
   // add RHS to state
   void AddZ4cRHS(AthenaArray<Real> & rhs, Real const wght, AthenaArray<Real> &u_out);
+  //DEBUG
+  // RHS storage
+  void StoreRHS(AthenaArray<Real> & rhs1, AthenaArray<Real> & rhs, Real const coeff);
+  //ENDDEBUG
   // compute Z4c variables from ADM variables
   void ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u);
   // compute ADM variables from Z4c variables

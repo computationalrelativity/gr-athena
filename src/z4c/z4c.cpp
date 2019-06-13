@@ -68,6 +68,9 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   std::string integrator = pin->GetOrAddString("time","integrator","vl2");
   if (integrator == "ssprk5_4") storage.u2.NewAthenaArray(N_Z4c, ncells3, ncells2, ncells1);
   storage.rhs.NewAthenaArray(N_Z4c, ncells3, ncells2, ncells1);
+  //DEBUG
+  storage.rhs1.NewAthenaArray(N_Z4c, ncells3, ncells2, ncells1);
+  //ENDDEBUG
   storage.adm.NewAthenaArray(N_ADM, ncells3, ncells2, ncells1);
   storage.con.NewAthenaArray(N_CON, ncells3, ncells2, ncells1);
   storage.mat.NewAthenaArray(N_MAT, ncells3, ncells2, ncells1);
@@ -193,6 +196,9 @@ Z4c::~Z4c()
   storage.u1.DeleteAthenaArray();
   storage.u2.DeleteAthenaArray();
   storage.rhs.DeleteAthenaArray();
+  //DEBUG
+  storage.rhs1.DeleteAthenaArray();
+  //ENDDEBUG
   storage.adm.DeleteAthenaArray();
   storage.con.DeleteAthenaArray();
   storage.mat.DeleteAthenaArray();
