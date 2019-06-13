@@ -1,0 +1,61 @@
+<comment>
+problem         = Wave equation 3d
+configure       = --prob=wave_test -w -nghost=2
+
+<job>
+problem_id      = wave      # Basename of output filenames
+
+<problem>
+profile         = linear    # Either 'linear' or 'bump'
+direction       = 1         # of propagation. Allowed values are -1, 0, 1
+
+<output1>
+file_type       = tab       # Athena++ ASCII data dump
+variable        = wave      # variables to be output
+dt              = 4.0      # time increment between outputs
+data_format     = %.16e     # data format
+
+<time>
+cfl_number      = 0.2     # The Courant, Friedrichs, & Lewy (CFL) number
+tlim            = 4.0    # time limit for simulation
+integrator      = rk4 # Use rk4 time integrator
+ncycle_out      = 200       # Print to stdout every so many timesteps
+
+<mesh>
+refinement      = static    # Static mesh refinement
+num_threads     = 4
+
+nx1             = 64      # Number of zones in X1-direction
+x1min           = -1.0      # minimum value of X1
+x1max           = 1.0       # maximum value of X1
+ix1_bc          = periodic  # inner-X1 boundary flag
+ox1_bc          = periodic  # inner-X1 boundary flag
+
+nx2             = 64      # Number of zones in X2-direction
+x2min           = -1.0      # minimum value of X2
+x2max           = 1.0       # maximum value of X2
+ix2_bc          = periodic  # inner-X2 boundary flag
+ox2_bc          = periodic  # inner-X2 boundary flag
+
+nx3             = 64      # Number of zones in X3-direction 
+x3min           = -1.0      # minimum value of X3
+x3max           = 1.0       # maximum value of X3
+ix3_bc          = periodic  # inner-X3 boundary flag
+ox3_bc          = periodic  # inner-X3 boundary flag
+
+<meshblock>
+nx1             = 16
+nx2             = 16
+nx3             = 16
+
+<refinement1>
+x1min           = -0.1
+x1max           = 0.1
+x2min           = -0.1
+x2max           = 0.1
+x3min           = -0.1
+x3max           = 0.1
+level           = 1
+
+<wave>
+c               = 1.0
