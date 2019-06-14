@@ -461,7 +461,7 @@ void MeshRefinement::ProlongateCellCenteredValues(const AthenaArray<Real> &coars
             }
             else { // use 2nd order centered
                 gx1c = (coarse(n,k,j,i+1) - coarse(n,k,j,i-1))/(2*dx1m);
-                gx2c = (coarse(n,k,j+1,i) - coarse(n,k,j+1,i))/(2*dx2m);
+                gx2c = (coarse(n,k,j+1,i) - coarse(n,k,j-1,i))/(2*dx2m);
                 gx3c = (coarse(n,k+1,j,i) - coarse(n,k-1,j,i))/(2*dx3m);
             }
 
