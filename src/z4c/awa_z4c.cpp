@@ -68,6 +68,32 @@ void Z4c::ADMRobustStability(AthenaArray<Real> & u_adm)
 }
 
 //----------------------------------------------------------------------------------------
+// \!fn void Z4c::GaugeRobStab(AthenaArray<Real> & u, bool shifted)
+// \brief Initialize lapse and shift for Robust Stability test
+
+void Z4c::GaugeRobStab(AthenaArray<Real> & u)
+{
+  Z4c_vars z4c;
+  SetZ4cAliases(u, z4c);
+  z4c.alpha.Fill(1.);
+  z4c.beta_u.Fill(0.);
+
+  MeshBlock * pmb = pmy_block;
+  Coordinates * pco = pmb->pcoord;
+
+  GLOOP2(k,j) {
+    GLOOP1(i) {
+      // lapse
+      z4c.alpha(k,j,i) += RANDOMNUMBER*opt.AwA_amplitude;
+      // shift
+      z4c.beta_u(0,k,j,i) += RANDOMNUMBER*opt.AwA_amplitude;
+      z4c.beta_u(1,k,j,i) += RANDOMNUMBER*opt.AwA_amplitude;
+      z4c.beta_u(2,k,j,i) += RANDOMNUMBER*opt.AwA_amplitude;
+    }
+  }
+}
+
+//----------------------------------------------------------------------------------------
 // \!fn void Z4c::LinearWave1(AthenaArray<Real> & u)
 // \brief Initialize ADM vars for linear wave test in 1d
 
@@ -193,7 +219,7 @@ void Z4c::ADMGaugeWave1(AthenaArray<Real> & u_adm, bool shifted)
 
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::GaugeGaugeWave(AthenaArray<Real> & u, bool shifted)
-// \brief Initialize lapse and shift for !D and 2D gauge wave tests
+// \brief Initialize lapse and shift for 1D and 2D gauge wave tests
 
 void Z4c::GaugeGaugeWave(AthenaArray<Real> & u, bool shifted)
 {

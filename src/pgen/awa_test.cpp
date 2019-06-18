@@ -30,7 +30,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   if(test == "robust_stab") {
     pz4c->ADMRobustStability(pz4c->storage.adm);
-    pz4c->GaugeGeodesic(pz4c->storage.u);
+    pz4c->GaugeRobStab(pz4c->storage.u);
     std::cout << "Robust stability test initialized" << std::endl;
   }
   else if(test == "linear_wave1") {

@@ -233,6 +233,7 @@ public:
 
   // initial data for the AwA tests
   void ADMRobustStability(AthenaArray<Real> & u_adm);
+  void GaugeRobStab(AthenaArray<Real> & u);
   void ADMLinearWave1(AthenaArray<Real> & u_adm);
   void ADMLinearWave2(AthenaArray<Real> & u_adm);
   void ADMGaugeWave1(AthenaArray<Real> & u_adm, bool shifted);
