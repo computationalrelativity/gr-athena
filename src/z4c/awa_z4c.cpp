@@ -25,8 +25,8 @@ std::uniform_real_distribution<double> distribution(-1.,1.);
 #define DSINWAVE(a,dx,dy,x,y) (-(a)*2.*M_PI*std::cos(2.*M_PI*((x)/(dx) - (y)/(dy))) )
 
 // Gaussian profile for various wave tests
-#define  GAUSSIAN(a,d,x) (           (a)*std::exp(-SQR(x)/(2.*SQR(d))) )
-#define DGAUSSIAN(a,d,x) ((x)/SQR(d)*(a)*std::exp(-SQR(x)/(2.*SQR(d))) )
+#define  GAUSSIAN(a,d,x,y,z) (           (a)*std::exp(-(SQR(x)+SQR(y)+SQR(z))/SQR(d)) )
+#define DGAUSSIAN(a,d,x,y,z) ((x)/SQR(d)*(a)*std::exp(-SQR(x)/(2.*SQR(d))) ) //Fix me
 
 // Athena++ headers
 #include "z4c.hpp"
@@ -177,7 +177,7 @@ void Z4c::ADMLinearWave2(AthenaArray<Real> & u_adm)
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn void Z4c::ADMGaugeWave1Lapse(AthenaArray<Real> & u, bool shifted)
+// \!fn void Z4c::ADMGaugeWave1(AthenaArray<Real> & u, bool shifted)
 // \brief Initialize ADM vars for 1D gauge wave test
 
 void Z4c::ADMGaugeWave1(AthenaArray<Real> & u_adm, bool shifted)
@@ -252,6 +252,29 @@ void Z4c::GaugeGaugeWave(AthenaArray<Real> & u, bool shifted)
                           (1. + SINWAVE(opt.AwA_amplitude,opt.AwA_d_x,opt.AwA_d_y,pco->x1v(i),0.));
       }
     }
+  }
+}
+
+
+//----------------------------------------------------------------------------------------
+// \!fn void Z4c::GaugeSimpleGaugeWave(AthenaArray<Real> & u)
+// \brief Initializes lapse for simple 3D gauge wave test
+
+void Z4c::GaugeSimpleGaugeWave(AthenaArray<Real> & u)
+{
+  Z4c_vars z4c;
+  SetZ4cAliases(u, z4c);
+  z4c.alpha.Fill(1.);
+  z4c.beta_u.Fill(0.);
+
+  MeshBlock * pmb = pmy_block;
+  Coordinates * pco = pmb->pcoord;
+
+  GLOOP2(k,j) {
+      GLOOP1(i) {
+        // lapse
+        z4c.alpha(k,j,i) = GAUSSIAN(opt.AwA_amplitude,opt.AwA_d_x,pco->x1v(i),pco->x2v(j),pco->x3v(k));
+      }
   }
 }
 

@@ -43,6 +43,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       pz4c->GaugeGeodesic(pz4c->storage.u);
       std::cout << "Linear 2D wave test initialized" << std::endl;
   }
+  else if(test == "simple_gauge_wave") {
+      pz4c->ADMMinkowski(pz4c->storage.adm);
+      pz4c->GaugeSimpleGaugeWave(pz4c->storage.u);
+      std::cout << "Simple 3D gauge wave initialized" << std::endl;
+  }
   else if(test == "gauge_wave1_no_shift") {
       pz4c->ADMGaugeWave1(pz4c->storage.adm, false);
       pz4c->GaugeGaugeWave(pz4c->storage.u, false);
