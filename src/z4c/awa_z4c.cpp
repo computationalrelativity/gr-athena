@@ -273,7 +273,7 @@ void Z4c::GaugeSimpleGaugeWave(AthenaArray<Real> & u)
   GLOOP2(k,j) {
       GLOOP1(i) {
         // lapse
-        z4c.alpha(k,j,i) = GAUSSIAN(opt.AwA_amplitude,opt.AwA_d_x,pco->x1v(i),pco->x2v(j),pco->x3v(k));
+        z4c.alpha(k,j,i) += GAUSSIAN(opt.AwA_amplitude,opt.AwA_d_x,pco->x1v(i),pco->x2v(j),pco->x3v(k));
       }
   }
 }
