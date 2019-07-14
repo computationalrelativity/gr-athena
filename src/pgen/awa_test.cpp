@@ -30,7 +30,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   if(test == "robust_stab") {
     pz4c->ADMRobustStability(pz4c->storage.adm);
-    pz4c->GaugeGeodesic(pz4c->storage.u);
+    pz4c->GaugeRobStab(pz4c->storage.u);
     std::cout << "Robust stability test initialized" << std::endl;
   }
   else if(test == "linear_wave1") {
@@ -43,19 +43,24 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       pz4c->GaugeGeodesic(pz4c->storage.u);
       std::cout << "Linear 2D wave test initialized" << std::endl;
   }
-  else if(test == "gauge_wave1_no_shift") {
-      pz4c->ADMGaugeWave1(pz4c->storage.adm, false);
-      pz4c->GaugeGaugeWave(pz4c->storage.u, false);
-      std::cout << "Gauge 1D wave initialized with no shift" << std::endl;
+  else if(test == "simple_gauge_wave") {
+      pz4c->ADMMinkowski(pz4c->storage.adm);
+      pz4c->GaugeSimpleGaugeWave(pz4c->storage.u);
+      std::cout << "Simple 3D gauge wave initialized" << std::endl;
+  }
+  else if(test == "gauge_wave1") {
+      pz4c->ADMGaugeWave1(pz4c->storage.adm);
+      pz4c->GaugeGaugeWave1(pz4c->storage.u);
+      std::cout << "Gauge 1D wave initialized" << std::endl;
   }
   else if(test == "gauge_wave1_shifted") {
-      pz4c->ADMGaugeWave1(pz4c->storage.adm, true);
-      pz4c->GaugeGaugeWave(pz4c->storage.u, true);
+      pz4c->ADMGaugeWave1_shifted(pz4c->storage.adm);
+      pz4c->GaugeGaugeWave1_shifted(pz4c->storage.u);
       std::cout << "Gauge 1D shifted wave initialized" << std::endl;
   }
   else if(test == "gauge_wave2") {
-      pz4c->ADMGaugeWave2(pz4c->storage.adm, false);
-      pz4c->GaugeGaugeWave(pz4c->storage.u, false);
+      pz4c->ADMGaugeWave2(pz4c->storage.adm);
+      pz4c->GaugeGaugeWave2(pz4c->storage.u);
       std::cout << "Gauge 2D wave initialized with no shift" << std::endl;
   }
   else {

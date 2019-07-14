@@ -68,6 +68,9 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   std::string integrator = pin->GetOrAddString("time","integrator","vl2");
   if (integrator == "ssprk5_4") storage.u2.NewAthenaArray(N_Z4c, ncells3, ncells2, ncells1);
   storage.rhs.NewAthenaArray(N_Z4c, ncells3, ncells2, ncells1);
+  //DEBUG Necesary for Traditional RK4
+  storage.rhs1.NewAthenaArray(N_Z4c, ncells3, ncells2, ncells1);
+  //ENDDEBUG
   storage.adm.NewAthenaArray(N_ADM, ncells3, ncells2, ncells1);
   storage.con.NewAthenaArray(N_CON, ncells3, ncells2, ncells1);
   storage.mat.NewAthenaArray(N_MAT, ncells3, ncells2, ncells1);
@@ -111,9 +114,6 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin)
   oopsi4.NewAthenaTensor(ncells1);
   A.NewAthenaTensor(ncells1);
   AA.NewAthenaTensor(ncells1);
-  //DEBUG
-    trA.NewAthenaTensor(ncells1);
-  //ENDDEBUG
   R.NewAthenaTensor(ncells1);
   Ht.NewAthenaTensor(ncells1);
   K.NewAthenaTensor(ncells1);
@@ -193,6 +193,9 @@ Z4c::~Z4c()
   storage.u1.DeleteAthenaArray();
   storage.u2.DeleteAthenaArray();
   storage.rhs.DeleteAthenaArray();
+  //DEBUG
+  storage.rhs1.DeleteAthenaArray();
+  //ENDDEBUG
   storage.adm.DeleteAthenaArray();
   storage.con.DeleteAthenaArray();
   storage.mat.DeleteAthenaArray();
@@ -207,9 +210,6 @@ Z4c::~Z4c()
   oopsi4.DeleteAthenaTensor();
   A.DeleteAthenaTensor();
   AA.DeleteAthenaTensor();
-  //DEBUG
-    trA.DeleteAthenaTensor();
-  //ENDDEBUG
   R.DeleteAthenaTensor();
   Ht.DeleteAthenaTensor();
   K.DeleteAthenaTensor();

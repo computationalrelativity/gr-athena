@@ -11,9 +11,7 @@
 #include <cmath> // exp, pow, sqrt
 #include <iomanip>
 #include <iostream>
-//DEBUG
 #include <fstream>
-//ENDDEBUG
 
 // Athena++ headers
 #include "z4c.hpp"
@@ -42,7 +40,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
   Coordinates * pco = pmb->pcoord;
   // END DEBUG
 
-#if (0)  //DEBUG (for output in y-direction)
+#if (0)  //DEBUG (for output in y-direction, to be read by Mathematica)
   Real i_test = pmy_block->is; //where to evaluate things
   std::cout << "Writing test output to file..." << std::endl;
   std::ofstream outdata;
@@ -527,7 +525,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
 #endif // ENDDEBUG
 
 #if (0)    // DEBUG
-      outdata //(output in y-direction)
+      outdata //(output in y-direction, to be read by Mathematica)
       << std::setprecision(17)
       << z4c.alpha(k,j,i_test) << " "
       << dalpha_d(0,i_test) << " "
@@ -536,17 +534,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
       << std::endl;
 #endif// END DEBUG
 
-#if (0)    //DEBUG
-      trA.Zero();
-      for(int a = 0; a < NDIM; ++a)
-      for(int b = 0; b < NDIM; ++b) {
-        ILOOP1(i) {
-          trA(i) += g_uu(a,b,i) * z4c.A_dd(a,b,k,j,i);
-        }
-      }
-#endif//ENDDEBUG
-
-#if (0) // DEBUG (output in x-direction)
+#if (0) // DEBUG (output in x-direction, to be read by Mathematica)
     if (j == pmy_block->je) {
       std::cout << "---> Writing test output to file..." << std::endl;
       std::cout << "(j,y(j)) = (" << j << "," << pco->x2v(j) << ")" << std::endl;
@@ -556,12 +544,6 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
       ILOOP1(i) {
         outdata
         << std::setprecision(17)
-        << trA(i) << " "
-        << detg(i) << " "
-
-        << z4c.alpha(k,j,i) << " "
-        << dalpha_d(0,i) << " "
-        << dalpha_d(1,i) << " "
 
         << rhs.g_dd(0,0,k,j,i) << " "
         << rhs.g_dd(1,1,k,j,i) << " "
@@ -585,16 +567,14 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<R
       << std::endl;
       outdata.close();
     }
-#endif// ENDDEBUG
-  }
-
-#if (0)  // DEBUG (for output in y-direction)
-  outdata // To evaluate Mathematica functions
-  << 0. << " "   // t
-  << pco->x1v(i_test) // x
-  << std::endl;
-  outdata.close();
+    outdata // To evaluate Mathematica functions
+    << 0. << " "   // t
+    << pco->x1v(i_test) // x
+    << std::endl;
+    outdata.close();
 #endif  // ENDDEBUG
+
+  }
 
   // ===================================================================================
   // Add dissipation for stability

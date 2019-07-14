@@ -400,11 +400,12 @@ int main(int argc, char *argv[]) {
     if (pmesh->turb_flag > 1) pmesh->ptrbd->Driving(); // driven turbulence
 
   #if (0) // DEBUG
-    // force Euler tstep
+    // Forcing only one step. For Euler step, use this combined with rk2
     for (int stage=1; stage<=1; ++stage){
   #else
     for (int stage=1; stage<=ptlist->nstages; ++stage){
   #endif
+    // DEBUG
       
       if (SELF_GRAVITY_ENABLED == 1) // fft (flag 0 for discrete kernel, 1 for continuous)
         pmesh->pfgrd->Solve(stage, 0);

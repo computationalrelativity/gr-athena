@@ -1588,6 +1588,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(AthenaArray<Real> &pdst, AthenaArra
   if (BoundaryFunction_[OUTER_X2]==NULL && pmb->block_size.nx2>1) bje=pmb->je+NGHOST;
   if (BoundaryFunction_[INNER_X3]==NULL && pmb->block_size.nx3>1) bks=pmb->ks-NGHOST;
   if (BoundaryFunction_[OUTER_X3]==NULL && pmb->block_size.nx3>1) bke=pmb->ke+NGHOST;
+
   // Apply boundary function on inner-x1
   if (BoundaryFunction_[INNER_X1] != NULL) {
     BoundaryFunction_[INNER_X1](pmb, pco, pdst, waveu, z4c, bfdst, time, dt,
