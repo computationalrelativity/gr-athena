@@ -358,59 +358,51 @@ enum TaskStatus Z4cIntegratorTaskList::Z4cIntegrate(MeshBlock *pmb, int stage)
 {
   Z4c *pz4c = pmb->pz4c;
 
-//  if (stage <= nstages) {
-//    // This time-integrator-specific averaging operation logic is identical to HydroInt
-
-//    Real ave_wghts[3];
-//    ave_wghts[0] = 1.0;
-//    ave_wghts[1] = stage_wghts[stage-1].delta;
-//    ave_wghts[2] = 0.0;
-//    pz4c->WeightedAve(pz4c->storage.u1, pz4c->storage.u, pz4c->storage.u2, ave_wghts);
-
-//    ave_wghts[0] = stage_wghts[stage-1].gamma_1;
-//    ave_wghts[1] = stage_wghts[stage-1].gamma_2;
-//    ave_wghts[2] = stage_wghts[stage-1].gamma_3;
-//    pz4c->WeightedAve(pz4c->storage.u, pz4c->storage.u1, pz4c->storage.u2, ave_wghts);
-//    pz4c->AddZ4cRHS(pz4c->storage.rhs, stage_wghts[stage-1].beta, pz4c->storage.u);
-//    return TASK_NEXT;
-//  }
-
-  //DEBUG
   if (stage <= nstages) {
-      if (stage == 1) {
-          //K1 -> rhs(u_old) was computed just previously
-          //pz4c->AlgConstr(pz4c->storage.u);
-          pz4c->StoreRHS(pz4c->storage.rhs1, pz4c->storage.rhs, 1.); //Storing rhs1 = K1
-          pz4c->storage.u1 = pz4c->storage.u; //Storing u_old
-          pz4c->AddZ4cRHS(pz4c->storage.rhs, 0.5, pz4c->storage.u); //u_new = u_old + 0.5*dt*K1
-          pz4c->AlgConstr(pz4c->storage.u);
-      }
-      if (stage == 2) {
-          //K2 -> rhs(u_new) was computed just previously
-          //pz4c->AlgConstr(pz4c->storage.u);
-          pz4c->StoreRHS(pz4c->storage.rhs1, pz4c->storage.rhs, 2.); //Storing rhs1 = K1 + 2.K2
-          pz4c->storage.u = pz4c->storage.u1; //u = u_old
-          pz4c->AddZ4cRHS(pz4c->storage.rhs, 0.5, pz4c->storage.u); //u_new = u_old + 0.5*dt*K2
-          pz4c->AlgConstr(pz4c->storage.u);
-      }
-      if (stage == 3) {
-          //K3 -> rhs(u_new) was computed just previously
-          //pz4c->AlgConstr(pz4c->storage.u);
-          pz4c->StoreRHS(pz4c->storage.rhs1, pz4c->storage.rhs, 2.); //Storing rhs1 = K1 + 2.K2 + 2.K3
-          pz4c->storage.u = pz4c->storage.u1; //u = u_old
-          pz4c->AddZ4cRHS(pz4c->storage.rhs, 1., pz4c->storage.u); //u_new = u_old + dt*K3
-          pz4c->AlgConstr(pz4c->storage.u);
-      }
-      if (stage == 4) {
-          //K4 -> rhs(u_new) was computed just previously
-          //pz4c->AlgConstr(pz4c->storage.u);
-          pz4c->StoreRHS(pz4c->storage.rhs1, pz4c->storage.rhs, 1.); //Storing rhs1 = K1 + 2.K2 + 2.K3 + K4
-          pz4c->storage.u = pz4c->storage.u1; //u = u_old
-          pz4c->AddZ4cRHS(pz4c->storage.rhs1, 0.166666666, pz4c->storage.u); //u_new = u_old + (dt/6)*(K1 + 2.K2 + 2.K3 + K4)
-          pz4c->AlgConstr(pz4c->storage.u);
-      }
-      return TASK_NEXT;
-    }
+    // This time-integrator-specific averaging operation logic is identical to HydroInt
+
+    Real ave_wghts[3];
+    ave_wghts[0] = 1.0;
+    ave_wghts[1] = stage_wghts[stage-1].delta;
+    ave_wghts[2] = 0.0;
+    pz4c->WeightedAve(pz4c->storage.u1, pz4c->storage.u, pz4c->storage.u2, ave_wghts);
+
+    ave_wghts[0] = stage_wghts[stage-1].gamma_1;
+    ave_wghts[1] = stage_wghts[stage-1].gamma_2;
+    ave_wghts[2] = stage_wghts[stage-1].gamma_3;
+    pz4c->WeightedAve(pz4c->storage.u, pz4c->storage.u1, pz4c->storage.u2, ave_wghts);
+    pz4c->AddZ4cRHS(pz4c->storage.rhs, stage_wghts[stage-1].beta, pz4c->storage.u);
+    return TASK_NEXT;
+  }
+
+  //DEBUG Traditional RK4
+//  if (stage <= nstages) {
+//      if (stage == 1) {
+//          //K1 -> rhs(u_old) was computed just previously
+//          pz4c->StoreRHS(pz4c->storage.rhs1, pz4c->storage.rhs, 1.); //Storing rhs1 = K1
+//          pz4c->storage.u1 = pz4c->storage.u; //Storing u_old
+//          pz4c->AddZ4cRHS(pz4c->storage.rhs, 0.5, pz4c->storage.u); //u_new = u_old + 0.5*dt*K1
+//      }
+//      if (stage == 2) {
+//          //K2 -> rhs(u_new) was computed just previously
+//          pz4c->StoreRHS(pz4c->storage.rhs1, pz4c->storage.rhs, 2.); //Storing rhs1 = K1 + 2.K2
+//          pz4c->storage.u = pz4c->storage.u1; //u = u_old
+//          pz4c->AddZ4cRHS(pz4c->storage.rhs, 0.5, pz4c->storage.u); //u_new = u_old + 0.5*dt*K2
+//      }
+//      if (stage == 3) {
+//          //K3 -> rhs(u_new) was computed just previously
+//          pz4c->StoreRHS(pz4c->storage.rhs1, pz4c->storage.rhs, 2.); //Storing rhs1 = K1 + 2.K2 + 2.K3
+//          pz4c->storage.u = pz4c->storage.u1; //u = u_old
+//          pz4c->AddZ4cRHS(pz4c->storage.rhs, 1., pz4c->storage.u); //u_new = u_old + dt*K3
+//      }
+//      if (stage == 4) {
+//          //K4 -> rhs(u_new) was computed just previously
+//          pz4c->StoreRHS(pz4c->storage.rhs1, pz4c->storage.rhs, 1.); //Storing rhs1 = K1 + 2.K2 + 2.K3 + K4
+//          pz4c->storage.u = pz4c->storage.u1; //u = u_old
+//          pz4c->AddZ4cRHS(pz4c->storage.rhs1, 0.166666666, pz4c->storage.u); //u_new = u_old + (dt/6)*(K1 + 2.K2 + 2.K3 + K4)
+//      }
+//      return TASK_NEXT;
+//    }
   //ENDDEBUG
 
   return TASK_FAIL;
@@ -491,24 +483,13 @@ enum TaskStatus Z4cIntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int stag
 }
 
 enum TaskStatus Z4cIntegratorTaskList::EnforceAlgConstr(MeshBlock *pmb, int stage) {
-//    //DEBUG
-//    if (stage != nstages) return TASK_SUCCESS; // only do on last stage
-//    pmb->pz4c->AlgConstr(pmb->pz4c->storage.u);
-//    return TASK_SUCCESS;
-//    //ENDDEBUG
-
-//  if (stage <= nstages) { //do every substep
-//    pmb->pz4c->AlgConstr(pmb->pz4c->storage.u);
-//  }
-//  else {
-//    return TASK_FAIL;
-//  }
+  if (stage != nstages) return TASK_SUCCESS; // Do only on last stage
+  pmb->pz4c->AlgConstr(pmb->pz4c->storage.u);
   return TASK_SUCCESS;
-
 }
 
 enum TaskStatus Z4cIntegratorTaskList::Z4cToADM(MeshBlock *pmb, int stage) {
-  if (stage <= nstages) {
+  if (stage <= nstages) { //do every substep
     pmb->pz4c->Z4cToADM(pmb->pz4c->storage.u, pmb->pz4c->storage.adm);
     return TASK_SUCCESS;
   }
@@ -576,7 +557,7 @@ enum TaskStatus Z4cIntegratorTaskList::StartupIntegrator(MeshBlock *pmb, int sta
 
     // Auxiliar var u1 needs to be initialized to 0 at the beginning of each cycle
     pmb->pz4c->storage.u1.Zero();
-    //DEBUG
+    //DEBUG Necesary for Traditional RK4
     pmb->pz4c->storage.rhs1.Zero();
     //ENDDEBUG
 

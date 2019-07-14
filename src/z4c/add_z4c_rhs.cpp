@@ -15,20 +15,6 @@
 #include "../mesh/mesh.hpp"
 
 //----------------------------------------------------------------------------------------
-//! \fn  void Z4c::StoreRHS
-//  \brief Stores intermediate RHS
-//
-
-void Z4c::StoreRHS(AthenaArray<Real> &rhs1, AthenaArray<Real> & rhs, const Real coeff) {
-  for(int n = 0; n < N_Z4c; ++n) {
-    ILOOP3(k,j,i) {
-      rhs1(n,k,j,i) += coeff*rhs(n,k,j,i);
-    }
-  }
-  return;
-}
-
-//----------------------------------------------------------------------------------------
 //! \fn  void Z4c::AddZ4cRHS
 //  \brief Adds RHS to weighted average of variables from
 //  previous step(s) of time integrator algorithm

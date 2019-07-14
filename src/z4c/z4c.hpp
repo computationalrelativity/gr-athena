@@ -87,7 +87,7 @@ public:
     AthenaArray<Real> u1;    // solution at intermediate steps
     AthenaArray<Real> u2;    // solution at intermediate steps
     AthenaArray<Real> rhs;   // Z4c rhs
-    //DEBUG
+    //DEBUG Needed for Traditional RK4
     AthenaArray<Real> rhs1;    // intermediate storage
     //ENDDEBUG
     AthenaArray<Real> adm;   // ADM variables
@@ -176,10 +176,6 @@ public:
                    AthenaArray<Real> &u_in2, const Real wght[3]);
   // add RHS to state
   void AddZ4cRHS(AthenaArray<Real> & rhs, Real const wght, AthenaArray<Real> &u_out);
-  //DEBUG
-  // RHS storage
-  void StoreRHS(AthenaArray<Real> & rhs1, AthenaArray<Real> & rhs, Real const coeff);
-  //ENDDEBUG
   // compute Z4c variables from ADM variables
   void ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u);
   // compute ADM variables from Z4c variables
@@ -236,9 +232,12 @@ public:
   void GaugeRobStab(AthenaArray<Real> & u);
   void ADMLinearWave1(AthenaArray<Real> & u_adm);
   void ADMLinearWave2(AthenaArray<Real> & u_adm);
-  void ADMGaugeWave1(AthenaArray<Real> & u_adm, bool shifted);
-  void ADMGaugeWave2(AthenaArray<Real> & u_adm, bool shifted);
-  void GaugeGaugeWave(AthenaArray<Real> & u, bool shifted);
+  void ADMGaugeWave1(AthenaArray<Real> & u_adm);
+  void ADMGaugeWave1_shifted(AthenaArray<Real> & u_adm);
+  void ADMGaugeWave2(AthenaArray<Real> & u_adm);
+  void GaugeGaugeWave1(AthenaArray<Real> & u);
+  void GaugeGaugeWave1_shifted(AthenaArray<Real> & u);
+  void GaugeGaugeWave2(AthenaArray<Real> & u);
   void GaugeSimpleGaugeWave(AthenaArray<Real> & u);
 
   // initial data for a single BH
@@ -259,9 +258,6 @@ private:
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> oopsi4;      // 1/psi4
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> A;           // trace of A
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> AA;          // trace of AA
-  //DEBUG
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> trA;
-  //ENDDEBUG
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> R;           // Ricci scalar
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Ht;          // tilde H
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> K;           // trace of extrinsic curvature
