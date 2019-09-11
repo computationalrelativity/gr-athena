@@ -319,15 +319,26 @@ private:
 private:
   struct {
     // 1st derivative stecil
-    typedef FDCenteredStencil<1, NFDCEN> s1;
+    typedef FDCenteredStencil<1, NGHOST-1> s1;
     // 2nd derivative stencil
-    typedef FDCenteredStencil<2, NFDCEN> s2;
+    typedef FDCenteredStencil<2, NGHOST-1> s2;
     // dissipation operator
-    typedef FDCenteredStencil<2*NFDDIS, NFDDIS> sd;
+    typedef FDCenteredStencil<
+      FDDissChoice<NGHOST-1>::degree,
+      FDDissChoice<NGHOST-1>::nghost
+      > sd;
     // left-biased derivative
-    typedef FDLeftBiasedStencil<1, NFDUPW> sl;
+    typedef FDLeftBiasedStencil<
+        FDBiasedChoice<1, NGHOST-1>::degree,
+        FDBiasedChoice<1, NGHOST-1>::nghost,
+        FDBiasedChoice<1, NGHOST-1>::lopsize
+      > sl;
     // right-biased derivative
-    typedef FDRightBiasedStencil<1, NFDUPW> sr;
+    typedef FDRightBiasedStencil<
+        FDBiasedChoice<1, NGHOST-1>::degree,
+        FDBiasedChoice<1, NGHOST-1>::nghost,
+        FDBiasedChoice<1, NGHOST-1>::lopsize
+      > sr;
 
     int stride[3];
     Real idx[3];

@@ -373,9 +373,6 @@ if args['g']:
     if not args['t']:
         makefile_options['RSOLVER_FILE'] += '_no_transform'
 
-# Default FD stencils
-args['nfdcen'] = args['nfddis'] = args['nfdupw'] = args['nghost']
-
 # -w argument
 if args['w']:
   definitions['WAVE_ENABLED'] = '1'
@@ -385,35 +382,11 @@ else:
 # -z argument
 if args['z']:
   definitions['Z4C_ENABLED'] = '1'
-  nghost = int(args['nghost'])
-  # 2nd order accurate
-  if nghost == 2:
-    args['nfdcen'] = "1"
-    args['nfdupw'] = "2"
-    args['nfddis'] = "2"
-  # 4th order accurate
-  elif nghost == 3:
-    args['nfdcen'] = "2"
-    args['nfdupw'] = "3"
-    args['nfddis'] = "3"
-  # 6th order accurate
-  elif nghost == 4 or nghost == 5:
-    args['nfdcen'] = "3"
-    args['nfdupw'] = "4"
-    args['nfddis'] = "4"
-  # 8th order accurate
-  else:
-    args['nfdcen'] = "4"
-    args['nfdupw'] = "5"
-    args['nfddis'] = "5"
+  if int(args['nghost']) not in [2, 3, 4, 5]:
+      raise SystemExit("### CONFIGURE ERROR: Z4c requires 2, 3, 4, or 5 ghost zones")
 else:
   definitions['Z4C_ENABLED'] = '0'
 
-# finite differencing options
-definitions['NFDCEN'] = args['nfdcen']
-definitions['NFDDIS'] = args['nfddis']
-definitions['NFDUPW'] = args['nfdupw']
-  
 # -shear argument
 if args['shear']:
     definitions['SHEARING_BOX'] = '1'
@@ -706,10 +679,6 @@ print('  Linker flags:            ' + makefile_options['LINKER_FLAGS'] + ' '
       + makefile_options['LIBRARY_FLAGS'])
 print('  Precision:               ' + ('single' if args['float'] else 'double'))
 print('  Number of ghost cells:   ' + args['nghost'])
-print('  Stencil for centered FD: ' + args['nfdcen'])
-print('  Stencil for dissipation: ' + args['nfddis'])
-print('  Stencil for upwind FD:   ' + args['nfdupw'])
-print('  FD Order of accuracy:    ' + str(2*int(args['nfdcen'])))
 print('  MPI parallelism:         ' + ('ON' if args['mpi'] else 'OFF'))
 print('  OpenMP parallelism:      ' + ('ON' if args['omp'] else 'OFF'))
 print('  FFT:                     ' + ('ON' if args['fft'] else 'OFF'))

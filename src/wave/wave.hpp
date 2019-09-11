@@ -51,7 +51,7 @@ private:
       int const is, int const ie, int const js, int const je, int const ks, int const ke);
 private:
   struct {
-    typedef FDCenteredStencil<2, NFDCEN> stencil;
+    typedef FDCenteredStencil<2, NGHOST> stencil;
 
     int stride[3];
     Real idx[3];
