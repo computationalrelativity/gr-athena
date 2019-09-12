@@ -365,6 +365,10 @@ private:
       return 0.5 * idx[dir] * (pu[stride[dir]] - pu[-stride[dir]]);
     }
     // Advective derivative
+    // The advective derivative is for an equation in the form
+    //    d_t u = vx d_x u
+    // So negative vx means advection from the *left* to the *right*, so we use
+    // *left* biased FD stencils
     inline Real Lx(int dir, Real & vx, Real & u) {
       Real * pu = &u;
 
@@ -378,7 +382,7 @@ private:
         dr += sr::coeff[n] * pu[(n - sr::offset)*stride[dir]];
       }
 
-      return ((vx > 0) ? (vx * dl) : (vx * dr)) * idx[dir];
+      return ((vx < 0) ? (vx * dl) : (vx * dr)) * idx[dir];
     }
     // Homogeneous 2nd derivative
     inline Real Dxx(int dir, Real & u) {

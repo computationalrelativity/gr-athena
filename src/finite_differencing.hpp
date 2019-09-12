@@ -87,10 +87,7 @@ public:
   // Number of ghost points required for the differencing
   enum {nghost = nghost_};
   // Position at which the derivative is computed wrt the beginning of the stencil
-  //DEBUG
-  //enum {offset = nghost_};
-  enum {offset = lopsize_};
-  //END DEBUG
+  enum {offset = nghost_};
   // Width of the stencil
   enum {width = nghost_ + lopsize_ + 1};
   // Finite differencing coefficients
@@ -109,10 +106,7 @@ public:
   // Number of ghost points required for the differencing
   enum {nghost = nghost_};
   // Position at which the derivative is computed wrt the beginning of the stencil
-  //DEBUG
-  //enum {offset = lopsize_};
-  enum {offset = nghost_};
-  //END DEBUG
+  enum {offset = lopsize_};
   // Width of the stencil
   enum {width = nghost_ + lopsize_ + 1};
   // Finite differencing coefficients
