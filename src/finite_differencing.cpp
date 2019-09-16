@@ -89,7 +89,7 @@ Real const FDLeftBiasedStencil<1, 2, 1>::coeff[] = {
 
 template<>
 Real const FDLeftBiasedStencil<1, 3, 1>::coeff[] = {
-  1./12, -6./12, 18./12, -10./12, -3./12,
+  -1./12, 6./12, -18./12, +10./12, +3./12,
 };
 
 template<>
@@ -135,7 +135,7 @@ Real const FDRightBiasedStencil<1, 2, 1>::coeff[] = {
 
 template<>
 Real const FDRightBiasedStencil<1, 3, 1>::coeff[] = {
-   3./12, 10./12, -18./12,  6./12, -1./12,
+   -3./12, -10./12, 18./12, -6./12, 1./12
 };
 
 template<>
