@@ -15,8 +15,8 @@
 #include <iostream>
 
 #include "geodesic_grid.hpp"
-#include "athena_arrays.hpp"            // AthenaArray
-#include "athena.hpp"
+#include "../athena_arrays.hpp"            // AthenaArray
+#include "../athena.hpp"
 
 GeodesicGrid::GeodesicGrid(int nlev) {
 
