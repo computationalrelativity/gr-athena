@@ -12,28 +12,37 @@
 #include "../coordinates/coordinates.hpp"
 #include "spherical_grid.hpp"
 
-SphericalGrid::SphericalGrid(int nlev, Real rad): GeodesicGrid(nlev), m_r(rad) { }
+#define SQ(X) ((X)*(X))
+
+SphericalGrid::SphericalGrid(int nlev, Real rad_): GeodesicGrid(nlev) {
+  rad.NewAthenaArray(GeodesicGrid::NumVertices());
+  rad.Fill(rad_);
+}
 
 void SphericalGrid::Position(int ic, Real * x, Real * y, Real * z) const {
   Real theta, phi;
   GeodesicGrid::PositionPolar(ic, &theta, &phi);
-  *x = m_r*std::sin(theta)*std::cos(phi);
-  *y = m_r*std::sin(theta)*std::sin(phi);
-  *z = m_r*std::cos(theta);
+  *x = rad(ic)*std::sin(theta)*std::cos(phi);
+  *y = rad(ic)*std::sin(theta)*std::sin(phi);
+  *z = rad(ic)*std::cos(theta);
 }
 
 Real SphericalGrid::ComputeWeight(int ic) const {
-  return m_r*m_r*GeodesicGrid::ComputeWeight(ic);
+  return rad(ic)*rad(ic)*GeodesicGrid::ComputeWeight(ic);
 }
 
 Real SphericalGrid::ArcLength(int ic1, int ic2) const {
-  return m_r*GeodesicGrid::ArcLength(ic1, ic2);
+  Real x1, y1, z1;
+  Real x2, y2, z2;
+  Position(ic1, &x1, &y1, &z1);
+  Position(ic2, &x2, &y2, &z2);
+  return std::sqrt(SQ(x1 - x2) + SQ(y1 - y2) + SQ(z1 - z2));
 }
 
 SphericalPatch::SphericalPatch(SphericalGrid const * psphere, MeshBlock const * pblock, collocation_t coll):
-    coll(coll), pm_interp(nullptr), pm_sphere(psphere), pm_block(pblock) {
-  MeshBlock const * pmb = pm_block;
-  Coordinates const * pmc = pm_block->pcoord;
+    coll(coll), psphere(psphere), pblock(pblock), pinterp(nullptr) {
+  MeshBlock const * pmb = pblock;
+  Coordinates const * pmc = pblock->pcoord;
 
   Real xmin, xmax, ymin, ymax, zmin, zmax;
   Real origin[3];
@@ -75,42 +84,42 @@ SphericalPatch::SphericalPatch(SphericalGrid const * psphere, MeshBlock const * 
   delta[3] = pmc->dx3v(0);
 
   // Loop over all points to find those belonging to this spherical patch
-  int const np = pm_sphere->NumVertices();
-  m_map.reserve(np);
+  int const np = psphere->NumVertices();
+  map.reserve(np);
   for (int ic = 0; ic < np; ++ic) {
     Real x, y, z;
-    pm_sphere->Position(ic, &x, &y, &z);
+    psphere->Position(ic, &x, &y, &z);
     if (x >= xmin && x <= xmax && y >= ymin && y <= ymax && z <= zmin && z >= zmax) {
-      m_map.push_back(ic);
+      map.push_back(ic);
     }
   }
-  m_map.shrink_to_fit();
-  m_n = m_map.size();
+  map.shrink_to_fit();
+  n = map.size();
 
-  pm_interp = new LagrangeInterpND<2*NGHOST, 3> *[m_n];
-  for (int i = 0; i < m_n; ++i) {
+  pinterp = new LagrangeInterpND<2*NGHOST, 3> *[n];
+  for (int i = 0; i < n; ++i) {
     Real coord[3];
-    pm_sphere->Position(m_map[i], &coord[0], &coord[1], &coord[2]);
-    pm_interp[i] = new LagrangeInterpND<2*NGHOST, 3>(origin, delta, size, coord);
+    psphere->Position(map[i], &coord[0], &coord[1], &coord[2]);
+    pinterp[i] = new LagrangeInterpND<2*NGHOST, 3>(origin, delta, size, coord);
   }
 }
 
 SphericalPatch::~SphericalPatch() {
-  for (int i = 0; i < m_n; ++i) {
-    delete pm_interp[i];
+  for (int i = 0; i < n; ++i) {
+    delete pinterp[i];
   }
-  delete[] pm_interp;
+  delete[] pinterp;
 }
 
 void SphericalPatch::interpToSpherical(Real const * src, Real * dst) const {
-  for (int i = 0; i < m_n; ++i) {
-    dst[i] = pm_interp[i]->eval(src);
+  for (int i = 0; i < n; ++i) {
+    dst[i] = pinterp[i]->eval(src);
   }
 }
 
 void SphericalPatch::InterpToSpherical(AthenaArray<Real> const & src, AthenaArray<Real> * dst) const {
   assert (src.GetDim2() == dst->GetDim2());
-  assert (dst->GetDim1() == m_n);
+  assert (dst->GetDim1() == n);
   AthenaArray<Real> mySrc, myDst;
   int const nvars = src.GetDim2();
   for (int iv = 0; iv < nvars; ++iv) {
@@ -121,15 +130,15 @@ void SphericalPatch::InterpToSpherical(AthenaArray<Real> const & src, AthenaArra
 }
 
 void SphericalPatch::mergeData(Real const * src, Real * dst) const {
-  for (int i = 0; i < m_n; ++i) {
-    dst[m_map[i]] = src[i];
+  for (int i = 0; i < n; ++i) {
+    dst[map[i]] = src[i];
   }
 }
 
 void SphericalPatch::MergeData(AthenaArray<Real> const & src, AthenaArray<Real> * dst) const {
   assert (src.GetDim2() == dst->GetDim2());
-  assert (dst->GetDim1() == pm_sphere->NumVertices());
-  assert (src.GetDim1() == m_n);
+  assert (dst->GetDim1() == psphere->NumVertices());
+  assert (src.GetDim1() == n);
   AthenaArray<Real> mySrc, myDst;
   int const nvars = src.GetDim2();
   for (int iv = 0; iv < nvars; ++iv) {

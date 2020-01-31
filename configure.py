@@ -507,7 +507,7 @@ if args['debug']:
     definitions['DEBUG'] = 'DEBUG'
     if (args['cxx'] == 'g++' or args['cxx'] == 'g++-simd' or args['cxx'] == 'icc'
             or args['cxx'] == 'icc-debug'):
-        makefile_options['COMPILER_FLAGS'] = '-O0 -g'
+        makefile_options['COMPILER_FLAGS'] = '-O0 -g -std=c++11'
     if args['cxx'] == 'cray':
         makefile_options['COMPILER_FLAGS'] = '-O0'
     if args['cxx'] == 'bgxl':

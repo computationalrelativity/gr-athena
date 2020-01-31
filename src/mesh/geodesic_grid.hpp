@@ -18,6 +18,7 @@ class GeodesicGrid {
 
   public:
     //! Creates a geodesic grid with nlev levels
+    //! The number of grid points is \f$ 10 {\rm nlev}^2 + 2\f$.
     GeodesicGrid(
         int nlev                 //! [in] number of levels of the grid
         );

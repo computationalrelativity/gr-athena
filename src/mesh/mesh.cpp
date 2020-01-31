@@ -49,6 +49,7 @@
 #include "mesh.hpp"
 #include "../hydro/hydro_diffusion/hydro_diffusion.hpp"
 #include "../field/field_diffusion/field_diffusion.hpp"
+#include "../wave/wave_extract.hpp"
 
 // MPI/OpenMP header
 #ifdef MPI_PARALLEL
@@ -500,6 +501,9 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) {
 
   if (turb_flag > 0)
     ptrbd = new TurbulenceDriver(this, pin);
+
+  if (WAVE_ENABLED)
+    pwave_extr = new WaveExtract(this, pin);
 }
 
 //----------------------------------------------------------------------------------------
@@ -834,6 +838,9 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) {
 
   if (turb_flag > 0)
     ptrbd = new TurbulenceDriver(this, pin);
+  
+  if (WAVE_ENABLED)
+    pwave_extr = new WaveExtract(this, pin);
 }
 
 //----------------------------------------------------------------------------------------
@@ -853,6 +860,7 @@ Mesh::~Mesh() {
   if (SELF_GRAVITY_ENABLED==1) delete pfgrd;
   else if (SELF_GRAVITY_ENABLED==2) delete pmgrd;
   if (turb_flag > 0) delete ptrbd;
+  if (WAVE_ENABLED) delete pwave_extr;
   if (adaptive==true) { // deallocate arrays for AMR
     delete [] nref;
     delete [] nderef;

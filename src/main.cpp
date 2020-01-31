@@ -28,6 +28,7 @@
 #include <iomanip>    // setprecision()
 #include <iostream>   // cout, endl
 #include <new>        // bad_alloc
+#include <stdexcept>  // logic_error
 #include <string>     // string
 
 // Athena++ headers
@@ -43,6 +44,7 @@
 #include "task_list/wave_task_list.hpp"
 #include "task_list/z4c_task_list.hpp"
 #include "utils/utils.hpp"
+#include "wave/wave_extract.hpp"
 
 // MPI/OpenMP headers
 #ifdef MPI_PARALLEL
@@ -411,6 +413,10 @@ int main(int argc, char *argv[]) {
         pmesh->pfgrd->Solve(stage, 0);
       else if (SELF_GRAVITY_ENABLED == 2) // multigrid
         pmesh->pmgrd->Solve(stage);
+      if (WAVE_ENABLED) {
+        pmesh->pwave_extr->ReduceMonopole();
+        pmesh->pwave_extr->Write(pmesh->ncycle, pmesh->time);
+      }
       ptlist->DoTaskListOneStage(pmesh, stage);
     }
 

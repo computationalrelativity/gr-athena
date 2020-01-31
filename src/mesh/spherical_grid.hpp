@@ -19,7 +19,6 @@
 
 //! \class SphericalGrid
 //! \brief A class representing a grid on a topological sphere (wrapping around GeodesicGrid)
-//! NOTE: at the moment only coordinate spheres are supported, but it should be easy to change this
 class SphericalGrid: public GeodesicGrid {
   public:
     //! Creates a geodetic grid with nlev levels
@@ -41,6 +40,8 @@ class SphericalGrid: public GeodesicGrid {
     ) const;
     //! Get the arc length of the face between cells ic1 and ic2
     /*!
+     *  This is computed only to 2nd order accuracy at the moment.
+     *
      *  An assert error is thrown if ic1 and ic2 are not neighbors or if either
      *  index is invalid.
      */
@@ -48,8 +49,8 @@ class SphericalGrid: public GeodesicGrid {
       int ic1,                //! [in] index of first cell
       int ic2                 //! [in] index of second cell
     ) const;
-  private:
-    Real m_r;
+  public:
+    AthenaArray<Real> rad;
 };
 
 //! \class SphericalPatch
@@ -70,11 +71,11 @@ class SphericalPatch {
                    AthenaArray<Real> * dst) const;           //! [out] data defined on the SphericalGrid
     //! Number of points on the spherical patch
     inline int NumPoints() const {
-      return m_n;
+      return n;
     }
     //! Map patch degrees of freedom to the corresponding index in the full SphericalGrid
     inline int idxMap(int idx) const {
-      return m_map[idx];
+      return map[idx];
     }
   private:
     //! Interpolate an array defined on the MeshBlock to the SphericalPatch
@@ -85,18 +86,19 @@ class SphericalPatch {
     void mergeData(Real const * src,            //! [in] 1D data defined on the SphericalPatch
                    Real * dst) const;           //! [out] 1D data defined on the SphericalGrid
   public:
+    //! Type of collocation
     collocation_t const coll;
+    //! Parent spherical grid
+    SphericalGrid const * psphere;
+    // Parent mesh block
+    MeshBlock const * pblock;
   private:
     // Number of points in the spherical patch
-    int m_n;
+    int n;
     // Maps local indices to global indices on the SphericalGrid
-    std::vector<int> m_map;
+    std::vector<int> map;
     // Interpolating polynomials
-    LagrangeInterpND<2*NGHOST, 3> ** pm_interp;
-    // Parent spherical grid
-    SphericalGrid const * pm_sphere;
-    // Parent mesh block
-    MeshBlock const * pm_block;
+    LagrangeInterpND<2*NGHOST, 3> ** pinterp;
 };
 
 #endif

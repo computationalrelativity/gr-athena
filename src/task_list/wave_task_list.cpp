@@ -19,6 +19,7 @@
 #include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
 #include "../wave/wave.hpp"
+#include "../wave/wave_extract.hpp"
 #include "../z4c/z4c.hpp"
 #include "../parameter_input.hpp"
 #include "task_list.hpp"
@@ -217,6 +218,7 @@ WaveIntegratorTaskList::WaveIntegratorTaskList(ParameterInput *pin, Mesh *pm)
     else {
       AddWaveIntegratorTask(PHY_BVAL, (SEND_WAVE|RECV_WAVE));
     }
+    AddWaveIntegratorTask(WAVE_EXTR, PHY_BVAL);
     AddWaveIntegratorTask(USERWORK, PHY_BVAL);
     AddWaveIntegratorTask(NEW_DT, USERWORK);
     if (pm->adaptive==true) {
@@ -294,6 +296,10 @@ void WaveIntegratorTaskList::AddWaveIntegratorTask(uint64_t id, uint64_t dep) {
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
         (&WaveIntegratorTaskList::StartupIntegrator);
       break;
+    case (WAVE_EXTR):
+      task_list_[ntasks].TaskFunc=
+        static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
+        (&WaveIntegratorTaskList::WaveExtract);
 
     default:
       std::stringstream msg;
@@ -432,6 +438,13 @@ enum TaskStatus WaveIntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int sta
   }
 
   return TASK_SUCCESS;
+}
+
+enum TaskStatus WaveIntegratorTaskList::WaveExtract(MeshBlock * pmb, int stage) {
+  if (stage != nstages) return TASK_SUCCESS; // only do on last stage
+  AthenaArray<Real> u;
+  u.InitWithShallowSlice(pmb->pwave->u, 0, 1);
+  pmb->pwave_extr_loc->Decompose(u);
 }
 
 enum TaskStatus WaveIntegratorTaskList::UserWork(MeshBlock *pmb, int stage) {

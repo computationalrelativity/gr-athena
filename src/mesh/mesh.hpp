@@ -44,6 +44,8 @@ class FFTDriver;
 class FFTGravityDriver;
 class TurbulenceDriver;
 class Wave;
+class WaveExtract;
+class WaveExtractLocal;
 class Z4c;
 
 //----------------------------------------------------------------------------------------
@@ -109,6 +111,9 @@ public:
   EquationOfState *peos;
   Wave *pwave;
   Z4c *pz4c;
+
+  // wave extraction
+  WaveExtractLocal * pwave_extr_loc;
 
   MeshBlock *prev, *next;
 
@@ -191,6 +196,7 @@ public:
   TurbulenceDriver *ptrbd;
   FFTGravityDriver *pfgrd;
   MGGravityDriver *pmgrd;
+  WaveExtract * pwave_extr;
 
   AthenaArray<Real> *ruser_mesh_data;
   AthenaArray<int> *iuser_mesh_data;

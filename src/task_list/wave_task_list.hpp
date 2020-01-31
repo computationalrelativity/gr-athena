@@ -40,6 +40,8 @@ public:
   enum TaskStatus CheckRefinement(MeshBlock *pmb, int stage);
 
   enum TaskStatus StartupIntegrator(MeshBlock *pmb, int stage);
+
+  enum TaskStatus WaveExtract(MeshBlock *pmb, int stage);
 };
 
 //----------------------------------------------------------------------------------------
@@ -60,6 +62,7 @@ namespace WaveIntegratorTaskNames {
   const uint64_t NEW_DT  =1LL<<10;
   const uint64_t AMR_FLAG=1LL<<11;
   const uint64_t STARTUP_INT=1LL<<12;
+  const uint64_t WAVE_EXTR=1LL<<13;
 } // namespace WaveIntegratorTaskNames
 
 #endif

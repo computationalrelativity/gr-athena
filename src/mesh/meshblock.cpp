@@ -31,6 +31,7 @@
 #include "../gravity/gravity.hpp"
 #include "../hydro/hydro.hpp"
 #include "../wave/wave.hpp"
+#include "../wave/wave_extract.hpp"
 #include "../z4c/z4c.hpp"
 #include "../parameter_input.hpp"
 #include "../utils/buffer_utils.hpp"
@@ -132,7 +133,10 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
 
   // physics-related objects: may depend on Coordinates for diffusion terms
   if (HYDRO_ENABLED) phydro = new Hydro(this, pin);
-  if (WAVE_ENABLED) pwave = new Wave(this, pin);
+  if (WAVE_ENABLED) {
+    pwave = new Wave(this, pin);
+    pwave_extr_loc = new WaveExtractLocal(this->pmy_mesh->pwave_extr->psphere, this, pin);
+  }
   if (Z4C_ENABLED) pz4c = new Z4c(this, pin);
   if (MAGNETIC_FIELDS_ENABLED) pfield = new Field(this, pin);
   if (HYDRO_ENABLED) peos = new EquationOfState(this, pin);
@@ -231,7 +235,10 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
 
   // (re-)create physics-related objects in MeshBlock
   if (HYDRO_ENABLED) phydro = new Hydro(this, pin);
-  if (WAVE_ENABLED) pwave = new Wave(this, pin);
+  if (WAVE_ENABLED) {
+    pwave = new Wave(this, pin);
+    pwave_extr_loc = new WaveExtractLocal(this->pmy_mesh->pwave_extr->psphere, this, pin);
+  }
   if (Z4C_ENABLED) pz4c = new Z4c(this, pin);
   if (MAGNETIC_FIELDS_ENABLED) pfield = new Field(this, pin);
   if (HYDRO_ENABLED) peos = new EquationOfState(this, pin);
@@ -307,7 +314,10 @@ MeshBlock::~MeshBlock() {
   if (pmy_mesh->multilevel == true) delete pmr;
 
   if (HYDRO_ENABLED) delete phydro;
-  if (WAVE_ENABLED) delete pwave;
+  if (WAVE_ENABLED) {
+    delete pwave;
+    delete pwave_extr_loc;
+  }
   if (Z4C_ENABLED) delete pz4c;
   if (MAGNETIC_FIELDS_ENABLED) delete pfield;
   if (HYDRO_ENABLED) delete peos;
