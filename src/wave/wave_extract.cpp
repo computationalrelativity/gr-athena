@@ -33,7 +33,7 @@ WaveExtract::WaveExtract(Mesh * pmesh, ParameterInput * pin):
 #ifdef MPI_PARALLEL
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  io_proc = (root == rank);
+  ioproc = (root == rank);
 #else
   ioproc = true;
 #endif
@@ -66,7 +66,7 @@ void WaveExtract::ReduceMonopole() {
   }
 #ifdef MPI_PARALLEL
   int rank;
-  MPI_comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   if (root == rank) {
     MPI_Reduce(MPI_IN_PLACE, &monopole, 1, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
   }
