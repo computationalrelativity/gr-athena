@@ -300,7 +300,7 @@ void WaveIntegratorTaskList::AddWaveIntegratorTask(uint64_t id, uint64_t dep) {
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
         (&WaveIntegratorTaskList::WaveExtract);
-
+      break;
     default:
       std::stringstream msg;
       msg << "### FATAL ERROR in AddTimeIntegratorTask" << std::endl

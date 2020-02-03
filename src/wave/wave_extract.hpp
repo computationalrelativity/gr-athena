@@ -64,6 +64,7 @@ class WaveExtractLocal {
   private:
     AthenaArray<Real> data;
     AthenaArray<Real> weight;
+    Real rad;
 };
 
 #endif

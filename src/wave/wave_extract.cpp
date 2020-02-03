@@ -83,11 +83,13 @@ void WaveExtract::Write(int iter, Real time) const {
 }
 
 WaveExtractLocal::WaveExtractLocal(SphericalGrid * psphere, MeshBlock * pmb, ParameterInput * pin) {
+  rad = pin->GetOrAddReal("wave", "extraction_radius", 1.0);
   ppatch = new SphericalPatch(psphere, pmb, SphericalPatch::cell);
   data.NewAthenaArray(ppatch->NumPoints());
   weight.NewAthenaArray(ppatch->NumPoints());
   for (int ip = 0; ip < ppatch->NumPoints(); ++ip) {
     weight(ip) = ppatch->psphere->ComputeWeight(ppatch->idxMap(ip));
+    weight(ip) /= 4*M_PI*rad*rad;
   }
 }
 

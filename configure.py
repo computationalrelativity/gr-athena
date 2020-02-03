@@ -397,7 +397,7 @@ else:
 if args['cxx'] == 'g++':
     definitions['COMPILER_CHOICE'] = 'g++'
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'g++'
-    makefile_options['PREPROCESSOR_FLAGS'] = ''
+    makefile_options['PREPROCESSOR_FLAGS'] = '-DNDEBUG'
     makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++11'
     makefile_options['LINKER_FLAGS'] = ''
     makefile_options['LIBRARY_FLAGS'] = ''
@@ -405,7 +405,7 @@ if args['cxx'] == 'g++-simd':
     # GCC version >= 4.9, for OpenMP 4.0; version >= 6.1 for OpenMP 4.5
     definitions['COMPILER_CHOICE'] = 'g++-simd'
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'g++'
-    makefile_options['PREPROCESSOR_FLAGS'] = ''
+    makefile_options['PREPROCESSOR_FLAGS'] = '-DNDEBUG'
     makefile_options['COMPILER_FLAGS'] = (
         '-O3 -std=c++11 -fopenmp-simd -fwhole-program -flto -ffast-math '
         '-march=native -fprefetch-loop-arrays'
@@ -420,7 +420,7 @@ if args['cxx'] == 'g++-simd':
 if args['cxx'] == 'icc':
     definitions['COMPILER_CHOICE'] = 'icc'
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'icc'
-    makefile_options['PREPROCESSOR_FLAGS'] = ''
+    makefile_options['PREPROCESSOR_FLAGS'] = '-DNDEBUG'
     makefile_options['COMPILER_FLAGS'] = (
       '-O3 -std=c++11 -ipo -xhost -inline-forceinline -qopenmp-simd -qopt-prefetch=4'
     )
@@ -433,7 +433,7 @@ if args['cxx'] == 'icc-debug':
     # Useful for testing symmetry, SIMD-enabled functions and loops with OpenMP 4.5
     definitions['COMPILER_CHOICE'] = 'icc'
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'icc'
-    makefile_options['PREPROCESSOR_FLAGS'] = ''
+    makefile_options['PREPROCESSOR_FLAGS'] = '-DNDEBUG'
     makefile_options['COMPILER_FLAGS'] = (
         '-O3 -std=c++11 -xhost -qopenmp-simd -fp-model precise -qopt-prefetch=4 '
         '-qopt-report=5 -qopt-report-phase=openmp,vec -g'
@@ -443,7 +443,7 @@ if args['cxx'] == 'icc-debug':
 if args['cxx'] == 'cray':
     definitions['COMPILER_CHOICE'] = 'cray'
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'CC'
-    makefile_options['PREPROCESSOR_FLAGS'] = ''
+    makefile_options['PREPROCESSOR_FLAGS'] = '-DNDEBUG'
     makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++11 -h aggress -h vector3 -hfp3'
     makefile_options['LINKER_FLAGS'] = '-hwp -hpl=obj/lib'
     makefile_options['LIBRARY_FLAGS'] = '-lm'
@@ -457,7 +457,7 @@ if args['cxx'] == 'bgxl':
     #                exception handler
     definitions['COMPILER_CHOICE'] = 'bgxlc++'
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'bgxlc++'
-    makefile_options['PREPROCESSOR_FLAGS'] = ''
+    makefile_options['PREPROCESSOR_FLAGS'] = '-DNDEBUG'
     makefile_options['COMPILER_FLAGS'] = (
       '-O3 -qhot=level=1:vector -qinline=level=5:auto -qipa=level=1:noobject'
       ' -qstrict=subnormals -qmaxmem=150000 -qlanglvl=extended -qsuppress=1500-036'
@@ -470,7 +470,7 @@ if args['cxx'] == 'bgxl':
 if args['cxx'] == 'icc-phi':
     definitions['COMPILER_CHOICE'] = 'icc'
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'icc'
-    makefile_options['PREPROCESSOR_FLAGS'] = ''
+    makefile_options['PREPROCESSOR_FLAGS'] = '-DNDEBUG'
     makefile_options['COMPILER_FLAGS'] = (
       '-O3 -std=c++11 -ipo -xMIC-AVX512 -inline-forceinline -qopenmp-simd'
     )
@@ -480,7 +480,7 @@ if args['cxx'] == 'icc-phi':
 if args['cxx'] == 'clang++':
     definitions['COMPILER_CHOICE'] = 'clang++'
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'clang++'
-    makefile_options['PREPROCESSOR_FLAGS'] = ''
+    makefile_options['PREPROCESSOR_FLAGS'] = '-DNDEBUG'
     makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++11'
     makefile_options['LINKER_FLAGS'] = ''
     makefile_options['LIBRARY_FLAGS'] = ''
@@ -490,7 +490,7 @@ if args['cxx'] == 'clang++-simd':
     # offloading, target/declare simd directives). OpenMP 3.1 fully supported in LLVM 3.7
     definitions['COMPILER_CHOICE'] = 'clang++-simd'
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'clang++'
-    makefile_options['PREPROCESSOR_FLAGS'] = ''
+    makefile_options['PREPROCESSOR_FLAGS'] = '-DNDEBUG'
     makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++11 -fopenmp-simd'
     makefile_options['LINKER_FLAGS'] = ''
     makefile_options['LIBRARY_FLAGS'] = ''
@@ -514,6 +514,7 @@ if args['debug']:
         makefile_options['COMPILER_FLAGS'] = '-O0 -g -qlanglvl=extended'
     if args['cxx'] == 'icc-phi':
         makefile_options['COMPILER_FLAGS'] = '-O0 -g -xMIC-AVX512'
+    makefile_options['PREPROCESSOR_FLAGS'] = ''
 else:
     definitions['DEBUG'] = 'NOT_DEBUG'
 

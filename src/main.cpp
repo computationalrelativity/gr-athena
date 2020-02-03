@@ -18,6 +18,7 @@
 
 // C headers
 #include <stdint.h>   // int64_t
+#include <fenv.h>
 
 // C++ headers
 #include <csignal>
@@ -69,6 +70,10 @@ int main(int argc, char *argv[]) {
   int mesh_flag=0;  // set to <nproc> if -m <nproc> argument is on cmdline
   int wtlim=0;
   int ncstart=0;
+
+#ifndef NDEBUG
+  feenableexcept(FE_OVERFLOW | FE_DIVBYZERO | FE_INVALID);
+#endif
 
 //--- Step 1. ----------------------------------------------------------------------------
 // Initialize MPI environment, if necessary
@@ -401,23 +406,16 @@ int main(int argc, char *argv[]) {
 
     if (pmesh->turb_flag > 1) pmesh->ptrbd->Driving(); // driven turbulence
 
-  #if (0) // DEBUG
-    // Forcing only one step. For Euler step, use this combined with rk2
-    for (int stage=1; stage<=1; ++stage){
-  #else
     for (int stage=1; stage<=ptlist->nstages; ++stage){
-  #endif
-    // DEBUG
-      
       if (SELF_GRAVITY_ENABLED == 1) // fft (flag 0 for discrete kernel, 1 for continuous)
         pmesh->pfgrd->Solve(stage, 0);
       else if (SELF_GRAVITY_ENABLED == 2) // multigrid
         pmesh->pmgrd->Solve(stage);
-      if (WAVE_ENABLED) {
-        pmesh->pwave_extr->ReduceMonopole();
-        pmesh->pwave_extr->Write(pmesh->ncycle, pmesh->time);
-      }
       ptlist->DoTaskListOneStage(pmesh, stage);
+    }
+    if (WAVE_ENABLED) {
+      pmesh->pwave_extr->ReduceMonopole();
+      pmesh->pwave_extr->Write(pmesh->ncycle, pmesh->time);
     }
 
     pmesh->ncycle++;

@@ -50,7 +50,7 @@ SphericalPatch::SphericalPatch(SphericalGrid const * psphere, MeshBlock const * 
   int size[3];
 
   switch (coll) {
-    cell:
+    case cell: 
       xmin = pmc->x1v(pmb->is);
       xmax = pmc->x1v(pmb->ie);
       ymin = pmc->x2v(pmb->js);
@@ -59,12 +59,12 @@ SphericalPatch::SphericalPatch(SphericalGrid const * psphere, MeshBlock const * 
       zmax = pmc->x3v(pmb->ke);
       origin[0] = pmc->x1v(0);
       origin[1] = pmc->x2v(0);
-      origin[3] = pmc->x3v(0);
+      origin[2] = pmc->x3v(0);
       size[0] = pmb->block_size.nx1 + 2*(NGHOST);
       size[1] = pmb->block_size.nx2 + 2*(NGHOST);
       size[2] = pmb->block_size.nx3 + 2*(NGHOST);
       break;
-    vertex:
+    case vertex:
       xmin = pmc->x1f(pmb->is);
       xmax = pmc->x1f(pmb->ie);
       ymin = pmc->x2f(pmb->js);
@@ -73,7 +73,7 @@ SphericalPatch::SphericalPatch(SphericalGrid const * psphere, MeshBlock const * 
       zmax = pmc->x3f(pmb->ke);
       origin[0] = pmc->x1f(0);
       origin[1] = pmc->x2f(0);
-      origin[3] = pmc->x3f(0);
+      origin[2] = pmc->x3f(0);
       size[0] = pmb->block_size.nx1 + 2*(NGHOST) + 1;
       size[1] = pmb->block_size.nx2 + 2*(NGHOST) + 1;
       size[2] = pmb->block_size.nx3 + 2*(NGHOST) + 1;
@@ -81,7 +81,7 @@ SphericalPatch::SphericalPatch(SphericalGrid const * psphere, MeshBlock const * 
   }
   delta[0] = pmc->dx1v(0);
   delta[1] = pmc->dx2v(0);
-  delta[3] = pmc->dx3v(0);
+  delta[2] = pmc->dx3v(0);
 
   // Loop over all points to find those belonging to this spherical patch
   int const np = psphere->NumVertices();
@@ -89,7 +89,7 @@ SphericalPatch::SphericalPatch(SphericalGrid const * psphere, MeshBlock const * 
   for (int ic = 0; ic < np; ++ic) {
     Real x, y, z;
     psphere->Position(ic, &x, &y, &z);
-    if (x >= xmin && x <= xmax && y >= ymin && y <= ymax && z <= zmin && z >= zmax) {
+    if (x >= xmin && x <= xmax && y >= ymin && y <= ymax && z >= zmin && z <= zmax) {
       map.push_back(ic);
     }
   }
@@ -118,10 +118,10 @@ void SphericalPatch::interpToSpherical(Real const * src, Real * dst) const {
 }
 
 void SphericalPatch::InterpToSpherical(AthenaArray<Real> const & src, AthenaArray<Real> * dst) const {
-  assert (src.GetDim2() == dst->GetDim2());
+  assert (src.GetDim4() == dst->GetDim2());
   assert (dst->GetDim1() == n);
   AthenaArray<Real> mySrc, myDst;
-  int const nvars = src.GetDim2();
+  int const nvars = src.GetDim4();
   for (int iv = 0; iv < nvars; ++iv) {
     mySrc.InitWithShallowSlice(const_cast<AthenaArray<Real>&>(src), iv, 1);
     myDst.InitWithShallowSlice(*dst, iv, 1);

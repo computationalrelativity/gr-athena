@@ -272,6 +272,9 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) {
     max_level = 63;
   }
 
+  if (WAVE_ENABLED)
+    pwave_extr = new WaveExtract(this, pin);
+
   InitUserMeshData(pin);
 
   if (multilevel==true) {
@@ -501,9 +504,6 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) {
 
   if (turb_flag > 0)
     ptrbd = new TurbulenceDriver(this, pin);
-
-  if (WAVE_ENABLED)
-    pwave_extr = new WaveExtract(this, pin);
 }
 
 //----------------------------------------------------------------------------------------
@@ -665,6 +665,9 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) {
   } else {
     max_level = 63;
   }
+
+  if (WAVE_ENABLED)
+    pwave_extr = new WaveExtract(this, pin);
 
   InitUserMeshData(pin);
 
@@ -838,9 +841,6 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) {
 
   if (turb_flag > 0)
     ptrbd = new TurbulenceDriver(this, pin);
-  
-  if (WAVE_ENABLED)
-    pwave_extr = new WaveExtract(this, pin);
 }
 
 //----------------------------------------------------------------------------------------
