@@ -96,11 +96,11 @@ SphericalPatch::SphericalPatch(SphericalGrid const * psphere, MeshBlock const * 
   map.shrink_to_fit();
   n = map.size();
 
-  pinterp = new LagrangeInterpND<2*NGHOST, 3> *[n];
+  pinterp = new LagrangeInterpND<2*NGHOST-1, 3> *[n];
   for (int i = 0; i < n; ++i) {
     Real coord[3];
     psphere->Position(map[i], &coord[0], &coord[1], &coord[2]);
-    pinterp[i] = new LagrangeInterpND<2*NGHOST, 3>(origin, delta, size, coord);
+    pinterp[i] = new LagrangeInterpND<2*NGHOST-1, 3>(origin, delta, size, coord);
   }
 }
 

@@ -21,6 +21,10 @@
 #define LOCALINTERP_SYMMETRIC
 #endif
 
+// WARNING this code uses the same convention of Cactus of defining "order" of
+// interpolation the degree of the polynomials used and not the accuracy of the
+// interpolation. For example, linear interpolation corresponds to order = 1.
+
 template<int order>
 class LagrangeInterp1D {
   public:

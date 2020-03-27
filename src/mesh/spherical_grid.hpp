@@ -98,7 +98,7 @@ class SphericalPatch {
     // Maps local indices to global indices on the SphericalGrid
     std::vector<int> map;
     // Interpolating polynomials
-    LagrangeInterpND<2*NGHOST, 3> ** pinterp;
+    LagrangeInterpND<2*NGHOST-1, 3> ** pinterp;
 };
 
 #endif
