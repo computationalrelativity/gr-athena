@@ -27,6 +27,9 @@
 // enable shearing box? default=0 (false)
 #define SHEARING_BOX @SHEARING_BOX@
 
+// enable homologous expansion / contraction
+#define CONFROMAL_SCALING @HOMOLOGOUS@
+
 // Equation of state
 #define EQUATION_OF_STATE "@EQUATION_OF_STATE@"
 
