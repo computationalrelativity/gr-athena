@@ -112,6 +112,12 @@ parser.add_argument('--nscalars',
                     default='0',
                     help='set number of passive scalars')
 
+# -expgrid argument
+parser.add_argument('-expgrid',
+                    action='store_true',
+                    default=False,
+                    help='enable expanding grid')
+
 # -b argument
 parser.add_argument('-b',
                     action='store_true',
@@ -441,6 +447,12 @@ if args['g']:
     makefile_options['RSOLVER_FILE'] += '_rel'
     if not args['t']:
         makefile_options['RSOLVER_FILE'] += '_no_transform'
+
+# -expgrid argument
+if args['expgrid']:
+    definitions['EXPANDING_GRID'] = '1'
+else:
+    definitions['EXPANDING_GRID'] = '0'
 
 # -shear argument
 if args['shear']:
