@@ -18,6 +18,8 @@
 #include "../bvals/cc/hydro/bvals_hydro.hpp"
 #include "hydro_diffusion/hydro_diffusion.hpp"
 #include "srcterms/hydro_srcterms.hpp"
+#include "conformal.hpp"
+#include "../defs.hpp"
 
 class MeshBlock;
 class ParameterInput;
@@ -36,8 +38,11 @@ class Hydro {
 
   // data
   // TODO(KGF): make this private, if possible
-  MeshBlock* pmy_block;    // ptr to MeshBlock containing this Hydro
-
+  MeshBlock *pmy_block;    // ptr to MeshBlock containing this Hydro
+//#if CONFORMAL_SCALING == 1
+  Conformal *pmy_conformal;
+ //pmy_conformal = new Conformal;
+//#endif
   // conserved and primitive variables
   AthenaArray<Real> u, w;      // time-integrator memory register #1
   AthenaArray<Real> u1, w1;    // time-integrator memory register #2

@@ -36,6 +36,15 @@
 #include "../hydro/conformal.hpp"
 
 Real threshold;
+Real v_exp;
+Real r_conform;
+Real t_phys;
+
+
+//std::cout << "expansion_velocity: " << v_exp <<  std::endl;
+//std::cout << "conformal_factor: " << r_conform <<  std::endl;
+//std::cout << "physical_time: " << t_phys <<  std::endl;
+
 
 int RefinementCondition(MeshBlock *pmb);
 
@@ -59,15 +68,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   Real da   = pin->GetOrAddReal("problem", "damb", 1.0);
   Real prat = pin->GetReal("problem", "prat");
   Real drat = pin->GetOrAddReal("problem", "drat", 1.0);
+  
+  v_exp = pin->GetReal("problem", "expansion_velocity");
+  r_conform = pin->GetReal("problem", "conformal_factor");
+  t_phys = pin->GetReal("problem", "physical_time");
 
-  Real v_exp = pin->GetReal("problem", "expansion_velocity");
-  Real r_conform = pin->GetReal("problem", "conformal_factor");
-  Real t_phys = pin->GetReal("problem", "physical_time");
- 
-  std::cout << "expansion_velocity: " << v_exp <<  std::endl;
-  std::cout << "conformal_factor: " << r_conform <<  std::endl;
-  std::cout << "physical_time: " << t_phys <<  std::endl;
-
+  //std::cout << "physical_time: " << t_phys <<  std::endl;
 
   Real b0, angle;
   if (MAGNETIC_FIELDS_ENABLED) {
@@ -452,3 +458,22 @@ int RefinementCondition(MeshBlock *pmb) {
   if (maxeps < 0.25*threshold) return -1;
   return 0;
 }
+
+
+Real Conformal::expansionVelocity(Real tau) {
+
+//std::cout << "physical_time: " << v_exp <<  std::endl;
+return v_exp; 
+}
+
+
+Real Conformal::conformalFactor(Real tau) {
+
+return r_conform; 
+}
+
+Real Conformal::physicalTime(Real tau) {
+
+return t_phys; 
+}
+

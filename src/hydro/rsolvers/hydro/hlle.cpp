@@ -31,6 +31,11 @@
 #include "../../../eos/eos.hpp"
 #include "../../hydro.hpp"
 
+//rahul: for expanding grid
+#include "../../conformal.hpp"
+#include "../../../mesh/mesh.hpp"
+#include "../../../defs.hpp"
+
 //----------------------------------------------------------------------------------------
 //! \fn void Hydro::RiemannSolver
 //  \brief The HLLE Riemann solver for hydrodynamics (both adiabatic and isothermal)
@@ -39,12 +44,20 @@ void Hydro::RiemannSolver(const int k, const int j, const int il, const int iu,
                           const int ivx, AthenaArray<Real> &wl,
                           AthenaArray<Real> &wr, AthenaArray<Real> &flx,
                           const AthenaArray<Real> &dxw) {
+//#if CONFORMAL_SCALING == 1
+ Conformal *cf; //= pmy_conformal;
+//#endif
+
+MeshBlock *pmb = pmy_block;
+Mesh *pmesh=pmb->pmy_mesh;
+
   int ivy = IVX + ((ivx-IVX)+1)%3;
   int ivz = IVX + ((ivx-IVX)+2)%3;
   Real wli[(NHYDRO)],wri[(NHYDRO)],wroe[(NHYDRO)];
   Real fl[(NHYDRO)],fr[(NHYDRO)],flxi[(NHYDRO)];
   Real iso_cs = pmy_block->peos->GetIsoSoundSpeed();
   Real gamma;
+
   if (GENERAL_EOS) {
     gamma = std::nan("");
   } else {
@@ -52,6 +65,15 @@ void Hydro::RiemannSolver(const int k, const int j, const int il, const int iu,
   }
   Real gm1 = gamma - 1.0;
   Real igm1 = 1.0/gm1;
+  
+//rahul: use the call below to obtain the physical time, expansion velocity and conformal factor 
+    //std::cout << cf->expansionVelocity(5.0)<<  std::endl;
+    //std::cout << cf->conformalFactor(5.0)<<  std::endl;
+    //std::cout << cf->physicalTime(5.0)<<  std::endl;
+
+//std::cout << "current time:" << pmesh->time << "; dt: " << pmesh->dt << std::endl;
+
+//std::cout << "coordinate" << pmb->pcoord->x1f(1) << std::endl;
 
 #pragma omp simd private(wli,wri,wroe,fl,fr,flxi)
   for (int i=il; i<=iu; ++i) {
@@ -106,6 +128,11 @@ void Hydro::RiemannSolver(const int k, const int j, const int il, const int iu,
       }
 
       //--- Step 4. Compute the max/min wave speeds based on L/R states
+   
+    
+
+
+
 
       al = wli[IVX] - cl*ql;
       ar = wri[IVX] + cr*qr;
