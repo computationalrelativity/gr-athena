@@ -44,9 +44,7 @@ void Hydro::RiemannSolver(const int k, const int j, const int il, const int iu,
                           const int ivx, AthenaArray<Real> &wl,
                           AthenaArray<Real> &wr, AthenaArray<Real> &flx,
                           const AthenaArray<Real> &dxw) {
-//#if CONFORMAL_SCALING == 1
- Conformal *cf; //= pmy_conformal;
-//#endif
+
 
 MeshBlock *pmb = pmy_block;
 Mesh *pmesh=pmb->pmy_mesh;
@@ -65,15 +63,20 @@ Mesh *pmesh=pmb->pmy_mesh;
   }
   Real gm1 = gamma - 1.0;
   Real igm1 = 1.0/gm1;
-  
+
+
+#if CONFORMAL_SCALING == 1 
+
+//#endif
 //rahul: use the call below to obtain the physical time, expansion velocity and conformal factor 
-    //std::cout << cf->expansionVelocity(5.0)<<  std::endl;
-    //std::cout << cf->conformalFactor(5.0)<<  std::endl;
-    //std::cout << cf->physicalTime(5.0)<<  std::endl;
+    std::cout << my_conformal.expansionVelocity(pmesh->time)<<  std::endl;
+    std::cout << my_conformal.conformalFactor(pmesh->time)<<  std::endl;
+    std::cout << my_conformal.physicalTime(pmesh->time)<<  std::endl;
 
-//std::cout << "current time:" << pmesh->time << "; dt: " << pmesh->dt << std::endl;
+std::cout << "current time:" << pmesh->time << "; dt: " << pmesh->dt << std::endl;
 
-//std::cout << "coordinate" << pmb->pcoord->x1f(1) << std::endl;
+std::cout << "coordinate" << pmb->pcoord->x1f(1) << std::endl;
+#endif
 
 #pragma omp simd private(wli,wri,wroe,fl,fr,flxi)
   for (int i=il; i<=iu; ++i) {
@@ -88,9 +91,13 @@ Mesh *pmesh=pmb->pmy_mesh;
     wri[IVX]=wr(ivx,i);
     wri[IVY]=wr(ivy,i);
     wri[IVZ]=wr(ivz,i);
+
+
+
+
     if (NON_BAROTROPIC_EOS) wri[IPR]=wr(IPR,i);
 
-    //--- Step 2.  Compute middle state estimates with PVRS (Toro 10.5.2)
+    //--- Step 2.  Compute middle state estimates with PVRS (Toro 10.5.2; 9.3, Eqn-9.20)
     Real al, ar, el, er;
     Real cl = pmy_block->peos->SoundSpeed(wli);
     Real cr = pmy_block->peos->SoundSpeed(wri);
@@ -106,6 +113,17 @@ Mesh *pmesh=pmb->pmy_mesh;
       }
       Real rhoa = .5 * (wli[IDN] + wri[IDN]); // average density
       Real ca = .5 * (cl + cr); // average sound speed
+
+    #if CONFORMAL_SCALING == 1
+    // new characteristic speeds are v-R_dot*x
+      wli[IVX] = wli[IVX] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);  
+      wri[IVX] = wri[IVX] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);
+      wli[IVY] = wli[IVY] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x2f(i);  
+      wri[IVY] = wri[IVY] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x2f(i);
+      wli[IVZ] = wli[IVZ] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x3f(i);  
+      wri[IVZ] = wri[IVZ] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x3f(i);
+    #endif      
+
       Real pmid = .5 * (wli[IPR] + wri[IPR] + (wli[IVX]-wri[IVX]) * rhoa * ca);
       Real umid = .5 * (wli[IVX] + wri[IVX] + (wli[IPR]-wri[IPR]) / (rhoa * ca));
       Real rhol = wli[IDN] + (wli[IVX] - umid) * rhoa / ca; // mid-left density
@@ -128,12 +146,6 @@ Mesh *pmesh=pmb->pmy_mesh;
       }
 
       //--- Step 4. Compute the max/min wave speeds based on L/R states
-   
-    
-
-
-
-
       al = wli[IVX] - cl*ql;
       ar = wri[IVX] + cr*qr;
     } else { // isothermal; revert to Roe average
@@ -141,6 +153,16 @@ Mesh *pmesh=pmb->pmy_mesh;
       Real sqrtdl = std::sqrt(wli[IDN]);
       Real sqrtdr = std::sqrt(wri[IDN]);
       Real isdlpdr = 1.0/(sqrtdl + sqrtdr);
+
+    #if CONFORMAL_SCALING == 1
+    // new characteristic speeds are v-R_dot*x
+      wli[IVX] = wli[IVX] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);  
+      wri[IVX] = wri[IVX] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);
+      wli[IVY] = wli[IVY] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x2f(i);  
+      wri[IVY] = wri[IVY] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x2f(i);
+      wli[IVZ] = wli[IVZ] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x3f(i);  
+      wri[IVZ] = wri[IVZ] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x3f(i);
+    #endif
 
       wroe[IDN] = sqrtdl*sqrtdr;
       wroe[IVX] = (sqrtdl*wli[IVX] + sqrtdr*wri[IVX])*isdlpdr;
@@ -152,6 +174,16 @@ Mesh *pmesh=pmb->pmy_mesh;
     Real bp = ar > 0.0 ? ar : 0.0;
     Real bm = al < 0.0 ? al : 0.0;
 
+    #if CONFORMAL_SCALING == 1
+    // new characteristic speeds are v-R_dot*x
+      wli[IVX] = wli[IVX] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);  
+      wri[IVX] = wri[IVX] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);
+      wli[IVY] = wli[IVY] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x2f(i);  
+      wri[IVY] = wri[IVY] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x2f(i);
+      wli[IVZ] = wli[IVZ] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x3f(i);  
+      wri[IVZ] = wri[IVZ] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x3f(i);
+    #endif
+    
     //-- Step 5. Compute L/R fluxes along lines bm/bp: F_L - (S_L)U_L; F_R - (S_R)U_R
     Real vxl = wli[IVX] - bm;
     Real vxr = wri[IVX] - bp;
@@ -181,8 +213,8 @@ Mesh *pmesh=pmb->pmy_mesh;
     //--- Step 6. Compute the HLLE flux at interface.
     Real tmp=0.0;
     if (bp != bm) tmp = 0.5*(bp + bm)/(bp - bm);
-
-    flxi[IDN] = 0.5*(fl[IDN]+fr[IDN]) + (fl[IDN]-fr[IDN])*tmp;
+    // reduces to Toro, HLL flux Eqn-10.21
+    flxi[IDN] = 0.5*(fl[IDN]+fr[IDN]) + (fl[IDN]-fr[IDN])*tmp;  
     flxi[IVX] = 0.5*(fl[IVX]+fr[IVX]) + (fl[IVX]-fr[IVX])*tmp;
     flxi[IVY] = 0.5*(fl[IVY]+fr[IVY]) + (fl[IVY]-fr[IVY])*tmp;
     flxi[IVZ] = 0.5*(fl[IVZ]+fr[IVZ]) + (fl[IVZ]-fr[IVZ])*tmp;
