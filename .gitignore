@@ -1,3 +1,6 @@
+#ipython notebook swapfiles and backup
+vis/_rahul/.ipynb_checkpoints/*
+
 # Configured outputs
 Makefile
 src/defs.hpp

@@ -35,16 +35,19 @@
 #include "../parameter_input.hpp"
 #include "../hydro/conformal.hpp"
 
-Real threshold;
-Real v_exp;
-Real r_conform;
-Real t_phys;
+
 
 
 //std::cout << "expansion_velocity: " << v_exp <<  std::endl;
 //std::cout << "conformal_factor: " << r_conform <<  std::endl;
 //std::cout << "physical_time: " << t_phys <<  std::endl;
+//void ConformalData(ParameterInput *pin){
 
+  Real v_exp;
+  Real r_conform ;
+  Real t_phys;
+
+//}
 
 int RefinementCondition(MeshBlock *pmb);
 
@@ -53,6 +56,10 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
     EnrollUserRefinementCondition(RefinementCondition);
     threshold = pin->GetReal("problem","thr");
   }
+  //reading input parameter specific to expanding grid
+  v_exp = pin->GetReal("problem", "expansion_velocity");
+  r_conform = pin->GetReal("problem", "conformal_factor");
+  t_phys = pin->GetReal("problem", "physical_time");
   return;
 }
 
@@ -68,11 +75,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   Real da   = pin->GetOrAddReal("problem", "damb", 1.0);
   Real prat = pin->GetReal("problem", "prat");
   Real drat = pin->GetOrAddReal("problem", "drat", 1.0);
-  
-  v_exp = pin->GetReal("problem", "expansion_velocity");
-  r_conform = pin->GetReal("problem", "conformal_factor");
-  t_phys = pin->GetReal("problem", "physical_time");
-
   //std::cout << "physical_time: " << t_phys <<  std::endl;
 
   Real b0, angle;
@@ -476,4 +478,12 @@ Real Conformal::physicalTime(Real tau) {
 
 return t_phys; 
 }
+
+void KilonovaSrcTerm(const Real t, const Real dt, const AthenaArray<Real> *flx,
+                   const AthenaArray<Real> &p, AthenaArray<Real> &c) {
+
+    
+
+                   }
+
 
