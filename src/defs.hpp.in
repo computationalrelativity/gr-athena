@@ -28,7 +28,7 @@
 #define SHEARING_BOX @SHEARING_BOX@
 
 // enable homologous expansion / contraction
-#define CONFROMAL_SCALING @EXPANDING_GRID@
+#define CONFORMAL_SCALING @EXPANDING_GRID@
 
 // Equation of state
 #define EQUATION_OF_STATE "@EQUATION_OF_STATE@"
