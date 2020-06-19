@@ -39,10 +39,10 @@ class Hydro {
   // data
   // TODO(KGF): make this private, if possible
   MeshBlock *pmy_block;    // ptr to MeshBlock containing this Hydro
-//#if CONFORMAL_SCALING == 1
-  Conformal *pmy_conformal;
- //pmy_conformal = new Conformal;
-//#endif
+  #if CONFORMAL_SCALING == 1
+   Conformal my_conformal;
+   //my_conformal = new Conformal;
+  #endif
   // conserved and primitive variables
   AthenaArray<Real> u, w;      // time-integrator memory register #1
   AthenaArray<Real> u1, w1;    // time-integrator memory register #2
