@@ -46,7 +46,7 @@
   Real v_exp;
   Real r_conform ;
   Real t_phys;
-
+  Real threshold;
 //}
 
 int RefinementCondition(MeshBlock *pmb);

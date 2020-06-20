@@ -65,7 +65,7 @@ Mesh *pmesh=pmb->pmy_mesh;
   Real igm1 = 1.0/gm1;
 
 
-#if CONFORMAL_SCALING == 1 
+#if CONFORMAL_SCALING == 0 
 
 //#endif
 //rahul: use the call below to obtain the physical time, expansion velocity and conformal factor 
