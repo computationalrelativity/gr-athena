@@ -464,19 +464,19 @@ int RefinementCondition(MeshBlock *pmb) {
 
 Real Conformal::expansionVelocity(Real tau) {
 
-//std::cout << "physical_time: " << v_exp <<  std::endl;
-return v_exp; 
+//std::cout << "physical_time: " << tau <<  std::endl;
+return (2./3.)*tau; 
 }
 
 
 Real Conformal::conformalFactor(Real tau) {
 
-return r_conform; 
+return 1.6506*pow(tau,2./3.); 
 }
 
 Real Conformal::physicalTime(Real tau) {
 
-return t_phys; 
+return pow(3*1.6506*tau/5.,5./3.); 
 }
 
 void KilonovaSrcTerm(const Real t, const Real dt, const AthenaArray<Real> *flx,
