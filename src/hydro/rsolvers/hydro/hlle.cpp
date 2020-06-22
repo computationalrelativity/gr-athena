@@ -65,9 +65,7 @@ Mesh *pmesh=pmb->pmy_mesh;
   Real igm1 = 1.0/gm1;
 
 
-#if CONFORMAL_SCALING == 0 
-
-//#endif
+#if CONFORMAL_SCALING == 0  
 //rahul: use the call below to obtain the physical time, expansion velocity and conformal factor 
     std::cout << my_conformal.expansionVelocity(pmesh->time)<<  std::endl;
     std::cout << my_conformal.conformalFactor(pmesh->time)<<  std::endl;
@@ -114,15 +112,15 @@ std::cout << "coordinate" << pmb->pcoord->x1f(1) << std::endl;
       Real rhoa = .5 * (wli[IDN] + wri[IDN]); // average density
       Real ca = .5 * (cl + cr); // average sound speed
 
-    #if CONFORMAL_SCALING == 1
-    // new characteristic speeds are v-R_dot*x
-      wli[IVX] = wli[IVX] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);  
-      wri[IVX] = wri[IVX] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);
-      wli[IVY] = wli[IVY] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x2f(i);  
-      wri[IVY] = wri[IVY] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x2f(i);
-      wli[IVZ] = wli[IVZ] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x3f(i);  
-      wri[IVZ] = wri[IVZ] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x3f(i);
-    #endif      
+      #if CONFORMAL_SCALING == 1
+      // new characteristic speeds are v-R_dot*x
+        wli[IVX] = wli[IVX] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);  
+        wri[IVX] = wri[IVX] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);
+        wli[IVY] = wli[IVY] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x2f(i);  
+        wri[IVY] = wri[IVY] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x2f(i);
+        wli[IVZ] = wli[IVZ] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x3f(i);  
+        wri[IVZ] = wri[IVZ] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x3f(i);
+      #endif      
 
       Real pmid = .5 * (wli[IPR] + wri[IPR] + (wli[IVX]-wri[IVX]) * rhoa * ca);
       Real umid = .5 * (wli[IVX] + wri[IVX] + (wli[IPR]-wri[IPR]) / (rhoa * ca));
@@ -148,21 +146,29 @@ std::cout << "coordinate" << pmb->pcoord->x1f(1) << std::endl;
       //--- Step 4. Compute the max/min wave speeds based on L/R states
       al = wli[IVX] - cl*ql;
       ar = wri[IVX] + cr*qr;
+
+      #if CONFORMAL_SCALING == 1
+      // max/min wave speed with new characteristic speeds are v-R_dot*x +/- cs
+        al = wli[IVX] - cl - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);  
+        ar = wri[IVX] + cl - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);
+      #endif      
+
+
     } else { // isothermal; revert to Roe average
       Real a  = iso_cs;
       Real sqrtdl = std::sqrt(wli[IDN]);
       Real sqrtdr = std::sqrt(wri[IDN]);
       Real isdlpdr = 1.0/(sqrtdl + sqrtdr);
 
-    #if CONFORMAL_SCALING == 1
-    // new characteristic speeds are v-R_dot*x
-      wli[IVX] = wli[IVX] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);  
-      wri[IVX] = wri[IVX] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);
-      wli[IVY] = wli[IVY] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x2f(i);  
-      wri[IVY] = wri[IVY] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x2f(i);
-      wli[IVZ] = wli[IVZ] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x3f(i);  
-      wri[IVZ] = wri[IVZ] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x3f(i);
-    #endif
+      #if CONFORMAL_SCALING == 0 // expanding grid case switched off for isothermal 
+      // new characteristic speeds are v-R_dot*x
+        wli[IVX] = wli[IVX] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);  
+        wri[IVX] = wri[IVX] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);
+        wli[IVY] = wli[IVY] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x2f(i);  
+        wri[IVY] = wri[IVY] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x2f(i);
+        wli[IVZ] = wli[IVZ] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x3f(i);  
+        wri[IVZ] = wri[IVZ] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x3f(i);
+      #endif
 
       wroe[IDN] = sqrtdl*sqrtdr;
       wroe[IVX] = (sqrtdl*wli[IVX] + sqrtdr*wri[IVX])*isdlpdr;
@@ -173,16 +179,6 @@ std::cout << "coordinate" << pmb->pcoord->x1f(1) << std::endl;
 
     Real bp = ar > 0.0 ? ar : 0.0;
     Real bm = al < 0.0 ? al : 0.0;
-
-    #if CONFORMAL_SCALING == 1
-    // new characteristic speeds are v-R_dot*x
-      wli[IVX] = wli[IVX] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);  
-      wri[IVX] = wri[IVX] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);
-      wli[IVY] = wli[IVY] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x2f(i);  
-      wri[IVY] = wri[IVY] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x2f(i);
-      wli[IVZ] = wli[IVZ] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x3f(i);  
-      wri[IVZ] = wri[IVZ] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x3f(i);
-    #endif
     
     //-- Step 5. Compute L/R fluxes along lines bm/bp: F_L - (S_L)U_L; F_R - (S_R)U_R
     Real vxl = wli[IVX] - bm;
@@ -205,6 +201,20 @@ std::cout << "coordinate" << pmb->pcoord->x1f(1) << std::endl;
       fr[IVX] += wri[IPR];
       fl[IEN] = el*vxl + wli[IPR]*wli[IVX];
       fr[IEN] = er*vxr + wri[IPR]*wri[IVX];
+
+    #if CONFORMAL_SCALING == 1 
+      fl[IDN] += wli[IDN] * my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);
+      fr[IDN] += wri[IDN] * my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);
+      fl[IVX] += wli[IDN]*wli[IVX] * my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);
+      fr[IVY] += wri[IDN]*wri[IVX] * my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);
+      fl[IVY] += wli[IDN]*wli[IVY] * my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);
+      fr[IVY] += wri[IDN]*wri[IVY] * my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);
+      fl[IVZ] += wli[IDN]*wli[IVZ] * my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);
+      fr[IVZ] += wri[IDN]*wri[IVZ] * my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i); 
+      fl[IEN] = el * my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i); 
+      fr[IEN] = er * my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);
+    #endif 
+
     } else {
       fl[IVX] += (iso_cs*iso_cs)*wli[IDN];
       fr[IVX] += (iso_cs*iso_cs)*wri[IDN];
