@@ -25,6 +25,11 @@
 #include "hydro.hpp"
 #include "hydro_diffusion/hydro_diffusion.hpp"
 
+//rahul: for expanding grid
+#include "conformal.hpp"
+#include "../mesh/mesh.hpp"
+#include "../defs.hpp"
+
 // MPI/OpenMP header
 #ifdef MPI_PARALLEL
 #include <mpi.h>
@@ -40,6 +45,7 @@
 
 void Hydro::NewBlockTimeStep() {
   MeshBlock *pmb = pmy_block;
+  Mesh *pmesh = pmb->pmy_mesh;
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
   AthenaArray<Real> &w = pmb->phydro->w;
@@ -96,6 +102,11 @@ void Hydro::NewBlockTimeStep() {
               dt3(i) /= (std::abs(wi[IVZ]) + cf);
             } else {
               Real cs = pmb->peos->SoundSpeed(wi);
+              #if CONFORMAL_SCALING == 1
+              wi[IVX] -= my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1v(i);
+              wi[IVY] -= my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x2v(i);
+              wi[IVZ] -= my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x3v(i);
+              #endif 
               dt1(i) /= (std::abs(wi[IVX]) + cs);
               dt2(i) /= (std::abs(wi[IVY]) + cs);
               dt3(i) /= (std::abs(wi[IVZ]) + cs);
