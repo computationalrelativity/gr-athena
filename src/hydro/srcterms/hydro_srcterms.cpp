@@ -93,7 +93,7 @@ void HydroSourceTerms::AddHydroSourceTerms(const Real time, const Real dt,
   if ((Omega_0_ !=0.0) && (qshear_ != 0.0)) ShearingBoxSourceTerms(dt, flux,
                                                                    prim, cons);
   // MyNewSourceTerms()
-
+  if (CONFORMAL_SCALING) ConformalSourceTerm(time,dt,flux, prim, cons);
   //  user-defined source terms
   if (UserSourceTerm != nullptr)
     UserSourceTerm(pmb, time,dt,prim,bcc,cons);

@@ -53,6 +53,8 @@ class HydroSourceTerms {
   void SelfGravity(const Real dt, const AthenaArray<Real> *flx,
                    const AthenaArray<Real> &p, AthenaArray<Real> &c);
   void EnrollSrcTermFunction(SrcTermFunc my_func);
+  void ConformalSourceTerm(const Real t, const Real dt, const AthenaArray<Real> *flx,
+                   const AthenaArray<Real> &p, AthenaArray<Real> &c);
   SrcTermFunc UserSourceTerm;
 
  private:
