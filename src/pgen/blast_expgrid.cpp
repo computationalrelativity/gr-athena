@@ -478,12 +478,3 @@ Real Conformal::physicalTime(Real tau) {
 
 return pow(3*1.6506*tau/5.,5./3.); 
 }
-
-void KilonovaSrcTerm(const Real t, const Real dt, const AthenaArray<Real> *flx,
-                   const AthenaArray<Real> &p, AthenaArray<Real> &c) {
-
-    
-
-                   }
-
-
