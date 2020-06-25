@@ -4,21 +4,21 @@ reference = Gardiner. T.A. & Stone, J.M., JCP, 205, 509 (2005) (for MHD version 
 configure = --prob=blast
 
 <job>
-problem_id = Blast      # problem ID: basename of output filenames
+problem_id = Blast_exp      # problem ID: basename of output filenames
 
 <output1>
 file_type  = hst        # History data dump
-dt         = 0.01       # time increment between outputs
+dt         = 0.1       # time increment between outputs
 
 <output2>
-file_type  = vtk        # Binary data dump
+file_type  = hdf5        # Binary data dump
 variable   = prim       # variables to be output
 dt         = 0.01       # time increment between outputs
 
 <time>
 cfl_number = 0.3        # The Courant, Friedrichs, & Lewy (CFL) Number
-nlim       = -1         # cycle limit
-tlim       = 1.0        # time limit
+nlim       = -2         # cycle limit
+tlim       = 3        # time limit 0.003
 integrator  = vl2       # time integration algorithm
 xorder      = 2         # order of spatial reconstruction
 ncycle_out  = 1         # interval for stdout summary info
@@ -52,6 +52,6 @@ compute_error = false  # check whether blast is spherical at end
 pamb          = 0.1    # ambient pressure
 prat          = 100.   # Pressure ratio initially
 radius        = 0.1    # Radius of the inner sphere
-expansion_velocity = 0
-conformal_factor = 1
-physical_time = 1
+expansion_velocity = 1 # put 1 to turn on the expanding grid and 0 to switch it off. 
+conformal_factor = 1.  # not being used now 
+physical_time = 1.     # not being used now

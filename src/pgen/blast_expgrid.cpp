@@ -464,8 +464,7 @@ int RefinementCondition(MeshBlock *pmb) {
 
 Real Conformal::expansionVelocity(Real tau) {
 
-//std::cout << "physical_time: " << tau <<  std::endl;
-return (2./3.)*tau; 
+return (2./3.)*tau*v_exp; 
 }
 
 

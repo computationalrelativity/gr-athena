@@ -64,18 +64,6 @@ Mesh *pmesh=pmb->pmy_mesh;
   Real gm1 = gamma - 1.0;
   Real igm1 = 1.0/gm1;
 
-
-#if CONFORMAL_SCALING == 0  
-//rahul: use the call below to obtain the physical time, expansion velocity and conformal factor 
-    std::cout << my_conformal.expansionVelocity(pmesh->time)<<  std::endl;
-    std::cout << my_conformal.conformalFactor(pmesh->time)<<  std::endl;
-    std::cout << my_conformal.physicalTime(pmesh->time)<<  std::endl;
-
-std::cout << "current time:" << pmesh->time << "; dt: " << pmesh->dt << std::endl;
-
-std::cout << "coordinate" << pmb->pcoord->x1f(1) << std::endl;
-#endif
-
 #pragma omp simd private(wli,wri,wroe,fl,fr,flxi)
   for (int i=il; i<=iu; ++i) {
     Real y = (ivx==1) ? pmb->pcoord->x1f(i) : ( (ivx==2) ? pmb->pcoord->x2f(i) :pmb->pcoord->x3f(i) ); 
@@ -114,7 +102,7 @@ std::cout << "coordinate" << pmb->pcoord->x1f(1) << std::endl;
       Real rhoa = .5 * (wli[IDN] + wri[IDN]); // average density
       Real ca = .5 * (cl + cr); // average sound speed
 
-      #if CONFORMAL_SCALING == 0
+      /*#if CONFORMAL_SCALING == 0
       // new characteristic speeds are v-R_dot*x
         wli[IVX] = wli[IVX] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);  
         wri[IVX] = wri[IVX] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);
@@ -122,7 +110,7 @@ std::cout << "coordinate" << pmb->pcoord->x1f(1) << std::endl;
         wri[IVY] = wri[IVY] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x2f(i);
         wli[IVZ] = wli[IVZ] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x3f(i);  
         wri[IVZ] = wri[IVZ] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x3f(i);
-      #endif      
+      #endif */     
 
       Real pmid = .5 * (wli[IPR] + wri[IPR] + (wli[IVX]-wri[IVX]) * rhoa * ca);
       Real umid = .5 * (wli[IVX] + wri[IVX] + (wli[IPR]-wri[IPR]) / (rhoa * ca));
@@ -145,11 +133,12 @@ std::cout << "coordinate" << pmb->pcoord->x1f(1) << std::endl;
              (1.0 + (gamma + 1) / std::sqrt(2 * gamma) * (pmid / wri[IPR]-1.0));
       }
 
+      #if CONFORMAL_SCALING == 0
       //--- Step 4. Compute the max/min wave speeds based on L/R states
       al = wli[IVX] - cl*ql;
       ar = wri[IVX] + cr*qr;
+      #endif 
 
-      //Real y = (ivx==1) ? pmb->pcoord->x1f(i) : ( (ivx==2) ? pmb->pcoord->x2f(i) :pmb->pcoord->x3f(i) ); 
       #if CONFORMAL_SCALING == 1
       // max/min wave speed with new characteristic speeds are v-R_dot*x +/- cs
         al = wli[IVX] - cl - my_conformal.expansionVelocity(pmesh->time) * y;  
@@ -162,16 +151,6 @@ std::cout << "coordinate" << pmb->pcoord->x1f(1) << std::endl;
       Real sqrtdl = std::sqrt(wli[IDN]);
       Real sqrtdr = std::sqrt(wri[IDN]);
       Real isdlpdr = 1.0/(sqrtdl + sqrtdr);
-
-      #if CONFORMAL_SCALING == 0 // expanding grid case switched off for isothermal 
-      // new characteristic speeds are v-R_dot*x
-        wli[IVX] = wli[IVX] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);  
-        wri[IVX] = wri[IVX] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x1f(i);
-        wli[IVY] = wli[IVY] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x2f(i);  
-        wri[IVY] = wri[IVY] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x2f(i);
-        wli[IVZ] = wli[IVZ] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x3f(i);  
-        wri[IVZ] = wri[IVZ] - my_conformal.expansionVelocity(pmesh->time) * pmb->pcoord->x3f(i);
-      #endif
 
       wroe[IDN] = sqrtdl*sqrtdr;
       wroe[IVX] = (sqrtdl*wli[IVX] + sqrtdr*wri[IVX])*isdlpdr;
@@ -205,7 +184,6 @@ std::cout << "coordinate" << pmb->pcoord->x1f(1) << std::endl;
       fl[IEN] = el*vxl + wli[IPR]*wli[IVX];
       fr[IEN] = er*vxr + wri[IPR]*wri[IVX];
 
-      //Real y = (ivx==1) ? pmb->pcoord->x1f(i) : ( (ivx==2) ? pmb->pcoord->x2f(i) :pmb->pcoord->x3f(i) ); 
       #if CONFORMAL_SCALING == 1 
         fl[IDN] -= wli[IDN] * my_conformal.expansionVelocity(pmesh->time) * y;
         fr[IDN] -= wri[IDN] * my_conformal.expansionVelocity(pmesh->time) * y;
