@@ -66,8 +66,8 @@ Mesh *pmesh=pmb->pmy_mesh;
 
 #pragma omp simd private(wli,wri,wroe,fl,fr,flxi)
   for (int i=il; i<=iu; ++i) {
-    Real y = (ivx==1) ? pmb->pcoord->x1f(i) : ( (ivx==2) ? pmb->pcoord->x2f(i) :pmb->pcoord->x3f(i) ); 
-
+    Real yl = (ivx==1) ? pmb->pcoord->x1f(i-1) : ( (ivx==2) ? pmb->pcoord->x2f(i-1) :pmb->pcoord->x3f(i-1) ); 
+    Real yr = (ivx==1) ? pmb->pcoord->x1f(i) : ( (ivx==2) ? pmb->pcoord->x2f(i) :pmb->pcoord->x3f(i) );
     //--- Step 1.  Load L/R states into local variables
     wli[IDN]=wl(IDN,i);
     wli[IVX]=wl(ivx,i);
@@ -141,8 +141,8 @@ Mesh *pmesh=pmb->pmy_mesh;
 
       #if CONFORMAL_SCALING == 1
       // max/min wave speed with new characteristic speeds are v-R_dot*x +/- cs
-        al = wli[IVX] - cl - my_conformal.expansionVelocity(pmesh->time) * y;  
-        ar = wri[IVX] + cr - my_conformal.expansionVelocity(pmesh->time) * y;
+        al = std::min(wli[IVX] - cl - my_conformal.expansionVelocity(pmesh->time) * yl, wri[IVX] - cr - my_conformal.expansionVelocity(pmesh->time) * yr);  
+        ar = std::max(wli[IVX] + cl - my_conformal.expansionVelocity(pmesh->time) * yl, wri[IVX] + cr - my_conformal.expansionVelocity(pmesh->time) * yr);
       #endif      
 
 
@@ -185,16 +185,16 @@ Mesh *pmesh=pmb->pmy_mesh;
       fr[IEN] = er*vxr + wri[IPR]*wri[IVX];
 
       #if CONFORMAL_SCALING == 1 
-        fl[IDN] -= wli[IDN] * my_conformal.expansionVelocity(pmesh->time) * y;
-        fr[IDN] -= wri[IDN] * my_conformal.expansionVelocity(pmesh->time) * y;
-        fl[IVX] -= wli[IDN]*wli[IVX] * my_conformal.expansionVelocity(pmesh->time) * y;
-        fr[IVY] -= wri[IDN]*wri[IVX] * my_conformal.expansionVelocity(pmesh->time) * y;
-        fl[IVY] -= wli[IDN]*wli[IVY] * my_conformal.expansionVelocity(pmesh->time) * y;
-        fr[IVY] -= wri[IDN]*wri[IVY] * my_conformal.expansionVelocity(pmesh->time) * y;
-        fl[IVZ] -= wli[IDN]*wli[IVZ] * my_conformal.expansionVelocity(pmesh->time) * y;
-        fr[IVZ] -= wri[IDN]*wri[IVZ] * my_conformal.expansionVelocity(pmesh->time) * y; 
-        fl[IEN] -= el * my_conformal.expansionVelocity(pmesh->time) * y; 
-        fr[IEN] -= er * my_conformal.expansionVelocity(pmesh->time) * y;
+        fl[IDN] -= wli[IDN] * my_conformal.expansionVelocity(pmesh->time) * yl;
+        fr[IDN] -= wri[IDN] * my_conformal.expansionVelocity(pmesh->time) * yr;
+        fl[IVX] -= wli[IDN]*wli[IVX] * my_conformal.expansionVelocity(pmesh->time) * yl;
+        fr[IVX] -= wri[IDN]*wri[IVX] * my_conformal.expansionVelocity(pmesh->time) * yr;
+        fl[IVY] -= wli[IDN]*wli[IVY] * my_conformal.expansionVelocity(pmesh->time) * yl;
+        fr[IVY] -= wri[IDN]*wri[IVY] * my_conformal.expansionVelocity(pmesh->time) * yr;
+        fl[IVZ] -= wli[IDN]*wli[IVZ] * my_conformal.expansionVelocity(pmesh->time) * yl;
+        fr[IVZ] -= wri[IDN]*wri[IVZ] * my_conformal.expansionVelocity(pmesh->time) * yr; 
+        fl[IEN] -= el * my_conformal.expansionVelocity(pmesh->time) * yl; 
+        fr[IEN] -= er * my_conformal.expansionVelocity(pmesh->time) * yr;
       #endif 
 
     } else {
