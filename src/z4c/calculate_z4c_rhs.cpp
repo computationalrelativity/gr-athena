@@ -441,7 +441,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
     }
 
     // -----------------------------------------------------------------------------------
-    // Hamiltonian constraint
+    // Hamiltonian constraint with no matter source (rho ADM is added by hand in Theta r.h.s.)
     //
     ILOOP1(i) {
       Ht(i) = R(i) + (2./3.)*SQR(K(i)) - AA(i);
@@ -504,13 +504,19 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
     // -----------------------------------------------------------------------------------
     // Assemble RHS
     //
-    // Khat, chi, and Theta
+    // Khat
     ILOOP1(i) {
       rhs.Khat(k,j,i) = - Ddalpha(i) + z4c.alpha(k,j,i) * (AA(i) + (1./3.)*SQR(K(i))) +
         LKhat(i) + opt.damp_kappa1*(1 - opt.damp_kappa2) * z4c.alpha(k,j,i) * z4c.Theta(k,j,i);
       rhs.Khat(k,j,i) += 4*M_PI * z4c.alpha(k,j,i) * (S(i) + mat.rho(k,j,i));
+    }
+    // chi
+    ILOOP1(i) {
       rhs.chi(k,j,i) = Lchi(i) - (1./6.) * opt.chi_psi_power *
         chi_guarded(i) * z4c.alpha(k,j,i) * K(i);
+    }
+    // Theta
+    ILOOP1(i) {
       rhs.Theta(k,j,i) = LTheta(i) + z4c.alpha(k,j,i) * (
           0.5*Ht(i) - (2. + opt.damp_kappa2) * opt.damp_kappa1 * z4c.Theta(k,j,i));
       rhs.Theta(k,j,i) -= 8.*M_PI * z4c.alpha(k,j,i) * mat.rho(k,j,i);
@@ -529,12 +535,17 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
         }
       }
     }
-    // g and A
-    //LOOK
+    // g
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b) {
       ILOOP1(i) {
         rhs.g_dd(a,b,k,j,i) = - 2. * z4c.alpha(k,j,i) * z4c.A_dd(a,b,k,j,i) + Lg_dd(a,b,i);
+      }
+    }
+    // A
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b) {
+      ILOOP1(i) {
         rhs.A_dd(a,b,k,j,i) = oopsi4(i) *
             (-Ddalpha_dd(a,b,i) + z4c.alpha(k,j,i) * (R_dd(a,b,i) + Rphi_dd(a,b,i)));
         rhs.A_dd(a,b,k,j,i) -= (1./3.) * z4c.g_dd(a,b,k,j,i) * (-Ddalpha(i) + z4c.alpha(k,j,i)*R(i));
