@@ -28,7 +28,11 @@ void HydroSourceTerms::ConformalSourceTerm(const Real t, const Real dt,const Ath
   Mesh *pmesh=pmb->pmy_mesh;
   
  if (CONFORMAL_SCALING) {
- 
+
+    //#if CONFORMAL_SCALING == 1
+    //  std::cout << "[INSIDE conformal_srcterm.cpp]: time, R_dot = " << pmesh->time << ";" << pmy_hydro_->my_conformal.expansionVelocity(pmesh->time)  << std::endl;
+    //#endif
+
     for (int k=pmb->ks; k<=pmb->ke; ++k) {
       for (int j=pmb->js; j<=pmb->je; ++j) {
 #pragma omp simd

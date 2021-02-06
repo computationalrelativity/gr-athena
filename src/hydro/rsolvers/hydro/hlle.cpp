@@ -64,10 +64,24 @@ Mesh *pmesh=pmb->pmy_mesh;
   Real gm1 = gamma - 1.0;
   Real igm1 = 1.0/gm1;
 
+//id=(il+iu)/2; 
+//  Real yld = (ivx==1) ? pmb->pcoord->x1f(id-1) : ( (ivx==2) ? pmb->pcoord->x2f(id-1) :pmb->pcoord->x3f(id-1) ); 
+//  Real yrd = (ivx==1) ? pmb->pcoord->x1f(id) : ( (ivx==2) ? pmb->pcoord->x2f(id) :pmb->pcoord->x3f(id) );
+    
+//std::cout << "[INSIDE hlle.cpp]: ivx, dx,yl,yr = " << ivx << ";" << pmb->pcoord->dx1f(id) <<  ";" << yld << ";" << yrd << ";" << std::endl;
+
+
+
 #pragma omp simd private(wli,wri,wroe,fl,fr,flxi)
   for (int i=il; i<=iu; ++i) {
     Real yl = (ivx==1) ? pmb->pcoord->x1f(i-1) : ( (ivx==2) ? pmb->pcoord->x2f(i-1) :pmb->pcoord->x3f(i-1) ); 
     Real yr = (ivx==1) ? pmb->pcoord->x1f(i) : ( (ivx==2) ? pmb->pcoord->x2f(i) :pmb->pcoord->x3f(i) );
+    
+    //if (i == (il+iu)/2)
+    //{
+    //  std::cout << "[INSIDE hlle.cpp]: ivx, dx,yl,yr = " << ivx << ";" << pmb->pcoord->dx1f(i) <<  ";" << yl << ";" << yr << ";" << std::endl;
+    //}
+    
     //--- Step 1.  Load L/R states into local variables
     wli[IDN]=wl(IDN,i);
     wli[IVX]=wl(ivx,i);
@@ -91,13 +105,23 @@ Mesh *pmesh=pmb->pmy_mesh;
     Real cr = pmy_block->peos->SoundSpeed(wri);
     if (NON_BAROTROPIC_EOS) {
       if (GENERAL_EOS) {
+        
+      //std::cout << "[INSIDE hlle.cpp]: reached inside GENERAL_EOS, defining internal energy " << std::endl;
         el = pmy_block->peos->EgasFromRhoP(wli[IDN], wli[IPR]) +
              0.5*wli[IDN]*(SQR(wli[IVX]) + SQR(wli[IVY]) + SQR(wli[IVZ]));
         er = pmy_block->peos->EgasFromRhoP(wri[IDN], wri[IPR]) +
              0.5*wri[IDN]*(SQR(wri[IVX]) + SQR(wri[IVY]) + SQR(wri[IVZ]));
       } else {
+
+
         el = wli[IPR]*igm1 + 0.5*wli[IDN]*(SQR(wli[IVX]) + SQR(wli[IVY]) + SQR(wli[IVZ]));
         er = wri[IPR]*igm1 + 0.5*wri[IDN]*(SQR(wri[IVX]) + SQR(wri[IVY]) + SQR(wri[IVZ]));
+
+      //if (i == (il+iu)/2)
+      //  {
+      //    std::cout << "[INSIDE hlle.cpp]: reached inside GAMMA_EOS, defining internal energy, el, er = "<< el <<","<<er << std::endl;
+
+      //  }  
       }
       Real rhoa = .5 * (wli[IDN] + wri[IDN]); // average density
       Real ca = .5 * (cl + cr); // average sound speed
@@ -143,6 +167,10 @@ Mesh *pmesh=pmb->pmy_mesh;
       // max/min wave speed with new characteristic speeds are v-R_dot*x +/- cs
         al = std::min(wli[IVX] - cl - my_conformal.expansionVelocity(pmesh->time) * yl, wri[IVX] - cr - my_conformal.expansionVelocity(pmesh->time) * yr);  
         ar = std::max(wli[IVX] + cl - my_conformal.expansionVelocity(pmesh->time) * yl, wri[IVX] + cr - my_conformal.expansionVelocity(pmesh->time) * yr);
+      //if (i == (il+iu)/2)
+      //  { 
+      //     std::cout << "[INSIDE hlle.cpp/characteristic speed modification; General_EOS], Rdot, al, ar =  " << my_conformal.expansionVelocity(pmesh->time) << ","  << al << ";" << ar  << std::endl;
+      //  }
       #endif      
 
 
@@ -185,6 +213,11 @@ Mesh *pmesh=pmb->pmy_mesh;
       fr[IEN] = er*vxr + wri[IPR]*wri[IVX];
 
       #if CONFORMAL_SCALING == 1 
+      //if (i == (il+iu)/2)
+      //  {
+      //   std::cout << "[INSIDE hlle.cpp/flux modification; BEFORE]: fl[IDN], fr[IDN] = " << fl[IDN] << ","<< fr[IDN] << std::endl;
+      //  }
+
         fl[IDN] -= wli[IDN] * my_conformal.expansionVelocity(pmesh->time) * yl;
         fr[IDN] -= wri[IDN] * my_conformal.expansionVelocity(pmesh->time) * yr;
         fl[IVX] -= wli[IDN]*wli[IVX] * my_conformal.expansionVelocity(pmesh->time) * yl;
@@ -195,6 +228,11 @@ Mesh *pmesh=pmb->pmy_mesh;
         fr[IVZ] -= wri[IDN]*wri[IVZ] * my_conformal.expansionVelocity(pmesh->time) * yr; 
         fl[IEN] -= el * my_conformal.expansionVelocity(pmesh->time) * yl; 
         fr[IEN] -= er * my_conformal.expansionVelocity(pmesh->time) * yr;
+
+      //if (i == (il+iu)/2)
+      //  {
+      //   std::cout << "[INSIDE hlle.cpp/flux modification; AFTER]: fl[IDN], fr[IDN] = " << fl[IDN] << ","<< fr[IDN] << std::endl;
+      //  }
       #endif 
 
     } else {

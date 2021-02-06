@@ -60,6 +60,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   v_exp = pin->GetReal("problem", "expansion_velocity");
   r_conform = pin->GetReal("problem", "conformal_factor");
   t_phys = pin->GetReal("problem", "physical_time");
+  //std::cout << "[INSIDE blast_expgrid.cpp]: v_exp,r_conform,t_phys = " << v_exp << ";" << r_conform << ";" << t_phys << ";" << std::endl;
   return;
 }
 
