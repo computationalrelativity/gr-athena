@@ -1,0 +1,252 @@
+<comment>
+problem   = Evolution of single TOV star w/ dynamical metric
+configure = ./configure.py --prob=gr_tov --coord=gr_dynamical --eos=adiabatictaudyn --flux=llftaudyn -gfz --nghost=4 --ncghost=4 -vertex
+
+<job>
+problem_id = gr_tov
+
+<z4c>
+#dt_assert_is_finite = 1   # whatever values, if zero / missing these tasks are not triggered
+dt_wave_extraction =0.1
+lapse_harmonic = 0.0
+lapse_harmonicf = 2.0
+lapse_oplog = 1.0
+lapse_advect = 1.0
+shift_eta = 1.0
+shift_advect = 1.0
+# Kreiss-Oliger dissipation parameter.
+diss = 0.5
+chi_div_floor = 1e-05
+# Constraint damping factor 1.
+damp_kappa1 = 0.02
+# Constraint damping factor 2.
+damp_kappa2 = 0.0
+
+
+
+<output1>
+file_type = tab
+variable  = cons
+dt        = 0.00001
+ghost_zones=true
+x2_slice = 0.0
+x3_slice = 0.0
+
+#<output2>
+#file_type = tab
+#variable  = cons
+#dt        = 0.00001
+#ghost_zones=true
+#x1_slice = 0.0
+#x3_slice = 0.0
+
+#<output3>
+#file_type = tab
+#variable  = cons
+#dt        = 0.00001
+ghost_zones=true
+#x1_slice = 0.0
+#x2_slice = 0.0
+
+<output4>
+file_type = tab
+variable  = adm
+dt        = 0.00001
+ghost_zones=true
+x2_slice = 0.0
+x3_slice = 0.0
+vc= true
+
+#<output5>
+#file_type = tab
+#variable  = adm
+#dt        = 0.00001
+#ghost_zones=true
+#x1_slice = 0.0
+#x3_slice = 0.0
+#vc = true
+
+#<output6>
+#file_type = tab
+#variable  = adm
+#dt        = 0.00001
+#ghost_zones=true
+#x1_slice = 0.0
+#x2_slice = 0.0
+#vc = true
+
+<output7>
+file_type = tab
+variable  = z4c
+dt        = 0.00001
+ghost_zones=true
+x2_slice = 0.0
+x3_slice = 0.0
+vc= true
+
+
+#<output8>
+#file_type = tab
+#variable  = z4c
+#dt        = 0.00001
+#ghost_zones=true
+#x1_slice = 0.0
+#x3_slice = 0.0
+#vc = true
+
+#<output9>
+#file_type = tab
+#variable  = z4c
+#dt        = 0.00001
+#ghost_zones=true
+#x1_slice = 0.0
+#x2_slice = 0.0
+#vc = true
+
+<output10>
+file_type = tab
+variable  = mat
+dt        = 0.00001
+ghost_zones=true
+x2_slice = 0.0
+x3_slice = 0.0
+vc= true
+
+#<output11>
+#file_type = tab
+#variable  = mat
+#dt        = 0.00001
+#ghost_zones=true
+#x1_slice = 0.0
+#x3_slice = 0.0
+#vc = true
+
+#<output12>
+#file_type = tab
+#variable  = mat
+#dt        = 0.00001
+#ghost_zones=true
+#x1_slice = 0.0
+#x2_slice = 0.0
+#vc = true
+
+<output13>
+file_type = tab
+variable  = prim
+dt        = 0.00001
+ghost_zones=true
+x2_slice = 0.0
+x3_slice = 0.0
+
+#<output14>
+#file_type = tab
+#variable  = prim
+#dt        = 0.00001
+#ghost_zones=true
+#x1_slice = 0.0
+#x3_slice = 0.0
+
+#<output15>
+#file_type = tab
+#variable  = prim
+#dt        = 0.00001
+#ghost_zones=true
+#x1_slice = 0.0
+#x2_slice = 0.0
+
+<output16>
+file_type = tab
+variable  = con
+dt        = 0.00001
+ghost_zones=true
+x2_slice = 0.0
+x3_slice = 0.0
+vc = true
+
+#<output17>
+#file_type = tab
+#variable  = con
+#dt        = 0.00001
+#ghost_zones=true
+#x1_slice = 0.0
+#x3_slice = 0.0
+#vc = true
+
+#<output18>
+#file_type = tab
+#variable  = con
+#dt        = 0.00001
+#ghost_zones=true
+#x1_slice = 0.0
+#x2_slice = 0.0
+#vc = true
+
+
+
+
+<time>
+cfl_number = 0.25
+nlim       = -1
+tlim       = 100
+integrator = rk3    # time integration algorithm
+xorder     = 2     # order of spatial reconstruction
+ncycle_out = 1      # interval for stdout summary info
+
+<mesh>
+nx1    = 32    # number of cells in x-direction
+x1min  = 0   # minimum x
+x1max  = 20  # maximum x
+ix1_bc = reflecting  # lower boundary
+ox1_bc = extrapolate_outflow  # upper boundary
+
+nx2    = 32   # number of cells in y-direction
+x2min  = 0  # minimum y
+x2max  = 20  # maximum y
+ix2_bc = reflecting # lower boundary
+ox2_bc = extrapolate_outflow # upper boundary
+
+nx3    = 32        # number of cells in z-direction
+x3min  = 0   # minimum z
+x3max  = 20       # maximum z
+ix3_bc = reflecting  # lower  boundary
+ox3_bc = extrapolate_outflow  # upper boundary
+
+refinement = static
+numlevel = 2
+deref_count = 5
+
+num_threads = 1
+
+
+<meshblock>
+
+
+nx1=16
+nx2=16
+nx3=16
+
+<refinement1>
+x1min           = 0
+x1max           = 3
+x2min           = 0
+x2max           = 3
+x3min           = 0
+x3max           = 3
+level           = 2
+
+
+<coord>
+m = 0 # black hole parameters 
+a = 0 # leave at 0
+
+
+<hydro>
+gamma = 2  # ratio of specific heats Gamma
+k_adi = 100                # adiabat K, p_gas = K rho^Gamma
+
+<problem>
+rhoc = 0.00128  # energy density at centre of star
+R0 = 10.0  # guess for radius of star
+npts = 10000  # guess for number of points for TOV solver
+fatm = 1e-10  # set atmosphere rho to rho = rhomax * fatm
+fthr = 100.0  # set point to atmosphere if rho < fthr*fatm*rhomax
