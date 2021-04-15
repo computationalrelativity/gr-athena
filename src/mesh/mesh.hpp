@@ -221,7 +221,9 @@ public:
   // inform MeshBlock which arrays contained in member Hydro, Field, Particles,
   // ... etc. classes are the "primary" representations of a quantity. when registered,
   // that data are used for (1) load balancing (2) (future) dumping to restart file
-  void RegisterMeshBlockData(AthenaArray<Real> &pvar_in);
+// WGC separate registermbdata functions for VC + CC
+  void RegisterMeshBlockDataVC(AthenaArray<Real> &pvar_in);
+  void RegisterMeshBlockDataCC(AthenaArray<Real> &pvar_in);
   void RegisterMeshBlockData(FaceField &pvar_fc);
 
   // defined in either the prob file or default_pgen.cpp in ../pgen/
@@ -388,6 +390,7 @@ class Mesh {
   void SetBlockSizeAndBoundaries(LogicalLocation loc, RegionSize &block_size,
                                  BoundaryFlag *block_bcs);
   void NewTimeStep();
+  void GlobalInt(void);
   void OutputCycleDiagnostics();
   void LoadBalancingAndAdaptiveMeshRefinement(ParameterInput *pin);
   int CreateAMRMPITag(int lid, int ox1, int ox2, int ox3);
@@ -404,6 +407,7 @@ class Mesh {
   void UserWorkAfterLoop(ParameterInput *pin, int res_flag=0);
   void UserWorkInLoop(); // called in main after each cycle
  private:
+  FILE * pofile;
   // data
   int next_phys_id_; // next unused value for encoding final component of MPI tag bitfield
   int root_level, max_level, current_level;

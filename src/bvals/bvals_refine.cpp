@@ -80,11 +80,10 @@
 // --- change to standard and coarse PRIMITIVE
 // (automatically switches back to conserved variables at the end of fn)
 
-void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt) {
 
-  if (DBGPR_BVALS_REFINE)
-    coutBlue("BoundaryValues::ProlongateBoundaries\n");
+// Separated out VC logic into separate ProlongateZ4cBoundaries function
 
+void BoundaryValues::ProlongateZ4cBoundaries(const Real time, const Real dt) {
   MeshBlock *pmb = pmy_block_;
   int &mylevel = pmb->loc.level;
 
@@ -122,6 +121,20 @@ void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt) {
     // Prolongate
     ProlongateVertexCenteredBoundaries(time, dt);
 #endif
+
+
+}
+
+// Prolongation without the added VC parts
+
+void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt) {
+
+  if (DBGPR_BVALS_REFINE)
+    coutBlue("BoundaryValues::ProlongateBoundaries\n");
+
+  MeshBlock *pmb = pmy_block_;
+  int &mylevel = pmb->loc.level;
+
   //--
   //////////////////////////////////////////////////////////////////////////////
 
@@ -242,7 +255,10 @@ void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt) {
       ps = pmb->pscalars;
       ps->sbvar.var_cc = &(ps->coarse_r_);
     }
-
+//  WGC Dynamical metric ensure coarse representation of cell centred metric is up to date: 
+// TODO is this the best place for this - ideally would just be in task list, but need to ensure the prolongation in
+// Mesh:Initialize is handled correctly 
+    pmb->pmr->pcoarsec->UpdateMetric(); 
     // Step 2. Re-apply physical boundaries on the coarse boundary:
     ApplyPhysicalBoundariesOnCoarseLevel(nb, time, dt, si, ei, sj, ej, sk, ek);
 

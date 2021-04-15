@@ -47,7 +47,7 @@ Advection::Advection(MeshBlock *pmb, ParameterInput *pin) :
   // Used for:
   // (1) load-balancing
   // (2) (future) dumping to restart file
-  pmb->RegisterMeshBlockData(u);
+  pmb->RegisterMeshBlockDataVC(u);
 
   // Allocate memory for the solution and its time derivative
   u.NewAthenaArray(nc3, nc2, nc1);

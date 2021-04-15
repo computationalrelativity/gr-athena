@@ -5,6 +5,8 @@
 //========================================================================================
 //! \file add_flux_divergence.cpp
 //  \brief Computes divergence of the Hydro fluxes and adds that to a conserved variable
+// WGC modified in line with e.g. BAM evolution since conserved variable 
+//now weighted by detgamma
 // register
 
 // C headers
@@ -46,12 +48,12 @@ void Hydro::AddFluxDivergence(const Real wght, AthenaArray<Real> &u_out) {
                  &x3area_p1 = x3face_area_p1_, &vol = cell_volume_, &dflx = dflx_;
   for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
-      // calculate x1-flux divergence
-      pmb->pcoord->Face1Area(k, j, is, ie+1, x1area);
+      // calculate x1-flux divergence - fluxes now contain weighting by detgamma
+      pmb->pcoord->Face1Area(k, j, is, ie+1, x1area); //not needed?
       for (int n=0; n<NHYDRO; ++n) {
 #pragma omp simd
         for (int i=is; i<=ie; ++i) {
-          dflx(n,i) = (x1area(i+1) *x1flux(n,k,j,i+1) - x1area(i)*x1flux(n,k,j,i));
+          dflx(n,i) = (x1flux(n,k,j,i+1) - x1flux(n,k,j,i))/pmb->pcoord->dx1f(i);
         }
       }
 
@@ -62,7 +64,7 @@ void Hydro::AddFluxDivergence(const Real wght, AthenaArray<Real> &u_out) {
         for (int n=0; n<NHYDRO; ++n) {
 #pragma omp simd
           for (int i=is; i<=ie; ++i) {
-            dflx(n,i) += (x2area_p1(i)*x2flux(n,k,j+1,i) - x2area(i)*x2flux(n,k,j,i));
+            dflx(n,i) += (x2flux(n,k,j+1,i) - x2flux(n,k,j,i))/pmb->pcoord->dx2f(j);
           }
         }
       }
@@ -74,17 +76,17 @@ void Hydro::AddFluxDivergence(const Real wght, AthenaArray<Real> &u_out) {
         for (int n=0; n<NHYDRO; ++n) {
 #pragma omp simd
           for (int i=is; i<=ie; ++i) {
-            dflx(n,i) += (x3area_p1(i)*x3flux(n,k+1,j,i) - x3area(i)*x3flux(n,k,j,i));
+            dflx(n,i) += (x3flux(n,k+1,j,i) - x3flux(n,k,j,i))/pmb->pcoord->dx3f(k);
           }
         }
       }
 
-      // update conserved variables
+      // update conserved variables - WGC weighting by cell vol no longer needed
       pmb->pcoord->CellVolume(k, j, is, ie, vol);
       for (int n=0; n<NHYDRO; ++n) {
 #pragma omp simd
         for (int i=is; i<=ie; ++i) {
-          u_out(n,k,j,i) -= wght*dflx(n,i)/vol(i);
+          u_out(n,k,j,i) -= wght*dflx(n,i);
         }
       }
     }

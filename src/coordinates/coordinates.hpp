@@ -21,6 +21,9 @@
 #include "../athena_arrays.hpp"
 #include "../hydro/srcterms/hydro_srcterms.hpp"
 #include "../mesh/mesh.hpp"
+#include "../finite_differencing.hpp"
+#include "../z4c/z4c.hpp"
+#include "../lagrange_interp.hpp"
 
 // forward declarations
 class MeshBlock;
@@ -47,6 +50,7 @@ class Coordinates {
 
   // functions...
   // ...to compute length of edges
+  virtual void UpdateMetric();
   virtual void Edge1Length(const int k, const int j, const int il, const int iu,
                            AthenaArray<Real> &len);
   virtual void Edge2Length(const int k, const int j, const int il, const int iu,
@@ -272,9 +276,16 @@ class Coordinates {
   AthenaArray<Real> trans_face3_kji_;
   AthenaArray<Real> g_, gi_;
 
+// Dynamical GR arrays
+  AthenaArray<Real>  excurv_kji_;
+  AthenaArray<Real>  coord_3vol_kji_;
+
+
+
   // GR-specific variables
   Real bh_mass_;
   Real bh_spin_;
+  Real chi_psi_power;
 };
 
 //----------------------------------------------------------------------------------------
@@ -287,6 +298,7 @@ class Cartesian : public Coordinates {
 
  public:
   Cartesian(MeshBlock *pmb, ParameterInput *pin, bool flag);
+  //void UpdateMetric() final;
 };
 
 //----------------------------------------------------------------------------------------
@@ -302,6 +314,7 @@ class Cylindrical : public Coordinates {
 
   // functions...
   // ...to compute length of edges
+  //void UpdateMetric() final;
   void Edge2Length(const int k, const int j, const int il, const int iu,
                    AthenaArray<Real> &len) final;
   Real GetEdge2Length(const int k, const int j, const int i) final;
@@ -345,6 +358,7 @@ class SphericalPolar : public Coordinates {
 
  public:
   SphericalPolar(MeshBlock *pmb, ParameterInput *pin, bool flag);
+  //void UpdateMetric() final;
 
   // functions...
   // ...to compute length of edges
@@ -407,6 +421,7 @@ class Minkowski : public Coordinates {
 
   // In GR, functions...
   // ...to compute metric
+  //void UpdateMetric() final;
   void CellMetric(const int k, const int j, const int il, const int iu,
                   AthenaArray<Real> &g, AthenaArray<Real> &gi) final;
   void Face1Metric(const int k, const int j, const int il, const int iu,
@@ -461,6 +476,7 @@ class Schwarzschild : public Coordinates {
 
   // functions...
   // ...to compute length of edges
+  //void UpdateMetric() final;
   void Edge1Length(const int k, const int j, const int il, const int iu,
                    AthenaArray<Real> &len) final;
   void Edge2Length(const int k, const int j, const int il, const int iu,
@@ -556,6 +572,7 @@ class KerrSchild : public Coordinates {
 
   // functions...
   // ...to compute length of edges
+  //void UpdateMetric() final;
   void Edge1Length(const int k, const int j, const int il, const int iu,
                    AthenaArray<Real> &len) final;
   void Edge2Length(const int k, const int j, const int il, const int iu,
@@ -651,6 +668,7 @@ class GRUser : public Coordinates {
 
   // functions...
   // ...to compute length of edges
+  //void UpdateMetric() final;
   void Edge1Length(const int k, const int j, const int il, const int iu,
                    AthenaArray<Real> &len) final;
   void Edge2Length(const int k, const int j, const int il, const int iu,
@@ -731,6 +749,253 @@ class GRUser : public Coordinates {
                        Real *pa0, Real *pa1, Real *pa2, Real *pa3) final;
   void LowerVectorCell(Real a0, Real a1, Real a2, Real a3, int k, int j, int i,
                        Real *pa_0, Real *pa_1, Real *pa_2, Real *pa_3) final;
+};
+
+//----------------------------------------------------------------------------------------
+//! \class GRDynamical
+//  \brief derived class for arbitrary dynamically evolving coordinates in GR.
+//  Nearly every function in the abstract base class need to be overridden.
+
+class GRDynamical : public Coordinates {
+  friend class HydroSourceTerms;
+
+ public:
+  GRDynamical(MeshBlock *pmb, ParameterInput *pin, bool flag);
+
+  // functions...
+  // for obtaining CC from VC
+  void GetMetric(const int k, const int j, const int i, AthenaArray<Real>& g, AthenaArray<Real>& g_inv);
+  void GetFace1Metric(const int k, const int j, const int i, AthenaArray<Real>& g, AthenaArray<Real>& g_inv);
+  void GetFace2Metric(const int k, const int j, const int i, AthenaArray<Real>& g, AthenaArray<Real>& g_inv);
+  void GetFace3Metric(const int k, const int j, const int i, AthenaArray<Real>& g, AthenaArray<Real>& g_inv);
+  void GetExCurv(const int k, const int j, const int i,  AthenaArray<Real>& K);
+  void GetDerivs(const int i, const int j, const int k, AthenaArray<Real>& dg_dx1, AthenaArray<Real>& dg_dx2, AthenaArray<Real>& dg_dx3);
+  void UpdateMetric() final;
+  // ...to compute length of edges
+
+  void Edge1Length(const int k, const int j, const int il, const int iu,
+                   AthenaArray<Real> &len) final;
+  void Edge2Length(const int k, const int j, const int il, const int iu,
+                   AthenaArray<Real> &len) final;
+  void Edge3Length(const int k, const int j, const int il, const int iu,
+                   AthenaArray<Real> &len) final;
+  Real GetEdge1Length(const int k, const int j, const int i) final;
+  Real GetEdge2Length(const int k, const int j, const int i) final;
+  Real GetEdge3Length(const int k, const int j, const int i) final;
+
+  // ...to compute physical width at cell center
+  void CenterWidth1(const int k, const int j, const int il, const int iu,
+                    AthenaArray<Real> &dx1) final;
+  void CenterWidth2(const int k, const int j, const int il, const int iu,
+                    AthenaArray<Real> &dx2) final;
+  void CenterWidth3(const int k, const int j, const int il, const int iu,
+                    AthenaArray<Real> &dx3) final;
+
+  // ...to compute area of faces
+  void Face1Area(const int k, const int j, const int il, const int iu,
+                 AthenaArray<Real> &area) final;
+  void Face2Area(const int k, const int j, const int il, const int iu,
+                 AthenaArray<Real> &area) final;
+  void Face3Area(const int k, const int j, const int il, const int iu,
+                 AthenaArray<Real> &area) final;
+  Real GetFace1Area(const int k, const int j, const int i) final;
+  Real GetFace2Area(const int k, const int j, const int i) final;
+  Real GetFace3Area(const int k, const int j, const int i) final;
+
+  // ...to compute volumes of cells
+  void CellVolume(const int k, const int j, const int il, const int iu,
+                  AthenaArray<Real> &vol) final;
+  Real GetCellVolume(const int k, const int j, const int i) final;
+
+  // ...to compute geometrical source terms
+  void AddCoordTermsDivergence(const Real dt, const AthenaArray<Real> *flux,
+                     const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc,
+                     AthenaArray<Real> &u) final;
+
+  // In GR, functions...
+  // ...to compute metric
+  void CellMetric(const int k, const int j, const int il, const int iu,
+                  AthenaArray<Real> &g, AthenaArray<Real> &gi) final;
+  void Face1Metric(const int k, const int j, const int il, const int iu,
+                   AthenaArray<Real> &g, AthenaArray<Real> &g_inv) final;
+  void Face2Metric(const int k, const int j, const int il, const int iu,
+                   AthenaArray<Real> &g, AthenaArray<Real> &g_inv) final;
+  void Face3Metric(const int k, const int j, const int il, const int iu,
+                   AthenaArray<Real> &g, AthenaArray<Real> &g_inv) final;
+
+  // ...to transform primitives to locally flat space
+  void PrimToLocal1(const int k, const int j, const int il, const int iu,
+                    const AthenaArray<Real> &b1_vals, AthenaArray<Real> &prim_left,
+                    AthenaArray<Real> &prim_right, AthenaArray<Real> &bx) final;
+  void PrimToLocal2(const int k, const int j, const int il, const int iu,
+                    const AthenaArray<Real> &b2_vals, AthenaArray<Real> &prim_left,
+                    AthenaArray<Real> &prim_right, AthenaArray<Real> &bx) final;
+  void PrimToLocal3(const int k, const int j, const int il, const int iu,
+                    const AthenaArray<Real> &b3_vals, AthenaArray<Real> &prim_left,
+                    AthenaArray<Real> &prim_right, AthenaArray<Real> &bx) final;
+
+  // ...to transform fluxes in locally flat space to global frame
+  void FluxToGlobal1(
+      const int k, const int j, const int il, const int iu,
+      const AthenaArray<Real> &cons, const AthenaArray<Real> &bbx,
+      AthenaArray<Real> &flux, AthenaArray<Real> &ey, AthenaArray<Real> &ez) final;
+  void FluxToGlobal2(
+      const int k, const int j, const int il, const int iu,
+      const AthenaArray<Real> &cons, const AthenaArray<Real> &bbx,
+      AthenaArray<Real> &flux, AthenaArray<Real> &ey, AthenaArray<Real> &ez) final;
+  void FluxToGlobal3(
+      const int k, const int j, const int il, const int iu,
+      const AthenaArray<Real> &cons, const AthenaArray<Real> &bbx,
+      AthenaArray<Real> &flux, AthenaArray<Real> &ey, AthenaArray<Real> &ez) final;
+
+  // ...for raising (lowering) covariant (contravariant) components of a vector
+  void RaiseVectorCell(Real a_0, Real a_1, Real a_2, Real a_3, int k, int j, int i,
+                       Real *pa0, Real *pa1, Real *pa2, Real *pa3) final;
+  void LowerVectorCell(Real a0, Real a1, Real a2, Real a3, int k, int j, int i,
+                       Real *pa_0, Real *pa_1, Real *pa_2, Real *pa_3) final;
+   private:
+// not needed for 1st order interp
+//    LagrangeInterpND<1, 3> * pinterp;
+
+// derivative for calculating hydro source terms - copied from z4c
+  struct {
+    // 1st derivative stecil
+    typedef FDCenteredStencil<1, NGHOST-1> s1;
+    // 2nd derivative stencil
+    typedef FDCenteredStencil<2, NGHOST-1> s2;
+    // dissipation operator
+    typedef FDCenteredStencil<
+      FDDissChoice<NGHOST-1>::degree,
+      FDDissChoice<NGHOST-1>::nghost
+      > sd;
+    // left-biased derivative
+    typedef FDLeftBiasedStencil<
+        FDBiasedChoice<1, NGHOST-1>::degree,
+        FDBiasedChoice<1, NGHOST-1>::nghost,
+        FDBiasedChoice<1, NGHOST-1>::lopsize
+      > sl;
+    // right-biased derivative
+    typedef FDRightBiasedStencil<
+        FDBiasedChoice<1, NGHOST-1>::degree,
+        FDBiasedChoice<1, NGHOST-1>::nghost,
+        FDBiasedChoice<1, NGHOST-1>::lopsize
+      > sr;
+
+    int stride[3];
+    Real idx[3];
+    Real diss;
+
+    // 1st derivative (high order centered)
+    inline Real Dx(int dir, Real & u) {
+      Real * pu = &u - s1::offset*stride[dir];
+
+      Real out(0.);
+      for(int n1 = 0; n1 < s1::nghost; ++n1) {
+        int const n2  = s1::width - n1 - 1;
+        Real const c1 = s1::coeff[n1] * pu[n1*stride[dir]];
+        Real const c2 = s1::coeff[n2] * pu[n2*stride[dir]];
+        out += (c1 + c2);
+      }
+      out += s1::coeff[s1::nghost] * pu[s1::nghost*stride[dir]];
+      return out * idx[dir];
+    }
+    // 1st derivative 2nd order centered
+    inline Real Ds(int dir, Real & u) {
+      Real * pu = &u;
+      return 0.5 * idx[dir] * (pu[stride[dir]] - pu[-stride[dir]]);
+    }
+    // Advective derivative
+    // The advective derivative is for an equation in the form
+    //    d_t u = vx d_x u
+    // So negative vx means advection from the *left* to the *right*, so we use
+    // *left* biased FD stencils
+    inline Real Lx(int dir, Real & vx, Real & u) {
+      Real * pu = &u;
+
+      Real dl(0.);
+      for(int n = 0; n < sl::width; ++n) {
+        dl += sl::coeff[n] * pu[(n - sl::offset)*stride[dir]];
+      }
+
+      Real dr(0.);
+      for(int n = sr::width-1; n >= 0; --n) {
+        dr += sr::coeff[n] * pu[(n - sr::offset)*stride[dir]];
+      }
+      return ((vx < 0) ? (vx * dl) : (vx * dr)) * idx[dir];
+    }
+    // Homogeneous 2nd derivative
+    inline Real Dxx(int dir, Real & u) {
+      Real * pu = &u - s2::offset*stride[dir];
+
+      Real out(0.);
+      for(int n1 = 0; n1 < s2::nghost; ++n1) {
+        int const n2  = s2::width - n1 - 1;
+        Real const c1 = s2::coeff[n1] * pu[n1*stride[dir]];
+        Real const c2 = s2::coeff[n2] * pu[n2*stride[dir]];
+        out += (c1 + c2);
+      }
+      out += s2::coeff[s2::nghost] * pu[s2::nghost*stride[dir]];
+      return out * SQR(idx[dir]);
+    }
+    // Mixed 2nd derivative
+    inline Real Dxy(int dirx, int diry, Real & u) {
+      Real * pu = &u - s1::offset*(stride[dirx] + stride[diry]);
+      Real out(0.);
+
+      for(int nx1 = 0; nx1 < s1::nghost; ++nx1) {
+        int const nx2 = s1::width - nx1 - 1;
+        for(int ny1 = 0; ny1 < s1::nghost; ++ny1) {
+          int const ny2 = s1::width - ny1 - 1;
+
+          Real const c11 = s1::coeff[nx1] * s1::coeff[ny1] * pu[nx1*stride[dirx] + ny1*stride[diry]];
+          Real const c12 = s1::coeff[nx1] * s1::coeff[ny2] * pu[nx1*stride[dirx] + ny2*stride[diry]];
+          Real const c21 = s1::coeff[nx2] * s1::coeff[ny1] * pu[nx2*stride[dirx] + ny1*stride[diry]];
+          Real const c22 = s1::coeff[nx2] * s1::coeff[ny2] * pu[nx2*stride[dirx] + ny2*stride[diry]];
+
+          Real const ca = (1./6.)*((c11 + c12) + (c21 + c22));
+          Real const cb = (1./6.)*((c11 + c21) + (c12 + c22));
+          Real const cc = (1./6.)*((c11 + c22) + (c12 + c21));
+
+          out += ((ca + cb) + cc) + ((ca + cc) + cb);
+        }
+        int const ny = s1::nghost;
+
+        Real const c1 = s1::coeff[nx1] * s1::coeff[ny] * pu[nx1*stride[dirx] + ny*stride[diry]];
+        Real const c2 = s1::coeff[nx2] * s1::coeff[ny] * pu[nx2*stride[dirx] + ny*stride[diry]];
+
+        out += (c1 + c2);
+      }
+      int const nx = s1::nghost;
+      for(int ny1 = 0; ny1 < s1::nghost; ++ny1) {
+        int const ny2 = s1::width - ny1 - 1;
+
+        Real const c1 = s1::coeff[nx] * s1::coeff[ny1] * pu[nx*stride[dirx] + ny1*stride[diry]];
+        Real const c2 = s1::coeff[nx] * s1::coeff[ny2] * pu[nx*stride[dirx] + ny2*stride[diry]];
+
+        out += (c1 + c2);
+      }
+      int const ny = s1::nghost;
+      out += s1::coeff[nx] * s1::coeff[ny] * pu[nx*stride[dirx] + ny*stride[diry]];
+
+      return out * idx[dirx] * idx[diry];
+    }
+    // Kreiss-Oliger dissipation operator
+    inline Real Diss(int dir, Real & u) {
+      Real * pu = &u - sd::offset*stride[dir];
+
+      Real out(0.);
+      for(int n1 = 0; n1 < sd::nghost; ++n1) {
+        int const n2  = sd::width - n1 - 1;
+        Real const c1 = sd::coeff[n1] * pu[n1*stride[dir]];
+        Real const c2 = sd::coeff[n2] * pu[n2*stride[dir]];
+        out += (c1 + c2);
+      }
+      out += sd::coeff[sd::nghost] * pu[sd::nghost*stride[dir]];
+
+      return out * idx[dir] * diss;
+    }
+  } coordFD;
+
 };
 
 #endif // COORDINATES_COORDINATES_HPP_

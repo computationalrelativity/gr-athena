@@ -18,6 +18,7 @@
 #include "../athena_arrays.hpp"
 #include "../athena_tensor.hpp"
 #include "../finite_differencing.hpp"
+#include "../lagrange_interp.hpp"
 
 #include "../bvals/cc/bvals_cc.hpp"
 #include "../bvals/vc/bvals_vc.hpp"
@@ -194,7 +195,7 @@ public:
     Real AwA_Gaussian_w; // 1d Gaussian parameter
     Real AwA_polarised_Gowdy_t0; // seed time for pG test
   } opt;
-
+     
 
   // boundary and grid data
 #if PREFER_VC
@@ -248,6 +249,11 @@ public:
   void Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat,
                       AthenaArray<Real> & u_weyl);
 //WGC end
+// Update VC matter
+  void GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, AthenaArray<Real> & w);
+
+
+
   // utility functions
   //
   // set ADM aliases given u_adm
@@ -336,7 +342,8 @@ public:
 
 private:
   AthenaArray<Real> dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep
-
+//  LagrangeInterpND<2*NGHOST-1,3> * pinterp;
+//  LagrangeInterpND<2,3> * pinterp;
   // auxiliary tensors
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> r;           // radial coordinate
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> detg;        // det(g)
@@ -415,7 +422,12 @@ private:
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 3> Riemm4_ddd;  // 4D Riemann * n^a
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> Riemm4_dd;   // 4D Riemann *n^a*n^c
   //WGC end
-
+// Aux vars for matter interpolation
+ AthenaArray<Real> rhocc;
+ AthenaArray<Real> pgascc;
+ AthenaArray<Real> utilde1cc;
+ AthenaArray<Real> utilde2cc;
+ AthenaArray<Real> utilde3cc;
 
 private:
   void Z4cSommerfeld_(AthenaArray<Real> & u, AthenaArray<Real> & rhs,

@@ -327,6 +327,12 @@ Coordinates::Coordinates(MeshBlock *pmb, ParameterInput *pin, bool flag) :
 }
 
 
+
+void Coordinates::UpdateMetric(){
+return;
+}
+
+
 //----------------------------------------------------------------------------------------
 // EdgeXLength functions: compute physical length at cell edge-X as vector
 // Edge1(i,j,k) located at (i,j-1/2,k-1/2), i.e. (x1v(i), x2f(j), x3f(k))

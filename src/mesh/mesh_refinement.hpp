@@ -83,6 +83,10 @@ class MeshRefinement {
 
   // setter functions for "enrolling" variable arrays in refinement via Mesh::AMR()
   // and/or in BoundaryValues::ProlongateBoundaries() (for SMR and AMR)
+// WGC VC + CC functions separated
+  int AddToRefinementVC(AthenaArray<Real> *pvar_in, AthenaArray<Real> *pcoarse_in);
+  int AddToRefinementCC(AthenaArray<Real> *pvar_in, AthenaArray<Real> *pcoarse_in);
+// I believe this is now unused
   int AddToRefinement(AthenaArray<Real> *pvar_in, AthenaArray<Real> *pcoarse_in);
   int AddToRefinement(FaceField *pvar_fc, FaceField *pcoarse_fc);
 

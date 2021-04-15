@@ -44,6 +44,9 @@
 // prefer vertex-centering default=0 (false)
 #define PREFER_VC @PREFER_VC@
 
+// Dynamical metric default=0 (false) - currently unused
+#define DYNAMICAL @DYNAMICAL@
+
 // deprecated: fill different portions of block with exact solution [for debug]
 #define FILL_WAVE_INTERIOR 0
 #define FILL_WAVE_BND_SL 0

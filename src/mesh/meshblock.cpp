@@ -106,6 +106,8 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
     pcoord = new KerrSchild(this, pin, false);
   } else if (std::strcmp(COORDINATE_SYSTEM, "gr_user") == 0) {
     pcoord = new GRUser(this, pin, false);
+  } else if (std::strcmp(COORDINATE_SYSTEM, "gr_dynamical") == 0) {
+    pcoord = new GRDynamical(this, pin, false);
   }
 
   if (FLUID_ENABLED) {
@@ -251,6 +253,8 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     pcoord = new KerrSchild(this, pin, false);
   } else if (std::strcmp(COORDINATE_SYSTEM, "gr_user") == 0) {
     pcoord = new GRUser(this, pin, false);
+  } else if (std::strcmp(COORDINATE_SYSTEM, "gr_dynamical") == 0) {
+    pcoord = new GRDynamical(this, pin, false);
   }
 
   if (FLUID_ENABLED) {
@@ -768,21 +772,25 @@ void MeshBlock::StopTimeMeasurement() {
   }
 }
 
-
-void MeshBlock::RegisterMeshBlockData(AthenaArray<Real> &pvar_in) {
+//WGC separated VC + CC 
+void MeshBlock::RegisterMeshBlockDataCC(AthenaArray<Real> &pvar_in) {
   if (DBGPR_MESHBLOCK)
     coutGreen("MeshBlock::RegisterMeshBlockData\n");
 
   // BD: TODO: one should do this differently...
-  if (PREFER_VC) {
-    vars_vc_.push_back(pvar_in);
-  } else {
     vars_cc_.push_back(pvar_in);
-  }
   return;
 }
 
+void MeshBlock::RegisterMeshBlockDataVC(AthenaArray<Real> &pvar_in) {
+  if (DBGPR_MESHBLOCK)
+    coutGreen("MeshBlock::RegisterMeshBlockData\n");
 
+  // BD: TODO: one should do this differently...
+    vars_vc_.push_back(pvar_in);
+  return;
+}
+//End WGC
 void MeshBlock::RegisterMeshBlockData(FaceField &pvar_fc) {
   if (DBGPR_MESHBLOCK)
     coutGreen("MeshBlock::RegisterMeshBlockData\n");

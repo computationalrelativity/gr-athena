@@ -15,6 +15,7 @@
 #include "../athena.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
+#include "../eos/eos.hpp"
 
 // constructor, initializes data structures and parameters
 
@@ -34,6 +35,7 @@ char const * const Z4c::ADM_names[Z4c::N_ADM] = {
   "adm.Kxx", "adm.Kxy", "adm.Kxz", "adm.Kyy", "adm.Kyz", "adm.Kzz",
   "adm.psi4",
 };
+
 
 char const * const Z4c::Constraint_names[Z4c::N_CON] = {
   "con.C",
@@ -128,11 +130,12 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   // Used for:
   // (1) load-balancing
   // (2) (future) dumping to restart file
-  pmb->RegisterMeshBlockData(storage.u);
+  // WGC separated VC and CC
+  pmb->RegisterMeshBlockDataVC(storage.u);
 
   // "Enroll" in SMR/AMR by adding to vector of pointers in MeshRefinement class
   if (pm->multilevel) {
-    refinement_idx = pmy_block->pmr->AddToRefinement(&storage.u, &coarse_u_);
+    refinement_idx = pmy_block->pmr->AddToRefinementVC(&storage.u, &coarse_u_);
   }
 
 
@@ -512,6 +515,65 @@ Real Z4c::Trace(Real const detginv,
        + 2.*(gxz*(Ayz*gxy - Axz*gyy + Axy*gyz) + gxy*(Axz*gyz - Axy*gzz))
        - Azz*SQR(gxy) - Ayy*SQR(gxz) - Axx*SQR(gyz)
        ));
+}
+
+//----------------------------------------------------------------------------------------
+// \!fn Real Z4c::GetMatter(Real detginv, Real gxx, ... , Real gzz, Real Axx, ..., Real Azz)
+// \brief Update matter variables from hydro 
+
+void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, AthenaArray<Real> & w)
+{
+     MeshBlock * pmb = pmy_block;
+     Matter_vars mat;
+     SetMatterAliases(u_mat, mat);
+     Real gamma_adi = pmy_block->peos->GetGamma(); //NB specific to EOS
+
+
+     ADM_vars adm;
+     SetADMAliases(u_adm,adm);
+// Cell centred hydro vars
+     rhocc.InitWithShallowSlice(w,IDN,1);
+     pgascc.InitWithShallowSlice(w,IPR,1);
+     utilde1cc.InitWithShallowSlice(w,IVX,1);
+     utilde2cc.InitWithShallowSlice(w,IVY,1);
+     utilde3cc.InitWithShallowSlice(w,IVZ,1);
+
+     Real rhovc, pgasvc, utilde1vc, utilde2vc, utilde3vc, wgas,tmp, gamma_lor, v1,v2,v3,v_1,v_2,v_3;
+// interpolate to VC
+     ILOOP3(k,j,i){
+     rhovc = 0.125*(rhocc(k-1,j-1,i-1) + rhocc(k-1,j-1,i) + rhocc(k-1,j,i-1) + rhocc(k,j-1,i-1) + rhocc(k-1,j,i) + rhocc(k,j-1,i) + rhocc(k,j,i-1) + rhocc(k,j,i));
+     pgasvc = 0.125*(pgascc(k-1,j-1,i-1) + pgascc(k-1,j-1,i) + pgascc(k-1,j,i-1) + pgascc(k,j-1,i-1) + pgascc(k-1,j,i) + pgascc(k,j-1,i) + pgascc(k,j,i-1) + pgascc(k,j,i));
+     utilde1vc = 0.125*(utilde1cc(k-1,j-1,i-1) + utilde1cc(k-1,j-1,i) + utilde1cc(k-1,j,i-1) + utilde1cc(k,j-1,i-1) + utilde1cc(k-1,j,i) + utilde1cc(k,j-1,i) + utilde1cc(k,j,i-1) + utilde1cc(k,j,i));
+     utilde2vc = 0.125*(utilde2cc(k-1,j-1,i-1) + utilde2cc(k-1,j-1,i) + utilde2cc(k-1,j,i-1) + utilde2cc(k,j-1,i-1) + utilde2cc(k-1,j,i) + utilde2cc(k,j-1,i) + utilde2cc(k,j,i-1) + utilde2cc(k,j,i));
+     utilde3vc = 0.125*(utilde3cc(k-1,j-1,i-1) + utilde3cc(k-1,j-1,i) + utilde3cc(k-1,j,i-1) + utilde3cc(k,j-1,i-1) + utilde3cc(k-1,j,i) + utilde3cc(k,j-1,i) + utilde3cc(k,j,i-1) + utilde3cc(k,j,i));
+//   NB specific to EOS
+     wgas = rhovc + gamma_adi/(gamma_adi-1.0) * pgasvc;
+     tmp = utilde1vc*utilde1vc*adm.g_dd(0,0,k,j,i) + utilde2vc*utilde2vc*adm.g_dd(1,1,k,j,i) 
+                + utilde3vc*utilde3vc*adm.g_dd(2,2,k,j,i) + 2.0*utilde1vc*utilde2vc*adm.g_dd(0,1,k,j,i)
+                + 2.0*utilde1vc*utilde3vc*adm.g_dd(0,2,k,j,i) + 
+                2.0*utilde2vc*utilde3vc*adm.g_dd(1,2,k,j,i);
+     gamma_lor = sqrt(1.0+tmp);
+//   convert to 3-velocity
+     v1 = utilde1vc/gamma_lor;
+     v2 = utilde2vc/gamma_lor;
+     v3 = utilde3vc/gamma_lor;
+
+     v_1 = v1*adm.g_dd(0,0,k,j,i) + v2*adm.g_dd(0,1,k,j,i) +v3*adm.g_dd(0,2,k,j,i);
+     v_2 = v1*adm.g_dd(0,1,k,j,i) + v2*adm.g_dd(1,1,k,j,i) +v3*adm.g_dd(1,2,k,j,i);
+     v_3 = v1*adm.g_dd(0,2,k,j,i) + v2*adm.g_dd(1,2,k,j,i) +v3*adm.g_dd(2,2,k,j,i);
+
+
+     mat.rho(k,j,i) = wgas*SQR(gamma_lor) - pgasvc;
+     mat.S_d(0,k,j,i) = wgas*SQR(gamma_lor)*v_1;
+     mat.S_d(1,k,j,i) = wgas*SQR(gamma_lor)*v_2;
+     mat.S_d(2,k,j,i) = wgas*SQR(gamma_lor)*v_3;
+     mat.S_dd(0,0,k,j,i) = wgas*SQR(gamma_lor)* v_1*v_1 + pgasvc*adm.g_dd(0,0,k,j,i);
+     mat.S_dd(0,1,k,j,i) = wgas*SQR(gamma_lor)* v_1*v_2 + pgasvc*adm.g_dd(0,1,k,j,i);
+     mat.S_dd(0,2,k,j,i) = wgas*SQR(gamma_lor)* v_1*v_3 + pgasvc*adm.g_dd(0,2,k,j,i);
+     mat.S_dd(1,1,k,j,i) = wgas*SQR(gamma_lor)* v_2*v_2 + pgasvc*adm.g_dd(1,1,k,j,i);
+     mat.S_dd(1,2,k,j,i) = wgas*SQR(gamma_lor)* v_2*v_3 + pgasvc*adm.g_dd(1,2,k,j,i);
+     mat.S_dd(2,2,k,j,i) = wgas*SQR(gamma_lor)* v_3*v_3 + pgasvc*adm.g_dd(2,2,k,j,i);
+}
 }
 
 //----------------------------------------------------------------------------------------

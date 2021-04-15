@@ -517,3 +517,5 @@ void SphericalPolar::AddCoordTermsDivergence(const Real dt, const AthenaArray<Re
 
   return;
 }
+//void SphericalPolar::UpdateMetric(){
+//return;}

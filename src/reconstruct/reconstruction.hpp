@@ -55,6 +55,9 @@ class Reconstruction {
       const int ivx, const int il, const int iu,
       const AthenaArray<Real> &b1, const AthenaArray<Real> &w, AthenaArray<Real> &vect);
 
+//   double rec1d_p_weno5( double uimt, double uimo, double ui, double uipo, double uipt  );
+//   double rec1d_m_weno5( double uimt, double uimo, double ui, double uipo, double uipt  );
+
   // reconstruction functions of various orders in each dimension
   void DonorCellX1(const int k, const int j, const int il, const int iu,
                    const AthenaArray<Real> &w, const AthenaArray<Real> &bcc,
@@ -89,6 +92,18 @@ class Reconstruction {
                             AthenaArray<Real> &wl, AthenaArray<Real> &wr);
 
   void PiecewiseParabolicX3(const int k, const int j, const int il, const int iu,
+                            const AthenaArray<Real> &w, const AthenaArray<Real> &bcc,
+                            AthenaArray<Real> &wl, AthenaArray<Real> &wr);
+
+  void WenoX1(const int k, const int j, const int il, const int iu,
+                            const AthenaArray<Real> &w, const AthenaArray<Real> &bcc,
+                            AthenaArray<Real> &wl, AthenaArray<Real> &wr);
+
+  void WenoX2(const int k, const int j, const int il, const int iu,
+                            const AthenaArray<Real> &w, const AthenaArray<Real> &bcc,
+                            AthenaArray<Real> &wl, AthenaArray<Real> &wr);
+
+  void WenoX3(const int k, const int j, const int il, const int iu,
                             const AthenaArray<Real> &w, const AthenaArray<Real> &bcc,
                             AthenaArray<Real> &wl, AthenaArray<Real> &wr);
 
@@ -128,6 +143,18 @@ class Reconstruction {
   void PiecewiseParabolicX3(const int k, const int j, const int il, const int iu,
                             const AthenaArray<Real> &q,
                             AthenaArray<Real> &ql, AthenaArray<Real> &qr);
+
+  void WenoX1(const int k, const int j, const int il, const int iu,
+                         const AthenaArray<Real> &q,
+                         AthenaArray<Real> &ql, AthenaArray<Real> &qr);
+
+  void WenoX2(const int k, const int j, const int il, const int iu,
+                         const AthenaArray<Real> &q,
+                         AthenaArray<Real> &ql, AthenaArray<Real> &qr);
+
+  void WenoX3(const int k, const int j, const int il, const int iu,
+                         const AthenaArray<Real> &q,
+                         AthenaArray<Real> &ql, AthenaArray<Real> &qr);
 
  private:
   MeshBlock* pmy_block_;  // ptr to MeshBlock containing this Reconstruction

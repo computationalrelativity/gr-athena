@@ -61,6 +61,8 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) :
     pcoarsec = new KerrSchild(pmb, pin, true);
   } else if (std::strcmp(COORDINATE_SYSTEM, "gr_user") == 0) {
     pcoarsec = new GRUser(pmb, pin, true);
+  } else if (std::strcmp(COORDINATE_SYSTEM, "gr_dynamical") == 0) {
+    pcoarsec = new GRDynamical(pmb, pin, true);
   }
 
   // BD: debug - allow for an odd number of ghosts
@@ -1947,21 +1949,37 @@ void MeshRefinement::CheckRefinementCondition() {
 }
 
 // TODO(felker): consider merging w/ MeshBlock::pvars_cc, etc. See meshblock.cpp
-
-int MeshRefinement::AddToRefinement(AthenaArray<Real> *pvar_in,
+//WGC Separated VC and CC functions
+int MeshRefinement::AddToRefinementVC(AthenaArray<Real> *pvar_in,
                                     AthenaArray<Real> *pcoarse_in) {
 
   if (DBGPR_MESH_REFINEMENT)
     coutCyan("MeshRefinement::AddToRefinement\n");
 
   // BD: TODO: one should do this differently...
-  if (PREFER_VC) {
     pvars_vc_.push_back(std::make_tuple(pvar_in, pcoarse_in));
     return static_cast<int>(pvars_vc_.size() - 1);
-  } else {
+}
+
+int MeshRefinement::AddToRefinementCC(AthenaArray<Real> *pvar_in,
+                                    AthenaArray<Real> *pcoarse_in) {
+
+  if (DBGPR_MESH_REFINEMENT)
+    coutCyan("MeshRefinement::AddToRefinement\n");
+
     pvars_cc_.push_back(std::make_tuple(pvar_in, pcoarse_in));
     return static_cast<int>(pvars_cc_.size() - 1);
-  }
+}
+//WGC: This AddToRefinement which adds to pvars_cc is (I think) redundant 
+// and not used. (The fc version is used though).
+int MeshRefinement::AddToRefinement(AthenaArray<Real> *pvar_in,
+                                    AthenaArray<Real> *pcoarse_in) {
+
+  if (DBGPR_MESH_REFINEMENT)
+    coutCyan("MeshRefinement::AddToRefinement\n");
+
+    pvars_cc_.push_back(std::make_tuple(pvar_in, pcoarse_in));
+    return static_cast<int>(pvars_cc_.size() - 1);
 }
 
 int MeshRefinement::AddToRefinement(FaceField *pvar_fc, FaceField *pcoarse_fc) {

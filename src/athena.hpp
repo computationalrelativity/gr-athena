@@ -139,9 +139,13 @@ enum PrimIndex {IVX=1, IVY=2, IVZ=3, IPR=4, IBY=(NHYDRO), IBZ=((NHYDRO)+1)};
 // array indices for face-centered electric fields returned by Riemann solver
 enum ElectricIndex {X1E2=0, X1E3=1, X2E3=0, X2E1=1, X3E1=0, X3E2=1};
 
-// array indices for metric and triangular matrices in GR
+// array indices for 4-metric in GR
 enum MetricIndex {I00=0, I01=1, I02=2, I03=3, I11=4, I12=5, I13=6, I22=7, I23=8, I33=9,
                   NMETRIC=10};
+// array indices for 3-metric and extrinsic curv in GR in 3D
+enum SpatialMetricIndex {S11=0, S12=1, S13=2, S22=3, S23=4, S33=5,
+// array indices for triangular matrices in GR
+                  NSPMETRIC=6};
 enum TriangleIndex {T00=0, T10=1, T11=2, T20=3, T21=4, T22=5, T30=6, T31=7, T32=8, T33=9,
                     NTRIANGULAR=10};
 

@@ -218,6 +218,9 @@ Outputs::Outputs(Mesh *pm, ParameterInput *pin) {
         // read ghost cell option
         op.include_ghost_zones = pin->GetOrAddBoolean(op.block_name, "ghost_zones",
                                                       false);
+        // output data on VC grid
+        op.vc = pin->GetOrAddBoolean(op.block_name, "vc",
+                                                      false);
 
         // read cartesian mapping option
         if (std::strcmp(COORDINATE_SYSTEM, "cylindrical") == 0 ||

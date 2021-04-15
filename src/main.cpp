@@ -341,7 +341,8 @@ int main(int argc, char *argv[]) {
 #ifdef ENABLE_EXCEPTIONS
   try {
 #endif
-    if(FLUID_ENABLED){
+// Fluid but no dynamical spacetime
+    if(FLUID_ENABLED  && !Z4C_ENABLED){
       ptlist = new TimeIntegratorTaskList(pinput, pmesh);
     }
 #ifdef ENABLE_EXCEPTIONS
@@ -407,7 +408,8 @@ int main(int argc, char *argv[]) {
 #ifdef ENABLE_EXCEPTIONS
   try {
 #endif
-    if(Z4C_ENABLED) { // only init. when required
+// Dynamical spacetime - no matter
+    if(Z4C_ENABLED && !FLUID_ENABLED) { // only init. when required
       pz4clist = new Z4cIntegratorTaskList(pinput, pmesh);
     }
 #ifdef ENABLE_EXCEPTIONS
@@ -440,7 +442,28 @@ int main(int argc, char *argv[]) {
       return(0);
     }
 #endif // ENABLE_EXCEPTIONS
+}
+  MatterTaskList *pmatterlist = nullptr;
+
+#ifdef ENABLE_EXCEPTIONS
+  try {
+#endif
+//Matter and dynamical spacetime
+    if(Z4C_ENABLED && FLUID_ENABLED) { // only init. when required
+      pmatterlist = new MatterTaskList(pinput, pmesh);
+    }
+#ifdef ENABLE_EXCEPTIONS
   }
+  catch(std::bad_alloc& ba) {
+    std::cout << "### FATAL ERROR in main" << std::endl << "memory allocation failed "
+              << "in creating task list " << ba.what() << std::endl;
+#ifdef MPI_PARALLEL
+    MPI_Finalize();
+#endif
+    return(0);
+  }
+#endif // ENABLE_EXCEPTIONS
+  
 
   //--- Step 6. --------------------------------------------------------------------------
   // Set initial conditions by calling problem generator, or reading restart file
@@ -531,7 +554,7 @@ int main(int argc, char *argv[]) {
         pststlist->DoTaskListOneStage(pmesh,stage);
     }
 
-    if (FLUID_ENABLED){
+    if (FLUID_ENABLED && !Z4C_ENABLED){
       if (pmesh->turb_flag > 1) pmesh->ptrbd->Driving(); // driven turbulence
 
       for (int stage=1; stage<=ptlist->nstages; ++stage) {
@@ -559,11 +582,18 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    if (Z4C_ENABLED) {
+    if (Z4C_ENABLED && !FLUID_ENABLED) {
       // This effectively means hydro takes a time-step and _then_ the given problem takes one
       for (int stage=1; stage<=pz4clist->nstages; ++stage) {
         pz4clist->DoTaskListOneStage(pmesh, stage);
       }
+    }
+    if (Z4C_ENABLED && FLUID_ENABLED) {
+      for (int stage=1; stage<=pmatterlist->nstages; ++stage) {
+        pmatterlist->DoTaskListOneStage(pmesh, stage);
+      }
+      }
+     if(Z4C_ENABLED){
 //WGC wext
 #ifdef Z4C_WEXT
 for (int n = 0;n<NRAD;++n){
@@ -582,6 +612,8 @@ pmesh->pwave_extr[n]->Write(pmesh->ncycle, pmesh->time);
 #endif // Z4C_TRACKER
 
     pmesh->UserWorkInLoop();
+// calculate int D duplicated history output?
+    pmesh->GlobalInt();
     pmesh->ncycle++;
     pmesh->time += pmesh->dt;
     mbcnt += pmesh->nbtotal;
@@ -709,6 +741,7 @@ pmesh->pwave_extr[n]->Write(pmesh->ncycle, pmesh->time);
   delete ptlist;
   delete palist;
   delete pwlist;
+  delete pmatterlist;
   // BD: new problem
   delete pz4clist;
   // -BD

@@ -29,27 +29,28 @@ Real Z4c::NewBlockTimeStep(void) {
 
   // Just slice dt1_, dt2_, dt3_ directly
   AthenaArray<Real> &dt1 = dt1_, &dt2 = dt2_, &dt3 = dt3_;  // (x1 slices)
-
-  for (int k = mbi.kl; k <= mbi.ku; ++k) {
-    for (int j = mbi.jl; j <= mbi.ju; ++j) {
+//NB have changed from leq mbi.ku to lt mbi.ku - CenterWidth etc live on 
+//cell centered grid, which have 1 less grid point
+  for (int k = mbi.kl; k < mbi.ku; ++k) {
+    for (int j = mbi.jl; j < mbi.ju; ++j) {
 
       // Note: these should be uniform for Cart. and equiv. to dxn
       pmb->pcoord->CenterWidth1(k, j, mbi.il, mbi.iu, dt1);
       pmb->pcoord->CenterWidth2(k, j, mbi.il, mbi.iu, dt2);
       pmb->pcoord->CenterWidth3(k, j, mbi.il, mbi.iu, dt3);
 
-      for (int i = mbi.il; i <= mbi.iu; ++i) {
+      for (int i = mbi.il; i < mbi.iu; ++i) {
         Real & dt_1 = dt1(i);
         min_dt = std::min(min_dt, dt_1);
       }
       if (pmb->block_size.nx2 > 1) {
-        for (int i = mbi.il; i <= mbi.iu; ++i) {
+        for (int i = mbi.il; i < mbi.iu; ++i) {
           Real & dt_2 = dt2(i);
           min_dt = std::min(min_dt, dt_2);
         }
       }
       if (pmb->block_size.nx3 > 1) {
-        for (int i = mbi.il; i <= mbi.iu; ++i) {
+        for (int i = mbi.il; i < mbi.iu; ++i) {
           Real & dt_3 = dt3(i);
           min_dt = std::min(min_dt, dt_3);
         }

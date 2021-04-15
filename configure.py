@@ -104,20 +104,21 @@ parser.add_argument(
         'tilted',
         'schwarzschild',
         'kerr-schild',
-        'gr_user'],
+        'gr_user',
+        'gr_dynamical'],
     help='select coordinate system')
 
 # --eos=[name] argument
 parser.add_argument('--eos',
                     default='adiabatic',
-                    choices=['adiabatic', 'isothermal', 'general/eos_table',
+                    choices=['adiabatic', 'isothermal', 'general/eos_table', 'adiabatictaudyn',
                              'general/hydrogen', 'general/ideal'],
                     help='select equation of state')
 
 # --flux=[name] argument
 parser.add_argument('--flux',
                     default='default',
-                    choices=['default', 'hlle', 'hllc', 'hlld', 'roe', 'llf'],
+                    choices=['default', 'hlle', 'hllc', 'hlld', 'roe', 'llf', 'llftaudyn'],
                     help='select Riemann solver')
 
 # --nghost=[value] argument
@@ -449,7 +450,7 @@ if args['s'] and args['g']:
                      + 'GR implies SR; the -s option is restricted to pure SR')
 if args['t'] and not args['g']:
     raise SystemExit('### CONFIGURE ERROR: Frame transformations only apply to GR')
-if args['g'] and not args['t'] and args['flux'] not in ('llf', 'hlle'):
+if args['g'] and not args['t'] and args['flux'] not in ('llf', 'llftaudyn', 'hlle'):
     raise SystemExit('### CONFIGURE ERROR: Frame transformations required for {0}'
                      .format(args['flux']))
 if args['g'] and args['coord'] in ('cartesian', 'cylindrical', 'spherical_polar'):
@@ -493,7 +494,7 @@ makefile_options['GENERAL_EOS_FILE'] = 'noop'
 definitions['EOS_TABLE_ENABLED'] = '0'
 if args['eos'] == 'isothermal':
     definitions['NHYDRO_VARIABLES'] = '4'
-elif args['eos'] == 'adiabatic':
+elif args['eos'] == 'adiabatic' or 'adiabatictaudyn':
     definitions['NHYDRO_VARIABLES'] = '5'
 else:
     definitions['GENERAL_EOS'] = '1'
@@ -657,6 +658,13 @@ if args['vertex']:
     definitions['PREFER_VC'] = '1'
 else:
     definitions['PREFER_VC'] = '0'
+
+# currently doesnt do anything
+# gr_dynamical argument
+if args['coord'] == 'gr_dynamical':
+    definitions['DYNAMICAL'] = '1'
+else:
+    definitions['DYNAMICAL'] = '0'
 
 # -shear argument
 if args['shear']:

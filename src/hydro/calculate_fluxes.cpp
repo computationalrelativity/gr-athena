@@ -81,10 +81,12 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
         pmb->precon->DonorCellX1(k, j, is-1, ie+1, w, bcc, wl_, wr_);
       } else if (order == 2) {
         pmb->precon->PiecewiseLinearX1(k, j, is-1, ie+1, w, bcc, wl_, wr_);
-      } else {
+      } else if (order ==3 || order==4) {
         pmb->precon->PiecewiseParabolicX1(k, j, is-1, ie+1, w, bcc, wl_, wr_);
+      } else {
+        pmb->precon->WenoX1(k, j, is-1, ie+1, w, wl_, wr_);
       }
-
+//WENO option here - TODO
       pmb->pcoord->CenterWidth1(k, j, is, ie+1, dxw_);
 #if !MAGNETIC_FIELDS_ENABLED  // Hydro:
       RiemannSolver(k, j, is, ie+1, IVX, wl_, wr_, x1flux, dxw_);
@@ -180,8 +182,10 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
         pmb->precon->DonorCellX2(k, js-1, il, iu, w, bcc, wl_, wr_);
       } else if (order == 2) {
         pmb->precon->PiecewiseLinearX2(k, js-1, il, iu, w, bcc, wl_, wr_);
-      } else {
+      } else if (order ==3 || order == 4){
         pmb->precon->PiecewiseParabolicX2(k, js-1, il, iu, w, bcc, wl_, wr_);
+      } else {
+        pmb->precon->WenoX2(k, js-1, il, iu, w, wl_, wr_);
       }
       for (int j=js; j<=je+1; ++j) {
         // reconstruct L/R states at j
@@ -189,8 +193,10 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
           pmb->precon->DonorCellX2(k, j, il, iu, w, bcc, wlb_, wr_);
         } else if (order == 2) {
           pmb->precon->PiecewiseLinearX2(k, j, il, iu, w, bcc, wlb_, wr_);
-        } else {
+        } else if (order == 3 || order ==4 ){
           pmb->precon->PiecewiseParabolicX2(k, j, il, iu, w, bcc, wlb_, wr_);
+        } else {
+          pmb->precon->WenoX2(k, j, il, iu, w, wlb_, wr_);
         }
 
         pmb->pcoord->CenterWidth2(k, j, il, iu, dxw_);
@@ -285,8 +291,10 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
         pmb->precon->DonorCellX3(ks-1, j, il, iu, w, bcc, wl_, wr_);
       } else if (order == 2) {
         pmb->precon->PiecewiseLinearX3(ks-1, j, il, iu, w, bcc, wl_, wr_);
-      } else {
+      } else if (order == 3 || order == 4 ) {
         pmb->precon->PiecewiseParabolicX3(ks-1, j, il, iu, w, bcc, wl_, wr_);
+      } else {
+        pmb->precon->WenoX3(ks-1, j, il, iu, w, wl_, wr_);
       }
       for (int k=ks; k<=ke+1; ++k) {
         // reconstruct L/R states at k
@@ -294,8 +302,10 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
           pmb->precon->DonorCellX3(k, j, il, iu, w, bcc, wlb_, wr_);
         } else if (order == 2) {
           pmb->precon->PiecewiseLinearX3(k, j, il, iu, w, bcc, wlb_, wr_);
-        } else {
+        } else if (order == 3 || order == 4){
           pmb->precon->PiecewiseParabolicX3(k, j, il, iu, w, bcc, wlb_, wr_);
+        } else {
+          pmb->precon->WenoX3(k, j, il, iu, w, wlb_, wr_);
         }
 
         pmb->pcoord->CenterWidth3(k, j, il, iu, dxw_);

@@ -508,4 +508,201 @@ namespace Z4cIntegratorTaskNames {
 
 }  // namespace Z4cIntegratorTaskNames
 
+
+// Task list for dynamical spacetimes
+class MatterTaskList : public TaskList {
+public:
+  MatterTaskList(ParameterInput *pin, Mesh *pm);
+
+  //--------------------------------------------------------------------------------------
+  //! \struct IntegratorWeight
+  //  \brief weights used in time integrator tasks
+
+  struct IntegratorWeight {
+    // 2S or 3S* low-storage RK coefficients, Ketchenson (2010)
+    Real delta; // low-storage coefficients to avoid double F() evaluation per substage
+    Real gamma_1, gamma_2, gamma_3; // low-storage coeff for weighted ave of registers
+    Real beta; // coeff. from bidiagonal Shu-Osher form Beta matrix, -1 diagonal terms
+  };
+
+  // data
+  std::string integrator;
+  Real cfl_limit; // dt stability limit for the particular time integrator + spatial order
+
+  // functions
+  TaskStatus ClearAllBoundary(MeshBlock *pmb, int stage);
+
+  TaskStatus CalculateHydroFlux(MeshBlock *pmb, int stage);
+  TaskStatus CalculateEMF(MeshBlock *pmb, int stage);
+
+  TaskStatus SendHydroFlux(MeshBlock *pmb, int stage);
+  TaskStatus SendEMF(MeshBlock *pmb, int stage);
+
+  TaskStatus ReceiveAndCorrectHydroFlux(MeshBlock *pmb, int stage);
+  TaskStatus ReceiveAndCorrectEMF(MeshBlock *pmb, int stage);
+
+  TaskStatus IntegrateHydro(MeshBlock *pmb, int stage);
+  TaskStatus IntegrateField(MeshBlock *pmb, int stage);
+
+  TaskStatus AddSourceTermsHydro(MeshBlock *pmb, int stage);
+
+  TaskStatus DiffuseHydro(MeshBlock *pmb, int stage);
+  TaskStatus DiffuseField(MeshBlock *pmb, int stage);
+  TaskStatus DiffuseScalars(MeshBlock *pmb, int stage);
+
+  TaskStatus SendHydro(MeshBlock *pmb, int stage);
+  TaskStatus SendField(MeshBlock *pmb, int stage);
+
+  TaskStatus ReceiveHydro(MeshBlock *pmb, int stage);
+  TaskStatus ReceiveField(MeshBlock *pmb, int stage);
+
+  TaskStatus SetBoundariesHydro(MeshBlock *pmb, int stage);
+  TaskStatus SetBoundariesField(MeshBlock *pmb, int stage);
+
+  TaskStatus SendHydroShear(MeshBlock *pmb, int stage);
+  TaskStatus ReceiveHydroShear(MeshBlock *pmb, int stage);
+  TaskStatus SendFieldShear(MeshBlock *pmb, int stage);
+  TaskStatus ReceiveFieldShear(MeshBlock *pmb, int stage);
+  TaskStatus SendEMFShear(MeshBlock *pmb, int stage);
+  TaskStatus ReceiveEMFShear(MeshBlock *pmb, int stage);
+  TaskStatus RemapEMFShear(MeshBlock *pmb, int stage);
+
+  TaskStatus Prolongation_Hyd(MeshBlock *pmb, int stage);
+  TaskStatus Primitives(MeshBlock *pmb, int stage);
+  TaskStatus PhysicalBoundary_Hyd(MeshBlock *pmb, int stage);
+  TaskStatus UserWork(MeshBlock *pmb, int stage);
+  TaskStatus NewBlockTimeStep(MeshBlock *pmb, int stage);
+  TaskStatus CheckRefinement(MeshBlock *pmb, int stage);
+
+  TaskStatus CalculateScalarFlux(MeshBlock *pmb, int stage);
+  TaskStatus SendScalarFlux(MeshBlock *pmb, int stage);
+  TaskStatus ReceiveScalarFlux(MeshBlock *pmb, int stage);
+  TaskStatus IntegrateScalars(MeshBlock *pmb, int stage);
+  TaskStatus SendScalars(MeshBlock *pmb, int stage);
+  TaskStatus ReceiveScalars(MeshBlock *pmb, int stage);
+  TaskStatus SetBoundariesScalars(MeshBlock *pmb, int stage);
+  
+  TaskStatus CalculateZ4cRHS(MeshBlock *pmb, int stage);   // CALC_Z4CRHS  [x]
+  TaskStatus IntegrateZ4c(MeshBlock *pmb, int stage);      // INT_Z4C      [x]
+  TaskStatus SendZ4c(MeshBlock *pmb, int stage);           // SEND_Z4C     [x]
+  TaskStatus ReceiveZ4c(MeshBlock *pmb, int stage);        // RECV_Z4C     [x]
+  TaskStatus SetBoundariesZ4c(MeshBlock *pmb, int stage);  // SETB_Z4C     [x]
+  TaskStatus Prolongation_Z4c(MeshBlock *pmb, int stage);     // PROLONG      [x]
+  TaskStatus PhysicalBoundary_Z4c(MeshBlock *pmb, int stage); // PHY_BVAL     [x]
+  TaskStatus EnforceAlgConstr(MeshBlock *pmb, int stage);  // ALG_CONSTR   [x]
+  TaskStatus Z4cToADM(MeshBlock *pmb, int stage);          // Z4C_TO_ADM   [x]
+  TaskStatus ADM_Constraints(MeshBlock *pmb, int stage);   // ADM_CONSTR   [x]
+  TaskStatus Z4c_Weyl(MeshBlock *pmb, int stage);          // Z4C_WEYL     [x]
+  TaskStatus WaveExtract(MeshBlock *pmb, int stage);       // WAVE_EXTR    [x]
+  TaskStatus UpdateMetric(MeshBlock *pmb, int stage);       // WAVE_EXTR    [x]
+  TaskStatus UpdateSource(MeshBlock *pmb, int stage);       // WAVE_EXTR    [x]
+
+#ifdef Z4C_ASSERT_FINITE
+  // monitor
+  TaskStatus AssertFinite(MeshBlock *pmb, int stage);      // ASSERT_FIN   [x]
+#endif // Z4C_ASSERT_FINITE
+
+
+private:
+  IntegratorWeight stage_wghts[MAX_NSTAGE];
+
+  void AddTask(const TaskID& id, const TaskID& dep) override;
+  void StartupTaskList(MeshBlock *pmb, int stage) override;
+};
+
+//----------------------------------------------------------------------------------------
+// 64-bit integers with "1" in different bit positions used to ID each z4c task.
+namespace MatterIntegratorTaskNames {
+
+  const TaskID NONE(0);
+  const TaskID CLEAR_ALLBND(1);
+  const TaskID UPDATE_MET(2);
+  const TaskID UPDATE_SRC(3);
+
+  const TaskID CALC_HYDFLX(4);
+  const TaskID CALC_FLDFLX(5);
+  const TaskID CALC_RADFLX(6);
+  const TaskID CALC_CHMFLX(7);
+
+  const TaskID SEND_HYDFLX(8);
+  const TaskID SEND_FLDFLX(9);
+  // const TaskID SEND_RADFLX(8);
+  // const TaskID SEND_CHMFLX(9);
+
+  const TaskID RECV_HYDFLX(10);
+  const TaskID RECV_FLDFLX(11);
+  // const TaskID RECV_RADFLX(12);
+  // const TaskID RECV_CHMFLX(13);
+  const TaskID ALG_CONSTR(12);
+  const TaskID Z4C_TO_ADM(13);
+
+  const TaskID SRCTERM_HYD(14);
+  // const TaskID SRCTERM_FLD(15);
+  // const TaskID SRCTERM_RAD(16);
+  // const TaskID SRCTERM_CHM(17);
+  const TaskID ADM_CONSTR(15);
+#ifdef Z4C_ASSERT_FINITE
+  const TaskID ASSERT_FIN(16);
+#endif //Z4C_ASSERT_FINITE
+  const TaskID Z4C_WEYL(17);
+
+  const TaskID INT_HYD(18);
+  const TaskID INT_FLD(19);
+  const TaskID WAVE_EXTR(20);
+  // const TaskID INT_RAD(20);
+  // const TaskID INT_CHM(21);
+
+  const TaskID SEND_HYD(22);
+  const TaskID SEND_FLD(23);
+  // const TaskID SEND_RAD(24);
+  // const TaskID SEND_CHM(25);
+
+  const TaskID RECV_HYD(26);
+  const TaskID RECV_FLD(27);
+  // const TaskID RECV_RAD(28);
+  // const TaskID RECV_CHM(29);
+
+  const TaskID SETB_HYD(30);
+  const TaskID SETB_FLD(31);
+  // const TaskID SETB_RAD(32);
+  // const TaskID SETB_CHM(33);
+
+  const TaskID PROLONG_HYD(34);
+  const TaskID CONS2PRIM(35);
+  const TaskID PHY_BVAL_HYD(36);
+  const TaskID USERWORK(37);
+  const TaskID NEW_DT(38);
+  const TaskID FLAG_AMR(39);
+
+  const TaskID SEND_HYDSH(40);
+  const TaskID SEND_EMFSH(41);
+  const TaskID SEND_FLDSH(42);
+  const TaskID RECV_HYDSH(43);
+  const TaskID RECV_EMFSH(44);
+  const TaskID RECV_FLDSH(45);
+  const TaskID RMAP_EMFSH(46);
+
+  const TaskID DIFFUSE_HYD(47);
+  const TaskID DIFFUSE_FLD(48);
+
+  const TaskID CALC_SCLRFLX(49);
+  const TaskID SEND_SCLRFLX(50);
+  const TaskID RECV_SCLRFLX(51);
+  const TaskID INT_SCLR(52);
+  const TaskID SEND_SCLR(53);
+  const TaskID RECV_SCLR(54);
+  const TaskID SETB_SCLR(55);
+  const TaskID DIFFUSE_SCLR(56);
+  
+  const TaskID CALC_Z4CRHS(57);
+  const TaskID INT_Z4C(58);
+  const TaskID SEND_Z4C(59);
+  const TaskID RECV_Z4C(60);
+  const TaskID SETB_Z4C(61);
+
+  const TaskID PROLONG_Z4C(62);
+  const TaskID PHY_BVAL_Z4C(63);
+
+
+}  // namespace MatterIntegratorTaskNames
 #endif  // TASK_LIST_TASK_LIST_HPP_

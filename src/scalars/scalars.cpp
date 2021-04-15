@@ -50,7 +50,7 @@ PassiveScalars::PassiveScalars(MeshBlock *pmb, ParameterInput *pin)  :
   int nc1 = pmb->ncells1, nc2 = pmb->ncells2, nc3 = pmb->ncells3;
   Mesh *pm = pmy_block->pmy_mesh;
 
-  pmb->RegisterMeshBlockData(s);
+  pmb->RegisterMeshBlockDataCC(s);
 
   // Allocate optional passive scalar variable memory registers for time-integrator
   if (pmb->precon->xorder == 4) {

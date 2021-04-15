@@ -312,3 +312,6 @@ void Minkowski::LowerVectorCell(Real a0, Real a1, Real a2, Real a3, int k, int j
   *pa_3 = a3;
   return;
 }
+//void Minkowski::UpdateMetric(){
+//return;}
+

@@ -123,7 +123,9 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   // (these typically involve a coupled interaction of boundary variable/quantities)
   // ------
   void ApplyPhysicalBoundaries(const Real time, const Real dt);
-  void ProlongateBoundaries(const Real time, const Real dt);
+// separated hydro + z4c (aka VC + CC) 
+ void ProlongateBoundaries(const Real time, const Real dt);
+  void ProlongateZ4cBoundaries(const Real time, const Real dt);
 
   //--New logic for vertex-centering
   void ApplyPhysicalVertexCenteredBoundaries(const Real time, const Real dt);

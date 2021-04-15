@@ -1825,3 +1825,6 @@ void KerrSchild::LowerVectorCell(Real a0, Real a1, Real a2, Real a3, int k, int 
   *pa_3 = g_30*a0 + g_31*a1 + g_32*a2 + g_33*a3;
   return;
 }
+//void KerrSchild::UpdateMetric(){
+//return;}
+

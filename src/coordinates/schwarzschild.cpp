@@ -1456,3 +1456,5 @@ void Schwarzschild::LowerVectorCell(
   *pa_3 = g_33 * a3;
   return;
 }
+//void Schwarzschild::UpdateMetric(){
+//return;}

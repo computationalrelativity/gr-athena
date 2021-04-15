@@ -130,6 +130,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
   MeshBlock *pfirst{};
   BoundaryFlag block_bcs[6];
   std::int64_t nbmax;
+  pofile = fopen("intd.txt", "a");
 
   // mesh test
   if (mesh_test > 0) Globals::nranks = mesh_test;
@@ -631,6 +632,7 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
   MeshBlock *pfirst{};
   IOWrapperSizeT *offset{};
   IOWrapperSizeT datasize, listsize, headeroffset;
+  pofile = fopen("intd.txt", "a");
 
   // mesh test
   if (mesh_test > 0) Globals::nranks = mesh_test;
@@ -920,12 +922,22 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     if (i == nbs) {
       pblock = new MeshBlock(i, i-nbs, this, pin, loclist[i], block_size,
                              block_bcs, costlist[i], mbdata+buff_os, gflag);
+//WGC - need to intialise coord_width in pcoord for dt to be set correctly
+// - either do it here, or put all cell centred metric into restart files 
+//and read in
+      pblock->pz4c->Z4cToADM(pblock->pz4c->storage.u, pblock->pz4c->storage.adm);
+      pblock->pcoord->UpdateMetric();
+      pblock->pmr->pcoarsec->UpdateMetric();
       pfirst = pblock;
     } else {
       pblock->next = new MeshBlock(i, i-nbs, this, pin, loclist[i], block_size,
                                    block_bcs, costlist[i], mbdata+buff_os, gflag);
       pblock->next->prev = pblock;
       pblock = pblock->next;
+//WGC
+      pblock->pz4c->Z4cToADM(pblock->pz4c->storage.u, pblock->pz4c->storage.adm);
+      pblock->pcoord->UpdateMetric();
+      pblock->pmr->pcoarsec->UpdateMetric();
     }
     pblock->pbval->SearchAndSetNeighbors(tree, ranklist, nslist);
   }
@@ -1452,7 +1464,32 @@ void Mesh::AllocateIntUserMeshDataField(int n) {
   return;
 }
 
+// function for calculating integrated value of D (duplicating history output)
+void Mesh::GlobalInt() {
+  MeshBlock *pmb = pblock;
+    Real intd = 0.0;
+    while (pmb != nullptr){
+      int il = pmb->is;
+      int iu = pmb->ie;
+      int jl = pmb->js;
+      int ju = pmb->je;
+      int kl = pmb->ks;
+      int ku = pmb->ke;
+      for (int k=kl; k<=ku; ++k) {
+      for (int j=jl; j<=ju; ++j) {
+        for (int i=il; i<=iu; ++i) {
+        intd += pmb->phydro->u(IDN,k,j,i)*pmb->pcoord->dx1v(i)*pmb->pcoord->dx2v(j)*pmb->pcoord->dx3v(k);
+        }
+        }
+        }
 
+
+    pmb = pmb->next;
+   }
+          fprintf(pofile, "%.16f %.16f\n", time, intd);
+               fflush(pofile);
+	   
+}
 //----------------------------------------------------------------------------------------
 // \!fn void Mesh::ApplyUserWorkBeforeOutput(ParameterInput *pin)
 // \brief Apply MeshBlock::UserWorkBeforeOutput
@@ -1526,7 +1563,6 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
     {
       MeshBlock *pmb;
       BoundaryValues *pbval;
-
       // prepare to receive conserved variables
 #pragma omp for private(pmb,pbval)
       for (int i=0; i<nmb; ++i) {
@@ -1591,7 +1627,6 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 
         if (Z4C_ENABLED)
           pmb->pz4c->ubvar.ReceiveAndSetBoundariesWithWait();
-
         pbval->ClearBoundary(BoundaryCommSubset::mesh_init);
       }
 
@@ -1619,13 +1654,13 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           for (int i=0; i<nmb; ++i) {
             pmb = pmb_array[i]; pbval = pmb->pbval;
             pmb->phydro->hbvar.ReceiveAndSetBoundariesWithWait();
-            pbval->ClearBoundary(BoundaryCommSubset::gr_amr);
+	    pbval->ClearBoundary(BoundaryCommSubset::gr_amr);
             pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->u,
                                                  HydroBoundaryQuantity::cons);
           }
         }
       } // multilevel
-
+//comm end
       if (DBGPR_MESH)
         coutBoldGreen("Boundary communication complete; processing...\n");
 
@@ -1651,9 +1686,11 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       for (int i=0; i<nmb; ++i) {
         pmb = pmb_array[i];
         pbval = pmb->pbval, ph = pmb->phydro, pf = pmb->pfield, ps = pmb->pscalars;
-        if (multilevel)
+        if (multilevel){
           pbval->ProlongateBoundaries(time, 0.0);
-
+        //WGC separate prol functions
+	pbval->ProlongateZ4cBoundaries(time, 0.0);
+	}
         int il = pmb->is, iu = pmb->ie,
           jl = pmb->js, ju = pmb->je,
           kl = pmb->ks, ku = pmb->ke;
@@ -1683,6 +1720,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         // --------------------------
         if (FLUID_ENABLED) {
           int order = pmb->precon->xorder;
+// nb this not tested issue for WENO schemes?
           if (order == 4) {
             // fourth-order EOS:
             // for hydro, shrink buffer by 1 on all sides
@@ -1715,8 +1753,9 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 
         if (NSCALARS > 0)
           ps->sbvar.var_cc = &(ps->r);
-
+// WGC set phys boundaries for CC and VC
         pbval->ApplyPhysicalBoundaries(time, 0.0);
+        pbval->ApplyPhysicalVertexCenteredBoundaries(time, 0.0);
       }
 
       // Calc initial diffusion coefficients
@@ -1778,7 +1817,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
     if (Z4C_ENABLED)
       pmb_array[i]->pz4c->NewBlockTimeStep();
   }
-
+// Z4c new block time step is used here - as in tasklist. 
   NewTimeStep();
   return;
 }

@@ -65,6 +65,10 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
     xorder = 4;
     if (input_recon == "4c")
       characteristic_projection = true;
+// WGC '5' just used as dummy for WENO
+  } else if (input_recon == "5") {
+    // WENO
+    xorder = 5;
   } else {
     std::stringstream msg;
     msg << "### FATAL ERROR in Reconstruction constructor" << std::endl
