@@ -304,7 +304,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 //Initialise coordinate class, CC metric
   pcoord->UpdateMetric();
 //TODO can we update coarsec here? is coarse_u_ set yet?
+  if(pmy_mesh->multilevel){
   pmr->pcoarsec->UpdateMetric();
+  }
 //  Initialise conserved variables
   peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord, il, iu, jl, ju,
                              kl, ku);

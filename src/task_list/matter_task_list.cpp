@@ -1633,7 +1633,9 @@ TaskStatus MatterTaskList::UpdateMetric(MeshBlock *pmb, int stage) {
     pmb->pcoord->UpdateMetric();
 //Update CC metric on coarse representation of coord. 
 //Is this the right place to call this?
+    if(pmb->pmy_mesh->multilevel){
     pmb->pmr->pcoarsec->UpdateMetric();
+    }
     return TaskStatus::success;
   }
   return TaskStatus::fail;
