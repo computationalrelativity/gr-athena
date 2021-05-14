@@ -22,7 +22,7 @@
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::ADMNeutronStar(ParameterInput* pin, AthenaArray<Real> & u_adm, AthenaArray<Real>& u_mat)
 // \brief Initialize ADM vars to a single neutron star
-Z4c::ADMNeutronStar(ParameterInput* pin, AthenaArray<Real>& u_adm, AthenaArray<Real>& u_mat) {
+void Z4c::ADMNeutronStar(ParameterInput* pin, AthenaArray<Real>& u_z4c, AthenaArray<Real>& u_adm, AthenaArray<Real>& w) {
 	// Some conversion factors to go between Lorene data and Athena data. Shamelessly stolen from
 	// the Einstein Toolkit's Mag_NS.cc.
 	Real const c_light = 299792458.0; // Speed of light [m/s]
@@ -35,17 +35,20 @@ Z4c::ADMNeutronStar(ParameterInput* pin, AthenaArray<Real>& u_adm, AthenaArray<R
 
 	// Maybe some stuff in here about Athena units...?
 	Real const coord_unit = 1.0; // Placeholder -- figure out what this actually is.
+	Real const rho_unit = 1.0; // Placeholder -- figure out what this actually is.
+	Real const ener_unit = 1.0; // Placeholder -- figure out what this actually is.
+	Real const vel_unit = 1.0; // Placeholder -- figure out what this actually is.
+	Real const B_unit = 1.0; // Placeholder -- figure out what this actually is.
+
+	Z4c_vars z4c;
+	SetZ4cAliases(u_z4c, z4c);
 
 	ADM_vars adm;
 	SetADMAliases(u_adm, adm);
 	//Real ADM_mass = pin->GetOrAddReal("problem", "punc_ADM_mass", 1.);
 
-	Matter_vars mat;
-	SetMatterAliases(u_mat, mat);
-
 	// Flat vacuum spacetime
 	ADMMinkowski(u_adm);
-	MatterVacuum(mat);
 
 	// Coordinates for Lorene.
 	unsigned int const nx = mbi.iu - mbi.il + 2 * GSIZEI + 1;
@@ -74,12 +77,83 @@ Z4c::ADMNeutronStar(ParameterInput* pin, AthenaArray<Real>& u_adm, AthenaArray<R
 
 	// Read in the file from Lorene.
 	std::string filename = pin->GetOrAddString("problem", "filename", "resu.d");
-	Mag_NS mag_ns(npoints, &xx[0], &yy[0], &zz[0], filename);
+	Lorene::Mag_NS mag_ns(npoints, &xx[0], &yy[0], &zz[0], filename.c_str());
 	assert(mag_ns.np == npoints);
 
 	GLOOP2(k, j) {
 		GLOOP1(i) {
 			unsigned int index = (i - offx) + nx * ((j - offy) + ny * (k - offz));
+
+			// Copy over Lorene's gauge variables into the Z4c variables.
+			// FIXME: Is there something else we should do here?
+			z4c.alpha(k,j,i) = mag_ns.nnn[index];
+
+			z4c.beta_u(0, k, j, i) = mag_ns.beta_x[index];
+			z4c.beta_u(1, k, j, i) = mag_ns.beta_y[index];
+			z4c.beta_u(2, k, j, i) = mag_ns.beta_z[index];
+
+			// Copy the 3-metric into a temporary array.
+			Real g[3][3];
+			g[0][0] = mag_ns.g_xx[index];
+			g[0][1] = mag_ns.g_xy[index];
+			g[0][2] = mag_ns.g_xz[index];
+			g[1][1] = mag_ns.g_yy[index];
+			g[1][2] = mag_ns.g_yz[index];
+			g[2][2] = mag_ns.g_zz[index];
+			g[1][0] = g[0][1];
+			g[2][0] = g[0][2];
+			g[2][1] = g[1][2];
+
+			// Copy the curvature into a temporary array.
+			Real ku[3][3];
+			ku[0][0] = mag_ns.k_xx[index];
+			ku[0][1] = mag_ns.k_xy[index];
+			ku[0][2] = mag_ns.k_xz[index];
+			ku[1][1] = mag_ns.k_yy[index];
+			ku[1][2] = mag_ns.k_yz[index];
+			ku[2][2] = mag_ns.k_zz[index];
+			ku[1][0] = ku[0][1];
+			ku[2][0] = ku[0][2];
+			ku[2][1] = ku[1][2];
+
+			Real K[3][3];
+			// Lower the curvature indices: k_ab = g_{ac} g_{bd} k^{cd}.
+			// FIXME: Is there a more concise to do this using built-in Athena functionality?
+			for (unsigned int a = 0; a < 3; ++a) {
+				for (unsigned int b = 0; b < 3; ++b) {
+					K[a][b] = 0.0;
+					for (unsigned int c = 0; c < 3; ++c) {
+						for (unsigned int d = 0; d < 3; ++d) {
+							K[a][b] += g[a][c] * g[b][d] * ku[c][d];
+						}
+					}
+				}
+			}
+
+			// Copy the temporary 3-metric and curvature tensors into the ADM variables.
+			for (unsigned int a = 0; a < 3; ++a) {
+				for (unsigned int b = 0; b < 3; ++b) {
+					adm.g_dd(a, b, k, j, i) = g[a][b];
+					adm.K_dd(a, b, k, j, i) = K[a][b];
+				}
+			}
+
+			// Get the matter variables from Lorene.
+			Real rho = mag_ns.nbar[index] / rho_unit; // Rest-mass density?
+			Real eps = rho * mag_ns.ener_spec[i] / ener_unit; // Energy density
+			// 3-velocity of the fluid.
+			Real vu[3];
+			vu[0] = mag_ns.u_euler_x[i] / vel_unit;
+			vu[1] = mag_ns.u_euler_y[i] / vel_unit;
+			vu[2] = mag_ns.u_euler_z[i] / vel_unit;
+			// Magnetic field
+			// FIXME: We don't currently do anything with the magnetic field other
+			// than pull it in.
+			Real Bu[3];
+			Bu[0] = mag_ns.bb_x[i] / B_unit;
+			Bu[1] = mag_ns.bb_y[i] / B_unit;
+			Bu[2] = mag_ns.bb_z[i] / B_unit;
+
 		}
 	}
 }

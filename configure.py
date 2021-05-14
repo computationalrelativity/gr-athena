@@ -312,6 +312,11 @@ parser.add_argument('--two_punctures_path',
                     default='',
                     help='path to two_punctures library')
 
+# lorene_path argument
+parser.add_argument('--lorene_path',
+                    default='',
+                    help='path to Lorene library')
+
 # -gsl argument
 parser.add_argument('-gsl',
                     action='store_true',
@@ -1002,6 +1007,24 @@ else:
     if args['prob'] == 'z4c_one_puncture':
         definitions['TWO_PUNCTURES_OPTION'] = definitions['TWO_PUNCTURES_OPTION'] + '\n#define NPUNCT (1)'
 
+# Load Lorene
+if args['prob'] == "z4c_neutron_star":
+    definitions['LORENE_OPTION'] = 'LORENE'
+    if args['lorene_path'] == '':
+        os.system('mkdir -p extern/initial_data')
+        args['lorene_path'] = 'extern/initial_data/Lorene'
+        if os.path.exists('../Lorene'):
+            os.system('rm {}'.format(args['lorene_path']))
+            os.system('ln -s ../../../Lorene {}'.format(args['lorene_path']))
+        else:
+            raise SystemExit('### CONFIGURE ERROR: To compile the neutron star problem, it is necessary to provide the Lorene initial data library ../Lorene.')
+    if args['lorene_path'] != '':
+        makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/Export/C++/Include'.format(args['lorene_path'])
+        makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/C++/Include'.format(args['lorene_path'])
+        makefile_options['LINKER_FLAGS'] += ' -L{0}/Lib'.format(args['lorene_path'])
+        makefile_options['LIBRARY_FLAGS'] += ' -llorene_export -llorene -llorenef77 -lgfortran -llapack -lblas'
+else:
+    definitions['LORENE_OPTION'] = 'NO_LORENE'
 
 definitions['GSL_OPTION'] = 'NO_GSL'
 if args['gsl']:
@@ -1076,6 +1099,8 @@ if args['z']:
         files.append('one_puncture_z4c')
     elif args['prob'] == "z4c_awa_tests":
         files.append('awa_z4c')
+    elif args['prob'] == "z4c_neutron_star":
+        files.append('neutron_star_z4c')
 
 aux = ["		$(wildcard src/z4c/{}.cpp) \\".format(f) for f in files]
 makefile_options['Z4C_FILES'] = '\n'.join(aux) + '\n'

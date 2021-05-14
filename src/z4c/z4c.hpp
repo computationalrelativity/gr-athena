@@ -328,7 +328,7 @@ public:
   void ADMTwoPunctures(AthenaArray<Real> & u_adm);
 
   // initial data for axisymmetric neutron star
-  void ADMNeutronStar(ParameterInput* pin, AthenaArray<Real>& u_adm, AthenaArray<Real>& u_mat);
+  void ADMNeutronStar(ParameterInput* pin, AthenaArray<Real>& u_z4c, AthenaArray<Real>& u_adm, AthenaArray<Real>& w);
 
   //---------------------------------------------------------------------------
   // functions for debugging and monitoring

@@ -14,6 +14,11 @@
 #include "../parameter_input.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../z4c/z4c.hpp"
+#include "../eos/eos.hpp"
+#include "../field/field.hpp"
+#include "../hydro/hydro.hpp"
+#include "../bvals/bvals.hpp"
+#include "../mesh/mesh.hpp"
 
 // Lorene
 #include <mag_ns.h>
@@ -28,12 +33,12 @@ using namespace std;
 //  functions in this file.  Called in Mesh constructor.
 //========================================================================================
 
-void Mesh::InitUserMeshData(ParameterInput *pin){
+void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag){
 }
 
-void Mesh::UserWorkAfterLoop(ParameterInput *pin){
+/*void Mesh::UserWorkAfterLoop(ParameterInput *pin){
     
-}
+}*/
 
 //========================================================================================
 //! \fn void MeshBlock::ProblemGenerator(ParameterInput *pin)
@@ -60,7 +65,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 #endif
 
 	// Interpolate Lorene data onto the grid.
-	pz4c->ADMNeutronStar(pin, pz4c->storage.adm, pz4c->storage.mat);
+	pz4c->ADMNeutronStar(pin, pz4c->storage.u, pz4c->storage.adm, phydro->w);
 
 	// Precollapse
 
