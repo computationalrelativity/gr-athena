@@ -1008,7 +1008,11 @@ else:
         definitions['TWO_PUNCTURES_OPTION'] = definitions['TWO_PUNCTURES_OPTION'] + '\n#define NPUNCT (1)'
 
 # Load Lorene
-if args['prob'] == "z4c_neutron_star":
+if args['prob'] == "gr_neutron_star":
+    if not args['f']:
+        raise SystemExit('### CONFIGURE ERROR: The neutron star problem requires hydrodynamics. Please reconfigure with the -f option.')
+    if not args['z']:
+        raise SystemExit('### CONFIGURE ERROR: The neutron star problem currently requires Z4c. Please reconfigure with the -z option.')
     definitions['LORENE_OPTION'] = 'LORENE'
     if args['lorene_path'] == '':
         os.system('mkdir -p extern/initial_data')
@@ -1099,8 +1103,6 @@ if args['z']:
         files.append('one_puncture_z4c')
     elif args['prob'] == "z4c_awa_tests":
         files.append('awa_z4c')
-    elif args['prob'] == "z4c_neutron_star":
-        files.append('neutron_star_z4c')
 
 aux = ["		$(wildcard src/z4c/{}.cpp) \\".format(f) for f in files]
 makefile_options['Z4C_FILES'] = '\n'.join(aux) + '\n'
