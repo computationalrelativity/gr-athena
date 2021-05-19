@@ -501,6 +501,7 @@ if args['eos'] == 'isothermal':
     definitions['NHYDRO_VARIABLES'] = '4'
 elif args['eos'] == 'adiabatic' or 'adiabatictaudyn':
     definitions['NHYDRO_VARIABLES'] = '5'
+    makefile_options['GENERAL_EOS_FILE'] = 'ideal'
 else:
     definitions['GENERAL_EOS'] = '1'
     makefile_options['GENERAL_EOS_FILE'] = 'general'
@@ -1009,6 +1010,8 @@ else:
 
 # Load Lorene
 if args['prob'] == "gr_neutron_star":
+    #if not args['g']:
+    #    raise SystemExit('### CONFIGURE ERROR: The neutron star problem requires general relativity. Please reconfigure with the -g option.')
     if not args['f']:
         raise SystemExit('### CONFIGURE ERROR: The neutron star problem requires hydrodynamics. Please reconfigure with the -f option.')
     if not args['z']:

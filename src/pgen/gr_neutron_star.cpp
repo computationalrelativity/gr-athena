@@ -201,7 +201,18 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 				vu[2] = mag_ns.u_euler_z[index] / vel_unit;
 
 				// Calculate the pressure using the EOS.
+				// FIXME: Is it possible not good practice to use this here? I had to modify
+				// configure.py to set GENERAL_EOS_FILE to ideal.cpp for an adiabatic system
+				// to get this to work.
 				Real p = peos->PresFromRhoEg(rho, eps);
+
+				// Find the four-velocity stored in the primitive variables.
+				Real vsq = 2.0*(vu[0]*vu[1]*g[0][1] + vu[0]*vu[2]*g[0][2] + vu[1]*vu[2]*g[1][2])
+						 + vu[0]*vu[0]*g[0][0] + vu[1]*vu[1]*g[1][1] + vu[2]*vu[2]*g[2][2];
+				// Make sure that the velocity is physical. If not, scream that something is wrong
+				// and quit.
+				assert(vsq < 1.0);
+				Real W = 1.0/sqrt(1.0 - vsq);
 
 				// Magnetic field
 				// FIXME: We don't currently do anything with the magnetic field other
@@ -214,19 +225,31 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 				// Stuff everything into the hydro variables.
 				phydro->w(IDN, k, j, i) = phydro->w1(IDN, k, j, i) = rho;
 				phydro->w(IPR, k, j, i) = phydro->w1(IPR, k, j, i) = p;
-				phydro->w(IVX, k, j, i) = phydro->w1(IVX, k, j, i) = vu[0];
-				phydro->w(IVY, k, j, i) = phydro->w1(IVY, k, j, i) = vu[1];
-				phydro->w(IVZ, k, j, i) = phydro->w1(IVY, k, j, i) = vu[2];
+				phydro->w(IVX, k, j, i) = phydro->w1(IVX, k, j, i) = W*vu[0];
+				phydro->w(IVY, k, j, i) = phydro->w1(IVY, k, j, i) = W*vu[1];
+				phydro->w(IVZ, k, j, i) = phydro->w1(IVY, k, j, i) = W*vu[2];
 			}
 		}
 	}
 
-	// Precollapse
-
 	// Construct Z4c vars from ADM vars.
+	// FIXME: This needs to be made agnostic of the formalism.
+	pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
+	pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u1);
+	// Initialize the coordinates
+	pcoord->UpdateMetric();
+	if (pmy_mesh->multilevel) {
+		pmr->pcoarsec->UpdateMetric();
+	}
+	// We've only set up the primitive variables; go ahead and initialize
+	// the conserved variables.
+	peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord, il, iu, jl, ju, kl, ku);
+	// Set up the matter tensor in the Z4c variables.
+	pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w);
     
+	return;
 }
 
-int RefinementCondition(MeshBlock *pmb){
+/*int RefinementCondition(MeshBlock *pmb){
     
-}
+}*/
