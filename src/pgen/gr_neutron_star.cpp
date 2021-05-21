@@ -41,6 +41,38 @@ void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag){
     
 }*/
 
+void MeshBlock::InitUserMeshBlockData(ParameterInput* pin) {
+	AllocateUserOutputVariables(1);
+}
+
+void MeshBlock::UserWorkBeforeOutput(ParameterInput* pin) {
+	int il = is - NGHOST;
+	int iu = ie + NGHOST;
+	int jl = js;
+	int ju = je;
+	if (block_size.nx2 > 1) {
+		jl -= NGHOST;
+		ju += NGHOST;
+	}
+	int kl = ks;
+	int ku = ke;
+	if (block_size.nx3 > 1) {
+		kl -= NGHOST;
+		ku += NGHOST;
+	}
+	for (int k = kl; k <= ku; ++k) {
+		for (int j = jl; j <= ju; ++j) {
+			for (int i = il; i <= iu; ++i) {
+				Real rho = phydro->w(IDN, k, j, i);
+				Real p = phydro->w(IPR, k, j, i);
+				// Kappa for P = kappa*rho^gamma. Here gamma = 2
+				// is assumed.
+				user_out_var(0, k, j, i) = p / (rho * rho);
+			}
+		}
+	}
+}
+
 //========================================================================================
 //! \fn void MeshBlock::ProblemGenerator(ParameterInput *pin)
 //  \brief Sets the initial conditions.
@@ -78,12 +110,20 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 	Real const G_grav = 6.67428e-11; // Gravitational constant [m^3/kg/s^2]
 	Real const M_sun = 1.98892e+30; // Solar mass [kg]
 
+	// Athena units in SI
+	// Athena code units: c = G = 1, M = M_sun
+	Real const athenaM = M_sun;
+	Real const athenaL = athenaM * G_grav / (c_light * c_light);
+	Real const athenaT = athenaL / c_light;
+	// This is just a guess based on what ET uses.
+	Real const athenaB = 1.0 / athenaL / sqrt(eps0 * G_grav / (c_light * c_light));
+
 	// Athena units for conversion.
-	Real const coord_unit = 1.0; // Placeholder -- figure out what this actually is.
-	Real const rho_unit = 1.0; // Placeholder -- figure out what this actually is.
-	Real const ener_unit = 1.0; // Placeholder -- figure out what this actually is.
-	Real const vel_unit = 1.0; // Placeholder -- figure out what this actually is.
-	Real const B_unit = 1.0; // Placeholder -- figure out what this actually is.
+	Real const coord_unit = athenaL/1.0e3; // Convert to km for Lorene.
+	Real const rho_unit = athenaM/(athenaL*athenaL*athenaL); // kg/m^3.
+	Real const ener_unit = 1.0; // c^2
+	Real const vel_unit = athenaL / athenaT / c_light; // c
+	Real const B_unit = athenaB / 1.0e+9; // 10^9 T
 
 	// Set some aliases for the variables.
 	// FIXME: This needs to be generalized to be independent of Z4c.
@@ -193,7 +233,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 
 				// Get the matter variables from Lorene.
 				Real rho = mag_ns.nbar[index] / rho_unit; // Rest-mass density?
-				Real eps = rho * mag_ns.ener_spec[index] / ener_unit; // Energy density
+				Real egas = rho * mag_ns.ener_spec[index] / ener_unit; // Energy density
 				// 3-velocity of the fluid.
 				Real vu[3];
 				vu[0] = mag_ns.u_euler_x[index] / vel_unit;
@@ -201,18 +241,19 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 				vu[2] = mag_ns.u_euler_z[index] / vel_unit;
 
 				// Calculate the pressure using the EOS.
-				// FIXME: Is it possible not good practice to use this here? I had to modify
+				// FIXME: Is it possibly not good practice to use this here? I had to modify
 				// configure.py to set GENERAL_EOS_FILE to ideal.cpp for an adiabatic system
 				// to get this to work.
-				Real p = peos->PresFromRhoEg(rho, eps);
+				Real p = peos->PresFromRhoEg(rho, egas);
 
 				// Find the four-velocity stored in the primitive variables.
-				Real vsq = 2.0*(vu[0]*vu[1]*g[0][1] + vu[0]*vu[2]*g[0][2] + vu[1]*vu[2]*g[1][2])
-						 + vu[0]*vu[0]*g[0][0] + vu[1]*vu[1]*g[1][1] + vu[2]*vu[2]*g[2][2];
+				//Real vsq = 2.0*(vu[0]*vu[1]*g[0][1] + vu[0]*vu[2]*g[0][2] + vu[1]*vu[2]*g[1][2])
+				//		 + vu[0]*vu[0]*g[0][0] + vu[1]*vu[1]*g[1][1] + vu[2]*vu[2]*g[2][2];
 				// Make sure that the velocity is physical. If not, scream that something is wrong
 				// and quit.
-				assert(vsq < 1.0);
-				Real W = 1.0/sqrt(1.0 - vsq);
+				//assert(!isnan(vsq));
+				//assert(vsq < 1.0);
+				//Real W = 1.0/sqrt(1.0 - vsq);
 
 				// Magnetic field
 				// FIXME: We don't currently do anything with the magnetic field other
@@ -225,9 +266,16 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 				// Stuff everything into the hydro variables.
 				phydro->w(IDN, k, j, i) = phydro->w1(IDN, k, j, i) = rho;
 				phydro->w(IPR, k, j, i) = phydro->w1(IPR, k, j, i) = p;
-				phydro->w(IVX, k, j, i) = phydro->w1(IVX, k, j, i) = W*vu[0];
-				phydro->w(IVY, k, j, i) = phydro->w1(IVY, k, j, i) = W*vu[1];
-				phydro->w(IVZ, k, j, i) = phydro->w1(IVY, k, j, i) = W*vu[2];
+				/*Real ux = W * vu[0];
+				Real uy = W * vu[1];
+				Real uz = W * vu[2];
+				assert(!isnan(ux));
+				assert(!isnan(uy));
+				assert(!isnan(uz));*/
+				// FIXME: Double-check if Athena stores W*v or v.
+				phydro->w(IVX, k, j, i) = phydro->w1(IVX, k, j, i) = vu[0];
+				phydro->w(IVY, k, j, i) = phydro->w1(IVY, k, j, i) = vu[1];
+				phydro->w(IVZ, k, j, i) = phydro->w1(IVY, k, j, i) = vu[2];
 			}
 		}
 	}

@@ -1,0 +1,69 @@
+<comment>
+problem = Axially symmetric neutron star without a magnetic field
+configure  = --prob=gr_neutron_star -g -f --coord=gr_dynamic -z --eos=adiabatic -vertex
+
+<job>
+problem_id = gr_neutron_star
+
+<output1>
+file_type = vtk
+variable  = prim
+dt        = 0.00001
+
+<output2>
+file_type = vtk
+variable  = adm
+dt        = 0.00001
+
+<output3>
+file_type = vtk
+variable  = z4c
+dt        = 0.00001
+
+<output4>
+file_type = vtk
+variable  = uov
+dt        = 0.00001
+
+<time>
+cfl_number = 0.25
+tlim       = 20.0
+integrator = rk4  # time integration algorithm
+xorder     = 2    # order of spatial reconstruction
+ncycle_out = 1    # interval for stdout summary info
+
+<mesh>
+refinement = static
+
+nx1    = 32        # number of cells in x-direction
+x1min  = 0.0       # minimum x
+x1max  = 10.0       # maximum x
+ix1_bc = reflecting# left boundary
+ox1_bc = extrapolate_outflow  # right boundary
+
+nx2    = 32        # number of cells in y-direction
+x2min  = 0.0       # minimum y
+x2max  = 10.0       # maximum y
+ix2_bc = reflecting# inner boundary
+ox2_bc = extrapolate_outflow  # outer boundary
+
+nx3    = 32        # number of cells in z-direction
+x3min  = 0.0       # minimum z
+x3max  = 10.0       # maximum z
+ix3_bc = reflecting# lower boundary
+ox3_bc = extrapolate_outflow  # upper boundary
+
+<hydro>
+gamma  = 2.00000  # ratio of specific heats Gamma
+dfloor = 1.0e-10              # floor on density rho
+pfloor = 1.0e-10              # floor on gas pressure p_gas
+
+<problem>
+filename = btiny.d # Filename for the Lorene initial data
+fthr = 100.0
+fatm = 1e-10
+
+<meshblock>
+nx1 = 16
+nx2 = 16
+nx3 = 16
