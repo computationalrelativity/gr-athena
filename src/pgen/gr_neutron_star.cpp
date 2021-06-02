@@ -26,8 +26,6 @@
 
 using namespace std;
 
-#define VELOCITY_FINITE_XX
-
 //========================================================================================
 //! \fn void Mesh::InitUserMeshData(ParameterInput *pin)
 //  \brief Function to initialize problem-specific data in mesh class.  Can also be used
@@ -69,14 +67,6 @@ void MeshBlock::UserWorkBeforeOutput(ParameterInput* pin) {
 				// Kappa for P = kappa*rho^gamma. Here gamma = 2
 				// is assumed.
 				user_out_var(0, k, j, i) = p / (rho * rho);
-#ifdef VELOCITY_FINITE
-				assert(!isnan(phydro->w(IVX, k, j, i)));
-				assert(!isnan(phydro->w(IVY, k, j, i)));
-				assert(!isnan(phydro->w(IVZ, k, j, i)));
-				assert(!isnan(phydro->u(IM1, k, j, i)));
-				assert(!isnan(phydro->u(IM2, k, j, i)));
-				assert(!isnan(phydro->u(IM3, k, j, i)));
-#endif
 			}
 		}
 	}
@@ -87,27 +77,7 @@ void MeshBlock::UserWorkBeforeOutput(ParameterInput* pin) {
 //  \brief Sets the initial conditions.
 //========================================================================================
 void MeshBlock::ProblemGenerator(ParameterInput *pin){
-#ifdef Z4C_ASSERT_FINITE
-	pz4c->adm.psi4.Fill(NAN);
-	pz4c->adm.g_dd.Fill(NAN);
-	pz4c->adm.K_dd.Fill(NAN);
-
-	pz4c->z4c.chi.Fill(NAN);
-	pz4c->z4c.Khat.Fill(NAN);
-	pz4c->z4c.Theta.Fill(NAN);
-	pz4c->z4c.alpha.Fill(NAN);
-	pz4c->z4c.Gam_u.Fill(NAN);
-	pz4c->z4c.beta_u.Fill(NAN);
-	pz4c->z4c.g_dd.Fill(NAN);
-	pz4c->z4c.A_dd.Fill(NAN);
-
-	pz4c->mat.rho.Fill(NAN);
-	pz4c->mat.S_d.Fill(NAN);
-	pz4c->mat.S_dd.Fill(NAN);
-#endif
-
 	// Interpolate Lorene data onto the grid.
-	//pz4c->ADMNeutronStar(pin, pz4c->storage.u, pz4c->storage.adm, phydro->w);
 
 	// Some conversion factors to go between Lorene data and Athena data. Shamelessly stolen from
 	// the Einstein Toolkit's Mag_NS.cc.
@@ -185,12 +155,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 	assert(mag_ns.np == npoints);
 
 	// Some debug stuff.
-#ifdef VELOCITY_FINITE
-	int testk = 0;
-	int testj = 0;
-	int testi = 19;
-	Real gpt = g_dd(0, 0, testk, testj, testi);
-#endif
 	for (int k = kl; k <= ku; k++) {
 		for (int j = jl; j <= ju; j++) {
 			for (int i = il; i <= iu; i++) {
@@ -253,29 +217,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 					}
 				}
 
-#ifdef VELOCITY_FINITE
-				// SANITY CHECK! DEBUG ONLY!
-				assert(g_dd(0, 0, k, j, i) == pz4c->storage.adm(Z4c::I_ADM_gxx, k, j, i));
-				assert(g_dd(0, 1, k, j, i) == pz4c->storage.adm(Z4c::I_ADM_gxy, k, j, i));
-				assert(g_dd(0, 2, k, j, i) == pz4c->storage.adm(Z4c::I_ADM_gxz, k, j, i));
-				assert(g_dd(1, 1, k, j, i) == pz4c->storage.adm(Z4c::I_ADM_gyy, k, j, i));
-				assert(g_dd(1, 2, k, j, i) == pz4c->storage.adm(Z4c::I_ADM_gyz, k, j, i));
-				assert(g_dd(2, 2, k, j, i) == pz4c->storage.adm(Z4c::I_ADM_gzz, k, j, i));
-				det = pz4c->storage.adm(Z4c::I_ADM_gxx, k, j, i) * (pz4c->storage.adm(Z4c::I_ADM_gyy, k, j, i) * pz4c->storage.adm(Z4c::I_ADM_gzz, k, j, i)
-						- pz4c->storage.adm(Z4c::I_ADM_gyz, k, j, i) * pz4c->storage.adm(Z4c::I_ADM_gyz, k, j, i))
-					- pz4c->storage.adm(Z4c::I_ADM_gxy, k, j, i) * (pz4c->storage.adm(Z4c::I_ADM_gxy, k, j, i) * pz4c->storage.adm(Z4c::I_ADM_gzz, k, j, i)
-						- pz4c->storage.adm(Z4c::I_ADM_gxz, k, j, i) * pz4c->storage.adm(Z4c::I_ADM_gyz, k, j, i))
-					+ pz4c->storage.adm(Z4c::I_ADM_gxz, k, j, i) * (pz4c->storage.adm(Z4c::I_ADM_gxy, k, j, i) * pz4c->storage.adm(Z4c::I_ADM_gyz, k, j, i)
-						- pz4c->storage.adm(Z4c::I_ADM_gyy, k, j, i) * pz4c->storage.adm(Z4c::I_ADM_gxz, k, j, i));
-				assert(fabs(det) > 1e-10);
-				if (gpt != g_dd(0, 0, testk, testj, testi)) {
-					printf("Point changed during loop at (%i,%i,%i).\n",i,j,k);
-					printf("  Old value: %g\n", gpt);
-					printf("  New value: %g\n", g_dd(0, 0, testk, testj, testi));
-					gpt = g_dd(0, 0, testk, testj, testi);
-				}
-#endif
-
 				// Get the matter variables from Lorene.
 				Real rho = mag_ns.nbar[index] / rho_unit; // Rest-mass density?
 				Real egas = rho * mag_ns.ener_spec[index] / ener_unit; // Energy density
@@ -325,30 +266,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 		}
 	}
 
-#ifdef VELOCITY_FINITE
-	if (gpt != g_dd(0, 0, testk, testj, testi)) {
-		printf("Point changed before calling ADMToZ4c.\n");
-		printf("  Old value: %g\n", gpt);
-		printf("  New value: %g\n", g_dd(0, 0, testk, testj, testi));
-		gpt = g_dd(0, 0, testk, testj, testi);
-	}
-	for (int k = kl; k < ku; ++k) {
-		for (int j = jl; j < ju; ++j) {
-			for (int i = il; i < iu; ++i) {
-				Real det = pz4c->storage.adm(Z4c::I_ADM_gxx, k, j, i) * (pz4c->storage.adm(Z4c::I_ADM_gyy, k, j, i) * pz4c->storage.adm(Z4c::I_ADM_gzz, k, j, i)
-						- pz4c->storage.adm(Z4c::I_ADM_gyz, k, j, i) * pz4c->storage.adm(Z4c::I_ADM_gyz, k, j, i))
-					- pz4c->storage.adm(Z4c::I_ADM_gxy, k, j, i) * (pz4c->storage.adm(Z4c::I_ADM_gxy, k, j, i) * pz4c->storage.adm(Z4c::I_ADM_gzz, k, j, i)
-						- pz4c->storage.adm(Z4c::I_ADM_gxz, k, j, i) * pz4c->storage.adm(Z4c::I_ADM_gyz, k, j, i))
-					+ pz4c->storage.adm(Z4c::I_ADM_gxz, k, j, i) * (pz4c->storage.adm(Z4c::I_ADM_gxy, k, j, i) * pz4c->storage.adm(Z4c::I_ADM_gyz, k, j, i)
-						- pz4c->storage.adm(Z4c::I_ADM_gyy, k, j, i) * pz4c->storage.adm(Z4c::I_ADM_gxz, k, j, i));
-				if (k == testk && j == testj && i == testi) {
-					printf("Determinant at test point: %g\n", det);
-				}
-				assert(fabs(det) > 1e-10);
-			}
-		}
-	}
-#endif
 	// Construct Z4c vars from ADM vars.
 	// FIXME: This needs to be made agnostic of the formalism.
 	pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
@@ -362,36 +279,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 	// the conserved variables.
 	peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord, il, iu, jl, ju, kl, ku);
 	// Check if the momentum and velocity are finite.
-#ifdef VELOCITY_FINITE
-	for (int k = kl; k < ku; ++k) {
-		for (int j = jl; j < ju; ++j) {
-			for (int i = il; i < iu; ++i) {
-				assert(!isnan(phydro->w(IVX, k, j, i)));
-				assert(!isnan(phydro->w(IVY, k, j, i)));
-				assert(!isnan(phydro->w(IVZ, k, j, i)));
-				assert(!isnan(phydro->u(IM1, k, j, i)));
-				assert(!isnan(phydro->u(IM2, k, j, i)));
-				assert(!isnan(phydro->u(IM3, k, j, i)));
-			}
-		}
-	}
-#endif
 	// Set up the matter tensor in the Z4c variables.
 	pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w);
-#ifdef VELOCITY_FINITE
-	for (int k = kl; k < ku; ++k) {
-		for (int j = jl; j < ju; ++j) {
-			for (int i = il; i < iu; ++i) {
-				assert(!isnan(phydro->w(IVX, k, j, i)));
-				assert(!isnan(phydro->w(IVY, k, j, i)));
-				assert(!isnan(phydro->w(IVZ, k, j, i)));
-				assert(!isnan(phydro->u(IM1, k, j, i)));
-				assert(!isnan(phydro->u(IM2, k, j, i)));
-				assert(!isnan(phydro->u(IM3, k, j, i)));
-			}
-		}
-	}
-#endif
     
 	return;
 }
