@@ -1,6 +1,6 @@
 <comment>
 problem = Axially symmetric neutron star without a magnetic field
-configure  = --prob=gr_neutron_star -g -f --coord=gr_dynamic -z --eos=adiabatic -vertex
+configure  = -gfz --prob=gr_neutron_star --coord=gr_dynamic --eos=adiabatictaudyn --flux=llftaudyn -vertex -gsl --lorene_path=$LORENE
 
 <job>
 problem_id = gr_neutron_star
@@ -15,25 +15,27 @@ file_type = vtk
 variable  = adm
 dt        = 0.00001
 
-<output3>
-file_type = vtk
-variable  = z4c
-dt        = 0.00001
+#<output3>
+#file_type = vtk
+#variable  = z4c
+#dt        = 0.00001
 
-<output4>
-file_type = vtk
-variable  = uov
-dt        = 0.00001
+#<output4>
+#file_type = vtk
+#variable  = uov
+#dt        = 0.00001
 
 <time>
 cfl_number = 0.25
 tlim       = 20.0
-integrator = rk4  # time integration algorithm
+integrator = rk3  # time integration algorithm
 xorder     = 2    # order of spatial reconstruction
 ncycle_out = 1    # interval for stdout summary info
 
 <mesh>
 refinement = static
+#numlevel = 2
+#deref_count = 5
 
 nx1    = 32        # number of cells in x-direction
 x1min  = 0.0       # minimum x
@@ -55,15 +57,32 @@ ox3_bc = extrapolate_outflow  # upper boundary
 
 <hydro>
 gamma  = 2.00000  # ratio of specific heats Gamma
-dfloor = 1.0e-10              # floor on density rho
-pfloor = 1.0e-10              # floor on gas pressure p_gas
+#dfloor = 1.0e-10              # floor on density rho
+#pfloor = 1.0e-10              # floor on gas pressure p_gas
+k_adi = 74.3701
 
 <problem>
 filename = btiny.d # Filename for the Lorene initial data
+R0 = 6 # Guess for the radius of the star
+npts = 10000 # Guess for number of points for TOV solver
 fthr = 100.0
 fatm = 1e-10
+rhoc = 0.00214077
 
 <meshblock>
 nx1 = 16
 nx2 = 16
 nx3 = 16
+
+#<refinement1>
+#x1min = 0
+#x1max = 3
+#x2min = 0
+#x2max = 3
+#x3min = 0
+#x3max = 3
+#level = 2
+
+<coord>
+m = 0
+a = 0
