@@ -1722,7 +1722,7 @@ void GRDynamical::UpdateMetric(){
           Real dx3 = dx3f(k);
 
           // Calculate metric coefficients
-          GetFace2Metric(x1, x2, x3, g, g_inv);
+          GetFace2Metric(k, j, i, g, g_inv);
 
           // Calculate areas
 
@@ -1765,7 +1765,7 @@ metric_face2_kji_(1,n,k,j,i) = g_inv(n);
           Real dx2 = dx2f(j);
 
           // Calculate metric coefficients
-          GetFace3Metric(x1, x2, x3, g, g_inv);
+          GetFace3Metric(k, j, i, g, g_inv);
 
           // Calculate areas
           // Set metric coefficients
