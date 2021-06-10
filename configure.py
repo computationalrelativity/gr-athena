@@ -111,14 +111,14 @@ parser.add_argument(
 # --eos=[name] argument
 parser.add_argument('--eos',
                     default='adiabatic',
-                    choices=['adiabatic', 'isothermal', 'general/eos_table', 'adiabatictaudyn',
+                    choices=['adiabatic', 'isothermal', 'general/eos_table', 'adiabatictaudyn','adiabatictaudyn_rep',
                              'general/hydrogen', 'general/ideal'],
                     help='select equation of state')
 
 # --flux=[name] argument
 parser.add_argument('--flux',
                     default='default',
-                    choices=['default', 'hlle', 'hllc', 'hlld', 'roe', 'llf', 'llftaudyn'],
+                    choices=['default', 'hlle', 'hllc', 'hlld', 'roe', 'llf', 'llftaudyn','hlletaudyn'],
                     help='select Riemann solver')
 
 # --nghost=[value] argument
@@ -254,6 +254,7 @@ parser.add_argument('-coverage',
                     action='store_true',
                     default=False,
                     help='enable compiler-dependent code coverage flag')
+
 
 # -float argument
 parser.add_argument('-float',
@@ -450,7 +451,7 @@ if args['s'] and args['g']:
                      + 'GR implies SR; the -s option is restricted to pure SR')
 if args['t'] and not args['g']:
     raise SystemExit('### CONFIGURE ERROR: Frame transformations only apply to GR')
-if args['g'] and not args['t'] and args['flux'] not in ('llf', 'llftaudyn', 'hlle'):
+if args['g'] and not args['t'] and args['flux'] not in ('llf', 'llftaudyn', 'hlle','hlletaudyn'):
     raise SystemExit('### CONFIGURE ERROR: Frame transformations required for {0}'
                      .format(args['flux']))
 if args['g'] and args['coord'] in ('cartesian', 'cylindrical', 'spherical_polar'):
@@ -494,7 +495,7 @@ makefile_options['GENERAL_EOS_FILE'] = 'noop'
 definitions['EOS_TABLE_ENABLED'] = '0'
 if args['eos'] == 'isothermal':
     definitions['NHYDRO_VARIABLES'] = '4'
-elif args['eos'] == 'adiabatic' or 'adiabatictaudyn':
+elif args['eos'] == 'adiabatic' or 'adiabatictaudyn' or 'adiabatictaudyn_rep':
     definitions['NHYDRO_VARIABLES'] = '5'
 else:
     definitions['GENERAL_EOS'] = '1'
@@ -788,6 +789,8 @@ if args['cxx'] == 'clang++-apple':
     makefile_options['LINKER_FLAGS'] = ''
     makefile_options['LIBRARY_FLAGS'] = ''
 
+if args['eos'] == 'adiabatictaudyn_rep':
+    makefile_options['LIBRARY_FLAGS'] = '-lRePrimAnd'
 # -float argument
 if args['float']:
     definitions['SINGLE_PRECISION_ENABLED'] = '1'
