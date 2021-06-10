@@ -111,6 +111,9 @@
 // two_punctures
 #define @TWO_PUNCTURES_OPTION@
 
+// use Lorene initial data library? (LORENE or NO_LORENE)
+#define @LORENE_OPTION@
+
 // allow control over whether tracker enabled
 #define @Z4C_TRACKER@
 

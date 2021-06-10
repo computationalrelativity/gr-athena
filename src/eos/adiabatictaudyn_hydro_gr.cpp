@@ -28,12 +28,15 @@
 static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim, Real gamma_adi,
     const AthenaArray<Real> &g, const AthenaArray<Real> &gi, int k, int j, int i,
     AthenaArray<Real> &cons, Coordinates *pco);
+static bool ApplyDensityFloor(Real& rho, Real coord, Real density_floor, Real rho_min, Real rho_pow);
+static bool ApplyPressureFloor(Real& pgas, Real coord, Real pressure_floor, Real pgas_min, Real pgas_pow, bool fixed);
 static Real QNResidual(Real w_guess, Real d, Real q_n, Real qq_sq, Real gamma_adi);
 static Real QNResidualPrime(Real w_guess, Real d, Real qq_sq, Real gamma_adi);
 static Real PresResidual(Real pres_guess, Real D, Real tau, Real S_sq, Real gamma_adi);
 static Real PresResidualPrime(Real pres_guess, Real D, Real tau, Real S_sq, Real gamma_adi);
 Real fthr, fatm, rhoc;
 Real k_adi, gamma_adi;
+Real density_floor, pressure_floor, rho_min, rho_pow, pgas_min, pgas_pow;
 namespace{
 Real Determinant(Real a11, Real a12, Real a13, Real a21, Real a22, Real a23,
                  Real a31, Real a32, Real a33);
@@ -209,7 +212,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         uu3 = v3*Wp;
         Real gamma_rel = Wp;
         // Apply floors to density and pressure
-        Real density_floor_local = density_floor_;
+        /*Real density_floor_local = density_floor_;
         if (rho_pow_ != 0.0) {
           density_floor_local = std::max(density_floor_local,
               rho_min_*std::pow(pco->x1v(i),rho_pow_));
@@ -228,7 +231,10 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         if (pgas < pressure_floor_local or std::isnan(pgas) or fixed_(k,j,i) == true) {
           pgas = k_adi*pow(rhoc*fatm,gamma_adi);
           fixed_(k,j,i) = true;
-        }
+        }*/
+        fixed_(k,j,i) = ApplyDensityFloor(rho, pco->x1v(i), density_floor_, rho_min_, rho_pow_);
+        fixed_(k, j, i) = fixed_(k, j, i) || 
+                          ApplyPressureFloor(pgas, pco->x1v(i), pressure_floor_, pgas_min_, pgas_pow_, fixed_(k, j, i));
 	// Set atmosphere points to have 0 velocity
 	if (fixed_(k,j,i) == true){
 		uu1 = 0.0;
@@ -264,6 +270,54 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
 }
 
 //----------------------------------------------------------------------------------------
+// Function for applying the floor to the primitive variables
+// Inputs:
+//   rho: density
+//   coord: the radial coordinate to use in determining the atmosphere
+//   density_floor: the density to set as the floor
+//   rho_min: a multiplicative factor
+//   rho_pow: the power used for coordinate dependence
+// Outputs:
+//   rho: density
+//   bool as output to determine whether or not the density was changed.
+bool ApplyDensityFloor(Real &rho, Real coord, Real density_floor, Real rho_min, Real rho_pow){
+    Real density_floor_local = density_floor;
+    if (rho_pow != 0.0) {
+        density_floor_local = std::max(density_floor_local, rho_min * std::pow(coord, rho_pow));
+    }
+    if (rho < fthr * fatm * rhoc or std::isnan(rho) or rho < density_floor_local) {
+        rho = fatm * rhoc;
+        return true;
+    }
+    return false;
+}
+
+//----------------------------------------------------------------------------------------
+// Function for applying the floor to the primitive variables
+// Inputs:
+//   pgas: pressure
+//   coord: the radial coordinate to use in determining the atmosphere
+//   pressure_floor: the pressure to set as the floor
+//   pgas_min: a multiplicative factor
+//   pgas_pow: the power used for coordinate dependence
+//   fixed: whether or not the density was changed
+// Outputs:
+//   pgas: pressure
+//   bool as output to determine whether or not the pressure was changed.
+bool ApplyPressureFloor(Real& pgas, Real coord, Real pressure_floor, Real pgas_min, Real pgas_pow, bool fixed) {
+    Real pressure_floor_local = pressure_floor;
+    if (pgas_pow != 0.0) {
+        pressure_floor_local = std::max(pressure_floor_local, pgas_min * std::pow(coord, pgas_pow));
+    }
+    if (pgas < pressure_floor_local or std::isnan(pgas) or fixed == true) {
+        pgas = k_adi * pow(rhoc * fatm, gamma_adi);
+        return true;
+    }
+    return false;
+}
+
+
+//----------------------------------------------------------------------------------------
 // Function for converting all primitives to conserved variables
 // Inputs:
 //   prim: primitives
@@ -284,6 +338,20 @@ void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
       pco->CellMetric(k, j, il, iu, g_, g_inv_);
       //#pragma omp simd // fn is too long to inline
       for (int i=il; i<=iu; ++i) {
+        // First make sure that the data going in is physical.
+        /*Real& rho = prim(IDN, k, j, i);
+        Real& pgas = prim(IPR, k, j, i);
+        Real& uu1 = prim(IVX, k, j, i);
+        Real& uu2 = prim(IVY, k, j, i);
+        Real& uu3 = prim(IVZ, k, j, i);
+        bool isFixed = ApplyDensityFloor(rho, pco->x1v(i), density_floor_, rho_min_, rho_pow_);
+        isFixed = isFixed || ApplyPressureFloor(pgas, pco->x1v(i), pressure_floor_, pgas_min_, pgas_pow_, isFixed);
+        // If we had to floor the density or pressure, we should also set the velocity to zero.
+        if (isFixed) {
+            uu1 = 0.0;
+            uu2 = 0.0;
+            uu3 = 0.0;
+        }*/
         PrimitiveToConservedSingle(prim, gamma_, g_, g_inv_, k, j, i, cons, pco);
       }
     }
