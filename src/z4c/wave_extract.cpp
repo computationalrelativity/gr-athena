@@ -35,6 +35,8 @@ WaveExtract::WaveExtract(Mesh * pmesh, ParameterInput * pin, int n, int res_flag
   ofname = pin->GetOrAddString("z4c", "extract_filename", "wave");
   root = pin->GetOrAddInteger("z4c", "mpi_root", 0);
   lmax = pin->GetOrAddInteger("z4c", "lmax", 2);
+  psi.NewAthenaArray(lmax-1,2*(lmax)+1,2);
+  psi.ZeroClear();
   psphere = new SphericalGrid(nlev, rad);
   ofname += n_str;
   ofname += ".txt";
@@ -87,9 +89,8 @@ WaveExtract::~WaveExtract() {
 }
 
 void WaveExtract::ReduceMultipole() {
-  psi.NewAthenaArray(lmax-1,2*(lmax)+1,2);
-  psi.ZeroClear();
   MeshBlock const * pmb = pmesh->pblock;
+  psi.ZeroClear();
   while (pmb != NULL) {
     for(int l=2;l<lmax+1;++l){
       for(int m=-l;m<l+1;++m){
@@ -143,7 +144,9 @@ WaveExtractLocal::WaveExtractLocal(SphericalGrid * psphere, MeshBlock * pmb, Par
   std::string n_str = std::to_string(n);
   rad_parname += n_str;
   rad = pin->GetOrAddReal("z4c", rad_parname.c_str(), 10.0);
-  lmax = pin->GetOrAddInteger("z4c", "lmax",2);
+  lmax = pin->GetOrAddInteger("z4c", "lmax", 2);
+  psi.NewAthenaArray(lmax-1,2*(lmax)+1,2);
+  psi.ZeroClear();
   ppatch = new SphericalPatch(psphere, pmb, SphericalPatch::vertex);
   datareal.NewAthenaArray(ppatch->NumPoints());
   dataim.NewAthenaArray(ppatch->NumPoints());
@@ -162,7 +165,6 @@ void WaveExtractLocal::Decompose_multipole(AthenaArray<Real> const & u_R, Athena
     ppatch->InterpToSpherical(u_R, &datareal);
     ppatch->InterpToSpherical(u_I, &dataim);
     Real theta, phi, ylmR, ylmI; //,x,y,z;
-    psi.NewAthenaArray(lmax-1,2*(lmax)+1,2);
     psi.ZeroClear();
 //        for (int ip = 0; ip < ppatch->NumPoints(); ++ip) {
 //     ppatch->psphere->GeodesicGrid::PositionPolar(ppatch->idxMap(ip),&theta,&phi);
@@ -171,8 +173,8 @@ void WaveExtractLocal::Decompose_multipole(AthenaArray<Real> const & u_R, Athena
 //}
     for (int l = 2; l < lmax+1; ++l){
       for (int m = -l; m < l+1 ; ++m){
-        psilmR=0.0;
-        psilmI=0.0;
+        Real psilmR = 0.0;
+        Real psilmI = 0.0;
           for (int ip = 0; ip < ppatch->NumPoints(); ++ip) {
             ppatch->psphere->GeodesicGrid::PositionPolar(ppatch->idxMap(ip),&theta,&phi);
             swsh(&ylmR,&ylmI,l,m,theta,phi);

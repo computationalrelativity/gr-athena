@@ -735,6 +735,7 @@ bool Z4cIntegratorTaskList::CurrentTimeCalculationThreshold(
   //if ((cur_time == pm->time) ||
   if    ((cur_time - pm->dt >= variable->next_time) ||
       (cur_time >= pm->tlim)) {
+#pragma omp atomic write
     variable->to_update = true;
     return true;
   }
