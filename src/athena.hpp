@@ -13,6 +13,7 @@
 // C++ headers
 #include <cmath>
 #include <cstdint>  // std::int64_t
+#include <limits>
 
 // Athena++ headers
 #include "athena_arrays.hpp"
