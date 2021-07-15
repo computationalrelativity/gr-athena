@@ -303,6 +303,12 @@ parser.add_argument('-omp',
                     default=False,
                     help='enable parallelization with OpenMP')
 
+# -pedantic argument
+parser.add_argument('-pedantic',
+                    action='store_true',
+                    default=False,
+                    help='emit more warnings at compile time')
+
 # --grav=[name] argument
 parser.add_argument('--grav',
                     default='none',
@@ -383,6 +389,8 @@ cxx_choices = [
     'clang++',
     'clang++-simd',
     'clang++-apple',
+    'aocc',
+    'aocc-simd',
 ]
 
 
@@ -844,6 +852,29 @@ if args['cxx'] == 'clang++-apple':
     makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++11'
     makefile_options['LINKER_FLAGS'] = ''
     makefile_options['LIBRARY_FLAGS'] = ''
+if args['cxx'] == 'aocc':
+    # Clang based AMD compiler [by default assumes zen2 arch.]
+    definitions['COMPILER_CHOICE'] = 'clang++'
+    definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'clang++'
+    makefile_options['PREPROCESSOR_FLAGS'] = ''
+    makefile_options['COMPILER_FLAGS'] = ('-O3 -std=c++11 -flto '
+        + '-march=znver2 -mtune=znver2 -ffp-model=precise')
+    makefile_options['LINKER_FLAGS'] = '-fuse-ld=lld -flto'
+    makefile_options['LIBRARY_FLAGS'] = ''
+if args['cxx'] == 'aocc-simd':
+    # Clang based AMD compiler [by default assumes zen2 arch.]
+    definitions['COMPILER_CHOICE'] = 'clang++'
+    definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'clang++'
+    makefile_options['PREPROCESSOR_FLAGS'] = ''
+    makefile_options['COMPILER_FLAGS'] = ('-O3 -std=c++11 -fopenmp-simd -flto '
+        + '-march=znver2 -mtune=znver2 -ffp-model=precise -fwhole-program-vtables')
+    makefile_options['LINKER_FLAGS'] = '-fuse-ld=lld -flto -fwhole-program-vtables'
+    makefile_options['LIBRARY_FLAGS'] = ''
+
+# -pedantic argument
+if args['pedantic']:
+    makefile_options['COMPILER_FLAGS'] += ' -Wall' # -fsanitize=thread'
+    # makefile_options['LINKER_FLAGS'] += ' -fsanitize=thread'
 
 # -float argument
 if args['float']:
@@ -859,7 +890,8 @@ if args['debug']:
     if (args['cxx'] == 'g++' or args['cxx'] == 'g++-simd'
             or args['cxx'] == 'icpc' or args['cxx'] == 'icpc-debug'
             or args['cxx'] == 'clang++' or args['cxx'] == 'clang++-simd'
-            or args['cxx'] == 'clang++-apple'):
+            or args['cxx'] == 'clang++-apple'
+            or args['cxx'] == 'aocc' or args['cxx'] == 'aocc-simd'):
         makefile_options['COMPILER_FLAGS'] = '-O0 --std=c++11 -g'  # -Og
     if args['cxx'] == 'cray':
         makefile_options['COMPILER_FLAGS'] = '-O0 -h std=c++11'
@@ -915,7 +947,8 @@ if args['mpi']:
     if (args['cxx'] == 'g++' or args['cxx'] == 'icpc' or args['cxx'] == 'icpc-debug'
             or args['cxx'] == 'icpc-phi' or args['cxx'] == 'g++-simd'
             or args['cxx'] == 'clang++' or args['cxx'] == 'clang++-simd'
-            or args['cxx'] == 'clang++-apple'):
+            or args['cxx'] == 'clang++-apple'
+            or args['cxx'] == 'aocc' or args['cxx'] == 'aocc-simd'):
         definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'mpicxx'
     if args['cxx'] == 'cray':
         makefile_options['COMPILER_FLAGS'] += ' -h mpi1'
@@ -947,6 +980,8 @@ if args['omp']:
         definitions['COMPILER_COMMAND'] += '_r'
         makefile_options['COMPILER_COMMAND'] += '_r'
         makefile_options['COMPILER_FLAGS'] += ' -qsmp'
+    if (args['cxx'] == 'aocc' or args['cxx'] == 'aocc-simd'):
+        makefile_options['COMPILER_FLAGS'] += ' -fopenmp'
 else:
     definitions['OPENMP_OPTION'] = 'NOT_OPENMP_PARALLEL'
     if args['cxx'] == 'cray':
@@ -996,7 +1031,8 @@ if args['hdf5']:
             or args['cxx'] == 'cray' or args['cxx'] == 'icpc'
             or args['cxx'] == 'icpc-debug' or args['cxx'] == 'icpc-phi'
             or args['cxx'] == 'clang++' or args['cxx'] == 'clang++-simd'
-            or args['cxx'] == 'clang++-apple'):
+            or args['cxx'] == 'clang++-apple'
+            or args['cxx'] == 'aocc' or args['cxx'] == 'aocc-simd'):
         makefile_options['LIBRARY_FLAGS'] += ' -lhdf5'
     if args['cxx'] == 'bgxlc++':
         makefile_options['PREPROCESSOR_FLAGS'] += (
