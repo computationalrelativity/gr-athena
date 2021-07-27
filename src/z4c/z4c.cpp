@@ -198,6 +198,9 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   opt.AwA_Gaussian_w = pin->GetOrAddReal("z4c", "AwA_Gaussian_w", 0.5);
   opt.AwA_polarised_Gowdy_t0 = pin->GetOrAddReal("z4c",
     "AwA_polarised_Gowdy_t0", 9.8753205829098);
+  
+  // Matter parameters
+  opt.cowling = pin->GetOrAddInteger("z4c", "cowling_true", 0);
   //---------------------------------------------------------------------------
 
   // Set aliases

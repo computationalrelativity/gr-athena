@@ -56,6 +56,8 @@ void Hydro::RiemannSolver(const int k, const int j,
 //  for (int k = kl; k <= ku; ++k) {
 //    for (int j = jl; j <= ju; ++j) {
 
+//    TODO replace FaceNMetric with local calculation of metric at FaceCenter.
+//    Returning alpha(i), beta_u(a,i) gamma_dd(a,b,i)
       // Get metric components
       switch (ivx) {
         case IVX:
@@ -212,9 +214,13 @@ void Hydro::RiemannSolver(const int k, const int j,
         // tau = (rho * h = ) wgas * gamma_lorentz**2 - rho * gamma_lorentz - p
         cons_l[IEN] = (wgas_l * SQR(gamma_l) - rho_l*gamma_l - pgas_l)*std::sqrt(detgamma);
         // S_i = wgas * gamma_lorentz**2 * v_i = wgas * gamma_lorentz * u_i
-        cons_l[IVX] = wgas_l * gamma_l * ucov_l[1]*std::sqrt(detgamma);
-        cons_l[IVY] = wgas_l * gamma_l * ucov_l[2]*std::sqrt(detgamma);
-        cons_l[IVZ] = wgas_l * gamma_l * ucov_l[3]*std::sqrt(detgamma);
+//        cons_l[IVX] = wgas_l * gamma_l * ucov_l[1]*std::sqrt(detgamma);
+//        cons_l[IVY] = wgas_l * gamma_l * ucov_l[2]*std::sqrt(detgamma);
+//        cons_l[IVZ] = wgas_l * gamma_l * ucov_l[3]*std::sqrt(detgamma);
+//NB TODO double check velocity has chenged here (also in right state)
+        cons_l[IVX] = wgas_l * gamma_l * utilde_d_l[0]*std::sqrt(detgamma);
+        cons_l[IVY] = wgas_l * gamma_l * utilde_d_l[1]*std::sqrt(detgamma);
+        cons_l[IVZ] = wgas_l * gamma_l * utilde_d_l[2]*std::sqrt(detgamma);
         // Calculate fluxes in L region (rho u^i and T^i_\mu, where i = ivx)
         Real flux_l[NWAVE];
         // D flux: D(v^i - beta^i/alpha)
@@ -237,9 +243,12 @@ void Hydro::RiemannSolver(const int k, const int j,
         // tau = (rho * h = ) wgas * gamma_rorentz**2 - rho * gamma_rorentz - p
         cons_r[IEN] = (wgas_r * SQR(gamma_r) - rho_r*gamma_r - pgas_r)*std::sqrt(detgamma);
         // S_i = wgas * gamma_rorentz**2 * v_i = wgas * gamma_rorentz * u_i NB this is T^0_i * alpha!
-        cons_r[IVX] = wgas_r * gamma_r * ucov_r[1]*std::sqrt(detgamma);
-        cons_r[IVY] = wgas_r * gamma_r * ucov_r[2]*std::sqrt(detgamma);
-        cons_r[IVZ] = wgas_r * gamma_r * ucov_r[3]*std::sqrt(detgamma);
+        cons_r[IVX] = wgas_r * gamma_r * utilde_d_r[0]*std::sqrt(detgamma);
+        cons_r[IVY] = wgas_r * gamma_r * utilde_d_r[1]*std::sqrt(detgamma);
+        cons_r[IVZ] = wgas_r * gamma_r * utilde_d_r[2]*std::sqrt(detgamma);
+//        cons_r[IVX] = wgas_r * gamma_r * ucov_r[1]*std::sqrt(detgamma);
+//        cons_r[IVY] = wgas_r * gamma_r * ucov_r[2]*std::sqrt(detgamma);
+//        cons_r[IVZ] = wgas_r * gamma_r * ucov_r[3]*std::sqrt(detgamma);
         Real flux_r[NWAVE];
         // D flux: D(v^i - beta^i/alpha)
          flux_r[IDN] = cons_r[IDN]*alpha*(v_u_r[ivx-1] - g0i*alpha);

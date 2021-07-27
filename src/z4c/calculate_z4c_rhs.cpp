@@ -509,17 +509,26 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
       rhs.Khat(k,j,i) = - Ddalpha(i) + z4c.alpha(k,j,i) * (AA(i) + (1./3.)*SQR(K(i))) +
         LKhat(i) + opt.damp_kappa1*(1 - opt.damp_kappa2) * z4c.alpha(k,j,i) * z4c.Theta(k,j,i);
       rhs.Khat(k,j,i) += 4*M_PI * z4c.alpha(k,j,i) * (S(i) + mat.rho(k,j,i));
+         if(opt.cowling == 1){
+          rhs.Khat(k,j,i) =0.0;
+          }
     }
     // chi
     ILOOP1(i) {
       rhs.chi(k,j,i) = Lchi(i) - (1./6.) * opt.chi_psi_power *
         chi_guarded(i) * z4c.alpha(k,j,i) * K(i);
+         if(opt.cowling == 1){
+          rhs.chi(k,j,i) =0.0;
+          }
     }
     // Theta
     ILOOP1(i) {
       rhs.Theta(k,j,i) = LTheta(i) + z4c.alpha(k,j,i) * (
           0.5*Ht(i) - (2. + opt.damp_kappa2) * opt.damp_kappa1 * z4c.Theta(k,j,i));
       rhs.Theta(k,j,i) -= 8.*M_PI * z4c.alpha(k,j,i) * mat.rho(k,j,i);
+         if(opt.cowling == 1){
+          rhs.Theta(k,j,i) =0.0;
+          }
     }
     // Gamma's
     for(int a = 0; a < NDIM; ++a) {
@@ -532,6 +541,9 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
         ILOOP1(i) {
           rhs.Gam_u(a,k,j,i) -= 2. * A_uu(a,b,i) * dalpha_d(b,i);
           rhs.Gam_u(a,k,j,i) -= 16.*M_PI * z4c.alpha(k,j,i) * g_uu(a,b,i) * mat.S_d(b,k,j,i);
+         if(opt.cowling == 1){
+          rhs.Gam_u(a,k,j,i) =0.0;
+          }
         }
       }
     }
@@ -540,6 +552,9 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
     for(int b = a; b < NDIM; ++b) {
       ILOOP1(i) {
         rhs.g_dd(a,b,k,j,i) = - 2. * z4c.alpha(k,j,i) * z4c.A_dd(a,b,k,j,i) + Lg_dd(a,b,i);
+         if(opt.cowling == 1){
+          rhs.g_dd(a,b,k,j,i) =0.0;
+          }
       }
     }
     // A
@@ -553,18 +568,27 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
         rhs.A_dd(a,b,k,j,i) += LA_dd(a,b,i);
         rhs.A_dd(a,b,k,j,i) -= 8.*M_PI * z4c.alpha(k,j,i) *
             (oopsi4(i)*mat.S_dd(a,b,k,j,i) - (1./3.)*S(i)*z4c.g_dd(a,b,k,j,i));
+         if(opt.cowling == 1){
+          rhs.A_dd(a,b,k,j,i) =0.0;
+          }
       }
     }
     // lapse function
     ILOOP1(i) {
       Real const f = opt.lapse_oplog * opt.lapse_harmonicf + opt.lapse_harmonic * z4c.alpha(k,j,i);
       rhs.alpha(k,j,i) = opt.lapse_advect * Lalpha(i) - f * z4c.alpha(k,j,i) * z4c.Khat(k,j,i);
+         if(opt.cowling == 1){
+          rhs.alpha(k,j,i) =0.0;
+          }
     }
 
     // shift vector
     for(int a = 0; a < NDIM; ++a) {
       ILOOP1(i) {
         rhs.beta_u(a,k,j,i) = z4c.Gam_u(a,k,j,i) + opt.shift_advect * Lbeta_u(a,i);
+         if(opt.cowling == 1){
+          rhs.beta_u(a,k,j,i) =0.0;
+          }
         // rhs.beta_u(a,k,j,i) -= opt.shift_eta * z4c.beta_u(a,k,j,i);
       }
     }
@@ -598,6 +622,9 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
     for(int a = 0; a< NDIM; ++a) {
       ILOOP1(i) {
         rhs.beta_u(a,k,j,i) -= eta_damp(i) * z4c.beta_u(a,k,j,i);
+         if(opt.cowling == 1){
+          rhs.beta_u(a,k,j,i) =0.0;
+          }
       }
     }
 
@@ -629,6 +656,9 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
     for(int a = 0; a< NDIM; ++a) {
       ILOOP1(i) {
         rhs.beta_u(a,k,j,i) -= eta_damp(i) * z4c.beta_u(a,k,j,i);
+         if(opt.cowling == 1){
+          rhs.beta_u(a,k,j,i) =0.0;
+          }
       }
     }
 
@@ -637,6 +667,9 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
     for(int a = 0; a < NDIM; ++a) {
       ILOOP1(i) {
         rhs.beta_u(a,k,j,i) -= opt.shift_eta * z4c.beta_u(a,k,j,i);
+         if(opt.cowling == 1){
+          rhs.beta_u(a,k,j,i) =0.0;
+          }
       }
     }
 #endif // Z4C_ETA_CONF, Z4C_ETA_TRACK_TP
@@ -813,6 +846,8 @@ void Z4c::Z4cSommerfeld_(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs,
   Z4c_vars z4c, rhs;
   SetZ4cAliases(u, z4c);
   SetZ4cAliases(u_rhs, rhs);
+// Cowling approx, set RHS of evolution equations to 0 if opt.cowling == 1
+// evolve as normal if opt.cowling =/= 1
 
   for(int k = ks; k <= ke; ++k)
   for(int j = js; j <= je; ++j) {
@@ -870,6 +905,10 @@ void Z4c::Z4cSommerfeld_(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs,
       for(int i = is; i <= ie; ++i) {
         rhs.Theta(k,j,i) -= s_u(a,i) * dTheta_d(a,i);
         rhs.Khat(k,j,i) -= std::sqrt(2.) * s_u(a,i) * dKhat_d(a,i);
+         if(opt.cowling == 1){
+          rhs.Theta(k,j,i) =0.0;
+          rhs.Khat(k,j,i) =0.0;
+          }
       }
     }
 
@@ -885,6 +924,9 @@ void Z4c::Z4cSommerfeld_(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs,
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
           rhs.Gam_u(a,k,j,i) -= s_u(b,i) * dGam_du(b,a,i);
+          if(opt.cowling == 1){
+          rhs.Gam_u(a,k,j,i) =0.0;
+          }
         }
       }
     }
@@ -902,6 +944,9 @@ void Z4c::Z4cSommerfeld_(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs,
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
           rhs.A_dd(a,b,k,j,i) -= s_u(c,i) * dA_ddd(c,a,b,i);
+          if(opt.cowling == 1){
+          rhs.A_dd(a,b,k,j,i) =0.0;
+          }
         }
       }
     }

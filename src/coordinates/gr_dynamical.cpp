@@ -383,6 +383,14 @@ Real GRDynamical::GetCellVolume(const int k, const int j, const int i) {
 void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real> *flux,
                            const AthenaArray<Real> &prim, const AthenaArray<Real> &bb_cc,
                            AthenaArray<Real> &cons) {
+
+//TODO 
+// 1: Rearrange loops s.t. innermost loop is i-loop using 1D buffers similar to z4c logic
+// 2a: Replace ``Extract metric coefficients'' with local calculation of CC metric from VC metric
+//     don't bother with 4-metric, just use 3-metric, lapse and shift
+// 2b: Same as above for K_{ij}
+// 3: Calculate derivative of spatial metric at CC directly from VC metric.
+// 4: Replace AthenaArrays w/ AthenaTensors 
   // Extract indices
   int is = pmy_block->is;
   int ie = pmy_block->ie;
@@ -390,7 +398,7 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
   int je = pmy_block->je;
   int ks = pmy_block->ks;
   int ke = pmy_block->ke;
-
+  int a,b,c,d,e;
   // Extract ratio of specific heats
   Real gamma_adi = pmy_block->peos->GetGamma();
 
@@ -398,6 +406,8 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
   for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
 #pragma omp simd
+// TODO Call here GetCCMetric return alpha(i), beta_u(a,i), gamma(a,b,i) 1D arrays
+
       for (int i=is; i<=ie; ++i) {
         // Extract metric coefficients
         const Real &g_00 = metric_cell_kji_(0,I00,k,j,i);
@@ -421,6 +431,46 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
         const Real &g23 = metric_cell_kji_(1,I23,k,j,i);
         const Real &g33 = metric_cell_kji_(1,I33,k,j,i);
         Real alpha = std::sqrt(-1.0/g00);
+//TODO auxiliary arrays like this should become 1D arrays ie g_uu(a,b,i) etc
+// TODO replace 4-metric with alpha, beta^i, gamma_ij
+// g_uu(a,b) = g^{ab}.
+        AthenaArray<Real> g_uu;
+        g_uu.NewAthenaArray(4,4);
+        g_uu(0,0) = g00;
+        g_uu(0,1) = g01;
+        g_uu(0,2) = g02;
+        g_uu(0,3) = g03;
+        g_uu(1,0) = g01;
+        g_uu(1,1) = g11;
+        g_uu(1,2) = g12;
+        g_uu(1,3) = g13;
+        g_uu(2,0) = g02;
+        g_uu(2,1) = g12;
+        g_uu(2,2) = g22;
+        g_uu(2,3) = g23;
+        g_uu(3,0) = g03;
+        g_uu(3,1) = g13;
+        g_uu(3,2) = g23;
+        g_uu(3,3) = g33;
+
+        AthenaArray<Real> g_dd;
+        g_dd.NewAthenaArray(4,4);
+        g_dd(0,0) = g_00;
+        g_dd(0,1) = g_01;
+        g_dd(0,2) = g_02;
+        g_dd(0,3) = g_03;
+        g_dd(1,0) = g_01;
+        g_dd(1,1) = g_11;
+        g_dd(1,2) = g_12;
+        g_dd(1,3) = g_13;
+        g_dd(2,0) = g_02;
+        g_dd(2,1) = g_12;
+        g_dd(2,2) = g_22;
+        g_dd(2,3) = g_23;
+        g_dd(3,0) = g_03;
+        g_dd(3,1) = g_13;
+        g_dd(3,2) = g_23;
+        g_dd(3,3) = g_33;
 
         // Extract primitives
         const Real &rho = prim(IDN,k,j,i);
@@ -443,9 +493,22 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
 	Real v1 = uu1/gamma;
 	Real v2 = uu2/gamma;
 	Real v3 = uu3/gamma;
+// 3 velocity v^i = v_u(i)
+        AthenaArray<Real> v_u;
+        v_u.NewAthenaArray(3);
+        v_u(0) = uu1/gamma;
+        v_u(1) = uu2/gamma;
+        v_u(2) = uu3/gamma;
 
-
-
+// 3 velocity v_i = v_d(i)
+        AthenaArray<Real> v_d;
+        v_d.NewAthenaArray(3);
+        v_d.ZeroClear();
+        for( a = 0; a < 3; ++a){
+            for( b = 0; b < 3; ++b){
+                 v_d(a) += v_u(b)*g_dd(a,b);
+            }
+        }
         // Extract and calculate magnetic field
         Real b0 = 0.0, b1 = 0.0, b2 = 0.0, b3 = 0.0;
         Real b_sq = 0.0;
@@ -467,7 +530,7 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
           b_sq = b_0*b0 + b_1*b1 + b_2*b2 + b_3*b3;
         }
 
-        // Calculate stress-energy tensor
+        // Calculate stress-energy tensor NB EOS specific
         Real wtot = rho + gamma_adi/(gamma_adi-1.0) * pgas + b_sq;
         Real ptot = pgas + 0.5*b_sq;
         // Extract conserved quantities
@@ -489,7 +552,9 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
 //     dig0j = di beta_j
 
 //coord_src_kji_ contains derivatives of 4 metric
+/*
 
+// this is pd_i beta_j
         Real d1beta1 = coord_src_kji_(0,I01,k,j,i);
         Real d1beta2 = coord_src_kji_(0,I02,k,j,i);
         Real d1beta3 = coord_src_kji_(0,I03,k,j,i);
@@ -499,14 +564,150 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
         Real d3beta1 = coord_src_kji_(2,I01,k,j,i);
         Real d3beta2 = coord_src_kji_(2,I02,k,j,i);
         Real d3beta3 = coord_src_kji_(2,I03,k,j,i);
-    
+  */  
+//     pd_i beta_j =  dbeta_dd(i,j)
+       AthenaArray<Real> dbeta_dd;
+       dbeta_dd.NewAthenaArray(3,3);
+       dbeta_dd(0,0) = coord_src_kji_(0,I01,k,j,i);
+       dbeta_dd(0,1) = coord_src_kji_(0,I02,k,j,i);
+       dbeta_dd(0,2) = coord_src_kji_(0,I03,k,j,i);
+       dbeta_dd(1,0) = coord_src_kji_(1,I01,k,j,i);
+       dbeta_dd(1,1) = coord_src_kji_(1,I02,k,j,i);
+       dbeta_dd(1,2) = coord_src_kji_(1,I03,k,j,i);
+       dbeta_dd(2,0) = coord_src_kji_(2,I01,k,j,i);
+       dbeta_dd(2,1) = coord_src_kji_(2,I02,k,j,i);
+       dbeta_dd(2,2) = coord_src_kji_(2,I03,k,j,i);
 
- 
+
+ // this is beta_u
         Real beta1 = g01*SQR(alpha);
         Real beta2 = g02*SQR(alpha);
         Real beta3 = g03*SQR(alpha);
         
 
+// beta_u = beta^i
+
+        AthenaArray<Real> beta_u;
+        beta_u.NewAthenaArray(3);
+        beta_u(0) = g01*SQR(alpha);
+        beta_u(1) = g02*SQR(alpha);
+        beta_u(2) = g03*SQR(alpha);
+
+// beta_d = beta_i
+        AthenaArray<Real> beta_d;
+        beta_d.NewAthenaArray(3);
+        beta_d(0) = g_01;
+        beta_d(1) = g_02;
+        beta_d(2) = g_03;
+
+// TODO replace here with the output of GetCCderivs
+// pd_i gamma_{jk} = dgamma_ddd(i,j,k)
+        AthenaArray<Real> dgamma_ddd;
+        dgamma_ddd.NewAthenaArray(3,3,3);
+        for(a = 0; a < 3 ;++a){
+             dgamma_ddd(a,0,0) = coord_src_kji_(a,I11,k,j,i);
+             dgamma_ddd(a,0,1) = coord_src_kji_(a,I12,k,j,i);
+             dgamma_ddd(a,0,2) = coord_src_kji_(a,I13,k,j,i);
+             dgamma_ddd(a,1,0) = coord_src_kji_(a,I12,k,j,i);
+             dgamma_ddd(a,1,1) = coord_src_kji_(a,I22,k,j,i);
+             dgamma_ddd(a,1,2) = coord_src_kji_(a,I23,k,j,i);
+             dgamma_ddd(a,2,0) = coord_src_kji_(a,I13,k,j,i);
+             dgamma_ddd(a,2,1) = coord_src_kji_(a,I23,k,j,i);
+             dgamma_ddd(a,2,2) = coord_src_kji_(a,I33,k,j,i);
+        }
+
+
+// Inverse spatial metric 
+// gam_uu(i,j) = gamma^{ij}
+
+
+        AthenaArray<Real> gam_uu;
+        gam_uu.NewAthenaArray(3,3);
+        for(a = 0; a < 3; ++a){
+            for( b = 0; b< 3; ++b){
+                 gam_uu(a,b) = g_uu(a+1,b+1) + beta_u(a)*beta_u(b)/SQR(alpha);
+            }
+        }
+
+//TODO can throw out a lot of this, just directly calcuate pd_j alpha and pd_j beta^i
+
+
+// Need also pd_i beta^j. For this need derivative of inverse spatial metric
+// pd_i (gamma^{jk}) = - gamma^{kl}gamma^{jm} pd_i (gamma_{ml})
+
+// pd_i gamma^{jk} = dgamma_duu(i,j,k)
+       AthenaArray<Real> dgamma_duu;
+       dgamma_duu.ZeroClear();
+       dgamma_duu.NewAthenaArray(3,3,3);
+       for(a = 0; a<3; ++a){
+       for(b = 0; b<3; ++b){
+       for(c = 0; c<3; ++c){
+           for(d = 0; d<3; ++d){
+               for(e = 0; e<3; ++e){
+                   dgamma_duu(a,b,c) -=  gam_uu(d,c)*gam_uu(e,b)*dgamma_ddd(a,e,d);
+                }
+           } 
+       }
+       }
+       }
+//TODO replace with call GetCCDerivatives
+// dbeta_du(i,j) = pd_i beta^j
+       AthenaArray<Real> dbeta_du;
+       dbeta_du.NewAthenaArray(3,3);
+       dbeta_du.ZeroClear();
+       for(a = 0; a<3; ++a){
+       for(b = 0; b<3; ++b){
+           for(c = 0; c<3; ++c){
+               dbeta_du(a,b) += gam_uu(b,c)*dbeta_dd(a,c) + beta_d(c)*dgamma_duu(a,b,c);
+           }
+       }
+       }
+// Contract derivative of beta with beta in 2 possible up-down configurations
+
+//  betadbeta_ddu(i) = beta_j pd_i beta^j
+//  betadbeta_udd(i) = beta^j pd_i beta_j
+// NB slight abuse of notation here, normally e.g _ddu would imply 3 free indices
+// here only 1 index, need to make distinction between these two terms 
+// since there is a difference coming from partial derivative of spatial metric.
+
+       AthenaArray<Real> betadbeta_ddu;
+       AthenaArray<Real> betadbeta_udd;
+       betadbeta_ddu.NewAthenaArray(3);
+       betadbeta_udd.NewAthenaArray(3);
+
+       for(a = 0; a<3; ++a){
+           for(b = 0; b<3; ++b){
+               betadbeta_ddu(a) += beta_d(b)*dbeta_du(a,b);
+               betadbeta_udd(a) += beta_u(b)*dbeta_dd(a,b);
+           }
+       }
+
+/*
+       Real beta_dd1beta_u = 0.0;
+       Real beta_dd1beta_u += beta_d[i]*dbeta_du(0,i); 
+       Real beta_dd2beta_u += beta_d[i]*dbeta_du(1,i); 
+       Real beta_dd3beta_u += beta_d[i]*dbeta_du(2,i);
+
+       Real beta_ud1beta_d = 0.0 
+       beta_ud1beta_d = beta_u[i]*dbeta_
+*/
+
+//TODO call GetCCDerivatives
+//      dalpha(i) = pd_i alpha
+
+        AthenaArray<Real> dalpha_d;
+       dalpha_d.NewAthenaArray(3);
+       for(a = 0; a<3; ++a){ 
+            dalpha_d(a) = (coord_src_kji_(a,I00,k,j,i) - betadbeta_ddu(a) - betadbeta_udd(a))/(-2.0*alpha);
+       }
+
+/*
+        Real d1alpha = (coord_src_kji_(0,I00,k,j,i) - beta_dd1betau - betaud1betad) / (-2.0*alpha);
+        Real d2alpha = (coord_src_kji_(1,I00,k,j,i) - beta_dd2betau - betaud2betad) / (-2.0*alpha);
+        Real d3alpha = (coord_src_kji_(2,I00,k,j,i) - beta_dd3betau - betaud3betad) / (-2.0*alpha);
+  */     
+
+/*
 	Real betad1beta = beta1*d1beta1 + beta2*d1beta2 + beta3*d1beta3;
 	Real betad2beta = beta1*d2beta1 + beta2*d2beta2 + beta3*d2beta3;
 	Real betad3beta = beta1*d3beta1 + beta2*d3beta2 + beta3*d3beta3;
@@ -515,21 +716,67 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
         Real d1alpha = (coord_src_kji_(0,I00,k,j,i) - 2.0* betad1beta) / (-2.0*alpha);
         Real d2alpha = (coord_src_kji_(1,I00,k,j,i) - 2.0* betad2beta) / (-2.0*alpha);
         Real d3alpha = (coord_src_kji_(2,I00,k,j,i) - 2.0* betad3beta) / (-2.0*alpha);
-
+*/
+/*
         Real gam11 = g11 + beta1*beta1/SQR(alpha);
         Real gam12 = g12 + beta1*beta2/SQR(alpha);
         Real gam13 = g13 + beta1*beta3/SQR(alpha);
         Real gam22 = g22 + beta2*beta2/SQR(alpha);
         Real gam23 = g23 + beta2*beta3/SQR(alpha);
         Real gam33 = g33 + beta3*beta3/SQR(alpha);
+*/
+// TODO replace with locally interpolated K_ij
+// Extrinsic curvature interpolated to CCs
+// K_dd(i,j) = K_{ij}
 
+        AthenaArray<Real> K_dd;
+        K_dd.NewAthenaArray(3,3);
+        K_dd(0,0) = excurv_kji_(S11,k,j,i);
+        K_dd(0,1) = excurv_kji_(S12,k,j,i);
+        K_dd(0,2) = excurv_kji_(S13,k,j,i);
+        K_dd(1,0) = excurv_kji_(S12,k,j,i);
+        K_dd(1,1) = excurv_kji_(S22,k,j,i);
+        K_dd(1,2) = excurv_kji_(S23,k,j,i);
+        K_dd(0,2) = excurv_kji_(S13,k,j,i);
+        K_dd(1,2) = excurv_kji_(S23,k,j,i);
+        K_dd(2,2) = excurv_kji_(S33,k,j,i);
+
+/*
         Real K_11 = excurv_kji_(S11,k,j,i);
         Real K_12 = excurv_kji_(S12,k,j,i);
         Real K_13 = excurv_kji_(S13,k,j,i);
         Real K_22 = excurv_kji_(S22,k,j,i);
         Real K_23 = excurv_kji_(S23,k,j,i);
         Real K_33 = excurv_kji_(S33,k,j,i);
+*/
 
+        Real Stau = 0.0;
+        
+        for(a = 0; a<3; ++a){ 
+            Stau -= wtot*SQR(gamma)*( v_u(a)*dalpha_d(a))/alpha ;
+            for(b = 0; b<3; ++b){ 
+                Stau += (wtot*SQR(gamma) * v_u(a)*v_u(b) + pgas*gam_uu(a,b))*K_dd(a,b) ;
+            }
+        }
+        AthenaArray<Real> SS;
+        SS.NewAthenaArray(3);
+        SS.ZeroClear();
+        for(a = 0; a<3; ++a){  
+            SS(a) = - (wtot*SQR(gamma) - pgas)  * dalpha_d(a)/alpha;
+            for(b = 0; b<3; ++b){  
+                SS(a) += wtot *SQR(gamma)*v_d(b)*dbeta_du(a,b)/alpha;
+                for(c = 0; c<3; ++c){  
+                    SS(a) +=  0.5*(wtot*SQR(gamma)*v_u(b)*v_u(c) + pgas*gam_uu(b,c))*dgamma_ddd(a,b,c) ;
+                }
+            }
+         }
+
+
+
+//        0.5*(wtot*SQR(gamma)*v_u(b)*v_u(c) + pgas*gam_uu(b,c))*dgamma_ddd(a,b,c) + wtot *SQR(gamma)*v_d(b)*dbeta_du(a,b)/alpha
+//                - (wtot*SQR(gamma) - pgas)  * dalpha_d(a)/alpha;
+
+/*
 
         Real Stau = wtot * SQR(gamma) * (v1*v1*K_11 + v2*v2*K_22 + v3*v3*K_33 + 2.0*v1*v2*K_12 + 2.0*v1*v3*K_13 + 2.0*v2*v3*K_23) + 
                     pgas * (gam11*K_11 + gam22*K_22 + gam33*K_33 + 2.0*gam12*K_12 + 2.0*gam13*K_13 + 2.0*gam23*K_23) - 
@@ -561,14 +808,14 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
                      wtot * SQR(gamma) * ( v1*d3beta1 + v2*d3beta2 + v3*d3beta3 )   /alpha +
                      d3alpha * (pgas - wtot *SQR(gamma)    )  /alpha;   
 
-
+*/
 
         Real sqrtdetg = coord_3vol_kji_(k,j,i)*alpha; // = std::sqrt(detgam)  * alpha
         // Add source terms to conserved quantities
         taudg += dt * Stau*sqrtdetg;
-        S_1dg += dt * SS_1*sqrtdetg;
-        S_2dg += dt * SS_2*sqrtdetg;
-        S_3dg += dt * SS_3*sqrtdetg;
+        S_1dg += dt * SS(0)*sqrtdetg;
+        S_2dg += dt * SS(1)*sqrtdetg;
+        S_3dg += dt * SS(2)*sqrtdetg;
       }
     }
   }
@@ -1931,7 +2178,18 @@ for(int n=Z4c::I_ADM_gxx; n<Z4c::I_ADM_gzz+1; ++n){
 }
 //Construct inverse metric of cell centred metric
 //g_00 currently contains lapse, update to -alp**2 +beta^i beta_i
+// g(0I) currently contains beta^i. Want beta_i
+// beta_i = 
+Real beta1_d = g(I01)*g(I11) + g(I02)*g(I12) + g(I03)*g(I13);
+Real beta2_d = g(I01)*g(I12) + g(I02)*g(I22) + g(I03)*g(I23);
+Real beta3_d = g(I01)*g(I13) + g(I02)*g(I23) + g(I03)*g(I33);
+
 beta2 = g(I01)*g(I01)*g(I11) + g(I02)*g(I02)*g(I22) + g(I03)*g(I03) * g(I33);
+
+g(I01) = beta1_d;
+g(I02) = beta2_d;
+g(I03) = beta3_d;
+
 g(I00) = -g(I00)*g(I00) + beta2;
 
 //Invert 4 metric

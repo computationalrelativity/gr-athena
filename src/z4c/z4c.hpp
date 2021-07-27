@@ -194,6 +194,10 @@ public:
     Real AwA_d_y; // d_y (width) parameter
     Real AwA_Gaussian_w; // 1d Gaussian parameter
     Real AwA_polarised_Gowdy_t0; // seed time for pG test
+
+    //Matter parameters
+   
+    int cowling; // if 1 then cowling approximation used, rhs of z4c equations -> 0
   } opt;
      
 

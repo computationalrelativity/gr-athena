@@ -148,10 +148,13 @@ using namespace EOS_Toolkit;
   // Go through cells
   for (int k=kl; k<=ku; ++k) {
     for (int j=jl; j<=ju; ++j) {
+// TODO here call for Cell metric needs to be replaced with local calculation
+// of cell centred metric from VC metric returning 1D array in x1 direction.
+// NB func should return gamma(a,b,i), beta(a,i), alpha(i)
       pco->CellMetric(k, j, il, iu, g_, g_inv_);
       #pragma omp simd
       for (int i=il; i<=iu; ++i) {
-
+//TODO not needed
         // Extract metric
         const Real
             // unused:
@@ -169,6 +172,8 @@ using namespace EOS_Toolkit;
                    &g30 = g_inv_(I03,i), &g31 = g_inv_(I13,i), &g32 = g_inv_(I23,i),
                    &g33 = g_inv_(I33,i);
         Real alpha = 1.0/std::sqrt(-g00);
+
+// TODO modify to calc detgamma from new metric array
         Real detgamma  = g_11*(g_22*g_33 - SQR(g_23)) - g_12*(g_12*g_33 - g_23*g_13) + g_13*(g_12*g_23 - g_22*g_13);
         Real sqrtdetgamma = std::sqrt(detgamma);
         Real sqrtdetg = alpha*sqrtdetgamma;
@@ -194,7 +199,7 @@ using namespace EOS_Toolkit;
 
         cons_vars_mhd evolved{Dg, taug, 0.0,
                           {S_1g,S_2g,S_3g}, {0.0,0.0,0.0}};
-
+// TODO feed new metric to reprimand here
         sm_tensor2_sym<real_t, 3, false, false> gtens(g_11,g_12,g_22,g_13,g_23,g_33);
         sm_metric3 g_eos(gtens);
         prim_vars_mhd primitives;
@@ -228,6 +233,7 @@ using namespace EOS_Toolkit;
       pgasfix = true;
       }
       if (rep.adjust_cons || rep.set_atmo || pgasfix) {
+//TODO P2C only requires gamma(a,b,i)  need to modify PrimitiveToConservedSingle defn
           PrimitiveToConservedSingle(prim, gamma_adi, g_, g_inv_, k, j, i, cons, pco);
 
 
@@ -259,6 +265,9 @@ void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
      int iu, int jl, int ju, int kl, int ku) {
   for (int k=kl; k<=ku; ++k) {
     for (int j=jl; j<=ju; ++j) {
+// TODO need a call to calculate CC metric locally here - we don't
+// actually need alpha beta or the inverse metric to calculate the conservatives.
+// Just return a 1D array in the x1 direction of gamma_{ij}
       pco->CellMetric(k, j, il, iu, g_, g_inv_);
       //#pragma omp simd // fn is too long to inline
       for (int i=il; i<=iu; ++i) {
@@ -280,6 +289,7 @@ void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
 // Outputs:
 //   cons: conserved variables set in desired cell
 
+// TODO change arguments so instead of taking g(n,i), gi(n,i) it just takes gamma(a,b,i)
 static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim, Real gamma_adi,
     const AthenaArray<Real> &g, const AthenaArray<Real> &gi, int k, int j, int i,
     AthenaArray<Real> &cons, Coordinates *pco) {
@@ -303,10 +313,17 @@ static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim, Real gamma
   Real u3 = uu3 - alpha * gamma * gi(I03,i);
   Real u_0, u_1, u_2, u_3;
   pco->LowerVectorCell(u0, u1, u2, u3, k, j, i, &u_0, &u_1, &u_2, &u_3);
+// NB definitions have changed slightly here - a different velocity is being used . Double check me!
+  Real utilde_d_1 = g(I11,i)*uu1 + g(I12,i)*uu2 + g(I13,i)*uu3;
+  Real utilde_d_2 = g(I12,i)*uu1 + g(I22,i)*uu2 + g(I23,i)*uu3;
+  Real utilde_d_3 = g(I13,i)*uu1 + g(I23,i)*uu2 + g(I33,i)*uu3;
 
-  Real v_1 = u_1/gamma; 
-  Real v_2 = u_2/gamma;  
-  Real v_3 = u_3/gamma;  
+//  Real v_1 = u_1/gamma; 
+//  Real v_2 = u_2/gamma;  
+//  Real v_3 = u_3/gamma;  
+  Real v_1 = utilde_d_1/gamma; 
+  Real v_2 = utilde_d_2/gamma;  
+  Real v_3 = utilde_d_3/gamma;  
   // Extract conserved quantities
   Real &Ddg = cons(IDN,k,j,i);
   Real &taudg = cons(IEN,k,j,i);
