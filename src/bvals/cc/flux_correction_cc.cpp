@@ -233,4 +233,5 @@ bool CellCenteredBoundaryVariable::ReceiveFluxCorrection() {
       bd_var_flcor_.flag[nb.bufid] = BoundaryStatus::completed;
     }
   }
-  return bfFLXCOR}
+  return bflag;
+}
