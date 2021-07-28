@@ -20,6 +20,7 @@
 #define DBGPR_BVALS_VAR false
 #define DBGPR_BVALS_REFINE false
 #define DBGPR_BVALS_CC false
+#define DBGPR_FLXCOR_CC false
 #define DBGPR_BVALS_VC false
 #define DBGPR_CONSISTENCY_CONDITIONS_VC false
 #define DBGPR_WAVEINTEGRATORTASKLIST false

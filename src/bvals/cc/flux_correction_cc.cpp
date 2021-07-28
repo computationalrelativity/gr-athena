@@ -42,7 +42,9 @@
 //  \brief Restrict, pack and send the surface flux to the coarse neighbor(s)
 
 void CellCenteredBoundaryVariable::SendFluxCorrection() {
+  if (DBGPR_FLXCOR_CC){
   coutBoldGreen("CellCenteredBoundaryVariable::SendFluxCorrection\n");
+  }
   MeshBlock *pmb = pmy_block_;
   Coordinates *pco = pmb->pcoord;
 
@@ -155,7 +157,9 @@ void CellCenteredBoundaryVariable::SendFluxCorrection() {
 //  \brief Receive and apply the surface flux from the finer neighbor(s)
 
 bool CellCenteredBoundaryVariable::ReceiveFluxCorrection() {
+  if (DBGPR_FLXCOR_CC){
   coutBoldGreen("CellCenteredBoundaryVariable::ReceiveFluxCorrection\n");
+  }
   MeshBlock *pmb = pmy_block_;
   bool bflag=true;
 
@@ -229,5 +233,4 @@ bool CellCenteredBoundaryVariable::ReceiveFluxCorrection() {
       bd_var_flcor_.flag[nb.bufid] = BoundaryStatus::completed;
     }
   }
-  return bflag;
-}
+  return bfFLXCOR}
