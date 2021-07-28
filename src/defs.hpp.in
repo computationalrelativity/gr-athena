@@ -173,6 +173,16 @@
 #define MAX_NREGISTER 3  // maximum number of (u, b) register pairs for time-integrator
 #define NRAD @NUMBER_EXT_RAD@
 
+// variable conversion ------------------------------------
+#define VC_NGHOST 4
+#define CC_NGHOST 3
+
+// define the (half) size of the stencil for CC<->VC
+// 1: two nodes total used  -> exact for linear.
+// 2: four nodes total used -> exact for 3rd power.
+#define NGRCV_HSZ 2
+// --------------------------------------------------------
+
 //----------------------------------------------------------------------------------------
 // general purpose macros (never modified)
 
