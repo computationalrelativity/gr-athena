@@ -85,19 +85,18 @@ class InterpIntergridLocal {
 
     inline Real map1d_VC2CC_der(const int dir, Real & in)
     {
-      return _map1d_varD1TS(in, 0);
+      return _map1d_varD1TS(dir, in);
     }
 
     inline Real map2d_VC2CC_der(const int dir, Real & in)
     {
-      return _map2d_varD1TS(in, dir, 0, 0);
+      return _map2d_varD1TS(dir, in);
     }
 
     inline Real map3d_VC2CC_der(const int dir, Real & in)
     {
-      return _map3d_varD1TS(in, dir, 0, 0, 0);
+      return _map3d_varD1TS(dir, in);
     }
-
 
     // interfaces mimicking base implementation -------------------------------
     void var_map_VC2CC(
@@ -263,91 +262,49 @@ class InterpIntergridLocal {
     }
 
     // VC->D[CC] --------------------------------------------------------------
-    inline Real _map1d_varD1TS(const Real & in, const int l)
+    inline Real _map1d_varD1TS(const int dir, const Real & in)
     {
       const Real * pin = &in;
       const int dg = VC_NGHOST-CC_NGHOST;
 
-      const int i_l = dg+l;
-      const int i_u = dg+l+1;
+      const int i_l = dg*strides[dir];
+      const int i_u = (dg+1)*strides[dir];
 
-      return rds[0]*(pin[i_u]-pin[i_l]);
+      return rds[dir]*(pin[i_u]-pin[i_l]);
     }
 
-    inline Real _map2d_varD1TS(const Real & in,
-      const int dir, const int l, const int m)
+    inline Real _map2d_varD1TS(const int dir, const Real & in)
     {
       const Real * pin = &in;
       const int dg = VC_NGHOST-CC_NGHOST;
 
-      const int j_l = (dg+m)*strides[1];
-      const int j_u = (dg+m+1)*strides[1];
+      const int ix_a = dg*strides[(dir+1)%2];
+      const int ix_b = (dg+1)*strides[(dir+1)%2];
 
-      const int i_l = (dg+l);
-      const int i_u = (dg+l+1);
-
-      const Real fac = 0.5*rds[dir];
-
-      if (dir==0)
-      {
-        return fac*(
-            (pin[j_l+i_u] - pin[j_l+i_l]) +
-            (pin[j_u+i_u] - pin[j_u+i_l])
-          );
-      }
-      return fac*(
-          (pin[j_u+i_u] - pin[j_l+i_u]) +
-          (pin[j_u+i_l] - pin[j_l+i_l])
-        );
-
-    }
-
-    inline Real _map3d_varD1TS(const Real & in,
-      const int dir, const int l, const int m, const int n)
-    {
-      const Real * pin = &in;
-      const int dg = VC_NGHOST-CC_NGHOST;
-
-      const int k_l = (dg+n)*strides[2];
-      const int k_u = (dg+n+1)*strides[2];
-
-      const int j_l = (dg+m)*strides[1];
-      const int j_u = (dg+m+1)*strides[1];
-
-      const int i_l = dg+l;
-      const int i_u = dg+l+1;
-
-      const Real fac = 0.25*rds[dir];
-
-      if (dir==0)
-      {
-        return fac*(
-          ((pin[k_u+j_u+i_u] - pin[k_l+j_l+i_l]) -
-           (pin[k_u+j_u+i_l] - pin[k_l+j_l+i_u])) -
-          ((pin[k_l+j_u+i_l] - pin[k_u+j_l+i_u]) -
-           (pin[k_l+j_u+i_u] - pin[k_u+j_l+i_l]))
-        );
-      }
-      else if (dir==1)
-      {
-        return fac*(
-          ((pin[k_u+j_u+i_u] - pin[k_l+j_l+i_l]) +
-           (pin[k_u+j_u+i_l] - pin[k_l+j_l+i_u])) +
-          ((pin[k_l+j_u+i_l] - pin[k_u+j_l+i_u]) +
-           (pin[k_l+j_u+i_u] - pin[k_u+j_l+i_l]))
-        );
-      }
-      return fac*(
-        (
-          (pin[k_u+j_u+i_u] - pin[k_l+j_l+i_l]) -
-          (pin[k_l+j_u+i_l] - pin[k_u+j_l+i_u])
-        ) +
-        (
-          (pin[k_u+j_u+i_l] - pin[k_l+j_l+i_u]) -
-          (pin[k_l+j_u+i_u] - pin[k_u+j_l+i_l])
-        )
+      return 0.5*(
+        _map1d_varD1TS(dir, pin[ix_a]) +
+        _map1d_varD1TS(dir, pin[ix_b])
       );
     }
+
+    inline Real _map3d_varD1TS(const int dir, const Real & in)
+    {
+      const Real * pin = &in;
+      const int dg = VC_NGHOST-CC_NGHOST;
+
+      const int ix_a = ((dg+1)*strides[(dir+1)%3] + (dg+1)*strides[(dir+2)%3]);
+      const int ix_b = (dg*strides[(dir+1)%3] + dg*strides[(dir+2)%3]);
+      const int ix_c = (dg*strides[(dir+1)%3] + (dg+1)*strides[(dir+2)%3]);
+      const int ix_d = ((dg+1)*strides[(dir+1)%3] + dg*strides[(dir+2)%3]);
+
+      return 0.25*(
+        _map1d_varD1TS(dir, pin[ix_a]) +
+        _map1d_varD1TS(dir, pin[ix_b]) +
+        _map1d_varD1TS(dir, pin[ix_c]) +
+        _map1d_varD1TS(dir, pin[ix_d])
+      );
+    }
+
 
 };
 
