@@ -12,6 +12,19 @@
 #include "../athena_arrays.hpp"
 #include "interp_univariate.hpp"
 
+// Provide centred stencils for VC->D[CC]
+// Odd 'der' take negative values on the left part of the stencil
+// uniform grid assumed.
+template<int der_, int half_stencil_size_>
+class InterpolateVC2DerCC {
+  public:
+    // order of convergence (in spacing)
+    enum {order = 2 * half_stencil_size_ - 1};
+    enum {N_I = half_stencil_size_};
+    static Real const coeff[N_I];
+};
+
+
 namespace InterpIntergrid {
 
   void var_map_VC2CC(
@@ -85,17 +98,29 @@ class InterpIntergridLocal {
 
     inline Real map1d_VC2CC_der(const int dir, Real & in)
     {
-      return _map1d_varD1TS(dir, in);
+      #if NGRCV_HSZ == 1
+        return _map1d_varD1TS(dir, in);
+      #else
+        return _map1d_varD1HO(dir, in);
+      #endif
     }
 
     inline Real map2d_VC2CC_der(const int dir, Real & in)
     {
-      return _map2d_varD1TS(dir, in);
+      #if NGRCV_HSZ == 1
+        return _map2d_varD1TS(dir, in);
+      #else
+        return _map2d_varD1HO(dir, in);
+      #endif
     }
 
     inline Real map3d_VC2CC_der(const int dir, Real & in)
     {
-      return _map3d_varD1TS(dir, in);
+      #if NGRCV_HSZ == 1
+        return _map3d_varD1TS(dir, in);
+      #else
+        return _map3d_varD1HO(dir, in);
+      #endif
     }
 
     // interfaces mimicking base implementation -------------------------------
@@ -262,6 +287,8 @@ class InterpIntergridLocal {
     }
 
     // VC->D[CC] --------------------------------------------------------------
+
+    // Taylor series 1st order based
     inline Real _map1d_varD1TS(const int dir, const Real & in)
     {
       const Real * pin = &in;
@@ -273,6 +300,29 @@ class InterpIntergridLocal {
       return rds[dir]*(pin[i_u]-pin[i_l]);
     }
 
+    // Higher order
+    inline Real _map1d_varD1HO(const int dir, const Real & in)
+    {
+      const Real * pin = &in;
+      const int dg = VC_NGHOST-CC_NGHOST;
+
+      Real out = 0.;
+
+      for(int i=1; i<=NGRCV_HSZ; ++i)
+      {
+        const int i_l = (dg-i+1)*strides[dir];
+        const int i_u = (dg+i  )*strides[dir];
+
+        const Real li = InterpolateVC2DerCC<1, NGRCV_HSZ>::coeff[i-1];
+
+        out += li*(pin[i_u]-pin[i_l]);
+      }
+
+      return rds[dir]*out;
+    }
+
+
+    // Taylor series 1st order based
     inline Real _map2d_varD1TS(const int dir, const Real & in)
     {
       const Real * pin = &in;
@@ -287,6 +337,58 @@ class InterpIntergridLocal {
       );
     }
 
+    // Higher order
+    inline Real _map2d_varD1HO(const int dir, const Real & in)
+    {
+      const Real * pin = &in;
+      const int dg = VC_NGHOST-CC_NGHOST;
+
+      const int b_is_0 = (dir == 0);  // (dir+1)%2
+      const int b_is_1 = (dir == 1);  // (dir+0)%2
+
+      Real out = 0.;
+
+      for(int j=1; j<=NGRCV_HSZ; ++j)
+      {
+        const int j_l = (dg-j+1)*strides[1];
+        const int j_u = (dg+j  )*strides[1];
+
+        for(int i=1; i<=NGRCV_HSZ; ++i)
+        {
+          const int i_l = (dg-i+1)*strides[0];
+          const int i_u = (dg+i  )*strides[0];
+
+          const int ix_c = (i-1) * b_is_0 + (j-1) * b_is_1;
+          const int ix_l = (i-1) * b_is_1 + (j-1) * b_is_0 + NGRCV_HSZ;
+
+          const Real lag = \
+            InterpolateLagrangeUniform<NGRCV_HSZ>::coeff[1][ix_l];
+          const Real cdr = \
+            InterpolateVC2DerCC<1, NGRCV_HSZ>::coeff[ix_c];
+
+          const Real lcji = cdr*lag;
+
+          const int ix_uu = j_u+i_u;
+          const int ix_ll = j_l+i_l;
+          const int ix_lu = j_l+i_u;
+          const int ix_ul = j_u+i_l;
+
+          const Real f_uu = pin[ix_uu];
+          const Real f_ll = pin[ix_ll];
+          const Real f_lu = pin[ix_lu*b_is_0+ix_ul*b_is_1];
+          const Real f_ul = pin[ix_ul*b_is_0+ix_lu*b_is_1];
+
+          out += lcji*((f_uu-f_ul) +
+                       (f_lu-f_ll));
+
+        }
+      }
+
+      return rds[dir]*out;
+    }
+
+
+    // Taylor series 1st order based
     inline Real _map3d_varD1TS(const int dir, const Real & in)
     {
       const Real * pin = &in;
@@ -305,6 +407,84 @@ class InterpIntergridLocal {
       );
     }
 
+    // Higher order
+    inline Real _map3d_varD1HO(const int dir, const Real & in)
+    {
+      const Real * pin = &in;
+      const int dg = VC_NGHOST-CC_NGHOST;
+
+      const int b_is_0 = (dir == 0);  // (1+dir)%3%2
+      const int b_is_1 = (dir == 1);  // (2+dir)%2
+      const int b_is_2 = (dir == 2);  // ((3-dir)%3)%2
+
+      Real out = 0.;
+      for(int k=1; k<=NGRCV_HSZ; ++k)
+      {
+        const int k_l = (dg-k+1)*strides[2];
+        const int k_u = (dg+k  )*strides[2];
+
+        for(int j=1; j<=NGRCV_HSZ; ++j)
+        {
+          const int j_l = (dg-j+1)*strides[1];
+          const int j_u = (dg+j  )*strides[1];
+
+          for(int i=1; i<=NGRCV_HSZ; ++i)
+          {
+            const int i_l = (dg-i+1)*strides[0];
+            const int i_u = (dg+i  )*strides[0];
+
+            const int ix_c = (i-1) * b_is_0 + (j-1) * b_is_1 + (k-1) * b_is_2;
+            const int ix_l1 = (
+              (i-1) * b_is_2 + (j-1) * b_is_0 + (k-1) * b_is_1
+              + NGRCV_HSZ);
+            const int ix_l2 = (
+              (i-1) * b_is_1 + (j-1) * b_is_2 + (k-1) * b_is_0
+              + NGRCV_HSZ);
+
+            const Real lag1 = \
+              InterpolateLagrangeUniform<NGRCV_HSZ>::coeff[1][ix_l1];
+            const Real lag2 = \
+              InterpolateLagrangeUniform<NGRCV_HSZ>::coeff[1][ix_l2];
+            const Real cdr = \
+              InterpolateVC2DerCC<1, NGRCV_HSZ>::coeff[ix_c];
+
+            const Real lckji = cdr*lag1*lag2;
+
+            const int ix_uuu = k_u+j_u+i_u;
+            const int ix_lll = k_l+j_l+i_l;
+            const int ix_lul = k_l+j_u+i_l;
+            const int ix_ulu = k_u+j_l+i_u;
+            const int ix_ull = k_u+j_l+i_l;
+            const int ix_luu = k_l+j_u+i_u;
+            const int ix_llu = k_l+j_l+i_u;
+            const int ix_uul = k_u+j_u+i_l;
+
+            const int I_lul = ix_lul*b_is_0+ix_ull*b_is_1+ix_llu*b_is_2;
+            const int I_ulu = ix_ulu*b_is_0+ix_luu*b_is_1+ix_uul*b_is_2;
+            const int I_ull = ix_ull*b_is_0+ix_llu*b_is_1+ix_lul*b_is_2;
+            const int I_luu = ix_luu*b_is_0+ix_uul*b_is_1+ix_ulu*b_is_2;
+            const int I_llu = ix_llu*b_is_0+ix_lul*b_is_1+ix_ull*b_is_2;
+            const int I_uul = ix_uul*b_is_0+ix_ulu*b_is_1+ix_luu*b_is_2;
+
+            const Real f_uuu = pin[ix_uuu];
+            const Real f_lll = pin[ix_lll];
+            const Real f_lul = pin[I_lul];
+            const Real f_ulu = pin[I_ulu];
+            const Real f_ull = pin[I_ull];
+            const Real f_luu = pin[I_luu];
+            const Real f_llu = pin[I_llu];
+            const Real f_uul = pin[I_uul];
+
+            out += lckji*((f_uuu - f_uul) +
+                          (f_ulu - f_ull) +
+                          (f_llu - f_lll) +
+                          (f_luu - f_lul));
+
+          }
+        }
+      }
+      return rds[dir]*out;
+    }
 
 };
 
