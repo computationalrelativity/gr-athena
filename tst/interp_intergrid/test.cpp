@@ -702,6 +702,383 @@ static void test_3d(const bool stdout_dump)
   delete ig;
 }
 
+static void test_FC_2d(const bool stdout_dump)
+{
+  const int N_x = 6, N_y = 8;
+
+  const int sz_x_vc = 2*VC_NGHOST+N_x+1;
+  const int sz_x_cc = 2*CC_NGHOST+N_x;
+
+  const int sz_y_vc = 2*VC_NGHOST+N_y+1;
+  const int sz_y_cc = 2*CC_NGHOST+N_y;
+
+  const Real x_a = 1.2, x_b = 2.4;
+  const Real y_a = 3.2, y_b = 4.4;
+
+  AthenaArray<Real> x_vc = make_ords(x_a, x_b, N_x, VC_NGHOST);
+  AthenaArray<Real> x_cc = make_ords_cc(x_a, x_b, N_x, CC_NGHOST);
+
+  AthenaArray<Real> y_vc = make_ords(y_a, y_b, N_y, VC_NGHOST);
+  AthenaArray<Real> y_cc = make_ords_cc(y_a, y_b, N_y, CC_NGHOST);
+
+  AthenaArray<Real> rds;
+  rds.NewAthenaArray(2);
+  rds(0) = 1./(x_cc(1) - x_cc(0));
+  rds(1) = 1./(y_cc(1) - y_cc(0));
+
+  AthenaArray<Real> poly_xy_vc, poly_xy_cc, poly_xy_fc0, poly_xy_fc1;
+  AthenaArray<Real> i_poly_xy_fc0, i_poly_xy_fc1;
+
+  poly_xy_vc.NewAthenaArray(sz_y_vc, sz_x_vc);
+  poly_xy_cc.NewAthenaArray(sz_y_cc, sz_x_cc);
+
+  poly_xy_fc0.NewAthenaArray(sz_y_cc, sz_x_vc);
+  poly_xy_fc1.NewAthenaArray(sz_y_vc, sz_x_cc);
+
+  i_poly_xy_fc0.NewAthenaArray(sz_y_cc, sz_x_vc);
+  i_poly_xy_fc1.NewAthenaArray(sz_y_vc, sz_x_cc);
+
+  // poly.
+  for(int j=0; j<sz_y_vc; ++j)
+    for(int i=0; i<sz_x_vc; ++i)
+      poly_xy_vc(j,i) = -2*std::pow(x_vc(i), 2.0)*std::pow(y_vc(j), 2.0);
+
+  for(int j=0; j<sz_y_cc; ++j)
+    for(int i=0; i<sz_x_cc; ++i)
+    {
+      poly_xy_cc(j,i) = -2*std::pow(x_cc(i), 2.0)*std::pow(y_cc(j), 2.0);
+    }
+
+  for(int j=0; j<sz_y_cc; ++j)
+    for(int i=0; i<sz_x_vc; ++i)
+    {
+      poly_xy_fc0(j,i) = -2*std::pow(x_vc(i), 2.0)*std::pow(y_cc(j), 2.0);
+    }
+
+  for(int j=0; j<sz_y_vc; ++j)
+    for(int i=0; i<sz_x_cc; ++i)
+    {
+      poly_xy_fc1(j,i) = -2*std::pow(x_cc(i), 2.0)*std::pow(y_vc(j), 2.0);
+    }
+
+  // linear.
+  for(int j=0; j<sz_y_vc; ++j)
+    for(int i=0; i<sz_x_vc; ++i)
+      poly_xy_vc(j,i) = -2*(x_vc(i)-3)*(y_vc(j)+2);
+
+  for(int j=0; j<sz_y_cc; ++j)
+    for(int i=0; i<sz_x_cc; ++i)
+    {
+      poly_xy_cc(j,i) = -2*(x_cc(i)-3)*(y_cc(j)+2);
+    }
+
+  for(int j=0; j<sz_y_cc; ++j)
+    for(int i=0; i<sz_x_vc; ++i)
+    {
+      poly_xy_fc0(j,i) = -2*(x_vc(i)-3)*(y_cc(j)+2);
+    }
+
+  for(int j=0; j<sz_y_vc; ++j)
+    for(int i=0; i<sz_x_cc; ++i)
+    {
+      poly_xy_fc1(j,i) = -2*(x_cc(i)-3)*(y_vc(j)+2);
+    }
+
+
+  const int dim = 2;
+  const int cc_il = CC_NGHOST, cc_iu = sz_x_cc-CC_NGHOST;
+  const int cc_jl = CC_NGHOST, cc_ju = sz_y_cc-CC_NGHOST;
+
+  const int vc_il = VC_NGHOST, vc_iu = sz_x_vc-VC_NGHOST;
+  const int vc_jl = VC_NGHOST, vc_ju = sz_y_vc-VC_NGHOST;
+
+  // construct test for InterpIntergridLocal ----------------------------------
+  int N[] = {N_x, N_y};
+  Real rdx[] = {1./(x_vc(1)-x_vc(0)), 1./(y_vc(1)-y_vc(0))};
+
+  InterpIntergridLocal * ig = new InterpIntergridLocal(dim, &N[0], &rdx[0]);
+
+  int dir = 0;
+
+  // note split in iteration idx char
+  for(int m=cc_jl; m<=(cc_ju-1); ++m)
+  {
+#pragma omp simd
+    for(int l=vc_il; l<=(vc_iu-1); ++l)
+      i_poly_xy_fc0(m,l) = ig->map2d_VC2FC(dir, poly_xy_vc(m,l));
+  }
+
+  dir = 1;
+
+  // note split in iteration idx char
+  for(int m=vc_jl; m<=(vc_ju-1); ++m)
+  {
+#pragma omp simd
+    for(int l=cc_il; l<=(cc_iu-1); ++l)
+      i_poly_xy_fc1(m,l) = ig->map2d_VC2FC(dir, poly_xy_vc(m,l));
+  }
+
+
+  // --------------------------------------------------------------------------
+
+
+  // compute sum of abs error over all interpolated points
+  Real err_fc = 0.0;
+
+  for(int j=cc_jl; j<=cc_ju-1; ++j)
+    for(int i=vc_il; i<=vc_iu-1; ++i)
+    {
+      err_fc += std::abs(
+        i_poly_xy_fc0(j,i) - poly_xy_fc0(j,i)
+      );
+
+    }
+
+  for(int j=vc_jl; j<=vc_ju-1; ++j)
+    for(int i=cc_il; i<=cc_iu-1; ++i)
+    {
+      err_fc += std::abs(
+        i_poly_xy_fc1(j,i) - poly_xy_fc1(j,i)
+      );
+
+    }
+
+  coutBoldBlue("(err_fc):\n");
+  printf("(%1.4e)\n", err_fc);
+
+  if(stdout_dump)
+  {
+    coutBoldRed("poly_xy_vc:\n");
+    poly_xy_vc.print_all();
+
+    coutBoldRed("poly_xy_fc0:\n");
+    poly_xy_fc0.print_all();
+
+    coutBoldRed("i_poly_xy_fc0:\n");
+    i_poly_xy_fc0.print_all();
+
+    coutBoldRed("poly_xy_fc1:\n");
+    poly_xy_fc1.print_all();
+
+    coutBoldRed("i_poly_xy_fc1:\n");
+    i_poly_xy_fc1.print_all();
+
+  }
+
+  // clean-up
+  x_vc.DeleteAthenaArray();
+  x_cc.DeleteAthenaArray();
+
+  y_vc.DeleteAthenaArray();
+  y_cc.DeleteAthenaArray();
+
+  rds.DeleteAthenaArray();
+
+  poly_xy_vc.DeleteAthenaArray();
+  poly_xy_cc.DeleteAthenaArray();
+
+  poly_xy_fc0.DeleteAthenaArray();
+  poly_xy_fc1.DeleteAthenaArray();
+
+  i_poly_xy_fc0.DeleteAthenaArray();
+  i_poly_xy_fc1.DeleteAthenaArray();
+
+  delete ig;
+}
+
+static void test_FC_3d(const bool stdout_dump)
+{
+  const int N_x = 6, N_y = 8, N_z = 4;
+
+  const int sz_x_vc = 2*VC_NGHOST+N_x+1;
+  const int sz_x_cc = 2*CC_NGHOST+N_x;
+
+  const int sz_y_vc = 2*VC_NGHOST+N_y+1;
+  const int sz_y_cc = 2*CC_NGHOST+N_y;
+
+  const int sz_z_vc = 2*VC_NGHOST+N_z+1;
+  const int sz_z_cc = 2*CC_NGHOST+N_z;
+
+  const Real x_a = 1.2, x_b = 2.4;
+  const Real y_a = 3.2, y_b = 4.4;
+  const Real z_a = 2.2, z_b = 3.7;
+
+  AthenaArray<Real> x_vc = make_ords(x_a, x_b, N_x, VC_NGHOST);
+  AthenaArray<Real> x_cc = make_ords_cc(x_a, x_b, N_x, CC_NGHOST);
+
+  AthenaArray<Real> y_vc = make_ords(y_a, y_b, N_y, VC_NGHOST);
+  AthenaArray<Real> y_cc = make_ords_cc(y_a, y_b, N_y, CC_NGHOST);
+
+  AthenaArray<Real> z_vc = make_ords(z_a, z_b, N_z, VC_NGHOST);
+  AthenaArray<Real> z_cc = make_ords_cc(z_a, z_b, N_z, CC_NGHOST);
+
+  AthenaArray<Real> rds;
+  rds.NewAthenaArray(3);
+  rds(0) = 1./(x_cc(1) - x_cc(0));
+  rds(1) = 1./(y_cc(1) - y_cc(0));
+  rds(2) = 1./(z_cc(1) - z_cc(0));
+
+  AthenaArray<Real> poly_xyz_vc, poly_xyz_cc;
+  AthenaArray<Real> poly_xyz_fc0, poly_xyz_fc1, poly_xyz_fc2;
+  AthenaArray<Real> i_poly_xyz_fc0, i_poly_xyz_fc1, i_poly_xyz_fc2;
+
+  poly_xyz_vc.NewAthenaArray(sz_z_vc, sz_y_vc, sz_x_vc);
+  poly_xyz_cc.NewAthenaArray(sz_z_cc, sz_y_cc, sz_x_cc);
+
+  poly_xyz_fc0.NewAthenaArray(sz_z_cc, sz_y_cc, sz_x_vc);
+  poly_xyz_fc1.NewAthenaArray(sz_z_cc, sz_y_vc, sz_x_cc);
+  poly_xyz_fc2.NewAthenaArray(sz_z_vc, sz_y_cc, sz_x_cc);
+
+  i_poly_xyz_fc0.NewAthenaArray(sz_z_cc, sz_y_cc, sz_x_vc);
+  i_poly_xyz_fc1.NewAthenaArray(sz_z_cc, sz_y_vc, sz_x_cc);
+  i_poly_xyz_fc2.NewAthenaArray(sz_z_vc, sz_y_cc, sz_x_cc);
+
+
+  // linear
+  for(int k=0; k<sz_z_vc; ++k)
+  for(int j=0; j<sz_y_vc; ++j)
+  for(int i=0; i<sz_x_vc; ++i)
+    poly_xyz_vc(k,j,i) = -2*(x_vc(i)-2)*(y_vc(j)+1)*(z_vc(k)-3);
+
+  for(int k=0; k<sz_z_cc; ++k)
+  for(int j=0; j<sz_y_cc; ++j)
+  for(int i=0; i<sz_x_cc; ++i)
+  {
+    poly_xyz_cc(k,j,i) = -2*(x_cc(i)-2)*(y_cc(j)+1)*(z_cc(k)-3);
+  }
+
+  for(int k=0; k<sz_z_cc; ++k)
+  for(int j=0; j<sz_y_cc; ++j)
+  for(int i=0; i<sz_x_vc; ++i)
+    poly_xyz_fc0(k,j,i) = -2*(x_vc(i)-2)*(y_cc(j)+1)*(z_cc(k)-3);
+
+  for(int k=0; k<sz_z_cc; ++k)
+  for(int j=0; j<sz_y_vc; ++j)
+  for(int i=0; i<sz_x_cc; ++i)
+    poly_xyz_fc1(k,j,i) = -2*(x_cc(i)-2)*(y_vc(j)+1)*(z_cc(k)-3);
+
+  for(int k=0; k<sz_z_vc; ++k)
+  for(int j=0; j<sz_y_cc; ++j)
+  for(int i=0; i<sz_x_cc; ++i)
+    poly_xyz_fc2(k,j,i) = -2*(x_cc(i)-2)*(y_cc(j)+1)*(z_vc(k)-3);
+
+
+  const int dim = 3;
+  const int cc_il = CC_NGHOST, cc_iu = sz_x_cc-CC_NGHOST;
+  const int cc_jl = CC_NGHOST, cc_ju = sz_y_cc-CC_NGHOST;
+  const int cc_kl = CC_NGHOST, cc_ku = sz_z_cc-CC_NGHOST;
+
+  const int vc_il = VC_NGHOST, vc_iu = sz_x_vc-VC_NGHOST;
+  const int vc_jl = VC_NGHOST, vc_ju = sz_y_vc-VC_NGHOST;
+  const int vc_kl = VC_NGHOST, vc_ku = sz_z_vc-VC_NGHOST;
+
+  // construct test for InterpIntergridLocal ----------------------------------
+  int N[] = {N_x, N_y, N_z};
+  Real rdx[] = {
+    1./(x_vc(1)-x_vc(0)), 1./(y_vc(1)-y_vc(0)), 1./(z_vc(1)-z_vc(0))
+  };
+
+  InterpIntergridLocal * ig = new InterpIntergridLocal(dim, &N[0], &rdx[0]);
+
+  int dir = 0;
+
+  // note split in iteration idx char
+  for(int n=cc_jl; n<=(cc_ju-1); ++n)
+    for(int m=cc_jl; m<=(cc_ju-1); ++m)
+    {
+#pragma omp simd
+    for(int l=vc_il; l<=(vc_iu-1); ++l)
+      i_poly_xyz_fc0(n,m,l) = ig->map3d_VC2FC(dir, poly_xyz_vc(n,m,l));
+    }
+
+  dir = 1;
+
+  // note split in iteration idx char
+  for(int n=cc_jl; n<=(cc_ju-1); ++n)
+    for(int m=vc_jl; m<=(vc_ju-1); ++m)
+    {
+#pragma omp simd
+    for(int l=cc_il; l<=(cc_iu-1); ++l)
+      i_poly_xyz_fc1(n,m,l) = ig->map3d_VC2FC(dir, poly_xyz_vc(n,m,l));
+    }
+
+  dir = 2;
+
+  // note split in iteration idx char
+  for(int n=vc_jl; n<=(vc_ju-1); ++n)
+    for(int m=cc_jl; m<=(cc_ju-1); ++m)
+    {
+#pragma omp simd
+    for(int l=cc_il; l<=(cc_iu-1); ++l)
+      i_poly_xyz_fc2(n,m,l) = ig->map3d_VC2FC(dir, poly_xyz_vc(n,m,l));
+    }
+
+
+  // --------------------------------------------------------------------------
+
+
+  // compute sum of abs error over all interpolated points
+  Real err_fc = 0.0;
+
+  for(int k=cc_kl; k<=cc_ku-1; ++k)
+  for(int j=cc_jl; j<=cc_ju-1; ++j)
+    for(int i=vc_il; i<=vc_iu-1; ++i)
+    {
+      err_fc += std::abs(
+        i_poly_xyz_fc0(k,j,i) - poly_xyz_fc0(k,j,i)
+      );
+
+    }
+
+  for(int k=cc_kl; k<=cc_ku-1; ++k)
+  for(int j=vc_jl; j<=vc_ju-1; ++j)
+    for(int i=cc_il; i<=cc_iu-1; ++i)
+    {
+      err_fc += std::abs(
+        i_poly_xyz_fc1(k,j,i) - poly_xyz_fc1(k,j,i)
+      );
+
+    }
+
+  for(int k=vc_kl; k<=vc_ku-1; ++k)
+  for(int j=cc_jl; j<=cc_ju-1; ++j)
+    for(int i=cc_il; i<=cc_iu-1; ++i)
+    {
+      err_fc += std::abs(
+        i_poly_xyz_fc2(k,j,i) - poly_xyz_fc2(k,j,i)
+      );
+
+    }
+
+  coutBoldBlue("(err_fc):\n");
+  printf("(%1.4e)\n", err_fc);
+
+  // clean-up
+  x_vc.DeleteAthenaArray();
+  x_cc.DeleteAthenaArray();
+
+  y_vc.DeleteAthenaArray();
+  y_cc.DeleteAthenaArray();
+
+  z_vc.DeleteAthenaArray();
+  z_cc.DeleteAthenaArray();
+
+  rds.DeleteAthenaArray();
+
+  poly_xyz_vc.DeleteAthenaArray();
+  poly_xyz_cc.DeleteAthenaArray();
+
+  poly_xyz_fc0.DeleteAthenaArray();
+  poly_xyz_fc1.DeleteAthenaArray();
+  poly_xyz_fc2.DeleteAthenaArray();
+
+  i_poly_xyz_fc0.DeleteAthenaArray();
+  i_poly_xyz_fc1.DeleteAthenaArray();
+  i_poly_xyz_fc2.DeleteAthenaArray();
+
+  delete ig;
+}
+
 int main(int argc, char *argv[]) {
 
 
@@ -710,6 +1087,10 @@ int main(int argc, char *argv[]) {
   test_1d(false);
   test_2d(false);
   test_3d(false);
+
+  // face centered
+  test_FC_2d(false);
+  test_FC_3d(false);
 
   return (0);
 }

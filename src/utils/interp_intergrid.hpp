@@ -96,6 +96,16 @@ class InterpIntergridLocal {
       return _map3d_var(in,0,0,0,-1,-1);
     }
 
+    inline Real map2d_VC2FC(const int dir, const Real & in)
+    {
+      return _map2d_varFC(dir, in);
+    }
+
+    inline Real map3d_VC2FC(const int dir, const Real & in)
+    {
+      return _map3d_varFC(dir, in);
+    }
+
     inline Real map1d_VC2CC_der(const int dir, Real & in)
     {
       #if NGRCV_HSZ == 1
@@ -282,6 +292,88 @@ class InterpIntergridLocal {
 
         Real const lc = InterpolateLagrangeUniform<NGRCV_HSZ>::coeff[1][lix];
         out += lc*(pin[I_L]+pin[I_U]);
+      }
+      return out;
+    }
+
+    // VC->FC -----------------------------------------------------------------
+    inline Real _map2d_varFC(const int dir, const Real & in)
+    {
+      const Real * pin = &in;
+      const int dg = VC_NGHOST-CC_NGHOST;
+      Real out(0.);
+
+      const int b_is_0 = (dir == 0);
+      const int b_is_1 = (dir == 1);
+
+      for(int i=1; i<=NGRCV_HSZ; ++i)
+      {
+        const int i_l = (dg - i + 1) * strides[1-dir];  // VC strides
+        const int i_u = (dg + i    ) * strides[1-dir];  // VC strides
+
+        const int lix = NGRCV_HSZ+i-1;
+
+        Real const lag_i = \
+          InterpolateLagrangeUniform<NGRCV_HSZ>::coeff[1][lix];
+
+        // const int ix = m * strides[1] * b_is_1 + l * strides[0] * b_is_0;
+
+        // const Real f_l = pin[i_l+ix];
+        // const Real f_u = pin[i_u+ix];
+
+        const Real f_l = pin[i_l];
+        const Real f_u = pin[i_u];
+
+        out += lag_i * (f_l + f_u);
+      }
+      return out;
+    }
+
+    inline Real _map3d_varFC(const int dir, const Real & in)
+    {
+      const Real * pin = &in;
+      const int dg = VC_NGHOST-CC_NGHOST;
+      Real out(0.);
+
+      const int b_is_0 = (dir == 0);
+      const int b_is_1 = (dir == 1);
+      const int b_is_2 = (dir == 2);
+
+      // directions to interpolate over (selected arithmetically below)
+      // bix = [
+      //   [1, 2], # dir = 0 is fixed
+      //   [0, 2], #     = 1 is fixed
+      //   [0, 1]  #     = 2 is fixed
+      // ]
+
+      for(int j=1; j<=NGRCV_HSZ; ++j)
+      {
+        const int j_l = (dg - j + 1) * strides[0+b_is_0];    // VC strides
+        const int j_u = (dg + j    ) * strides[0+b_is_0];    // VC strides
+
+        const int ljx = NGRCV_HSZ+j-1;
+        const Real lag_j = \
+          InterpolateLagrangeUniform<NGRCV_HSZ>::coeff[1][ljx];
+
+        for(int i=1; i<=NGRCV_HSZ; ++i)
+        {
+          const int i_l = (dg - i + 1) * strides[2-b_is_2];  // VC strides
+          const int i_u = (dg + i    ) * strides[2-b_is_2];  // VC strides
+
+          const int lix = NGRCV_HSZ+i-1;
+          const Real la = \
+            lag_j * InterpolateLagrangeUniform<NGRCV_HSZ>::coeff[1][lix];
+
+          const int ix_uu = j_u + i_u;
+          const int ix_ll = j_l + i_l;
+          const int ix_lu = j_l + i_u;
+          const int ix_ul = j_u + i_l;
+
+          out += la * (
+            (pin[ix_uu] + pin[ix_ul]) + (pin[ix_lu] + pin[ix_ll])
+          );
+
+        }
       }
       return out;
     }
