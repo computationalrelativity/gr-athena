@@ -129,8 +129,8 @@ void WaveExtract::Write(int iter, Real time) const {
       for(int l=2;l<lmax+1;++l){
         for(int m=-l;m<l+1;++m){
           fprintf(pofile, "%.*g %.*g ",
-                  FPRINTF_PREC, psi(l-2,m+l,0),
-                  FPRINTF_PREC, psi(l-2,m+l,1));
+                  FPRINTF_PREC, static_cast<Real>(psi(l-2,m+l,0)),
+                  FPRINTF_PREC, static_cast<Real>(psi(l-2,m+l,1)));
         }
       }
       fprintf(pofile, "\n");

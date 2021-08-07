@@ -217,8 +217,8 @@ public:
 
 
   // boundary and grid data
-  VertexCenteredBoundaryVariable ubvar;
   AthenaArray<Real> empty_flux[3];
+  VertexCenteredBoundaryVariable ubvar;
 
   // storage for SMR/AMR
   // BD: this should perhaps be combined with the above stuct.

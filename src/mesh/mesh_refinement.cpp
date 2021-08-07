@@ -863,7 +863,7 @@ void MeshRefinement::ProlongateCellCenteredValues(
               std::min(std::abs(gx2m), std::abs(gx2p));
           } else { // use 2nd ordered centered
               gx1c = (coarse_(n,k,j,i+1) - coarse_(n,k,j,i-1))/(2*dx1m);
-              gx2c = (coarse_(n,k,j+1,i) - coarse_(n,k,j+1,i))/(2*dx2m);
+              gx2c = (coarse_(n,k,j+1,i) - coarse_(n,k,j-1,i))/(2*dx2m);
           }
           // KGF: add the off-centered quantities first to preserve FP symmetry
           // interpolate onto the finer grid

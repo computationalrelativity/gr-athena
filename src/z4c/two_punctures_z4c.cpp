@@ -40,16 +40,12 @@ void Z4c::ADMTwoPunctures(ParameterInput *pin, AthenaArray<Real> & u_adm, ini_da
 
   //--
 
-  // construct initial data set
+  // construct initial data set and interpolate ADM vars. to current MeshBlock
   if(verbose)
+  {
     std::cout << "Generating two puncture data." << std::endl;
-
-  if(verbose)
-    std::cout << "Done!" << std::endl;
-
-  // interpolate to ADM variables based on solution
-  if(verbose)
     std::cout << "Interpolating current MeshBlock." << std::endl;
+  }
 
   int imin[3] = {0, 0, 0};
 
@@ -150,16 +146,15 @@ void Z4c::ADMTwoPunctures(ParameterInput *pin, AthenaArray<Real> & u_adm, ini_da
 
   }
 
+  delete [] gxx; delete [] gyy; delete [] gzz;
+  delete [] gxy; delete [] gxz; delete [] gyz;
 
-  free(gxx); free(gyy); free(gzz);
-  free(gxy); free(gxz); free(gyz);
+  delete [] Kxx; delete [] Kyy; delete [] Kzz;
+  delete [] Kxy; delete [] Kxz; delete [] Kyz;
 
-  free(Kxx); free(Kyy); free(Kzz);
-  free(Kxy); free(Kxz); free(Kyz);
+  delete [] psi; delete [] alp;
 
-  free(psi); free(alp);
-
-  free(x); free(y); free(z);
+  delete [] x; delete [] y; delete [] z;
 
   if(verbose)
     std::cout << "\n\n<-Z4c::ADMTwoPunctures\n\n";
