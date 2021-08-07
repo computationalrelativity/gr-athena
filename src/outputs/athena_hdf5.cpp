@@ -473,10 +473,19 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         << "Coordinate name too long\n";
     ATHENA_ERROR(msg);
   }
+
+  // Make length actual length to avoid
+  // AddressSanitizer: global-buffer-overflow
+  H5Tset_size(string_type, std::strlen(COORDINATE_SYSTEM));
+
   attribute = H5Acreate2(file, "Coordinates", string_type, dataspace_scalar,
                          H5P_DEFAULT, H5P_DEFAULT);
   H5Awrite(attribute, string_type, COORDINATE_SYSTEM);
   H5Aclose(attribute);
+
+  // Revert
+  H5Tset_size(string_type, max_name_length+1);
+
 
   // Write extent of grid in x1-direction
   double coord_range[3];
