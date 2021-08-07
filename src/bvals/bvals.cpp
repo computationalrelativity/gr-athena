@@ -323,9 +323,11 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
   HydroBoundaryVariable *phbvar = nullptr;
   (void)phbvar;
   Hydro *ph = nullptr;
+  AthenaArray<Real> phpw;             // BD: avoid null deref
 
   if (FLUID_ENABLED) {
     ph = pmb->phydro;
+    phpw = ph->w;
     phbvar = dynamic_cast<HydroBoundaryVariable *>(bvars_main_int[0]);
   }
 
@@ -335,9 +337,12 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
   FaceCenteredBoundaryVariable *pfbvar = nullptr;
   (void)pfbvar;
   Field *pf = nullptr;
+  FaceField pfpb;                     // BD: avoid null deref
+
   if (MAGNETIC_FIELDS_ENABLED) {
     pf = pmb->pfield;
     pfbvar = dynamic_cast<FaceCenteredBoundaryVariable *>(bvars_main_int[1]);
+    pfpb = pf->b;
   }
   PassiveScalars *ps = nullptr;
   if (NSCALARS > 0) {
@@ -348,23 +353,23 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
   if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
     DispatchBoundaryFunctions(pmb, pco, time, dt,
                               pmb->is, pmb->ie, bjs, bje, bks, bke, NGHOST,
-                              ph->w, pf->b, BoundaryFace::inner_x1,
+                              phpw, pfpb, BoundaryFace::inner_x1,
                               bvars_main_int);
     // KGF: COUPLING OF QUANTITIES (must be manually specified)
     if (MAGNETIC_FIELDS_ENABLED) {
-      pmb->pfield->CalculateCellCenteredField(pf->b, pf->bcc, pco,
+      pmb->pfield->CalculateCellCenteredField(pfpb, pf->bcc, pco,
                                               pmb->is-NGHOST, pmb->is-1,
                                               bjs, bje, bks, bke);
     }
 
-    if (FLUID_ENABLED){
-      pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
+    if (FLUID_ENABLED) {
+      pmb->peos->PrimitiveToConserved(phpw, pf->bcc, ph->u, pco,
                                       pmb->is-NGHOST, pmb->is-1, bjs, bje, bks, bke);
     }
 
     if (NSCALARS > 0) {
       pmb->peos->PassiveScalarPrimitiveToConserved(
-        ps->r, ph->w, ps->s, pco, pmb->is-NGHOST, pmb->is-1, bjs, bje, bks, bke);
+        ps->r, phpw, ps->s, pco, pmb->is-NGHOST, pmb->is-1, bjs, bje, bks, bke);
     }
   }
 
@@ -372,23 +377,23 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
   if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
     DispatchBoundaryFunctions(pmb, pco, time, dt,
                               pmb->is, pmb->ie, bjs, bje, bks, bke, NGHOST,
-                              ph->w, pf->b, BoundaryFace::outer_x1,
+                              phpw, pfpb, BoundaryFace::outer_x1,
                               bvars_main_int);
     // KGF: COUPLING OF QUANTITIES (must be manually specified)
     if (MAGNETIC_FIELDS_ENABLED) {
-      pmb->pfield->CalculateCellCenteredField(pf->b, pf->bcc, pco,
+      pmb->pfield->CalculateCellCenteredField(pfpb, pf->bcc, pco,
                                               pmb->ie+1, pmb->ie+NGHOST,
                                               bjs, bje, bks, bke);
     }
 
     if (FLUID_ENABLED) {
-      pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
+      pmb->peos->PrimitiveToConserved(phpw, pf->bcc, ph->u, pco,
                                       pmb->ie+1, pmb->ie+NGHOST, bjs, bje, bks, bke);
     }
 
     if (NSCALARS > 0) {
       pmb->peos->PassiveScalarPrimitiveToConserved(
-        ps->r, ph->w, ps->s, pco, pmb->ie+1, pmb->ie+NGHOST, bjs, bje, bks, bke);
+        ps->r, phpw, ps->s, pco, pmb->ie+1, pmb->ie+NGHOST, bjs, bje, bks, bke);
     }
   }
 
@@ -397,23 +402,23 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
     if (apply_bndry_fn_[BoundaryFace::inner_x2]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie, pmb->js, pmb->je, bks, bke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::inner_x2,
+                                phpw, pfpb, BoundaryFace::inner_x2,
                                 bvars_main_int);
       // KGF: COUPLING OF QUANTITIES (must be manually specified)
       if (MAGNETIC_FIELDS_ENABLED) {
-        pmb->pfield->CalculateCellCenteredField(pf->b, pf->bcc, pco,
+        pmb->pfield->CalculateCellCenteredField(pfpb, pf->bcc, pco,
                                                 bis, bie, pmb->js-NGHOST, pmb->js-1,
                                                 bks, bke);
       }
 
       if (FLUID_ENABLED) {
-        pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
+        pmb->peos->PrimitiveToConserved(phpw, pf->bcc, ph->u, pco,
                                         bis, bie, pmb->js-NGHOST, pmb->js-1, bks, bke);
       }
 
       if (NSCALARS > 0) {
         pmb->peos->PassiveScalarPrimitiveToConserved(
-            ps->r, ph->w, ps->s, pco, bis, bie, pmb->js-NGHOST, pmb->js-1, bks, bke);
+            ps->r, phpw, ps->s, pco, bis, bie, pmb->js-NGHOST, pmb->js-1, bks, bke);
       }
     }
 
@@ -421,23 +426,23 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
     if (apply_bndry_fn_[BoundaryFace::outer_x2]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie, pmb->js, pmb->je, bks, bke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::outer_x2,
+                                phpw, pfpb, BoundaryFace::outer_x2,
                                 bvars_main_int);
       // KGF: COUPLING OF QUANTITIES (must be manually specified)
       if (MAGNETIC_FIELDS_ENABLED) {
-        pmb->pfield->CalculateCellCenteredField(pf->b, pf->bcc, pco,
+        pmb->pfield->CalculateCellCenteredField(pfpb, pf->bcc, pco,
                                                 bis, bie, pmb->je+1, pmb->je+NGHOST,
                                                 bks, bke);
       }
 
       if (FLUID_ENABLED) {
-        pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
+        pmb->peos->PrimitiveToConserved(phpw, pf->bcc, ph->u, pco,
                                         bis, bie, pmb->je+1, pmb->je+NGHOST, bks, bke);
       }
 
       if (NSCALARS > 0) {
         pmb->peos->PassiveScalarPrimitiveToConserved(
-          ps->r, ph->w, ps->s, pco, bis, bie, pmb->je+1, pmb->je+NGHOST, bks, bke);
+          ps->r, phpw, ps->s, pco, bis, bie, pmb->je+1, pmb->je+NGHOST, bks, bke);
       }
     }
   }
@@ -450,23 +455,23 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
     if (apply_bndry_fn_[BoundaryFace::inner_x3]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie, bjs, bje, pmb->ks, pmb->ke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::inner_x3,
+                                phpw, pfpb, BoundaryFace::inner_x3,
                                 bvars_main_int);
       // KGF: COUPLING OF QUANTITIES (must be manually specified)
       if (MAGNETIC_FIELDS_ENABLED) {
-        pmb->pfield->CalculateCellCenteredField(pf->b, pf->bcc, pco,
+        pmb->pfield->CalculateCellCenteredField(pfpb, pf->bcc, pco,
                                                 bis, bie, bjs, bje,
                                                 pmb->ks-NGHOST, pmb->ks-1);
       }
 
       if (FLUID_ENABLED) {
-        pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
+        pmb->peos->PrimitiveToConserved(phpw, pf->bcc, ph->u, pco,
                                         bis, bie, bjs, bje, pmb->ks-NGHOST, pmb->ks-1);
       }
 
       if (NSCALARS > 0) {
         pmb->peos->PassiveScalarPrimitiveToConserved(
-            ps->r, ph->w, ps->s, pco, bis, bie, bjs, bje, pmb->ks-NGHOST, pmb->ks-1);
+            ps->r, phpw, ps->s, pco, bis, bie, bjs, bje, pmb->ks-NGHOST, pmb->ks-1);
       }
     }
 
@@ -474,23 +479,23 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
     if (apply_bndry_fn_[BoundaryFace::outer_x3]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie, bjs, bje, pmb->ks, pmb->ke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::outer_x3,
+                                phpw, pfpb, BoundaryFace::outer_x3,
                                 bvars_main_int);
       // KGF: COUPLING OF QUANTITIES (must be manually specified)
       if (MAGNETIC_FIELDS_ENABLED) {
-        pmb->pfield->CalculateCellCenteredField(pf->b, pf->bcc, pco,
+        pmb->pfield->CalculateCellCenteredField(pfpb, pf->bcc, pco,
                                                 bis, bie, bjs, bje,
                                                 pmb->ke+1, pmb->ke+NGHOST);
       }
 
       if (FLUID_ENABLED) {
-      pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
+      pmb->peos->PrimitiveToConserved(phpw, pf->bcc, ph->u, pco,
                                       bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
       }
 
       if (NSCALARS > 0) {
         pmb->peos->PassiveScalarPrimitiveToConserved(
-            ps->r, ph->w, ps->s, pco, bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
+            ps->r, phpw, ps->s, pco, bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
       }
     }
   }
@@ -525,14 +530,21 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundaries(const Real time, cons
 
   // KGF: COUPLING OF QUANTITIES (must be manually specified)
   // downcast BoundaryVariable ptrs to known derived class types: RTTI via dynamic_cast
-  Hydro *ph = nullptr;
-  Field *pf = nullptr;
+
+  // BD:
+  // Hydro *ph = nullptr;
+  // Field *pf = nullptr;
+  // Replace ph->w and pf->b to avoid null deref
+
+  AthenaArray<Real> phpw;
+  FaceField pfpf;
 
   // Apply boundary function on inner-x1 and update W,bcc (if not periodic)
   if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
     DispatchBoundaryFunctions(pmb, pco, time, dt,
                               pmb->ivs, pmb->ive, bjs, bje, bks, bke, NGHOST,
-                              ph->w, pf->b, BoundaryFace::inner_x1,
+                              phpw, pfpf,
+                              BoundaryFace::inner_x1,
                               bvars_main_int_vc);
   }
 
@@ -540,7 +552,8 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundaries(const Real time, cons
   if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
     DispatchBoundaryFunctions(pmb, pco, time, dt,
                               pmb->ivs, pmb->ive, bjs, bje, bks, bke, NGHOST,
-                              ph->w, pf->b, BoundaryFace::outer_x1,
+                              phpw, pfpf,
+                              BoundaryFace::outer_x1,
                               bvars_main_int_vc);
   }
 
@@ -549,7 +562,8 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundaries(const Real time, cons
     if (apply_bndry_fn_[BoundaryFace::inner_x2]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie, pmb->jvs, pmb->jve, bks, bke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::inner_x2,
+                                phpw, pfpf,
+                                BoundaryFace::inner_x2,
                                 bvars_main_int_vc);
     }
 
@@ -557,7 +571,8 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundaries(const Real time, cons
     if (apply_bndry_fn_[BoundaryFace::outer_x2]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie, pmb->jvs, pmb->jve, bks, bke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::outer_x2,
+                                phpw, pfpf,
+                                BoundaryFace::outer_x2,
                                 bvars_main_int_vc);
     }
   }
@@ -570,7 +585,8 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundaries(const Real time, cons
     if (apply_bndry_fn_[BoundaryFace::inner_x3]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie, bjs, bje, pmb->kvs, pmb->kve, NGHOST,
-                                ph->w, pf->b, BoundaryFace::inner_x3,
+                                phpw, pfpf,
+                                BoundaryFace::inner_x3,
                                 bvars_main_int_vc);
     }
 
@@ -578,7 +594,8 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundaries(const Real time, cons
     if (apply_bndry_fn_[BoundaryFace::outer_x3]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie, bjs, bje, pmb->kvs, pmb->kve, NGHOST,
-                                ph->w, pf->b, BoundaryFace::outer_x3,
+                                phpw, pfpf,
+                                BoundaryFace::outer_x3,
                                 bvars_main_int_vc);
     }
   }
