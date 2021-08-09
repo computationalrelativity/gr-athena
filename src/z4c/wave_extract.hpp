@@ -57,14 +57,15 @@ class WaveExtractLocal {
     WaveExtractLocal(SphericalGrid * psphere, MeshBlock * pmb, ParameterInput * pin, int n);
     ~WaveExtractLocal();
     //Calculates factorial - move to a general utility?
-    Real fac(Real n);
+    int fac(int n);
+    Real lnfac(int n);
     // Calculates spin weight -2 spherical harmonics real and imaginary parts
     void swsh(Real * ylmR, Real * ylmI, int l, int m, Real theta, Real phi);
     //! Computes the l m modes of the given grid function
     void Decompose_multipole(AthenaArray<Real> const & u_R,AthenaArray<Real> const & u_I);
   public:
     //! lm projections
-    AthenaArray<Real> psi;    
+    AthenaArray<Real> psi;
     //! Patch of the spherical grid on which we are working
     SphericalPatch * ppatch;
   private:
@@ -73,6 +74,8 @@ class WaveExtractLocal {
     AthenaArray<Real> weight;
     Real rad;
     int lmax;
+
+    AthenaArray<Real> cache_lnfac;
 };
 
 #endif

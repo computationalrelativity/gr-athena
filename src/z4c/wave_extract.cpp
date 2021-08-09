@@ -155,10 +155,21 @@ WaveExtractLocal::WaveExtractLocal(SphericalGrid * psphere, MeshBlock * pmb, Par
     weight(ip) = ppatch->psphere->ComputeWeight(ppatch->idxMap(ip));
     weight(ip) /= rad*rad;
   }
+
+  // prepare log factorial cache
+  const int sz_lnfac = 2*lmax+1;
+  cache_lnfac.NewAthenaArray(sz_lnfac);
+  for(int i=0; i<sz_lnfac; ++i)
+  {
+    cache_lnfac(i) = lnfac(i);
+  }
 }
 
 WaveExtractLocal::~WaveExtractLocal() {
   delete ppatch;
+
+  // clean up log factorial cache
+  cache_lnfac.DeleteAthenaArray();
 }
 
 void WaveExtractLocal::Decompose_multipole(AthenaArray<Real> const & u_R, AthenaArray<Real> const & u_I) {
@@ -171,43 +182,91 @@ void WaveExtractLocal::Decompose_multipole(AthenaArray<Real> const & u_R, Athena
 //    ppatch->psphere->SphericalGrid::Position(ppatch->idxMap(ip),&x,&y,&z);
 //   printf("theta = %.16f, phi = %.16f, ip_patch = %d, ip_global = %d, x = %.16f, y = %.16f, z = %.16f\n",theta,phi,ip,ppatch->idxMap(ip),x,y,z);
 //}
+
+  const int num_points = ppatch->NumPoints(); // loop-lift the lookup
+                                              // as it causes issues on aocc compiler
     for (int l = 2; l < lmax+1; ++l){
       for (int m = -l; m < l+1 ; ++m){
-        Real psilmR = 0.0;
-        Real psilmI = 0.0;
-          for (int ip = 0; ip < ppatch->NumPoints(); ++ip) {
+          for (int ip = 0; ip < num_points; ++ip) {
             ppatch->psphere->GeodesicGrid::PositionPolar(ppatch->idxMap(ip),&theta,&phi);
             swsh(&ylmR,&ylmI,l,m,theta,phi);
-            psilmR += datareal(ip)*weight(ip)*ylmR + dataim(ip)*weight(ip)*ylmI;
-            psilmI += dataim(ip)*weight(ip)*ylmR -datareal(ip)*weight(ip)*ylmI;
+            psi(l-2,m+l,0) += datareal(ip)*weight(ip)*ylmR + dataim(ip)*weight(ip)*ylmI;
+            psi(l-2,m+l,1) += dataim(ip)*weight(ip)*ylmR -datareal(ip)*weight(ip)*ylmI;
           }
-        psi(l-2,m+l,0) = psilmR;
-        psi(l-2,m+l,1) = psilmI;
       }
    }
+
 }
 
 //Factorial
-Real WaveExtractLocal::fac(Real n){
- if(n==0 || n==1){
-   return 1.0;
+int WaveExtractLocal::fac(int n){
+ if((n==0) || (n==1)){
+   return 1;
  }
- else{
-   n=n*fac(n-1);
-   return n;
+ else
+ {
+   return n * fac(n-1);
  }
+}
+
+//ln(n!)
+Real WaveExtractLocal::lnfac(int n){
+  Real res = 0;
+
+  for(int i=2; i<=n; ++i)
+  {
+    res += std::log(i);
+  }
+
+  return res;
 }
 
 //Calculate spin weighted spherical harmonics sw=-2 using Wigner-d matrix notation see e.g. Eq II.7, II.8 in 0709.0093
 void WaveExtractLocal::swsh(Real * ylmR, Real * ylmI, int l, int m, Real theta, Real phi){
   Real wignerd = 0;
-  int k1,k2,k;
-  k1 = std::max(0, m-2);
-  k2 = std::min(l+m,l-2);
-  for (k = k1; k<k2+1; ++k){
-    wignerd += pow((-1),k)*sqrt(fac(l+m)*fac(l-m)*fac(l+2)*fac(l-2))*pow(std::cos(theta/2.0),2*l+m-2-2*k)*pow(std::sin(theta/2.0),2*k+2-m)/(fac(l+m-k)*fac(l-2-k)*fac(k)*fac(k+2-m));
+
+  // expression is for:
+  // {}^{-s}Y_{lm} =
+  // (-1)^s \sqrt{(2l+1)/(4pi)} d^l_{m,s}(th) exp(i m ph)
+  // so select s=2 to generate the negative weight
+
+  const int s = 2;
+  const int ph_Y = std::pow(-1, s);
+
+  const int k1 = std::max(0, m-s);
+  const int k2 = std::min(l+m,l-s);
+
+  for (int k=k1; k<k2+1; ++k){
+
+    // const Real fac_A = fac(l+m)*fac(l-m)*fac(l+s)*fac(l-s);
+    // const Real fac_B = fac(l+m-k)*fac(l-s-k)*fac(k)*fac(k+s-m);
+
+    const Real lfac_A = (cache_lnfac(l+m)+cache_lnfac(l-m)
+      +cache_lnfac(l+s)+cache_lnfac(l-s));
+    const Real lfac_B = (cache_lnfac(l+m-k)+cache_lnfac(l-s-k)
+      +cache_lnfac(k)+cache_lnfac(k+s-m));
+
+    const Real lfac = std::sqrt(std::exp(lfac_A-2*lfac_B));
+
+    const int ph = std::pow(-1, k);
+
+    const int ph_A = 2*l+m-s-2*k;
+    const int ph_B = 2*k+s-m;
+
+    // wignerd += ph * sqrt(fac_A) / fac_B * (
+    //   std::pow(std::cos(theta/2.0), ph_A) * std::pow(std::sin(theta/2.0), ph_B)
+    // );
+
+    wignerd += ph * lfac * (
+      std::pow(std::cos(theta/2.0), ph_A) * std::pow(std::sin(theta/2.0), ph_B)
+    );
+
   }
-  *ylmR = sqrt((2*l+1)/(4*M_PI))*wignerd*std::cos(m*phi);
-  *ylmI = sqrt((2*l+1)/(4*M_PI))*wignerd*std::sin(m*phi);
+
+  // printf("(l,m,theta,phi,wignerd)=(%d,%d,%1.4e,%1.4e,%1.4e)\n",
+  //   l, m, theta, phi, wignerd);
+
+  *ylmR = ph_Y * sqrt((2*l+1)/(4*M_PI)) * wignerd * std::cos(m*phi);
+  *ylmI = ph_Y * sqrt((2*l+1)/(4*M_PI)) * wignerd * std::sin(m*phi);
 }
 
