@@ -2136,6 +2136,7 @@ void Mesh::OutputCycleDiagnostics() {
       std::cout << "cycle=" << ncycle << std::scientific
                 << std::setprecision(dt_precision)
                 << " time=" << time << " dt=" << dt;
+
       if (dt_diagnostics != -1) {
         if (STS_ENABLED) {
           if (UserTimeStep_ == nullptr)
@@ -2159,6 +2160,30 @@ void Mesh::OutputCycleDiagnostics() {
         }
       } // else (empty): dt_diagnostics = -1 -> provide no additional timestep diagnostics
       std::cout << std::endl;
+
+      #ifdef MB_DIAG
+        int min_max[2] = {0, 0};
+        GetCurrentMinMaxMeshBlockNumber(&min_max[0]);
+
+        double ThreadR = static_cast<double>(GetNumMeshThreads());
+        double const min_MBpT = static_cast<double>(min_max[0]) / ThreadR;
+        double const max_MBpT = static_cast<double>(min_max[1]) / ThreadR;
+
+        std::cout
+        << "#([R]ank, [T]hread/R; Total:[M]esh[B]lock, "
+        << "Min:MB/R, Max:MB/R; Min:MB/T, Max:MB/T):" << std::endl;
+
+        std::cout << "("
+        << Globals::nranks << ", "
+        << GetNumMeshThreads() << "; "
+        << nbtotal << ", "
+        << min_max[0] << ", " << min_max[1] << "; "
+        << std::scientific
+        << std::setprecision(1)
+        << min_MBpT << ", " << max_MBpT << ")"
+        << std::setprecision(dt_precision)
+        << std::endl;
+      #endif
     }
   }
   return;

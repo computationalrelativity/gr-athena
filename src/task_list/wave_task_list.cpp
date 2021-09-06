@@ -434,13 +434,13 @@ TaskStatus WaveIntegratorTaskList::IntegrateWave(MeshBlock *pmb, int stage) {
     ave_wghts[0] = 1.0;
     ave_wghts[1] = stage_wghts[stage-1].delta;
     ave_wghts[2] = 0.0;
-    pmb->WeightedAve(pwave->u1, pwave->u, pwave->u2, ave_wghts);
+    pmb->WeightedAveVC(pwave->u1, pwave->u, pwave->u2, ave_wghts);
 
     ave_wghts[0] = stage_wghts[stage-1].gamma_1;
     ave_wghts[1] = stage_wghts[stage-1].gamma_2;
     ave_wghts[2] = stage_wghts[stage-1].gamma_3;
 
-    pmb->WeightedAve(pwave->u, pwave->u1, pwave->u2, ave_wghts);
+    pmb->WeightedAveVC(pwave->u, pwave->u1, pwave->u2, ave_wghts);
 
     pwave->AddWaveRHS(stage_wghts[stage-1].beta, pwave->u);
 

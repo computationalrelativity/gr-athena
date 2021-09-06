@@ -641,10 +641,10 @@ TaskStatus Z4cIntegratorTaskList::Z4c_Weyl(MeshBlock *pmb, int stage) {
 
 #ifdef Z4C_WEXT
   Mesh *pm = pmb->pmy_mesh;
-  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction)) {
+//  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction)) {
     pmb->pz4c->Z4cWeyl(pmb->pz4c->storage.adm, pmb->pz4c->storage.mat,
                        pmb->pz4c->storage.weyl);
-  }
+//  }
 
 #endif // Z4C_WEXT
   return TaskStatus::success;
@@ -657,7 +657,7 @@ TaskStatus Z4cIntegratorTaskList::WaveExtract(MeshBlock *pmb, int stage) {
 #ifdef Z4C_WEXT
   Mesh *pm = pmb->pmy_mesh;
 
-  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction)) {
+//  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction)) {
     AthenaArray<Real> u_R;
     AthenaArray<Real> u_I;
     u_R.InitWithShallowSlice(pmb->pz4c->storage.weyl, Z4c::I_WEY_rpsi4, 1);
@@ -665,7 +665,7 @@ TaskStatus Z4cIntegratorTaskList::WaveExtract(MeshBlock *pmb, int stage) {
     for(int n = 0; n<NRAD;++n){
       pmb->pwave_extr_loc[n]->Decompose_multipole(u_R,u_I);
     }
-  }
+//  }
 
 #endif // Z4C_WEXT
   return TaskStatus::success;

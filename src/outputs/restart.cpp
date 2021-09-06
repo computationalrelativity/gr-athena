@@ -50,7 +50,7 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
   // create single output filename:"file_basename"+"."+XXXXX+".rst",
   // where XXXXX = 5-digit file_number
   std::string fname;
-  char number[6];
+  char number[6]{};
   std::snprintf(number, sizeof(number), "%05d", output_params.file_number);
 
   fname.assign(output_params.file_basename);
@@ -146,8 +146,8 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
   }
 
   // allocate memory for the ID list and the data
-  char *idlist = new char[listsize*mynb];
-  char *data = new char[mynb*datasize];
+  char *idlist = new char[listsize*mynb]();
+  char *data = new char[mynb*datasize]();
 
   // Loop over MeshBlocks and pack the meta data
   pmb = pm->pblock;

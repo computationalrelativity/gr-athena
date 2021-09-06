@@ -476,6 +476,8 @@ class Mesh {
   void UpdateMeshBlockTree(int &nnew, int &ndel);
   bool GatherCostListAndCheckBalance();
   void RedistributeAndRefineMeshBlocks(ParameterInput *pin, int ntot);
+  void GetCurrentMinMaxMeshBlockNumber(int *min_max);
+
 
   // Mesh::RedistributeAndRefineMeshBlocks() helper functions:
   // step 6: send

@@ -576,7 +576,7 @@ int main(int argc, char *argv[]) {
 //WGC wext
 #ifdef Z4C_WEXT
       // only do an extraction if NextTime threshold cleared (updated below)
-      if (pz4clist->TaskListTriggers.wave_extraction.to_update)
+//      if (pz4clist->TaskListTriggers.wave_extraction.to_update)
         for (int n = 0;n<NRAD;++n){
           pmesh->pwave_extr[n]->ReduceMultipole();
           pmesh->pwave_extr[n]->Write(pmesh->ncycle, pmesh->time);

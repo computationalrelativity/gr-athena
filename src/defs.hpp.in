@@ -34,6 +34,7 @@
 
 #define DBG_VC_CONSISTENCY 0
 
+#define MB_DIAG
 //------
 
 //----------------------------------------------------------------------------------------
@@ -147,7 +148,7 @@
 #define @GSL_OPTION@
 
 // debug build macros (DEBUG or NOT_DEBUG)
-#define @DEBUG_OPTION@
+// #define @DEBUG_OPTION@
 
 // try/throw/catch C++ exception handling (ENABLE_EXCEPTIONS or DISABLE_EXCEPTIONS)
 // (enabled by default)

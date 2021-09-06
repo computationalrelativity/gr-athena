@@ -368,6 +368,22 @@ bool Mesh::GatherCostListAndCheckBalance() {
   return true;
 }
 
+void Mesh::GetCurrentMinMaxMeshBlockNumber(int * min_max)
+{
+  min_max[0] = nblist[0];
+  min_max[1] = nblist[0];
+
+  for (int rank=1; rank<Globals::nranks; rank++)
+  {
+    if(nblist[rank] < min_max[0])
+      min_max[0] = nblist[rank];
+
+    if(nblist[rank] > min_max[1])
+      min_max[1] = nblist[rank];
+
+  }
+}
+
 
 //----------------------------------------------------------------------------------------
 // \!fn void Mesh::RedistributeAndRefineMeshBlocks(ParameterInput *pin, int ntot)

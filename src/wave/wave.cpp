@@ -80,7 +80,7 @@ Wave::Wave(MeshBlock *pmb, ParameterInput *pin) :
   // Used for:
   // (1) load-balancing
   // (2) (future) dumping to restart file
-  pmb->RegisterMeshBlockData(u);
+  pmb->RegisterMeshBlockDataVC(u);
 
 
   // Allocate memory for the solution and its time derivative
@@ -177,7 +177,7 @@ Wave::Wave(MeshBlock *pmb, ParameterInput *pin) :
 
   // "Enroll" in SMR/AMR by adding to vector of pointers in MeshRefinement class
   if (pm->multilevel) {
-    refinement_idx = pmb->pmr->AddToRefinement(&u, &coarse_u_);
+    refinement_idx = pmb->pmr->AddToRefinementVC(&u, &coarse_u_);
   }
 
   // enroll CellCenteredBoundaryVariable / VertexCenteredBoundaryVariable object

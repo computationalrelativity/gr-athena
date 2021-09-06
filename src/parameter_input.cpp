@@ -172,8 +172,8 @@ void ParameterInput::LoadFromStream(std::istream &is) {
 void ParameterInput::LoadFromFile(IOWrapper &input) {
   std::stringstream par, msg;
   constexpr int kBufSize = 4096;
-  char buf[kBufSize];
-  IOWrapperSizeT header = 0, ret, loc;
+  char buf[kBufSize]{};
+  IOWrapperSizeT header = 0, ret = 0, loc = 0;
 
   // search <par_end> or EOF.
   do {
