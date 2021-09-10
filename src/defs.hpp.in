@@ -20,6 +20,7 @@
 #define DBGPR_BVALS_VAR false
 #define DBGPR_BVALS_REFINE false
 #define DBGPR_BVALS_CC false
+#define DBGPR_FLXCOR_CC false
 #define DBGPR_BVALS_VC false
 #define DBGPR_CONSISTENCY_CONDITIONS_VC false
 #define DBGPR_WAVEINTEGRATORTASKLIST false
@@ -171,6 +172,19 @@
 #define MAX_NSTAGE 5     // maximum number of stages per cycle for time-integrator
 #define MAX_NREGISTER 3  // maximum number of (u, b) register pairs for time-integrator
 #define NRAD @NUMBER_EXT_RAD@
+
+// variable conversion ------------------------------------
+#define VC_NGHOST NGHOST
+#define CC_NGHOST NGHOST
+
+// define the (half) size of the stencil for CC<->VC
+// 1: two nodes total used  -> exact for linear.
+// 2: four nodes total used -> exact for 3rd power.
+#define NGRCV_HSZ 1
+
+// dimensionality of underlying (interpolated) data
+// #define NGRCV_NDIM 1
+// --------------------------------------------------------
 
 //----------------------------------------------------------------------------------------
 // general purpose macros (never modified)

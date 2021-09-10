@@ -65,4 +65,11 @@
     GLOOP2(k,j)                                                               \
     GLOOP1(i)
 
+
+// 1D loop over i over interior cell centres 1 fewer point than VC .
+#define CLOOP1(i)                                                             \
+  _Pragma("omp simd")                                                         \
+  for(int i = IX_IL; i <= IX_IU-1; ++i)
+
+
 #endif

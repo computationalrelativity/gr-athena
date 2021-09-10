@@ -20,6 +20,7 @@
 #include "../coordinates/coordinates.hpp"  // Coordinates
 #include "../field/field.hpp"              // FaceField
 #include "../mesh/mesh.hpp"                // MeshBlock
+#include "../z4c/z4c.hpp"                // MeshBlock
 
 // Reprimand headers
 
@@ -30,7 +31,7 @@
 
 // Declarations
 static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim, Real gamma_adi,
-    const AthenaArray<Real> &g, const AthenaArray<Real> &gi, int k, int j, int i,
+    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, int k, int j, int i,
     AthenaArray<Real> &cons, Coordinates *pco);
 Real fthr, fatm, rhoc;
 Real k_adi, gamma_adi;
@@ -51,6 +52,8 @@ namespace{
 Real Determinant(Real a11, Real a12, Real a13, Real a21, Real a22, Real a23,
                  Real a31, Real a32, Real a33);
 Real Determinant(Real a11, Real a12, Real a21, Real a22);
+Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
+                  int const i);
 }
 
 //----------------------------------------------------------------------------------------
@@ -138,41 +141,69 @@ using namespace EOS_Toolkit;
   const Real max_wgas_rel = 1.0e8;
   const Real initial_guess_multiplier = 10.0;
   const int initial_guess_multiplications = 10;
-
+  int nn1 = iu+1;
   // Extract ratio of specific heats
   const Real &gamma_adi = gamma_;
   atmosphere atmo{atmo_rho, atmo_eps, atmo_ye, atmo_p, atmo_cut};
   con2prim_mhd cv2pv(eos, rho_strict, ye_lenient, max_z, max_b,
                      atmo, c2p_acc, max_iter);
 
+      AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy;
+      AthenaArray<Real> vcgamma_yz,vcgamma_zz,vcbeta_x,vcbeta_y;
+      AthenaArray<Real> vcbeta_z, vcalpha;
+
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha; //lapse
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u; //lapse
+      AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd; //lapse
+      alpha.NewAthenaTensor(nn1);
+      beta_u.NewAthenaTensor(nn1);
+      gamma_dd.NewAthenaTensor(nn1);
+      vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
+      vcgamma_xy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
+      vcgamma_xz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
+      vcgamma_yy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
+      vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
+      vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
+      vcbeta_x.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betax,1);
+      vcbeta_y.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betay,1);
+      vcbeta_z.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betaz,1);
+      vcalpha.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
+
+
   // Go through cells
   for (int k=kl; k<=ku; ++k) {
     for (int j=jl; j<=ju; ++j) {
-      pco->CellMetric(k, j, il, iu, g_, g_inv_);
+//      pco->CellMetric(k, j, il, iu, g_, g_inv_);
       #pragma omp simd
       for (int i=il; i<=iu; ++i) {
+//For tetsing with ``old metric''
+/*          gamma_dd(0,0,i) = g_(I11,i);      
+          gamma_dd(0,1,i) = g_(I12,i);      
+          gamma_dd(0,2,i) = g_(I13,i);      
+          gamma_dd(1,1,i) = g_(I22,i);      
+          gamma_dd(1,2,i) = g_(I23,i);      
+          gamma_dd(2,2,i) = g_(I33,i);      
+          alpha(i) = std::sqrt(-1.0/g_inv_(I00,i));
+          beta_u(0,i) = SQR(alpha(i))*g_inv_(I01,i);
+          beta_u(1,i) = SQR(alpha(i))*g_inv_(I02,i);
+          beta_u(2,i) = SQR(alpha(i))*g_inv_(I03,i);
+*/
+          gamma_dd(0,0,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
+          gamma_dd(0,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
+          gamma_dd(0,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
+          gamma_dd(1,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
+          gamma_dd(1,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
+          gamma_dd(2,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
+          alpha(i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcalpha(k,j,i));
+          beta_u(0,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcbeta_x(k,j,i));
+          beta_u(1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcbeta_y(k,j,i));
+          beta_u(2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcbeta_z(k,j,i));
 
-        // Extract metric
-        const Real
-            // unused:
-            //&g_00 = g_(I00,i), &g_01 = g_(I01,i), &g_02 = g_(I02,i), &g_03 = g_(I03,i),
-            // &g_10 = g_(I01,i);
-            // &g_20 = g_(I02,i), &g_21 = g_(I12,i);
-            // &g_30 = g_(I03,i), &g_31 = g_(I13,i), &g_32 = g_(I23,i);
-            &g_11 = g_(I11,i), &g_12 = g_(I12,i), &g_13 = g_(I13,i),
-            &g_22 = g_(I22,i), &g_23 = g_(I23,i),
-            &g_33 = g_(I33,i);
-        const Real &g00 = g_inv_(I00,i), &g01 = g_inv_(I01,i), &g02 = g_inv_(I02,i),
-                   &g03 = g_inv_(I03,i), &g10 = g_inv_(I01,i), &g11 = g_inv_(I11,i),
-                   &g12 = g_inv_(I12,i), &g13 = g_inv_(I13,i), &g20 = g_inv_(I02,i),
-                   &g21 = g_inv_(I12,i), &g22 = g_inv_(I22,i), &g23 = g_inv_(I23,i),
-                   &g30 = g_inv_(I03,i), &g31 = g_inv_(I13,i), &g32 = g_inv_(I23,i),
-                   &g33 = g_inv_(I33,i);
-        Real alpha = 1.0/std::sqrt(-g00);
-        Real detgamma  = g_11*(g_22*g_33 - SQR(g_23)) - g_12*(g_12*g_33 - g_23*g_13) + g_13*(g_12*g_23 - g_22*g_13);
-        Real sqrtdetgamma = std::sqrt(detgamma);
-        Real sqrtdetg = alpha*sqrtdetgamma;
 
+      }
+      
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i) {
 
 
         // Extract conserved quantities
@@ -194,8 +225,8 @@ using namespace EOS_Toolkit;
 
         cons_vars_mhd evolved{Dg, taug, 0.0,
                           {S_1g,S_2g,S_3g}, {0.0,0.0,0.0}};
-
-        sm_tensor2_sym<real_t, 3, false, false> gtens(g_11,g_12,g_22,g_13,g_23,g_33);
+// TODO feed new metric to reprimand here
+        sm_tensor2_sym<real_t, 3, false, false> gtens(gamma_dd(0,0,i),gamma_dd(0,1,i),gamma_dd(1,1,i),gamma_dd(0,2,i),gamma_dd(1,2,i),gamma_dd(2,2,i));
         sm_metric3 g_eos(gtens);
         prim_vars_mhd primitives;
         con2prim_mhd::report rep;
@@ -205,6 +236,7 @@ using namespace EOS_Toolkit;
     if (rep.failed())
     {
       std::cerr << rep.debug_message();
+      printf("i=%d, j=%d, k=%d\n",i,j,k);
       //abort simulation
     }
     else {
@@ -228,7 +260,7 @@ using namespace EOS_Toolkit;
       pgasfix = true;
       }
       if (rep.adjust_cons || rep.set_atmo || pgasfix) {
-          PrimitiveToConservedSingle(prim, gamma_adi, g_, g_inv_, k, j, i, cons, pco);
+          PrimitiveToConservedSingle(prim, gamma_adi, gamma_dd, k, j, i, cons, pco);
 
 
 
@@ -257,12 +289,37 @@ using namespace EOS_Toolkit;
 void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
      const AthenaArray<Real> &bb_cc, AthenaArray<Real> &cons, Coordinates *pco, int il,
      int iu, int jl, int ju, int kl, int ku) {
+      AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd; //lapse
+  int nn1 = iu+1;
+      gamma_dd.NewAthenaTensor(nn1);
+      AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy;
+      AthenaArray<Real> vcgamma_yz,vcgamma_zz;
+      vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
+      vcgamma_xy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
+      vcgamma_xz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
+      vcgamma_yy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
+      vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
+      vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
   for (int k=kl; k<=ku; ++k) {
     for (int j=jl; j<=ju; ++j) {
-      pco->CellMetric(k, j, il, iu, g_, g_inv_);
+//      pco->CellMetric(k, j, il, iu, g_, g_inv_);
+      for (int i=il; i<=iu; ++i) {
+//          gamma_dd(0,0,i) = g_(I11,i);
+//          gamma_dd(0,1,i) = g_(I12,i);
+//          gamma_dd(0,2,i) = g_(I13,i);
+//          gamma_dd(1,1,i) = g_(I22,i);
+//          gamma_dd(1,2,i) = g_(I23,i);
+//          gamma_dd(2,2,i) = g_(I33,i);
+          gamma_dd(0,0,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
+          gamma_dd(0,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
+          gamma_dd(0,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
+          gamma_dd(1,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
+          gamma_dd(1,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
+          gamma_dd(2,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
+}
       //#pragma omp simd // fn is too long to inline
       for (int i=il; i<=iu; ++i) {
-        PrimitiveToConservedSingle(prim, gamma_, g_, g_inv_, k, j, i, cons, pco);
+        PrimitiveToConservedSingle(prim, gamma_, gamma_dd, k, j, i, cons, pco);
       }
     }
   }
@@ -280,33 +337,62 @@ void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
 // Outputs:
 //   cons: conserved variables set in desired cell
 
+// TODO change arguments so instead of taking g(n,i), gi(n,i) it just takes gamma(a,b,i)
 static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim, Real gamma_adi,
-    const AthenaArray<Real> &g, const AthenaArray<Real> &gi, int k, int j, int i,
+    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, int k, int j, int i,
     AthenaArray<Real> &cons, Coordinates *pco) {
+
+    AthenaArray<Real> utilde_u;  // primitive gamma^i_a u^a
+    AthenaArray<Real> utilde_d;  // primitive gamma^i_a u^a
+    AthenaArray<Real> v_d;  // primitive gamma^i_a u^a
+
+  utilde_u.NewAthenaArray(3);
+  utilde_d.NewAthenaArray(3);
+  v_d.NewAthenaArray(3);
 
   const Real &rho = prim(IDN,k,j,i);
   const Real &pgas = prim(IPR,k,j,i);
-  const Real &uu1 = prim(IVX,k,j,i);
-  const Real &uu2 = prim(IVY,k,j,i);
-  const Real &uu3 = prim(IVZ,k,j,i);
+//  const Real &uu1 = prim(IVX,k,j,i);
+//  const Real &uu2 = prim(IVY,k,j,i);
+//  const Real &uu3 = prim(IVZ,k,j,i);
+     for(int a=0;a<NDIM;++a){
+              utilde_u(a) = prim(a+IVX,k,j,i);
+      }
 
   // Calculate 4-velocity
-  Real alpha = std::sqrt(-1.0/gi(I00,i));
-  Real detgamma = std::sqrt(Determinant(g(I11,i),g(I12,i),g(I13,i),g(I12,i),g(I22,i),g(I23,i),g(I13,i),g(I23,i),g(I33,i)));
-  Real tmp = g(I11,i)*uu1*uu1 + 2.0*g(I12,i)*uu1*uu2 + 2.0*g(I13,i)*uu1*uu3
-           + g(I22,i)*uu2*uu2 + 2.0*g(I23,i)*uu2*uu3
-           + g(I33,i)*uu3*uu3;
-  Real gamma = std::sqrt(1.0 + tmp);
-  Real u0 = gamma/alpha;
-  Real u1 = uu1 - alpha * gamma * gi(I01,i);
-  Real u2 = uu2 - alpha * gamma * gi(I02,i);
-  Real u3 = uu3 - alpha * gamma * gi(I03,i);
-  Real u_0, u_1, u_2, u_3;
-  pco->LowerVectorCell(u0, u1, u2, u3, k, j, i, &u_0, &u_1, &u_2, &u_3);
+//  Real alpha = std::sqrt(-1.0/gi(I00,i));
+  Real detgamma = std::sqrt(Det3Metric(gamma_dd,i));
+  Real Wlor = 0.0;
+  for(int a=0;a<NDIM;++a){
+          for(int b=0;b<NDIM;++b){
+                  Wlor += utilde_u(a)*utilde_u(b)*gamma_dd(a,b,i);
+           }
+       }
+   Wlor = std::sqrt(1.0+Wlor);
 
-  Real v_1 = u_1/gamma; 
-  Real v_2 = u_2/gamma;  
-  Real v_3 = u_3/gamma;  
+  
+  utilde_d.ZeroClear();
+
+        for(int a=0;a<NDIM;++a){
+          for(int b=0;b<NDIM;++b){
+                  utilde_d(a) += utilde_u(b)*gamma_dd(a,b,i);
+              }
+      }
+
+      for(int a=0;a<NDIM;++a){
+             v_d(a) = utilde_d(a)/Wlor;
+      }
+
+//  Real utilde_d_1 = g(I11,i)*uu1 + g(I12,i)*uu2 + g(I13,i)*uu3;
+//  Real utilde_d_2 = g(I12,i)*uu1 + g(I22,i)*uu2 + g(I23,i)*uu3;
+//  Real utilde_d_3 = g(I13,i)*uu1 + g(I23,i)*uu2 + g(I33,i)*uu3;
+
+//  Real v_1 = u_1/gamma; 
+//  Real v_2 = u_2/gamma;  
+//  Real v_3 = u_3/gamma;  
+//  Real v_1 = utilde_d_1/gamma; 
+//  Real v_2 = utilde_d_2/gamma;  
+//  Real v_3 = utilde_d_3/gamma;  
   // Extract conserved quantities
   Real &Ddg = cons(IDN,k,j,i);
   Real &taudg = cons(IEN,k,j,i);
@@ -316,11 +402,11 @@ static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim, Real gamma
 
   // Set conserved quantities
   Real wgas = rho + gamma_adi/(gamma_adi-1.0) * pgas;
-  Ddg = rho*gamma*detgamma;
-  taudg = wgas*SQR(gamma)*detgamma - rho*gamma*detgamma - pgas*detgamma;
-  S_1dg = wgas*SQR(gamma) * v_1*detgamma  ;
-  S_2dg = wgas*SQR(gamma) * v_2*detgamma  ;
-  S_3dg = wgas*SQR(gamma) * v_3*detgamma  ;
+  Ddg = rho*Wlor*detgamma;
+  taudg = wgas*SQR(Wlor)*detgamma - rho*Wlor*detgamma - pgas*detgamma;
+  S_1dg = wgas*SQR(Wlor) * v_d(0)*detgamma  ;
+  S_2dg = wgas*SQR(Wlor) * v_d(1)*detgamma  ;
+  S_3dg = wgas*SQR(Wlor) * v_d(2)*detgamma  ;
   return;
 }
 
@@ -363,7 +449,7 @@ void EquationOfState::SoundSpeedsSR(Real rho_h, Real pgas, Real vx, Real gamma_l
 // Notes:
 //   follows same general procedure as vchar() in phys.c in Harm
 //   variables are named as though 1 is normal direction
-
+/*
 void EquationOfState::SoundSpeedsGR(Real rho_h, Real pgas, Real u0, Real u1, Real g00,
     Real g01, Real g11, Real *plambda_plus, Real *plambda_minus) {
   // Parameters and constants
@@ -395,7 +481,29 @@ void EquationOfState::SoundSpeedsGR(Real rho_h, Real pgas, Real u0, Real u1, Rea
   }
   return;
 }
+*/
+void EquationOfState::SoundSpeedsGR(Real rho_h, Real pgas, Real vi, Real v2, Real alpha,
+    Real betai, Real gammaii, Real *plambda_plus, Real *plambda_minus) {
+  // Parameters and constants
 
+  // Calculate comoving sound speed
+  Real cs_sq = gamma_adi * pgas / rho_h;
+  Real cs = std::sqrt(cs_sq);
+
+  Real  root_1 = alpha*(vi*(1.0-cs_sq) + cs*std::sqrt( (1-v2)*(gammaii*(1.0-v2*cs_sq) - vi*vi*(1-cs_sq)  )     )    )/(1-v2*cs_sq) - betai;
+
+  Real  root_2 = alpha*(vi*(1.0-cs_sq) - cs*std::sqrt( (1-v2)*(gammaii*(1.0-v2*cs_sq) - vi*vi*(1-cs_sq)  )     )    )/(1-v2*cs_sq) - betai;
+  
+
+  if (root_1 > root_2) {
+    *plambda_plus = root_1;
+    *plambda_minus = root_2;
+  } else {
+    *plambda_plus = root_2;
+    *plambda_minus = root_1;
+  }
+  return;
+}
 
 
 //---------------------------------------------------------------------------------------
@@ -425,4 +533,13 @@ Real Determinant(Real a11, Real a12, Real a13, Real a21, Real a22, Real a23,
 Real Determinant(Real a11, Real a12, Real a21, Real a22) {
   return a11 * a22 - a12 * a21;
 }
+Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
+                  int const i)
+{
+  return - SQR(gamma(0,2,i))*gamma(1,1,i) + 
+          2*gamma(0,1,i)*gamma(0,2,i)*gamma(1,2,i) - 
+          gamma(0,0,i)*SQR(gamma(1,2,i)) - SQR(gamma(0,1,i))*gamma(2,2,i) +
+          gamma(0,0,i)*gamma(1,1,i)*gamma(2,2,i);
+}
+
 }

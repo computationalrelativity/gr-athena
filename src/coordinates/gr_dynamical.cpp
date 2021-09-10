@@ -18,8 +18,10 @@
 #include "../athena_arrays.hpp"
 #include "../eos/eos.hpp"
 #include "../mesh/mesh.hpp"
+#include "../hydro/hydro.hpp"
 #include "../parameter_input.hpp"
 #include "../z4c/z4c.hpp"
+#include "../z4c/z4c_macro.hpp"
 #include "coordinates.hpp"
 
 namespace {
@@ -32,6 +34,13 @@ void Invert4Metric(AthenaArray<Real> &ginv, AthenaArray<Real> &g);
 void CalculateTransformation(
     const AthenaArray<Real> &g,
     const AthenaArray<Real> &g_inv, int face, AthenaArray<Real> &transformation);
+Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
+                  int const i);
+void Inverse3Metric(Real const detginv,
+                     Real const gxx, Real const gxy, Real const gxz,
+                     Real const gyy, Real const gyz, Real const gzz,
+                     Real * uxx, Real * uxy, Real * uxz,
+                Real * uyy, Real * uyz, Real * uzz);
 } // namespace
 
 //----------------------------------------------------------------------------------------
@@ -45,7 +54,7 @@ GRDynamical::GRDynamical(MeshBlock *pmb, ParameterInput *pin, bool flag)
     : Coordinates(pmb, pin, flag) {
   // Set object names
   RegionSize& block_size = pmy_block->block_size;
-
+  fix_sources = pin->GetOrAddInteger("hydro","fix_sources",0);
   // set more indices
   int ill = il - ng;
   int iuu = iu + ng;
@@ -383,193 +392,357 @@ Real GRDynamical::GetCellVolume(const int k, const int j, const int i) {
 void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real> *flux,
                            const AthenaArray<Real> &prim, const AthenaArray<Real> &bb_cc,
                            AthenaArray<Real> &cons) {
-  // Extract indices
+
   int is = pmy_block->is;
   int ie = pmy_block->ie;
   int js = pmy_block->js;
   int je = pmy_block->je;
   int ks = pmy_block->ks;
   int ke = pmy_block->ke;
-
+  int nn1 = pmy_block->ncells1;
+  int a,b,c,d,e;
+//  bool fix_sources=0;
   // Extract ratio of specific heats
   Real gamma_adi = pmy_block->peos->GetGamma();
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha; //lapse
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> detg; //lapse
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Wlor;  // lorentz factor
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> wtot;  // rho*h
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> pgas;  // pressure
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> rho;   // density
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Stau;  // source term tau eq
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dalpha_d;  // pd_i alpha
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u;  // beta^i
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> utilde_u;  // primitive gamma^i_a u^a
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> v_u;  // 3 velocity v^i
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> v_d;  // 3 vel v_i
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> SS_d;  // Source term for S_i eq
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> dbeta_du;  // pd_i beta^j
+      AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;  //gamma_{ij}
+      AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_uu;  // gamma^{ij}
+      AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> dgamma_ddd;  // pd_i gamma_{jk}
+      AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> K_dd;  // K_{ij}
+
+// To delete for tetsing...
+
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> dbeta_dd;  // pd_i beta^j
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_d;  // pd_i beta^j
+      AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> dgamma_duu;  // pd_i gamma_{jk}
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> betadbeta_ddu;  // beta^i
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> betadbeta_udd;  // beta^i
+
+      AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy;
+      AthenaArray<Real> vcgamma_yz,vcgamma_zz,vcbeta_x,vcbeta_y;
+      AthenaArray<Real> vcbeta_z, vcalpha;
+      AthenaArray<Real> vcK_xx,vcK_xy,vcK_xz,vcK_yy;
+      AthenaArray<Real> vcK_yz,vcK_zz;
+      AthenaArray<Real> pgas_init, rho_init, w_init;
+
+
+      pgas_init.NewAthenaArray(nn1);
+      rho_init.NewAthenaArray(nn1);
+      w_init.NewAthenaArray(nn1);
+      alpha.NewAthenaTensor(nn1);
+      detg.NewAthenaTensor(nn1);
+      Wlor.NewAthenaTensor(nn1);
+      wtot.NewAthenaTensor(nn1);
+      pgas.NewAthenaTensor(nn1);
+      rho.NewAthenaTensor(nn1);
+      Stau.NewAthenaTensor(nn1);
+      dalpha_d.NewAthenaTensor(nn1);
+      beta_u.NewAthenaTensor(nn1);
+      utilde_u.NewAthenaTensor(nn1);
+      v_u.NewAthenaTensor(nn1);
+      v_d.NewAthenaTensor(nn1);
+      SS_d.NewAthenaTensor(nn1);
+      dbeta_du.NewAthenaTensor(nn1);
+      gamma_dd.NewAthenaTensor(nn1);
+      gamma_uu.NewAthenaTensor(nn1);
+      dgamma_ddd.NewAthenaTensor(nn1);
+      K_dd.NewAthenaTensor(nn1);
+// to delete for testing
+      dbeta_dd.NewAthenaTensor(nn1);
+      beta_d.NewAthenaTensor(nn1);
+      dgamma_duu.NewAthenaTensor(nn1);
+      betadbeta_ddu.NewAthenaTensor(nn1);
+      betadbeta_udd.NewAthenaTensor(nn1);
+
+      vcgamma_xx.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
+      vcgamma_xy.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
+      vcgamma_xz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
+      vcgamma_yy.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
+      vcgamma_yz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
+      vcgamma_zz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
+      vcK_xx.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_Kxx,1);
+      vcK_xy.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_Kxy,1);
+      vcK_xz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_Kxz,1);
+      vcK_yy.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_Kyy,1);
+      vcK_yz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_Kyz,1);
+      vcK_zz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_Kzz,1);
+      vcbeta_x.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_betax,1);
+      vcbeta_y.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_betay,1);
+      vcbeta_z.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_betaz,1);
+      vcalpha.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
 
   // Go through cells
   for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
-#pragma omp simd
-      for (int i=is; i<=ie; ++i) {
-        // Extract metric coefficients
-        const Real &g_00 = metric_cell_kji_(0,I00,k,j,i);
-        const Real &g_01 = metric_cell_kji_(0,I01,k,j,i);
-        const Real &g_02 = metric_cell_kji_(0,I02,k,j,i);
-        const Real &g_03 = metric_cell_kji_(0,I03,k,j,i);
-        const Real &g_11 = metric_cell_kji_(0,I11,k,j,i);
-        const Real &g_12 = metric_cell_kji_(0,I12,k,j,i);
-        const Real &g_13 = metric_cell_kji_(0,I13,k,j,i);
-        const Real &g_22 = metric_cell_kji_(0,I22,k,j,i);
-        const Real &g_23 = metric_cell_kji_(0,I23,k,j,i);
-        const Real &g_33 = metric_cell_kji_(0,I33,k,j,i);
-        const Real &g00 = metric_cell_kji_(1,I00,k,j,i);
-        const Real &g01 = metric_cell_kji_(1,I01,k,j,i);
-        const Real &g02 = metric_cell_kji_(1,I02,k,j,i);
-        const Real &g03 = metric_cell_kji_(1,I03,k,j,i);
-        const Real &g11 = metric_cell_kji_(1,I11,k,j,i);
-        const Real &g12 = metric_cell_kji_(1,I12,k,j,i);
-        const Real &g13 = metric_cell_kji_(1,I13,k,j,i);
-        const Real &g22 = metric_cell_kji_(1,I22,k,j,i);
-        const Real &g23 = metric_cell_kji_(1,I23,k,j,i);
-        const Real &g33 = metric_cell_kji_(1,I33,k,j,i);
-        Real alpha = std::sqrt(-1.0/g00);
+/*
+     // Alternative calculation for testing using ``old'' interpolated metric 
+              CLOOP1(i){
+                 gamma_dd(0,0,i) = metric_cell_kji_(0,I11,k,j,i);
+                 gamma_dd(0,1,i) = metric_cell_kji_(0,I12,k,j,i);
+                 gamma_dd(0,2,i) = metric_cell_kji_(0,I13,k,j,i);
+                 gamma_dd(1,1,i) = metric_cell_kji_(0,I22,k,j,i);
+                 gamma_dd(1,2,i) = metric_cell_kji_(0,I23,k,j,i);
+                 gamma_dd(2,2,i) = metric_cell_kji_(0,I33,k,j,i);
+                 K_dd(0,0,i) = excurv_kji_(S11,k,j,i);
+                 K_dd(0,1,i) = excurv_kji_(S12,k,j,i);
+                 K_dd(0,2,i) = excurv_kji_(S13,k,j,i);
+                 K_dd(1,1,i) = excurv_kji_(S22,k,j,i);
+                 K_dd(1,2,i) = excurv_kji_(S23,k,j,i);
+                 K_dd(2,2,i) = excurv_kji_(S33,k,j,i);
+                 alpha(i) = std::sqrt(-1.0/metric_cell_kji_(1,I00,k,j,i));
+                 beta_u(0,i) = metric_cell_kji_(1,I01,k,j,i)*SQR(alpha(i));
+                 beta_u(1,i) = metric_cell_kji_(1,I02,k,j,i)*SQR(alpha(i));
+                 beta_u(2,i) = metric_cell_kji_(1,I03,k,j,i)*SQR(alpha(i));
+              }
+           for(a = 0; a < 3 ;++a){
+             CLOOP1(i){
+             dgamma_ddd(a,0,0,i) = coord_src_kji_(a,I11,k,j,i);
+             dgamma_ddd(a,0,1,i) = coord_src_kji_(a,I12,k,j,i);
+             dgamma_ddd(a,0,2,i) = coord_src_kji_(a,I13,k,j,i);
+             dgamma_ddd(a,1,0,i) = coord_src_kji_(a,I12,k,j,i);
+             dgamma_ddd(a,1,1,i) = coord_src_kji_(a,I22,k,j,i);
+             dgamma_ddd(a,1,2,i) = coord_src_kji_(a,I23,k,j,i);
+             dgamma_ddd(a,2,0,i) = coord_src_kji_(a,I13,k,j,i);
+             dgamma_ddd(a,2,1,i) = coord_src_kji_(a,I23,k,j,i);
+             dgamma_ddd(a,2,2,i) = coord_src_kji_(a,I33,k,j,i);
+            }
+        }
+// calculate inverse metric
 
-        // Extract primitives
-        const Real &rho = prim(IDN,k,j,i);
-        const Real &pgas = prim(IEN,k,j,i);
-        const Real &uu1 = prim(IVX,k,j,i);
-        const Real &uu2 = prim(IVY,k,j,i);
-        const Real &uu3 = prim(IVZ,k,j,i);
+      CLOOP1(i) {
+      detg(i) = Det3Metric(gamma_dd, i);
+      Inverse3Metric(1.0/detg(i),
+          gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
+          gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i),
+          &gamma_uu(0,0,i), &gamma_uu(0,1,i), &gamma_uu(0,2,i),
+          &gamma_uu(1,1,i), &gamma_uu(1,2,i), &gamma_uu(2,2,i));
+      }
+         
+           for(a = 0; a < 3 ;++a){
+             CLOOP1(i){
+       dbeta_dd(a,0,i) = coord_src_kji_(a,I01,k,j,i);
+       dbeta_dd(a,1,i) = coord_src_kji_(a,I02,k,j,i);
+       dbeta_dd(a,2,i) = coord_src_kji_(a,I03,k,j,i);
+    }
+    } 
+            
+       dgamma_duu.ZeroClear();
+       for(a = 0; a<3; ++a){
+       for(b = 0; b<3; ++b){
+       for(c = 0; c<3; ++c){
+           for(d = 0; d<3; ++d){
+               for(e = 0; e<3; ++e){
+                    CLOOP1(i){
+                    dgamma_duu(a,b,c,i) -=  gamma_uu(d,c,i)*gamma_uu(e,b,i)*dgamma_ddd(a,e,d,i);
+                    }
+                }
+           } 
+       }
+       }
+       }
 
-        // Calculate 4-velocity
-        Real uu_sq = g_11*uu1*uu1 + 2.0*g_12*uu1*uu2 + 2.0*g_13*uu1*uu3
-                     + g_22*uu2*uu2 + 2.0*g_23*uu2*uu3
-                     + g_33*uu3*uu3;
-        Real gamma = std::sqrt(1.0 + uu_sq);
-        Real u0 = gamma / alpha;
-        Real u1 = uu1 - alpha * gamma * g01;
-        Real u2 = uu2 - alpha * gamma * g02;
-        Real u3 = uu3 - alpha * gamma * g03;
+       dbeta_du.ZeroClear();
+       for(a = 0; a<3; ++a){
+       for(b = 0; b<3; ++b){
+           for(c = 0; c<3; ++c){
+              CLOOP1(i){ 
+              dbeta_du(a,b,i) += gamma_uu(b,c,i)*dbeta_dd(a,c,i) + beta_d(c,i)*dgamma_duu(a,b,c,i); 
+              }
+           }
+       }
+       }
 
-	// Calculate 3 velocity
-	Real v1 = uu1/gamma;
-	Real v2 = uu2/gamma;
-	Real v3 = uu3/gamma;
+       beta_d.ZeroClear();
+             for(a = 0; a<3; ++a){
+             for(b = 0; a<3; ++a){
+               CLOOP1(i){
+                   beta_d(a,i) += beta_u(b,i) * gamma_dd(a,b,i);
+                   }
+                 }
+             }
+      
+       betadbeta_ddu.ZeroClear();
+       betadbeta_udd.ZeroClear();
+       for(a = 0; a<3; ++a){
+           for(b = 0; b<3; ++b){
+               CLOOP1(i){
+               betadbeta_ddu(a,i) += beta_d(b,i)*dbeta_du(a,b,i);
+               betadbeta_udd(a,i) += beta_u(b,i)*dbeta_dd(a,b,i);
+               }
+           }
+       }
+
+       for(a = 0; a<3; ++a){
+            CLOOP1(i){ 
+            dalpha_d(a,i) = (coord_src_kji_(a,I00,k,j,i) - betadbeta_ddu(a,i) - betadbeta_udd(a,i))/(-2.0*alpha(i));
+            }
+       }
+*/
+ 
+// populate alpha, beta, gamma, K, derivatives done
+     CLOOP1(i){
+     gamma_dd(0,0,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
+     gamma_dd(0,1,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
+     gamma_dd(0,2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
+     gamma_dd(1,1,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
+     gamma_dd(1,2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
+     gamma_dd(2,2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
+     K_dd(0,0,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcK_xx(k,j,i));
+     K_dd(0,1,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcK_xy(k,j,i));
+     K_dd(0,2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcK_xz(k,j,i));
+     K_dd(1,1,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcK_yy(k,j,i));
+     K_dd(1,2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcK_yz(k,j,i));
+     K_dd(2,2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcK_zz(k,j,i));
+     alpha(i) = pmy_block->pz4c->ig->map3d_VC2CC(vcalpha(k,j,i));
+     beta_u(0,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcbeta_x(k,j,i));
+     beta_u(1,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcbeta_y(k,j,i));
+     beta_u(2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcbeta_z(k,j,i));
+    } 
+    for(a=0;a<NDIM;++a){
+        CLOOP1(i){
+              dgamma_ddd(a,0,0,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcgamma_xx(k,j,i));
+              dgamma_ddd(a,0,1,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcgamma_xy(k,j,i));
+              dgamma_ddd(a,0,2,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcgamma_xz(k,j,i));
+              dgamma_ddd(a,1,1,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcgamma_yy(k,j,i));
+              dgamma_ddd(a,1,2,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcgamma_yz(k,j,i));
+              dgamma_ddd(a,2,2,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcgamma_zz(k,j,i));
+              dalpha_d(a,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcalpha(k,j,i));
+              dbeta_du(a,0,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcbeta_x(k,j,i));
+              dbeta_du(a,1,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcbeta_y(k,j,i));
+              dbeta_du(a,2,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcbeta_z(k,j,i));
+        }
+    }
+
+      CLOOP1(i) {
+      detg(i) = Det3Metric(gamma_dd, i);
+      Inverse3Metric(1.0/detg(i),
+          gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
+          gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i),
+          &gamma_uu(0,0,i), &gamma_uu(0,1,i), &gamma_uu(0,2,i),
+          &gamma_uu(1,1,i), &gamma_uu(1,2,i), &gamma_uu(2,2,i));
+      }
+
+// Read in primitives
+      for(a=0;a<NDIM;++a){
+          CLOOP1(i){
+              utilde_u(a,i) = prim(a+IVX,k,j,i);
+          }
+      }
+      
+      CLOOP1(i){
+          pgas(i) = prim(IPR,k,j,i);
+          rho(i)  = prim(IDN,k,j,i);
+      }
+
+// Calulate enthalpy (rho*h) NB EOS specific!
+      CLOOP1(i){
+          wtot(i) = rho(i) + gamma_adi/(gamma_adi-1.0) * pgas(i);
+      }
+// calculate Lorentz factor
+      Wlor.ZeroClear();
+      for(a=0;a<NDIM;++a){
+          for(b=0;b<NDIM;++b){
+              CLOOP1(i){
+                  Wlor(i) += utilde_u(a,i)*utilde_u(b,i)*gamma_dd(a,b,i);
+              }
+           }
+       }
+       CLOOP1(i){
+            Wlor(i) = std::sqrt(1.0+Wlor(i));
+       }
+// calculate 3 velocity v^i
+
+      for(a=0;a<NDIM;++a){
+          CLOOP1(i){
+             v_u(a,i) = utilde_u(a,i)/Wlor(i);
+          }
+      }
+
+//calculate 3 velocity index down v_i
+      v_d.ZeroClear();
+      for(a=0;a<NDIM;++a){
+          for(b=0;b<NDIM;++b){
+              CLOOP1(i){
+                  v_d(a,i) += v_u(b,i)*gamma_dd(a,b,i);
+              }
+          }
+      }
+      Stau.ZeroClear();
+      for(a=0;a<NDIM; ++a){ 
+          CLOOP1(i){
+              Stau(i) -= wtot(i)*SQR(Wlor(i))*( v_u(a,i)*dalpha_d(a,i))/alpha(i) ;
+          }
+          for(b = 0; b<NDIM; ++b){ 
+              CLOOP1(i){
+                  Stau(i) += (wtot(i)*SQR(Wlor(i)) * v_u(a,i)*v_u(b,i) + pgas(i)*gamma_uu(a,b,i))*K_dd(a,b,i) ;
+              }
+          }
+      }
+      SS_d.ZeroClear();
+      for(a = 0; a<NDIM; ++a){  
+          CLOOP1(i){
+               SS_d(a,i) = - (wtot(i)*SQR(Wlor(i)) - pgas(i))  * dalpha_d(a,i)/alpha(i);
+          }
+          for(b = 0; b<NDIM; ++b){  
+              CLOOP1(i){
+                  SS_d(a,i) += wtot(i) *SQR(Wlor(i))*v_d(b,i)*dbeta_du(a,b,i)/alpha(i);
+              }
+              for(c = 0; c<NDIM; ++c){  
+                  CLOOP1(i){
+                      SS_d(a,i) +=  0.5*(wtot(i)*SQR(Wlor(i))*v_u(b,i)*v_u(c,i) + pgas(i)*gamma_uu(b,c,i))*dgamma_ddd(a,b,c,i) ;
+                  }
+              }
+          }
+       }
+
+       
+//        Real &taudg = cons(IEN,k,j,i);
+//        Real &S_1dg = cons(IM1,k,j,i);
+//        Real &S_2dg = cons(IM2,k,j,i);
+ //       Real &S_3dg = cons(IM3,k,j,i);
 
 
-
-        // Extract and calculate magnetic field
-        Real b0 = 0.0, b1 = 0.0, b2 = 0.0, b3 = 0.0;
-        Real b_sq = 0.0;
-        if (MAGNETIC_FIELDS_ENABLED) {
-          Real u_1 = g_01*u0 + g_11*u1 + g_12*u2 + g_13*u3;
-          Real u_2 = g_02*u0 + g_12*u1 + g_22*u2 + g_23*u3;
-          Real u_3 = g_03*u0 + g_13*u1 + g_23*u2 + g_33*u3;
-          const Real &bb1 = bb_cc(IB1,k,j,i);
-          const Real &bb2 = bb_cc(IB2,k,j,i);
-          const Real &bb3 = bb_cc(IB3,k,j,i);
-          b0 = u_1*bb1 + u_2*bb2 + u_3*bb3;
-          b1 = (bb1 + b0 * u1) / u0;
-          b2 = (bb2 + b0 * u2) / u0;
-          b3 = (bb3 + b0 * u3) / u0;
-          Real b_0 = g_00*b0 + g_01*b1 + g_02*b2 + g_03*b3;
-          Real b_1 = g_01*b0 + g_11*b1 + g_12*b2 + g_13*b3;
-          Real b_2 = g_02*b0 + g_12*b1 + g_22*b2 + g_23*b3;
-          Real b_3 = g_03*b0 + g_13*b1 + g_23*b2 + g_33*b3;
-          b_sq = b_0*b0 + b_1*b1 + b_2*b2 + b_3*b3;
+        if(fix_sources==1){
+        CLOOP1(i){
+        pgas_init(i) = pmy_block->phydro->w_init(IPR,k,j,i); 
+        rho_init(i) = pmy_block->phydro->w_init(IDN,k,j,i); 
+        w_init(i) = rho_init(i) + gamma_adi/(gamma_adi-1.0) * pgas_init(i);
+        Stau(i) = 0.0;
+        }
+        for(a=0;a<NDIM;++a){
+        CLOOP1(i){
+        SS_d(a,i) = - (w_init(i) - pgas_init(i))*dalpha_d(a,i)/alpha(i)  ;
+        }
+        for(b=0;b<NDIM;++b){
+        for(c=0;c<NDIM;++c){
+        CLOOP1(i){
+        SS_d(a,i) += 0.5*pgas_init(i)*gamma_uu(b,c,i)*dgamma_ddd(a,b,c,i);
+        }
+        }
+        }
+        }
         }
 
-        // Calculate stress-energy tensor
-        Real wtot = rho + gamma_adi/(gamma_adi-1.0) * pgas + b_sq;
-        Real ptot = pgas + 0.5*b_sq;
-        // Extract conserved quantities
-        Real &taudg = cons(IEN,k,j,i);
-        Real &S_1dg = cons(IM1,k,j,i);
-        Real &S_2dg = cons(IM2,k,j,i);
-        Real &S_3dg = cons(IM3,k,j,i);
 
-//     Source term for tau is: sqrt(-g) * 
-//     rho*h*W**2*v^i*v^j*K_{ij} + p*gamma^{ij}K_{ij} - rho*h*W**2/alpha * 
-//     v^j* partial_j alpha
-
-//     Source term for S_j is: sqrt(-g) *
-//     0.5*rho*h*W**2 * v^iv^k partial_j gamma_{ik} + 
-//     p/2 gamma^ik partial_j gamma_ik + rho h W**2 v^i/alpha partial_j beta_i -
-//     rho h W**2/alpha partial_j alpha + p/alpha partial_j alpha
-//
-//     We only have derivatives of g_ab, so dig00 = -2 alpha * dialpha + 2 beta_k di beta^k
-//     dig0j = di beta_j
-
-//coord_src_kji_ contains derivatives of 4 metric
-
-        Real d1beta1 = coord_src_kji_(0,I01,k,j,i);
-        Real d1beta2 = coord_src_kji_(0,I02,k,j,i);
-        Real d1beta3 = coord_src_kji_(0,I03,k,j,i);
-        Real d2beta1 = coord_src_kji_(1,I01,k,j,i);
-        Real d2beta2 = coord_src_kji_(1,I02,k,j,i);
-        Real d2beta3 = coord_src_kji_(1,I03,k,j,i);
-        Real d3beta1 = coord_src_kji_(2,I01,k,j,i);
-        Real d3beta2 = coord_src_kji_(2,I02,k,j,i);
-        Real d3beta3 = coord_src_kji_(2,I03,k,j,i);
-    
-
- 
-        Real beta1 = g01*SQR(alpha);
-        Real beta2 = g02*SQR(alpha);
-        Real beta3 = g03*SQR(alpha);
-        
-
-	Real betad1beta = beta1*d1beta1 + beta2*d1beta2 + beta3*d1beta3;
-	Real betad2beta = beta1*d2beta1 + beta2*d2beta2 + beta3*d2beta3;
-	Real betad3beta = beta1*d3beta1 + beta2*d3beta2 + beta3*d3beta3;
-
-//      derivative of g_00 rearranged to give dialpha
-        Real d1alpha = (coord_src_kji_(0,I00,k,j,i) - 2.0* betad1beta) / (-2.0*alpha);
-        Real d2alpha = (coord_src_kji_(1,I00,k,j,i) - 2.0* betad2beta) / (-2.0*alpha);
-        Real d3alpha = (coord_src_kji_(2,I00,k,j,i) - 2.0* betad3beta) / (-2.0*alpha);
-
-        Real gam11 = g11 + beta1*beta1/SQR(alpha);
-        Real gam12 = g12 + beta1*beta2/SQR(alpha);
-        Real gam13 = g13 + beta1*beta3/SQR(alpha);
-        Real gam22 = g22 + beta2*beta2/SQR(alpha);
-        Real gam23 = g23 + beta2*beta3/SQR(alpha);
-        Real gam33 = g33 + beta3*beta3/SQR(alpha);
-
-        Real K_11 = excurv_kji_(S11,k,j,i);
-        Real K_12 = excurv_kji_(S12,k,j,i);
-        Real K_13 = excurv_kji_(S13,k,j,i);
-        Real K_22 = excurv_kji_(S22,k,j,i);
-        Real K_23 = excurv_kji_(S23,k,j,i);
-        Real K_33 = excurv_kji_(S33,k,j,i);
-
-
-        Real Stau = wtot * SQR(gamma) * (v1*v1*K_11 + v2*v2*K_22 + v3*v3*K_33 + 2.0*v1*v2*K_12 + 2.0*v1*v3*K_13 + 2.0*v2*v3*K_23) + 
-                    pgas * (gam11*K_11 + gam22*K_22 + gam33*K_33 + 2.0*gam12*K_12 + 2.0*gam13*K_13 + 2.0*gam23*K_23) - 
-                    wtot*SQR(gamma)/alpha * (v1*d1alpha   + v2*d2alpha  + v3*d3alpha) ;
-
-        Real SS_1 = 0.5*( coord_src_kji_(0,I11,k,j,i)*(wtot*SQR(gamma)*v1*v1 + pgas*gam11) + 
-			  coord_src_kji_(0,I22,k,j,i)*(wtot*SQR(gamma)*v2*v2 + pgas*gam22) +
-       			  coord_src_kji_(0,I33,k,j,i)*(wtot*SQR(gamma)*v3*v3 + pgas*gam33) +
-			  2.0 * coord_src_kji_(0,I12,k,j,i)*(wtot*SQR(gamma)*v1*v2 + pgas*gam12) +
-			  2.0 * coord_src_kji_(0,I13,k,j,i)*(wtot*SQR(gamma)*v1*v3 + pgas*gam13) +
-			  2.0 * coord_src_kji_(0,I23,k,j,i)*(wtot*SQR(gamma)*v2*v3 + pgas*gam23)) +
-                     wtot * SQR(gamma) * ( v1*d1beta1 + v2*d1beta2 + v3*d1beta3 )   /alpha +
-                     d1alpha * (pgas - wtot *SQR(gamma)    )  /alpha;   
-
-        Real SS_2 = 0.5*( coord_src_kji_(1,I11,k,j,i)*(wtot*SQR(gamma)*v1*v1 + pgas*gam11) + 
-			  coord_src_kji_(1,I22,k,j,i)*(wtot*SQR(gamma)*v2*v2 + pgas*gam22) +
-       			  coord_src_kji_(1,I33,k,j,i)*(wtot*SQR(gamma)*v3*v3 + pgas*gam33) +
-			  2.0 * coord_src_kji_(1,I12,k,j,i)*(wtot*SQR(gamma)*v1*v2 + pgas*gam12) +
-			  2.0 * coord_src_kji_(1,I13,k,j,i)*(wtot*SQR(gamma)*v1*v3 + pgas*gam13) +
-			  2.0 * coord_src_kji_(1,I23,k,j,i)*(wtot*SQR(gamma)*v2*v3 + pgas*gam23)) +
-                     wtot * SQR(gamma) * ( v1*d2beta1 + v2*d2beta2 + v3*d2beta3 )   /alpha +
-                     d2alpha * (pgas - wtot *SQR(gamma)    )  /alpha;   
-        Real SS_3 = 0.5*( coord_src_kji_(2,I11,k,j,i)*(wtot*SQR(gamma)*v1*v1 + pgas*gam11) + 
-			  coord_src_kji_(2,I22,k,j,i)*(wtot*SQR(gamma)*v2*v2 + pgas*gam22) +
-       			  coord_src_kji_(2,I33,k,j,i)*(wtot*SQR(gamma)*v3*v3 + pgas*gam33) +
-			  2.0 * coord_src_kji_(2,I12,k,j,i)*(wtot*SQR(gamma)*v1*v2 + pgas*gam12) +
-			  2.0 * coord_src_kji_(2,I13,k,j,i)*(wtot*SQR(gamma)*v1*v3 + pgas*gam13) +
-			  2.0 * coord_src_kji_(2,I23,k,j,i)*(wtot*SQR(gamma)*v2*v3 + pgas*gam23)) +
-                     wtot * SQR(gamma) * ( v1*d3beta1 + v2*d3beta2 + v3*d3beta3 )   /alpha +
-                     d3alpha * (pgas - wtot *SQR(gamma)    )  /alpha;   
-
-
-
-        Real sqrtdetg = coord_3vol_kji_(k,j,i)*alpha; // = std::sqrt(detgam)  * alpha
-        // Add source terms to conserved quantities
-        taudg += dt * Stau*sqrtdetg;
-        S_1dg += dt * SS_1*sqrtdetg;
-        S_2dg += dt * SS_2*sqrtdetg;
-        S_3dg += dt * SS_3*sqrtdetg;
-      }
+        CLOOP1(i){
+        cons(IEN,k,j,i) += dt * Stau(i)*alpha(i)*std::sqrt(detg(i));
+        cons(IM1,k,j,i) += dt * SS_d(0,i)*alpha(i)*std::sqrt(detg(i));
+        cons(IM2,k,j,i) += dt * SS_d(1,i)*alpha(i)*std::sqrt(detg(i));
+        cons(IM3,k,j,i) += dt * SS_d(2,i)*alpha(i)*std::sqrt(detg(i));
+        }
     }
   }
   return;
@@ -1931,7 +2104,18 @@ for(int n=Z4c::I_ADM_gxx; n<Z4c::I_ADM_gzz+1; ++n){
 }
 //Construct inverse metric of cell centred metric
 //g_00 currently contains lapse, update to -alp**2 +beta^i beta_i
+// g(0I) currently contains beta^i. Want beta_i
+// beta_i = 
+Real beta1_d = g(I01)*g(I11) + g(I02)*g(I12) + g(I03)*g(I13);
+Real beta2_d = g(I01)*g(I12) + g(I02)*g(I22) + g(I03)*g(I23);
+Real beta3_d = g(I01)*g(I13) + g(I02)*g(I23) + g(I03)*g(I33);
+
 beta2 = g(I01)*g(I01)*g(I11) + g(I02)*g(I02)*g(I22) + g(I03)*g(I03) * g(I33);
+
+g(I01) = beta1_d;
+g(I02) = beta2_d;
+g(I03) = beta3_d;
+
 g(I00) = -g(I00)*g(I00) + beta2;
 
 //Invert 4 metric
@@ -2202,4 +2386,31 @@ void CalculateTransformation(
   transformation(1,T33) = 1.0/cc;
   return;
 }
+
+Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
+                  int const i)
+{
+  return - SQR(gamma(0,2,i))*gamma(1,1,i) + 
+          2*gamma(0,1,i)*gamma(0,2,i)*gamma(1,2,i) - 
+          gamma(0,0,i)*SQR(gamma(1,2,i)) - SQR(gamma(0,1,i))*gamma(2,2,i) + 
+          gamma(0,0,i)*gamma(1,1,i)*gamma(2,2,i);
+}
+
+void Inverse3Metric(Real const detginv,
+                     Real const gxx, Real const gxy, Real const gxz,
+                     Real const gyy, Real const gyz, Real const gzz,
+                     Real * uxx, Real * uxy, Real * uxz,
+                     Real * uyy, Real * uyz, Real * uzz)
+{
+  *uxx = (-SQR(gyz) + gyy*gzz)*detginv;
+  *uxy = (gxz*gyz  - gxy*gzz)*detginv;
+  *uyy = (-SQR(gxz) + gxx*gzz)*detginv;
+  *uxz = (-gxz*gyy + gxy*gyz)*detginv;
+  *uyz = (gxy*gxz  - gxx*gyz)*detginv;
+  *uzz = (-SQR(gxy) + gxx*gyy)*detginv;
+  return;
+}
+
+
+
 }
