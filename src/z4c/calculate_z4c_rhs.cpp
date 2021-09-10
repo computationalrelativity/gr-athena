@@ -577,7 +577,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
     ILOOP1(i) {
       Real const f = opt.lapse_oplog * opt.lapse_harmonicf + opt.lapse_harmonic * z4c.alpha(k,j,i);
       rhs.alpha(k,j,i) = opt.lapse_advect * Lalpha(i) - f * z4c.alpha(k,j,i) * z4c.Khat(k,j,i);
-         if(opt.cowling == 1){
+         if(opt.cowling == 1 || opt.fixedgauge == 1){
           rhs.alpha(k,j,i) =0.0;
           }
     }
@@ -586,7 +586,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
     for(int a = 0; a < NDIM; ++a) {
       ILOOP1(i) {
         rhs.beta_u(a,k,j,i) = z4c.Gam_u(a,k,j,i) + opt.shift_advect * Lbeta_u(a,i);
-         if(opt.cowling == 1){
+         if(opt.cowling == 1 || opt.fixedgauge == 1){
           rhs.beta_u(a,k,j,i) =0.0;
           }
         // rhs.beta_u(a,k,j,i) -= opt.shift_eta * z4c.beta_u(a,k,j,i);
@@ -622,7 +622,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
     for(int a = 0; a< NDIM; ++a) {
       ILOOP1(i) {
         rhs.beta_u(a,k,j,i) -= eta_damp(i) * z4c.beta_u(a,k,j,i);
-         if(opt.cowling == 1){
+         if(opt.cowling == 1 || opt.fixedgauge == 1){
           rhs.beta_u(a,k,j,i) =0.0;
           }
       }
@@ -656,7 +656,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
     for(int a = 0; a< NDIM; ++a) {
       ILOOP1(i) {
         rhs.beta_u(a,k,j,i) -= eta_damp(i) * z4c.beta_u(a,k,j,i);
-         if(opt.cowling == 1){
+         if(opt.cowling == 1 || opt.fixedgauge == 1){
           rhs.beta_u(a,k,j,i) =0.0;
           }
       }
@@ -667,7 +667,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
     for(int a = 0; a < NDIM; ++a) {
       ILOOP1(i) {
         rhs.beta_u(a,k,j,i) -= opt.shift_eta * z4c.beta_u(a,k,j,i);
-         if(opt.cowling == 1){
+         if(opt.cowling == 1 || opt.fixedgauge == 1){
           rhs.beta_u(a,k,j,i) =0.0;
           }
       }

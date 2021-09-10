@@ -242,11 +242,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 	  rho_kji  = rho_atm;
 	  pgas_kji = pre_atm;
 	}
-	phydro->w(IDN,k,j,i) = phydro->w1(IDN,k,j,i) = rho_kji;
-	phydro->w(IPR,k,j,i) = phydro->w1(IPR,k,j,i) = pgas_kji;
-	phydro->w(IVX,k,j,i) = phydro->w1(IVX,k,j,i) = 0.0;
-	phydro->w(IVY,k,j,i) = phydro->w1(IVY,k,j,i) = 0.0;
-	phydro->w(IVZ,k,j,i) = phydro->w1(IVZ,k,j,i) = 0.0;
+	phydro->w(IDN,k,j,i) = phydro->w1(IDN,k,j,i) = phydro->w_init(IDN,k,j,i) = rho_kji;
+	phydro->w(IPR,k,j,i) = phydro->w1(IPR,k,j,i) = phydro->w_init(IPR,k,j,i) = pgas_kji;
+	phydro->w(IVX,k,j,i) = phydro->w1(IVX,k,j,i) = phydro->w_init(IVX,k,j,i) = 0.0;
+	phydro->w(IVY,k,j,i) = phydro->w1(IVY,k,j,i) = phydro->w_init(IVY,k,j,i) = 0.0;
+	phydro->w(IVZ,k,j,i) = phydro->w1(IVZ,k,j,i) = phydro->w_init(IVZ,k,j,i) = 0.0;
       }
     }
   }
@@ -294,6 +294,23 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 	pz4c->storage.adm(Z4c::I_ADM_Kxz,k,j,i) = 0.0;
 	pz4c->storage.adm(Z4c::I_ADM_Kyz,k,j,i) = 0.0;
 	pz4c->storage.adm(Z4c::I_ADM_psi4,k,j,i) = psi4_kji;
+	pz4c->storage.u_init(Z4c::I_Z4c_alpha,k,j,i) = lapse_kji;
+	pz4c->storage.u_init(Z4c::I_Z4c_betax,k,j,i) = 0.0; 
+	pz4c->storage.u_init(Z4c::I_Z4c_betay,k,j,i) = 0.0; 
+	pz4c->storage.u_init(Z4c::I_Z4c_betaz,k,j,i) = 0.0; 
+	pz4c->storage.adm_init(Z4c::I_ADM_gxx,k,j,i) = psi4_kji;
+	pz4c->storage.adm_init(Z4c::I_ADM_gyy,k,j,i) = psi4_kji;
+	pz4c->storage.adm_init(Z4c::I_ADM_gzz,k,j,i) = psi4_kji;
+	pz4c->storage.adm_init(Z4c::I_ADM_gxy,k,j,i) = 0.0;
+	pz4c->storage.adm_init(Z4c::I_ADM_gxz,k,j,i) = 0.0;
+	pz4c->storage.adm_init(Z4c::I_ADM_gyz,k,j,i) = 0.0;
+	pz4c->storage.adm_init(Z4c::I_ADM_Kxx,k,j,i) = 0.0; 
+	pz4c->storage.adm_init(Z4c::I_ADM_Kyy,k,j,i) = 0.0; 
+	pz4c->storage.adm_init(Z4c::I_ADM_Kzz,k,j,i) = 0.0; 
+	pz4c->storage.adm_init(Z4c::I_ADM_Kxy,k,j,i) = 0.0;
+	pz4c->storage.adm_init(Z4c::I_ADM_Kxz,k,j,i) = 0.0;
+	pz4c->storage.adm_init(Z4c::I_ADM_Kyz,k,j,i) = 0.0;
+	pz4c->storage.adm_init(Z4c::I_ADM_psi4,k,j,i) = psi4_kji;
 	
       }
     }
@@ -302,7 +319,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   // Initialize remaining z4c variables
   pz4c->ADMToZ4c(pz4c->storage.adm,pz4c->storage.u);
   pz4c->ADMToZ4c(pz4c->storage.adm,pz4c->storage.u1); //?????
-
+  pz4c->ADMToZ4c(pz4c->storage.adm_init,pz4c->storage.u_init);
   // Initialise coordinate class, CC metric
   pcoord->UpdateMetric();
 
@@ -317,6 +334,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   // Initialise VC matter
   //TODO(WC) (don't strictly need this here, will be caught in task list before used
   pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w);
+  pz4c->ADMConstraints(pz4c->storage.con,pz4c->storage.adm,pz4c->storage.mat,pz4c->storage.u);
   
   return;
 }

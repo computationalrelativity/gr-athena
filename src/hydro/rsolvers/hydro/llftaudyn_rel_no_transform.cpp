@@ -13,6 +13,8 @@
 
 // Athena++ headers
 #include "../../hydro.hpp"
+#include "../../../z4c/z4c.hpp"
+#include "../../../utils/interp_intergrid.hpp"
 #include "../../../athena.hpp"                   // enums, macros
 #include "../../../athena_arrays.hpp"            // AthenaArray
 #include "../../../coordinates/coordinates.hpp"  // Coordinates
@@ -40,6 +42,14 @@ namespace{
 Real Determinant(Real a11, Real a12, Real a13, Real a21, Real a22, Real a23,
                  Real a31, Real a32, Real a33);
 Real Determinant(Real a11, Real a12, Real a21, Real a22);
+Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
+                  int const i);
+void Inverse3Metric(Real const detginv,
+                     Real const gxx, Real const gxy, Real const gxz,
+                     Real const gyy, Real const gyz, Real const gzz,
+                     Real * uxx, Real * uxy, Real * uxz,
+                Real * uyy, Real * uyz, Real * uzz);
+
 }
 
 void Hydro::RiemannSolver(const int k, const int j,
@@ -48,7 +58,8 @@ void Hydro::RiemannSolver(const int k, const int j,
   // Calculate cyclic permutations of indices
   int ivy = IVX + ((ivx-IVX)+1)%3;
   int ivz = IVX + ((ivx-IVX)+2)%3;
-
+  int a,b;
+  const int nn1 = iu  +1;
   // Extract ratio of specific heats
   const Real gamma_adi = pmy_block->peos->GetGamma();
 
@@ -56,9 +67,8 @@ void Hydro::RiemannSolver(const int k, const int j,
 //  for (int k = kl; k <= ku; ++k) {
 //    for (int j = jl; j <= ju; ++j) {
 
-//    TODO replace FaceNMetric with local calculation of metric at FaceCenter.
 //    Returning alpha(i), beta_u(a,i) gamma_dd(a,b,i)
-      // Get metric components
+      // Get metric components in ``old style'' for testing
       switch (ivx) {
         case IVX:
           pmy_block->pcoord->Face1Metric(k, j, il, iu, g_, gi_);
@@ -70,203 +80,287 @@ void Hydro::RiemannSolver(const int k, const int j,
           pmy_block->pcoord->Face3Metric(k, j, il, iu, g_, gi_);
           break;
       }
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha, rho_l, rho_r, pgas_l, pgas_r, wgas_l, wgas_r,detgamma,detg;
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Wlor_l, Wlor_r;
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> u0_l, u0_r;
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> v2_l, v2_r;
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> lambda_p_l, lambda_m_l;
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> lambda_p_r, lambda_m_r;
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> lambda;
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u;
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> utilde_u_l, utilde_u_r;
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> utilde_d_l, utilde_d_r;
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> v_u_l, v_u_r;
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> ucon_l, ucon_r;
+      AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
+      AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_uu;
 
+     AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy;
+      AthenaArray<Real> vcgamma_yz,vcgamma_zz,vcbeta_x,vcbeta_y;
+      AthenaArray<Real> vcbeta_z, vcalpha;
+
+    vcgamma_xx.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
+      vcgamma_xy.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
+      vcgamma_xz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
+      vcgamma_yy.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
+      vcgamma_yz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
+      vcgamma_zz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
+  vcbeta_x.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_betax,1);
+      vcbeta_y.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_betay,1);
+      vcbeta_z.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_betaz,1);
+      vcalpha.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
+
+
+
+      alpha.NewAthenaTensor(nn1);
+      detg.NewAthenaTensor(nn1);
+      detgamma.NewAthenaTensor(nn1);
+      rho_l.NewAthenaTensor(nn1);
+      rho_r.NewAthenaTensor(nn1);
+      pgas_l.NewAthenaTensor(nn1);
+      pgas_r.NewAthenaTensor(nn1);
+      wgas_l.NewAthenaTensor(nn1);
+      wgas_r.NewAthenaTensor(nn1);
+      Wlor_l.NewAthenaTensor(nn1);
+      Wlor_r.NewAthenaTensor(nn1);
+      u0_l.NewAthenaTensor(nn1);
+      u0_r.NewAthenaTensor(nn1);
+      v2_l.NewAthenaTensor(nn1);
+      v2_r.NewAthenaTensor(nn1);
+      lambda.NewAthenaTensor(nn1);
+      lambda_p_l.NewAthenaTensor(nn1);
+      lambda_m_l.NewAthenaTensor(nn1);
+      lambda_p_r.NewAthenaTensor(nn1);
+      lambda_m_r.NewAthenaTensor(nn1);
+      beta_u.NewAthenaTensor(nn1);
+      utilde_u_l.NewAthenaTensor(nn1);
+      utilde_u_r.NewAthenaTensor(nn1);
+      v_u_l.NewAthenaTensor(nn1);
+      v_u_r.NewAthenaTensor(nn1);
+      utilde_d_l.NewAthenaTensor(nn1);
+      utilde_d_r.NewAthenaTensor(nn1);
+      ucon_l.NewAthenaTensor(nn1);
+      ucon_r.NewAthenaTensor(nn1);
+      gamma_dd.NewAthenaTensor(nn1);
+      gamma_uu.NewAthenaTensor(nn1);
       // Go through each interface
-      #pragma omp simd
+       #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+          gamma_dd(0,0,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcgamma_xx(k,j,i));
+          gamma_dd(0,1,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcgamma_xy(k,j,i));
+          gamma_dd(0,2,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcgamma_xz(k,j,i));
+          gamma_dd(1,1,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcgamma_yy(k,j,i));
+          gamma_dd(1,2,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcgamma_yz(k,j,i));
+          gamma_dd(2,2,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcgamma_zz(k,j,i));
+          alpha(i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcalpha(k,j,i));
+          beta_u(0,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcbeta_x(k,j,i));
+          beta_u(1,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcbeta_y(k,j,i));
+          beta_u(2,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcbeta_z(k,j,i));
+      }
+
+
+
+       #pragma omp simd
       for (int i = il; i <= iu; ++i) {
+      detgamma(i) = Det3Metric(gamma_dd,i);
+      detg(i) = SQR(alpha(i)) * detgamma(i);
+      Inverse3Metric(1.0/detgamma(i),
+          gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
+          gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i),
+          &gamma_uu(0,0,i), &gamma_uu(0,1,i), &gamma_uu(0,2,i),
+          &gamma_uu(1,1,i), &gamma_uu(1,2,i), &gamma_uu(2,2,i));
+ 
+      }
 
-        // Extract metric
-        const Real
-            &g_00 = g_(I00,i), &g_01 = g_(I01,i), &g_02 = g_(I02,i), &g_03 = g_(I03,i),
-            &g_10 = g_(I01,i), &g_11 = g_(I11,i), &g_12 = g_(I12,i), &g_13 = g_(I13,i),
-            &g_20 = g_(I02,i), &g_21 = g_(I12,i), &g_22 = g_(I22,i), &g_23 = g_(I23,i),
-            &g_30 = g_(I03,i), &g_31 = g_(I13,i), &g_32 = g_(I23,i), &g_33 = g_(I33,i);
-        const Real
-            &g00 = gi_(I00,i), &g01 = gi_(I01,i), &g02 = gi_(I02,i), &g03 = gi_(I03,i),
-            &g10 = gi_(I01,i), &g11 = gi_(I11,i), &g12 = gi_(I12,i), &g13 = gi_(I13,i),
-            &g20 = gi_(I02,i), &g21 = gi_(I12,i), &g22 = gi_(I22,i), &g23 = gi_(I23,i),
-            &g30 = gi_(I03,i), &g31 = gi_(I13,i), &g32 = gi_(I23,i), &g33 = gi_(I33,i);
-        Real alpha = std::sqrt(-1.0/g00);
-        Real gii, g0i;
-        switch (ivx) {
-          case IVX:
-            gii = g11;
-            g0i = g01;
-            break;
-          case IVY:
-            gii = g22;
-            g0i = g02;
-            break;
-          case IVZ:
-            gii = g33;
-            g0i = g03;
-            break;
-        }
-//Define determinanit
-        Real detgamma = Determinant(g_11,g_12,g_13,g_21,g_22,g_23,g_31,g_32,g_33);
-        Real detg = detgamma*SQR(alpha);
-        // Extract left primitives
-        // NB, primitive velocities are gamma^i_mu u^mu = tilde{u}^i = v^i * gamma_lorentz BEWARE LORENTZ FACTORS
-        const Real &rho_l = prim_l(IDN,i);
-        const Real &pgas_l = prim_l(IPR,i);
-        const Real &uu1_l = prim_l(IVX,i);
-        const Real &uu2_l = prim_l(IVY,i);
-        const Real &uu3_l = prim_l(IVZ,i);
+    #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+              rho_l(i) = prim_l(IDN,i);
+              pgas_l(i) = prim_l(IPR,i);
+              rho_r(i) = prim_r(IDN,i);
+              pgas_r(i) = prim_r(IPR,i);
+          }
 
-        // Extract right primitives
-        const Real &rho_r = prim_r(IDN,i);
-        const Real &pgas_r = prim_r(IPR,i);
-        const Real &uu1_r = prim_r(IVX,i);
-        const Real &uu2_r = prim_r(IVY,i);
-        const Real &uu3_r = prim_r(IVZ,i);
 
-        // Calculate 4-velocity in left state
-        Real ucon_l[4], ucov_l[4];
-        Real tmp = g_11*SQR(uu1_l) + 2.0*g_12*uu1_l*uu2_l + 2.0*g_13*uu1_l*uu3_l
-                 + g_22*SQR(uu2_l) + 2.0*g_23*uu2_l*uu3_l
-                 + g_33*SQR(uu3_l);
-        Real gamma_l = std::sqrt(1.0 + tmp);
-        ucon_l[0] = gamma_l / alpha;
-        ucon_l[1] = uu1_l - alpha * gamma_l * g01;
-        ucon_l[2] = uu2_l - alpha * gamma_l * g02;
-        ucon_l[3] = uu3_l - alpha * gamma_l * g03;
-        ucov_l[0] = g_00*ucon_l[0] + g_01*ucon_l[1] + g_02*ucon_l[2] + g_03*ucon_l[3];
-        ucov_l[1] = g_10*ucon_l[0] + g_11*ucon_l[1] + g_12*ucon_l[2] + g_13*ucon_l[3];
-        ucov_l[2] = g_20*ucon_l[0] + g_21*ucon_l[1] + g_22*ucon_l[2] + g_23*ucon_l[3];
-        ucov_l[3] = g_30*ucon_l[0] + g_31*ucon_l[1] + g_32*ucon_l[2] + g_33*ucon_l[3];
-        
-        Real utilde_d_l[3];
-        Real utilde_u_l[3];
-        Real v_d_l[3];
-        Real v_u_l[3];
 
-        utilde_d_l[0] = g_11 * uu1_l + g_12 * uu2_l + g_13 * uu3_l;
-        utilde_d_l[1] = g_21 * uu1_l + g_22 * uu2_l + g_23 * uu3_l;
-        utilde_d_l[2] = g_31 * uu1_l + g_32 * uu2_l + g_33 * uu3_l;
+      for(a=0;a<NDIM;++a){
+           #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+              utilde_u_l(a,i) = prim_l(a+IVX,i);
+          }
+      }
+      for(a=0;a<NDIM;++a){
+           #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+              utilde_u_r(a,i) = prim_r(a+IVX,i);
+          }
+      }
+      Wlor_l.ZeroClear();
+      for(a=0;a<NDIM;++a){
+          for(b=0;b<NDIM;++b){
+               #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+                  Wlor_l(i) += utilde_u_l(a,i)*utilde_u_l(b,i)*gamma_dd(a,b,i);
+              }
+           }
+       }
+        #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+            Wlor_l(i) = std::sqrt(1.0+Wlor_l(i));
+       }
+      Wlor_r.ZeroClear();
+      for(a=0;a<NDIM;++a){
+          for(b=0;b<NDIM;++b){
+               #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+                  Wlor_r(i) += utilde_u_r(a,i)*utilde_u_r(b,i)*gamma_dd(a,b,i);
+              }
+           }
+       }
+        #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+            Wlor_r(i) = std::sqrt(1.0+Wlor_r(i));
+       }
+      for(a=0;a<NDIM;++a){
+           #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+             v_u_l(a,i) = utilde_u_l(a,i)/Wlor_l(i);
+          }
+      }
+      for(a=0;a<NDIM;++a){
+           #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+             v_u_r(a,i) = utilde_u_r(a,i)/Wlor_r(i);
+          }
+      }
 
-        utilde_u_l[0] = uu1_l;
-        utilde_u_l[1] = uu2_l;
-        utilde_u_l[2] = uu3_l;
+      v2_l.ZeroClear();
+      for(a=0;a<NDIM;++a){
+            for(b=0;b<NDIM;++b){
+               #pragma omp simd
+                   for (int i = il; i <= iu; ++i){
+                       v2_l(i) += gamma_dd(a,b,i)*v_u_l(a,i)*v_u_l(b,i);
+                   }
+             }
+       }
+      v2_r.ZeroClear();
+      for(a=0;a<NDIM;++a){
+            for(b=0;b<NDIM;++b){
+               #pragma omp simd
+                   for (int i = il; i <= iu; ++i){
+                       v2_r(i) += gamma_dd(a,b,i)*v_u_r(a,i)*v_u_r(b,i);
+                   }
+             }
+       }
 
-        v_d_l[0] = utilde_d_l[0]/gamma_l ;
-        v_d_l[1] = utilde_d_l[1]/gamma_l ;
-        v_d_l[2] = utilde_d_l[2]/gamma_l ;
-
-        v_u_l[0] = utilde_u_l[0]/gamma_l ;
-        v_u_l[1] = utilde_u_l[1]/gamma_l ;
-        v_u_l[2] = utilde_u_l[2]/gamma_l ;
-        // Calculate 4-velocity in right state
-        Real ucon_r[4], ucov_r[4];
-        tmp = g_11*SQR(uu1_r) + 2.0*g_12*uu1_r*uu2_r + 2.0*g_13*uu1_r*uu3_r
-            + g_22*SQR(uu2_r) + 2.0*g_23*uu2_r*uu3_r
-            + g_33*SQR(uu3_r);
-        Real gamma_r = std::sqrt(1.0 + tmp);
-        ucon_r[0] = gamma_r / alpha;
-        ucon_r[1] = uu1_r - alpha * gamma_r * g01;
-        ucon_r[2] = uu2_r - alpha * gamma_r * g02;
-        ucon_r[3] = uu3_r - alpha * gamma_r * g03;
-        ucov_r[0] = g_00*ucon_r[0] + g_01*ucon_r[1] + g_02*ucon_r[2] + g_03*ucon_r[3];
-        ucov_r[1] = g_10*ucon_r[0] + g_11*ucon_r[1] + g_12*ucon_r[2] + g_13*ucon_r[3];
-        ucov_r[2] = g_20*ucon_r[0] + g_21*ucon_r[1] + g_22*ucon_r[2] + g_23*ucon_r[3];
-        ucov_r[3] = g_30*ucon_r[0] + g_31*ucon_r[1] + g_32*ucon_r[2] + g_33*ucon_r[3];
+     utilde_d_l.ZeroClear();
+      for(a=0;a<NDIM;++a){
+          for(b=0;b<NDIM;++b){
+               #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+                  utilde_d_l(a,i) += utilde_u_l(b,i)*gamma_dd(a,b,i);
+              }
+          }
+      }
+     utilde_d_r.ZeroClear();
+      for(a=0;a<NDIM;++a){
+          for(b=0;b<NDIM;++b){
+               #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+                  utilde_d_r(a,i) += utilde_u_r(b,i)*gamma_dd(a,b,i);
+              }
+          }
+      }
+       #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+      u0_l(i) = Wlor_l(i)/alpha(i);
+      u0_r(i) = Wlor_r(i)/alpha(i);
+      }
+/*      for(a=0;a<NDIM;++a){
+           #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+            ucon_u_l(a,i) = utilde_u_l(a,i) + Wlor_l(i) * beta_u(a,i)/alpha(i);
+            ucon_u_r(a,i) = utilde_u_r(a,i) + Wlor_r(i) * beta_u(a,i)/alpha(i);
+          }
+       }
+*/
       
-        Real utilde_d_r[3];
-        Real utilde_u_r[3];
-        Real v_d_r[3];
-        Real v_u_r[3];
-
-        utilde_d_r[0] = g_11 * uu1_r + g_12 * uu2_r + g_13 * uu3_r;
-        utilde_d_r[1] = g_21 * uu1_r + g_22 * uu2_r + g_23 * uu3_r;
-        utilde_d_r[2] = g_31 * uu1_r + g_32 * uu2_r + g_33 * uu3_r;
+       #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+        // Calculate wavespeeds in left state NB EOS specific
+        wgas_l(i) = rho_l(i) + gamma_adi/(gamma_adi-1.0) * pgas_l(i);
+        wgas_r(i) = rho_r(i) + gamma_adi/(gamma_adi-1.0) * pgas_r(i);
        
-        utilde_u_r[0] = uu1_r;
-        utilde_u_r[1] = uu2_r;
-        utilde_u_r[2] = uu3_r;
-        
-        v_d_r[0] = utilde_d_r[0]/gamma_r ;
-        v_d_r[1] = utilde_d_r[1]/gamma_r ;
-        v_d_r[2] = utilde_d_r[2]/gamma_r ;
-
-        v_u_r[0] = utilde_u_r[0]/gamma_r ;
-        v_u_r[1] = utilde_u_r[1]/gamma_r ;
-        v_u_r[2] = utilde_u_r[2]/gamma_r ;
-        // Calculate wavespeeds in left state
-        Real lambda_p_l, lambda_m_l;
-        Real wgas_l = rho_l + gamma_adi/(gamma_adi-1.0) * pgas_l;
-        pmy_block->peos->SoundSpeedsGR(wgas_l, pgas_l, ucon_l[0], ucon_l[ivx], g00, g0i,
-            gii, &lambda_p_l, &lambda_m_l);
-
-        // Calculate wavespeeds in right state
-        Real lambda_p_r, lambda_m_r;
-        Real wgas_r = rho_r + gamma_adi/(gamma_adi-1.0) * pgas_r;
-        pmy_block->peos->SoundSpeedsGR(wgas_r, pgas_r, ucon_r[0], ucon_r[ivx], g00, g0i,
-            gii, &lambda_p_r, &lambda_m_r);
-
+        pmy_block->peos->SoundSpeedsGR(wgas_l(i), pgas_l(i), v_u_l(ivx-1,i), v2_l(i), alpha(i), beta_u(ivx-1,i), gamma_uu(ivx-1,ivx-1,i),  &lambda_p_l(i), &lambda_m_l(i));
+        pmy_block->peos->SoundSpeedsGR(wgas_r(i), pgas_r(i), v_u_r(ivx-1,i), v2_r(i), alpha(i), beta_u(ivx-1,i), gamma_uu(ivx-1,ivx-1,i),  &lambda_p_r(i), &lambda_m_r(i));
+}
         // Calculate extremal wavespeed
-        Real lambda_l = std::min(lambda_m_l, lambda_m_r);
-        Real lambda_r = std::max(lambda_p_l, lambda_p_r);
-        Real lambda = std::max(lambda_r, -lambda_l);
-
+         #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+        Real lambda_l = std::min(lambda_m_l(i), lambda_m_r(i));
+        Real lambda_r = std::max(lambda_p_l(i), lambda_p_r(i));
+        lambda(i) = std::max(lambda_r, -lambda_l);
+        }
+        AthenaArray<Real> cons_l, cons_r, flux_l, flux_r;
+        cons_l.NewAthenaArray(NWAVE,nn1);
+        cons_r.NewAthenaArray(NWAVE,nn1);
+        flux_l.NewAthenaArray(NWAVE,nn1);
+        flux_r.NewAthenaArray(NWAVE,nn1);
         // Calculate conserved quantities in L region including factor of sqrt(detgamma)
-        Real cons_l[NWAVE];
+         #pragma omp simd
+      for (int i = il; i <= iu; ++i){
         // D = rho * gamma_lorentz
-        cons_l[IDN] = rho_l*gamma_l*std::sqrt(detgamma);
+        cons_l(IDN,i) = rho_l(i)*Wlor_l(i)*std::sqrt(detgamma(i));
         // tau = (rho * h = ) wgas * gamma_lorentz**2 - rho * gamma_lorentz - p
-        cons_l[IEN] = (wgas_l * SQR(gamma_l) - rho_l*gamma_l - pgas_l)*std::sqrt(detgamma);
+        cons_l(IEN,i) = (wgas_l(i) * SQR(Wlor_l(i)) - rho_l(i)*Wlor_l(i) - pgas_l(i))*std::sqrt(detgamma(i));
         // S_i = wgas * gamma_lorentz**2 * v_i = wgas * gamma_lorentz * u_i
-//        cons_l[IVX] = wgas_l * gamma_l * ucov_l[1]*std::sqrt(detgamma);
-//        cons_l[IVY] = wgas_l * gamma_l * ucov_l[2]*std::sqrt(detgamma);
-//        cons_l[IVZ] = wgas_l * gamma_l * ucov_l[3]*std::sqrt(detgamma);
-//NB TODO double check velocity has chenged here (also in right state)
-        cons_l[IVX] = wgas_l * gamma_l * utilde_d_l[0]*std::sqrt(detgamma);
-        cons_l[IVY] = wgas_l * gamma_l * utilde_d_l[1]*std::sqrt(detgamma);
-        cons_l[IVZ] = wgas_l * gamma_l * utilde_d_l[2]*std::sqrt(detgamma);
+        cons_l(IVX,i) = wgas_l(i) * Wlor_l(i) * utilde_d_l(0,i)*std::sqrt(detgamma(i));
+        cons_l(IVY,i) = wgas_l(i) * Wlor_l(i) * utilde_d_l(1,i)*std::sqrt(detgamma(i));
+        cons_l(IVZ,i) = wgas_l(i) * Wlor_l(i) * utilde_d_l(2,i)*std::sqrt(detgamma(i));
         // Calculate fluxes in L region (rho u^i and T^i_\mu, where i = ivx)
-        Real flux_l[NWAVE];
         // D flux: D(v^i - beta^i/alpha)
-         flux_l[IDN] = cons_l[IDN]*alpha*(v_u_l[ivx-1] - g0i*alpha);
+         flux_l(IDN,i) = cons_l(IDN,i)*alpha(i)*(v_u_l(ivx-1,i) - beta_u(ivx-1,i)*alpha(i));
 
         // tau flux: alpha(S^i - Dv^i) - beta^i tau
-          flux_l[IEN] = cons_l[IEN] * alpha * (v_u_l[ivx-1] - g0i*alpha) + std::sqrt(detg)*pgas_l*v_u_l[ivx-1];
+          flux_l(IEN,i) = cons_l(IEN,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)*alpha(i)) + std::sqrt(detg(i))*pgas_l(i)*v_u_l(ivx-1,i);
  
         //S_i flux alpha S^j_i - beta^j S_i
-        flux_l[IVX] = cons_l[IVX] * alpha * (v_u_l[ivx-1] - g0i*alpha);      
-        flux_l[IVY] = cons_l[IVY] * alpha * (v_u_l[ivx-1] - g0i*alpha);      
-        flux_l[IVZ] = cons_l[IVZ] * alpha * (v_u_l[ivx-1] - g0i*alpha);      
-        flux_l[ivx] += pgas_l*std::sqrt(detg);
+        flux_l(IVX,i) = cons_l(IVX,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)*alpha(i));      
+        flux_l(IVY,i) = cons_l(IVY,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)*alpha(i));      
+        flux_l(IVZ,i) = cons_l(IVZ,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)*alpha(i));      
+        flux_l(ivx,i) += pgas_l(i)*std::sqrt(detg(i));
 
-        // Calculate conserved quantities in R region (rho u^0 and T^0_\mu)
-        Real cons_r[NWAVE];
-
-        // D = rho * gamma_lorentz
-        cons_r[IDN] = rho_r*gamma_r*std::sqrt(detgamma);
+        // D = rho * gamma_rorentz
+        cons_r(IDN,i) = rho_r(i)*Wlor_r(i)*std::sqrt(detgamma(i));
         // tau = (rho * h = ) wgas * gamma_rorentz**2 - rho * gamma_rorentz - p
-        cons_r[IEN] = (wgas_r * SQR(gamma_r) - rho_r*gamma_r - pgas_r)*std::sqrt(detgamma);
-        // S_i = wgas * gamma_rorentz**2 * v_i = wgas * gamma_rorentz * u_i NB this is T^0_i * alpha!
-        cons_r[IVX] = wgas_r * gamma_r * utilde_d_r[0]*std::sqrt(detgamma);
-        cons_r[IVY] = wgas_r * gamma_r * utilde_d_r[1]*std::sqrt(detgamma);
-        cons_r[IVZ] = wgas_r * gamma_r * utilde_d_r[2]*std::sqrt(detgamma);
-//        cons_r[IVX] = wgas_r * gamma_r * ucov_r[1]*std::sqrt(detgamma);
-//        cons_r[IVY] = wgas_r * gamma_r * ucov_r[2]*std::sqrt(detgamma);
-//        cons_r[IVZ] = wgas_r * gamma_r * ucov_r[3]*std::sqrt(detgamma);
-        Real flux_r[NWAVE];
+        cons_r(IEN,i) = (wgas_r(i) * SQR(Wlor_r(i)) - rho_r(i)*Wlor_r(i) - pgas_r(i))*std::sqrt(detgamma(i));
+        // S_i = wgas * gamma_rorentz**2 * v_i = wgas * gamma_rorentz * u_i
+        cons_r(IVX,i) = wgas_r(i) * Wlor_r(i) * utilde_d_r(0,i)*std::sqrt(detgamma(i));
+        cons_r(IVY,i) = wgas_r(i) * Wlor_r(i) * utilde_d_r(1,i)*std::sqrt(detgamma(i));
+        cons_r(IVZ,i) = wgas_r(i) * Wlor_r(i) * utilde_d_r(2,i)*std::sqrt(detgamma(i));
+        // Calculate fluxes in L region (rho u^i and T^i_\mu, where i = ivx)
         // D flux: D(v^i - beta^i/alpha)
-         flux_r[IDN] = cons_r[IDN]*alpha*(v_u_r[ivx-1] - g0i*alpha);
+         flux_r(IDN,i) = cons_r(IDN,i)*alpha(i)*(v_u_r(ivx-1,i) - beta_u(ivx-1,i)*alpha(i));
 
         // tau flux: alpha(S^i - Dv^i) - beta^i tau
-          flux_r[IEN] = cons_r[IEN] * alpha * (v_u_r[ivx-1] - g0i*alpha) + std::sqrt(detg)*pgas_r*v_u_r[ivx-1];
+          flux_r(IEN,i) = cons_r(IEN,i) * alpha(i) * (v_u_r(ivx-1,i) - beta_u(ivx-1,i)*alpha(i)) + std::sqrt(detg(i))*pgas_r(i)*v_u_r(ivx-1,i);
  
         //S_i flux alpha S^j_i - beta^j S_i
-        flux_r[IVX] = cons_r[IVX] * alpha * (v_u_r[ivx-1] - g0i*alpha);      
-        flux_r[IVY] = cons_r[IVY] * alpha * (v_u_r[ivx-1] - g0i*alpha);      
-        flux_r[IVZ] = cons_r[IVZ] * alpha * (v_u_r[ivx-1] - g0i*alpha);      
-        flux_r[ivx] += std::sqrt(detg)*pgas_r;
+        flux_r(IVX,i) = cons_r(IVX,i) * alpha(i) * (v_u_r(ivx-1,i) - beta_u(ivx-1,i)*alpha(i));      
+        flux_r(IVY,i) = cons_r(IVY,i) * alpha(i) * (v_u_r(ivx-1,i) - beta_u(ivx-1,i)*alpha(i));      
+        flux_r(IVZ,i) = cons_r(IVZ,i) * alpha(i) * (v_u_r(ivx-1,i) - beta_u(ivx-1,i)*alpha(i));      
+        flux_r(ivx,i) += pgas_r(i)*std::sqrt(detg(i));
+       } 
       // Set fluxes
         for (int n = 0; n < NHYDRO; ++n) {
+           #pragma omp simd
+      for (int i = il; i <= iu; ++i){
           flux(n,k,j,i) =
-              0.5 * (flux_l[n] + flux_r[n] - lambda * (cons_r[n] - cons_l[n]));
+              0.5 * (flux_l(n,i) + flux_r(n,i) - lambda(i) * (cons_r(n,i) - cons_l(n,i)));
+          }
         }
-      }
+
+
+
     
   
   return;
@@ -283,4 +377,29 @@ Real Determinant(Real a11, Real a12, Real a13, Real a21, Real a22, Real a23,
 Real Determinant(Real a11, Real a12, Real a21, Real a22) {
   return a11 * a22 - a12 * a21;
 }
+Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
+                  int const i)
+{
+  return - SQR(gamma(0,2,i))*gamma(1,1,i) +
+          2*gamma(0,1,i)*gamma(0,2,i)*gamma(1,2,i) -
+          gamma(0,0,i)*SQR(gamma(1,2,i)) - SQR(gamma(0,1,i))*gamma(2,2,i) +
+          gamma(0,0,i)*gamma(1,1,i)*gamma(2,2,i);
+}
+
+void Inverse3Metric(Real const detginv,
+                     Real const gxx, Real const gxy, Real const gxz,
+                     Real const gyy, Real const gyz, Real const gzz,
+                     Real * uxx, Real * uxy, Real * uxz,
+                     Real * uyy, Real * uyz, Real * uzz)
+{
+  *uxx = (-SQR(gyz) + gyy*gzz)*detginv;
+  *uxy = (gxz*gyz  - gxy*gzz)*detginv;
+  *uyy = (-SQR(gxz) + gxx*gzz)*detginv;
+  *uxz = (-gxz*gyy + gxy*gyz)*detginv;
+  *uyz = (gxy*gxz  - gxx*gyz)*detginv;
+  *uzz = (-SQR(gxy) + gxx*gyy)*detginv;
+  return;
+}
+
+
 }

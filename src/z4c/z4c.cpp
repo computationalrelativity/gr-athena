@@ -16,6 +16,8 @@
 #include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
 #include "../eos/eos.hpp"
+#include "../hydro/hydro.hpp"
+#include "../utils/interp_intergrid.hpp"
 
 // constructor, initializes data structures and parameters
 
@@ -70,6 +72,9 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
           {N_MAT, pmb->nverts3, pmb->nverts2, pmb->nverts1}, // mat
 //WGC wext
           {N_WEY, pmb->nverts3, pmb->nverts2, pmb->nverts1}, // weyl
+//init buffers
+          {N_Z4c, pmb->nverts3, pmb->nverts2, pmb->nverts1},
+          {N_ADM, pmb->nverts3, pmb->nverts2, pmb->nverts1},
 //WGC end
   },
 #else
@@ -201,6 +206,8 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   
   // Matter parameters
   opt.cowling = pin->GetOrAddInteger("z4c", "cowling_true", 0);
+  opt.fixedgauge = pin->GetOrAddInteger("z4c", "fixedgauge", 0);
+  opt.fix_admsource = pin->GetOrAddInteger("z4c", "fix_admsource", 0);
   //---------------------------------------------------------------------------
 
   // Set aliases
@@ -242,6 +249,14 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   Gamma_udd.NewAthenaTensor(nn1);
   DK_ddd.NewAthenaTensor(nn1);
   DK_udd.NewAthenaTensor(nn1);
+
+// testcons
+  tGamma_ddd.NewAthenaTensor(nn1);
+  tGamma_udd.NewAthenaTensor(nn1);
+  tdg_ddd.NewAthenaTensor(nn1);
+  tdetg.NewAthenaTensor(nn1);
+  tg_uu.NewAthenaTensor(nn1);
+  tGamma_u.NewAthenaTensor(nn1);
 
 #if defined(Z4C_ETA_CONF) || defined(Z4C_ETA_TRACK_TP)
   eta_damp.NewAthenaTensor(nn1);
@@ -287,6 +302,14 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   Riemm4_ddd.NewAthenaTensor(nn1);
   Riemm4_dd.NewAthenaTensor(nn1);
 //WGC end
+
+//Intergrid communication
+  int N[] = {pmb->block_size.nx1, pmb->block_size.nx2, pmb->block_size.nx3};
+  Real rdx[] = {
+    1./pmb->pcoord->dx1f(0), 1./pmb->pcoord->dx2f(0), 1./pmb->pcoord->dx3f(0)
+  };
+  ig = new InterpIntergridLocal(NDIM, &N[0], &rdx[0]);
+
 
 //
   // Set up finite difference operators
@@ -405,7 +428,7 @@ Z4c::~Z4c()
   Riemm4_ddd.DeleteAthenaTensor();
   Riemm4_dd.DeleteAthenaTensor();
 //WGC end
-
+  delete ig;
 }
 
 //----------------------------------------------------------------------------------------
@@ -533,22 +556,41 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
 
 
      ADM_vars adm;
+     
+     if(opt.fix_admsource==0){
      SetADMAliases(u_adm,adm);
+     } else if (opt.fix_admsource==1){
+     SetADMAliases(storage.adm_init,adm);
+     }
 // Cell centred hydro vars
+     if(opt.fix_admsource==0){
      rhocc.InitWithShallowSlice(w,IDN,1);
      pgascc.InitWithShallowSlice(w,IPR,1);
      utilde1cc.InitWithShallowSlice(w,IVX,1);
      utilde2cc.InitWithShallowSlice(w,IVY,1);
      utilde3cc.InitWithShallowSlice(w,IVZ,1);
-
+     } else if(opt.fix_admsource==1){
+     rhocc.InitWithShallowSlice(pmb->phydro->w_init,IDN,1);
+     pgascc.InitWithShallowSlice(pmb->phydro->w_init,IPR,1);
+     utilde1cc.InitWithShallowSlice(pmb->phydro->w_init,IVX,1);
+     utilde2cc.InitWithShallowSlice(pmb->phydro->w_init,IVY,1);
+     utilde3cc.InitWithShallowSlice(pmb->phydro->w_init,IVZ,1); 
+     }
      Real rhovc, pgasvc, utilde1vc, utilde2vc, utilde3vc, wgas,tmp, gamma_lor, v1,v2,v3,v_1,v_2,v_3;
 // interpolate to VC
      ILOOP3(k,j,i){
+     rhovc = ig->map3d_CC2VC(rhocc(k,j,i));
+     pgasvc = ig->map3d_CC2VC(pgascc(k,j,i));
+     utilde1vc = ig->map3d_CC2VC(utilde1cc(k,j,i));
+     utilde2vc = ig->map3d_CC2VC(utilde2cc(k,j,i));
+     utilde3vc = ig->map3d_CC2VC(utilde3cc(k,j,i));
+/*
      rhovc = 0.125*(rhocc(k-1,j-1,i-1) + rhocc(k-1,j-1,i) + rhocc(k-1,j,i-1) + rhocc(k,j-1,i-1) + rhocc(k-1,j,i) + rhocc(k,j-1,i) + rhocc(k,j,i-1) + rhocc(k,j,i));
      pgasvc = 0.125*(pgascc(k-1,j-1,i-1) + pgascc(k-1,j-1,i) + pgascc(k-1,j,i-1) + pgascc(k,j-1,i-1) + pgascc(k-1,j,i) + pgascc(k,j-1,i) + pgascc(k,j,i-1) + pgascc(k,j,i));
      utilde1vc = 0.125*(utilde1cc(k-1,j-1,i-1) + utilde1cc(k-1,j-1,i) + utilde1cc(k-1,j,i-1) + utilde1cc(k,j-1,i-1) + utilde1cc(k-1,j,i) + utilde1cc(k,j-1,i) + utilde1cc(k,j,i-1) + utilde1cc(k,j,i));
      utilde2vc = 0.125*(utilde2cc(k-1,j-1,i-1) + utilde2cc(k-1,j-1,i) + utilde2cc(k-1,j,i-1) + utilde2cc(k,j-1,i-1) + utilde2cc(k-1,j,i) + utilde2cc(k,j-1,i) + utilde2cc(k,j,i-1) + utilde2cc(k,j,i));
      utilde3vc = 0.125*(utilde3cc(k-1,j-1,i-1) + utilde3cc(k-1,j-1,i) + utilde3cc(k-1,j,i-1) + utilde3cc(k,j-1,i-1) + utilde3cc(k-1,j,i) + utilde3cc(k,j-1,i) + utilde3cc(k,j,i-1) + utilde3cc(k,j,i));
+*/
 //   NB specific to EOS
      wgas = rhovc + gamma_adi/(gamma_adi-1.0) * pgasvc;
      tmp = utilde1vc*utilde1vc*adm.g_dd(0,0,k,j,i) + utilde2vc*utilde2vc*adm.g_dd(1,1,k,j,i) 

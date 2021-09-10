@@ -19,6 +19,7 @@
 #include "../athena_tensor.hpp"
 #include "../finite_differencing.hpp"
 #include "../lagrange_interp.hpp"
+#include "../utils/interp_intergrid.hpp"
 
 #include "../bvals/cc/bvals_cc.hpp"
 #include "../bvals/vc/bvals_vc.hpp"
@@ -108,6 +109,8 @@ public:
     AthenaArray<Real> mat;   // matter variables
 //WGC wext  
     AthenaArray<Real> weyl;  // weyl scalars
+    AthenaArray<Real> u_init;     // init buffrers
+    AthenaArray<Real> adm_init;     // init buffers
 //WGC end
   } storage;
 
@@ -198,8 +201,13 @@ public:
     //Matter parameters
    
     int cowling; // if 1 then cowling approximation used, rhs of z4c equations -> 0
+    int fixedgauge; // if 1 then gauge is fixed, rhs of alpha, beta^i equations -> 0
+    int fix_admsource; // if 1 then gauge is fixed, rhs of alpha, beta^i equations -> 0
   } opt;
      
+//intergrid interpolation 
+
+   InterpIntergridLocal * ig;
 
   // boundary and grid data
 #if PREFER_VC
@@ -381,7 +389,14 @@ private:
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> Gamma_udd;   // Christoffel symbols of 2nd kind
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> DK_ddd;      // differential of K
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> DK_udd;      // differential of K
+//test cons
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> tGamma_ddd;   // Christoffel symbols of 1st kind
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> tGamma_udd;   // Christoffel symbols of 2nd kind
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> tdg_ddd;      // metric 1st drvts
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> tdetg;        // det(g)
 
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> tg_uu;        // inverse of conf. metric
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> tGamma_u;     // Gamma computed from the metric
   // Spatially dependent shift damping
 #if defined(Z4C_ETA_CONF) || defined(Z4C_ETA_TRACK_TP)
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> eta_damp;
