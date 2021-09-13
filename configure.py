@@ -17,6 +17,7 @@
 #   --nextrapolate=xxx  set NEXTRAPOLATE=xxx  [for ouflow conditions]
 #   --nscalars=xxx      set NSCALARS=xxx
 #   --nrad=xxx          set NRAD=xxx (for wave extraction)
+#   --ninterp=xxx  set NGRCV_HSZ=xxx (number of ghosts for intergrid interpolation)
 #   -eos_table          enable EOS table
 #   -f                  enable fluid
 #   -b                  enable magnetic fields
@@ -145,6 +146,11 @@ parser.add_argument('--nscalars',
 parser.add_argument('--nrad',
                     default='5',
                     help='set number of extraction radii')
+
+# --ninterp=[value] argument
+parser.add_argument('--ninterp',
+                    default='2',
+                    help='set number of ghost zones for intergrid interpolation')
 
 # -f argument
 parser.add_argument('-f',
@@ -527,6 +533,9 @@ definitions['NUMBER_PASSIVE_SCALARS'] = args['nscalars']
 
 # --nrad=[value] argument
 definitions['NUMBER_EXT_RAD'] = args['nrad']
+
+# --ninterp=[value] argument
+definitions['NUMBER_INTERP_GHOSTS'] = args['ninterp']
 
 # -f argument
 if args['f']:
@@ -1173,6 +1182,7 @@ print('  Number of ghost cells:        ' + args['nghost'])
 print('  Number of coarse ghosts (VC): ' + args['ncghost'])
 print('  Total # extrapolation points: ' + args['nextrapolate'])
 print('  Number of extraction radii:   ' + args['nrad'])
+print('  Number of interpolation ghost cells: ' + args['ninterp'])
 print('  MPI parallelism:              ' + ('ON' if args['mpi'] else 'OFF'))
 print('  OpenMP parallelism:           ' + ('ON' if args['omp'] else 'OFF'))
 print('  FFT:                          ' + ('ON' if args['fft'] else 'OFF'))

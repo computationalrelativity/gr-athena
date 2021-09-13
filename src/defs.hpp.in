@@ -180,7 +180,7 @@
 // define the (half) size of the stencil for CC<->VC
 // 1: two nodes total used  -> exact for linear.
 // 2: four nodes total used -> exact for 3rd power.
-#define NGRCV_HSZ 1
+#define NGRCV_HSZ @NUMBER_INTERP_GHOSTS@
 
 // dimensionality of underlying (interpolated) data
 // #define NGRCV_NDIM 1
