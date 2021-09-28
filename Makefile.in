@@ -58,7 +58,7 @@ SRC_FILES := \
 		$(wildcard src/task_list/*.cpp) \
 		$(wildcard src/utils/*.cpp) \
 @Z4C_FILES@		$(wildcard src/wave/*.cpp) \
-		$(wildcard src/advection/*.cpp) \
+@EOS_FILES@		$(wildcard src/advection/*.cpp) \
 		$(MPIFFT_FILE)
 OBJ_DIR := obj/
 OBJ_FILES := $(addprefix $(OBJ_DIR),$(notdir $(SRC_FILES:.cpp=.o)))

@@ -17,7 +17,6 @@
 #   --nextrapolate=xxx  set NEXTRAPOLATE=xxx  [for ouflow conditions]
 #   --nscalars=xxx      set NSCALARS=xxx
 #   --nrad=xxx          set NRAD=xxx (for wave extraction)
-#   --ninterp=xxx  set NGRCV_HSZ=xxx (number of ghosts for intergrid interpolation)
 #   -eos_table          enable EOS table
 #   -f                  enable fluid
 #   -b                  enable magnetic fields
@@ -113,7 +112,7 @@ parser.add_argument(
 parser.add_argument('--eos',
                     default='adiabatic',
                     choices=['adiabatic', 'isothermal', 'general/eos_table', 'adiabatictaudyn','adiabatictaudyn_rep',
-                             'general/hydrogen', 'general/ideal', 'general_gr'],
+                             'general/hydrogen', 'general/ideal', 'eostaudyn_ps'],
                     help='select equation of state')
 
 # --eospolicy=[name] argument
@@ -158,11 +157,6 @@ parser.add_argument('--nscalars',
 parser.add_argument('--nrad',
                     default='5',
                     help='set number of extraction radii')
-
-# --ninterp=[value] argument
-parser.add_argument('--ninterp',
-                    default='2',
-                    help='set number of ghost zones for intergrid interpolation')
 
 # -f argument
 parser.add_argument('-f',
@@ -487,7 +481,7 @@ if args['eos'] == 'isothermal':
     if args['s'] or args['g']:
         raise SystemExit('### CONFIGURE ERROR: '
                          + 'Isothermal EOS is incompatible with relativity')
-if args['eos'] == 'general_gr':
+if args['eos'] == 'eostaudyn_ps':
     if not args['z']:
         raise SystemExit('### CONFIGURE ERROR: '
                         + 'PrimitiveSolver EOS interface requires Z4c')
@@ -531,11 +525,11 @@ if args['eos'] == 'isothermal':
 elif args['eos'] == 'adiabatic' or args['eos'] == 'adiabatictaudyn' or args['eos'] == 'adiabatictaudyn_rep':
     definitions['NHYDRO_VARIABLES'] = '5'
     makefile_options['GENERAL_EOS_FILE'] = 'ideal'
-elif args['eos'] == 'general_gr':
+elif args['eos'] == 'eostaudyn_ps':
     definitions['NHYDRO_VARIABLES'] = '5'
     definitions['USE_TM'] = '1'
-    definitions['EOS_POLICY_INCLUDE'] = 'z4c/primitive/' + args['eospolicy'] + '.hpp'
-    definitions['ERROR_POLICY_INCLUDE'] = 'z4c/primitive/' + args['errorpolicy'] + '.hpp'
+    definitions['EOS_POLICY_INCLUDE'] = args['eospolicy'] + '.hpp'
+    definitions['ERROR_POLICY_INCLUDE'] = args['errorpolicy'] + '.hpp'
     if args['eospolicy'] == 'idealgas':
         definitions['EOS_POLICY'] = 'IdealGas'
     elif args['eospolicy'] == 'piecewise_polytrope':
@@ -545,9 +539,9 @@ elif args['eos'] == 'general_gr':
     if args['errorpolicy'] == 'do_nothing':
         definitions['ERROR_POLICY'] = 'DoNothing'
     elif args['errorpolicy'] == 'reset_floor':
-        definitions['ERROR_POLICY'] == 'ResetFloor'
+        definitions['ERROR_POLICY'] = 'ResetFloor'
     else:
-        definitions['ERROR_POLICY'] == ''
+        definitions['ERROR_POLICY'] = ''
     
     makefile_options['GENERAL_EOS_FILE'] = 'general_gr'
 else:
@@ -574,9 +568,6 @@ definitions['NUMBER_PASSIVE_SCALARS'] = args['nscalars']
 
 # --nrad=[value] argument
 definitions['NUMBER_EXT_RAD'] = args['nrad']
-
-# --ninterp=[value] argument
-definitions['NUMBER_INTERP_GHOSTS'] = args['ninterp']
 
 # -f argument
 if args['f']:
@@ -1163,6 +1154,13 @@ if args['z']:
 aux = ["		$(wildcard src/z4c/{}.cpp) \\".format(f) for f in files]
 makefile_options['Z4C_FILES'] = '\n'.join(aux) + '\n'
 
+# Add PrimitiveSolver EOS files.
+files = [args['eospolicy'], args['errorpolicy']]
+makefile_options['EOS_FILES'] = ''
+if args['eos'] == 'eostaudyn_ps':
+    aux = ["		$(wildcard src/z4c/primitive/{}.cpp) \\".format(f) for f in files]
+    makefile_options['EOS_FILES'] = '\n'.join(aux) + '\n'
+
 # Make substitutions
 for key, val in definitions.items():
     defsfile_template = re.sub(r'@{0}@'.format(key), val, defsfile_template)
@@ -1223,7 +1221,6 @@ print('  Number of ghost cells:        ' + args['nghost'])
 print('  Number of coarse ghosts (VC): ' + args['ncghost'])
 print('  Total # extrapolation points: ' + args['nextrapolate'])
 print('  Number of extraction radii:   ' + args['nrad'])
-print('  Number of interpolation ghost cells: ' + args['ninterp'])
 print('  MPI parallelism:              ' + ('ON' if args['mpi'] else 'OFF'))
 print('  OpenMP parallelism:           ' + ('ON' if args['omp'] else 'OFF'))
 print('  FFT:                          ' + ('ON' if args['fft'] else 'OFF'))
