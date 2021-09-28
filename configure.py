@@ -11,12 +11,15 @@
 #   --prob=name         use src/pgen/name.cpp as the problem generator
 #   --coord=xxx         use xxx as the coordinate system
 #   --eos=xxx           use xxx as the equation of state
+#   --eospolicy=xxx     use xxx as eos policy for eostaudyn_ps
+#   --errorpolicy=xxx   use xxx as error policy for eostaudyn_ps
 #   --flux=xxx          use xxx as the Riemann solver
 #   --nghost=xxx        set NGHOST=xxx
 #   --ncghost=xxx       set NCGHOST=xxx
 #   --nextrapolate=xxx  set NEXTRAPOLATE=xxx  [for ouflow conditions]
 #   --nscalars=xxx      set NSCALARS=xxx
 #   --nrad=xxx          set NRAD=xxx (for wave extraction)
+#   --ninterp=xxx       set NGRCV_HSZ=xxx (number of ghosts for intergrid interpolation)
 #   -eos_table          enable EOS table
 #   -f                  enable fluid
 #   -b                  enable magnetic fields
@@ -157,6 +160,11 @@ parser.add_argument('--nscalars',
 parser.add_argument('--nrad',
                     default='5',
                     help='set number of extraction radii')
+
+# --ninterp=[value] argument
+parser.add_argument('--ninterp',
+                    default='2',
+                    help='set number of ghost zones for intergrid interpolation')
 
 # -f argument
 parser.add_argument('-f',
@@ -568,6 +576,9 @@ definitions['NUMBER_PASSIVE_SCALARS'] = args['nscalars']
 
 # --nrad=[value] argument
 definitions['NUMBER_EXT_RAD'] = args['nrad']
+
+# --ninterp=[value] argument
+definitions['NUMBER_INTERP_GHOSTS'] = args['ninterp']
 
 # -f argument
 if args['f']:
