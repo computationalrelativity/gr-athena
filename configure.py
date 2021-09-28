@@ -112,8 +112,20 @@ parser.add_argument(
 parser.add_argument('--eos',
                     default='adiabatic',
                     choices=['adiabatic', 'isothermal', 'general/eos_table', 'adiabatictaudyn','adiabatictaudyn_rep',
-                             'general/hydrogen', 'general/ideal'],
+                             'general/hydrogen', 'general/ideal', 'general_gr'],
                     help='select equation of state')
+
+# --eospolicy=[name] argument
+parser.add_argument('--eospolicy',
+                    default='idealgas',
+                    choices=['idealgas', 'piecewise_polytrope'], 
+                    help='select EOS policy for PrimitiveSolver framework')
+
+# --errorpolicy=[name] argument
+parser.add_argument('--errorpolicy',
+                    default='do_nothing',
+                    choices=['do_nothing', 'reset_floor'],
+                    help='select error policy for PrimitiveSolver framework')
 
 # --flux=[name] argument
 parser.add_argument('--flux',
@@ -469,6 +481,10 @@ if args['eos'] == 'isothermal':
     if args['s'] or args['g']:
         raise SystemExit('### CONFIGURE ERROR: '
                          + 'Isothermal EOS is incompatible with relativity')
+if args['eos'] == 'general_gr':
+    if not args['z']:
+        raise SystemExit('### CONFIGURE ERROR: '
+                        + 'PrimitiveSolver EOS interface requires Z4c')
 if args['eos'][:8] == 'general/':
     if args['s'] or args['g']:
         raise SystemExit('### CONFIGURE ERROR: '
@@ -498,11 +514,36 @@ definitions['EQUATION_OF_STATE'] = args['eos']
 definitions['GENERAL_EOS'] = '0'
 makefile_options['GENERAL_EOS_FILE'] = 'noop'
 definitions['EOS_TABLE_ENABLED'] = '0'
+# defaults for PrimitiveSolver definitions
+definitions['USE_TM'] = '0'
+definitions['EOS_POLICY_INCLUDE'] = ''
+definitions['ERROR_POLICY_INCLUDE'] = ''
+definitions['EOS_POLICY'] = ''
+definitions['ERROR_POLICY'] = ''
 if args['eos'] == 'isothermal':
     definitions['NHYDRO_VARIABLES'] = '4'
-elif args['eos'] == 'adiabatic' or 'adiabatictaudyn' or 'adiabatictaudyn_rep':
+elif args['eos'] == 'adiabatic' or args['eos'] == 'adiabatictaudyn' or args['eos'] == 'adiabatictaudyn_rep':
     definitions['NHYDRO_VARIABLES'] = '5'
     makefile_options['GENERAL_EOS_FILE'] = 'ideal'
+elif args['eos'] == 'general_gr':
+    definitions['NHYDRO_VARIABLES'] = '5'
+    definitions['USE_TM'] = '1'
+    definitions['EOS_POLICY_INCLUDE'] = 'z4c/primitive/' + args['eospolicy'] + '.hpp'
+    definitions['ERROR_POLICY_INCLUDE'] = 'z4c/primitive/' + args['errorpolicy'] + '.hpp'
+    if args['eospolicy'] == 'idealgas':
+        definitions['EOS_POLICY'] = 'IdealGas'
+    elif args['eospolicy'] == 'piecewise_polytrope':
+        definitions['EOS_POLICY'] = 'PiecewisePolytrope'
+    else:
+        definitions['EOS_POLICY'] = ''
+    if args['errorpolicy'] == 'do_nothing':
+        definitions['ERROR_POLICY'] = 'DoNothing'
+    elif args['errorpolicy'] == 'reset_floor':
+        definitions['ERROR_POLICY'] == 'ResetFloor'
+    else:
+        definitions['ERROR_POLICY'] == ''
+    
+    makefile_options['GENERAL_EOS_FILE'] = 'general_gr'
 else:
     definitions['GENERAL_EOS'] = '1'
     makefile_options['GENERAL_EOS_FILE'] = 'general'
