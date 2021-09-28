@@ -927,7 +927,9 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
 //and read in
       pblock->pz4c->Z4cToADM(pblock->pz4c->storage.u, pblock->pz4c->storage.adm);
       pblock->pcoord->UpdateMetric();
+      if(multilevel){
       pblock->pmr->pcoarsec->UpdateMetric();
+      }
       pfirst = pblock;
     } else {
       pblock->next = new MeshBlock(i, i-nbs, this, pin, loclist[i], block_size,
@@ -937,7 +939,9 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
 //WGC
       pblock->pz4c->Z4cToADM(pblock->pz4c->storage.u, pblock->pz4c->storage.adm);
       pblock->pcoord->UpdateMetric();
+      if(multilevel){
       pblock->pmr->pcoarsec->UpdateMetric();
+      }
     }
     pblock->pbval->SearchAndSetNeighbors(tree, ranklist, nslist);
   }
