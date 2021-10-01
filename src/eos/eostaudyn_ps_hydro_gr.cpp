@@ -1,0 +1,270 @@
+//========================================================================================
+// Athena++ astrophysical MHD code
+// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
+// Licensed under the 3-clause BSD License, see LICENSE file for details
+//========================================================================================
+//! \file eostaudyn_ps_hydro_gr.cpp
+//  \brief Implements functions for going between primitive and conserved variables in
+//  general-relativistic hydrodynamics, as well as for computing wavespeeds.
+
+// C++ headers
+#include <algorithm>
+#include <cfloat>
+#include <cmath>
+
+// Athena++ headers
+#include "../eos.hpp"
+#include "../../athena.hpp"
+#include "../../athena_arrays.hpp"
+#include "../../parameter_input.hpp"
+#include "../../coordinates/coordinates.hpp"
+#include "../../field/field.hpp"
+#include "../../mesh/mesh.hpp"
+#include "../../z4c/z4c.hpp"
+
+// PrimitiveSolver headers
+
+#include "../../z4c/primitive/primitive_solver.hpp"
+#include "../../z4c/primitive/eos.hpp"
+#include "../../z4c/primitive/"EOS_POLICY_INCLUDE
+#include "../../z4c/primitive/"ERROR_POLICY_INCLUDE
+
+// Declarations
+static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim, 
+    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, int k, int j, int i,
+    AthenaArray<Real> &cons, Coordinates *pco);
+
+Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> eos;
+Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> ps{&eos};
+
+//----------------------------------------------------------------------------------------
+// Constructor
+// Inputs:
+//   pmb: pointer to MeshBlock
+//   pin: pointer to runtime inputs
+
+EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) {
+  pmy_block_ = pmb;
+  density_floor_ = pin->GetOrAddReal("hydro", "dfloor", std::sqrt(1024*(FLT_MIN)));
+  pressure_floor_ = pin->GetOrAddReal("hydro", "pfloor", std::sqrt(1024*(FLT_MIN)));
+
+  int ncells1 = pmb->block_size.nx1 + 2*NGHOST;
+  g_.NewAthenaArray(NMETRIC, ncells1);
+  g_inv_.NewAthenaArray(NMETRIC, ncells1);
+  int ncells2 = (pmb->block_size.nx2 > 1) ? pmb->block_size.nx2 + 2*NGHOST : 1;
+  int ncells3 = (pmb->block_size.nx3 > 1) ? pmb->block_size.nx2 + 2*NGHOST : 1;
+  fixed_.NewAthenaArray(ncells3, ncells2, ncells1);
+
+  // Set up the EOS
+  // Baryon mass
+  Real mb = pin->GetOrAddReal("hydro", "bmass", 1.0);
+  eos.SetBaryonMass(mb);
+  // Set the number density floor.
+  eos.SetDensityFloor(density_floor_/mb);
+  // Set the temperature floor -- we first need to retrieve the temperature from the pressure.
+  // That means we need to initialize an empty array of particle fractions.
+  Real Y[MAX_SPECIES] = {0.0};
+  Real T_floor = eos.GetTemperatureFromP(density_floor_/mb, pressure_floor_, Y);
+  eos.SetTemperatureFloor(T_floor);
+}
+
+
+//----------------------------------------------------------------------------------------
+// Variable inverter
+// Inputs:
+//   cons: conserved quantities
+//   prim_old: primitive quantities from previous half timestep
+//   bb: face-centered magnetic field
+//   pco: pointer to Coordinates
+//   il,iu,jl,ju,kl,ku: index bounds of region to be updated
+// Outputs:
+//   prim: primitives
+//   bb_cc: cell-centered magnetic field
+// Notes:
+//   follows Noble et al. 2006, ApJ 641 626 (N)
+//       writing wgas_rel for W = \gamma^2 w
+//       writing d for D
+//       writing q for Q
+//       writing qq for \tilde{Q}
+//       writing uu for \tilde{u}
+//       writing vv for v
+//   implements formulas assuming no magnetic field
+
+void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
+    cosnt AthenaArray<Real> &prim_old, const FaceField &bb, AthenaArray<Real> &prim,
+    AthenaArray<Real> &bb_cc, Coordinates *pco, int il, int iu, int jl, int ju, int kl,
+    int ku) {
+  // Parametes
+  int nn1 = iu+1;
+  
+  // Vertex-centered containers for the metric.
+  AthenaArray<Real> vcgamma_xx, vcgamma_xy, vcgamma_xz, vcgamma_yy,
+                    vcgamma_yz, vcgamma_zz;
+
+  // Metric at cell centers.
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
+  gamma_dd.NewAthenaTensor(nn1);
+  vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
+  vcgamma_xy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
+  vcgamma_xz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
+  vcgamma_yy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
+  vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
+  vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
+
+  // Go through the cells
+  for (int k = kl; k <= ku; ++k) {
+    for (int j = jl; j <= ju; +=j) {
+      // Extract the metric at the vertex centers and interpolate to cell centers.
+      #pragma omp simd
+      for (int i = il; i <= iu; ++i) {
+        gamma_dd(0,0,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
+        gamma_dd(0,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
+        gamma_dd(0,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
+        gamma_dd(1,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
+        gamma_dd(1,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
+        gamma_dd(2,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
+      }
+
+      // Extract the primitive variables
+      #pragma omp simd
+      for (int i = il; i <= iu; ++i) {
+        // Extract the local metric and stuff it into a smaller array for PrimitiveSolver.
+        Real g3d[NSPMETRIC] = {gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
+                              gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i)};
+        // Calculate the determinant and the inverse metric
+        Real detg = Primitive::GetDeterminant(g3d);
+        Real sdetg = std::sqrt(detg);
+        Real g3u[NSPMETRIC];
+        Primitive::InvertMatrix(g3u, g3d, detg);
+
+        // Extract and undensitize the conserved variables.
+        Real cons_pt[NCONS] = {0.0};
+        cons_pt[IDN] = cons(IDN, k, j, i)/sdetg;
+        cons_pt[IM1] = cons(IM1, k, j, i)/sdetg;
+        cons_pt[IM2] = cons(IM2, k, j, i)/sdetg;
+        cons_pt[IM3] = cons(IM3, k, j, i)/sdetg;
+        cons_pt[IEN] = cons(IEN, k, j, i)/sdetg;
+        // FIXME: Need to generalize this for particle fractions.
+
+        // Find the primitive variables.
+        Real prim_pt[NPRIM] = {0.0};
+        Real b3u[NMAG] = {0.0}; // Assume no magnetic field.
+        Primitive::Error result = ps.ConToPrim(prim_pt, cons_pt, bu, g3d, g3u);
+
+        if(result != Primitive::Error::SUCCESS) {
+          std::cerr << "There was an error during the primitive solve!\n";
+          printf("i=%d, j=%d, k=%d\n",i,j,k);
+        }
+        else {
+          // Update the primitive variables.
+          prim(IDN, k, j, i) = prim_pt[IDN];
+          prim(IVX, k, j, i) = prim_pt[IVX];
+          prim(IVY, k, j, i) = prim_pt[IVY];
+          prim(IVZ, k, j, i) = prim_pt[IVZ];
+          prim(IPR, k, j, i) = prim_pt[IPR];
+
+          // Because the conserved variables may have changed, we update those, too.
+          cons(IDN, k, j, i) = cons_pt[IDN]*sdetg;
+          cons(IM1, k, j, i) = cons_pt[IM1]*sdetg;
+          cons(IM2, k, j, i) = cons_pt[IM2]*sdetg;
+          cons(IM3, k, j, i) = cons_pt[IM3]*sdetg;
+          cons(IEN, k, j, i) = cons_pt[IEN]*sdetg;
+        }
+      }
+    }
+  }
+}
+
+//----------------------------------------------------------------------------------------
+// Function for converting all primitives to conserved variables
+// Inputs:
+//   prim: primitives
+//   bb_cc: cell-centered magnetic field (unused)
+//   pco: pointer to Coordinates
+//   il,iu,jl,ju,kl,ku: index bounds of region to be updated
+// Outputs:
+//   cons: conserved variables
+// Notes:
+//   single-cell function exists for other purposes; call made to that function rather
+//       than having duplicate code
+
+void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
+     const AthenaArray<Real> &bb_cc, AthenaArray<Real> &cons, Coordinates *pco, int il,
+     int iu, int jl, int ju, int kl, int ku) {
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
+  int nn1 = iu+1;
+  gamma_dd.NewAthenaTensor(nn1);
+  AthenaArray<Real> vcgamma_xx, vcgamma_xy, vcgamma_xz, vcgamma_yy,
+                    vcgamma_yz, vcgamma_zz;
+  vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
+  vcgamma_xy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
+  vcgamma_xz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
+  vcgamma_yy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
+  vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
+  vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
+
+  for (int k=kl; k<=ku; ++k) {
+    for (int j=jl; j<=ju; ++j) {
+      // Extract the metric at the cell centers.
+      for (int i=il; i<=iu; ++i) {
+        gamma_dd(0,0,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
+        gamma_dd(0,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
+        gamma_dd(0,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
+        gamma_dd(1,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
+        gamma_dd(1,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
+        gamma_dd(2,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
+      }
+
+      // Calculate the conserved variables at every point.
+      for (int i=il; i<=iu; ++i) {
+        PrimitiveToConservedSingle(prim, gamma_dd, k, j, i, cons, pco);
+      }
+    }
+  }
+}
+
+//----------------------------------------------------------------------------------------
+// Function for converting primitives to conserved variables in a single cell
+// Inputs:
+//   prim: 3D array of primitives
+//   gamma_adi: ratio of specific heats
+//   g,gi: 1D arrays of metric covariant and contravariant coefficients
+//   k,j,i: indices of cell
+//   pco: pointer to Coordinates
+// Outputs:
+//   cons: conserved variables set in desired cell
+
+static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim, 
+    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const &gamma_dd, int k, int j, int i,
+    AthenaArray<Real> &cons,
+    PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& ps) {
+
+  // Extract the primitive variables
+  Real prim_pt[NPRIM] = {0.0};
+  Real Y[MAX_SPECIES] = {0.0}; // FIXME: Need to add support for particle fractions.
+  Real bu[NMAG] = {0.0};
+  Real mb = ps.GetEOS()->GetBaryonMass();
+  prim_pt[IDN] = prim(IDN, k, j, i)/mb;
+  prim_pt[IVX] = prim(IVX, k, j, i);
+  prim_pt[IVY] = prim(IVY, k, j, i);
+  prim_pt[IVZ] = prim(IVZ, k, j, i);
+  prim_pt[IPR] = prim(IPR, k, j, i);
+  prim_pt[ITM] = ps.GetEOS()->GetTemperatureFromP(prim_pt[IDN], prim_pt[IPR], Y);
+
+  // Extract the metric and calculate the determinant.
+  Real g3d[NSPMETRIC] = {gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
+                        gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i)};
+  Real sdetg = Primitive::GetDeterminant(g3d);
+
+  // Perform the primitive solve.
+  Real cons_pt[NCONS];
+
+  ps.PrimToCon(prim_pt, cons_pt, bu, g3d);
+
+  // Push the densitized conserved variables to Athena.
+  cons(IDN, k, j, i) = cons_pt[IDN]*sdetg;
+  cons(IM1, k, j, i) = cons_pt[IM1]*sdetg;
+  cons(IM2, k, j, i) = cons_pt[IM2]*sdetg;
+  cons(IM3, k, j, i) = cons_pt[IM3]*sdetg;
+  cons(IEN, k, j, i) = cons_pt[IEN]*sdetg;
+}

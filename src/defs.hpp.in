@@ -67,13 +67,21 @@
 // Whether or not temperature should be counted as a primitive variable.
 #define USETM @USE_TM@
 
+// EOS Policy used by the PrimitiveSolver framework.
 #define EOS_POLICY @EOS_POLICY@
 
+// Include file for EOS_POLICY
 #define EOS_POLICY_INCLUDE "@EOS_POLICY_INCLUDE@"
 
+// Error Policy used by the PrimitiveSolver framework.
 #define ERROR_POLICY @ERROR_POLICY@
 
+// Include file for ERROR_POLICY
 #define ERROR_POLICY_INCLUDE "@ERROR_POLICY_INCLUDE@"
+
+// Maximum supported species by PrimitiveSolver.
+// FIXME: Should be added as an argument later.
+#define MAX_SPECIES 3
 
 // use general EOS framework default=0 (false).
 #define GENERAL_EOS @GENERAL_EOS@

@@ -61,6 +61,20 @@ namespace Primitive {
     return g3d[S11]*vu[0]*vu[0] + g3d[S22]*vu[1]*vu[1] + g3d[S33]*vu[2]*vu[2] +
           2.0*((g3d[S12]*vu[1] + g3d[S13]*vu[2])*vu[0] + g3d[S23]*vu[1]*vu[2]);
   }
+
+  //! \brief Invert a 3x3 matrix
+  //
+  //  \param[out] m_out The output matrix
+  //  \param[in] m_in The input matrix
+  //  \param[in] det  The determinant of m_in
+  inline void InvertMatrix(Real m_out[NSPMETRIC], const Real m_in[NSPMETRIC], const Real det) {
+    m_out[S11] = (m_in[S22]*m_in[S33] - m_in[S23]*m_in[S23])/det;
+    m_out[S12] = (m_in[S13]*m_in[S23] - m_in[S12]*m_in[S33])/det;
+    m_out[S13] = (m_in[S12]*m_in[S23] - m_in[S13]*m_in[S22])/det;
+    m_out[S22] = (m_in[S11]*m_in[S33] - m_in[S13]*m_in[S13])/det;
+    m_out[S23] = (m_in[S12]*m_in[S13] - m_in[S11]*m_in[S23])/det;
+    m_out[S33] = (m_in[S11]*m_in[S22] - m_in[S12]*m_in[S12])/det;
+  }
 }
 
 #endif
