@@ -26,6 +26,23 @@
 
 using namespace std;
 
+inline Real VertexToCell(const Real *vec,
+    int lbb, int rbb, int ltb, int rtb, int lbf, int rbf, int ltf, int rtf) {
+  return 0.125*(vec[lbb] + vec[rbb] + vec[ltb] + vec[rtb] 
+              + vec[lbf] + vec[rbf] + vec[ltf] + vec[rtf]);
+}
+
+inline void CalculateWv(Real uu[3], AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g_dd,
+    Real vu[3], int k, int j, int i) {
+  Real vsq = 2.0*(vu[0]*vu[1]*g_dd(0,1,k,j,i) + vu[0]*vu[2]*g_dd(0,2,k,j,i) + 
+                  vu[1]*vu[2]*g_dd(1,2,k,j,i))
+           + vu[0]*vu[0]*g_dd(0,0,k,j,i) + vu[1]*vu[1]*g_dd(1,1,k,j,i) + vu[2]*vu[2]*g_dd(2,2,k,j,i);
+  Real W = 1.0/std::sqrt(1.0 - vsq);
+  uu[0] = vu[0]*W;
+  uu[1] = vu[1]*W;
+  uu[2] = vu[2]*W;
+}
+
 //========================================================================================
 //! \fn void Mesh::InitUserMeshData(ParameterInput *pin)
 //  \brief Function to initialize problem-specific data in mesh class.  Can also be used
@@ -135,16 +152,17 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 	int const nx = iu - il + 1;
 	int const ny = ju - jl + 1;
 	int const nz = ku - kl + 1;
-	int const npoints = nx * ny * nz;
+	int const npoints = (nx + 1) * (ny + 1) * (nz + 1);
 	std::vector<double> xx(npoints), yy(npoints), zz(npoints);
 
-	for (int k = kl; k <= ku; k++) {
-		for (int j = jl; j <= ju; j++) {
-			for (int i = il; i <= iu; i++) {
-				int index = (i - kl) + nx * ((j - jl) + ny * (k - kl));
-				xx[index] = pcoord->x1v(i) * coord_unit;
-				yy[index] = pcoord->x2v(j) * coord_unit;
-				zz[index] = pcoord->x3v(k) * coord_unit;
+  // Calculate the vertex-centered coordinates.
+	for (int k = kl; k <= ku + 1; k++) {
+		for (int j = jl; j <= ju + 1; j++) {
+			for (int i = il; i <= iu + 1; i++) {
+				int index = (i - kl) + (nx + 1) * ((j - jl) + (ny + 1) * (k - kl));
+				xx[index] = pcoord->x1f(i) * coord_unit;
+				yy[index] = pcoord->x2f(j) * coord_unit;
+				zz[index] = pcoord->x3f(k) * coord_unit;
 			}
 		}
 	}
@@ -154,11 +172,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 	Lorene::Mag_NS mag_ns(npoints, &xx[0], &yy[0], &zz[0], filename.c_str());
 	assert(mag_ns.np == npoints);
 
-	// Some debug stuff.
-	for (int k = kl; k <= ku; k++) {
-		for (int j = jl; j <= ju; j++) {
-			for (int i = il; i <= iu; i++) {
-				int index = (i - kl) + nx * ((j - jl) + ny * (k - kl));
+  // Read in the metric.
+	for (int k = kl; k <= ku + 1; k++) {
+		for (int j = jl; j <= ju + 1; j++) {
+			for (int i = il; i <= iu + 1; i++) {
+				int index = (i - kl) + (nx + 1) * ((j - jl) + (ny + 1) * (k - kl));
 
 				// Copy over Lorene's gauge variables.
 				alpha(k, j, i) = mag_ns.nnn[index];
@@ -216,55 +234,88 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 						K_dd(a, b, k, j, i) = K[a][b];
 					}
 				}
-
-				// Get the matter variables from Lorene.
-				Real rho = mag_ns.nbar[index] / rho_unit; // Rest-mass density?
-				Real egas = rho * mag_ns.ener_spec[index] / ener_unit; // Energy density
-				// 3-velocity of the fluid.
-				Real vu[3];
-				vu[0] = mag_ns.u_euler_x[index] / vel_unit;
-				vu[1] = mag_ns.u_euler_y[index] / vel_unit;
-				vu[2] = mag_ns.u_euler_z[index] / vel_unit;
-
-				// Calculate the pressure using the EOS.
-				// FIXME: Is it possibly not good practice to use this here? I had to modify
-				// configure.py to set GENERAL_EOS_FILE to ideal.cpp for an adiabatic system
-				// to get this to work.
-				Real p = peos->PresFromRhoEg(rho, egas);
-
-				// Find the four-velocity stored in the primitive variables.
-				//Real vsq = 2.0*(vu[0]*vu[1]*g[0][1] + vu[0]*vu[2]*g[0][2] + vu[1]*vu[2]*g[1][2])
-				//		 + vu[0]*vu[0]*g[0][0] + vu[1]*vu[1]*g[1][1] + vu[2]*vu[2]*g[2][2];
-				// Make sure that the velocity is physical. If not, scream that something is wrong
-				// and quit.
-				//assert(!isnan(vsq));
-				//assert(vsq < 1.0);
-				//Real W = 1.0/sqrt(1.0 - vsq);
-
-				// Magnetic field
-				// FIXME: We don't currently do anything with the magnetic field other
-				// than pull it in.
-				Real Bu[3];
-				Bu[0] = mag_ns.bb_x[i] / B_unit;
-				Bu[1] = mag_ns.bb_y[i] / B_unit;
-				Bu[2] = mag_ns.bb_z[i] / B_unit;
-
-				// Stuff everything into the hydro variables.
-				phydro->w(IDN, k, j, i) = phydro->w1(IDN, k, j, i) = rho;
-				phydro->w(IPR, k, j, i) = phydro->w1(IPR, k, j, i) = p;
-				/*Real ux = W * vu[0];
-				Real uy = W * vu[1];
-				Real uz = W * vu[2];
-				assert(!isnan(ux));
-				assert(!isnan(uy));
-				assert(!isnan(uz));*/
-				// FIXME: Double-check if Athena stores W*v or v.
-				phydro->w(IVX, k, j, i) = phydro->w1(IVX, k, j, i) = vu[0];
-				phydro->w(IVY, k, j, i) = phydro->w1(IVY, k, j, i) = vu[1];
-				phydro->w(IVZ, k, j, i) = phydro->w1(IVY, k, j, i) = vu[2];
 			}
 		}
 	}
+
+  // Calculate the cell-centered fluid variables.
+  for (int k = kl; k <= ku; k++) {
+    for (int j = jl; j <= ju; j++) {
+      for (int i = il; i <= iu; i++) {
+        // Calculate indices for the points we're averaging.
+        // Left-bottom-back
+				int lbb = (i - kl) + (nx + 1) * ((j - jl) + (ny + 1) * (k - kl));
+        // Right-bottom-back
+        int rbb = (i - kl + 1) + (nx + 1) * ((j - jl) + (ny + 1) * (k - kl));
+        // Left-top-back
+        int ltb = (i - kl) + (nx + 1) * ((j - jl + 1) + (ny + 1) * (k - kl));
+        // Right-top-back
+        int rtb = (i - kl + 1) + (nx + 1) * ((j - jl + 1) + (ny + 1) * (k - kl));
+        // Left-bottom-front
+				int lbf = (i - kl) + (nx + 1) * ((j - jl) + (ny + 1) * (k - kl + 1));
+        // Right-bottom-front
+				int rbf = (i - kl + 1) + (nx + 1) * ((j - jl) + (ny + 1) * (k - kl + 1));
+        // Left-top-front
+				int ltf = (i - kl) + (nx + 1) * ((j - jl + 1) + (ny + 1) * (k - kl + 1));
+        // Right-top-front
+				int rtf = (i - kl + 1) + (nx + 1) * ((j - jl + 1) + (ny + 1) * (k - kl + 1));
+
+        // Density and specific energy.
+        Real rho = VertexToCell(mag_ns.nbar, lbb, rbb, ltb, rtb, lbf, rbf, ltf, rtf) / rho_unit;
+        Real eps = VertexToCell(mag_ns.ener_spec, lbb, rbb, ltb, rtb, lbf, rbf, ltf, rtf) / ener_unit;
+        Real egas = rho*(1.0 + eps);
+        Real pgas = peos->PresFromRhoEg(rho, egas);
+        // 3-velocity of the fluid
+        Real vu_lbb[3] = {mag_ns.u_euler_x[lbb]/vel_unit, mag_ns.u_euler_y[lbb]/vel_unit,
+                          mag_ns.u_euler_z[lbb]/vel_unit};
+        Real vu_rbb[3] = {mag_ns.u_euler_x[rbb]/vel_unit, mag_ns.u_euler_y[rbb]/vel_unit,
+                          mag_ns.u_euler_z[rbb]/vel_unit};
+        Real vu_ltb[3] = {mag_ns.u_euler_x[ltb]/vel_unit, mag_ns.u_euler_y[ltb]/vel_unit,
+                          mag_ns.u_euler_z[ltb]/vel_unit};
+        Real vu_rtb[3] = {mag_ns.u_euler_x[rtb]/vel_unit, mag_ns.u_euler_y[rtb]/vel_unit,
+                          mag_ns.u_euler_z[rtb]/vel_unit};
+        Real vu_lbf[3] = {mag_ns.u_euler_x[lbf]/vel_unit, mag_ns.u_euler_y[lbf]/vel_unit,
+                          mag_ns.u_euler_z[lbf]/vel_unit};
+        Real vu_rbf[3] = {mag_ns.u_euler_x[rbf]/vel_unit, mag_ns.u_euler_y[rbf]/vel_unit,
+                          mag_ns.u_euler_z[rbf]/vel_unit};
+        Real vu_ltf[3] = {mag_ns.u_euler_x[ltf]/vel_unit, mag_ns.u_euler_y[ltf]/vel_unit,
+                          mag_ns.u_euler_z[ltf]/vel_unit};
+        Real vu_rtf[3] = {mag_ns.u_euler_x[rtf]/vel_unit, mag_ns.u_euler_y[rtf]/vel_unit,
+                          mag_ns.u_euler_z[rtf]/vel_unit};
+        
+        // 4-velocity of the fluid. We have to calculate the 4-velocities before averaging
+        // because averaging 3-velocities is always a bad idea.
+        Real uu_lbb[3], uu_rbb[3], uu_ltb[3], uu_rtb[3], 
+             uu_lbf[3], uu_rbf[3], uu_ltf[3], uu_rtf[3];
+        CalculateWv(uu_lbb, g_dd, vu_lbb, k, j, i);
+        CalculateWv(uu_rbb, g_dd, vu_rbb, k, j, i);
+        CalculateWv(uu_ltb, g_dd, vu_ltb, k, j, i);
+        CalculateWv(uu_rtb, g_dd, vu_rtb, k, j, i);
+        CalculateWv(uu_lbf, g_dd, vu_lbf, k, j, i);
+        CalculateWv(uu_rbf, g_dd, vu_rbf, k, j, i);
+        CalculateWv(uu_ltf, g_dd, vu_ltf, k, j, i);
+        CalculateWv(uu_rtf, g_dd, vu_rtf, k, j, i);
+
+        // Average the 4-velocities together.
+        Real uu[3];
+        uu[0] = 0.125*(uu_lbb[0] + uu_rbb[0] + uu_ltb[0] + uu_rtb[0]
+                     + uu_lbf[0] + uu_rbf[0] + uu_ltf[0] + uu_rtf[0]);
+        uu[1] = 0.125*(uu_lbb[1] + uu_rbb[1] + uu_ltb[1] + uu_rtb[1]
+                     + uu_lbf[1] + uu_rbf[1] + uu_ltf[1] + uu_rtf[1]);
+        uu[2] = 0.125*(uu_lbb[2] + uu_rbb[2] + uu_ltb[2] + uu_rtb[2]
+                     + uu_lbf[2] + uu_rbf[2] + uu_ltf[2] + uu_rtf[2]);
+
+        // FIXME: Need to load magnetic field at some point.
+
+        // Copy all the variables over to Athena.
+        phydro->w(IDN, k, j, i) = phydro->w1(IDN, k, j, i) = rho;
+        phydro->w(IVX, k, j, i) = phydro->w1(IVX, k, j, i) = uu[0];
+        phydro->w(IVY, k, j, i) = phydro->w1(IVY, k, j, i) = uu[1];
+        phydro->w(IVZ, k, j, i) = phydro->w1(IVZ, k, j, i) = uu[2];
+        phydro->w(IPR, k, j, i) = phydro->w1(IPR, k, j, i) = pgas;
+      }
+    }
+  }
 
 	// Construct Z4c vars from ADM vars.
 	// FIXME: This needs to be made agnostic of the formalism.
