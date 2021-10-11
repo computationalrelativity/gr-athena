@@ -20,6 +20,13 @@
 #include "../coordinates/coordinates.hpp" // Coordinates
 #include "../utils/interp_table.hpp"
 
+#if USETM
+// PrimitiveSolver headers
+#include "../z4c/primitive/eos.hpp"
+#include "../z4c/primitive/primitive_solver.hpp"
+#include "include_eos.hpp"
+#endif
+
 // Declarations
 class Hydro;
 class ParameterInput;
@@ -194,6 +201,12 @@ class EquationOfState {
   AthenaArray<Real> normal_bb_;          // normal-frame fields, used in GR MHD
   AthenaArray<Real> normal_tt_;          // normal-frame M.B, used in GR MHD
   void InitEosConstants(ParameterInput *pin);
+#if USETM
+  // If we're using the PrimitiveSolver framework, we need to declare the
+  // EOS and PrimitiveSolver objects.
+  Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> eos;
+  Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> ps;
+#endif
 };
 
 #endif // EOS_EOS_HPP_

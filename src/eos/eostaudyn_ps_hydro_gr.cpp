@@ -13,29 +13,28 @@
 #include <cmath>
 
 // Athena++ headers
-#include "../eos.hpp"
-#include "../../athena.hpp"
-#include "../../athena_arrays.hpp"
-#include "../../parameter_input.hpp"
-#include "../../coordinates/coordinates.hpp"
-#include "../../field/field.hpp"
-#include "../../mesh/mesh.hpp"
-#include "../../z4c/z4c.hpp"
+#include "eos.hpp"
+#include "../athena.hpp"
+#include "../athena_arrays.hpp"
+#include "../parameter_input.hpp"
+#include "../coordinates/coordinates.hpp"
+#include "../field/field.hpp"
+#include "../mesh/mesh.hpp"
+#include "../z4c/z4c.hpp"
 
 // PrimitiveSolver headers
 
-#include "../../z4c/primitive/primitive_solver.hpp"
-#include "../../z4c/primitive/eos.hpp"
-#include "../../z4c/primitive/"EOS_POLICY_INCLUDE
-#include "../../z4c/primitive/"ERROR_POLICY_INCLUDE
+/*#include "../z4c/primitive/primitive_solver.hpp"
+#include "../z4c/primitive/eos.hpp"*/
 
 // Declarations
 static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim, 
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, int k, int j, int i,
-    AthenaArray<Real> &cons, Coordinates *pco);
+    AthenaArray<Real> &cons,
+    Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& ps);
 
-Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> eos;
-Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> ps{&eos};
+//Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> eos;
+//Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> ps{&eos};
 
 //----------------------------------------------------------------------------------------
 // Constructor
@@ -43,7 +42,7 @@ Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> ps{&e
 //   pmb: pointer to MeshBlock
 //   pin: pointer to runtime inputs
 
-EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) {
+EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos} {
   pmy_block_ = pmb;
   density_floor_ = pin->GetOrAddReal("hydro", "dfloor", std::sqrt(1024*(FLT_MIN)));
   pressure_floor_ = pin->GetOrAddReal("hydro", "pfloor", std::sqrt(1024*(FLT_MIN)));
@@ -91,7 +90,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) {
 //   implements formulas assuming no magnetic field
 
 void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
-    cosnt AthenaArray<Real> &prim_old, const FaceField &bb, AthenaArray<Real> &prim,
+    const AthenaArray<Real> &prim_old, const FaceField &bb, AthenaArray<Real> &prim,
     AthenaArray<Real> &bb_cc, Coordinates *pco, int il, int iu, int jl, int ju, int kl,
     int ku) {
   // Parametes
@@ -113,7 +112,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
 
   // Go through the cells
   for (int k = kl; k <= ku; ++k) {
-    for (int j = jl; j <= ju; +=j) {
+    for (int j = jl; j <= ju; ++j) {
       // Extract the metric at the vertex centers and interpolate to cell centers.
       #pragma omp simd
       for (int i = il; i <= iu; ++i) {
@@ -149,7 +148,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         // Find the primitive variables.
         Real prim_pt[NPRIM] = {0.0};
         Real b3u[NMAG] = {0.0}; // Assume no magnetic field.
-        Primitive::Error result = ps.ConToPrim(prim_pt, cons_pt, bu, g3d, g3u);
+        Primitive::Error result = ps.ConToPrim(prim_pt, cons_pt, b3u, g3d, g3u);
 
         if(result != Primitive::Error::SUCCESS) {
           std::cerr << "There was an error during the primitive solve!\n";
@@ -217,7 +216,7 @@ void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
 
       // Calculate the conserved variables at every point.
       for (int i=il; i<=iu; ++i) {
-        PrimitiveToConservedSingle(prim, gamma_dd, k, j, i, cons, pco);
+        PrimitiveToConservedSingle(prim, gamma_dd, k, j, i, cons, ps);
       }
     }
   }
@@ -237,7 +236,7 @@ void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
 static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim, 
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const &gamma_dd, int k, int j, int i,
     AthenaArray<Real> &cons,
-    PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& ps) {
+    Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& ps) {
 
   // Extract the primitive variables
   Real prim_pt[NPRIM] = {0.0};
@@ -267,4 +266,94 @@ static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim,
   cons(IM2, k, j, i) = cons_pt[IM2]*sdetg;
   cons(IM3, k, j, i) = cons_pt[IM3]*sdetg;
   cons(IEN, k, j, i) = cons_pt[IEN]*sdetg;
+}
+
+//----------------------------------------------------------------------------------------
+// Function for calculating relativistic sound speeds
+// Inputs:
+//   rho_h: enthalpy per unit volume
+//   pgas: gas pressure
+//   vx: 3-velocity component v^x
+//   gamma_lorentz_sq: Lorentz factor \gamma^2
+// Outputs:
+//   plambda_plus: value set to most positive wavespeed
+//   plambda_minus: value set to most negative wavespeed
+// Notes:
+//   same function as in adiabatic_hydro_sr.cpp
+//     uses SR formula (should be called in locally flat coordinates)
+//   references Mignone & Bodo 2005, MNRAS 364 126 (MB)
+
+void EquationOfState::SoundSpeedsSR(Real n, Real T, Real vx, Real gamma_lorentz_sq,
+    Real *plambda_plus, Real *plambda_minus) {
+  // FIXME: Need to update to work with particle fractions.
+  Real Y[MAX_SPECIES] = {0};
+  Real cs = ps.GetEOS()->GetSoundSpeed(n, T, Y);
+  Real csq = cs*cs;
+  Real sigma_s = csq / (gamma_lorentz_sq * (1.0 - csq));
+  Real relative_speed = std::sqrt(sigma_s * (1.0 + sigma_s - vx*vx));
+  *plambda_plus = 1.0/(1.0 + sigma_s) * (vx + relative_speed);
+  *plambda_minus = 1.0/(1.0 + sigma_s) * (vx - relative_speed);
+  return;
+}
+
+//----------------------------------------------------------------------------------------
+// Function for calculating relativistic sound speeds in arbitrary coordinates
+// Inputs:
+//   rho_h: enthalpy per unit volume
+//   pgas: gas pressure
+//   u0,u1: 4-velocity components u^0, u^1
+//   g00,g01,g11: metric components g^00, g^01, g^11
+// Outputs:
+//   plambda_plus: value set to most positive wavespeed
+//   plambda_minus: value set to most negative wavespeed
+// Notes:
+//   follows same general procedure as vchar() in phys.c in Harm
+//   variables are named as though 1 is normal direction
+
+void EquationOfState::SoundSpeedsGR(Real n, Real T, Real vi, Real v2, Real alpha,
+    Real betai, Real gammaii, Real *plambda_plus, Real *plambda_minus) {
+  // Calculate comoving sound speed
+  // FIXME: Need to update to work with particle fractions.
+  Real Y[MAX_SPECIES] = {0};
+  Real cs = ps.GetEOS()->GetSoundSpeed(n, T, Y);
+  Real cs_sq = cs*cs;
+
+  Real root_1 = alpha*(vi*(1.0-cs_sq) + cs*std::sqrt( (1-v2)*(gammaii*(1.0-v2*cs_sq) - vi*vi*(1.0-cs_sq))))/(1.0-v2*cs_sq) - betai;
+  Real root_2 = alpha*(vi*(1.0-cs_sq) - cs*std::sqrt( (1-v2)*(gammaii*(1.0-v2*cs_sq) - vi*vi*(1.0-cs_sq))))/(1.0-v2*cs_sq) - betai;
+
+  if (root_1 > root_2) {
+    *plambda_plus = root_1;
+    *plambda_minus = root_2;
+  }
+  else {
+    *plambda_plus = root_2;
+    *plambda_minus = root_1;
+  }
+  return;
+}
+
+//---------------------------------------------------------------------------------------
+// \!fn void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim,
+//           int k, int j, int i)
+// \brief Apply density and pressure floors to reconstructed L/R cell interface states
+
+void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j, int i) {
+  // Extract the primitive variables and floor them using PrimitiveSolver.
+  Real mb = ps.GetEOS()->GetBaryonMass();
+  Real n = prim(IDN, k, j, i)/mb;
+  Real Wvu[3] = {prim(IVX, k, j, i), prim(IVY, k, j, i), prim(IVZ, k, j, i)};
+  Real P = prim(IPR, k, j, i);
+  // FIXME: Update to work with particle species.
+  Real Y[MAX_SPECIES] = {0.0};
+  Real T = ps.GetEOS()->GetTemperatureFromP(n, P, Y);
+  ps.GetEOS()->ApplyPrimitiveFloor(n, Wvu, P, T, Y);
+
+  // Now push the updated quantities back to Athena.
+  prim(IDN, k, j, i) = n*mb;
+  prim(IVX, k, j, i) = Wvu[0];
+  prim(IVY, k, j, i) = Wvu[1];
+  prim(IVZ, k, j, i) = Wvu[2];
+  prim(IPR, k, j, i) = P;
+
+  return;
 }
