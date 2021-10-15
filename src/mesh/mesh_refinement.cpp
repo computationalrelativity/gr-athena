@@ -665,19 +665,19 @@ void MeshRefinement::ProlongateCellCenteredValues(
   MeshBlock *pmb = pmy_block_;
   Coordinates *pco = pmb->pcoord;
 
-#ifdef DBGPR_MESH_REFINEMENT
-  coutBoldRed("[pre]coarse\n");
-  coarse.print_all();
+// #ifdef DBGPR_MESH_REFINEMENT
+//   coutBoldRed("[pre]coarse\n");
+//   coarse.print_all();
 
-  coutBoldRed("[pre]fine\n");
-  fine.print_all();
+//   coutBoldRed("[pre]fine\n");
+//   fine.print_all();
 
-  coutBoldRed("\npcoarsec->x1v\n");
-  pcoarsec->x1v.print_all();
+//   coutBoldRed("\npcoarsec->x1v\n");
+//   pcoarsec->x1v.print_all();
 
-  coutBoldRed("pco->x1v\n");
-  pco->x1v.print_all();
-#endif // DBGPR_MESH_REFINEMENT
+//   coutBoldRed("pco->x1v\n");
+//   pco->x1v.print_all();
+// #endif // DBGPR_MESH_REFINEMENT
 
   // BD debug: re-populate coarse grid with exact solution
   // need mutable
@@ -747,7 +747,7 @@ void MeshRefinement::ProlongateCellCenteredValues(
 
   // BD: debug- disable slope-limiter for the moment
   // this brings behaviour into line with 'master'
-  bool slope_limit = false;
+  bool slope_limit = true;
 
   if (pmb->block_size.nx3 > 1) {
     for (int n=sn; n<=en; n++) {
@@ -762,6 +762,12 @@ void MeshRefinement::ProlongateCellCenteredValues(
         const Real& fx3p = pco->x3v(fk+1);
         Real dx3fm =  x3c - fx3m;
         Real dx3fp =  fx3p - x3c;
+
+        // BD: extend functionality to odd ghosts ---------
+        const int K_l = 1 - (fk >= 0);
+        const int K_u = 1 + ((pmb->block_size.nx3+2*NGHOST) > (fk + 1));
+        // ------------------------------------------------
+
         for (int j = sj; j<=ej; j++) {
           int fj = (j - pmb->cjs)*2 + pmb->js;
           const Real& x2m = pcoarsec->x2v(j-1);
@@ -773,6 +779,12 @@ void MeshRefinement::ProlongateCellCenteredValues(
           const Real& fx2p = pco->x2v(fj+1);
           Real dx2fm = x2c - fx2m;
           Real dx2fp = fx2p - x2c;
+
+          // BD: extend functionality to odd ghosts -------
+          const int J_l = 1 - (fj >= 0);
+          const int J_u = 1 + ((pmb->block_size.nx2+2*NGHOST) > (fj + 1));
+          // ----------------------------------------------
+
           for (int i=si; i<=ei; i++) {
             int fi = (i - pmb->cis)*2 + pmb->is;
             const Real& x1m = pcoarsec->x1v(i-1);
@@ -811,14 +823,37 @@ void MeshRefinement::ProlongateCellCenteredValues(
             }
             // KGF: add the off-centered quantities first to preserve FP symmetry
             // interpolate onto the finer grid
-            fine(n,fk  ,fj  ,fi  ) = ccval - (gx1c*dx1fm + gx2c*dx2fm + gx3c*dx3fm);
-            fine(n,fk  ,fj  ,fi+1) = ccval + (gx1c*dx1fp - gx2c*dx2fm - gx3c*dx3fm);
-            fine(n,fk  ,fj+1,fi  ) = ccval - (gx1c*dx1fm - gx2c*dx2fp + gx3c*dx3fm);
-            fine(n,fk  ,fj+1,fi+1) = ccval + (gx1c*dx1fp + gx2c*dx2fp - gx3c*dx3fm);
-            fine(n,fk+1,fj  ,fi  ) = ccval - (gx1c*dx1fm + gx2c*dx2fm - gx3c*dx3fp);
-            fine(n,fk+1,fj  ,fi+1) = ccval + (gx1c*dx1fp - gx2c*dx2fm + gx3c*dx3fp);
-            fine(n,fk+1,fj+1,fi  ) = ccval - (gx1c*dx1fm - gx2c*dx2fp - gx3c*dx3fp);
-            fine(n,fk+1,fj+1,fi+1) = ccval + (gx1c*dx1fp + gx2c*dx2fp + gx3c*dx3fp);
+            // fine(n,fk  ,fj  ,fi  ) = ccval - (gx1c*dx1fm + gx2c*dx2fm + gx3c*dx3fm);
+            // fine(n,fk  ,fj  ,fi+1) = ccval + (gx1c*dx1fp - gx2c*dx2fm - gx3c*dx3fm);
+            // fine(n,fk  ,fj+1,fi  ) = ccval - (gx1c*dx1fm - gx2c*dx2fp + gx3c*dx3fm);
+            // fine(n,fk  ,fj+1,fi+1) = ccval + (gx1c*dx1fp + gx2c*dx2fp - gx3c*dx3fm);
+            // fine(n,fk+1,fj  ,fi  ) = ccval - (gx1c*dx1fm + gx2c*dx2fm - gx3c*dx3fp);
+            // fine(n,fk+1,fj  ,fi+1) = ccval + (gx1c*dx1fp - gx2c*dx2fm + gx3c*dx3fp);
+            // fine(n,fk+1,fj+1,fi  ) = ccval - (gx1c*dx1fm - gx2c*dx2fp - gx3c*dx3fp);
+            // fine(n,fk+1,fj+1,fi+1) = ccval + (gx1c*dx1fp + gx2c*dx2fp + gx3c*dx3fp);
+
+            // BD: extend functionality to odd ghosts -------
+            // FP symmetry needs to be checked ...
+
+            // populate one (or both) fine daughter cells
+            const int I_l = 1 - (fi >= 0);
+            const int I_u = 1 + ((pmb->block_size.nx1+2*NGHOST) > (fi + 1));
+
+            for (int K=K_l; K<K_u; ++K)
+            {
+              const Real fc3val = (K-1) * gx3c * dx3fm + K * gx3c * dx3fp;
+              for (int J=J_l; J<J_u; ++J)
+              {
+                const Real fc2val = (J-1) * gx2c * dx2fm + J * gx2c * dx2fp;
+                for (int I=I_l; I<I_u; ++I)
+                {
+                  const Real fc1val = (I-1) * gx1c * dx1fm + I * gx1c * dx1fp;
+                  fine(n,fk+K,fj+J,fi+I) = ccval + (fc1val + fc2val + fc3val);
+                }
+              }
+            }
+            // ----------------------------------------------
+
           }
         }
       }
@@ -837,6 +872,12 @@ void MeshRefinement::ProlongateCellCenteredValues(
         const Real& fx2p = pco->x2v(fj+1);
         Real dx2fm = x2c - fx2m;
         Real dx2fp = fx2p - x2c;
+
+        // BD: extend functionality to odd ghosts ---------
+        const int J_l = 1 - (fj >= 0);
+        const int J_u = 1 + ((pmb->block_size.nx2+2*NGHOST) > (fj + 1));
+        // ------------------------------------------------
+
         for (int i=si; i<=ei; i++) {
           int fi = (i - pmb->cis)*2 + pmb->is;
           const Real& x1m = pcoarsec->x1v(i-1);
@@ -867,10 +908,29 @@ void MeshRefinement::ProlongateCellCenteredValues(
           }
           // KGF: add the off-centered quantities first to preserve FP symmetry
           // interpolate onto the finer grid
-          fine(n,fk  ,fj  ,fi  ) = ccval - (gx1c*dx1fm + gx2c*dx2fm);
-          fine(n,fk  ,fj  ,fi+1) = ccval + (gx1c*dx1fp - gx2c*dx2fm);
-          fine(n,fk  ,fj+1,fi  ) = ccval - (gx1c*dx1fm - gx2c*dx2fp);
-          fine(n,fk  ,fj+1,fi+1) = ccval + (gx1c*dx1fp + gx2c*dx2fp);
+          // fine(n,fk  ,fj  ,fi  ) = ccval - (gx1c*dx1fm + gx2c*dx2fm);
+          // fine(n,fk  ,fj  ,fi+1) = ccval + (gx1c*dx1fp - gx2c*dx2fm);
+          // fine(n,fk  ,fj+1,fi  ) = ccval - (gx1c*dx1fm - gx2c*dx2fp);
+          // fine(n,fk  ,fj+1,fi+1) = ccval + (gx1c*dx1fp + gx2c*dx2fp);
+
+          // BD: extend functionality to odd ghosts -------
+          // FP symmetry needs to be checked ...
+
+          // populate one (or both) fine daughter cells
+          const int I_l = 1 - (fi >= 0);
+          const int I_u = 1 + ((pmb->block_size.nx1+2*NGHOST) > (fi + 1));
+
+          for (int J=J_l; J<J_u; ++J)
+          {
+            const Real fc2val = (J-1) * gx2c * dx2fm + J * gx2c * dx2fp;
+            for (int I=I_l; I<I_u; ++I)
+            {
+              const Real fc1val = (I-1) * gx1c * dx1fm + I * gx1c * dx1fp;
+              fine(n,fk  ,fj+J,fi+I) = ccval + (fc1val + fc2val);
+            }
+          }
+
+          // ----------------------------------------------
         }
       }
     }
@@ -901,26 +961,40 @@ void MeshRefinement::ProlongateCellCenteredValues(
         } else { // use 2nd order centered
           gx1c = (coarse_(n,k,j,i+1) - coarse_(n,k,j,i-1))/(2*dx1m);
         }
-        // interpolate on to the finer grid
-        fine(n,fk  ,fj  ,fi  ) = ccval - gx1c*dx1fm;
-        fine(n,fk  ,fj  ,fi+1) = ccval + gx1c*dx1fp;
+          // interpolate on to the finer grid
+          // fine(n,fk  ,fj  ,fi  ) = ccval - gx1c*dx1fm;
+          // fine(n,fk  ,fj  ,fi+1) = ccval + gx1c*dx1fp;
+
+          // BD: extend functionality to odd ghosts -------
+          // Populate one (or both) fine daughter cells
+          const int I_l = 1 - (fi >= 0);
+          const int I_u = 1 + ((pmb->block_size.nx1+2*NGHOST) > (fi + 1));
+          // const int I_u = 1 + (fine.GetDim1() > (fi + 1));
+
+          for (int I=I_l; I<I_u; ++I)
+          {
+            const Real fcval = (I-1) * gx1c * dx1fm + I * gx1c * dx1fp;
+            fine(n,fk  ,fj  ,fi+I) = ccval + fcval;
+          }
+
+          // ----------------------------------------------
       }
     }
   }
 
-#ifdef DBGPR_MESH_REFINEMENT
-  for (int i=si; i<=ei; i++) {
-    int fi = (i - pmb->cis)*2 + pmb->is;
-    printf("(i, fi) = (%d, %d)\n", i, fi);
-  }
-  printf("\n");
+// #ifdef DBGPR_MESH_REFINEMENT
+//   for (int i=si; i<=ei; i++) {
+//     int fi = (i - pmb->cis)*2 + pmb->is;
+//     printf("(i, fi) = (%d, %d)\n", i, fi);
+//   }
+//   printf("\n");
 
-  coutBoldRed("[post]coarse\n");
-  coarse_.print_all();
+//   coutBoldRed("[post]coarse\n");
+//   coarse_.print_all();
 
-  coutBoldRed("[post]fine\n");
-  fine.print_all();
-#endif // DBGPR_MESH_REFINEMENT
+//   coutBoldRed("[post]fine\n");
+//   fine.print_all();
+// #endif // DBGPR_MESH_REFINEMENT
 
   return;
 }
@@ -1462,20 +1536,20 @@ void MeshRefinement::ProlongateVertexCenteredValues(
 #endif // DBGPR_MESH_REFINEMENT
 
 
-#ifdef DBGPR_MESH_REFINEMENT
-  coutBoldRed("(block_size.nx1, pmb->is, pmb->cis, si, ei) = ");
-  printf("(%d, %d, %d, %d, %d)\n\n",
-        pmb->block_size.nx1, pmb->is, pmb->cis, si, ei);
+// #ifdef DBGPR_MESH_REFINEMENT
+//   coutBoldRed("(block_size.nx1, pmb->is, pmb->cis, si, ei) = ");
+//   printf("(%d, %d, %d, %d, %d)\n\n",
+//         pmb->block_size.nx1, pmb->is, pmb->cis, si, ei);
 
-  coutBoldRed("(block_size.nx2, pmb->js, pmb->cjs, sj, ej) = ");
-  printf("(%d, %d, %d, %d, %d)\n\n",
-        pmb->block_size.nx2, pmb->js, pmb->cjs, sj, ej);
-#endif // DBGPR_MESH_REFINEMENT
+//   coutBoldRed("(block_size.nx2, pmb->js, pmb->cjs, sj, ej) = ");
+//   printf("(%d, %d, %d, %d, %d)\n\n",
+//         pmb->block_size.nx2, pmb->js, pmb->cjs, sj, ej);
+// #endif // DBGPR_MESH_REFINEMENT
 
-#ifdef DBGPR_MESH_REFINEMENT
-  coutBoldRed("[pre]fine\n");
-  fine.print_all();
-#endif // DBGPR_MESH_REFINEMENT
+// #ifdef DBGPR_MESH_REFINEMENT
+//   coutBoldRed("[pre]fine\n");
+//   fine.print_all();
+// #endif // DBGPR_MESH_REFINEMENT
 
 #ifdef FILL_WAVE_COARSE_P
   // BD debug: re-populate coarse grid with exact solution
@@ -1514,27 +1588,27 @@ void MeshRefinement::ProlongateVertexCenteredValues(
         }
 
 
-#ifdef DBGPR_MESH_REFINEMENT
-  coutBoldBlue("coarse_\n");
-  coarse_.print_all();
-  coutBoldBlue("tmp\n");
-  tmp.print_all();
+// #ifdef DBGPR_MESH_REFINEMENT
+//   coutBoldBlue("coarse_\n");
+//   coarse_.print_all();
+//   coutBoldBlue("tmp\n");
+//   tmp.print_all();
 
-  tmp.DeleteAthenaArray();
+//   tmp.DeleteAthenaArray();
 
-  // if (err_kill) {
-  // // if (pmb->gid == 4) {
-  //   coutBoldRed("ERROR IN COARSE\n");
-  //   Q();
-  // }
-  // for (int n=sn; n<=en; ++n)
-  //   for (int j=pmb->cjvs; j<=pmb->cjve; ++j)
-  //     for (int i=pmb->civs; i<=pmb->cive; ++ i)
-  //       coarse_(n, 0, j, i) = 10000000.;
+//   // if (err_kill) {
+//   // // if (pmb->gid == 4) {
+//   //   coutBoldRed("ERROR IN COARSE\n");
+//   //   Q();
+//   // }
+//   // for (int n=sn; n<=en; ++n)
+//   //   for (int j=pmb->cjvs; j<=pmb->cjve; ++j)
+//   //     for (int i=pmb->civs; i<=pmb->cive; ++ i)
+//   //       coarse_(n, 0, j, i) = 10000000.;
 
 
-  coutBoldRed("Warning: coarse buffer overridden..\n");
-#endif // DBGPR_MESH_REFINEMENT
+//   coutBoldRed("Warning: coarse buffer overridden..\n");
+// #endif // DBGPR_MESH_REFINEMENT
 
   if (err_kill) {
     // if (pmb->gid == 4) {
@@ -1600,23 +1674,23 @@ void MeshRefinement::ProlongateVertexCenteredValues(
       }
     }
 
-#ifdef DBGPR_MESH_REFINEMENT
-    coutBoldRed("\npcoarsec->x1f\n");
-    pcoarsec->x1f.print_all();
+// #ifdef DBGPR_MESH_REFINEMENT
+//     coutBoldRed("\npcoarsec->x1f\n");
+//     pcoarsec->x1f.print_all();
 
-    coutBoldRed("pco->x1f\n");
-    pco->x1f.print_all();
+//     coutBoldRed("pco->x1f\n");
+//     pco->x1f.print_all();
 
-    coutBoldRed("[post]coarse\n");
-    coarse.print_all();
-    coutBoldRed("[post]fine\n");
-    fine.print_all();
+//     coutBoldRed("[post]coarse\n");
+//     coarse.print_all();
+//     coutBoldRed("[post]fine\n");
+//     fine.print_all();
 
-    // coutBoldRed("[exact]fine [WARNING SOLN OVERWRITTEN]\n");
-    // pmb->DebugWaveMeshBlock(fine, pmb->ims, pmb->ipe, 0, 0, 0, 0, false);
-    // fine.print_all();
-    // Q();
-#endif // DBGPR_MESH_REFINEMENT
+//     // coutBoldRed("[exact]fine [WARNING SOLN OVERWRITTEN]\n");
+//     // pmb->DebugWaveMeshBlock(fine, pmb->ims, pmb->ipe, 0, 0, 0, 0, false);
+//     // fine.print_all();
+//     // Q();
+// #endif // DBGPR_MESH_REFINEMENT
 
     return;
   } else if (pmb->pmy_mesh->ndim == 2) {
@@ -1686,22 +1760,22 @@ void MeshRefinement::ProlongateVertexCenteredValues(
 
     }
 
-#ifdef DBGPR_MESH_REFINEMENT
-    coutBoldRed("\npcoarsec->x1f\n");
-    pcoarsec->x1f.print_all();
+// #ifdef DBGPR_MESH_REFINEMENT
+//     coutBoldRed("\npcoarsec->x1f\n");
+//     pcoarsec->x1f.print_all();
 
-    coutBoldRed("pco->x1f\n");
-    pco->x1f.print_all();
+//     coutBoldRed("pco->x1f\n");
+//     pco->x1f.print_all();
 
-    coutBoldRed("[post]coarse\n");
-    coarse.print_all();
-    coutBoldRed("[post]fine\n");
-    fine.print_all();
+//     coutBoldRed("[post]coarse\n");
+//     coarse.print_all();
+//     coutBoldRed("[post]fine\n");
+//     fine.print_all();
 
-    // coutBoldRed("[exact]fine [WARNING SOLN OVERWRITTEN]\n");
-    // pmb->DebugWaveMeshBlock(fine, pmb->ims, pmb->ipe, pmb->jms, pmb->jpe, 0, 0, false);
-    // fine.print_all();
-#endif // DBGPR_MESH_REFINEMENT
+//     // coutBoldRed("[exact]fine [WARNING SOLN OVERWRITTEN]\n");
+//     // pmb->DebugWaveMeshBlock(fine, pmb->ims, pmb->ipe, pmb->jms, pmb->jpe, 0, 0, false);
+//     // fine.print_all();
+// #endif // DBGPR_MESH_REFINEMENT
 
     return;
   } else if (pmb->pmy_mesh->ndim == 3) {
@@ -1792,22 +1866,22 @@ void MeshRefinement::ProlongateVertexCenteredValues(
       }
     }
 
-#ifdef DBGPR_MESH_REFINEMENT
-    coutBoldRed("\npcoarsec->x1f\n");
-    pcoarsec->x1f.print_all();
+// #ifdef DBGPR_MESH_REFINEMENT
+//     coutBoldRed("\npcoarsec->x1f\n");
+//     pcoarsec->x1f.print_all();
 
-    coutBoldRed("pco->x1f\n");
-    pco->x1f.print_all();
+//     coutBoldRed("pco->x1f\n");
+//     pco->x1f.print_all();
 
-    coutBoldRed("[post]coarse\n");
-    coarse.print_all();
-    coutBoldRed("[post]fine\n");
-    fine.print_all();
+//     coutBoldRed("[post]coarse\n");
+//     coarse.print_all();
+//     coutBoldRed("[post]fine\n");
+//     fine.print_all();
 
-    // coutBoldRed("[exact]fine [WARNING SOLN OVERWRITTEN]\n");
-    // pmb->DebugWaveMeshBlock(fine, pmb->ims, pmb->ipe, pmb->jms, pmb->jpe, 0, 0, false);
-    // fine.print_all();
-#endif // DBGPR_MESH_REFINEMENT
+//     // coutBoldRed("[exact]fine [WARNING SOLN OVERWRITTEN]\n");
+//     // pmb->DebugWaveMeshBlock(fine, pmb->ims, pmb->ipe, pmb->jms, pmb->jpe, 0, 0, false);
+//     // fine.print_all();
+// #endif // DBGPR_MESH_REFINEMENT
 
     return;
   }
