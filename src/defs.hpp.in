@@ -70,11 +70,17 @@
 // EOS Policy used by the PrimitiveSolver framework.
 #define EOS_POLICY @EOS_POLICY@
 
+// EOS Policy code used for preprocessor checking
+#define EOS_POLICY_CODE @EOS_POLICY_CODE@
+
 // Include file for EOS_POLICY
 #define EOS_POLICY_INCLUDE @EOS_POLICY_INCLUDE@
 
 // Error Policy used by the PrimitiveSolver framework.
 #define ERROR_POLICY @ERROR_POLICY@
+
+// Error Policy code used for preprocessor checking
+#define ERROR_POLICY_CODE @ERROR_POLICY_CODE@
 
 // Include file for ERROR_POLICY
 #define ERROR_POLICY_INCLUDE @ERROR_POLICY_INCLUDE@

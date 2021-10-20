@@ -528,6 +528,8 @@ definitions['EOS_POLICY_INCLUDE'] = ''
 definitions['ERROR_POLICY_INCLUDE'] = ''
 definitions['EOS_POLICY'] = ''
 definitions['ERROR_POLICY'] = ''
+definitions['EOS_POLICY_CODE'] = '0'
+definitions['ERROR_POLICY_CODE'] = '0'
 if args['eos'] == 'isothermal':
     definitions['NHYDRO_VARIABLES'] = '4'
 elif args['eos'] == 'adiabatic' or args['eos'] == 'adiabatictaudyn' or args['eos'] == 'adiabatictaudyn_rep':
@@ -540,14 +542,18 @@ elif args['eos'] == 'eostaudyn_ps':
     definitions['ERROR_POLICY_INCLUDE'] = args['errorpolicy'] + '.hpp'
     if args['eospolicy'] == 'idealgas':
         definitions['EOS_POLICY'] = 'IdealGas'
+        definitions['EOS_POLICY_CODE'] = '0'
     elif args['eospolicy'] == 'piecewise_polytrope':
         definitions['EOS_POLICY'] = 'PiecewisePolytrope'
+        definitions['EOS_POLICY_CODE'] = '1'
     else:
         definitions['EOS_POLICY'] = ''
     if args['errorpolicy'] == 'do_nothing':
         definitions['ERROR_POLICY'] = 'DoNothing'
+        definitions['ERROR_POLICY_CODE'] = '0'
     elif args['errorpolicy'] == 'reset_floor':
         definitions['ERROR_POLICY'] = 'ResetFloor'
+        definitions['ERROR_POLICY_CODE'] = '1'
     else:
         definitions['ERROR_POLICY'] = ''
     
