@@ -172,6 +172,11 @@ class EquationOfState {
   Real GetDensityFloor() const {return density_floor_;}
   Real GetPressureFloor() const {return pressure_floor_;}
   EosTable* ptable; // pointer to EOS table data
+#if USETM
+  inline Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& GetEOS() {
+    return eos;
+  }
+#endif
 #if GENERAL_EOS
   Real GetGamma();
 #else // not GENERAL_EOS

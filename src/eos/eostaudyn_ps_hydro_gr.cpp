@@ -65,6 +65,12 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   Real Y[MAX_SPECIES] = {0.0};
   Real T_floor = eos.GetTemperatureFromP(density_floor_/mb, pressure_floor_, Y);
   eos.SetTemperatureFloor(T_floor);
+
+  // If we're working with an ideal gas, we need to fix the adiabatic constant.
+#if EOS_POLICY == IdealGas
+  Real gamma = pin->GetOrAddReal("hydro", "gamma", 2.0);
+  eos.SetGamma(gamma);
+#endif
 }
 
 
@@ -253,7 +259,7 @@ static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim,
   // Extract the metric and calculate the determinant.
   Real g3d[NSPMETRIC] = {gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
                         gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i)};
-  Real sdetg = Primitive::GetDeterminant(g3d);
+  Real sdetg = std::sqrt(Primitive::GetDeterminant(g3d));
 
   // Perform the primitive solve.
   Real cons_pt[NCONS];
