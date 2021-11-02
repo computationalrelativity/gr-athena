@@ -300,8 +300,8 @@ void Hydro::RiemannSolver(const int k, const int j,
         Real Y[MAX_SPECIES] = {0.0};
         Real Tl = pmy_block->peos->GetEOS().GetTemperatureFromP(nl, pgas_l(i), Y);
         Real Tr = pmy_block->peos->GetEOS().GetTemperatureFromP(nr, pgas_r(i), Y);
-        wgas_l(i) = pmy_block->peos->GetEOS().GetEnthalpy(nl, Tl, Y)/mb;
-        wgas_r(i) = pmy_block->peos->GetEOS().GetEnthalpy(nr, Tr, Y)/mb;
+        wgas_l(i) = nl*pmy_block->peos->GetEOS().GetEnthalpy(nl, Tl, Y);
+        wgas_r(i) = nr*pmy_block->peos->GetEOS().GetEnthalpy(nr, Tr, Y);
 
         // Calculate the sound speeds
         pmy_block->peos->SoundSpeedsGR(nl, Tl, v_u_l(ivx-1,i), v2_l(i), alpha(i), beta_u(ivx-1,i), gamma_uu(ivx-1,ivx-1,i),
