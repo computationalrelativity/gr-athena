@@ -6,14 +6,16 @@ configure  = -gfz --prob=gr_neutron_star --coord=gr_dynamic --eos=adiabatictaudy
 problem_id = gr_neutron_star
 
 <output1>
-file_type = vtk
+file_type = hdf5
 variable  = prim
 dt        = 0.00001
+x3_slice = 0.0
 
 <output2>
-file_type = vtk
+file_type = hdf5
 variable  = adm
 dt        = 0.00001
+x3_slice = 0.0
 
 #<output3>
 #file_type = vtk
@@ -32,6 +34,23 @@ integrator = rk3  # time integration algorithm
 xorder     = 2    # order of spatial reconstruction
 ncycle_out = 1    # interval for stdout summary info
 
+<z4c>
+dt_wave_extraction =0.1
+lapse_harmonic = 0.0
+lapse_harmonicf = 2.0
+lapse_oplog = 1.0
+lapse_advect = 1.0
+shift_eta = 1.0
+shift_advect = 1.0
+# Kreiss-Oliger dissipation parameter.
+diss = 0.5
+chi_div_floor = 1e-05
+# Constraint damping factor 1.
+damp_kappa1 = 0.02
+# Constraint damping factor 2.
+damp_kappa2 = 0.0
+cowling_true = 1 # cowling approximation
+
 <mesh>
 refinement = static
 #numlevel = 2
@@ -41,19 +60,22 @@ nx1    = 32        # number of cells in x-direction
 x1min  = 0.0       # minimum x
 x1max  = 10.0       # maximum x
 ix1_bc = reflecting# left boundary
-ox1_bc = extrapolate_outflow  # right boundary
+#ox1_bc = extrapolate_outflow  # right boundary
+ox1_bc = outflow  # right boundary
 
 nx2    = 32        # number of cells in y-direction
 x2min  = 0.0       # minimum y
 x2max  = 10.0       # maximum y
 ix2_bc = reflecting# inner boundary
-ox2_bc = extrapolate_outflow  # outer boundary
+#ox2_bc = extrapolate_outflow  # outer boundary
+ox2_bc = outflow  # outer boundary
 
 nx3    = 32        # number of cells in z-direction
 x3min  = 0.0       # minimum z
 x3max  = 10.0       # maximum z
 ix3_bc = reflecting# lower boundary
-ox3_bc = extrapolate_outflow  # upper boundary
+#ox3_bc = extrapolate_outflow  # upper boundary
+ox3_bc = outflow  # upper boundary
 
 <hydro>
 gamma  = 2.00000  # ratio of specific heats Gamma
@@ -68,6 +90,11 @@ npts = 10000 # Guess for number of points for TOV solver
 fthr = 100.0
 fatm = 1e-10
 rhoc = 0.00214077
+#nfloor = 1e30
+nfloor = 1e-15
+#tfloor = 1e-50
+tfloor = 1e-10
+mass_b = 1.0
 
 <meshblock>
 nx1 = 16
