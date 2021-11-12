@@ -266,6 +266,11 @@ static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim,
 
   ps.PrimToCon(prim_pt, cons_pt, bu, g3d);
 
+  // DEBUG ONLY
+  if (!std::isfinite(cons_pt[IEN])) {
+    std::cout << "Tau is not finite!\n";
+  }
+
   // Push the densitized conserved variables to Athena.
   cons(IDN, k, j, i) = cons_pt[IDN]*sdetg;
   cons(IM1, k, j, i) = cons_pt[IM1]*sdetg;

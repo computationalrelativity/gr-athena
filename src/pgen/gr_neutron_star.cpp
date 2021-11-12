@@ -265,6 +265,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
         Real eps = VertexToCell(mag_ns.ener_spec, lbb, rbb, ltb, rtb, lbf, rbf, ltf, rtf) / ener_unit;
         Real egas = rho*(1.0 + eps);
         Real pgas = peos->PresFromRhoEg(rho, egas);
+        // Kluge to make the pressure work with the EOS framework.
+        if (!std::isfinite(pgas) && (egas == 0. || rho == 0.)) {
+          pgas = 0.;
+        }
         // 3-velocity of the fluid
         Real vu_lbb[3] = {mag_ns.u_euler_x[lbb]/vel_unit, mag_ns.u_euler_y[lbb]/vel_unit,
                           mag_ns.u_euler_z[lbb]/vel_unit};
@@ -308,11 +312,19 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
         // FIXME: Need to load magnetic field at some point.
 
         // Copy all the variables over to Athena.
-        phydro->w(IDN, k, j, i) = phydro->w1(IDN, k, j, i) = rho;
-        phydro->w(IVX, k, j, i) = phydro->w1(IVX, k, j, i) = uu[0];
-        phydro->w(IVY, k, j, i) = phydro->w1(IVY, k, j, i) = uu[1];
-        phydro->w(IVZ, k, j, i) = phydro->w1(IVZ, k, j, i) = uu[2];
-        phydro->w(IPR, k, j, i) = phydro->w1(IPR, k, j, i) = pgas;
+        phydro->w(IDN, k, j, i) = rho;
+        phydro->w(IVX, k, j, i) = uu[0];
+        phydro->w(IVY, k, j, i) = uu[1];
+        phydro->w(IVZ, k, j, i) = uu[2];
+        phydro->w(IPR, k, j, i) = pgas;
+
+        // FIXME: There needs to be a more consistent way to do this.
+        peos->ApplyPrimitiveFloors(phydro->w, k, j, i);
+        phydro->w1(IDN, k, j, i) = phydro->w(IDN, k, j, i);
+        phydro->w1(IVX, k, j, i) = phydro->w(IVX, k, j, i);
+        phydro->w1(IVY, k, j, i) = phydro->w(IVY, k, j, i);
+        phydro->w1(IVZ, k, j, i) = phydro->w(IVZ, k, j, i);
+        phydro->w1(IPR, k, j, i) = phydro->w(IPR, k, j, i);
       }
     }
   }

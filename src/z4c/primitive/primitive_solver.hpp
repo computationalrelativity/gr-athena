@@ -187,7 +187,7 @@ Real PrimitiveSolver<EOSPolicy, ErrorPolicy>::RootFunction(Real mu, Real D, Real
   // Now we can estimate the velocity.
   //const Real v_max = peos->GetMaxVelocity();
   const Real h_min = peos->GetMinimumEnthalpy();
-  const Real vsq_max = rsq/(h_min*h_min + rsq);
+  const Real vsq_max = std::fmin(rsq/(h_min*h_min + rsq), peos->GetMaxVelocity());
   const Real vhatsq = std::fmin(musq*rbarsq, vsq_max);
 
   // Using the velocity estimate, predict the Lorentz factor.
@@ -363,16 +363,19 @@ Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim[NPRIM], Real 
     bool result = root.newton_raphson(&UpperRoot, mu, bsqr, rsqr, rbsqr, min_h);
     // DEBUG ONLY: Make sure the root is valid.
     Real n, T, P;
-    if (RootFunction(mu, D, q, bsqr, rsqr, rbsqr, Y, peos, &n, &T, &P) < 0.0) {
+    /*if (RootFunction(mu, D, q, bsqr, rsqr, rbsqr, Y, peos, &n, &T, &P) < 0.0) {
       std::cout << "There was a problem bracketing the root!\n";
       return Error::BRACKETING_FAILED;
-    }
+    }*/
     // Scream if the bracketing failed.
     if (!result) {
       return Error::BRACKETING_FAILED;
     }
     else {
-      muh = mu;
+      // To avoid the case where the root and the upper bound collide, we will perturb the
+      // bound by a small factor.
+      // TODO: Is there a more rigorous way of treating this?
+      muh = mu*(1. + root.tol);
     }
   }
 
