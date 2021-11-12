@@ -28,7 +28,7 @@
 //    bool PrimitiveFloor(Real& n, Real& v[3], Real& p)
 //    bool ConservedFloor(Real& D, Real& Sd[3], Real& tau, Real& Bu[3])
 //    void DensityLimits(Real& n, Real n_min, Real n_max);
-//    void EnergyLimits(Real& e, Real e_min, Real e_max);
+//    void TemperatureLimits(Real& T, Real T_min, Real T_max);
 //  And the following protected variables (available via
 //  ErrorPolicyInterface):
 //    Real n_atm
@@ -70,17 +70,17 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     using EOSPolicy::max_n;
     // Minimum density
     using EOSPolicy::min_n;
-    // Maximum energy
-    using EOSPolicy::max_e;
-    // Minimum energy
-    using EOSPolicy::min_e;
+    // Maximum temperature
+    using EOSPolicy::max_T;
+    // Minimum temperature
+    using EOSPolicy::min_T;
 
     // ErrorPolicy member functions
     using ErrorPolicy::PrimitiveFloor;
     using ErrorPolicy::ConservedFloor;
     using ErrorPolicy::MagnetizationResponse;
     using ErrorPolicy::DensityLimits;
-    using ErrorPolicy::EnergyLimits;
+    using ErrorPolicy::TemperatureLimits;
 
     // ErrorPolicy member variables
     using ErrorPolicy::n_atm;
@@ -322,13 +322,13 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     }
 
     //! \brief Get the maximum energy density permitted by the EOS.
-    inline Real GetMaximumEnergy() const {
-      return max_e;
+    inline Real GetMaximumTemperature() const {
+      return max_T;
     }
 
     //! \brief Get the minimum energy density permitted by the EOS.
-    inline Real GetMinimumEnergy() const {
-      return min_e;
+    inline Real GetMinimumTemperature() const {
+      return min_T;
     }
 
     //! \fn const bool IsConservedFlooringFailure() const
@@ -378,9 +378,9 @@ class EOS : public EOSPolicy, public ErrorPolicy {
       DensityLimits(n, min_n, max_n);
     }
 
-    //! \brief Limit the energy to a physical range
-    inline void ApplyEnergyLimits(Real& e) {
-      EnergyLimits(e, min_e, max_e);
+    //! \brief Limit the temperature to a physical range
+    inline void ApplyTemperatureLimits(Real& T) {
+      TemperatureLimits(T, min_T, max_T);
     }
 };
 

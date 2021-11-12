@@ -33,7 +33,7 @@ class ResetFloor : public ErrorPolicyInterface {
     void DensityLimits(Real& n, Real n_min, Real n_max);
 
     /// Policy for resetting energy
-    void EnergyLimits(Real& e, Real e_min, Real e_max);
+    void TemperatureLimits(Real& T, Real T_min, Real T_max);
 
   public:
     /// Set the failure mode for conserved flooring

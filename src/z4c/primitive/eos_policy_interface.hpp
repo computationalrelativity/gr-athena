@@ -20,10 +20,10 @@ class EOSPolicyInterface {
     Real max_n;
     /// minimum number density
     Real min_n;
-    /// maximum energy density
-    Real max_e;
-    /// minimum energy density
-    Real min_e;
+    /// maximum temperature
+    Real max_T;
+    /// minimum temperature
+    Real min_T;
 };
 
 } // namespace

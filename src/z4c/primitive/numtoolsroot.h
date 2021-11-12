@@ -72,6 +72,15 @@ namespace NumTools{
         Real fub = f(ub, args...);
         Real xold;
         x = lb;
+        // If one of the bounds is already within tolerances of the root, we can skip all of this.
+        if (std::fabs(flb) <= tol) {
+          x = lb;
+          return true;
+        }
+        else if (std::fabs(fub) <= tol) {
+          x = ub;
+          return true;
+        }
         if (flb*fub > 0){
           #ifdef DEBUG_ROOTS
           std::cout << "Failed to bracket the root.\n";

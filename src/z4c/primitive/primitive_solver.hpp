@@ -173,8 +173,8 @@ Real PrimitiveSolver<EOSPolicy, ErrorPolicy>::RootFunction(Real mu, Real D, Real
   const Real x = 1.0/(1.0 + mu*bsq);
   const Real xsq = x*x;
   const Real musq = mu*mu;
-  const Real den = 1.0 + mu*bsq;
-  const Real mux = mu/den;
+  //const Real den = 1.0 + mu*bsq;
+  const Real mux = mu*x;
   //const Real muxsq = mux/den;
   const Real rbarsq = rsq*xsq + mux*(1.0 + x)*rbsq;
   //const Real rbarsq = xsq*(rsq + mu*(2.0 + mu*bsq)*rbsq);
@@ -185,8 +185,10 @@ Real PrimitiveSolver<EOSPolicy, ErrorPolicy>::RootFunction(Real mu, Real D, Real
   const Real mb = peos->GetBaryonMass();
 
   // Now we can estimate the velocity.
-  const Real v_max = peos->GetMaxVelocity();
-  const Real vhatsq = std::fmin(musq*rbarsq, v_max*v_max);
+  //const Real v_max = peos->GetMaxVelocity();
+  const Real h_min = peos->GetMinimumEnthalpy();
+  const Real vsq_max = rsq/(h_min*h_min + rsq);
+  const Real vhatsq = std::fmin(musq*rbarsq, vsq_max);
 
   // Using the velocity estimate, predict the Lorentz factor.
   //const Real What = 1.0/std::sqrt(1.0 - vhatsq);
@@ -200,17 +202,21 @@ Real PrimitiveSolver<EOSPolicy, ErrorPolicy>::RootFunction(Real mu, Real D, Real
   // Estimate the energy density.
   Real eoverD = qbar - mu*rbarsq + 1.0;
   Real ehat = D*eoverD;
-  peos->ApplyEnergyLimits(ehat);
-  eoverD = ehat/D;
+  //peos->ApplyEnergyLimits(ehat);
+  //eoverD = ehat/D;
 
   // Now we can get an estimate of the temperature, and from that, the pressure and enthalpy.
   Real That = peos->GetTemperatureFromE(nhat, ehat, Y);
+  peos->ApplyTemperatureLimits(That);
+  ehat = peos->GetEnergy(nhat, That, Y);
   Real Phat = peos->GetPressure(nhat, That, Y);
   Real hhat = peos->GetEnthalpy(nhat, That, Y)/mb;
 
   // Now we can get two different estimates for nu = h/W.
   Real nu_a = hhat*iWhat;
-  Real nu_b = eoverD + Phat/D;
+  Real ahat = Phat/ehat;
+  //Real nu_b = eoverD + Phat/D;
+  Real nu_b = (1.0 + ahat)*eoverD;
   Real nuhat = std::fmax(nu_a, nu_b);
 
   // Finally, we can get an estimate for muhat.
@@ -355,6 +361,12 @@ Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim[NPRIM], Real 
     root.tol = 1e-15;
     root.iterations = 30;
     bool result = root.newton_raphson(&UpperRoot, mu, bsqr, rsqr, rbsqr, min_h);
+    // DEBUG ONLY: Make sure the root is valid.
+    Real n, T, P;
+    if (RootFunction(mu, D, q, bsqr, rsqr, rbsqr, Y, peos, &n, &T, &P) < 0.0) {
+      std::cout << "There was a problem bracketing the root!\n";
+      return Error::BRACKETING_FAILED;
+    }
     // Scream if the bracketing failed.
     if (!result) {
       return Error::BRACKETING_FAILED;
@@ -379,6 +391,9 @@ Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim[NPRIM], Real 
   root.tol = 1e-15;
   root.iterations = 30;
   Real n, P, T, mu;
+  // DEBUG ONLY
+  Real mul_old = mul;
+  Real muh_old = muh;
   bool result = root.false_position(&RootFunction, mul, muh, mu, D, q, bsqr, rsqr, rbsqr, Y, peos, &n, &T, &P);
   if (!result) {
     return Error::NO_SOLUTION;
@@ -482,6 +497,11 @@ Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::PrimToCon(Real prim[NPRIM], Real 
   Sy = (HWsqpb*v_d[1] - Bv*B_d[1]);
   Sz = (HWsqpb*v_d[2] - Bv*B_d[2]);
   tau = (HWsqpb - p - 0.5*(Bv*Bv + Bsq/Wsq)) - D;
+
+  // DEBUG ONLY
+  /*if (tau <= 0) {
+    std::cout << "Tau is negative!\n";
+  }*/
 
   return Error::SUCCESS;
 }

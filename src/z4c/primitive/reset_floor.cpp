@@ -73,6 +73,6 @@ void ResetFloor::DensityLimits(Real& n, Real n_min, Real n_max) {
 }
 
 /// Apply energy limiter
-void ResetFloor::EnergyLimits(Real& e, Real e_min, Real e_max) {
-  e = std::fmax(e_min, std::fmin(e_max, e));
+void ResetFloor::TemperatureLimits(Real& T, Real T_min, Real T_max) {
+  T = std::fmax(T_min, std::fmin(T_max, T));
 }
