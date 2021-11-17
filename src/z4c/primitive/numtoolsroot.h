@@ -177,6 +177,84 @@ namespace NumTools{
         return fabs(fx) <= tol;
       }
       // }}}
+
+      // newton_safe {{{
+      /*!
+       * \fn template<class ... Types> bool newton_safe(void (*f)(Real&, Real&, Real, Types...), Real &lb, Real &ub, Real &x, Types ... args)
+       *
+       * \brief Find the root of a function f using a safe Newton solve.
+       *
+       * A safe Newton solve performs a Newton-Raphson solve, but it also brackets the
+       * root using bisection to ensure that the result converges.
+       *
+       * \param[in]     f    The function to use for the root solve.
+       * \param[in,out] lb   The lower bound for the root of .
+       * \param[in,out] ub   The upper bound for the root of f.
+       * \param[out]    x    The root of f.
+       * \param[in]     args Additional arguments required by f.
+       */
+      template<class ... Types>
+      bool newton_safe(void (*f)(Real&, Real&, Real, Types...), Real& lb, Real& ub, 
+          Real& x, Types ... args) {
+        Real fx;
+        Real dfx;
+        Real xold;
+        count = 0;
+        // We first need to ensure that the bracket is valid.
+        Real fub, flb;
+        f(flb, dfx, lb, args...);
+        f(fub, dfx, ub, args...);
+        if (flb*fub > 0) {
+          #ifdef DEBUG_ROOTS
+          printf("Failed to bracket root.\n");
+          #endif
+          return 0;
+        }
+        // If one of the roots is already within tolerances, then
+        // we don't need to do the solve.
+        if (std::fabs(flb) <= tol) {
+          x = lb;
+          return true;
+        }
+        else if (std::fabs(fub) <= tol) {
+          x = ub;
+          return true;
+        }
+        // Since we already had to evaluate the function at the bounds, 
+        // we can predict our starting position using false position.
+        x = (fub*lb - flb*ub)/(fub - flb);
+        do {
+          xold = x;
+          // Calculate f and df at point x.
+          f(fx, dfx, x, args...);
+          x = x - fx/dfx;
+          // Check that the root is bounded properly.
+          if (x > ub || x < lb) {
+            // Revert to bisection if the root is not converging.
+            x = 0.5*(ub + lb);
+            f(fx, dfx, x, args...);
+          }
+          // Correct the bounds.
+          if (fx*flb > 0) {
+            flb = fx;
+            lb = xold;
+          }
+          else if (fx*fub > 0) {
+            fub = fx;
+            ub = xold;
+          }
+          count++;
+        }
+        while (fabs((xold-x)/x) > tol && count < iterations);
+   #ifdef DEBUG_ROOTS
+        printf("Root solve iterations: %d out of %d\n", count, iterations);
+        printf("Root solve accuracy: %g\n", fx);
+   #endif
+
+        // Return success if we're below the tolerance, otherwise report failure.
+        return fabs(fx) <= tol;
+      }
+      // }}}
   };
 };
 

@@ -60,11 +60,9 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   eos.SetBaryonMass(mb);
   // Set the number density floor.
   eos.SetDensityFloor(density_floor_/mb);
-  // Set the temperature floor -- we first need to retrieve the temperature from the pressure.
+  // Set the pressure floor -- we first need to retrieve the temperature from the pressure.
   // That means we need to initialize an empty array of particle fractions.
-  Real Y[MAX_SPECIES] = {0.0};
-  Real T_floor = eos.GetTemperatureFromP(density_floor_/mb, pressure_floor_, Y);
-  eos.SetTemperatureFloor(T_floor);
+  eos.SetPressureFloor(pressure_floor_);
 
   // If we're working with an ideal gas, we need to fix the adiabatic constant.
 #if EOS_POLICY == IdealGas

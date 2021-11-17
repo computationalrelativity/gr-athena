@@ -32,7 +32,7 @@
 //  And the following protected variables (available via
 //  ErrorPolicyInterface):
 //    Real n_atm
-//    Real T_atm
+//    Real p_atm
 //    Real v_max
 //    Real max_bsq_field
 //    bool fail_conserved_floor
@@ -84,7 +84,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
 
     // ErrorPolicy member variables
     using ErrorPolicy::n_atm;
-    using ErrorPolicy::T_atm;
+    using ErrorPolicy::p_atm;
     using ErrorPolicy::v_max;
     using ErrorPolicy::fail_conserved_floor;
     using ErrorPolicy::fail_primitive_floor;
@@ -95,11 +95,11 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //! \fn EOS()
     //  \brief Constructor for the EOS. It sets a default value for the floor.
     //
-    //  n_atm gets fixed to 1e-10, and T_atm is set to 1.0. v_max is fixed to 
+    //  n_atm gets fixed to 1e-10, and p_atm is set to 1e-10. v_max is fixed to 
     //  1.0e - 1e15.
     EOS() {
       n_atm = 1e-10;
-      T_atm = 1.0;
+      p_atm = 1e-10;
       v_max = 1.0 - 1e-15;
       max_bsq = std::numeric_limits<Real>::max();
     }
@@ -230,9 +230,9 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //
     //  \return true if the primitives were adjusted, false otherwise.
     bool ApplyPrimitiveFloor(Real& n, Real Wvu[3], Real& p, Real& T, Real *Y) {
-      bool result = PrimitiveFloor(n, Wvu, T);
+      bool result = PrimitiveFloor(n, Wvu, p);
       if (result) {
-        p = Pressure(n, T, Y);
+        T = TemperatureFromP(n, p, Y);
       }
       return result;
     }
@@ -262,14 +262,9 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //         composition.
     //
     //  \param[in] Y A n_species-sized array of particle fractions.
-    inline Real GetPressureFloor(Real *Y) {
-      return GetPressure(n_atm, T_atm, Y);
-    }
-
-    //! \fn Real GetTemperatureFloor() const
-    //  \brief Get the temperature floor used by the EOS ErrorPolicy.
-    inline Real GetTemperatureFloor() const {
-      return T_atm;
+    //inline Real GetPressureFloor(Real *Y) {
+    inline Real GetPressureFloor() const {
+      return p_atm;
     }
 
     //! \fn Real GetTauFloor() const
@@ -278,7 +273,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //
     //  \param[in] Y A n_species-sized array of particle fractions.
     inline Real GetTauFloor(Real *Y) {
-      return GetEnergy(n_atm, T_atm, Y) - mb*n_atm;
+      return GetEnergy(n_atm, TemperatureFromP(n_atm, p_atm, Y), Y) - mb*n_atm;
     }
 
     //! \fn Real SetDensityFloor(Real floor)
@@ -291,8 +286,8 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //! \fn Real SetPressureFloor(Real floor)
     //  \brief Set the pressure floor used by the EOS ErrorPolicy.
     //         Also adjusts the tau floor to be consistent.
-    inline void SetTemperatureFloor(Real floor) {
-      T_atm = (floor >= 0.0) ? floor : 0.0;
+    inline void SetPressureFloor(Real floor) {
+      p_atm = (floor >= 0.0) ? floor : 0.0;
     }
 
     //! \fn Real GetMaxVelocity() const

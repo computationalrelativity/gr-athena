@@ -16,7 +16,7 @@ class ErrorPolicyInterface {
     ~ErrorPolicyInterface() = default;
 
     Real n_atm;
-    Real T_atm;
+    Real p_atm;
     Real v_max;
     Real max_bsq;
     bool fail_conserved_floor;
