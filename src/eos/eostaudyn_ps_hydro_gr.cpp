@@ -118,7 +118,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
   for (int k = kl; k <= ku; ++k) {
     for (int j = jl; j <= ju; ++j) {
       // Extract the metric at the vertex centers and interpolate to cell centers.
-      #pragma omp simd
+      //#pragma omp simd
       for (int i = il; i <= iu; ++i) {
         gamma_dd(0,0,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
         gamma_dd(0,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
@@ -129,7 +129,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
       }
 
       // Extract the primitive variables
-      #pragma omp simd
+      //#pragma omp simd
       for (int i = il; i <= iu; ++i) {
         // Extract the local metric and stuff it into a smaller array for PrimitiveSolver.
         Real g3d[NSPMETRIC] = {gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
@@ -156,23 +156,22 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
 
         if(result != Primitive::Error::SUCCESS) {
           std::cerr << "There was an error during the primitive solve!\n";
-          printf("i=%d, j=%d, k=%d\n",i,j,k);
+          //printf("i=%d, j=%d, k=%d\n",i,j,k);
+          std::cout << "i=" << i << ", j=" << j << ", k=" << k << "\n";
         }
-        else {
-          // Update the primitive variables.
-          prim(IDN, k, j, i) = prim_pt[IDN];
-          prim(IVX, k, j, i) = prim_pt[IVX];
-          prim(IVY, k, j, i) = prim_pt[IVY];
-          prim(IVZ, k, j, i) = prim_pt[IVZ];
-          prim(IPR, k, j, i) = prim_pt[IPR];
+        // Update the primitive variables.
+        prim(IDN, k, j, i) = prim_pt[IDN];
+        prim(IVX, k, j, i) = prim_pt[IVX];
+        prim(IVY, k, j, i) = prim_pt[IVY];
+        prim(IVZ, k, j, i) = prim_pt[IVZ];
+        prim(IPR, k, j, i) = prim_pt[IPR];
 
-          // Because the conserved variables may have changed, we update those, too.
-          cons(IDN, k, j, i) = cons_pt[IDN]*sdetg;
-          cons(IM1, k, j, i) = cons_pt[IM1]*sdetg;
-          cons(IM2, k, j, i) = cons_pt[IM2]*sdetg;
-          cons(IM3, k, j, i) = cons_pt[IM3]*sdetg;
-          cons(IEN, k, j, i) = cons_pt[IEN]*sdetg;
-        }
+        // Because the conserved variables may have changed, we update those, too.
+        cons(IDN, k, j, i) = cons_pt[IDN]*sdetg;
+        cons(IM1, k, j, i) = cons_pt[IM1]*sdetg;
+        cons(IM2, k, j, i) = cons_pt[IM2]*sdetg;
+        cons(IM3, k, j, i) = cons_pt[IM3]*sdetg;
+        cons(IEN, k, j, i) = cons_pt[IEN]*sdetg;
       }
     }
   }

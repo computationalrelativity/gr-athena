@@ -130,6 +130,35 @@ class PrimitiveSolver {
     inline EOS<EOSPolicy, ErrorPolicy> *const GetEOS() const {
       return peos;
     }
+
+    //! \brief Do failure response and adjust conserved variables if necessary.
+    //
+    //  Note that in ConToPrim, the error policy dictates whether or not we
+    //  should adjust the conserved variables if the primitive variables are
+    //  floored. That may appear to be the case here, too, because of the bool
+    //  returned by DoFailureResponse. However, DoFailureResponse simply tells
+    //  us whether or not the primitives were adjusted in the first place, not
+    //  whether or not we should adjust the conserved variables. Thus, if the
+    //  primitive variables are modified as part of the error response, the
+    //  conserved variables are *always* altered. The reasoning here is that
+    //  flooring after a primitive solver indicates a physical state which is
+    //  just slightly out of bounds. Depending on how the conserved variables
+    //  are to be used afterward, the user may not find it necessary to rescale
+    //  them. On the other hand, a failure mode generally indicates that the
+    //  state itself is unphysical, so any modification to the primitives
+    //  also requires a modification to the conserved variables.
+    //
+    //  \param[in,out] prim  The array of primitive variables
+    //  \param[in,out] cons  The array of conserved variables
+    //  \param[in,out] bu    The magnetic field
+    //  \param[in]     g3d   The 3x3 spatial metric
+    void HandleFailure(Real prim[NPRIM], Real cons[NCONS], Real bu[NMAG],
+                       Real g3d[NSPMETRIC]) {
+      bool result = peos->DoFailureResponse(prim);
+      if (result) {
+        PrimToCon(prim, cons, bu, g3d);
+      }
+    }
 };
 
 // UpperRoot {{{
@@ -330,6 +359,7 @@ Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim[NPRIM], Real 
   // the EOSPolicy wants us to.
   bool floored = peos->ApplyConservedFloor(D, S_d, tau, Y);
   if (floored && peos->IsConservedFlooringFailure()) {
+    HandleFailure(prim, cons, b, g3d);
     return Error::CONS_FLOOR;
   }
 
@@ -348,11 +378,13 @@ Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim[NPRIM], Real 
   // Make sure there are no NaNs at this point.
   if (!std::isfinite(D) || !std::isfinite(rsqr) || !std::isfinite(q) ||
       !std::isfinite(rbsqr) || !std::isfinite(bsqr)) {
+    HandleFailure(prim, cons, b, g3d);
     return Error::NANS_IN_CONS;
   }
   // We have to check the particle fractions separately.
   for (int s = 0; s < n_species; s++) {
     if (!std::isfinite(Y[s])) {
+      HandleFailure(prim, cons, b, g3d);
       return Error::NANS_IN_CONS;
     }
   }
@@ -361,6 +393,7 @@ Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim[NPRIM], Real 
   // Make sure that the magnetic field is physical.
   Error error = peos->DoMagnetizationResponse(bsqr, b_u);
   if (error == Error::MAG_TOO_BIG) {
+    HandleFailure(prim, cons, b, g3d);
     return Error::MAG_TOO_BIG;
   }
   else if (error == Error::CONS_ADJUSTED) {
@@ -395,6 +428,7 @@ Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim[NPRIM], Real 
     }*/
     // Scream if the bracketing failed.
     if (!result) {
+      HandleFailure(prim, cons, b, g3d);
       return Error::BRACKETING_FAILED;
     }
     else {
@@ -410,6 +444,7 @@ Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim[NPRIM], Real 
   error = CheckDensityValid(mul, muh, D, bsqr, rsqr, rbsqr, min_h);
   if (error != Error::SUCCESS) {
     // TODO: This is probably something that should be handled by the ErrorPolicy.
+    HandleFailure(prim, cons, b, g3d);
     return error;
   }
 
@@ -425,6 +460,7 @@ Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim[NPRIM], Real 
   Real muh_old = muh;
   bool result = root.false_position(&RootFunction, mul, muh, mu, D, q, bsqr, rsqr, rbsqr, Y, peos, &n, &T, &P);
   if (!result) {
+    HandleFailure(prim, cons, b, g3d);
     return Error::NO_SOLUTION;
   }
 
@@ -445,6 +481,7 @@ Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim[NPRIM], Real 
   // Apply the flooring policy to the primitive variables.
   floored = peos->ApplyPrimitiveFloor(n, Wv_u, P, T, Y);
   if (floored && peos->IsPrimitiveFlooringFailure()) {
+    HandleFailure(prim, cons, b, g3d);
     return Error::PRIM_FLOOR;
   }
   adjust_cons = adjust_cons || floored;

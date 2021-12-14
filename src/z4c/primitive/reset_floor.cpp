@@ -76,3 +76,17 @@ void ResetFloor::DensityLimits(Real& n, Real n_min, Real n_max) {
 void ResetFloor::TemperatureLimits(Real& T, Real T_min, Real T_max) {
   T = std::fmax(T_min, std::fmin(T_max, T));
 }
+
+/// Perform failure response
+/// In this case, we simply floor everything.
+bool ResetFloor::FailureResponse(Real prim[NPRIM]) {
+  prim[IDN] = n_atm;
+  prim[IVX] = 0.0;
+  prim[IVY] = 0.0;
+  prim[IVZ] = 0.0;
+  prim[IPR] = p_atm;
+  for (int i = 0; i < MAX_SPECIES; i++) {
+    prim[IYF + i] = 0.0;
+  }
+  return true;
+}

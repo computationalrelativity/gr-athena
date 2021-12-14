@@ -35,6 +35,9 @@ class ResetFloor : public ErrorPolicyInterface {
     /// Policy for resetting energy
     void TemperatureLimits(Real& T, Real T_min, Real T_max);
 
+    /// Policy for dealing with failed points
+    bool FailureResponse(Real prim[NPRIM]);
+
   public:
     /// Set the failure mode for conserved flooring
     inline void SetConservedFloorFailure(bool failure) {

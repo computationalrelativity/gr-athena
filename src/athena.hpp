@@ -131,7 +131,7 @@ struct EdgeField {
 
 // array indices for conserved: density, momemtum, total energy, face-centered field
 #if USETM
-enum ConsIndex {IDN=0, IM1=1, IM2=2, IM3=3, IEN=4, IYD=5, NCONS=(NHYDRO)};
+enum ConsIndex {IDN=0, IM1=1, IM2=2, IM3=3, IEN=4, IYD=5, NCONS=(NHYDRO)+(MAX_SPECIES)};
 #else
 enum ConsIndex {IDN=0, IM1=1, IM2=2, IM3=3, IEN=4, NCONS=(NHYDRO)};
 #endif
@@ -140,7 +140,7 @@ enum MagneticIndex {IB1=0, IB2=1, IB3=2, NMAG=3};
 // array indices for 1D primitives: velocity, transverse components of field
 #if USETM
 enum PrimIndex {IVX=1, IVY=2, IVZ=3, IPR=4, ITM=5, IYF=6, IBY=((NHYDRO)+(USETM)), 
-                IBZ=((NHYDRO)+(USETM)+1), NPRIM=((NHYDRO)+(USETM))};
+                IBZ=((NHYDRO)+(USETM)+1), NPRIM=((NHYDRO)+(USETM)+(MAX_SPECIES))};
 #else
 enum PrimIndex {IVX=1, IVY=2, IVZ=3, IPR=4, IBY=(NHYDRO), IBZ=((NHYDRO)+1)};
 #endif
