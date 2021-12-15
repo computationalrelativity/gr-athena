@@ -127,7 +127,8 @@ namespace NumTools{
   #endif
 
         // Return success if we're below the tolerance, otherwise report failure.
-        return fabs(ftest) <= tol;
+        //return fabs(ftest) <= tol;
+        return std::fabs((x-xold)/x) <= tol;
       }
       // }}}
       
@@ -166,7 +167,7 @@ namespace NumTools{
           x = x - fx/dfx;
           count++;
         }
-        while (fabs((xold-x)/x) > tol && count < iterations);
+        while (std::fabs((xold-x)/x) > tol && count < iterations);
 
   #ifdef DEBUG_ROOTS
         printf("Root solve iterations: %d out of %d\n", count, iterations);
@@ -174,7 +175,8 @@ namespace NumTools{
   #endif
 
         // Return success if we're below the tolerance, otherwise report failure.
-        return fabs(fx) <= tol;
+        //return fabs(fx) <= tol;
+        return std::fabs((xold-x)/x) <= tol;
       }
       // }}}
 
@@ -245,14 +247,15 @@ namespace NumTools{
           }
           count++;
         }
-        while (fabs((xold-x)/x) > tol && count < iterations);
+        while (std::fabs((xold-x)/x) > tol && count < iterations);
    #ifdef DEBUG_ROOTS
         printf("Root solve iterations: %d out of %d\n", count, iterations);
         printf("Root solve accuracy: %g\n", fx);
    #endif
 
         // Return success if we're below the tolerance, otherwise report failure.
-        return fabs(fx) <= tol;
+        //return fabs(fx) <= tol;
+        return std::fabs((xold-x)/x) <= tol;
       }
       // }}}
   };
