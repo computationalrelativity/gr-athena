@@ -186,8 +186,8 @@ void PrimitiveSolver<EOSPolicy, ErrorPolicy>::MuFromW(Real &f, Real &df, Real mu
   const Real vsq = musq*rbarsq;
   const Real dx = -bsq*xsq;
   //const Real drbarsq = rbsq*x*(1.0 + x) + (mu*rbsq + 2.0*(mu*rbsq + rsq)*x)*dx;
-  //const Real drbarsq = rbsq*xsq + mu*rbsq*dx + x*(rbsq + 2.0*(mu*rbsq + rsq)*dx);
-  const Real drbarsq = 2.0*rsq*dx + x*(1.0 + x)*rbsq + mu*dx*(1.0 + 2.0*x)*rbsq;
+  const Real drbarsq = rbsq*xsq + mu*rbsq*dx + x*(rbsq + 2.0*(mu*rbsq + rsq)*dx);
+  //const Real drbarsq = 2.0*rsq*dx + x*(1.0 + x)*rbsq + mu*dx*(1.0 + 2.0*x)*rbsq;
   const Real dvsq = 2.0*mu*rbarsq + musq*drbarsq;
   f = vsq + 1.0/(W*W) - 1.0;
   df = dvsq;
@@ -215,7 +215,7 @@ Real PrimitiveSolver<EOSPolicy, ErrorPolicy>::RootFunction(Real mu, Real D, Real
 
   // Now we can estimate the velocity.
   //const Real v_max = peos->GetMaxVelocity();
-  const Real h_min = peos->GetMinimumEnthalpy();
+  const Real h_min = peos->GetMinimumEnthalpy()/mb;
   const Real vsq_max = std::fmin(rsq/(h_min*h_min + rsq), peos->GetMaxVelocity());
   const Real vhatsq = std::fmin(musq*rbarsq, vsq_max);
 
