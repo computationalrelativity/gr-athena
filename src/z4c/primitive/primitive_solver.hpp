@@ -30,6 +30,9 @@ class PrimitiveSolver {
     /// during implementation seems both
     /// unlikely and dangerous.
     EOS<EOSPolicy, ErrorPolicy> *const peos;
+
+    /// The root solver.
+    NumTools::Root root;
     
     //! \brief function for the upper bound of the root
     //
@@ -98,6 +101,9 @@ class PrimitiveSolver {
   public:
     /// Constructor
     PrimitiveSolver(EOS<EOSPolicy, ErrorPolicy> *eos) : peos(eos) {
+    root = NumTools::Root();
+    root.tol = 1e-15;
+    root.iterations = 30;
     }
 
     /// Destructor
@@ -270,8 +276,6 @@ Real PrimitiveSolver<EOSPolicy, ErrorPolicy>::RootFunction(Real mu, Real D, Real
 template<typename EOSPolicy, typename ErrorPolicy>
 Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::CheckDensityValid(Real& mul, Real& muh, Real D, 
       Real bsq, Real rsq, Real rbsq, Real h_min) {
-  NumTools::Root& root = NumTools::Root::get_instance();
-
   // There are a few things considered:
   // 1. If D > rho_max, we need to make sure that W isn't too large.
   //    W_max can be estimated by considering the zero-field limit
@@ -408,15 +412,10 @@ Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim[NPRIM], Real 
   Real mul = 0.0;
   Real muh = 1.0/min_h;
   // Check if a tighter upper bound exists.
-  NumTools::Root& root = NumTools::Root::get_instance();
   if (rsqr > min_h*min_h) {
     Real mu = 0.0;
     // We don't need the bound to be that tight, so we reduce
     // the accuracy of the root solve for speed reasons.
-    //NumTools::Root::tol = 1e-3;
-    //NumTools::Root::iterations = 10;
-    root.tol = 1e-15;
-    root.iterations = 30;
     Real mulc = mul;
     Real muhc = muh;
     bool result = root.newton_safe(&UpperRoot, mulc, muhc, mu, bsqr, rsqr, rbsqr, min_h);
@@ -452,8 +451,6 @@ Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim[NPRIM], Real 
   // Do the root solve.
   // TODO: This should be done with something like TOMS748 once it's
   // available.
-  root.tol = 1e-15;
-  root.iterations = 30;
   Real n, P, T, mu;
   // DEBUG ONLY
   Real mul_old = mul;

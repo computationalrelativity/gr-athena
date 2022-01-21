@@ -19,8 +19,8 @@
 namespace NumTools{
   class Root {
     private:
-      Root() : iterations(30), tol(1e-15) {}
     public:
+      Root() : iterations(30), tol(1e-15) {}
       /// The number of iterations to permit during a root solve.
       unsigned int iterations;
       /// The iterations from the last call to the root solve.
@@ -28,16 +28,7 @@ namespace NumTools{
       /// The tolerance for a root solve.
       Real tol;
       /// The golden ratio, used by the ITP method
-      const Real phi = 1.618033988749895;
-
-      static inline Root& get_instance() {
-        static Root instance;
-
-        return instance;
-      }
-
-      Root(Root const&) = delete;
-      void operator=(Root const&) = delete;
+      static constexpr Real phi = 1.618033988749895;
 
       // false_position {{{
       /*!
