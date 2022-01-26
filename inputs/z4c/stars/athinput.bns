@@ -1,0 +1,91 @@
+<comment>
+problem = Import of bns data from LORENE ($HOME_LORENE/Codes/Bin_star)
+configure  = ./configure.py --prob=gr_bns --coord=gr_dynamical --eos=adiabatictaudyn_rep -gfz --flux=llftaudyn -vertex --nghost=4 --include=${DIR_REPRIMAND}/include --lib_path=${DIR_REPRIMAND}/lib --lorene_path=${DIR_LORENE} -gsl --lib=fftw3
+
+<job>
+problem_id = gr_bns
+
+<output1>
+file_type   = tab
+variable    = prim
+dt          = 0.00001
+ghost_zones = true
+
+<output2>
+file_type = tab
+variable  = adm
+dt        = 0.00001
+ghost_zones = true
+
+<output3>
+file_type = tab
+variable  = z4c
+dt        = 0.00001
+
+#<output4>
+#file_type = vtk
+#variable  = uov
+#dt        = 0.00001
+
+<time>
+cfl_number = 0.25
+tlim       = 20.0
+integrator = rk3  # time integration algorithm
+xorder     = 2    # order of spatial reconstruction
+ncycle_out = 1    # interval for stdout summary info
+
+<mesh>
+num_threads = 4
+refinement = static
+#numlevel = 2
+#deref_count = 5
+
+nx1    = 32        # number of cells in x-direction
+x1min  = -10.0       # minimum x
+x1max  =  10.0       # maximum x
+ix1_bc = extrapolate_outflow  # left boundary
+ox1_bc = extrapolate_outflow  # right boundary
+
+nx2    = 32        # number of cells in y-direction
+x2min  = -10.0       # minimum y
+x2max  =  10.0       # maximum y
+ix2_bc = extrapolate_outflow  # inner boundary
+ox2_bc = extrapolate_outflow  # outer boundary
+
+nx3    = 32        # number of cells in z-direction
+x3min  = -10.0       # minimum z
+x3max  =  10.0       # maximum z
+ix3_bc = extrapolate_outflow  # lower boundary
+ox3_bc = extrapolate_outflow  # upper boundary
+
+<hydro>
+gamma  = 2.00000  # ratio of specific heats Gamma
+#dfloor = 1.0e-10              # floor on density rho
+#pfloor = 1.0e-10              # floor on gas pressure p_gas
+k_adi = 100                # adiabat K, p_gas = K rho^Gamma
+
+<problem>
+filename = /mnt/nebula/_Repositories/NR/LORENE/Lorene/Codes/Bin_star/resu.d # Filename for the Lorene initial data
+# R0 = 6 # Guess for the radius of the star
+# npts = 10000 # Guess for number of points for TOV solver
+rhoc = 0.00128  # energy density at centre of star
+fatm = 1e-10  # set atmosphere rho to rho = rhomax * fatm
+fthr = 100.0  # set point to atmosphere if rho < fthr*fatm*rhomax
+
+<meshblock>
+nx1 = 16
+nx2 = 16
+nx3 = 16
+
+#<refinement1>
+#x1min = 0
+#x1max = 3
+#x2min = 0
+#x2max = 3
+#x3min = 0
+#x3max = 3
+#level = 2
+
+<coord>
+m = 0
+a = 0

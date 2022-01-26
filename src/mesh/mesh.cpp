@@ -70,6 +70,10 @@
 #include <mpi.h>
 #endif
 
+#ifdef LORENE
+Lorene::Bin_NS * Mesh::bns;
+#endif
+
 //----------------------------------------------------------------------------------------
 // Mesh constructor, builds mesh at start of calculation using parameters in input file
 

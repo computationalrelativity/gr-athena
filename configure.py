@@ -1020,7 +1020,18 @@ else:
     if args['prob'] == 'z4c_one_puncture':
         definitions['TWO_PUNCTURES_OPTION'] = definitions['TWO_PUNCTURES_OPTION'] + '\n#define NPUNCT (1)'
 
-# Load Lorene
+# Set up paths for Lorene
+if args['lorene_path'] != '':
+    definitions['LORENE_OPTION'] = 'LORENE'
+
+    makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/Export/C++/Include'.format(args['lorene_path'])
+    makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/C++/Include'.format(args['lorene_path'])
+    makefile_options['LINKER_FLAGS'] += ' -L{0}/Lib'.format(args['lorene_path'])
+    makefile_options['LIBRARY_FLAGS'] += ' -llorene_export -llorene -llorenef77 -lgfortran -llapack -lblas'
+else:
+    definitions['LORENE_OPTION'] = 'NO_LORENE'
+
+# Particular to gr_neutron_star
 if args['prob'] == "gr_neutron_star":
     #if not args['g']:
     #    raise SystemExit('### CONFIGURE ERROR: The neutron star problem requires general relativity. Please reconfigure with the -g option.')
@@ -1028,7 +1039,6 @@ if args['prob'] == "gr_neutron_star":
         raise SystemExit('### CONFIGURE ERROR: The neutron star problem requires hydrodynamics. Please reconfigure with the -f option.')
     if not args['z']:
         raise SystemExit('### CONFIGURE ERROR: The neutron star problem currently requires Z4c. Please reconfigure with the -z option.')
-    definitions['LORENE_OPTION'] = 'LORENE'
     if args['lorene_path'] == '':
         os.system('mkdir -p extern/initial_data')
         args['lorene_path'] = 'extern/initial_data/Lorene'
@@ -1037,13 +1047,6 @@ if args['prob'] == "gr_neutron_star":
             os.system('ln -s ../../../Lorene {}'.format(args['lorene_path']))
         else:
             raise SystemExit('### CONFIGURE ERROR: To compile the neutron star problem, it is necessary to provide the Lorene initial data library ../Lorene.')
-    if args['lorene_path'] != '':
-        makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/Export/C++/Include'.format(args['lorene_path'])
-        makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/C++/Include'.format(args['lorene_path'])
-        makefile_options['LINKER_FLAGS'] += ' -L{0}/Lib'.format(args['lorene_path'])
-        makefile_options['LIBRARY_FLAGS'] += ' -llorene_export -llorene -llorenef77 -lgfortran -llapack -lblas'
-else:
-    definitions['LORENE_OPTION'] = 'NO_LORENE'
 
 definitions['GSL_OPTION'] = 'NO_GSL'
 if args['gsl']:
