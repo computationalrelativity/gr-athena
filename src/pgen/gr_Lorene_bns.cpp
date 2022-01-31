@@ -2,8 +2,10 @@
 // Athena++ astrophysical MHD code
 // Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
 // Licensed under the 3-clause BSD License, see LICENSE file for details
-//! \file z4c_neutron_star.cpp
-//  \brief Initial conditions for an axisymmetric neutron star with a magnetic field.
+//! \file z4c_bns.cpp
+//  \brief Initial conditions for binary neutron stars. Interpolation of Lorene
+//         initial data.
+//         Note: This is templated based on `gr_neutron_star.cpp`.
 
 #include <cassert>
 #include <iostream>
@@ -31,11 +33,14 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 
   // constants ----------------------------------------------------------------
 
+  // TODO: BD - These quantities would be good to collect to a single physical
+  //            constants .hpp or so.
+
 	// Some conversion factors to go between Lorene data and Athena data.
   // Shamelessly stolen from the Einstein Toolkit's Mag_NS.cc.
 	Real const c_light = 299792458.0;              // Speed of light [m/s]
 	Real const mu0 = 4.0 * M_PI * 1.0e-7;          // Vacuum permeability [N/A^2]
-	Real const eps0 = 1.0 / (mu0 * pow(c_light, 2));
+	Real const eps0 = 1.0 / (mu0 * std::pow(c_light, 2));
 
 	// Constants of nature (IAU, CODATA):
 	Real const G_grav = 6.67428e-11;       // Gravitational constant [m^3/kg/s^2]
@@ -63,7 +68,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
   std::string fn_ini_data = pin->GetOrAddString(
     "problem", "filename", "resu.d");
 
-  const double tol_det_zero = 1e-10;
+  const double tol_det_zero = 1e-10;  // TODO: BD - this should go in .inp
   // --------------------------------------------------------------------------
 
 	// Set some aliases for the variables.
@@ -256,7 +261,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
       );
 
       const Real W = 1.0 / std::sqrt(1.0 - vsq);
-
 
       // Copy all the variables over to Athena.
       phydro->w(IDN, k, j, i) = rho;

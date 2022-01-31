@@ -63,6 +63,7 @@ k_adi = 74.3701
 
 <problem>
 filename = btiny.d # Filename for the Lorene initial data
+filename = /mnt/nebula/_Repositories/NR/LORENE/Lorene/Codes/Bin_star/resu.d # Filename for the Lorene initial data
 R0 = 6 # Guess for the radius of the star
 npts = 10000 # Guess for number of points for TOV solver
 fthr = 100.0

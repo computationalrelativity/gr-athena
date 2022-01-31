@@ -1031,22 +1031,33 @@ if args['lorene_path'] != '':
 else:
     definitions['LORENE_OPTION'] = 'NO_LORENE'
 
-# Particular to gr_neutron_star
-if args['prob'] == "gr_neutron_star":
-    #if not args['g']:
-    #    raise SystemExit('### CONFIGURE ERROR: The neutron star problem requires general relativity. Please reconfigure with the -g option.')
-    if not args['f']:
-        raise SystemExit('### CONFIGURE ERROR: The neutron star problem requires hydrodynamics. Please reconfigure with the -f option.')
-    if not args['z']:
-        raise SystemExit('### CONFIGURE ERROR: The neutron star problem currently requires Z4c. Please reconfigure with the -z option.')
+# check pgens requiring Lorene
+if args['prob'] in ('gr_Lorene_neutron_star', 'gr_Lorene_bns'):
+    if not args['f'] or not args['g'] or not args['z']:
+        raise SystemExit(
+            '### CONFIGURE ERROR: The pgen "{name}" requires flags '
+            '-f -g -z.'.format(
+                name=args['prob']
+            )
+        )
+
     if args['lorene_path'] == '':
-        os.system('mkdir -p extern/initial_data')
-        args['lorene_path'] = 'extern/initial_data/Lorene'
-        if os.path.exists('../Lorene'):
-            os.system('rm {}'.format(args['lorene_path']))
-            os.system('ln -s ../../../Lorene {}'.format(args['lorene_path']))
-        else:
-            raise SystemExit('### CONFIGURE ERROR: To compile the neutron star problem, it is necessary to provide the Lorene initial data library ../Lorene.')
+        raise SystemExit(
+            '### CONFIGURE ERROR: The pgen "{name}" requires "--lorene_path" '
+            'to be specified.'.format(
+                name=args['prob']
+            )
+        )
+
+    # if args['lorene_path'] == '':
+    #     os.system('mkdir -p extern/initial_data')
+    #     args['lorene_path'] = 'extern/initial_data/Lorene'
+    #     if os.path.exists('../Lorene'):
+    #         os.system('rm {}'.format(args['lorene_path']))
+    #         os.system('ln -s ../../../Lorene {}'.format(args['lorene_path']))
+    #     else:
+    #         raise SystemExit('### CONFIGURE ERROR: To compile the neutron star problem, it is necessary to provide the Lorene initial data library ../Lorene.')
+
 
 definitions['GSL_OPTION'] = 'NO_GSL'
 if args['gsl']:
