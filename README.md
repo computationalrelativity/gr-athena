@@ -10,6 +10,36 @@ athena
 Athena++ radiation MHD code
 
 
-development-branch
+matter-new-ps-branch
 ==================
-Quick note: we merge base and current master functionality here.
+Branch for integrating the new primitive solver and EOS framework into GR-Athena++.
+
+Flags for running with Z4c and hydrodynamics:
+`-gfz`
+`--coord=gr_dynamical`
+`--flux=llftaudyn`
+`-vertex`
+`--nghost=4`
+`--ncghost=4`
+
+Flags for enabling the new EOS framework:
+`--eos=eostaudyn_ps`
+`--eospolicy=idealgas`
+`--errorpolicy=reset_floor`
+
+Compatible problem generators:
+`--prob=gr_tov`
+`--prob=gr_neutron_star`
+
+Other configure flags:
+`-gsl`
+`-omp` (Optional)
+`-mpi`
+`--cmd=mpicxx`
+`-hdf5` (Optional, requires two following arguments)
+`-h5double`
+`--hdf5_path=/path/to/hdf5`
+`-debug` (Currently required due to bugs)
+`--lorene_path=$HOME_LORENE` (Required for `gr_neutron_star`)
+
+Compatible input files can be found in `inputs/z4c/stars` and `inputs/hydro_dyn`
