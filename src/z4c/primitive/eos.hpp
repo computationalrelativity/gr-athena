@@ -85,6 +85,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
 
     // ErrorPolicy member variables
     using ErrorPolicy::n_atm;
+    using ErrorPolicy::n_threshold;
     using ErrorPolicy::p_atm;
     using ErrorPolicy::v_max;
     using ErrorPolicy::fail_conserved_floor;
@@ -100,6 +101,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  1.0e - 1e15.
     EOS() {
       n_atm = 1e-10;
+      n_threshold = 1.0;
       p_atm = 1e-10;
       v_max = 1.0 - 1e-15;
       max_bsq = std::numeric_limits<Real>::max();
@@ -258,14 +260,16 @@ class EOS : public EOSPolicy, public ErrorPolicy {
       return n_atm;
     }
 
-    //! \fn Real GetPressureFloor(Real *Y) const
-    //  \brief Get the pressure floor based on the current particle
-    //         composition.
-    //
-    //  \param[in] Y A n_species-sized array of particle fractions.
-    //inline Real GetPressureFloor(Real *Y) {
+    //! \fn Real GetPressureFloor() const
+    //  \brief Get the pressure floor used by the EOS ErrorPolicy
     inline Real GetPressureFloor() const {
       return p_atm;
+    }
+
+    //! \fn Real GetThreshold() const
+    //  \brief Get the threshold factor used by the EOS ErrorPolicy
+    inline Real GetThreshold() const {
+      return n_threshold;
     }
 
     //! \fn Real GetTauFloor() const
@@ -279,16 +283,20 @@ class EOS : public EOSPolicy, public ErrorPolicy {
 
     //! \fn Real SetDensityFloor(Real floor)
     //  \brief Set the density floor used by the EOS ErrorPolicy.
-    //         Also adjusts the pressure and tau floor to be consistent.
     inline void SetDensityFloor(Real floor) {
       n_atm = (floor >= 0.0) ? floor : 0.0;
     }
 
     //! \fn Real SetPressureFloor(Real floor)
     //  \brief Set the pressure floor used by the EOS ErrorPolicy.
-    //         Also adjusts the tau floor to be consistent.
     inline void SetPressureFloor(Real floor) {
       p_atm = (floor >= 0.0) ? floor : 0.0;
+    }
+
+    //! \fn void SetThreshold(Real threshold)
+    //  \brief Set the threshold factor for the density floor.
+    inline void SetThreshold(Real threshold) {
+      n_threshold = (threshold >= 0.0) ? threshold : 0.0;
     }
 
     //! \fn Real GetMaxVelocity() const

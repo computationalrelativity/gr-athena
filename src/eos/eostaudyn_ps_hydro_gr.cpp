@@ -28,7 +28,7 @@
 #include "../z4c/primitive/eos.hpp"*/
 
 // Declarations
-static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim, 
+static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, 
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, int k, int j, int i,
     AthenaArray<Real> &cons,
     Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& ps);
@@ -57,6 +57,8 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   // Set up the EOS
   // Baryon mass
   Real mb = pin->GetOrAddReal("hydro", "bmass", 1.0);
+  Real threshold = pin->GetOrAddReal("hydro", "dthreshold", 1.0);
+  eos.SetThreshold(threshold);
   eos.SetBaryonMass(mb);
   // Set the number density floor.
   eos.SetDensityFloor(density_floor_/mb);
@@ -190,8 +192,8 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
 //   single-cell function exists for other purposes; call made to that function rather
 //       than having duplicate code
 
-void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
-     const AthenaArray<Real> &bb_cc, AthenaArray<Real> &cons, Coordinates *pco, int il,
+void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim,
+     AthenaArray<Real> &bb_cc, AthenaArray<Real> &cons, Coordinates *pco, int il,
      int iu, int jl, int ju, int kl, int ku) {
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
   int nn1 = iu+1;
@@ -236,7 +238,7 @@ void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
 // Outputs:
 //   cons: conserved variables set in desired cell
 
-static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim, 
+static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, 
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const &gamma_dd, int k, int j, int i,
     AthenaArray<Real> &cons,
     Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& ps) {
@@ -252,6 +254,9 @@ static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim,
   prim_pt[IVZ] = prim(IVZ, k, j, i);
   prim_pt[IPR] = prim(IPR, k, j, i);
   prim_pt[ITM] = ps.GetEOS()->GetTemperatureFromP(prim_pt[IDN], prim_pt[IPR], Y);
+
+  // Apply the floor to ensure that we get physical conserved variables.
+  bool result = ps.GetEOS()->ApplyPrimitiveFloor(prim_pt[IDN], &prim_pt[IVX], prim_pt[IPR], prim_pt[ITM], Y);
 
   // Extract the metric and calculate the determinant.
   Real g3d[NSPMETRIC] = {gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
@@ -274,6 +279,15 @@ static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim,
   cons(IM2, k, j, i) = cons_pt[IM2]*sdetg;
   cons(IM3, k, j, i) = cons_pt[IM3]*sdetg;
   cons(IEN, k, j, i) = cons_pt[IEN]*sdetg;
+
+  // If we floored things, we'll need to readjust the primitives.
+  if (result) {
+    prim(IDN, k, j, i) = prim_pt[IDN]*mb;
+    prim(IVX, k, j, i) = prim_pt[IVX];
+    prim(IVY, k, j, i) = prim_pt[IVY];
+    prim(IVZ, k, j, i) = prim_pt[IVZ];
+    prim(IPR, k, j, i) = prim_pt[IPR];
+  }
 }
 
 //----------------------------------------------------------------------------------------
@@ -348,20 +362,28 @@ void EquationOfState::SoundSpeedsGR(Real n, Real T, Real vi, Real v2, Real alpha
 void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j, int i) {
   // Extract the primitive variables and floor them using PrimitiveSolver.
   Real mb = ps.GetEOS()->GetBaryonMass();
-  Real n = prim(IDN, k, j, i)/mb;
-  Real Wvu[3] = {prim(IVX, k, j, i), prim(IVY, k, j, i), prim(IVZ, k, j, i)};
-  Real P = prim(IPR, k, j, i);
+  //Real n = prim(IDN, k, j, i)/mb;
+  Real n = prim(IDN, i)/mb;
+  //Real Wvu[3] = {prim(IVX, k, j, i), prim(IVY, k, j, i), prim(IVZ, k, j, i)};
+  Real Wvu[3] = {prim(IVX, i), prim(IVY, i), prim(IVZ, i)};
+  //Real P = prim(IPR, k, j, i);
+  Real P = prim(IPR, i);
   // FIXME: Update to work with particle species.
   Real Y[MAX_SPECIES] = {0.0};
   Real T = ps.GetEOS()->GetTemperatureFromP(n, P, Y);
   ps.GetEOS()->ApplyPrimitiveFloor(n, Wvu, P, T, Y);
 
   // Now push the updated quantities back to Athena.
-  prim(IDN, k, j, i) = n*mb;
-  prim(IVX, k, j, i) = Wvu[0];
-  prim(IVY, k, j, i) = Wvu[1];
-  prim(IVZ, k, j, i) = Wvu[2];
-  prim(IPR, k, j, i) = P;
+  //prim(IDN, k, j, i) = n*mb;
+  //prim(IVX, k, j, i) = Wvu[0];
+  //prim(IVY, k, j, i) = Wvu[1];
+  //prim(IVZ, k, j, i) = Wvu[2];
+  //prim(IPR, k, j, i) = P;
+  prim(IDN, i) = n*mb;
+  prim(IVX, i) = Wvu[0];
+  prim(IVY, i) = Wvu[1];
+  prim(IVZ, i) = Wvu[2];
+  prim(IPR, i) = P;
 
   return;
 }

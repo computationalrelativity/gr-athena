@@ -17,7 +17,7 @@ ResetFloor::ResetFloor() {
 
 /// Floor for the primitive variables
 bool ResetFloor::PrimitiveFloor(Real& n, Real v[3], Real& p) {
-  if (n < n_atm) {
+  if (n < n_atm*n_threshold) {
     n = n_atm;
     v[0] = 0.0;
     v[1] = 0.0;

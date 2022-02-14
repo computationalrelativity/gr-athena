@@ -239,14 +239,25 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 	  pgas_kji = k_adi*pow(rho_kji,gamma_adi); 
 	} else {
 	  // Set exterior to atmos
-	  rho_kji  = rho_atm;
-	  pgas_kji = pre_atm;
+	  //rho_kji  = rho_atm;
+	  //pgas_kji = pre_atm;
+    // Let the EOS decide how to set the atmosphere.
+    rho_kji = 0.0;
+    pgas_kji = 0.0;
 	}
-	phydro->w(IDN,k,j,i) = phydro->w1(IDN,k,j,i) = phydro->w_init(IDN,k,j,i) = rho_kji;
-	phydro->w(IPR,k,j,i) = phydro->w1(IPR,k,j,i) = phydro->w_init(IPR,k,j,i) = pgas_kji;
-	phydro->w(IVX,k,j,i) = phydro->w1(IVX,k,j,i) = phydro->w_init(IVX,k,j,i) = 0.0;
-	phydro->w(IVY,k,j,i) = phydro->w1(IVY,k,j,i) = phydro->w_init(IVY,k,j,i) = 0.0;
-	phydro->w(IVZ,k,j,i) = phydro->w1(IVZ,k,j,i) = phydro->w_init(IVZ,k,j,i) = 0.0;
+  phydro->w_init(IDN, k, j, i) = rho_kji;
+  phydro->w_init(IPR, k, j, i) = pgas_kji;
+  phydro->w_init(IVX, k, j, i) = 0.0;
+  phydro->w_init(IVY, k, j, i) = 0.0;
+  phydro->w_init(IVZ, k, j, i) = 0.0;
+
+  //peos->ApplyPrimitiveFloors(phydro->w_init, k, j, i);
+
+	phydro->w(IDN,k,j,i) = phydro->w1(IDN,k,j,i) = phydro->w_init(IDN,k,j,i);
+	phydro->w(IPR,k,j,i) = phydro->w1(IPR,k,j,i) = phydro->w_init(IPR,k,j,i);
+	phydro->w(IVX,k,j,i) = phydro->w1(IVX,k,j,i) = phydro->w_init(IVX,k,j,i);
+	phydro->w(IVY,k,j,i) = phydro->w1(IVY,k,j,i) = phydro->w_init(IVY,k,j,i);
+	phydro->w(IVZ,k,j,i) = phydro->w1(IVZ,k,j,i) = phydro->w_init(IVZ,k,j,i);
       }
     }
   }

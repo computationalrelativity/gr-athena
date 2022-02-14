@@ -16,6 +16,7 @@ class ErrorPolicyInterface {
     ~ErrorPolicyInterface() = default;
 
     Real n_atm;
+    Real n_threshold;
     Real p_atm;
     Real v_max;
     Real max_bsq;

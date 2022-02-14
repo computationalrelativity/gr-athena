@@ -25,7 +25,7 @@
 #include "../mesh/mesh.hpp"                // MeshBlock
 
 // Declarations
-static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim, Real gamma_adi,
+static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, Real gamma_adi,
     const AthenaArray<Real> &g, const AthenaArray<Real> &gi, int k, int j, int i,
     AthenaArray<Real> &cons, Coordinates *pco);
 static bool ApplyDensityFloor(Real& rho, Real coord, Real density_floor, Real rho_min, Real rho_pow);
@@ -330,8 +330,8 @@ bool ApplyPressureFloor(Real& pgas, Real coord, Real pressure_floor, Real pgas_m
 //   single-cell function exists for other purposes; call made to that function rather
 //       than having duplicate code
 
-void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
-     const AthenaArray<Real> &bb_cc, AthenaArray<Real> &cons, Coordinates *pco, int il,
+void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim,
+     AthenaArray<Real> &bb_cc, AthenaArray<Real> &cons, Coordinates *pco, int il,
      int iu, int jl, int ju, int kl, int ku) {
   for (int k=kl; k<=ku; ++k) {
     for (int j=jl; j<=ju; ++j) {
@@ -370,7 +370,7 @@ void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
 // Outputs:
 //   cons: conserved variables set in desired cell
 
-static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim, Real gamma_adi,
+static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, Real gamma_adi,
     const AthenaArray<Real> &g, const AthenaArray<Real> &gi, int k, int j, int i,
     AthenaArray<Real> &cons, Coordinates *pco) {
   // Extract primitives

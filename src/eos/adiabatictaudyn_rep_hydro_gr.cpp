@@ -30,7 +30,7 @@
 
 
 // Declarations
-static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim, Real gamma_adi,
+static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, Real gamma_adi,
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, int k, int j, int i,
     AthenaArray<Real> &cons, Coordinates *pco);
 Real fthr, fatm, rhoc;
@@ -65,8 +65,8 @@ Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
 EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) {
   pmy_block_ = pmb;
   gamma_ = pin->GetReal("hydro", "gamma");
-  density_floor_ = pin->GetOrAddReal("hydro", "dfloor", std::sqrt(1024*(FLT_MIN)) );
-  pressure_floor_ = pin->GetOrAddReal("hydro", "pfloor", std::sqrt(1024*(FLT_MIN)) );
+  //density_floor_ = pin->GetOrAddReal("hydro", "dfloor", std::sqrt(1024*(FLT_MIN)) );
+  //pressure_floor_ = pin->GetOrAddReal("hydro", "pfloor", std::sqrt(1024*(FLT_MIN)) );
   rho_min_ = pin->GetOrAddReal("hydro", "rho_min", density_floor_);
   rho_pow_ = pin->GetOrAddReal("hydro", "rho_pow", 0.0);
   pgas_min_ = pin->GetOrAddReal("hydro", "pgas_min", pressure_floor_);
@@ -96,6 +96,9 @@ using namespace EOS_Toolkit;
   atmo_ye = 0.0;
   atmo_cut = atmo_rho * fthr;
   atmo_p = eos.at_rho_eps_ye(atmo_rho, atmo_eps, atmo_ye).press();
+
+  density_floor_ = atmo_rho;
+  pressure_floor_ = atmo_p;
 
   //Primitive recovery parameters 
   rho_strict = 1e-20;
@@ -286,7 +289,7 @@ using namespace EOS_Toolkit;
 //   single-cell function exists for other purposes; call made to that function rather
 //       than having duplicate code
 
-void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
+void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim,
      const AthenaArray<Real> &bb_cc, AthenaArray<Real> &cons, Coordinates *pco, int il,
      int iu, int jl, int ju, int kl, int ku) {
       AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd; //lapse
@@ -338,7 +341,7 @@ void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
 //   cons: conserved variables set in desired cell
 
 // TODO change arguments so instead of taking g(n,i), gi(n,i) it just takes gamma(a,b,i)
-static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim, Real gamma_adi,
+static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, Real gamma_adi,
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, int k, int j, int i,
     AthenaArray<Real> &cons, Coordinates *pco) {
 

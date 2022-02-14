@@ -211,18 +211,18 @@ Real PrimitiveSolver<EOSPolicy, ErrorPolicy>::RootFunction(Real mu, Real D, Real
   //const Real den = 1.0 + mu*bsq;
   const Real mux = mu*x;
   //const Real muxsq = mux/den;
-  const Real rbarsq = rsq*xsq + mux*(1.0 + x)*rbsq;
+  //const Real rbarsq = rsq*xsq + mux*(1.0 + x)*rbsq;
   //const Real rbarsq = xsq*(rsq + mu*(2.0 + mu*bsq)*rbsq);
   // An alternative calculation of rbarsq that may be more accurate.
   //const Real rbarsq = rsq*xsq + (mux + muxsq)*rbsq;
-  //const Real rbarsq = x*(rsq*x + mu*(x + 1.0)*rbsq);
-  const Real qbar = q - 0.5*bsq - 0.5*musq*xsq*(bsq*rsq - rbsq);
+  const Real rbarsq = x*(rsq*x + mu*(x + 1.0)*rbsq);
+  const Real qbar = q - 0.5*(bsq + musq*xsq*(bsq*rsq - rbsq));
   const Real mb = peos->GetBaryonMass();
 
   // Now we can estimate the velocity.
   //const Real v_max = peos->GetMaxVelocity();
   const Real h_min = peos->GetMinimumEnthalpy()/mb;
-  const Real vsq_max = std::fmin(rsq/(h_min*h_min + rsq), peos->GetMaxVelocity());
+  const Real vsq_max = std::fmin(rsq/(h_min*h_min + rsq), peos->GetMaxVelocity()*peos->GetMaxVelocity());
   const Real vhatsq = std::fmin(musq*rbarsq, vsq_max);
 
   // Using the velocity estimate, predict the Lorentz factor.
