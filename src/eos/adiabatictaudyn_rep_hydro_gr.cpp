@@ -290,7 +290,7 @@ using namespace EOS_Toolkit;
 //       than having duplicate code
 
 void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim,
-     const AthenaArray<Real> &bb_cc, AthenaArray<Real> &cons, Coordinates *pco, int il,
+     AthenaArray<Real> &bb_cc, AthenaArray<Real> &cons, Coordinates *pco, int il,
      int iu, int jl, int ju, int kl, int ku) {
       AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd; //lapse
   int nn1 = iu+1;
@@ -348,6 +348,16 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, Real gamma_adi,
     AthenaArray<Real> utilde_u;  // primitive gamma^i_a u^a
     AthenaArray<Real> utilde_d;  // primitive gamma^i_a u^a
     AthenaArray<Real> v_d;  // primitive gamma^i_a u^a
+
+  // Apply floor to primitive variables. This should be
+  // identical to what RePrimAnd does.
+  if (prim(IDN, k, j, i) < atmo_cut) {
+    prim(IDN, k, j, i) = atmo_rho;
+    prim(IVX, k, j, i) = 0.0;
+    prim(IVY, k, j, i) = 0.0;
+    prim(IVZ, k, j, i) = 0.0;
+    prim(IPR, k, j, i) = atmo_p;
+  }
 
   utilde_u.NewAthenaArray(3);
   utilde_d.NewAthenaArray(3);
