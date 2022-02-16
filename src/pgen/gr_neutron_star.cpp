@@ -319,7 +319,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
         phydro->w(IPR, k, j, i) = pgas;
 
         // FIXME: There needs to be a more consistent way to do this.
-        peos->ApplyPrimitiveFloors(phydro->w, k, j, i);
+        //peos->ApplyPrimitiveFloors(phydro->w, k, j, i);
         phydro->w1(IDN, k, j, i) = phydro->w(IDN, k, j, i);
         phydro->w1(IVX, k, j, i) = phydro->w(IVX, k, j, i);
         phydro->w1(IVY, k, j, i) = phydro->w(IVY, k, j, i);
