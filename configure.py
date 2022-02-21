@@ -1070,7 +1070,7 @@ else:
         definitions['TWO_PUNCTURES_OPTION'] = definitions['TWO_PUNCTURES_OPTION'] + '\n#define NPUNCT (1)'
 
 # Load Lorene
-if args['prob'] == "gr_neutron_star":
+if args['prob'] == "gr_lorene_magstar":
     #if not args['g']:
     #    raise SystemExit('### CONFIGURE ERROR: The neutron star problem requires general relativity. Please reconfigure with the -g option.')
     if not args['f']:
