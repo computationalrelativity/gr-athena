@@ -232,7 +232,6 @@ void BoundaryValues::StartReceiving(BoundaryCommSubset phase) {
       (*bvars_it)->StartReceiving(phase);
     }
   }
-
   // KGF: begin shearing-box exclusive section of original StartReceivingForInit()
   // find send_block_id and recv_block_id;
   if (SHEARING_BOX) {
