@@ -19,8 +19,10 @@
 #include <vector>
 
 // Lorene
+#ifdef LORENE
 #include <bin_ns.h>
 using Lorene::Bin_NS;
+#endif
 
 // Athena++ headers
 #include "../athena.hpp"
