@@ -3,6 +3,7 @@
 
 //! \file ps_error.hpp
 //  \brief defines an enumerator struct for error types.
+#include <string>
 
 namespace Primitive {
   enum struct Error {
@@ -17,6 +18,8 @@ namespace Primitive {
     PRIM_FLOOR,
     CONS_ADJUSTED,
   };
+
+  extern std::string ErrorString[10];
 } // namespace
 
 #endif

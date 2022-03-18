@@ -33,6 +33,8 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim,
     AthenaArray<Real> &cons,
     Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& ps);
 
+static Real VCInterpolation(AthenaArray<Real> &in, int k, int j, int i);
+
 //Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> eos;
 //Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> ps{&eos};
 
@@ -128,6 +130,13 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         gamma_dd(1,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
         gamma_dd(1,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
         gamma_dd(2,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
+
+        /*gamma_dd(0,0,i) = VCInterpolation(vcgamma_xx, k, j, i);
+        gamma_dd(0,1,i) = VCInterpolation(vcgamma_xy, k, j, i);
+        gamma_dd(0,2,i) = VCInterpolation(vcgamma_xz, k, j, i);
+        gamma_dd(1,1,i) = VCInterpolation(vcgamma_yy, k, j, i);
+        gamma_dd(1,2,i) = VCInterpolation(vcgamma_yz, k, j, i);
+        gamma_dd(2,2,i) = VCInterpolation(vcgamma_zz, k, j, i);*/
       }
 
       // Extract the primitive variables
@@ -144,11 +153,12 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
 
         // Extract and undensitize the conserved variables.
         Real cons_pt[NCONS] = {0.0};
-        cons_pt[IDN] = cons(IDN, k, j, i)/sdetg;
-        cons_pt[IM1] = cons(IM1, k, j, i)/sdetg;
-        cons_pt[IM2] = cons(IM2, k, j, i)/sdetg;
-        cons_pt[IM3] = cons(IM3, k, j, i)/sdetg;
-        cons_pt[IEN] = cons(IEN, k, j, i)/sdetg;
+        Real cons_old_pt[NCONS] = {0.0}; // Redundancy in case things go bad.
+        cons_pt[IDN] = cons_old_pt[IDN] = cons(IDN, k, j, i)/sdetg;
+        cons_pt[IM1] = cons_old_pt[IM1] = cons(IM1, k, j, i)/sdetg;
+        cons_pt[IM2] = cons_old_pt[IM2] = cons(IM2, k, j, i)/sdetg;
+        cons_pt[IM3] = cons_old_pt[IM3] = cons(IM3, k, j, i)/sdetg;
+        cons_pt[IEN] = cons_old_pt[IEN] = cons(IEN, k, j, i)/sdetg;
         // FIXME: Need to generalize this for particle fractions.
 
         // Find the primitive variables.
@@ -158,8 +168,19 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
 
         if(result != Primitive::Error::SUCCESS) {
           std::cerr << "There was an error during the primitive solve!\n";
+          std::cerr << "  Error: " << Primitive::ErrorString[(int)result] << "\n";
           //printf("i=%d, j=%d, k=%d\n",i,j,k);
-          std::cout << "i=" << i << ", j=" << j << ", k=" << k << "\n";
+          std::cerr << "  i=" << i << ", j=" << j << ", k=" << k << "\n";
+          std::cerr << "  g3d = [" << g3d[S11] << ", " << g3d[S12] << ", " << g3d[S13] << ", "
+                    << g3d[S22] << ", " << g3d[S23] << ", " << g3d[S33] << "\n";
+          std::cerr << "  g3u = [" << g3u[S11] << ", " << g3u[S12] << ", " << g3u[S13] << ", "
+                    << g3u[S22] << ", " << g3u[S23] << ", " << g3u[S33] << "\n";
+          std::cerr << "  sdetg = " << sdetg << "\n";
+          std::cerr << "  D = " << cons_old_pt[IDN] << "\n";
+          std::cerr << "  S_1 = " << cons_old_pt[IM1] << "\n";
+          std::cerr << "  S_2 = " << cons_old_pt[IM2] << "\n";
+          std::cerr << "  S_3 = " << cons_old_pt[IM3] << "\n";
+          std::cerr << "  tau = " << cons_old_pt[IEN] << "\n";
         }
         // Update the primitive variables.
         prim(IDN, k, j, i) = prim_pt[IDN];
@@ -217,6 +238,13 @@ void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim,
         gamma_dd(1,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
         gamma_dd(1,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
         gamma_dd(2,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
+
+        /*gamma_dd(0,0,i) = VCInterpolation(vcgamma_xx, k, j, i);
+        gamma_dd(0,1,i) = VCInterpolation(vcgamma_xy, k, j, i);
+        gamma_dd(0,2,i) = VCInterpolation(vcgamma_xz, k, j, i);
+        gamma_dd(1,1,i) = VCInterpolation(vcgamma_yy, k, j, i);
+        gamma_dd(1,2,i) = VCInterpolation(vcgamma_yz, k, j, i);
+        gamma_dd(2,2,i) = VCInterpolation(vcgamma_zz, k, j, i);*/
       }
 
       // Calculate the conserved variables at every point.
@@ -270,7 +298,24 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim,
 
   // DEBUG ONLY
   if (!std::isfinite(cons_pt[IEN])) {
-    std::cout << "Tau is not finite!\n";
+    std::cerr << "Tau is not finite!\n";
+    std::cerr << "  Error occurred at (" << i << ", " << j << ", " << k << ")\n";
+    std::cerr << "  Primitive variables:\n";
+    std::cerr << "    rho = " << prim(IDN, k, j, i) << "\n";
+    std::cerr << "    ux  = " << prim(IVX, k, j, i) << "\n";
+    std::cerr << "    uy  = " << prim(IVY, k, j, i) << "\n";
+    std::cerr << "    uz  = " << prim(IVZ, k, j, i) << "\n";
+    std::cerr << "    P   = " << prim(IPR, k, j, i) << "\n";
+    std::cerr << "  Conserved variables:\n";
+    std::cerr << "    D   = " << cons_pt[IDN] << "\n";
+    std::cerr << "    Sx  = " << cons_pt[IM1] << "\n";
+    std::cerr << "    Sy  = " << cons_pt[IM2] << "\n";
+    std::cerr << "    Sz  = " << cons_pt[IM3] << "\n";
+    std::cerr << "    tau = " << cons_pt[IEN] << "\n";
+    std::cerr << "  Metric:\n";
+    std::cerr << "    g3d = {" << g3d[S11] << ", " << g3d[S12] << ", " << g3d[S13] << ", " 
+                               << g3d[S22] << ", " << g3d[S23] << ", " << g3d[S33] << "}\n";
+    std::cerr << "    sdetg = " << sdetg << "\n";
   }
 
   // Push the densitized conserved variables to Athena.
@@ -386,4 +431,15 @@ void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j
   prim(IPR, i) = P;
 
   return;
+}
+
+//---------------------------------------------------------------------------------------
+// \!fn static Real VCInterpolation(AthenaArray<Real> &in, int k, int j, int i)
+// \brief Perform linear interpolation to the desired cell-centered grid index.
+
+static Real VCInterpolation(AthenaArray<Real> &in, int k, int j, int i) {
+  return 0.125*( (in(k, j, i) + in(k + 1, j + 1, i + 1)) // lower-left-front to upper-right-back
+               + (in(k, j+1, i) + in(k + 1, j, i+1)) // lower-left-back to upper-right-front
+               + (in(k+1, j, i) + in(k, j+1, i+1)) // upper-left-front to lower-right-back
+               + (in(k+1, j+1, i) + in(k, j, i+1))); // upper-left-back to lower-right-front
 }

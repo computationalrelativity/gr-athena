@@ -1186,10 +1186,11 @@ aux = ["		$(wildcard src/z4c/{}.cpp) \\".format(f) for f in files]
 makefile_options['Z4C_FILES'] = '\n'.join(aux) + '\n'
 
 # Add PrimitiveSolver EOS files.
-files = [args['eospolicy'], args['errorpolicy']]
+files = [args['eospolicy'], args['errorpolicy'], 'ps_error']
 makefile_options['EOS_FILES'] = ''
 if args['eos'] == 'eostaudyn_ps':
-    aux = ["		$(wildcard src/z4c/primitive/{}.cpp) \\".format(f) for f in files]
+    #aux = ["		$(wildcard src/z4c/primitive/{}.cpp) \\".format(f) for f in files]
+    aux = ["		src/z4c/primitive/{}.cpp \\".format(f) for f in files]
     makefile_options['EOS_FILES'] = '\n'.join(aux) + '\n'
 
 # Make substitutions
