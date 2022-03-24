@@ -1,0 +1,66 @@
+<comment>
+problem         = Apples with Apples Test
+configure       = --prob=awa_test -z
+
+<job>
+problem_id      = gw1       # Basename of output filenames
+
+<problem>
+test            = gauge_wave1    # See possibilities in src/pgen/awa_test.cpp
+
+<z4c>
+shift_eta       = 2.0       # Shift damping term
+diss            = 0.02      # Kreiss-Oliger dissipation parameter
+damp_kappa1     = 0.02      # Constraint damping factor 1
+damp_kappa2     = 0.0       # Constraint damping factor 2
+AwA_amplitude   = 0.01
+eps_floor       = 0.0       # floor for detg
+
+<output1>
+file_type       = tab       # Athena++ ASCII data
+variable        = adm       # variables to be output
+dt              = 1.0       # time increment between outputs
+data_format     = %.16e
+
+<output2>
+file_type       = hst
+dt              = 1.0
+data_format     = %.16e
+
+<output3>
+file_type       = tab       # Athena++ ASCII data
+variable        = z4c       # variables to be output
+dt              = 1.0       # time increment between outputs
+data_format     = %.16e
+
+<time>
+cfl_number      = 0.5       # The Courant, Friedrichs, & Lewy (CFL) number
+tlim            = 10        # time limit
+integrator      = rk4       # time integrator
+ncycle_out      = 1000      # Print to stdout every so many timesteps
+
+<mesh>
+num_threads     = 2         # Number of OMP threads
+
+nx1             = 200       # Number of zones in X1-direction
+x1min           = -0.5      # minimum value of X1
+x1max           = 0.5       # maximum value of X1
+ix1_bc          = periodic  # inner-X1 boundary flag
+ox1_bc          = periodic  # inner-X1 boundary flag
+
+nx2             = 1         # Number of zones in X2-direction
+x2min           = -0.04     # minimum value of X2
+x2max           = 0.04      # maximum value of X2
+ix2_bc          = periodic  # inner-X2 boundary flag
+ox2_bc          = periodic  # inner-X2 boundary flag
+
+nx3             = 1         # Number of zones in X3-direction
+x3min           = -0.04     # minimum value of X3
+x3max           = 0.04      # maximum value of X3
+ix3_bc          = periodic  # inner-X3 boundary flag
+ox3_bc          = periodic  # inner-X3 boundary flag
+
+<meshblock>
+nx1             = 25
+nx2             = 1
+nx3             = 1

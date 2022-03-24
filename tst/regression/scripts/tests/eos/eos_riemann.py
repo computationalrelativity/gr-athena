@@ -46,7 +46,7 @@ def prepare(**kwargs):
         if tmp[0] == '--flux' and len(tmp) == 2:
             _fluxes = [tmp[1]]
     for flux in _fluxes:
-        athena.configure(
+        athena.configure('f',
                          prob='shock_tube',
                          coord='cartesian',
                          flux=flux,

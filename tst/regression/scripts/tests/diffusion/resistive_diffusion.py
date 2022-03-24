@@ -25,7 +25,7 @@ rate_tols = [-1.99]
 
 def prepare(*args, **kwargs):
     logger.debug('Running test ' + __name__)
-    athena.configure('b', *args,
+    athena.configure('f', 'b', *args,
                      prob='resist',
                      eos='isothermal', **kwargs)
     athena.make()

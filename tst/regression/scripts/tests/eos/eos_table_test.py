@@ -17,7 +17,7 @@ _gammas = [1.1, 1.4, 5./3.]
 
 
 def prepare(**kwargs):
-    athena.configure(
+    athena.configure('f',
                      prob='shock_tube',
                      coord='cartesian',
                      flux='hllc',
@@ -29,7 +29,7 @@ def prepare(**kwargs):
     move(src, dst)
     os.system('mv obj obj_eos_hllc')
 
-    athena.configure(
+    athena.configure('f',
                      prob='shock_tube',
                      coord='cartesian',
                      flux='hllc',
@@ -41,7 +41,7 @@ def prepare(**kwargs):
     move(src, dst)
     os.system('mv obj obj_H')
 
-    athena.configure(
+    athena.configure('f',
                      prob='shock_tube',
                      coord='cartesian',
                      flux='hllc',

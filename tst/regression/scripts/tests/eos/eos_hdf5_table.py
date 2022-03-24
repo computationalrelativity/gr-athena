@@ -21,7 +21,7 @@ _gammas = [1.1, 1.4, 5./3.]
 
 def prepare(**kwargs):
     logger.debug('Running test ' + __name__)
-    athena.configure('hdf5',
+    athena.configure('f', 'hdf5',
                      prob='shock_tube',
                      coord='cartesian',
                      flux='hllc',
@@ -33,7 +33,7 @@ def prepare(**kwargs):
     move(src, dst)
     os.system('mv obj obj_eos_hllc_hdf5')
 
-    athena.configure(
+    athena.configure('f',
                      prob='shock_tube',
                      coord='cartesian',
                      flux='hllc',
@@ -45,7 +45,7 @@ def prepare(**kwargs):
     move(src, dst)
     os.system('mv obj obj_H')
 
-    athena.configure(
+    athena.configure('f',
                      prob='shock_tube',
                      coord='cartesian',
                      flux='hllc',

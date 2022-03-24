@@ -100,7 +100,7 @@ error_formatter = lambda x: "{:.2e}".format(x)
 def prepare(**kwargs):
     logger.debug('Running test ' + __name__)
     for coord_ in coords:
-        athena.configure(
+        athena.configure('f',
             nghost=3,  # required for PPM
             prob='mignone_advection',
             eos='isothermal',

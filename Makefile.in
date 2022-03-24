@@ -33,6 +33,7 @@ SRC_FILES := $(wildcard src/*.cpp) \
 	     $(wildcard src/bvals/fc/*.cpp) \
 	     $(wildcard src/bvals/orbital/*.cpp) \
 	     $(wildcard src/bvals/utils/*.cpp) \
+	     $(wildcard src/bvals/vc/*.cpp) \
 	     $(wildcard src/coordinates/*.cpp) \
 	     src/eos/general/$(GENERAL_EOS_FILE) \
 	     src/eos/$(EOS_FILE) \
@@ -57,6 +58,7 @@ SRC_FILES := $(wildcard src/*.cpp) \
 	     $(wildcard src/scalars/*.cpp) \
 	     $(wildcard src/task_list/*.cpp) \
 	     $(wildcard src/utils/*.cpp) \
+	     $(wildcard src/z4c/*.cpp) \
 	     $(MPIFFT_FILE)
 OBJ_DIR := obj/
 OBJ_FILES := $(addprefix $(OBJ_DIR),$(notdir $(SRC_FILES:.cpp=.o)))

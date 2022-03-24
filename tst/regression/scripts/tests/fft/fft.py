@@ -17,14 +17,14 @@ logger = logging.getLogger('athena' + __name__[7:])  # set logger name based on 
 # Prepare Athena++
 def prepare(**kwargs):
     logger.debug('Running test ' + __name__)
-    athena.configure('mpi', 'fft',
+    athena.configure('mpi', 'fft', 'f',
                      prob='fft',
                      **kwargs)
     athena.make()
     os.system('mv bin/athena bin/athena_mpi_fft')
     os.system('mv obj obj_mpi_fft')
 
-    athena.configure('fft',
+    athena.configure('fft', 'f',
                      prob='fft',
                      **kwargs)
     athena.make()

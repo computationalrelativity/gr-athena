@@ -41,7 +41,7 @@ BoundaryVariable::BoundaryVariable(MeshBlock *pmb) : bvar_index(), pmy_block_(pm
 void BoundaryVariable::InitBoundaryData(BoundaryData<> &bd, BoundaryQuantity type) {
   MeshBlock *pmb = pmy_block_;
   NeighborIndexes *ni = pbval_->ni;
-  int cng = pmb->cnghost;
+  int cng = NCGHOST;
   int size = 0;
 
   bd.nbmax = pbval_->maxneighbor_;
@@ -65,7 +65,8 @@ void BoundaryVariable::InitBoundaryData(BoundaryData<> &bd, BoundaryQuantity typ
     bd.req_recv[n] = MPI_REQUEST_NULL;
 #endif
     // Allocate buffers, calculating the buffer size (variable vs. flux correction)
-    if (type == BoundaryQuantity::cc || type == BoundaryQuantity::fc) {
+    if (type == BoundaryQuantity::cc || type == BoundaryQuantity::fc ||
+        type == BoundaryQuantity::vc) {
       size = this->ComputeVariableBufferSize(ni[n], cng);
     } else if (type == BoundaryQuantity::cc_flcor || type == BoundaryQuantity::fc_flcor) {
       size = this->ComputeFluxCorrectionBufferSize(ni[n], cng);

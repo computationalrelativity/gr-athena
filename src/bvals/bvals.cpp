@@ -64,6 +64,7 @@ BoundaryValues::BoundaryValues(MeshBlock *pmb, BoundaryFlag *input_bcs,
     switch (block_bcs[i]) {
       case BoundaryFlag::reflect:
       case BoundaryFlag::outflow:
+      case BoundaryFlag::extrapolate_outflow:
       case BoundaryFlag::user:
       case BoundaryFlag::polar_wedge:
         apply_bndry_fn_[i] = true;
@@ -108,6 +109,7 @@ BoundaryValues::BoundaryValues(MeshBlock *pmb, BoundaryFlag *input_bcs,
   // std::vector<BoundaryVariable *>.push_back() in Hydro, Field, Gravity, PassiveScalars
   bvars.reserve(3);
   bvars_main_int.reserve(2);
+  bvars_main_int_vc.reserve(2);
   if (STS_ENABLED) {
     bvars_sts.reserve(1);
   }
@@ -257,6 +259,11 @@ BoundaryValues::~BoundaryValues() {
 
 void BoundaryValues::SetupPersistentMPI() {
   for (auto bvars_it = bvars_main_int.begin(); bvars_it != bvars_main_int.end();
+       ++bvars_it) {
+    (*bvars_it)->SetupPersistentMPI();
+  }
+
+  for (auto bvars_it = bvars_main_int_vc.begin(); bvars_it != bvars_main_int_vc.end();
        ++bvars_it) {
     (*bvars_it)->SetupPersistentMPI();
   }
@@ -488,8 +495,10 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt,
                                               pmb->is-NGHOST, pmb->is-1,
                                               bjs, bje, bks, bke);
     }
-    pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                    pmb->is-NGHOST, pmb->is-1, bjs, bje, bks, bke);
+    if (FLUID_ENABLED){
+      pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
+                                      pmb->is-NGHOST, pmb->is-1, bjs, bje, bks, bke);
+    }
     if (NSCALARS > 0) {
       pmb->peos->PassiveScalarPrimitiveToConserved(
           ps->r, ph->u, ps->s, pco, pmb->is-NGHOST, pmb->is-1, bjs, bje, bks, bke);
@@ -508,8 +517,10 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt,
                                               pmb->ie+1, pmb->ie+NGHOST,
                                               bjs, bje, bks, bke);
     }
-    pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                    pmb->ie+1, pmb->ie+NGHOST, bjs, bje, bks, bke);
+    if (FLUID_ENABLED) {
+      pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
+                                      pmb->ie+1, pmb->ie+NGHOST, bjs, bje, bks, bke);
+    }
     if (NSCALARS > 0) {
       pmb->peos->PassiveScalarPrimitiveToConserved(
           ps->r, ph->u, ps->s, pco, pmb->ie+1, pmb->ie+NGHOST, bjs, bje, bks, bke);
@@ -529,8 +540,10 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt,
                                                 bis, bie, pmb->js-NGHOST, pmb->js-1,
                                                 bks, bke);
       }
-      pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                      bis, bie, pmb->js-NGHOST, pmb->js-1, bks, bke);
+      if (FLUID_ENABLED) {
+        pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
+                                        bis, bie, pmb->js-NGHOST, pmb->js-1, bks, bke);
+      }
       if (NSCALARS > 0) {
         pmb->peos->PassiveScalarPrimitiveToConserved(
             ps->r, ph->u, ps->s, pco, bis, bie, pmb->js-NGHOST, pmb->js-1, bks, bke);
@@ -549,8 +562,10 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt,
                                                 bis, bie, pmb->je+1, pmb->je+NGHOST,
                                                 bks, bke);
       }
-      pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                      bis, bie, pmb->je+1, pmb->je+NGHOST, bks, bke);
+      if (FLUID_ENABLED) {
+        pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
+                                        bis, bie, pmb->je+1, pmb->je+NGHOST, bks, bke);
+      }
       if (NSCALARS > 0) {
         pmb->peos->PassiveScalarPrimitiveToConserved(
             ps->r, ph->u, ps->s, pco, bis, bie, pmb->je+1, pmb->je+NGHOST, bks, bke);
@@ -574,8 +589,10 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt,
                                                 bis, bie, bjs, bje,
                                                 pmb->ks-NGHOST, pmb->ks-1);
       }
-      pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                      bis, bie, bjs, bje, pmb->ks-NGHOST, pmb->ks-1);
+      if (FLUID_ENABLED) {
+        pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
+                                        bis, bie, bjs, bje, pmb->ks-NGHOST, pmb->ks-1);
+      }
       if (NSCALARS > 0) {
         pmb->peos->PassiveScalarPrimitiveToConserved(
             ps->r, ph->u, ps->s, pco, bis, bie, bjs, bje, pmb->ks-NGHOST, pmb->ks-1);
@@ -594,12 +611,102 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt,
                                                 bis, bie, bjs, bje,
                                                 pmb->ke+1, pmb->ke+NGHOST);
       }
-      pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                      bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
+      if (FLUID_ENABLED) {
+        pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
+                                        bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
+      }
       if (NSCALARS > 0) {
         pmb->peos->PassiveScalarPrimitiveToConserved(
             ps->r, ph->u, ps->s, pco, bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
       }
+    }
+  }
+  return;
+}
+
+
+//----------------------------------------------------------------------------------------
+//! \fn void BoundaryValues::ApplyPhysicalVertexCenteredBoundaries(const Real time, const Real dt)
+//  \brief Apply all the physical boundary conditions vertex centered fields
+
+void BoundaryValues::ApplyPhysicalVertexCenteredBoundaries(const Real time, const Real dt) {
+  MeshBlock *pmb = pmy_block_;
+  Coordinates *pco = pmb->pcoord;
+  int bis = pmb->ivs - NGHOST, bie = pmb->ive + NGHOST,
+      bjs = pmb->jvs, bje = pmb->jve,
+      bks = pmb->kvs, bke = pmb->kve;
+
+  // Extend the transverse limits that correspond to periodic boundaries as they are
+  // updated: x1, then x2, then x3
+  if (!apply_bndry_fn_[BoundaryFace::inner_x2] && pmb->block_size.nx2 > 1)
+    bjs = pmb->jvs - NGHOST;
+  if (!apply_bndry_fn_[BoundaryFace::outer_x2] && pmb->block_size.nx2 > 1)
+    bje = pmb->jve + NGHOST;
+  if (!apply_bndry_fn_[BoundaryFace::inner_x3] && pmb->block_size.nx3 > 1)
+    bks = pmb->kvs - NGHOST;
+  if (!apply_bndry_fn_[BoundaryFace::outer_x3] && pmb->block_size.nx3 > 1)
+    bke = pmb->kve + NGHOST;
+
+  // KGF: temporarily hardcode Hydro and Field access for coupling in EOS U(W) + calc bcc
+  // and when passed to user-defined boundary function stored in function pointer array
+
+  // KGF: COUPLING OF QUANTITIES (must be manually specified)
+  // downcast BoundaryVariable ptrs to known derived class types: RTTI via dynamic_cast
+  Hydro *ph = nullptr;
+  Field *pf = nullptr;
+
+  // Apply boundary function on inner-x1 and update W,bcc (if not periodic)
+  if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
+    DispatchBoundaryFunctions(pmb, pco, time, dt,
+                              pmb->ivs, pmb->ive, bjs, bje, bks, bke, NGHOST,
+                              ph->w, pf->b, BoundaryFace::inner_x1,
+                              bvars_main_int_vc);
+  }
+
+  // Apply boundary function on outer-x1 and update W,bcc (if not periodic)
+  if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
+    DispatchBoundaryFunctions(pmb, pco, time, dt,
+                              pmb->ivs, pmb->ive, bjs, bje, bks, bke, NGHOST,
+                              ph->w, pf->b, BoundaryFace::outer_x1,
+                              bvars_main_int_vc);
+  }
+
+  if (pmb->block_size.nx2 > 1) { // 2D or 3D
+    // Apply boundary function on inner-x2 and update W,bcc (if not periodic)
+    if (apply_bndry_fn_[BoundaryFace::inner_x2]) {
+      DispatchBoundaryFunctions(pmb, pco, time, dt,
+                                bis, bie, pmb->jvs, pmb->jve, bks, bke, NGHOST,
+                                ph->w, pf->b, BoundaryFace::inner_x2,
+                                bvars_main_int_vc);
+    }
+
+    // Apply boundary function on outer-x2 and update W,bcc (if not periodic)
+    if (apply_bndry_fn_[BoundaryFace::outer_x2]) {
+      DispatchBoundaryFunctions(pmb, pco, time, dt,
+                                bis, bie, pmb->jvs, pmb->jve, bks, bke, NGHOST,
+                                ph->w, pf->b, BoundaryFace::outer_x2,
+                                bvars_main_int_vc);
+    }
+  }
+
+  if (pmb->block_size.nx3 > 1) { // 3D
+    bjs = pmb->jvs - NGHOST;
+    bje = pmb->jve + NGHOST;
+
+    // Apply boundary function on inner-x3 and update W,bcc (if not periodic)
+    if (apply_bndry_fn_[BoundaryFace::inner_x3]) {
+      DispatchBoundaryFunctions(pmb, pco, time, dt,
+                                bis, bie, bjs, bje, pmb->kvs, pmb->kve, NGHOST,
+                                ph->w, pf->b, BoundaryFace::inner_x3,
+                                bvars_main_int_vc);
+    }
+
+    // Apply boundary function on outer-x3 and update W,bcc (if not periodic)
+    if (apply_bndry_fn_[BoundaryFace::outer_x3]) {
+      DispatchBoundaryFunctions(pmb, pco, time, dt,
+                                bis, bie, bjs, bje, pmb->kvs, pmb->kve, NGHOST,
+                                ph->w, pf->b, BoundaryFace::outer_x3,
+                                bvars_main_int_vc);
     }
   }
   return;
@@ -681,33 +788,57 @@ void BoundaryValues::DispatchBoundaryFunctions(
             break;
         }
         break;
-      case BoundaryFlag::polar_wedge:
+      case BoundaryFlag::extrapolate_outflow:
         switch (face) {
-          case BoundaryFace::undef:
-            ATHENA_ERROR(msg);
-          case BoundaryFace::inner_x2:
-            (*bvars_it)->PolarWedgeInnerX2(time, dt, il, iu, jl, kl, ku, NGHOST);
-            break;
-          case BoundaryFace::outer_x2:
-            (*bvars_it)->PolarWedgeOuterX2(time, dt, il, iu, ju, kl, ku, NGHOST);
-            break;
-          default:
-            std::stringstream msg_polar;
-            msg_polar << "### FATAL ERROR in DispatchBoundaryFunctions" << std::endl
-                      << "Attempting to call polar wedge boundary function on \n"
-                      << "MeshBlock boundary other than inner x2 or outer x2"
-                      << std::endl;
-            ATHENA_ERROR(msg_polar);
+        case BoundaryFace::undef:
+          ATHENA_ERROR(msg);
+        case BoundaryFace::inner_x1:
+          (*bvars_it)->ExtrapolateOutflowInnerX1(time, dt, il, jl, ju, kl, ku, NGHOST);
+          break;
+        case BoundaryFace::outer_x1:
+          (*bvars_it)->ExtrapolateOutflowOuterX1(time, dt, iu, jl, ju, kl, ku, NGHOST);
+          break;
+        case BoundaryFace::inner_x2:
+          (*bvars_it)->ExtrapolateOutflowInnerX2(time, dt, il, iu, jl, kl, ku, NGHOST);
+          break;
+        case BoundaryFace::outer_x2:
+          (*bvars_it)->ExtrapolateOutflowOuterX2(time, dt, il, iu, ju, kl, ku, NGHOST);
+          break;
+        case BoundaryFace::inner_x3:
+          (*bvars_it)->ExtrapolateOutflowInnerX3(time, dt, il, iu, jl, ju, kl, NGHOST);
+          break;
+        case BoundaryFace::outer_x3:
+          (*bvars_it)->ExtrapolateOutflowOuterX3(time, dt, il, iu, jl, ju, ku, NGHOST);
+          break;
         }
         break;
-      default:
-        std::stringstream msg_flag;
-        msg_flag << "### FATAL ERROR in DispatchBoundaryFunctions" << std::endl
-                 << "No BoundaryPhysics function associated with provided\n"
-                 << "block_bcs[" << face << "] = BoundaryFlag::"
-                 << GetBoundaryString(block_bcs[face]) << std::endl;
-        ATHENA_ERROR(msg);
-        break;
+        case BoundaryFlag::polar_wedge:
+          switch (face) {
+            case BoundaryFace::undef:
+              ATHENA_ERROR(msg);
+            case BoundaryFace::inner_x2:
+              (*bvars_it)->PolarWedgeInnerX2(time, dt, il, iu, jl, kl, ku, NGHOST);
+              break;
+            case BoundaryFace::outer_x2:
+              (*bvars_it)->PolarWedgeOuterX2(time, dt, il, iu, ju, kl, ku, NGHOST);
+              break;
+            default:
+              std::stringstream msg_polar;
+              msg_polar << "### FATAL ERROR in DispatchBoundaryFunctions" << std::endl
+                        << "Attempting to call polar wedge boundary function on \n"
+                        << "MeshBlock boundary other than inner x2 or outer x2"
+                        << std::endl;
+              ATHENA_ERROR(msg_polar);
+          }
+          break;
+        default:
+          std::stringstream msg_flag;
+          msg_flag << "### FATAL ERROR in DispatchBoundaryFunctions" << std::endl
+                   << "No BoundaryPhysics function associated with provided\n"
+                   << "block_bcs[" << face << "] = BoundaryFlag::"
+                   << GetBoundaryString(block_bcs[face]) << std::endl;
+          ATHENA_ERROR(msg);
+          break;
     } // end switch (block_bcs[face])
   } // end loop over BoundaryVariable *
 }

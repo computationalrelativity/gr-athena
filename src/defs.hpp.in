@@ -24,6 +24,9 @@
 #define RIEMANN_SOLVER "@RSOLVER@"
 
 // configure.py dict(definitions) Boolean values:
+// evolve hydrodynamics? default=0 (false)
+#define FLUID_ENABLED @FLUID_ENABLED@
+
 // Equation of state
 #define EQUATION_OF_STATE "@EQUATION_OF_STATE@"
 
@@ -54,6 +57,9 @@
 // enable general relativity? default=0 (false)
 #define GENERAL_RELATIVITY @GENERAL_RELATIVITY@
 
+// evolve the z4c equation? default=0 (false)
+#define Z4C_ENABLED @Z4C_ENABLED@
+
 // enable GR frame transformations? default=0 (false)
 #define FRAME_TRANSFORMATIONS @FRAME_TRANSFORMATIONS@
 
@@ -63,6 +69,12 @@
 // use double precision for HDF5 output? default=0 (false; write out binary32)
 #define H5_DOUBLE_PRECISION_ENABLED @H5_DOUBLE_PRECISION_ENABLED@
 
+// two_punctures
+#define @TWO_PUNCTURES_OPTION@
+
+// refinement strategy
+#define @Z4C_REF_BOX_IN_BOX@
+#define @Z4C_REF_SPHERES@
 
 // configure.py dict(definitions) Boolean string macros:
 // (these options have the latter (false) option as defaults, unless noted otherwise)
@@ -77,6 +89,9 @@
 
 // HDF5 output (HDF5OUTPUT or NO_HDF5OUTPUT)
 #define @HDF5_OPTION@
+
+// make use of GSL? (GSL or NO_GSL)
+#define @GSL_OPTION@
 
 // debug build macros (DEBUG or NOT_DEBUG)
 #define @DEBUG_OPTION@
@@ -98,8 +113,14 @@
 #define NWAVE @NWAVE_VALUE@
 #define NSCALARS @NUMBER_PASSIVE_SCALARS@
 #define NGHOST @NUMBER_GHOST_CELLS@
+#define NCGHOST @NUMBER_COARSE_GHOSTS@                 // for vertex-centered communication
+#define NEXTRAPOLATE @NUMBER_EXTRAPOLATION_POINTS@     // extrapolate_outflow
 #define MAX_NSTAGE 6     // maximum number of stages per cycle for time-integrator
 #define MAX_NREGISTER 3  // maximum number of (u, b) register pairs for time-integrator
+
+//----------------------------------------------------------------------------------------
+// macros associated with input / output (rarely modified)
+#define FPRINTF_PREC 17
 
 //----------------------------------------------------------------------------------------
 // general purpose macros (never modified)
@@ -108,13 +129,21 @@
 #define PI 3.1415926535897932
 #define TWO_PI 6.2831853071795862
 #define SQRT2 1.4142135623730951
+#define SQRT3 1.7320508075688773
+#define SQRT_PI 1.77245385090551603
 #define ONE_OVER_SQRT2 0.70710678118654752
 #define ONE_3RD 0.33333333333333333
 #define TWO_3RD 0.66666666666666667
 #define TINY_NUMBER 1.0e-20
 #define HUGE_NUMBER 1.0e+36
 #define SQR(x) ( (x)*(x) )
+#define POW2(x) ( (x)*(x) )
+#define POW3(x) ( (x)*(x)*(x) )
+#define POW4(x) ( POW2(x) * POW2(x) )
 #define SIGN(x) ( ((x) < 0.0) ? -1.0 : 1.0 )
+#define SQRT(x) (std::sqrt(x))
+#define ISEVEN(n)   ((n%2 == 0) ? 1 : 0)
+#define ISODD(n)    ((n%2 != 0) ? 1 : 0)
 
 #ifdef ENABLE_EXCEPTIONS
 #define ATHENA_ERROR(x) throw std::runtime_error(x.str().c_str())

@@ -18,21 +18,21 @@ logger = logging.getLogger('athena' + __name__[7:])  # set logger name based on 
 # Prepare Athena++
 def prepare(**kwargs):
     logger.debug('Running test ' + __name__)
-    athena.configure('mpi', 'fft',
+    athena.configure('f', 'mpi', 'fft',
                      prob='jeans',
                      grav='fft', **kwargs)
     athena.make()
     os.system('mv bin/athena bin/athena_mpi_fft')
     os.system('mv obj obj_mpi_fft')
 
-    athena.configure('mpi',
+    athena.configure('f', 'mpi',
                      prob='jeans',
                      grav='mg', **kwargs)
     athena.make()
     os.system('mv bin/athena bin/athena_mpi_mg')
     os.system('mv obj obj_mpi_mg')
 
-    athena.configure('fft',
+    athena.configure('f', 'fft',
                      prob='jeans',
                      grav='fft',
                      **kwargs)
@@ -40,7 +40,7 @@ def prepare(**kwargs):
     os.system('mv bin/athena bin/athena_fft')
     os.system('mv obj obj_fft')
 
-    athena.configure(prob='jeans',
+    athena.configure('f', prob='jeans',
                      grav='mg',
                      **kwargs)
     athena.make()

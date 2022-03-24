@@ -28,6 +28,7 @@
 #include "../globals.hpp"
 #include "../gravity/gravity.hpp"
 #include "../hydro/hydro.hpp"
+#include "../z4c/z4c.hpp"
 #include "../mesh/mesh.hpp"
 #include "../orbital_advection/orbital_advection.hpp"
 #include "../scalars/scalars.hpp"
@@ -36,7 +37,9 @@
 // NEW_OUTPUT_TYPES:
 
 // "3" for 1-KE, 2-KE, 3-KE additional columns (come before tot-E)
-#define NHISTORY_VARS ((NHYDRO) + (SELF_GRAVITY_ENABLED > 0) + (NFIELD) + 3 + (NSCALARS))
+#define NHISTORY_VARS (((NHYDRO) + 3) * (FLUID_ENABLED) + (SELF_GRAVITY_ENABLED) + \
+                       (NFIELD) + (NSCALARS) + \
+                       8 * (Z4C_ENABLED))
 
 //----------------------------------------------------------------------------------------
 //! \fn void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
@@ -74,9 +77,10 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     PassiveScalars *psclr = pmb->pscalars;
     Gravity *pgrav = pmb->pgrav;
     OrbitalAdvection *porb = pmb->porb;
+    Z4c *pz4c = pmb->pz4c;
 
     // Sum history variables over cells. Note ghost cells are never included in sums
-    if(porb->orbital_advection_defined
+    if(FLUID_ENABLED && porb->orbital_advection_defined
        && !output_params.orbital_system_output) {
       porb->ConvertOrbitalSystem(phyd->w, phyd->u, OrbitalTransform::cons);
       for (int k=pmb->ks; k<=pmb->ke; ++k) {
@@ -135,46 +139,67 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
           for (int i=pmb->is; i<=pmb->ie; ++i) {
             // NEW_OUTPUT_TYPES:
 
+          int isum = 0;
+          if (FLUID_ENABLED) {
             // Hydro conserved variables:
             Real& u_d  = phyd->u(IDN,k,j,i);
             Real& u_mx = phyd->u(IM1,k,j,i);
             Real& u_my = phyd->u(IM2,k,j,i);
             Real& u_mz = phyd->u(IM3,k,j,i);
 
-            hst_data[0] += vol(i)*u_d;
-            hst_data[1] += vol(i)*u_mx;
-            hst_data[2] += vol(i)*u_my;
-            hst_data[3] += vol(i)*u_mz;
+            hst_data[isum++] += vol(i)*u_d;
+            hst_data[isum++] += vol(i)*u_mx;
+            hst_data[isum++] += vol(i)*u_my;
+            hst_data[isum++] += vol(i)*u_mz;
             // + partitioned KE by coordinate direction:
-            hst_data[4] += vol(i)*0.5*SQR(u_mx)/u_d;
-            hst_data[5] += vol(i)*0.5*SQR(u_my)/u_d;
-            hst_data[6] += vol(i)*0.5*SQR(u_mz)/u_d;
+            hst_data[isum++] += vol(i)*0.5*SQR(u_mx)/u_d;
+            hst_data[isum++] += vol(i)*0.5*SQR(u_my)/u_d;
+            hst_data[isum++] += vol(i)*0.5*SQR(u_mz)/u_d;
 
             if (NON_BAROTROPIC_EOS) {
-              Real& u_e = phyd->u(IEN,k,j,i);
-              hst_data[7] += vol(i)*u_e;
+              Real& u_e = phyd->u(IEN,k,j,i);;
+              hst_data[isum++] += vol(i)*u_e;
             }
             // Graviatational potential energy:
             if (SELF_GRAVITY_ENABLED) {
               Real& phi = pgrav->phi(k,j,i);
-              hst_data[NHYDRO + 3] += vol(i)*0.5*u_d*phi;
+              hst_data[isum++] += vol(i)*0.5*u_d*phi;
             }
             // Cell-centered magnetic energy, partitioned by coordinate direction:
             if (MAGNETIC_FIELDS_ENABLED) {
               Real& bcc1 = pfld->bcc(IB1,k,j,i);
               Real& bcc2 = pfld->bcc(IB2,k,j,i);
               Real& bcc3 = pfld->bcc(IB3,k,j,i);
-              constexpr int prev_out = NHYDRO + 3 + (SELF_GRAVITY_ENABLED > 0);
-              hst_data[prev_out] += vol(i)*0.5*bcc1*bcc1;
-              hst_data[prev_out + 1] += vol(i)*0.5*bcc2*bcc2;
-              hst_data[prev_out + 2] += vol(i)*0.5*bcc3*bcc3;
+              // constexpr int prev_out = NHYDRO + 3 + SELF_GRAVITY_ENABLED;
+              hst_data[isum++] += vol(i)*0.5*bcc1*bcc1;
+              hst_data[isum++] += vol(i)*0.5*bcc2*bcc2;
+              hst_data[isum++] += vol(i)*0.5*bcc3*bcc3;
             }
             // (conserved variable) Passive scalars:
             for (int n=0; n<NSCALARS; n++) {
               Real& s = psclr->s(n,k,j,i);
-              constexpr int prev_out = NHYDRO + 3 + (SELF_GRAVITY_ENABLED > 0) + NFIELD;
-              hst_data[prev_out + n] += vol(i)*s;
+              // constexpr int prev_out = NHYDRO + 3 + SELF_GRAVITY_ENABLED + NFIELD;
+              hst_data[isum++] += vol(i)*s;
             }
+          }
+          if (Z4C_ENABLED) {
+            Real const H_err  = std::abs(pz4c->con.H(k,j,i));
+            Real const M2_err = std::abs(pz4c->con.M(k,j,i));
+            Real const Mx_err = std::abs(pz4c->con.M_d(0,k,j,i));
+            Real const My_err = std::abs(pz4c->con.M_d(1,k,j,i));
+            Real const Mz_err = std::abs(pz4c->con.M_d(2,k,j,i));
+            Real const Z2_err = std::abs(pz4c->con.Z(k,j,i));
+            Real const theta  = std::abs(pz4c->z4c.Theta(k,j,i));
+            Real const C2_err = std::abs(pz4c->con.C(k,j,i));
+
+            hst_data[isum++] += vol(i)*SQR(H_err);
+            hst_data[isum++] += vol(i)*M2_err; //M is already squared
+            hst_data[isum++] += vol(i)*SQR(Mx_err);
+            hst_data[isum++] += vol(i)*SQR(My_err);
+            hst_data[isum++] += vol(i)*SQR(Mz_err);
+            hst_data[isum++] += vol(i)*Z2_err; //Z is already squared
+            hst_data[isum++] += vol(i)*SQR(theta);
+            hst_data[isum++] += vol(i)*C2_err; //C is already squared
           }
         }
       }
@@ -198,6 +223,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         }
       }
     }
+    }
   }  // end loop over MeshBlocks
 
 #ifdef MPI_PARALLEL
@@ -212,7 +238,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   // apply separate chosen operations to each user-defined history output
   for (int n=0; n<pm->nuser_history_output_; n++) {
     Real *usr_hst_data = hst_data.get() + NHISTORY_VARS + n;
-    MPI_Op usr_op;
+    MPI_Op usr_op(MPI_SUM);
     switch (pm->user_history_ops_[n]) {
       case UserHistoryOperation::sum:
         usr_op = MPI_SUM;
@@ -258,22 +284,34 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
       std::fprintf(pfile,"# Athena++ history data\n"); // descriptor is first line
       std::fprintf(pfile,"# [%d]=time     ", iout++);
       std::fprintf(pfile,"[%d]=dt       ", iout++);
-      std::fprintf(pfile,"[%d]=mass     ", iout++);
-      std::fprintf(pfile,"[%d]=1-mom    ", iout++);
-      std::fprintf(pfile,"[%d]=2-mom    ", iout++);
-      std::fprintf(pfile,"[%d]=3-mom    ", iout++);
-      std::fprintf(pfile,"[%d]=1-KE     ", iout++);
-      std::fprintf(pfile,"[%d]=2-KE     ", iout++);
-      std::fprintf(pfile,"[%d]=3-KE     ", iout++);
-      if (NON_BAROTROPIC_EOS) std::fprintf(pfile,"[%d]=tot-E   ", iout++);
-      if (SELF_GRAVITY_ENABLED) std::fprintf(pfile,"[%d]=grav-E   ", iout++);
-      if (MAGNETIC_FIELDS_ENABLED) {
-        std::fprintf(pfile,"[%d]=1-ME    ", iout++);
-        std::fprintf(pfile,"[%d]=2-ME    ", iout++);
-        std::fprintf(pfile,"[%d]=3-ME    ", iout++);
+      if (FLUID_ENABLED) {
+        std::fprintf(pfile,"[%d]=mass     ", iout++);
+        std::fprintf(pfile,"[%d]=1-mom    ", iout++);
+        std::fprintf(pfile,"[%d]=2-mom    ", iout++);
+        std::fprintf(pfile,"[%d]=3-mom    ", iout++);
+        std::fprintf(pfile,"[%d]=1-KE     ", iout++);
+        std::fprintf(pfile,"[%d]=2-KE     ", iout++);
+        std::fprintf(pfile,"[%d]=3-KE     ", iout++);
+        if (NON_BAROTROPIC_EOS) std::fprintf(pfile,"[%d]=tot-E   ", iout++);
+        if (SELF_GRAVITY_ENABLED) std::fprintf(pfile,"[%d]=grav-E   ", iout++);
+        if (MAGNETIC_FIELDS_ENABLED) {
+          std::fprintf(pfile,"[%d]=1-ME    ", iout++);
+          std::fprintf(pfile,"[%d]=2-ME    ", iout++);
+          std::fprintf(pfile,"[%d]=3-ME    ", iout++);
+        }
+        for (int n=0; n<NSCALARS; n++) {
+          std::fprintf(pfile,"[%d]=%d-scalar    ", iout++, n);
+        }
       }
-      for (int n=0; n<NSCALARS; n++) {
-        std::fprintf(pfile,"[%d]=%d-scalar    ", iout++, n);
+      if (Z4C_ENABLED) {
+        std::fprintf(pfile,"[%d]=H-norm2 ",     iout++);
+        std::fprintf(pfile,"[%d]=M-norm2 ",     iout++);
+        std::fprintf(pfile,"[%d]=Mx-norm2 ",    iout++);
+        std::fprintf(pfile,"[%d]=My-norm2 ",    iout++);
+        std::fprintf(pfile,"[%d]=Mz-norm2 ",    iout++);
+        std::fprintf(pfile,"[%d]=Z-norm2 ",     iout++);
+        std::fprintf(pfile,"[%d]=Theta-norm2 ", iout++);
+        std::fprintf(pfile,"[%d]=C-norm2 ",     iout++);
       }
       for (int n=0; n<pm->nuser_history_output_; n++)
         std::fprintf(pfile,"[%d]=%-7s ", iout++,

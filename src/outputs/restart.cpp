@@ -27,6 +27,8 @@
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "../scalars/scalars.hpp"
+#include "../z4c/z4c.hpp"
+#include "../z4c/puncture_tracker.hpp"
 #include "outputs.hpp"
 
 
@@ -75,7 +77,7 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
     udsize += pm->iuser_mesh_data[n].GetSizeInBytes();
   for (int n=0; n<pm->nreal_user_mesh_data_; n++)
     udsize += pm->ruser_mesh_data[n].GetSizeInBytes();
-
+  udsize += 2*NDIM*sizeof(Real)*pm->pz4c_tracker.size();
   headeroffset = sbuf.size()*sizeof(char) + 3*sizeof(int)+sizeof(RegionSize)
                  + 2*sizeof(Real)+sizeof(IOWrapperSizeT)+udsize;
   // the size of an element of the ID and cost list
@@ -114,6 +116,12 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
                     pm->ruser_mesh_data[n].GetSizeInBytes());
         udoffset += pm->ruser_mesh_data[n].GetSizeInBytes();
       }
+      for (auto ptracker : pm->pz4c_tracker) {
+        std::memcpy(&(ud[udoffset]), ptracker->pos, NDIM*sizeof(Real));
+        udoffset += NDIM*sizeof(Real);
+        std::memcpy(&(ud[udoffset]), ptracker->betap, NDIM*sizeof(Real));
+        udoffset += NDIM*sizeof(Real);
+      }
       resfile.Write(ud, 1, udsize);
       delete [] ud;
     }
@@ -149,8 +157,10 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
     // MeshBlock::GetBlockSizeInBytes accordingly and MeshBlock constructor for restarts.
 
     // Hydro conserved variables:
-    std::memcpy(pdata, pmb->phydro->u.data(), pmb->phydro->u.GetSizeInBytes());
-    pdata += pmb->phydro->u.GetSizeInBytes();
+    if (FLUID_ENABLED) {
+      std::memcpy(pdata, pmb->phydro->u.data(), pmb->phydro->u.GetSizeInBytes());
+      pdata += pmb->phydro->u.GetSizeInBytes();
+    }
 
     // Hydro primitive variables (at current and previous step):
     if (GENERAL_RELATIVITY) {
@@ -183,6 +193,17 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
     //   std::memcpy(pdata, r.data(), r.GetSizeInBytes());
     //   pdata += r.GetSizeInBytes();
     // }
+
+    if (Z4C_ENABLED) {
+      std::memcpy(pdata, pmb->pz4c->storage.u.data(),
+                  pmb->pz4c->storage.u.GetSizeInBytes());
+      pdata += pmb->pz4c->storage.u.GetSizeInBytes();
+
+      // BD: TODO: extend as new data structures added
+      std::memcpy(pdata, pmb->pz4c->storage.mat.data(),
+                  pmb->pz4c->storage.mat.GetSizeInBytes());
+      pdata += pmb->pz4c->storage.mat.GetSizeInBytes();
+    }
 
     // User MeshBlock data:
     // integer data:

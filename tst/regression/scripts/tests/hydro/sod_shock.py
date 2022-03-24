@@ -30,7 +30,7 @@ def prepare(**kwargs):
         if tmp[0] == '--flux' and len(tmp) == 2:
             _fluxes = [tmp[1]]
     for flux in _fluxes:
-        athena.configure(prob='shock_tube', coord='cartesian', flux=flux, **kwargs)
+        athena.configure('f', prob='shock_tube', coord='cartesian', flux=flux, **kwargs)
         # to save time, reuse compiled .o files for all executables created in this test:
         athena.make(clean_first=False)
         move(_exec, _exec + '_' + flux)

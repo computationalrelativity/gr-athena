@@ -25,7 +25,7 @@ rate_tols = [-1.99]
 
 def prepare(*args, **kwargs):
     logger.debug('Running test ' + __name__)
-    athena.configure(prob='scalar_diff', *args,
+    athena.configure('f', prob='scalar_diff', *args,
                      eos='isothermal', flux='roe',
                      nscalars=1, **kwargs)
     athena.make()

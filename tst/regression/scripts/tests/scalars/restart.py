@@ -24,7 +24,7 @@ def prepare(**kwargs):
         if tmp[0] == '--nscalars' and len(tmp) == 2:
             _nscalars = [tmp[1]]
     for n in _nscalars:
-        athena.configure(prob='shock_tube', coord='cartesian', nscalars=str(n), **kwargs)
+        athena.configure('f', prob='shock_tube', coord='cartesian', nscalars=str(n), **kwargs)
         athena.make()
         move(_exec, _exec + '_' + str(n))
         os.system('cp -r obj obj_' + str(n))

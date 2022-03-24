@@ -37,6 +37,7 @@ class MeshRefinement;
 class MeshBlockTree;
 class BoundaryValues;
 class CellCenteredBoundaryVariable;
+class VertexCenteredBoundaryVariable;
 class FaceCenteredBoundaryVariable;
 class TaskList;
 struct TaskStates;
@@ -53,6 +54,10 @@ class FFTDriver;
 class FFTGravityDriver;
 class TurbulenceDriver;
 class OrbitalAdvection;
+class Z4c;
+class WaveExtract;
+class WaveExtractLocal;
+class PunctureTracker;
 
 FluidFormulation GetFluidFormulation(const std::string& input_string);
 
@@ -64,6 +69,7 @@ class MeshBlock {
   friend class RestartOutput;
   friend class BoundaryValues;
   friend class CellCenteredBoundaryVariable;
+  friend class VertexCenteredBoundaryVariable;
   friend class FaceCenteredBoundaryVariable;
   friend class Mesh;
   friend class Hydro;
@@ -71,6 +77,7 @@ class MeshBlock {
 #ifdef HDF5OUTPUT
   friend class ATHDF5Output;
 #endif
+  friend class Z4c;
 
  public:
   MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_size,
@@ -92,8 +99,49 @@ class MeshBlock {
   int ncc1, ncc2, ncc3;
   int is, ie, js, je, ks, ke;
   int gid, lid;
-  int cis, cie, cjs, cje, cks, cke, cnghost;
+  int cis, cie, cjs, cje, cks, cke;
   int gflag;
+
+  // convenience for vertices
+  int nverts1, nverts2, nverts3;   // number of vertices (cells + 1)
+  int ncv1, ncv2, ncv3;            // coarse analogue
+
+  int ims, ime, ips, ipe;          // -/+ (communication) ghost-zone idx
+  int ivs, ive;                    // shared vertices
+  int igs, ige;                    // shared to ghost
+
+  int imp;                         // mid-point idx
+
+  int jms, jme, jps, jpe;          // -/+ (communication) ghost-zone idx
+  int jvs, jve;                    // shared vertices
+  int jgs, jge;                    // shared to ghost
+
+  int jmp;                         // mid-point idx
+
+  int kms, kme, kps, kpe;          // -/+ (communication) ghost-zone idx
+  int kvs, kve;                    // shared vertices
+  int kgs, kge;                    // shared to ghost
+
+  int kmp;                         // mid-point idx
+
+  // for multi-level
+  int cims, cime, cips, cipe;          // -/+ (communication) ghost-zone idx
+  int civs, cive;                      // shared vertices
+  int cigs, cige;                      // shared to ghost
+
+  int cimp;                            // mid-point idx
+
+  int cjms, cjme, cjps, cjpe;          // -/+ (communication) ghost-zone idx
+  int cjvs, cjve;                      // shared vertices
+  int cjgs, cjge;                      // shared to ghost
+
+  int cjmp;                            // mid-point idx
+
+  int ckms, ckme, ckps, ckpe;          // -/+ (communication) ghost-zone idx
+  int ckvs, ckve;                      // shared vertices
+  int ckgs, ckge;                      // shared to ghost
+
+  int ckmp;                            // mid-point idx
 
   // user output variables for analysis
   int nuser_out_var;
@@ -118,6 +166,9 @@ class MeshBlock {
   PassiveScalars *pscalars;
   EquationOfState *peos;
   OrbitalAdvection *porb;
+  Z4c *pz4c;
+  std::vector<WaveExtractLocal *> pwave_extr_loc;
+
 
   // functions
   std::size_t GetBlockSizeInBytes();
@@ -136,13 +187,18 @@ class MeshBlock {
   // inform MeshBlock which arrays contained in member Hydro, Field, Particles,
   // ... etc. classes are the "primary" representations of a quantity. when registered,
   // that data are used for (1) load balancing (2) (future) dumping to restart file
-  void RegisterMeshBlockData(AthenaArray<Real> &pvar_cc);
-  void RegisterMeshBlockData(FaceField &pvar_fc);
+  void RegisterMeshBlockDataCC(AthenaArray<Real> &pvar_cc);
+  void RegisterMeshBlockDataVC(AthenaArray<Real> &pvar_cc);
+  void RegisterMeshBlockDataFC(FaceField &pvar_fc);
 
   //! defined in either the prob file or default_pgen.cpp in ../pgen/
   void UserWorkBeforeOutput(ParameterInput *pin); // called in Mesh fn (friend class)
   void UserWorkInLoop();                          // called in TimeIntegratorTaskList
 
+  bool PointContained(Real const x, Real const y, Real const z);
+  Real PointCentralDistanceSquared(Real const x, Real const y, Real const z);
+  bool SphereIntersects(Real const Sx0, Real const Sy0, Real const Sz0,
+                        Real const radius);
  private:
   // data
   Real new_block_dt_, new_block_dt_hyperbolic_, new_block_dt_parabolic_,
@@ -155,8 +211,25 @@ class MeshBlock {
   int nreal_user_meshblock_data_, nint_user_meshblock_data_;
   std::vector<std::reference_wrapper<AthenaArray<Real>>> vars_cc_;
   std::vector<std::reference_wrapper<FaceField>> vars_fc_;
+  std::vector<std::reference_wrapper<AthenaArray<Real>>> vars_vc_;
 
   // functions
+  // helper functions for assigning / testing indices (inlined on definition)
+  void SetAllIndicialParameters();
+  void SetIndicialParameters(int num_ghost,
+                             int block_size,
+                             int &ix_s, int &ix_e,
+                             int &ncells,                 // CC end
+                             int &ix_vs, int &ix_ve,      // bnd vert
+                             int &ix_ms, int &ix_me,      // neg
+                             int &ix_ps, int &ix_pe,      // pos
+                             int &ix_gs, int &ix_ge,      // int. g
+                             int &ix_mp,
+                             int &nverts,                 // VC end
+                             bool populate_ix,
+                             bool is_dim_nontrivial);
+  //---------------------------------------------------------------------------
+
   void AllocateRealUserMeshBlockDataField(int n);
   void AllocateIntUserMeshBlockDataField(int n);
   void AllocateUserOutputVariables(int n);
@@ -186,6 +259,7 @@ class Mesh {
   friend class BoundaryBase;
   friend class BoundaryValues;
   friend class CellCenteredBoundaryVariable;
+  friend class VertexCenteredBoundaryVariable;
   friend class FaceCenteredBoundaryVariable;
   friend class MGBoundaryValues;
   friend class Coordinates;
@@ -204,6 +278,8 @@ class Mesh {
 #ifdef HDF5OUTPUT
   friend class ATHDF5Output;
 #endif
+  friend class Z4c;
+  friend class PunctureTracker;
 
  public:
   // 2x function overloads of ctor: normal and restarted simulation
@@ -215,7 +291,8 @@ class Mesh {
   int GetNumMeshThreads() const {return num_mesh_threads_;}
   std::int64_t GetTotalCells() {return static_cast<std::int64_t> (nbtotal)*
   my_blocks(0)->block_size.nx1*my_blocks(0)->block_size.nx2*my_blocks(0)->block_size.nx3;}
-
+  // FZ: Add this parameter to deal with initial data generation
+  bool resume_flag;
   // data
   RegionSize mesh_size;
   BoundaryFlag mesh_bcs[6];
@@ -245,6 +322,9 @@ class Mesh {
   FFTGravityDriver *pfgrd;
   MGGravityDriver *pmgrd;
 
+  std::vector<WaveExtract *> pwave_extr;
+  std::vector<PunctureTracker *> pz4c_tracker;
+
   AthenaArray<Real> *ruser_mesh_data;
   AthenaArray<int> *iuser_mesh_data;
 
@@ -264,8 +344,11 @@ class Mesh {
   int ReserveTagPhysIDs(int num_phys);
 
   // defined in either the prob file or default_pgen.cpp in ../pgen/
+  void DeleteTemporaryUserMeshData(); // called in main after ICs
   void UserWorkAfterLoop(ParameterInput *pin);   // called in main loop
   void UserWorkInLoop(); // called in main after each cycle
+
+  inline int GetRootLevel() { return root_level; }
 
  private:
   // data

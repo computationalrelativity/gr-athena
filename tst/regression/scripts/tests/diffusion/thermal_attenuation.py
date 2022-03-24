@@ -23,7 +23,7 @@ error_rel_tols = [0.38, 0.10]
 
 def prepare(*args, **kwargs):
     logger.debug('Running test ' + __name__)
-    athena.configure(*args,
+    athena.configure('f', *args,
                      prob='linear_wave',
                      flux='hllc',
                      eos='adiabatic', **kwargs)

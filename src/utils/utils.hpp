@@ -26,15 +26,16 @@ void ShowConfig();
 
 namespace SignalHandler {
 const int nsignal = 3;
-static volatile int signalflag[nsignal];
+extern volatile int signalflag[nsignal];
 const int ITERM = 0, IINT = 1, IALRM = 2;
-static sigset_t mask;
+extern sigset_t mask;
 void SignalHandlerInit();
 int CheckSignalFlags();
 int GetSignalFlag(int s);
 void SetSignalFlag(int s);
 void SetWallTimeAlarm(int t);
 void CancelWallTimeAlarm();
+void BackTraceHandler(int s);
 } // namespace SignalHandler
 
 #endif // UTILS_UTILS_HPP_

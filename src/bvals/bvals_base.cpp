@@ -9,6 +9,7 @@
 // C headers
 
 // C++ headers
+#include <cassert>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>    // memcpy()
@@ -285,7 +286,9 @@ int BoundaryBase::FindBufferID(int ox1, int ox2, int ox3, int fi1, int fi2) {
 //!   TAG_BITS_PHYS=5, MAX_NUM_PHYS=31
 
 int BoundaryBase::CreateBvalsMPITag(int lid, int bufid, int phys) {
-  return (lid<<11) | (bufid<<5) | phys;
+  int tag = (lid<<11) | (bufid<<5) | phys;
+  assert (tag <= Globals::mpi_tag_ub);
+  return tag;
 }
 
 

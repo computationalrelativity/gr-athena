@@ -85,6 +85,48 @@ template <typename T> void UnpackData(const T *buf, AthenaArray<T> &dst,
         dst(k,j,i) = buf[offset++];
     }
   }
+
+  return;
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn template <typename T> void UnpackDataAdd(T *buf, AthenaArray<T> &dst, int sn, int en,
+//                        int si, int ei, int sj, int ej, int sk, int ek, int &offset)
+//  \brief unpack a one-dimensional buffer into a 4D AthenaArray additively
+
+template <typename T> void UnpackDataAdd(T *buf, AthenaArray<T> &dst,
+                                         int sn, int en,
+                                         int si, int ei, int sj, int ej, int sk, int ek,
+                                         int &offset) {
+  for (int n=sn; n<=en; ++n) {
+    for (int k=sk; k<=ek; ++k) {
+      for (int j=sj; j<=ej; ++j) {
+#pragma omp simd
+        for (int i=si; i<=ei; ++i)
+          dst(n,k,j,i) += buf[offset++];
+      }
+    }
+  }
+
+  return;
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn template <typename T> void UnpackDataAdd(T *buf, AthenaArray<T> &dst,
+//                        int si, int ei, int sj, int ej, int sk, int ek, int &offset)
+//  \brief unpack a one-dimensional buffer into a 3D AthenaArray additively
+
+template <typename T> void UnpackDataAdd(T *buf, AthenaArray<T> &dst,
+                                         int si, int ei, int sj, int ej, int sk, int ek,
+                                         int &offset) {
+  for (int k=sk; k<=ek; ++k) {
+    for (int j=sj; j<=ej; ++j) {
+#pragma omp simd
+      for (int i=si; i<=ei; ++i)
+        dst(k,j,i) += buf[offset++];
+    }
+  }
+
   return;
 }
 
@@ -97,6 +139,12 @@ template void UnpackData<Real>(const Real *, AthenaArray<Real> &,
                                int, int, int, int, int, int, int, int, int &);
 template void UnpackData<Real>(const Real *, AthenaArray<Real> &,
                                int, int, int, int, int, int, int &);
+
+template void UnpackDataAdd<Real>(Real *, AthenaArray<Real> &, int, int, int, int, int, int,
+                                  int, int,
+                                  int &);
+template void UnpackDataAdd<Real>(Real *, AthenaArray<Real> &, int, int, int, int, int, int,
+                                  int &);
 
 template void PackData<Real>(const AthenaArray<Real> &, Real *,
                              int, int, int, int, int, int, int, int, int &);

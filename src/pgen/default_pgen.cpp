@@ -45,6 +45,17 @@ void __attribute__((weak)) Mesh::InitUserMeshData(ParameterInput *pin) {
 }
 
 //========================================================================================
+//! \fn void Mesh::DeleteTemporaryUserMeshData(ParameterInput *pin)
+//  \brief Function to remove temporary problem-specific data in Mesh class.
+//  This is called in main after ICs have been setup.
+//========================================================================================
+
+void __attribute__((weak)) Mesh::DeleteTemporaryUserMeshData() {
+  // do nothing
+  return;
+}
+
+//========================================================================================
 //! \fn void Mesh::UserWorkInLoop()
 //! \brief Function called once every time step for user-defined work.
 //========================================================================================

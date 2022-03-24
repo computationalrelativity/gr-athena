@@ -29,6 +29,7 @@ class Coordinates;
 struct FaceField;
 class BoundaryValues;
 class FaceCenteredBoundaryVariable;
+class VertexCenteredBoundaryVariable;
 class HydroBoundaryVariable;
 class OrbitalAdvection;
 
@@ -58,6 +59,15 @@ class MeshRefinement {
                        int csi, int cei, int csj, int cej, int csk, int cek);
   void RestrictFieldX3(const AthenaArray<Real> &fine, AthenaArray<Real> &coarse,
                        int csi, int cei, int csj, int cej, int csk, int cek);
+
+  void RestrictVertexCenteredValues(const AthenaArray<Real> &fine,
+                                    AthenaArray<Real> &coarse, int sn, int en,
+                                    int csi, int cei, int csj, int cej, int csk, int cek);
+  void RestrictTwiceToBufferVertexCenteredValues(
+    const AthenaArray<Real> &fine,
+    Real *buf,
+    int sn, int en,
+    int csi, int cei, int csj, int cej, int csk, int cek, int &offset);
   void ProlongateCellCenteredValues(const AthenaArray<Real> &coarse,
                                     AthenaArray<Real> &fine, int sn, int en,
                                     int si, int ei, int sj, int ej, int sk, int ek);
@@ -69,16 +79,22 @@ class MeshRefinement {
                                int si, int ei, int sj, int ej, int sk, int ek);
   void ProlongateInternalField(FaceField &fine,
                                int si, int ei, int sj, int ej, int sk, int ek);
+
+  void ProlongateVertexCenteredValues(const AthenaArray<Real> &coarse,
+                                      AthenaArray<Real> &fine, int sn, int en,
+                                      int si, int ei, int sj, int ej, int sk, int ek);
+
+
   void CheckRefinementCondition();
 
   // setter functions for "enrolling" variable arrays in refinement via Mesh::AMR()
   // and/or in BoundaryValues::ProlongateBoundaries() (for SMR and AMR)
-  int AddToRefinement(AthenaArray<Real> *pvar_cc, AthenaArray<Real> *pcoarse_cc);
-  int AddToRefinement(FaceField *pvar_fc, FaceField *pcoarse_fc);
+  int AddToRefinementCC(AthenaArray<Real> *pvar_in, AthenaArray<Real> *pcoarse_in);
+  int AddToRefinementVC(AthenaArray<Real> *pvar_in, AthenaArray<Real> *pcoarse_in);
+  int AddToRefinementFC(FaceField *pvar_fc, FaceField *pcoarse_fc);
 
   // for switching first entry in pvars_cc_ to/from: (w, coarse_prim); (u, coarse_cons_)
   void SetHydroRefinement(HydroBoundaryQuantity hydro_type);
-
  private:
   // data
   MeshBlock *pmy_block_;
@@ -90,9 +106,23 @@ class MeshRefinement {
   // functions
   AMRFlagFunc AMRFlag_; // duplicate of Mesh class member
 
+  void RestrictVertexCenteredIndicialHelper(
+    int ix,
+    int ix_cvs, int ix_cve,
+    int ix_vs, int ix_ve,
+    int &f_ix);
+
+  void ProlongateVertexCenteredIndicialHelper(
+    int hs_sz, int ix,
+    int ix_cvs, int ix_cve, int ix_cmp,
+    int ix_vs, int ix_ve,
+    int &f_ix, int &ix_b, int &ix_so, int &ix_eo, int &ix_l, int &ix_u);
+
   // tuples of references to AMR-enrolled arrays (quantity, coarse_quantity)
   std::vector<std::tuple<AthenaArray<Real> *, AthenaArray<Real> *>> pvars_cc_;
   std::vector<std::tuple<FaceField *, FaceField *>> pvars_fc_;
+  std::vector<std::tuple<AthenaArray<Real> *, AthenaArray<Real> *>> pvars_vc_;
+
 };
 
 #endif // MESH_MESH_REFINEMENT_HPP_
