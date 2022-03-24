@@ -16,10 +16,10 @@
 // C headers
 
 // C++ headers
-#include <cstddef>  // size_t
-#include <cstring>  // memset()
-#include <utility>  // swap()
-
+#include <algorithm> // fill
+#include <cstddef>   // size_t
+#include <cstring>   // memset()
+#include <utility>   // swap()
 // Athena++ headers
 
 template <typename T>
@@ -29,28 +29,28 @@ class AthenaArray {
   // ctors
   // default ctor: simply set null AthenaArray
   AthenaArray() : pdata_(nullptr), nx1_(0), nx2_(0), nx3_(0),
-                  nx4_(0), nx5_(0), nx6_(0), state_(DataStatus::empty) {}
+                  nx4_(0), nx5_(0), nx6_(0), dim_(0), state_(DataStatus::empty) {}
   // ctor overloads: set expected size of unallocated container, maybe allocate (default)
   explicit AthenaArray(int nx1, DataStatus init=DataStatus::allocated) :
-      pdata_(nullptr), nx1_(nx1), nx2_(1), nx3_(1), nx4_(1), nx5_(1), nx6_(1),
-      state_(init) { AllocateData(); }
+    pdata_(nullptr), nx1_(nx1), nx2_(1), nx3_(1), nx4_(1), nx5_(1), nx6_(1), dim_(1),
+    state_(init) { AllocateData(); }
   AthenaArray(int nx2, int nx1, DataStatus init=DataStatus::allocated) :
-      pdata_(nullptr), nx1_(nx1), nx2_(nx2), nx3_(1), nx4_(1), nx5_(1), nx6_(1),
-      state_(init) { AllocateData(); }
+    pdata_(nullptr), nx1_(nx1), nx2_(nx2), nx3_(1), nx4_(1), nx5_(1), nx6_(1), dim_(2),
+    state_(init) { AllocateData(); }
   AthenaArray(int nx3, int nx2, int nx1, DataStatus init=DataStatus::allocated) :
-      pdata_(nullptr), nx1_(nx1), nx2_(nx2), nx3_(nx3), nx4_(1), nx5_(1), nx6_(1),
-      state_(init) { AllocateData(); }
+    pdata_(nullptr), nx1_(nx1), nx2_(nx2), nx3_(nx3), nx4_(1), nx5_(1), nx6_(1), dim_(3),
+    state_(init) { AllocateData(); }
   AthenaArray(int nx4, int nx3, int nx2, int nx1, DataStatus init=DataStatus::allocated) :
-      pdata_(nullptr), nx1_(nx1), nx2_(nx2), nx3_(nx3), nx4_(nx4), nx5_(1), nx6_(1),
-      state_(init) { AllocateData(); }
+    pdata_(nullptr), nx1_(nx1), nx2_(nx2), nx3_(nx3), nx4_(nx4), nx5_(1), nx6_(1), dim_(4),
+    state_(init) { AllocateData(); }
   AthenaArray(int nx5, int nx4, int nx3, int nx2, int nx1,
               DataStatus init=DataStatus::allocated) :
-      pdata_(nullptr), nx1_(nx1), nx2_(nx2), nx3_(nx3), nx4_(nx4), nx5_(nx5),  nx6_(1),
-      state_(init) { AllocateData(); }
+    pdata_(nullptr), nx1_(nx1), nx2_(nx2), nx3_(nx3), nx4_(nx4), nx5_(nx5),  nx6_(1),  dim_(5),
+    state_(init) { AllocateData(); }
   AthenaArray(int nx6, int nx5, int nx4, int nx3, int nx2, int nx1,
               DataStatus init=DataStatus::allocated) :
-      pdata_(nullptr), nx1_(nx1), nx2_(nx2), nx3_(nx3), nx4_(nx4), nx5_(nx5), nx6_(nx6),
-      state_(init) { AllocateData(); }
+    pdata_(nullptr), nx1_(nx1), nx2_(nx2), nx3_(nx3), nx4_(nx4), nx5_(nx5), nx6_(nx6),  dim_(6),
+    state_(init) { AllocateData(); }
   // still allowing delayed-initialization (after constructor) via array.NewAthenaArray()
   // or array.InitWithShallowSlice() (only used in outputs.cpp + 3x other files)
   //! \todo (felker):
@@ -82,6 +82,7 @@ class AthenaArray {
   // public function to exchange two arrays
   void ExchangeAthenaArray(AthenaArray<T>& array2);
   void ZeroClear();
+  void Fill(T const val) { std::fill(pdata_, pdata_ + GetSize(), T(val)); }
 
   // functions to get array dimensions
   int GetDim1() const { return nx1_; }
@@ -90,6 +91,16 @@ class AthenaArray {
   int GetDim4() const { return nx4_; }
   int GetDim5() const { return nx5_; }
   int GetDim6() const { return nx6_; }
+  int GetDim(int dim) const;
+
+  // function to get the stride used to access the data
+  int GetStride1() const { return 1; }
+  int GetStride2() const { return nx1_; }
+  int GetStride3() const { return nx2_*GetStride2(); }
+  int GetStride4() const { return nx3_*GetStride3(); }
+  int GetStride5() const { return nx4_*GetStride4(); }
+  int GetStride6() const { return nx5_*GetStride5(); }
+  int GetStride(int dim) const;
 
   // a function to get the total size of the array
   int GetSize() const {
@@ -158,13 +169,18 @@ class AthenaArray {
   // (deferred) initialize an array with slice from another array
   void InitWithShallowSlice(AthenaArray<T> &src, const int dim, const int indx,
                             const int nvar);
+  // make use of internal dim if not provided
+  void InitWithShallowSlice(AthenaArray<T> &src, const int indx, const int nvar);
 
   void ShallowSlice3DToPencil(AthenaArray<T> &src, const int k, const int j,
                               const int il, const int n);
 
+  bool is_finite() const;
+
  private:
   T *pdata_;
   int nx1_, nx2_, nx3_, nx4_, nx5_, nx6_;
+  int dim_;
   DataStatus state_;  // describe what "pdata_" points to and ownership of allocated data
 
   void AllocateData();
@@ -188,6 +204,7 @@ __attribute__((nothrow)) AthenaArray<T>::AthenaArray(const AthenaArray<T>& src) 
   nx4_ = src.nx4_;
   nx5_ = src.nx5_;
   nx6_ = src.nx6_;
+  dim_ = src.dim_;
   if (src.pdata_) {
     std::size_t size = (src.nx1_)*(src.nx2_)*(src.nx3_)*(src.nx4_)*(src.nx5_);
     pdata_ = new T[size]; // allocate memory for array data
@@ -212,6 +229,7 @@ AthenaArray<T> &AthenaArray<T>::operator= (const AthenaArray<T> &src) {
     nx4_ = src.nx4_;
     nx5_ = src.nx5_;
     nx6_ = src.nx6_;
+    dim_ = src.dim_;
     std::size_t size = (src.nx1_)*(src.nx2_)*(src.nx3_)*(src.nx4_)*(src.nx5_)*(src.nx6_);
     for (std::size_t i=0; i<size; ++i) {
       this->pdata_[i] = src.pdata_[i]; // copy data (not just addresses!)
@@ -230,6 +248,7 @@ __attribute__((nothrow)) AthenaArray<T>::AthenaArray(AthenaArray<T>&& src) {
   nx4_ = src.nx4_;
   nx5_ = src.nx5_;
   nx6_ = src.nx6_;
+  dim_ = src.dim_;
   if (src.pdata_) {
     // && (src.state_ != DataStatus::allocated){  // (if forbidden to move shallow slices)
     //  ---- >state_ = DataStatus::allocated;
@@ -246,6 +265,7 @@ __attribute__((nothrow)) AthenaArray<T>::AthenaArray(AthenaArray<T>&& src) {
     src.nx4_ = 0;
     src.nx5_ = 0;
     src.nx6_ = 0;
+    src.dim_ = 0;
   }
 }
 
@@ -265,6 +285,7 @@ AthenaArray<T> &AthenaArray<T>::operator= (AthenaArray<T> &&src) {
       nx6_ = src.nx6_;
       state_ = src.state_;
       pdata_ = src.pdata_;
+      dim_ = src.dim_;
 
       src.pdata_ = nullptr;
       src.state_ = DataStatus::empty;
@@ -274,6 +295,7 @@ AthenaArray<T> &AthenaArray<T>::operator= (AthenaArray<T> &&src) {
       src.nx4_ = 0;
       src.nx5_ = 0;
       src.nx6_ = 0;
+      src.dim_ = 0;
     }
   }
   return *this;
@@ -343,6 +365,12 @@ void AthenaArray<T>::InitWithShallowSlice(AthenaArray<T> &src, const int dim,
   }
   state_ = DataStatus::shallow_slice;
   return;
+}
+
+template<typename T>
+void AthenaArray<T>::InitWithShallowSlice(AthenaArray<T> &src,
+                                          const int indx, const int nvar) {
+  InitWithShallowSlice(src, src.dim_, indx, nvar);
 }
 
 //----------------------------------------------------------------------------------------
@@ -555,6 +583,18 @@ void AthenaArray<T>::ShallowSlice3DToPencil(AthenaArray<T> &src, const int k,
   pdata_ += (k*src.nx2_+j)*src.nx1_+il;
   state_ = DataStatus::shallow_slice;
   return;
+}
+
+template<typename T>
+bool AthenaArray<T>::is_finite() const {
+  bool finite = true;
+  std::size_t size = nx1_ * nx2_ * nx3_ * nx4_ * nx5_;
+  for (std::size_t i = 0; i < size; ++i) {
+    finite = finite && (std::isfinite(pdata_[i]));
+    if (!finite)
+      break;
+  }
+  return finite;
 }
 
 #endif // ATHENA_ARRAYS_HPP_

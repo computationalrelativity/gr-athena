@@ -350,4 +350,105 @@ const TaskID RECV_FLDORB(66);
 const TaskID CALC_FLDORB(67);
 
 }  // namespace HydroIntegratorTaskNames
+
+//----------------------------------------------------------------------------------------
+
+class Z4cIntegratorTaskList : public TaskList {
+public:
+  Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm);
+
+  //--------------------------------------------------------------------------------------
+  //! \struct IntegratorWeight
+  //  \brief weights used in time integrator tasks
+
+  struct IntegratorWeight {
+    // 2S or 3S* low-storage RK coefficients, Ketchenson (2010)
+    Real delta; //!> low-storage coefficients to avoid double F() evaluation per substage
+    Real gamma_1, gamma_2, gamma_3; // low-storage coeff for weighted ave of registers
+    Real beta; // coeff. from bidiagonal Shu-Osher form Beta matrix, -1 diagonal terms
+    Real sbeta, ebeta; // time coeff describing start/end time of each stage
+  };
+
+  // data
+  std::string integrator;
+  Real cfl_limit; // dt stability limit for the particular time integrator + spatial order
+  int nstages_main; // number of stages labeled main_stage
+
+  // functions
+  TaskStatus ClearAllBoundary(MeshBlock *pmb, int stage);  // CLEAR_ALLBND [x]
+  TaskStatus UserWork(MeshBlock *pmb, int stage);          // USERWORK     [x]
+  TaskStatus NewBlockTimeStep(MeshBlock *pmb, int stage);  // NEW_DT       [x]
+  TaskStatus CalculateZ4cRHS(MeshBlock *pmb, int stage);   // CALC_Z4CRHS  [x]
+  TaskStatus IntegrateZ4c(MeshBlock *pmb, int stage);      // INT_Z4C      [x]
+  TaskStatus SendZ4c(MeshBlock *pmb, int stage);           // SEND_Z4C     [x]
+  TaskStatus ReceiveZ4c(MeshBlock *pmb, int stage);        // RECV_Z4C     [x]
+  TaskStatus SetBoundariesZ4c(MeshBlock *pmb, int stage);  // SETB_Z4C     [x]
+  TaskStatus Prolongation(MeshBlock *pmb, int stage);      // PROLONG      [x]
+  TaskStatus PhysicalBoundary(MeshBlock *pmb, int stage);  // PHY_BVAL     [x]
+  TaskStatus EnforceAlgConstr(MeshBlock *pmb, int stage);  // ALG_CONSTR   [x]
+  TaskStatus Z4cToADM(MeshBlock *pmb, int stage);          // Z4C_TO_ADM   [x]
+  TaskStatus ADM_Constraints(MeshBlock *pmb, int stage);   // ADM_CONSTR   [x]
+  TaskStatus CheckRefinement(MeshBlock *pmb, int stage);   // FLAG_AMR     [x]
+  TaskStatus Z4c_Weyl(MeshBlock *pmb, int stage);          // Z4C_WEYL     [x]
+  TaskStatus WaveExtract(MeshBlock *pmb, int stage);       // WAVE_EXTR    [x]
+  TaskStatus AssertFinite(MeshBlock *pmb, int stage);      // ASSERT_FIN   [x]
+
+  //---------------------------------------------------------------------------
+  // Provide finer-grained control over tasklist
+  // Note: If a parameter is zero related task(s) will be ignored
+  struct aux_NextTimeStep{
+    Real dt{0.};
+    Real next_time{0.};
+    Real to_update{false};
+  };
+
+  struct {
+    aux_NextTimeStep adm;
+    aux_NextTimeStep con;
+    aux_NextTimeStep assert_is_finite;
+    aux_NextTimeStep wave_extraction;
+  } TaskListTriggers;
+
+  bool CurrentTimeCalculationThreshold(Mesh *pm,
+                                       aux_NextTimeStep *variable);
+  void UpdateTaskListTriggers();
+  //---------------------------------------------------------------------------
+
+
+private:
+  IntegratorWeight stage_wghts[MAX_NSTAGE];
+
+  void AddTask(const TaskID& id, const TaskID& dep) override;
+  void StartupTaskList(MeshBlock *pmb, int stage) override;
+};
+
+//----------------------------------------------------------------------------------------
+// 64-bit integers with "1" in different bit positions used to ID each z4c task.
+namespace Z4cIntegratorTaskNames {
+
+  const TaskID NONE(0);
+  const TaskID CLEAR_ALLBND(1);
+  const TaskID CALC_Z4CRHS(2);
+  const TaskID INT_Z4C(3);
+  const TaskID SEND_Z4C(4);
+  const TaskID RECV_Z4C(5);
+  const TaskID SETB_Z4C(6);
+
+  const TaskID PROLONG(7);
+  const TaskID PHY_BVAL(8);
+
+  const TaskID ALG_CONSTR(9);
+  const TaskID Z4C_TO_ADM(10);
+  const TaskID USERWORK(11);
+  const TaskID NEW_DT(12);
+
+  const TaskID ADM_CONSTR(13);
+  const TaskID FLAG_AMR(14);
+
+  const TaskID ASSERT_FIN(15);
+  const TaskID Z4C_WEYL(16);
+  const TaskID WAVE_EXTR(17);
+
+}  // namespace Z4cIntegratorTaskNames
+
 #endif  // TASK_LIST_TASK_LIST_HPP_

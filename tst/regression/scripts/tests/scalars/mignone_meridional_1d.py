@@ -92,7 +92,7 @@ error_formatter = lambda x: "{:.2e}".format(x)
 # Prepare Athena++
 def prepare(**kwargs):
     logger.debug('Running test ' + __name__)
-    athena.configure(
+    athena.configure('f',
         nghost=3,  # required for PPM
         prob='mignone_advection',
         eos='isothermal',

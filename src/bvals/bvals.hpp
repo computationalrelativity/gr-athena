@@ -115,6 +115,8 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   std::vector<BoundaryVariable *> bvars;
   //! subset of bvars that are exchanged in the main TimeIntegratorTaskList
   std::vector<BoundaryVariable *> bvars_main_int;
+  //! as above but particular to vertex-centered 
+  std::vector<BoundaryVariable *> bvars_main_int_vc;
   //! subset of bvars that are exchanged in the SuperTimeStepTaskList
   std::vector<BoundaryVariable *> bvars_sts;
 
@@ -140,6 +142,11 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
                                std::vector<BoundaryVariable *> bvars_subset);
   void ProlongateBoundaries(const Real time, const Real dt,
                             std::vector<BoundaryVariable *> bvars_subset);
+
+  //--New logic for vertex-centering
+  void ApplyPhysicalVertexCenteredBoundaries(const Real time, const Real dt);
+  void ProlongateVertexCenteredBoundaries(const Real time, const Real dt);
+  //---------------------------------------------------------------------------
 
   // compute the shear at each integrator stage
   //! \todo (felker):
@@ -200,6 +207,18 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   void ProlongateGhostCells(const NeighborBlock& nb,
                             int si, int ei, int sj, int ej, int sk, int ek);
 
+  void ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(
+      const Real time, const Real dt);
+
+  void CalculateVertexProlongationIndices(std::int64_t &lx, int ox, int pcng,
+                                         int cix_vs, int cix_ve,
+                                         int &set_ix_vs, int &set_ix_ve,
+                                         bool is_dim_nontrivial);
+
+  void ProlongateVertexCenteredGhosts(
+      const NeighborBlock& nb,
+      int si, int ei, int sj, int ej, int sk, int ek);
+
   void DispatchBoundaryFunctions(
       MeshBlock *pmb, Coordinates *pco, Real time, Real dt,
       int il, int iu, int jl, int ju, int kl, int ku, int ngh,
@@ -219,6 +238,7 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   //! \todo (felker):
   //! - consider removing these friendship designations:
   friend class CellCenteredBoundaryVariable;
+  friend class VertexCenteredBoundaryVariable;
   friend class HydroBoundaryVariable;  // needed for shearing box quantities
 };
 #endif // BVALS_BVALS_HPP_

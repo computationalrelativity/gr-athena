@@ -448,6 +448,12 @@ void Mesh::RedistributeAndRefineMeshBlocks(ParameterInput *pin, int ntot) {
     nx4_tot += var_cc.GetDim4();
   }
 
+  // BD: add VC functionality
+  int nx4_vc_tot = 0;
+  for (AthenaArray<Real> &var_vc : my_blocks(0)->vars_vc_) {
+    nx4_vc_tot += var_vc.GetDim4();
+  }
+
   // cell-centered quantities enrolled in SMR/AMR
   int bssame = bnx1*bnx2*bnx3*nx4_tot;
   int bsf2c = (bnx1/2)*((bnx2 + 1)/2)*((bnx3 + 1)/2)*nx4_tot;
@@ -461,10 +467,29 @@ void Mesh::RedistributeAndRefineMeshBlocks(ParameterInput *pin, int ntot) {
   bsc2f += num_fc*(((bnx1/2) + 1 + 2)*((bnx2 + 1)/2 + 2*f2)*((bnx3 + 1)/2 + 2*f3)
                    + (bnx1/2 + 2)*(((bnx2 + 1)/2) + f2 + 2*f2)*((bnx3 + 1)/2 + 2*f3)
                    + (bnx1/2 + 2)*((bnx2 + 1)/2 + 2*f2)*(((bnx3 + 1)/2) + f3 + 2*f3));
+
+  // vertex-centered quantities enrolled in SMR/AMR
+  int const vbnx1 = bnx1 + 1;
+  int const vbnx2 = (bnx2 > 1) ? bnx2 + 1 : 1;
+  int const vbnx3 = (bnx3 > 1) ? bnx3 + 1 : 1;
+
+  int const hbnx1 = bnx1 / 2 + 1;
+  int const hbnx2 = bnx2 / 2 + 1;
+  int const hbnx3 = bnx3 / 2 + 1;
+
+  int const ndg1 = NGHOST;
+  int const ndg2 = (f2 > 0) ? NGHOST : 0;
+  int const ndg3 = (f3 > 0) ? NGHOST : 0;
+
+  bssame += vbnx1 * vbnx2 * vbnx3 * nx4_vc_tot;
+  bsc2f += (hbnx1 + 2 * ndg1) * (hbnx2 + 2 * ndg2) * (hbnx3 + 2* ndg3) *
+    nx4_vc_tot;
+  bsf2c += hbnx1 * hbnx2 * hbnx3 * nx4_vc_tot;
+
   // add one more element to buffer size for storing the derefinement counter
   bssame++;
 
-  MPI_Request *req_send, *req_recv;
+  MPI_Request *req_send(nullptr), *req_recv(nullptr);
   // Step 5. allocate and start receiving buffers
   if (nrecv != 0) {
     recvbuf = new Real*[nrecv];
@@ -739,6 +764,42 @@ void Mesh::PrepareSendCoarseToFineAMR(MeshBlock* pb, Real *sendbuf,
     BufferUtility::PackData((*var_fc).x3f, sendbuf,
                             il, iu, jl, ju, kl, ku+f3, p);
   }
+
+  // BD: add VC functionality
+  int ndg1 = NGHOST;
+  int ndg2 = (f2 > 0) ? NGHOST : 0;
+  int ndg3 = (f3 > 0) ? NGHOST : 0;
+
+  if (ox1 == 0) {
+    il = pb->ivs - ndg1;
+    iu = il + (pb->cive + ndg1 - (pb->civs - ndg1));
+  } else {
+    il = pb->block_size.nx1/2 + pb->ivs - ndg1;
+    iu = il + (pb->cive + ndg1 - (pb->civs - ndg1));
+  }
+  if (ox2 == 0) {
+    jl = pb->jvs - ndg2;
+    ju = jl + (pb->cjve + ndg2 - (pb->cjvs - ndg2));
+  } else {
+    jl = pb->block_size.nx2/2 + pb->jvs - ndg2;
+    ju = jl + (pb->cjve + ndg2 - (pb->cjvs - ndg2));
+  }
+  if (ox3 == 0) {
+    kl = pb->kvs - ndg3;
+    ku = kl + (pb->ckve + ndg3 - (pb->ckvs - ndg3));
+  } else {
+    kl = pb->block_size.nx3/2 + pb->kvs - ndg3;
+    ku = kl + (pb->ckve + ndg3 - (pb->ckvs - ndg3));
+  }
+
+  for (auto vc_pair : pb->pmr->pvars_vc_) {
+    AthenaArray<Real> *var_vc = std::get<0>(vc_pair);
+    int nu = var_vc->GetDim4() - 1;
+
+    BufferUtility::PackData(*var_vc, sendbuf, 0, nu,
+                            il, iu, jl, ju, kl, ku, p);
+  }
+
   return;
 }
 
@@ -791,6 +852,23 @@ void Mesh::PrepareSendFineToCoarseAMR(MeshBlock* pb, Real *sendbuf) {
                             pb->cis, pb->cie,
                             pb->cjs, pb->cje,
                             pb->cks, pb->cke+f3, p);
+  }
+
+  // BD: add VC functionality
+  for (auto vc_pair : pmr->pvars_vc_) {
+    AthenaArray<Real> *var_vc = std::get<0>(vc_pair);
+    AthenaArray<Real> *coarse_vc = std::get<1>(vc_pair);
+    int nu = var_vc->GetDim4() - 1;
+    pmr->RestrictVertexCenteredValues(*var_vc, *coarse_vc,
+                                      0, nu,
+                                      pb->civs, pb->cive,
+                                      pb->cjvs, pb->cjve,
+                                      pb->ckvs, pb->ckve);
+    BufferUtility::PackData(*coarse_vc, sendbuf, 0, nu,
+                            pb->civs, pb->cive,
+                            pb->cjvs, pb->cjve,
+                            pb->ckvs, pb->ckve, p);
+
   }
   return;
 }
@@ -886,6 +964,39 @@ void Mesh::FillSameRankFineToCoarseAMR(MeshBlock* pob, MeshBlock* pmb,
     }
     pmb_fc_it++;
   }
+
+  // BD: add VC functionality
+  il = pmb->ivs + ((loc.lx1 & 1LL) == 1LL)*pmb->block_size.nx1/2;
+  jl = pmb->jvs + ((loc.lx2 & 1LL) == 1LL)*pmb->block_size.nx2/2;
+  kl = pmb->kvs + ((loc.lx3 & 1LL) == 1LL)*pmb->block_size.nx3/2;
+
+  auto pmb_vc_it = pmb->pmr->pvars_vc_.begin();
+  // iterate MeshRefinement std::vectors on pob
+  for (auto vc_pair : pmr->pvars_vc_) {
+    AthenaArray<Real> *var_vc = std::get<0>(vc_pair);
+    AthenaArray<Real> *coarse_vc = std::get<1>(vc_pair);
+    int nu = var_vc->GetDim4() - 1;
+
+    pmr->RestrictVertexCenteredValues(*var_vc, *coarse_vc,
+                                      0, nu,
+                                      pob->civs, pob->cive,
+                                      pob->cjvs, pob->cjve,
+                                      pob->ckvs, pob->ckve);
+    // copy from old/original/other MeshBlock (pob) to newly created block (pmb)
+    AthenaArray<Real> &src = *coarse_vc;
+    AthenaArray<Real> &dst = *std::get<0>(*pmb_vc_it);
+    for (int nv=0; nv<=nu; nv++) {
+      for (int k=kl, fk=pob->ckvs; fk<=pob->ckve; k++, fk++) {
+        for (int j=jl, fj=pob->cjvs; fj<=pob->cjve; j++, fj++) {
+          for (int i=il, fi=pob->civs; fi<=pob->cive; i++, fi++)
+            dst(nv, k, j, i) = src(nv, fk, fj, fi);
+        }
+      }
+    }
+    pmb_vc_it++;
+
+  }
+
   return;
 }
 
@@ -967,6 +1078,46 @@ void Mesh::FillSameRankCoarseToFineAMR(MeshBlock* pob, MeshBlock* pmb,
         pob->cjs, pob->cje, pob->cks, pob->cke);
     pob_fc_it++;
   }
+
+  // BD: add VC functionality
+  int ndg1 = NGHOST;
+  int ndg2 = (f2 > 0) ? NGHOST : 0;
+  int ndg3 = (f3 > 0) ? NGHOST : 0;
+
+  il = pob->civs - ndg1, iu = pob->cive + ndg1;
+  jl = pob->cjvs - ndg2, ju = pob->cjve + ndg2;
+  kl = pob->ckvs - ndg3, ku = pob->ckve + ndg3;
+  cis = ((newloc.lx1 & 1LL) == 1LL)*pob->block_size.nx1/2 + pob->ivs - ndg1;
+  cjs = ((newloc.lx2 & 1LL) == 1LL)*pob->block_size.nx2/2 + pob->jvs - ndg2;
+  cks = ((newloc.lx3 & 1LL) == 1LL)*pob->block_size.nx3/2 + pob->kvs - ndg3;
+
+  auto pob_vc_it = pob->pmr->pvars_vc_.begin();
+  // iterate MeshRefinement std::vectors on new pmb
+  for (auto vc_pair : pmr->pvars_vc_) {
+    AthenaArray<Real> *var_vc = std::get<0>(vc_pair);
+    AthenaArray<Real> *coarse_vc = std::get<1>(vc_pair);
+    int nu = var_vc->GetDim4() - 1;
+
+    AthenaArray<Real> &src = *std::get<0>(*pob_vc_it);
+    AthenaArray<Real> &dst = *coarse_vc;
+
+    // fill the coarse buffer
+    for (int nv=0; nv<=nu; nv++) {
+      for (int k=kl, ck=cks; k<=ku; k++, ck++) {
+        for (int j=jl, cj=cjs; j<=ju; j++, cj++) {
+          for (int i=il, ci=cis; i<=iu; i++, ci++)
+            dst(nv, k, j, i) = src(nv, ck, cj, ci);
+        }
+      }
+    }
+
+    pmr->ProlongateVertexCenteredValues(
+        dst, *var_vc, 0, nu,
+        pob->civs, pob->cive, pob->cjvs, pob->cjve, pob->ckvs, pob->ckve);
+    pob_vc_it++;
+
+  }
+
   return;
 }
 
@@ -1051,6 +1202,35 @@ void Mesh::FinishRecvFineToCoarseAMR(MeshBlock *pb, Real *recvbuf,
       }
     }
   }
+
+  // BD: add VC functionality
+  if (ox1 == 0) {
+    il = pb->ivs;
+    iu = pb->ivs + pb->block_size.nx1/2;
+  } else {
+    il = pb->ivs + pb->block_size.nx1/2;
+    iu = pb->ive;}
+  if (ox2 == 0) {
+    jl = pb->jvs;
+    ju = pb->jvs + pb->block_size.nx2/2;
+  } else {
+    jl = pb->jvs + pb->block_size.nx2/2;
+    ju = pb->jve;
+  }
+  if (ox3 == 0) {
+    kl = pb->kvs;
+    ku = pb->kvs + pb->block_size.nx3/2;
+  } else {
+    kl = pb->kvs + pb->block_size.nx3/2;
+    ku = pb->kve;
+  }
+  for (auto vc_pair : pb->pmr->pvars_vc_) {
+    AthenaArray<Real> *var_vc = std::get<0>(vc_pair);
+    int nu = var_vc->GetDim4() - 1;
+    BufferUtility::UnpackData(recvbuf, *var_vc, 0, nu,
+                              il, iu, jl, ju, kl, ku, p);
+  }
+
   return;
 }
 
@@ -1096,6 +1276,29 @@ void Mesh::FinishRecvCoarseToFineAMR(MeshBlock *pb, Real *recvbuf) {
         *var_fc, pb->cis, pb->cie,
         pb->cjs, pb->cje, pb->cks, pb->cke);
   }
+
+  // BD: add VC functionality
+  int ndg1 = NGHOST;
+  int ndg2 = (f2 > 0) ? NGHOST : 0;
+  int ndg3 = (f3 > 0) ? NGHOST : 0;
+
+  il = pb->civs - ndg1, iu = pb->cive + ndg1;
+  jl = pb->cjvs - ndg2, ju = pb->cjve + ndg2;
+  kl = pb->ckvs - ndg3, ku = pb->ckve + ndg3;
+
+  for (auto vc_pair : pmr->pvars_vc_) {
+    AthenaArray<Real> *var_vc = std::get<0>(vc_pair);
+    AthenaArray<Real> *coarse_vc = std::get<1>(vc_pair);
+    int nu = var_vc->GetDim4() - 1;
+    BufferUtility::UnpackData(recvbuf, *coarse_vc,
+                              0, nu, il, iu, jl, ju, kl, ku, p);
+
+    pmr->ProlongateVertexCenteredValues(
+        *coarse_vc, *var_vc, 0, nu,
+        pb->civs, pb->cive, pb->cjvs, pb->cjve, pb->ckvs, pb->ckve);
+
+  }
+
   return;
 }
 

@@ -31,7 +31,7 @@ bz = -1.2
 # Prepare Athena++
 def prepare(**kwargs):
     logger.debug('Running test ' + __name__)
-    athena.configure('sb',
+    athena.configure('f', 'sb',
                      prob='gr_linear_wave',
                      coord='cartesian',
                      flux='hlld', **kwargs)

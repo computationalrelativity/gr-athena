@@ -35,7 +35,7 @@ def prepare(**kwargs):
     logger.debug('Running test ' + __name__)
 
     # Configure and compile code
-    athena.configure('b',
+    athena.configure('f','b',
                      'mpi',
                      'hdf5', 'h5double',
                      prob='from_array',

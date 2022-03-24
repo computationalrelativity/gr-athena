@@ -18,7 +18,7 @@ logger = logging.getLogger('athena' + __name__[7:])  # set logger name based on 
 # Prepare Athena++
 def prepare(**kwargs):
     logger.debug('Running test ' + __name__)
-    athena.configure('b', 'hdf5',
+    athena.configure('f', 'b', 'hdf5',
                      prob='orszag_tang',
                      flux='hlld', **kwargs)
     athena.make()

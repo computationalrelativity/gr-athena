@@ -48,7 +48,7 @@ def prepare(**kwargs):
     # to athena.configure(). Any number of --<key>=<value> command-line arguments can also
     # be supplied. Note athena.configure() expects the values only to be quoted, e.g.
     # --<key>='<value>'.
-    athena.configure('g', 't',
+    athena.configure('f', 'g', 't',
                      prob='gr_shock_tube',
                      coord='minkowski',
                      **kwargs)

@@ -79,9 +79,9 @@ enum {BLOCK_BNDRY = -1, BNDRY_UNDEF, REFLECTING_BNDRY, OUTFLOW_BNDRY, USER_BNDRY
 enum BoundaryFace {undef=-1, inner_x1=0, outer_x1=1, inner_x2=2, outer_x2=3,
                    inner_x3=4, outer_x3=5};
 
-//! identifiers for boundary conditions
-enum class BoundaryFlag {block=-1, undef, reflect, outflow, user, periodic,
-                         polar, polar_wedge, shear_periodic};
+// identifiers for boundary conditions
+enum class BoundaryFlag {block=-1, undef, reflect, outflow, extrapolate_outflow,
+                         user, periodic, polar, polar_wedge, shear_periodic};
 
 //! identifiers for types of neighbor blocks (connectivity with current MeshBlock)
 enum class NeighborConnect {none, face, edge, corner}; // degenerate/shared part of block
@@ -296,6 +296,25 @@ class BoundaryPhysics {
                               int il, int iu, int jl, int ju, int kl, int ngh) = 0;
   virtual void OutflowOuterX3(Real time, Real dt,
                               int il, int iu, int jl, int ju, int ku, int ngh) = 0;
+
+  virtual void ExtrapolateOutflowInnerX1(Real time, Real dt,
+                                         int il, int jl, int ju,
+                                         int kl, int ku, int ngh) = 0;
+  virtual void ExtrapolateOutflowOuterX1(Real time, Real dt,
+                                         int iu, int jl, int ju,
+                                         int kl, int ku, int ngh) = 0;
+  virtual void ExtrapolateOutflowInnerX2(Real time, Real dt,
+                                         int il, int iu, int jl,
+                                         int kl, int ku, int ngh) = 0;
+  virtual void ExtrapolateOutflowOuterX2(Real time, Real dt,
+                                         int il, int iu, int ju,
+                                         int kl, int ku, int ngh) = 0;
+  virtual void ExtrapolateOutflowInnerX3(Real time, Real dt,
+                                         int il, int iu, int jl,
+                                         int ju, int kl, int ngh) = 0;
+  virtual void ExtrapolateOutflowOuterX3(Real time, Real dt,
+                                         int il, int iu, int jl,
+                                         int ju, int ku, int ngh) = 0;
 
   virtual void PolarWedgeInnerX2(Real time, Real dt,
                                  int il, int iu, int jl, int kl, int ku, int ngh) = 0;

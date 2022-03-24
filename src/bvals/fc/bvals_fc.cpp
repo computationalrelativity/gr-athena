@@ -476,26 +476,26 @@ int FaceCenteredBoundaryVariable::LoadBoundaryBufferToFiner(Real *buf,
   int nx3 = pmb->block_size.nx3;
 
   int si, sj, sk, ei, ej, ek;
-  int cn = pmb->cnghost - 1;
+  int cn = NCGHOST - 1;
   int p = 0;
 
   // send the data first and later prolongate on the target block
   // need to add edges for faces, add corners for edges
   // bx1
   if (nb.ni.ox1 == 0) {
-    if (nb.ni.fi1 == 1)   si = pmb->is + nx1/2-pmb->cnghost, ei = pmb->ie + 1;
-    else            si = pmb->is, ei = pmb->ie + 1-nx1/2 + pmb->cnghost;
-  } else if (nb.ni.ox1 > 0) { si = pmb->ie + 1-pmb->cnghost, ei = pmb->ie + 1;}
-  else              si = pmb->is,                ei = pmb->is + pmb->cnghost;
+    if (nb.ni.fi1 == 1)   si = pmb->is + nx1/2-NCGHOST, ei = pmb->ie + 1;
+    else            si = pmb->is, ei = pmb->ie + 1-nx1/2 + NCGHOST;
+  } else if (nb.ni.ox1 > 0) { si = pmb->ie + 1-NCGHOST, ei = pmb->ie + 1;}
+  else              si = pmb->is,                ei = pmb->is + NCGHOST;
   if (nb.ni.ox2 == 0) {
     sj = pmb->js,    ej = pmb->je;
     if (nx2 > 1) {
       if (nb.ni.ox1 != 0) {
-        if (nb.ni.fi1 == 1) sj += nx2/2-pmb->cnghost;
-        else          ej -= nx2/2-pmb->cnghost;
+        if (nb.ni.fi1 == 1) sj += nx2/2-NCGHOST;
+        else          ej -= nx2/2-NCGHOST;
       } else {
-        if (nb.ni.fi2 == 1) sj += nx2/2-pmb->cnghost;
-        else          ej -= nx2/2-pmb->cnghost;
+        if (nb.ni.fi2 == 1) sj += nx2/2-NCGHOST;
+        else          ej -= nx2/2-NCGHOST;
       }
     }
   } else if (nb.ni.ox2 > 0) { sj = pmb->je-cn, ej = pmb->je;}
@@ -504,11 +504,11 @@ int FaceCenteredBoundaryVariable::LoadBoundaryBufferToFiner(Real *buf,
     sk = pmb->ks,    ek = pmb->ke;
     if (nx3 > 1) {
       if (nb.ni.ox1 != 0 && nb.ni.ox2 != 0) {
-        if (nb.ni.fi1 == 1) sk += nx3/2-pmb->cnghost;
-        else          ek -= nx3/2-pmb->cnghost;
+        if (nb.ni.fi1 == 1) sk += nx3/2-NCGHOST;
+        else          ek -= nx3/2-NCGHOST;
       } else {
-        if (nb.ni.fi2 == 1) sk += nx3/2-pmb->cnghost;
-        else          ek -= nx3/2-pmb->cnghost;
+        if (nb.ni.fi2 == 1) sk += nx3/2-NCGHOST;
+        else          ek -= nx3/2-NCGHOST;
       }
     }
   } else if (nb.ni.ox3 > 0) { sk = pmb->ke-cn, ek = pmb->ke;}
@@ -517,8 +517,8 @@ int FaceCenteredBoundaryVariable::LoadBoundaryBufferToFiner(Real *buf,
 
   // bx2
   if (nb.ni.ox1 == 0) {
-    if (nb.ni.fi1 == 1)   si = pmb->is + nx1/2-pmb->cnghost, ei = pmb->ie;
-    else            si = pmb->is, ei = pmb->ie-nx1/2 + pmb->cnghost;
+    if (nb.ni.fi1 == 1)   si = pmb->is + nx1/2-NCGHOST, ei = pmb->ie;
+    else            si = pmb->is, ei = pmb->ie-nx1/2 + NCGHOST;
   } else if (nb.ni.ox1 > 0) { si = pmb->ie-cn, ei = pmb->ie;}
   else              si = pmb->is,    ei = pmb->is + cn;
   if (nb.ni.ox2 == 0) {
@@ -526,15 +526,15 @@ int FaceCenteredBoundaryVariable::LoadBoundaryBufferToFiner(Real *buf,
     if (nx2 > 1) {
       ej++;
       if (nb.ni.ox1 != 0) {
-        if (nb.ni.fi1 == 1) sj += nx2/2-pmb->cnghost;
-        else          ej -= nx2/2-pmb->cnghost;
+        if (nb.ni.fi1 == 1) sj += nx2/2-NCGHOST;
+        else          ej -= nx2/2-NCGHOST;
       } else {
-        if (nb.ni.fi2 == 1) sj += nx2/2-pmb->cnghost;
-        else          ej -= nx2/2-pmb->cnghost;
+        if (nb.ni.fi2 == 1) sj += nx2/2-NCGHOST;
+        else          ej -= nx2/2-NCGHOST;
       }
     }
-  } else if (nb.ni.ox2 > 0) { sj = pmb->je + 1-pmb->cnghost, ej = pmb->je + 1;}
-  else              sj = pmb->js,                ej = pmb->js + pmb->cnghost;
+  } else if (nb.ni.ox2 > 0) { sj = pmb->je + 1-NCGHOST, ej = pmb->je + 1;}
+  else              sj = pmb->js,                ej = pmb->js + NCGHOST;
   BufferUtility::PackData((*var_fc).x2f, buf, si, ei, sj, ej, sk, ek, p);
 
   // bx3
@@ -542,11 +542,11 @@ int FaceCenteredBoundaryVariable::LoadBoundaryBufferToFiner(Real *buf,
     sj = pmb->js,    ej = pmb->je;
     if (nx2 > 1) {
       if (nb.ni.ox1 != 0) {
-        if (nb.ni.fi1 == 1) sj += nx2/2-pmb->cnghost;
-        else          ej -= nx2/2-pmb->cnghost;
+        if (nb.ni.fi1 == 1) sj += nx2/2-NCGHOST;
+        else          ej -= nx2/2-NCGHOST;
       } else {
-        if (nb.ni.fi2 == 1) sj += nx2/2-pmb->cnghost;
-        else          ej -= nx2/2-pmb->cnghost;
+        if (nb.ni.fi2 == 1) sj += nx2/2-NCGHOST;
+        else          ej -= nx2/2-NCGHOST;
       }
     }
   } else if (nb.ni.ox2 > 0) { sj = pmb->je-cn, ej = pmb->je;}
@@ -556,15 +556,15 @@ int FaceCenteredBoundaryVariable::LoadBoundaryBufferToFiner(Real *buf,
     if (nx3 > 1) {
       ek++;
       if (nb.ni.ox1 != 0 && nb.ni.ox2 != 0) {
-        if (nb.ni.fi1 == 1) sk += nx3/2-pmb->cnghost;
-        else          ek -= nx3/2-pmb->cnghost;
+        if (nb.ni.fi1 == 1) sk += nx3/2-NCGHOST;
+        else          ek -= nx3/2-NCGHOST;
       } else {
-        if (nb.ni.fi2 == 1) sk += nx3/2-pmb->cnghost;
-        else          ek -= nx3/2-pmb->cnghost;
+        if (nb.ni.fi2 == 1) sk += nx3/2-NCGHOST;
+        else          ek -= nx3/2-NCGHOST;
       }
     }
-  } else if (nb.ni.ox3 > 0) { sk = pmb->ke + 1-pmb->cnghost, ek = pmb->ke + 1;}
-  else              sk = pmb->ks,                ek = pmb->ks + pmb->cnghost;
+  } else if (nb.ni.ox3 > 0) { sk = pmb->ke + 1-NCGHOST, ek = pmb->ke + 1;}
+  else              sk = pmb->ks,                ek = pmb->ks + NCGHOST;
   BufferUtility::PackData((*var_fc).x3f, buf, si, ei, sj, ej, sk, ek, p);
 
   return p;
@@ -686,7 +686,7 @@ void FaceCenteredBoundaryVariable::SetBoundaryFromCoarser(Real *buf,
                                                           const NeighborBlock& nb) {
   MeshBlock *pmb = pmy_block_;
   int si, sj, sk, ei, ej, ek;
-  int cng = pmb->cnghost;
+  int cng = NCGHOST;
   int p = 0;
 
   // bx1
@@ -1203,7 +1203,7 @@ void FaceCenteredBoundaryVariable::SetupPersistentMPI() {
 
   int f2 = pmy_mesh_->f2, f3 = pmy_mesh_->f3;
   int cng, cng1, cng2, cng3;
-  cng  = cng1 = pmb->cnghost;
+  cng  = cng1 = NCGHOST;
   cng2 = cng*f2;
   cng3 = cng*f3;
   int ssize, rsize;

@@ -7,36 +7,43 @@
 # Makefile.in and src/defs.hpp.in respectively.
 #
 # The following options are implememted:
-#   -h  --help        help message
-#   --prob=name       use src/pgen/name.cpp as the problem generator
-#   --coord=xxx       use xxx as the coordinate system
-#   --eos=xxx         use xxx as the equation of state
-#   --flux=xxx        use xxx as the Riemann solver
-#   --nghost=xxx      set NGHOST=xxx
-#   --nscalars=xxx    set NSCALARS=xxx
-#   -eos_table        enable EOS table
-#   -b                enable magnetic fields
-#   -s                enable special relativity
-#   -g                enable general relativity
-#   -t                enable interface frame transformations for GR
-#   -debug            enable debug flags (-g -O0); override other compiler options
-#   -coverage         enable compiler-dependent code coverage flags
-#   -float            enable single precision (default is double)
-#   -mpi              enable parallelization with MPI
-#   -omp              enable parallelization with OpenMP
-#   -hdf5             enable HDF5 output (requires the HDF5 library)
-#   --hdf5_path=path  path to HDF5 libraries (requires the HDF5 library)
-#   -fft              enable FFT (requires the FFTW library)
-#   --fftw_path=path  path to FFTW libraries (requires the FFTW library)
-#   --grav=xxx        use xxx as the self-gravity solver
-#   --cxx=xxx         use xxx as the C++ compiler (works w/ or w/o -mpi)
-#   --ccmd=name       use name as the command to call the (non-MPI) C++ compiler
-#   --mpiccmd=name    use name as the command to call the MPI C++ compiler
-#   --gcovcmd=name    use name as the command to call the gcov utility
-#   --cflag=string    append string whenever invoking compiler/linker
-#   --include=path    use -Ipath when compiling
-#   --lib_path=path   use -Lpath when linking
-#   --lib=xxx         use -lxxx when linking
+#   -h  --help          help message
+#   --prob=name         use src/pgen/name.cpp as the problem generator
+#   --coord=xxx         use xxx as the coordinate system
+#   --eos=xxx           use xxx as the equation of state
+#   --flux=xxx          use xxx as the Riemann solver
+#   --nghost=xxx        set NGHOST=xxx
+#   --ncghost=xxx       set NCGHOST=xxx
+#   --nextrapolate=xxx  set NEXTRAPOLATE=xxx  [for ouflow conditions]
+#   --nscalars=xxx      set NSCALARS=xxx
+#   -eos_table          enable EOS table
+#   -f                  enable fluid
+#   -b                  enable magnetic fields
+#   -s                  enable special relativity
+#   -g                  enable general relativity
+#   -z                  enable Z4c system
+#   -t                  enable interface frame transformations for GR
+#   -debug              enable debug flags (-g -O0); override other compiler options
+#   -coverage           enable compiler-dependent code coverage flags
+#   -float              enable single precision (default is double)
+#   -mpi                enable parallelization with MPI
+#   -omp                enable parallelization with OpenMP
+#   -hdf5               enable HDF5 output (requires the HDF5 library)
+#   --hdf5_path=path    path to HDF5 libraries (requires the HDF5 library)
+#   -fft                enable FFT (requires the FFTW library)
+#   --fftw_path=path    path to FFTW libraries (requires the FFTW library)
+#   -gsl                enable GNU scientific library (requires the gsl library)
+#   --gsl_path=path     path to gsl libraries (requires the gsl library)
+#   --grav=xxx          use xxx as the self-gravity solver
+#   --cxx=xxx           use xxx as the C++ compiler
+#   --ccmd=name         use name as the command to call the (non-MPI) C++ compiler
+#   --mpiccmd=name      use name as the command to call the MPI C++ compiler
+#   --gcovcmd=name      use name as the command to call the gcov utility
+#   --cflag=string      append string whenever invoking compiler/linker
+#   --include=path      use -Ipath when compiling
+#   --lib_path=path     use -Lpath when linking
+#   --lib=xxx           use -lxxx when linking
+#   -rpath              encode the path to the shared libraries into the executable
 # ----------------------------------------------------------------------------------------
 
 # Modules
@@ -64,7 +71,7 @@ parser = argparse.ArgumentParser(description=athena_description, epilog=athena_e
 # --prob=[name] argument
 pgen_directory = 'src/pgen/'
 # set pgen_choices to list of .cpp files in src/pgen/
-pgen_choices = glob.glob(pgen_directory + '*.cpp')
+pgen_choices = sorted(glob.glob(pgen_directory + '*.cpp'))
 # remove 'src/pgen/' prefix and '.cpp' extension from each filename
 pgen_choices = [choice[len(pgen_directory):-4] for choice in pgen_choices]
 parser.add_argument('--prob',
@@ -104,12 +111,29 @@ parser.add_argument('--flux',
 # --nghost=[value] argument
 parser.add_argument('--nghost',
                     default='2',
+                    choices=['2', '3', '4', '5', '6', '7'],
                     help='set number of ghost zones')
+
+# --ncghost=[value] argument
+parser.add_argument('--ncghost',
+                    default='default',
+                    help='set number of coarse ghost zones')
+
+# --nextrapolate=[value] argument
+parser.add_argument('--nextrapolate',
+                    default='default',
+                    help='number of points to use for outflow extrapolation (defaults to nghosts + 1)')
 
 # --nscalars=[value] argument
 parser.add_argument('--nscalars',
                     default='0',
                     help='set number of passive scalars')
+
+# -f argument
+parser.add_argument('-f',
+                    action='store_true',
+                    default=False,
+                    help='enable fluid')
 
 # -b argument
 parser.add_argument('-b',
@@ -135,11 +159,29 @@ parser.add_argument('-g',
                     default=False,
                     help='enable general relativity')
 
+# -z argument
+parser.add_argument("-z",
+                    action='store_true',
+                    default=False,
+                    help='enable Z4c system')
+
 # -t argument
 parser.add_argument('-t',
                     action='store_true',
                     default=False,
                     help='enable interface frame transformations for GR')
+
+# -ref_box_in_box argument
+parser.add_argument("-ref_box_in_box",
+                    action='store_true',
+                    default=True,
+                    help='use box-in-box refinement')
+
+# -ref_spheres argument
+parser.add_argument("-ref_spheres",
+                    action='store_true',
+                    default=False,
+                    help='use sphere refinement (disables box-in-box)')
 
 # -debug argument
 parser.add_argument('-debug',
@@ -204,6 +246,29 @@ parser.add_argument('-h5double',
 parser.add_argument('--hdf5_path',
                     default='',
                     help='path to HDF5 libraries')
+
+## two_punctures_argument
+parser.add_argument('--two_punctures_path',
+                    default='',
+                    help='path to two_punctures library')
+
+# -gsl argument
+parser.add_argument('-gsl',
+                    action='store_true',
+                    default=False,
+                    help='enable GNU scientific library')
+
+# --gsl_path argument
+parser.add_argument('--gsl_path',
+                    default='',
+                    help='path to gsl libraries')
+
+# -rpath
+parser.add_argument('-rpath',
+                    action='store_true',
+                    default=False,
+                    help="encode the path to the shared libraries into the executable")
+
 
 # The main choices for --cxx flag, using "ctype[-suffix]" formatting, where "ctype" is the
 # major family/suite/group of compilers and "suffix" may represent variants of the
@@ -350,6 +415,17 @@ if args['eos'][:8] == 'general/':
         raise SystemExit('### CONFIGURE ERROR: '
                          + 'General EOS is incompatible with flux ' + args['flux'])
 
+# Check STS
+if args['sts'] and not args['f']:
+    raise SystemExit("### CONFIGURE ERROR: STS requires the fluid to be enabled")
+
+# Check Z4c
+if args['z']:
+    if args['coord'] != "cartesian":
+        raise SystemExit("### CONFIGURE ERROR: Z4c requires Cartesian coordinates")
+    if args["f"] or args["b"] or args["s"] or args["g"]:
+        raise SystemExit("### CONFIGURE ERROR: Z4c only supports vacuum spacetimes for now")
+
 # --- Step 3. Set definitions and Makefile options based on above argument
 
 # Prepare dictionaries of substitutions to be made
@@ -388,8 +464,28 @@ definitions['RSOLVER'] = makefile_options['RSOLVER_FILE'] = args['flux']
 # --nghost=[value] argument
 definitions['NUMBER_GHOST_CELLS'] = args['nghost']
 
+# --cnghost=[value] argument
+if args['ncghost'].isnumeric():
+    definitions['NUMBER_COARSE_GHOSTS'] = args['ncghost']
+else:
+    # Default values for the number of coarse ghost zones
+    cnghosts = {'2': '2', '3': '3', '4': '4', '5': '5', '6': '7', '7': '8'}
+    definitions['NUMBER_COARSE_GHOSTS'] = cnghosts[args['nghost']]
+
+# --nextrapolate=[value] argument
+if args['nextrapolate'].isnumeric():
+    definitions['NUMBER_EXTRAPOLATION_POINTS'] = args['nextrapolate']
+else:
+    definitions['NUMBER_EXTRAPOLATION_POINTS'] = str(int(args['nghost']) + 1)
+
 # --nscalars=[value] argument
 definitions['NUMBER_PASSIVE_SCALARS'] = args['nscalars']
+
+# -f argument
+if args['f']:
+    definitions['FLUID_ENABLED'] = '1'
+else:
+    definitions['FLUID_ENABLED'] = '0'
 
 # -b argument
 # set variety of macros based on whether MHD/hydro or adi/iso are defined
@@ -444,6 +540,28 @@ if args['g']:
     makefile_options['RSOLVER_FILE'] += '_rel'
     if not args['t']:
         makefile_options['RSOLVER_FILE'] += '_no_transform'
+
+
+# -z argument
+if args['z']:
+  definitions['Z4C_ENABLED'] = '1'
+  try:
+      if not int(args['nghost']) >= 2:
+          raise Exception
+  except:
+      raise SystemExit("### CONFIGURE ERROR: Z4c requires 2 or more ghost zones")
+else:
+  definitions['Z4C_ENABLED'] = '0'
+
+# -ref_box_in_box / ref_spheres arguments
+if args['ref_spheres']:
+    args['ref_box_in_box'] = False
+    definitions['Z4C_REF_BOX_IN_BOX'] = 'NO_Z4C_REF_BOX_IN_BOX'
+    definitions['Z4C_REF_SPHERES'] = 'Z4C_REF_SPHERES'
+
+if args['ref_box_in_box']:
+    definitions['Z4C_REF_BOX_IN_BOX'] = 'Z4C_REF_BOX_IN_BOX'
+    definitions['Z4C_REF_SPHERES'] = 'NO_Z4C_REF_SPHERES'
 
 # --cxx=[name] argument
 if args['cxx'] == 'g++':
@@ -749,6 +867,41 @@ if args['h5double']:
 else:
     definitions['H5_DOUBLE_PRECISION_ENABLED'] = '0'
 
+if args['prob'] == "z4c_two_punctures":
+    if not args['gsl']:
+        raise SystemExit('### CONFIGURE ERROR: To compile with two punctures -gsl is required.')
+
+    definitions['TWO_PUNCTURES_OPTION'] = 'TWO_PUNCTURES'
+
+    # library name
+    libtwopunc_name = 'TwoPunctures'
+
+    # add to flags
+    if args['two_punctures_path'] != '':
+        makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/include'.format(
+            args['two_punctures_path'])
+        makefile_options['LINKER_FLAGS'] += ' -L{0}/lib'.format(args['two_punctures_path'])
+        if args['rpath']:
+            makefile_options['LINKER_FLAGS'] += ' -Wl,-rpath {0}/lib'.format(args['two_punctures_path'])
+
+    makefile_options['LIBRARY_FLAGS'] += ' -l{lib_name}'.format(lib_name=libtwopunc_name)
+else:
+    definitions['TWO_PUNCTURES_OPTION'] = 'NO_TWO_PUNCTURES'
+    if args['prob'] == 'z4c_one_puncture':
+        definitions['TWO_PUNCTURES_OPTION'] = definitions['TWO_PUNCTURES_OPTION']
+
+
+definitions['GSL_OPTION'] = 'NO_GSL'
+if args['gsl']:
+    definitions['GSL_OPTION'] = 'GSL'
+    if args['gsl_path'] != '':
+        makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/include'.format(
+            args['gsl_path'])
+        makefile_options['LINKER_FLAGS'] += ' -L{0}/lib'.format(args['gsl_path'])
+        if args['rpath']:
+            makefile_options['LINKER_FLAGS'] += ' -Wl,-rpath {0}/lib'.format(args['gsl_path'])
+    makefile_options['LIBRARY_FLAGS'] += ' -lgsl -lgslcblas'
+
 # --cflag=[string] argument
 if args['cflag'] is not None:
     makefile_options['COMPILER_FLAGS'] += ' '+args['cflag']
@@ -760,6 +913,8 @@ for include_path in args['include']:
 # --lib_path=[name] arguments
 for library_path in args['lib_path']:
     makefile_options['LINKER_FLAGS'] += ' -L'+library_path
+    if args['rpath']:
+        makefile_options['LINKER_FLAGS'] += ' -Wl,-rpath '+library_path
 
 # --lib=[name] arguments
 for library_name in args['lib']:
@@ -805,29 +960,37 @@ if args['grav'] == 'fft':
     self_grav_string = 'FFT'
 
 print('Your Athena++ distribution has now been configured with the following options:')
-print('  Problem generator:          ' + args['prob'])
-print('  Coordinate system:          ' + args['coord'])
-print('  Equation of state:          ' + args['eos'])
-print('  Riemann solver:             ' + args['flux'])
-print('  Magnetic fields:            ' + ('ON' if args['b'] else 'OFF'))
-print('  Number of scalars:          ' + args['nscalars'])
-print('  Special relativity:         ' + ('ON' if args['s'] else 'OFF'))
-print('  General relativity:         ' + ('ON' if args['g'] else 'OFF'))
-print('  Frame transformations:      ' + ('ON' if args['t'] else 'OFF'))
-print('  Self-Gravity:               ' + self_grav_string)
-print('  Super-Time-Stepping:        ' + ('ON' if args['sts'] else 'OFF'))
-print('  Debug flags:                ' + ('ON' if args['debug'] else 'OFF'))
-print('  Code coverage flags:        ' + ('ON' if args['coverage'] else 'OFF'))
-print('  Linker flags:               ' + makefile_options['LINKER_FLAGS'] + ' '
+print('  Problem generator:            ' + args['prob'])
+print('  Coordinate system:            ' + args['coord'])
+print('  Equation of state:            ' + args['eos'])
+print('  Riemann solver:               ' + args['flux'])
+print('  Hydrodynamics:                ' + ('ON' if args['f'] else 'OFF'))
+print('  Magnetic fields:              ' + ('ON' if args['b'] else 'OFF'))
+print('  Number of scalars:            ' + args['nscalars'])
+print('  Special relativity:           ' + ('ON' if args['s'] else 'OFF'))
+print('  General relativity:           ' + ('ON' if args['g'] else 'OFF'))
+print('  Z4c equations:                ' + ('ON' if args['z'] else 'OFF'))
+if args['z']:
+    print('  Z4c refinement strategy:      ' + ('box-in-box' if args['ref_box_in_box']
+                                                else 'spheres'))
+print('  Frame transformations:        ' + ('ON' if args['t'] else 'OFF'))
+print('  Self-Gravity:                 ' + self_grav_string)
+print('  Super-Time-Stepping:          ' + ('ON' if args['sts'] else 'OFF'))
+print('  Debug flags:                  ' + ('ON' if args['debug'] else 'OFF'))
+print('  Code coverage flags:          ' + ('ON' if args['coverage'] else 'OFF'))
+print('  Linker flags:                 ' + makefile_options['LINKER_FLAGS'] + ' '
       + makefile_options['LIBRARY_FLAGS'])
-print('  Floating-point precision:   ' + ('single' if args['float'] else 'double'))
-print('  Number of ghost cells:      ' + args['nghost'])
-print('  MPI parallelism:            ' + ('ON' if args['mpi'] else 'OFF'))
-print('  OpenMP parallelism:         ' + ('ON' if args['omp'] else 'OFF'))
-print('  FFT:                        ' + ('ON' if args['fft'] else 'OFF'))
-print('  HDF5 output:                ' + ('ON' if args['hdf5'] else 'OFF'))
+print('  Floating-point precision:     ' + ('single' if args['float'] else 'double'))
+print('  Number of ghost cells:        ' + args['nghost'])
+print('  Number of coarse ghosts:      ' + definitions['NUMBER_COARSE_GHOSTS'])
+print('  Total # extrapolation points: ' + definitions['NUMBER_EXTRAPOLATION_POINTS'])
+print('  MPI parallelism:              ' + ('ON' if args['mpi'] else 'OFF'))
+print('  OpenMP parallelism:           ' + ('ON' if args['omp'] else 'OFF'))
+print('  FFT:                          ' + ('ON' if args['fft'] else 'OFF'))
+print('  HDF5 output:                  ' + ('ON' if args['hdf5'] else 'OFF'))
 if args['hdf5']:
-    print('  HDF5 precision:             ' + ('double' if args['h5double'] else 'single'))
-print('  Compiler:                   ' + args['cxx'])
-print('  Compilation command:        ' + makefile_options['COMPILER_COMMAND'] + ' '
+    print('  HDF5 precision:               ' + ('double' if args['h5double'] else 'single'))
+print('  GSL enabled:                  ' + ('ON' if args['gsl'] else 'OFF'))
+print('  Compiler:                     ' + args['cxx'])
+print('  Compilation command:          ' + makefile_options['COMPILER_COMMAND'] + ' '
       + makefile_options['PREPROCESSOR_FLAGS'] + ' ' + makefile_options['COMPILER_FLAGS'])

@@ -44,6 +44,9 @@
 #include "parameter_input.hpp"
 #include "utils/utils.hpp"
 
+#include "z4c/wave_extract.hpp"
+#include "z4c/puncture_tracker.hpp"
+
 // MPI/OpenMP headers
 #ifdef MPI_PARALLEL
 #include <mpi.h>
@@ -322,12 +325,14 @@ int main(int argc, char *argv[]) {
 
   //--- Step 5. --------------------------------------------------------------------------
   // Construct and initialize TaskList
+  TimeIntegratorTaskList *ptlist = nullptr;
 
-  TimeIntegratorTaskList *ptlist;
 #ifdef ENABLE_EXCEPTIONS
   try {
 #endif
-    ptlist = new TimeIntegratorTaskList(pinput, pmesh);
+    if(FLUID_ENABLED){
+      ptlist = new TimeIntegratorTaskList(pinput, pmesh);
+    }
 #ifdef ENABLE_EXCEPTIONS
   }
   catch(std::bad_alloc& ba) {
@@ -339,6 +344,27 @@ int main(int argc, char *argv[]) {
     return(0);
   }
 #endif // ENABLE_EXCEPTIONS
+
+  Z4cIntegratorTaskList *pz4clist = nullptr;
+
+#ifdef ENABLE_EXCEPTIONS
+  try {
+#endif
+    if(Z4C_ENABLED) { // only init. when required
+      pz4clist = new Z4cIntegratorTaskList(pinput, pmesh);
+    }
+#ifdef ENABLE_EXCEPTIONS
+  }
+  catch(std::bad_alloc& ba) {
+    std::cout << "### FATAL ERROR in main" << std::endl << "memory allocation failed "
+              << "in creating task list " << ba.what() << std::endl;
+#ifdef MPI_PARALLEL
+    MPI_Finalize();
+#endif
+    return(0);
+  }
+#endif // ENABLE_EXCEPTIONS
+
 
   SuperTimeStepTaskList *pststlist = nullptr;
   if (STS_ENABLED) {
@@ -366,6 +392,7 @@ int main(int argc, char *argv[]) {
   try {
 #endif
     pmesh->Initialize(res_flag, pinput);
+    pmesh->DeleteTemporaryUserMeshData();
 #ifdef ENABLE_EXCEPTIONS
   }
   catch(std::bad_alloc& ba) {
@@ -427,6 +454,13 @@ int main(int argc, char *argv[]) {
   double omp_start_time = omp_get_wtime();
 #endif
 
+  // BD: populate z4c struct carrying output dt for various quantities
+  // This controls computation of quantities within the main tasklist
+  if (Z4C_ENABLED) {
+    Real dt_con = pouts->GetOutputTimeStep("con");
+    pz4clist->TaskListTriggers.con.dt = dt_con;
+  }
+
   while ((pmesh->time < pmesh->tlim) &&
          (pmesh->nlim < 0 || pmesh->ncycle < pmesh->nlim)) {
     if (Globals::my_rank == 0)
@@ -454,27 +488,56 @@ int main(int argc, char *argv[]) {
       pmesh->sts_loc = TaskType::main_int;
     }
 
-    if (pmesh->turb_flag > 1) pmesh->ptrbd->Driving(); // driven turbulence
+    if (FLUID_ENABLED) {
+      if (pmesh->turb_flag > 1) pmesh->ptrbd->Driving(); // driven turbulence
 
-    for (int stage=1; stage<=ptlist->nstages; ++stage) {
-      ptlist->DoTaskListOneStage(pmesh, stage);
-      if (ptlist->CheckNextMainStage(stage)) {
-        if (SELF_GRAVITY_ENABLED == 1) // fft (0: discrete kernel, 1: continuous kernel)
-          pmesh->pfgrd->Solve(stage, 0);
-        else if (SELF_GRAVITY_ENABLED == 2) // multigrid
-          pmesh->pmgrd->Solve(stage);
+      for (int stage=1; stage<=ptlist->nstages; ++stage) {
+        ptlist->DoTaskListOneStage(pmesh, stage);
+        if (ptlist->CheckNextMainStage(stage)) {
+          if (SELF_GRAVITY_ENABLED == 1) // fft (0: discrete kernel, 1: continuous kernel)
+            pmesh->pfgrd->Solve(stage, 0);
+          else if (SELF_GRAVITY_ENABLED == 2) // multigrid
+            pmesh->pmgrd->Solve(stage);
+        }
+      }
+
+      if (STS_ENABLED && pmesh->sts_integrator == "rkl2") {
+        pmesh->sts_loc = TaskType::op_split_after;
+        // take super-timestep
+        for (int stage=1; stage<=pststlist->nstages; ++stage)
+          pststlist->DoTaskListOneStage(pmesh, stage);
       }
     }
 
-    if (STS_ENABLED && pmesh->sts_integrator == "rkl2") {
-      pmesh->sts_loc = TaskType::op_split_after;
-      // take super-timestep
-      for (int stage=1; stage<=pststlist->nstages; ++stage)
-        pststlist->DoTaskListOneStage(pmesh, stage);
+    if (Z4C_ENABLED) {
+      // This effectively means hydro takes a time-step and _then_ the given problem takes one
+      for (int stage=1; stage<=pz4clist->nstages; ++stage) {
+        pz4clist->DoTaskListOneStage(pmesh, stage);
+      }
+
+      // BD: TODO - check that the following are not displaced by \dt ?
+      // only do an extraction if NextTime threshold cleared (updated below)
+      if (pz4clist->TaskListTriggers.wave_extraction.to_update) {
+        for (auto pwextr : pmesh->pwave_extr) {
+          pwextr->ReduceMultipole();
+          pwextr->Write(pmesh->ncycle, pmesh->time);
+        }
+      }
+
+      // TODO: probably we do not want to output tracker data at every timestep
+      for (auto ptracker : pmesh->pz4c_tracker) {
+        ptracker->EvolveTracker();
+        ptracker->WriteTracker(pmesh->ncycle, pmesh->time);
+      }
+
+      //-------------------------------------------------------------------------
+      // Update NextTime triggers
+      // This needs to be here to share tasklist external (though coupled) ops.
+      pz4clist->UpdateTaskListTriggers();
+      //-------------------------------------------------------------------------
     }
 
     pmesh->UserWorkInLoop();
-
     pmesh->ncycle++;
     pmesh->time += pmesh->dt;
     mbcnt += pmesh->nbtotal;
@@ -599,6 +662,7 @@ int main(int argc, char *argv[]) {
   delete pinput;
   delete pmesh;
   delete ptlist;
+  delete pz4clist;
   delete pouts;
 
 #ifdef MPI_PARALLEL

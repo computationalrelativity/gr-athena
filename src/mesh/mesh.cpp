@@ -52,6 +52,10 @@
 #include "mesh_refinement.hpp"
 #include "meshblock_tree.hpp"
 
+#include "../z4c/z4c.hpp"
+#include "../z4c/puncture_tracker.hpp"
+#include "../z4c/wave_extract.hpp"
+
 // MPI/OpenMP header
 #ifdef MPI_PARALLEL
 #include <mpi.h>
@@ -63,6 +67,7 @@
 Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     // public members:
     // aggregate initialization of RegionSize struct:
+    resume_flag(false),
     mesh_size{pin->GetReal("mesh", "x1min"), pin->GetReal("mesh", "x2min"),
               pin->GetReal("mesh", "x3min"), pin->GetReal("mesh", "x1max"),
               pin->GetReal("mesh", "x2max"), pin->GetReal("mesh", "x3max"),
@@ -317,7 +322,22 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
   } else {
     max_level = 63;
   }
-
+  if (Z4C_ENABLED) {
+    int nrad = pin->GetOrAddInteger("z4c", "nrad_wave_extraction", 0);
+    if (nrad > 0) {
+      pwave_extr.reserve(nrad);
+      for(int n = 0; n < nrad; ++n){
+        pwave_extr.push_back(new WaveExtract(this, pin, n));
+      }
+    }
+    int npunct = pin->GetOrAddInteger("z4c", "npunct", 0);
+    if (npunct > 0) {
+      pz4c_tracker.reserve(npunct);
+      for (int n = 0; n < npunct; ++n) {
+        pz4c_tracker.push_back(new PunctureTracker(this, pin, n));
+      }
+    }
+  }
   if (EOS_TABLE_ENABLED) peos_table = new EosTable(pin);
   InitUserMeshData(pin);
 
@@ -556,6 +576,7 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     // public members:
     // aggregate initialization of RegionSize struct:
     // (will be overwritten by memcpy from restart file, in this case)
+    resume_flag(true),
     mesh_size{pin->GetReal("mesh", "x1min"), pin->GetReal("mesh", "x2min"),
               pin->GetReal("mesh", "x3min"), pin->GetReal("mesh", "x1max"),
               pin->GetReal("mesh", "x2max"), pin->GetReal("mesh", "x3max"),
@@ -724,6 +745,23 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     max_level = 63;
   }
 
+  if (Z4C_ENABLED) {
+    int nrad = pin->GetOrAddInteger("z4c", "nrad_wave_extraction", 0);
+    if (nrad > 0) {
+      pwave_extr.reserve(nrad);
+      for(int n = 0; n < nrad; ++n) {
+        pwave_extr.push_back(new WaveExtract(this, pin, n));
+      }
+    }
+    int npunct = pin->GetOrAddInteger("z4c", "npunct", 0);
+    if (npunct > 0) {
+      pz4c_tracker.reserve(npunct);
+      for (int n = 0; n < npunct; ++n) {
+        pz4c_tracker.push_back(new PunctureTracker(this, pin, n));
+      }
+    }
+  }
+
   if (EOS_TABLE_ENABLED) peos_table = new EosTable(pin);
   InitUserMeshData(pin);
 
@@ -733,6 +771,7 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     udsize += iuser_mesh_data[n].GetSizeInBytes();
   for (int n=0; n<nreal_user_mesh_data_; n++)
     udsize += ruser_mesh_data[n].GetSizeInBytes();
+  udsize += 2*NDIM*sizeof(Real)*pz4c_tracker.size();
   if (udsize != 0) {
     char *userdata = new char[udsize];
     if (Globals::my_rank == 0) { // only the master process reads the ID list
@@ -757,6 +796,12 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
       std::memcpy(ruser_mesh_data[n].data(), &(userdata[udoffset]),
                   ruser_mesh_data[n].GetSizeInBytes());
       udoffset += ruser_mesh_data[n].GetSizeInBytes();
+    }
+    for (auto ptracker : pz4c_tracker) {
+      std::memcpy(ptracker->pos, &userdata[udoffset], NDIM*sizeof(Real));
+      udoffset += NDIM*sizeof(Real);
+      std::memcpy(ptracker->betap, &userdata[udoffset], NDIM*sizeof(Real));
+      udoffset += NDIM*sizeof(Real);
     }
     delete [] userdata;
   }
@@ -909,6 +954,18 @@ Mesh::~Mesh() {
   if (SELF_GRAVITY_ENABLED == 1) delete pfgrd;
   else if (SELF_GRAVITY_ENABLED == 2) delete pmgrd;
   if (turb_flag > 0) delete ptrbd;
+
+  if (Z4C_ENABLED) {
+    for (auto pwextr : pwave_extr) {
+      delete pwextr;
+    }
+    pwave_extr.resize(0);
+    for (auto tracker : pz4c_tracker) {
+      delete tracker;
+    }
+    pz4c_tracker.resize(0);
+  }
+
   if (adaptive) { // deallocate arrays for AMR
     delete [] nref;
     delete [] nderef;
@@ -1419,27 +1476,34 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         }
         pbval->StartReceivingSubset(BoundaryCommSubset::mesh_init,
                                     pbval->bvars_main_int);
+        pbval->StartReceivingSubset(BoundaryCommSubset::mesh_init,
+                                    pbval->bvars_main_int_vc);
       }
 
       // send conserved variables
 #pragma omp for private(pmb,pbval)
       for (int i=0; i<nblocal; ++i) {
         pmb = my_blocks(i); pbval = pmb->pbval;
-        pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->u,
+        if (FLUID_ENABLED) {
+          pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->u,
                                                HydroBoundaryQuantity::cons);
-        pmb->phydro->hbvar.SendBoundaryBuffers();
+          pmb->phydro->hbvar.SendBoundaryBuffers();
+        }
         if (MAGNETIC_FIELDS_ENABLED)
           pmb->pfield->fbvar.SendBoundaryBuffers();
         // and (conserved variable) passive scalar masses:
         if (NSCALARS > 0)
           pmb->pscalars->sbvar.SendBoundaryBuffers();
+        if (Z4C_ENABLED)
+          pmb->pz4c->ubvar.SendBoundaryBuffers();
       }
 
       // wait to receive conserved variables
 #pragma omp for private(pmb,pbval)
       for (int i=0; i<nblocal; ++i) {
         pmb = my_blocks(i); pbval = pmb->pbval;
-        pmb->phydro->hbvar.ReceiveAndSetBoundariesWithWait();
+        if (FLUID_ENABLED)
+          pmb->phydro->hbvar.ReceiveAndSetBoundariesWithWait();
         if (MAGNETIC_FIELDS_ENABLED)
           pmb->pfield->fbvar.ReceiveAndSetBoundariesWithWait();
         if (NSCALARS > 0)
@@ -1447,8 +1511,12 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         if (shear_periodic && orbital_advection==0) {
           pmb->phydro->hbvar.AddHydroShearForInit();
         }
+        if (Z4C_ENABLED)
+          pmb->pz4c->ubvar.ReceiveAndSetBoundariesWithWait();
         pbval->ClearBoundarySubset(BoundaryCommSubset::mesh_init,
                                    pbval->bvars_main_int);
+        pbval->ClearBoundarySubset(BoundaryCommSubset::mesh_init,
+                                   pbval->bvars_main_int_vc);
       }
 
       // With AMR/SMR GR send primitives to enable cons->prim before prolongation
@@ -1459,53 +1527,60 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           pmb = my_blocks(i); pbval = pmb->pbval;
           pbval->StartReceivingSubset(BoundaryCommSubset::gr_amr,
                                       pbval->bvars_main_int);
+          // VC would go here
         }
 
-        // send primitives
+        if(FLUID_ENABLED) {
+          // send primitives
 #pragma omp for private(pmb,pbval)
-        for (int i=0; i<nblocal; ++i) {
-          pmb = my_blocks(i); pbval = pmb->pbval;
-          pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->w,
-                                               HydroBoundaryQuantity::prim);
-          pmb->phydro->hbvar.SendBoundaryBuffers();
-          if (NSCALARS > 0) {
-            pmb->pscalars->sbvar.var_cc = &(pmb->pscalars->r);
-            pmb->pscalars->sbvar.SendBoundaryBuffers();
+          for (int i=0; i<nblocal; ++i) {
+            pmb = my_blocks(i); pbval = pmb->pbval;
+            pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->w,
+                                                 HydroBoundaryQuantity::prim);
+            pmb->phydro->hbvar.SendBoundaryBuffers();
+            if (NSCALARS > 0) {
+              pmb->pscalars->sbvar.var_cc = &(pmb->pscalars->r);
+              pmb->pscalars->sbvar.SendBoundaryBuffers();
+            }
           }
-        }
 
-        // wait to receive AMR/SMR GR primitives
+          // wait to receive AMR/SMR GR primitives
 #pragma omp for private(pmb,pbval)
-        for (int i=0; i<nblocal; ++i) {
-          pmb = my_blocks(i); pbval = pmb->pbval;
-          pmb->phydro->hbvar.ReceiveAndSetBoundariesWithWait();
-          if (NSCALARS > 0) {
-            pmb->pscalars->sbvar.ReceiveAndSetBoundariesWithWait();
-          }
-          pbval->ClearBoundarySubset(BoundaryCommSubset::gr_amr,
-                                     pbval->bvars_main_int);
-          pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->u,
-                                               HydroBoundaryQuantity::cons);
-          if (NSCALARS > 0) {
-            pmb->pscalars->sbvar.var_cc = &(pmb->pscalars->s);
+          for (int i=0; i<nblocal; ++i) {
+            pmb = my_blocks(i); pbval = pmb->pbval;
+            pmb->phydro->hbvar.ReceiveAndSetBoundariesWithWait();
+            if (NSCALARS > 0) {
+              pmb->pscalars->sbvar.ReceiveAndSetBoundariesWithWait();
+            }
+            pbval->ClearBoundarySubset(BoundaryCommSubset::gr_amr,
+                                       pbval->bvars_main_int);
+            pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->u,
+                                                 HydroBoundaryQuantity::cons);
+            if (NSCALARS > 0) {
+              pmb->pscalars->sbvar.var_cc = &(pmb->pscalars->s);
+            }
           }
         }
       } // multilevel
 
-      // perform fourth-order correction of midpoint initial condition:
-      // (correct IC on all MeshBlocks or none; switch cannot be toggled independently)
-      bool correct_ic = my_blocks(0)->precon->correct_ic;
-      if (correct_ic)
-        CorrectMidpointInitialCondition();
+      if (FLUID_ENABLED) {
+        // perform fourth-order correction of midpoint initial condition:
+        // (correct IC on all MeshBlocks or none; switch cannot be toggled independently)
+        bool correct_ic = my_blocks(0)->precon->correct_ic;
+        if (correct_ic)
+          CorrectMidpointInitialCondition();
+      }
 
       // Initiate orbital advection
+      if (FLUID_ENABLED) {
 #pragma omp for private(pmb)
-      for (int i=0; i<nblocal; ++i) {
-        pmb = my_blocks(i);
-        if (pmb->porb->orbital_advection_defined) {
-          pmb->porb->InitializeOrbitalAdvection();
-          if (pmb->porb->orbital_advection_active)
-            pmb->porb->orb_bc->SetupPersistentMPI();
+        for (int i=0; i<nblocal; ++i) {
+          pmb = my_blocks(i);
+          if (pmb->porb->orbital_advection_defined) {
+            pmb->porb->InitializeOrbitalAdvection();
+            if (pmb->porb->orbital_advection_active)
+              pmb->porb->orb_bc->SetupPersistentMPI();
+          }
         }
       }
 
@@ -1513,12 +1588,17 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       Hydro *ph;
       Field *pf;
       PassiveScalars *ps;
+      Z4c *pz4c;
 #pragma omp for private(pmb,pbval,ph,pf,ps)
       for (int i=0; i<nblocal; ++i) {
         pmb = my_blocks(i);
-        pbval = pmb->pbval, ph = pmb->phydro, pf = pmb->pfield, ps = pmb->pscalars;
-        if (multilevel)
-          pbval->ProlongateBoundaries(time, 0.0, pbval->bvars_main_int);
+        pbval = pmb->pbval, ph = pmb->phydro, pf = pmb->pfield, ps = pmb->pscalars, pz4c = pmb->pz4c;
+        if (multilevel) {
+          if (FLUID_ENABLED)
+            pbval->ProlongateBoundaries(time, 0.0, pbval->bvars_main_int);
+          if (Z4C_ENABLED)
+            pbval->ProlongateBoundaries(time, 0.0, pbval->bvars_main_int_vc);
+        }
 
         int il = pmb->is, iu = pmb->ie,
             jl = pmb->js, ju = pmb->je,
@@ -1533,9 +1613,11 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           if (pbval->nblevel[0][1][1] != -1) kl -= NGHOST;
           if (pbval->nblevel[2][1][1] != -1) ku += NGHOST;
         }
-        pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b,
-                                        ph->w, pf->bcc, pmb->pcoord,
-                                        il, iu, jl, ju, kl, ku);
+        if (FLUID_ENABLED) {
+          pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b,
+                                          ph->w, pf->bcc, pmb->pcoord,
+                                          il, iu, jl, ju, kl, ku);
+        }
         if (NSCALARS > 0) {
           // r1/r_old for GR is currently unused:
           pmb->peos->PassiveScalarConservedToPrimitive(ps->s, ph->u, ps->r, ps->r,
@@ -1543,54 +1625,63 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
                                                        il, iu, jl, ju, kl, ku);
         }
         // --------------------------
-        int order = pmb->precon->xorder;
-        if (order == 4) {
-          // fourth-order EOS:
-          // for hydro, shrink buffer by 1 on all sides
-          if (pbval->nblevel[1][1][0] != -1) il += 1;
-          if (pbval->nblevel[1][1][2] != -1) iu -= 1;
-          if (pbval->nblevel[1][0][1] != -1) jl += 1;
-          if (pbval->nblevel[1][2][1] != -1) ju -= 1;
-          if (pbval->nblevel[0][1][1] != -1) kl += 1;
-          if (pbval->nblevel[2][1][1] != -1) ku -= 1;
-          // for MHD, shrink buffer by 3
-          //! \todo (felker):
-          //! * add MHD loop limit calculation for 4th order W(U)
-          // Apply physical boundaries prior to 4th order W(U)
-          ph->hbvar.SwapHydroQuantity(ph->w, HydroBoundaryQuantity::prim);
-          if (NSCALARS > 0)
-            ps->sbvar.var_cc = &(ps->r);
-          pbval->ApplyPhysicalBoundaries(time, 0.0, pbval->bvars_main_int);
-          // Perform 4th order W(U)
-          pmb->peos->ConservedToPrimitiveCellAverage(ph->u, ph->w1, pf->b,
-                                                     ph->w, pf->bcc, pmb->pcoord,
-                                                     il, iu, jl, ju, kl, ku);
-          if (NSCALARS > 0) {
-            pmb->peos->PassiveScalarConservedToPrimitiveCellAverage(
-                ps->s, ps->r, ps->r, pmb->pcoord, il, iu, jl, ju, kl, ku);
+        if (FLUID_ENABLED) {
+          int order = pmb->precon->xorder;
+          if (order == 4) {
+            // fourth-order EOS:
+            // for hydro, shrink buffer by 1 on all sides
+            if (pbval->nblevel[1][1][0] != -1) il += 1;
+            if (pbval->nblevel[1][1][2] != -1) iu -= 1;
+            if (pbval->nblevel[1][0][1] != -1) jl += 1;
+            if (pbval->nblevel[1][2][1] != -1) ju -= 1;
+            if (pbval->nblevel[0][1][1] != -1) kl += 1;
+            if (pbval->nblevel[2][1][1] != -1) ku -= 1;
+            // for MHD, shrink buffer by 3
+            //! \todo (felker):
+            //! * add MHD loop limit calculation for 4th order W(U)
+            // Apply physical boundaries prior to 4th order W(U)
+            ph->hbvar.SwapHydroQuantity(ph->w, HydroBoundaryQuantity::prim);
+            if (NSCALARS > 0)
+              ps->sbvar.var_cc = &(ps->r);
+            pbval->ApplyPhysicalBoundaries(time, 0.0, pbval->bvars_main_int);
+            // Perform 4th order W(U)
+            pmb->peos->ConservedToPrimitiveCellAverage(ph->u, ph->w1, pf->b,
+                                                       ph->w, pf->bcc, pmb->pcoord,
+                                                       il, iu, jl, ju, kl, ku);
+            if (NSCALARS > 0) {
+              pmb->peos->PassiveScalarConservedToPrimitiveCellAverage(
+                  ps->s, ps->r, ps->r, pmb->pcoord, il, iu, jl, ju, kl, ku);
+            }
           }
         }
         // --------------------------
         // end fourth-order EOS
 
-        // Swap Hydro and (possibly) passive scalar quantities in BoundaryVariable
-        // interface from conserved to primitive formulations:
-        ph->hbvar.SwapHydroQuantity(ph->w, HydroBoundaryQuantity::prim);
+        if (FLUID_ENABLED) {
+          // Swap Hydro and (possibly) passive scalar quantities in BoundaryVariable
+          // interface from conserved to primitive formulations:
+          ph->hbvar.SwapHydroQuantity(ph->w, HydroBoundaryQuantity::prim);
+        }
         if (NSCALARS > 0)
           ps->sbvar.var_cc = &(ps->r);
 
-        pbval->ApplyPhysicalBoundaries(time, 0.0, pbval->bvars_main_int);
+        if (FLUID_ENABLED)
+          pbval->ApplyPhysicalBoundaries(time, 0.0, pbval->bvars_main_int);
+        if (Z4C_ENABLED)
+          pbval->ApplyPhysicalBoundaries(time, 0.0, pbval->bvars_main_int_vc);
       }
 
       // Calc initial diffusion coefficients
+      if (FLUID_ENABLED) {
 #pragma omp for private(pmb,ph,pf)
-      for (int i=0; i<nblocal; ++i) {
-        pmb = my_blocks(i); ph = pmb->phydro, pf = pmb->pfield;
-        if (ph->hdif.hydro_diffusion_defined)
-          ph->hdif.SetDiffusivity(ph->w, pf->bcc);
-        if (MAGNETIC_FIELDS_ENABLED) {
-          if (pf->fdif.field_diffusion_defined)
-            pf->fdif.SetDiffusivity(ph->w, pf->bcc);
+        for (int i=0; i<nblocal; ++i) {
+          pmb = my_blocks(i); ph = pmb->phydro, pf = pmb->pfield;
+          if (ph->hdif.hydro_diffusion_defined)
+            ph->hdif.SetDiffusivity(ph->w, pf->bcc);
+          if (MAGNETIC_FIELDS_ENABLED) {
+            if (pf->fdif.field_diffusion_defined)
+              pf->fdif.SetDiffusivity(ph->w, pf->bcc);
+          }
         }
       }
 
@@ -1628,7 +1719,10 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
   // calculate the first time step
 #pragma omp parallel for num_threads(nthreads)
   for (int i=0; i<nblocal; ++i) {
-    my_blocks(i)->phydro->NewBlockTimeStep();
+    if (FLUID_ENABLED)
+      my_blocks(i)->phydro->NewBlockTimeStep();
+    if (Z4C_ENABLED)
+      my_blocks(i)->pz4c->NewBlockTimeStep();
   }
 
   NewTimeStep();
@@ -1816,6 +1910,8 @@ void Mesh::CorrectMidpointInitialCondition() {
     // no need to re-SetupPersistentMPI() the MPI requests for boundary values
     pbval->StartReceivingSubset(BoundaryCommSubset::mesh_init,
                                 pbval->bvars_main_int);
+    pbval->StartReceivingSubset(BoundaryCommSubset::mesh_init,
+                                pbval->bvars_main_int_vc);
   }
 
 #pragma omp for private(pmb,pbval)
@@ -1884,11 +1980,11 @@ int Mesh::ReserveTagPhysIDs(int num_phys) {
 
 void Mesh::ReserveMeshBlockPhysIDs() {
 #ifdef MPI_PARALLEL
-  // if (FLUID_ENABLED) {
+  if (FLUID_ENABLED) {
   // Advance Mesh's shared counter (initialized to next_phys_id=1 if MPI)
   // Greedy reservation of phys IDs (only 1 of 2 needed for Hydro if multilevel==false)
-  ReserveTagPhysIDs(HydroBoundaryVariable::max_phys_id);
-  //  }
+    ReserveTagPhysIDs(HydroBoundaryVariable::max_phys_id);
+  }
   if (MAGNETIC_FIELDS_ENABLED) {
     ReserveTagPhysIDs(FaceCenteredBoundaryVariable::max_phys_id);
   }
@@ -1898,6 +1994,10 @@ void Mesh::ReserveMeshBlockPhysIDs() {
   if (NSCALARS > 0) {
     ReserveTagPhysIDs(CellCenteredBoundaryVariable::max_phys_id);
   }
+  if (Z4C_ENABLED) {
+    ReserveTagPhysIDs(VertexCenteredBoundaryVariable::max_phys_id);
+  }
+
 #endif
   return;
 }

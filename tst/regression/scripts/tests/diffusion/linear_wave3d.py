@@ -42,7 +42,7 @@ rate_tols = [2.0]  # convergence rate > 3.0 for this particular resolution, sovl
 
 def prepare(*args, **kwargs):
     logger.debug('Running test ' + __name__)
-    athena.configure('b', *args,
+    athena.configure('f', 'b', *args,
                      prob='linear_wave',
                      flux='hlld',
                      eos='adiabatic', **kwargs)

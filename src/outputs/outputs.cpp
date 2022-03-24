@@ -93,6 +93,7 @@
 #include "../field/field.hpp"
 #include "../gravity/gravity.hpp"
 #include "../hydro/hydro.hpp"
+#include "../z4c/z4c.hpp"
 #include "../mesh/mesh.hpp"
 #include "../orbital_advection/orbital_advection.hpp"
 #include "../parameter_input.hpp"
@@ -341,14 +342,16 @@ Outputs::~Outputs() {
 
 //----------------------------------------------------------------------------------------
 //! \fn void OutputType::LoadOutputData(MeshBlock *pmb)
-//! \brief Create doubly linked list of OutputData's containing requested variables
+//  \brief Create doubly linked list of OutputData's containing requested variables
 
 void OutputType::LoadOutputData(MeshBlock *pmb) {
   Hydro *phyd = pmb->phydro;
   Field *pfld = pmb->pfield;
   PassiveScalars *psclr = pmb->pscalars;
   Gravity *pgrav = pmb->pgrav;
+  Z4c *pz4c = pmb->pz4c;
   OrbitalAdvection *porb = pmb->porb;
+
   num_vars_ = 0;
   OutputData *pod;
 
@@ -555,6 +558,53 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     }
     AppendOutputDataNode(pod);
     num_vars_++;
+  }
+
+  if (Z4C_ENABLED) {
+    for (int v = 0; v < Z4c::N_Z4c; ++v) {
+      if (output_params.variable.compare("z4c") == 0 ||
+          output_params.variable.compare(Z4c::Z4c_names[v]) == 0) {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = Z4c::Z4c_names[v];
+        pod->data.InitWithShallowSlice(pz4c->storage.u,v,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
+    for (int v = 0; v < Z4c::N_ADM; ++v) {
+      if (output_params.variable.compare("adm") == 0 ||
+          output_params.variable.compare(Z4c::ADM_names[v]) == 0) {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = Z4c::ADM_names[v];
+        pod->data.InitWithShallowSlice(pz4c->storage.adm,v,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
+    for (int v = 0; v < Z4c::N_CON; ++v) {
+      if (output_params.variable.compare("con") == 0 ||
+          output_params.variable.compare(Z4c::Constraint_names[v]) == 0) {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = Z4c::Constraint_names[v];
+        pod->data.InitWithShallowSlice(pz4c->storage.con,v,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
+    for (int v = 0; v < Z4c::N_MAT; ++v) {
+      if (output_params.variable.compare("mat") == 0 ||
+          output_params.variable.compare(Z4c::Matter_names[v]) == 0) {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = Z4c::Matter_names[v];
+        pod->data.InitWithShallowSlice(pz4c->storage.mat,v,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
   }
 
   if (SELF_GRAVITY_ENABLED) {
@@ -789,6 +839,23 @@ void Outputs::MakeOutputs(Mesh *pm, ParameterInput *pin, bool wtflag) {
     }
     ptype = ptype->pnext_type; // move to next OutputType node in singly linked list
   }
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn void Outputs::GetOutputTimeStep(bool wtflag)
+//  \brief scans through singly linked list of OutputTypes returning TimeStep
+
+Real Outputs::GetOutputTimeStep(std::string variable) {
+  Real dt = 0;
+
+  OutputType* ptype = pfirst_type_;
+  while (ptype != nullptr) {
+    if (ptype->output_params.variable == variable) {
+      return ptype->output_params.dt;
+    }
+    ptype = ptype->pnext_type; // move to next OutputType node in signly linked list
+  }
+  return dt;
 }
 
 //----------------------------------------------------------------------------------------

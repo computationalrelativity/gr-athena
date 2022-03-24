@@ -244,7 +244,7 @@ int CellCenteredBoundaryVariable::LoadBoundaryBufferToFiner(Real *buf,
                                                             const NeighborBlock& nb) {
   MeshBlock *pmb = pmy_block_;
   int si, sj, sk, ei, ej, ek;
-  int cn = pmb->cnghost - 1;
+  int cn = NCGHOST - 1;
   AthenaArray<Real> &var = *var_cc;
 
   si = (nb.ni.ox1 > 0) ? (pmb->ie - cn) : pmb->is;
@@ -257,25 +257,25 @@ int CellCenteredBoundaryVariable::LoadBoundaryBufferToFiner(Real *buf,
   // send the data first and later prolongate on the target block
   // need to add edges for faces, add corners for edges
   if (nb.ni.ox1 == 0) {
-    if (nb.ni.fi1 == 1)   si += pmb->block_size.nx1/2 - pmb->cnghost;
-    else            ei -= pmb->block_size.nx1/2 - pmb->cnghost;
+    if (nb.ni.fi1 == 1)   si += pmb->block_size.nx1/2 - NCGHOST;
+    else            ei -= pmb->block_size.nx1/2 - NCGHOST;
   }
   if (nb.ni.ox2 == 0 && pmb->block_size.nx2 > 1) {
     if (nb.ni.ox1 != 0) {
-      if (nb.ni.fi1 == 1) sj += pmb->block_size.nx2/2 - pmb->cnghost;
-      else          ej -= pmb->block_size.nx2/2 - pmb->cnghost;
+      if (nb.ni.fi1 == 1) sj += pmb->block_size.nx2/2 - NCGHOST;
+      else          ej -= pmb->block_size.nx2/2 - NCGHOST;
     } else {
-      if (nb.ni.fi2 == 1) sj += pmb->block_size.nx2/2 - pmb->cnghost;
-      else          ej -= pmb->block_size.nx2/2 - pmb->cnghost;
+      if (nb.ni.fi2 == 1) sj += pmb->block_size.nx2/2 - NCGHOST;
+      else          ej -= pmb->block_size.nx2/2 - NCGHOST;
     }
   }
   if (nb.ni.ox3 == 0 && pmb->block_size.nx3 > 1) {
     if (nb.ni.ox1 != 0 && nb.ni.ox2 != 0) {
-      if (nb.ni.fi1 == 1) sk += pmb->block_size.nx3/2 - pmb->cnghost;
-      else          ek -= pmb->block_size.nx3/2 - pmb->cnghost;
+      if (nb.ni.fi1 == 1) sk += pmb->block_size.nx3/2 - NCGHOST;
+      else          ek -= pmb->block_size.nx3/2 - NCGHOST;
     } else {
-      if (nb.ni.fi2 == 1) sk += pmb->block_size.nx3/2 - pmb->cnghost;
-      else          ek -= pmb->block_size.nx3/2 - pmb->cnghost;
+      if (nb.ni.fi2 == 1) sk += pmb->block_size.nx3/2 - NCGHOST;
+      else          ek -= pmb->block_size.nx3/2 - NCGHOST;
     }
   }
 
@@ -337,7 +337,7 @@ void CellCenteredBoundaryVariable::SetBoundaryFromCoarser(Real *buf,
                                                           const NeighborBlock& nb) {
   MeshBlock *pmb = pmy_block_;
   int si, sj, sk, ei, ej, ek;
-  int cng = pmb->cnghost;
+  int cng = NCGHOST;
   AthenaArray<Real> &coarse_var = *coarse_buf;
 
   if (nb.ni.ox1 == 0) {
@@ -525,7 +525,7 @@ void CellCenteredBoundaryVariable::SetupPersistentMPI() {
 
   int f2 = pmy_mesh_->f2, f3 = pmy_mesh_->f3;
   int cng, cng1, cng2, cng3;
-  cng  = cng1 = pmb->cnghost;
+  cng  = cng1 = NCGHOST;
   cng2 = cng*f2;
   cng3 = cng*f3;
   int ssize, rsize;

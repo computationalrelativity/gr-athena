@@ -55,7 +55,7 @@ wave_speeds = [-0.8236630408305421, 0.15084012571797972, 0.29445281898990067,
 
 def prepare(**kwargs):
     logger.debug('Running test ' + __name__)
-    athena.configure('b',
+    athena.configure('f', 'b',
                      prob='shock_tube',
                      coord='cartesian',
                      eos='general/hydrogen',

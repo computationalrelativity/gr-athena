@@ -18,13 +18,13 @@ logger = logging.getLogger('athena' + __name__[7:])  # set logger name based on 
 # Prepare Athena++ w/wo MPI+OpenMP
 def prepare(**kwargs):
     logger.debug('Running test ' + __name__)
-    athena.configure('b', 'mpi', 'omp', prob='linear_wave', coord='cartesian',
+    athena.configure('f', 'b', 'mpi', 'omp', prob='linear_wave', coord='cartesian',
                      flux='hlld', **kwargs)
     athena.make()
     os.system('mv bin/athena bin/athena_hybrid')
     os.system('mv obj obj_hybrid')
 
-    athena.configure('b', prob='linear_wave', coord='cartesian', flux='hlld', **kwargs)
+    athena.configure('f', 'b', prob='linear_wave', coord='cartesian', flux='hlld', **kwargs)
     athena.make()
 
 
