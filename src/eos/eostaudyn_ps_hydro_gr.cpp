@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
+#include <limits>
 
 // Athena++ headers
 #include "eos.hpp"
@@ -70,8 +71,12 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
 
   // If we're working with an ideal gas, we need to fix the adiabatic constant.
 #if EOS_POLICY == IdealGas
-  Real gamma = pin->GetOrAddReal("hydro", "gamma", 2.0);
-  eos.SetGamma(gamma);
+  gamma_ = pin->GetOrAddReal("hydro", "gamma", 2.0);
+  eos.SetGamma(gamma_);
+#else
+  // If we're not using a gamma-law EOS, we should not ever reference gamma.
+  // Make sure that's the case by setting it to NaN.
+  gamma_ = std::numeric_limits<double>::quiet_NaN();
 #endif
 }
 

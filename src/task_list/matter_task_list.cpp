@@ -270,7 +270,7 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
     }
     AddTask(SRCTERM_HYD,INT_HYD);
     AddTask(SEND_HYD,SRCTERM_HYD);
-    AddTask(RECV_HYD,NONE);
+    AddTask(RECV_HYD,RECV_Z4C);
     AddTask(SETB_HYD,(RECV_HYD|SRCTERM_HYD));
     if (SHEARING_BOX) { // Shearingbox BC for Hydro
       AddTask(SEND_HYDSH,SETB_HYD);
@@ -392,7 +392,7 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
     AddTask(Z4C_WEYL, Z4C_TO_ADM);           // Calc Psi4
     AddTask(WAVE_EXTR, Z4C_WEYL);           // Project Psi4 multipoles
         //WGC end
-    AddTask(USERWORK, ADM_CONSTR);             // UserWork
+    AddTask(USERWORK, ADM_CONSTR | PHY_BVAL_HYD);             // UserWork
 
     AddTask(NEW_DT, USERWORK);                 // NewBlockTimeStep
     if (pm->adaptive) {
