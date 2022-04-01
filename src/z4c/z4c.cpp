@@ -552,8 +552,11 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
      MeshBlock * pmb = pmy_block;
      Matter_vars mat;
      SetMatterAliases(u_mat, mat);
+#if USETM
+     Real mb = pmy_block->peos->GetEOS().GetBaryonMass();
+#else
      Real gamma_adi = pmy_block->peos->GetGamma(); //NB specific to EOS
-
+#endif
 
      ADM_vars adm;
      
@@ -591,8 +594,16 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
      utilde2vc = 0.125*(utilde2cc(k-1,j-1,i-1) + utilde2cc(k-1,j-1,i) + utilde2cc(k-1,j,i-1) + utilde2cc(k,j-1,i-1) + utilde2cc(k-1,j,i) + utilde2cc(k,j-1,i) + utilde2cc(k,j,i-1) + utilde2cc(k,j,i));
      utilde3vc = 0.125*(utilde3cc(k-1,j-1,i-1) + utilde3cc(k-1,j-1,i) + utilde3cc(k-1,j,i-1) + utilde3cc(k,j-1,i-1) + utilde3cc(k-1,j,i) + utilde3cc(k,j-1,i) + utilde3cc(k,j,i-1) + utilde3cc(k,j,i));
 */
+#if USETM
+     Real n = rhovc/mb;
+     // FIXME: Generalize to work with EOSes accepting particle fractions.
+     Real Y[MAX_SPECIES] = {0.0};
+     Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgasvc, Y);
+     wgas = n*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
+#else
 //   NB specific to EOS
      wgas = rhovc + gamma_adi/(gamma_adi-1.0) * pgasvc;
+#endif
      tmp = utilde1vc*utilde1vc*adm.g_dd(0,0,k,j,i) + utilde2vc*utilde2vc*adm.g_dd(1,1,k,j,i) 
                 + utilde3vc*utilde3vc*adm.g_dd(2,2,k,j,i) + 2.0*utilde1vc*utilde2vc*adm.g_dd(0,1,k,j,i)
                 + 2.0*utilde1vc*utilde3vc*adm.g_dd(0,2,k,j,i) + 
