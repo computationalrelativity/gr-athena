@@ -27,7 +27,7 @@ void CellCenteredBoundaryVariable::ExtrapolateOutflowInnerX1(
   for (int n=0; n<=nu_; ++n) {
     for (int k=kl; k<=ku; ++k) {
       for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+//#pragma omp simd
         for (int i = il-1; i >= il-ngh; --i) {
           // extrapolate variables at 4th order
           (*var_cc)(n,k,j,i) = 4.*(*var_cc)(n,k,j,i+1) - 6.*(*var_cc)(n,k,j,i+2) +
@@ -55,7 +55,7 @@ void CellCenteredBoundaryVariable::ExtrapolateOutflowOuterX1(
   for (int n=0; n<=nu_; ++n) {
     for (int k=kl; k<=ku; ++k) {
       for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+//#pragma omp simd
         for (int i=iu+1; i<=iu+ngh; ++i) {
           // extrapolate variables at 4th order
           if(!PREFER_VC){
@@ -85,7 +85,7 @@ void CellCenteredBoundaryVariable::ExtrapolateOutflowInnerX2(
   for (int n=0; n<=nu_; ++n) {
     for (int k=kl; k<=ku; ++k) {
       for (int j=jl-1; j>=jl-ngh; --j) {
-#pragma omp simd
+//#pragma omp simd
         for (int i=il; i<=iu; ++i) {
           // extrapolate variables at 4th order
           (*var_cc)(n,k,j,i) = 4.*(*var_cc)(n,k,j+1,i) - 6.*(*var_cc)(n,k,j+2,i) +
@@ -107,7 +107,7 @@ void CellCenteredBoundaryVariable::ExtrapolateOutflowOuterX2(
   for (int n=0; n<=nu_; ++n) {
     for (int k=kl; k<=ku; ++k) {
       for (int j=ju+1; j<=ju+ngh; ++j) {
-#pragma omp simd
+//#pragma omp simd
         for (int i=il; i<=iu; ++i) {
           // extrapolate variables at 4th order
           if(!PREFER_VC){
@@ -131,7 +131,7 @@ void CellCenteredBoundaryVariable::ExtrapolateOutflowInnerX3(
   for (int n=0; n<=nu_; ++n) {
     for (int k=kl-1; k>=kl-ngh; --k) {
       for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+//#pragma omp simd
         for (int i=il; i<=iu; ++i) {
           // extrapolate variables at 4th order
           (*var_cc)(n,k,j,i) = 4.*(*var_cc)(n,k+1,j,i) - 6.*(*var_cc)(n,k+2,j,i) +
@@ -153,7 +153,7 @@ void CellCenteredBoundaryVariable::ExtrapolateOutflowOuterX3(
   for (int n=0; n<=nu_; ++n) {
     for (int k=ku+1; k<=ku+ngh; ++k) {
       for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+//#pragma omp simd
         for (int i=il; i<=iu; ++i) {
           // extrapolate variables at 4th order
           if(!PREFER_VC){
