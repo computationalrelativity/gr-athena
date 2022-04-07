@@ -31,7 +31,7 @@
 
 // Declarations
 static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim, Real gamma_adi,
-    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, int k, int j, int i,
+const AthenaArray<Real> &bb_cc,    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd,  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> const & alpha, int k, int j, int i,
     AthenaArray<Real> &cons, Coordinates *pco);
 Real fthr, fatm, rhoc;
 Real k_adi, gamma_adi;
@@ -167,16 +167,16 @@ if(coarse_flag==0){
       alpha.NewAthenaTensor(nn1);
       beta_u.NewAthenaTensor(nn1);
       gamma_dd.NewAthenaTensor(nn1);
-      vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxx);
-      vcgamma_xy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxy);
-      vcgamma_xz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxz);
-      vcgamma_yy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyy);
-      vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyz);
-      vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gzz);
-      vcbeta_x.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betax);
-      vcbeta_y.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betay);
-      vcbeta_z.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betaz);
-      vcalpha.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_alpha);
+      vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
+      vcgamma_xy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
+      vcgamma_xz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
+      vcgamma_yy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
+      vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
+      vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
+      vcbeta_x.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betax,1);
+      vcbeta_y.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betay,1);
+      vcbeta_z.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betaz,1);
+      vcalpha.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
 
 } else{
 
@@ -185,18 +185,19 @@ if(coarse_flag==0){
       beta_u.NewAthenaTensor(nn1);
       gamma_dd.NewAthenaTensor(nn1);
       gammat_dd.NewAthenaTensor(nn1);
-      vcgammat_xx.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxx);
-      vcgammat_xy.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxy);
-      vcgammat_xz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxz);
-      vcgammat_yy.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gyy);
-      vcgammat_yz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gyz);
-      vcgammat_zz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gzz);
-      vcbeta_x.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_betax);
-      vcbeta_y.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_betay);
-      vcbeta_z.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_betaz);
-      vcalpha.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_alpha);
-      vcchi.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_chi);
+      vcgammat_xx.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxx,1);
+      vcgammat_xy.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxy,1);
+      vcgammat_xz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxz,1);
+      vcgammat_yy.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gyy,1);
+      vcgammat_yz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gyz,1);
+      vcgammat_zz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gzz,1);
+      vcbeta_x.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_betax,1);
+      vcbeta_y.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_betay,1);
+      vcbeta_z.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_betaz,1);
+      vcalpha.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_alpha,1);
+      vcchi.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_chi,1);
 }
+  pmy_block_->pfield->CalculateCellCenteredField(bb, bb_cc, pco, il, iu, jl, ju, kl, ku);
 
   // Go through cells
   for (int k=kl; k<=ku; ++k) {
@@ -239,6 +240,7 @@ if(coarse_flag==0){
           gammat_dd(1,1,i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcgammat_yy(k,j,i));
           gammat_dd(1,2,i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcgammat_yz(k,j,i));
           gammat_dd(2,2,i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcgammat_zz(k,j,i));
+          alpha(i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcalpha(k,j,i));
           alpha(i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcalpha(k,j,i));
           chi(i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcchi(k,j,i));
           beta_u(0,i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcbeta_x(k,j,i));
@@ -292,19 +294,22 @@ if(coarse_flag==0){
         const Real &S_1g = cons(IVX,k,j,i);
         const Real &S_2g = cons(IVY,k,j,i);
         const Real &S_3g = cons(IVZ,k,j,i);
-
+//TODO extract CC mag field
         //Extract prims
         Real &rho = prim(IDN,k,j,i);
         Real &pgas = prim(IPR,k,j,i);
         Real &uu1 = prim(IVX,k,j,i);
         Real &uu2 = prim(IVY,k,j,i);
         Real &uu3 = prim(IVZ,k,j,i);
+        Real &bb1g = bb_cc(IB1,k,j,i);
+        Real &bb2g = bb_cc(IB2,k,j,i);
+        Real &bb3g = bb_cc(IB3,k,j,i);
         Real eps=0.0;
         Real w_lor = 1.0;
         Real dummy = 0.0;
-
+//TODO pass CC B field to reprimand
         cons_vars_mhd evolved{Dg, taug, 0.0,
-                          {S_1g,S_2g,S_3g}, {0.0,0.0,0.0}};
+                          {S_1g,S_2g,S_3g}, {bb1g,bb2g,bb3g}};
 // TODO feed new metric to reprimand here
         sm_tensor2_sym<real_t, 3, false, false> gtens(gamma_dd(0,0,i),gamma_dd(0,1,i),gamma_dd(1,1,i),gamma_dd(0,2,i),gamma_dd(1,2,i),gamma_dd(2,2,i));
         sm_metric3 g_eos(gtens);
@@ -327,7 +332,7 @@ if(coarse_flag==0){
    uu3 = 0.0;
    rho = atmo_rho;
    pgas = k_adi*pow(atmo_rho,gamma_adi);
-   PrimitiveToConservedSingle(prim, gamma_adi, gamma_dd, k, j, i, cons, pco);
+   PrimitiveToConservedSingle(prim, gamma_adi,bb_cc, gamma_dd, alpha, k, j, i, cons, pco);
   }
   } 
     }
@@ -345,7 +350,7 @@ if(coarse_flag==0){
    uu3 = 0.0;
    rho = atmo_rho;
    pgas = k_adi*pow(atmo_rho,gamma_adi);
-   PrimitiveToConservedSingle(prim, gamma_adi, gamma_dd, k, j, i, cons, pco);
+   PrimitiveToConservedSingle(prim, gamma_adi, bb_cc, gamma_dd, alpha, k, j, i, cons, pco);
   }
   } 
       if(rho < fthr*atmo_rho ){
@@ -362,7 +367,8 @@ if(coarse_flag==0){
       pgasfix = true;
       }
       if (rep.adjust_cons || rep.set_atmo || pgasfix) {
-          PrimitiveToConservedSingle(prim, gamma_adi, gamma_dd, k, j, i, cons, pco);
+//TODO P2C only requires gamma(a,b,i)  need to modify PrimitiveToConservedSingle defn
+          PrimitiveToConservedSingle(prim, gamma_adi, bb_cc, gamma_dd, alpha, k, j, i, cons, pco);
 
 
 
@@ -392,11 +398,14 @@ void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
      const AthenaArray<Real> &bb_cc, AthenaArray<Real> &cons, Coordinates *pco, int il,
      int iu, int jl, int ju, int kl, int ku) {
       AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd; //lapse
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha; //lapse
   int nn1 = iu+1;
       gamma_dd.NewAthenaTensor(nn1);
+      alpha.NewAthenaTensor(nn1);
       AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy;
-      AthenaArray<Real> vcgamma_yz,vcgamma_zz, order_flag;
+      AthenaArray<Real> vcgamma_yz,vcgamma_zz, vcalpha, order_flag;
       order_flag.NewAthenaArray(nn1);
+      vcalpha.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
       vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
       vcgamma_xy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
       vcgamma_xz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
@@ -416,10 +425,11 @@ void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
           gamma_dd(1,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
           gamma_dd(1,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
           gamma_dd(2,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
+          alpha(i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcalpha(k,j,i));
 }
       //#pragma omp simd // fn is too long to inline
       for (int i=il; i<=iu; ++i) {
-        PrimitiveToConservedSingle(prim, gamma_, gamma_dd, k, j, i, cons, pco);
+        PrimitiveToConservedSingle(prim, gamma_, bb_cc, gamma_dd, alpha, k, j, i, cons, pco);
       }
     }
   }
@@ -439,16 +449,19 @@ void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
 
 // TODO change arguments so instead of taking g(n,i), gi(n,i) it just takes gamma(a,b,i)
 static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim, Real gamma_adi,
-    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, int k, int j, int i,
+const AthenaArray<Real> &bb_cc,    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> const & alpha, int k, int j, int i,
     AthenaArray<Real> &cons, Coordinates *pco) {
-
+//TODO needs to take alpha as an argument - need to initialise b too
     AthenaArray<Real> utilde_u;  // primitive gamma^i_a u^a
     AthenaArray<Real> utilde_d;  // primitive gamma^i_a u^a
-    AthenaArray<Real> v_d;  // primitive gamma^i_a u^a
+    AthenaArray<Real> v_d, bb_u, bi_d, bi_u;  // primitive gamma^i_a u^a
 
   utilde_u.NewAthenaArray(3);
   utilde_d.NewAthenaArray(3);
   v_d.NewAthenaArray(3);
+  bb_u.NewAthenaArray(3);
+  bi_u.NewAthenaArray(3);
+  bi_d.NewAthenaArray(3);
 
   const Real &rho = prim(IDN,k,j,i);
   const Real &pgas = prim(IPR,k,j,i);
@@ -509,14 +522,42 @@ static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim, Real gamma
   Real &S_1dg = cons(IM1,k,j,i);
   Real &S_2dg = cons(IM2,k,j,i);
   Real &S_3dg = cons(IM3,k,j,i);
+//  bb_u(0) = cons(IB1,k,j,i)/detgamma;
+//  bb_u(1) = cons(IB2,k,j,i)/detgamma;
+//  bb_u(2) = cons(IB3,k,j,i)/detgamma;
+  bb_u(0) = bb_cc(0,k,j,i)/detgamma;
+  bb_u(1) = bb_cc(1,k,j,i)/detgamma;
+  bb_u(2) = bb_cc(2,k,j,i)/detgamma;
+ // TODO worry about face centred cell centred! 
+  Real b0_u = 0.0;
+  for(int a=0;a<NDIM;++a){
+       b0_u += Wlor*bb_u(a)*v_d(a)/alpha(i);
+  }
+  for(int a=0;a<NDIM;++a){
+          bi_u(a) = (bb_u(a) + alpha(i)*b0_u*utilde_u(a))/Wlor;
+     }
+  bi_d.ZeroClear();
+  for(int a=0;a<NDIM;++a){
+    for(int b=0;b<NDIM;++b){
+          bi_d(a) += bi_u(b)*gamma_dd(a,b,i);
+     }
+  }
+   Real bsq = alpha(i)*alpha(i)*b0_u*b0_u/(Wlor*Wlor);
+   for(int a=0;a<NDIM;++a){
+          for(int b=0;b<NDIM;++b){
+         bsq += bb_u(a)*bb_u(b)*gamma_dd(a,b,i)/(Wlor*Wlor);
+      }
+      }
+  
 
+// TODO B field defns of conservatives have changed!
   // Set conserved quantities
   Real wgas = rho + gamma_adi/(gamma_adi-1.0) * pgas;
   Ddg = rho*Wlor*detgamma;
-  taudg = wgas*SQR(Wlor)*detgamma - rho*Wlor*detgamma - pgas*detgamma;
-  S_1dg = wgas*SQR(Wlor) * v_d(0)*detgamma  ;
-  S_2dg = wgas*SQR(Wlor) * v_d(1)*detgamma  ;
-  S_3dg = wgas*SQR(Wlor) * v_d(2)*detgamma  ;
+  taudg = (wgas+bsq)*SQR(Wlor)*detgamma - rho*Wlor*detgamma - (pgas + bsq/2.0)*detgamma - alpha(i)*alpha(i)*b0_u*b0_u*detgamma;
+  S_1dg = (wgas+bsq)*SQR(Wlor) * v_d(0)*detgamma - alpha(i)*b0_u*bi_d(0)*detgamma ;
+  S_2dg = (wgas+bsq)*SQR(Wlor) * v_d(1)*detgamma - alpha(i)*b0_u*bi_d(1)*detgamma  ;
+  S_3dg = (wgas+bsq)*SQR(Wlor) * v_d(2)*detgamma - alpha(i)*b0_u*bi_d(2)*detgamma  ;
   return;
 }
 
@@ -534,7 +575,7 @@ static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim, Real gamma
 //   same function as in adiabatic_hydro_sr.cpp
 //     uses SR formula (should be called in locally flat coordinates)
 //   references Mignone & Bodo 2005, MNRAS 364 126 (MB)
-
+/*
 void EquationOfState::SoundSpeedsSR(Real rho_h, Real pgas, Real vx, Real gamma_lorentz_sq,
     Real *plambda_plus, Real *plambda_minus) {
   const Real gamma_adi = gamma_;
@@ -545,7 +586,7 @@ void EquationOfState::SoundSpeedsSR(Real rho_h, Real pgas, Real vx, Real gamma_l
   *plambda_minus = 1.0/(1.0+sigma_s) * (vx - relative_speed);            // (MB 23)
   return;
 }
-
+*/
 //----------------------------------------------------------------------------------------
 // Function for calculating relativistic sound speeds in arbitrary coordinates
 // Inputs:
@@ -592,7 +633,9 @@ void EquationOfState::SoundSpeedsGR(Real rho_h, Real pgas, Real u0, Real u1, Rea
   return;
 }
 */
-void EquationOfState::SoundSpeedsGR(Real rho_h, Real pgas, Real vi, Real v2, Real alpha,
+
+//TODO introduce FastMagnetoSonic function here Take care of b field densitisation.
+/*void EquationOfState::SoundSpeedsGR(Real rho_h, Real pgas, Real vi, Real v2, Real alpha,
     Real betai, Real gammaii, Real *plambda_plus, Real *plambda_minus) {
   // Parameters and constants
 
@@ -620,7 +663,40 @@ void EquationOfState::SoundSpeedsGR(Real rho_h, Real pgas, Real vi, Real v2, Rea
   return;
 }
 
+*/
+void EquationOfState::FastMagnetosonicSpeedsGR(Real rho_h, Real pgas, Real b_sq, Real vi, Real v2, Real alpha,
+      Real betai, Real gammaii, Real *plambda_plus, Real *plambda_minus) {
+  // Parameters and constants
+  const Real gamma_adi = gamma_;
+  Real Wlor = std::sqrt(1.0-v2);
+  Wlor = 1.0/Wlor;
+  Real u0 = Wlor/alpha;
+  Real g00 = -1.0/(alpha*alpha);
+  Real g01 = betai/(alpha*alpha);
+  Real u1 = vi*alpha;
+  Real g11 = gammaii - betai*betai/(alpha*alpha);
+  // Calculate comoving fast magnetosonic speed
+  Real cs_sq = gamma_adi * pgas / rho_h;
+  Real va_sq = b_sq / (b_sq + rho_h);
+  Real cms_sq = cs_sq + va_sq - cs_sq * va_sq;
 
+  // Set fast magnetosonic speeds in appropriate coordinates
+  Real a = SQR(u0) - (g00 + SQR(u0)) * cms_sq;
+  Real b = -2.0 * (u0*u1 - (g01 + u0*u1) * cms_sq);
+  Real c = SQR(u1) - (g11 + SQR(u1)) * cms_sq;
+  Real d = std::max(SQR(b) - 4.0*a*c, 0.0);
+  Real d_sqrt = std::sqrt(d);
+  Real root_1 = (-b + d_sqrt) / (2.0*a);
+  Real root_2 = (-b - d_sqrt) / (2.0*a);
+  if (root_1 > root_2) {
+    *plambda_plus = root_1;
+    *plambda_minus = root_2;
+  } else {
+    *plambda_plus = root_2;
+    *plambda_minus = root_1;
+  }
+  return;
+}
 //---------------------------------------------------------------------------------------
 // \!fn void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim,
 //           int k, int j, int i)

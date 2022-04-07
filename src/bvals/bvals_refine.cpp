@@ -215,7 +215,9 @@ void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt) {
         }
       }
     }
-
+// TODO: si ei etc currently set to be the first/last coarse cell that overlaps
+// a fine cell. If want to use e.g. WENO scheme to calculate higher order 
+// derivative need to expand si ei etc to match the order of derivative
     // calculate the loop limits for the ghost zones
     int cn = pmb->cnghost - 1;
     int si, ei, sj, ej, sk, ek;
@@ -448,13 +450,13 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
   // pf=pmb->pfield even if no MHD. Originally was a problem when dereferencing in order
   // to bind references to coarse_b_, coarse_bcc, since coarse_* are no longer members of
   // MeshRefinement that always exist (even if not allocated).
-
+//TODO WC: worry about ghost zones here!"!!!!
   if (FLUID_ENABLED) {
     // KGF: COUPLING OF QUANTITIES (must be manually specified)
     pmb->peos->ConservedToPrimitive(ph->coarse_cons_, ph->coarse_prim_,
                                     pf->coarse_b_, ph->coarse_prim_,
                                     pf->coarse_bcc_, pmr->pcoarsec,
-                                    si-f1m, ei+f1p, sj-f2m, ej+f2p, sk-f3m, ek+f3p);
+                                    si-f1m, ei+f1p, sj-f2m, ej+f2p, sk-f3m, ek+f3p,1);
   }
 
   if (NSCALARS > 0) {
@@ -600,12 +602,51 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
 
   // now that the ghost-ghost zones are filled and prolongated,
   // calculate the loop limits for the finer grid
+
+//This needs to be able to catch the odd ghost case:
+// even picture NG=2 | 0 | 1 | 2 | 3 |
+//                       |0|1|2|3|4|5|
+// odd picture NG=3  | 0 | 1 | 2 | 3 | 4 |
+//                         |0|1|2|3|4|5|6|
+// mapping from coarse indices to odd indices must be handled differently
+// but specifically only when an overhanging single fine cell appears 
+// e.g. in above example lower bound needs correction but upper bound does not
+// opposite is true when prolongating the ghosts at the right hand side of an 
+// MB
+
+
   int fsi, fei, fsj, fej, fsk, fek;
   fsi = (si - pmb->cis)*2 + pmb->is;
   fei = (ei - pmb->cis)*2 + pmb->is + 1;
+  if (NGHOST % 2 != 0){
+      if (nb.ni.ox1 == 0) {
+          std::int64_t &lx1 = pmb->loc.lx1;
+          if((lx1 & 1LL) == 0LL){
+              fei -= 1;
+          } else {
+              fsi += 1;}
+      } else if (nb.ni.ox1 == 1){
+          fei -= 1;
+      } else {
+          fsi += 1;
+      }
+  }
   if (pmb->block_size.nx2 > 1) {
     fsj = (sj - pmb->cjs)*2 + pmb->js;
     fej = (ej - pmb->cjs)*2 + pmb->js + 1;
+    if (NGHOST % 2 != 0){
+        if (nb.ni.ox2 == 0) {
+            std::int64_t &lx2 = pmb->loc.lx2;
+            if((lx2 & 1LL) == 0LL){
+                fej -= 1;
+            } else {
+                fsj += 1;}
+        } else if (nb.ni.ox2 == 1){
+            fej -= 1;
+        } else {
+            fsj += 1;
+        }
+    }
   } else {
     fsj = pmb->js;
     fej = pmb->je;
@@ -613,6 +654,19 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
   if (pmb->block_size.nx3 > 1) {
     fsk = (sk - pmb->cks)*2 + pmb->ks;
     fek = (ek - pmb->cks)*2 + pmb->ks + 1;
+    if (NGHOST % 2 != 0){
+        if (nb.ni.ox3 == 0) {
+            std::int64_t &lx3 = pmb->loc.lx3;
+            if((lx3 & 1LL) == 0LL){
+                fek -= 1;
+            } else {
+                fsk += 1;}
+        } else if (nb.ni.ox3 == 1){
+            fek -= 1;
+        } else {
+            fsk += 1;
+        }
+    }
   } else {
     fsk = pmb->ks;
     fek = pmb->ke;

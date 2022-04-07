@@ -201,14 +201,17 @@ public:
     //Matter parameters
    
     int cowling; // if 1 then cowling approximation used, rhs of z4c equations -> 0
+    int rhstheta0; // if 1 then rhs of Theta equation -> 0
     int fixedgauge; // if 1 then gauge is fixed, rhs of alpha, beta^i equations -> 0
     int fix_admsource; // if 1 then gauge is fixed, rhs of alpha, beta^i equations -> 0
+    int Tmunuinterp; // interpolate stress energy
+    int epsinterp; // interpolate stress energy
   } opt;
      
 //intergrid interpolation 
 
    InterpIntergridLocal * ig;
-
+   InterpIntergridLocal * ig_coarse;
   // boundary and grid data
 #if PREFER_VC
   VertexCenteredBoundaryVariable ubvar;
@@ -262,7 +265,7 @@ public:
                       AthenaArray<Real> & u_weyl);
 //WGC end
 // Update VC matter
-  void GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, AthenaArray<Real> & w);
+  void GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, AthenaArray<Real> & w, AthenaArray<Real> & bb_cc);
 
 
 
@@ -450,6 +453,9 @@ private:
  AthenaArray<Real> utilde1cc;
  AthenaArray<Real> utilde2cc;
  AthenaArray<Real> utilde3cc;
+ AthenaArray<Real> bb1cc;
+ AthenaArray<Real> bb2cc;
+ AthenaArray<Real> bb3cc;
 
 private:
   void Z4cSommerfeld_(AthenaArray<Real> & u, AthenaArray<Real> & rhs,

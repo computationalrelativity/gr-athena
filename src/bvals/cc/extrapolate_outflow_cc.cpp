@@ -30,6 +30,7 @@ void CellCenteredBoundaryVariable::ExtrapolateOutflowInnerX1(
 #pragma omp simd
         for (int i = il-1; i >= il-ngh; --i) {
           // extrapolate variables at 4th order
+          if(!PREFER_VC){
           (*var_cc)(n,k,j,i) = 4.*(*var_cc)(n,k,j,i+1) - 6.*(*var_cc)(n,k,j,i+2) +
                                4.*(*var_cc)(n,k,j,i+3) - 1.*(*var_cc)(n,k,j,i+4);
 
@@ -37,7 +38,7 @@ void CellCenteredBoundaryVariable::ExtrapolateOutflowInnerX1(
           // (*var_cc)(n,k,j,i) = 6.*(*var_cc)(n,k,j,i+1) - 15.*(*var_cc)(n,k,j,i+2) +
           //                     20.*(*var_cc)(n,k,j,i+3) - 15.*(*var_cc)(n,k,j,i+4) +
           //                      6.*(*var_cc)(n,k,j,i+5) - 1.*(*var_cc)(n,k,j,i+6);
-
+         }
         }
       }
     }
@@ -88,8 +89,10 @@ void CellCenteredBoundaryVariable::ExtrapolateOutflowInnerX2(
 #pragma omp simd
         for (int i=il; i<=iu; ++i) {
           // extrapolate variables at 4th order
+          if(!PREFER_VC){
           (*var_cc)(n,k,j,i) = 4.*(*var_cc)(n,k,j+1,i) - 6.*(*var_cc)(n,k,j+2,i) +
                                4.*(*var_cc)(n,k,j+3,i) - 1.*(*var_cc)(n,k,j+4,i);
+         }
         }
       }
     }
@@ -134,8 +137,10 @@ void CellCenteredBoundaryVariable::ExtrapolateOutflowInnerX3(
 #pragma omp simd
         for (int i=il; i<=iu; ++i) {
           // extrapolate variables at 4th order
+          if(!PREFER_VC){
           (*var_cc)(n,k,j,i) = 4.*(*var_cc)(n,k+1,j,i) - 6.*(*var_cc)(n,k+2,j,i) +
                                4.*(*var_cc)(n,k+3,j,i) - 1.*(*var_cc)(n,k+4,j,i);
+         }
         }
       }
     }

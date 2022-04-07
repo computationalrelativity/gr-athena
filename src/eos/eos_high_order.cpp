@@ -68,7 +68,7 @@ void EquationOfState::ConservedToPrimitiveCellAverage(
 
   // Convert cell-centered conserved values to cell-centered primitive values
   ConservedToPrimitive(u_cc, prim_old, b, w_cc, bcc, pco, il, iu,
-                       jl, ju, kl, ku);
+                       jl, ju, kl, ku,0);
 
   for (int n=nl; n<=nu; ++n) {
     for (int k=kl; k<=ku; ++k) {

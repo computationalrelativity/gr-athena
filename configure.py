@@ -602,7 +602,7 @@ if args['b']:
         makefile_options['EOS_FILE'] += '_mhd'
     definitions['NFIELD_VARIABLES'] = '3'
     makefile_options['RSOLVER_DIR'] = 'mhd/'
-    if args['flux'] == 'hlle' or args['flux'] == 'llf' or args['flux'] == 'roe':
+    if args['flux'] == 'hlle' or args['flux'] == 'llf' or args['flux'] == 'roe' or args['flux'] == 'llftaudyn':
         makefile_options['RSOLVER_FILE'] += '_mhd'
     if args['eos'] == 'isothermal':
         definitions['NWAVE_VALUE'] = '6'

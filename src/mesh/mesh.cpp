@@ -70,10 +70,6 @@
 #include <mpi.h>
 #endif
 
-#ifdef LORENE
-Lorene::Bin_NS * Mesh::bns;
-#endif
-
 //----------------------------------------------------------------------------------------
 // Mesh constructor, builds mesh at start of calculation using parameters in input file
 
@@ -134,7 +130,17 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
   MeshBlock *pfirst{};
   BoundaryFlag block_bcs[6];
   std::int64_t nbmax;
+#ifdef MPI_PARALLEL
+    root=0;
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    ioproc = (root == rank);
+#else
+    ioproc = true;
+#endif
+  if (ioproc){
   pofile = fopen("intd.txt", "a");
+}
 
   // mesh test
   if (mesh_test > 0) Globals::nranks = mesh_test;
@@ -1494,9 +1500,21 @@ void Mesh::GlobalInt() {
 
     pmb = pmb->next;
    }
+#ifdef MPI_PARALLEL
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  if (root == rank) {
+    MPI_Reduce(MPI_IN_PLACE, &intd, 1, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+  }
+  else {
+    MPI_Reduce(&intd,&intd,1,MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+  }
+#endif
+
+if (ioproc){
           fprintf(pofile, "%.16f %.16f\n", time, intd);
                fflush(pofile);
-	   
+}	   
 }
 //----------------------------------------------------------------------------------------
 // \!fn void Mesh::ApplyUserWorkBeforeOutput(ParameterInput *pin)
@@ -1607,7 +1625,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           pmb->padv->ubvar.SendBoundaryBuffers();
 
         if (Z4C_ENABLED)
-          pmb->pz4c->ubvar.SendBoundaryBuffers();
+         pmb->pz4c->ubvar.SendBoundaryBuffers();
       }
 
       // wait to receive conserved variables
@@ -1716,7 +1734,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         if (FLUID_ENABLED) {
           pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b,
                                           ph->w, pf->bcc, pmb->pcoord,
-                                          il, iu, jl, ju, kl, ku);
+                                          il, iu, jl, ju, kl, ku,0);
         }
 
         if (NSCALARS > 0) {

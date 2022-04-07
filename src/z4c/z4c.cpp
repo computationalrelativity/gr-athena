@@ -206,8 +206,11 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   
   // Matter parameters
   opt.cowling = pin->GetOrAddInteger("z4c", "cowling_true", 0);
+  opt.rhstheta0 = pin->GetOrAddInteger("z4c", "rhstheta0", 0);
   opt.fixedgauge = pin->GetOrAddInteger("z4c", "fixedgauge", 0);
   opt.fix_admsource = pin->GetOrAddInteger("z4c", "fix_admsource", 0);
+  opt.Tmunuinterp = pin->GetOrAddInteger("z4c", "Tmunuinterp", 0); // interpolate components of Tmunu if 1 (if 0 interpolate primitives)
+  opt.epsinterp = pin->GetOrAddInteger("z4c", "epsinterp", 0); // interpolate internal energy eps instead of pressure p.
   //---------------------------------------------------------------------------
 
   // Set aliases
@@ -309,7 +312,14 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
     1./pmb->pcoord->dx1f(0), 1./pmb->pcoord->dx2f(0), 1./pmb->pcoord->dx3f(0)
   };
   ig = new InterpIntergridLocal(NDIM, &N[0], &rdx[0]);
+if(pmb->pmy_mesh->multilevel){
+  int N_coarse[] = {pmb->ncv1, pmb->ncv2, pmb->ncv3};
+  Real rdx_coarse[] = {
+    1./pmb->pmr->pcoarsec->dx1f(0), 1./pmb->pmr->pcoarsec->dx2f(0), 1./pmb->pmr->pcoarsec->dx3f(0)
+  };
+  ig_coarse = new InterpIntergridLocal(NDIM, &N_coarse[0], &rdx_coarse[0]);
 
+}
 
 //
   // Set up finite difference operators
@@ -429,6 +439,9 @@ Z4c::~Z4c()
   Riemm4_dd.DeleteAthenaTensor();
 //WGC end
   delete ig;
+if(pmy_block->pmy_mesh->multilevel){
+  delete ig_coarse;
+}
 }
 
 //----------------------------------------------------------------------------------------
@@ -547,13 +560,26 @@ Real Z4c::Trace(Real const detginv,
 // \!fn Real Z4c::GetMatter(Real detginv, Real gxx, ... , Real gzz, Real Axx, ..., Real Azz)
 // \brief Update matter variables from hydro 
 
-void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, AthenaArray<Real> & w)
+void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, AthenaArray<Real> & w, AthenaArray<Real> &bb_cc)
 {
      MeshBlock * pmb = pmy_block;
      Matter_vars mat;
      SetMatterAliases(u_mat, mat);
      Real gamma_adi = pmy_block->peos->GetGamma(); //NB specific to EOS
+     AthenaArray<Real> epscc;
+     int nn1 = pmb->ncells1;
+     int nn2 = pmb->ncells2;
+     int nn3 = pmb->ncells3;
+     if(opt.epsinterp==1){
+     epscc.NewAthenaArray(pmb->ncells3,pmb->ncells2,pmb->ncells1);
+     }
+      AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy;
+      AthenaArray<Real> vcgamma_yz,vcgamma_zz,vcbeta_x,vcbeta_y;
+      AthenaArray<Real> vcbeta_z, alpha;
 
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> W_lor, rhoadm; //lapse
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u, v_u, v_d, Siadm_d, utilde_u; //lapse
+      AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd, Sijadm_dd; //lapse
 
      ADM_vars adm;
      
@@ -569,6 +595,9 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
      utilde1cc.InitWithShallowSlice(w,IVX,1);
      utilde2cc.InitWithShallowSlice(w,IVY,1);
      utilde3cc.InitWithShallowSlice(w,IVZ,1);
+     bb1cc.InitWithShallowSlice(bb_cc,IB1,1);
+     bb2cc.InitWithShallowSlice(bb_cc,IB2,1);
+     bb3cc.InitWithShallowSlice(bb_cc,IB3,1);   //check this!
      } else if(opt.fix_admsource==1){
      rhocc.InitWithShallowSlice(pmb->phydro->w_init,IDN,1);
      pgascc.InitWithShallowSlice(pmb->phydro->w_init,IPR,1);
@@ -576,48 +605,131 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
      utilde2cc.InitWithShallowSlice(pmb->phydro->w_init,IVY,1);
      utilde3cc.InitWithShallowSlice(pmb->phydro->w_init,IVZ,1); 
      }
-     Real rhovc, pgasvc, utilde1vc, utilde2vc, utilde3vc, wgas,tmp, gamma_lor, v1,v2,v3,v_1,v_2,v_3;
+
+if(opt.Tmunuinterp==0){
+//     Real rhovc, pgasvc, utilde1vc, utilde2vc, utilde3vc, wgas,tmp, gamma_lor, v1,v2,v3,v_1,v_2,v_3,epsvc, bb1vc,bb2vc,bb3vc;
+AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> rhovc, pgasvc, utilde1vc, utilde2vc, utilde3vc, epsvc, bb1vc,bb2vc,bb3vc, tmp, wgas, gamma_lor, v1,v2,v3, detgamma, detg, bsq, b0_u;
+AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> v_d, bb_u, bi_u, bi_d, utildevc_u; 
+rhovc.NewAthenaTensor(nn1);
+pgasvc.NewAthenaTensor(nn1);
+epsvc.NewAthenaTensor(nn1);
+utilde1vc.NewAthenaTensor(nn1);
+utilde2vc.NewAthenaTensor(nn1);
+utilde3vc.NewAthenaTensor(nn1);
+bb1vc.NewAthenaTensor(nn1);
+bb2vc.NewAthenaTensor(nn1);
+bb3vc.NewAthenaTensor(nn1);
+v1.NewAthenaTensor(nn1);
+v2.NewAthenaTensor(nn1);
+v3.NewAthenaTensor(nn1);
+tmp.NewAthenaTensor(nn1);
+wgas.NewAthenaTensor(nn1);
+gamma_lor.NewAthenaTensor(nn1);
+detgamma.NewAthenaTensor(nn1);
+detg.NewAthenaTensor(nn1);
+bsq.NewAthenaTensor(nn1);
+b0_u.NewAthenaTensor(nn1);
+v_d.NewAthenaTensor(nn1);
+bb_u.NewAthenaTensor(nn1);
+bi_u.NewAthenaTensor(nn1);
+bi_d.NewAthenaTensor(nn1);
+utildevc_u.NewAthenaTensor(nn1);
+alpha.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
 // interpolate to VC
-     ILOOP3(k,j,i){
-     rhovc = ig->map3d_CC2VC(rhocc(k,j,i));
-     pgasvc = ig->map3d_CC2VC(pgascc(k,j,i));
-     utilde1vc = ig->map3d_CC2VC(utilde1cc(k,j,i));
-     utilde2vc = ig->map3d_CC2VC(utilde2cc(k,j,i));
-     utilde3vc = ig->map3d_CC2VC(utilde3cc(k,j,i));
-/*
-     rhovc = 0.125*(rhocc(k-1,j-1,i-1) + rhocc(k-1,j-1,i) + rhocc(k-1,j,i-1) + rhocc(k,j-1,i-1) + rhocc(k-1,j,i) + rhocc(k,j-1,i) + rhocc(k,j,i-1) + rhocc(k,j,i));
-     pgasvc = 0.125*(pgascc(k-1,j-1,i-1) + pgascc(k-1,j-1,i) + pgascc(k-1,j,i-1) + pgascc(k,j-1,i-1) + pgascc(k-1,j,i) + pgascc(k,j-1,i) + pgascc(k,j,i-1) + pgascc(k,j,i));
-     utilde1vc = 0.125*(utilde1cc(k-1,j-1,i-1) + utilde1cc(k-1,j-1,i) + utilde1cc(k-1,j,i-1) + utilde1cc(k,j-1,i-1) + utilde1cc(k-1,j,i) + utilde1cc(k,j-1,i) + utilde1cc(k,j,i-1) + utilde1cc(k,j,i));
-     utilde2vc = 0.125*(utilde2cc(k-1,j-1,i-1) + utilde2cc(k-1,j-1,i) + utilde2cc(k-1,j,i-1) + utilde2cc(k,j-1,i-1) + utilde2cc(k-1,j,i) + utilde2cc(k,j-1,i) + utilde2cc(k,j,i-1) + utilde2cc(k,j,i));
-     utilde3vc = 0.125*(utilde3cc(k-1,j-1,i-1) + utilde3cc(k-1,j-1,i) + utilde3cc(k-1,j,i-1) + utilde3cc(k,j-1,i-1) + utilde3cc(k-1,j,i) + utilde3cc(k,j-1,i) + utilde3cc(k,j,i-1) + utilde3cc(k,j,i));
-*/
+     ILOOP2(k,j){
+     ILOOP1(i){
+     rhovc(i) = ig->map3d_CC2VC(rhocc(k,j,i));
+     if(opt.epsinterp==0){
+     pgasvc(i) = ig->map3d_CC2VC(pgascc(k,j,i));
+     } else {
+     epsvc(i) = ig->map3d_CC2VC(epscc(k,j,i));
+     }
+     utilde1vc(i) = ig->map3d_CC2VC(utilde1cc(k,j,i));
+     utilde2vc(i) = ig->map3d_CC2VC(utilde2cc(k,j,i));
+     utilde3vc(i) = ig->map3d_CC2VC(utilde3cc(k,j,i));
+     bb1vc(i)     = ig->map3d_CC2VC(bb1cc(k,j,i));
+     bb2vc(i)     = ig->map3d_CC2VC(bb2cc(k,j,i));
+     bb3vc(i)     = ig->map3d_CC2VC(bb3cc(k,j,i));
+     
 //   NB specific to EOS
-     wgas = rhovc + gamma_adi/(gamma_adi-1.0) * pgasvc;
-     tmp = utilde1vc*utilde1vc*adm.g_dd(0,0,k,j,i) + utilde2vc*utilde2vc*adm.g_dd(1,1,k,j,i) 
-                + utilde3vc*utilde3vc*adm.g_dd(2,2,k,j,i) + 2.0*utilde1vc*utilde2vc*adm.g_dd(0,1,k,j,i)
-                + 2.0*utilde1vc*utilde3vc*adm.g_dd(0,2,k,j,i) + 
-                2.0*utilde2vc*utilde3vc*adm.g_dd(1,2,k,j,i);
-     gamma_lor = sqrt(1.0+tmp);
+     if(opt.epsinterp==1){
+     pgasvc(i) = epsvc(i)*rhovc(i)*(gamma_adi-1.0);
+     }
+     wgas(i) = rhovc(i) + gamma_adi/(gamma_adi-1.0) * pgasvc(i);
+     tmp(i) = utilde1vc(i)*utilde1vc(i)*adm.g_dd(0,0,k,j,i) + utilde2vc(i)*utilde2vc(i)*adm.g_dd(1,1,k,j,i) 
+                + utilde3vc(i)*utilde3vc(i)*adm.g_dd(2,2,k,j,i) + 2.0*utilde1vc(i)*utilde2vc(i)*adm.g_dd(0,1,k,j,i)
+                + 2.0*utilde1vc(i)*utilde3vc(i)*adm.g_dd(0,2,k,j,i) + 
+                2.0*utilde2vc(i)*utilde3vc(i)*adm.g_dd(1,2,k,j,i);
+     gamma_lor(i) = sqrt(1.0+tmp(i));
 //   convert to 3-velocity
-     v1 = utilde1vc/gamma_lor;
-     v2 = utilde2vc/gamma_lor;
-     v3 = utilde3vc/gamma_lor;
+     v1(i) = utilde1vc(i)/gamma_lor(i);
+     v2(i) = utilde2vc(i)/gamma_lor(i);
+     v3(i) = utilde3vc(i)/gamma_lor(i);
 
-     v_1 = v1*adm.g_dd(0,0,k,j,i) + v2*adm.g_dd(0,1,k,j,i) +v3*adm.g_dd(0,2,k,j,i);
-     v_2 = v1*adm.g_dd(0,1,k,j,i) + v2*adm.g_dd(1,1,k,j,i) +v3*adm.g_dd(1,2,k,j,i);
-     v_3 = v1*adm.g_dd(0,2,k,j,i) + v2*adm.g_dd(1,2,k,j,i) +v3*adm.g_dd(2,2,k,j,i);
+     v_d(0,i) = v1(i)*adm.g_dd(0,0,k,j,i) + v2(i)*adm.g_dd(0,1,k,j,i) +v3(i)*adm.g_dd(0,2,k,j,i);
+     v_d(1,i) = v1(i)*adm.g_dd(0,1,k,j,i) + v2(i)*adm.g_dd(1,1,k,j,i) +v3(i)*adm.g_dd(1,2,k,j,i);
+     v_d(2,i) = v1(i)*adm.g_dd(0,2,k,j,i) + v2(i)*adm.g_dd(1,2,k,j,i) +v3(i)*adm.g_dd(2,2,k,j,i);
+
+     detgamma(i) = SpatialDet(adm.g_dd(0,0,k,j,i),adm.g_dd(0,1,k,j,i), adm.g_dd(0,2,k,j,i), adm.g_dd(1,1,k,j,i), adm.g_dd(1,2,k,j,i), adm.g_dd(2,2,k,j,i));
+     detg(i) = alpha(i)*detgamma(i);
+
+     bb_u(0,i) = bb1vc(i)/detg(i);
+     bb_u(1,i) = bb2vc(i)/detg(i);
+     bb_u(2,i) = bb3vc(i)/detg(i);
+     }
+//     b0_u = 0.0;
+     b0_u.ZeroClear();
+     for(int a=0;a<NDIM;++a){
+     ILOOP1(i){
+     b0_u(i) += gamma_lor(i)*bb_u(a,i)*v_d(a,i)/alpha(i);
+     }
+     }
+
+     ILOOP1(i){
+     utildevc_u(0,i) = utilde1vc(i);
+     utildevc_u(1,i) = utilde2vc(i);
+     utildevc_u(2,i) = utilde3vc(i);
+     }
+
+     for(int a=0;a<NDIM;++a){
+      ILOOP1(i){
+          bi_u(a,i) = (bb_u(a,i) + alpha(i)*b0_u(i)*utildevc_u(a,i))/gamma_lor(i);
+      }
+     }
+     bi_d.ZeroClear();
+      for(int a=0;a<NDIM;++a){
+        for(int b=0;b<NDIM;++b){
+         ILOOP1(i){
+           bi_d(a,i) += bi_u(b,i)*adm.g_dd(a,b,k,j,i);
+         }
+        }
+       }
+     ILOOP1(i){
+     bsq(i) = alpha(i)*alpha(i)*b0_u(i)*b0_u(i)/(gamma_lor(i)*gamma_lor(i));
+     }
+     for(int a=0;a<NDIM;++a){
+          for(int b=0;b<NDIM;++b){
+           ILOOP1(i){
+             bsq(i) += bb_u(a,i)*bb_u(b,i)*adm.g_dd(a,b,k,j,i)/(gamma_lor(i)*gamma_lor(i));
+           }
+          }
+     }
 
 
-     mat.rho(k,j,i) = wgas*SQR(gamma_lor) - pgasvc;
-     mat.S_d(0,k,j,i) = wgas*SQR(gamma_lor)*v_1;
-     mat.S_d(1,k,j,i) = wgas*SQR(gamma_lor)*v_2;
-     mat.S_d(2,k,j,i) = wgas*SQR(gamma_lor)*v_3;
-     mat.S_dd(0,0,k,j,i) = wgas*SQR(gamma_lor)* v_1*v_1 + pgasvc*adm.g_dd(0,0,k,j,i);
-     mat.S_dd(0,1,k,j,i) = wgas*SQR(gamma_lor)* v_1*v_2 + pgasvc*adm.g_dd(0,1,k,j,i);
-     mat.S_dd(0,2,k,j,i) = wgas*SQR(gamma_lor)* v_1*v_3 + pgasvc*adm.g_dd(0,2,k,j,i);
-     mat.S_dd(1,1,k,j,i) = wgas*SQR(gamma_lor)* v_2*v_2 + pgasvc*adm.g_dd(1,1,k,j,i);
-     mat.S_dd(1,2,k,j,i) = wgas*SQR(gamma_lor)* v_2*v_3 + pgasvc*adm.g_dd(1,2,k,j,i);
-     mat.S_dd(2,2,k,j,i) = wgas*SQR(gamma_lor)* v_3*v_3 + pgasvc*adm.g_dd(2,2,k,j,i);
+
+     ILOOP1(i){
+     mat.rho(k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i)) - (pgasvc(i) + bsq(i)/2.0) - alpha(i)*alpha(i)*b0_u(i)*b0_u(i);
+     mat.S_d(0,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(0,i) - b0_u(i)*bi_d(0,i);
+     mat.S_d(1,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(1,i) - b0_u(i)*bi_d(1,i);
+     mat.S_d(2,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(2,i) - b0_u(i)*bi_d(2,i);
+     mat.S_dd(0,0,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(0,i)*v_d(0,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(0,0,k,j,i) - bi_d(0,i)*bi_d(0,i);
+     mat.S_dd(0,1,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(0,i)*v_d(1,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(0,1,k,j,i) - bi_d(0,i)*bi_d(1,i);
+     mat.S_dd(0,2,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(0,i)*v_d(2,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(0,2,k,j,i) - bi_d(0,i)*bi_d(2,i);
+     mat.S_dd(1,1,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(1,i)*v_d(1,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(1,1,k,j,i) - bi_d(1,i)*bi_d(1,i);
+     mat.S_dd(1,2,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(1,i)*v_d(2,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(1,2,k,j,i) - bi_d(1,i)*bi_d(2,i);
+     mat.S_dd(2,2,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(2,i)*v_d(2,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(2,2,k,j,i) - bi_d(2,i)*bi_d(2,i);
+}
+}
 }
 }
 

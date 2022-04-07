@@ -393,6 +393,14 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
                            const AthenaArray<Real> &prim, const AthenaArray<Real> &bb_cc,
                            AthenaArray<Real> &cons) {
 
+//TODO 
+// 1: Rearrange loops s.t. innermost loop is i-loop using 1D buffers similar to z4c logic
+// 2a: Replace ``Extract metric coefficients'' with local calculation of CC metric from VC metric
+//     don't bother with 4-metric, just use 3-metric, lapse and shift
+// 2b: Same as above for K_{ij}
+// 3: Calculate derivative of spatial metric at CC directly from VC metric.
+// 4: Replace AthenaArrays w/ AthenaTensors 
+  // Extract indices
   int is = pmy_block->is;
   int ie = pmy_block->ie;
   int js = pmy_block->js;
@@ -422,6 +430,11 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
       AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_uu;  // gamma^{ij}
       AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> dgamma_ddd;  // pd_i gamma_{jk}
       AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> K_dd;  // K_{ij}
+
+//bfield
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> b0_u, bsq, u0, T00 ; //lapse
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> bb_u, bi_u, bi_d, T0i_u, T0i_d;  // 3 vel v_i
+      AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> Tij_uu;  // K_{ij}
 
 // To delete for tetsing...
 
@@ -467,6 +480,20 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
       betadbeta_ddu.NewAthenaTensor(nn1);
       betadbeta_udd.NewAthenaTensor(nn1);
 
+//bfield
+      b0_u.NewAthenaTensor(nn1);
+      bb_u.NewAthenaTensor(nn1);
+      bi_u.NewAthenaTensor(nn1);
+      bi_d.NewAthenaTensor(nn1);
+      bsq.NewAthenaTensor(nn1);
+      u0.NewAthenaTensor(nn1);
+      T00.NewAthenaTensor(nn1);
+      T0i_u.NewAthenaTensor(nn1);
+      T0i_d.NewAthenaTensor(nn1);
+      Tij_uu.NewAthenaTensor(nn1);
+
+
+
       vcgamma_xx.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
       vcgamma_xy.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
       vcgamma_xz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
@@ -487,110 +514,6 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
   // Go through cells
   for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
-/*
-     // Alternative calculation for testing using ``old'' interpolated metric 
-              CLOOP1(i){
-                 gamma_dd(0,0,i) = metric_cell_kji_(0,I11,k,j,i);
-                 gamma_dd(0,1,i) = metric_cell_kji_(0,I12,k,j,i);
-                 gamma_dd(0,2,i) = metric_cell_kji_(0,I13,k,j,i);
-                 gamma_dd(1,1,i) = metric_cell_kji_(0,I22,k,j,i);
-                 gamma_dd(1,2,i) = metric_cell_kji_(0,I23,k,j,i);
-                 gamma_dd(2,2,i) = metric_cell_kji_(0,I33,k,j,i);
-                 K_dd(0,0,i) = excurv_kji_(S11,k,j,i);
-                 K_dd(0,1,i) = excurv_kji_(S12,k,j,i);
-                 K_dd(0,2,i) = excurv_kji_(S13,k,j,i);
-                 K_dd(1,1,i) = excurv_kji_(S22,k,j,i);
-                 K_dd(1,2,i) = excurv_kji_(S23,k,j,i);
-                 K_dd(2,2,i) = excurv_kji_(S33,k,j,i);
-                 alpha(i) = std::sqrt(-1.0/metric_cell_kji_(1,I00,k,j,i));
-                 beta_u(0,i) = metric_cell_kji_(1,I01,k,j,i)*SQR(alpha(i));
-                 beta_u(1,i) = metric_cell_kji_(1,I02,k,j,i)*SQR(alpha(i));
-                 beta_u(2,i) = metric_cell_kji_(1,I03,k,j,i)*SQR(alpha(i));
-              }
-           for(a = 0; a < 3 ;++a){
-             CLOOP1(i){
-             dgamma_ddd(a,0,0,i) = coord_src_kji_(a,I11,k,j,i);
-             dgamma_ddd(a,0,1,i) = coord_src_kji_(a,I12,k,j,i);
-             dgamma_ddd(a,0,2,i) = coord_src_kji_(a,I13,k,j,i);
-             dgamma_ddd(a,1,0,i) = coord_src_kji_(a,I12,k,j,i);
-             dgamma_ddd(a,1,1,i) = coord_src_kji_(a,I22,k,j,i);
-             dgamma_ddd(a,1,2,i) = coord_src_kji_(a,I23,k,j,i);
-             dgamma_ddd(a,2,0,i) = coord_src_kji_(a,I13,k,j,i);
-             dgamma_ddd(a,2,1,i) = coord_src_kji_(a,I23,k,j,i);
-             dgamma_ddd(a,2,2,i) = coord_src_kji_(a,I33,k,j,i);
-            }
-        }
-// calculate inverse metric
-
-      CLOOP1(i) {
-      detg(i) = Det3Metric(gamma_dd, i);
-      Inverse3Metric(1.0/detg(i),
-          gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
-          gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i),
-          &gamma_uu(0,0,i), &gamma_uu(0,1,i), &gamma_uu(0,2,i),
-          &gamma_uu(1,1,i), &gamma_uu(1,2,i), &gamma_uu(2,2,i));
-      }
-         
-           for(a = 0; a < 3 ;++a){
-             CLOOP1(i){
-       dbeta_dd(a,0,i) = coord_src_kji_(a,I01,k,j,i);
-       dbeta_dd(a,1,i) = coord_src_kji_(a,I02,k,j,i);
-       dbeta_dd(a,2,i) = coord_src_kji_(a,I03,k,j,i);
-    }
-    } 
-            
-       dgamma_duu.ZeroClear();
-       for(a = 0; a<3; ++a){
-       for(b = 0; b<3; ++b){
-       for(c = 0; c<3; ++c){
-           for(d = 0; d<3; ++d){
-               for(e = 0; e<3; ++e){
-                    CLOOP1(i){
-                    dgamma_duu(a,b,c,i) -=  gamma_uu(d,c,i)*gamma_uu(e,b,i)*dgamma_ddd(a,e,d,i);
-                    }
-                }
-           } 
-       }
-       }
-       }
-
-       dbeta_du.ZeroClear();
-       for(a = 0; a<3; ++a){
-       for(b = 0; b<3; ++b){
-           for(c = 0; c<3; ++c){
-              CLOOP1(i){ 
-              dbeta_du(a,b,i) += gamma_uu(b,c,i)*dbeta_dd(a,c,i) + beta_d(c,i)*dgamma_duu(a,b,c,i); 
-              }
-           }
-       }
-       }
-
-       beta_d.ZeroClear();
-             for(a = 0; a<3; ++a){
-             for(b = 0; a<3; ++a){
-               CLOOP1(i){
-                   beta_d(a,i) += beta_u(b,i) * gamma_dd(a,b,i);
-                   }
-                 }
-             }
-      
-       betadbeta_ddu.ZeroClear();
-       betadbeta_udd.ZeroClear();
-       for(a = 0; a<3; ++a){
-           for(b = 0; b<3; ++b){
-               CLOOP1(i){
-               betadbeta_ddu(a,i) += beta_d(b,i)*dbeta_du(a,b,i);
-               betadbeta_udd(a,i) += beta_u(b,i)*dbeta_dd(a,b,i);
-               }
-           }
-       }
-
-       for(a = 0; a<3; ++a){
-            CLOOP1(i){ 
-            dalpha_d(a,i) = (coord_src_kji_(a,I00,k,j,i) - betadbeta_ddu(a,i) - betadbeta_udd(a,i))/(-2.0*alpha(i));
-            }
-       }
-*/
  
 // populate alpha, beta, gamma, K, derivatives done
      CLOOP1(i){
@@ -634,7 +557,9 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
           &gamma_uu(0,0,i), &gamma_uu(0,1,i), &gamma_uu(0,2,i),
           &gamma_uu(1,1,i), &gamma_uu(1,2,i), &gamma_uu(2,2,i));
       }
-
+//
+//
+//
 // Read in primitives
       for(a=0;a<NDIM;++a){
           CLOOP1(i){
@@ -649,14 +574,7 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
 
 // Calulate enthalpy (rho*h) NB EOS specific!
       CLOOP1(i){
-#if USETM
-          Real n = rho(i)/pmy_block->peos->GetEOS().GetBaryonMass();
-          Real Y[MAX_SPECIES] = {0.0};
-          Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgas(i), Y);
-          wtot(i) = n*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
-#else
           wtot(i) = rho(i) + gamma_adi/(gamma_adi-1.0) * pgas(i);
-#endif
       }
 // calculate Lorentz factor
       Wlor.ZeroClear();
@@ -687,6 +605,8 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
               }
           }
       }
+
+// old calculation of hydro sources
       Stau.ZeroClear();
       for(a=0;a<NDIM; ++a){ 
           CLOOP1(i){
@@ -715,7 +635,109 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
           }
        }
 
-       
+if(MAGNETIC_FIELDS_ENABLED){
+     CLOOP1(i){
+      bb_u(0,i) = bb_cc(IB1,k,j,i)/std::sqrt(detg(i)); 
+      bb_u(1,i) = bb_cc(IB2,k,j,i)/std::sqrt(detg(i)); 
+      bb_u(2,i) = bb_cc(IB3,k,j,i)/std::sqrt(detg(i)); 
+     }
+
+  b0_u.ZeroClear();
+  for(a=0;a<NDIM;++a){
+     CLOOP1(i){
+       b0_u(i) += Wlor(i)*bb_u(a,i)*v_d(a,i)/alpha(i);
+  }}
+  for(a=0;a<NDIM;++a){
+     CLOOP1(i){
+          bi_u(a,i) = (bb_u(a,i) + alpha(i)*b0_u(i)*utilde_u(a,i))/Wlor(i);
+     }}
+  bi_d.ZeroClear();
+  for(a=0;a<NDIM;++a){
+    for(b=0;b<NDIM;++b){
+     CLOOP1(i){
+          bi_d(a,i) += bi_u(b,i)*gamma_dd(a,b,i);
+     }}
+  }
+     CLOOP1(i){
+   bsq(i) = alpha(i)*alpha(i)*b0_u(i)*b0_u(i)/(Wlor(i)*Wlor(i));
+     }
+   for(a=0;a<NDIM;++a){
+          for(b=0;b<NDIM;++b){
+     CLOOP1(i){
+         bsq(i) += bb_u(a,i)*bb_u(b,i)*gamma_dd(a,b,i)/(Wlor(i)*Wlor(i));
+     } }
+      }
+    CLOOP1(i){
+       u0(i) = Wlor(i)/alpha(i);
+    }    
+
+CLOOP1(i){
+T00(i) = (wtot(i)+bsq(i))*u0(i)*u0(i) + (pgas(i)+bsq(i)/2.0)*(-1.0/(alpha(i)*alpha(i))) - b0_u(i)*b0_u(i);
+}
+
+for(a = 0; a<NDIM; ++a){  
+CLOOP1(i){
+T0i_u(a,i) = (wtot(i)+bsq(i))*u0(i)*utilde_u(a,i) + (pgas(i)+bsq(i)/2.0)*(beta_u(a,i)/(alpha(i)*alpha(i))) - b0_u(i)*bi_u(a,i);
+}
+}
+
+T0i_d.ZeroClear();
+ 
+for(a = 0; a<NDIM; ++a){  
+for(b = 0; b<NDIM; ++b){  
+CLOOP1(i){
+T0i_d(a,i) += gamma_dd(a,b,i)*T0i_u(b,i);
+}
+}
+}
+for(a = 0; a<NDIM; ++a){  
+for(b = 0; b<NDIM; ++b){  
+CLOOP1(i){
+Tij_uu(a,b,i) = (wtot(i)+bsq(i))*utilde_u(a,i)*utilde_u(b,i) + (pgas(i)+bsq(i)/2.0)*(gamma_uu(a,b,i) - beta_u(a,i)*beta_u(b,i)/(alpha(i)*alpha(i))) - bi_u(a,i)*bi_u(b,i);
+}
+}
+}
+
+
+for(a = 0; a<NDIM; ++a){  
+CLOOP1(i){
+SS_d(a,i) = T00(i)*(- alpha(i)*dalpha_d(a,i));
+}
+}
+
+for(a = 0; a<NDIM; ++a){  
+for(b = 0; b<NDIM; ++b){  
+CLOOP1(i){
+SS_d(a,i) += T0i_d(b,i)*dbeta_du(a,b,i);
+}
+}
+}
+for(a = 0; a<NDIM; ++a){  
+for(b = 0; b<NDIM; ++b){  
+for(c = 0; c<NDIM; ++c){  
+CLOOP1(i){
+SS_d(a,i) += T00(i)*(beta_u(b,i)*beta_u(c,i)*dgamma_ddd(a,b,c,i)) + T0i_u(b,i)*beta_u(c,i)*dgamma_ddd(a,b,c,i) + 0.5*Tij_uu(b,c,i)*dgamma_ddd(a,b,c,i);
+}
+}
+}
+}
+
+Stau.ZeroClear();
+
+for(a = 0; a<NDIM; ++a){  
+CLOOP1(i){
+Stau(i) += T00(i)*(- beta_u(a,i)*dalpha_d(a,i)) + T0i_u(a,i)*(- dalpha_d(a,i));
+}
+}
+
+for(a = 0; a<NDIM; ++a){  
+for(b = 0; b<NDIM; ++b){  
+CLOOP1(i){
+Stau(i) += T00(i)*(beta_u(a,i)*beta_u(b,i)*K_dd(a,b,i))  + T0i_u(a,i)*(2.0*beta_u(b,i)*K_dd(a,b,i) ) + Tij_uu(a,b,i)*K_dd(a,b,i);
+}
+}
+}
+}       
 //        Real &taudg = cons(IEN,k,j,i);
 //        Real &S_1dg = cons(IM1,k,j,i);
 //        Real &S_2dg = cons(IM2,k,j,i);
@@ -726,15 +748,7 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
         CLOOP1(i){
         pgas_init(i) = pmy_block->phydro->w_init(IPR,k,j,i); 
         rho_init(i) = pmy_block->phydro->w_init(IDN,k,j,i); 
-#if USETM
-        Real n = rho_init(i)/pmy_block->peos->GetEOS().GetBaryonMass();
-        // FIXME: Generalize to work with EOSes accepting particle fractions.
-        Real Y[MAX_SPECIES] = {0.0};
-        Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgas_init(i), Y);
-        w_init(i) = n*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
-#else
         w_init(i) = rho_init(i) + gamma_adi/(gamma_adi-1.0) * pgas_init(i);
-#endif
         Stau(i) = 0.0;
         }
         for(a=0;a<NDIM;++a){

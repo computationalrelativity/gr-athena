@@ -20,13 +20,6 @@
 #include "../coordinates/coordinates.hpp" // Coordinates
 #include "../utils/interp_table.hpp"
 
-#if USETM
-// PrimitiveSolver headers
-#include "../z4c/primitive/eos.hpp"
-#include "../z4c/primitive/primitive_solver.hpp"
-#include "include_eos.hpp"
-#endif
-
 // Declarations
 class Hydro;
 class ParameterInput;
@@ -43,16 +36,10 @@ class EquationOfState {
   void ConservedToPrimitive(
       AthenaArray<Real> &cons, const AthenaArray<Real> &prim_old, const FaceField &b,
       AthenaArray<Real> &prim, AthenaArray<Real> &bcc,
-      Coordinates *pco, int il, int iu, int jl, int ju, int kl, int ku);
-  #if Z4C_ENABLED
-  void PrimitiveToConserved(AthenaArray<Real> &prim, AthenaArray<Real> &bc,
-                            AthenaArray<Real> &cons, Coordinates *pco,
-                            int il, int iu, int jl, int ju, int kl, int ku);
-  #else
+      Coordinates *pco, int il, int iu, int jl, int ju, int kl, int ku, int coarseflag);
   void PrimitiveToConserved(const AthenaArray<Real> &prim, const AthenaArray<Real> &bc,
                             AthenaArray<Real> &cons, Coordinates *pco,
                             int il, int iu, int jl, int ju, int kl, int ku);
-  #endif
   void ConservedToPrimitiveCellAverage(
       AthenaArray<Real> &cons, const AthenaArray<Real> &prim_old, const FaceField &b,
       AthenaArray<Real> &prim, AthenaArray<Real> &bcc,
@@ -178,11 +165,6 @@ class EquationOfState {
   Real GetDensityFloor() const {return density_floor_;}
   Real GetPressureFloor() const {return pressure_floor_;}
   EosTable* ptable; // pointer to EOS table data
-#if USETM
-  inline Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& GetEOS() {
-    return eos;
-  }
-#endif
 #if GENERAL_EOS
   Real GetGamma();
 #else // not GENERAL_EOS
@@ -212,12 +194,6 @@ class EquationOfState {
   AthenaArray<Real> normal_bb_;          // normal-frame fields, used in GR MHD
   AthenaArray<Real> normal_tt_;          // normal-frame M.B, used in GR MHD
   void InitEosConstants(ParameterInput *pin);
-#if USETM
-  // If we're using the PrimitiveSolver framework, we need to declare the
-  // EOS and PrimitiveSolver objects.
-  Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> eos;
-  Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> ps;
-#endif
 };
 
 #endif // EOS_EOS_HPP_

@@ -1074,7 +1074,7 @@ TaskStatus TimeIntegratorTaskList::Primitives(MeshBlock *pmb, int stage) {
     // stage=2: W at t^{n+1/2} (VL2) or t^{n+1} (RK2)
     pmb->peos->ConservedToPrimitive(ph->u, ph->w, pf->b,
                                     ph->w1, pf->bcc, pmb->pcoord,
-                                    il, iu, jl, ju, kl, ku);
+                                    il, iu, jl, ju, kl, ku,0);
     if (NSCALARS > 0) {
       // r1/r_old for GR is currently unused:
       pmb->peos->PassiveScalarConservedToPrimitive(ps->s, ph->w1, // ph->u, (updated rho)

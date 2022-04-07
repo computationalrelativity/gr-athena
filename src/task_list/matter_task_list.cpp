@@ -270,7 +270,7 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
     }
     AddTask(SRCTERM_HYD,INT_HYD);
     AddTask(SEND_HYD,SRCTERM_HYD);
-    AddTask(RECV_HYD,INT_HYD);
+    AddTask(RECV_HYD,NONE);
     AddTask(SETB_HYD,(RECV_HYD|SRCTERM_HYD));
     if (SHEARING_BOX) { // Shearingbox BC for Hydro
       AddTask(SEND_HYDSH,SETB_HYD);
@@ -376,7 +376,7 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
     AddTask(INT_Z4C, (CALC_Z4CRHS|UPDATE_MET));             // IntegrateZ4c
 
     AddTask(SEND_Z4C, INT_Z4C);                // SendZ4c
-    AddTask(RECV_Z4C, (INT_Z4C | RECV_HYD));                   // ReceiveZ4c
+    AddTask(RECV_Z4C, UPDATE_SRC);                   // ReceiveZ4c
     AddTask(SETB_Z4C, (RECV_Z4C|INT_Z4C));     // SetBoundariesZ4c
     if (pm->multilevel) { // SMR or AMR
       AddTask(PROLONG_Z4C, (SEND_Z4C|SETB_Z4C));   // Prolongation
@@ -815,6 +815,8 @@ void MatterTaskList::StartupTaskList(MeshBlock *pmb, int stage) {
 // Functions to end MPI communication
 
 TaskStatus MatterTaskList::ClearAllBoundary(MeshBlock *pmb, int stage) {
+//printf("clearb\n");
+
   pmb->pbval->ClearBoundary(BoundaryCommSubset::all);
   return TaskStatus::success;
 }
@@ -826,6 +828,7 @@ TaskStatus MatterTaskList::CalculateHydroFlux(MeshBlock *pmb, int stage) {
   Hydro *phydro = pmb->phydro;
   Field *pfield = pmb->pfield;
 
+//printf("chydfl\n");
   if (stage <= nstages) {
     if ((stage == 1) && (integrator == "vl2")) {
       phydro->CalculateFluxes(phydro->w,  pfield->b,  pfield->bcc, 1);
@@ -851,6 +854,7 @@ TaskStatus MatterTaskList::CalculateEMF(MeshBlock *pmb, int stage) {
 // Functions to communicate fluxes between MeshBlocks for flux correction with AMR
 
 TaskStatus MatterTaskList::SendHydroFlux(MeshBlock *pmb, int stage) {
+//printf("sendhydfl\n");
   pmb->phydro->hbvar.SendFluxCorrection();
   return TaskStatus::success;
 }
@@ -865,6 +869,7 @@ TaskStatus MatterTaskList::SendEMF(MeshBlock *pmb, int stage) {
 // Functions to receive fluxes between MeshBlocks
 
 TaskStatus MatterTaskList::ReceiveAndCorrectHydroFlux(MeshBlock *pmb, int stage) {
+//printf("recvcorrhydfl\n");
   if (pmb->phydro->hbvar.ReceiveFluxCorrection()) {
     return TaskStatus::next;
   } else {
@@ -884,6 +889,7 @@ TaskStatus MatterTaskList::ReceiveAndCorrectEMF(MeshBlock *pmb, int stage) {
 // Functions to integrate conserved variables
 
 TaskStatus MatterTaskList::IntegrateHydro(MeshBlock *pmb, int stage) {
+//printf("inthydro\n");
   Hydro *ph = pmb->phydro;
   Field *pf = pmb->pfield;
 
@@ -992,6 +998,7 @@ TaskStatus MatterTaskList::AddSourceTermsHydro(MeshBlock *pmb, int stage) {
 // cndflx[], added at the end of Hydro::CalculateFluxes()
 
 TaskStatus MatterTaskList::DiffuseHydro(MeshBlock *pmb, int stage) {
+//printf("diffhydro\n");
   Hydro *ph = pmb->phydro;
 
   // return if there are no diffusion to be added
@@ -1030,6 +1037,7 @@ TaskStatus MatterTaskList::DiffuseField(MeshBlock *pmb, int stage) {
 // Functions to communicate conserved variables between MeshBlocks
 
 TaskStatus MatterTaskList::SendHydro(MeshBlock *pmb, int stage) {
+//printf("sendhydro\n");
   if (stage <= nstages) {
     // Swap Hydro quantity in BoundaryVariable interface back to conserved var formulation
     // (also needed in SetBoundariesHydro(), since the tasks are independent)
@@ -1055,9 +1063,11 @@ TaskStatus MatterTaskList::SendField(MeshBlock *pmb, int stage) {
 // Functions to receive conserved variables between MeshBlocks
 
 TaskStatus MatterTaskList::ReceiveHydro(MeshBlock *pmb, int stage) {
+//printf("recvhydro\n");
   bool ret;
   if (stage <= nstages) {
     ret = pmb->phydro->hbvar.ReceiveBoundaryBuffers();
+//    ret=1;
   } else {
     return TaskStatus::fail;
   }
@@ -1085,6 +1095,7 @@ TaskStatus MatterTaskList::ReceiveField(MeshBlock *pmb, int stage) {
 
 
 TaskStatus MatterTaskList::SetBoundariesHydro(MeshBlock *pmb, int stage) {
+//printf("setbhydro\n");
   if (stage <= nstages) {
     pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->u, HydroBoundaryQuantity::cons);
     pmb->phydro->hbvar.SetBoundaries();
@@ -1181,6 +1192,7 @@ TaskStatus MatterTaskList::RemapEMFShear(MeshBlock *pmb, int stage) {
 
 TaskStatus MatterTaskList::Prolongation_Hyd(MeshBlock *pmb, int stage) {
   BoundaryValues *pbval = pmb->pbval;
+//printf("prolhydro\n");
 
   if (stage <= nstages) {
     // Time at the end of stage for (u, b) register pair
@@ -1203,6 +1215,7 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
   PassiveScalars *ps = pmb->pscalars;
   BoundaryValues *pbval = pmb->pbval;
 
+//printf("prim\n");
   int il = pmb->is, iu = pmb->ie, jl = pmb->js, ju = pmb->je, kl = pmb->ks, ku = pmb->ke;
   if (pbval->nblevel[1][1][0] != -1) il -= NGHOST;
   if (pbval->nblevel[1][1][2] != -1) iu += NGHOST;
@@ -1210,6 +1223,8 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
   if (pbval->nblevel[1][2][1] != -1) ju += NGHOST;
   if (pbval->nblevel[0][1][1] != -1) kl -= NGHOST;
   if (pbval->nblevel[2][1][1] != -1) ku += NGHOST;
+
+//  int il = pmb->is-NGHOST, iu = pmb->ie+NGHOST, jl = pmb->js-NGHOST, ju = pmb->je+NGHOST, kl = pmb->ks-NGHOST, ku = pmb->ke+NGHOST;
 
 
   if (stage <= nstages) {
@@ -1221,7 +1236,7 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
     // stage=2: W at t^{n+1/2} (VL2) or t^{n+1} (RK2)
     pmb->peos->ConservedToPrimitive(ph->u, ph->w, pf->b,
                                     ph->w1, pf->bcc, pmb->pcoord,
-                                    il, iu, jl, ju, kl, ku);
+                                    il, iu, jl, ju, kl, ku,0);
     if (NSCALARS > 0) {
       // r1/r_old for GR is currently unused:
       pmb->peos->PassiveScalarConservedToPrimitive(ps->s, ph->w1, // ph->u, (updated rho)
@@ -1265,6 +1280,7 @@ TaskStatus MatterTaskList::PhysicalBoundary_Hyd(MeshBlock *pmb, int stage) {
   PassiveScalars *ps = pmb->pscalars;
   BoundaryValues *pbval = pmb->pbval;
 //physical boundaries only for hydro vars
+//printf("phybdyhydro\n");
 
   if (stage <= nstages) {
     // Time at the end of stage for (u, b) register pair
@@ -1439,6 +1455,7 @@ TaskStatus MatterTaskList::DiffuseScalars(MeshBlock *pmb, int stage) {
 // Z4C tasks begin here
 
 TaskStatus MatterTaskList::CalculateZ4cRHS(MeshBlock *pmb, int stage) {
+//printf("rhsz4c\n");
 
 #ifdef Z4C_TRACKER
   // Tracker: interpolate beta at puncture position before evolution
@@ -1468,6 +1485,7 @@ TaskStatus MatterTaskList::CalculateZ4cRHS(MeshBlock *pmb, int stage) {
 TaskStatus MatterTaskList::IntegrateZ4c(MeshBlock *pmb, int stage) {
   Z4c *pz4c = pmb->pz4c;
 
+//printf("intz4c\n");
   if (stage <= nstages) {
     // This time-integrator-specific averaging operation logic is identical
     // to IntegrateField
@@ -1495,6 +1513,7 @@ TaskStatus MatterTaskList::IntegrateZ4c(MeshBlock *pmb, int stage) {
 // Functions to communicate conserved variables between MeshBlocks
 
 TaskStatus MatterTaskList::SendZ4c(MeshBlock *pmb, int stage) {
+//printf("sendz4c\n");
   if (stage <= nstages) {
     pmb->pz4c->ubvar.SendBoundaryBuffers();
   } else {
@@ -1507,9 +1526,11 @@ TaskStatus MatterTaskList::SendZ4c(MeshBlock *pmb, int stage) {
 // Functions to receive conserved variables between MeshBlocks
 
 TaskStatus MatterTaskList::ReceiveZ4c(MeshBlock *pmb, int stage) {
+//printf("recvz4c\n");
   bool ret;
   if (stage <= nstages) {
     ret = pmb->pz4c->ubvar.ReceiveBoundaryBuffers();
+//      ret=1;
   } else {
     return TaskStatus::fail;
   }
@@ -1521,6 +1542,7 @@ TaskStatus MatterTaskList::ReceiveZ4c(MeshBlock *pmb, int stage) {
 }
 
 TaskStatus MatterTaskList::SetBoundariesZ4c(MeshBlock *pmb, int stage) {
+//printf("setbz4c\n");
   if (stage <= nstages) {
      	  pmb->pz4c->ubvar.SetBoundaries();
     return TaskStatus::success;
@@ -1530,6 +1552,7 @@ TaskStatus MatterTaskList::SetBoundariesZ4c(MeshBlock *pmb, int stage) {
 //--------------------------------------------------------------------------------------
 // Functions for everything else
 TaskStatus MatterTaskList::Prolongation_Z4c(MeshBlock *pmb, int stage) {
+//printf("prolz4c\n");
   BoundaryValues *pbval = pmb->pbval;
 //prolongates only z4c vars
   if (stage <= nstages) {
@@ -1545,6 +1568,7 @@ TaskStatus MatterTaskList::Prolongation_Z4c(MeshBlock *pmb, int stage) {
   return TaskStatus::success;
 }
 TaskStatus MatterTaskList::PhysicalBoundary_Z4c(MeshBlock *pmb, int stage) {
+//printf("phybdyz4c\n");
   BoundaryValues *pbval = pmb->pbval;
  
   if (stage <= nstages) {
@@ -1628,6 +1652,7 @@ TaskStatus MatterTaskList::NewBlockTimeStep(MeshBlock *pmb, int stage) {
 }
 
 TaskStatus MatterTaskList::UpdateMetric(MeshBlock *pmb, int stage) {
+//printf("updatemet\n");
   if (stage <= nstages) { 
 //update CC metric
     pmb->pcoord->UpdateMetric();
@@ -1642,9 +1667,10 @@ TaskStatus MatterTaskList::UpdateMetric(MeshBlock *pmb, int stage) {
 }
 
 TaskStatus MatterTaskList::UpdateSource(MeshBlock *pmb, int stage) {
+//printf("updatesrc\n");
   if (stage <= nstages) { 
 // Update VC matter 
-    pmb->pz4c->GetMatter(pmb->pz4c->storage.mat, pmb->pz4c->storage.adm, pmb->phydro->w);
+    pmb->pz4c->GetMatter(pmb->pz4c->storage.mat, pmb->pz4c->storage.adm, pmb->phydro->w, pmb->pfield->bcc);
     return TaskStatus::success;
   }
   return TaskStatus::fail;

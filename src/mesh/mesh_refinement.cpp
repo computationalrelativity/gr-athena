@@ -734,7 +734,7 @@ void MeshRefinement::ProlongateCellCenteredValues(
 
   // BD: debug- disable slope-limiter for the moment
   // this brings behaviour into line with 'master'
-  bool slope_limit = false;
+  bool slope_limit = true;
 
   if (pmb->block_size.nx3 > 1) {
     for (int n=sn; n<=en; n++) {
@@ -749,6 +749,12 @@ void MeshRefinement::ProlongateCellCenteredValues(
         const Real& fx3p = pco->x3v(fk+1);
         Real dx3fm =  x3c - fx3m;
         Real dx3fp =  fx3p - x3c;
+
+        // BD: extend functionality to odd ghosts ---------
+        const int K_l = 1 - (fk >= 0);
+        const int K_u = 1 + ((pmb->block_size.nx3+2*NGHOST) > (fk + 1));
+        // ------------------------------------------------
+
         for (int j = sj; j<=ej; j++) {
           int fj = (j - pmb->cjs)*2 + pmb->js;
           const Real& x2m = pcoarsec->x2v(j-1);
@@ -760,6 +766,12 @@ void MeshRefinement::ProlongateCellCenteredValues(
           const Real& fx2p = pco->x2v(fj+1);
           Real dx2fm = x2c - fx2m;
           Real dx2fp = fx2p - x2c;
+
+          // BD: extend functionality to odd ghosts -------
+          const int J_l = 1 - (fj >= 0);
+          const int J_u = 1 + ((pmb->block_size.nx2+2*NGHOST) > (fj + 1));
+          // ----------------------------------------------
+
           for (int i=si; i<=ei; i++) {
             int fi = (i - pmb->cis)*2 + pmb->is;
             const Real& x1m = pcoarsec->x1v(i-1);
@@ -798,14 +810,37 @@ void MeshRefinement::ProlongateCellCenteredValues(
             }
             // KGF: add the off-centered quantities first to preserve FP symmetry
             // interpolate onto the finer grid
-            fine(n,fk  ,fj  ,fi  ) = ccval - (gx1c*dx1fm + gx2c*dx2fm + gx3c*dx3fm);
-            fine(n,fk  ,fj  ,fi+1) = ccval + (gx1c*dx1fp - gx2c*dx2fm - gx3c*dx3fm);
-            fine(n,fk  ,fj+1,fi  ) = ccval - (gx1c*dx1fm - gx2c*dx2fp + gx3c*dx3fm);
-            fine(n,fk  ,fj+1,fi+1) = ccval + (gx1c*dx1fp + gx2c*dx2fp - gx3c*dx3fm);
-            fine(n,fk+1,fj  ,fi  ) = ccval - (gx1c*dx1fm + gx2c*dx2fm - gx3c*dx3fp);
-            fine(n,fk+1,fj  ,fi+1) = ccval + (gx1c*dx1fp - gx2c*dx2fm + gx3c*dx3fp);
-            fine(n,fk+1,fj+1,fi  ) = ccval - (gx1c*dx1fm - gx2c*dx2fp - gx3c*dx3fp);
-            fine(n,fk+1,fj+1,fi+1) = ccval + (gx1c*dx1fp + gx2c*dx2fp + gx3c*dx3fp);
+            // fine(n,fk  ,fj  ,fi  ) = ccval - (gx1c*dx1fm + gx2c*dx2fm + gx3c*dx3fm);
+            // fine(n,fk  ,fj  ,fi+1) = ccval + (gx1c*dx1fp - gx2c*dx2fm - gx3c*dx3fm);
+            // fine(n,fk  ,fj+1,fi  ) = ccval - (gx1c*dx1fm - gx2c*dx2fp + gx3c*dx3fm);
+            // fine(n,fk  ,fj+1,fi+1) = ccval + (gx1c*dx1fp + gx2c*dx2fp - gx3c*dx3fm);
+            // fine(n,fk+1,fj  ,fi  ) = ccval - (gx1c*dx1fm + gx2c*dx2fm - gx3c*dx3fp);
+            // fine(n,fk+1,fj  ,fi+1) = ccval + (gx1c*dx1fp - gx2c*dx2fm + gx3c*dx3fp);
+            // fine(n,fk+1,fj+1,fi  ) = ccval - (gx1c*dx1fm - gx2c*dx2fp - gx3c*dx3fp);
+            // fine(n,fk+1,fj+1,fi+1) = ccval + (gx1c*dx1fp + gx2c*dx2fp + gx3c*dx3fp);
+
+            // BD: extend functionality to odd ghosts -------
+            // FP symmetry needs to be checked ...
+
+            // populate one (or both) fine daughter cells
+            const int I_l = 1 - (fi >= 0);
+            const int I_u = 1 + ((pmb->block_size.nx1+2*NGHOST) > (fi + 1));
+
+            for (int K=K_l; K<K_u; ++K)
+            {
+              const Real fc3val = (K-1) * gx3c * dx3fm + K * gx3c * dx3fp;
+              for (int J=J_l; J<J_u; ++J)
+              {
+                const Real fc2val = (J-1) * gx2c * dx2fm + J * gx2c * dx2fp;
+                for (int I=I_l; I<I_u; ++I)
+                {
+                  const Real fc1val = (I-1) * gx1c * dx1fm + I * gx1c * dx1fp;
+                  fine(n,fk+K,fj+J,fi+I) = ccval + (fc1val + fc2val + fc3val);
+                }
+              }
+            }
+            // ----------------------------------------------
+
           }
         }
       }
@@ -824,6 +859,12 @@ void MeshRefinement::ProlongateCellCenteredValues(
         const Real& fx2p = pco->x2v(fj+1);
         Real dx2fm = x2c - fx2m;
         Real dx2fp = fx2p - x2c;
+
+        // BD: extend functionality to odd ghosts ---------
+        const int J_l = 1 - (fj >= 0);
+        const int J_u = 1 + ((pmb->block_size.nx2+2*NGHOST) > (fj + 1));
+        // ------------------------------------------------
+
         for (int i=si; i<=ei; i++) {
           int fi = (i - pmb->cis)*2 + pmb->is;
           const Real& x1m = pcoarsec->x1v(i-1);
@@ -850,14 +891,33 @@ void MeshRefinement::ProlongateCellCenteredValues(
               std::min(std::abs(gx2m), std::abs(gx2p));
           } else { // use 2nd ordered centered
               gx1c = (coarse_(n,k,j,i+1) - coarse_(n,k,j,i-1))/(2*dx1m);
-              gx2c = (coarse_(n,k,j+1,i) - coarse_(n,k,j+1,i))/(2*dx2m);
+              gx2c = (coarse_(n,k,j+1,i) - coarse_(n,k,j-1,i))/(2*dx2m);
           }
           // KGF: add the off-centered quantities first to preserve FP symmetry
           // interpolate onto the finer grid
-          fine(n,fk  ,fj  ,fi  ) = ccval - (gx1c*dx1fm + gx2c*dx2fm);
-          fine(n,fk  ,fj  ,fi+1) = ccval + (gx1c*dx1fp - gx2c*dx2fm);
-          fine(n,fk  ,fj+1,fi  ) = ccval - (gx1c*dx1fm - gx2c*dx2fp);
-          fine(n,fk  ,fj+1,fi+1) = ccval + (gx1c*dx1fp + gx2c*dx2fp);
+          // fine(n,fk  ,fj  ,fi  ) = ccval - (gx1c*dx1fm + gx2c*dx2fm);
+          // fine(n,fk  ,fj  ,fi+1) = ccval + (gx1c*dx1fp - gx2c*dx2fm);
+          // fine(n,fk  ,fj+1,fi  ) = ccval - (gx1c*dx1fm - gx2c*dx2fp);
+          // fine(n,fk  ,fj+1,fi+1) = ccval + (gx1c*dx1fp + gx2c*dx2fp);
+
+          // BD: extend functionality to odd ghosts -------
+          // FP symmetry needs to be checked ...
+
+          // populate one (or both) fine daughter cells
+          const int I_l = 1 - (fi >= 0);
+          const int I_u = 1 + ((pmb->block_size.nx1+2*NGHOST) > (fi + 1));
+
+          for (int J=J_l; J<J_u; ++J)
+          {
+            const Real fc2val = (J-1) * gx2c * dx2fm + J * gx2c * dx2fp;
+            for (int I=I_l; I<I_u; ++I)
+            {
+              const Real fc1val = (I-1) * gx1c * dx1fm + I * gx1c * dx1fp;
+              fine(n,fk  ,fj+J,fi+I) = ccval + (fc1val + fc2val);
+            }
+          }
+
+          // ----------------------------------------------
         }
       }
     }
@@ -888,9 +948,23 @@ void MeshRefinement::ProlongateCellCenteredValues(
         } else { // use 2nd order centered
           gx1c = (coarse_(n,k,j,i+1) - coarse_(n,k,j,i-1))/(2*dx1m);
         }
-        // interpolate on to the finer grid
-        fine(n,fk  ,fj  ,fi  ) = ccval - gx1c*dx1fm;
-        fine(n,fk  ,fj  ,fi+1) = ccval + gx1c*dx1fp;
+          // interpolate on to the finer grid
+          // fine(n,fk  ,fj  ,fi  ) = ccval - gx1c*dx1fm;
+          // fine(n,fk  ,fj  ,fi+1) = ccval + gx1c*dx1fp;
+
+          // BD: extend functionality to odd ghosts -------
+          // Populate one (or both) fine daughter cells
+          const int I_l = 1 - (fi >= 0);
+          const int I_u = 1 + ((pmb->block_size.nx1+2*NGHOST) > (fi + 1));
+          // const int I_u = 1 + (fine.GetDim1() > (fi + 1));
+
+          for (int I=I_l; I<I_u; ++I)
+          {
+            const Real fcval = (I-1) * gx1c * dx1fm + I * gx1c * dx1fp;
+            fine(n,fk  ,fj  ,fi+I) = ccval + fcval;
+          }
+
+          // ----------------------------------------------
       }
     }
   }
