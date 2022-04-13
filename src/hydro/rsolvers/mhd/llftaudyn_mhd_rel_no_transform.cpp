@@ -473,8 +473,8 @@ void Hydro::RiemannSolver(const int k, const int j,
         flux_l(IVY,i) = cons_l(IVY,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - std::sqrt(detg(i))*bi_d_l(1,i)*bb_l(ivx-1,i)/Wlor_l(i);      
         flux_l(IVZ,i) = cons_l(IVZ,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - std::sqrt(detg(i))*bi_d_l(2,i)*bb_l(ivx-1,i)/Wlor_l(i);      
         flux_l(ivx,i) += (pgas_l(i)+bsq_l(i)/2.0)*std::sqrt(detg(i));
-        flux_l(IBY,i) = alpha(i)*(cons_l(IBY,i)*(v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - cons_l(IBY+ivx-1)*(v_u_l(ivy-1,i) - beta_u(ivy-1,i)/alpha(i))  );
-        flux_l(IBZ,i) = alpha(i)*(cons_l(IBZ,i)*(v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - cons_l(IBY+ivx-1)*(v_u_l(ivz-1,i) - beta_u(ivz-1,i)/alpha(i))  ); //check these indices
+        flux_l(IBY,i) = alpha(i)*(cons_l(IBY,i)*(v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - bb_l(ivx-1,i)*std::sqrt(detgamma(i))*(v_u_l(ivy-1,i) - beta_u(ivy-1,i)/alpha(i))  );
+        flux_l(IBZ,i) = alpha(i)*(cons_l(IBZ,i)*(v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - bb_l(ivx-1,i)*std::sqrt(detgamma(i))*(v_u_l(ivz-1,i) - beta_u(ivz-1,i)/alpha(i))  ); //check these indices
 
         cons_r(IDN,i) = rho_r(i)*Wlor_r(i)*std::sqrt(detgamma(i));
         // tau = (rho * h = ) wgas * gamma_lorentz**2 - rho * gamma_lorentz - p
@@ -501,8 +501,8 @@ void Hydro::RiemannSolver(const int k, const int j,
         flux_r(IVY,i) = cons_r(IVY,i) * alpha(i) * (v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - std::sqrt(detg(i))*bi_d_r(1,i)*bb_r(ivx-1,i)/Wlor_r(i);      
         flux_r(IVZ,i) = cons_r(IVZ,i) * alpha(i) * (v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - std::sqrt(detg(i))*bi_d_r(2,i)*bb_r(ivx-1,i)/Wlor_r(i);      
         flux_r(ivx,i) += (pgas_r(i)+bsq_r(i)/2.0)*std::sqrt(detg(i));
-        flux_r(IBY,i) = alpha(i)*(cons_r(IBY,i)*(v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - cons_r(IBY+ivx-1)*(v_u_r(ivy-1,i) - beta_u(ivy-1,i)/alpha(i))  ); //check indices
-        flux_r(IBZ,i) = alpha(i)*(cons_r(IBZ,i)*(v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - cons_r(IBY+ivx-1)*(v_u_r(ivz-1,i) - beta_u(ivz-1,i)/alpha(i))  );
+        flux_r(IBY,i) = alpha(i)*(cons_r(IBY,i)*(v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - bb_r(ivx-1,i)*std::sqrt(detgamma(i))*(v_u_r(ivy-1,i) - beta_u(ivy-1,i)/alpha(i))  ); //check indices
+        flux_r(IBZ,i) = alpha(i)*(cons_r(IBZ,i)*(v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - bb_r(ivx-1, i)*std::sqrt(detgamma(i))*(v_u_r(ivz-1,i) - beta_u(ivz-1,i)/alpha(i))  );
        } 
       // Set fluxes
         for (int n = 0; n < NHYDRO; ++n) {
