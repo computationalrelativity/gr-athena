@@ -199,27 +199,27 @@ void Hydro::RiemannSolver(const int k, const int j,
     switch (ivx) {
       case IVX:
         bb_l(0,i) = bb(k,j,i)/std::sqrt(detgamma(i));
-        bb_l(1,i) = prim_l(IBY,k,j,i)/std::sqrt(detgamma(i));
-        bb_l(2,i) = prim_l(IBZ,k,j,i)/std::sqrt(detgamma(i));
+        bb_l(1,i) = prim_l(IBY,i)/std::sqrt(detgamma(i));
+        bb_l(2,i) = prim_l(IBZ,i)/std::sqrt(detgamma(i));
         bb_r(0,i) = bb(k,j,i)/std::sqrt(detgamma(i));
-        bb_r(1,i) = prim_r(IBY,k,j,i)/std::sqrt(detgamma(i));
-        bb_r(2,i) = prim_r(IBZ,k,j,i)/std::sqrt(detgamma(i));
+        bb_r(1,i) = prim_r(IBY,i)/std::sqrt(detgamma(i));
+        bb_r(2,i) = prim_r(IBZ,i)/std::sqrt(detgamma(i));
         break;
       case IVY:
         bb_l(1,i) = bb(k,j,i)/std::sqrt(detgamma(i));
-        bb_l(2,i) = prim_l(IBY,k,j,i)/std::sqrt(detgamma(i));
-        bb_l(0,i) = prim_l(IBZ,k,j,i)/std::sqrt(detgamma(i));
+        bb_l(2,i) = prim_l(IBY,i)/std::sqrt(detgamma(i));
+        bb_l(0,i) = prim_l(IBZ,i)/std::sqrt(detgamma(i));
         bb_r(1,i) = bb(k,j,i)/std::sqrt(detgamma(i));
-        bb_r(2,i) = prim_r(IBY,k,j,i)/std::sqrt(detgamma(i));
-        bb_r(0,i) = prim_r(IBZ,k,j,i)/std::sqrt(detgamma(i));
+        bb_r(2,i) = prim_r(IBY,i)/std::sqrt(detgamma(i));
+        bb_r(0,i) = prim_r(IBZ,i)/std::sqrt(detgamma(i));
         break;
       case IVZ:
         bb_l(2,i) = bb(k,j,i)/std::sqrt(detgamma(i));
-        bb_l(0,i) = prim_l(IBY,k,j,i)/std::sqrt(detgamma(i));
-        bb_l(1,i) = prim_l(IBZ,k,j,i)/std::sqrt(detgamma(i));
+        bb_l(0,i) = prim_l(IBY,i)/std::sqrt(detgamma(i));
+        bb_l(1,i) = prim_l(IBZ,i)/std::sqrt(detgamma(i));
         bb_r(2,i) = bb(k,j,i)/std::sqrt(detgamma(i));
-        bb_r(0,i) = prim_r(IBY,k,j,i)/std::sqrt(detgamma(i));
-        bb_r(1,i) = prim_r(IBZ,k,j,i)/std::sqrt(detgamma(i));
+        bb_r(0,i) = prim_r(IBY,i)/std::sqrt(detgamma(i));
+        bb_r(1,i) = prim_r(IBZ,i)/std::sqrt(detgamma(i));
         break;
     }
           }
