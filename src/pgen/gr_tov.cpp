@@ -39,6 +39,8 @@ void FixedBoundary(MeshBlock *pmb, Coordinates *pcoord, AthenaArray<Real> &prim,
                    FaceField &bb, Real time, Real dt,
                    int il, int iu, int jl, int ju, int kl, int ku, int ngh);
 
+Real MaxRho(MeshBlock* pmb, int iout);
+
 namespace {
   int TOV_rhs(Real dr, Real *u, Real *k);
   int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts);
@@ -96,8 +98,24 @@ void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag) {
   
   // Solve TOV equations, setting 1D inital data in tov->data
   TOV_solve(rhoc, rmin, dr, &npts);
+  
+  // Add max(rho) output.
+  AllocateUserHistoryOutput(1);
+  EnrollUserHistoryOutput(0, MaxRho, "max_rho", UserHistoryOperation::max);
 }
 
+Real MaxRho(MeshBlock* pmb, int iout) {
+  Real max_rho = 0;
+  for (int k = pmb->ks; k <= pmb->ke; k++) {
+    for (int j = pmb->js; j <= pmb->je; j++) {
+      for (int i = pmb->is; i <= pmb->ie; i++) {
+        max_rho = std::fmax(max_rho, pmb->phydro->w(IDN, k, j, i));
+      }
+    }
+  }
+
+  return max_rho;
+}
 
 void MeshBlock::InitUserMeshBlockData(ParameterInput *pin) {
   // Allocate 3 user output variables: lapse, gxx, m
