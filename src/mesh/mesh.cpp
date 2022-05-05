@@ -1796,6 +1796,15 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         }
       }
 
+// Initialise ADM Sources, after CC Bfield has been set in all ghost zones
+// during the C2P above
+#pragma omp for private(pmb,ph,pf,pz)
+      for (int i=0; i<nmb; ++i) {
+        pmb = pmb_array[i]; ph = pmb->phydro, pf = pmb->pfield, pz4c = pmb->pz4c;
+           pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, pf->bcc);
+      }
+
+
       if (!res_flag && adaptive) {
 #pragma omp for
         for (int i=0; i<nmb; ++i) {

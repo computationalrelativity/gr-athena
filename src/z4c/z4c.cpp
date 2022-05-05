@@ -671,7 +671,7 @@ alpha.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
      v_d(2,i) = v1(i)*adm.g_dd(0,2,k,j,i) + v2(i)*adm.g_dd(1,2,k,j,i) +v3(i)*adm.g_dd(2,2,k,j,i);
 
      detgamma(i) = SpatialDet(adm.g_dd(0,0,k,j,i),adm.g_dd(0,1,k,j,i), adm.g_dd(0,2,k,j,i), adm.g_dd(1,1,k,j,i), adm.g_dd(1,2,k,j,i), adm.g_dd(2,2,k,j,i));
-     detg(i) = alpha(i)*detgamma(i);
+     detg(i) = alpha(k,j,i)*detgamma(i);
 
      bb_u(0,i) = bb1vc(i)/detg(i);
      bb_u(1,i) = bb2vc(i)/detg(i);
@@ -681,7 +681,7 @@ alpha.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
      b0_u.ZeroClear();
      for(int a=0;a<NDIM;++a){
      ILOOP1(i){
-     b0_u(i) += gamma_lor(i)*bb_u(a,i)*v_d(a,i)/alpha(i);
+     b0_u(i) += gamma_lor(i)*bb_u(a,i)*v_d(a,i)/alpha(k,j,i);
      }
      }
 
@@ -693,7 +693,7 @@ alpha.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
 
      for(int a=0;a<NDIM;++a){
       ILOOP1(i){
-          bi_u(a,i) = (bb_u(a,i) + alpha(i)*b0_u(i)*utildevc_u(a,i))/gamma_lor(i);
+          bi_u(a,i) = (bb_u(a,i) + alpha(k,j,i)*b0_u(i)*utildevc_u(a,i))/gamma_lor(i);
       }
      }
      bi_d.ZeroClear();
@@ -705,7 +705,7 @@ alpha.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
         }
        }
      ILOOP1(i){
-     bsq(i) = alpha(i)*alpha(i)*b0_u(i)*b0_u(i)/(gamma_lor(i)*gamma_lor(i));
+     bsq(i) = alpha(k,j,i)*alpha(k,j,i)*b0_u(i)*b0_u(i)/(gamma_lor(i)*gamma_lor(i));
      }
      for(int a=0;a<NDIM;++a){
           for(int b=0;b<NDIM;++b){
@@ -718,7 +718,7 @@ alpha.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
 
 
      ILOOP1(i){
-     mat.rho(k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i)) - (pgasvc(i) + bsq(i)/2.0) - alpha(i)*alpha(i)*b0_u(i)*b0_u(i);
+     mat.rho(k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i)) - (pgasvc(i) + bsq(i)/2.0) - alpha(k,j,i)*alpha(k,j,i)*b0_u(i)*b0_u(i);
      mat.S_d(0,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(0,i) - b0_u(i)*bi_d(0,i);
      mat.S_d(1,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(1,i) - b0_u(i)*bi_d(1,i);
      mat.S_d(2,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(2,i) - b0_u(i)*bi_d(2,i);

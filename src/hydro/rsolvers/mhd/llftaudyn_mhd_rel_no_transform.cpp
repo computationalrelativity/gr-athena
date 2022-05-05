@@ -466,7 +466,7 @@ void Hydro::RiemannSolver(const int k, const int j,
          flux_l(IDN,i) = cons_l(IDN,i)*alpha(i)*(v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i));
 
         // tau flux: alpha(S^i - Dv^i) - beta^i tau
-          flux_l(IEN,i) = cons_l(IEN,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) + std::sqrt(detg(i))*((pgas_l(i)+ bsq_l(i)/2.0)*v_u_l(ivx-1,i) - alpha(i)*b0_u_l(i)*bb(ivx-1,i)/Wlor_l(i));
+          flux_l(IEN,i) = cons_l(IEN,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) + std::sqrt(detg(i))*((pgas_l(i)+ bsq_l(i)/2.0)*v_u_l(ivx-1,i) - alpha(i)*b0_u_l(i)*bb_l(ivx-1,i)/Wlor_l(i));
  
         //S_i flux alpha S^j_i - beta^j S_i
         flux_l(IVX,i) = cons_l(IVX,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - std::sqrt(detg(i))*bi_d_l(0,i)*bb_l(ivx-1,i)/Wlor_l(i);      
@@ -494,7 +494,7 @@ void Hydro::RiemannSolver(const int k, const int j,
          flux_r(IDN,i) = cons_r(IDN,i)*alpha(i)*(v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i));
 
         // tau flux: alpha(S^i - Dv^i) - beta^i tau
-          flux_r(IEN,i) = cons_r(IEN,i) * alpha(i) * (v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) + std::sqrt(detg(i))*((pgas_r(i)+ bsq_r(i)/2.0)*v_u_r(ivx-1,i) - alpha(i)*b0_u_r(i)*bb(ivx-1,i)/Wlor_r(i));
+          flux_r(IEN,i) = cons_r(IEN,i) * alpha(i) * (v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) + std::sqrt(detg(i))*((pgas_r(i)+ bsq_r(i)/2.0)*v_u_r(ivx-1,i) - alpha(i)*b0_u_r(i)*bb_r(ivx-1,i)/Wlor_r(i));
  
         //S_i flux alpha S^j_i - beta^j S_i
         flux_r(IVX,i) = cons_r(IVX,i) * alpha(i) * (v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - std::sqrt(detg(i))*bi_d_r(0,i)*bb_r(ivx-1,i)/Wlor_r(i);      

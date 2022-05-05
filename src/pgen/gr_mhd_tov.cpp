@@ -102,14 +102,17 @@ void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag) {
 
 
 void MeshBlock::InitUserMeshBlockData(ParameterInput *pin) {
-  // Allocate 3 user output variables: lapse, gxx, m
-  // leftover from cowling approx runs
-  AllocateUserOutputVariables(12);
+  // Allocate output arrays for fluxes
+  AllocateUserOutputVariables(15);
   return;
 }
 
 
 void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin) {
+AthenaArray<Real> &x1flux = phydro->flux[X1DIR];
+AthenaArray<Real> &x2flux = phydro->flux[X2DIR];
+AthenaArray<Real> &x3flux = phydro->flux[X3DIR];
+
   int il = is - NGHOST;
   int iu = ie + NGHOST;
   int jl = js;
@@ -124,36 +127,24 @@ void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin) {
     kl -= NGHOST;
     ku += NGHOST;
   }
-  AthenaArray<Real> g, gi;
-  g.NewAthenaArray(NMETRIC, iu+1);
-  gi.NewAthenaArray(NMETRIC, iu+1);
   for (int k=kl; k<=ku; ++k) {
     for (int j=jl; j<=ju; ++j) {
-      pcoord->CellMetric(k, j, il, iu, g, gi);
       for (int i=il; i<=iu; ++i) {
-	Real d1u1 = (phydro->w(IVX,k,j,i+1) - phydro->w(IVX,k,j,i-1))/pcoord->dx1v(i);
-	Real d1u2 = (phydro->w(IVY,k,j,i+1) - phydro->w(IVY,k,j,i-1))/pcoord->dx1v(i);
-	Real d1u3 = (phydro->w(IVZ,k,j,i+1) - phydro->w(IVZ,k,j,i-1))/pcoord->dx1v(i);
-	Real d2u1 = (phydro->w(IVX,k,j+1,i) - phydro->w(IVX,k,j-1,i))/pcoord->dx2v(i);
-	Real d2u2 = (phydro->w(IVY,k,j+1,i) - phydro->w(IVY,k,j-1,i))/pcoord->dx2v(i);
-	Real d2u3 = (phydro->w(IVZ,k,j+1,i) - phydro->w(IVZ,k,j-1,i))/pcoord->dx2v(i);
-	Real d3u1 = (phydro->w(IVX,k+1,j,i) - phydro->w(IVX,k-1,j,i))/pcoord->dx3v(i);
-	Real d3u2 = (phydro->w(IVY,k+1,j,i) - phydro->w(IVY,k-1,j,i))/pcoord->dx3v(i);
-	Real d3u3 = (phydro->w(IVZ,k+1,j,i) - phydro->w(IVZ,k-1,j,i))/pcoord->dx3v(i);
-	
-        Real r = sqrt(pow(pcoord->x1f(i),2.)+ pow(pcoord->x2f(j),2.)+  pow(pcoord->x3f(k),2.) );
-	user_out_var(0,k,j,i) = std::sqrt(-g(I00,i)); // lapse
-	user_out_var(1,k,j,i) = g(I11,i);        // gxx
-	user_out_var(2,k,j,i) = 2.*r * (std::pow(g(I11,i),0.25)-1.); // Mass
-	user_out_var(3,k,j,i) = d1u1;
-	user_out_var(4,k,j,i) = d1u2;
-	user_out_var(5,k,j,i) = d1u3;
-	user_out_var(6,k,j,i) = d2u1;
-	user_out_var(7,k,j,i) = d2u2;
-	user_out_var(8,k,j,i) = d2u3;
-	user_out_var(9,k,j,i) = d3u1;
-	user_out_var(10,k,j,i) = d3u2;
-	user_out_var(11,k,j,i) = d3u3;	
+	user_out_var(0,k,j,i) = x1flux(0,k,j,i);
+	user_out_var(1,k,j,i) = x1flux(1,k,j,i);
+	user_out_var(2,k,j,i) = x1flux(2,k,j,i);
+	user_out_var(3,k,j,i) = x1flux(3,k,j,i);
+	user_out_var(4,k,j,i) = x1flux(4,k,j,i);
+	user_out_var(5,k,j,i) = x2flux(0,k,j,i);
+	user_out_var(6,k,j,i) = x2flux(1,k,j,i);
+	user_out_var(7,k,j,i) = x2flux(2,k,j,i);
+	user_out_var(8,k,j,i) = x2flux(3,k,j,i);
+	user_out_var(9,k,j,i) = x2flux(4,k,j,i);
+	user_out_var(10,k,j,i) = x3flux(0,k,j,i);
+	user_out_var(11,k,j,i) = x3flux(1,k,j,i);
+	user_out_var(12,k,j,i) = x3flux(2,k,j,i);
+	user_out_var(13,k,j,i) = x3flux(3,k,j,i);
+	user_out_var(14,k,j,i) = x3flux(4,k,j,i);
       }
     }
   }
@@ -342,6 +333,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   int nx2 = (je-js)+1 + 2*(NGHOST);
   int nx3 = (ke-ks)+1 + 2*(NGHOST);
 // should be athena tensors if we merge w/ dynamical metric
+pfield->b.x1f.ZeroClear();
+pfield->b.x2f.ZeroClear();
+pfield->b.x3f.ZeroClear();
+pfield->bcc.ZeroClear();
   ax.NewAthenaArray(nx3,nx2,nx1);
   ay.NewAthenaArray(nx3,nx2,nx1);
   az.NewAthenaArray(nx3,nx2,nx1);
@@ -426,7 +421,7 @@ pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord, il,iu,jl,ju,k
 
   // Initialise VC matter
   //TODO(WC) (don't strictly need this here, will be caught in task list before used
-  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pfield->bcc);
+//  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pfield->bcc);
   pz4c->ADMConstraints(pz4c->storage.con,pz4c->storage.adm,pz4c->storage.mat,pz4c->storage.u);
 
 
