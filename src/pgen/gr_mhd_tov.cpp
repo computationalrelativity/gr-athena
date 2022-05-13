@@ -69,7 +69,10 @@ namespace {
     Real R, Riso, M;
   };
   TOVData * tov = NULL;
-  
+   Real Maxrho(MeshBlock *pmb, int iout);
+   Real detgamma_vc(MeshBlock *pmb, int iout);
+   Real detgamma_cc(MeshBlock *pmb, int iout);
+ 
 } // namespace
 
 
@@ -98,6 +101,12 @@ void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag) {
   
   // Solve TOV equations, setting 1D inital data in tov->data
   TOV_solve(rhoc, rmin, dr, &npts);
+
+  AllocateUserHistoryOutput(3);
+  EnrollUserHistoryOutput(0, Maxrho, "max-rho", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(1, detgamma_cc, "detgamma_cc");
+  EnrollUserHistoryOutput(2, detgamma_vc, "detgamma_vc");
+
 }
 
 
@@ -908,6 +917,81 @@ Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
           2*gamma(0,1,i)*gamma(0,2,i)*gamma(1,2,i) -
           gamma(0,0,i)*SQR(gamma(1,2,i)) - SQR(gamma(0,1,i))*gamma(2,2,i) +
           gamma(0,0,i)*gamma(1,1,i)*gamma(2,2,i);
+}
+
+Real SpatialDet(Real gxx, Real gxy, Real gxz, Real gyy, Real gyz, Real gzz)
+{
+  return - SQR(gxz)*gyy+
+          2*gxy*gxz*gyz -
+          gxx*SQR(gyz) - SQR(gxy)*gzz +
+          gxx*gyy*gzz;
+}
+
+Real Maxrho(MeshBlock *pmb, int iout) {
+  Real max_rho = 0.0;
+  int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
+  AthenaArray<Real> &w = pmb->phydro->w;
+  for (int k=ks; k<=ke; k++) {
+    for (int j=js; j<=je; j++) {
+      for (int i=is; i<=ie; i++) {
+        max_rho = std::max(std::abs(w(IDN,k,j,i)), max_rho);
+      }
+    }
+  }
+  return max_rho;
+}
+Real detgamma_vc(MeshBlock *pmb, int iout) {
+  Real detgamma_vc = 0.0;
+      AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy;
+      AthenaArray<Real> vcgamma_yz,vcgamma_zz;
+ vcgamma_xx.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
+      vcgamma_xy.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
+      vcgamma_xz.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
+      vcgamma_yy.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
+      vcgamma_yz.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
+      vcgamma_zz.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
+  int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
+  AthenaArray<Real> &w = pmb->phydro->w;
+  for (int k=ks; k<=ke; k++) {
+    for (int j=js; j<=je; j++) {
+      for (int i=is; i<=ie; i++) {
+
+        detgamma_vc += pmb->pcoord->dx1v(i)*pmb->pcoord->dx2v(j)*pmb->pcoord->dx3v(k)*std::sqrt(SpatialDet(vcgamma_xx(k,j,i),vcgamma_xy(k,j,i),vcgamma_xz(k,j,i),vcgamma_yy(k,j,i),vcgamma_yz(k,j,i),vcgamma_zz(k,j,i) ));
+      }
+    }
+  }
+  return detgamma_vc;
+}
+
+Real detgamma_cc(MeshBlock *pmb, int iout) {
+  Real detgamma_cc = 0.0;
+      AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy;
+      AthenaArray<Real> vcgamma_yz,vcgamma_zz;
+      AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd; 
+ vcgamma_xx.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
+      vcgamma_xy.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
+      vcgamma_xz.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
+      vcgamma_yy.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
+      vcgamma_yz.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
+      vcgamma_zz.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
+  int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
+      gamma_dd.NewAthenaTensor(ie);
+  for(int k = ks; k<=ke; k++){
+  for(int j = js; j<=je; j++){
+  for(int i = is; i<=ie; i++){
+          gamma_dd(0,0,i) = pmb->pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
+          gamma_dd(0,1,i) = pmb->pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
+          gamma_dd(0,2,i) = pmb->pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
+          gamma_dd(1,1,i) = pmb->pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
+          gamma_dd(1,2,i) = pmb->pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
+          gamma_dd(2,2,i) = pmb->pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
+}
+   for(int i = is; i<=ie; i++){
+    detgamma_cc += pmb->pcoord->dx1v(i)*pmb->pcoord->dx2v(j)*pmb->pcoord->dx3v(k)*std::sqrt(Det3Metric(gamma_dd,i));
+}
+}
+}
+  return detgamma_cc;
 }
  
 } // namespace

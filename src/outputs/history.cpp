@@ -56,7 +56,8 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   MeshBlock *pmb = pm->pblock;
   Real real_max = std::numeric_limits<Real>::max();
   Real real_min = std::numeric_limits<Real>::min();
-  AthenaArray<Real> vol(pmb->ncells1);
+//  AthenaArray<Real> vol(pmb->ncells1);
+Real vol;
   const int nhistory_output = NHISTORY_VARS + pm->nuser_history_output_;
   std::unique_ptr<Real[]> hst_data(new Real[nhistory_output]);
   // initialize built-in variable sums to 0.0
@@ -91,10 +92,10 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     // Sum history variables over cells.  Note ghost cells are never included in sums
     for (int k=pmb->ks; k<=pmb->ke; ++k) {
       for (int j=pmb->js; j<=pmb->je; ++j) {
-        pmb->pcoord->CellVolume(k, j, pmb->is, pmb->ie, vol);
+//        pmb->pcoord->CellVolume(k, j, pmb->is, pmb->ie, vol);
         for (int i=pmb->is; i<=pmb->ie; ++i) {
           // NEW_OUTPUT_TYPES:
-
+          vol = pmb->pcoord->dx3v(k)*pmb->pcoord->dx2v(j)*pmb->pcoord->dx1v(i);
           int isum = 0;
           if (FLUID_ENABLED) {
             // Hydro conserved variables:
@@ -103,23 +104,23 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
             Real& u_my = phyd->u(IM2,k,j,i);
             Real& u_mz = phyd->u(IM3,k,j,i);
 
-            hst_data[isum++] += vol(i)*u_d;
-            hst_data[isum++] += vol(i)*u_mx;
-            hst_data[isum++] += vol(i)*u_my;
-            hst_data[isum++] += vol(i)*u_mz;
+            hst_data[isum++] += vol*u_d;
+            hst_data[isum++] += vol*u_mx;
+            hst_data[isum++] += vol*u_my;
+            hst_data[isum++] += vol*u_mz;
             // + partitioned KE by coordinate direction:
-            hst_data[isum++] += vol(i)*0.5*SQR(u_mx)/u_d;
-            hst_data[isum++] += vol(i)*0.5*SQR(u_my)/u_d;
-            hst_data[isum++] += vol(i)*0.5*SQR(u_mz)/u_d;
+            hst_data[isum++] += vol*0.5*SQR(u_mx)/u_d;
+            hst_data[isum++] += vol*0.5*SQR(u_my)/u_d;
+            hst_data[isum++] += vol*0.5*SQR(u_mz)/u_d;
 
             if (NON_BAROTROPIC_EOS) {
               Real& u_e = phyd->u(IEN,k,j,i);;
-              hst_data[isum++] += vol(i)*u_e;
+              hst_data[isum++] += vol*u_e;
             }
             // Graviatational potential energy:
             if (SELF_GRAVITY_ENABLED) {
               Real& phi = pgrav->phi(k,j,i);
-              hst_data[isum++] += vol(i)*0.5*u_d*phi;
+              hst_data[isum++] += vol*0.5*u_d*phi;
             }
             // Cell-centered magnetic energy, partitioned by coordinate direction:
             if (MAGNETIC_FIELDS_ENABLED) {
@@ -127,30 +128,30 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
               Real& bcc2 = pfld->bcc(IB2,k,j,i);
               Real& bcc3 = pfld->bcc(IB3,k,j,i);
               // constexpr int prev_out = NHYDRO + 3 + SELF_GRAVITY_ENABLED;
-              hst_data[isum++] += vol(i)*0.5*bcc1*bcc1;
-              hst_data[isum++] += vol(i)*0.5*bcc2*bcc2;
-              hst_data[isum++] += vol(i)*0.5*bcc3*bcc3;
+              hst_data[isum++] += vol*0.5*bcc1*bcc1;
+              hst_data[isum++] += vol*0.5*bcc2*bcc2;
+              hst_data[isum++] += vol*0.5*bcc3*bcc3;
             }
             // (conserved variable) Passive scalars:
             for (int n=0; n<NSCALARS; n++) {
               Real& s = psclr->s(n,k,j,i);
               // constexpr int prev_out = NHYDRO + 3 + SELF_GRAVITY_ENABLED + NFIELD;
-              hst_data[isum++] += vol(i)*s;
+              hst_data[isum++] += vol*s;
             }
           }
 
           // BD: new problem
           if (WAVE_ENABLED) {
             Real& wave_error = pwave->error(k,j,i);
-            hst_data[isum++] += vol(i)*wave_error;
-            hst_data[isum++] += vol(i)*SQR(wave_error);
+            hst_data[isum++] += vol*wave_error;
+            hst_data[isum++] += vol*SQR(wave_error);
           }
           // -BD
 
           if (ADVECTION_ENABLED) {
             Real& adv_error = padv->error(k,j,i);
-            hst_data[isum++] += vol(i)*adv_error;
-            hst_data[isum++] += vol(i)*SQR(adv_error);
+            hst_data[isum++] += vol*adv_error;
+            hst_data[isum++] += vol*SQR(adv_error);
           }
 
           if (Z4C_ENABLED) {
@@ -163,14 +164,14 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
             Real const theta  = std::abs(pz4c->z4c.Theta(k,j,i));
             Real const C2_err = std::abs(pz4c->con.C(k,j,i));
 
-            hst_data[isum++] += vol(i)*SQR(H_err);
-            hst_data[isum++] += vol(i)*M2_err; //M is already squared
-            hst_data[isum++] += vol(i)*SQR(Mx_err);
-            hst_data[isum++] += vol(i)*SQR(My_err);
-            hst_data[isum++] += vol(i)*SQR(Mz_err);
-            hst_data[isum++] += vol(i)*Z2_err; //Z is already squared
-            hst_data[isum++] += vol(i)*SQR(theta);
-            hst_data[isum++] += vol(i)*C2_err; //C is already squared
+            hst_data[isum++] += vol*SQR(H_err);
+            hst_data[isum++] += vol*M2_err; //M is already squared
+            hst_data[isum++] += vol*SQR(Mx_err);
+            hst_data[isum++] += vol*SQR(My_err);
+            hst_data[isum++] += vol*SQR(Mz_err);
+            hst_data[isum++] += vol*Z2_err; //Z is already squared
+            hst_data[isum++] += vol*SQR(theta);
+            hst_data[isum++] += vol*C2_err; //C is already squared
           }
 
         }
