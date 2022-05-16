@@ -54,6 +54,9 @@ void Hydro::RiemannSolver(const int k, const int j, const int il, const int iu,
 
   const int nn1 = iu + 1;
 
+  // Ad-hoc value for adding diffusion near the weakly hyperbolic limit.
+  constexpr Real speed_eps = 1e-3;
+
   #if USETM
   // Extract baryon mass for PrimitiveSolver framework
   const Real mb = pmy_block->peos->GetEOS().GetBaryonMass();
@@ -152,12 +155,12 @@ void Hydro::RiemannSolver(const int k, const int j, const int il, const int iu,
 
     // Calculate the lowered velocity components.
     Real vd_l[NDIM], vd_r[NDIM];
-    vd_l[0] = u_l[0]*g_dd[S11] + u_l[1]*g_dd[S12] + u_l[2]*g_dd[S13];
-    vd_l[1] = u_l[0]*g_dd[S12] + u_l[1]*g_dd[S22] + u_l[2]*g_dd[S23];
-    vd_l[2] = u_l[0]*g_dd[S13] + u_l[1]*g_dd[S23] + u_l[2]*g_dd[S33];
-    vd_r[0] = u_r[0]*g_dd[S11] + u_r[1]*g_dd[S12] + u_r[2]*g_dd[S13];
-    vd_r[1] = u_r[0]*g_dd[S12] + u_r[1]*g_dd[S22] + u_r[2]*g_dd[S23];
-    vd_r[2] = u_r[0]*g_dd[S13] + u_r[1]*g_dd[S23] + u_r[2]*g_dd[S33];
+    vd_l[0] = v_l[0]*g_dd[S11] + v_l[1]*g_dd[S12] + v_l[2]*g_dd[S13];
+    vd_l[1] = v_l[0]*g_dd[S12] + v_l[1]*g_dd[S22] + v_l[2]*g_dd[S23];
+    vd_l[2] = v_l[0]*g_dd[S13] + v_l[1]*g_dd[S23] + v_l[2]*g_dd[S33];
+    vd_r[0] = v_r[0]*g_dd[S11] + v_r[1]*g_dd[S12] + v_r[2]*g_dd[S13];
+    vd_r[1] = v_r[0]*g_dd[S12] + v_r[1]*g_dd[S22] + v_r[2]*g_dd[S23];
+    vd_r[2] = v_r[0]*g_dd[S13] + v_r[1]*g_dd[S23] + v_r[2]*g_dd[S33];
 
     // Calculate wave speeds
     Real lambda_p_l, lambda_p_r,
@@ -200,6 +203,13 @@ void Hydro::RiemannSolver(const int k, const int j, const int il, const int iu,
     Real lambda_ps = std::max(lambda_p_l, lambda_p_r);
     Real lambda_p = std::max(0.0, lambda_ps);
     Real lambda_m = std::min(0.0, lambda_ms);
+
+    // Add diffusion if the wave speeds are too close to zero.
+    Real cbound = std::sqrt(alpha/g_dd[mdir]);
+    if (lambda_p < speed_eps*cbound && lambda_m > -speed_eps*cbound) {
+      lambda_p = cbound;
+      lambda_m = -cbound;
+    }
 
     // Calculate left conserved quantities
     Real cons_l[NHYDRO];
