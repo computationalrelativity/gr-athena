@@ -167,16 +167,16 @@ if(coarse_flag==0){
       alpha.NewAthenaTensor(nn1);
       beta_u.NewAthenaTensor(nn1);
       gamma_dd.NewAthenaTensor(nn1);
-      vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxx);
-      vcgamma_xy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxy);
-      vcgamma_xz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxz);
-      vcgamma_yy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyy);
-      vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyz);
-      vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gzz);
-      vcbeta_x.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betax);
-      vcbeta_y.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betay);
-      vcbeta_z.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betaz);
-      vcalpha.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_alpha);
+      vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
+      vcgamma_xy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
+      vcgamma_xz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
+      vcgamma_yy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
+      vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
+      vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
+      vcbeta_x.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betax,1);
+      vcbeta_y.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betay,1);
+      vcbeta_z.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betaz,1);
+      vcalpha.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
 
 } else{
 
@@ -185,17 +185,17 @@ if(coarse_flag==0){
       beta_u.NewAthenaTensor(nn1);
       gamma_dd.NewAthenaTensor(nn1);
       gammat_dd.NewAthenaTensor(nn1);
-      vcgammat_xx.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxx);
-      vcgammat_xy.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxy);
-      vcgammat_xz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxz);
-      vcgammat_yy.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gyy);
-      vcgammat_yz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gyz);
-      vcgammat_zz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gzz);
-      vcbeta_x.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_betax);
-      vcbeta_y.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_betay);
-      vcbeta_z.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_betaz);
-      vcalpha.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_alpha);
-      vcchi.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_chi);
+      vcgammat_xx.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxx,1);
+      vcgammat_xy.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxy,1);
+      vcgammat_xz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxz,1);
+      vcgammat_yy.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gyy,1);
+      vcgammat_yz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gyz,1);
+      vcgammat_zz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gzz,1);
+      vcbeta_x.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_betax,1);
+      vcbeta_y.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_betay,1);
+      vcbeta_z.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_betaz,1);
+      vcalpha.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_alpha,1);
+      vcchi.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_chi,1);
 }
 
   // Go through cells
