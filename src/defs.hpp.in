@@ -64,6 +64,31 @@
 // Equation of state
 #define EQUATION_OF_STATE "@EQUATION_OF_STATE@"
 
+// Whether or not temperature should be counted as a primitive variable.
+#define USETM @USE_TM@
+
+// EOS Policy used by the PrimitiveSolver framework.
+#define EOS_POLICY @EOS_POLICY@
+
+// EOS Policy code used for preprocessor checking
+#define EOS_POLICY_CODE @EOS_POLICY_CODE@
+
+// Include file for EOS_POLICY
+#define EOS_POLICY_INCLUDE @EOS_POLICY_INCLUDE@
+
+// Error Policy used by the PrimitiveSolver framework.
+#define ERROR_POLICY @ERROR_POLICY@
+
+// Error Policy code used for preprocessor checking
+#define ERROR_POLICY_CODE @ERROR_POLICY_CODE@
+
+// Include file for Error Policy
+#define ERROR_POLICY_INCLUDE @ERROR_POLICY_INCLUDE@
+
+// Maximum supported species by PrimitiveSolver.
+// FIXME: Should be added as an argument later.
+#define MAX_SPECIES 1
+
 // use general EOS framework default=0 (false).
 #define GENERAL_EOS @GENERAL_EOS@
 
@@ -180,7 +205,7 @@
 // define the (half) size of the stencil for CC<->VC
 // 1: two nodes total used  -> exact for linear.
 // 2: four nodes total used -> exact for 3rd power.
-#define NGRCV_HSZ 2
+#define NGRCV_HSZ @NUMBER_INTERP_GHOSTS@
 
 // dimensionality of underlying (interpolated) data
 // #define NGRCV_NDIM 1

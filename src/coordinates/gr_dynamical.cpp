@@ -574,7 +574,14 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
 
 // Calulate enthalpy (rho*h) NB EOS specific!
       CLOOP1(i){
+#if USETM
+          Real n = rho(i)/pmy_block->peos->GetEOS().GetBaryonMass();
+          Real Y[MAX_SPECIES] = {0.0};
+          Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgas(i), Y);
+          wtot(i) = n*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
+#else
           wtot(i) = rho(i) + gamma_adi/(gamma_adi-1.0) * pgas(i);
+#endif
       }
 // calculate Lorentz factor
       Wlor.ZeroClear();
@@ -748,7 +755,15 @@ Stau(i) += T00(i)*(beta_u(a,i)*beta_u(b,i)*K_dd(a,b,i))  + T0i_u(a,i)*(2.0*beta_
         CLOOP1(i){
         pgas_init(i) = pmy_block->phydro->w_init(IPR,k,j,i); 
         rho_init(i) = pmy_block->phydro->w_init(IDN,k,j,i); 
+#if USETM
+        Real n = rho_init(i)/pmy_block->peos->GetEOS().GetBaryonMass();
+        // FIXME: Generalize to work with EOSes accepting particle fractions.
+        Real Y[MAX_SPECIES] = {0.0};
+        Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgas_init(i), Y);
+        w_init(i) = n*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
+#else
         w_init(i) = rho_init(i) + gamma_adi/(gamma_adi-1.0) * pgas_init(i);
+#endif
         Stau(i) = 0.0;
         }
         for(a=0;a<NDIM;++a){

@@ -344,7 +344,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 
   // Initialise VC matter
   //TODO(WC) (don't strictly need this here, will be caught in task list before used
-  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w);
+  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pfield->bcc);
   pz4c->ADMConstraints(pz4c->storage.con,pz4c->storage.adm,pz4c->storage.mat,pz4c->storage.u);
   
   return;

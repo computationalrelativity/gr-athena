@@ -18,6 +18,12 @@
 #include <string>
 #include <vector>
 
+// Lorene
+#ifdef LORENE
+#include <bin_ns.h>
+using Lorene::Bin_NS;
+#endif
+
 // Athena++ headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
@@ -517,6 +523,12 @@ class Mesh {
   void SetFourPiG(Real fpg) { four_pi_G_=fpg; }
   void SetGravityThreshold(Real eps) { grav_eps_=eps; }
   void SetMeanDensity(Real d0) { grav_mean_rho_=d0; }
+
+private:
+  #ifdef LORENE
+    static Bin_NS * bns;
+    #pragma omp private(bns)
+  #endif
 };
 
 

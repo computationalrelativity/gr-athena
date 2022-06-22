@@ -70,6 +70,10 @@
 #include <mpi.h>
 #endif
 
+#ifdef LORENE
+Lorene::Bin_NS * Mesh::bns;
+#endif
+
 //----------------------------------------------------------------------------------------
 // Mesh constructor, builds mesh at start of calculation using parameters in input file
 
@@ -1798,7 +1802,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 
 // Initialise ADM Sources, after CC Bfield has been set in all ghost zones
 // during the C2P above
-#pragma omp for private(pmb,ph,pf,pz)
+#pragma omp for private(pmb,ph,pf,pz4c)
       for (int i=0; i<nmb; ++i) {
         pmb = pmb_array[i]; ph = pmb->phydro, pf = pmb->pfield, pz4c = pmb->pz4c;
            pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, pf->bcc);

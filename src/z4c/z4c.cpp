@@ -595,9 +595,11 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
      utilde1cc.InitWithShallowSlice(w,IVX,1);
      utilde2cc.InitWithShallowSlice(w,IVY,1);
      utilde3cc.InitWithShallowSlice(w,IVZ,1);
+     #if MAGNETIC_FIELDS_ENABLED
      bb1cc.InitWithShallowSlice(bb_cc,IB1,1);
      bb2cc.InitWithShallowSlice(bb_cc,IB2,1);
      bb3cc.InitWithShallowSlice(bb_cc,IB3,1);   //check this!
+     #endif
      } else if(opt.fix_admsource==1){
      rhocc.InitWithShallowSlice(pmb->phydro->w_init,IDN,1);
      pgascc.InitWithShallowSlice(pmb->phydro->w_init,IPR,1);
@@ -616,9 +618,11 @@ epsvc.NewAthenaTensor(nn1);
 utilde1vc.NewAthenaTensor(nn1);
 utilde2vc.NewAthenaTensor(nn1);
 utilde3vc.NewAthenaTensor(nn1);
+#if MAGNETIC_FIELDS_ENABLED
 bb1vc.NewAthenaTensor(nn1);
 bb2vc.NewAthenaTensor(nn1);
 bb3vc.NewAthenaTensor(nn1);
+#endif
 v1.NewAthenaTensor(nn1);
 v2.NewAthenaTensor(nn1);
 v3.NewAthenaTensor(nn1);
@@ -630,9 +634,11 @@ detg.NewAthenaTensor(nn1);
 bsq.NewAthenaTensor(nn1);
 b0_u.NewAthenaTensor(nn1);
 v_d.NewAthenaTensor(nn1);
+#if MAGNETIC_FIELDS_ENABLED
 bb_u.NewAthenaTensor(nn1);
 bi_u.NewAthenaTensor(nn1);
 bi_d.NewAthenaTensor(nn1);
+#endif
 utildevc_u.NewAthenaTensor(nn1);
 alpha.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
 // interpolate to VC
@@ -647,9 +653,11 @@ alpha.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
      utilde1vc(i) = ig->map3d_CC2VC(utilde1cc(k,j,i));
      utilde2vc(i) = ig->map3d_CC2VC(utilde2cc(k,j,i));
      utilde3vc(i) = ig->map3d_CC2VC(utilde3cc(k,j,i));
+     #if MAGNETIC_FIELDS_ENABLED
      bb1vc(i)     = ig->map3d_CC2VC(bb1cc(k,j,i));
      bb2vc(i)     = ig->map3d_CC2VC(bb2cc(k,j,i));
      bb3vc(i)     = ig->map3d_CC2VC(bb3cc(k,j,i));
+     #endif
      
 //   NB specific to EOS
      if(opt.epsinterp==1){
@@ -673,17 +681,21 @@ alpha.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
      detgamma(i) = SpatialDet(adm.g_dd(0,0,k,j,i),adm.g_dd(0,1,k,j,i), adm.g_dd(0,2,k,j,i), adm.g_dd(1,1,k,j,i), adm.g_dd(1,2,k,j,i), adm.g_dd(2,2,k,j,i));
      detg(i) = alpha(k,j,i)*detgamma(i);
 
+     #if MAGNETIC_FIELDS_ENABLED
      bb_u(0,i) = bb1vc(i)/detg(i);
      bb_u(1,i) = bb2vc(i)/detg(i);
      bb_u(2,i) = bb3vc(i)/detg(i);
+     #endif
      }
 //     b0_u = 0.0;
+     #if MAGNETIC_FIELDS_ENABLED
      b0_u.ZeroClear();
      for(int a=0;a<NDIM;++a){
      ILOOP1(i){
      b0_u(i) += gamma_lor(i)*bb_u(a,i)*v_d(a,i)/alpha(k,j,i);
      }
      }
+     #endif
 
      ILOOP1(i){
      utildevc_u(0,i) = utilde1vc(i);
@@ -691,6 +703,7 @@ alpha.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
      utildevc_u(2,i) = utilde3vc(i);
      }
 
+     #if MAGNETIC_FIELDS_ENABLED
      for(int a=0;a<NDIM;++a){
       ILOOP1(i){
           bi_u(a,i) = (bb_u(a,i) + alpha(k,j,i)*b0_u(i)*utildevc_u(a,i))/gamma_lor(i);
@@ -714,9 +727,11 @@ alpha.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
            }
           }
      }
+     #endif
 
 
 
+     #if MAGNETIC_FIELDS_ENABLED
      ILOOP1(i){
      mat.rho(k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i)) - (pgasvc(i) + bsq(i)/2.0) - alpha(k,j,i)*alpha(k,j,i)*b0_u(i)*b0_u(i);
      mat.S_d(0,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(0,i) - b0_u(i)*bi_d(0,i);
@@ -729,6 +744,20 @@ alpha.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
      mat.S_dd(1,2,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(1,i)*v_d(2,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(1,2,k,j,i) - bi_d(1,i)*bi_d(2,i);
      mat.S_dd(2,2,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(2,i)*v_d(2,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(2,2,k,j,i) - bi_d(2,i)*bi_d(2,i);
 }
+    #else
+    ILOOP1(i) {
+      mat.rho(k,j,i) = wgas(i)*SQR(gamma_lor(i)) - pgasvc(i);
+      mat.S_d(0,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(0,i);
+      mat.S_d(1,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(1,i);
+      mat.S_d(2,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(2,i);
+      mat.S_dd(0,0,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(0,i)*v_d(0,i) + pgasvc(i)*adm.g_dd(0,0,k,j,i);
+      mat.S_dd(0,1,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(0,i)*v_d(1,i) + pgasvc(i)*adm.g_dd(0,1,k,j,i);
+      mat.S_dd(0,2,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(0,i)*v_d(2,i) + pgasvc(i)*adm.g_dd(0,2,k,j,i);
+      mat.S_dd(1,1,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(1,i)*v_d(1,i) + pgasvc(i)*adm.g_dd(1,1,k,j,i);
+      mat.S_dd(1,2,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(1,i)*v_d(2,i) + pgasvc(i)*adm.g_dd(1,2,k,j,i);
+      mat.S_dd(2,2,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(2,i)*v_d(2,i) + pgasvc(i)*adm.g_dd(2,2,k,j,i);
+    }
+    #endif
 }
 }
 }
