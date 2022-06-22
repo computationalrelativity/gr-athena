@@ -22,12 +22,13 @@ def main(**kwargs):
   nghosts = kwargs['nghosts']
   log_scale = kwargs['log']
   labels = kwargs['labels'].split(',')
+  show = kwargs]['show']
 
   files = []
   n_lines = len(file_heads)
   labels_used = True
   if len(labels) == 1 and labels[0] == '':
-    for i in range(n_lines):
+    for i in range(1,n_lines):
       labels.append('')
     labels_used = False
   for n in range(n_lines):
@@ -45,7 +46,7 @@ def main(**kwargs):
   for i in range(n_lines):
     t = []
     rho = []
-    for n in range(len(files[n])):
+    for n in range(len(files[i])):
       data = athena_read.athdf(files[i][n], num_ghost=nghosts)
       t.append(data['Time'])
       rho.append(data['rho'][0,0,nghosts])
@@ -55,8 +56,8 @@ def main(**kwargs):
     t_sets.append(t)
     y_sets.append(rho)
 
-  print(t_sets)
-  print(y_sets)
+  #print(t_sets)
+  #print(y_sets)
 
   # Plot data
   plt.figure()
@@ -68,6 +69,9 @@ def main(**kwargs):
     plt.legend(loc='best')
 
   plt.savefig(output_file, bbox_inches='tight')
+
+  if show == True:
+    plt.show()
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
@@ -98,6 +102,11 @@ if __name__ == '__main__':
     '--labels',
     default='',
     help='comma-separated list of labels for legend'
+  )
+  parser.add_argument(
+    '--show',
+    action='store_true',
+    help=('show plot when finished')
   )
   args = parser.parse_args()
   main(**vars(args))
