@@ -21,6 +21,7 @@
 #include "../field/field.hpp"
 #include "../mesh/mesh.hpp"
 #include "../z4c/z4c.hpp"
+#include "../utils/interp_intergrid.hpp"
 
 // PrimitiveSolver headers
 
@@ -34,6 +35,12 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim,
     Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& ps);
 
 static Real VCInterpolation(AthenaArray<Real> &in, int k, int j, int i);
+
+using RescaleFunction = void(*)(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>& gamma_dd,
+                                AthenaArray<Real>& vcchi,
+                                AthenaTensor<Real, TensorSymm::NONE, NDIM, 0>& chi,
+                                InterpIntergridLocal* interp,
+                                int il, int iu, int j, int k);
 
 //Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> eos;
 //Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> ps{&eos};
@@ -100,44 +107,80 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
 void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
     const AthenaArray<Real> &prim_old, const FaceField &bb, AthenaArray<Real> &prim,
     AthenaArray<Real> &bb_cc, Coordinates *pco, int il, int iu, int jl, int ju, int kl,
-    int ku) {
+    int ku, int coarse_flag) {
   // Parametes
   int nn1 = iu+1;
   
   // Vertex-centered containers for the metric.
   AthenaArray<Real> vcgamma_xx, vcgamma_xy, vcgamma_xz, vcgamma_yy,
-                    vcgamma_yz, vcgamma_zz;
+                    vcgamma_yz, vcgamma_zz, vcchi;
+
+  // Operations that change based on whether or not we have coarse variables;
+  // this avoids an extra branch during the interpolation loop.
+  InterpIntergridLocal* interp;
+  RescaleFunction rescale_metric;
 
   // Metric at cell centers.
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> chi;
   gamma_dd.NewAthenaTensor(nn1);
-  vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
-  vcgamma_xy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
-  vcgamma_xz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
-  vcgamma_yy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
-  vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
-  vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
+  if (coarse_flag == 0) {
+    vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
+    vcgamma_xy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
+    vcgamma_xz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
+    vcgamma_yy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
+    vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
+    vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
+    interp = pmy_block_->pz4c->ig;
+    auto lambda = [](AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>& gamma_dd,
+                     AthenaArray<Real>& vcchi,
+                     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0>& chi,
+                     InterpIntergridLocal* interp,
+                     int il, int iu, int j, int k) -> void {return;};
+    rescale_metric = lambda;
+  }
+  else {
+    chi.NewAthenaTensor(nn1);
+    vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxx,1);
+    vcgamma_xy.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxy,1);
+    vcgamma_xz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxz,1);
+    vcgamma_yy.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gyy,1);
+    vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gyz,1);
+    vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gzz,1);
+    interp = pmy_block_->pz4c->ig_coarse;
+    auto lambda = [](AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>& gamma_dd,
+                     AthenaArray<Real>& vcchi,
+                     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0>& chi,
+                     InterpIntergridLocal* interp,
+                     int il, int iu, int j, int k) {
+      for (int i = 0; i < il; i < iu) {
+        chi(i) = interp->map3d_VC2CC(vcchi(k, j, i));
+        gamma_dd(0, 0, i) = gamma_dd(0, 0, i)/chi(i);
+        gamma_dd(0, 1, i) = gamma_dd(0, 1, i)/chi(i);
+        gamma_dd(0, 2, i) = gamma_dd(0, 2, i)/chi(i);
+        gamma_dd(1, 1, i) = gamma_dd(1, 1, i)/chi(i);
+        gamma_dd(1, 2, i) = gamma_dd(1, 2, i)/chi(i);
+        gamma_dd(2, 2, i) = gamma_dd(2, 2, i)/chi(i);
+      }
+    };
+    rescale_metric = lambda;
+  }
 
   // Go through the cells
   for (int k = kl; k <= ku; ++k) {
     for (int j = jl; j <= ju; ++j) {
       // Extract the metric at the vertex centers and interpolate to cell centers.
       //#pragma omp simd
+      
       for (int i = il; i <= iu; ++i) {
-        gamma_dd(0,0,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
-        gamma_dd(0,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
-        gamma_dd(0,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
-        gamma_dd(1,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
-        gamma_dd(1,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
-        gamma_dd(2,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
-
-        /*gamma_dd(0,0,i) = VCInterpolation(vcgamma_xx, k, j, i);
-        gamma_dd(0,1,i) = VCInterpolation(vcgamma_xy, k, j, i);
-        gamma_dd(0,2,i) = VCInterpolation(vcgamma_xz, k, j, i);
-        gamma_dd(1,1,i) = VCInterpolation(vcgamma_yy, k, j, i);
-        gamma_dd(1,2,i) = VCInterpolation(vcgamma_yz, k, j, i);
-        gamma_dd(2,2,i) = VCInterpolation(vcgamma_zz, k, j, i);*/
+        gamma_dd(0,0,i) = interp->map3d_VC2CC(vcgamma_xx(k,j,i));
+        gamma_dd(0,1,i) = interp->map3d_VC2CC(vcgamma_xy(k,j,i));
+        gamma_dd(0,2,i) = interp->map3d_VC2CC(vcgamma_xz(k,j,i));
+        gamma_dd(1,1,i) = interp->map3d_VC2CC(vcgamma_yy(k,j,i));
+        gamma_dd(1,2,i) = interp->map3d_VC2CC(vcgamma_yz(k,j,i));
+        gamma_dd(2,2,i) = interp->map3d_VC2CC(vcgamma_zz(k,j,i));
       }
+      rescale_metric(gamma_dd, vcchi, chi, interp, il, iu, j, k);
 
       // Extract the primitive variables
       //#pragma omp simd
