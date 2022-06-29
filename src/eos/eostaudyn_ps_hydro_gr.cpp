@@ -152,13 +152,14 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
     vcgamma_yy.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gyy,1);
     vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gyz,1);
     vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gzz,1);
+    vcchi.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_chi,1);
     interp = pmy_block_->pz4c->ig_coarse;
     auto lambda = [](AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>& gamma_dd,
                      AthenaArray<Real>& vcchi,
                      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0>& chi,
                      InterpIntergridLocal* interp,
                      int il, int iu, int j, int k) {
-      for (int i = 0; i < il; i < iu) {
+      for (int i = il; i <= iu; i++) {
         chi(i) = interp->map3d_VC2CC(vcchi(k, j, i));
         gamma_dd(0, 0, i) = gamma_dd(0, 0, i)/chi(i);
         gamma_dd(0, 1, i) = gamma_dd(0, 1, i)/chi(i);
