@@ -269,8 +269,8 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
       AddTask(INT_HYD, CALC_HYDFLX);
     }
     AddTask(SRCTERM_HYD,INT_HYD);
-    AddTask(SEND_HYD,SRCTERM_HYD);
-    AddTask(RECV_HYD,NONE);
+    AddTask(SEND_HYD,NONE);
+    AddTask(RECV_HYD,INT_HYD);
     AddTask(SETB_HYD,(RECV_HYD|SRCTERM_HYD));
     if (SHEARING_BOX) { // Shearingbox BC for Hydro
       AddTask(SEND_HYDSH,SETB_HYD);
@@ -376,7 +376,7 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
     AddTask(INT_Z4C, (CALC_Z4CRHS|UPDATE_MET));             // IntegrateZ4c
 
     AddTask(SEND_Z4C, INT_Z4C);                // SendZ4c
-    AddTask(RECV_Z4C, UPDATE_SRC);                   // ReceiveZ4c
+    AddTask(RECV_Z4C, (INT_Z4C | RECV_HYD));                   // ReceiveZ4c
     AddTask(SETB_Z4C, (RECV_Z4C|INT_Z4C));     // SetBoundariesZ4c
     if (pm->multilevel) { // SMR or AMR
       AddTask(PROLONG_Z4C, (SEND_Z4C|SETB_Z4C));   // Prolongation
@@ -392,7 +392,7 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
     AddTask(Z4C_WEYL, Z4C_TO_ADM);           // Calc Psi4
     AddTask(WAVE_EXTR, Z4C_WEYL);           // Project Psi4 multipoles
         //WGC end
-    AddTask(USERWORK, ADM_CONSTR);             // UserWork
+    AddTask(USERWORK, ADM_CONSTR | PHY_BVAL_HYD);             // UserWork
 
     AddTask(NEW_DT, USERWORK);                 // NewBlockTimeStep
     if (pm->adaptive) {

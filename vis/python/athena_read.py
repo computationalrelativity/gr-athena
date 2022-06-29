@@ -451,7 +451,7 @@ def athdf(filename, raw=False, data=None, quantities=None, dtype=None, level=Non
             x2_rat = f.attrs['RootGridX2'][2]
             x3_rat = f.attrs['RootGridX3'][2]
             if (coord == 'cartesian' or coord == 'minkowski' or coord == 'tilted'
-                    or coord == 'sinusoidal'):
+                    or coord == 'sinusoidal' or coord == 'gr_dynamical'):
                 if ((nx1 == 1 or x1_rat == 1.0) and (nx2 == 1 or x2_rat == 1.0)
                         and (nx3 == 1 or x3_rat == 1.0)):
                     fast_restrict = True
@@ -489,7 +489,7 @@ def athdf(filename, raw=False, data=None, quantities=None, dtype=None, level=Non
         # Set cell center functions for preset coordinates
         if center_func_1 is None:
             if (coord == 'cartesian' or coord == 'minkowski' or coord == 'tilted'
-                    or coord == 'sinusoidal' or coord == 'kerr-schild'):
+                    or coord == 'sinusoidal' or coord == 'kerr-schild' or coord == 'gr_dynamical'):
                 def center_func_1(xm, xp):
                     return 0.5 * (xm+xp)
             elif coord == 'cylindrical':
@@ -506,7 +506,8 @@ def athdf(filename, raw=False, data=None, quantities=None, dtype=None, level=Non
         if center_func_2 is None:
             if (coord == 'cartesian' or coord == 'cylindrical' or coord == 'minkowski'
                     or coord == 'tilted' or coord == 'sinusoidal'
-                    or coord == 'kerr-schild'):
+                    or coord == 'kerr-schild'
+                    or coord == 'gr_dynamical'):
                 def center_func_2(xm, xp):
                     return 0.5 * (xm+xp)
             elif coord == 'spherical_polar':
@@ -525,7 +526,8 @@ def athdf(filename, raw=False, data=None, quantities=None, dtype=None, level=Non
             if (coord == 'cartesian' or coord == 'cylindrical' or coord == 'tilted'
                     or coord == 'spherical_polar' or coord == 'minkowski'
                     or coord == 'sinusoidal' or coord == 'schwarzschild'
-                    or coord == 'kerr-schild'):
+                    or coord == 'kerr-schild'
+                    or coord == 'gr_dynamical'):
 
                 def center_func_3(xm, xp):
                     return 0.5 * (xm+xp)

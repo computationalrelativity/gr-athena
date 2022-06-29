@@ -39,6 +39,8 @@ void FixedBoundary(MeshBlock *pmb, Coordinates *pcoord, AthenaArray<Real> &prim,
                    FaceField &bb, Real time, Real dt,
                    int il, int iu, int jl, int ju, int kl, int ku, int ngh);
 
+Real MaxRho(MeshBlock* pmb, int iout);
+
 namespace {
   int TOV_rhs(Real dr, Real *u, Real *k);
   int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts);
@@ -53,6 +55,7 @@ namespace {
   
   // Global variables
   Real gamma_adi, k_adi;  // hydro EOS parameters
+  Real v_amp; // velocity amplitude for linear perturbations
 
   // TOV var indexes for ODE integration
   enum{TOV_IRHO,TOV_IMASS,TOV_IPHI,TOV_IINT,TOV_NVAR};
@@ -87,6 +90,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag) {
   
   k_adi = pin->GetReal("hydro", "k_adi");
   gamma_adi = pin->GetReal("hydro","gamma");
+  v_amp = pin->GetOrAddReal("problem", "v_amp", 0.0);
 
   // Alloc 1D buffer
   tov = new TOVData;
@@ -96,8 +100,24 @@ void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag) {
   
   // Solve TOV equations, setting 1D inital data in tov->data
   TOV_solve(rhoc, rmin, dr, &npts);
+  
+  // Add max(rho) output.
+  AllocateUserHistoryOutput(1);
+  EnrollUserHistoryOutput(0, MaxRho, "max_rho", UserHistoryOperation::max);
 }
 
+Real MaxRho(MeshBlock* pmb, int iout) {
+  Real max_rho = 0;
+  for (int k = pmb->ks; k <= pmb->ke; k++) {
+    for (int j = pmb->js; j <= pmb->je; j++) {
+      for (int i = pmb->is; i <= pmb->ie; i++) {
+        max_rho = std::fmax(max_rho, pmb->phydro->w(IDN, k, j, i));
+      }
+    }
+  }
+
+  return max_rho;
+}
 
 void MeshBlock::InitUserMeshBlockData(ParameterInput *pin) {
   // Allocate 3 user output variables: lapse, gxx, m
@@ -221,7 +241,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   const Real pre_atm = k_adi*std::pow(rhomax*fatm,gamma_adi);
 
   // Pontwise aux vars
-  Real rho_kji, pgas_kji;
+  Real rho_kji, pgas_kji, v_kji, x_kji;
   Real lapse_kji, d_lapse_dr_kji, psi4_kji,d_psi4_dr_kji,dummy;
 
   // Initialize primitive values on CC grid
@@ -230,6 +250,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
       for (int i=il; i<=iu; ++i) {
 	// Isotropic radius
 	Real r = std::sqrt(std::pow(pcoord->x1v(i),2.) +  pow(pcoord->x2v(j),2.) + pow(pcoord->x3v(k),2.));
+  Real rho_pol = std::sqrt(std::pow(pcoord->x1v(i),2.) + std::pow(pcoord->x2v(j),2.));
+  Real costh = pcoord->x3v(k)/r;
+  Real sinth = rho_pol/r;
+  Real cosphi = pcoord->x1v(i)/rho_pol;
+  Real sinphi = pcoord->x2v(j)/rho_pol;
 	if (r<R){
  	  // Interpolate rho to star interior
 	  interp_lag4(tov->data[itov_rho], tov->data[itov_riso], tov->npts, r,
@@ -237,6 +262,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 	  // Pressure from EOS
 	  //TODO (SB) general EOS call 
 	  pgas_kji = k_adi*pow(rho_kji,gamma_adi); 
+    x_kji = r/R;
+    v_kji = 0.5*v_amp*(3.0*x_kji - x_kji*x_kji*x_kji);
 	} else {
 	  // Set exterior to atmos
 	  //rho_kji  = rho_atm;
@@ -244,12 +271,13 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     // Let the EOS decide how to set the atmosphere.
     rho_kji = 0.0;
     pgas_kji = 0.0;
+    v_kji = 0.0;
 	}
   phydro->w_init(IDN, k, j, i) = rho_kji;
   phydro->w_init(IPR, k, j, i) = pgas_kji;
-  phydro->w_init(IVX, k, j, i) = 0.0;
-  phydro->w_init(IVY, k, j, i) = 0.0;
-  phydro->w_init(IVZ, k, j, i) = 0.0;
+  phydro->w_init(IVX, k, j, i) = v_kji*sinth*cosphi;
+  phydro->w_init(IVY, k, j, i) = v_kji*sinth*sinphi;
+  phydro->w_init(IVZ, k, j, i) = v_kji*costh;
 
   //peos->ApplyPrimitiveFloors(phydro->w_init, k, j, i);
 
