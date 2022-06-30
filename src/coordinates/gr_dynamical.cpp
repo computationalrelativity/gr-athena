@@ -214,7 +214,9 @@ void GRDynamical::Edge1Length(const int k, const int j, const int il, const int 
   // \Delta L \approx \sqrt{-g} \Delta x^1
 #pragma omp simd
   for (int i=il; i<=iu; ++i) {
-    lengths(i) = coord_len1_kji_(k,j,i);
+//    lengths(i) = coord_len1_kji_(k,j,i);
+//    WGC for fluxcorrection_fc want just dx1
+      lengths(i) = dx1f(i);
   }
   return;
 }
@@ -224,7 +226,9 @@ void GRDynamical::Edge2Length(const int k, const int j, const int il, const int 
   // \Delta L \approx \sqrt{-g} \Delta x^2
 #pragma omp simd
   for (int i=il; i<=iu; ++i) {
-    lengths(i) = coord_len2_kji_(k,j,i);
+//    lengths(i) = coord_len2_kji_(k,j,i);
+//    WGC for fluxcorrection_fc want just dx2
+      lengths(i) = dx2f(j);
   }
   return;
 }
@@ -234,7 +238,9 @@ void GRDynamical::Edge3Length(const int k, const int j, const int il, const int 
   // \Delta L \approx \sqrt{-g} \Delta x^3
 #pragma omp simd
   for (int i=il; i<=iu; ++i) {
-    lengths(i) = coord_len3_kji_(k,j,i);
+//    lengths(i) = coord_len3_kji_(k,j,i);
+//    WGC for fluxcorrection_fc want just dx3
+      lengths(i) = dx3f(k);
   }
   return;
 }
@@ -244,17 +250,23 @@ void GRDynamical::Edge3Length(const int k, const int j, const int il, const int 
 
 Real GRDynamical::GetEdge1Length(const int k, const int j, const int i) {
   // \Delta L \approx \sqrt{-g} \Delta x^1
-  return coord_len1_kji_(k,j,i);
+//  return coord_len1_kji_(k,j,i);
+//  WGC for ProlongateInternalField make dx1
+    return dx1f(i);
 }
 
 Real GRDynamical::GetEdge2Length(const int k, const int j, const int i) {
   // \Delta L \approx \sqrt{-g} \Delta x^2
-  return coord_len2_kji_(k,j,i);
+//  return coord_len2_kji_(k,j,i);
+//  WGC for ProlongateInternalField make dx2
+    return dx2f(j);
 }
 
 Real GRDynamical::GetEdge3Length(const int k, const int j, const int i) {
   // \Delta L \approx \sqrt{-g} \Delta x^3
-  return coord_len3_kji_(k,j,i);
+//  return coord_len3_kji_(k,j,i);
+//  WGC for ProlongateInternalField make dx3
+    return dx3f(k);
 }
 
 //----------------------------------------------------------------------------------------
@@ -303,7 +315,9 @@ void GRDynamical::Face1Area(const int k, const int j, const int il, const int iu
   // \Delta A \approx \sqrt{-g} \Delta x^2 \Delta x^3
 #pragma omp simd
   for (int i=il; i<=iu; ++i) {
-    areas(i) = coord_area1_kji_(k,j,i);
+//    areas(i) = coord_area1_kji_(k,j,i);
+//WC: for ProlongateInternalField make dx2*dx3
+      areas(i) = dx2f(j)*dx3f(k);
   }
   return;
 }
@@ -313,7 +327,10 @@ void GRDynamical::Face2Area(const int k, const int j, const int il, const int iu
   // \Delta A \approx \sqrt{-g} \Delta x^1 \Delta x^3
 #pragma omp simd
   for (int i=il; i<=iu; ++i) {
-    areas(i) = coord_area2_kji_(k,j,i);
+//    areas(i) = coord_area2_kji_(k,j,i);
+//
+//WC: for ProlongateInternalField make dx1*dx3
+      areas(i) = dx1f(i)*dx3f(k);
   }
   return;
 }
@@ -323,7 +340,10 @@ void GRDynamical::Face3Area(const int k, const int j, const int il, const int iu
   // \Delta A \approx \sqrt{-g} \Delta x^1 \Delta x^2
 #pragma omp simd
   for (int i=il; i<=iu; ++i) {
-    areas(i) = coord_area3_kji_(k,j,i);
+//    areas(i) = coord_area3_kji_(k,j,i);
+//
+//WC: for ProlongateInternalField make dx1*dx2
+      areas(i) = dx1f(i)*dx2f(j);
   }
   return;
 }
@@ -656,7 +676,7 @@ if(MAGNETIC_FIELDS_ENABLED){
   }}
   for(a=0;a<NDIM;++a){
      CLOOP1(i){
-          bi_u(a,i) = (bb_u(a,i) + alpha(i)*b0_u(i)*utilde_u(a,i))/Wlor(i);
+          bi_u(a,i) = (bb_u(a,i) + alpha(i)*b0_u(i)*Wlor(i)*(v_u(a,i) - beta_u(a,i)/alpha(i)))/Wlor(i);
      }}
   bi_d.ZeroClear();
   for(a=0;a<NDIM;++a){
@@ -684,7 +704,7 @@ T00(i) = (wtot(i)+bsq(i))*u0(i)*u0(i) + (pgas(i)+bsq(i)/2.0)*(-1.0/(alpha(i)*alp
 
 for(a = 0; a<NDIM; ++a){  
 CLOOP1(i){
-T0i_u(a,i) = (wtot(i)+bsq(i))*u0(i)*utilde_u(a,i) + (pgas(i)+bsq(i)/2.0)*(beta_u(a,i)/(alpha(i)*alpha(i))) - b0_u(i)*bi_u(a,i);
+T0i_u(a,i) = (wtot(i)+bsq(i))*u0(i)*Wlor(i)*(v_u(a,i) - beta_u(a,i)/alpha(i)) + (pgas(i)+bsq(i)/2.0)*(beta_u(a,i)/(alpha(i)*alpha(i))) - b0_u(i)*bi_u(a,i);
 }
 }
 
@@ -700,7 +720,7 @@ T0i_d(a,i) += gamma_dd(a,b,i)*T0i_u(b,i);
 for(a = 0; a<NDIM; ++a){  
 for(b = 0; b<NDIM; ++b){  
 CLOOP1(i){
-Tij_uu(a,b,i) = (wtot(i)+bsq(i))*utilde_u(a,i)*utilde_u(b,i) + (pgas(i)+bsq(i)/2.0)*(gamma_uu(a,b,i) - beta_u(a,i)*beta_u(b,i)/(alpha(i)*alpha(i))) - bi_u(a,i)*bi_u(b,i);
+Tij_uu(a,b,i) = (wtot(i)+bsq(i))*Wlor(i)*(v_u(a,i) - beta_u(a,i)/alpha(i))*Wlor(i)*(v_u(b,i) - beta_u(b,i)/alpha(i)) + (pgas(i)+bsq(i)/2.0)*(gamma_uu(a,b,i) - beta_u(a,i)*beta_u(b,i)/(alpha(i)*alpha(i))) - bi_u(a,i)*bi_u(b,i);
 }
 }
 }

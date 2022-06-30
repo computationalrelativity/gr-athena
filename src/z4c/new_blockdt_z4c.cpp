@@ -40,18 +40,21 @@ Real Z4c::NewBlockTimeStep(void) {
       pmb->pcoord->CenterWidth3(k, j, mbi.il, mbi.iu, dt3);
 
       for (int i = mbi.il; i < mbi.iu; ++i) {
-        Real & dt_1 = dt1(i);
+//        Real & dt_1 = dt1(i);
+        Real & dt_1 = pmb->pcoord->dx1f(i);
         min_dt = std::min(min_dt, dt_1);
       }
       if (pmb->block_size.nx2 > 1) {
         for (int i = mbi.il; i < mbi.iu; ++i) {
-          Real & dt_2 = dt2(i);
+//          Real & dt_2 = dt2(i);
+        Real & dt_2 = pmb->pcoord->dx2f(j);
           min_dt = std::min(min_dt, dt_2);
         }
       }
       if (pmb->block_size.nx3 > 1) {
         for (int i = mbi.il; i < mbi.iu; ++i) {
-          Real & dt_3 = dt3(i);
+//          Real & dt_3 = dt3(i);
+        Real & dt_3 = pmb->pcoord->dx3f(k);
           min_dt = std::min(min_dt, dt_3);
         }
       }

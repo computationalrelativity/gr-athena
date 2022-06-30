@@ -269,7 +269,7 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
       AddTask(INT_HYD, CALC_HYDFLX);
     }
     AddTask(SRCTERM_HYD,INT_HYD);
-    AddTask(SEND_HYD,NONE);
+    AddTask(SEND_HYD,SRCTERM_HYD);
     AddTask(RECV_HYD,INT_HYD);
     AddTask(SETB_HYD,(RECV_HYD|SRCTERM_HYD));
     if (SHEARING_BOX) { // Shearingbox BC for Hydro
@@ -327,7 +327,7 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
         } else {
           AddTask(PROLONG_HYD,(SEND_HYD|SETB_HYD|SEND_FLD|SETB_FLD));
         }
-        AddTask(CONS2PRIM,PROLONG_HYD);
+        AddTask(CONS2PRIM,(PROLONG_HYD|UPDATE_SRC|Z4C_TO_ADM));
       } else {
         if (SHEARING_BOX) {
           if (NSCALARS > 0) {
@@ -340,7 +340,7 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
           if (NSCALARS > 0) {
             AddTask(CONS2PRIM,(SETB_HYD|SETB_FLD|SETB_SCLR));
           } else {
-            AddTask(CONS2PRIM,(SETB_HYD|SETB_FLD));
+            AddTask(CONS2PRIM,(SETB_HYD|SETB_FLD|UPDATE_SRC|Z4C_TO_ADM));
           }
         }
       }
@@ -352,7 +352,7 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
         } else {
           AddTask(PROLONG_HYD,(SEND_HYD|SETB_HYD));
         }
-        AddTask(CONS2PRIM,(PROLONG_HYD|UPDATE_SRC));
+        AddTask(CONS2PRIM,(PROLONG_HYD|UPDATE_SRC|Z4C_TO_ADM));
       } else {
         if (SHEARING_BOX) {
           if (NSCALARS > 0) {
@@ -364,7 +364,7 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
           if (NSCALARS > 0) {
             AddTask(CONS2PRIM,(SETB_HYD|SETB_SCLR));
           } else {
-            AddTask(CONS2PRIM,(SETB_HYD|UPDATE_SRC));
+            AddTask(CONS2PRIM,(SETB_HYD|UPDATE_SRC|Z4C_TO_ADM));
           }
         }
       }
@@ -376,7 +376,11 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
     AddTask(INT_Z4C, (CALC_Z4CRHS|UPDATE_MET));             // IntegrateZ4c
 
     AddTask(SEND_Z4C, INT_Z4C);                // SendZ4c
+    if(MAGNETIC_FIELDS_ENABLED){
+    AddTask(RECV_Z4C, (INT_Z4C | RECV_HYD | RECV_FLD | RECV_FLDFLX));                   // ReceiveZ4c
+    }else {
     AddTask(RECV_Z4C, (INT_Z4C | RECV_HYD));                   // ReceiveZ4c
+    }
     AddTask(SETB_Z4C, (RECV_Z4C|INT_Z4C));     // SetBoundariesZ4c
     if (pm->multilevel) { // SMR or AMR
       AddTask(PROLONG_Z4C, (SEND_Z4C|SETB_Z4C));   // Prolongation
@@ -386,7 +390,11 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
     }
 
     AddTask(ALG_CONSTR, PHY_BVAL_Z4C);             // EnforceAlgConstr
-    AddTask(Z4C_TO_ADM, (ALG_CONSTR|UPDATE_MET));           // Z4cToADM
+    if(MAGNETIC_FIELDS_ENABLED){
+    AddTask(Z4C_TO_ADM, (ALG_CONSTR|UPDATE_MET|INT_HYD|INT_FLD));           // Z4cToADM 
+    } else {
+    AddTask(Z4C_TO_ADM, (ALG_CONSTR|UPDATE_MET|INT_HYD));           // Z4cToADM 
+    }
     AddTask(ADM_CONSTR, Z4C_TO_ADM);           // ADM_Constraints
 //WGC wext
     AddTask(Z4C_WEYL, Z4C_TO_ADM);           // Calc Psi4

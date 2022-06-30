@@ -31,7 +31,7 @@
 
 // Declarations
 static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim, Real gamma_adi,
-const AthenaArray<Real> &bb_cc,    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd,  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> const & alpha, int k, int j, int i,
+const AthenaArray<Real> &bb_cc,    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> const & beta_u,   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> const & alpha, int k, int j, int i,
     AthenaArray<Real> &cons, Coordinates *pco);
 Real fthr, fatm, rhoc;
 Real k_adi, gamma_adi;
@@ -332,7 +332,7 @@ if(coarse_flag==0){
    uu3 = 0.0;
    rho = atmo_rho;
    pgas = k_adi*pow(atmo_rho,gamma_adi);
-   PrimitiveToConservedSingle(prim, gamma_adi,bb_cc, gamma_dd, alpha, k, j, i, cons, pco);
+   PrimitiveToConservedSingle(prim, gamma_adi,bb_cc, gamma_dd, beta_u, alpha, k, j, i, cons, pco);
   }
   } 
     }
@@ -350,7 +350,7 @@ if(coarse_flag==0){
    uu3 = 0.0;
    rho = atmo_rho;
    pgas = k_adi*pow(atmo_rho,gamma_adi);
-   PrimitiveToConservedSingle(prim, gamma_adi, bb_cc, gamma_dd, alpha, k, j, i, cons, pco);
+   PrimitiveToConservedSingle(prim, gamma_adi, bb_cc, gamma_dd, beta_u, alpha, k, j, i, cons, pco);
   }
   } 
       if(rho < fthr*atmo_rho ){
@@ -368,7 +368,7 @@ if(coarse_flag==0){
       }
       if (rep.adjust_cons || rep.set_atmo || pgasfix) {
 //TODO P2C only requires gamma(a,b,i)  need to modify PrimitiveToConservedSingle defn
-          PrimitiveToConservedSingle(prim, gamma_adi, bb_cc, gamma_dd, alpha, k, j, i, cons, pco);
+          PrimitiveToConservedSingle(prim, gamma_adi, bb_cc, gamma_dd, beta_u, alpha, k, j, i, cons, pco);
 
 
 
@@ -398,14 +398,20 @@ void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
      const AthenaArray<Real> &bb_cc, AthenaArray<Real> &cons, Coordinates *pco, int il,
      int iu, int jl, int ju, int kl, int ku) {
       AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd; //lapse
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u; //lapse
       AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha; //lapse
   int nn1 = iu+1;
       gamma_dd.NewAthenaTensor(nn1);
+      beta_u.NewAthenaTensor(nn1);
       alpha.NewAthenaTensor(nn1);
       AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy;
       AthenaArray<Real> vcgamma_yz,vcgamma_zz, vcalpha, order_flag;
+      AthenaArray<Real> vcbeta_x,vcbeta_y,vcbeta_z;
       order_flag.NewAthenaArray(nn1);
       vcalpha.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
+      vcbeta_x.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betax,1);
+      vcbeta_y.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betay,1);
+      vcbeta_z.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betaz,1);
       vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
       vcgamma_xy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
       vcgamma_xz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
@@ -425,11 +431,14 @@ void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
           gamma_dd(1,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
           gamma_dd(1,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
           gamma_dd(2,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
+          beta_u(0,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcbeta_x(k,j,i));
+          beta_u(1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcbeta_y(k,j,i));
+          beta_u(2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcbeta_z(k,j,i));
           alpha(i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcalpha(k,j,i));
 }
       //#pragma omp simd // fn is too long to inline
       for (int i=il; i<=iu; ++i) {
-        PrimitiveToConservedSingle(prim, gamma_, bb_cc, gamma_dd, alpha, k, j, i, cons, pco);
+        PrimitiveToConservedSingle(prim, gamma_, bb_cc, gamma_dd, beta_u, alpha, k, j, i, cons, pco);
       }
     }
   }
@@ -449,16 +458,17 @@ void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
 
 // TODO change arguments so instead of taking g(n,i), gi(n,i) it just takes gamma(a,b,i)
 static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim, Real gamma_adi,
-const AthenaArray<Real> &bb_cc,    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> const & alpha, int k, int j, int i,
+const AthenaArray<Real> &bb_cc,    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> const & beta_u, AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> const & alpha, int k, int j, int i,
     AthenaArray<Real> &cons, Coordinates *pco) {
 //TODO needs to take alpha as an argument - need to initialise b too
     AthenaArray<Real> utilde_u;  // primitive gamma^i_a u^a
     AthenaArray<Real> utilde_d;  // primitive gamma^i_a u^a
-    AthenaArray<Real> v_d, bb_u, bi_d, bi_u;  // primitive gamma^i_a u^a
+    AthenaArray<Real> v_d, v_u, bb_u, bi_d, bi_u;  // primitive gamma^i_a u^a
 
   utilde_u.NewAthenaArray(3);
   utilde_d.NewAthenaArray(3);
   v_d.NewAthenaArray(3);
+  v_u.NewAthenaArray(3);
   bb_u.NewAthenaArray(3);
   bi_u.NewAthenaArray(3);
   bi_d.NewAthenaArray(3);
@@ -505,6 +515,9 @@ const AthenaArray<Real> &bb_cc,    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>
       for(int a=0;a<NDIM;++a){
              v_d(a) = utilde_d(a)/Wlor;
       }
+      for(int a=0;a<NDIM;++a){
+             v_u(a) = utilde_u(a)/Wlor;
+      }
 
 //  Real utilde_d_1 = g(I11,i)*uu1 + g(I12,i)*uu2 + g(I13,i)*uu3;
 //  Real utilde_d_2 = g(I12,i)*uu1 + g(I22,i)*uu2 + g(I23,i)*uu3;
@@ -534,7 +547,7 @@ const AthenaArray<Real> &bb_cc,    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>
        b0_u += Wlor*bb_u(a)*v_d(a)/alpha(i);
   }
   for(int a=0;a<NDIM;++a){
-          bi_u(a) = (bb_u(a) + alpha(i)*b0_u*utilde_u(a))/Wlor;
+          bi_u(a) = (bb_u(a) + alpha(i)*b0_u*Wlor*(v_u(a) - beta_u(a,i)/alpha(i)))/Wlor;
      }
   bi_d.ZeroClear();
   for(int a=0;a<NDIM;++a){
@@ -673,7 +686,7 @@ void EquationOfState::FastMagnetosonicSpeedsGR(Real rho_h, Real pgas, Real b_sq,
   Real u0 = Wlor/alpha;
   Real g00 = -1.0/(alpha*alpha);
   Real g01 = betai/(alpha*alpha);
-  Real u1 = vi*alpha;
+  Real u1 = vi*Wlor;
   Real g11 = gammaii - betai*betai/(alpha*alpha);
   // Calculate comoving fast magnetosonic speed
   Real cs_sq = gamma_adi * pgas / rho_h;

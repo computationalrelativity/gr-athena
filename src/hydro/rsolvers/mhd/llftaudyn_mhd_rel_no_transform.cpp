@@ -335,13 +335,13 @@ void Hydro::RiemannSolver(const int k, const int j,
     for(a=0;a<NDIM;++a){
        #pragma omp simd
        for (int i = il; i <= iu; ++i){
-          bi_u_l(a,i) = bb_l(a,i) + alpha(i)*b0_u_l(i)*utilde_u_l(a,i)/Wlor_l(i);
+          bi_u_l(a,i) = (bb_l(a,i) + alpha(i)*b0_u_l(i)*Wlor_l(i)*(v_u_l(a,i) - beta_u(a,i)/alpha(i)))/Wlor_l(i);
        }
      }
     for(a=0;a<NDIM;++a){
        #pragma omp simd
        for (int i = il; i <= iu; ++i){
-          bi_u_r(a,i) = bb_r(a,i) + alpha(i)*b0_u_r(i)*utilde_u_r(a,i)/Wlor_r(i);
+          bi_u_r(a,i) = (bb_r(a,i) + alpha(i)*b0_u_r(i)*Wlor_r(i)*(v_u_r(a,i) - beta_u(a,i)/alpha(i)))/Wlor_r(i);
        }
      }
      #pragma omp simd
