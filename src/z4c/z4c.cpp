@@ -313,7 +313,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   };
   ig = new InterpIntergridLocal(NDIM, &N[0], &rdx[0]);
 if(pmb->pmy_mesh->multilevel){
-  int N_coarse[] = {pmb->ncv1, pmb->ncv2, pmb->ncv3};
+  int N_coarse[] = {pmb->block_size.nx1/2, pmb->block_size.nx2/2, pmb->block_size.nx3/2};
   Real rdx_coarse[] = {
     1./pmb->pmr->pcoarsec->dx1f(0), 1./pmb->pmr->pcoarsec->dx2f(0), 1./pmb->pmr->pcoarsec->dx3f(0)
   };
@@ -748,33 +748,33 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
 
         #if MAGNETIC_FIELDS_ENABLED
         ILOOP1(i){
-        mat.rho(k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i)) - (pgasvc(i) + bsq(i)/2.0) - alpha(k,j,i)*alpha(k,j,i)*b0_u(i)*b0_u(i);
-        mat.S_d(0,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(0,i) - b0_u(i)*bi_d(0,i);
-        mat.S_d(1,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(1,i) - b0_u(i)*bi_d(1,i);
-        mat.S_d(2,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(2,i) - b0_u(i)*bi_d(2,i);
-        mat.S_dd(0,0,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(0,i)*v_d(0,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(0,0,k,j,i) - bi_d(0,i)*bi_d(0,i);
-        mat.S_dd(0,1,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(0,i)*v_d(1,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(0,1,k,j,i) - bi_d(0,i)*bi_d(1,i);
-        mat.S_dd(0,2,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(0,i)*v_d(2,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(0,2,k,j,i) - bi_d(0,i)*bi_d(2,i);
-        mat.S_dd(1,1,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(1,i)*v_d(1,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(1,1,k,j,i) - bi_d(1,i)*bi_d(1,i);
-        mat.S_dd(1,2,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(1,i)*v_d(2,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(1,2,k,j,i) - bi_d(1,i)*bi_d(2,i);
-        mat.S_dd(2,2,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(2,i)*v_d(2,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(2,2,k,j,i) - bi_d(2,i)*bi_d(2,i);
-}
-       #else
-       ILOOP1(i) {
-         mat.rho(k,j,i) = wgas(i)*SQR(gamma_lor(i)) - pgasvc(i);
-         mat.S_d(0,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(0,i);
-         mat.S_d(1,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(1,i);
-         mat.S_d(2,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(2,i);
-         mat.S_dd(0,0,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(0,i)*v_d(0,i) + pgasvc(i)*adm.g_dd(0,0,k,j,i);
-         mat.S_dd(0,1,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(0,i)*v_d(1,i) + pgasvc(i)*adm.g_dd(0,1,k,j,i);
-         mat.S_dd(0,2,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(0,i)*v_d(2,i) + pgasvc(i)*adm.g_dd(0,2,k,j,i);
-         mat.S_dd(1,1,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(1,i)*v_d(1,i) + pgasvc(i)*adm.g_dd(1,1,k,j,i);
-         mat.S_dd(1,2,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(1,i)*v_d(2,i) + pgasvc(i)*adm.g_dd(1,2,k,j,i);
-         mat.S_dd(2,2,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(2,i)*v_d(2,i) + pgasvc(i)*adm.g_dd(2,2,k,j,i);
-       }
-       #endif
-     }
-   }
+          mat.rho(k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i)) - (pgasvc(i) + bsq(i)/2.0) - alpha(k,j,i)*alpha(k,j,i)*b0_u(i)*b0_u(i);
+          mat.S_d(0,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(0,i) - b0_u(i)*bi_d(0,i);
+          mat.S_d(1,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(1,i) - b0_u(i)*bi_d(1,i);
+          mat.S_d(2,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(2,i) - b0_u(i)*bi_d(2,i);
+          mat.S_dd(0,0,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(0,i)*v_d(0,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(0,0,k,j,i) - bi_d(0,i)*bi_d(0,i);
+          mat.S_dd(0,1,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(0,i)*v_d(1,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(0,1,k,j,i) - bi_d(0,i)*bi_d(1,i);
+          mat.S_dd(0,2,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(0,i)*v_d(2,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(0,2,k,j,i) - bi_d(0,i)*bi_d(2,i);
+          mat.S_dd(1,1,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(1,i)*v_d(1,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(1,1,k,j,i) - bi_d(1,i)*bi_d(1,i);
+          mat.S_dd(1,2,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(1,i)*v_d(2,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(1,2,k,j,i) - bi_d(1,i)*bi_d(2,i);
+          mat.S_dd(2,2,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(2,i)*v_d(2,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(2,2,k,j,i) - bi_d(2,i)*bi_d(2,i);
+        }
+        #else
+        ILOOP1(i) {
+          mat.rho(k,j,i) = wgas(i)*SQR(gamma_lor(i)) - pgasvc(i);
+          mat.S_d(0,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(0,i);
+          mat.S_d(1,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(1,i);
+          mat.S_d(2,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(2,i);
+          mat.S_dd(0,0,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(0,i)*v_d(0,i) + pgasvc(i)*adm.g_dd(0,0,k,j,i);
+          mat.S_dd(0,1,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(0,i)*v_d(1,i) + pgasvc(i)*adm.g_dd(0,1,k,j,i);
+          mat.S_dd(0,2,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(0,i)*v_d(2,i) + pgasvc(i)*adm.g_dd(0,2,k,j,i);
+          mat.S_dd(1,1,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(1,i)*v_d(1,i) + pgasvc(i)*adm.g_dd(1,1,k,j,i);
+          mat.S_dd(1,2,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(1,i)*v_d(2,i) + pgasvc(i)*adm.g_dd(1,2,k,j,i);
+          mat.S_dd(2,2,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(2,i)*v_d(2,i) + pgasvc(i)*adm.g_dd(2,2,k,j,i);
+        }
+        #endif
+      }
+    }
 }
 
 //----------------------------------------------------------------------------------------
