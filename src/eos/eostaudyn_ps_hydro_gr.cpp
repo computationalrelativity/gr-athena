@@ -159,6 +159,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
                      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0>& chi,
                      InterpIntergridLocal* interp,
                      int il, int iu, int j, int k) {
+      #pragma omp simd
       for (int i = il; i <= iu; i++) {
         chi(i) = interp->map3d_VC2CC(vcchi(k, j, i));
         gamma_dd(0, 0, i) = gamma_dd(0, 0, i)/chi(i);
@@ -176,8 +177,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
   for (int k = kl; k <= ku; ++k) {
     for (int j = jl; j <= ju; ++j) {
       // Extract the metric at the vertex centers and interpolate to cell centers.
-      //#pragma omp simd
-      
+      #pragma omp simd
       for (int i = il; i <= iu; ++i) {
         gamma_dd(0,0,i) = interp->map3d_VC2CC(vcgamma_xx(k,j,i));
         gamma_dd(0,1,i) = interp->map3d_VC2CC(vcgamma_xy(k,j,i));
@@ -185,11 +185,18 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         gamma_dd(1,1,i) = interp->map3d_VC2CC(vcgamma_yy(k,j,i));
         gamma_dd(1,2,i) = interp->map3d_VC2CC(vcgamma_yz(k,j,i));
         gamma_dd(2,2,i) = interp->map3d_VC2CC(vcgamma_zz(k,j,i));
+        // DEBUG ONLY
+        /*gamma_dd(0,0,i) = VCInterpolation(vcgamma_xx, k, j, i);
+        gamma_dd(0,1,i) = VCInterpolation(vcgamma_xy, k, j, i);
+        gamma_dd(0,2,i) = VCInterpolation(vcgamma_xz, k, j, i);
+        gamma_dd(1,1,i) = VCInterpolation(vcgamma_yy, k, j, i);
+        gamma_dd(1,2,i) = VCInterpolation(vcgamma_yz, k, j, i);
+        gamma_dd(2,2,i) = VCInterpolation(vcgamma_zz, k, j, i);*/
       }
       rescale_metric(gamma_dd, vcchi, chi, interp, il, iu, j, k);
 
       // Extract the primitive variables
-      //#pragma omp simd
+      #pragma omp simd
       for (int i = il; i <= iu; ++i) {
         // Extract the local metric and stuff it into a smaller array for PrimitiveSolver.
         Real g3d[NSPMETRIC] = {gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
