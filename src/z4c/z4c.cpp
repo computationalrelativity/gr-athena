@@ -586,6 +586,8 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd, Sijadm_dd; //lapse
 
     ADM_vars adm;
+     Z4c_vars z4c;
+     SetZ4cAliases(storage.u,z4c);
      
     if(opt.fix_admsource==0){
       SetADMAliases(u_adm,adm);
@@ -615,7 +617,7 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
     if(opt.Tmunuinterp==0){
 //     Real rhovc, pgasvc, utilde1vc, utilde2vc, utilde3vc, wgas,tmp, gamma_lor, v1,v2,v3,v_1,v_2,v_3,epsvc, bb1vc,bb2vc,bb3vc;
       AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> rhovc, pgasvc, utilde1vc, utilde2vc, utilde3vc, epsvc, bb1vc,bb2vc,bb3vc, tmp, wgas, gamma_lor, v1,v2,v3, detgamma, detg, bsq, b0_u;
-      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> v_d, bb_u, bi_u, bi_d, utildevc_u; 
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> v_d, v_u,  bb_u, bi_u, bi_d, utildevc_u; 
       rhovc.NewAthenaTensor(nn1);
       pgasvc.NewAthenaTensor(nn1);
       epsvc.NewAthenaTensor(nn1);
@@ -638,6 +640,7 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
       bsq.NewAthenaTensor(nn1);
       b0_u.NewAthenaTensor(nn1);
       v_d.NewAthenaTensor(nn1);
+      v_u.NewAthenaTensor(nn1);
       #if MAGNETIC_FIELDS_ENABLED
       bb_u.NewAthenaTensor(nn1);
       bi_u.NewAthenaTensor(nn1);
@@ -716,12 +719,15 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
           utildevc_u(0,i) = utilde1vc(i);
           utildevc_u(1,i) = utilde2vc(i);
           utildevc_u(2,i) = utilde3vc(i);
+          v_u(0,i)        = v1(i);
+          v_u(1,i)        = v2(i);
+          v_u(2,i)        = v3(i);
         }
 
         #if MAGNETIC_FIELDS_ENABLED
         for(int a=0;a<NDIM;++a){
           ILOOP1(i){
-            bi_u(a,i) = (bb_u(a,i) + alpha(k,j,i)*b0_u(i)*utildevc_u(a,i))/gamma_lor(i);
+            bi_u(a,i) = (bb_u(a,i) + alpha(k,j,i)*b0_u(i)*gamma_lor(i)*(v_u(a,i) - z4c.beta_u(a,k,j,i)/alpha(i)))/gamma_lor(i);
           }
         }
         bi_d.ZeroClear();
@@ -749,9 +755,9 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
         #if MAGNETIC_FIELDS_ENABLED
         ILOOP1(i){
           mat.rho(k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i)) - (pgasvc(i) + bsq(i)/2.0) - alpha(k,j,i)*alpha(k,j,i)*b0_u(i)*b0_u(i);
-          mat.S_d(0,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(0,i) - b0_u(i)*bi_d(0,i);
-          mat.S_d(1,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(1,i) - b0_u(i)*bi_d(1,i);
-          mat.S_d(2,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(2,i) - b0_u(i)*bi_d(2,i);
+          mat.S_d(0,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(0,i) - b0_u(i)*bi_d(0,i)*alpha(i);
+          mat.S_d(1,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(1,i) - b0_u(i)*bi_d(1,i)*alpha(i);
+          mat.S_d(2,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(2,i) - b0_u(i)*bi_d(2,i)*alpha(i);
           mat.S_dd(0,0,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(0,i)*v_d(0,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(0,0,k,j,i) - bi_d(0,i)*bi_d(0,i);
           mat.S_dd(0,1,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(0,i)*v_d(1,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(0,1,k,j,i) - bi_d(0,i)*bi_d(1,i);
           mat.S_dd(0,2,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(0,i)*v_d(2,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(0,2,k,j,i) - bi_d(0,i)*bi_d(2,i);
