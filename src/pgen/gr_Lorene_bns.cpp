@@ -313,9 +313,20 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 
   // Check if the momentum and velocity are finite.
   // Set up the matter tensor in the Z4c variables.
-  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w);
+
+  // TODO: BD - this needs to be fixed properly
+  // No magnetic field, pass dummy or fix with overload
+  AthenaArray<Real> null_bb_cc;
+
+  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, null_bb_cc);
 
   // --------------------------------------------------------------------------
 
 	return;
+}
+
+
+int RefinementCondition(MeshBlock *pmb)
+{
+  return 0;
 }

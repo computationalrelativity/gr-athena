@@ -58,6 +58,7 @@ SRC_FILES := \
 		$(wildcard src/task_list/*.cpp) \
 		$(wildcard src/utils/*.cpp) \
 @Z4C_FILES@		$(wildcard src/wave/*.cpp) \
+@TRA_FILES@ \
 @EOS_FILES@		$(wildcard src/advection/*.cpp) \
 		$(MPIFFT_FILE)
 OBJ_DIR := obj/

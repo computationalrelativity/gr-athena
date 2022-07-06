@@ -54,6 +54,11 @@
 #include "z4c/trackers.hpp"
 #endif // Z4C_TRACKER
 
+#ifdef TRACKER_EXTREMA
+#include "trackers/tracker_extrema.hpp"
+#endif // TRACKER_EXTREMA
+
+
 // MPI/OpenMP headers
 #ifdef MPI_PARALLEL
 #include <mpi.h>
@@ -610,6 +615,12 @@ pmesh->pwave_extr[n]->Write(pmesh->ncycle, pmesh->time);
     pmesh->pz4c_tracker->EvolveTracker();
     pmesh->pz4c_tracker->WriteTracker(pmesh->ncycle, pmesh->time);
 #endif // Z4C_TRACKER
+
+#ifdef TRACKER_EXTREMA
+      pmesh->ptracker_extrema->ReduceTracker();
+      pmesh->ptracker_extrema->EvolveTracker();
+      pmesh->ptracker_extrema->WriteTracker(pmesh->ncycle, pmesh->time);
+#endif // TRACKER_EXTREMA
 
     pmesh->UserWorkInLoop();
 // calculate int D duplicated history output?

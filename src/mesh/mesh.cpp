@@ -60,6 +60,11 @@
 #ifdef Z4C_TRACKER
 #include "../z4c/trackers.hpp"
 #endif // Z4C_TRACKER
+
+#ifdef TRACKER_EXTREMA
+#include "../trackers/tracker_extrema.hpp"
+#endif // TRACKER_EXTREMA
+
 // WGC: wave ext
 #ifdef Z4C_WEXT
 #include "../z4c/wave_extract.hpp"
@@ -347,6 +352,12 @@ if (Z4C_ENABLED){
   pz4c_tracker = new Tracker(this, pin, 0);
 #endif // Z4C_TRACKER
   }
+
+#ifdef TRACKER_EXTREMA
+  // Last entry says if it is restart run or not
+  ptracker_extrema = new TrackerExtrema(this, pin, 0);
+#endif // TRACKER_EXTREMA
+
   if (EOS_TABLE_ENABLED) peos_table = new EosTable(pin);
   InitUserMeshData(pin);
 
@@ -758,9 +769,9 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
   }
 //WGC wext
   if (Z4C_ENABLED){
-#ifdef Z4C_WEXT  
+#ifdef Z4C_WEXT
 // 1 is restart flag for restart
-    for(int n = 0;n<NRAD;++n){ 
+    for(int n = 0;n<NRAD;++n){
       pwave_extr[n] = new WaveExtract(this, pin, n,1);
     }
 //end multi
@@ -772,6 +783,12 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
   pz4c_tracker = new Tracker(this, pin, 1);
 #endif
   }
+
+#ifdef TRACKER_EXTREMA
+  // Last entry says if it is restart run or not
+  ptracker_extrema = new TrackerExtrema(this, pin, 1);
+#endif // TRACKER_EXTREMA
+
   if (EOS_TABLE_ENABLED) peos_table = new EosTable(pin);
   InitUserMeshData(pin, 1);
 
@@ -781,10 +798,19 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     udsize += iuser_mesh_data[n].GetSizeInBytes();
   for (int n=0; n<nreal_user_mesh_data_; n++)
     udsize += ruser_mesh_data[n].GetSizeInBytes();
+
 #ifdef Z4C_TRACKER
   for (int i_punc = 0; i_punc < NPUNCT; ++i_punc)
     udsize += 6*sizeof(Real);
 #endif
+
+#ifdef TRACKER_EXTREMA
+  // c_x1, c_x2, c_x3
+  udsize += ptracker_extrema->c_x1.GetSizeInBytes();
+  udsize += ptracker_extrema->c_x2.GetSizeInBytes();
+  udsize += ptracker_extrema->c_x3.GetSizeInBytes();
+#endif // TRACKER_EXTREMA
+
   if (udsize != 0) {
     char *userdata = new char[udsize];
     if (Globals::my_rank == 0) { // only the master process reads the ID list
@@ -810,6 +836,7 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
                   ruser_mesh_data[n].GetSizeInBytes());
       udoffset += ruser_mesh_data[n].GetSizeInBytes();
     }
+
 #ifdef Z4C_TRACKER
     for (int i_punc = 0; i_punc < NPUNCT; ++i_punc) {
       std::memcpy(pz4c_tracker->pos_body[i_punc].pos, &(userdata[udoffset]),
@@ -820,6 +847,24 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
       udoffset += 3*sizeof(Real);
     }
 #endif
+
+#ifdef TRACKER_EXTREMA
+    std::memcpy(ptracker_extrema->c_x1.data(),
+                &(userdata[udoffset]),
+                ptracker_extrema->c_x1.GetSizeInBytes());
+    udoffset += ptracker_extrema->c_x1.GetSizeInBytes();
+
+    std::memcpy(ptracker_extrema->c_x2.data(),
+                &(userdata[udoffset]),
+                ptracker_extrema->c_x2.GetSizeInBytes());
+    udoffset += ptracker_extrema->c_x2.GetSizeInBytes();
+
+    std::memcpy(ptracker_extrema->c_x3.data(),
+                &(userdata[udoffset]),
+                ptracker_extrema->c_x3.GetSizeInBytes());
+    udoffset += ptracker_extrema->c_x3.GetSizeInBytes();
+#endif // TRACKER_EXTREMA
+
     delete [] userdata;
   }
 
@@ -1008,6 +1053,11 @@ Mesh::~Mesh() {
 #ifdef Z4C_TRACKER
   delete pz4c_tracker;
 #endif // Z4C_TRACKER
+
+#ifdef TRACKER_EXTREMA
+  delete ptracker_extrema;
+#endif // TRACKER_EXTREMA
+
   if (adaptive) { // deallocate arrays for AMR
     delete [] nref;
     delete [] nderef;

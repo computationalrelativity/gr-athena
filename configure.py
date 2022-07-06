@@ -33,6 +33,7 @@
 #   -z_eta_track_tp     enable (TP) based shift-damping
 #   -z_eta_conf         enable conformal factor based shift-damping
 #   -z_assert_is_finite enable checking for nan/inf within Z4c tasklist
+#   -tracker_extrema    enable extrema tracker
 #   -t                  enable interface frame transformations for GR
 #   -vertex             prefer vertex-centered (where available)
 #   -shear              enable shearing periodic boundary conditions
@@ -244,6 +245,12 @@ parser.add_argument("-z_assert_is_finite",
                     action='store_true',
                     default=False,
                     help='enable Z4c assert is_finite checks')
+
+# -tracker_extrema argument
+parser.add_argument("-tracker_extrema",
+                    action='store_true',
+                    default=False,
+                    help='enable tracker based on extrema')
 
 # -t argument
 parser.add_argument('-t',
@@ -724,6 +731,12 @@ if args['vertex']:
 else:
     definitions['PREFER_VC'] = '0'
 
+# -tracker_extrema argument
+if args['tracker_extrema']:
+    definitions['TRACKER_EXTREMA'] = 'TRACKER_EXTREMA'
+else:
+  definitions['TRACKER_EXTREMA'] = 'NO_TRACKER_EXTREMA'
+
 # currently doesnt do anything
 # gr_dynamical argument
 if args['coord'] == 'gr_dynamical':
@@ -1193,6 +1206,13 @@ if args['eos'] == 'eostaudyn_ps':
     aux = ["		src/z4c/primitive/{}.cpp \\".format(f) for f in files]
     makefile_options['EOS_FILES'] = '\n'.join(aux) + '\n'
 
+# Add tracker_extrema
+files = []
+if args['tracker_extrema']:
+    files.append('tracker_extrema')
+aux = ["		src/trackers/{}.cpp \\".format(f) for f in files]
+makefile_options['TRA_FILES'] = '\n'.join(aux) + '\n'
+
 # Make substitutions
 for key, val in definitions.items():
     defsfile_template = re.sub(r'@{0}@'.format(key), val, defsfile_template)
@@ -1235,9 +1255,16 @@ print('  Wave equation:                ' + ('ON' if args['w'] else 'OFF'))
 print('  Z4c equations:                ' + ('ON' if args['z'] else 'OFF'))
 if args['z']:
     print('  Z4c wave extraction:          ' + ('ON' if args['z_wext'] else 'OFF'))
-    print('  Z4c tracker:                  ' + ('ON' if args['z_tracker'] else 'OFF'))
+    # print('  Z4c tracker:                  ' + ('ON' if args['z_tracker'] else 'OFF'))
     print('  Z4c assert is_finite:         ' + ('ON' if args['z_assert_is_finite'] else 'OFF'))
     print('  Z4c shift damping:            ' + self_eta_damp_string)
+
+have_tracker = args['z_tracker'] or args['tracker_extrema']
+
+print('  Trackers:                     ' + ('ON' if have_tracker else 'OFF'))
+if have_tracker:
+    print('    Punctures:                  ' + ('ON' if args['z_tracker'] in args else 'OFF'))
+    print('    Extrema:                    ' + ('ON' if args['tracker_extrema'] else 'OFF'))
 
 print('  Frame transformations:        ' + ('ON' if args['t'] else 'OFF'))
 print('  Self-Gravity:                 ' + self_grav_string)

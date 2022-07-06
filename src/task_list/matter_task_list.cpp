@@ -33,6 +33,10 @@
 #include "../scalars/scalars.hpp"
 #include "task_list.hpp"
 
+#ifdef TRACKER_EXTREMA
+#include "../trackers/tracker_extrema.hpp"
+#endif // TRACKER_EXTREMA
+
 //----------------------------------------------------------------------------------------
 //  MatterTaskList constructor
 
@@ -1313,6 +1317,12 @@ TaskStatus MatterTaskList::UserWork(MeshBlock *pmb, int stage) {
   if (stage != nstages) return TaskStatus::success; // only do on last stage
 
   pmb->UserWorkInLoop();
+
+#ifdef TRACKER_EXTREMA
+  // TODO: BD- this should be shifted to its own task
+  pmb->ptracker_extrema_loc->TreatCentreIfLocalMember();
+#endif // TRACKER_EXTREMA
+
   return TaskStatus::success;
 }
 

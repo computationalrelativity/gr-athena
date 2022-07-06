@@ -18,7 +18,7 @@
 #include "../athena_arrays.hpp"
 #include "../athena_tensor.hpp"
 #include "../finite_differencing.hpp"
-#include "../lagrange_interp.hpp"
+#include "../utils/lagrange_interp.hpp"
 #include "../utils/interp_intergrid.hpp"
 
 #include "../bvals/cc/bvals_cc.hpp"
