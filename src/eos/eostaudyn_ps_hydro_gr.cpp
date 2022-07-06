@@ -194,6 +194,18 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         gamma_dd(2,2,i) = VCInterpolation(vcgamma_zz, k, j, i);*/
       }
       rescale_metric(gamma_dd, vcchi, chi, interp, il, iu, j, k);
+      /*if (coarse_flag == 1) {
+        #pragma omp simd
+        for (int i = il; i <= iu; ++i) {
+          chi(i) = interp->map3d_VC2CC(vcchi(k, j, i));
+          gamma_dd(0, 0, i) = gamma_dd(0, 0, i)/chi(i);
+          gamma_dd(0, 1, i) = gamma_dd(0, 1, i)/chi(i);
+          gamma_dd(0, 2, i) = gamma_dd(0, 2, i)/chi(i);
+          gamma_dd(1, 1, i) = gamma_dd(1, 1, i)/chi(i);
+          gamma_dd(1, 2, i) = gamma_dd(1, 2, i)/chi(i);
+          gamma_dd(2, 2, i) = gamma_dd(2, 2, i)/chi(i);
+        }
+      }*/
 
       // Extract the primitive variables
       #pragma omp simd
@@ -224,6 +236,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
 
         if(result != Primitive::Error::SUCCESS) {
           std::cerr << "There was an error during the primitive solve!\n";
+          std::cerr << "  Iteration: " << pmy_block_->pmy_mesh->ncycle << "\n";
           std::cerr << "  Error: " << Primitive::ErrorString[(int)result] << "\n";
           //printf("i=%d, j=%d, k=%d\n",i,j,k);
           std::cerr << "  i=" << i << ", j=" << j << ", k=" << k << "\n";
@@ -231,6 +244,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
                     << g3d[S22] << ", " << g3d[S23] << ", " << g3d[S33] << "\n";
           std::cerr << "  g3u = [" << g3u[S11] << ", " << g3u[S12] << ", " << g3u[S13] << ", "
                     << g3u[S22] << ", " << g3u[S23] << ", " << g3u[S33] << "\n";
+          std::cerr << "  detg  = " << detg << "\n";
           std::cerr << "  sdetg = " << sdetg << "\n";
           std::cerr << "  D = " << cons_old_pt[IDN] << "\n";
           std::cerr << "  S_1 = " << cons_old_pt[IM1] << "\n";
@@ -345,7 +359,8 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim,
   // Extract the metric and calculate the determinant.
   Real g3d[NSPMETRIC] = {gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
                         gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i)};
-  Real sdetg = std::sqrt(Primitive::GetDeterminant(g3d));
+  Real detg = Primitive::GetDeterminant(g3d);
+  Real sdetg = std::sqrt(detg);
 
   // Perform the primitive solve.
   Real cons_pt[NCONS];
@@ -371,6 +386,7 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim,
     std::cerr << "  Metric:\n";
     std::cerr << "    g3d = {" << g3d[S11] << ", " << g3d[S12] << ", " << g3d[S13] << ", " 
                                << g3d[S22] << ", " << g3d[S23] << ", " << g3d[S33] << "}\n";
+    std::cerr << "    detg  = " << detg << "\n";
     std::cerr << "    sdetg = " << sdetg << "\n";
   }
 
