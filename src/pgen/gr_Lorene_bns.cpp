@@ -24,6 +24,21 @@
 #include "../mesh/mesh.hpp"
 
 
+int RefinementCondition(MeshBlock *pmb);
+
+//========================================================================================
+//! \fn void Mesh::InitUserMeshData(ParameterInput *pin)
+//  \brief Function to initialize problem-specific data in mesh class.  Can also be used
+//  to initialize variables which are global to (and therefore can be passed to) other
+//  functions in this file.  Called in Mesh constructor.
+//========================================================================================
+
+void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag) {
+  if(adaptive==true)
+    EnrollUserRefinementCondition(RefinementCondition);
+  return;
+}
+
 //========================================================================================
 //! \fn void MeshBlock::ProblemGenerator(ParameterInput *pin)
 //  \brief Sets the initial conditions.
@@ -312,10 +327,20 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
                              il, iu, jl, ju, kl, ku);
 
   // Check if the momentum and velocity are finite.
-  // Set up the matter tensor in the Z4c variables.
-  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w);
+  // TODO: BD - this needs to be fixed properly
+  // No magnetic field, pass dummy or fix with overload
+  AthenaArray<Real> null_bb_cc;
+
+  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, null_bb_cc);
+
 
   // --------------------------------------------------------------------------
 
 	return;
+}
+
+int RefinementCondition(MeshBlock *pmb)
+{
+  // trivial condition for segfault test
+  return 1;
 }
