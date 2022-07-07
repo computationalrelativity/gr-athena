@@ -51,7 +51,10 @@ class TrackerExtrema
     int update_strategy;
 
     enum class control_fields {
-      wave_auxiliary_ref
+      // wave eqn.
+      wave_auxiliary_ref,
+      // Z4c.
+      Z4c_chi
     };
 
     control_fields control_field;
@@ -120,6 +123,7 @@ class TrackerExtremaLocal
 
     // Field for which we interrogate extrema
     AthenaArray<Real> * control_field;
+    AthenaArray<Real> control_field_slicer;  // Work-around
 
   private:
     MeshBlock * pmy_block;

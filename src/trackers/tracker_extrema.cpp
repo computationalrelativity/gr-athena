@@ -48,6 +48,10 @@ TrackerExtrema::TrackerExtrema(Mesh * pmesh, ParameterInput * pin,
     {
       control_field = control_fields::wave_auxiliary_ref;
     }
+    else if (control_field_name == "Z4c.chi")
+    {
+      control_field = control_fields::Z4c_chi;
+    }
     else
     {
       std::cout << "tracker_extrema unknown control_field" << std::endl;
@@ -373,15 +377,24 @@ TrackerExtremaLocal::TrackerExtremaLocal(MeshBlock * pmb,
     loc_c_dx1.NewAthenaArray(N_tracker);
     loc_c_dx2.NewAthenaArray(N_tracker);
     loc_c_dx3.NewAthenaArray(N_tracker);
-  }
 
-  // register control field
-  switch (ptracker_extrema->control_field)
-  {
-    case TrackerExtrema::control_fields::wave_auxiliary_ref:
-      // TODO: BD- make collection of control fields
-      // control_field = &(pmb->pwave->aux_ref.auxiliary_ref_field);
-      break;
+    // register control field
+    switch (ptracker_extrema->control_field)
+    {
+      case TrackerExtrema::control_fields::wave_auxiliary_ref:
+        // control_field = &(pmb->pwave->aux_ref.auxiliary_ref_field);
+        break;
+      case TrackerExtrema::control_fields::Z4c_chi:
+        // need to slice and point
+
+        control_field_slicer.InitWithShallowSlice(
+          pmb->pz4c->storage.u, Z4c::I_Z4c_chi, 1
+        );
+
+        control_field = &(control_field_slicer);
+        break;
+    }
+
   }
 
 }

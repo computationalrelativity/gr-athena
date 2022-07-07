@@ -22,7 +22,27 @@
 #include "../hydro/hydro.hpp"
 #include "../bvals/bvals.hpp"
 #include "../mesh/mesh.hpp"
+#include "../mesh/mesh_refinement.hpp"
 
+
+#ifdef TRACKER_EXTREMA
+#include "../trackers/tracker_extrema.hpp"
+#endif // TRACKER_EXTREMA
+
+int RefinementCondition(MeshBlock *pmb);
+
+//========================================================================================
+//! \fn void Mesh::InitUserMeshData(ParameterInput *pin)
+//  \brief Function to initialize problem-specific data in mesh class.  Can also be used
+//  to initialize variables which are global to (and therefore can be passed to) other
+//  functions in this file.  Called in Mesh constructor.
+//========================================================================================
+
+void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag) {
+  if(adaptive==true)
+    EnrollUserRefinementCondition(RefinementCondition);
+  return;
+}
 
 //========================================================================================
 //! \fn void MeshBlock::ProblemGenerator(ParameterInput *pin)
@@ -325,8 +345,79 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 	return;
 }
 
-
 int RefinementCondition(MeshBlock *pmb)
 {
-  return 0;
+
+#ifdef TRACKER_EXTREMA
+
+  Mesh * pmesh = pmb->pmy_mesh;
+  TrackerExtrema * ptracker_extrema = pmesh->ptracker_extrema;
+
+  int root_level = ptracker_extrema->root_level;
+  int mb_physical_level = pmb->loc.level - root_level;
+
+  // to get behaviour correct for when multiple centres occur in a single
+  // MeshBlock we need to carry information
+  bool centres_contained = false;
+
+  for (int n=1; n<=ptracker_extrema->N_tracker; ++n)
+  {
+    bool is_contained = false;
+
+    if (ptracker_extrema->ref_type(n-1) == 0)
+    {
+      is_contained = pmb->PointContained(
+        ptracker_extrema->c_x1(n-1),
+        ptracker_extrema->c_x2(n-1),
+        ptracker_extrema->c_x3(n-1)
+      );
+    }
+    else if (ptracker_extrema->ref_type(n-1) == 1)
+    {
+      // is_contained = pmb->SphereIntersects(
+      //   ptracker_extrema->c_x1(n-1),
+      //   ptracker_extrema->c_x2(n-1),
+      //   ptracker_extrema->c_x3(n-1),
+      //   ptracker_extrema->ref_zone_radius(n-1)
+      // );
+
+      is_contained = pmb->PointContained(
+        ptracker_extrema->c_x1(n-1),
+        ptracker_extrema->c_x2(n-1),
+        ptracker_extrema->c_x3(n-1)
+      ) or pmb->PointCentralDistanceSquared(
+        ptracker_extrema->c_x1(n-1),
+        ptracker_extrema->c_x2(n-1),
+        ptracker_extrema->c_x3(n-1)
+      ) < SQR(ptracker_extrema->ref_zone_radius(n-1));
+
+    }
+
+    if (is_contained)
+    {
+      centres_contained = true;
+
+      // a point in current MeshBlock, now check whether level sufficient
+      if (mb_physical_level < ptracker_extrema->ref_level(n-1))
+      {
+        return 1;
+      }
+
+    }
+  }
+
+  // Here one could put composite criteria (such as spherical patch cond.)
+  // ...
+
+  if (centres_contained)
+  {
+    // all contained centres are at a sufficient level of refinement
+    return 0;
+  }
+
+  // Nothing satisfied - flag for de-refinement
+  return -1;
+
+#endif // TRACKER_EXTREMA
+ return 0;
 }

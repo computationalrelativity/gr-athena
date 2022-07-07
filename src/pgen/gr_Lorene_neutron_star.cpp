@@ -352,7 +352,3 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 
 	return;
 }
-
-/*int RefinementCondition(MeshBlock *pmb){
-    
-}*/
