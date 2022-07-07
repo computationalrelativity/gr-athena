@@ -327,9 +327,9 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
       // prolongate, compute new primitives
       if (pm->multilevel) { // SMR or AMR
         if (NSCALARS > 0) {
-          AddTask(PROLONG_HYD,(SEND_HYD|SETB_HYD|SEND_FLD|SETB_FLD|SEND_SCLR|SETB_SCLR));
+          AddTask(PROLONG_HYD,(SEND_HYD|SETB_HYD|SEND_FLD|SETB_FLD|SEND_SCLR|SETB_SCLR|Z4C_TO_ADM));
         } else {
-          AddTask(PROLONG_HYD,(SEND_HYD|SETB_HYD|SEND_FLD|SETB_FLD));
+          AddTask(PROLONG_HYD,(SEND_HYD|SETB_HYD|SEND_FLD|SETB_FLD|Z4C_TO_ADM));
         }
         AddTask(CONS2PRIM,(PROLONG_HYD|UPDATE_SRC|Z4C_TO_ADM));
       } else {
@@ -352,9 +352,9 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
       // prolongate, compute new primitives
       if (pm->multilevel) { // SMR or AMR
         if (NSCALARS > 0) {
-          AddTask(PROLONG_HYD,(SEND_HYD|SETB_HYD|SETB_SCLR|SEND_SCLR));
+          AddTask(PROLONG_HYD,(SEND_HYD|SETB_HYD|SETB_SCLR|SEND_SCLR|Z4C_TO_ADM));
         } else {
-          AddTask(PROLONG_HYD,(SEND_HYD|SETB_HYD));
+          AddTask(PROLONG_HYD,(SEND_HYD|SETB_HYD|Z4C_TO_ADM));
         }
         AddTask(CONS2PRIM,(PROLONG_HYD|UPDATE_SRC|Z4C_TO_ADM));
       } else {
