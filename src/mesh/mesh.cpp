@@ -657,6 +657,15 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
   ReserveMeshBlockPhysIDs();
 #endif
 
+#ifdef MPI_PARALLEL
+    root=0;
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    ioproc = (root == rank);
+#else
+    ioproc = true;
+#endif
+
   // check the number of OpenMP threads for mesh
   if (num_mesh_threads_ < 1) {
     msg << "### FATAL ERROR in Mesh constructor" << std::endl
