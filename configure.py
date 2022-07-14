@@ -1210,8 +1210,10 @@ if args['eos'] == 'eostaudyn_ps':
 files = []
 if args['tracker_extrema']:
     files.append('tracker_extrema')
-aux = ["		src/trackers/{}.cpp \\".format(f) for f in files]
-makefile_options['TRA_FILES'] = '\n'.join(aux) + '\n'
+    aux = ["		src/trackers/{}.cpp \\".format(f) for f in files]
+    makefile_options['TRA_FILES'] = '\n'.join(aux) + '\n'
+else:
+    makefile_options['TRA_FILES'] = '\\\n'
 
 # Make substitutions
 for key, val in definitions.items():
