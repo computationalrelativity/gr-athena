@@ -21,6 +21,8 @@
 
 // constructor, initializes data structures and parameters
 
+static Real CCInterpolation(AthenaArray<Real>& in, int k, int j, int i);
+
 char const * const Z4c::Z4c_names[Z4c::N_Z4c] = {
   "z4c.chi",
   "z4c.gxx", "z4c.gxy", "z4c.gxz", "z4c.gyy", "z4c.gyz", "z4c.gzz",
@@ -651,19 +653,28 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
       // interpolate to VC
       ILOOP2(k,j){
         ILOOP1(i){
-          rhovc(i) = ig->map3d_CC2VC(rhocc(k,j,i));
+          //rhovc(i) = ig->map3d_CC2VC(rhocc(k,j,i));
+          rhovc(i) = CCInterpolation(rhocc, k, j, i);
           if(opt.epsinterp==0){
-            pgasvc(i) = ig->map3d_CC2VC(pgascc(k,j,i));
+            //pgasvc(i) = ig->map3d_CC2VC(pgascc(k,j,i));
+            pgasvc(i) = CCInterpolation(pgascc, k, j, i);
           } else {
-            epsvc(i) = ig->map3d_CC2VC(epscc(k,j,i));
+            //epsvc(i) = ig->map3d_CC2VC(epscc(k,j,i));
+            epsvc(i) = CCInterpolation(epscc, k, j, i);
           }
-          utilde1vc(i) = ig->map3d_CC2VC(utilde1cc(k,j,i));
-          utilde2vc(i) = ig->map3d_CC2VC(utilde2cc(k,j,i));
-          utilde3vc(i) = ig->map3d_CC2VC(utilde3cc(k,j,i));
+          //utilde1vc(i) = ig->map3d_CC2VC(utilde1cc(k,j,i));
+          //utilde2vc(i) = ig->map3d_CC2VC(utilde2cc(k,j,i));
+          //utilde3vc(i) = ig->map3d_CC2VC(utilde3cc(k,j,i));
+          utilde1vc(i) = CCInterpolation(utilde1cc, k, j, i);
+          utilde2vc(i) = CCInterpolation(utilde2cc, k, j, i);
+          utilde3vc(i) = CCInterpolation(utilde3cc, k, j, i);
           #if MAGNETIC_FIELDS_ENABLED
-          bb1vc(i)     = ig->map3d_CC2VC(bb1cc(k,j,i));
-          bb2vc(i)     = ig->map3d_CC2VC(bb2cc(k,j,i));
-          bb3vc(i)     = ig->map3d_CC2VC(bb3cc(k,j,i));
+          //bb1vc(i)     = ig->map3d_CC2VC(bb1cc(k,j,i));
+          //bb2vc(i)     = ig->map3d_CC2VC(bb2cc(k,j,i));
+          //bb3vc(i)     = ig->map3d_CC2VC(bb3cc(k,j,i));
+          bb1vc(i) = CCInterpolation(bb1cc, k, j, i);
+          bb2vc(i) = CCInterpolation(bb2cc, k, j, i);
+          bb3vc(i) = CCInterpolation(bb3cc, k, j, i);
           #endif
      
           //   NB specific to EOS
@@ -828,4 +839,43 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
       }
     }
   }
+}
+
+
+//----------------------------------------------------------------------------------------
+// \!fn static Real CCInterpolation(AthenaArray<Real> &in, int k, int j, int i)
+// \brief Perform cubic interpolation from cell-centered grid to vertex.
+static inline Real CCInterpolation(AthenaArray<Real> &in, int k, int j, int i) {
+  // interpolation coefficients
+  // ordering is (i, j, k) = +/- (1, 1, 1), (2, 1, 1), (1, 2, 1), (2, 2, 1),
+  //                             (1, 1, 2), (2, 1, 2), (1, 2, 2), (2, 2, 2)
+  const Real coeff[8] = {729.0, -81.0, -81.0, 9.0, -81.0, 9.0, 9.0, -1.0};
+  const Real den   = 4096.0;
+  // Cells are located to the right of their corresponding vertices. So, i=1 corresponds
+  // to a physical cell index a=0.
+  const int off = 1;
+  Real sum = 0;
+  // Loop in reverse; the higher-index coefficients tend to have smaller contributions,
+  // so this *may* limit round-off error.
+  for (int c = 2; c > 0; --c) {
+    for (int b = 2; b > 0; --b) {
+      for (int a = 2; a > 0; --a) {
+        int index = (a - off) + 2*((b - off) + 2*(c - off));
+        // Grab the cube around vertex and add it up.
+        Real lll = in(k - c, j - b, i - a);
+        Real llu = in(k - c, j - b, i + a - off);
+        Real lul = in(k - c, j + b - off, i - a);
+        Real luu = in(k - c, j + b - off, i + a - off);
+        Real ull = in(k + c - off, j - b, i - a);
+        Real ulu = in(k + c - off, j - b, i + a - off);
+        Real uul = in(k + c - off, j + b - off, i - a);
+        Real uuu = in(k + c - off, j + b - off, i + a - off);
+
+        // Attempt to add up the cube in a way that preserves symmetry.
+        sum += coeff[index]*( ((lll + uuu) + (lul + ulu)) + ((llu + uul) + (luu + ull)) );
+      }
+    }
+  }
+
+  return sum/den;
 }
