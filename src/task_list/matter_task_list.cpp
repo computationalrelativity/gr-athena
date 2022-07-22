@@ -26,6 +26,15 @@
 #include "../hydro/hydro_diffusion/hydro_diffusion.hpp"
 #include "../hydro/srcterms/hydro_srcterms.hpp"
 #include "../mesh/mesh.hpp"
+#include "../z4c/z4c.hpp"
+//WGC wext
+#ifdef Z4C_WEXT
+#include "../z4c/wave_extract.hpp"
+#endif
+//WGC end
+#ifdef Z4C_TRACKER
+#include "../z4c/trackers.hpp"
+#endif // Z4C_TRACKER
 
 // #include "../parameter_input.hpp"
 
