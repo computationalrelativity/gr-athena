@@ -11,6 +11,7 @@
 
 // C++ headers
 //#include <vector> // formerly needed for vector of MeshBlock ptrs in DoTaskListOneStage
+#include <chrono>
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -21,6 +22,8 @@
 #ifdef OPENMP_PARALLEL
 #include <omp.h>
 #endif
+
+#define DEBUG_TASK_LIST 1
 
 //----------------------------------------------------------------------------------------
 //! \fn TaskListStatus TaskList::DoAllAvailableTasks
@@ -83,16 +86,53 @@ void TaskList::DoTaskListOneStage(Mesh *pmesh, int stage) {
     StartupTaskList(pmb_array[i], stage);
   }
 
+  // DEBUG ONLY
+  #if DEBUG_TASK_LIST
+  auto start = std::chrono::steady_clock::now();
+  #endif
+
   int nmb_left = nmb;
   // cycle through all MeshBlocks and perform all tasks possible
   while (nmb_left > 0) {
     // KNOWN ISSUE: Workaround for unknown OpenMP race condition. See #183 on GitHub.
 #pragma omp parallel for reduction(- : nmb_left) num_threads(nthreads) schedule(dynamic,1)
     for (int i=0; i<nmb; ++i) {
-      if (DoAllAvailableTasks(pmb_array[i],stage,pmb_array[i]->tasks)
+      TaskListStatus status = DoAllAvailableTasks(pmb_array[i], stage, pmb_array[i]->tasks);
+      /*if (DoAllAvailableTasks(pmb_array[i],stage,pmb_array[i]->tasks)
           == TaskListStatus::complete) {
         nmb_left--;
+      }*/
+      if (status == TaskListStatus::complete) {
+        nmb_left--;
+        #if DEBUG_TASK_LIST
+        start = std::chrono::steady_clock::now();
+        #endif
       }
+      #if DEBUG_TASK_LIST
+      else if (status == TaskListStatus::stuck) {
+        auto time_now = std::chrono::steady_clock::now();
+        std::chrono::duration<double> elapsed = time_now - start;
+        if (elapsed.count() > 600.0) {
+          std::cout << "The task list has been stuck for longer than 10 minutes.\n";
+          std::cout << "  MeshBlock: " << i << "\n";
+          std::cout << "  " << pmb_array[i]->tasks.num_tasks_left << " tasks remaining.\n";
+          std::cout << "  Unfinished tasks: \n";
+          for (int m = pmb_array[i]->tasks.indx_first_task; m < ntasks; m++) {
+            if (pmb_array[i]->tasks.finished_tasks.IsUnfinished(task_list_[m].task_id)) {
+              std::uint64_t id = task_list_[m].task_id.bitfld_[0];
+              int k = 1;
+              while (id > 1) {
+                id = id >> 1;
+                k++;
+              }
+              std::cout << "    TaskID: " << k << "\n";
+            }
+          }
+          std::cout << "Terminating...\n";
+          std::exit(EXIT_FAILURE);
+        }
+      }
+      #endif
     }
   }
   delete [] pmb_array;
