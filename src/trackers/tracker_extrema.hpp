@@ -54,6 +54,7 @@ class TrackerExtrema
       // wave eqn.
       wave_auxiliary_ref,
       // Z4c.
+      Z4c_alpha,
       Z4c_chi
     };
 

@@ -169,9 +169,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
     {
       // Gauge from Lorene
       alpha(k, j, i) = bns->nnn[I];
-      beta_u(0, k, j, i) = bns->beta_x[I];
-      beta_u(1, k, j, i) = bns->beta_y[I];
-      beta_u(2, k, j, i) = bns->beta_z[I];
+      beta_u(0, k, j, i) = -bns->beta_x[I];  // BAM inserts -1
+      beta_u(1, k, j, i) = -bns->beta_y[I];
+      beta_u(2, k, j, i) = -bns->beta_z[I];
 
       const double g_xx = bns->g_xx[I];
       const double g_xy = bns->g_xy[I];
@@ -191,22 +191,22 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
       // TODO: BD - Lorene header indicates that K_xx is covariant?
       // cf. gr_neutron_star
       g_dd(0, 0, k, j, i) = g_xx;
-      K_dd(0, 0, k, j, i) = bns->k_xx[I];
+      K_dd(0, 0, k, j, i) = coord_unit * bns->k_xx[I];  // BAM has coord_unit
 
       g_dd(0, 1, k, j, i) = g_xy;
-      K_dd(0, 1, k, j, i) = bns->k_xy[I];
+      K_dd(0, 1, k, j, i) = coord_unit * bns->k_xy[I];
 
       g_dd(0, 2, k, j, i) = g_xz;
-      K_dd(0, 2, k, j, i) = bns->k_xz[I];
+      K_dd(0, 2, k, j, i) = coord_unit * bns->k_xz[I];
 
       g_dd(1, 1, k, j, i) = g_yy;
-      K_dd(1, 1, k, j, i) = bns->k_yy[I];
+      K_dd(1, 1, k, j, i) = coord_unit * bns->k_yy[I];
 
       g_dd(1, 2, k, j, i) = g_yz;
-      K_dd(1, 2, k, j, i) = bns->k_yz[I];
+      K_dd(1, 2, k, j, i) = coord_unit * bns->k_yz[I];
 
       g_dd(2, 2, k, j, i) = g_zz;
-      K_dd(2, 2, k, j, i) = bns->k_zz[I];
+      K_dd(2, 2, k, j, i) = coord_unit * bns->k_zz[I];
 
       ++I;
     }
@@ -341,7 +341,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
   pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, null_bb_cc);
 
   // --------------------------------------------------------------------------
-
 	return;
 }
 
@@ -374,22 +373,22 @@ int RefinementCondition(MeshBlock *pmb)
     }
     else if (ptracker_extrema->ref_type(n-1) == 1)
     {
-      // is_contained = pmb->SphereIntersects(
+      is_contained = pmb->SphereIntersects(
+        ptracker_extrema->c_x1(n-1),
+        ptracker_extrema->c_x2(n-1),
+        ptracker_extrema->c_x3(n-1),
+        ptracker_extrema->ref_zone_radius(n-1)
+      );
+
+      // is_contained = pmb->PointContained(
       //   ptracker_extrema->c_x1(n-1),
       //   ptracker_extrema->c_x2(n-1),
-      //   ptracker_extrema->c_x3(n-1),
-      //   ptracker_extrema->ref_zone_radius(n-1)
-      // );
-
-      is_contained = pmb->PointContained(
-        ptracker_extrema->c_x1(n-1),
-        ptracker_extrema->c_x2(n-1),
-        ptracker_extrema->c_x3(n-1)
-      ) or pmb->PointCentralDistanceSquared(
-        ptracker_extrema->c_x1(n-1),
-        ptracker_extrema->c_x2(n-1),
-        ptracker_extrema->c_x3(n-1)
-      ) < SQR(ptracker_extrema->ref_zone_radius(n-1));
+      //   ptracker_extrema->c_x3(n-1)
+      // ) or pmb->PointCentralDistanceSquared(
+      //   ptracker_extrema->c_x1(n-1),
+      //   ptracker_extrema->c_x2(n-1),
+      //   ptracker_extrema->c_x3(n-1)
+      // ) < SQR(ptracker_extrema->ref_zone_radius(n-1));
 
     }
 

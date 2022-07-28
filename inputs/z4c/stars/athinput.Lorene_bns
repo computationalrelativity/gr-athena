@@ -6,7 +6,7 @@ configure  = ./configure.py --prob=gr_bns --coord=gr_dynamical --eos=adiabaticta
 problem_id = gr_bns
 
 <problem>
-filename = /mnt/nebula/_Repositories/NR/LORENE/Lorene/Codes/Bin_star/resu.d # Filename for the Lorene initial data
+filename = /mnt/nebula/_Repositories/NR/LORENE/Lorene/Codes/Bin_star/Data/G2_I14vs14_D4R33_45km/resu.d # Filename for the Lorene initial data
 # R0 = 6 # Guess for the radius of the star
 # npts = 10000 # Guess for number of points for TOV solver
 rhoc = 0.00128  # energy density at centre of star
@@ -14,28 +14,36 @@ fatm = 1e-10  # set atmosphere rho to rho = rhomax * fatm
 fthr = 100.0  # set point to atmosphere if rho < fthr*fatm*rhomax
 
 <hydro>
-gamma  = 2.00000  # ratio of specific heats Gamma
-#dfloor = 1.0e-10              # floor on density rho
-#pfloor = 1.0e-10              # floor on gas pressure p_gas
-k_adi = 100                # adiabat K, p_gas = K rho^Gamma
+gamma  = 2.00000      # ratio of specific heats Gamma
+#dfloor = 1.0e-10     # floor on density rho
+#pfloor = 1.0e-10     # floor on gas pressure p_gas
+#k_adi = 100           # adiabat K, p_gas = K rho^Gamma
+k_adi = 123.63657447688378
 
 <output1>
 file_type   = hdf5
 variable    = prim
 dt          = 0.00001
 ghost_zones = true
+x3_slice = 0
 
 <output2>
 file_type = hdf5
 variable  = adm
 dt        = 0.00001
 ghost_zones = true
+x3_slice = 0
 
 <output3>
 file_type = hdf5
 variable  = z4c
 dt        = 0.00001
 ghost_zones = true
+x3_slice = 0
+
+<output4>
+file_type = rst
+dt = 100
 
 #<output4>
 #file_type = vtk
@@ -44,19 +52,19 @@ ghost_zones = true
 
 <time>
 cfl_number = 0.25
-tlim       = 2.0
-integrator = rk3  # time integration algorithm
+tlim       = 100.0
+integrator = rk4  # time integration algorithm
 xorder     = 2    # order of spatial reconstruction
 ncycle_out = 1    # interval for stdout summary info
 
 
 <trackers_extrema>  # =====================================
 N_tracker = 2
-filename = trackers_extrema
+filename = /mnt/epsilon/GRA_temporary_testing/bns/trackers_extrema
 
-control_field = Z4c.chi
+control_field = Z4c.alpha
 
-ini_1_x1 = -20.1              # initial offset
+ini_1_x1 = -15.1              # initial offset
 ini_1_x2 = 0
 ini_1_x3 = 0
 minima_1 = true             # for update_strategy = 1
@@ -64,7 +72,7 @@ ref_level_1 = 2
 ref_type_1 = 1              # 0: to the point, 1: sph. region
 ref_zone_radius_1 = 5
 
-ini_2_x1 =  20.1              # initial offset
+ini_2_x1 =  15.1              # initial offset
 ini_2_x2 =  0.0
 ini_2_x3 =  0.0
 minima_2 = true
@@ -72,13 +80,13 @@ ref_level_2 = 2
 ref_type_2 = 1              # 0: to the point, 1: sph. region
 ref_zone_radius_2 = 5
 
-update_strategy = 0         # 0: based on dt, 1: based on quad interp.
+update_strategy = 1         # 0: based on dt, 1: based on quad interp.
 # safety factor avoids taking too large step (multiple of local dx)
 update_max_step_factor = 1
 # =========================================================
 
 <mesh>
-num_threads = 4
+num_threads = 1
 refinement = adaptive
 numlevel = 10
 # deref_count = 5
