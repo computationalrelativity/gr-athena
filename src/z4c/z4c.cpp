@@ -683,7 +683,7 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
           // FIXME: Generalize to work with EOSes accepting particle fractions.
           Real Y[MAX_SPECIES] = {0.0};
           Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgasvc(i), Y);
-          wgas(i) = n*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
+          wgas(i) = rhovc(i)*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
           #else
           if(opt.epsinterp==1){
             pgasvc(i) = epsvc(i)*rhovc(i)*(gamma_adi-1.0);

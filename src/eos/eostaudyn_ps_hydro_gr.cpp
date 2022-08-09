@@ -232,12 +232,12 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         // Find the primitive variables.
         Real prim_pt[NPRIM] = {0.0};
         Real b3u[NMAG] = {0.0}; // Assume no magnetic field.
-        Primitive::Error result = ps.ConToPrim(prim_pt, cons_pt, b3u, g3d, g3u);
+        Primitive::SolverResult result = ps.ConToPrim(prim_pt, cons_pt, b3u, g3d, g3u);
 
-        if(result != Primitive::Error::SUCCESS) {
+        if(result.error != Primitive::Error::SUCCESS) {
           std::cerr << "There was an error during the primitive solve!\n";
           std::cerr << "  Iteration: " << pmy_block_->pmy_mesh->ncycle << "\n";
-          std::cerr << "  Error: " << Primitive::ErrorString[(int)result] << "\n";
+          std::cerr << "  Error: " << Primitive::ErrorString[(int)result.error] << "\n";
           //printf("i=%d, j=%d, k=%d\n",i,j,k);
           std::cerr << "  i=" << i << ", j=" << j << ", k=" << k << "\n";
           std::cerr << "  g3d = [" << g3d[S11] << ", " << g3d[S12] << ", " << g3d[S13] << ", "
@@ -253,7 +253,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
           std::cerr << "  tau = " << cons_old_pt[IEN] << "\n";
         }
         // Update the primitive variables.
-        prim(IDN, k, j, i) = prim_pt[IDN];
+        prim(IDN, k, j, i) = prim_pt[IDN]*ps.GetEOS()->GetBaryonMass();
         prim(IVX, k, j, i) = prim_pt[IVX];
         prim(IVY, k, j, i) = prim_pt[IVY];
         prim(IVZ, k, j, i) = prim_pt[IVZ];

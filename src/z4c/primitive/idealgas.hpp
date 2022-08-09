@@ -4,8 +4,11 @@
 //! \file idealgas.hpp
 //  \brief Defines an ideal gas equation of state.
 
+#include <limits>
+
 #include "../../athena.hpp"
 #include "eos_policy_interface.hpp"
+#include "unit_system.hpp"
 
 namespace Primitive {
 
@@ -43,8 +46,26 @@ class IdealGas : public EOSPolicyInterface {
     /// Calculate the sound speed for an ideal gas.
     Real SoundSpeed(Real n, Real T, Real *Y);
 
-    /// Calculate the energy per baryon (NOT energy per mass!)
-    Real SpecificEnergy(Real n, Real T, Real *Y);
+    /// Calculate the internal energy per mass
+    Real SpecificInternalEnergy(Real n, Real T, Real *Y);
+
+    /// Calculate the minimum pressure at a given density and composition
+    inline Real MinimumPressure(Real n, Real *Y) {
+      return 0.0;
+    }
+
+    /// Calculate the maximum pressure at a given density and composition
+    inline Real MaximumPressure(Real n, Real *Y) {
+      return std::numeric_limits<Real>::max();
+    }
+
+    /// Calculate the minimum energy density at a given density and composition
+    Real MinimumEnergy(Real n, Real *Y);
+
+    /// Calculate the maximum energy density at a given density and composition
+    inline Real MaximumEnergy(Real n, Real *Y) {
+      return std::numeric_limits<Real>::max();
+    }
 
   public:
     /// Set the adiabatic index for the ideal gas. 
@@ -69,6 +90,11 @@ class IdealGas : public EOSPolicyInterface {
     /// Set the number of species. Throw an exception if
     /// the number of species is invalid.
     void SetNSpecies(int n);
+
+    /// Set the EOS unit system.
+    inline void SetEOSUnitSystem(UnitSystem* units) {
+      eos_units = units;
+    }
 };
 
 } // namespace

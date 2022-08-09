@@ -13,6 +13,7 @@
 
 #include "../../athena.hpp"
 #include "eos_policy_interface.hpp"
+#include "unit_system.hpp"
 
 namespace Primitive {
 
@@ -63,14 +64,20 @@ class PiecewisePolytrope : public EOSPolicyInterface {
     /// Calculate the sound speed for an ideal gas.
     Real SoundSpeed(Real n, Real T, Real *Y);
 
-    /// Calculate the energy per baryon (NOT energy per mass!)
-    Real SpecificEnergy(Real n, Real T, Real *Y);
+    /// Calculate the internal energy per mass.
+    Real SpecificInternalEnergy(Real n, Real T, Real *Y);
 
-    /// Calculate the maximum allowed energy at a given density.
-    Real MaximumEnergyAtDensity(Real n);
+    /// Calculate the minimum pressure at a given density and composition
+    Real MinimumPressure(Real n, Real *Y);
 
-    /// Calculate the minimum allowed energy at a given density.
-    Real MinimumEnergyAtDensity(Real n);
+    /// Calculate the maximum pressure at a given density and composition
+    Real MaximumPressure(Real n, Real *Y);
+
+    /// Calculate the minimum energy at a given density and composition
+    Real MinimumEnergy(Real n, Real *Y);
+
+    /// Calculate the maximum energy at a given density and composition
+    Real MaximumEnergy(Real n, Real *Y);
 
   public:
     /// Load the EOS parameters from a file.
@@ -124,6 +131,11 @@ class PiecewisePolytrope : public EOSPolicyInterface {
     /// Set the number of species. Throw an exception if
     /// the number of species is invalid.
     void SetNSpecies(int n);
+
+    /// Set the EOS unit system
+    inline void SetEOSUnitSystem(UnitSystem* units) {
+      eos_units = units;
+    }
 };
 
 } // namespace

@@ -8,7 +8,6 @@
 //  vectors, one-forms, and metrics.
 
 #include <cmath>
-
 #include "../../athena.hpp"
 
 namespace Primitive {
@@ -65,8 +64,8 @@ namespace Primitive {
   //! \brief Invert a 3x3 matrix
   //
   //  \param[out] m_out The output matrix
-  //  \param[in] m_in The input matrix
-  //  \param[in] det  The determinant of m_in
+  //  \param[in]  m_in The input matrix
+  //  \param[in]  det  The determinant of m_in
   inline void InvertMatrix(Real m_out[NSPMETRIC], const Real m_in[NSPMETRIC], const Real det) {
     m_out[S11] = (m_in[S22]*m_in[S33] - m_in[S23]*m_in[S23])/det;
     m_out[S12] = (m_in[S13]*m_in[S23] - m_in[S12]*m_in[S33])/det;

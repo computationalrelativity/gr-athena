@@ -24,7 +24,10 @@ class DoNothing : public ErrorPolicyInterface {
     bool ConservedFloor(Real& D, Real Sd[3], Real& tau, Real D_floor, Real tau_floor) {return false;}
     Error MagnetizationResponse(Real& bsq, Real b_u[3]) {return Error::SUCCESS;}
     void DensityLimits(Real& n, Real n_min, Real n_max) {return;}
-    void Temperature(Real& T, Real T_min, Real T_max) {return;}
+    void TemperatureLimits(Real& T, Real T_min, Real T_max) {return;}
+    void SpeciesLimits(Real *Y, Real *Y_min, Real *Y_max, int n_species) {return;}
+    void PressureLimits(Real& P, Real P_min, Real P_max) {return;}
+    void EnergyLimits(Real& e, Real e_min, Real e_max) {return;}
     bool FailureResponse(Real prim[NPRIM]) {return false;}
 };
 
