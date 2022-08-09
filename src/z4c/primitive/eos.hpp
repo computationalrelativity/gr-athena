@@ -49,6 +49,7 @@
 
 #include <limits>
 #include <cassert>
+#include <cmath>
 
 #include "../../athena.hpp"
 #include "unit_system.hpp"
@@ -112,6 +113,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     using ErrorPolicy::n_atm;
     using ErrorPolicy::n_threshold;
     using ErrorPolicy::p_atm;
+    using ErrorPolicy::Y_atm;
     using ErrorPolicy::v_max;
     using ErrorPolicy::fail_conserved_floor;
     using ErrorPolicy::fail_primitive_floor;
@@ -131,6 +133,9 @@ class EOS : public EOSPolicy, public ErrorPolicy {
       v_max = 1.0 - 1e-15;
       max_bsq = std::numeric_limits<Real>::max();
       code_units = eos_units;
+      for (int i = 0; i < MAX_SPECIES; i++) {
+        Y_atm[i] = 0.0;
+      }
     }
 
     //! \fn Real GetTemperatureFromE(Real n, Real e, Real *Y)
@@ -269,7 +274,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //
     //  \return true if the primitives were adjusted, false otherwise.
     inline bool ApplyPrimitiveFloor(Real& n, Real Wvu[3], Real& p, Real& T, Real *Y) {
-      bool result = PrimitiveFloor(n, Wvu, p);
+      bool result = PrimitiveFloor(n, Wvu, p, Y, n_species);
       if (result) {
         T = TemperatureFromP(n, p*code_units->PressureConversion(*eos_units), Y) *
             eos_units->TemperatureConversion(*code_units);
@@ -288,7 +293,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //
     //  \return true if the conserved variables were adjusted, false otherwise.
     inline bool ApplyConservedFloor(Real& D, Real Sd[3], Real& tau, Real *Y) {
-      return ConservedFloor(D, Sd, tau, n_atm*mb, GetTauFloor(D, Y));
+      return ConservedFloor(D, Sd, tau, Y, n_atm*GetBaryonMass(), GetTauFloor(D, Y), n_species);
     }
 
     //! \fn Real GetDensityFloor() const
@@ -303,6 +308,13 @@ class EOS : public EOSPolicy, public ErrorPolicy {
       return p_atm;
     }
 
+    //! \fn Real GetSpeciesAtmosphere(int i) const
+    //  \brief Get the atmosphere abundance used by the EOS ErrorPolicy for species i.
+    inline Real GetSpeciesAtmosphere(int i) const {
+      assert((i < n_species) && "Not enough species");
+      return Y_atm[i];
+    }
+
     //! \fn Real GetThreshold() const
     //  \brief Get the threshold factor used by the EOS ErrorPolicy.
     inline Real GetThreshold() const {
@@ -315,7 +327,8 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //
     //  \param[in] Y A n_species-sized array of particle fractions.
     inline Real GetTauFloor(Real D, Real *Y) {
-      return GetEnergy(D/mb, min_T, Y)*eos_units->PressureConversion(*code_units) - D;
+      return GetEnergy(D/GetBaryonMass(), min_T, Y) * 
+             eos_units->PressureConversion(*code_units) - D;
     }
 
     //! \fn void SetDensityFloor(Real floor)
@@ -329,6 +342,13 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \brief Set the pressure floor (in code units) used by the EOS ErrorPolicy.
     inline void SetPressureFloor(Real floor) {
       p_atm = (floor >= 0.0) ? floor : 0.0;
+    }
+
+    //! \fn void SetSpeciesAtmospher(Real atmo, int i)
+    //  \brief Set the atmosphere abundance used by the EOS ErrorPolicy for species i.
+    inline void SetSpeciesAtmosphere(Real atmo, int i) {
+      assert((i < n_species) && "Not enough species");
+      Y_atm[i] = std::min(1.0, std::max(0.0, atmo));
     }
 
     //! \fn void SetThreshold(Real threshold)

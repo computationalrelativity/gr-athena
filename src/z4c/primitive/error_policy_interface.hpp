@@ -8,6 +8,8 @@
 //  being instantiated. It literally just provides member
 //  variables for an ErrorPolicy;
 
+#include "../../athena.hpp"
+
 namespace Primitive {
 
 class ErrorPolicyInterface {
@@ -18,6 +20,7 @@ class ErrorPolicyInterface {
     Real n_atm;
     Real n_threshold;
     Real p_atm;
+    Real Y_atm[MAX_SPECIES];
     Real v_max;
     Real max_bsq;
     bool fail_conserved_floor;
