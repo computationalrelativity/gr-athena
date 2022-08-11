@@ -121,7 +121,7 @@ parser.add_argument('--eos',
 # --eospolicy=[name] argument
 parser.add_argument('--eospolicy',
                     default='idealgas',
-                    choices=['idealgas', 'piecewise_polytrope'], 
+                    choices=['idealgas', 'piecewise_polytrope', 'eos_compose'], 
                     help='select EOS policy for PrimitiveSolver framework')
 
 # --errorpolicy=[name] argument
@@ -546,6 +546,9 @@ elif args['eos'] == 'eostaudyn_ps':
     elif args['eospolicy'] == 'piecewise_polytrope':
         definitions['EOS_POLICY'] = 'PiecewisePolytrope'
         definitions['EOS_POLICY_CODE'] = '1'
+    elif args['eospolicy'] == 'eos_compose':
+        definitions['EOS_POLICY'] = 'EOSCompOSE'
+        definitions['EOS_POLICY_CODE'] = '2'
     else:
         definitions['EOS_POLICY'] = ''
     if args['errorpolicy'] == 'do_nothing':
@@ -1007,7 +1010,7 @@ if args['hdf5']:
             or args['cxx'] == 'icpc-debug' or args['cxx'] == 'icpc-phi'
             or args['cxx'] == 'clang++' or args['cxx'] == 'clang++-simd'
             or args['cxx'] == 'clang++-apple'):
-        makefile_options['LIBRARY_FLAGS'] += ' -lhdf5'
+        makefile_options['LIBRARY_FLAGS'] += ' -lhdf5 -lhdf5_hl'
     if args['cxx'] == 'bgxlc++':
         makefile_options['PREPROCESSOR_FLAGS'] += (
             ' -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_BSD_SOURCE'
@@ -1016,7 +1019,7 @@ if args['hdf5']:
         makefile_options['LINKER_FLAGS'] += (
             ' -L/soft/libraries/hdf5/1.10.0/cnk-xl/current/lib'
             ' -L/soft/libraries/alcf/current/xl/ZLIB/lib')
-        makefile_options['LIBRARY_FLAGS'] += ' -lhdf5 -lz -lm'
+        makefile_options['LIBRARY_FLAGS'] += ' -lhdf5 -lhdf5_hl -lz -lm'
 else:
     definitions['HDF5_OPTION'] = 'NO_HDF5OUTPUT'
 

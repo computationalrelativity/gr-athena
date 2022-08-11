@@ -7,23 +7,31 @@
 // to make this work. - JF
 
 #if EOS_POLICY_CODE == 0
-//#pragma message("EOS_POLICY is IdealGas")
-#include "../z4c/primitive/idealgas.hpp"
+  #define USE_IDEAL_GAS
+  //#pragma message("EOS_POLICY is IdealGas")
+  #include "../z4c/primitive/idealgas.hpp"
 #elif EOS_POLICY_CODE == 1
-//#pragma message("EOS_POLICY is PiecewisePolytrope")
-#include "../z4c/primitive/piecewise_polytrope.hpp"
+  #define USE_PIECEWISE_POLY
+  //#pragma message("EOS_POLICY is PiecewisePolytrope")
+  #include "../z4c/primitive/piecewise_polytrope.hpp"
+#elif EOS_POLICY_CODE == 2
+  #ifndef HDF5OUTPUT
+    #error "HDF5 must be enabled to use EOSCompOSE."
+  #endif
+  #define USE_COMPOSE_EOS
+  #include "../z4c/primitive/eos_compose.hpp"
 #else
-#error EOS_POLICY_CODE not recognized.
+  #error EOS_POLICY_CODE not recognized.
 #endif
 
 #if ERROR_POLICY_CODE == 0
-//#pragma message("ERROR_POLICY is DoNothing")
-#include "../z4c/primitive/do_nothing.hpp"
+  //#pragma message("ERROR_POLICY is DoNothing")
+  #include "../z4c/primitive/do_nothing.hpp"
 #elif ERROR_POLICY_CODE == 1
-//#pragma message("ERROR_POLICY is ResetFloor")
-#include "../z4c/primitive/reset_floor.hpp"
+  //#pragma message("ERROR_POLICY is ResetFloor")
+  #include "../z4c/primitive/reset_floor.hpp"
 #else
-#error ERROR_POLICY_CODE not recognized.
+  #error ERROR_POLICY_CODE not recognized.
 #endif
 
 #endif

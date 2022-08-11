@@ -9,7 +9,7 @@
 #include <sstream>
 #include <stdexcept>
 
-#ifdef HDF5OUTPUT
+//#ifdef HDF5OUTPUT
 #include <hdf5.h>
 #include <hdf5_hl.h>
 
@@ -342,6 +342,6 @@ Real EOSCompOSE::eval_at_lnty(int iv, Real log_n, Real log_t, Real yq) const {
                   wt1 * m_table[index(iv, in+1, iy+1, it+1)]));
 }
 
-#else //HDF5OUTPUT
+//#else //HDF5OUTPUT
 // Consider adding no-ops here?
-#endif
+//#endif

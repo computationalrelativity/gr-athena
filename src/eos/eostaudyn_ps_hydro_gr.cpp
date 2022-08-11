@@ -12,6 +12,7 @@
 #include <cfloat>
 #include <cmath>
 #include <limits>
+#include <sstream>
 
 // Athena++ headers
 #include "eos.hpp"
@@ -65,26 +66,42 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   fixed_.NewAthenaArray(ncells3, ncells2, ncells1);
 
   // Set up the EOS
+  // If we're using a tabulated EOS, load the table.
+  #ifdef USE_COMPOSE_EOS
+  std::string table = pin->GetString("hydro", "table");
+  eos.ReadTableFromFile(table);
+  #endif
+  #ifdef USE_IDEAL_GAS
   // Baryon mass
   Real mb = pin->GetOrAddReal("hydro", "bmass", 1.0);
+  eos.SetBaryonMass(mb);
+  #else
+  Real mb = eos.GetBaryonMass();
+  #endif
+  eos.SetDensityFloor(density_floor_/mb);
   Real threshold = pin->GetOrAddReal("hydro", "dthreshold", 1.0);
   eos.SetThreshold(threshold);
-  eos.SetBaryonMass(mb);
   // Set the number density floor.
-  eos.SetDensityFloor(density_floor_/mb);
   // Set the pressure floor -- we first need to retrieve the temperature from the pressure.
   // That means we need to initialize an empty array of particle fractions.
   eos.SetPressureFloor(pressure_floor_);
+  for (int i = 0; i < MAX_SPECIES; i++) {
+    std::stringstream ss;
+    ss << "y" << i << "_atmosphere";
+    Real atmosphere = pin->GetOrAddReal("hydro", ss.str(), 0.5);
+    eos.SetSpeciesAtmosphere(atmosphere, i);
+  }
 
   // If we're working with an ideal gas, we need to fix the adiabatic constant.
-#if EOS_POLICY == IdealGas
+  #ifdef USE_IDEAL_GAS
   gamma_ = pin->GetOrAddReal("hydro", "gamma", 2.0);
   eos.SetGamma(gamma_);
-#else
+  #else
   // If we're not using a gamma-law EOS, we should not ever reference gamma.
   // Make sure that's the case by setting it to NaN.
   gamma_ = std::numeric_limits<double>::quiet_NaN();
-#endif
+  #endif
+
 }
 
 
