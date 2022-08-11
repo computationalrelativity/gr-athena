@@ -28,10 +28,15 @@
 #include "../hydro/hydro.hpp"              // Hydro
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"          // ParameterInput
+#include "../utils/read_lorene.hpp"        // Parser for ASCII table
 
 // Configuration checking
 #if not GENERAL_RELATIVITY
 #error "This problem generator must be used with general relativity"
+#endif
+
+#ifndef LORENE_EOS
+#define LORENE_EOS (1)
 #endif
 
 // Declarations
@@ -47,6 +52,7 @@ namespace {
   int interp_locate(Real *x, int Nx, Real xval);
   void interp_lag4(Real *f, Real *x, int Nx, Real xv,
 		   Real *fv_p, Real *dfv_p, Real *ddfv_p );
+  double linear_interp(double *f, double *x, int n, double xv);
   void TOV_background(Real x1, Real x2, Real x3, ParameterInput *pin, 
 		      AthenaArray<Real> &g, AthenaArray<Real> &g_inv, 
 		      AthenaArray<Real> &dg_dx1, AthenaArray<Real> &dg_dx2,
@@ -55,6 +61,8 @@ namespace {
   
   // Global variables
   Real gamma_adi, k_adi;  // hydro EOS parameters
+  LoreneTable * Table = NULL;
+  std::string filename, filename_Y;
   Real v_amp; // velocity amplitude for linear perturbations
 
   // TOV var indexes for ODE integration
@@ -85,11 +93,22 @@ void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag) {
   // Read problem parameters
   Real rhoc = pin->GetReal("problem", "rhoc"); // Central value of energy density
   Real rmin = pin->GetReal("problem", "rmin");  // minimum radius to start TOV integration
-  Real dr = pin->GetReal("problem", "dr");      // radial step for TOV integration 
-  int npts = pin->GetInteger("problem", "npts");    // number of max radial pts for TOV solver
-  
+  Real dr   = pin->GetReal("problem", "dr");      // radial step for TOV integration 
+  int npts  = pin->GetInteger("problem", "npts");    // number of max radial pts for TOV solver
+  Real fatm = pin->GetReal("problem","fatm");
+
+#if not LORENE_EOS
   k_adi = pin->GetReal("hydro", "k_adi");
   gamma_adi = pin->GetReal("hydro","gamma");
+#else
+  filename   = pin->GetString("hydro", "lorene");
+  filename_Y = pin->GetString("hydro", "lorene_Y");
+  Table = new LoreneTable;
+  ReadLoreneTable(filename, Table);
+  ReadLoreneFractions(filename_Y, Table);
+  ConvertLoreneTable(Table);
+  Table->rho_atm = rhoc*fatm;
+#endif
   v_amp = pin->GetOrAddReal("problem", "v_amp", 0.0);
 
   // Alloc 1D buffer
@@ -100,7 +119,11 @@ void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag) {
   
   // Solve TOV equations, setting 1D inital data in tov->data
   TOV_solve(rhoc, rmin, dr, &npts);
-  
+#if LORENE_EOS
+  // Testing -- terminate the program here
+    FreeTable(Table);
+    exit(0);
+#endif
   // Add max(rho) output.
   AllocateUserHistoryOutput(1);
   EnrollUserHistoryOutput(0, MaxRho, "max_rho", UserHistoryOperation::max);
@@ -433,9 +456,21 @@ namespace {
     
     //  Set pressure and internal energy using equation of state
     //TODO(SB) general EOS call
+#if not LORENE_EOS
     Real p = k_adi * std::pow(rho,gamma_adi);
     Real eps = p / (rho*(gamma_adi-1.));
     Real dpdrho = gamma_adi*k_adi*std::pow(rho,gamma_adi-1.0);
+#else
+    Real logp, eps, p, dpdrho, pl_hold;
+    logp   = linear_interp(Table->data[tab_logp], Table->data[tab_logrho], Table->size, log(rho));
+    eps    = linear_interp(Table->data[tab_eps],  Table->data[tab_logrho], Table->size, log(rho));
+    dpdrho = linear_interp(Table->data[tab_dpdrho], Table->data[tab_logrho], Table->size, log(rho));
+    p = std::exp(logp);
+    /* FIXME: this is bad */
+    if(rho<Table->rho_min){
+      p=0; eps=0; dpdrho=1;
+    }
+#endif
     
     // Total energy density
     Real e = rho*(1. + eps);
@@ -479,9 +514,16 @@ namespace {
         
     // Set central values of pressure internal energy using EOS
     //TODO(SB) general EOS call
+#if not LORENE_EOS
     const Real pc = k_adi*std::pow(rhoc,gamma_adi);
     const Real epslc = pc/(rhoc*(gamma_adi-1.));
-
+#else
+    Real pc, logpc, epslc, dpdrhoc, pl_hold;
+    logpc   = linear_interp(Table->data[tab_logp], Table->data[tab_logrho], Table->size, log(rhoc));
+    epslc   = linear_interp(Table->data[tab_eps],  Table->data[tab_logrho], Table->size, log(rhoc));
+    dpdrhoc = linear_interp(Table->data[tab_dpdrho], Table->data[tab_logrho], Table->size, log(rhoc));
+    pc = exp(logpc);
+#endif
     const Real ec = rhoc*(1.+epslc);
 
     // Data at r = 0^+
@@ -492,17 +534,22 @@ namespace {
     u[TOV_IINT] = 0.;
      
     printf("TOV_solve: solve TOV star (only once)\n");
-    printf("TOV_solve: dr   = %.16e\n",dr);
+    printf("TOV_solve: dr       = %.16e\n",dr);
     printf("TOV_solve: npts_max = %d\n",maxsize);
-    printf("TOV_solve: rhoc = %.16e\n",rhoc);
-    printf("TOV_solve: ec   = %.16e\n",ec);
-    printf("TOV_solve: pc   = %.16e\n",pc);
+    printf("TOV_solve: rhoc     = %.16e\n",rhoc);
+    printf("TOV_solve: epslc    = %.16e\n",epslc);
+    printf("TOV_solve: ec       = %.16e\n",ec);
+    printf("TOV_solve: pc       = %.16e\n",pc);
     
     // Integrate from rmin to R : rho(R) ~ 0
     Real rhoo = rhoc;
     int stop = 0;
     int n = 0;
-    const Real rho_zero = 0.; //TODO(SB) use atmosphere level
+#if LORENE_EOS
+    const Real rho_zero = Table->rho_atm; //TODO(SB) use atmosphere level
+#else
+    const Real rho_zero = 0.;
+#endif
     const Real oosix = 1./6.;
     while (n < maxsize) {
 
@@ -533,7 +580,7 @@ namespace {
       // Stop if radius reached
       rhoo = u[TOV_IRHO];
       if (rhoo < rho_zero) {
-	break;
+	      break;
       }      
 
       // Store data
@@ -658,6 +705,25 @@ namespace {
     *fv_p   = f[i-1] + (-ximo + xv)*(C1 + (-xi + xv)*(CC1 + CCC1*(-xipo + xv)));
     *dfv_p  = C1 - (CC1 - CCC1*(xi + xipo - 2.*xv))*(ximo - xv) + (-xi + xv)*(CC1 + CCC1*(-xipo + xv));
     *ddfv_p = 2.*(CC1 - CCC1*(xi + ximo + xipo - 3.*xv));
+  }
+
+
+  //--------------------------------------------------------------------------------------
+  //! \fn double linear_interp(double *f, double *x, int n, double xv)
+  // \brief linearly interpolate f(x), compute f(xv)
+  double linear_interp(double *f, double *x, int n, double xv)
+  {
+    int i = interp_locate(x,n,xv);
+    if (i < 0)  i=1;
+    if (i == n) i=n-1;
+    int j;
+    if(xv < x[i]) j = i-1;
+    else j = i+1;
+    double xj = x[j]; double xi = x[i];
+    double fj = f[j]; double fi = f[i];
+    double m = (fj-fi)/(xj-xi);
+    double df = m*(xv-xj)+fj;
+    return df;
   }
 
 
