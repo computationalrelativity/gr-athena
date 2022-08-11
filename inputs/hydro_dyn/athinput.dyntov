@@ -250,3 +250,5 @@ R0 = 10.0  # guess for radius of star
 npts = 10000  # guess for number of points for TOV solver
 fatm = 1e-10  # set atmosphere rho to rho = rhomax * fatm
 fthr = 100.0  # set point to atmosphere if rho < fthr*fatm*rhomax
+rmin = 0.000001
+dr   = 0.001
