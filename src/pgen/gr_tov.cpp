@@ -543,8 +543,8 @@ namespace {
     
     // Integrate from rmin to R : rho(R) ~ 0
     Real rhoo = rhoc;
-    int stop = 0;
-    int n = 0;
+    int stop  = 0;
+    int n     = 0;
 #if LORENE_EOS
     const Real rho_zero = Table->rho_atm; //TODO(SB) use atmosphere level
 #else
@@ -625,10 +625,17 @@ namespace {
     
     // Pressure 
     //TODO(SB) general EOS call
+#if not LORENE_EOS
     for (int n = 0; n < tov->npts; n++) {
       tov->data[itov_pre][n] = std::pow(tov->data[itov_rho][n],gamma_adi) * k_adi;
     }
-
+#else
+    for (int n = 0; n < tov->npts; n++) {
+      Real rho_n = tov->data[itov_rho][n];
+      Real logp_n = linear_interp(Table->data[tab_logp], Table->data[tab_logrho], Table->size, log(rho_n));
+      tov->data[itov_pre][n] = std::exp(logp_n);
+    }
+#endif
     // Other metric fields
     for (int n = 0; n < tov->npts; n++) {
       tov->data[itov_psi4][n] = std::pow(tov->data[itov_rsch][n]/tov->data[itov_riso][n], 2);
