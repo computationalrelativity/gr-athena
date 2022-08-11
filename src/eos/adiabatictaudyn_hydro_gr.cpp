@@ -95,7 +95,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) {
 void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
     const AthenaArray<Real> &prim_old, const FaceField &bb, AthenaArray<Real> &prim,
     AthenaArray<Real> &bb_cc, Coordinates *pco, int il, int iu, int jl, int ju, int kl,
-    int ku) {
+    int ku, int coarseflag) {
   // Parameters
   const Real max_wgas_rel = 1.0e8;
   const Real initial_guess_multiplier = 10.0;
