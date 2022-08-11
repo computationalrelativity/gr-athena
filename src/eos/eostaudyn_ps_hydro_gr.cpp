@@ -85,7 +85,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   // Set the pressure floor -- we first need to retrieve the temperature from the pressure.
   // That means we need to initialize an empty array of particle fractions.
   eos.SetPressureFloor(pressure_floor_);
-  for (int i = 0; i < MAX_SPECIES; i++) {
+  for (int i = 0; i < eos.GetNSpecies(); i++) {
     std::stringstream ss;
     ss << "y" << i << "_atmosphere";
     Real atmosphere = pin->GetOrAddReal("hydro", ss.str(), 0.5);
