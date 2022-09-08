@@ -640,13 +640,29 @@ void EquationOfState::SoundSpeedsGR(Real rho_h, Real pgas, Real vi, Real v2, Rea
 // \brief Apply density and pressure floors to reconstructed L/R cell interface states
 
 void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j, int i) {
+
+
+  if(prim.GetDim4()==1){    
   Real& w_d  = prim(IDN,i);
   Real& w_p  = prim(IPR,i);
-  // Not applying position-dependent floors here in GR, nor using rho_min
-  // apply density floor
   w_d = (w_d > density_floor_) ?  w_d : density_floor_;
   // apply pressure floor
   w_p = (w_p > pressure_floor_) ?  w_p : pressure_floor_;
+  } else if(prim.GetDim4()==5){
+  Real& w_d  = prim(IDN,k,j,i);
+  Real& w_p  = prim(IPR,k,j,i); 
+  w_d = (w_d > density_floor_) ?  w_d : density_floor_;
+  // apply pressure floor
+  w_p = (w_p > pressure_floor_) ?  w_p : pressure_floor_;
+  }
+  else{
+  printf("prim.GetDim4() = %d ApplyPrimitiveFloors only works with 1 or 5",prim.GetDim4());
+  }
+  // Not applying position-dependent floors here in GR, nor using rho_min
+  // apply density floor
+//  w_d = (w_d > density_floor_) ?  w_d : density_floor_;
+  // apply pressure floor
+//  w_p = (w_p > pressure_floor_) ?  w_p : pressure_floor_;
 
   return;
 }
