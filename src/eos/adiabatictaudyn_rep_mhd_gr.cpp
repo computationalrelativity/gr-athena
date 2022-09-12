@@ -394,8 +394,8 @@ if(coarse_flag==0){
 //   single-cell function exists for other purposes; call made to that function rather
 //       than having duplicate code
 
-void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
-     const AthenaArray<Real> &bb_cc, AthenaArray<Real> &cons, Coordinates *pco, int il,
+void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim,
+     AthenaArray<Real> &bb_cc, AthenaArray<Real> &cons, Coordinates *pco, int il,
      int iu, int jl, int ju, int kl, int ku) {
       AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd; //lapse
       AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u; //lapse
