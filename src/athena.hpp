@@ -140,8 +140,10 @@ enum MagneticIndex {IB1=0, IB2=1, IB3=2, NMAG=3};
 
 // array indices for 1D primitives: velocity, transverse components of field
 #if USETM
-enum PrimIndex {IVX=1, IVY=2, IVZ=3, IPR=4, ITM=5, IYF=6, IBY=((NHYDRO)+(USETM)),
-                IBZ=((NHYDRO)+(USETM)+1), NPRIM=((NHYDRO)+(USETM)+(MAX_SPECIES))};
+/*enum PrimIndex {IVX=1, IVY=2, IVZ=3, IPR=4, ITM=5, IYF=6, IBY=((NHYDRO)+(USETM)),
+                IBZ=((NHYDRO)+(USETM)+1), NPRIM=((NHYDRO)+(USETM)+(MAX_SPECIES))};*/
+enum PrimIndex {IVX=1, IVY=2, IVZ=3, IPR=4, ITM=5, IYF=6, IBY=(NHYDRO),
+                IBZ=((NHYDRO)+1), NPRIM=((NHYDRO)+(USETM)+(MAX_SPECIES))};
 #else
 enum PrimIndex {IVX=1, IVY=2, IVZ=3, IPR=4, IBY=(NHYDRO), IBZ=((NHYDRO)+1)};
 #endif

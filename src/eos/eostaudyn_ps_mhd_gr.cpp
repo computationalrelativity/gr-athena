@@ -135,6 +135,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
   // Metric at cell centers
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> chi;
+  gamma_dd.NewAthenaTensor(nn1);
   if (coarse_flag == 0) {
     vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
     vcgamma_xy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
