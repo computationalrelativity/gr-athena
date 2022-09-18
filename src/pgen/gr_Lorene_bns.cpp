@@ -150,6 +150,15 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
       yy_vc[I] = coord_unit * pcoord->x2f(j);
       xx_vc[I] = coord_unit * pcoord->x1f(i);
 
+      // // debug axis
+      // const Real dz = pcoord->x3f(k+1) - pcoord->x3f(k);
+      // const Real dy = pcoord->x3f(j+1) - pcoord->x2f(j);
+      // const Real dx = pcoord->x1f(i+1) - pcoord->x1f(i);
+
+      // zz_vc[I] = coord_unit * (pcoord->x3f(k) + dz / 2.);
+      // yy_vc[I] = coord_unit * pcoord->x2f(j);
+      // xx_vc[I] = coord_unit * pcoord->x1f(i);
+
       ++I;
     }
     // ------------------------------------------------------------------------
@@ -208,6 +217,30 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
       g_dd(2, 2, k, j, i) = g_zz;
       K_dd(2, 2, k, j, i) = coord_unit * bns->k_zz[I];
 
+      // debug: does it get interp prop.?
+      // if (std::abs(K_dd(0, 0, k, j, i)) > 1e-5)
+      // if ((-1e-10 < pcoord->x3f(k)) && (pcoord->x3f(k) < +1e-10))
+      // if ((-1e-10 < pcoord->x2f(j)) && (pcoord->x2f(j) < +1e-10))
+      // {
+      //   std::cout << "is_larger" << std::endl;
+      //   std::cout << K_dd(0, 0, k, j, i)  << std::endl;
+      //   std::cout << pcoord->x3f(k) << ","  << pcoord->x2f(j) << ",";
+      //   std::cout << pcoord->x1f(i)  << std::endl;
+      //   Q();
+      // }
+
+      // // debug: does it get interp prop.?
+      // if (std::abs(K_dd(0, 1, k, j, i)) > 1e-5)
+      // if ((-1e-10 < pcoord->x3f(k)) && (pcoord->x3f(k) < +1e-10))
+      // if ((-1e-10 < pcoord->x2f(j)) && (pcoord->x2f(j) < +1e-10))
+      // {
+      //   std::cout << "k_xy is_larger" << std::endl;
+      //   std::cout << K_dd(0, 1, k, j, i)  << std::endl;
+      //   std::cout << pcoord->x3f(k) << ","  << pcoord->x2f(j) << ",";
+      //   std::cout << pcoord->x1f(i)  << std::endl;
+      //   Q();
+      // }
+
       ++I;
     }
     // ------------------------------------------------------------------------
@@ -257,7 +290,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
       const Real rho = bns->nbar[I] / rho_unit;
       const Real eps = bns->ener_spec[I] / ener_unit;
 
-      Real egas = rho * (1.0 + eps);
+      // Real egas = rho * (1.0 + eps);  <-------- ?
+      Real egas = rho * eps;
       Real pgas = peos->PresFromRhoEg(rho, egas);
 
       // Kludge to make the pressure work with the EOS framework.
