@@ -40,6 +40,7 @@ void FixedBoundary(MeshBlock *pmb, Coordinates *pcoord, AthenaArray<Real> &prim,
                    int il, int iu, int jl, int ju, int kl, int ku, int ngh);
 
 Real MaxRho(MeshBlock* pmb, int iout);
+Real L1rhodiff(MeshBlock *pmb, int iout);
 
 namespace {
   int TOV_rhs(Real dr, Real *u, Real *k);
@@ -102,8 +103,9 @@ void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag) {
   TOV_solve(rhoc, rmin, dr, &npts);
   
   // Add max(rho) output.
-  AllocateUserHistoryOutput(1);
+  AllocateUserHistoryOutput(2);
   EnrollUserHistoryOutput(0, MaxRho, "max_rho", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(1, L1rhodiff, "L1rhodiff");
 }
 
 Real MaxRho(MeshBlock* pmb, int iout) {
@@ -117,6 +119,23 @@ Real MaxRho(MeshBlock* pmb, int iout) {
   }
 
   return max_rho;
+}
+Real L1rhodiff(MeshBlock *pmb, int iout) {
+  Real L1rho = 0.0;
+  Real vol,dx,dy,dz;
+  int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
+  for (int k=ks; k<=ke; k++) {
+    for (int j=js; j<=je; j++) {
+      for (int i=is; i<=ie; i++) {
+        dx = pmb->pcoord->dx1v(i);
+        dy = pmb->pcoord->dx2v(j);
+        dz = pmb->pcoord->dx3v(k);
+        vol = dx*dy*dz;
+        L1rho += std::abs(pmb->phydro->w(IDN,k,j,i) - pmb->phydro->w_init(IDN,k,j,i))*vol;
+      }
+    }
+  }
+  return L1rho;
 }
 
 void MeshBlock::InitUserMeshBlockData(ParameterInput *pin) {
