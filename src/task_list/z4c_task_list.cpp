@@ -426,7 +426,7 @@ void Z4cIntegratorTaskList::StartupTaskList(MeshBlock *pmb, int stage) {
     // Change to emulate PassiveScalars logic
     pmb->pz4c->storage.u1.ZeroClear();
     if (integrator == "ssprk5_4")
-      pmb->pz4c->storage.u2 = pmb->pz4c->storage.u2;
+      pmb->pz4c->storage.u2 = pmb->pz4c->storage.u;
   }
 
   pmb->pbval->StartReceiving(BoundaryCommSubset::all);

@@ -150,15 +150,15 @@ void Z4c::ADMTwoPunctures(ParameterInput *pin, AthenaArray<Real> & u_adm, ini_da
   }
 
 
-  free(gxx); free(gyy); free(gzz);
-  free(gxy); free(gxz); free(gyz);
+  delete[] gxx; delete[] gyy; delete[] gzz;
+  delete[] gxy; delete[] gxz; delete[] gyz;
 
-  free(Kxx); free(Kyy); free(Kzz);
-  free(Kxy); free(Kxz); free(Kyz);
+  delete[] Kxx; delete[] Kyy; delete[] Kzz;
+  delete[] Kxy; delete[] Kxz; delete[] Kyz;
 
-  free(psi); free(alp);
+  delete[] psi; delete[] alp;
 
-  free(x); free(y); free(z);
+  delete[] x; delete[] y; delete[] z;
 
   if(verbose)
     std::cout << "\n\n<-Z4c::ADMTwoPunctures\n\n";
