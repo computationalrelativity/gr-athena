@@ -1746,6 +1746,13 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         }
 
         if (FLUID_ENABLED) {
+#if USETM
+          pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b,
+                                          ph->w, 
+                                          ps->s, ps->r, pf->bcc, pmb->pcoord,
+                                          il+ignore, iu-ignore, 
+                                          jl+ignore, ju-ignore, kl+ignore, ku-ignore,0);
+#else
           pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b,
                                           ph->w, pf->bcc, pmb->pcoord,
                                           il+ignore, iu-ignore, 
@@ -1775,10 +1782,16 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
             if (pbval->nblevel[2][1][1] != -1) ku -= 1;
             // for MHD, shrink buffer by 3
             // TODO(felker): add MHD loop limit calculation for 4th order W(U)
+#if USETM
+            pmb->peos->ConservedToPrimitiveCellAverage(ph->u, ph->w1, pf->b,
+                                                        ph->w, 
+                                                        ps->s, ps->r, pf->bcc, pmb->pcoord,
+                                                        il, iu, jl, ju, kl, ku);
+#else
             pmb->peos->ConservedToPrimitiveCellAverage(ph->u, ph->w1, pf->b,
                                                         ph->w, pf->bcc, pmb->pcoord,
                                                         il, iu, jl, ju, kl, ku);
-
+#endif
             if (NSCALARS > 0) {
               pmb->peos->PassiveScalarConservedToPrimitiveCellAverage(
                 ps->s, ps->r, ps->r, pmb->pcoord, il, iu, jl, ju, kl, ku);

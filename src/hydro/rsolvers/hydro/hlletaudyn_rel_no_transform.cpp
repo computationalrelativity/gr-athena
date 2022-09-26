@@ -47,6 +47,7 @@ void Inverse3Metric(Real const detginv, Real const g_dd[NSPMETRIC],
 void Hydro::RiemannSolver(const int k, const int j, const int il, const int iu,
                           const int ivx,
                           AthenaArray<Real> &prim_l, AthenaArray<Real> &prim_r,
+                          AthenaArray<Real> &prim_scalar,
                           AthenaArray<Real> &flux, const AthenaArray<Real> &dxw) {
   // Calculate cyclic permutations of indices
   int ivy = IVX + ((ivx-IVX)+1)%3;
@@ -171,7 +172,8 @@ void Hydro::RiemannSolver(const int k, const int j, const int il, const int iu,
     Real nl = rho_l/mb;
     Real nr = rho_r/mb;
     // FIXME: Generalize to work with EOSes accepting particle fractions.
-    Real Y[MAX_SPECIES] = {0.0};
+    Real Y[NSCALARS] = {0.0}; // Should we worry about r vs l here?
+    for (int n=0; n<NSCALARS; n++) Y[n] = prim_scalar[n];
     Real Tl = pmy_block->peos->GetEOS().GetTemperatureFromP(nl, pgas_l, Y);
     Real Tr = pmy_block->peos->GetEOS().GetTemperatureFromP(nr, pgas_r, Y);
     Real wgas_l = rho_l*pmy_block->peos->GetEOS().GetEnthalpy(nl, Tl, Y);
