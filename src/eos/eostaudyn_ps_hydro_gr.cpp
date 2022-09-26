@@ -178,7 +178,11 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
                      int il, int iu, int j, int k) {
       #pragma omp simd
       for (int i = il; i <= iu; i++) {
+        #if FORCE_PS_LINEAR
+        chi(i) = VCInterpolation(vcchi, k, j, i);
+        #else
         chi(i) = interp->map3d_VC2CC(vcchi(k, j, i));
+        #endif
         gamma_dd(0, 0, i) = gamma_dd(0, 0, i)/chi(i);
         gamma_dd(0, 1, i) = gamma_dd(0, 1, i)/chi(i);
         gamma_dd(0, 2, i) = gamma_dd(0, 2, i)/chi(i);
@@ -196,19 +200,22 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
       // Extract the metric at the vertex centers and interpolate to cell centers.
       #pragma omp simd
       for (int i = il; i <= iu; ++i) {
+        // DEBUG ONLY
+        #if FORCE_PS_LINEAR
+        gamma_dd(0,0,i) = VCInterpolation(vcgamma_xx, k, j, i);
+        gamma_dd(0,1,i) = VCInterpolation(vcgamma_xy, k, j, i);
+        gamma_dd(0,2,i) = VCInterpolation(vcgamma_xz, k, j, i);
+        gamma_dd(1,1,i) = VCInterpolation(vcgamma_yy, k, j, i);
+        gamma_dd(1,2,i) = VCInterpolation(vcgamma_yz, k, j, i);
+        gamma_dd(2,2,i) = VCInterpolation(vcgamma_zz, k, j, i);
+        #else
         gamma_dd(0,0,i) = interp->map3d_VC2CC(vcgamma_xx(k,j,i));
         gamma_dd(0,1,i) = interp->map3d_VC2CC(vcgamma_xy(k,j,i));
         gamma_dd(0,2,i) = interp->map3d_VC2CC(vcgamma_xz(k,j,i));
         gamma_dd(1,1,i) = interp->map3d_VC2CC(vcgamma_yy(k,j,i));
         gamma_dd(1,2,i) = interp->map3d_VC2CC(vcgamma_yz(k,j,i));
         gamma_dd(2,2,i) = interp->map3d_VC2CC(vcgamma_zz(k,j,i));
-        // DEBUG ONLY
-        /*gamma_dd(0,0,i) = VCInterpolation(vcgamma_xx, k, j, i);
-        gamma_dd(0,1,i) = VCInterpolation(vcgamma_xy, k, j, i);
-        gamma_dd(0,2,i) = VCInterpolation(vcgamma_xz, k, j, i);
-        gamma_dd(1,1,i) = VCInterpolation(vcgamma_yy, k, j, i);
-        gamma_dd(1,2,i) = VCInterpolation(vcgamma_yz, k, j, i);
-        gamma_dd(2,2,i) = VCInterpolation(vcgamma_zz, k, j, i);*/
+        #endif
       }
       rescale_metric(gamma_dd, vcchi, chi, interp, il, iu, j, k);
       /*if (coarse_flag == 1) {
@@ -319,19 +326,21 @@ void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim,
     for (int j=jl; j<=ju; ++j) {
       // Extract the metric at the cell centers.
       for (int i=il; i<=iu; ++i) {
+        #if FORCE_PS_LINEAR
+        gamma_dd(0,0,i) = VCInterpolation(vcgamma_xx, k, j, i);
+        gamma_dd(0,1,i) = VCInterpolation(vcgamma_xy, k, j, i);
+        gamma_dd(0,2,i) = VCInterpolation(vcgamma_xz, k, j, i);
+        gamma_dd(1,1,i) = VCInterpolation(vcgamma_yy, k, j, i);
+        gamma_dd(1,2,i) = VCInterpolation(vcgamma_yz, k, j, i);
+        gamma_dd(2,2,i) = VCInterpolation(vcgamma_zz, k, j, i);
+        #else
         gamma_dd(0,0,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
         gamma_dd(0,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
         gamma_dd(0,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
         gamma_dd(1,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
         gamma_dd(1,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
         gamma_dd(2,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
-
-        /*gamma_dd(0,0,i) = VCInterpolation(vcgamma_xx, k, j, i);
-        gamma_dd(0,1,i) = VCInterpolation(vcgamma_xy, k, j, i);
-        gamma_dd(0,2,i) = VCInterpolation(vcgamma_xz, k, j, i);
-        gamma_dd(1,1,i) = VCInterpolation(vcgamma_yy, k, j, i);
-        gamma_dd(1,2,i) = VCInterpolation(vcgamma_yz, k, j, i);
-        gamma_dd(2,2,i) = VCInterpolation(vcgamma_zz, k, j, i);*/
+        #endif
       }
 
       // Calculate the conserved variables at every point.
@@ -527,8 +536,8 @@ void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j
 // \brief Perform linear interpolation to the desired cell-centered grid index.
 
 static Real VCInterpolation(AthenaArray<Real> &in, int k, int j, int i) {
-  return 0.125*( (in(k, j, i) + in(k + 1, j + 1, i + 1)) // lower-left-front to upper-right-back
-               + (in(k, j+1, i) + in(k + 1, j, i+1)) // lower-left-back to upper-right-front
-               + (in(k+1, j, i) + in(k, j+1, i+1)) // upper-left-front to lower-right-back
-               + (in(k+1, j+1, i) + in(k, j, i+1))); // upper-left-back to lower-right-front
+  return 0.125*(((in(k, j, i) + in(k + 1, j + 1, i + 1)) // lower-left-front to upper-right-back
+               + (in(k+1, j+1, i) + in(k, j, i+1))) // upper-left-back to lower-right-front
+               +((in(k, j+1, i) + in(k + 1, j, i+1)) // lower-left-back to upper-right-front
+               + (in(k+1, j, i) + in(k, j+1, i+1)))); // upper-left-front to lower-right-back
 }

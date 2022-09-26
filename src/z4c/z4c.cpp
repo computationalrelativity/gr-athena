@@ -653,28 +653,28 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
       // interpolate to VC
       ILOOP2(k,j){
         ILOOP1(i){
-          //rhovc(i) = ig->map3d_CC2VC(rhocc(k,j,i));
-          rhovc(i) = CCInterpolation(rhocc, k, j, i);
+          rhovc(i) = ig->map3d_CC2VC(rhocc(k,j,i));
+          //rhovc(i) = CCInterpolation(rhocc, k, j, i);
           if(opt.epsinterp==0){
-            //pgasvc(i) = ig->map3d_CC2VC(pgascc(k,j,i));
-            pgasvc(i) = CCInterpolation(pgascc, k, j, i);
+            pgasvc(i) = ig->map3d_CC2VC(pgascc(k,j,i));
+            //pgasvc(i) = CCInterpolation(pgascc, k, j, i);
           } else {
-            //epsvc(i) = ig->map3d_CC2VC(epscc(k,j,i));
-            epsvc(i) = CCInterpolation(epscc, k, j, i);
+            epsvc(i) = ig->map3d_CC2VC(epscc(k,j,i));
+            //epsvc(i) = CCInterpolation(epscc, k, j, i);
           }
-          //utilde1vc(i) = ig->map3d_CC2VC(utilde1cc(k,j,i));
-          //utilde2vc(i) = ig->map3d_CC2VC(utilde2cc(k,j,i));
-          //utilde3vc(i) = ig->map3d_CC2VC(utilde3cc(k,j,i));
-          utilde1vc(i) = CCInterpolation(utilde1cc, k, j, i);
-          utilde2vc(i) = CCInterpolation(utilde2cc, k, j, i);
-          utilde3vc(i) = CCInterpolation(utilde3cc, k, j, i);
+          utilde1vc(i) = ig->map3d_CC2VC(utilde1cc(k,j,i));
+          utilde2vc(i) = ig->map3d_CC2VC(utilde2cc(k,j,i));
+          utilde3vc(i) = ig->map3d_CC2VC(utilde3cc(k,j,i));
+          //utilde1vc(i) = CCInterpolation(utilde1cc, k, j, i);
+          //utilde2vc(i) = CCInterpolation(utilde2cc, k, j, i);
+          //utilde3vc(i) = CCInterpolation(utilde3cc, k, j, i);
           #if MAGNETIC_FIELDS_ENABLED
-          //bb1vc(i)     = ig->map3d_CC2VC(bb1cc(k,j,i));
-          //bb2vc(i)     = ig->map3d_CC2VC(bb2cc(k,j,i));
-          //bb3vc(i)     = ig->map3d_CC2VC(bb3cc(k,j,i));
-          bb1vc(i) = CCInterpolation(bb1cc, k, j, i);
-          bb2vc(i) = CCInterpolation(bb2cc, k, j, i);
-          bb3vc(i) = CCInterpolation(bb3cc, k, j, i);
+          bb1vc(i)     = ig->map3d_CC2VC(bb1cc(k,j,i));
+          bb2vc(i)     = ig->map3d_CC2VC(bb2cc(k,j,i));
+          bb3vc(i)     = ig->map3d_CC2VC(bb3cc(k,j,i));
+          //bb1vc(i) = CCInterpolation(bb1cc, k, j, i);
+          //bb2vc(i) = CCInterpolation(bb2cc, k, j, i);
+          //bb3vc(i) = CCInterpolation(bb3cc, k, j, i);
           #endif
      
           //   NB specific to EOS

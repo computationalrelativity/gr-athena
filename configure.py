@@ -20,6 +20,7 @@
 #   --nscalars=xxx      set NSCALARS=xxx
 #   --nrad=xxx          set NRAD=xxx (for wave extraction)
 #   --ninterp=xxx       set NGRCV_HSZ=xxx (number of ghosts for intergrid interpolation)
+#   -force_ps_linear    set FORCE_PS_LINEAR to true (always use linear-order VC2CC)
 #   -eos_table          enable EOS table
 #   -f                  enable fluid
 #   -b                  enable magnetic fields
@@ -165,6 +166,12 @@ parser.add_argument('--nrad',
 parser.add_argument('--ninterp',
                     default='2',
                     help='set number of ghost zones for intergrid interpolation')
+
+# -force_ps_linear argument
+parser.add_argument('-force_ps_linear',
+                    action='store_true',
+                    default=False,
+                    help='make PrimitiveSolver use linear VC2CC interpolation')
 
 # -f argument
 parser.add_argument('-f',
@@ -593,6 +600,12 @@ definitions['NUMBER_EXT_RAD'] = args['nrad']
 
 # --ninterp=[value] argument
 definitions['NUMBER_INTERP_GHOSTS'] = args['ninterp']
+
+# -force_ps_linear argument
+if args['force_ps_linear']:
+    definitions['FORCE_PS_LINEAR'] = '1'
+else:
+    definitions['FORCE_PS_LINEAR'] = '0'
 
 # -f argument
 if args['f']:

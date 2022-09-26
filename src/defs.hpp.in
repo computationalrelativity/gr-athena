@@ -209,6 +209,8 @@
 // 1: two nodes total used  -> exact for linear.
 // 2: four nodes total used -> exact for 3rd power.
 #define NGRCV_HSZ @NUMBER_INTERP_GHOSTS@
+// Force PrimitiveSolver to use linear VC2CC interpolation.
+#define FORCE_PS_LINEAR @FORCE_PS_LINEAR@
 
 // dimensionality of underlying (interpolated) data
 // #define NGRCV_NDIM 1
