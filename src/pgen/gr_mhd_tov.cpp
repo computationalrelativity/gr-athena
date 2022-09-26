@@ -71,7 +71,9 @@ namespace {
   TOVData * tov = NULL;
   Real Maxrho(MeshBlock *pmb, int iout);
   Real DivB(MeshBlock *pmb, int iout);
+  Real MaxPb(MeshBlock *pmb, int iout);
 
+  Real CCAvg(AthenaArray<Real>& data, int k, int j, int i);
   
 } // namespace
 
@@ -102,9 +104,10 @@ void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag) {
   // Solve TOV equations, setting 1D inital data in tov->data
   TOV_solve(rhoc, rmin, dr, &npts);
 
-  AllocateUserHistoryOutput(2);
+  AllocateUserHistoryOutput(3);
   EnrollUserHistoryOutput(0, Maxrho, "max-rho", UserHistoryOperation::max);
   EnrollUserHistoryOutput(1, DivB, "divB");
+  EnrollUserHistoryOutput(2, MaxPb, "maxPb", UserHistoryOperation::max);
 
 
 }
@@ -939,6 +942,71 @@ Real Maxrho(MeshBlock *pmb, int iout) {
     }
   }
   return max_rho;
+}
+
+Real MaxPb(MeshBlock *pmb, int iout) {
+  Real max_pb = 0.0;
+  int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
+  AthenaArray<Real> &w = pmb->phydro->w;
+  AthenaArray<Real> bcc1, bcc2, bcc3;
+  bcc1.InitWithShallowSlice(pmb->pfield->bcc,IB1,1);
+  bcc2.InitWithShallowSlice(pmb->pfield->bcc,IB2,1);
+  bcc3.InitWithShallowSlice(pmb->pfield->bcc,IB3,1);
+  AthenaArray<Real> vcgamma_xx, vcgamma_xy, vcgamma_xz,
+                    vcgamma_yy, vcgamma_yz, vcgamma_zz;
+  vcgamma_xx.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
+  vcgamma_xy.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
+  vcgamma_xz.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
+  vcgamma_yy.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
+  vcgamma_yz.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
+  vcgamma_zz.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
+  Real gxx, gxy, gxz, gyy, gyz, gzz;
+  for (int k=ks; k<=ke; k++) {
+    for (int j=js; j<=je; j++) {
+      for (int i=is; i<=ie; i++) {
+        gxx = CCAvg(vcgamma_xx, k, j, i);
+        gxy = CCAvg(vcgamma_xy, k, j, i);
+        gxz = CCAvg(vcgamma_xz, k, j, i);
+        gyy = CCAvg(vcgamma_yy, k, j, i);
+        gyz = CCAvg(vcgamma_yz, k, j, i);
+        gzz = CCAvg(vcgamma_zz, k, j, i);
+        
+        // Lower the velocity
+        Real v_x = gxx*w(IVX,k,j,i) + gxy*w(IVY,k,j,i) + gxz*w(IVZ,k,j,i);
+        Real v_y = gxy*w(IVX,k,j,i) + gyy*w(IVY,k,j,i) + gyz*w(IVZ,k,j,i);
+        Real v_z = gxz*w(IVX,k,j,i) + gyz*w(IVY,k,j,i) + gzz*w(IVZ,k,j,i);
+
+        // Get the determinant of the metric.
+        Real detg = -gxz*gxz*gyy + gxy*(-gxx + gxz)*gyz + gxy*gxy*(gxz - gzz) + gxx*gyy*gzz;
+
+        // Square the (densitized) magnetic field (lab frame)
+        Real bsq = gxx*bcc1(k,j,i)*bcc1(k,j,i) + 2.0*gxy*bcc1(k,j,i)*bcc2(k,j,i)
+                 + 2.0*gxz*bcc1(k,j,i)*bcc3(k,j,i) + gyy*bcc2(k,j,i)*bcc2(k,j,i)
+                 + 2.0*gyz*bcc2(k,j,i)*bcc3(k,j,i) + gzz*bcc3(k,j,i)*bcc3(k,j,i);
+
+        // Square the velocity
+        Real vsq = w(IVX,k,j,i)*v_x + w(IVY,k,j,i)*v_y + w(IVZ,k,j,i)*v_z;
+
+        // Contract the (densitized) magnetic field (lab frame) with the velocity.
+        Real bv  = bcc1(k,j,i)*v_x + bcc2(k,j,i)*v_y + bcc3(k,j,i)*v_z;
+
+
+        // Calculate the magnetic pressure, undensitizing and accounting for v^i actually
+        // being Wv^i.
+        Real pb = 0.5*(bv*bv + bsq)/((1.0 + vsq)*detg);
+
+        max_pb = std::max(max_pb, pb/w(IEN,k,j,i));
+      }
+    }
+  }
+  return max_pb;
+}
+
+Real CCAvg(AthenaArray<Real>& data, int k, int j, int i) {
+  return 0.125*(((data(k, j, i) + data(k+1, j+1, i+1)) +
+                 (data(k+1, j+1, i) + data(k, j, i+1))) +
+                ((data(k+1, j, i) + data(k, j+1, i+1)) +
+                 (data(k, j+1, i) + data(k+1, j, i+1))));
 }
 
 //TODO make consistent with CT divB
