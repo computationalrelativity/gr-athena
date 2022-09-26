@@ -29,7 +29,7 @@ Real EquationOfState::PresFromRhoEg(Real rho, Real egas) {
   // FIXME: Adjust to work properly with particle fractions.
   Real n = rho/eos.GetBaryonMass();
   Real Y[MAX_SPECIES] = {0.0};
-  Real T = eos.GetTemperatureFromE(n, egas, Y);
+  Real T = eos.GetTemperatureFromE(n, rho + egas, Y);
 
   return eos.GetPressure(n, T, Y);
 }
