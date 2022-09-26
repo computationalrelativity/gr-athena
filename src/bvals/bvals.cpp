@@ -356,8 +356,13 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
     }
 
     if (FLUID_ENABLED){
-      pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
+#if USETM
+      pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
                                       pmb->is-NGHOST, pmb->is-1, bjs, bje, bks, bke);
+#else 
+      pmb->peos->PrimitiveToConserved(ph->w,pf->bcc, ph->u, pco,
+                                      pmb->is-NGHOST, pmb->is-1, bjs, bje, bks, bke);
+#endif
     }
 
     if (NSCALARS > 0) {
@@ -380,8 +385,13 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
     }
 
     if (FLUID_ENABLED) {
-      pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
+#if USETM
+      pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
                                       pmb->ie+1, pmb->ie+NGHOST, bjs, bje, bks, bke);
+#else 
+      pmb->peos->PrimitiveToConserved(ph->w,pf->bcc, ph->u, pco,
+                                      pmb->ie+1, pmb->ie+NGHOST, bjs, bje, bks, bke);
+#endif
     }
 
     if (NSCALARS > 0) {
@@ -405,8 +415,13 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
       }
 
       if (FLUID_ENABLED) {
-        pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
+#if USETM
+        pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
                                         bis, bie, pmb->js-NGHOST, pmb->js-1, bks, bke);
+#else 
+        pmb->peos->PrimitiveToConserved(ph->w,pf->bcc, ph->u, pco,
+                                        bis, bie, pmb->js-NGHOST, pmb->js-1, bks, bke);
+#endif
       }
 
       if (NSCALARS > 0) {
@@ -429,8 +444,13 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
       }
 
       if (FLUID_ENABLED) {
-        pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
+#if USETM
+        pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
                                         bis, bie, pmb->je+1, pmb->je+NGHOST, bks, bke);
+#else 
+        pmb->peos->PrimitiveToConserved(ph->w,pf->bcc, ph->u, pco,
+                                        bis, bie, pmb->je+1, pmb->je+NGHOST, bks, bke);
+#endif
       }
 
       if (NSCALARS > 0) {
@@ -458,8 +478,13 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
       }
 
       if (FLUID_ENABLED) {
-        pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
+#if USETM
+        pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
                                         bis, bie, bjs, bje, pmb->ks-NGHOST, pmb->ks-1);
+#else 
+        pmb->peos->PrimitiveToConserved(ph->w,pf->bcc, ph->u, pco,
+                                        bis, bie, bjs, bje, pmb->ks-NGHOST, pmb->ks-1);
+#endif
       }
 
       if (NSCALARS > 0) {
@@ -482,8 +507,13 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
       }
 
       if (FLUID_ENABLED) {
-      pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                      bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
+#if USETM
+        pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
+                                        bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
+#else
+        pmb->peos->PrimitiveToConserved(ph->w,pf->bcc, ph->u, pco,
+                                        bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
+#endif
       }
 
       if (NSCALARS > 0) {

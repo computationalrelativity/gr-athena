@@ -206,7 +206,7 @@ class PrimitiveSolver {
     //  \param[in]     g3u   The 3x3 inverse spatial metric
     //
     //  \return information about the solve
-    SolverResult ConToPrim(Real prim[NPRIM], Real cons[NCONS], Real b[NMAG], 
+    SolverResult ConToPrim(Real prim[NPRIM], Real prim_scalar[NSCALARS], Real cons[NCONS], Real cons_scalar[NSCALARS], Real b[NMAG], 
                            Real g3d[NSPMETRIC], Real g3u[NSPMETRIC]);
 
     //! \brief Get the conserved variables from the primitive variables.
@@ -336,8 +336,8 @@ inline Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::CheckDensityValid(Real& mu
 
 // ConToPrim {{{
 template<typename EOSPolicy, typename ErrorPolicy>
-inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim[NPRIM], 
-      Real cons[NCONS], Real b[NMAG], Real g3d[NSPMETRIC], Real g3u[NSPMETRIC]) {
+inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim[NPRIM], Real prim_scalar[NPRIM],
+      Real cons[NCONS], Real cons_scalar[NSCALARS], Real b[NMAG], Real g3d[NSPMETRIC], Real g3u[NSPMETRIC]) {
 
   SolverResult solver_result{Error::SUCCESS, 0, false, false, false};
 
@@ -348,12 +348,15 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
   Real B_u[3] = {b[IB1], b[IB2], b[IB3]};
   // Extract the particle fractions.
   const int n_species = peos->GetNSpecies();
-  Real Y[MAX_SPECIES] = {0.0};
-  for (int s = 0; s < n_species; s++) {
-    Y[s] = cons[IYD + s]/cons[IDN];
-  }
+  Real Y[NSCALARS] = {0.0};
+  for (int n=0; n<NSCALARS; n++) Y[n] = cons_scalar[n]/cons[IDN];
+
+  // for (int s = 0; s < n_species; s++) {
+  //   Y[s] = cons[IYD + s]/cons[IDN];
+  // }
+
   // Apply limits to Y to ensure a physical state
-  peos->ApplySpeciesLimits(Y);
+  peos->ApplySpeciesLimits(Y); //FIXME: think abt how to handle this
 
   // Check the conserved variables for consistency and do whatever
   // the EOSPolicy wants us to.
@@ -517,6 +520,7 @@ inline Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::PrimToCon(Real prim[NPRIM]
   const Real &t   = prim[ITM]; // temperature
   const Real B_u[3] = {bu[IB1], bu[IB2], bu[IB3]};
   const int n_species = peos->GetNSpecies();
+  //FIXME
   Real Y[MAX_SPECIES] = {0.0};
   for (int s = 0; s < n_species; s++) {
     Y[s] = prim[IYF + s];

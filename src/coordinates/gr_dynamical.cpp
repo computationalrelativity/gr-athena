@@ -596,7 +596,8 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
       CLOOP1(i){
 #if USETM
           Real n = rho(i)/pmy_block->peos->GetEOS().GetBaryonMass();
-          Real Y[MAX_SPECIES] = {0.0};
+          Real Y[NSCALARS] = {0.0};
+          for(int n=0; n<NSCALARS; n++) Y[n] = pmy_block->pscalars->r(n, k,j,i);
           Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgas(i), Y);
           wtot(i) = rho(i)*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
 #else

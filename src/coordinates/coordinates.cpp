@@ -745,12 +745,16 @@ void Coordinates::LaplacianX3All(const AthenaArray<Real> &s, AthenaArray<Real> &
 
 //----------------------------------------------------------------------------------------
 // Coordinate (Geometric) source term function
+void Coordinates::AddCoordTermsDivergenceScalar(
+    const Real dt, const AthenaArray<Real> *flux,
+    const AthenaArray<Real> &prim, const AthenaArray<Real> &prim_scalar, const AthenaArray<Real> &bcc, AthenaArray<Real> &u) {
+  return;
+}
 void Coordinates::AddCoordTermsDivergence(
     const Real dt, const AthenaArray<Real> *flux,
     const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc, AthenaArray<Real> &u) {
   return;
 }
-
 //----------------------------------------------------------------------------------------
 // Function for determining if index corresponds to a polar boundary
 // Inputs:

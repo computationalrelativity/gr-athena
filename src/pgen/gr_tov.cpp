@@ -29,6 +29,7 @@
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"          // ParameterInput
 #include "../utils/read_lorene.hpp"        // Parser for ASCII table
+#include "../scalars/scalars.hpp"
 
 // Configuration checking
 #if not GENERAL_RELATIVITY
@@ -122,8 +123,8 @@ void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag) {
 #if LORENE_EOS
   // Testing -- terminate the program here
     FreeTable(Table);
-    exit(0);
 #endif
+  printf("NSCALARS=%d\n", NSCALARS);
   // Add max(rho) output.
   AllocateUserHistoryOutput(1);
   EnrollUserHistoryOutput(0, MaxRho, "max_rho", UserHistoryOperation::max);
@@ -260,7 +261,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   Real fatm = pin->GetReal("problem","fatm");
   const Real rho_atm = rhomax * fatm;
 
-  //TODO (SB) general EOS call 
+  //TODO (SB) general EOS call
   const Real pre_atm = k_adi*std::pow(rhomax*fatm,gamma_adi);
 
   // Pontwise aux vars
@@ -271,6 +272,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   for (int k=kl; k<=ku; ++k) {
     for (int j=jl; j<=ju; ++j) {
       for (int i=il; i<=iu; ++i) {
+
+  // Initialize the scalars
+  if(NSCALARS==1) pscalars->s(0,k,i,j) = 0.;
+  if(NSCALARS==1) pscalars->r(0,k,i,j) = 0.;
+  
 	// Isotropic radius
 	Real r = std::sqrt(std::pow(pcoord->x1v(i),2.) +  pow(pcoord->x2v(j),2.) + pow(pcoord->x3v(k),2.));
   Real rho_pol = std::sqrt(std::pow(pcoord->x1v(i),2.) + std::pow(pcoord->x2v(j),2.));
@@ -391,7 +397,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   }
 
   // Initialise conserved variables
-  peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord, il, iu, jl, ju, kl, ku);
+  peos->PrimitiveToConserved(phydro->w, pscalars->r, pfield->bcc, phydro->u, pscalars->s, pcoord, il, iu, jl, ju, kl, ku);
 
   // Initialise VC matter
   //TODO(WC) (don't strictly need this here, will be caught in task list before used
@@ -461,11 +467,11 @@ namespace {
     Real eps = p / (rho*(gamma_adi-1.));
     Real dpdrho = gamma_adi*k_adi*std::pow(rho,gamma_adi-1.0);
 #else
-    Real logp, eps, p, dpdrho, pl_hold;
-    logp   = linear_interp(Table->data[tab_logp], Table->data[tab_logrho], Table->size, log(rho));
-    eps    = linear_interp(Table->data[tab_eps],  Table->data[tab_logrho], Table->size, log(rho));
+    Real logp, eps, p, dpdrho;
+    logp   = linear_interp(Table->data[tab_logp],   Table->data[tab_logrho], Table->size, log(rho));
+    eps    = linear_interp(Table->data[tab_eps],    Table->data[tab_logrho], Table->size, log(rho));
     dpdrho = linear_interp(Table->data[tab_dpdrho], Table->data[tab_logrho], Table->size, log(rho));
-    p = std::exp(logp);
+    p      = std::exp(logp);
     /* FIXME: this is bad */
     if(rho<Table->rho_min){
       p=0; eps=0; dpdrho=1;
@@ -518,11 +524,11 @@ namespace {
     const Real pc = k_adi*std::pow(rhoc,gamma_adi);
     const Real epslc = pc/(rhoc*(gamma_adi-1.));
 #else
-    Real pc, logpc, epslc, dpdrhoc, pl_hold;
-    logpc   = linear_interp(Table->data[tab_logp], Table->data[tab_logrho], Table->size, log(rhoc));
-    epslc   = linear_interp(Table->data[tab_eps],  Table->data[tab_logrho], Table->size, log(rhoc));
+    Real pc, logpc, epslc, dpdrhoc;
+    logpc   = linear_interp(Table->data[tab_logp],   Table->data[tab_logrho], Table->size, log(rhoc));
+    epslc   = linear_interp(Table->data[tab_eps],    Table->data[tab_logrho], Table->size, log(rhoc));
     dpdrhoc = linear_interp(Table->data[tab_dpdrho], Table->data[tab_logrho], Table->size, log(rhoc));
-    pc = exp(logpc);
+    pc      = exp(logpc);
 #endif
     const Real ec = rhoc*(1.+epslc);
 
@@ -638,13 +644,13 @@ namespace {
 #endif
     // Other metric fields
     for (int n = 0; n < tov->npts; n++) {
-      tov->data[itov_psi4][n] = std::pow(tov->data[itov_rsch][n]/tov->data[itov_riso][n], 2);
+      tov->data[itov_psi4][n]  = std::pow(tov->data[itov_rsch][n]/tov->data[itov_riso][n], 2);
       tov->data[itov_lapse][n] = std::exp(tov->data[itov_phi][n]);
     }
 
     // Metric field (regular origin)
     tov->lapse_0 = std::exp(- phiR + phiRa);
-    tov->psi4_0 = 1/(C*C);
+    tov->psi4_0  = 1/(C*C);
     
     // Done!
     printf("TOV_solve: npts = %d\n",tov->npts);

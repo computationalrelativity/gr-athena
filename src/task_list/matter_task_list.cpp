@@ -1242,9 +1242,16 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
     // Newton-Raphson solver in GR EOS uses the following abscissae:
     // stage=1: W at t^n and
     // stage=2: W at t^{n+1/2} (VL2) or t^{n+1} (RK2)
+#if USETM
+    pmb->peos->ConservedToPrimitive(ph->u, ph->w, pf->b,
+                                    ph->w1, ps->s, ps->r, pf->bcc, pmb->pcoord,
+                                    il, iu, jl, ju, kl, ku,0);
+#else 
     pmb->peos->ConservedToPrimitive(ph->u, ph->w, pf->b,
                                     ph->w1, pf->bcc, pmb->pcoord,
                                     il, iu, jl, ju, kl, ku,0);
+#endif
+
     if (NSCALARS > 0) {
       // r1/r_old for GR is currently unused:
       pmb->peos->PassiveScalarConservedToPrimitive(ps->s, ph->w1, // ph->u, (updated rho)
@@ -1263,9 +1270,17 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
       if (pbval->nblevel[2][1][1] != -1) ku -= 1;
       // for MHD, shrink buffer by 3
       // TODO(felker): add MHD loop limit calculation for 4th order W(U)
+#if USETM
       pmb->peos->ConservedToPrimitiveCellAverage(ph->u, ph->w, pf->b,
-                                                 ph->w1, pf->bcc, pmb->pcoord,
+                                                 ph->w1, 
+                                                 ps->s, ps->r, pf->bcc, pmb->pcoord,
                                                  il, iu, jl, ju, kl, ku);
+#else 
+      pmb->peos->ConservedToPrimitiveCellAverage(ph->u, ph->w, pf->b,
+                                                 ph->w1, 
+                                                 pf->bcc, pmb->pcoord,
+                                                 il, iu, jl, ju, kl, ku);
+#endif
       if (NSCALARS > 0) {
         pmb->peos->PassiveScalarConservedToPrimitiveCellAverage(
             ps->s, ps->r, ps->r, pmb->pcoord, il, iu, jl, ju, kl, ku);
