@@ -140,6 +140,9 @@
 // use Lorene initial data library? (LORENE or NO_LORENE)
 #define @LORENE_OPTION@
 
+// Use RNS library
+#define @RNS_OPTION@
+
 // allow control over whether tracker enabled
 #define @Z4C_TRACKER@
 
