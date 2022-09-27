@@ -16,7 +16,7 @@ namespace Primitive {
 
 struct UnitSystem {
   const Real c;    //! Speed of light
-  const Real G;    //! Gravitational constant
+  const Real Gnewt;    //! Gravitational constant
   const Real kb;   //! Boltzmann constant
   const Real Msun; //! Solar mass
   const Real MeV;  // 10^6 electronvolt
@@ -101,16 +101,16 @@ static UnitSystem GeometricKilometer{
   1.0, // c
   1.0, // G
   1.0, // kb
-  CGS.Msun * CGS.G/(CGS.c*CGS.c)*1e-5, // Msun, km
-  CGS.MeV * CGS.G/(CGS.c*CGS.c*CGS.c*CGS.c)*1e-5, // MeV, km
+  CGS.Msun * CGS.Gnewt/(CGS.c*CGS.c)*1e-5, // Msun, km
+  CGS.MeV * CGS.Gnewt/(CGS.c*CGS.c*CGS.c*CGS.c)*1e-5, // MeV, km
 
   1e-5, // length, km
   CGS.c * 1e-5, // time, km
   1e15, // number density, km^-3
-  CGS.G/(CGS.c*CGS.c)*1e-5, // mass, km
-  CGS.G/(CGS.c*CGS.c*CGS.c*CGS.c)*1e-5, // energy, km
-  CGS.G/(CGS.c*CGS.c*CGS.c*CGS.c)*1e10, // pressure, km^-2
-  CGS.kb*CGS.G/(CGS.c*CGS.c*CGS.c*CGS.c)*1e-5, // temperature, km
+  CGS.Gnewt/(CGS.c*CGS.c)*1e-5, // mass, km
+  CGS.Gnewt/(CGS.c*CGS.c*CGS.c*CGS.c)*1e-5, // energy, km
+  CGS.Gnewt/(CGS.c*CGS.c*CGS.c*CGS.c)*1e10, // pressure, km^-2
+  CGS.kb*CGS.Gnewt/(CGS.c*CGS.c*CGS.c*CGS.c)*1e-5, // temperature, km
 };
 //! Geometric units with length in solar masses
 static UnitSystem GeometricSolar{
@@ -120,18 +120,18 @@ static UnitSystem GeometricSolar{
   1.0, // Msun
   CGS.MeV / (CGS.c*CGS.c), // MeV, Msun
 
-  (CGS.c*CGS.c)/(CGS.G * CGS.Msun), // length, Msun
-  PS_CUBE( CGS.c)/(CGS.G * CGS.Msun), // time, Msun
-  PS_CUBE( (CGS.G * CGS.Msun)/(CGS.c*CGS.c) ), // number density, Msun^-3
+  (CGS.c*CGS.c)/(CGS.Gnewt * CGS.Msun), // length, Msun
+  PS_CUBE( CGS.c)/(CGS.Gnewt * CGS.Msun), // time, Msun
+  PS_CUBE( (CGS.Gnewt * CGS.Msun)/(CGS.c*CGS.c) ), // number density, Msun^-3
   1.0 / CGS.Msun, // mass, Msun
   1.0 / (CGS.Msun * CGS.c*CGS.c), // energy, Msun
-  PS_CUBE( CGS.G/(CGS.c*CGS.c) ) * PS_SQR( CGS.Msun/(CGS.c) ), // pressure, Msun^-2
+  PS_CUBE( CGS.Gnewt/(CGS.c*CGS.c) ) * PS_SQR( CGS.Msun/(CGS.c) ), // pressure, Msun^-2
   CGS.kb / (CGS.Msun * CGS.c*CGS.c), // temperature, Msun
 };
 //! Nuclear units
 static UnitSystem Nuclear{
   1.0, // c
-  CGS.G * CGS.MeV/(CGS.c*CGS.c*CGS.c*CGS.c)*1e13, // G, fm
+  CGS.Gnewt * CGS.MeV/(CGS.c*CGS.c*CGS.c*CGS.c)*1e13, // G, fm
   1.0, // kb
   CGS.Msun * (CGS.c*CGS.c) / CGS.MeV, // Msun, MeV
   1.0, // MeV
