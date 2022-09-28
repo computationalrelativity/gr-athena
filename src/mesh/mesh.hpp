@@ -96,7 +96,8 @@ public:
   Mesh *pmy_mesh;  // ptr to Mesh containing this MeshBlock
   LogicalLocation loc;
   RegionSize block_size;
-
+  ParameterInput *pmy_in; // it's useful to have access to the params from meshblock
+  
   int ng, cng;  // distrinct ghost specification allowed
   int rcng;     // ghosts that may be restricted [minimise communication]
 
