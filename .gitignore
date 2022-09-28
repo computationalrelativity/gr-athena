@@ -1,3 +1,8 @@
+# --A-- ignores
+Runs/
+myconfig.sh
+src/tags
+
 # Configured outputs
 Makefile
 src/defs.hpp
