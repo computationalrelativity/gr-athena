@@ -9,6 +9,7 @@
 #include <cassert> // assert
 #include <limits>
 #include <iostream>
+#include <sstream>
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -25,6 +26,9 @@
 using namespace std;
 
 int RefinementCondition(MeshBlock *pmb);
+static int LinfBoxInBox(MeshBlock *pmb);
+static int FDErrorApprox(MeshBlock *pmb);
+
 // QUESTION: is it better to setup two different problems instead of using ifdef?
 static ini_data *data = NULL;
 
@@ -204,12 +208,45 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   return;
 }
 
+// 1: refines, -1: de-refines, 0: does nothing
 int RefinementCondition(MeshBlock *pmb)
 {
+  int ret = 0;
+  ParameterInput *const pin = pmb->pmy_in;
+  
+  // make sure we have 2 punctures
   if (pmb->pmy_mesh->pz4c_tracker.size() != 2) {
     return 0;
   }
+  
+  // choose the method of refinement:
+  // --------------------------------
+  
+  // use box in box method
+  if (pin->GetOrAddString("z4c","refinment","Linf_box_in_box") == "Linf_box_in_box")
+  {
+    ret = LinfBoxInBox(pmb);
+  }
+  // finite difference error must fall less that a prescribed value.
+  else if (pin->GetOrAddString("z4c","refinment","Linf_box_in_box") == "FD_error")
+  {
+    ret = FDErrorApprox(pmb);
+  }
+  else
+  {
+    stringstream msg;
+    msg << "No such option for z4c/refinement" << std::endl;
+    ATHENA_ERROR(msg);
+  }
+  
+  return ret;
+}  
 
+// Mimicking box in box refinement
+static int LinfBoxInBox(MeshBlock *pmb)
+{
+  cout << __FUNCTION__ << std::endl;
+  
   int root_lev = pmb->pmy_mesh->GetRootLevel();
   int level = pmb->loc.level - root_lev;
 
@@ -343,4 +380,16 @@ int RefinementCondition(MeshBlock *pmb)
 
   return 0;
 
+}
+
+// using the FD error as an approximation of the error in the meshblock.
+// if this error falls below a prescribed value, the meshblock should be refined.
+static int FDErrorApprox(MeshBlock *pmb)
+{
+  cout << __FUNCTION__ << std::endl;
+
+  int ret = 0;
+  
+  return ret;
+  
 }
