@@ -48,7 +48,7 @@
 MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_block,
                      BoundaryFlag *input_bcs, Mesh *pm, ParameterInput *pin,
                      int igflag, bool ref_flag) :
-    pmy_mesh(pm), loc(iloc), block_size(input_block),
+    pmy_mesh(pm), pmy_in(pin), loc(iloc), block_size(input_block),
     gid(igid), lid(ilid), gflag(igflag), nuser_out_var(), prev(nullptr), next(nullptr),
     new_block_dt_{}, new_block_dt_hyperbolic_{}, new_block_dt_parabolic_{},
     new_block_dt_user_{},
@@ -176,11 +176,12 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
                      LogicalLocation iloc, RegionSize input_block,
                      BoundaryFlag *input_bcs,
                      double icost, char *mbdata, int igflag) :
-    pmy_mesh(pm), loc(iloc), block_size(input_block),
+    pmy_mesh(pm), pmy_in(pin), loc(iloc), block_size(input_block),
     gid(igid), lid(ilid), gflag(igflag), nuser_out_var(), prev(nullptr), next(nullptr),
     new_block_dt_{}, new_block_dt_hyperbolic_{}, new_block_dt_parabolic_{},
     new_block_dt_user_{},
     nreal_user_meshblock_data_(), nint_user_meshblock_data_(), cost_(icost) {
+  
   // BD:
   // As this needs to be done twice (here and restarts), is verbose and prone
   // to parablepsis we collect logic..
@@ -333,6 +334,8 @@ MeshBlock::~MeshBlock() {
   if (prev != nullptr) prev->next = next;
   if (next != nullptr) next->prev = prev;
 
+  pmy_in = nullptr;
+  
   delete pcoord;
   if (FLUID_ENABLED) delete precon;
   if (pmy_mesh->multilevel) delete pmr;
