@@ -160,7 +160,7 @@ void Hydro::RNS_Metric(ParameterInput *pin, AthenaArray<Real> & u_adm, AthenaArr
   }
 
 
-  free(gxx); free(gyy); free(gzz);
+  /*free(gxx); free(gyy); free(gzz);
   free(gxy); free(gxz); free(gyz);
 
   free(Kxx); free(Kyy); free(Kzz);
@@ -169,7 +169,30 @@ void Hydro::RNS_Metric(ParameterInput *pin, AthenaArray<Real> & u_adm, AthenaArr
   free(psi); free(alp);
   free(betax); free(betay); free(betaz);
 
-  free(x); free(y); free(z);
+  free(x); free(y); free(z);*/
+  delete[] gxx;
+  delete[] gyy;
+  delete[] gzz;
+  delete[] gxy;
+  delete[] gxz;
+  delete[] gyz;
+
+  delete[] Kxx;
+  delete[] Kyy;
+  delete[] Kzz;
+  delete[] Kxy;
+  delete[] Kxz;
+  delete[] Kyz;
+
+  delete[] psi;
+  delete[] alp;
+  delete[] betax;
+  delete[] betay;
+  delete[] betaz;
+
+  delete[] x;
+  delete[] y;
+  delete[] z;
 
   if(verbose)
     std::cout << "\n\n<-Z4c::ADMTwoPunctures\n\n";
@@ -227,8 +250,8 @@ void Hydro::RNS_Hydro(ParameterInput *pin, AthenaArray<Real> & w, AthenaArray<Re
   Real *rho = new Real[sz], *pres = new Real[sz];
   Real *ux = new Real[sz], *uy = new Real[sz], *uz = new Real[sz];
 
-  Real *gxx = new Real[sz], *gyy = new Real[sz], *gzz = new Real[sz];
-  Real *gxy = new Real[sz], *gxz = new Real[sz], *gyz = new Real[sz];
+  /*Real *gxx = new Real[sz], *gyy = new Real[sz], *gzz = new Real[sz];
+  Real *gxy = new Real[sz], *gxz = new Real[sz], *gyz = new Real[sz];*/
 
   Real *x = new Real[n[0]];
   Real *y = new Real[n[1]];
@@ -323,12 +346,20 @@ void Hydro::RNS_Hydro(ParameterInput *pin, AthenaArray<Real> & w, AthenaArray<Re
   }
 
 
-  free(rho); free(pres);
+  /*free(rho); free(pres);
 
   free(ux); free(uy); free(uz);
 
 
-  free(x); free(y); free(z);
+  free(x); free(y); free(z);*/
+  delete[] rho;
+  delete[] pres;
+  delete[] ux;
+  delete[] uy;
+  delete[] uz;
+  delete[] x;
+  delete[] y;
+  delete[] z;
 
   if(verbose)
     std::cout << "\n\nRNS ID\n\n";
