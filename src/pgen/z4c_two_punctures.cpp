@@ -245,7 +245,7 @@ int RefinementCondition(MeshBlock *pmb)
 // Mimicking box in box refinement
 static int LinfBoxInBox(MeshBlock *pmb)
 {
-  cout << __FUNCTION__ << std::endl;
+  std::cout << __FUNCTION__ << std::endl;
   
   int root_lev = pmb->pmy_mesh->GetRootLevel();
   int level = pmb->loc.level - root_lev;
@@ -386,7 +386,7 @@ static int LinfBoxInBox(MeshBlock *pmb)
 // if this error falls below a prescribed value, the meshblock should be refined.
 static int FDErrorApprox(MeshBlock *pmb)
 {
-  cout << __FUNCTION__ << std::endl;
+  std::cout << __FUNCTION__ << std::endl;
 
   int ret = 0;
   
