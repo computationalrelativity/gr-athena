@@ -27,6 +27,7 @@ using namespace std;
 
 int RefinementCondition(MeshBlock *pmb);
 static int LinfBoxInBox(MeshBlock *pmb);
+static int L2NormRefine(MeshBlock *pmb);
 static int FDErrorApprox(MeshBlock *pmb);
 
 // QUESTION: is it better to setup two different problems instead of using ifdef?
@@ -227,6 +228,11 @@ int RefinementCondition(MeshBlock *pmb)
   {
     ret = LinfBoxInBox(pmb);
   }
+  // use L-2 norm as a criteria for refinement
+  else if (pin->GetOrAddString("z4c","refinment","L2") == "L2")
+  {
+    ret = L2NormRefine(pmb);
+  }
   // finite difference error must fall less that a prescribed value.
   else if (pin->GetOrAddString("z4c","refinment","Linf_box_in_box") == "FD_error")
   {
@@ -378,6 +384,105 @@ static int LinfBoxInBox(MeshBlock *pmb)
   return -1;
 #endif // Z4C_REF_SPHERES
 
+  return 0;
+
+}
+
+// L-2 norm for refinement
+static int L2NormRefine(MeshBlock *pmb)
+{
+  cout << __FUNCTION__ << std::endl;
+  
+  int root_lev = pmb->pmy_mesh->GetRootLevel();
+  int level = pmb->loc.level - root_lev;
+
+  L_grid = (pmb->pmy_mesh->mesh_size.x1max - pmb->pmy_mesh->mesh_size.x1min)/2. - par_b; 
+  //Initial distance between one of the punctures and the edge of the full mesh
+  
+  Real L = L_grid;
+  Real xv[24];
+
+  //Needed to calculate coordinates of vertices of a block with same center but
+  //edge of 1/8th of the original size
+  Real x1sum_sup = (5*pmb->block_size.x1max+3*pmb->block_size.x1min)/8.;
+  Real x1sum_inf = (3*pmb->block_size.x1max+5*pmb->block_size.x1min)/8.;
+  Real x2sum_sup = (5*pmb->block_size.x2max+3*pmb->block_size.x2min)/8.;
+  Real x2sum_inf = (3*pmb->block_size.x2max+5*pmb->block_size.x2min)/8.;
+  Real x3sum_sup = (5*pmb->block_size.x3max+3*pmb->block_size.x3min)/8.;
+  Real x3sum_inf = (3*pmb->block_size.x3max+5*pmb->block_size.x3min)/8.;
+
+  xv[0] = x1sum_sup;
+  xv[1] = x2sum_sup;
+  xv[2] = x3sum_sup;
+
+  xv[3] = x1sum_sup;
+  xv[4] = x2sum_sup;
+  xv[5] = x3sum_inf;
+
+  xv[6] = x1sum_sup;
+  xv[7] = x2sum_inf;
+  xv[8] = x3sum_sup;
+
+  xv[9] = x1sum_sup;
+  xv[10] = x2sum_inf;
+  xv[11] = x3sum_inf;
+
+  xv[12] = x1sum_inf;
+  xv[13] = x2sum_sup;
+  xv[14] = x3sum_sup;
+
+  xv[15] = x1sum_inf;
+  xv[16] = x2sum_sup;
+  xv[17] = x3sum_inf;
+
+  xv[18] = x1sum_inf;
+  xv[19] = x2sum_inf;
+  xv[20] = x3sum_sup;
+
+  xv[21] = x1sum_inf;
+  xv[22] = x2sum_inf;
+  xv[23] = x3sum_inf;
+
+  // Min distance between the two punctures
+  Real d = std::numeric_limits<Real>::max();
+  for (auto ptracker : pmb->pmy_mesh->pz4c_tracker) {
+    // square difference
+    Real diff;
+    
+    Real dmin_punct = std::numeric_limits<Real>::max();
+    for (int i_vert = 0; i_vert < 8; ++i_vert) {
+      // Norm_L-2
+      Real norm_L2 = 0;
+      for (int i_diff = 0; i_diff < 3; ++ i_diff) {
+        diff = (ptracker->GetPos(i_diff) - xv[i_vert*3+i_diff])*(ptracker->GetPos(i_diff) - xv[i_vert*3+i_diff]);
+        norm_L2 += diff;
+      }
+      // Compute the L-2 norm
+      norm_L2 = std::sqrt(norm_L2);
+      
+      //Calculate minimum of the distances of the 8 vertices above
+      if (dmin_punct > norm_L2) {
+        dmin_punct = norm_L2;
+      }
+    }
+    //Calculate minimum of the closest between the n punctures
+    if (d > dmin_punct) {
+      d = dmin_punct;
+    }
+  }
+  Real ratio = L/d;
+
+  if (ratio < 1) {
+    return -1;
+  }
+
+  //Calculate level that the block should be in, given a box-in-box theoretical structure of the grid
+  Real th_level = std::floor(std::log2(ratio));
+  if (th_level > level) {
+    return 1;
+  } else if (th_level < level) {
+    return -1;
+  }
   return 0;
 
 }
