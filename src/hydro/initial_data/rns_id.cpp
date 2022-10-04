@@ -160,16 +160,6 @@ void Hydro::RNS_Metric(ParameterInput *pin, AthenaArray<Real> & u_adm, AthenaArr
   }
 
 
-  /*free(gxx); free(gyy); free(gzz);
-  free(gxy); free(gxz); free(gyz);
-
-  free(Kxx); free(Kyy); free(Kzz);
-  free(Kxy); free(Kxz); free(Kyz);
-
-  free(psi); free(alp);
-  free(betax); free(betay); free(betaz);
-
-  free(x); free(y); free(z);*/
   delete[] gxx;
   delete[] gyy;
   delete[] gzz;
@@ -346,12 +336,6 @@ void Hydro::RNS_Hydro(ParameterInput *pin, AthenaArray<Real> & w, AthenaArray<Re
   }
 
 
-  /*free(rho); free(pres);
-
-  free(ux); free(uy); free(uz);
-
-
-  free(x); free(y); free(z);*/
   delete[] rho;
   delete[] pres;
   delete[] ux;

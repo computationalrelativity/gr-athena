@@ -486,6 +486,14 @@ void EquationOfState::SoundSpeedsGR(Real n, Real T, Real vi, Real v2, Real alpha
   Real root_1 = alpha*(vi*(1.0-cs_sq) + cs*std::sqrt( (1-v2)*(gammaii*(1.0-v2*cs_sq) - vi*vi*(1.0-cs_sq))))/(1.0-v2*cs_sq) - betai;
   Real root_2 = alpha*(vi*(1.0-cs_sq) - cs*std::sqrt( (1-v2)*(gammaii*(1.0-v2*cs_sq) - vi*vi*(1.0-cs_sq))))/(1.0-v2*cs_sq) - betai;
 
+  bool collapse = true;
+  if (collapse) {
+    if (std::isnan(root_1) || std::isnan(root_2)) {
+      root_1 = 1.0;
+      root_2 = 1.0;
+    }
+  }
+
   if (root_1 > root_2) {
     *plambda_plus = root_1;
     *plambda_minus = root_2;

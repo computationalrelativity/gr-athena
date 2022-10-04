@@ -49,8 +49,11 @@ void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag)
       //printf("AfterSetDefault\n");
 
       string inputfile = pin->GetOrAddString("problem", "filename", "tovgamma2.par");
+      Real fatm = pin->GetReal("problem","fatm");
+      Real rhoc = pin->GetReal("problem","rhoc");
 
 
+      RNS_params_set_Real("atm_level_rho",rhoc*fatm);
       RNS_params_set_inputfile((char *) inputfile.c_str());
 
       //printf("AfterParSetting\n");

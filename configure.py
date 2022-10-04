@@ -1129,7 +1129,7 @@ if args['prob'] in ('gr_Lorene_neutron_star', 'gr_Lorene_bns'):
     #         raise SystemExit('### CONFIGURE ERROR: To compile the neutron star problem, it is necessary to provide the Lorene initial data library ../Lorene.')
 
 # -rns argument
-if args['prob'] == "gr_rns_tov":
+if args['prob'] == "gr_rns_tov" or args['prob'] == "gr_pbh_rns":
 #    if not args['gsl']:
 #        raise SystemExit('### CONFIGURE ERROR: To compile with two punctures -gsl is required.')
 
@@ -1242,6 +1242,8 @@ if args['z']:
         files.append('one_puncture_z4c')
     elif args['prob'] == "z4c_awa_tests":
         files.append('awa_z4c')
+    elif args['prob'] == "gr_pbh_rns":
+        files.append('add_boosted_puncture_z4c')
 
 aux = ["		$(wildcard src/z4c/{}.cpp) \\".format(f) for f in files]
 makefile_options['Z4C_FILES'] = '\n'.join(aux) + '\n'
@@ -1258,6 +1260,10 @@ id_files = []
 makefile_options['ID_FILES'] = ''
 
 if args['prob'] == "gr_rns_tov":
+    id_files.append('rns_id')
+    id_aux = ["                $(wildcard src/hydro/initial_data/{}.cpp) \\".format(f) for f in id_files]
+    makefile_options['ID_FILES'] = ''.join(id_aux) + '\n'
+elif args['prob'] == "gr_pbh_rns":
     id_files.append('rns_id')
     id_aux = ["                $(wildcard src/hydro/initial_data/{}.cpp) \\".format(f) for f in id_files]
     makefile_options['ID_FILES'] = ''.join(id_aux) + '\n'

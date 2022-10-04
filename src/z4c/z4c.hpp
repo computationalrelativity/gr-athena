@@ -334,6 +334,8 @@ public:
 
   // initial data for a single BH
   void ADMOnePuncture(ParameterInput *pin, AthenaArray<Real> & u_adm);
+  void ADMAddBoostedPuncture(ParameterInput *pin, AthenaArray<Real> & u_adm,
+                             AthenaArray<Real>& u_z4c, int index);
   void GaugePreCollapsedLapse(AthenaArray<Real> & u_adm, AthenaArray<Real> & u);
 #ifdef TWO_PUNCTURES
   void ADMTwoPunctures(ParameterInput *pin, AthenaArray<Real> & u_adm, ini_data * data);
