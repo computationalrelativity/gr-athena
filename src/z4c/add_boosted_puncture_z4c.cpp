@@ -102,7 +102,10 @@ void Z4c::ADMAddBoostedPuncture(ParameterInput *pin, AthenaArray<Real>& u_adm,
 
       // Superimpose the puncture on top of the existing spacetime.
       // Also subtract off Minkowski space.
-      z4c.alpha(k,j,i) += alpha - 1.0;
+      // We note that the lapse tends toward zero, so if the PBH is too close to the
+      // neutron star, it results in a negative lapse. Therefore, we put this janky
+      // floor in here to fix that.
+      z4c.alpha(k,j,i) = std::fmax(z4c.alpha(k,j,i) + alpha - 1.0, punc_eps);
       adm.psi4(k,j,i) += psi4;
       for (int a = 0; a < 3; a++) {
         z4c.beta_u(a,k,j,i) += beta_u[a];
@@ -202,15 +205,17 @@ void SetPuncture(Real M, Real eps, Real px[3], Real pv[3], const Real r[3],
   Real riso = std::sqrt(x*x + y*y + z*z);
   riso = std::fmax(riso, eps);
 
+  // Choose precollapsed gauge.
   psi4 = std::pow(1.0 + 0.5*M/riso, 4.0);
-  dalpha[0] = 0.0;
-  dalpha[1] = 0.0;
-  dalpha[2] = 0.0;
+  alpha = 1.0/std::sqrt(psi4);
+
   dpsi4[0] = -2.0*M*std::pow(1.0 + 0.5*M/riso,3.0)/(riso*riso)*x/riso;
   dpsi4[1] = -2.0*M*std::pow(1.0 + 0.5*M/riso,3.0)/(riso*riso)*y/riso;
   dpsi4[2] = -2.0*M*std::pow(1.0 + 0.5*M/riso,3.0)/(riso*riso)*z/riso;
+  dalpha[0] = -0.5*alpha*alpha*alpha*dpsi4[0];
+  dalpha[1] = -0.5*alpha*alpha*alpha*dpsi4[1];
+  dalpha[2] = -0.5*alpha*alpha*alpha*dpsi4[2];
 
-  alpha = 1.0;
 }
 
 void BoostPuncture(Real pv[3], const Real px[3], Real& psi4, Real dpsi4[3],
@@ -218,7 +223,7 @@ void BoostPuncture(Real pv[3], const Real px[3], Real& psi4, Real dpsi4[3],
                    Real K3d[3][3], Real lam[4][4], Real ilam[4][4]) {
   // If there's no boost, this is easy: just set the standard puncture metric and move on.
   if (pv[0] == 0.0 && pv[1] == 0.0 && pv[2] == 0.0) {
-    alpha = 1.0;
+    alpha = 1.0/std::sqrt(psi4);
     beta_u[0] = 0.0;
     beta_u[1] = 0.0;
     beta_u[2] = 0.0;

@@ -135,7 +135,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
   
   // Vertex-centered containers for the metric.
   AthenaArray<Real> vcgamma_xx, vcgamma_xy, vcgamma_xz, vcgamma_yy,
-                    vcgamma_yz, vcgamma_zz, vcchi;
+                    vcgamma_yz, vcgamma_zz, vcchi, vcalpha;
 
   // Operations that change based on whether or not we have coarse variables;
   // this avoids an extra branch during the interpolation loop.
@@ -145,6 +145,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
   // Metric at cell centers.
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> chi;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha;
   gamma_dd.NewAthenaTensor(nn1);
   if (coarse_flag == 0) {
     vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
@@ -153,6 +154,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
     vcgamma_yy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
     vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
     vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
+    //vcalpha.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
     interp = pmy_block_->pz4c->ig;
     auto lambda = [](AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>& gamma_dd,
                      AthenaArray<Real>& vcchi,
@@ -169,6 +171,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
     vcgamma_yy.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gyy,1);
     vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gyz,1);
     vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gzz,1);
+    //vcalpha.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_alpha,1);
     vcchi.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_chi,1);
     interp = pmy_block_->pz4c->ig_coarse;
     auto lambda = [](AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>& gamma_dd,
@@ -208,6 +211,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         gamma_dd(1,1,i) = VCInterpolation(vcgamma_yy, k, j, i);
         gamma_dd(1,2,i) = VCInterpolation(vcgamma_yz, k, j, i);
         gamma_dd(2,2,i) = VCInterpolation(vcgamma_zz, k, j, i);
+        //alpha(i) = VCInterpolation(vcalpha, k, j, i);
         #else
         gamma_dd(0,0,i) = interp->map3d_VC2CC(vcgamma_xx(k,j,i));
         gamma_dd(0,1,i) = interp->map3d_VC2CC(vcgamma_xy(k,j,i));
@@ -215,6 +219,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         gamma_dd(1,1,i) = interp->map3d_VC2CC(vcgamma_yy(k,j,i));
         gamma_dd(1,2,i) = interp->map3d_VC2CC(vcgamma_yz(k,j,i));
         gamma_dd(2,2,i) = interp->map3d_VC2CC(vcgamma_zz(k,j,i));
+        //alpha(i) = interp->map3d_VC2CC(vcalpha, k, j, i);
         #endif
       }
       rescale_metric(gamma_dd, vcchi, chi, interp, il, iu, j, k);
@@ -258,7 +263,10 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         Real b3u[NMAG] = {0.0}; // Assume no magnetic field.
         Primitive::SolverResult result = ps.ConToPrim(prim_pt, cons_pt, b3u, g3d, g3u);
 
-        if(result.error != Primitive::Error::SUCCESS) {
+        // If the lapse or metric determinant fall below zero, we're probably in an
+        // unphysical regime for a fluid, like a black hole or something. Primitive
+        // failure is expected and will just result in a floor being applied.
+        if(result.error != Primitive::Error::SUCCESS && detg > 0) {
           std::cerr << "There was an error during the primitive solve!\n";
           std::cerr << "  Iteration: " << pmy_block_->pmy_mesh->ncycle << "\n";
           std::cerr << "  Error: " << Primitive::ErrorString[(int)result.error] << "\n";
