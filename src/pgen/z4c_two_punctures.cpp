@@ -229,7 +229,7 @@ int RefinementCondition(MeshBlock *pmb)
     ret = LinfBoxInBox(pmb);
   }
   // use L-2 norm as a criteria for refinement
-  else if (pin->GetOrAddString("z4c","refinement","L2") == "L2")
+  else if (pin->GetOrAddString("z4c","refinement","Linf_box_in_box") == "L2")
   {
     ret = L2NormRefine(pmb);
   }
