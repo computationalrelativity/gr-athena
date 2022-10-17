@@ -286,6 +286,42 @@ class Plot:
             fld  = params.output_field+'_L2'
         else:
             raise Exception("No such option {}!".format(type))
+        
+        ## find vmin and vmax
+        vmin = sys.float_info.max
+        vmax = 0
+        for mb in mbs.keys():
+            v = db[fld][mb]
+            if slice.slice_dir == 3:
+                if ng == 0:
+                    vminp = np.amin(v[mbs[mb]['kI'], :, :])
+                    vmaxp = np.amax(v[mbs[mb]['kI'], :, :])
+                else:
+                    vminp = np.amin(v[mbs[mb]['kI'], ng:-ng, ng:-ng])
+                    vmaxp = np.amax(v[mbs[mb]['kI'], ng:-ng, ng:-ng])
+
+            elif slice.slice_dir == 2:
+                if ng == 0:
+                    vminp = np.amin(v[: ,mbs[mb]['jI'], :])
+                    vmaxp = np.amax(v[: ,mbs[mb]['jI'], :])
+                else:
+                    vminp = np.amin(v[ng:-ng ,mbs[mb]['jI'], ng:-ng])
+                    vmaxp = np.amax(v[ng:-ng ,mbs[mb]['jI'], ng:-ng])
+
+            elif slice.slice_dir == 1:
+                if ng == 0:
+                    vminp = np.amin(v[:, :, mbs[mb]['iI']])
+                    vmaxp = np.amax(v[:, :, mbs[mb]['iI']])
+                else:
+                    vminp = np.amin(v[ng:-ng, ng:-ng, mbs[mb]['iI']])
+                    vmaxp = np.amax(v[ng:-ng, ng:-ng, mbs[mb]['iI']])
+
+            else:
+                raise Exception("No such slice {}!".format(slice.slice_dir))
+            
+            vmin = vmin if vmin < vminp else vminp
+            vmax = vmax if vmax > vmaxp else vmaxp
+        
             
         for mb in mbs.keys():
         
@@ -306,27 +342,27 @@ class Plot:
             if slice.slice_dir == 3:
                 X,Y = np.meshgrid(x,y)
                 if ng == 0:
-                    plt.pcolor(Y,X,v[mbs[mb]['kI'], :, :])
+                    plt.pcolor(Y,X,v[mbs[mb]['kI'], :, :],vmin=vmin,vmax=vmax,norm=norm)
                 else:
-                    plt.pcolor(Y,X,v[mbs[mb]['kI'], ng:-ng, ng:-ng])
+                    plt.pcolor(Y,X,v[mbs[mb]['kI'], ng:-ng, ng:-ng],vmin=vmin,vmax=vmax,norm=norm)
                 xlabel="y"
                 ylabel="x"
                 
             elif slice.slice_dir == 2:
                 X,Z = np.meshgrid(x,z)
                 if ng == 0:
-                    plt.pcolor(Z,X,v[: ,mbs[mb]['jI'], :])
+                    plt.pcolor(Z,X,v[: ,mbs[mb]['jI'], :],vmin=vmin,vmax=vmax,norm=norm)
                 else:
-                    plt.pcolor(Z,X,v[ng:-ng ,mbs[mb]['jI'], ng:-ng])
+                    plt.pcolor(Z,X,v[ng:-ng ,mbs[mb]['jI'], ng:-ng],vmin=vmin,vmax=vmax,norm=norm)
                 xlabel="z"
                 ylabel="x"
                 
             elif slice.slice_dir == 1:
                 Y,Z = np.meshgrid(y,z)
                 if ng == 0:
-                    plt.pcolor(Z,Y,v[:, :, mbs[mb]['iI']])
+                    plt.pcolor(Z,Y,v[:, :, mbs[mb]['iI']],vmin=vmin,vmax=vmax,norm=norm)
                 else:
-                    plt.pcolor(Z,Y,v[ng:-ng, ng:-ng, mbs[mb]['iI']])
+                    plt.pcolor(Z,Y,v[ng:-ng, ng:-ng, mbs[mb]['iI']],vmin=vmin,vmax=vmax,norm=norm)
                 xlabel="z"
                 ylabel="y"
                 
@@ -336,7 +372,7 @@ class Plot:
         ax.set_title("cycle:" + cycle + ", slice:{}".format(params.cut))
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
-        plt.colorbar(label=fld,norm=norm,cmap=cmap,orientation="horizontal")
+        plt.colorbar(label=fld,cmap=cmap,orientation="horizontal")
         plt.savefig(output+ "_" + cycle + "." + params.out_format)
         plt.close('all')
 
