@@ -1,0 +1,8 @@
+########################
+## T O  D O   L I S T ##
+########################
+
+o. changing the athena reader file such that not all variables being loaded, 
+   only those we need
+o. multiprocessing
+
