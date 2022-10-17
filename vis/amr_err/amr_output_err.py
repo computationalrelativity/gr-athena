@@ -68,6 +68,8 @@ class Params:
 def L2(params,db,mbs,slice,file):
     db[params.output_field+'_L2'] = np.zeros(shape=db[params.field_name].shape)
 
+    small_norm = 1e-14
+    
     for mb in mbs.keys():
         v = db[params.output_field][mb][ mbs[mb]['kI']:mbs[mb]['kF'],
                                           mbs[mb]['jI']:mbs[mb]['jF'],
@@ -77,6 +79,12 @@ def L2(params,db,mbs,slice,file):
         nz = len(range(mbs[mb]['kI'],mbs[mb]['kF']))
         v_L2 = np.linalg.norm(v)/np.sqrt(nx*ny*nz)
         
+        ## for plotting purposes set it to a small number:
+        if v_L2 == 0:
+            print("NOTE: in meshblock = {} L2-norm({}) = 0! We set it to {:e}.".
+                  format(mb,params.output_field,small_norm))
+            v_L2 = small_norm
+            
         for k in range(mbs[mb]['kI'],mbs[mb]['kF']):
             for j in range(mbs[mb]['jI'],mbs[mb]['jF']):
                 for i in range(mbs[mb]['iI'],mbs[mb]['iF']):
