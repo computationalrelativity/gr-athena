@@ -66,7 +66,7 @@ class Params:
 
 ## calc. the L2 norm and add it to the db. note: this is for a slice
 def L2(params,db,mbs,slice,file):
-    db[params.output_field+'_L2'] = np.zeros(shape=db[params.field_name].shape)
+    db[params.output_field+'_L2'] = np.zeros(shape=db[params.output_field].shape)
 
     small_norm = 1e-14
     
@@ -89,7 +89,14 @@ def L2(params,db,mbs,slice,file):
             for j in range(mbs[mb]['jI'],mbs[mb]['jF']):
                 for i in range(mbs[mb]['iI'],mbs[mb]['iF']):
                     db[params.output_field+'_L2'][mb][k,j,i] = v_L2
-    
+
+## replace the value with abs value
+def Abs(params,db,mbs,slice,file):
+    db[params.output_field+'_abs'] = np.zeros(shape=db[params.output_field].shape)
+
+    for mb in mbs.keys():
+        db[params.output_field+'_abs'][mb] = np.abs(db[params.output_field][mb])
+        
 
 ## region of interest where the mesh-block should reside.
 ## it's simple but one can later make it more flexible for a complex geometry of interest
@@ -250,6 +257,9 @@ class Files:
                                            params.field_name + "_" + params.analysis
             self.files[file]['color_2d_L2'] = params.out_dir + params.out_prefix + \
                                               params.field_name + "_" + params.analysis + "_L2"
+            
+            self.files[file]['color_2d_abs'] = params.out_dir + params.out_prefix + \
+                                              params.field_name + "_" + params.analysis + "_abs"
 
 
 ## plot the quantity of interest
@@ -257,13 +267,19 @@ class Plot:
     def __init__(self,params,db,mbs,slice,file):
         if params.out_format == "txt":
             self.plot_2d_txt(params,db,mbs,slice,file['cycle'],"value",file['txt_2d'])
+
             L2(params,db,mbs,slice,file)
             self.plot_2d_txt(params,db,mbs,slice,file['cycle'],"L2",file['txt_2d_L2'])
             
         elif params.out_format == "pdf" or params.out_format == "png":
             self.plot_2d_color(params,db,mbs,slice,file['cycle'],"value",file['color_2d'])
+
             L2(params,db,mbs,slice,file)
             self.plot_2d_color(params,db,mbs,slice,file['cycle'],"L2",file['color_2d_L2'],
+                               norm=mpl.colors.LogNorm())
+
+            Abs(params,db,mbs,slice,file)
+            self.plot_2d_color(params,db,mbs,slice,file['cycle'],"abs",file['color_2d_abs'],
                                norm=mpl.colors.LogNorm())
 
         else:
@@ -284,6 +300,8 @@ class Plot:
             fld  = params.output_field
         elif type == "L2":
             fld  = params.output_field+'_L2'
+        elif type == "abs":
+            fld  = params.output_field+'_abs'
         else:
             raise Exception("No such option {}!".format(type))
         
