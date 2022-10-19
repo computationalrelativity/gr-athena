@@ -21,7 +21,7 @@ from findiff import FinDiff
 import athena_read
 
 ## global vars. currently there is not argument input for these:
-_deriv_acc = 6   ## derivative accuracy in z4c Athena++
+_deriv_acc = 6   ## derivative accuracy in z4c Athena++ => h^{_deriv_acc}
 _findiff_acc = 4 ## finite difference accuracy here for FinDiff
 _out_prefix  = "err_" ## output file prefix
 _hdf5_suffix = ".athdf" ## suffix of the hdf5 files to glob
