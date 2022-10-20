@@ -26,7 +26,7 @@ class ResetFloor : public ErrorPolicyInterface {
 
     /// Floor for conserved variables
     bool ConservedFloor(Real& D, Real Sd[3], Real& tau, Real *Y, Real D_floor, 
-                        Real tau_floor, int n_species);
+                        Real tau_floor, Real tau_abs_floor, int n_species);
 
     /// Response to excess magnetization
     Error MagnetizationResponse(Real& bsq, Real b_u[3]);

@@ -282,18 +282,20 @@ class EOS : public EOSPolicy, public ErrorPolicy {
       return result;
     }
 
-    //! \fn bool ApplyConservedFloor(Real& D, Real& Sd[3], Real& tau, Real& Bu[3])
+    //! \fn bool ApplyConservedFloor(Real& D, Real& Sd[3], Real& tau, Real *Y, Real Bsq)
     //  \brief Apply the floor to the conserved variables (in code units).
     //
     //  \param[in,out] D   The relativistic number density
     //  \param[in,out] Sd  The momentum density vector (covariant)
     //  \param[in,out] tau The tau variable (relativistic energy - D)
-    //  \param[in,out] Bu  The magnetic field vector (contravariant)
     //  \param[in]     Y   An array of size_species of the particle fractions.
+    //  \param[in]     Bsq The norm of the magnetic field
     //
     //  \return true if the conserved variables were adjusted, false otherwise.
-    inline bool ApplyConservedFloor(Real& D, Real Sd[3], Real& tau, Real *Y) {
-      return ConservedFloor(D, Sd, tau, Y, n_atm*GetBaryonMass(), GetTauFloor(D, Y), n_species);
+    inline bool ApplyConservedFloor(Real& D, Real Sd[3], Real& tau, Real *Y, Real Bsq) {
+      return ConservedFloor(D, Sd, tau, Y, n_atm*GetBaryonMass(),
+                            GetTauFloor(D, Y, Bsq),
+                            GetTauFloor(n_atm*GetBaryonMass(), Y_atm, Bsq), n_species);
     }
 
     //! \fn Real GetDensityFloor() const
@@ -321,14 +323,14 @@ class EOS : public EOSPolicy, public ErrorPolicy {
       return n_threshold;
     }
 
-    //! \fn Real GetTauFloor() const
+    //! \fn Real GetTauFloor(Real D, Real *Y, Real Bsq)
     //  \brief Get the tau floor used by the EOS ErrorPolicy based
     //         on the current particle composition.
     //
     //  \param[in] Y A n_species-sized array of particle fractions.
-    inline Real GetTauFloor(Real D, Real *Y) {
+    inline Real GetTauFloor(Real D, Real *Y, Real Bsq) {
       return GetEnergy(D/GetBaryonMass(), min_T, Y) * 
-             eos_units->PressureConversion(*code_units) - D;
+             eos_units->PressureConversion(*code_units) - D + 0.5*Bsq;
     }
 
     //! \fn void SetDensityFloor(Real floor)

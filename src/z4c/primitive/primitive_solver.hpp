@@ -357,7 +357,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
 
   // Check the conserved variables for consistency and do whatever
   // the EOSPolicy wants us to.
-  bool floored = peos->ApplyConservedFloor(D, S_d, tau, Y);
+  bool floored = peos->ApplyConservedFloor(D, S_d, tau, Y, SquareVector(B_u, g3d));
   solver_result.cons_floor = floored;
   if (floored && peos->IsConservedFlooringFailure()) {
     HandleFailure(prim, cons, b, g3d);
