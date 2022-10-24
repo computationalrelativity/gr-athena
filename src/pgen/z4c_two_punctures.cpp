@@ -498,7 +498,6 @@ static int FDErrorApprox(MeshBlock *pmy_block)
   double L2_norm = 0.;
 
   // calc. L2 norm of ( d0^2 f + d1^2 f + d2^2 f )^3
-  
   ILOOP2(k,j)
   {
     for(int a = 0; a < NDIM; ++a) 
