@@ -39,6 +39,7 @@ class Params:
     out_format  = "txt"    ## plot format pdf, png, and txt
     out_prefix  = _out_prefix   ## prefix of output files
     hdf5_suffix = _hdf5_suffix  ## suffix of the hdf5 files to glob
+    resolution = None ## resolution of the run, e.g., 128, 96,...
     field_name = None ## the field to plot, z4c.chi and etc.
     cut        = None ## slice of 3d data, 
     step       = None ## reading files every step
@@ -63,6 +64,8 @@ class Params:
         self.radius     = args.r
         self.analysis   = args.a
         self.findiff_ord = args.d
+        self.resolution = args.e
+        
 
 ## calc. the L2 norm and add it to the db. note: this is for a slice
 def L2(params,db,mbs,slice,file):
@@ -89,6 +92,25 @@ def L2(params,db,mbs,slice,file):
             for j in range(mbs[mb]['jI'],mbs[mb]['jF']):
                 for i in range(mbs[mb]['iI'],mbs[mb]['iF']):
                     db[params.output_field+'_L2'][mb][k,j,i] = v_L2
+
+## calc. the L2 norm average: (1/nmb * sum_m {L2_m}^2)^0.5 for all meshblocks.
+def L2_avg(params,db,mbs):
+    L2_avg = 0.
+
+    for mb in mbs.keys():
+        v = db[params.output_field][mb][ mbs[mb]['kI']:mbs[mb]['kF'],
+                                          mbs[mb]['jI']:mbs[mb]['jF'],
+                                          mbs[mb]['iI']:mbs[mb]['iF']]
+        nx = len(range(mbs[mb]['iI'],mbs[mb]['iF']))
+        ny = len(range(mbs[mb]['jI'],mbs[mb]['jF']))
+        nz = len(range(mbs[mb]['kI'],mbs[mb]['kF']))
+        v_L2 = np.linalg.norm(v)
+        ## note: it includes puncture error
+        L2_avg += v_L2**2/(nx*ny*nz)
+        
+    L2_avg = (L2_avg/len(mbs.keys()))**(0.5)
+    
+    return L2_avg
 
 ## replace the value with abs value
 def Abs(params,db,mbs,slice,file):
@@ -436,6 +458,12 @@ class Plot:
                 raise Exception("No such slice {}!".format(slice.slice_dir))
 
         txt_file.close()
+        
+        if type == 'L2':
+            txt_file = open(output+'_L2_arg',"a")
+            txt_file.write("# \"time = {}\"\n".format(cycle))
+            txt_file.write("{} {}\n".format(params.resolution, L2_avg(params,db,mbs) ))
+            txt_file.close()
 
 ## do the post processing here
 class Analysis:
@@ -473,11 +501,15 @@ class Analysis:
                 dx = x[1]-x[0]
                 dy = y[1]-y[0]
                 h = max(dx,dy)
-                op = FinDiff(1,dx,params.findiff_ord,acc=params.findiff_acc) + \
-                     FinDiff(0,dy,params.findiff_ord,acc=params.findiff_acc)
                 
-                dv = op(v)
-                dv *= (h**params.deriv_acc)/2.
+                op1 = 0.5*FinDiff(1,dx,params.findiff_ord,acc=params.findiff_acc)
+                op0 = 0.5*FinDiff(0,dy,params.findiff_ord,acc=params.findiff_acc)
+                
+                dv1 = op1(v)
+                dv0 = op0(v)
+                
+                dv = (h**params.deriv_acc) * (dv1+dv0)**(3)
+                
                 for k in range(mbs[mb]['kI'],mbs[mb]['kF']):
                     for j in range(mbs[mb]['jI'],mbs[mb]['jF']):
                         for i in range(mbs[mb]['iI'],mbs[mb]['iF']):
@@ -491,11 +523,15 @@ class Analysis:
                 dx = x[1]-x[0]
                 dz = z[1]-z[0]
                 h = max(dx,dz)
-                op = FinDiff(1,dx,params.findiff_ord,acc=params.findiff_acc) + \
-                     FinDiff(0,dz,params.findiff_ord,acc=params.findiff_acc)
                 
-                dv = op(v)
-                dv *= (h**params.deriv_acc)/2.
+                op1 = 0.5*FinDiff(1,dx,params.findiff_ord,acc=params.findiff_acc)
+                op0 = 0.5*FinDiff(0,dz,params.findiff_ord,acc=params.findiff_acc)
+                
+                dv1 = op1(v)
+                dv0 = op0(v)
+                
+                dv = (h**params.deriv_acc) * (dv1+dv0)**(3)
+                
                 for k in range(mbs[mb]['kI'],mbs[mb]['kF']):
                     for j in range(mbs[mb]['jI'],mbs[mb]['jF']):
                         for i in range(mbs[mb]['iI'],mbs[mb]['iF']):
@@ -508,11 +544,15 @@ class Analysis:
                 dz = z[1]-z[0]
                 dy = y[1]-y[0]
                 h = max(dz,dy)
-                op = FinDiff(1,dy,params.findiff_ord,acc=params.findiff_acc) + \
-                     FinDiff(0,dz,params.findiff_ord,acc=params.findiff_acc)
                 
-                dv = op(v)
-                dv *= (h**params.deriv_acc)/2.
+                op1 = 0.5*FinDiff(1,dy,params.findiff_ord,acc=params.findiff_acc)
+                op0 = 0.5*FinDiff(0,dz,params.findiff_ord,acc=params.findiff_acc)
+                
+                dv1 = op1(v)
+                dv0 = op0(v)
+                
+                dv = (h**params.deriv_acc) * (dv1+dv0)**(3)
+                
                 for k in range(mbs[mb]['kI'],mbs[mb]['kF']):
                     for j in range(mbs[mb]['jI'],mbs[mb]['jF']):
                         for i in range(mbs[mb]['iI'],mbs[mb]['iF']):
@@ -526,10 +566,11 @@ class Analysis:
 
 ## --------------------------------------------------------------------------------
 if __name__=="__main__":
-    ## read and pars input args (we're running out of letter!)
+    ## read and pars input args (we're running out of letter!!)
     p = argparse.ArgumentParser(description="Plotting errors in a BBH Athena++ run.")
     p.add_argument("-i",type=str,required=True,help="path/to/hdf5/dir")
     p.add_argument("-o",type=str,required=True,help="path/to/output/dir")
+    p.add_argument("-e",type=int,required=True, help="resolution of the run, e.g., 128, 96,...")
     p.add_argument("-p",type=str,required=True,help="hdf5 prefix, e.g., 'z4c_z' or 'adm'.")
     p.add_argument("-f",type=str,default = "txt" , help="output format = {pdf,png,txt}.")
     p.add_argument("-n",type=str,default = "z4c.chi" , help="field name, e.g., z4c.chi, con.H.")
