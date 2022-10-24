@@ -40,6 +40,7 @@ class Params:
     out_prefix  = _out_prefix   ## prefix of output files
     hdf5_suffix = _hdf5_suffix  ## suffix of the hdf5 files to glob
     resolution = None ## resolution of the run, e.g., 128, 96,...
+    deriv_pow  = None ##  The results are powered to the m-th.
     field_name = None ## the field to plot, z4c.chi and etc.
     cut        = None ## slice of 3d data, 
     step       = None ## reading files every step
@@ -65,6 +66,7 @@ class Params:
         self.analysis   = args.a
         self.findiff_ord = args.d
         self.resolution = args.e
+        self.deriv_pow  = args.m
         
 
 ## calc. the L2 norm and add it to the db. note: this is for a slice
@@ -508,7 +510,7 @@ class Analysis:
                 dv1 = op1(v)
                 dv0 = op0(v)
                 
-                dv = (h**params.deriv_acc) * (dv1+dv0)**(3)
+                dv = (h**params.deriv_acc) * ( dv1**(params.deriv_pow) + dv0**(params.deriv_pow) )
                 
                 for k in range(mbs[mb]['kI'],mbs[mb]['kF']):
                     for j in range(mbs[mb]['jI'],mbs[mb]['jF']):
@@ -530,7 +532,7 @@ class Analysis:
                 dv1 = op1(v)
                 dv0 = op0(v)
                 
-                dv = (h**params.deriv_acc) * (dv1+dv0)**(3)
+                dv = (h**params.deriv_acc) * ( dv1**(params.deriv_pow) + dv0**(params.deriv_pow) )
                 
                 for k in range(mbs[mb]['kI'],mbs[mb]['kF']):
                     for j in range(mbs[mb]['jI'],mbs[mb]['jF']):
@@ -551,7 +553,7 @@ class Analysis:
                 dv1 = op1(v)
                 dv0 = op0(v)
                 
-                dv = (h**params.deriv_acc) * (dv1+dv0)**(3)
+                dv = (h**params.deriv_acc) * ( dv1**(params.deriv_pow) + dv0**(params.deriv_pow) )
                 
                 for k in range(mbs[mb]['kI'],mbs[mb]['kF']):
                     for j in range(mbs[mb]['jI'],mbs[mb]['jF']):
@@ -580,6 +582,7 @@ if __name__=="__main__":
     p.add_argument("-r",type=float,default = 5.0,help="select all meshblocks whose radii are <= this value.")
     p.add_argument("-a",type=str,default = "plot",help="analysis = {plot,der}.")
     p.add_argument("-d",type=int,default = 2, help="derivative order.")
+    p.add_argument("-m",type=float,default = 1, help="derivative power. The results are powered to the m-th.")
     
     args = p.parse_args()
 
