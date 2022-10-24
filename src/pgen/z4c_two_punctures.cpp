@@ -492,8 +492,60 @@ static int L2NormRefine(MeshBlock *pmb)
 static int FDErrorApprox(MeshBlock *pmb)
 {
   std::cout << __FUNCTION__ << std::endl;
-
+  
+  const int npts = ; // total # of pnts in this meshblock
   int ret = 0;
+
+  //for this meshblock:
+  
+  // calc. 2nd order derivative of chi
+  ILOOP2(k,j)
+  {
+    for(int a = 0; a < NDIM; ++a) 
+    {
+      ILOOP1(i)
+      {
+        dchi(a,i)   = FD.Dx(a, z4c.chi(k,j,i));
+      }
+    }
+
+    for(int a = 0; a < NDIM; ++a) 
+    {
+      ILOOP1(i)
+      {
+        ddchi(a,a,i) = FD.Dxx(a, z4c.chi(k,j,i));
+      }
+      for(int b = a + 1; b < NDIM; ++b)
+      {
+        ILOOP1(i)
+        {
+          ddchi(a,b,i) = FD.Dxy(a, b, z4c.chi(k,j,i));
+        }
+      }
+    }// end of for(int a = 0; a < NDIM; ++a)
+    
+    ddchi_dd(a,b,k,j,i) = ddchi(a,b,i);
+  }// end of ILOOP2(k,j)
+
+  // calc. L2 norm of ( d0^2 f + d1^2 f + d2^2 f )^3
+  L2_norm = 0
+  
+  ILOOP2(k,j)
+  {
+    for(int a = 0; a < NDIM; ++a) 
+    {
+      ILOOP1(i)
+      {
+        L2_norm += std::pow(ddchi_dd(a,a,k,j,i),2);
+      }
+    }
+  }// end of ILOOP2(k,j)
+
+  L2_norm /= npts;
+  L2_norm = std::sqrt(L2_norm);
+  
+  // if it's bigger than the specified params then refine;
+  // if it's smaller, de-refine
   
   return ret;
   
