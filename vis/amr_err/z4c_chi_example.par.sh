@@ -27,8 +27,8 @@ PYTHONPATH=:${PYTHONPATH}:${athena_path}:
 export PYTHONPATH
 
 ## run the script:
-python3 "${amr_py_path}/amr_output_err.py" -i  "${hdf5_dir}" -o "${out_dir}" \
--p "z4c_z" -s "1" -f "png" -c "z=0" -r "5" -a "der" -d "2" -g "4" -n "z4c.chi"
+python3 "${amr_py_path}/amr_output_err.py" -i  "${hdf5_dir}" -o "${out_dir}" -e "128" \
+-p "z4c_z" -s "1" -f "png" -c "z=0" -r "10" -a "der" -d "2" -m "3" -g "4" -n "z4c.chi"
 
 
 ##########
