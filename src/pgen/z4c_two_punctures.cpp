@@ -489,46 +489,15 @@ static int L2NormRefine(MeshBlock *pmb)
 
 // using the FD error as an approximation of the error in the meshblock.
 // if this error falls below a prescribed value, the meshblock should be refined.
-static int FDErrorApprox(MeshBlock *pmb)
+static int FDErrorApprox(MeshBlock *pmy_block)
 {
   std::cout << __FUNCTION__ << std::endl;
   
-  const int npts = ; // total # of pnts in this meshblock
   int ret = 0;
-
-  //for this meshblock:
-  
-  // calc. 2nd order derivative of chi
-  ILOOP2(k,j)
-  {
-    for(int a = 0; a < NDIM; ++a) 
-    {
-      ILOOP1(i)
-      {
-        dchi(a,i)   = FD.Dx(a, z4c.chi(k,j,i));
-      }
-    }
-
-    for(int a = 0; a < NDIM; ++a) 
-    {
-      ILOOP1(i)
-      {
-        ddchi(a,a,i) = FD.Dxx(a, z4c.chi(k,j,i));
-      }
-      for(int b = a + 1; b < NDIM; ++b)
-      {
-        ILOOP1(i)
-        {
-          ddchi(a,b,i) = FD.Dxy(a, b, z4c.chi(k,j,i));
-        }
-      }
-    }// end of for(int a = 0; a < NDIM; ++a)
-    
-    ddchi_dd(a,b,k,j,i) = ddchi(a,b,i);
-  }// end of ILOOP2(k,j)
+  const int npts = pmy_block->nverts1*pmy_block->nverts2*pmy_block->nverts3;
+  double L2_norm = 0.;
 
   // calc. L2 norm of ( d0^2 f + d1^2 f + d2^2 f )^3
-  L2_norm = 0
   
   ILOOP2(k,j)
   {
