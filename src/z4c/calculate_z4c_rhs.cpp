@@ -99,12 +99,12 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
     for(int a = 0; a < NDIM; ++a) {
       ILOOP1(i) {
         ddalpha_dd(a,a,i) = FD.Dxx(a, z4c.alpha(k,j,i));
-        ddchi_dd(a,a,i) = FD.Dxx(a, z4c.chi(k,j,i));
+        ddchi_dd(a,a,k,j,i) = FD.Dxx(a, z4c.chi(k,j,i));
       }
       for(int b = a + 1; b < NDIM; ++b) {
         ILOOP1(i) {
           ddalpha_dd(a,b,i) = FD.Dxy(a, b, z4c.alpha(k,j,i));
-          ddchi_dd(a,b,i) = FD.Dxy(a, b, z4c.chi(k,j,i));
+          ddchi_dd(a,b,k,j,i) = FD.Dxy(a, b, z4c.chi(k,j,i));
         }
       }
     }
@@ -273,7 +273,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b) {
       ILOOP1(i) {
-        Real const ddphi_ab = ddchi_dd(a,b,i)/(chi_guarded(i) * opt.chi_psi_power) -
+        Real const ddphi_ab = ddchi_dd(a,b,k,j,i)/(chi_guarded(i) * opt.chi_psi_power) -
           opt.chi_psi_power * dphi_d(a,i) * dphi_d(b,i);
         Ddphi_dd(a,b,i) = ddphi_ab;
       }

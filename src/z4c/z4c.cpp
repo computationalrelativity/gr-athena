@@ -227,7 +227,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   dTheta_d.NewAthenaTensor(pmb->nverts1);
   ddalpha_dd.NewAthenaTensor(pmb->nverts1);
   dbeta_du.NewAthenaTensor(pmb->nverts1);
-  ddchi_dd.NewAthenaTensor(pmb->nverts1);
+  ddchi_dd.NewAthenaTensor(pmb->nverts3,pmb->nverts2,pmb->nverts1);
   dGam_du.NewAthenaTensor(pmb->nverts1);
   dg_ddd.NewAthenaTensor(pmb->nverts1);
   dK_ddd.NewAthenaTensor(pmb->nverts1);
