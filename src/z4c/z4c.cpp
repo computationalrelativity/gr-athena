@@ -228,7 +228,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   ddalpha_dd.NewAthenaTensor(pmb->nverts1);
   dbeta_du.NewAthenaTensor(pmb->nverts1);
   ddchi_dd.NewAthenaTensor(pmb->nverts3,pmb->nverts2,pmb->nverts1);
-  ddchi_ddpow.NewAthenaTensor(pmb->nverts3,pmb->nverts2,pmb->nverts1);
+  ddchi_pow.NewAthenaTensor(pmb->nverts3,pmb->nverts2,pmb->nverts1);
   dGam_du.NewAthenaTensor(pmb->nverts1);
   dg_ddd.NewAthenaTensor(pmb->nverts1);
   dK_ddd.NewAthenaTensor(pmb->nverts1);
@@ -362,7 +362,7 @@ Z4c::~Z4c()
   ddalpha_dd.DeleteAthenaTensor();
   dbeta_du.DeleteAthenaTensor();
   ddchi_dd.DeleteAthenaTensor();
-  ddchi_ddpow.DeleteAthenaTensor();
+  ddchi_pow.DeleteAthenaTensor();
   dGam_du.DeleteAthenaTensor();
   dg_ddd.DeleteAthenaTensor();
   dK_ddd.DeleteAthenaTensor();
@@ -526,21 +526,29 @@ double Z4c:: L2_deriv_pow(MeshBlock *const pmy_block, const int p)
       ILOOP1(i) {
         ddchi_dd(a,a,k,j,i) = FD.Dxx(a, z4c.chi(k,j,i));
       }
-      for(int b = a + 1; b < NDIM; ++b) {
-        ILOOP1(i) {
-          ddchi_dd(a,b,k,j,i) = FD.Dxy(a, b, z4c.chi(k,j,i));
-        }
+      // don't calc. the mix derivs.
+      //for(int b = a + 1; b < NDIM; ++b) {
+        //ILOOP1(i) {
+          //ddchi_dd(a,b,k,j,i) = FD.Dxy(a, b, z4c.chi(k,j,i));
+        //}
+      //}
+    }
+  }
+  
+  // take the derivs to the power p
+  ddchi_pow.Fill(NAN);
+  ILOOP2(k,j) {
+    for(int a = 0; a < NDIM; ++a) {
+      ILOOP1(i) {
+        ddchi_pow(k,j,i) += std::pow(ddchi_dd(a,a,k,j,i),p);
       }
     }
   }
 
-  //ddchi_ddpow.Fill(NAN);
   // L2 norm  
   ILOOP2(k,j) {
-    for(int a = 0; a < NDIM; ++a) {
-      ILOOP1(i) {
-        ddchi_ddpow(a,a,k,j,i) = std::pow(ddchi_dd(a,a,k,j,i),p);
-      }
+    ILOOP1(i) {
+      L2_norm += std::pow(ddchi_pow(k,j,i),2);
     }
   }
   
