@@ -503,3 +503,29 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
     }
   }
 }
+
+//----------------------------------------------------------------------------------------
+// \!fn void Z4c:: L2_deriv_pow(MeshBlock *const pmy_block, const int p)
+// \brief returning the L2 norm of error
+//
+
+double Z4c:: L2_deriv_pow(MeshBlock *const pmy_block, const int p)
+{
+  double L2_norm = 0.;
+  const int npts = pmy_block->nverts1*pmy_block->nverts2*pmy_block->nverts3;
+  
+  ILOOP2(k,j) {
+    for(int a = 0; a < NDIM; ++a) {
+      ILOOP1(i) {
+        L2_norm += std::pow(ddchi_dd(a,a,k,j,i),p);
+      }
+    }
+  }
+  
+  L2_norm /= npts;
+  L2_norm = std::sqrt(L2_norm);
+
+  return L2_norm;
+}
+
+  
