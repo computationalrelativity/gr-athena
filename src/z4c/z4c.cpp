@@ -513,10 +513,10 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
 
 double Z4c:: L2_deriv_pow(MeshBlock *const pmy_block, const int p)
 {
-  double L2_norm = 0.;
-  double deriv_pow = 0.;
   Z4c_vars z4c;
-  const int npts = pmy_block->nverts1*pmy_block->nverts2*pmy_block->nverts3;
+  double L2_norm = 0.;
+  const int npts = (IX_KU-IX_KL)*(IX_JU-IX_KL)*(IX_IU-IX_IL);
+  double h1, h2, h3, hmax; // grid space
   
   z4c.chi.InitWithShallowSlice(pmy_block->pz4c->storage.u, I_Z4c_chi);
   
@@ -536,7 +536,7 @@ double Z4c:: L2_deriv_pow(MeshBlock *const pmy_block, const int p)
   }
   
   // take the derivs to the power p
-  ddchi_pow.Fill(NAN);
+  ddchi_pow.Fill(0);
   ILOOP2(k,j) {
     for(int a = 0; a < NDIM; ++a) {
       ILOOP1(i) {
@@ -545,14 +545,21 @@ double Z4c:: L2_deriv_pow(MeshBlock *const pmy_block, const int p)
     }
   }
 
+  // find grid space
+  h1 = pmy_block->pcoord->x1f(1)-pmy_block->pcoord->x1f(0);
+  h2 = pmy_block->pcoord->x2f(1)-pmy_block->pcoord->x2f(0);
+  h3 = pmy_block->pcoord->x3f(1)-pmy_block->pcoord->x3f(0);
+  hmax = std::max(h1,h2);
+  hmax = std::max(hmax,h3);
+  
   // L2 norm  
   ILOOP2(k,j) {
     ILOOP1(i) {
       L2_norm += std::pow(ddchi_pow(k,j,i),2);
     }
   }
-  
   L2_norm /= npts;
+  L2_norm *= std::pow(hmax,6);
   L2_norm = std::sqrt(L2_norm);
 
   return L2_norm;
