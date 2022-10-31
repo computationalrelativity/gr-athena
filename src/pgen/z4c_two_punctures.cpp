@@ -518,17 +518,17 @@ static int FDErrorApprox(MeshBlock *pmb)
   if (err > ref_tol)
   {
     ret = 1.;
-    printf("(err,ref-tol) = (%e,%e) => refine me!\n",err,ref_tol);
+    printf("err > ref-tol:   %e > %e  ==> refine me!\n",err,ref_tol);
   }
   else if (err < dref_tol)
   {
     ret = -1;
-    printf("(err,deref-tol) = (%e,%e) => derefine me!\n",err,dref_tol);
+    printf("err < deref-tol: %e < %e  ==> derefine me!\n",err,dref_tol);
   }
   else 
   {
     ret = 0;
-    printf("(err,ref-tol,dref-tol) = (%e,%e,%e) => I'm good!\n",err,ref_tol,dref_tol);
+    printf("dref-tol <= err <= ref-tol: %e <= %e <= %e ==> I'm good!\n",dref_tol,err,ref_tol);
   }
   
   fflush(stdout);
