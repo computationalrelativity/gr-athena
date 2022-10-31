@@ -789,7 +789,7 @@ if args['debug']:
             or args['cxx'] == 'icpc' or args['cxx'] == 'icpc-debug'
             or args['cxx'] == 'clang++' or args['cxx'] == 'clang++-simd'
             or args['cxx'] == 'clang++-apple'):
-        makefile_options['COMPILER_FLAGS'] = '-O0 --std=c++11 -g'  # -Og
+        makefile_options['COMPILER_FLAGS'] = '-O0 --std=c++11 -g3'  # -Og
         makefile_options['LINKER_FLAGS'] = '-rdynamic'
     if args['cxx'] == 'cray':
         makefile_options['COMPILER_FLAGS'] = '-O0 -h std=c++11'
