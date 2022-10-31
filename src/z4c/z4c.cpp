@@ -507,11 +507,11 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn void Z4c:: L2_deriv_pow(MeshBlock *const pmy_block, const int p)
+// \!fn void Z4c:: amr_err_L2_ddchi_pow(MeshBlock *const pmy_block, const int p)
 // \brief returning the L2 norm of error
 //
 
-double Z4c:: L2_deriv_pow(MeshBlock *const pmy_block, const int p)
+double Z4c::amr_err_L2_ddchi_pow(MeshBlock *const pmy_block, const int p)
 {
   Z4c_vars z4c;
   double L2_norm = 0.;

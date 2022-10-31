@@ -512,7 +512,7 @@ static int FDErrorApprox(MeshBlock *pmb)
   L2_norm = std::sqrt(L2_norm);
   
   // calc. err
-  err = pmb->pz4c->L2_deriv_pow(pmb,3);
+  err = pmb->pz4c->amr_err_L2_ddchi_pow(pmb,3);
   
   // if it's bigger than the specified params then refine;
   if (err > ref_tol)
