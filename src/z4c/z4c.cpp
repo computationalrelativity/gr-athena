@@ -538,14 +538,14 @@ double Z4c:: L2_deriv_pow(MeshBlock *const pmy_block, const int p)
   // take the derivs to the power p
   ddchi_pow.Fill(0);
   ILOOP2(k,j) {
-    for(int a = 0; a < NDIM; ++a) {
-      ILOOP1(i) {
+    ILOOP1(i) {
+      for(int a = 0; a < NDIM; ++a) {
         ddchi_pow(k,j,i) += std::pow(ddchi_dd(a,a,k,j,i),p);
       }
     }
   }
 
-  // find grid space
+  // find grid spaces
   h1 = pmy_block->pcoord->x1f(1)-pmy_block->pcoord->x1f(0);
   h2 = pmy_block->pcoord->x2f(1)-pmy_block->pcoord->x2f(0);
   h3 = pmy_block->pcoord->x3f(1)-pmy_block->pcoord->x3f(0);
