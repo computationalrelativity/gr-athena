@@ -82,11 +82,11 @@ void Reconstruction::WenoX1(
       Real rui = q(n,k,j,i);
       Real ruipo = q(n,k,j,i+1);
       Real ruipt = q(n,k,j,i+2);
-      ql(n,i) = rec1d_p_weno5(luimt,luimo,lui,luipo,luipt);
-      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_weno5(luimt,luimo,lui,luipo,luipt);
+//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
 //    possible other reconstruction routines for testing - to be separated into separate callable reconstruction routines
-//      ql(n,i) = rec1d_p_wenoz(luimt,luimo,lui,luipo,luipt);
-//      qr(n,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+      ql(n,i) = rec1d_p_wenoz(luimt,luimo,lui,luipo,luipt);
+      qr(n,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
 //      ql(n,i) = rec1d_p_mp5(luimt,luimo,lui,luipo,luipt);
 //      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
 //      ql(n,i) = rec1d_p_ceno3(luimt,luimo,lui,luipo,luipt);
@@ -120,13 +120,13 @@ void Reconstruction::WenoX2(
       Real rui = q(n,k,j,i);
       Real ruipo = q(n,k,j+1,i);
       Real ruipt = q(n,k,j+2,i);
-      ql(n,i) = rec1d_p_weno5(luimt,luimo,lui,luipo,luipt);
-      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_wenoz(luimt,luimo,lui,luipo,luipt);
-//      qr(n,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_mp5(luimt,luimo,lui,luipo,luipt);
+//      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+      ql(n,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+      qr(n,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
 //      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_ceno3(luimt,luimo,lui,luipo,luipt);
+//      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
 //      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
     }
   }
@@ -159,13 +159,13 @@ void Reconstruction::WenoX3(
       Real rui = q(n,k,j,i);
       Real ruipo = q(n,k+1,j,i);
       Real ruipt = q(n,k+2,j,i);
-      ql(n,i) = rec1d_p_weno5(luimt,luimo,lui,luipo,luipt);
-      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_wenoz(luimt,luimo,lui,luipo,luipt);
-//      qr(n,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_mp5(luimt,luimo,lui,luipo,luipt);
+//      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+      ql(n,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+      qr(n,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
 //      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_ceno3(luimt,luimo,lui,luipo,luipt);
+//      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
 //      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
     }
   }
