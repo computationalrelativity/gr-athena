@@ -21,10 +21,19 @@
 
 using namespace std;
 
+int RefinementCondition(MeshBlock *pmb);
+
 //========================================================================================
 //! \fn void MeshBlock::ProblemGenerator(ParameterInput *pin)
 //  \brief Sets the initial conditions.
 //========================================================================================
+
+void Mesh::InitUserMeshData(ParameterInput *pin)
+{
+  if(adaptive==true)
+    EnrollUserRefinementCondition(RefinementCondition);
+
+}
 
 void MeshBlock::ProblemGenerator(ParameterInput *pin)
 {
