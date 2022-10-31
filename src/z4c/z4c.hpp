@@ -222,7 +222,7 @@ public:
   int refinement_idx{-1};
 
   // returning the L2 norm of: 
-  // ( (d^n fld/dx^n)^p + (d^n fld/dy^n)^p + (d^n fld/dz^n)^p )
+  // h^6 * ( (d^n fld/dx^n)^p + (d^n fld/dy^n)^p + (d^n fld/dz^n)^p )
   double L2_deriv_pow(MeshBlock *const pmy_block, const int p);
   
 public:
