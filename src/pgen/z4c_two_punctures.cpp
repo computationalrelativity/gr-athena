@@ -23,9 +23,9 @@
 // twopuncturesc: Stand-alone library ripped from Cactus
 #include "TwoPunctures.h"
 
-using namespace std;
+//using namespace std;
 
-int RefinementCondition(MeshBlock *pmb);
+static int RefinementCondition(MeshBlock *pmb);
 static int LinfBoxInBox(MeshBlock *pmb);
 static int L2NormRefine(MeshBlock *pmb);
 static int FDErrorApprox(MeshBlock *pmb);
@@ -47,7 +47,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 {
     par_b = pin->GetOrAddReal("problem", "par_b", 1.);
     if (!resume_flag) {
-      string set_name = "problem";
+      std::string set_name = "problem";
       TwoPunctures_params_set_default();
       TwoPunctures_params_set_Boolean((char *) "verbose",
                                   pin->GetOrAddBoolean(set_name, "verbose", 0));
@@ -210,7 +210,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 }
 
 // 1: refines, -1: de-refines, 0: does nothing
-int RefinementCondition(MeshBlock *pmb)
+static int RefinementCondition(MeshBlock *pmb)
 {
   int ret = 0;
   ParameterInput *const pin = pmb->pmy_in;
@@ -240,7 +240,7 @@ int RefinementCondition(MeshBlock *pmb)
   }
   else
   {
-    stringstream msg;
+    std::stringstream msg;
     msg << "No such option for z4c/refinement" << std::endl;
     ATHENA_ERROR(msg);
   }
@@ -391,7 +391,7 @@ static int LinfBoxInBox(MeshBlock *pmb)
 // L-2 norm for refinement
 static int L2NormRefine(MeshBlock *pmb)
 {
-  cout << __FUNCTION__ << std::endl;
+  std::cout << __FUNCTION__ << std::endl;
   
   int root_lev = pmb->pmy_mesh->GetRootLevel();
   int level = pmb->loc.level - root_lev;
