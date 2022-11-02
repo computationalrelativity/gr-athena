@@ -1234,12 +1234,12 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
 
 //printf("prim\n");
   int il = pmb->is, iu = pmb->ie, jl = pmb->js, ju = pmb->je, kl = pmb->ks, ku = pmb->ke;
-  if (pbval->nblevel[1][1][0] != -1) il -= NGHOST;
-  if (pbval->nblevel[1][1][2] != -1) iu += NGHOST;
-  if (pbval->nblevel[1][0][1] != -1) jl -= NGHOST;
-  if (pbval->nblevel[1][2][1] != -1) ju += NGHOST;
-  if (pbval->nblevel[0][1][1] != -1) kl -= NGHOST;
-  if (pbval->nblevel[2][1][1] != -1) ku += NGHOST;
+  if (pbval->nblevel[1][1][0] != -1) il -= NGHOST - 1;
+  if (pbval->nblevel[1][1][2] != -1) iu += NGHOST - 1;
+  if (pbval->nblevel[1][0][1] != -1) jl -= NGHOST - 1;
+  if (pbval->nblevel[1][2][1] != -1) ju += NGHOST - 1;
+  if (pbval->nblevel[0][1][1] != -1) kl -= NGHOST - 1;
+  if (pbval->nblevel[2][1][1] != -1) ku += NGHOST - 1;
 
 //  int il = pmb->is-NGHOST, iu = pmb->ie+NGHOST, jl = pmb->js-NGHOST, ju = pmb->je+NGHOST, kl = pmb->ks-NGHOST, ku = pmb->ke+NGHOST;
 
