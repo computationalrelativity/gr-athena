@@ -120,9 +120,17 @@ int main(int argc, char *argv[]) {
     MPI_Finalize();
     return(0);
   }
+
+  // Get the maximum MPI tag
+  void * value;
+  int flag;
+  MPI_Comm_get_attr(MPI_COMM_WORLD, MPI_TAG_UB, &value, &flag);
+  Globals::mpi_tag_ub = *(int *)value;
+
 #else  // no MPI
   Globals::my_rank = 0;
   Globals::nranks  = 1;
+  Globals::mpi_tag_ub = 0;
 #endif  // MPI_PARALLEL
 
   //--- Step 2. --------------------------------------------------------------------------
