@@ -432,56 +432,6 @@ void Z4c::SetWeylAliases(AthenaArray<Real> & u, Z4c::Weyl_vars & weyl)
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn Real Z4c::SpatialDet(Real gxx, ... , Real gzz)
-// \brief returns determinant of 3-metric
-
-Real Z4c::SpatialDet(Real const gxx, Real const gxy, Real const gxz,
-                     Real const gyy, Real const gyz, Real const gzz)
-{
-  return - SQR(gxz)*gyy + 2*gxy*gxz*gyz - gxx*SQR(gyz) - SQR(gxy)*gzz + gxx*gyy*gzz;
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn void Z4c::SpatialInv(Real const detginv,
-//           Real const gxx, Real const gxy, Real const gxz,
-//           Real const gyy, Real const gyz, Real const gzz,
-//           Real * uxx, Real * uxy, Real * uxz,
-//           Real * uyy, Real * uyz, Real * uzz)
-// \brief returns inverse of 3-metric
-
-void Z4c::SpatialInv(Real const detginv,
-                     Real const gxx, Real const gxy, Real const gxz,
-                     Real const gyy, Real const gyz, Real const gzz,
-                     Real * uxx, Real * uxy, Real * uxz,
-                     Real * uyy, Real * uyz, Real * uzz)
-{
-  *uxx = (-SQR(gyz) + gyy*gzz)*detginv;
-  *uxy = (gxz*gyz  - gxy*gzz)*detginv;
-  *uyy = (-SQR(gxz) + gxx*gzz)*detginv;
-  *uxz = (-gxz*gyy + gxy*gyz)*detginv;
-  *uyz = (gxy*gxz  - gxx*gyz)*detginv;
-  *uzz = (-SQR(gxy) + gxx*gyy)*detginv;
-  return;
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn Real Z4c::Trace(Real detginv, Real gxx, ... , Real gzz, Real Axx, ..., Real Azz)
-// \brief returns Trace of extrinsic curvature
-
-Real Z4c::Trace(Real const detginv,
-                Real const gxx, Real const gxy, Real const gxz,
-                Real const gyy, Real const gyz, Real const gzz,
-                Real const Axx, Real const Axy, Real const Axz,
-                Real const Ayy, Real const Ayz, Real const Azz)
-{
-  return (detginv*(
-       - 2.*Ayz*gxx*gyz + Axx*gyy*gzz +  gxx*(Azz*gyy + Ayy*gzz)
-       + 2.*(gxz*(Ayz*gxy - Axz*gyy + Axy*gyz) + gxy*(Axz*gyz - Axy*gzz))
-       - Azz*SQR(gxy) - Ayy*SQR(gxz) - Axx*SQR(gyz)
-       ));
-}
-
-//----------------------------------------------------------------------------------------
 // \!fn void Z4c::AlgConstr(AthenaArray<Real> & u)
 // \brief algebraic constraints projection
 //
