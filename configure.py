@@ -604,6 +604,8 @@ definitions['NUMBER_INTERP_GHOSTS'] = args['ninterp']
 # Number of ghost points to ignore in VC2CC calculation
 if args['vertex']:
     definitions['VC2CC_IGNORE'] = str(int(args['ninterp']) - 1)
+else:
+    definitions['VC2CC_IGNORE'] = '0'
 
 # -force_ps_linear argument
 if args['force_ps_linear']:
