@@ -601,6 +601,10 @@ definitions['NUMBER_EXT_RAD'] = args['nrad']
 # --ninterp=[value] argument
 definitions['NUMBER_INTERP_GHOSTS'] = args['ninterp']
 
+# Number of ghost points to ignore in VC2CC calculation
+if args['vertex']:
+    definitions['VC2CC_IGNORE'] = str(int(args['ninterp']) - 1)
+
 # -force_ps_linear argument
 if args['force_ps_linear']:
     definitions['FORCE_PS_LINEAR'] = '1'

@@ -211,6 +211,8 @@
 #define NGRCV_HSZ @NUMBER_INTERP_GHOSTS@
 // Force PrimitiveSolver to use linear VC2CC interpolation.
 #define FORCE_PS_LINEAR @FORCE_PS_LINEAR@
+// Points to ignore in the VC2CC interpolation
+#define VC2CC_IGNORE @VC2CC_IGNORE@
 
 // dimensionality of underlying (interpolated) data
 // #define NGRCV_NDIM 1

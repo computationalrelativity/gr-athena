@@ -1233,7 +1233,7 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
   BoundaryValues *pbval = pmb->pbval;
   // For VC2CC interpolation to work properly without accessing invalid memory,
   // we need to subtract off a few ghost zones from the calculation.
-  int ignore = NGRCV_HSZ - 1;
+  int ignore = VC2CC_IGNORE;
 
 //printf("prim\n");
   int il = pmb->is, iu = pmb->ie, jl = pmb->js, ju = pmb->je, kl = pmb->ks, ku = pmb->ke;

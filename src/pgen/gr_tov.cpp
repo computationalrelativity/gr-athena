@@ -244,7 +244,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   }
   // For high-order VC2CC interpolation to work without accessing invalid memory, we need
   // to subtract off ghost zones.
-  int ignore = NGRCV_HSZ - 1;
+  int ignore = VC2CC_IGNORE;
   int ilcc = il + ignore;
   int iucc = iu - ignore;
   int jlcc = jl + ignore;

@@ -304,10 +304,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
       bjs = pmb->js, bje = pmb->je,
       bks = pmb->ks, bke = pmb->ke;
 
-  int ignore = 0;
-  if (USETM) {
-    ignore = NGRCV_HSZ - 1;
-  }
+  int ignore = VC2CC_IGNORE;
 
   // Extend the transverse limits that correspond to periodic boundaries as they are
   // updated: x1, then x2, then x3
