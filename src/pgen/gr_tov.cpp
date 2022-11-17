@@ -223,6 +223,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   // Parameters
   phydro->w.Fill(NAN);
   phydro->w1.Fill(NAN);
+  phydro->u.Fill(NAN);
   pz4c->storage.u.Fill(NAN);
   pz4c->storage.adm.Fill(NAN);
 
@@ -241,6 +242,15 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     kl -= NGHOST;
     ku += NGHOST;
   }
+  // For high-order VC2CC interpolation to work without accessing invalid memory, we need
+  // to subtract off ghost zones.
+  int ignore = NGRCV_HSZ - 1;
+  int ilcc = il + ignore;
+  int iucc = iu - ignore;
+  int jlcc = jl + ignore;
+  int jucc = ju - ignore;
+  int klcc = kl + ignore;
+  int kucc = ku - ignore;
 
   // Prepare scratch arrays
   AthenaArray<Real> g, gi;
@@ -264,9 +274,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   Real lapse_kji, d_lapse_dr_kji, psi4_kji,d_psi4_dr_kji,dummy;
 
   // Initialize primitive values on CC grid
-  for (int k=kl; k<=ku; ++k) {
-    for (int j=jl; j<=ju; ++j) {
-      for (int i=il; i<=iu; ++i) {
+  for (int k=klcc; k<=kucc; ++k) {
+    for (int j=jlcc; j<=jucc; ++j) {
+      for (int i=ilcc; i<=iucc; ++i) {
 	// Isotropic radius
 	Real r = std::sqrt(std::pow(pcoord->x1v(i),2.) +  pow(pcoord->x2v(j),2.) + pow(pcoord->x3v(k),2.));
   Real rho_pol = std::sqrt(std::pow(pcoord->x1v(i),2.) + std::pow(pcoord->x2v(j),2.));
@@ -387,7 +397,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   }
 
   // Initialise conserved variables
-  peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord, il, iu, jl, ju, kl, ku);
+  peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord, 
+                             ilcc, iucc, jlcc, jucc, klcc, kucc);
 
   // Initialise VC matter
   //TODO(WC) (don't strictly need this here, will be caught in task list before used
