@@ -27,7 +27,7 @@ _out_prefix  = "err_" ## output file prefix
 _hdf5_suffix = ".athdf" ## suffix of the hdf5 files to glob
 ## general env for 2d plot, change it
 _cmap_2d = mpl.cm.cool ## [cool,jet]
-_norm_2d = mpl.colors.Normalize() ## [mpl.colors.LogNorm(),mpl.colors.Normalize()]
+_norm_2d = "normalized" ## "log"
 
         
 ## given parameters, get all hdf5 files of interest
@@ -300,17 +300,17 @@ class Plot:
 
             L2(params,db,mbs,slice,file)
             self.plot_2d_color(params,db,mbs,slice,file['cycle'],"L2",file['color_2d_L2'],
-                               norm=mpl.colors.LogNorm())
+                               mynorm="log")
 
             Abs(params,db,mbs,slice,file)
             self.plot_2d_color(params,db,mbs,slice,file['cycle'],"abs",file['color_2d_abs'],
-                               norm=mpl.colors.LogNorm())
+                               mynorm="log")
 
         else:
             raise Exception("No such {} option defined!".format(params.out_format))
     
     ## plotting in 2d color format
-    def plot_2d_color(self,params,db,mbs,slice,cycle,type,output,norm=_norm_2d,cmap=_cmap_2d):
+    def plot_2d_color(self,params,db,mbs,slice,cycle,type,output,mynorm=_norm_2d,cmap=_cmap_2d):
         print("{} ...".format(self.plot_2d_color.__name__))
         sys.stdout.flush()
         
@@ -364,6 +364,13 @@ class Plot:
             vmin = vmin if vmin < vminp else vminp
             vmax = vmax if vmax > vmaxp else vmaxp
         
+        
+        if mynorm == "normalized":
+            norm=mpl.colors.Normalize(vmin=vmin,vmax=vmax)
+        elif mynorm == "log":
+            norm=mpl.colors.LogNorm(vmin=vmin,vmax=vmax)
+        else:
+            raise Exception("No such norm {}!".format(mynorm))
             
         for mb in mbs.keys():
         
@@ -386,16 +393,16 @@ class Plot:
                 if ng == 0:
                     plt.pcolor(Y,X,v[mbs[mb]['kI'], :, :],vmin=vmin,vmax=vmax,norm=norm)
                 else:
-                    plt.pcolor(Y,X,v[mbs[mb]['kI'], ng:-ng, ng:-ng],vmin=vmin,vmax=vmax,norm=norm)
+                    plt.pcolor(Y,X,v[mbs[mb]['kI'], ng:-ng, ng:-ng],norm=norm)
                 xlabel="y"
                 ylabel="x"
                 
             elif slice.slice_dir == 2:
                 X,Z = np.meshgrid(x,z)
                 if ng == 0:
-                    plt.pcolor(Z,X,v[: ,mbs[mb]['jI'], :],vmin=vmin,vmax=vmax,norm=norm)
+                    plt.pcolor(Z,X,v[: ,mbs[mb]['jI'], :],norm=norm)
                 else:
-                    plt.pcolor(Z,X,v[ng:-ng ,mbs[mb]['jI'], ng:-ng],vmin=vmin,vmax=vmax,norm=norm)
+                    plt.pcolor(Z,X,v[ng:-ng ,mbs[mb]['jI'], ng:-ng],norm=norm)
                 xlabel="z"
                 ylabel="x"
                 
@@ -404,7 +411,7 @@ class Plot:
                 if ng == 0:
                     plt.pcolor(Z,Y,v[:, :, mbs[mb]['iI']],vmin=vmin,vmax=vmax,norm=norm)
                 else:
-                    plt.pcolor(Z,Y,v[ng:-ng, ng:-ng, mbs[mb]['iI']],vmin=vmin,vmax=vmax,norm=norm)
+                    plt.pcolor(Z,Y,v[ng:-ng, ng:-ng, mbs[mb]['iI']],norm=norm)
                 xlabel="z"
                 ylabel="y"
                 
