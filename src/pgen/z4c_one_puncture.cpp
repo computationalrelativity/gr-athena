@@ -32,6 +32,7 @@ static int FDErrorApprox(MeshBlock *pmb);
 
 void Mesh::InitUserMeshData(ParameterInput *pin)
 {
+  std::cout << __FUNCTION__ << std::endl;
   if(adaptive==true)
     EnrollUserRefinementCondition(RefinementCondition);
 
@@ -39,7 +40,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 
 void MeshBlock::ProblemGenerator(ParameterInput *pin)
 {
-
+  std::cout << __FUNCTION__ << std::endl;
   pz4c->ADMOnePuncture(pin, pz4c->storage.adm);
   pz4c->GaugePreCollapsedLapse(pz4c->storage.adm, pz4c->storage.u);
 
@@ -61,6 +62,7 @@ void MeshBlock::Z4cUserWorkInLoop() {
 // 1: refines, -1: de-refines, 0: does nothing
 static int RefinementCondition(MeshBlock *pmb)
 {
+  std::cout << __FUNCTION__ << std::endl;
   int ret = 0;
   ParameterInput *const pin = pmb->pmy_in;
   
@@ -83,7 +85,7 @@ static int RefinementCondition(MeshBlock *pmb)
 // if this error falls below a prescribed value, the meshblock should be refined.
 static int FDErrorApprox(MeshBlock *pmb)
 {
-  std::cout << __FUNCTION__ << std::endl;
+  //std::cout << __FUNCTION__ << std::endl;
   
   int ret = 0;
   double err = 0.;
