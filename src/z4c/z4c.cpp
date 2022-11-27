@@ -524,7 +524,7 @@ double Z4c::amr_err_L2_ddchi_pow(MeshBlock *const pmy_block, const int p)
   ILOOP2(k,j) {
     for(int a = 0; a < NDIM; ++a) {
       ILOOP1(i) {
-        ddchi_dd(a,a,k,j,i) = FD.Dxx(a, z4c.chi(k,j,i));
+        ddchi_dd(a,a,k,j,i) = FD.Dx7(a, z4c.chi(k,j,i));
       }
       // don't calc. the mix derivs.
       //for(int b = a + 1; b < NDIM; ++b) {
