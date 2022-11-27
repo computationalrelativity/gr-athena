@@ -92,25 +92,33 @@ static int FDErrorApprox(MeshBlock *pmb)
   ParameterInput *const pin = pmb->pmy_in;
   double ref_tol  = pin->GetOrAddReal("z4c","refinement_tol",1e-5);
   double dref_tol = pin->GetOrAddReal("z4c","derefinement_tol",1e-6);
+  char region[999] = {0};
+  
+  sprintf(region,"[%0.1f,%0.1f]x[%0.1f,%0.1f]x[%0.1f,%0.1f]",
+  pmb->block_size.x1min,pmb->block_size.x1max,
+  pmb->block_size.x2min,pmb->block_size.x2max,
+  pmb->block_size.x3min,pmb->block_size.x3max);
   
   // calc. err
-  err = pmb->pz4c->amr_err_L2_ddchi_pow(pmb,3);
+  err = pmb->pz4c->amr_err_L2_ddchi_pow(pmb,1);
+  //err = pmb->pz4c->amr_err_L2_d7chi_pow(pmb,1);
   
   // if it's bigger than the specified params then refine;
   if (err > ref_tol)
   {
     ret = 1.;
-    printf("err > ref-tol:   %e > %e  ==> refine me!\n",err,ref_tol);
+    printf("err > ref-tol:   %e > %e  ==> refine %s!\n",err,ref_tol,region);
   }
   else if (err < dref_tol)
   {
     ret = -1;
-    printf("err < deref-tol: %e < %e  ==> derefine me!\n",err,dref_tol);
+    printf("err < deref-tol: %e < %e  ==> derefine %s!\n",err,dref_tol,region);
   }
   else 
   {
     ret = 0;
-    printf("dref-tol <= err <= ref-tol: %e <= %e <= %e ==> I'm good!\n",dref_tol,err,ref_tol);
+    printf("dref-tol <= err <= ref-tol: %e <= %e <= %e ==> I'm good %s!\n",
+      dref_tol,err,ref_tol,region);
   }
   
   fflush(stdout);
