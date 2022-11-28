@@ -8,6 +8,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <sstream>
 
 // Athena++ headers
 #include "z4c.hpp"
@@ -509,14 +510,14 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
 // \brief returning the L2 norm of error basse one some derivative of chi
 //
 
-double Z4c::amr_err_L2_derive_chi_pow(MeshBlock *const pmy_block, const int deriv_order, const int p)
+Real Z4c::amr_err_L2_derive_chi_pow(MeshBlock *const pmy_block, const int deriv_order, const int p)
 {
   Z4c_vars z4c;
-  double L2_norm = 0.;
-  double derive_aa_ijk[NDIM] = {0};
-  double derive_ijk = 0.;
+  Real L2_norm = 0.;
+  Real derive_aa_ijk[NDIM] = {0};
+  Real derive_ijk = 0.;
   const int npts = (IX_KU-IX_KL)*(IX_JU-IX_KL)*(IX_IU-IX_IL);
-  double h1, h2, h3, hmax; // grid space
+  Real h1, h2, h3, hmax; // grid space
   // find grid spaces
   h1 = pmy_block->pcoord->x1f(1)-pmy_block->pcoord->x1f(0);
   h2 = pmy_block->pcoord->x2f(1)-pmy_block->pcoord->x2f(0);
@@ -526,9 +527,10 @@ double Z4c::amr_err_L2_derive_chi_pow(MeshBlock *const pmy_block, const int deri
 
   z4c.chi.InitWithShallowSlice(pmy_block->pz4c->storage.u, I_Z4c_chi);
   
-  if (derive_order == 7)
+  
+  // calc. L2 norm of 7th derivative
+  if (deriv_order == 7)
   {
-    // calc. L2 norm of 7th derivative
     ILOOP2(k,j) {
       ILOOP1(i) {
         // d^7 chi(ijk)/d(xyz)^7
@@ -544,9 +546,9 @@ double Z4c::amr_err_L2_derive_chi_pow(MeshBlock *const pmy_block, const int deri
       }
     }
   }
-  else if (derive_order == 2)
+  // calc. L2 norm of 2nd derivative
+  else if (deriv_order == 2)
   {
-    // calc. L2 norm of 2nd derivative
     ILOOP2(k,j) {
       ILOOP1(i) {
         // d^2 chi(ijk)/d(xyz)^2

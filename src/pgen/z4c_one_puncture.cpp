@@ -9,6 +9,7 @@
 #include <cassert> // assert
 #include <iostream>
 #include <sstream>
+#include <limits>
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -83,18 +84,18 @@ static int RefinementCondition(MeshBlock *pmb)
 static int FDErrorApprox(MeshBlock *pmb)
 {
   int ret = 0;
-  double err = 0.;
+  Real err = 0.;
   ParameterInput *const pin = pmb->pmy_in;
-  const double dmax= std::numeric_limits<double>::max();
-  const double dmin=-std::numeric_limits<double>::max();
-  const double ref_tol   = pin->GetOrAddReal("z4c","refinement_tol",1e-5);
-  const double dref_tol  = pin->GetOrAddReal("z4c","derefinement_tol",1e-6);
-  const double ref_x1min = pin->GetOrAddReal("z4c","refinement_x1min",dmin);
-  const double ref_x1max = pin->GetOrAddReal("z4c","refinement_x1max",dmax);
-  const double ref_x2min = pin->GetOrAddReal("z4c","refinement_x2min",dmin);
-  const double ref_x2max = pin->GetOrAddReal("z4c","refinement_x2max",dmax);
-  const double ref_x3min = pin->GetOrAddReal("z4c","refinement_x3min",dmin);
-  const double ref_x3max = pin->GetOrAddReal("z4c","refinement_x3max",dmax);
+  const Real dmax= std::numeric_limits<Real>::max();
+  const Real dmin=-std::numeric_limits<Real>::max();
+  const Real ref_tol   = pin->GetOrAddReal("z4c","refinement_tol",1e-5);
+  const Real dref_tol  = pin->GetOrAddReal("z4c","derefinement_tol",1e-6);
+  const Real ref_x1min = pin->GetOrAddReal("z4c","refinement_x1min",dmin);
+  const Real ref_x1max = pin->GetOrAddReal("z4c","refinement_x1max",dmax);
+  const Real ref_x2min = pin->GetOrAddReal("z4c","refinement_x2min",dmin);
+  const Real ref_x2max = pin->GetOrAddReal("z4c","refinement_x2max",dmax);
+  const Real ref_x3min = pin->GetOrAddReal("z4c","refinement_x3min",dmin);
+  const Real ref_x3max = pin->GetOrAddReal("z4c","refinement_x3max",dmax);
   const int ref_deriv = pin->GetOrAddReal("z4c","refinement_deriv_order",7);
   const int ref_pow   = pin->GetOrAddReal("z4c","refinement_deriv_power",1);
   const bool verbose  = pin->GetOrAddBoolean("z4c", "refinement_verbose",false);
@@ -116,13 +117,13 @@ static int FDErrorApprox(MeshBlock *pmb)
       printf("out of bound %s.\n",region);
     ret = 0;
   }
-  else if (pmb->block_size.x2min < ref_x2max || pmb->block_size.x2max > ref_x2max)
+  else if (pmb->block_size.x2min < ref_x2min || pmb->block_size.x2max > ref_x2max)
   {
     if (verbose) 
       printf("out of bound %s.\n",region);
     ret = 0;
   }
-  else if (pmb->block_size.x3min < ref_x3max || pmb->block_size.x3max > ref_x3max)
+  else if (pmb->block_size.x3min < ref_x3min || pmb->block_size.x3max > ref_x3max)
   {
     if (verbose) 
       printf("out of bound %s.\n",region);

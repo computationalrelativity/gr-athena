@@ -223,7 +223,7 @@ public:
 
   // returning the L2 norm of: 
   // h^6 * ( (d^n fld/dx^n)^p + (d^n fld/dy^n)^p + (d^n fld/dz^n)^p )
-  double amr_err_L2_ddchi_pow(MeshBlock *const pmy_block, const int p);
+  Real amr_err_L2_derive_chi_pow(MeshBlock *const pmy_block, const int deriv_order, const int p);
   
 public:
   // scheduled functions
