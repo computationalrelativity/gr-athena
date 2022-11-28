@@ -107,8 +107,7 @@ static int FDErrorApprox(MeshBlock *pmb)
             pmb->block_size.x3min,pmb->block_size.x3max);
 
   // calc. err
-  err = pmb->pz4c->amr_err_L2_ddchi_pow(pmb,1);
-  //err = pmb->pz4c->amr_err_L2_d7chi_pow(pmb,1);
+  err = pmb->pz4c->amr_err_L2_derive_chi_pow(pmb,ref_deriv,ref_pow);
   
   // check the region of interest for the refinement
   if (pmb->block_size.x1min < ref_x1min || pmb->block_size.x1max > ref_x1max)
