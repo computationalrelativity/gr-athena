@@ -227,8 +227,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   dTheta_d.NewAthenaTensor(pmb->nverts1);
   ddalpha_dd.NewAthenaTensor(pmb->nverts1);
   dbeta_du.NewAthenaTensor(pmb->nverts1);
-  ddchi_dd.NewAthenaTensor(pmb->nverts3,pmb->nverts2,pmb->nverts1);
-  ddchi_pow.NewAthenaTensor(pmb->nverts3,pmb->nverts2,pmb->nverts1);
+  ddchi_dd.NewAthenaTensor(pmb->nverts1);
   dGam_du.NewAthenaTensor(pmb->nverts1);
   dg_ddd.NewAthenaTensor(pmb->nverts1);
   dK_ddd.NewAthenaTensor(pmb->nverts1);
@@ -362,7 +361,6 @@ Z4c::~Z4c()
   ddalpha_dd.DeleteAthenaTensor();
   dbeta_du.DeleteAthenaTensor();
   ddchi_dd.DeleteAthenaTensor();
-  ddchi_pow.DeleteAthenaTensor();
   dGam_du.DeleteAthenaTensor();
   dg_ddd.DeleteAthenaTensor();
   dK_ddd.DeleteAthenaTensor();
@@ -507,57 +505,70 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn void Z4c:: amr_err_L2_ddchi_pow(MeshBlock *const pmy_block, const int p)
-// \brief returning the L2 norm of error
+// \!fn void Z4c:: amr_err_L2_derive_chi_pow(MeshBlock *const pmy_block, const int p)
+// \brief returning the L2 norm of error basse one some derivative of chi
 //
 
-double Z4c::amr_err_L2_ddchi_pow(MeshBlock *const pmy_block, const int p)
+double Z4c::amr_err_L2_derive_chi_pow(MeshBlock *const pmy_block, const int deriv_order, const int p)
 {
   Z4c_vars z4c;
   double L2_norm = 0.;
+  double derive_aa_ijk[NDIM] = {0};
+  double derive_ijk = 0.;
   const int npts = (IX_KU-IX_KL)*(IX_JU-IX_KL)*(IX_IU-IX_IL);
   double h1, h2, h3, hmax; // grid space
-  
-  z4c.chi.InitWithShallowSlice(pmy_block->pz4c->storage.u, I_Z4c_chi);
-  
-  // calc. derivative
-  ILOOP2(k,j) {
-    for(int a = 0; a < NDIM; ++a) {
-      ILOOP1(i) {
-        ddchi_dd(a,a,k,j,i) = FD.Dx7(a, z4c.chi(k,j,i));
-      }
-      // don't calc. the mix derivs.
-      //for(int b = a + 1; b < NDIM; ++b) {
-        //ILOOP1(i) {
-          //ddchi_dd(a,b,k,j,i) = FD.Dxy(a, b, z4c.chi(k,j,i));
-        //}
-      //}
-    }
-  }
-  
-  // take the derivs to the power p
-  ddchi_pow.Fill(0);
-  ILOOP2(k,j) {
-    ILOOP1(i) {
-      for(int a = 0; a < NDIM; ++a) {
-        ddchi_pow(k,j,i) += std::pow(ddchi_dd(a,a,k,j,i),p);
-      }
-    }
-  }
-
   // find grid spaces
   h1 = pmy_block->pcoord->x1f(1)-pmy_block->pcoord->x1f(0);
   h2 = pmy_block->pcoord->x2f(1)-pmy_block->pcoord->x2f(0);
   h3 = pmy_block->pcoord->x3f(1)-pmy_block->pcoord->x3f(0);
   hmax = std::max(h1,h2);
   hmax = std::max(hmax,h3);
+
+  z4c.chi.InitWithShallowSlice(pmy_block->pz4c->storage.u, I_Z4c_chi);
   
-  // L2 norm  
-  ILOOP2(k,j) {
-    ILOOP1(i) {
-      L2_norm += std::pow(ddchi_pow(k,j,i),2);
+  if (derive_order == 7)
+  {
+    // calc. L2 norm of 7th derivative
+    ILOOP2(k,j) {
+      ILOOP1(i) {
+        // d^7 chi(ijk)/d(xyz)^7
+        for(int a = 0; a < NDIM; ++a) {
+          derive_aa_ijk[a] = FD.Dx7(a, z4c.chi(k,j,i));
+        }
+        derive_ijk = 0.;
+        // (d^7 chi(ijk)/dx^7)^p + (d^7 chi(ijk)/dy^7)^p + (d^7 chi(ijk)/dz^7)^p
+        for(int a = 0; a < NDIM; ++a) {
+          derive_ijk += std::pow(derive_aa_ijk[a],p);
+        }
+        L2_norm += std::pow(derive_ijk,2);
+      }
     }
   }
+  else if (derive_order == 2)
+  {
+    // calc. L2 norm of 2nd derivative
+    ILOOP2(k,j) {
+      ILOOP1(i) {
+        // d^2 chi(ijk)/d(xyz)^2
+        for(int a = 0; a < NDIM; ++a) {
+          derive_aa_ijk[a] = FD.Dxx(a, z4c.chi(k,j,i));
+        }
+        derive_ijk = 0.;
+        // (d^2 chi(ijk)/dx^2)^p + (d^2 chi(ijk)/dy^2)^p + (d^2 chi(ijk)/dz^2)^p
+        for(int a = 0; a < NDIM; ++a) {
+          derive_ijk += std::pow(derive_aa_ijk[a],p);
+        }
+        L2_norm += std::pow(derive_ijk,2);
+      }
+    }
+  }
+  else
+  {
+    std::stringstream msg;
+    msg << "No such derivative" << std::endl;
+    ATHENA_ERROR(msg);
+  }
+  
   L2_norm /= npts;
   L2_norm *= std::pow(hmax,6);
   L2_norm = std::sqrt(L2_norm);
