@@ -11,6 +11,7 @@
 class Z4c_AMR
 {
   private:
+    Z4c *pz4c;       // ptr to z4c
     Real ref_tol;    // refinment tolerance
     Real dref_tol;   // derefinment tolerance
     Real ref_x1min;  // x1 min of the region of interest for the refinement
