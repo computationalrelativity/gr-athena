@@ -16,6 +16,7 @@
 Z4c_AMR::Z4c_AMR(MeshBlock *pmb)
 {
   ParameterInput *const pin = pmb->pmy_in;
+  pz4c = pmb->pz4c;
   const Real dmax= std::numeric_limits<Real>::max();
   const Real dmin=-std::numeric_limits<Real>::max();
   ref_method = pin->GetOrAddString("z4c","refinement_method","Linf_box_in_box");
@@ -119,7 +120,7 @@ Real Z4c_AMR::amr_err_L2_derive_chi_pow(MeshBlock *const pmy_block,
   hmax = std::max(h1,h2);
   hmax = std::max(hmax,h3);
 
-  z4c.chi.InitWithShallowSlice(pmy_block->pz4c->storage.u, Z4c::I_Z4c_chi);
+  z4c.chi.InitWithShallowSlice(pz4c->storage.u, pz4c->I_Z4c_chi);
   
   
   // calc. L2 norm of 7th derivative
@@ -129,7 +130,7 @@ Real Z4c_AMR::amr_err_L2_derive_chi_pow(MeshBlock *const pmy_block,
       ILOOP1(i) {
         // d^7 chi(ijk)/d(xyz)^7
         for(int a = 0; a < NDIM; ++a) {
-          derive_aa_ijk[a] = pmy_block->pz4c->FD.Dx7(a, z4c.chi(k,j,i));
+          derive_aa_ijk[a] = pz4c->FD.Dx7(a, z4c.chi(k,j,i));
         }
         derive_ijk = 0.;
         // (d^7 chi(ijk)/dx^7)^p + (d^7 chi(ijk)/dy^7)^p + (d^7 chi(ijk)/dz^7)^p
@@ -147,7 +148,7 @@ Real Z4c_AMR::amr_err_L2_derive_chi_pow(MeshBlock *const pmy_block,
       ILOOP1(i) {
         // d^2 chi(ijk)/d(xyz)^2
         for(int a = 0; a < NDIM; ++a) {
-          derive_aa_ijk[a] = pmy_block->pz4c->FD.Dxx(a, z4c.chi(k,j,i));
+          derive_aa_ijk[a] = pz4c->FD.Dxx(a, z4c.chi(k,j,i));
         }
         derive_ijk = 0.;
         // (d^2 chi(ijk)/dx^2)^p + (d^2 chi(ijk)/dy^2)^p + (d^2 chi(ijk)/dz^2)^p
