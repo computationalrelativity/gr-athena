@@ -21,7 +21,7 @@ Z4c_AMR::Z4c_AMR(MeshBlock *pmb)
   const Real dmin=-std::numeric_limits<Real>::max();
   ref_method = pin->GetOrAddString("z4c","refinement_method","Linf_box_in_box");
   ref_tol   = pin->GetOrAddReal("z4c","refinement_tol",1e-5);
-  dref_tol  = pin->GetOrAddReal("z4c","derefinement_tol",1e-6);
+  dref_tol  = pin->GetOrAddReal("z4c","derefinement_tol",1e-8);
   ref_x1min = pin->GetOrAddReal("z4c","refinement_x1min",dmin);
   ref_x1max = pin->GetOrAddReal("z4c","refinement_x1max",dmax);
   ref_x2min = pin->GetOrAddReal("z4c","refinement_x2min",dmin);
