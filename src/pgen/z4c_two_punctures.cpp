@@ -213,7 +213,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 static int RefinementCondition(MeshBlock *pmb)
 {
   int ret = 0;
-  ParameterInput *const pin = pmb->pmy_in;
   
   // make sure we have 2 punctures
   if (pmb->pmy_mesh->pz4c_tracker.size() != 2) {
