@@ -107,6 +107,7 @@ Real Z4c_AMR::amr_err_L2_derive_chi_pow(MeshBlock *const pmy_block,
   const int npts = (IX_KU-IX_KL)*(IX_JU-IX_KL)*(IX_IU-IX_IL);
   Real h1, h2, h3, hmax; // grid space
   // find grid spaces
+  assert(NDIM==3);// the subsequent calculation may get affected if N!=3.
   h1 = pmy_block->pcoord->x1f(1)-pmy_block->pcoord->x1f(0);
   h2 = pmy_block->pcoord->x2f(1)-pmy_block->pcoord->x2f(0);
   h3 = pmy_block->pcoord->x3f(1)-pmy_block->pcoord->x3f(0);
@@ -114,7 +115,6 @@ Real Z4c_AMR::amr_err_L2_derive_chi_pow(MeshBlock *const pmy_block,
   hmax = std::max(hmax,h3);
 
   z4c.chi.InitWithShallowSlice(pz4c->storage.u, pz4c->I_Z4c_chi);
-  
   
   // calc. L2 norm of 7th derivative
   if (deriv_order == 7)
