@@ -8,6 +8,8 @@
 #include "../utils/finite_differencing.hpp"
 #include "z4c_macro.hpp"
 
+//! \class Z4c_AMR
+//  \brief managing AMR for Z4c simulations
 class Z4c_AMR
 {
   private:
