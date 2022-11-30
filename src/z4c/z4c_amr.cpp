@@ -121,16 +121,13 @@ Real Z4c_AMR::amr_err_L2_derive_chi_pow(MeshBlock *const pmy_block,
   {
     ILOOP2(k,j) {
       ILOOP1(i) {
-        // d^7 chi(ijk)/d(xyz)^7
-        for(int a = 0; a < NDIM; ++a) {
-          derive_aa_ijk[a] = pz4c->FD.Dx7(a, z4c.chi(k,j,i));
-        }
         derive_ijk = 0.;
         // (d^7 chi(ijk)/dx^7)^p + (d^7 chi(ijk)/dy^7)^p + (d^7 chi(ijk)/dz^7)^p
         for(int a = 0; a < NDIM; ++a) {
+          derive_aa_ijk[a] = pz4c->FD.Dx7(a, z4c.chi(k,j,i));
           derive_ijk += std::pow(derive_aa_ijk[a],p);
         }
-        L2_norm += std::pow(derive_ijk,2);
+        L2_norm += POW2(derive_ijk);
       }
     }
   }
@@ -139,16 +136,13 @@ Real Z4c_AMR::amr_err_L2_derive_chi_pow(MeshBlock *const pmy_block,
   {
     ILOOP2(k,j) {
       ILOOP1(i) {
-        // d^2 chi(ijk)/d(xyz)^2
-        for(int a = 0; a < NDIM; ++a) {
-          derive_aa_ijk[a] = pz4c->FD.Dxx(a, z4c.chi(k,j,i));
-        }
         derive_ijk = 0.;
         // (d^2 chi(ijk)/dx^2)^p + (d^2 chi(ijk)/dy^2)^p + (d^2 chi(ijk)/dz^2)^p
         for(int a = 0; a < NDIM; ++a) {
+          derive_aa_ijk[a] = pz4c->FD.Dxx(a, z4c.chi(k,j,i));
           derive_ijk += std::pow(derive_aa_ijk[a],p);
         }
-        L2_norm += std::pow(derive_ijk,2);
+        L2_norm += POW2(derive_ijk);
       }
     }
   }
