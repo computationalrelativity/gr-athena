@@ -119,6 +119,7 @@ Real Z4c_AMR::amr_err_L2_derive_chi_pow(MeshBlock *const pmy_block,
   // calc. L2 norm of 7th derivative
   if (deriv_order == 7)
   {
+    assert(NGHOST > 3);
     ILOOP2(k,j) {
       ILOOP1(i) {
         derive_ijk = 0.;
