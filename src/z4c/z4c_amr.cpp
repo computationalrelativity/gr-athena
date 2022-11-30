@@ -37,7 +37,6 @@ Z4c_AMR::Z4c_AMR(MeshBlock *pmb)
 // if this error falls below a prescribed value, the meshblock should be refined.
 int Z4c_AMR::FDErrorApprox(MeshBlock *pmb)
 {
-  ParameterInput *const pin = pmb->pmy_in;
   int ret = 0;
   Real err = 0.;
   char region[999] = {0};
@@ -54,41 +53,35 @@ int Z4c_AMR::FDErrorApprox(MeshBlock *pmb)
   // check the region of interest for the refinement
   if (pmb->block_size.x1min < ref_x1min || pmb->block_size.x1max > ref_x1max)
   {
-    if (verbose) 
-      printf("out of bound %s.\n",region);
+    if (verbose) printf("out of bound %s.\n",region);
     ret = 0;
   }
   else if (pmb->block_size.x2min < ref_x2min || pmb->block_size.x2max > ref_x2max)
   {
-    if (verbose) 
-      printf("out of bound %s.\n",region);
+    if (verbose) printf("out of bound %s.\n",region);
     ret = 0;
   }
   else if (pmb->block_size.x3min < ref_x3min || pmb->block_size.x3max > ref_x3max)
   {
-    if (verbose) 
-      printf("out of bound %s.\n",region);
+    if (verbose) printf("out of bound %s.\n",region);
     ret = 0;
   }
   
   // compare with the error bounds
   else if (err > ref_tol)
   {
-    if (verbose)
-      printf("err > ref-tol:   %e > %e  ==> refine %s.\n",err,ref_tol,region);
+    if (verbose) printf("err > ref-tol:   %e > %e  ==> refine %s.\n",err,ref_tol,region);
     ret = 1.;
   }
   else if (err < dref_tol)
   {
-    if (verbose)
-      printf("err < deref-tol: %e < %e  ==> derefine %s.\n",err,dref_tol,region);
+    if (verbose) printf("err < deref-tol: %e < %e  ==> derefine %s.\n",err,dref_tol,region);
     ret = -1;
   }
   else 
   {
-    if (verbose)
-      printf("dref-tol <= err <= ref-tol: %e <= %e <= %e ==> nothing %s.\n",
-              dref_tol,err,ref_tol,region);
+    if (verbose) printf("dref-tol <= err <= ref-tol: %e <= %e <= %e ==> nothing %s.\n",
+                 dref_tol,err,ref_tol,region);
     ret = 0;
   }
   
@@ -102,7 +95,7 @@ int Z4c_AMR::FDErrorApprox(MeshBlock *pmb)
 // \brief returning the L2 norm of error basse one some derivative of chi
 //
 
-// NOTE: don't change pmy_block variable name as it's used in macros 
+// NOTE: DON'T change pmy_block variable name as it's used in macros 
 // such as IX_KU,IX_KL, etc.
 Real Z4c_AMR::amr_err_L2_derive_chi_pow(MeshBlock *const pmy_block, 
                                         const int deriv_order, const int p)
