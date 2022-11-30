@@ -61,10 +61,8 @@ void MeshBlock::Z4cUserWorkInLoop() {
 // 1: refines, -1: de-refines, 0: does nothing
 static int RefinementCondition(MeshBlock *pmb)
 {
-  int ret = 0;
-  ParameterInput *const pin = pmb->pmy_in;
-
   Z4c_AMR *amr = new Z4c_AMR(pmb);
+  int ret = 0;
 
   // finite difference error must fall less that a prescribed value.
   if (amr->ref_method == "FD_error")
