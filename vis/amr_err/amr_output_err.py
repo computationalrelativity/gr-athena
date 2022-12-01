@@ -28,7 +28,7 @@ _hdf5_suffix = ".athdf" ## suffix of the hdf5 files to glob
 ## general env for 2d plot, change it
 _cmap_2d = mpl.cm.cool ## [cool,jet]
 _norm_2d = "normalized" ## "log"
-
+_xcood_1d = 0 ## shows y-axis for 1D plot
         
 ## given parameters, get all hdf5 files of interest
 class Params:
@@ -273,6 +273,9 @@ class Files:
             ## when txt output is asked
             self.files[file]['txt_2d'] = params.out_dir + params.out_prefix + \
                                          params.field_name + "_" + params.analysis + "_2d.txt"
+            
+            self.files[file]['txt_1d'] = params.out_dir + params.out_prefix + \
+                                         params.field_name + "_" + params.analysis + "_1d.txt"
                                          
             self.files[file]['txt_2d_L2'] = params.out_dir + params.out_prefix + \
                                             params.field_name + "_" + params.analysis + "_L2"+"_2d.txt"
@@ -294,6 +297,9 @@ class Plot:
 
             L2(params,db,mbs,slice,file)
             self.plot_2d_txt(params,db,mbs,slice,file['cycle'],"L2",file['txt_2d_L2'])
+            
+        elif params.out_format == "txt1d":
+            self.plot_1d_txt(params,db,mbs,slice,file['cycle'],"value",file['txt_1d'])
             
         elif params.out_format == "pdf" or params.out_format == "png":
             self.plot_2d_color(params,db,mbs,slice,file['cycle'],"value",file['color_2d'])
@@ -469,10 +475,49 @@ class Plot:
         txt_file.close()
         
         if type == 'L2':
-            txt_file = open(output+'_L2_avg',"a")
+            txt_file = open(output+'_L2_arg',"a")
             txt_file.write("# \"time = {}\"\n".format(cycle))
             txt_file.write("{} {}\n".format(params.resolution, L2_avg(params,db,mbs) ))
             txt_file.close()
+
+    ## plotting in 1d txt format
+    def plot_1d_txt(self,params,db,mbs,slice,cycle,type,output):
+        print("{} ...".format(self.plot_1d_txt.__name__))
+        sys.stdout.flush()
+        
+        ng = params.nghost
+        
+        txt_file = open(output,"a")
+        txt_file.write("# \"time = {}\"\n".format(cycle))
+
+        if type == "value":
+            fld  = params.output_field
+        else:
+            raise Exception("No such option {}!".format(type))
+
+        for mb in mbs.keys():
+            x = db["x1v"][mb]
+            y = db["x2v"][mb]
+            v = db[fld][mb]
+            hx = x[1]-x[0]
+            
+            ## NOTE: for now it only supports x-axis
+            found_i = 0
+            if slice.slice_dir == 3:
+                ## Don't include ng as they may have the x-axis of interest
+                for i in range(mbs[mb]['iI'],mbs[mb]['iF']):
+                    if np.abs(x[i] - _xcood_1d) < hx:
+                        found_i = 1;
+                        break
+                if found_i == 1:
+                    ## plot along y-axis
+                    for j in range(mbs[mb]['jI']+ng,mbs[mb]['jF']-ng):
+                        txt_file.write("{} {}\n".format(y[j],v[mbs[mb]['kI'], j, i]))
+            
+            else:
+                raise Exception("No such slice {}!".format(slice.slice_dir))
+
+        txt_file.close()
 
 ## do the post processing here
 class Analysis:
@@ -485,7 +530,7 @@ class Analysis:
        
        ## calc. derivative
        elif params.analysis == "der":
-           params.output_field = "h^{2} d^{0}/dX^{0} ({1})".format(params.findiff_ord,params.field_name,params.deriv_acc)
+           params.output_field = "d^{0}/dX^{0} ({1})".format(params.findiff_ord,params.field_name)
            self.derivative(params,db,mbs,slice,file)
 
        else:
@@ -581,7 +626,7 @@ if __name__=="__main__":
     p.add_argument("-o",type=str,required=True,help="path/to/output/dir")
     p.add_argument("-e",type=int,required=True, help="resolution of the run, e.g., 128, 96,...")
     p.add_argument("-p",type=str,required=True,help="hdf5 prefix, e.g., 'z4c_z' or 'adm'.")
-    p.add_argument("-f",type=str,default = "txt" , help="output format = {pdf,png,txt}.")
+    p.add_argument("-f",type=str,default = "txt" , help="output format = {pdf,png,txt,txt1d}.")
     p.add_argument("-n",type=str,default = "z4c.chi" , help="field name, e.g., z4c.chi, con.H.")
     p.add_argument("-c",type=str,default = "z=0.0", help="clipping/cutting of the 3D grid, e.g., z=0.")
     p.add_argument("-s",type=int,default = 10, help="read every step-th file.")
