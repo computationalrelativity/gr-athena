@@ -485,7 +485,7 @@ class Analysis:
        
        ## calc. derivative
        elif params.analysis == "der":
-           params.output_field = "d^{0}/dX^{0} ({1})".format(params.findiff_ord,params.field_name)
+           params.output_field = "h^{2} d^{0}/dX^{0} ({1})".format(params.findiff_ord,params.field_name,params.deriv_acc)
            self.derivative(params,db,mbs,slice,file)
 
        else:
