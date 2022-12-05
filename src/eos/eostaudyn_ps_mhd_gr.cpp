@@ -49,6 +49,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   pmy_block_ = pmb;
   density_floor_ = pin->GetOrAddReal("hydro", "dfloor", std::sqrt(1024*(FLT_MIN)));
   pressure_floor_ = pin->GetOrAddReal("hydro", "pfloor", std::sqrt(1024*(FLT_MIN)));
+  Real bsq_max = pin->GetOrAddReal("hydro", "bsq_max", 1e6);
 
   int ncells1 = pmb->block_size.nx1 + 2*NGHOST;
   g_.NewAthenaArray(NMETRIC, ncells1);
@@ -81,6 +82,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
     Real atmosphere = pin->GetOrAddReal("hydro", ss.str(), 0.5);
     eos.SetSpeciesAtmosphere(atmosphere, i);
   }
+  eos.SetMaximumMagnetization(bsq_max);
 
   // If we're working wtih an ideal gas, we need to fix the adiabatic constant.
   #ifdef USE_IDEAL_GAS
