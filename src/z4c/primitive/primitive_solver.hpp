@@ -402,11 +402,41 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
   }
   else if (error == Error::CONS_ADJUSTED) {
     solver_result.cons_adjusted = true;
-    // We need to recalculate rb if b_u is rescaled.
+    // If b_u is rescaled, we also need to adjust D, which means we'll
+    // have to adjust all our other rescalings, too.
+    Real Bsq = SquareVector(B_u, g3d);
+    D = Bsq/bsqr;
+    r_d[0] = S_d[0]/D; r_d[1] = S_d[1]; r_d[2] = S_d[2]/D;
+    RaiseForm(r_u, r_d, g3d);
     rb = Contract(b_u, r_d);
     rbsqr = rb*rb;
+    q = tau/D;
   }
   
+  // If rsqr is identically zero, we have zero velocity and can solve the problem analytically.
+  /*if (rsqr == 0.0 || rsqr == -0.0) {
+    prim[IDN] = D;
+    prim[IVX] = prim[IVY] = prim[IVZ] = 0.0;
+    Real e = tau + (1.0 - 0.5*bsqr)*D;
+    Real n = D/peos->GetBaryonMass();
+    prim[ITM] = peos->GetTemperatureFromE(n, e, Y);
+    prim[IPR] = peos->GetPressure(n, prim[ITM], Y);
+    for (int s = 0; s < n_species; s++) {
+      prim[IYF + s] = Y[s];
+    }
+    if (solver_result.cons_floor || solver_result.cons_adjusted) {
+      cons[IDN] = D;
+      cons[IM1] = S_d[0];
+      cons[IM2] = S_d[1];
+      cons[IM3] = S_d[2];
+      cons[IEN] = tau;
+      for (int s = 0; s < n_species; s++) {
+        cons[IYD + s] = D*Y[s];
+      }
+    }
+    return solver_result;
+  }*/
+
   // Bracket the root.
   Real min_h = peos->GetMinimumEnthalpy();
   Real mul = 0.0;
