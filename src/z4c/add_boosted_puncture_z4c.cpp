@@ -106,7 +106,9 @@ void Z4c::ADMAddBoostedPuncture(ParameterInput *pin, AthenaArray<Real>& u_adm,
       // neutron star, it results in a negative lapse. Therefore, we put this janky
       // floor in here to fix that.
       z4c.alpha(k,j,i) = std::fmax(z4c.alpha(k,j,i) + alpha - 1.0, punc_eps);
-      adm.psi4(k,j,i) += psi4;
+      //adm.psi4(k,j,i) += psi4;
+      // This is something that will get overwritten by Z4cToADM.
+      adm.psi4(k,j,i) = psi4;
       for (int a = 0; a < 3; a++) {
         z4c.beta_u(a,k,j,i) += beta_u[a];
         for (int b = a; b < 3; b++) {
@@ -205,16 +207,21 @@ void SetPuncture(Real M, Real eps, Real px[3], Real pv[3], const Real r[3],
   Real riso = std::sqrt(x*x + y*y + z*z);
   riso = std::fmax(riso, eps);
 
-  // Choose precollapsed gauge.
+  // Because we have to subtract Minkowski space off of the metric, it's not a great
+  // idea to set alpha to anything other than 1.
   psi4 = std::pow(1.0 + 0.5*M/riso, 4.0);
-  alpha = 1.0/std::sqrt(psi4);
+  //psi4 = 1.0;
+  //alpha = 1.0/std::sqrt(psi4);
+  alpha = 1.0;
 
   dpsi4[0] = -2.0*M*std::pow(1.0 + 0.5*M/riso,3.0)/(riso*riso)*x/riso;
   dpsi4[1] = -2.0*M*std::pow(1.0 + 0.5*M/riso,3.0)/(riso*riso)*y/riso;
   dpsi4[2] = -2.0*M*std::pow(1.0 + 0.5*M/riso,3.0)/(riso*riso)*z/riso;
-  dalpha[0] = -0.5*alpha*alpha*alpha*dpsi4[0];
+  /*dalpha[0] = -0.5*alpha*alpha*alpha*dpsi4[0];
   dalpha[1] = -0.5*alpha*alpha*alpha*dpsi4[1];
   dalpha[2] = -0.5*alpha*alpha*alpha*dpsi4[2];
+  dpsi4[0] = dpsi4[1] = dpsi4[2] = 0.0;*/
+  dalpha[0] = dalpha[1] = dalpha[2] = 0.0;
 
 }
 
