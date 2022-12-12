@@ -69,10 +69,7 @@ class WaveExtract;
 class WaveExtractLocal;
 #endif
 //WGC end
-#ifdef Z4C_TRACKER
-class Tracker;
-class TrackerLocal;
-#endif // Z4C_TRACKER
+class PunctureTracker;
 
 FluidFormulation GetFluidFormulation(const std::string& input_string);
 
@@ -97,6 +94,7 @@ class MeshBlock {
   // -BD
   friend class Advection;
   friend class Z4c;
+  friend class PunctureTracker;
 
 public:
   MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_size,
@@ -207,10 +205,6 @@ public:
     WaveExtractLocal * pwave_extr_loc[NRAD];
 #endif
 //WGC end
-#ifdef Z4C_TRACKER
-  // Tracker evolution
-  TrackerLocal * pz4c_tracker_loc;
-#endif // Z4C_TRACKER
 
   MeshBlock *prev, *next;
 
@@ -245,6 +239,11 @@ public:
   // as above
   void AdvectionUserWorkInLoop();
   void Z4cUserWorkInLoop();
+
+  bool PointContained(Real const x, Real const y, Real const z);
+  Real PointCentralDistanceSquared(Real const x, Real const y, Real const z);
+  bool SphereIntersects(Real const Sx0, Real const Sy0, Real const Sz0,
+                        Real const radius);
 
   //-- Debug
   // Populate MeshBlock subset based on input indices
@@ -382,11 +381,7 @@ class Mesh {
   WaveExtract * pwave_extr[NRAD];
 #endif
 //WGC end
-
-
-#ifdef Z4C_TRACKER
-  Tracker * pz4c_tracker;
-#endif // Z4C_TRACKER
+  std::vector<PunctureTracker *> pz4c_tracker;
 
   AthenaArray<Real> *ruser_mesh_data;
   AthenaArray<int> *iuser_mesh_data;

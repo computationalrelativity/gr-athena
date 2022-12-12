@@ -50,9 +50,7 @@
 #endif
 //WGC end
 
-#ifdef Z4C_TRACKER
-#include "z4c/trackers.hpp"
-#endif // Z4C_TRACKER
+#include "z4c/puncture_tracker.hpp"
 
 // MPI/OpenMP headers
 #ifdef MPI_PARALLEL
@@ -601,7 +599,7 @@ int main(int argc, char *argv[]) {
         pmatterlist->DoTaskListOneStage(pmesh, stage);
       }
       }
-     if(Z4C_ENABLED){
+    if(Z4C_ENABLED){
 //WGC wext
 #ifdef Z4C_WEXT
 for (int n = 0;n<NRAD;++n){
@@ -611,13 +609,13 @@ pmesh->pwave_extr[n]->Write(pmesh->ncycle, pmesh->time);
 #endif
 //WGC end
 
+      // TODO: probably we do not want to output tracker data at every timestep
+      for (auto ptracker : pmesh->pz4c_tracker) {
+        ptracker->EvolveTracker();
+        ptracker->WriteTracker(pmesh->ncycle, pmesh->time);
+      }
+
     }
-#ifdef Z4C_TRACKER
-    //Tracker
-    pmesh->pz4c_tracker->ReduceTracker();
-    pmesh->pz4c_tracker->EvolveTracker();
-    pmesh->pz4c_tracker->WriteTracker(pmesh->ncycle, pmesh->time);
-#endif // Z4C_TRACKER
 
     pmesh->UserWorkInLoop();
 // calculate int D duplicated history output?

@@ -1059,7 +1059,7 @@ if args['prob'] == "z4c_two_punctures":
     if not args['gsl']:
         raise SystemExit('### CONFIGURE ERROR: To compile with two punctures -gsl is required.')
 
-    definitions['TWO_PUNCTURES_OPTION'] = 'TWO_PUNCTURES' + '\n#define NPUNCT (2)'
+    definitions['TWO_PUNCTURES_OPTION'] = 'TWO_PUNCTURES'
 
     if args['two_punctures_path'] == '':
         os.system('mkdir -p extern/initial_data')
@@ -1094,7 +1094,7 @@ if args['prob'] == "z4c_two_punctures":
 else:
     definitions['TWO_PUNCTURES_OPTION'] = 'NO_TWO_PUNCTURES'
     if args['prob'] == 'z4c_one_puncture':
-        definitions['TWO_PUNCTURES_OPTION'] = definitions['TWO_PUNCTURES_OPTION'] + '\n#define NPUNCT (1)'
+        definitions['TWO_PUNCTURES_OPTION'] = definitions['TWO_PUNCTURES_OPTION']
 
 # Set up paths for Lorene
 if args['lorene_path'] != '':
@@ -1240,8 +1240,7 @@ if args['z']:
     if args['z_wext']:
         files.append('calculate_weyl_scalars')
         files.append('wave_extract')
-    if args['z_tracker']:
-        files.append('trackers')
+    files.append('puncture_tracker')
     if args['prob'] == "z4c_two_punctures":
         files.append('two_punctures_z4c')
     elif args['prob'] == "z4c_one_puncture":

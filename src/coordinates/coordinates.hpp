@@ -23,7 +23,7 @@
 #include "../mesh/mesh.hpp"
 #include "../finite_differencing.hpp"
 #include "../z4c/z4c.hpp"
-#include "../lagrange_interp.hpp"
+#include "../utils/lagrange_interp.hpp"
 
 // forward declarations
 class MeshBlock;

@@ -16,7 +16,7 @@
 #include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
 #include "../z4c/z4c.hpp"
-#include "../z4c/trackers.hpp"
+#include "../z4c/puncture_tracker.hpp"
 
 // twopuncturesc: Stand-alone library ripped from Cactus
 #include "TwoPunctures.h"
@@ -218,19 +218,13 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
 int RefinementCondition(MeshBlock *pmb)
 {
-#ifdef Z4C_TRACKER
-  //Initial distance between one of the punctures and the edge of the full mesh, needed to
-  //calculate the box-in-box grid structure
-  Real L = pmb->pmy_mesh->pz4c_tracker->L_grid;
-  int root_lev = pmb->pmy_mesh->pz4c_tracker->root_lev;
-#ifdef DEBUG
-  printf("Root lev = %d\n", root_lev);
-#endif
-  Real xv[24];
-#ifdef DEBUG
-  printf("Max x = %g\n", pmb->block_size.x1max);
-  printf("Min x = %g\n", pmb->block_size.x1min);
-#endif
+  if (pmb->pmy_mesh->pz4c_tracker.size() != 2) {
+    return 0;
+  }
+
+  int root_lev = pmb->pmy_mesh->GetRootLevel();
+  int level = pmb->loc.level - root_lev;
+
   //Needed to calculate coordinates of vertices of a block with same center but
   //edge of 1/8th of the original size
   Real x1sum_sup = (5*pmb->block_size.x1max+3*pmb->block_size.x1min)/8.;
@@ -280,42 +274,27 @@ int RefinementCondition(MeshBlock *pmb)
   printf("lev = %d\n",level);
 #endif
   // Min distance between the two punctures
-  Real d = 1000000;
-  for (int i_punct = 0; i_punct < NPUNCT; ++i_punct) {
+  Real d = std::numeric_limits<Real>::max();
+  for (auto ptracker : pmb->pmy_mesh->pz4c_tracker) {
     // Abs difference
     Real diff;
     // Max norm_inf
-    Real dmin_punct = 1000000;
-#ifdef DEBUG
-    printf("==> Punc = %d\n", i_punct);
-#endif
+    Real dmin_punct = std::numeric_limits<Real>::max();
     for (int i_vert = 0; i_vert < 8; ++i_vert) {
       // Norm_inf
       Real norm_inf = -1;
       for (int i_diff = 0; i_diff < 3; ++ i_diff) {
-        diff = std::abs(pmb->pmy_mesh->pz4c_tracker->pos_body[i_punct].pos[i_diff] - xv[i_vert*3+i_diff]);
-#ifdef DEBUG
-        printf("======> Coordpos = %g, coordblock = %g\n",pmb->pmy_mesh->pz4c_tracker->pos_body[i_punct].pos[i_diff], xv[i_vert*3+i_diff]);
-#endif
+        diff = std::abs(ptracker->GetPos(i_diff) - xv[i_vert*3+i_diff]);
         if (diff > norm_inf) {
           norm_inf = diff;
         }
-#ifdef DEBUG
-	printf("======> Dist = %g\n", diff);
-#endif
       }
-#ifdef DEBUG
-      printf("====> Inf norm = %g\n", norm_inf);
-#endif
-      //Calculate minimum of the distances of the 8 vertices above
+      // Calculate minimum of the distances of the 8 vertices above
       if (dmin_punct > norm_inf) {
         dmin_punct = norm_inf;
       }
     }
-#ifdef DEBUG
-    printf("====> dmin_punct = %g\n", dmin_punct);
-#endif
-    //Calculate minimum of the distances between the n punctures
+    // Calculate minimum of the closest between the n punctures
     if (d > dmin_punct) {
       d = dmin_punct;
     }

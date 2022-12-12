@@ -18,11 +18,13 @@
 #include "../athena_arrays.hpp"
 #include "../athena_tensor.hpp"
 #include "../finite_differencing.hpp"
-#include "../lagrange_interp.hpp"
+#include "../utils/lagrange_interp.hpp"
 #include "../utils/interp_intergrid.hpp"
 
 #include "../bvals/cc/bvals_cc.hpp"
 #include "../bvals/vc/bvals_vc.hpp"
+
+#include "z4c_macro.hpp"
 
 #ifdef TWO_PUNCTURES
 // twopuncturesc: Stand-alone library ripped from Cactus

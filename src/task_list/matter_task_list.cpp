@@ -32,9 +32,7 @@
 #include "../z4c/wave_extract.hpp"
 #endif
 //WGC end
-#ifdef Z4C_TRACKER
-#include "../z4c/trackers.hpp"
-#endif // Z4C_TRACKER
+#include "../z4c/puncture_tracker.hpp"
 
 // #include "../parameter_input.hpp"
 
@@ -1476,15 +1474,12 @@ TaskStatus MatterTaskList::DiffuseScalars(MeshBlock *pmb, int stage) {
 
 TaskStatus MatterTaskList::CalculateZ4cRHS(MeshBlock *pmb, int stage) {
 //printf("rhsz4c\n");
-
-#ifdef Z4C_TRACKER
-  // Tracker: interpolate beta at puncture position before evolution
+  // PunctureTracker: interpolate beta at puncture position before evolution
   if (stage==1) {
-    for (int i_punc = 0; i_punc<NPUNCT; i_punc++) {
-      pmb->pz4c_tracker_loc->StoreBetaPrev(pmb->pz4c_tracker_loc->betap, pmb->pz4c->storage.u, i_punc);
+    for (auto ptracker : pmb->pmy_mesh->pz4c_tracker) {
+      ptracker->InterpolateShift(pmb, pmb->pz4c->storage.u);
     }
   }
-#endif // Z4C_TRACKER
 
   if (stage <= nstages) {
     pmb->pz4c->Z4cRHS(pmb->pz4c->storage.u,

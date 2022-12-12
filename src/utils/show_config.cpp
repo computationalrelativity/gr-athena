@@ -58,11 +58,6 @@ void ShowConfig() {
   }
   if (Z4C_ENABLED) {
     std::cout<<"  Z4c equations:              ON" << std::endl;
-#ifdef Z4C_TRACKER
-      std::cout<<"  Z4c tracker:                ON" << std::endl;
-#else
-      std::cout<<"  Z4c tracker:                OFF" << std::endl;
-#endif // Z4C_TRACKER
 #ifdef Z4C_WEXT
       std::cout<<"  Z4c wave extraction:                ON" << std::endl;
 #else
