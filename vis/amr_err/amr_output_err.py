@@ -502,15 +502,15 @@ class Plot:
         else:
             raise Exception("No such option {}!".format(type))
 
-        for mb in mbs.keys():
-            x = db["x1v"][mb]
-            y = db["x2v"][mb]
-            v = db[fld][mb]
-            hx = x[1]-x[0]
-            
-            ## NOTE: for now it only supports x-axis
-            found_i = 0
-            if slice.slice_dir == 3:
+        if slice.slice_dir == 3:
+            for mb in mbs.keys():
+                x = db["x1v"][mb]
+                y = db["x2v"][mb]
+                v = db[fld][mb]
+                hx = x[1]-x[0]
+                
+                found_i = 0
+                
                 ## Don't include ng as they may have the x-axis of interest
                 for i in range(mbs[mb]['iI'],mbs[mb]['iF']):
                     if np.abs(x[i] - _xcood_1d) < hx:
@@ -520,10 +520,10 @@ class Plot:
                     ## plot along y-axis
                     for j in range(mbs[mb]['jI']+ng,mbs[mb]['jF']-ng):
                         txt_file.write("{} {}\n".format(y[j],v[mbs[mb]['kI'], j, i]))
-            
-            else:
-                raise Exception("No such slice {}!".format(slice.slice_dir))
-
+        else:
+            txt_file.close()
+            raise Exception("No such slice {}!".format(slice.slice_dir))
+     
         txt_file.close()
 
     ## plotting in 1d txt format for EACH meshblocks separately in each file
