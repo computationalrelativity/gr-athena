@@ -83,6 +83,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) {
   rhoc = pin -> GetReal("problem","rhoc");
   k_adi = pin -> GetReal("hydro","k_adi");
   gamma_adi = pin -> GetReal("hydro","gamma");
+  alpha_excision = pin->GetOrAddReal("hydro", "alpha_excision", 0.0);
 using namespace EOS_Toolkit;
  //Get some EOS
   real_t max_eps = 10000.;
@@ -306,6 +307,12 @@ if(coarse_flag==0){
         Real w_lor = 1.0;
         Real dummy = 0.0;
 
+//adhoc - hydro excision
+//      
+//
+        if(alpha(i) > alpha_excision){
+
+
         cons_vars_mhd evolved{Dg, taug, 0.0,
                           {S_1g,S_2g,S_3g}, {0.0,0.0,0.0}};
 // TODO feed new metric to reprimand here
@@ -371,7 +378,15 @@ if(coarse_flag==0){
 
       }
     }
+}else{ // hydro excision triggered if lapse < 0.3
+      pgas = k_adi*pow(atmo_rho,gamma_adi);
+      rho = atmo_rho;
+      uu1 = 0.0;
+      uu2 = 0.0;
+      uu3 = 0.0;
+      PrimitiveToConservedSingle(prim, gamma_adi, gamma_dd, k, j, i, cons, pco);
 
+} 
 }
 }
 }
