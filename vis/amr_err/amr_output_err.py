@@ -271,6 +271,10 @@ class Files:
             ## each meshblock has its own file                                        
             self.files[file]['txt_1d_mb'] = params.out_dir + params.out_prefix + \
                                             params.field_name + "_" + params.analysis 
+
+            ## each meshblock has its own file                                        
+            self.files[file]['txt_2d_mb'] = params.out_dir + params.out_prefix + \
+                                            params.field_name + "_" + params.analysis 
                                          
             self.files[file]['txt_2d_L2'] = params.out_dir + params.out_prefix + \
                                             params.field_name + "_" + params.analysis + "_L2"+"_2d.txt"
@@ -298,6 +302,9 @@ class Plot:
 
         elif params.out_format == "txt1d_mbx":
             self.plot_1d_txt_mb(params,db,mbs,slice,file['cycle'],"value",file['txt_1d_mb'],'x')
+        
+        elif params.out_format == "txt2d_mb":
+            self.plot_2d_txt_mb(params,db,mbs,slice,file['cycle'],"value",file['txt_2d_mb'])
         
         elif params.out_format == "txt1d_mby":
             self.plot_1d_txt_mb(params,db,mbs,slice,file['cycle'],"value",file['txt_1d_mb'],'y')
@@ -462,16 +469,20 @@ class Plot:
                 for j in range(mbs[mb]['jI']+ng,mbs[mb]['jF']-ng):
                     for i in range(mbs[mb]['iI']+ng,mbs[mb]['iF']-ng):
                         txt_file.write("{} {} {}\n".format(y[j],x[i],v[mbs[mb]['kI'], j, i]))
+                    txt_file.write("\n") ## the newline is mandatory for the wired frame plot
             
             elif slice.slice_dir == 2:
                 for k in range(mbs[mb]['kI']+ng,mbs[mb]['kF']-ng):
                     for i in range(mbs[mb]['iI']+ng,mbs[mb]['iF']-ng):
                         txt_file.write("{} {} {}\n".format(z[k],x[i],v[k, mbs[mb]['jI'], i]))
-            
+                    txt_file.write("\n") ## the newline is mandatory for the wired frame plot
+                
             elif slice.slice_dir == 1:
                 for k in range(mbs[mb]['kI']+ng,mbs[mb]['kF']-ng):
                     for j in range(mbs[mb]['jI']+ng,mbs[mb]['jF']-ng):
                         txt_file.write("{} {} {}\n".format(z[k],y[j],v[k, j, mbs[mb]['iI']]))
+                    txt_file.write("\n") ## the newline is mandatory for the wired frame plot
+                
             
             else:
                 raise Exception("No such slice {}!".format(slice.slice_dir))
@@ -597,6 +608,38 @@ class Plot:
         
         else:
             raise Exception("No such slice {} or kind {}!".format(slice.slice_dir,kind))
+
+    ## plotting in 2d txt format for EACH meshblocks separately in each file
+    def plot_2d_txt_mb(self,params,db,mbs,slice,cycle,type,output_root):
+        print("{} ...".format(self.plot_2d_txt_mb.__name__))
+        sys.stdout.flush()
+        
+        ng = params.nghost
+
+        if type == "value":
+            fld = params.output_field
+        else:
+            raise Exception("No such option {}!".format(type))
+
+        ## plot along xy
+        if slice.slice_dir == 3:
+            for mb in mbs.keys():
+                x = db["x1v"][mb]
+                y = db["x2v"][mb]
+                v = db[fld][mb]
+
+                output = output_root + f"_mb{mb}" + "_2d.txt"
+                txt_file = open(output,"a")
+                txt_file.write("# \"time = {}\", {}, ([0]=x ,[1]=y, [2]=field)\n".format(cycle,params.cut))
+                
+                for j in range(mbs[mb]['jI']+ng,mbs[mb]['jF']-ng):
+                    for i in range(mbs[mb]['iI']+ng,mbs[mb]['iF']-ng):
+                        txt_file.write("{:.6f} {:.6f} {:.6f}\n".format(x[i],y[j],v[mbs[mb]['kI'], j, i]))
+                    txt_file.write("\n") ## the newline is mandatory for the wired frame plot
+                   
+                txt_file.close()
+        else:
+            raise Exception("No such slice {} or kind {}!".format(slice.slice_dir))
 
 ## do the post processing here
 class Analysis:
