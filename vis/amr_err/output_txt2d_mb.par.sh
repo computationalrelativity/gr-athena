@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 
 ## running amr_output_err.py script with appropriate parameters.
-## usage:
+## usage: 2-D plot of the field of interest along the specified plane
+
 ## set the ??? params and issue:
-## $ bash z4c_chi_example.par.sh
+## $ bash output_txt2d_mb.par.sh
 
 ## where the hdf5 files are located:
-#hdf5_dir="???"
-hdf5_dir="/home/alireza/Workstation/athena_z4c/Runs/t1"
+hdf5_dir="???"
 
 ## where to save the output
-out_dir="./Temp"
+out_dir="???"
 
 ## set athena path for import
 athena_path="../python"
@@ -18,13 +18,10 @@ athena_path="../python"
 amr_py_path="."
 
 ## create ouput dir it if doesn't exist
-if [[ -d ${out_dir} ]];
+if [[ ! -d ${out_dir} ]];
 	then
-		rm -rvf ${out_dir}
+		mkdir -vp ${out_dir}
 	fi
-
-echo "warning:"
-mkdir -vp ${out_dir}
 
 ## setting python path to find athena reader
 PYTHONPATH=:${PYTHONPATH}:${athena_path}:
