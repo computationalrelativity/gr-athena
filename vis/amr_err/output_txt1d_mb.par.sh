@@ -32,7 +32,8 @@ export PYTHONPATH
 
 ## run the script:
 python3 "${amr_py_path}/amr_output_err.py" -i  "${hdf5_dir}" -o "${out_dir}" \
--p "OnePuncture.z4c" -s "1" -f "txt1d_mb" -c "z=0" -r "10" -a "plot" -g "3" -n "z4c.chi"
+-p "OnePuncture.z4c" -s "1" -f "txt1d_mby" -x "4." -c "z=0" -r "10" -a "plot" -g "3" \
+-n "z4c.chi"
 
 
 ##########
