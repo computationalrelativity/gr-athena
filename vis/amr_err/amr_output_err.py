@@ -649,7 +649,7 @@ if __name__=="__main__":
         print("{}'...".format(f))
         sys.stdout.flush()
         
-        ## open the Athena files. Set it to True to open it mesh-block by mesh-block
+        ## open the Athena files. True is set to open the file mesh-block by mesh-block
         db = athena_read.athdf(f,True)
         
         ## pick those meshblocks where lying in a particulate region,
