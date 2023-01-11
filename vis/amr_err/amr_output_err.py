@@ -32,42 +32,32 @@ _xcood_1d = 0 ## shows y-axis for 1D plot
         
 ## given parameters, get all hdf5 files of interest
 class Params:
-    ## public:
-    out_dir     = None ## dir. to save plots
-    hdf5_dir    = None ## dir. to read hdf5 files
-    hdf5_prefix = None ## hdf5 prefix, e.g., 'z4c_z' or 'adm'
-    out_format  = "txt"    ## plot format pdf, png, and txt
-    out_prefix  = _out_prefix   ## prefix of output files
-    hdf5_suffix = _hdf5_suffix  ## suffix of the hdf5 files to glob
-    resolution = None ## resolution of the run, e.g., 128, 96,...
-    deriv_pow  = None ##  The results are powered to the m-th.
-    field_name = None ## the field to plot, z4c.chi and etc.
-    cut        = None ## slice of 3d data, 
-    step       = None ## reading files every step
-    nghost     = None ## number of ghost zones
-    deriv_acc  = _deriv_acc ## derivative accuracy in z4c Athena++
-    radius     = 5 ## criterion to pick the meshblock (radii <= _radius)
-    analysis   = None ## what kind of analysis we want, L2 norm, derivative, plot, etc.
-    output_field = None ## the name of field to be output
-    findiff_acc  = _findiff_acc ## finite difference accuracy here for FinDiff
-    findiff_ord  = None ## finite difference order for FinDiff
     
     ## a quick set of vars using arg
     def __init__(self,args):
-        self.hdf5_dir   = args.i
-        self.hdf5_prefix= args.p
-        self.out_dir    = args.o + '/'
-        self.out_format = args.f
-        self.cut        = args.c
-        self.field_name = args.n
-        self.step       = args.s
-        self.nghost     = args.g
-        self.radius     = args.r
-        self.analysis   = args.a
-        self.findiff_ord = args.d
-        self.resolution = args.e
-        self.deriv_pow  = args.m
+        self.hdf5_dir    = args.i ## dir. to save plots
+        self.hdf5_prefix = args.p ## hdf5 prefix, e.g., 'z4c_z' or 'adm'
+        self.hdf5_suffix = _hdf5_suffix ## suffix of the hdf5 files to glob
+
+        self.out_dir    = args.o + '/' ## dir. to read hdf5 files
+        self.out_format = args.f ## plot format pdf, png, and txt
+        self.out_prefix = _out_prefix ## prefix of output files
         
+        self.cut        = args.c ## slice of 3d data, 
+        self.field_name = args.n ## the field to plot, z4c.chi and etc.
+        self.step       = args.s ## reading files every step
+        self.nghost     = args.g ## number of ghost zones
+        self.radius     = args.r ## criterion to pick the meshblock (radii <= _radius)
+        self.analysis   = args.a ## what kind of analysis we want, L2 norm, derivative, plot, etc.
+        
+        self.findiff_ord  = args.d ## finite difference order for FinDiff
+        self.findiff_acc  = _findiff_acc ## finite difference accuracy here for FinDiff
+        self.deriv_acc    = _deriv_acc ## derivative accuracy in z4c Athena++
+        self.deriv_pow    = args.m ## The results are powered to the m-th.
+        
+        self.resolution   = args.e ## resolution of the run, e.g., 128, 96,...
+        self.output_field = None ## the name of field to be output
+
 
 ## calc. the L2 norm and add it to the db. note: this is for a slice
 def L2(params,db,mbs,slice,file):
@@ -538,22 +528,22 @@ class Plot:
         else:
             raise Exception("No such option {}!".format(type))
 
-        for mb in mbs.keys():
-            x = db["x1v"][mb]
-            y = db["x2v"][mb]
-            v = db[fld][mb]
-            hx = x[1]-x[0]
-            
-            ## NOTE: for now it only supports x-axis
-            found_i = 0
-            if slice.slice_dir == 3:
+        if slice.slice_dir == 3:
+            for mb in mbs.keys():
+                x = db["x1v"][mb]
+                y = db["x2v"][mb]
+                v = db[fld][mb]
+                hx = x[1]-x[0]
+                
+                ## NOTE: for now it only supports x-axis
+                found_i = 0
                 ## Don't include ng as they may have the x-axis of interest
                 for i in range(mbs[mb]['iI'],mbs[mb]['iF']):
                     if np.abs(x[i] - _xcood_1d) < hx:
                         found_i = 1;
                         break
                 if found_i == 1:
-                    output = output_root+ f"_mb{mb}" + "_1d.txt"
+                    output = output_root + f"_mb{mb}" + "_1d.txt"
                     txt_file = open(output,"a")
                     txt_file.write("# \"time = {}\"\n".format(cycle))
                     
@@ -562,8 +552,8 @@ class Plot:
                         txt_file.write("{} {}\n".format(y[j],v[mbs[mb]['kI'], j, i]))
             
                     txt_file.close()
-            else:
-                raise Exception("No such slice {}!".format(slice.slice_dir))
+        else:
+            raise Exception("No such slice {}!".format(slice.slice_dir))
 
 ## do the post processing here
 class Analysis:
