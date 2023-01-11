@@ -276,6 +276,10 @@ class Files:
             
             self.files[file]['txt_1d'] = params.out_dir + params.out_prefix + \
                                          params.field_name + "_" + params.analysis + "_1d.txt"
+
+            ## each meshblock has its own file                                        
+            self.files[file]['txt_1d_mb'] = params.out_dir + params.out_prefix + \
+                                            params.field_name + "_" + params.analysis 
                                          
             self.files[file]['txt_2d_L2'] = params.out_dir + params.out_prefix + \
                                             params.field_name + "_" + params.analysis + "_L2"+"_2d.txt"
@@ -300,6 +304,9 @@ class Plot:
             
         elif params.out_format == "txt1d":
             self.plot_1d_txt(params,db,mbs,slice,file['cycle'],"value",file['txt_1d'])
+
+        elif params.out_format == "txt1d_mb":
+            self.plot_1d_txt_mb(params,db,mbs,slice,file['cycle'],"value",file['txt_1d_mb'])
             
         elif params.out_format == "pdf" or params.out_format == "png":
             self.plot_2d_color(params,db,mbs,slice,file['cycle'],"value",file['color_2d'])
@@ -480,7 +487,7 @@ class Plot:
             txt_file.write("{} {}\n".format(params.resolution, L2_avg(params,db,mbs) ))
             txt_file.close()
 
-    ## plotting in 1d txt format
+    ## plotting in 1d txt format for ALL meshblocks (aggregates all mbs into one file)
     def plot_1d_txt(self,params,db,mbs,slice,cycle,type,output):
         print("{} ...".format(self.plot_1d_txt.__name__))
         sys.stdout.flush()
@@ -518,6 +525,45 @@ class Plot:
                 raise Exception("No such slice {}!".format(slice.slice_dir))
 
         txt_file.close()
+
+    ## plotting in 1d txt format for EACH meshblocks separately in each file
+    def plot_1d_txt_mb(self,params,db,mbs,slice,cycle,type,output_root):
+        print("{} ...".format(self.plot_1d_txt_mb.__name__))
+        sys.stdout.flush()
+        
+        ng = params.nghost
+
+        if type == "value":
+            fld  = params.output_field
+        else:
+            raise Exception("No such option {}!".format(type))
+
+        for mb in mbs.keys():
+            x = db["x1v"][mb]
+            y = db["x2v"][mb]
+            v = db[fld][mb]
+            hx = x[1]-x[0]
+            
+            ## NOTE: for now it only supports x-axis
+            found_i = 0
+            if slice.slice_dir == 3:
+                ## Don't include ng as they may have the x-axis of interest
+                for i in range(mbs[mb]['iI'],mbs[mb]['iF']):
+                    if np.abs(x[i] - _xcood_1d) < hx:
+                        found_i = 1;
+                        break
+                if found_i == 1:
+                    output = output_root+ f"_mb{mb}" + "_1d.txt"
+                    txt_file = open(output,"a")
+                    txt_file.write("# \"time = {}\"\n".format(cycle))
+                    
+                    ## plot along y-axis
+                    for j in range(mbs[mb]['jI']+ng,mbs[mb]['jF']-ng):
+                        txt_file.write("{} {}\n".format(y[j],v[mbs[mb]['kI'], j, i]))
+            
+                    txt_file.close()
+            else:
+                raise Exception("No such slice {}!".format(slice.slice_dir))
 
 ## do the post processing here
 class Analysis:
