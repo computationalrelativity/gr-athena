@@ -35,13 +35,13 @@ class Params:
     
     ## a quick set of vars using arg
     def __init__(self,args):
-        self.hdf5_dir    = args.i ## dir. to save plots
-        self.hdf5_prefix = args.p ## hdf5 prefix, e.g., 'z4c_z' or 'adm'
+        self.hdf5_dir    = args.i       ## dir. to save plots
+        self.hdf5_prefix = args.p       ## hdf5 prefix, e.g., 'z4c_z' or 'adm'
         self.hdf5_suffix = _hdf5_suffix ## suffix of the hdf5 files to glob
 
         self.out_dir    = args.o + '/' ## dir. to read hdf5 files
-        self.out_format = args.f ## plot format pdf, png, and txt
-        self.out_prefix = _out_prefix ## prefix of output files
+        self.out_format = args.f       ## plot format pdf, png, and txt
+        self.out_prefix = _out_prefix  ## prefix of output files
         
         self.cut        = args.c ## slice of 3d data, 
         self.field_name = args.n ## the field to plot, z4c.chi and etc.
@@ -49,14 +49,15 @@ class Params:
         self.nghost     = args.g ## number of ghost zones
         self.radius     = args.r ## criterion to pick the meshblock (radii <= _radius)
         self.analysis   = args.a ## what kind of analysis we want, L2 norm, derivative, plot, etc.
+        self.coord_1d   = args.x ## coordinate along which the txt_1d(?) plot(s) is plotted
         
-        self.findiff_ord  = args.d ## finite difference order for FinDiff
+        self.findiff_ord  = args.d       ## finite difference order for FinDiff
         self.findiff_acc  = _findiff_acc ## finite difference accuracy here for FinDiff
-        self.deriv_acc    = _deriv_acc ## derivative accuracy in z4c Athena++
-        self.deriv_pow    = args.m ## The results are powered to the m-th.
+        self.deriv_acc    = _deriv_acc   ## derivative accuracy in z4c Athena++
+        self.deriv_pow    = args.m       ## The results are powered to the m-th.
         
         self.resolution   = args.e ## resolution of the run, e.g., 128, 96,...
-        self.output_field = None ## the name of field to be output
+        self.output_field = None   ## the name of field to be output
 
 
 ## calc. the L2 norm and add it to the db. note: this is for a slice
@@ -503,7 +504,7 @@ class Plot:
                 
                 ## Don't include ng as they may have the x-axis of interest
                 for i in range(mbs[mb]['iI'],mbs[mb]['iF']):
-                    if np.abs(x[i] - _xcood_1d) < hx:
+                    if np.abs(x[i] - params.coord_1d) < hx:
                         found_i = 1;
                         break
                 if found_i == 1:
@@ -524,7 +525,7 @@ class Plot:
         ng = params.nghost
 
         if type == "value":
-            fld  = params.output_field
+            fld = params.output_field
         else:
             raise Exception("No such option {}!".format(type))
 
@@ -539,7 +540,7 @@ class Plot:
                 found_i = 0
                 ## Don't include ng as they may have the x-axis of interest
                 for i in range(mbs[mb]['iI'],mbs[mb]['iF']):
-                    if np.abs(x[i] - _xcood_1d) < hx:
+                    if np.abs(x[i] - params.coord_1d) < hx:
                         found_i = 1;
                         break
                 if found_i == 1:
@@ -671,6 +672,7 @@ if __name__=="__main__":
     p.add_argument("-a",type=str,default = "plot",help="analysis = {plot,der}.")
     p.add_argument("-d",type=int,default = 2, help="derivative order.")
     p.add_argument("-m",type=float,default = 1, help="derivative power. The results are powered to the m-th.")
+    p.add_argument("-x",type=float,default = 0, help="coordinate along which the txt_1d(?) plot(s) is plotted")
     
     args = p.parse_args()
 
