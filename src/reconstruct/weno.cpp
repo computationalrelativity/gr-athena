@@ -60,16 +60,16 @@ static double cl5[5] = {2./60., -13./60., 47./60., 27./60., -3./60.};
 
 void Reconstruction::WenoX1(
     const int k, const int j, const int il, const int iu,
-    const AthenaArray<Real> &q,
+    const AthenaArray<Real> &q, const AthenaArray<Real> &bcc,
     AthenaArray<Real> &ql, AthenaArray<Real> &qr) {
   Coordinates *pco = pmy_block_->pcoord;
   // set work arrays to shallow copies of scratch arrays
   AthenaArray<Real> &qc = scr1_ni_, &dql = scr2_ni_, &dqr = scr3_ni_,
                    &dqm = scr4_ni_;
-  const int nu = q.GetDim4() - 1;
+//  const int nu = q.GetDim4() - 1;
 
   // compute L/R slopes for each variable
-  for (int n=0; n<=nu; ++n) {
+  for (int n=0; n< NHYDRO; ++n) {
 #pragma omp simd
     for (int i=il; i<=iu; ++i) {
       Real luimt = q(n,k,j,i-3);
@@ -93,21 +93,54 @@ void Reconstruction::WenoX1(
 //      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
     }
   }
+  if(MAGNETIC_FIELDS_ENABLED){
+#pragma omp simd
+    for (int i=il; i<=iu; ++i) {
+      Real luimt = bcc(IB2,k,j,i-3);
+      Real luimo = bcc(IB2,k,j,i-2);
+      Real lui = bcc(IB2,k,j,i-1);
+      Real luipo = bcc(IB2,k,j,i);
+      Real luipt = bcc(IB2,k,j,i+1);
+      Real ruimt = bcc(IB2,k,j,i-2);
+      Real ruimo = bcc(IB2,k,j,i-1);
+      Real rui = bcc(IB2,k,j,i);
+      Real ruipo = bcc(IB2,k,j,i+1);
+      Real ruipt = bcc(IB2,k,j,i+2);
+      ql(IBY,i) = rec1d_p_wenoz(luimt,luimo,lui,luipo,luipt);
+      qr(IBY,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+    }
+#pragma omp simd
+    for (int i=il; i<=iu; ++i) {
+      Real luimt = bcc(IB3,k,j,i-3);
+      Real luimo = bcc(IB3,k,j,i-2);
+      Real lui = bcc(IB3,k,j,i-1);
+      Real luipo = bcc(IB3,k,j,i);
+      Real luipt = bcc(IB3,k,j,i+1);
+      Real ruimt = bcc(IB3,k,j,i-2);
+      Real ruimo = bcc(IB3,k,j,i-1);
+      Real rui = bcc(IB3,k,j,i);
+      Real ruipo = bcc(IB3,k,j,i+1);
+      Real ruipt = bcc(IB3,k,j,i+2);
+      ql(IBZ,i) = rec1d_p_wenoz(luimt,luimo,lui,luipo,luipt);
+      qr(IBZ,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+    }
+
+  }
   return;
 }
 
 void Reconstruction::WenoX2(
     const int k, const int j, const int il, const int iu,
-    const AthenaArray<Real> &q,
+    const AthenaArray<Real> &q,  const AthenaArray<Real> &bcc,
     AthenaArray<Real> &ql, AthenaArray<Real> &qr) {
   Coordinates *pco = pmy_block_->pcoord;
   // set work arrays to shallow copies of scratch arrays
   AthenaArray<Real> &qc = scr1_ni_, &dql = scr2_ni_, &dqr = scr3_ni_,
                    &dqm = scr4_ni_;
-  const int nu = q.GetDim4() - 1;
+//  const int nu = q.GetDim4() - 1;
 
   // compute L/R slopes for each variable
-  for (int n=0; n<=nu; ++n) {
+  for (int n=0; n<NHYDRO; ++n) {
 #pragma omp simd
     for (int i=il; i<=iu; ++i) {
       Real luimt = q(n,k,j-3,i);
@@ -130,6 +163,53 @@ void Reconstruction::WenoX2(
 //      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
     }
   }
+
+  if(MAGNETIC_FIELDS_ENABLED){
+#pragma omp simd
+    for (int i=il; i<=iu; ++i) {
+      Real luimt = bcc(IB3,k,j-3,i);
+      Real luimo = bcc(IB3,k,j-2,i);
+      Real lui = bcc(IB3,k,j-1,i);
+      Real luipo = bcc(IB3,k,j,i);
+      Real luipt = bcc(IB3,k,j+1,i);
+      Real ruimt = bcc(IB3,k,j-2,i);
+      Real ruimo = bcc(IB3,k,j-1,i);
+      Real rui = bcc(IB3,k,j,i);
+      Real ruipo = bcc(IB3,k,j+1,i);
+      Real ruipt = bcc(IB3,k,j+2,i);
+//      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+      ql(IBY,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+      qr(IBY,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+     }
+#pragma omp simd
+    for (int i=il; i<=iu; ++i) {
+      Real luimt = bcc(IB1,k,j-3,i);
+      Real luimo = bcc(IB1,k,j-2,i);
+      Real lui = bcc(IB1,k,j-1,i);
+      Real luipo = bcc(IB1,k,j,i);
+      Real luipt = bcc(IB1,k,j+1,i);
+      Real ruimt = bcc(IB1,k,j-2,i);
+      Real ruimo = bcc(IB1,k,j-1,i);
+      Real rui = bcc(IB1,k,j,i);
+      Real ruipo = bcc(IB1,k,j+1,i);
+      Real ruipt = bcc(IB1,k,j+2,i);
+//      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+      ql(IBZ,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+      qr(IBZ,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+     }
+
+
+}
   return;
 }
 //----------------------------------------------------------------------------------------
@@ -137,16 +217,16 @@ void Reconstruction::WenoX2(
 
 void Reconstruction::WenoX3(
     const int k, const int j, const int il, const int iu,
-    const AthenaArray<Real> &q,
+    const AthenaArray<Real> &q, const AthenaArray<Real> &bcc,
     AthenaArray<Real> &ql, AthenaArray<Real> &qr) {
   Coordinates *pco = pmy_block_->pcoord;
   // set work arrays to shallow copies of scratch arrays
   AthenaArray<Real> &qc = scr1_ni_, &dql = scr2_ni_, &dqr = scr3_ni_,
                    &dqm = scr4_ni_;
-  const int nu = q.GetDim4() - 1;
+//  const int nu = q.GetDim4() - 1;
 
   // compute L/R slopes for each variable
-  for (int n=0; n<=nu; ++n) {
+  for (int n=0; n<NHYDRO; ++n) {
 #pragma omp simd
     for (int i=il; i<=iu; ++i) {
       Real luimt = q(n,k-3,j,i);
@@ -169,6 +249,52 @@ void Reconstruction::WenoX3(
 //      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
     }
   }
+  if(MAGNETIC_FIELDS_ENABLED){
+#pragma omp simd
+    for (int i=il; i<=iu; ++i) {
+      Real luimt = bcc(IB1,k-3,j,i);
+      Real luimo = bcc(IB1,k-2,j,i);
+      Real lui = bcc(IB1,k-1,j,i);
+      Real luipo = bcc(IB1,k,j,i);
+      Real luipt = bcc(IB1,k+1,j,i);
+      Real ruimt = bcc(IB1,k-2,j,i);
+      Real ruimo = bcc(IB1,k-1,j,i);
+      Real rui = bcc(IB1,k,j,i);
+      Real ruipo = bcc(IB1,k+1,j,i);
+      Real ruipt = bcc(IB1,k+2,j,i);
+//      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+      ql(IBY,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+      qr(IBY,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+    }
+#pragma omp simd
+    for (int i=il; i<=iu; ++i) {
+      Real luimt = bcc(IB2,k-3,j,i);
+      Real luimo = bcc(IB2,k-2,j,i);
+      Real lui = bcc(IB2,k-1,j,i);
+      Real luipo = bcc(IB2,k,j,i);
+      Real luipt = bcc(IB2,k+1,j,i);
+      Real ruimt = bcc(IB2,k-2,j,i);
+      Real ruimo = bcc(IB2,k-1,j,i);
+      Real rui = bcc(IB2,k,j,i);
+      Real ruipo = bcc(IB2,k+1,j,i);
+      Real ruipt = bcc(IB2,k+2,j,i);
+//      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+      ql(IBZ,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+      qr(IBZ,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+    }
+  }
+
+
   return;
 }
 

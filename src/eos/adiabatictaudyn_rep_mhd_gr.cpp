@@ -30,7 +30,7 @@
 
 
 // Declarations
-static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim, Real gamma_adi,
+static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, Real gamma_adi,
 const AthenaArray<Real> &bb_cc,    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> const & beta_u,   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> const & alpha, int k, int j, int i,
     AthenaArray<Real> &cons, Coordinates *pco);
 Real fthr, fatm, rhoc;
@@ -65,8 +65,8 @@ Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
 EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) {
   pmy_block_ = pmb;
   gamma_ = pin->GetReal("hydro", "gamma");
-  density_floor_ = pin->GetOrAddReal("hydro", "dfloor", std::sqrt(1024*(FLT_MIN)) );
-  pressure_floor_ = pin->GetOrAddReal("hydro", "pfloor", std::sqrt(1024*(FLT_MIN)) );
+  //density_floor_ = pin->GetOrAddReal("hydro", "dfloor", std::sqrt(1024*(FLT_MIN)) );
+  //pressure_floor_ = pin->GetOrAddReal("hydro", "pfloor", std::sqrt(1024*(FLT_MIN)) );
   rho_min_ = pin->GetOrAddReal("hydro", "rho_min", density_floor_);
   rho_pow_ = pin->GetOrAddReal("hydro", "rho_pow", 0.0);
   pgas_min_ = pin->GetOrAddReal("hydro", "pgas_min", pressure_floor_);
@@ -83,6 +83,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) {
   rhoc = pin -> GetReal("problem","rhoc");
   k_adi = pin -> GetReal("hydro","k_adi");
   gamma_adi = pin -> GetReal("hydro","gamma");
+  alpha_excision = pin->GetOrAddReal("hydro", "alpha_excision", 0.0);
 using namespace EOS_Toolkit;
  //Get some EOS
   real_t max_eps = 10000.;
@@ -97,12 +98,15 @@ using namespace EOS_Toolkit;
   atmo_cut = atmo_rho * fthr;
   atmo_p = eos.at_rho_eps_ye(atmo_rho, atmo_eps, atmo_ye).press();
 
+  density_floor_ = atmo_rho;
+  pressure_floor_ = atmo_p;
+
   //Primitive recovery parameters 
   rho_strict = 1e-20;
   ye_lenient = false;
   max_iter = 10000;
   c2p_acc = 1e-10;
-  max_b = 10.;
+  max_b = 1.0e10;
   max_z = 1e5;
 
 
@@ -307,7 +311,13 @@ if(coarse_flag==0){
         Real eps=0.0;
         Real w_lor = 1.0;
         Real dummy = 0.0;
-//TODO pass CC B field to reprimand
+
+//adhoc - hydro excision
+//      
+//
+        if(alpha(i) > alpha_excision){
+
+
         cons_vars_mhd evolved{Dg, taug, 0.0,
                           {S_1g,S_2g,S_3g}, {bb1g,bb2g,bb3g}};
 // TODO feed new metric to reprimand here
@@ -374,7 +384,15 @@ if(coarse_flag==0){
 
       }
     }
+}else{ // hydro excision triggered if lapse < 0.3
+      pgas = k_adi*pow(atmo_rho,gamma_adi);
+      rho = atmo_rho;
+      uu1 = 0.0;
+      uu2 = 0.0;
+      uu3 = 0.0;
+          PrimitiveToConservedSingle(prim, gamma_adi, bb_cc, gamma_dd, beta_u, alpha, k, j, i, cons, pco);
 
+} 
 }
 }
 }
@@ -394,8 +412,8 @@ if(coarse_flag==0){
 //   single-cell function exists for other purposes; call made to that function rather
 //       than having duplicate code
 
-void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
-     const AthenaArray<Real> &bb_cc, AthenaArray<Real> &cons, Coordinates *pco, int il,
+void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim,
+     AthenaArray<Real> &bb_cc, AthenaArray<Real> &cons, Coordinates *pco, int il,
      int iu, int jl, int ju, int kl, int ku) {
       AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd; //lapse
       AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u; //lapse
@@ -457,7 +475,7 @@ void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim,
 //   cons: conserved variables set in desired cell
 
 // TODO change arguments so instead of taking g(n,i), gi(n,i) it just takes gamma(a,b,i)
-static void PrimitiveToConservedSingle(const AthenaArray<Real> &prim, Real gamma_adi,
+static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, Real gamma_adi,
 const AthenaArray<Real> &bb_cc,    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> const & beta_u, AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> const & alpha, int k, int j, int i,
     AthenaArray<Real> &cons, Coordinates *pco) {
 //TODO needs to take alpha as an argument - need to initialise b too
@@ -473,6 +491,16 @@ const AthenaArray<Real> &bb_cc,    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>
   bi_u.NewAthenaArray(3);
   bi_d.NewAthenaArray(3);
 
+
+  // Apply floor to primitive variables. This should be
+  // identical to what RePrimAnd does.
+  if (prim(IDN, k, j, i) < atmo_cut) {
+    prim(IDN, k, j, i) = atmo_rho;
+    prim(IVX, k, j, i) = 0.0;
+    prim(IVY, k, j, i) = 0.0;
+    prim(IVZ, k, j, i) = 0.0;
+    prim(IPR, k, j, i) = atmo_p;
+  }
   const Real &rho = prim(IDN,k,j,i);
   const Real &pgas = prim(IPR,k,j,i);
 //  const Real &uu1 = prim(IVX,k,j,i);
