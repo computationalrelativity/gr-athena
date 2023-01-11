@@ -1504,455 +1504,578 @@ void MeshRefinement::ProlongateVertexCenteredValues(
     const AthenaArray<Real> &coarse, AthenaArray<Real> &fine,
     int sn, int en, int si, int ei, int sj, int ej, int sk, int ek) {
 
-  if (DBGPR_MESH_REFINEMENT)
-    coutCyan("MeshRefinement::ProlongateVertexCenteredValues\n");
+  // half number of ghosts
+  int const H_NCGHOST = NCGHOST / 2;
+
+  // maximum stencil size for interpolator
+  int const H_SZ = H_NCGHOST + 1;
 
   MeshBlock *pmb = pmy_block_;
-  Coordinates *pco = pmb->pcoord;
+
+  if (pmb->pmy_mesh->ndim == 3) {
+#if ISEVEN(NGHOST)
+    int const eo_offset = 0;
+
+    int const si_inj{(si)};
+    int const ei_inj{(ei)};
+
+    int const sj_inj{(sj)};
+    int const ej_inj{(ej)};
+
+    int const sk_inj{(sk)};
+    int const ek_inj{(ek)};
+#else
+    int const eo_offset = -1;
+
+    int const fis_inj{(2 * (si - H_NCGHOST) + eo_offset)};
+    int const fie_inj{(2 * (ei - H_NCGHOST) + eo_offset)};
+
+    int const fjs_inj{(2 * (sj - H_NCGHOST) + eo_offset)};
+    int const fje_inj{(2 * (ej - H_NCGHOST) + eo_offset)};
+
+    int const fks_inj{(2 * (sk - H_NCGHOST) + eo_offset)};
+    int const fke_inj{(2 * (ek - H_NCGHOST) + eo_offset)};
+
+    int const si_inj{(fis_inj < 0) ? si + 1 : si};
+    int const ei_inj{(fie_inj > 2 * NGHOST + pmb->block_size.nx1) ? ei - 1 : ei};
+
+    int const sj_inj{(fjs_inj < 0) ? sj + 1 : sj};
+    int const ej_inj{(fje_inj > 2 * NGHOST + pmb->block_size.nx2) ? ej - 1 : ej};
+
+    int const sk_inj{(fks_inj < 0) ? sk + 1 : sk};
+    int const ek_inj{(fke_inj > 2 * NGHOST + pmb->block_size.nx3) ? ek - 1 : ek};
+#endif
 
 
-  if (DBGPR_MESH_REFINEMENT) {
-    coutBoldRed("(block_size.nx1, pmb->is, pmb->cis, si, ei) = ");
-    printf("(%d, %d, %d, %d, %d)\n\n",
-          pmb->block_size.nx1, pmb->is, pmb->cis, si, ei);
+    //-------------------------------------------------------------------------
+    // bias offsets for prolongation (depends on location)
+    int const si_prl{(si > pmb->cimp) ? si - 1 : si};
+    int const ei_prl{(ei < pmb->cimp) ? ei + 1 : ei};
+    int const sj_prl{(sj > pmb->cjmp) ? sj - 1 : sj};
+    int const ej_prl{(ej < pmb->cjmp) ? ej + 1 : ej};
+    int const sk_prl{(sk > pmb->ckmp) ? sk - 1 : sk};
+    int const ek_prl{(ek < pmb->ckmp) ? ek + 1 : ek};
 
-    coutBoldRed("(block_size.nx2, pmb->js, pmb->cjs, sj, ej) = ");
-    printf("(%d, %d, %d, %d, %d)\n\n",
-          pmb->block_size.nx2, pmb->js, pmb->cjs, sj, ej);
-  }
+    // [running ix]: op
 
-  if (DBGPR_MESH_REFINEMENT) {
-    coutBoldRed("[pre]fine\n");
-    fine.print_all();
-  }
+    for (int n = sn; n<= en; ++n) {
+      //-----------------------------------------------------------------------
+      // [k, j, i]: interp. 3d
+      for (int k = sk_prl; k < ek_prl; ++k) {
+        int const fk_inj = 2 * (k - H_NCGHOST) + eo_offset;
+        int const fk_prl = fk_inj + 1;
 
-  // BD debug: re-populate coarse grid with exact solution
-  // need mutable
-  AthenaArray<Real>& coarse_ = const_cast<AthenaArray<Real>&>(coarse);
+        for (int j = sj_prl; j < ej_prl; ++j) {
+          int const fj_inj = 2 * (j - H_NCGHOST) + eo_offset;
+          int const fj_prl = fj_inj + 1;
 
-  if (FILL_WAVE_COARSE_P) {
-    AthenaArray<Real> tmp;
-    tmp.NewAthenaArray(2, pmb->ncv3, pmb->ncv2, pmb->ncv1);
+          for (int i = si_prl; i < ei_prl; ++i) {
+            int const fi_inj = 2 * (i - H_NCGHOST) + eo_offset;
+            int const fi_prl = fi_inj + 1;
 
-    for (int n=sn; n<=en; ++n)
-      for (int k=pmb->ckms; k<=pmb->ckpe; ++k)
-        for (int j=pmb->cjms; j<=pmb->cjpe; ++j)
-          for (int i=pmb->cims; i<=pmb->cipe; ++ i)
-            tmp(n, k, j, i) = coarse_(n, k, j, i);
+            fine(n, fk_prl, fj_prl, fi_prl) = 0.;
 
-    pmb->DebugWaveMeshBlock(coarse_,
-                            pmb->cims, pmb->cipe,
-                            pmb->cjms, pmb->cjpe,
-                            pmb->ckms, pmb->ckpe,
-                            false, true);
+            for (int dk=0; dk<H_SZ; ++dk) {
+              int const ck_u = k + dk + 1;
+              int const ck_l = k - dk;
 
-    bool err_kill = false;
-    for (int n=sn; n<=en; ++n)
-      for (int k=pmb->ckms; k<=pmb->ckpe; ++k)
-        for (int j=pmb->cjms; j<=pmb->cjpe; ++j)
-          for (int i=pmb->cims; i<=pmb->cipe; ++i) {
-            Real v = std::abs(tmp(n, k, j, i) - coarse_(n, k, j, i));
-            tmp(n, k, j, i) = v;
-            err_kill = err_kill or (v > 0.1);
+              Real const lck = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dk-1];
 
-            if (err_kill) {
-              printf("n,k,j,i=%d,%d,%d,%d\n",
-                     n,k,j,i);
-              Q();
-            }
+              for (int dj=0; dj<H_SZ; ++dj) {
+                int const cj_u = j + dj + 1;
+                int const cj_l = j - dj;
 
-          }
+                Real const lckj = lck * InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dj-1];
 
+                for (int di=0; di<H_SZ; ++di) {
+                  int const ci_u = i + di + 1;
+                  int const ci_l = i - di;
 
-    if (DBGPR_MESH_REFINEMENT) {
-      coutBoldBlue("coarse_\n");
-      coarse_.print_all();
-      coutBoldBlue("tmp\n");
-      tmp.print_all();
+                  Real const lckji = lckj * InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
 
-      tmp.DeleteAthenaArray();
+                  Real const fc_uuu = coarse(n, ck_u, cj_u, ci_u);
+                  Real const fc_lll = coarse(n, ck_l, cj_l, ci_l);
 
-      // if (err_kill) {
-      // // if (pmb->gid == 4) {
-      //   coutBoldRed("ERROR IN COARSE\n");
-      //   Q();
-      // }
-      // for (int n=sn; n<=en; ++n)
-      //   for (int j=pmb->cjvs; j<=pmb->cjve; ++j)
-      //     for (int i=pmb->civs; i<=pmb->cive; ++ i)
-      //       coarse_(n, 0, j, i) = 10000000.;
+                  Real const fc_luu = coarse(n, ck_l, cj_u, ci_u);
+                  Real const fc_ulu = coarse(n, ck_u, cj_l, ci_u);
+                  Real const fc_uul = coarse(n, ck_u, cj_u, ci_l);
 
+                  Real const fc_llu = coarse(n, ck_l, cj_l, ci_u);
+                  Real const fc_ull = coarse(n, ck_u, cj_l, ci_l);
+                  Real const fc_lul = coarse(n, ck_l, cj_u, ci_l);
 
-      coutBoldRed("Warning: coarse buffer overridden..\n");
-
-    }
-
-    if (err_kill) {
-      // if (pmb->gid == 4) {
-      coutBoldRed("ERROR IN COARSE\n");
-      Q();
-    }
-  }
-
-  // Prolongation based on Lagrange interpolation on uniform grids.
-  // Coarse variable assumed to be densely populated over required nodes
-
-  // For uniform grids:.
-  // At the roots (of the interpolation polynomial) the operation degenerates
-  // to injection from the coarse variable.
-
-  // This needs to be fixed...
-
-  int const hs_sz = NGHOST-1;
-
-  if (pmb->pmy_mesh->ndim == 1) {
-    int const k = pmb->ckvs;
-    int const fk = pmb->kvs;
-    int const j = pmb->cjvs;
-    int const fj = pmb->jvs;
-
-    for (int n = sn; n <= en; ++n) {
-      for (int i = si; i <= ei; ++i) {
-
-        int fi, ib, sio, eio, il, iu;
-
-        ProlongateVertexCenteredIndicialHelper(
-          hs_sz, i,
-          pmb->civs, pmb->cive, pmb->cimp,
-          pmb->ivs, pmb->ive,
-          fi, ib, sio, eio, il, iu);
-
-        for (int io = sio; io <= eio; ++io) {
-          int const fio = fi + io;
-
-          // edge correction (odd ghosts require initial interp not inj.)
-          if ((fio >= pmb->ims) and (fio <= pmb->ipe)) {
-            fine(n, fk, fj, fio) = 0;
-
-            for (int di = 0; di < hs_sz; ++di) {
-              Real const lc_il = InterpolateLagrangeUniform<hs_sz>::coeff[io-ib+1][di];
-              Real const lc_iu = InterpolateLagrangeUniform<hs_sz>::coeff[io-ib+1][2 * hs_sz-di-1];
-
-              fine(n, fk, fj, fio) +=
-                lc_il * coarse(n, k, j, il + di) +
-                lc_iu * coarse(n, k, j, iu - di);
-
-              // if (n == 0) {
-              //   printf("i, fio, io, di, lc_il, lc_iu => %d, %d, %d, %d, %1.3f, %1.3f\n",
-              //           i, fio, io, di, lc_il, lc_iu);
-              // }
-
+                  fine(n, fk_prl, fj_prl, fi_prl) += lckji *
+                    ((fc_uuu + fc_lll) +
+                    (fc_uul + fc_llu) +
+                    (fc_lul + fc_ulu) +
+                    (fc_luu + fc_ull));
+                }
+              }
             }
           }
         }
+      } // (prl, prl, prl)
+      //-----------------------------------------------------------------------
+
+      //-----------------------------------------------------------------------
+      // [k, j, i]: interp. 2d & inject 1d
+      for (int k = sk_inj; k <= ek_inj; ++k) {
+        int const fk_inj = 2 * (k - H_NCGHOST) + eo_offset;
+        int const fk_prl = fk_inj + 1;
+        (void)fk_prl; // DR: why is this not used?
+
+        for (int j = sj_prl; j < ej_prl; ++j) {
+          int const fj_inj = 2 * (j - H_NCGHOST) + eo_offset;
+          int const fj_prl = fj_inj + 1;
+
+          for (int i = si_prl; i < ei_prl; ++i) {
+            int const fi_inj = 2 * (i - H_NCGHOST) + eo_offset;
+            int const fi_prl = fi_inj + 1;
+
+            fine(n, fk_inj, fj_prl, fi_prl) = 0.;
+
+            for (int dj=0; dj<H_SZ; ++dj) {
+              int const cj_u = j + dj + 1;
+              int const cj_l = j - dj;
+
+              Real const lcj = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dj-1];
+
+              for (int di=0; di<H_SZ; ++di) {
+                int const ci_u = i + di + 1;
+                int const ci_l = i - di;
+
+                Real const lcji = lcj * InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
+
+                Real const fc_cuu = coarse(n, k, cj_u, ci_u);
+                Real const fc_cul = coarse(n, k, cj_u, ci_l);
+                Real const fc_clu = coarse(n, k, cj_l, ci_u);
+                Real const fc_cll = coarse(n, k, cj_l, ci_l);
+
+                fine(n, fk_inj, fj_prl, fi_prl) += lcji * ((fc_cuu + fc_cll) + (fc_clu + fc_cul));
+              }
+            }
+
+          }
+        }
+      } // (inj, prl, prl)
 
 
+      // [k, j, i]: interp. 2d & inject 1d
+      for (int k = sk_prl; k < ek_prl; ++k) {
+        int const fk_inj = 2 * (k - H_NCGHOST) + eo_offset;
+        int const fk_prl = fk_inj + 1;
 
-      }
-    }
+        for (int j = sj_inj; j <= ej_inj; ++j) {
+          int const fj_inj = 2 * (j - H_NCGHOST) + eo_offset;
+          int const fj_prl = fj_inj + 1;
+          (void)fj_prl; // DR: why is this not used?
 
-    if (DBGPR_MESH_REFINEMENT) {
-      coutBoldRed("\npcoarsec->x1f\n");
-      pcoarsec->x1f.print_all();
+          for (int i = si_prl; i < ei_prl; ++i) {
+            int const fi_inj = 2 * (i - H_NCGHOST) + eo_offset;
+            int const fi_prl = fi_inj + 1;
 
-      coutBoldRed("pco->x1f\n");
-      pco->x1f.print_all();
+            fine(n, fk_prl, fj_inj, fi_prl) = 0.;
 
-      coutBoldRed("[post]coarse\n");
-      coarse.print_all();
-      coutBoldRed("[post]fine\n");
-      fine.print_all();
+            for (int dk=0; dk<H_SZ; ++dk) {
+              int const ck_u = k + dk + 1;
+              int const ck_l = k - dk;
 
-      // coutBoldRed("[exact]fine [WARNING SOLN OVERWRITTEN]\n");
-      // pmb->DebugWaveMeshBlock(fine, pmb->ims, pmb->ipe, 0, 0, 0, 0, false);
-      // fine.print_all();
-      // Q();
-    }
-    return;
+              Real const lck = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dk-1];
+
+              for (int di=0; di<H_SZ; ++di) {
+                int const ci_u = i + di + 1;
+                int const ci_l = i - di;
+
+                Real const lcki = lck * InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
+
+                Real const fc_ucu = coarse(n, ck_u, j, ci_u);
+                Real const fc_ucl = coarse(n, ck_u, j, ci_l);
+                Real const fc_lcu = coarse(n, ck_l, j, ci_u);
+                Real const fc_lcl = coarse(n, ck_l, j, ci_l);
+
+                fine(n, fk_prl, fj_inj, fi_prl) += lcki * ((fc_lcu + fc_ucl) + (fc_ucu + fc_lcl));
+              }
+            }
+
+          }
+        }
+      } // (prl, inj, prl)
+
+      // [k, j, i]: interp. 2d & inject 1d
+      for (int k = sk_prl; k < ek_prl; ++k) {
+        int const fk_inj = 2 * (k - H_NCGHOST) + eo_offset;
+        int const fk_prl = fk_inj + 1;
+
+        for (int j = sj_prl; j < ej_prl; ++j) {
+          int const fj_inj = 2 * (j - H_NCGHOST) + eo_offset;
+          int const fj_prl = fj_inj + 1;
+
+          for (int i = si_inj; i <= ei_inj; ++i) {
+            int const fi_inj = 2 * (i - H_NCGHOST) + eo_offset;
+            int const fi_prl = fi_inj + 1;
+            (void)fi_prl;  // DR: why is this not used?
+
+            fine(n, fk_prl, fj_prl, fi_inj) = 0.;
+
+            for (int dk=0; dk<H_SZ; ++dk) {
+              int const ck_u = k + dk + 1;
+              int const ck_l = k - dk;
+
+              Real const lck = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dk-1];
+
+              for (int dj=0; dj<H_SZ; ++dj) {
+                int const cj_u = j + dj + 1;
+                int const cj_l = j - dj;
+
+                Real const lckj = lck * InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dj-1];
+
+                Real const fc_uuc = coarse(n, ck_u, cj_u, i);
+                Real const fc_ulc = coarse(n, ck_u, cj_l, i);
+                Real const fc_luc = coarse(n, ck_l, cj_u, i);
+                Real const fc_llc = coarse(n, ck_l, cj_l, i);
+
+                fine(n, fk_prl, fj_prl, fi_inj) += lckj * ((fc_uuc + fc_llc) + (fc_luc + fc_ulc));
+              }
+            }
+
+          }
+        }
+      } // (prl, prl, inj)
+      //-----------------------------------------------------------------------
+
+      //-----------------------------------------------------------------------
+      // [k, j, i]: interp. 1d & inject 2d
+      for (int k = sk_inj; k <= ek_inj; ++k) {
+        int const fk_inj = 2 * (k - H_NCGHOST) + eo_offset;
+        int const fk_prl = fk_inj + 1;
+        (void)fk_prl;   // DR: why is this not used?
+
+        for (int j = sj_inj; j <= ej_inj; ++j) {
+          int const fj_inj = 2 * (j - H_NCGHOST) + eo_offset;
+          int const fj_prl = fj_inj + 1;
+          (void)fj_prl;  // DR: why is this not used?
+
+          for (int i = si_prl; i < ei_prl; ++i) {
+            int const fi_inj = 2 * (i - H_NCGHOST) + eo_offset;
+            int const fi_prl = fi_inj + 1;
+
+            fine(n, fk_inj, fj_inj, fi_prl) = 0.;
+
+            for (int di=0; di<H_SZ; ++di) {
+              int const ci_u = i + di + 1;
+              int const ci_l = i - di;
+
+              Real const lci = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
+
+              Real const fc_ccu = coarse(n, k, j, ci_u);
+              Real const fc_ccl = coarse(n, k, j, ci_l);
+
+              fine(n, fk_inj, fj_inj, fi_prl) += lci * (fc_ccl + fc_ccu);
+            }
+
+          }
+        }
+      } // (inj, inj, prl)
+
+
+      // [k, j, i]: interp. 1d & inject 2d
+      for (int k = sk_inj; k <= ek_inj; ++k) {
+        int const fk_inj = 2 * (k - H_NCGHOST) + eo_offset;
+        int const fk_prl = fk_inj + 1;
+        (void)fk_prl;  // DR: why is this not used?
+
+        for (int j = sj_prl; j < ej_prl; ++j) {
+          int const fj_inj = 2 * (j - H_NCGHOST) + eo_offset;
+          int const fj_prl = fj_inj + 1;
+
+          for (int i = si_inj; i <= ei_inj; ++i) {
+            int const fi_inj = 2 * (i - H_NCGHOST) + eo_offset;
+            int const fi_prl = fi_inj + 1;
+            (void)fi_prl;  // DR: why is this not used?
+
+            fine(n, fk_inj, fj_prl, fi_inj) = 0.;
+
+            for (int dj=0; dj<H_SZ; ++dj) {
+              int const cj_u = j + dj + 1;
+              int const cj_l = j - dj;
+
+              Real const lcj = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dj-1];
+
+              Real const fc_cuc = coarse(n, k, cj_u, i);
+              Real const fc_clc = coarse(n, k, cj_l, i);
+
+              fine(n, fk_inj, fj_prl, fi_inj) += lcj * (fc_clc + fc_cuc);
+            }
+
+          }
+        }
+      } // (inj, prl, inj)
+
+      // [k, j, i]: interp. 1d & inject 2d
+      for (int k = sk_prl; k < ek_prl; ++k) {
+        int const fk_inj = 2 * (k - H_NCGHOST) + eo_offset;
+        int const fk_prl = fk_inj + 1;
+
+        for (int j = sj_inj; j <= ej_inj; ++j) {
+          int const fj_inj = 2 * (j - H_NCGHOST) + eo_offset;
+          int const fj_prl = fj_inj + 1;
+          (void)fj_prl;  // DR: why is this not used?
+
+          for (int i = si_inj; i <= ei_inj; ++i) {
+            int const fi_inj = 2 * (i - H_NCGHOST) + eo_offset;
+            int const fi_prl = fi_inj + 1;
+            (void)fi_prl;  // DR: why is this not used?
+
+            fine(n, fk_prl, fj_inj, fi_inj) = 0.;
+
+            for (int dk=0; dk<H_SZ; ++dk) {
+              int const ck_u = k + dk + 1;
+              int const ck_l = k - dk;
+
+              Real const lck = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dk-1];
+
+              Real const fc_ucc = coarse(n, ck_u, j, i);
+              Real const fc_lcc = coarse(n, ck_l, j, i);
+
+              fine(n, fk_prl, fj_inj, fi_inj) += lck * (fc_lcc + fc_ucc);
+            }
+
+          }
+        }
+      } // (prl, inj, inj)
+      //-----------------------------------------------------------------------
+
+      //-----------------------------------------------------------------------
+      // [k, j, i]: inject 3d
+      for (int k = sk_inj; k <= ek_inj; ++k) {
+        int const fk_inj = 2 * (k - H_NCGHOST) + eo_offset;
+        int const fk_prl = fk_inj + 1;
+        (void)fk_prl;  // DR: why is this not used?
+
+        for (int j = sj_inj; j <= ej_inj; ++j) {
+          int const fj_inj = 2 * (j - H_NCGHOST) + eo_offset;
+          int const fj_prl = fj_inj + 1;
+          (void)fj_prl;  // DR: why is this not used?
+
+          for (int i = si_inj; i <= ei_inj; ++i) {
+            int const fi_inj = 2 * (i - H_NCGHOST) + eo_offset;
+            int const fi_prl = fi_inj + 1;
+            (void)fi_prl;  // DR: why is this not used?
+
+            fine(n, fk_inj, fj_inj, fi_inj) = coarse(n, k, j, i);
+
+          }
+        }
+      } // (inj, inj, inj)
+      //-----------------------------------------------------------------------
+
+    } // function component loop
+
   } else if (pmb->pmy_mesh->ndim == 2) {
-    int const k = pmb->ckvs;
-    int const fk = pmb->kvs;
+#if ISEVEN(NGHOST)
+    int const eo_offset = 0;
 
-    for (int n = sn; n <= en; ++n) {
-      for (int j = sj; j <= ej; ++j) {
-        int fj, jb, sjo, ejo, jl, ju;
-        ProlongateVertexCenteredIndicialHelper(
-          hs_sz, j,
-          pmb->cjvs, pmb->cjve, pmb->cjmp,
-          pmb->jvs, pmb->jve,
-          fj, jb, sjo, ejo, jl, ju);
+    int const si_inj{(si)};
+    int const sj_inj{(sj)};
+
+    int const ei_inj{(ei)};
+    int const ej_inj{(ej)};
+#else
+    int const eo_offset = -1;
+
+    int const fis_inj{(2 * (si - H_NCGHOST) + eo_offset)};
+    int const fie_inj{(2 * (ei - H_NCGHOST) + eo_offset)};
+
+    int const fjs_inj{(2 * (sj - H_NCGHOST) + eo_offset)};
+    int const fje_inj{(2 * (ej - H_NCGHOST) + eo_offset)};
 
 
-        for (int i = si; i <= ei; ++i) {
-          int fi, ib, sio, eio, il, iu;
-          ProlongateVertexCenteredIndicialHelper(
-            hs_sz, i,
-            pmb->civs, pmb->cive, pmb->cimp,
-            pmb->ivs, pmb->ive,
-            fi, ib, sio, eio, il, iu);
+    int const si_inj{(fis_inj < 0) ? si + 1 : si};
+    int const ei_inj{(fie_inj > 2 * NGHOST + pmb->block_size.nx1) ? ei - 1 : ei};
 
-          for (int jo = sjo; jo <= ejo; ++jo) {
-            int const fjo = fj + jo;
+    int const sj_inj{(fjs_inj < 0) ? sj + 1 : sj};
+    int const ej_inj{(fje_inj > 2 * NGHOST + pmb->block_size.nx2) ? ej - 1 : ej};
+#endif
 
-            for (int io = sio; io <= eio; ++io) {
-              int const fio = fi + io;
+    //-------------------------------------------------------------------------
+    // bias offsets for prolongation (depends on location)
+    int const si_prl{(si > pmb->cimp) ? si - 1 : si};
+    int const ei_prl{(ei < pmb->cimp) ? ei + 1 : ei};
+    int const sj_prl{(sj > pmb->cjmp) ? sj - 1 : sj};
+    int const ej_prl{(ej < pmb->cjmp) ? ej + 1 : ej};
 
-              // edge correction (odd ghosts require initial interp not inj.)
-              if ((fjo >= pmb->jms) and (fjo <= pmb->jpe) and
-                  (fio >= pmb->ims) and (fio <= pmb->ipe)) {
-                fine(n, fk, fjo, fio) = 0;
 
-                for (int dj = 0; dj < hs_sz; ++dj) {
-                  for (int di = 0; di < hs_sz; ++di) {
-                    Real const lc_jl = InterpolateLagrangeUniform<hs_sz>::coeff[jo-jb+1][dj];
-                    Real const lc_ju = InterpolateLagrangeUniform<hs_sz>::coeff[jo-jb+1][2 * hs_sz-dj-1];
+    // [running ix]: op
 
-                    Real const lc_il = InterpolateLagrangeUniform<hs_sz>::coeff[io-ib+1][di];
-                    Real const lc_iu = InterpolateLagrangeUniform<hs_sz>::coeff[io-ib+1][2 * hs_sz-di-1];
+    for (int n = sn; n<= en; ++n) {
 
-                    Real const fc_ll = coarse(n, k, jl + dj, il + di);
-                    Real const fc_lu = coarse(n, k, jl + dj, iu - di);
-                    Real const fc_ul = coarse(n, k, ju - dj, il + di);
-                    Real const fc_uu = coarse(n, k, ju - dj, iu - di);
+      //-----------------------------------------------------------------------
+      // [j, i]: interp. 2d
+      for (int j = sj_prl; j < ej_prl; ++j) {
+        int const fj_inj = 2 * (j - H_NCGHOST) + eo_offset;
+        int const fj_prl = fj_inj + 1;
 
-                    fine(n, fk, fjo, fio) +=
-                      lc_jl * lc_il * fc_ll +
-                      lc_jl * lc_iu * fc_lu +
-                      lc_ju * lc_il * fc_ul +
-                      lc_ju * lc_iu * fc_uu;
-                    // if (pmb->gid == 11)
-                    //   fine(n, fk, fjo, fio) = 11.;
+        for (int i = si_prl; i < ei_prl; ++i) {
+          int const fi_inj = 2 * (i - H_NCGHOST) + eo_offset;
+          int const fi_prl = fi_inj + 1;
 
-                  }
-                }
-              }
+          fine(n, 0, fj_prl, fi_prl) = 0.;
+
+          // apply stencil via Cartesian product relation
+          for (int dj=0; dj<H_SZ; ++dj) {
+            int const cj_u = j + dj + 1;
+            int const cj_l = j - dj;
+
+            Real const lcj = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dj-1];
+
+            for (int di=0; di<H_SZ; ++di) {
+              int const ci_u = i + di + 1;
+              int const ci_l = i - di;
+
+              Real const lcji = lcj * InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
+
+              Real const fc_uu = coarse(n, 0, cj_u, ci_u);
+              Real const fc_ul = coarse(n, 0, cj_u, ci_l);
+              Real const fc_lu = coarse(n, 0, cj_l, ci_u);
+              Real const fc_ll = coarse(n, 0, cj_l, ci_l);
+
+              fine(n, 0, fj_prl, fi_prl) += lcji * ((fc_uu + fc_ll) + (fc_lu + fc_ul));
             }
           }
-
-
-
         }
-      }
+      } // (prl, prl)
+      //-----------------------------------------------------------------------
 
-    }
+      //-----------------------------------------------------------------------
+      // [j, i]: (interp. 1d, inject 1d)
+      for (int j = sj_prl; j < ej_prl; ++j) {
+        int const fj_inj = 2 * (j - H_NCGHOST) + eo_offset;
+        int const fj_prl = fj_inj + 1;
 
-    if (DBGPR_MESH_REFINEMENT) {
-      coutBoldRed("\npcoarsec->x1f\n");
-      pcoarsec->x1f.print_all();
+        for (int i = si_inj; i <= ei_inj; ++i) {
+          int const fi_inj = 2 * (i - H_NCGHOST) + eo_offset;
+          int const fi_prl = fi_inj + 1;
+          (void)fi_prl;  // DR: why is this not used?
 
-      coutBoldRed("pco->x1f\n");
-      pco->x1f.print_all();
+          fine(n, 0, fj_prl, fi_inj) = 0.;
 
-      coutBoldRed("[post]coarse\n");
-      coarse.print_all();
-      coutBoldRed("[post]fine\n");
-      fine.print_all();
+          for (int dj=0; dj<H_SZ; ++dj) {
+            int const cj_u = j + dj + 1;
+            int const cj_l = j - dj;
 
-      // coutBoldRed("[exact]fine [WARNING SOLN OVERWRITTEN]\n");
-      // pmb->DebugWaveMeshBlock(fine, pmb->ims, pmb->ipe, pmb->jms, pmb->jpe, 0, 0, false);
-      // fine.print_all();
-    }
-    return;
-  } else if (pmb->pmy_mesh->ndim == 3) {
-    for (int n = sn; n <= en; ++n) {
-      for (int k = sk; k <= ek; ++k) {
-        int fk, kb, sko, eko, kl, ku;
-        ProlongateVertexCenteredIndicialHelper(
-          hs_sz, k,
-          pmb->ckvs, pmb->ckve, pmb->ckmp,
-          pmb->kvs, pmb->kve,
-          fk, kb, sko, eko, kl, ku);
+            Real const lcj = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dj-1];
 
-        for (int j = sj; j <= ej; ++j) {
-          int fj, jb, sjo, ejo, jl, ju;
-          ProlongateVertexCenteredIndicialHelper(
-            hs_sz, j,
-            pmb->cjvs, pmb->cjve, pmb->cjmp,
-            pmb->jvs, pmb->jve,
-            fj, jb, sjo, ejo, jl, ju);
+            Real const fc_uc = coarse(n, 0, cj_u, i);
+            Real const fc_lc = coarse(n, 0, cj_l, i);
 
-
-          for (int i = si; i <= ei; ++i) {
-            int fi, ib, sio, eio, il, iu;
-            ProlongateVertexCenteredIndicialHelper(
-              hs_sz, i,
-              pmb->civs, pmb->cive, pmb->cimp,
-              pmb->ivs, pmb->ive,
-              fi, ib, sio, eio, il, iu);
-
-            for (int ko = sko; ko <= eko; ++ko) {
-              int const fko = fk + ko;
-
-              for (int jo = sjo; jo <= ejo; ++jo) {
-                int const fjo = fj + jo;
-
-                for (int io = sio; io <= eio; ++io) {
-                  int const fio = fi + io;
-
-                  // edge correction (odd ghosts require initial interp not inj.)
-                  if ((fko >= pmb->kms) and (fko <= pmb->kpe) and
-                      (fjo >= pmb->jms) and (fjo <= pmb->jpe) and
-                      (fio >= pmb->ims) and (fio <= pmb->ipe)) {
-                    fine(n, fko, fjo, fio) = 0;
-
-                    for (int dk = 0; dk < hs_sz; ++dk) {
-                      for (int dj = 0; dj < hs_sz; ++dj) {
-                        for (int di = 0; di < hs_sz; ++di) {
-                          Real const lc_kl = InterpolateLagrangeUniform<hs_sz>::coeff[ko-kb+1][dk];
-                          Real const lc_ku = InterpolateLagrangeUniform<hs_sz>::coeff[ko-kb+1][2 * hs_sz-dk-1];
-
-                          Real const lc_jl = InterpolateLagrangeUniform<hs_sz>::coeff[jo-jb+1][dj];
-                          Real const lc_ju = InterpolateLagrangeUniform<hs_sz>::coeff[jo-jb+1][2 * hs_sz-dj-1];
-
-                          Real const lc_il = InterpolateLagrangeUniform<hs_sz>::coeff[io-ib+1][di];
-                          Real const lc_iu = InterpolateLagrangeUniform<hs_sz>::coeff[io-ib+1][2 * hs_sz-di-1];
-
-                          Real const fc_lll = coarse(n, kl + dk, jl + dj, il + di);
-                          Real const fc_llu = coarse(n, kl + dk, jl + dj, iu - di);
-                          Real const fc_lul = coarse(n, kl + dk, ju - dj, il + di);
-                          Real const fc_luu = coarse(n, kl + dk, ju - dj, iu - di);
-                          Real const fc_ull = coarse(n, ku - dk, jl + dj, il + di);
-                          Real const fc_ulu = coarse(n, ku - dk, jl + dj, iu - di);
-                          Real const fc_uul = coarse(n, ku - dk, ju - dj, il + di);
-                          Real const fc_uuu = coarse(n, ku - dk, ju - dj, iu - di);
-
-
-                          fine(n, fko, fjo, fio) +=
-                            lc_kl * lc_jl * lc_il * fc_lll +
-                            lc_kl * lc_jl * lc_iu * fc_llu +
-                            lc_kl * lc_ju * lc_il * fc_lul +
-                            lc_kl * lc_ju * lc_iu * fc_luu +
-                            lc_ku * lc_jl * lc_il * fc_ull +
-                            lc_ku * lc_jl * lc_iu * fc_ulu +
-                            lc_ku * lc_ju * lc_il * fc_uul +
-                            lc_ku * lc_ju * lc_iu * fc_uuu;
-
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-
-
+            fine(n, 0, fj_prl, fi_inj) += lcj * (fc_uc + fc_lc);
           }
         }
+      } // (prl, inj)
+
+      // [j, i]: (inject 1d, interp. 1d)
+      for (int j = sj_inj; j <= ej_inj; ++j) {
+        int const fj_inj = 2 * (j - H_NCGHOST) + eo_offset;
+        int const fj_prl = fj_inj + 1;
+        (void)fj_prl;  // DR: why is this not used?
+
+        for (int i = si_prl; i < ei_prl; ++i) {
+          int const fi_inj = 2 * (i - H_NCGHOST) + eo_offset;
+          int const fi_prl = fi_inj + 1;
+
+          fine(n, 0, fj_inj, fi_prl) = 0.;
+
+          for (int di=0; di<H_SZ; ++di) {
+            int const ci_u = i + di + 1;
+            int const ci_l = i - di;
+
+            Real const lci = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
+
+            Real const fc_cu = coarse(n, 0, j, ci_u);
+            Real const fc_cl = coarse(n, 0, j, ci_l);
+
+            fine(n, 0, fj_inj, fi_prl) += lci * (fc_cl + fc_cu);
+          }
+        }
+      } // (inj, prl)
+      //-----------------------------------------------------------------------
+
+      // [j, i]: inject 2d
+      for (int j = sj_inj; j <= ej_inj; ++j) {
+        int const fj_inj = 2 * (j - H_NCGHOST) + eo_offset;
+        int const fj_prl = fj_inj + 1;
+        (void)fj_prl;  // DR: why is this not used?
+
+        for (int i = si_inj; i <= ei_inj; ++i) {
+          int const fi_inj = 2 * (i - H_NCGHOST) + eo_offset;
+          int const fi_prl = fi_inj + 1;
+          (void)fi_prl;  // DR: why is this not used?
+
+          // injected
+          fine(n, 0, fj_inj, fi_inj) = coarse(n, 0, j, i);
+        }
+      } // (inj, inj)
+      //-----------------------------------------------------------------------
+
+    } // function component loop
+    //-------------------------------------------------------------------------
+
+
+  } else {
+#if ISEVEN(NGHOST)
+    int const eo_offset = 0;
+
+    int const si_inj{(si)};
+    int const ei_inj{(ei)};
+#else
+    int const eo_offset = -1;
+
+    int const fis_inj{(2 * (si - H_NCGHOST) + eo_offset)};
+    int const fie_inj{(2 * (ei - H_NCGHOST) + eo_offset)};
+
+    int const si_inj{(fis_inj < 0) ? si + 1 : si};
+    int const ei_inj{(fie_inj > 2 * NGHOST + pmb->block_size.nx1) ? ei - 1 : ei};
+#endif
+
+    //-------------------------------------------------------------------------
+    // bias offsets for prolongation (depends on location)
+    int const si_prl{(si > pmb->cimp) ? si - 1 : si};
+    int const ei_prl{(ei < pmb->cimp) ? ei + 1 : ei};
+
+    for (int n = sn; n<= en; ++n) {
+      for (int i = si_prl; i < ei_prl; ++i) {
+        int const fi_inj = 2 * (i - H_NCGHOST) + eo_offset;
+        int const fi_prl = fi_inj + 1;
+        fine(n, 0, 0, fi_prl) = 0.;
+
+        // apply stencil
+        for (int di=0; di<H_SZ; ++di) {
+          int const ci_u = i + di + 1;
+          int const ci_l = i - di;
+
+          Real const lc = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
+
+          Real const fc_u = coarse(n, 0, 0, ci_u);
+          Real const fc_l = coarse(n, 0, 0, ci_l);
+
+          fine(n, 0, 0, fi_prl) += lc * (fc_l + fc_u);
+        }
       }
-    }
+      //-----------------------------------------------------------------------
+    } // function component loop
 
-    if (DBGPR_MESH_REFINEMENT) {
-      coutBoldRed("\npcoarsec->x1f\n");
-      pcoarsec->x1f.print_all();
+    // inject
+    for (int n = sn; n<= en; ++n) {
+      for (int i = si_inj; i <= ei_inj; ++i) {
+        int const fi_inj = 2 * (i - H_NCGHOST) + eo_offset;
+        fine(n, 0, 0, fi_inj) = coarse(n, 0, 0, i);
+      }
+      //-----------------------------------------------------------------------
+    } // function component loop
 
-      coutBoldRed("pco->x1f\n");
-      pco->x1f.print_all();
-
-      coutBoldRed("[post]coarse\n");
-      coarse.print_all();
-      coutBoldRed("[post]fine\n");
-      fine.print_all();
-
-      // coutBoldRed("[exact]fine [WARNING SOLN OVERWRITTEN]\n");
-      // pmb->DebugWaveMeshBlock(fine, pmb->ims, pmb->ipe, pmb->jms, pmb->jpe, 0, 0, false);
-      // fine.print_all();
-    }
-    return;
   }
 
-  // if (pmb->pmy_mesh->ndim == 1) {
-  //   int const k = pmb->ckvs;
-  //   int const fk = pmb->kvs;
-  //   int const j = pmb->cjvs;
-  //   int const fj = pmb->jvs;
-
-  //   for (int n = sn; n <= en; ++n) {
-  //     for (int i = si; i <= ei; ++i) {
-
-  //       int fi, ib = 0;
-  //       int sio=0, eio=1;
-
-  //       // map for fine-index
-  //       if (i < pmb->civs) {
-  //         fi = pmb->ivs - 2 * (pmb->civs - i);
-  //       } else if (i > pmb->cive) {
-  //         fi = pmb->ive + 2 * (i - pmb->cive);
-  //       } else { // map to interior+boundary nodes
-  //         fi = 2 * (i - pmb->civs) + pmb->ivs;
-  //       }
-
-  //       // bias direction [nb. stencil still symmetric!]
-  //       if (i < pmb->cimp) {
-  //         ib = 1;
-  //         sio = 0;
-  //         eio = 1;
-  //       } else if (i > pmb->cimp) {
-  //         ib = -1;
-  //         sio = -1;
-  //         eio = 0;
-  //       } else {
-  //         // central node is unbiased, coincident, inject with no neighbors
-  //         sio = eio = 1;
-  //         ib = 1;
-  //       }
-
-  //       int il = i - hs_sz + 1 - (1 - ib) / 2;
-  //       int iu = i + hs_sz - (1 - ib) / 2;
-
-  //       // int slc_io = 0;
-  //       // if (il < pmb->cims)
-  //       //   slc_io = il;
-  //       // else if (iu > pmb->cipe)
-  //       //   slc_io = iu - pmb->cipe;
-
-  //       for (int io = sio; io <= eio; ++io) {
-  //         int const fio = fi + io;
-
-  //         // edge correction (odd ghosts require initial interp not inj.)
-  //         if ((fio >= pmb->ims) and (fio <= pmb->ipe)) {
-  //           fine(n, fk, fj, fio) = 0;
-
-  //           for (int di = 0; di < hs_sz; ++di) {
-  //             Real const lc_il = UniformInterp<hs_sz>::coeff[io-ib+1][di];
-  //             Real const lc_iu = UniformInterp<hs_sz>::coeff[io-ib+1][2 * hs_sz-di-1];
-
-  //             fine(n, fk, fj, fio) +=
-  //               lc_il * coarse(n, k, j, il + di) +
-  //               lc_iu * coarse(n, k, j, iu - di);
-
-  //             // if (n == 0) {
-  //             //   printf("i, fi, io, di, lc_il, lc_iu => %d, %d, %d, %d, %1.3f, %1.3f\n",
-  //             //           i, fi, io, di, lc_il, lc_iu);
-  //             // }
-
-  //           }
-  //         }
-  //       }
-
-
-
-  //     }
-  //   }
-
-  //   if (DBGPR_MESH_REFINEMENT) {
-  //     coutBoldRed("\npcoarsec->x1f\n");
-  //     pcoarsec->x1f.print_all();
-
-  //     coutBoldRed("pco->x1f\n");
-  //     pco->x1f.print_all();
-
-  //     coutBoldRed("[post]coarse\n");
-  //     coarse.print_all();
-  //     coutBoldRed("[post]fine\n");
-  //     fine.print_all();
-
-  //     // coutBoldRed("[exact]fine [WARNING SOLN OVERWRITTEN]\n");
-  //     // pmb->DebugWaveMeshBlock(fine, pmb->ims, pmb->ipe, 0, 0, 0, 0, false);
-  //     // fine.print_all();
-  //   }
-  //   return;
-  // }
-
+  return;
 }
 
 //----------------------------------------------------------------------------------------
