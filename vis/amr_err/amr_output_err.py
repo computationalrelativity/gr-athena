@@ -23,7 +23,7 @@ import athena_read
 ## global vars. currently there is not argument input for these:
 _deriv_acc = 6   ## derivative accuracy in z4c Athena++ => h^{_deriv_acc}
 _findiff_acc = 4 ## finite difference accuracy here for FinDiff
-_out_prefix  = "err_" ## output file prefix
+_out_prefix  = "" ## output file prefix
 _hdf5_suffix = ".athdf" ## suffix of the hdf5 files to glob
 ## general env for 2d plot, change it
 _cmap_2d = mpl.cm.cool ## [cool,jet]
@@ -49,7 +49,7 @@ class Params:
         self.nghost     = args.g ## number of ghost zones
         self.radius     = args.r ## criterion to pick the meshblock (radii <= _radius)
         self.analysis   = args.a ## what kind of analysis we want, L2 norm, derivative, plot, etc.
-        self.coord_1d   = args.x ## coordinate along which the txt_1d(?) plot(s) is plotted
+        self.coord_1d   = args.x ## the fixed coordinate along which the txt_1d(?) plot(s) is plotted
         
         self.findiff_ord  = args.d       ## finite difference order for FinDiff
         self.findiff_acc  = _findiff_acc ## finite difference accuracy here for FinDiff
@@ -296,8 +296,14 @@ class Plot:
         elif params.out_format == "txt1d":
             self.plot_1d_txt(params,db,mbs,slice,file['cycle'],"value",file['txt_1d'])
 
-        elif params.out_format == "txt1d_mb":
-            self.plot_1d_txt_mb(params,db,mbs,slice,file['cycle'],"value",file['txt_1d_mb'])
+        elif params.out_format == "txt1d_mbx":
+            self.plot_1d_txt_mb(params,db,mbs,slice,file['cycle'],"value",file['txt_1d_mb'],'x')
+        
+        elif params.out_format == "txt1d_mby":
+            self.plot_1d_txt_mb(params,db,mbs,slice,file['cycle'],"value",file['txt_1d_mb'],'y')
+        
+#        elif params.out_format == "txt1d_mbz":
+#            self.plot_1d_txt_mb(params,db,mbs,slice,file['cycle'],"value",file['txt_1d_mb'],'z')
             
         elif params.out_format == "pdf" or params.out_format == "png":
             self.plot_2d_color(params,db,mbs,slice,file['cycle'],"value",file['color_2d'])
@@ -518,7 +524,7 @@ class Plot:
         txt_file.close()
 
     ## plotting in 1d txt format for EACH meshblocks separately in each file
-    def plot_1d_txt_mb(self,params,db,mbs,slice,cycle,type,output_root):
+    def plot_1d_txt_mb(self,params,db,mbs,slice,cycle,type,output_root,kind):
         print("{} ...".format(self.plot_1d_txt_mb.__name__))
         sys.stdout.flush()
         
@@ -529,32 +535,68 @@ class Plot:
         else:
             raise Exception("No such option {}!".format(type))
 
-        if slice.slice_dir == 3:
+        ## plot along y
+        if kind == 'y' and slice.slice_dir == 3:
             for mb in mbs.keys():
                 x = db["x1v"][mb]
                 y = db["x2v"][mb]
                 v = db[fld][mb]
                 hx = x[1]-x[0]
                 
-                ## NOTE: for now it only supports x-axis
+                ## find the fixed coord x
                 found_i = 0
-                ## Don't include ng as they may have the x-axis of interest
+                ## Don't subtract ng as they may have the x-axis of interest
                 for i in range(mbs[mb]['iI'],mbs[mb]['iF']):
                     if np.abs(x[i] - params.coord_1d) < hx:
+                        I = i;
                         found_i = 1;
                         break
-                if found_i == 1:
-                    output = output_root + f"_mb{mb}" + "_1d.txt"
-                    txt_file = open(output,"a")
-                    txt_file.write("# \"time = {}\"\n".format(cycle))
-                    
-                    ## plot along y-axis
-                    for j in range(mbs[mb]['jI']+ng,mbs[mb]['jF']-ng):
-                        txt_file.write("{} {}\n".format(y[j],v[mbs[mb]['kI'], j, i]))
-            
-                    txt_file.close()
+
+                if found_i == 0:
+                    continue
+
+                output = output_root + f"_mb{mb}" + "_1dy.txt"
+                txt_file = open(output,"a")
+                txt_file.write("# \"time = {}\", {}, x = {}\n".format(cycle,params.cut,x[I]))
+                
+                ## plot along y-axis
+                for j in range(mbs[mb]['jI']+ng,mbs[mb]['jF']-ng):
+                    txt_file.write("{} {}\n".format(y[j],v[mbs[mb]['kI'], j, I]))
+        
+                txt_file.close()
+
+        ## plot along x
+        elif kind == 'x' and slice.slice_dir == 3:
+            for mb in mbs.keys():
+                x = db["x1v"][mb]
+                y = db["x2v"][mb]
+                v = db[fld][mb]
+                hy = y[1]-y[0]
+                
+                ## find the fixed coord
+                found_j = 0
+                ## Don't subtract ng as they may have the y-axis of interest
+                for j in range(mbs[mb]['jI'],mbs[mb]['jF']):
+                    if np.abs(y[j] - params.coord_1d) < hy:
+                        J = j
+                        found_j = 1;
+                        break
+
+                if found_j == 0:
+                    continue
+
+                output = output_root + f"_mb{mb}" + "_1dx.txt"
+                txt_file = open(output,"a")
+                txt_file.write("# \"time = {}\", {}, y = {}\n".format(cycle,params.cut,y[J]))
+                
+                ## plot along x-axis
+                for i in range(mbs[mb]['iI']+ng,mbs[mb]['iF']-ng):
+                    txt_file.write("{} {}\n".format(x[i],v[mbs[mb]['kI'], J, i]))
+        
+                txt_file.close()
+        
         else:
-            raise Exception("No such slice {}!".format(slice.slice_dir))
+            raise Exception("No such slice {} or kind {}!".format(slice.slice_dir,kind))
 
 ## do the post processing here
 class Analysis:
@@ -672,7 +714,7 @@ if __name__=="__main__":
     p.add_argument("-a",type=str,default = "plot",help="analysis = {plot,der}.")
     p.add_argument("-d",type=int,default = 2, help="derivative order.")
     p.add_argument("-m",type=float,default = 1, help="derivative power. The results are powered to the m-th.")
-    p.add_argument("-x",type=float,default = 0, help="coordinate along which the txt_1d(?) plot(s) is plotted")
+    p.add_argument("-x",type=float,default = 0, help="the fixed coordinate along which the txt_1d(?) plot(s) is plotted")
     
     args = p.parse_args()
 
