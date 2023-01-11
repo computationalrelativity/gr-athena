@@ -536,11 +536,30 @@ int main(int argc, char *argv[]) {
   if (Globals::my_rank == 0) {
     std::cout << "\nSetup complete, entering main loop...\n" << std::endl;
   }
+    #ifdef Z4C_WEXT
+     double intpart;
+     double fractpart = modf (pmesh->time , &intpart);
+     printf("dt=%g\n", pmesh->dt);
+     pmatterlist->TaskListTriggers.wave_extraction.dt = round(pinput->GetOrAddReal("z4c",
+     "dt_wave_extraction", 0)/pmesh->dt)*pmesh->dt;
+     pmatterlist->TaskListTriggers.wave_extraction.next_time = pmesh->time;
+     while (fractpart > 0) {
+        pmatterlist->TaskListTriggers.wave_extraction.next_time += pmesh->dt;
+        fractpart = modf (pmatterlist->TaskListTriggers.wave_extraction.next_time, &intpart);
+     }
+     #endif
 
   clock_t tstart = clock();
 #ifdef OPENMP_PARALLEL
   double omp_start_time = omp_get_wtime();
 #endif
+
+  // BD: populate z4c struct carrying output dt for various quantities
+  // This controls computation of quantities within the main tasklist
+//  if (Z4C_ENABLED && !FLUID_ENABLED) {
+//    Real dt_con = pouts->GetOutputTimeStep("con");
+//    pz4clist->TaskListTriggers.con.dt = dt_con;
+//  }
 
   while ((pmesh->time < pmesh->tlim) &&
          (pmesh->nlim < 0 || pmesh->ncycle < pmesh->nlim)) {
@@ -594,6 +613,9 @@ int main(int argc, char *argv[]) {
       }
     }
     if (Z4C_ENABLED && FLUID_ENABLED) {
+    Real dt_con = pouts->GetOutputTimeStep("con");
+    pmatterlist->TaskListTriggers.con.dt = dt_con;
+
       for (int stage=1; stage<=pmatterlist->nstages; ++stage) {
         pmatterlist->DoTaskListOneStage(pmesh, stage);
       }
@@ -601,9 +623,11 @@ int main(int argc, char *argv[]) {
      if(Z4C_ENABLED){
 //WGC wext
 #ifdef Z4C_WEXT
+if (pmatterlist->TaskListTriggers.wave_extraction.to_update){
 for (int n = 0;n<NRAD;++n){
 pmesh->pwave_extr[n]->ReduceMultipole();
 pmesh->pwave_extr[n]->Write(pmesh->ncycle, pmesh->time); 
+}
 }
 #endif
 //WGC end
@@ -622,9 +646,12 @@ pmesh->pwave_extr[n]->Write(pmesh->ncycle, pmesh->time);
       pmesh->ptracker_extrema->WriteTracker(pmesh->ncycle, pmesh->time);
 #endif // TRACKER_EXTREMA
 
+    if (Z4C_ENABLED && FLUID_ENABLED) {
+      pmatterlist->UpdateTaskListTriggers();
+    }
     pmesh->UserWorkInLoop();
 // calculate int D duplicated history output?
-    pmesh->GlobalInt();
+//    pmesh->GlobalInt();
     pmesh->ncycle++;
     pmesh->time += pmesh->dt;
     mbcnt += pmesh->nbtotal;

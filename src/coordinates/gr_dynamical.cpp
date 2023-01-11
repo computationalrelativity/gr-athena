@@ -383,7 +383,9 @@ void GRDynamical::CellVolume(const int k, const int j, const int il, const int i
   // \Delta V \approx \sqrt{-g} \Delta x^1 \Delta x^2 \Delta x^3
 #pragma omp simd
   for (int i=il; i<=iu; ++i) {
-    volumes(i) = coord_vol_kji_(k,j,i);
+//  WC edit: make not volume weighted for restrictCC in mesh_refinement
+//    volumes(i) = coord_vol_kji_(k,j,i);
+    volumes(i) = dx1v(i)*dx2v(j)*dx3v(k);
   }
   return;
 }
@@ -397,7 +399,9 @@ void GRDynamical::CellVolume(const int k, const int j, const int il, const int i
 
 Real GRDynamical::GetCellVolume(const int k, const int j, const int i) {
   // \Delta V \approx \sqrt{-g} \Delta x^1 \Delta x^2 \Delta x^3
-  return coord_vol_kji_(k,j,i);
+//  return coord_vol_kji_(k,j,i);
+//  WC edit: make not volume weighted for restrictCC in mesh_refinement
+    return dx1v(i)*dx2v(j)*dx3v(k);
 }
 //----------------------------------------------------------------------------------------
 // Coordinate (geometric) source term function
