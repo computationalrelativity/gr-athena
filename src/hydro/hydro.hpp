@@ -18,6 +18,12 @@
 #include "../bvals/cc/hydro/bvals_hydro.hpp"
 #include "hydro_diffusion/hydro_diffusion.hpp"
 #include "srcterms/hydro_srcterms.hpp"
+#ifdef RNS
+#include "RNS.h"
+#endif
+
+
+
 
 class MeshBlock;
 class ParameterInput;
@@ -82,6 +88,18 @@ class Hydro {
   void AddGravityFlux();
   void AddGravityFluxWithGflx();
   void CalculateGravityFlux(AthenaArray<Real> &phi_in);
+
+#ifdef RNS
+  void RNS_Metric(ParameterInput *pin, AthenaArray<Real> & u_adm, AthenaArray<Real> & u ,AthenaArray<Real> & u1, ini_data *data);
+  void RNS_Hydro(ParameterInput *pin, AthenaArray<Real> & w, AthenaArray<Real> & w1, AthenaArray<Real> & w_init, ini_data *data);
+#endif
+
+  // initial data for binary BHs
+     void RNS_Metric(AthenaArray<Real> & u_adm);
+     void RNS_Hydro(AthenaArray<Real> & w);
+
+  
+
 
  private:
 
