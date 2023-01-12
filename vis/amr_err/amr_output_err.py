@@ -556,8 +556,7 @@ class Plot:
                 
                 ## find the fixed coord x
                 found_i = 0
-                ## Don't subtract ng as they may have the x-axis of interest
-                for i in range(mbs[mb]['iI'],mbs[mb]['iF']):
+                for i in range(mbs[mb]['iI']+ng,mbs[mb]['iF']-ng):
                     if np.abs(x[i] - params.coord_1d) < hx:
                         I = i;
                         found_i = 1;
@@ -586,8 +585,7 @@ class Plot:
                 
                 ## find the fixed coord
                 found_j = 0
-                ## Don't subtract ng as they may have the y-axis of interest
-                for j in range(mbs[mb]['jI'],mbs[mb]['jF']):
+                for j in range(mbs[mb]['jI']+ng,mbs[mb]['jF']-ng):
                     if np.abs(y[j] - params.coord_1d) < hy:
                         J = j
                         found_j = 1;
