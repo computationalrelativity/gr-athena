@@ -48,7 +48,8 @@ int Z4c_AMR::FDErrorApprox(MeshBlock *pmb)
             pmb->block_size.x3min,pmb->block_size.x3max);
 
   // calc. err
-  err = amr_err_L2_derive_chi_pow(pmb,ref_deriv,ref_pow);
+  //err = amr_err_L2_derive_chi_pow(pmb,ref_deriv,ref_pow);
+  err = amr_err_pnt_derive_chi_pow(pmb,ref_deriv,ref_pow);
   
   // check the region of interest for the refinement
   if (pmb->block_size.x1min < ref_x1min || pmb->block_size.x1max > ref_x1max)
@@ -92,7 +93,7 @@ int Z4c_AMR::FDErrorApprox(MeshBlock *pmb)
 
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c:: amr_err_L2_derive_chi_pow(MeshBlock *const pmy_block, const int p)
-// \brief returning the L2 norm of error basse one some derivative of chi
+// \brief returning the L2 norm of error based on some derivative of chi
 //
 
 // NOTE: DON'T change pmy_block variable name as it's used in macros 
@@ -104,7 +105,7 @@ Real Z4c_AMR::amr_err_L2_derive_chi_pow(MeshBlock *const pmy_block,
   Real L2_norm = 0.;
   Real derive_aa_ijk[NDIM] = {0};
   Real derive_ijk = 0.;
-  const int npts = (IX_KU-IX_KL)*(IX_JU-IX_KL)*(IX_IU-IX_IL);
+  const int npts = (IX_KU-IX_KL + 1)*(IX_JU-IX_KL + 1)*(IX_IU-IX_IL + 1);
   Real h1, h2, h3, hmax; // grid space
   // find grid spaces
   assert(NDIM==3);// the subsequent calculation may get affected if N!=3.
@@ -159,6 +160,80 @@ Real Z4c_AMR::amr_err_L2_derive_chi_pow(MeshBlock *const pmy_block,
   L2_norm = std::sqrt(L2_norm);
 
   return L2_norm;
+}
+
+//----------------------------------------------------------------------------------------
+// \!fn void Z4c:: amr_err_pnt_derive_chi_pow(MeshBlock *const pmy_block, const int p)
+// \brief returning the point-wise max error of a derivative of chi in a meshblock
+//
+
+// NOTE: DON'T change pmy_block variable name as it's used in macros 
+// such as IX_KU,IX_KL, etc.
+Real Z4c_AMR::amr_err_pnt_derive_chi_pow(MeshBlock *const pmy_block, 
+                                        const int deriv_order, const int p)
+{
+  Z4c::Z4c_vars z4c;
+  Real derive_aa_ijk[NDIM] = {0};
+  Real derive_ijk = 0.;
+  const int npts = (IX_KU-IX_KL + 1)*(IX_JU-IX_KL + 1)*(IX_IU-IX_IL + 1);
+  std::vector<Real> err_pnt (npts,0.);
+  Real h1, h2, h3, hmax; // grid space
+  int ijk = 0; // dummy index
+  // find grid spaces
+  assert(NDIM==3);// the subsequent calculation may get affected if N!=3.
+  h1 = pmy_block->pcoord->x1f(1)-pmy_block->pcoord->x1f(0);
+  h2 = pmy_block->pcoord->x2f(1)-pmy_block->pcoord->x2f(0);
+  h3 = pmy_block->pcoord->x3f(1)-pmy_block->pcoord->x3f(0);
+  hmax = std::max(h1,h2);
+  hmax = std::max(hmax,h3);
+
+  z4c.chi.InitWithShallowSlice(pz4c->storage.u, pz4c->I_Z4c_chi);
+  
+  // calc. L2 norm of 7th derivative
+  if (deriv_order == 7)
+  {
+    assert(NGHOST > 3);
+    ILOOP2(k,j) {
+      ILOOP1(i) {
+        derive_ijk = 0.;
+        // (d^7 chi(ijk)/dx^7)^p + (d^7 chi(ijk)/dy^7)^p + (d^7 chi(ijk)/dz^7)^p
+        for(int a = 0; a < NDIM; ++a) {
+          derive_aa_ijk[a] = pz4c->FD.Dx7(a, z4c.chi(k,j,i));
+          derive_ijk += std::pow(derive_aa_ijk[a],p);
+        }
+        err_pnt[ijk] = std::abs(derive_ijk);
+        ijk++;
+      }
+    }
+  }
+  // calc. L2 norm of 2nd derivative
+  else if (deriv_order == 2)
+  {
+    ILOOP2(k,j) {
+      ILOOP1(i) {
+        derive_ijk = 0.;
+        // (d^2 chi(ijk)/dx^2)^p + (d^2 chi(ijk)/dy^2)^p + (d^2 chi(ijk)/dz^2)^p
+        for(int a = 0; a < NDIM; ++a) {
+          derive_aa_ijk[a] = pz4c->FD.Dxx(a, z4c.chi(k,j,i));
+          derive_ijk += std::pow(derive_aa_ijk[a],p);
+        }
+        err_pnt[ijk] = std::abs(derive_ijk);
+        ijk++;
+      }
+    }
+  }
+  else
+  {
+    std::stringstream msg;
+    msg << "No such derivative" << std::endl;
+    ATHENA_ERROR(msg);
+  }
+  
+  auto max_err = *std::max_element(err_pnt.begin(),err_pnt.end());
+  
+  max_err *= std::pow(hmax,6);
+  
+  return max_err;
 }
   
 Z4c_AMR::~Z4c_AMR()
