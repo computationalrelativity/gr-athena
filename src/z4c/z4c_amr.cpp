@@ -12,13 +12,19 @@
 #include "z4c.hpp"
 #include "z4c_amr.hpp"
 
+// print the results
+// note: at 'if (Verbose)' when Verbose = 0, the if block is ignored by the compiler
+#define Verbose (0)
+
 // set some parameters
 Z4c_AMR::Z4c_AMR(MeshBlock *pmb)
 {
   ParameterInput *const pin = pmb->pmy_in;
   pz4c = pmb->pz4c;
-  const Real dmax= std::numeric_limits<Real>::max();
-  const Real dmin=-std::numeric_limits<Real>::max();
+  const Real dmax =  std::numeric_limits<Real>::max();
+  const Real dmin = -std::numeric_limits<Real>::max();
+  Real h1, h2, h3; // grid space
+  
   ref_method = pin->GetOrAddString("z4c","refinement_method","Linf_box_in_box");
   ref_tol   = pin->GetOrAddReal("z4c","refinement_tol",1e-5);
   dref_tol  = pin->GetOrAddReal("z4c","derefinement_tol",1e-8);
@@ -30,7 +36,13 @@ Z4c_AMR::Z4c_AMR(MeshBlock *pmb)
   ref_x3max = pin->GetOrAddReal("z4c","refinement_x3max",dmax);
   ref_deriv = pin->GetOrAddReal("z4c","refinement_deriv_order",7);
   ref_pow   = pin->GetOrAddReal("z4c","refinement_deriv_power",1);
-  verbose   = pin->GetOrAddBoolean("z4c", "refinement_verbose",false);
+  // find grid spaces
+  assert(NDIM == 3);// the subsequent calculation may get affected if N!=3.
+  h1 = pmb->pcoord->x1f(1)-pmb->pcoord->x1f(0);
+  h2 = pmb->pcoord->x2f(1)-pmb->pcoord->x2f(0);
+  h3 = pmb->pcoord->x3f(1)-pmb->pcoord->x3f(0);
+  hmax = std::max(h1,h2);
+  hmax = std::max(hmax,h3);
 }
 
 // using the FD error as an approximation of the error in the meshblock.
@@ -41,52 +53,52 @@ int Z4c_AMR::FDErrorApprox(MeshBlock *pmb)
   Real err = 0.;
   char region[999] = {0};
   
-  if (verbose)
+  if (Verbose)
     sprintf(region,"[%0.1f,%0.1f]x[%0.1f,%0.1f]x[%0.1f,%0.1f]",
             pmb->block_size.x1min,pmb->block_size.x1max,
             pmb->block_size.x2min,pmb->block_size.x2max,
             pmb->block_size.x3min,pmb->block_size.x3max);
 
-  // calc. err
-  //err = amr_err_L2_derive_chi_pow(pmb,ref_deriv,ref_pow);
-  err = amr_err_pnt_derive_chi_pow(pmb,ref_deriv,ref_pow);
-  
   // check the region of interest for the refinement
   if (pmb->block_size.x1min < ref_x1min || pmb->block_size.x1max > ref_x1max)
   {
-    if (verbose) printf("out of bound %s.\n",region);
-    ret = 0;
+    if (Verbose) printf("out of bound %s.\n",region);
+    return 0;
   }
-  else if (pmb->block_size.x2min < ref_x2min || pmb->block_size.x2max > ref_x2max)
+  if (pmb->block_size.x2min < ref_x2min || pmb->block_size.x2max > ref_x2max)
   {
-    if (verbose) printf("out of bound %s.\n",region);
-    ret = 0;
+    if (Verbose) printf("out of bound %s.\n",region);
+    return 0;
   }
-  else if (pmb->block_size.x3min < ref_x3min || pmb->block_size.x3max > ref_x3max)
+  if (pmb->block_size.x3min < ref_x3min || pmb->block_size.x3max > ref_x3max)
   {
-    if (verbose) printf("out of bound %s.\n",region);
-    ret = 0;
+    if (Verbose) printf("out of bound %s.\n",region);
+    return 0;
   }
   
+  // calc. err
+  // err = amr_err_L2_derive_chi_pow(pmb,ref_deriv,ref_pow);
+  err = amr_err_pnt_derive_chi_pow(pmb,ref_deriv,ref_pow);
+  
   // compare with the error bounds
-  else if (err > ref_tol)
+  if (err >= ref_tol)
   {
-    if (verbose) printf("err > ref-tol:   %e > %e  ==> refine %s.\n",err,ref_tol,region);
+    if (Verbose) printf("err > ref-tol:   %e > %e  ==> refine %s.\n",err,ref_tol,region);
     ret = 1.;
   }
-  else if (err < dref_tol)
+  else if (err <= dref_tol)
   {
-    if (verbose) printf("err < deref-tol: %e < %e  ==> derefine %s.\n",err,dref_tol,region);
+    if (Verbose) printf("err < deref-tol: %e < %e  ==> derefine %s.\n",err,dref_tol,region);
     ret = -1;
   }
   else 
   {
-    if (verbose) printf("dref-tol <= err <= ref-tol: %e <= %e <= %e ==> nothing %s.\n",
+    if (Verbose) printf("dref-tol <= err <= ref-tol: %e <= %e <= %e ==> nothing %s.\n",
                  dref_tol,err,ref_tol,region);
     ret = 0;
   }
   
-  fflush(stdout);
+  if (Verbose) fflush(stdout);
   
   return ret;
 }
@@ -103,17 +115,8 @@ Real Z4c_AMR::amr_err_L2_derive_chi_pow(MeshBlock *const pmy_block,
 {
   Z4c::Z4c_vars z4c;
   Real L2_norm = 0.;
-  Real derive_aa_ijk[NDIM] = {0};
-  Real derive_ijk = 0.;
+  Real derive_kji = 0.;
   const int npts = (IX_KU-IX_KL + 1)*(IX_JU-IX_KL + 1)*(IX_IU-IX_IL + 1);
-  Real h1, h2, h3, hmax; // grid space
-  // find grid spaces
-  assert(NDIM==3);// the subsequent calculation may get affected if N!=3.
-  h1 = pmy_block->pcoord->x1f(1)-pmy_block->pcoord->x1f(0);
-  h2 = pmy_block->pcoord->x2f(1)-pmy_block->pcoord->x2f(0);
-  h3 = pmy_block->pcoord->x3f(1)-pmy_block->pcoord->x3f(0);
-  hmax = std::max(h1,h2);
-  hmax = std::max(hmax,h3);
 
   z4c.chi.InitWithShallowSlice(pz4c->storage.u, pz4c->I_Z4c_chi);
   
@@ -123,13 +126,12 @@ Real Z4c_AMR::amr_err_L2_derive_chi_pow(MeshBlock *const pmy_block,
     assert(NGHOST > 3);
     ILOOP2(k,j) {
       ILOOP1(i) {
-        derive_ijk = 0.;
-        // (d^7 chi(ijk)/dx^7)^p + (d^7 chi(ijk)/dy^7)^p + (d^7 chi(ijk)/dz^7)^p
+        derive_kji = 0.;
+        // (d^7 chi(kji)/dx^7)^p + (d^7 chi(kji)/dy^7)^p + (d^7 chi(kji)/dz^7)^p
         for(int a = 0; a < NDIM; ++a) {
-          derive_aa_ijk[a] = pz4c->FD.Dx7(a, z4c.chi(k,j,i));
-          derive_ijk += std::pow(derive_aa_ijk[a],p);
+          derive_kji += std::pow(pz4c->FD.Dx7(a, z4c.chi(k,j,i)),p);
         }
-        L2_norm += POW2(derive_ijk);
+        L2_norm += POW2(derive_kji);
       }
     }
   }
@@ -138,13 +140,12 @@ Real Z4c_AMR::amr_err_L2_derive_chi_pow(MeshBlock *const pmy_block,
   {
     ILOOP2(k,j) {
       ILOOP1(i) {
-        derive_ijk = 0.;
-        // (d^2 chi(ijk)/dx^2)^p + (d^2 chi(ijk)/dy^2)^p + (d^2 chi(ijk)/dz^2)^p
+        derive_kji = 0.;
+        // (d^2 chi(kji)/dx^2)^p + (d^2 chi(kji)/dy^2)^p + (d^2 chi(kji)/dz^2)^p
         for(int a = 0; a < NDIM; ++a) {
-          derive_aa_ijk[a] = pz4c->FD.Dxx(a, z4c.chi(k,j,i));
-          derive_ijk += std::pow(derive_aa_ijk[a],p);
+          derive_kji += std::pow(pz4c->FD.Dxx(a, z4c.chi(k,j,i)),p);
         }
-        L2_norm += POW2(derive_ijk);
+        L2_norm += POW2(derive_kji);
       }
     }
   }
@@ -173,52 +174,42 @@ Real Z4c_AMR::amr_err_pnt_derive_chi_pow(MeshBlock *const pmy_block,
                                         const int deriv_order, const int p)
 {
   Z4c::Z4c_vars z4c;
-  Real derive_aa_ijk[NDIM] = {0};
-  Real derive_ijk = 0.;
+  Real derive_kji = 0.;
   const int npts = (IX_KU-IX_KL + 1)*(IX_JU-IX_KL + 1)*(IX_IU-IX_IL + 1);
   std::vector<Real> err_pnt (npts,0.);
-  Real h1, h2, h3, hmax; // grid space
-  int ijk = 0; // dummy index
-  // find grid spaces
-  assert(NDIM==3);// the subsequent calculation may get affected if N!=3.
-  h1 = pmy_block->pcoord->x1f(1)-pmy_block->pcoord->x1f(0);
-  h2 = pmy_block->pcoord->x2f(1)-pmy_block->pcoord->x2f(0);
-  h3 = pmy_block->pcoord->x3f(1)-pmy_block->pcoord->x3f(0);
-  hmax = std::max(h1,h2);
-  hmax = std::max(hmax,h3);
+  int kji = 0; // dummy index
 
   z4c.chi.InitWithShallowSlice(pz4c->storage.u, pz4c->I_Z4c_chi);
   
-  // calc. L2 norm of 7th derivative
+  // calc. 7th derivative in all dirs
   if (deriv_order == 7)
   {
-    assert(NGHOST > 3);
+    assert(NGHOST > 3 && p == 1);// as p = 1 is optimized
     ILOOP2(k,j) {
       ILOOP1(i) {
-        derive_ijk = 0.;
-        // (d^7 chi(ijk)/dx^7)^p + (d^7 chi(ijk)/dy^7)^p + (d^7 chi(ijk)/dz^7)^p
+        derive_kji = 0.;
+        // (d^7 chi(kji)/dx^7)^p + (d^7 chi(kji)/dy^7)^p + (d^7 chi(kji)/dz^7)^p
         for(int a = 0; a < NDIM; ++a) {
-          derive_aa_ijk[a] = pz4c->FD.Dx7(a, z4c.chi(k,j,i));
-          derive_ijk += std::pow(derive_aa_ijk[a],p);
+          //derive_kji += std::pow(pz4c->FD.Dx7(a, z4c.chi(k,j,i)),p); // p != 1
+          derive_kji += pz4c->FD.Dx7(a, z4c.chi(k,j,i)); // p = 1 (optimization)
         }
-        err_pnt[ijk] = std::abs(derive_ijk);
-        ijk++;
+        err_pnt[kji] = std::abs(derive_kji);
+        kji++;
       }
     }
   }
-  // calc. L2 norm of 2nd derivative
+  // calc. 2nd derivative in all dirs
   else if (deriv_order == 2)
   {
     ILOOP2(k,j) {
       ILOOP1(i) {
-        derive_ijk = 0.;
-        // (d^2 chi(ijk)/dx^2)^p + (d^2 chi(ijk)/dy^2)^p + (d^2 chi(ijk)/dz^2)^p
+        derive_kji = 0.;
+        // (d^2 chi(kji)/dx^2)^p + (d^2 chi(kji)/dy^2)^p + (d^2 chi(kji)/dz^2)^p
         for(int a = 0; a < NDIM; ++a) {
-          derive_aa_ijk[a] = pz4c->FD.Dxx(a, z4c.chi(k,j,i));
-          derive_ijk += std::pow(derive_aa_ijk[a],p);
+          derive_kji += std::pow(pz4c->FD.Dxx(a, z4c.chi(k,j,i)),p);
         }
-        err_pnt[ijk] = std::abs(derive_ijk);
-        ijk++;
+        err_pnt[kji] = std::abs(derive_kji);
+        kji++;
       }
     }
   }
@@ -229,9 +220,8 @@ Real Z4c_AMR::amr_err_pnt_derive_chi_pow(MeshBlock *const pmy_block,
     ATHENA_ERROR(msg);
   }
   
-  auto max_err = *std::max_element(err_pnt.begin(),err_pnt.end());
-  
-  max_err *= std::pow(hmax,6);
+  auto max_err = *std::max_element(err_pnt.cbegin(),err_pnt.cend());
+  max_err     *= std::pow(hmax,6);
   
   return max_err;
 }

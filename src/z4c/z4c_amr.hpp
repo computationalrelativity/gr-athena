@@ -22,6 +22,7 @@ class Z4c_AMR
     Real ref_x2max;  // x2 max of the region of interest for the refinement
     Real ref_x3min;  // x3 min of the region of interest for the refinement
     Real ref_x3max;  // x3 max of the region of interest for the refinement
+    Real hmax;       // max grid-space in hx, hy, hz
     int ref_deriv;   // order of derivative to compute error
     int ref_pow;     // power of the derivative
     bool verbose;    // turn on/off print
