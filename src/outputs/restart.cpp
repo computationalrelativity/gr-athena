@@ -35,6 +35,11 @@
 #ifdef Z4C_TRACKER
 #include "../z4c/trackers.hpp"
 #endif
+
+#ifdef TRACKER_EXTREMA
+#include "../trackers/tracker_extrema.hpp"
+#endif // TRACKER_EXTREMA
+
 #include "outputs.hpp"
 
 
@@ -89,6 +94,13 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
   for (int i_punc = 0; i_punc < NPUNCT; ++i_punc)
     udsize += 6*sizeof(Real);
 #endif
+
+#ifdef TRACKER_EXTREMA
+  udsize += pm->ptracker_extrema->c_x1.GetSizeInBytes();
+  udsize += pm->ptracker_extrema->c_x2.GetSizeInBytes();
+  udsize += pm->ptracker_extrema->c_x3.GetSizeInBytes();
+#endif
+
   headeroffset = sbuf.size()*sizeof(char) + 3*sizeof(int)+sizeof(RegionSize)
                  + 2*sizeof(Real)+sizeof(IOWrapperSizeT)+udsize;
   // the size of an element of the ID and cost list
@@ -140,6 +152,24 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
       }
 #endif
       //END TRACKER
+
+#ifdef TRACKER_EXTREMA
+      std::memcpy(&(ud[udoffset]),
+                  pm->ptracker_extrema->c_x1.data(),
+                  pm->ptracker_extrema->c_x1.GetSizeInBytes());
+      udoffset += pm->ptracker_extrema->c_x1.GetSizeInBytes();
+
+      std::memcpy(&(ud[udoffset]),
+                  pm->ptracker_extrema->c_x2.data(),
+                  pm->ptracker_extrema->c_x2.GetSizeInBytes());
+      udoffset += pm->ptracker_extrema->c_x2.GetSizeInBytes();
+
+     std::memcpy(&(ud[udoffset]),
+                  pm->ptracker_extrema->c_x3.data(),
+                  pm->ptracker_extrema->c_x3.GetSizeInBytes());
+      udoffset += pm->ptracker_extrema->c_x3.GetSizeInBytes();
+#endif
+
       resfile.Write(ud, 1, udsize);
       delete [] ud;
     }

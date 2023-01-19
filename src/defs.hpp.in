@@ -134,6 +134,9 @@
 // use double precision for HDF5 output? default=0 (false; write out binary32)
 #define H5_DOUBLE_PRECISION_ENABLED @H5_DOUBLE_PRECISION_ENABLED@
 
+// allow control over whether tracker extrema enabled
+#define @TRACKER_EXTREMA@
+
 // two_punctures
 #define @TWO_PUNCTURES_OPTION@
 
