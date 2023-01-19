@@ -83,17 +83,17 @@ int Z4c_AMR::FDErrorApprox(MeshBlock *pmb)
   // compare with the error bounds
   if (err >= ref_tol)
   {
-    if (Verbose) printf("err > ref-tol:   %e > %e  ==> refine %s.\n",err,ref_tol,region);
+    if (Verbose) printf("err > ref-tol:   %e >= %e  ==> refine %s.\n",err,ref_tol,region);
     ret = 1.;
   }
   else if (err <= dref_tol)
   {
-    if (Verbose) printf("err < deref-tol: %e < %e  ==> derefine %s.\n",err,dref_tol,region);
+    if (Verbose) printf("err < deref-tol: %e <= %e  ==> derefine %s.\n",err,dref_tol,region);
     ret = -1;
   }
   else 
   {
-    if (Verbose) printf("dref-tol <= err <= ref-tol: %e <= %e <= %e ==> nothing %s.\n",
+    if (Verbose) printf("dref-tol < err < ref-tol: %e < %e < %e ==> nothing %s.\n",
                  dref_tol,err,ref_tol,region);
     ret = 0;
   }
