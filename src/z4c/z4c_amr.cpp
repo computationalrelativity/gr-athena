@@ -36,21 +36,25 @@ Z4c_AMR::Z4c_AMR(MeshBlock *pmb)
   ref_x3max = pin->GetOrAddReal("z4c","refinement_x3max",dmax);
   ref_deriv = pin->GetOrAddReal("z4c","refinement_deriv_order",7);
   ref_pow   = pin->GetOrAddReal("z4c","refinement_deriv_power",1);
+  ref_gwh   = pin->GetOrAddReal("z4c","refinement_gw_resolution",1);// order of total mass
+  ref_gwr   = pin->GetOrAddReal("z4c","refinement_gw_radius",100);// max length of gw extraction radius
+  
   // find grid spaces
   assert(NDIM == 3);// the subsequent calculation may get affected if N!=3.
   h1 = pmb->pcoord->x1f(1)-pmb->pcoord->x1f(0);
   h2 = pmb->pcoord->x2f(1)-pmb->pcoord->x2f(0);
   h3 = pmb->pcoord->x3f(1)-pmb->pcoord->x3f(0);
-  hmax = std::max(h1,h2);
-  hmax = std::max(hmax,h3);
+  ref_hmax = std::max(h1,h2);
+  ref_hmax = std::max(ref_hmax,h3);
 }
 
 // using the FD error as an approximation of the error in the meshblock.
 // if this error falls below a prescribed value, the meshblock should be refined.
 int Z4c_AMR::FDErrorApprox(MeshBlock *pmb)
 {
-  int ret = 0;
-  Real err = 0.;
+  int ret          = 0;
+  Real mb_center_r = 0.;
+  Real err         = 0.;
   char region[999] = {0};
   
   if (Verbose)
@@ -59,6 +63,7 @@ int Z4c_AMR::FDErrorApprox(MeshBlock *pmb)
             pmb->block_size.x2min,pmb->block_size.x2max,
             pmb->block_size.x3min,pmb->block_size.x3max);
 
+  
   // check the region of interest for the refinement
   if (pmb->block_size.x1min < ref_x1min || pmb->block_size.x1max > ref_x1max)
   {
@@ -75,6 +80,19 @@ int Z4c_AMR::FDErrorApprox(MeshBlock *pmb)
     if (Verbose) printf("out of bound %s.\n",region);
     return 0;
   }
+  
+  mb_center_r = std::sqrt( POW2(pmb->block_size.x3max + pmb->block_size.x3min) + 
+                           POW2(pmb->block_size.x2max + pmb->block_size.x2min) + 
+                           POW2(pmb->block_size.x1max + pmb->block_size.x1min))/2.;
+  // if contains the extraction radius and too coarse refinement for GW
+  if (mb_center_r < ref_gwr && ref_gwh < ref_hmax)
+  {
+    if (Verbose)
+      printf("box radius < GWr: %e < %e && GWh < h: %e < %e => refine %s.\n",
+              mb_center_r, ref_gwr, ref_gwh, ref_hmax, region);
+    return 1;
+  }
+  
   
   // calc. err
   // err = amr_err_L2_derive_chi_pow(pmb,ref_deriv,ref_pow);
@@ -157,7 +175,7 @@ Real Z4c_AMR::amr_err_L2_derive_chi_pow(MeshBlock *const pmy_block,
   }
   
   L2_norm /= npts;
-  L2_norm *= std::pow(hmax,6);
+  L2_norm *= std::pow(ref_hmax,6);
   L2_norm = std::sqrt(L2_norm);
 
   return L2_norm;
@@ -221,7 +239,7 @@ Real Z4c_AMR::amr_err_pnt_derive_chi_pow(MeshBlock *const pmy_block,
   }
   
   auto max_err = *std::max_element(err_pnt.cbegin(),err_pnt.cend());
-  max_err     *= std::pow(hmax,6);
+  max_err     *= std::pow(ref_hmax,6);
   
   return max_err;
 }
