@@ -85,7 +85,7 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
       } else if (order ==3 || order==4) {
         pmb->precon->PiecewiseParabolicX1(k, j, is-1, ie+1, w, bcc, wl_, wr_);
       } else {
-        pmb->precon->WenoX1(k, j, is-1, ie+1, w, wl_, wr_);
+        pmb->precon->WenoX1(k, j, is-1, ie+1, w, bcc, wl_, wr_);
       }
       }
       else if(fix_fluxes==1){
@@ -96,7 +96,7 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
       } else if (order ==3 || order==4) {
         pmb->precon->PiecewiseParabolicX1(k, j, is-1, ie+1, pmb->phydro->w_init, bcc, wl_, wr_);
       } else {
-        pmb->precon->WenoX1(k, j, is-1, ie+1, pmb->phydro->w_init, wl_, wr_);
+        pmb->precon->WenoX1(k, j, is-1, ie+1, pmb->phydro->w_init, bcc, wl_, wr_);
       }
 
       }
@@ -200,7 +200,7 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
       } else if (order ==3 || order == 4){
         pmb->precon->PiecewiseParabolicX2(k, js-1, il, iu, w, bcc, wl_, wr_);
       } else {
-        pmb->precon->WenoX2(k, js-1, il, iu, w, wl_, wr_);
+        pmb->precon->WenoX2(k, js-1, il, iu, w, bcc, wl_, wr_);
       }
       } else if(fix_fluxes==1){
       if (order == 1) {
@@ -210,7 +210,7 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
       } else if (order ==3 || order == 4){
         pmb->precon->PiecewiseParabolicX2(k, js-1, il, iu, pmb->phydro->w_init, bcc, wl_, wr_);
       } else {
-        pmb->precon->WenoX2(k, js-1, il, iu, pmb->phydro->w_init, wl_, wr_);
+        pmb->precon->WenoX2(k, js-1, il, iu, pmb->phydro->w_init, bcc, wl_, wr_);
       }
 
       }
@@ -224,7 +224,7 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
         } else if (order == 3 || order ==4 ){
           pmb->precon->PiecewiseParabolicX2(k, j, il, iu, w, bcc, wlb_, wr_);
         } else {
-          pmb->precon->WenoX2(k, j, il, iu, w, wlb_, wr_);
+          pmb->precon->WenoX2(k, j, il, iu, w, bcc, wlb_, wr_);
         }
         } else if(fix_fluxes==1){
         if (order == 1) {
@@ -234,7 +234,7 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
         } else if (order == 3 || order ==4 ){
           pmb->precon->PiecewiseParabolicX2(k, j, il, iu, pmb->phydro->w_init, bcc, wlb_, wr_);
         } else {
-          pmb->precon->WenoX2(k, j, il, iu, pmb->phydro->w_init, wlb_, wr_);
+          pmb->precon->WenoX2(k, j, il, iu, pmb->phydro->w_init, bcc, wlb_, wr_);
         }
         }
         pmb->pcoord->CenterWidth2(k, j, il, iu, dxw_);
@@ -333,7 +333,7 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
       } else if (order == 3 || order == 4 ) {
         pmb->precon->PiecewiseParabolicX3(ks-1, j, il, iu, w, bcc, wl_, wr_);
       } else {
-        pmb->precon->WenoX3(ks-1, j, il, iu, w, wl_, wr_);
+        pmb->precon->WenoX3(ks-1, j, il, iu, w, bcc, wl_, wr_);
       }
       } else if(fix_fluxes==1){
       if (order == 1) {
@@ -343,7 +343,7 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
       } else if (order == 3 || order == 4 ) {
         pmb->precon->PiecewiseParabolicX3(ks-1, j, il, iu, pmb->phydro->w_init, bcc, wl_, wr_);
       } else {
-        pmb->precon->WenoX3(ks-1, j, il, iu, pmb->phydro->w_init, wl_, wr_);
+        pmb->precon->WenoX3(ks-1, j, il, iu, pmb->phydro->w_init, bcc, wl_, wr_);
       }
 
       }
@@ -357,7 +357,7 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
         } else if (order == 3 || order == 4){
           pmb->precon->PiecewiseParabolicX3(k, j, il, iu, w, bcc, wlb_, wr_);
         } else {
-          pmb->precon->WenoX3(k, j, il, iu, w, wlb_, wr_);
+          pmb->precon->WenoX3(k, j, il, iu, w, bcc, wlb_, wr_);
         }
         } else if(fix_fluxes==1){
         if (order == 1) {
@@ -367,7 +367,7 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
         } else if (order == 3 || order == 4){
           pmb->precon->PiecewiseParabolicX3(k, j, il, iu, pmb->phydro->w_init, bcc, wlb_, wr_);
         } else {
-          pmb->precon->WenoX3(k, j, il, iu, pmb->phydro->w_init, wlb_, wr_);
+          pmb->precon->WenoX3(k, j, il, iu, pmb->phydro->w_init, bcc, wlb_, wr_);
         }
 
         }
