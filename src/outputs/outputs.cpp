@@ -218,6 +218,9 @@ Outputs::Outputs(Mesh *pm, ParameterInput *pin) {
         // read ghost cell option
         op.include_ghost_zones = pin->GetOrAddBoolean(op.block_name, "ghost_zones",
                                                       false);
+        // output data on VC grid
+        op.vc = pin->GetOrAddBoolean(op.block_name, "vc",
+                                                      false);
 
         // read cartesian mapping option
         if (std::strcmp(COORDINATE_SYSTEM, "cylindrical") == 0 ||
@@ -614,6 +617,17 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
         pod->type = "SCALARS";
         pod->name = Z4c::Matter_names[v];
         pod->data.InitWithShallowSlice(pz4c->storage.mat,v,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
+    for (int v = 0; v < Z4c::N_WEY; ++v) {
+      if (output_params.variable.compare("weyl") == 0 ||
+          output_params.variable.compare(Z4c::Weyl_names[v]) == 0) {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = Z4c::Weyl_names[v];
+        pod->data.InitWithShallowSlice(pz4c->storage.weyl,v,1);
         AppendOutputDataNode(pod);
         num_vars_++;
       }
