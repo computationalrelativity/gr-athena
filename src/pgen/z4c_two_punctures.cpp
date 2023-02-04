@@ -250,9 +250,7 @@ static int RefinementCondition(MeshBlock *pmb)
 
 // Mimicking box in box refinement
 static int LinfBoxInBox(MeshBlock *pmb)
-{
-  std::cout << __FUNCTION__ << std::endl;
-  
+{  
   int root_lev = pmb->pmy_mesh->GetRootLevel();
   int level = pmb->loc.level - root_lev;
 
@@ -391,8 +389,6 @@ static int LinfBoxInBox(MeshBlock *pmb)
 // L-2 norm for refinement
 static int L2NormRefine(MeshBlock *pmb)
 {
-  std::cout << __FUNCTION__ << std::endl;
-  
   int root_lev = pmb->pmy_mesh->GetRootLevel();
   int level = pmb->loc.level - root_lev;
 
