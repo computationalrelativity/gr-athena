@@ -2016,9 +2016,11 @@ void Mesh::OutputCycleDiagnostics() {
                 << " time=" << time << " dt=" << dt;
       
       if (adaptive)
-        std::cout << std::endl << "Number of MeshBlocks = " << nbtotal
-                  << "; " << nbnew << "  created, " << nbdel
-                  << " destroyed during this simulation." << std::endl;
+        std::cout << "\nNumber of MeshBlocks=" << nbtotal
+                  << "; created=" << nbnew 
+                  << "; destroyed=" << nbdel
+                  << std::scientific << std::setprecision(dt_precision)
+                  << "; time=" << time;
                   
       if (dt_diagnostics != -1) {
         if (STS_ENABLED) {
