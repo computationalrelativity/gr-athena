@@ -2037,6 +2037,12 @@ void Mesh::OutputCycleDiagnostics() {
       std::cout << "cycle=" << ncycle << std::scientific
                 << std::setprecision(dt_precision)
                 << " time=" << time << " dt=" << dt;
+      
+      if (adaptive)
+        std::cout << std::endl << "Number of MeshBlocks = " << nbtotal
+                  << "; " << nbnew << "  created, " << nbdel
+                  << " destroyed during this simulation." << std::endl;
+                  
       if (dt_diagnostics != -1) {
         if (STS_ENABLED) {
           if (UserTimeStep_ == nullptr)
