@@ -234,7 +234,15 @@ static int RefinementCondition(MeshBlock *pmb)
   // finite difference error must fall less that a prescribed value.
   else if (amr->ref_method == "FD_error")
   {
-    ret = amr->FDErrorApprox(pmb);
+    if (pmb->pmy_mesh->time == 0)
+    {
+      std::cout << "calling Linf AMR for at t = 0." << std::endl;
+      ret = LinfBoxInBox(pmb);
+    }
+    else
+    {
+      ret = amr->FDErrorApprox(pmb);
+    }
   }
   else
   {
