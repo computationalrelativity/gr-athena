@@ -234,13 +234,25 @@ static int RefinementCondition(MeshBlock *pmb)
   // finite difference error must fall less that a prescribed value.
   else if (amr->ref_method == "FD_error")
   {
-    if (pmb->pmy_mesh->time == 0)
+    ParameterInput *const pin = pmb->pmy_in;
+    Real time   = pmb->pmy_mesh->time;
+    Real time_i = pin->GetOrAddReal("z4c","refinement_time_i",0.);
+    Real time_f = pin->GetOrAddReal("z4c","refinement_time_f",-1.);
+    bool IsPreref = pin->GetOrAddBoolean("z4c","refinement_preref",1);
+    
+    if (IsPreref && time == 0.)
     {
-      std::cout << "calling Linf AMR for at t = 0." << std::endl;
+      //std::cout << "calling Linf AMR for pre-refined" << std::endl;
+      ret = LinfBoxInBox(pmb);
+    }
+    else if (time >= time_i && time <= time_f)
+    {
+      //std::cout << "calling Linf AMR for a time interval" << std::endl;
       ret = LinfBoxInBox(pmb);
     }
     else
     {
+      //std::cout << "calling FD AMR" << std::endl;
       ret = amr->FDErrorApprox(pmb);
     }
   }
