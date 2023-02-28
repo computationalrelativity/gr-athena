@@ -46,6 +46,11 @@ Z4c_AMR::Z4c_AMR(MeshBlock *pmb)
   h3 = pmb->pcoord->x3f(1)-pmb->pcoord->x3f(0);
   ref_hmax = std::max(h1,h2);
   ref_hmax = std::max(ref_hmax,h3);
+  
+  mb_radius = std::sqrt( POW2(pmb->block_size.x3max + pmb->block_size.x3min) + 
+                         POW2(pmb->block_size.x2max + pmb->block_size.x2min) + 
+                         POW2(pmb->block_size.x1max + pmb->block_size.x1min))/2.;
+  
 }
 
 // using the FD error as an approximation of the error in the meshblock.
@@ -53,7 +58,6 @@ Z4c_AMR::Z4c_AMR(MeshBlock *pmb)
 int Z4c_AMR::FDErrorApprox(MeshBlock *pmb)
 {
   int ret          = 0;
-  Real mb_center_r = 0.;
   Real err         = 0.;
   char region[999] = {0};
   
@@ -81,15 +85,12 @@ int Z4c_AMR::FDErrorApprox(MeshBlock *pmb)
     return 0;
   }
   
-  mb_center_r = std::sqrt( POW2(pmb->block_size.x3max + pmb->block_size.x3min) + 
-                           POW2(pmb->block_size.x2max + pmb->block_size.x2min) + 
-                           POW2(pmb->block_size.x1max + pmb->block_size.x1min))/2.;
   // if contains the extraction radius and too coarse refinement for GW
-  if (mb_center_r < ref_gwr && ref_gwh < ref_hmax)
+  if (mb_radius < ref_gwr && ref_gwh < ref_hmax)
   {
     if (Verbose)
       printf("box radius < GWr: %e < %e && GWh < h: %e < %e => refine %s.\n",
-              mb_center_r, ref_gwr, ref_gwh, ref_hmax, region);
+              mb_radius, ref_gwr, ref_gwh, ref_hmax, region);
     return 1;
   }
   

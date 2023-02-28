@@ -25,7 +25,6 @@ class Z4c_AMR
     Real ref_hmax;   // max grid-space in hx, hy, hz
     Real ref_gwh;    // resolution required for GW extraction
     Real ref_gwr;    // max radius among the gw extraction radii
-    
     int ref_deriv;   // order of derivative to compute error
     int ref_pow;     // power of the derivative
     bool verbose;    // turn on/off print
@@ -42,6 +41,7 @@ class Z4c_AMR
     
   public:
     std::string ref_method;  // method of refinement
+    Real mb_radius;  // the length of the line from the origin to the meshblock's center
     explicit Z4c_AMR(MeshBlock *pmb);
     ~Z4c_AMR();
     int FDErrorApprox(MeshBlock *pmb); // using the FD error as an approximation for

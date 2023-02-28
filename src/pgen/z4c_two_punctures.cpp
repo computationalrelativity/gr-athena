@@ -24,6 +24,10 @@
 // twopuncturesc: Stand-alone library ripped from Cactus
 #include "TwoPunctures.h"
 
+// print the results
+// note: at 'if (Verbose)' when Verbose = 0, the if block is ignored by the compiler
+#define Verbose (0)
+
 //using namespace std;
 
 static int RefinementCondition(MeshBlock *pmb);
@@ -238,21 +242,40 @@ static int RefinementCondition(MeshBlock *pmb)
     Real time   = pmb->pmy_mesh->time;
     Real time_i = pin->GetOrAddReal("z4c","refinement_time_i",0.);
     Real time_f = pin->GetOrAddReal("z4c","refinement_time_f",-1.);
-    bool IsPreref = pin->GetOrAddBoolean("z4c","refinement_preref",1);
+
+    Real Linf_r_inn = pin->GetOrAddReal("z4c","refinement_Linf_radius_inn",10e10);
+    Real Linf_r_out = pin->GetOrAddReal("z4c","refinement_Linf_radius_out",10e10);
+    
+    bool IsPreref = pin->GetOrAddBoolean("z4c","refinement_preref",0);
     
     if (IsPreref && time == 0.)
     {
-      //std::cout << "calling Linf AMR for pre-refined" << std::endl;
+      if (Verbose)
+        std::cout << "calling Linf AMR for pre-refined" << std::endl;
+      
+      ret = LinfBoxInBox(pmb);
+    }
+    else if (Linf_r_inn <= amr->mb_radius && amr->mb_radius <= Linf_r_out)
+    {
+    
+      if (Verbose)
+        printf("Mb_radius = %g ==> calling Linf AMR for the ring = [%g,%g]\n", 
+                amr->mb_radius,Linf_r_inn,Linf_r_out);
+      
       ret = LinfBoxInBox(pmb);
     }
     else if (time >= time_i && time <= time_f)
     {
-      //std::cout << "calling Linf AMR for a time interval" << std::endl;
+      if (Verbose)
+        std::cout << "calling Linf AMR for a time interval" << std::endl;
+  
       ret = LinfBoxInBox(pmb);
     }
     else
     {
-      //std::cout << "calling FD AMR" << std::endl;
+      if (Verbose)
+        std::cout << "calling FD AMR" << std::endl;
+      
       ret = amr->FDErrorApprox(pmb);
     }
   }
