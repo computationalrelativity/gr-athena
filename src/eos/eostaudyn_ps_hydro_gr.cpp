@@ -266,16 +266,20 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
 
         // If the lapse falls below 0.25, we're probably inside the event horizon of
         // the puncture, so we shouldn't be surprised when there's a primitive failure.
-        if(result.error != Primitive::Error::SUCCESS && alpha(i) < 0.1) {
+        if(result.error != Primitive::Error::SUCCESS && alpha(i) > 0.1) {
           std::cerr << "There was an error during the primitive solve!\n";
           std::cerr << "  Iteration: " << pmy_block_->pmy_mesh->ncycle << "\n";
           std::cerr << "  Error: " << Primitive::ErrorString[(int)result.error] << "\n";
           //printf("i=%d, j=%d, k=%d\n",i,j,k);
           std::cerr << "  i=" << i << ", j=" << j << ", k=" << k << "\n";
+          std::cerr << "  x=" << pmy_block_->pcoord->x1v(i) 
+                    << ", y=" << pmy_block_->pcoord->x2v(j)
+                    << ", z=" << pmy_block_->pcoord->x3v(k) << "\n";
           std::cerr << "  g3d = [" << g3d[S11] << ", " << g3d[S12] << ", " << g3d[S13] << ", "
                     << g3d[S22] << ", " << g3d[S23] << ", " << g3d[S33] << "\n";
           std::cerr << "  g3u = [" << g3u[S11] << ", " << g3u[S12] << ", " << g3u[S13] << ", "
                     << g3u[S22] << ", " << g3u[S23] << ", " << g3u[S33] << "\n";
+          std::cerr << "  alpha = " << alpha(i) << "\n";
           std::cerr << "  detg  = " << detg << "\n";
           std::cerr << "  sdetg = " << sdetg << "\n";
           std::cerr << "  D = " << cons_old_pt[IDN] << "\n";
