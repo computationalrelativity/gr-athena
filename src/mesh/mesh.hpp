@@ -71,6 +71,12 @@ class WaveExtractLocal;
 //WGC end
 class PunctureTracker;
 
+#ifdef TRACKER_EXTREMA
+class TrackerExtrema;
+class TrackerExtremaLocal;
+#endif // TRACKER_EXTREMA
+
+
 FluidFormulation GetFluidFormulation(const std::string& input_string);
 
 //----------------------------------------------------------------------------------------
@@ -206,6 +212,10 @@ public:
 #endif
 //WGC end
 
+#ifdef TRACKER_EXTREMA
+  TrackerExtremaLocal * ptracker_extrema_loc;
+#endif // TRACKER_EXTREMA
+
   MeshBlock *prev, *next;
 
   // functions
@@ -242,6 +252,7 @@ public:
 
   bool PointContained(Real const x, Real const y, Real const z);
   Real PointCentralDistanceSquared(Real const x, Real const y, Real const z);
+  Real PointMinCornerDistanceSquared(Real const x, Real const y, Real const z);
   bool SphereIntersects(Real const Sx0, Real const Sy0, Real const Sz0,
                         Real const radius);
 
@@ -340,7 +351,11 @@ class Mesh {
 #ifdef Z4C_TRACKER
   friend class Tracker;
 #endif
- 
+
+#ifdef TRACKER_EXTREMA
+  friend class TrackerExtrema;
+#endif // TRACKER_EXTREMA
+
  public:
   // 2x function overloads of ctor: normal and restarted simulation
   explicit Mesh(ParameterInput *pin, int test_flag=0);
@@ -382,6 +397,10 @@ class Mesh {
 #endif
 //WGC end
   std::vector<PunctureTracker *> pz4c_tracker;
+
+#ifdef TRACKER_EXTREMA
+  TrackerExtrema * ptracker_extrema;
+#endif // TRACKER_EXTREMA
 
   AthenaArray<Real> *ruser_mesh_data;
   AthenaArray<int> *iuser_mesh_data;

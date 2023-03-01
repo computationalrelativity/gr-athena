@@ -52,6 +52,11 @@
 
 #include "z4c/puncture_tracker.hpp"
 
+#ifdef TRACKER_EXTREMA
+#include "trackers/tracker_extrema.hpp"
+#endif // TRACKER_EXTREMA
+
+
 // MPI/OpenMP headers
 #ifdef MPI_PARALLEL
 #include <mpi.h>
@@ -537,6 +542,17 @@ int main(int argc, char *argv[]) {
   if (Globals::my_rank == 0) {
     std::cout << "\nSetup complete, entering main loop...\n" << std::endl;
   }
+    #ifdef Z4C_WEXT
+     double intpart;
+     double fractpart = modf (pmesh->time , &intpart);
+     pmatterlist->TaskListTriggers.wave_extraction.dt = round(pinput->GetOrAddReal("z4c",
+     "dt_wave_extraction", 0)/pmesh->dt)*pmesh->dt;
+     pmatterlist->TaskListTriggers.wave_extraction.next_time = pmesh->time;
+     while (fractpart > 0) {
+        pmatterlist->TaskListTriggers.wave_extraction.next_time += pmesh->dt;
+        fractpart = modf (pmatterlist->TaskListTriggers.wave_extraction.next_time, &intpart);
+     }
+     #endif
 
   clock_t tstart = clock();
 #ifdef OPENMP_PARALLEL
@@ -595,6 +611,9 @@ int main(int argc, char *argv[]) {
       }
     }
     if (Z4C_ENABLED && FLUID_ENABLED) {
+    Real dt_con = pouts->GetOutputTimeStep("con");
+    pmatterlist->TaskListTriggers.con.dt = dt_con;
+
       for (int stage=1; stage<=pmatterlist->nstages; ++stage) {
         pmatterlist->DoTaskListOneStage(pmesh, stage);
       }
@@ -602,9 +621,11 @@ int main(int argc, char *argv[]) {
     if(Z4C_ENABLED){
 //WGC wext
 #ifdef Z4C_WEXT
+if (pmatterlist->TaskListTriggers.wave_extraction.to_update){
 for (int n = 0;n<NRAD;++n){
 pmesh->pwave_extr[n]->ReduceMultipole();
 pmesh->pwave_extr[n]->Write(pmesh->ncycle, pmesh->time); 
+}
 }
 #endif
 //WGC end
@@ -617,6 +638,15 @@ pmesh->pwave_extr[n]->Write(pmesh->ncycle, pmesh->time);
 
     }
 
+#ifdef TRACKER_EXTREMA
+      pmesh->ptracker_extrema->ReduceTracker();
+      pmesh->ptracker_extrema->EvolveTracker();
+      pmesh->ptracker_extrema->WriteTracker(pmesh->ncycle, pmesh->time);
+#endif // TRACKER_EXTREMA
+
+    if (Z4C_ENABLED && FLUID_ENABLED) {
+      pmatterlist->UpdateTaskListTriggers();
+    }
     pmesh->UserWorkInLoop();
 // calculate int D duplicated history output?
     pmesh->GlobalInt();

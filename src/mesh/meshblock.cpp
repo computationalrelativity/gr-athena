@@ -43,6 +43,10 @@
 #include "../wave/wave.hpp"
 // -BD
 
+#ifdef TRACKER_EXTREMA
+#include "../trackers/tracker_extrema.hpp"
+#endif // TRACKER_EXTREMA
+
 #include "../advection/advection.hpp"
 #include "../z4c/z4c.hpp"
 
@@ -188,6 +192,12 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
     }
   }
 
+#ifdef TRACKER_EXTREMA
+    // must come after pvar to register variables
+  ptracker_extrema_loc = new TrackerExtremaLocal(this, pin);
+#endif // TRACKER_EXTREMA
+
+
   // KGF: suboptimal solution, since developer must copy/paste BoundaryVariable derived
   // class type that is used in each PassiveScalars, Gravity, Field, Hydro, ... etc. class
   // in order to correctly advance the BoundaryValues::bvars_next_phys_id_ local counter.
@@ -321,6 +331,11 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     }
   }
 
+#ifdef TRACKER_EXTREMA
+  // must come after var to register variables
+  ptracker_extrema_loc = new TrackerExtremaLocal(this, pin);
+#endif // TRACKER_EXTREMA
+
   if (FLUID_ENABLED) {
     peos = new EquationOfState(this, pin);
   }
@@ -438,6 +453,10 @@ MeshBlock::~MeshBlock() {
 #endif
 //WGC end
   }
+
+#ifdef TRACKER_EXTREMA
+  delete ptracker_extrema_loc;
+#endif // TRACKER_EXTREMA
 
   // BoundaryValues should be destructed AFTER all BoundaryVariable objects are destroyed
   delete pbval;
@@ -814,7 +833,6 @@ void MeshBlock::RegisterMeshBlockData(FaceField &pvar_fc) {
 //   return;
 // }
 
-
 //----------------------------------------------------------------------------------------
 //! \fn bool MeshBlock::PointContained(Real const x, Real const y,
 //                                     Real const z)
@@ -861,9 +879,52 @@ Real MeshBlock::PointCentralDistanceSquared(Real const x, Real const y,
 }
 
 //----------------------------------------------------------------------------------------
+//! \fn Real MeshBlock::PointCentralDistanceSquared(Real const x, Real const y,
+//                                                  Real const z)
+//  \brief Minimum distance between a point and all MeshBlock corners
+Real MeshBlock::PointMinCornerDistanceSquared(Real const x, Real const y,
+                                              Real const z) {
+
+  Real const mi_x1 = block_size.x1min;
+  Real const ma_x1 = block_size.x1max;
+
+  Real const mi_x2 = block_size.x2min;
+  Real const ma_x2 = block_size.x2max;
+
+  Real const mi_x3 = block_size.x3min;
+  Real const ma_x3 = block_size.x3max;
+
+  Real dist_min = SQR(mi_x1 - x) + SQR(mi_x2 - y) + SQR(mi_x3 - z);
+  Real dist_cur = 0;
+
+  dist_cur = SQR(ma_x1 - x) + SQR(mi_x2 - y) + SQR(mi_x3 - z);
+  dist_min = (dist_cur < dist_min) ? dist_cur : dist_min;
+
+  dist_cur = SQR(mi_x1 - x) + SQR(ma_x2 - y) + SQR(mi_x3 - z);
+  dist_min = (dist_cur < dist_min) ? dist_cur : dist_min;
+
+  dist_cur = SQR(mi_x1 - x) + SQR(mi_x2 - y) + SQR(ma_x3 - z);
+  dist_min = (dist_cur < dist_min) ? dist_cur : dist_min;
+
+  dist_cur = SQR(ma_x1 - x) + SQR(ma_x2 - y) + SQR(mi_x3 - z);
+  dist_min = (dist_cur < dist_min) ? dist_cur : dist_min;
+
+  dist_cur = SQR(mi_x1 - x) + SQR(ma_x2 - y) + SQR(ma_x3 - z);
+  dist_min = (dist_cur < dist_min) ? dist_cur : dist_min;
+
+  dist_cur = SQR(ma_x1 - x) + SQR(mi_x2 - y) + SQR(ma_x3 - z);
+  dist_min = (dist_cur < dist_min) ? dist_cur : dist_min;
+
+  dist_cur = SQR(ma_x1 - x) + SQR(ma_x2 - y) + SQR(ma_x3 - z);
+  dist_min = (dist_cur < dist_min) ? dist_cur : dist_min;
+
+  return dist_min;
+}
+
+//----------------------------------------------------------------------------------------
 //! \fn bool MeshBlock::SphereIntersects(
 // Real const Sx0, Real const Sy0, Real const Sz0, Real const radius)
-//  \brief Check if some sphere intersects current MeshBloc
+//  \brief Check if some sphere intersects current MeshBlock
 bool MeshBlock::SphereIntersects(
   Real const Sx0, Real const Sy0, Real const Sz0, Real const radius) {
 

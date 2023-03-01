@@ -57,6 +57,11 @@
 #include "../advection/advection.hpp"
 #include "../z4c/z4c.hpp"
 #include "../z4c/puncture_tracker.hpp"
+
+#ifdef TRACKER_EXTREMA
+#include "../trackers/tracker_extrema.hpp"
+#endif // TRACKER_EXTREMA
+
 // WGC: wave ext
 #ifdef Z4C_WEXT
 #include "../z4c/wave_extract.hpp"
@@ -347,6 +352,12 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
       }
     }
   }
+
+#ifdef TRACKER_EXTREMA
+  // Last entry says if it is restart run or not
+  ptracker_extrema = new TrackerExtrema(this, pin, 0);
+#endif // TRACKER_EXTREMA
+
   if (EOS_TABLE_ENABLED) peos_table = new EosTable(pin);
   InitUserMeshData(pin);
 
@@ -783,6 +794,12 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
       }
     }
   }
+
+#ifdef TRACKER_EXTREMA
+  // Last entry says if it is restart run or not
+  ptracker_extrema = new TrackerExtrema(this, pin, 1);
+#endif // TRACKER_EXTREMA
+
   if (EOS_TABLE_ENABLED) peos_table = new EosTable(pin);
   InitUserMeshData(pin, 1);
 
@@ -793,6 +810,14 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
   for (int n=0; n<nreal_user_mesh_data_; n++)
     udsize += ruser_mesh_data[n].GetSizeInBytes();
   udsize += 2*NDIM*sizeof(Real)*pz4c_tracker.size();
+
+#ifdef TRACKER_EXTREMA
+  // c_x1, c_x2, c_x3
+  udsize += ptracker_extrema->c_x1.GetSizeInBytes();
+  udsize += ptracker_extrema->c_x2.GetSizeInBytes();
+  udsize += ptracker_extrema->c_x3.GetSizeInBytes();
+#endif // TRACKER_EXTREMA
+
   if (udsize != 0) {
     char *userdata = new char[udsize];
     if (Globals::my_rank == 0) { // only the master process reads the ID list
@@ -824,6 +849,24 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
       std::memcpy(ptracker->betap, &userdata[udoffset], NDIM*sizeof(Real));
       udoffset += 3*sizeof(Real);
     }
+
+#ifdef TRACKER_EXTREMA
+    std::memcpy(ptracker_extrema->c_x1.data(),
+                &(userdata[udoffset]),
+                ptracker_extrema->c_x1.GetSizeInBytes());
+    udoffset += ptracker_extrema->c_x1.GetSizeInBytes();
+
+    std::memcpy(ptracker_extrema->c_x2.data(),
+                &(userdata[udoffset]),
+                ptracker_extrema->c_x2.GetSizeInBytes());
+    udoffset += ptracker_extrema->c_x2.GetSizeInBytes();
+
+    std::memcpy(ptracker_extrema->c_x3.data(),
+                &(userdata[udoffset]),
+                ptracker_extrema->c_x3.GetSizeInBytes());
+    udoffset += ptracker_extrema->c_x3.GetSizeInBytes();
+#endif // TRACKER_EXTREMA
+
     delete [] userdata;
   }
 
@@ -1014,6 +1057,10 @@ Mesh::~Mesh() {
     }
     pz4c_tracker.resize(0);
   }
+
+#ifdef TRACKER_EXTREMA
+  delete ptracker_extrema;
+#endif // TRACKER_EXTREMA
 
   if (adaptive) { // deallocate arrays for AMR
     delete [] nref;

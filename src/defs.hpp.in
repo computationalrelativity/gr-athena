@@ -134,6 +134,9 @@
 // use double precision for HDF5 output? default=0 (false; write out binary32)
 #define H5_DOUBLE_PRECISION_ENABLED @H5_DOUBLE_PRECISION_ENABLED@
 
+// allow control over whether tracker extrema enabled
+#define @TRACKER_EXTREMA@
+
 // two_punctures
 #define @TWO_PUNCTURES_OPTION@
 
@@ -238,6 +241,8 @@
 #define POW4(x) ( POW2(x) * POW2(x) )
 #define SIGN(x) ( ((x) < 0.0) ? -1.0 : 1.0 )
 #define SQRT(x) (std::sqrt(x))
+#define ISEVEN(n)   ((n%2 == 0) ? 1 : 0)
+#define ISODD(n)    ((n%2 != 0) ? 1 : 0)
 
 #ifdef ENABLE_EXCEPTIONS
 #define ATHENA_ERROR(x) throw std::runtime_error(x.str().c_str())

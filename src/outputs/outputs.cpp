@@ -869,6 +869,23 @@ void Outputs::MakeOutputs(Mesh *pm, ParameterInput *pin, bool wtflag) {
 }
 
 //----------------------------------------------------------------------------------------
+//! \fn void Outputs::GetOutputTimeStep(bool wtflag)
+//  \brief scans through singly linked list of OutputTypes returning TimeStep
+
+Real Outputs::GetOutputTimeStep(std::string variable) {
+  Real dt = 0;
+
+  OutputType* ptype = pfirst_type_;
+  while (ptype != nullptr) {
+    if (ptype->output_params.variable == variable) {
+      return ptype->output_params.dt;
+    }
+    ptype = ptype->pnext_type; // move to next OutputType node in signly linked list
+  }
+  return dt;
+}
+
+//----------------------------------------------------------------------------------------
 //! \fn void OutputType::TransformOutputData(MeshBlock *pmb)
 //  \brief Calls sum and slice functions on each direction in turn, in order to allow
 //  mulitple operations performed on the same data set

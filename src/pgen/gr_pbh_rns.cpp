@@ -92,8 +92,13 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   // Interpolate primitives to CC
   phydro->RNS_Hydro(pin, phydro->w, phydro->w1, phydro->w_init, data);
 
-  // Superimpose a boosted puncture.
-  pz4c->ADMAddBoostedPuncture(pin, pz4c->storage.adm, pz4c->storage.u, 0);
+  // It should be possible to add multiple black holes, so we check for how many the
+  // puncture tracker is looking for.
+  int npunct = pin->GetOrAddInteger("z4c", "npunct", 0);
+  for (int i = 0; i < npunct; i++) {
+    // Superimpose a boosted puncture.
+    pz4c->ADMAddBoostedPuncture(pin, pz4c->storage.adm, pz4c->storage.u, i);
+  }
 
   pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
   pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u1);
