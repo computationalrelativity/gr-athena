@@ -28,7 +28,6 @@ _hdf5_suffix = ".athdf" ## suffix of the hdf5 files to glob
 ## general env for 2d plot, change it
 _cmap_2d = mpl.cm.cool ## [cool,jet]
 _norm_2d = "normalized" ## "log"
-_xcood_1d = 0 ## shows y-axis for 1D plot
         
 ## given parameters, get all hdf5 files of interest
 class Params:
@@ -40,7 +39,7 @@ class Params:
         self.hdf5_suffix = _hdf5_suffix ## suffix of the hdf5 files to glob
 
         self.out_dir    = args.o + '/' ## dir. to read hdf5 files
-        self.out_format = args.f       ## plot format pdf, png, and txt
+        self.out_format = args.f       ## plot format pdf, png, txt, etc.
         self.out_prefix = _out_prefix  ## prefix of output files
         
         self.cut        = args.c ## slice of 3d data, 
@@ -746,7 +745,7 @@ if __name__=="__main__":
     p.add_argument("-o",type=str,required=True,help="path/to/output/dir")
     p.add_argument("-e",type=int,default = 128, help="resolution of the run, e.g., 128, 96,...")
     p.add_argument("-p",type=str,required= True,help="hdf5 prefix, e.g., 'z4c_z' or 'adm'.")
-    p.add_argument("-f",type=str,default = "txt" , help="output format = {pdf,png,txt,txt1d}.")
+    p.add_argument("-f",type=str,default = "txt", help="output format = {pdf,png,txt,txt1d,txt1d_mbx,txt1d_mby,txt2d_mb}.")
     p.add_argument("-n",type=str,default = "z4c.chi" , help="field name, e.g., z4c.chi, con.H.")
     p.add_argument("-c",type=str,default = "z=0.0", help="clipping/cutting of the 3D grid, e.g., z=0.")
     p.add_argument("-s",type=int,default = 10, help="read every step-th file.")
