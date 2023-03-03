@@ -518,8 +518,7 @@ class Plot:
                 
                 found_i = 0
                 
-                ## Don't include ng as they may have the x-axis of interest
-                for i in range(mbs[mb]['iI'],mbs[mb]['iF']):
+                for i in range(mbs[mb]['iI']-ng,mbs[mb]['iF']-ng):
                     if np.abs(x[i] - params.coord_1d) < hx:
                         found_i = 1;
                         break
