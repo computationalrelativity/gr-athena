@@ -240,11 +240,10 @@ static int RefinementCondition(MeshBlock *pmb)
   {
     ParameterInput *const pin = pmb->pmy_in;
     Real time   = pmb->pmy_mesh->time;
-    Real time_i = pin->GetOrAddReal("z4c","refinement_time_i",0.);
-    Real time_f = pin->GetOrAddReal("z4c","refinement_time_f",-1.);
-
-    Real Linf_r_inn = pin->GetOrAddReal("z4c","refinement_Linf_radius_inn",10e10);
-    Real Linf_r_out = pin->GetOrAddReal("z4c","refinement_Linf_radius_out",10e10);
+    Real FD_r1_inn = pin->GetOrAddReal("z4c","refinement_FD_radius1_inn",10e10);
+    Real FD_r1_out = pin->GetOrAddReal("z4c","refinement_FD_radius1_out",10e10);
+    Real FD_r2_inn = pin->GetOrAddReal("z4c","refinement_FD_radius2_inn",10e10);
+    Real FD_r2_out = pin->GetOrAddReal("z4c","refinement_FD_radius2_out",10e10);
     
     bool IsPreref = pin->GetOrAddBoolean("z4c","refinement_preref",0);
     
@@ -255,28 +254,34 @@ static int RefinementCondition(MeshBlock *pmb)
       
       ret = LinfBoxInBox(pmb);
     }
-    else if (Linf_r_inn <= amr->mb_radius && amr->mb_radius <= Linf_r_out)
+    else if (FD_r1_inn <= amr->mb_radius && amr->mb_radius <= FD_r1_out)
     {
-    
-      if (Verbose)
-        printf("Mb_radius = %g ==> calling Linf AMR for the ring = [%g,%g]\n", 
-                amr->mb_radius,Linf_r_inn,Linf_r_out);
+      Real ref_tol  = pin->GetOrAddReal("z4c","refinement_tol1",1e-5);
+      Real dref_tol = pin->GetOrAddReal("z4c","derefinement_tol1",1e-8);
       
-      ret = LinfBoxInBox(pmb);
-    }
-    else if (time >= time_i && time <= time_f)
-    {
       if (Verbose)
-        std::cout << "calling Linf AMR for a time interval" << std::endl;
-  
-      ret = LinfBoxInBox(pmb);
+        printf("Mb_radius = %g ==> calling FD AMR for the ring = [%g,%g], tol=[%g,%g]\n", 
+                amr->mb_radius,FD_r1_inn,FD_r1_out,dref_tol,ref_tol);
+      
+      ret = amr->FDErrorApprox(pmb,dref_tol,ref_tol);
+    }
+    else if (FD_r2_inn <= amr->mb_radius && amr->mb_radius <= FD_r2_out)
+    {
+      Real ref_tol  = pin->GetOrAddReal("z4c","refinement_tol2",1e-2);
+      Real dref_tol = pin->GetOrAddReal("z4c","derefinement_tol2",1e-4);
+      
+      if (Verbose)
+        printf("Mb_radius = %g ==> calling FD AMR for the ring = [%g,%g], tol=[%g,%g]\n", 
+                amr->mb_radius,FD_r2_inn,FD_r2_out,dref_tol,ref_tol);
+      
+      ret = amr->FDErrorApprox(pmb,dref_tol,ref_tol);
     }
     else
     {
       if (Verbose)
-        std::cout << "calling FD AMR" << std::endl;
+        std::cout << "Do nothing" << std::endl;
       
-      ret = amr->FDErrorApprox(pmb);
+      ret = 0;
     }
   }
   else
