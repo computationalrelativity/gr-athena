@@ -14,8 +14,6 @@ class Z4c_AMR
 {
   private:
     Z4c *pz4c;       // ptr to z4c
-    Real ref_tol;    // refinment tolerance
-    Real dref_tol;   // derefinment tolerance
     Real ref_x1min;  // x1 min of the region of interest for the refinement
     Real ref_x1max;  // x1 max of the region of interest for the refinement
     Real ref_x2min;  // x2 min of the region of interest for the refinement
@@ -44,8 +42,8 @@ class Z4c_AMR
     Real mb_radius;  // the length of the line from the origin to the meshblock's center
     explicit Z4c_AMR(MeshBlock *pmb);
     ~Z4c_AMR();
-    int FDErrorApprox(MeshBlock *pmb); // using the FD error as an approximation for
-                                       // the error in the meshblock.
+    // using the FD error as an approximation for the error in the meshblock.
+    int FDErrorApprox(MeshBlock *pmb, Real dref_tol, Real ref_tol); 
 };
 
 #endif // Z4c_AMR_HPP

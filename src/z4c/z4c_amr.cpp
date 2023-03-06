@@ -26,8 +26,6 @@ Z4c_AMR::Z4c_AMR(MeshBlock *pmb)
   Real h1, h2, h3; // grid space
   
   ref_method = pin->GetOrAddString("z4c","refinement_method","Linf_box_in_box");
-  ref_tol   = pin->GetOrAddReal("z4c","refinement_tol",1e-5);
-  dref_tol  = pin->GetOrAddReal("z4c","derefinement_tol",1e-8);
   ref_x1min = pin->GetOrAddReal("z4c","refinement_x1min",dmin);
   ref_x1max = pin->GetOrAddReal("z4c","refinement_x1max",dmax);
   ref_x2min = pin->GetOrAddReal("z4c","refinement_x2min",dmin);
@@ -55,7 +53,7 @@ Z4c_AMR::Z4c_AMR(MeshBlock *pmb)
 
 // using the FD error as an approximation of the error in the meshblock.
 // if this error falls below a prescribed value, the meshblock should be refined.
-int Z4c_AMR::FDErrorApprox(MeshBlock *pmb)
+int Z4c_AMR::FDErrorApprox(MeshBlock *pmb, Real dref_tol, Real ref_tol)
 {
   int ret          = 0;
   Real err         = 0.;
