@@ -79,6 +79,7 @@ public:
 
   // check values
   bool is_finite() { return data_.is_finite(); }
+  bool is_positive() { return data_.is_positive(); }
   bool is_nan() { return data_.is_nan(); }
   bool is_inf() { return data_.is_inf(); }
 

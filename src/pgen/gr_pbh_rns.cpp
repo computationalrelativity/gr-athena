@@ -14,6 +14,7 @@
 #include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
 #include "../z4c/z4c.hpp"
+#include "../z4c/z4c_macro.hpp"
 #include "../hydro/hydro.hpp"
 #include "../eos/eos.hpp"
 #include "../field/field.hpp"
@@ -29,6 +30,7 @@ int RefinementCondition(MeshBlock *pmb);
 
 static ini_data *data;
 Real Maxrho(MeshBlock *pmb, int iout);
+Real Minchi(MeshBlock *pmb, int iout);
 
 //}
 
@@ -39,8 +41,9 @@ Real Maxrho(MeshBlock *pmb, int iout);
 //  functions in this file.  Called in Mesh constructor.
 //========================================================================================
 void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag) {
-  AllocateUserHistoryOutput(1);
+  AllocateUserHistoryOutput(2);
   EnrollUserHistoryOutput(0, Maxrho, "max-rho", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(1, Minchi, "min-chi", UserHistoryOperation::min);
   
   if (!res_flag) {
     string set_name = "problem";
@@ -131,6 +134,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pfield->bcc);
   pz4c->ADMConstraints(pz4c->storage.con, pz4c->storage.adm, pz4c->storage.mat, pz4c->storage.u);
 
+  if (!pz4c->z4c.chi.is_positive()) {
+    std::cerr << "There's a problem with chi!\n";
+  }
+
   #ifdef Z4C_ASSERT_FINITE
   pz4c->assert_is_finite_adm();
   pz4c->assert_is_finite_con();
@@ -151,4 +158,20 @@ Real Maxrho(MeshBlock *pmb, int iout) {
     }
   }
   return max_rho;
+}
+
+Real Minchi(MeshBlock *pmb, int iout) {
+  Real min_chi = 1e60;
+  int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
+  AthenaArray<Real> chi;
+  chi.InitWithShallowSlice(pmb->pz4c->storage.u, Z4c::I_Z4c_chi,1);
+  for (int k=ks; k<=ke; k++) {
+    for (int j=js; j<=je; j++) {
+      for (int i=is; i<=ie; i++) {
+        min_chi = std::min(min_chi, chi(k,j,i));
+      }
+    }
+  }
+
+  return min_chi;
 }

@@ -252,6 +252,18 @@ class AthenaArray {
     return finite;
   };
 
+  bool is_positive() {
+    bool positive = true;
+    std::size_t size = nx1_ * nx2_ * nx3_ * nx4_ * nx5_;
+    for (std::size_t i=0; i<size; ++i) {
+      positive = positive && (pdata_[i] >= 0);
+      if (!positive) {
+        break;
+      }
+    }
+    return positive;
+  }
+
   bool is_nan() {
     bool bnan = true;
     std::size_t size = nx1_ * nx2_ * nx3_ * nx4_ * nx5_;
