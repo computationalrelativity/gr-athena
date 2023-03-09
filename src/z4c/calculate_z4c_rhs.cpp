@@ -832,6 +832,12 @@ void Z4c::Z4cSommerfeld_(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs,
   SetZ4cAliases(u_rhs, rhs);
 // Cowling approx, set RHS of evolution equations to 0 if opt.cowling == 1
 // evolve as normal if opt.cowling =/= 1
+  if (opt.cowling == 1) {
+    rhs.Theta.ZeroClear();
+    rhs.Khat.ZeroClear();
+    rhs.Gam_u.ZeroClear();
+    rhs.A_dd.ZeroClear();
+  }
 
   for(int k = ks; k <= ke; ++k)
   for(int j = js; j <= je; ++j) {
