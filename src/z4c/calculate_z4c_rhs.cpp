@@ -837,6 +837,7 @@ void Z4c::Z4cSommerfeld_(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs,
     rhs.Khat.ZeroClear();
     rhs.Gam_u.ZeroClear();
     rhs.A_dd.ZeroClear();
+    return;
   }
 
   for(int k = ks; k <= ke; ++k)
