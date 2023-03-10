@@ -63,7 +63,8 @@ class Tracker {
     bool ioproc;
     std::string ofname;
     Mesh const * pmesh;
-    FILE * pofile[NPUNCT];
+
+    static const int PRECISION_DUMP = 18;
 };
 
 //! \class TrackerLocal

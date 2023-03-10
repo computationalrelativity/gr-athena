@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <sstream>
 #include <iostream>
+#include <fstream>
 
 #ifdef MPI_PARALLEL
 #include <mpi.h>
@@ -48,19 +49,32 @@ Tracker::Tracker(Mesh * pmesh, ParameterInput * pin, int res_flag):
   if (ioproc) {
     if (! res_flag) {
       for (int i_outfile = 0; i_outfile <= npunct-1; ++i_outfile) {
-        pofile[i_outfile] = NULL;
-        std::string title = ofname + std::to_string(i_outfile+1) + ".txt";
-        pofile[i_outfile] = fopen(title.c_str(), "w");
-        if (NULL == pofile[i_outfile]) {
+        std::string fn_tracker = ofname + std::to_string(i_outfile+1) + ".txt";
+
+        std::ofstream file_tracker;
+        file_tracker.setf(std::ios::fixed, std::ios::floatfield);
+        file_tracker.precision(PRECISION_DUMP);
+        file_tracker.open(fn_tracker);
+
+        if (file_tracker.is_open())
+        {
+          file_tracker << "# 1:iter 2:time 3:P-x 4:P-y 5:P-z" << std::endl;
+          file_tracker << 0 << " ";
+          file_tracker << std::scientific << 0.0 << " ";
+          file_tracker << std::scientific << pos_body[i_outfile].pos[0] << " ";
+          file_tracker << std::scientific << pos_body[i_outfile].pos[1] << " ";
+          file_tracker << std::scientific << pos_body[i_outfile].pos[2] << std::endl;
+          file_tracker.close();
+        }
+        else
+        {
+          // fatal error
           std::stringstream msg;
           msg << "### FATAL ERROR in Tracker constructor" << std::endl;
-          msg << "Could not open file '" << title << "' for writing!";
-          throw std::runtime_error(msg.str().c_str());
+          msg << "Could not open file '" << fn_tracker << "' for writing!";
+          throw std::runtime_error(msg.str());
         }
-        fprintf(pofile[i_outfile], "#%-12s%-13s%-13s%-13s%-13s\n", "1:iter", "2:time", "3:P-x", "4:P-y", "5:P-z");
-	fprintf(pofile[i_outfile], "%-13d%-13.5e", 0, 0.);
-        fprintf(pofile[i_outfile], "%-13.5e%-13.5e%-13.5e\n", pos_body[i_outfile].pos[0], pos_body[i_outfile].pos[1], pos_body[i_outfile].pos[2]);
-      fclose(pofile[i_outfile]);
+
       }
     }
   }
@@ -271,14 +285,25 @@ void Tracker::EvolveTrackerIntegrateEuler()
 
 void Tracker::WriteTracker(int iter, Real time) const {
   if (ioproc && (iter > 0)) {
-    FILE *pfile[NPUNCT];
+
     for (int i_outfile = 0; i_outfile <= npunct-1; ++i_outfile) {
-      std::string title = ofname + std::to_string(i_outfile+1) + ".txt";
-      pfile[i_outfile] = fopen(title.c_str(), "a");
-      fprintf(pfile[i_outfile], "%-13d%-13.5e", iter, time);
-      fprintf(pfile[i_outfile], "%-13.5e%-13.5e%-13.5e\n", pos_body[i_outfile].pos[0], pos_body[i_outfile].pos[1], pos_body[i_outfile].pos[2]);
-      fclose(pfile[i_outfile]);
+      std::string fn_tracker = ofname + std::to_string(i_outfile+1) + ".txt";
+
+      std::ofstream file_tracker;
+      file_tracker.setf(std::ios::fixed, std::ios::floatfield);
+      file_tracker.precision(PRECISION_DUMP);
+      file_tracker.open(fn_tracker, std::ios_base::app);
+
+      file_tracker << iter << " ";
+      file_tracker << std::scientific << time << " ";
+      file_tracker << std::scientific << pos_body[i_outfile].pos[0] << " ";
+      file_tracker << std::scientific << pos_body[i_outfile].pos[1] << " ";
+      file_tracker << std::scientific << pos_body[i_outfile].pos[2] << std::endl;
+
+      file_tracker.close();
     }
+
+
   }
 }
 
