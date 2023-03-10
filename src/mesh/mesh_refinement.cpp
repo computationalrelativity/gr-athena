@@ -33,6 +33,8 @@
 // BD: for comparison
 #include "../utils/lagrange_interp.hpp"
 //-
+#include "../utils/floating_point.hpp"
+
 
 //----------------------------------------------------------------------------------------
 //! \fn MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin)
@@ -2005,11 +2007,21 @@ void MeshRefinement::_ProlongateVertexCenteredValues(
                   Real const fc_ull = coarse(n, ck_u, cj_l, ci_l);
                   Real const fc_lul = coarse(n, ck_l, cj_u, ci_l);
 
+#ifdef DBG_SYMMETRIZE_P_OP
+                  fine(n, fk_prl, fj_prl, fi_prl) += lckji * (
+                    FloatingPoint::sum_associative(
+                      fc_uuu, fc_lll, fc_uul, fc_llu,
+                      fc_lul, fc_ulu, fc_luu, fc_ull
+                    )
+                  );
+#else
                   fine(n, fk_prl, fj_prl, fi_prl) += lckji *
                     ((fc_uuu + fc_lll) +
                     (fc_uul + fc_llu) +
                     (fc_lul + fc_ulu) +
                     (fc_luu + fc_ull));
+#endif // DBG_SYMMETRIZE_P_OP
+
                 }
               }
             }
@@ -2052,7 +2064,16 @@ void MeshRefinement::_ProlongateVertexCenteredValues(
                 Real const fc_clu = coarse(n, k, cj_l, ci_u);
                 Real const fc_cll = coarse(n, k, cj_l, ci_l);
 
+#ifdef DBG_SYMMETRIZE_P_OP
+                fine(n, fk_inj, fj_prl, fi_prl) += lcji * (
+                  FloatingPoint::sum_associative(
+                    fc_cuu, fc_cll, fc_clu, fc_cul
+                  )
+                );
+#else
                 fine(n, fk_inj, fj_prl, fi_prl) += lcji * ((fc_cuu + fc_cll) + (fc_clu + fc_cul));
+#endif // DBG_SYMMETRIZE_P_OP
+
               }
             }
 
@@ -2094,7 +2115,16 @@ void MeshRefinement::_ProlongateVertexCenteredValues(
                 Real const fc_lcu = coarse(n, ck_l, j, ci_u);
                 Real const fc_lcl = coarse(n, ck_l, j, ci_l);
 
+#ifdef DBG_SYMMETRIZE_P_OP
+                fine(n, fk_prl, fj_inj, fi_prl) += lcki * (
+                  FloatingPoint::sum_associative(
+                    fc_lcu, fc_ucl, fc_ucu, fc_lcl
+                  )
+                );
+
+#else
                 fine(n, fk_prl, fj_inj, fi_prl) += lcki * ((fc_lcu + fc_ucl) + (fc_ucu + fc_lcl));
+#endif // DBG_SYMMETRIZE_P_OP
               }
             }
 
@@ -2135,7 +2165,16 @@ void MeshRefinement::_ProlongateVertexCenteredValues(
                 Real const fc_luc = coarse(n, ck_l, cj_u, i);
                 Real const fc_llc = coarse(n, ck_l, cj_l, i);
 
+#ifdef DBG_SYMMETRIZE_P_OP
+                fine(n, fk_prl, fj_prl, fi_inj) += lckj * (
+                  FloatingPoint::sum_associative(
+                    fc_uuc, fc_llc, fc_luc, fc_ulc
+                  )
+                );
+#else
                 fine(n, fk_prl, fj_prl, fi_inj) += lckj * ((fc_uuc + fc_llc) + (fc_luc + fc_ulc));
+#endif // DBG_SYMMETRIZE_P_OP
+
               }
             }
 
