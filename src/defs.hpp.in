@@ -38,7 +38,7 @@
 //------
 
 #define VC_UGRID_PROLONGATE
-#define DBGPR_MB_SYMMMETRY
+#define NO_DBGPR_MB_SYMMMETRY
 #define DBG_SYMMETRIZE_FD
 #define DBG_SYMMETRIZE_P_OP
 

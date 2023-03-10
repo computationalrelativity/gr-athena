@@ -209,6 +209,31 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   pz4c->assert_is_finite_z4c();
 #endif //Z4C_ASSERT_FINITE
 
+
+#ifdef DBGPR_MB_SYMMMETRY
+  // debug initial data symmetry
+  Z4c::Z4c_vars z4c;
+  pz4c->SetZ4cAliases(pz4c->storage.u, z4c);
+
+  Z4c::ADM_vars adm;
+  pz4c->SetADMAliases(pz4c->storage.adm, adm);
+
+  // DEBUG SYMM
+  coutBlue("ADMToZ4c\n");
+
+  pz4c->diag_sym(0);
+  pz4c->diag_sym(1);
+  pz4c->diag_sym(2);
+
+  pz4c->diag_sym_scalars(0);
+  pz4c->diag_sym_scalars(1);
+  pz4c->diag_sym_scalars(2);
+
+  pz4c->diag_sym_bitant_x();
+  pz4c->diag_sym_bitant_y();
+  pz4c->diag_sym_bitant_z();
+#endif // DBGPR_MB_SYMMMETRY
+
   return;
 }
 
