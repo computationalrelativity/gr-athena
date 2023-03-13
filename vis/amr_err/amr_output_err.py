@@ -407,7 +407,7 @@ class Plot:
             if slice.slice_dir == 3:
                 X,Y = np.meshgrid(x,y)
                 if ng == 0:
-                    plt.pcolor(Y,X,v[mbs[mb]['kI'], :, :],vmin=vmin,vmax=vmax,norm=norm)
+                    plt.pcolor(Y,X,v[mbs[mb]['kI'], :, :],norm=norm)
                 else:
                     plt.pcolor(Y,X,v[mbs[mb]['kI'], ng:-ng, ng:-ng],norm=norm)
                 xlabel="y"
@@ -425,7 +425,7 @@ class Plot:
             elif slice.slice_dir == 1:
                 Y,Z = np.meshgrid(y,z)
                 if ng == 0:
-                    plt.pcolor(Z,Y,v[:, :, mbs[mb]['iI']],vmin=vmin,vmax=vmax,norm=norm)
+                    plt.pcolor(Z,Y,v[:, :, mbs[mb]['iI']],norm=norm)
                 else:
                     plt.pcolor(Z,Y,v[ng:-ng, ng:-ng, mbs[mb]['iI']],norm=norm)
                 xlabel="z"
