@@ -11,6 +11,7 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "interp_univariate.hpp"
+#include "floating_point.hpp"
 
 // Provide centred stencils for VC->D[CC]
 // Odd 'der' take negative values on the left part of the stencil
@@ -220,10 +221,17 @@ class InterpIntergridLocal {
             Real const f_llu = pin[K_U+J_L+I_L];
             Real const f_uul = pin[K_L+J_U+I_U];
 
+#ifdef DBG_SYMMETRIZE_IG_OP
+            out += lck * lcj * lci * FloatingPoint::sum_associative(
+              f_uuu, f_lll, f_lul, f_ulu,
+              f_ull, f_luu, f_llu, f_uul
+            );
+#else
             out += lck * lcj * lci * (
               (f_uuu + f_lll) + (f_lul + f_ulu) +
               (f_ull + f_luu) + (f_llu + f_uul)
             );
+#endif // DBG_SYMMETRIZE_IG_OP
 
           }
 
@@ -266,9 +274,16 @@ class InterpIntergridLocal {
           Real const f_ul = pin[J_L+I_U];
           Real const f_lu = pin[J_U+I_L];
 
+#ifdef DBG_SYMMETRIZE_IG_OP
+          out += lcj * lci * FloatingPoint::sum_associative(
+            f_uu, f_ll, f_ul, f_lu
+          );
+#else
           out += lcj * lci * (
             ((f_uu+f_ll) +(f_ul+f_lu))
           );
+#endif // DBG_SYMMETRIZE_IG_OP
+
         }
       }
       return out;
@@ -369,9 +384,15 @@ class InterpIntergridLocal {
           const int ix_lu = j_l + i_u;
           const int ix_ul = j_u + i_l;
 
+#ifdef DBG_SYMMETRIZE_IG_OP
+          out += la * FloatingPoint::sum_associative(
+            pin[ix_uu], pin[ix_ul], pin[ix_lu], pin[ix_ll]
+          );
+#else
           out += la * (
             (pin[ix_uu] + pin[ix_ul]) + (pin[ix_lu] + pin[ix_ll])
           );
+#endif // DBG_SYMMETRIZE_IG_OP
 
         }
       }

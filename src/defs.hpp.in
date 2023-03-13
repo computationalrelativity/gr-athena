@@ -26,6 +26,7 @@
 #define DBGPR_WAVEINTEGRATORTASKLIST false
 
 #define DBG_SYMMETRIZE_P_OP
+#define DBG_SYMMETRIZE_IG_OP
 
 //----------------------------------------------------------------------------------------
 // macros which define physics and algorithms
