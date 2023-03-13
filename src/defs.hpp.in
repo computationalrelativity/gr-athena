@@ -27,6 +27,7 @@
 
 #define DBG_SYMMETRIZE_P_OP
 #define DBG_SYMMETRIZE_IG_OP
+#define DBG_SYMMETRIZE_FD
 
 //----------------------------------------------------------------------------------------
 // macros which define physics and algorithms
