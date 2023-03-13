@@ -2379,7 +2379,14 @@ void MeshRefinement::_ProlongateVertexCenteredValues(
               Real const fc_lu = coarse(n, 0, cj_l, ci_u);
               Real const fc_ll = coarse(n, 0, cj_l, ci_l);
 
+#ifdef DBG_SYMMETRIZE_P_OP
+              fine(n, 0, fj_prl, fi_prl) += lcji * FloatingPoint::sum_associative(
+                fc_uu, fc_ll, fc_lu, fc_ul
+              );
+#else
               fine(n, 0, fj_prl, fi_prl) += lcji * ((fc_uu + fc_ll) + (fc_lu + fc_ul));
+#endif // DBG_SYMMETRIZE_P_OP
+
             }
           }
         }
