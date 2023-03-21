@@ -245,16 +245,25 @@ static int RefinementCondition(MeshBlock *pmb)
     Real FD_r2_inn = pin->GetOrAddReal("z4c","refinement_FD_radius2_inn",10e10);
     Real FD_r2_out = pin->GetOrAddReal("z4c","refinement_FD_radius2_out",10e10);
     
-    bool IsPreref   = pin->GetOrAddBoolean("z4c","refinement_preref",0);
+    bool IsPreref_Linf = pin->GetOrAddBoolean("z4c","refinement_preref_Linf",0);
+    bool IsPreref_L2   = pin->GetOrAddBoolean("z4c","refinement_preref_L2",0);
+    
     // preref if the time is less than
     Real PrerefTime = pin->GetOrAddReal("z4c","refinement_preref_time_lt",0.);
     
-    if (IsPreref && time <= PrerefTime)
+    if (IsPreref_Linf && time <= PrerefTime)
     {
       if (Verbose)
         std::cout << "calling Linf AMR for pre-refined" << std::endl;
       
       ret = LinfBoxInBox(pmb);
+    }
+    else if (IsPreref_L2 && time <= PrerefTime)
+    {
+      if (Verbose)
+        std::cout << "calling L2 AMR for pre-refined" << std::endl;
+      
+      ret = L2NormRefine(pmb);
     }
     else if (FD_r1_inn <= amr->mb_radius && amr->mb_radius <= FD_r1_out)
     {
