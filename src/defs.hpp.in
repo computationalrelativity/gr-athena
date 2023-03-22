@@ -11,6 +11,10 @@
 //  file contains Athena++ specific cpp macros and definitions set by configure.
 
 //----------------------------------------------------------------------------------------
+// symmetrization of VC prol.
+#define DBG_SYMMETRIZE_P_OP
+
+//----------------------------------------------------------------------------------------
 // macros which define physics and algorithms
 
 // configure.py dict(definitions) string values:
