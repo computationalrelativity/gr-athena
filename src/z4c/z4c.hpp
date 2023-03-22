@@ -32,6 +32,10 @@
 #include "TwoPunctures.h"
 #endif
 
+#ifdef DBG_SYMMETRIZE_FD
+#include "../utils/floating_point.hpp"
+#endif // DBG_SYMMETRIZE_FD
+
 class MeshBlock;
 class ParameterInput;
 
@@ -425,7 +429,44 @@ private:
       int const is, int const ie, int const js, int const je, int const ks, int const ke);
 
 private:
-  struct {
+private:
+  struct FD_ {
+    int stride[3];
+    Real idx[3];
+    Real diss;
+
+#ifdef DBG_SYMMETRIZE_FD
+    // 1st deg derivative stencil
+    typedef FDStencilCenteredDegreeOdd<1, NGHOST-1> c1;
+    Real cidx1[3];
+
+    // 2nd deg derivative stencil
+    typedef FDStencilCenteredDegreeEven<2, NGHOST-1> c2;
+    Real cidx2[3];
+
+    // 1st deg derivative stencil, low order
+    typedef FDStencilCenteredDegreeOdd<1, 1> c1_lo;
+    Real cidx1_lo[3];
+
+    // diss deg derivative stencil
+    typedef FDStencilCenteredDegreeEven<2 * NGHOST, NGHOST> cd;
+    Real cidxd[3];
+
+    // lop-sided
+    typedef FDStencilBiasedLeft<
+        FDBiasedChoice<1, NGHOST-1>::degree,
+        FDBiasedChoice<1, NGHOST-1>::nghost,
+        FDBiasedChoice<1, NGHOST-1>::lopsize
+      > ll1;
+    Real lidx_l1[3];
+
+    typedef FDStencilBiasedRight<
+        FDBiasedChoice<1, NGHOST-1>::degree,
+        FDBiasedChoice<1, NGHOST-1>::nghost,
+        FDBiasedChoice<1, NGHOST-1>::lopsize
+      > lr1;
+    Real lidx_r1[3];
+#else
     // 1st derivative stecil
     typedef FDCenteredStencil<1, NGHOST-1> s1;
     // 2nd derivative stencil
@@ -447,12 +488,45 @@ private:
         FDBiasedChoice<1, NGHOST-1>::nghost,
         FDBiasedChoice<1, NGHOST-1>::lopsize
       > sr;
-
-    int stride[3];
-    Real idx[3];
-    Real diss;
+#endif // DBG_SYMMETRIZE_FD
 
     // 1st derivative (high order centered)
+#ifdef DBG_SYMMETRIZE_FD
+    inline Real Dx(int dir, Real & u) {
+      // // 1 NN
+      // Real * pu = &u;
+      // Real out = (
+      //   (-pu[-1 * stride[dir]] + pu[1 * stride[dir]])
+      // );
+      // return out * idx[dir] / 2.0;
+
+      // // 2 NN
+      // Real * pu = &u;
+      // Real out = (
+      //   1.0 * ( pu[-2 * stride[dir]] - pu[2 * stride[dir]]) +
+      //   8.0 * (-pu[-1 * stride[dir]] + pu[1 * stride[dir]])
+      // );
+      // return out * idx[dir] / 12.0;
+
+      // // 3 NN
+      // Real * pu = &u;
+      // Real out = (
+      //    1.0 * (-pu[-3 * stride[dir]] + pu[3 * stride[dir]]) +
+      //    9.0 * ( pu[-2 * stride[dir]] - pu[2 * stride[dir]]) +
+      //   45.0 * (-pu[-1 * stride[dir]] + pu[1 * stride[dir]])
+      // );
+      // return out * idx[dir] / 60.0;
+
+      Real * pu = &u - c1::offset*stride[dir];
+
+      Real out(0.);
+      for(int n1 = 0; n1 < c1::nghost; ++n1) {
+        int const n2  = c1::width - n1 - 1;
+        out += c1::coeff[n1] * (pu[n1*stride[dir]] - pu[n2*stride[dir]]);
+      }
+      return out * cidx1[dir];
+    }
+#else
     inline Real Dx(int dir, Real & u) {
       Real * pu = &u - s1::offset*stride[dir];
 
@@ -466,16 +540,50 @@ private:
       out += s1::coeff[s1::nghost] * pu[s1::nghost*stride[dir]];
       return out * idx[dir];
     }
+#endif // DBG_SYMMETRIZE_FD
+
     // 1st derivative 2nd order centered
+#ifdef DBG_SYMMETRIZE_FD
+    inline Real Ds(int dir, Real & u) {
+      Real * pu = &u - c1_lo::offset*stride[dir];
+
+      Real out(0.);
+      for(int n1 = 0; n1 < c1_lo::nghost; ++n1) {
+        int const n2  = c1_lo::width - n1 - 1;
+        out += c1_lo::coeff[n1] * (pu[n1*stride[dir]] - pu[n2*stride[dir]]);
+      }
+      return out * cidx1_lo[dir];
+    }
+#else
     inline Real Ds(int dir, Real & u) {
       Real * pu = &u;
       return 0.5 * idx[dir] * (pu[stride[dir]] - pu[-stride[dir]]);
     }
+#endif // DBG_SYMMETRIZE_FD
+
     // Advective derivative
     // The advective derivative is for an equation in the form
     //    d_t u = vx d_x u
     // So negative vx means advection from the *left* to the *right*, so we use
     // *left* biased FD stencils
+#ifdef DBG_SYMMETRIZE_FD
+    inline Real Lx(int dir, Real & vx, Real & u) {
+      Real * pu = &u;
+
+      Real dl(0.);
+      for(int n = 0; n < ll1::width; ++n) {
+        dl += ll1::coeff[n] * pu[(n - ll1::offset)*stride[dir]];
+      }
+
+      Real dr(0.);
+      for(int n = lr1::width-1; n >= 0; --n) {
+        dr += lr1::coeff[n] * pu[(n - lr1::offset)*stride[dir]];
+      }
+
+      // lidx_l1[dir] == lidx_r1[dir]
+      return ((vx < 0) ? (vx * dl) : (vx * dr)) * lidx_l1[dir];
+    }
+#else
     inline Real Lx(int dir, Real & vx, Real & u) {
       Real * pu = &u;
 
@@ -488,9 +596,51 @@ private:
       for(int n = sr::width-1; n >= 0; --n) {
         dr += sr::coeff[n] * pu[(n - sr::offset)*stride[dir]];
       }
+
+
+
       return ((vx < 0) ? (vx * dl) : (vx * dr)) * idx[dir];
     }
+#endif // DBG_SYMMETRIZE_FD
+
     // Homogeneous 2nd derivative
+#ifdef DBG_SYMMETRIZE_FD
+    inline Real Dxx(int dir, Real & u) {
+      // // 1 NN
+      // Real * pu = &u;
+      // Real out = (
+      //   (pu[-1 * stride[dir]] + pu[1 * stride[dir]])
+      // ) - 2. * pu[0];
+      // return out * SQR(idx[dir]);
+
+      // // 2 NN
+      // Real * pu = &u;
+      // Real out = (
+      //   + 1.0 * (-pu[-2 * stride[dir]] - pu[2 * stride[dir]])
+      //   + 16.0 * (pu[-1 * stride[dir]] + pu[1 * stride[dir]])
+      // ) - 30.0 * pu[0];
+      // return out * SQR(idx[dir]) / 12.0;
+
+      // // 3 NN
+      // Real * pu = &u;
+      // Real out = (
+      //   + 1.0 *   ( pu[-3 * stride[dir]] + pu[3 * stride[dir]])
+      //   + 13.5 *  (-pu[-2 * stride[dir]] - pu[2 * stride[dir]])
+      //   + 135.0 * ( pu[-1 * stride[dir]] + pu[1 * stride[dir]])
+      // ) - 245.0 * pu[0];
+      // return out * SQR(idx[dir]) / 90.0;
+
+      Real * pu = &u - c2::offset*stride[dir];
+
+      Real out(0.);
+      for(int n1 = 0; n1 < c2::nghost; ++n1) {
+        int const n2  = c2::width - n1 - 1;
+        out += c2::coeff[n1] * (pu[n1*stride[dir]] + pu[n2*stride[dir]]);
+      }
+      out += c2::coeff[c2::nghost] * pu[c2::nghost*stride[dir]];
+      return out * cidx2[dir];
+    }
+#else
     inline Real Dxx(int dir, Real & u) {
       Real * pu = &u - s2::offset*stride[dir];
 
@@ -504,7 +654,39 @@ private:
       out += s2::coeff[s2::nghost] * pu[s2::nghost*stride[dir]];
       return out * SQR(idx[dir]);
     }
+#endif // DBG_SYMMETRIZE_FD
+
     // Mixed 2nd derivative
+#ifdef DBG_SYMMETRIZE_FD
+    inline Real Dxy(int dirx, int diry, Real & u) {
+      Real * pu = &u - c1::offset*(stride[dirx] + stride[diry]);
+      Real out(0.);
+
+      for(int nx1 = 0; nx1 < c1::nghost; ++nx1) {
+        int const nx2 = c1::width - nx1 - 1;
+        for(int ny1 = 0; ny1 < c1::nghost; ++ny1) {
+          int const ny2 = c1::width - ny1 - 1;
+          // out += c1::coeff[nx1] * c1::coeff[ny1] * (
+          //   ( pu[nx1*stride[dirx] + ny1*stride[diry]] + pu[nx2*stride[dirx] + ny2*stride[diry]]) -
+          //   ( pu[nx2*stride[dirx] + ny1*stride[diry]] + pu[nx1*stride[dirx] + ny2*stride[diry]])
+          // );
+
+          const Real v11 = pu[nx1*stride[dirx] + ny1*stride[diry]];
+          const Real v22 = pu[nx2*stride[dirx] + ny2*stride[diry]];
+
+          const Real v21 = -pu[nx2*stride[dirx] + ny1*stride[diry]];
+          const Real v12 = -pu[nx1*stride[dirx] + ny2*stride[diry]];
+
+          const Real c11 = c1::coeff[nx1] * c1::coeff[ny1];
+          out += c11 * FloatingPoint::sum_associative(v11, v22, v21, v12);
+
+          // compensated
+          // out += 0.5 * c11 * (std::max({ca, cb, cc}) + std::min({ca, cb, cc}));
+        }
+      }
+      return out * cidx1[dirx] * cidx1[diry];
+    }
+#else
     inline Real Dxy(int dirx, int diry, Real & u) {
       Real * pu = &u - s1::offset*(stride[dirx] + stride[diry]);
       Real out(0.);
@@ -544,9 +726,28 @@ private:
       int const ny = s1::nghost;
       out += s1::coeff[nx] * s1::coeff[ny] * pu[nx*stride[dirx] + ny*stride[diry]];
 
+      // const Real diff = std::abs(Dxy_(dirx, diry, u) - out * idx[dirx] * idx[diry]);
+      // if (diff > 1e-14)
+      //   std::cout << "diff: " << diff << std::endl;
+
       return out * idx[dirx] * idx[diry];
     }
+#endif // DBG_SYMMETRIZE_FD
+
     // Kreiss-Oliger dissipation operator
+#ifdef DBG_SYMMETRIZE_FD
+    inline Real Diss(int dir, Real & u) {
+      Real * pu = &u - cd::offset*stride[dir];
+
+      Real out(0.);
+      for(int n1 = 0; n1 < cd::nghost; ++n1) {
+        int const n2  = cd::width - n1 - 1;
+        out += cd::coeff[n1] * (pu[n1*stride[dir]] + pu[n2*stride[dir]]);
+      }
+      out += cd::coeff[cd::nghost] * pu[cd::nghost*stride[dir]];
+      return out * cidxd[dir];
+    }
+#else
     inline Real Diss(int dir, Real & u) {
       Real * pu = &u - sd::offset*stride[dir];
 
@@ -561,6 +762,7 @@ private:
 
       return out * idx[dir] * diss;
     }
+#endif // DBG_SYMMETRIZE_FD
   } FD;
 
 };
