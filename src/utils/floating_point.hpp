@@ -30,7 +30,7 @@ namespace FloatingPoint {
     T v111, T v112, T v121, T v211, T v122, T v221, T v212, T v222
   )
   {
-    return 0.5 * (
+    return (
       sum_associative(v111, v112, v121, v211) +
       sum_associative(v122, v221, v212, v222)
     );
