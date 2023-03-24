@@ -5,17 +5,20 @@ SRCD = $(BASE)/src
 OBJD = $(BASE)/obj
 
 SRC += $(SRCD)/Chebyshev.cc
-#SRC += $(SRCD)/Legendre.cc
-#SRC += $(SRCD)/sYlm.cc
-#SRC += $(SRCD)/matrix.cc
-#SRC += $(SRCD)/h5read.cc
+SRC += $(SRCD)/Legendre.cc
+SRC += $(SRCD)/sYlm.cc
+SRC += $(SRCD)/matrix.cc
+SRC += $(SRCD)/h5read.cc
+
 #SRC += $(SRCD)/decomp.cc
 #SRC += $(SRCD)/alias.cc
 #SRC += $(SRCD)/ExtractMetric.cc
 
 OBJ = $(patsubst $(SRCD)/%.cc,$(OBJD)/%.o,$(SRC))
 
-INC_PARAMS=-I$(SRCD)
+HDF5_INCD = /usr/lib/x86_64-linux-gnu/hdf5/serial/include
+INC_PARAMS += -I$(SRCD)
+INC_PARAMS += -I$(HDF5_INCD)
 
 CXX ?= g++
 CXXFLAGS ?= 
