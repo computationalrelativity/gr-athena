@@ -1,45 +1,45 @@
-#include "cctk.h"
-#include "cctk_Arguments.h"
-
 #define H5_USE_16_API 1
 #include <hdf5.h>
 #include "hdf5_hl.h"
 
-
-#include <stdlib.h>
 #include <iostream>
+#include <cstdlib>
+#include <cmath>
 
 #define BUFFSIZE 1024
 
 // check return code of HDF5 call and print a warning in case of an error
-#define HDF5_ERROR(fn_call) HDF5_ERROR_FUNC((fn_call), #fn_call, \
-                                            __LINE__, __FILE__)
+#define HDF5_ERROR(fn_call) HDF5_ERROR_FUNC((fn_call), #fn_call, __LINE__, __FILE__)
+
+using namespace std;
+
 static hid_t HDF5_ERROR_FUNC(hid_t error_code, const char* fn_call,
                              const int line, const char *file)
 {
   if (error_code < 0)
   {
-    CCTK_VError (__LINE__, __FILE__, CCTK_THORNSTRING,
-                "HDF5 call '%s' returned error code %d",
-                fn_call, (int)error_code);
+    cerr << "File: " << file << "\n"
+         << "line: " << line << "\n"
+         << "HDF5 call " << fn_call << ","
+         << "returned error code: " << (int)error_code << ".\n";
+    exit(error_code);
   }
   return error_code;
 }
 
-using namespace std;
 
 extern "C"
 {
 void SphericalHarmonicDecomp_Read(
      const char *name,
      const int iteration,
-     CCTK_REAL *p_time,
-     CCTK_REAL *p_Rin,
-     CCTK_REAL *p_Rout,
-     CCTK_INT *p_lmax,
-     CCTK_INT *p_nmax,
-     CCTK_REAL **p_re,
-     CCTK_REAL **p_im)
+     double *p_time,
+     double *p_Rin,
+     double *p_Rout,
+     int *p_lmax,
+     int *p_nmax,
+     double **p_re,
+     double **p_im)
 {
   char buff[BUFFSIZE];
   double Rin, Rout;
@@ -77,7 +77,7 @@ void SphericalHarmonicDecomp_Read(
 
   if (!*p_re)
   {
-    *p_re = (CCTK_REAL *)malloc(sizeof(CCTK_REAL)*na*nn*2);
+    *p_re = (double *)malloc(sizeof(double)*na*nn*2);
     *p_im = *p_re + na*nn;
   }
 
