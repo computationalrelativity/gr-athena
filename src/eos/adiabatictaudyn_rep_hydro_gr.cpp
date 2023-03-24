@@ -234,6 +234,7 @@ if(coarse_flag==0){
           beta_u(1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcbeta_y(k,j,i));
           beta_u(2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcbeta_z(k,j,i));
 }
+
 } else{
       #pragma omp simd
       for (int i=il; i<=iu; ++i) {
@@ -257,6 +258,7 @@ if(coarse_flag==0){
 }
 }
 }
+
 }
 
 //      }
@@ -326,9 +328,10 @@ if(coarse_flag==0){
     //check
     if (rep.failed())
     {
-//      printf("coarse flag = %d\n",coarse_flag);
-//      std::cerr << rep.debug_message();
-//      printf("i=%d, j=%d, k=%d\n",i,j,k);
+    //  printf("coarse flag = %d\n",coarse_flag);
+    //  std::cerr << rep.debug_message();
+    //  printf("i=%d, j=%d, k=%d\n",i,j,k);
+    //  Q();
       //abort simulation
   if(collapse){
   if(std::isnan(Dg) || std::isnan(taug) || std::isnan(S_1g) || std::isnan(S_2g) || std::isnan(S_3g)){
@@ -406,41 +409,36 @@ if(coarse_flag==0){
 //   single-cell function exists for other purposes; call made to that function rather
 //       than having duplicate code
 
-void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim,
-     AthenaArray<Real> &bb_cc, AthenaArray<Real> &cons, Coordinates *pco, int il,
-     int iu, int jl, int ju, int kl, int ku) {
-      AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd; //lapse
-  int nn1 = iu+1;
-      gamma_dd.NewAthenaTensor(nn1);
-      AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy;
-      AthenaArray<Real> vcgamma_yz,vcgamma_zz, order_flag;
-      order_flag.NewAthenaArray(nn1);
-      vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
-      vcgamma_xy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
-      vcgamma_xz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
-      vcgamma_yy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
-      vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
-      vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
-  for (int k=kl; k<=ku; ++k) {
-    for (int j=jl; j<=ju; ++j) {
-// TODO need a call to calculate CC metric locally here - we don't
-// actually need alpha beta or the inverse metric to calculate the conservatives.
-// Just return a 1D array in the x1 direction of gamma_{ij}
-//      pco->CellMetric(k, j, il, iu, g_, g_inv_);
-      for (int i=il; i<=iu; ++i) {
-          gamma_dd(0,0,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
-          gamma_dd(0,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
-          gamma_dd(0,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
-          gamma_dd(1,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
-          gamma_dd(1,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
-          gamma_dd(2,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
-}
-      //#pragma omp simd // fn is too long to inline
-      for (int i=il; i<=iu; ++i) {
-        PrimitiveToConservedSingle(prim, gamma_, gamma_dd, k, j, i, cons, pco);
-      }
-    }
+void EquationOfState::PrimitiveToConserved(
+  AthenaArray<Real> &prim,
+  AthenaArray<Real> &bb_cc, AthenaArray<Real> &cons, Coordinates *pco,
+  int il, int iu, int jl, int ju, int kl, int ku
+)
+{
+  // Make this more readable
+  MeshBlock * pmb = pmy_block_;
+  Z4c * pz4c = pmb->pz4c;
+
+  // Require only ADM 3-metric and no gauge.
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> cc_g_adm;
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> vc_g_adm;
+  cc_g_adm.NewAthenaTensor(pmb->ncells1);
+  vc_g_adm.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
+
+  for (int k=kl; k<=ku; ++k)
+  for (int j=jl; j<=ju; ++j)
+  {
+    for (int a = 0; a < NDIM; ++a)
+    for (int b = a; b < NDIM; ++b)
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+      cc_g_adm(a,b,i) = pz4c->ig->map3d_VC2CC(vc_g_adm(a,b,k,j,i));
+
+    for (int i=il; i<=iu; ++i)
+      PrimitiveToConservedSingle(prim, gamma_, cc_g_adm, k, j, i, cons, pco);
   }
+
+  cc_g_adm.DeleteAthenaTensor();
   return;
 }
 
@@ -470,6 +468,10 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, Real gamma_adi,
 
   // Apply floor to primitive variables. This should be
   // identical to what RePrimAnd does.
+  // coutBoldBlue("cut, gamma_adi: ");
+  // std::cout << atmo_cut << ", ";
+  // std::cout << gamma_adi << std::endl;
+
   if (prim(IDN, k, j, i) < atmo_cut) {
     prim(IDN, k, j, i) = atmo_rho;
     prim(IVX, k, j, i) = 0.0;
@@ -539,6 +541,14 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, Real gamma_adi,
   Real &S_3dg = cons(IM3,k,j,i);
 
   // Set conserved quantities
+  // if (std::abs(detgamma - 1) > 1e-12)
+  // {
+  //   std::cout << "detgamma: " << detgamma;
+  //   std::cout << "(i,j,k) = ";
+  //   std::cout << i << "," << j << "," << k << std::endl;
+
+  // }
+
   Real wgas = rho + gamma_adi/(gamma_adi-1.0) * pgas;
   Ddg = rho*Wlor*detgamma;
   taudg = wgas*SQR(Wlor)*detgamma - rho*Wlor*detgamma - pgas*detgamma;
