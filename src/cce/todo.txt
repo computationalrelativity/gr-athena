@@ -7,5 +7,7 @@ ones.
 
 - replace double to Real
 
+- Presentation of ChebyshevU and LegendreP are strongly prone to a big round
+  off error!
 
 
