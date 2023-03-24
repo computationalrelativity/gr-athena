@@ -1748,6 +1748,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
                                                  HydroBoundaryQuantity::cons);
           }
         }
+
       } // multilevel
 //comm end
       if (DBGPR_MESH)
@@ -1775,6 +1776,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       for (int i=0; i<nmb; ++i) {
         pmb = pmb_array[i];
         pbval = pmb->pbval, ph = pmb->phydro, pf = pmb->pfield, ps = pmb->pscalars;
+        pz4c = pmb->pz4c;
+
         if (multilevel){
           pbval->ProlongateBoundaries(time, 0.0);
         //WGC separate prol functions
@@ -1792,6 +1795,12 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         if (pmb->block_size.nx3 > 1) {
           if (pbval->nblevel[0][1][1] != -1) kl -= NGHOST;
           if (pbval->nblevel[2][1][1] != -1) ku += NGHOST;
+        }
+
+        if (GENERAL_RELATIVITY && res_flag == 2)
+        {
+          // Need ADM variables for con2prim when AMR splits MeshBlock
+          pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
         }
 
         if (FLUID_ENABLED) {
@@ -1864,7 +1873,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 #pragma omp for private(pmb,ph,pf,pz4c)
       for (int i=0; i<nmb; ++i) {
         pmb = pmb_array[i]; ph = pmb->phydro, pf = pmb->pfield, pz4c = pmb->pz4c;
-           pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, pf->bcc);
+        pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, pf->bcc);
       }
 
 
