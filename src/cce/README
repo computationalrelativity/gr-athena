@@ -1,0 +1,54 @@
+Alireza adapted this thorn for Athena++.
+
+
+CVS info   : $Header:$
+
+Cactus Code Thorn SphericalHarmonicDecomp
+Thorn Author(s)     : Yosef Zlochower <yosef@astro.rit.edu>
+Thorn Maintainer(s) : Yosef Zlochower <yosef@astro.rit.edu>
+--------------------------------------------------------------------------
+
+Purpose of the thorn:
+
+This code is available under the  GPL General Public License, 
+version 2, or later (see GPLv2 file included).
+
+The code in this arrangement is a results of many years of work by
+many different authors. Major contributors to this code include
+(in alphabetical order)
+
+M.C. Babiuc
+N. T. Bishop
+R. Gomez
+R. A. Isaacson
+L. Lehner
+P. Papadopoulos
+C. Reisswig
+B. Szilagyi
+J. Welling
+J. Winicour
+Y. Zlochower
+
+
+If you use this code, then we request that you cite the following papers:
+
+Title: Characteristic Extraction Tool for Gravitational Waveforms
+ Authors: M.C. Babiuc, B. Szilagyi, J. Winicour, Y. Zlochower
+ arXiv:1011.4223, Phys Rev D 84, 044057,
+ doi: http://dx.doi.org/10.1103/PhysRevD.84.044057
+
+Title: Cauchy-characteristic matching
+ Authors: N. Bishop, R. Isaacson, R. Gomez, L. Lehner, B. Szilagyi, J.
+ Winicour arXiv: gr-qc/9801070
+ In "Black Holes, Gravitational Radiation and the Universe"
+ eds. B. Iyer and B. Bhawal (Kluwer, Dordrecht, Boston,1999)
+
+This code is maintained by
+
+M. C.Babiuc <babiuc@marshall.edu>
+B. Szilagyi <bela.szilagyi@jpl.nasa.gov>
+C. Reisswig <reisswig@tapir.caltech.edu>
+Y. Zlochower <yosef@astro.rit.edu>
+
+Please contact the maintainers of the code if you require
+write access.
