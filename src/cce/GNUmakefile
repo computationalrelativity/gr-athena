@@ -9,8 +9,8 @@ SRC += $(SRCD)/Legendre.cc
 SRC += $(SRCD)/sYlm.cc
 SRC += $(SRCD)/matrix.cc
 SRC += $(SRCD)/h5read.cc
+SRC += $(SRCD)/decomp.cc
 
-#SRC += $(SRCD)/decomp.cc
 #SRC += $(SRCD)/alias.cc
 #SRC += $(SRCD)/ExtractMetric.cc
 
@@ -31,7 +31,7 @@ all: $(OBJ)
 
 $(OBJD)/%.o: $(SRCD)/%.cc
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) $(INC_PARAMS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(INC_PARAMS) -c $< -o $@ -lm
 
 clean:
 	@rm -rvf $(OBJD)
