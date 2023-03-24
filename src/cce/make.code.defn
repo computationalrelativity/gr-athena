@@ -1,0 +1,15 @@
+# Main make.code.defn file for thorn SphericalHarmonicDecomp
+# $Header:$
+
+# Source files in this directory
+SRCS = alias.cc \
+       decomp.cc \
+       matrix.cc \
+       sYlm.cc \
+       Legendre.cc \
+       Chebyshev.cc \
+       h5read.cc \
+       ExtractMetric.cc
+
+# Subdirectories containing source files
+SUBDIRS = 
