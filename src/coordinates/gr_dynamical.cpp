@@ -178,25 +178,6 @@ GRDynamical::GRDynamical(MeshBlock *pmb, ParameterInput *pin, bool flag)
   if (!coarse_flag) {
     transformation.NewAthenaArray(2, NTRIANGULAR);
   }
-//set up finite diff operator for metric derivatives in source terms
-  Real nn1 = block_size.nx1;
-  Real nn2 = block_size.nx2;
-  Real nn3 = block_size.nx3;
-
-  coordFD.stride[0] = 1;
-  coordFD.stride[1] = 0;
-  coordFD.stride[2] = 0;
-  coordFD.idx[0] = 1.0 / dx1f(0);
-  coordFD.idx[1] = 0.0;
-  coordFD.idx[2] = 0.0;
-  if(nn2 > 1) {
-    coordFD.stride[1] = nc1;
-    coordFD.idx[1] = 1.0 / dx2f(0);
-  }
-  if(nn3 > 1) {
-    coordFD.stride[2] = nc2*nc1;
-    coordFD.idx[2] = 1.0 / dx3f(0);
-  }
 // Metric quantities not initialised in constructor, need to wait for UpdateMetric() 
 // to be called once VC metric is initialised in Pgen
 }
@@ -2106,20 +2087,16 @@ metric_face2_kji_(1,n,k,j,i) = g_inv(n);
 return;
 }
 
-void GRDynamical::GetDerivs(int i,int j,int k,AthenaArray<Real>& dg_dx1, AthenaArray<Real>& dg_dx2, AthenaArray<Real>& dg_dx3){
-
-for(int n=0;n<NMETRIC;++n){
-dg_dx1(n) = coordFD.Dx(0,metric_cell_kji_(0,n,k,j,i) );
-dg_dx2(n) = coordFD.Dx(1, metric_cell_kji_(0,n,k,j,i));
-dg_dx3(n) = coordFD.Dx(2, metric_cell_kji_(0,n,k,j,i));
-//debugging
-/*
-dg_dx1(n) = 0.0;
-dg_dx2(n) = 0.0;
-dg_dx3(n) = 0.0;
-*/
-}
-return;
+void GRDynamical::GetDerivs(
+  int i, int j, int k,
+  AthenaArray<Real>& dg_dx1, AthenaArray<Real>& dg_dx2, AthenaArray<Real>& dg_dx3)
+{
+  for(int n=0;n<NMETRIC;++n)
+  {
+    dg_dx1(n) = pmy_block->pfd_cc->Dx(0, metric_cell_kji_(0,n,k,j,i));
+    dg_dx2(n) = pmy_block->pfd_cc->Dx(1, metric_cell_kji_(0,n,k,j,i));
+    dg_dx3(n) = pmy_block->pfd_cc->Dx(2, metric_cell_kji_(0,n,k,j,i));
+  }
 }
 
 

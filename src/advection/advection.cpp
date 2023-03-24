@@ -84,19 +84,10 @@ Advection::Advection(MeshBlock *pmb, ParameterInput *pin) :
   dt3_.NewAthenaArray(nc1);
 
   // Set up finite difference operators
-  FD.stride[0] = 1;
-  FD.stride[1] = 0;
-  FD.stride[2] = 0;
-  FD.idx[0] = 1.0 / pco->dx1v(0);
-  FD.idx[1] = 0.0;
-  FD.idx[2] = 0.0;
-  if(nc2 > 1) {
-    FD.stride[1] = nc1;
-    FD.idx[1] = 1.0 / pco->dx2v(0);
-  }
-  if(nc3 > 1) {
-    FD.stride[2] = nc2 * nc1;
-    FD.idx[2] = 1.0 / pco->dx3v(0);
+  if (PREFER_VC) {
+    pfd = pmy_block->pfd_cc;
+  } else {
+    pfd = pmy_block->pfd_vc;
   }
 
 }

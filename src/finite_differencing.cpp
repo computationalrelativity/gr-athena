@@ -8,6 +8,8 @@
 
 #include "finite_differencing.hpp"
 
+namespace FiniteDifference {
+
 // Centered finite differencing 1st derivative
 template<>
 Real const FDCenteredStencil<1, 1>::coeff[] = {
@@ -514,3 +516,62 @@ template<>
 Real const FDStencilBiasedRight<1, 8, 6>::coeff_lcm = 360360;
 
 #endif // DBG_SYMMETRIZE_FD
+
+// ctor / dtor ----------------------------------------------------------------
+Uniform::Uniform(const int nn1, const Real dx1)
+{
+  Uniform(nn1, 0, dx1, 0);
+}
+
+Uniform::Uniform(
+  const int nn1, const int nn2,  const Real dx1, const Real dx2)
+{
+  Uniform(nn1, nn2, 0, dx1, dx2, 0);
+}
+
+Uniform::Uniform(
+  const int nn1, const int nn2, const int nn3,
+  const Real dx1, const Real dx2, const Real dx3)
+{
+  diss_scaling = pow(2, -2*NGHOST)*(NGHOST % 2 == 0 ? -1 : 1);
+
+  stride[0] = 1;
+  stride[1] = (nn2 > 1) ? nn1 : 0;
+  stride[2] = (nn3 > 1) ? nn2 * nn1 : 0;
+
+  idx[0] = 1.0 / dx1;
+  idx[1] = (nn2 > 1) ? 1.0 / dx2 : 0.0;
+  idx[2] = (nn3 > 1) ? 1.0 / dx3 : 0.0;
+
+#ifdef DBG_SYMMETRIZE_FD
+  cidx1[0] = 1.0 / (dx1 * c1::coeff_lcm);
+  cidx1[1] = (nn2 > 1) ? (1.0 / (dx2 * c1::coeff_lcm)) : 0.0;
+  cidx1[2] = (nn3 > 1) ? (1.0 / (dx3 * c1::coeff_lcm)) : 0.0;
+
+  cidx2[0] = SQR(1.0 / dx1) / c2::coeff_lcm;
+  cidx2[1] = (nn2 > 1) ? SQR(1.0 / dx2) / c2::coeff_lcm : 0.0;
+  cidx2[2] = (nn3 > 1) ? SQR(1.0 / dx3) / c2::coeff_lcm : 0.0;
+
+  cidx1_lo[0] = 1.0 / (dx1 * c1_lo::coeff_lcm);
+  cidx1_lo[1] = (nn2 > 1) ? (1.0 / (dx2 * c1_lo::coeff_lcm)) : 0.0;
+  cidx1_lo[2] = (nn3 > 1) ? (1.0 / (dx3 * c1_lo::coeff_lcm)) : 0.0;
+
+  cidxd[0] = diss_scaling / (dx1 * cd::coeff_lcm);
+  cidxd[1] = (nn2 > 1) ? (diss_scaling / (dx2 * cd::coeff_lcm)) : 0.0;
+  cidxd[2] = (nn3 > 1) ? (diss_scaling / (dx3 * cd::coeff_lcm)) : 0.0;
+
+  // lop left / right
+  lidx_l1[0] = 1.0 / (dx1 * ll1::coeff_lcm);
+  lidx_l1[1] = (nn2 > 1) ? (1.0 / (dx2 * ll1::coeff_lcm)) : 0.0;
+  lidx_l1[2] = (nn3 > 1) ? (1.0 / (dx3 * ll1::coeff_lcm)) : 0.0;
+
+  lidx_r1[0] = 1.0 / (dx1 * lr1::coeff_lcm);
+  lidx_r1[1] = (nn2 > 1) ? (1.0 / (dx2 * lr1::coeff_lcm)) : 0.0;
+  lidx_r1[2] = (nn3 > 1) ? (1.0 / (dx3 * lr1::coeff_lcm)) : 0.0;
+
+#endif // DBG_SYMMETRIZE_FD
+}
+
+Uniform::~Uniform() { }
+
+} // namespace FiniteDifference

@@ -79,6 +79,14 @@ fix_fluxes = pin->GetOrAddInteger("hydro","fix_fluxes",0);
 // WGC separate VC, CC
   if (pm->multilevel) {
     refinement_idx = pmy_block->pmr->AddToRefinementCC(&u, &coarse_cons_);
+
+    // // BD AMR: should we do this?
+    // if (GENERAL_RELATIVITY)
+    // {
+    //   refinement_idx = pmy_block->pmr->AddToRefinementCC(
+    //     &w, &coarse_prim_
+    //   );
+    // }
   }
 
   // enroll HydroBoundaryVariable object
