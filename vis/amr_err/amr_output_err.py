@@ -437,7 +437,7 @@ class Plot:
         ax.set_title("cycle:" + cycle + ", slice:{}".format(params.cut))
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
-        plt.colorbar(label=fld,cmap=cmap,orientation="horizontal")
+        plt.colorbar(label="h^6 " + fld,cmap=cmap,orientation="horizontal")
         plt.savefig(output+ "_" + cycle + "." + params.out_format)
         plt.close('all')
 
