@@ -654,7 +654,7 @@ class Analysis:
        else:
            raise Exception("Unknown analysis '{}'!".format(params.analysis))
    
-   ## calc. the second order derivative, note: this is for a slice
+   ## calc. derivative, note: this is for a slice
    def derivative(self,params,db,mbs,slice,file):
         print("{} ...".format(self.derivative.__name__))
         sys.stdout.flush()
