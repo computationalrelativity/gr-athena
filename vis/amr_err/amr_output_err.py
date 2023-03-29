@@ -85,6 +85,32 @@ def L2(params,db,mbs,slice,file):
                 for i in range(mbs[mb]['iI'],mbs[mb]['iF']):
                     db[params.output_field+'_L2'][mb][k,j,i] = v_L2
 
+## calc. the Linf norm and add it to the db. note: this is for a slice
+def Linf(params,db,mbs,slice,file):
+    db[params.output_field+'_Linf'] = np.zeros(shape=db[params.output_field].shape)
+
+    small_norm = 1e-14
+    
+    for mb in mbs.keys():
+        v = db[params.output_field][mb][ mbs[mb]['kI']:mbs[mb]['kF'],
+                                          mbs[mb]['jI']:mbs[mb]['jF'],
+                                          mbs[mb]['iI']:mbs[mb]['iF']]
+        nx = len(range(mbs[mb]['iI'],mbs[mb]['iF']))
+        ny = len(range(mbs[mb]['jI'],mbs[mb]['jF']))
+        nz = len(range(mbs[mb]['kI'],mbs[mb]['kF']))
+        v_Linf = np.abs(np.max(v))
+        
+        ## for plotting purposes set it to a small number:
+        if v_Linf == 0:
+            print("NOTE: in meshblock = {} Linf-norm({}) = 0! We set it to {:e}.".
+                  format(mb,params.output_field,small_norm))
+            v_Linf = small_norm
+            
+        for k in range(mbs[mb]['kI'],mbs[mb]['kF']):
+            for j in range(mbs[mb]['jI'],mbs[mb]['jF']):
+                for i in range(mbs[mb]['iI'],mbs[mb]['iF']):
+                    db[params.output_field+'_Linf'][mb][k,j,i] = v_Linf
+
 ## calc. the L2 norm average: (1/nmb * sum_m {L2_m}^2)^0.5 for all meshblocks.
 def L2_avg(params,db,mbs):
     L2_avg = 0.
@@ -282,6 +308,9 @@ class Files:
                                            params.field_name + "_" + params.analysis
             self.files[file]['color_2d_L2'] = params.out_dir + params.out_prefix + \
                                               params.field_name + "_" + params.analysis + "_L2"
+
+            self.files[file]['color_2d_Linf'] = params.out_dir + params.out_prefix + \
+                                              params.field_name + "_" + params.analysis + "_Linf"
             
             self.files[file]['color_2d_abs'] = params.out_dir + params.out_prefix + \
                                               params.field_name + "_" + params.analysis + "_abs"
@@ -318,6 +347,10 @@ class Plot:
             self.plot_2d_color(params,db,mbs,slice,file['cycle'],"L2",file['color_2d_L2'],
                                mynorm="log")
 
+            Linf(params,db,mbs,slice,file)
+            self.plot_2d_color(params,db,mbs,slice,file['cycle'],"Linf",file['color_2d_Linf'],
+                               mynorm="log")
+
             Abs(params,db,mbs,slice,file)
             self.plot_2d_color(params,db,mbs,slice,file['cycle'],"abs",file['color_2d_abs'],
                                mynorm="log")
@@ -340,6 +373,8 @@ class Plot:
             fld  = params.output_field
         elif type == "L2":
             fld  = params.output_field+'_L2'
+        elif type == "Linf":
+            fld  = params.output_field+'_Linf'
         elif type == "abs":
             fld  = params.output_field+'_abs'
         else:
