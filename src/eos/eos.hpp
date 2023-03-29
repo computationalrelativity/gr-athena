@@ -182,6 +182,7 @@ class EquationOfState {
   inline Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& GetEOS() {
     return eos;
   }
+  Real GetTemperatureFloor() const {return temperature_floor_;}
 #endif
 #if GENERAL_EOS
   Real GetGamma();
@@ -217,6 +218,7 @@ class EquationOfState {
   // EOS and PrimitiveSolver objects.
   Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> eos;
   Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> ps;
+  Real temperature_floor_;                // temperature floor
 #endif
 };
 

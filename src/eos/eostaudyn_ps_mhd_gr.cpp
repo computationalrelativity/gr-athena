@@ -48,7 +48,7 @@ using RescaleFunction = void(*)(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>& g
 EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos} {
   pmy_block_ = pmb;
   density_floor_ = pin->GetOrAddReal("hydro", "dfloor", std::sqrt(1024*(FLT_MIN)));
-  pressure_floor_ = pin->GetOrAddReal("hydro", "pfloor", std::sqrt(1024*(FLT_MIN)));
+  temperature_floor_ = pin->GetOrAddReal("hydro", "tfloor", std::sqrt(1024*(FLT_MIN)));
   Real bsq_max = pin->GetOrAddReal("hydro", "bsq_max", 1e6);
 
   int ncells1 = pmb->block_size.nx1 + 2*NGHOST;
@@ -75,7 +75,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   Real threshold = pin->GetOrAddReal("hydro", "dthreshold", 1.0);
   eos.SetThreshold(threshold);
   // Set the number density floor.
-  eos.SetPressureFloor(pressure_floor_);
+  eos.SetTemperatureFloor(temperature_floor_);
   for (int i = 0; i < eos.GetNSpecies(); i++) {
     std::stringstream ss;
     ss << "y" << i << "_atmosphere";

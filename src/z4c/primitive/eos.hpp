@@ -40,7 +40,7 @@
 //  And the following protected variables (available via
 //  ErrorPolicyInterface):
 //    Real n_atm
-//    Real p_atm
+//    Real T_atm
 //    Real v_max
 //    Real max_bsq_field
 //    bool fail_conserved_floor
@@ -112,7 +112,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     // ErrorPolicy member variables
     using ErrorPolicy::n_atm;
     using ErrorPolicy::n_threshold;
-    using ErrorPolicy::p_atm;
+    using ErrorPolicy::T_atm;
     using ErrorPolicy::Y_atm;
     using ErrorPolicy::v_max;
     using ErrorPolicy::fail_conserved_floor;
@@ -129,7 +129,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     EOS() {
       n_atm = 1e-10;
       n_threshold = 1.0;
-      p_atm = 1e-10;
+      T_atm = 1e-10;
       v_max = 1.0 - 1e-15;
       max_bsq = std::numeric_limits<Real>::max();
       code_units = eos_units;
@@ -274,10 +274,9 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //
     //  \return true if the primitives were adjusted, false otherwise.
     inline bool ApplyPrimitiveFloor(Real& n, Real Wvu[3], Real& p, Real& T, Real *Y) {
-      bool result = PrimitiveFloor(n, Wvu, p, Y, n_species);
+      bool result = PrimitiveFloor(n, Wvu, T, Y, n_species);
       if (result) {
-        T = TemperatureFromP(n, p*code_units->PressureConversion(*eos_units), Y) *
-            eos_units->TemperatureConversion(*code_units);
+        p = GetPressure(n, T, Y);
       }
       return result;
     }
@@ -304,10 +303,10 @@ class EOS : public EOSPolicy, public ErrorPolicy {
       return n_atm;
     }
 
-    //! \fn Real GetPressureFloor() const
-    //  \brief Get the pressure floor used by the EOS ErrorPolicy.
-    inline Real GetPressureFloor() const {
-      return p_atm;
+    //! \fn Real GetTemperatureFloor() const
+    //  \brief Get the temperature floor used by the EOS ErrorPolicy.
+    inline Real GetTemperatureFloor() const {
+      return T_atm;
     }
 
     //! \fn Real GetSpeciesAtmosphere(int i) const
@@ -329,8 +328,8 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //
     //  \param[in] Y A n_species-sized array of particle fractions.
     inline Real GetTauFloor(Real D, Real *Y, Real Bsq) {
-      return GetEnergy(D/GetBaryonMass(), min_T, Y) * 
-             eos_units->PressureConversion(*code_units) - D + 0.5*Bsq;
+      // return GetEnergy(D/GetBaryonMass(), T_atm, Y) - D + 0.5*Bsq;
+      return D*GetSpecificInternalEnergy(D/GetBaryonMass(), T_atm, Y) + 0.5*Bsq;
     }
 
     //! \fn void SetDensityFloor(Real floor)
@@ -340,13 +339,13 @@ class EOS : public EOSPolicy, public ErrorPolicy {
       n_atm = (floor >= 0.0) ? floor : 0.0;
     }
 
-    //! \fn void SetPressureFloor(Real floor)
-    //  \brief Set the pressure floor (in code units) used by the EOS ErrorPolicy.
-    inline void SetPressureFloor(Real floor) {
-      p_atm = (floor >= 0.0) ? floor : 0.0;
+    //! \fn void SetTemperatureFloor(Real floor)
+    //  \brief Set the temperature floor (in code units) used by the EOS ErrorPolicy.
+    inline void SetTemperatureFloor(Real floor) {
+      T_atm = (floor >= 0.0) ? floor : 0.0;
     }
 
-    //! \fn void SetSpeciesAtmospher(Real atmo, int i)
+    //! \fn void SetSpeciesAtmosphere(Real atmo, int i)
     //  \brief Set the atmosphere abundance used by the EOS ErrorPolicy for species i.
     inline void SetSpeciesAtmosphere(Real atmo, int i) {
       assert((i < n_species) && "Not enough species");
@@ -482,10 +481,8 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     inline bool DoFailureResponse(Real prim[NPRIM]) {
       bool result = FailureResponse(prim);
       if (result) {
-        // Adjust the temperature to be consistent with the new primitive variables.
-        prim[ITM] = TemperatureFromP(prim[IDN], 
-                    prim[IPR]*code_units->PressureConversion(*eos_units), &prim[IYF]) * 
-                    eos_units->TemperatureConversion(*code_units);
+        // Adjust the pressure to be consistent with the new primitive variables.
+        prim[IPR] = GetPressure(prim[IDN], prim[ITM], &prim[IYF]);
       }
       return result;
     }
