@@ -12,7 +12,7 @@ SRC += $(SRCD)/h5read.cc
 SRC += $(SRCD)/decomp.cc
 
 #SRC += $(SRCD)/alias.cc
-#SRC += $(SRCD)/ExtractMetric.cc
+SRC += $(SRCD)/ExtractMetric.cc
 
 OBJ = $(patsubst $(SRCD)/%.cc,$(OBJD)/%.o,$(SRC))
 
@@ -21,7 +21,7 @@ INC_PARAMS += -I$(SRCD)
 INC_PARAMS += -I$(HDF5_INCD)
 
 CXX ?= g++
-CXXFLAGS ?= 
+CXXFLAGS ?= -Wfatal-errors
 
 
 .PHONY: all clean
