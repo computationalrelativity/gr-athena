@@ -411,6 +411,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
     rb = Contract(b_u, r_d);
     rbsqr = rb*rb;
     q = tau/D;
+    rsqr = Contract(r_u, r_d);
   }
   
   // If rsqr is identically zero, we have zero velocity and can solve the problem analytically.
@@ -494,8 +495,8 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
   Real W = D/rho;
   Real Wmux = W*mu/(1.0 + mu*bsqr);
   // Before we retrieve the velocity, we need to raise S.
-  Real S_u[3] = {0.0};
-  RaiseForm(S_u, S_d, g3u);
+  //Real S_u[3] = {0.0};
+  //RaiseForm(S_u, S_d, g3u);
   // Now we can get Wv.
   Real Wv_u[3] = {0.0};
   Wv_u[0] = Wmux*(r_u[0] + rbmu*b_u[0]);

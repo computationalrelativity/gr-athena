@@ -20,7 +20,7 @@ class DoNothing : public ErrorPolicyInterface {
       adjust_conserved = false;
     }
 
-    bool PrimitiveFloor(Real& n, Real v[3], Real& p, Real *Y, int n_species) {return false;}
+    bool PrimitiveFloor(Real& n, Real v[3], Real& T, Real *Y, int n_species) {return false;}
     bool ConservedFloor(Real& D, Real Sd[3], Real& tau, Real *Y, Real D_floor, 
                         Real tau_floor, Real tau_abs_floor, int n_species) {return false;}
     Error MagnetizationResponse(Real& bsq, Real b_u[3]) {return Error::SUCCESS;}
