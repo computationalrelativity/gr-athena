@@ -1,81 +1,73 @@
-#include "cctk.h"
-#include "cctk_Arguments.h"
-#include "cctk_Parameters.h"
-#include "util_Table.h"
-#include "util_ErrorCodes.h"
-#include "SphericalHarmonicDecomp.h"
+//#include "cctk.h"
+//#include "cctk_Arguments.h"
+//#include "cctk_Parameters.h"
+//#include "util_Table.h"
+//#include "util_ErrorCodes.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include "myassert.h"
-
 #include <iostream>
 #include <complex>
+#define H5_USE_16_API 1
+#include <hdf5.h>
+#include "myassert.h"
 #include "sYlm.hh"
+#include "SphericalHarmonicDecomp.h"
+#include "decomp.hh"
 
-static int hdf5_warn_level = CCTK_WARN_ALERT;
+#define HDF5_ERROR(fn_call)                                           \
+{                                                                     \
+  hid_t _error_code = fn_call;                                        \
+  if (_error_code < 0)                                                \
+  {                                                                   \
+    cerr << "File: " << __FILE__ << "\n"                              \
+         << "line: " << __LINE__ << "\n"                              \
+         << "HDF5 call " << #fn_call << ","                           \
+         << "returned error code: " << (int)_error_code << ".\n";     \
+  }                                                                   \
+}
 
-#define HDF5_ERROR(fn_call)                                                   \
-        do {                                                                  \
-          hid_t _error_code = fn_call;                                        \
-                                                                              \
-                                                                              \
-          if (_error_code < 0)                                                \
-          {                                                                   \
-            CCTK_VWarn (hdf5_warn_level, __LINE__, __FILE__, CCTK_THORNSTRING,\
-                        "HDF5 call '%s' returned error code %d",              \
-                        #fn_call, (int)_error_code);                          \
-            error_count++;                                                    \
-          }                                                                   \
-        } while (0)
 
 #ifdef USE_LEGENDRE
 #  include "Legendre.hh"
 #endif
 
-#include "decomp.hh"
-
-#define H5_USE_16_API 1
-#include <hdf5.h>
-
+// instead of interpolation, fill the data for test purposes
 #undef TEST_DECOMP
-
 
 #define Max(a_,b_) ((a_)>(b_)? (a_):(b_))
 #define Min(a_,b_) ((a_)<(b_)? (a_):(b_))
 #define ABS(x_) ((x_)>0 ? (x_) : (-(x_)))
 
 
-
 #ifdef TEST_DECOMP
-static void fill_in_data(CCTK_REAL time, int s, int nl, int nn,
-    int npoints, CCTK_REAL Rin, CCTK_REAL Rout,
-    const CCTK_REAL xb[], const CCTK_REAL yb[],
-    const CCTK_REAL zb[], CCTK_REAL re[], CCTK_REAL im[]);
+static void fill_in_data(double time, int s, int nl, int nn,
+    int npoints, double Rin, double Rout,
+    const double xb[], const double yb[],
+    const double zb[], double re[], double im[]);
 #endif
 
- 
-static int interp_fields(const cGH* cctkGH,
-          CCTK_INT MyProc,
-          CCTK_INT re_inxd, CCTK_INT im_indx,
-          CCTK_INT num_points, 
-          const CCTK_REAL * xc,
-          const CCTK_REAL * yc,
-          const CCTK_REAL * zc,
-          CCTK_REAL *re_f,
-          CCTK_REAL *im_f);
+ static int interp_fields(const cGH* cctkGH,
+          int MyProc,
+          int re_inxd, int im_indx,
+          int num_points, 
+          const double * xc,
+          const double * yc,
+          const double * zc,
+          double *re_f,
+          double *im_f);
 
 static int output_3Dmodes(const int iter,
   const char *dir,
   const char* name,
-       const int obs,  CCTK_INT it, CCTK_REAL time,
-       CCTK_INT s, CCTK_INT nl,
-       CCTK_INT nn, CCTK_REAL rin, CCTK_REAL rout,
-       const CCTK_REAL *re, const CCTK_REAL *im);
+       const int obs,  int it, double time,
+       int s, int nl,
+       int nn, double rin, double rout,
+       const double *re, const double *im);
 
 static int Decompose3D (
        const cGH* cctkGH,
        const char *name,
-       CCTK_INT re_gindx,
+       int re_gindx,
        const int iter)
 {
   using namespace decomp_matrix_class;
@@ -90,26 +82,26 @@ static int Decompose3D (
   static int FirstTime = 1;
 
 #define MAX_RADII  100
-  static CCTK_REAL *xb[MAX_RADII];
-  static CCTK_REAL *yb[MAX_RADII];
-  static CCTK_REAL *zb[MAX_RADII];
+  static double *xb[MAX_RADII];
+  static double *yb[MAX_RADII];
+  static double *zb[MAX_RADII];
   static double *radius[MAX_RADII];
 
-  static CCTK_REAL *re_f = NULL;
-  static CCTK_REAL *im_f = NULL;
+  static double *re_f = NULL;
+  static double *im_f = NULL;
 
-  static CCTK_REAL *re_m = NULL;
-  static CCTK_REAL *im_m = NULL;
+  static double *re_m = NULL;
+  static double *im_m = NULL;
 
-  static CCTK_REAL *mucolloc = NULL;
-  static CCTK_REAL *phicolloc = NULL;
+  static double *mucolloc = NULL;
+  static double *phicolloc = NULL;
 
 
   DECLARE_CCTK_PARAMETERS;
 
 
   myassert (ABS(spin) <= max_spin);
-  myassert (num_radii <= CCTK_INT(sizeof(radius) / sizeof(*radius)));
+  myassert (num_radii <= int(sizeof(radius) / sizeof(*radius)));
 
   static int MyProc = CCTK_MyProc(cctkGH);
   const char *outdir = *out_dir ? out_dir : io_out_dir;
@@ -143,10 +135,10 @@ static int Decompose3D (
 
       for (int i=0; i < num_radii; i++)
       {
-        radius[i] = new CCTK_REAL [num_x_points];
-        xb[i] = new CCTK_REAL [nangle*num_x_points];
-        yb[i] = new CCTK_REAL [nangle*num_x_points];
-        zb[i] = new CCTK_REAL [nangle*num_x_points];
+        radius[i] = new double [num_x_points];
+        xb[i] = new double [nangle*num_x_points];
+        yb[i] = new double [nangle*num_x_points];
+        zb[i] = new double [nangle*num_x_points];
 
         myassert(radius[i]);
         myassert(xb[i]);
@@ -154,13 +146,13 @@ static int Decompose3D (
         myassert(zb[i]);
       }
 
-      re_f = new CCTK_REAL [nangle*num_x_points];
-      im_f = new CCTK_REAL [nangle*num_x_points];
+      re_f = new double [nangle*num_x_points];
+      im_f = new double [nangle*num_x_points];
 
-      mucolloc = new CCTK_REAL [nangle];
-      phicolloc = new CCTK_REAL [nangle];
-      re_m = new CCTK_REAL [nlmmodes*num_x_points];
-      im_m = new CCTK_REAL [nlmmodes*num_x_points];
+      mucolloc = new double [nangle];
+      phicolloc = new double [nangle];
+      re_m = new double [nlmmodes*num_x_points];
+      im_m = new double [nlmmodes*num_x_points];
 
 
       myassert(re_f && im_f &&
@@ -182,7 +174,7 @@ static int Decompose3D (
 
     for (int k=0; k < num_x_points; k++)
     {
-      CCTK_REAL xk = radius[0][k];
+      double xk = radius[0][k];
       for (int i=0; i < num_radii; i++)
       {
         radius[i][k] = 0.5 * ((EM_Rout[i] - EM_Rin[i]) * xk +
@@ -194,13 +186,13 @@ static int Decompose3D (
     {
       for (int i=0; i < nangle; i++)
       {
-	const CCTK_REAL phi = phicolloc[i];
-	const CCTK_REAL mu = mucolloc[i];
+	const double phi = phicolloc[i];
+	const double mu = mucolloc[i];
 
-	const CCTK_REAL sph = sin(phi);
-	const CCTK_REAL cph = cos(phi);
-        const CCTK_REAL cth = mu;
-        const CCTK_REAL sth = sqrt(1.0 - mu*mu);
+	const double sph = sin(phi);
+	const double cph = cos(phi);
+        const double cth = mu;
+        const double sth = sqrt(1.0 - mu*mu);
 
         const int indx = i + k*nangle;
         for (int l = 0; l < num_radii; l++)
@@ -247,10 +239,10 @@ static int Decompose3D (
 
 static int output_3Dmodes(const int iter,
   const char *dir,
-  const char* name, const int obs,  CCTK_INT it, CCTK_REAL time,
-       CCTK_INT s, CCTK_INT nl,
-       CCTK_INT nn, CCTK_REAL rin, CCTK_REAL rout,
-       const CCTK_REAL *re, const CCTK_REAL *im)
+  const char* name, const int obs,  int it, double time,
+       int s, int nl,
+       int nn, double rin, double rout,
+       const double *re, const double *im)
 {
   char filename[BUFFSIZE];
   hid_t   file_id;
@@ -402,14 +394,14 @@ static int output_3Dmodes(const int iter,
 }
  
 static int interp_fields(const cGH* cctkGH,
-          CCTK_INT MyProc,
-          CCTK_INT re_indx, CCTK_INT im_indx,
-          CCTK_INT num_points, 
-          const CCTK_REAL * xc,
-          const CCTK_REAL * yc,
-          const CCTK_REAL * zc,
-          CCTK_REAL *re_f,
-          CCTK_REAL *im_f)
+          int MyProc,
+          int re_indx, int im_indx,
+          int num_points, 
+          const double * xc,
+          const double * yc,
+          const double * zc,
+          double *re_f,
+          double *im_f)
 {
   static int operator_handle = -1;
   static int coord_handle = -1;
@@ -424,9 +416,9 @@ static int interp_fields(const cGH* cctkGH,
   const void *const interp_coords[3] =
 	{(void *)xc, (void *)yc, (void *)zc};
 
-  const CCTK_INT input_array_variable_indices[2]=
+  const int input_array_variable_indices[2]=
       {re_indx, im_indx};
-  const CCTK_INT output_array_type_codes[2]=
+  const int output_array_type_codes[2]=
 	{CCTK_VARIABLE_REAL, CCTK_VARIABLE_REAL};
   void *const output_arrays[2]={(void *)re_f, (void*)im_f};
 
@@ -473,10 +465,10 @@ static int interp_fields(const cGH* cctkGH,
 }
 
 #ifdef TEST_DECOMP
-static void fill_in_data(CCTK_REAL time, int s, int nl, int nn,
-    int npoints, CCTK_REAL Rin, CCTK_REAL Rout,
-    const CCTK_REAL xb[], const CCTK_REAL yb[],
-    const CCTK_REAL zb[], CCTK_REAL re[], CCTK_REAL im[])
+static void fill_in_data(double time, int s, int nl, int nn,
+    int npoints, double Rin, double Rout,
+    const double xb[], const double yb[],
+    const double zb[], double re[], double im[])
 {
   using namespace decomp_sYlm;
 #ifdef USE_LEGENDRE
@@ -488,10 +480,10 @@ CCTK_WARN(CCTK_WARN_ALERT, "using chebyshev");
 
   for (int i=0; i < npoints; i++)
   {
-    const CCTK_REAL r = sqrt(xb[i]*xb[i] + yb[i]*yb[i] + zb[i]*zb[i]);
-    const CCTK_REAL X = -1.0 + (r-Rin) * 2.0/(Rout - Rin);
-    const CCTK_REAL phi = atan2(yb[i], xb[i]);
-    const CCTK_REAL mu = zb[i] / (r+1.0e-100);
+    const double r = sqrt(xb[i]*xb[i] + yb[i]*yb[i] + zb[i]*zb[i]);
+    const double X = -1.0 + (r-Rin) * 2.0/(Rout - Rin);
+    const double phi = atan2(yb[i], xb[i]);
+    const double mu = zb[i] / (r+1.0e-100);
     complex<double> val = 0;
 
     for (int n=0; n < nn; n++)
