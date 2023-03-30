@@ -1,6 +1,5 @@
 #ifndef SphericalHarmonicDecomp_h
 #define SphericalHarmonicDecomp_h
-#undef USE_LEGENDRE
 
 extern "C"
 {
@@ -17,6 +16,6 @@ void SphericalHarmonicDecomp_Read(
 }
 
 #ifdef USE_LEGENDRE
-# ERROR: Do not activate this option
+# ERROR: Do not use Legendre
 #endif
 #endif
