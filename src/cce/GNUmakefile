@@ -4,8 +4,10 @@
 LIBNAME = CCE
 EXE = CCE
 
-CXX ?= g++ -DTEST_DECOMP
+CXX ?= g++
 CXXFLAGS ?= -Wfatal-errors
+DFLAGS += -DTEST_DECOMP
+DFLAGS += -DUSE_LEGENDRE 
 
 ## external libs and includes
 EX_LIBS += -lgsl 
@@ -60,9 +62,9 @@ $(LIB): $(OBJ)
 
 $(OBJD)/%.o: $(SRCD)/%.cc
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) $(INC_PARAMS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(DFLAGS) $(INC_PARAMS) -c $< -o $@
 
 clean:
-	@rm -rvf $(OBJD) $(LIBD) $(EXE)
+	@rm -rvf $(OBJD) $(LIBD) $(EXE) *.h5
 
 
