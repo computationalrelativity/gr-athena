@@ -1,8 +1,3 @@
-//#include "cctk.h"
-//#include "cctk_Arguments.h"
-//#include "cctk_Parameters.h"
-//#include "util_Table.h"
-//#include "util_ErrorCodes.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
@@ -22,6 +17,8 @@
 */
 
 #define Code_mesh       const MeshBlock *mb
+#define Code_field(x_)  0 // ex: ??
+#define Code_field_t    int re_gindx // field type. ex: ??
 #define Code_time       1 // ex: mb->pmy_mesh->time
 #define Code_iteration  1 // ex: mb->pmy_mesh->ncycle
 #define Code_write_freq 1 // ex: from param file
@@ -34,8 +31,8 @@
 #define Code_num_x_points   1 // ex: from param file
 #define Code_num_l_modes    1 // ex: from param file
 #define Code_num_n_modes    1 // ex: from param file
-#define Code_Rout(i)        1.0 // ex: from param file getd("Rout"#i);
-#define Code_Rin(i)         0.5 // ex: from param file getd("Rin"#i);
+#define Code_Rout(i_)        1.0 // ex: from param file getd("Rout"#i);
+#define Code_Rin(i_)         0.5 // ex: from param file getd("Rin"#i);
 
 class MeshBlock;
 
@@ -98,7 +95,7 @@ static int output_3Dmodes(const int iter,
 static int Decompose3D (
        Code_mesh,
        const char *name,
-       int re_gindx,
+       Code_field_t,
        const int iter)
 {
   using namespace decomp_matrix_class;
@@ -507,7 +504,7 @@ static void fill_in_data(double time, int s, int nl, int nn,
   using namespace decomp_Legendre;
 #else
   using namespace decomp_Chebyshev;
-CCTK_WARN(CCTK_WARN_ALERT, "using chebyshev");
+  cout << "using chebyshev" << endl;
 #endif
 
   for (int i=0; i < npoints; i++)
@@ -552,16 +549,16 @@ void SphericalHarmonicDecomp_DumpMetric(Code_mesh)
     return;
   }
   const int iter = iteration / extract_spacetime_metric_every;
-  
-  Decompose3D(mb, "gxx", CCTK_VarIndex("ADMBase::gxx"), iter);
-  Decompose3D(mb, "gxy", CCTK_VarIndex("ADMBase::gxy"), iter);
-  Decompose3D(mb, "gxz", CCTK_VarIndex("ADMBase::gxz"), iter);
-  Decompose3D(mb, "gyy", CCTK_VarIndex("ADMBase::gyy"), iter);
-  Decompose3D(mb, "gyz", CCTK_VarIndex("ADMBase::gyz"), iter);
-  Decompose3D(mb, "gzz", CCTK_VarIndex("ADMBase::gzz"), iter);
-  Decompose3D(mb, "betax", CCTK_VarIndex("ADMBase::betax"), iter);
-  Decompose3D(mb, "betay", CCTK_VarIndex("ADMBase::betay"), iter);
-  Decompose3D(mb, "betaz", CCTK_VarIndex("ADMBase::betaz"), iter);
-  Decompose3D(mb, "alp", CCTK_VarIndex("ADMBase::alp"), iter);
+  //! pass the pertinent field
+  Decompose3D(mb, "gxx", Code_field("ADM::gxx"), iter);
+  Decompose3D(mb, "gxy", Code_field("ADM::gxy"), iter);
+  Decompose3D(mb, "gxz", Code_field("ADM::gxz"), iter);
+  Decompose3D(mb, "gyy", Code_field("ADM::gyy"), iter);
+  Decompose3D(mb, "gyz", Code_field("ADM::gyz"), iter);
+  Decompose3D(mb, "gzz", Code_field("ADM::gzz"), iter);
+  Decompose3D(mb, "betax", Code_field("ADM::betax"), iter);
+  Decompose3D(mb, "betay", Code_field("ADM::betay"), iter);
+  Decompose3D(mb, "betaz", Code_field("ADM::betaz"), iter);
+  Decompose3D(mb, "alp", Code_field("ADM::alp"), iter);
 }
 
