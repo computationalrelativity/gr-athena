@@ -7,6 +7,6 @@ void SphericalHarmonicDecomp_DumpMetric(Code_mesh);
 
 int main(void)
 {
-   printf("hi!\n");
+   printf("Calling SphericalHarmonicDecomp_DumpMetric ...\n");
    SphericalHarmonicDecomp_DumpMetric(0);
 }
