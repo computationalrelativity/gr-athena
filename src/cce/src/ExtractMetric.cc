@@ -16,6 +16,7 @@
 
 #define HDF5_ERROR(fn_call)                                           \
 {                                                                     \
+  /* ex: error_code = group_id = H5Gcreate(file_id, metaname, 0) */   \
   hid_t _error_code = fn_call;                                        \
   if (_error_code < 0)                                                \
   {                                                                   \
@@ -23,6 +24,7 @@
          << "line: " << __LINE__ << "\n"                              \
          << "HDF5 call " << #fn_call << ","                           \
          << "returned error code: " << (int)_error_code << ".\n";     \
+         exit((int)_error_code);                                      \
   }                                                                   \
 }
 
@@ -283,7 +285,8 @@ static int output_3Dmodes(const int iter,
     file_id = H5Fopen (filename, H5F_ACC_RDWR, H5P_DEFAULT);
     if (file_id < 0)
     {
-      CCTK_WARN(hdf5_warn_level, "Failed to open hdf5 file");
+      cerr << "Failed to open hdf5 file";
+      exit(file_id);
     }
   }
   else
@@ -292,7 +295,8 @@ static int output_3Dmodes(const int iter,
            H5P_DEFAULT, H5P_DEFAULT);
     if (file_id < 0)
     {
-      CCTK_WARN(hdf5_warn_level, "Failed to create hdf5 file");
+      cerr << "Failed to create hdf5 file";
+      exit(file_id);
     }
 
     char metaname[]="/metadata";
@@ -332,10 +336,6 @@ static int output_3Dmodes(const int iter,
 
     HDF5_ERROR(H5Gclose(group_id));
 
-    if (error_count > 0)
-    {
-      CCTK_WARN(hdf5_warn_level, "Failed to initialize hdf5 file");
-    }
   }
 
   char buff[BUFFSIZE];
@@ -352,10 +352,6 @@ static int output_3Dmodes(const int iter,
     HDF5_ERROR(status = H5Sclose(dataspace_id));
     HDF5_ERROR(H5Gclose(group_id));
 
-    if (error_count > 0)
-    {
-      CCTK_WARN(hdf5_warn_level, "Failed to write to hdf5 file");
-    }
   }
   last_dump[obs] = dump_it;
 
@@ -384,11 +380,6 @@ static int output_3Dmodes(const int iter,
   HDF5_ERROR(status = H5Sclose(dataspace_id));
 
   HDF5_ERROR(H5Fclose(file_id));
-
-  if (error_count>0)
-  {
-    CCTK_WARN(hdf5_warn_level, "Failed to write data to hdf5 file");
-  }
 
   return 0;
 }
@@ -516,7 +507,7 @@ extern "C"
   {
     DECLARE_CCTK_ARGUMENTS;
     DECLARE_CCTK_PARAMETERS;
-
+    
     static int last_iter = -10000;
 
 
@@ -531,17 +522,7 @@ extern "C"
     {
       return;
     }
-
     
-    if (CCTK_Equals(action_on_hdf5_error, "abort"))
-    {
-      hdf5_warn_level = CCTK_WARN_ABORT;
-    }
-    else if  (CCTK_Equals(action_on_hdf5_error, "alert"))
-    {
-      hdf5_warn_level = CCTK_WARN_ALERT;
-    }
-
     Decompose3D(cctkGH, "gxx", CCTK_VarIndex("ADMBase::gxx"), iter);
     Decompose3D(cctkGH, "gxy", CCTK_VarIndex("ADMBase::gxy"), iter);
     Decompose3D(cctkGH, "gxz", CCTK_VarIndex("ADMBase::gxz"), iter);
