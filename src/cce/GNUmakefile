@@ -7,7 +7,7 @@ EXE = CCE
 CXX ?= g++
 CXXFLAGS ?= -Wfatal-errors
 DFLAGS += -DTEST_DECOMP
-DFLAGS += -DUSE_LEGENDRE 
+#DFLAGS += -DUSE_LEGENDRE 
 
 ## external libs and includes
 EX_LIBS += -lgsl 
