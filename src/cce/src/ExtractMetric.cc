@@ -9,6 +9,11 @@
 #include "SphericalHarmonicDecomp.h"
 #include "decomp.hh"
 
+#ifdef USE_LEGENDRE
+// don't use this option.
+#include "Legendre.hh"
+#endif
+
 /* vars and params to change for each code
 
 - all //! comments
@@ -25,7 +30,7 @@
 #define Code_max_spin   0 // ex: from param file
 #define Code_proc_rank  0 // ex: Globals::my_rank
 #define Code_num_radii  2 // ex: from param file. number of extraction radii
-#define Code_out_dir    nullptr // ex: path/to/output dir
+#define Code_out_dir    "./" // ex: path/to/output dir
 #define Code_num_mu_points  1 // ex: form param file
 #define Code_num_phi_points 1 // ex: from param file
 #define Code_num_x_points   1 // ex: from param file
@@ -44,19 +49,12 @@ class MeshBlock;
   {                                                                   \
     cerr << "File: " << __FILE__ << "\n"                              \
          << "line: " << __LINE__ << "\n"                              \
-         << "HDF5 call " << #fn_call << ","                           \
+         << "HDF5 call " << #fn_call << ", "                          \
          << "returned error code: " << (int)_error_code << ".\n";     \
          exit((int)_error_code);                                      \
   }                                                                   \
 }
 
-
-#ifdef USE_LEGENDRE
-#  include "Legendre.hh"
-#endif
-
-// instead of interpolation, fill the data for test purposes
-#undef TEST_DECOMP
 
 #define Max(a_,b_) ((a_)>(b_)? (a_):(b_))
 #define Min(a_,b_) ((a_)<(b_)? (a_):(b_))
@@ -64,6 +62,7 @@ class MeshBlock;
 
 
 #ifdef TEST_DECOMP
+// instead of interpolation, fill the data for test purposes
 static void fill_in_data(double time, int s, int nl, int nn,
     int npoints, double Rin, double Rout,
     const double xb[], const double yb[],
@@ -502,6 +501,7 @@ static void fill_in_data(double time, int s, int nl, int nn,
   using namespace decomp_sYlm;
 #ifdef USE_LEGENDRE
   using namespace decomp_Legendre;
+  cout << "using Legendre" << endl;
 #else
   using namespace decomp_Chebyshev;
   cout << "using chebyshev" << endl;
