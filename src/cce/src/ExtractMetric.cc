@@ -14,6 +14,16 @@
 #include "SphericalHarmonicDecomp.h"
 #include "decomp.hh"
 
+/* vars and params to change for each code
+
+- const MeshBlock *mb
+- extract_spacetime_metric_every
+- const int iteration
+
+*/
+
+class MeshBlock;
+
 #define HDF5_ERROR(fn_call)                                           \
 {                                                                     \
   /* ex: error_code = group_id = H5Gcreate(file_id, metaname, 0) */   \
@@ -48,7 +58,9 @@ static void fill_in_data(double time, int s, int nl, int nn,
     const double zb[], double re[], double im[]);
 #endif
 
- static int interp_fields(const cGH* cctkGH,
+/////////////////
+#if 0
+ static int interp_fields(const MeshBlock *mb,
           int MyProc,
           int re_inxd, int im_indx,
           int num_points, 
@@ -57,6 +69,8 @@ static void fill_in_data(double time, int s, int nl, int nn,
           const double * zc,
           double *re_f,
           double *im_f);
+#endif 
+/////////////////
 
 static int output_3Dmodes(const int iter,
   const char *dir,
@@ -67,7 +81,7 @@ static int output_3Dmodes(const int iter,
        const double *re, const double *im);
 
 static int Decompose3D (
-       const cGH* cctkGH,
+       const MeshBlock *mb,
        const char *name,
        int re_gindx,
        const int iter)
@@ -218,8 +232,10 @@ static int Decompose3D (
        zb[obs], re_f, im_f);
     }
 #else
-    interp_fields(cctkGH, MyProc, re_gindx, im_gindx,
-        nangle*num_x_points, xb[obs], yb[obs], zb[obs], re_f, im_f);
+////////
+    //interp_fields(cctkGH, MyProc, re_gindx, im_gindx,
+      //  nangle*num_x_points, xb[obs], yb[obs], zb[obs], re_f, im_f);
+////////
 #endif
 
     if (!MyProc)
@@ -383,10 +399,11 @@ static int output_3Dmodes(const int iter,
 
   return 0;
 }
- 
-static int interp_fields(const cGH* cctkGH,
+
+///////////// 
+#if 0
+static int interp_fields(const MeshBlock *mb,
           int MyProc,
-          int re_indx, int im_indx,
           int num_points, 
           const double * xc,
           const double * yc,
@@ -455,6 +472,8 @@ static int interp_fields(const cGH* cctkGH,
   return 0;
 }
 
+#endif 
+////////////////////
 #ifdef TEST_DECOMP
 static void fill_in_data(double time, int s, int nl, int nn,
     int npoints, double Rin, double Rout,
@@ -501,39 +520,26 @@ CCTK_WARN(CCTK_WARN_ALERT, "using chebyshev");
 }
 #endif
 
-extern "C"
+void SphericalHarmonicDecomp_DumpMetric(const MeshBlock *mb)
 {
-  void SphericalHarmonicDecomp_DumpMetric(CCTK_ARGUMENTS)
+  const int iteration = mb->pmy_mesh->ncycle;//// depends on code
+  const int extract_spacetime_metric_every = 2;//// a param
+  
+  if (iteration % extract_spacetime_metric_every == 0)
   {
-    DECLARE_CCTK_ARGUMENTS;
-    DECLARE_CCTK_PARAMETERS;
-    
-    static int last_iter = -10000;
-
-
-    if ((!extract_spacetime_metric_every) ||
-         (cctk_iteration % extract_spacetime_metric_every))
-    {
-      return;
-    }
-    const int iter = cctk_iteration / extract_spacetime_metric_every;
-
-    if (iter <= last_iter)
-    {
-      return;
-    }
-    
-    Decompose3D(cctkGH, "gxx", CCTK_VarIndex("ADMBase::gxx"), iter);
-    Decompose3D(cctkGH, "gxy", CCTK_VarIndex("ADMBase::gxy"), iter);
-    Decompose3D(cctkGH, "gxz", CCTK_VarIndex("ADMBase::gxz"), iter);
-    Decompose3D(cctkGH, "gyy", CCTK_VarIndex("ADMBase::gyy"), iter);
-    Decompose3D(cctkGH, "gyz", CCTK_VarIndex("ADMBase::gyz"), iter);
-    Decompose3D(cctkGH, "gzz", CCTK_VarIndex("ADMBase::gzz"), iter);
-    Decompose3D(cctkGH, "betax", CCTK_VarIndex("ADMBase::betax"), iter);
-    Decompose3D(cctkGH, "betay", CCTK_VarIndex("ADMBase::betay"), iter);
-    Decompose3D(cctkGH, "betaz", CCTK_VarIndex("ADMBase::betaz"), iter);
-    Decompose3D(cctkGH, "alp", CCTK_VarIndex("ADMBase::alp"), iter);
-
-    last_iter = iter;
+    return;
   }
+  const int iter = iteration / extract_spacetime_metric_every;
+  
+  Decompose3D(mb, "gxx", CCTK_VarIndex("ADMBase::gxx"), iter);
+  Decompose3D(mb, "gxy", CCTK_VarIndex("ADMBase::gxy"), iter);
+  Decompose3D(mb, "gxz", CCTK_VarIndex("ADMBase::gxz"), iter);
+  Decompose3D(mb, "gyy", CCTK_VarIndex("ADMBase::gyy"), iter);
+  Decompose3D(mb, "gyz", CCTK_VarIndex("ADMBase::gyz"), iter);
+  Decompose3D(mb, "gzz", CCTK_VarIndex("ADMBase::gzz"), iter);
+  Decompose3D(mb, "betax", CCTK_VarIndex("ADMBase::betax"), iter);
+  Decompose3D(mb, "betay", CCTK_VarIndex("ADMBase::betay"), iter);
+  Decompose3D(mb, "betaz", CCTK_VarIndex("ADMBase::betaz"), iter);
+  Decompose3D(mb, "alp", CCTK_VarIndex("ADMBase::alp"), iter);
 }
+
