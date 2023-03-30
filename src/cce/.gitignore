@@ -1,5 +1,7 @@
 CCE
 /lib
 /obj
-test.log
+## output data
+*.h5
+
 
