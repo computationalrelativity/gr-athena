@@ -16,11 +16,26 @@
 
 /* vars and params to change for each code
 
-- const MeshBlock *mb
-- extract_spacetime_metric_every
-- const int iteration
+- all //! comments
+- Code_* macros
 
 */
+
+#define Code_mesh       const MeshBlock *mb
+#define Code_time       1 // ex: mb->pmy_mesh->time
+#define Code_iteration  1 // ex: mb->pmy_mesh->ncycle
+#define Code_write_freq 1 // ex: from param file
+#define Code_max_spin   0 // ex: from param file
+#define Code_proc_rank  0 // ex: Globals::my_rank
+#define Code_num_radii  2 // ex: from param file. number of extraction radii
+#define Code_out_dir    nullptr // ex: path/to/output dir
+#define Code_num_mu_points  1 // ex: form param file
+#define Code_num_phi_points 1 // ex: from param file
+#define Code_num_x_points   1 // ex: from param file
+#define Code_num_l_modes    1 // ex: from param file
+#define Code_num_n_modes    1 // ex: from param file
+#define Code_Rout(i)        1.0 // ex: from param file getd("Rout"#i);
+#define Code_Rin(i)         0.5 // ex: from param file getd("Rin"#i);
 
 class MeshBlock;
 
@@ -60,7 +75,7 @@ static void fill_in_data(double time, int s, int nl, int nn,
 
 /////////////////
 #if 0
- static int interp_fields(const MeshBlock *mb,
+ static int interp_fields(Code_mesh,
           int MyProc,
           int re_inxd, int im_indx,
           int num_points, 
@@ -81,7 +96,7 @@ static int output_3Dmodes(const int iter,
        const double *re, const double *im);
 
 static int Decompose3D (
-       const MeshBlock *mb,
+       Code_mesh,
        const char *name,
        int re_gindx,
        const int iter)
@@ -91,6 +106,17 @@ static int Decompose3D (
   using namespace decomp_decompose;
   using namespace std;
 
+  const double evo_time = Code_time;
+  const int iteration   = Code_iteration;
+  const char *const out_dir = Code_out_dir;
+  const int max_spin  = Code_max_spin;
+  const int num_radii = Code_num_radii;
+  const int num_mu_points  = Code_num_mu_points;
+  const int num_phi_points = Code_num_phi_points;
+  const int num_x_points   = Code_num_x_points;
+  const int num_l_modes    = Code_num_l_modes;
+  const int num_n_modes    = Code_num_n_modes;
+  
   const int spin = 0;
   const int im_gindx = -1;
 
@@ -113,15 +139,11 @@ static int Decompose3D (
   static double *phicolloc = NULL;
 
 
-  DECLARE_CCTK_PARAMETERS;
-
-
   myassert (ABS(spin) <= max_spin);
   myassert (num_radii <= int(sizeof(radius) / sizeof(*radius)));
 
-  static int MyProc = CCTK_MyProc(cctkGH);
-  const char *outdir = *out_dir ? out_dir : io_out_dir;
-
+  static int MyProc = Code_proc_rank;
+  const char *outdir = out_dir;
 
   const int nangle = num_mu_points*num_phi_points;
   
@@ -193,8 +215,8 @@ static int Decompose3D (
       double xk = radius[0][k];
       for (int i=0; i < num_radii; i++)
       {
-        radius[i][k] = 0.5 * ((EM_Rout[i] - EM_Rin[i]) * xk +
-            (EM_Rout[i] + EM_Rin[i]));
+        radius[i][k] = 0.5 * ((Code_Rout(i) - Code_Rin(i)) * xk +
+            (Code_Rout(i) + Code_Rin(i)));
       }
     }
 
@@ -227,8 +249,8 @@ static int Decompose3D (
 #ifdef TEST_DECOMP
     if (!MyProc)
     {
-      fill_in_data(cctkGH->cctk_time, spin, num_l_modes, num_n_modes,
-         nangle*num_x_points, EM_Rin[obs], EM_Rout[obs], xb[obs], yb[obs],
+      fill_in_data(evo_time, spin, num_l_modes, num_n_modes,
+         nangle*num_x_points, Code_Rin(obs), Code_Rout(obs), xb[obs], yb[obs],
        zb[obs], re_f, im_f);
     }
 #else
@@ -243,8 +265,8 @@ static int Decompose3D (
       decompose3D(dinfo_pp[max_spin + spin], re_f, im_f, re_m, im_m);
 
       output_3Dmodes(iter, outdir, name, obs,
-         cctkGH->cctk_iteration, cctkGH->cctk_time, 
-         spin, num_l_modes, num_n_modes, EM_Rin[obs], EM_Rout[obs],
+         iteration, evo_time, 
+         spin, num_l_modes, num_n_modes, Code_Rin(obs), Code_Rout(obs),
          re_m, im_m);
     }
   }
@@ -402,7 +424,7 @@ static int output_3Dmodes(const int iter,
 
 ///////////// 
 #if 0
-static int interp_fields(const MeshBlock *mb,
+static int interp_fields(Code_mesh,
           int MyProc,
           int num_points, 
           const double * xc,
@@ -520,10 +542,10 @@ CCTK_WARN(CCTK_WARN_ALERT, "using chebyshev");
 }
 #endif
 
-void SphericalHarmonicDecomp_DumpMetric(const MeshBlock *mb)
+void SphericalHarmonicDecomp_DumpMetric(Code_mesh)
 {
-  const int iteration = mb->pmy_mesh->ncycle;//// depends on code
-  const int extract_spacetime_metric_every = 2;//// a param
+  const int iteration = Code_iteration;
+  const int extract_spacetime_metric_every = Code_write_freq;
   
   if (iteration % extract_spacetime_metric_every == 0)
   {
