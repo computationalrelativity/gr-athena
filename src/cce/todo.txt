@@ -10,4 +10,5 @@ ones.
 - Presentation of ChebyshevU and LegendreP are strongly prone to a big round
   off error!
 
+- no imaginary interpolation needed
 
