@@ -544,7 +544,7 @@ void SphericalHarmonicDecomp_DumpMetric(Code_mesh)
   const int iteration = Code_iteration;
   const int extract_spacetime_metric_every = Code_write_freq;
   
-  if (iteration % extract_spacetime_metric_every == 0)
+  if (iteration % extract_spacetime_metric_every)
   {
     return;
   }
