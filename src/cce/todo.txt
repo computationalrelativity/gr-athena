@@ -2,15 +2,18 @@
 ## TODO ##
 ##########
 
+
 - interpolation
 
 - why can't we call SphericalHarmonicDecomp_DumpMetric a few times?
 
 - how about when we have a restart?
 
-- memory leack
+- memory leak
 
 - compiler warnings
+
+- parallelism
 
 - various macros are defined in the src files, ensure we active the correct
 ones.
