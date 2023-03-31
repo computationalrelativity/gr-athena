@@ -65,13 +65,12 @@
 #define BUFFSIZE  (1024)
 #define MAX_RADII (100)
 
-
 void SphericalHarmonicDecomp_DumpMetric(Code_mesh);
 
 static int output_3Dmodes(const int iter,
        const char *dir,
        const char* name,
-       const int obs,  int it, double time,
+       const int obs, double time,
        int s, int nl,
        int nn, double rin, double rout,
        const double *re, const double *im);
@@ -101,7 +100,6 @@ static int Decompose3D (
   using namespace std;
 
   const double evo_time = Code_time;
-  const int iteration   = Code_iteration;
   const char *const out_dir = Code_out_dir;
   const int max_spin  = Code_max_spin;
   const int num_radii = Code_num_radii;
@@ -112,7 +110,6 @@ static int Decompose3D (
   const int num_n_modes    = Code_num_n_modes;
   
   const int spin = 0;
-  const int im_gindx = -1;
 
   static const decomp_info **dinfo_pp = NULL;
   static int FirstTime = 1;
@@ -257,19 +254,18 @@ static int Decompose3D (
     {
       decompose3D(dinfo_pp[max_spin + spin], re_f, im_f, re_m, im_m);
 
-      output_3Dmodes(iter, outdir, name, obs,
-         iteration, evo_time, 
+      output_3Dmodes(iter, outdir, name, obs, evo_time, 
          spin, num_l_modes, num_n_modes, Code_Rin(obs), Code_Rout(obs),
          re_m, im_m);
     }
   }
   return 0;
+  
 }
 
 
-static int output_3Dmodes(const int iter,
-  const char *dir,
-  const char* name, const int obs,  int it, double time,
+static int output_3Dmodes(const int iter/* output iteration */, const char *dir,
+  const char* name, const int obs, double time,
   int s, int nl,
   int nn, double rin, double rout,
   const double *re, const double *im)
@@ -287,7 +283,6 @@ static int output_3Dmodes(const int iter,
   dims[0] = nn;
   dims[1] = nlmmodes;
 
-  int error_count = 0;
   static int FirstCall = 1;
   static int last_dump[MAX_RADII];
 
@@ -314,7 +309,7 @@ static int output_3Dmodes(const int iter,
     if (file_id < 0)
     {
       cerr << "Failed to open hdf5 file";
-      exit(file_id);
+      exit((int)file_id);
     }
   }
   else
@@ -324,7 +319,7 @@ static int output_3Dmodes(const int iter,
     if (file_id < 0)
     {
       cerr << "Failed to create hdf5 file";
-      exit(file_id);
+      exit((int)file_id);
     }
 
     char metaname[]="/metadata";
