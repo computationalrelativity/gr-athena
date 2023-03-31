@@ -2,7 +2,7 @@
 #include <cstdlib>
 #include <cmath>
 
-#define H5_USE_16_API 1
+#define H5_USE_16_API (1)
 #include <hdf5.h>
 #include "hdf5_hl.h"
 
