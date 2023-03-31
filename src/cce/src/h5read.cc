@@ -1,12 +1,12 @@
-#define H5_USE_16_API 1
-#include <hdf5.h>
-#include "hdf5_hl.h"
-
 #include <iostream>
 #include <cstdlib>
 #include <cmath>
 
-#define BUFFSIZE 1024
+#define H5_USE_16_API 1
+#include <hdf5.h>
+#include "hdf5_hl.h"
+
+#define BUFFSIZE (1024)
 
 // check return code of HDF5 call and print a warning in case of an error
 #define HDF5_ERROR(fn_call) HDF5_ERROR_FUNC((fn_call), #fn_call, __LINE__, __FILE__)
@@ -22,22 +22,22 @@ static hid_t HDF5_ERROR_FUNC(hid_t error_code, const char* fn_call,
          << "line: " << line << "\n"
          << "HDF5 call " << fn_call << ","
          << "returned error code: " << (int)error_code << ".\n";
-    exit(error_code);
+    exit((int)error_code);
   }
   return error_code;
 }
 
-
-extern "C"
-{
 void SphericalHarmonicDecomp_Read(
      const char *name,
      const int iteration,
      double *p_time,
-     double *p_Rin,
-     double *p_Rout,
-     int *p_lmax,
-     int *p_nmax,
+     double **p_re,
+     double **p_im);
+     
+void SphericalHarmonicDecomp_Read(
+     const char *name,
+     const int iteration,
+     double *p_time,
      double **p_re,
      double **p_im)
 {
@@ -46,7 +46,7 @@ void SphericalHarmonicDecomp_Read(
   int spin;
   int dim[2];
 
-  hid_t       file_id;
+  hid_t file_id;
 
   file_id = HDF5_ERROR(H5Fopen(name, H5F_ACC_RDONLY, H5P_DEFAULT));
 
@@ -104,5 +104,4 @@ void SphericalHarmonicDecomp_Read(
       }
     }
   }
-}
 }

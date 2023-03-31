@@ -4,9 +4,9 @@
 #include "myassert.h"
 #include "matrix.hh"
 #include "sYlm.hh"
-#include "SphericalHarmonicDecomp.h"
 
 #ifdef USE_LEGENDRE
+# ERROR: Do not use Legendre
 #  include "Legendre.hh"
 #else
 #  include "Chebyshev.hh"

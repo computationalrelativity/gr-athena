@@ -3,7 +3,7 @@
 #include <complex>
 #include "matrix.hh"
 #include "sYlm.hh"
-#include "SphericalHarmonicDecomp.h"
+#include "h5read.hh"
 
 #ifdef USE_LEGENDRE
 #include "Legendre.hh"
