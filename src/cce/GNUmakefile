@@ -29,7 +29,6 @@ SRC += $(SRCD)/h5read.cc
 SRC += $(SRCD)/decomp.cc
 SRC += $(SRCD)/ExtractMetric.cc
 SRC += $(SRCD)/main.cc
-#SRC += $(SRCD)/alias.cc
 
 OBJ = $(patsubst $(SRCD)/%.cc,$(OBJD)/%.o,$(SRC))
 LIB = $(LIBD)/lib$(LIBNAME).a
