@@ -3,5 +3,6 @@ CCE
 /obj
 ## output data
 *.h5
+/tags
 
 
