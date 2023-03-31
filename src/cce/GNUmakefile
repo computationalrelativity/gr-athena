@@ -5,7 +5,16 @@ LIBNAME = CCE
 EXE = CCE
 
 CXX ?= g++
-CXXFLAGS ?= -Wfatal-errors
+CXXFLAGS ?= -Wfatal-errors -Wall -Wextra -Wpedantic -Wuninitialized \
+    -Wmissing-include-dirs -Wshadow -Wundef -Winvalid-pch \
+    -Winit-self -Wswitch-enum -Wswitch-default -Wformat=2 -Wformat-nonliteral \
+    -Wformat-security -Wformat-y2k -Wdouble-promotion -Wfloat-equal \
+    -Wpointer-arith -Wstrict-overflow=3 -Wcast-qual -Wcast-align -Wconversion \
+    -Wpacked -Wstrict-aliasing -fstrict-aliasing -Wredundant-decls \
+    -Wmissing-declarations -Wmissing-field-initializers -Wwrite-strings \
+    -Wstack-protector -fstack-protector -Winline -Wdisabled-optimization
+
+
 DFLAGS += -DTEST_DECOMP
 #DFLAGS += -DUSE_LEGENDRE 
 
