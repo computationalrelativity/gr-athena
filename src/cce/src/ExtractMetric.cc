@@ -421,10 +421,10 @@ static void fill_in_data(double time, int s, int nl, int nn,
   using namespace decomp_sYlm;
 #ifdef USE_LEGENDRE
   using namespace decomp_Legendre;
-  cout << "using Legendre" << endl;
+  // cout << "using Legendre" << endl;
 #else
   using namespace decomp_Chebyshev;
-  cout << "using chebyshev" << endl;
+  // cout << "using chebyshev" << endl;
 #endif
 
   for (int i=0; i < npoints; i++)
