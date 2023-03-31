@@ -2,29 +2,34 @@
 ## TODO ##
 ##########
 
-
-- do we need gsl lib?
-
-- what to do with SphericalHarmonicDecomp_Read
-
 - interpolation
-
-- how about when we have a restart?
-
-- memory leak
-
-- parallelism
-
-- various macros are defined in the src files, ensure we active the correct
-ones.
 
 - replace double to Real
 
 - Presentation of ChebyshevU and LegendreP are strongly prone to a big round
   off error!
 
+- what to do with SphericalHarmonicDecomp_Read
+
+
+## ---------------------------------------------------------------------- ##
+
+- comments in the code[done]
+
 - no imaginary interpolation needed [done]
 
 - compiler warnings[done]
 
 - why can't we call SphericalHarmonicDecomp_DumpMetric a few times?[done]
+
+- memory leak[done]: it seems the new call acted on static data type so new
+  delete is necessary to avoid leak
+
+- how about when we have a restart? [done], I don't see any concern
+
+- parallelism [done] all array should transferred to master thread to write
+
+- do we need gsl lib?[done] Yes, for matric inversion
+
+- various macros are defined in the src files, ensure we active the correct
+ones.[done]
