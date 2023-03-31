@@ -2,12 +2,12 @@
 #include <stdlib.h>
 #include <iostream>
 #include <complex>
-#define H5_USE_16_API 1
-#include <hdf5.h>
 #include "myassert.h"
 #include "sYlm.hh"
 #include "SphericalHarmonicDecomp.h"
 #include "decomp.hh"
+#define H5_USE_16_API 1
+#include <hdf5.h>
 
 #ifdef USE_LEGENDRE
 // don't use this option.
@@ -21,7 +21,7 @@
 
 */
 
-#define Code_mesh       const MeshBlock *mb
+#define Code_mesh       void *mb
 #define Code_field(x_)  0 // ex: ??
 #define Code_field_t    int re_gindx // field type. ex: ??
 #define Code_time       1 // ex: mb->pmy_mesh->time
@@ -29,7 +29,7 @@
 #define Code_write_freq 1 // ex: from param file
 #define Code_max_spin   0 // ex: from param file
 #define Code_proc_rank  0 // ex: Globals::my_rank
-#define Code_num_radii  2 // ex: from param file. number of extraction radii
+#define Code_num_radii  1 // ex: from param file. number of extraction radii
 #define Code_out_dir    "./" // ex: path/to/output dir
 #define Code_num_mu_points  1 // ex: form param file
 #define Code_num_phi_points 1 // ex: from param file
@@ -38,8 +38,6 @@
 #define Code_num_n_modes    1 // ex: from param file
 #define Code_Rout(i_)        1.0 // ex: from param file getd("Rout"#i);
 #define Code_Rin(i_)         0.5 // ex: from param file getd("Rin"#i);
-
-class MeshBlock;
 
 #define HDF5_ERROR(fn_call)                                           \
 {                                                                     \
@@ -60,6 +58,8 @@ class MeshBlock;
 #define Min(a_,b_) ((a_)<(b_)? (a_):(b_))
 #define ABS(x_) ((x_)>0 ? (x_) : (-(x_)))
 
+#define BUFFSIZE  (1024)
+#define MAX_RADII (100)
 
 #ifdef TEST_DECOMP
 // instead of interpolation, fill the data for test purposes
@@ -86,10 +86,10 @@ static void fill_in_data(double time, int s, int nl, int nn,
 static int output_3Dmodes(const int iter,
   const char *dir,
   const char* name,
-       const int obs,  int it, double time,
-       int s, int nl,
-       int nn, double rin, double rout,
-       const double *re, const double *im);
+  const int obs,  int it, double time,
+  int s, int nl,
+  int nn, double rin, double rout,
+  const double *re, const double *im);
 
 static int Decompose3D (
        Code_mesh,
@@ -119,7 +119,6 @@ static int Decompose3D (
   static const decomp_info **dinfo_pp = NULL;
   static int FirstTime = 1;
 
-#define MAX_RADII  100
   static double *xb[MAX_RADII];
   static double *yb[MAX_RADII];
   static double *zb[MAX_RADII];
@@ -271,14 +270,13 @@ static int Decompose3D (
 
 
 
-#define BUFFSIZE 1024
 
 static int output_3Dmodes(const int iter,
   const char *dir,
   const char* name, const int obs,  int it, double time,
-       int s, int nl,
-       int nn, double rin, double rout,
-       const double *re, const double *im)
+  int s, int nl,
+  int nn, double rin, double rout,
+  const double *re, const double *im)
 {
   char filename[BUFFSIZE];
   hid_t   file_id;
