@@ -89,22 +89,6 @@ static void fill_in_data(double time, int s, int nl, int nn,
     const double zb[], double re[], double im[]);
 #endif
 
-/////////////////
-#if 0
- static int interp_fields(Code_mesh,
-          int MyProc,
-          int re_inxd, int im_indx,
-          int num_points, 
-          const double * xc,
-          const double * yc,
-          const double * zc,
-          double *re_f,
-          double *im_f);
-#endif 
-/////////////////
-
-
-
 static int Decompose3D (
        Code_mesh,
        const char *name,
@@ -262,15 +246,11 @@ static int Decompose3D (
        zb[obs], re_f, im_f);
     }
 #else
-    //! 
+    //! interpolate for a given field
     // array length = nangle*num_x_points for each x,y,z
     // coords = xb[obs], yb[obs], zb[obs]
     // interpolated values will be returned to = re_f
     Code_interpolate(xb[obs], yb[obs], zb[obs],nangle*num_x_points);
-////////
-    //interp_fields(cctkGH, MyProc, re_gindx, im_gindx,
-      //  nangle*num_x_points, xb[obs], yb[obs], zb[obs], re_f, im_f);
-////////
 #endif
 
     if (!MyProc)
@@ -434,80 +414,6 @@ static int output_3Dmodes(const int iter,
   return 0;
 }
 
-///////////// 
-#if 0
-static int interp_fields(Code_mesh,
-          int MyProc,
-          int num_points, 
-          const double * xc,
-          const double * yc,
-          const double * zc,
-          double *re_f,
-          double *im_f)
-{
-  static int operator_handle = -1;
-  static int coord_handle = -1;
-  static int param_table_handle = -1;
-
-  int N_dims = 3;
-  int N_interp_points    = MyProc ? 0: num_points; /* only proc 0 requests points*/
-  int N_input_arrays     = im_indx < 0 ? 1 : 2;
-  int N_output_arrays    = im_indx < 0 ? 1 : 2;
-
-  const int interp_coords_type_code = CCTK_VARIABLE_REAL;
-  const void *const interp_coords[3] =
-	{(void *)xc, (void *)yc, (void *)zc};
-
-  const int input_array_variable_indices[2]=
-      {re_indx, im_indx};
-  const int output_array_type_codes[2]=
-	{CCTK_VARIABLE_REAL, CCTK_VARIABLE_REAL};
-  void *const output_arrays[2]={(void *)re_f, (void*)im_f};
-
-  if (operator_handle < 0)
-  {
-    operator_handle = CCTK_InterpHandle(
-           "Lagrange polynomial interpolation (tensor product)");
-
-    if (operator_handle < 0 )
-      CCTK_WARN(0, "cound not get interpolator handle");
-
-    param_table_handle = Util_TableCreateFromString("order=3"); /*4th order error*/
-    if (param_table_handle < 0 )
-      CCTK_WARN(0, "cound not get parameter table handle");
-
-    coord_handle = CCTK_CoordSystemHandle ("cart3d");
-
-   if (coord_handle < 0 )
-      CCTK_WARN(0, "could net get coord handle");
-  }
-
-  if(CCTK_InterpGridArrays(cctkGH, N_dims, operator_handle,
-			   param_table_handle,
-			   coord_handle, N_interp_points,
-			   interp_coords_type_code,
-			   interp_coords,
-			   N_input_arrays, input_array_variable_indices,
-			   N_output_arrays, output_array_type_codes,
-			   output_arrays))
-  {
-    CCTK_WARN(0, "Interpolation error ");
-    return -1;
-  }
-
-  if ((!MyProc) && N_input_arrays ==1)
-  {
-    for (int i=0; i < num_points; i++)
-    {
-      im_f[i] = 0.0;
-    }
-  }
-  
-  return 0;
-}
-
-#endif 
-////////////////////
 #ifdef TEST_DECOMP
 static void fill_in_data(double time, int s, int nl, int nn,
     int npoints, double Rin, double Rout,
