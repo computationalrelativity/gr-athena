@@ -267,8 +267,6 @@ static int Decompose3D (
 }
 
 
-
-
 static int output_3Dmodes(const int iter,
   const char *dir,
   const char* name, const int obs,  int it, double time,
