@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include "myassert.h"
+#include "myassert.hh"
 namespace decomp_Legendre
 {
 
