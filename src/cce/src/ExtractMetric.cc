@@ -25,24 +25,92 @@
 
 */
 
+
+/*
+Example:
+
+SphericalHarmonicDecomp::extract_spacetime_metric_every=32
+SphericalHarmonicDecomp::num_radii=3
+SphericalHarmonicDecomp::EM_Rin[0]=18
+SphericalHarmonicDecomp::EM_Rout[0]=22
+SphericalHarmonicDecomp::EM_Rin[1]=47
+SphericalHarmonicDecomp::EM_Rout[1]=53
+SphericalHarmonicDecomp::EM_Rin[2]=94
+SphericalHarmonicDecomp::EM_Rout[2]=106
+SphericalHarmonicDecomp::num_l_modes=7
+SphericalHarmonicDecomp::num_n_modes=7
+SphericalHarmonicDecomp::num_mu_points=41
+SphericalHarmonicDecomp::num_phi_points=82
+SphericalHarmonicDecomp::num_x_points=28
+
+In this example we will extract the metric on 3 different shells
+ (num\_radii), the
+first between r=18 and r=22, the second between r=47 and r=53, and
+the third between r=94 and 106. The idea here is to make the shell
+small enough that we can accurately calculate the radial derivatives
+of the metric function, while also large enough that we can smooth out
+the grid noise. We decompose the metric functions in terms of
+7 $\ell$ modes (num\_l\_modes=7 or all modes from $\ell=0$ to $\ell=6$,
+ the m modes are automatically set) 
+and 7 radial modes (num\_n\_mode=7). The grid functions are evaluated
+at 41 points in mu (mu=cos(theta)),  82 points in phi, and 28 points
+in radius. Minimally, we would need the number of angular points to be
+equal to the number of angular spectral functions $\ell^2 + 2\ell$,
+in this case we have many more angular modes ($41*82$) than angular
+spectral functions. Similarly num\_x\_points must be greater than
+num\_n\_modes. The number of n modes is set by the need to accurately
+model the radial derivative of the mertric functions in the spherical
+shell. The larger the difference between EM\_Rin[] and EM\_Rout[] the
+more points required. The number of l modes is determined by the accuracy
+requiremnts of the final CCE waveoform. in this case, choosin
+num\_n\_modes=7 is marginally acceptable.
+
+*/
+
+
 #define Code_mesh       void *mb
+
 #define Code_field(x_)  0 // ex: ??
+
 #define Code_field_t    int re_gindx // field type. ex: ??
-#define Code_interpolate(x_,y_,z_,N)  // function to call for interpolation at given points
-#define Code_time       1 // ex: mb->pmy_mesh->time
-#define Code_iteration  1 // ex: mb->pmy_mesh->ncycle
-#define Code_write_freq 1 // ex: from param file
-#define Code_max_spin   0 // ex: from param file
+
 #define Code_proc_rank  0 // ex: Globals::my_rank
-#define Code_num_radii  1 // ex: from param file. number of extraction radii
+
+#define Code_interpolate(x_,y_,z_,N)  // function to call for interpolation at given points
+
+#define Code_time       1 // code evolution time; ex: mb->pmy_mesh->time
+
+#define Code_iteration  1 // code iteration number; ex: mb->pmy_mesh->ncycle
+
+#define Code_write_freq 1 // after how many iteration dumping metrics; ex: get from param file
+
+#define Code_max_spin  (2) // max spin of spin weighted Ylm, 
+                           // maximum absolute spin of fields". Set it to 2 for now.
+
 #define Code_out_dir    "./" // ex: path/to/output dir
-#define Code_num_mu_points  1 // ex: form param file
-#define Code_num_phi_points 1 // ex: from param file
-#define Code_num_x_points   1 // ex: from param file
-#define Code_num_l_modes    1 // ex: from param file
-#define Code_num_n_modes    1 // ex: from param file
-#define Code_Rout(i_)        1.0 // ex: from param file getd("Rout"#i);
-#define Code_Rin(i_)         0.5 // ex: from param file getd("Rin"#i);
+                           
+#define Code_num_radii  1 // number of extraction radii; ex: get it from param file.
+
+#define Code_num_mu_points  41 // number of points in theta direction(polar); 
+                               // ex: get it from param file
+
+#define Code_num_phi_points 82 // number of points in phi direction(azimuthal); 
+                               // ex: get it from param file
+
+#define Code_num_x_points   28 // number of points in radius between the two shells
+                               // ex: get it from param file
+
+#define Code_num_l_modes    7 // number of l modes in Ylm (m modes calculated automatically)
+                              // ex: get it from param file
+
+#define Code_num_n_modes    7 // radial modes; ex: get it from param file
+
+
+#define Code_Rout(i_)  30 // outer radius for decomp; 
+                          // ex: get it from param file getd("Rout"#i);
+
+#define Code_Rin(i_)   20 // inner radius for decomp;
+                          // ex: get it from param file getd("Rin"#i);
 
 #define HDF5_ERROR(fn_call)                                           \
 {                                                                     \
