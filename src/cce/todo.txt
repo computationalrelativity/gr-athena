@@ -3,15 +3,13 @@
 ##########
 
 
-- interpolation
+- what to do with SphericalHarmonicDecomp_Read
 
-- why can't we call SphericalHarmonicDecomp_DumpMetric a few times?
+- interpolation
 
 - how about when we have a restart?
 
 - memory leak
-
-- compiler warnings
 
 - parallelism
 
@@ -25,5 +23,6 @@ ones.
 
 - no imaginary interpolation needed [done]
 
+- compiler warnings[done]
 
-
+- why can't we call SphericalHarmonicDecomp_DumpMetric a few times?[done]
