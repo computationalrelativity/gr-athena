@@ -477,3 +477,8 @@ void SphericalHarmonicDecomp_DumpMetric(Code_mesh)
   Decompose3D(mb, "alp", Code_field("ADM::alp"), iter);
 }
 
+void Test_SphericalHarmonicDecomp_DumpMetric(int iter);
+void Test_SphericalHarmonicDecomp_DumpMetric(int iter)
+{
+  Decompose3D(nullptr, "test", 0, iter);
+}

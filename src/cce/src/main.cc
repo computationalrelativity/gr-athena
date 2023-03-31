@@ -1,11 +1,15 @@
 #include <cstdio>
 
-#define Code_mesh  void *mb
+#define N (5)
 
-void SphericalHarmonicDecomp_DumpMetric(Code_mesh);
+void Test_SphericalHarmonicDecomp_DumpMetric(int iter);
 
 int main(void)
 {
-   printf("Calling SphericalHarmonicDecomp_DumpMetric ...\n");
-   SphericalHarmonicDecomp_DumpMetric(nullptr);
+   for (int i = 0; i < N; ++i)
+   {
+      printf("Calling Test_SphericalHarmonicDecomp_DumpMetric(%d) ...\n",i);
+      Test_SphericalHarmonicDecomp_DumpMetric(i);
+   }
+   
 }
