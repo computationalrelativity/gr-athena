@@ -88,6 +88,11 @@ static void fill_in_data(double time, int s, int nl, int nn,
     const double zb[], double re[], double im[]);
 #endif
 
+// this is where the magic happens, it decomposes the field in Ylm for the angular 
+// directions and in Legendre or Chebyshev for the radial direction.
+// Note: for each shell with an inner radius and outer radius, it samples the 
+// given field within these two radii by an interpolation and then 3-D decomposes 
+// them.
 static int Decompose3D (
        Code_mesh,
        const char *name,
@@ -263,7 +268,7 @@ static int Decompose3D (
   
 }
 
-
+// write the decomposed field in an h5 file.
 static int output_3Dmodes(const int iter/* output iteration */, const char *dir,
   const char* name, const int obs, double time,
   int s, int nl,
@@ -274,7 +279,6 @@ static int output_3Dmodes(const int iter/* output iteration */, const char *dir,
   hid_t   file_id;
   hsize_t dims[2];
   herr_t  status;
-
 
   snprintf(filename, sizeof filename,
         "%s/%s_obs_%d_Decomp.h5", dir, "metric", obs);
@@ -454,6 +458,8 @@ static void fill_in_data(double time, int s, int nl, int nn,
 }
 #endif
 
+// this function writes the pertinent metric variables in a specific format 
+// readable for pittnull
 void SphericalHarmonicDecomp_DumpMetric(Code_mesh)
 {
   const int iteration = Code_iteration;
@@ -465,6 +471,7 @@ void SphericalHarmonicDecomp_DumpMetric(Code_mesh)
   }
   const int iter = iteration / extract_spacetime_metric_every;
   //! pass the pertinent field
+  // We need all the following fields
   Decompose3D(mb, "gxx", Code_field("ADM::gxx"), iter);
   Decompose3D(mb, "gxy", Code_field("ADM::gxy"), iter);
   Decompose3D(mb, "gxz", Code_field("ADM::gxz"), iter);
