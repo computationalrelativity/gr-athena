@@ -5,7 +5,7 @@
 #include <algorithm> // for fill
 #include <cmath>     // for NAN
 
-#define H5_USE_16_API 1
+#define H5_USE_16_API (1)
 #include <hdf5.h>
 
 #include "myassert.h"
@@ -14,7 +14,7 @@
 #include "decomp.hh"
 
 #ifdef USE_LEGENDRE
-// don't use this option.
+# ERROR don't use this option.
 #include "Legendre.hh"
 #endif
 
