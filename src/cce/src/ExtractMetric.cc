@@ -10,7 +10,7 @@
 
 #include "myassert.h"
 #include "sYlm.hh"
-#include "SphericalHarmonicDecomp.h"
+#include "h5read.hh"
 #include "decomp.hh"
 
 #ifdef USE_LEGENDRE
