@@ -8,7 +8,7 @@
 #define H5_USE_16_API (1)
 #include <hdf5.h>
 
-#include "myassert.h"
+#include "myassert.hh"
 #include "sYlm.hh"
 #include "h5read.hh"
 #include "decomp.hh"

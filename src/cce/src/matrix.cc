@@ -1,7 +1,7 @@
 #include <iostream>
 #include <complex>
 #include <cmath>
-#include "myassert.h"
+#include "myassert.hh"
 #include "matrix.hh"
 
 #if MATRIX_DECOMP_USE_GSL_MATRIX_INVERTER

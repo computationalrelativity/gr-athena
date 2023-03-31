@@ -1,6 +1,6 @@
 #include <complex>
 #include <cmath>
-#include "myassert.h"
+#include "myassert.hh"
 #include "sYlm.hh"
 
 #define Max(a_,b_) ((a_)>(b_)? (a_):(b_))
