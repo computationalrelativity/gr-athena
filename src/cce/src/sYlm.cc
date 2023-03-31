@@ -8,9 +8,11 @@
 #define FourPi 12.566370614359172953850573533118
 #define ABS(x_) ((x_)>0 ? (x_) : (-(x_)))
 
+#define RO (1.0e-9)
+
 namespace decomp_sYlm
 {
-  using namespace std;
+using namespace std;
 static long double fact(int i)
 {
   int j;
@@ -28,19 +30,19 @@ static long double fact(int i)
 double sPlm(int s, int l, int m, double theta)
 {
   int k;
-  double temp = 0;
+  long double temp = 0;
   s= -s;  /* oops below is really the definition for
             -s not s */
 
   myassert(l>=ABS(s));
   myassert(l>=ABS(m));
 
-  const double sc = (1-2*(ABS(s)%2))*
+  const long double sc = (1-2*(ABS(s)%2))*
         sqrt((2*l+1)/(FourPi)*fact(l+m)*fact(l-m)*fact(l+s)*fact(l-s));
 
   for (k= Max(0, m-s); k <= Min(l+m, l-s); k++)
   {
-    double t = sc;
+    long double t = sc;
 
     t/= fact(l+m-k);
     t/= fact(l-s-k);
@@ -52,7 +54,7 @@ double sPlm(int s, int l, int m, double theta)
        pow(sin(0.5*theta),(double)(2*k+s-m));
   }
 
-  return temp;
+  return (double)temp;
 }
 
 complex <double> sYlm (int s, int l, int m, double theta, double phi)
@@ -70,8 +72,7 @@ complex <double> sYlm_mu (int s, int l, int m, double mu, double phi)
 double sPlm_mu(int s, int l, int m, double mu)
 {
   int k;
-#define RO 1.0e-9
-  double temp = 0;
+  long double temp = 0;
   myassert(mu > -1 - RO);
   myassert(mu < 1 + RO);
   double beta = sqrt(0.5*(1+mu));
@@ -100,6 +101,6 @@ double sPlm_mu(int s, int l, int m, double mu)
        pow(alpha,(double)(2*k+s-m));
   }
 
-  return temp;
+  return (double)temp;
 }
 }

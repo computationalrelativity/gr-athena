@@ -2,6 +2,8 @@
 #include <stdlib.h>
 namespace decomp_Chebyshev
 {
+
+  double ChebyshevU (int n, double x);
   double ChebyshevU (int n, double x)
   {
     double UU[101];
