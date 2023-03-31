@@ -3,6 +3,7 @@
 namespace decomp_Legendre
 {
 
+double LegendreP(int n, double x);
 double LegendreP(int n, double x)
 {
   double PP[101];
@@ -1330,6 +1331,7 @@ double LegendreP(int n, double x)
   return PP[n];
 }
 
+int LegendreRoots(int n, double *root);
 int LegendreRoots(int n, double *root)
 {
   myassert(n>0);
