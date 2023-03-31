@@ -2,12 +2,16 @@
 #include <stdlib.h>
 #include <iostream>
 #include <complex>
+#include <algorithm> // for fill
+#include <cmath>     // for NAN
+
+#define H5_USE_16_API 1
+#include <hdf5.h>
+
 #include "myassert.h"
 #include "sYlm.hh"
 #include "SphericalHarmonicDecomp.h"
 #include "decomp.hh"
-#define H5_USE_16_API 1
-#include <hdf5.h>
 
 #ifdef USE_LEGENDRE
 // don't use this option.
@@ -24,6 +28,7 @@
 #define Code_mesh       void *mb
 #define Code_field(x_)  0 // ex: ??
 #define Code_field_t    int re_gindx // field type. ex: ??
+#define Code_interpolate(x_,y_,z_,N)  // function to call for interpolation at given points
 #define Code_time       1 // ex: mb->pmy_mesh->time
 #define Code_iteration  1 // ex: mb->pmy_mesh->ncycle
 #define Code_write_freq 1 // ex: from param file
@@ -53,13 +58,28 @@
   }                                                                   \
 }
 
-
 #define Max(a_,b_) ((a_)>(b_)? (a_):(b_))
 #define Min(a_,b_) ((a_)<(b_)? (a_):(b_))
 #define ABS(x_) ((x_)>0 ? (x_) : (-(x_)))
 
 #define BUFFSIZE  (1024)
 #define MAX_RADII (100)
+
+
+void SphericalHarmonicDecomp_DumpMetric(Code_mesh);
+
+static int output_3Dmodes(const int iter,
+       const char *dir,
+       const char* name,
+       const int obs,  int it, double time,
+       int s, int nl,
+       int nn, double rin, double rout,
+       const double *re, const double *im);
+
+static int Decompose3D(Code_mesh,
+       const char *name,
+       Code_field_t,
+       const int iter);
 
 #ifdef TEST_DECOMP
 // instead of interpolation, fill the data for test purposes
@@ -83,13 +103,7 @@ static void fill_in_data(double time, int s, int nl, int nn,
 #endif 
 /////////////////
 
-static int output_3Dmodes(const int iter,
-  const char *dir,
-  const char* name,
-  const int obs,  int it, double time,
-  int s, int nl,
-  int nn, double rin, double rout,
-  const double *re, const double *im);
+
 
 static int Decompose3D (
        Code_mesh,
@@ -180,16 +194,15 @@ static int Decompose3D (
       }
 
       re_f = new double [nangle*num_x_points];
-      im_f = new double [nangle*num_x_points];
+      std::fill(re_f, re_f+(nangle*num_x_points),NAN); // init to nan
+      im_f = new double [nangle*num_x_points](); // init to zero
 
       mucolloc = new double [nangle];
       phicolloc = new double [nangle];
       re_m = new double [nlmmodes*num_x_points];
       im_m = new double [nlmmodes*num_x_points];
 
-
-      myassert(re_f && im_f &&
-             mucolloc && phicolloc && re_m && im_m);
+      myassert(re_f && im_f && mucolloc && phicolloc && re_m && im_m);
     }
 
 
@@ -249,6 +262,11 @@ static int Decompose3D (
        zb[obs], re_f, im_f);
     }
 #else
+    //! 
+    // array length = nangle*num_x_points for each x,y,z
+    // coords = xb[obs], yb[obs], zb[obs]
+    // interpolated values will be returned to = re_f
+    Code_interpolate(xb[obs], yb[obs], zb[obs],nangle*num_x_points);
 ////////
     //interp_fields(cctkGH, MyProc, re_gindx, im_gindx,
       //  nangle*num_x_points, xb[obs], yb[obs], zb[obs], re_f, im_f);
