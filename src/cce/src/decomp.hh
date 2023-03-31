@@ -6,9 +6,10 @@
 #include "h5read.hh"
 
 #ifdef USE_LEGENDRE
-#include "Legendre.hh"
+# ERROR: Do not use Legendre
+#  include "Legendre.hh"
 #else
-#include "Chebyshev.hh"
+#  include "Chebyshev.hh"
 #endif
 
 

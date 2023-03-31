@@ -2,16 +2,7 @@
 #include <complex>
 #include <cmath>
 #include "myassert.h"
-#include "matrix.hh"
 #include "sYlm.hh"
-
-#ifdef USE_LEGENDRE
-# ERROR: Do not use Legendre
-#  include "Legendre.hh"
-#else
-#  include "Chebyshev.hh"
-#endif
-
 #include "decomp.hh"
 
 #define Max(a_,b_) ((a_)>(b_)? (a_):(b_))

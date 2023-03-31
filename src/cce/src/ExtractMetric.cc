@@ -14,7 +14,7 @@
 #include "decomp.hh"
 
 #ifdef USE_LEGENDRE
-# ERROR don't use this option.
+# ERROR: do not use this option.
 #include "Legendre.hh"
 #endif
 
