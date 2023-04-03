@@ -337,6 +337,8 @@ public:
   TaskStatus CheckRefinement(MeshBlock *pmb, int stage);   // FLAG_AMR     [x]
   TaskStatus Z4c_Weyl(MeshBlock *pmb, int stage);          // Z4C_WEYL     [x]
   TaskStatus WaveExtract(MeshBlock *pmb, int stage);       // WAVE_EXTR    [x]
+  TaskStatus CCEDump(MeshBlock *pmb, int stage);           // CCE_DUMP     [x]
+  
   TaskStatus AssertFinite(MeshBlock *pmb, int stage);      // ASSERT_FIN   [x]
 
   //---------------------------------------------------------------------------
@@ -394,6 +396,7 @@ namespace Z4cIntegratorTaskNames {
   const TaskID ASSERT_FIN(15);
   const TaskID Z4C_WEYL(16);
   const TaskID WAVE_EXTR(17);
+  const TaskID CCE_DUMP(18);
 
 }  // namespace Z4cIntegratorTaskNames
 
