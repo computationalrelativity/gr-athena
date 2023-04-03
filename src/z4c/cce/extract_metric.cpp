@@ -21,14 +21,14 @@
 #include "../z4c.hpp"
 
 
-#include "myassert.hh"
-#include "sYlm.hh"
-#include "h5read.hh"
-#include "decomp.hh"
+#include "myassert.hpp"
+#include "sYlm.hpp"
+#include "h5read.hpp"
+#include "decomp.hpp"
 
 #ifdef USE_LEGENDRE
 # ERROR: do not use this option.
-#include "Legendre.hh"
+#include "Legendre.hpp"
 #endif
 
 /* vars and params to change for each code

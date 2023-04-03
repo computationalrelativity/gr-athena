@@ -1,8 +1,8 @@
 #include <iostream>
 #include <complex>
 #include <cmath>
-#include "myassert.hh"
-#include "matrix.hh"
+#include "myassert.hpp"
+#include "matrix.hpp"
 
 #if MATRIX_DECOMP_USE_GSL_MATRIX_INVERTER
 #  include <gsl/gsl_linalg.h>
