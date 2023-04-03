@@ -256,6 +256,9 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
 
   // Set up finite difference operators
   Real dx1, dx2, dx3;
+  auto nn1 = pmb->nverts1;
+  auto nn2 = pmb->nverts2;
+  auto nn3 = pmb->nverts3;
   dx1 = pco->dx1f(0); dx2 = pco->dx2f(0); dx3 = pco->dx3f(0);
 
   FD.diss = opt.diss*pow(2, -2*NGHOST)*(NGHOST % 2 == 0 ? -1 : 1);
@@ -296,6 +299,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   FD.lidx_r1[2] = (nn3 > 1) ? (1.0 / (dx3 * FD_::lr1::coeff_lcm)) : 0.0;
 
 #endif // DBG_SYMMETRIZE_FD
+}
 
 // destructor
 Z4c::~Z4c()
