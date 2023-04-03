@@ -72,3 +72,9 @@ meshtest.dat
 *.desc
 
 tests/*
+
+## c tag
+src/tags
+
+## quick compile config
+/myconfig.sh
