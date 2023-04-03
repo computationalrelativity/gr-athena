@@ -1,9 +1,9 @@
 #include <iostream>
 #include <complex>
 #include <cmath>
-#include "myassert.hh"
-#include "sYlm.hh"
-#include "decomp.hh"
+#include "myassert.hpp"
+#include "sYlm.hpp"
+#include "decomp.hpp"
 
 #define Max(a_,b_) ((a_)>(b_)? (a_):(b_))
 #define Min(a_,b_) ((a_)<(b_)? (a_):(b_))

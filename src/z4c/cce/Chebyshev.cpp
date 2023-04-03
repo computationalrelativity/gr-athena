@@ -1,4 +1,4 @@
-#include "myassert.hh"
+#include "myassert.hpp"
 #include <stdlib.h>
 namespace decomp_Chebyshev
 {

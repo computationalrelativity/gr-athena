@@ -1,15 +1,15 @@
 #ifndef DECOMP_DECOMP_H
 #define DECOMP_DECOMP_H
 #include <complex>
-#include "matrix.hh"
-#include "sYlm.hh"
-#include "h5read.hh"
+#include "matrix.hpp"
+#include "sYlm.hpp"
+#include "h5read.hpp"
 
 #ifdef USE_LEGENDRE
 # ERROR: Do not use Legendre
-#  include "Legendre.hh"
+#  include "Legendre.hpp"
 #else
-#  include "Chebyshev.hh"
+#  include "Chebyshev.hpp"
 #endif
 
 

@@ -1,6 +1,6 @@
 #ifndef MATRIX_HH_
 #define MATRIX_HH_
-#include "myassert.hh"
+#include "myassert.hpp"
 #define MATRIX_ELEMENT_ROUND_OFF_LIMIT 1.0e-12
 
 #define MATRIX_DECOMP_USE_GSL_MATRIX_INVERTER 1
