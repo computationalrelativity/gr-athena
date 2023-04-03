@@ -24,6 +24,9 @@
 #include "../parameter_input.hpp"
 #include "task_list.hpp"
 
+void CCEDumpMetric(Z4c *const pz4c);
+
+
 // BD TODO: Significant code duplication with time_integrator, leave decoupled
 
 //----------------------------------------------------------------------------------------
@@ -272,6 +275,8 @@ Z4cIntegratorTaskList::Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm){
     AddTask(ADM_CONSTR, Z4C_TO_ADM);           // ADM_Constraints
     AddTask(Z4C_WEYL, Z4C_TO_ADM);             // Calc Psi4
     AddTask(WAVE_EXTR, Z4C_WEYL);              // Project Psi4 multipoles
+    AddTask(CCE_DUMP, Z4C_TO_ADM);             // CCE dump metric
+    
     AddTask(USERWORK, ADM_CONSTR);             // UserWork
 
     AddTask(NEW_DT, USERWORK);                 // NewBlockTimeStep
@@ -366,6 +371,11 @@ void Z4cIntegratorTaskList::AddTask(const TaskID& id, const TaskID& dep) {
       task_list_[ntasks].TaskFunc=
         static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
         (&Z4cIntegratorTaskList::WaveExtract);
+      task_list_[ntasks].lb_time = true;
+    } else if (id == CCE_DUMP) {
+      task_list_[ntasks].TaskFunc=
+        static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
+        (&Z4cIntegratorTaskList::CCEDump);
       task_list_[ntasks].lb_time = true;
     }
     else if (id == NEW_DT) {
@@ -632,6 +642,15 @@ TaskStatus Z4cIntegratorTaskList::WaveExtract(MeshBlock *pmb, int stage) {
         pwextr->Decompose_multipole(u_R,u_I);
     }
   }
+
+  return TaskStatus::success;
+}
+
+TaskStatus Z4cIntegratorTaskList::CCEDump(MeshBlock *pmb, int stage) {
+  // only do on last stage
+  if (stage != nstages) return TaskStatus::success;
+
+  CCEDumpMetric(pmb->pz4c);
 
   return TaskStatus::success;
 }
