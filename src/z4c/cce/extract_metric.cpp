@@ -8,6 +8,19 @@
 #define H5_USE_16_API (1)
 #include <hdf5.h>
 
+
+#ifdef MPI_PARALLEL
+#include <mpi.h>
+#endif
+
+#include "../../athena.hpp"
+#include "../../athena_arrays.hpp"
+#include "../../globals.hpp"
+#include "../../parameter_input.hpp"
+#include "../../mesh/mesh.hpp"
+#include "../z4c.hpp"
+
+
 #include "myassert.hh"
 #include "sYlm.hh"
 #include "h5read.hh"
