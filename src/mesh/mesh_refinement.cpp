@@ -125,6 +125,9 @@ MeshRefinement::~MeshRefinement() {
   if (DBGPR_MESH_REFINEMENT)
     coutCyan("MeshRefinement::~MeshRefinement\n");
   delete pcoarsec;
+
+  delete pcoarse_fd_cc;
+  delete pcoarse_fd_vc;
 }
 
 //----------------------------------------------------------------------------------------
