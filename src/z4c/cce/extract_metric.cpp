@@ -81,7 +81,7 @@ num\_n\_modes=7 is marginally acceptable.
 */
 
 
-#define Code_mesh       void *mb
+#define Code_mesh       Z4c *const pz4c
 
 #define Code_field(x_)  0 // ex: ??
 
@@ -146,7 +146,7 @@ num\_n\_modes=7 is marginally acceptable.
 #define BUFFSIZE  (1024)
 #define MAX_RADII (100)
 
-void SphericalHarmonicDecomp_DumpMetric(Code_mesh);
+void CCEDumpMetric(Code_mesh);
 
 static int output_3Dmodes(const int iter,
        const char *dir,
@@ -541,7 +541,7 @@ static void fill_in_data(double time, int s, int nl, int nn,
 
 // this function writes the pertinent metric variables in a specific format 
 // readable for pittnull
-void SphericalHarmonicDecomp_DumpMetric(Code_mesh)
+void CCEDumpMetric(Code_mesh)
 {
   const int iteration = Code_iteration;
   const int extract_spacetime_metric_every = Code_write_freq;
@@ -553,16 +553,16 @@ void SphericalHarmonicDecomp_DumpMetric(Code_mesh)
   const int iter = iteration / extract_spacetime_metric_every;
   //! pass the pertinent field
   // We need all the following fields
-  Decompose3D(mb, "gxx", Code_field("ADM::gxx"), iter);
-  Decompose3D(mb, "gxy", Code_field("ADM::gxy"), iter);
-  Decompose3D(mb, "gxz", Code_field("ADM::gxz"), iter);
-  Decompose3D(mb, "gyy", Code_field("ADM::gyy"), iter);
-  Decompose3D(mb, "gyz", Code_field("ADM::gyz"), iter);
-  Decompose3D(mb, "gzz", Code_field("ADM::gzz"), iter);
-  Decompose3D(mb, "betax", Code_field("ADM::betax"), iter);
-  Decompose3D(mb, "betay", Code_field("ADM::betay"), iter);
-  Decompose3D(mb, "betaz", Code_field("ADM::betaz"), iter);
-  Decompose3D(mb, "alp", Code_field("ADM::alp"), iter);
+  Decompose3D(pz4c, "gxx", Code_field("ADM::gxx"), iter);
+  Decompose3D(pz4c, "gxy", Code_field("ADM::gxy"), iter);
+  Decompose3D(pz4c, "gxz", Code_field("ADM::gxz"), iter);
+  Decompose3D(pz4c, "gyy", Code_field("ADM::gyy"), iter);
+  Decompose3D(pz4c, "gyz", Code_field("ADM::gyz"), iter);
+  Decompose3D(pz4c, "gzz", Code_field("ADM::gzz"), iter);
+  Decompose3D(pz4c, "betax", Code_field("ADM::betax"), iter);
+  Decompose3D(pz4c, "betay", Code_field("ADM::betay"), iter);
+  Decompose3D(pz4c, "betaz", Code_field("ADM::betaz"), iter);
+  Decompose3D(pz4c, "alp", Code_field("ADM::alp"), iter);
 }
 
 void Test_SphericalHarmonicDecomp_DumpMetric(int iter);
