@@ -87,7 +87,7 @@ num\_n\_modes=7 is marginally acceptable.
 
 #define Code_field_t    int re_gindx // field type. ex: ??
 
-#define Code_proc_rank  0 // ex: Globals::my_rank
+#define Code_proc_rank  (Globals::my_rank) // ex: Globals::my_rank
 
 #define Code_interpolate(x_,y_,z_,N)  // function to call for interpolation at given points
 
@@ -563,10 +563,4 @@ void CCEDumpMetric(Code_mesh)
   Decompose3D(pz4c, "betay", Code_field("ADM::betay"), iter);
   Decompose3D(pz4c, "betaz", Code_field("ADM::betaz"), iter);
   Decompose3D(pz4c, "alp", Code_field("ADM::alp"), iter);
-}
-
-void Test_SphericalHarmonicDecomp_DumpMetric(int iter);
-void Test_SphericalHarmonicDecomp_DumpMetric(int iter)
-{
-  Decompose3D(nullptr, "test", 0, iter);
 }
