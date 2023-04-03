@@ -17,6 +17,7 @@
 // Athena++ headers
 #include "../athena.hpp"         // Real
 #include "../athena_arrays.hpp"  // AthenaArray
+#include "../finite_differencing.hpp"
 
 // MPI headers
 #ifdef MPI_PARALLEL
@@ -95,6 +96,10 @@ class MeshRefinement {
 
   // BD debug: shift back to private, this is for testing wave eqn.
   Coordinates *pcoarsec;
+
+  // numerical
+  FiniteDifference::Uniform * pcoarse_fd_cc;
+  FiniteDifference::Uniform * pcoarse_fd_vc;
 
   //---
  private:

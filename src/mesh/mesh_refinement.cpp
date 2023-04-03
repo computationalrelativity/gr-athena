@@ -66,6 +66,17 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) :
     pcoarsec = new GRDynamical(pmb, pin, true);
   }
 
+  // numerical (needs to go after coordinate definition)
+  pcoarse_fd_cc = new FiniteDifference::Uniform(
+    pmy_block_->ncc1, pmy_block_->ncc2, pmy_block_->ncc3,
+    pcoarsec->dx1v(0), pcoarsec->dx2v(0), pcoarsec->dx3v(0)
+  );
+
+  pcoarse_fd_vc = new FiniteDifference::Uniform(
+    pmy_block_->ncv1, pmy_block_->ncv2, pmy_block_->ncv3,
+    pcoarsec->dx1f(0), pcoarsec->dx2f(0), pcoarsec->dx3f(0)
+  );
+
   // BD: debug - allow for an odd number of ghosts
   if (false)
   if (NGHOST % 2) {

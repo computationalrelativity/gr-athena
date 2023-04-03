@@ -2091,11 +2091,22 @@ void GRDynamical::GetDerivs(
   int i, int j, int k,
   AthenaArray<Real>& dg_dx1, AthenaArray<Real>& dg_dx2, AthenaArray<Real>& dg_dx3)
 {
-  for(int n=0;n<NMETRIC;++n)
+  if (!coarse_flag) {
+    for(int n=0;n<NMETRIC;++n)
+    {
+      dg_dx1(n) = pmy_block->pfd_cc->Dx(0, metric_cell_kji_(0,n,k,j,i));
+      dg_dx2(n) = pmy_block->pfd_cc->Dx(1, metric_cell_kji_(0,n,k,j,i));
+      dg_dx3(n) = pmy_block->pfd_cc->Dx(2, metric_cell_kji_(0,n,k,j,i));
+    }
+  }
+  else
   {
-    dg_dx1(n) = pmy_block->pfd_cc->Dx(0, metric_cell_kji_(0,n,k,j,i));
-    dg_dx2(n) = pmy_block->pfd_cc->Dx(1, metric_cell_kji_(0,n,k,j,i));
-    dg_dx3(n) = pmy_block->pfd_cc->Dx(2, metric_cell_kji_(0,n,k,j,i));
+    for(int n=0;n<NMETRIC;++n)
+    {
+      dg_dx1(n) = pmy_block->pmr->pcoarse_fd_cc->Dx(0, metric_cell_kji_(0,n,k,j,i));
+      dg_dx2(n) = pmy_block->pmr->pcoarse_fd_cc->Dx(1, metric_cell_kji_(0,n,k,j,i));
+      dg_dx3(n) = pmy_block->pmr->pcoarse_fd_cc->Dx(2, metric_cell_kji_(0,n,k,j,i));
+    }
   }
 }
 
