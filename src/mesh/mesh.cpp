@@ -54,6 +54,7 @@
 #include "../z4c/z4c.hpp"
 #include "../z4c/puncture_tracker.hpp"
 #include "../z4c/wave_extract.hpp"
+#include "../z4c/cce/cce.hpp"
 
 // MPI/OpenMP header
 #ifdef MPI_PARALLEL
