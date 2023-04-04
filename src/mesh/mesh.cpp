@@ -147,9 +147,10 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
 #else
     ioproc = true;
 #endif
-  if (ioproc){
-  pofile = fopen("intd.txt", "a");
-}
+  // // BD: why - also this is never properly closed?
+  // if (ioproc){
+  //   pofile = fopen("intd.txt", "a");
+  // }
 
   // mesh test
   if (mesh_test > 0) Globals::nranks = mesh_test;
@@ -657,7 +658,9 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
   MeshBlock *pfirst{};
   IOWrapperSizeT *offset{};
   IOWrapperSizeT datasize, listsize, headeroffset;
-  pofile = fopen("intd.txt", "a");
+
+  // BD: why - also this is never properly closed?
+  // pofile = fopen("intd.txt", "a");
 
   // mesh test
   if (mesh_test > 0) Globals::nranks = mesh_test;
@@ -1574,10 +1577,12 @@ void Mesh::GlobalInt() {
   }
 #endif
 
-if (ioproc){
-          fprintf(pofile, "%.16f %.16f\n", time, intd);
-               fflush(pofile);
-}	   
+// BD: why - also this is never properly closed?
+// if (ioproc){
+//           fprintf(pofile, "%.16f %.16f\n", time, intd);
+//                fflush(pofile);
+// }	   
+
 }
 //----------------------------------------------------------------------------------------
 // \!fn void Mesh::ApplyUserWorkBeforeOutput(ParameterInput *pin)
