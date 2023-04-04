@@ -1,15 +1,23 @@
 #include "cce.hpp"
+#include "matrix.hpp"
+#include "sYlm.hpp"
+#include "myassert.hpp"
+#include "decomp.hpp"
 #include "../../parameter_input.hpp"
+#include "../../mesh/mesh.hpp"
 
 using namespace decomp_matrix_class;
 using namespace decomp_sYlm;
 using namespace decomp_decompose;
 
+#define Max(a_,b_) ((a_)>(b_)? (a_):(b_))
+#define Min(a_,b_) ((a_)<(b_)? (a_):(b_))
+#define ABS(x_) ((x_)>0 ? (x_) : (-(x_)))
+
 CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int n):
     pm(pm),
     pin(pin),
     fieldname(name),
-    max_spin(2), // max absolute value of spin in spin weighted Ylm
     spin(0),
     dinfo_pp(nullptr)
 {
@@ -26,14 +34,14 @@ CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int n):
   double *radius    = nullptr;
   double *mucolloc  = nullptr;
   double *phicolloc = nullptr;
-  myassert (ABS(spin) <= max_spin);
+  myassert (ABS(spin) <= MAX_SPIN);
 
-  const int nlmmodes = num_l_modes*(num_l_modes+2*ABS(max_spin));
-  dinfo_pp = new const decomp_info* [2*max_spin+1];
+  const int nlmmodes = num_l_modes*(num_l_modes+2*ABS(MAX_SPIN));
+  dinfo_pp = new const decomp_info* [2*MAX_SPIN+1];
   myassert(dinfo_pp);
-  for (int s=-max_spin; s<=max_spin; s++)
+  for (int s=-MAX_SPIN; s<=MAX_SPIN; s++)
   {
-    dinfo_pp[s+max_spin] = nullptr;
+    dinfo_pp[s+MAX_SPIN] = nullptr;
   }
 
   radius = new double [num_x_points];
@@ -50,16 +58,16 @@ CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int n):
   myassert(mucolloc);
   myassert(phicolloc);
 
-  if (! dinfo_pp[max_spin + spin])
+  if (! dinfo_pp[MAX_SPIN + spin])
   {
-    dinfo_pp[max_spin + spin] =  initialize(spin, num_l_modes, num_n_modes,
+    dinfo_pp[MAX_SPIN + spin] =  initialize(spin, num_l_modes, num_n_modes,
                                    num_mu_points, num_phi_points, num_x_points);
-    myassert(dinfo_pp[max_spin + spin]);
+    myassert(dinfo_pp[MAX_SPIN + spin]);
   }
 
-  dinfo_pp[max_spin + spin]->get_ncolloc(num_x_points, radius);
-  dinfo_pp[max_spin + spin]->get_mucolloc(nangle, mucolloc);
-  dinfo_pp[max_spin + spin]->get_phicolloc(nangle, phicolloc);
+  dinfo_pp[MAX_SPIN + spin]->get_ncolloc(num_x_points, radius);
+  dinfo_pp[MAX_SPIN + spin]->get_mucolloc(nangle, mucolloc);
+  dinfo_pp[MAX_SPIN + spin]->get_phicolloc(nangle, phicolloc);
 
   for (int k=0; k < num_x_points; k++)
   {
