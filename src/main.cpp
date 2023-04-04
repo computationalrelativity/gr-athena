@@ -776,13 +776,24 @@ pmesh->pwave_extr[n]->Write(pmesh->ncycle, pmesh->time);
 
   delete pinput;
   delete pmesh;
-  delete ptlist;
-  delete palist;
-  delete pwlist;
-  delete pmatterlist;
+
+  if(FLUID_ENABLED  && !Z4C_ENABLED)
+    delete ptlist;
+  if(ADVECTION_ENABLED)
+    delete palist;
+  if(WAVE_ENABLED)
+    delete pwlist;
   // BD: new problem
-  delete pz4clist;
+  if(Z4C_ENABLED && !FLUID_ENABLED)
+    delete pz4clist;
   // -BD
+
+  if(STS_ENABLED)
+    delete pststlist;
+
+  if(Z4C_ENABLED && FLUID_ENABLED)
+    delete pmatterlist;
+
   delete pouts;
 
 #ifdef MPI_PARALLEL
