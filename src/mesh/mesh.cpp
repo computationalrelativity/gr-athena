@@ -315,7 +315,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
       }
     }
     // CCE
-    int ncce = pin->GetOrAddInteger("cce", "nradii", 0);
+    int ncce = pin->GetOrAddInteger("cce", "num_radii", 0);
     pcce.reserve(10*ncce);// 10 different components for each radius
     for(int n = 0; n < ncce; ++n)
     {
