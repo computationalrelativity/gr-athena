@@ -10,8 +10,6 @@ using namespace decomp_matrix_class;
 using namespace decomp_sYlm;
 using namespace decomp_decompose;
 
-#define Max(a_,b_) ((a_)>(b_)? (a_):(b_))
-#define Min(a_,b_) ((a_)<(b_)? (a_):(b_))
 #define ABS(x_) ((x_)>0 ? (x_) : (-(x_)))
 
 CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int n):
