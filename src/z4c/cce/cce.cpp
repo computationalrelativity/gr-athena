@@ -107,4 +107,8 @@ CCE::~CCE()
   delete [] xb;
   delete [] yb;
   delete [] zb;
+
+  for (int i = 0; i < 2*MAX_SPIN+1; ++i)
+    delete [] dinfo_pp[i];
+  delete [] dinfo_pp;
 }
