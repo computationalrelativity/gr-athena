@@ -46,6 +46,7 @@
 
 #include "z4c/wave_extract.hpp"
 #include "z4c/puncture_tracker.hpp"
+#include "z4c/cce/cce.hpp"
 
 // MPI/OpenMP headers
 #ifdef MPI_PARALLEL
@@ -510,6 +511,16 @@ int main(int argc, char *argv[]) {
         for (auto pwextr : pmesh->pwave_extr) {
           pwextr->ReduceMultipole();
           pwextr->Write(pmesh->ncycle, pmesh->time);
+        }
+      }
+
+      // only do a CCE dump if NextTime threshold cleared (updated below)
+      if (pz4clist->TaskListTriggers.cce_dump.to_update) {
+        for (auto cce : pmesh->pcce)
+        {
+          cce->ReduceInterpolation();
+          cce->Decompose();
+          cce->Write();
         }
       }
 
