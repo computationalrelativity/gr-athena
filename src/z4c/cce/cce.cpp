@@ -2,6 +2,16 @@
 #include <cmath>     // for NAN
 #include <stdexcept>
 #include <sstream>
+#include <unistd.h> // for F_OK
+
+#define H5_USE_16_API (1)
+#include <hdf5.h>
+
+
+#ifdef MPI_PARALLEL
+#include <mpi.h>
+#endif
+
 #include "cce.hpp"
 #include "matrix.hpp"
 #include "sYlm.hpp"
@@ -11,23 +21,54 @@
 #include "../../mesh/mesh.hpp"
 #include "../../coordinates/coordinates.hpp"
 #include "../../utils/lagrange_interp.hpp"
+#include "../../globals.hpp"
 #include "../z4c.hpp"
+
+#define BUFFSIZE  (1024)
+#define MAX_RADII (100)
+
+#define ABS(x_) ((x_)>0 ? (x_) : (-(x_)))
+
+#define HDF5_ERROR(fn_call)                                           \
+{                                                                     \
+  /* ex: error_code = group_id = H5Gcreate(file_id, metaname, 0) */   \
+  hid_t _error_code = fn_call;                                        \
+  if (_error_code < 0)                                                \
+  {                                                                   \
+    cerr << "File: " << __FILE__ << "\n"                              \
+         << "line: " << __LINE__ << "\n"                              \
+         << "HDF5 call " << #fn_call << ", "                          \
+         << "returned error code: " << (int)_error_code << ".\n";     \
+         exit((int)_error_code);                                      \
+  }                                                                   \
+}
 
 using namespace decomp_matrix_class;
 using namespace decomp_sYlm;
 using namespace decomp_decompose;
 
-#define ABS(x_) ((x_)>0 ? (x_) : (-(x_)))
 
-CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int n):
+static int output_3Dmodes(const int iter,
+       const char *dir,
+       const char* name,
+       const int obs, double time,
+       int s, int nl,
+       int nn, double rin, double rout,
+       const double *re, const double *im);
+
+
+CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int rn):
     pm(pm),
     pin(pin),
     fieldname(name),
     spin(0),
-    dinfo_pp(nullptr)
+    dinfo_pp(nullptr),
+    rn(rn)
 {
-  rin  = pin->GetReal("cce", "rin_"  + std::to_string(n));
-  rout = pin->GetReal("cce", "rout_" + std::to_string(n));
+  output_dir = pin->GetString("cce","output_dir");
+  bfname = output_dir+"/cce_bookkeeping.txt";
+  rin  = pin->GetReal("cce", "rin_"  + std::to_string(rn));
+  rout = pin->GetReal("cce", "rout_" + std::to_string(rn));
   num_mu_points  = pin->GetOrAddInteger("cce","num_theta",41);
   num_phi_points = pin->GetOrAddInteger("cce","num_phi",82);
   num_x_points   = pin->GetOrAddInteger("cce","num_r_inshell",28);
@@ -36,12 +77,27 @@ CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int n):
   nangle = num_mu_points*num_phi_points;
   npoint = nangle*num_x_points;
 
+  // if not exists, create a bookkeeping file
+  if (0 == Globals::my_rank && access(bfname.c_str(), F_OK) != 0) 
+  {
+    FILE *file = fopen(bfname.c_str(), "w");
+    if (file == nullptr) 
+    {
+      std::stringstream msg;
+      msg << "### FATAL ERROR in CCE " << std::endl;
+      msg << "Could not open file '" << bfname << "' for writing!";
+      throw std::runtime_error(msg.str().c_str());
+    }
+    fprintf(file, "# 1:iter 2:time\n");
+    fclose(file);
+  }
+
   double *radius    = nullptr;
   double *mucolloc  = nullptr;
   double *phicolloc = nullptr;
   myassert (ABS(spin) <= MAX_SPIN);
 
-  const int nlmmodes = num_l_modes*(num_l_modes+2*ABS(MAX_SPIN));
+  nlmmodes = num_l_modes*(num_l_modes+2*ABS(MAX_SPIN));
   dinfo_pp = new const decomp_info* [2*MAX_SPIN+1];
   myassert(dinfo_pp);
   for (int s=-MAX_SPIN; s<=MAX_SPIN; s++)
@@ -216,5 +272,181 @@ void CCE::InterpolateSphToCart(MeshBlock *const pmb)
 }
 
 void CCE::ReduceInterpolation(){}
-void CCE::Decompose(){}
-void CCE::Write(){}
+
+void CCE::DecomposeAndWrite()
+{
+  if (0 == Globals::my_rank)
+  {
+    // which write iter I am;
+    int iter = 0;//pin->GetOrAddInteger("cce","write_iter",0);
+    // create workspace
+    Real *re_m = new Real [nlmmodes*num_x_points];
+    Real *im_m = new Real [nlmmodes*num_x_points];
+    Real *im_f = new Real [nangle*num_x_points](); // init to zero
+    myassert(re_m);
+    myassert(im_m);
+    myassert(im_f);
+    std::fill(re_m, re_m + (nlmmodes*num_x_points),NAN); // init to nan
+    std::fill(im_m, im_m + (nlmmodes*num_x_points),NAN); // init to nan
+    
+    // decompose the re_f, note im_f is zero 
+    Real *const re_f = ifield;
+    decompose3D(dinfo_pp[MAX_SPIN + spin], re_f, im_f, re_m, im_m);
+
+    // dump the modes into an h5 file
+    output_3Dmodes(iter, output_dir.c_str(), fieldname.c_str(), rn, pm->time, 
+       spin, num_l_modes, num_n_modes, rin, rout, re_m, im_m);
+
+    // free workspace
+    delete [] re_m;
+    delete [] im_m;
+    delete [] im_f;
+    
+    // increase write iter
+    iter++;
+    
+  }
+}
+
+// write the decomposed field in an h5 file.
+static int output_3Dmodes(const int iter/* output iteration */, const char *dir,
+  const char* name, const int obs, double time,
+  int s, int nl,
+  int nn, double rin, double rout,
+  const double *re, const double *im)
+{
+  char filename[BUFFSIZE];
+  hid_t   file_id;
+  hsize_t dims[2];
+  herr_t  status;
+
+  snprintf(filename, sizeof filename, "%s/%s_shell_%d_decomp.h5", dir, "metric", obs);
+
+  const int nlmmodes = nl*(nl+2*ABS(s));
+  dims[0] = nn;
+  dims[1] = nlmmodes;
+
+  static int FirstCall = 1;
+  static int last_dump[MAX_RADII];
+
+  const int dump_it = iter;
+  hid_t dataset_id, attribute_id, dataspace_id, group_id;
+
+  if (FirstCall)
+  {
+    FirstCall = 0;
+    for (unsigned int i=0; i < sizeof(last_dump) / sizeof(*last_dump); i++)
+    {
+      last_dump[i] = -1000;
+    }
+  }
+
+  bool file_exists = false;
+  H5E_BEGIN_TRY {
+     file_exists = H5Fis_hdf5(filename) > 0;
+  } H5E_END_TRY;
+
+  if(file_exists)
+  {
+    file_id = H5Fopen (filename, H5F_ACC_RDWR, H5P_DEFAULT);
+    if (file_id < 0)
+    {
+      cerr << "Failed to open hdf5 file";
+      exit((int)file_id);
+    }
+  }
+  else
+  {
+    file_id = H5Fcreate (filename, H5F_ACC_TRUNC,
+           H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0)
+    {
+      cerr << "Failed to create hdf5 file";
+      exit((int)file_id);
+    }
+
+    char metaname[]="/metadata";
+    HDF5_ERROR(group_id = H5Gcreate(file_id, metaname, 0));
+
+    int ds[2] = {nn, nlmmodes};
+    hsize_t oD2 = 2;
+    hsize_t oD1 = 1;
+
+    HDF5_ERROR(dataspace_id =  H5Screate_simple(1, &oD2, NULL));
+    HDF5_ERROR(attribute_id = H5Acreate(group_id, "dim", H5T_NATIVE_INT,
+                   dataspace_id, H5P_DEFAULT));
+    HDF5_ERROR(status = H5Awrite(attribute_id, H5T_NATIVE_INT, ds));
+    HDF5_ERROR(status = H5Aclose(attribute_id));
+    HDF5_ERROR(status = H5Sclose(dataspace_id));
+
+    HDF5_ERROR(dataspace_id =  H5Screate_simple(1, &oD1, NULL));
+    HDF5_ERROR(attribute_id = H5Acreate(group_id, "spin", H5T_NATIVE_INT,
+                    dataspace_id, H5P_DEFAULT));
+    HDF5_ERROR(status = H5Awrite(attribute_id, H5T_NATIVE_INT, &s));
+    HDF5_ERROR(status = H5Aclose(attribute_id));
+    HDF5_ERROR(status = H5Sclose(dataspace_id));
+
+    HDF5_ERROR(dataspace_id =  H5Screate_simple(1, &oD1, NULL));
+    HDF5_ERROR(attribute_id = H5Acreate(group_id, "Rin", H5T_NATIVE_DOUBLE,
+                    dataspace_id, H5P_DEFAULT));
+    HDF5_ERROR(status = H5Awrite(attribute_id, H5T_NATIVE_DOUBLE, &rin));
+    HDF5_ERROR(status = H5Aclose(attribute_id));
+    HDF5_ERROR(status = H5Sclose(dataspace_id));
+
+    HDF5_ERROR(dataspace_id =  H5Screate_simple(1, &oD1, NULL));
+    HDF5_ERROR(attribute_id = H5Acreate(group_id, "Rout", H5T_NATIVE_DOUBLE,
+                    dataspace_id, H5P_DEFAULT));
+    HDF5_ERROR(status = H5Awrite(attribute_id, H5T_NATIVE_DOUBLE, &rout));
+    HDF5_ERROR(status = H5Aclose(attribute_id));
+    HDF5_ERROR(status = H5Sclose(dataspace_id));
+
+    HDF5_ERROR(H5Gclose(group_id));
+
+  }
+
+  char buff[BUFFSIZE];
+  // NOTE: the dump_it should be the same for all vars that's why we need this
+  if (dump_it > last_dump[obs])
+  {
+    hsize_t oneD = 1;
+    snprintf(buff, sizeof buff, "/%d", dump_it);
+    HDF5_ERROR(group_id = H5Gcreate(file_id, buff, 0));
+    HDF5_ERROR(dataspace_id =  H5Screate_simple(1, &oneD, NULL));
+    HDF5_ERROR(attribute_id = H5Acreate(group_id, "Time", H5T_NATIVE_DOUBLE,
+      dataspace_id, H5P_DEFAULT));
+    HDF5_ERROR(status = H5Awrite(attribute_id, H5T_NATIVE_DOUBLE, &time));
+    HDF5_ERROR(status = H5Aclose(attribute_id));
+    HDF5_ERROR(status = H5Sclose(dataspace_id));
+    HDF5_ERROR(H5Gclose(group_id));
+
+  }
+  last_dump[obs] = dump_it;
+
+  snprintf(buff, sizeof buff, "/%d/%s", dump_it, name);
+  HDF5_ERROR(group_id = H5Gcreate(file_id, buff, 0));
+  HDF5_ERROR(H5Gclose(group_id));
+
+
+  snprintf(buff, sizeof buff, "/%d/%s/re", dump_it, name);
+  HDF5_ERROR(dataspace_id =  H5Screate_simple(2, dims, NULL));
+  HDF5_ERROR(dataset_id =  H5Dcreate(file_id, buff, H5T_NATIVE_DOUBLE,
+         dataspace_id, H5P_DEFAULT));
+  HDF5_ERROR(status = H5Dwrite(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL,
+                   H5S_ALL, H5P_DEFAULT, re));
+  HDF5_ERROR(status = H5Dclose(dataset_id));
+  HDF5_ERROR(status = H5Sclose(dataspace_id));
+
+  
+  snprintf(buff, sizeof buff, "/%d/%s/im", dump_it, name);
+  HDF5_ERROR(dataspace_id =  H5Screate_simple(2, dims, NULL));
+  HDF5_ERROR(dataset_id =  H5Dcreate(file_id, buff, H5T_NATIVE_DOUBLE,
+         dataspace_id, H5P_DEFAULT));
+  HDF5_ERROR(status = H5Dwrite(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL,
+                   H5S_ALL, H5P_DEFAULT, im));
+  HDF5_ERROR(status = H5Dclose(dataset_id));
+  HDF5_ERROR(status = H5Sclose(dataspace_id));
+
+  HDF5_ERROR(H5Fclose(file_id));
+
+  return 0;
+}
