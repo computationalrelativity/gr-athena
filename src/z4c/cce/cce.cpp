@@ -1,3 +1,7 @@
+#include <algorithm> // for fill
+#include <cmath>     // for NAN
+#include <stdexcept>
+#include <sstream>
 #include "cce.hpp"
 #include "matrix.hpp"
 #include "sYlm.hpp"
@@ -5,8 +9,9 @@
 #include "decomp.hpp"
 #include "../../parameter_input.hpp"
 #include "../../mesh/mesh.hpp"
-#include <algorithm> // for fill
-#include <cmath>     // for NAN
+#include "../../coordinates/coordinates.hpp"
+#include "../../utils/lagrange_interp.hpp"
+#include "../z4c.hpp"
 
 using namespace decomp_matrix_class;
 using namespace decomp_sYlm;
@@ -44,19 +49,22 @@ CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int n):
     dinfo_pp[s+MAX_SPIN] = nullptr;
   }
 
+  // alloc
   radius = new double [num_x_points];
   xb = new double [nangle*num_x_points];
   yb = new double [nangle*num_x_points];
   zb = new double [nangle*num_x_points];
   mucolloc = new double [nangle];
   phicolloc = new double [nangle];
-
+  ifield = new double [nangle*num_x_points]();
+ 
   myassert(radius);
   myassert(xb);
   myassert(yb);
   myassert(zb);
   myassert(mucolloc);
   myassert(phicolloc);
+  myassert(ifield);
 
   std::fill(radius, radius + (num_x_points),NAN); // init to nan
   std::fill(xb, xb + (nangle*num_x_points),NAN); // init to nan
@@ -111,6 +119,7 @@ CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int n):
 
 CCE::~CCE()
 {
+  delete [] ifield;
   delete [] xb;
   delete [] yb;
   delete [] zb;
@@ -118,4 +127,90 @@ CCE::~CCE()
   for (int i = 0; i < 2*MAX_SPIN+1; ++i)
     delete [] dinfo_pp[i];
   delete [] dinfo_pp;
+}
+
+void CCE::InterpolateSphToCart(MeshBlock *const pmb)
+{
+  const int Npoints = nangle*num_x_points;
+  Real const origin[3] = {pmb->pcoord->x1f(0),
+                          pmb->pcoord->x2f(0),
+                          pmb->pcoord->x3f(0)};
+  Real const delta[3]  = {pmb->pcoord->dx1f(0),
+                          pmb->pcoord->dx2f(0),
+                          pmb->pcoord->dx3f(0)};
+  int const size[3]    = {pmb->nverts1,
+                          pmb->nverts2,
+                          pmb->nverts3};
+
+  // find the src field
+  Real *src_field = nullptr;
+  Z4c *const pz4c = pmb->pz4c;
+  Z4c::Z4c_vars z4c;
+  Z4c::ADM_vars adm;
+  pz4c->SetZ4cAliases(pz4c->storage.u, z4c);
+  pz4c->SetADMAliases(pz4c->storage.adm, adm);
+  
+  if (fieldname == "gxx")
+  {
+    src_field = &adm.g_dd(0,0, 0,0,0);
+  }
+  else if (fieldname == "gxy")
+  {
+    src_field = &adm.g_dd(0,1, 0,0,0);
+  }
+  else if (fieldname == "gxz")
+  {
+    src_field = &adm.g_dd(0,2, 0,0,0);
+  }
+  else if (fieldname == "gyy")
+  {
+    src_field = &adm.g_dd(1,1, 0,0,0);
+  }
+  else if (fieldname == "gyz")
+  {
+    src_field = &adm.g_dd(1,2, 0,0,0);
+  }
+  else if (fieldname == "gzz")
+  {
+    src_field = &adm.g_dd(2,2, 0,0,0);
+  }
+  else if (fieldname == "betax")
+  {
+    src_field = &z4c.beta_u(0, 0, 0, 0);
+  }
+  else if (fieldname == "betay")
+  {
+    src_field = &z4c.beta_u(1, 0, 0, 0);
+  }
+  else if (fieldname == "betaz")
+  {
+    src_field = &z4c.beta_u(2, 0, 0, 0);
+  }
+  else if (fieldname == "alp")
+  {
+    src_field = &z4c.alpha(0, 0, 0);
+  }
+  else
+  {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in CCE interpolation" << std::endl;
+    msg << "Could not find '" << fieldname << "' for interpolation!";
+    throw std::runtime_error(msg.str().c_str());
+  }
+  
+  
+  for (int p = 0; p < Npoints; ++p)
+  {
+    double coord[3] = {xb[p], yb[p], zb[p]};
+    if (pmb->PointContained(coord[0], coord[1], coord[2]))
+    {
+      LagrangeInterpND<2*NGHOST-1, 3> linterp(origin, delta, size, coord);
+
+// note: the point may take place at the boundary of two meshblocks
+#pragma omp atomic write
+      ifield[p] = linterp.eval(src_field);
+      
+      // printf("f(%g,%g,%g) = %g\n",coord[0],coord[1],coord[2],ifield[p]);
+    }
+  }
 }
