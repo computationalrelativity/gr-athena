@@ -519,8 +519,7 @@ int main(int argc, char *argv[]) {
         for (auto cce : pmesh->pcce)
         {
           cce->ReduceInterpolation();
-          cce->Decompose();
-          cce->Write();
+          cce->DecomposeAndWrite();
         }
       }
 
