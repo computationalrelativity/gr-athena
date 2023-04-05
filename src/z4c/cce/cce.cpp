@@ -5,6 +5,8 @@
 #include "decomp.hpp"
 #include "../../parameter_input.hpp"
 #include "../../mesh/mesh.hpp"
+#include <algorithm> // for fill
+#include <cmath>     // for NAN
 
 using namespace decomp_matrix_class;
 using namespace decomp_sYlm;
@@ -55,6 +57,13 @@ CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int n):
   myassert(zb);
   myassert(mucolloc);
   myassert(phicolloc);
+
+  std::fill(radius, radius + (num_x_points),NAN); // init to nan
+  std::fill(xb, xb + (nangle*num_x_points),NAN); // init to nan
+  std::fill(yb, yb + (nangle*num_x_points),NAN); // init to nan
+  std::fill(zb, zb + (nangle*num_x_points),NAN); // init to nan
+  std::fill(mucolloc,  mucolloc  + (nangle),NAN); // init to nan
+  std::fill(phicolloc, phicolloc + (nangle),NAN); // init to nan
 
   if (! dinfo_pp[MAX_SPIN + spin])
   {
