@@ -320,7 +320,7 @@ static int output_3Dmodes(const int iter/* output iteration */, const char *dir,
   hsize_t dims[2];
   herr_t  status;
 
-  snprintf(filename, sizeof filename, "%s/%s_shell_%d_decomp.h5", dir, "metric", obs);
+  snprintf(filename, sizeof filename, "%s/cce_decomp_shell_%d.h5", dir, obs);
 
   const int nlmmodes = nl*(nl+2*ABS(s));
   dims[0] = nn;
