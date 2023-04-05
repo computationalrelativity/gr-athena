@@ -516,6 +516,8 @@ int main(int argc, char *argv[]) {
 
       // only do a CCE dump if NextTime threshold cleared (updated below)
       if (pz4clist->TaskListTriggers.cce_dump.to_update) {
+        // update the bookkeeping file
+        CCE::BookKeeping(pinput);
         for (auto cce : pmesh->pcce)
         {
           cce->ReduceInterpolation();

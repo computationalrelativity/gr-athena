@@ -21,8 +21,8 @@ class CCE
     Real ncycle; // num. of cycle(iter)
     Real *ifield; // interpolated values of the given field
     std::string fieldname; // field name that used for pittnull code
-    std::string bfname; // bookkeeping file name
     std::string output_dir; // write h5 file in this directory
+    std::string bfname; // bookkeeping file name
     Mesh *pm;             // mesh
     ParameterInput *pin;  // param file
     const decomp_decompose::decomp_info **dinfo_pp; // decomposition info
@@ -46,6 +46,7 @@ class CCE
     void InterpolateSphToCart(MeshBlock *const pmb);
     void ReduceInterpolation();
     void DecomposeAndWrite();
+    static void BookKeeping(ParameterInput *const pin);
 };
 
 #endif
