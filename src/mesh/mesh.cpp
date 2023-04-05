@@ -319,6 +319,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     pcce.reserve(10*ncce);// 10 different components for each radius
     for(int n = 0; n < ncce; ++n)
     {
+      // NOTE: these names are used for pittnull code, so DON'T change the convention
       pcce.push_back(new CCE(this, pin, "gxx",n));
       pcce.push_back(new CCE(this, pin, "gxy",n));
       pcce.push_back(new CCE(this, pin, "gxz",n));
@@ -753,6 +754,23 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
         pwave_extr.push_back(new WaveExtract(this, pin, n));
       }
     }
+    // CCE
+    int ncce = pin->GetOrAddInteger("cce", "num_radii", 0);
+    pcce.reserve(10*ncce);// 10 different components for each radius
+    for(int n = 0; n < ncce; ++n)
+    {
+      pcce.push_back(new CCE(this, pin, "gxx",n));
+      pcce.push_back(new CCE(this, pin, "gxy",n));
+      pcce.push_back(new CCE(this, pin, "gxz",n));
+      pcce.push_back(new CCE(this, pin, "gyy",n));
+      pcce.push_back(new CCE(this, pin, "gyz",n));
+      pcce.push_back(new CCE(this, pin, "gzz",n));
+      pcce.push_back(new CCE(this, pin, "betax",n));
+      pcce.push_back(new CCE(this, pin, "betay",n));
+      pcce.push_back(new CCE(this, pin, "betaz",n));
+      pcce.push_back(new CCE(this, pin, "alp",n));
+    }
+
     int npunct = pin->GetOrAddInteger("z4c", "npunct", 0);
     if (npunct > 0) {
       pz4c_tracker.reserve(npunct);
