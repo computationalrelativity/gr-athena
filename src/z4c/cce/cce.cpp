@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <sstream>
 #include <unistd.h> // for F_OK
+#include <fstream> 
 
 #define H5_USE_16_API (1)
 #include <hdf5.h>
@@ -26,7 +27,7 @@
 
 #define BUFFSIZE  (1024)
 #define MAX_RADII (100)
-
+#define BOOKKEEPING_NAME "cce_bookkeeping.txt"
 #define ABS(x_) ((x_)>0 ? (x_) : (-(x_)))
 
 #define HDF5_ERROR(fn_call)                                           \
@@ -66,7 +67,7 @@ CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int rn):
     rn(rn)
 {
   output_dir = pin->GetString("cce","output_dir");
-  bfname = output_dir+"/cce_bookkeeping.txt";
+  bfname = output_dir + "/" + BOOKKEEPING_NAME;
   rin  = pin->GetReal("cce", "rin_"  + std::to_string(rn));
   rout = pin->GetReal("cce", "rout_" + std::to_string(rn));
   num_mu_points  = pin->GetOrAddInteger("cce","num_theta",41);
@@ -76,21 +77,6 @@ CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int rn):
   num_n_modes    = pin->GetOrAddInteger("cce","num_radial_modes",7);
   nangle = num_mu_points*num_phi_points;
   npoint = nangle*num_x_points;
-
-  // if not exists, create a bookkeeping file
-  if (0 == Globals::my_rank && access(bfname.c_str(), F_OK) != 0) 
-  {
-    FILE *file = fopen(bfname.c_str(), "w");
-    if (file == nullptr) 
-    {
-      std::stringstream msg;
-      msg << "### FATAL ERROR in CCE " << std::endl;
-      msg << "Could not open file '" << bfname << "' for writing!";
-      throw std::runtime_error(msg.str().c_str());
-    }
-    fprintf(file, "# 1:iter 2:time\n");
-    fclose(file);
-  }
 
   double *radius    = nullptr;
   double *mucolloc  = nullptr;
@@ -450,3 +436,60 @@ static int output_3Dmodes(const int iter/* output iteration */, const char *dir,
 
   return 0;
 }
+
+// save the last iteration in a text file to prevent error of duplicated entries in
+// the h5 files. 
+void CCE::BookKeeping(ParameterInput *const pin)
+{
+  if (0 != Globals::my_rank) return;
+    
+  std::string fname = pin->GetString("cce","output_dir") + "/" + BOOKKEEPING_NAME;
+
+  // if this is the first time, create a bookkeeping file
+  if (access(fname.c_str(), F_OK) != 0) 
+  {
+    FILE *file = fopen(fname.c_str(), "w");
+    if (file == nullptr) 
+    {
+      std::stringstream msg;
+      msg << "### FATAL ERROR in CCE " << std::endl;
+      msg << "Could not open file '" << fname << "' for writing!";
+      throw std::runtime_error(msg.str().c_str());
+    }
+    fprintf(file, "0");
+    fclose(file);
+  }
+  // update the iter
+  else
+  {
+    std::fstream file;
+    int iter;
+
+    // first read the iter value
+    file.open(fname, std::ios::in);
+    if (!file) 
+    {
+      std::stringstream msg;
+      msg << "### FATAL ERROR in CCE " << std::endl;
+      msg << "Could not open file '" << fname << "' for reading!";
+      throw std::runtime_error(msg.str().c_str());
+    }
+    file >> iter;
+    file.close();
+    
+    // now open a fresh file and update iter
+    // first read the iter value
+    file.open(fname, std::ios::out);
+    if (!file) 
+    {
+      std::stringstream msg;
+      msg << "### FATAL ERROR in CCE " << std::endl;
+      msg << "Could not open file '" << fname << "' for writing!";
+      throw std::runtime_error(msg.str().c_str());
+    }
+    iter++;
+    file << iter << std::endl;
+    file.close();
+  }
+}
+
