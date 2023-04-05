@@ -21,7 +21,8 @@ class CCE
     Real ncycle; // num. of cycle(iter)
     Real *ifield; // interpolated values of the given field
     std::string fieldname; // field name that used for pittnull code
-    std::string filename; // h5 file name
+    std::string bfname; // bookkeeping file name
+    std::string output_dir; // write h5 file in this directory
     Mesh *pm;             // mesh
     ParameterInput *pin;  // param file
     const decomp_decompose::decomp_info **dinfo_pp; // decomposition info
@@ -30,20 +31,21 @@ class CCE
     int num_x_points;   // number of points in radius between the two shells
     int num_l_modes;    // number of l modes in -2Ylm (m modes calculated automatically)
     int num_n_modes;    // radial modes
+    int nlmmodes;       // num_l_modes*(num_l_modes+2*ABS(MAX_SPIN));
     int nangle;         // num_mu_points*num_phi_points
     int npoint;         // num_mu_points*num_phi_points*num_x_points
     int spin;     // it's 0 and really not used
+    int rn;       // radius number/shell number
     Real *xb; // Cart. x coords. for spherical coords.
     Real *yb; // Cart. y coords. for spherical coords.
     Real *zb; // Cart. z coords. for spherical coords.
     
   public:
-    CCE(Mesh *const pm, ParameterInput *const pin, std::string fname, int n);
+    CCE(Mesh *const pm, ParameterInput *const pin, std::string fname, int rn);
     ~CCE();
     void InterpolateSphToCart(MeshBlock *const pmb);
     void ReduceInterpolation();
-    void Decompose();
-    void Write();
+    void DecomposeAndWrite();
 };
 
 #endif
