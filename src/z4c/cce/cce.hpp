@@ -6,6 +6,7 @@
 #include "../../athena_arrays.hpp"
 
 class Mesh;
+class MeshBlock;
 class ParameterInput;
 namespace decomp_decompose {class decomp_info;};
 
@@ -18,7 +19,8 @@ class CCE
     Real rin;  // inner radius of shell
     Real rout; // outer radius of shell
     Real ncycle; // num. of cycle(iter)
-    std::string fieldname; // field name
+    Real *ifield; // interpolated values of the given field
+    std::string fieldname; // field name that used for pittnull code
     std::string filename; // h5 file name
     Mesh *pm;             // mesh
     ParameterInput *pin;  // param file
@@ -38,6 +40,7 @@ class CCE
   public:
     CCE(Mesh *const pm, ParameterInput *const pin, std::string fname, int n);
     ~CCE();
+    void InterpolateSphToCart(MeshBlock *const pmb);
 };
 
 #endif
