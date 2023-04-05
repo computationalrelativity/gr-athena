@@ -257,41 +257,53 @@ void CCE::InterpolateSphToCart(MeshBlock *const pmb)
   }
 }
 
-void CCE::ReduceInterpolation(){}
+void CCE::ReduceInterpolation(int cceiter){}
 
-void CCE::DecomposeAndWrite()
+void CCE::DecomposeAndWrite(int cceiter)
 {
-  if (0 == Globals::my_rank)
+  if (0 != Globals::my_rank) return;
+  
+  // which write iter I am;
+  std::fstream file;
+  int iter;
+
+  // first read the iter value
+  file.open(bfname, std::ios::in);
+  if (!file) 
   {
-    // which write iter I am;
-    int iter = 0;//pin->GetOrAddInteger("cce","write_iter",0);
-    // create workspace
-    Real *re_m = new Real [nlmmodes*num_x_points];
-    Real *im_m = new Real [nlmmodes*num_x_points];
-    Real *im_f = new Real [nangle*num_x_points](); // init to zero
-    myassert(re_m);
-    myassert(im_m);
-    myassert(im_f);
-    std::fill(re_m, re_m + (nlmmodes*num_x_points),NAN); // init to nan
-    std::fill(im_m, im_m + (nlmmodes*num_x_points),NAN); // init to nan
-    
-    // decompose the re_f, note im_f is zero 
-    Real *const re_f = ifield;
-    decompose3D(dinfo_pp[MAX_SPIN + spin], re_f, im_f, re_m, im_m);
-
-    // dump the modes into an h5 file
-    output_3Dmodes(iter, output_dir.c_str(), fieldname.c_str(), rn, pm->time, 
-       spin, num_l_modes, num_n_modes, rin, rout, re_m, im_m);
-
-    // free workspace
-    delete [] re_m;
-    delete [] im_m;
-    delete [] im_f;
-    
-    // increase write iter
-    iter++;
-    
+    std::stringstream msg;
+    msg << "### FATAL ERROR in CCE " << std::endl;
+    msg << "Could not open file '" << bfname << "' for reading!";
+    throw std::runtime_error(msg.str().c_str());
   }
+  file >> iter;
+  file.close();
+  
+  // don't do anything if we already have this iter
+  if (cceiter < iter) return;
+    
+  // create workspace
+  Real *re_m = new Real [nlmmodes*num_x_points];
+  Real *im_m = new Real [nlmmodes*num_x_points];
+  Real *im_f = new Real [nangle*num_x_points](); // init to zero
+  myassert(re_m);
+  myassert(im_m);
+  myassert(im_f);
+  std::fill(re_m, re_m + (nlmmodes*num_x_points),NAN); // init to nan
+  std::fill(im_m, im_m + (nlmmodes*num_x_points),NAN); // init to nan
+  
+  // decompose the re_f, note im_f is zero 
+  Real *const re_f = ifield;
+  decompose3D(dinfo_pp[MAX_SPIN + spin], re_f, im_f, re_m, im_m);
+
+  // dump the modes into an h5 file
+  output_3Dmodes(iter, output_dir.c_str(), fieldname.c_str(), rn, pm->time, 
+     spin, num_l_modes, num_n_modes, rin, rout, re_m, im_m);
+
+  // free workspace
+  delete [] re_m;
+  delete [] im_m;
+  delete [] im_f;
 }
 
 // write the decomposed field in an h5 file.
@@ -439,7 +451,7 @@ static int output_3Dmodes(const int iter/* output iteration */, const char *dir,
 
 // save the last iteration in a text file to prevent error of duplicated entries in
 // the h5 files. 
-void CCE::BookKeeping(ParameterInput *const pin)
+void CCE::BookKeeping(ParameterInput *const pin, int cceiter)
 {
   if (0 != Globals::my_rank) return;
     
@@ -476,6 +488,8 @@ void CCE::BookKeeping(ParameterInput *const pin)
     }
     file >> iter;
     file.close();
+    
+    if (cceiter < iter) return;
     
     // now open a fresh file and update iter
     // first read the iter value

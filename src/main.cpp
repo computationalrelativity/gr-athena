@@ -516,12 +516,15 @@ int main(int argc, char *argv[]) {
 
       // only do a CCE dump if NextTime threshold cleared (updated below)
       if (pz4clist->TaskListTriggers.cce_dump.to_update) {
+        // number of cce iteration(dump)
+        int cceiter = static_cast<int>(pmesh->time / 
+                                       pz4clist->TaskListTriggers.cce_dump.dt);
         // update the bookkeeping file
-        CCE::BookKeeping(pinput);
+        CCE::BookKeeping(pinput,cceiter);
         for (auto cce : pmesh->pcce)
         {
-          cce->ReduceInterpolation();
-          cce->DecomposeAndWrite();
+          cce->ReduceInterpolation(cceiter);
+          cce->DecomposeAndWrite(cceiter);
         }
       }
 

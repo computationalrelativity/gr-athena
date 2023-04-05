@@ -44,9 +44,9 @@ class CCE
     CCE(Mesh *const pm, ParameterInput *const pin, std::string fname, int rn);
     ~CCE();
     void InterpolateSphToCart(MeshBlock *const pmb);
-    void ReduceInterpolation();
-    void DecomposeAndWrite();
-    static void BookKeeping(ParameterInput *const pin);
+    void ReduceInterpolation(int cceiter);
+    void DecomposeAndWrite(int cceiter);
+    static void BookKeeping(ParameterInput *const pin, int cceiter);
 };
 
 #endif
