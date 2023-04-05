@@ -20,11 +20,10 @@
 #include "../mesh/mesh.hpp"
 #include "../z4c/z4c.hpp"
 #include "../z4c/wave_extract.hpp"
+#include "../z4c/cce/cce.hpp"
 #include "../z4c/puncture_tracker.hpp"
 #include "../parameter_input.hpp"
 #include "task_list.hpp"
-
-void CCEDumpMetric(Z4c *const pz4c);
 
 
 // BD TODO: Significant code duplication with time_integrator, leave decoupled
@@ -252,6 +251,24 @@ Z4cIntegratorTaskList::Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm){
     TaskListTriggers.wave_extraction.next_time = (nwavecycles + 1)*
         TaskListTriggers.wave_extraction.dt;
   }
+  
+  // CCE 
+  TaskListTriggers.cce_dump.dt = pin->GetOrAddReal("cce", "dump_every_dt", 1.0);
+  if (pin->GetOrAddInteger("cce", "num_radii", 0) == 0) {
+    TaskListTriggers.cce_dump.dt = 0.0;
+    TaskListTriggers.cce_dump.next_time = 0.0;
+    TaskListTriggers.cce_dump.to_update = false;
+  }
+  else {
+    // When initializing at restart, this procedure ensures to restart
+    // extraction from right time, provided nothing written in the files after 
+    // the restart file dumped. In other words, if files are modified between two
+    // rst files and we don't want duplication this is not enough and 
+    // we need another bookkeeping system.
+    int ncycles = static_cast<int>(pm->time/TaskListTriggers.cce_dump.dt);
+    TaskListTriggers.cce_dump.next_time = (ncycles + 1)* TaskListTriggers.cce_dump.dt;
+  }
+  
   //---------------------------------------------------------------------------
 
   // Now assemble list of tasks for each stage of z4c integrator
@@ -650,7 +667,15 @@ TaskStatus Z4cIntegratorTaskList::CCEDump(MeshBlock *pmb, int stage) {
   // only do on last stage
   if (stage != nstages) return TaskStatus::success;
 
-  CCEDumpMetric(pmb->pz4c);
+  Mesh *pm = pmb->pmy_mesh;
+
+  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.cce_dump)) 
+  {
+    for (auto cce : pm->pcce)
+    {
+      cce->InterpolateSphToCart(pmb);
+    }
+  }
 
   return TaskStatus::success;
 }
@@ -755,4 +780,10 @@ void Z4cIntegratorTaskList::UpdateTaskListTriggers() {
       TaskListTriggers.wave_extraction.dt;
     TaskListTriggers.wave_extraction.to_update = false;
   }
+  
+  if (TaskListTriggers.cce_dump.to_update) {
+    TaskListTriggers.cce_dump.next_time += TaskListTriggers.cce_dump.dt;
+    TaskListTriggers.cce_dump.to_update = false;
+  }
+  
 }

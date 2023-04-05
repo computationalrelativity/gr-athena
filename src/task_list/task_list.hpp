@@ -355,6 +355,7 @@ public:
     aux_NextTimeStep con;
     aux_NextTimeStep assert_is_finite;
     aux_NextTimeStep wave_extraction;
+    aux_NextTimeStep cce_dump;
   } TaskListTriggers;
 
   bool CurrentTimeCalculationThreshold(Mesh *pm,
