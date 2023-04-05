@@ -214,3 +214,7 @@ void CCE::InterpolateSphToCart(MeshBlock *const pmb)
     }
   }
 }
+
+void CCE::ReduceInterpolation(){}
+void CCE::Decompose(){}
+void CCE::Write(){}
