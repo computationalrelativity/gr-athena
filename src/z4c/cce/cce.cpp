@@ -479,27 +479,27 @@ bool CCE::BookKeeping(ParameterInput *const pin, int cce_iter)
   if (0 != Globals::my_rank) return true;
     
   std::string fname = pin->GetString("cce","output_dir") + "/" + BOOKKEEPING_NAME;
+  std::fstream file;
+  int iter = 0;
 
-  // if this is the first time, create a bookkeeping file
+  // if this is the first time, create a bookkeeping file with 0 as the iter
   if (access(fname.c_str(), F_OK) != 0) 
   {
-    FILE *file = fopen(fname.c_str(), "w");
-    if (file == nullptr) 
+    file.open(fname, std::ios::out);
+    if (!file) 
     {
       std::stringstream msg;
       msg << "### FATAL ERROR in CCE " << std::endl;
       msg << "Could not open file '" << fname << "' for writing!";
       throw std::runtime_error(msg.str().c_str());
     }
-    fprintf(file, "0");
-    fclose(file);
+    iter = 0;
+    file << iter << std::endl;
+    file.close();
   }
   // update the iter
   else
   {
-    std::fstream file;
-    int iter;
-
     // first read the iter value
     file.open(fname, std::ios::in);
     if (!file) 
@@ -512,6 +512,7 @@ bool CCE::BookKeeping(ParameterInput *const pin, int cce_iter)
     file >> iter;
     file.close();
     
+    // check if the iters match
     if (cce_iter < iter) return false;
     
     // now open a fresh file and update iter
