@@ -513,7 +513,7 @@ bool CCE::BookKeeping(ParameterInput *const pin, int cce_iter)
     file.close();
     
     // check if the iters match
-    if (cce_iter < iter) return false;
+    if (cce_iter <= iter) return false;
     
     // now open a fresh file and update iter
     // first read the iter value
