@@ -263,7 +263,8 @@ Z4cIntegratorTaskList::Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm){
     // we need to write at t = 0.
     // ensuring there is no duplicated iteration a bookkeeping system is used.
     int ncycles = static_cast<int>(pm->time/TaskListTriggers.cce_dump.dt);
-    TaskListTriggers.cce_dump.next_time = (ncycles)* TaskListTriggers.cce_dump.dt;
+    TaskListTriggers.cce_dump.next_time = 
+      (ncycles == 0) ? 0.0: (ncycles+1)*TaskListTriggers.cce_dump.dt;
   }
   
   //---------------------------------------------------------------------------
