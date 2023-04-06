@@ -510,7 +510,8 @@ bool CCE::BookKeeping(ParameterInput *const pin, int cce_iter, int &w_iter)
       msg << "Could not open file '" << fname << "' for reading!";
       throw std::runtime_error(msg.str().c_str());
     }
-    file >> w_iter >> iter/* == previous cce_iter */ >> std::endl;
+    
+    file >> w_iter >> iter /* == previous cce_iter */;
     file.close();
     
     // check if the iters match
