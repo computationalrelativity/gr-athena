@@ -262,7 +262,9 @@ void CCE::Interpolate(MeshBlock *const pmb)
 void CCE::ReduceInterpolation()
 {
   const int Npoints = nangle*num_x_points;
-  
+  // NOTE: could it be a case that two neighboring meshblocks from two different processors
+  // interpolated on the same entry of ifield, for example, if the coords take place on the
+  // sharing interface of the two meshblocks?
   if (0 == Globals::my_rank)
   {
     MPI_Reduce(MPI_IN_PLACE, ifield, Npoints, MPI_ATHENA_REAL, MPI_SUM, 0, MPI_COMM_WORLD);
