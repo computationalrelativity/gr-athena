@@ -987,6 +987,12 @@ Mesh::~Mesh() {
       delete pwextr;
     }
     pwave_extr.resize(0);
+    
+    for (auto cce : pcce) {
+      delete cce;
+    }
+    pcce.resize(0);
+    
     for (auto tracker : pz4c_tracker) {
       delete tracker;
     }
