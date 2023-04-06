@@ -169,7 +169,7 @@ CCE::~CCE()
   for (int i = 0; i < 2*MAX_SPIN+1; ++i)
   {
     if (dinfo_pp[i]) 
-      delete [] dinfo_pp[i];
+      delete dinfo_pp[i];
   }
   delete [] dinfo_pp;
 }
