@@ -260,13 +260,10 @@ Z4cIntegratorTaskList::Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm){
     TaskListTriggers.cce_dump.to_update = false;
   }
   else {
-    // When initializing at restart, this procedure ensures to restart
-    // extraction from right time, provided nothing written in the files after 
-    // the restart file dumped. In other words, if files are modified between two
-    // rst files and we don't want duplication this is not enough and 
-    // we need another bookkeeping system.
+    // we need to write at t = 0.
+    // ensuring there is no duplicated iteration a bookkeeping system is used.
     int ncycles = static_cast<int>(pm->time/TaskListTriggers.cce_dump.dt);
-    TaskListTriggers.cce_dump.next_time = (ncycles + 1)* TaskListTriggers.cce_dump.dt;
+    TaskListTriggers.cce_dump.next_time = (ncycles)* TaskListTriggers.cce_dump.dt;
   }
   
   //---------------------------------------------------------------------------
