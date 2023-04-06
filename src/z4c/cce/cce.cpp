@@ -52,10 +52,10 @@ using namespace decomp_decompose;
 static int output_3Dmodes(const int iter,
        const char *dir,
        const char* name,
-       const int obs, double time,
+       const int obs, Real time,
        int s, int nl,
-       int nn, double rin, double rout,
-       const double *re, const double *im);
+       int nn, Real rin, Real rout,
+       const Real *re, const Real *im);
 
 
 CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int rn):
@@ -78,9 +78,9 @@ CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int rn):
   nangle = num_mu_points*num_phi_points;
   npoint = nangle*num_x_points;
 
-  double *radius    = nullptr;
-  double *mucolloc  = nullptr;
-  double *phicolloc = nullptr;
+  Real *radius    = nullptr;
+  Real *mucolloc  = nullptr;
+  Real *phicolloc = nullptr;
   myassert (ABS(spin) <= MAX_SPIN);
 
   nlmmodes = num_l_modes*(num_l_modes+2*ABS(MAX_SPIN));
@@ -92,13 +92,13 @@ CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int rn):
   }
 
   // alloc
-  radius = new double [num_x_points];
-  xb = new double [nangle*num_x_points];
-  yb = new double [nangle*num_x_points];
-  zb = new double [nangle*num_x_points];
-  mucolloc = new double [nangle];
-  phicolloc = new double [nangle];
-  ifield = new double [nangle*num_x_points]();// init to 0.
+  radius = new Real [num_x_points];
+  xb = new Real [nangle*num_x_points];
+  yb = new Real [nangle*num_x_points];
+  zb = new Real [nangle*num_x_points];
+  mucolloc = new Real [nangle];
+  phicolloc = new Real [nangle];
+  ifield = new Real [nangle*num_x_points]();// init to 0.
  
   myassert(radius);
   myassert(xb);
@@ -128,7 +128,7 @@ CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int rn):
 
   for (int k=0; k < num_x_points; k++)
   {
-    double xk = radius[k];
+    Real xk = radius[k];
     radius[k] = 0.5 * ( (rout - rin) * xk + (rout + rin) );
   }
 
@@ -136,13 +136,13 @@ CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int rn):
   {
     for (int i=0; i < nangle; i++)
     {
-      const double phi = phicolloc[i];
-      const double mu = mucolloc[i];
+      const Real phi = phicolloc[i];
+      const Real mu = mucolloc[i];
 
-      const double sph = sin(phi);
-      const double cph = cos(phi);
-      const double cth = mu;
-      const double sth = sqrt(1.0 - mu*mu);
+      const Real sph = sin(phi);
+      const Real cph = cos(phi);
+      const Real cth = mu;
+      const Real sth = sqrt(1.0 - mu*mu);
 
       const int indx = i + k*nangle;
       
@@ -244,7 +244,7 @@ void CCE::Interpolate(MeshBlock *const pmb)
   
   for (int p = 0; p < Npoints; ++p)
   {
-    double coord[3] = {xb[p], yb[p], zb[p]};
+    Real coord[3] = {xb[p], yb[p], zb[p]};
     if (pmb->PointContained(coord[0], coord[1], coord[2]))
     {
       LagrangeInterpND<2*NGHOST-1, 3> linterp(origin, delta, size, coord);
@@ -304,10 +304,10 @@ void CCE::DecomposeAndWrite(int iter/* number of times writes into an h5 file */
 
 // write the decomposed field in an h5 file.
 static int output_3Dmodes(const int iter/* output iteration */, const char *dir,
-  const char* name, const int obs, double time,
+  const char* name, const int obs, Real time,
   int s, int nl,
-  int nn, double rin, double rout,
-  const double *re, const double *im)
+  int nn, Real rin, Real rout,
+  const Real *re, const Real *im)
 {
   char filename[BUFFSIZE];
   hid_t   file_id;

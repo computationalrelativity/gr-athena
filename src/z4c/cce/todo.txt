@@ -2,17 +2,16 @@
 ## TODO ##
 ##########
 
-- interpolation
-
-- replace double to Real
-
 - Presentation of ChebyshevU and LegendreP are strongly prone to a big round
   off error!
 
 - what to do with SphericalHarmonicDecomp_Read
 
-
 ## ---------------------------------------------------------------------- ##
+
+- interpolation [done]
+
+- replace double to Real [done]
 
 - comments in the code[done]
 
