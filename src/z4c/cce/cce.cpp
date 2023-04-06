@@ -474,7 +474,7 @@ static int output_3Dmodes(const int iter/* output iteration */, const char *dir,
 // function calls in the main loop such as ReduceInterpolation
 // going. all othere calls that need root processor won't be executed like 
 // DecomposeAndWrite because they are fenced with if (0 != Globals::my_rank).
-bool CCE::BookKeeping(ParameterInput *const pin, int cce_iter)
+bool CCE::BookKeeping(ParameterInput *const pin, int cce_iter, int &w_iter)
 {
   if (0 != Globals::my_rank) return true;
     
@@ -493,8 +493,9 @@ bool CCE::BookKeeping(ParameterInput *const pin, int cce_iter)
       msg << "Could not open file '" << fname << "' for writing!";
       throw std::runtime_error(msg.str().c_str());
     }
-    iter = 0;
-    file << iter << std::endl;
+    w_iter = iter = 0;
+    // file: w_iter cce_iter
+    file << w_iter << " " << cce_iter << std::endl;
     file.close();
   }
   // update the iter
@@ -509,7 +510,7 @@ bool CCE::BookKeeping(ParameterInput *const pin, int cce_iter)
       msg << "Could not open file '" << fname << "' for reading!";
       throw std::runtime_error(msg.str().c_str());
     }
-    file >> iter;
+    file >> w_iter >> iter/* == previous cce_iter */ >> std::endl;
     file.close();
     
     // check if the iters match
@@ -525,8 +526,8 @@ bool CCE::BookKeeping(ParameterInput *const pin, int cce_iter)
       msg << "Could not open file '" << fname << "' for writing!";
       throw std::runtime_error(msg.str().c_str());
     }
-    iter++;
-    file << iter << std::endl;
+    w_iter++;
+    file << w_iter << " " << cce_iter << std::endl;
     file.close();
   }
   
