@@ -98,7 +98,7 @@ CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int rn):
   zb = new double [nangle*num_x_points];
   mucolloc = new double [nangle];
   phicolloc = new double [nangle];
-  ifield = new double [nangle*num_x_points]();
+  ifield = new double [nangle*num_x_points]();// init to 0.
  
   myassert(radius);
   myassert(xb);
@@ -260,7 +260,15 @@ void CCE::InterpolateSphToCart(MeshBlock *const pmb)
 void CCE::ReduceInterpolation()
 {
   const int Npoints = nangle*num_x_points;
-  MPI_Reduce(MPI_IN_PLACE,ifield, Npoints, MPI_ATHENA_REAL, MPI_SUM, 0, MPI_COMM_WORLD);
+  
+  if (0 == Globals::my_rank)
+  {
+    MPI_Reduce(MPI_IN_PLACE, ifield, Npoints, MPI_ATHENA_REAL, MPI_SUM, 0, MPI_COMM_WORLD);
+  } 
+  else 
+  {
+    MPI_Reduce(ifield, ifield, Npoints, MPI_ATHENA_REAL, MPI_SUM, 0, MPI_COMM_WORLD);
+  }
 }
 
 // decompose the field and write into an h5 file
