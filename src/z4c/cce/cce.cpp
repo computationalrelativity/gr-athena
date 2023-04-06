@@ -257,31 +257,16 @@ void CCE::InterpolateSphToCart(MeshBlock *const pmb)
   }
 }
 
-void CCE::ReduceInterpolation(int cceiter){}
+void CCE::ReduceInterpolation()
+{
 
-void CCE::DecomposeAndWrite(int cceiter)
+}
+
+// decompose the field and write into an h5 file
+void CCE::DecomposeAndWrite(int iter/* number of times writes into an h5 file */)
 {
   if (0 != Globals::my_rank) return;
   
-  // which write iter I am;
-  std::fstream file;
-  int iter;
-
-  // first read the iter value
-  file.open(bfname, std::ios::in);
-  if (!file) 
-  {
-    std::stringstream msg;
-    msg << "### FATAL ERROR in CCE " << std::endl;
-    msg << "Could not open file '" << bfname << "' for reading!";
-    throw std::runtime_error(msg.str().c_str());
-  }
-  file >> iter;
-  file.close();
-  
-  // don't do anything if we already have this iter
-  if (cceiter < iter) return;
-    
   // create workspace
   Real *re_m = new Real [nlmmodes*num_x_points];
   Real *im_m = new Real [nlmmodes*num_x_points];
@@ -450,10 +435,11 @@ static int output_3Dmodes(const int iter/* output iteration */, const char *dir,
 }
 
 // save the last iteration in a text file to prevent error of duplicated entries in
-// the h5 files. 
-void CCE::BookKeeping(ParameterInput *const pin, int cceiter)
+// the h5 files. Additionally it checks if the iteration numbers match so returns true
+// otherwise returns false.
+bool CCE::BookKeeping(ParameterInput *const pin, int cceiter)
 {
-  if (0 != Globals::my_rank) return;
+  if (0 != Globals::my_rank) return false;
     
   std::string fname = pin->GetString("cce","output_dir") + "/" + BOOKKEEPING_NAME;
 
@@ -489,7 +475,7 @@ void CCE::BookKeeping(ParameterInput *const pin, int cceiter)
     file >> iter;
     file.close();
     
-    if (cceiter < iter) return;
+    if (cceiter < iter) return false;
     
     // now open a fresh file and update iter
     // first read the iter value
@@ -505,5 +491,7 @@ void CCE::BookKeeping(ParameterInput *const pin, int cceiter)
     file << iter << std::endl;
     file.close();
   }
+  
+  return true;
 }
 
