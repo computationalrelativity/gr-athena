@@ -673,7 +673,7 @@ TaskStatus Z4cIntegratorTaskList::CCEDump(MeshBlock *pmb, int stage) {
   {
     for (auto cce : pm->pcce)
     {
-      cce->InterpolateSphToCart(pmb);
+      cce->Interpolate(pmb);
     }
   }
 

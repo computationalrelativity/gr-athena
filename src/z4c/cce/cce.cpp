@@ -171,7 +171,8 @@ CCE::~CCE()
   delete [] dinfo_pp;
 }
 
-void CCE::InterpolateSphToCart(MeshBlock *const pmb)
+// given a cart point, interpolate the pertinent field for that point
+void CCE::Interpolate(MeshBlock *const pmb)
 {
   const int Npoints = nangle*num_x_points;
   Real const origin[3] = {pmb->pcoord->x1f(0),
@@ -257,6 +258,7 @@ void CCE::InterpolateSphToCart(MeshBlock *const pmb)
   }
 }
 
+// reduce different parts of the interpolation array into one array
 void CCE::ReduceInterpolation()
 {
   const int Npoints = nangle*num_x_points;
