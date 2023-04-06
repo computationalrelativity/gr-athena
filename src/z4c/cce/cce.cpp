@@ -258,21 +258,41 @@ void CCE::Interpolate(MeshBlock *const pmb)
   }
 }
 
+// don't add if already counted
+static void add_once(void *inputBuffer, void *outputBuffer, int *len, MPI_Datatype *datatype)
+{
+  Real *in  = (Real *) inputBuffer;
+  Real *out = (Real *) outputBuffer;
+  
+  for (int i = 0; i < *len; ++i)
+  {
+    // only write if array is empty
+    out[i] = ABS(out[i]) > 0 ? out[i]: in[i];
+  }
+}
+
 // reduce different parts of the interpolation array into one array
 void CCE::ReduceInterpolation()
 {
   const int Npoints = nangle*num_x_points;
-  // NOTE: could it be a case that two neighboring meshblocks from two different processors
+
+# ifdef MPI_PARALLEL
+  // NOTE: it could be the case that the two neighboring meshblocks from two different processors
   // interpolated on the same entry of ifield, for example, if the coords take place on the
-  // sharing interface of the two meshblocks?
+  // sharing interface(or corners) of the two (or more) meshblocks so count them only once.
+  MPI_Op usr_op;
+  MPI_Op_create(&add_once, 0, &usr_op);
   if (0 == Globals::my_rank)
   {
-    MPI_Reduce(MPI_IN_PLACE, ifield, Npoints, MPI_ATHENA_REAL, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(MPI_IN_PLACE, ifield, Npoints, MPI_ATHENA_REAL, usr_op, 0, MPI_COMM_WORLD);
   } 
   else 
   {
-    MPI_Reduce(ifield, ifield, Npoints, MPI_ATHENA_REAL, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(ifield, ifield, Npoints, MPI_ATHENA_REAL, usr_op, 0, MPI_COMM_WORLD);
   }
+  MPI_Op_free(&usr_op);
+# endif  
+
 }
 
 // decompose the field and write into an h5 file
