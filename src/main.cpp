@@ -519,13 +519,14 @@ int main(int argc, char *argv[]) {
         // number of cce iteration(dump)
         int cce_iter = static_cast<int>(pmesh->time / 
                                        pz4clist->TaskListTriggers.cce_dump.dt);
+        int w_iter = 0; // write iter
         // update the bookkeeping file
-        if (CCE::BookKeeping(pinput,cce_iter))
+        if (CCE::BookKeeping(pinput,cce_iter,w_iter))
         {
           for (auto cce : pmesh->pcce)
           {
             cce->ReduceInterpolation();
-            cce->DecomposeAndWrite(cce_iter);
+            cce->DecomposeAndWrite(w_iter);
           }
         }
       }
