@@ -258,6 +258,8 @@ void CCE::Interpolate(MeshBlock *const pmb)
   }
 }
 
+
+# ifdef MPI_PARALLEL
 // don't add if already counted
 static void add_once(void *inputBuffer, void *outputBuffer, int *len, MPI_Datatype *datatype)
 {
@@ -270,6 +272,7 @@ static void add_once(void *inputBuffer, void *outputBuffer, int *len, MPI_Dataty
     out[i] = ABS(out[i]) > 0 ? out[i]: in[i];
   }
 }
+# endif  
 
 // reduce different parts of the interpolation array into one array
 void CCE::ReduceInterpolation()
