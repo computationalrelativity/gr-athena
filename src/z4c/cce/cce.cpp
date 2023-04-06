@@ -259,7 +259,8 @@ void CCE::InterpolateSphToCart(MeshBlock *const pmb)
 
 void CCE::ReduceInterpolation()
 {
-
+  const int Npoints = nangle*num_x_points;
+  MPI_Reduce(MPI_IN_PLACE,ifield, Npoints, MPI_ATHENA_REAL, MPI_SUM, 0, MPI_COMM_WORLD);
 }
 
 // decompose the field and write into an h5 file
@@ -436,10 +437,14 @@ static int output_3Dmodes(const int iter/* output iteration */, const char *dir,
 
 // save the last iteration in a text file to prevent error of duplicated entries in
 // the h5 files. Additionally it checks if the iteration numbers match so returns true
-// otherwise returns false.
-bool CCE::BookKeeping(ParameterInput *const pin, int cceiter)
+// otherwise returns false. This statement is only true for the root processor,
+// since if it's not the root processor it returns true to keep the subsequent 
+// function calls in the main loop such as ReduceInterpolation
+// going. all othere calls that need root processor won't be executed like 
+// DecomposeAndWrite because they are fenced with if (0 != Globals::my_rank).
+bool CCE::BookKeeping(ParameterInput *const pin, int cce_iter)
 {
-  if (0 != Globals::my_rank) return false;
+  if (0 != Globals::my_rank) return true;
     
   std::string fname = pin->GetString("cce","output_dir") + "/" + BOOKKEEPING_NAME;
 
@@ -475,7 +480,7 @@ bool CCE::BookKeeping(ParameterInput *const pin, int cceiter)
     file >> iter;
     file.close();
     
-    if (cceiter < iter) return false;
+    if (cce_iter < iter) return false;
     
     // now open a fresh file and update iter
     // first read the iter value
