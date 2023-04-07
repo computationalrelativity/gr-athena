@@ -20,6 +20,7 @@ class CCE
     Real rout; // outer radius of shell
     Real ncycle; // num. of cycle(iter)
     Real *ifield; // interpolated values of the given field
+    Real *re_f; // the resultant interpolated field after MPI reduction
     std::string fieldname; // field name that used for pittnull code
     std::string output_dir; // write h5 file in this directory
     std::string bfname; // bookkeeping file name

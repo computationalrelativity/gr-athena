@@ -99,6 +99,7 @@ CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int rn):
   mucolloc = new Real [nangle];
   phicolloc = new Real [nangle];
   ifield = new Real [nangle*num_x_points]();// init to 0.
+  re_f   = new Real [nangle*num_x_points]();// init to 0.
  
   myassert(radius);
   myassert(xb);
@@ -162,6 +163,7 @@ CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int rn):
 CCE::~CCE()
 {
   delete [] ifield;
+  delete [] re_f;
   delete [] xb;
   delete [] yb;
   delete [] zb;
@@ -281,8 +283,11 @@ static void add_once(void *inputBuffer, void *outputBuffer, int *len, MPI_Dataty
 void CCE::ReduceInterpolation()
 {
   const int Npoints = nangle*num_x_points;
-
+    
 # ifdef MPI_PARALLEL
+  // flush to 0. we need this as usr_op decides based on this.
+  std::fill(re_f, re_f + Npoints,0.0); // init to 0.
+
   // NOTE: it could be the case that the two neighboring meshblocks from two different processors
   // interpolated on the same entry of ifield, for example, if the coords take place on the
   // sharing interface(or corners) of the two (or more) meshblocks so count them only once.
@@ -290,13 +295,19 @@ void CCE::ReduceInterpolation()
   MPI_Op_create(&add_once, 0, &usr_op);
   if (0 == Globals::my_rank)
   {
-    MPI_Reduce(MPI_IN_PLACE, ifield, Npoints, MPI_ATHENA_REAL, usr_op, 0, MPI_COMM_WORLD);
+    MPI_Reduce(ifield, re_f, Npoints, MPI_ATHENA_REAL, usr_op, 0, MPI_COMM_WORLD);
   } 
   else 
   {
-    MPI_Reduce(ifield, ifield, Npoints, MPI_ATHENA_REAL, usr_op, 0, MPI_COMM_WORLD);
+    MPI_Reduce(ifield, re_f, Npoints, MPI_ATHENA_REAL, usr_op, 0, MPI_COMM_WORLD);
   }
   MPI_Op_free(&usr_op);
+
+# else // no MPI
+
+  for (int i = 0; i < Npoints; ++i)
+    re_f[i] = ifield[i];
+
 # endif  
 
 }
@@ -317,7 +328,6 @@ void CCE::DecomposeAndWrite(int iter/* number of times writes into an h5 file */
   std::fill(im_m, im_m + (nlmmodes*num_x_points),NAN); // init to nan
   
   // decompose the re_f, note im_f is zero 
-  Real *const re_f = ifield;
   decompose3D(dinfo_pp[MAX_SPIN + spin], re_f, im_f, re_m, im_m);
 
   // dump the modes into an h5 file
