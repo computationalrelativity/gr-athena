@@ -273,8 +273,8 @@ static void add_once(void *inputBuffer, void *outputBuffer, int *len, MPI_Dataty
   
   for (int i = 0; i < *len; ++i)
   {
-    // only write if array is empty
-    out[i] = ABS(out[i]) > 0 ? out[i]: in[i];
+    // only write if the entry is 0
+    out[i] = (out[i] == 0.0) ? in[i] : out[i];
   }
 }
 # endif  
