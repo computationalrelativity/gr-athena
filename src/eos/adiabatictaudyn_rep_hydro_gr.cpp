@@ -153,60 +153,85 @@ using namespace EOS_Toolkit;
   atmosphere atmo{atmo_rho, atmo_eps, atmo_ye, atmo_p, atmo_cut};
   con2prim_mhd cv2pv(eos, rho_strict, ye_lenient, max_z, max_b,
                      atmo, c2p_acc, max_iter);
-      AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy;
-      AthenaArray<Real> vcgamma_yz,vcgamma_zz,vcbeta_x,vcbeta_y;
-      AthenaArray<Real> vcbeta_z, vcalpha;
-      AthenaArray<Real> vcgammat_xx,vcgammat_xy,vcgammat_xz,vcgammat_yy;
-      AthenaArray<Real> vcgammat_yz,vcgammat_zz;
-      AthenaArray<Real> vcchi;
-      AthenaArray<Real> order_flag;
 
-      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha; //lapse
-      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> chi; //lapse
-      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u; //lapse
-      AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd; //lapse
-      AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gammat_dd; //lapse
-      
-      order_flag.NewAthenaArray(nn1);
-if(coarse_flag==0){
+  AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy;
+  AthenaArray<Real> vcgamma_yz,vcgamma_zz,vcbeta_x,vcbeta_y;
+  AthenaArray<Real> vcbeta_z, vcalpha;
+  AthenaArray<Real> vcgammat_xx,vcgammat_xy,vcgammat_xz,vcgammat_yy;
+  AthenaArray<Real> vcgammat_yz,vcgammat_zz;
+  AthenaArray<Real> vcchi;
+  AthenaArray<Real> order_flag;
 
-      alpha.NewAthenaTensor(nn1);
-      beta_u.NewAthenaTensor(nn1);
-      gamma_dd.NewAthenaTensor(nn1);
-      vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
-      vcgamma_xy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
-      vcgamma_xz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
-      vcgamma_yy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
-      vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
-      vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
-      vcbeta_x.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betax,1);
-      vcbeta_y.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betay,1);
-      vcbeta_z.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betaz,1);
-      vcalpha.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha; //lapse
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> chi; //lapse
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u; //lapse
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd; //lapse
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gammat_dd; //lapse
 
-} else{
+  order_flag.NewAthenaArray(nn1);
 
-      alpha.NewAthenaTensor(nn1);
-      chi.NewAthenaTensor(nn1);
-      beta_u.NewAthenaTensor(nn1);
-      gamma_dd.NewAthenaTensor(nn1);
-      gammat_dd.NewAthenaTensor(nn1);
-      vcgammat_xx.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxx,1);
-      vcgammat_xy.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxy,1);
-      vcgammat_xz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxz,1);
-      vcgammat_yy.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gyy,1);
-      vcgammat_yz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gyz,1);
-      vcgammat_zz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gzz,1);
-      vcbeta_x.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_betax,1);
-      vcbeta_y.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_betay,1);
-      vcbeta_z.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_betaz,1);
-      vcalpha.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_alpha,1);
-      vcchi.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_chi,1);
-}
+  int ncells1, ncells2, ncells3;
+
+  if(coarse_flag==0)
+  {
+    alpha.NewAthenaTensor(nn1);
+    beta_u.NewAthenaTensor(nn1);
+    gamma_dd.NewAthenaTensor(nn1);
+    vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
+    vcgamma_xy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
+    vcgamma_xz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
+    vcgamma_yy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
+    vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
+    vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
+    vcbeta_x.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betax,1);
+    vcbeta_y.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betay,1);
+    vcbeta_z.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betaz,1);
+    vcalpha.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
+
+    ncells1 = pmy_block_->ncells1;
+    ncells2 = pmy_block_->ncells2;
+    ncells3 = pmy_block_->ncells3;
+  }
+  else
+  {
+    alpha.NewAthenaTensor(nn1);
+    chi.NewAthenaTensor(nn1);
+    beta_u.NewAthenaTensor(nn1);
+    gamma_dd.NewAthenaTensor(nn1);
+    gammat_dd.NewAthenaTensor(nn1);
+    vcgammat_xx.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxx,1);
+    vcgammat_xy.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxy,1);
+    vcgammat_xz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxz,1);
+    vcgammat_yy.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gyy,1);
+    vcgammat_yz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gyz,1);
+    vcgammat_zz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gzz,1);
+    vcbeta_x.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_betax,1);
+    vcbeta_y.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_betay,1);
+    vcbeta_z.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_betaz,1);
+    vcalpha.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_alpha,1);
+    vcchi.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_chi,1);
+
+    ncells1 = pmy_block_->ncc1;
+    ncells2 = pmy_block_->ncc2;
+    ncells3 = pmy_block_->ncc3;
+
+  }
+
+
+  // sanitize loop-limits
+  const int IL = std::max(il, NGRCV_HSZ - 1);
+  const int IU = std::min(iu, ncells1 - 1 - (NGRCV_HSZ - 1));
+
+  const int JL = std::max(jl, NGRCV_HSZ - 1);
+  const int JU = std::min(ju, ncells2 - 1 - (NGRCV_HSZ - 1));
+
+  const int KL = std::max(kl, NGRCV_HSZ - 1);
+  const int KU = std::min(ku, ncells3 - 1 - (NGRCV_HSZ - 1));
+
 
   // Go through cells
-  for (int k=kl; k<=ku; ++k) {
-    for (int j=jl; j<=ju; ++j) {
+  for (int k=KL; k<=KU; ++k) {
+    for (int j=JL; j<=JU; ++j) {
 // TODO here call for Cell metric needs to be replaced with local calculation
 // of cell centred metric from VC metric returning 1D array in x1 direction.
 // NB func should return gamma(a,b,i), beta(a,i), alpha(i)
@@ -224,7 +249,7 @@ if(coarse_flag==0){
 */
 if(coarse_flag==0){
       #pragma omp simd
-      for (int i=il; i<=iu; ++i) {
+      for (int i=IL; i<=IU; ++i) {
           gamma_dd(0,0,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
           gamma_dd(0,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
           gamma_dd(0,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
@@ -239,7 +264,7 @@ if(coarse_flag==0){
 
 } else{
       #pragma omp simd
-      for (int i=il; i<=iu; ++i) {
+      for (int i=IL; i<=IU; ++i) {
           gammat_dd(0,0,i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcgammat_xx(k,j,i));
           gammat_dd(0,1,i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcgammat_xy(k,j,i));
           gammat_dd(0,2,i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcgammat_xz(k,j,i));
@@ -255,7 +280,7 @@ if(coarse_flag==0){
           for(int a=0;a<3;a++){
           for(int b=0;b<3;b++){
       #pragma omp simd
-      for (int i=il; i<=iu; ++i) {
+      for (int i=IL; i<=IU; ++i) {
           gamma_dd(a,b,i) = gammat_dd(a,b,i)/chi(i);
 }
 }
@@ -266,7 +291,7 @@ if(coarse_flag==0){
 //      }
       
       #pragma omp simd
-      for (int i=il; i<=iu; ++i) {
+      for (int i=IL; i<=IU; ++i) {
 //TODO not needed
         // Extract metric
 /*
@@ -427,13 +452,24 @@ void EquationOfState::PrimitiveToConserved(
   cc_g_adm.NewAthenaTensor(pmb->ncells1);
   vc_g_adm.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
 
-  for (int k=kl; k<=ku; ++k)
-  for (int j=jl; j<=ju; ++j)
+  // sanitize loop-limits
+  const int IL = std::max(il, NGRCV_HSZ - 1);
+  const int IU = std::min(iu, pmb->ncells1 - 1 - (NGRCV_HSZ - 1));
+
+  const int JL = std::max(jl, NGRCV_HSZ - 1);
+  const int JU = std::min(ju, pmb->ncells2 - 1 - (NGRCV_HSZ - 1));
+
+  const int KL = std::max(kl, NGRCV_HSZ - 1);
+  const int KU = std::min(ku, pmb->ncells3 - 1 - (NGRCV_HSZ - 1));
+
+
+  for (int k=KL; k<=KU; ++k)
+  for (int j=JL; j<=JU; ++j)
   {
     for (int a = 0; a < NDIM; ++a)
     for (int b = a; b < NDIM; ++b)
     #pragma omp simd
-    for (int i = il; i <= iu; ++i)
+    for (int i = IL; i <= IU; ++i)
       cc_g_adm(a,b,i) = pz4c->ig->map3d_VC2CC(vc_g_adm(a,b,k,j,i));
 
     for (int i=il; i<=iu; ++i)
