@@ -34,10 +34,12 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, Real gamma_adi,
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, int k, int j, int i,
     AthenaArray<Real> &cons, Coordinates *pco);
 Real fthr, fatm, rhoc;
+Real epsatm;
 Real k_adi, gamma_adi;
 EOS_Toolkit::real_t atmo_rho;
 EOS_Toolkit::real_t rho_strict;
 bool  ye_lenient;
+bool eos_debug;
 int max_iter;
 EOS_Toolkit::real_t c2p_acc;
 EOS_Toolkit::real_t max_b;
@@ -80,6 +82,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) {
   fixed_.NewAthenaArray(ncells3, ncells2, ncells1);
   fthr = pin -> GetReal("problem","fthr");
   fatm = pin -> GetReal("problem","fatm");
+  epsatm = pin -> GetOrAddReal("problem","epsatm",1.0e-8);
   rhoc = pin -> GetReal("problem","rhoc");
   k_adi = pin -> GetReal("hydro","k_adi");
   gamma_adi = pin -> GetReal("hydro","gamma");
@@ -94,10 +97,11 @@ using namespace EOS_Toolkit;
   //Set up atmosphere
   atmo_rho = fatm*rhoc;
   atmo_eps = atmo_rho*k_adi;
+//  atmo_eps = epsatm;
   atmo_ye = 0.0;
   atmo_cut = atmo_rho * fthr;
   atmo_p = eos.at_rho_eps_ye(atmo_rho, atmo_eps, atmo_ye).press();
-
+//  atmo_p = atmo_rho*atmo_eps;
   density_floor_ = atmo_rho;
   pressure_floor_ = atmo_p;
 
@@ -107,10 +111,16 @@ using namespace EOS_Toolkit;
   max_iter = 10000;
   c2p_acc = 1e-10;
   max_b = 10.;
-  max_z = 1e5;
-
-
-
+//  max_z = 20.0;
+  max_z = pin -> GetOrAddReal("problem","max_z",20.0);
+eos_debug = pin->GetOrAddBoolean("problem","eos_debug", false);
+if(eos_debug){
+  std::snprintf(ofname, BUFSIZ, "eos_fail_mb.%d.txt", pmb->gid);
+  ofile = fopen(ofname, "a");
+  fprintf(ofile, "EOS failures in MB %d.\n", pmb->gid);
+  fprintf(ofile, "#0 time #1: i  #2: j  #3: k  #4: x  #5: y  #6: z  #7: D  #8: tau  #9: S_1  #10: S_2  #11: S_3  #12: B^1  #13: B^2  #14: B^3  #15: g_11  #16: g_12  #17: g_13  #18: g_22  #19: g_23  #20: g_33  #21: coarseflag      .\n");
+  fclose(ofile);
+}
 
 }
 
@@ -315,7 +325,6 @@ if(coarse_flag==0){
 
         cons_vars_mhd evolved{Dg, taug, 0.0,
                           {S_1g,S_2g,S_3g}, {0.0,0.0,0.0}};
-// TODO feed new metric to reprimand here
         sm_tensor2_sym<real_t, 3, false, false> gtens(gamma_dd(0,0,i),gamma_dd(0,1,i),gamma_dd(1,1,i),gamma_dd(0,2,i),gamma_dd(1,2,i),gamma_dd(2,2,i));
         sm_metric3 g_eos(gtens);
         prim_vars_mhd primitives;
@@ -327,19 +336,33 @@ if(coarse_flag==0){
     if (rep.failed())
     {
 //      printf("coarse flag = %d\n",coarse_flag);
-//      std::cerr << rep.debug_message();
-//      printf("i=%d, j=%d, k=%d\n",i,j,k);
+if(eos_debug){
+     std::cerr << rep.debug_message();
+     std::cerr << " i = " << i << ", j = " << j << ", k = " << k << ", x = " << pco->x1v(i) << ", y = " << pco->x2v(j) << ", z = " << pco->x3v(k) << ", t = " << pmy_block_->pmy_mesh->time  << ", MB = " << pmy_block_->gid  << "\n";
+     ofile = fopen(ofname, "a");
+     fprintf(ofile, "%.16g  %d  %d  %d  %.16g  %.16g  %.16g  %.16g  %.16g  %.16g  %.16g  %.16g  0  0  0  %.16g  %.16g  %.16g  %.16g  %.16g  %.16g  %d      .\n",pmy_block_->pmy_mesh->time,i,j,k,pco->x1v(i),pco->x2v(j),pco->x3v(k),Dg,taug,S_1g,S_2g,S_3g,gamma_dd(0,0,i),gamma_dd(0,1,i),gamma_dd(0,2,i),gamma_dd(1,1,i),gamma_dd(1,2,i),gamma_dd(2,2,i),coarse_flag);
+     fclose(ofile);   
+}
+//     std::cerr << "Err code = " << rep.status << "\n";
+
+//     if(rep.status == rep.ROOT_FAIL_CONV){
+//     std::cerr << "ROOT_FAIL_CONV. Not adjusting Primitives.\n"; 
+//     return;
+//     }
+ 
+//    printf("i=%d, j=%d, k=%d, x= %.16g, y = %.16g, z = %1.6g\n",i,j,k, pco->x1v(i), pco->x2v(j), pco->x3v(k));
       //abort simulation
-  if(collapse){
-  if(std::isnan(Dg) || std::isnan(taug) || std::isnan(S_1g) || std::isnan(S_2g) || std::isnan(S_3g)){
+//  if(collapse){
+//  if(std::isnan(Dg) || std::isnan(taug) || std::isnan(S_1g) || std::isnan(S_2g) || std::isnan(S_3g)){
    uu1 = 0.0;
    uu2 = 0.0;
    uu3 = 0.0;
    rho = atmo_rho;
    pgas = k_adi*pow(atmo_rho,gamma_adi);
+//   pgas = atmo_p;
    PrimitiveToConservedSingle(prim, gamma_adi, gamma_dd, k, j, i, cons, pco);
-  }
-  } 
+//  }
+//  } 
     }
     else {
       primitives.scatter(rho, eps, dummy, pgas, uu1, uu2, uu3, w_lor,dummy,dummy,dummy,dummy,dummy,dummy);
@@ -347,6 +370,9 @@ if(coarse_flag==0){
       uu2 *= w_lor;
       uu3 *= w_lor;
       bool pgasfix = false;
+//      if(rep.set_atmo){
+//      pgas = rho*eps*(gamma_adi - 1.0); //if reprimand sets atmosphere pressure wrongly, recaclulate from rho and eps
+//      }
 //this shouldnt be triggered...
   if(collapse){
   if(std::isnan(Dg) || std::isnan(taug) || std::isnan(S_1g) || std::isnan(S_2g) || std::isnan(S_3g)){
@@ -355,22 +381,32 @@ if(coarse_flag==0){
    uu3 = 0.0;
    rho = atmo_rho;
    pgas = k_adi*pow(atmo_rho,gamma_adi);
+//   pgas = atmo_p;
    PrimitiveToConservedSingle(prim, gamma_adi, gamma_dd, k, j, i, cons, pco);
+   printf("NAN after success");
   }
   } 
+
       if(rho < fthr*atmo_rho ){
       uu1 = 0.0;
       uu2 = 0.0;
       uu3 = 0.0;
-      }
-      if(pgas < k_adi*pow(atmo_rho,gamma_adi)){
       pgas = k_adi*pow(atmo_rho,gamma_adi);
       rho = atmo_rho;
-      uu1 = 0.0;
-      uu2 = 0.0;
-      uu3 = 0.0;
       pgasfix = true;
       }
+
+
+
+//      if(pgas < k_adi*pow(atmo_rho,gamma_adi)){ 
+//      pgas = k_adi*pow(atmo_rho,gamma_adi);
+//      rho = atmo_rho;
+//      uu1 = 0.0;
+//      uu2 = 0.0;
+//      uu3 = 0.0;
+//      pgasfix = true;
+//
+//      }
       if (rep.adjust_cons || rep.set_atmo || pgasfix) {
           PrimitiveToConservedSingle(prim, gamma_adi, gamma_dd, k, j, i, cons, pco);
 
@@ -380,6 +416,7 @@ if(coarse_flag==0){
     }
 }else{ // hydro excision triggered if lapse < 0.3
       pgas = k_adi*pow(atmo_rho,gamma_adi);
+//      pgas = atmo_p;
       rho = atmo_rho;
       uu1 = 0.0;
       uu2 = 0.0;
@@ -489,22 +526,26 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, Real gamma_adi,
 
   // Calculate 4-velocity
 //  Real alpha = std::sqrt(-1.0/gi(I00,i));
-  Real detgamma = std::sqrt(Det3Metric(gamma_dd,i));
-  if(std::isnan(detgamma)){
-//  printf("detgamma is nan\n");
-//  printf("x = %.16e, y = %.16e, z = %.16e, g_xx = %.16e\n g_xy = %.16e, g_xz = %.16e, g_yy = %.16e, g_yz = %.16e, g_zz = %.16e\n",pco->x1v(i), pco->x2v(j), pco->x3v(k), gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i), gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i));
-  detgamma = 1;
- } 
-  Real Wlor = 0.0;
-  for(int a=0;a<NDIM;++a){
-          for(int b=0;b<NDIM;++b){
+   Real detgamma = std::sqrt(Det3Metric(gamma_dd,i));
+   if(std::isnan(detgamma)){
+   if(eos_debug){
+    printf("detgamma is nan\n");
+    printf("x = %.16e, y = %.16e, z = %.16e, g_xx = %.16e\n g_xy = %.16e, g_xz = %.16e, g_yy = %.16e, g_yz = %.16e, g_zz = %.16e\n",pco->x1v(i), pco->x2v(j), pco->x3v(k), gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i), gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i));
+   }
+   detgamma = 1;
+   } 
+   Real Wlor = 0.0;
+   for(int a=0;a<NDIM;++a){
+           for(int b=0;b<NDIM;++b){
                   Wlor += utilde_u(a)*utilde_u(b)*gamma_dd(a,b,i);
            }
-       }
+   }
    Wlor = std::sqrt(1.0+Wlor);
    if(std::isnan(Wlor)){ 
-//   printf("Wlor is nan\n");
-//   printf("x = %.16e, y = %.16e, z = %.16e\n",pco->x1v(i), pco->x2v(j), pco->x3v(k));
+   if(eos_debug){
+   printf("Wlor is nan\n");
+   printf("x = %.16e, y = %.16e, z = %.16e\n",pco->x1v(i), pco->x2v(j), pco->x3v(k));
+   }
    Wlor = 1.0;
    }
 // NB definitions have changed slightly here - a different velocity is being used . Double check me!

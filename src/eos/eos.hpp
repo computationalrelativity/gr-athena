@@ -213,6 +213,8 @@ class EquationOfState {
   AthenaArray<Real> normal_bb_;          // normal-frame fields, used in GR MHD
   AthenaArray<Real> normal_tt_;          // normal-frame M.B, used in GR MHD
   void InitEosConstants(ParameterInput *pin);
+  char ofname[BUFSIZ];
+  FILE * ofile;
 #if USETM
   // If we're using the PrimitiveSolver framework, we need to declare the
   // EOS and PrimitiveSolver objects.

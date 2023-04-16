@@ -73,6 +73,7 @@ void Hydro::RiemannSolver(const int k, const int j,
 
 //    Returning alpha(i), beta_u(a,i) gamma_dd(a,b,i)
       // Get metric components in ``old style'' for testing
+/*
       switch (ivx) {
         case IVX:
           pmy_block->pcoord->Face1Metric(k, j, il, iu, g_, gi_);
@@ -84,6 +85,7 @@ void Hydro::RiemannSolver(const int k, const int j,
           pmy_block->pcoord->Face3Metric(k, j, il, iu, g_, gi_);
           break;
       }
+*/
       AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha, rho_l, rho_r, pgas_l, pgas_r, wgas_l, wgas_r,detgamma,detg;
       AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Wlor_l, Wlor_r;
       AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> u0_l, u0_r;

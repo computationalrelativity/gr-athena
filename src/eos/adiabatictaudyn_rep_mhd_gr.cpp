@@ -38,6 +38,7 @@ Real k_adi, gamma_adi;
 EOS_Toolkit::real_t atmo_rho;
 EOS_Toolkit::real_t rho_strict;
 bool  ye_lenient;
+bool eos_debug;
 int max_iter;
 EOS_Toolkit::real_t c2p_acc;
 EOS_Toolkit::real_t max_b;
@@ -106,11 +107,17 @@ using namespace EOS_Toolkit;
   ye_lenient = false;
   max_iter = 10000;
   c2p_acc = 1e-10;
-  max_b = 1.0e10;
-  max_z = 1e5;
+  max_b = 1.0e300;
+  max_z = pin -> GetOrAddReal("problem","max_z",20.0);
 
-
-
+eos_debug = pin->GetOrAddBoolean("problem","eos_debug", false);
+if(eos_debug){
+  std::snprintf(ofname, BUFSIZ, "eos_fail_mb.%d.txt", pmb->gid);
+  ofile = fopen(ofname, "a");
+  fprintf(ofile, "EOS failures in MB %d.\n", pmb->gid);
+  fprintf(ofile, "#0 time #1: i  #2: j  #3: k  #4: x  #5: y  #6: z  #7: D  #8: tau  #9: S_1  #10: S_2  #11: S_3  #12: B^1  #13: B^2  #14: B^3  #15: g_11  #16: g_12  #17: g_13  #18: g_22  #19: g_23  #20: g_33  #21: coarseflag      .\n");
+  fclose(ofile);
+}
 
 }
 
@@ -245,7 +252,6 @@ if(coarse_flag==0){
           gammat_dd(1,2,i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcgammat_yz(k,j,i));
           gammat_dd(2,2,i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcgammat_zz(k,j,i));
           alpha(i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcalpha(k,j,i));
-          alpha(i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcalpha(k,j,i));
           chi(i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcchi(k,j,i));
           beta_u(0,i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcbeta_x(k,j,i));
           beta_u(1,i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcbeta_y(k,j,i));
@@ -332,19 +338,33 @@ if(coarse_flag==0){
     if (rep.failed())
     {
 //      printf("coarse flag = %d\n",coarse_flag);
-//      std::cerr << rep.debug_message();
-//      printf("i=%d, j=%d, k=%d\n",i,j,k);
+if(eos_debug){
+     std::cerr << rep.debug_message();
+     std::cerr << " i = " << i << ", j = " << j << ", k = " << k << ", x = " << pco->x1v(i) << ", y = " << pco->x2v(j) << ", z = " << pco->x3v(k) << ", t = " << pmy_block_->pmy_mesh->time  << ", MB = " << pmy_block_->gid  << "\n";
+     ofile = fopen(ofname, "a");
+     fprintf(ofile, "%.16g  %d  %d  %d  %.16g  %.16g  %.16g  %.16g  %.16g  %.16g  %.16g  %.16g  %.16g  %.16g  %.16g  %.16g  %.16g  %.16g  %.16g  %.16g  %.16g  %d      .\n",pmy_block_->pmy_mesh->time,i,j,k,pco->x1v(i),pco->x2v(j),pco->x3v(k),Dg,taug,S_1g,S_2g,S_3g,bb1g,bb2g,bb3g,gamma_dd(0,0,i),gamma_dd(0,1,i),gamma_dd(0,2,i),gamma_dd(1,1,i),gamma_dd(1,2,i),gamma_dd(2,2,i),coarse_flag);
+     fclose(ofile);   
+}
+//     std::cerr << " " << Dg << " " << taug << " " << S_1g << " " << S_2g << " " << S_3g << " " << bb1g << " " << bb2g  << " " << bb3g  << " " << gamma_dd(0,0,i) << " " << gamma_dd(0,1,i) << " " << gamma_dd(0,2,i) << " " << gamma_dd(1,1,i) << " " << gamma_dd(1,2,i) << " " << gamma_dd(2,2,i) << " "  << "\n";
+//     std::cerr << "Err code = " << rep.status << "\n";
+
+//     if(rep.status == rep.ROOT_FAIL_CONV){
+//     std::cerr << "ROOT_FAIL_CONV. Not adjusting Primitives.\n"; 
+//     return;
+//     }
+ 
+//    printf("i=%d, j=%d, k=%d, x= %.16g, y = %.16g, z = %1.6g\n",i,j,k, pco->x1v(i), pco->x2v(j), pco->x3v(k));
       //abort simulation
-  if(collapse){
-  if(std::isnan(Dg) || std::isnan(taug) || std::isnan(S_1g) || std::isnan(S_2g) || std::isnan(S_3g)){
+//  if(collapse){
+//  if(std::isnan(Dg) || std::isnan(taug) || std::isnan(S_1g) || std::isnan(S_2g) || std::isnan(S_3g)){
    uu1 = 0.0;
    uu2 = 0.0;
    uu3 = 0.0;
    rho = atmo_rho;
    pgas = k_adi*pow(atmo_rho,gamma_adi);
    PrimitiveToConservedSingle(prim, gamma_adi,bb_cc, gamma_dd, beta_u, alpha, k, j, i, cons, pco);
-  }
-  } 
+//  }
+//  } 
     }
     else {
       primitives.scatter(rho, eps, dummy, pgas, uu1, uu2, uu3, w_lor,dummy,dummy,dummy,dummy,dummy,dummy);
@@ -367,15 +387,18 @@ if(coarse_flag==0){
       uu1 = 0.0;
       uu2 = 0.0;
       uu3 = 0.0;
-      }
-      if(pgas < k_adi*pow(atmo_rho,gamma_adi)){
       pgas = k_adi*pow(atmo_rho,gamma_adi);
       rho = atmo_rho;
-      uu1 = 0.0;
-      uu2 = 0.0;
-      uu3 = 0.0;
       pgasfix = true;
       }
+//      if(pgas < k_adi*pow(atmo_rho,gamma_adi)){
+//      pgas = k_adi*pow(atmo_rho,gamma_adi);
+//      rho = atmo_rho;
+//      uu1 = 0.0;
+//      uu2 = 0.0;
+//      uu3 = 0.0;
+//      pgasfix = true;
+//      }
       if (rep.adjust_cons || rep.set_atmo || pgasfix) {
 //TODO P2C only requires gamma(a,b,i)  need to modify PrimitiveToConservedSingle defn
           PrimitiveToConservedSingle(prim, gamma_adi, bb_cc, gamma_dd, beta_u, alpha, k, j, i, cons, pco);
@@ -481,7 +504,7 @@ const AthenaArray<Real> &bb_cc,    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>
 //TODO needs to take alpha as an argument - need to initialise b too
     AthenaArray<Real> utilde_u;  // primitive gamma^i_a u^a
     AthenaArray<Real> utilde_d;  // primitive gamma^i_a u^a
-    AthenaArray<Real> v_d, v_u, bb_u, bi_d, bi_u;  // primitive gamma^i_a u^a
+    AthenaArray<Real> v_d, v_u, bb_u, bi_d, bi_u, beta_d;  // primitive gamma^i_a u^a
 
   utilde_u.NewAthenaArray(3);
   utilde_d.NewAthenaArray(3);
@@ -490,6 +513,7 @@ const AthenaArray<Real> &bb_cc,    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>
   bb_u.NewAthenaArray(3);
   bi_u.NewAthenaArray(3);
   bi_d.NewAthenaArray(3);
+  beta_d.NewAthenaArray(3);
 
 
   // Apply floor to primitive variables. This should be
@@ -514,8 +538,10 @@ const AthenaArray<Real> &bb_cc,    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>
 //  Real alpha = std::sqrt(-1.0/gi(I00,i));
   Real detgamma = std::sqrt(Det3Metric(gamma_dd,i));
   if(std::isnan(detgamma)){
-//  printf("detgamma is nan\n");
-//  printf("x = %.16e, y = %.16e, z = %.16e, g_xx = %.16e\n g_xy = %.16e, g_xz = %.16e, g_yy = %.16e, g_yz = %.16e, g_zz = %.16e\n",pco->x1v(i), pco->x2v(j), pco->x3v(k), gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i), gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i));
+if(eos_debug){
+  printf("detgamma is nan\n");
+  printf("x = %.16e, y = %.16e, z = %.16e, g_xx = %.16e\n g_xy = %.16e, g_xz = %.16e, g_yy = %.16e, g_yz = %.16e, g_zz = %.16e\n",pco->x1v(i), pco->x2v(j), pco->x3v(k), gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i), gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i));
+}
   detgamma = 1;
  } 
   Real Wlor = 0.0;
@@ -526,8 +552,10 @@ const AthenaArray<Real> &bb_cc,    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>
        }
    Wlor = std::sqrt(1.0+Wlor);
    if(std::isnan(Wlor)){ 
-//   printf("Wlor is nan\n");
-//   printf("x = %.16e, y = %.16e, z = %.16e\n",pco->x1v(i), pco->x2v(j), pco->x3v(k));
+if(eos_debug){
+   printf("Wlor is nan\n");
+   printf("x = %.16e, y = %.16e, z = %.16e\n",pco->x1v(i), pco->x2v(j), pco->x3v(k));
+}
    Wlor = 1.0;
    }
 // NB definitions have changed slightly here - a different velocity is being used . Double check me!
@@ -546,6 +574,15 @@ const AthenaArray<Real> &bb_cc,    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>
       for(int a=0;a<NDIM;++a){
              v_u(a) = utilde_u(a)/Wlor;
       }
+
+      beta_d.ZeroClear();
+        for(int a=0;a<NDIM;++a){
+          for(int b=0;b<NDIM;++b){
+                  beta_d(a) += beta_u(b,i)*gamma_dd(a,b,i);
+              }
+      }
+      
+
 
 //  Real utilde_d_1 = g(I11,i)*uu1 + g(I12,i)*uu2 + g(I13,i)*uu3;
 //  Real utilde_d_2 = g(I12,i)*uu1 + g(I22,i)*uu2 + g(I23,i)*uu3;
@@ -577,12 +614,24 @@ const AthenaArray<Real> &bb_cc,    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>
   for(int a=0;a<NDIM;++a){
           bi_u(a) = (bb_u(a) + alpha(i)*b0_u*Wlor*(v_u(a) - beta_u(a,i)/alpha(i)))/Wlor;
      }
+/*
   bi_d.ZeroClear();
   for(int a=0;a<NDIM;++a){
     for(int b=0;b<NDIM;++b){
           bi_d(a) += bi_u(b)*gamma_dd(a,b,i);
      }
   }
+*/
+
+ for(int a=0;a<NDIM;++a){
+     bi_d(a) = beta_d(a) * b0_u;
+          for(int b=0;b<NDIM;++b){
+                    bi_d(a) += gamma_dd(a,b,i)*bi_u(b);
+          }
+ }
+
+
+
    Real bsq = alpha(i)*alpha(i)*b0_u*b0_u/(Wlor*Wlor);
    for(int a=0;a<NDIM;++a){
           for(int b=0;b<NDIM;++b){
@@ -714,7 +763,7 @@ void EquationOfState::FastMagnetosonicSpeedsGR(Real rho_h, Real pgas, Real b_sq,
   Real u0 = Wlor/alpha;
   Real g00 = -1.0/(alpha*alpha);
   Real g01 = betai/(alpha*alpha);
-  Real u1 = vi*Wlor;
+  Real u1 = (vi-betai/alpha)*Wlor;
   Real g11 = gammaii - betai*betai/(alpha*alpha);
   // Calculate comoving fast magnetosonic speed
   Real cs_sq = gamma_adi * pgas / rho_h;

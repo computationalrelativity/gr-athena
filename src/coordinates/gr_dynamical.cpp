@@ -142,28 +142,28 @@ GRDynamical::GRDynamical(MeshBlock *pmb, ParameterInput *pin, bool flag)
   }
 
   // Allocate arrays for geometric quantities
-  metric_cell_kji_.NewAthenaArray(2, NMETRIC, nc3, nc2, nc1);
+//  metric_cell_kji_.NewAthenaArray(2, NMETRIC, nc3, nc2, nc1);
   // excurv + coord_3vol can I think be moved into the if statement TODO
-  excurv_kji_.NewAthenaArray(NSPMETRIC, nc3, nc2, nc1);
-  coord_3vol_kji_.NewAthenaArray(nc3, nc2, nc1);
+//  excurv_kji_.NewAthenaArray(NSPMETRIC, nc3, nc2, nc1);
+//  coord_3vol_kji_.NewAthenaArray(nc3, nc2, nc1);
   if (!coarse_flag) {
-    coord_vol_kji_.NewAthenaArray(nc3, nc2, nc1);
-    coord_area1_kji_.NewAthenaArray(nc3, nc2, nc1+1);
-    coord_area2_kji_.NewAthenaArray(nc3, nc2+1, nc1);
-    coord_area3_kji_.NewAthenaArray(nc3+1, nc2, nc1);
-    coord_len1_kji_.NewAthenaArray(nc3+1, nc2+1, nc1);
-    coord_len2_kji_.NewAthenaArray(nc3+1, nc2, nc1+1);
-    coord_len3_kji_.NewAthenaArray(nc3, nc2+1, nc1+1);
-    coord_width1_kji_.NewAthenaArray(nc3, nc2, nc1);
-    coord_width2_kji_.NewAthenaArray(nc3, nc2, nc1);
-    coord_width3_kji_.NewAthenaArray(nc3, nc2, nc1);
-    coord_src_kji_.NewAthenaArray(3, NMETRIC, nc3, nc2, nc1);
-    metric_face1_kji_.NewAthenaArray(2, NMETRIC, nc3, nc2, nc1+1);
-    metric_face2_kji_.NewAthenaArray(2, NMETRIC, nc3, nc2+1, nc1);
-    metric_face3_kji_.NewAthenaArray(2, NMETRIC, nc3+1, nc2, nc1);
-    trans_face1_kji_.NewAthenaArray(2, NMETRIC, nc3, nc2, nc1+1);
-    trans_face2_kji_.NewAthenaArray(2, NMETRIC, nc3, nc2+1, nc1);
-    trans_face3_kji_.NewAthenaArray(2, NMETRIC, nc3+1, nc2, nc1);
+//    coord_vol_kji_.NewAthenaArray(nc3, nc2, nc1);
+//    coord_area1_kji_.NewAthenaArray(nc3, nc2, nc1+1);
+//    coord_area2_kji_.NewAthenaArray(nc3, nc2+1, nc1);
+//    coord_area3_kji_.NewAthenaArray(nc3+1, nc2, nc1);
+//    coord_len1_kji_.NewAthenaArray(nc3+1, nc2+1, nc1);
+//    coord_len2_kji_.NewAthenaArray(nc3+1, nc2, nc1+1);
+//    coord_len3_kji_.NewAthenaArray(nc3, nc2+1, nc1+1);
+//    coord_width1_kji_.NewAthenaArray(nc3, nc2, nc1);
+//    coord_width2_kji_.NewAthenaArray(nc3, nc2, nc1);
+//    coord_width3_kji_.NewAthenaArray(nc3, nc2, nc1);
+//    coord_src_kji_.NewAthenaArray(3, NMETRIC, nc3, nc2, nc1);
+//    metric_face1_kji_.NewAthenaArray(2, NMETRIC, nc3, nc2, nc1+1);
+//    metric_face2_kji_.NewAthenaArray(2, NMETRIC, nc3, nc2+1, nc1);
+//    metric_face3_kji_.NewAthenaArray(2, NMETRIC, nc3+1, nc2, nc1);
+//    trans_face1_kji_.NewAthenaArray(2, NMETRIC, nc3, nc2, nc1+1);
+//    trans_face2_kji_.NewAthenaArray(2, NMETRIC, nc3, nc2+1, nc1);
+//    trans_face3_kji_.NewAthenaArray(2, NMETRIC, nc3+1, nc2, nc1);
     g_.NewAthenaArray(NMETRIC, nc1+1);
     gi_.NewAthenaArray(NMETRIC, nc1+1);
   }
@@ -277,7 +277,9 @@ void GRDynamical::CenterWidth1(const int k, const int j, const int il, const int
   // \Delta W \approx \sqrt{g_{11}} \Delta x^1
 #pragma omp simd
   for (int i=il; i<=iu; ++i) {
-    dx1(i) = coord_width1_kji_(k,j,i);
+//    dx1(i) = coord_width1_kji_(k,j,i);
+//replace for CT weight without vol weighting
+    dx1(i) = dx1v(i);
   }
   return;
 }
@@ -287,7 +289,8 @@ void GRDynamical::CenterWidth2(const int k, const int j, const int il, const int
   // \Delta W \approx \sqrt{g_{22}} \Delta x^2
 #pragma omp simd
   for (int i=il; i<=iu; ++i) {
-    dx2(i) = coord_width2_kji_(k,j,i);
+//    dx2(i) = coord_width2_kji_(k,j,i);
+    dx2(i) = dx2v(j);
   }
   return;
 }
@@ -297,7 +300,8 @@ void GRDynamical::CenterWidth3(const int k, const int j, const int il, const int
   // \Delta W \approx \sqrt{g_{33}} \Delta x^3
 #pragma omp simd
   for (int i=il; i<=iu; ++i) {
-    dx3(i) = coord_width3_kji_(k,j,i);
+//    dx3(i) = coord_width3_kji_(k,j,i);
+    dx3(i) = dx3v(k);
   }
   return;
 }
@@ -357,17 +361,21 @@ void GRDynamical::Face3Area(const int k, const int j, const int il, const int iu
 
 Real GRDynamical::GetFace1Area(const int k, const int j, const int i) {
   // \Delta A \approx \sqrt{-g} \Delta x^2 \Delta x^3
-  return coord_area1_kji_(k,j,i);
+//removed coord_area?_kji_
+//  return coord_area1_kji_(k,j,i);
+   return dx2f(j)*dx3f(k);
 }
 
 Real GRDynamical::GetFace2Area(const int k, const int j, const int i) {
   // \Delta A \approx \sqrt{-g} \Delta x^1 \Delta x^3
-  return coord_area2_kji_(k,j,i);
+//  return coord_area2_kji_(k,j,i);
+    return dx1f(i)*dx3f(k);
 }
 
 Real GRDynamical::GetFace3Area(const int k, const int j, const int i) {
   // \Delta A \approx \sqrt{-g} \Delta x^1 \Delta x^2
-  return coord_area3_kji_(k,j,i);
+//  return coord_area3_kji_(k,j,i);
+   return dx1f(i)*dx2f(j);
 }
 
 //----------------------------------------------------------------------------------------
@@ -619,6 +627,15 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
        CLOOP1(i){
             Wlor(i) = std::sqrt(1.0+Wlor(i));
        }
+
+    beta_d.ZeroClear();
+    for(a=0;a<NDIM;++a){
+       for(b=0;b<NDIM;++b){
+          CLOOP1(i){
+             beta_d(a,i) += gamma_dd(a,b,i)*beta_u(b,i);
+          }
+       }
+    }
 // calculate 3 velocity v^i
 
       for(a=0;a<NDIM;++a){
@@ -682,12 +699,17 @@ if(MAGNETIC_FIELDS_ENABLED){
      CLOOP1(i){
           bi_u(a,i) = (bb_u(a,i) + alpha(i)*b0_u(i)*Wlor(i)*(v_u(a,i) - beta_u(a,i)/alpha(i)))/Wlor(i);
      }}
-  bi_d.ZeroClear();
+//  bi_d.ZeroClear();
   for(a=0;a<NDIM;++a){
-    for(b=0;b<NDIM;++b){
      CLOOP1(i){
-          bi_d(a,i) += bi_u(b,i)*gamma_dd(a,b,i);
-     }}
+     bi_d(a,i) = beta_d(a,i) * b0_u(i);
+//bi_d(a,i) += bi_u(b,i)*gamma_dd(a,b,i);
+     }
+     for(b=0;b<NDIM;++b){
+     CLOOP1(i){
+     bi_d(a,i) += gamma_dd(a,b,i)*bi_u(b,i);
+     }
+    }
   }
      CLOOP1(i){
    bsq(i) = alpha(i)*alpha(i)*b0_u(i)*b0_u(i)/(Wlor(i)*Wlor(i));
@@ -717,7 +739,7 @@ T0i_d.ZeroClear();
 for(a = 0; a<NDIM; ++a){  
 for(b = 0; b<NDIM; ++b){  
 CLOOP1(i){
-T0i_d(a,i) += gamma_dd(a,b,i)*T0i_u(b,i);
+T0i_d(a,i) =( (wtot(i) + bsq(i))*Wlor(i)*Wlor(i)*v_d(a,i))/alpha(i) - b0_u(i)*bi_d(a,i);
 }
 }
 }
@@ -747,7 +769,7 @@ for(a = 0; a<NDIM; ++a){
 for(b = 0; b<NDIM; ++b){  
 for(c = 0; c<NDIM; ++c){  
 CLOOP1(i){
-SS_d(a,i) += T00(i)*(beta_u(b,i)*beta_u(c,i)*dgamma_ddd(a,b,c,i)) + T0i_u(b,i)*beta_u(c,i)*dgamma_ddd(a,b,c,i) + 0.5*Tij_uu(b,c,i)*dgamma_ddd(a,b,c,i);
+SS_d(a,i) += 0.5*T00(i)*(beta_u(b,i)*beta_u(c,i)*dgamma_ddd(a,b,c,i)) + T0i_u(b,i)*beta_u(c,i)*dgamma_ddd(a,b,c,i) + 0.5*Tij_uu(b,c,i)*dgamma_ddd(a,b,c,i);
 }
 }
 }
@@ -827,6 +849,8 @@ Stau(i) += T00(i)*(beta_u(a,i)*beta_u(b,i)*K_dd(a,b,i))  + T0i_u(a,i)*(2.0*beta_
 
 void GRDynamical::CellMetric(const int k, const int j, const int il, const int iu,
                         AthenaArray<Real> &g, AthenaArray<Real> &g_inv) {
+//removed metric cell
+/*
   for (int n = 0; n < NMETRIC; ++n) {
 #pragma omp simd
     for (int i=il; i<=iu; ++i) {
@@ -834,11 +858,14 @@ void GRDynamical::CellMetric(const int k, const int j, const int il, const int i
       g_inv(n,i) = metric_cell_kji_(1,n,k,j,i);
     }
   }
+*/
   return;
 }
 
 void GRDynamical::Face1Metric(const int k, const int j, const int il, const int iu,
                          AthenaArray<Real> &g, AthenaArray<Real> &g_inv) {
+//Removed metric_face?_kji_
+/*
   for (int n = 0; n < NMETRIC; ++n) {
 #pragma omp simd
     for (int i=il; i<=iu; ++i) {
@@ -846,11 +873,13 @@ void GRDynamical::Face1Metric(const int k, const int j, const int il, const int 
       g_inv(n,i) = metric_face1_kji_(1,n,k,j,i);
     }
   }
+*/
   return;
 }
 
 void GRDynamical::Face2Metric(const int k, const int j, const int il, const int iu,
                          AthenaArray<Real> &g, AthenaArray<Real> &g_inv) {
+/*
   for (int n = 0; n < NMETRIC; ++n) {
 #pragma omp simd
     for (int i=il; i<=iu; ++i) {
@@ -858,11 +887,13 @@ void GRDynamical::Face2Metric(const int k, const int j, const int il, const int 
       g_inv(n,i) = metric_face2_kji_(1,n,k,j,i);
     }
   }
+*/
   return;
 }
 
 void GRDynamical::Face3Metric(const int k, const int j, const int il, const int iu,
                          AthenaArray<Real> &g, AthenaArray<Real> &g_inv) {
+/*
   for (int n = 0; n < NMETRIC; ++n) {
 #pragma omp simd
     for (int i=il; i<=iu; ++i) {
@@ -870,6 +901,7 @@ void GRDynamical::Face3Metric(const int k, const int j, const int il, const int 
       g_inv(n,i) = metric_face3_kji_(1,n,k,j,i);
     }
   }
+*/
   return;
 }
 
@@ -898,6 +930,9 @@ void GRDynamical::PrimToLocal1(
     const int k, const int j, const int il, const int iu,
     const AthenaArray<Real> &bb1, AthenaArray<Real> &prim_l, AthenaArray<Real> &prim_r,
     AthenaArray<Real> &bbx) {
+// not used deallocated trans_face?_kji_
+
+/*
   // Go through 1D block of cells
 #pragma omp simd
   for (int i=il; i<=iu; ++i) {
@@ -1041,6 +1076,7 @@ void GRDynamical::PrimToLocal1(
       bb3_r = ut_r * bz_r - uz_r * bt_r;
     }
   }
+*/
   return;
 }
 
@@ -1070,6 +1106,7 @@ void GRDynamical::PrimToLocal2(
     const AthenaArray<Real> &bb2, AthenaArray<Real> &prim_l, AthenaArray<Real> &prim_r,
     AthenaArray<Real> &bbx) {
   // Go through 1D block of cells
+/*
 #pragma omp simd
   for (int i=il; i<=iu; ++i) {
     // Extract transformation coefficients
@@ -1212,6 +1249,7 @@ void GRDynamical::PrimToLocal2(
       bb1_r = ut_r * bz_r - uz_r * bt_r;
     }
   }
+*/
   return;
 }
 
@@ -1240,7 +1278,8 @@ void GRDynamical::PrimToLocal3(
     const int k, const int j, const int il, const int iu,
     const AthenaArray<Real> &bb3, AthenaArray<Real> &prim_l, AthenaArray<Real> &prim_r,
     AthenaArray<Real> &bbx) {
-  // Go through 1D block of cells
+/* 
+ // Go through 1D block of cells
 #pragma omp simd
   for (int i=il; i<=iu; ++i) {
     // Extract transformation coefficients
@@ -1383,6 +1422,7 @@ void GRDynamical::PrimToLocal3(
       bb2_r = ut_r * bz_r - uz_r * bt_r;
     }
   }
+*/
   return;
 }
 
@@ -1408,6 +1448,7 @@ void GRDynamical::FluxToGlobal1(
     const int k, const int j, const int il, const int iu,
     const AthenaArray<Real> &cons, const AthenaArray<Real> &bbx, AthenaArray<Real> &flux,
     AthenaArray<Real> &ey, AthenaArray<Real> &ez) {
+/*
   // Go through 1D block of cells
 #pragma omp simd
   for (int i=il; i<=iu; ++i) {
@@ -1495,6 +1536,7 @@ void GRDynamical::FluxToGlobal1(
       ez(k,j,i) = f31;
     }
   }
+*/
   return;
 }
 
@@ -1521,6 +1563,7 @@ void GRDynamical::FluxToGlobal2(
     const AthenaArray<Real> &cons, const AthenaArray<Real> &bbx, AthenaArray<Real> &flux,
     AthenaArray<Real> &ey, AthenaArray<Real> &ez) {
   // Go through 1D block of cells
+/*
 #pragma omp simd
   for (int i=il; i<=iu; ++i) {
     // Extract transformation coefficients
@@ -1607,6 +1650,7 @@ void GRDynamical::FluxToGlobal2(
       ez(k,j,i) = f12;
     }
   }
+*/
   return;
 }
 
@@ -1633,6 +1677,7 @@ void GRDynamical::FluxToGlobal3(
     const AthenaArray<Real> &cons, const AthenaArray<Real> &bbx, AthenaArray<Real> &flux,
     AthenaArray<Real> &ey, AthenaArray<Real> &ez) {
   // Go through 1D block of cells
+/*
 #pragma omp simd
   for (int i=il; i<=iu; ++i) {
     // Extract transformation coefficients
@@ -1719,6 +1764,7 @@ void GRDynamical::FluxToGlobal3(
       ez(k,j,i) = f23;
     }
   }
+*/
   return;
 }
 
@@ -1733,6 +1779,8 @@ void GRDynamical::FluxToGlobal3(
 void GRDynamical::RaiseVectorCell(Real a_0, Real a_1, Real a_2, Real a_3, int k, int j, int i,
                              Real *pa0, Real *pa1, Real *pa2, Real *pa3) {
   // Extract metric coefficients
+//removing metric_cell
+/*
   const Real &g00 = metric_cell_kji_(1,I00,k,j,i);
   const Real &g01 = metric_cell_kji_(1,I01,k,j,i);
   const Real &g02 = metric_cell_kji_(1,I02,k,j,i);
@@ -1755,6 +1803,7 @@ void GRDynamical::RaiseVectorCell(Real a_0, Real a_1, Real a_2, Real a_3, int k,
   *pa1 = g10*a_0 + g11*a_1 + g12*a_2 + g13*a_3;
   *pa2 = g20*a_0 + g21*a_1 + g22*a_2 + g23*a_3;
   *pa3 = g30*a_0 + g31*a_1 + g32*a_2 + g33*a_3;
+*/
   return;
 }
 
@@ -1769,6 +1818,7 @@ void GRDynamical::RaiseVectorCell(Real a_0, Real a_1, Real a_2, Real a_3, int k,
 void GRDynamical::LowerVectorCell(Real a0, Real a1, Real a2, Real a3, int k, int j, int i,
                              Real *pa_0, Real *pa_1, Real *pa_2, Real *pa_3) {
   // Extract metric coefficients
+/*
   const Real &g_00 = metric_cell_kji_(0,I00,k,j,i);
   const Real &g_01 = metric_cell_kji_(0,I01,k,j,i);
   const Real &g_02 = metric_cell_kji_(0,I02,k,j,i);
@@ -1791,6 +1841,8 @@ void GRDynamical::LowerVectorCell(Real a0, Real a1, Real a2, Real a3, int k, int
   *pa_1 = g_10*a0 + g_11*a1 + g_12*a2 + g_13*a3;
   *pa_2 = g_20*a0 + g_21*a1 + g_22*a2 + g_23*a3;
   *pa_3 = g_30*a0 + g_31*a1 + g_32*a2 + g_33*a3;
+
+*/
   return;
 }
 
@@ -1830,6 +1882,7 @@ void GRDynamical::UpdateMetric(){
     kll = kl;
     kuu = ku;
   }
+/*
   // Calculate cell-centered geometric quantities
   for (int k=kll; k<=kuu; ++k) {
     for (int j=jll; j<=juu; ++j) {
@@ -1842,44 +1895,46 @@ void GRDynamical::UpdateMetric(){
         Real dx2 = dx2f(j);
         Real dx3 = dx3f(k);
 
-        GetMetric(k,j,i, g, g_inv);
-        GetExCurv(k,j,i, K);
+//        GetMetric(k,j,i, g, g_inv);
+//        GetExCurv(k,j,i, K);
 
         // Calculate volumes
-        if (!coarse_flag) {
-          Real det = Determinant(g);
-          coord_vol_kji_(k,j,i) = std::sqrt(-det) * dx1 * dx2 * dx3;
-        }
+//        if (!coarse_flag) {
+//          Real det = Determinant(g);
+//          coord_vol_kji_(k,j,i) = std::sqrt(-det) * dx1 * dx2 * dx3;
+//        }
         // Calculate 3-volumes
-        if (!coarse_flag) {
-          Real detgam = Determinant(g(I11),g(I12),g(I13),g(I12),g(I22),g(I23),g(I13),g(I23),g(I33));
+//        if (!coarse_flag) {
+//          Real detgam = Determinant(g(I11),g(I12),g(I13),g(I12),g(I22),g(I23),g(I13),g(I23),g(I33));
 //          coord_3vol_kji_(k,j,i) = std::sqrt(detgam) * dx1 * dx2 * dx3;
-          coord_3vol_kji_(k,j,i) = std::sqrt(detgam);
-        }
+//          coord_3vol_kji_(k,j,i) = std::sqrt(detgam);
+//        }
 
         // Calculate widths
-        if (!coarse_flag) {
-          coord_width1_kji_(k,j,i) = std::sqrt(g(I11)) * dx1;
-          coord_width2_kji_(k,j,i) = std::sqrt(g(I22)) * dx2;
-          coord_width3_kji_(k,j,i) = std::sqrt(g(I33)) * dx3;
-        }
+//        if (!coarse_flag) {
+//          coord_width1_kji_(k,j,i) = std::sqrt(g(I11)) * dx1;
+//          coord_width2_kji_(k,j,i) = std::sqrt(g(I22)) * dx2;
+//          coord_width3_kji_(k,j,i) = std::sqrt(g(I33)) * dx3;
+//        }
 
 
         // Store extrinsic curvature at cell centres
-        if (!coarse_flag) {
-          for (int m = 0; m < NSPMETRIC; ++m) {
-            excurv_kji_(m,k,j,i) = K(m);
-          }
-        }
+//        if (!coarse_flag) {
+//          for (int m = 0; m < NSPMETRIC; ++m) {
+//            excurv_kji_(m,k,j,i) = K(m);
+//          }
+//        }
 
         // Set metric coefficients
-        for (int n = 0; n < NMETRIC; ++n) {
-          metric_cell_kji_(0,n,k,j,i) = g(n);
-          metric_cell_kji_(1,n,k,j,i) = g_inv(n);
-        }
+//        for (int n = 0; n < NMETRIC; ++n) {
+//          metric_cell_kji_(0,n,k,j,i) = g(n);
+//          metric_cell_kji_(1,n,k,j,i) = g_inv(n);
+//        }
       }
     }
   }
+*/
+/*
   // Calculate cell-centered derivatives
   for (int k=kl; k<=ku; ++k) {
     for (int j=jl; j<=ju; ++j) {
@@ -1905,7 +1960,8 @@ void GRDynamical::UpdateMetric(){
 }
 }
 }
-
+*/
+/*
   // Calculate x1-face-centered geometric quantities
   if (!coarse_flag) {
     for (int k=kll; k<=kuu; ++k) {
@@ -1938,18 +1994,19 @@ void GRDynamical::UpdateMetric(){
 
 // TODO - frame transformations not updated
           // Calculate frame transformation
-/*          CalculateTransformation(g, g_inv, 1, transformation);
+          CalculateTransformation(g, g_inv, 1, transformation);
           for (int n = 0; n < 2; ++n) {
             for (int m = 0; m < NTRIANGULAR; ++m) {
               trans_face1_kji_(n,m,k,j,i) = transformation(n,m);
-*/
+
 //  	      }
 //          }
         }
       }
     }
   }
-
+*/
+/*
   // Calculate x2-face-centered geometric quantities
   if (!coarse_flag) {
     for (int k=kll; k<=kuu; ++k) {
@@ -1992,7 +2049,8 @@ metric_face2_kji_(1,n,k,j,i) = g_inv(n);
       }
     }
   }
-
+*/
+/*
   // Calculate x3-face-centered geometric quantities
   if (!coarse_flag) {
     for (int k=kll; k<=kuu+1; ++k) {
@@ -2035,6 +2093,7 @@ metric_face2_kji_(1,n,k,j,i) = g_inv(n);
       }
     }
   }
+*/
 /*
 //TODO - edge centres not currently used - will need for MHD
   // Calculate x1-edge-centered geometric quantities
@@ -2107,18 +2166,21 @@ return;
 }
 
 void GRDynamical::GetDerivs(int i,int j,int k,AthenaArray<Real>& dg_dx1, AthenaArray<Real>& dg_dx2, AthenaArray<Real>& dg_dx3){
-
+/*
 for(int n=0;n<NMETRIC;++n){
 dg_dx1(n) = coordFD.Dx(0,metric_cell_kji_(0,n,k,j,i) );
 dg_dx2(n) = coordFD.Dx(1, metric_cell_kji_(0,n,k,j,i));
 dg_dx3(n) = coordFD.Dx(2, metric_cell_kji_(0,n,k,j,i));
 //debugging
+*/
 /*
 dg_dx1(n) = 0.0;
 dg_dx2(n) = 0.0;
 dg_dx3(n) = 0.0;
 */
+/*
 }
+*/
 return;
 }
 
