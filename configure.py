@@ -761,7 +761,14 @@ if args['cxx'] == 'g++':
     definitions['COMPILER_CHOICE'] = 'g++'
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'g++'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
-    makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++11'
+    # makefile_options['COMPILER_FLAGS'] = (
+    #     '-O3 -std=c++11 -fwhole-program -flto=auto '
+    #     '-march=native -fprefetch-loop-arrays'
+    # )
+    makefile_options['COMPILER_FLAGS'] = (
+        '-O3 -std=c++11 -fwhole-program -flto=auto -fprefetch-loop-arrays -march=native '
+        '-ffp-contract=off ' # disables FMA
+    )
     makefile_options['LINKER_FLAGS'] = ''
     makefile_options['LIBRARY_FLAGS'] = ''
 if args['cxx'] == 'g++-simd':
@@ -770,8 +777,9 @@ if args['cxx'] == 'g++-simd':
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'g++'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
     makefile_options['COMPILER_FLAGS'] = (
-        '-O3 -std=c++11 -fopenmp-simd -fwhole-program -flto -ffast-math '
-        '-march=native -fprefetch-loop-arrays'
+        '-O3 -std=c++11 -fwhole-program -flto=auto -fprefetch-loop-arrays -march=native '
+        '-fopenmp-simd '
+        '-ffp-contract=off ' # disables FMA
         # -march=skylake-avx512, skylake, core-avx2
         # -mprefer-vector-width=128  # available in gcc-8, but not gcc-7
         # -mtune=native, generic, broadwell
@@ -787,7 +795,7 @@ if args['cxx'] == 'icpc':
     makefile_options['PREPROCESSOR_FLAGS'] = ''
     makefile_options['COMPILER_FLAGS'] = (
       '-O3 -std=c++11 -ipo -xhost -inline-forceinline -qopenmp-simd -qopt-prefetch=4 '
-      '-qoverride-limits'  # -qopt-report-phase=ipo (does nothing without -ipo)
+      '-qoverride-limits -fp-model precise '  # -qopt-report-phase=ipo (does nothing without -ipo)
     )
     # -qopt-zmm-usage=high'  # typically harms multi-core performance on Skylake Xeon
     makefile_options['LINKER_FLAGS'] = ''

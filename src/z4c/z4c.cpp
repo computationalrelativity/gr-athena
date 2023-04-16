@@ -141,7 +141,14 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
 
   // "Enroll" in SMR/AMR by adding to vector of pointers in MeshRefinement class
   if (pm->multilevel) {
-    refinement_idx = pmy_block->pmr->AddToRefinementVC(&storage.u, &coarse_u_);
+    if (PREFER_VC)
+    {
+      refinement_idx = pmy_block->pmr->AddToRefinementVC(&storage.u, &coarse_u_);
+    }
+    else
+    {
+      refinement_idx = pmy_block->pmr->AddToRefinementCC(&storage.u, &coarse_u_);
+    }
   }
 
 
@@ -322,30 +329,13 @@ if(pmb->pmy_mesh->multilevel){
 
 }
 
-//
   // Set up finite difference operators
-  Real dx1, dx2, dx3;
   if (PREFER_VC) {
-    dx1 = pco->dx1f(0); dx2 = pco->dx2f(0); dx3 = pco->dx3f(0);
+    pfd = pmy_block->pfd_cc;
   } else {
-    dx1 = pco->dx1v(0); dx2 = pco->dx2v(0); dx3 = pco->dx3v(0);
+    pfd = pmy_block->pfd_vc;
   }
 
-  FD.stride[0] = 1;
-  FD.stride[1] = 0;
-  FD.stride[2] = 0;
-  FD.idx[0] = 1.0 / dx1;
-  FD.idx[1] = 0.0;
-  FD.idx[2] = 0.0;
-  if(nn2 > 1) {
-    FD.stride[1] = nn1;
-    FD.idx[1] = 1.0 / dx2;
-  }
-  if(nn3 > 1) {
-    FD.stride[2] = nn2*nn1;
-    FD.idx[2] = 1.0 / dx3;
-  }
-  FD.diss = opt.diss*pow(2, -2*NGHOST)*(NGHOST % 2 == 0 ? -1 : 1);
 }
 
 // destructor

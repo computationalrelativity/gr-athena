@@ -8,6 +8,8 @@
 
 #include "finite_differencing.hpp"
 
+namespace FiniteDifference {
+
 // Centered finite differencing 1st derivative
 template<>
 Real const FDCenteredStencil<1, 1>::coeff[] = {
@@ -190,3 +192,386 @@ template<>
 Real const FDRightBiasedStencil<1, 5, 4>::coeff[] = {
   1./504., -1./42., 1./7., -2./3., -1./5., 1., -1./3., 2./21., -1./56., 1./630.,
 };
+
+
+#ifdef DBG_SYMMETRIZE_FD
+// Rewrite with denominator LCM factoring to mitigate some error ==============
+
+// 1st degree -----------------------------------------------------------------
+
+// 2nd order ------------------------------------------------------------------
+template<>
+Real const FDStencilCenteredDegreeOdd<1, 1>::coeff[] = {
+  -1
+};
+
+template<>
+Real const FDStencilCenteredDegreeOdd<1, 1>::coeff_lcm = 2;
+
+// 4th order ------------------------------------------------------------------
+template<>
+Real const FDStencilCenteredDegreeOdd<1, 2>::coeff[] = {
+  1, -8
+};
+
+template<>
+Real const FDStencilCenteredDegreeOdd<1, 2>::coeff_lcm = 12;
+
+// 6th order ------------------------------------------------------------------
+template<>
+Real const FDStencilCenteredDegreeOdd<1, 3>::coeff[] = {
+  -1, 9, -45
+};
+
+template<>
+Real const FDStencilCenteredDegreeOdd<1, 3>::coeff_lcm = 60;
+
+// 8th order ------------------------------------------------------------------
+template<>
+Real const FDStencilCenteredDegreeOdd<1, 4>::coeff[] = {
+  3, -32, 168, -672
+};
+
+template<>
+Real const FDStencilCenteredDegreeOdd<1, 4>::coeff_lcm = 840;
+
+// 10th order -----------------------------------------------------------------
+template<>
+Real const FDStencilCenteredDegreeOdd<1, 5>::coeff[] = {
+  -2, 25, -150, 600, -2100
+};
+
+template<>
+Real const FDStencilCenteredDegreeOdd<1, 5>::coeff_lcm = 2520;
+
+// 12th order -----------------------------------------------------------------
+template<>
+Real const FDStencilCenteredDegreeOdd<1, 6>::coeff[] = {
+  5, -72, 495, -2200, 7425, -23760
+};
+
+template<>
+Real const FDStencilCenteredDegreeOdd<1, 6>::coeff_lcm = 27720;
+
+// 14th order -----------------------------------------------------------------
+template<>
+Real const FDStencilCenteredDegreeOdd<1, 7>::coeff[] = {
+  -15, 245, -1911, 9555, -35035, 105105, -315315
+};
+
+template<>
+Real const FDStencilCenteredDegreeOdd<1, 7>::coeff_lcm = 360360;
+
+// 2nd degree -----------------------------------------------------------------
+
+// 2nd order ------------------------------------------------------------------
+template<>
+Real const FDStencilCenteredDegreeEven<2, 1>::coeff[] = {
+  1, -2
+};
+
+template<>
+Real const FDStencilCenteredDegreeEven<2, 1>::coeff_lcm = 1;
+
+// 4th order ------------------------------------------------------------------
+template<>
+Real const FDStencilCenteredDegreeEven<2, 2>::coeff[] = {
+  -1, 16, -30
+};
+
+template<>
+Real const FDStencilCenteredDegreeEven<2, 2>::coeff_lcm = 12;
+
+// 6th order ------------------------------------------------------------------
+template<>
+Real const FDStencilCenteredDegreeEven<2, 3>::coeff[] = {
+  2, -27, 270, -490
+};
+
+template<>
+Real const FDStencilCenteredDegreeEven<2, 3>::coeff_lcm = 180;
+
+// 8th order ------------------------------------------------------------------
+template<>
+Real const FDStencilCenteredDegreeEven<2, 4>::coeff[] = {
+  -9, 128, -1008, 8064, -14350
+};
+
+template<>
+Real const FDStencilCenteredDegreeEven<2, 4>::coeff_lcm = 5040;
+
+// 10th order -----------------------------------------------------------------
+template<>
+Real const FDStencilCenteredDegreeEven<2, 5>::coeff[] = {
+  8, -125, 1000, -6000, 42000, -73766
+};
+
+template<>
+Real const FDStencilCenteredDegreeEven<2, 5>::coeff_lcm = 25200;
+
+// 12th order -----------------------------------------------------------------
+template<>
+Real const FDStencilCenteredDegreeEven<2, 6>::coeff[] = {
+  -50,864,-7425,44000,-222750,1425600,-2480478
+};
+
+template<>
+Real const FDStencilCenteredDegreeEven<2, 6>::coeff_lcm = 831600;
+
+// 14th order -----------------------------------------------------------------
+template<>
+Real const FDStencilCenteredDegreeEven<2, 7>::coeff[] = {
+  900, -17150, 160524, -1003275, 4904900, -22072050, 132432300, -228812298
+};
+
+template<>
+Real const FDStencilCenteredDegreeEven<2, 7>::coeff_lcm = 75675600;
+
+// higher degree --------------------------------------------------------------
+
+// 4th degree -----------------------------------------------------------------
+template<>
+Real const FDStencilCenteredDegreeEven<4, 2>::coeff[] = {
+  1, -4, 6
+};
+
+template<>
+Real const FDStencilCenteredDegreeEven<4, 2>::coeff_lcm = 1;
+
+// 6th degree -----------------------------------------------------------------
+template<>
+Real const FDStencilCenteredDegreeEven<6, 3>::coeff[] = {
+  1, -6, 15, -20
+};
+
+template<>
+Real const FDStencilCenteredDegreeEven<6, 3>::coeff_lcm = 1;
+
+// 8th degree -----------------------------------------------------------------
+template<>
+Real const FDStencilCenteredDegreeEven<8, 4>::coeff[] = {
+  1, -8, 28, -56, 70
+};
+
+template<>
+Real const FDStencilCenteredDegreeEven<8, 4>::coeff_lcm = 1;
+
+// 10th degree ----------------------------------------------------------------
+template<>
+Real const FDStencilCenteredDegreeEven<10, 5>::coeff[] = {
+  1, -10, 45, -120, 210, -252
+};
+
+template<>
+Real const FDStencilCenteredDegreeEven<10, 5>::coeff_lcm = 1;
+
+// 12th degree ----------------------------------------------------------------
+template<>
+Real const FDStencilCenteredDegreeEven<12, 6>::coeff[] = {
+  1, -12, 66, -220, 495, -792, 924
+};
+
+template<>
+Real const FDStencilCenteredDegreeEven<12, 6>::coeff_lcm = 1;
+
+// 14th degree ----------------------------------------------------------------
+template<>
+Real const FDStencilCenteredDegreeEven<14, 7>::coeff[] = {
+  1, -14, 91, -364, 1001, -2002, 3003, -3432
+};
+
+template<>
+Real const FDStencilCenteredDegreeEven<14, 7>::coeff_lcm = 1;
+
+// 16th degree ----------------------------------------------------------------
+template<>
+Real const FDStencilCenteredDegreeEven<16, 8>::coeff[] = {
+  1, -16, 120, -560, 1820, -4368, 8008, -11440, 12870
+};
+
+template<>
+Real const FDStencilCenteredDegreeEven<16, 8>::coeff_lcm = 1;
+
+// 1st lop --------------------------------------------------------------------
+
+// 2nd order ------------------------------------------------------------------
+template<>
+Real const FDStencilBiasedLeft<1, 2, 0>::coeff[] = {
+  1, -4, 3
+};
+
+template<>
+Real const FDStencilBiasedLeft<1, 2, 0>::coeff_lcm = 2;
+
+template<>
+Real const FDStencilBiasedRight<1, 2, 0>::coeff[] = {
+  -3, 4, -1
+};
+
+template<>
+Real const FDStencilBiasedRight<1, 2, 0>::coeff_lcm = 2;
+
+// 4th order ------------------------------------------------------------------
+template<>
+Real const FDStencilBiasedLeft<1, 3, 1>::coeff[] = {
+  -1, 6, -18, 10, 3
+};
+
+template<>
+Real const FDStencilBiasedLeft<1, 3, 1>::coeff_lcm = 12;
+
+template<>
+Real const FDStencilBiasedRight<1, 3, 1>::coeff[] = {
+  -3, -10, 18, -6, 1
+};
+
+template<>
+Real const FDStencilBiasedRight<1, 3, 1>::coeff_lcm = 12;
+
+// 6th order ------------------------------------------------------------------
+template<>
+Real const FDStencilBiasedLeft<1, 4, 2>::coeff[] = {
+  1, -8, 30, -80, 35, 24, -2
+};
+
+template<>
+Real const FDStencilBiasedLeft<1, 4, 2>::coeff_lcm = 60;
+
+template<>
+Real const FDStencilBiasedRight<1, 4, 2>::coeff[] = {
+  2, -24, -35, 80, -30, 8, -1
+};
+
+template<>
+Real const FDStencilBiasedRight<1, 4, 2>::coeff_lcm = 60;
+
+// 8th order ------------------------------------------------------------------
+template<>
+Real const FDStencilBiasedLeft<1, 5, 3>::coeff[] = {
+  -3, 30, -140, 420, -1050, 378, 420, -60, 5
+};
+
+template<>
+Real const FDStencilBiasedLeft<1, 5, 3>::coeff_lcm = 840;
+
+template<>
+Real const FDStencilBiasedRight<1, 5, 3>::coeff[] = {
+  -5, 60, -420, -378, 1050, -420, 140, -30, 3
+};
+
+template<>
+Real const FDStencilBiasedRight<1, 5, 3>::coeff_lcm = 840;
+
+// 10th order -----------------------------------------------------------------
+template<>
+Real const FDStencilBiasedLeft<1, 6, 4>::coeff[] = {
+  2, -24, 135, -480, 1260, -3024, 924, 1440, -270, 40, -3
+};
+
+template<>
+Real const FDStencilBiasedLeft<1, 6, 4>::coeff_lcm = 2520;
+
+template<>
+Real const FDStencilBiasedRight<1, 6, 4>::coeff[] = {
+  3, -40, 270, -1440, -924, 3024, -1260, 480, -135, 24, -2
+};
+
+template<>
+Real const FDStencilBiasedRight<1, 6, 4>::coeff_lcm = 2520;
+
+// 12th order -----------------------------------------------------------------
+template<>
+Real const FDStencilBiasedLeft<1, 7, 5>::coeff[] = {
+  -5, 70, -462, 1925, -5775, 13860, -32340, 8580, 17325, -3850, 770, -105, 7
+};
+
+template<>
+Real const FDStencilBiasedLeft<1, 7, 5>::coeff_lcm = 27720;
+
+template<>
+Real const FDStencilBiasedRight<1, 7, 5>::coeff[] = {
+  -7, 105, -770, 3850, -17325, -8580, 32340, -13860, 5775, -1925, 462, -70, 5
+};
+
+template<>
+Real const FDStencilBiasedRight<1, 7, 5>::coeff_lcm = 27720;
+
+// 14th order -----------------------------------------------------------------
+template<>
+Real const FDStencilBiasedLeft<1, 8, 6>::coeff[] = {
+  15, -240, 1820, -8736, 30030, -80080, 180180, -411840,
+  96525, 240240, -60060, 14560, -2730, 336, -20
+};
+
+template<>
+Real const FDStencilBiasedLeft<1, 8, 6>::coeff_lcm = 360360;
+
+template<>
+Real const FDStencilBiasedRight<1, 8, 6>::coeff[] = {
+  20, -336, 2730, -14560, 60060, -240240, -96525, 411840,
+  -180180, 80080, -30030, 8736, -1820, 240, -15
+};
+
+template<>
+Real const FDStencilBiasedRight<1, 8, 6>::coeff_lcm = 360360;
+
+#endif // DBG_SYMMETRIZE_FD
+
+// ctor / dtor ----------------------------------------------------------------
+Uniform::Uniform(const int nn1, const Real dx1)
+{
+  Uniform(nn1, 0, dx1, 0);
+}
+
+Uniform::Uniform(
+  const int nn1, const int nn2,  const Real dx1, const Real dx2)
+{
+  Uniform(nn1, nn2, 0, dx1, dx2, 0);
+}
+
+Uniform::Uniform(
+  const int nn1, const int nn2, const int nn3,
+  const Real dx1, const Real dx2, const Real dx3)
+{
+  diss_scaling = pow(2, -2*NGHOST)*(NGHOST % 2 == 0 ? -1 : 1);
+
+  stride[0] = 1;
+  stride[1] = (nn2 > 1) ? nn1 : 0;
+  stride[2] = (nn3 > 1) ? nn2 * nn1 : 0;
+
+  idx[0] = 1.0 / dx1;
+  idx[1] = (nn2 > 1) ? 1.0 / dx2 : 0.0;
+  idx[2] = (nn3 > 1) ? 1.0 / dx3 : 0.0;
+
+#ifdef DBG_SYMMETRIZE_FD
+  cidx1[0] = 1.0 / (dx1 * c1::coeff_lcm);
+  cidx1[1] = (nn2 > 1) ? (1.0 / (dx2 * c1::coeff_lcm)) : 0.0;
+  cidx1[2] = (nn3 > 1) ? (1.0 / (dx3 * c1::coeff_lcm)) : 0.0;
+
+  cidx2[0] = SQR(1.0 / dx1) / c2::coeff_lcm;
+  cidx2[1] = (nn2 > 1) ? SQR(1.0 / dx2) / c2::coeff_lcm : 0.0;
+  cidx2[2] = (nn3 > 1) ? SQR(1.0 / dx3) / c2::coeff_lcm : 0.0;
+
+  cidx1_lo[0] = 1.0 / (dx1 * c1_lo::coeff_lcm);
+  cidx1_lo[1] = (nn2 > 1) ? (1.0 / (dx2 * c1_lo::coeff_lcm)) : 0.0;
+  cidx1_lo[2] = (nn3 > 1) ? (1.0 / (dx3 * c1_lo::coeff_lcm)) : 0.0;
+
+  cidxd[0] = diss_scaling / (dx1 * cd::coeff_lcm);
+  cidxd[1] = (nn2 > 1) ? (diss_scaling / (dx2 * cd::coeff_lcm)) : 0.0;
+  cidxd[2] = (nn3 > 1) ? (diss_scaling / (dx3 * cd::coeff_lcm)) : 0.0;
+
+  // lop left / right
+  lidx_l1[0] = 1.0 / (dx1 * ll1::coeff_lcm);
+  lidx_l1[1] = (nn2 > 1) ? (1.0 / (dx2 * ll1::coeff_lcm)) : 0.0;
+  lidx_l1[2] = (nn3 > 1) ? (1.0 / (dx3 * ll1::coeff_lcm)) : 0.0;
+
+  lidx_r1[0] = 1.0 / (dx1 * lr1::coeff_lcm);
+  lidx_r1[1] = (nn2 > 1) ? (1.0 / (dx2 * lr1::coeff_lcm)) : 0.0;
+  lidx_r1[2] = (nn3 > 1) ? (1.0 / (dx3 * lr1::coeff_lcm)) : 0.0;
+
+#endif // DBG_SYMMETRIZE_FD
+}
+
+Uniform::~Uniform() { }
+
+} // namespace FiniteDifference
