@@ -67,9 +67,16 @@ void Reconstruction::WenoX1(
   AthenaArray<Real> &qc = scr1_ni_, &dql = scr2_ni_, &dqr = scr3_ni_,
                    &dqm = scr4_ni_;
 //  const int nu = q.GetDim4() - 1;
-
+  int nu;
+  if(eps_rec){
+     nu = NHYDRO-1;
+  }
+  else{
+     nu = NHYDRO;
+  }
   // compute L/R slopes for each variable
-  for (int n=0; n< NHYDRO; ++n) {
+//  for (int n=0; n< NHYDRO-1; ++n) {
+  for (int n=0; n< nu; ++n) {
 #pragma omp simd
     for (int i=il; i<=iu; ++i) {
       Real luimt = q(n,k,j,i-3);
@@ -93,6 +100,31 @@ void Reconstruction::WenoX1(
 //      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
     }
   }
+if(eps_rec){
+#pragma omp simd
+    for (int i=il; i<=iu; ++i) {
+      Real luimt = q(IPR,k,j,i-3)/q(IDN,k,j,i-3);
+      Real luimo = q(IPR,k,j,i-2)/q(IDN,k,j,i-2);
+      Real lui = q(IPR,k,j,i-1)/q(IDN,k,j,i-1);
+      Real luipo = q(IPR,k,j,i)/q(IDN,k,j,i);
+      Real luipt = q(IPR,k,j,i+1)/q(IDN,k,j,i+1);
+      Real ruimt = q(IPR,k,j,i-2)/q(IDN,k,j,i-2);
+      Real ruimo = q(IPR,k,j,i-1)/q(IDN,k,j,i-1);
+      Real rui = q(IPR,k,j,i)/q(IDN,k,j,i);
+      Real ruipo = q(IPR,k,j,i+1)/q(IDN,k,j,i+1);
+      Real ruipt = q(IPR,k,j,i+2)/q(IDN,k,j,i+2);
+//      ql(n,i) = rec1d_p_weno5(luimt,luimo,lui,luipo,luipt);
+//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+//    possible other reconstruction routines for testing - to be separated into separate callable reconstruction routines
+      ql(IPR,i) = rec1d_p_wenoz(luimt,luimo,lui,luipo,luipt)*ql(IDN,i);
+      qr(IPR,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*qr(IDN,i);
+//      ql(n,i) = rec1d_p_mp5(luimt,luimo,lui,luipo,luipt);
+//      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_ceno3(luimt,luimo,lui,luipo,luipt);
+//      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+    }
+}
+
   if(MAGNETIC_FIELDS_ENABLED){
 #pragma omp simd
     for (int i=il; i<=iu; ++i) {
@@ -140,7 +172,15 @@ void Reconstruction::WenoX2(
 //  const int nu = q.GetDim4() - 1;
 
   // compute L/R slopes for each variable
-  for (int n=0; n<NHYDRO; ++n) {
+//  for (int n=0; n<NHYDRO-1; ++n) {
+  int nu;
+  if(eps_rec){
+     nu = NHYDRO-1;
+  }
+  else{
+     nu = NHYDRO;
+  }
+  for (int n=0; n<nu; ++n) {
 #pragma omp simd
     for (int i=il; i<=iu; ++i) {
       Real luimt = q(n,k,j-3,i);
@@ -163,7 +203,24 @@ void Reconstruction::WenoX2(
 //      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
     }
   }
-
+if(eps_rec){
+#pragma omp simd
+    for (int i=il; i<=iu; ++i) {
+      Real ruimt = q(IPR,k,j-2,i)/q(IDN,k,j-2,i);
+      Real ruimo = q(IPR,k,j-1,i)/q(IDN,k,j-1,i);
+      Real rui = q(IPR,k,j,i)/q(IDN,k,j,i);
+      Real ruipo = q(IPR,k,j+1,i)/q(IDN,k,j+1,i);
+      Real ruipt = q(IPR,k,j+2,i)/q(IDN,k,j+2,i);
+//      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+      ql(IPR,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*ql(IDN,i);
+      qr(IPR,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*qr(IDN,i);
+//      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+    }
+}
   if(MAGNETIC_FIELDS_ENABLED){
 #pragma omp simd
     for (int i=il; i<=iu; ++i) {
@@ -226,7 +283,15 @@ void Reconstruction::WenoX3(
 //  const int nu = q.GetDim4() - 1;
 
   // compute L/R slopes for each variable
-  for (int n=0; n<NHYDRO; ++n) {
+//  for (int n=0; n<NHYDRO-1; ++n) {
+  int nu;
+  if(eps_rec){
+     nu = NHYDRO-1;
+  }
+  else{
+     nu = NHYDRO;
+  }
+  for (int n=0; n<nu; ++n) {
 #pragma omp simd
     for (int i=il; i<=iu; ++i) {
       Real luimt = q(n,k-3,j,i);
@@ -249,6 +314,25 @@ void Reconstruction::WenoX3(
 //      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
     }
   }
+if(eps_rec){
+#pragma omp simd
+    for (int i=il; i<=iu; ++i) {
+      Real ruimt = q(IPR,k-2,j,i)/q(IDN,k-2,j,i);
+      Real ruimo = q(IPR,k-1,j,i)/q(IDN,k-1,j,i);
+      Real rui = q(IPR,k,j,i)/q(IDN,k,j,i);
+      Real ruipo = q(IPR,k+1,j,i)/q(IDN,k+1,j,i);
+      Real ruipt = q(IPR,k+2,j,i)/q(IDN,k+2,j,i);
+//      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+      ql(IPR,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*ql(IDN,i);
+      qr(IPR,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*qr(IDN,i);
+//      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+    }
+}
+
   if(MAGNETIC_FIELDS_ENABLED){
 #pragma omp simd
     for (int i=il; i<=iu; ++i) {

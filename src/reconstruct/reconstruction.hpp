@@ -35,6 +35,9 @@ class Reconstruction {
   // (Cartesian reconstruction formulas are used for x3 azimuthal coordinate in both
   // cylindrical and spherical-polar coordinates)
 
+  // reconstruction with eps (internal energy) == 1 or pressure == 0 (default) 
+  bool eps_rec;
+
   // related fourth-order solver switches
   const bool correct_ic, correct_err; // used in Mesh::Initialize() and ProblemGenerator()
 
