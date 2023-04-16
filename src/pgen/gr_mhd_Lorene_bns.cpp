@@ -33,6 +33,7 @@ int RefinementCondition(MeshBlock *pmb);
 
   Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
                   int const i);
+  Real DivBface(MeshBlock *pmb, int iout);
 
 
 //========================================================================================
@@ -43,6 +44,8 @@ int RefinementCondition(MeshBlock *pmb);
 //========================================================================================
 
 void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag) {
+  AllocateUserHistoryOutput(1);
+  EnrollUserHistoryOutput(0, DivBface, "divBface");
   if(adaptive==true)
     EnrollUserRefinementCondition(RefinementCondition);
   return;
@@ -568,5 +571,23 @@ Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
           2*gamma(0,1,i)*gamma(0,2,i)*gamma(1,2,i) -
           gamma(0,0,i)*SQR(gamma(1,2,i)) - SQR(gamma(0,1,i))*gamma(2,2,i) +
           gamma(0,0,i)*gamma(1,1,i)*gamma(2,2,i);
+}
+
+Real DivBface(MeshBlock *pmb, int iout) {
+  Real divB = 0.0;
+  Real vol,dx,dy,dz;
+  int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
+  for (int k=ks; k<=ke; k++) {
+    for (int j=js; j<=je; j++) {
+      for (int i=is; i<=ie; i++) {
+        dx = pmb->pcoord->dx1v(i);
+        dy = pmb->pcoord->dx2v(j);
+        dz = pmb->pcoord->dx3v(k);
+        vol = dx*dy*dz;
+        divB += ((pmb->pfield->b.x1f(k,j,i+1) - pmb->pfield->b.x1f(k,j,i))/dx + (pmb->pfield->b.x2f(k,j+1,i) - pmb->pfield->b.x2f(k,j,i))/(dy) + (pmb->pfield->b.x3f(k+1,j,i) - pmb->pfield->b.x3f(k,j,i))/(dz))*vol;
+      }
+    }
+  }
+  return divB;
 }
 
