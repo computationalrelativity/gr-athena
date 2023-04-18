@@ -235,9 +235,9 @@ Wave::Wave(MeshBlock *pmb, ParameterInput *pin) :
 
   // Set up finite difference operators
   if (PREFER_VC) {
-    pfd = pmy_block->pfd_cc;
-  } else {
     pfd = pmy_block->pfd_vc;
+  } else {
+    pfd = pmy_block->pfd_cc;
   }
 
 }
