@@ -588,10 +588,17 @@ class InterpIntergridLocal {
             const Real f_llu = pin[I_llu];
             const Real f_uul = pin[I_uul];
 
+#ifdef DBG_SYMMETRIZE_IG_OP
+            out += lckji * FloatingPoint::sum_associative(
+               f_uuu,  f_ulu,  f_llu,  f_luu,
+              -f_uul, -f_ull, -f_lll, -f_lul
+            );
+#else
             out += lckji*((f_uuu - f_uul) +
                           (f_ulu - f_ull) +
                           (f_llu - f_lll) +
                           (f_luu - f_lul));
+#endif // DBG_SYMMETRIZE_IG_OP
 
           }
         }
