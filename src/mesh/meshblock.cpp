@@ -703,6 +703,29 @@ bool MeshBlock::PointContained(Real const x, Real const y, Real const z) {
           (mb_mi_x3 <= z) && (z <= mb_ma_x3));
 }
 
+//----------------------------------------------------------------------------------------
+//! \fn bool MeshBlock::PointContainedExclusive(Real const x, Real const y,
+//                                     Real const z)
+//  \brief Check whether a point is exclusively contained in the MeshBlock.
+//
+// note: this function should be used for those points that are away from 
+// the computational grid boundaries as the upper limits are not included.
+bool MeshBlock::PointContainedExclusive(Real const x, Real const y, Real const z) {
+
+  Real const mb_mi_x1 = block_size.x1min;
+  Real const mb_ma_x1 = block_size.x1max;
+
+  Real const mb_mi_x2 = block_size.x2min;
+  Real const mb_ma_x2 = block_size.x2max;
+
+  Real const mb_mi_x3 = block_size.x3min;
+  Real const mb_ma_x3 = block_size.x3max;
+
+  return ((mb_mi_x1 <= x) && (x < mb_ma_x1) &&
+          (mb_mi_x2 <= y) && (y < mb_ma_x2) &&
+          (mb_mi_x3 <= z) && (z < mb_ma_x3));
+}
+
 
 //----------------------------------------------------------------------------------------
 //! \fn Real MeshBlock::PointCentralDistanceSquared(Real const x, Real const y,

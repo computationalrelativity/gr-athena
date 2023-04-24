@@ -209,6 +209,7 @@ public:
   void Z4cUserWorkInLoop();
 
   bool PointContained(Real const x, Real const y, Real const z);
+  bool PointContainedExclusive(Real const x, Real const y, Real const z);
   Real PointCentralDistanceSquared(Real const x, Real const y, Real const z);
   bool SphereIntersects(Real const Sx0, Real const Sy0, Real const Sz0,
                         Real const radius);
