@@ -37,6 +37,7 @@ class CCE
     int npoint;         // num_mu_points*num_phi_points*num_x_points
     int spin;     // it's 0 and really not used
     int rn;       // radius number/shell number
+    int count_interp_pnts; // count the number of interpolated points for a test
     Real *xb; // Cart. x coords. for spherical coords.
     Real *yb; // Cart. y coords. for spherical coords.
     Real *zb; // Cart. z coords. for spherical coords.

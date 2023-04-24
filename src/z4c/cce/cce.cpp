@@ -64,7 +64,8 @@ CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int rn):
     fieldname(name),
     spin(0),
     dinfo_pp(nullptr),
-    rn(rn)
+    rn(rn),
+    count_interp_pnts(0)
 {
   output_dir = pin->GetString("cce","output_dir");
   bfname = output_dir + "/" + BOOKKEEPING_NAME;
@@ -253,11 +254,10 @@ void CCE::Interpolate(MeshBlock *const pmb)
     if (pmb->PointContainedExclusive(coord[0], coord[1], coord[2]))
     {
       LagrangeInterpND<2*NGHOST-1, 3> linterp(origin, delta, size, coord);
-
-// note: the point may take place at the boundary of two meshblocks
-#pragma omp atomic write
       ifield[p] = linterp.eval(src_field);
-      
+
+#pragma omp atomic update
+      count_interp_pnts++;
       // printf("f(%g,%g,%g) = %g\n",coord[0],coord[1],coord[2],ifield[p]);
     }
   }
@@ -267,10 +267,10 @@ void CCE::Interpolate(MeshBlock *const pmb)
 void CCE::ReduceInterpolation()
 {
   const int Npoints = nangle*num_x_points;
+  int counter = 0;
     
 # ifdef MPI_PARALLEL
   std::fill(re_f, re_f + Npoints,0.0); // init to 0.
-
   // we assumed each point interpolated once and only once so we use MPI_SUM
   if (0 == Globals::my_rank)
   {
@@ -280,14 +280,19 @@ void CCE::ReduceInterpolation()
   {
     MPI_Reduce(ifield, re_f, Npoints, MPI_ATHENA_REAL, MPI_SUM, 0, MPI_COMM_WORLD);
   }
-
+  
+  MPI_Allreduce(&count_interp_pnts, &counter, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+  
 # else // no MPI
 
   for (int i = 0; i < Npoints; ++i)
     re_f[i] = ifield[i];
 
 # endif  
-
+ 
+  // ensure all points have been found
+  assert(counter == Npoints);
+  count_interp_pnts = 0;// reset for the next time check
 }
 
 // decompose the field and write into an h5 file
