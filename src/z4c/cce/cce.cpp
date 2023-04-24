@@ -250,7 +250,7 @@ void CCE::Interpolate(MeshBlock *const pmb)
   for (int p = 0; p < Npoints; ++p)
   {
     Real coord[3] = {xb[p], yb[p], zb[p]};
-    if (pmb->PointContained(coord[0], coord[1], coord[2]))
+    if (pmb->PointContainedExclusive(coord[0], coord[1], coord[2]))
     {
       LagrangeInterpND<2*NGHOST-1, 3> linterp(origin, delta, size, coord);
 
@@ -263,45 +263,23 @@ void CCE::Interpolate(MeshBlock *const pmb)
   }
 }
 
-
-# ifdef MPI_PARALLEL
-// don't add if already counted
-static void add_once(void *inputBuffer, void *outputBuffer, int *len, MPI_Datatype *datatype)
-{
-  Real *in  = (Real *) inputBuffer;
-  Real *out = (Real *) outputBuffer;
-  
-  for (int i = 0; i < *len; ++i)
-  {
-    // only write if the entry is 0
-    out[i] = (out[i] == 0.0) ? in[i] : out[i];
-  }
-}
-# endif  
-
 // reduce different parts of the interpolation array into one array
 void CCE::ReduceInterpolation()
 {
   const int Npoints = nangle*num_x_points;
     
 # ifdef MPI_PARALLEL
-  // flush to 0. we need this as usr_op decides based on this.
   std::fill(re_f, re_f + Npoints,0.0); // init to 0.
 
-  // NOTE: it could be the case that the two neighboring meshblocks from two different processors
-  // interpolated on the same entry of ifield, for example, if the coords take place on the
-  // sharing interface(or corners) of the two (or more) meshblocks so count them only once.
-  MPI_Op usr_op;
-  MPI_Op_create(&add_once, 0, &usr_op);
+  // we assumed each point interpolated once and only once so we use MPI_SUM
   if (0 == Globals::my_rank)
   {
-    MPI_Reduce(ifield, re_f, Npoints, MPI_ATHENA_REAL, usr_op, 0, MPI_COMM_WORLD);
+    MPI_Reduce(ifield, re_f, Npoints, MPI_ATHENA_REAL, MPI_SUM, 0, MPI_COMM_WORLD);
   } 
   else 
   {
-    MPI_Reduce(ifield, re_f, Npoints, MPI_ATHENA_REAL, usr_op, 0, MPI_COMM_WORLD);
+    MPI_Reduce(ifield, re_f, Npoints, MPI_ATHENA_REAL, MPI_SUM, 0, MPI_COMM_WORLD);
   }
-  MPI_Op_free(&usr_op);
 
 # else // no MPI
 
