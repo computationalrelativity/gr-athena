@@ -178,7 +178,7 @@ CCE::~CCE()
   delete [] dinfo_pp;
 }
 
-// given a cart point, interpolate the pertinent field for that point
+// given a Cartesian point, interpolate the pertinent field for that point
 void CCE::Interpolate(MeshBlock *const pmb)
 {
   const int Npoints = nangle*num_x_points;
