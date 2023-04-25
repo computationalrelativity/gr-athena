@@ -109,6 +109,7 @@ CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int rn):
   myassert(mucolloc);
   myassert(phicolloc);
   myassert(ifield);
+  myassert(re_f);
 
   std::fill(radius, radius + (num_x_points),NAN); // init to nan
   std::fill(xb, xb + (nangle*num_x_points),NAN); // init to nan
