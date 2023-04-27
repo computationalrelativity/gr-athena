@@ -30,7 +30,7 @@
 #define BOOKKEEPING_NAME "cce_bookkeeping.txt"
 #define ABS(x_) ((x_)>0 ? (x_) : (-(x_)))
 
-#define HDF5_ERROR(fn_call)                                           \
+#define HDF5_CALL(fn_call)                                           \
 {                                                                     \
   /* ex: error_code = group_id = H5Gcreate(file_id, metaname, 0) */   \
   hid_t _error_code = fn_call;                                        \
@@ -382,41 +382,41 @@ static int output_3Dmodes(const int iter/* output iteration */, const char *dir,
     }
 
     char metaname[]="/metadata";
-    HDF5_ERROR(group_id = H5Gcreate(file_id, metaname, 0));
+    HDF5_CALL(group_id = H5Gcreate(file_id, metaname, 0));
 
     int ds[2] = {nn, nlmmodes};
     hsize_t oD2 = 2;
     hsize_t oD1 = 1;
 
-    HDF5_ERROR(dataspace_id =  H5Screate_simple(1, &oD2, NULL));
-    HDF5_ERROR(attribute_id = H5Acreate(group_id, "dim", H5T_NATIVE_INT,
+    HDF5_CALL(dataspace_id =  H5Screate_simple(1, &oD2, NULL));
+    HDF5_CALL(attribute_id = H5Acreate(group_id, "dim", H5T_NATIVE_INT,
                    dataspace_id, H5P_DEFAULT));
-    HDF5_ERROR(status = H5Awrite(attribute_id, H5T_NATIVE_INT, ds));
-    HDF5_ERROR(status = H5Aclose(attribute_id));
-    HDF5_ERROR(status = H5Sclose(dataspace_id));
+    HDF5_CALL(status = H5Awrite(attribute_id, H5T_NATIVE_INT, ds));
+    HDF5_CALL(status = H5Aclose(attribute_id));
+    HDF5_CALL(status = H5Sclose(dataspace_id));
 
-    HDF5_ERROR(dataspace_id =  H5Screate_simple(1, &oD1, NULL));
-    HDF5_ERROR(attribute_id = H5Acreate(group_id, "spin", H5T_NATIVE_INT,
+    HDF5_CALL(dataspace_id =  H5Screate_simple(1, &oD1, NULL));
+    HDF5_CALL(attribute_id = H5Acreate(group_id, "spin", H5T_NATIVE_INT,
                     dataspace_id, H5P_DEFAULT));
-    HDF5_ERROR(status = H5Awrite(attribute_id, H5T_NATIVE_INT, &s));
-    HDF5_ERROR(status = H5Aclose(attribute_id));
-    HDF5_ERROR(status = H5Sclose(dataspace_id));
+    HDF5_CALL(status = H5Awrite(attribute_id, H5T_NATIVE_INT, &s));
+    HDF5_CALL(status = H5Aclose(attribute_id));
+    HDF5_CALL(status = H5Sclose(dataspace_id));
 
-    HDF5_ERROR(dataspace_id =  H5Screate_simple(1, &oD1, NULL));
-    HDF5_ERROR(attribute_id = H5Acreate(group_id, "Rin", H5T_NATIVE_DOUBLE,
+    HDF5_CALL(dataspace_id =  H5Screate_simple(1, &oD1, NULL));
+    HDF5_CALL(attribute_id = H5Acreate(group_id, "Rin", H5T_NATIVE_DOUBLE,
                     dataspace_id, H5P_DEFAULT));
-    HDF5_ERROR(status = H5Awrite(attribute_id, H5T_NATIVE_DOUBLE, &rin));
-    HDF5_ERROR(status = H5Aclose(attribute_id));
-    HDF5_ERROR(status = H5Sclose(dataspace_id));
+    HDF5_CALL(status = H5Awrite(attribute_id, H5T_NATIVE_DOUBLE, &rin));
+    HDF5_CALL(status = H5Aclose(attribute_id));
+    HDF5_CALL(status = H5Sclose(dataspace_id));
 
-    HDF5_ERROR(dataspace_id =  H5Screate_simple(1, &oD1, NULL));
-    HDF5_ERROR(attribute_id = H5Acreate(group_id, "Rout", H5T_NATIVE_DOUBLE,
+    HDF5_CALL(dataspace_id =  H5Screate_simple(1, &oD1, NULL));
+    HDF5_CALL(attribute_id = H5Acreate(group_id, "Rout", H5T_NATIVE_DOUBLE,
                     dataspace_id, H5P_DEFAULT));
-    HDF5_ERROR(status = H5Awrite(attribute_id, H5T_NATIVE_DOUBLE, &rout));
-    HDF5_ERROR(status = H5Aclose(attribute_id));
-    HDF5_ERROR(status = H5Sclose(dataspace_id));
+    HDF5_CALL(status = H5Awrite(attribute_id, H5T_NATIVE_DOUBLE, &rout));
+    HDF5_CALL(status = H5Aclose(attribute_id));
+    HDF5_CALL(status = H5Sclose(dataspace_id));
 
-    HDF5_ERROR(H5Gclose(group_id));
+    HDF5_CALL(H5Gclose(group_id));
 
   }
 
@@ -426,43 +426,43 @@ static int output_3Dmodes(const int iter/* output iteration */, const char *dir,
   {
     hsize_t oneD = 1;
     snprintf(buff, sizeof buff, "/%d", dump_it);
-    HDF5_ERROR(group_id = H5Gcreate(file_id, buff, 0));
-    HDF5_ERROR(dataspace_id =  H5Screate_simple(1, &oneD, NULL));
-    HDF5_ERROR(attribute_id = H5Acreate(group_id, "Time", H5T_NATIVE_DOUBLE,
+    HDF5_CALL(group_id = H5Gcreate(file_id, buff, 0));
+    HDF5_CALL(dataspace_id =  H5Screate_simple(1, &oneD, NULL));
+    HDF5_CALL(attribute_id = H5Acreate(group_id, "Time", H5T_NATIVE_DOUBLE,
       dataspace_id, H5P_DEFAULT));
-    HDF5_ERROR(status = H5Awrite(attribute_id, H5T_NATIVE_DOUBLE, &time));
-    HDF5_ERROR(status = H5Aclose(attribute_id));
-    HDF5_ERROR(status = H5Sclose(dataspace_id));
-    HDF5_ERROR(H5Gclose(group_id));
+    HDF5_CALL(status = H5Awrite(attribute_id, H5T_NATIVE_DOUBLE, &time));
+    HDF5_CALL(status = H5Aclose(attribute_id));
+    HDF5_CALL(status = H5Sclose(dataspace_id));
+    HDF5_CALL(H5Gclose(group_id));
 
   }
   last_dump[obs] = dump_it;
 
   snprintf(buff, sizeof buff, "/%d/%s", dump_it, name);
-  HDF5_ERROR(group_id = H5Gcreate(file_id, buff, 0));
-  HDF5_ERROR(H5Gclose(group_id));
+  HDF5_CALL(group_id = H5Gcreate(file_id, buff, 0));
+  HDF5_CALL(H5Gclose(group_id));
 
 
   snprintf(buff, sizeof buff, "/%d/%s/re", dump_it, name);
-  HDF5_ERROR(dataspace_id =  H5Screate_simple(2, dims, NULL));
-  HDF5_ERROR(dataset_id =  H5Dcreate(file_id, buff, H5T_NATIVE_DOUBLE,
+  HDF5_CALL(dataspace_id =  H5Screate_simple(2, dims, NULL));
+  HDF5_CALL(dataset_id =  H5Dcreate(file_id, buff, H5T_NATIVE_DOUBLE,
          dataspace_id, H5P_DEFAULT));
-  HDF5_ERROR(status = H5Dwrite(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL,
+  HDF5_CALL(status = H5Dwrite(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL,
                    H5S_ALL, H5P_DEFAULT, re));
-  HDF5_ERROR(status = H5Dclose(dataset_id));
-  HDF5_ERROR(status = H5Sclose(dataspace_id));
+  HDF5_CALL(status = H5Dclose(dataset_id));
+  HDF5_CALL(status = H5Sclose(dataspace_id));
 
   
   snprintf(buff, sizeof buff, "/%d/%s/im", dump_it, name);
-  HDF5_ERROR(dataspace_id =  H5Screate_simple(2, dims, NULL));
-  HDF5_ERROR(dataset_id =  H5Dcreate(file_id, buff, H5T_NATIVE_DOUBLE,
+  HDF5_CALL(dataspace_id =  H5Screate_simple(2, dims, NULL));
+  HDF5_CALL(dataset_id =  H5Dcreate(file_id, buff, H5T_NATIVE_DOUBLE,
          dataspace_id, H5P_DEFAULT));
-  HDF5_ERROR(status = H5Dwrite(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL,
+  HDF5_CALL(status = H5Dwrite(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL,
                    H5S_ALL, H5P_DEFAULT, im));
-  HDF5_ERROR(status = H5Dclose(dataset_id));
-  HDF5_ERROR(status = H5Sclose(dataspace_id));
+  HDF5_CALL(status = H5Dclose(dataset_id));
+  HDF5_CALL(status = H5Sclose(dataspace_id));
 
-  HDF5_ERROR(H5Fclose(file_id));
+  HDF5_CALL(H5Fclose(file_id));
 
   return 0;
 }
