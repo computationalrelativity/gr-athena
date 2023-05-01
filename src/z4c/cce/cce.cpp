@@ -269,30 +269,27 @@ void CCE::ReduceInterpolation()
 {
   const int Npoints = nangle*num_x_points;
   int counter = 0;
-    
-# ifdef MPI_PARALLEL
   std::fill(re_f, re_f + Npoints,0.0); // init to 0.
-  // we assumed each point interpolated once and only once so we use MPI_SUM
-  if (0 == Globals::my_rank)
-  {
-    MPI_Reduce(ifield, re_f, Npoints, MPI_ATHENA_REAL, MPI_SUM, 0, MPI_COMM_WORLD);
-  } 
-  else 
-  {
-    MPI_Reduce(ifield, re_f, Npoints, MPI_ATHENA_REAL, MPI_SUM, 0, MPI_COMM_WORLD);
-  }
   
+# ifdef MPI_PARALLEL
+  // we assumed each point interpolated once and only once so we use MPI_SUM
+  MPI_Reduce(ifield, re_f, Npoints, MPI_ATHENA_REAL, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Allreduce(&count_interp_pnts, &counter, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+  
+  // ensure all points have been found
+  assert(counter == Npoints);
   
 # else // no MPI
 
+  // ensure all points have been found
+  assert(count_interp_pnts == Npoints);
+  
   for (int i = 0; i < Npoints; ++i)
     re_f[i] = ifield[i];
 
 # endif  
- 
-  // ensure all points have been found
-  assert(counter == Npoints);
+  
+  std::fill(ifield, ifield + Npoints,0.0); // init to 0.
   count_interp_pnts = 0;// reset for the next time check
 }
 
