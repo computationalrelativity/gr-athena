@@ -473,7 +473,7 @@ static int output_3Dmodes(const int iter/* output iteration */, const char *dir,
 // DecomposeAndWrite because they are fenced with if (0 != Globals::my_rank).
 bool CCE::BookKeeping(ParameterInput *const pin, int cce_iter, int &w_iter)
 {
-  if (0 != Globals::my_rank) return true;
+  if (0 != Globals::my_rank) return false;
     
   std::string fname = pin->GetString("cce","output_dir") + "/" + BOOKKEEPING_NAME;
   std::fstream file;

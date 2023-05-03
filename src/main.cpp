@@ -516,16 +516,22 @@ int main(int argc, char *argv[]) {
 
       // only do a CCE dump if NextTime threshold cleared (updated below)
       if (pz4clist->TaskListTriggers.cce_dump.to_update) {
+        // gather all interpolation values from all processors to the root proc.
+        for (auto cce : pmesh->pcce)
+        {
+          cce->ReduceInterpolation();
+        }
         // number of cce iteration(dump)
         int cce_iter = static_cast<int>(pmesh->time / 
                                        pz4clist->TaskListTriggers.cce_dump.dt);
         int w_iter = 0; // write iter
-        // update the bookkeeping file
+
+        // update the bookkeeping file to ensure resuming from the correct iter number 
+        // after a restart. note: for a duplicated iter, hdf5 writer gives an error!
         if (CCE::BookKeeping(pinput,cce_iter,w_iter))
         {
           for (auto cce : pmesh->pcce)
           {
-            cce->ReduceInterpolation();
             cce->DecomposeAndWrite(w_iter);
           }
         }
