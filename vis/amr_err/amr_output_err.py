@@ -415,10 +415,14 @@ class Plot:
             vmin = vmin if vmin < vminp else vminp
             vmax = vmax if vmax > vmaxp else vmaxp
         
-        
         if mynorm == "normalized":
             norm=mpl.colors.Normalize(vmin=vmin,vmax=vmax)
         elif mynorm == "log":
+            ## ensure we don't have log(0)
+            if vmin == 0.0:
+                vmin = 1e-14
+            if vmax == 0.0:
+                vmax = 1e-14
             norm=mpl.colors.LogNorm(vmin=vmin,vmax=vmax)
         else:
             raise Exception("No such norm {}!".format(mynorm))
