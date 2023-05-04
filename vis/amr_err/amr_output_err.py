@@ -528,7 +528,7 @@ class Plot:
         txt_file.close()
         
         if type == 'L2':
-            txt_file = open(output+'_L2_arg',"a")
+            txt_file = open(output+'_L2_average',"a")
             txt_file.write("# \"time = {}\"\n".format(cycle))
             txt_file.write("{} {}\n".format(params.resolution, L2_avg(params,db,mbs) ))
             txt_file.close()
