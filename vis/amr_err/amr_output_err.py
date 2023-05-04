@@ -303,6 +303,9 @@ class Files:
                                          
             self.files[file]['txt_2d_L2'] = params.out_dir + params.out_prefix + \
                                             params.field_name + "_" + params.analysis + "_L2"+"_2d.txt"
+
+            self.files[file]['txt_2d_Linf'] = params.out_dir + params.out_prefix + \
+                                            params.field_name + "_" + params.analysis + "_Linf"+"_2d.txt"
                                             
             self.files[file]['color_2d'] = params.out_dir + params.out_prefix + \
                                            params.field_name + "_" + params.analysis
@@ -324,6 +327,9 @@ class Plot:
 
             L2(params,db,mbs,slice,file)
             self.plot_2d_txt(params,db,mbs,slice,file['cycle'],"L2",file['txt_2d_L2'])
+
+            Linf(params,db,mbs,slice,file)
+            self.plot_2d_txt(params,db,mbs,slice,file['cycle'],"Linf",file['txt_2d_Linf'])
             
         elif params.out_format == "txt1d":
             self.plot_1d_txt(params,db,mbs,slice,file['cycle'],"value",file['txt_1d'])
@@ -494,6 +500,8 @@ class Plot:
             fld  = params.output_field
         elif type == "L2":
             fld  = params.output_field+'_L2'
+        elif type == "Linf":
+            fld  = params.output_field+'_Linf'
         else:
             raise Exception("No such option {}!".format(type))
 
