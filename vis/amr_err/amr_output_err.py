@@ -86,15 +86,26 @@ def L2(params,db,mbs,slice,file):
                     db[params.output_field+'_L2'][mb][k,j,i] = v_L2
 
 ## calc. the Linf norm and add it to the db. note: this is for a slice
-def Linf(params,db,mbs,slice,file):
-    db[params.output_field+'_Linf'] = np.zeros(shape=db[params.output_field].shape)
-
+def Linf(params,db,mbs,slice,file,field='h*dv'):
+    
+    if field == 'h*dv':
+        name    = params.output_field
+        outname = params.output_field + '_Linf'
+    elif field == 'dv':
+        name    = params.output_field + 'without_h'
+        outname = params.output_field + 'dv_Linf'
+    else:
+        raise Exception("No such {} option defined!".format(field))
+        
+    db[outname] = np.zeros(shape=db[params.output_field].shape)
     small_norm = 1e-14
     
+    
     for mb in mbs.keys():
-        v = db[params.output_field][mb][ mbs[mb]['kI']:mbs[mb]['kF'],
-                                          mbs[mb]['jI']:mbs[mb]['jF'],
-                                          mbs[mb]['iI']:mbs[mb]['iF']]
+        v = db[name][mb][ mbs[mb]['kI']:mbs[mb]['kF'],
+                          mbs[mb]['jI']:mbs[mb]['jF'],
+                          mbs[mb]['iI']:mbs[mb]['iF']]
+        
         nx = len(range(mbs[mb]['iI'],mbs[mb]['iF']))
         ny = len(range(mbs[mb]['jI'],mbs[mb]['jF']))
         nz = len(range(mbs[mb]['kI'],mbs[mb]['kF']))
@@ -109,7 +120,7 @@ def Linf(params,db,mbs,slice,file):
         for k in range(mbs[mb]['kI'],mbs[mb]['kF']):
             for j in range(mbs[mb]['jI'],mbs[mb]['jF']):
                 for i in range(mbs[mb]['iI'],mbs[mb]['iF']):
-                    db[params.output_field+'_Linf'][mb][k,j,i] = v_Linf
+                    db[outname][mb][k,j,i] = v_Linf
 
 ## calc. the L2 norm average: (1/nmb * sum_m {L2_m}^2)^0.5 for all meshblocks.
 def L2_avg(params,db,mbs):
@@ -306,6 +317,8 @@ class Files:
 
             self.files[file]['txt_2d_Linf'] = params.out_dir + params.out_prefix + \
                                             params.field_name + "_" + params.analysis + "_Linf"+"_2d.txt"
+            self.files[file]['txt_2d_dv_Linf'] = params.out_dir + params.out_prefix + \
+                                            params.field_name + "_" + params.analysis + "_dv_Linf"+"_2d.txt"
                                             
             self.files[file]['color_2d'] = params.out_dir + params.out_prefix + \
                                            params.field_name + "_" + params.analysis
@@ -330,6 +343,9 @@ class Plot:
 
             Linf(params,db,mbs,slice,file)
             self.plot_2d_txt(params,db,mbs,slice,file['cycle'],"Linf",file['txt_2d_Linf'])
+            
+            Linf(params,db,mbs,slice,file,'dv')
+            self.plot_2d_txt(params,db,mbs,slice,file['cycle'],"dv_Linf",file['txt_2d_dv_Linf'])
             
         elif params.out_format == "txt1d":
             self.plot_1d_txt(params,db,mbs,slice,file['cycle'],"value",file['txt_1d'])
@@ -502,6 +518,8 @@ class Plot:
             fld  = params.output_field+'_L2'
         elif type == "Linf":
             fld  = params.output_field+'_Linf'
+        elif type == "dv_Linf":
+            fld  = params.output_field+'dv_Linf'
         else:
             raise Exception("No such option {}!".format(type))
 
@@ -510,25 +528,25 @@ class Plot:
             y = db["x2v"][mb]
             z = db["x3v"][mb]
             v = db[fld][mb]
+            hf = db[params.output_field+'grid-space'][mb]
             
             if slice.slice_dir == 3:
                 for j in range(mbs[mb]['jI']+ng,mbs[mb]['jF']-ng):
                     for i in range(mbs[mb]['iI']+ng,mbs[mb]['iF']-ng):
-                        txt_file.write("{} {} {}\n".format(y[j],x[i],v[mbs[mb]['kI'], j, i]))
+                        txt_file.write("{} {} {} {} \n".format(y[j],x[i],v[mbs[mb]['kI'], j, i],hf[mbs[mb]['kI'], j, i]))
                     txt_file.write("\n") ## the newline is mandatory for the wired frame plot
             
             elif slice.slice_dir == 2:
                 for k in range(mbs[mb]['kI']+ng,mbs[mb]['kF']-ng):
                     for i in range(mbs[mb]['iI']+ng,mbs[mb]['iF']-ng):
-                        txt_file.write("{} {} {}\n".format(z[k],x[i],v[k, mbs[mb]['jI'], i]))
+                        txt_file.write("{} {} {} {}\n".format(z[k],x[i],v[k, mbs[mb]['jI'], i],hf[k, mbs[mb]['jI'], i]))
                     txt_file.write("\n") ## the newline is mandatory for the wired frame plot
                 
             elif slice.slice_dir == 1:
                 for k in range(mbs[mb]['kI']+ng,mbs[mb]['kF']-ng):
                     for j in range(mbs[mb]['jI']+ng,mbs[mb]['jF']-ng):
-                        txt_file.write("{} {} {}\n".format(z[k],y[j],v[k, j, mbs[mb]['iI']]))
+                        txt_file.write("{} {} {} {}\n".format(z[k],y[j],v[k, j, mbs[mb]['iI']],hf[k, j, mbs[mb]['iI']]))
                     txt_file.write("\n") ## the newline is mandatory for the wired frame plot
-                
             
             else:
                 raise Exception("No such slice {}!".format(slice.slice_dir))
@@ -540,6 +558,7 @@ class Plot:
             txt_file.write("# \"time = {}\"\n".format(cycle))
             txt_file.write("{} {}\n".format(params.resolution, L2_avg(params,db,mbs) ))
             txt_file.close()
+        
 
     ## plotting in 1d txt format for ALL meshblocks (aggregates all mbs into one file)
     def plot_1d_txt(self,params,db,mbs,slice,cycle,type,output):
@@ -706,7 +725,11 @@ class Analysis:
         print("{} ...".format(self.derivative.__name__))
         sys.stdout.flush()
 
+        ## Note: this is multiplied by h to measure FD error
         db[params.output_field] = np.zeros(shape=db[params.field_name].shape)
+        db[params.output_field+'without_h'] = np.zeros(shape=db[params.field_name].shape)
+        db[params.output_field+'grid-space'] = np.zeros(shape=db[params.field_name].shape)
+        
         for mb in mbs.keys():
             v = db[params.field_name][mb][ mbs[mb]['kI']:mbs[mb]['kF'],
                                            mbs[mb]['jI']:mbs[mb]['jF'],
@@ -727,13 +750,16 @@ class Analysis:
                 dv1 = op1(v)
                 dv0 = op0(v)
                 
-                dv = (h**params.deriv_acc) * ( dv1**(params.deriv_pow) + dv0**(params.deriv_pow) )
+                dv = ( dv1**(params.deriv_pow) + dv0**(params.deriv_pow) ) ## pure dv
+                hdv = (h**params.deriv_acc) * dv
                 
                 for k in range(mbs[mb]['kI'],mbs[mb]['kF']):
                     for j in range(mbs[mb]['jI'],mbs[mb]['jF']):
                         for i in range(mbs[mb]['iI'],mbs[mb]['iF']):
-                            db[params.output_field][mb][k,j,i] = dv[j,i]
-                
+                            db[params.output_field][mb][k,j,i] = hdv[j,i]
+                            db[params.output_field+'without_h'][mb][k,j,i] = dv[j,i]
+                            db[params.output_field+'grid-space'][mb][k,j,i] = h
+        
        
             elif slice.slice_dir == 2:
                 x = db["x1v"][mb]
@@ -749,12 +775,15 @@ class Analysis:
                 dv1 = op1(v)
                 dv0 = op0(v)
                 
-                dv = (h**params.deriv_acc) * ( dv1**(params.deriv_pow) + dv0**(params.deriv_pow) )
+                dv = ( dv1**(params.deriv_pow) + dv0**(params.deriv_pow) ) ## pure dv
+                hdv = (h**params.deriv_acc) * dv
                 
                 for k in range(mbs[mb]['kI'],mbs[mb]['kF']):
                     for j in range(mbs[mb]['jI'],mbs[mb]['jF']):
                         for i in range(mbs[mb]['iI'],mbs[mb]['iF']):
-                            db[params.output_field][mb][k,j,i] = dv[k,i]
+                            db[params.output_field][mb][k,j,i] = hdv[j,i]
+                            db[params.output_field+'without_h'][mb][k,j,i] = dv[j,i]
+                            db[params.output_field+'grid-space'][mb][k,j,i] = h
 
             elif slice.slice_dir == 1:
                 z = db["x3v"][mb]
@@ -770,12 +799,15 @@ class Analysis:
                 dv1 = op1(v)
                 dv0 = op0(v)
                 
-                dv = (h**params.deriv_acc) * ( dv1**(params.deriv_pow) + dv0**(params.deriv_pow) )
+                dv = ( dv1**(params.deriv_pow) + dv0**(params.deriv_pow) ) ## pure dv
+                hdv = (h**params.deriv_acc) * dv
                 
                 for k in range(mbs[mb]['kI'],mbs[mb]['kF']):
                     for j in range(mbs[mb]['jI'],mbs[mb]['jF']):
                         for i in range(mbs[mb]['iI'],mbs[mb]['iF']):
-                            db[params.output_field][mb][k,j,i] = dv[k,j]
+                            db[params.output_field][mb][k,j,i] = hdv[j,i]
+                            db[params.output_field+'without_h'][mb][k,j,i] = dv[j,i]
+                            db[params.output_field+'grid-space'][mb][k,j,i] = h
 
             else:
                 raise Exception("No such slice {}!".format(slice.slice_dir))
