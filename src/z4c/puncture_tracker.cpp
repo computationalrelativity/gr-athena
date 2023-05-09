@@ -51,6 +51,7 @@ PunctureTracker::PunctureTracker(Mesh * pmesh, ParameterInput * pin, int n):
         throw std::runtime_error(msg.str().c_str());
       }
       fprintf(pofile, "# 1:iter 2:time 3:x 4:y 5:z 6:betax 7:betay 8:betaz\n");
+      fflush(pofile);
     }
   }
 }
@@ -145,5 +146,6 @@ void PunctureTracker::WriteTracker(int iter, Real time) const {
   if (0 == Globals::my_rank) {
     fprintf(pofile, "%d %.15e %.15e %.15e %.15e %.15e %.15e %.15e\n",
         iter, time, pos[0], pos[1], pos[2], betap[0], betap[1], betap[2]);
+    fflush(pofile);
   }
 }

@@ -49,12 +49,17 @@ void ShowConfig() {
   if (Z4C_ENABLED) {
     std::cout<<"  Z4c equations:              ON" << std::endl;
 #if defined(Z4C_ETA_TRACK_TP)
-      std::cout<<"  Z4c shift damping:                  TP" << std::endl;
+      std::cout<<"  Z4c shift damping:          TP" << std::endl;
 #elif defined(Z4C_ETA_CONF)
-      std::cout<<"  Z4c shift damping:                  Conformal" << std::endl;
+      std::cout<<"  Z4c shift damping:          Conformal" << std::endl;
 #else
-      std::cout<<"  Z4c shift damping:                  Constant" << std::endl;
+      std::cout<<"  Z4c shift damping:          Constant" << std::endl;
 #endif
+    if (CCE_ENABLED) { 
+      std::cout<<"  CCE waveform extraction:    ON" << std::endl;
+    } else {
+      std::cout<<"  CCE waveform extraction:    OFF" << std::endl;
+    }
   } else {
     std::cout<<"  Z4c equations:              OFF" << std::endl;
   }

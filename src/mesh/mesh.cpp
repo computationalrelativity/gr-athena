@@ -314,6 +314,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
         pwave_extr.push_back(new WaveExtract(this, pin, n));
       }
     }
+#if CCE_ENABLED
     // CCE
     int ncce = pin->GetOrAddInteger("cce", "num_radii", 0);
     pcce.reserve(10*ncce);// 10 different components for each radius
@@ -331,6 +332,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
       pcce.push_back(new CCE(this, pin, "betaz",n));
       pcce.push_back(new CCE(this, pin, "alp",n));
     }
+#endif
     
     int npunct = pin->GetOrAddInteger("z4c", "npunct", 0);
     if (npunct > 0) {
@@ -754,6 +756,7 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
         pwave_extr.push_back(new WaveExtract(this, pin, n));
       }
     }
+#if CCE_ENABLED
     // CCE
     int ncce = pin->GetOrAddInteger("cce", "num_radii", 0);
     pcce.reserve(10*ncce);// 10 different components for each radius
@@ -770,6 +773,7 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
       pcce.push_back(new CCE(this, pin, "betaz",n));
       pcce.push_back(new CCE(this, pin, "alp",n));
     }
+#endif
 
     int npunct = pin->GetOrAddInteger("z4c", "npunct", 0);
     if (npunct > 0) {
@@ -987,12 +991,14 @@ Mesh::~Mesh() {
       delete pwextr;
     }
     pwave_extr.resize(0);
-    
+   
+#if CCE_ENABLED
     for (auto cce : pcce) {
       delete cce;
     }
     pcce.resize(0);
-    
+#endif
+
     for (auto tracker : pz4c_tracker) {
       delete tracker;
     }

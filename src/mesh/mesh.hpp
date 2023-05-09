@@ -54,7 +54,9 @@ class FFTGravityDriver;
 class TurbulenceDriver;
 class Z4c;
 class WaveExtract;
+#if CCE_ENABLED
 class CCE;
+#endif
 class WaveExtractLocal;
 class PunctureTracker;
 
@@ -331,7 +333,9 @@ class Mesh {
   MGGravityDriver *pmgrd;
 
   std::vector<WaveExtract *> pwave_extr;
+#if CCE_ENABLED
   std::vector<CCE *> pcce;
+#endif
   std::vector<PunctureTracker *> pz4c_tracker;
 
   AthenaArray<Real> *ruser_mesh_data;

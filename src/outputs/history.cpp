@@ -19,6 +19,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <unistd.h>
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -216,6 +217,16 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     // open file for output
     FILE *pfile;
     std::stringstream msg;
+
+    // This bool allows to rewrite header below, and is useful
+    // if the output folder changes from the restart.
+    // This should be harmless otherwise.
+    bool new_file = true;
+    if (access(fname.c_str(), F_OK) == 0) {
+      //printf("Found %s!\n", fname.c_str());
+      new_file = false;
+    }
+
     if ((pfile = std::fopen(fname.c_str(),"a")) == nullptr) {
       msg << "### FATAL ERROR in function [OutputType::HistoryFile]" << std::endl
           << "Output file '" << fname << "' could not be opened";
@@ -223,7 +234,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     }
 
     // If this is the first output, write header
-    if (output_params.file_number == 0) {
+    if (output_params.file_number == 0 || new_file) {
       // NEW_OUTPUT_TYPES:
 
       int iout = 1;

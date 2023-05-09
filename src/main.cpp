@@ -46,7 +46,9 @@
 
 #include "z4c/wave_extract.hpp"
 #include "z4c/puncture_tracker.hpp"
+#if CCE_ENABLED
 #include "z4c/cce/cce.hpp"
+#endif
 
 // MPI/OpenMP headers
 #ifdef MPI_PARALLEL
@@ -513,7 +515,7 @@ int main(int argc, char *argv[]) {
           pwextr->Write(pmesh->ncycle, pmesh->time);
         }
       }
-
+#if CCE_ENABLED
       // only do a CCE dump if NextTime threshold cleared (updated below)
       if (pz4clist->TaskListTriggers.cce_dump.to_update) {
         // gather all interpolation values from all processors to the root proc.
@@ -536,7 +538,7 @@ int main(int argc, char *argv[]) {
           }
         }
       }
-
+#endif
       // TODO: probably we do not want to output tracker data at every timestep
       for (auto ptracker : pmesh->pz4c_tracker) {
         ptracker->EvolveTracker();

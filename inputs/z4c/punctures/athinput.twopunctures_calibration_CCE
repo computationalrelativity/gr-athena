@@ -1,7 +1,10 @@
 <job>
 # Basename of output filenames.
 problem_id = qc1
-repository_info = code_cleanup_8f6f4e41d25
+repository_info = code_cleanup_368ebb54c28
+
+<comment>
+configure = configure.py requires the "-z -cce -hdf5" flags
 
 <z4c>
 

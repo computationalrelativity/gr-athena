@@ -68,6 +68,9 @@
 // evolve the z4c equation? default=0 (false)
 #define Z4C_ENABLED @Z4C_ENABLED@
 
+// enable CCE? default=0 (false)
+#define CCE_ENABLED @CCE_ENABLED@
+
 // enable GR frame transformations? default=0 (false)
 #define FRAME_TRANSFORMATIONS @FRAME_TRANSFORMATIONS@
 

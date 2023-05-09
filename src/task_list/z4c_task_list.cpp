@@ -20,7 +20,9 @@
 #include "../mesh/mesh.hpp"
 #include "../z4c/z4c.hpp"
 #include "../z4c/wave_extract.hpp"
+#if CCE_ENABLED
 #include "../z4c/cce/cce.hpp"
+#endif
 #include "../z4c/puncture_tracker.hpp"
 #include "../parameter_input.hpp"
 #include "task_list.hpp"
@@ -238,6 +240,25 @@ Z4cIntegratorTaskList::Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm){
   TaskListTriggers.con.next_time = pm->time;
   // Seed TaskListTriggers.con.dt in main
 
+  // Initialize dt for history output to calculate the constraint
+  InputBlock *pib = pin->pfirst_block;
+  std::string aux;
+
+  TaskListTriggers.con_hst.next_time = 1000000.;
+  while (pib != nullptr) {
+    if (pib->block_name.compare(0, 6, "output") == 0) {
+      aux = pin->GetOrAddString(pib->block_name,"file_type","none");
+      if (std::strcmp(aux.c_str(),"hst") == 0) {
+        TaskListTriggers.con_hst.dt = pin->GetOrAddReal(pib->block_name,"dt",0.);
+        break;
+      }
+    }
+    pib = pib->pnext;
+  }
+  if (TaskListTriggers.con_hst.dt > 0) TaskListTriggers.con_hst.next_time = std::floor(pm->time/TaskListTriggers.con_hst.dt)*TaskListTriggers.con_hst.dt;
+
+  TaskListTriggers.wave_extraction.to_update = false;
+
   TaskListTriggers.wave_extraction.dt = pin->GetOrAddReal("z4c", "dt_wave_extraction", 1.0);
   if (pin->GetOrAddInteger("z4c", "nrad_wave_extraction", 0) == 0) {
     TaskListTriggers.wave_extraction.dt = 0.0;
@@ -252,6 +273,7 @@ Z4cIntegratorTaskList::Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm){
         TaskListTriggers.wave_extraction.dt;
   }
   
+#if CCE_ENABLED
   // CCE 
   TaskListTriggers.cce_dump.dt = pin->GetOrAddReal("cce", "dump_every_dt", 1.0);
   if (pin->GetOrAddInteger("cce", "num_radii", 0) == 0) {
@@ -266,6 +288,7 @@ Z4cIntegratorTaskList::Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm){
     TaskListTriggers.cce_dump.next_time = 
       (ncycles == 0) ? 0.0: (ncycles+1)*TaskListTriggers.cce_dump.dt;
   }
+#endif
   
   //---------------------------------------------------------------------------
 
@@ -290,7 +313,9 @@ Z4cIntegratorTaskList::Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm){
     AddTask(ADM_CONSTR, Z4C_TO_ADM);           // ADM_Constraints
     AddTask(Z4C_WEYL, Z4C_TO_ADM);             // Calc Psi4
     AddTask(WAVE_EXTR, Z4C_WEYL);              // Project Psi4 multipoles
+#if CCE_ENABLED
     AddTask(CCE_DUMP, Z4C_TO_ADM);             // CCE dump metric
+#endif
     
     AddTask(USERWORK, ADM_CONSTR);             // UserWork
 
@@ -387,11 +412,13 @@ void Z4cIntegratorTaskList::AddTask(const TaskID& id, const TaskID& dep) {
         static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
         (&Z4cIntegratorTaskList::WaveExtract);
       task_list_[ntasks].lb_time = true;
+#if CCE_ENABLED
     } else if (id == CCE_DUMP) {
       task_list_[ntasks].TaskFunc=
         static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
         (&Z4cIntegratorTaskList::CCEDump);
       task_list_[ntasks].lb_time = true;
+#endif
     }
     else if (id == NEW_DT) {
       task_list_[ntasks].TaskFunc=
@@ -661,6 +688,7 @@ TaskStatus Z4cIntegratorTaskList::WaveExtract(MeshBlock *pmb, int stage) {
   return TaskStatus::success;
 }
 
+#if CCE_ENABLED
 TaskStatus Z4cIntegratorTaskList::CCEDump(MeshBlock *pmb, int stage) {
   // only do on last stage
   if (stage != nstages) return TaskStatus::success;
@@ -677,6 +705,7 @@ TaskStatus Z4cIntegratorTaskList::CCEDump(MeshBlock *pmb, int stage) {
 
   return TaskStatus::success;
 }
+#endif
 
 TaskStatus Z4cIntegratorTaskList::ADM_Constraints(MeshBlock *pmb, int stage) {
   // only do on last stage
@@ -686,6 +715,10 @@ TaskStatus Z4cIntegratorTaskList::ADM_Constraints(MeshBlock *pmb, int stage) {
 
   // check last stage is actually at a relevant time
   if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.con)) {
+    pmb->pz4c->ADMConstraints(pmb->pz4c->storage.con, pmb->pz4c->storage.adm,
+                              pmb->pz4c->storage.mat, pmb->pz4c->storage.u);
+  }
+  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.con_hst)) {
     pmb->pz4c->ADMConstraints(pmb->pz4c->storage.con, pmb->pz4c->storage.adm,
                               pmb->pz4c->storage.mat, pmb->pz4c->storage.u);
   }
@@ -765,6 +798,11 @@ void Z4cIntegratorTaskList::UpdateTaskListTriggers() {
   if (TaskListTriggers.con.to_update) {
     TaskListTriggers.con.next_time += TaskListTriggers.con.dt;
     TaskListTriggers.con.to_update = false;
+  }
+
+  if (TaskListTriggers.con_hst.to_update) {
+    TaskListTriggers.con_hst.next_time += TaskListTriggers.con_hst.dt;
+    TaskListTriggers.con_hst.to_update = false;
   }
 
   if (TaskListTriggers.assert_is_finite.to_update) {

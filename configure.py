@@ -24,6 +24,7 @@
 #   -z                  enable Z4c system
 #   -z_eta_track_tp     enable (TP) based shift-damping
 #   -z_eta_conf         enable conformal factor based shift-damping
+#   -cce                enable CCE
 #   -t                  enable interface frame transformations for GR
 #   -shear              enable shearing periodic boundary conditions
 #   -debug              enable debug flags (-g -O0); override other compiler options
@@ -182,6 +183,12 @@ parser.add_argument("-z_eta_conf",
                     action='store_true',
                     default=False,
                     help='enable conformal factor based shift-damping')
+
+# -cce argument
+parser.add_argument("-cce",
+                    action='store_true',
+                    default=False,
+                    help='enable CCE wave extraction')
 
 # -t argument
 parser.add_argument('-t',
@@ -595,6 +602,24 @@ if args['z_eta_conf']:
     definitions['Z4C_ETA_CONF'] = 'Z4C_ETA_CONF'
 else:
   definitions['Z4C_ETA_CONF'] = 'NO_Z4C_ETA_CONF'
+
+# -cce argument
+makefile_options['CCE_FILE'] = ""
+if args['cce']:
+  definitions['CCE_ENABLED'] = '1'
+  makefile_options['CCE_FILE'] = "$(wildcard src/z4c/cce/*.cpp)"
+  try:
+      if not args['z']:
+          raise Exception
+  except:
+      raise SystemExit("### CONFIGURE ERROR: cce requires that z4c is enabled")
+  try:
+      if not args['hdf5']:
+          raise Exception
+  except:
+      raise SystemExit("### CONFIGURE ERROR: cce requires hdf5 library")
+else:
+  definitions['CCE_ENABLED'] = '0'
 
 # -ref_box_in_box / ref_spheres arguments
 if args['ref_spheres']:
@@ -1043,6 +1068,10 @@ if args['z']:
     print('  Z4c shift damping:            ' + self_eta_damp_string)
     print('  Z4c refinement strategy:      ' + ('box-in-box' if args['ref_box_in_box']
                                                 else 'spheres'))
+    if args['cce']:
+        print('  CCE:                          ' + "ON")
+    else:
+        print('  CCE:                          ' + "OFF")
 print('  Frame transformations:        ' + ('ON' if args['t'] else 'OFF'))
 print('  Self-Gravity:                 ' + self_grav_string)
 print('  Super-Time-Stepping:          ' + ('ON' if args['sts'] else 'OFF'))

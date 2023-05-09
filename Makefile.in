@@ -10,6 +10,7 @@ GENERAL_EOS_FILE = @GENERAL_EOS_FILE@
 RSOLVER_FILE = @RSOLVER_FILE@
 RSOLVER_DIR = @RSOLVER_DIR@
 MPIFFT_FILE = @MPIFFT_FILE@
+CCE_FILE    = @CCE_FILE@
 
 # General compiler specifications
 
@@ -58,7 +59,7 @@ SRC_FILES := \
 		$(wildcard src/task_list/*.cpp) \
 		$(wildcard src/utils/*.cpp) \
 		$(wildcard src/z4c/*.cpp) \
-		$(wildcard src/z4c/cce/*.cpp) \
+		$(CCE_FILE) \
 		$(MPIFFT_FILE)
 OBJ_DIR := obj/
 OBJ_FILES := $(addprefix $(OBJ_DIR),$(notdir $(SRC_FILES:.cpp=.o)))

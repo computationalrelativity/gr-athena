@@ -337,7 +337,9 @@ public:
   TaskStatus CheckRefinement(MeshBlock *pmb, int stage);   // FLAG_AMR     [x]
   TaskStatus Z4c_Weyl(MeshBlock *pmb, int stage);          // Z4C_WEYL     [x]
   TaskStatus WaveExtract(MeshBlock *pmb, int stage);       // WAVE_EXTR    [x]
+#if CCE_ENABLED
   TaskStatus CCEDump(MeshBlock *pmb, int stage);           // CCE_DUMP     [x]
+#endif
   
   TaskStatus AssertFinite(MeshBlock *pmb, int stage);      // ASSERT_FIN   [x]
 
@@ -353,6 +355,7 @@ public:
   struct {
     aux_NextTimeStep adm;
     aux_NextTimeStep con;
+    aux_NextTimeStep con_hst;
     aux_NextTimeStep assert_is_finite;
     aux_NextTimeStep wave_extraction;
     aux_NextTimeStep cce_dump;

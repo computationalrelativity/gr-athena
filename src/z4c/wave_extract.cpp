@@ -65,6 +65,7 @@ WaveExtract::WaveExtract(Mesh * pmesh, ParameterInput * pin, int n):
         }
       }
       fprintf(pofile, "\n");
+      fflush(pofile);
     }
   }
 }
