@@ -267,8 +267,9 @@ static int RefinementCondition(MeshBlock *pmb)
     }
     else if (FD_r1_inn <= amr->mb_radius && amr->mb_radius <= FD_r1_out)
     {
-      Real ref_tol  = pin->GetOrAddReal("z4c","refinement_tol1",1e-5);
-      Real dref_tol = pin->GetOrAddReal("z4c","derefinement_tol1",1e-8);
+      Real h4 = pow(amr->ref_hmax,4);
+      Real ref_tol  = pin->GetOrAddReal("z4c","refinement_tol1",10)*h4;
+      Real dref_tol = pin->GetOrAddReal("z4c","derefinement_tol1",1)*h4;
       
       if (Verbose)
         printf("Mb_radius = %g ==> calling FD AMR for the ring = [%g,%g], tol=[%g,%g]\n", 
@@ -278,8 +279,9 @@ static int RefinementCondition(MeshBlock *pmb)
     }
     else if (FD_r2_inn <= amr->mb_radius && amr->mb_radius <= FD_r2_out)
     {
-      Real ref_tol  = pin->GetOrAddReal("z4c","refinement_tol2",1e-2);
-      Real dref_tol = pin->GetOrAddReal("z4c","derefinement_tol2",1e-4);
+      Real h4 = pow(amr->ref_hmax,4);
+      Real ref_tol  = pin->GetOrAddReal("z4c","refinement_tol2",10)*h4;
+      Real dref_tol = pin->GetOrAddReal("z4c","derefinement_tol2",1)*h4;
       
       if (Verbose)
         printf("Mb_radius = %g ==> calling FD AMR for the ring = [%g,%g], tol=[%g,%g]\n", 
