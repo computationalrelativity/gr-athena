@@ -531,6 +531,17 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
         num_vars_++;
       }
     }
+    for (int v = 0; v < Z4c::N_WEY; ++v) {
+      if (output_params.variable.compare("weyl") == 0 ||
+          output_params.variable.compare(Z4c::Weyl_names[v]) == 0) {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = Z4c::Weyl_names[v];
+        pod->data.InitWithShallowSlice(pz4c->storage.weyl,v,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
   }
 
   if (SELF_GRAVITY_ENABLED) {
