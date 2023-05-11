@@ -494,7 +494,6 @@ static int FDErrorApprox(MeshBlock *pmy_block)
   std::cout << __FUNCTION__ << std::endl;
   
   int ret = 0;
-  const int npts = pmy_block->nverts1*pmy_block->nverts2*pmy_block->nverts3;
   double L2_norm = 0.;
 
   // calc. L2 norm of ( d0^2 f + d1^2 f + d2^2 f )^3
@@ -512,6 +511,10 @@ static int FDErrorApprox(MeshBlock *pmy_block)
   L2_norm /= npts;
   L2_norm = std::sqrt(L2_norm);
   
+  // calc. L2 norm 
+  L2_norm = pmy_block->pz4c->L2_deriv_pow(pmy_block,3);
+  
+  printf("L2_norm = %g\n",L2_norm);
   // if it's bigger than the specified params then refine;
   // if it's smaller, de-refine
   
