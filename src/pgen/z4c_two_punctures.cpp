@@ -489,7 +489,7 @@ static int L2NormRefine(MeshBlock *pmb)
 
 // using the FD error as an approximation of the error in the meshblock.
 // if this error falls below a prescribed value, the meshblock should be refined.
-static int FDErrorApprox(MeshBlock *pmy_block)
+static int FDErrorApprox(MeshBlock *pmb)
 {
   std::cout << __FUNCTION__ << std::endl;
   
@@ -511,12 +511,27 @@ static int FDErrorApprox(MeshBlock *pmy_block)
   L2_norm /= npts;
   L2_norm = std::sqrt(L2_norm);
   
-  // calc. L2 norm 
-  L2_norm = pmy_block->pz4c->L2_deriv_pow(pmy_block,3);
+  // calc. err
+  err = pmb->pz4c->L2_deriv_pow(pmb,3);
   
-  printf("L2_norm = %g\n",L2_norm);
   // if it's bigger than the specified params then refine;
-  // if it's smaller, de-refine
+  if (err > ref_tol)
+  {
+    ret = 1.;
+    printf("(err,ref-tol) = (%e,%e) => refine me!\n",err,ref_tol);
+  }
+  else if (err < dref_tol)
+  {
+    ret = -1;
+    printf("(err,deref-tol) = (%e,%e) => derefine me!\n",err,dref_tol);
+  }
+  else 
+  {
+    ret = 0;
+    printf("(err,ref-tol,dref-tol) = (%e,%e,%e) => I'm good!\n",err,ref_tol,dref_tol);
+  }
+  
+  fflush(stdout);
   
   return ret;
   
