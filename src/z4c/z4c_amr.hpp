@@ -36,12 +36,20 @@ class Z4c_AMR
                                    const int p);
     
   public:
-    Z4c *pz4c;       // ptr to z4c
-    ParameterInput *pin;// ptr to parameter
+    Z4c *pz4c;               // ptr to z4c
+    ParameterInput *pin;     // ptr to parameter
     std::string ref_method;  // method of refinement
     Real mb_radius;  // the length of the line from the origin to the meshblock's center
     Real ref_hmax;   // max grid-space in hx, hy, hz
     Real ref_hpow;   // power of the grid space
+    Real ref_FD_r1_inn, ref_FD_r1_out; // 1st annulus of refinement
+    Real ref_FD_r2_inn, ref_FD_r2_out; // 2nd annulus of refinement
+    Real ref_tol1, dref_tol1; // 1st annulus of refinement range
+    Real ref_tol2, dref_tol2; // 2n annulus of refinement range
+    Real ref_PrerefTime;    // preref if the time is less than
+    bool ref_IsPreref_Linf; // pre-refine with Linf?
+    bool ref_IsPreref_L2;   // pre-refine with L2?
+
     Z4c_AMR(MeshBlock *pmb,ParameterInput *pin);
     ~Z4c_AMR();
     // using the FD error as an approximation for the error in the meshblock.

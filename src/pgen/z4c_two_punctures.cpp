@@ -216,14 +216,14 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 // 1: refines, -1: de-refines, 0: does nothing
 static int RefinementCondition(MeshBlock *pmb)
 {
+  Z4c_AMR *const pz4c_amr = pmb->pz4c->pz4c_amr;
+  ParameterInput *const pin = pz4c_amr->pin;
   int ret = 0;
   
   // make sure we have 2 punctures
   if (pmb->pmy_mesh->pz4c_tracker.size() != 2) {
     return 0;
   }
-  
-  Z4c_AMR *pz4c_amr = pmb->pz4c->pz4c_amr;
   
   // use box in box method
   if (pz4c_amr->ref_method  == "Linf_box_in_box")
@@ -238,56 +238,37 @@ static int RefinementCondition(MeshBlock *pmb)
   // finite difference error must fall less that a prescribed value.
   else if (pz4c_amr->ref_method == "FD_error")
   {
-    ParameterInput *const pin = pz4c_amr->pin;
-    Real time   = pmb->pmy_mesh->time;
-    Real FD_r1_inn = pin->GetOrAddReal("z4c","refinement_FD_radius1_inn",10e10);
-    Real FD_r1_out = pin->GetOrAddReal("z4c","refinement_FD_radius1_out",10e10);
-    Real FD_r2_inn = pin->GetOrAddReal("z4c","refinement_FD_radius2_inn",10e10);
-    Real FD_r2_out = pin->GetOrAddReal("z4c","refinement_FD_radius2_out",10e10);
+    Real time = pmb->pmy_mesh->time;
     
-    bool IsPreref_Linf = pin->GetOrAddBoolean("z4c","refinement_preref_Linf",0);
-    bool IsPreref_L2   = pin->GetOrAddBoolean("z4c","refinement_preref_L2",0);
-    
-    // preref if the time is less than
-    Real PrerefTime = pin->GetOrAddReal("z4c","refinement_preref_time_lt",0.);
-    
-    if (IsPreref_Linf && time <= PrerefTime)
+    if (pz4c_amr->ref_IsPreref_Linf && time <= pz4c_amr->ref_PrerefTime)
     {
       if (Verbose)
         std::cout << "calling Linf AMR for pre-refined" << std::endl;
       
       ret = LinfBoxInBox(pmb);
     }
-    else if (IsPreref_L2 && time <= PrerefTime)
+    else if (pz4c_amr->ref_IsPreref_L2 && time <= pz4c_amr->ref_PrerefTime)
     {
       if (Verbose)
         std::cout << "calling L2 AMR for pre-refined" << std::endl;
       
       ret = L2NormRefine(pmb);
     }
-    else if (FD_r1_inn <= pz4c_amr->mb_radius && pz4c_amr->mb_radius <= FD_r1_out)
+    else if (pz4c_amr->ref_FD_r1_inn <= pz4c_amr->mb_radius && pz4c_amr->mb_radius <= pz4c_amr->ref_FD_r1_out)
     {
-      Real hpow = pow(pz4c_amr->ref_hmax,pz4c_amr->ref_hpow);
-      Real ref_tol  = pin->GetOrAddReal("z4c","refinement_tol1",10)*hpow;
-      Real dref_tol = pin->GetOrAddReal("z4c","derefinement_tol1",1)*hpow;
-      
       if (Verbose)
         printf("Mb_radius = %g ==> calling FD AMR for the ring = [%g,%g], tol=[%g,%g]\n", 
-                pz4c_amr->mb_radius,FD_r1_inn,FD_r1_out,dref_tol,ref_tol);
+                pz4c_amr->mb_radius,pz4c_amr->ref_FD_r1_inn,pz4c_amr->ref_FD_r1_out,pz4c_amr->dref_tol1,pz4c_amr->ref_tol1);
       
-      ret = pz4c_amr->FDErrorApprox(pmb,dref_tol,ref_tol);
+      ret = pz4c_amr->FDErrorApprox(pmb,pz4c_amr->dref_tol1,pz4c_amr->ref_tol1);
     }
-    else if (FD_r2_inn <= pz4c_amr->mb_radius && pz4c_amr->mb_radius <= FD_r2_out)
+    else if (pz4c_amr->ref_FD_r2_inn <= pz4c_amr->mb_radius && pz4c_amr->mb_radius <= pz4c_amr->ref_FD_r2_out)
     {
-      Real hpow = pow(pz4c_amr->ref_hmax,pz4c_amr->ref_hpow);
-      Real ref_tol  = pin->GetOrAddReal("z4c","refinement_tol2",10)*hpow;
-      Real dref_tol = pin->GetOrAddReal("z4c","derefinement_tol2",1)*hpow;
-      
       if (Verbose)
         printf("Mb_radius = %g ==> calling FD AMR for the ring = [%g,%g], tol=[%g,%g]\n", 
-                pz4c_amr->mb_radius,FD_r2_inn,FD_r2_out,dref_tol,ref_tol);
+                pz4c_amr->mb_radius,pz4c_amr->ref_FD_r2_inn,pz4c_amr->ref_FD_r2_out,pz4c_amr->dref_tol2,pz4c_amr->ref_tol2);
       
-      ret = pz4c_amr->FDErrorApprox(pmb,dref_tol,ref_tol);
+      ret = pz4c_amr->FDErrorApprox(pmb,pz4c_amr->dref_tol2,pz4c_amr->ref_tol2);
     }
     else
     {
