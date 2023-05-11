@@ -104,7 +104,7 @@ public:
   ~Z4c();
 
   MeshBlock * pmy_block;     // pointer to MeshBlock containing this Z4c
-
+  Z4c_AMR *pz4c_amr;         // pointer to Z4c_AMR for the refinement condition
   // public data storage
   struct {
     AthenaArray<Real> u;     // solution of Z4c evolution system
@@ -432,7 +432,6 @@ private:
   void Z4cSommerfeld_(AthenaArray<Real> & u, AthenaArray<Real> & rhs,
       int const is, int const ie, int const js, int const je, int const ks, int const ke);
 
-private:
 private:
   struct FD_ {
     int stride[3];

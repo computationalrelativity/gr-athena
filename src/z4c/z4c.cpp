@@ -12,6 +12,7 @@
 // Athena++ headers
 #include "z4c.hpp"
 #include "z4c_macro.hpp"
+#include "z4c_amr.hpp"
 #include "../athena.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
@@ -69,7 +70,9 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
           {N_WEY, pmb->nverts3, pmb->nverts2, pmb->nverts1}, // weyl
   },
   empty_flux{AthenaArray<Real>(), AthenaArray<Real>(), AthenaArray<Real>()},
-  ubvar(pmb, &storage.u, &coarse_u_, empty_flux)
+  ubvar(pmb, &storage.u, &coarse_u_, empty_flux),
+  pz4c_amr(new Z4c_AMR(pmb,pin))
+
 {
   Mesh *pm = pmy_block->pmy_mesh;
   Coordinates * pco = pmb->pcoord;
@@ -394,6 +397,7 @@ Z4c::~Z4c()
     opt.sphere_zone_center2.DeleteAthenaArray();
     opt.sphere_zone_center3.DeleteAthenaArray();
   }
+  delete pz4c_amr;
 }
 
 //----------------------------------------------------------------------------------------

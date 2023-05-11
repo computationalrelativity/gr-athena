@@ -223,22 +223,22 @@ static int RefinementCondition(MeshBlock *pmb)
     return 0;
   }
   
-  Z4c_AMR *amr = new Z4c_AMR(pmb);
+  Z4c_AMR *pz4c_amr = pmb->pz4c->pz4c_amr;
   
   // use box in box method
-  if (amr->ref_method  == "Linf_box_in_box")
+  if (pz4c_amr->ref_method  == "Linf_box_in_box")
   {
     ret = LinfBoxInBox(pmb);
   }
   // use L-2 norm as a criteria for refinement
-  else if (amr->ref_method == "L2")
+  else if (pz4c_amr->ref_method == "L2")
   {
     ret = L2NormRefine(pmb);
   }
   // finite difference error must fall less that a prescribed value.
-  else if (amr->ref_method == "FD_error")
+  else if (pz4c_amr->ref_method == "FD_error")
   {
-    ParameterInput *const pin = pmb->pmy_in;
+    ParameterInput *const pin = pz4c_amr->pin;
     Real time   = pmb->pmy_mesh->time;
     Real FD_r1_inn = pin->GetOrAddReal("z4c","refinement_FD_radius1_inn",10e10);
     Real FD_r1_out = pin->GetOrAddReal("z4c","refinement_FD_radius1_out",10e10);
@@ -265,29 +265,29 @@ static int RefinementCondition(MeshBlock *pmb)
       
       ret = L2NormRefine(pmb);
     }
-    else if (FD_r1_inn <= amr->mb_radius && amr->mb_radius <= FD_r1_out)
+    else if (FD_r1_inn <= pz4c_amr->mb_radius && pz4c_amr->mb_radius <= FD_r1_out)
     {
-      Real hpow = pow(amr->ref_hmax,amr->ref_hpow);
+      Real hpow = pow(pz4c_amr->ref_hmax,pz4c_amr->ref_hpow);
       Real ref_tol  = pin->GetOrAddReal("z4c","refinement_tol1",10)*hpow;
       Real dref_tol = pin->GetOrAddReal("z4c","derefinement_tol1",1)*hpow;
       
       if (Verbose)
         printf("Mb_radius = %g ==> calling FD AMR for the ring = [%g,%g], tol=[%g,%g]\n", 
-                amr->mb_radius,FD_r1_inn,FD_r1_out,dref_tol,ref_tol);
+                pz4c_amr->mb_radius,FD_r1_inn,FD_r1_out,dref_tol,ref_tol);
       
-      ret = amr->FDErrorApprox(pmb,dref_tol,ref_tol);
+      ret = pz4c_amr->FDErrorApprox(pmb,dref_tol,ref_tol);
     }
-    else if (FD_r2_inn <= amr->mb_radius && amr->mb_radius <= FD_r2_out)
+    else if (FD_r2_inn <= pz4c_amr->mb_radius && pz4c_amr->mb_radius <= FD_r2_out)
     {
-      Real hpow = pow(amr->ref_hmax,amr->ref_hpow);
+      Real hpow = pow(pz4c_amr->ref_hmax,pz4c_amr->ref_hpow);
       Real ref_tol  = pin->GetOrAddReal("z4c","refinement_tol2",10)*hpow;
       Real dref_tol = pin->GetOrAddReal("z4c","derefinement_tol2",1)*hpow;
       
       if (Verbose)
         printf("Mb_radius = %g ==> calling FD AMR for the ring = [%g,%g], tol=[%g,%g]\n", 
-                amr->mb_radius,FD_r2_inn,FD_r2_out,dref_tol,ref_tol);
+                pz4c_amr->mb_radius,FD_r2_inn,FD_r2_out,dref_tol,ref_tol);
       
-      ret = amr->FDErrorApprox(pmb,dref_tol,ref_tol);
+      ret = pz4c_amr->FDErrorApprox(pmb,dref_tol,ref_tol);
     }
     else
     {
@@ -303,8 +303,6 @@ static int RefinementCondition(MeshBlock *pmb)
     msg << "No such option for z4c/refinement" << std::endl;
     ATHENA_ERROR(msg);
   }
-  
-  delete amr;
   
   return ret;
 }  
