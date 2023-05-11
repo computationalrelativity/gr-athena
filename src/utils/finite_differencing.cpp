@@ -81,6 +81,11 @@ Real const FDCenteredStencil<2, 8>::coeff[] = {
  -1./411840., 16./315315., -2./3861., 112./32175., -7./396., 112./1485., -14./45., 16./9., -1077749./352800., 16./9., -14./45., 112./1485., -7./396., 112./32175., -2./3861., 16./315315., -1./411840.,
 };
 
+template<>
+Real const FDCenteredStencil<7, 4>::coeff[] = {
+-1./2., 3., -7., 7., 0., -7., 7., -3., 1./2.,
+};
+
 
 // High order derivative operators for Kreiss-Oliger dissipation
 template<>
