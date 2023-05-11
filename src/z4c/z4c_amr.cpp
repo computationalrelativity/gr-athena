@@ -17,10 +17,10 @@
 #define Verbose (0)
 
 // set some parameters
-Z4c_AMR::Z4c_AMR(MeshBlock *pmb)
+Z4c_AMR::Z4c_AMR(MeshBlock *pmb,ParameterInput *pin):
+pz4c(pmb->pz4c),
+pin(pin)
 {
-  ParameterInput *const pin = pmb->pmy_in;
-  pz4c = pmb->pz4c;
   const Real dmax =  std::numeric_limits<Real>::max();
   const Real dmin = -std::numeric_limits<Real>::max();
   Real h1, h2, h3; // grid space

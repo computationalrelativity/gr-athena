@@ -13,7 +13,6 @@
 class Z4c_AMR
 {
   private:
-    Z4c *pz4c;       // ptr to z4c
     Real ref_x1min;  // x1 min of the region of interest for the refinement
     Real ref_x1max;  // x1 max of the region of interest for the refinement
     Real ref_x2min;  // x2 min of the region of interest for the refinement
@@ -37,11 +36,13 @@ class Z4c_AMR
                                    const int p);
     
   public:
+    Z4c *pz4c;       // ptr to z4c
+    ParameterInput *pin;// ptr to parameter
     std::string ref_method;  // method of refinement
     Real mb_radius;  // the length of the line from the origin to the meshblock's center
     Real ref_hmax;   // max grid-space in hx, hy, hz
     Real ref_hpow;   // power of the grid space
-    explicit Z4c_AMR(MeshBlock *pmb);
+    Z4c_AMR(MeshBlock *pmb,ParameterInput *pin);
     ~Z4c_AMR();
     // using the FD error as an approximation for the error in the meshblock.
     int FDErrorApprox(MeshBlock *pmb, Real dref_tol, Real ref_tol); 
