@@ -134,7 +134,7 @@ int Z4c_AMR::FDErrorApprox(MeshBlock *pmb, Real dref_tol, Real ref_tol)
   
   // calc. err
   // err = amr_err_L2_derive_chi_pow(pmb,ref_deriv,ref_pow);
-  err = amr_err_pnt_derive_chi_pow(pmb,ref_deriv,ref_pow);
+  err = amr_err_Linf_derive_chi_pow(pmb,ref_deriv,ref_pow);
   
   // compare with the error bounds
   if (err >= ref_tol)
@@ -220,13 +220,13 @@ Real Z4c_AMR::amr_err_L2_derive_chi_pow(MeshBlock *const pmy_block,
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn void Z4c:: amr_err_pnt_derive_chi_pow(MeshBlock *const pmy_block, const int p)
+// \!fn void Z4c:: amr_err_Linf_derive_chi_pow(MeshBlock *const pmy_block, const int p)
 // \brief returning the point-wise max error of a derivative of chi in a meshblock
 //
 
 // NOTE: DON'T change pmy_block variable name as it's used in macros 
 // such as IX_KU,IX_KL, etc.
-Real Z4c_AMR::amr_err_pnt_derive_chi_pow(MeshBlock *const pmy_block, 
+Real Z4c_AMR::amr_err_Linf_derive_chi_pow(MeshBlock *const pmy_block, 
                                         const int deriv_order, const int p)
 {
   Z4c::Z4c_vars z4c;
