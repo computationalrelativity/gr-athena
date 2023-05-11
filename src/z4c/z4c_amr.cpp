@@ -26,34 +26,44 @@ pin(pin)
   const Real dmin = -std::numeric_limits<Real>::max();
   Real h1, h2, h3; // grid space
   
-  ref_method = pin->GetOrAddString("z4c","refinement_method","Linf_box_in_box");
-  ref_x1min = pin->GetOrAddReal("z4c","refinement_x1min",dmin);
-  ref_x1max = pin->GetOrAddReal("z4c","refinement_x1max",dmax);
-  ref_x2min = pin->GetOrAddReal("z4c","refinement_x2min",dmin);
-  ref_x2max = pin->GetOrAddReal("z4c","refinement_x2max",dmax);
-  ref_x3min = pin->GetOrAddReal("z4c","refinement_x3min",dmin);
-  ref_x3max = pin->GetOrAddReal("z4c","refinement_x3max",dmax);
-  ref_deriv = pin->GetOrAddReal("z4c","refinement_deriv_order",7);
-  ref_pow   = pin->GetOrAddReal("z4c","refinement_deriv_power",1);
-  ref_gwh   = pin->GetOrAddReal("z4c","refinement_gw_resolution",1);// order of total mass
-  ref_gwr   = pin->GetOrAddReal("z4c","refinement_gw_radius",100);// max length of gw extraction radius
-  ref_hpow  = pin->GetOrAddReal("z4c","refinement_h_power",4.); // power of grid-space
-
-  ref_FD_r1_inn  = pin->GetOrAddReal("z4c","refinement_FD_radius1_inn",10e10);
-  ref_FD_r1_out  = pin->GetOrAddReal("z4c","refinement_FD_radius1_out",10e10);
-  ref_FD_r2_inn  = pin->GetOrAddReal("z4c","refinement_FD_radius2_inn",10e10);
-  ref_FD_r2_out  = pin->GetOrAddReal("z4c","refinement_FD_radius2_out",10e10);
-  ref_PrerefTime = pin->GetOrAddReal("z4c","refinement_preref_time_lt",0.);
+  ref_method = pin->GetOrAddString("z4c_amr","method","Linf_box_in_box");
+  ref_x1min = pin->GetOrAddReal("z4c_amr","x1min",pin->GetReal("mesh","x1min")/2.);
+  ref_x1max = pin->GetOrAddReal("z4c_amr","x1max",pin->GetReal("mesh","x1max")/2.);
+  ref_x2min = pin->GetOrAddReal("z4c_amr","x2min",pin->GetReal("mesh","x2min")/2.);
+  ref_x2max = pin->GetOrAddReal("z4c_amr","x2max",pin->GetReal("mesh","x2max")/2.);
+  ref_x3min = pin->GetOrAddReal("z4c_amr","x3min",pin->GetReal("mesh","x3min")/2.);
+  ref_x3max = pin->GetOrAddReal("z4c_amr","x3max",pin->GetReal("mesh","x3max")/2.);
+  // specify how to compute truncation error
+  ref_deriv = pin->GetOrAddReal("z4c_amr","deriv_order",7);
+  ref_pow   = pin->GetOrAddReal("z4c_amr","deriv_power",1);
   
-  ref_IsPreref_Linf = pin->GetOrAddBoolean("z4c","refinement_preref_Linf",0);
-  ref_IsPreref_L2   = pin->GetOrAddBoolean("z4c","refinement_preref_L2",0);
-
-  Real hp = pow(ref_hmax,ref_hpow);
-  ref_tol1  = pin->GetOrAddReal("z4c","refinement_tol1",10)*hp;
-  dref_tol1 = pin->GetOrAddReal("z4c","derefinement_tol1",1)*hp;
-  ref_tol2  = pin->GetOrAddReal("z4c","refinement_tol2",10)*hp;
-  dref_tol2 = pin->GetOrAddReal("z4c","derefinement_tol2",1)*hp;
-   
+  // ensure the grid-space doesn't fall below specific number for GW extraction
+  ref_gwh   = pin->GetOrAddReal("z4c_amr","gw_resolution",dmax);// can be order of total mass
+  // where to check the above criterion
+  ref_gwr   = pin->GetOrAddReal("z4c_amr","gw_radius",dmax);// can be max length of gw extraction radius
+  
+  
+  // specify different criteria for different annuli using finite difference
+  // truncation error
+  ref_FD_r1_inn  = pin->GetOrAddReal("z4c_amr","FD_radius1_inn", 0. );
+  ref_FD_r1_out  = pin->GetOrAddReal("z4c_amr","FD_radius1_out",
+                        2.2*pin->GetOrAddReal("problem", "par_b", 1.) );
+  ref_FD_r2_inn  = pin->GetOrAddReal("z4c_amr","FD_radius2_inn", ref_FD_r1_out );
+  ref_FD_r2_out  = pin->GetOrAddReal("z4c_amr","FD_radius2_out",
+                        std::max( 
+                                  std::abs(ref_x3max-ref_x3min),
+                                  std::max( 
+                                            std::abs(ref_x1max-ref_x1min),
+                                            std::abs(ref_x2max-ref_x2min)
+                                          )*0.5
+                                );
+  
+  // pre-refine method
+  ref_IsPreref_Linf = pin->GetOrAddBoolean("z4c_amr","preref_Linf",0);
+  ref_IsPreref_L2   = pin->GetOrAddBoolean("z4c_amr","preref_L2",1);
+  // using pre-refine method till this time
+  ref_PrerefTime = pin->GetOrAddReal("z4c_amr","preref_time_lt",20);
+  
   // find grid spaces
   assert(NDIM == 3);// the subsequent calculation may get affected if N!=3.
   h1 = pmb->pcoord->x1f(1)-pmb->pcoord->x1f(0);
@@ -62,6 +72,18 @@ pin(pin)
   ref_hmax = std::max(h1,h2);
   ref_hmax = std::max(ref_hmax,h3);
   
+  // power of grid-space to compare the truncation error with.
+  // 4 is chosen as we use 4-th order Runge-Kutta time integration
+  ref_hpow  = pin->GetOrAddReal("z4c_amr","h_power",4.);
+  Real hp   = pow(ref_hmax,ref_hpow);
+  // the range [lowb1,uppb1] for the first annular region
+  dref_tol1 = pin->GetOrAddReal("z4c_amr","lowb1",1.)*hp;
+  ref_tol1  = pin->GetOrAddReal("z4c_amr","uppb1",10.)*hp;
+  // the range [lowb2,uppb2] for the second annular region
+  dref_tol2 = pin->GetOrAddReal("z4c_amr","lowb2",1.)*hp;
+  ref_tol2  = pin->GetOrAddReal("z4c_amr","uppb2",10.)*hp;
+   
+  // assigning a radius to the center of the meshblock
   mb_radius = std::sqrt( POW2(pmb->block_size.x3max + pmb->block_size.x3min) + 
                          POW2(pmb->block_size.x2max + pmb->block_size.x2min) + 
                          POW2(pmb->block_size.x1max + pmb->block_size.x1min))/2.;
