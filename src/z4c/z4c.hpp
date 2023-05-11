@@ -766,7 +766,7 @@ private:
       return out * idx[dir] * diss;
     }
 #endif // DBG_SYMMETRIZE_FD
-    // 7th derivative (high order centered)
+    // homogeneous 7th derivative (high order centered)
     inline Real Dx7(int dir, Real & u) {
       Real * pu = &u - s7::offset*stride[dir];
 
