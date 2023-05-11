@@ -56,7 +56,7 @@ pin(pin)
                                             std::abs(ref_x1max-ref_x1min),
                                             std::abs(ref_x2max-ref_x2min)
                                           )*0.5
-                                );
+                                ));
   
   // pre-refine method
   ref_IsPreref_Linf = pin->GetOrAddBoolean("z4c_amr","preref_Linf",0);
