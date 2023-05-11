@@ -20,11 +20,11 @@
 #include "../mesh/mesh.hpp"
 // #include "../mesh/mesh_refinement.hpp"
 #include "../z4c/z4c.hpp"
+#include "../z4c/z4c_amr.hpp"
 
 //using namespace std;
 
 static int RefinementCondition(MeshBlock *pmb);
-static int FDErrorApprox(MeshBlock *pmb);
 
 //========================================================================================
 //! \fn void MeshBlock::ProblemGenerator(ParameterInput *pin)
@@ -63,11 +63,13 @@ static int RefinementCondition(MeshBlock *pmb)
 {
   int ret = 0;
   ParameterInput *const pin = pmb->pmy_in;
-  
+
+  Z4c_AMR *amr = new Z4c_AMR(pmb);
+
   // finite difference error must fall less that a prescribed value.
-  if (pin->GetOrAddString("z4c","refinement_method","FD_error") == "FD_error")
+  if (amr->ref_method == "FD_error")
   {
-    ret = FDErrorApprox(pmb);
+    ret = amr->FDErrorApprox(pmb);
   }
   else
   {
@@ -75,83 +77,9 @@ static int RefinementCondition(MeshBlock *pmb)
     msg << "No such option for z4c/refinement" << std::endl;
     ATHENA_ERROR(msg);
   }
-  
+
+  delete amr;
+    
   return ret;
 }  
 
-// using the FD error as an approximation of the error in the meshblock.
-// if this error falls below a prescribed value, the meshblock should be refined.
-static int FDErrorApprox(MeshBlock *pmb)
-{
-  int ret = 0;
-  Real err = 0.;
-  ParameterInput *const pin = pmb->pmy_in;
-  const Real dmax= std::numeric_limits<Real>::max();
-  const Real dmin=-std::numeric_limits<Real>::max();
-  const Real ref_tol   = pin->GetOrAddReal("z4c","refinement_tol",1e-5);
-  const Real dref_tol  = pin->GetOrAddReal("z4c","derefinement_tol",1e-6);
-  const Real ref_x1min = pin->GetOrAddReal("z4c","refinement_x1min",dmin);
-  const Real ref_x1max = pin->GetOrAddReal("z4c","refinement_x1max",dmax);
-  const Real ref_x2min = pin->GetOrAddReal("z4c","refinement_x2min",dmin);
-  const Real ref_x2max = pin->GetOrAddReal("z4c","refinement_x2max",dmax);
-  const Real ref_x3min = pin->GetOrAddReal("z4c","refinement_x3min",dmin);
-  const Real ref_x3max = pin->GetOrAddReal("z4c","refinement_x3max",dmax);
-  const int ref_deriv = pin->GetOrAddReal("z4c","refinement_deriv_order",7);
-  const int ref_pow   = pin->GetOrAddReal("z4c","refinement_deriv_power",1);
-  const bool verbose  = pin->GetOrAddBoolean("z4c", "refinement_verbose",false);
-  char region[999] = {0};
-  
-  if (verbose)
-    sprintf(region,"[%0.1f,%0.1f]x[%0.1f,%0.1f]x[%0.1f,%0.1f]",
-            pmb->block_size.x1min,pmb->block_size.x1max,
-            pmb->block_size.x2min,pmb->block_size.x2max,
-            pmb->block_size.x3min,pmb->block_size.x3max);
-
-  // calc. err
-  err = pmb->pz4c->amr_err_L2_derive_chi_pow(pmb,ref_deriv,ref_pow);
-  
-  // check the region of interest for the refinement
-  if (pmb->block_size.x1min < ref_x1min || pmb->block_size.x1max > ref_x1max)
-  {
-    if (verbose) 
-      printf("out of bound %s.\n",region);
-    ret = 0;
-  }
-  else if (pmb->block_size.x2min < ref_x2min || pmb->block_size.x2max > ref_x2max)
-  {
-    if (verbose) 
-      printf("out of bound %s.\n",region);
-    ret = 0;
-  }
-  else if (pmb->block_size.x3min < ref_x3min || pmb->block_size.x3max > ref_x3max)
-  {
-    if (verbose) 
-      printf("out of bound %s.\n",region);
-    ret = 0;
-  }
-  
-  // compare with the error bounds
-  else if (err > ref_tol)
-  {
-    if (verbose)
-      printf("err > ref-tol:   %e > %e  ==> refine %s.\n",err,ref_tol,region);
-    ret = 1.;
-  }
-  else if (err < dref_tol)
-  {
-    if (verbose)
-      printf("err < deref-tol: %e < %e  ==> derefine %s.\n",err,dref_tol,region);
-    ret = -1;
-  }
-  else 
-  {
-    if (verbose)
-      printf("dref-tol <= err <= ref-tol: %e <= %e <= %e ==> nothing %s.\n",
-              dref_tol,err,ref_tol,region);
-    ret = 0;
-  }
-  
-  fflush(stdout);
-  
-  return ret;
-}
