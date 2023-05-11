@@ -274,7 +274,7 @@ int Z4c_AMR::ShouldIRefine(MeshBlock *pmb)
     ret = LinfBoxInBox(pmb);
   }
   // use L-2 norm as a criteria for refinement
-  else if (ref_method == "L2")
+  else if (ref_method == "L2_sphere_in_sphere")
   {
     ret = L2SphereInSphere(pmb);
   }
