@@ -37,7 +37,22 @@ pin(pin)
   ref_gwh   = pin->GetOrAddReal("z4c","refinement_gw_resolution",1);// order of total mass
   ref_gwr   = pin->GetOrAddReal("z4c","refinement_gw_radius",100);// max length of gw extraction radius
   ref_hpow  = pin->GetOrAddReal("z4c","refinement_h_power",4.); // power of grid-space
+
+  ref_FD_r1_inn  = pin->GetOrAddReal("z4c","refinement_FD_radius1_inn",10e10);
+  ref_FD_r1_out  = pin->GetOrAddReal("z4c","refinement_FD_radius1_out",10e10);
+  ref_FD_r2_inn  = pin->GetOrAddReal("z4c","refinement_FD_radius2_inn",10e10);
+  ref_FD_r2_out  = pin->GetOrAddReal("z4c","refinement_FD_radius2_out",10e10);
+  ref_PrerefTime = pin->GetOrAddReal("z4c","refinement_preref_time_lt",0.);
   
+  ref_IsPreref_Linf = pin->GetOrAddBoolean("z4c","refinement_preref_Linf",0);
+  ref_IsPreref_L2   = pin->GetOrAddBoolean("z4c","refinement_preref_L2",0);
+
+  Real hp = pow(ref_hmax,ref_hpow);
+  ref_tol1  = pin->GetOrAddReal("z4c","refinement_tol1",10)*hp;
+  dref_tol1 = pin->GetOrAddReal("z4c","derefinement_tol1",1)*hp;
+  ref_tol2  = pin->GetOrAddReal("z4c","refinement_tol2",10)*hp;
+  dref_tol2 = pin->GetOrAddReal("z4c","derefinement_tol2",1)*hp;
+   
   // find grid spaces
   assert(NDIM == 3);// the subsequent calculation may get affected if N!=3.
   h1 = pmb->pcoord->x1f(1)-pmb->pcoord->x1f(0);
