@@ -51,9 +51,12 @@ class Z4c_AMR
     bool ref_IsPreref_L2;   // pre-refine with L2?
 
     Z4c_AMR(MeshBlock *pmb,ParameterInput *pin);
+    int ShouldIRefine(MeshBlock *pmb); // should I refine?
     ~Z4c_AMR();
     // using the FD error as an approximation for the error in the meshblock.
     int FDErrorApprox(MeshBlock *pmb, Real dref_tol, Real ref_tol); 
+    int LinfBoxInBox(MeshBlock *pmb); // Linf box in box
+    int L2SphereInSphere(MeshBlock *pmb); // L2 Sphere in Sphere
 };
 
 #endif // Z4c_AMR_HPP
