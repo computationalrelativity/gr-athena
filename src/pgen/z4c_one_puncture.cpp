@@ -8,8 +8,6 @@
 
 #include <cassert> // assert
 #include <iostream>
-#include <sstream>
-#include <limits>
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -20,26 +18,17 @@
 #include "../mesh/mesh.hpp"
 // #include "../mesh/mesh_refinement.hpp"
 #include "../z4c/z4c.hpp"
-#include "../z4c/z4c_amr.hpp"
 
-//using namespace std;
-
-static int RefinementCondition(MeshBlock *pmb);
+using namespace std;
 
 //========================================================================================
 //! \fn void MeshBlock::ProblemGenerator(ParameterInput *pin)
 //  \brief Sets the initial conditions.
 //========================================================================================
 
-void Mesh::InitUserMeshData(ParameterInput *pin)
-{
-  if(adaptive==true)
-    EnrollUserRefinementCondition(RefinementCondition);
-
-}
-
 void MeshBlock::ProblemGenerator(ParameterInput *pin)
 {
+
   pz4c->ADMOnePuncture(pin, pz4c->storage.adm);
   pz4c->GaugePreCollapsedLapse(pz4c->storage.adm, pz4c->storage.u);
 
@@ -57,27 +46,3 @@ void MeshBlock::Z4cUserWorkInLoop() {
 
   return;
 }
-
-// 1: refines, -1: de-refines, 0: does nothing
-static int RefinementCondition(MeshBlock *pmb)
-{
-  Z4c_AMR *amr = new Z4c_AMR(pmb);
-  int ret = 0;
-
-  // finite difference error must fall less that a prescribed value.
-  if (amr->ref_method == "FD_error")
-  {
-    ret = amr->FDErrorApprox(pmb);
-  }
-  else
-  {
-    std::stringstream msg;
-    msg << "No such option for z4c/refinement" << std::endl;
-    ATHENA_ERROR(msg);
-  }
-
-  delete amr;
-    
-  return ret;
-}  
-
