@@ -267,9 +267,9 @@ static int RefinementCondition(MeshBlock *pmb)
     }
     else if (FD_r1_inn <= amr->mb_radius && amr->mb_radius <= FD_r1_out)
     {
-      Real h4 = pow(amr->ref_hmax,4);
-      Real ref_tol  = pin->GetOrAddReal("z4c","refinement_tol1",10)*h4;
-      Real dref_tol = pin->GetOrAddReal("z4c","derefinement_tol1",1)*h4;
+      Real hpow = pow(amr->ref_hmax,amr->ref_hpow);
+      Real ref_tol  = pin->GetOrAddReal("z4c","refinement_tol1",10)*hpow;
+      Real dref_tol = pin->GetOrAddReal("z4c","derefinement_tol1",1)*hpow;
       
       if (Verbose)
         printf("Mb_radius = %g ==> calling FD AMR for the ring = [%g,%g], tol=[%g,%g]\n", 
@@ -279,9 +279,9 @@ static int RefinementCondition(MeshBlock *pmb)
     }
     else if (FD_r2_inn <= amr->mb_radius && amr->mb_radius <= FD_r2_out)
     {
-      Real h4 = pow(amr->ref_hmax,4);
-      Real ref_tol  = pin->GetOrAddReal("z4c","refinement_tol2",10)*h4;
-      Real dref_tol = pin->GetOrAddReal("z4c","derefinement_tol2",1)*h4;
+      Real hpow = pow(amr->ref_hmax,amr->ref_hpow);
+      Real ref_tol  = pin->GetOrAddReal("z4c","refinement_tol2",10)*hpow;
+      Real dref_tol = pin->GetOrAddReal("z4c","derefinement_tol2",1)*hpow;
       
       if (Verbose)
         printf("Mb_radius = %g ==> calling FD AMR for the ring = [%g,%g], tol=[%g,%g]\n", 
@@ -544,52 +544,3 @@ static int L2NormRefine(MeshBlock *pmb)
 
 }
 
-// using the FD error as an approximation of the error in the meshblock.
-// if this error falls below a prescribed value, the meshblock should be refined.
-static int FDErrorApprox(MeshBlock *pmb)
-{
-  std::cout << __FUNCTION__ << std::endl;
-  
-  int ret = 0;
-  double L2_norm = 0.;
-
-  // calc. L2 norm of ( d0^2 f + d1^2 f + d2^2 f )^3
-  ILOOP2(k,j)
-  {
-    for(int a = 0; a < NDIM; ++a) 
-    {
-      ILOOP1(i)
-      {
-        L2_norm += std::pow(ddchi_dd(a,a,k,j,i),2);
-      }
-    }
-  }// end of ILOOP2(k,j)
-
-  L2_norm /= npts;
-  L2_norm = std::sqrt(L2_norm);
-  
-  // calc. err
-  err = pmb->pz4c->amr_err_L2_ddchi_pow(pmb,3);
-  
-  // if it's bigger than the specified params then refine;
-  if (err > ref_tol)
-  {
-    ret = 1.;
-    printf("err > ref-tol:   %e > %e  ==> refine me!\n",err,ref_tol);
-  }
-  else if (err < dref_tol)
-  {
-    ret = -1;
-    printf("err < deref-tol: %e < %e  ==> derefine me!\n",err,dref_tol);
-  }
-  else 
-  {
-    ret = 0;
-    printf("dref-tol <= err <= ref-tol: %e <= %e <= %e ==> I'm good!\n",dref_tol,err,ref_tol);
-  }
-  
-  fflush(stdout);
-  
-  return ret;
-  
-}
