@@ -476,6 +476,8 @@ private:
     typedef FDCenteredStencil<1, NGHOST-1> s1;
     // 2nd derivative stencil
     typedef FDCenteredStencil<2, NGHOST-1> s2;
+    // 7th derivative stencil
+    typedef FDCenteredStencil<7, NGHOST> s7;
     // dissipation operator
     typedef FDCenteredStencil<
       FDDissChoice<NGHOST-1>::degree,
@@ -768,6 +770,20 @@ private:
       return out * idx[dir] * diss;
     }
 #endif // DBG_SYMMETRIZE_FD
+    // 7th derivative (high order centered)
+    inline Real Dx7(int dir, Real & u) {
+      Real * pu = &u - s7::offset*stride[dir];
+
+      Real out(0.);
+      for(int n1 = 0; n1 < s7::nghost; ++n1) {
+        int const n2  = s7::width - n1 - 1;
+        Real const c1 = s7::coeff[n1] * pu[n1*stride[dir]];
+        Real const c2 = s7::coeff[n2] * pu[n2*stride[dir]];
+        out += (c1 + c2);
+      }
+      out += s7::coeff[s7::nghost] * pu[s7::nghost*stride[dir]];
+      return out * POW4(idx[dir])*POW3(idx[dir]);
+    }
   } FD;
 
 };
