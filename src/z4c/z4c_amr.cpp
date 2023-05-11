@@ -36,6 +36,7 @@ Z4c_AMR::Z4c_AMR(MeshBlock *pmb)
   ref_pow   = pin->GetOrAddReal("z4c","refinement_deriv_power",1);
   ref_gwh   = pin->GetOrAddReal("z4c","refinement_gw_resolution",1);// order of total mass
   ref_gwr   = pin->GetOrAddReal("z4c","refinement_gw_radius",100);// max length of gw extraction radius
+  ref_hpow  = pin->GetOrAddReal("z4c","refinement_h_power",4.); // power of grid-space
   
   // find grid spaces
   assert(NDIM == 3);// the subsequent calculation may get affected if N!=3.

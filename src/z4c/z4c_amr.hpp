@@ -40,6 +40,7 @@ class Z4c_AMR
     std::string ref_method;  // method of refinement
     Real mb_radius;  // the length of the line from the origin to the meshblock's center
     Real ref_hmax;   // max grid-space in hx, hy, hz
+    Real ref_hpow;   // power of the grid space
     explicit Z4c_AMR(MeshBlock *pmb);
     ~Z4c_AMR();
     // using the FD error as an approximation for the error in the meshblock.
