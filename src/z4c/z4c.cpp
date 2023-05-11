@@ -8,7 +8,6 @@
 
 #include <iostream>
 #include <fstream>
-#include <sstream>
 
 // Athena++ headers
 #include "z4c.hpp"
