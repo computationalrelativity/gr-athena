@@ -54,6 +54,9 @@ class FFTGravityDriver;
 class TurbulenceDriver;
 class Z4c;
 class WaveExtract;
+#ifdef Z4C_AHF
+class AHF;
+#endif
 #if CCE_ENABLED
 class CCE;
 #endif
@@ -333,6 +336,9 @@ class Mesh {
   MGGravityDriver *pmgrd;
 
   std::vector<WaveExtract *> pwave_extr;
+#ifdef Z4C_AHF
+  std::vector<AHF *> pah_finder;
+#endif
 #if CCE_ENABLED
   std::vector<CCE *> pcce;
 #endif

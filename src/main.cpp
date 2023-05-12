@@ -46,6 +46,9 @@
 
 #include "z4c/wave_extract.hpp"
 #include "z4c/puncture_tracker.hpp"
+#ifdef Z4C_AHF
+#include "z4c/ahf.hpp"
+#endif
 #if CCE_ENABLED
 #include "z4c/cce/cce.hpp"
 #endif
@@ -537,6 +540,12 @@ int main(int argc, char *argv[]) {
             cce->DecomposeAndWrite(w_iter);
           }
         }
+      }
+#endif
+#ifdef Z4C_AHF
+      for (auto pah_f : pmesh->pah_finder) {
+        pah_f->Find(pmesh->ncycle, pmesh->time);
+        pah_f->Write(pmesh->ncycle, pmesh->time);
       }
 #endif
       // TODO: probably we do not want to output tracker data at every timestep

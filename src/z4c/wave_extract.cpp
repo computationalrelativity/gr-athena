@@ -10,6 +10,8 @@
 #include <stdexcept>
 #include <sstream>
 #include <unistd.h>
+#include <iomanip>
+#include <iostream>
 
 #ifdef MPI_PARALLEL
 #include <mpi.h>
@@ -40,7 +42,10 @@ WaveExtract::WaveExtract(Mesh * pmesh, ParameterInput * pin, int n):
   psi.NewAthenaArray(lmax-1,2*(lmax)+1,2);
   psi.ZeroClear();
   psphere = new SphericalGrid(nlev, rad);
-  ofname += n_str;
+  ofname += "r";
+  std::stringstream strObj3;
+  strObj3 << std::setfill('0') << std::setw(5) << std::fixed << std::setprecision(2) << rad;
+  ofname += strObj3.str();
   ofname += ".txt";
 
   if (0 == Globals::my_rank) {

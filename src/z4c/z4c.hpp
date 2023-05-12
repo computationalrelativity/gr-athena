@@ -221,6 +221,11 @@ public:
   AthenaArray<Real> coarse_u_;
   int refinement_idx{-1};
 
+  // metric derivatives used by AHF
+  // it is allocated there as needed
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> aux_g_ddd;
+
+
 public:
   // scheduled functions
   //

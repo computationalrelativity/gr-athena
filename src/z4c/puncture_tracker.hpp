@@ -36,6 +36,10 @@ class PunctureTracker {
     inline Real GetPos(int a) {
       return pos[a];
     }
+    //! Get initial mass
+    inline Real GetMass() {
+      return initial_mass;
+    }
     // These need to access the internals of PunctureTracker for checkpoint / recovery
     friend class Mesh;
     friend class RestartOutput;
@@ -43,6 +47,7 @@ class PunctureTracker {
     bool owns_puncture;
     Real pos[NDIM];
     Real betap[NDIM];
+    Real initial_mass;
   private:
     Mesh const * pmesh;
   private:

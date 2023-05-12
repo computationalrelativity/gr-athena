@@ -37,6 +37,7 @@ PunctureTracker::PunctureTracker(Mesh * pmesh, ParameterInput * pin, int n):
   pos[0] = pin->GetOrAddReal("z4c", "bh_" + std::to_string(n) + "_x", 0.0);
   pos[1] = pin->GetOrAddReal("z4c", "bh_" + std::to_string(n) + "_y", 0.0);
   pos[2] = pin->GetOrAddReal("z4c", "bh_" + std::to_string(n) + "_z", 0.0);
+  initial_mass = pos[0] > 0 ? pin->GetOrAddReal("problem", "target_M_plus", 0.0) : pin->GetOrAddReal("problem", "target_M_minus", 0.0);
   if (0 == Globals::my_rank) {
     // check if output file already exists
     if (access(ofname.c_str(), F_OK) == 0) {
