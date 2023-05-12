@@ -55,6 +55,11 @@ void ShowConfig() {
 #else
       std::cout<<"  Z4c shift damping:          Constant" << std::endl;
 #endif
+# if defined(Z4C_AHF)
+      std::cout<<"  Z4c AHF:                    ON" << std::endl;
+# else
+      std::cout<<"  Z4c AHF:                    OFF" << std::endl;
+#endif
     if (CCE_ENABLED) { 
       std::cout<<"  CCE waveform extraction:    ON" << std::endl;
     } else {

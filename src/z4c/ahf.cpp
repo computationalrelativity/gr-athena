@@ -273,9 +273,9 @@ AHF::~AHF() {
 void AHF::Write(int iter, Real time)
 {
   if (ioproc) {
-    std::string i_str = std::to_string(iter);      
-    if((use_puncture>=0 || time < start_time) || (time > stop_time)) return;
-    if (wait_until_punc_are_close && !(PuncAreClose())) return;
+    std::string i_str = std::to_string(iter);     
+    if((time < start_time) || (time > stop_time)) return;
+    if (use_puncture>=0 && wait_until_punc_are_close && !(PuncAreClose())) return;
     if (iter % compute_every_iter != 0) return;
     
     // Summary file
