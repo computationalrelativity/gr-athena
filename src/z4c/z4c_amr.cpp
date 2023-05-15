@@ -18,8 +18,8 @@
 #define Verbose (0)
 
 // set some parameters
-Z4c_AMR::Z4c_AMR(MeshBlock *pmb,ParameterInput *pin):
-pz4c(pmb->pz4c),
+Z4c_AMR::Z4c_AMR(Z4c *z4c, MeshBlock *pmb, ParameterInput *pin):
+pz4c(z4c),
 pin(pin)
 {
   const Real dmax =  std::numeric_limits<Real>::max();
