@@ -56,7 +56,7 @@ class Z4c_AMR
     bool ref_IsPreref_Linf; // pre-refine with Linf?
     bool ref_IsPreref_L2;   // pre-refine with L2?
 
-    Z4c_AMR(MeshBlock *pmb,ParameterInput *pin);
+    Z4c_AMR(Z4c *z4c, MeshBlock *pmb, ParameterInput *pin);
     int ShouldIRefine(MeshBlock *pmb); // should I refine?
     ~Z4c_AMR();
     // using the FD error as an approximation for the error in the meshblock.

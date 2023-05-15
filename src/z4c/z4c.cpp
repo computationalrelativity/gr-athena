@@ -71,8 +71,8 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   },
   empty_flux{AthenaArray<Real>(), AthenaArray<Real>(), AthenaArray<Real>()},
   ubvar(pmb, &storage.u, &coarse_u_, empty_flux),
-  pz4c_amr(new Z4c_AMR(pmb,pin))
-
+  //NOTE: we cannot use pmb->pz4c directly as this is at the middle of z4c ctor
+  pz4c_amr(new Z4c_AMR(this,pmb,pin))
 {
   Mesh *pm = pmy_block->pmy_mesh;
   Coordinates * pco = pmb->pcoord;
