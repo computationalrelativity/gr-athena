@@ -34,6 +34,12 @@ class Z4c_AMR
     // h^6 * ( (d^n fld/dx^n)^p + (d^n fld/dy^n)^p + (d^n fld/dz^n)^p )
     Real amr_err_Linf_derive_chi_pow(MeshBlock *const pmb, const int deriv_order, 
                                    const int p);
+
+
+   // returning the max err of: 
+   // h^6 * max{|(d^n fld/dx^n)^p|, |(d^n fld/dy^n)^p|, |(d^n fld/dz^n)^p|}
+   Real amr_err_Linf_component_derive_chi_pow(MeshBlock *const pmy_block, 
+                                   const int deriv_order, const int p);
     
   public:
     Z4c *pz4c;               // ptr to z4c

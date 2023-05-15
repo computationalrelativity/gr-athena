@@ -135,7 +135,8 @@ int Z4c_AMR::FDErrorApprox(MeshBlock *pmb, Real dref_tol, Real ref_tol)
   
   // calc. err
   // err = amr_err_L2_derive_chi_pow(pmb,ref_deriv,ref_pow);
-  err = amr_err_Linf_derive_chi_pow(pmb,ref_deriv,ref_pow);
+  // err = amr_err_Linf_derive_chi_pow(pmb,ref_deriv,ref_pow);
+  err = amr_err_Linf_component_derive_chi_pow(pmb,ref_deriv,ref_pow);
   
   // compare with the error bounds
   if (err >= ref_tol)
@@ -282,6 +283,48 @@ Real Z4c_AMR::amr_err_Linf_derive_chi_pow(MeshBlock *const pmy_block,
   
   return max_err;
 }
+
+//----------------------------------------------------------------------------------------
+// \!fn void Z4c:: amr_err_Linf_component_derive_chi_pow(MeshBlock *const pmy_block, const int p)
+// \brief returning the maximum truncation error of chi among x, y, and z directions 
+// and for all points in the given meshblock.
+//
+Real Z4c_AMR::amr_err_Linf_component_derive_chi_pow(MeshBlock *const pmy_block, 
+                                        const int deriv_order, const int p)
+{
+  Z4c::Z4c_vars z4c;
+  double max_err = 0.;
+
+  z4c.chi.InitWithShallowSlice(pz4c->storage.u, pz4c->I_Z4c_chi);
+  
+  // calc. 7th derivative in all dirs
+  if (deriv_order == 7)
+  {
+    assert(NGHOST > 3 && p == 1);// as p = 1 is optimized
+    ILOOP2(k,j) {
+      ILOOP1(i) {
+        Real der_max_comp = 0.;
+        // max { |d^7 chi(kji)/dx^7)^p|, |(d^7 chi(kji)/dy^7)^p|, |(d^7 chi(kji)/dz^7)^p| }
+        for(int a = 0; a < NDIM; ++a) {
+          Real der_abs = std::abs(pz4c->FD.Dx7(a, z4c.chi(k,j,i))); // p = 1 (optimization)
+          der_max_comp = der_max_comp > der_abs ? der_max_comp : der_abs;
+        }
+        max_err = der_max_comp > max_err ? der_max_comp : max_err;
+      }
+    }
+  }
+  else
+  {
+    std::stringstream msg;
+    msg << "No such derivative order developed yet!" << std::endl;
+    ATHENA_ERROR(msg);
+  }
+  
+  max_err *= std::pow(ref_hmax,6);
+  
+  return max_err;
+}
+
   
 Z4c_AMR::~Z4c_AMR()
 {
