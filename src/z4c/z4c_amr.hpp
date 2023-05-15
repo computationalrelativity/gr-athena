@@ -55,6 +55,7 @@ class Z4c_AMR
     ~Z4c_AMR();
     // using the FD error as an approximation for the error in the meshblock.
     int FDErrorApprox(MeshBlock *pmb, Real dref_tol, Real ref_tol); 
+    int FDTruncError(MeshBlock *pmb); // FD trunc error
     int LinfBoxInBox(MeshBlock *pmb); // Linf box in box
     int L2SphereInSphere(MeshBlock *pmb); // L2 Sphere in Sphere
 };

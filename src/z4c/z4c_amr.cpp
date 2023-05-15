@@ -26,6 +26,7 @@ pin(pin)
   const Real dmin = -std::numeric_limits<Real>::max();
   Real h1, h2, h3; // grid space
   
+  // available methods: Linf_box_in_box, L2_sphere_in_sphere, and fd_truncation_error
   ref_method = pin->GetOrAddString("z4c_amr","method","Linf_box_in_box");
   ref_x1min = pin->GetOrAddReal("z4c_amr","x1min",pin->GetReal("mesh","x1min")/2.);
   ref_x1max = pin->GetOrAddReal("z4c_amr","x1max",pin->GetReal("mesh","x1max")/2.);
@@ -290,6 +291,7 @@ Z4c_AMR::~Z4c_AMR()
 int Z4c_AMR::ShouldIRefine(MeshBlock *pmb)
 {
   int ret = 0;
+  
   // use box in box method
   if (ref_method  == "Linf_box_in_box")
   {
@@ -300,48 +302,10 @@ int Z4c_AMR::ShouldIRefine(MeshBlock *pmb)
   {
     ret = L2SphereInSphere(pmb);
   }
-  // finite difference error must fall less that a prescribed value.
-  else if (ref_method == "FD_error")
+  // finite difference truncation error must fall less that a prescribed value.
+  else if (ref_method == "fd_truncation_error")
   {
-    Real time = pmb->pmy_mesh->time;
-    
-    if (ref_IsPreref_Linf && time <= ref_PrerefTime)
-    {
-      if (Verbose)
-        std::cout << "calling Linf AMR for pre-refined" << std::endl;
-      
-      ret = LinfBoxInBox(pmb);
-    }
-    else if (ref_IsPreref_L2 && time <= ref_PrerefTime)
-    {
-      if (Verbose)
-        std::cout << "calling L2 AMR for pre-refined" << std::endl;
-      
-      ret = L2SphereInSphere(pmb);
-    }
-    else if (ref_FD_r1_inn <= mb_radius && mb_radius <= ref_FD_r1_out)
-    {
-      if (Verbose)
-        printf("Mb_radius = %g ==> calling FD AMR for the ring = [%g,%g], tol=[%g,%g]\n", 
-                mb_radius,ref_FD_r1_inn,ref_FD_r1_out,dref_tol1,ref_tol1);
-      
-      ret = FDErrorApprox(pmb,dref_tol1,ref_tol1);
-    }
-    else if (ref_FD_r2_inn <= mb_radius && mb_radius <= ref_FD_r2_out)
-    {
-      if (Verbose)
-        printf("Mb_radius = %g ==> calling FD AMR for the ring = [%g,%g], tol=[%g,%g]\n", 
-                mb_radius,ref_FD_r2_inn,ref_FD_r2_out,dref_tol2,ref_tol2);
-      
-      ret = FDErrorApprox(pmb,dref_tol2,ref_tol2);
-    }
-    else
-    {
-      if (Verbose)
-        std::cout << "Do nothing" << std::endl;
-      
-      ret = 0;
-    }
+    ret = FDTruncError(pmb);
   }
   else
   {
@@ -491,6 +455,55 @@ int Z4c_AMR::LinfBoxInBox(MeshBlock *pmb)
 
 }
 
+
+// refine based on a finite difference truncation error
+int Z4c_AMR::FDTruncError(MeshBlock *pmb)
+{
+  int ret = 0;
+  Real time = pmb->pmy_mesh->time;
+  
+  // note: the order of ifs matters
+  if (ref_IsPreref_Linf && time <= ref_PrerefTime)
+  {
+    if (Verbose)
+      std::cout << "calling Linf AMR for pre-refined" << std::endl;
+    
+    ret = LinfBoxInBox(pmb);
+  }
+  else if (ref_IsPreref_L2 && time <= ref_PrerefTime)
+  {
+    if (Verbose)
+      std::cout << "calling L2 AMR for pre-refined" << std::endl;
+    
+    ret = L2SphereInSphere(pmb);
+  }
+  else if (ref_FD_r1_inn <= mb_radius && mb_radius <= ref_FD_r1_out)
+  {
+    if (Verbose)
+      printf("Mb_radius = %g ==> calling FD AMR for the ring = [%g,%g], tol=[%g,%g]\n", 
+              mb_radius,ref_FD_r1_inn,ref_FD_r1_out,dref_tol1,ref_tol1);
+    
+    ret = FDErrorApprox(pmb,dref_tol1,ref_tol1);
+  }
+  else if (ref_FD_r2_inn <= mb_radius && mb_radius <= ref_FD_r2_out)
+  {
+    if (Verbose)
+      printf("Mb_radius = %g ==> calling FD AMR for the ring = [%g,%g], tol=[%g,%g]\n", 
+              mb_radius,ref_FD_r2_inn,ref_FD_r2_out,dref_tol2,ref_tol2);
+    
+    ret = FDErrorApprox(pmb,dref_tol2,ref_tol2);
+  }
+  else
+  {
+    if (Verbose)
+      std::cout << "Do nothing" << std::endl;
+    
+    ret = 0;
+  }
+  
+  return ret;
+}
+ 
 // L-2 norm for refinement kind of like sphere in sphere
 int Z4c_AMR::L2SphereInSphere(MeshBlock *pmb)
 {
