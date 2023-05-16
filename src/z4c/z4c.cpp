@@ -507,3 +507,4 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
     }
   }
 }
+
