@@ -18,6 +18,7 @@
 #include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
 #include "../z4c/z4c.hpp"
+#include "../z4c/z4c_amr.hpp"
 #include "../z4c/puncture_tracker.hpp"
 
 // twopuncturesc: Stand-alone library ripped from Cactus
@@ -28,7 +29,6 @@
 static int RefinementCondition(MeshBlock *pmb);
 static int LinfBoxInBox(MeshBlock *pmb);
 static int L2NormRefine(MeshBlock *pmb);
-static int FDErrorApprox(MeshBlock *pmb);
 
 // QUESTION: is it better to setup two different problems instead of using ifdef?
 static ini_data *data = NULL;
@@ -220,23 +220,22 @@ static int RefinementCondition(MeshBlock *pmb)
     return 0;
   }
   
-  // choose the method of refinement:
-  // --------------------------------
+  Z4c_AMR *amr = new Z4c_AMR(pmb);
   
   // use box in box method
-  if (pin->GetOrAddString("z4c","refinement","Linf_box_in_box") == "Linf_box_in_box")
+  if (amr->ref_method  == "Linf_box_in_box")
   {
     ret = LinfBoxInBox(pmb);
   }
   // use L-2 norm as a criteria for refinement
-  else if (pin->GetOrAddString("z4c","refinement","Linf_box_in_box") == "L2")
+  else if (amr->ref_method == "L2")
   {
     ret = L2NormRefine(pmb);
   }
   // finite difference error must fall less that a prescribed value.
-  else if (pin->GetOrAddString("z4c","refinement","Linf_box_in_box") == "FD_error")
+  else if (amr->ref_method == "FD_error")
   {
-    ret = FDErrorApprox(pmb);
+    ret = amr->FDErrorApprox(pmb);
   }
   else
   {
@@ -244,6 +243,8 @@ static int RefinementCondition(MeshBlock *pmb)
     msg << "No such option for z4c/refinement" << std::endl;
     ATHENA_ERROR(msg);
   }
+  
+  delete amr;
   
   return ret;
 }  

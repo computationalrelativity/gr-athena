@@ -38,6 +38,7 @@
 
 class MeshBlock;
 class ParameterInput;
+class Z4c_AMR;
 
 // Indexes for variables in AthenaArray
 #define NDIM (3) // Manifold dimension
@@ -45,7 +46,7 @@ class ParameterInput;
 //! \class Z4c
 //  \brief Z4c data and functions
 class Z4c {
-
+friend class Z4c_AMR;
 public:
   // Indexes of evolved variables
   enum {
@@ -220,7 +221,6 @@ public:
   // BD: this should perhaps be combined with the above stuct.
   AthenaArray<Real> coarse_u_;
   int refinement_idx{-1};
-
   // metric derivatives used by AHF
   // it is allocated there as needed
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> aux_g_ddd;
