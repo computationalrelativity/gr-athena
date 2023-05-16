@@ -23,7 +23,6 @@ pz4c(z4c),
 pin(pin)
 {
   const Real dmax =  std::numeric_limits<Real>::max();
-  const Real dmin = -std::numeric_limits<Real>::max();
   Real h1, h2, h3; // grid space
   
   // available methods: "Linf_box_in_box", "L2_sphere_in_sphere", and "fd_truncation_error"
