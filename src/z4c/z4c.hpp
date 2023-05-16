@@ -225,7 +225,6 @@ public:
   // it is allocated there as needed
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> aux_g_ddd;
 
-
 public:
   // scheduled functions
   //
