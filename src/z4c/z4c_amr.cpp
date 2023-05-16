@@ -54,8 +54,8 @@ pin(pin)
                                   std::max( 
                                             std::abs(ref_x1max-ref_x1min),
                                             std::abs(ref_x2max-ref_x2min)
-                                          )*0.5
-                                ));
+                                          )
+                                )*0.5);
   // assigning a radius to the center of the meshblock
   mb_radius = std::sqrt( POW2(pmb->block_size.x3max + pmb->block_size.x3min) + 
                          POW2(pmb->block_size.x2max + pmb->block_size.x2min) + 
