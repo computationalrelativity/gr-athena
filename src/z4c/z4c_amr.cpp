@@ -26,7 +26,7 @@ pin(pin)
   const Real dmin = -std::numeric_limits<Real>::max();
   Real h1, h2, h3; // grid space
   
-  // available methods: Linf_box_in_box, L2_sphere_in_sphere, and fd_truncation_error
+  // available methods: "Linf_box_in_box", "L2_sphere_in_sphere", and "fd_truncation_error"
   ref_method = pin->GetOrAddString("z4c_amr","method","Linf_box_in_box");
   ref_x1min = pin->GetOrAddReal("z4c_amr","x1min",pin->GetReal("mesh","x1min")/2.);
   ref_x1max = pin->GetOrAddReal("z4c_amr","x1max",pin->GetReal("mesh","x1max")/2.);
@@ -39,14 +39,13 @@ pin(pin)
   ref_pow   = pin->GetOrAddReal("z4c_amr","deriv_power",1);
   
   // ensure the grid-space doesn't fall below specific number for GW extraction
-  ref_gwh   = pin->GetOrAddReal("z4c_amr","gw_resolution",dmax);// can be order of total mass
+  ref_gwh   = pin->GetOrAddReal("z4c_amr","gw_gridspace",dmax);// can be an order of total mass
   // where to check the above criterion
-  ref_gwr   = pin->GetOrAddReal("z4c_amr","gw_radius",dmax);// can be max length of gw extraction radius
+  ref_gwr   = pin->GetOrAddReal("z4c_amr","gw_radius",dmax);// can be the largest gw extraction radius
   
-  
-  // specify different criteria for different annuli using finite difference
+  // one can specify different criteria for different annuli using finite difference
   // truncation error
-  ref_FD_r1_inn  = pin->GetOrAddReal("z4c_amr","FD_radius1_inn", 0. );
+  ref_FD_r1_inn  = pin->GetOrAddReal("z4c_amr","FD_radius1_inn", 0.);
   ref_FD_r1_out  = pin->GetOrAddReal("z4c_amr","FD_radius1_out",
                         2.2*pin->GetOrAddReal("problem", "par_b", 1.) );
   ref_FD_r2_inn  = pin->GetOrAddReal("z4c_amr","FD_radius2_inn", ref_FD_r1_out );
@@ -58,14 +57,16 @@ pin(pin)
                                             std::abs(ref_x2max-ref_x2min)
                                           )*0.5
                                 ));
-  
+  // assigning a radius to the center of the meshblock
+  mb_radius = std::sqrt( POW2(pmb->block_size.x3max + pmb->block_size.x3min) + 
+                         POW2(pmb->block_size.x2max + pmb->block_size.x2min) + 
+                         POW2(pmb->block_size.x1max + pmb->block_size.x1min))/2.;
   // pre-refine method
   ref_IsPreref_Linf = pin->GetOrAddBoolean("z4c_amr","preref_Linf",0);
   ref_IsPreref_L2   = pin->GetOrAddBoolean("z4c_amr","preref_L2",1);
-  // using pre-refine method till this time
+  // using the pre-refine method till this time (less than or equal to this time)
   ref_PrerefTime = pin->GetOrAddReal("z4c_amr","preref_time_lt",20);
   
-  // find grid spaces
   assert(NDIM == 3);// the subsequent calculation may get affected if N!=3.
   h1 = pmb->pcoord->x1f(1)-pmb->pcoord->x1f(0);
   h2 = pmb->pcoord->x2f(1)-pmb->pcoord->x2f(0);
@@ -83,16 +84,10 @@ pin(pin)
   // the range [lowb2,uppb2] for the second annular region
   dref_tol2 = pin->GetOrAddReal("z4c_amr","lowb2",1.)*hp;
   ref_tol2  = pin->GetOrAddReal("z4c_amr","uppb2",10.)*hp;
-   
-  // assigning a radius to the center of the meshblock
-  mb_radius = std::sqrt( POW2(pmb->block_size.x3max + pmb->block_size.x3min) + 
-                         POW2(pmb->block_size.x2max + pmb->block_size.x2min) + 
-                         POW2(pmb->block_size.x1max + pmb->block_size.x1min))/2.;
-  
 }
 
 // using the FD error as an approximation of the error in the meshblock.
-// if this error falls below a prescribed value, the meshblock should be refined.
+// this error compares agains the range (dref_tol,ref_tol)
 int Z4c_AMR::FDErrorApprox(MeshBlock *pmb, Real dref_tol, Real ref_tol)
 {
   int ret          = 0;
