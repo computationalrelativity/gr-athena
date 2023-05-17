@@ -136,7 +136,7 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   // * if found, set ah_found to true & store the guess
   
   // Points for sph harm l>=1
-  const int lmpoints = lmax1*lmax1;
+  lmpoints = lmax1*lmax1;
 
   // Coefficients
   a0.NewAthenaArray(lmax1);
@@ -188,9 +188,11 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   parname += n_str;
   ofname_summary = pin->GetString("job", "problem_id") + ".";
   ofname_summary += pin->GetOrAddString("ahf", parname, "horizon_summary_"+n_str);
+  ofname_summary += ".txt";
 
   parname = "horizon_file_shape_";
   parname += n_str;
+  ofname_shape += ".txt";
 
   ofname_shape = pin->GetString("job", "problem_id") + ".";
   ofname_shape += pin->GetOrAddString("ahf", parname, "horizon_shape_"+n_str);
@@ -275,7 +277,7 @@ void AHF::Write(int iter, Real time)
   if (ioproc) {
     std::string i_str = std::to_string(iter);     
     if((time < start_time) || (time > stop_time)) return;
-    if (use_puncture>=0 && wait_until_punc_are_close && !(PuncAreClose())) return;
+    if (wait_until_punc_are_close && !(PuncAreClose())) return;
     if (iter % compute_every_iter != 0) return;
     
     // Summary file
@@ -295,27 +297,23 @@ void AHF::Write(int iter, Real time)
     if (ah_found) {
 
       // Shape file
-      std::string fname = ofname_shape;
-      fname += i_str;
-      pofile_shape = fopen(fname.c_str(), "w");
+      pofile_shape = fopen(fname.c_str(), "a");
       if (NULL == pofile_shape) {
         std::stringstream msg;
         msg << "### FATAL ERROR in AHF constructor" << std::endl;
         msg << "Could not open file '" << pofile_shape << "' for writing!";
         throw std::runtime_error(msg.str().c_str());
       }
-      fprintf(pofile_shape, "# %d %g\n",iter,time);
-      fprintf(pofile_shape, "# a0_l ac_lm as_lm\n");
-      fprintf(pofile_shape, "# lmax = %d\n# lmpoints = %d\n# %d\n",
-        lmax,lmpoints,lmax+2*lmpoints);
+      fprintf(pofile_shape, "# iter = %d, Time = %g\n",iter,time);
       for(int l=0; l<=lmax; l++){
-        fprintf(pofile_shape,"%e\n", a0(l)); 
+        fprintf(pofile_shape,"%e ", a0(l)); 
         for(int m=0; m<=l; m++){
           int l1 = lmindex(l,m);
-          fprintf(pofile_shape,"%e\n",ac(l1));
-          fprintf(pofile_shape,"%e\n",as(l1));
+          fprintf(pofile_shape,"%e ",ac(l1));
+          fprintf(pofile_shape,"%e ",as(l1));
         }
       }
+      fprintf(pofile_shape,"\n");
       fclose(pofile_shape);
     }
   }
@@ -1017,7 +1015,7 @@ void AHF::Find(int iter, Real time)
   
   // Loop over number of surfaces
   if((time < start_time) || (time > stop_time)) return;
-  if (use_puncture>=0 && wait_until_punc_are_close && !(PuncAreClose())) return;
+  if (wait_until_punc_are_close && !(PuncAreClose())) return;
   if (iter % compute_every_iter != 0) return;
 
   InitialGuess();
@@ -1168,8 +1166,6 @@ void AHF::UpdateFlowSpectralComponents()
   const double A = alpha/(lmax*lmax1) + beta;
   const double B = beta/alpha;
 
-  const int lmpoints = SQ(lmax1);
-    
   Real * spec0 = new Real[lmax1];
   Real * specc = new Real[lmpoints];
   Real * specs = new Real[lmpoints];

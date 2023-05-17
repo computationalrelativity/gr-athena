@@ -1,10 +1,9 @@
 <job>
 # Basename of output filenames.
 problem_id = qc1
-repository_info = fc5682b
 
 <comment>
-configure = python configure.py -omp -mpi --nghost 4 --ncghost 4 -rpath -z --prob=z4c_two_punctures --two_punctures_path $DIR_TWOPUNCTURESC -gsl --gsl_path $GSL_BASE -hdf5 --hdf5_path $HDF5_BASE
+configure = python configure.py -omp -mpi --nghost 4 --ncghost 4 -rpath -z --prob=z4c_two_punctures --two_punctures_path <dir-twopuncturesc> -gsl --gsl_path <dir-gsl> -hdf5 --hdf5_path <dir-hdf5>
 
 <z4c>
 
@@ -102,7 +101,6 @@ n_punct = 2
 <ahf>
 
 num_horizons     = 3
-#num_horizons     = 2
 verbose      = 1
 
 # First horizon at puncture 0
@@ -115,7 +113,7 @@ start_time_0 = 0.1
 stop_time_0  = 1
 compute_every_iter_0 = 3
 
-# Second horizon at puncture 0
+# Second horizon at puncture 1
 initial_radius_1 = 2.5
 center_x_1 = -3.257
 center_y_1 = 0.
