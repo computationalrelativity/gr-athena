@@ -98,41 +98,6 @@ initial_lapse_psi_exponent = -2.0
 swap_xz = False
 n_punct = 2
 
-<ahf>
-
-num_horizons     = 3
-verbose      = 1
-
-# First horizon at puncture 0
-initial_radius_0 = 2.5
-center_x_0 = 3.257 
-center_y_0 = 0.
-center_z_0 = 0.
-use_puncture_0 = 0 # This will override the pars above and initialize the horizon at the puncture
-start_time_0 = 0.1
-stop_time_0  = 1
-compute_every_iter_0 = 3
-
-# Second horizon at puncture 1
-initial_radius_1 = 2.5
-center_x_1 = -3.257
-center_y_1 = 0.
-center_z_1 = 0.
-use_puncture_1 = 1 # This will override the pars above and initialize the horizon at the puncture
-start_time_1 = 0.
-stop_time_1  = 1.
-compute_every_iter_1 = 5
-
-# Third horizon at the center
-initial_radius_2 = 2.5
-center_x_2 = 0.
-center_y_2 = 0.
-center_z_2 = 0.
-start_time_2 = 0.2
-stop_time_2  = 1.
-compute_every_iter_2 = 2
-
-
 <output1>
 file_type = hst
 # Time increment between outputs
@@ -145,6 +110,36 @@ data_format = %.16e
 file_type = rst
 # Time increment between outputs
 dt = 20.0
+
+<output3>
+
+file_type = hdf5
+variable = z4c
+# Time increment between outputs
+dt = 1
+data_format = %.16e
+ghost_zones = true
+id = z4c
+
+<output4>
+
+file_type = hdf5
+variable = con
+# Time increment between outputs
+dt = 1
+data_format = %.16e
+ghost_zones = true
+id = con
+
+<output5>
+
+file_type = hdf5
+variable = weyl
+# Time increment between outputs
+dt = 1
+data_format = %.16e
+ghost_zones = true
+id = weyl
 
 <time>
 
