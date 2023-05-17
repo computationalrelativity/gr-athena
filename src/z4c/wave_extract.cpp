@@ -41,7 +41,8 @@ WaveExtract::WaveExtract(Mesh * pmesh, ParameterInput * pin, int n):
   lmax = pin->GetOrAddInteger("z4c", "lmax", 2);
   psi.NewAthenaArray(lmax-1,2*(lmax)+1,2);
   psi.ZeroClear();
-  psphere = new SphericalGrid(nlev, rad);
+  bool bitant = pin->GetOrAddBoolean("z4c", "bitant", false);
+  psphere = new SphericalGrid(nlev, rad, bitant);
   ofname += "r";
   std::stringstream strObj3;
   strObj3 << std::setfill('0') << std::setw(5) << std::fixed << std::setprecision(2) << rad;

@@ -295,9 +295,8 @@ void AHF::Write(int iter, Real time)
     fprintf(pofile_summary, "\n");
     fflush(pofile_summary);
     if (ah_found) {
-
       // Shape file
-      pofile_shape = fopen(fname.c_str(), "a");
+      pofile_shape = fopen(ofname_shape.c_str(), "a");
       if (NULL == pofile_shape) {
         std::stringstream msg;
         msg << "### FATAL ERROR in AHF constructor" << std::endl;

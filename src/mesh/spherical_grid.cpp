@@ -14,7 +14,7 @@
 
 #define SQ(X) ((X)*(X))
 
-SphericalGrid::SphericalGrid(int nlev, Real rad_): GeodesicGrid(nlev) {
+SphericalGrid::SphericalGrid(int nlev, Real rad_, bool bitant_): GeodesicGrid(nlev), bitant(bitant_) {
   rad.NewAthenaArray(GeodesicGrid::NumVertices());
   rad.Fill(rad_);
 }
@@ -25,6 +25,9 @@ void SphericalGrid::Position(int ic, Real * x, Real * y, Real * z) const {
   *x = rad(ic)*std::sin(theta)*std::cos(phi);
   *y = rad(ic)*std::sin(theta)*std::sin(phi);
   *z = rad(ic)*std::cos(theta);
+  if (bitant) {
+   *z = std::abs(*z);
+  }
 }
 
 Real SphericalGrid::ComputeWeight(int ic) const {
