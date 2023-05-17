@@ -1,15 +1,28 @@
 <job>
 # Basename of output filenames.
 problem_id = qc1
-repository_info = code_cleanup_92779fb
 
 <comment>
-configure = python3 configure.py --cxx=icpc-phi -rpath -omp -mpi -z -hdf5 --hdf5_path=${TACC_HDF5_DIR} -gsl --gsl_path=/work2/03043/dradice/stampede2/spack/view --two_punctures_path=/work2/03043/dradice/stampede2/local/TwoPuncturesC --prob=z4c_two_punctures --nghost=4
+configure = python configure.py -omp -mpi --nghost 4 --ncghost 4 -rpath -z --prob=z4c_two_punctures --two_punctures_path <dir-twopuncturesc> -gsl --gsl_path <dir-gsl> -hdf5 --hdf5_path <dir-hdf5>
 
 <z4c_amr>
 
-preref_L2 = 1
-preref_time_lt = 20.
+## the method for refinement or coarsening 
+method = fd_truncation_error
+
+## annular region of interest to use this AMR method
+FD_radius1_inn = 0
+FD_radius1_out = 6
+FD_radius2_inn = 0
+FD_radius2_out = 6
+
+## the criterion for refine/coarsen for each annular
+h_power = 4.0
+lowb1   = 1.0
+uppb1   = 10.0
+lowb2   = 1.0
+uppb2   = 10.0
+
 
 <z4c>
 
