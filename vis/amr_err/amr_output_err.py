@@ -86,9 +86,9 @@ def L2(params,db,mbs,slice,file):
                     db[params.output_field+'_L2'][mb][k,j,i] = v_L2
 
 ## calc. the Linf norm and add it to the db. note: this is for a slice
-def Linf(params,db,mbs,slice,file,field='h*dv'):
+def Linf(params,db,mbs,slice,file,field='v'):
     
-    if field == 'h*dv':
+    if field == 'v':
         name    = params.output_field
         outname = params.output_field + '_Linf'
     elif field == 'dv':
@@ -343,9 +343,10 @@ class Plot:
 
             Linf(params,db,mbs,slice,file)
             self.plot_2d_txt(params,db,mbs,slice,file['cycle'],"Linf",file['txt_2d_Linf'])
-            
-            Linf(params,db,mbs,slice,file,'dv')
-            self.plot_2d_txt(params,db,mbs,slice,file['cycle'],"dv_Linf",file['txt_2d_dv_Linf'])
+
+            if params.analysis == "der":
+                Linf(params,db,mbs,slice,file,'dv')
+                self.plot_2d_txt(params,db,mbs,slice,file['cycle'],"dv_Linf",file['txt_2d_dv_Linf'])
             
         elif params.out_format == "txt1d":
             self.plot_1d_txt(params,db,mbs,slice,file['cycle'],"value",file['txt_1d'])
