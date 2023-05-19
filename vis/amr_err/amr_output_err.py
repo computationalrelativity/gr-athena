@@ -710,7 +710,7 @@ class Analysis:
        ## plot a quantity
        if params.analysis == "plot":
            params.output_field = params.field_name
-           pass
+           self.max_grid_space(params,db,mbs,slice,file)
        
        ## calc. derivative
        elif params.analysis == "der":
@@ -812,7 +812,55 @@ class Analysis:
             else:
                 raise Exception("No such slice {}!".format(slice.slice_dir))
             
+
+   ## compute the largest grid-space in each mesh-block
+   def max_grid_space(self,params,db,mbs,slice,file):
+        print("{} ...".format(self.derivative.__name__))
+        sys.stdout.flush()
+
+        db[params.output_field+'grid-space'] = np.zeros(shape=db[params.field_name].shape)
         
+        for mb in mbs.keys():
+            if slice.slice_dir == 3:
+                x = db["x1v"][mb]
+                y = db["x2v"][mb]
+                dx = x[1]-x[0]
+                dy = y[1]-y[0]
+                h = max(dx,dy)
+                
+                for k in range(mbs[mb]['kI'],mbs[mb]['kF']):
+                    for j in range(mbs[mb]['jI'],mbs[mb]['jF']):
+                        for i in range(mbs[mb]['iI'],mbs[mb]['iF']):
+                            db[params.output_field+'grid-space'][mb][k,j,i] = h
+        
+       
+            elif slice.slice_dir == 2:
+                x = db["x1v"][mb]
+                z = db["x3v"][mb]
+                dx = x[1]-x[0]
+                dz = z[1]-z[0]
+                h = max(dx,dz)
+                
+                for k in range(mbs[mb]['kI'],mbs[mb]['kF']):
+                    for j in range(mbs[mb]['jI'],mbs[mb]['jF']):
+                        for i in range(mbs[mb]['iI'],mbs[mb]['iF']):
+                            db[params.output_field+'grid-space'][mb][k,j,i] = h
+
+            elif slice.slice_dir == 1:
+                z = db["x3v"][mb]
+                y = db["x2v"][mb]
+                dz = z[1]-z[0]
+                dy = y[1]-y[0]
+                h = max(dz,dy)
+                
+                for k in range(mbs[mb]['kI'],mbs[mb]['kF']):
+                    for j in range(mbs[mb]['jI'],mbs[mb]['jF']):
+                        for i in range(mbs[mb]['iI'],mbs[mb]['iF']):
+                            db[params.output_field+'grid-space'][mb][k,j,i] = h
+
+            else:
+                raise Exception("No such slice {}!".format(slice.slice_dir))
+            
 
 
 ## --------------------------------------------------------------------------------
