@@ -171,7 +171,7 @@ class Region:
     def MeshBlockByRadius(self,db):
         mbs=[]
         for mb in range(db["NumMeshBlocks"]):
-            ## take the MIDDLE POINT and calc. the radius for this block wrt the origine
+            ## take the MIDDLE POINT and calc. the radius for this block wrt the origin
             x=db["x1v"][mb][int(np.size(db["x1v"][mb])/2)]
             y=db["x2v"][mb][int(np.size(db["x2v"][mb])/2)]
             z=db["x3v"][mb][int(np.size(db["x3v"][mb])/2)]
@@ -300,6 +300,8 @@ class Files:
             ## when txt output is asked
             self.files[file]['txt_2d'] = params.out_dir + params.out_prefix + \
                                          params.field_name + "_" + params.analysis + "_2d.txt"
+            self.files[file]['txt_r_h'] = params.out_dir + params.out_prefix + \
+                                         "radius_" + params.analysis + "_2d.txt"
             
             self.files[file]['txt_1d'] = params.out_dir + params.out_prefix + \
                                          params.field_name + "_" + params.analysis + "_1d.txt"
@@ -336,6 +338,11 @@ class Files:
 class Plot:
     def __init__(self,params,db,mbs,slice,file):
         if params.out_format == "txt":
+        
+            if params.analysis == "grid_space":
+                self.plot_radius_grid_space_txt(params,db,mbs,slice,file['cycle'],"r_h",file['txt_r_h'])
+                return ## don't plot the rest
+        
             self.plot_2d_txt(params,db,mbs,slice,file['cycle'],"value",file['txt_2d'])
 
             L2(params,db,mbs,slice,file)
@@ -364,6 +371,9 @@ class Plot:
 #            self.plot_1d_txt_mb(params,db,mbs,slice,file['cycle'],"value",file['txt_1d_mb'],'z')
             
         elif params.out_format == "pdf" or params.out_format == "png":
+            if params.analysis == "grid_space":
+                raise Exception("No such option {}!".format(params.analysis))
+
             self.plot_2d_color(params,db,mbs,slice,file['cycle'],"value",file['color_2d'])
 
             L2(params,db,mbs,slice,file)
@@ -599,6 +609,39 @@ class Plot:
      
         txt_file.close()
 
+    
+    ## plot radius and grid space for each mesh-block
+    def plot_radius_grid_space_txt(self,params,db,mbs,slice,cycle,type,output):
+        print("{} ...".format(self.plot_radius_grid_space_txt.__name__))
+        sys.stdout.flush()
+        
+        ng = params.nghost
+        
+        txt_file = open(output,"a")
+        txt_file.write("# \"time = {}\"\n".format(cycle))
+
+        if type == "r_h": ## grid-space vs radius 
+            fld  = params.output_field+'grid-space'
+        else:
+            raise Exception("No such option {}!".format(type))
+
+        if slice.slice_dir == 3:
+            for mb in mbs.keys():
+                ## take the MIDDLE POINT and calc. the radius for this block wrt the origin
+                x=db["x1v"][mb][int(np.size(db["x1v"][mb])/2)]
+                y=db["x2v"][mb][int(np.size(db["x2v"][mb])/2)]
+                z=db["x3v"][mb][int(np.size(db["x3v"][mb])/2)]
+                r=(x**2+y**2+z**2)**(0.5)
+                hf = db[params.output_field+'grid-space'][mb]
+           
+                ## NOTE: since hf is max grid-space hence its a constant field
+                txt_file.write("{} {}\n".format(r,hf[mbs[mb]['kI'], 0, 0]))
+        else:
+            txt_file.close()
+            raise Exception("No such slice {}!".format(slice.slice_dir))
+     
+        txt_file.close()
+
     ## plotting in 1d txt format for EACH meshblocks separately in each file
     def plot_1d_txt_mb(self,params,db,mbs,slice,cycle,type,output_root,kind):
         print("{} ...".format(self.plot_1d_txt_mb.__name__))
@@ -713,6 +756,11 @@ class Analysis:
            params.output_field = params.field_name
            self.max_grid_space(params,db,mbs,slice,file)
        
+       ## plot meshblock grid space vs radius
+       elif params.analysis == "grid_space":
+           params.output_field = params.field_name
+           self.max_grid_space(params,db,mbs,slice,file)
+       
        ## calc. derivative
        elif params.analysis == "der":
            params.output_field = "d^{0}/dX^{0} ({1})".format(params.findiff_ord,params.field_name)
@@ -816,7 +864,7 @@ class Analysis:
 
    ## compute the largest grid-space in each mesh-block
    def max_grid_space(self,params,db,mbs,slice,file):
-        print("{} ...".format(self.derivative.__name__))
+        print("{} ...".format(self.max_grid_space.__name__))
         sys.stdout.flush()
 
         db[params.output_field+'grid-space'] = np.zeros(shape=db[params.field_name].shape)
@@ -863,7 +911,6 @@ class Analysis:
                 raise Exception("No such slice {}!".format(slice.slice_dir))
             
 
-
 ## --------------------------------------------------------------------------------
 if __name__=="__main__":
     ## read and pars input args (we're running out of letter!!)
@@ -878,7 +925,7 @@ if __name__=="__main__":
     p.add_argument("-s",type=int,default = 10, help="read every step-th file.")
     p.add_argument("-g",type=int,default = 4, help="number of ghost zone.")
     p.add_argument("-r",type=float,default = 5.0,help="select all meshblocks whose radii are <= this value.")
-    p.add_argument("-a",type=str,default = "plot",help="analysis = {plot,der}.")
+    p.add_argument("-a",type=str,default = "plot",help="analysis = {plot,der,grid_space}. 'grid_space' plots grid-space vs radius")
     p.add_argument("-d",type=int,default = 2, help="derivative order.")
     p.add_argument("-m",type=float,default = 1, help="derivative power. The results are powered to the m-th.")
     p.add_argument("-x",type=float,default = 0, help="the fixed coordinate along which the txt_1d(?) plot(s) is plotted")
