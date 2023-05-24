@@ -265,8 +265,8 @@ void CCE::Interpolate(MeshBlock *const pmb)
   {
     Real coord[3] = {xb[p], yb[p], zb[p]};
     bool IsBitant = (bitant && zb[p] < 0.);
-    Real isign = IsBitant ? bitant_sign; 1.;
-    Real zsign = IsBitant ? -1.        ; 1.;
+    Real isign = IsBitant ? bitant_sign: 1.;
+    Real zsign = IsBitant ? -1.        : 1.;
     
     if (pmb->PointContainedExclusive(coord[0], coord[1], zsign*coord[2]))
     {
