@@ -67,6 +67,7 @@ CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int rn):
     rn(rn),
     count_interp_pnts(0)
 {
+  bitant     = pin->GetOrAddBoolean("z4c", "bitant", false);
   output_dir = pin->GetString("cce","output_dir");
   bfname = output_dir + "/" + BOOKKEEPING_NAME;
   rin  = pin->GetReal("cce", "rin_"  + std::to_string(rn));
@@ -182,6 +183,7 @@ CCE::~CCE()
 void CCE::Interpolate(MeshBlock *const pmb)
 {
   const int Npoints = nangle*num_x_points;
+  Real bitant_sign  = 0.; // set according to the field and symmetry
   Real const origin[3] = {pmb->pcoord->x1f(0),
                           pmb->pcoord->x2f(0),
                           pmb->pcoord->x3f(0)};
@@ -203,42 +205,53 @@ void CCE::Interpolate(MeshBlock *const pmb)
   if (fieldname == "gxx")
   {
     src_field = &adm.g_dd(0,0, 0,0,0);
+    bitant_sign = 1.;
   }
   else if (fieldname == "gxy")
   {
     src_field = &adm.g_dd(0,1, 0,0,0);
+    bitant_sign = 1.;
   }
   else if (fieldname == "gxz")
   {
     src_field = &adm.g_dd(0,2, 0,0,0);
+    bitant_sign = -1.;
   }
   else if (fieldname == "gyy")
   {
     src_field = &adm.g_dd(1,1, 0,0,0);
+    bitant_sign = 1.;
   }
   else if (fieldname == "gyz")
   {
     src_field = &adm.g_dd(1,2, 0,0,0);
+    bitant_sign = -1.;
   }
   else if (fieldname == "gzz")
   {
     src_field = &adm.g_dd(2,2, 0,0,0);
+    bitant_sign = 1.;
   }
   else if (fieldname == "betax")
   {
     src_field = &z4c.beta_u(0, 0, 0, 0);
+    bitant_sign = 1.;
   }
   else if (fieldname == "betay")
   {
     src_field = &z4c.beta_u(1, 0, 0, 0);
+    bitant_sign = 1.;
   }
   else if (fieldname == "betaz")
   {
     src_field = &z4c.beta_u(2, 0, 0, 0);
+    bitant_sign = -1.;
+
   }
   else if (fieldname == "alp")
   {
     src_field = &z4c.alpha(0, 0, 0);
+    bitant_sign = 1.;
   }
   else
   {
@@ -248,14 +261,17 @@ void CCE::Interpolate(MeshBlock *const pmb)
     throw std::runtime_error(msg.str().c_str());
   }
   
-  
   for (int p = 0; p < Npoints; ++p)
   {
     Real coord[3] = {xb[p], yb[p], zb[p]};
-    if (pmb->PointContainedExclusive(coord[0], coord[1], coord[2]))
+    bool IsBitant = (bitant && zb[p] < 0.);
+    Real isign = IsBitant ? bitant_sign; 1.;
+    Real zsign = IsBitant ? -1.        ; 1.;
+    
+    if (pmb->PointContainedExclusive(coord[0], coord[1], zsign*coord[2]))
     {
       LagrangeInterpND<2*NGHOST-1, 3> linterp(origin, delta, size, coord);
-      ifield[p] = linterp.eval(src_field);
+      ifield[p] = isign*linterp.eval(src_field);
 
 #pragma omp atomic update
       count_interp_pnts++;

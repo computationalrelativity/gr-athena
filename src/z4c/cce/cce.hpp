@@ -24,6 +24,7 @@ class CCE
     std::string fieldname; // field name that used for pittnull code
     std::string output_dir; // write h5 file in this directory
     std::string bfname; // bookkeeping file name
+    bool bitant;          // if bitant symmetry is on, true; otherwise, false.
     Mesh *pm;             // mesh
     ParameterInput *pin;  // param file
     const decomp_decompose::decomp_info **dinfo_pp; // decomposition info
