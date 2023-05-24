@@ -263,12 +263,11 @@ void CCE::Interpolate(MeshBlock *const pmb)
   
   for (int p = 0; p < Npoints; ++p)
   {
-    Real coord[3] = {xb[p], yb[p], zb[p]};
     bool IsBitant = (bitant && zb[p] < 0.);
     Real isign = IsBitant ? bitant_sign: 1.;
     Real zsign = IsBitant ? -1.        : 1.;
-    
-    if (pmb->PointContainedExclusive(coord[0], coord[1], zsign*coord[2]))
+    Real coord[3] = {xb[p], yb[p], zsign*zb[p]};
+    if (pmb->PointContainedExclusive(coord[0], coord[1], coord[2]))
     {
       LagrangeInterpND<2*NGHOST-1, 3> linterp(origin, delta, size, coord);
       ifield[p] = isign*linterp.eval(src_field);
