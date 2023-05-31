@@ -42,6 +42,10 @@ public:
   void Find(int iter, Real time);
   //!
   void Write(int iter, Real time);
+  //!
+  void CalculateMetricDerivatives(int iter, Real time, bool &calculate_metric_derivatives);
+  //!
+  void DeleteMetricDerivatives(int iter, Real time, bool &delete_metric_derivatives);
 
   //! Horizon found
   bool ah_found;
@@ -80,7 +84,7 @@ private:
   int lmpoints;
   int nh;
   bool wait_until_punc_are_close;
-  Real compute_start_time, compute_stop_time;
+  bool bitant;
   //! Number of horizons
   int nstart, nhorizon;
   int fastflow_iter=0;
