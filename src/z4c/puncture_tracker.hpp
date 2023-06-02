@@ -45,6 +45,7 @@ class PunctureTracker {
     friend class RestartOutput;
   private:
     bool owns_puncture;
+    bool bitant;
     Real pos[NDIM];
     Real betap[NDIM];
     Real initial_mass;

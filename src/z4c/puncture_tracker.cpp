@@ -38,6 +38,7 @@ PunctureTracker::PunctureTracker(Mesh * pmesh, ParameterInput * pin, int n):
   pos[1] = pin->GetOrAddReal("z4c", "bh_" + std::to_string(n) + "_y", 0.0);
   pos[2] = pin->GetOrAddReal("z4c", "bh_" + std::to_string(n) + "_z", 0.0);
   initial_mass = pos[0] > 0 ? pin->GetOrAddReal("problem", "target_M_plus", 0.0) : pin->GetOrAddReal("problem", "target_M_minus", 0.0);
+  bitant = pin->GetOrAddBoolean("z4c", "bitant", false);
   if (0 == Globals::my_rank) {
     // check if output file already exists
     if (access(ofname.c_str(), F_OK) == 0) {
@@ -104,6 +105,8 @@ void PunctureTracker::EvolveTracker() {
     for (int a = 0; a < NDIM; ++a) {
       pos[a] -= pmesh->dt * betap[a];
     }
+    // Impose the motion on the z = 0 plane with bitant.
+    if (bitant) pos[2] = 0;
   }
 #ifndef MPI_PARALLEL
   else {
