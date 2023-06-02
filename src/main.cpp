@@ -543,19 +543,15 @@ int main(int argc, char *argv[]) {
       }
 #endif
 #ifdef Z4C_AHF
-      bool calculate_metric_derivatives = true;
       for (auto pah_f : pmesh->pah_finder) {
-        pah_f->CalculateMetricDerivatives(pmesh->ncycle, pmesh->time, calculate_metric_derivatives);
-	if (calculate_metric_derivatives == false) break;
+        if (pah_f->CalculateMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
       }
       for (auto pah_f : pmesh->pah_finder) {
         pah_f->Find(pmesh->ncycle, pmesh->time);
         pah_f->Write(pmesh->ncycle, pmesh->time);
       }
-      bool delete_metric_derivatives = true;
       for (auto pah_f : pmesh->pah_finder) {
-        pah_f->DeleteMetricDerivatives(pmesh->ncycle, pmesh->time, delete_metric_derivatives);
-	if (delete_metric_derivatives == false) break;
+        if (pah_f->DeleteMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
       }
 #endif
       // TODO: probably we do not want to output tracker data at every timestep

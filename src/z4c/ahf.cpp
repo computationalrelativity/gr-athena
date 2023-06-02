@@ -444,6 +444,12 @@ void AHF::MetricInterp(MeshBlock * pmb)
       Real y = yc + rr(i,j) * sinth * sinph;
       Real z = zc + rr(i,j) * costh;
 
+      // Impose bitant symmetry below
+      bool bitant_sym = ( bitant && z < 0 ) ? true : false;
+      // Associate z -> -z if bitant
+      if (bitant) z = std::abs(z);
+
+
       if (!pmb->PointContained(x,y,z)) continue;
 
       // this surface point is in this MB
@@ -463,35 +469,30 @@ void AHF::MetricInterp(MeshBlock * pmb)
       origin[2] = pmb->pcoord->x3f(0);
       size[2]   = pmb->nverts3;
       delta[2]  = pmb->pcoord->dx3f(0);
-      // bitant symmetry
-      if (bitant) {
-        coord[2]  = std::abs(z);
-      } else {
-	coord[2]  = z;
-      }
-
+      coord[2]  = z;
         
       pinterp3 =  new LagrangeInterpND<2, 3>(origin, delta, size, coord);
 
-      for(int a = 0; a < NDIM; ++a) {
-        for(int b = 0; b < NDIM; ++b) {   
-          g(a,b,i,j) = pinterp3->eval(&(vc_adm_g_dd(a,b,0,0,0)));
+      // With bitant wrt z=0, pick a (-) sign every time a z component is 
+      // encountered.
+      for(int a = 0; a < NDIM; ++a)
+      for(int b = a; b < NDIM; ++b) {
+        int bitant_z_fac = 1;
+        if (bitant_sym) {
+          if (a == 2) bitant_z_fac *= -1;
+          if (b == 2) bitant_z_fac *= -1;
         }
-      }
-      
-      for(int a = 0; a < NDIM; ++a) {
-        for(int b = 0; b < NDIM; ++b) {   
-          K(a,b,i,j) = pinterp3->eval(&(vc_adm_K_dd(a,b,0,0,0)));
+        g(a,b,i,j) = pinterp3->eval(&(vc_adm_g_dd(a,b,0,0,0)))*bitant_z_fac;
+        K(a,b,i,j) = pinterp3->eval(&(vc_adm_K_dd(a,b,0,0,0)))*bitant_z_fac;
+        for(int c = 0; c < NDIM; ++c) {
+          if (bitant_sym)  {
+            if (c == 2) bitant_z_fac *= -1;
+          }
+          dg(c,a,b,i,j) = pinterp3->eval(&(pmb->pz4c->aux_g_ddd(c,a,b,0,0,0)))*bitant_z_fac;
         }
       }
 
-      for(int c = 0; c < NDIM; ++c) {
-        for(int a = 0; a < NDIM; ++a) {
-          for(int b = 0; b < NDIM; ++b) {   
-            dg(c,a,b,i,j) = pinterp3->eval(&(pmb->pz4c->aux_g_ddd(c,a,b,0,0,0)));
-	  }
-        }
-      }
+      
       delete pinterp3;
 
 #if DEBUG_OUTPUT
@@ -975,24 +976,22 @@ void AHF::SurfaceIntegrals()
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn void AHF::CalculateMetricDerivatives(int iter, Real time, bool &calculate_metric_derivatives)
+// \!fn bool AHF::CalculateMetricDerivatives(int iter, Real time)
 // \brief CalculateMetricDerivatives
-void AHF::CalculateMetricDerivatives(int iter, Real time, bool &calculate_metric_derivatives)
+bool AHF::CalculateMetricDerivatives(int iter, Real time)
 {
-  if((time < start_time) || (time > stop_time)) return;
-  if (wait_until_punc_are_close && !(PuncAreClose())) return;
-  if (iter % compute_every_iter != 0) return;
+  if((time < start_time) || (time > stop_time)) return false;
+  if (wait_until_punc_are_close && !(PuncAreClose())) return false;
+  if (iter % compute_every_iter != 0) return false;
 
-  if (calculate_metric_derivatives == true) {
-    // Compute and store ADM metric drvts at this iteration
-    MeshBlock * pmb = pmesh->pblock;
-    while (pmb != nullptr) {
-      pmb->pz4c->aux_g_ddd.NewAthenaTensor(pmb->nverts3, pmb->nverts2, pmb->nverts1);
-      MetricDerivatives(pmb); 
-      pmb = pmb->next; 
-    }
+  // Compute and store ADM metric drvts at this iteration
+  MeshBlock * pmb = pmesh->pblock;
+  while (pmb != nullptr) {
+    pmb->pz4c->aux_g_ddd.NewAthenaTensor(pmb->nverts3, pmb->nverts2, pmb->nverts1);
+    MetricDerivatives(pmb);
+    pmb = pmb->next;
   }
-  calculate_metric_derivatives = false;
+  return true;
 }
 
 //----------------------------------------------------------------------------------------
@@ -1008,23 +1007,21 @@ void AHF::Find(int iter, Real time)
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn void AHF::DeleteMetricDerivatives(int iter, Real time)
+// \!fn bool AHF::DeleteMetricDerivatives(int iter, Real time)
 // \brief DeleteMetricDerivatives
-void AHF::DeleteMetricDerivatives(int iter, Real time, bool &delete_metric_derivatives)
+bool AHF::DeleteMetricDerivatives(int iter, Real time)
 {
-  if((time < start_time) || (time > stop_time)) return;
-  if (wait_until_punc_are_close && !(PuncAreClose())) return;
-  if (iter % compute_every_iter != 0) return;
-  
-  if (delete_metric_derivatives == true) {
-    // Delete tensors
-    MeshBlock * pmb = pmesh->pblock;
-    while (pmb != nullptr) {
-      pmb->pz4c->aux_g_ddd.DeleteAthenaTensor();
-      pmb = pmb->next;
-    }
+  if((time < start_time) || (time > stop_time)) return false;
+  if (wait_until_punc_are_close && !(PuncAreClose())) return false;
+  if (iter % compute_every_iter != 0) return false;
+
+  // Delete tensors
+  MeshBlock * pmb = pmesh->pblock;
+  while (pmb != nullptr) {
+    pmb->pz4c->aux_g_ddd.DeleteAthenaTensor();
+    pmb = pmb->next;
   }
-  delete_metric_derivatives = false;
+  return true;
 }
 
 //----------------------------------------------------------------------------------------

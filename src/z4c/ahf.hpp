@@ -43,9 +43,9 @@ public:
   //!
   void Write(int iter, Real time);
   //!
-  void CalculateMetricDerivatives(int iter, Real time, bool &calculate_metric_derivatives);
+  bool CalculateMetricDerivatives(int iter, Real time);
   //!
-  void DeleteMetricDerivatives(int iter, Real time, bool &delete_metric_derivatives);
+  bool DeleteMetricDerivatives(int iter, Real time);
 
   //! Horizon found
   bool ah_found;
