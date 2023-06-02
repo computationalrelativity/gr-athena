@@ -66,6 +66,7 @@ class WaveExtractLocal {
     //! Patch of the spherical grid on which we are working
     SphericalPatch * ppatch;
   private:
+    bool bitant;
     AthenaArray<Real> datareal;
     AthenaArray<Real> dataim;
     AthenaArray<Real> weight;
