@@ -35,9 +35,10 @@ Real Z4c::NewBlockTimeStep(void) {
     for (int j = mbi.jl; j < mbi.ju; ++j) {
 
       // Note: these should be uniform for Cart. and equiv. to dxn
-      pmb->pcoord->CenterWidth1(k, j, mbi.il, mbi.iu, dt1);
-      pmb->pcoord->CenterWidth2(k, j, mbi.il, mbi.iu, dt2);
-      pmb->pcoord->CenterWidth3(k, j, mbi.il, mbi.iu, dt3);
+      // not needed, removed since vol weighted
+//      pmb->pcoord->CenterWidth1(k, j, mbi.il, mbi.iu, dt1);
+//      pmb->pcoord->CenterWidth2(k, j, mbi.il, mbi.iu, dt2);
+//      pmb->pcoord->CenterWidth3(k, j, mbi.il, mbi.iu, dt3);
 
       for (int i = mbi.il; i < mbi.iu; ++i) {
 //        Real & dt_1 = dt1(i);

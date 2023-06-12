@@ -194,6 +194,8 @@ class EquationOfState {
   // (C++11) in-class Default Member Initializer (fallback option):
   const Real float_min{std::numeric_limits<float>::min()};
   MeshBlock *pmy_block_;                 // ptr to MeshBlock containing this EOS
+  Real alpha_excision;                   // excise hydro if alpha < alpha_excision
+  bool b_excision;                       // set cc and fc b field to 0 if alpha < alpha_excision
   Real iso_sound_speed_, gamma_;         // isothermal Cs, ratio of specific heats
   Real density_floor_, pressure_floor_;  // density and pressure floors
   Real energy_floor_;                    // energy floor
@@ -213,6 +215,8 @@ class EquationOfState {
   AthenaArray<Real> normal_bb_;          // normal-frame fields, used in GR MHD
   AthenaArray<Real> normal_tt_;          // normal-frame M.B, used in GR MHD
   void InitEosConstants(ParameterInput *pin);
+  char ofname[BUFSIZ];
+  FILE * ofile;
 #if USETM
   // If we're using the PrimitiveSolver framework, we need to declare the
   // EOS and PrimitiveSolver objects.

@@ -185,7 +185,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
     };
     rescale_metric = lambda;
   }
-  pmy_block_->pfield->CalculateCellCenteredField(bb, bb_cc, pco, il, iu, jl, ju, kl, ku);
+  pmy_block_->pfield->CalculateCellCenteredField(bb, bb_cc, pco, il-1, iu+1, jl-1, ju+1, kl-1, ku+1);
 
   // Go through the cells
   for (int k = kl; k <= ku; ++k) {
@@ -248,6 +248,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
           std::cerr << "  Iteration: " << pmy_block_->pmy_mesh->ncycle << "\n";
           std::cerr << "  Error: " << Primitive::ErrorString[(int)result.error] << "\n";
           std::cerr << "  i=" << i << ", j=" << j << ", k=" << k << "\n";
+          std::cerr << "  x=" << pmy_block_->pcoord->x1v(i) << ", y=" << pmy_block_->pcoord->x2v(j) << ", z=" << pmy_block_->pcoord->x3v(k) << "\n";
           std::cerr << "  g3d = [" << g3d[S11] << ", " << g3d[S12] << ", " << g3d[S13] << ", "
                     << g3d[S22] << ", " << g3d[S23] << ", " << g3d[S33] << "]\n";
           std::cerr << "  g3u = [" << g3u[S11] << ", " << g3u[S12] << ", " << g3u[S13] << ", "
@@ -444,21 +445,45 @@ void EquationOfState::FastMagnetosonicSpeedsGR(Real n, Real T, Real bsq, Real vi
 
 void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j, int i) {
   // Extract the primitive variables and floor them using PrimitiveSolver.
+
+
   Real mb = ps.GetEOS()->GetBaryonMass();
-  Real n = prim(IDN, i)/mb;
-  Real Wvu[3] = {prim(IVX, i), prim(IVY, i), prim(IVZ, i)};
-  Real P = prim(IPR, i);
+  Real n, P;
+  Real Wvu[3];
+  if(prim.GetDim4()==1){
+  n = prim(IDN, i)/mb;
+//  Wvu = {prim(IVX, i), prim(IVY, i), prim(IVZ, i)};
+  Wvu[0] = prim(IVX, i); 
+  Wvu[1] = prim(IVY, i); 
+  Wvu[2] = prim(IVZ, i); 
+  P = prim(IPR, i);
+  } else if(prim.GetDim4()==5){
+  n = prim(IDN, k, j, i)/mb;
+//  Wvu = {prim(IVX, k, j, i), prim(IVY, k, j, i), prim(IVZ, k, j, i)};
+  Wvu[0] = prim(IVX, k, j, i); 
+  Wvu[1] = prim(IVY, k, j, i); 
+  Wvu[2] = prim(IVZ, k, j, i); 
+  P = prim(IPR, k, j, i);
+  }
   // FIXME: Update to work with particle species.
   Real Y[MAX_SPECIES] = {0.0};
   Real T = ps.GetEOS()->GetTemperatureFromP(n, P, Y);
   ps.GetEOS()->ApplyPrimitiveFloor(n, Wvu, P, T, Y);
 
   // Now push the updated quantities back to Athena.
+  if(prim.GetDim4()==1){
   prim(IDN, i) = n*mb;
   prim(IVX, i) = Wvu[0];
   prim(IVY, i) = Wvu[1];
   prim(IVZ, i) = Wvu[2];
   prim(IPR, i) = P;
+  } else if(prim.GetDim4()==5){
+  prim(IDN, k, j, i) = n*mb;
+  prim(IVX, k, j, i) = Wvu[0];
+  prim(IVY, k, j, i) = Wvu[1];
+  prim(IVZ, k, j, i) = Wvu[2];
+  prim(IPR, k, j, i) = P;
+  }
   return;
 }
 

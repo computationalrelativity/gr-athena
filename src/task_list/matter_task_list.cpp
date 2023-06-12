@@ -267,7 +267,7 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
 //WC edit: take out updatemetric from tasklist optimisation
 //    AddTask(UPDATE_MET,NONE);
 //Update matter terms to VC for metric evol
-    AddTask(UPDATE_SRC,NONE);
+//    AddTask(UPDATE_SRC,NONE);
     // calculate hydro/field diffusive fluxes
     if (!STS_ENABLED) {
 //WC edit remove updateMet dependnecy
@@ -355,7 +355,8 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
         } else {
           AddTask(PROLONG_HYD,(SEND_HYD|SETB_HYD|SEND_FLD|SETB_FLD|Z4C_TO_ADM));
         }
-        AddTask(CONS2PRIM,(PROLONG_HYD|UPDATE_SRC|Z4C_TO_ADM));
+//        AddTask(CONS2PRIM,(PROLONG_HYD|UPDATE_SRC|Z4C_TO_ADM));
+        AddTask(CONS2PRIM,(PROLONG_HYD|Z4C_TO_ADM));
       } else {
         if (SHEARING_BOX) {
           if (NSCALARS > 0) {
@@ -368,7 +369,8 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
           if (NSCALARS > 0) {
             AddTask(CONS2PRIM,(SETB_HYD|SETB_FLD|SETB_SCLR));
           } else {
-            AddTask(CONS2PRIM,(SETB_HYD|SETB_FLD|UPDATE_SRC|Z4C_TO_ADM));
+            AddTask(CONS2PRIM,(SETB_HYD|SETB_FLD|Z4C_TO_ADM));
+//            AddTask(CONS2PRIM,(SETB_HYD|SETB_FLD|UPDATE_SRC|Z4C_TO_ADM));
           }
         }
       }
@@ -380,7 +382,8 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
         } else {
           AddTask(PROLONG_HYD,(SEND_HYD|SETB_HYD|Z4C_TO_ADM));
         }
-        AddTask(CONS2PRIM,(PROLONG_HYD|UPDATE_SRC|Z4C_TO_ADM));
+        AddTask(CONS2PRIM,(PROLONG_HYD|Z4C_TO_ADM));
+//        AddTask(CONS2PRIM,(PROLONG_HYD|UPDATE_SRC|Z4C_TO_ADM));
       } else {
         if (SHEARING_BOX) {
           if (NSCALARS > 0) {
@@ -392,15 +395,18 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
           if (NSCALARS > 0) {
             AddTask(CONS2PRIM,(SETB_HYD|SETB_SCLR));
           } else {
-            AddTask(CONS2PRIM,(SETB_HYD|UPDATE_SRC|Z4C_TO_ADM));
+            AddTask(CONS2PRIM,(SETB_HYD|Z4C_TO_ADM));
+//            AddTask(CONS2PRIM,(SETB_HYD|UPDATE_SRC|Z4C_TO_ADM));
           }
         }
       }
     }
+    AddTask(UPDATE_SRC,(CONS2PRIM|CALC_Z4CRHS));
 
-    AddTask(PHY_BVAL_HYD,CONS2PRIM); 
+    AddTask(PHY_BVAL_HYD,CONS2PRIM);  //before or after SRC?
 // Z4c tasks
-    AddTask(CALC_Z4CRHS, UPDATE_SRC);                // CalculateZ4cRHS
+//    AddTask(CALC_Z4CRHS, UPDATE_SRC);                // CalculateZ4cRHS
+    AddTask(CALC_Z4CRHS, NONE);                // CalculateZ4cRHS
 // WC edit remove updatemet dependency
 //    AddTask(INT_Z4C, (CALC_Z4CRHS|UPDATE_MET));             // IntegrateZ4c
     AddTask(INT_Z4C, CALC_Z4CRHS);             // IntegrateZ4c
@@ -429,12 +435,12 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
 //    AddTask(Z4C_TO_ADM, (ALG_CONSTR|UPDATE_MET|INT_HYD));           // Z4cToADM 
     AddTask(Z4C_TO_ADM, (ALG_CONSTR|INT_HYD));           // Z4cToADM 
     }
-    AddTask(ADM_CONSTR, Z4C_TO_ADM);           // ADM_Constraints
+    AddTask(ADM_CONSTR, (Z4C_TO_ADM | UPDATE_SRC));           // ADM_Constraints
 //WGC wext
     AddTask(Z4C_WEYL, Z4C_TO_ADM);           // Calc Psi4
     AddTask(WAVE_EXTR, Z4C_WEYL);           // Project Psi4 multipoles
         //WGC end
-    AddTask(USERWORK, ADM_CONSTR | PHY_BVAL_HYD);             // UserWork
+    AddTask(USERWORK, (ADM_CONSTR | PHY_BVAL_HYD));             // UserWork
 
     AddTask(NEW_DT, USERWORK);                 // NewBlockTimeStep
     if (pm->adaptive) {
@@ -727,7 +733,7 @@ void MatterTaskList::AddTask(const TaskID& id, const TaskID& dep) {
     } else if (id == Z4C_TO_ADM) {
       task_list_[ntasks].TaskFunc=
         static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&Z4cIntegratorTaskList::Z4cToADM);
+        (&MatterTaskList::Z4cToADM);
       task_list_[ntasks].lb_time = true;
     } else if (id == ADM_CONSTR) {
       task_list_[ntasks].TaskFunc=
@@ -749,7 +755,7 @@ void MatterTaskList::AddTask(const TaskID& id, const TaskID& dep) {
     else if (id == ASSERT_FIN) {
       task_list_[ntasks].TaskFunc=
         static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&Z4cIntegratorTaskList::AssertFinite);
+        (&MatterTaskList::AssertFinite);
       task_list_[ntasks].lb_time = false;
     }
 #endif // Z4C_ASSERT_FINITE
@@ -1259,7 +1265,8 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
   // For VC2CC interpolation to work properly without accessing invalid memory,
   // we need to subtract off a few ghost zones from the calculation.
   int ignore = VC2CC_IGNORE;
-
+// WGC testing: 
+//  ignore = 0;
 //printf("prim\n");
   int il = pmb->is, iu = pmb->ie, jl = pmb->js, ju = pmb->je, kl = pmb->ks, ku = pmb->ke;
   if (pbval->nblevel[1][1][0] != -1) il -= NGHOST - ignore;
@@ -1648,11 +1655,13 @@ TaskStatus MatterTaskList::EnforceAlgConstr(MeshBlock *pmb, int stage) {
 }
 
 TaskStatus MatterTaskList::Z4cToADM(MeshBlock *pmb, int stage) {
-  if (stage != nstages) return TaskStatus::success;
+  if (stage <= nstages) {
+//  if (stage != nstages) return TaskStatus::success;
     pmb->pz4c->Z4cToADM(pmb->pz4c->storage.u, pmb->pz4c->storage.adm);
-    return TaskStatus::success;
-//  }
-//  return TaskStatus::fail;
+  } else {
+    return TaskStatus::fail;
+  }
+  return TaskStatus::success;
 }
 //WGC wext
 TaskStatus MatterTaskList::Z4c_Weyl(MeshBlock *pmb, int stage) {

@@ -114,6 +114,17 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
     pcoord = new GRDynamical(this, pin, false);
   }
 
+  // numerical (needs to go after coordinate definition)
+  pfd_cc = new FiniteDifference::Uniform(
+    ncells1, ncells2, ncells3,
+    pcoord->dx1v(0), pcoord->dx2v(0), pcoord->dx3v(0)
+  );
+
+  pfd_vc = new FiniteDifference::Uniform(
+    nverts1, nverts2, nverts3,
+    pcoord->dx1f(0), pcoord->dx2f(0), pcoord->dx3f(0)
+  );
+
   if (FLUID_ENABLED) {
     // Reconstruction: constructor may implicitly depend on Coordinates, and PPM variable
     // floors depend on EOS, but EOS isn't needed in Reconstruction constructor-> this is ok
@@ -266,6 +277,17 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   } else if (std::strcmp(COORDINATE_SYSTEM, "gr_dynamical") == 0) {
     pcoord = new GRDynamical(this, pin, false);
   }
+
+  // numerical (needs to go after coordinate definition)
+  pfd_cc = new FiniteDifference::Uniform(
+    ncells1, ncells2, ncells3,
+    pcoord->dx1v(0), pcoord->dx2v(0), pcoord->dx3v(0)
+  );
+
+  pfd_vc = new FiniteDifference::Uniform(
+    nverts1, nverts2, nverts3,
+    pcoord->dx1f(0), pcoord->dx2f(0), pcoord->dx3f(0)
+  );
 
   if (FLUID_ENABLED) {
     // Reconstruction (constructor may implicitly depend on Coordinates)
@@ -438,6 +460,9 @@ MeshBlock::~MeshBlock() {
   if (next != nullptr) next->prev = prev;
 
   delete pcoord;
+  delete pfd_cc;
+  delete pfd_vc;
+
   if (FLUID_ENABLED) delete precon;
   if (pmy_mesh->multilevel) delete pmr;
 

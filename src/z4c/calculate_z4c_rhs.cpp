@@ -95,18 +95,18 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
     // Scalars
     for(int a = 0; a < NDIM; ++a) {
       ILOOP1(i) {
-        dalpha_d(a,i) = FD.Dx(a, z4c.alpha(k,j,i));
-        dchi_d(a,i)   = FD.Dx(a, z4c.chi(k,j,i));
-        dKhat_d(a,i)  = FD.Dx(a, z4c.Khat(k,j,i));
-        dTheta_d(a,i) = FD.Dx(a, z4c.Theta(k,j,i));
+        dalpha_d(a,i) = pfd->Dx(a, z4c.alpha(k,j,i));
+        dchi_d(a,i)   = pfd->Dx(a, z4c.chi(k,j,i));
+        dKhat_d(a,i)  = pfd->Dx(a, z4c.Khat(k,j,i));
+        dTheta_d(a,i) = pfd->Dx(a, z4c.Theta(k,j,i));
       }
     }
     // Vectors
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
       ILOOP1(i) {
-        dbeta_du(b,a,i) = FD.Dx(b, z4c.beta_u(a,k,j,i));
-        dGam_du(b,a,i)  = FD.Dx(b, z4c.Gam_u(a,k,j,i));
+        dbeta_du(b,a,i) = pfd->Dx(b, z4c.beta_u(a,k,j,i));
+        dGam_du(b,a,i)  = pfd->Dx(b, z4c.Gam_u(a,k,j,i));
       }
     }
     // Tensors
@@ -114,8 +114,8 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
     for(int b = a; b < NDIM; ++b)
     for(int c = 0; c < NDIM; ++c) {
       ILOOP1(i) {
-        dg_ddd(c,a,b,i) = FD.Dx(c, z4c.g_dd(a,b,k,j,i));
-        dA_ddd(c,a,b,i) = FD.Dx(c, z4c.A_dd(a,b,k,j,i));
+        dg_ddd(c,a,b,i) = pfd->Dx(c, z4c.g_dd(a,b,k,j,i));
+        dA_ddd(c,a,b,i) = pfd->Dx(c, z4c.A_dd(a,b,k,j,i));
       }
     }
 
@@ -125,13 +125,13 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
     // Scalars
     for(int a = 0; a < NDIM; ++a) {
       ILOOP1(i) {
-        ddalpha_dd(a,a,i) = FD.Dxx(a, z4c.alpha(k,j,i));
-        ddchi_dd(a,a,i) = FD.Dxx(a, z4c.chi(k,j,i));
+        ddalpha_dd(a,a,i) = pfd->Dxx(a, z4c.alpha(k,j,i));
+        ddchi_dd(a,a,i) = pfd->Dxx(a, z4c.chi(k,j,i));
       }
       for(int b = a + 1; b < NDIM; ++b) {
         ILOOP1(i) {
-          ddalpha_dd(a,b,i) = FD.Dxy(a, b, z4c.alpha(k,j,i));
-          ddchi_dd(a,b,i) = FD.Dxy(a, b, z4c.chi(k,j,i));
+          ddalpha_dd(a,b,i) = pfd->Dxy(a, b, z4c.alpha(k,j,i));
+          ddchi_dd(a,b,i) = pfd->Dxy(a, b, z4c.chi(k,j,i));
         }
       }
     }
@@ -141,12 +141,12 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
     for(int b = a; b < NDIM; ++b) {
       if(a == b) {
         ILOOP1(i) {
-          ddbeta_ddu(a,b,c,i) = FD.Dxx(a, z4c.beta_u(c,k,j,i));
+          ddbeta_ddu(a,b,c,i) = pfd->Dxx(a, z4c.beta_u(c,k,j,i));
         }
       }
       else {
         ILOOP1(i) {
-          ddbeta_ddu(a,b,c,i) = FD.Dxy(a, b, z4c.beta_u(c,k,j,i));
+          ddbeta_ddu(a,b,c,i) = pfd->Dxy(a, b, z4c.beta_u(c,k,j,i));
         }
       }
     }
@@ -157,12 +157,12 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
     for(int b = a; b < NDIM; ++b) {
       if(a == b) {
         ILOOP1(i) {
-          ddg_dddd(a,b,c,d,i) = FD.Dxx(a, z4c.g_dd(c,d,k,j,i));
+          ddg_dddd(a,b,c,d,i) = pfd->Dxx(a, z4c.g_dd(c,d,k,j,i));
         }
       }
       else {
         ILOOP1(i) {
-          ddg_dddd(a,b,c,d,i) = FD.Dxy(a, b, z4c.g_dd(c,d,k,j,i));
+          ddg_dddd(a,b,c,d,i) = pfd->Dxy(a, b, z4c.g_dd(c,d,k,j,i));
         }
       }
     }
@@ -177,10 +177,10 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
     LTheta.ZeroClear();
     for(int a = 0; a < NDIM; ++a) {
       ILOOP1(i) {
-        Lalpha(i) += FD.Lx(a, z4c.beta_u(a,k,j,i), z4c.alpha(k,j,i));
-        Lchi(i) += FD.Lx(a, z4c.beta_u(a,k,j,i), z4c.chi(k,j,i));
-        LKhat(i) += FD.Lx(a, z4c.beta_u(a,k,j,i), z4c.Khat(k,j,i));
-        LTheta(i) += FD.Lx(a, z4c.beta_u(a,k,j,i), z4c.Theta(k,j,i));
+        Lalpha(i) += pfd->Lx(a, z4c.beta_u(a,k,j,i), z4c.alpha(k,j,i));
+        Lchi(i) += pfd->Lx(a, z4c.beta_u(a,k,j,i), z4c.chi(k,j,i));
+        LKhat(i) += pfd->Lx(a, z4c.beta_u(a,k,j,i), z4c.Khat(k,j,i));
+        LTheta(i) += pfd->Lx(a, z4c.beta_u(a,k,j,i), z4c.Theta(k,j,i));
       }
     }
     // Vectors
@@ -189,8 +189,8 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
       ILOOP1(i) {
-        Lbeta_u(b,i) += FD.Lx(a, z4c.beta_u(a,k,j,i), z4c.beta_u(b,k,j,i));
-        LGam_u(b,i)  += FD.Lx(a, z4c.beta_u(a,k,j,i), z4c.Gam_u(b,k,j,i));
+        Lbeta_u(b,i) += pfd->Lx(a, z4c.beta_u(a,k,j,i), z4c.beta_u(b,k,j,i));
+        LGam_u(b,i)  += pfd->Lx(a, z4c.beta_u(a,k,j,i), z4c.Gam_u(b,k,j,i));
       }
     }
     // Tensors
@@ -200,8 +200,8 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
     for(int b = a; b < NDIM; ++b)
     for(int c = 0; c < NDIM; ++c) {
       ILOOP1(i) {
-        Lg_dd(a,b,i) += FD.Lx(c, z4c.beta_u(c,k,j,i), z4c.g_dd(a,b,k,j,i));
-        LA_dd(a,b,i) += FD.Lx(c, z4c.beta_u(c,k,j,i), z4c.A_dd(a,b,k,j,i));
+        Lg_dd(a,b,i) += pfd->Lx(c, z4c.beta_u(c,k,j,i), z4c.g_dd(a,b,k,j,i));
+        LA_dd(a,b,i) += pfd->Lx(c, z4c.beta_u(c,k,j,i), z4c.A_dd(a,b,k,j,i));
       }
     }
 
@@ -792,7 +792,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
   for(int n = 0; n < N_Z4c; ++n)
   for(int a = 0; a < NDIM; ++a) {
     ILOOP3(k,j,i) {
-      u_rhs(n,k,j,i) += FD.Diss(a, u(n,k,j,i));
+      u_rhs(n,k,j,i) += pfd->Diss(a, u(n,k,j,i), opt.diss);
     }
   }
 }
@@ -858,8 +858,8 @@ void Z4c::Z4cSommerfeld_(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs,
     for(int a = 0; a < NDIM; ++a) {
 #pragma omp simd
       for(int i = is; i <= ie; ++i) {
-        dKhat_d(a,i) = FD.Ds(a, z4c.Khat(k,j,i));
-        dTheta_d(a,i) = FD.Ds(a, z4c.Theta(k,j,i));
+        dKhat_d(a,i) = pfd->Ds(a, z4c.Khat(k,j,i));
+        dTheta_d(a,i) = pfd->Ds(a, z4c.Theta(k,j,i));
       }
     }
     // Vectors
@@ -867,7 +867,7 @@ void Z4c::Z4cSommerfeld_(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs,
     for(int b = 0; b < NDIM; ++b) {
 #pragma omp simd
       for(int i = is; i <= ie; ++i) {
-        dGam_du(b,a,i) = FD.Ds(b, z4c.Gam_u(a,k,j,i));
+        dGam_du(b,a,i) = pfd->Ds(b, z4c.Gam_u(a,k,j,i));
       }
     }
     // Tensors
@@ -876,7 +876,7 @@ void Z4c::Z4cSommerfeld_(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs,
     for(int c = 0; c < NDIM; ++c) {
 #pragma omp simd
       for(int i = is; i <= ie; ++i) {
-        dA_ddd(c,a,b,i) = FD.Ds(c, z4c.A_dd(a,b,k,j,i));
+        dA_ddd(c,a,b,i) = pfd->Ds(c, z4c.A_dd(a,b,k,j,i));
       }
     }
 

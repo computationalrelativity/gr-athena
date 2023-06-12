@@ -34,6 +34,7 @@ using Lorene::Bin_NS;
 #include "../utils/interp_table.hpp"
 #include "mesh_refinement.hpp"
 #include "meshblock_tree.hpp"
+#include "../finite_differencing.hpp"
 
 // Forward declarations
 class ParameterInput;
@@ -193,6 +194,10 @@ public:
   BoundaryValues *pbval;
   Reconstruction *precon;
   MeshRefinement *pmr;
+
+  // numerical
+  FiniteDifference::Uniform * pfd_cc;
+  FiniteDifference::Uniform * pfd_vc;
 
   // physics-related objects (possibly containing their derived bvals classes)
   Hydro *phydro;

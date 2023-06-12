@@ -13,7 +13,7 @@
 
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
-#include "../lagrange_interp.hpp"
+#include "../utils/lagrange_interp.hpp"
 #include "mesh.hpp"
 #include "geodesic_grid.hpp"
 
@@ -24,7 +24,8 @@ class SphericalGrid: public GeodesicGrid {
     //! Creates a geodetic grid with nlev levels
     SphericalGrid(
       int nlev,               //! [in] number of levels of the grid
-      Real rad = 1.0          //! [in] radius
+      Real rad = 1.0,         //! [in] radius
+      bool bitant = false     //! [in] apply bitant symmetry
     );
 
     //! Returns the x,y,z coordinates of a vertex on the primal grid
@@ -51,6 +52,8 @@ class SphericalGrid: public GeodesicGrid {
     ) const;
   public:
     AthenaArray<Real> rad;
+  private:
+    bool const bitant;
 };
 
 //! \class SphericalPatch

@@ -11,6 +11,8 @@
 // C++ headers
 #include <algorithm>  // max(), min()
 #include <cmath>      // sqrt()
+#include <sstream>    // sstream
+#include <string>    
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -65,6 +67,10 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
 // TODO e1 etc should be densitised from riemann solver
 // TODO but cc_e is calced from b - make sure densitised approproiately
   if (pmb->block_size.nx2 == 1) {
+    std::stringstream msg;
+    msg << "### MHD not updated for 1D" << std::endl;
+    ATHENA_ERROR(msg);
+/*
     for (int i=is; i<=ie+1; ++i) {
       e2(ks  ,js  ,i) = e2_x1f(ks,js,i);
       e2(ke+1,js  ,i) = e2_x1f(ks,js,i);
@@ -74,9 +80,14 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
     if (!STS_ENABLED) // add diffusion flux
       if (fdif.field_diffusion_defined) fdif.AddEMF(fdif.e_oa, e);
     return;
-  }
+  */
+   }
 
   if (pmb->block_size.nx3 == 1) {
+    std::stringstream msg;
+    msg << "### MHD not updated for 2D" << std::endl;
+    ATHENA_ERROR(msg);
+/*
     //---- 2-D update - cc_e_ is 3D array
     for (int k=ks; k<=ke; ++k) {
       for (int j=js-1; j<=je+1; ++j) {
@@ -146,6 +157,7 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
         }
       }
     }
+*/
   } else {
     // 3-D updates - cc_e_ is 4D array
     for (int k=ks-1; k<=ke+1; ++k) {
@@ -154,7 +166,8 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
         // E2=-(v X B)=VxBz-VzBx
         // E3=-(v X B)=VyBx-VxBy
 #if GENERAL_RELATIVITY==1
-        pmb->pcoord->CellMetric(k, j, is-1, ie+1, g_, gi_);
+//removed Cell metric
+//        pmb->pcoord->CellMetric(k, j, is-1, ie+1, g_, gi_);
 //#pragma omp simd
 //        for (int i=is-1; i<=ie+1; ++i) {
 //          const Real &uu1 = w(IVX,k,j,i);
