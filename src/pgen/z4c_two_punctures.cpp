@@ -24,10 +24,6 @@
 // twopuncturesc: Stand-alone library ripped from Cactus
 #include "TwoPunctures.h"
 
-// print the results
-// note: at 'if (Verbose)' when Verbose = 0, the if block is ignored by the compiler
-#define Verbose (0)
-
 //using namespace std;
 
 static int RefinementCondition(MeshBlock *pmb);
