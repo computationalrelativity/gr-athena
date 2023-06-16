@@ -26,6 +26,15 @@
 #include "../hydro/hydro_diffusion/hydro_diffusion.hpp"
 #include "../hydro/srcterms/hydro_srcterms.hpp"
 #include "../mesh/mesh.hpp"
+#include "../z4c/z4c.hpp"
+//WGC wext
+#ifdef Z4C_WEXT
+#include "../z4c/wave_extract.hpp"
+#endif
+//WGC end
+#ifdef Z4C_TRACKER
+#include "../z4c/trackers.hpp"
+#endif // Z4C_TRACKER
 
 // #include "../parameter_input.hpp"
 
@@ -377,9 +386,17 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
 
     AddTask(SEND_Z4C, INT_Z4C);                // SendZ4c
     if(MAGNETIC_FIELDS_ENABLED){
-    AddTask(RECV_Z4C, (INT_Z4C | RECV_HYD | RECV_FLD | RECV_FLDFLX));                   // ReceiveZ4c
-    }else {
-    AddTask(RECV_Z4C, (INT_Z4C | RECV_HYD));                   // ReceiveZ4c
+      if (NSCALARS > 0) {
+        AddTask(RECV_Z4C, (INT_Z4C | RECV_HYD | RECV_FLD | RECV_FLDFLX | RECV_SCLR));                   // ReceiveZ4c
+      } else {
+        AddTask(RECV_Z4C, (INT_Z4C | RECV_HYD | RECV_FLD | RECV_FLDFLX));                   // ReceiveZ4c
+      }
+    } else {
+      if (NSCALARS > 0) {
+        AddTask(RECV_Z4C, (INT_Z4C | RECV_HYD | RECV_SCLR));                   // ReceiveZ4c
+      } else {
+        AddTask(RECV_Z4C, (INT_Z4C | RECV_HYD));                   // ReceiveZ4c
+      }
     }
     AddTask(SETB_Z4C, (RECV_Z4C|INT_Z4C));     // SetBoundariesZ4c
     if (pm->multilevel) { // SMR or AMR
@@ -1222,15 +1239,18 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
   Field *pf = pmb->pfield;
   PassiveScalars *ps = pmb->pscalars;
   BoundaryValues *pbval = pmb->pbval;
+  // For VC2CC interpolation to work properly without accessing invalid memory,
+  // we need to subtract off a few ghost zones from the calculation.
+  int ignore = VC2CC_IGNORE;
 
 //printf("prim\n");
   int il = pmb->is, iu = pmb->ie, jl = pmb->js, ju = pmb->je, kl = pmb->ks, ku = pmb->ke;
-  if (pbval->nblevel[1][1][0] != -1) il -= NGHOST;
-  if (pbval->nblevel[1][1][2] != -1) iu += NGHOST;
-  if (pbval->nblevel[1][0][1] != -1) jl -= NGHOST;
-  if (pbval->nblevel[1][2][1] != -1) ju += NGHOST;
-  if (pbval->nblevel[0][1][1] != -1) kl -= NGHOST;
-  if (pbval->nblevel[2][1][1] != -1) ku += NGHOST;
+  if (pbval->nblevel[1][1][0] != -1) il -= NGHOST - ignore;
+  if (pbval->nblevel[1][1][2] != -1) iu += NGHOST - ignore;
+  if (pbval->nblevel[1][0][1] != -1) jl -= NGHOST - ignore;
+  if (pbval->nblevel[1][2][1] != -1) ju += NGHOST - ignore;
+  if (pbval->nblevel[0][1][1] != -1) kl -= NGHOST - ignore;
+  if (pbval->nblevel[2][1][1] != -1) ku += NGHOST - ignore;
 
 //  int il = pmb->is-NGHOST, iu = pmb->ie+NGHOST, jl = pmb->js-NGHOST, ju = pmb->je+NGHOST, kl = pmb->ks-NGHOST, ku = pmb->ke+NGHOST;
 
@@ -1250,7 +1270,7 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
     pmb->peos->ConservedToPrimitive(ph->u, ph->w, pf->b,
                                     ph->w1, pf->bcc, pmb->pcoord,
                                     il, iu, jl, ju, kl, ku,0);
-#endif
+
 
     if (NSCALARS > 0) {
       // r1/r_old for GR is currently unused:
@@ -1258,6 +1278,7 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
                                                    ps->r, ps->r,
                                                    pmb->pcoord, il, iu, jl, ju, kl, ku);
     }
+#endif
     // this never tested - potential issue for WENO routines?
     // fourth-order EOS:
     if (pmb->precon->xorder == 4) {
@@ -1280,11 +1301,12 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
                                                  ph->w1, 
                                                  pf->bcc, pmb->pcoord,
                                                  il, iu, jl, ju, kl, ku);
-#endif
+                                                 
       if (NSCALARS > 0) {
         pmb->peos->PassiveScalarConservedToPrimitiveCellAverage(
             ps->s, ps->r, ps->r, pmb->pcoord, il, iu, jl, ju, kl, ku);
       }
+#endif
     }
     // swap AthenaArray data pointers so that w now contains the updated w_out
     ph->w.SwapAthenaArray(ph->w1);
@@ -1693,7 +1715,11 @@ TaskStatus MatterTaskList::UpdateSource(MeshBlock *pmb, int stage) {
 //printf("updatesrc\n");
   if (stage <= nstages) { 
 // Update VC matter 
+#if USETM
+    pmb->pz4c->GetMatter(pmb->pz4c->storage.mat, pmb->pz4c->storage.adm, pmb->phydro->w, pmb->pscalars->r, pmb->pfield->bcc);
+#else
     pmb->pz4c->GetMatter(pmb->pz4c->storage.mat, pmb->pz4c->storage.adm, pmb->phydro->w, pmb->pfield->bcc);
+#endif
     return TaskStatus::success;
   }
   return TaskStatus::fail;

@@ -336,8 +336,8 @@ inline Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::CheckDensityValid(Real& mu
 
 // ConToPrim {{{
 template<typename EOSPolicy, typename ErrorPolicy>
-inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim[NPRIM], Real prim_scalar[NPRIM],
-      Real cons[NCONS], Real cons_scalar[NSCALARS], Real b[NMAG], Real g3d[NSPMETRIC], Real g3u[NSPMETRIC]) {
+inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim[NPRIM], Real cons[NCONS], 
+    Real b[NMAG], Real g3d[NSPMETRIC], Real g3u[NSPMETRIC]) {
 
   SolverResult solver_result{Error::SUCCESS, 0, false, false, false};
 
@@ -349,8 +349,9 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
   // Extract the particle fractions.
   const int n_species = peos->GetNSpecies();
   Real Y[NSCALARS] = {0.0};
-  for (int n=0; n<NSCALARS; n++) Y[n] = cons_scalar[n]/cons[IDN];
-
+  for (int n=0; n<NSCALARS; n++) {
+    Y[n] = cons[IYD + n]/cons[IDN];
+  }
   // for (int s = 0; s < n_species; s++) {
   //   Y[s] = cons[IYD + s]/cons[IDN];
   // }
@@ -360,13 +361,13 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
 
   // Check the conserved variables for consistency and do whatever
   // the EOSPolicy wants us to.
-  bool floored = peos->ApplyConservedFloor(D, S_d, tau, Y);
+  bool floored = peos->ApplyConservedFloor(D, S_d, tau, Y, SquareVector(B_u, g3d));
   solver_result.cons_floor = floored;
   if (floored && peos->IsConservedFlooringFailure()) {
     HandleFailure(prim, cons, b, g3d);
     solver_result.error = Error::CONS_FLOOR;
     return solver_result;
-  }
+  } 
 
   // Calculate some utility quantities.
   Real sqrtD = std::sqrt(D);
@@ -408,6 +409,8 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
     // We need to recalculate rb if b_u is rescaled.
     rb = Contract(b_u, r_d);
     rbsqr = rb*rb;
+    q = tau/D;
+    rsqr = Contract(r_u, r_d);
   }
   
   // Bracket the root.
@@ -467,8 +470,8 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
   Real W = D/rho;
   Real Wmux = W*mu/(1.0 + mu*bsqr);
   // Before we retrieve the velocity, we need to raise S.
-  Real S_u[3] = {0.0};
-  RaiseForm(S_u, S_d, g3u);
+  // Real S_u[3] = {0.0};
+  // RaiseForm(S_u, S_d, g3u);
   // Now we can get Wv.
   Real Wv_u[3] = {0.0};
   Wv_u[0] = Wmux*(r_u[0] + rbmu*b_u[0]);
@@ -483,7 +486,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
     solver_result.error = Error::PRIM_FLOOR;
     return solver_result;
   }
-  solver_result.cons_adjusted = solver_result.cons_adjusted || floored;
+  solver_result.cons_adjusted = solver_result.cons_floor || solver_result.cons_adjusted || floored;
 
   prim[IDN] = n;
   prim[IPR] = P;

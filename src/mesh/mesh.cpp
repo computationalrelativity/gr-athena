@@ -1671,34 +1671,36 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 
       // With AMR/SMR GR send primitives to enable cons->prim before prolongation
       if (GENERAL_RELATIVITY && multilevel) {
-        // prepare to receive primitives
-#pragma omp for private(pmb,pbval)
-        for (int i=0; i<nmb; ++i) {
-          pmb = pmb_array[i]; pbval = pmb->pbval;
-          pbval->StartReceiving(BoundaryCommSubset::gr_amr);
-        }
-
-        if(FLUID_ENABLED) {
-          // send primitives
-#pragma omp for private(pmb,pbval)
+        if (FLUID_ENABLED) {
+          // prepare to receive primitives
+#pragma omp for private(pmb)// ,pbval)
           for (int i=0; i<nmb; ++i) {
-            pmb = pmb_array[i]; pbval = pmb->pbval;
+            pmb = pmb_array[i];// pbval = pmb->pbval;
+            // pbval->StartReceiving(BoundaryCommSubset::gr_amr);
+            pmb->phydro->hbvar.StartReceiving(BoundaryCommSubset::gr_amr);
+          }
+
+            // send primitives
+#pragma omp for private(pmb)// ,pbval)
+          for (int i=0; i<nmb; ++i) {
+            pmb = pmb_array[i];// pbval = pmb->pbval;
             pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->w,
-                                                 HydroBoundaryQuantity::prim);
+                                                HydroBoundaryQuantity::prim);
             pmb->phydro->hbvar.SendBoundaryBuffers();
           }
 
-          // wait to receive AMR/SMR GR primitives
-#pragma omp for private(pmb,pbval)
+            // wait to receive AMR/SMR GR primitives
+#pragma omp for private(pmb)// ,pbval)
           for (int i=0; i<nmb; ++i) {
-            pmb = pmb_array[i]; pbval = pmb->pbval;
+            pmb = pmb_array[i];// pbval = pmb->pbval;
             pmb->phydro->hbvar.ReceiveAndSetBoundariesWithWait();
-	    pbval->ClearBoundary(BoundaryCommSubset::gr_amr);
+            // pbval->ClearBoundary(BoundaryCommSubset::gr_amr);
+            pmb->phydro->hbvar.ClearBoundary(BoundaryCommSubset::gr_amr);
             pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->u,
-                                                 HydroBoundaryQuantity::cons);
+                                                HydroBoundaryQuantity::cons);
           }
         }
-      } // multilevel
+      } // multilevel & fluid
 //comm end
       if (DBGPR_MESH)
         coutBoldGreen("Boundary communication complete; processing...\n");
@@ -1733,6 +1735,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         int il = pmb->is, iu = pmb->ie,
           jl = pmb->js, ju = pmb->je,
           kl = pmb->ks, ku = pmb->ke;
+        int ignore = VC2CC_IGNORE;
         if (pbval->nblevel[1][1][0] != -1) il -= NGHOST;
         if (pbval->nblevel[1][1][2] != -1) iu += NGHOST;
         if (pmb->block_size.nx2 > 1) {
@@ -1749,20 +1752,26 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b,
                                           ph->w, 
                                           ps->s, ps->r, pf->bcc, pmb->pcoord,
-                                          il, iu, jl, ju, kl, ku,0);
+                                          il+ignore, iu-ignore, 
+                                          jl+ignore, ju-ignore, kl+ignore, ku-ignore,0);
 #else
           pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b,
                                           ph->w, pf->bcc, pmb->pcoord,
-                                          il, iu, jl, ju, kl, ku,0);
+                                          il+ignore, iu-ignore, 
+                                          jl+ignore, ju-ignore, kl+ignore, ku-ignore,0);
 #endif
         }
 
+#if !USETM
         if (NSCALARS > 0) {
           // r1/r_old for GR is currently unused:
           pmb->peos->PassiveScalarConservedToPrimitive(ps->s, ph->w, ps->r, ps->r,
                                                        pmb->pcoord,
-                                                       il, iu, jl, ju, kl, ku);
+                                                       il+ignore, iu-ignore,
+                                                       jl+ignore, ju-ignore, 
+                                                       kl+ignore, ku-ignore);
         }
+#endif
         // --------------------------
         if (FLUID_ENABLED) {
           int order = pmb->precon->xorder;
@@ -1788,10 +1797,13 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
                                                         ph->w, pf->bcc, pmb->pcoord,
                                                         il, iu, jl, ju, kl, ku);
 #endif
+
+#if !USETM
             if (NSCALARS > 0) {
               pmb->peos->PassiveScalarConservedToPrimitiveCellAverage(
                 ps->s, ps->r, ps->r, pmb->pcoord, il, iu, jl, ju, kl, ku);
             }
+#endif
           }
           }
         // --------------------------
@@ -1824,10 +1836,15 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 
 // Initialise ADM Sources, after CC Bfield has been set in all ghost zones
 // during the C2P above
-#pragma omp for private(pmb,ph,pf,pz4c)
+#pragma omp for private(pmb,ph,ps,pf,pz4c)
       for (int i=0; i<nmb; ++i) {
         pmb = pmb_array[i]; ph = pmb->phydro, pf = pmb->pfield, pz4c = pmb->pz4c;
+#if USETM
+           ps = pmb->pscalars;
+           pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, ps->r, pf->bcc);
+#else
            pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, pf->bcc);
+#endif
       }
 
 

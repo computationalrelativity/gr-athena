@@ -263,7 +263,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
         // Density and specific energy.
         Real rho = VertexToCell(mag_ns.nbar, lbb, rbb, ltb, rtb, lbf, rbf, ltf, rtf) / rho_unit;
         Real eps = VertexToCell(mag_ns.ener_spec, lbb, rbb, ltb, rtb, lbf, rbf, ltf, rtf) / ener_unit;
-        Real egas = rho*(1.0 + eps);
+        //Real egas = rho*(1.0 + eps);
+        Real egas = rho*eps;
         Real pgas = peos->PresFromRhoEg(rho, egas);
         // Kluge to make the pressure work with the EOS framework.
         if (!std::isfinite(pgas) && (egas == 0. || rho == 0.)) {

@@ -187,6 +187,8 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
       pdata += pmb->phydro->w.GetSizeInBytes();
       std::memcpy(pdata, pmb->phydro->w1.data(), pmb->phydro->w1.GetSizeInBytes());
       pdata += pmb->phydro->w1.GetSizeInBytes();
+      std::memcpy(pdata, pmb->phydro->w_init.data(), pmb->phydro->w_init.GetSizeInBytes());
+      pdata += pmb->phydro->w_init.GetSizeInBytes();
     }
 
     // Longitudinal, face-centered magnetic field components:

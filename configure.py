@@ -20,6 +20,7 @@
 #   --nscalars=xxx      set NSCALARS=xxx
 #   --nrad=xxx          set NRAD=xxx (for wave extraction)
 #   --ninterp=xxx       set NGRCV_HSZ=xxx (number of ghosts for intergrid interpolation)
+#   -force_ps_linear    set FORCE_PS_LINEAR to true (always use linear-order VC2CC)
 #   -eos_table          enable EOS table
 #   -f                  enable fluid
 #   -b                  enable magnetic fields
@@ -165,6 +166,12 @@ parser.add_argument('--nrad',
 parser.add_argument('--ninterp',
                     default='2',
                     help='set number of ghost zones for intergrid interpolation')
+
+# -force_ps_linear argument
+parser.add_argument('-force_ps_linear',
+                    action='store_true',
+                    default=False,
+                    help='make PrimitiveSolver use linear VC2CC interpolation')
 
 # -f argument
 parser.add_argument('-f',
@@ -348,6 +355,11 @@ parser.add_argument('-gsl',
 parser.add_argument('--gsl_path',
                     default='',
                     help='path to gsl libraries')
+
+## rns_path argument
+parser.add_argument('--rns_path',
+                    default='',
+                    help='path to rns library')
 
 # -ccache argument
 parser.add_argument('-ccache',
@@ -588,6 +600,18 @@ definitions['NUMBER_EXT_RAD'] = args['nrad']
 
 # --ninterp=[value] argument
 definitions['NUMBER_INTERP_GHOSTS'] = args['ninterp']
+
+# Number of ghost points to ignore in VC2CC calculation
+if args['vertex']:
+    definitions['VC2CC_IGNORE'] = str(int(args['ninterp']) - 1)
+else:
+    definitions['VC2CC_IGNORE'] = '0'
+
+# -force_ps_linear argument
+if args['force_ps_linear']:
+    definitions['FORCE_PS_LINEAR'] = '1'
+else:
+    definitions['FORCE_PS_LINEAR'] = '0'
 
 # -f argument
 if args['f']:
@@ -1110,6 +1134,46 @@ if args['prob'] in ('gr_Lorene_neutron_star', 'gr_Lorene_bns'):
     #     else:
     #         raise SystemExit('### CONFIGURE ERROR: To compile the neutron star problem, it is necessary to provide the Lorene initial data library ../Lorene.')
 
+# -rns argument
+if args['prob'] == "gr_rns_tov" or args['prob'] == "gr_pbh_rns":
+#    if not args['gsl']:
+#        raise SystemExit('### CONFIGURE ERROR: To compile with two punctures -gsl is required.')
+
+    definitions['RNS_OPTION'] = 'RNS'
+
+    if args['rns_path'] == '':
+        os.system('mkdir -p extern/initial_data')
+        args['rns_path'] = 'extern/initial_data/rns'
+        if os.path.exists('../rnsc'):
+            os.system('rm {}'.format(args['rns_path']))
+            os.system('ln -s ../../../rnsc {}'.format(args['rns_path']))
+        else:
+            raise SystemExit('### CONFIGURE ERROR: To compile with rns, it is necessary to have external initial data rns library ../rnsc.')
+    if args['rns_path'] != '':
+        makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/include'.format(
+            args['rns_path'])
+        makefile_options['LINKER_FLAGS'] += ' -L{0}/obj'.format(
+            args['rns_path'])
+    if (args['cxx'] == 'g++' or args['cxx'] == 'icc' or args['cxx'] == 'cray'
+            or args['cxx'] == 'icc-debug' or args['cxx'] == 'icc-phi'
+            or args['cxx'] == 'clang++' or args['cxx'] == 'clang++-simd'
+            or args['cxx'] == 'bgxl'):
+
+        obj_dir = args['rns_path'] + '/obj/'
+        so_names = ['RNS_equil_util.o', 'RNS_nrutil.o', 'RNS_rnsid_util.o',
+                    'RNS_equil.o', 'RNS_extra.o', 'RNS.o']
+
+
+        ## Check the external library has been compiled
+        for so in so_names:
+            if not os.path.isfile(obj_dir + so):
+                print(obj_dir + so)
+                raise SystemExit('### CONFIGURE ERROR: It appears that library ../rnsc has not been compiled yet: some objects files are missing.')
+
+        for n in so_names:
+            makefile_options['LIBRARY_FLAGS'] += ' ' + obj_dir + n
+else:
+    definitions['RNS_OPTION'] = 'NO_RNS'
 
 definitions['GSL_OPTION'] = 'NO_GSL'
 if args['gsl']:
@@ -1184,6 +1248,8 @@ if args['z']:
         files.append('one_puncture_z4c')
     elif args['prob'] == "z4c_awa_tests":
         files.append('awa_z4c')
+    elif args['prob'] == "gr_pbh_rns":
+        files.append('add_boosted_puncture_z4c')
 
 aux = ["		$(wildcard src/z4c/{}.cpp) \\".format(f) for f in files]
 makefile_options['Z4C_FILES'] = '\n'.join(aux) + '\n'
@@ -1195,6 +1261,18 @@ if args['eos'] == 'eostaudyn_ps':
     #aux = ["		$(wildcard src/z4c/primitive/{}.cpp) \\".format(f) for f in files]
     aux = ["		src/z4c/primitive/{}.cpp \\".format(f) for f in files]
     makefile_options['EOS_FILES'] = '\n'.join(aux) + '\n'
+
+id_files = []
+makefile_options['ID_FILES'] = ''
+
+if args['prob'] == "gr_rns_tov":
+    id_files.append('rns_id')
+    id_aux = ["                $(wildcard src/hydro/initial_data/{}.cpp) \\".format(f) for f in id_files]
+    makefile_options['ID_FILES'] = ''.join(id_aux) + '\n'
+elif args['prob'] == "gr_pbh_rns":
+    id_files.append('rns_id')
+    id_aux = ["                $(wildcard src/hydro/initial_data/{}.cpp) \\".format(f) for f in id_files]
+    makefile_options['ID_FILES'] = ''.join(id_aux) + '\n'
 
 # Make substitutions
 for key, val in definitions.items():

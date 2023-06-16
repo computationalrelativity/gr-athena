@@ -353,6 +353,8 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     os += phydro->w.GetSizeInBytes();
     std::memcpy(phydro->w1.data(), &(mbdata[os]), phydro->w1.GetSizeInBytes());
     os += phydro->w1.GetSizeInBytes();
+    std::memcpy(phydro->w_init.data(), &(mbdata[os]), phydro->w_init.GetSizeInBytes());
+    os += phydro->w_init.GetSizeInBytes();
   }
   if (MAGNETIC_FIELDS_ENABLED) {
     std::memcpy(pfield->b.x1f.data(), &(mbdata[os]), pfield->b.x1f.GetSizeInBytes());
@@ -682,6 +684,7 @@ std::size_t MeshBlock::GetBlockSizeInBytes() {
   if (GENERAL_RELATIVITY) {
     size += phydro->w.GetSizeInBytes();
     size += phydro->w1.GetSizeInBytes();
+    size += phydro->w_init.GetSizeInBytes();
   }
   if (MAGNETIC_FIELDS_ENABLED)
     size += (pfield->b.x1f.GetSizeInBytes() + pfield->b.x2f.GetSizeInBytes()

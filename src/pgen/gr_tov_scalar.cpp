@@ -28,10 +28,16 @@
 #include "../hydro/hydro.hpp"              // Hydro
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"          // ParameterInput
+#include "../utils/read_lorene.hpp"        // Parser for ASCII table
+#include "../scalars/scalars.hpp"
 
 // Configuration checking
 #if not GENERAL_RELATIVITY
 #error "This problem generator must be used with general relativity"
+#endif
+
+#ifndef LORENE_EOS
+#define LORENE_EOS (1)
 #endif
 
 // Declarations
@@ -39,22 +45,32 @@ void FixedBoundary(MeshBlock *pmb, Coordinates *pcoord, AthenaArray<Real> &prim,
                    FaceField &bb, Real time, Real dt,
                    int il, int iu, int jl, int ju, int kl, int ku, int ngh);
 
+Real MaxRho(MeshBlock* pmb, int iout);
+Real L1rhodiff(MeshBlock *pmb, int iout);
+
 namespace {
   int TOV_rhs(Real dr, Real *u, Real *k);
   int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts);
   int interp_locate(Real *x, int Nx, Real xval);
   void interp_lag4(Real *f, Real *x, int Nx, Real xv,
 		   Real *fv_p, Real *dfv_p, Real *ddfv_p );
+  double linear_interp(double *f, double *x, int n, double xv);
   void TOV_background(Real x1, Real x2, Real x3, ParameterInput *pin, 
 		      AthenaArray<Real> &g, AthenaArray<Real> &g_inv, 
 		      AthenaArray<Real> &dg_dx1, AthenaArray<Real> &dg_dx2,
 		      AthenaArray<Real> &dg_dx3);//TOV_ID
   int RefinementCondition(MeshBlock *pmb);
-  Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
-                  int const i);
   
   // Global variables
   Real gamma_adi, k_adi;  // hydro EOS parameters
+  std::string table_fname;
+  LoreneTable * Table = NULL; // Lorene table object
+  std::string filename, filename_Y; // Lorene table fnames
+// #if USETM
+  // Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> eos_compose;
+  // Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> psolve{&eos_compose};
+// #endif
+  Real v_amp; // velocity amplitude for linear perturbations
 
   // TOV var indexes for ODE integration
   enum{TOV_IRHO,TOV_IMASS,TOV_IPHI,TOV_IINT,TOV_NVAR};
@@ -69,11 +85,6 @@ namespace {
     Real R, Riso, M;
   };
   TOVData * tov = NULL;
-  Real Maxrho(MeshBlock *pmb, int iout);
-  Real DivB(MeshBlock *pmb, int iout);
-  Real MaxPb(MeshBlock *pmb, int iout);
-
-  Real CCAvg(AthenaArray<Real>& data, int k, int j, int i);
   
 } // namespace
 
@@ -89,11 +100,34 @@ void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag) {
   // Read problem parameters
   Real rhoc = pin->GetReal("problem", "rhoc"); // Central value of energy density
   Real rmin = pin->GetReal("problem", "rmin");  // minimum radius to start TOV integration
-  Real dr = pin->GetReal("problem", "dr");      // radial step for TOV integration 
-  int npts = pin->GetInteger("problem", "npts");    // number of max radial pts for TOV solver
-  
+  Real dr   = pin->GetReal("problem", "dr");      // radial step for TOV integration 
+  int npts  = pin->GetInteger("problem", "npts");    // number of max radial pts for TOV solver
+  Real fatm = pin->GetReal("problem","fatm");
+
+// Using LORENE_EOS for ID
+#ifdef LORENE_EOS
+  filename   = pin->GetString("hydro", "lorene");
+  filename_Y = pin->GetString("hydro", "lorene_Y");
+  Table = new LoreneTable;
+  ReadLoreneTable(filename, Table);
+  ReadLoreneFractions(filename_Y, Table);
+  ConvertLoreneTable(Table);
+  // PS uses different floor to reprimand
+  #if USETM
+    Table->rho_atm = pin->GetReal("hydro", "dfloor"); 
+  #else
+    Table->rho_atm = rhoc*fatm;
+  #endif
+// #ifdef USE_COMPOSE_EOS
+//   eos_compose.SetCodeUnitSystem(&Primitive::GeometricSolar);
+//   table_fname = pin->GetString("hydro", "table");
+//   eos_compose.ReadTableFromFile(table_fname);
+//   eos_compose.SetDensityFloor(pin->GetReal("hydro", "dfloor")/eos_compose.GetBaryonMass());
+#else
   k_adi = pin->GetReal("hydro", "k_adi");
   gamma_adi = pin->GetReal("hydro","gamma");
+#endif
+  v_amp = pin->GetOrAddReal("problem", "v_amp", 0.0);
 
   // Alloc 1D buffer
   tov = new TOVData;
@@ -104,27 +138,52 @@ void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag) {
   // Solve TOV equations, setting 1D inital data in tov->data
   TOV_solve(rhoc, rmin, dr, &npts);
 
-  AllocateUserHistoryOutput(3);
-  EnrollUserHistoryOutput(0, Maxrho, "max-rho", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(1, DivB, "divB");
-  EnrollUserHistoryOutput(2, MaxPb, "maxPb", UserHistoryOperation::max);
-
-
+  printf("NSCALARS=%d\n", NSCALARS);
+  // Add max(rho) output.
+  AllocateUserHistoryOutput(2);
+  EnrollUserHistoryOutput(0, MaxRho, "max_rho", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(1, L1rhodiff, "L1rhodiff");
 }
 
+Real MaxRho(MeshBlock* pmb, int iout) {
+  Real max_rho = 0;
+  for (int k = pmb->ks; k <= pmb->ke; k++) {
+    for (int j = pmb->js; j <= pmb->je; j++) {
+      for (int i = pmb->is; i <= pmb->ie; i++) {
+        max_rho = std::fmax(max_rho, pmb->phydro->w(IDN, k, j, i));
+      }
+    }
+  }
+
+  return max_rho;
+}
+Real L1rhodiff(MeshBlock *pmb, int iout) {
+  Real L1rho = 0.0;
+  Real vol,dx,dy,dz;
+  int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
+  for (int k=ks; k<=ke; k++) {
+    for (int j=js; j<=je; j++) {
+      for (int i=is; i<=ie; i++) {
+        dx = pmb->pcoord->dx1v(i);
+        dy = pmb->pcoord->dx2v(j);
+        dz = pmb->pcoord->dx3v(k);
+        vol = dx*dy*dz;
+        L1rho += std::abs(pmb->phydro->w(IDN,k,j,i) - pmb->phydro->w_init(IDN,k,j,i))*vol;
+      }
+    }
+  }
+  return L1rho;
+}
 
 void MeshBlock::InitUserMeshBlockData(ParameterInput *pin) {
-  // Allocate output arrays for fluxes
-  AllocateUserOutputVariables(15);
+  // Allocate 3 user output variables: lapse, gxx, m
+  // leftover from cowling approx runs
+  AllocateUserOutputVariables(12);
   return;
 }
 
 
 void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin) {
-AthenaArray<Real> &x1flux = phydro->flux[X1DIR];
-AthenaArray<Real> &x2flux = phydro->flux[X2DIR];
-AthenaArray<Real> &x3flux = phydro->flux[X3DIR];
-
   int il = is - NGHOST;
   int iu = ie + NGHOST;
   int jl = js;
@@ -139,24 +198,36 @@ AthenaArray<Real> &x3flux = phydro->flux[X3DIR];
     kl -= NGHOST;
     ku += NGHOST;
   }
+  AthenaArray<Real> g, gi;
+  g.NewAthenaArray(NMETRIC, iu+1);
+  gi.NewAthenaArray(NMETRIC, iu+1);
   for (int k=kl; k<=ku; ++k) {
     for (int j=jl; j<=ju; ++j) {
+      pcoord->CellMetric(k, j, il, iu, g, gi);
       for (int i=il; i<=iu; ++i) {
-	user_out_var(0,k,j,i) = x1flux(0,k,j,i);
-	user_out_var(1,k,j,i) = x1flux(1,k,j,i);
-	user_out_var(2,k,j,i) = x1flux(2,k,j,i);
-	user_out_var(3,k,j,i) = x1flux(3,k,j,i);
-	user_out_var(4,k,j,i) = x1flux(4,k,j,i);
-	user_out_var(5,k,j,i) = x2flux(0,k,j,i);
-	user_out_var(6,k,j,i) = x2flux(1,k,j,i);
-	user_out_var(7,k,j,i) = x2flux(2,k,j,i);
-	user_out_var(8,k,j,i) = x2flux(3,k,j,i);
-	user_out_var(9,k,j,i) = x2flux(4,k,j,i);
-	user_out_var(10,k,j,i) = x3flux(0,k,j,i);
-	user_out_var(11,k,j,i) = x3flux(1,k,j,i);
-	user_out_var(12,k,j,i) = x3flux(2,k,j,i);
-	user_out_var(13,k,j,i) = x3flux(3,k,j,i);
-	user_out_var(14,k,j,i) = x3flux(4,k,j,i);
+	Real d1u1 = (phydro->w(IVX,k,j,i+1) - phydro->w(IVX,k,j,i-1))/pcoord->dx1v(i);
+	Real d1u2 = (phydro->w(IVY,k,j,i+1) - phydro->w(IVY,k,j,i-1))/pcoord->dx1v(i);
+	Real d1u3 = (phydro->w(IVZ,k,j,i+1) - phydro->w(IVZ,k,j,i-1))/pcoord->dx1v(i);
+	Real d2u1 = (phydro->w(IVX,k,j+1,i) - phydro->w(IVX,k,j-1,i))/pcoord->dx2v(i);
+	Real d2u2 = (phydro->w(IVY,k,j+1,i) - phydro->w(IVY,k,j-1,i))/pcoord->dx2v(i);
+	Real d2u3 = (phydro->w(IVZ,k,j+1,i) - phydro->w(IVZ,k,j-1,i))/pcoord->dx2v(i);
+	Real d3u1 = (phydro->w(IVX,k+1,j,i) - phydro->w(IVX,k-1,j,i))/pcoord->dx3v(i);
+	Real d3u2 = (phydro->w(IVY,k+1,j,i) - phydro->w(IVY,k-1,j,i))/pcoord->dx3v(i);
+	Real d3u3 = (phydro->w(IVZ,k+1,j,i) - phydro->w(IVZ,k-1,j,i))/pcoord->dx3v(i);
+	
+        Real r = sqrt(pow(pcoord->x1f(i),2.)+ pow(pcoord->x2f(j),2.)+  pow(pcoord->x3f(k),2.) );
+	user_out_var(0,k,j,i) = std::sqrt(-g(I00,i)); // lapse
+	user_out_var(1,k,j,i) = g(I11,i);        // gxx
+	user_out_var(2,k,j,i) = 2.*r * (std::pow(g(I11,i),0.25)-1.); // Mass
+	user_out_var(3,k,j,i) = d1u1;
+	user_out_var(4,k,j,i) = d1u2;
+	user_out_var(5,k,j,i) = d1u3;
+	user_out_var(6,k,j,i) = d2u1;
+	user_out_var(7,k,j,i) = d2u2;
+	user_out_var(8,k,j,i) = d2u3;
+	user_out_var(9,k,j,i) = d3u1;
+	user_out_var(10,k,j,i) = d3u2;
+	user_out_var(11,k,j,i) = d3u3;	
       }
     }
   }
@@ -185,11 +256,13 @@ AthenaArray<Real> &x3flux = phydro->flux[X3DIR];
 // So conversion is rho0=rho and u = rho*epsl
 
 void MeshBlock::ProblemGenerator(ParameterInput *pin) {
+  // printf("MeshBlock::ProblemGenerator start.\n");
 
   // Parameters
   phydro->w.Fill(NAN);
   phydro->w1.Fill(NAN);
   phydro->u.Fill(NAN);
+  phydro->temperature.Fill(NAN);
   pz4c->storage.u.Fill(NAN);
   pz4c->storage.adm.Fill(NAN);
 
@@ -218,7 +291,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   int klcc = kl + ignore;
   int kucc = ku - ignore;
 
-
   // Prepare scratch arrays
   AthenaArray<Real> g, gi;
   g.NewAthenaArray(NMETRIC, iu+1);
@@ -228,45 +300,113 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   const Real M = tov->M;  // Mass of TOV star 
   const Real R = tov->Riso;  // Isotropic Radius of TOV star
 
+  // LORENE EOS
+  // #ifdef LORENE_EOS
+  //   filename   = pin->GetString("hydro", "lorene");
+  //   filename_Y = pin->GetString("hydro", "lorene_Y");
+  //   Table = new LoreneTable;
+  //   ReadLoreneTable(filename, Table);
+  //   ReadLoreneFractions(filename_Y, Table);
+  //   ConvertLoreneTable(Table);
+  //   // PS uses different floor to reprimand
+  //   #if USETM
+  //     Table->rho_atm = pin->GetReal("hydro", "dfloor"); 
+  //   #else
+  //     Table->rho_atm = rhoc*fatm;
+  //   #endif
+  // #endif
+
   // Atmosphere 
   Real rhomax = tov->data[itov_rho][0];
-  Real pgasmax = k_adi*pow(rhomax,gamma_adi);
   Real fatm = pin->GetReal("problem","fatm");
   const Real rho_atm = rhomax * fatm;
-
-  //TODO (SB) general EOS call 
+  #if USETM
+  Real T_atmosphere = pin->GetReal("hydro","tfloor");
+  Real Y_atmosphere = pin->GetReal("hydro","y0_atmosphere");
+  #endif
+  
+  //TODO (SB) general EOS call
   const Real pre_atm = k_adi*std::pow(rhomax*fatm,gamma_adi);
 
   // Pontwise aux vars
-  Real rho_kji, pgas_kji;
+  Real rho_kji, pgas_kji, v_kji, x_kji, n_kji, Y_kji;
   Real lapse_kji, d_lapse_dr_kji, psi4_kji,d_psi4_dr_kji,dummy;
 
+
+  // printf("Start hydro loop\n");
   // Initialize primitive values on CC grid
   for (int k=klcc; k<=kucc; ++k) {
     for (int j=jlcc; j<=jucc; ++j) {
       for (int i=ilcc; i<=iucc; ++i) {
+
+#if USETM
+  // Initialize the scalars
+  if(NSCALARS==1) pscalars->s(0,k,j,i) = 0.;
+  if(NSCALARS==1) pscalars->r(0,k,j,i) = 0.;
+#endif
+
 	// Isotropic radius
 	Real r = std::sqrt(std::pow(pcoord->x1v(i),2.) +  pow(pcoord->x2v(j),2.) + pow(pcoord->x3v(k),2.));
+  Real rho_pol = std::sqrt(std::pow(pcoord->x1v(i),2.) + std::pow(pcoord->x2v(j),2.));
+  Real costh = pcoord->x3v(k)/r;
+  Real sinth = rho_pol/r;
+  Real cosphi = pcoord->x1v(i)/rho_pol;
+  Real sinphi = pcoord->x2v(j)/rho_pol;
 	if (r<R){
  	  // Interpolate rho to star interior
 	  interp_lag4(tov->data[itov_rho], tov->data[itov_riso], tov->npts, r,
 		      &rho_kji, &dummy,&dummy);
 	  // Pressure from EOS
 	  //TODO (SB) general EOS call 
-	  pgas_kji = k_adi*pow(rho_kji,gamma_adi); 
+#ifdef USETM
+  // If Prim Solver is active we should do a proper EOS call
+  // Use Lorene EoS to get Ye
+  Y_kji = linear_interp(Table->Y[0], Table->data[tab_logrho], Table->size, log(rho_kji));
+
+  // Use CompOSE EoS to get p(rho,T,Ye)
+  n_kji = rho_kji/(peos->GetEOS().GetBaryonMass());
+  pgas_kji = peos->GetEOS().GetPressure(n_kji,T_atmosphere,&Y_kji);
+#else
+    pgas_kji = k_adi*pow(rho_kji,gamma_adi); 
+#endif
+	  
+    x_kji = r/R;
+    v_kji = 0.5*v_amp*(3.0*x_kji - x_kji*x_kji*x_kji);
 	} else {
 	  // Set exterior to atmos
-	  rho_kji  = rho_atm;
-	  pgas_kji = pre_atm;
+	  //rho_kji  = rho_atm;
+	  //pgas_kji = pre_atm;
+    // Let the EOS decide how to set the atmosphere.
+    rho_kji = 0.0;
+    pgas_kji = 0.0;
+    v_kji = 0.0;
+    Y_kji = Y_atmosphere;
 	}
-	phydro->w(IDN,k,j,i) = phydro->w1(IDN,k,j,i) = phydro->w_init(IDN,k,j,i) = rho_kji;
-	phydro->w(IPR,k,j,i) = phydro->w1(IPR,k,j,i) = phydro->w_init(IPR,k,j,i) = pgas_kji;
-	phydro->w(IVX,k,j,i) = phydro->w1(IVX,k,j,i) = phydro->w_init(IVX,k,j,i) = 0.0;
-	phydro->w(IVY,k,j,i) = phydro->w1(IVY,k,j,i) = phydro->w_init(IVY,k,j,i) = 0.0;
-	phydro->w(IVZ,k,j,i) = phydro->w1(IVZ,k,j,i) = phydro->w_init(IVZ,k,j,i) = 0.0;
+
+  phydro->w_init(IDN, k, j, i) = rho_kji;
+  phydro->w_init(IPR, k, j, i) = pgas_kji;
+  phydro->w_init(IVX, k, j, i) = v_kji*sinth*cosphi;
+  phydro->w_init(IVY, k, j, i) = v_kji*sinth*sinphi;
+  phydro->w_init(IVZ, k, j, i) = v_kji*costh;
+  if(NSCALARS==1) {
+    pscalars->r(0,k,j,i) = Y_kji;
+  }
+
+  //peos->ApplyPrimitiveFloors(phydro->w_init, k, j, i);
+
+	phydro->w(IDN,k,j,i) = phydro->w1(IDN,k,j,i) = phydro->w_init(IDN,k,j,i);
+	phydro->w(IPR,k,j,i) = phydro->w1(IPR,k,j,i) = phydro->w_init(IPR,k,j,i);
+	phydro->w(IVX,k,j,i) = phydro->w1(IVX,k,j,i) = phydro->w_init(IVX,k,j,i);
+	phydro->w(IVY,k,j,i) = phydro->w1(IVY,k,j,i) = phydro->w_init(IVY,k,j,i);
+	phydro->w(IVZ,k,j,i) = phydro->w1(IVZ,k,j,i) = phydro->w_init(IVZ,k,j,i);
+  phydro->temperature(k,j,i) = T_atmosphere;
       }
     }
   }
+  
+  // printf("End hydro loop\n");
+  
+  // printf("Start metric loop\n");
 
   // Initialise metric variables on VC grid - setting alpha, beta, g_ij, K_ij
   for (int k=kl; k<=ku+1; ++k) {
@@ -311,35 +451,35 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 	pz4c->storage.adm(Z4c::I_ADM_Kxz,k,j,i) = 0.0;
 	pz4c->storage.adm(Z4c::I_ADM_Kyz,k,j,i) = 0.0;
 	pz4c->storage.adm(Z4c::I_ADM_psi4,k,j,i) = psi4_kji;
-//        pfield->b.x1f(k,j,i) = 0.0;
-//        pfield->b.x2f(k,j,i) = 0.0;
-//        pfield->b.x3f(k,j,i) = 0.0;
-//	pz4c->storage.u_init(Z4c::I_Z4c_alpha,k,j,i) = lapse_kji;
-//	pz4c->storage.u_init(Z4c::I_Z4c_betax,k,j,i) = 0.0; 
-//	pz4c->storage.u_init(Z4c::I_Z4c_betay,k,j,i) = 0.0; 
-//	pz4c->storage.u_init(Z4c::I_Z4c_betaz,k,j,i) = 0.0; 
-//	pz4c->storage.adm_init(Z4c::I_ADM_gxx,k,j,i) = psi4_kji;
-//	pz4c->storage.adm_init(Z4c::I_ADM_gyy,k,j,i) = psi4_kji;
-//	pz4c->storage.adm_init(Z4c::I_ADM_gzz,k,j,i) = psi4_kji;
-//	pz4c->storage.adm_init(Z4c::I_ADM_gxy,k,j,i) = 0.0;
-//	pz4c->storage.adm_init(Z4c::I_ADM_gxz,k,j,i) = 0.0;
-//	pz4c->storage.adm_init(Z4c::I_ADM_gyz,k,j,i) = 0.0;
-//	pz4c->storage.adm_init(Z4c::I_ADM_Kxx,k,j,i) = 0.0; 
-//	pz4c->storage.adm_init(Z4c::I_ADM_Kyy,k,j,i) = 0.0; 
-//	pz4c->storage.adm_init(Z4c::I_ADM_Kzz,k,j,i) = 0.0; 
-//	pz4c->storage.adm_init(Z4c::I_ADM_Kxy,k,j,i) = 0.0;
-//	pz4c->storage.adm_init(Z4c::I_ADM_Kxz,k,j,i) = 0.0;
-//	pz4c->storage.adm_init(Z4c::I_ADM_Kyz,k,j,i) = 0.0;
-//	pz4c->storage.adm_init(Z4c::I_ADM_psi4,k,j,i) = psi4_kji;
+	pz4c->storage.u_init(Z4c::I_Z4c_alpha,k,j,i) = lapse_kji;
+	pz4c->storage.u_init(Z4c::I_Z4c_betax,k,j,i) = 0.0; 
+	pz4c->storage.u_init(Z4c::I_Z4c_betay,k,j,i) = 0.0; 
+	pz4c->storage.u_init(Z4c::I_Z4c_betaz,k,j,i) = 0.0; 
+	pz4c->storage.adm_init(Z4c::I_ADM_gxx,k,j,i) = psi4_kji;
+	pz4c->storage.adm_init(Z4c::I_ADM_gyy,k,j,i) = psi4_kji;
+	pz4c->storage.adm_init(Z4c::I_ADM_gzz,k,j,i) = psi4_kji;
+	pz4c->storage.adm_init(Z4c::I_ADM_gxy,k,j,i) = 0.0;
+	pz4c->storage.adm_init(Z4c::I_ADM_gxz,k,j,i) = 0.0;
+	pz4c->storage.adm_init(Z4c::I_ADM_gyz,k,j,i) = 0.0;
+	pz4c->storage.adm_init(Z4c::I_ADM_Kxx,k,j,i) = 0.0; 
+	pz4c->storage.adm_init(Z4c::I_ADM_Kyy,k,j,i) = 0.0; 
+	pz4c->storage.adm_init(Z4c::I_ADM_Kzz,k,j,i) = 0.0; 
+	pz4c->storage.adm_init(Z4c::I_ADM_Kxy,k,j,i) = 0.0;
+	pz4c->storage.adm_init(Z4c::I_ADM_Kxz,k,j,i) = 0.0;
+	pz4c->storage.adm_init(Z4c::I_ADM_Kyz,k,j,i) = 0.0;
+	pz4c->storage.adm_init(Z4c::I_ADM_psi4,k,j,i) = psi4_kji;
 	
       }
     }
   }
+  
+  // printf("End metric loop\n");
 
+  // printf("Finalise metric initialisation\n");
   // Initialize remaining z4c variables
   pz4c->ADMToZ4c(pz4c->storage.adm,pz4c->storage.u);
   pz4c->ADMToZ4c(pz4c->storage.adm,pz4c->storage.u1); //?????
-//  pz4c->ADMToZ4c(pz4c->storage.adm_init,pz4c->storage.u_init);
+  pz4c->ADMToZ4c(pz4c->storage.adm_init,pz4c->storage.u_init);
   // Initialise coordinate class, CC metric
   pcoord->UpdateMetric();
 
@@ -348,109 +488,32 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     pmr->pcoarsec->UpdateMetric();
   }
 
-  Real pcut = pin->GetReal("problem","pcut")*pgasmax;
-  Real amp = pin->GetReal("problem","b_amp");
-  int magindex=pin->GetInteger("problem","magindex");
-  AthenaArray<Real> ax,ay,az,bxcc,bycc,bzcc;
-  int nx1 = (ie-is)+1 + 2*(NGHOST);
-  int nx2 = (je-js)+1 + 2*(NGHOST);
-  int nx3 = (ke-ks)+1 + 2*(NGHOST);
-// should be athena tensors if we merge w/ dynamical metric
-pfield->b.x1f.ZeroClear();
-pfield->b.x2f.ZeroClear();
-pfield->b.x3f.ZeroClear();
-pfield->bcc.ZeroClear();
-  ax.NewAthenaArray(nx3,nx2,nx1);
-  ay.NewAthenaArray(nx3,nx2,nx1);
-  az.NewAthenaArray(nx3,nx2,nx1);
-  bxcc.NewAthenaArray(nx3,nx2,nx1);
-  bycc.NewAthenaArray(nx3,nx2,nx1);
-  bzcc.NewAthenaArray(nx3,nx2,nx1);
-//parameter defns from 
-//Openmp - pragma/ GLOOP macros?
-      AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy;
-      AthenaArray<Real> vcgamma_yz,vcgamma_zz;
-      AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd; 
-      gamma_dd.NewAthenaTensor(iu+1);
- vcgamma_xx.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gxx,1);
-      vcgamma_xy.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gxy,1);
-      vcgamma_xz.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gxz,1);
-      vcgamma_yy.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gyy,1);
-      vcgamma_yz.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gyz,1);
-      vcgamma_zz.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gzz,1);
-
-//Initialize field at xfaces:
-//Real prx1f, rhox1f, prx2f, rhox2f, prx3f, rhox3f, div1, div2, div3;
-//printf("kl= %d, ku=%d, jl = %d, ju = %d, il = %d, iu = %d, NGHOST= %d",kl,ku,jl,ju,il,iu,NGHOST); 
-  for (int k=kl; k<=ku; k++) {
-  for (int j=jl; j<=ju; j++) {
-  for (int i=il; i<=iu; i++) {
-// ay at x faces - need w at xface
-
-      ax(k,j,i) = -pcoord->x2v(j)*amp*std::max(phydro->w(IPR,k,j,i) - pcut,0.0)*pow((1.0 - phydro->w(IDN,k,j,i)/rhomax),magindex);
-      ay(k,j,i) = pcoord->x1v(i)*amp*std::max(phydro->w(IPR,k,j,i) - pcut,0.0)*pow((1.0 - phydro->w(IDN,k,j,i)/rhomax),magindex);
-
-
-//     prx1f = (phydro->w(IPR,k,j,i-1) + phydro->w(IPR,k,j,i))/2.0;
-//      rhox1f = (phydro->w(IDN,k,j,i-1) + phydro->w(IDN,k,j,i))/2.0;
-//     if(isnan(prx1f)==1){printf("prx1f isnan i=%d,j=%d,k=%d\n",i,j,k);}
-//     if(isnan(rhox1f)==1){printf("rhox1f isnan i=%d,j=%d,k=%d\n",i,j,k);}
-//      ay(k,j,i) = pcoord->x1f(i)*amp*std::max(prx1f - pcut,0.0)*pow((1 - rhox1f/rhomax),magindex);
-  }}}
-
-  for(int k = ks-1; k<=ke+1; k++){
-  for(int j = js-1; j<=je+1; j++){
-  for(int i = is-1; i<=ie+1; i++){
-          gamma_dd(0,0,i) = pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
-          gamma_dd(0,1,i) = pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
-          gamma_dd(0,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
-          gamma_dd(1,1,i) = pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
-          gamma_dd(1,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
-          gamma_dd(2,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
-}
-   for(int i = is-1; i<=ie+1; i++){
-    Real detgamma = std::sqrt(Det3Metric(gamma_dd,i));
-
-    bxcc(k,j,i) = - ((ay(k+1,j,i) - ay(k-1,j,i))/(2.0*pcoord->dx3v(k)))*detgamma;
-    bycc(k,j,i) =  ((ax(k+1,j,i) - ax(k-1,j,i))/(2.0*pcoord->dx3v(k)))*detgamma;
-    bzcc(k,j,i) = ( (ay(k,j,i+1) - ay(k,j,i-1))/(2.0*pcoord->dx1v(i))
-                   - (ax(k,j+1,i) - ax(k,j-1,i))/(2.0*pcoord->dx2v(j)))*detgamma;
-//    bxcc(k,j,i) = - (ay(k+1,j,i) - ay(k,j,i))/(pcoord->dx3v(k));
-//    bycc(k,j,i) =  (ax(k+1,j,i) - ax(k,j,i))/(pcoord->dx3v(k));
-//    bzcc(k,j,i) =  (ay(k,j,i+1) - ay(k,j,i))/(pcoord->dx1v(i))
-//                   - (ax(k,j+1,i) - ax(k,j,i))/(pcoord->dx2v(j));
-}}}
-
-  for(int k = ks; k<=ke; k++){
-  for(int j = js; j<=je; j++){
-  for(int i = is; i<=ie+1; i++){
-
-  pfield->b.x1f(k,j,i) = 0.5*(bxcc(k,j,i-1) + bxcc(k,j,i));
-}}}
-  for(int k = ks; k<=ke; k++){
-  for(int j = js; j<=je+1; j++){
-  for(int i = is; i<=ie; i++){
-  pfield->b.x2f(k,j,i) = 0.5*(bycc(k,j-1,i) + bycc(k,j,i));
-}}}
-  for(int k = ks; k<=ke+1; k++){
-  for(int j = js; j<=je; j++){
-  for(int i = is; i<=ie; i++){
-
-  pfield->b.x3f(k,j,i) = 0.5*(bzcc(k-1,j,i) + bzcc(k,j,i));
-}}}
-
-pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord, il,iu,jl,ju,kl,ku);
+  // printf("Initialise conserveds\n");
+  // Initialise conserved variables
+#if USETM
+  peos->PrimitiveToConserved(phydro->w, pscalars->r, pfield->bcc, phydro->u, pscalars->s, pcoord, 
+                             ilcc, iucc, jlcc, jucc, klcc, kucc);
+  #else
   peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord, 
                              ilcc, iucc, jlcc, jucc, klcc, kucc);
+#endif
 
+  // printf("Initialise VC hydro\n");
+  // std::cout<<&(pscalars->r)<<std::endl;
+  // std::cout<<pscalars->r(0,4,4,0)<<std::endl;
+  // std::cout<<&(pscalars->s)<<std::endl;
+  // std::cout<<pscalars->s(0,4,4,0)<<std::endl;
   // Initialise VC matter
   //TODO(WC) (don't strictly need this here, will be caught in task list before used
-//  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pfield->bcc);
+#if USETM
+  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pscalars->r, pfield->bcc);
+#else
+  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pfield->bcc);
+#endif
+  // printf("ADM Constraints\n");
   pz4c->ADMConstraints(pz4c->storage.con,pz4c->storage.adm,pz4c->storage.mat,pz4c->storage.u);
+  // printf("MeshBlock::ProblemGenerator end.\n");
 
-
-
-  
   return;
 }
 
@@ -507,11 +570,36 @@ namespace {
     Real phi = u[TOV_IPHI];
     Real I   = u[TOV_IINT]; // Integral for the isotropic radius
     
+    
     //  Set pressure and internal energy using equation of state
     //TODO(SB) general EOS call
+//#ifdef USE_COMPOSE_EOS
+//    Real n = rho/eos_compose.GetBaryonMass();
+//    Real Y_test = 0.1;
+//    Real p = eos_compose.GetPressure(n,T,&Y_test);
+//    Real eps = eos_compose.GetSpecificInternalEnergy(n,T,&Y_test);
+//    Real n_up = n*1.01;
+//    Real n_dn = n*0.99;
+//    Real p_up = eos_compose.GetPressure(n_up,T,&Y_test);
+//    Real p_dn = eos_compose.GetPressure(n_dn,T,&Y_test);
+//    Real dpdrho = (p_up-p_dn)/(0.02*rho);
+
+#ifdef LORENE_EOS
+  Real logrho, logp, eps, p, dpdrho;
+  if (rho<Table->rho_atm) {
+    logrho = log(Table->rho_atm);
+  } else {
+  logrho = log(rho);
+  }
+  logp   = linear_interp(Table->data[tab_logp],   Table->data[tab_logrho], Table->size, logrho);
+  eps    = linear_interp(Table->data[tab_eps],    Table->data[tab_logrho], Table->size, logrho);
+  dpdrho = linear_interp(Table->data[tab_dpdrho], Table->data[tab_logrho], Table->size, logrho);
+  p      = std::exp(logp);
+#else
     Real p = k_adi * std::pow(rho,gamma_adi);
     Real eps = p / (rho*(gamma_adi-1.));
     Real dpdrho = gamma_adi*k_adi*std::pow(rho,gamma_adi-1.0);
+#endif
     
     // Total energy density
     Real e = rho*(1. + eps);
@@ -546,7 +634,7 @@ namespace {
   //
 
   int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts)  {
-
+    printf("Starting TOV solve.\n");
     std::stringstream msg;
     
     // Alloc buffers for ODE solve
@@ -555,11 +643,25 @@ namespace {
         
     // Set central values of pressure internal energy using EOS
     //TODO(SB) general EOS call
+// #ifdef USE_COMPOSE_EOS
+    // Real nc = rhoc/eos_compose.GetBaryonMass();
+    // Real Y_test = 0.1;
+    // Real pc = eos_compose.GetPressure(nc,T,&Y_test);
+    // Real epslc = eos_compose.GetSpecificInternalEnergy(nc,T,&Y_test);
+
+#ifdef LORENE_EOS
+    Real pc, logpc, epslc, dpdrhoc;
+    logpc   = linear_interp(Table->data[tab_logp],   Table->data[tab_logrho], Table->size, log(rhoc));
+    epslc   = linear_interp(Table->data[tab_eps],    Table->data[tab_logrho], Table->size, log(rhoc));
+    dpdrhoc = linear_interp(Table->data[tab_dpdrho], Table->data[tab_logrho], Table->size, log(rhoc));
+    pc      = exp(logpc);
+#else
     const Real pc = k_adi*std::pow(rhoc,gamma_adi);
     const Real epslc = pc/(rhoc*(gamma_adi-1.));
-
+#endif
     const Real ec = rhoc*(1.+epslc);
 
+  printf("Central values set.\n");    
     // Data at r = 0^+
     Real r = rmin;
     u[TOV_IRHO] = rhoc;
@@ -568,18 +670,28 @@ namespace {
     u[TOV_IINT] = 0.;
      
     printf("TOV_solve: solve TOV star (only once)\n");
-    printf("TOV_solve: dr   = %.16e\n",dr);
+    printf("TOV_solve: dr       = %.16e\n",dr);
     printf("TOV_solve: npts_max = %d\n",maxsize);
-    printf("TOV_solve: rhoc = %.16e\n",rhoc);
-    printf("TOV_solve: ec   = %.16e\n",ec);
-    printf("TOV_solve: pc   = %.16e\n",pc);
+    printf("TOV_solve: rhoc     = %.16e\n",rhoc);
+    printf("TOV_solve: epslc    = %.16e\n",epslc);
+    printf("TOV_solve: ec       = %.16e\n",ec);
+    printf("TOV_solve: pc       = %.16e\n",pc);
     
     // Integrate from rmin to R : rho(R) ~ 0
     Real rhoo = rhoc;
-    int stop = 0;
-    int n = 0;
-    const Real rho_zero = 0.; //TODO(SB) use atmosphere level
+    int stop  = 0;
+    int n     = 0;
+    printf("Setting atmosphere.\n");
+// #ifdef USE_COMPOSE_EOS
+    // const Real rho_zero = eos_compose.GetDensityFloor()*eos_compose.GetBaryonMass();
+#ifdef LORENE_EOS
+    const Real rho_zero = Table->rho_atm;
+#else
+    const Real rho_zero = 0.;
+#endif
     const Real oosix = 1./6.;
+    
+    printf("Starting loop. rho_zero: %.16e\n",rho_zero);
     while (n < maxsize) {
 
       // u_1 = u + dt/2 rhs(u)
@@ -601,14 +713,17 @@ namespace {
       }
 	
       if (stop) {
+        printf("Stop!");
         msg << "### FATAL ERROR in function [TOV_solve]"
-            << std::endl << "TOV r.h.s. not finite";
+            << std::endl << "TOV r.h.s. not finite at n = " << n;
         ATHENA_ERROR(msg);
       }      
 
       // Stop if radius reached
       rhoo = u[TOV_IRHO];
+      // if (n%10==0) printf("n=%d, r=%.16e, rho=%.16e, n=%.16e\n",n, r, rhoo, rhoo/eos_compose.GetBaryonMass());
       if (rhoo < rho_zero) {
+        printf("rho_zero reached: %.8e < %.8e\n",rhoo,rho_zero);
 	break;
       }      
 
@@ -623,6 +738,7 @@ namespace {
       r += dr;      
       n++; 
     }
+    printf("Loop finished.\n");
     
     if (n >= maxsize) {
       msg << "### FATAL ERROR in function [TOV_solve]"
@@ -654,19 +770,31 @@ namespace {
     
     // Pressure 
     //TODO(SB) general EOS call
+// #ifdef USE_COMPOSE_EOS
+#ifdef LORENE_EOS
+    for (int n = 0; n < tov->npts; n++) {
+      // Real nb = (tov->data[itov_rho][n])/eos_compose.GetBaryonMass();
+      // Real Y_test = 0.1;
+      // tov->data[itov_pre][n] = eos_compose.GetPressure(nb,T,&Y_test);
+      
+      Real rho_n = tov->data[itov_rho][n];
+      Real logp_n = linear_interp(Table->data[tab_logp], Table->data[tab_logrho], Table->size, log(rho_n));
+      tov->data[itov_pre][n] = std::exp(logp_n);
+    }
+#else
     for (int n = 0; n < tov->npts; n++) {
       tov->data[itov_pre][n] = std::pow(tov->data[itov_rho][n],gamma_adi) * k_adi;
     }
-
+#endif
     // Other metric fields
     for (int n = 0; n < tov->npts; n++) {
-      tov->data[itov_psi4][n] = std::pow(tov->data[itov_rsch][n]/tov->data[itov_riso][n], 2);
+      tov->data[itov_psi4][n]  = std::pow(tov->data[itov_rsch][n]/tov->data[itov_riso][n], 2);
       tov->data[itov_lapse][n] = std::exp(tov->data[itov_phi][n]);
     }
 
     // Metric field (regular origin)
     tov->lapse_0 = std::exp(- phiR + phiRa);
-    tov->psi4_0 = 1/(C*C);
+    tov->psi4_0  = 1/(C*C);
     
     // Done!
     printf("TOV_solve: npts = %d\n",tov->npts);
@@ -734,6 +862,25 @@ namespace {
     *fv_p   = f[i-1] + (-ximo + xv)*(C1 + (-xi + xv)*(CC1 + CCC1*(-xipo + xv)));
     *dfv_p  = C1 - (CC1 - CCC1*(xi + xipo - 2.*xv))*(ximo - xv) + (-xi + xv)*(CC1 + CCC1*(-xipo + xv));
     *ddfv_p = 2.*(CC1 - CCC1*(xi + ximo + xipo - 3.*xv));
+  }
+
+
+  //--------------------------------------------------------------------------------------
+  //! \fn double linear_interp(double *f, double *x, int n, double xv)
+  // \brief linearly interpolate f(x), compute f(xv)
+  double linear_interp(double *f, double *x, int n, double xv)
+  {
+    int i = interp_locate(x,n,xv);
+    if (i < 0)  i=1;
+    if (i == n) i=n-1;
+    int j;
+    if(xv < x[i]) j = i-1;
+    else j = i+1;
+    double xj = x[j]; double xi = x[i];
+    double fj = f[j]; double fi = f[i];
+    double m = (fj-fi)/(xj-xi);
+    double df = m*(xv-xj)+fj;
+    return df;
   }
 
 
@@ -925,125 +1072,5 @@ namespace {
     // otherwise, stay
     return 0;
   }
-Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
-                  int const i)
-{
-  return - SQR(gamma(0,2,i))*gamma(1,1,i) +
-          2*gamma(0,1,i)*gamma(0,2,i)*gamma(1,2,i) -
-          gamma(0,0,i)*SQR(gamma(1,2,i)) - SQR(gamma(0,1,i))*gamma(2,2,i) +
-          gamma(0,0,i)*gamma(1,1,i)*gamma(2,2,i);
-}
-
-Real SpatialDet(Real gxx, Real gxy, Real gxz, Real gyy, Real gyz, Real gzz)
-{
-  return - SQR(gxz)*gyy+
-          2*gxy*gxz*gyz -
-          gxx*SQR(gyz) - SQR(gxy)*gzz +
-          gxx*gyy*gzz;
-}
-
-Real Maxrho(MeshBlock *pmb, int iout) {
-  Real max_rho = 0.0;
-  int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
-  AthenaArray<Real> &w = pmb->phydro->w;
-  for (int k=ks; k<=ke; k++) {
-    for (int j=js; j<=je; j++) {
-      for (int i=is; i<=ie; i++) {
-        max_rho = std::max(std::abs(w(IDN,k,j,i)), max_rho);
-      }
-    }
-  }
-  return max_rho;
-}
-
-Real MaxPb(MeshBlock *pmb, int iout) {
-  Real max_pb = 0.0;
-  int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
-  AthenaArray<Real> &w = pmb->phydro->w;
-  AthenaArray<Real> bcc1, bcc2, bcc3;
-  bcc1.InitWithShallowSlice(pmb->pfield->bcc,IB1,1);
-  bcc2.InitWithShallowSlice(pmb->pfield->bcc,IB2,1);
-  bcc3.InitWithShallowSlice(pmb->pfield->bcc,IB3,1);
-  AthenaArray<Real> vcgamma_xx, vcgamma_xy, vcgamma_xz,
-                    vcgamma_yy, vcgamma_yz, vcgamma_zz;
-  vcgamma_xx.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
-  vcgamma_xy.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
-  vcgamma_xz.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
-  vcgamma_yy.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
-  vcgamma_yz.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
-  vcgamma_zz.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
-  Real gxx, gxy, gxz, gyy, gyz, gzz;
-  for (int k=ks; k<=ke; k++) {
-    for (int j=js; j<=je; j++) {
-      for (int i=is; i<=ie; i++) {
-        gxx = CCAvg(vcgamma_xx, k, j, i);
-        gxy = CCAvg(vcgamma_xy, k, j, i);
-        gxz = CCAvg(vcgamma_xz, k, j, i);
-        gyy = CCAvg(vcgamma_yy, k, j, i);
-        gyz = CCAvg(vcgamma_yz, k, j, i);
-        gzz = CCAvg(vcgamma_zz, k, j, i);
-        
-        // Lower the velocity
-        Real v_x = gxx*w(IVX,k,j,i) + gxy*w(IVY,k,j,i) + gxz*w(IVZ,k,j,i);
-        Real v_y = gxy*w(IVX,k,j,i) + gyy*w(IVY,k,j,i) + gyz*w(IVZ,k,j,i);
-        Real v_z = gxz*w(IVX,k,j,i) + gyz*w(IVY,k,j,i) + gzz*w(IVZ,k,j,i);
-
-        // Get the determinant of the metric.
-        Real detg = -gxz*gxz*gyy + gxy*(-gxx + gxz)*gyz + gxy*gxy*(gxz - gzz) + gxx*gyy*gzz;
-
-        // Square the (densitized) magnetic field (lab frame)
-        Real bsq = gxx*bcc1(k,j,i)*bcc1(k,j,i) + 2.0*gxy*bcc1(k,j,i)*bcc2(k,j,i)
-                 + 2.0*gxz*bcc1(k,j,i)*bcc3(k,j,i) + gyy*bcc2(k,j,i)*bcc2(k,j,i)
-                 + 2.0*gyz*bcc2(k,j,i)*bcc3(k,j,i) + gzz*bcc3(k,j,i)*bcc3(k,j,i);
-
-        // Square the velocity
-        Real vsq = w(IVX,k,j,i)*v_x + w(IVY,k,j,i)*v_y + w(IVZ,k,j,i)*v_z;
-
-        // Contract the (densitized) magnetic field (lab frame) with the velocity.
-        Real bv  = bcc1(k,j,i)*v_x + bcc2(k,j,i)*v_y + bcc3(k,j,i)*v_z;
-
-
-        // Calculate the magnetic pressure, undensitizing and accounting for v^i actually
-        // being Wv^i.
-        Real pb = 0.5*(bv*bv + bsq)/((1.0 + vsq)*detg);
-
-        max_pb = std::max(max_pb, pb/w(IEN,k,j,i));
-      }
-    }
-  }
-  return max_pb;
-}
-
-Real CCAvg(AthenaArray<Real>& data, int k, int j, int i) {
-  return 0.125*(((data(k, j, i) + data(k+1, j+1, i+1)) +
-                 (data(k+1, j+1, i) + data(k, j, i+1))) +
-                ((data(k+1, j, i) + data(k, j+1, i+1)) +
-                 (data(k, j+1, i) + data(k+1, j, i+1))));
-}
-
-//TODO make consistent with CT divB
-
-Real DivB(MeshBlock *pmb, int iout) {
-  Real divB = 0.0;
-  Real vol,dx,dy,dz;
-  int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
-  AthenaArray<Real> bcc1, bcc2,bcc3;
-  bcc1.InitWithShallowSlice(pmb->pfield->bcc,IB1,1);
-  bcc2.InitWithShallowSlice(pmb->pfield->bcc,IB2,1);
-  bcc3.InitWithShallowSlice(pmb->pfield->bcc,IB3,1);
-  for (int k=ks; k<=ke; k++) {
-    for (int j=js; j<=je; j++) {
-      for (int i=is; i<=ie; i++) {
-        dx = pmb->pcoord->dx1v(i);
-        dy = pmb->pcoord->dx2v(j);
-        dz = pmb->pcoord->dx3v(k);
-        vol = dx*dy*dz;
-        divB += ((bcc1(k,j,i+1) - bcc1(k,j,i-1))/(2.*dx) + (bcc2(k,j+1,i) - bcc2(k,j-1,i))/(2.* dy) + (bcc3(k+1,j,i) - bcc3(k-1,j,i))/(2. *dz))*vol;
-      }
-    }
-  }
-  return divB;
-}
-
  
 } // namespace

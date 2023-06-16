@@ -96,7 +96,9 @@ void ReadLoreneTable(std::string filename, LoreneTable *Table)
         Table->data[tab_rho][i] = Table->data[tab_nb][i]*MN;
         Table->data[tab_eps][i] = Table->data[tab_e][i]/(MN*Table->data[tab_nb][i]*UNIT_DENS) - 1.;
     }
-    if (DEBUG) printf("ReadLoreneTable: done reading the table\n");
+#ifdef DEBUG
+    printf("ReadLoreneTable: done reading the table\n");
+#endif
 }       
 
 //----------------------------------------------------------------------------------------
@@ -162,7 +164,9 @@ void ReadLoreneFractions(std::string filename, LoreneTable *Table)
     }
 
     fclose(fp);
-    if (DEBUG) printf("ReadLoreneFractions: done reading the Y table\n");
+#ifdef DEBUG
+    printf("ReadLoreneFractions: done reading the Y table\n");
+#endif
 }
 
 //----------------------------------------------------------------------------------------
@@ -196,7 +200,9 @@ void ConvertLoreneTable(LoreneTable *Table)
 
     Table->rho_min = Table->data[tab_rho][0];
     Table->rho_max = Table->data[tab_rho][Table->size-1];
-    if (DEBUG) printf("ConvertLoreneTable: done converting to dimensionless units\n");
+#ifdef DEBUG
+    printf("ConvertLoreneTable: done converting to dimensionless units\n");
+#endif
 }
 
 //----------------------------------------------------------------------------------------

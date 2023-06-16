@@ -460,7 +460,7 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
 #if USETM
     pmb->peos->ConservedToPrimitive(ph->coarse_cons_, ph->coarse_prim_,
                                     pf->coarse_b_, ph->coarse_prim_,
-                                    ps->r, ps->s, //RG: CHECKME
+                                    ps->coarse_s_, ps->coarse_r_, //RG: CHECKME
                                     pf->coarse_bcc_, pmr->pcoarsec,
                                     si-f1m, ei+f1p, sj-f2m, ej+f2p, sk-f3m, ek+f3p,1);
 #else
@@ -471,6 +471,7 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
 #endif
   }
 
+#if !USETM
   if (NSCALARS > 0) {
     PassiveScalars *ps = pmb->pscalars;
     pmb->peos->PassiveScalarConservedToPrimitive(ps->coarse_s_, ph->coarse_prim_,
@@ -479,6 +480,7 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
                                                  si-f1m, ei+f1p, sj-f2m, ej+f2p,
                                                  sk-f3m, ek+f3p);
   }
+#endif
 
   if (nb.ni.ox1 == 0) {
     if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
@@ -710,13 +712,13 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
                                     fsi, fei, fsj, fej, fsk, fek);
 #endif
   }
-
+#if !USETM
   if (NSCALARS > 0) {
     PassiveScalars *ps = pmb->pscalars;
     pmb->peos->PassiveScalarPrimitiveToConserved(ps->r, ph->w, ps->s, pmb->pcoord,
                                                  fsi, fei, fsj, fej, fsk, fek);
   }
-
+#endif
 
   if (DBGPR_BVALS_REFINE)
     coutBlue("< BoundaryValues::ProlongateGhostCells\n");

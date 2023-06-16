@@ -265,8 +265,11 @@ public:
                       AthenaArray<Real> & u_weyl);
 //WGC end
 // Update VC matter
+#if USETM
+  void GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, AthenaArray<Real> & w, AthenaArray<Real> & r, AthenaArray<Real> & bb_cc);
+#else
   void GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, AthenaArray<Real> & w, AthenaArray<Real> & bb_cc);
-
+#endif
 
 
   // utility functions
@@ -334,6 +337,8 @@ public:
 
   // initial data for a single BH
   void ADMOnePuncture(ParameterInput *pin, AthenaArray<Real> & u_adm);
+  void ADMAddBoostedPuncture(ParameterInput *pin, AthenaArray<Real> & u_adm,
+                             AthenaArray<Real>& u_z4c, int index);
   void GaugePreCollapsedLapse(AthenaArray<Real> & u_adm, AthenaArray<Real> & u);
 #ifdef TWO_PUNCTURES
   void ADMTwoPunctures(ParameterInput *pin, AthenaArray<Real> & u_adm, ini_data * data);
@@ -453,6 +458,9 @@ private:
  AthenaArray<Real> utilde1cc;
  AthenaArray<Real> utilde2cc;
  AthenaArray<Real> utilde3cc;
+#if NSCALARS>0
+ AthenaArray<Real> rscalarcc[NSCALARS];
+#endif
  AthenaArray<Real> bb1cc;
  AthenaArray<Real> bb2cc;
  AthenaArray<Real> bb3cc;

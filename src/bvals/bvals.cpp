@@ -304,6 +304,8 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
       bjs = pmb->js, bje = pmb->je,
       bks = pmb->ks, bke = pmb->ke;
 
+  int ignore = VC2CC_IGNORE;
+
   // Extend the transverse limits that correspond to periodic boundaries as they are
   // updated: x1, then x2, then x3
   if (!apply_bndry_fn_[BoundaryFace::inner_x2] && pmb->block_size.nx2 > 1)
@@ -358,17 +360,22 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
     if (FLUID_ENABLED){
 #if USETM
       pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
-                                      pmb->is-NGHOST, pmb->is-1, bjs, bje, bks, bke);
+                                      pmb->is-NGHOST+ignore, pmb->is-1, 
+                                      bjs+ignore, bje-ignore, bks+ignore, bke-ignore);
 #else 
       pmb->peos->PrimitiveToConserved(ph->w,pf->bcc, ph->u, pco,
-                                      pmb->is-NGHOST, pmb->is-1, bjs, bje, bks, bke);
+                                      pmb->is-NGHOST+ignore, pmb->is-1,
+                                      bjs+ignore, bje-ignore, bks+ignore, bke-ignore);
 #endif
     }
 
+#if !USETM
     if (NSCALARS > 0) {
       pmb->peos->PassiveScalarPrimitiveToConserved(
-        ps->r, ph->w, ps->s, pco, pmb->is-NGHOST, pmb->is-1, bjs, bje, bks, bke);
+        ps->r, ph->w, ps->s, pco, pmb->is-NGHOST+ignore, pmb->is-1, 
+        bjs+ignore, bje-ignore, bks+ignore, bke-ignore);
     }
+#endif
   }
 
   // Apply boundary function on outer-x1 and update W,bcc (if not periodic)
@@ -387,17 +394,22 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
     if (FLUID_ENABLED) {
 #if USETM
       pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
-                                      pmb->ie+1, pmb->ie+NGHOST, bjs, bje, bks, bke);
+                                      pmb->ie+1, pmb->ie+NGHOST-ignore, 
+                                      bjs+ignore, bje-ignore, bks+ignore, bke-ignore);
 #else 
       pmb->peos->PrimitiveToConserved(ph->w,pf->bcc, ph->u, pco,
-                                      pmb->ie+1, pmb->ie+NGHOST, bjs, bje, bks, bke);
+                                      pmb->ie+1, pmb->ie+NGHOST-ignore, 
+                                      bjs+ignore, bje-ignore, bks+ignore, bke-ignore);
 #endif
     }
 
+#if !USETM
     if (NSCALARS > 0) {
       pmb->peos->PassiveScalarPrimitiveToConserved(
-        ps->r, ph->w, ps->s, pco, pmb->ie+1, pmb->ie+NGHOST, bjs, bje, bks, bke);
+        ps->r, ph->w, ps->s, pco, pmb->ie+1, pmb->ie+NGHOST-ignore, 
+        bjs+ignore, bje-ignore, bks+ignore, bke-ignore);
     }
+#endif
   }
 
   if (pmb->block_size.nx2 > 1) { // 2D or 3D
@@ -417,17 +429,22 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
       if (FLUID_ENABLED) {
 #if USETM
         pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
-                                        bis, bie, pmb->js-NGHOST, pmb->js-1, bks, bke);
+                                        bis+ignore, bie-ignore, pmb->js-NGHOST+ignore, 
+                                        pmb->js-1, bks+ignore, bke-ignore);
 #else 
         pmb->peos->PrimitiveToConserved(ph->w,pf->bcc, ph->u, pco,
-                                        bis, bie, pmb->js-NGHOST, pmb->js-1, bks, bke);
+                                        bis+ignore, bie-ignore, pmb->js-NGHOST+ignore, 
+                                        pmb->js-1, bks+ignore, bke-ignore);
 #endif
       }
 
+#if !USETM
       if (NSCALARS > 0) {
         pmb->peos->PassiveScalarPrimitiveToConserved(
-            ps->r, ph->w, ps->s, pco, bis, bie, pmb->js-NGHOST, pmb->js-1, bks, bke);
+            ps->r, ph->w, ps->s, pco, bis+ignore, bie-ignore,
+            pmb->js-NGHOST+ignore, pmb->js-1, bks+ignore, bke-ignore);
       }
+#endif
     }
 
     // Apply boundary function on outer-x2 and update W,bcc (if not periodic)
@@ -446,17 +463,22 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
       if (FLUID_ENABLED) {
 #if USETM
         pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
-                                        bis, bie, pmb->je+1, pmb->je+NGHOST, bks, bke);
+                                        bis+ignore, bie-ignore, pmb->je+1, 
+                                        pmb->je+NGHOST-ignore, bks+ignore, bke-ignore);
 #else 
         pmb->peos->PrimitiveToConserved(ph->w,pf->bcc, ph->u, pco,
-                                        bis, bie, pmb->je+1, pmb->je+NGHOST, bks, bke);
+                                        bis+ignore, bie-ignore, pmb->je+1, 
+                                        pmb->je+NGHOST-ignore, bks+ignore, bke-ignore);
 #endif
       }
 
+#if !USETM
       if (NSCALARS > 0) {
         pmb->peos->PassiveScalarPrimitiveToConserved(
-          ps->r, ph->w, ps->s, pco, bis, bie, pmb->je+1, pmb->je+NGHOST, bks, bke);
+          ps->r, ph->w, ps->s, pco, bis+ignore, bie-ignore, 
+          pmb->je+1, pmb->je+NGHOST-ignore, bks+ignore, bke-ignore);
       }
+#endif
     }
   }
 
@@ -480,17 +502,22 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
       if (FLUID_ENABLED) {
 #if USETM
         pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
-                                        bis, bie, bjs, bje, pmb->ks-NGHOST, pmb->ks-1);
+                                        bis+ignore, bie-ignore, 
+                                        bjs+ignore, bje-ignore, pmb->ks-NGHOST+ignore, pmb->ks-1);
 #else 
         pmb->peos->PrimitiveToConserved(ph->w,pf->bcc, ph->u, pco,
-                                        bis, bie, bjs, bje, pmb->ks-NGHOST, pmb->ks-1);
+                                        bis+ignore, bie-ignore, 
+                                        bjs+ignore, bje-ignore, pmb->ks-NGHOST+ignore, pmb->ks-1);
 #endif
       }
 
+#if !USETM
       if (NSCALARS > 0) {
         pmb->peos->PassiveScalarPrimitiveToConserved(
-            ps->r, ph->w, ps->s, pco, bis, bie, bjs, bje, pmb->ks-NGHOST, pmb->ks-1);
+            ps->r, ph->w, ps->s, pco, bis+ignore, bie-ignore, 
+            bjs+ignore, bje-ignore, pmb->ks-NGHOST+ignore, pmb->ks-1);
       }
+#endif
     }
 
     // Apply boundary function on outer-x3 and update W,bcc (if not periodic)
@@ -509,17 +536,22 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
       if (FLUID_ENABLED) {
 #if USETM
         pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
-                                        bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
+                                      bis+ignore, bie-ignore, 
+                                      bjs+ignore, bje-ignore, pmb->ke+1, pmb->ke+NGHOST-ignore);
 #else
         pmb->peos->PrimitiveToConserved(ph->w,pf->bcc, ph->u, pco,
-                                        bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
+                                      bis+ignore, bie-ignore, 
+                                      bjs+ignore, bje-ignore, pmb->ke+1, pmb->ke+NGHOST-ignore);
 #endif
       }
 
+#if !USETM
       if (NSCALARS > 0) {
         pmb->peos->PassiveScalarPrimitiveToConserved(
-            ps->r, ph->w, ps->s, pco, bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
+            ps->r, ph->w, ps->s, pco, bis+ignore, bie-ignore, 
+            bjs+ignore, bje-ignore, pmb->ke+1, pmb->ke+NGHOST-ignore);
       }
+#endif
     }
   }
   return;

@@ -22,11 +22,11 @@ class ResetFloor : public ErrorPolicyInterface {
     ResetFloor();
 
     /// Floor for primitive variables
-    bool PrimitiveFloor(Real& n, Real v[3], Real& p, Real *Y, int n_species);
+    bool PrimitiveFloor(Real& n, Real v[3], Real& T, Real *Y, int n_species);
 
     /// Floor for conserved variables
     bool ConservedFloor(Real& D, Real Sd[3], Real& tau, Real *Y, Real D_floor, 
-                        Real tau_floor, int n_species);
+                        Real tau_floor, Real tau_abs_floor, int n_species);
 
     /// Response to excess magnetization
     Error MagnetizationResponse(Real& bsq, Real b_u[3]);

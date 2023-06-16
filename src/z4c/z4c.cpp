@@ -562,7 +562,11 @@ Real Z4c::Trace(Real const detginv,
 // \!fn Real Z4c::GetMatter(Real detginv, Real gxx, ... , Real gzz, Real Axx, ..., Real Azz)
 // \brief Update matter variables from hydro 
 
+#if USETM
+void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, AthenaArray<Real> & w, AthenaArray<Real> & r, AthenaArray<Real> &bb_cc)
+#else
 void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, AthenaArray<Real> & w, AthenaArray<Real> &bb_cc)
+#endif
 {
     MeshBlock * pmb = pmy_block;
     Matter_vars mat;
@@ -603,6 +607,9 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
       utilde1cc.InitWithShallowSlice(w,IVX,1);
       utilde2cc.InitWithShallowSlice(w,IVY,1);
       utilde3cc.InitWithShallowSlice(w,IVZ,1);
+      for (int Yidx=0; Yidx<NSCALARS; Yidx++) {
+        rscalarcc[Yidx].InitWithShallowSlice(r,Yidx,1);
+      }
       #if MAGNETIC_FIELDS_ENABLED
       bb1cc.InitWithShallowSlice(bb_cc,IB1,1);
       bb2cc.InitWithShallowSlice(bb_cc,IB2,1);
@@ -613,7 +620,10 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
       pgascc.InitWithShallowSlice(pmb->phydro->w_init,IPR,1);
       utilde1cc.InitWithShallowSlice(pmb->phydro->w_init,IVX,1);
       utilde2cc.InitWithShallowSlice(pmb->phydro->w_init,IVY,1);
-      utilde3cc.InitWithShallowSlice(pmb->phydro->w_init,IVZ,1); 
+      utilde3cc.InitWithShallowSlice(pmb->phydro->w_init,IVZ,1);
+      for (int Yidx=0; Yidx<NSCALARS; Yidx++) {
+        rscalarcc[Yidx].InitWithShallowSlice(r,Yidx,1);
+      }
     }
 
     if(opt.Tmunuinterp==0){
@@ -653,35 +663,38 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
       // interpolate to VC
       ILOOP2(k,j){
         ILOOP1(i){
-          //rhovc(i) = ig->map3d_CC2VC(rhocc(k,j,i));
-          rhovc(i) = CCInterpolation(rhocc, k, j, i);
+          rhovc(i) = ig->map3d_CC2VC(rhocc(k,j,i));
+          //rhovc(i) = CCInterpolation(rhocc, k, j, i);
           if(opt.epsinterp==0){
-            //pgasvc(i) = ig->map3d_CC2VC(pgascc(k,j,i));
-            pgasvc(i) = CCInterpolation(pgascc, k, j, i);
+            pgasvc(i) = ig->map3d_CC2VC(pgascc(k,j,i));
+            //pgasvc(i) = CCInterpolation(pgascc, k, j, i);
           } else {
-            //epsvc(i) = ig->map3d_CC2VC(epscc(k,j,i));
-            epsvc(i) = CCInterpolation(epscc, k, j, i);
+            epsvc(i) = ig->map3d_CC2VC(epscc(k,j,i));
+            //epsvc(i) = CCInterpolation(epscc, k, j, i);
           }
-          //utilde1vc(i) = ig->map3d_CC2VC(utilde1cc(k,j,i));
-          //utilde2vc(i) = ig->map3d_CC2VC(utilde2cc(k,j,i));
-          //utilde3vc(i) = ig->map3d_CC2VC(utilde3cc(k,j,i));
-          utilde1vc(i) = CCInterpolation(utilde1cc, k, j, i);
-          utilde2vc(i) = CCInterpolation(utilde2cc, k, j, i);
-          utilde3vc(i) = CCInterpolation(utilde3cc, k, j, i);
+          utilde1vc(i) = ig->map3d_CC2VC(utilde1cc(k,j,i));
+          utilde2vc(i) = ig->map3d_CC2VC(utilde2cc(k,j,i));
+          utilde3vc(i) = ig->map3d_CC2VC(utilde3cc(k,j,i));
+          //utilde1vc(i) = CCInterpolation(utilde1cc, k, j, i);
+          //utilde2vc(i) = CCInterpolation(utilde2cc, k, j, i);
+          //utilde3vc(i) = CCInterpolation(utilde3cc, k, j, i);
           #if MAGNETIC_FIELDS_ENABLED
-          //bb1vc(i)     = ig->map3d_CC2VC(bb1cc(k,j,i));
-          //bb2vc(i)     = ig->map3d_CC2VC(bb2cc(k,j,i));
-          //bb3vc(i)     = ig->map3d_CC2VC(bb3cc(k,j,i));
-          bb1vc(i) = CCInterpolation(bb1cc, k, j, i);
-          bb2vc(i) = CCInterpolation(bb2cc, k, j, i);
-          bb3vc(i) = CCInterpolation(bb3cc, k, j, i);
+          bb1vc(i)     = ig->map3d_CC2VC(bb1cc(k,j,i));
+          bb2vc(i)     = ig->map3d_CC2VC(bb2cc(k,j,i));
+          bb3vc(i)     = ig->map3d_CC2VC(bb3cc(k,j,i));
+          //bb1vc(i) = CCInterpolation(bb1cc, k, j, i);
+          //bb2vc(i) = CCInterpolation(bb2cc, k, j, i);
+          //bb3vc(i) = CCInterpolation(bb3cc, k, j, i);
           #endif
      
           //   NB specific to EOS
           #if USETM
           Real n = rhovc(i)/mb;
-          // FIXME: Generalize to work with EOSes accepting particle fractions.
+          // FIXME: Generalize to work with EOSs accepting particle fractions.
           Real Y[MAX_SPECIES] = {0.0};
+          for (int Yidx=0; Yidx<NSCALARS; Yidx++) {
+            Y[Yidx] = ig->map3d_CC2VC(rscalarcc[Yidx](k,j,i));
+          }
           Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgasvc(i), Y);
           wgas(i) = rhovc(i)*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
           #else
