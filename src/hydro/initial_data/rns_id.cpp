@@ -305,10 +305,12 @@ void Hydro::RNS_Hydro(ParameterInput *pin, AthenaArray<Real> & w, AthenaArray<Re
   Real r;
 //  Real vsq, Wlor;
 
-  CLOOP3(k,j,i){
-    flat_ix = i + n[0]*(j + n[1]*k);
-    r = x[i]*x[i]+y[j]*y[j]+z[k]*z[k];
-    r = std::sqrt(r);
+  for(int k=0; k<n[2]; k++){
+	  for(int j=0; j<n[1]; j++){
+	    for(int i=0; i<n[0]; i++){
+	      flat_ix = i + n[0]*(j + n[1]*k);
+		    r = x[i]*x[i]+y[j]*y[j]+z[k]*z[k];
+		    r = std::sqrt(r);
 /*
     vsq = vx[flat_idx]*vx[flat_idx]*gxx[flat_idx] + 
           vy[flat_idx]*vy[flat_idx]*gyy[flat_idx] +
@@ -319,20 +321,21 @@ void Hydro::RNS_Hydro(ParameterInput *pin, AthenaArray<Real> & w, AthenaArray<Re
 
     Wlor = 1.0/(1.0-vsq);
 */
-    if(rho[flat_ix] > rho_atm){
-        w_init(IDN,k,j,i) = w1(IDN,k,j,i) = w(IDN,k,j,i) = rho[flat_ix];
-        w_init(IPR,k,j,i) = w1(IPR,k,j,i) = w(IPR,k,j,i) = pres[flat_ix]- pres_pert*pres[flat_ix];
-        w_init(IVX,k,j,i) = w1(IVX,k,j,i) = w(IVX,k,j,i) = ux[flat_ix]  - v_pert;
-        w_init(IVY,k,j,i) = w1(IVY,k,j,i) = w(IVY,k,j,i) = uy[flat_ix]- v_pert;
-        w_init(IVZ,k,j,i) = w1(IVZ,k,j,i) = w(IVZ,k,j,i) = uz[flat_ix]- v_pert;
-    } else{
-        w_init(IDN,k,j,i) = w1(IDN,k,j,i) = w(IDN,k,j,i) = rho_atm;
-        w_init(IPR,k,j,i) = w1(IPR,k,j,i) = w(IPR,k,j,i) = pres_atm - pres_pert*pres_atm;
-        w_init(IVX,k,j,i) = w1(IVX,k,j,i) = w(IVX,k,j,i) = 0.0;
-        w_init(IVY,k,j,i) = w1(IVY,k,j,i) = w(IVY,k,j,i) = 0.0;
-        w_init(IVZ,k,j,i) = w1(IVZ,k,j,i) = w(IVZ,k,j,i) = 0.0; 
-    }
-
+        if(rho[flat_ix] > rho_atm){
+          w_init(IDN,k,j,i) = w1(IDN,k,j,i) = w(IDN,k,j,i) = rho[flat_ix];
+          w_init(IPR,k,j,i) = w1(IPR,k,j,i) = w(IPR,k,j,i) = pres[flat_ix]- pres_pert*pres[flat_ix];
+          w_init(IVX,k,j,i) = w1(IVX,k,j,i) = w(IVX,k,j,i) = ux[flat_ix]  - v_pert;
+          w_init(IVY,k,j,i) = w1(IVY,k,j,i) = w(IVY,k,j,i) = uy[flat_ix]- v_pert;
+          w_init(IVZ,k,j,i) = w1(IVZ,k,j,i) = w(IVZ,k,j,i) = uz[flat_ix]- v_pert;
+        }else{
+          w_init(IDN,k,j,i) = w1(IDN,k,j,i) = w(IDN,k,j,i) = rho_atm;
+          w_init(IPR,k,j,i) = w1(IPR,k,j,i) = w(IPR,k,j,i) = pres_atm - pres_pert*pres_atm;
+          w_init(IVX,k,j,i) = w1(IVX,k,j,i) = w(IVX,k,j,i) = 0.0;
+          w_init(IVY,k,j,i) = w1(IVY,k,j,i) = w(IVY,k,j,i) = 0.0;
+          w_init(IVZ,k,j,i) = w1(IVZ,k,j,i) = w(IVZ,k,j,i) = 0.0; 
+        } 
+	    }
+	  }
   }
 
 

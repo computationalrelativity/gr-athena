@@ -58,7 +58,7 @@ void PassiveScalars::AddFluxDivergence(const Real wght, AthenaArray<Real> &s_out
       for (int n=0; n<NSCALARS; ++n) {
 #pragma omp simd
         for (int i=is; i<=ie; ++i) {
-          dflx(n,i) = (x1area(i+1)*x1flux(n,k,j,i+1) - x1area(i)*x1flux(n,k,j,i));
+          dflx(n,i) = (x1flux(n,k,j,i+1) - x1flux(n,k,j,i))/pmb->pcoord->dx1f(i);
         }
       }
 
@@ -69,7 +69,7 @@ void PassiveScalars::AddFluxDivergence(const Real wght, AthenaArray<Real> &s_out
         for (int n=0; n<NSCALARS; ++n) {
 #pragma omp simd
           for (int i=is; i<=ie; ++i) {
-            dflx(n,i) += (x2area_p1(i)*x2flux(n,k,j+1,i) - x2area(i)*x2flux(n,k,j,i));
+            dflx(n,i) += (x2flux(n,k,j+1,i) - x2flux(n,k,j,i))/pmb->pcoord->dx2f(j);
           }
         }
       }
@@ -81,7 +81,7 @@ void PassiveScalars::AddFluxDivergence(const Real wght, AthenaArray<Real> &s_out
         for (int n=0; n<NSCALARS; ++n) {
 #pragma omp simd
           for (int i=is; i<=ie; ++i) {
-            dflx(n,i) += (x3area_p1(i)*x3flux(n,k+1,j,i) - x3area(i)*x3flux(n,k,j,i));
+            dflx(n,i) += (x3flux(n,k+1,j,i) - x3flux(n,k,j,i))/pmb->pcoord->dx3f(k);
           }
         }
       }
@@ -91,7 +91,7 @@ void PassiveScalars::AddFluxDivergence(const Real wght, AthenaArray<Real> &s_out
       for (int n=0; n<NSCALARS; ++n) {
 #pragma omp simd
         for (int i=is; i<=ie; ++i) {
-          s_out(n,k,j,i) -= wght*dflx(n,i)/vol(i);
+          s_out(n,k,j,i) -= wght*dflx(n,i);
         }
       }
     }

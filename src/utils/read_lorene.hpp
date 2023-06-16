@@ -20,10 +20,6 @@
 // Athena++ headers
 #include "../parameter_input.hpp"
 
-#ifndef DEBUG
-#define DEBUG (1)
-#endif 
-
 #define STRLEN (1024)
 #define UNIT_DENS     (1.782662696e12)         // [MeV/fm^3] --> [g/cm^3]
 #define DENS_TO_GEOM  (1.6200170038654943e-18) // [g/cm^3]   --> [dimensionless]

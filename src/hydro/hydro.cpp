@@ -144,6 +144,10 @@ fix_fluxes = pin->GetOrAddInteger("hydro","fix_fluxes",0);
     laplacian_r_fc_.NewAthenaArray(nc1);
   }
 
+#if USETM
+    temperature.NewAthenaArray(nc3, nc2, nc1);
+#endif
+
   UserTimeStep_ = pmb->pmy_mesh->UserTimeStep_;
 }
 

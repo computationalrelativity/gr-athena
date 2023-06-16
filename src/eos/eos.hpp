@@ -203,10 +203,17 @@ class EquationOfState {
       AthenaArray<Real> &lambdas_p, AthenaArray<Real> &lambdas_m);
   void SoundSpeedsGR(Real, Real, Real, Real, Real, Real, Real, Real *, Real *)
   {return;}
+#if USETM
+#pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this)
+  void FastMagnetosonicSpeedsGR(Real rho_h, Real pgas, Real u0, Real u1, Real b_sq,
+                                Real g00, Real g01, Real g11,
+                                Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]);
+#else
 #pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this)
   void FastMagnetosonicSpeedsGR(Real rho_h, Real pgas, Real u0, Real u1, Real b_sq,
                                 Real g00, Real g01, Real g11,
                                 Real *plambda_plus, Real *plambda_minus);
+#endif  // USETM
 #endif  // !MAGNETIC_FIELDS_ENABLED (GR)
 #endif  // #else (#if !RELATIVISTIC_DYNAMICS, #elif !GENERAL_RELATIVITY)
 
@@ -221,6 +228,7 @@ class EquationOfState {
   inline Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& GetEOS() {
     return eos;
   }
+  Real GetTemperatureFloor() const {return temperature_floor_;}
 #endif
 #if GENERAL_EOS
   Real GetGamma();
@@ -256,6 +264,7 @@ class EquationOfState {
   // EOS and PrimitiveSolver objects.
   Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> eos;
   Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> ps;
+  Real temperature_floor_;                // temperature floor
 #endif
 };
 

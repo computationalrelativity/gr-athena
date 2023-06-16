@@ -369,11 +369,13 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
 #endif
     }
 
+#if !USETM
     if (NSCALARS > 0) {
       pmb->peos->PassiveScalarPrimitiveToConserved(
         ps->r, ph->w, ps->s, pco, pmb->is-NGHOST+ignore, pmb->is-1, 
         bjs+ignore, bje-ignore, bks+ignore, bke-ignore);
     }
+#endif
   }
 
   // Apply boundary function on outer-x1 and update W,bcc (if not periodic)
@@ -401,11 +403,13 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
 #endif
     }
 
+#if !USETM
     if (NSCALARS > 0) {
       pmb->peos->PassiveScalarPrimitiveToConserved(
         ps->r, ph->w, ps->s, pco, pmb->ie+1, pmb->ie+NGHOST-ignore, 
         bjs+ignore, bje-ignore, bks+ignore, bke-ignore);
     }
+#endif
   }
 
   if (pmb->block_size.nx2 > 1) { // 2D or 3D
@@ -434,11 +438,13 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
 #endif
       }
 
+#if !USETM
       if (NSCALARS > 0) {
         pmb->peos->PassiveScalarPrimitiveToConserved(
             ps->r, ph->w, ps->s, pco, bis+ignore, bie-ignore,
             pmb->js-NGHOST+ignore, pmb->js-1, bks+ignore, bke-ignore);
       }
+#endif
     }
 
     // Apply boundary function on outer-x2 and update W,bcc (if not periodic)
@@ -466,11 +472,13 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
 #endif
       }
 
+#if !USETM
       if (NSCALARS > 0) {
         pmb->peos->PassiveScalarPrimitiveToConserved(
           ps->r, ph->w, ps->s, pco, bis+ignore, bie-ignore, 
           pmb->je+1, pmb->je+NGHOST-ignore, bks+ignore, bke-ignore);
       }
+#endif
     }
   }
 
@@ -503,11 +511,13 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
 #endif
       }
 
+#if !USETM
       if (NSCALARS > 0) {
         pmb->peos->PassiveScalarPrimitiveToConserved(
             ps->r, ph->w, ps->s, pco, bis+ignore, bie-ignore, 
             bjs+ignore, bje-ignore, pmb->ks-NGHOST+ignore, pmb->ks-1);
       }
+#endif
     }
 
     // Apply boundary function on outer-x3 and update W,bcc (if not periodic)
@@ -535,11 +545,13 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
 #endif
       }
 
+#if !USETM
       if (NSCALARS > 0) {
         pmb->peos->PassiveScalarPrimitiveToConserved(
             ps->r, ph->w, ps->s, pco, bis+ignore, bie-ignore, 
             bjs+ignore, bje-ignore, pmb->ke+1, pmb->ke+NGHOST-ignore);
       }
+#endif
     }
   }
   return;

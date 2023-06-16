@@ -386,9 +386,17 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
 
     AddTask(SEND_Z4C, INT_Z4C);                // SendZ4c
     if(MAGNETIC_FIELDS_ENABLED){
-    AddTask(RECV_Z4C, (INT_Z4C | RECV_HYD | RECV_FLD | RECV_FLDFLX));                   // ReceiveZ4c
-    }else {
-    AddTask(RECV_Z4C, (INT_Z4C | RECV_HYD));                   // ReceiveZ4c
+      if (NSCALARS > 0) {
+        AddTask(RECV_Z4C, (INT_Z4C | RECV_HYD | RECV_FLD | RECV_FLDFLX | RECV_SCLR));                   // ReceiveZ4c
+      } else {
+        AddTask(RECV_Z4C, (INT_Z4C | RECV_HYD | RECV_FLD | RECV_FLDFLX));                   // ReceiveZ4c
+      }
+    } else {
+      if (NSCALARS > 0) {
+        AddTask(RECV_Z4C, (INT_Z4C | RECV_HYD | RECV_SCLR));                   // ReceiveZ4c
+      } else {
+        AddTask(RECV_Z4C, (INT_Z4C | RECV_HYD));                   // ReceiveZ4c
+      }
     }
     AddTask(SETB_Z4C, (RECV_Z4C|INT_Z4C));     // SetBoundariesZ4c
     if (pm->multilevel) { // SMR or AMR
@@ -1262,7 +1270,7 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
     pmb->peos->ConservedToPrimitive(ph->u, ph->w, pf->b,
                                     ph->w1, pf->bcc, pmb->pcoord,
                                     il, iu, jl, ju, kl, ku,0);
-#endif
+
 
     if (NSCALARS > 0) {
       // r1/r_old for GR is currently unused:
@@ -1270,6 +1278,7 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
                                                    ps->r, ps->r,
                                                    pmb->pcoord, il, iu, jl, ju, kl, ku);
     }
+#endif
     // this never tested - potential issue for WENO routines?
     // fourth-order EOS:
     if (pmb->precon->xorder == 4) {
@@ -1292,11 +1301,12 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
                                                  ph->w1, 
                                                  pf->bcc, pmb->pcoord,
                                                  il, iu, jl, ju, kl, ku);
-#endif
+                                                 
       if (NSCALARS > 0) {
         pmb->peos->PassiveScalarConservedToPrimitiveCellAverage(
             ps->s, ps->r, ps->r, pmb->pcoord, il, iu, jl, ju, kl, ku);
       }
+#endif
     }
     // swap AthenaArray data pointers so that w now contains the updated w_out
     ph->w.SwapAthenaArray(ph->w1);
@@ -1705,7 +1715,11 @@ TaskStatus MatterTaskList::UpdateSource(MeshBlock *pmb, int stage) {
 //printf("updatesrc\n");
   if (stage <= nstages) { 
 // Update VC matter 
+#if USETM
+    pmb->pz4c->GetMatter(pmb->pz4c->storage.mat, pmb->pz4c->storage.adm, pmb->phydro->w, pmb->pscalars->r, pmb->pfield->bcc);
+#else
     pmb->pz4c->GetMatter(pmb->pz4c->storage.mat, pmb->pz4c->storage.adm, pmb->phydro->w, pmb->pfield->bcc);
+#endif
     return TaskStatus::success;
   }
   return TaskStatus::fail;
