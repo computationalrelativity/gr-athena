@@ -421,6 +421,8 @@ private:
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> uvec;        // radial vector in tetrad
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> vvec;        // theta vector in tetrad
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> wvec;        // phi vector in tetrad
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> rmb;        // radial vector in tetrad
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> imb;        // theta vector in tetrad
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> dotp1;       // dot product in Gram-Schmidt orthonormalisation
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> dotp2;       // second dot product in G-S orthonormalisation
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 4> Riem3_dddd;  // 3D Riemann tensor

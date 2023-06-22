@@ -250,6 +250,8 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   uvec.NewAthenaTensor(pmb->nverts1);
   vvec.NewAthenaTensor(pmb->nverts1);
   wvec.NewAthenaTensor(pmb->nverts1);
+  rmb.NewAthenaTensor(pmb->nverts1);
+  imb.NewAthenaTensor(pmb->nverts1);
   dotp1.NewAthenaTensor(pmb->nverts1);
   dotp2.NewAthenaTensor(pmb->nverts1);
   Riem3_dddd.NewAthenaTensor(pmb->nverts1);
@@ -382,6 +384,8 @@ Z4c::~Z4c()
   uvec.DeleteAthenaTensor();
   vvec.DeleteAthenaTensor();
   wvec.DeleteAthenaTensor();
+  rmb.DeleteAthenaTensor();
+  imb.DeleteAthenaTensor();
   dotp1.DeleteAthenaTensor();
   dotp2.DeleteAthenaTensor();
   Riem3_dddd.DeleteAthenaTensor();
