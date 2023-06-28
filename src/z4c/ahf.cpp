@@ -1041,6 +1041,7 @@ void AHF::FastFlowLoop()
   Real Sy = 0;
   Real Sz = 0;
   Real S = 0;
+  bool failed = false;
 
   if (verbose && ioproc) {
     std::cout << "\nSearching for horizon " << nh << std::endl;
@@ -1100,6 +1101,7 @@ void AHF::FastFlowLoop()
       if (verbose && ioproc) {
         std::cout << "Failed hmean > " << hmean_tol << std::endl;
       }
+      failed = true;
       break;
      }
 
@@ -1107,6 +1109,7 @@ void AHF::FastFlowLoop()
       if (verbose && ioproc) {
        std::cout << "Failed meanradius < 0" << std::endl;
       }
+      failed = true;
       break;
     }
 
@@ -1147,7 +1150,7 @@ void AHF::FastFlowLoop()
       std::cout << " Sx = " << Sx << std::endl;
       std::cout << " Sy = " << Sy << std::endl;
       std::cout << " Sz = " << Sz << std::endl;
-    } else {
+    } else if (!failed && !ah_found) {
       std::cout << "Failed, reached max iterations " << flow_iterations << std::endl;
     }
   }
