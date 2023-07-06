@@ -1082,9 +1082,9 @@ void AHF::FastFlowLoop()
     area = integrals[iarea];
     hrms = integrals[ihrms]/area;
     hmean = integrals[ihmean];
-    Sx = integrals[iSx];
-    Sy = integrals[iSy];
-    Sz = integrals[iSz];
+    Sx = integrals[iSx]/(8*PI);
+    Sy = integrals[iSy]/(8*PI);
+    Sz = integrals[iSz]/(8*PI);
 
     S = std::sqrt(SQ(Sx)+SQ(Sy)+SQ(Sz));
 
