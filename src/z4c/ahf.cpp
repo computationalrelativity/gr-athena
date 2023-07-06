@@ -58,6 +58,7 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   lmax1 = lmax+1;
   
   flow_iterations = pin->GetOrAddInteger("ahf", "flow_iterations",100);
+  flow_alpha_beta_const = pin->GetOrAddReal("ahf", "flow_alpha_beta_const",1.0);
   hmean_tol = pin->GetOrAddReal("ahf", "hmean_tol",100.);
   mass_tol = pin->GetOrAddReal("ahf", "mass_tol",1e-2);
   verbose = pin->GetOrAddBoolean("ahf", "verbose", 0);
@@ -1161,10 +1162,10 @@ void AHF::FastFlowLoop()
 // \brief find new spectral components with fast flow
 void AHF::UpdateFlowSpectralComponents()
 {
-  const double alpha = 1.0;
-  const double beta = 0.5;
-  const double A = alpha/(lmax*lmax1) + beta;
-  const double B = beta/alpha;
+  const Real alpha = flow_alpha_beta_const;
+  const Real beta = 0.5 * flow_alpha_beta_const;
+  const Real A = alpha/(lmax*lmax1) + beta;
+  const Real B = beta/alpha;
 
   Real * spec0 = new Real[lmax1];
   Real * specc = new Real[lmpoints];
