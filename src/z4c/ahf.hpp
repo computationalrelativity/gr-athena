@@ -55,6 +55,7 @@ public:
   Real hmean_tol;
   Real mass_tol;
   int flow_iterations;
+  Real flow_alpha_beta_const;
   bool verbose;
   //! Multipoles
   int lmax;
