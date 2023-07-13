@@ -42,42 +42,56 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
   // Simplify constants (2 & sqrt 2 factors) featured in re/im[psi4]
   const Real FR4 = 0.25;
 
-  ILOOP2(k,j) {
+  GLOOP2(k,j) {
 
 
     // -----------------------------------------------------------------------------------
     // derivatives
     //
     // first derivatives of g and K
-    for(int c = 0; c < NDIM; ++c)
+    //for(int c = 0; c < NDIM; ++c)
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
-      ILOOP1(i) {
-        dg_ddd(c,a,b,i) = FD.Dx(c, adm.g_dd(a,b,k,j,i));
-        dK_ddd(c,a,b,i) = FD.Dx(c, adm.K_dd(a,b,k,j,i));
+      GLOOP1(i) {
+        dg_ddd(0,a,b,i) = FD.Gx(0, IX_IL, IX_IU, i, adm.g_dd(a,b,k,j,i));
+        dg_ddd(1,a,b,i) = FD.Gx(1, IX_JL, IX_JU, j, adm.g_dd(a,b,k,j,i));
+        dg_ddd(2,a,b,i) = FD.Gx(2, IX_KL, IX_KU, k, adm.g_dd(a,b,k,j,i));
+        dK_ddd(0,a,b,i) = FD.Gx(0, IX_IL, IX_IU, i, adm.K_dd(a,b,k,j,i));
+        dK_ddd(1,a,b,i) = FD.Gx(1, IX_JL, IX_JU, j, adm.K_dd(a,b,k,j,i));
+        dK_ddd(2,a,b,i) = FD.Gx(2, IX_KL, IX_KU, k, adm.K_dd(a,b,k,j,i));
       }
     }
     // second derivatives of g
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = 0; b < NDIM; ++b)
+    //for(int a = 0; a < NDIM; ++a)
+    //for(int b = 0; b < NDIM; ++b)
     for(int c = 0; c < NDIM; ++c)
     for(int d = 0; d < NDIM; ++d) {
+      GLOOP1(i) {
+        ddg_dddd(0,0,c,d,i) = FD.G2x(0, 0, IX_IL, IX_IU, i, IX_IL, IX_IU, i, adm.g_dd(c,d,k,j,i));
+        ddg_dddd(0,1,c,d,i) = FD.G2x(0, 1, IX_IL, IX_IU, i, IX_JL, IX_JU, j, adm.g_dd(c,d,k,j,i));
+        ddg_dddd(0,2,c,d,i) = FD.G2x(0, 2, IX_IL, IX_IU, i, IX_KL, IX_KU, k, adm.g_dd(c,d,k,j,i));
+        ddg_dddd(1,1,c,d,i) = FD.G2x(1, 1, IX_JL, IX_JU, j, IX_JL, IX_JU, j, adm.g_dd(c,d,k,j,i));
+        ddg_dddd(1,2,c,d,i) = FD.G2x(1, 2, IX_JL, IX_JU, j, IX_KL, IX_KU, k, adm.g_dd(c,d,k,j,i));
+        ddg_dddd(2,2,c,d,i) = FD.G2x(2, 2, IX_KL, IX_KU, k, IX_KL, IX_KU, k, adm.g_dd(c,d,k,j,i));
+      }
+      /*
       if(a == b) {
-        ILOOP1(i) {
+        GLOOP1(i) {
           ddg_dddd(a,a,c,d,i) = FD.Dxx(a, adm.g_dd(c,d,k,j,i));
         }
       }
       else {
-        ILOOP1(i) {
+        GLOOP1(i) {
           ddg_dddd(a,b,c,d,i) = FD.Dxy(a, b, adm.g_dd(c,d,k,j,i));
         }
       }
+      */
     }
 
     // -----------------------------------------------------------------------------------
     // inverse metric
     //
-    ILOOP1(i) {
+    GLOOP1(i) {
       detg(i) = SpatialDet(adm.g_dd,k,j,i);
       SpatialInv(1./detg(i),
           adm.g_dd(0,0,k,j,i), adm.g_dd(0,1,k,j,i), adm.g_dd(0,2,k,j,i),
@@ -93,7 +107,7 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
     for(int c = 0; c < NDIM; ++c)
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b) {
-      ILOOP1(i) {
+      GLOOP1(i) {
         Gamma_ddd(c,a,b,i) = 0.5*(dg_ddd(a,b,c,i) + dg_ddd(b,a,c,i) - dg_ddd(c,a,b,i));
       }
     }
@@ -103,7 +117,7 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b)
     for(int d = 0; d < NDIM; ++d) {
-      ILOOP1(i) {
+      GLOOP1(i) {
         Gamma_udd(c,a,b,i) += g_uu(c,d,i)*Gamma_ddd(d,a,b,i);
       }
     }
@@ -112,7 +126,7 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b)
     for(int c = 0; c < NDIM; ++c) {
-      ILOOP1(i) {
+      GLOOP1(i) {
         Gamma_u(a,i) += g_uu(b,c,i)*Gamma_udd(a,b,c,i);
       }
     }
@@ -128,19 +142,19 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
       for(int d = 0; d < NDIM; ++d) {
         // Part with the Christoffel symbols
         for(int e = 0; e < NDIM; ++e) {
-          ILOOP1(i) {
+          GLOOP1(i) {
             R_dd(a,b,i) += g_uu(c,d,i) * Gamma_udd(e,a,c,i) * Gamma_ddd(e,b,d,i);
             R_dd(a,b,i) -= g_uu(c,d,i) * Gamma_udd(e,a,b,i) * Gamma_ddd(e,c,d,i);
           }
         }
         // Wave operator part of the Ricci
-        ILOOP1(i) {
+        GLOOP1(i) {
           R_dd(a,b,i) += 0.5*g_uu(c,d,i)*(
               - ddg_dddd(c,d,a,b,i) - ddg_dddd(a,b,c,d,i) +
                 ddg_dddd(a,c,b,d,i) + ddg_dddd(b,c,a,d,i));
         }
       }
-      ILOOP1(i) {
+      GLOOP1(i) {
         R(i) += g_uu(a,b,i) * R_dd(a,b,i);
       }
     }
@@ -153,12 +167,12 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
     for(int a = 0; a < NDIM; ++a) {
       for(int b = 0; b < NDIM; ++b) {
         for(int c = 0; c < NDIM; ++c) {
-          ILOOP1(i) {
+          GLOOP1(i) {
             K_ud(a,b,i) += g_uu(a,c,i) * adm.K_dd(c,b,k,j,i);
           }
         }
       }
-      ILOOP1(i) {
+      GLOOP1(i) {
         K(i) += K_ud(a,a,i);
       }
     }
@@ -166,7 +180,7 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
     KK.ZeroClear();
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
-      ILOOP1(i) {
+      GLOOP1(i) {
         KK(i) += K_ud(a,b,i) * K_ud(b,a,i);
       }
     }
@@ -174,11 +188,11 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b)
     for(int c = 0; c < NDIM; ++c) {
-      ILOOP1(i) {
+      GLOOP1(i) {
         DK_ddd(a,b,c,i) = dK_ddd(a,b,c,i);
       }
       for(int d = 0; d < NDIM; ++d) {
-        ILOOP1(i) {
+        GLOOP1(i) {
           DK_ddd(a,b,c,i) -= Gamma_udd(d,a,b,i) * adm.K_dd(d,c,k,j,i);
           DK_ddd(a,b,c,i) -= Gamma_udd(d,a,c,i) * adm.K_dd(b,d,k,j,i);
         }
@@ -189,7 +203,7 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
     for(int b = 0; b < NDIM; ++b)
     for(int c = 0; c < NDIM; ++c)
     for(int d = 0; d < NDIM; ++d) {
-      ILOOP1(i) {
+      GLOOP1(i) {
         DK_udd(a,b,c,i) += g_uu(a,d,i) * DK_ddd(d,b,c,i);
       }
     }
@@ -204,7 +218,7 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
     S.ZeroClear();
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
-      ILOOP1(i) {
+      GLOOP1(i) {
         S(i) += g_uu(a,b,i) * mat.S_dd(a,b,k,j,i);
       }
     }
@@ -218,7 +232,7 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
     //     uvec = radial vec
     //     vvec = theta vec
     //     wvec = phi vec
-    ILOOP1(i){
+    GLOOP1(i){
       Real xx = pmy_block->pcoord->x1f(i);
       if(SQ(pmy_block->pcoord->x1f(i)) +  SQ(pmy_block->pcoord->x2f(j)) < 1e-10)
         xx = xx + 1e-8;
@@ -238,13 +252,13 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
     dotp1.ZeroClear();
     for(int a = 0; a<NDIM; ++a){
 	    for(int b = 0; b<NDIM; ++b){
-	      ILOOP1(i){
+	      GLOOP1(i){
           dotp1(i) += adm.g_dd(a,b,k,j,i)*wvec(a,i)*wvec(b,i);
 	      }
 	    }
     }
     for(int a =0; a<NDIM; ++a){
-      ILOOP1(i){
+      GLOOP1(i){
 	      wvec(a,i) = wvec(a,i)/sqrt(dotp1(i));
       }
     }
@@ -252,27 +266,27 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
     dotp1.ZeroClear();
     for(int a = 0; a<NDIM; ++a){
       for( int b = 0; b<NDIM; ++b){
-	      ILOOP1(i){
+	      GLOOP1(i){
 	        dotp1(i) += adm.g_dd(a,b,k,j,i)*wvec(a,i)*uvec(b,i);
 	      }
       }
     }
     for(int a = 0; a<NDIM; ++a){
-      ILOOP1(i){
+      GLOOP1(i){
 	      uvec(a,i) -= dotp1(i)*wvec(a,i);
 	    }
     }
     dotp1.ZeroClear();
     for(int a = 0; a<NDIM; ++a){
 	    for(int b = 0; b<NDIM; ++b) {
-	      ILOOP1(i){
+	      GLOOP1(i){
 	        dotp1(i) += adm.g_dd(a,b,k,j,i)*uvec(a,i)*uvec(b,i);
 	      }
 	    }
     }
 
     for(int a =0; a<NDIM; ++a){
-	    ILOOP1(i){
+	    GLOOP1(i){
 	      uvec(a,i) = uvec(a,i)/sqrt(dotp1(i));
 	    }
     }
@@ -280,7 +294,7 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
     dotp1.ZeroClear();
     for(int a = 0; a<NDIM; ++a){
       for(int b = 0; b<NDIM; ++b) {
-	      ILOOP1(i){
+	      GLOOP1(i){
 	        dotp1(i) += adm.g_dd(a,b,k,j,i)*wvec(a,i)*vvec(b,i);
 	      }
 	    }
@@ -288,14 +302,14 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
     dotp2.ZeroClear();
     for(int a = 0; a<NDIM; ++a){
 	    for( int b = 0; b<NDIM; ++b) {
-	      ILOOP1(i){
+	      GLOOP1(i){
 	        dotp2(i) += adm.g_dd(a,b,k,j,i)*uvec(a,i)*vvec(b,i);
 	      }
 	    }
     }
 
     for(int a = 0; a<NDIM; ++a){
-	    ILOOP1(i){
+	    GLOOP1(i){
 	      vvec(a,i) -= dotp1(i)*wvec(a,i)+dotp2(i)*uvec(a,i);
 	    }
     }
@@ -303,14 +317,14 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
     dotp1.ZeroClear();
     for(int a = 0; a<NDIM; ++a){
 	    for( int b = 0; b<NDIM; ++b) {
-	      ILOOP1(i){
+	      GLOOP1(i){
 	        dotp1(i) += adm.g_dd(a,b,k,j,i)*vvec(a,i)*vvec(b,i);
 	      }
 	    }
     }
 
     for(int a =0; a<NDIM; ++a){
-	    ILOOP1(i){
+	    GLOOP1(i){
 	      vvec(a,i) = vvec(a,i)/sqrt(dotp1(i));
 	    }
     }
@@ -327,7 +341,7 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
       for(int b = 0; b < NDIM; ++b){
         for(int c = 0; c < NDIM; ++c){
           for(int d = 0; d < NDIM; ++d){
-            ILOOP1(i){
+            GLOOP1(i){
               Riem3_dddd(a,b,c,d,i) = adm.g_dd(a,c,k,j,i)*R_dd(b,d,i) +adm.g_dd(b,d,k,j,i)*R_dd(a,c,i)
                                       - adm.g_dd(a,d,k,j,i)*R_dd(b,c,i) - adm.g_dd(b,c,k,j,i)*R_dd(a,d,i)
                                       - 0.5*R(i)*adm.g_dd(a,c,k,j,i)*adm.g_dd(b,d,k,j,i)
@@ -343,7 +357,7 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
     for(int a = 0; a < NDIM; ++a){
       for(int b = 0; b < NDIM; ++b){
         for(int c = 0; c < NDIM; ++c){
-          ILOOP1(i){
+          GLOOP1(i){
             Riemm4_ddd(a,b,c,i) = - (DK_ddd(c,a,b,i) - DK_ddd(b,a,c,i));
           }
         }
@@ -353,12 +367,12 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
 
     for(int a = 0; a < NDIM; ++a){
       for(int b = 0; b < NDIM; ++b){
-        ILOOP1(i){
+        GLOOP1(i){
           Riemm4_dd(a,b,i) = R_dd(a,b,i) + K(i)*adm.K_dd(a,b,k,j,i);
         }
         for(int c = 0; c < NDIM; ++c){
           for(int d = 0; d < NDIM; ++d){
-            ILOOP1(i){
+            GLOOP1(i){
               Riemm4_dd(a,b,i) += - g_uu(c,d,i)*adm.K_dd(a,c,k,j,i)*adm.K_dd(d,b,k,j,i);
             }
           }
@@ -368,7 +382,7 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
 
     for(int a = 0; a < NDIM; ++a){
       for(int b = 0; b < NDIM; ++b){
-        ILOOP1(i){
+        GLOOP1(i){
           weyl.rpsi4(k,j,i) += - FR4 * Riemm4_dd(a,b,i) * (
             vvec(a,i) * vvec(b,i) - (-wvec(a,i) * (-wvec(b,i)))
           );
@@ -377,7 +391,7 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
           );
         }
         for(int c = 0; c < NDIM; ++c){
-          ILOOP1(i){
+          GLOOP1(i){
             weyl.rpsi4(k,j,i) += 0.5 * Riemm4_ddd(a,c,b,i) * uvec(c,i) * (
               vvec(a,i) * vvec(b,i) - (-wvec(a,i)*(-wvec(b,i)))
             );
@@ -386,7 +400,7 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
             );
           }
           for(int d = 0; d < NDIM; ++d){
-            ILOOP1(i){
+            GLOOP1(i){
               weyl.rpsi4(k,j,i) += -FR4 * (Riemm4_dddd(d,a,c,b,i) * uvec(d,i) * uvec(c,i)) * (
                 vvec(a,i) * vvec(b,i) - (-wvec(a,i)*(-wvec(b,i)))
               );
