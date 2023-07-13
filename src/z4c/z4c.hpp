@@ -15,6 +15,11 @@
 
 // C++ headers
 // #include <string>
+#include <cstdio>
+#include <stdexcept>
+#include <sstream>
+#include <unistd.h>
+#include <cmath> // NAN
 
 // Athena++ classes headers
 #include "../athena.hpp"
@@ -421,6 +426,8 @@ private:
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> uvec;        // radial vector in tetrad
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> vvec;        // theta vector in tetrad
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> wvec;        // phi vector in tetrad
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> rmb;        // radial vector in tetrad
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> imb;        // theta vector in tetrad
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> dotp1;       // dot product in Gram-Schmidt orthonormalisation
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> dotp2;       // second dot product in G-S orthonormalisation
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 4> Riem3_dddd;  // 3D Riemann tensor
@@ -491,6 +498,44 @@ private:
         FDBiasedChoice<1, NGHOST-1>::nghost,
         FDBiasedChoice<1, NGHOST-1>::lopsize
       > sr;
+    //1st derivative
+    typedef FDRightBiasedStencilBeyond<
+        1, NGHOST, 2
+      > sr_1B; 
+    typedef FDRightBiasedStencilBeyond<
+        1, NGHOST, 1
+      > sr_2B;
+    typedef FDRightBiasedStencilBeyond<
+        1, NGHOST, 0
+      > sr_3B; 
+    typedef FDLeftBiasedStencilBeyond<
+        1, NGHOST, 2
+      > sl_1B; 
+    typedef FDLeftBiasedStencilBeyond<
+        1, NGHOST, 1
+      > sl_2B;
+    typedef FDLeftBiasedStencilBeyond<
+        1, NGHOST, 0
+      > sl_3B; 
+    //2nd derivative
+    typedef FDRightBiasedStencilBeyond<
+        2, NGHOST, 2
+      > sr2_1B; 
+    typedef FDRightBiasedStencilBeyond<
+        2, NGHOST, 1
+      > sr2_2B;
+    typedef FDRightBiasedStencilBeyond<
+        2, NGHOST, 0
+      > sr2_3B; 
+    typedef FDLeftBiasedStencilBeyond<
+        2, NGHOST, 2
+      > sl2_1B; 
+    typedef FDLeftBiasedStencilBeyond<
+        2, NGHOST, 1
+      > sl2_2B;
+    typedef FDLeftBiasedStencilBeyond<
+        2, NGHOST, 0
+      > sl2_3B; 
 #endif // DBG_SYMMETRIZE_FD
 
     // 1st derivative (high order centered)
@@ -605,6 +650,515 @@ private:
       return ((vx < 0) ? (vx * dl) : (vx * dr)) * idx[dir];
     }
 #endif // DBG_SYMMETRIZE_FD
+    // Generic first derivative
+    inline Real Gx(int dir, int INIT, int END, int index, Real & u) {
+      Real * pu = &u;
+      int lopsided;
+      if (index < INIT) {lopsided = INIT - index;}
+      else if (index > END) {lopsided = END - index;}
+      else {lopsided = 0;}
+      
+      Real out(0.);
+      // Dx
+      switch (lopsided) { 
+        case 0:
+          pu -= s1::offset*stride[dir];
+
+          for(int n1 = 0; n1 < s1::nghost; ++n1) {
+            int const n2  = s1::width - n1 - 1;
+            Real const c1 = s1::coeff[n1] * pu[n1*stride[dir]];
+            Real const c2 = s1::coeff[n2] * pu[n2*stride[dir]];
+            out += (c1 + c2);
+          }
+          out += s1::coeff[s1::nghost] * pu[s1::nghost*stride[dir]];
+          break;
+        case 1:
+          for(int n = sr_1B::width-1; n >= 0; --n) {
+            out += sr_1B::coeff[n] * pu[(n - sr_1B::offset)*stride[dir]];
+          }
+          break;
+        case 2:
+          for(int n = sr_2B::width-1; n >= 0; --n) {
+            out += sr_2B::coeff[n] * pu[(n - sr_2B::offset)*stride[dir]];
+          }
+          break;
+        case 3:
+          for(int n = sr_3B::width-1; n >= 0; --n) {
+            out += sr_3B::coeff[n] * pu[(n - sr_3B::offset)*stride[dir]];
+          }
+          break;
+        case -1:
+          for(int n = 0; n < sl_1B::width; ++n) {
+            out += sl_1B::coeff[n] * pu[(n - sl_1B::offset)*stride[dir]];
+          }
+          break;
+        case -2: 
+          for(int n = 0; n < sl_2B::width; ++n) {
+            out += sl_2B::coeff[n] * pu[(n - sl_2B::offset)*stride[dir]];
+          }
+          break;
+        case -3:
+          for(int n = 0; n < sl_3B::width; ++n) {
+            out += sl_3B::coeff[n] * pu[(n - sl_3B::offset)*stride[dir]];
+          }
+          break;
+        default:
+          std::stringstream msg;
+          msg << "### FATAL ERROR in Lopsided derivatives" << std::endl;
+          msg << " parameter lopsided = " << lopsided << " not implemented.";
+          throw std::runtime_error(msg.str().c_str());
+          break;
+      }
+      return out * idx[dir];
+    }
+    inline Real G2x(int dirx, int diry, 
+                    int INITx, int ENDx, int indx,  
+                    int INITy, int ENDy, int indy,  
+                    Real & u) {
+      Real * pu = &u;
+      int lopsidedx, lopsidedy;
+      if (indx < INITx) {lopsidedx = INITx - indx;}
+      else if (indx > ENDx) {lopsidedx = ENDx - indx;}
+      else {lopsidedx = 0;}
+      if (indy < INITy) {lopsidedy = INITy - indy;}
+      else if (indy > ENDy) {lopsidedy = ENDy - indy;}
+      else {lopsidedy = 0;}
+
+      if (dirx == diry) {
+        // Dxx
+        Real out(0.);
+        int dir = dirx;
+        int lopsided = lopsidedx;
+        switch (lopsided) { 
+          case 0:
+            // TODO compare with Dxx!
+            pu -= s2::offset*stride[dir];
+
+            for(int n1 = 0; n1 < s2::nghost; ++n1) {
+              int const n2  = s2::width - n1 - 1;
+              Real const c1 = s2::coeff[n1] * pu[n1*stride[dir]];
+              Real const c2 = s2::coeff[n2] * pu[n2*stride[dir]];
+              out += (c1 + c2);
+            }
+            out += s2::coeff[s2::nghost] * pu[s2::nghost*stride[dir]];
+            break;
+          case 1:
+            for(int n = sr2_1B::width-1; n >= 0; --n) {
+              out += sr2_1B::coeff[n] * pu[(n - sr2_1B::offset)*stride[dir]];
+            }
+            break;
+          case 2:
+            for(int n = sr2_2B::width-1; n >= 0; --n) {
+              out += sr2_2B::coeff[n] * pu[(n - sr2_2B::offset)*stride[dir]];
+            }
+            break;
+          case 3:
+            for(int n = sr2_3B::width-1; n >= 0; --n) {
+              out += sr2_3B::coeff[n] * pu[(n - sr2_3B::offset)*stride[dir]];
+            }
+            break;
+          case -1:
+            for(int n = 0; n < sl2_1B::width; ++n) {
+              out += sl2_1B::coeff[n] * pu[(n - sl2_1B::offset)*stride[dir]];
+            }
+            break;
+          case -2: 
+            for(int n = 0; n < sl2_2B::width; ++n) {
+              out += sl2_2B::coeff[n] * pu[(n - sl2_2B::offset)*stride[dir]];
+            }
+            break;
+          case -3:
+            for(int n = 0; n < sl2_3B::width; ++n) {
+              out += sl2_3B::coeff[n] * pu[(n - sl2_3B::offset)*stride[dir]];
+            }
+            break;
+          default:
+            std::stringstream msg;
+            msg << "### FATAL ERROR in Lopsided derivatives" << std::endl;
+            msg << " parameter lopsided = " << lopsided << " not implemented.";
+            throw std::runtime_error(msg.str().c_str());
+            break;
+        }
+        return out * SQR(idx[dir]);
+      } else {
+        Real out(0.);
+        switch (lopsidedx) {
+          case 0:
+            switch (lopsidedy) {
+              case 0:
+                for(int n = 0; n < s1::width; ++n) 
+                for(int m = 0; m < s1::width; ++m) {
+                  out += s1::coeff[n] * pu[(n - s1::offset)*stride[dirx]] * 
+                         s1::coeff[m] * pu[(m - s1::offset)*stride[diry]];
+                }
+                break;
+              case 1:
+                for(int n = 0; n < s1::width; ++n) 
+                for(int m = sr_1B::width-1; m >= 0; --m) {
+                  out +=    s1::coeff[n] * pu[(n -    s1::offset)*stride[dirx]] * 
+                         sr_1B::coeff[m] * pu[(m - sr_1B::offset)*stride[diry]];
+                }
+                break;
+              case 2:
+                for(int n = 0; n < s1::width; ++n) 
+                for(int m = sr_2B::width-1; m >= 0; --m) {
+                  out +=    s1::coeff[n] * pu[(n -    s1::offset)*stride[dirx]] * 
+                         sr_2B::coeff[m] * pu[(m - sr_2B::offset)*stride[diry]];
+                }
+                break;
+              case 3:
+                for(int n = 0; n < s1::width; ++n) 
+                for(int m = sr_3B::width-1; m >= 0; --m) {
+                  out +=    s1::coeff[n] * pu[(n -    s1::offset)*stride[dirx]] * 
+                         sr_3B::coeff[m] * pu[(m - sr_3B::offset)*stride[diry]];
+                }
+                break;
+              case -1:
+                for(int n = 0; n <    s1::width; ++n) 
+                for(int m = 0; m < sl_1B::width; ++m) {
+                  out +=    s1::coeff[n] * pu[(n -    s1::offset)*stride[dirx]] * 
+                         sl_1B::coeff[m] * pu[(m - sl_1B::offset)*stride[diry]];
+                }
+                break;
+              case -2:
+                for(int n = 0; n <    s1::width; ++n) 
+                for(int m = 0; m < sl_2B::width; ++m) {
+                  out +=    s1::coeff[n] * pu[(n -    s1::offset)*stride[dirx]] * 
+                         sl_2B::coeff[m] * pu[(m - sl_2B::offset)*stride[diry]];
+                }
+                break;
+              case -3:
+                for(int n = 0; n <    s1::width; ++n) 
+                for(int m = 0; m < sl_3B::width; ++m) {
+                  out +=    s1::coeff[n] * pu[(n -    s1::offset)*stride[dirx]] * 
+                         sl_3B::coeff[m] * pu[(m - sl_3B::offset)*stride[diry]];
+                }
+                break;
+            }
+            break;
+          case 1:
+            switch (lopsidedy) {
+              case 0:
+                for(int n = sr_1B::width-1; n >= 0; --n)
+                for(int m = 0; m < s1::width; ++m) {
+                  out += sr_1B::coeff[n] * pu[(n - sr_1B::offset)*stride[dirx]] * 
+                            s1::coeff[m] * pu[(m -    s1::offset)*stride[diry]];
+                }
+                break;
+              case 1:
+                for(int n = sr_1B::width-1; n >= 0; --n)
+                for(int m = sr_1B::width-1; m >= 0; --m) {
+                  out += sr_1B::coeff[n] * pu[(n - sr_1B::offset)*stride[dirx]] * 
+                         sr_1B::coeff[m] * pu[(m - sr_1B::offset)*stride[diry]];
+                }
+                break;
+              case 2:
+                for(int n = sr_1B::width-1; n >= 0; --n)
+                for(int m = sr_2B::width-1; m >= 0; --m) {
+                  out += sr_1B::coeff[n] * pu[(n - sr_1B::offset)*stride[dirx]] * 
+                         sr_2B::coeff[m] * pu[(m - sr_2B::offset)*stride[diry]];
+                }
+                break;
+              case 3:
+                for(int n = sr_1B::width-1; n >= 0; --n)
+                for(int m = sr_3B::width-1; m >= 0; --m) {
+                  out += sr_1B::coeff[n] * pu[(n - sr_1B::offset)*stride[dirx]] * 
+                         sr_3B::coeff[m] * pu[(m - sr_3B::offset)*stride[diry]];
+                }
+                break;
+              case -1:
+                for(int n = sr_1B::width-1; n >= 0; --n)
+                for(int m = 0; m < sl_1B::width; ++m) {
+                  out += sr_1B::coeff[n] * pu[(n - sr_1B::offset)*stride[dirx]] * 
+                         sl_1B::coeff[m] * pu[(m - sl_1B::offset)*stride[diry]];
+                }
+                break;
+              case -2:
+                for(int n = sr_1B::width-1; n >= 0; --n)
+                for(int m = 0; m < sl_2B::width; ++m) {
+                  out += sr_1B::coeff[n] * pu[(n - sr_1B::offset)*stride[dirx]] * 
+                         sl_2B::coeff[m] * pu[(m - sl_2B::offset)*stride[diry]];
+                }
+                break;
+              case -3:
+                for(int n = sr_1B::width-1; n >= 0; --n)
+                for(int m = 0; m < sl_3B::width; ++m) {
+                  out += sr_1B::coeff[n] * pu[(n - sr_1B::offset)*stride[dirx]] * 
+                         sl_3B::coeff[m] * pu[(m - sl_3B::offset)*stride[diry]];
+                }
+                break;
+            }
+            break;
+          case 2:
+            switch (lopsidedy) {
+              case 0:
+                for(int n = sr_2B::width-1; n >= 0; --n)
+                for(int m = 0; m < s1::width; ++m) {
+                  out += sr_2B::coeff[n] * pu[(n - sr_2B::offset)*stride[dirx]] * 
+                            s1::coeff[m] * pu[(m -    s1::offset)*stride[diry]];
+                }
+                break;
+              case 1:
+                for(int n = sr_2B::width-1; n >= 0; --n)
+                for(int m = sr_1B::width-1; m >= 0; --m) {
+                  out += sr_2B::coeff[n] * pu[(n - sr_2B::offset)*stride[dirx]] * 
+                         sr_1B::coeff[m] * pu[(m - sr_1B::offset)*stride[diry]];
+                }
+                break;
+              case 2:
+                for(int n = sr_2B::width-1; n >= 0; --n)
+                for(int m = sr_2B::width-1; m >= 0; --m) {
+                  out += sr_2B::coeff[n] * pu[(n - sr_2B::offset)*stride[dirx]] * 
+                         sr_2B::coeff[m] * pu[(m - sr_2B::offset)*stride[diry]];
+                }
+                break;
+              case 3:
+                for(int n = sr_2B::width-1; n >= 0; --n)
+                for(int m = sr_3B::width-1; m >= 0; --m) {
+                  out += sr_2B::coeff[n] * pu[(n - sr_2B::offset)*stride[dirx]] * 
+                         sr_3B::coeff[m] * pu[(m - sr_3B::offset)*stride[diry]];
+                }
+                break;
+              case -1:
+                for(int n = sr_2B::width-1; n >= 0; --n)
+                for(int m = 0; m < sl_1B::width; ++m) {
+                  out += sr_2B::coeff[n] * pu[(n - sr_2B::offset)*stride[dirx]] * 
+                         sl_1B::coeff[m] * pu[(m - sl_1B::offset)*stride[diry]];
+                }
+                break;
+              case -2:
+                for(int n = sr_2B::width-1; n >= 0; --n)
+                for(int m = 0; m < sl_2B::width; ++m) {
+                  out += sr_2B::coeff[n] * pu[(n - sr_2B::offset)*stride[dirx]] * 
+                         sl_2B::coeff[m] * pu[(m - sl_2B::offset)*stride[diry]];
+                }
+                break;
+              case -3:
+                for(int n = sr_2B::width-1; n >= 0; --n)
+                for(int m = 0; m < sl_3B::width; ++m) {
+                  out += sr_2B::coeff[n] * pu[(n - sr_2B::offset)*stride[dirx]] * 
+                         sl_3B::coeff[m] * pu[(m - sl_3B::offset)*stride[diry]];
+                }
+                break;
+            }
+            break;
+          case 3:
+            switch (lopsidedy) {
+              case 0:
+                for(int n = sr_3B::width-1; n >= 0; --n)
+                for(int m = 0; m < s1::width; ++m) {
+                  out += sr_3B::coeff[n] * pu[(n - sr_3B::offset)*stride[dirx]] * 
+                            s1::coeff[m] * pu[(m -    s1::offset)*stride[diry]];
+                }
+                break;
+              case 1:
+                for(int n = sr_3B::width-1; n >= 0; --n)
+                for(int m = sr_1B::width-1; m >= 0; --m) {
+                  out += sr_3B::coeff[n] * pu[(n - sr_3B::offset)*stride[dirx]] * 
+                         sr_1B::coeff[m] * pu[(m - sr_1B::offset)*stride[diry]];
+                }
+                break;
+              case 2:
+                for(int n = sr_3B::width-1; n >= 0; --n)
+                for(int m = sr_2B::width-1; m >= 0; --m) {
+                  out += sr_3B::coeff[n] * pu[(n - sr_3B::offset)*stride[dirx]] * 
+                         sr_2B::coeff[m] * pu[(m - sr_2B::offset)*stride[diry]];
+                }
+                break;
+              case 3:
+                for(int n = sr_3B::width-1; n >= 0; --n)
+                for(int m = sr_3B::width-1; m >= 0; --m) {
+                  out += sr_3B::coeff[n] * pu[(n - sr_3B::offset)*stride[dirx]] * 
+                         sr_3B::coeff[m] * pu[(m - sr_3B::offset)*stride[diry]];
+                }
+                break;
+              case -1:
+                for(int n = sr_3B::width-1; n >= 0; --n)
+                for(int m = 0; m < sl_1B::width; ++m) {
+                  out += sr_3B::coeff[n] * pu[(n - sr_3B::offset)*stride[dirx]] * 
+                         sl_1B::coeff[m] * pu[(m - sl_1B::offset)*stride[diry]];
+                }
+                break;
+              case -2:
+                for(int n = sr_3B::width-1; n >= 0; --n)
+                for(int m = 0; m < sl_2B::width; ++m) {
+                  out += sr_3B::coeff[n] * pu[(n - sr_3B::offset)*stride[dirx]] * 
+                         sl_2B::coeff[m] * pu[(m - sl_2B::offset)*stride[diry]];
+                }
+                break;
+              case -3:
+                for(int n = sr_3B::width-1; n >= 0; --n)
+                for(int m = 0; m < sl_3B::width; ++m) {
+                  out += sr_3B::coeff[n] * pu[(n - sr_3B::offset)*stride[dirx]] * 
+                         sl_3B::coeff[m] * pu[(m - sl_3B::offset)*stride[diry]];
+                }
+                break;
+            }
+            break;
+          case -1:
+            switch (lopsidedy) {
+              case 0:
+                for(int n = 0; n < sl_1B::width; ++n)
+                for(int m = 0; m < s1::width; ++m) {
+                  out += sl_1B::coeff[n] * pu[(n - sl_1B::offset)*stride[dirx]] * 
+                            s1::coeff[m] * pu[(m - s1::offset)*stride[diry]];
+                }
+                break;
+              case 1:
+                for(int n = 0; n < sl_1B::width; ++n)
+                for(int m = sr_1B::width-1; m >= 0; --m) {
+                  out += sl_1B::coeff[n] * pu[(n - sl_1B::offset)*stride[dirx]] * 
+                         sr_1B::coeff[m] * pu[(m - sr_1B::offset)*stride[diry]];
+                }
+                break;
+              case 2:
+                for(int n = 0; n < sl_1B::width; ++n)
+                for(int m = sr_2B::width-1; m >= 0; --m) {
+                  out += sl_1B::coeff[n] * pu[(n - sl_1B::offset)*stride[dirx]] * 
+                         sr_2B::coeff[m] * pu[(m - sr_2B::offset)*stride[diry]];
+                }
+                break;
+              case 3:
+                for(int n = 0; n < sl_1B::width; ++n)
+                for(int m = sr_3B::width-1; m >= 0; --m) {
+                  out += sl_1B::coeff[n] * pu[(n - sl_1B::offset)*stride[dirx]] * 
+                         sr_3B::coeff[m] * pu[(m - sr_3B::offset)*stride[diry]];
+                }
+                break;
+              case -1:
+                for(int n = 0; n < sl_1B::width; ++n)
+                for(int m = 0; m < sl_1B::width; ++m) {
+                  out += sl_1B::coeff[n] * pu[(n - sl_1B::offset)*stride[dirx]] * 
+                         sl_1B::coeff[m] * pu[(m - sl_1B::offset)*stride[diry]];
+                }
+                break;
+              case -2:
+                for(int n = 0; n < sl_1B::width; ++n)
+                for(int m = 0; m < sl_2B::width; ++m) {
+                  out += sl_1B::coeff[n] * pu[(n - sl_1B::offset)*stride[dirx]] * 
+                         sl_2B::coeff[m] * pu[(m - sl_2B::offset)*stride[diry]];
+                }
+                break;
+              case -3:
+                for(int n = 0; n < sl_1B::width; ++n)
+                for(int m = 0; m < sl_3B::width; ++m) {
+                  out += sl_1B::coeff[n] * pu[(n - sl_1B::offset)*stride[dirx]] * 
+                         sl_3B::coeff[m] * pu[(m - sl_3B::offset)*stride[diry]];
+                }
+                break;
+            }
+            break;
+          case -2:
+            switch (lopsidedy) {
+              case 0:
+                for(int n = 0; n < sl_2B::width; ++n)
+                for(int m = 0; m < s1::width; ++m) {
+                  out += sl_2B::coeff[n] * pu[(n - sl_2B::offset)*stride[dirx]] * 
+                            s1::coeff[m] * pu[(m -    s1::offset)*stride[diry]];
+                }
+                break;
+              case 1:
+                for(int n = 0; n < sl_2B::width; ++n)
+                for(int m = sr_1B::width-1; m >= 0; --m) {
+                  out += sl_2B::coeff[n] * pu[(n - sl_2B::offset)*stride[dirx]] * 
+                         sr_1B::coeff[m] * pu[(m - sr_1B::offset)*stride[diry]];
+                }
+                break;
+              case 2:
+                for(int n = 0; n < sl_2B::width; ++n)
+                for(int m = sr_2B::width-1; m >= 0; --m) {
+                  out += sl_2B::coeff[n] * pu[(n - sl_2B::offset)*stride[dirx]] * 
+                         sr_2B::coeff[m] * pu[(m - sr_2B::offset)*stride[diry]];
+                }
+                break;
+              case 3:
+                for(int n = 0; n < sl_2B::width; ++n)
+                for(int m = sr_3B::width-1; m >= 0; --m) {
+                  out += sl_2B::coeff[n] * pu[(n - sl_2B::offset)*stride[dirx]] * 
+                         sr_3B::coeff[m] * pu[(m - sr_3B::offset)*stride[diry]];
+                }
+                break;
+              case -1:
+                for(int n = 0; n < sl_2B::width; ++n)
+                for(int m = 0; m < sl_1B::width; ++m) {
+                  out += sl_2B::coeff[n] * pu[(n - sl_2B::offset)*stride[dirx]] * 
+                         sl_1B::coeff[m] * pu[(m - sl_1B::offset)*stride[diry]];
+                }
+                break;
+              case -2:
+                for(int n = 0; n < sl_2B::width; ++n)
+                for(int m = 0; m < sl_2B::width; ++m) {
+                  out += sl_2B::coeff[n] * pu[(n - sl_2B::offset)*stride[dirx]] * 
+                         sl_2B::coeff[m] * pu[(m - sl_2B::offset)*stride[diry]];
+                }
+                break;
+              case -3:
+                for(int n = 0; n < sl_2B::width; ++n)
+                for(int m = 0; m < sl_3B::width; ++m) {
+                  out += sl_2B::coeff[n] * pu[(n - sl_2B::offset)*stride[dirx]] * 
+                         sl_3B::coeff[m] * pu[(m - sl_3B::offset)*stride[diry]];
+                }
+                break;
+            }
+            break;
+          case -3:
+            switch (lopsidedy) {
+              case 0:
+                for(int n = 0; n < sl_3B::width; ++n)
+                for(int m = 0; m < s1::width; ++m) {
+                  out += sl_3B::coeff[n] * pu[(n - sl_3B::offset)*stride[dirx]] * 
+                            s1::coeff[m] * pu[(m -    s1::offset)*stride[diry]];
+                }
+              break;
+              case 1:
+                for(int n = 0; n < sl_3B::width; ++n)
+                for(int m = sr_1B::width-1; m >= 0; --m) {
+                  out += sl_3B::coeff[n] * pu[(n - sl_3B::offset)*stride[dirx]] * 
+                         sr_1B::coeff[m] * pu[(m - sr_1B::offset)*stride[diry]];
+                }
+                break;
+              case 2:
+                for(int n = 0; n < sl_3B::width; ++n)
+                for(int m = sr_2B::width-1; m >= 0; --m) {
+                  out += sl_3B::coeff[n] * pu[(n - sl_3B::offset)*stride[dirx]] * 
+                         sr_2B::coeff[m] * pu[(m - sr_2B::offset)*stride[diry]];
+                }
+                break;
+              case 3:
+                for(int n = 0; n < sl_3B::width; ++n)
+                for(int m = sr_3B::width-1; m >= 0; --m) {
+                  out += sl_3B::coeff[n] * pu[(n - sl_3B::offset)*stride[dirx]] * 
+                         sr_3B::coeff[m] * pu[(m - sr_3B::offset)*stride[diry]];
+                }
+                break;
+              case -1:
+                for(int n = 0; n < sl_3B::width; ++n)
+                for(int m = 0; m < sl_1B::width; ++m) {
+                  out += sl_3B::coeff[n] * pu[(n - sl_3B::offset)*stride[dirx]] * 
+                         sl_1B::coeff[m] * pu[(m - sl_1B::offset)*stride[diry]];
+                }
+                break;
+              case -2:
+                for(int n = 0; n < sl_3B::width; ++n) 
+                for(int m = 0; m < sl_2B::width; ++m) {
+                  out += sl_3B::coeff[n] * pu[(n - sl_3B::offset)*stride[dirx]] * 
+                         sl_2B::coeff[m] * pu[(m - sl_2B::offset)*stride[diry]];
+                }
+                break;
+              case -3:
+                for(int n = 0; n < sl_3B::width; ++n) 
+                for(int m = 0; m < sl_3B::width; ++m) {
+                  out += sl_3B::coeff[n] * pu[(n - sl_3B::offset)*stride[dirx]] * 
+                         sl_3B::coeff[m] * pu[(m - sl_3B::offset)*stride[diry]];
+                }
+                break;
+            }
+            break;
+       }
+       return out * idx[dirx] * idx[diry];
+       // Dxy
+      }
+    }
 
     // Homogeneous 2nd derivative
 #ifdef DBG_SYMMETRIZE_FD
