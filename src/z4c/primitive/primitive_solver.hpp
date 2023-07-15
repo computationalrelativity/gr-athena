@@ -206,7 +206,7 @@ class PrimitiveSolver {
     //  \param[in]     g3u   The 3x3 inverse spatial metric
     //
     //  \return information about the solve
-    SolverResult ConToPrim(Real prim[NPRIM], Real prim_scalar[NSCALARS], Real cons[NCONS], Real cons_scalar[NSCALARS], Real b[NMAG], 
+    SolverResult ConToPrim(Real prim[NPRIM], Real cons[NCONS], Real b[NMAG], 
                            Real g3d[NSPMETRIC], Real g3u[NSPMETRIC]);
 
     //! \brief Get the conserved variables from the primitive variables.
