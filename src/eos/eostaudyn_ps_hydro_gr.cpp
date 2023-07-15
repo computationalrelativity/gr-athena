@@ -249,7 +249,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         // Find the primitive variables.
         Real prim_pt[NPRIM] = {0.0};
         Real b3u[NMAG] = {0.0}; // Assume no magnetic field.
-        Primitive::SolverResult result = ps.ConToPrim(prim_pt, prim_scalar_pt, cons_pt, cons_scalar_pt, b3u, g3d, g3u);
+        Primitive::SolverResult result = ps.ConToPrim(prim_pt, cons_pt, b3u, g3d, g3u);
 
         // If the lapse or metric determinant fall below zero, we're probably in an
         // unphysical regime for a fluid, like a black hole or something. Primitive
