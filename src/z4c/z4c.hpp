@@ -500,41 +500,41 @@ private:
       > sr;
     //1st derivative
     typedef FDRightBiasedStencilBeyond<
-        1, NGHOST, 2
-      > sr_1B; 
-    typedef FDRightBiasedStencilBeyond<
         1, NGHOST, 1
+      > sr_1B;
+    typedef FDRightBiasedStencilBeyond<
+        1, NGHOST, 2
       > sr_2B;
     typedef FDRightBiasedStencilBeyond<
-        1, NGHOST, 0
+        1, NGHOST, 3
       > sr_3B; 
     typedef FDLeftBiasedStencilBeyond<
-        1, NGHOST, 2
+        1, NGHOST, 1
       > sl_1B; 
     typedef FDLeftBiasedStencilBeyond<
-        1, NGHOST, 1
+        1, NGHOST, 2
       > sl_2B;
     typedef FDLeftBiasedStencilBeyond<
-        1, NGHOST, 0
+        1, NGHOST, 3
       > sl_3B; 
     //2nd derivative
     typedef FDRightBiasedStencilBeyond<
-        2, NGHOST, 2
+        2, NGHOST, 1
       > sr2_1B; 
     typedef FDRightBiasedStencilBeyond<
-        2, NGHOST, 1
+        2, NGHOST, 2
       > sr2_2B;
     typedef FDRightBiasedStencilBeyond<
-        2, NGHOST, 0
+        2, NGHOST, 3
       > sr2_3B; 
     typedef FDLeftBiasedStencilBeyond<
-        2, NGHOST, 2
+        2, NGHOST, 1
       > sl2_1B; 
     typedef FDLeftBiasedStencilBeyond<
-        2, NGHOST, 1
+        2, NGHOST, 2
       > sl2_2B;
     typedef FDLeftBiasedStencilBeyond<
-        2, NGHOST, 0
+        2, NGHOST, 3
       > sl2_3B; 
 #endif // DBG_SYMMETRIZE_FD
 
@@ -649,7 +649,6 @@ private:
 
       return ((vx < 0) ? (vx * dl) : (vx * dr)) * idx[dir];
     }
-#endif // DBG_SYMMETRIZE_FD
     // Generic first derivative
     inline Real Gx(int dir, int INIT, int END, int index, Real & u) {
       Real * pu = &u;
@@ -1159,6 +1158,7 @@ private:
        // Dxy
       }
     }
+#endif // DBG_SYMMETRIZE_FD
 
     // Homogeneous 2nd derivative
 #ifdef DBG_SYMMETRIZE_FD

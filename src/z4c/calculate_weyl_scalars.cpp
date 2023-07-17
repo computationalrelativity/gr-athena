@@ -43,8 +43,6 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
   const Real FR4 = 0.25;
 
   GLOOP2(k,j) {
-
-
     // -----------------------------------------------------------------------------------
     // derivatives
     //
@@ -62,8 +60,6 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
       }
     }
     // second derivatives of g
-    //for(int a = 0; a < NDIM; ++a)
-    //for(int b = 0; b < NDIM; ++b)
     for(int c = 0; c < NDIM; ++c)
     for(int d = 0; d < NDIM; ++d) {
       GLOOP1(i) {
@@ -74,18 +70,6 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
         ddg_dddd(1,2,c,d,i) = FD.G2x(1, 2, IX_JL, IX_JU, j, IX_KL, IX_KU, k, adm.g_dd(c,d,k,j,i));
         ddg_dddd(2,2,c,d,i) = FD.G2x(2, 2, IX_KL, IX_KU, k, IX_KL, IX_KU, k, adm.g_dd(c,d,k,j,i));
       }
-      /*
-      if(a == b) {
-        GLOOP1(i) {
-          ddg_dddd(a,a,c,d,i) = FD.Dxx(a, adm.g_dd(c,d,k,j,i));
-        }
-      }
-      else {
-        GLOOP1(i) {
-          ddg_dddd(a,b,c,d,i) = FD.Dxy(a, b, adm.g_dd(c,d,k,j,i));
-        }
-      }
-      */
     }
 
     // -----------------------------------------------------------------------------------
