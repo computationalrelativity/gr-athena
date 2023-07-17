@@ -16,6 +16,7 @@
 #   --ncghost=xxx       set NCGHOST=xxx
 #   --nextrapolate=xxx  set NEXTRAPOLATE=xxx  [for ouflow conditions]
 #   --nscalars=xxx      set NSCALARS=xxx
+#   --nrad=xxx          set NRAD=xxx (for wave extraction)
 #   -eos_table          enable EOS table
 #   -f                  enable fluid
 #   -b                  enable magnetic fields
@@ -129,6 +130,11 @@ parser.add_argument('--nextrapolate',
 parser.add_argument('--nscalars',
                     default='0',
                     help='set number of passive scalars')
+
+# --nrad=[value] argument
+parser.add_argument('--nrad',
+                    default='5',
+                    help='set number of extraction radii')
 
 # -f argument
 parser.add_argument('-f',
@@ -500,6 +506,9 @@ else:
 
 # --nscalars=[value] argument
 definitions['NUMBER_PASSIVE_SCALARS'] = args['nscalars']
+
+# --nrad=[value] argument
+definitions['NUMBER_EXT_RAD'] = args['nrad']
 
 # -f argument
 if args['f']:

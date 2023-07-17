@@ -195,8 +195,7 @@ public:
     AthenaArray<Real> sphere_zone_center2;
     AthenaArray<Real> sphere_zone_center3;
   } opt;
-
-
+     
   // boundary and grid data
   VertexCenteredBoundaryVariable ubvar;
   AthenaArray<Real> empty_flux[3];

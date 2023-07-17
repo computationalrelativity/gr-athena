@@ -135,8 +135,53 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
         // E3=-(v X B)=VyBx-VxBy
 #if GENERAL_RELATIVITY==1  // GR
         pmb->pcoord->CellMetric(k, j, is-1, ie+1, g_, gi_);
-#pragma omp simd
-        for (int i=is-1; i<=ie+1; ++i) {
+        for (int i = is-1; i <= ie+1; ++i) {
+#if Z4c_ENABLED
+          gamma_dd(0,0,i) = VCInterpolation(vcgamma_xx,k,j,i);
+          gamma_dd(0,1,i) = VCInterpolation(vcgamma_xy,k,j,i);
+          gamma_dd(0,2,i) = VCInterpolation(vcgamma_xz,k,j,i);
+          gamma_dd(1,1,i) = VCInterpolation(vcgamma_yy,k,j,i);
+          gamma_dd(1,2,i) = VCInterpolation(vcgamma_yz,k,j,i);
+          gamma_dd(2,2,i) = VCInterpolation(vcgamma_zz,k,j,i);
+          alpha(i) = VCInterpolation(vcalpha,k,j,i);
+          beta_u(0,i) = VCInterpolation(vcbeta_x,k,j,i);
+          beta_u(1,i) = VCInterpolation(vcbeta_y,k,j,i);
+          beta_u(2,i) = VCInterpolation(vcbeta_z,k,j,i);
+        }
+
+        for(a=0;a<NDIM;++a){
+           //#pragma omp simd
+          for (int i = is-1; i <= ie+1; ++i){
+            utilde_u(a,i) = w(a+IVX,k,j,i);
+          }
+        }
+        Wlor.ZeroClear();
+        for(a=0;a<NDIM;++a){
+          for(b=0;b<NDIM;++b){
+               //#pragma omp simd
+            for (int i = is-1; i <= ie+1; ++i){
+                  Wlor(i) += utilde_u(a,i)*utilde_u(b,i)*gamma_dd(a,b,i);
+            }
+          }
+        }
+        //#pragma omp simd
+        for (int i = is-1; i <= ie+1; ++i){
+            Wlor(i) = std::sqrt(1.0+Wlor(i));
+        }
+        for(a=0;a<NDIM;++a){
+           //#pragma omp simd
+          for (int i = is-1; i <= ie+1; ++i){
+             v_u(a,i) = utilde_u(a,i)/Wlor(i);
+          }
+        }
+
+        for (int i = is-1; i <= ie+1; ++i){
+          bb(0,i) = bcc(IB1,k,j,i);
+          bb(1,i) = bcc(IB2,k,j,i);
+          bb(2,i) = bcc(IB3,k,j,i);
+        }
+#else
+
           const Real &uu1 = w(IVX,k,j,i);
           const Real &uu2 = w(IVY,k,j,i);
           const Real &uu3 = w(IVZ,k,j,i);
@@ -144,6 +189,10 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
           const Real &bb2 = bcc(IB2,k,j,i);
           const Real &bb3 = bcc(IB3,k,j,i);
           Real alpha = std::sqrt(-1.0/gi_(I00,i));
+        }
+#endif
+/*          Real alpha = std::sqrt(-1.0/gi_(I00,i));
+>>>>>>> b72e67bb (Add yet-another way to do intergrid interpolation)
           Real tmp = g_(I11,i)*SQR(uu1) + 2.0*g_(I12,i)*uu1*uu2 + 2.0*g_(I13,i)*uu1*uu3
                      + g_(I22,i)*SQR(uu2) + 2.0*g_(I23,i)*uu2*uu3
                      + g_(I33,i)*SQR(uu3);

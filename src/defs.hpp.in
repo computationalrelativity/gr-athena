@@ -121,6 +121,9 @@
 //----------------------------------------------------------------------------------------
 // macros associated with input / output (rarely modified)
 #define FPRINTF_PREC 17
+// dimensionality of underlying (interpolated) data
+// #define NGRCV_NDIM 1
+// --------------------------------------------------------
 
 //----------------------------------------------------------------------------------------
 // general purpose macros (never modified)
