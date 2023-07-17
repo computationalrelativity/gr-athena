@@ -115,7 +115,7 @@ public:
 // Right-biased finite differencing stencils
 // * degree : Degree of the derivative, eg, 1 for 1st derivative
 // * nghost : Number of ghost points used for the derivative
-// * lopsize : Number of points to the left of the derivative point
+// * lopsize : Number of points to be biased
 template<int degree_, int nghost_, int lopsize_>
 class FDRightBiasedStencilBeyond {
 public:
@@ -124,17 +124,18 @@ public:
   // Number of ghost points required for the differencing
   enum {nghost = nghost_};
   // Position at which the derivative is computed wrt the beginning of the stencil
-  enum {offset = lopsize_};
+  //enum {offset = lopsize_};
+  enum {offset = nghost_ - lopsize_ - 1};
   // Width of the stencil
   enum {width = 2*nghost_ - 1 + degree_ - 1};
   // Finite differencing coefficients
   static Real const coeff[width];
 };
 
-// Right-biased finite differencing stencils
+// Left-biased finite differencing stencils
 // * degree : Degree of the derivative, eg, 1 for 1st derivative
 // * nghost : Number of ghost points used for the derivative
-// * lopsize : Number of points to the right of the derivative point
+// * lopsize : Number of points to be biased
 template<int degree_, int nghost_, int lopsize_>
 class FDLeftBiasedStencilBeyond {
 public:
