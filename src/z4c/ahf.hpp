@@ -17,6 +17,7 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../athena_tensor.hpp"
+#include "../utils/finite_differencing.hpp"
 #include "../utils/lagrange_interp.hpp"
 
 // Forward declaration
@@ -185,6 +186,116 @@ private:
   Real PuncSumMasses();
   void PuncWeightedMassCentralPoint(Real *xc, Real *yc, Real *zc);
   bool PuncAreClose();
+private:
+  struct FD_ {
+    int stride[3];
+    //Real idx[3];
+    //1st derivative
+    // 1st derivative stecil
+    typedef FDCenteredStencil<1, NGHOST-1> s1;
+
+    typedef FDRightBiasedStencilBeyond<
+        1, NGHOST, 1
+      > sr_1B;
+    typedef FDRightBiasedStencilBeyond<
+        1, NGHOST, 2
+      > sr_2B;
+    typedef FDRightBiasedStencilBeyond<
+        1, NGHOST, 3
+      > sr_3B; 
+    typedef FDLeftBiasedStencilBeyond<
+        1, NGHOST, 1
+      > sl_1B; 
+    typedef FDLeftBiasedStencilBeyond<
+        1, NGHOST, 2
+      > sl_2B;
+    typedef FDLeftBiasedStencilBeyond<
+        1, NGHOST, 3
+      > sl_3B; 
+    //2nd derivative
+    typedef FDRightBiasedStencilBeyond<
+        2, NGHOST, 1
+      > sr2_1B; 
+    typedef FDRightBiasedStencilBeyond<
+        2, NGHOST, 2
+      > sr2_2B;
+    typedef FDRightBiasedStencilBeyond<
+        2, NGHOST, 3
+      > sr2_3B; 
+    typedef FDLeftBiasedStencilBeyond<
+        2, NGHOST, 1
+      > sl2_1B; 
+    typedef FDLeftBiasedStencilBeyond<
+        2, NGHOST, 2
+      > sl2_2B;
+    typedef FDLeftBiasedStencilBeyond<
+        2, NGHOST, 3
+      > sl2_3B; 
+    // Generic first derivative
+    inline Real Gx(int dir, int INIT, int END, int index, Real & u) {
+      Real * pu = &u;
+      int lopsided;
+      if (index < INIT) {lopsided = INIT - index;}
+      else if (index > END) {lopsided = END - index;}
+      else {lopsided = 0;}
+      
+      Real out(0.);
+      // Dx
+      switch (lopsided) { 
+        case 0:
+          pu -= s1::offset*stride[dir];
+
+          for(int n1 = 0; n1 < s1::nghost; ++n1) {
+            int const n2  = s1::width - n1 - 1;
+            Real const c1 = s1::coeff[n1] * pu[n1*stride[dir]];
+            Real const c2 = s1::coeff[n2] * pu[n2*stride[dir]];
+            out += (c1 + c2);
+          }
+          out += s1::coeff[s1::nghost] * pu[s1::nghost*stride[dir]];
+          break;
+        case 1:
+          for(int n = sr_1B::width-1; n >= 0; --n) {
+            out += sr_1B::coeff[n] * pu[(n - sr_1B::offset)*stride[dir]];
+          }
+          break;
+        case 2:
+          for(int n = sr_2B::width-1; n >= 0; --n) {
+            out += sr_2B::coeff[n] * pu[(n - sr_2B::offset)*stride[dir]];
+          }
+          break;
+        case 3:
+          if (NGHOST == 3) {
+            break;
+          }
+          for(int n = sr_3B::width-1; n >= 0; --n) {
+            out += sr_3B::coeff[n] * pu[(n - sr_3B::offset)*stride[dir]];
+          }
+          break;
+        case -1:
+          for(int n = 0; n < sl_1B::width; ++n) {
+            out += sl_1B::coeff[n] * pu[(n - sl_1B::offset)*stride[dir]];
+          }
+          break;
+        case -2: 
+          for(int n = 0; n < sl_2B::width; ++n) {
+            out += sl_2B::coeff[n] * pu[(n - sl_2B::offset)*stride[dir]];
+          }
+          break;
+        case -3:
+          if (NGHOST == 3) {
+            break;
+          }
+          for(int n = 0; n < sl_3B::width; ++n) {
+            out += sl_3B::coeff[n] * pu[(n - sl_3B::offset)*stride[dir]];
+          }
+          break;
+        default:
+          break;
+      }
+      //return out * idx[dir];
+      return out;
+    }
+  } FD;
 };
 
 #endif

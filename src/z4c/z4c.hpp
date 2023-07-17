@@ -682,6 +682,9 @@ private:
           }
           break;
         case 3:
+          if (NGHOST == 3) {
+            break;
+          }
           for(int n = sr_3B::width-1; n >= 0; --n) {
             out += sr_3B::coeff[n] * pu[(n - sr_3B::offset)*stride[dir]];
           }
@@ -697,15 +700,18 @@ private:
           }
           break;
         case -3:
+          if (NGHOST == 3) {
+            break;
+          }
           for(int n = 0; n < sl_3B::width; ++n) {
             out += sl_3B::coeff[n] * pu[(n - sl_3B::offset)*stride[dir]];
           }
           break;
         default:
-          std::stringstream msg;
-          msg << "### FATAL ERROR in Lopsided derivatives" << std::endl;
-          msg << " parameter lopsided = " << lopsided << " not implemented.";
-          throw std::runtime_error(msg.str().c_str());
+          //std::stringstream msg;
+          //msg << "### FATAL ERROR in Lopsided derivatives" << std::endl;
+          //msg << " parameter lopsided = " << lopsided << " not implemented.";
+          //throw std::runtime_error(msg.str().c_str());
           break;
       }
       return out * idx[dir];
@@ -752,6 +758,9 @@ private:
             }
             break;
           case 3:
+            if (NGHOST == 3) {
+              break;
+            }
             for(int n = sr2_3B::width-1; n >= 0; --n) {
               out += sr2_3B::coeff[n] * pu[(n - sr2_3B::offset)*stride[dir]];
             }
@@ -767,15 +776,18 @@ private:
             }
             break;
           case -3:
+            if (NGHOST == 3) {
+              break;
+            }
             for(int n = 0; n < sl2_3B::width; ++n) {
               out += sl2_3B::coeff[n] * pu[(n - sl2_3B::offset)*stride[dir]];
             }
             break;
           default:
-            std::stringstream msg;
-            msg << "### FATAL ERROR in Lopsided derivatives" << std::endl;
-            msg << " parameter lopsided = " << lopsided << " not implemented.";
-            throw std::runtime_error(msg.str().c_str());
+            //std::stringstream msg;
+            //msg << "### FATAL ERROR in Lopsided derivatives" << std::endl;
+            //msg << " parameter lopsided = " << lopsided << " not implemented.";
+            //throw std::runtime_error(msg.str().c_str());
             break;
         }
         return out * SQR(idx[dir]);
@@ -806,6 +818,9 @@ private:
                 }
                 break;
               case 3:
+                if (NGHOST == 3) {
+                  break;
+                }
                 for(int n = 0; n < s1::width; ++n) 
                 for(int m = sr_3B::width-1; m >= 0; --m) {
                   out +=    s1::coeff[n] * pu[(n -    s1::offset)*stride[dirx]] * 
@@ -827,11 +842,16 @@ private:
                 }
                 break;
               case -3:
+                if (NGHOST == 3) {
+                  break;
+                }
                 for(int n = 0; n <    s1::width; ++n) 
                 for(int m = 0; m < sl_3B::width; ++m) {
                   out +=    s1::coeff[n] * pu[(n -    s1::offset)*stride[dirx]] * 
                          sl_3B::coeff[m] * pu[(m - sl_3B::offset)*stride[diry]];
                 }
+                break;
+              default:
                 break;
             }
             break;
@@ -859,6 +879,9 @@ private:
                 }
                 break;
               case 3:
+                if (NGHOST == 3) {
+                  break;
+                }
                 for(int n = sr_1B::width-1; n >= 0; --n)
                 for(int m = sr_3B::width-1; m >= 0; --m) {
                   out += sr_1B::coeff[n] * pu[(n - sr_1B::offset)*stride[dirx]] * 
@@ -880,11 +903,16 @@ private:
                 }
                 break;
               case -3:
+                if (NGHOST == 3) {
+                  break;
+                }
                 for(int n = sr_1B::width-1; n >= 0; --n)
                 for(int m = 0; m < sl_3B::width; ++m) {
                   out += sr_1B::coeff[n] * pu[(n - sr_1B::offset)*stride[dirx]] * 
                          sl_3B::coeff[m] * pu[(m - sl_3B::offset)*stride[diry]];
                 }
+                break;
+              default:
                 break;
             }
             break;
@@ -912,6 +940,9 @@ private:
                 }
                 break;
               case 3:
+                if (NGHOST == 3) {
+                  break;
+                }
                 for(int n = sr_2B::width-1; n >= 0; --n)
                 for(int m = sr_3B::width-1; m >= 0; --m) {
                   out += sr_2B::coeff[n] * pu[(n - sr_2B::offset)*stride[dirx]] * 
@@ -933,15 +964,23 @@ private:
                 }
                 break;
               case -3:
+                if (NGHOST == 3) {
+                  break;
+                }
                 for(int n = sr_2B::width-1; n >= 0; --n)
                 for(int m = 0; m < sl_3B::width; ++m) {
                   out += sr_2B::coeff[n] * pu[(n - sr_2B::offset)*stride[dirx]] * 
                          sl_3B::coeff[m] * pu[(m - sl_3B::offset)*stride[diry]];
                 }
                 break;
+              default:
+                break;
             }
             break;
           case 3:
+            if (NGHOST == 3) {
+              break;
+            }
             switch (lopsidedy) {
               case 0:
                 for(int n = sr_3B::width-1; n >= 0; --n)
@@ -965,6 +1004,9 @@ private:
                 }
                 break;
               case 3:
+                if (NGHOST == 3) {
+                  break;
+                }
                 for(int n = sr_3B::width-1; n >= 0; --n)
                 for(int m = sr_3B::width-1; m >= 0; --m) {
                   out += sr_3B::coeff[n] * pu[(n - sr_3B::offset)*stride[dirx]] * 
@@ -986,11 +1028,16 @@ private:
                 }
                 break;
               case -3:
+                if (NGHOST == 3) {
+                  break;
+                }
                 for(int n = sr_3B::width-1; n >= 0; --n)
                 for(int m = 0; m < sl_3B::width; ++m) {
                   out += sr_3B::coeff[n] * pu[(n - sr_3B::offset)*stride[dirx]] * 
                          sl_3B::coeff[m] * pu[(m - sl_3B::offset)*stride[diry]];
                 }
+                break;
+              default:
                 break;
             }
             break;
@@ -1018,6 +1065,9 @@ private:
                 }
                 break;
               case 3:
+                if (NGHOST == 3) {
+                  break;
+                }
                 for(int n = 0; n < sl_1B::width; ++n)
                 for(int m = sr_3B::width-1; m >= 0; --m) {
                   out += sl_1B::coeff[n] * pu[(n - sl_1B::offset)*stride[dirx]] * 
@@ -1039,11 +1089,16 @@ private:
                 }
                 break;
               case -3:
+                if (NGHOST == 3) {
+                  break;
+                }
                 for(int n = 0; n < sl_1B::width; ++n)
                 for(int m = 0; m < sl_3B::width; ++m) {
                   out += sl_1B::coeff[n] * pu[(n - sl_1B::offset)*stride[dirx]] * 
                          sl_3B::coeff[m] * pu[(m - sl_3B::offset)*stride[diry]];
                 }
+                break;
+              default:
                 break;
             }
             break;
@@ -1071,6 +1126,9 @@ private:
                 }
                 break;
               case 3:
+                if (NGHOST == 3) {
+                  break;
+                }
                 for(int n = 0; n < sl_2B::width; ++n)
                 for(int m = sr_3B::width-1; m >= 0; --m) {
                   out += sl_2B::coeff[n] * pu[(n - sl_2B::offset)*stride[dirx]] * 
@@ -1092,15 +1150,23 @@ private:
                 }
                 break;
               case -3:
+                if (NGHOST == 3) {
+                  break;
+                }
                 for(int n = 0; n < sl_2B::width; ++n)
                 for(int m = 0; m < sl_3B::width; ++m) {
                   out += sl_2B::coeff[n] * pu[(n - sl_2B::offset)*stride[dirx]] * 
                          sl_3B::coeff[m] * pu[(m - sl_3B::offset)*stride[diry]];
                 }
                 break;
+              default:
+                break;
             }
             break;
           case -3:
+            if (NGHOST == 3) {
+              break;
+            }
             switch (lopsidedy) {
               case 0:
                 for(int n = 0; n < sl_3B::width; ++n)
@@ -1124,6 +1190,9 @@ private:
                 }
                 break;
               case 3:
+                if (NGHOST == 3) {
+                  break;
+                }
                 for(int n = 0; n < sl_3B::width; ++n)
                 for(int m = sr_3B::width-1; m >= 0; --m) {
                   out += sl_3B::coeff[n] * pu[(n - sl_3B::offset)*stride[dirx]] * 
@@ -1145,14 +1214,21 @@ private:
                 }
                 break;
               case -3:
+                if (NGHOST == 3) {
+                  break;
+                }
                 for(int n = 0; n < sl_3B::width; ++n) 
                 for(int m = 0; m < sl_3B::width; ++m) {
                   out += sl_3B::coeff[n] * pu[(n - sl_3B::offset)*stride[dirx]] * 
                          sl_3B::coeff[m] * pu[(m - sl_3B::offset)*stride[diry]];
                 }
                 break;
+              default:
+                break;
             }
             break;
+          default:
+              break;
        }
        return out * idx[dirx] * idx[diry];
        // Dxy

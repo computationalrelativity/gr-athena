@@ -212,6 +212,19 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
     }
     //TODO Output Ylm, grid and center?
   }
+
+  // Implementation of FD like in z4c.cpp. However, here this cannot
+  // be done MB by MB, but at the mesh level. That's why idx will not be 
+  // defined and the derivative takes that into account when it is calculated
+  // MB by MB in the AHF::MetricDerivatives function
+  // definition from l. 449 of src/mesh/meshblock.cpp
+  int nn1 = pin->GetOrAddInteger("meshblock", "nx1", 0) + 2 * NGHOST + 1;
+  int nn2 = pin->GetOrAddInteger("meshblock", "nx2", 0) + 2 * NGHOST + 1;
+  int nn3 = pin->GetOrAddInteger("meshblock", "nx3", 0) + 2 * NGHOST + 1;
+
+  FD.stride[0] = 1;
+  FD.stride[1] = (nn2 > 1) ? nn1 : 0;
+  FD.stride[2] = (nn3 > 1) ? nn2 * nn1 : 0;
 }
 
 AHF::~AHF() {
@@ -333,35 +346,15 @@ void AHF::MetricDerivatives(MeshBlock * pmy_block)
   
   GLOOP2(k,j){
     Real oofdz = 1.0 / pmy_block->pcoord->dx3f(k);
-    Real oofdy = 1.0 / pmy_block->pcoord->dx2f(j);
     for(int a = 0; a < NDIM; ++a){
       for(int b = 0; b < NDIM; ++b){
         GLOOP1(i){
-          Real oofdx = 1.0 / pmy_block->pcoord->dx1f(i);
-          
-          if (i==IX_IL-GSIZEI){
-            pmy_block->pz4c->aux_g_ddd(0,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b,k,j,i+1) - vc_adm_g_dd(a,b,k,j, i ) );
-          } else if (i==IX_IU+GSIZEI){
-            pmy_block->pz4c->aux_g_ddd(0,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b,k,j, i ) - vc_adm_g_dd(a,b,k,j,i-1) );
-          } else {
-            pmy_block->pz4c->aux_g_ddd(0,a,b,k,j,i) = 0.5*oofdz * ( vc_adm_g_dd(a,b,k,j,i+1) - vc_adm_g_dd(a,b,k,j,i-1) );
-          }
-          
-          if (j==IX_JL-GSIZEJ){
-            pmy_block->pz4c->aux_g_ddd(1,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b,k,j+1,i) - vc_adm_g_dd(a,b,k, j ,i) );
-          } else if (j==IX_JU+GSIZEJ){
-            pmy_block->pz4c->aux_g_ddd(1,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b,k, j ,i) - vc_adm_g_dd(a,b,k,j-1,i) );
-          } else {
-            pmy_block->pz4c->aux_g_ddd(1,a,b,k,j,i) = 0.5*oofdz * ( vc_adm_g_dd(a,b,k,j+1,i) - vc_adm_g_dd(a,b,k,j-1,i) );
-          }
-          
-          if (k==IX_KL-GSIZEK){
-            pmy_block->pz4c->aux_g_ddd(2,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b,k+1,j,i) - vc_adm_g_dd(a,b, k ,j,i) );
-          } else if (k==IX_KU+GSIZEK){
-            pmy_block->pz4c->aux_g_ddd(2,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b, k ,j,i) - vc_adm_g_dd(a,b,k-1,j,i) );
-          } else {
-            pmy_block->pz4c->aux_g_ddd(2,a,b,k,j,i) = 0.5*oofdz * ( vc_adm_g_dd(a,b,k+1,j,i) - vc_adm_g_dd(a,b,k-1,j,i) );
-          }
+          pmy_block->pz4c->aux_g_ddd(0,a,b,k,j,i) = oofdz * 
+                     FD.Gx(0, IX_IL, IX_IU, i, vc_adm_g_dd(a,b,k,j,i));
+          pmy_block->pz4c->aux_g_ddd(1,a,b,k,j,i) = oofdz * 
+                     FD.Gx(1, IX_JL, IX_JU, j, vc_adm_g_dd(a,b,k,j,i));
+          pmy_block->pz4c->aux_g_ddd(2,a,b,k,j,i) = oofdz * 
+                     FD.Gx(2, IX_KL, IX_KU, k, vc_adm_g_dd(a,b,k,j,i));
 
 #if DEBUG_OUTPUT
           if (a==0 && b==0){
