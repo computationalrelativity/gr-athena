@@ -7,6 +7,7 @@
 //  \brief High-performance finite differencing kernel
 
 #include "finite_differencing.hpp"
+#include <cmath>
 
 // Centered finite differencing 1st derivative
 template<>
@@ -230,9 +231,18 @@ Real const FDRightBiasedStencil<1, 7, 6>::coeff[] = {
   1./10296.,-1./660.,1./88.,-1./18.,5./24.,-3./4.,-1./7.,1.,-3./8.,5./36.,-1./24.,1./110.,-1./792.,1./12012.
 };
 
+// Coefficients for biased derivatives 
+
+
 // 1st derivative, 4th order
+// This must be defined but should not be used for NGHOST = 3,
+// so it is filled with NAN
 template<>
-Real const FDRightBiasedStencilBeyond<1, 3, 0>::coeff[] = {
+Real const FDRightBiasedStencilBeyond<1, 3, 3>::coeff[] = {
+           NAN, NAN, NAN, NAN, NAN,
+};
+template<>
+Real const FDRightBiasedStencilBeyond<1, 3, 2>::coeff[] = {
            -25./12., +4., -3., 4./3., -1./4.,
 };
 
@@ -241,8 +251,14 @@ Real const FDRightBiasedStencilBeyond<1, 3, 1>::coeff[] = {
            -1./4., -5./6., 3./2., -1./2., 1./12.,
 };
 // 2nd derivative, 4th order
+// This must be defined but should not be used for NGHOST = 3,
+// so it is filled with NAN
 template<>
-Real const FDRightBiasedStencilBeyond<2, 3, 0>::coeff[] = {
+Real const FDRightBiasedStencilBeyond<2, 3, 3>::coeff[] = {
+           NAN, NAN, NAN, NAN, NAN, NAN,
+};
+template<>
+Real const FDRightBiasedStencilBeyond<2, 3, 2>::coeff[] = {
            15./4., -77./6., 107./6., -13., 61./12., -5./6.
 };
 
@@ -253,39 +269,45 @@ Real const FDRightBiasedStencilBeyond<2, 3, 1>::coeff[] = {
 
 // 1st derivative, 6th order
 template<>
-Real const FDRightBiasedStencilBeyond<1, 4, 0>::coeff[] = {
+Real const FDRightBiasedStencilBeyond<1, 4, 3>::coeff[] = {
            -49./20., 6., -15./2., 20./3., -15./4., 6./5., -1./6.
 };
 
 template<>
-Real const FDRightBiasedStencilBeyond<1, 4, 1>::coeff[] = {
+Real const FDRightBiasedStencilBeyond<1, 4, 2>::coeff[] = {
            -1./6., -77./60., 5./2., -5./3., 5./6., -1./4., 1./30.,
 };
 
 template<>
-Real const FDRightBiasedStencilBeyond<1, 4, 2>::coeff[] = {
+Real const FDRightBiasedStencilBeyond<1, 4, 1>::coeff[] = {
            1./30., -2./5., -7./12., 4./3., -1./2., 2./15., -1./60.,
 };
 
 // 2nd derivative, 6th order
 template<>
-Real const FDRightBiasedStencilBeyond<2, 4, 0>::coeff[] = {
+Real const FDRightBiasedStencilBeyond<2, 4, 3>::coeff[] = {
         469./90., -223./10., 879./20., -949./18., 41., -201./10., 1019./180., -7./10.
 };
 
 template<>
-Real const FDRightBiasedStencilBeyond<2, 4, 1>::coeff[] = {
+Real const FDRightBiasedStencilBeyond<2, 4, 2>::coeff[] = {
            7./10., -7./18., -27./10., 19./4., -67./18., 9./5., -1./2., 11./180.
 };
 
 template<>
-Real const FDRightBiasedStencilBeyond<2, 4, 2>::coeff[] = {
+Real const FDRightBiasedStencilBeyond<2, 4, 1>::coeff[] = {
         -11./180., 107./90., -21./10., 13./18., 17./36., -3./10., 4./45., -1./90.
 };
 
 // 1st derivative, 4th order
+// This is always defined but should not be used for NGHOST = 3,
+// so it is filled with NAN
 template<>
-Real const FDLeftBiasedStencilBeyond<1, 3, 0>::coeff[] = {
+Real const FDLeftBiasedStencilBeyond<1, 3, 3>::coeff[] = {
+           NAN, NAN, NAN, NAN, NAN,
+};
+template<>
+Real const FDLeftBiasedStencilBeyond<1, 3, 2>::coeff[] = {
            1./4., -4./3., 3., -4., 25./12.,
 };
 
@@ -295,8 +317,14 @@ Real const FDLeftBiasedStencilBeyond<1, 3, 1>::coeff[] = {
 };
 
 // 2nd derivative, 4th order
+// This must be defined but should not be used for NGHOST = 3,
+// so it is filled with NAN
 template<>
-Real const FDLeftBiasedStencilBeyond<2, 3, 0>::coeff[] = {
+Real const FDLeftBiasedStencilBeyond<2, 3, 3>::coeff[] = {
+           NAN, NAN, NAN, NAN, NAN, NAN,
+};
+template<>
+Real const FDLeftBiasedStencilBeyond<2, 3, 2>::coeff[] = {
            -5./6., 61./12., -13., 107./6., -77./6., 15./4.,
 };
 
@@ -305,35 +333,35 @@ Real const FDLeftBiasedStencilBeyond<2, 3, 1>::coeff[] = {
            1./12., -1./2., 7./6., -1./3., -5./4., 5./6.,
 };
 
-
 // 1st derivative, 6th order
 template<>
-Real const FDLeftBiasedStencilBeyond<1, 4, 0>::coeff[] = {
+Real const FDLeftBiasedStencilBeyond<1, 4, 3>::coeff[] = {
           1./6., -6./5., 15./4., -20./3., 15./2., -6., 49./20.,
 };
 
 template<>
-Real const FDLeftBiasedStencilBeyond<1, 4, 1>::coeff[] = {
+Real const FDLeftBiasedStencilBeyond<1, 4, 2>::coeff[] = {
           -1./30., 1./4., -5./6., 5./3., -5./2., 77./60., 1./6.,
 };
 
 template<>
-Real const FDLeftBiasedStencilBeyond<1, 4, 2>::coeff[] = {
+Real const FDLeftBiasedStencilBeyond<1, 4, 1>::coeff[] = {
           1./60., -2./15., 1./2., -4./3., 7./12., 2./5., -1./30.,
 };
+
 // 2nd derivative, 6th order
 template<>
-Real const FDLeftBiasedStencilBeyond<2, 4, 0>::coeff[] = {
+Real const FDLeftBiasedStencilBeyond<2, 4, 3>::coeff[] = {
         -7./10., 1019./180., -201./10., 41., -949./18., 879./20., -223./10., 469./90.,
 };
 
 template<>
-Real const FDLeftBiasedStencilBeyond<2, 4, 1>::coeff[] = {
+Real const FDLeftBiasedStencilBeyond<2, 4, 2>::coeff[] = {
         11./180., -1./2., 9./5., -67./18., 19./4., -27./10., -7./18., 7./10.,
 };
 
 template<>
-Real const FDLeftBiasedStencilBeyond<2, 4, 2>::coeff[] = {
+Real const FDLeftBiasedStencilBeyond<2, 4, 1>::coeff[] = {
         -1./90., 4./45., -3./10., 17./36., 13./18., -21./10., 107./90., -11./180.,
 };
 
