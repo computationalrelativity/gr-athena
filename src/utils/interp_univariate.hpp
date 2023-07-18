@@ -54,4 +54,15 @@ class InterpolateLagrangeUniform_opt {
     static Real const coeff[npoints];
 };
 
+// target prolongation of a cell to two children;
+// leftward child coefficients stored
+// rightward is the same but with indices reversed
+template<int half_stencil_size_>
+class InterpolateLagrangeUniformChildren {
+  public:
+    enum {interpolation_order = 2 * half_stencil_size_};
+    enum {npoints = 2 * half_stencil_size_ + 1};
+    static Real const coeff[npoints];
+};
+
 #endif

@@ -455,6 +455,8 @@ int VertexCenteredBoundaryVariable::NeighborVariableBufferSize(const NeighborInd
     int sizef2c = 0;
     idxLoadToCoarserRanges(ni, si, ei, sj, ej, sk, ek, false);
     AccumulateBufferSize(nl_, nu_, si, ei, sj, ej, sk, ek, sizef2c);
+
+    // BD: Is this needed? 2:1 ratio enforced...
     idxLoadToCoarserRanges(ni, si, ei, sj, ej, sk, ek, true);
     // double restrict means spatial indices jump by two per iterate here
     AccumulateBufferSize(nl_, nu_, si, ei, sj, ej, sk, ek, sizef2c, 2);

@@ -66,7 +66,7 @@ void BoundaryVariable::InitBoundaryData(BoundaryData<> &bd, BoundaryQuantity typ
 #endif
     // Allocate buffers, calculating the buffer size (variable vs. flux correction)
     if (type == BoundaryQuantity::cc || type == BoundaryQuantity::fc ||
-        type == BoundaryQuantity::vc) {
+        type == BoundaryQuantity::vc || type == BoundaryQuantity::cx) {
       size = this->ComputeVariableBufferSize(ni[n], cng);
     } else if (type == BoundaryQuantity::cc_flcor || type == BoundaryQuantity::fc_flcor) {
       size = this->ComputeFluxCorrectionBufferSize(ni[n], cng);

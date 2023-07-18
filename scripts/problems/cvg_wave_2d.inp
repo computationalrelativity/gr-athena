@@ -1,5 +1,5 @@
 <job>
-problem_id      = cvg_wave_2d_trig   # Basename of output filenames
+problem_id      = wave_2d   # Basename of output filenames
 
 <problem>
 x1prof          = linear    # Either 'linear' or 'bump'
@@ -7,26 +7,14 @@ x1prof          = linear    # Either 'linear' or 'bump'
 x1dir           = 0         # Allowed values are -1, 0, 1 and correspond to
                             # Left, LC Left+Right, Right propagation resp.
 
-#<output1>
-## file_type     = tab       # Athena++ ASCII data
-#file_type       = hdf5      # dump to hierarchical format
-#variable        = wave      # variables to be output
-#dt              = 0.2       # time increment between outputs
-#data_format     = %.16e
-##ghost_zones     = 1         # include ghost zones
-
-# <output2>
-# file_type       = hst       # History data
-# dt              = 0.1       # time increment between outputs
-# data_format     = %.16e
-
-# <output3>
-# file_type       = rst       # restart data
-# dt              = 0.1       # control frequency via time-step
+<output1>
+file_type       = hst       # History data
+dt              = 1       # time increment between outputs
+data_format     = %.16e
 
 <time>
 cfl_number      = 0.2       # The Courant, Friedrichs, & Lewy (CFL) number
-tlim            = 1       # time limit
+tlim            = 1        # time limit
 integrator      = rk4       # time integrator
 
 <mesh>
@@ -68,13 +56,13 @@ x2min =  0.4
 x2max =  0.7
 x3min = -1.0
 x3max =  1.0
-level = 2
+level = 1
 
-<refinement2>
-x1min =  0.7
-x1max =  0.8
-x2min =  0.3
-x2max =  0.4
-x3min = -1.0
-x3max =  1.0
-level = 2
+# <refinement2>
+# x1min =  0.7
+# x1max =  0.8
+# x2min =  0.3
+# x2max =  0.4
+# x3min = -1.0
+# x3max =  1.0
+# level = 2

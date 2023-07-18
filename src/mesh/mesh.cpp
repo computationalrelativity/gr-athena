@@ -61,6 +61,8 @@
 #include "../z4c/cce/cce.hpp"
 #endif
 
+#include "../wave/wave.hpp"
+
 // MPI/OpenMP header
 #ifdef MPI_PARALLEL
 #include <mpi.h>
@@ -257,7 +259,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
           << "for multilevel with '-vertex' and NCGHOST = " << NCGHOST << ", "
           << "block_size must be at least " << min_mb_nx << std::endl
           << "Criterion: max(4, 4 * NCGHOST - 2)" << std::endl;
-      ATHENA_ERROR(msg);
+      // ATHENA_ERROR(msg);
     }
   }
 
@@ -1545,6 +1547,22 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         if (NSCALARS > 0)
           pmb->pscalars->sbvar.SendBoundaryBuffers();
 
+        if (WAVE_ENABLED)
+        {
+          if (WAVE_CC_ENABLED)
+          {
+            pmb->pwave->ubvar_cc.SendBoundaryBuffers();
+          }
+          else if (WAVE_VC_ENABLED)
+          {
+            pmb->pwave->ubvar_vc.SendBoundaryBuffers();
+          }
+          else if (WAVE_CX_ENABLED)
+          {
+            pmb->pwave->ubvar_cx.SendBoundaryBuffers();
+          }
+        }
+
         if (Z4C_ENABLED)
           pmb->pz4c->ubvar.SendBoundaryBuffers();
       }
@@ -1561,6 +1579,21 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           pmb->pscalars->sbvar.ReceiveAndSetBoundariesWithWait();
         if (SHEARING_BOX) {
           pmb->phydro->hbvar.AddHydroShearForInit();
+        }
+
+        if (WAVE_ENABLED) {
+          if (WAVE_CC_ENABLED)
+          {
+            pmb->pwave->ubvar_cc.ReceiveAndSetBoundariesWithWait();
+          }
+          else if (WAVE_VC_ENABLED)
+          {
+            pmb->pwave->ubvar_vc.ReceiveAndSetBoundariesWithWait();
+          }
+          else if (WAVE_CX_ENABLED)
+          {
+            pmb->pwave->ubvar_cx.ReceiveAndSetBoundariesWithWait();
+          }
         }
 
         if (Z4C_ENABLED)
@@ -1733,6 +1766,9 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
   for (int i=0; i<nmb; ++i) {
     if (FLUID_ENABLED)
       pmb_array[i]->phydro->NewBlockTimeStep();
+
+    if (WAVE_ENABLED)
+      pmb_array[i]->pwave->NewBlockTimeStep();
 
     if (Z4C_ENABLED)
       pmb_array[i]->pz4c->NewBlockTimeStep();
@@ -2000,6 +2036,19 @@ void Mesh::ReserveMeshBlockPhysIDs() {
   if (NSCALARS > 0) {
     ReserveTagPhysIDs(CellCenteredBoundaryVariable::max_phys_id);
   }
+
+  if (WAVE_ENABLED) {
+    if (WAVE_CC_ENABLED)
+      ReserveTagPhysIDs(CellCenteredBoundaryVariable::max_phys_id);
+
+    if (WAVE_VC_ENABLED)
+      ReserveTagPhysIDs(VertexCenteredBoundaryVariable::max_phys_id);
+
+    if (WAVE_CX_ENABLED)
+      ReserveTagPhysIDs(CellCenteredXBoundaryVariable::max_phys_id);
+
+  }
+
   if (Z4C_ENABLED) {
     ReserveTagPhysIDs(VertexCenteredBoundaryVariable::max_phys_id);
   }

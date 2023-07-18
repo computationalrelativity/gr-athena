@@ -105,6 +105,7 @@ BoundaryValues::BoundaryValues(MeshBlock *pmb, BoundaryFlag *input_bcs,
   // TOOD(KGF): rename to "bvars_time_int"? What about a std::vector for bvars_sts?
   bvars_main_int.reserve(2);
   bvars_main_int_vc.reserve(2);
+  bvars_main_int_cx.reserve(2);
 
   // Matches initial value of Mesh::next_phys_id_
   // reserve phys=0 for former TAG_AMR=8; now hard-coded in Mesh::CreateAMRMPITag()
@@ -164,6 +165,11 @@ void BoundaryValues::SetupPersistentMPI() {
   }
 
   for (auto bvars_it = bvars_main_int_vc.begin(); bvars_it != bvars_main_int_vc.end();
+       ++bvars_it) {
+    (*bvars_it)->SetupPersistentMPI();
+  }
+
+  for (auto bvars_it = bvars_main_int_cx.begin(); bvars_it != bvars_main_int_cx.end();
        ++bvars_it) {
     (*bvars_it)->SetupPersistentMPI();
   }
@@ -231,6 +237,11 @@ void BoundaryValues::StartReceiving(BoundaryCommSubset phase) {
     (*bvars_it)->StartReceiving(phase);
   }
 
+  for (auto bvars_it = bvars_main_int_cx.begin(); bvars_it != bvars_main_int_cx.end();
+       ++bvars_it) {
+    (*bvars_it)->StartReceiving(phase);
+  }
+
   // KGF: begin shearing-box exclusive section of original StartReceivingForInit()
   // find send_block_id and recv_block_id;
   if (SHEARING_BOX) {
@@ -290,6 +301,12 @@ void BoundaryValues::ClearBoundary(BoundaryCommSubset phase) {
        ++bvars_it) {
     (*bvars_it)->ClearBoundary(phase);
   }
+
+  for (auto bvars_it = bvars_main_int_cx.begin(); bvars_it != bvars_main_int_cx.end();
+       ++bvars_it) {
+    (*bvars_it)->ClearBoundary(phase);
+  }
+
   return;
 }
 
@@ -580,6 +597,89 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundaries(const Real time, cons
                                 bis, bie, bjs, bje, pmb->kvs, pmb->kve, NGHOST,
                                 ph->w, pf->b, BoundaryFace::outer_x3,
                                 bvars_main_int_vc);
+    }
+  }
+  return;
+}
+
+void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const Real dt) {
+  MeshBlock *pmb = pmy_block_;
+  Coordinates *pco = pmb->pcoord;
+  int bis = pmb->cx_is - NGHOST, bie = pmb->cx_ie + NGHOST,
+      bjs = pmb->cx_js, bje = pmb->cx_je,
+      bks = pmb->cx_ks, bke = pmb->cx_ke;
+
+  // Extend the transverse limits that correspond to periodic boundaries as they are
+  // updated: x1, then x2, then x3
+  if (!apply_bndry_fn_[BoundaryFace::inner_x2] && pmb->block_size.nx2 > 1)
+    bjs = pmb->cx_js - NGHOST;
+  if (!apply_bndry_fn_[BoundaryFace::outer_x2] && pmb->block_size.nx2 > 1)
+    bje = pmb->cx_je + NGHOST;
+  if (!apply_bndry_fn_[BoundaryFace::inner_x3] && pmb->block_size.nx3 > 1)
+    bks = pmb->cx_ks - NGHOST;
+  if (!apply_bndry_fn_[BoundaryFace::outer_x3] && pmb->block_size.nx3 > 1)
+    bke = pmb->cx_ke + NGHOST;
+
+  // KGF: temporarily hardcode Hydro and Field access for coupling in EOS U(W) + calc bcc
+  // and when passed to user-defined boundary function stored in function pointer array
+
+  // KGF: COUPLING OF QUANTITIES (must be manually specified)
+  // downcast BoundaryVariable ptrs to known derived class types: RTTI via dynamic_cast
+  Hydro *ph = nullptr;
+  Field *pf = nullptr;
+
+  // Apply boundary function on inner-x1 and update W,bcc (if not periodic)
+  if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
+    DispatchBoundaryFunctions(pmb, pco, time, dt,
+                              pmb->cx_is, pmb->cx_ie, bjs, bje, bks, bke, NGHOST,
+                              ph->w, pf->b, BoundaryFace::inner_x1,
+                              bvars_main_int_cx);
+  }
+
+  // Apply boundary function on outer-x1 and update W,bcc (if not periodic)
+  if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
+    DispatchBoundaryFunctions(pmb, pco, time, dt,
+                              pmb->cx_is, pmb->cx_ie, bjs, bje, bks, bke, NGHOST,
+                              ph->w, pf->b, BoundaryFace::outer_x1,
+                              bvars_main_int_cx);
+  }
+
+  if (pmb->block_size.nx2 > 1) { // 2D or 3D
+    // Apply boundary function on inner-x2 and update W,bcc (if not periodic)
+    if (apply_bndry_fn_[BoundaryFace::inner_x2]) {
+      DispatchBoundaryFunctions(pmb, pco, time, dt,
+                                bis, bie, pmb->cx_js, pmb->cx_je, bks, bke, NGHOST,
+                                ph->w, pf->b, BoundaryFace::inner_x2,
+                                bvars_main_int_cx);
+    }
+
+    // Apply boundary function on outer-x2 and update W,bcc (if not periodic)
+    if (apply_bndry_fn_[BoundaryFace::outer_x2]) {
+      DispatchBoundaryFunctions(pmb, pco, time, dt,
+                                bis, bie, pmb->cx_js, pmb->cx_je, bks, bke, NGHOST,
+                                ph->w, pf->b, BoundaryFace::outer_x2,
+                                bvars_main_int_cx);
+    }
+  }
+
+  if (pmb->block_size.nx3 > 1) { // 3D
+    bjs = pmb->cx_js - NGHOST;
+    bje = pmb->cx_je + NGHOST;
+
+    // Apply boundary function on inner-x3 and update W,bcc (if not periodic)
+    if (apply_bndry_fn_[BoundaryFace::inner_x3]) {
+      DispatchBoundaryFunctions(pmb, pco, time, dt,
+                                bis, bie, bjs, bje, pmb->cx_ks, pmb->cx_ke, NGHOST,
+                                ph->w, pf->b, BoundaryFace::inner_x3,
+                                bvars_main_int_cx);
+    }
+
+    // Apply boundary function on outer-x3 and update W,bcc (if not periodic)
+    if (apply_bndry_fn_[BoundaryFace::outer_x3]) {
+      DispatchBoundaryFunctions(pmb, pco, time, dt,
+                                bis, bie, bjs, bje, pmb->cx_ks, pmb->cx_ke, NGHOST,
+                                ph->w, pf->b, BoundaryFace::outer_x3,
+                                bvars_main_int_cx);
     }
   }
   return;

@@ -165,6 +165,18 @@ void MeshBlock::WeightedAveVC(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1
   WeightedAve_(u_out, u_in1, u_in2, wght, il, jl, kl, iu, ju, ku);
 }
 
+void MeshBlock::WeightedAveCX(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
+                              AthenaArray<Real> &u_in2, const Real wght[3]) {
+  // consider every possible simplified form of weighted sum operator:
+  // U = a*U + b*U1 + c*U2
+
+  // This property would be better to derive based on general input type...
+  int il = cx_is, jl = cx_js, kl = cx_ks;
+  int iu = cx_ie, ju = cx_je, ku = cx_ke;
+
+  WeightedAve_(u_out, u_in1, u_in2, wght, il, jl, kl, iu, ju, ku);
+}
+
 //----------------------------------------------------------------------------------------
 //! \fn  void MeshBlock::WeightedAve
 //  \brief Compute weighted average of face-averaged B in time integrator step

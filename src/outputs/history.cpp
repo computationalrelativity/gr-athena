@@ -30,6 +30,7 @@
 #include "../gravity/gravity.hpp"
 #include "../hydro/hydro.hpp"
 #include "../z4c/z4c.hpp"
+#include "../wave/wave.hpp"
 #include "../mesh/mesh.hpp"
 #include "../scalars/scalars.hpp"
 #include "outputs.hpp"
@@ -39,6 +40,7 @@
 // "3" for 1-KE, 2-KE, 3-KE additional columns (come before tot-E)
 #define NHISTORY_VARS (((NHYDRO) + 3) * (FLUID_ENABLED) + (SELF_GRAVITY_ENABLED) + \
                        (NFIELD) + (NSCALARS) + \
+                       3 * (WAVE_ENABLED) + \
                        8 * (Z4C_ENABLED))
 
 //----------------------------------------------------------------------------------------
@@ -75,8 +77,11 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     Field *pfld = pmb->pfield;
     PassiveScalars *psclr = pmb->pscalars;
     Gravity *pgrav = pmb->pgrav;
+    Wave *pwave = pmb->pwave;
     Z4c *pz4c = pmb->pz4c;
 
+
+    Real abs_ma = 0;
     // Sum history variables over cells.  Note ghost cells are never included in sums
     for (int k=pmb->ks; k<=pmb->ke; ++k) {
       for (int j=pmb->js; j<=pmb->je; ++j) {
@@ -128,6 +133,14 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
             }
           }
 
+          if (WAVE_ENABLED) {
+            Real& wave_error = pwave->error(k,j,i);
+            abs_ma = (abs_ma < std::abs(wave_error)) ? std::abs(wave_error) : abs_ma;
+            hst_data[isum++] += vol(i)*std::abs(wave_error);
+            hst_data[isum++] += vol(i)*SQR(wave_error);
+            hst_data[isum++] = abs_ma;
+          }
+
           if (Z4C_ENABLED) {
             Real const H_err  = std::abs(pz4c->con.H(k,j,i));
             Real const M2_err = std::abs(pz4c->con.M(k,j,i));
@@ -151,6 +164,8 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         }
       }
     }
+
+
     for (int n=0; n<pm->nuser_history_output_; n++) { // user-defined history outputs
       if (pm->user_history_func_[n] != nullptr) {
         Real usr_val = pm->user_history_func_[n](pmb, n);
@@ -259,6 +274,12 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         for (int n=0; n<NSCALARS; n++) {
           std::fprintf(pfile,"[%d]=%d-scalar    ", iout++, n);
         }
+      }
+
+      if (WAVE_ENABLED) {
+        std::fprintf(pfile,"[%d]=err-norm1 ", iout++);
+        std::fprintf(pfile,"[%d]=err-norm2 ", iout++);
+        std::fprintf(pfile,"[%d]=err-max-pw ", iout++);
       }
 
       if (Z4C_ENABLED) {

@@ -27,6 +27,7 @@
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "../scalars/scalars.hpp"
+#include "../wave/wave.hpp"
 #include "../z4c/z4c.hpp"
 #include "../z4c/puncture_tracker.hpp"
 #include "outputs.hpp"
@@ -195,6 +196,11 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
     //   std::memcpy(pdata, r.data(), r.GetSizeInBytes());
     //   pdata += r.GetSizeInBytes();
     // }
+
+    if (WAVE_ENABLED) {
+      std::memcpy(pdata, pmb->pwave->u.data(), pmb->pwave->u.GetSizeInBytes());
+      pdata += pmb->pwave->u.GetSizeInBytes();
+    }
 
     if (Z4C_ENABLED) {
       std::memcpy(pdata, pmb->pz4c->storage.u.data(),

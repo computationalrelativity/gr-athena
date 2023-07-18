@@ -358,6 +358,30 @@ int main(int argc, char *argv[]) {
   }
 #endif // ENABLE_EXCEPTIONS
 
+  // BD: new problem
+  WaveIntegratorTaskList *pwlist = nullptr;
+  // -BD
+
+#ifdef ENABLE_EXCEPTIONS
+  try {
+#endif
+    // BD: new problem
+    if(WAVE_ENABLED) { // only init. when required
+      pwlist = new WaveIntegratorTaskList(pinput, pmesh);
+    }
+    // -BD
+#ifdef ENABLE_EXCEPTIONS
+  }
+  catch(std::bad_alloc& ba) {
+    std::cout << "### FATAL ERROR in main" << std::endl << "memory allocation failed "
+              << "in creating task list " << ba.what() << std::endl;
+#ifdef MPI_PARALLEL
+    MPI_Finalize();
+#endif
+    return(0);
+  }
+#endif // ENABLE_EXCEPTIONS
+
   Z4cIntegratorTaskList *pz4clist = nullptr;
 
 #ifdef ENABLE_EXCEPTIONS
@@ -503,6 +527,16 @@ int main(int argc, char *argv[]) {
         ptlist->DoTaskListOneStage(pmesh, stage);
       }
     }
+
+    // BD: new problem
+    if (WAVE_ENABLED) {
+      // This effectively means hydro takes a time-step and _then_ the given problem takes one
+      for (int stage=1; stage<=pwlist->nstages; ++stage) {
+        pwlist->DoTaskListOneStage(pmesh, stage);
+      }
+    }
+    // -BD
+
 
     if (Z4C_ENABLED) {
       // This effectively means hydro takes a time-step and _then_ the given problem takes one

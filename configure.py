@@ -14,6 +14,7 @@
 #   --flux=xxx          use xxx as the Riemann solver
 #   --nghost=xxx        set NGHOST=xxx
 #   --ncghost=xxx       set NCGHOST=xxx
+#   --ncghost_cx=xxx    set NCGHOST_CX=xxx
 #   --nextrapolate=xxx  set NEXTRAPOLATE=xxx  [for ouflow conditions]
 #   --nscalars=xxx      set NSCALARS=xxx
 #   -eos_table          enable EOS table
@@ -51,6 +52,13 @@
 #   -ccache             use caching-compiler (prepend command to chosen compiler)
 #   -rpath              encode the path to the shared libraries into the executable
 #   -link_gold          use gold linker
+#
+# wave equation tests:
+#
+#   -w                  enable wave equation system
+#   -w_cc               use cell-centered            sampling
+#   -w_cx               use cell-centered (extended) sampling
+#   -w_vc               use vertex-centered          sampling
 # ----------------------------------------------------------------------------------------
 
 # Modules
@@ -127,6 +135,11 @@ parser.add_argument('--ncghost',
                     default='default',
                     help='set number of coarse ghost zones')
 
+# --ncghost_cx=[value] argument
+parser.add_argument('--ncghost_cx',
+                    default='default',
+                    help='set number of coarse ghost zones (CX)')
+
 # --nextrapolate=[value] argument
 parser.add_argument('--nextrapolate',
                     default='default',
@@ -196,6 +209,27 @@ parser.add_argument("-cce",
                     action='store_true',
                     default=False,
                     help='enable CCE wave extraction')
+
+# -w argument
+parser.add_argument("-w",
+                    action='store_true',
+                    default=False,
+                    help='enable wave equation')
+
+parser.add_argument("-w_cc",
+                    action='store_true',
+                    default=False,
+                    help='enable wave equation: cc sampling')
+
+parser.add_argument("-w_cx",
+                    action='store_true',
+                    default=False,
+                    help='enable wave equation: cx sampling')
+
+parser.add_argument("-w_vc",
+                    action='store_true',
+                    default=False,
+                    help='enable wave equation: vc sampling')
 
 # -t argument
 parser.add_argument('-t',
@@ -508,6 +542,14 @@ else:
     cnghosts = {'2': '2', '3': '3', '4': '4', '5': '5', '6': '7', '7': '8'}
     definitions['NUMBER_COARSE_GHOSTS'] = cnghosts[args['nghost']]
 
+# --ncghost_cx=[value] argument
+if args['ncghost_cx'].isnumeric():
+    definitions['NUMBER_COARSE_GHOSTS_CX'] = args['ncghost_cx']
+else:
+    # Default values for the number of coarse ghost zones
+    ncghosts_cx = {'2': '2', '3': '3', '4': '4', '5': '5', '6': '7', '7': '8'}
+    definitions['NUMBER_COARSE_GHOSTS_CX'] = ncghosts_cx[args['nghost']]
+
 # --nextrapolate=[value] argument
 if args['nextrapolate'].isnumeric():
     definitions['NUMBER_EXTRAPOLATION_POINTS'] = args['nextrapolate']
@@ -645,6 +687,31 @@ if args['ref_spheres']:
 if args['ref_box_in_box']:
     definitions['Z4C_REF_BOX_IN_BOX'] = 'Z4C_REF_BOX_IN_BOX'
     definitions['Z4C_REF_SPHERES'] = 'NO_Z4C_REF_SPHERES'
+
+# -w - wave equation
+if args['w']:
+    definitions['WAVE_ENABLED'] = '1'
+
+    # default is VC
+    definitions['WAVE_CX_ENABLED'] = '0'
+    definitions['WAVE_CC_ENABLED'] = '0'
+    definitions['WAVE_VC_ENABLED'] = '1'
+
+    if args['w_cc']:
+        definitions['WAVE_CX_ENABLED'] = '0'
+        definitions['WAVE_CC_ENABLED'] = '1'
+        definitions['WAVE_VC_ENABLED'] = '0'
+
+    if args['w_cx']:
+        definitions['WAVE_CX_ENABLED'] = '1'
+        definitions['WAVE_CC_ENABLED'] = '0'
+        definitions['WAVE_VC_ENABLED'] = '0'
+
+else:
+    definitions['WAVE_ENABLED'] = '0'
+    definitions['WAVE_CX_ENABLED'] = '0'
+    definitions['WAVE_CC_ENABLED'] = '0'
+    definitions['WAVE_VC_ENABLED'] = '0'
 
 # -shear argument
 if args['shear']:
@@ -1085,6 +1152,13 @@ if args['z']:
                                                 else 'spheres'))
     print('  Z4c apparent horizon finder:  ' + ('ON' if args['z_ahf'] else 'OFF'))
     print('  CCE:                          ' + ('ON' if args['cce'] else 'OFF'))
+
+print('  Wave equation:                ' + ('ON' if args['w'] else 'OFF'))
+if args['w']:
+    print('  w_cc:                         ' + ('ON' if args['w_cc'] else 'OFF'))
+    print('  w_cx:                         ' + ('ON' if args['w_cx'] else 'OFF'))
+    print('  w_vc:                         ' + ('ON' if args['w_vc'] else 'OFF'))
+
 print('  Frame transformations:        ' + ('ON' if args['t'] else 'OFF'))
 print('  Self-Gravity:                 ' + self_grav_string)
 print('  Super-Time-Stepping:          ' + ('ON' if args['sts'] else 'OFF'))
@@ -1096,6 +1170,7 @@ print('  Linker flags:                 ' + makefile_options['LINKER_FLAGS'] + ' 
 print('  Floating-point precision:     ' + ('single' if args['float'] else 'double'))
 print('  Number of ghost cells:        ' + args['nghost'])
 print('  Number of coarse ghosts (VC): ' + definitions['NUMBER_COARSE_GHOSTS'])
+print('  Number of coarse ghosts (CX): ' + definitions['NUMBER_COARSE_GHOSTS_CX'])
 print('  Total # extrapolation points: ' + definitions['NUMBER_EXTRAPOLATION_POINTS'])
 print('  MPI parallelism:              ' + ('ON' if args['mpi'] else 'OFF'))
 print('  OpenMP parallelism:           ' + ('ON' if args['omp'] else 'OFF'))

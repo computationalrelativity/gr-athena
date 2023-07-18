@@ -160,3 +160,45 @@ template<>
 Real const InterpolateLagrangeUniform_opt<5>::coeff[5] = {
   35./65536., -405./65536., 567./16384., -2205./16384., 19845./32768.,
 };
+
+// Stencils about central point e.g. {x_i-1, x_i, x_i+1} with dx unif.
+// coeffs for interp. to x_i-dx/4.
+//
+// interp. to x_i+dx/4 by flipping stencil
+template<>
+Real const InterpolateLagrangeUniformChildren<1>::coeff[3] = {
+  5.0 / 32.0, 30.0 / 32.0, -3.0 / 32.0
+};
+
+template<>
+Real const InterpolateLagrangeUniformChildren<2>::coeff[5] = {
+  -45.0 / 2048.0,
+   420.0 / 2048.0,
+   1890.0 / 2048.0,
+  -252.0 / 2048.0,
+   35.0 / 2048.0
+};
+
+template<>
+Real const InterpolateLagrangeUniformChildren<3>::coeff[7] = {
+   273.0 / 65536.0,
+  -2574.0 / 65536.0,
+   15015.0 / 65536.0,
+   60060.0 / 65536.0,
+  -9009.0 / 65536.0,
+   2002.0 / 65536.0,
+  -231.0 / 65536.0
+};
+
+template<>
+Real const InterpolateLagrangeUniformChildren<4>::coeff[9] = {
+  -7293.0 / 8388608.0,
+   79560.0 / 8388608.0,
+  -437580.0 / 8388608.0,
+   2042040.0 / 8388608.0,
+   7657650.0 / 8388608.0,
+  -1225224.0 / 8388608.0,
+   340340.0 / 8388608.0,
+  -67320.0 / 8388608.0,
+   6435.0 / 8388608.0
+};

@@ -18,9 +18,9 @@
 #include "../athena.hpp"
 
 // If this is uncommented always use symmetric operators
-#ifndef LOCALINTERP_SYMMETRIC
-#define LOCALINTERP_SYMMETRIC
-#endif
+// #ifndef LOCALINTERP_SYMMETRIC
+// #define LOCALINTERP_SYMMETRIC
+// #endif
 
 // Use fuzzy comparison for whether a coord is "half-way" between known knodes
 // Comparison is done based on relative error and below factor of machine eps

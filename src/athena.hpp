@@ -154,7 +154,7 @@ enum CoordinateDirection {X1DIR=0, X2DIR=1, X3DIR=2};
 //------------------
 // KGF: Except for the 2x MG* enums, these may be unnessary w/ the new class inheritance
 // Now, only passed to BoundaryVariable::InitBoundaryData(); could replace w/ bool switch
-enum class BoundaryQuantity {cc, fc, vc, cc_flcor, fc_flcor, mggrav, mggrav_f};
+enum class BoundaryQuantity {cc, cx, fc, vc, cc_flcor, fc_flcor, mggrav, mggrav_f};
 enum class HydroBoundaryQuantity {cons, prim};
 enum class BoundaryCommSubset {mesh_init, gr_amr, all};
 // TODO(felker): consider generalizing/renaming to QuantityFormulation

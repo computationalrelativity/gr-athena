@@ -40,6 +40,7 @@
 #include "meshblock_tree.hpp"
 #include "../z4c/z4c.hpp"
 #include "../z4c/wave_extract.hpp"
+#include "../wave/wave.hpp"
 
 //----------------------------------------------------------------------------------------
 // MeshBlock constructor: constructs coordinate, boundary condition, hydro, field
@@ -63,6 +64,7 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   vars_cc_.reserve(3);
   vars_fc_.reserve(3);
   vars_vc_.reserve(3);
+  vars_cx_.reserve(1);
 
   // construct objects stored in MeshBlock class.  Note in particular that the initial
   // conditions for the simulation are set in problem generator called from main, not
@@ -138,6 +140,21 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
     pscalars = new PassiveScalars(this, pin);
     pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
   }
+
+  if (WAVE_ENABLED) {
+    pwave = new Wave(this, pin);
+
+    if (WAVE_CC_ENABLED)
+      pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
+
+    if (WAVE_VC_ENABLED)
+      pbval->AdvanceCounterPhysID(VertexCenteredBoundaryVariable::max_phys_id);
+
+    if (WAVE_CX_ENABLED)
+      pbval->AdvanceCounterPhysID(CellCenteredXBoundaryVariable::max_phys_id);
+
+  }
+
 
   if (Z4C_ENABLED) {
     pz4c = new Z4c(this, pin);
@@ -247,6 +264,20 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
   }
 
+  if (WAVE_ENABLED) {
+    pwave = new Wave(this, pin);
+
+    if (WAVE_CC_ENABLED)
+      pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
+
+    if (WAVE_VC_ENABLED)
+      pbval->AdvanceCounterPhysID(VertexCenteredBoundaryVariable::max_phys_id);
+
+    if (WAVE_CX_ENABLED)
+      pbval->AdvanceCounterPhysID(CellCenteredXBoundaryVariable::max_phys_id);
+
+  }
+
   if (Z4C_ENABLED) {
     pz4c = new Z4c(this, pin);
     int nrad = pin->GetOrAddInteger("z4c", "nrad_wave_extraction", 0);
@@ -302,6 +333,11 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     os += pscalars->s.GetSizeInBytes();
   }
 
+  if (WAVE_ENABLED) {
+    std::memcpy(pwave->u.data(), &(mbdata[os]), pwave->u.GetSizeInBytes());
+    os += pwave->u.GetSizeInBytes();
+  }
+
   if (Z4C_ENABLED) {
     std::memcpy(pz4c->storage.u.data(), &(mbdata[os]), pz4c->storage.u.GetSizeInBytes());
     os += pz4c->storage.u.GetSizeInBytes();
@@ -342,6 +378,7 @@ MeshBlock::~MeshBlock() {
   if (FLUID_ENABLED) delete peos;
   if (SELF_GRAVITY_ENABLED) delete pgrav;
   if (NSCALARS > 0) delete pscalars;
+  if (WAVE_ENABLED) delete pwave;
 
   if (Z4C_ENABLED) {
     delete pz4c;
@@ -423,6 +460,163 @@ inline void MeshBlock::SetAllIndicialParameters() {
                         ncv3,
                         pmy_mesh->multilevel, pmy_mesh->f3);
 
+  // cell-centered extended ---------------------------------------------------
+  SetIndicialParametersCX(NGHOST,
+                          block_size.nx1,
+                          ncells1,
+                          cx_is, cx_ie,
+                          cx_ims, cx_ime,
+                          cx_ips, cx_ipe,
+                          cx_igs, cx_ige,
+                          true, true);
+
+  SetIndicialParametersCX(NGHOST,
+                          block_size.nx2,
+                          ncells2,
+                          cx_js, cx_je,
+                          cx_jms, cx_jme,
+                          cx_jps, cx_jpe,
+                          cx_jgs, cx_jge,
+                          true,
+                          pmy_mesh->f2);
+
+  SetIndicialParametersCX(NGHOST,
+                          block_size.nx3,
+                          ncells3,
+                          cx_ks, cx_ke,
+                          cx_kms, cx_kme,
+                          cx_kps, cx_kpe,
+                          cx_kgs, cx_kge,
+                          true,
+                          pmy_mesh->f3);
+
+  // coarse grid indicial parameters
+  cx_dng = NCGHOST_CX - NGHOST;
+
+  SetIndicialParametersCX(NCGHOST_CX,
+                          block_size.nx1 / 2,
+                          cx_ncc1,
+                          cx_cis, cx_cie,
+                          cx_cims, cx_cime,
+                          cx_cips, cx_cipe,
+                          cx_cigs, cx_cige,
+                          pmy_mesh->multilevel,
+                          true);
+
+  SetIndicialParametersCX(NCGHOST_CX,
+                          block_size.nx2 / 2,
+                          cx_ncc2,
+                          cx_cjs, cx_cje,
+                          cx_cjms, cx_cjme,
+                          cx_cjps, cx_cjpe,
+                          cx_cjgs, cx_cjge,
+                          pmy_mesh->multilevel,
+                          pmy_mesh->f2);
+
+  SetIndicialParametersCX(NCGHOST_CX,
+                          block_size.nx3 / 2,
+                          cx_ncc3,
+                          cx_cks, cx_cke,
+                          cx_ckms, cx_ckme,
+                          cx_ckps, cx_ckpe,
+                          cx_ckgs, cx_ckge,
+                          pmy_mesh->multilevel,
+                          pmy_mesh->f3);
+
+
+  // // x1
+  // cx_ims = 0;
+  // cx_ime = NGHOST - 1;
+
+  // cx_ips = block_size.nx1 + NGHOST;
+  // cx_ipe = block_size.nx1 + 2 * NGHOST - 1;
+
+  // cx_is = NGHOST;
+  // cx_ie = cx_is + block_size.nx1 - 1;
+
+  // cx_igs = cx_is + NGHOST - 1;
+  // cx_ige = cx_ie - (NGHOST - 1);
+
+  // // x2
+  // cx_jms = 0;
+  // cx_jme = NGHOST - 1;
+
+  // cx_jps = block_size.nx2 + NGHOST;
+  // cx_jpe = block_size.nx2 + 2 * NGHOST - 1;
+
+  // cx_js = NGHOST;
+  // cx_je = cx_js + block_size.nx2 - 1;
+
+  // cx_jgs = cx_js + NGHOST - 1;
+  // cx_jge = cx_je - (NGHOST - 1);
+
+  // // x3
+  // cx_kms = 0;
+  // cx_kme = NGHOST - 1;
+
+  // cx_kps = block_size.nx3 + NGHOST;
+  // cx_kpe = block_size.nx3 + 2 * NGHOST - 1;
+
+  // cx_ks = NGHOST;
+  // cx_ke = cx_ks + block_size.nx3 - 1;
+
+  // cx_kgs = cx_ks + NGHOST - 1;
+  // cx_kge = cx_ke - (NGHOST - 1);
+
+  // // multi-level
+  // if (pmy_mesh->multilevel)
+  // {
+  //   cx_dng = NCGHOST_CX - NGHOST;
+
+  //   // x1
+  //   cx_cims = 0;
+  //   cx_cime = NCGHOST_CX - 1;
+
+  //   cx_cips = (block_size.nx1 / 2) + NCGHOST_CX;
+  //   cx_cipe = (block_size.nx1 / 2) + 2 * NCGHOST_CX - 1;
+
+  //   cx_cis = NCGHOST_CX;
+  //   cx_cie = cx_cis + (block_size.nx1 / 2) - 1;
+
+  //   cx_cigs = cx_cis + NCGHOST_CX - 1;
+  //   cx_cige = cx_cie - (NCGHOST_CX - 1);
+
+  //   cx_ncc1 = (block_size.nx1 / 2) + 2 * NCGHOST_CX;
+
+  //   // x2
+  //   cx_cjms = 0;
+  //   cx_cjme = NCGHOST_CX - 1;
+
+  //   cx_cjps = (block_size.nx2 / 2) + NCGHOST_CX;
+  //   cx_cjpe = (block_size.nx2 / 2) + 2 * NCGHOST_CX - 1;
+
+  //   cx_cjs = NCGHOST_CX;
+  //   cx_cje = cx_cjs + (block_size.nx2 / 2) - 1;
+
+  //   cx_cjgs = cx_cjs + NCGHOST_CX - 1;
+  //   cx_cjge = cx_cje - (NCGHOST_CX - 1);
+
+  //   cx_ncc2 = (block_size.nx2 / 2) + 2 * NCGHOST_CX;
+
+  //   // x3
+  //   cx_c3ms = 0;
+  //   cx_c3me = NCGHOST_CX - 1;
+
+  //   cx_c3ps = (block_size.nx3 / 2) + NCGHOST_CX;
+  //   cx_c3pe = (block_size.nx3 / 2) + 2 * NCGHOST_CX - 1;
+
+  //   cx_c3s = NCGHOST_CX;
+  //   cx_c3e = cx_c3s + (block_size.nx3 / 2) - 1;
+
+  //   cx_c3gs = cx_c3s + NCGHOST_CX - 1;
+  //   cx_c3ge = cx_c3e - (NCGHOST_CX - 1);
+
+  //   cx_ncc3 = (block_size.nx3 / 2) + 2 * NCGHOST_CX;
+  // }
+
+  // --------------------------------------------------------------------------
+
+
   return;
 }
 
@@ -481,6 +675,48 @@ inline void MeshBlock::SetIndicialParameters(int num_ghost,
       ix_ms = ix_me = ix_ps = ix_pe = 0;
       ix_gs = ix_ge = 0;
       ix_mp = 0;
+    }
+
+  }
+  return;
+}
+
+inline void MeshBlock::SetIndicialParametersCX(int num_ghost,
+                                               int block_size,
+                                               int &ncells,
+                                               int &ix_is, int &ix_ie,
+                                               int &ix_ms, int &ix_me,
+                                               int &ix_ps, int &ix_pe,
+                                               int &ix_gs, int &ix_ge,
+                                               bool populate_ix,
+                                               bool is_dim_nontrivial) {
+
+  if (is_dim_nontrivial) {
+    // cell centered
+    ncells = block_size + 2 * num_ghost;
+
+    if (populate_ix) {
+      // cell centered
+      ix_is = num_ghost;
+      ix_ie = ix_is + block_size - 1;
+
+      ix_ms = 0;
+      ix_me = num_ghost - 1;
+
+      ix_ps = block_size + num_ghost;
+      ix_pe = block_size + 2 * num_ghost - 1;
+
+      ix_gs = ix_is + num_ghost - 1;
+      ix_ge = ix_ie - (num_ghost - 1);
+    }
+
+  } else {
+    ncells = 1;
+    if (populate_ix) {
+      // cell centered
+      ix_is = ix_ie = 0;
+      ix_ms = ix_me = ix_ps = ix_pe = 0;
+      ix_gs = ix_ge = 0;
     }
 
   }
@@ -577,6 +813,10 @@ std::size_t MeshBlock::GetBlockSizeInBytes() {
   if (NSCALARS > 0)
     size += pscalars->s.GetSizeInBytes();
 
+  if (WAVE_ENABLED) {
+    size += pwave->u.GetSizeInBytes();
+  }
+
   if (Z4C_ENABLED) {
     // BD: TODO: extend as new data structures added
     size+=pz4c->storage.u.GetSizeInBytes();
@@ -654,6 +894,11 @@ void MeshBlock::RegisterMeshBlockDataVC(AthenaArray<Real> &pvar_in) {
 
 void MeshBlock::RegisterMeshBlockDataFC(FaceField &pvar_fc) {
   vars_fc_.push_back(pvar_fc);
+  return;
+}
+
+void MeshBlock::RegisterMeshBlockDataCX(AthenaArray<Real> &pvar_in) {
+  vars_cx_.push_back(pvar_in);
   return;
 }
 

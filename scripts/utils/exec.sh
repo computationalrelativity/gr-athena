@@ -6,7 +6,7 @@
 # cd ${DIR_ATHENA}/${REL_OUTPUT}/${RUN_NAME}
 cd ${DIR_OUTPUT}
 
-# ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
+./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
 
 # echo "> Executing: ${EXEC_NAME} in ${REL_OUTPUT}/${RUN_NAME} ..."
 # echo "> Using input: ${REL_INPUT}/${INPUT_NAME} ..."
@@ -14,7 +14,7 @@ cd ${DIR_OUTPUT}
 
 # cd ${DIR_ATHENA}/${REL_OUTPUT}/${RUN_NAME}
 # ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME} -m 1
-./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
+# ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
 
 # gdb -ex 'info b' \
 #     -ex 'set print pretty on' \
@@ -27,6 +27,28 @@ cd ${DIR_OUTPUT}
 #     -ex 'info b' \
 #     -ex 'set print pretty on' \
 #     -ex=r --args ./$EXEC_NAME.x -i $DIR_ATHENA/$REL_INPUT/$INPUT_NAME
+
+# gdb \
+#   -ex 'break bvals_cx.cpp:305' \
+#   -ex 'info b' \
+#   -ex 'set print pretty on' \
+#   -ex 'set output-radix 10' \
+#   -ex=r --args ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
+
+# gdb \
+#   -ex 'break bvals_cx.cpp:221' \
+#   -ex 'info b' \
+#   -ex 'set print pretty on' \
+#   -ex 'set output-radix 10' \
+#   -ex=r --args ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
+
+
+# gdb \
+#   -ex 'break bvals_refine.cpp:928' \
+#   -ex 'info b' \
+#   -ex 'set print pretty on' \
+#   -ex 'set output-radix 10' \
+#   -ex=r --args ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
 
 
 # make call log [inspect with qcachegrind]

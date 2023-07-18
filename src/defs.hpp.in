@@ -71,6 +71,14 @@
 // enable CCE? default=0 (false)
 #define CCE_ENABLED @CCE_ENABLED@
 
+// evolve the wave equation? default=0 (false)
+#define WAVE_ENABLED @WAVE_ENABLED@
+
+// wave equation sampling
+#define WAVE_CC_ENABLED @WAVE_CC_ENABLED@
+#define WAVE_CX_ENABLED @WAVE_CX_ENABLED@
+#define WAVE_VC_ENABLED @WAVE_VC_ENABLED@
+
 // enable GR frame transformations? default=0 (false)
 #define FRAME_TRANSFORMATIONS @FRAME_TRANSFORMATIONS@
 
@@ -137,6 +145,7 @@
 #define NSCALARS @NUMBER_PASSIVE_SCALARS@
 #define NGHOST @NUMBER_GHOST_CELLS@
 #define NCGHOST @NUMBER_COARSE_GHOSTS@                 // for vertex-centered communication
+#define NCGHOST_CX @NUMBER_COARSE_GHOSTS_CX@           // for cell-centered extended
 #define NEXTRAPOLATE @NUMBER_EXTRAPOLATION_POINTS@     // extrapolate_outflow
 #define MAX_NSTAGE 5     // maximum number of stages per cycle for time-integrator
 #define MAX_NREGISTER 3  // maximum number of (u, b) register pairs for time-integrator

@@ -52,6 +52,7 @@ class EquationOfState;
 class FFTDriver;
 class FFTGravityDriver;
 class TurbulenceDriver;
+class Wave;
 class Z4c;
 class WaveExtract;
 #ifdef Z4C_AHF
@@ -82,6 +83,7 @@ class MeshBlock {
   friend class ATHDF5Output;
 #endif
   friend class Z4c;
+  friend class Wave;
 
 public:
   MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_size,
@@ -96,8 +98,8 @@ public:
   Mesh *pmy_mesh;  // ptr to Mesh containing this MeshBlock
   LogicalLocation loc;
   RegionSize block_size;
-  
-  int ng, cng;  // distrinct ghost specification allowed
+
+  int ng, cng;  // distinct ghost specification allowed
   int rcng;     // ghosts that may be restricted [minimise communication]
 
   // for convenience: "max" # of real+ghost cells along each dir for allocating "standard"
@@ -152,6 +154,49 @@ public:
 
   int ckmp;                            // mid-point idx
 
+  // cell-centered extended ---------------------------------------------------
+  int cx_ncc1, cx_ncc2, cx_ncc3;       // number of coarse cells
+  int cx_dng;                          // NCGHOST_CX - NGHOST
+
+  int cx_ims, cx_ime, cx_ips, cx_ipe;  // -/+ (communication) ghost-zone idx
+  int cx_is, cx_ie;                    // first physical idx
+
+  int cx_igs, cx_ige;                  // shared to ghosts
+                                       // [is, ..., igs] to nn-ghosts leftward
+                                       // [ige, ..., ie] to nn-ghosts rightward
+
+  int cx_jms, cx_jme, cx_jps, cx_jpe;  // -/+ (communication) ghost-zone idx
+  int cx_js, cx_je;                    // first physical idx
+
+  int cx_jgs, cx_jge;                  // shared to ghosts
+                                       // [is, ..., igs] to nn-ghosts leftward
+                                       // [ige, ..., ie] to nn-ghosts rightward
+
+  int cx_kms, cx_kme, cx_kps, cx_kpe;  // -/+ (communication) ghost-zone idx
+  int cx_ks, cx_ke;                    // first physical idx
+
+  int cx_kgs, cx_kge;                  // shared to ghosts
+                                       // [is, ..., igs] to nn-ghosts leftward
+                                       // [ige, ..., ie] to nn-ghosts rightward
+
+
+  // for multi-level (labeling analogous)
+  int cx_cims, cx_cime, cx_cips, cx_cipe;
+  int cx_cis, cx_cie;
+
+  int cx_cigs, cx_cige;
+
+  int cx_cjms, cx_cjme, cx_cjps, cx_cjpe;
+  int cx_cjs, cx_cje;
+
+  int cx_cjgs, cx_cjge;
+
+  int cx_ckms, cx_ckme, cx_ckps, cx_ckpe;
+  int cx_cks, cx_cke;
+
+  int cx_ckgs, cx_ckge;
+  // --------------------------------------------------------------------------
+
   // At every cycle n, hydro and field registers (u, b) are advanced from t^n -> t^{n+1},
   // the time-integration scheme may partially substep several storage register pairs
   // (u,b), (u1,b1), (u2, b2), ..., (um, bm) through the dt interval. Track their time
@@ -181,6 +226,8 @@ public:
   PassiveScalars *pscalars;
   EquationOfState *peos;
 
+  Wave *pwave;
+
   Z4c *pz4c;
   std::vector<WaveExtractLocal *> pwave_extr_loc;
 
@@ -197,6 +244,8 @@ public:
                      AthenaArray<Real> &u_in2, const Real wght[3]);
   void WeightedAveFC(FaceField &b_out, FaceField &b_in1, FaceField &b_in2,
                      const Real wght[3]);
+  void WeightedAveCX(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
+                     AthenaArray<Real> &u_in2, const Real wght[3]);
 
   // inform MeshBlock which arrays contained in member Hydro, Field, Particles,
   // ... etc. classes are the "primary" representations of a quantity. when registered,
@@ -204,6 +253,7 @@ public:
   void RegisterMeshBlockDataCC(AthenaArray<Real> &pvar_in);
   void RegisterMeshBlockDataVC(AthenaArray<Real> &pvar_in);
   void RegisterMeshBlockDataFC(FaceField &pvar_fc);
+  void RegisterMeshBlockDataCX(AthenaArray<Real> &pvar_in);
 
   // defined in either the prob file or default_pgen.cpp in ../pgen/
   void UserWorkBeforeOutput(ParameterInput *pin); // called in Mesh fn (friend class)
@@ -212,6 +262,7 @@ public:
   // This is a quick fix to prevent multiple calls to 'UserWorkInLoop' if
   // TimeIntegratorTaskList and Z4cIntegratorTaskList are both running..
   void Z4cUserWorkInLoop();
+  void WaveUserWorkInLoop();
 
   bool PointContained(Real const x, Real const y, Real const z);
   bool PointContainedExclusive(Real const x, Real const y, Real const z);
@@ -230,6 +281,7 @@ private:
   std::vector<std::reference_wrapper<AthenaArray<Real>>> vars_cc_;
   std::vector<std::reference_wrapper<FaceField>> vars_fc_;
   std::vector<std::reference_wrapper<AthenaArray<Real>>> vars_vc_;
+  std::vector<std::reference_wrapper<AthenaArray<Real>>> vars_cx_;
 
   // functions
   // helper functions for assigning / testing indices (inlined on definition)
@@ -246,6 +298,15 @@ private:
                              int &nverts,                 // VC end
                              bool populate_ix,
                              bool is_dim_nontrivial);
+  void SetIndicialParametersCX(int num_ghost,
+                               int block_size,
+                               int &ncells,                 // CC end
+                               int &ix_is, int &ix_ie,      // bnd vert
+                               int &ix_ms, int &ix_me,      // neg
+                               int &ix_ps, int &ix_pe,      // pos
+                               int &ix_gs, int &ix_ge,      // int. g
+                               bool populate_ix,
+                               bool is_dim_nontrivial);
   //---------------------------------------------------------------------------
 
   void AllocateRealUserMeshBlockDataField(int n);

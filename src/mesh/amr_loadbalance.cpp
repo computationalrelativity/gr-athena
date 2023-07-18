@@ -945,6 +945,37 @@ void Mesh::FillSameRankFineToCoarseAMR(MeshBlock* pob, MeshBlock* pmb,
     pmb_cc_it++;
   }
 
+  // cell-centered extended ---------------------------------------------------
+  int cx_il = pmb->cx_is + ((loc.lx1 & 1LL) == 1LL)*pmb->block_size.nx1/2;
+  int cx_jl = pmb->cx_js + ((loc.lx2 & 1LL) == 1LL)*pmb->block_size.nx2/2;
+  int cx_kl = pmb->cx_ks + ((loc.lx3 & 1LL) == 1LL)*pmb->block_size.nx3/2;
+
+  auto pmb_cx_it = pmb->pmr->pvars_cx_.begin();
+  // iterate MeshRefinement std::vectors on pob
+  for (auto cx_pair : pmr->pvars_cx_) {
+    AthenaArray<Real> *var_cx = std::get<0>(cx_pair);
+    AthenaArray<Real> *coarse_cx = std::get<1>(cx_pair);
+    int nu = var_cx->GetDim4() - 1;
+    pmr->RestrictCellCenteredXValues(*var_cx, *coarse_cx,
+                                    0, nu,
+                                    pob->cx_cis, pob->cx_cie,
+                                    pob->cx_cjs, pob->cx_cje,
+                                    pob->cx_cks, pob->cx_cke);
+    // copy from old/original/other MeshBlock (pob) to newly created block (pmb)
+    AthenaArray<Real> &src = *coarse_cx;
+    AthenaArray<Real> &dst = *std::get<0>(*pmb_cx_it); // pmb->phydro->u;
+    for (int nv=0; nv<=nu; nv++) {
+      for (int k=kl, fk=pob->cx_cks; fk<=pob->cx_cke; k++, fk++) {
+        for (int j=jl, fj=pob->cx_cjs; fj<=pob->cx_cje; j++, fj++) {
+          for (int i=il, fi=pob->cx_cis; fi<=pob->cx_cie; i++, fi++)
+            dst(nv, k, j, i) = src(nv, fk, fj, fi);
+        }
+      }
+    }
+    pmb_cx_it++;
+  }
+  // --------------------------------------------------------------------------
+
   auto pmb_fc_it = pmb->pmr->pvars_fc_.begin();
   for (auto fc_pair : pmr->pvars_fc_) {
     FaceField *var_fc = std::get<0>(fc_pair);
@@ -1066,6 +1097,41 @@ void Mesh::FillSameRankCoarseToFineAMR(MeshBlock* pob, MeshBlock* pmb,
         pob->cis, pob->cie, pob->cjs, pob->cje, pob->cks, pob->cke);
     pob_cc_it++;
   }
+
+  // cell-centered extended ---------------------------------------------------
+  int cx_il = pob->cx_cis - 1, cx_iu = pob->cx_cie + 1, cx_jl = pob->cjs - f2,
+      cx_ju = pob->cje + f2, cx_kl = pob->cks - f3, cx_ku = pob->cke + f3;
+  int cx_cis = ((newloc.lx1 & 1LL) == 1LL)*pob->block_size.nx1/2 + pob->cx_is - 1;
+  int cx_cjs = ((newloc.lx2 & 1LL) == 1LL)*pob->block_size.nx2/2 + pob->cx_js - f2;
+  int cx_cks = ((newloc.lx3 & 1LL) == 1LL)*pob->block_size.nx3/2 + pob->cx_ks - f3;
+
+  auto pob_cx_it = pob->pmr->pvars_cx_.begin();
+  // iterate MeshRefinement std::vectors on new pmb
+  for (auto cc_pair : pmr->pvars_cx_) {
+    AthenaArray<Real> *var_cx = std::get<0>(cc_pair);
+    AthenaArray<Real> *coarse_cx = std::get<1>(cc_pair);
+    int nu = var_cx->GetDim4() - 1;
+
+    AthenaArray<Real> &src = *std::get<0>(*pob_cx_it);
+    AthenaArray<Real> &dst = *coarse_cx;
+    // fill the coarse buffer
+    for (int nv=0; nv<=nu; nv++) {
+      for (int k=cx_kl, ck=cx_cks; k<=cx_ku; k++, ck++) {
+        for (int j=cx_jl, cj=cx_cjs; j<=cx_ju; j++, cj++) {
+          for (int i=cx_il, ci=cx_cis; i<=cx_iu; i++, ci++)
+            dst(nv, k, j, i) = src(nv, ck, cj, ci);
+        }
+      }
+    }
+    pmr->ProlongateCellCenteredXValues(
+        dst, *var_cx, 0, nu,
+        pob->cx_cis, pob->cx_cie,
+        pob->cx_cjs, pob->cx_cje,
+        pob->cx_cks, pob->cx_cke);
+    pob_cx_it++;
+  }
+  // --------------------------------------------------------------------------
+
   auto pob_fc_it = pob->pmr->pvars_fc_.begin();
   // iterate MeshRefinement std::vectors on new pmb
   for (auto fc_pair : pmr->pvars_fc_) {

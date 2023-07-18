@@ -1,5 +1,5 @@
-#ifndef BVALS_VC_BVALS_VC_HPP_
-#define BVALS_VC_BVALS_VC_HPP_
+#ifndef BVALS_CX_BVALS_CX_HPP_
+#define BVALS_CX_BVALS_CX_HPP_
 //========================================================================================
 // Athena++ astrophysical MHD code
 // Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
@@ -25,20 +25,20 @@
 #endif
 
 //----------------------------------------------------------------------------------------
-//! \class VertexCenteredBoundaryVariable
+//! \class CellCenteredXBoundaryVariable
 //  \brief
 
-class VertexCenteredBoundaryVariable : public BoundaryVariable {
+class CellCenteredXBoundaryVariable : public BoundaryVariable {
  public:
-  VertexCenteredBoundaryVariable(MeshBlock *pmb,
+  CellCenteredXBoundaryVariable(MeshBlock *pmb,
                                  AthenaArray<Real> *var, AthenaArray<Real> *coarse_var,
                                  AthenaArray<Real> *var_flux);
-  ~VertexCenteredBoundaryVariable();
+  ~CellCenteredXBoundaryVariable();
 
-  // may want to rebind var_vc to u,u1,u2,w,w1, etc. registers for time integrator logic.
+  // may want to rebind var_cx to u,u1,u2,w,w1, etc. registers for time integrator logic.
   // Also, derived class HydroBoundaryVariable needs to keep switching var and coarse_var
   // arrays between primitive and conserved variables ---> ptr members, not references
-  AthenaArray<Real> *var_vc;
+  AthenaArray<Real> *var_cx;
   AthenaArray<Real> *coarse_buf;  // may pass nullptr if mesh refinement is unsupported
 
   // currently, no need to ever switch flux[] ---> keep as reference members (not ptrs)
@@ -47,7 +47,7 @@ class VertexCenteredBoundaryVariable : public BoundaryVariable {
   AthenaArray<Real> &x1flux, &x2flux, &x3flux;
 
   // maximum number of reserved unique "physics ID" component of MPI tag bitfield
-  // (VertexCenteredBoundaryVariable only actually uses 1x if multilevel==false, no shear)
+  // (CellCenteredXBoundaryVariable only actually uses 1x if multilevel==false, no shear)
   // must correspond to the # of "int *phys_id_" private members, below. Convert to array?
   static constexpr int max_phys_id = 3;
 
@@ -202,38 +202,9 @@ private:
                           int fi1, int fi2, int axis_half_size,
                           bool size_flag, bool offset_flag);
 
-  // functions pertaining to vertex consistency
-  void AllocateNodeMult();
-  void PrepareNodeMult();
-
-  void ApplyNodeMultiplicitesDim3(
-    AthenaArray<Real> &var,
-    int ims, int ivs, int ive, int ipe, int axis_half_size_x1,
-    int jms, int jvs, int jve, int jpe, int axis_half_size_x2,
-    int kms, int kvs, int kve, int kpe, int axis_half_size_x3);
-
-  void ApplyNodeMultiplicitesDim2(
-    AthenaArray<Real> &var,
-    int ims, int ivs, int ive, int ipe, int axis_half_size_x1,
-    int jms, int jvs, int jve, int jpe, int axis_half_size_x2);
-
-  void ApplyNodeMultiplicitesDim1(
-    AthenaArray<Real> &var,
-    int ims, int ivs, int ive, int ipe, int axis_half_size_x1);
-
-  // node multiplicities ------------------------------------------------------
-  AthenaArray<unsigned short int> node_mult;
-  // BD: TODO - flip/flop based on neighbour changes during AMR?
-  bool node_mult_assembled = false;
-
-  int c_ims = 0, c_ivs = 1, c_ive = 5, c_ipe = 6;
-  int c_jms = 0, c_jvs = 1, c_jve = 5, c_jpe = 6;
-  int c_kms = 0, c_kvs = 1, c_kve = 5, c_kpe = 6;
-  //---------------------------------------------------------------------------
-
 #ifdef MPI_PARALLEL
   int cx_phys_id_; //, cc_flx_phys_id_;
 #endif
 };
 
-#endif // BVALS_VC_BVALS_VC_HPP_
+#endif // BVALS_CX_BVALS_CX_HPP_

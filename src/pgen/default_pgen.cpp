@@ -128,3 +128,14 @@ void __attribute__((weak)) MeshBlock::Z4cUserWorkInLoop() {
   // do nothing
   return;
 }
+
+//========================================================================================
+//! \fn void MeshBlock::WaveUserWorkInLoop()
+//  \brief Function called once every time step for (wave) user-defined work.
+//========================================================================================
+// BD: new problem
+void __attribute__((weak)) MeshBlock::WaveUserWorkInLoop() {
+  // do nothing
+  return;
+}
+// -BD

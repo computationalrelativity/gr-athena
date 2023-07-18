@@ -1,27 +1,15 @@
 <job>
-problem_id      = cvg_wave_3d_trig   # Basename of output filenames
+problem_id      = wave_3d   # Basename of output filenames
 
 <problem>
 x1prof          = linear    # Either 'linear' or 'bump'
 
 x1dir           = 0         # Allowed values are -1, 0, 1 and correspond to
                             # Left, LC Left+Right, Right propagation resp.
-#<output1>
-## file_type     = tab       # Athena++ ASCII data
-#file_type       = hdf5      # dump to hierarchical format
-#variable        = wave      # variables to be output
-#dt              = 0.2       # time increment between outputs
-#data_format     = %.16e
-##ghost_zones     = 1         # include ghost zones
-
-# <output2>
-# file_type       = hst       # History data
-# dt              = 0.1       # time increment between outputs
-# data_format     = %.16e
-
-# <output3>
-# file_type       = rst       # restart data
-# dt              = 0.1       # control frequency via time-step
+<output1>
+file_type       = hst       # History data
+dt              = 1       # time increment between outputs
+data_format     = %.16e
 
 <time>
 cfl_number      = 0.2       # The Courant, Friedrichs, & Lewy (CFL) number

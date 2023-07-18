@@ -106,6 +106,8 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   std::vector<BoundaryVariable *> bvars_main_int;
   // as above but particular to vertex-centered
   std::vector<BoundaryVariable *> bvars_main_int_vc;
+  // as above but particular to cell-centered (extended)
+  std::vector<BoundaryVariable *> bvars_main_int_cx;
 
   // inherited functions (interface shared with BoundaryVariable objects):
   // ------
@@ -128,6 +130,9 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   //--New logic for vertex-centering
   void ApplyPhysicalVertexCenteredBoundaries(const Real time, const Real dt);
   void ProlongateVertexCenteredBoundaries(const Real time, const Real dt);
+
+  void ApplyPhysicalCellCenteredXBoundaries(const Real time, const Real dt);
+  void ProlongateCellCenteredXBoundaries(const Real time, const Real dt);
   //---------------------------------------------------------------------------
 
   // compute the shear at each integrator stage
@@ -189,12 +194,24 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   void ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(
       const Real time, const Real dt);
 
+  void ApplyPhysicalCellCenteredXBoundariesOnCoarseLevel(
+      const Real time, const Real dt);
+
   void CalculateVertexProlongationIndices(std::int64_t &lx, int ox, int pcng,
                                          int cix_vs, int cix_ve,
                                          int &set_ix_vs, int &set_ix_ve,
                                          bool is_dim_nontrivial);
 
+  void CalculateCellCenteredXProlongationIndices(std::int64_t &lx, int ox, int pcng,
+                                                 int cix_vs, int cix_ve,
+                                                 int &set_ix_vs, int &set_ix_ve,
+                                                 bool is_dim_nontrivial);
+
   void ProlongateVertexCenteredGhosts(
+      const NeighborBlock& nb,
+      int si, int ei, int sj, int ej, int sk, int ek);
+
+  void ProlongateCellCenteredXGhosts(
       const NeighborBlock& nb,
       int si, int ei, int sj, int ej, int sk, int ek);
 
