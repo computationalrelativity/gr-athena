@@ -13,11 +13,11 @@ namespace Floater_Hormann {
 
 template <typename T>
 static inline T weight(T * gr_s,
-                       int N,
+                       int Ns,
                        int k, int d)
 {
   const int il = std::max(k-d, 0);
-  const int iu = std::min(k, N-d);
+  const int iu = std::min(k, Ns-d);
 
   T wei = 0.;
 
@@ -41,16 +41,16 @@ static inline T weight(T * gr_s,
 template<typename Tg, typename Tf>
 static Tf interp_1d(Tg x1_t, Tg * gr_s,
                     Tf * fcn_s,
-                    int N, int d, int ng)
+                    int Ns, int d, int ng)
 {
   // weight & function return common value
   typedef typename std::common_type<Tg, Tf>::type Tr;
 
   Tr num = 0, den = 0;
 
-  for(int k=0; k<=N; ++k)
+  for(int k=0; k<=Ns; ++k)
   {
-    const Tg w_k  = weight<Tg>(gr_s, N, k, d);
+    const Tg w_k  = weight<Tg>(gr_s, Ns, k, d);
     const Tg rdx  = 1. / (x1_t - gr_s[k]);
     const Tg rw_k = w_k * rdx;
 
@@ -65,7 +65,7 @@ template<typename Tg, typename Tf>
 static Tf interp_2d(Tg x1_t, Tg x2_t,
                     Tg * x1_s, Tg * x2_s,
                     Tf * fcn_s,
-                    int N_x1, int N_x2, int d, int ng)
+                    int Ns_x1, int Ns_x2, int d, int ng)
 {
   // weight & function return common value
   typedef typename std::common_type<Tg, Tf>::type Tr;
@@ -73,23 +73,23 @@ static Tf interp_2d(Tg x1_t, Tg x2_t,
   Tr num = 0, den = 0;
 
   // loop-lift for speed at the cost of malloc
-  Tg * arr_w_k1 = new Tg[N_x1 + 1];
-  for(int k1=0; k1<=N_x1; ++k1)
-    arr_w_k1[k1] = weight<Tg>(x1_s, N_x1, k1, d);
+  Tg * arr_w_k1 = new Tg[Ns_x1 + 1];
+  for(int k1=0; k1<=Ns_x1; ++k1)
+    arr_w_k1[k1] = weight<Tg>(x1_s, Ns_x1, k1, d);
 
-  for(int k2=0; k2<=N_x2; ++k2)
+  for(int k2=0; k2<=Ns_x2; ++k2)
   {
-    const Tg w_k2  = weight<Tg>(x2_s, N_x2, k2, d);
+    const Tg w_k2  = weight<Tg>(x2_s, Ns_x2, k2, d);
     const Tg rdx2  = 1. / (x2_t - x2_s[k2]);
     const Tg rw_k2 = w_k2 * rdx2;
 
-    for(int k1=0; k1<=N_x1; ++k1)
+    for(int k1=0; k1<=Ns_x1; ++k1)
     {
       const Tg w_k1  = arr_w_k1[k1];  // lifted
       const Tg rdx1  = 1. / (x1_t - x1_s[k1]);
       const Tg rw_k1 = w_k1 * rdx1;
 
-      const int ix = (k1+ng) + (N_x1+1+2*ng) * (k2+ng);
+      const int ix = (k1+ng) + (Ns_x1+1+2*ng) * (k2+ng);
 
       num += rw_k1 * rw_k2 * fcn_s[ix];
       den += rw_k1 * rw_k2;
@@ -105,7 +105,7 @@ template<typename Tg, typename Tf>
 static Tf interp_3d(Tg x1_t, Tg x2_t, Tg x3_t,
                     Tg * x1_s, Tg * x2_s, Tg * x3_s,
                     Tf * fcn_s,
-                    int N_x1, int N_x2, int N_x3, int d, int ng)
+                    int Ns_x1, int Ns_x2, int Ns_x3, int d, int ng)
 {
   // weight & function return common value
   typedef typename std::common_type<Tg, Tf>::type Tr;
@@ -113,34 +113,34 @@ static Tf interp_3d(Tg x1_t, Tg x2_t, Tg x3_t,
   Tr num = 0, den = 0;
 
   // loop-lift for speed at the cost of malloc
-  Tg * arr_w_k1 = new Tg[N_x1 + 1];
-  for(int k1=0; k1<=N_x1; ++k1)
-    arr_w_k1[k1] = weight<Tg>(x1_s, N_x1, k1, d);
+  Tg * arr_w_k1 = new Tg[Ns_x1 + 1];
+  for(int k1=0; k1<=Ns_x1; ++k1)
+    arr_w_k1[k1] = weight<Tg>(x1_s, Ns_x1, k1, d);
 
-  Tg * arr_w_k2 = new Tg[N_x2 + 1];
-  for(int k2=0; k2<=N_x2; ++k2)
-    arr_w_k2[k2] = weight<Tg>(x2_s, N_x2, k2, d);
+  Tg * arr_w_k2 = new Tg[Ns_x2 + 1];
+  for(int k2=0; k2<=Ns_x2; ++k2)
+    arr_w_k2[k2] = weight<Tg>(x2_s, Ns_x2, k2, d);
 
-  for(int k3=0; k3<=N_x3; ++k3)
+  for(int k3=0; k3<=Ns_x3; ++k3)
   {
-    const Tg w_k3  = weight<Tg>(x3_s, N_x3, k3, d);
+    const Tg w_k3  = weight<Tg>(x3_s, Ns_x3, k3, d);
     const Tg rdx3  = 1. / (x3_t - x3_s[k3]);
     const Tg rw_k3 = w_k3 * rdx3;
 
-    for(int k2=0; k2<=N_x2; ++k2)
+    for(int k2=0; k2<=Ns_x2; ++k2)
     {
       const Tg w_k2  = arr_w_k2[k2];
       const Tg rdx2  = 1. / (x2_t - x2_s[k2]);
       const Tg rw_k2 = w_k2 * rdx2;
 
-      for(int k1=0; k1<=N_x1; ++k1)
+      for(int k1=0; k1<=Ns_x1; ++k1)
       {
         const Tg w_k1  = arr_w_k1[k1];
         const Tg rdx1  = 1. / (x1_t - x1_s[k1]);
         const Tg rw_k1 = w_k1 * rdx1;
 
         const int ix = (
-          (k1+ng) + (N_x1+1+2*ng) * ((k2+ng) + (N_x2+1+2*ng) * (k3+ng))
+          (k1+ng) + (Ns_x1+1+2*ng) * ((k2+ng) + (Ns_x2+1+2*ng) * (k3+ng))
         );
 
         num += rw_k1 * rw_k2 * rw_k3 * fcn_s[ix];
@@ -164,11 +164,11 @@ namespace Floater_Hormann_generalized {
 // ============================================================================
 
 template <typename T>
-static inline T weight(T gr_t, T * gr_s, int N,
+static inline T weight(T gr_t, T * gr_s, int Ns,
                        int k, int d, double gam)
 {
   const int il = std::max(k-d, 0);
-  const int iu = std::min(k, N-d);
+  const int iu = std::min(k, Ns-d);
 
   T wei = 0.;
 
@@ -193,16 +193,16 @@ static inline T weight(T gr_t, T * gr_s, int N,
 
 template<typename Tg, typename Tf>
 static Tf interp_1d(Tg gr_t, Tg * gr_s, Tf * fcn_s,
-                    int N, int d, double gam, int ng)
+                    int Ns, int d, double gam, int ng)
 {
   // weight & function return common value
   typedef typename std::common_type<Tg, Tf>::type Tr;
 
   Tr num = 0, den = 0;
 
-  for(int k=0; k<=N; ++k)
+  for(int k=0; k<=Ns; ++k)
   {
-    const Tg w_k = weight<Tg>(gr_t, gr_s, N, k, d, gam);
+    const Tg w_k = weight<Tg>(gr_t, gr_s, Ns, k, d, gam);
     const Tg rdx  = 1. / (gr_t - gr_s[k]);
     const Tg rw_k = w_k * std::pow(rdx, gam);
 
@@ -217,7 +217,7 @@ template<typename Tg, typename Tf>
 static Tf interp_2d(Tg x1_t, Tg x2_t,
                     Tg * x1_s, Tg * x2_s,
                     Tf * fcn_s,
-                    int N_x1, int N_x2, int d, double gam, int ng)
+                    int Ns_x1, int Ns_x2, int d, double gam, int ng)
 {
   // weight & function return common value
   typedef typename std::common_type<Tg, Tf>::type Tr;
@@ -225,23 +225,23 @@ static Tf interp_2d(Tg x1_t, Tg x2_t,
   Tr num = 0, den = 0;
 
   // loop-lift for speed at the cost of malloc
-  Tg * arr_w_k1 = new Tg[N_x1 + 1];
-  for(int k1=0; k1<=N_x1; ++k1)
-    arr_w_k1[k1] = weight<Tg>(x1_t, x1_s, N_x1, k1, d, gam);
+  Tg * arr_w_k1 = new Tg[Ns_x1 + 1];
+  for(int k1=0; k1<=Ns_x1; ++k1)
+    arr_w_k1[k1] = weight<Tg>(x1_t, x1_s, Ns_x1, k1, d, gam);
 
-  for(int k2=0; k2<=N_x2; ++k2)
+  for(int k2=0; k2<=Ns_x2; ++k2)
   {
-    const Tg w_k2  = weight<Tg>(x2_t, x2_s, N_x2, k2, d, gam);
+    const Tg w_k2  = weight<Tg>(x2_t, x2_s, Ns_x2, k2, d, gam);
     const Tg rdx2  = 1. / (x2_t - x2_s[k2]);
     const Tg rw_k2 = w_k2 * std::pow(rdx2, gam);
 
-    for(int k1=0; k1<=N_x1; ++k1)
+    for(int k1=0; k1<=Ns_x1; ++k1)
     {
       const Tg w_k1  = arr_w_k1[k1];
       const Tg rdx1  = 1. / (x1_t - x1_s[k1]);
       const Tg rw_k1 = w_k1 * std::pow(rdx1, gam);
 
-      const int ix = (k1+ng) + (N_x1+1+2*ng) * (k2+ng);
+      const int ix = (k1+ng) + (Ns_x1+1+2*ng) * (k2+ng);
 
       num += rw_k1 * rw_k2 * fcn_s[ix];
       den += rw_k1 * rw_k2;
@@ -257,7 +257,7 @@ template<typename Tg, typename Tf>
 static Tf interp_3d(Tg x1_t, Tg x2_t, Tg x3_t,
                     Tg * x1_s, Tg * x2_s, Tg * x3_s,
                     Tf * fcn_s,
-                    int N_x1, int N_x2, int N_x3, int d, double gam,
+                    int Ns_x1, int Ns_x2, int Ns_x3, int d, double gam,
                     int ng)
 {
   // weight & function return common value
@@ -266,34 +266,34 @@ static Tf interp_3d(Tg x1_t, Tg x2_t, Tg x3_t,
   Tr num = 0, den = 0;
 
   // loop-lift for speed at the cost of malloc
-  Tg * arr_w_k1 = new Tg[N_x1 + 1];
-  for(int k1=0; k1<=N_x1; ++k1)
-    arr_w_k1[k1] = weight<Tg>(x1_t, x1_s, N_x1, k1, d, gam);
+  Tg * arr_w_k1 = new Tg[Ns_x1 + 1];
+  for(int k1=0; k1<=Ns_x1; ++k1)
+    arr_w_k1[k1] = weight<Tg>(x1_t, x1_s, Ns_x1, k1, d, gam);
 
-  Tg * arr_w_k2 = new Tg[N_x2 + 1];
-  for(int k2=0; k2<=N_x2; ++k2)
-    arr_w_k2[k2] = weight<Tg>(x2_t, x2_s, N_x2, k2, d, gam);
+  Tg * arr_w_k2 = new Tg[Ns_x2 + 1];
+  for(int k2=0; k2<=Ns_x2; ++k2)
+    arr_w_k2[k2] = weight<Tg>(x2_t, x2_s, Ns_x2, k2, d, gam);
 
-  for(int k3=0; k3<=N_x3; ++k3)
+  for(int k3=0; k3<=Ns_x3; ++k3)
   {
-    const Tg w_k3  = weight<Tg>(x3_t, x3_s, N_x3, k3, d, gam);
+    const Tg w_k3  = weight<Tg>(x3_t, x3_s, Ns_x3, k3, d, gam);
     const Tg rdx3  = 1. / (x3_t - x3_s[k3]);
     const Tg rw_k3 = w_k3 * std::pow(rdx3, gam);
 
-    for(int k2=0; k2<=N_x2; ++k2)
+    for(int k2=0; k2<=Ns_x2; ++k2)
     {
       const Tg w_k2  = arr_w_k2[k2];
       const Tg rdx2  = 1. / (x2_t - x2_s[k2]);
       const Tg rw_k2 = w_k2 * std::pow(rdx2, gam);
 
-      for(int k1=0; k1<=N_x1; ++k1)
+      for(int k1=0; k1<=Ns_x1; ++k1)
       {
         const Tg w_k1  = arr_w_k1[k1];
         const Tg rdx1  = 1. / (x1_t - x1_s[k1]);
         const Tg rw_k1 = w_k1 * std::pow(rdx1, gam);
 
         const int ix = (
-          (k1+ng) + (N_x1+1+2*ng) * ((k2+ng) + (N_x2+1+2*ng) * (k3+ng))
+          (k1+ng) + (Ns_x1+1+2*ng) * ((k2+ng) + (Ns_x2+1+2*ng) * (k3+ng))
         );
 
         num += rw_k1 * rw_k2 * rw_k3 * fcn_s[ix];

@@ -30,7 +30,6 @@
 
 #include "../utils/floating_point.hpp"
 #include "../utils/interp_univariate.hpp"
-#include "../utils/interp_barycentric.hpp"
 
 //----------------------------------------------------------------------------------------
 //! \fn MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin)
@@ -85,6 +84,82 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) :
   pvars_fc_.reserve(3);
   pvars_vc_.reserve(3);
   pvars_cx_.reserve(3);
+
+  // --------------------------------------------------------------------------
+  // init interpolation op based on underlying dimensionality
+  Coordinates* pco = pmb->pcoord;
+
+  int si, sj, sk, ei, ej, ek;
+  si = pmb->cx_cis; ei = pmb->cx_cie;
+  sj = pmb->cx_cjs; ej = pmb->cx_cje;
+  sk = pmb->cx_cks; ek = pmb->cx_cke;
+
+  const int Ns_x3 = pmb->block_size.nx3 - 1;  // # phys. nodes - 1
+  const int Ns_x2 = pmb->block_size.nx2 - 1;  // # phys. nodes - 1
+  const int Ns_x1 = pmb->block_size.nx1 - 1;
+
+  // Floater-Hormann blending parameter controls the formal order of approx.
+  const int d = (NGHOST-1) * 2;
+
+  if(Ns_x3 > 0)
+  {
+    Real* x1_s = &(pco->x1v(NGHOST));
+    Real* x2_s = &(pco->x2v(NGHOST));
+    Real* x3_s = &(pco->x3v(NGHOST));
+
+    Real* x1_t = &(pcoarsec->x1v(NCGHOST+(pmb->cx_cis-NCGHOST_CX)));
+    Real* x2_t = &(pcoarsec->x2v(NCGHOST+(pmb->cx_cjs-NCGHOST_CX)));
+    Real* x3_t = &(pcoarsec->x3v(NCGHOST+(pmb->cx_cks-NCGHOST_CX)));
+
+    const int Nt_x1 = pmb->block_size.nx1 / 2 - 1;
+    const int Nt_x2 = pmb->block_size.nx2 / 2 - 1;
+    const int Nt_x3 = pmb->block_size.nx3 / 2 - 1;
+
+    interp_nd_barycentric = new interp_nd_weights_precomputed(
+      x1_t, x2_t, x3_t,
+      x1_s, x2_s, x3_s,
+      Nt_x1, Nt_x2, Nt_x3,
+      Ns_x1, Ns_x2, Ns_x3,
+      d,
+      NCGHOST_CX, NGHOST
+    );
+  }
+  else if(Ns_x2 > 0)
+  {
+    Real* x1_s = &(pco->x1v(NGHOST));
+    Real* x2_s = &(pco->x2v(NGHOST));
+
+    Real* x1_t = &(pcoarsec->x1v(NCGHOST+(pmb->cx_cis-NCGHOST_CX)));
+    Real* x2_t = &(pcoarsec->x2v(NCGHOST+(pmb->cx_cjs-NCGHOST_CX)));
+
+    const int Nt_x1 = pmb->block_size.nx1 / 2 - 1;
+    const int Nt_x2 = pmb->block_size.nx2 / 2 - 1;
+
+    interp_nd_barycentric = new interp_nd_weights_precomputed(
+      x1_t, x2_t,
+      x1_s, x2_s,
+      Nt_x1, Nt_x2,
+      Ns_x1, Ns_x2,
+      d,
+      NCGHOST_CX, NGHOST
+    );
+  }
+  else
+  {
+    Real* x1_s = &(pco->x1v(NGHOST));
+    Real* x1_t = &(pcoarsec->x1v(NCGHOST+(pmb->cx_cis-NCGHOST_CX)));
+
+    const int Nt_x1 = pmb->block_size.nx1 / 2 - 1;
+
+    interp_nd_barycentric = new interp_nd_weights_precomputed(
+      x1_t, x1_s,
+      Nt_x1, Ns_x1,
+      d,
+      NCGHOST_CX, NGHOST
+    );
+  }
+  // --------------------------------------------------------------------------
+
 }
 
 
@@ -94,6 +169,7 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) :
 
 MeshRefinement::~MeshRefinement() {
   delete pcoarsec;
+  delete interp_nd_barycentric;
 }
 
 //----------------------------------------------------------------------------------------
@@ -711,6 +787,7 @@ void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
     const AthenaArray<Real> &fine,
     AthenaArray<Real> &coarse, int sn, int en)
 {
+
   using namespace numprox::interpolation;
 
   MeshBlock* pmb = pmy_block_;
@@ -721,18 +798,19 @@ void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
   sj = pmb->cx_cjs; ej = pmb->cx_cje;
   sk = pmb->cx_cks; ek = pmb->cx_cke;
 
-  const int N_x3 = pmb->block_size.nx3 - 1;  // # phys. nodes - 1
-  const int N_x2 = pmb->block_size.nx2 - 1;  // # phys. nodes - 1
-  const int N_x1 = pmb->block_size.nx1 - 1;
+  const int Ns_x3 = pmb->block_size.nx3 - 1;  // # phys. nodes - 1
+  const int Ns_x2 = pmb->block_size.nx2 - 1;  // # phys. nodes - 1
+  const int Ns_x1 = pmb->block_size.nx1 - 1;
 
-  // Floater-Hormann blending parameter control the formal order of approx.
+  // Floater-Hormann blending parameter controls the formal order of approx.
   const int d = (NGHOST-1) * 2;
 
   AthenaArray<Real> & var_t = coarse;
   AthenaArray<Real> & var_s = const_cast<AthenaArray<Real>&>(fine);
 
-  if (pmb->block_size.nx3>1)
+  if(pmb->block_size.nx3>1)
   {
+
     for(int n=sn; n<=en; ++n)
     for(int ck=pmb->cx_cks; ck<=pmb->cx_cke; ++ck)
     {
@@ -768,13 +846,63 @@ void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
             x1_t, x2_t, x3_t,
             x1_s, x2_s, x3_s,
             fcn_s,
-            N_x1, N_x2, N_x3, d, NGHOST);
+            Ns_x1, Ns_x2, Ns_x3, d, NGHOST);
         }
       }
     }
+
+
+    /*
+    // grids
+    Real* x1_s = &(pco->x1v(NGHOST));
+    Real* x2_s = &(pco->x2v(NGHOST));
+    Real* x3_s = &(pco->x3v(NGHOST));
+
+    Real* x1_t = &(pcoarsec->x1v(NCGHOST+(pmb->cx_cis-NCGHOST_CX)));
+    Real* x2_t = &(pcoarsec->x2v(NCGHOST+(pmb->cx_cjs-NCGHOST_CX)));
+    Real* x3_t = &(pcoarsec->x3v(NCGHOST+(pmb->cx_cks-NCGHOST_CX)));
+
+    const int Nt_x1 = pmb->block_size.nx1 / 2 - 1;
+    const int Nt_x2 = pmb->block_size.nx2 / 2 - 1;
+    const int Nt_x3 = pmb->block_size.nx3 / 2 - 1;
+
+    typedef Floater_Hormann::interp_nd_weights_precomputed<Real, Real>
+      interp_nd_weights_precomputed;
+
+    interp_nd_weights_precomputed * i3c = new interp_nd_weights_precomputed(
+      x1_t, x2_t, x3_t,
+      x1_s, x2_s, x3_s,
+      Nt_x1, Nt_x2, Nt_x3,
+      Ns_x1, Ns_x2, Ns_x3,
+      d,
+      NCGHOST_CX, NGHOST
+    );
+
+    for(int n=sn; n<=en; ++n)
+    {
+      const Real* const fcn_s = &(var_s(n,0,0,0));
+      Real* fcn_t = &(var_t(n,0,0,0));
+
+      i3c->eval(fcn_t, fcn_s);
+    }
+
+    delete i3c;
+    */
+
+    /*
+    for(int n=sn; n<=en; ++n)
+    {
+      const Real* const fcn_s = &(var_s(n,0,0,0));
+      Real* fcn_t = &(var_t(n,0,0,0));
+
+      interp_nd_barycentric->eval(fcn_t, fcn_s);
+    }
+    */
+
   }
-  else if (pmb->block_size.nx2>1)
+  else if(pmb->block_size.nx2>1)
   {
+    /*
     for(int n=sn; n<=en; ++n)
     for(int cj=pmb->cx_cjs; cj<=pmb->cx_cje; ++cj)
     {
@@ -800,12 +928,57 @@ void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
           x1_t, x2_t,
           x1_s, x2_s,
           fcn_s,
-          N_x1, N_x2, d, NGHOST);
+          Ns_x1, Ns_x2, d, NGHOST);
       }
     }
+    */
+
+    /*
+    // grids
+    Real* x1_s = &(pco->x1v(NGHOST));
+    Real* x2_s = &(pco->x2v(NGHOST));
+
+    Real* x1_t = &(pcoarsec->x1v(NCGHOST+(pmb->cx_cis-NCGHOST_CX)));
+    Real* x2_t = &(pcoarsec->x2v(NCGHOST+(pmb->cx_cjs-NCGHOST_CX)));
+
+    const int Nt_x1 = pmb->block_size.nx1 / 2 - 1;
+    const int Nt_x2 = pmb->block_size.nx2 / 2 - 1;
+
+    typedef Floater_Hormann::interp_nd_weights_precomputed<Real, Real>
+      interp_nd_weights_precomputed;
+
+    interp_nd_weights_precomputed * i2c = new interp_nd_weights_precomputed(
+      x1_t, x2_t,
+      x1_s, x2_s,
+      Nt_x1, Nt_x2,
+      Ns_x1, Ns_x2,
+      d,
+      NCGHOST_CX, NGHOST
+    );
+
+    for(int n=sn; n<=en; ++n)
+    {
+      const Real* const fcn_s = &(var_s(n,0,0,0));
+      Real* fcn_t = &(var_t(n,0,0,0));
+
+      i2c->eval(fcn_t, fcn_s);
+    }
+
+    delete i2c;
+    */
+
+    for(int n=sn; n<=en; ++n)
+    {
+      const Real* const fcn_s = &(var_s(n,0,0,0));
+      Real* fcn_t = &(var_t(n,0,0,0));
+
+      interp_nd_barycentric->eval(fcn_t, fcn_s);
+    }
+
   }
   else
   {
+    /*
     for(int n=sn; n<=en; ++n)
     for(int ci=pmb->cx_cis; ci<=pmb->cx_cie; ++ci)
     {
@@ -821,8 +994,48 @@ void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
       var_t(n,0,0,ci) = Floater_Hormann::interp_1d(
         x1_t, x1_s,
         fcn_s,
-        N_x1, d, NGHOST);
+        Ns_x1, d, NGHOST);
     }
+    */
+
+    /*
+    // grids
+    Real* x1_s = &(pco->x1v(NGHOST));
+    Real* x1_t = &(pcoarsec->x1v(NCGHOST+(pmb->cx_cis-NCGHOST_CX)));
+
+    const int Nt_x1 = pmb->block_size.nx1 / 2 - 1;
+
+    typedef Floater_Hormann::interp_nd_weights_precomputed<Real, Real>
+      interp_nd_weights_precomputed;
+
+    interp_nd_weights_precomputed * i1c = new interp_nd_weights_precomputed(
+      x1_t, x1_s,
+      Nt_x1, Ns_x1,
+      d,
+      NCGHOST_CX, NGHOST
+    );
+
+    for(int n=sn; n<=en; ++n)
+    {
+      const Real* const fcn_s = &(var_s(n,0,0,0));
+      Real* fcn_t = &(var_t(n,0,0,0));
+
+      i1c->eval(fcn_t, fcn_s);
+    }
+
+
+    delete i1c;
+    */
+
+    for(int n=sn; n<=en; ++n)
+    {
+      const Real* const fcn_s = &(var_s(n,0,0,0));
+      Real* fcn_t = &(var_t(n,0,0,0));
+
+      interp_nd_barycentric->eval(fcn_t, fcn_s);
+    }
+
+
   }
 
 }

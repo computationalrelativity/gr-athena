@@ -15,13 +15,18 @@
 #include <vector>
 
 // Athena++ headers
-#include "../athena.hpp"         // Real
-#include "../athena_arrays.hpp"  // AthenaArray
+#include "../athena.hpp"                    // Real
+#include "../athena_arrays.hpp"             // AthenaArray
+#include "../utils/interp_barycentric.hpp"  // New interpolation ops
 
 // MPI headers
 #ifdef MPI_PARALLEL
 #include <mpi.h>
 #endif
+
+// ----------------------------------------------------------------------------
+using namespace numprox::interpolation;
+// ----------------------------------------------------------------------------
 
 class MeshBlock;
 class ParameterInput;
@@ -135,6 +140,15 @@ class MeshRefinement {
   std::vector<std::tuple<FaceField *, FaceField *>> pvars_fc_;
   std::vector<std::tuple<AthenaArray<Real> *, AthenaArray<Real> *>> pvars_vc_;
   std::vector<std::tuple<AthenaArray<Real> *, AthenaArray<Real> *>> pvars_cx_;
+
+  // --------------------------------------------------------------------------
+  // Class for barycentric interpolation; weights precomputed in MeshRefinement
+  // ctor
+  typedef Floater_Hormann::interp_nd_weights_precomputed<Real, Real>
+    interp_nd_weights_precomputed;
+
+  interp_nd_weights_precomputed * interp_nd_barycentric;
+  // --------------------------------------------------------------------------
 
 };
 
