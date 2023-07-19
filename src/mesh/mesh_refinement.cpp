@@ -704,6 +704,129 @@ void MeshRefinement::RestrictCellCenteredXValues(
 }
 
 
+
+//----------------------------------------------------------------------------------------
+// Restriction utilizing only physical data from fine to coarse grid
+void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
+    const AthenaArray<Real> &fine,
+    AthenaArray<Real> &coarse, int sn, int en)
+{
+  using namespace numprox::interpolation;
+
+  MeshBlock* pmb = pmy_block_;
+  Coordinates* pco = pmb->pcoord;
+
+  int si, sj, sk, ei, ej, ek;
+  si = pmb->cx_cis; ei = pmb->cx_cie;
+  sj = pmb->cx_cjs; ej = pmb->cx_cje;
+  sk = pmb->cx_cks; ek = pmb->cx_cke;
+
+  const int N_x3 = pmb->block_size.nx3 - 1;  // # phys. nodes - 1
+  const int N_x2 = pmb->block_size.nx2 - 1;  // # phys. nodes - 1
+  const int N_x1 = pmb->block_size.nx1 - 1;
+
+  // Floater-Hormann blending parameter control the formal order of approx.
+  const int d = (NGHOST-1) * 2;
+
+  AthenaArray<Real> & var_t = coarse;
+  AthenaArray<Real> & var_s = const_cast<AthenaArray<Real>&>(fine);
+
+  if (pmb->block_size.nx3>1)
+  {
+    for(int n=sn; n<=en; ++n)
+    for(int ck=pmb->cx_cks; ck<=pmb->cx_cke; ++ck)
+    {
+      // left child idx on fundamental grid
+      const int cx_fk = 2 * (ck - pmb->cx_cks) + pmb->cx_ks;
+
+      Real* x3_s = &(pco->x3v(NGHOST));
+
+      // coarse variable grids are constructed with CC ghost number
+      const Real x3_t = pcoarsec->x3v(NCGHOST+(ck-NCGHOST_CX));
+
+      for(int cj=pmb->cx_cjs; cj<=pmb->cx_cje; ++cj)
+      {
+        // left child idx on fundamental grid
+        const int cx_fj = 2 * (cj - pmb->cx_cjs) + pmb->cx_js;
+
+        Real* x2_s = &(pco->x2v(NGHOST));
+
+        // coarse variable grids are constructed with CC ghost number
+        const Real x2_t = pcoarsec->x2v(NCGHOST+(cj-NCGHOST_CX));
+
+        for(int ci=pmb->cx_cis; ci<=pmb->cx_cie; ++ci)
+        {
+          // left child idx on fundamental grid
+          const int cx_fi = 2 * (ci - pmb->cx_cis) + pmb->cx_is;
+
+          Real* x1_s = &(pco->x1v(NGHOST));
+          Real* fcn_s = &(var_s(n,0,0,0));
+
+          const Real x1_t = pcoarsec->x1v(NCGHOST+(ci-NCGHOST_CX));
+
+          var_t(n,ck,cj,ci) = Floater_Hormann::interp_3d(
+            x1_t, x2_t, x3_t,
+            x1_s, x2_s, x3_s,
+            fcn_s,
+            N_x1, N_x2, N_x3, d, NGHOST);
+        }
+      }
+    }
+  }
+  else if (pmb->block_size.nx2>1)
+  {
+    for(int n=sn; n<=en; ++n)
+    for(int cj=pmb->cx_cjs; cj<=pmb->cx_cje; ++cj)
+    {
+      // left child idx on fundamental grid
+      const int cx_fj = 2 * (cj - pmb->cx_cjs) + pmb->cx_js;
+
+      Real* x2_s = &(pco->x2v(NGHOST));
+
+      // coarse variable grids are constructed with CC ghost number
+      const Real x2_t = pcoarsec->x2v(NCGHOST+(cj-NCGHOST_CX));
+
+      for(int ci=pmb->cx_cis; ci<=pmb->cx_cie; ++ci)
+      {
+        // left child idx on fundamental grid
+        const int cx_fi = 2 * (ci - pmb->cx_cis) + pmb->cx_is;
+
+        Real* x1_s = &(pco->x1v(NGHOST));
+        Real* fcn_s = &(var_s(n,0,0,0));
+
+        const Real x1_t = pcoarsec->x1v(NCGHOST+(ci-NCGHOST_CX));
+
+        var_t(n,0,cj,ci) = Floater_Hormann::interp_2d(
+          x1_t, x2_t,
+          x1_s, x2_s,
+          fcn_s,
+          N_x1, N_x2, d, NGHOST);
+      }
+    }
+  }
+  else
+  {
+    for(int n=sn; n<=en; ++n)
+    for(int ci=pmb->cx_cis; ci<=pmb->cx_cie; ++ci)
+    {
+      // left child idx on fundamental grid
+      const int cx_fi = 2 * (ci - pmb->cx_cis) + pmb->cx_is;
+
+      Real* x1_s = &(pco->x1v(NGHOST));
+      Real* fcn_s = &(var_s(n,0,0,0));
+
+      // coarse variable grids are constructed with CC ghost number
+      const Real x1_t = pcoarsec->x1v(NCGHOST+(ci-NCGHOST_CX));
+
+      var_t(n,0,0,ci) = Floater_Hormann::interp_1d(
+        x1_t, x1_s,
+        fcn_s,
+        N_x1, d, NGHOST);
+    }
+  }
+
+}
+
 //----------------------------------------------------------------------------------------
 //! \fn void MeshRefinement::ProlongateCellCenteredValues(
 //        const AthenaArray<Real> &coarse,AthenaArray<Real> &fine, int sn, int en,,

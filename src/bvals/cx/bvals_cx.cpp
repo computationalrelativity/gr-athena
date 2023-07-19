@@ -307,132 +307,13 @@ void CellCenteredXBoundaryVariable::RestrictNonGhost() {
   AthenaArray<Real> &var = *var_cx;
   AthenaArray<Real> &coarse_var = *coarse_buf;
 
-  int si, sj, sk, ei, ej, ek;
-  si = pmb->cx_cis; ei = pmb->cx_cie;
-  sj = pmb->cx_cjs; ej = pmb->cx_cje;
-  sk = pmb->cx_cks; ek = pmb->cx_cke;
-
-  // Barycentric interpolation to avoid needing ghosts during initial restrict
-
   const int nu = var_cx->GetDim4() - 1;
+  pmr->RestrictCellCenteredXWithInteriorValues(
+    var,
+    coarse_var,
+    0, nu
+  );
 
-  const int d = 4;
-  // Real gam = 7;
-  const int N_x3 = pmb->block_size.nx3 - 1;  // # phys. nodes - 1
-  const int N_x2 = pmb->block_size.nx2 - 1;  // # phys. nodes - 1
-  const int N_x1 = pmb->block_size.nx1 - 1;
-
-  // BD:
-  // This logic should be shifted to MeshRefinement
-  // Also the pcoarsec should be shifted back to private there.
-  //
-  // The interpolatory restriction is based on _physical_ fundamental
-  // ghosts only.
-  if (pmb->block_size.nx3>1)
-  {
-    for(int n=0; n<=nu; ++n)
-    for(int ck=pmb->cx_cks; ck<=pmb->cx_cke; ++ck)
-    {
-      // left child idx on fundamental grid
-      const int cx_fk = 2 * (ck - pmb->cx_cks) + pmb->cx_ks;
-
-      Real* x3_s = &(pmb->pcoord->x3v(NGHOST));
-
-      // coarse variable grids are constructed with CC ghost number
-      const Real x3_t = pmr->pcoarsec->x3v(NCGHOST+(ck-NCGHOST_CX));
-
-      for(int cj=pmb->cx_cjs; cj<=pmb->cx_cje; ++cj)
-      {
-        // left child idx on fundamental grid
-        const int cx_fj = 2 * (cj - pmb->cx_cjs) + pmb->cx_js;
-
-        Real* x2_s = &(pmb->pcoord->x2v(NGHOST));
-
-        // coarse variable grids are constructed with CC ghost number
-        const Real x2_t = pmr->pcoarsec->x2v(NCGHOST+(cj-NCGHOST_CX));
-
-        for(int ci=pmb->cx_cis; ci<=pmb->cx_cie; ++ci)
-        {
-          // left child idx on fundamental grid
-          const int cx_fi = 2 * (ci - pmb->cx_cis) + pmb->cx_is;
-
-          Real* x1_s = &(pmb->pcoord->x1v(NGHOST));
-          Real* fcn_s = &(var(n,0,0,0));
-
-          const Real x1_t = pmr->pcoarsec->x1v(NCGHOST+(ci-NCGHOST_CX));
-
-          coarse_var(n,ck,cj,ci) = interp_3d_FH(
-            x1_t, x2_t, x3_t,
-            x1_s, x2_s, x3_s,
-            fcn_s,
-            N_x1, N_x2, N_x3, d, NGHOST);
-        }
-      }
-    }
-  }
-  else if (pmb->block_size.nx2>1)
-  {
-    for(int n=0; n<=nu; ++n)
-    for(int cj=pmb->cx_cjs; cj<=pmb->cx_cje; ++cj)
-    {
-      // left child idx on fundamental grid
-      const int cx_fj = 2 * (cj - pmb->cx_cjs) + pmb->cx_js;
-
-      Real* x2_s = &(pmb->pcoord->x2v(NGHOST));
-
-      // coarse variable grids are constructed with CC ghost number
-      const Real x2_t = pmr->pcoarsec->x2v(NCGHOST+(cj-NCGHOST_CX));
-
-      for(int ci=pmb->cx_cis; ci<=pmb->cx_cie; ++ci)
-      {
-        // left child idx on fundamental grid
-        const int cx_fi = 2 * (ci - pmb->cx_cis) + pmb->cx_is;
-
-        Real* x1_s = &(pmb->pcoord->x1v(NGHOST));
-        Real* fcn_s = &(var(n,0,0,0));
-
-        const Real x1_t = pmr->pcoarsec->x1v(NCGHOST+(ci-NCGHOST_CX));
-
-        coarse_var(n,0,cj,ci) = interp_2d_FH(
-          x1_t, x2_t,
-          x1_s, x2_s,
-          fcn_s,
-          N_x1, N_x2, d, NGHOST);
-      }
-    }
-  }
-  else
-  {
-    for(int n=0; n<=nu; ++n)
-    for(int ci=pmb->cx_cis; ci<=pmb->cx_cie; ++ci)
-    {
-      // left child idx on fundamental grid
-      const int cx_fi = 2 * (ci - pmb->cx_cis) + pmb->cx_is;
-
-      Real* x1_s = &(pmb->pcoord->x1v(NGHOST));
-      Real* fcn_s = &(var(n,0,0,0));
-
-      // coarse variable grids are constructed with CC ghost number
-      const Real x1_t = pmr->pcoarsec->x1v(NCGHOST+(ci-NCGHOST_CX));
-
-      coarse_var(n,0,0,ci) = interp_1d_FH(
-        x1_t, x1_s,
-        fcn_s,
-        N_x1, d, NGHOST);
-
-      // coarse_var(n,0,0,ci) = interp_1d_GFH(
-      //   x1_t, x1_s,
-      //   fcn_s,
-      //   N, d, gam);
-    }
-
-  }
-
-
-  // coarse_var.print_all("%.3e");
-  // coarse_var.Fill(0);
-
-  // return;
 
   // Ghost data is required for (symmetric) restriction to coarse.
   // Extrapolate fundamental grid (it is overwritten later).

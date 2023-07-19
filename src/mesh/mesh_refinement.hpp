@@ -90,6 +90,10 @@ class MeshRefinement {
                                    AthenaArray<Real> &coarse, int sn, int en,
                                    int csi, int cei, int csj, int cej, int csk, int cek);
 
+  void RestrictCellCenteredXWithInteriorValues(
+    const AthenaArray<Real> &fine,
+    AthenaArray<Real> &coarse, int sn, int en
+  );
 
   void CheckRefinementCondition();
 
@@ -103,11 +107,10 @@ class MeshRefinement {
   // for switching first entry in pvars_cc_ to/from: (w, coarse_prim); (u, coarse_cons_)
   void SetHydroRefinement(HydroBoundaryQuantity hydro_type);
 
-  // BD: temporarily shift here
-  Coordinates *pcoarsec;
  private:
   // data
   MeshBlock *pmy_block_;
+  Coordinates *pcoarsec;
 
   AthenaArray<Real> fvol_[2][2], sarea_x1_[2][2], sarea_x2_[2][3], sarea_x3_[3][2];
   int refine_flag_, neighbor_rflag_, deref_count_, deref_threshold_;
