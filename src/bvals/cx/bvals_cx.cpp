@@ -535,8 +535,27 @@ void CellCenteredXBoundaryVariable::RestrictNonGhost() {
 
 void CellCenteredXBoundaryVariable::SendBoundaryBuffers() {
 
+
+  /*
+  // BD: opt- if nn all same level not required
+
+  // only perform RestrictNonGhost if we have neighbour blocks on a different
+  // level otherwise it is a waste
+  MeshBlock *pmb = pmy_block_;
+  bool nn_level_different = false;
+
+  for (int n=0; n<pbval_->nneighbor; n++) {
+    NeighborBlock& nb = pbval_->neighbor[n];
+    if (nb.snb.level != pmb->loc.level)
+    {
+      nn_level_different = true;
+      break;
+    }
+  }
+  */
+
   // restrict all data (except ghosts) to coarse buffer
-  if (pmy_mesh_->multilevel)
+  if (pmy_mesh_->multilevel) //  && nn_level_different)
   {
     // BD: opt- if nn all same level not required
 

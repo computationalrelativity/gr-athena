@@ -810,7 +810,7 @@ void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
 
   if(pmb->block_size.nx3>1)
   {
-
+    /*
     for(int n=sn; n<=en; ++n)
     for(int ck=pmb->cx_cks; ck<=pmb->cx_cke; ++ck)
     {
@@ -850,6 +850,7 @@ void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
         }
       }
     }
+    */
 
 
     /*
@@ -889,7 +890,6 @@ void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
     delete i3c;
     */
 
-    /*
     for(int n=sn; n<=en; ++n)
     {
       const Real* const fcn_s = &(var_s(n,0,0,0));
@@ -897,7 +897,6 @@ void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
 
       interp_nd_barycentric->eval(fcn_t, fcn_s);
     }
-    */
 
   }
   else if(pmb->block_size.nx2>1)

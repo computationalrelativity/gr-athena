@@ -175,6 +175,11 @@ class interp_nd_weights_precomputed
         for(int i2=0; i2<=Nt_x2; ++i2)
         for(int i1=0; i1<=Nt_x1; ++i1)
         {
+          // if((NGHOST <= i1) && (i1 <= Nt_x1 - NGHOST + 1) &&
+          //    (NGHOST <= i2) && (i2 <= Nt_x2 - NGHOST + 1) &&
+          //    (NGHOST <= i3) && (i3 <= Nt_x3 - NGHOST + 1))
+          //   continue;
+
           Tr num = 0, den = 0;
 
           for(int k3=0; k3<=Ns_x3; ++k3)
@@ -214,6 +219,10 @@ class interp_nd_weights_precomputed
         for(int i2=0; i2<=Nt_x2; ++i2)
         for(int i1=0; i1<=Nt_x1; ++i1)
         {
+          // if((NGHOST <= i1) && (i1 <= Nt_x1 - NGHOST + 1) &&
+          //    (NGHOST <= i2) && (i2 <= Nt_x2 - NGHOST + 1))
+          //   continue;
+
           Tr num = 0, den = 0;
 
           for(int k2=0; k2<=Ns_x2; ++k2)
@@ -234,11 +243,58 @@ class interp_nd_weights_precomputed
           const int ft_ix = (i1+ng_t) + (Nt_x1+1+2*ng_t) * (i2+ng_t);
           fcn_t[ft_ix] = num / den;
         }
+
+        /*
+        // single-dir test ----------------------------------------------------
+        // fbuf_2_x1x2
+        // fbuf_2_x2x1
+        for(int i2=0; i2<=Ns_x2; ++i2)
+        for(int i1=0; i1<=Nt_x1; ++i1)
+        {
+          Tr num = 0, den = 0;
+
+          for(int k1=0; k1<=Ns_x1; ++k1)
+          {
+            // k1 is fastest running index
+            const int ix_k1 = k1 + (Ns_x1+1)*i1;
+            const int fs_ix = (k1+ng_s) + (Ns_x1+1+2*ng_s) * (i2+ng_s);
+
+            num += rwei_x1[ix_k1] * fcn_s[fs_ix];
+            den += rwei_x1[ix_k1];
+          }
+
+          const int ft_ix = i1 + (Nt_x1+1) * i2;
+          fbuf_2_x1x2[ft_ix] = num / den;
+        }
+
+        for(int i2=0; i2<=Nt_x2; ++i2)
+        for(int i1=0; i1<=Nt_x1; ++i1)
+        {
+          Tr num = 0, den = 0;
+
+          for(int k2=0; k2<=Ns_x2; ++k2)
+          {
+            const int ix_k2 = k2 + (Ns_x2+1)*i2;
+            const int fs_ix = i1 + (Nt_x1+1)*k2;
+
+            num += rwei_x2[ix_k2] * fbuf_2_x1x2[fs_ix];
+            den += rwei_x2[ix_k2];
+          }
+
+          // const int ft_ix = i1 + (Nt_x1+1) * i2;
+          const int ft_ix = (i1+ng_t) + (Nt_x1+1+2*ng_t) * (i2+ng_t);
+          fcn_t[ft_ix] = num / den;
+        }
+        // --------------------------------------------------------------------
+        */
       }
       else
       {
         for(int i1=0; i1<=Nt_x1; ++i1)
         {
+          // if((NGHOST <= i1) && (i1 <= Nt_x1 - NGHOST + 1))
+          //   continue;
+
           Tr num = 0, den = 0;
 
           for(int k1=0; k1<=Ns_x1; ++k1)
@@ -293,6 +349,11 @@ class interp_nd_weights_precomputed
     Tg* rwei_x1;
     Tg* rwei_x2;
     Tg* rwei_x3;
+
+    // buffers for uni-dir iter test ----------------------
+    // Tf* fbuf_2_x1x2;
+    // Tf* fbuf_2_x2x1;
+    // ----------------------------------------------------
 
     // weight & function of common value
     typedef typename std::common_type<Tg, Tf>::type Tr;
@@ -352,6 +413,10 @@ class interp_nd_weights_precomputed
                                   , ng_s {ng_s}
                                   , rwei_x1 {new Tg[(Ns_x1+1)*(Nt_x1+1)]}
                                   , rwei_x2 {new Tg[(Ns_x2+1)*(Nt_x2+1)]}
+                                  // test single dir iter ---------------------
+                                  // , fbuf_2_x1x2 {new Tg[(Nt_x1+1)*(Ns_x2+1)]}
+                                  // , fbuf_2_x2x1 {new Tg[(Ns_x1+1)*(Nt_x2+1)]}
+                                  // ------------------------------------------
     {
       precompute_weights(x1_t, x1_s, Nt_x1, Ns_x1, rwei_x1);
       precompute_weights(x2_t, x2_s, Nt_x2, Ns_x2, rwei_x2);
@@ -456,6 +521,11 @@ class interp_nd_weights_precomputed
         case 2:
           delete[] rwei_x2;
           delete[] rwei_x1;
+          // test single dir iter -------------------------
+          // delete[] fbuf_2_x1x2;
+          // delete[] fbuf_2_x2x1;
+          // ----------------------------------------------
+
           break;
         default:
           delete[] rwei_x1;
