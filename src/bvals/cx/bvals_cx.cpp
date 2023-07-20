@@ -607,16 +607,22 @@ void CellCenteredXBoundaryVariable::SetupPersistentMPI() {
         ssize = MPI_BufferSizeSameLevel(nb.ni, true);
         rsize = MPI_BufferSizeSameLevel(nb.ni, false);
       } else if (nb.snb.level < mylevel) { // coarser
+        // BD: mpi
         ssize = MPI_BufferSizeToCoarser(nb.ni);
         rsize = MPI_BufferSizeFromCoarser(nb.ni);
+        // ssize = 0;
+        // rsize = 0;
       } else { // finer
+        // BD: mpi
         ssize = MPI_BufferSizeToFiner(nb.ni);
         rsize = MPI_BufferSizeFromFiner(nb.ni);
+        // ssize = 0;
+        // rsize = 0;
       }
       // specify the offsets in the view point of the target block: flip ox? signs
 
       // Initialize persistent communication requests attached to specific BoundaryData
-      // vertex-centered
+      // cell-centered extended
       tag = pbval_->CreateBvalsMPITag(nb.snb.lid, nb.targetid, cx_phys_id_);
       if (bd_var_.req_send[nb.bufid] != MPI_REQUEST_NULL)
         MPI_Request_free(&bd_var_.req_send[nb.bufid]);

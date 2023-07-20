@@ -458,7 +458,13 @@ void Mesh::RedistributeAndRefineMeshBlocks(ParameterInput *pin, int ntot) {
     nx4_tot += var_cc.GetDim4();
   }
 
-  // BD: add VC functionality
+  // cell-centered extended
+  int nx4_cx_tot = 0;
+  for (AthenaArray<Real> &var_cx : pblock->vars_cx_) {
+    nx4_cx_tot += var_cx.GetDim4();
+  }
+
+  // vertex-centered
   int nx4_vc_tot = 0;
   for (AthenaArray<Real> &var_vc : pblock->vars_vc_) {
     nx4_vc_tot += var_vc.GetDim4();
@@ -470,24 +476,44 @@ void Mesh::RedistributeAndRefineMeshBlocks(ParameterInput *pin, int ntot) {
   int bsc2f = (bnx1/2 + 2)*((bnx2 + 1)/2 + 2*f2)*((bnx3 + 1)/2 + 2*f3)*nx4_tot;
 
   // cell-centered extended quantities enrolled in SMR/AMR --------------------
-  // ...
+  const int min_cx_ng = std::min(NCGHOST_CX, NGHOST);
+
+  const int cx_hbnx1 = bnx1 / 2;
+  const int cx_hbnx2 = (bnx2 > 1) ? bnx2 / 2: 1;
+  const int cx_hbnx3 = (bnx3 > 1) ? bnx3 / 2: 1;
+
+  const int cx_ndg1 = min_cx_ng;
+  const int cx_ndg2 = (f2 > 0) ? min_cx_ng : 0;
+  const int cx_ndg3 = (f3 > 0) ? min_cx_ng : 0;
+
+  bssame += bnx1 * bnx2 * bnx3 * nx4_cx_tot;
+  bsc2f += nx4_cx_tot * (
+    (cx_hbnx1 + 2 * cx_ndg1) *
+    (cx_hbnx2 + 2 * cx_ndg2) *
+    (cx_hbnx3 + 2 * cx_ndg3)
+  );
+
+  bsf2c += cx_hbnx1 * cx_hbnx2 * cx_hbnx3 * nx4_cx_tot;
 
   // vertex-centered quantities enrolled in SMR/AMR ---------------------------
-  int const vbnx1 = bnx1 + 1;
-  int const vbnx2 = (bnx2 > 1) ? bnx2 + 1 : 1;
-  int const vbnx3 = (bnx3 > 1) ? bnx3 + 1 : 1;
+  const int vbnx1 = bnx1 + 1;
+  const int vbnx2 = (bnx2 > 1) ? bnx2 + 1 : 1;
+  const int vbnx3 = (bnx3 > 1) ? bnx3 + 1 : 1;
 
-  int const hbnx1 = bnx1 / 2 + 1;
-  int const hbnx2 = bnx2 / 2 + 1;
-  int const hbnx3 = bnx3 / 2 + 1;
+  const int hbnx1 = bnx1 / 2 + 1;
+  const int hbnx2 = bnx2 / 2 + 1;
+  const int hbnx3 = bnx3 / 2 + 1;
 
-  int const ndg1 = NGHOST;
-  int const ndg2 = (f2 > 0) ? NGHOST : 0;
-  int const ndg3 = (f3 > 0) ? NGHOST : 0;
+  const int ndg1 = NGHOST;
+  const int ndg2 = (f2 > 0) ? NGHOST : 0;
+  const int ndg3 = (f3 > 0) ? NGHOST : 0;
 
   bssame += vbnx1 * vbnx2 * vbnx3 * nx4_vc_tot;
-  bsc2f += (hbnx1 + 2 * ndg1) * (hbnx2 + 2 * ndg2) * (hbnx3 + 2* ndg3) *
-    nx4_vc_tot;
+  bsc2f += nx4_vc_tot * (
+    (hbnx1 + 2 * ndg1) *
+    (hbnx2 + 2 * ndg2) *
+    (hbnx3 + 2 * ndg3)
+  );
   bsf2c += hbnx1 * hbnx2 * hbnx3 * nx4_vc_tot;
 
   // face-centered quantities enrolled in SMR/AMR -----------------------------
@@ -748,11 +774,19 @@ void Mesh::PrepareSendSameLevel(MeshBlock* pb, Real *sendbuf) {
   for (AthenaArray<Real> &var_cc : pb->vars_cc_) {
     int nu = var_cc.GetDim4() - 1;
     BufferUtility::PackData(var_cc, sendbuf, 0, nu,
-                            pb->is, pb->ie, pb->js, pb->je, pb->ks, pb->ke, p);
+                            pb->is, pb->ie,
+                            pb->js, pb->je,
+                            pb->ks, pb->ke, p);
   }
 
   // cell-centered extended ---------------------------------------------------
-  // ...
+  for (AthenaArray<Real> &var_cx : pb->vars_cx_) {
+    int nu = var_cx.GetDim4() - 1;
+    BufferUtility::PackData(var_cx, sendbuf, 0, nu,
+                            pb->cx_is, pb->cx_ie,
+                            pb->cx_js, pb->cx_je,
+                            pb->cx_ks, pb->cx_ke, p);
+  }
 
   // vertex-centered ----------------------------------------------------------
   for (AthenaArray<Real> &var_vc : pb->vars_vc_) {
@@ -794,47 +828,55 @@ void Mesh::PrepareSendSameLevel(MeshBlock* pb, Real *sendbuf) {
 
 void Mesh::PrepareSendCoarseToFineAMR(MeshBlock* pb, Real *sendbuf,
                                       LogicalLocation &lloc) {
+
+  int p = 0;
+
+  const int b_hsz1 = pb->block_size.nx1/2;
+  const int b_hsz2 = pb->block_size.nx2/2;
+  const int b_hsz3 = pb->block_size.nx3/2;
+
+  const int ox1 = ((lloc.lx1 & 1LL) == 1LL);
+  const int ox2 = ((lloc.lx2 & 1LL) == 1LL);
+  const int ox3 = ((lloc.lx3 & 1LL) == 1LL);
+
+
   // cell-centered ------------------------------------------------------------
-  int ox1 = ((lloc.lx1 & 1LL) == 1LL);
-  int ox2 = ((lloc.lx2 & 1LL) == 1LL);
-  int ox3 = ((lloc.lx3 & 1LL) == 1LL);
 
   // pack (c.f. FillSameRankCoarseToFineAMR indicial logic)
   int il, iu, jl, ju, kl, ku;
   if (ox1 == 0)
   {
     il = pb->is - 1;
-    iu = pb->is + pb->block_size.nx1/2;
+    iu = pb->is + b_hsz1;
   }
   else
   {
-    il = pb->is + pb->block_size.nx1/2-1;
+    il = pb->is + b_hsz1-1;
     iu = pb->ie + 1;
   }
 
   if (ox2 == 0)
   {
     jl = pb->js - f2;
-    ju = pb->js + pb->block_size.nx2/2;
+    ju = pb->js + b_hsz2;
   }
   else
   {
-    jl = pb->js + pb->block_size.nx2/2 - f2;
+    jl = pb->js + b_hsz2 - f2;
     ju = pb->je + f2;
   }
 
   if (ox3 == 0)
   {
     kl = pb->ks - f3;
-    ku = pb->ks + pb->block_size.nx3/2;
+    ku = pb->ks + b_hsz3;
   }
   else
   {
-    kl = pb->ks + pb->block_size.nx3/2 - f3;
+    kl = pb->ks + b_hsz3 - f3;
     ku = pb->ke + f3;
   }
 
-  int p = 0;
   for (auto cc_pair : pb->pmr->pvars_cc_) {
     AthenaArray<Real> *var_cc = std::get<0>(cc_pair);
     int nu = var_cc->GetDim4() - 1;
@@ -843,36 +885,81 @@ void Mesh::PrepareSendCoarseToFineAMR(MeshBlock* pb, Real *sendbuf,
   }
 
   // cell-centered extended ---------------------------------------------------
-  // ..
+
+  // fill (below) with the maximum number of ghosts possible
+  const int min_cx_ng = std::min(NCGHOST_CX, NGHOST);
+
+  int cx_il, cx_iu, cx_jl, cx_ju, cx_kl, cx_ku;
+  if (ox1 == 0)
+  {
+    cx_il = pb->is - min_cx_ng;
+    cx_iu = pb->is + b_hsz1 + (min_cx_ng - 1);
+  }
+  else
+  {
+    cx_il = pb->is + b_hsz1 - 1 - (min_cx_ng - 1);
+    cx_iu = pb->ie + min_cx_ng;
+  }
+
+  if (ox2 == 0)
+  {
+    cx_jl = pb->js - f2 * min_cx_ng;
+    cx_ju = pb->js + b_hsz2 + f2 * (min_cx_ng - 1);
+  }
+  else
+  {
+    cx_jl = pb->js + b_hsz2 - f2 * min_cx_ng;
+    cx_ju = pb->je + f2 * min_cx_ng;
+  }
+
+  if (ox3 == 0)
+  {
+    cx_kl = pb->ks - f3 * min_cx_ng;
+    cx_ku = pb->ks + b_hsz3 + f3 * (min_cx_ng - 1);
+  }
+  else
+  {
+    cx_kl = pb->ks + b_hsz3 - f3 * min_cx_ng;
+    cx_ku = pb->ke + f3 * min_cx_ng;
+  }
+
+  for (auto cx_pair : pb->pmr->pvars_cx_) {
+    AthenaArray<Real> *var_cx = std::get<0>(cx_pair);
+    int nu = var_cx->GetDim4() - 1;
+    BufferUtility::PackData(*var_cx, sendbuf, 0, nu,
+                            cx_il, cx_iu,
+                            cx_jl, cx_ju,
+                            cx_kl, cx_ku, p);
+  }
 
   // vertex-centered ----------------------------------------------------------
   int ndg1 = NGHOST;
   int ndg2 = (f2 > 0) ? NGHOST : 0;
   int ndg3 = (f3 > 0) ? NGHOST : 0;
 
-  int vc_il = 0, vc_iu = 0;
-  int vc_jl = 0, vc_ju = 0;
-  int vc_kl = 0, vc_ku = 0;
+  int vc_il, vc_iu;
+  int vc_jl, vc_ju;
+  int vc_kl, vc_ku;
 
   if (ox1 == 0) {
     vc_il = pb->ivs - ndg1;
     vc_iu = vc_il + (pb->cive + ndg1 - (pb->civs - ndg1));
   } else {
-    vc_il = pb->block_size.nx1/2 + pb->ivs - ndg1;
+    vc_il = b_hsz1 + pb->ivs - ndg1;
     vc_iu = vc_il + (pb->cive + ndg1 - (pb->civs - ndg1));
   }
   if (ox2 == 0) {
     vc_jl = pb->jvs - ndg2;
     vc_ju = vc_jl + (pb->cjve + ndg2 - (pb->cjvs - ndg2));
   } else {
-    vc_jl = pb->block_size.nx2/2 + pb->jvs - ndg2;
+    vc_jl = b_hsz2 + pb->jvs - ndg2;
     vc_ju = vc_jl + (pb->cjve + ndg2 - (pb->cjvs - ndg2));
   }
   if (ox3 == 0) {
     vc_kl = pb->kvs - ndg3;
     vc_ku = vc_kl + (pb->ckve + ndg3 - (pb->ckvs - ndg3));
   } else {
-    vc_kl = pb->block_size.nx3/2 + pb->kvs - ndg3;
+    vc_kl = b_hsz3 + pb->kvs - ndg3;
     vc_ku = vc_kl + (pb->ckve + ndg3 - (pb->ckvs - ndg3));
   }
 
@@ -924,7 +1011,20 @@ void Mesh::PrepareSendFineToCoarseAMR(MeshBlock* pb, Real *sendbuf) {
   }
 
   // cell-centered extended ---------------------------------------------------
-  // ...
+  for (auto cx_pair : pmr->pvars_cx_) {
+    AthenaArray<Real> *var_cx = std::get<0>(cx_pair);
+    AthenaArray<Real> *coarse_cx = std::get<1>(cx_pair);
+    int nu = var_cx->GetDim4() - 1;
+    pmr->RestrictCellCenteredXValues(*var_cx, *coarse_cx,
+                                     0, nu,
+                                     pb->cx_cis, pb->cx_cie,
+                                     pb->cx_cjs, pb->cx_cje,
+                                     pb->cx_cks, pb->cx_cke);
+    BufferUtility::PackData(*coarse_cx, sendbuf, 0, nu,
+                            pb->cx_cis, pb->cx_cie,
+                            pb->cx_cjs, pb->cx_cje,
+                            pb->cx_cks, pb->cx_cke, p);
+  }
 
   // vertex-centered ----------------------------------------------------------
   for (auto vc_pair : pmr->pvars_vc_) {
@@ -983,18 +1083,18 @@ void Mesh::FillSameRankFineToCoarseAMR(MeshBlock* pob, MeshBlock* pmb,
                                        LogicalLocation &loc) {
   MeshRefinement *pmr = pob->pmr;
 
-  const int b_sz1 = pob->block_size.nx1/2;
-  const int b_sz2 = pob->block_size.nx2/2;
-  const int b_sz3 = pob->block_size.nx3/2;
+  const int b_hsz1 = pob->block_size.nx1/2;
+  const int b_hsz2 = pob->block_size.nx2/2;
+  const int b_hsz3 = pob->block_size.nx3/2;
 
   const bool llx1 =((loc.lx1 & 1LL) == 1LL);
   const bool llx2 =((loc.lx2 & 1LL) == 1LL);
   const bool llx3 =((loc.lx3 & 1LL) == 1LL);
 
   // cell-centered ------------------------------------------------------------
-  int il = pmb->is + llx1 * b_sz1;
-  int jl = pmb->js + llx2 * b_sz2;
-  int kl = pmb->ks + llx3 * b_sz3;
+  int il = pmb->is + llx1 * b_hsz1;
+  int jl = pmb->js + llx2 * b_hsz2;
+  int kl = pmb->ks + llx3 * b_hsz3;
 
   // absent a zip() feature for range-based for loops, manually advance the
   // iterator over "SMR/AMR-enrolled" cell-centered quantities on the new
@@ -1025,9 +1125,9 @@ void Mesh::FillSameRankFineToCoarseAMR(MeshBlock* pob, MeshBlock* pmb,
   }
 
   // cell-centered extended ---------------------------------------------------
-  int cx_il = pmb->cx_is + llx1 * b_sz1;
-  int cx_jl = pmb->cx_js + llx2 * b_sz2;
-  int cx_kl = pmb->cx_ks + llx3 * b_sz3;
+  int cx_il = pmb->cx_is + llx1 * b_hsz1;
+  int cx_jl = pmb->cx_js + llx2 * b_hsz2;
+  int cx_kl = pmb->cx_ks + llx3 * b_hsz3;
 
   auto pmb_cx_it = pmb->pmr->pvars_cx_.begin();
   // iterate MeshRefinement std::vectors on pob
@@ -1056,9 +1156,9 @@ void Mesh::FillSameRankFineToCoarseAMR(MeshBlock* pob, MeshBlock* pmb,
   // --------------------------------------------------------------------------
 
   // vertex-centered ----------------------------------------------------------
-  const int vc_il = pmb->ivs + llx1 * b_sz1;
-  const int vc_jl = pmb->jvs + llx2 * b_sz2;
-  const int vc_kl = pmb->kvs + llx3 * b_sz3;
+  const int vc_il = pmb->ivs + llx1 * b_hsz1;
+  const int vc_jl = pmb->jvs + llx2 * b_hsz2;
+  const int vc_kl = pmb->kvs + llx3 * b_hsz3;
 
   auto pmb_vc_it = pmb->pmr->pvars_vc_.begin();
   // iterate MeshRefinement std::vectors on pob
@@ -1119,7 +1219,7 @@ void Mesh::FillSameRankFineToCoarseAMR(MeshBlock* pob, MeshBlock* pmb,
       }
     }
     if (pmb->block_size.nx2 == 1) {
-      int iu = il + b_sz1 - 1;
+      int iu = il + b_hsz1 - 1;
       for (int i=il; i<=iu; i++)
         dst_b.x2f(pmb->ks, pmb->js+1, i) = dst_b.x2f(pmb->ks, pmb->js, i);
     }
@@ -1130,7 +1230,7 @@ void Mesh::FillSameRankFineToCoarseAMR(MeshBlock* pob, MeshBlock* pmb,
       }
     }
     if (pmb->block_size.nx3 == 1) {
-      int iu = il + b_sz1 - 1, ju = jl + b_sz2 - 1;
+      int iu = il + b_hsz1 - 1, ju = jl + b_hsz2 - 1;
       if (pmb->block_size.nx2 == 1) ju = jl;
       for (int j=jl; j<=ju; j++) {
         for (int i=il; i<=iu; i++)
@@ -1149,9 +1249,9 @@ void Mesh::FillSameRankCoarseToFineAMR(MeshBlock* pob, MeshBlock* pmb,
                                        LogicalLocation &newloc) {
   MeshRefinement *pmr = pmb->pmr;
 
-  const int b_sz1 = pob->block_size.nx1/2;
-  const int b_sz2 = pob->block_size.nx2/2;
-  const int b_sz3 = pob->block_size.nx3/2;
+  const int b_hsz1 = pob->block_size.nx1/2;
+  const int b_hsz2 = pob->block_size.nx2/2;
+  const int b_hsz3 = pob->block_size.nx3/2;
 
   const bool nlx1 =((newloc.lx1 & 1LL) == 1LL);
   const bool nlx2 =((newloc.lx2 & 1LL) == 1LL);
@@ -1165,9 +1265,9 @@ void Mesh::FillSameRankCoarseToFineAMR(MeshBlock* pob, MeshBlock* pmb,
   int kl = pob->cks - f3;
   int ku = pob->cke + f3;
 
-  int cis = nlx1 * b_sz1 + pob->is - 1;
-  int cjs = nlx2 * b_sz2 + pob->js - f2;
-  int cks = nlx3 * b_sz3 + pob->ks - f3;
+  int cis = nlx1 * b_hsz1 + pob->is - 1;
+  int cjs = nlx2 * b_hsz2 + pob->js - f2;
+  int cks = nlx3 * b_hsz3 + pob->ks - f3;
 
   auto pob_cc_it = pob->pmr->pvars_cc_.begin();
   // iterate MeshRefinement std::vectors on new pmb
@@ -1196,20 +1296,20 @@ void Mesh::FillSameRankCoarseToFineAMR(MeshBlock* pob, MeshBlock* pmb,
   // cell-centered extended ---------------------------------------------------
 
   // fill (below) with the maximum number of ghosts possible
-  const int c_ng = std::min(NCGHOST_CX, NGHOST);
+  const int min_cx_ng = std::min(NCGHOST_CX, NGHOST);
 
-  int cx_il = pob->cx_cis - c_ng;
-  int cx_iu = pob->cx_cie + c_ng;
+  int cx_il = pob->cx_cis - min_cx_ng;
+  int cx_iu = pob->cx_cie + min_cx_ng;
 
-  int cx_jl = pob->cjs - f2 * c_ng;
-  int cx_ju = pob->cje + f2 * c_ng;
+  int cx_jl = pob->cjs - f2 * min_cx_ng;
+  int cx_ju = pob->cje + f2 * min_cx_ng;
 
-  int cx_kl = pob->cks - f3 * c_ng;
-  int cx_ku = pob->cke + f3 * c_ng;
+  int cx_kl = pob->cks - f3 * min_cx_ng;
+  int cx_ku = pob->cke + f3 * min_cx_ng;
 
-  int cx_cis = nlx1 * b_sz1 + pob->cx_is - 1  * c_ng;
-  int cx_cjs = nlx2 * b_sz2 + pob->cx_js - f2 * c_ng;
-  int cx_cks = nlx3 * b_sz3 + pob->cx_ks - f3 * c_ng;
+  int cx_cis = nlx1 * b_hsz1 + pob->cx_is - 1  * min_cx_ng;
+  int cx_cjs = nlx2 * b_hsz2 + pob->cx_js - f2 * min_cx_ng;
+  int cx_cks = nlx3 * b_hsz3 + pob->cx_ks - f3 * min_cx_ng;
 
   auto pob_cx_it = pob->pmr->pvars_cx_.begin();  // fund. on coarse level
 
@@ -1257,9 +1357,9 @@ void Mesh::FillSameRankCoarseToFineAMR(MeshBlock* pob, MeshBlock* pmb,
   const int vc_kl = pob->ckvs - ndg3;
   const int vc_ku = pob->ckve + ndg3;
 
-  const int vc_cis = nlx1 * b_sz1 + pob->ivs - ndg1;
-  const int vc_cjs = nlx2 * b_sz2 + pob->jvs - ndg2;
-  const int vc_cks = nlx3 * b_sz3 + pob->kvs - ndg3;
+  const int vc_cis = nlx1 * b_hsz1 + pob->ivs - ndg1;
+  const int vc_cjs = nlx2 * b_hsz2 + pob->jvs - ndg2;
+  const int vc_cks = nlx3 * b_hsz3 + pob->kvs - ndg3;
 
   auto pob_vc_it = pob->pmr->pvars_vc_.begin();
   // iterate MeshRefinement std::vectors on new pmb
@@ -1348,7 +1448,13 @@ void Mesh::FinishRecvSameLevel(MeshBlock *pb, Real *recvbuf) {
   }
 
   // cell-centered extended ---------------------------------------------------
-  // ...
+  for (AthenaArray<Real> &var_cx : pb->vars_cx_) {
+    int nu = var_cx.GetDim4() - 1;
+    BufferUtility::UnpackData(recvbuf, var_cx, 0, nu,
+                              pb->cx_is, pb->cx_ie,
+                              pb->cx_js, pb->cx_je,
+                              pb->cx_ks, pb->cx_ke, p);
+  }
 
   // vertex-centered ----------------------------------------------------------
   for (AthenaArray<Real> &var_vc : pb->vars_vc_) {
@@ -1399,47 +1505,49 @@ void Mesh::FinishRecvSameLevel(MeshBlock *pb, Real *recvbuf) {
 void Mesh::FinishRecvFineToCoarseAMR(MeshBlock *pb, Real *recvbuf,
                                      LogicalLocation &lloc) {
 
-  const int b_sz1 = pb->block_size.nx1/2;
-  const int b_sz2 = pb->block_size.nx2/2;
-  const int b_sz3 = pb->block_size.nx3/2;
+  const int b_hsz1 = pb->block_size.nx1/2;
+  const int b_hsz2 = pb->block_size.nx2/2;
+  const int b_hsz3 = pb->block_size.nx3/2;
 
-  // cell-centered ------------------------------------------------------------
   const int ox1 = ((lloc.lx1 & 1LL) == 1LL);
   const int ox2 = ((lloc.lx2 & 1LL) == 1LL);
   const int ox3 = ((lloc.lx3 & 1LL) == 1LL);
 
-  int p = 0, il, iu, jl, ju, kl, ku;
+  int p = 0;
+
+  // cell-centered ------------------------------------------------------------
+  int il, iu, jl, ju, kl, ku;
 
   if (ox1 == 0)
   {
     il = pb->is;
-    iu = pb->is + b_sz1 - 1;
+    iu = pb->is + b_hsz1 - 1;
   }
   else
   {
-    il = pb->is + b_sz1;
+    il = pb->is + b_hsz1;
     iu = pb->ie;
   }
 
   if (ox2 == 0)
   {
     jl = pb->js;
-    ju = pb->js + b_sz2 - f2;
+    ju = pb->js + b_hsz2 - f2;
   }
   else
   {
-    jl = pb->js + b_sz2;
+    jl = pb->js + b_hsz2;
     ju = pb->je;
   }
 
   if (ox3 == 0)
   {
     kl = pb->ks;
-    ku = pb->ks + b_sz3 - f3;
+    ku = pb->ks + b_hsz3 - f3;
   }
   else
   {
-    kl = pb->ks + b_sz3;
+    kl = pb->ks + b_hsz3;
     ku = pb->ke;
   }
 
@@ -1451,31 +1559,73 @@ void Mesh::FinishRecvFineToCoarseAMR(MeshBlock *pb, Real *recvbuf,
   }
 
   // cell-centered extended ---------------------------------------------------
-  // ...
+  // fill (below) with the maximum number of ghosts possible
+  const int min_cx_ng = std::min(NCGHOST_CX, NGHOST);
 
+  int cx_il, cx_iu, cx_jl, cx_ju, cx_kl, cx_ku;
+
+  if (ox1 == 0)
+  {
+    cx_il = pb->is;
+    cx_iu = pb->is + b_hsz1 - 1;
+  }
+  else
+  {
+    cx_il = pb->is + b_hsz1;
+    cx_iu = pb->ie;
+  }
+
+  if (ox2 == 0)
+  {
+    cx_jl = pb->js;
+    cx_ju = pb->js + b_hsz2 - f2;
+  }
+  else
+  {
+    cx_jl = pb->js + b_hsz2;
+    cx_ju = pb->je;
+  }
+
+  if (ox3 == 0)
+  {
+    cx_kl = pb->ks;
+    cx_ku = pb->ks + b_hsz3 - f3;
+  }
+  else
+  {
+    cx_kl = pb->ks + b_hsz3;
+    cx_ku = pb->ke;
+  }
+
+  for (auto cx_pair : pb->pmr->pvars_cx_) {
+    AthenaArray<Real> *var_cx = std::get<0>(cx_pair);
+    int nu = var_cx->GetDim4() - 1;
+    BufferUtility::UnpackData(recvbuf, *var_cx, 0, nu,
+                              il, iu, jl, ju, kl, ku, p);
+  }
   // vertex-centered ----------------------------------------------------------
-  int vc_il = 0, vc_iu = 0;
-  int vc_jl = 0, vc_ju = 0;
-  int vc_kl = 0, vc_ku = 0;
+  int vc_il, vc_iu;
+  int vc_jl, vc_ju;
+  int vc_kl, vc_ku;
 
   if (ox1 == 0) {
     vc_il = pb->ivs;
-    vc_iu = pb->ivs + b_sz1;
+    vc_iu = pb->ivs + b_hsz1;
   } else {
-    vc_il = pb->ivs + b_sz1;
+    vc_il = pb->ivs + b_hsz1;
     vc_iu = pb->ive;}
   if (ox2 == 0) {
     vc_jl = pb->jvs;
-    vc_ju = pb->jvs + b_sz2;
+    vc_ju = pb->jvs + b_hsz2;
   } else {
-    vc_jl = pb->jvs + b_sz2;
+    vc_jl = pb->jvs + b_hsz2;
     vc_ju = pb->jve;
   }
   if (ox3 == 0) {
     vc_kl = pb->kvs;
-    vc_ku = pb->kvs + b_sz3;
+    vc_ku = pb->kvs + b_hsz3;
   } else {
-    vc_kl = pb->kvs + b_sz3;
+    vc_kl = pb->kvs + b_hsz3;
     vc_ku = pb->kve;
   }
 
@@ -1540,7 +1690,33 @@ void Mesh::FinishRecvCoarseToFineAMR(MeshBlock *pb, Real *recvbuf) {
   }
 
   // cell-centered extended ---------------------------------------------------
-  // ...
+  // fill (below) with the maximum number of ghosts possible
+  const int min_cx_ng = std::min(NCGHOST_CX, NGHOST);
+
+  const int cx_il = pb->cx_cis - min_cx_ng;
+  const int cx_iu = pb->cx_cie + min_cx_ng;
+
+  const int cx_jl = pb->cx_cjs - f2 * min_cx_ng;
+  const int cx_ju = pb->cx_cje + f2 * min_cx_ng;
+
+  const int cx_kl = pb->cx_cks - f3 * min_cx_ng;
+  const int cx_ku = pb->cx_cke + f3 * min_cx_ng;
+
+  for (auto cx_pair : pb->pmr->pvars_cx_) {
+    AthenaArray<Real> *var_cx = std::get<0>(cx_pair);
+    AthenaArray<Real> *coarse_cx = std::get<1>(cx_pair);
+    int nu = var_cx->GetDim4() - 1;
+    BufferUtility::UnpackData(recvbuf, *coarse_cx,
+                              0, nu,
+                              cx_il, cx_iu,
+                              cx_jl, cx_ju,
+                              cx_kl, cx_ku, p);
+    pmr->ProlongateCellCenteredXValues(
+        *coarse_cx, *var_cx, 0, nu,
+        pb->cx_cis, pb->cx_cie,
+        pb->cx_cjs, pb->cx_cje,
+        pb->cx_cks, pb->cx_cke);
+  }
 
   // vertex-centered ----------------------------------------------------------
   int ndg1 = NGHOST;
