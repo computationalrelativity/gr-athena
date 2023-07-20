@@ -115,7 +115,7 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) :
     const int Nt_x2 = pmb->block_size.nx2 / 2 - 1;
     const int Nt_x3 = pmb->block_size.nx3 / 2 - 1;
 
-    interp_nd_barycentric = new interp_nd_weights_precomputed(
+    ind_interior_r_op = new interp_nd_weights_precomputed(
       x1_t, x2_t, x3_t,
       x1_s, x2_s, x3_s,
       Nt_x1, Nt_x2, Nt_x3,
@@ -135,7 +135,7 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) :
     const int Nt_x1 = pmb->block_size.nx1 / 2 - 1;
     const int Nt_x2 = pmb->block_size.nx2 / 2 - 1;
 
-    interp_nd_barycentric = new interp_nd_weights_precomputed(
+    ind_interior_r_op = new interp_nd_weights_precomputed(
       x1_t, x2_t,
       x1_s, x2_s,
       Nt_x1, Nt_x2,
@@ -151,7 +151,7 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) :
 
     const int Nt_x1 = pmb->block_size.nx1 / 2 - 1;
 
-    interp_nd_barycentric = new interp_nd_weights_precomputed(
+    ind_interior_r_op = new interp_nd_weights_precomputed(
       x1_t, x1_s,
       Nt_x1, Ns_x1,
       d,
@@ -169,7 +169,7 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) :
 
 MeshRefinement::~MeshRefinement() {
   delete pcoarsec;
-  delete interp_nd_barycentric;
+  delete ind_interior_r_op;
 }
 
 //----------------------------------------------------------------------------------------
@@ -608,8 +608,6 @@ void MeshRefinement::RestrictCellCenteredXValues(
   int sn, int en,
   int csi, int cei, int csj, int cej, int csk, int cek)
 {
-  std::cout << "RestrictCellCenteredXValues Fix me" << std::endl;
-  return;
   // here H_SZ * 2 - 1 is resultant degree
   const int H_SZ = 3;
 
@@ -895,7 +893,7 @@ void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
       const Real* const fcn_s = &(var_s(n,0,0,0));
       Real* fcn_t = &(var_t(n,0,0,0));
 
-      interp_nd_barycentric->eval(fcn_t, fcn_s);
+      ind_interior_r_op->eval(fcn_t, fcn_s);
     }
 
   }
@@ -971,7 +969,7 @@ void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
       const Real* const fcn_s = &(var_s(n,0,0,0));
       Real* fcn_t = &(var_t(n,0,0,0));
 
-      interp_nd_barycentric->eval(fcn_t, fcn_s);
+      ind_interior_r_op->eval(fcn_t, fcn_s);
     }
 
   }
@@ -1031,7 +1029,7 @@ void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
       const Real* const fcn_s = &(var_s(n,0,0,0));
       Real* fcn_t = &(var_t(n,0,0,0));
 
-      interp_nd_barycentric->eval(fcn_t, fcn_s);
+      ind_interior_r_op->eval(fcn_t, fcn_s);
     }
 
 
@@ -2322,6 +2320,25 @@ void MeshRefinement::ProlongateCellCenteredXValues(
     int sn, int en, int csi, int cei, int csj, int cej, int csk, int cek)
 {
   MeshBlock *pmb = pmy_block_;
+
+  // for(int n=sn; n<=en; ++n)
+  // for(int ci=pmb->cx_cis; ci<=pmb->cx_cie; ++ci)
+  // {
+  //   // left child idx on fundamental grid
+  //   const int cx_fi = 2 * (ci - pmb->cx_cis) + pmb->cx_is;
+
+  //   Real* x1_s = &(pco->x1v(NGHOST));
+  //   Real* fcn_s = &(var_s(n,0,0,0));
+
+  //   // coarse variable grids are constructed with CC ghost number
+  //   const Real x1_t = pcoarsec->x1v(NCGHOST+(ci-NCGHOST_CX));
+
+  //   var_t(n,0,0,ci) = Floater_Hormann::interp_1d(
+  //     x1_t, x1_s,
+  //     fcn_s,
+  //     Ns_x1, d, NGHOST);
+  // }
+
 
   // here H_SZ * 2 is resultant degree
   const int H_SZ = 2;

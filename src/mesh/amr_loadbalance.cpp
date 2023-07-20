@@ -775,8 +775,11 @@ void Mesh::PrepareSendSameLevel(MeshBlock* pb, Real *sendbuf) {
 
 void Mesh::PrepareSendCoarseToFineAMR(MeshBlock* pb, Real *sendbuf,
                                       LogicalLocation &lloc) {
-  int ox1 = ((lloc.lx1 & 1LL) == 1LL), ox2 = ((lloc.lx2 & 1LL) == 1LL),
-      ox3 = ((lloc.lx3 & 1LL) == 1LL);
+  // cell-centered ------------------------------------------------------------
+  int ox1 = ((lloc.lx1 & 1LL) == 1LL);
+  int ox2 = ((lloc.lx2 & 1LL) == 1LL);
+  int ox3 = ((lloc.lx3 & 1LL) == 1LL);
+
   // pack
   int il, iu, jl, ju, kl, ku;
   if (ox1 == 0) il = pb->is - 1,               iu = pb->is + pb->block_size.nx1/2;
@@ -785,6 +788,7 @@ void Mesh::PrepareSendCoarseToFineAMR(MeshBlock* pb, Real *sendbuf,
   else        jl = pb->js + pb->block_size.nx2/2 - f2, ju = pb->je + f2;
   if (ox3 == 0) kl = pb->ks - f3,              ku = pb->ks + pb->block_size.nx3/2;
   else        kl = pb->ks + pb->block_size.nx3/2 - f3, ku = pb->ke + f3;
+
   int p = 0;
   for (auto cc_pair : pb->pmr->pvars_cc_) {
     AthenaArray<Real> *var_cc = std::get<0>(cc_pair);
@@ -792,6 +796,8 @@ void Mesh::PrepareSendCoarseToFineAMR(MeshBlock* pb, Real *sendbuf,
     BufferUtility::PackData(*var_cc, sendbuf, 0, nu,
                             il, iu, jl, ju, kl, ku, p);
   }
+
+  // face-centered ------------------------------------------------------------
   for (auto fc_pair : pb->pmr->pvars_fc_) {
     FaceField *var_fc = std::get<0>(fc_pair);
     BufferUtility::PackData((*var_fc).x1f, sendbuf,
@@ -802,7 +808,11 @@ void Mesh::PrepareSendCoarseToFineAMR(MeshBlock* pb, Real *sendbuf,
                             il, iu, jl, ju, kl, ku+f3, p);
   }
 
-  // BD: add VC functionality
+  // cell-centered extended ---------------------------------------------------
+
+  // ..
+
+  // vertex-centered ----------------------------------------------------------
   int ndg1 = NGHOST;
   int ndg2 = (f2 > 0) ? NGHOST : 0;
   int ndg3 = (f3 > 0) ? NGHOST : 0;
@@ -1099,22 +1109,36 @@ void Mesh::FillSameRankCoarseToFineAMR(MeshBlock* pob, MeshBlock* pmb,
   }
 
   // cell-centered extended ---------------------------------------------------
-  int cx_il = pob->cx_cis - 1, cx_iu = pob->cx_cie + 1, cx_jl = pob->cjs - f2,
-      cx_ju = pob->cje + f2, cx_kl = pob->cks - f3, cx_ku = pob->cke + f3;
-  int cx_cis = ((newloc.lx1 & 1LL) == 1LL)*pob->block_size.nx1/2 + pob->cx_is - 1;
-  int cx_cjs = ((newloc.lx2 & 1LL) == 1LL)*pob->block_size.nx2/2 + pob->cx_js - f2;
-  int cx_cks = ((newloc.lx3 & 1LL) == 1LL)*pob->block_size.nx3/2 + pob->cx_ks - f3;
 
-  auto pob_cx_it = pob->pmr->pvars_cx_.begin();
+  // fill (below) with the maximum number of ghosts possible
+  const int c_ng = std::min(NCGHOST_CX, NGHOST);
+
+  int cx_il = pob->cx_cis - c_ng;
+  int cx_iu = pob->cx_cie + c_ng;
+
+  int cx_jl = pob->cjs - f2 * c_ng;
+  int cx_ju = pob->cje + f2 * c_ng;
+
+  int cx_kl = pob->cks - f3 * c_ng;
+  int cx_ku = pob->cke + f3 * c_ng;
+
+  int cx_cis = ((newloc.lx1 & 1LL) == 1LL)*pob->block_size.nx1/2 + pob->cx_is - 1  * c_ng;
+  int cx_cjs = ((newloc.lx2 & 1LL) == 1LL)*pob->block_size.nx2/2 + pob->cx_js - f2 * c_ng;
+  int cx_cks = ((newloc.lx3 & 1LL) == 1LL)*pob->block_size.nx3/2 + pob->cx_ks - f3 * c_ng;
+
+  auto pob_cx_it = pob->pmr->pvars_cx_.begin();  // fund. on coarse level
+
+  // due to the structure of prolongation impl. need to pre-fill as below
+
   // iterate MeshRefinement std::vectors on new pmb
-  for (auto cc_pair : pmr->pvars_cx_) {
-    AthenaArray<Real> *var_cx = std::get<0>(cc_pair);
-    AthenaArray<Real> *coarse_cx = std::get<1>(cc_pair);
+  for (auto cx_pair : pmr->pvars_cx_) {
+    AthenaArray<Real> *var_cx = std::get<0>(cx_pair);
+    AthenaArray<Real> *coarse_cx = std::get<1>(cx_pair);
     int nu = var_cx->GetDim4() - 1;
 
     AthenaArray<Real> &src = *std::get<0>(*pob_cx_it);
     AthenaArray<Real> &dst = *coarse_cx;
-    // fill the coarse buffer
+    // populate coarse on new fine level
     for (int nv=0; nv<=nu; nv++) {
       for (int k=cx_kl, ck=cx_cks; k<=cx_ku; k++, ck++) {
         for (int j=cx_jl, cj=cx_cjs; j<=cx_ju; j++, cj++) {
@@ -1123,6 +1147,8 @@ void Mesh::FillSameRankCoarseToFineAMR(MeshBlock* pob, MeshBlock* pmb,
         }
       }
     }
+
+    // finally do the prolongation
     pmr->ProlongateCellCenteredXValues(
         dst, *var_cx, 0, nu,
         pob->cx_cis, pob->cx_cie,

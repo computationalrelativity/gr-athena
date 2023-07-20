@@ -232,6 +232,7 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   friend class FaceCenteredBoundaryVariable;  // needs nface_, nedge_, num_north/south_...
   // TODO(KGF): consider removing these friendship designations:
   friend class CellCenteredBoundaryVariable;
+  friend class CellCenteredXBoundaryVariable;
   friend class VertexCenteredBoundaryVariable;
   friend class HydroBoundaryVariable;  // needed for shearing box quantities
 };

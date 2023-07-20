@@ -147,7 +147,7 @@ class MeshRefinement {
   typedef Floater_Hormann::interp_nd_weights_precomputed<Real, Real>
     interp_nd_weights_precomputed;
 
-  interp_nd_weights_precomputed * interp_nd_barycentric;
+  interp_nd_weights_precomputed * ind_interior_r_op;
   // --------------------------------------------------------------------------
 
 };
