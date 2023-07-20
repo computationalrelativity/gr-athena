@@ -609,7 +609,7 @@ void MeshRefinement::RestrictCellCenteredXValues(
   int csi, int cei, int csj, int cej, int csk, int cek)
 {
   // here H_SZ * 2 - 1 is resultant degree
-  const int H_SZ = 3;
+  const int H_SZ = NGHOST;  // works for all physical nodes
 
   MeshBlock *pmb = pmy_block_;
   // Coordinates *pco = pmb->pcoord;
@@ -620,34 +620,72 @@ void MeshRefinement::RestrictCellCenteredXValues(
 
   if (pmb->block_size.nx3>1)
   { // 3D
-    // for (int n=sn; n<=en; ++n) {
-    //   for (int ck=csk; ck<=cek; ck++) {
-    //     int k = (ck - pmb->cks)*2 + pmb->ks;
-    //     for (int cj=csj; cj<=cej; cj++) {
-    //       int j = (cj - pmb->cjs)*2 + pmb->js;
-    //       pco->CellVolume(k,j,si,ei,fvol_[0][0]);
-    //       pco->CellVolume(k,j+1,si,ei,fvol_[0][1]);
-    //       pco->CellVolume(k+1,j,si,ei,fvol_[1][0]);
-    //       pco->CellVolume(k+1,j+1,si,ei,fvol_[1][1]);
-    //       for (int ci=csi; ci<=cei; ci++) {
-    //         int i = (ci - pmb->cis)*2 + pmb->is;
-    //         // KGF: add the off-centered quantities first to preserve FP symmetry
-    //         Real tvol = ((fvol_[0][0](i) + fvol_[0][1](i))
-    //                      + (fvol_[0][0](i+1) + fvol_[0][1](i+1)))
-    //                     + ((fvol_[1][0](i) + fvol_[1][1](i))
-    //                        + (fvol_[1][0](i+1) + fvol_[1][1](i+1)));
-    //         // KGF: add the off-centered quantities first to preserve FP symmetry
-    //         coarse(n,ck,cj,ci) =
-    //             (((fine(n,k  ,j  ,i)*fvol_[0][0](i) + fine(n,k  ,j+1,i)*fvol_[0][1](i))
-    //               + (fine(n,k  ,j  ,i+1)*fvol_[0][0](i+1) +
-    //                  fine(n,k  ,j+1,i+1)*fvol_[0][1](i+1)))
-    //              + ((fine(n,k+1,j  ,i)*fvol_[1][0](i) + fine(n,k+1,j+1,i)*fvol_[1][1](i))
-    //                 + (fine(n,k+1,j  ,i+1)*fvol_[1][0](i+1) +
-    //                    fine(n,k+1,j+1,i+1)*fvol_[1][1](i+1)))) / tvol;
-    //       }
-    //     }
-    //   }
-    // }
+    for (int n=sn; n<=en; ++n)
+    for (int cx_ck=csk; cx_ck<=cek; cx_ck++)
+    {
+      // left child idx on fine grid
+      const int cx_fk = 2 * (cx_ck - pmb->cx_cks) + pmb->cx_ks;
+
+      for (int cx_cj=csj; cx_cj<=cej; cx_cj++)
+      {
+        // left child idx on fine grid
+        const int cx_fj = 2 * (cx_cj - pmb->cx_cjs) + pmb->cx_js;
+
+        for (int cx_ci=csi; cx_ci<=cei; cx_ci++)
+        {
+          // left child idx on fine grid
+          const int cx_fi = 2 * (cx_ci - pmb->cx_cis) + pmb->cx_is;
+
+          // use templated ----------------------------------------------------
+          coarse(n,cx_ck,cx_cj,cx_ci) = 0.0;
+
+          #pragma omp unroll
+          for (int dk=0; dk<H_SZ; ++dk)
+          {
+            int const cx_fk_l = cx_fk - dk;
+            int const cx_fk_r = cx_fk + dk + 1;
+            Real const lck = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dk-1];
+
+            #pragma omp unroll
+            for (int dj=0; dj<H_SZ; ++dj)
+            {
+              int const cx_fj_l = cx_fj - dj;
+              int const cx_fj_r = cx_fj + dj + 1;
+              Real const lckj = lck * InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dj-1];
+
+              #pragma omp unroll
+              for (int di=0; di<H_SZ; ++di)
+              {
+                int const cx_fi_l = cx_fi - di;
+                int const cx_fi_r = cx_fi + di + 1;
+
+                Real const lckji = lckj * InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
+
+                Real const f_rrr = fine(n, cx_fk_r, cx_fj_r, cx_fi_r);
+                Real const f_lrr = fine(n, cx_fk_l, cx_fj_r, cx_fi_r);
+                Real const f_rlr = fine(n, cx_fk_r, cx_fj_l, cx_fi_r);
+                Real const f_rrl = fine(n, cx_fk_r, cx_fj_r, cx_fi_l);
+
+                Real const f_llr = fine(n, cx_fk_l, cx_fj_l, cx_fi_r);
+                Real const f_rll = fine(n, cx_fk_r, cx_fj_l, cx_fi_l);
+                Real const f_lrl = fine(n, cx_fk_l, cx_fj_r, cx_fi_l);
+                Real const f_lll = fine(n, cx_fk_l, cx_fj_l, cx_fi_l);
+
+                coarse(n,cx_ck,cx_cj,cx_ci) += lckji * FloatingPoint::sum_associative(
+                  f_rrr, f_lrr, f_rlr, f_rrr,
+                  f_llr, f_rll, f_lrl, f_lll
+                );
+              }
+            }
+          }
+
+
+        }
+
+      }
+    }
+
+
   }
   else if (pmb->block_size.nx2>1)
   { // 2D
@@ -670,20 +708,20 @@ void MeshRefinement::RestrictCellCenteredXValues(
         for (int dj=0; dj<H_SZ; ++dj)
         {
           int const cx_fj_l = cx_fj - dj;
-          int const cx_fj_u = cx_fj + dj + 1;
+          int const cx_fj_r = cx_fj + dj + 1;
           Real const lcj = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dj-1];
 
           #pragma omp unroll
           for (int di=0; di<H_SZ; ++di)
           {
             int const cx_fi_l = cx_fi - di;
-            int const cx_fi_u = cx_fi + di + 1;
+            int const cx_fi_r = cx_fi + di + 1;
 
             Real const lcji = lcj * InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
 
-            Real const f_uu = fine(n, 0, cx_fj_u, cx_fi_u);
-            Real const f_ul = fine(n, 0, cx_fj_u, cx_fi_l);
-            Real const f_lu = fine(n, 0, cx_fj_l, cx_fi_u);
+            Real const f_uu = fine(n, 0, cx_fj_r, cx_fi_r);
+            Real const f_ul = fine(n, 0, cx_fj_r, cx_fi_l);
+            Real const f_lu = fine(n, 0, cx_fj_l, cx_fi_r);
             Real const f_ll = fine(n, 0, cx_fj_l, cx_fi_l);
 
             coarse(n,cx_ck,cx_cj,cx_ci) += lcji * FloatingPoint::sum_associative(
@@ -762,11 +800,11 @@ void MeshRefinement::RestrictCellCenteredXValues(
       {
         Real const lc = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
         int const cx_fi_l = cx_fi - di;
-        int const cx_fi_u = cx_fi + di + 1;
+        int const cx_fi_r = cx_fi + di + 1;
 
         coarse(n,cx_ck,cx_cj,cx_ci) += lc * (
           fine(n,cx_fk,cx_fj,cx_fi_l) +
-          fine(n,cx_fk,cx_fj,cx_fi_u)
+          fine(n,cx_fk,cx_fj,cx_fi_r)
         );
       }
 
@@ -2321,6 +2359,11 @@ void MeshRefinement::ProlongateCellCenteredXValues(
 {
   MeshBlock *pmb = pmy_block_;
 
+  // here H_SZ * 2 is resultant interpolant degree
+  // formula compatible with ProlongateCellCenteredXGhosts
+  const int H_SZ = (2 * NCGHOST_CX - NGHOST) / 2;
+
+
   // for(int n=sn; n<=en; ++n)
   // for(int ci=pmb->cx_cis; ci<=pmb->cx_cie; ++ci)
   // {
@@ -2338,10 +2381,6 @@ void MeshRefinement::ProlongateCellCenteredXValues(
   //     fcn_s,
   //     Ns_x1, d, NGHOST);
   // }
-
-
-  // here H_SZ * 2 is resultant degree
-  const int H_SZ = 2;
 
   // deal with odd ghosts through expanded scratch array
   // AthenaArray<Real> fscr;

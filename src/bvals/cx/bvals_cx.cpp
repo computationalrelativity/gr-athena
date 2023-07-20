@@ -607,17 +607,11 @@ void CellCenteredXBoundaryVariable::SetupPersistentMPI() {
         ssize = MPI_BufferSizeSameLevel(nb.ni, true);
         rsize = MPI_BufferSizeSameLevel(nb.ni, false);
       } else if (nb.snb.level < mylevel) { // coarser
-        // BD: mpi
         ssize = MPI_BufferSizeToCoarser(nb.ni);
         rsize = MPI_BufferSizeFromCoarser(nb.ni);
-        // ssize = 0;
-        // rsize = 0;
       } else { // finer
-        // BD: mpi
         ssize = MPI_BufferSizeToFiner(nb.ni);
         rsize = MPI_BufferSizeFromFiner(nb.ni);
-        // ssize = 0;
-        // rsize = 0;
       }
       // specify the offsets in the view point of the target block: flip ox? signs
 
