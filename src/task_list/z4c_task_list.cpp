@@ -269,8 +269,19 @@ Z4cIntegratorTaskList::Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm){
     // When initializing at restart, this procedure ensures to restart
     // extraction from right time
     int nwavecycles = static_cast<int>(pm->time/TaskListTriggers.wave_extraction.dt);
-    TaskListTriggers.wave_extraction.next_time = (nwavecycles + 1)*
-        TaskListTriggers.wave_extraction.dt;
+    Real aux_next_time = (nwavecycles)*
+            TaskListTriggers.wave_extraction.dt;
+    Real aux_next_time1 = (nwavecycles+1)*
+                TaskListTriggers.wave_extraction.dt;
+
+    // This ensures that in case the run restarts EXACTLY at the trigger time,
+    // this is taken into account.
+    if (aux_next_time1 - TaskListTriggers.wave_extraction.dt >= pm->time) {
+      TaskListTriggers.wave_extraction.next_time = aux_next_time;
+      TaskListTriggers.wave_extraction.to_update = true;
+    } else {
+      TaskListTriggers.wave_extraction.next_time = aux_next_time1;
+    }
   }
   
 #if CCE_ENABLED
