@@ -657,6 +657,9 @@ private:
       if (index < INIT) {lopsided = INIT - index;}
       else if (index > END) {lopsided = END - index;}
       else {lopsided = 0;}
+
+      //if (dir == 0) printf("INIT = %d, END = %d, index = %d, lopsided = %d\n", INIT, END, index, lopsided);
+
       
       Real out(0.);
       // Dx
@@ -674,13 +677,13 @@ private:
           break;
         }
         case 1: {
-          for(int n = sr_1B::width-1; n >= 0; --n) {
+          for(int n = 0; n < sr_1B::width; ++n) {
             out += sr_1B::coeff[n] * pu[(n - sr_1B::offset)*stride[dir]];
           }
           break;
         }
         case 2: {
-          for(int n = sr_2B::width-1; n >= 0; --n) {
+          for(int n = 0; n < sr_2B::width; ++n) {
             out += sr_2B::coeff[n] * pu[(n - sr_2B::offset)*stride[dir]];
           }
           break;
@@ -689,7 +692,7 @@ private:
           if (NGHOST == 3) {
             break;
           }
-          for(int n = sr_3B::width-1; n >= 0; --n) {
+          for(int n = 0; n < sr_3B::width; ++n) {
             out += sr_3B::coeff[n] * pu[(n - sr_3B::offset)*stride[dir]];
           }
           break;
@@ -746,7 +749,6 @@ private:
         int lopsided = lopsidedx;
         switch (lopsided) { 
           case 0: {
-            // TODO compare with Dxx!
             pu -= s2::offset*stride[dir];
 
             for(int n1 = 0; n1 < s2::nghost; ++n1) {
@@ -759,13 +761,13 @@ private:
             break;
           }
           case 1: {
-            for(int n = sr2_1B::width-1; n >= 0; --n) {
+            for(int n = 0; n < sr2_1B::width; ++n) {
               out += sr2_1B::coeff[n] * pu[(n - sr2_1B::offset)*stride[dir]];
             }
             break;
           }
           case 2: {
-            for(int n = sr2_2B::width-1; n >= 0; --n) {
+            for(int n = 0; n < sr2_2B::width; ++n) {
               out += sr2_2B::coeff[n] * pu[(n - sr2_2B::offset)*stride[dir]];
             }
             break;
@@ -774,7 +776,7 @@ private:
             if (NGHOST == 3) {
               break;
             }
-            for(int n = sr2_3B::width-1; n >= 0; --n) {
+            for(int n = 0; n < sr2_3B::width; ++n) {
               out += sr2_3B::coeff[n] * pu[(n - sr2_3B::offset)*stride[dir]];
             }
             break;
@@ -801,10 +803,6 @@ private:
             break;
           }
           default: {
-            //std::stringstream msg;
-            //msg << "### FATAL ERROR in Lopsided derivatives" << std::endl;
-            //msg << " parameter lopsided = " << lopsided << " not implemented.";
-            //throw std::runtime_error(msg.str().c_str());
             break;
           }
         }
@@ -824,8 +822,8 @@ private:
                 break;
               }
               case 1: {
-                for(int n = 0; n < s1::width; ++n) 
-                for(int m = sr_1B::width-1; m >= 0; --m) {
+                for(int n = 0; n <    s1::width; ++n) 
+                for(int m = 0; m < sr_1B::width; ++m) {
                   out += s1::coeff[n] * sr_1B::coeff[m]
                        * pu[(n -    s1::offset)*stride[dirx]+ 
                             (m - sr_1B::offset)*stride[diry]];
@@ -833,8 +831,8 @@ private:
                 break;
               }
               case 2: {
-                for(int n = 0; n < s1::width; ++n) 
-                for(int m = sr_2B::width-1; m >= 0; --m) {
+                for(int n = 0; n <    s1::width; ++n) 
+                for(int m = 0; m < sr_2B::width; ++m) {
                   out += s1::coeff[n] * sr_2B::coeff[m]
                        * pu[(n -    s1::offset)*stride[dirx]+ 
                             (m - sr_2B::offset)*stride[diry]];
@@ -845,8 +843,8 @@ private:
                 if (NGHOST == 3) {
                   break;
                 }
-                for(int n = 0; n < s1::width; ++n) 
-                for(int m = sr_3B::width-1; m >= 0; --m) {
+                for(int n = 0; n <    s1::width; ++n) 
+                for(int m = 0; m < sr_3B::width; ++m) {
                   out += s1::coeff[n] * sr_3B::coeff[m]
                        * pu[(n -    s1::offset)*stride[dirx]+ 
                             (m - sr_3B::offset)*stride[diry]];
@@ -892,24 +890,24 @@ private:
           case 1: {
             switch (lopsidedy) {
               case 0:
-                for(int n = sr_1B::width-1; n >= 0; --n)
-                for(int m = 0; m < s1::width; ++m) {
+                for(int n = 0; n < sr_1B::width; ++n)
+                for(int m = 0; m <    s1::width; ++m) {
                   out += sr_1B::coeff[n] * s1::coeff[m]
                        * pu[(n - sr_1B::offset)*stride[dirx]+ 
                             (m -    s1::offset)*stride[diry]];
                 }
                 break;
               case 1:
-                for(int n = sr_1B::width-1; n >= 0; --n)
-                for(int m = sr_1B::width-1; m >= 0; --m) {
+                for(int n = 0; n < sr_1B::width; ++n)
+                for(int m = 0; m < sr_1B::width; ++m) {
                   out += sr_1B::coeff[n] * sr_1B::coeff[m]
                        * pu[(n - sr_1B::offset)*stride[dirx]+ 
                             (m - sr_1B::offset)*stride[diry]];
                 }
                 break;
               case 2:
-                for(int n = sr_1B::width-1; n >= 0; --n)
-                for(int m = sr_2B::width-1; m >= 0; --m) {
+                for(int n = 0; n < sr_1B::width; ++n)
+                for(int m = 0; m < sr_2B::width; ++m) {
                   out += sr_1B::coeff[n] * sr_2B::coeff[m]
                        * pu[(n - sr_1B::offset)*stride[dirx]+ 
                             (m - sr_2B::offset)*stride[diry]];
@@ -919,15 +917,15 @@ private:
                 if (NGHOST == 3) {
                   break;
                 }
-                for(int n = sr_1B::width-1; n >= 0; --n)
-                for(int m = sr_3B::width-1; m >= 0; --m) {
+                for(int n = 0; n < sr_1B::width; ++n)
+                for(int m = 0; m < sr_3B::width; ++m) {
                   out += sr_1B::coeff[n] * sr_3B::coeff[m]
                        * pu[(n - sr_1B::offset)*stride[dirx]+ 
                             (m - sr_3B::offset)*stride[diry]];
                 }
                 break;
               case -1:
-                for(int n = sr_1B::width-1; n >= 0; --n)
+                for(int n = 0; n < sr_1B::width; ++n)
                 for(int m = 0; m < sl_1B::width; ++m) {
                   out += sr_1B::coeff[n] * sl_1B::coeff[m]
                        * pu[(n - sr_1B::offset)*stride[dirx]+ 
@@ -935,7 +933,7 @@ private:
                 }
                 break;
               case -2:
-                for(int n = sr_1B::width-1; n >= 0; --n)
+                for(int n = 0; n < sr_1B::width; ++n)
                 for(int m = 0; m < sl_2B::width; ++m) {
                   out += sr_1B::coeff[n] * sl_2B::coeff[m]
                        * pu[(n - sr_1B::offset)*stride[dirx]+ 
@@ -946,7 +944,7 @@ private:
                 if (NGHOST == 3) {
                   break;
                 }
-                for(int n = sr_1B::width-1; n >= 0; --n)
+                for(int n = 0; n < sr_1B::width; ++n)
                 for(int m = 0; m < sl_3B::width; ++m) {
                   out += sr_1B::coeff[n] * sl_3B::coeff[m]
                        * pu[(n - sr_1B::offset)*stride[dirx]+ 
@@ -961,7 +959,7 @@ private:
           case 2: {
             switch (lopsidedy) {
               case 0:
-                for(int n = sr_2B::width-1; n >= 0; --n)
+                for(int n = 0; n < sr_2B::width; ++n)
                 for(int m = 0; m < s1::width; ++m) {
                   out += sr_2B::coeff[n] * s1::coeff[m]
                        * pu[(n - sr_2B::offset)*stride[dirx]+ 
@@ -969,16 +967,16 @@ private:
                 }
                 break;
               case 1:
-                for(int n = sr_2B::width-1; n >= 0; --n)
-                for(int m = sr_1B::width-1; m >= 0; --m) {
+                for(int n = 0; n < sr_2B::width; ++n)
+                for(int m = 0; m < sr_1B::width; ++m) {
                   out += sr_2B::coeff[n] * sr_1B::coeff[m]
                        * pu[(n - sr_2B::offset)*stride[dirx]+ 
                             (m - sr_1B::offset)*stride[diry]];
                 }
                 break;
               case 2:
-                for(int n = sr_2B::width-1; n >= 0; --n)
-                for(int m = sr_2B::width-1; m >= 0; --m) {
+                for(int n = 0; n < sr_2B::width; ++n)
+                for(int m = 0; m < sr_2B::width; ++m) {
                   out += sr_2B::coeff[n] * sr_2B::coeff[m]
                        * pu[(n - sr_2B::offset)*stride[dirx]+ 
                             (m - sr_2B::offset)*stride[diry]];
@@ -988,15 +986,15 @@ private:
                 if (NGHOST == 3) {
                   break;
                 }
-                for(int n = sr_2B::width-1; n >= 0; --n)
-                for(int m = sr_3B::width-1; m >= 0; --m) {
+                for(int n = 0; n < sr_2B::width; ++n)
+                for(int m = 0; m < sr_3B::width; ++m) {
                   out += sr_2B::coeff[n] * sr_3B::coeff[m]
                        * pu[(n - sr_2B::offset)*stride[dirx]+ 
                             (m - sr_3B::offset)*stride[diry]];
                 }
                 break;
               case -1:
-                for(int n = sr_2B::width-1; n >= 0; --n)
+                for(int n = 0; n < sr_2B::width; ++n)
                 for(int m = 0; m < sl_1B::width; ++m) {
                   out += sr_2B::coeff[n] * sl_1B::coeff[m]
                        * pu[(n - sr_2B::offset)*stride[dirx]+ 
@@ -1004,7 +1002,7 @@ private:
                 }
                 break;
               case -2:
-                for(int n = sr_2B::width-1; n >= 0; --n)
+                for(int n = 0; n < sr_2B::width; ++n)
                 for(int m = 0; m < sl_2B::width; ++m) {
                   out += sr_2B::coeff[n] * sl_2B::coeff[m]
                        * pu[(n - sr_2B::offset)*stride[dirx]+ 
@@ -1015,7 +1013,7 @@ private:
                 if (NGHOST == 3) {
                   break;
                 }
-                for(int n = sr_2B::width-1; n >= 0; --n)
+                for(int n = 0; n < sr_2B::width; ++n)
                 for(int m = 0; m < sl_3B::width; ++m) {
                   out += sr_2B::coeff[n] * sl_3B::coeff[m]
                        * pu[(n - sr_2B::offset)*stride[dirx]+ 
@@ -1033,7 +1031,7 @@ private:
             }
             switch (lopsidedy) {
               case 0:
-                for(int n = sr_3B::width-1; n >= 0; --n)
+                for(int n = 0; n < sr_3B::width; ++n)
                 for(int m = 0; m < s1::width; ++m) {
                   out += sr_3B::coeff[n] * s1::coeff[m]
                        * pu[(n - sr_3B::offset)*stride[dirx]+ 
@@ -1041,16 +1039,16 @@ private:
                 }
                 break;
               case 1:
-                for(int n = sr_3B::width-1; n >= 0; --n)
-                for(int m = sr_1B::width-1; m >= 0; --m) {
+                for(int n = 0; n < sr_3B::width; ++n)
+                for(int m = 0; m < sr_1B::width; ++m) {
                   out += sr_3B::coeff[n] * sr_1B::coeff[m]
                        * pu[(n - sr_3B::offset)*stride[dirx]+ 
                             (m - sr_1B::offset)*stride[diry]];
                 }
                 break;
               case 2:
-                for(int n = sr_3B::width-1; n >= 0; --n)
-                for(int m = sr_2B::width-1; m >= 0; --m) {
+                for(int n = 0; n < sr_3B::width; ++n)
+                for(int m = 0; m < sr_2B::width; ++m) {
                   out += sr_3B::coeff[n] * sr_2B::coeff[m]
                        * pu[(n - sr_3B::offset)*stride[dirx]+ 
                             (m - sr_2B::offset)*stride[diry]];
@@ -1060,15 +1058,15 @@ private:
                 if (NGHOST == 3) {
                   break;
                 }
-                for(int n = sr_3B::width-1; n >= 0; --n)
-                for(int m = sr_3B::width-1; m >= 0; --m) {
+                for(int n = 0; n < sr_3B::width; ++n)
+                for(int m = 0; m < sr_3B::width; ++m) {
                   out += sr_3B::coeff[n] * sr_3B::coeff[m]
                        * pu[(n - sr_3B::offset)*stride[dirx]+ 
                             (m - sr_3B::offset)*stride[diry]];
                 }
                 break;
               case -1:
-                for(int n = sr_3B::width-1; n >= 0; --n)
+                for(int n = 0; n < sr_3B::width; ++n)
                 for(int m = 0; m < sl_1B::width; ++m) {
                   out += sr_3B::coeff[n] * sl_1B::coeff[m]
                        * pu[(n - sr_3B::offset)*stride[dirx]+ 
@@ -1076,7 +1074,7 @@ private:
                 }
                 break;
               case -2:
-                for(int n = sr_3B::width-1; n >= 0; --n)
+                for(int n = 0; n < sr_3B::width; ++n)
                 for(int m = 0; m < sl_2B::width; ++m) {
                   out += sr_3B::coeff[n] * sl_2B::coeff[m]
                        * pu[(n - sr_3B::offset)*stride[dirx]+ 
@@ -1087,7 +1085,7 @@ private:
                 if (NGHOST == 3) {
                   break;
                 }
-                for(int n = sr_3B::width-1; n >= 0; --n)
+                for(int n = 0; n < sr_3B::width; ++n)
                 for(int m = 0; m < sl_3B::width; ++m) {
                   out += sr_3B::coeff[n] * sl_3B::coeff[m]
                        * pu[(n - sr_3B::offset)*stride[dirx]+ 
@@ -1111,7 +1109,7 @@ private:
                 break;
               case 1:
                 for(int n = 0; n < sl_1B::width; ++n)
-                for(int m = sr_1B::width-1; m >= 0; --m) {
+                for(int m = 0; m < sr_1B::width; ++m) {
                   out += sl_1B::coeff[n] * sr_1B::coeff[m]
                        * pu[(n - sl_1B::offset)*stride[dirx]+ 
                             (m - sr_1B::offset)*stride[diry]];
@@ -1119,7 +1117,7 @@ private:
                 break;
               case 2:
                 for(int n = 0; n < sl_1B::width; ++n)
-                for(int m = sr_2B::width-1; m >= 0; --m) {
+                for(int m = 0; m < sr_2B::width; ++m) {
                   out += sl_1B::coeff[n] * sr_2B::coeff[m]
                        * pu[(n - sl_1B::offset)*stride[dirx]+ 
                             (m - sr_2B::offset)*stride[diry]];
@@ -1130,7 +1128,7 @@ private:
                   break;
                 }
                 for(int n = 0; n < sl_1B::width; ++n)
-                for(int m = sr_3B::width-1; m >= 0; --m) {
+                for(int m = 0; m < sr_3B::width; ++m) {
                   out += sl_1B::coeff[n] * sr_3B::coeff[m]
                        * pu[(n - sl_1B::offset)*stride[dirx]+ 
                             (m - sr_3B::offset)*stride[diry]];
@@ -1180,7 +1178,7 @@ private:
                 break;
               case 1:
                 for(int n = 0; n < sl_2B::width; ++n)
-                for(int m = sr_1B::width-1; m >= 0; --m) {
+                for(int m = 0; m < sr_1B::width; ++m) {
                   out += sl_2B::coeff[n] * sr_1B::coeff[m]
                        * pu[(n - sl_2B::offset)*stride[dirx]+ 
                             (m - sr_1B::offset)*stride[diry]];
@@ -1188,7 +1186,7 @@ private:
                 break;
               case 2:
                 for(int n = 0; n < sl_2B::width; ++n)
-                for(int m = sr_2B::width-1; m >= 0; --m) {
+                for(int m = 0; m < sr_2B::width; ++m) {
                   out += sl_2B::coeff[n] * sr_2B::coeff[m]
                        * pu[(n - sl_2B::offset)*stride[dirx]+ 
                             (m - sr_2B::offset)*stride[diry]];
@@ -1199,7 +1197,7 @@ private:
                   break;
                 }
                 for(int n = 0; n < sl_2B::width; ++n)
-                for(int m = sr_3B::width-1; m >= 0; --m) {
+                for(int m = 0; m < sr_3B::width; ++m) {
                   out += sl_2B::coeff[n] * sr_3B::coeff[m]
                        * pu[(n - sl_2B::offset)*stride[dirx]+ 
                             (m - sr_3B::offset)*stride[diry]];
@@ -1252,7 +1250,7 @@ private:
               break;
               case 1:
                 for(int n = 0; n < sl_3B::width; ++n)
-                for(int m = sr_1B::width-1; m >= 0; --m) {
+                for(int m = 0; m < sr_1B::width; ++m) {
                   out += sl_3B::coeff[n] * sr_1B::coeff[m]
                        * pu[(n - sl_3B::offset)*stride[dirx]+ 
                             (m - sr_1B::offset)*stride[diry]];
@@ -1260,7 +1258,7 @@ private:
                 break;
               case 2:
                 for(int n = 0; n < sl_3B::width; ++n)
-                for(int m = sr_2B::width-1; m >= 0; --m) {
+                for(int m = 0; m < sr_2B::width; ++m) {
                   out += sl_3B::coeff[n] * sr_2B::coeff[m]
                        * pu[(n - sl_3B::offset)*stride[dirx]+ 
                             (m - sr_2B::offset)*stride[diry]];
@@ -1271,7 +1269,7 @@ private:
                   break;
                 }
                 for(int n = 0; n < sl_3B::width; ++n)
-                for(int m = sr_3B::width-1; m >= 0; --m) {
+                for(int m = 0; m < sr_3B::width; ++m) {
                   out += sl_3B::coeff[n] * sr_3B::coeff[m]
                        * pu[(n - sl_3B::offset)*stride[dirx]+ 
                             (m - sr_3B::offset)*stride[diry]];
