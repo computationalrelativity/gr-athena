@@ -892,35 +892,35 @@ void Mesh::PrepareSendCoarseToFineAMR(MeshBlock* pb, Real *sendbuf,
   int cx_il, cx_iu, cx_jl, cx_ju, cx_kl, cx_ku;
   if (ox1 == 0)
   {
-    cx_il = pb->is - min_cx_ng;
-    cx_iu = pb->is + b_hsz1 + (min_cx_ng - 1);
+    cx_il = pb->cx_is - min_cx_ng;
+    cx_iu = pb->cx_is + b_hsz1 + (min_cx_ng - 1);
   }
   else
   {
-    cx_il = pb->is + b_hsz1 - 1 - (min_cx_ng - 1);
-    cx_iu = pb->ie + min_cx_ng;
+    cx_il = pb->cx_is + b_hsz1 - 1 - (min_cx_ng - 1);
+    cx_iu = pb->cx_ie + min_cx_ng;
   }
 
   if (ox2 == 0)
   {
-    cx_jl = pb->js - f2 * min_cx_ng;
-    cx_ju = pb->js + b_hsz2 + f2 * (min_cx_ng - 1);
+    cx_jl = pb->cx_js - f2 * min_cx_ng;
+    cx_ju = pb->cx_js + b_hsz2 + f2 * (min_cx_ng - 1);
   }
   else
   {
-    cx_jl = pb->js + b_hsz2 - f2 * min_cx_ng;
-    cx_ju = pb->je + f2 * min_cx_ng;
+    cx_jl = pb->cx_js + b_hsz2 - f2 * min_cx_ng;
+    cx_ju = pb->cx_je + f2 * min_cx_ng;
   }
 
   if (ox3 == 0)
   {
-    cx_kl = pb->ks - f3 * min_cx_ng;
-    cx_ku = pb->ks + b_hsz3 + f3 * (min_cx_ng - 1);
+    cx_kl = pb->cx_ks - f3 * min_cx_ng;
+    cx_ku = pb->cx_ks + b_hsz3 + f3 * (min_cx_ng - 1);
   }
   else
   {
-    cx_kl = pb->ks + b_hsz3 - f3 * min_cx_ng;
-    cx_ku = pb->ke + f3 * min_cx_ng;
+    cx_kl = pb->cx_ks + b_hsz3 - f3 * min_cx_ng;
+    cx_ku = pb->cx_ke + f3 * min_cx_ng;
   }
 
   for (auto cx_pair : pb->pmr->pvars_cx_) {
@@ -1087,9 +1087,9 @@ void Mesh::FillSameRankFineToCoarseAMR(MeshBlock* pob, MeshBlock* pmb,
   const int b_hsz2 = pob->block_size.nx2/2;
   const int b_hsz3 = pob->block_size.nx3/2;
 
-  const bool llx1 =((loc.lx1 & 1LL) == 1LL);
-  const bool llx2 =((loc.lx2 & 1LL) == 1LL);
-  const bool llx3 =((loc.lx3 & 1LL) == 1LL);
+  const bool llx1 = ((loc.lx1 & 1LL) == 1LL);
+  const bool llx2 = ((loc.lx2 & 1LL) == 1LL);
+  const bool llx3 = ((loc.lx3 & 1LL) == 1LL);
 
   // cell-centered ------------------------------------------------------------
   int il = pmb->is + llx1 * b_hsz1;
@@ -1143,13 +1143,12 @@ void Mesh::FillSameRankFineToCoarseAMR(MeshBlock* pob, MeshBlock* pmb,
     // copy from old/original/other MeshBlock (pob) to newly created block (pmb)
     AthenaArray<Real> &src = *coarse_cx;
     AthenaArray<Real> &dst = *std::get<0>(*pmb_cx_it); // pmb->phydro->u;
-    for (int nv=0; nv<=nu; nv++) {
-      for (int k=kl, fk=pob->cx_cks; fk<=pob->cx_cke; k++, fk++) {
-        for (int j=jl, fj=pob->cx_cjs; fj<=pob->cx_cje; j++, fj++) {
-          for (int i=il, fi=pob->cx_cis; fi<=pob->cx_cie; i++, fi++)
-            dst(nv, k, j, i) = src(nv, fk, fj, fi);
-        }
-      }
+    for (int nv=0; nv<=nu; nv++)
+    for (int k=kl, fk=pob->cx_cks; fk<=pob->cx_cke; k++, fk++)
+    for (int j=jl, fj=pob->cx_cjs; fj<=pob->cx_cje; j++, fj++)
+    for (int i=il, fi=pob->cx_cis; fi<=pob->cx_cie; i++, fi++)
+    {
+      dst(nv, k, j, i) = src(nv, fk, fj, fi);
     }
     pmb_cx_it++;
   }
@@ -1301,11 +1300,11 @@ void Mesh::FillSameRankCoarseToFineAMR(MeshBlock* pob, MeshBlock* pmb,
   int cx_il = pob->cx_cis - min_cx_ng;
   int cx_iu = pob->cx_cie + min_cx_ng;
 
-  int cx_jl = pob->cjs - f2 * min_cx_ng;
-  int cx_ju = pob->cje + f2 * min_cx_ng;
+  int cx_jl = pob->cx_cjs - f2 * min_cx_ng;
+  int cx_ju = pob->cx_cje + f2 * min_cx_ng;
 
-  int cx_kl = pob->cks - f3 * min_cx_ng;
-  int cx_ku = pob->cke + f3 * min_cx_ng;
+  int cx_kl = pob->cx_cks - f3 * min_cx_ng;
+  int cx_ku = pob->cx_cke + f3 * min_cx_ng;
 
   int cx_cis = nlx1 * b_hsz1 + pob->cx_is - 1  * min_cx_ng;
   int cx_cjs = nlx2 * b_hsz2 + pob->cx_js - f2 * min_cx_ng;
@@ -1324,13 +1323,13 @@ void Mesh::FillSameRankCoarseToFineAMR(MeshBlock* pob, MeshBlock* pmb,
     AthenaArray<Real> &src = *std::get<0>(*pob_cx_it);
     AthenaArray<Real> &dst = *coarse_cx;
     // populate coarse on new fine level
-    for (int nv=0; nv<=nu; nv++) {
-      for (int k=cx_kl, ck=cx_cks; k<=cx_ku; k++, ck++) {
-        for (int j=cx_jl, cj=cx_cjs; j<=cx_ju; j++, cj++) {
-          for (int i=cx_il, ci=cx_cis; i<=cx_iu; i++, ci++)
-            dst(nv, k, j, i) = src(nv, ck, cj, ci);
-        }
-      }
+    dst.Fill(0);
+    for (int nv=0; nv<=nu; nv++)
+    for (int k=cx_kl, ck=cx_cks; k<=cx_ku; k++, ck++)
+    for (int j=cx_jl, cj=cx_cjs; j<=cx_ju; j++, cj++)
+    for (int i=cx_il, ci=cx_cis; i<=cx_iu; i++, ci++)
+    {
+      dst(nv, k, j, i) = src(nv, ck, cj, ci);
     }
 
     // finally do the prolongation
@@ -1566,42 +1565,44 @@ void Mesh::FinishRecvFineToCoarseAMR(MeshBlock *pb, Real *recvbuf,
 
   if (ox1 == 0)
   {
-    cx_il = pb->is;
-    cx_iu = pb->is + b_hsz1 - 1;
+    cx_il = pb->cx_is;
+    cx_iu = pb->cx_is + b_hsz1 - 1;
   }
   else
   {
-    cx_il = pb->is + b_hsz1;
-    cx_iu = pb->ie;
+    cx_il = pb->cx_is + b_hsz1;
+    cx_iu = pb->cx_ie;
   }
 
   if (ox2 == 0)
   {
-    cx_jl = pb->js;
-    cx_ju = pb->js + b_hsz2 - f2;
+    cx_jl = pb->cx_js;
+    cx_ju = pb->cx_js + b_hsz2 - f2;
   }
   else
   {
-    cx_jl = pb->js + b_hsz2;
-    cx_ju = pb->je;
+    cx_jl = pb->cx_js + b_hsz2;
+    cx_ju = pb->cx_je;
   }
 
   if (ox3 == 0)
   {
-    cx_kl = pb->ks;
-    cx_ku = pb->ks + b_hsz3 - f3;
+    cx_kl = pb->cx_ks;
+    cx_ku = pb->cx_ks + b_hsz3 - f3;
   }
   else
   {
-    cx_kl = pb->ks + b_hsz3;
-    cx_ku = pb->ke;
+    cx_kl = pb->cx_ks + b_hsz3;
+    cx_ku = pb->cx_ke;
   }
 
   for (auto cx_pair : pb->pmr->pvars_cx_) {
     AthenaArray<Real> *var_cx = std::get<0>(cx_pair);
     int nu = var_cx->GetDim4() - 1;
     BufferUtility::UnpackData(recvbuf, *var_cx, 0, nu,
-                              il, iu, jl, ju, kl, ku, p);
+                              cx_il, cx_iu,
+                              cx_jl, cx_ju,
+                              cx_kl, cx_ku, p);
   }
   // vertex-centered ----------------------------------------------------------
   int vc_il, vc_iu;
