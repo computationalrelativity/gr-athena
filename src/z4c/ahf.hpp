@@ -212,25 +212,7 @@ private:
     typedef FDLeftBiasedStencilBeyond<
         1, NGHOST, 3
       > sl_3B; 
-    //2nd derivative
-    typedef FDRightBiasedStencilBeyond<
-        2, NGHOST, 1
-      > sr2_1B; 
-    typedef FDRightBiasedStencilBeyond<
-        2, NGHOST, 2
-      > sr2_2B;
-    typedef FDRightBiasedStencilBeyond<
-        2, NGHOST, 3
-      > sr2_3B; 
-    typedef FDLeftBiasedStencilBeyond<
-        2, NGHOST, 1
-      > sl2_1B; 
-    typedef FDLeftBiasedStencilBeyond<
-        2, NGHOST, 2
-      > sl2_2B;
-    typedef FDLeftBiasedStencilBeyond<
-        2, NGHOST, 3
-      > sl2_3B; 
+
     // Generic first derivative
     inline Real Gx(int dir, int INIT, int END, int index, Real & u) {
       Real * pu = &u;
@@ -254,12 +236,12 @@ private:
           out += s1::coeff[s1::nghost] * pu[s1::nghost*stride[dir]];
           break;
         case 1:
-          for(int n = sr_1B::width-1; n >= 0; --n) {
+          for(int n = 0; n < sr_1B::width; ++n) {
             out += sr_1B::coeff[n] * pu[(n - sr_1B::offset)*stride[dir]];
           }
           break;
         case 2:
-          for(int n = sr_2B::width-1; n >= 0; --n) {
+          for(int n = 0; n < sr_2B::width; ++n) {
             out += sr_2B::coeff[n] * pu[(n - sr_2B::offset)*stride[dir]];
           }
           break;
@@ -267,7 +249,7 @@ private:
           if (NGHOST == 3) {
             break;
           }
-          for(int n = sr_3B::width-1; n >= 0; --n) {
+          for(int n = 0; n < sr_3B::width; ++n) {
             out += sr_3B::coeff[n] * pu[(n - sr_3B::offset)*stride[dir]];
           }
           break;
@@ -292,7 +274,6 @@ private:
         default:
           break;
       }
-      //return out * idx[dir];
       return out;
     }
   } FD;

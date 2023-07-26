@@ -658,9 +658,6 @@ private:
       else if (index > END) {lopsided = END - index;}
       else {lopsided = 0;}
 
-      //if (dir == 0) printf("INIT = %d, END = %d, index = %d, lopsided = %d\n", INIT, END, index, lopsided);
-
-      
       Real out(0.);
       // Dx
       switch (lopsided) { 
