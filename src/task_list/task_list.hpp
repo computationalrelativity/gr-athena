@@ -353,11 +353,11 @@ public:
   };
 
   struct {
-    aux_NextTimeStep adm;
     aux_NextTimeStep con;
     aux_NextTimeStep con_hst;
     aux_NextTimeStep assert_is_finite;
     aux_NextTimeStep wave_extraction;
+    aux_NextTimeStep weyl;
     aux_NextTimeStep cce_dump;
   } TaskListTriggers;
 

@@ -527,7 +527,7 @@ int main(int argc, char *argv[]) {
 
       Real curr_time = pmesh->time+pmesh->dt;
       Real curr_ncycle = pmesh->ncycle+1;
-      if (pz4clist->TaskListTriggers.wave_extraction.to_update) {
+      if (pz4clist->CurrentTimeCalculationThreshold(pmesh, &pz4clist->TaskListTriggers.wave_extraction)) {
         for (auto pwextr : pmesh->pwave_extr) {
           pwextr->ReduceMultipole();
           pwextr->Write(curr_ncycle, curr_time);

@@ -232,57 +232,25 @@ Z4cIntegratorTaskList::Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm){
 
   //---------------------------------------------------------------------------
   // Output frequency control (on task-list)
-  TaskListTriggers.assert_is_finite.next_time = pm->time;
   TaskListTriggers.assert_is_finite.dt = pin->GetOrAddReal("z4c",
     "dt_assert_is_finite", 0.0);
-
-  // For constraint calculation
-  TaskListTriggers.con.next_time = pm->time;
-  // Seed TaskListTriggers.con.dt in main
 
   // Initialize dt for history output to calculate the constraint
   InputBlock *pib = pin->pfirst_block;
   std::string aux;
 
-  TaskListTriggers.con_hst.next_time = 1000000.;
   while (pib != nullptr) {
     if (pib->block_name.compare(0, 6, "output") == 0) {
       aux = pin->GetOrAddString(pib->block_name,"file_type","none");
-      if (std::strcmp(aux.c_str(),"hst") == 0) {
-        TaskListTriggers.con_hst.dt = pin->GetOrAddReal(pib->block_name,"dt",0.);
-        break;
-      }
+      if (std::strcmp(aux.c_str(),"hst") == 0) TaskListTriggers.con_hst.dt = pin->GetOrAddReal(pib->block_name,"dt",0.);
+      if (std::strcmp(aux.c_str(),"weyl") == 0) TaskListTriggers.weyl.dt = pin->GetOrAddReal(pib->block_name,"dt",0.);
+      if (std::strcmp(aux.c_str(),"con") == 0) TaskListTriggers.con.dt = pin->GetOrAddReal(pib->block_name,"dt",0.);
     }
     pib = pib->pnext;
   }
-  if (TaskListTriggers.con_hst.dt > 0) TaskListTriggers.con_hst.next_time = std::floor(pm->time/TaskListTriggers.con_hst.dt)*TaskListTriggers.con_hst.dt;
-
-  TaskListTriggers.wave_extraction.to_update = false;
 
   TaskListTriggers.wave_extraction.dt = pin->GetOrAddReal("z4c", "dt_wave_extraction", 1.0);
-  if (pin->GetOrAddInteger("z4c", "nrad_wave_extraction", 0) == 0) {
-    TaskListTriggers.wave_extraction.dt = 0.0;
-    TaskListTriggers.wave_extraction.next_time = 0.0;
-    TaskListTriggers.wave_extraction.to_update = false;
-  }
-  else {
-    // When initializing at restart, this procedure ensures to restart
-    // extraction from right time
-    int nwavecycles = static_cast<int>(pm->time/TaskListTriggers.wave_extraction.dt);
-    Real aux_next_time = (nwavecycles)*
-            TaskListTriggers.wave_extraction.dt;
-    Real aux_next_time1 = (nwavecycles+1)*
-                TaskListTriggers.wave_extraction.dt;
-
-    // This ensures that in case the run restarts EXACTLY at the trigger time,
-    // this is taken into account.
-    if (aux_next_time1 - TaskListTriggers.wave_extraction.dt >= pm->time) {
-      TaskListTriggers.wave_extraction.next_time = aux_next_time;
-      TaskListTriggers.wave_extraction.to_update = true;
-    } else {
-      TaskListTriggers.wave_extraction.next_time = aux_next_time1;
-    }
-  }
+  if (pin->GetOrAddInteger("z4c", "nrad_wave_extraction", 0) == 0) TaskListTriggers.wave_extraction.dt = 0.0;
   
 #if CCE_ENABLED
   // CCE 
@@ -672,7 +640,8 @@ TaskStatus Z4cIntegratorTaskList::Z4c_Weyl(MeshBlock *pmb, int stage) {
   if (stage != nstages) return TaskStatus::success;
 
   Mesh *pm = pmb->pmy_mesh;
-  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction)) {
+  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction) ||
+      CurrentTimeCalculationThreshold(pm, &TaskListTriggers.weyl)) {
     pmb->pz4c->Z4cWeyl(pmb->pz4c->storage.adm, pmb->pz4c->storage.mat,
                        pmb->pz4c->storage.weyl);
   }
@@ -705,7 +674,7 @@ TaskStatus Z4cIntegratorTaskList::CCEDump(MeshBlock *pmb, int stage) {
   if (stage != nstages) return TaskStatus::success;
 
   Mesh *pm = pmb->pmy_mesh;
-
+  
   if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.cce_dump)) 
   {
     for (auto cce : pm->pcce)
@@ -725,15 +694,11 @@ TaskStatus Z4cIntegratorTaskList::ADM_Constraints(MeshBlock *pmb, int stage) {
   Mesh *pm = pmb->pmy_mesh;
 
   // check last stage is actually at a relevant time
-  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.con)) {
+  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.con) ||
+      CurrentTimeCalculationThreshold(pm, &TaskListTriggers.con_hst)) {
     pmb->pz4c->ADMConstraints(pmb->pz4c->storage.con, pmb->pz4c->storage.adm,
                               pmb->pz4c->storage.mat, pmb->pz4c->storage.u);
   }
-  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.con_hst)) {
-    pmb->pz4c->ADMConstraints(pmb->pz4c->storage.con, pmb->pz4c->storage.adm,
-                              pmb->pz4c->storage.mat, pmb->pz4c->storage.u);
-  }
-
   return TaskStatus::success;
 }
 
@@ -779,12 +744,9 @@ bool Z4cIntegratorTaskList::CurrentTimeCalculationThreshold(
   Mesh *pm, aux_NextTimeStep *variable) {
 
   // this variable is not dumped / computed
-  if (variable->dt == 0 )
-    return false;
-
-  Real cur_time = pm->time + pm->dt;
-  if ((cur_time - pm->dt >= variable->next_time) ||
-      (cur_time >= pm->tlim)) {
+  if (variable->dt == 0) return false;
+  int every_cycle = static_cast<int>(std::floor(variable->dt/pm->dt)) > 0 ? static_cast<int>(std::floor(variable->dt/pm->dt)) : 1; 
+  if ((pm->ncycle+1) % every_cycle) {
 #pragma omp atomic write
     variable->to_update = true;
     return true;
