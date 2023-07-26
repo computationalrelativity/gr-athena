@@ -37,6 +37,11 @@ PunctureTracker::PunctureTracker(Mesh * pmesh, ParameterInput * pin, int n):
   pos[0] = pin->GetOrAddReal("z4c", "bh_" + std::to_string(n) + "_x", 0.0);
   pos[1] = pin->GetOrAddReal("z4c", "bh_" + std::to_string(n) + "_y", 0.0);
   pos[2] = pin->GetOrAddReal("z4c", "bh_" + std::to_string(n) + "_z", 0.0);
+  // TODO: This is hardcoded for zero shift ID, but in principle betap should
+  // be interpolated on the ID
+  betap[0] = 0;
+  betap[1] = 0;
+  betap[2] = 0;
   initial_mass = pos[0] > 0 ? std::max(pin->GetOrAddReal("problem", "target_M_plus", 0.0),pin->GetOrAddReal("problem", "par_m_plus", 0.0)) : std::max(pin->GetOrAddReal("problem", "target_M_minus", 0.0),pin->GetOrAddReal("problem", "par_m_minus", 0.0));
   bitant = pin->GetOrAddBoolean("z4c", "bitant", false);
   if (0 == Globals::my_rank) {
@@ -54,6 +59,7 @@ PunctureTracker::PunctureTracker(Mesh * pmesh, ParameterInput * pin, int n):
       }
       fprintf(pofile, "# 1:iter 2:time 3:x 4:y 5:z 6:betax 7:betay 8:betaz\n");
       fflush(pofile);
+      if (pmesh->time == 0) WriteTracker(0, 0);
     }
   }
 }

@@ -505,17 +505,32 @@ int main(int argc, char *argv[]) {
     }
 
     if (Z4C_ENABLED) {
+#ifdef Z4C_AHF
+      // This calculates the AH on the initial data, if needed.
+      if (pmesh->time == 0) {
+        for (auto pah_f : pmesh->pah_finder) {
+          if (pah_f->CalculateMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
+        }
+        for (auto pah_f : pmesh->pah_finder) {
+          pah_f->Find(pmesh->ncycle, pmesh->time);
+          pah_f->Write(pmesh->ncycle, pmesh->time);
+        }
+        for (auto pah_f : pmesh->pah_finder) {
+          if (pah_f->DeleteMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
+        }
+      }
+#endif
       // This effectively means hydro takes a time-step and _then_ the given problem takes one
       for (int stage=1; stage<=pz4clist->nstages; ++stage) {
         pz4clist->DoTaskListOneStage(pmesh, stage);
       }
 
-      // BD: TODO - check that the following are not displaced by \dt ?
-      // only do an extraction if NextTime threshold cleared (updated below)
+      Real curr_time = pmesh->time+pmesh->dt;
+      Real curr_ncycle = pmesh->ncycle+1;
       if (pz4clist->TaskListTriggers.wave_extraction.to_update) {
         for (auto pwextr : pmesh->pwave_extr) {
           pwextr->ReduceMultipole();
-          pwextr->Write(pmesh->ncycle, pmesh->time);
+          pwextr->Write(curr_ncycle, curr_time);
         }
       }
 #if CCE_ENABLED
@@ -544,20 +559,23 @@ int main(int argc, char *argv[]) {
 #endif
 #ifdef Z4C_AHF
       for (auto pah_f : pmesh->pah_finder) {
-        if (pah_f->CalculateMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
+        if (pah_f->CalculateMetricDerivatives(curr_ncycle, curr_time)) break;
       }
       for (auto pah_f : pmesh->pah_finder) {
-        pah_f->Find(pmesh->ncycle, pmesh->time);
-        pah_f->Write(pmesh->ncycle, pmesh->time);
+        pah_f->Find(curr_ncycle, curr_time);
+        pah_f->Write(curr_ncycle, curr_time);
       }
       for (auto pah_f : pmesh->pah_finder) {
-        if (pah_f->DeleteMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
+        if (pah_f->DeleteMetricDerivatives(curr_ncycle, curr_time)) break;
       }
 #endif
-      // TODO: probably we do not want to output tracker data at every timestep
       for (auto ptracker : pmesh->pz4c_tracker) {
         ptracker->EvolveTracker();
-        ptracker->WriteTracker(pmesh->ncycle, pmesh->time);
+        // Beta is interpolated before the integration of Z4c, and this value
+        // is used to get the new position with an euler timestep. So, 
+        // the position printed here is at iteration n+1 and needs to be printed
+        // at curr_ncycle, curr_time
+        ptracker->WriteTracker(curr_ncycle, curr_time);
       }
 
       //-------------------------------------------------------------------------

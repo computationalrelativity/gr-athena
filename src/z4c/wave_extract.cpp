@@ -72,6 +72,9 @@ WaveExtract::WaveExtract(Mesh * pmesh, ParameterInput * pin, int n):
       }
       fprintf(pofile, "\n");
       fflush(pofile);
+      // TODO: In principle one should first do the calculation for the waves
+      // on the ID
+      if (pmesh->time == 0) Write(0, 0);
     }
   }
 }
