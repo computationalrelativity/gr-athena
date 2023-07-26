@@ -255,18 +255,7 @@ Z4cIntegratorTaskList::Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm){
 #if CCE_ENABLED
   // CCE 
   TaskListTriggers.cce_dump.dt = pin->GetOrAddReal("cce", "dump_every_dt", 1.0);
-  if (pin->GetOrAddInteger("cce", "num_radii", 0) == 0) {
-    TaskListTriggers.cce_dump.dt = 0.0;
-    TaskListTriggers.cce_dump.next_time = 0.0;
-    TaskListTriggers.cce_dump.to_update = false;
-  }
-  else {
-    // we need to write at t = 0.
-    // ensuring there is no duplicated iteration a bookkeeping system is used.
-    int ncycles = static_cast<int>(pm->time/TaskListTriggers.cce_dump.dt);
-    TaskListTriggers.cce_dump.next_time = 
-      (ncycles == 0) ? 0.0: (ncycles+1)*TaskListTriggers.cce_dump.dt;
-  }
+  if (pin->GetOrAddInteger("cce", "num_radii", 0) == 0) TaskListTriggers.cce_dump.dt = 0.0;
 #endif
   
   //---------------------------------------------------------------------------
@@ -747,52 +736,8 @@ bool Z4cIntegratorTaskList::CurrentTimeCalculationThreshold(
   if (variable->dt == 0) return false;
   int every_cycle = static_cast<int>(std::floor(variable->dt/pm->dt)) > 0 ? static_cast<int>(std::floor(variable->dt/pm->dt)) : 1; 
   if ((pm->ncycle+1) % every_cycle) {
-#pragma omp atomic write
-    variable->to_update = true;
     return true;
   }
 
   return false;
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn void Z4cIntegratorTaskList::UpdateTaskListTriggers()
-// \brief Update 'next_time' outside task list to avoid race condition
-void Z4cIntegratorTaskList::UpdateTaskListTriggers() {
-  // note that for global dt > target output dt
-  // next_time will 'lag'; this will need to be corrected if an integrator with dense /
-  // interpolating output is used.
-
-  if (TaskListTriggers.adm.to_update) {
-    TaskListTriggers.adm.next_time += TaskListTriggers.adm.dt;
-    TaskListTriggers.adm.to_update = false;
-  }
-
-  if (TaskListTriggers.con.to_update) {
-    TaskListTriggers.con.next_time += TaskListTriggers.con.dt;
-    TaskListTriggers.con.to_update = false;
-  }
-
-  if (TaskListTriggers.con_hst.to_update) {
-    TaskListTriggers.con_hst.next_time += TaskListTriggers.con_hst.dt;
-    TaskListTriggers.con_hst.to_update = false;
-  }
-
-  if (TaskListTriggers.assert_is_finite.to_update) {
-    TaskListTriggers.assert_is_finite.next_time += \
-      TaskListTriggers.assert_is_finite.dt;
-    TaskListTriggers.assert_is_finite.to_update = false;
-  }
-
-  if (TaskListTriggers.wave_extraction.to_update) {
-    TaskListTriggers.wave_extraction.next_time += \
-      TaskListTriggers.wave_extraction.dt;
-    TaskListTriggers.wave_extraction.to_update = false;
-  }
-  
-  if (TaskListTriggers.cce_dump.to_update) {
-    TaskListTriggers.cce_dump.next_time += TaskListTriggers.cce_dump.dt;
-    TaskListTriggers.cce_dump.to_update = false;
-  }
-  
 }

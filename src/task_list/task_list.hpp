@@ -348,8 +348,6 @@ public:
   // Note: If a parameter is zero related task(s) will be ignored
   struct aux_NextTimeStep{
     Real dt{0.};
-    Real next_time{0.};
-    Real to_update{false};
   };
 
   struct {
@@ -363,7 +361,6 @@ public:
 
   bool CurrentTimeCalculationThreshold(Mesh *pm,
                                        aux_NextTimeStep *variable);
-  void UpdateTaskListTriggers();
   //---------------------------------------------------------------------------
 
 

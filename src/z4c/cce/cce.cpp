@@ -27,7 +27,6 @@
 
 #define BUFFSIZE  (1024)
 #define MAX_RADII (100)
-#define BOOKKEEPING_NAME "cce_bookkeeping.txt"
 #define ABS(x_) ((x_)>0 ? (x_) : (-(x_)))
 
 #define HDF5_CALL(fn_call)                                           \
@@ -69,7 +68,6 @@ CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int rn):
 {
   bitant     = pin->GetOrAddBoolean("z4c", "bitant", false);
   output_dir = pin->GetString("cce","output_dir");
-  bfname = output_dir + "/" + BOOKKEEPING_NAME;
   rin  = pin->GetReal("cce", "rin_"  + std::to_string(rn));
   rout = pin->GetReal("cce", "rout_" + std::to_string(rn));
   num_mu_points  = pin->GetOrAddInteger("cce","num_theta",41);
@@ -477,73 +475,5 @@ static int output_3Dmodes(const int iter/* output iteration */, const char *dir,
   HDF5_CALL(H5Fclose(file_id));
 
   return 0;
-}
-
-// save the last iteration in a text file to prevent error of duplicated entries in
-// the h5 files. Additionally it checks if the iteration numbers match so returns true
-// otherwise returns false. This statement is only true for the root processor,
-// since if it's not the root processor it returns true to keep the subsequent 
-// function calls in the main loop such as ReduceInterpolation
-// going. all othere calls that need root processor won't be executed like 
-// DecomposeAndWrite because they are fenced with if (0 != Globals::my_rank).
-bool CCE::BookKeeping(ParameterInput *const pin, int cce_iter, int &w_iter)
-{
-  if (0 != Globals::my_rank) return false;
-    
-  std::string fname = pin->GetString("cce","output_dir") + "/" + BOOKKEEPING_NAME;
-  std::fstream file;
-  int iter = 0;
-
-  // if this is the first time, create a bookkeeping file with 0 as the iter
-  if (access(fname.c_str(), F_OK) != 0) 
-  {
-    file.open(fname, std::ios::out);
-    if (!file) 
-    {
-      std::stringstream msg;
-      msg << "### FATAL ERROR in CCE " << std::endl;
-      msg << "Could not open file '" << fname << "' for writing!";
-      throw std::runtime_error(msg.str().c_str());
-    }
-    w_iter = iter = 0;
-    // file: w_iter cce_iter
-    file << w_iter << " " << cce_iter << std::endl;
-    file.close();
-  }
-  // update the iter
-  else
-  {
-    // first read the iter value
-    file.open(fname, std::ios::in);
-    if (!file) 
-    {
-      std::stringstream msg;
-      msg << "### FATAL ERROR in CCE " << std::endl;
-      msg << "Could not open file '" << fname << "' for reading!";
-      throw std::runtime_error(msg.str().c_str());
-    }
-    
-    file >> w_iter >> iter /* == previous cce_iter */;
-    file.close();
-    
-    // check if the iters match
-    if (cce_iter <= iter) return false;
-    
-    // now open a fresh file and update iter
-    // first read the iter value
-    file.open(fname, std::ios::out);
-    if (!file) 
-    {
-      std::stringstream msg;
-      msg << "### FATAL ERROR in CCE " << std::endl;
-      msg << "Could not open file '" << fname << "' for writing!";
-      throw std::runtime_error(msg.str().c_str());
-    }
-    w_iter++;
-    file << w_iter << " " << cce_iter << std::endl;
-    file.close();
-  }
-  
-  return true;
 }
 

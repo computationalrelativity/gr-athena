@@ -49,7 +49,6 @@ class CCE
     void Interpolate(MeshBlock *const pmb);
     void ReduceInterpolation();
     void DecomposeAndWrite(int iter);
-    static bool BookKeeping(ParameterInput *const pin, int cce_iter, int &w_iter);
 };
 
 #endif
