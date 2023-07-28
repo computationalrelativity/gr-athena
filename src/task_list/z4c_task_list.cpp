@@ -25,6 +25,7 @@
 #endif
 #include "../z4c/puncture_tracker.hpp"
 #include "../parameter_input.hpp"
+#include "../globals.hpp"
 #include "task_list.hpp"
 
 
@@ -237,17 +238,23 @@ Z4cIntegratorTaskList::Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm){
 
   // Initialize dt for history output to calculate the constraint
   InputBlock *pib = pin->pfirst_block;
-  std::string aux;
-
+  
+  TaskListTriggers.con_hst.dt = 0.;
+  TaskListTriggers.con.dt = 0.;
+  TaskListTriggers.weyl.dt = 0.;
   while (pib != nullptr) {
     if (pib->block_name.compare(0, 6, "output") == 0) {
-      aux = pin->GetOrAddString(pib->block_name,"file_type","none");
+      std::string aux = pin->GetOrAddString(pib->block_name,"file_type","none");
       if (std::strcmp(aux.c_str(),"hst") == 0) TaskListTriggers.con_hst.dt = pin->GetOrAddReal(pib->block_name,"dt",0.);
-      if (std::strcmp(aux.c_str(),"weyl") == 0) TaskListTriggers.weyl.dt = pin->GetOrAddReal(pib->block_name,"dt",0.);
-      if (std::strcmp(aux.c_str(),"con") == 0) TaskListTriggers.con.dt = pin->GetOrAddReal(pib->block_name,"dt",0.);
+      if (std::strcmp(aux.c_str(),"hdf5") == 0 || std::strcmp(aux.c_str(),"vtk") == 0 || std::strcmp(aux.c_str(),"tab") == 0) {
+        std::string aux_2 = pin->GetOrAddString(pib->block_name,"variable","none");
+        if (std::strcmp(aux_2.c_str(),"con") == 0) TaskListTriggers.con.dt = pin->GetOrAddReal(pib->block_name,"dt",0.);
+        if (std::strcmp(aux_2.c_str(),"weyl") == 0) TaskListTriggers.weyl.dt = pin->GetOrAddReal(pib->block_name,"dt",0.);
+      }
     }
     pib = pib->pnext;
   }
+
 
   TaskListTriggers.wave_extraction.dt = pin->GetOrAddReal("z4c", "dt_wave_extraction", 1.0);
   if (pin->GetOrAddInteger("z4c", "nrad_wave_extraction", 0) == 0) TaskListTriggers.wave_extraction.dt = 0.0;
@@ -297,6 +304,11 @@ Z4cIntegratorTaskList::Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm){
 
     AddTask(ASSERT_FIN, CLEAR_ALLBND);         // AssertFinite
   } // end of using namespace block
+}
+
+void Z4cIntegratorTaskList::FirstTime(int res_flag, int ncycle) {
+    if (res_flag == 0 && ncycle == 0) FirstTimeTaskList = true;
+    return;
 }
 
 //---------------------------------------------------------------------------------------
@@ -479,10 +491,11 @@ TaskStatus Z4cIntegratorTaskList::ClearAllBoundary(MeshBlock *pmb, int stage) {
 
 TaskStatus Z4cIntegratorTaskList::CalculateZ4cRHS(MeshBlock *pmb, int stage) {
   // PunctureTracker: interpolate beta at puncture position before evolution
-  if (stage == 1) {
+  if (stage == 1 || FirstTimeTaskList) {
     for (auto ptracker : pmb->pmy_mesh->pz4c_tracker) {
       ptracker->InterpolateShift(pmb, pmb->pz4c->storage.u);
     }
+    if (FirstTimeTaskList) return TaskStatus::success;
   }
 
   if (stage <= nstages) {
@@ -504,7 +517,7 @@ TaskStatus Z4cIntegratorTaskList::CalculateZ4cRHS(MeshBlock *pmb, int stage) {
 
 TaskStatus Z4cIntegratorTaskList::IntegrateZ4c(MeshBlock *pmb, int stage) {
   Z4c *pz4c = pmb->pz4c;
-
+  if (FirstTimeTaskList) return TaskStatus::success;
   if (stage <= nstages) {
     // This time-integrator-specific averaging operation logic is identical
     // to IntegrateField
@@ -532,6 +545,7 @@ TaskStatus Z4cIntegratorTaskList::IntegrateZ4c(MeshBlock *pmb, int stage) {
 // Functions to communicate conserved variables between MeshBlocks
 
 TaskStatus Z4cIntegratorTaskList::SendZ4c(MeshBlock *pmb, int stage) {
+  if (FirstTimeTaskList) return TaskStatus::success;
   if (stage <= nstages) {
     pmb->pz4c->ubvar.SendBoundaryBuffers();
   } else {
@@ -545,6 +559,7 @@ TaskStatus Z4cIntegratorTaskList::SendZ4c(MeshBlock *pmb, int stage) {
 
 TaskStatus Z4cIntegratorTaskList::ReceiveZ4c(MeshBlock *pmb, int stage) {
   bool ret;
+  if (FirstTimeTaskList) return TaskStatus::success;
   if (stage <= nstages) {
     ret = pmb->pz4c->ubvar.ReceiveBoundaryBuffers();
   } else {
@@ -558,6 +573,7 @@ TaskStatus Z4cIntegratorTaskList::ReceiveZ4c(MeshBlock *pmb, int stage) {
 }
 
 TaskStatus Z4cIntegratorTaskList::SetBoundariesZ4c(MeshBlock *pmb, int stage) {
+  if (FirstTimeTaskList) return TaskStatus::success;
   if (stage <= nstages) {
     pmb->pz4c->ubvar.SetBoundaries();
     return TaskStatus::success;
@@ -570,6 +586,7 @@ TaskStatus Z4cIntegratorTaskList::SetBoundariesZ4c(MeshBlock *pmb, int stage) {
 
 TaskStatus Z4cIntegratorTaskList::Prolongation(MeshBlock *pmb, int stage) {
   BoundaryValues *pbval = pmb->pbval;
+  if (FirstTimeTaskList) return TaskStatus::success;
 
   if (stage <= nstages) {
     // Time at the end of stage for (u, b) register pair
@@ -585,6 +602,7 @@ TaskStatus Z4cIntegratorTaskList::Prolongation(MeshBlock *pmb, int stage) {
 }
 
 TaskStatus Z4cIntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int stage) {
+  if (FirstTimeTaskList) return TaskStatus::success;
   BoundaryValues *pbval = pmb->pbval;
 
   if (stage <= nstages) {
@@ -603,6 +621,7 @@ TaskStatus Z4cIntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int stage) {
 }
 
 TaskStatus Z4cIntegratorTaskList::UserWork(MeshBlock *pmb, int stage) {
+  if (FirstTimeTaskList) return TaskStatus::success;
   if (stage != nstages) return TaskStatus::success; // only do on last stage
 
   pmb->Z4cUserWorkInLoop();
@@ -610,6 +629,7 @@ TaskStatus Z4cIntegratorTaskList::UserWork(MeshBlock *pmb, int stage) {
 }
 
 TaskStatus Z4cIntegratorTaskList::EnforceAlgConstr(MeshBlock *pmb, int stage) {
+  if (FirstTimeTaskList) return TaskStatus::success;
   if (stage != nstages) return TaskStatus::success; // only do on last stage
 
   pmb->pz4c->AlgConstr(pmb->pz4c->storage.u);
@@ -663,7 +683,6 @@ TaskStatus Z4cIntegratorTaskList::CCEDump(MeshBlock *pmb, int stage) {
   if (stage != nstages) return TaskStatus::success;
 
   Mesh *pm = pmb->pmy_mesh;
-  
   if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.cce_dump)) 
   {
     for (auto cce : pm->pcce)
@@ -692,6 +711,7 @@ TaskStatus Z4cIntegratorTaskList::ADM_Constraints(MeshBlock *pmb, int stage) {
 }
 
 TaskStatus Z4cIntegratorTaskList::NewBlockTimeStep(MeshBlock *pmb, int stage) {
+  if (FirstTimeTaskList) return TaskStatus::success;
   if (stage != nstages) return TaskStatus::success; // only do on last stage
 
   pmb->pz4c->NewBlockTimeStep();
@@ -699,6 +719,7 @@ TaskStatus Z4cIntegratorTaskList::NewBlockTimeStep(MeshBlock *pmb, int stage) {
 }
 
 TaskStatus Z4cIntegratorTaskList::CheckRefinement(MeshBlock *pmb, int stage) {
+  if (FirstTimeTaskList) return TaskStatus::success;
   if (stage != nstages) return TaskStatus::success; // only do on last stage
 
   pmb->pmr->CheckRefinementCondition();
@@ -706,6 +727,8 @@ TaskStatus Z4cIntegratorTaskList::CheckRefinement(MeshBlock *pmb, int stage) {
 }
 
 TaskStatus Z4cIntegratorTaskList::AssertFinite(MeshBlock *pmb, int stage) {
+#pragma omp atomic write
+  FirstTimeTaskList = false; 
   // only do on last stage
   if (stage != nstages) return TaskStatus::success;
 
@@ -735,7 +758,7 @@ bool Z4cIntegratorTaskList::CurrentTimeCalculationThreshold(
   // this variable is not dumped / computed
   if (variable->dt == 0) return false;
   int every_cycle = static_cast<int>(std::floor(variable->dt/pm->dt)) > 0 ? static_cast<int>(std::floor(variable->dt/pm->dt)) : 1; 
-  if ((pm->ncycle+1) % every_cycle) {
+  if ((pm->ncycle+1) % every_cycle == 0) {
     return true;
   }
 

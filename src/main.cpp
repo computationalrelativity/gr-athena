@@ -427,14 +427,54 @@ int main(int argc, char *argv[]) {
 
   //--- Step 7. --------------------------------------------------------------------------
   // Change to run directory, initialize outputs object, and make output of ICs
-
+  
+  // Execute some tasks of the Z4c Task List, selected with a parameter set in
+  // pz4clist->FirstTime, in order to do the calculations required for the output on the ID;
+  // This needs to be done before MakeOutputs to fill things like the Constraints
+  if (Z4C_ENABLED && res_flag == 0 && pmesh->ncycle == 0) {
+    pz4clist->FirstTime(res_flag, pmesh->ncycle);
+    pz4clist->DoTaskListOneStage(pmesh, pz4clist->nstages);
+#ifdef Z4C_AHF
+    for (auto pah_f : pmesh->pah_finder) {
+      if (pah_f->CalculateMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
+    }
+    for (auto pah_f : pmesh->pah_finder) {
+      pah_f->Find(pmesh->ncycle, pmesh->time);
+      pah_f->Write(pmesh->ncycle, pmesh->time);
+    }
+    for (auto pah_f : pmesh->pah_finder) {
+      if (pah_f->DeleteMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
+    }
+#endif
+    for (auto pwextr : pmesh->pwave_extr) {
+      pwextr->ReduceMultipole();
+      pwextr->Write(pmesh->ncycle, pmesh->time);
+    }
+    for (auto ptracker : pmesh->pz4c_tracker) {
+      ptracker->EvolveTracker();
+      ptracker->WriteTracker(pmesh->ncycle, pmesh->time);
+    }
+/*
+#if CCE_ENABLED
+    // only do a CCE dump if NextTime threshold cleared (updated below)
+    // gather all interpolation values from all processors to the root proc.
+    int cce_iter = static_cast<int>(pmesh->time/ 
+                                     pz4clist->TaskListTriggers.cce_dump.dt);
+    for (auto cce : pmesh->pcce)
+    {
+      cce->ReduceInterpolation();
+      cce->DecomposeAndWrite(cce_iter);
+    }
+#endif
+*/
+  }
   Outputs *pouts;
 #ifdef ENABLE_EXCEPTIONS
   try {
 #endif
     ChangeRunDir(prundir);
     pouts = new Outputs(pmesh, pinput);
-    if (res_flag == 0) pouts->MakeOutputs(pmesh, pinput);
+    if (res_flag == 0) pouts->MakeOutputs(pmesh, pinput, false);
 #ifdef ENABLE_EXCEPTIONS
   }
   catch(std::bad_alloc& ba) {
@@ -457,7 +497,7 @@ int main(int argc, char *argv[]) {
 
   //=== Step 8. === START OF MAIN INTEGRATION LOOP =======================================
   // For performance, there is no error handler protecting this step (except outputs)
-
+  
   if (Globals::my_rank == 0) {
     std::cout << "\nSetup complete, entering main loop...\n" << std::endl;
   }
@@ -467,12 +507,6 @@ int main(int argc, char *argv[]) {
   double omp_start_time = omp_get_wtime();
 #endif
 
-  // BD: populate z4c struct carrying output dt for various quantities
-  // This controls computation of quantities within the main tasklist
-  if (Z4C_ENABLED) {
-    Real dt_con = pouts->GetOutputTimeStep("con");
-    pz4clist->TaskListTriggers.con.dt = dt_con;
-  }
 
   while ((pmesh->time < pmesh->tlim) &&
          (pmesh->nlim < 0 || pmesh->ncycle < pmesh->nlim)) {
@@ -505,28 +539,15 @@ int main(int argc, char *argv[]) {
     }
 
     if (Z4C_ENABLED) {
-#ifdef Z4C_AHF
-      // This calculates the AH on the initial data, if needed.
-      if (pmesh->time == 0) {
-        for (auto pah_f : pmesh->pah_finder) {
-          if (pah_f->CalculateMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
-        }
-        for (auto pah_f : pmesh->pah_finder) {
-          pah_f->Find(pmesh->ncycle, pmesh->time);
-          pah_f->Write(pmesh->ncycle, pmesh->time);
-        }
-        for (auto pah_f : pmesh->pah_finder) {
-          if (pah_f->DeleteMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
-        }
-      }
-#endif
       // This effectively means hydro takes a time-step and _then_ the given problem takes one
       for (int stage=1; stage<=pz4clist->nstages; ++stage) {
         pz4clist->DoTaskListOneStage(pmesh, stage);
       }
-
+      
+      // All outputs of things that are calculated after the Z4c integration need to be printed at
+      // time+dt, ncycle+1
       Real curr_time = pmesh->time+pmesh->dt;
-      Real curr_ncycle = pmesh->ncycle+1;
+      int curr_ncycle = pmesh->ncycle+1;
       if (pz4clist->CurrentTimeCalculationThreshold(pmesh, &pz4clist->TaskListTriggers.wave_extraction)) {
         for (auto pwextr : pmesh->pwave_extr) {
           pwextr->ReduceMultipole();
@@ -537,7 +558,7 @@ int main(int argc, char *argv[]) {
       // only do a CCE dump if NextTime threshold cleared (updated below)
       if (pz4clist->CurrentTimeCalculationThreshold(pmesh, &pz4clist->TaskListTriggers.cce_dump)) {
         // gather all interpolation values from all processors to the root proc.
-        int cce_iter = static_cast<int>(pmesh->time / 
+        int cce_iter = static_cast<int>(curr_time/ 
                                        pz4clist->TaskListTriggers.cce_dump.dt);
         for (auto cce : pmesh->pcce)
         {
@@ -562,8 +583,8 @@ int main(int argc, char *argv[]) {
         ptracker->EvolveTracker();
         // Beta is interpolated before the integration of Z4c, and this value
         // is used to get the new position with an euler timestep. So, 
-        // the position printed here is at iteration n+1 and needs to be printed
-        // at curr_ncycle, curr_time
+        // also the position printed here is at iteration n+1 and needs 
+        // to be printed at curr_ncycle, curr_time
         ptracker->WriteTracker(curr_ncycle, curr_time);
       }
 
@@ -583,7 +604,7 @@ int main(int argc, char *argv[]) {
     try {
 #endif
       if (pmesh->time < pmesh->tlim) // skip the final output as it happens later
-        pouts->MakeOutputs(pmesh,pinput);
+        pouts->MakeOutputs(pmesh,pinput,false);
 #ifdef ENABLE_EXCEPTIONS
     }
     catch(std::bad_alloc& ba) {

@@ -359,6 +359,9 @@ public:
     aux_NextTimeStep cce_dump;
   } TaskListTriggers;
 
+  bool FirstTimeTaskList;
+  void FirstTime(int res_flag, int ncycle);
+
   bool CurrentTimeCalculationThreshold(Mesh *pm,
                                        aux_NextTimeStep *variable);
   //---------------------------------------------------------------------------
