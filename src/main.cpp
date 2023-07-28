@@ -454,7 +454,6 @@ int main(int argc, char *argv[]) {
       ptracker->EvolveTracker();
       ptracker->WriteTracker(pmesh->ncycle, pmesh->time);
     }
-/*
 #if CCE_ENABLED
     // only do a CCE dump if NextTime threshold cleared (updated below)
     // gather all interpolation values from all processors to the root proc.
@@ -466,7 +465,6 @@ int main(int argc, char *argv[]) {
       cce->DecomposeAndWrite(cce_iter);
     }
 #endif
-*/
   }
   Outputs *pouts;
 #ifdef ENABLE_EXCEPTIONS

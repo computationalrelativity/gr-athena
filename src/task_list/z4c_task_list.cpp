@@ -757,8 +757,9 @@ bool Z4cIntegratorTaskList::CurrentTimeCalculationThreshold(
 
   // this variable is not dumped / computed
   if (variable->dt == 0) return false;
-  int every_cycle = static_cast<int>(std::floor(variable->dt/pm->dt)) > 0 ? static_cast<int>(std::floor(variable->dt/pm->dt)) : 1; 
-  if ((pm->ncycle+1) % every_cycle == 0) {
+  int every_cycle = static_cast<int>(std::floor(variable->dt/pm->dt)) > 0 ? static_cast<int>(std::floor(variable->dt/pm->dt)) : 1;
+  int ncycle = FirstTimeTaskList ? pm->ncycle : pm->ncycle+1;
+  if (ncycle % every_cycle == 0) {
     return true;
   }
 
