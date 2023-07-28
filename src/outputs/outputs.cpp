@@ -99,6 +99,7 @@
 #include "../parameter_input.hpp"
 #include "../scalars/scalars.hpp"
 #include "outputs.hpp"
+#include "../globals.hpp"
 
 //----------------------------------------------------------------------------------------
 // OutputType constructor
@@ -781,7 +782,7 @@ void Outputs::MakeOutputs(Mesh *pm, ParameterInput *pin, bool wtflag) {
   bool first=true;
   OutputType* ptype = pfirst_type_;
   while (ptype != nullptr) {
-    if ((pm->ncycle % static_cast<int>(std::floor(ptype->output_params.dt/pm->dt)) == 0)  || 
+    if ((pm->ncycle % static_cast<int>(std::floor(ptype->output_params.dt/pm->dt)) == 0 && !wtflag)  || 
         (wtflag && ptype->output_params.file_type == "rst")) {
       if (first && ptype->output_params.file_type != "hst") {
         pm->ApplyUserWorkBeforeOutput(pin);
