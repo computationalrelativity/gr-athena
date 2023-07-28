@@ -457,8 +457,7 @@ int main(int argc, char *argv[]) {
 #if CCE_ENABLED
     // only do a CCE dump if NextTime threshold cleared (updated below)
     // gather all interpolation values from all processors to the root proc.
-    int cce_iter = static_cast<int>(pmesh->time/ 
-                                     pz4clist->TaskListTriggers.cce_dump.dt);
+    int cce_iter = 0;
     for (auto cce : pmesh->pcce)
     {
       cce->ReduceInterpolation();
@@ -556,8 +555,7 @@ int main(int argc, char *argv[]) {
       // only do a CCE dump if NextTime threshold cleared (updated below)
       if (pz4clist->CurrentTimeCalculationThreshold(pmesh, &pz4clist->TaskListTriggers.cce_dump)) {
         // gather all interpolation values from all processors to the root proc.
-        int cce_iter = static_cast<int>(curr_time/ 
-                                       pz4clist->TaskListTriggers.cce_dump.dt);
+        int cce_iter = curr_ncycle / static_cast<int>(pz4clist->TaskListTriggers.cce_dump.dt/pmesh->dt);
         for (auto cce : pmesh->pcce)
         {
           cce->ReduceInterpolation();

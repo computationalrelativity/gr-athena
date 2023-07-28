@@ -431,11 +431,16 @@ static int output_3Dmodes(const int iter/* output iteration */, const char *dir,
   }
 
   char buff[BUFFSIZE];
+  snprintf(buff, sizeof buff, "/%d", dump_it);
+  if (H5Lexists(file_id, buff, H5P_DEFAULT ) > 0) {
+    HDF5_CALL(H5Fclose(file_id));
+    return 0;     
+  }
+
   // NOTE: the dump_it should be the same for all vars that's why we need this
   if (dump_it > last_dump[obs])
   {
     hsize_t oneD = 1;
-    snprintf(buff, sizeof buff, "/%d", dump_it);
     HDF5_CALL(group_id = H5Gcreate(file_id, buff, 0));
     HDF5_CALL(dataspace_id =  H5Screate_simple(1, &oneD, NULL));
     HDF5_CALL(attribute_id = H5Acreate(group_id, "Time", H5T_NATIVE_DOUBLE,
