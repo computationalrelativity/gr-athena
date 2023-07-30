@@ -238,8 +238,7 @@ void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt,
 //! \fn void BoundaryValues::ProlongateVertexCenteredBoundaries(const Real time, const Real dt,
 //!                                       std::vector<BoundaryVariable *> bvars_subset)
 //! \brief Prolongate vertex centered boundaries
-void BoundaryValues::ProlongateVertexCenteredBoundaries(const Real time, const Real dt,
-                                          std::vector<BoundaryVariable *> bvars_subset) {
+void BoundaryValues::ProlongateVertexCenteredBoundaries(const Real time, const Real dt) {
   MeshBlock *pmb = pmy_block_;
   int &mylevel = loc.level;
   Z4c *pz4c = nullptr;
@@ -251,7 +250,7 @@ void BoundaryValues::ProlongateVertexCenteredBoundaries(const Real time, const R
   if (Z4C_ENABLED) {
     pz4c->ubvar.var_vc = &(pz4c->storage.u);
   }
-  ProlongateVertexCenteredBoundaries(time, dt);
+  ApplyProlongateVertexCenteredBoundaries(time, dt);
   return;
 }
 
@@ -724,7 +723,7 @@ inline void BoundaryValues::CalculateVertexProlongationIndices(
 //-----------------------------------------------------------------------------
 //
 // Partition out logic for vertex-centered nodes
-void BoundaryValues::ProlongateVertexCenteredBoundaries(
+void BoundaryValues::ApplyProlongateVertexCenteredBoundaries(
   const Real time, const Real dt) {
 
   MeshBlock *pmb = pmy_block_;

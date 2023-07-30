@@ -1597,7 +1597,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           if (FLUID_ENABLED)
             pbval->ProlongateBoundaries(time, 0.0, pbval->bvars_main_int);
           if (Z4C_ENABLED)
-            pbval->ProlongateBoundaries(time, 0.0, pbval->bvars_main_int_vc);
+            pbval->ProlongateVertexCenteredBoundaries(time, 0.0);
         }
 
         int il = pmb->is, iu = pmb->ie,
@@ -1668,7 +1668,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         if (FLUID_ENABLED)
           pbval->ApplyPhysicalBoundaries(time, 0.0, pbval->bvars_main_int);
         if (Z4C_ENABLED)
-          pbval->ApplyPhysicalBoundaries(time, 0.0, pbval->bvars_main_int_vc);
+          pbval->ApplyPhysicalVertexCenteredBoundaries(time, 0.0);
       }
 
       // Calc initial diffusion coefficients

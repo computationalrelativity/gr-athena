@@ -144,10 +144,9 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
                             std::vector<BoundaryVariable *> bvars_subset);
 
   //--New logic for vertex-centering
-  void ProlongateVertexCenteredBoundaries(const Real time, const Real dt,
-                            std::vector<BoundaryVariable *> bvars_subset);
-  void ApplyPhysicalVertexCenteredBoundaries(const Real time, const Real dt);
   void ProlongateVertexCenteredBoundaries(const Real time, const Real dt);
+  void ApplyPhysicalVertexCenteredBoundaries(const Real time, const Real dt);
+  void ApplyProlongateVertexCenteredBoundaries(const Real time, const Real dt);
   //---------------------------------------------------------------------------
 
   // compute the shear at each integrator stage

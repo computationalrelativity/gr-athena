@@ -591,7 +591,7 @@ TaskStatus Z4cIntegratorTaskList::Prolongation(MeshBlock *pmb, int stage) {
                        + stage_wghts[(stage-1)].ebeta*pmb->pmy_mesh->dt;
     // Scaled coefficient for RHS time-advance within stage
     Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
-    pbval->ProlongateVertexCenteredBoundaries(t_end_stage, dt, pmb->pbval->bvars_main_int_vc);
+    pbval->ProlongateVertexCenteredBoundaries(t_end_stage, dt);
   } else {
     return TaskStatus::fail;
   }
