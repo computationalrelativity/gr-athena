@@ -722,9 +722,17 @@ void Mesh::PrepareSendSameLevel(MeshBlock* pb, Real *sendbuf) {
     BufferUtility::PackData(var_fc.x3f, sendbuf,
                             pb->is, pb->ie, pb->js, pb->je, pb->ks, pb->ke+f3, p);
   }
-  //! \warning (felker):
-  //! * casting from "Real *" to "int *" in order to append single integer
-  //!   to send buffer is slightly unsafe (especially if sizeof(int) > sizeof(Real))
+  // BD: add VC functionality
+  for (AthenaArray<Real> &var_vc : pb->vars_vc_) {
+    int nu = var_vc.GetDim4() - 1;
+    BufferUtility::PackData(var_vc, sendbuf, 0, nu,
+                            pb->ivs, pb->ive,
+                            pb->jvs, pb->jve,
+                            pb->kvs, pb->kve, p);
+  }
+
+  // WARNING(felker): casting from "Real *" to "int *" in order to append single integer
+  // to send buffer is slightly unsafe (especially if sizeof(int) > sizeof(Real))
   if (adaptive) {
     int *dcp = reinterpret_cast<int *>(&(sendbuf[p]));
     *dcp = pb->pmr->deref_count_;
@@ -871,6 +879,7 @@ void Mesh::PrepareSendFineToCoarseAMR(MeshBlock* pb, Real *sendbuf) {
                             pb->ckvs, pb->ckve, p);
 
   }
+
   return;
 }
 
@@ -1150,9 +1159,18 @@ void Mesh::FinishRecvSameLevel(MeshBlock *pb, Real *recvbuf) {
       }
     }
   }
-  //! \warning (felker):
-  //! * casting from "Real *" to "int *" in order to read single
-  //!   appended integer from received buffer is slightly unsafe
+
+  // BD: add VC functionality
+  for (AthenaArray<Real> &var_vc : pb->vars_vc_) {
+    int nu = var_vc.GetDim4() - 1;
+    BufferUtility::UnpackData(recvbuf, var_vc, 0, nu,
+                              pb->ivs, pb->ive,
+                              pb->jvs, pb->jve,
+                              pb->kvs, pb->kve, p);
+  }
+
+  // WARNING(felker): casting from "Real *" to "int *" in order to read single
+  // appended integer from received buffer is slightly unsafe
   if (adaptive) {
     int *dcp = reinterpret_cast<int *>(&(recvbuf[p]));
     pb->pmr->deref_count_ = *dcp;
