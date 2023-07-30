@@ -134,27 +134,6 @@ void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt,
     pfbvar = dynamic_cast<FaceCenteredBoundaryVariable *>(bvars_main_int[1]);
   }
 
-  // Vertex-centered logic
-  //
-  // Ensure coarse buffer has physical boundaries applied
-  // (temp workaround) to automatically call all BoundaryFunction_[] on coarse var
-  Z4c *pz4c = nullptr;
-
-  if (Z4C_ENABLED) {
-    pz4c = pmb->pz4c;
-    pz4c->ubvar.var_vc = &(pz4c->coarse_u_);
-  }
-
-  ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(time, dt);
-
-  if (Z4C_ENABLED) {
-    pz4c->ubvar.var_vc = &(pz4c->storage.u);
-  }
-
-  // Prolongate
-  ProlongateVertexCenteredBoundaries(time, dt);
-  //--
-
   // For each finer neighbor, to prolongate a boundary we need to fill one more cell
   // surrounding the boundary zone to calculate the slopes ("ghost-ghost zone"). 3x steps:
   for (int n=0; n<nneighbor; n++) {
@@ -256,6 +235,25 @@ void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt,
   return;
 }
 
+//! \fn void BoundaryValues::ProlongateVertexCenteredBoundaries(const Real time, const Real dt,
+//!                                       std::vector<BoundaryVariable *> bvars_subset)
+//! \brief Prolongate vertex centered boundaries
+void BoundaryValues::ProlongateVertexCenteredBoundaries(const Real time, const Real dt,
+                                          std::vector<BoundaryVariable *> bvars_subset) {
+  MeshBlock *pmb = pmy_block_;
+  int &mylevel = loc.level;
+  Z4c *pz4c = nullptr;
+  if (Z4C_ENABLED) {
+    pz4c = pmb->pz4c;
+    pz4c->ubvar.var_vc = &(pz4c->coarse_u_);
+  }
+  ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(time, dt);
+  if (Z4C_ENABLED) {
+    pz4c->ubvar.var_vc = &(pz4c->storage.u);
+  }
+  ProlongateVertexCenteredBoundaries(time, dt);
+  return;
+}
 
 //----------------------------------------------------------------------------------------
 //! \fn void BoundaryValues::RestrictGhostCellsOnSameLevel(const NeighborBlock& nb,
