@@ -55,6 +55,7 @@ GRDynamical::GRDynamical(MeshBlock *pmb, ParameterInput *pin, bool flag)
   // Set object names
   RegionSize& block_size = pmy_block->block_size;
   fix_sources = pin->GetOrAddInteger("hydro","fix_sources",0);
+  zero_sources = pin->GetOrAddInteger("hydro","zero_sources",0);
   // set more indices
   int ill = il - ng;
   int iuu = iu + ng;
@@ -806,7 +807,17 @@ Stau(i) += T00(i)*(beta_u(a,i)*beta_u(b,i)*K_dd(a,b,i))  + T0i_u(a,i)*(2.0*beta_
         }
         }
         }
-
+        if(zero_sources == 1){
+            for(a=0;a<NDIM;++a){
+                CLOOP1(i){
+                    SS_d(a,i) = 0.0 ;
+                }
+        
+            }
+            CLOOP1(i){
+                Stau(i) = 0.0;
+            }
+        }
 
         CLOOP1(i){
         cons(IEN,k,j,i) += dt * Stau(i)*alpha(i)*std::sqrt(detg(i));

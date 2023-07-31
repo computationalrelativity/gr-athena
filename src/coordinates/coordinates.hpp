@@ -763,6 +763,7 @@ class GRDynamical : public Coordinates {
   GRDynamical(MeshBlock *pmb, ParameterInput *pin, bool flag);
   //fix sources to Initial data values
   int fix_sources;
+  int zero_sources;
   // functions...
   // for obtaining CC from VC
   void GetMetric(const int k, const int j, const int i, AthenaArray<Real>& g, AthenaArray<Real>& g_inv);
