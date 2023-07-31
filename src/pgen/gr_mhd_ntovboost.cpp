@@ -307,7 +307,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   }
  
 //Bfield
- Real pgasmax = kadi*SQR(pin->GetReal("problem","rhoc"));
+ Real pgasmax = k_adi*SQR(pin->GetReal("problem","rhoc"));
  Real sep = std::abs(pos[0][0] -  pos[1][0]);
  Real pcut = pin->GetReal("problem","pcut")*pgasmax;
   Real b_amp = pin->GetReal("problem","b_amp");
