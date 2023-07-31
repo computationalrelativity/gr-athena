@@ -22,6 +22,11 @@
 #include "../mesh/mesh.hpp"                // MeshBlock
 #include "../z4c/z4c.hpp"                // MeshBlock
 
+#ifdef Z4C_AHF
+#include "../z4c/ahf.hpp"                // MeshBlock
+#endif
+
+
 // Reprimand headers
 
 #include "reprimand/con2prim_imhd.h"
@@ -32,7 +37,7 @@
 // Declarations
 static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, Real gamma_adi,
 const AthenaArray<Real> &bb_cc,    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> const & beta_u,   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> const & alpha, int k, int j, int i,
-    AthenaArray<Real> &cons, Coordinates *pco);
+    AthenaArray<Real> &cons, Coordinates *pco, const Real detg_ceil );
 Real fthr, fatm, rhoc;
 Real k_adi, gamma_adi;
 EOS_Toolkit::real_t atmo_rho;
@@ -85,6 +90,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) {
   k_adi = pin -> GetReal("hydro","k_adi");
   gamma_adi = pin -> GetReal("hydro","gamma");
   alpha_excision = pin->GetOrAddReal("hydro", "alpha_excision", 0.0);
+  b_excision = pin->GetOrAddBoolean("hydro", "b_excision", false);
 using namespace EOS_Toolkit;
  //Get some EOS
   real_t max_eps = 10000.;
@@ -107,7 +113,7 @@ using namespace EOS_Toolkit;
   ye_lenient = false;
   max_iter = 10000;
   c2p_acc = 1e-10;
-  max_b = 1.0e300;
+  max_b = pin -> GetOrAddReal("problem","max_b",10.0);
   max_z = pin -> GetOrAddReal("problem","max_z",20.0);
 
 eos_debug = pin->GetOrAddBoolean("problem","eos_debug", false);
@@ -173,6 +179,11 @@ using namespace EOS_Toolkit;
       AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gammat_dd; //lapse
       
       order_flag.NewAthenaArray(nn1);
+
+
+
+  int ncells1, ncells2, ncells3;
+  Real detg_ceil = pow((pmy_block_->pz4c->opt.chi_div_floor),-1.5);
 if(coarse_flag==0){
 
       alpha.NewAthenaTensor(nn1);
@@ -188,6 +199,9 @@ if(coarse_flag==0){
       vcbeta_y.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betay,1);
       vcbeta_z.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betaz,1);
       vcalpha.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
+    ncells1 = pmy_block_->ncells1;
+    ncells2 = pmy_block_->ncells2;
+    ncells3 = pmy_block_->ncells3;
 
 } else{
 
@@ -207,12 +221,24 @@ if(coarse_flag==0){
       vcbeta_z.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_betaz,1);
       vcalpha.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_alpha,1);
       vcchi.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_chi,1);
+    ncells1 = pmy_block_->ncc1;
+    ncells2 = pmy_block_->ncc2;
+    ncells3 = pmy_block_->ncc3;
 }
   pmy_block_->pfield->CalculateCellCenteredField(bb, bb_cc, pco, il, iu, jl, ju, kl, ku);
+  // sanitize loop-limits
+  const int IL = std::max(il, NGRCV_HSZ - 1);
+  const int IU = std::min(iu, ncells1 - 1 - (NGRCV_HSZ - 1));
+
+  const int JL = std::max(jl, NGRCV_HSZ - 1);
+  const int JU = std::min(ju, ncells2 - 1 - (NGRCV_HSZ - 1));
+
+  const int KL = std::max(kl, NGRCV_HSZ - 1);
+  const int KU = std::min(ku, ncells3 - 1 - (NGRCV_HSZ - 1));
 
   // Go through cells
-  for (int k=kl; k<=ku; ++k) {
-    for (int j=jl; j<=ju; ++j) {
+  for (int k=KL; k<=KU; ++k) {
+    for (int j=JL; j<=JU; ++j) {
 // TODO here call for Cell metric needs to be replaced with local calculation
 // of cell centred metric from VC metric returning 1D array in x1 direction.
 // NB func should return gamma(a,b,i), beta(a,i), alpha(i)
@@ -230,7 +256,7 @@ if(coarse_flag==0){
 */
 if(coarse_flag==0){
       #pragma omp simd
-      for (int i=il; i<=iu; ++i) {
+      for (int i=IL; i<=IU; ++i) {
           gamma_dd(0,0,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
           gamma_dd(0,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
           gamma_dd(0,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
@@ -244,7 +270,7 @@ if(coarse_flag==0){
 }
 } else{
       #pragma omp simd
-      for (int i=il; i<=iu; ++i) {
+      for (int i=IL; i<=IU; ++i) {
           gammat_dd(0,0,i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcgammat_xx(k,j,i));
           gammat_dd(0,1,i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcgammat_xy(k,j,i));
           gammat_dd(0,2,i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcgammat_xz(k,j,i));
@@ -260,7 +286,7 @@ if(coarse_flag==0){
           for(int a=0;a<3;a++){
           for(int b=0;b<3;b++){
       #pragma omp simd
-      for (int i=il; i<=iu; ++i) {
+      for (int i=IL; i<=IU; ++i) {
           gamma_dd(a,b,i) = gammat_dd(a,b,i)/chi(i);
 }
 }
@@ -270,7 +296,7 @@ if(coarse_flag==0){
 //      }
       
       #pragma omp simd
-      for (int i=il; i<=iu; ++i) {
+      for (int i=IL; i<=IU; ++i) {
 //TODO not needed
         // Extract metric
 /*
@@ -321,8 +347,21 @@ if(coarse_flag==0){
 //adhoc - hydro excision
 //      
 //
-        if(alpha(i) > alpha_excision){
+        bool in_horizon = false;
+#ifdef Z4C_AHF
+        for (auto pah_f : pmy_block_->pmy_mesh->pah_finder) {
+        if(((SQR(pco->x1v(i)) + SQR(pco->x2v(j)) + SQR(pco->x3v(k))) < SQR(pah_f->ah_prop[AHF::hmeanradius])) || (alpha(i) < alpha_excision)     ) {
+           in_horizon = true;
+        }
+        }
+#else
+        if(alpha(i) < alpha_excision){
+           in_horizon = true;
+        }
+#endif
 
+//        if(alpha(i) > alpha_excision){
+        if(!in_horizon){
 
         cons_vars_mhd evolved{Dg, taug, 0.0,
                           {S_1g,S_2g,S_3g}, {bb1g,bb2g,bb3g}};
@@ -362,7 +401,7 @@ if(eos_debug){
    uu3 = 0.0;
    rho = atmo_rho;
    pgas = k_adi*pow(atmo_rho,gamma_adi);
-   PrimitiveToConservedSingle(prim, gamma_adi,bb_cc, gamma_dd, beta_u, alpha, k, j, i, cons, pco);
+   PrimitiveToConservedSingle(prim, gamma_adi,bb_cc, gamma_dd, beta_u, alpha, k, j, i, cons, pco, detg_ceil);
 //  }
 //  } 
     }
@@ -380,7 +419,7 @@ if(eos_debug){
    uu3 = 0.0;
    rho = atmo_rho;
    pgas = k_adi*pow(atmo_rho,gamma_adi);
-   PrimitiveToConservedSingle(prim, gamma_adi, bb_cc, gamma_dd, beta_u, alpha, k, j, i, cons, pco);
+   PrimitiveToConservedSingle(prim, gamma_adi, bb_cc, gamma_dd, beta_u, alpha, k, j, i, cons, pco, detg_ceil);
   }
   } 
       if(rho < fthr*atmo_rho ){
@@ -401,7 +440,7 @@ if(eos_debug){
 //      }
       if (rep.adjust_cons || rep.set_atmo || pgasfix) {
 //TODO P2C only requires gamma(a,b,i)  need to modify PrimitiveToConservedSingle defn
-          PrimitiveToConservedSingle(prim, gamma_adi, bb_cc, gamma_dd, beta_u, alpha, k, j, i, cons, pco);
+          PrimitiveToConservedSingle(prim, gamma_adi, bb_cc, gamma_dd, beta_u, alpha, k, j, i, cons, pco, detg_ceil);
 
 
 
@@ -413,7 +452,13 @@ if(eos_debug){
       uu1 = 0.0;
       uu2 = 0.0;
       uu3 = 0.0;
-          PrimitiveToConservedSingle(prim, gamma_adi, bb_cc, gamma_dd, beta_u, alpha, k, j, i, cons, pco);
+      if(b_excision){
+      bb_cc(0,k,j,i) = 0.0;
+      bb_cc(1,k,j,i) = 0.0;
+      bb_cc(2,k,j,i) = 0.0;
+      pmy_block_->pfield->b1.x1f(k,j,i) = pmy_block_->pfield->b1.x2f(k,j,i) = pmy_block_->pfield->b1.x3f(k,j,i) = pmy_block_->pfield->b1.x1f(k,j,i+1) = pmy_block_->pfield->b1.x2f(k,j+1,i) = pmy_block_->pfield->b1.x3f(k+1,j,i) = 0.0;
+      }
+          PrimitiveToConservedSingle(prim, gamma_adi, bb_cc, gamma_dd, beta_u, alpha, k, j, i, cons, pco, detg_ceil);
 
 } 
 }
@@ -438,6 +483,8 @@ if(eos_debug){
 void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim,
      AthenaArray<Real> &bb_cc, AthenaArray<Real> &cons, Coordinates *pco, int il,
      int iu, int jl, int ju, int kl, int ku) {
+  MeshBlock * pmb = pmy_block_;
+  Real detg_ceil = pow((pmy_block_->pz4c->opt.chi_div_floor),-1.5);
       AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd; //lapse
       AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u; //lapse
       AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha; //lapse
@@ -459,13 +506,22 @@ void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim,
       vcgamma_yy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
       vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
       vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
-  for (int k=kl; k<=ku; ++k) {
-    for (int j=jl; j<=ju; ++j) {
+  // sanitize loop-limits
+  const int IL = std::max(il, NGRCV_HSZ - 1);
+  const int IU = std::min(iu, pmb->ncells1 - 1 - (NGRCV_HSZ - 1));
+
+  const int JL = std::max(jl, NGRCV_HSZ - 1);
+  const int JU = std::min(ju, pmb->ncells2 - 1 - (NGRCV_HSZ - 1));
+
+  const int KL = std::max(kl, NGRCV_HSZ - 1);
+  const int KU = std::min(ku, pmb->ncells3 - 1 - (NGRCV_HSZ - 1));
+  for (int k=KL; k<=KU; ++k) {
+    for (int j=JL; j<=JU; ++j) {
 // TODO need a call to calculate CC metric locally here - we don't
 // actually need alpha beta or the inverse metric to calculate the conservatives.
 // Just return a 1D array in the x1 direction of gamma_{ij}
 //      pco->CellMetric(k, j, il, iu, g_, g_inv_);
-      for (int i=il; i<=iu; ++i) {
+      for (int i=IL; i<=IU; ++i) {
           gamma_dd(0,0,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
           gamma_dd(0,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
           gamma_dd(0,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
@@ -479,7 +535,7 @@ void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim,
 }
       //#pragma omp simd // fn is too long to inline
       for (int i=il; i<=iu; ++i) {
-        PrimitiveToConservedSingle(prim, gamma_, bb_cc, gamma_dd, beta_u, alpha, k, j, i, cons, pco);
+        PrimitiveToConservedSingle(prim, gamma_, bb_cc, gamma_dd, beta_u, alpha, k, j, i, cons, pco, detg_ceil);
       }
     }
   }
@@ -500,7 +556,7 @@ void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim,
 // TODO change arguments so instead of taking g(n,i), gi(n,i) it just takes gamma(a,b,i)
 static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, Real gamma_adi,
 const AthenaArray<Real> &bb_cc,    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> const & beta_u, AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> const & alpha, int k, int j, int i,
-    AthenaArray<Real> &cons, Coordinates *pco) {
+    AthenaArray<Real> &cons, Coordinates *pco, const Real detg_ceil) {
 //TODO needs to take alpha as an argument - need to initialise b too
     AthenaArray<Real> utilde_u;  // primitive gamma^i_a u^a
     AthenaArray<Real> utilde_d;  // primitive gamma^i_a u^a
@@ -537,13 +593,20 @@ const AthenaArray<Real> &bb_cc,    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>
   // Calculate 4-velocity
 //  Real alpha = std::sqrt(-1.0/gi(I00,i));
   Real detgamma = std::sqrt(Det3Metric(gamma_dd,i));
+
+  if(std::isinf(detgamma)){
+  detgamma = 1.0;
+  }
   if(std::isnan(detgamma)){
 if(eos_debug){
   printf("detgamma is nan\n");
   printf("x = %.16e, y = %.16e, z = %.16e, g_xx = %.16e\n g_xy = %.16e, g_xz = %.16e, g_yy = %.16e, g_yz = %.16e, g_zz = %.16e\n",pco->x1v(i), pco->x2v(j), pco->x3v(k), gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i), gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i));
 }
-  detgamma = 1;
+  detgamma = 1.0;
  } 
+  if(detgamma > detg_ceil){
+  detgamma = detg_ceil;
+  }
   Real Wlor = 0.0;
   for(int a=0;a<NDIM;++a){
           for(int b=0;b<NDIM;++b){
@@ -793,6 +856,9 @@ void EquationOfState::FastMagnetosonicSpeedsGR(Real rho_h, Real pgas, Real b_sq,
 // \brief Apply density and pressure floors to reconstructed L/R cell interface states
 
 void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j, int i) {
+
+
+  if(prim.GetDim4()==1){    
   Real& w_d  = prim(IDN,i);
   Real& w_p  = prim(IPR,i);
   // Not applying position-dependent floors here in GR, nor using rho_min
@@ -800,6 +866,21 @@ void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j
   w_d = (w_d > density_floor_) ?  w_d : density_floor_;
   // apply pressure floor
   w_p = (w_p > pressure_floor_) ?  w_p : pressure_floor_;
+  } else if(prim.GetDim4()==5){
+  Real& w_d  = prim(IDN,k,j,i);
+  Real& w_p  = prim(IPR,k,j,i); 
+  w_d = (w_d > density_floor_) ?  w_d : density_floor_;
+  // apply pressure floor
+  w_p = (w_p > pressure_floor_) ?  w_p : pressure_floor_;
+  }
+  else{
+  printf("prim.GetDim4() = %d ApplyPrimitiveFloors only works with 1 or 5",prim.GetDim4());
+  }
+  // Not applying position-dependent floors here in GR, nor using rho_min
+  // apply density floor
+//  w_d = (w_d > density_floor_) ?  w_d : density_floor_;
+  // apply pressure floor
+//  w_p = (w_p > pressure_floor_) ?  w_p : pressure_floor_;
 
   return;
 }
