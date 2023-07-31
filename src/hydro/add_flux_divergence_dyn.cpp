@@ -81,6 +81,18 @@ void Hydro::AddFluxDivergence(const Real wght, AthenaArray<Real> &u_out) {
         }
       }
 
+      if(zero_div==1){
+        for (int n=0; n<NHYDRO; ++n) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+          
+           dflx(n,i) = 0.0;
+          }
+         }
+      }
+
+
+
       // update conserved variables - WGC weighting by cell vol no longer needed
       pmb->pcoord->CellVolume(k, j, is, ie, vol);
       for (int n=0; n<NHYDRO; ++n) {

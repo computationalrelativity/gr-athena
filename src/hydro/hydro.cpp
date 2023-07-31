@@ -59,6 +59,7 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   pmb->RegisterMeshBlockDataCC(u);
 // debug fix flux
 fix_fluxes = pin->GetOrAddInteger("hydro","fix_fluxes",0);
+zero_div = pin->GetOrAddInteger("hydro","zero_div",0);
 
 
   // Allocate optional memory primitive/conserved variable registers for time-integrator
