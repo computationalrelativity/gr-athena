@@ -37,45 +37,6 @@ namespace numprox { namespace interpolation {
 // https://doi.org/10.48550/arXiv.2307.05345.
 
 // ============================================================================
-namespace shared {
-// ============================================================================
-
-// Given (sorted) grid values infer indices (with range W) of closest values to
-// a given point.
-//
-// Parameters:
-// -----------
-// ix_np: Index corresponding to value in x_s nearest x_t; populated by
-//        function.
-// ix_il: Lower index corresponding to value in x_s nearest x_t; populated by
-//        function.
-// ix_iu: Upper index corresponding to value in x_s nearest x_t; populated by
-//        function.
-// gr_t:  Target point.
-// gr_s:  Source grid with N_s + 1 entries
-// N:     Grid size parameter
-// width: Width of indicial range (iu-il+1) to construct.
-// ne:    Number of nodes from edge to pad by.
-//
-// Note(s):
-// --------
-//   - x_s is assumed sorted.
-template<typename Tg>
-inline void idx_range_nearest_point(
-  size_t* ix_np,
-  size_t* ix_il,
-  size_t* ix_iu,
-  const Tg x_t,
-  const Tg* x_s,
-  const int Ns,
-  const int width,
-  const int ne=0);
-
-// ============================================================================
-}
-// ============================================================================
-
-// ============================================================================
 namespace Floater_Hormann {
 // ============================================================================
 
@@ -558,44 +519,44 @@ static Tf interp_nn_3d(Tg x1_t, Tg x2_t, Tg x3_t,
 }
 // ============================================================================
 
-// // ============================================================================
-// namespace shared {
-// // ============================================================================
+// ============================================================================
+namespace shared {
+// ============================================================================
 
-// // Given (sorted) grid values infer indices (with range W) of closest values to
-// // a given point.
-// //
-// // Parameters:
-// // -----------
-// // ix_np: Index corresponding to value in x_s nearest x_t; populated by
-// //        function.
-// // ix_il: Lower index corresponding to value in x_s nearest x_t; populated by
-// //        function.
-// // ix_iu: Upper index corresponding to value in x_s nearest x_t; populated by
-// //        function.
-// // gr_t:  Target point.
-// // gr_s:  Source grid with N_s + 1 entries
-// // N:     Grid size parameter
-// // width: Width of indicial range (iu-il+1) to construct.
-// // ne:    Number of nodes from edge to pad by.
-// //
-// // Note(s):
-// // --------
-// //   - x_s is assumed sorted.
-// template<typename Tg>
-// inline void idx_range_nearest_point(
-//   size_t* ix_np,
-//   size_t* ix_il,
-//   size_t* ix_iu,
-//   const Tg x_t,
-//   const Tg* x_s,
-//   const int Ns,
-//   const int width,
-//   const int ne=0);
+// Given (sorted) grid values infer indices (with range W) of closest values to
+// a given point.
+//
+// Parameters:
+// -----------
+// ix_np: Index corresponding to value in x_s nearest x_t; populated by
+//        function.
+// ix_il: Lower index corresponding to value in x_s nearest x_t; populated by
+//        function.
+// ix_iu: Upper index corresponding to value in x_s nearest x_t; populated by
+//        function.
+// gr_t:  Target point.
+// gr_s:  Source grid with N_s + 1 entries
+// N:     Grid size parameter
+// width: Width of indicial range (iu-il+1) to construct.
+// ne:    Number of nodes from edge to pad by.
+//
+// Note(s):
+// --------
+//   - x_s is assumed sorted.
+template<typename Tg>
+inline void idx_range_nearest_point(
+  size_t* ix_np,
+  size_t* ix_il,
+  size_t* ix_iu,
+  const Tg x_t,
+  const Tg* x_s,
+  const int Ns,
+  const int width,
+  const int ne=0);
 
-// // ============================================================================
-// }
-// // ============================================================================
+// ============================================================================
+}
+// ============================================================================
 
 
 // ============================================================================
