@@ -115,7 +115,7 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) :
     const int Nt_x2 = pmb->block_size.nx2 / 2 - 1;
     const int Nt_x3 = pmb->block_size.nx3 / 2 - 1;
 
-    ind_interior_r_op = new interp_nd_weights_precomputed(
+    ind_interior_r_op = new interp_nd(
       x1_t, x2_t, x3_t,
       x1_s, x2_s, x3_s,
       Nt_x1, Nt_x2, Nt_x3,
@@ -135,7 +135,7 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) :
     const int Nt_x1 = pmb->block_size.nx1 / 2 - 1;
     const int Nt_x2 = pmb->block_size.nx2 / 2 - 1;
 
-    ind_interior_r_op = new interp_nd_weights_precomputed(
+    ind_interior_r_op = new interp_nd(
       x1_t, x2_t,
       x1_s, x2_s,
       Nt_x1, Nt_x2,
@@ -151,7 +151,7 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) :
 
     const int Nt_x1 = pmb->block_size.nx1 / 2 - 1;
 
-    ind_interior_r_op = new interp_nd_weights_precomputed(
+    ind_interior_r_op = new interp_nd(
       x1_t, x1_s,
       Nt_x1, Ns_x1,
       d,
@@ -608,6 +608,7 @@ void MeshRefinement::RestrictCellCenteredXValues(
   int sn, int en,
   int csi, int cei, int csj, int cej, int csk, int cek)
 {
+
   // here H_SZ * 2 - 1 is resultant degree
   const int H_SZ = NGHOST;  // works for all physical nodes
 
@@ -823,7 +824,6 @@ void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
     const AthenaArray<Real> &fine,
     AthenaArray<Real> &coarse, int sn, int en)
 {
-
   using namespace numprox::interpolation;
 
   MeshBlock* pmb = pmy_block_;
@@ -931,7 +931,8 @@ void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
       const Real* const fcn_s = &(var_s(n,0,0,0));
       Real* fcn_t = &(var_t(n,0,0,0));
 
-      ind_interior_r_op->eval(fcn_t, fcn_s);
+      // ind_interior_r_op->eval(fcn_t, fcn_s);
+      ind_interior_r_op->eval_nn(fcn_t, fcn_s);
     }
 
   }
@@ -1007,7 +1008,13 @@ void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
       const Real* const fcn_s = &(var_s(n,0,0,0));
       Real* fcn_t = &(var_t(n,0,0,0));
 
-      ind_interior_r_op->eval(fcn_t, fcn_s);
+      ind_interior_r_op->eval_nn(fcn_t, fcn_s);
+      // ind_interior_r_op->eval(fcn_t, fcn_s);
+
+      // ind_interior_r_op->eval(fcn_t, fcn_s,
+      //                         pmb->cx_cis-NCGHOST_CX, pmb->cx_cie-NCGHOST_CX,
+      //                         pmb->cx_cjs-NCGHOST_CX, pmb->cx_cje-NCGHOST_CX);
+
     }
 
   }
@@ -1067,9 +1074,30 @@ void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
       const Real* const fcn_s = &(var_s(n,0,0,0));
       Real* fcn_t = &(var_t(n,0,0,0));
 
-      ind_interior_r_op->eval(fcn_t, fcn_s);
+      // ind_interior_r_op->eval(fcn_t, fcn_s);
+      ind_interior_r_op->eval_nn(fcn_t, fcn_s);
+
+      // ind_interior_r_op->eval(fcn_t, fcn_s,
+      //                         pmb->cx_cis-NCGHOST_CX, pmb->cx_cigs-NCGHOST_CX);
+
     }
 
+    // {
+    //   const Real* const fcn_s = &(var_s(n,0,0,0));
+
+    //   for(int i=pmb->cx_is; i<=pmb->cx_igs; ++i)
+    //   {
+    //     var_t(n,0,0,i) = Floater_Hormann::interp_1d(
+    //       pmb->pcoord->x1v(i),
+    //       &(pmb->pcoord->x1v(NGHOST)),
+    //       fcn_s,
+    //       d+2, // stencil size
+    //       d,   // order
+    //       NGHOST
+    //     );
+    //   }
+
+    // }
 
   }
 

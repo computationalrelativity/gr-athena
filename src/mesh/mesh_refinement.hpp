@@ -144,10 +144,10 @@ class MeshRefinement {
   // --------------------------------------------------------------------------
   // Class for barycentric interpolation; weights precomputed in MeshRefinement
   // ctor
-  typedef Floater_Hormann::interp_nd_weights_precomputed<Real, Real>
-    interp_nd_weights_precomputed;
+  typedef Floater_Hormann::interp_nd<Real, Real>
+    interp_nd;
 
-  interp_nd_weights_precomputed * ind_interior_r_op;
+  interp_nd * ind_interior_r_op;
   // --------------------------------------------------------------------------
 
 };

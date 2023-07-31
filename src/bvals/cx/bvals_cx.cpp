@@ -200,7 +200,7 @@ int CellCenteredXBoundaryVariable::LoadBoundaryBufferToFiner(Real *buf,
   // only pack fundamental rep. on l-1;
   // this populates coarse rep. on l
 
-  // BD: ...
+  // BD: ok
   idxLoadToFinerRanges(nb.ni, si, ei, sj, ej, sk, ek);
   BufferUtility::PackData(var, buf, nl_, nu_, si, ei, sj, ej, sk, ek, p);
 
