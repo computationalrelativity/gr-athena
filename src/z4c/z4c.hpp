@@ -206,6 +206,7 @@ public:
     int fix_admsource; // if 1 then gauge is fixed, rhs of alpha, beta^i equations -> 0
     int Tmunuinterp; // interpolate stress energy
     int epsinterp; // interpolate stress energy
+    int bssn; // reduce to bssn
   } opt;
      
 //intergrid interpolation 
@@ -233,6 +234,8 @@ public:
     AthenaArray<Real> x1, x2, x3;      // for CC / VC grid switch
     AthenaArray<Real> cx1, cx2, cx3;   // for CC / VC grid switch (coarse)
   };
+
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> aux_g_ddd;
 
   MB_info mbi;
 

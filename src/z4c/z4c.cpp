@@ -214,6 +214,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   
   // Matter parameters
   opt.cowling = pin->GetOrAddInteger("z4c", "cowling_true", 0);
+  opt.bssn = pin->GetOrAddInteger("z4c", "bssn", 0);
   opt.rhstheta0 = pin->GetOrAddInteger("z4c", "rhstheta0", 0);
   opt.fixedgauge = pin->GetOrAddInteger("z4c", "fixedgauge", 0);
   opt.fix_admsource = pin->GetOrAddInteger("z4c", "fix_admsource", 0);

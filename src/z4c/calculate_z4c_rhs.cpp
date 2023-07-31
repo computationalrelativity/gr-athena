@@ -526,7 +526,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
       rhs.Theta(k,j,i) = LTheta(i) + z4c.alpha(k,j,i) * (
           0.5*Ht(i) - (2. + opt.damp_kappa2) * opt.damp_kappa1 * z4c.Theta(k,j,i));
       rhs.Theta(k,j,i) -= 8.*M_PI * z4c.alpha(k,j,i) * mat.rho(k,j,i);
-         if(opt.cowling == 1){
+         if(opt.cowling == 1 || opt.bssn == 1){
           rhs.Theta(k,j,i) =0.0;
           }
     }
