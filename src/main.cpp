@@ -49,6 +49,9 @@
 #include "z4c/wave_extract.hpp"
 #endif
 //WGC end
+#ifdef Z4C_AHF
+#include "z4c/ahf.hpp"
+#endif
 
 #ifdef Z4C_TRACKER
 #include "z4c/trackers.hpp"
@@ -633,6 +636,18 @@ pmesh->pwave_extr[n]->Write(pmesh->ncycle, pmesh->time);
 //WGC end
 
     }
+#ifdef Z4C_AHF
+      for (auto pah_f : pmesh->pah_finder) {
+        if (pah_f->CalculateMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
+      }
+      for (auto pah_f : pmesh->pah_finder) {
+        pah_f->Find(pmesh->ncycle, pmesh->time);
+        pah_f->Write(pmesh->ncycle, pmesh->time);
+      }
+      for (auto pah_f : pmesh->pah_finder) {
+        if (pah_f->DeleteMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
+      }
+#endif
 #ifdef Z4C_TRACKER
     //Tracker
     pmesh->pz4c_tracker->ReduceTracker();
