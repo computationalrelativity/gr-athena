@@ -140,7 +140,6 @@ void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt) {
   //--
   //////////////////////////////////////////////////////////////////////////////
 
-
   // TODO(KGF): temporarily hardcode Hydro and Field array access for the below switch
   // around ApplyPhysicalBoundariesOnCoarseLevel()
 
@@ -951,8 +950,8 @@ void BoundaryValues::ProlongateCellCenteredXGhosts(
     AthenaArray<Real> *var_cx = std::get<0>(cx_pair);
     AthenaArray<Real> *coarse_cx = std::get<1>(cx_pair);
     int nu = var_cx->GetDim4() - 1;
-    pmr->ProlongateCellCenteredXValues(*coarse_cx, *var_cx, 0, nu,
-                                       si, ei, sj, ej, sk, ek);
+    pmr->ProlongateCellCenteredXBCValues(*coarse_cx, *var_cx, 0, nu,
+                                         si, ei, sj, ej, sk, ek);
   }
 
   return;
