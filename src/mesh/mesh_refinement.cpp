@@ -99,7 +99,7 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) :
   const int Ns_x1 = pmb->block_size.nx1 - 1;
 
   // Floater-Hormann blending parameter controls the formal order of approx.
-  const int d = (NGHOST-1) * 2;
+  const int d = (NCGHOST_CX-1) * 2 + 1;
 
   if(Ns_x3 > 0)
   {
@@ -839,7 +839,7 @@ void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
   const int Ns_x1 = pmb->block_size.nx1 - 1;
 
   // Floater-Hormann blending parameter controls the formal order of approx.
-  const int d = (NGHOST-1) * 2;
+  // const int d = (NGHOST-1) * 2 + 1;
 
   AthenaArray<Real> & var_t = coarse;
   AthenaArray<Real> & var_s = const_cast<AthenaArray<Real>&>(fine);
@@ -1767,11 +1767,18 @@ void MeshRefinement::ProlongateVertexCenteredValues(
     const AthenaArray<Real> &coarse, AthenaArray<Real> &fine,
     int sn, int en, int si, int ei, int sj, int ej, int sk, int ek) {
 
-  // half number of ghosts
-  int const H_NCGHOST = NCGHOST / 2;
+  // // half number of ghosts
+  // int const H_NCGHOST = NCGHOST / 2;
+
+  // // maximum stencil size for interpolator
+  // int const H_SZ = H_NCGHOST + 1;
+
+  // ghost shift parameter
+  int const H_NCGHOST = (2 * NCGHOST - NGHOST) / 2;
 
   // maximum stencil size for interpolator
-  int const H_SZ = H_NCGHOST + 1;
+  int const H_SZ = (2*NCGHOST-NGHOST) / 2 + 1;
+
 
   MeshBlock *pmb = pmy_block_;
 
@@ -2325,6 +2332,7 @@ void MeshRefinement::ProlongateVertexCenteredValues(
 
 
   } else {
+
 #if ISEVEN(NGHOST)
     int const eo_offset = 0;
 
@@ -2381,7 +2389,7 @@ void MeshRefinement::ProlongateVertexCenteredValues(
   return;
 }
 
-void MeshRefinement::ProlongateCellCenteredXValues(
+void MeshRefinement::ProlongateCellCenteredXBCValues(
     const AthenaArray<Real> &coarse, AthenaArray<Real> &fine,
     int sn, int en, int csi, int cei, int csj, int cej, int csk, int cek)
 {
@@ -2390,6 +2398,283 @@ void MeshRefinement::ProlongateCellCenteredXValues(
   // here H_SZ * 2 is resultant interpolant degree
   // formula compatible with ProlongateCellCenteredXGhosts
   const int H_SZ = (2 * NCGHOST_CX - NGHOST) / 2;
+
+  if (pmb->block_size.nx3>1)
+  { // 3D
+
+    for(int n=sn; n<=en; ++n)
+    for(int cx_ck=csk; cx_ck<=cek; cx_ck++)
+    {
+      // left child idx on fine grid
+      const int cx_fk = 2 * (cx_ck - pmb->cx_cks) + pmb->cx_ks;
+
+      for(int cx_cj=csj; cx_cj<=cej; cx_cj++)
+      {
+        // left child idx on fine grid
+        const int cx_fj = 2 * (cx_cj - pmb->cx_cjs) + pmb->cx_js;
+
+        for(int cx_ci=csi; cx_ci<=cei; cx_ci++)
+        {
+          // left child idx on fine grid
+          const int cx_fi = 2 * (cx_ci - pmb->cx_cis) + pmb->cx_is;
+
+          // use templated ----------------------------------------------------
+          if (true)
+          {
+            // if((cx_fi >= 0) && (cx_fj >= 0))
+            //   fine(n,cx_fk,cx_fj,  cx_fi  ) = 0.0;
+
+            // if((cx_fi+1 < pmb->ncells1) && (cx_fj >= 0))
+            //   fine(n,cx_fk,cx_fj,  cx_fi+1) = 0.0;
+
+            // if((cx_fi >= 0) && (cx_fj+1 < pmb->ncells2))
+            //   fine(n,cx_fk,cx_fj+1,cx_fi  ) = 0.0;
+
+            // if((cx_fi+1 < pmb->ncells1) && (cx_fj+1 < pmb->ncells2))
+            //   fine(n,cx_fk,cx_fj+1,cx_fi+1) = 0.0;
+
+            if((cx_fi >= 0) && (cx_fj >= 0) && (cx_fk >= 0))
+              fine(n,cx_fk  ,cx_fj,  cx_fi  ) = 0.0;
+
+            if((cx_fi >= 0) && (cx_fj >= 0) && (cx_fk+1 < pmb->ncells3))
+              fine(n,cx_fk+1,cx_fj,  cx_fi  ) = 0.0;
+
+            if((cx_fi >= 0) && (cx_fj+1 < pmb->ncells2) && (cx_fk >= 0))
+              fine(n,cx_fk,  cx_fj+1,cx_fi  ) = 0.0;
+
+            if((cx_fi+1 < pmb->ncells1) && (cx_fj >= 0) && (cx_fk >= 0))
+              fine(n,cx_fk,  cx_fj,  cx_fi+1) = 0.0;
+
+            if((cx_fi >= 0) && (cx_fj+1 < pmb->ncells2) && (cx_fk+1 < pmb->ncells3))
+              fine(n,cx_fk+1,cx_fj+1,cx_fi  ) = 0.0;
+
+            if((cx_fi+1 < pmb->ncells1) && (cx_fj >= 0) && (cx_fk+1 < pmb->ncells3))
+              fine(n,cx_fk+1,cx_fj,  cx_fi+1) = 0.0;
+
+            if((cx_fi+1 < pmb->ncells1) && (cx_fj+1 < pmb->ncells2) && (cx_fk >= 0))
+              fine(n,cx_fk  ,cx_fj+1,cx_fi+1) = 0.0;
+
+            if((cx_fi+1 < pmb->ncells1) && (cx_fj+1 < pmb->ncells2) && (cx_fk+1 < pmb->ncells3))
+              fine(n,cx_fk+1,cx_fj+1,cx_fi+1) = 0.0;
+
+            #pragma omp unroll
+            for (int dk=0; dk<2*H_SZ+1; ++dk)
+            {
+              // see 1d case for description of this
+              Real const l_k = (
+                InterpolateLagrangeUniformChildren<H_SZ>::coeff[dk]
+              );
+
+              const int cx_ckl = cx_ck-H_SZ+dk;
+              const int cx_ckr = cx_ck+H_SZ-dk;
+
+              #pragma omp unroll
+              for (int dj=0; dj<2*H_SZ+1; ++dj)
+              {
+                // see 1d case for description of this
+                Real const l_kj = l_k * (
+                  InterpolateLagrangeUniformChildren<H_SZ>::coeff[dj]
+                );
+
+                const int cx_cjl = cx_cj-H_SZ+dj;
+                const int cx_cjr = cx_cj+H_SZ-dj;
+
+                #pragma omp unroll
+                for (int di=0; di<2*H_SZ+1; ++di)
+                {
+                  Real const l_kji = l_kj * (
+                    InterpolateLagrangeUniformChildren<H_SZ>::coeff[di]
+                  );
+
+                  const int cx_cil = cx_ci-H_SZ+di;
+                  const int cx_cir = cx_ci+H_SZ-di;
+
+                  Real const fc_lll = coarse(n,cx_ckl,cx_cjl,cx_cil);
+                  Real const fc_lrr = coarse(n,cx_ckl,cx_cjr,cx_cir);
+                  Real const fc_rrl = coarse(n,cx_ckr,cx_cjr,cx_cil);
+                  Real const fc_rlr = coarse(n,cx_ckr,cx_cjl,cx_cir);
+                  Real const fc_llr = coarse(n,cx_ckl,cx_cjl,cx_cir);
+                  Real const fc_rll = coarse(n,cx_ckr,cx_cjl,cx_cil);
+                  Real const fc_lrl = coarse(n,cx_ckl,cx_cjr,cx_cil);
+                  Real const fc_rrr = coarse(n,cx_ckr,cx_cjr,cx_cir);
+
+                  if((cx_fi >= 0) && (cx_fj >= 0) && (cx_fk >= 0))
+                    fine(n,cx_fk  ,cx_fj,  cx_fi  ) += l_kji * fc_lll;
+
+                  if((cx_fi >= 0) && (cx_fj >= 0) && (cx_fk+1 < pmb->ncells3))
+                    fine(n,cx_fk+1,cx_fj,  cx_fi  ) += l_kji * fc_rll;
+
+                  if((cx_fi >= 0) && (cx_fj+1 < pmb->ncells2) && (cx_fk >= 0))
+                    fine(n,cx_fk,  cx_fj+1,cx_fi  ) += l_kji * fc_lrl;
+
+                  if((cx_fi+1 < pmb->ncells1) && (cx_fj >= 0) && (cx_fk >= 0))
+                    fine(n,cx_fk,  cx_fj,  cx_fi+1) += l_kji * fc_llr;
+
+                  if((cx_fi >= 0) && (cx_fj+1 < pmb->ncells2) && (cx_fk+1 < pmb->ncells3))
+                    fine(n,cx_fk+1,cx_fj+1,cx_fi  ) += l_kji * fc_rrl;
+
+                  if((cx_fi+1 < pmb->ncells1) && (cx_fj >= 0) && (cx_fk+1 < pmb->ncells3))
+                    fine(n,cx_fk+1,cx_fj,  cx_fi+1) += l_kji * fc_rlr;
+
+                  if((cx_fi+1 < pmb->ncells1) && (cx_fj+1 < pmb->ncells2) && (cx_fk >= 0))
+                    fine(n,cx_fk  ,cx_fj+1,cx_fi+1) += l_kji * fc_lrr;
+
+                  if((cx_fi+1 < pmb->ncells1) && (cx_fj+1 < pmb->ncells2) && (cx_fk+1 < pmb->ncells3))
+                    fine(n,cx_fk+1,cx_fj+1,cx_fi+1) += l_kji * fc_rrr;
+
+                }
+
+              }
+
+            }
+
+          }
+
+        }
+
+      }
+    }
+
+
+
+  }
+  else if (pmb->block_size.nx2>1)
+  { // 2D
+
+    const int cx_fk = pmb->cx_ks, cx_ck = pmb->cx_cks;
+    for(int n=sn; n<=en; ++n)
+    for(int cx_cj=csj; cx_cj<=cej; cx_cj++)
+    {
+      // left child idx on fine grid
+      const int cx_fj = 2 * (cx_cj - pmb->cx_cjs) + pmb->cx_js;
+
+      for(int cx_ci=csi; cx_ci<=cei; cx_ci++)
+      {
+        // left child idx on fine grid
+        const int cx_fi = 2 * (cx_ci - pmb->cx_cis) + pmb->cx_is;
+
+        // use templated ------------------------------------------------------
+        if (true)
+        {
+          if((cx_fi >= 0) && (cx_fj >= 0))
+            fine(n,cx_fk,cx_fj,  cx_fi  ) = 0.0;
+
+          if((cx_fi+1 < pmb->ncells1) && (cx_fj >= 0))
+            fine(n,cx_fk,cx_fj,  cx_fi+1) = 0.0;
+
+          if((cx_fi >= 0) && (cx_fj+1 < pmb->ncells2))
+            fine(n,cx_fk,cx_fj+1,cx_fi  ) = 0.0;
+
+          if((cx_fi+1 < pmb->ncells1) && (cx_fj+1 < pmb->ncells2))
+            fine(n,cx_fk,cx_fj+1,cx_fi+1) = 0.0;
+
+          #pragma omp unroll
+          for (int dj=0; dj<2*H_SZ+1; ++dj)
+          {
+            // see 1d case for description of this
+            Real const l_j = (
+              InterpolateLagrangeUniformChildren<H_SZ>::coeff[dj]
+            );
+
+            const int cx_cjl = cx_cj-H_SZ+dj;
+            const int cx_cjr = cx_cj+H_SZ-dj;
+
+            #pragma omp unroll
+            for (int di=0; di<2*H_SZ+1; ++di)
+            {
+              Real const l_ji = l_j * (
+                InterpolateLagrangeUniformChildren<H_SZ>::coeff[di]
+              );
+
+              const int cx_cil = cx_ci-H_SZ+di;
+              const int cx_cir = cx_ci+H_SZ-di;
+
+              Real const fc_ll = coarse(n,cx_ck,cx_cjl,cx_cil);
+              Real const fc_lr = coarse(n,cx_ck,cx_cjl,cx_cir);
+              Real const fc_rl = coarse(n,cx_ck,cx_cjr,cx_cil);
+              Real const fc_rr = coarse(n,cx_ck,cx_cjr,cx_cir);
+
+              if((cx_fi >= 0) && (cx_fj >= 0))
+                fine(n,cx_fk,cx_fj,  cx_fi  ) += l_ji * fc_ll;
+              if((cx_fi+1 < pmb->ncells1) && (cx_fj >= 0))
+                fine(n,cx_fk,cx_fj,  cx_fi+1) += l_ji * fc_lr;
+              if((cx_fi >= 0) && (cx_fj+1 < pmb->ncells2))
+                fine(n,cx_fk,cx_fj+1,cx_fi  ) += l_ji * fc_rl;
+              if((cx_fi+1 < pmb->ncells1) && (cx_fj+1 < pmb->ncells2))
+                fine(n,cx_fk,cx_fj+1,cx_fi+1) += l_ji * fc_rr;
+
+            }
+
+          }
+
+        }
+
+      }
+
+    }
+
+  }
+  else
+  { // 1D
+    const int cx_fj = pmb->cx_js, cx_cj = pmb->cx_cjs;
+    const int cx_fk = pmb->cx_ks, cx_ck = pmb->cx_cks;
+
+    for (int n=sn; n<=en; ++n)
+    for (int cx_ci=csi; cx_ci<=cei; cx_ci++)
+    {
+      // left child idx on fine grid
+      const int cx_fi = 2 * (cx_ci - pmb->cx_cis) + pmb->cx_is;
+
+      // use templated --------------------------------------------------------
+      if(cx_fi >= 0)
+        fine(n,cx_fk,cx_fj,cx_fi)   = 0.0;
+      if(cx_fi+1 < pmb->ncells1)
+        fine(n,cx_fk,cx_fj,cx_fi+1) = 0.0;
+
+      #pragma omp unroll
+      for (int di=0; di<2*H_SZ+1; ++di)
+      {
+        // left / right children coeffs
+        // Real const l_li = InterpolateLagrangeUniformChildren<H_SZ>::coeff[di];
+        // Real const l_ri = InterpolateLagrangeUniformChildren<H_SZ>::coeff[
+        //   2 * H_SZ - di
+        // ];
+
+        // left / coeffs children coeffs
+        // mask left to right vs right to left (see fc_l / fc_r below)
+        Real const l_i = InterpolateLagrangeUniformChildren<H_SZ>::coeff[di];
+
+        const int cx_cil = cx_ci-H_SZ+di;
+        const int cx_cir = cx_ci+H_SZ-di;
+
+        Real const fc_l = coarse(n,cx_ck,cx_cj,cx_cil);
+        Real const fc_r = coarse(n,cx_ck,cx_cj,cx_cir);
+
+
+        if(cx_fi >= 0)
+          fine(n,cx_fk,cx_fj,cx_fi)   += l_i * fc_l;
+        if(cx_fi+1 < pmb->ncells1)
+          fine(n,cx_fk,cx_fj,cx_fi+1) += l_i * fc_r;
+      }
+
+    }
+
+
+  }
+
+  return;
+
+}
+
+void MeshRefinement::ProlongateCellCenteredXValues(
+    const AthenaArray<Real> &coarse, AthenaArray<Real> &fine,
+    int sn, int en, int csi, int cei, int csj, int cej, int csk, int cek)
+{
+  MeshBlock *pmb = pmy_block_;
+
+  // here H_SZ * 2 is resultant interpolant degree
+  // formula compatible with ProlongateCellCenteredXGhosts
+  const int H_SZ = (2 * NCGHOST_CX - NGHOST) / 2 + 1;
 
 
   // for(int n=sn; n<=en; ++n)

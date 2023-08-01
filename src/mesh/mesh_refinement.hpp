@@ -87,6 +87,10 @@ class MeshRefinement {
                                       int si, int ei, int sj, int ej, int sk, int ek);
 
   // Cell-centered extended
+  void ProlongateCellCenteredXBCValues(const AthenaArray<Real> &coarse,
+                                       AthenaArray<Real> &fine, int sn, int en,
+                                       int csi, int cei, int csj, int cej, int csk, int cek);
+
   void ProlongateCellCenteredXValues(const AthenaArray<Real> &coarse,
                                       AthenaArray<Real> &fine, int sn, int en,
                                       int csi, int cei, int csj, int cej, int csk, int cek);
