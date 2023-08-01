@@ -1323,7 +1323,7 @@ void Mesh::FillSameRankCoarseToFineAMR(MeshBlock* pob, MeshBlock* pmb,
     AthenaArray<Real> &src = *std::get<0>(*pob_cx_it);
     AthenaArray<Real> &dst = *coarse_cx;
     // populate coarse on new fine level
-    dst.Fill(0);
+    dst.Fill(NAN);
     for (int nv=0; nv<=nu; nv++)
     for (int k=cx_kl, ck=cx_cks; k<=cx_ku; k++, ck++)
     for (int j=cx_jl, cj=cx_cjs; j<=cx_ju; j++, cj++)
@@ -1343,9 +1343,13 @@ void Mesh::FillSameRankCoarseToFineAMR(MeshBlock* pob, MeshBlock* pmb,
   // --------------------------------------------------------------------------
 
   // vertex-centered ----------------------------------------------------------
-  int ndg1 = NGHOST;
-  int ndg2 = (f2 > 0) ? NGHOST : 0;
-  int ndg3 = (f3 > 0) ? NGHOST : 0;
+
+  // fill (below) with the maximum number of ghosts possible
+  const int min_vc_ng = std::min(NCGHOST, NGHOST);
+
+  int ndg1 = min_vc_ng;
+  int ndg2 = (f2 > 0) ? min_vc_ng : 0;
+  int ndg3 = (f3 > 0) ? min_vc_ng : 0;
 
   const int vc_il = pob->civs - ndg1;
   const int vc_iu = pob->cive + ndg1;
