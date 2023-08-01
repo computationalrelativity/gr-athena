@@ -24,10 +24,10 @@ export DIR_HDF5=$(spack location -i hdf5)
 
 # 4th order
 export COMPILE_STR="--prob=wave_1d_cvg_trig -w -w_cx
-                    --cxx g++ -debug
-                    --nghost=3
+                    --cxx g++
+                    --nghost=5
                     --ncghost=3
-                    --ncghost_cx=4
+                    --ncghost_cx=6
                     --nextrapolate=5"
 
 # # 6th order

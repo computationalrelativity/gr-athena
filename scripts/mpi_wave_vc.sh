@@ -23,8 +23,8 @@ export INPUT_NAME=cvg_wave_1d.inp
 export DIR_HDF5=$(spack location -i hdf5)
 
 export COMPILE_STR="--prob=wave_1d_cvg_trig -w -w_vc
-                    --cxx g++ -omp
-                    --nghost=3 --ncghost=3 --nextrapolate=6"
+                    --cxx g++ -mpi
+                    --nghost=3 --ncghost=4 --nextrapolate=6"
 
 # debug
 # export COMPILE_STR="${COMPILE_STR} -debug"
@@ -60,7 +60,7 @@ source ${DIR_SCRIPTS}/utils/dump_info.sh
 
 ###############################################################################
 # execute
-source utils/exec.sh
+source utils/mpi_exec.sh
 ###############################################################################
 
 tail -n5 ${DIR_OUTPUT}/wave_1d.hst

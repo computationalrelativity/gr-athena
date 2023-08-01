@@ -2,75 +2,134 @@
 
 # Basename of output filenames.
 problem_id = z4c
+repository_info = code_development_a07324599c416c5612fa4d87ff7049ce612a0933
 
 <z4c>
 
-lapse_harmonic = 0.0
-lapse_harmonicf = 1.0
-lapse_oplog = 2.0
-lapse_advect = 1.0
-shift_advect = 1.0
+# # 1+log (moving puncture) gauge
+# lapse_oplog = 2.0       # alpha_l
+# lapse_harmonicf = 1.0   # alpha_hf
+# lapse_harmonic = 0.0    # alpha_h
+# lapse_advect = 1.0      # alpha_adv
+# shift_Gamma = 1.0       # sigma_Gamma
+# shift_eta = 2.0         # sigma_eta
+# shift_alpha2Gamma = 0.0 # sigma_{alpha^2 Gamma}
+# shift_H = 0.0           # sigma_H
+# shift_advect = 1.0      # sigma_adv
+
+## harmonic gauge
+#lapse_oplog = 0.0       # alpha_l
+#lapse_harmonicf = 0.0   # alpha_hf
+#lapse_harmonic = 1.0    # alpha_h
+#lapse_advect = 1.0      # alpha_adv
+#shift_Gamma = 0.0       # sigma_Gamma
+#shift_alpha2Gamma = 1.0 # sigma_{alpha^2 Gamma}
+#shift_H = 1.0           # sigma_H
+#shift_eta = 0.0         # sigma_eta
+#shift_advect = 1.0      # sigma_adv
+
+# 1+log (moving puncture) gauge
+lapse_oplog = 2.0       # alpha_l
+lapse_harmonicf = 1.0   # alpha_hf
+lapse_harmonic = 0.0    # alpha_h
+lapse_advect = 1.0      # alpha_adv
+shift_Gamma = 1.0       # sigma_Gamma
+shift_eta = 0.0         # sigma_eta
+shift_alpha2Gamma = 0.0 # sigma_{alpha^2 Gamma}
+shift_H = 0.0           # sigma_H
+shift_advect = 1.0      # sigma_adv
+
+
 # Kreiss-Oliger dissipation parameter.
 diss = 0.02
-chi_div_floor = 1e-05
+chi_div_floor = -1000 # 1e-5
+eps_floor = 0 #-1e-12
+
 # Constraint damping factor 1.
-damp_kappa1 = 0.02
+damp_kappa1 = 0.0
 # Constraint damping factor 2.
 damp_kappa2 = 0.0
 
-###############################################################################
-# Gauge shift-damping controller
-###############################################################################
-# constant [no new flags]; used in other settings as \eta_A
-shift_eta = 2.0
-
-# compile with -z_eta_track_tp
-shift_eta_w = 2.67
-shift_eta_delta = 2.0
-shift_eta_P = 3.0
-shift_eta_TP_ix = 0           # dist. from this centre (tracker ix)
-
-# compile with -z_eta_conf
-shift_eta_a = 2.0
-shift_eta_b = 2.0
-shift_eta_R_0 = 1.31
-###############################################################################
-
-###############################################################################
 # Wave extraction
-###############################################################################
-# The extraction radius
-extraction_radius_0 = 10
-extraction_radius_1 = 20
-# Controls # of points on spherical grid
-extraction_nlev = 20
-# Extracted set: {l <= lmax && |m|<=l}
-lmax = 2
-# Filename
-extract_filename = wave_extraction
-###############################################################################
+nrad_wave_extraction = 5
+extraction_radius_0 = 80
+extraction_radius_1 = 90
+extraction_radius_2 = 100
+extraction_radius_3 = 110
+extraction_radius_4 = 120
+extraction_radius_5 = 130
+extraction_radius_6 = 140
+extraction_nlev = 30
+dt_wave_extraction = 0.56255
+lmax = 8
+
+# Puncture tracker
+npunct = 2
+bh_0_x = 3.257
+bh_1_x = -3.257
+
+<cce>
+
+dump_every_dt = 1 ## a multiple of the time step
+output_dir    = .
+
+num_theta        = 41
+num_phi          = 82
+num_r_inshell    = 28
+num_l_modes      = 7
+num_radial_modes = 7
+
+num_radii        = 3
+rin_0            = 18
+rout_0           = 22
+rin_1            = 47
+rout_1           = 53
+rin_2            = 94
+rout_2           = 106
+
 
 <problem>
-tracker_filename = tracker_tp
+
 verbose = True
+
+# # x coordinate of the m+ puncture
+# par_b = 6.1
+# # mass of the m+ puncture
+# par_m_plus = 0.5
+# # mass of the m- puncture
+# par_m_minus = 0.5
+# # target ADM mass for m+
+# target_M_plus = 0.5
+# # target ADM mass for m-
+# target_M_minus = 0.5
+# # momentum of the m+ puncture
+# par_P_plus1 = -0
+# par_P_plus2 = 0.0
+# par_P_plus3 = 0.0
+# # momentum of the m- puncture
+# par_P_minus1 = 0
+# par_P_minus2 = 0.0
+# par_P_minus3 = 0.0
+
 # x coordinate of the m+ puncture
-par_b = 6
+par_b = 3.257
 # mass of the m+ puncture
-par_m_plus = 0.5
+par_m_plus = 0.483
 # mass of the m- puncture
-par_m_minus = 0.5
+par_m_minus = 0.483
 # target ADM mass for m+
-target_M_plus = 0.666666666666666666666
+target_M_plus = 0.505
 # target ADM mass for m-
-target_M_minus = 0.3333333333333333333333
+target_M_minus = 0.505
 # momentum of the m+ puncture
-par_P_plus1 = -0.0005373
-par_P_plus2 = 0.085035
+par_P_plus1 = 0.0
+par_P_plus2 = 0.133
 par_P_plus3 = 0.0
 # momentum of the m- puncture
-par_P_minus1 = 0.0005373
-par_P_minus2 = -0.085035
+par_P_minus1 = 0.0
+par_P_minus2 = -0.133
 par_P_minus3 = 0.0
+
 # spin of the m+ puncture
 par_S_plus1 = 0.0
 par_S_plus2 = 0.0
@@ -84,17 +143,17 @@ center_offset1 = 0.0
 center_offset2 = 0.0
 center_offset3 = 0.0
 # User provides bare masses not target M_ADM
-give_bare_mass = false
+give_bare_mass = True
 # No. coeff in the compactified radial dir.
 npoints_A = 30
 # No. coeff in the angular dir.
 npoints_B = 30
 # no. coeff in the phi dir.
-npoints_phi = 16
+npoints_phi = 24
 # Tolerance for Newton solver
 Newton_tol = 1e-10
 # Maximum number of Newton iterations
-Newton_maxit = 10
+Newton_maxit = 5
 # A small number to smooth out singularities at punc. loc.
 TP_epsilon = 0.0
 # Tiny number to avoid nans near or at the puncture locations
@@ -103,8 +162,8 @@ TP_Tiny = 0.0
 TP_Extend_radius = 0
 # Tol. of ADM masses when give_bare_mass=no
 adm_tol = 1e-10
-do_residuum_debug_output = False
-do_initial_debug_output = False
+do_residuum_debug_output = True
+do_initial_debug_output = True
 # Solve for momentum constraint?
 solve_momentum_constraint = False
 # Exponent n for psi^-n initial lapse profile (<0)
@@ -113,104 +172,111 @@ initial_lapse_psi_exponent = -2.0
 swap_xz = False
 n_punct = 2
 
-<output1>
+<ahf>
 
-# Dump to hierarchical format.
-file_type = hdf5
-variable = con
-# Time increment between outputs
-dt = 0.5
-data_format = %.16e
-ghost_zones = true
+num_horizons     = 3
+verbose      = 1
+
+# First horizon at puncture 0
+initial_radius_0 = 2.5
+center_x_0 = 3.257 
+center_y_0 = 0.
+center_z_0 = 0.
+use_puncture_0 = 0 # This will override the pars above and initialize the horizon at the puncture
+start_time_0 = 0.1
+stop_time_0  = 1
+compute_every_iter_0 = 3
+
+# Second horizon at puncture 1
+initial_radius_1 = 2.5
+center_x_1 = -3.257
+center_y_1 = 0.
+center_z_1 = 0.
+use_puncture_1 = 1 # This will override the pars above and initialize the horizon at the puncture
+start_time_1 = 0.
+stop_time_1  = 1.
+compute_every_iter_1 = 5
+
+# Third horizon at the center
+initial_radius_2 = 6.5
+center_x_2 = 0.
+center_y_2 = 0.
+center_z_2 = 0.
+start_time_2 = 0.2
+stop_time_2  = 1.
+compute_every_iter_2 = 2
+
+<output1>
+file_type = rst
+dt = 10
 
 <output2>
-
-# Dump to hierarchical format.
 file_type = hdf5
-variable = adm
-# Time increment between outputs
+variable = con
 dt = 0.5
 data_format = %.16e
 ghost_zones = true
+# x3_slice = 0
 
 <output3>
-
-# Dump to hierarchical format.
 file_type = hdf5
 variable = z4c
-# Time increment between outputs
+dt = 0.5
+data_format = %.16e
+ghost_zones = true
+x3_slice = 0
+
+<output4>
+file_type = hdf5
+variable = adm
+dt = 0.5
+data_format = %.16e
+ghost_zones = true
+x3_slice = 0
+
+<output5>
+file_type = hdf5
+variable = weyl
 dt = 0.5
 data_format = %.16e
 ghost_zones = true
 
-<output4>
-
-# Restart format.
-file_type = rst
-# Time increment between outputs
-dt = 5.0
-
-<output5>
-
-# Restart format.
-file_type = hst
-dt = 5.0
-
 <time>
-
-cfl_number = 0.5
-tlim = 2
+cfl_number = 0.1
+tlim = 1
 integrator = rk4
-ncycle_out = 5
+ncycle_out = 1
 nlim = -1
 
 <mesh>
 
 refinement = adaptive
-num_threads = 8
-numlevel = 5
+num_threads = 1
+numlevel = 2
 deref_count = 0
 # Number of zones in X1-direction
-nx1 = 36
+nx1 = 64
 # Minimum value of X1
-x1min = -80
+x1min = -256
 # Maximum value of X1
-x1max = 80
+x1max = 256
 # Inner-X1 boundary flag
-ix1_bc = outflow
+ix1_bc = periodic
 # Outer-X1 boundary flag
-ox1_bc = outflow
-nx2 = 36
-x2min = -80
-x2max = 80
-ix2_bc = outflow
-ox2_bc = outflow
-nx3 = 36
-x3min = -80
-x3max = 80
-ix3_bc = outflow
-ox3_bc = outflow
+ox1_bc = periodic
+nx2 = 64
+x2min = -256
+x2max = 256
+ix2_bc = periodic
+ox2_bc = periodic
+nx3 = 64
+x3min = -256
+x3max = 256
+ix3_bc = periodic
+ox3_bc = periodic
 
 <meshblock>
 
-nx1 = 18
-nx2 = 18
-nx3 = 18
-
-# <refinement1>
-# x1min           = 3.2
-# x1max           = 3.3
-# x2min           = -0.1
-# x2max           = 0.1
-# x3min           = -0.1
-# x3max           = 0.1
-# level           = 4
-
-# <refinement2>
-# x1min           = -3.3
-# x1max           = -3.2
-# x2min           = -0.1
-# x2max           = 0.1
-# x3min           = -0.1
-# x3max           = 0.1
-# level           = 4
+nx1 = 16
+nx2 = 16
+nx3 = 16

@@ -11,20 +11,33 @@ export FN=$(readlink -f "$0"); export DIR_SCRIPTS=$(dirname "${FN}")
 
 ###############################################################################
 # configure here
-export RUN_NAME=vc
-export BIN_NAME=wave_vc
-export REL_OUTPUT=outputs/wave_1d
+export RUN_NAME=cx
+export BIN_NAME=wave_cx
+export REL_OUTPUT=outputs/wave_3d
 export REL_INPUT=scripts/problems
 
 # Will be populated with defaults instead.
-export INPUT_NAME=cvg_wave_1d.inp
+export INPUT_NAME=cvg_wave_3d.inp
 
 # if compilation is chosen
 export DIR_HDF5=$(spack location -i hdf5)
 
-export COMPILE_STR="--prob=wave_1d_cvg_trig -w -w_vc
-                    --cxx g++ -omp
-                    --nghost=3 --ncghost=3 --nextrapolate=6"
+# 4th order
+export COMPILE_STR="--prob=wave_3d_cvg_trig -w -w_cx
+                    --cxx g++ -mpi
+                    --nghost=3
+                    --ncghost=3
+                    --ncghost_cx=4
+                    --nextrapolate=5"
+
+# # 6th order
+# export COMPILE_STR="--prob=wave_1d_cvg_trig -w -w_cx
+#                     --cxx g++ -debug
+#                     --nghost=4
+#                     --ncghost=3
+#                     --ncghost_cx=5
+#                     --nextrapolate=7"
+
 
 # debug
 # export COMPILE_STR="${COMPILE_STR} -debug"
@@ -60,9 +73,9 @@ source ${DIR_SCRIPTS}/utils/dump_info.sh
 
 ###############################################################################
 # execute
-source utils/exec.sh
+source utils/mpi_exec.sh
 ###############################################################################
 
-tail -n5 ${DIR_OUTPUT}/wave_1d.hst
+tail -n5 ${DIR_OUTPUT}/wave_3d.hst
 
 # >:D

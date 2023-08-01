@@ -108,7 +108,7 @@ private:
 private:
 
   struct {
-    typedef FDCenteredStencil<2, NGHOST-1> stencil;
+    typedef FDCenteredStencil<2, 4-1> stencil;
 
     int stride[3];
     Real idx[3];

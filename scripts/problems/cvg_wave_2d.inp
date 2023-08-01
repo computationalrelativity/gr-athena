@@ -18,15 +18,15 @@ tlim            = 1        # time limit
 integrator      = rk4       # time integrator
 
 <mesh>
-refinement      = static    # Static mesh refinement
+refinement      = adaptive    # Static mesh refinement
 
-nx1             = 32  # Number of zones in X1-direction
+nx1             = 64  # Number of zones in X1-direction
 x1min           = -1.0      # minimum value of X1
 x1max           = 1.0      # maximum value of X1
 ix1_bc          = periodic  # inner-X1 boundary flag
 ox1_bc          = periodic  # outer-X1 boundary flag
 
-nx2             = 32      # Number of zones in X2-direction
+nx2             = 64      # Number of zones in X2-direction
 x2min           = -1.0      # minimum value of X2
 x2max           = 1.0      # maximum value of X2
 ix2_bc          = periodic  # inner-X2 boundary flag
@@ -38,25 +38,28 @@ x3max           =  1.0      # maximum value of X3
 ix3_bc          = periodic  # inner-X3 boundary flag
 ox3_bc          = periodic  # outer-X3 boundary flag
 
+numlevel = 4  # <refinement> level + 1
+
+num_threads = 8        # Number of OpenMP threads per process
+
 <wave>
 c               = 1.0
 use_Sommerfeld  = 0         # type of Sommerfeld condition to apply (if any)
 
 <meshblock>
-nx1        = 16    # Number of zones per MeshBlock in X1-direction
-nx2        = 16    # Number of zones per MeshBlock in X2-direction
+nx1        = 32    # Number of zones per MeshBlock in X1-direction
+nx2        = 32    # Number of zones per MeshBlock in X2-direction
 nx3        = 1         # Number of zones per MeshBlock in X3-direction
 
-num_threads = 1        # Number of OpenMP threads per process
 
 <refinement1>
-x1min =  0.1
-x1max =  0.3
-x2min =  0.4
-x2max =  0.7
+x1min =  -0.2
+x1max =  0.2
+x2min =  -0.2
+x2max =  0.2
 x3min = -1.0
 x3max =  1.0
-level = 1
+level = 3
 
 # <refinement2>
 # x1min =  0.7

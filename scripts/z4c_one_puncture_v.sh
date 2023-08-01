@@ -6,46 +6,38 @@
 ###############################################################################
 export FN=$(readlink -f "$0"); export DIR_SCRIPTS=$(dirname "${FN}")
 
-# export DIR_INSTALL_MUST=/mnt/nimbus/_Installed/MUST
-# export PATH=${DIR_INSTALL_MUST}/bin:$PATH
-
 ###############################################################################
 # configure here
-export RUN_NAME=vc
-export BIN_NAME=wave_vc
-export REL_OUTPUT=outputs/wave_1d
+export RUN_NAME=one_puncture
+export BIN_NAME=z4c
+export REL_OUTPUT=outputs/z4c_c
 export REL_INPUT=scripts/problems
-
-# Will be populated with defaults instead.
-export INPUT_NAME=cvg_wave_1d.inp
+export INPUT_NAME=z4c_one_puncture.inp
 
 # if compilation is chosen
-export DIR_HDF5=$(spack location -i hdf5)
-
-export COMPILE_STR="--prob=wave_1d_cvg_trig -w -w_vc
-                    --cxx g++ -omp
-                    --nghost=3 --ncghost=3 --nextrapolate=6"
-
-# debug
-# export COMPILE_STR="${COMPILE_STR} -debug"
+export DIR_USR=${soft}/usr                            # local lib. installation
+export DIR_HDF5=/mnt/nimbus/_Installed/spack/spack/opt/spack/linux-manjaro21-zen3/gcc-12.1.0/hdf5-1.13.0-xx7sxzzknfj2n364l63xftbltftjvz5g
+export COMPILE_STR="--prob=z4c_one_puncture -z
+                    --cxx g++ -omp -debug
+                    --nghost=2"
 
 # apply caching compiler together with gold linker
 export COMPILE_STR="${COMPILE_STR} -ccache -link_gold"
 
 # hdf5 compile str
-export COMPILE_STR="${COMPILE_STR} -hdf5 -h5double"
-export COMPILE_STR="${COMPILE_STR} --lib_path=${DIR_HDF5}/lib"
-export COMPILE_STR="${COMPILE_STR} --include=${DIR_HDF5}/include"
-
-echo "COMPILE_STR"
-echo ${COMPILE_STR}
+export COMPILE_STR="${COMPILE_STR} -hdf5 -h5double --hdf5_path=${DIR_HDF5}"
 ###############################################################################
+
 
 ###############################################################################
 # ensure paths are adjusted and directory structure exists
 source ${DIR_SCRIPTS}/utils/provide_library_paths.sh ${DIR_HDF5}
-
 source ${DIR_SCRIPTS}/utils/provide_compile_paths.sh
+###############################################################################
+
+###############################################################################
+# prepare external
+# ...
 ###############################################################################
 
 ###############################################################################
@@ -63,6 +55,5 @@ source ${DIR_SCRIPTS}/utils/dump_info.sh
 source utils/exec.sh
 ###############################################################################
 
-tail -n5 ${DIR_OUTPUT}/wave_1d.hst
 
 # >:D

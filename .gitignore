@@ -63,6 +63,9 @@ meshtest.dat
 # scratch
 *.bak
 
+# explicit ignores
+*.ignore
+
 # Gcov: GCC coverage testing tool- data files
 *.gcno
 *.gcda

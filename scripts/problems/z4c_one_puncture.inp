@@ -41,31 +41,31 @@ data_format     = %.16e
 
 <time>
 cfl_number      = 0.25                 # The Courant, Friedrichs, & Lewy (CFL) number
-tlim            = 1.                   # time limit
+tlim            = 0.002                   # time limit
 integrator      = rk4                  # time integrator
 
 <mesh>
-refinement      = none               # Static mesh refinement
-
-nx1             = 32                    # Number of zones in X1-direction
-x1min           = -192                  # minimum value of X1
-x1max           =  192                  # maximum value of X1
+refinement      = static               # Static mesh refinement
+numlevel = 1
+nx1             = 64                    # Number of zones in X1-direction
+x1min           = -2                  # minimum value of X1
+x1max           =  2                  # maximum value of X1
 ix1_bc          = extrapolate_outflow  # inner-X1 boundary flag
 ox1_bc          = extrapolate_outflow  # inner-X1 boundary flag
 
-nx2             = 32                    # Number of zones in X2-direction
-x2min           = -192                  # minimum value of X2
-x2max           =  192                  # maximum value of X2
+nx2             = 64                    # Number of zones in X2-direction
+x2min           = -2                  # minimum value of X2
+x2max           =  2                  # maximum value of X2
 ix2_bc          = extrapolate_outflow  # inner-X2 boundary flag
 ox2_bc          = extrapolate_outflow  # inner-X2 boundary flag
 
-nx3             = 32                    # Number of zones in X3-direction
-x3min           = -192                  # minimum value of X3
-x3max           =  192                  # maximum value of X3
+nx3             = 64                    # Number of zones in X3-direction
+x3min           = -2                  # minimum value of X3
+x3max           =  2                  # maximum value of X3
 ix3_bc          = extrapolate_outflow  # inner-X3 boundary flag
 ox3_bc          = extrapolate_outflow  # inner-X3 boundary flag
 
-num_threads = 1                      # Number of OpenMP threads per process
+num_threads = 2                      # Number of OpenMP threads per process
 
 <meshblock>
 nx1             = 32
@@ -73,10 +73,10 @@ nx2             = 32
 nx3             = 32
 
 <refinement1>
-x1min           = -1.828125
-x1max           = 1.828125
-x2min           = -1.828125
-x2max           = 1.828125
-x3min           = -1.828125
-x3max           = 1.828125
-level           = 3
+x1min           = -1
+x1max           = 0
+x2min           = -1
+x2max           = 0
+x3min           = -1
+x3max           = 0
+level           = 1

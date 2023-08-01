@@ -11,7 +11,7 @@ problem_id      = wave_1d   # Basename of output filenames
 
 <output1>
 file_type       = hst       # History data
-dt              = 0.01       # time increment between outputs
+dt              = 50       # time increment between outputs
 data_format     = %.16e
 
 # <output3>
@@ -20,13 +20,13 @@ data_format     = %.16e
 
 <time>
 cfl_number      = 0.2       # The Courant, Friedrichs, & Lewy (CFL) number
-tlim            = 1       # time limit
+tlim            = 10     # time limit
 integrator      = rk4       # time integrator
 
 <mesh>
-refinement      = static      # Static mesh refinement
+refinement      = adaptive      # Static mesh refinement
 
-nx1             = 32        # Number of zones in X1-direction
+nx1             = 256        # Number of zones in X1-direction
 x1min           = -1.0      # minimum value of X1
 x1max           = 1.0       # maximum value of X1
 ix1_bc          = periodic  # inner-X1 boundary flag
@@ -44,7 +44,10 @@ x3max           =  1.0      # maximum value of X3
 ix3_bc          = periodic  # inner-X3 boundary flag
 ox3_bc          = periodic  # outer-X3 boundary flag
 
-num_threads     = 1         # Number of OpenMP threads per process
+num_threads     = 10         # Number of OpenMP threads per process
+numlevel = 5  # <refinement> level + 1
+
+# deref_count = 5
 
 <wave>
 c               = 1.0
@@ -57,13 +60,13 @@ nx2        = 1              # Number of zones per MeshBlock in X2-direction
 nx3        = 1              # Number of zones per MeshBlock in X3-direction
 
 <refinement1>
-x1min =  -0.1
-x1max =  0.15
+x1min =  -0.2
+x1max =  0.2
 x2min = -1.0
 x2max = -1.0
 x3min = -1.0
 x3max =  1.0
-level = 2
+level = 4
 
 # <refinement2>
 # x1min =  0.7

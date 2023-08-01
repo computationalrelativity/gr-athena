@@ -23,8 +23,8 @@ export INPUT_NAME=cvg_wave_2d.inp
 export DIR_HDF5=$(spack location -i hdf5)
 
 export COMPILE_STR="--prob=wave_2d_cvg_trig -w -w_vc
-                    --cxx g++
-                    --nghost=3 --ncghost=3 --nextrapolate=6"
+                    --cxx g++ -omp
+                    --nghost=3 --ncghost=4 --nextrapolate=6"
 
 # debug
 # export COMPILE_STR="${COMPILE_STR} -debug"

@@ -13,6 +13,9 @@
 #include "../mesh/mesh.hpp"
 #include "wave.hpp"
 
+// test
+#include "../utils/interp_barycentric.hpp"
+
 //! \fn void Wave::WaveRHS
 //  \brief Calculate RHS for the wave equation using finite-differencing
 void Wave::WaveRHS(AthenaArray<Real> & u){
@@ -42,6 +45,56 @@ void Wave::WaveRHS(AthenaArray<Real> & u){
 
     }
   }
+
+  /*
+  // cx rat. der. test
+  AthenaArray<Real> D1_wu;
+  D1_wu.NewAthenaArray(pmb->ncells1);
+
+  numprox::interpolation::Floater_Hormann::D1(
+    &(pmb->pcoord->x1v(0)),
+    &(wu(0,0,0,0)),
+    &(D1_wu(0,0,0)),
+    pmb->ncells1-1,
+    16,
+    0
+  );
+
+  numprox::interpolation::Floater_Hormann::D2(
+    &(pmb->pcoord->x1v(0)),
+    &(wu(0,0,0,0)),
+    &(D1_wu(0,0,0)),
+    &(rhs(1,0,0,0)),
+    pmb->ncells1-1-2*0,
+    16,
+    0
+  );
+  */
+
+  /*
+  // vc rat. der. test
+  AthenaArray<Real> D1_wu;
+  D1_wu.NewAthenaArray(pmb->nverts1);
+
+  numprox::interpolation::Floater_Hormann::D1(
+    &(pmb->pcoord->x1f(0)),
+    &(wu(0,0,0,0)),
+    &(D1_wu(0,0,0)),
+    pmb->nverts1-1,
+    6,
+    0
+  );
+
+  numprox::interpolation::Floater_Hormann::D2(
+    &(pmb->pcoord->x1f(0)),
+    &(wu(0,0,0,0)),
+    &(D1_wu(0,0,0)),
+    &(rhs(1,0,0,0)),
+    pmb->nverts1-1-2*0,
+    6,
+    0
+  );
+  */
 
 
 }

@@ -146,6 +146,51 @@ void MeshBlock::WaveUserWorkInLoop() {
 //  \brief refinement condition: simple time-dependent test
 
 int RefinementCondition(MeshBlock *pmb){
-  // don't do anything
-  return 0;
+
+  const Real ref_dx = 0.2;
+  const Real t = pmb->pmy_mesh->time + pmb->pmy_mesh->dt;
+
+  // consider wrapped t as the refinement region centre
+  const Real ref_x1_0 = std::asin(std::sin(PI / 2. * t / SQRT2)) * 2. / PI;
+  const Real ref_x1_l = ref_x1_0 - ref_dx;
+  const Real ref_x1_r = ref_x1_0 + ref_dx;
+
+
+  // check whether range formed by extent of this MeshBlock overlaps with
+  // ref_x1_0 + [-ref_dx, ref_dx]
+  const Real Mb_x1_l = pmb->pcoord->x1f(0);
+  const Real Mb_x1_r = pmb->pcoord->x1f(pmb->ncells1-1);
+
+  bool ol_x1 = std::max(ref_x1_l, Mb_x1_l) <= std::min(ref_x1_r, Mb_x1_r);
+
+  const Real ref_x2_0 = std::asin(std::sin(PI / 2. * t / SQRT2)) * 2. / PI;
+  const Real ref_x2_l = ref_x2_0 - ref_dx;
+  const Real ref_x2_r = ref_x2_0 + ref_dx;
+
+  const Real Mb_x2_l = pmb->pcoord->x2f(0);
+  const Real Mb_x2_r = pmb->pcoord->x2f(pmb->ncells2-1);
+
+  bool ol_x2 = std::max(ref_x2_l, Mb_x2_l) <= std::min(ref_x2_r, Mb_x2_r);
+
+
+  const Real ref_x3_0 = std::asin(std::sin(PI / 2. * t / SQRT2)) * 2. / PI;
+  const Real ref_x3_l = ref_x3_0 - ref_dx;
+  const Real ref_x3_r = ref_x3_0 + ref_dx;
+
+  const Real Mb_x3_l = pmb->pcoord->x3f(0);
+  const Real Mb_x3_r = pmb->pcoord->x3f(pmb->ncells2-1);
+
+  bool ol_x3 = std::max(ref_x3_l, Mb_x3_l) <= std::min(ref_x3_r, Mb_x3_r);
+
+  if (ol_x1 && ol_x2 && ol_x3)
+  {
+    // std::cout << "ref: " << pmb->gid << std::endl;
+    return 1;
+  }
+  else
+  {
+    // std::cout << "deref: " << pmb->gid << std::endl;
+    return -1;
+  }
+
 }
