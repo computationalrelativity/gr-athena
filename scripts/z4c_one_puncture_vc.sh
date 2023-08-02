@@ -19,11 +19,11 @@ export DIR_HDF5=$(spack location -i hdf5)
 export DIR_GSL=$(spack location -i gsl)
 
 export COMPILE_STR="--prob=z4c_one_puncture
-                    -z -z_vc -cce
-                    --cxx g++ -debug
-                    --nghost=2
-                    --ncghost=2
-                    --ncghost_cx=2
+                    -z -z_vc
+                    --cxx g++ -omp
+                    --nghost=4
+                    --ncghost=5
+                    --ncghost_cx=5
                     --nextrapolate=4"
 
 # apply caching compiler together with gold linker

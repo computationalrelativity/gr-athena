@@ -117,11 +117,20 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   // Used for:
   // (1) load-balancing
   // (2) (future) dumping to restart file
-  pmb->RegisterMeshBlockDataVC(storage.u);
+  FCN_CC_CX_VC(
+    pmb->RegisterMeshBlockDataCC(storage.u),
+    pmb->RegisterMeshBlockDataCX(storage.u),
+    pmb->RegisterMeshBlockDataVC(storage.u)
+  );
 
   // "Enroll" in SMR/AMR by adding to vector of pointers in MeshRefinement class
   if (pm->multilevel) {
-    refinement_idx = pmy_block->pmr->AddToRefinementVC(&storage.u, &coarse_u_);
+    refinement_idx = FCN_CC_CX_VC(
+      pmy_block->pmr->AddToRefinementCC,
+      pmy_block->pmr->AddToRefinementCX,
+      pmy_block->pmr->AddToRefinementVC
+    )(&storage.u, &coarse_u_);
+
   }
 
   // If user-requested time integrator is type 3S* allocate additional memory
@@ -129,10 +138,15 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   if (integrator == "ssprk5_4")
     storage.u2.NewAthenaArray(N_Z4c, mbi.nn3, mbi.nn2, mbi.nn1);
 
-  // enroll CellCenteredBoundaryVariable / VertexCenteredBoundaryVariable object
+  // enroll BoundaryVariable object
   ubvar.bvar_index = pmb->pbval->bvars.size();
   pmb->pbval->bvars.push_back(&ubvar);
-  pmb->pbval->bvars_main_int_vc.push_back(&ubvar);
+
+  FCN_CC_CX_VC(
+    pmb->pbval->bvars_main_int.push_back(&ubvar),
+    pmb->pbval->bvars_main_int_cx.push_back(&ubvar),
+    pmb->pbval->bvars_main_int_vc.push_back(&ubvar)
+  );
 
   dt1_.NewAthenaArray(mbi.nn1);
   dt2_.NewAthenaArray(mbi.nn2);

@@ -232,7 +232,12 @@ public:
 
 
   // boundary and grid data
-  VertexCenteredBoundaryVariable ubvar;
+  FCN_CC_CX_VC(
+    CellCenteredBoundaryVariable ubvar,
+    CellCenteredXBoundaryVariable ubvar,
+    VertexCenteredBoundaryVariable ubvar
+  );
+
   AthenaArray<Real> empty_flux[3];
 
   // storage for SMR/AMR

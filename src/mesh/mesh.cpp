@@ -2047,7 +2047,13 @@ void Mesh::ReserveMeshBlockPhysIDs() {
   }
 
   if (Z4C_ENABLED) {
-    ReserveTagPhysIDs(VertexCenteredBoundaryVariable::max_phys_id);
+    #if defined(Z4C_CC_ENABLED)
+      ReserveTagPhysIDs(CellCenteredBoundaryVariable::max_phys_id);
+    #elif defined(Z4C_CX_ENABLED)
+      ReserveTagPhysIDs(CellCenteredXBoundaryVariable::max_phys_id);
+    #else // VC
+      ReserveTagPhysIDs(VertexCenteredBoundaryVariable::max_phys_id);
+    #endif
   }
 
 #endif

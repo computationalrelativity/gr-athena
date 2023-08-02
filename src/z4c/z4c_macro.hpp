@@ -12,22 +12,34 @@
 // BD: usage needs cleanup elsewhere
 
 #if defined(Z4C_CC_ENABLED)
-  #define SW_CC_CX_VC(a, b, c) \
+  #define SW_CC_CX_VC(a, b, c)                                                 \
     a
 #elif defined(Z4C_CX_ENABLED)
-  #define SW_CC_CX_VC(a, b, c) \
+  #define SW_CC_CX_VC(a, b, c)                                                 \
     b
 #else
-  #define SW_CC_CX_VC(a, b, c) \
+  #define SW_CC_CX_VC(a, b, c)                                                 \
     c
 #endif
 
 #if defined(Z4C_CC_ENABLED) || defined(Z4C_CX_ENABLED)
-  #define SW_CCX_VC(a, b) \
+  #define SW_CCX_VC(a, b)                                                      \
     a
 #else
-  #define SW_CCX_VC(a, b) \
+  #define SW_CCX_VC(a, b)                                                      \
     b
+#endif
+
+// BD: allow replacement slots with function-like specification
+#if defined(Z4C_CC_ENABLED)
+  #define FCN_CC_CX_VC(A, B, C) \
+    A
+#elif defined(Z4C_CX_ENABLED)
+  #define FCN_CC_CX_VC(A, B, C) \
+    B
+#else
+  #define FCN_CC_CX_VC(A, B, C) \
+    C
 #endif
 
 // BD: derive from mbi (f1,f2,f3) _or_ fix as 3 (Manifold dimension) ?

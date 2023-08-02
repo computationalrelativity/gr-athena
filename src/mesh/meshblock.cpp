@@ -165,7 +165,13 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
         pwave_extr_loc.push_back(new WaveExtractLocal(this->pmy_mesh->pwave_extr[n]->psphere, this, pin, n));
       }
     }
-    pbval->AdvanceCounterPhysID(VertexCenteredBoundaryVariable::max_phys_id);
+    #if defined(Z4C_CC_ENABLED)
+      pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
+    #elif defined(Z4C_CX_ENABLED)
+      pbval->AdvanceCounterPhysID(CellCenteredXBoundaryVariable::max_phys_id);
+    #else // VC
+      pbval->AdvanceCounterPhysID(VertexCenteredBoundaryVariable::max_phys_id);
+    #endif
   }
 
   // KGF: suboptimal solution, since developer must copy/paste BoundaryVariable derived
@@ -287,7 +293,13 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
         pwave_extr_loc.push_back(new WaveExtractLocal(this->pmy_mesh->pwave_extr[n]->psphere, this, pin, n));
       }
     }
-    pbval->AdvanceCounterPhysID(VertexCenteredBoundaryVariable::max_phys_id);
+    #if defined(Z4C_CC_ENABLED)
+      pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
+    #elif defined(Z4C_CX_ENABLED)
+      pbval->AdvanceCounterPhysID(CellCenteredXBoundaryVariable::max_phys_id);
+    #else // VC
+      pbval->AdvanceCounterPhysID(VertexCenteredBoundaryVariable::max_phys_id);
+    #endif
   }
 
   if (FLUID_ENABLED) {

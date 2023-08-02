@@ -19,6 +19,7 @@
 #include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
 #include "../z4c/z4c.hpp"
+#include "../z4c/z4c_macro.hpp"
 #include "../z4c/wave_extract.hpp"
 #if CCE_ENABLED
 #include "../z4c/cce/cce.hpp"
@@ -461,7 +462,11 @@ void Z4cIntegratorTaskList::StartupTaskList(MeshBlock *pmb, int stage) {
   // Scaled coefficient for RHS time-advance within stage
   Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
 
-  pbval->ApplyPhysicalVertexCenteredBoundaries(t_end_stage, dt);
+  FCN_CC_CX_VC(
+    pbval->ApplyPhysicalBoundaries,
+    pbval->ApplyPhysicalCellCenteredXBoundaries,
+    pbval->ApplyPhysicalVertexCenteredBoundaries
+  )(t_end_stage, dt);
 
   if (stage == 1) {
     // For each Meshblock, initialize time abscissae of each memory register pair (u,b)
@@ -625,7 +630,11 @@ TaskStatus Z4cIntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int stage) {
     // Scaled coefficient for RHS time-advance within stage
     Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
 
-    pbval->ApplyPhysicalVertexCenteredBoundaries(t_end_stage, dt);
+    FCN_CC_CX_VC(
+      pbval->ApplyPhysicalBoundaries,
+      pbval->ApplyPhysicalCellCenteredXBoundaries,
+      pbval->ApplyPhysicalVertexCenteredBoundaries
+    )(t_end_stage, dt);
 
   } else {
     return TaskStatus::fail;

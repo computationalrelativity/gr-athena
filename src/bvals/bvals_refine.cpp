@@ -101,8 +101,10 @@ void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt) {
   }
 
   if (Z4C_ENABLED) {
-    pz4c = pmb->pz4c;
-    pz4c->ubvar.var_vc = &(pz4c->coarse_u_);
+    #if defined(Z4C_VC_ENABLED)
+      pz4c = pmb->pz4c;
+      pz4c->ubvar.var_vc = &(pz4c->coarse_u_);
+    #endif
   }
 
   ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(time, dt);
@@ -113,7 +115,9 @@ void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt) {
   }
 
   if (Z4C_ENABLED) {
-    pz4c->ubvar.var_vc = &(pz4c->storage.u);
+    #if defined(Z4C_VC_ENABLED)
+      pz4c->ubvar.var_vc = &(pz4c->storage.u);
+    #endif
   }
 
   // Prolongate
@@ -128,11 +132,24 @@ void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt) {
     pw->ubvar_cx.var_cx = &(pw->coarse_u_);
   }
 
+  if (Z4C_ENABLED) {
+    #if defined(Z4C_CX_ENABLED)
+      pz4c = pmb->pz4c;
+      pz4c->ubvar.var_cx = &(pz4c->coarse_u_);
+    #endif
+  }
+
   ApplyPhysicalCellCenteredXBoundariesOnCoarseLevel(time, dt);
 
   // switch back
   if (WAVE_ENABLED && WAVE_CX_ENABLED) {
     pw->ubvar_cx.var_cx = &(pw->u);
+  }
+
+  if (Z4C_ENABLED) {
+    #if defined(Z4C_CX_ENABLED)
+      pz4c->ubvar.var_cx = &(pz4c->storage.u);
+    #endif
   }
 
   // Prolongate
