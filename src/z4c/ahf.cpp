@@ -21,8 +21,6 @@
 #define DEBUG_OUTPUT 0 
 
 #include "ahf.hpp"
-#include "z4c.hpp"
-#include "z4c_macro.hpp"
 #include "../globals.hpp"
 #include "../parameter_input.hpp"
 #include "../mesh/mesh.hpp"
@@ -617,22 +615,22 @@ void AHF::SurfaceIntegrals()
       // -----------------------
       
       // Determinant of 3-metric
-      Real detg = SpatialDet(g(0,0,i,j), g(0,1,i,j), g(0,2,i,j),
-			     g(1,1,i,j), g(1,2,i,j), g(2,2,i,j));
+      Real detg = Z4c::SpatialDet(g(0,0,i,j), g(0,1,i,j), g(0,2,i,j),
+		                  g(1,1,i,j), g(1,2,i,j), g(2,2,i,j));
 
       // Inverse metric
-      SpatialInv(1.0/detg,
-		  g(0,0,i,j), g(0,1,i,j),  g(0,2,i,j),
-		  g(1,1,i,j), g(1,2,i,j),  g(2,2,i,j),
-		  &ginv(0,0), &ginv(0,1),  &ginv(0,2),
-		  &ginv(1,1), &ginv(1,2) , &ginv(2,2) );
+      Z4c::SpatialInv(1.0/detg,
+                      g(0,0,i,j), g(0,1,i,j),  g(0,2,i,j),
+                      g(1,1,i,j), g(1,2,i,j),  g(2,2,i,j),
+                      &ginv(0,0), &ginv(0,1),  &ginv(0,2),
+                      &ginv(1,1), &ginv(1,2) , &ginv(2,2));
       
       // Trace of K
-      Real TrK = Trace(1.0/detg,
-		       g(0,0,i,j), g(0,1,i,j), g(0,2,i,j),
-		       g(1,1,i,j), g(1,2,i,j), g(2,2,i,j),
-		       K(0,0,i,j), K(0,1,i,j), K(0,2,i,j),
-		       K(1,1,i,j), K(1,2,i,j), K(2,2,i,j));
+      Real TrK = Z4c::Trace(1.0/detg,
+		 g(0,0,i,j), g(0,1,i,j), g(0,2,i,j),
+		 g(1,1,i,j), g(1,2,i,j), g(2,2,i,j),
+		 K(0,0,i,j), K(0,1,i,j), K(0,2,i,j),
+		 K(1,1,i,j), K(1,2,i,j), K(2,2,i,j));
       
       // Local coordinates of the surface (re-used below)
       Real const xp = rr(i,j) * sinth * cosph;
@@ -651,7 +649,7 @@ void AHF::SurfaceIntegrals()
       }
 
       Real const _divrp = 1.0/rp;
-      Real const _divrp3 = SQ(_divrp)*_divrp;
+      Real const _divrp3 = SQR(_divrp)*_divrp;
       Real const _divrhop = 1.0/rhop;
       
       // First derivatives of (r,theta,phi) with respect to (x,y,z)
@@ -659,12 +657,12 @@ void AHF::SurfaceIntegrals()
       drdi(1) = yp*_divrp;
       drdi(2) = zp*_divrp;
       
-      dthetadi(0) = zp*xp*(SQ(_divrp)*_divrhop);
-      dthetadi(1) = zp*yp*(SQ(_divrp)*_divrhop);
-      dthetadi(2) = -rhop*SQ(_divrp);
+      dthetadi(0) = zp*xp*(SQR(_divrp)*_divrhop);
+      dthetadi(1) = zp*yp*(SQR(_divrp)*_divrhop);
+      dthetadi(2) = -rhop*SQR(_divrp);
       
-      dphidi(0) = -yp*SQ(_divrhop);
-      dphidi(1) = xp*SQ(_divrhop);
+      dphidi(0) = -yp*SQR(_divrhop);
+      dphidi(1) = xp*SQR(_divrhop);
       dphidi(2) = 0.0;
       
       // Second derivatives of (r,theta,phi) with respect to (x,y,z)
@@ -675,17 +673,17 @@ void AHF::SurfaceIntegrals()
       drdidj(1,2) = - yp*zp*_divrp3;
       drdidj(2,2) = _divrp - zp*zp*_divrp3;
       
-      dthetadidj(0,0) = zp*(-2.0*xp*xp*xp*xp-xp*xp*yp*yp+yp*yp*yp*yp+zp*zp*yp*yp)*(SQ(_divrp)*SQ(_divrp)*SQ(_divrhop)*_divrhop);
-      dthetadidj(0,1) = - xp*yp*zp*(3.0*xp*xp+3.0*yp*yp+zp*zp)*(SQ(_divrp)*SQ(_divrp)*SQ(_divrhop)*_divrhop);
-      dthetadidj(0,2) = xp*(xp*xp+yp*yp-zp*zp)*(SQ(_divrp)*(SQ(_divrp)*_divrhop));
-      dthetadidj(1,1) = zp*(-2.0*yp*yp*yp*yp-yp*yp*xp*xp+xp*xp*xp*xp+zp*zp*xp*xp)*(SQ(_divrp)*SQ(_divrp)*SQ(_divrhop)*_divrhop);
-      dthetadidj(1,2) = yp*(xp*xp+yp*yp-zp*zp)*(SQ(_divrp)*(SQ(_divrp)*_divrhop));
+      dthetadidj(0,0) = zp*(-2.0*xp*xp*xp*xp-xp*xp*yp*yp+yp*yp*yp*yp+zp*zp*yp*yp)*(SQR(_divrp)*SQR(_divrp)*SQR(_divrhop)*_divrhop);
+      dthetadidj(0,1) = - xp*yp*zp*(3.0*xp*xp+3.0*yp*yp+zp*zp)*(SQR(_divrp)*SQR(_divrp)*SQR(_divrhop)*_divrhop);
+      dthetadidj(0,2) = xp*(xp*xp+yp*yp-zp*zp)*(SQR(_divrp)*(SQR(_divrp)*_divrhop));
+      dthetadidj(1,1) = zp*(-2.0*yp*yp*yp*yp-yp*yp*xp*xp+xp*xp*xp*xp+zp*zp*xp*xp)*(SQR(_divrp)*SQR(_divrp)*SQR(_divrhop)*_divrhop);
+      dthetadidj(1,2) = yp*(xp*xp+yp*yp-zp*zp)*(SQR(_divrp)*(SQR(_divrp)*_divrhop));
       dthetadidj(2,2) = 2.0*zp*rhop/(rp*rp*rp*rp);
 						
-      dphididj(0,0) = 2.0*yp*xp*(SQ(_divrhop)*SQ(_divrhop));  
-      dphididj(0,1) = (yp*yp-xp*xp)*(SQ(_divrhop)*SQ(_divrhop));  
+      dphididj(0,0) = 2.0*yp*xp*(SQR(_divrhop)*SQR(_divrhop));  
+      dphididj(0,1) = (yp*yp-xp*xp)*(SQR(_divrhop)*SQR(_divrhop));  
       dphididj(0,2) = 0.0;  
-      dphididj(1,1) = - 2.0*yp*xp*(SQ(_divrhop)*SQ(_divrhop));  
+      dphididj(1,1) = - 2.0*yp*xp*(SQR(_divrhop)*SQR(_divrhop));  
       dphididj(1,2) = 0.0;  
       dphididj(2,2) = 0.0;  
       
@@ -924,8 +922,8 @@ void AHF::SurfaceIntegrals()
       Real dw = dthdph * std::sqrt(deth);
       
       integrals[iarea]   += dw;
-      integrals[icoarea] += dthdph * sinth * SQ(rr(i,j));
-      integrals[ihrms]   += dw * SQ(H);
+      integrals[icoarea] += dthdph * sinth * SQR(rr(i,j));
+      integrals[ihrms]   += dw * SQR(H);
       integrals[ihmean]  += dw * H;
       integrals[iSx]     += dw * intSx;
       integrals[iSy]     += dw * intSy;
@@ -1039,6 +1037,7 @@ void AHF::FastFlowLoop()
 
   if (verbose && ioproc) {
     std::cout << "\nSearching for horizon " << nh << std::endl;
+    std::cout << "\nflow_alpha_beta_const = " << flow_alpha_beta_const << std::endl;
     std::cout << "center = ("
 	      << center[0] << ","
 	      << center[1] << ","
@@ -1080,7 +1079,7 @@ void AHF::FastFlowLoop()
     Sy = integrals[iSy]/(8*PI);
     Sz = integrals[iSz]/(8*PI);
 
-    S = std::sqrt(SQ(Sx)+SQ(Sy)+SQ(Sz));
+    S = std::sqrt(SQR(Sx)+SQR(Sy)+SQR(Sz));
 
     meanradius = a0(0)/std::sqrt(4.0*PI);
 
@@ -1128,7 +1127,7 @@ void AHF::FastFlowLoop()
     ah_prop[hSx] = integrals[iSx];
     ah_prop[hSy] = integrals[iSy];
     ah_prop[hSz] = integrals[iSz];
-    ah_prop[hS] = std::sqrt(SQ(ah_prop[hSx]) + SQ(ah_prop[hSy]) + SQ(ah_prop[hSz]));
+    ah_prop[hS] = std::sqrt(SQR(ah_prop[hSx]) + SQR(ah_prop[hSy]) + SQR(ah_prop[hSz]));
     ah_prop[hmass] = mass;
     ah_prop[hmeanradius] = meanradius;
   }
@@ -1521,59 +1520,6 @@ void AHF::factorial_list(Real * fac, const int maxn)
   fac[0] = 1.0;
   for (int i=1; i<=maxn; ++i)
     fac[i] = fac[i-1]*i;
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn Real AHF::SpatialDet(Real gxx, ... , Real gzz)
-// \brief returns determinant of 3-metric
-// Taken from class Z4c 
-
-Real AHF::SpatialDet(Real const gxx, Real const gxy, Real const gxz,
-                     Real const gyy, Real const gyz, Real const gzz)
-{
-  return - SQR(gxz)*gyy + 2*gxy*gxz*gyz - gxx*SQR(gyz) - SQR(gxy)*gzz + gxx*gyy*gzz;
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn void AHF::SpatialInv(Real const detginv,
-//           Real const gxx, Real const gxy, Real const gxz,
-//           Real const gyy, Real const gyz, Real const gzz,
-//           Real * uxx, Real * uxy, Real * uxz,
-//           Real * uyy, Real * uyz, Real * uzz)
-// \brief returns inverse of 3-metric
-// Taken from class Z4c
-
-void AHF::SpatialInv(Real const detginv,
-                     Real const gxx, Real const gxy, Real const gxz,
-                     Real const gyy, Real const gyz, Real const gzz,
-                     Real * uxx, Real * uxy, Real * uxz,
-                     Real * uyy, Real * uyz, Real * uzz)
-{
-  *uxx = (-SQR(gyz) + gyy*gzz)*detginv;
-  *uxy = (gxz*gyz  - gxy*gzz)*detginv;
-  *uyy = (-SQR(gxz) + gxx*gzz)*detginv;
-  *uxz = (-gxz*gyy + gxy*gyz)*detginv;
-  *uyz = (gxy*gxz  - gxx*gyz)*detginv;
-  *uzz = (-SQR(gxy) + gxx*gyy)*detginv;
-  return;
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn Real AHF::Trace(Real detginv, Real gxx, ... , Real gzz, Real Axx, ..., Real Azz)
-// \brief returns Trace of extrinsic curvature
-// Taken from class Z4c
-
-Real AHF::Trace(Real const detginv,
-                Real const gxx, Real const gxy, Real const gxz,
-                Real const gyy, Real const gyz, Real const gzz,
-                Real const Axx, Real const Axy, Real const Axz,
-                Real const Ayy, Real const Ayz, Real const Azz)
-{
-  return (detginv*(
-       - 2.*Ayz*gxx*gyz + Axx*gyy*gzz +  gxx*(Azz*gyy + Ayy*gzz)
-       + 2.*(gxz*(Ayz*gxy - Axz*gyy + Axy*gyz) + gxy*(Axz*gyz - Axy*gzz))
-       - Azz*SQR(gxy) - Ayy*SQR(gxz) - Axx*SQR(gyz)
-       ));
 }
 
 //----------------------------------------------------------------------------------------
