@@ -56,18 +56,38 @@ char const * const Z4c::Weyl_names[Z4c::N_WEY] = {
 };
 
 Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
+  pmy_mesh(pmb->pmy_mesh),
   pmy_block(pmb),
-  coarse_u_(N_Z4c, pmb->ncv3, pmb->ncv2, pmb->ncv1,
-            (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
+  mbi{
+    1, pmy_mesh->f2, pmy_mesh->f3,                         // f1, f2, f3
+    SW_CC_CX_VC(pmb->is, pmb->cx_is, pmb->ivs),            // il
+    SW_CC_CX_VC(pmb->ie, pmb->cx_ie, pmb->ive),            // iu
+    SW_CC_CX_VC(pmb->js, pmb->cx_js, pmb->jvs),            // jl
+    SW_CC_CX_VC(pmb->je, pmb->cx_je, pmb->jve),            // ju
+    SW_CC_CX_VC(pmb->ks, pmb->cx_ks, pmb->kvs),            // kl
+    SW_CC_CX_VC(pmb->ke, pmb->cx_ke, pmb->kve),            // ku
+    SW_CC_CX_VC(pmb->ncells1, pmb->ncells1, pmb->nverts1), // nn1
+    SW_CC_CX_VC(pmb->ncells2, pmb->ncells2, pmb->nverts2), // nn2
+    SW_CC_CX_VC(pmb->ncells3, pmb->ncells3, pmb->nverts3), // nn3
+    SW_CC_CX_VC(pmb->ncc1, pmb->cx_ncc1, pmb->ncv1),       // cnn1
+    SW_CC_CX_VC(pmb->ncc2, pmb->cx_ncc2, pmb->ncv2),       // cnn2
+    SW_CC_CX_VC(pmb->ncc3, pmb->cx_ncc3, pmb->ncv3),       // cnn3
+    NGHOST,                                                // ng
+    SW_CC_CX_VC(NCGHOST, NCGHOST_CX, NCGHOST),             // cng
+    (pmy_mesh->f3) ? 3 : (pmy_mesh->f2) ? 2 : 1            // ndim
+  },
+  coarse_u_(N_Z4c, mbi.cnn3, mbi.cnn2, mbi.cnn1,
+            (pmb->pmy_mesh->multilevel ?
+             AthenaArray<Real>::DataStatus::allocated :
              AthenaArray<Real>::DataStatus::empty)),
-  storage{{N_Z4c, pmb->nverts3, pmb->nverts2, pmb->nverts1}, // u
-          {N_Z4c, pmb->nverts3, pmb->nverts2, pmb->nverts1}, // u1
-          {},                                                // u2
-          {N_Z4c, pmb->nverts3, pmb->nverts2, pmb->nverts1}, // rhs
-          {N_ADM, pmb->nverts3, pmb->nverts2, pmb->nverts1}, // adm
-          {N_CON, pmb->nverts3, pmb->nverts2, pmb->nverts1}, // con
-          {N_MAT, pmb->nverts3, pmb->nverts2, pmb->nverts1}, // mat
-          {N_WEY, pmb->nverts3, pmb->nverts2, pmb->nverts1}, // weyl
+  storage{{N_Z4c, mbi.nn3, mbi.nn2, mbi.nn1},              // u
+          {N_Z4c, mbi.nn3, mbi.nn2, mbi.nn1},              // u1
+          {},                                              // u2
+          {N_Z4c, mbi.nn3, mbi.nn2, mbi.nn1},              // rhs
+          {N_ADM, mbi.nn3, mbi.nn2, mbi.nn1},              // adm
+          {N_CON, mbi.nn3, mbi.nn2, mbi.nn1},              // con
+          {N_MAT, mbi.nn3, mbi.nn2, mbi.nn1},              // mat
+          {N_WEY, mbi.nn3, mbi.nn2, mbi.nn1},              // weyl
   },
   empty_flux{AthenaArray<Real>(), AthenaArray<Real>(), AthenaArray<Real>()},
   ubvar(pmb, &storage.u, &coarse_u_, empty_flux),
@@ -76,6 +96,11 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
 {
   Mesh *pm = pmy_block->pmy_mesh;
   Coordinates * pco = pmb->pcoord;
+
+  //---------------------------------------------------------------------------
+  // set up sampling
+  //---------------------------------------------------------------------------
+
 
   //---------------------------------------------------------------------------
 
@@ -93,16 +118,16 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   // If user-requested time integrator is type 3S* allocate additional memory
   std::string integrator = pin->GetOrAddString("time", "integrator", "vl2");
   if (integrator == "ssprk5_4")
-    storage.u2.NewAthenaArray(N_Z4c, pmb->nverts3, pmb->nverts2, pmb->nverts1);
+    storage.u2.NewAthenaArray(N_Z4c, mbi.nn3, mbi.nn2, mbi.nn1);
 
   // enroll CellCenteredBoundaryVariable / VertexCenteredBoundaryVariable object
   ubvar.bvar_index = pmb->pbval->bvars.size();
   pmb->pbval->bvars.push_back(&ubvar);
   pmb->pbval->bvars_main_int_vc.push_back(&ubvar);
 
-  dt1_.NewAthenaArray(pmb->nverts1);
-  dt2_.NewAthenaArray(pmb->nverts1);
-  dt3_.NewAthenaArray(pmb->nverts1);
+  dt1_.NewAthenaArray(mbi.nn1);
+  dt2_.NewAthenaArray(mbi.nn2);
+  dt3_.NewAthenaArray(mbi.nn3);
 
   // BD: TODO shift defaults to header [C++11 so can use def. declaration]..
   // Parameters
@@ -186,82 +211,82 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   SetZ4cAliases(storage.u, z4c);
   SetWeylAliases(storage.weyl, weyl);
   // Allocate memory for aux 1D vars
-  r.NewAthenaTensor(pmb->nverts1);
-  detg.NewAthenaTensor(pmb->nverts1);
-  chi_guarded.NewAthenaTensor(pmb->nverts1);
-  oopsi4.NewAthenaTensor(pmb->nverts1);
-  A.NewAthenaTensor(pmb->nverts1);
-  AA.NewAthenaTensor(pmb->nverts1);
-  R.NewAthenaTensor(pmb->nverts1);
-  Ht.NewAthenaTensor(pmb->nverts1);
-  K.NewAthenaTensor(pmb->nverts1);
-  KK.NewAthenaTensor(pmb->nverts1);
-  Ddalpha.NewAthenaTensor(pmb->nverts1);
-  S.NewAthenaTensor(pmb->nverts1);
-  M_u.NewAthenaTensor(pmb->nverts1);
-  Gamma_u.NewAthenaTensor(pmb->nverts1);
-  DA_u.NewAthenaTensor(pmb->nverts1);
-  s_u.NewAthenaTensor(pmb->nverts1);
-  g_uu.NewAthenaTensor(pmb->nverts1);
-  A_uu.NewAthenaTensor(pmb->nverts1);
-  AA_dd.NewAthenaTensor(pmb->nverts1);
-  R_dd.NewAthenaTensor(pmb->nverts1);
-  Rphi_dd.NewAthenaTensor(pmb->nverts1);
-  Kt_dd.NewAthenaTensor(pmb->nverts1);
-  K_ud.NewAthenaTensor(pmb->nverts1);
-  Ddalpha_dd.NewAthenaTensor(pmb->nverts1);
-  Ddphi_dd.NewAthenaTensor(pmb->nverts1);
-  Gamma_ddd.NewAthenaTensor(pmb->nverts1);
-  Gamma_udd.NewAthenaTensor(pmb->nverts1);
-  DK_ddd.NewAthenaTensor(pmb->nverts1);
-  DK_udd.NewAthenaTensor(pmb->nverts1);
+  r.NewAthenaTensor(mbi.nn1);
+  detg.NewAthenaTensor(mbi.nn1);
+  chi_guarded.NewAthenaTensor(mbi.nn1);
+  oopsi4.NewAthenaTensor(mbi.nn1);
+  A.NewAthenaTensor(mbi.nn1);
+  AA.NewAthenaTensor(mbi.nn1);
+  R.NewAthenaTensor(mbi.nn1);
+  Ht.NewAthenaTensor(mbi.nn1);
+  K.NewAthenaTensor(mbi.nn1);
+  KK.NewAthenaTensor(mbi.nn1);
+  Ddalpha.NewAthenaTensor(mbi.nn1);
+  S.NewAthenaTensor(mbi.nn1);
+  M_u.NewAthenaTensor(mbi.nn1);
+  Gamma_u.NewAthenaTensor(mbi.nn1);
+  DA_u.NewAthenaTensor(mbi.nn1);
+  s_u.NewAthenaTensor(mbi.nn1);
+  g_uu.NewAthenaTensor(mbi.nn1);
+  A_uu.NewAthenaTensor(mbi.nn1);
+  AA_dd.NewAthenaTensor(mbi.nn1);
+  R_dd.NewAthenaTensor(mbi.nn1);
+  Rphi_dd.NewAthenaTensor(mbi.nn1);
+  Kt_dd.NewAthenaTensor(mbi.nn1);
+  K_ud.NewAthenaTensor(mbi.nn1);
+  Ddalpha_dd.NewAthenaTensor(mbi.nn1);
+  Ddphi_dd.NewAthenaTensor(mbi.nn1);
+  Gamma_ddd.NewAthenaTensor(mbi.nn1);
+  Gamma_udd.NewAthenaTensor(mbi.nn1);
+  DK_ddd.NewAthenaTensor(mbi.nn1);
+  DK_udd.NewAthenaTensor(mbi.nn1);
 
 #if defined(Z4C_ETA_CONF) || defined(Z4C_ETA_TRACK_TP)
-  eta_damp.NewAthenaTensor(pmb->nverts1);
+  eta_damp.NewAthenaTensor(mbi.nn1);
 #endif // Z4C_ETA_CONF, Z4C_ETA_TRACK_TP
 
-  dbeta.NewAthenaTensor(pmb->nverts1);
-  dalpha_d.NewAthenaTensor(pmb->nverts1);
-  ddbeta_d.NewAthenaTensor(pmb->nverts1);
-  dchi_d.NewAthenaTensor(pmb->nverts1);
-  dphi_d.NewAthenaTensor(pmb->nverts1);
-  dK_d.NewAthenaTensor(pmb->nverts1);
-  dKhat_d.NewAthenaTensor(pmb->nverts1);
-  dTheta_d.NewAthenaTensor(pmb->nverts1);
-  ddalpha_dd.NewAthenaTensor(pmb->nverts1);
-  dbeta_du.NewAthenaTensor(pmb->nverts1);
-  ddchi_dd.NewAthenaTensor(pmb->nverts1);
-  dGam_du.NewAthenaTensor(pmb->nverts1);
-  dg_ddd.NewAthenaTensor(pmb->nverts1);
-  dK_ddd.NewAthenaTensor(pmb->nverts1);
-  dA_ddd.NewAthenaTensor(pmb->nverts1);
-  ddbeta_ddu.NewAthenaTensor(pmb->nverts1);
-  ddg_dddd.NewAthenaTensor(pmb->nverts1);
+  dbeta.NewAthenaTensor(mbi.nn1);
+  dalpha_d.NewAthenaTensor(mbi.nn1);
+  ddbeta_d.NewAthenaTensor(mbi.nn1);
+  dchi_d.NewAthenaTensor(mbi.nn1);
+  dphi_d.NewAthenaTensor(mbi.nn1);
+  dK_d.NewAthenaTensor(mbi.nn1);
+  dKhat_d.NewAthenaTensor(mbi.nn1);
+  dTheta_d.NewAthenaTensor(mbi.nn1);
+  ddalpha_dd.NewAthenaTensor(mbi.nn1);
+  dbeta_du.NewAthenaTensor(mbi.nn1);
+  ddchi_dd.NewAthenaTensor(mbi.nn1);
+  dGam_du.NewAthenaTensor(mbi.nn1);
+  dg_ddd.NewAthenaTensor(mbi.nn1);
+  dK_ddd.NewAthenaTensor(mbi.nn1);
+  dA_ddd.NewAthenaTensor(mbi.nn1);
+  ddbeta_ddu.NewAthenaTensor(mbi.nn1);
+  ddg_dddd.NewAthenaTensor(mbi.nn1);
 
-  Lchi.NewAthenaTensor(pmb->nverts1);
-  LKhat.NewAthenaTensor(pmb->nverts1);
-  LTheta.NewAthenaTensor(pmb->nverts1);
-  Lalpha.NewAthenaTensor(pmb->nverts1);
-  LGam_u.NewAthenaTensor(pmb->nverts1);
-  Lbeta_u.NewAthenaTensor(pmb->nverts1);
-  Lg_dd.NewAthenaTensor(pmb->nverts1);
-  LA_dd.NewAthenaTensor(pmb->nverts1);
+  Lchi.NewAthenaTensor(mbi.nn1);
+  LKhat.NewAthenaTensor(mbi.nn1);
+  LTheta.NewAthenaTensor(mbi.nn1);
+  Lalpha.NewAthenaTensor(mbi.nn1);
+  LGam_u.NewAthenaTensor(mbi.nn1);
+  Lbeta_u.NewAthenaTensor(mbi.nn1);
+  Lg_dd.NewAthenaTensor(mbi.nn1);
+  LA_dd.NewAthenaTensor(mbi.nn1);
 
-  uvec.NewAthenaTensor(pmb->nverts1);
-  vvec.NewAthenaTensor(pmb->nverts1);
-  wvec.NewAthenaTensor(pmb->nverts1);
-  dotp1.NewAthenaTensor(pmb->nverts1);
-  dotp2.NewAthenaTensor(pmb->nverts1);
-  Riem3_dddd.NewAthenaTensor(pmb->nverts1);
-  Riemm4_dddd.NewAthenaTensor(pmb->nverts1);
-  Riemm4_ddd.NewAthenaTensor(pmb->nverts1);
-  Riemm4_dd.NewAthenaTensor(pmb->nverts1);
+  uvec.NewAthenaTensor(mbi.nn1);
+  vvec.NewAthenaTensor(mbi.nn1);
+  wvec.NewAthenaTensor(mbi.nn1);
+  dotp1.NewAthenaTensor(mbi.nn1);
+  dotp2.NewAthenaTensor(mbi.nn1);
+  Riem3_dddd.NewAthenaTensor(mbi.nn1);
+  Riemm4_dddd.NewAthenaTensor(mbi.nn1);
+  Riemm4_ddd.NewAthenaTensor(mbi.nn1);
+  Riemm4_dd.NewAthenaTensor(mbi.nn1);
 
   // Set up finite difference operators
   Real dx1, dx2, dx3;
-  auto nn1 = pmb->nverts1;
-  auto nn2 = pmb->nverts2;
-  auto nn3 = pmb->nverts3;
+  int nn1 = mbi.nn1;
+  int nn2 = mbi.nn2;
+  int nn3 = mbi.nn3;
   dx1 = pco->dx1f(0); dx2 = pco->dx2f(0); dx3 = pco->dx3f(0);
 
   FD.diss = opt.diss*pow(2, -2*NGHOST)*(NGHOST % 2 == 0 ? -1 : 1);

@@ -53,6 +53,13 @@
 #   -rpath              encode the path to the shared libraries into the executable
 #   -link_gold          use gold linker
 #
+# z4c settings:
+#
+#   -z                  enable z4c system
+#   -z_cc               use cell-centered            sampling
+#   -z_cx               use cell-centered (extended) sampling
+#   -z_vc               use vertex-centered          sampling  (DEFAULT)
+#
 # wave equation tests:
 #
 #   -w                  enable wave equation system
@@ -185,6 +192,22 @@ parser.add_argument("-z",
                     action='store_true',
                     default=False,
                     help='enable Z4c system')
+
+parser.add_argument("-z_cc",
+                    action='store_true',
+                    default=False,
+                    help='enable Z4c system: cc sampling')
+
+parser.add_argument("-z_cx",
+                    action='store_true',
+                    default=False,
+                    help='enable Z4c system: cx sampling')
+
+parser.add_argument("-z_vc",
+                    action='store_true',
+                    default=True,
+                    help='enable Z4c system: vc sampling')
+
 
 # -z_eta_track_tp argument
 parser.add_argument("-z_eta_track_tp",
@@ -628,8 +651,27 @@ if args['z']:
   except:
       raise SystemExit("### CONFIGURE ERROR: Z4c requires 2 or more ghost zones")
 
+  # default is VC
+  definitions['Z4C_CX_ENABLED'] = 'NO_Z4C_CX_ENABLED'
+  definitions['Z4C_CC_ENABLED'] = 'NO_Z4C_CC_ENABLED'
+  definitions['Z4C_VC_ENABLED'] = 'Z4C_VC_ENABLED'
+
+  if args['w_cc']:
+    definitions['Z4C_CX_ENABLED'] = 'NO_Z4C_CX_ENABLED'
+    definitions['Z4C_CC_ENABLED'] = 'Z4C_CC_ENABLED'
+    definitions['Z4C_VC_ENABLED'] = 'NO_Z4C_VC_ENABLED'
+
+  if args['w_cx']:
+    definitions['Z4C_CX_ENABLED'] = 'Z4C_CX_ENABLED'
+    definitions['Z4C_CC_ENABLED'] = 'NO_Z4C_CC_ENABLED'
+    definitions['Z4C_VC_ENABLED'] = 'NO_Z4C_VC_ENABLED'
+
+
 else:
   definitions['Z4C_ENABLED'] = '0'
+  definitions['Z4C_CX_ENABLED'] = 'NO_Z4C_CX_ENABLED'
+  definitions['Z4C_CC_ENABLED'] = 'NO_Z4C_CC_ENABLED'
+  definitions['Z4C_VC_ENABLED'] = 'NO_Z4C_VC_ENABLED'
 
 # -z_eta_track_tp argument
 ERR_MUL_ETA_STR = "### CONFIGURE ERROR: select at most ONE of {z_eta_track_tp, z_eta_conf}"
@@ -1146,6 +1188,11 @@ print('  Number of scalars:            ' + args['nscalars'])
 print('  Special relativity:           ' + ('ON' if args['s'] else 'OFF'))
 print('  General relativity:           ' + ('ON' if args['g'] else 'OFF'))
 print('  Z4c equations:                ' + ('ON' if args['z'] else 'OFF'))
+if args['z']:
+    print('  z_cc:                         ' + ('ON' if args['z_cc'] else 'OFF'))
+    print('  z_cx:                         ' + ('ON' if args['z_cx'] else 'OFF'))
+    print('  z_vc:                         ' + ('ON' if args['z_vc'] else 'OFF'))
+
 if args['z']:
     print('  Z4c shift damping:            ' + self_eta_damp_string)
     print('  Z4c refinement strategy:      ' + ('box-in-box' if args['ref_box_in_box']

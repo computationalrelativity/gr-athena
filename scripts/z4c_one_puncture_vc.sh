@@ -8,26 +8,34 @@ export FN=$(readlink -f "$0"); export DIR_SCRIPTS=$(dirname "${FN}")
 
 ###############################################################################
 # configure here
-export RUN_NAME=one_puncture
+export RUN_NAME=one_puncture_vc
 export BIN_NAME=z4c
-export REL_OUTPUT=outputs/z4c_c
+export REL_OUTPUT=outputs/z4c_vc
 export REL_INPUT=scripts/problems
 export INPUT_NAME=z4c_one_puncture.inp
 
 # if compilation is chosen
-export DIR_USR=${soft}/usr                            # local lib. installation
-export DIR_HDF5=/mnt/nimbus/_Installed/spack/spack/opt/spack/linux-manjaro21-zen3/gcc-12.1.0/hdf5-1.13.0-xx7sxzzknfj2n364l63xftbltftjvz5g
-export COMPILE_STR="--prob=z4c_one_puncture -z
-                    --cxx g++ -omp -debug
-                    --nghost=2"
+export DIR_HDF5=$(spack location -i hdf5)
+
+export COMPILE_STR="--prob=z4c_one_puncture
+                    -z -z_vc
+                    --cxx g++ -debug
+                    --nghost=2
+                    --ncghost=2
+                    --ncghost_cx=2
+                    --nextrapolate=4"
 
 # apply caching compiler together with gold linker
 export COMPILE_STR="${COMPILE_STR} -ccache -link_gold"
 
 # hdf5 compile str
-export COMPILE_STR="${COMPILE_STR} -hdf5 -h5double --hdf5_path=${DIR_HDF5}"
+export COMPILE_STR="${COMPILE_STR} -hdf5 -h5double"
+export COMPILE_STR="${COMPILE_STR} --lib_path=${DIR_HDF5}/lib"
+export COMPILE_STR="${COMPILE_STR} --include=${DIR_HDF5}/include"
 ###############################################################################
 
+echo "COMPILE_STR"
+echo ${COMPILE_STR}
 
 ###############################################################################
 # ensure paths are adjusted and directory structure exists
@@ -52,8 +60,9 @@ source ${DIR_SCRIPTS}/utils/dump_info.sh
 
 ###############################################################################
 # execute
-source utils/exec.sh
+# source utils/exec.sh
 ###############################################################################
 
+# tail -n5 ${DIR_OUTPUT}/one_puncture.hst
 
 # >:D

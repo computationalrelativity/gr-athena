@@ -17,35 +17,35 @@ damp_kappa2     = 0.01      # Constraint damping factor 2
 punc_ADM_mass    = 1.0
 
 <output1>
+file_type       = hst       # History data
+dt              = 0.1      # time increment between outputs
+data_format     = %.16e
+
+<output2>
 file_type       = hdf5                 # Athena++ hdf5 data
 variable        = z4c                  # variables to be output
 dt              = 1                  # time increment between outputs
 data_format     = %.16e
 
-<output2>
+<output3>
 file_type       = hdf5                 # Athena++ hdf5 data
 variable        = adm                  # variables to be output
 dt              = 0.1                  # time increment between outputs
 data_format     = %.16e
 
-<output3>
+<output4>
 file_type       = hdf5                 # Athena++ hdf5 data
 variable        = con                  # variables to be output
 dt              = 1                  # time increment between outputs
 data_format     = %.16e
 
-<output4>
-file_type       = hst       # History data
-dt              = 0.1      # time increment between outputs
-data_format     = %.16e
-
 <time>
-cfl_number      = 0.25                 # The Courant, Friedrichs, & Lewy (CFL) number
+cfl_number      = 0.2                 # The Courant, Friedrichs, & Lewy (CFL) number
 tlim            = 0.002                   # time limit
 integrator      = rk4                  # time integrator
 
 <mesh>
-refinement      = static               # Static mesh refinement
+refinement      = none               # Static mesh refinement
 numlevel = 1
 nx1             = 64                    # Number of zones in X1-direction
 x1min           = -2                  # minimum value of X1
@@ -66,11 +66,13 @@ ix3_bc          = extrapolate_outflow  # inner-X3 boundary flag
 ox3_bc          = extrapolate_outflow  # inner-X3 boundary flag
 
 num_threads = 2                      # Number of OpenMP threads per process
+numlevel = 5  # <refinement> level + 1
+
 
 <meshblock>
-nx1             = 32
-nx2             = 32
-nx3             = 32
+nx1             = 16
+nx2             = 16
+nx3             = 16
 
 <refinement1>
 x1min           = -1

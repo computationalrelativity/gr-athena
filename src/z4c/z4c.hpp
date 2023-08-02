@@ -40,9 +40,6 @@ class MeshBlock;
 class ParameterInput;
 class Z4c_AMR;
 
-// Indexes for variables in AthenaArray
-#define NDIM (3) // Manifold dimension
-
 //! \class Z4c
 //  \brief Z4c data and functions
 class Z4c {
@@ -103,8 +100,26 @@ public:
   Z4c(MeshBlock *pmb, ParameterInput *pin);
   ~Z4c();
 
+  Mesh *pmy_mesh;            // pointer to Mesh containing MeshBlock
   MeshBlock * pmy_block;     // pointer to MeshBlock containing this Z4c
   Z4c_AMR *pz4c_amr;         // pointer to Z4c_AMR for the refinement condition
+
+  // Switching of sampling and cleaner Z4c macro
+  struct MB_info {
+    int f1, f2, f3;                       // dimensionality flags
+    int il, iu, jl, ju, kl, ku;           // local block iter.
+    int nn1, nn2, nn3;                    // total number of nodes (w. ghosts)
+    int cnn1, cnn2, cnn3;                 // coarse analogue ^
+    int ng, cng;                          // number of ghosts
+
+    // AthenaArray<Real> x1, x2, x3;      // for CC / VC grid switch
+    // AthenaArray<Real> cx1, cx2, cx3;   // for CC / VC grid switch (coarse)
+
+    int ndim;
+  };
+
+  MB_info mbi;
+
   // public data storage
   struct {
     AthenaArray<Real> u;     // solution of Z4c evolution system

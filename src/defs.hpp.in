@@ -79,6 +79,12 @@
 #define WAVE_CX_ENABLED @WAVE_CX_ENABLED@
 #define WAVE_VC_ENABLED @WAVE_VC_ENABLED@
 
+// z4c equation sampling
+#define @Z4C_CC_ENABLED@
+#define @Z4C_CX_ENABLED@
+#define @Z4C_VC_ENABLED@
+
+
 // enable GR frame transformations? default=0 (false)
 #define FRAME_TRANSFORMATIONS @FRAME_TRANSFORMATIONS@
 
