@@ -303,7 +303,7 @@ void VertexCenteredBoundaryVariable::SetBoundarySameLevel(Real *buf,
 
   //////////////////////////////////////////////////////////////////////////////
   // BD: debug - populate based on solution
-  if (FILL_WAVE_BND_SL) {
+#if FILL_WAVE_BND_SL
     // populate only faces [only one oxi is non-zero]
     // if (std::abs(nb.ni.ox1) + std::abs(nb.ni.ox2) + std::abs(nb.ni.ox3) == 1) {
     //pmb->DebugWaveMeshBlock(var, si, ei, sj, ej, sk, ek, true);
@@ -324,12 +324,12 @@ void VertexCenteredBoundaryVariable::SetBoundarySameLevel(Real *buf,
     if (DBGPR_BVALS_VC)
       var.print_all();
 
-  } else {
+#else
     // unpack all data additively
     // defer imposition (via suitable averaging) of consistency condition
     BufferUtility::UnpackDataAdd(buf, var, nl_, nu_,
                                  si, ei, sj, ej, sk, ek, p);
-  }
+  #endif
   //////////////////////////////////////////////////////////////////////////////
 
   //////////////////////////////////////////////////////////////////////////////
@@ -589,7 +589,7 @@ void VertexCenteredBoundaryVariable::SetBoundaryFromCoarser(Real *buf,
   //////////////////////////////////////////////////////////////////////////////
   // BD: debug - populate based on solution
   // [note we directly modify fund. not coarse]
-  if (FILL_WAVE_BND_FRC) {
+#if FILL_WAVE_BND_FRC
     // note that otherwise prolongation from ghost zones is performed
     AthenaArray<Real> &var = *var_vc;
     if (DBGPR_BVALS_VC)
@@ -607,7 +607,7 @@ void VertexCenteredBoundaryVariable::SetBoundaryFromCoarser(Real *buf,
 
     if (flag)
       Q();
-  }
+#endif
   //////////////////////////////////////////////////////////////////////////////
 
   if (DBGPR_BVALS_VC) {
@@ -764,7 +764,7 @@ void VertexCenteredBoundaryVariable::SetBoundaryFromFiner(Real *buf,
   idxSetFromFinerRanges(nb.ni, si, ei, sj, ej, sk, ek, 1);
   //////////////////////////////////////////////////////////////////////////////
 
-  if (FILL_WAVE_BND_FRF) {
+#if FILL_WAVE_BND_FRF
     if (DBGPR_BVALS_VC)
       var.print_all();
 
@@ -773,14 +773,14 @@ void VertexCenteredBoundaryVariable::SetBoundaryFromFiner(Real *buf,
     if (DBGPR_BVALS_VC)
       var.print_all();
 
-  } else {
+#else
 
     if (DBGPR_BVALS_VC)
       coutBoldRed("buf, var_vc");
 
     BufferUtility::UnpackDataAdd(buf, var, nl_, nu_,
                                  si, ei, sj, ej, sk, ek, p);
-  }
+#endif
 
   // vertex consistency--------------------------------------------------------
   if (!node_mult_assembled) {
