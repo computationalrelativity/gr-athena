@@ -54,9 +54,7 @@
 #include "../z4c/z4c.hpp"
 #include "../z4c/puncture_tracker.hpp"
 #include "../z4c/wave_extract.hpp"
-#ifdef Z4C_AHF
 #include "../z4c/ahf.hpp"
-#endif
 #if CCE_ENABLED
 #include "../z4c/cce/cce.hpp"
 #endif
@@ -338,14 +336,12 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
       pcce.push_back(new CCE(this, pin, "alp",n));
     }
 #endif
-#ifdef Z4C_AHF
     // 0 is restart flag for restart
-    int nhorizon = pin->GetOrAddInteger("ahf", "num_horizons",1);
+    int nhorizon = pin->GetOrAddInteger("ahf", "num_horizons",0);
     pah_finder.reserve(nhorizon);
     for (int n = 0; n < nhorizon; ++n) {
       pah_finder.push_back(new AHF(this, pin, n));
     }
-#endif 
     int npunct = pin->GetOrAddInteger("z4c", "npunct", 0);
     if (npunct > 0) {
       pz4c_tracker.reserve(npunct);
@@ -786,13 +782,11 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
       pcce.push_back(new CCE(this, pin, "alp",n));
     }
 #endif
-#ifdef Z4C_AHF
-    int nhorizon = pin->GetOrAddInteger("ahf", "num_horizons",1);
+    int nhorizon = pin->GetOrAddInteger("ahf", "num_horizons",0);
     pah_finder.reserve(nhorizon);
     for (int n = 0; n < nhorizon; ++n) {
       pah_finder.push_back(new AHF(this, pin, n));
     }
-#endif
     int npunct = pin->GetOrAddInteger("z4c", "npunct", 0);
     if (npunct > 0) {
       pz4c_tracker.reserve(npunct);
@@ -1016,12 +1010,12 @@ Mesh::~Mesh() {
     }
     pcce.resize(0);
 #endif
-#ifdef Z4C_AHF
+
     for (auto pah_f : pah_finder) {
       delete pah_f;
     }
     pah_finder.resize(0);
-#endif
+
     for (auto tracker : pz4c_tracker) {
       delete tracker;
     }

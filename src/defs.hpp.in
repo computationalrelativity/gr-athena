@@ -93,9 +93,6 @@
 #define @Z4C_REF_BOX_IN_BOX@
 #define @Z4C_REF_SPHERES@
 
-//allow for apparent horizon finder
-#define @Z4C_AHF@
-
 // enable CCE? default=0 (false)
 #define CCE_ENABLED @CCE_ENABLED@
 

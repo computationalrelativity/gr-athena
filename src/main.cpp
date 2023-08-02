@@ -46,9 +46,7 @@
 
 #include "z4c/wave_extract.hpp"
 #include "z4c/puncture_tracker.hpp"
-#ifdef Z4C_AHF
 #include "z4c/ahf.hpp"
-#endif
 #if CCE_ENABLED
 #include "z4c/cce/cce.hpp"
 #endif
@@ -434,7 +432,6 @@ int main(int argc, char *argv[]) {
   if (Z4C_ENABLED && res_flag == 0 && pmesh->ncycle == 0) {
     pz4clist->FirstTime(res_flag, pmesh->ncycle);
     pz4clist->DoTaskListOneStage(pmesh, pz4clist->nstages);
-#ifdef Z4C_AHF
     for (auto pah_f : pmesh->pah_finder) {
       if (pah_f->CalculateMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
     }
@@ -445,7 +442,6 @@ int main(int argc, char *argv[]) {
     for (auto pah_f : pmesh->pah_finder) {
       if (pah_f->DeleteMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
     }
-#endif
     for (auto pwextr : pmesh->pwave_extr) {
       pwextr->ReduceMultipole();
       pwextr->Write(pmesh->ncycle, pmesh->time);
@@ -563,7 +559,6 @@ int main(int argc, char *argv[]) {
         }
       }
 #endif
-#ifdef Z4C_AHF
       for (auto pah_f : pmesh->pah_finder) {
         if (pah_f->CalculateMetricDerivatives(curr_ncycle, curr_time)) break;
       }
@@ -574,7 +569,6 @@ int main(int argc, char *argv[]) {
       for (auto pah_f : pmesh->pah_finder) {
         if (pah_f->DeleteMetricDerivatives(curr_ncycle, curr_time)) break;
       }
-#endif
       for (auto ptracker : pmesh->pz4c_tracker) {
         ptracker->EvolveTracker();
         // Beta is interpolated before the integration of Z4c, and this value
