@@ -21,6 +21,7 @@
 #   -b                  enable magnetic fields
 #   -s                  enable special relativity
 #   -g                  enable general relativity
+#   -m1                 enable M1 neutrino transport
 #   -z                  enable Z4c system
 #   -t                  enable interface frame transformations for GR
 #   -debug              enable debug flags (-g -O0); override other compiler options
@@ -158,6 +159,12 @@ parser.add_argument('-g',
                     action='store_true',
                     default=False,
                     help='enable general relativity')
+
+# -m1 argument
+parser.add_argument("-m1",
+                    action='store_true',
+                    default=False,
+                    help='enable M1 neutrino transport')
 
 # -z argument
 parser.add_argument("-z",
@@ -458,6 +465,19 @@ else:
     if args['eos'] == 'general/eos_table':
         definitions['EOS_TABLE_ENABLED'] = '1'
 
+# Add M1 files.
+files = ['m1']
+#files = ['fake_rates', 'm1', 'm1_utils', 'm1_closure', 'm1_adm_matter', 'm1_grsource',
+#         'm1_opacity', 'm1_set_equilibrium', 'm1_fiducial_velocity', 'm1_fluxes']#'m1_calc_update']
+# 'm1_calc_update',
+#         'm1_fluxes',
+#         'm1_source_update', 'new_blockdt_m1']
+makefile_options['M1_FILES'] = ''
+if args['m1']:
+    definitions['M1'] = '1'
+    aux = ["        $(wildcard src/m1/{}.cpp) \\".format(f) for f in files]
+    makefile_options['M1_FILES'] = '\n'.join(aux) + '\n'
+
 # --flux=[name] argument
 definitions['RSOLVER'] = makefile_options['RSOLVER_FILE'] = args['flux']
 
@@ -566,8 +586,8 @@ if args['ref_box_in_box']:
 # --cxx=[name] argument
 if args['cxx'] == 'g++':
     # GCC is C++11 feature-complete since v4.8.1 (2013-05-31)
-    definitions['COMPILER_CHOICE'] = 'g++'
-    definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'g++'
+    definitions['COMPILER_CHOICE'] = 'g++-13'
+    definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'g++-13'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
     makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++11'
     makefile_options['LINKER_FLAGS'] = ''
@@ -969,6 +989,7 @@ print('  Magnetic fields:              ' + ('ON' if args['b'] else 'OFF'))
 print('  Number of scalars:            ' + args['nscalars'])
 print('  Special relativity:           ' + ('ON' if args['s'] else 'OFF'))
 print('  General relativity:           ' + ('ON' if args['g'] else 'OFF'))
+print('  M1 neutrino transport:        ' + ('ON' if args['m1'] else 'OFF'))
 print('  Z4c equations:                ' + ('ON' if args['z'] else 'OFF'))
 if args['z']:
     print('  Z4c refinement strategy:      ' + ('box-in-box' if args['ref_box_in_box']
