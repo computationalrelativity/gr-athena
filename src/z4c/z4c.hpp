@@ -102,13 +102,14 @@ public:
   Z4c(MeshBlock *pmb, ParameterInput *pin);
   ~Z4c();
 
+  Z4c * pz4c;                // for macro propagation
   Mesh *pmy_mesh;            // pointer to Mesh containing MeshBlock
   MeshBlock * pmy_block;     // pointer to MeshBlock containing this Z4c
   Z4c_AMR *pz4c_amr;         // pointer to Z4c_AMR for the refinement condition
 
   // Switching of sampling and cleaner Z4c macro
   struct MB_info {
-    int f1, f2, f3;                       // dimensionality flags
+    bool f1, f2, f3;                      // dimensionality flags
     int il, iu, jl, ju, kl, ku;           // local block iter.
     int nn1, nn2, nn3;                    // total number of nodes (w. ghosts)
     int cnn1, cnn2, cnn3;                 // coarse analogue ^

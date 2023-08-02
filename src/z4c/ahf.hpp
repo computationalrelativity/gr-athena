@@ -21,8 +21,6 @@
 #include "z4c.hpp"
 #include "z4c_macro.hpp"
 
-
-
 // Forward declaration
 class Mesh;
 class MeshBlock;
@@ -165,6 +163,7 @@ private:
   Real PuncSumMasses();
   void PuncWeightedMassCentralPoint(Real *xc, Real *yc, Real *zc);
   bool PuncAreClose();
+
 };
 
 #endif

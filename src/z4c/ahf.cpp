@@ -312,9 +312,11 @@ void AHF::Write(int iter, Real time)
 //   pmb->pz4c->aux_g_ddd
 void AHF::MetricDerivatives(MeshBlock * pmy_block) 
 {
+  Z4c *pz4c = pmy_block->pz4c;  // also needed for LOOP macros etc.
+
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> vc_adm_g_dd; // 3-metric  (NDIM=3 in z4c.hpp)
   vc_adm_g_dd.InitWithShallowSlice(pmy_block->pz4c->storage.adm, Z4c::I_ADM_gxx);
-  pmy_block->pz4c->aux_g_ddd.ZeroClear();
+  pz4c->aux_g_ddd.ZeroClear();
 
 #if DEBUG_OUTPUT
   FILE *fp, *fpd;
@@ -337,27 +339,27 @@ void AHF::MetricDerivatives(MeshBlock * pmy_block)
           Real oofdx = 1.0 / pmy_block->pcoord->dx1f(i);
           
           if (i==IX_IL-GSIZEI){
-            pmy_block->pz4c->aux_g_ddd(0,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b,k,j,i+1) - vc_adm_g_dd(a,b,k,j, i ) );
+            pz4c->aux_g_ddd(0,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b,k,j,i+1) - vc_adm_g_dd(a,b,k,j, i ) );
           } else if (i==IX_IU+GSIZEI){
-            pmy_block->pz4c->aux_g_ddd(0,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b,k,j, i ) - vc_adm_g_dd(a,b,k,j,i-1) );
+            pz4c->aux_g_ddd(0,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b,k,j, i ) - vc_adm_g_dd(a,b,k,j,i-1) );
           } else {
-            pmy_block->pz4c->aux_g_ddd(0,a,b,k,j,i) = 0.5*oofdz * ( vc_adm_g_dd(a,b,k,j,i+1) - vc_adm_g_dd(a,b,k,j,i-1) );
+            pz4c->aux_g_ddd(0,a,b,k,j,i) = 0.5*oofdz * ( vc_adm_g_dd(a,b,k,j,i+1) - vc_adm_g_dd(a,b,k,j,i-1) );
           }
           
           if (j==IX_JL-GSIZEJ){
-            pmy_block->pz4c->aux_g_ddd(1,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b,k,j+1,i) - vc_adm_g_dd(a,b,k, j ,i) );
+            pz4c->aux_g_ddd(1,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b,k,j+1,i) - vc_adm_g_dd(a,b,k, j ,i) );
           } else if (j==IX_JU+GSIZEJ){
-            pmy_block->pz4c->aux_g_ddd(1,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b,k, j ,i) - vc_adm_g_dd(a,b,k,j-1,i) );
+            pz4c->aux_g_ddd(1,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b,k, j ,i) - vc_adm_g_dd(a,b,k,j-1,i) );
           } else {
-            pmy_block->pz4c->aux_g_ddd(1,a,b,k,j,i) = 0.5*oofdz * ( vc_adm_g_dd(a,b,k,j+1,i) - vc_adm_g_dd(a,b,k,j-1,i) );
+            pz4c->aux_g_ddd(1,a,b,k,j,i) = 0.5*oofdz * ( vc_adm_g_dd(a,b,k,j+1,i) - vc_adm_g_dd(a,b,k,j-1,i) );
           }
           
           if (k==IX_KL-GSIZEK){
-            pmy_block->pz4c->aux_g_ddd(2,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b,k+1,j,i) - vc_adm_g_dd(a,b, k ,j,i) );
+            pz4c->aux_g_ddd(2,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b,k+1,j,i) - vc_adm_g_dd(a,b, k ,j,i) );
           } else if (k==IX_KU+GSIZEK){
-            pmy_block->pz4c->aux_g_ddd(2,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b, k ,j,i) - vc_adm_g_dd(a,b,k-1,j,i) );
+            pz4c->aux_g_ddd(2,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b, k ,j,i) - vc_adm_g_dd(a,b,k-1,j,i) );
           } else {
-            pmy_block->pz4c->aux_g_ddd(2,a,b,k,j,i) = 0.5*oofdz * ( vc_adm_g_dd(a,b,k+1,j,i) - vc_adm_g_dd(a,b,k-1,j,i) );
+            pz4c->aux_g_ddd(2,a,b,k,j,i) = 0.5*oofdz * ( vc_adm_g_dd(a,b,k+1,j,i) - vc_adm_g_dd(a,b,k-1,j,i) );
           }
 
 #if DEBUG_OUTPUT

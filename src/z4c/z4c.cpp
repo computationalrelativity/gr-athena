@@ -56,6 +56,7 @@ char const * const Z4c::Weyl_names[Z4c::N_WEY] = {
 };
 
 Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
+  pz4c(this),
   pmy_mesh(pmb->pmy_mesh),
   pmy_block(pmb),
   mbi{

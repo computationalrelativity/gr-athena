@@ -27,40 +27,40 @@
 #define NDIM    (3)
 
 #define IX_IL                                                                 \
-  pmy_block->is
+  pz4c->mbi.il
 
 #define IX_IU                                                                 \
-  pmy_block->ive
+  pz4c->mbi.iu
 
 #define IX_JL                                                                 \
-  pmy_block->js
+  pz4c->mbi.jl
 
 #define IX_JU                                                                 \
-  pmy_block->jve
+  pz4c->mbi.ju
 
 #define IX_KL                                                                 \
-  pmy_block->ks
+  pz4c->mbi.kl
 
 #define IX_KU                                                                 \
-  pmy_block->kve
+  pz4c->mbi.ku
 
 #define GSIZEI                                                                \
-  (NGHOST)
+  (pz4c->mbi.ng)
 
 #define GSIZEJ                                                                \
-  ((pmy_block->block_size.nx2 > 1) ? (NGHOST) : (0))
+  ((pz4c->mbi.f2) ? (pz4c->mbi.ng) : (0))
 
 #define GSIZEK                                                                \
-  ((pmy_block->block_size.nx3 > 1) ? (NGHOST) : (0))
+  ((pz4c->mbi.f3) ? (pz4c->mbi.ng) : (0))
 
 // 2D loop over k and j in the interior of the block
 #define ILOOP2(k,j)                                                           \
-  for(int k = IX_KL; k <= IX_KU; ++k)                         \
+  for(int k = IX_KL; k <= IX_KU; ++k)                                         \
   for(int j = IX_JL; j <= IX_JU; ++j)
 
 // 2D loop over k and j on the whole block
 #define GLOOP2(k,j)                                                           \
-  for(int k = IX_KL - GSIZEK; k <= IX_KU + GSIZEK; ++k)       \
+  for(int k = IX_KL - GSIZEK; k <= IX_KU + GSIZEK; ++k)                       \
   for(int j = IX_JL - GSIZEJ; j <= IX_JU + GSIZEJ; ++j)
 
 // 1D loop over i in the interior of the block
