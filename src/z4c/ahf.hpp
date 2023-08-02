@@ -18,21 +18,20 @@
 #include "../athena_arrays.hpp"
 #include "../athena_tensor.hpp"
 #include "../utils/lagrange_interp.hpp"
+#include "z4c.hpp"
+#include "z4c_macro.hpp"
+
+
 
 // Forward declaration
 class Mesh;
 class MeshBlock;
 class ParameterInput;
 
-// Max number of horizons 
-
-#define SQ(X) ((X)*(X))
-#define NDIM (3)
-
 //! \class AHF
 //! \brief Apparent Horizon Finder
 class AHF {
-  
+
 public:
   //! Creates the AHF object
   AHF(Mesh * pmesh, ParameterInput * pin, int nh);
@@ -131,7 +130,7 @@ private:
   //! Array of horizon quantities
   Real ah_prop[hnvar];
 
-  //! Flag points 
+  //! Flag points
   AthenaArray<int> havepoint;
 
   void MetricDerivatives(MeshBlock * pmb);
