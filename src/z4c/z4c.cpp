@@ -295,7 +295,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   int nn1 = mbi.nn1;
   int nn2 = mbi.nn2;
   int nn3 = mbi.nn3;
-  dx1 = pco->dx1f(0); dx2 = pco->dx2f(0); dx3 = pco->dx3f(0);
+  dx1 = mbi.dx1(0); dx2 = mbi.dx2(0); dx3 = mbi.dx3(0);
 
   FD.diss = opt.diss*pow(2, -2*NGHOST)*(NGHOST % 2 == 0 ? -1 : 1);
 

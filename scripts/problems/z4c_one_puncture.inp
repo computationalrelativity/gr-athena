@@ -13,6 +13,16 @@ chi_div_floor   = 0.00001
 damp_kappa1     = 0.00      # Constraint damping factor 1
 damp_kappa2     = 0.01      # Constraint damping factor 2
 
+npunct = 1
+
+<ahf>
+num_horizons = 1
+
+start_time_0 = 0
+stop_time_0  = 10000
+wait_until_punc_are_close_0 = false
+
+
 <initial_data>
 punc_ADM_mass    = 1.0
 
@@ -47,19 +57,19 @@ integrator      = rk4                  # time integrator
 <mesh>
 refinement      = none               # Static mesh refinement
 numlevel = 1
-nx1             = 64                    # Number of zones in X1-direction
+nx1             = 32                    # Number of zones in X1-direction
 x1min           = -2                  # minimum value of X1
 x1max           =  2                  # maximum value of X1
 ix1_bc          = extrapolate_outflow  # inner-X1 boundary flag
 ox1_bc          = extrapolate_outflow  # inner-X1 boundary flag
 
-nx2             = 64                    # Number of zones in X2-direction
+nx2             = 32                    # Number of zones in X2-direction
 x2min           = -2                  # minimum value of X2
 x2max           =  2                  # maximum value of X2
 ix2_bc          = extrapolate_outflow  # inner-X2 boundary flag
 ox2_bc          = extrapolate_outflow  # inner-X2 boundary flag
 
-nx3             = 64                    # Number of zones in X3-direction
+nx3             = 32                    # Number of zones in X3-direction
 x3min           = -2                  # minimum value of X3
 x3max           =  2                  # maximum value of X3
 ix3_bc          = extrapolate_outflow  # inner-X3 boundary flag

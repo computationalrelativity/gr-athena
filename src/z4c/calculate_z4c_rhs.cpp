@@ -583,13 +583,13 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
 
       eta_damp(i) += \
         POW2(pmy_block->pmy_mesh->pz4c_tracker[b_ix]->GetPos(0)
-          - pmy_block->pcoord->x1f(i));
+          - mbi.x1(i));
       eta_damp(i) += \
         POW2(pmy_block->pmy_mesh->pz4c_tracker[b_ix]->GetPos(1)
-          - pmy_block->pcoord->x2f(j));
+          - mbi.x2(j));
       eta_damp(i) += \
         POW2(pmy_block->pmy_mesh->pz4c_tracker[b_ix]->GetPos(2)
-          - pmy_block->pcoord->x3f(k));
+          - mbi.x3(k));
 
       eta_damp(i) = 1. + pow(eta_damp(i) * re_pow2_w, opt.shift_eta_delta);
 
@@ -712,11 +712,10 @@ void Z4c::Z4cSommerfeld_(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs,
     //
 #pragma omp simd
     for(int i = is; i <= ie; ++i) {
-      r(i) = std::sqrt(SQR(pmy_block->pcoord->x1f(i)) +
-              SQR(pmy_block->pcoord->x2f(j)) + SQR(pmy_block->pcoord->x3f(k)));
-      s_u(0,i) = pmy_block->pcoord->x1f(i)/r(i);
-      s_u(1,i) = pmy_block->pcoord->x2f(j)/r(i);
-      s_u(2,i) = pmy_block->pcoord->x3f(k)/r(i);
+      r(i) = std::sqrt(SQR(mbi.x1(i)) + SQR(mbi.x2(j)) + SQR(mbi.x3(k)));
+      s_u(0,i) = mbi.x1(i)/r(i);
+      s_u(1,i) = mbi.x2(j)/r(i);
+      s_u(2,i) = mbi.x3(k)/r(i);
     }
 
     // -----------------------------------------------------------------------------------

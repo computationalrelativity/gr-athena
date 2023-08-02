@@ -331,12 +331,12 @@ void AHF::MetricDerivatives(MeshBlock * pmy_block)
 #endif
   
   GLOOP2(k,j){
-    Real oofdz = 1.0 / pmy_block->pcoord->dx3f(k);
-    Real oofdy = 1.0 / pmy_block->pcoord->dx2f(j);
+    Real oofdz = 1.0 / pz4c->mbi.dx3(k);
+    Real oofdy = 1.0 / pz4c->mbi.dx2(j);
     for(int a = 0; a < NDIM; ++a){
       for(int b = 0; b < NDIM; ++b){
         GLOOP1(i){
-          Real oofdx = 1.0 / pmy_block->pcoord->dx1f(i);
+          Real oofdx = 1.0 / pz4c->mbi.dx1(i);
           
           if (i==IX_IL-GSIZEI){
             pz4c->aux_g_ddd(0,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b,k,j,i+1) - vc_adm_g_dd(a,b,k,j, i ) );
@@ -364,10 +364,10 @@ void AHF::MetricDerivatives(MeshBlock * pmy_block)
 
 #if DEBUG_OUTPUT
           if (a==0 && b==0){
-            fprintf(fp, "%23.15e %23.15e %23.15e %23.15e\n",pmy_block->pcoord->x1f(i),pmy_block->pcoord->x2f(j), 
-                pmy_block->pcoord->x3f(k), vc_adm_g_dd(0,0,k,j,i));
-            fprintf(fpd, "%23.15e %23.15e %23.15e %23.15e\n",pmy_block->pcoord->x1f(i),pmy_block->pcoord->x2f(j), 
-                pmy_block->pcoord->x3f(k), pmy_block->pz4c->aux_g_ddd(0,0,0,k,j,i));
+            fprintf(fp, "%23.15e %23.15e %23.15e %23.15e\n",pz4c->mbi.x1(i),pz4c->mbi.x2(j), 
+                pz4c->mbi.x3(k), vc_adm_g_dd(0,0,k,j,i));
+            fprintf(fpd, "%23.15e %23.15e %23.15e %23.15e\n",pz4c->mbi.x1(i),pz4c->mbi.x2(j), 
+                pz4c->mbi.x3(k), pz4c->aux_g_ddd(0,0,0,k,j,i));
           }
 #endif
 
@@ -390,11 +390,13 @@ void AHF::MetricDerivatives(MeshBlock * pmy_block)
 // Flag here the surface points contained in the MB
 void AHF::MetricInterp(MeshBlock * pmb)
 {
+  Z4c *pz4c = pmb->pz4c;
+
   LagrangeInterpND<2, 3> * pinterp3 = nullptr;
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> vc_adm_g_dd;      // 3-metric  (NDIM=3 in z4c.hpp)
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> vc_adm_K_dd;      // extr.curv.
-  vc_adm_g_dd.InitWithShallowSlice(pmb->pz4c->storage.adm, Z4c::I_ADM_gxx);
-  vc_adm_K_dd.InitWithShallowSlice(pmb->pz4c->storage.adm, Z4c::I_ADM_Kxx);
+  vc_adm_g_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
+  vc_adm_K_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_Kxx);
 
   // For interp
   Real origin[NDIM];
@@ -454,23 +456,23 @@ void AHF::MetricInterp(MeshBlock * pmb)
 
       // this surface point is in this MB
       havepoint(i,j) += 1;
-      
+
       // Interpolate
-      origin[0] = pmb->pcoord->x1f(0);
-      size[0]   = pmb->nverts1;
-      delta[0]  = pmb->pcoord->dx1f(0);
+      origin[0] = pz4c->mbi.x1(0);
+      size[0]   = pz4c->mbi.nn1;
+      delta[0]  = pz4c->mbi.dx1(0);
       coord[0]  = x;
-      
-      origin[1] = pmb->pcoord->x2f(0);
-      size[1]   = pmb->nverts2;
-      delta[1]  = pmb->pcoord->dx2f(0);
+
+      origin[1] = pz4c->mbi.x2(0);
+      size[1]   = pz4c->mbi.nn2;
+      delta[1]  = pz4c->mbi.dx2(0);
       coord[1]  = y;
-      
-      origin[2] = pmb->pcoord->x3f(0);
-      size[2]   = pmb->nverts3;
-      delta[2]  = pmb->pcoord->dx3f(0);
+
+      origin[2] = pz4c->mbi.x3(0);
+      size[2]   = pz4c->mbi.nn3;
+      delta[2]  = pz4c->mbi.dx3(0);
       coord[2]  = z;
-        
+
       pinterp3 =  new LagrangeInterpND<2, 3>(origin, delta, size, coord);
 
       // With bitant wrt z=0, pick a (-) sign every time a z component is 
@@ -488,7 +490,7 @@ void AHF::MetricInterp(MeshBlock * pmb)
           if (bitant_sym)  {
             if (c == 2) bitant_z_fac *= -1;
           }
-          dg(c,a,b,i,j) = pinterp3->eval(&(pmb->pz4c->aux_g_ddd(c,a,b,0,0,0)))*bitant_z_fac;
+          dg(c,a,b,i,j) = pinterp3->eval(&(pz4c->aux_g_ddd(c,a,b,0,0,0)))*bitant_z_fac;
         }
       }
 
@@ -989,7 +991,8 @@ bool AHF::CalculateMetricDerivatives(int iter, Real time)
   // Compute and store ADM metric drvts at this iteration
   MeshBlock * pmb = pmesh->pblock;
   while (pmb != nullptr) {
-    pmb->pz4c->aux_g_ddd.NewAthenaTensor(pmb->nverts3, pmb->nverts2, pmb->nverts1);
+    Z4c *pz4c = pmb->pz4c;
+    pz4c->aux_g_ddd.NewAthenaTensor(pz4c->mbi.nn3, pz4c->mbi.nn2, pz4c->mbi.nn1);
     MetricDerivatives(pmb);
     pmb = pmb->next;
   }

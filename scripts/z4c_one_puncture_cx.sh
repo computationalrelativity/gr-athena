@@ -8,9 +8,9 @@ export FN=$(readlink -f "$0"); export DIR_SCRIPTS=$(dirname "${FN}")
 
 ###############################################################################
 # configure here
-export RUN_NAME=one_puncture_vc
+export RUN_NAME=one_puncture_cx
 export BIN_NAME=z4c
-export REL_OUTPUT=outputs/z4c_vc
+export REL_OUTPUT=outputs/z4c_cx
 export REL_INPUT=scripts/problems
 export INPUT_NAME=z4c_one_puncture.inp
 
@@ -19,7 +19,7 @@ export DIR_HDF5=$(spack location -i hdf5)
 export DIR_GSL=$(spack location -i gsl)
 
 export COMPILE_STR="--prob=z4c_one_puncture
-                    -z -z_vc -cce
+                    -z -z_cx -cce
                     --cxx g++ -debug
                     --nghost=2
                     --ncghost=2

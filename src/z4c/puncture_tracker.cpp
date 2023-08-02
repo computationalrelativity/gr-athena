@@ -67,6 +67,8 @@ PunctureTracker::~PunctureTracker() {
 
 //----------------------------------------------------------------------------------------
 void PunctureTracker::InterpolateShift(MeshBlock * pmb, AthenaArray<Real> & u) {
+  Z4c * pz4c = pmb->pz4c;
+
   Z4c::Z4c_vars z4c;
   pmb->pz4c->SetZ4cAliases(u, z4c);
 
@@ -75,19 +77,19 @@ void PunctureTracker::InterpolateShift(MeshBlock * pmb, AthenaArray<Real> & u) {
     owns_puncture = true;
 
     Real const origin[3] = {
-      pmb->pcoord->x1f(0),
-      pmb->pcoord->x2f(0),
-      pmb->pcoord->x3f(0),
+      pz4c->mbi.x1(0),
+      pz4c->mbi.x2(0),
+      pz4c->mbi.x3(0),
     };
     Real const delta[3] = {
-      pmb->pcoord->dx1f(0),
-      pmb->pcoord->dx2f(0),
-      pmb->pcoord->dx3f(0),
+      pz4c->mbi.dx1(0),
+      pz4c->mbi.dx2(0),
+      pz4c->mbi.dx3(0),
     };
     int const size[3] = {
-      pmb->nverts1,
-      pmb->nverts2,
-      pmb->nverts3,
+      pz4c->mbi.nn1,
+      pz4c->mbi.nn2,
+      pz4c->mbi.nn3,
     };
 
     LagrangeInterpND<2*NGHOST-1, 3> linterp(origin, delta, size, pos);

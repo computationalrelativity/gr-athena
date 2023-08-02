@@ -182,21 +182,22 @@ CCE::~CCE()
 // given a Cartesian point, interpolate the pertinent field for that point
 void CCE::Interpolate(MeshBlock *const pmb)
 {
+  Z4c *pz4c = pmb->pz4c; // for mbi also
+
   const int Npoints = nangle*num_x_points;
   Real bitant_sign  = 0.; // set according to the field and symmetry
-  Real const origin[3] = {pmb->pcoord->x1f(0),
-                          pmb->pcoord->x2f(0),
-                          pmb->pcoord->x3f(0)};
-  Real const delta[3]  = {pmb->pcoord->dx1f(0),
-                          pmb->pcoord->dx2f(0),
-                          pmb->pcoord->dx3f(0)};
-  int const size[3]    = {pmb->nverts1,
-                          pmb->nverts2,
-                          pmb->nverts3};
+  Real const origin[3] = {pz4c->mbi.x1(0),
+                          pz4c->mbi.x2(0),
+                          pz4c->mbi.x3(0)};
+  Real const delta[3]  = {pz4c->mbi.dx1(0),
+                          pz4c->mbi.dx2(0),
+                          pz4c->mbi.dx3(0)};
+  int const size[3]    = {pz4c->mbi.nn1,
+                          pz4c->mbi.nn2,
+                          pz4c->mbi.nn3};
 
   // find the src field
   Real *src_field = nullptr;
-  Z4c *const pz4c = pmb->pz4c;
   Z4c::Z4c_vars z4c;
   Z4c::ADM_vars adm;
   pz4c->SetZ4cAliases(pz4c->storage.u, z4c);

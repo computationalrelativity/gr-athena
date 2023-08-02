@@ -67,12 +67,13 @@ pin(pin)
   ref_PrerefTime = pin->GetOrAddReal("z4c_amr","preref_time_lt",20);
   
   assert(NDIM == 3);// the subsequent calculation may get affected if N!=3.
-  h1 = pmb->pcoord->x1f(1)-pmb->pcoord->x1f(0);
-  h2 = pmb->pcoord->x2f(1)-pmb->pcoord->x2f(0);
-  h3 = pmb->pcoord->x3f(1)-pmb->pcoord->x3f(0);
+  h1 = pz4c->mbi.dx1(0);
+  h2 = pz4c->mbi.dx2(0);
+  h3 = pz4c->mbi.dx3(0);
+
   ref_hmax = std::max(h1,h2);
   ref_hmax = std::max(ref_hmax,h3);
-  
+
   // power of grid-space to compare the truncation error with.
   // 4 is chosen as we use 4-th order Runge-Kutta time integration
   ref_hpow  = pin->GetOrAddReal("z4c_amr","h_power",4.);
