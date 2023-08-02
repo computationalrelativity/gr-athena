@@ -368,16 +368,16 @@ pfield->bcc.ZeroClear();
   bzcc.NewAthenaArray(nx3,nx2,nx1);
 //parameter defns from 
 //Openmp - pragma/ GLOOP macros?
-      AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy;
-      AthenaArray<Real> vcgamma_yz,vcgamma_zz;
-      AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd; 
-      gamma_dd.NewAthenaTensor(iu+1);
- vcgamma_xx.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gxx,1);
-      vcgamma_xy.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gxy,1);
-      vcgamma_xz.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gxz,1);
-      vcgamma_yy.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gyy,1);
-      vcgamma_yz.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gyz,1);
-      vcgamma_zz.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gzz,1);
+//      AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy;
+//      AthenaArray<Real> vcgamma_yz,vcgamma_zz;
+//      AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd; 
+//      gamma_dd.NewAthenaTensor(iu+1);
+//      vcgamma_xx.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gxx,1);
+//      vcgamma_xy.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gxy,1);
+//      vcgamma_xz.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gxz,1);
+//      vcgamma_yy.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gyy,1);
+//      vcgamma_yz.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gyz,1);
+//      vcgamma_zz.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gzz,1);
 
 //Initialize field at xfaces:
 //Real prx1f, rhox1f, prx2f, rhox2f, prx3f, rhox3f, div1, div2, div3;
@@ -400,25 +400,21 @@ pfield->bcc.ZeroClear();
 
   for(int k = ks-1; k<=ke+1; k++){
   for(int j = js-1; j<=je+1; j++){
+//  for(int i = is-1; i<=ie+1; i++){
+//          gamma_dd(0,0,i) = pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
+//          gamma_dd(0,1,i) = pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
+//          gamma_dd(0,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
+//          gamma_dd(1,1,i) = pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
+//          gamma_dd(1,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
+//          gamma_dd(2,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
+//}
   for(int i = is-1; i<=ie+1; i++){
-          gamma_dd(0,0,i) = pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
-          gamma_dd(0,1,i) = pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
-          gamma_dd(0,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
-          gamma_dd(1,1,i) = pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
-          gamma_dd(1,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
-          gamma_dd(2,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
-}
-   for(int i = is-1; i<=ie+1; i++){
-    Real detgamma = std::sqrt(Det3Metric(gamma_dd,i));
+//    Real detgamma = std::sqrt(Det3Metric(gamma_dd,i));
 
-    bxcc(k,j,i) = - ((ay(k+1,j,i) - ay(k-1,j,i))/(2.0*pcoord->dx3v(k)))*detgamma;
-    bycc(k,j,i) =  ((ax(k+1,j,i) - ax(k-1,j,i))/(2.0*pcoord->dx3v(k)))*detgamma;
-    bzcc(k,j,i) = ( (ay(k,j,i+1) - ay(k,j,i-1))/(2.0*pcoord->dx1v(i))
-                   - (ax(k,j+1,i) - ax(k,j-1,i))/(2.0*pcoord->dx2v(j)))*detgamma;
-//    bxcc(k,j,i) = - (ay(k+1,j,i) - ay(k,j,i))/(pcoord->dx3v(k));
-//    bycc(k,j,i) =  (ax(k+1,j,i) - ax(k,j,i))/(pcoord->dx3v(k));
-//    bzcc(k,j,i) =  (ay(k,j,i+1) - ay(k,j,i))/(pcoord->dx1v(i))
-//                   - (ax(k,j+1,i) - ax(k,j,i))/(pcoord->dx2v(j));
+    bxcc(k,j,i) = - ((ay(k+1,j,i) - ay(k-1,j,i))/(2.0*pcoord->dx3v(k)));
+    bycc(k,j,i) =   ((ax(k+1,j,i) - ax(k-1,j,i))/(2.0*pcoord->dx3v(k)));
+    bzcc(k,j,i) =   ((ay(k,j,i+1) - ay(k,j,i-1))/(2.0*pcoord->dx1v(i))
+                   - (ax(k,j+1,i) - ax(k,j-1,i))/(2.0*pcoord->dx2v(j)));
 }}}
 
   for(int k = ks; k<=ke; k++){
