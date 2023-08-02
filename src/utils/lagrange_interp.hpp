@@ -12,9 +12,10 @@
 #include <cassert>
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <new>
 
-#include "athena.hpp"
+#include "../athena.hpp"
 
 // If this is uncommented always use symmetric operators
 #ifndef LOCALINTERP_SYMMETRIC

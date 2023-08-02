@@ -51,8 +51,8 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
       ILOOP1(i) {
-        dg_ddd(c,a,b,i) = FD.Dx(c, adm.g_dd(a,b,k,j,i));
-        dK_ddd(c,a,b,i) = FD.Dx(c, adm.K_dd(a,b,k,j,i));
+        dg_ddd(c,a,b,i) = pfd->Dx(c, adm.g_dd(a,b,k,j,i));
+        dK_ddd(c,a,b,i) = pfd->Dx(c, adm.K_dd(a,b,k,j,i));
       }
     }
     // second derivatives of g
@@ -62,12 +62,12 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
     for(int d = 0; d < NDIM; ++d) {
       if(a == b) {
         ILOOP1(i) {
-          ddg_dddd(a,a,c,d,i) = FD.Dxx(a, adm.g_dd(c,d,k,j,i));
+          ddg_dddd(a,a,c,d,i) = pfd->Dxx(a, adm.g_dd(c,d,k,j,i));
         }
       }
       else {
         ILOOP1(i) {
-          ddg_dddd(a,b,c,d,i) = FD.Dxy(a, b, adm.g_dd(c,d,k,j,i));
+          ddg_dddd(a,b,c,d,i) = pfd->Dxy(a, b, adm.g_dd(c,d,k,j,i));
         }
       }
     }

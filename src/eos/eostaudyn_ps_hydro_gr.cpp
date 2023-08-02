@@ -259,6 +259,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
           std::cerr << "  Iteration: " << pmy_block_->pmy_mesh->ncycle << "\n";
           std::cerr << "  Error: " << Primitive::ErrorString[(int)result.error] << "\n";
           std::cerr << "  i=" << i << ", j=" << j << ", k=" << k << "\n";
+          std::cerr << "  x=" << pmy_block_->pcoord->dx1v(i) << ", y=" << pmy_block_->pcoord->dx2v(j) << ", z=" << pmy_block_->pcoord->dx3v(k) << "\n";
           std::cerr << "  g3d = [" << g3d[S11] << ", " << g3d[S12] << ", " << g3d[S13] << ", "
                     << g3d[S22] << ", " << g3d[S23] << ", " << g3d[S33] << "]\n";
           std::cerr << "  g3u = [" << g3u[S11] << ", " << g3u[S12] << ", " << g3u[S13] << ", "
@@ -397,7 +398,7 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real
   // Extract the metric and calculate the determinant.
   Real g3d[NSPMETRIC] = {gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
                         gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i)};
-  Real detg  = Primitive::GetDeterminant(g3d);
+  Real detg = Primitive::GetDeterminant(g3d);
   Real sdetg = std::sqrt(detg);
 
   // Perform the primitive solve.

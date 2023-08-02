@@ -22,7 +22,12 @@
 #include "../hydro/hydro.hpp"
 #include "../bvals/bvals.hpp"
 #include "../mesh/mesh.hpp"
+#include "../mesh/mesh_refinement.hpp"
 
+
+#ifdef TRACKER_EXTREMA
+#include "../trackers/tracker_extrema.hpp"
+#endif // TRACKER_EXTREMA
 
 int RefinementCondition(MeshBlock *pmb);
 
@@ -164,9 +169,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
     {
       // Gauge from Lorene
       alpha(k, j, i) = bns->nnn[I];
-      beta_u(0, k, j, i) = bns->beta_x[I];
-      beta_u(1, k, j, i) = bns->beta_y[I];
-      beta_u(2, k, j, i) = bns->beta_z[I];
+      beta_u(0, k, j, i) = -bns->beta_x[I];  // BAM inserts -1
+      beta_u(1, k, j, i) = -bns->beta_y[I];
+      beta_u(2, k, j, i) = -bns->beta_z[I];
 
       const double g_xx = bns->g_xx[I];
       const double g_xy = bns->g_xy[I];
@@ -186,22 +191,46 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
       // TODO: BD - Lorene header indicates that K_xx is covariant?
       // cf. gr_neutron_star
       g_dd(0, 0, k, j, i) = g_xx;
-      K_dd(0, 0, k, j, i) = bns->k_xx[I];
+      K_dd(0, 0, k, j, i) = coord_unit * bns->k_xx[I];  // BAM has coord_unit
 
       g_dd(0, 1, k, j, i) = g_xy;
-      K_dd(0, 1, k, j, i) = bns->k_xy[I];
+      K_dd(0, 1, k, j, i) = coord_unit * bns->k_xy[I];
 
       g_dd(0, 2, k, j, i) = g_xz;
-      K_dd(0, 2, k, j, i) = bns->k_xz[I];
+      K_dd(0, 2, k, j, i) = coord_unit * bns->k_xz[I];
 
       g_dd(1, 1, k, j, i) = g_yy;
-      K_dd(1, 1, k, j, i) = bns->k_yy[I];
+      K_dd(1, 1, k, j, i) = coord_unit * bns->k_yy[I];
 
       g_dd(1, 2, k, j, i) = g_yz;
-      K_dd(1, 2, k, j, i) = bns->k_yz[I];
+      K_dd(1, 2, k, j, i) = coord_unit * bns->k_yz[I];
 
       g_dd(2, 2, k, j, i) = g_zz;
-      K_dd(2, 2, k, j, i) = bns->k_zz[I];
+      K_dd(2, 2, k, j, i) = coord_unit * bns->k_zz[I];
+
+      // debug: does it get interp prop.?
+      // if (std::abs(K_dd(0, 0, k, j, i)) > 1e-5)
+      // if ((-1e-10 < pcoord->x3f(k)) && (pcoord->x3f(k) < +1e-10))
+      // if ((-1e-10 < pcoord->x2f(j)) && (pcoord->x2f(j) < +1e-10))
+      // {
+      //   std::cout << "is_larger" << std::endl;
+      //   std::cout << K_dd(0, 0, k, j, i)  << std::endl;
+      //   std::cout << pcoord->x3f(k) << ","  << pcoord->x2f(j) << ",";
+      //   std::cout << pcoord->x1f(i)  << std::endl;
+      //   Q();
+      // }
+
+      // // debug: does it get interp prop.?
+      // if (std::abs(K_dd(0, 1, k, j, i)) > 1e-5)
+      // if ((-1e-10 < pcoord->x3f(k)) && (pcoord->x3f(k) < +1e-10))
+      // if ((-1e-10 < pcoord->x2f(j)) && (pcoord->x2f(j) < +1e-10))
+      // {
+      //   std::cout << "k_xy is_larger" << std::endl;
+      //   std::cout << K_dd(0, 1, k, j, i)  << std::endl;
+      //   std::cout << pcoord->x3f(k) << ","  << pcoord->x2f(j) << ",";
+      //   std::cout << pcoord->x1f(i)  << std::endl;
+      //   Q();
+      // }
 
       ++I;
     }
@@ -252,7 +281,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
       const Real rho = bns->nbar[I] / rho_unit;
       const Real eps = bns->ener_spec[I] / ener_unit;
 
-      Real egas = rho * (1.0 + eps);
+      // Real egas = rho * (1.0 + eps);  <-------- ?
+      Real egas = rho * eps;
       Real pgas = peos->PresFromRhoEg(rho, egas);
 
       // Kludge to make the pressure work with the EOS framework.
@@ -341,6 +371,77 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 
 int RefinementCondition(MeshBlock *pmb)
 {
-  // trivial condition for segfault test
-  return 1;
+
+#ifdef TRACKER_EXTREMA
+
+  Mesh * pmesh = pmb->pmy_mesh;
+  TrackerExtrema * ptracker_extrema = pmesh->ptracker_extrema;
+
+  int root_level = ptracker_extrema->root_level;
+  int mb_physical_level = pmb->loc.level - root_level;
+
+  // to get behaviour correct for when multiple centres occur in a single
+  // MeshBlock we need to carry information
+  bool centres_contained = false;
+
+  for (int n=1; n<=ptracker_extrema->N_tracker; ++n)
+  {
+    bool is_contained = false;
+
+    if (ptracker_extrema->ref_type(n-1) == 0)
+    {
+      is_contained = pmb->PointContained(
+        ptracker_extrema->c_x1(n-1),
+        ptracker_extrema->c_x2(n-1),
+        ptracker_extrema->c_x3(n-1)
+      );
+    }
+    else if (ptracker_extrema->ref_type(n-1) == 1)
+    {
+      is_contained = pmb->SphereIntersects(
+        ptracker_extrema->c_x1(n-1),
+        ptracker_extrema->c_x2(n-1),
+        ptracker_extrema->c_x3(n-1),
+        ptracker_extrema->ref_zone_radius(n-1)
+      );
+
+      // is_contained = pmb->PointContained(
+      //   ptracker_extrema->c_x1(n-1),
+      //   ptracker_extrema->c_x2(n-1),
+      //   ptracker_extrema->c_x3(n-1)
+      // ) or pmb->PointCentralDistanceSquared(
+      //   ptracker_extrema->c_x1(n-1),
+      //   ptracker_extrema->c_x2(n-1),
+      //   ptracker_extrema->c_x3(n-1)
+      // ) < SQR(ptracker_extrema->ref_zone_radius(n-1));
+
+    }
+
+    if (is_contained)
+    {
+      centres_contained = true;
+
+      // a point in current MeshBlock, now check whether level sufficient
+      if (mb_physical_level < ptracker_extrema->ref_level(n-1))
+      {
+        return 1;
+      }
+
+    }
+  }
+
+  // Here one could put composite criteria (such as spherical patch cond.)
+  // ...
+
+  if (centres_contained)
+  {
+    // all contained centres are at a sufficient level of refinement
+    return 0;
+  }
+
+  // Nothing satisfied - flag for de-refinement
+  return -1;
+
+#endif // TRACKER_EXTREMA
+ return 0;
 }

@@ -60,6 +60,11 @@
 #ifdef Z4C_TRACKER
 #include "../z4c/trackers.hpp"
 #endif // Z4C_TRACKER
+
+#ifdef TRACKER_EXTREMA
+#include "../trackers/tracker_extrema.hpp"
+#endif // TRACKER_EXTREMA
+
 // WGC: wave ext
 #ifdef Z4C_WEXT
 #include "../z4c/wave_extract.hpp"
@@ -142,9 +147,10 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
 #else
     ioproc = true;
 #endif
-  if (ioproc){
-  pofile = fopen("intd.txt", "a");
-}
+  // // BD: why - also this is never properly closed?
+  // if (ioproc){
+  //   pofile = fopen("intd.txt", "a");
+  // }
 
   // mesh test
   if (mesh_test > 0) Globals::nranks = mesh_test;
@@ -347,6 +353,12 @@ if (Z4C_ENABLED){
   pz4c_tracker = new Tracker(this, pin, 0);
 #endif // Z4C_TRACKER
   }
+
+#ifdef TRACKER_EXTREMA
+  // Last entry says if it is restart run or not
+  ptracker_extrema = new TrackerExtrema(this, pin, 0);
+#endif // TRACKER_EXTREMA
+
   if (EOS_TABLE_ENABLED) peos_table = new EosTable(pin);
   InitUserMeshData(pin);
 
@@ -646,7 +658,9 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
   MeshBlock *pfirst{};
   IOWrapperSizeT *offset{};
   IOWrapperSizeT datasize, listsize, headeroffset;
-  pofile = fopen("intd.txt", "a");
+
+  // BD: why - also this is never properly closed?
+  // pofile = fopen("intd.txt", "a");
 
   // mesh test
   if (mesh_test > 0) Globals::nranks = mesh_test;
@@ -781,6 +795,12 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
   pz4c_tracker = new Tracker(this, pin, 1);
 #endif
   }
+
+#ifdef TRACKER_EXTREMA
+  // Last entry says if it is restart run or not
+  ptracker_extrema = new TrackerExtrema(this, pin, 1);
+#endif // TRACKER_EXTREMA
+
   if (EOS_TABLE_ENABLED) peos_table = new EosTable(pin);
   InitUserMeshData(pin, 1);
 
@@ -794,6 +814,14 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
   for (int i_punc = 0; i_punc < NPUNCT; ++i_punc)
     udsize += 6*sizeof(Real);
 #endif
+
+#ifdef TRACKER_EXTREMA
+  // c_x1, c_x2, c_x3
+  udsize += ptracker_extrema->c_x1.GetSizeInBytes();
+  udsize += ptracker_extrema->c_x2.GetSizeInBytes();
+  udsize += ptracker_extrema->c_x3.GetSizeInBytes();
+#endif // TRACKER_EXTREMA
+
   if (udsize != 0) {
     char *userdata = new char[udsize];
     if (Globals::my_rank == 0) { // only the master process reads the ID list
@@ -829,6 +857,24 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
       udoffset += 3*sizeof(Real);
     }
 #endif
+
+#ifdef TRACKER_EXTREMA
+    std::memcpy(ptracker_extrema->c_x1.data(),
+                &(userdata[udoffset]),
+                ptracker_extrema->c_x1.GetSizeInBytes());
+    udoffset += ptracker_extrema->c_x1.GetSizeInBytes();
+
+    std::memcpy(ptracker_extrema->c_x2.data(),
+                &(userdata[udoffset]),
+                ptracker_extrema->c_x2.GetSizeInBytes());
+    udoffset += ptracker_extrema->c_x2.GetSizeInBytes();
+
+    std::memcpy(ptracker_extrema->c_x3.data(),
+                &(userdata[udoffset]),
+                ptracker_extrema->c_x3.GetSizeInBytes());
+    udoffset += ptracker_extrema->c_x3.GetSizeInBytes();
+#endif // TRACKER_EXTREMA
+
     delete [] userdata;
   }
 
@@ -925,41 +971,74 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
   //    gflag=2;
 
   // allocate data buffer
-  int nb = nblist[Globals::my_rank];
-  int nbs = nslist[Globals::my_rank];
-  int nbe = nbs + nb - 1;
-  char *mbdata = new char[datasize*nb];
-  // load MeshBlocks (parallel)
-  if (resfile.Read_at_all(mbdata, datasize, nb, headeroffset+nbs*datasize) !=
-      static_cast<unsigned int>(nb)) {
-    msg << "### FATAL ERROR in Mesh constructor" << std::endl
-        << "The restart file is broken or input parameters are inconsistent."
-        << std::endl;
-    ATHENA_ERROR(msg);
+  int nbmin = nblist[0];
+  for (int n = 1; n < Globals::nranks; ++n) {
+    if (nbmin > nblist[n])
+      nbmin = nblist[n];
   }
+  int nb = nblist[Globals::my_rank];   // nblocal
+  int nbs = nslist[Globals::my_rank];  // gids_
+  int nbe = nbs + nb - 1;              // gide_
+
+  char *mbdata = new char[datasize];
+
+
+  // // load MeshBlocks (parallel)
+  // if (resfile.Read_at_all(mbdata, datasize, nb, headeroffset+nbs*datasize) !=
+  //     static_cast<unsigned int>(nb)) {
+  //   msg << "### FATAL ERROR in Mesh constructor" << std::endl
+  //       << "The restart file is broken or input parameters are inconsistent."
+  //       << std::endl;
+  //   ATHENA_ERROR(msg);
+  // }
+
+
   for (int i=nbs; i<=nbe; i++) {
-    // Match fixed-width integer precision of IOWrapperSizeT datasize
-    std::uint64_t buff_os = datasize * (i-nbs);
-    SetBlockSizeAndBoundaries(loclist[i], block_size, block_bcs);
-    // create a block and add into the link list
-    if (i == nbs) {
-      pblock = new MeshBlock(i, i-nbs, this, pin, loclist[i], block_size,
-                             block_bcs, costlist[i], mbdata+buff_os, gflag);
-//WGC - need to intialise coord_width in pcoord for dt to be set correctly
-// - either do it here, or put all cell centred metric into restart files 
-//and read in
-      pblock->pz4c->Z4cToADM(pblock->pz4c->storage.u, pblock->pz4c->storage.adm);
-      pblock->pcoord->UpdateMetric();
-      if(multilevel){
-      pblock->pmr->pcoarsec->UpdateMetric();
+    if (i - nbs < nbmin) {
+      // load MeshBlock (parallel)
+      if (resfile.Read_at_all(mbdata, datasize, 1, headeroffset+i*datasize) != 1) {
+        msg << "### FATAL ERROR in Mesh constructor" << std::endl
+            << "The restart file is broken or input parameters are inconsistent."
+            << std::endl;
+        ATHENA_ERROR(msg);
       }
-      pfirst = pblock;
     } else {
-      pblock->next = new MeshBlock(i, i-nbs, this, pin, loclist[i], block_size,
-                                   block_bcs, costlist[i], mbdata+buff_os, gflag);
+      // load MeshBlock (serial)
+      if (resfile.Read_at(mbdata, datasize, 1, headeroffset+i*datasize) != 1) {
+        msg << "### FATAL ERROR in Mesh constructor" << std::endl
+            << "The restart file is broken or input parameters are inconsistent."
+            << std::endl;
+        ATHENA_ERROR(msg);
+      }
+    }
+
+    // Match fixed-width integer precision of IOWrapperSizeT datasize
+    // std::uint64_t buff_os = datasize * (i-nbs);
+    SetBlockSizeAndBoundaries(loclist[i], block_size, block_bcs);
+
+    // BD: clean up logic of ll construction...
+    // create a new block
+    MeshBlock * pblock_new = new MeshBlock(
+      i, i-nbs, this, pin, loclist[i], block_size,
+      block_bcs, costlist[i], mbdata, gflag);
+
+    if (i == nbs)
+    {
+      pblock = pblock_new;
+      pfirst = pblock;
+    }
+    else
+    {
+      pblock->next = pblock_new;
       pblock->next->prev = pblock;
       pblock = pblock->next;
-//WGC
+    }
+
+    // WGC: Need to intialise coord_width in pcoord for dt to be set correctly
+    //      either do it here, or put all cell centred metric into restart
+    //      files and read in
+    if(Z4C_ENABLED && FLUID_ENABLED)
+    {
       pblock->pz4c->Z4cToADM(pblock->pz4c->storage.u, pblock->pz4c->storage.adm);
       pblock->pcoord->UpdateMetric();
       if(multilevel){
@@ -1017,6 +1096,11 @@ Mesh::~Mesh() {
 #ifdef Z4C_TRACKER
   delete pz4c_tracker;
 #endif // Z4C_TRACKER
+
+#ifdef TRACKER_EXTREMA
+  delete ptracker_extrema;
+#endif // TRACKER_EXTREMA
+
   if (adaptive) { // deallocate arrays for AMR
     delete [] nref;
     delete [] nderef;
@@ -1524,10 +1608,12 @@ void Mesh::GlobalInt() {
   }
 #endif
 
-if (ioproc){
-          fprintf(pofile, "%.16f %.16f\n", time, intd);
-               fflush(pofile);
-}	   
+// BD: why - also this is never properly closed?
+// if (ioproc){
+//           fprintf(pofile, "%.16f %.16f\n", time, intd);
+//                fflush(pofile);
+// }	   
+
 }
 //----------------------------------------------------------------------------------------
 // \!fn void Mesh::ApplyUserWorkBeforeOutput(ParameterInput *pin)
@@ -1727,6 +1813,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       for (int i=0; i<nmb; ++i) {
         pmb = pmb_array[i];
         pbval = pmb->pbval, ph = pmb->phydro, pf = pmb->pfield, ps = pmb->pscalars;
+        pz4c = pmb->pz4c;
+
         if (multilevel){
           pbval->ProlongateBoundaries(time, 0.0);
         //WGC separate prol functions
@@ -1736,6 +1824,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           jl = pmb->js, ju = pmb->je,
           kl = pmb->ks, ku = pmb->ke;
         int ignore = VC2CC_IGNORE;
+//WGC testing 
+//        ignore = 0;
         if (pbval->nblevel[1][1][0] != -1) il -= NGHOST;
         if (pbval->nblevel[1][1][2] != -1) iu += NGHOST;
         if (pmb->block_size.nx2 > 1) {
@@ -1745,6 +1835,12 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         if (pmb->block_size.nx3 > 1) {
           if (pbval->nblevel[0][1][1] != -1) kl -= NGHOST;
           if (pbval->nblevel[2][1][1] != -1) ku += NGHOST;
+        }
+
+        if (GENERAL_RELATIVITY && res_flag == 2)
+        {
+          // Need ADM variables for con2prim when AMR splits MeshBlock
+          pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
         }
 
         if (FLUID_ENABLED) {

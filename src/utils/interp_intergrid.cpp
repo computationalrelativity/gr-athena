@@ -70,11 +70,17 @@ void InterpIntergrid::var_map_VC2CC(
             Real const f_llu = var_vc(f, k_u+dg, j_l+dg, i_l+dg);
             Real const f_uul = var_vc(f, k_l+dg, j_u+dg, i_u+dg);
 
+#ifdef DBG_SYMMETRIZE_IG_OP
+            var_cc(f,n,m,l) += lck * lcj * lci * FloatingPoint::sum_associative(
+              f_uuu, f_lll, f_lul, f_ulu,
+              f_ull, f_luu, f_llu, f_uul
+            );
+#else
             var_cc(f,n,m,l) += lck * lcj * lci * (
               (f_uuu + f_lll) + (f_lul + f_ulu) +
               (f_ull + f_luu) + (f_llu + f_uul)
             );
-
+#endif // DBG_SYMMETRIZE_IG_OP
           }
 
         }
@@ -104,9 +110,15 @@ void InterpIntergrid::var_map_VC2CC(
           Real const f_ul = var_vc(f, j_l+dg, i_u+dg);
           Real const f_lu = var_vc(f, j_u+dg, i_l+dg);
 
+#ifdef DBG_SYMMETRIZE_IG_OP
+          var_cc(f,m,l) += lcj * lci * FloatingPoint::sum_associative(
+            f_uu, f_ll, f_ul, f_lu
+          );
+#else
           var_cc(f,m,l) += lcj * lci * (
             ((f_uu+f_ll) +(f_ul+f_lu))
           );
+#endif // DBG_SYMMETRIZE_IG_OP
         }
       }
   }
@@ -188,10 +200,17 @@ void InterpIntergrid::var_map_CC2VC(
             Real const f_llu = var_cc(f, k_u+dg, j_l+dg, i_l+dg);
             Real const f_uul = var_cc(f, k_l+dg, j_u+dg, i_u+dg);
 
+#ifdef DBG_SYMMETRIZE_IG_OP
+            var_vc(f,n,m,l) += lck * lcj * lci * FloatingPoint::sum_associative(
+              f_uuu, f_lll, f_lul, f_ulu,
+              f_ull, f_luu, f_llu, f_uul
+            );
+#else
             var_vc(f,n,m,l) += lck * lcj * lci * (
               (f_uuu + f_lll) + (f_lul + f_ulu) +
               (f_ull + f_luu) + (f_llu + f_uul)
             );
+#endif // DBG_SYMMETRIZE_IG_OP
 
           }
 
@@ -221,9 +240,15 @@ void InterpIntergrid::var_map_CC2VC(
           Real const f_ul = var_cc(f, j_l+dg, i_u+dg);
           Real const f_lu = var_cc(f, j_u+dg, i_l+dg);
 
+#ifdef DBG_SYMMETRIZE_IG_OP
+          var_vc(f,m,l) += lcj * lci * FloatingPoint::sum_associative(
+            f_uu, f_ll, f_ul, f_lu
+          );
+#else
           var_vc(f,m,l) += lcj * lci * (
             ((f_uu+f_ll) +(f_ul+f_lu))
           );
+#endif // DBG_SYMMETRIZE_IG_OP
         }
       }
   }

@@ -34,6 +34,7 @@
 #   -z_eta_track_tp     enable (TP) based shift-damping
 #   -z_eta_conf         enable conformal factor based shift-damping
 #   -z_assert_is_finite enable checking for nan/inf within Z4c tasklist
+#   -tracker_extrema    enable extrema tracker
 #   -t                  enable interface frame transformations for GR
 #   -vertex             prefer vertex-centered (where available)
 #   -shear              enable shearing periodic boundary conditions
@@ -251,6 +252,12 @@ parser.add_argument("-z_assert_is_finite",
                     action='store_true',
                     default=False,
                     help='enable Z4c assert is_finite checks')
+
+# -tracker_extrema argument
+parser.add_argument("-tracker_extrema",
+                    action='store_true',
+                    default=False,
+                    help='enable tracker based on extrema')
 
 # -t argument
 parser.add_argument('-t',
@@ -751,6 +758,12 @@ if args['vertex']:
 else:
     definitions['PREFER_VC'] = '0'
 
+# -tracker_extrema argument
+if args['tracker_extrema']:
+    definitions['TRACKER_EXTREMA'] = 'TRACKER_EXTREMA'
+else:
+  definitions['TRACKER_EXTREMA'] = 'NO_TRACKER_EXTREMA'
+
 # currently doesnt do anything
 # gr_dynamical argument
 if args['coord'] == 'gr_dynamical':
@@ -770,7 +783,14 @@ if args['cxx'] == 'g++':
     definitions['COMPILER_CHOICE'] = 'g++'
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'g++'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
-    makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++11'
+    # makefile_options['COMPILER_FLAGS'] = (
+    #     '-O3 -std=c++11 -fwhole-program -flto=auto '
+    #     '-march=native -fprefetch-loop-arrays'
+    # )
+    makefile_options['COMPILER_FLAGS'] = (
+        '-O3 -std=c++11 -fwhole-program -flto=auto -fprefetch-loop-arrays -march=native '
+        '-ffp-contract=off ' # disables FMA
+    )
     makefile_options['LINKER_FLAGS'] = ''
     makefile_options['LIBRARY_FLAGS'] = ''
 if args['cxx'] == 'g++-simd':
@@ -779,8 +799,9 @@ if args['cxx'] == 'g++-simd':
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'g++'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
     makefile_options['COMPILER_FLAGS'] = (
-        '-O3 -std=c++11 -fopenmp-simd -fwhole-program -flto -ffast-math '
-        '-march=native -fprefetch-loop-arrays'
+        '-O3 -std=c++11 -fwhole-program -flto=auto -fprefetch-loop-arrays -march=native '
+        '-fopenmp-simd '
+        '-ffp-contract=off ' # disables FMA
         # -march=skylake-avx512, skylake, core-avx2
         # -mprefer-vector-width=128  # available in gcc-8, but not gcc-7
         # -mtune=native, generic, broadwell
@@ -796,7 +817,7 @@ if args['cxx'] == 'icpc':
     makefile_options['PREPROCESSOR_FLAGS'] = ''
     makefile_options['COMPILER_FLAGS'] = (
       '-O3 -std=c++11 -ipo -xhost -inline-forceinline -qopenmp-simd -qopt-prefetch=4 '
-      '-qoverride-limits'  # -qopt-report-phase=ipo (does nothing without -ipo)
+      '-qoverride-limits -fp-model precise '  # -qopt-report-phase=ipo (does nothing without -ipo)
     )
     # -qopt-zmm-usage=high'  # typically harms multi-core performance on Skylake Xeon
     makefile_options['LINKER_FLAGS'] = ''
@@ -1262,6 +1283,15 @@ if args['eos'] == 'eostaudyn_ps':
     aux = ["		src/z4c/primitive/{}.cpp \\".format(f) for f in files]
     makefile_options['EOS_FILES'] = '\n'.join(aux) + '\n'
 
+# Add tracker_extrema
+files = []
+if args['tracker_extrema']:
+    files.append('tracker_extrema')
+    aux = ["		src/trackers/{}.cpp \\".format(f) for f in files]
+    makefile_options['TRA_FILES'] = '\n'.join(aux) + '\n'
+else:
+    makefile_options['TRA_FILES'] = '\\\n'
+
 id_files = []
 makefile_options['ID_FILES'] = ''
 
@@ -1316,9 +1346,16 @@ print('  Wave equation:                ' + ('ON' if args['w'] else 'OFF'))
 print('  Z4c equations:                ' + ('ON' if args['z'] else 'OFF'))
 if args['z']:
     print('  Z4c wave extraction:          ' + ('ON' if args['z_wext'] else 'OFF'))
-    print('  Z4c tracker:                  ' + ('ON' if args['z_tracker'] else 'OFF'))
+    # print('  Z4c tracker:                  ' + ('ON' if args['z_tracker'] else 'OFF'))
     print('  Z4c assert is_finite:         ' + ('ON' if args['z_assert_is_finite'] else 'OFF'))
     print('  Z4c shift damping:            ' + self_eta_damp_string)
+
+have_tracker = args['z_tracker'] or args['tracker_extrema']
+
+print('  Trackers:                     ' + ('ON' if have_tracker else 'OFF'))
+if have_tracker:
+    print('    Punctures:                  ' + ('ON' if args['z_tracker'] in args else 'OFF'))
+    print('    Extrema:                    ' + ('ON' if args['tracker_extrema'] else 'OFF'))
 
 print('  Frame transformations:        ' + ('ON' if args['t'] else 'OFF'))
 print('  Self-Gravity:                 ' + self_grav_string)

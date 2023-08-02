@@ -142,7 +142,14 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
 
   // "Enroll" in SMR/AMR by adding to vector of pointers in MeshRefinement class
   if (pm->multilevel) {
-    refinement_idx = pmy_block->pmr->AddToRefinementVC(&storage.u, &coarse_u_);
+    if (PREFER_VC)
+    {
+      refinement_idx = pmy_block->pmr->AddToRefinementVC(&storage.u, &coarse_u_);
+    }
+    else
+    {
+      refinement_idx = pmy_block->pmr->AddToRefinementCC(&storage.u, &coarse_u_);
+    }
   }
 
 
@@ -323,30 +330,13 @@ if(pmb->pmy_mesh->multilevel){
 
 }
 
-//
   // Set up finite difference operators
-  Real dx1, dx2, dx3;
   if (PREFER_VC) {
-    dx1 = pco->dx1f(0); dx2 = pco->dx2f(0); dx3 = pco->dx3f(0);
+    pfd = pmy_block->pfd_vc;
   } else {
-    dx1 = pco->dx1v(0); dx2 = pco->dx2v(0); dx3 = pco->dx3v(0);
+    pfd = pmy_block->pfd_cc;
   }
 
-  FD.stride[0] = 1;
-  FD.stride[1] = 0;
-  FD.stride[2] = 0;
-  FD.idx[0] = 1.0 / dx1;
-  FD.idx[1] = 0.0;
-  FD.idx[2] = 0.0;
-  if(nn2 > 1) {
-    FD.stride[1] = nn1;
-    FD.idx[1] = 1.0 / dx2;
-  }
-  if(nn3 > 1) {
-    FD.stride[2] = nn2*nn1;
-    FD.idx[2] = 1.0 / dx3;
-  }
-  FD.diss = opt.diss*pow(2, -2*NGHOST)*(NGHOST % 2 == 0 ? -1 : 1);
 }
 
 // destructor
@@ -629,7 +619,7 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
     if(opt.Tmunuinterp==0){
 //     Real rhovc, pgasvc, utilde1vc, utilde2vc, utilde3vc, wgas,tmp, gamma_lor, v1,v2,v3,v_1,v_2,v_3,epsvc, bb1vc,bb2vc,bb3vc;
       AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> rhovc, pgasvc, utilde1vc, utilde2vc, utilde3vc, epsvc, bb1vc,bb2vc,bb3vc, tmp, wgas, gamma_lor, v1,v2,v3, detgamma, detg, bsq, b0_u;
-      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> v_d, v_u,  bb_u, bi_u, bi_d, utildevc_u; 
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> v_d, v_u,  bb_u, bi_u, bi_d, utildevc_u, beta_d; 
       rhovc.NewAthenaTensor(nn1);
       pgasvc.NewAthenaTensor(nn1);
       epsvc.NewAthenaTensor(nn1);
@@ -653,6 +643,7 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
       b0_u.NewAthenaTensor(nn1);
       v_d.NewAthenaTensor(nn1);
       v_u.NewAthenaTensor(nn1);
+      beta_d.NewAthenaTensor(nn1);
       #if MAGNETIC_FIELDS_ENABLED
       bb_u.NewAthenaTensor(nn1);
       bi_u.NewAthenaTensor(nn1);
@@ -690,13 +681,19 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
           //   NB specific to EOS
           #if USETM
           Real n = rhovc(i)/mb;
-          // FIXME: Generalize to work with EOSs accepting particle fractions.
+          Real Wvu[3] = {utilde1vc(i), utilde2vc(i), utilde3vc(i)};
+          // FIXME: Generalize to work with EOSes accepting particle fractions.
           Real Y[MAX_SPECIES] = {0.0};
           for (int Yidx=0; Yidx<NSCALARS; Yidx++) {
             Y[Yidx] = ig->map3d_CC2VC(rscalarcc[Yidx](k,j,i));
           }
           Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgasvc(i), Y);
-          wgas(i) = rhovc(i)*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
+//          if(T< 0.0){
+//          printf("T = %.16e, x = %.16e, y = %.16e, z = %.16e, i = %d, j = %d, k = %d \n",T,pmb->pcoord->x1f(i),pmb->pcoord->x2f(j),pmb->pcoord->x3f(k),i,j,k);
+//          }
+          pmy_block->peos->GetEOS().ApplyPrimitiveFloor(n, Wvu, pgasvc(i), T, Y);
+//TODO WGC: rhovc or n??
+          wgas(i) = n*mb*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
           #else
           if(opt.epsinterp==1){
             pgasvc(i) = epsvc(i)*rhovc(i)*(gamma_adi-1.0);
@@ -724,9 +721,9 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
           detg(i) = alpha(k,j,i)*detgamma(i);
 
           #if MAGNETIC_FIELDS_ENABLED
-          bb_u(0,i) = bb1vc(i)/detg(i);
-          bb_u(1,i) = bb2vc(i)/detg(i);
-          bb_u(2,i) = bb3vc(i)/detg(i);
+          bb_u(0,i) = bb1vc(i)/std::sqrt(detgamma(i));
+          bb_u(1,i) = bb2vc(i)/std::sqrt(detgamma(i));
+          bb_u(2,i) = bb3vc(i)/std::sqrt(detgamma(i));
           #endif
         }
         //b0_u = 0.0;
@@ -738,6 +735,15 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
           }
         }
         #endif
+
+        beta_d.ZeroClear();
+        for(int a=0;a<NDIM;++a){
+            for(int b=0;b<NDIM;++b){
+                ILOOP1(i){
+                    beta_d(a,i) += adm.g_dd(a,b,k,j,i)*z4c.beta_u(b,k,j,i);
+                }
+            }
+        }
 
         ILOOP1(i){
           utildevc_u(0,i) = utilde1vc(i);
@@ -751,9 +757,10 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
         #if MAGNETIC_FIELDS_ENABLED
         for(int a=0;a<NDIM;++a){
           ILOOP1(i){
-            bi_u(a,i) = (bb_u(a,i) + alpha(k,j,i)*b0_u(i)*gamma_lor(i)*(v_u(a,i) - z4c.beta_u(a,k,j,i)/alpha(i)))/gamma_lor(i);
+            bi_u(a,i) = (bb_u(a,i) + alpha(k,j,i)*b0_u(i)*gamma_lor(i)*(v_u(a,i) - z4c.beta_u(a,k,j,i)/alpha(k,j,i)))/gamma_lor(i);
           }
         }
+/*
         bi_d.ZeroClear();
         for(int a=0;a<NDIM;++a){
           for(int b=0;b<NDIM;++b){
@@ -762,6 +769,18 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
             }
           }
         }
+*/
+ for(int a=0;a<NDIM;++a){
+     ILOOP1(i){
+       bi_d(a,i) = beta_d(a,i) * b0_u(i);
+     }
+     for(int b=0;b<NDIM;++b){
+       ILOOP1(i){
+         bi_d(a,i) += adm.g_dd(a,b,k,j,i)*bi_u(b,i);
+       }
+     }
+ }
+
         ILOOP1(i){
           bsq(i) = alpha(k,j,i)*alpha(k,j,i)*b0_u(i)*b0_u(i)/(gamma_lor(i)*gamma_lor(i));
         }
@@ -779,9 +798,9 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
         #if MAGNETIC_FIELDS_ENABLED
         ILOOP1(i){
           mat.rho(k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i)) - (pgasvc(i) + bsq(i)/2.0) - alpha(k,j,i)*alpha(k,j,i)*b0_u(i)*b0_u(i);
-          mat.S_d(0,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(0,i) - b0_u(i)*bi_d(0,i)*alpha(i);
-          mat.S_d(1,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(1,i) - b0_u(i)*bi_d(1,i)*alpha(i);
-          mat.S_d(2,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(2,i) - b0_u(i)*bi_d(2,i)*alpha(i);
+          mat.S_d(0,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(0,i) - b0_u(i)*bi_d(0,i)*alpha(k,j,i);
+          mat.S_d(1,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(1,i) - b0_u(i)*bi_d(1,i)*alpha(k,j,i);
+          mat.S_d(2,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))*v_d(2,i) - b0_u(i)*bi_d(2,i)*alpha(k,j,i);
           mat.S_dd(0,0,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(0,i)*v_d(0,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(0,0,k,j,i) - bi_d(0,i)*bi_d(0,i);
           mat.S_dd(0,1,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(0,i)*v_d(1,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(0,1,k,j,i) - bi_d(0,i)*bi_d(1,i);
           mat.S_dd(0,2,k,j,i) = (wgas(i)+bsq(i))*SQR(gamma_lor(i))* v_d(0,i)*v_d(2,i) + (pgasvc(i)+bsq(i)/2.0)*adm.g_dd(0,2,k,j,i) - bi_d(0,i)*bi_d(2,i);

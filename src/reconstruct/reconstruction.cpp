@@ -75,6 +75,10 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
         << "xorder=" << input_recon << " not valid choice for reconstruction"<< std::endl;
     ATHENA_ERROR(msg);
   }
+
+  // reconstruct using internal energy (true) or pressure (false)
+  eps_rec = pin->GetOrAddBoolean("hydro", "eps_rec", false);
+
   // Check for incompatible choices with broader solver configuration
   // --------------------------------
   if (GENERAL_EOS && characteristic_projection) {

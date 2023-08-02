@@ -60,16 +60,23 @@ static double cl5[5] = {2./60., -13./60., 47./60., 27./60., -3./60.};
 
 void Reconstruction::WenoX1(
     const int k, const int j, const int il, const int iu,
-    const AthenaArray<Real> &q,
+    const AthenaArray<Real> &q, const AthenaArray<Real> &bcc,
     AthenaArray<Real> &ql, AthenaArray<Real> &qr) {
   Coordinates *pco = pmy_block_->pcoord;
   // set work arrays to shallow copies of scratch arrays
   AthenaArray<Real> &qc = scr1_ni_, &dql = scr2_ni_, &dqr = scr3_ni_,
                    &dqm = scr4_ni_;
-  const int nu = q.GetDim4() - 1;
-
+//  const int nu = q.GetDim4() - 1;
+  int nu;
+  if(eps_rec){
+     nu = NHYDRO-1;
+  }
+  else{
+     nu = NHYDRO;
+  }
   // compute L/R slopes for each variable
-  for (int n=0; n<=nu; ++n) {
+//  for (int n=0; n< NHYDRO-1; ++n) {
+  for (int n=0; n< nu; ++n) {
 #pragma omp simd
     for (int i=il; i<=iu; ++i) {
       Real luimt = q(n,k,j,i-3);
@@ -82,32 +89,135 @@ void Reconstruction::WenoX1(
       Real rui = q(n,k,j,i);
       Real ruipo = q(n,k,j,i+1);
       Real ruipt = q(n,k,j,i+2);
-      ql(n,i) = rec1d_p_weno5(luimt,luimo,lui,luipo,luipt);
-      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_weno5(luimt,luimo,lui,luipo,luipt);
+//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
 //    possible other reconstruction routines for testing - to be separated into separate callable reconstruction routines
-//      ql(n,i) = rec1d_p_wenoz(luimt,luimo,lui,luipo,luipt);
-//      qr(n,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+      ql(n,i) = rec1d_p_wenoz(luimt,luimo,lui,luipo,luipt);
+      qr(n,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
 //      ql(n,i) = rec1d_p_mp5(luimt,luimo,lui,luipo,luipt);
 //      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
 //      ql(n,i) = rec1d_p_ceno3(luimt,luimo,lui,luipo,luipt);
 //      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
     }
   }
+if(eps_rec){
+#pragma omp simd
+    for (int i=il; i<=iu; ++i) {
+      Real luimt = q(IPR,k,j,i-3)/q(IDN,k,j,i-3);
+      Real luimo = q(IPR,k,j,i-2)/q(IDN,k,j,i-2);
+      Real lui = q(IPR,k,j,i-1)/q(IDN,k,j,i-1);
+      Real luipo = q(IPR,k,j,i)/q(IDN,k,j,i);
+      Real luipt = q(IPR,k,j,i+1)/q(IDN,k,j,i+1);
+      Real ruimt = q(IPR,k,j,i-2)/q(IDN,k,j,i-2);
+      Real ruimo = q(IPR,k,j,i-1)/q(IDN,k,j,i-1);
+      Real rui = q(IPR,k,j,i)/q(IDN,k,j,i);
+      Real ruipo = q(IPR,k,j,i+1)/q(IDN,k,j,i+1);
+      Real ruipt = q(IPR,k,j,i+2)/q(IDN,k,j,i+2);
+//      ql(n,i) = rec1d_p_weno5(luimt,luimo,lui,luipo,luipt);
+//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+//    possible other reconstruction routines for testing - to be separated into separate callable reconstruction routines
+      ql(IPR,i) = rec1d_p_wenoz(luimt,luimo,lui,luipo,luipt)*ql(IDN,i);
+      qr(IPR,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*qr(IDN,i);
+//      ql(n,i) = rec1d_p_mp5(luimt,luimo,lui,luipo,luipt);
+//      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_ceno3(luimt,luimo,lui,luipo,luipt);
+//      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+    }
+}
+
+  if(MAGNETIC_FIELDS_ENABLED){
+#pragma omp simd
+    for (int i=il; i<=iu; ++i) {
+      Real luimt = bcc(IB2,k,j,i-3);
+      Real luimo = bcc(IB2,k,j,i-2);
+      Real lui = bcc(IB2,k,j,i-1);
+      Real luipo = bcc(IB2,k,j,i);
+      Real luipt = bcc(IB2,k,j,i+1);
+      Real ruimt = bcc(IB2,k,j,i-2);
+      Real ruimo = bcc(IB2,k,j,i-1);
+      Real rui = bcc(IB2,k,j,i);
+      Real ruipo = bcc(IB2,k,j,i+1);
+      Real ruipt = bcc(IB2,k,j,i+2);
+      ql(IBY,i) = rec1d_p_wenoz(luimt,luimo,lui,luipo,luipt);
+      qr(IBY,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+    }
+#pragma omp simd
+    for (int i=il; i<=iu; ++i) {
+      Real luimt = bcc(IB3,k,j,i-3);
+      Real luimo = bcc(IB3,k,j,i-2);
+      Real lui = bcc(IB3,k,j,i-1);
+      Real luipo = bcc(IB3,k,j,i);
+      Real luipt = bcc(IB3,k,j,i+1);
+      Real ruimt = bcc(IB3,k,j,i-2);
+      Real ruimo = bcc(IB3,k,j,i-1);
+      Real rui = bcc(IB3,k,j,i);
+      Real ruipo = bcc(IB3,k,j,i+1);
+      Real ruipt = bcc(IB3,k,j,i+2);
+      ql(IBZ,i) = rec1d_p_wenoz(luimt,luimo,lui,luipo,luipt);
+      qr(IBZ,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+    }
+
+
+  }
+//Real mb, ndensl, ndensr;
+//Real Y[MAX_SPECIES] = {0.0};
+//    mb = pmy_block_->peos->GetEOS().GetBaryonMass();
+//#pragma omp simd
+//    for (int i=il; i<=iu; ++i) {
+////    switch to n
+//    ndensl = mb*ql(IDN,i+1);
+//    ndensr = mb*qr(IDN,i);
+//    pmy_block_->peos->GetEOS().ApplyDensityLimits(ndensl); 
+//    pmy_block_->peos->GetEOS().ApplyPressureLimits(ql(IPR,i+1),ndensl,Y); 
+//    pmy_block_->peos->GetEOS().ApplyDensityLimits(ndensr); 
+//    pmy_block_->peos->GetEOS().ApplyPressureLimits(qr(IPR,i),ndensr,Y); 
+//    ql(IDN,i+1) = ndensl/mb;
+//    qr(IDN,i) = ndensr/mb;
+//}
+
+#if USETM
+for (int l=0; l<NSCALARS; l++){
+#pragma omp simd
+  for (int i=il; i<=iu; ++i) {
+      scalar_l(l,i+1) = pmy_block_->pscalars->r(l,k,j,i);
+      scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+    }
+  }
+#endif
+
+#pragma omp simd
+    for (int i=il; i<=iu; ++i) {
+#if USETM
+pmy_block_->peos->ApplyPrimitiveFloors(ql, scalar_l, k ,j, i+1);
+pmy_block_->peos->ApplyPrimitiveFloors(qr, scalar_r, k ,j, i);
+#else
+pmy_block_->peos->ApplyPrimitiveFloors(ql, k ,j, i+1);
+pmy_block_->peos->ApplyPrimitiveFloors(qr, k ,j, i);
+#endif
+}
   return;
 }
 
 void Reconstruction::WenoX2(
     const int k, const int j, const int il, const int iu,
-    const AthenaArray<Real> &q,
+    const AthenaArray<Real> &q,  const AthenaArray<Real> &bcc,
     AthenaArray<Real> &ql, AthenaArray<Real> &qr) {
   Coordinates *pco = pmy_block_->pcoord;
   // set work arrays to shallow copies of scratch arrays
   AthenaArray<Real> &qc = scr1_ni_, &dql = scr2_ni_, &dqr = scr3_ni_,
                    &dqm = scr4_ni_;
-  const int nu = q.GetDim4() - 1;
+//  const int nu = q.GetDim4() - 1;
 
   // compute L/R slopes for each variable
-  for (int n=0; n<=nu; ++n) {
+//  for (int n=0; n<NHYDRO-1; ++n) {
+  int nu;
+  if(eps_rec){
+     nu = NHYDRO-1;
+  }
+  else{
+     nu = NHYDRO;
+  }
+  for (int n=0; n<nu; ++n) {
 #pragma omp simd
     for (int i=il; i<=iu; ++i) {
       Real luimt = q(n,k,j-3,i);
@@ -120,16 +230,116 @@ void Reconstruction::WenoX2(
       Real rui = q(n,k,j,i);
       Real ruipo = q(n,k,j+1,i);
       Real ruipt = q(n,k,j+2,i);
-      ql(n,i) = rec1d_p_weno5(luimt,luimo,lui,luipo,luipt);
-      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_wenoz(luimt,luimo,lui,luipo,luipt);
-//      qr(n,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_mp5(luimt,luimo,lui,luipo,luipt);
+//      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+      ql(n,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+      qr(n,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
 //      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_ceno3(luimt,luimo,lui,luipo,luipt);
+//      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
 //      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
     }
   }
+if(eps_rec){
+#pragma omp simd
+    for (int i=il; i<=iu; ++i) {
+      Real ruimt = q(IPR,k,j-2,i)/q(IDN,k,j-2,i);
+      Real ruimo = q(IPR,k,j-1,i)/q(IDN,k,j-1,i);
+      Real rui = q(IPR,k,j,i)/q(IDN,k,j,i);
+      Real ruipo = q(IPR,k,j+1,i)/q(IDN,k,j+1,i);
+      Real ruipt = q(IPR,k,j+2,i)/q(IDN,k,j+2,i);
+//      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+      ql(IPR,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*ql(IDN,i);
+      qr(IPR,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*qr(IDN,i);
+//      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+    }
+}
+  if(MAGNETIC_FIELDS_ENABLED){
+#pragma omp simd
+    for (int i=il; i<=iu; ++i) {
+      Real luimt = bcc(IB3,k,j-3,i);
+      Real luimo = bcc(IB3,k,j-2,i);
+      Real lui = bcc(IB3,k,j-1,i);
+      Real luipo = bcc(IB3,k,j,i);
+      Real luipt = bcc(IB3,k,j+1,i);
+      Real ruimt = bcc(IB3,k,j-2,i);
+      Real ruimo = bcc(IB3,k,j-1,i);
+      Real rui = bcc(IB3,k,j,i);
+      Real ruipo = bcc(IB3,k,j+1,i);
+      Real ruipt = bcc(IB3,k,j+2,i);
+//      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+      ql(IBY,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+      qr(IBY,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+     }
+#pragma omp simd
+    for (int i=il; i<=iu; ++i) {
+      Real luimt = bcc(IB1,k,j-3,i);
+      Real luimo = bcc(IB1,k,j-2,i);
+      Real lui = bcc(IB1,k,j-1,i);
+      Real luipo = bcc(IB1,k,j,i);
+      Real luipt = bcc(IB1,k,j+1,i);
+      Real ruimt = bcc(IB1,k,j-2,i);
+      Real ruimo = bcc(IB1,k,j-1,i);
+      Real rui = bcc(IB1,k,j,i);
+      Real ruipo = bcc(IB1,k,j+1,i);
+      Real ruipt = bcc(IB1,k,j+2,i);
+//      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+      ql(IBZ,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+      qr(IBZ,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+     }
+
+
+}
+//Real mb, ndensl, ndensr;
+//Real Y[MAX_SPECIES] = {0.0};
+//    mb = pmy_block_->peos->GetEOS().GetBaryonMass();
+//#pragma omp simd
+//    for (int i=il; i<=iu; ++i) {
+////    switch to n
+//    ndensl = mb*ql(IDN,i);
+//    ndensr = mb*qr(IDN,i);
+//    pmy_block_->peos->GetEOS().ApplyDensityLimits(ndensl); 
+//    pmy_block_->peos->GetEOS().ApplyPressureLimits(ql(IPR,i),ndensl,Y); 
+//    pmy_block_->peos->GetEOS().ApplyDensityLimits(ndensr); 
+//    pmy_block_->peos->GetEOS().ApplyPressureLimits(qr(IPR,i),ndensr,Y); 
+//    ql(IDN,i) = ndensl/mb;
+//    qr(IDN,i) = ndensr/mb;
+//}
+
+#if USETM
+  for (int l=0; l<NSCALARS; l++){
+#pragma omp simd
+    for (int i=il; i<=iu; ++i) {
+      scalar_l(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+      scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+    }
+  }
+#endif
+
+#pragma omp simd
+    for (int i=il; i<=iu; ++i) {
+#if USETM
+pmy_block_->peos->ApplyPrimitiveFloors(ql, scalar_l, k ,j, i);
+pmy_block_->peos->ApplyPrimitiveFloors(qr, scalar_r, k ,j, i);
+#else
+pmy_block_->peos->ApplyPrimitiveFloors(ql, k ,j, i);
+pmy_block_->peos->ApplyPrimitiveFloors(qr, k ,j, i);
+#endif
+}
   return;
 }
 //----------------------------------------------------------------------------------------
@@ -137,16 +347,24 @@ void Reconstruction::WenoX2(
 
 void Reconstruction::WenoX3(
     const int k, const int j, const int il, const int iu,
-    const AthenaArray<Real> &q,
+    const AthenaArray<Real> &q, const AthenaArray<Real> &bcc,
     AthenaArray<Real> &ql, AthenaArray<Real> &qr) {
   Coordinates *pco = pmy_block_->pcoord;
   // set work arrays to shallow copies of scratch arrays
   AthenaArray<Real> &qc = scr1_ni_, &dql = scr2_ni_, &dqr = scr3_ni_,
                    &dqm = scr4_ni_;
-  const int nu = q.GetDim4() - 1;
+//  const int nu = q.GetDim4() - 1;
 
   // compute L/R slopes for each variable
-  for (int n=0; n<=nu; ++n) {
+//  for (int n=0; n<NHYDRO-1; ++n) {
+  int nu;
+  if(eps_rec){
+     nu = NHYDRO-1;
+  }
+  else{
+     nu = NHYDRO;
+  }
+  for (int n=0; n<nu; ++n) {
 #pragma omp simd
     for (int i=il; i<=iu; ++i) {
       Real luimt = q(n,k-3,j,i);
@@ -159,16 +377,115 @@ void Reconstruction::WenoX3(
       Real rui = q(n,k,j,i);
       Real ruipo = q(n,k+1,j,i);
       Real ruipt = q(n,k+2,j,i);
-      ql(n,i) = rec1d_p_weno5(luimt,luimo,lui,luipo,luipt);
-      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_wenoz(luimt,luimo,lui,luipo,luipt);
-//      qr(n,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_mp5(luimt,luimo,lui,luipo,luipt);
+//      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+      ql(n,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+      qr(n,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
 //      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_ceno3(luimt,luimo,lui,luipo,luipt);
+//      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
 //      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
     }
   }
+if(eps_rec){
+#pragma omp simd
+    for (int i=il; i<=iu; ++i) {
+      Real ruimt = q(IPR,k-2,j,i)/q(IDN,k-2,j,i);
+      Real ruimo = q(IPR,k-1,j,i)/q(IDN,k-1,j,i);
+      Real rui = q(IPR,k,j,i)/q(IDN,k,j,i);
+      Real ruipo = q(IPR,k+1,j,i)/q(IDN,k+1,j,i);
+      Real ruipt = q(IPR,k+2,j,i)/q(IDN,k+2,j,i);
+//      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+      ql(IPR,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*ql(IDN,i);
+      qr(IPR,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*qr(IDN,i);
+//      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+    }
+}
+
+  if(MAGNETIC_FIELDS_ENABLED){
+#pragma omp simd
+    for (int i=il; i<=iu; ++i) {
+      Real luimt = bcc(IB1,k-3,j,i);
+      Real luimo = bcc(IB1,k-2,j,i);
+      Real lui = bcc(IB1,k-1,j,i);
+      Real luipo = bcc(IB1,k,j,i);
+      Real luipt = bcc(IB1,k+1,j,i);
+      Real ruimt = bcc(IB1,k-2,j,i);
+      Real ruimo = bcc(IB1,k-1,j,i);
+      Real rui = bcc(IB1,k,j,i);
+      Real ruipo = bcc(IB1,k+1,j,i);
+      Real ruipt = bcc(IB1,k+2,j,i);
+//      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+      ql(IBY,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+      qr(IBY,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+    }
+#pragma omp simd
+    for (int i=il; i<=iu; ++i) {
+      Real luimt = bcc(IB2,k-3,j,i);
+      Real luimo = bcc(IB2,k-2,j,i);
+      Real lui = bcc(IB2,k-1,j,i);
+      Real luipo = bcc(IB2,k,j,i);
+      Real luipt = bcc(IB2,k+1,j,i);
+      Real ruimt = bcc(IB2,k-2,j,i);
+      Real ruimo = bcc(IB2,k-1,j,i);
+      Real rui = bcc(IB2,k,j,i);
+      Real ruipo = bcc(IB2,k+1,j,i);
+      Real ruipt = bcc(IB2,k+2,j,i);
+//      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+      ql(IBZ,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+      qr(IBZ,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+//      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+//      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+    }
+  }
+//Real mb, ndensl, ndensr;
+//Real Y[MAX_SPECIES] = {0.0};
+//    mb = pmy_block_->peos->GetEOS().GetBaryonMass();
+//#pragma omp simd
+//    for (int i=il; i<=iu; ++i) {
+////    switch to n
+//    ndensl = mb*ql(IDN,i);
+//    ndensr = mb*qr(IDN,i);
+//    pmy_block_->peos->GetEOS().ApplyDensityLimits(ndensl); 
+//    pmy_block_->peos->GetEOS().ApplyPressureLimits(ql(IPR,i),ndensl,Y); 
+//    pmy_block_->peos->GetEOS().ApplyDensityLimits(ndensr); 
+//    pmy_block_->peos->GetEOS().ApplyPressureLimits(qr(IPR,i),ndensr,Y); 
+//    ql(IDN,i) = ndensl/mb;
+//    qr(IDN,i) = ndensr/mb;
+//}
+
+#if USETM
+  for (int l=0; l<NSCALARS; l++){
+#pragma omp simd
+    for (int i=il; i<=iu; ++i) {
+      scalar_l(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+      scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+    }
+  }
+#endif
+
+#pragma omp simd
+    for (int i=il; i<=iu; ++i) {
+#if USETM
+pmy_block_->peos->ApplyPrimitiveFloors(ql, scalar_l, k ,j, i);
+pmy_block_->peos->ApplyPrimitiveFloors(qr, scalar_r, k ,j, i);
+#else
+pmy_block_->peos->ApplyPrimitiveFloors(ql, k ,j, i);
+pmy_block_->peos->ApplyPrimitiveFloors(qr, k ,j, i);
+#endif
+}
   return;
 }
 

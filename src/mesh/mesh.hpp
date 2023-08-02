@@ -34,6 +34,7 @@ using Lorene::Bin_NS;
 #include "../utils/interp_table.hpp"
 #include "mesh_refinement.hpp"
 #include "meshblock_tree.hpp"
+#include "../finite_differencing.hpp"
 #include "../scalars/scalars.hpp"
 
 // Forward declarations
@@ -74,6 +75,12 @@ class WaveExtractLocal;
 class Tracker;
 class TrackerLocal;
 #endif // Z4C_TRACKER
+
+#ifdef TRACKER_EXTREMA
+class TrackerExtrema;
+class TrackerExtremaLocal;
+#endif // TRACKER_EXTREMA
+
 
 FluidFormulation GetFluidFormulation(const std::string& input_string);
 
@@ -189,6 +196,10 @@ public:
   Reconstruction *precon;
   MeshRefinement *pmr;
 
+  // numerical
+  FiniteDifference::Uniform * pfd_cc;
+  FiniteDifference::Uniform * pfd_vc;
+
   // physics-related objects (possibly containing their derived bvals classes)
   Hydro *phydro;
   Field *pfield;
@@ -212,6 +223,10 @@ public:
   // Tracker evolution
   TrackerLocal * pz4c_tracker_loc;
 #endif // Z4C_TRACKER
+
+#ifdef TRACKER_EXTREMA
+  TrackerExtremaLocal * ptracker_extrema_loc;
+#endif // TRACKER_EXTREMA
 
   MeshBlock *prev, *next;
 
@@ -246,6 +261,12 @@ public:
   // as above
   void AdvectionUserWorkInLoop();
   void Z4cUserWorkInLoop();
+
+  bool PointContained(Real const x, Real const y, Real const z);
+  Real PointCentralDistanceSquared(Real const x, Real const y, Real const z);
+  Real PointMinCornerDistanceSquared(Real const x, Real const y, Real const z);
+  bool SphereIntersects(Real const Sx0, Real const Sy0, Real const Sz0,
+                        Real const radius);
 
   //-- Debug
   // Populate MeshBlock subset based on input indices
@@ -342,7 +363,11 @@ class Mesh {
 #ifdef Z4C_TRACKER
   friend class Tracker;
 #endif
- 
+
+#ifdef TRACKER_EXTREMA
+  friend class TrackerExtrema;
+#endif // TRACKER_EXTREMA
+
  public:
   // 2x function overloads of ctor: normal and restarted simulation
   explicit Mesh(ParameterInput *pin, int test_flag=0);
@@ -388,6 +413,10 @@ class Mesh {
 #ifdef Z4C_TRACKER
   Tracker * pz4c_tracker;
 #endif // Z4C_TRACKER
+
+#ifdef TRACKER_EXTREMA
+  TrackerExtrema * ptracker_extrema;
+#endif // TRACKER_EXTREMA
 
   AthenaArray<Real> *ruser_mesh_data;
   AthenaArray<int> *iuser_mesh_data;

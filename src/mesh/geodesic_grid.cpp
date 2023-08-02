@@ -9,6 +9,7 @@
 #include <cassert>
 #include <algorithm>  // max
 #include <cmath>      // acos, cos, sin, sqrt
+#include <limits>
 #include <sstream>    // stringstream
 #include <stdexcept>  // runtime_error
 #include <string>     // c_str, string

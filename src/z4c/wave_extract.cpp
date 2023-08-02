@@ -35,7 +35,8 @@ WaveExtract::WaveExtract(Mesh * pmesh, ParameterInput * pin, int n, int res_flag
   ofname = pin->GetOrAddString("z4c", "extract_filename", "wave");
   root = pin->GetOrAddInteger("z4c", "mpi_root", 0);
   lmax = pin->GetOrAddInteger("z4c", "lmax", 2);
-  psphere = new SphericalGrid(nlev, rad);
+  bool bitant = pin->GetOrAddBoolean("z4c", "bitant", false);
+  psphere = new SphericalGrid(nlev, rad, bitant);
   ofname += n_str;
   ofname += ".txt";
  int np = psphere->NumVertices();

@@ -38,8 +38,8 @@ void Advection::AdvectionRHS(AthenaArray<Real> & u){
       for(int a = 0; a < 3; ++a) {
 #pragma omp simd
         for(int i = is; i <= ie; ++i) {
-          rhs(k,j,i) += -FD.Da_x(a, cxn[a], wu(k,j,i));
-          // rhs(k,j,i) += cxn[a] * FD.Dx(a, wu(k,j,i));
+          rhs(k,j,i) += -pfd->Lx(a, cxn[a], wu(k,j,i));
+          // rhs(k,j,i) += cxn[a] * pfd->Dx(a, wu(k,j,i));
         }
       }
     }

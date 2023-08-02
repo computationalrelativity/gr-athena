@@ -49,6 +49,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   pmy_block_ = pmb;
   density_floor_ = pin->GetOrAddReal("hydro", "dfloor", std::sqrt(1024*(FLT_MIN)));
   temperature_floor_ = pin->GetOrAddReal("hydro", "tfloor", std::sqrt(1024*(FLT_MIN)));
+  Real bsq_max = pin->GetOrAddReal("hydro", "bsq_max", 1e6);
 
   int ncells1 = pmb->block_size.nx1 + 2*NGHOST;
   g_.NewAthenaArray(NMETRIC, ncells1);
@@ -82,6 +83,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
     Real atmosphere = pin->GetOrAddReal("hydro", ss.str(), 0.5);
     eos.SetSpeciesAtmosphere(atmosphere, i);
   }
+  eos.SetMaximumMagnetization(bsq_max);
 
   // If we're working with an ideal gas, we need to fix the adiabatic constant.
   #ifdef USE_IDEAL_GAS
@@ -185,7 +187,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
     };
     rescale_metric = lambda;
   }
-  pmy_block_->pfield->CalculateCellCenteredField(bb, bb_cc, pco, il, iu, jl, ju, kl, ku);
+  pmy_block_->pfield->CalculateCellCenteredField(bb, bb_cc, pco, il-1, iu+1, jl-1, ju+1, kl-1, ku+1);
 
   // Go through the cells
   for (int k = kl; k <= ku; ++k) {
@@ -252,6 +254,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
           std::cerr << "  Iteration: " << pmy_block_->pmy_mesh->ncycle << "\n";
           std::cerr << "  Error: " << Primitive::ErrorString[(int)result.error] << "\n";
           std::cerr << "  i=" << i << ", j=" << j << ", k=" << k << "\n";
+          std::cerr << "  x=" << pmy_block_->pcoord->x1v(i) << ", y=" << pmy_block_->pcoord->x2v(j) << ", z=" << pmy_block_->pcoord->x3v(k) << "\n";
           std::cerr << "  g3d = [" << g3d[S11] << ", " << g3d[S12] << ", " << g3d[S13] << ", "
                     << g3d[S22] << ", " << g3d[S23] << ", " << g3d[S33] << "]\n";
           std::cerr << "  g3u = [" << g3u[S11] << ", " << g3u[S12] << ", " << g3u[S13] << ", "
