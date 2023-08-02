@@ -92,9 +92,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
           {N_WEY, mbi.nn3, mbi.nn2, mbi.nn1},              // weyl
   },
   empty_flux{AthenaArray<Real>(), AthenaArray<Real>(), AthenaArray<Real>()},
-  ubvar(pmb, &storage.u, &coarse_u_, empty_flux),
-  //NOTE: we cannot use pmb->pz4c directly as this is at the middle of z4c ctor
-  pz4c_amr(new Z4c_AMR(this,pmb,pin))
+  ubvar(pmb, &storage.u, &coarse_u_, empty_flux)
 {
   Mesh *pm = pmy_block->pmy_mesh;
   Coordinates * pco = pmb->pcoord;
@@ -111,6 +109,9 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   mbi.dx2.InitWithShallowSlice(SW_CCX_VC(pco->dx2v, pco->dx2f), 1, 0, mbi.nn2);
   mbi.dx3.InitWithShallowSlice(SW_CCX_VC(pco->dx3v, pco->dx3f), 1, 0, mbi.nn3);
   //---------------------------------------------------------------------------
+
+  // now init. amr (requires sampling)
+  pz4c_amr = new Z4c_AMR(pz4c,pmb,pin);
 
   // inform MeshBlock that this array is the "primary" representation
   // Used for:
