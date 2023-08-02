@@ -621,18 +621,20 @@ void AHF::SurfaceIntegrals()
       // -----------------------
       
       // Determinant of 3-metric
-      Real detg = SpatialDet(g(0,0,i,j), g(0,1,i,j), g(0,2,i,j),
+      Real detg = Z4c::SpatialDet(g(0,0,i,j), g(0,1,i,j), g(0,2,i,j),
 			     g(1,1,i,j), g(1,2,i,j), g(2,2,i,j));
 
       // Inverse metric
-      SpatialInv(1.0/detg,
-		  g(0,0,i,j), g(0,1,i,j),  g(0,2,i,j),
-		  g(1,1,i,j), g(1,2,i,j),  g(2,2,i,j),
-		  &ginv(0,0), &ginv(0,1),  &ginv(0,2),
-		  &ginv(1,1), &ginv(1,2) , &ginv(2,2) );
+      Z4c::SpatialInv(
+        1.0/detg,
+		    g(0,0,i,j), g(0,1,i,j),  g(0,2,i,j),
+		    g(1,1,i,j), g(1,2,i,j),  g(2,2,i,j),
+		    &ginv(0,0), &ginv(0,1),  &ginv(0,2),
+		    &ginv(1,1), &ginv(1,2) , &ginv(2,2)
+      );
       
       // Trace of K
-      Real TrK = Trace(1.0/detg,
+      Real TrK = Z4c::Trace(1.0/detg,
 		       g(0,0,i,j), g(0,1,i,j), g(0,2,i,j),
 		       g(1,1,i,j), g(1,2,i,j), g(2,2,i,j),
 		       K(0,0,i,j), K(0,1,i,j), K(0,2,i,j),
@@ -1522,59 +1524,6 @@ void AHF::factorial_list(Real * fac, const int maxn)
   fac[0] = 1.0;
   for (int i=1; i<=maxn; ++i)
     fac[i] = fac[i-1]*i;
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn Real AHF::SpatialDet(Real gxx, ... , Real gzz)
-// \brief returns determinant of 3-metric
-// Taken from class Z4c 
-
-Real AHF::SpatialDet(Real const gxx, Real const gxy, Real const gxz,
-                     Real const gyy, Real const gyz, Real const gzz)
-{
-  return - SQR(gxz)*gyy + 2*gxy*gxz*gyz - gxx*SQR(gyz) - SQR(gxy)*gzz + gxx*gyy*gzz;
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn void AHF::SpatialInv(Real const detginv,
-//           Real const gxx, Real const gxy, Real const gxz,
-//           Real const gyy, Real const gyz, Real const gzz,
-//           Real * uxx, Real * uxy, Real * uxz,
-//           Real * uyy, Real * uyz, Real * uzz)
-// \brief returns inverse of 3-metric
-// Taken from class Z4c
-
-void AHF::SpatialInv(Real const detginv,
-                     Real const gxx, Real const gxy, Real const gxz,
-                     Real const gyy, Real const gyz, Real const gzz,
-                     Real * uxx, Real * uxy, Real * uxz,
-                     Real * uyy, Real * uyz, Real * uzz)
-{
-  *uxx = (-SQR(gyz) + gyy*gzz)*detginv;
-  *uxy = (gxz*gyz  - gxy*gzz)*detginv;
-  *uyy = (-SQR(gxz) + gxx*gzz)*detginv;
-  *uxz = (-gxz*gyy + gxy*gyz)*detginv;
-  *uyz = (gxy*gxz  - gxx*gyz)*detginv;
-  *uzz = (-SQR(gxy) + gxx*gyy)*detginv;
-  return;
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn Real AHF::Trace(Real detginv, Real gxx, ... , Real gzz, Real Axx, ..., Real Azz)
-// \brief returns Trace of extrinsic curvature
-// Taken from class Z4c
-
-Real AHF::Trace(Real const detginv,
-                Real const gxx, Real const gxy, Real const gxz,
-                Real const gyy, Real const gyz, Real const gzz,
-                Real const Axx, Real const Axy, Real const Axz,
-                Real const Ayy, Real const Ayz, Real const Azz)
-{
-  return (detginv*(
-       - 2.*Ayz*gxx*gyz + Axx*gyy*gzz +  gxx*(Azz*gyy + Ayy*gzz)
-       + 2.*(gxz*(Ayz*gxy - Axz*gyy + Axy*gyz) + gxy*(Axz*gyz - Axy*gzz))
-       - Azz*SQR(gxy) - Ayy*SQR(gxz) - Axx*SQR(gyz)
-       ));
 }
 
 //----------------------------------------------------------------------------------------

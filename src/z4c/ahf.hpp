@@ -159,24 +159,6 @@ private:
   FILE * pofile_summary;
   FILE * pofile_shape;
 
-  // Functions taken from Z4c ...
-  // ... compute spatial determinant of a 3x3  matrix
-  Real SpatialDet(Real const gxx, Real const gxy, Real const gxz,
-                  Real const gyy, Real const gyz, Real const gzz);
-
-  // ... compute inverse of a 3x3 matrix
-  void SpatialInv(Real const detginv,
-                  Real const gxx, Real const gxy, Real const gxz,
-                  Real const gyy, Real const gyz, Real const gzz,
-                  Real * uxx, Real * uxy, Real * uxz,
-                  Real * uyy, Real * uyz, Real * uzz);
-  // ... compute trace of a rank 2 covariant spatial tensor
-  Real Trace(Real const detginv,
-             Real const gxx, Real const gxy, Real const gxz,
-             Real const gyy, Real const gyz, Real const gzz,
-             Real const Axx, Real const Axy, Real const Axz,
-             Real const Ayy, Real const Ayz, Real const Azz);
-
   // Functions to interface with puncture tracker
   Real PuncMaxDistance();
   Real PuncMaxDistance(const int pix);
