@@ -18,6 +18,7 @@ def main(**kwargs):
     # Extract inputs
     input_file = kwargs['input']
     output_file = kwargs['output']
+    dimension = kwargs['dimension']
 
     # Load Python plotting modules
     if output_file != 'show':
@@ -28,8 +29,11 @@ def main(**kwargs):
     from mpl_toolkits.mplot3d import Axes3D  # noqa
 
     # Read and plot block edges
-    fig = plt.figure()
-    ax = fig.gca(projection='3d')
+    if dimension == '3D':
+        fig = plt.figure()
+        ax = fig.gca(projection='3d')
+    else:
+        fig, ax = plt.subplots()
     x = []
     y = []
     z = []
@@ -45,7 +49,10 @@ def main(**kwargs):
                 else:
                     z.append(0.0)
             if line[0] == '\n' and len(x) != 0:
-                ax.plot(x, y, z, 'k-')
+                if dimension == '3D':
+                    ax.plot(x, y, z, 'k-', lw = 0.5)
+                else:
+                    ax.plot(x, y, 'k-', lw = 0.5)
                 x = []
                 y = []
                 z = []
@@ -66,5 +73,11 @@ if __name__ == '__main__':
                         default='show',
                         help=('name of output image file to create; omit to '
                               'display rather than save image'))
+    parser.add_argument('-d',
+                        '--dimension',
+                        default='2D',
+                        choices = ['2D', '3D'],
+                        help=('choose z=0 2D slice or 3D representation of the '
+                              'mesh grid'))
     args = parser.parse_args()
     main(**vars(args))
