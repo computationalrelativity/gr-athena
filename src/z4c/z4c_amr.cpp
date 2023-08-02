@@ -158,10 +158,6 @@ int Z4c_AMR::FDErrorApprox(MeshBlock *pmb, Real dref_tol, Real ref_tol)
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c:: FDTruncErrorChiL2(MeshBlock *const pmy_block, const int p)
 // \brief returning the L2 norm of error based on some derivative of chi
-//
-
-// NOTE: DON'T change pmy_block variable name as it's used in macros 
-// such as IX_KU,IX_KL, etc.
 Real Z4c_AMR::FDTruncErrorChiL2(MeshBlock *const pmy_block, 
                                         const int deriv_order, const int p)
 {
@@ -219,9 +215,6 @@ Real Z4c_AMR::FDTruncErrorChiL2(MeshBlock *const pmy_block,
 // \!fn void Z4c:: FDTruncErrorChiLinf(MeshBlock *const pmy_block, const int p)
 // \brief returning the point-wise max error of a derivative of chi in a meshblock
 //
-
-// NOTE: DON'T change pmy_block variable name as it's used in macros 
-// such as IX_KU,IX_KL, etc.
 Real Z4c_AMR::FDTruncErrorChiLinf(MeshBlock *const pmy_block, 
                                         const int deriv_order, const int p)
 {
@@ -282,9 +275,6 @@ Real Z4c_AMR::FDTruncErrorChiLinf(MeshBlock *const pmy_block,
 // \!fn void Z4c:: FDTruncErrorChiLinfComponentWise(MeshBlock *const pmy_block, const int p)
 // \brief returning the maximum truncation error of chi among x, y, and z directions 
 // and for all points in the given meshblock.
-//
-// NOTE: DON'T change pmy_block variable name as it's used in macros 
-// such as IX_KU,IX_KL, etc.
 Real Z4c_AMR::FDTruncErrorChiLinfComponentWise(MeshBlock *const pmy_block, 
                                         const int deriv_order, const int p)
 {

@@ -42,7 +42,7 @@ class Z4c_AMR
                                    const int deriv_order, const int p);
     
   public:
-    Z4c *pz4c;               // ptr to z4c
+    Z4c *pz4c;               // ptr to z4c (retain for macros)
     ParameterInput *pin;     // ptr to parameter
     std::string ref_method;  // method of refinement
     Real mb_radius;  // the length of the line from the origin to the meshblock's center
