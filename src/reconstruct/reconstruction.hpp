@@ -168,5 +168,11 @@ class Reconstruction {
   AthenaArray<Real> scr11_i_, scr12_i_, scr13_i_, scr14_i_;
   AthenaArray<Real> scr1_ni_, scr2_ni_, scr3_ni_, scr4_ni_, scr5_ni_;
   AthenaArray<Real> scr6_ni_, scr7_ni_, scr8_ni_;
+
+  // scratch arrays for scalars
+#if USETM
+  AthenaArray<Real> scalar_l;
+  AthenaArray<Real> scalar_r;
+#endif
 };
 #endif // RECONSTRUCT_RECONSTRUCTION_HPP_

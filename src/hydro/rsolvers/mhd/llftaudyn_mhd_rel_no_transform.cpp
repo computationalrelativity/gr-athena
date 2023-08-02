@@ -75,6 +75,7 @@ void Hydro::RiemannSolver(const int k, const int j,
 //    TODO replace FaceNMetric with local calculation of metric at FaceCenter.
 //    Returning alpha(i), beta_u(a,i) gamma_dd(a,b,i)
       // Get metric components
+/*
       switch (ivx) {
         case IVX:
           pmy_block->pcoord->Face1Metric(k, j, il, iu, g_, gi_);
@@ -86,6 +87,7 @@ void Hydro::RiemannSolver(const int k, const int j,
           pmy_block->pcoord->Face3Metric(k, j, il, iu, g_, gi_);
           break;
       }
+*/
       AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha, rho_l, rho_r, pgas_l, pgas_r, wgas_l, wgas_r,detgamma,detg;
       AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Wlor_l, Wlor_r;
       AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> u0_l, u0_r;
@@ -94,7 +96,7 @@ void Hydro::RiemannSolver(const int k, const int j,
       AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> lambda_p_l, lambda_m_l;
       AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> lambda_p_r, lambda_m_r;
       AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> lambda;
-      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u;
+      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u, beta_d;
       AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> utilde_u_l, utilde_u_r;
       AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> utilde_d_l, utilde_d_r;
       AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> v_u_l, v_u_r;
@@ -142,6 +144,7 @@ void Hydro::RiemannSolver(const int k, const int j,
       lambda_p_r.NewAthenaTensor(nn1);
       lambda_m_r.NewAthenaTensor(nn1);
       beta_u.NewAthenaTensor(nn1);
+      beta_d.NewAthenaTensor(nn1);
       utilde_u_l.NewAthenaTensor(nn1);
       utilde_u_r.NewAthenaTensor(nn1);
       v_u_l.NewAthenaTensor(nn1);
@@ -193,6 +196,17 @@ void Hydro::RiemannSolver(const int k, const int j,
           &gamma_uu(1,1,i), &gamma_uu(1,2,i), &gamma_uu(2,2,i));
  
       }
+
+    beta_d.ZeroClear();
+    for(a=0;a<NDIM;++a){
+       for(b=0;b<NDIM;++b){
+ #pragma omp simd
+          for (int i = il; i <= iu; ++i) {
+             beta_d(a,i) += gamma_dd(a,b,i)*beta_u(b,i);
+          }
+       }
+    }
+
 
     #pragma omp simd
       for (int i = il; i <= iu; ++i){
@@ -371,7 +385,8 @@ void Hydro::RiemannSolver(const int k, const int j,
          bsq_r(i) += bb_r(a,i)*bb_r(b,i)*gamma_dd(a,b,i)/(Wlor_r(i)*Wlor_r(i));
       }
       }
-      } 
+      }
+/* 
      bi_d_l.ZeroClear();
       for(a=0;a<NDIM;++a){
           for(b=0;b<NDIM;++b){
@@ -390,6 +405,32 @@ void Hydro::RiemannSolver(const int k, const int j,
               }
           }
       }
+*/
+       for(a=0;a<NDIM;++a){
+#pragma omp simd
+        for (int i = il; i <= iu; ++i){
+         bi_d_l(a,i) = beta_d(a,i) * b0_u_l(i);
+        }
+        for(b=0;b<NDIM;++b){
+#pragma omp simd
+         for (int i = il; i <= iu; ++i){
+          bi_d_l(a,i) += gamma_dd(a,b,i)*bi_u_l(b,i);
+         }
+        }
+       }
+       for(a=0;a<NDIM;++a){
+#pragma omp simd
+        for (int i = il; i <= iu; ++i){
+         bi_d_r(a,i) = beta_d(a,i) * b0_u_r(i);
+        }
+        for(b=0;b<NDIM;++b){
+#pragma omp simd
+         for (int i = il; i <= iu; ++i){
+          bi_d_r(a,i) += gamma_dd(a,b,i)*bi_u_r(b,i);
+         }
+        }
+       }
+                     
      utilde_d_l.ZeroClear();
       for(a=0;a<NDIM;++a){
           for(b=0;b<NDIM;++b){
@@ -432,20 +473,32 @@ void Hydro::RiemannSolver(const int k, const int j,
         Real nl = rho_l(i)/mb;
         Real nr = rho_r(i)/mb;
         // FIXME: Generalize to work with EOSes accepting particle fractions.
-        Real Y[NSCALARS] = {0.0}; // Should we worry about r vs l here?
-        for (int n=0; n<NSCALARS; n++) Y[n] = pmy_block->pscalars->r(n,k,j,i);  
-        Real Tl = pmy_block->peos->GetEOS().GetTemperatureFromP(nl, pgas_l(i), Y);
-        Real Tr = pmy_block->peos->GetEOS().GetTemperatureFromP(nr, pgas_r(i), Y);
-        wgas_l(i) = rho_l(i)*pmy_block->peos->GetEOS().GetEnthalpy(nl, Tl, Y);
-        wgas_r(i) = rho_r(i)*pmy_block->peos->GetEOS().GetEnthalpy(nr, Tr, Y);
+        Real Yl[NSCALARS] = {0.0}; // Should we worry about r vs l here?
+        Real Yr[NSCALARS] = {0.0};
+        for (int n=0; n<NSCALARS; n++) Yr[n] = pmy_block->pscalars->r(n,k,j,i);
+        switch (ivx) {
+          case IVX:
+            for (int n=0; n<NSCALARS; n++) Yl[n] = pmy_block->pscalars->r(n,k,j,i-1);
+            break;
+          case IVY:
+            for (int n=0; n<NSCALARS; n++) Yl[n] = pmy_block->pscalars->r(n,k,j-1,i);
+            break;
+          case IVZ:
+            for (int n=0; n<NSCALARS; n++) Yl[n] = pmy_block->pscalars->r(n,k-1,j,i);
+            break;
+        }
+        Real Tl = pmy_block->peos->GetEOS().GetTemperatureFromP(nl, pgas_l(i), Yl);
+        Real Tr = pmy_block->peos->GetEOS().GetTemperatureFromP(nr, pgas_r(i), Yr);
+        wgas_l(i) = rho_l(i)*pmy_block->peos->GetEOS().GetEnthalpy(nl, Tl, Yl);
+        wgas_r(i) = rho_r(i)*pmy_block->peos->GetEOS().GetEnthalpy(nr, Tr, Yr);
 
         // Calculate the wave speeds
         pmy_block->peos->FastMagnetosonicSpeedsGR(nl, Tl, bsq_l(i), v_u_l(ivx-1,i), v2_l(i),
                                                   alpha(i), beta_u(ivx-1,i), gamma_uu(ivx-1,ivx-1,i),
-                                                  &lambda_p_l(i), &lambda_m_l(i), Y);
+                                                  &lambda_p_l(i), &lambda_m_l(i), Yl);
         pmy_block->peos->FastMagnetosonicSpeedsGR(nr, Tr, bsq_r(i), v_u_r(ivx-1,i), v2_r(i),
                                                   alpha(i), beta_u(ivx-1,i), gamma_uu(ivx-1,ivx-1,i),
-                                                  &lambda_p_r(i), &lambda_m_r(i), Y);
+                                                  &lambda_p_r(i), &lambda_m_r(i), Yr);
 #else
         wgas_l(i) = rho_l(i) + gamma_adi/(gamma_adi-1.0) * pgas_l(i);
         wgas_r(i) = rho_r(i) + gamma_adi/(gamma_adi-1.0) * pgas_r(i);
