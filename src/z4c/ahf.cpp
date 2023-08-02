@@ -348,7 +348,7 @@ void AHF::MetricDerivatives(MeshBlock * pmy_block)
     for(int a = 0; a < NDIM; ++a){
       for(int b = 0; b < NDIM; ++b){
         GLOOP1(i){
-          Real oofdy = 1.0 / pmy_block->pcoord->dx1f(i);
+          Real oofdx = 1.0 / pmy_block->pcoord->dx1f(i);
           pmy_block->pz4c->aux_g_ddd(0,a,b,k,j,i) = oofdx * 
                      FD.Gx(0, IX_IL, IX_IU, i, vc_adm_g_dd(a,b,k,j,i));
           pmy_block->pz4c->aux_g_ddd(1,a,b,k,j,i) = oofdy * 
