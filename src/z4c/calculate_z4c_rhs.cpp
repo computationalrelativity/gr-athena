@@ -46,7 +46,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
   //---------------------------------------------------------------------------
   // Scratch arrays for spatially dependent eta shift damping
 #if defined(Z4C_ETA_CONF)
-  int nn1 = pmy_block->nverts1;
+  int nn1 = pz4c->mbi.nn1;
   // 1/psi^2 (guarded); derivative and shift eta scratch
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> oopsi2;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> doopsi2_d;

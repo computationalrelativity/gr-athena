@@ -59,6 +59,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   pz4c(this),
   pmy_mesh(pmb->pmy_mesh),
   pmy_block(pmb),
+  pmy_coord(pmy_block->pcoord),
   mbi{
     1, pmy_mesh->f2, pmy_mesh->f3,                         // f1, f2, f3
     SW_CC_CX_VC(pmb->is, pmb->cx_is, pmb->ivs),            // il
@@ -67,9 +68,9 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
     SW_CC_CX_VC(pmb->je, pmb->cx_je, pmb->jve),            // ju
     SW_CC_CX_VC(pmb->ks, pmb->cx_ks, pmb->kvs),            // kl
     SW_CC_CX_VC(pmb->ke, pmb->cx_ke, pmb->kve),            // ku
-    SW_CC_CX_VC(pmb->ncells1, pmb->ncells1, pmb->nverts1), // nn1
-    SW_CC_CX_VC(pmb->ncells2, pmb->ncells2, pmb->nverts2), // nn2
-    SW_CC_CX_VC(pmb->ncells3, pmb->ncells3, pmb->nverts3), // nn3
+    SW_CCX_VC(pmb->ncells1, pmb->nverts1),                 // nn1
+    SW_CCX_VC(pmb->ncells2, pmb->nverts2),                 // nn2
+    SW_CCX_VC(pmb->ncells3, pmb->nverts3),                 // nn3
     SW_CC_CX_VC(pmb->ncc1, pmb->cx_ncc1, pmb->ncv1),       // cnn1
     SW_CC_CX_VC(pmb->ncc2, pmb->cx_ncc2, pmb->ncv2),       // cnn2
     SW_CC_CX_VC(pmb->ncc3, pmb->cx_ncc3, pmb->ncv3),       // cnn3
@@ -101,8 +102,14 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   //---------------------------------------------------------------------------
   // set up sampling
   //---------------------------------------------------------------------------
+  mbi.x1.InitWithShallowSlice(SW_CCX_VC(pco->x1v, pco->x1f), 1, 0, mbi.nn1);
+  mbi.x2.InitWithShallowSlice(SW_CCX_VC(pco->x2v, pco->x2f), 1, 0, mbi.nn2);
+  mbi.x3.InitWithShallowSlice(SW_CCX_VC(pco->x3v, pco->x3f), 1, 0, mbi.nn3);
 
-
+  // sizes are the same in either case
+  mbi.dx1.InitWithShallowSlice(SW_CCX_VC(pco->dx1v, pco->dx1f), 1, 0, mbi.nn1);
+  mbi.dx2.InitWithShallowSlice(SW_CCX_VC(pco->dx2v, pco->dx2f), 1, 0, mbi.nn2);
+  mbi.dx3.InitWithShallowSlice(SW_CCX_VC(pco->dx3v, pco->dx3f), 1, 0, mbi.nn3);
   //---------------------------------------------------------------------------
 
   // inform MeshBlock that this array is the "primary" representation

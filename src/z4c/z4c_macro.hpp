@@ -22,6 +22,14 @@
     c
 #endif
 
+#if defined(Z4C_CC_ENABLED) || defined(Z4C_CX_ENABLED)
+  #define SW_CCX_VC(a, b) \
+    a
+#else
+  #define SW_CCX_VC(a, b) \
+    b
+#endif
+
 // BD: derive from mbi (f1,f2,f3) _or_ fix as 3 (Manifold dimension) ?
 // #define NDIM    (mbi.ndim)
 #define NDIM    (3)

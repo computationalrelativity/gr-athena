@@ -102,9 +102,10 @@ public:
   Z4c(MeshBlock *pmb, ParameterInput *pin);
   ~Z4c();
 
-  Z4c * pz4c;                // for macro propagation
+  Z4c *pz4c;                 // for macro propagation
   Mesh *pmy_mesh;            // pointer to Mesh containing MeshBlock
-  MeshBlock * pmy_block;     // pointer to MeshBlock containing this Z4c
+  MeshBlock *pmy_block;      // pointer to MeshBlock containing this Z4c
+  Coordinates *pmy_coord;    // coordinates of current block
   Z4c_AMR *pz4c_amr;         // pointer to Z4c_AMR for the refinement condition
 
   // Switching of sampling and cleaner Z4c macro
@@ -114,11 +115,10 @@ public:
     int nn1, nn2, nn3;                    // total number of nodes (w. ghosts)
     int cnn1, cnn2, cnn3;                 // coarse analogue ^
     int ng, cng;                          // number of ghosts
-
-    // AthenaArray<Real> x1, x2, x3;      // for CC / VC grid switch
-    // AthenaArray<Real> cx1, cx2, cx3;   // for CC / VC grid switch (coarse)
-
     int ndim;
+
+    AthenaArray<Real> x1, x2, x3;         // deal with (fund.) coordinates
+    AthenaArray<Real> dx1, dx2, dx3;      // & spacings
   };
 
   MB_info mbi;
