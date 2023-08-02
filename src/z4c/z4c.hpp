@@ -456,7 +456,6 @@ private:
     Real idx[3];
     Real diss;
 
-#ifdef DBG_SYMMETRIZE_FD
     // 1st deg derivative stencil
     typedef FDStencilCenteredDegreeOdd<1, NGHOST-1> c1;
     Real cidx1[3];
@@ -487,7 +486,7 @@ private:
         FDBiasedChoice<1, NGHOST-1>::lopsize
       > lr1;
     Real lidx_r1[3];
-#else
+
     // 1st derivative stecil
     typedef FDCenteredStencil<1, NGHOST-1> s1;
     // 2nd derivative stencil
@@ -547,7 +546,6 @@ private:
     typedef FDLeftBiasedStencilBeyond<
         2, NGHOST, 3
       > sl2_3B; 
-#endif // DBG_SYMMETRIZE_FD
 
     // 1st derivative (high order centered)
 #ifdef DBG_SYMMETRIZE_FD
@@ -660,6 +658,7 @@ private:
 
       return ((vx < 0) ? (vx * dl) : (vx * dr)) * idx[dir];
     }
+#endif
 
     // Generic first derivative
     inline Real Gx(int dir, int INIT, int END, int index, Real & u) {
@@ -1323,7 +1322,6 @@ private:
        // Dxy
       }
     }
-#endif // DBG_SYMMETRIZE_FD
 
     // Homogeneous 2nd derivative
 #ifdef DBG_SYMMETRIZE_FD
