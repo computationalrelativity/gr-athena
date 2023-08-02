@@ -40,7 +40,7 @@
 //  And the following protected variables (available via
 //  ErrorPolicyInterface):
 //    Real n_atm
-//    Real p_atm
+//    Real T_atm
 //    Real v_max
 //    Real max_bsq_field
 //    bool fail_conserved_floor
@@ -161,8 +161,12 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \return The temperature according to the EOS.
     inline Real GetTemperatureFromP(Real n, Real p, Real *Y) {
       // printf("n = %.16e, p = %.16e[code], p = %.16e[eos], Y[0] = %f\n", n, p, p*code_units->PressureConversion(*eos_units), Y[0]);
+      if (n<GetDensityFloor()){
+        return T_atm * eos_units->TemperatureConversion(*code_units);
+      } else {
       return TemperatureFromP(n, p*code_units->PressureConversion(*eos_units), Y) *
              eos_units->TemperatureConversion(*code_units);
+      }
     }
 
     //! \fn Real GetEnergy(Real n, Real T, Real *Y)
