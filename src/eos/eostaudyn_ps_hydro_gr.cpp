@@ -58,7 +58,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   pmy_block_ = pmb;
   density_floor_ = pin->GetOrAddReal("hydro", "dfloor", std::sqrt(1024*(FLT_MIN)));
   temperature_floor_ = pin->GetOrAddReal("hydro", "tfloor", std::sqrt(1024*(FLT_MIN)));
-  
+
   int ncells1 = pmb->block_size.nx1 + 2*NGHOST;
   g_.NewAthenaArray(NMETRIC, ncells1);
   g_inv_.NewAthenaArray(NMETRIC, ncells1);
@@ -540,7 +540,7 @@ void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, AthenaArray<
   Real P = prim(IPR, i);
   // FIXME: Update to work with particle species.
   Real Y[NSCALARS] = {0.0};
-  for (int l=0; l<NSCALARS; l++) Y[l] = prim_scalar(l,k,j,i);
+  for (int l=0; l<NSCALARS; l++) Y[l] = prim_scalar(l,i);
 
   ps.GetEOS()->ApplyDensityLimits(n);
   Real T = ps.GetEOS()->GetTemperatureFromP(n, P, Y);
@@ -552,7 +552,7 @@ void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, AthenaArray<
   prim(IVY, i) = Wvu[1];
   prim(IVZ, i) = Wvu[2];
   prim(IPR, i) = P;
-  for (int l=0; l<NSCALARS; l++) prim_scalar(l,k,j,i) = Y[l];
+  for (int l=0; l<NSCALARS; l++) prim_scalar(l,i) = Y[l];
   return;
 }
 

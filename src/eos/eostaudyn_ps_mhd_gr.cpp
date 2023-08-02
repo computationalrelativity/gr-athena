@@ -474,25 +474,51 @@ void EquationOfState::FastMagnetosonicSpeedsGR(Real n, Real T, Real bsq, Real vi
 
 void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, AthenaArray<Real> &prim_scalar, int k, int j, int i) {
   // Extract the primitive variables and floor them using PrimitiveSolver.
+
+
   Real mb = ps.GetEOS()->GetBaryonMass();
-  Real n = prim(IDN, i)/mb;
-  Real Wvu[3] = {prim(IVX, i), prim(IVY, i), prim(IVZ, i)};
-  Real P = prim(IPR, i);
+  Real n, P;
+  Real Wvu[3];
   // FIXME: Update to work with particle species.
   Real Y[NSCALARS] = {0.0};
+  if(prim.GetDim4()==1){
+  n = prim(IDN, i)/mb;
+//  Wvu = {prim(IVX, i), prim(IVY, i), prim(IVZ, i)};
+  Wvu[0] = prim(IVX, i); 
+  Wvu[1] = prim(IVY, i); 
+  Wvu[2] = prim(IVZ, i); 
+  P = prim(IPR, i);
+  for (int l=0; l<NSCALARS; l++) Y[l] = prim_scalar(l,i);
+  } else if(prim.GetDim4()==5){
+  n = prim(IDN, k, j, i)/mb;
+//  Wvu = {prim(IVX, k, j, i), prim(IVY, k, j, i), prim(IVZ, k, j, i)};
+  Wvu[0] = prim(IVX, k, j, i); 
+  Wvu[1] = prim(IVY, k, j, i); 
+  Wvu[2] = prim(IVZ, k, j, i); 
+  P = prim(IPR, k, j, i);
   for (int l=0; l<NSCALARS; l++) Y[l] = prim_scalar(l,k,j,i);
+  }
 
   ps.GetEOS()->ApplyDensityLimits(n);
   Real T = ps.GetEOS()->GetTemperatureFromP(n, P, Y);
   ps.GetEOS()->ApplyPrimitiveFloor(n, Wvu, P, T, Y);
 
   // Now push the updated quantities back to Athena.
+  if(prim.GetDim4()==1){
   prim(IDN, i) = n*mb;
   prim(IVX, i) = Wvu[0];
   prim(IVY, i) = Wvu[1];
   prim(IVZ, i) = Wvu[2];
   prim(IPR, i) = P;
+  for (int l=0; l<NSCALARS; l++) prim_scalar(l,i) = Y[l];
+  } else if(prim.GetDim4()==5){
+  prim(IDN, k, j, i) = n*mb;
+  prim(IVX, k, j, i) = Wvu[0];
+  prim(IVY, k, j, i) = Wvu[1];
+  prim(IVZ, k, j, i) = Wvu[2];
+  prim(IPR, k, j, i) = P;
   for (int l=0; l<NSCALARS; l++) prim_scalar(l,k,j,i) = Y[l];
+  }
   return;
 }
 
