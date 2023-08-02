@@ -23,6 +23,7 @@
 #include "../utils/finite_differencing.hpp"
 
 #include "../bvals/cc/bvals_cc.hpp"
+#include "../bvals/cx/bvals_cx.hpp"
 #include "../bvals/vc/bvals_vc.hpp"
 
 #include "z4c_macro.hpp"
@@ -237,6 +238,7 @@ public:
     CellCenteredXBoundaryVariable ubvar,
     VertexCenteredBoundaryVariable ubvar
   );
+
 
   AthenaArray<Real> empty_flux[3];
 

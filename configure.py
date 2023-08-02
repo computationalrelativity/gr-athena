@@ -204,7 +204,7 @@ parser.add_argument("-z_cx",
 
 parser.add_argument("-z_vc",
                     action='store_true',
-                    default=True,
+                    default=False,
                     help='enable Z4c system: vc sampling')
 
 
@@ -649,12 +649,12 @@ if args['z']:
   definitions['Z4C_CC_ENABLED'] = 'NO_Z4C_CC_ENABLED'
   definitions['Z4C_VC_ENABLED'] = 'Z4C_VC_ENABLED'
 
-  if args['w_cc']:
+  if args['z_cc']:
     definitions['Z4C_CX_ENABLED'] = 'NO_Z4C_CX_ENABLED'
     definitions['Z4C_CC_ENABLED'] = 'Z4C_CC_ENABLED'
     definitions['Z4C_VC_ENABLED'] = 'NO_Z4C_VC_ENABLED'
 
-  if args['w_cx']:
+  if args['z_cx']:
     definitions['Z4C_CX_ENABLED'] = 'Z4C_CX_ENABLED'
     definitions['Z4C_CC_ENABLED'] = 'NO_Z4C_CC_ENABLED'
     definitions['Z4C_VC_ENABLED'] = 'NO_Z4C_VC_ENABLED'

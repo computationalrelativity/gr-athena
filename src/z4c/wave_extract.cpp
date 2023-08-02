@@ -140,7 +140,11 @@ WaveExtractLocal::WaveExtractLocal(SphericalGrid * psphere, MeshBlock * pmb, Par
   psi.NewAthenaArray(lmax-1,2*(lmax)+1,2);
   psi.ZeroClear();
   bitant = pin->GetOrAddBoolean("z4c", "bitant", false);
+#if defined(Z4C_VC_ENABLED)
   ppatch = new SphericalPatch(psphere, pmb, SphericalPatch::vertex);
+#else
+  ppatch = new SphericalPatch(psphere, pmb, SphericalPatch::cell);
+#endif
   datareal.NewAthenaArray(ppatch->NumPoints());
   dataim.NewAthenaArray(ppatch->NumPoints());
   weight.NewAthenaArray(ppatch->NumPoints());
