@@ -542,14 +542,22 @@ int main(int argc, char *argv[]) {
       Real curr_time = pmesh->time+pmesh->dt;
       int curr_ncycle = pmesh->ncycle+1;
       if (pz4clist->CurrentTimeCalculationThreshold(pmesh, &pz4clist->TaskListTriggers.wave_extraction)) {
+        clock_t tstart_wave = clock();
         for (auto pwextr : pmesh->pwave_extr) {
           pwextr->ReduceMultipole();
           pwextr->Write(curr_ncycle, curr_time);
+        }
+        if (Globals::my_rank == 0) {
+          clock_t tstop_wave = clock();
+          double cpu_time_wave = (tstop_wave>tstart_wave ? static_cast<double> (tstop_wave-tstart_wave) :
+                             1.0)/static_cast<double> (CLOCKS_PER_SEC);
+          std::cout<<"Wave (outside tasklist) took "<<cpu_time_wave <<" seconds"<<std::endl;
         }
       }
 #if CCE_ENABLED
       // only do a CCE dump if NextTime threshold cleared (updated below)
       if (pz4clist->CurrentTimeCalculationThreshold(pmesh, &pz4clist->TaskListTriggers.cce_dump)) {
+        clock_t tstart_cce = clock();
         // gather all interpolation values from all processors to the root proc.
         int cce_iter = curr_ncycle / static_cast<int>(pz4clist->TaskListTriggers.cce_dump.dt/pmesh->dt);
         for (auto cce : pmesh->pcce)
@@ -557,8 +565,15 @@ int main(int argc, char *argv[]) {
           cce->ReduceInterpolation();
           cce->DecomposeAndWrite(cce_iter);
         }
+        if (Globals::my_rank == 0) {
+          clock_t tstop_cce = clock();
+          double cpu_time_cce = (tstop_cce>tstart_cce ? static_cast<double> (tstop_cce-tstart_cce) :
+                             1.0)/static_cast<double> (CLOCKS_PER_SEC);
+          std::cout<<"CCE (outside tasklist) took "<<cpu_time_cce <<" seconds"<<std::endl;
+        }
       }
 #endif
+      clock_t tstart_AHF = clock();
       for (auto pah_f : pmesh->pah_finder) {
         if (pah_f->CalculateMetricDerivatives(curr_ncycle, curr_time)) break;
       }
@@ -568,6 +583,12 @@ int main(int argc, char *argv[]) {
       }
       for (auto pah_f : pmesh->pah_finder) {
         if (pah_f->DeleteMetricDerivatives(curr_ncycle, curr_time)) break;
+      }
+      if (Globals::my_rank == 0) {
+        clock_t tstop_AHF = clock();
+        double cpu_time_AHF = (tstop_AHF>tstart_AHF ? static_cast<double> (tstop_AHF-tstart_AHF) :
+                           1.0)/static_cast<double> (CLOCKS_PER_SEC);
+        std::cout<<"AHF took "<<cpu_time_AHF <<" seconds"<<std::endl;
       }
       for (auto ptracker : pmesh->pz4c_tracker) {
         ptracker->EvolveTracker();
