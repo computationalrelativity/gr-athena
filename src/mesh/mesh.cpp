@@ -247,6 +247,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
   }
 
   if (multilevel) {
+#ifdef DBG_VC_DOUBLE_RESTRICT
     // MeshBlock minimum size is constrained in multilevel due to double-restrict
     int const min_mb_nx = std::max(4, 4 * NCGHOST - 2);
 
@@ -257,8 +258,9 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
           << "for multilevel with '-vertex' and NCGHOST = " << NCGHOST << ", "
           << "block_size must be at least " << min_mb_nx << std::endl
           << "Criterion: max(4, 4 * NCGHOST - 2)" << std::endl;
-      // ATHENA_ERROR(msg);
+      ATHENA_ERROR(msg);
     }
+#endif // DBG_VC_DOUBLE_RESTRICT
   }
 
 
