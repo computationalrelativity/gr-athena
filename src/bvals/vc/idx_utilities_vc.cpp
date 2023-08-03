@@ -455,9 +455,13 @@ int VertexCenteredBoundaryVariable::NeighborVariableBufferSize(const NeighborInd
     int sizef2c = 0;
     idxLoadToCoarserRanges(ni, si, ei, sj, ej, sk, ek, false);
     AccumulateBufferSize(nl_, nu_, si, ei, sj, ej, sk, ek, sizef2c);
+
+    // BD: Is this needed? 2:1 ratio enforced...
+#if defined(DBG_VC_DOUBLE_RESTRICT)
     idxLoadToCoarserRanges(ni, si, ei, sj, ej, sk, ek, true);
     // double restrict means spatial indices jump by two per iterate here
     AccumulateBufferSize(nl_, nu_, si, ei, sj, ej, sk, ek, sizef2c, 2);
+#endif // DBG_VC_DOUBLE_RESTRICT
 
     int sizec2f = 0;
     idxLoadToFinerRanges(ni, si, ei, sj, ej, sk, ek);
@@ -510,9 +514,12 @@ int VertexCenteredBoundaryVariable::MPI_BufferSizeToCoarser(
 
   idxLoadToCoarserRanges(ni, si, ei, sj, ej, sk, ek, false);
   AccumulateBufferSize(nl_, nu_, si, ei, sj, ej, sk, ek, size);
+
+#if defined(DBG_VC_DOUBLE_RESTRICT)
   idxLoadToCoarserRanges(ni, si, ei, sj, ej, sk, ek, true);
   // double restrict means spatial indices jump by two per iterate here
   AccumulateBufferSize(nl_, nu_, si, ei, sj, ej, sk, ek, size, 2);
+#endif // DBG_VC_DOUBLE_RESTRICT
 
   return size;
 }
@@ -550,8 +557,10 @@ int VertexCenteredBoundaryVariable::MPI_BufferSizeFromFiner(
   idxSetFromFinerRanges(ni, si, ei, sj, ej, sk, ek, 1);
   AccumulateBufferSize(nl_, nu_, si, ei, sj, ej, sk, ek, size);
 
+#if defined(DBG_VC_DOUBLE_RESTRICT)
   idxSetFromFinerRanges(ni, si, ei, sj, ej, sk, ek, 2);
   AccumulateBufferSize(nl_, nu_, si, ei, sj, ej, sk, ek, size);
+#endif // DBG_VC_DOUBLE_RESTRICT
 
   return size;
 }
