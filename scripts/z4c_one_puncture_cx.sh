@@ -19,7 +19,7 @@ export DIR_HDF5=$(spack location -i hdf5)
 export DIR_GSL=$(spack location -i gsl)
 
 export COMPILE_STR="--prob=z4c_one_puncture
-                    -z -z_cx -cce
+                    -z -z_cx
                     --cxx g++ -omp
                     --nghost=4
                     --ncghost=5

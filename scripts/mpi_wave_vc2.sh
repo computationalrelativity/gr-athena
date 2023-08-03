@@ -24,7 +24,7 @@ export DIR_HDF5=$(spack location -i hdf5)
 
 export COMPILE_STR="--prob=wave_2d_cvg_trig -w -w_vc
                     --cxx g++ -mpi
-                    --nghost=3 --ncghost=4 --nextrapolate=6"
+                    --nghost=4 --ncghost=4 --nextrapolate=6"
 
 # debug
 # export COMPILE_STR="${COMPILE_STR} -debug"

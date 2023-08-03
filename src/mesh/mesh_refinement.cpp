@@ -99,7 +99,7 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) :
   const int Ns_x1 = pmb->block_size.nx1 - 1;
 
   // Floater-Hormann blending parameter controls the formal order of approx.
-  const int d = (NCGHOST_CX-1) * 2 + 1;
+  const int d = (NCGHOST_CX-1) * 2 - 1;
 
   if(Ns_x3 > 0)
   {

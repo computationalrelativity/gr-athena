@@ -20,7 +20,7 @@ data_format     = %.16e
 
 <time>
 cfl_number      = 0.2       # The Courant, Friedrichs, & Lewy (CFL) number
-tlim            = 10     # time limit
+tlim            = 1     # time limit
 integrator      = rk4       # time integrator
 
 <mesh>
@@ -55,7 +55,7 @@ use_Sommerfeld  = 0         # type of Sommerfeld condition to apply (if any)
 debug_inspect_err = false
 
 <meshblock>
-nx1        = 16      # Number of zones per MeshBlock in X1-direction
+nx1        = 16     # Number of zones per MeshBlock in X1-direction
 nx2        = 1              # Number of zones per MeshBlock in X2-direction
 nx3        = 1              # Number of zones per MeshBlock in X3-direction
 
