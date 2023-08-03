@@ -232,7 +232,7 @@ private:
   //---------------------------------------------------------------------------
 
 #ifdef MPI_PARALLEL
-  int cx_phys_id_; //, cc_flx_phys_id_;
+  int vc_phys_id_; //, cc_flx_phys_id_;
 #endif
 };
 
