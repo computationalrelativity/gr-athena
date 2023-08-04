@@ -573,22 +573,27 @@ int main(int argc, char *argv[]) {
         }
       }
 #endif
-      clock_t tstart_AHF = clock();
+      clock_t tstart_AHF;
       for (auto pah_f : pmesh->pah_finder) {
-        if (pah_f->CalculateMetricDerivatives(curr_ncycle, curr_time)) break;
+        if (pah_f->CalculateMetricDerivatives(curr_ncycle, curr_time)) {
+           tstart_AHF = clock();
+           break;
+        }
       }
       for (auto pah_f : pmesh->pah_finder) {
         pah_f->Find(curr_ncycle, curr_time);
         pah_f->Write(curr_ncycle, curr_time);
       }
       for (auto pah_f : pmesh->pah_finder) {
-        if (pah_f->DeleteMetricDerivatives(curr_ncycle, curr_time)) break;
-      }
-      if (Globals::my_rank == 0) {
-        clock_t tstop_AHF = clock();
-        double cpu_time_AHF = (tstop_AHF>tstart_AHF ? static_cast<double> (tstop_AHF-tstart_AHF) :
-                           1.0)/static_cast<double> (CLOCKS_PER_SEC);
-        std::cout<<"AHF took "<<cpu_time_AHF <<" seconds"<<std::endl;
+        if (pah_f->DeleteMetricDerivatives(curr_ncycle, curr_time)) {
+          if (Globals::my_rank == 0) {
+            clock_t tstop_AHF = clock();
+            double cpu_time_AHF = (tstop_AHF>tstart_AHF ? static_cast<double> (tstop_AHF-tstart_AHF) :
+                               1.0)/static_cast<double> (CLOCKS_PER_SEC);
+            std::cout<<"AHF took "<<cpu_time_AHF <<" seconds"<<std::endl;
+          }
+          break;
+        }
       }
       for (auto ptracker : pmesh->pz4c_tracker) {
         ptracker->EvolveTracker();
