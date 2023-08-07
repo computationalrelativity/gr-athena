@@ -1135,6 +1135,7 @@ void Mesh::FillSameRankFineToCoarseAMR(MeshBlock* pob, MeshBlock* pmb,
     AthenaArray<Real> *var_cx = std::get<0>(cx_pair);
     AthenaArray<Real> *coarse_cx = std::get<1>(cx_pair);
     int nu = var_cx->GetDim4() - 1;
+    coarse_cx->Fill(NAN);
     pmr->RestrictCellCenteredXValues(*var_cx, *coarse_cx,
                                     0, nu,
                                     pob->cx_cis, pob->cx_cie,
@@ -1144,9 +1145,9 @@ void Mesh::FillSameRankFineToCoarseAMR(MeshBlock* pob, MeshBlock* pmb,
     AthenaArray<Real> &src = *coarse_cx;
     AthenaArray<Real> &dst = *std::get<0>(*pmb_cx_it); // pmb->phydro->u;
     for (int nv=0; nv<=nu; nv++)
-    for (int k=kl, fk=pob->cx_cks; fk<=pob->cx_cke; k++, fk++)
-    for (int j=jl, fj=pob->cx_cjs; fj<=pob->cx_cje; j++, fj++)
-    for (int i=il, fi=pob->cx_cis; fi<=pob->cx_cie; i++, fi++)
+    for (int k=cx_kl, fk=pob->cx_cks; fk<=pob->cx_cke; k++, fk++)
+    for (int j=cx_jl, fj=pob->cx_cjs; fj<=pob->cx_cje; j++, fj++)
+    for (int i=cx_il, fi=pob->cx_cis; fi<=pob->cx_cie; i++, fi++)
     {
       dst(nv, k, j, i) = src(nv, fk, fj, fi);
     }
