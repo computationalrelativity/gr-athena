@@ -16,6 +16,13 @@ cd ${DIR_OUTPUT}
 # mpirun -np 2 ${EXEC_NAME}.x -r /mnt/nebula/_Repositories/NR/athena/development/outputs/z4c_c_tp/two_puncture/z4c.final.rst
 
 mpirun -np 2 ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
+
+# mpirun -np 2 gdb \
+#   -ex 'info b' \
+#   -ex 'set print pretty on' \
+#   -ex 'set output-radix 10' \
+#   -ex=r --args ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
+
 # valgrind
 # export DIR_VG=$(spack location -i valgrind)
 

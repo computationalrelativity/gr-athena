@@ -32,6 +32,8 @@
 #include <new>        // bad_alloc
 #include <string>     // string
 
+#include <chrono>
+#include <thread>
 // Athena++ headers
 #include "athena.hpp"
 #include "fft/turbulence.hpp"
@@ -357,6 +359,7 @@ int main(int argc, char *argv[]) {
 #endif // ENABLE_EXCEPTIONS
 
   // BD: new problem
+  WaveDerTaskList *pwderlist = nullptr;
   WaveIntegratorTaskList *pwlist = nullptr;
   // -BD
 
@@ -365,6 +368,7 @@ int main(int argc, char *argv[]) {
 #endif
     // BD: new problem
     if(WAVE_ENABLED) { // only init. when required
+      pwderlist = new WaveDerTaskList(pinput, pmesh);
       pwlist = new WaveIntegratorTaskList(pinput, pmesh);
     }
     // -BD
@@ -530,6 +534,7 @@ int main(int argc, char *argv[]) {
     if (WAVE_ENABLED) {
       // This effectively means hydro takes a time-step and _then_ the given problem takes one
       for (int stage=1; stage<=pwlist->nstages; ++stage) {
+        pwderlist->DoTaskListOneStage(pmesh, stage);
         pwlist->DoTaskListOneStage(pmesh, stage);
       }
     }

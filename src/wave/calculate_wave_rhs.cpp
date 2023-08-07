@@ -28,6 +28,25 @@ void Wave::WaveRHS(AthenaArray<Real> & u){
 
   Real c_2 = SQR(c);
 
+//   for(int k = mbi.kl; k <= mbi.ku; ++k) {
+//     for(int j = mbi.jl; j <= mbi.ju; ++j) {
+// #pragma omp simd
+//       for(int i = mbi.il; i <= mbi.iu; ++i) {
+//         rhs(0,k,j,i) = wpi(k,j,i);
+//         rhs(1,k,j,i) = 0.0;
+//       }
+
+//       for(int a = 0; a < 3; ++a) {
+// #pragma omp simd
+//         for(int i = mbi.il; i <= mbi.iu; ++i) {
+//           // rhs(1,k,j,i) += c_2 * FD.Dxx(a, wu(k,j,i));
+//           rhs(1,k,j,i) += c_2 * FD.Dxx(a, wu(k,j,i));
+//         }
+//       }
+
+//     }
+//   }
+
   for(int k = mbi.kl; k <= mbi.ku; ++k) {
     for(int j = mbi.jl; j <= mbi.ju; ++j) {
 #pragma omp simd
@@ -36,15 +55,23 @@ void Wave::WaveRHS(AthenaArray<Real> & u){
         rhs(1,k,j,i) = 0.0;
       }
 
-      for(int a = 0; a < 3; ++a) {
+//       for(int a = 0; a < 3; ++a) {
+// #pragma omp simd
+//         for(int i = mbi.il; i <= mbi.iu; ++i) {
+//           // rhs(1,k,j,i) += c_2 * FD.Dxx(a, wu(k,j,i));
+//           rhs(1,k,j,i) += c_2 * v(1,k,j,i);
+//         }
+//       }
+
 #pragma omp simd
         for(int i = mbi.il; i <= mbi.iu; ++i) {
-          rhs(1,k,j,i) += c_2 * FD.Dxx(a, wu(k,j,i));
+          // rhs(1,k,j,i) += c_2 * FD.Dxx(a, wu(k,j,i));
+          rhs(1,k,j,i) = c_2 * v(1,k,j,i);
         }
-      }
 
     }
   }
+
 
   /*
   // cx rat. der. test
@@ -294,4 +321,40 @@ void Wave::WaveSommerfeld_3d_(AthenaArray<Real> & u,
       }
     }
   }
+}
+
+
+// copy function data from state vector and compute derivative
+void Wave::PrepareDer(AthenaArray<Real> & u, AthenaArray<Real> & v)
+{
+  MeshBlock *pmb = pmy_block;
+
+  AthenaArray<Real> v_0, v_1;
+  // internal dimension inferred
+  v_0.InitWithShallowSlice(v, 0, 1);
+  v_1.InitWithShallowSlice(v, 1, 1);
+
+  v.ZeroClear();
+
+  // copy data from full block
+  for(int k = 0; k < mbi.nn3; ++k)
+  for(int j = 0; j < mbi.nn2; ++j)
+  for(int i = 0; i < mbi.nn1; ++i)
+  {
+    v(0,k,j,i) = u(0,k,j,i);
+  }
+
+  // compute derivatives on physical nodes
+  for(int k = mbi.kl; k <= mbi.ku; ++k)
+  for(int j = mbi.jl; j <= mbi.ju; ++j)
+  for(int a = 0; a < 3; ++a)
+  for(int i = mbi.il; i <= mbi.iu; ++i)
+  {
+    v(1,k,j,i) += FD.Dxx(a, v(0,k,j,i));
+  }
+
+  // v_0.print_all("%.2e", false, false);
+  // v_1.print_all("%.2e", false, false);
+
+  // std::exit(0);
 }

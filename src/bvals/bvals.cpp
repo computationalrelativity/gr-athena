@@ -107,6 +107,8 @@ BoundaryValues::BoundaryValues(MeshBlock *pmb, BoundaryFlag *input_bcs,
   bvars_main_int_vc.reserve(2);
   bvars_main_int_cx.reserve(2);
 
+  bvars_der.reserve(2);
+
   // Matches initial value of Mesh::next_phys_id_
   // reserve phys=0 for former TAG_AMR=8; now hard-coded in Mesh::CreateAMRMPITag()
   bvars_next_phys_id_ = 1;
@@ -170,6 +172,11 @@ void BoundaryValues::SetupPersistentMPI() {
   }
 
   for (auto bvars_it = bvars_main_int_cx.begin(); bvars_it != bvars_main_int_cx.end();
+       ++bvars_it) {
+    (*bvars_it)->SetupPersistentMPI();
+  }
+
+  for (auto bvars_it = bvars_der.begin(); bvars_it != bvars_der.end();
        ++bvars_it) {
     (*bvars_it)->SetupPersistentMPI();
   }
@@ -242,6 +249,8 @@ void BoundaryValues::StartReceiving(BoundaryCommSubset phase) {
     (*bvars_it)->StartReceiving(phase);
   }
 
+  // StartReceivingDer(phase);
+
   // KGF: begin shearing-box exclusive section of original StartReceivingForInit()
   // find send_block_id and recv_block_id;
   if (SHEARING_BOX) {
@@ -307,6 +316,24 @@ void BoundaryValues::ClearBoundary(BoundaryCommSubset phase) {
     (*bvars_it)->ClearBoundary(phase);
   }
 
+  // ClearBoundaryDer(phase);
+
+  return;
+}
+
+void BoundaryValues::StartReceivingDer(BoundaryCommSubset phase) {
+  for (auto bvars_it = bvars_der.begin(); bvars_it != bvars_der.end();
+       ++bvars_it) {
+    (*bvars_it)->StartReceiving(phase);
+  }
+  return;
+}
+
+void BoundaryValues::ClearBoundaryDer(BoundaryCommSubset phase) {
+  for (auto bvars_it = bvars_der.begin(); bvars_it != bvars_der.end();
+       ++bvars_it) {
+    (*bvars_it)->ClearBoundary(phase);
+  }
   return;
 }
 
@@ -1034,6 +1061,7 @@ void BoundaryValues::ComputeShear(const Real time) {
 
 int BoundaryValues::AdvanceCounterPhysID(int num_phys) {
 #ifdef MPI_PARALLEL
+  // BD: change bval tag deduction to be automatic in ctor
   // TODO(felker): add safety checks? input, output are positive, obey <= 31= MAX_NUM_PHYS
   int start_id = bvars_next_phys_id_;
   bvars_next_phys_id_ += num_phys;

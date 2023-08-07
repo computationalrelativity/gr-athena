@@ -64,6 +64,8 @@ CellCenteredXBoundaryVariable::CellCenteredXBoundaryVariable(
   // KGF: dead code, leaving for now:
   // cc_phys_id_ = pbval_->ReserveTagVariableIDs(1);
   cx_phys_id_ = pbval_->bvars_next_phys_id_;
+
+  // std::cout << "cx_phys_id_: " << cx_phys_id_ << std::endl;
 #endif
   if (pmy_mesh_->multilevel) { // SMR or AMR
     // InitBoundaryData(bd_var_flcor_, BoundaryQuantity::cc_flcor);
@@ -618,17 +620,29 @@ void CellCenteredXBoundaryVariable::SetupPersistentMPI() {
       // Initialize persistent communication requests attached to specific BoundaryData
       // cell-centered extended
       tag = pbval_->CreateBvalsMPITag(nb.snb.lid, nb.targetid, cx_phys_id_);
+      // std::cout << "tag tar: " << pmb->gid << "," << cx_phys_id_ << "," << tag << std::endl;
       if (bd_var_.req_send[nb.bufid] != MPI_REQUEST_NULL)
         MPI_Request_free(&bd_var_.req_send[nb.bufid]);
       MPI_Send_init(bd_var_.send[nb.bufid], ssize, MPI_ATHENA_REAL,
                     nb.snb.rank, tag, MPI_COMM_WORLD, &(bd_var_.req_send[nb.bufid]));
       tag = pbval_->CreateBvalsMPITag(pmb->lid, nb.bufid, cx_phys_id_);
+      // std::cout << "tag buf: " << pmb->gid << "," << cx_phys_id_ << "," << tag << std::endl;
+
       if (bd_var_.req_recv[nb.bufid] != MPI_REQUEST_NULL)
         MPI_Request_free(&bd_var_.req_recv[nb.bufid]);
       MPI_Recv_init(bd_var_.recv[nb.bufid], rsize, MPI_ATHENA_REAL,
                     nb.snb.rank, tag, MPI_COMM_WORLD, &(bd_var_.req_recv[nb.bufid]));
-
     }
+
+    // tag = pbval_->CreateBvalsMPITag(nb.snb.lid, nb.targetid, cx_phys_id_);
+    // std::printf("pmb->gid, tag, nb.snb.lid, nb.targetid, cx_phys_id_=(%i, %i, %i, %i, %i)\n",
+    //              pmb->gid, tag, nb.snb.lid, nb.targetid, cx_phys_id_);
+    // std::cout << "()" << pmb->gid << "," << cx_phys_id_ << "," << tag << std::endl;
+
+    // tag = pbval_->CreateBvalsMPITag(pmb->lid, nb.bufid, cx_phys_id_);
+    // std::printf("pmb->gid, tag, pmb->lid,   nb.bufid,    cx_phys_id_=(%i, %i, %i, %i, %i)\n",
+    //              pmb->lid, tag, pmb->lid, nb.bufid, cx_phys_id_, cx_phys_id_);
+
   }
 #endif
   return;

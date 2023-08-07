@@ -109,6 +109,10 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   // as above but particular to cell-centered (extended)
   std::vector<BoundaryVariable *> bvars_main_int_cx;
 
+  // wave equation derivatives
+  std::vector<BoundaryVariable *> bvars_der;
+
+
   // inherited functions (interface shared with BoundaryVariable objects):
   // ------
   // called before time-stepper:
@@ -124,6 +128,10 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   // non-inhertied / unique functions (do not exist in BoundaryVariable objects):
   // (these typically involve a coupled interaction of boundary variable/quantities)
   // ------
+  void StartReceivingDer(BoundaryCommSubset phase);
+  void ClearBoundaryDer(BoundaryCommSubset phase);
+
+
   void ApplyPhysicalBoundaries(const Real time, const Real dt);
   void ProlongateBoundaries(const Real time, const Real dt);
 
@@ -222,6 +230,11 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
       std::vector<BoundaryVariable *> &bvars_main);
 
   void CheckPolarBoundaries();  // called in BoundaryValues() ctor
+
+  inline void ReserveTagVariableIDs(int val)
+  {
+    bvars_next_phys_id_ += val;
+  }
 
   // temporary--- Added by @tomidakn on 2015-11-27 in f0f989f85f
   // TODO(KGF): consider removing this friendship designation

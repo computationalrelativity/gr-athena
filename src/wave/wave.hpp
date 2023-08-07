@@ -35,6 +35,8 @@ public:
   AthenaArray<Real> u1, u2;     // auxiliary arrays at intermediate steps
   AthenaArray<Real> rhs;        // wave equation rhs
 
+  AthenaArray<Real> v;          // storage for derivative pre-computation
+
   AthenaArray<Real> exact;      // exact solution of of the wave equation
   AthenaArray<Real> error;      // error with respect to the exact solution
 
@@ -51,11 +53,18 @@ public:
   VertexCenteredBoundaryVariable ubvar_vc;
   CellCenteredXBoundaryVariable ubvar_cx;
 
+  // for derivative
+  CellCenteredBoundaryVariable vbvar_cc;
+  VertexCenteredBoundaryVariable vbvar_vc;
+  CellCenteredXBoundaryVariable vbvar_cx;
+
+
   AthenaArray<Real> empty_flux[3];
 
   // storage for SMR/AMR
   // TODO(KGF): remove trailing underscore or revert to private:
   AthenaArray<Real> coarse_u_;
+  AthenaArray<Real> coarse_v_;
   int refinement_idx{-1};
 
   // functions
@@ -63,6 +72,8 @@ public:
   void WaveRHS(AthenaArray<Real> &u);
   void WaveBoundaryRHS(AthenaArray<Real> &u);
   void AddWaveRHS(const Real wght, AthenaArray<Real> &u_out);
+
+  void PrepareDer(AthenaArray<Real> &u, AthenaArray<Real> &v);
 
   static const int NWAVE_CPT = 2;      // num. of wave equation field components
 
@@ -88,6 +99,15 @@ public:
   Real Lx1_;
   Real Lx2_;
   Real Lx3_;
+
+  inline void debug(const std::string& dbg_tag)
+  {
+    std::cout << dbg_tag << ":" << std::endl;
+    std::cout << "bvars_size() " << pmy_block->pbval->bvars.size() << " ";
+    std::cout << "ubvar_cx.bvar_index " << ubvar_cx.bvar_index << " ";
+    std::cout << "vbvar_cx.bvar_index " << vbvar_cx.bvar_index << " ";
+    std::cout << std::endl;
+  }
 
 private:
   AthenaArray<Real> dt1_,dt2_,dt3_;    // scratch arrays used in NewTimeStep

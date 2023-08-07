@@ -302,6 +302,69 @@ namespace HydroIntegratorTaskNames {
 // BD: new problem
 //----------------------------------------------------------------------------------------
 
+// compute derivatives and communicate in own tasklist
+class WaveDerTaskList : public TaskList {
+public:
+  WaveDerTaskList(ParameterInput *pin, Mesh *pm);
+
+  // functions
+  TaskStatus Nop(MeshBlock *pmb, int stage);                // NOP [x]
+  TaskStatus CalculateWaveDer(MeshBlock *pmb, int stage);   // CALC_WAVEDER [x]
+  TaskStatus SendDer(MeshBlock *pmb, int stage);            // SEND_DER     [x]
+  TaskStatus ReceiveDer(MeshBlock *pmb, int stage);         // RECV_DER     [x]
+  TaskStatus SetBoundariesDer(MeshBlock *pmb, int stage);   // SETB_DER     [x]
+  TaskStatus ProlongDer(MeshBlock *pmb, int stage);         // PROLDER      [x]
+  TaskStatus ClearAllDerBoundary(MeshBlock *pmb, int stage);// CLEAR_DERBND [x]
+
+  /*
+  TaskStatus ClearAllBoundary(MeshBlock *pmb, int stage);  // CLEAR_ALLBND [x]
+  TaskStatus UserWork(MeshBlock *pmb, int stage);          // USERWORK     [x]
+  TaskStatus NewBlockTimeStep(MeshBlock *pmb, int stage);  // NEW_DT       [x]
+  TaskStatus CheckRefinement(MeshBlock *pmb, int stage);   // FLAG_AMR     [x]
+  TaskStatus IntegrateWave(MeshBlock *pmb, int stage);     // INT_WAVE     [x]
+  TaskStatus SendWave(MeshBlock *pmb, int stage);          // SEND_WAVE    [x]
+  TaskStatus ReceiveWave(MeshBlock *pmb, int stage);       // RECV_WAVE    [x]
+
+  TaskStatus SetBoundariesWave(MeshBlock *pmb, int stage); // SETB_WAVE    [x]
+
+  TaskStatus Prolongation(MeshBlock *pmb, int stage);      // PROLONG      [x]
+  TaskStatus PhysicalBoundary(MeshBlock *pmb, int stage);  // PHY_BVAL     [x]
+  */
+
+private:
+  void AddTask(const TaskID& id, const TaskID& dep) override;
+  void StartupTaskList(MeshBlock *pmb, int stage) override;
+};
+
+// 64-bit integers with "1" in different bit positions used to ID each wave task.
+namespace WaveDerivativeTaskNames {
+
+  const TaskID NONE(0);
+  const TaskID NOP(1);
+  const TaskID CALC_WAVEDER(2);
+  const TaskID SEND_DER(4);
+  const TaskID RECV_DER(5);
+  const TaskID SETB_DER(6);
+  const TaskID PROLDER(7);
+  const TaskID CLEAR_DERBND(8);
+
+
+  /*
+  const TaskID CLEAR_ALLBND(1);
+
+  const TaskID INT_WAVE(3);
+  const TaskID SEND_WAVE(4);
+  const TaskID RECV_WAVE(5);
+  const TaskID SETB_WAVE(6);
+  const TaskID PROLONG(7);
+  const TaskID PHY_BVAL(8);
+  const TaskID USERWORK(9);
+  const TaskID NEW_DT(10);
+  const TaskID FLAG_AMR(11);
+  */
+}  // namespace WaveDerivativeTaskNames
+
+// deal with integration
 class WaveIntegratorTaskList : public TaskList {
 public:
   WaveIntegratorTaskList(ParameterInput *pin, Mesh *pm);

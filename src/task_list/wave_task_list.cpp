@@ -226,6 +226,7 @@ WaveIntegratorTaskList::WaveIntegratorTaskList(ParameterInput *pin, Mesh *pm){
 
   // Now assemble list of tasks for each stage of wave integrator
   {using namespace WaveIntegratorTaskNames;
+
     AddTask(CALC_WAVERHS, NONE);
 
     AddTask(INT_WAVE, CALC_WAVERHS);
@@ -251,6 +252,14 @@ WaveIntegratorTaskList::WaveIntegratorTaskList(ParameterInput *pin, Mesh *pm){
     } else {
       AddTask(CLEAR_ALLBND, NEW_DT);
     }
+
+    /*
+    // comm. only test
+    AddTask(SEND_WAVE, NONE);
+    AddTask(RECV_WAVE, NONE);
+    AddTask(FLAG_AMR, RECV_WAVE);
+    AddTask(CLEAR_ALLBND, FLAG_AMR);
+    */
 
 
   } // end of using namespace block
@@ -398,14 +407,24 @@ void WaveIntegratorTaskList::StartupTaskList(MeshBlock *pmb, int stage) {
 
 TaskStatus WaveIntegratorTaskList::ClearAllBoundary(MeshBlock *pmb, int stage) {
   pmb->pbval->ClearBoundary(BoundaryCommSubset::all);
+
+  // now drop the vbvar
+  // pmb->pbval->bvars.pop_back();
+  // pmb->pbval->bvars_main_int_cx.pop_back();
+
   return TaskStatus::success;
 }
 
 //----------------------------------------------------------------------------------------
 // Functions to calculate the RHS
-
 TaskStatus WaveIntegratorTaskList::CalculateWaveRHS(MeshBlock *pmb, int stage) {
   BoundaryValues *pbval = pmb->pbval;
+
+  // pmb->pwave->ubvar_cx.bvar_index = pmb->pbval->bvars.size();
+  // pmb->pbval->bvars.push_back(&pmb->pwave->ubvar_cx);
+  // pmb->pbval->bvars_main_int_cx.push_back(&pmb->pwave->ubvar_cx);
+
+
   if (stage <= nstages) {
     pmb->pwave->WaveRHS(pmb->pwave->u);
 
@@ -416,7 +435,6 @@ TaskStatus WaveIntegratorTaskList::CalculateWaveRHS(MeshBlock *pmb, int stage) {
   }
   return TaskStatus::fail;
 }
-
 //----------------------------------------------------------------------------------------
 // Functions to integrate variables
 
@@ -481,6 +499,8 @@ TaskStatus WaveIntegratorTaskList::IntegrateWave(MeshBlock *pmb, int stage) {
 // Functions to communicate conserved variables between MeshBlocks
 
 TaskStatus WaveIntegratorTaskList::SendWave(MeshBlock *pmb, int stage) {
+  // std::cout << "in SendWave" << std::endl;
+
   if (stage <= nstages) {
     if (WAVE_CC_ENABLED)
     {
@@ -505,6 +525,9 @@ TaskStatus WaveIntegratorTaskList::SendWave(MeshBlock *pmb, int stage) {
 // Functions to receive conserved variables between MeshBlocks
 
 TaskStatus WaveIntegratorTaskList::ReceiveWave(MeshBlock *pmb, int stage) {
+  // std::cout << "in ReceiveWave" << std::endl;
+  // std::exit(0);
+
   bool ret;
   if (stage <= nstages) {
     if (WAVE_CC_ENABLED)
@@ -531,6 +554,8 @@ TaskStatus WaveIntegratorTaskList::ReceiveWave(MeshBlock *pmb, int stage) {
 
 // Sets boundary buffer data
 TaskStatus WaveIntegratorTaskList::SetBoundariesWave(MeshBlock *pmb, int stage) {
+  // std::cout << "in SetBoundariesWave" << std::endl;
+
   if (stage <= nstages) {
     if (WAVE_CC_ENABLED)
     {
@@ -554,6 +579,8 @@ TaskStatus WaveIntegratorTaskList::SetBoundariesWave(MeshBlock *pmb, int stage) 
 // Functions for everything else
 
 TaskStatus WaveIntegratorTaskList::Prolongation(MeshBlock *pmb, int stage) {
+  // std::cout << "in Prolongation" << std::endl;
+
   BoundaryValues *pbval = pmb->pbval;
 
   if (stage <= nstages) {
@@ -571,6 +598,8 @@ TaskStatus WaveIntegratorTaskList::Prolongation(MeshBlock *pmb, int stage) {
 
 
 TaskStatus WaveIntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int stage) {
+  // std::cout << "in PhysicalBoundary" << std::endl;
+
   BoundaryValues *pbval = pmb->pbval;
   if (stage <= nstages) {
     // Time at the end of stage for (u, b) register pair

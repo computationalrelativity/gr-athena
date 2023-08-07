@@ -29,7 +29,17 @@ Wave::Wave(MeshBlock *pmb, ParameterInput *pin) :
     (WAVE_VC_ENABLED) ? pmb->nverts3 : pmb->ncells3,
     (WAVE_VC_ENABLED) ? pmb->nverts2 : pmb->ncells2,
     (WAVE_VC_ENABLED) ? pmb->nverts1 : pmb->ncells1),
+  v(NWAVE_CPT,
+    (WAVE_VC_ENABLED) ? pmb->nverts3 : pmb->ncells3,
+    (WAVE_VC_ENABLED) ? pmb->nverts2 : pmb->ncells2,
+    (WAVE_VC_ENABLED) ? pmb->nverts1 : pmb->ncells1),
   coarse_u_(NWAVE_CPT,
+            (WAVE_VC_ENABLED) ? pmb->ncv3 : ((WAVE_CX_ENABLED) ? pmb->cx_ncc3 : pmb->ncc3),
+            (WAVE_VC_ENABLED) ? pmb->ncv2 : ((WAVE_CX_ENABLED) ? pmb->cx_ncc2 : pmb->ncc2),
+            (WAVE_VC_ENABLED) ? pmb->ncv1 : ((WAVE_CX_ENABLED) ? pmb->cx_ncc1 : pmb->ncc1),
+            (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
+             AthenaArray<Real>::DataStatus::empty)),
+  coarse_v_(NWAVE_CPT,
             (WAVE_VC_ENABLED) ? pmb->ncv3 : ((WAVE_CX_ENABLED) ? pmb->cx_ncc3 : pmb->ncc3),
             (WAVE_VC_ENABLED) ? pmb->ncv2 : ((WAVE_CX_ENABLED) ? pmb->cx_ncc2 : pmb->ncc2),
             (WAVE_VC_ENABLED) ? pmb->ncv1 : ((WAVE_CX_ENABLED) ? pmb->cx_ncc1 : pmb->ncc1),
@@ -38,7 +48,10 @@ Wave::Wave(MeshBlock *pmb, ParameterInput *pin) :
   empty_flux{AthenaArray<Real>(), AthenaArray<Real>(), AthenaArray<Real>()},
   ubvar_cc(pmb, &u, &coarse_u_, empty_flux),  // dirty but safe as only _one_ is registered
   ubvar_vc(pmb, &u, &coarse_u_, empty_flux),
-  ubvar_cx(pmb, &u, &coarse_u_, empty_flux)
+  ubvar_cx(pmb, &u, &coarse_u_, empty_flux),
+  vbvar_cc(pmb, &v, &coarse_v_, empty_flux),  // dirty but safe as only _one_ is registered
+  vbvar_vc(pmb, &v, &coarse_v_, empty_flux),
+  vbvar_cx(pmb, &v, &coarse_v_, empty_flux)
 {
   Mesh *pm = pmb->pmy_mesh;
   Coordinates * pco = pmb->pcoord;
@@ -74,18 +87,27 @@ Wave::Wave(MeshBlock *pmb, ParameterInput *pin) :
     mbi.x3.InitWithShallowSlice(pco->x3f, 1, 0, nn3);
   }
 
-  // inform MeshBlock that this array is the "primary" representation
+  // inform MeshBlock that u array is the "primary" representation
   // Used for:
   // (1) load-balancing
   // (2) (future) dumping to restart file
   if (WAVE_CC_ENABLED)
+  {
     pmb->RegisterMeshBlockDataCC(u);
+    // pmb->RegisterMeshBlockDataCC(v);
+  }
 
   if (WAVE_VC_ENABLED)
+  {
     pmb->RegisterMeshBlockDataVC(u);
+    // pmb->RegisterMeshBlockDataVC(v);
+  }
 
   if (WAVE_CX_ENABLED)
+  {
     pmb->RegisterMeshBlockDataCX(u);
+    // pmb->RegisterMeshBlockDataCX(v);
+  }
 
   // Allocate memory for the solution and its time derivative
   // u.NewAthenaArray(NWAVE_CPT, nn3, nn2, nn1);
@@ -182,13 +204,20 @@ Wave::Wave(MeshBlock *pmb, ParameterInput *pin) :
   // "Enroll" in SMR/AMR by adding to vector of pointers in MeshRefinement class
   if (pm->multilevel) {
     if (WAVE_CC_ENABLED)
+    {
       refinement_idx = pmb->pmr->AddToRefinementCC(&u, &coarse_u_);
+    }
 
     if (WAVE_VC_ENABLED)
+    {
       refinement_idx = pmb->pmr->AddToRefinementVC(&u, &coarse_u_);
+    }
 
     if (WAVE_CX_ENABLED)
+    {
       refinement_idx = pmb->pmr->AddToRefinementCX(&u, &coarse_u_);
+      // refinement_idx = pmb->pmr->AddToRefinementCX(&v, &coarse_v_);
+    }
 
   }
 
@@ -198,18 +227,31 @@ Wave::Wave(MeshBlock *pmb, ParameterInput *pin) :
     ubvar_cc.bvar_index = pmb->pbval->bvars.size();
     pmb->pbval->bvars.push_back(&ubvar_cc);
     pmb->pbval->bvars_main_int.push_back(&ubvar_cc);
+
+    vbvar_cc.bvar_index = pmb->pbval->bvars.size();
+    pmb->pbval->bvars.push_back(&vbvar_cc);
+    pmb->pbval->bvars_der.push_back(&vbvar_cc);
   }
   else if (WAVE_VC_ENABLED)
   {
     ubvar_vc.bvar_index = pmb->pbval->bvars.size();
     pmb->pbval->bvars.push_back(&ubvar_vc);
     pmb->pbval->bvars_main_int_vc.push_back(&ubvar_vc);
+
+    vbvar_vc.bvar_index = pmb->pbval->bvars.size();
+    pmb->pbval->bvars.push_back(&vbvar_vc);
+    pmb->pbval->bvars_der.push_back(&vbvar_vc);
   }
   else if (WAVE_CX_ENABLED)
   {
     ubvar_cx.bvar_index = pmb->pbval->bvars.size();
     pmb->pbval->bvars.push_back(&ubvar_cx);
     pmb->pbval->bvars_main_int_cx.push_back(&ubvar_cx);
+
+    vbvar_cx.bvar_index = pmb->pbval->bvars.size();
+    pmb->pbval->bvars.push_back(&vbvar_cx);
+    pmb->pbval->bvars_der.push_back(&vbvar_cx);
+    // pmb->pbval->bvars_main_int_cx.push_back(&vbvar_cx);
   }
 
   // Allocate memory for scratch arrays
@@ -255,6 +297,7 @@ Wave::Wave(MeshBlock *pmb, ParameterInput *pin) :
 Wave::~Wave()
 {
   u.DeleteAthenaArray();
+  v.DeleteAthenaArray();
 
   dt1_.DeleteAthenaArray();
   dt2_.DeleteAthenaArray();
