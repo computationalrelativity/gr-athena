@@ -640,21 +640,21 @@ void MeshRefinement::RestrictCellCenteredXValues(
           // use templated ----------------------------------------------------
           coarse(n,cx_ck,cx_cj,cx_ci) = 0.0;
 
-          #pragma omp unroll
+          #pragma unroll
           for (int dk=0; dk<H_SZ; ++dk)
           {
             int const cx_fk_l = cx_fk - dk;
             int const cx_fk_r = cx_fk + dk + 1;
             Real const lck = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dk-1];
 
-            #pragma omp unroll
+            #pragma unroll
             for (int dj=0; dj<H_SZ; ++dj)
             {
               int const cx_fj_l = cx_fj - dj;
               int const cx_fj_r = cx_fj + dj + 1;
               Real const lckj = lck * InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dj-1];
 
-              #pragma omp unroll
+              #pragma unroll
               for (int di=0; di<H_SZ; ++di)
               {
                 int const cx_fi_l = cx_fi - di;
@@ -705,14 +705,14 @@ void MeshRefinement::RestrictCellCenteredXValues(
         // use templated ------------------------------------------------------
         coarse(n,cx_ck,cx_cj,cx_ci) = 0.0;
 
-        #pragma omp unroll
+        #pragma unroll
         for (int dj=0; dj<H_SZ; ++dj)
         {
           int const cx_fj_l = cx_fj - dj;
           int const cx_fj_r = cx_fj + dj + 1;
           Real const lcj = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dj-1];
 
-          #pragma omp unroll
+          #pragma unroll
           for (int di=0; di<H_SZ; ++di)
           {
             int const cx_fi_l = cx_fi - di;
@@ -796,7 +796,7 @@ void MeshRefinement::RestrictCellCenteredXValues(
       // use templated --------------------------------------------------------
       coarse(n,cx_ck,cx_cj,cx_ci) = 0.0;
 
-      #pragma omp unroll
+      #pragma unroll
       for (int di=0; di<H_SZ; ++di)
       {
         Real const lc = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
@@ -2457,7 +2457,7 @@ void MeshRefinement::ProlongateCellCenteredXBCValues(
             if((cx_fi+1 < pmb->ncells1) && (cx_fj+1 < pmb->ncells2) && (cx_fk+1 < pmb->ncells3))
               fine(n,cx_fk+1,cx_fj+1,cx_fi+1) = 0.0;
 
-            #pragma omp unroll
+            #pragma unroll
             for (int dk=0; dk<2*H_SZ+1; ++dk)
             {
               // see 1d case for description of this
@@ -2468,7 +2468,7 @@ void MeshRefinement::ProlongateCellCenteredXBCValues(
               const int cx_ckl = cx_ck-H_SZ+dk;
               const int cx_ckr = cx_ck+H_SZ-dk;
 
-              #pragma omp unroll
+              #pragma unroll
               for (int dj=0; dj<2*H_SZ+1; ++dj)
               {
                 // see 1d case for description of this
@@ -2479,7 +2479,7 @@ void MeshRefinement::ProlongateCellCenteredXBCValues(
                 const int cx_cjl = cx_cj-H_SZ+dj;
                 const int cx_cjr = cx_cj+H_SZ-dj;
 
-                #pragma omp unroll
+                #pragma unroll
                 for (int di=0; di<2*H_SZ+1; ++di)
                 {
                   Real const l_kji = l_kj * (
@@ -2568,7 +2568,7 @@ void MeshRefinement::ProlongateCellCenteredXBCValues(
           if((cx_fi+1 < pmb->ncells1) && (cx_fj+1 < pmb->ncells2))
             fine(n,cx_fk,cx_fj+1,cx_fi+1) = 0.0;
 
-          #pragma omp unroll
+          #pragma unroll
           for (int dj=0; dj<2*H_SZ+1; ++dj)
           {
             // see 1d case for description of this
@@ -2579,7 +2579,7 @@ void MeshRefinement::ProlongateCellCenteredXBCValues(
             const int cx_cjl = cx_cj-H_SZ+dj;
             const int cx_cjr = cx_cj+H_SZ-dj;
 
-            #pragma omp unroll
+            #pragma unroll
             for (int di=0; di<2*H_SZ+1; ++di)
             {
               Real const l_ji = l_j * (
@@ -2631,7 +2631,7 @@ void MeshRefinement::ProlongateCellCenteredXBCValues(
       if(cx_fi+1 < pmb->ncells1)
         fine(n,cx_fk,cx_fj,cx_fi+1) = 0.0;
 
-      #pragma omp unroll
+      #pragma unroll
       for (int di=0; di<2*H_SZ+1; ++di)
       {
         // left / right children coeffs
@@ -2822,7 +2822,7 @@ void MeshRefinement::ProlongateCellCenteredXValues(
             if((cx_fi+1 < pmb->ncells1) && (cx_fj+1 < pmb->ncells2) && (cx_fk+1 < pmb->ncells3))
               fine(n,cx_fk+1,cx_fj+1,cx_fi+1) = 0.0;
 
-            #pragma omp unroll
+            #pragma unroll
             for (int dk=0; dk<2*H_SZ+1; ++dk)
             {
               // see 1d case for description of this
@@ -2833,7 +2833,7 @@ void MeshRefinement::ProlongateCellCenteredXValues(
               const int cx_ckl = cx_ck-H_SZ+dk;
               const int cx_ckr = cx_ck+H_SZ-dk;
 
-              #pragma omp unroll
+              #pragma unroll
               for (int dj=0; dj<2*H_SZ+1; ++dj)
               {
                 // see 1d case for description of this
@@ -2844,7 +2844,7 @@ void MeshRefinement::ProlongateCellCenteredXValues(
                 const int cx_cjl = cx_cj-H_SZ+dj;
                 const int cx_cjr = cx_cj+H_SZ-dj;
 
-                #pragma omp unroll
+                #pragma unroll
                 for (int di=0; di<2*H_SZ+1; ++di)
                 {
                   Real const l_kji = l_kj * (
@@ -2932,7 +2932,7 @@ void MeshRefinement::ProlongateCellCenteredXValues(
     //     fine(n,cx_fk,cx_fj+1,cx_fi  ) = 0.0;
     //     fine(n,cx_fk,cx_fj+1,cx_fi+1) = 0.0;
 
-    //     #pragma omp unroll
+    //     #pragma unroll
     //     for (int dj=0; dj<2*H_SZ+1; ++dj)
     //     {
     //       // left / right children coeffs
@@ -2947,7 +2947,7 @@ void MeshRefinement::ProlongateCellCenteredXValues(
     //       const int cx_cjr = cx_cj+H_SZ-dj;
 
 
-    //       #pragma omp unroll
+    //       #pragma unroll
     //       for (int di=0; di<2*H_SZ+1; ++di)
     //       {
     //         Real const l_cli = (
@@ -3065,7 +3065,7 @@ void MeshRefinement::ProlongateCellCenteredXValues(
           if((cx_fi+1 < pmb->ncells1) && (cx_fj+1 < pmb->ncells2))
             fine(n,cx_fk,cx_fj+1,cx_fi+1) = 0.0;
 
-          #pragma omp unroll
+          #pragma unroll
           for (int dj=0; dj<2*H_SZ+1; ++dj)
           {
             // see 1d case for description of this
@@ -3076,7 +3076,7 @@ void MeshRefinement::ProlongateCellCenteredXValues(
             const int cx_cjl = cx_cj-H_SZ+dj;
             const int cx_cjr = cx_cj+H_SZ-dj;
 
-            #pragma omp unroll
+            #pragma unroll
             for (int di=0; di<2*H_SZ+1; ++di)
             {
               Real const l_ji = l_j * (
@@ -3163,7 +3163,7 @@ void MeshRefinement::ProlongateCellCenteredXValues(
       if(cx_fi+1 < pmb->ncells1)
         fine(n,cx_fk,cx_fj,cx_fi+1) = 0.0;
 
-      #pragma omp unroll
+      #pragma unroll
       for (int di=0; di<2*H_SZ+1; ++di)
       {
         // left / right children coeffs
