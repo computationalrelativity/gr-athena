@@ -430,8 +430,6 @@ int main(int argc, char *argv[]) {
   // pz4clist->FirstTime, in order to do the calculations required for the output on the ID;
   // This needs to be done before MakeOutputs to fill things like the Constraints
   if (Z4C_ENABLED && res_flag == 0 && pmesh->ncycle == 0) {
-    pz4clist->FirstTime(res_flag, pmesh->ncycle);
-    pz4clist->DoTaskListOneStage(pmesh, pz4clist->nstages);
     for (auto pah_f : pmesh->pah_finder) {
       if (pah_f->CalculateMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
     }

@@ -1722,6 +1722,33 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
     }
   } while (!iflag);
 
+  if(Z4C_ENABLED && res_flag == 0) {
+    if (Globals::my_rank == 0) std::cout<<"Calculate quantities at t=0!"<<std::endl;
+    for (int i=0; i<nmb; ++i) {
+      MeshBlock *pmb = pmb_array[i];
+      pmb->pz4c->Z4cToADM(pmb->pz4c->storage.u, pmb->pz4c->storage.adm);
+      pmb->pz4c->Z4cWeyl(pmb->pz4c->storage.adm, pmb->pz4c->storage.mat, pmb->pz4c->storage.weyl);
+      AthenaArray<Real> u_R;
+      AthenaArray<Real> u_I;
+      u_R.InitWithShallowSlice(pmb->pz4c->storage.weyl, Z4c::I_WEY_rpsi4, 1);
+      u_I.InitWithShallowSlice(pmb->pz4c->storage.weyl, Z4c::I_WEY_ipsi4, 1);
+      for (auto pwextr : pmb->pwave_extr_loc) {
+          pwextr->Decompose_multipole(u_R,u_I);
+      }
+#if CCE_ENABLED
+      for (auto cce : pcce)
+      {
+        cce->Interpolate(pmb);
+      }
+#endif
+      pmb->pz4c->ADMConstraints(pmb->pz4c->storage.con, pmb->pz4c->storage.adm,
+                               pmb->pz4c->storage.mat, pmb->pz4c->storage.u);
+      for (auto ptracker : pmb->pmy_mesh->pz4c_tracker) {
+        ptracker->InterpolateShift(pmb, pmb->pz4c->storage.u);
+      }
+    }
+  }
+
   // calculate the first time step
 #pragma omp parallel for num_threads(nthreads)
   for (int i=0; i<nmb; ++i) {
