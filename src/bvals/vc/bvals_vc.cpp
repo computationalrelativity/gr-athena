@@ -167,14 +167,12 @@ int VertexCenteredBoundaryVariable::LoadBoundaryBufferToCoarser(Real *buf,
   BufferUtility::PackData(coarse_var, buf, nl_, nu_, si, ei, sj, ej, sk, ek, p);
 
   // BD: Is this needed? 2:1 ratio enforced...
-#if defined(DBG_VC_DOUBLE_RESTRICT)
   if (pmy_mesh_->multilevel) {
     // double restrict required to populate coarse buffer of coarser level
     idxLoadToCoarserRanges(nb.ni, si, ei, sj, ej, sk, ek, true);
     pmr->RestrictTwiceToBufferVertexCenteredValues(var, buf, nl_, nu_,
                                                    si, ei, sj, ej, sk, ek, p);
   }
-#endif // DBG_VC_DOUBLE_RESTRICT
 
   return p;
 }
@@ -318,14 +316,12 @@ void VertexCenteredBoundaryVariable::SetBoundaryFromFiner(Real *buf,
   }
   //---------------------------------------------------------------------------
 
-#if defined(DBG_VC_DOUBLE_RESTRICT)
   if (pmy_mesh_->multilevel) {
     AthenaArray<Real> &coarse_var = *coarse_buf;
     idxSetFromFinerRanges(nb.ni, si, ei, sj, ej, sk, ek, 2);
     BufferUtility::UnpackDataAdd(buf, coarse_var, nl_, nu_,
                                  si, ei, sj, ej, sk, ek, p);
   }
-#endif // DBG_VC_DOUBLE_RESTRICT
 
   return;
 }

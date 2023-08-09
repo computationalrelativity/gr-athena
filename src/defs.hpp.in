@@ -15,9 +15,6 @@
 #define DBG_SYMMETRIZE_P_OP
 #define DBG_SYMMETRIZE_FD
 
-// remove double VC restrict (& hence mitigate MB size restr.)
-#define NO_DBG_VC_DOUBLE_RESTRICT
-
 //----------------------------------------------------------------------------------------
 // macros which define physics and algorithms
 
