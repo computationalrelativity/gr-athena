@@ -229,6 +229,11 @@ public:
     AthenaArray<Real> sphere_zone_center1;
     AthenaArray<Real> sphere_zone_center2;
     AthenaArray<Real> sphere_zone_center3;
+
+    // for twopuncturesc
+#ifdef TWO_PUNCTURES
+    bool impose_bitant_id;
+#endif
   } opt;
 
 

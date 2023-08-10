@@ -225,6 +225,11 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
     }
   }
 
+#ifdef TWO_PUNCTURES
+  opt.impose_bitant_id = pin->GetOrAddBoolean("problem", "impose_bitant_id",
+                                              false);
+#endif
+
   //---------------------------------------------------------------------------
   // Set aliases
   SetADMAliases(storage.adm, adm);
