@@ -800,7 +800,7 @@ private:
 #endif // DBG_SYMMETRIZE_FD
 
     // 7th derivative stencil
-    typedef FDCenteredStencil<7, NGHOST> s7;
+    typedef FDCenteredStencil<7, 4> s7;
     // homogeneous 7th derivative (high order centered)
     inline Real Dx7(int dir, Real & u) {
       Real * pu = &u - s7::offset*stride[dir];
