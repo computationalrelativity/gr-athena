@@ -109,6 +109,10 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   // as above but particular to cell-centered (extended)
   std::vector<BoundaryVariable *> bvars_main_int_cx;
 
+  // communication of auxiliary quantities
+  std::vector<BoundaryVariable *> bvars_aux;
+
+
   // inherited functions (interface shared with BoundaryVariable objects):
   // ------
   // called before time-stepper:
@@ -124,6 +128,10 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   // non-inhertied / unique functions (do not exist in BoundaryVariable objects):
   // (these typically involve a coupled interaction of boundary variable/quantities)
   // ------
+  void StartReceivingAux(BoundaryCommSubset phase);
+  void ClearBoundaryAux(BoundaryCommSubset phase);
+
+
   void ApplyPhysicalBoundaries(const Real time, const Real dt);
   void ProlongateBoundaries(const Real time, const Real dt);
 

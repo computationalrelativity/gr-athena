@@ -381,12 +381,14 @@ int main(int argc, char *argv[]) {
 #endif // ENABLE_EXCEPTIONS
 
   Z4cIntegratorTaskList *pz4clist = nullptr;
+  Z4cAuxTaskList        *pz4cauxlist = nullptr;
 
 #ifdef ENABLE_EXCEPTIONS
   try {
 #endif
     if(Z4C_ENABLED) { // only init. when required
       pz4clist = new Z4cIntegratorTaskList(pinput, pmesh);
+      pz4cauxlist = new Z4cAuxTaskList(pinput, pmesh);
     }
 #ifdef ENABLE_EXCEPTIONS
   }
@@ -541,6 +543,7 @@ int main(int argc, char *argv[]) {
       for (int stage=1; stage<=pz4clist->nstages; ++stage) {
         pz4clist->DoTaskListOneStage(pmesh, stage);
       }
+      pz4cauxlist->DoTaskListOneStage(pmesh, 1);  // only 1 stage
 
       // BD: TODO - check that the following are not displaced by \dt ?
       // only do an extraction if NextTime threshold cleared (updated below)
@@ -594,6 +597,7 @@ int main(int argc, char *argv[]) {
       // Update NextTime triggers
       // This needs to be here to share tasklist external (though coupled) ops.
       pz4clist->UpdateTaskListTriggers();
+      pz4cauxlist->UpdateTaskListTriggers();
       //-------------------------------------------------------------------------
     }
 
@@ -726,6 +730,7 @@ int main(int argc, char *argv[]) {
   delete pmesh;
   delete ptlist;
   delete pz4clist;
+  delete pz4cauxlist;
   delete pouts;
 
 #ifdef MPI_PARALLEL

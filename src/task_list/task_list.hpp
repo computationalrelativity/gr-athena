@@ -471,4 +471,57 @@ namespace Z4cIntegratorTaskNames {
 
 }  // namespace Z4cIntegratorTaskNames
 
+// for auxiliary tasks outside main integration loop
+class Z4cAuxTaskList : public TaskList {
+public:
+  Z4cAuxTaskList(ParameterInput *pin, Mesh *pm);
+
+  // functions
+  TaskStatus Nop(MeshBlock *pmb, int stage);                // NOP           [x]
+  TaskStatus SendAux(MeshBlock *pmb, int stage);            // SEND_DER      [x]
+  TaskStatus ReceiveAux(MeshBlock *pmb, int stage);         // RECV_DER      [x]
+  TaskStatus SetBoundariesAux(MeshBlock *pmb, int stage);   // SETB_DER      [x]
+  TaskStatus ProlongAux(MeshBlock *pmb, int stage);         // PROL_AUX      [x]
+  TaskStatus WeylDecompose(MeshBlock *pmb, int stage);       // WEYL_DECOMP  [x]
+  TaskStatus ClearAllAuxBoundary(MeshBlock *pmb, int stage); // CLEAR_AUXBND [x]
+
+  //---------------------------------------------------------------------------
+  // Provide finer-grained control over tasklist
+  // Note: If a parameter is zero related task(s) will be ignored
+  struct aux_NextTimeStep{
+    Real dt{0.};
+    Real next_time{0.};
+    Real to_update{false};
+  };
+
+  struct {
+    aux_NextTimeStep wave_extraction;
+  } TaskListTriggers;
+
+  bool CurrentTimeCalculationThreshold(Mesh *pm,
+                                       aux_NextTimeStep *variable);
+  void UpdateTaskListTriggers();
+  //---------------------------------------------------------------------------
+
+
+private:
+  void AddTask(const TaskID& id, const TaskID& dep) override;
+  void StartupTaskList(MeshBlock *pmb, int stage) override;
+};
+
+// 64-bit integers with "1" in different bit positions used to ID each wave task.
+namespace Z4cAuxTaskNames {
+
+  const TaskID NONE(0);
+  const TaskID NOP(1);
+  const TaskID SEND_AUX(4);
+  const TaskID RECV_AUX(5);
+  const TaskID SETB_AUX(6);
+  const TaskID PROL_AUX(7);
+  const TaskID WEYL_DECOMP(8);
+  const TaskID CLEAR_AUXBND(9);
+
+}  // namespace Z4cAuxTaskNames
+
+
 #endif  // TASK_LIST_TASK_LIST_HPP_

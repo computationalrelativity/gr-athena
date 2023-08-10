@@ -36,8 +36,8 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
 
   Weyl_vars weyl;
   SetWeylAliases(u_weyl, weyl);
-  weyl.rpsi4.ZeroClear();
-  weyl.ipsi4.ZeroClear();
+  weyl.rpsi4.Fill(NAN);
+  weyl.ipsi4.Fill(NAN);
 
   // Simplify constants (2 & sqrt 2 factors) featured in re/im[psi4]
   const Real FR4 = 0.25;
@@ -364,6 +364,11 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
           }
         }
       }
+    }
+
+    ILOOP1(i) {
+      weyl.rpsi4(k,j,i) = 0;
+      weyl.ipsi4(k,j,i) = 0;
     }
 
     for(int a = 0; a < NDIM; ++a){

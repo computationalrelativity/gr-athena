@@ -92,7 +92,12 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
           {N_WEY, mbi.nn3, mbi.nn2, mbi.nn1},              // weyl
   },
   empty_flux{AthenaArray<Real>(), AthenaArray<Real>(), AthenaArray<Real>()},
-  ubvar(pmb, &storage.u, &coarse_u_, empty_flux)
+  ubvar(pmb, &storage.u, &coarse_u_, empty_flux),
+  coarse_a_(N_WEY, mbi.cnn3, mbi.cnn2, mbi.cnn1,
+            (pmb->pmy_mesh->multilevel ?
+             AthenaArray<Real>::DataStatus::allocated :
+             AthenaArray<Real>::DataStatus::empty)),
+  abvar(pmb, &storage.weyl, &coarse_a_, empty_flux)
 {
   Mesh *pm = pmy_block->pmy_mesh;
   Coordinates * pco = pmb->pcoord;
@@ -133,6 +138,22 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
 
   }
 
+  // register auxiliaries
+  FCN_CC_CX_VC(
+    pmb->RegisterMeshBlockDataCC(storage.weyl),
+    pmb->RegisterMeshBlockDataCX(storage.weyl),
+    pmb->RegisterMeshBlockDataVC(storage.weyl)
+  );
+
+  if (pm->multilevel) {
+    refinement_idx = FCN_CC_CX_VC(
+      pmy_block->pmr->AddToRefinementCC,
+      pmy_block->pmr->AddToRefinementCX,
+      pmy_block->pmr->AddToRefinementVC
+    )(&storage.weyl, &coarse_a_);
+  }
+
+
   // If user-requested time integrator is type 3S* allocate additional memory
   std::string integrator = pin->GetOrAddString("time", "integrator", "vl2");
   if (integrator == "ssprk5_4")
@@ -147,6 +168,12 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
     pmb->pbval->bvars_main_int_cx.push_back(&ubvar),
     pmb->pbval->bvars_main_int_vc.push_back(&ubvar)
   );
+
+
+  abvar.bvar_index = pmb->pbval->bvars.size();
+  pmb->pbval->bvars.push_back(&abvar);
+  pmb->pbval->bvars_aux.push_back(&abvar);
+
 
   dt1_.NewAthenaArray(mbi.nn1);
   dt2_.NewAthenaArray(mbi.nn2);

@@ -313,7 +313,8 @@ Z4cIntegratorTaskList::Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm){
     AddTask(Z4C_TO_ADM, ALG_CONSTR);           // Z4cToADM
     AddTask(ADM_CONSTR, Z4C_TO_ADM);           // ADM_Constraints
     AddTask(Z4C_WEYL, Z4C_TO_ADM);             // Calc Psi4
-    AddTask(WAVE_EXTR, Z4C_WEYL);              // Project Psi4 multipoles
+    // BD: do this instead in aux list
+    // AddTask(WAVE_EXTR, Z4C_WEYL);              // Project Psi4 multipoles
 #if CCE_ENABLED
     AddTask(CCE_DUMP, Z4C_TO_ADM);             // CCE dump metric
 #endif
@@ -668,6 +669,7 @@ TaskStatus Z4cIntegratorTaskList::Z4cToADM(MeshBlock *pmb, int stage) {
 TaskStatus Z4cIntegratorTaskList::Z4c_Weyl(MeshBlock *pmb, int stage) {
   // only do on last stage
   if (stage != nstages) return TaskStatus::success;
+
 
   Mesh *pm = pmb->pmy_mesh;
   if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction)) {

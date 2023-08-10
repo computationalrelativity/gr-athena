@@ -237,11 +237,18 @@ public:
   } opt;
 
 
-  // boundary and grid data
+  // boundary and grid data (associated to state-vector)
   FCN_CC_CX_VC(
-    CellCenteredBoundaryVariable ubvar,
-    CellCenteredXBoundaryVariable ubvar,
+    CellCenteredBoundaryVariable   ubvar,
+    CellCenteredXBoundaryVariable  ubvar,
     VertexCenteredBoundaryVariable ubvar
+  );
+
+  // auxiliary data (split task-list)
+  FCN_CC_CX_VC(
+    CellCenteredBoundaryVariable   abvar,
+    CellCenteredXBoundaryVariable  abvar,
+    VertexCenteredBoundaryVariable abvar
   );
 
 
@@ -250,6 +257,8 @@ public:
   // storage for SMR/AMR
   // BD: this should perhaps be combined with the above stuct.
   AthenaArray<Real> coarse_u_;
+  AthenaArray<Real> coarse_a_;  // for auxiliary data (split task-list)
+
   int refinement_idx{-1};
   // metric derivatives used by AHF
   // it is allocated there as needed
