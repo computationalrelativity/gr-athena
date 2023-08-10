@@ -8,60 +8,56 @@ export FN=$(readlink -f "$0"); export DIR_SCRIPTS=$(dirname "${FN}")
 
 ###############################################################################
 # configure here
-export RUN_NAME=two_puncture
+export RUN_NAME=two_punctures_cx
 export BIN_NAME=z4c
-export REL_OUTPUT=outputs/z4c_c_tp
+export REL_OUTPUT=outputs/z4c_cx
 export REL_INPUT=scripts/problems
-
-# Will be populated with defaults instead.
 export INPUT_NAME=z4c_two_punctures.inp
 
 # if compilation is chosen
-export DIR_USR=${soft}/usr                            # local lib. installation
-export DIR_HDF5=${DIR_USR}/hdf5_serial/1.10.5
-export DIR_GSL=${DIR_USR}/gsl/2.6
+export DIR_HDF5=$(spack location -i hdf5)
+export DIR_GSL=$(spack location -i gsl)
+export DIR_TP=$(spack location -i twopuncturesc)
 
-export COMPILE_STR="--prob=z4c_two_punctures -z
-                    -z_tracker
-                    -z_eta_conf
-                    -z_assert_is_finite
-                    --cxx g++ -omp -vertex
-                    --nghost=4 --ncghost=4 --nextrapolate=5"
-
-# add wave extraction
-export COMPILE_STR="${COMPILE_STR} -z_wext --nrad 2"
+export COMPILE_STR="--prob=z4c_two_punctures
+                    -z -z_cx
+                    --cxx g++ -omp
+                    --nghost=4
+                    --ncghost=5
+                    --ncghost_cx=5
+                    --nextrapolate=4"
 
 # apply caching compiler together with gold linker
 export COMPILE_STR="${COMPILE_STR} -ccache -link_gold"
 
 # hdf5 compile str
-export COMPILE_STR="${COMPILE_STR} -hdf5 -h5double --hdf5_path=${DIR_HDF5}"
+export COMPILE_STR="${COMPILE_STR} -hdf5 -h5double"
+export COMPILE_STR="${COMPILE_STR} -gsl"
 
-# gsl compile str [required for twopunctures]
-export COMPILE_STR="${COMPILE_STR} -gsl --gsl_path=${DIR_GSL}"
+export COMPILE_STR="${COMPILE_STR} --lib_path=${DIR_HDF5}/lib"
+export COMPILE_STR="${COMPILE_STR} --include=${DIR_HDF5}/include"
 
-# two punctures relative
-export COMPILE_STR="${COMPILE_STR}
-  --two_punctures_path=../../twopuncturesc/master"
+export COMPILE_STR="${COMPILE_STR} --lib_path=${DIR_GSL}/lib"
+export COMPILE_STR="${COMPILE_STR} --include=${DIR_GSL}/include"
+
+export COMPILE_STR="${COMPILE_STR} --lib_path=${DIR_TP}/lib"
+export COMPILE_STR="${COMPILE_STR} --include=${DIR_TP}/include"
+###############################################################################
 
 echo "COMPILE_STR"
 echo ${COMPILE_STR}
-###############################################################################
-
 
 ###############################################################################
 # ensure paths are adjusted and directory structure exists
 source ${DIR_SCRIPTS}/utils/provide_library_paths.sh ${DIR_HDF5}
 source ${DIR_SCRIPTS}/utils/provide_library_paths.sh ${DIR_GSL}
+source ${DIR_SCRIPTS}/utils/provide_library_paths.sh ${DIR_TP}
 source ${DIR_SCRIPTS}/utils/provide_compile_paths.sh
 ###############################################################################
 
 ###############################################################################
-# prepare external [two punctures; must be pre-compiled]
-# source ${DIR_SCRIPTS}/utils/provide_extern.sh \
-#   initial_data                                \
-#   two_punctures                               \
-#   ../../../../twopuncturesc/master
+# prepare external
+# ...
 ###############################################################################
 
 ###############################################################################
@@ -79,14 +75,6 @@ source ${DIR_SCRIPTS}/utils/dump_info.sh
 source utils/exec.sh
 ###############################################################################
 
-# stupid check out outer bc extrap
-# export PYTHONPATH=$PYTHONPATH:/mnt/grottoop/_Repositories/NR/athena/development/vis/python
-# export data_file="/mnt/grottoop/_Repositories/NR/athena/development/outputs/z4c_c_tp/two_puncture/z4c.out3.00002.athdf"
-# export pycmd="import athena_read as ar; import numpy as np"
-# export pycmd="${pycmd}; data = ar.athdf('${data_file}', raw=True)"
-# export pycmd="${pycmd}; print(data['z4c.alpha'][-1,-1,-1])"
-
-# echo ${pycmd} > pyout
-# python pyout
+tail -n5 ${DIR_OUTPUT}/one_puncture.hst
 
 # >:D

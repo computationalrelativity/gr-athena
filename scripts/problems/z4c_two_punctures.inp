@@ -42,16 +42,16 @@ shift_advect = 1.0      # sigma_adv
 
 # Kreiss-Oliger dissipation parameter.
 diss = 0.02
-chi_div_floor = -1000 # 1e-5
-eps_floor = 0 #-1e-12
+chi_div_floor = 1e-5 # 1e-5
+eps_floor = 1e-11
 
 # Constraint damping factor 1.
-damp_kappa1 = 0.0
+damp_kappa1 = 0.02
 # Constraint damping factor 2.
 damp_kappa2 = 0.0
 
 # Wave extraction
-nrad_wave_extraction = 5
+nrad_wave_extraction = 0
 extraction_radius_0 = 80
 extraction_radius_1 = 90
 extraction_radius_2 = 100
@@ -91,25 +91,6 @@ rout_2           = 106
 <problem>
 
 verbose = True
-
-# # x coordinate of the m+ puncture
-# par_b = 6.1
-# # mass of the m+ puncture
-# par_m_plus = 0.5
-# # mass of the m- puncture
-# par_m_minus = 0.5
-# # target ADM mass for m+
-# target_M_plus = 0.5
-# # target ADM mass for m-
-# target_M_minus = 0.5
-# # momentum of the m+ puncture
-# par_P_plus1 = -0
-# par_P_plus2 = 0.0
-# par_P_plus3 = 0.0
-# # momentum of the m- puncture
-# par_P_minus1 = 0
-# par_P_minus2 = 0.0
-# par_P_minus3 = 0.0
 
 # x coordinate of the m+ puncture
 par_b = 3.257
@@ -172,19 +153,22 @@ initial_lapse_psi_exponent = -2.0
 swap_xz = False
 n_punct = 2
 
+# impose bitant symmetry on ID directly through spectral interp. massage
+impose_bitant_id = True
+
 <ahf>
 
-num_horizons     = 3
+num_horizons     = 0
 verbose      = 1
 
 # First horizon at puncture 0
 initial_radius_0 = 2.5
-center_x_0 = 3.257 
+center_x_0 = 3.257
 center_y_0 = 0.
 center_z_0 = 0.
 use_puncture_0 = 0 # This will override the pars above and initialize the horizon at the puncture
 start_time_0 = 0.1
-stop_time_0  = 1
+stop_time_0  = 500
 compute_every_iter_0 = 3
 
 # Second horizon at puncture 1
@@ -194,26 +178,26 @@ center_y_1 = 0.
 center_z_1 = 0.
 use_puncture_1 = 1 # This will override the pars above and initialize the horizon at the puncture
 start_time_1 = 0.
-stop_time_1  = 1.
+stop_time_1  = 500
 compute_every_iter_1 = 5
 
 # Third horizon at the center
-initial_radius_2 = 6.5
+initial_radius_2 = 9.0
 center_x_2 = 0.
 center_y_2 = 0.
 center_z_2 = 0.
-start_time_2 = 0.2
-stop_time_2  = 1.
+start_time_2 = 0.
+stop_time_2  = 500
 compute_every_iter_2 = 2
 
 <output1>
 file_type = rst
-dt = 10
+dt = 5
 
 <output2>
 file_type = hdf5
 variable = con
-dt = 0.5
+dt = 1.5
 data_format = %.16e
 ghost_zones = true
 # x3_slice = 0
@@ -221,7 +205,7 @@ ghost_zones = true
 <output3>
 file_type = hdf5
 variable = z4c
-dt = 0.5
+dt = 1.5
 data_format = %.16e
 ghost_zones = true
 x3_slice = 0
@@ -229,7 +213,7 @@ x3_slice = 0
 <output4>
 file_type = hdf5
 variable = adm
-dt = 0.5
+dt = 1.5
 data_format = %.16e
 ghost_zones = true
 x3_slice = 0
@@ -237,13 +221,13 @@ x3_slice = 0
 <output5>
 file_type = hdf5
 variable = weyl
-dt = 0.5
+dt = 1.5
 data_format = %.16e
 ghost_zones = true
 
 <time>
-cfl_number = 0.1
-tlim = 1
+cfl_number = 0.5
+tlim = 10
 integrator = rk4
 ncycle_out = 1
 nlim = -1
@@ -251,29 +235,29 @@ nlim = -1
 <mesh>
 
 refinement = adaptive
-num_threads = 1
-numlevel = 2
+num_threads = 8
+numlevel = 3
 deref_count = 0
 # Number of zones in X1-direction
-nx1 = 64
+nx1 = 96
 # Minimum value of X1
-x1min = -256
+x1min = -24
 # Maximum value of X1
-x1max = 256
+x1max = 24
 # Inner-X1 boundary flag
-ix1_bc = periodic
+ix1_bc = extrapolate_outflow
 # Outer-X1 boundary flag
-ox1_bc = periodic
-nx2 = 64
-x2min = -256
-x2max = 256
-ix2_bc = periodic
-ox2_bc = periodic
-nx3 = 64
-x3min = -256
-x3max = 256
-ix3_bc = periodic
-ox3_bc = periodic
+ox1_bc = extrapolate_outflow
+nx2 = 96
+x2min = -24
+x2max = 24
+ix2_bc = extrapolate_outflow
+ox2_bc = extrapolate_outflow
+nx3 = 96
+x3min = -24
+x3max = 24
+ix3_bc = extrapolate_outflow
+ox3_bc = extrapolate_outflow
 
 <meshblock>
 
