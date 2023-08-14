@@ -25,28 +25,24 @@ void M1::CalcFiducialVelocity()
   fidu.vel_u.ZeroClear();
   fidu.Wlorentz.ZeroClear();
 
-  if (fiducial_velocity != "fluid" && fiducial_velocity != "mixed")
-    return;
-
-  
-  if (fiducial_velocity == "fluid") {    
+  if (fiducial_velocity == "fluid") {
     GCLOOP2(k,j) {
       for(int a = 0; a < NDIM; ++a) {
-	CLOOP1(i) {
-	  fidu.vel_u(a,k,j,i) = pmb->phydro->w(IVX+a,k,j,i);
-	}
+	      CLOOP1(i) {
+	        fidu.vel_u(a,k,j,i) = pmb->phydro->w(IVX+a,k,j,i);
+        }
       }
-    }        
-  }
-  
-  if (fiducial_velocity == "mixed") {    
+    }
+  } else if (fiducial_velocity == "mixed") {  
     GCLOOP3(k,j,i) {
       Real const rho = pmb->phydro->w(IDN,k,j,i);
       Real const fac = 1.0/std::max(rho, fiducial_vel_rho_fluid);
       for(int a = 0; a < NDIM; ++a) {
-	fidu.vel_u(a,k,j,i) = pmb->phydro->w(IVX+a,k,j,i) * rho * fac; 
-      }      
-    }         
+	      fidu.vel_u(a,k,j,i) = pmb->phydro->w(IVX+a,k,j,i) * rho * fac;      
+      }
+    }
+  } else {
+    return;
   }
 
   // Here fidu.vel_u contains utilde^i = W v^i
@@ -68,17 +64,16 @@ void M1::CalcFiducialVelocity()
     // to ADM 3-metric on CC at ijk (TensorPointwise)       
     for(int a = 0; a < NDIM; ++a) {
       for(int b = a; b < NDIM; ++b) {
-	g_dd(a,b) = pmb->pz4c->ig->map3d_VC2CC(vc_adm_g_dd(a,b,k,j,i));
+	      g_dd(a,b) = VCInterpolation(vc_adm_g_dd(a,b),k,j,i);
       }
     }
-    
     // Compute W Lorentz from utilde
     Real const W = GetWLorentz_from_utilde(fidu.vel_u(0,k,j,i),
-					   fidu.vel_u(1,k,j,i),
-					   fidu.vel_u(2,k,j,i),
-					   g_dd(0,0), g_dd(0,1), g_dd(0,2),
-					   g_dd(1,1), g_dd(1,2), g_dd(2,2),
-					   NULL, NULL, NULL,  NULL);
+                                           fidu.vel_u(1,k,j,i),
+                                           fidu.vel_u(2,k,j,i),
+                                           g_dd(0,0), g_dd(0,1), g_dd(0,2),
+                                           g_dd(1,1), g_dd(1,2), g_dd(2,2),
+                                           nullptr, nullptr, nullptr,  nullptr);
 
     fidu.Wlorentz(k,j,i) = W;
     Real const ooW = 1.0/W;
@@ -87,7 +82,5 @@ void M1::CalcFiducialVelocity()
     }
     
   }
-  
-  g_dd.DeleteTensorPointwise();
-    
+  g_dd.DeleteTensorPointwise(); 
 }

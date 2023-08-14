@@ -25,6 +25,7 @@
 #   -m1                 enable M1 neutrino transport
 #   -z                  enable Z4c system
 #   -t                  enable interface frame transformations for GR
+#   -vertex             prefer vertex-centered (where available)
 #   -debug              enable debug flags (-g -O0); override other compiler options
 #   -coverage           enable compiler-dependent code coverage flags
 #   -float              enable single precision (default is double)
@@ -165,6 +166,12 @@ parser.add_argument('-g',
                     action='store_true',
                     default=False,
                     help='enable general relativity')
+
+# -vertex argument
+parser.add_argument('-vertex',
+                    action='store_true',
+                    default=False,
+                    help='prefer vertex-centering')
 
 # -m1 argument
 parser.add_argument("-m1",
@@ -472,15 +479,12 @@ else:
         definitions['EOS_TABLE_ENABLED'] = '1'
 
 # Add M1 files.
-files = ['m1']
-#files = ['fake_rates', 'm1', 'm1_utils', 'm1_closure', 'm1_adm_matter', 'm1_grsource',
-#         'm1_opacity', 'm1_set_equilibrium', 'm1_fiducial_velocity', 'm1_fluxes']#'m1_calc_update']
-# 'm1_calc_update',
-#         'm1_fluxes',
-#         'm1_source_update', 'new_blockdt_m1']
+files = ['m1', 'm1_utils', 'fake_rates', 'm1_adm_matter', 'm1_closure', 'm1_grsource',
+         'm1_opacity', 'm1_set_equilibrium', 'm1_fiducial_velocity', 'm1_source_update',
+         'm1_fluxes', 'new_blockdt_m1', 'm1_calc_update']
 makefile_options['M1_FILES'] = ''
 if args['m1']:
-    definitions['M1'] = '1'
+    definitions['M1_ENABLED'] = '1'
     aux = ["        $(wildcard src/m1/{}.cpp) \\".format(f) for f in files]
     makefile_options['M1_FILES'] = '\n'.join(aux) + '\n'
 
@@ -582,6 +586,12 @@ if args['z']:
 else:
   definitions['Z4C_ENABLED'] = '0'
 
+# -vertex argument
+if args['vertex']:
+    definitions['PREFER_VC'] = '1'
+else:
+    definitions['PREFER_VC'] = '0'
+
 # -ref_box_in_box / ref_spheres arguments
 if args['ref_spheres']:
     args['ref_box_in_box'] = False
@@ -598,7 +608,7 @@ if args['cxx'] == 'g++':
     definitions['COMPILER_CHOICE'] = 'g++-13'
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'g++-13'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
-    makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++11'
+    makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++17 -Wfatal-errors'
     makefile_options['LINKER_FLAGS'] = ''
     makefile_options['LIBRARY_FLAGS'] = ''
 if args['cxx'] == 'g++-simd':
@@ -1006,6 +1016,7 @@ if args['z']:
 print('  Frame transformations:        ' + ('ON' if args['t'] else 'OFF'))
 print('  Self-Gravity:                 ' + self_grav_string)
 print('  Super-Time-Stepping:          ' + ('ON' if args['sts'] else 'OFF'))
+print('  Vertex-centering preferred:   ' + ('ON' if args['vertex'] else 'OFF'))
 print('  Debug flags:                  ' + ('ON' if args['debug'] else 'OFF'))
 print('  Code coverage flags:          ' + ('ON' if args['coverage'] else 'OFF'))
 print('  Linker flags:                 ' + makefile_options['LINKER_FLAGS'] + ' '

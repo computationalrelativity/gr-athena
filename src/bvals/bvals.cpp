@@ -569,8 +569,6 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt,
       if (NSCALARS > 0) {
         pmb->peos->PassiveScalarPrimitiveToConserved(
             ps->r, ph->u, ps->s, pco, bis, bie, pmb->je+1, pmb->je+NGHOST, bks, bke);
-          ps->r, ph->w, ps->s, pco, bis, bie, 
-          pmb->je+1, pmb->je+NGHOST, bks, bke);
       }
     }
   }

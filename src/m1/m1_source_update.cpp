@@ -11,19 +11,28 @@
 
 // C++ standard headers
 #include <cmath> // pow
+#include <sstream>
 
 // Athena++ headers
 #include "m1.hpp"
-#include "../z4c/z4c.hpp"
-#include "../z4c/z4c_macro.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
+
+#if Z4C_ENABLED
+#include "../z4c/z4c.hpp"
+#include "../z4c/z4c_macro.hpp"
+#endif
 
 #define SQ(X) ((X)*(X))
 #define TINY (1e-10)
 
+using namespace utils;
 //----------------------------------------------------------------------------------------
 // Low level kernel computing the Jacobian matrix
+
+// TODO: check where to define or read this
+Real source_epsabs = 1e-3,source_epsrel = 1e-3;
+int source_maxiter = 100;
 
 namespace {
   
@@ -146,235 +155,240 @@ namespace {
 namespace {
   
   struct Params {
-    Params(int const _iteration,
-	   MeshBlock * _pmb,
-	   int const _i,
-	   int const _j,
-	   int const _k,
-	   int const _ig,
-	   closure_t _closure,
-	   gsl_root_fsolver  * _gsl_solver_1d,
-	   Real const _cdt,
-	   Real const _alp,
-	   TensorPointwise<Real, Symmetries::SYM2, MDIM 2>const & _g_dd,
-	   TensorPointwise<Real, Symmetries::SYM2, MDIM 2> const & _g_uu,
-	   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & _n_d,
-	   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & _n_u,
-	   TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & _gamma_ud,
-	   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & _u_d,
-	   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & _u_u,
-	   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & _v_d,
-	   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & _v_u,
-	   TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & _proj_ud,
-	   Real const _W,
-	   Real const _Estar,
-	   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & _Fstar_d,
-	   Real const _chi,
-	   Real const _eta,
-	   Real const _kabs,
-	   Real const _kscat):
-      iteration(_iteration),
-      pmb(_pmb),
-      i(_i), j(_j), k(_k), ig(_ig),
-      closure(_closure), gsl_solver_1d(_gsl_solver_1d),
-      cdt(_cdt),
-      alp(_alp), g_dd(_g_dd), g_uu(_g_uu), n_d(_n_d), n_u(_n_u),
-      gamma_ud(_gamma_ud),
-      u_d(_u_d), u_u(_u_u), v_d(_v_d), v_u(_v_u), proj_ud(_proj_ud), W(_W),
-      Estar(_Estar), Fstar_d(_Fstar_d), chi(_chi),
-      eta(_eta), kabs(_kabs), kscat(_kscat) {}
-    int const iteration;
-    MeshBlock * pmb,
-    int const i;
-    int const j;
-    int const k;
-    int const ig;
-    closure_t closure;
-    gsl_root_fsolver * gsl_solver_1d;
-    Real const cdt;
-    Real const alp;
-    TensorPointwise<Real, Symmetries::SYM2, MDIM 2>const & g_dd;
-    TensorPointwise<Real, Symmetries::SYM2, MDIM 2> const & g_uu;
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d;
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_u;
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & gamma_ud;
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d;
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u;
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_d;
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_u;
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud;
-    Real const W;
-    Real const Estar;
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & Fstar_d;
-    Real const chi;
-    Real const eta;
-    Real const kabs;
-    Real const kscat;
-    
-    Real E;
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> F_d;
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> F_u;
-    TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> P_dd;
-    TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> T_dd;
-    Real J;
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> H_d;
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> S_d;
-    Real Edot;
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> tS_d;
+      Params(int const _iteration,
+             MeshBlock * _pmb,
+             int const _i,
+             int const _j,
+             int const _k,
+             int const _ig,
+             closure_t _closure,
+             gsl_root_fsolver  * _gsl_solver_1d,
+             Real const _cdt,
+             Real const _alp,
+             TensorPointwise<Real, Symmetries::SYM2, MDIM, 2>const & _g_dd,
+             TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & _g_uu,
+             TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & _n_d,
+             TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & _n_u,
+             TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & _gamma_ud,
+             TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & _u_d,
+             TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & _u_u,
+             TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & _v_d,
+             TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & _v_u,
+             TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & _proj_ud,
+             Real const _W,
+             Real const _Estar,
+             TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & _Fstar_d,
+             Real const _chi,
+             Real const _eta,
+             Real const _kabs,
+             Real const _kscat):
+              iteration(_iteration),
+              pmb(_pmb),
+              i(_i), j(_j), k(_k), ig(_ig),
+              closure(_closure), gsl_solver_1d(_gsl_solver_1d),
+              cdt(_cdt),
+              alp(_alp), g_dd(_g_dd), g_uu(_g_uu), n_d(_n_d), n_u(_n_u),
+              gamma_ud(_gamma_ud),
+              u_d(_u_d), u_u(_u_u), v_d(_v_d), v_u(_v_u), proj_ud(_proj_ud), W(_W),
+              Estar(_Estar), Fstar_d(_Fstar_d), chi(_chi),
+              eta(_eta), kabs(_kabs), kscat(_kscat) {}
+             int const iteration;
+             MeshBlock * pmb;
+             int const i;
+             int const j;
+             int const k;
+             int const ig;
+             closure_t closure;
+             gsl_root_fsolver * gsl_solver_1d;
+             Real const cdt;
+             Real const alp;
+             TensorPointwise<Real, Symmetries::SYM2, MDIM, 2>const & g_dd;
+             TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu;
+             TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d;
+             TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_u;
+             TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & gamma_ud;
+             TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d;
+             TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u;
+             TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_d;
+             TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_u;
+             TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud;
+             Real const W;
+             Real const Estar;
+             TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & Fstar_d;
+             Real const chi;
+             Real const eta;
+             Real const kabs;
+             Real const kscat;
+             
+             Real E;
+             TensorPointwise<Real, Symmetries::NONE, MDIM, 1> F_d;
+             TensorPointwise<Real, Symmetries::NONE, MDIM, 1> F_u;
+             TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> P_dd;
+             TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> T_dd;
+             Real J;
+             TensorPointwise<Real, Symmetries::NONE, MDIM, 1> H_d;
+             TensorPointwise<Real, Symmetries::NONE, MDIM, 1> S_d;
+             Real Edot;
+             TensorPointwise<Real, Symmetries::NONE, MDIM, 1> tS_d;
   };
 
   int prepare(gsl_vector const * q, Params * p)
   {
+    M1 * pm1 = p->pmb->pm1;
+        
     p->E = std::max(gsl_vector_get(q, 0), 0.0);
     if (p->E < 0) return GSL_EBADFUNC;
-
-    pack_F_d(-p->alp * p->n_u(1), -p->alp * p->n_u(2), -p->alp * p->n_u(3),
-	     gsl_vector_get(q, 1), gsl_vector_get(q, 2), gsl_vector_get(q, 3),
-	     &p->F_d);
-    tensor::contract(p->g_uu, p->F_d, &p->F_u);
+           
+    pm1->pack_F_d(-p->alp * p->n_u(1), -p->alp * p->n_u(2), -p->alp * p->n_u(3),
+                  gsl_vector_get(q, 1), gsl_vector_get(q, 2), gsl_vector_get(q, 3),
+                  p->F_d);
+    tensor::contract(p->g_uu, p->F_d, p->F_u);
     
-    Real chi = p->chi;
-    calc_closure(p->iteration, p->pmb, p->i, p->j, p->k, p->ig,
-		 p->closure, p->gsl_solver_1d, p->g_dd, p->g_uu, p->n_d, p->W,
-		 p->u_u, p->v_d, p->proj_ud, p->E, p->F_d,
-		 &chi, &p->P_dd);
+    Real chi = p->chi; 
+    pm1->calc_closure_pt(p->iteration, p->pmb, p->i, p->j, p->k, p->ig,
+                         p->closure, p->gsl_solver_1d, p->g_dd, p->g_uu, p->n_d, p->W,
+                         p->u_u, p->v_d, p->proj_ud, p->E, p->F_d,
+                         &chi, p->P_dd);
     
-    assemble_rT(p->n_d, p->E, p->F_d, p->P_dd, &p->T_dd);
+    pm1->assemble_rT(p->n_d, p->E, p->F_d, p->P_dd, p->T_dd);
     
-    p->J = calc_J_from_rT(p->T_dd, p->u_u);
-    calc_H_from_rT(p->T_dd, p->u_u, p->proj_ud, &p->H_d);
+    p->J = pm1->calc_J_from_rT(p->T_dd, p->u_u);
+    pm1->calc_H_from_rT(p->T_dd, p->u_u, p->proj_ud, p->H_d);
+      
+    pm1->calc_rad_sources(p->eta, p->kabs, p->kscat, p->u_d, p->J, p->H_d, p->S_d);
     
-    calc_rad_sources(p->eta, p->kabs, p->kscat, p->u_d, p->J, p->H_d, &p->S_d);
-
-    p->Edot = calc_rE_source(p->alp, p->n_u, p->S_d);
-    calc_rF_source(p->alp, p->gamma_ud, p->S_d, &p->tS_d);
-
+    p->Edot = pm1->calc_rE_source(p->alp, p->n_u, p->S_d);
+    pm1->calc_rF_source(p->alp, p->gamma_ud, p->S_d, p->tS_d);
+    
     return GSL_SUCCESS;
   }
-  
+
   // Function to rootfind for
   //    f(q) = q - q^* - dt S[q]
-  int impl_func_val(gsl_vector const * q, void * params, gsl_vector * f) {
+  int impl_func_val(gsl_vector const * q, void * params, gsl_vector * f)
+  {
     Params * p = reinterpret_cast<Params *>(params);
     int ierr = prepare(q, p);
     if (ierr != GSL_SUCCESS) return ierr;
 
-#define EVALUATE_ZFUNC							\
+#define EVALUATE_ZFUNC              \
     gsl_vector_set(f, 0, gsl_vector_get(q, 0) - p->Estar      - p->cdt * p->Edot); \
     gsl_vector_set(f, 1, gsl_vector_get(q, 1) - p->Fstar_d(1) - p->cdt * p->tS_d(1)); \
     gsl_vector_set(f, 2, gsl_vector_get(q, 2) - p->Fstar_d(2) - p->cdt * p->tS_d(2)); \
     gsl_vector_set(f, 3, gsl_vector_get(q, 3) - p->Fstar_d(3) - p->cdt * p->tS_d(3));
-    
-    EVALUATE_ZFUNC      
-      
+
+    EVALUATE_ZFUNC
+
     return GSL_SUCCESS;
   }
 
   // Jacobian of the implicit function
-  int impl_func_jac(gsl_vector const * q, void * params, gsl_matrix * J) {
+  int impl_func_jac(gsl_vector const * q, void * params, gsl_matrix * J)
+  {
     Params * p = reinterpret_cast<Params *>(params);
-   
+
     int ierr = prepare(q, p);
     if (ierr != GSL_SUCCESS) {
-        return ierr;
+      return ierr;
     }
 
-#define EVALUATE_ZJAC						   \
-    Real m_q[] = {p->E, p->F_d(1), p->F_d(2), p->F_d(3)};	   \
+#define EVALUATE_ZJAC              \
+    Real m_q[] = {p->E, p->F_d(1), p->F_d(2), p->F_d(3)};    \
     Real m_Fup[] = {p->F_u(0), p->F_u(1), p->F_u(2), p->F_u(3)}; \
-    Real m_F2 = tensor::dot(p->F_u, p->F_d);			   \
-    Real m_chi = p->chi;					   \
-    Real m_kscat = p->kscat;					   \
-    Real m_kabs = p->kabs;					   \
+    Real m_F2 = tensor::dot(p->F_u, p->F_d);         \
+    Real m_chi = p->chi;             \
+    Real m_kscat = p->kscat;             \
+    Real m_kabs = p->kabs;             \
     Real m_vup[] = {p->v_u(0), p->v_u(1), p->v_u(2), p->v_u(3)}; \
     Real m_vdw[] = {p->v_d(0), p->v_d(1), p->v_d(2), p->v_d(3)}; \
-    Real m_v2 = tensor::dot(p->v_u, p->v_d);			   \
-    Real m_W = p->W;						   \
-    Real m_alpha = p->alp;						\
-    Real m_cdt = p->cdt;						\
+    Real m_v2 = tensor::dot(p->v_u, p->v_d);         \
+    Real m_W = p->W;               \
+    Real m_alpha = p->alp;            \
+    Real m_cdt = p->cdt;            \
     Real m_qstar[] = {p->Estar, p->Fstar_d(1), p->Fstar_d(2), p->Fstar_d(3)}; \
     __source_jacobian_low_level(m_q, m_Fup, m_F2, m_chi, m_kscat, m_kabs, \
-				m_vup, m_vdw, m_v2, m_W, m_alpha, m_cdt, m_qstar, J);    
-    
+        m_vup, m_vdw, m_v2, m_W, m_alpha, m_cdt, m_qstar, J);    
+
     EVALUATE_ZJAC;
-    
+
     return GSL_SUCCESS;
   }
-  
+
   // Function and Jacobian evaluation
   int impl_func_val_jac(gsl_vector const * q, void * params, gsl_vector * f, gsl_matrix * J)
   {
     Params * p = reinterpret_cast<Params *>(params);
-    
+
     int ierr = prepare(q, p);
     if (ierr != GSL_SUCCESS) {
-        return ierr;
+      return ierr;
     }
-    
+
     EVALUATE_ZFUNC
     EVALUATE_ZJAC
-    
+
     return GSL_SUCCESS;
   }
-  
+
 #undef EVALUATE_ZFUNC
 #undef EVALUATE_ZJAC
-  
+
 } // namespace
+
 
 //----------------------------------------------------------------------------------------
 // Source update at one point
 
 void M1::source_update_pt(
-        int const iteration,
-			  MeshBlock * pmb,
-			  int const i,
-			  int const j,
-			  int const k,
-			  int const ig,
-			  closure_t closure_fun,
-			  gsl_root_fsolver * gsl_solver_1d,
-			  gsl_multiroot_fdfsolver * gsl_solver_nd,
-			  Real const cdt,
-			  Real const alp,
-			  TensorPointwise<Real, Symmetries::SYM2, MDIM 2> const & g_dd,
-			  TensorPointwise<Real, Symmetries::SYM2, MDIM 2> const & g_uu,
-			  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d,
-			  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_u,
-			  TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & gamma_ud,
-			  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d,
-			  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
-			  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_d,
-			  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_u,
-			  TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud,
-			  Real const W,
-			  Real const Eold,
-			  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & Fold_d,
-			  Real const Estar,
-			  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & Fstar_d,
-			  Real const chi,
-			  Real const eta,
-			  Real const kabs,
-			  Real const kscat,
-			  Real * Enew,
-			  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> * Fnew_d)
+    int const iteration,
+    MeshBlock * pmb,
+    int const i,
+    int const j,
+    int const k,
+    int const ig,
+    closure_t closure_fun,
+    gsl_root_fsolver * gsl_solver_1d,
+    gsl_multiroot_fdfsolver * gsl_solver_nd,
+    Real const cdt,
+    Real const alp,
+    TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd,
+    TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
+    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d,
+    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_u,
+    TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & gamma_ud,
+    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d,
+    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
+    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_d,
+    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_u,
+    TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud,
+    Real const W,
+    Real const Eold,
+    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & Fold_d,
+    Real const Estar,
+    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & Fstar_d,
+    Real const chi,
+    Real const eta,
+    Real const kabs,
+    Real const kscat,
+    Real * Enew,
+    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> Fnew_d)
 {
   Params p(iteration, pmb, i, j, k, ig,
-	   closure_fun, gsl_solver_1d, cdt, alp, g_dd, g_uu, n_d, n_u,
-	   gamma_ud, u_d, u_u, v_d, v_u, proj_ud, W, Estar, Fstar_d, chi, eta,
-	   kabs, kscat);
-  
+           closure_fun, gsl_solver_1d, cdt, alp, g_dd, g_uu, n_d, n_u,
+           gamma_ud, u_d, u_u, v_d, v_u, proj_ud, W, Estar, Fstar_d, chi, eta,
+           kabs, kscat);
+        
   gsl_multiroot_function_fdf zfunc = {
-    impl_func_val,
-    impl_func_jac,
-    impl_func_val_jac,
-    4, &p};
+      impl_func_val,
+      impl_func_jac,
+      impl_func_val_jac,
+      4, &p};
   
   Real qold[] = {Eold, Fold_d(1), Fold_d(2), Fold_d(3)};
   gsl_vector_view x = gsl_vector_view_array(qold, 4);
   
   // Initial guess for the solution
-  Real q[] = {*Enew, Fnew_d->at(1), Fnew_d->at(2), Fnew_d->at(3)};
+  Real q[] = {*Enew, Fnew_d(1), Fnew_d(2), Fnew_d(3)};
   int ierr = gsl_multiroot_fdfsolver_set(gsl_solver_nd, &zfunc, &x.vector);
   int iter = 0;
   do {
@@ -386,33 +400,32 @@ void M1::source_update_pt(
       break;
 #else
       *Enew = Eold;
-      Fnew_d->at(0) = Fold_d(0);
-      Fnew_d->at(1) = Fold_d(1);
-      Fnew_d->at(2) = Fold_d(2);
-      Fnew_d->at(3) = Fold_d(3);
+      Fnew_d(0) = Fold_d(0);
+      Fnew_d(1) = Fold_d(1);
+      Fnew_d(2) = Fold_d(2);
+      Fnew_d(3) = Fold_d(3);
       return;
 #endif
-    }
+    } else if (ierr == GSL_EBADFUNC) {
     // NaNs or Infs are found, this should not have happened
-    else if (ierr == GSL_EBADFUNC) {
-      ostringstream msg;
+      std::ostringstream msg;
       msg << "NaNs or Infs found in the implicit solve!";
       ATHENA_ERROR(msg);
-    }
-    else if (ierr != 0) {
-      ostringstream msg;
+    } else if (ierr != 0) {
+      std::ostringstream msg;
       msg << "Unexpected error in "
-	"gsl_multirootroot_fdfsolver_iterate, error code " << ierr << endl;
+	           "gsl_multirootroot_fdfsolver_iterate, error code " << ierr << std::endl;
       ATHENA_ERROR(msg);
     }
     ierr = gsl_multiroot_test_delta(gsl_solver_nd->dx, gsl_solver_nd->x,
-				    source_epsabs, source_epsrel);
+				                            source_epsabs, source_epsrel);
   } while (ierr == GSL_CONTINUE && iter < source_maxiter);
+  
   *Enew = gsl_vector_get(gsl_solver_nd->x, 0);
-  Fnew_d->at(1) = gsl_vector_get(gsl_solver_nd->x, 1);
-  Fnew_d->at(2) = gsl_vector_get(gsl_solver_nd->x, 2);
-  Fnew_d->at(3) = gsl_vector_get(gsl_solver_nd->x, 3);
-  Fnew_d->at(0) = - alp*n_u(1)*Fnew_d->at(1)
-    - alp*n_u(2)*Fnew_d->at(2)
-    - alp*n_u(3)*Fnew_d->at(3);
+  Fnew_d(1) = gsl_vector_get(gsl_solver_nd->x, 1);
+  Fnew_d(2) = gsl_vector_get(gsl_solver_nd->x, 2);
+  Fnew_d(3) = gsl_vector_get(gsl_solver_nd->x, 3);
+  Fnew_d(0) = - alp*n_u(1)*Fnew_d(1)
+              - alp*n_u(2)*Fnew_d(2)
+              - alp*n_u(3)*Fnew_d(3);
 }

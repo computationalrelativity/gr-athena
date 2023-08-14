@@ -11,7 +11,7 @@
 //----------------------------------------------------------------------------------------
 // \!fn Real CCInterpolation(AthenaArray<Real> &in, int k, int j, int i)
 // \brief Perform cubic interpolation from cell-centered grid to vertex.
-inline Real CCInterpolation(AthenaArray<Real> &in, int k, int j, int i) {
+inline Real CCInterpolation(const AthenaArray<Real> &in, int k, int j, int i) {
   // interpolation coefficients
   // ordering is (i, j, k) = +/- (1, 1, 1), (2, 1, 1), (1, 2, 1), (2, 2, 1),
   //                             (1, 1, 2), (2, 1, 2), (1, 2, 2), (2, 2, 2)
@@ -46,7 +46,7 @@ inline Real CCInterpolation(AthenaArray<Real> &in, int k, int j, int i) {
 //---------------------------------------------------------------------------------------
 // \!fn Real VCInterpolation(AthenaArray<Real> &in, int k, int j, int i)
 // \brief Perform linear interpolation to the desired cell-centered grid index.
-inline Real VCInterpolation(AthenaArray<Real> &in, int k, int j, int i) {
+inline Real VCInterpolation(const AthenaArray<Real> &in, int k, int j, int i) {
   return 0.125*(((in(k, j, i) + in(k + 1, j + 1, i + 1)) // lower-left-front to upper-right-back
                + (in(k+1, j+1, i) + in(k, j, i+1))) // upper-left-back to lower-right-front
                +((in(k, j+1, i) + in(k + 1, j, i+1)) // lower-left-back to upper-right-front
@@ -88,9 +88,9 @@ inline Real VCReconstruct(int dir, AthenaArray<Real> &in, int k, int j, int i) {
 // \!fn Real VCDiff(AthenaArray<Real> &in, int k, int j, int i)
 // \brief Evaluates the undivided derivative of a vertex centered variable at cell centers.
 template<int dir>
-inline Real VCDiff(AthenaArray<Real> &in, int k, int j, int i);
+inline Real VCDiff(const AthenaArray<Real> &in, int k, int j, int i);
 template<>
-inline Real VCDiff<0>(AthenaArray<Real> &in, int k, int j, int i) {
+inline Real VCDiff<0>(const AthenaArray<Real> &in, int k, int j, int i) {
   const Real coeff[2] = {9./8., -1./24.};
   Real stencil[4]; // values at the cell faces
   int off = 1;
@@ -101,7 +101,7 @@ inline Real VCDiff<0>(AthenaArray<Real> &in, int k, int j, int i) {
   return coeff[1]*(stencil[3] - stencil[0]) + coeff[0]*(stencil[2] - stencil[1]);
 }
 template<>
-inline Real VCDiff<1>(AthenaArray<Real> &in, int k, int j, int i) {
+inline Real VCDiff<1>(const AthenaArray<Real> &in, int k, int j, int i) {
   const Real coeff[2] = {9./8., -1./24.};
   Real stencil[4]; // values at the cell faces
   int off = 1;
@@ -112,7 +112,7 @@ inline Real VCDiff<1>(AthenaArray<Real> &in, int k, int j, int i) {
   return coeff[1]*(stencil[3] - stencil[0]) + coeff[0]*(stencil[2] - stencil[1]);
 }
 template<>
-inline Real VCDiff<2>(AthenaArray<Real> &in, int k, int j, int i) {
+inline Real VCDiff<2>(const AthenaArray<Real> &in, int k, int j, int i) {
   const Real coeff[2] = {9./8., -1./24.};
   Real stencil[4]; // values at the cell faces
   int off = 1;
@@ -122,7 +122,7 @@ inline Real VCDiff<2>(AthenaArray<Real> &in, int k, int j, int i) {
   }
   return coeff[1]*(stencil[3] - stencil[0]) + coeff[0]*(stencil[2] - stencil[1]);
 }
-inline Real VCDiff(int dir, AthenaArray<Real> &in, int k, int j, int i) {
+inline Real VCDiff(int dir, const AthenaArray<Real> &in, int k, int j, int i) {
   switch(dir) {
     case 0:
       return VCDiff<0>(in, k, j, i);
@@ -135,3 +135,4 @@ inline Real VCDiff(int dir, AthenaArray<Real> &in, int k, int j, int i) {
   }
 }
 #endif // INTERP_INTERGRID_HPP_
+

@@ -47,6 +47,7 @@ class Hydro;
 class Field;
 class PassiveScalars;
 class Gravity;
+class M1;
 class MGGravity;
 class MGGravityDriver;
 class EquationOfState;
@@ -78,7 +79,9 @@ class MeshBlock {
   friend class ATHDF5Output;
 #endif
   friend class Z4c;
-
+#if M1_ENABLED
+  friend class M1;
+#endif
  public:
   MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_size,
             BoundaryFlag *input_bcs, Mesh *pm, ParameterInput *pin, int igflag,
@@ -167,6 +170,7 @@ class MeshBlock {
   EquationOfState *peos;
   OrbitalAdvection *porb;
   Z4c *pz4c;
+  M1 *pm1;
   std::vector<WaveExtractLocal *> pwave_extr_loc;
 
 

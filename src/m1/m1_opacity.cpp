@@ -18,7 +18,6 @@
 #include "../mesh/mesh.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../hydro/hydro.hpp"
-#include "fake_rates.hpp"
 
 #define CGS_GCC (1.619100425158886e-18)
 
@@ -30,7 +29,6 @@
 void M1::CalcOpacity(ParameterInput * pin, AthenaArray<Real> & u)
 {
   MeshBlock * pmb = pmy_block;
-  FakeRates * fr;
 
   fr = new FakeRates(pin, 1, 1);
 
@@ -60,16 +58,16 @@ void M1::CalcOpacity(ParameterInput * pin, AthenaArray<Real> & u)
   Real const dz = pmb->pcoord->dx3v(2);
   Real const delta = std::min(dx, std::min(dy, dz));
 
+  // Current implementation is restricted.
+  assert(nspecies == 3);
+  assert(ngroups == 1);
+
   // Go through cells
   CLOOP3(k,j,i) {
     if (rad.mask(k,j,i)) {
       // already set to zero
       continue;
     }
-    
-    // Current implementation is restricted.
-    assert(nspecies == 3);
-    assert(ngroups == 1);
     
     //TODO: fixme, need new eos/c2p
     Real const rho = pmb->phydro->w(IDN,k,j,i);
@@ -79,8 +77,8 @@ void M1::CalcOpacity(ParameterInput * pin, AthenaArray<Real> & u)
     // Get the local thermodynamic equilibrium neutrino density and energy
     Real nudens_0[3], nudens_1[3];
     //int ierr = fr->NeutrinoDensity(rho, temperature, Y_e,
-		//	                         &nudens_0[0], &nudens_0[1], &nudens_0[2],
-		//	                         &nudens_1[0], &nudens_1[1], &nudens_1[2]);
+    //	                         &nudens_0[0], &nudens_0[1], &nudens_0[2],
+    //	                         &nudens_1[0], &nudens_1[1], &nudens_1[2]);
     // TODO: check rates
     int ierr = fr->NeutrinoDensity(rho, temperature, Y_e, &nudens_0[0], &nudens_0[1]);
 
@@ -95,8 +93,8 @@ void M1::CalcOpacity(ParameterInput * pin, AthenaArray<Real> & u)
     // Get the local neutrino emissivities
     Real eta_0_loc[3], eta_1_loc[3];
     ierr = fr->NeutrinoEmission(rho, temperature, Y_e, &eta_0_loc[0]);
-		//	    &eta_0_loc[0], &eta_0_loc[1], &eta_0_loc[2],
-		//	    &eta_1_loc[0], &eta_1_loc[1], &eta_1_loc[2]);
+    //	    &eta_0_loc[0], &eta_0_loc[1], &eta_0_loc[2],
+    //	    &eta_1_loc[0], &eta_1_loc[1], &eta_1_loc[2]);
 
     assert(!ierr);
     assert(isfinite(eta_0_loc[0]));
@@ -109,8 +107,8 @@ void M1::CalcOpacity(ParameterInput * pin, AthenaArray<Real> & u)
     // Get the transport opacity (absorption + scattering)
     Real kappa_0_loc[3], kappa_1_loc[3];
     ierr = fr->NeutrinoOpacity(rho, temperature, Y_e, &kappa_0_loc[0]);
-		//	   &kappa_0_loc[0], &kappa_0_loc[1], &kappa_0_loc[2],
-		//	   &kappa_1_loc[0], &kappa_1_loc[1], &kappa_1_loc[2]);
+    //	   &kappa_0_loc[0], &kappa_0_loc[1], &kappa_0_loc[2],
+    //	   &kappa_1_loc[0], &kappa_1_loc[1], &kappa_1_loc[2]);
     
     assert(!ierr);
     assert(isfinite(kappa_0_loc[0]));
@@ -123,8 +121,8 @@ void M1::CalcOpacity(ParameterInput * pin, AthenaArray<Real> & u)
     // Get the absorption opacity (absorption + scattering)
     Real abs_0_loc[3], abs_1_loc[3];
     ierr = fr->NeutrinoAbsorptionRate(rho, temperature, Y_e, &abs_0_loc[0]);
-		//		  &abs_0_loc[0], &abs_0_loc[1], &abs_0_loc[2],
-		//		  &abs_1_loc[0], &abs_1_loc[1], &abs_1_loc[2]);
+    //		  &abs_0_loc[0], &abs_0_loc[1], &abs_0_loc[2],
+    //		  &abs_1_loc[0], &abs_1_loc[1], &abs_1_loc[2]);
     
     assert(!ierr);
     assert(isfinite(abs_0_loc[0]));
@@ -142,19 +140,18 @@ void M1::CalcOpacity(ParameterInput * pin, AthenaArray<Real> & u)
     };
 
     // Below we might need the lapse at (k,j,i) at CC:
-    Real const alpha = pmb->pz4c->ig->map3d_VC2CC(vc_z4c_alpha(k,j,i));
+    Real const alpha = VCInterpolation(vc_z4c_alpha(),k,j,i);
     
     // Correct cross-sections for incoming neutrino energy
     for (int ig = 0; ig < ngroups*nspecies; ++ig) {
-
       // Extract scattering opacity
-      rmat.scat_1(k,j,i,ig) = (kappa_1_loc[ig] - abs_1_loc[ig]);
+      rmat.scat_1(ig,k,j,i) = (kappa_1_loc[ig] - abs_1_loc[ig]);
 
       // Correct absorption opacities for non-LTE effects at low optical depth
       Real corr_fac = 1.0;
       if (tau[ig] < opacity_equil_depth) {
-	      Real const Gamma = fidu.Wlorentz(k,j,i) - alpha*rad.Ht(k,j,i,ig)/rad.J(k,j,i,ig);	
-	      corr_fac = (Gamma*rad.J(k,j,i,ig)/vec.nnu(k,j,i,ig)) * (nudens_0[ig]/nudens_1[ig]); // TODO: check rad and vec
+	      Real const Gamma = fidu.Wlorentz(k,j,i) - alpha*rad.Ht(ig,k,j,i)/rad.J(ig,k,j,i);	
+	      corr_fac = (Gamma*rad.J(ig,k,j,i)/vec.nnu(ig,k,j,i)) * (nudens_0[ig]/nudens_1[ig]); // TODO: check rad and vec
 	
 	      if (!isfinite(corr_fac)) {
 	        corr_fac = 1.0;
@@ -165,14 +162,12 @@ void M1::CalcOpacity(ParameterInput * pin, AthenaArray<Real> & u)
       corr_fac = std::max(1.0, std::min(corr_fac, opacity_corr_fac_max));
       
       // Set absorption opacities
-      rmat.abs_0(k,j,i,ig) = corr_fac * abs_0_loc[ig];
-      rmat.abs_1(k,j,i,ig) = corr_fac * abs_1_loc[ig];
+      rmat.abs_0(ig,k,j,i) = corr_fac * abs_0_loc[ig];
+      rmat.abs_1(ig,k,j,i) = corr_fac * abs_1_loc[ig];
       
       // Set emissivities and Enforce Kirchhoff's laws
-      rmat.eta_0(k,j,i,ig) = nudens_0[ig] * rmat.abs_0(k,j,i,ig);
-      rmat.eta_1(k,j,i,ig) = nudens_1[ig] * rmat.abs_1(k,j,i,ig);
+      rmat.eta_0(ig,k,j,i) = nudens_0[ig] * rmat.abs_0(ig,k,j,i);
+      rmat.eta_1(ig,k,j,i) = nudens_1[ig] * rmat.abs_1(ig,k,j,i);
     }
-    
   }
-
 }

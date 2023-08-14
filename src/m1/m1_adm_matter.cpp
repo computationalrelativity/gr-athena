@@ -23,7 +23,10 @@ void M1::AddToADMMatter(AthenaArray<Real> & u)
   MeshBlock * pmb = pmy_block;
 
   Lab_vars lab;
+  Rad_vars rad;
   SetLabVarsAliases(u, lab);
+  SetRadVarsAliases(u, rad);
+  //TODO: SetRadVarsAliases??
 
   // ADM matter vars VC
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> vc_mat_rho;
@@ -32,37 +35,29 @@ void M1::AddToADMMatter(AthenaArray<Real> & u)
   vc_mat_rho.InitWithShallowSlice(pmb->pz4c->storage.mat, Z4c::I_MAT_rho);
   vc_mat_S_d.InitWithShallowSlice(pmb->pz4c->storage.mat, Z4c::I_MAT_Sx);
   vc_mat_S_dd.InitWithShallowSlice(pmb->pz4c->storage.mat, Z4c::I_MAT_Sxx);
-      
+  
   // Go through vertexes and add the radiation to ADM matter var
-  ILOOP2(k,j){
-
-    ILOOP1(i){
-      for (int ig = 0; ig < ngroups*nspecies; ++ig) {	
-	Real aux = pmb->pz4c->ig->map3d_CC2VC(lab.E(k,j,i,ig));
-	vc_mat_rho(k,j,i) += aux;
+  // TODO: Check species with the new logic
+  for (int ig=0; ig<ngroups*nspecies; ++ig) {
+    const int shift = ig*mbi.nn1*mbi.nn2*mbi.nn3;
+    ILOOP2(k,j) {
+      ILOOP1(i) {
+        vc_mat_rho(ig,k,j,i) += CCInterpolation(*(&lab.E()+shift),k,j,i);
       }
-    }
     
-    ILOOP1(i) {      
-      for(int a = 0; a < NDIM; ++a) {
-	for (int ig = 0; ig < ngroups*nspecies; ++ig) {	
-	  Real aux = pmb->pz4c->ig->map3d_CC2VC(lab.F_d(a,k,j,i,ig));
-	  vc_mat_S_d(a,k,j,i) += aux;
-	}
+      ILOOP1(i) {      
+        for(int a = 0; a < NDIM; ++a) {
+          vc_mat_S_d(a,ig,k,j,i) += CCInterpolation(*(&lab.F_d(a)+shift),k,j,i);
+        }
       }
-    }
 
-    ILOOP1(i) {      
-      for(int a = 0; a < NDIM; ++a) {
-	for(int b = a; b < NDIM; ++b) {
-	  for (int ig = 0; ig < ngroups*nspecies; ++ig) {	
-	    Real aux = pmb->pz4c->ig->map3d_CC2VC(rad.P_dd(a,k,j,i,ig));
-	    vc_mat_S_dd(a,b,k,j,i) += aux;
-	  }
-	}
+      ILOOP1(i) {      
+        for(int a = 0; a < NDIM; ++a) {
+          for(int b = a; b < NDIM; ++b) {
+            vc_mat_S_dd(a,b,ig,k,j,i) += CCInterpolation(*(&rad.P_dd(a,b)+shift),k,j,i);
+          }
+        }
       }
-    }
-
-  } // ILOOP2
-
+    } // ILOOP2
+  } // ig
 }

@@ -33,6 +33,10 @@ class VertexCenteredBoundaryVariable;
 class HydroBoundaryVariable;
 class OrbitalAdvection;
 
+#if M1_ENABLED
+  class M1;
+#endif
+
 //----------------------------------------------------------------------------------------
 //! \class MeshRefinement
 //! \brief
@@ -44,6 +48,10 @@ class MeshRefinement {
   friend class Mesh;
   // needs to access pcoarsec
   friend class OrbitalAdvection;
+
+#if M1_ENABLED // needs to access pcoarsec
+  friend class M1;
+#endif
 
  public:
   MeshRefinement(MeshBlock *pmb, ParameterInput *pin);

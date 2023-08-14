@@ -41,6 +41,7 @@
 #include "meshblock_tree.hpp"
 #include "../z4c/z4c.hpp"
 #include "../z4c/wave_extract.hpp"
+#include "../m1/m1.hpp"
 
 //----------------------------------------------------------------------------------------
 //! MeshBlock constructor: constructs coordinate, boundary condition, hydro, field
@@ -139,6 +140,10 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
     // if (this->scalars_block)
     pscalars = new PassiveScalars(this, pin);
     pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
+  }
+  if (M1_ENABLED) {
+    pm1 = new M1(this, pin);
+    // TODO: pvbal
   }
   if (Z4C_ENABLED) {
     pz4c = new Z4c(this, pin);
@@ -330,6 +335,7 @@ MeshBlock::~MeshBlock() {
   if (FLUID_ENABLED) delete porb;
   if (SELF_GRAVITY_ENABLED) delete pgrav;
   if (NSCALARS > 0) delete pscalars;
+  if (M1_ENABLED) delete pm1;
 
   if (Z4C_ENABLED) {
     delete pz4c;

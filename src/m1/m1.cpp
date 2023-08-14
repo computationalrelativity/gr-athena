@@ -11,14 +11,17 @@
 
 // Athena++ headers
 #include "m1.hpp"
-#include "../z4c/z4c.hpp"
-#include "../z4c/z4c_macro.hpp"
 #include "../athena.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
 #include "../eos/eos.hpp"
 #include "../hydro/hydro.hpp"
 #include "../utils/interp_intergrid.hpp"
+
+#if Z4C_ENABLED
+#include "../z4c/z4c.hpp"
+#include "../z4c/z4c_macro.hpp"
+#endif
 
 #define CGS_GCC (1.619100425158886e-18) // CGS density conv. fact
 
@@ -64,14 +67,14 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   pmy_block(pmb),
   coarse_u_(N_Lab, pmb->ncc3, pmb->ncc2, pmb->ncc1,
             (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
-             AthenaArray<Real>::DataStatus::empty)),
-  storage{{N_Lab, pmb->ncells3, pmb->ncells2, pmb->ncells1, M1_NSPECIES*M1_NGROUPS}, // u
-          {N_Lab, pmb->ncells3, pmb->ncells2, pmb->ncells1, M1_NSPECIES*M1_NGROUPS}, // u1
+            AthenaArray<Real>::DataStatus::empty)),
+  storage{{N_Lab, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1}, // u
+          {N_Lab, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1}, // u1
           {},                                                                        // u2
-          {N_Lab, pmb->ncells3, pmb->ncells2, pmb->ncells1, M1_NSPECIES*M1_NGROUPS}, // u_rhs
-          {N_Rad, pmb->ncells3, pmb->ncells2, pmb->ncells1, M1_NSPECIES*M1_NGROUPS}, // u_rad
-          {N_RadMat, pmb->ncells3, pmb->ncells2, pmb->ncells1, M1_NSPECIES*M1_NGROUPS}, // radmat
-          {N_Diagno, pmb->ncells3, pmb->ncells2, pmb->ncells1, M1_NSPECIES*M1_NGROUPS}, // diagno
+          {N_Lab, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1}, // u_rhs
+          {N_Rad, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1}, // u_rad
+          {N_RadMat, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1}, // radmat
+          {N_Diagno, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1}, // diagno
 	  {N_Intern, pmb->ncells3, pmb->ncells2, pmb->ncells1}, // internal
   },
 
@@ -80,7 +83,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
 {
   Mesh *pm = pmy_block->pmy_mesh;
   Coordinates * pco = pmb->pcoord;
-  
+
   mbi.nn1 = pmb->ncells1;
   mbi.nn2 = pmb->ncells2;
   mbi.nn3 = pmb->ncells3;
@@ -129,6 +132,9 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   // Parameters
   nspecies = M1_NSPECIES;
   ngroups = M1_NGROUPS;
+
+  // Fake Rates
+  fr = new FakeRates(pin, ngroups, nspecies);
 
   closure = pin->GetString("M1", "closure");  
   fiducial_velocity = pin->GetString("M1", "fiducial_velocity");
@@ -184,14 +190,13 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   Real rdx[] = {
     1./pmb->pcoord->dx1f(0), 1./pmb->pcoord->dx2f(0), 1./pmb->pcoord->dx3f(0)
   };
-  ig = new InterpIntergridLocal(NDIM, &N[0], &rdx[0]);
 
+// TODO: CHECK THIS
   if(pmb->pmy_mesh->multilevel){
     int N_coarse[] = {pmb->block_size.nx1/2, pmb->block_size.nx2/2, pmb->block_size.nx3/2};
     Real rdx_coarse[] = {
       1./pmb->pmr->pcoarsec->dx1f(0), 1./pmb->pmr->pcoarsec->dx2f(0), 1./pmb->pmr->pcoarsec->dx3f(0)
     };
-    ig_coarse = new InterpIntergridLocal(NDIM, &N_coarse[0], &rdx_coarse[0]);
     
   }
 
@@ -218,11 +223,6 @@ M1::~M1()
   dt1_.DeleteAthenaArray();
   dt2_.DeleteAthenaArray();
   dt3_.DeleteAthenaArray();
-
-  delete ig;
-  if(pmy_block->pmy_mesh->multilevel){
-    delete ig_coarse;
-  }
 }
 
 //----------------------------------------------------------------------------------------

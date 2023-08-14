@@ -27,6 +27,9 @@
 // evolve hydrodynamics? default=0 (false)
 #define FLUID_ENABLED @FLUID_ENABLED@
 
+// prefer vertex-centering default=0 (false)
+#define PREFER_VC @PREFER_VC@
+
 // Equation of state
 #define EQUATION_OF_STATE "@EQUATION_OF_STATE@"
 
@@ -56,6 +59,9 @@
 
 // enable general relativity? default=0 (false)
 #define GENERAL_RELATIVITY @GENERAL_RELATIVITY@
+
+// enable M1 neutrino transport? default=0 (false)
+#define M1_ENABLED @M1_ENABLED@
 
 // evolve the z4c equation? default=0 (false)
 #define Z4C_ENABLED @Z4C_ENABLED@

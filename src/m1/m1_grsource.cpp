@@ -76,7 +76,7 @@ void M1::GRSources(const Real dt, AthenaArray<Real> & u, AthenaArray<Real> & u_r
     for(int a = 0; a < NDIM; ++a) {
       for(int b = a; b < NDIM; ++b) {   
 	      CLOOP1(i) {
-	        gam_dd(a,b,i) = pmy_block->pz4c->ig->map3d_VC2CC(vc_adm_g_dd(a,b,k,j,i));
+          gam_dd(a,b,i) = VCInterpolation(vc_adm_g_dd(a,b),k,j,i);
 	      }
       }
     }
@@ -84,18 +84,19 @@ void M1::GRSources(const Real dt, AthenaArray<Real> & u, AthenaArray<Real> & u_r
     for(int a = 0; a < NDIM; ++a) {
       for(int b = a; b < NDIM; ++b) {   
 	      CLOOP1(i) {
-	        K_dd(a,b,i) = pmy_block->pz4c->ig->map3d_VC2CC(vc_adm_K_dd(a,b,k,j,i));
+          K_dd(a,b,i) = VCInterpolation(vc_adm_K_dd(a,b),k,j,i);
 	      }
       }
     }
     
-    for(int a = 0; a < NDIM; ++a)
+    for(int a = 0; a < NDIM; ++a) {
       CLOOP1(i) {
-	      beta_u(a,i) = pmy_block->pz4c->ig->map3d_VC2CC(vc_z4c_beta_u(a,k,j,i));
+        beta_u(a,i) = VCInterpolation(vc_z4c_beta_u(a),k,j,i);
       }
+    }
     
     CLOOP1(i) {
-      alpha(i) = pmy_block->pz4c->ig->map3d_VC2CC(vc_z4c_alpha(k,j,i));
+      alpha(i) = VCInterpolation(vc_z4c_alpha(),k,j,i);
     }
     
     // Get metric drvts on CC
@@ -103,7 +104,7 @@ void M1::GRSources(const Real dt, AthenaArray<Real> & u, AthenaArray<Real> & u_r
       for(int b = a; b < NDIM; ++b) {
 	      for(int c = 0; c < NDIM; ++c) {
 	        CLOOP1(i) {
-	          dgam_ddd(c,a,b,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(c,vc_adm_g_dd(a,b,k,j,i));
+            dgam_ddd(c,a,b,i) = VCDiff(c,vc_adm_g_dd(a,b),k,j,i);
 	        }
 	      }
       }
@@ -112,16 +113,16 @@ void M1::GRSources(const Real dt, AthenaArray<Real> & u, AthenaArray<Real> & u_r
     for(int a = 0; a < NDIM; ++a) {
       for(int c = 0; c < NDIM; ++c) {
 	      CLOOP1(i) {
-	        dbeta_du(c,a,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(c,vc_z4c_beta_u(a,j,i));
+          dbeta_du(c,a,i) = VCDiff(c,vc_z4c_beta_u(a),k,j,i);
 	      }
       }
     }
     
-    for(int a = 0; a < NDIM; ++a)
+    for(int a = 0; a < NDIM; ++a) {
       CLOOP1(i) {
-	      dalpha_d(a,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vc_z4c_alpha(k,j,i));
+        dalpha_d(a,i) = VCDiff(a,vc_z4c_alpha(),k,j,i);
       }
-    
+    }
     // Inverse metric on CC
     CLOOP1(i) {
       Real const detg = SpatialDet(gam_dd(0,0,i),gam_dd(0,1,i), gam_dd(0,2,i), 
@@ -153,39 +154,39 @@ void M1::GRSources(const Real dt, AthenaArray<Real> & u, AthenaArray<Real> & u_r
 
       pack_F_d(dalpha_d(0,i), dalpha_d(1,i), dalpha_d(2,i), dalp_d);
 
+      alpha(i) = VCInterpolation(vc_z4c_alpha(),k,j,i);
       Real const alpha_i = alpha(i);
-      
+
       for (int ig = 0; ig < ngroups*nspecies; ++ig) {
-	      pack_F_d(vec.F_d(0,k,j,i,ig),vec.F_d(1,k,j,i,ig),vec.F_d(2,k,j,i,ig), F_d);
-	      pack_P_dd(rad.P_dd(0,0,k,j,i,ig),rad.P_dd(0,1,k,j,i,ig),rad.P_dd(0,2,k,j,i,ig),
-		              rad.P_dd(1,1,k,j,i,ig),rad.P_dd(1,2,k,j,i,ig),rad.P_dd(2,2,k,j,i,ig), P_dd);
-	
-	      // Contravariant radiation pressure
-	      tensor::contract2(g_uu, P_dd, &P_uu);
-	
-	      // Compute radiation energy sources
-	      // Note that everything is already densitized
-	      Real const rhsE = alpha_i *tensor::dot(P_uu, K_dd__) - tensor::dot(g_uu, F_d, dalp_d);
-	      vec_rhs.E(k,j,i,ig) += rhsE;
-	
-	      // Compute the radiation flux sources
-	      for (int a = 0; a < NDIM; ++a) {
-	        Real rhsFd_a = - rhsE * dalp_d(a);
-	        for (int b = 0; b < NDIM; ++b) {
-	          rhsFd_a += F_d(b) * dbeta_du(a,b,i);
-	        }
-	        for (int b = 0; b < NDIM; ++b)
-	          for (int c = 0; c < NDIM; ++c) {
-	            rhsFd_a += 0.5*alpha_i * P_uu(b,c) * dg_ddd(a,b,c);
-	          }
-	        vec_rhs.F_d(a,k,j,i,ig) += rhsFd_a;
-	      }
-	
-      } // ig loop      
-      
-    }// CLOOP1
-    
-  }// CLOOP2
+
+        pack_F_d(vec.F_d(0,ig,k,j,i),vec.F_d(1,ig,k,j,i),vec.F_d(2,ig,k,j,i), F_d);
+        pack_P_dd(rad.P_dd(0,0,ig,k,j,i),rad.P_dd(0,1,ig,k,j,i),rad.P_dd(0,2,ig,k,j,i),
+                  rad.P_dd(1,1,ig,k,j,i),rad.P_dd(1,2,ig,k,j,i),rad.P_dd(2,2,ig,k,j,i), P_dd);
+
+        // Contravariant radiation pressure
+        tensor::contract2(g_uu, P_dd, &P_uu);
+
+        // Compute radiation energy sources
+        // Note that everything is already densitized
+        Real const rhsE = alpha_i *tensor::dot(P_uu, K_dd__) - tensor::dot(g_uu, F_d, dalp_d);
+        vec_rhs.E(ig,k,j,i) += rhsE;
+
+        // Compute the radiation flux sources
+        for (int a = 0; a < NDIM; ++a) {
+          Real rhsFd_a = - rhsE * dalp_d(a);
+          for (int b = 0; b < NDIM; ++b) {
+            rhsFd_a += F_d(b) * dbeta_du(a,b,i);
+          }
+          for (int b = 0; b < NDIM; ++b) {
+            for (int c = 0; c < NDIM; ++c) {
+              rhsFd_a += 0.5*alpha_i * P_uu(b,c) * dg_ddd(a,b,c);
+            }
+          }
+          vec_rhs.F_d(a,ig,k,j,i) += rhsFd_a;
+        }
+      }
+    } // CLOOP1
+  } // CLOOP2     
   
   gam_dd.DeleteAthenaTensor();
   K_dd.DeleteAthenaTensor();

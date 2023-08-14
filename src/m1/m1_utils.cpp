@@ -9,7 +9,9 @@
 
 // Athena++ headers
 #include "m1.hpp"
+#if Z4C_ENABLED
 #include "../z4c/z4c.hpp"
+#endif
 #include "../mesh/mesh.hpp"
 
 
@@ -18,36 +20,38 @@ using namespace utils;
 #define SQ(X) ((X)*(X))
 
 void M1::calc_proj(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d,
-		   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
-		   TensorPointwise<Real, Symmetries::NONE, MDIM, 2> & proj_ud)
+		               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
+		               TensorPointwise<Real, Symmetries::NONE, MDIM, 2> & proj_ud)
 {
-  for (int a = 0; a < MDIM; ++a)
+  for (int a = 0; a < MDIM; ++a) {
     for (int b = 0; b < MDIM; ++b) {
       proj_ud(a,b) = tensor::delta(a,b) + u_u(a)*u_d(b);
     }
+  }
 }
 
 void M1::calc_Pthin(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
-		    Real const E,
-		    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
-		    TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd)
+		                Real const E,
+		                TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
+		                TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd)
 {
   Real const F2 = tensor::dot(g_uu, F_d, F_d);
   Real fac = (F2 > 0 ? E/F2 : 0);
-  for (int a = 0; a < MDIM; ++a)
+  for (int a = 0; a < MDIM; ++a) {
     for (int b = a; b < MDIM; ++b) {
       P_dd(a,b) = fac * F_d(a) * F_d(b);
     }
+  }
 }
 
 void M1::calc_Pthick(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd,
-		     TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
-		     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d,
-		     Real const W,
-		     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_d,
-		     Real const E,
-		     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
-		     TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd)
+		                 TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
+		                 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d,
+		                 Real const W,
+		                 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_d,
+		                 Real const E,
+		                 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
+		                 TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd)
 {
   Real const v_dot_F = tensor::dot(g_uu, v_d, F_d);  
   Real const W2 = W*W;
@@ -61,18 +65,19 @@ void M1::calc_Pthick(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_
   for (int a = 0; a < MDIM; ++a) {
     tH_d(a) = F_d(a)/W + coef*W*v_d(a)*((4.*W2 + 1.)*v_dot_F - 4.*W2*E);
   }
-  
-  for (int a = 0; a < MDIM; ++a)
+
+  for (int a = 0; a < MDIM; ++a) {
     for (int b = a; b < MDIM; ++b) {
       P_dd(a,b)  = Jo3*(4.*W2*v_d(a)*v_d(b) + g_dd(a,b) + n_d(a)*n_d(b));
       P_dd(a,b) += W*(tH_d(a)*v_d(b) + tH_d(b)*v_d(a));
     }
+  }
 }
 
 void M1::assemble_fnu(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
-		      Real const J,
-		      TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & H_u,
-		      TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & fnu_u)
+		                  Real const J,
+		                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & H_u,
+		                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & fnu_u)
 {
   Real const H2 = tensor::dot(H_u, H_u);     // using Euclidean metric!
   for (int a = 0; a < MDIM; ++a) {
@@ -81,93 +86,94 @@ void M1::assemble_fnu(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u
 }
 
 Real compute_Gamma(Real const W,
-		   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_u,
-		   Real const J,
-		   Real const E,
-		   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d)
+		               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_u,
+		               Real const J, Real const E,
+		               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d)
 {
   if (E > rad_E_floor && J > rad_E_floor) {
     Real f_dot_v = std::min(tensor::dot(F_d, v_u)/E, 1 - rad_eps);
     return W*(E/J)*(1 - f_dot_v);
-  }
-  else {
+  } else {
     return 1;
   }
 }
 
 void M1::assemble_rT(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d,
-		     Real const J,
-		     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & H_d,
-		     TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & K_dd,
-		     TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & rT_dd)
+		                 Real const J,
+		                 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & H_d,
+		                 TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & K_dd,
+		                 TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & rT_dd)
 {
-  for (int a = 0; a < MDIM; ++a)
+  for (int a = 0; a < MDIM; ++a) {
     for (int b = a; b < MDIM; ++b) {
       rT_dd(a,b) = J*u_d(a)*u_d(b) + H_d(a)*u_d(b) + H_d(b)*u_d(a) + K_dd(a,b);
     }
+  }
 }
 
 // Project out the radiation energy (in any frame)
 Real M1::calc_J_from_rT(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & rT_dd,
-			TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u)
+			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u)
 {
   return tensor::dot(rT_dd, u_u, u_u);
 }
 
 void M1::calc_H_from_rT(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & rT_dd,
-			TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
-			TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud,
-			TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & H_d)
+			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
+			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud,
+			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & H_d)
 {
   for (int a = 0; a < MDIM; ++a) {
     H_d(a) = 0.0;
-    for (int b = 0; b < MDIM; ++b)
+    for (int b = 0; b < MDIM; ++b) {
       for (int c = 0; c < MDIM; ++c) {
-	H_d(a) -= proj_ud(b,a)*u_u(c)*rT_dd(b,c);
+	      H_d(a) -= proj_ud(b,a)*u_u(c)*rT_dd(b,c);
       }
+    }
   }
 }
 
 void M1::calc_K_from_rT(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & rT_dd,
-			TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud,
-			TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & K_dd)
+			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud,
+			                  TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & K_dd)
 {
-  for (int a = 0; a < MDIM; ++a)
+  for (int a = 0; a < MDIM; ++a) {
     for (int b = a; b < MDIM; ++b) {
       K_dd(a,b) = 0.0;
-      for (int c = 0; c < MDIM; ++c)
+      for (int c = 0; c < MDIM; ++c) {
         for (int d = 0; d < MDIM; ++d) {
-	  K_dd(a,b) += proj_ud(c,a)*proj_ud(d,b)*rT_dd(c,d);
+	        K_dd(a,b) += proj_ud(c,a)*proj_ud(d,b)*rT_dd(c,d);
         }
+      }
     }
+  }
 }
 
 Real M1::calc_E_flux(Real const alp,
-		     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & beta_u,
-		     Real const E,
-		     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_u,
-		     int const dir)
+		                 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & beta_u,
+		                 Real const E,
+		                 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_u,
+		                 int const dir)
 {
   return alp*F_u(dir) - beta_u(dir)*E;
 }
 
 Real M1::calc_F_flux(Real const alp,
-		     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & beta_u,
-		     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
-		     TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & P_ud,
-		     int const dir,
-		     int const comp)
+		                 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & beta_u,
+		                 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
+		                 TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & P_ud,
+		                 int const dir, int const comp)
 {
   return alp*P_ud(dir,comp) - beta_u(dir)*F_d(comp);
 }
 
 void M1::calc_rad_sources(Real const eta,
-			  Real const kabs,
-			  Real const kscat,
-			  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d,
-			  Real const J,
-			  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const H_d,
-			  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & S_d)
+			                    Real const kabs,
+			                    Real const kscat,
+			                    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d,
+			                    Real const J,
+			                    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const H_d,
+			                    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & S_d)
 {
   for (int a = 0; a < MDIM; ++a) {
     S_d(a) = (eta - kabs*J)*u_d(a) - (kabs + kscat)*H_d(a);
@@ -175,16 +181,16 @@ void M1::calc_rad_sources(Real const eta,
 }
 
 Real M1::calc_rE_source(Real const alp,
-			TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_u,
-			TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & S_d)
+			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_u,
+			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & S_d)
 {
   return - alp*tensor::dot(n_u, S_d);
 }
 
 void M1::calc_rF_source(Real const alp,
-			TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const gamma_ud,
-			TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & S_d,
-			TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & tS_d)
+			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const gamma_ud,
+			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & S_d,
+			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & tS_d)
 {
   for (int a = 0; a < MDIM; ++a) {
     tS_d(a) = 0.0;
@@ -195,8 +201,8 @@ void M1::calc_rF_source(Real const alp,
 }
 
 void M1::apply_floor(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const g_uu,
-		     Real * E,
-		     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & F_d)
+		                 Real * E,
+		                 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & F_d)
 {
   *E = std::max(rad_E_floor, *E);
   Real const F2 = tensor::dot(g_uu, F_d, F_d);
@@ -210,10 +216,10 @@ void M1::apply_floor(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const g_uu
 }
 
 void M1::uvel(Real alp,
-	      Real betax,Real betay,Real betaz,
-	      Real w_lorentz,
-	      Real velx,Real vely,Real velz,
-	      Real * u0, Real * u1, Real * u2, Real * u3)
+	            Real betax,Real betay,Real betaz,
+	            Real w_lorentz,
+	            Real velx,Real vely,Real velz,
+	            Real * u0, Real * u1, Real * u2, Real * u3)
 {
   Real const ialp = 1.0/alp;
   *u0 = w_lorentz*ialp;
@@ -229,8 +235,8 @@ void M1::uvel(Real alp,
 // 
 
 void M1::pack_F_d(Real const betax, Real const betay, Real const betaz,
-		  Real const Fx, Real const Fy, Real const Fz,
-		  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & F_d)
+		              Real const Fx, Real const Fy, Real const Fz,
+		              TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & F_d)
 {
   // F_0 = g_0i F^i = beta_i F^i = beta^i F_i
   F_d(0) = betax*Fx + betay*Fy + betaz*Fz;
@@ -240,7 +246,7 @@ void M1::pack_F_d(Real const betax, Real const betay, Real const betaz,
 }
 
 void M1::unpack_F_d(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
-		    Real * Fx, Real * Fy, Real * Fz)
+		                Real * Fx, Real * Fy, Real * Fz)
 {
   *Fx = F_d(1);
   *Fy = F_d(2);
@@ -248,7 +254,7 @@ void M1::unpack_F_d(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d
 }
 
 void M1::pack_F_d(Real const Fx, Real const Fy, Real const Fz,
-		  TensorPointwise<Real, Symmetries::NONE, MDIM-1, 1> & F_d)
+		              TensorPointwise<Real, Symmetries::NONE, MDIM-1, 1> & F_d)
 {
   F_d(0) = Fx;
   F_d(1) = Fy;
@@ -256,7 +262,7 @@ void M1::pack_F_d(Real const Fx, Real const Fy, Real const Fz,
 }
 
 void M1::unpack_F_d(TensorPointwise<Real, Symmetries::NONE, MDIM-1, 1> const & F_d,
-		    Real * Fx, Real * Fy, Real * Fz)
+		                Real * Fx, Real * Fy, Real * Fz)
 {
   *Fx = F_d(0);
   *Fy = F_d(1);
@@ -264,7 +270,7 @@ void M1::unpack_F_d(TensorPointwise<Real, Symmetries::NONE, MDIM-1, 1> const & F
 }
 
 void M1::pack_H_d(Real const Ht, Real const Hx, Real const Hy, Real const Hz,
-		  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & H_d)
+		              TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & H_d)
 {
   H_d(0) = Ht;
   H_d(1) = Hx;
@@ -273,7 +279,7 @@ void M1::pack_H_d(Real const Ht, Real const Hx, Real const Hy, Real const Hz,
 }
 
 void M1::unpack_H_d(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & H_d,
-		    Real * Ht, Real * Hx, Real * Hy, Real * Hz)
+		                Real * Ht, Real * Hx, Real * Hy, Real * Hz)
 {
   *Ht = H_d(0);
   *Hx = H_d(1);
@@ -282,9 +288,9 @@ void M1::unpack_H_d(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & H_d
 }
 
 void M1::pack_P_dd(Real const betax, Real const betay, Real const betaz,
-		   Real const Pxx, Real const Pxy, Real const Pxz,
-		   Real const Pyy, Real const Pyz, Real const Pzz,
-		   TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd)
+		               Real const Pxx, Real const Pxy, Real const Pxz,
+		               Real const Pyy, Real const Pyz, Real const Pzz,
+		               TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd)
 {
   Real const Pbetax = Pxx*betax + Pxy*betay + Pxz*betaz;
   Real const Pbetay = Pxy*betax + Pyy*betay + Pyz*betaz;
@@ -308,8 +314,8 @@ void M1::pack_P_dd(Real const betax, Real const betay, Real const betaz,
 }
 
 void M1::unpack_P_dd(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & P_dd,
-		     Real * Pxx, Real * Pxy, Real * Pxz,
-		     Real * Pyy, Real * Pyz, Real * Pzz)
+		                 Real * Pxx, Real * Pxy, Real * Pxz,
+		                 Real * Pyy, Real * Pyz, Real * Pzz)
 {
   *Pxx = P_dd(1,1);
   *Pxy = P_dd(1,2);
@@ -320,8 +326,8 @@ void M1::unpack_P_dd(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & P_
 }
 
 void M1::pack_P_dd(Real const Pxx, Real const Pxy, Real const Pxz,
-		   Real const Pyy, Real const Pyz, Real const Pzz,
-		   TensorPointwise<Real, Symmetries::SYM2, MDIM-1, 2> & P_dd)
+		               Real const Pyy, Real const Pyz, Real const Pzz,
+		               TensorPointwise<Real, Symmetries::SYM2, MDIM-1, 2> & P_dd)
 {
   P_dd(0,0) = Pxx;
   P_dd(0,1) = Pxy;
@@ -362,8 +368,8 @@ void M1::pack_P_ddd(Real const Pxxx, Real const Pxxy, Real const Pxxz,
 }
 
 void M1::unpack_P_dd(TensorPointwise<Real, Symmetries::SYM2, MDIM-1, 2> const & P_dd,
-		     Real * Pxx, Real * Pxy, Real * Pxz,
-		     Real * Pyy, Real * Pyz, Real * Pzz)
+		                 Real * Pxx, Real * Pxy, Real * Pxz,
+		                 Real * Pyy, Real * Pyz, Real * Pzz)
 {
   *Pxx = P_dd(0,0);
   *Pxy = P_dd(0,1);
@@ -374,7 +380,7 @@ void M1::unpack_P_dd(TensorPointwise<Real, Symmetries::SYM2, MDIM-1, 2> const & 
 }
 
 void M1::pack_v_u(Real const velx, Real const vely, Real const velz,
-		 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & v_u)
+		              TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & v_u)
 {
     v_u(0) = 0.0;
     v_u(1) = velx;
@@ -384,10 +390,10 @@ void M1::pack_v_u(Real const velx, Real const vely, Real const velz,
 
 // Lorentz factor from utilde^i
 Real M1::GetWLorentz_from_utilde(Real const utx, Real const uty, Real const utz,
-				Real const gxx, Real const gxy, Real const gxz,
-				Real const gyy, Real const gyz, Real const gzz,
-				Real * utlx, Real * utly, Real * utlz,
-				Real *ut2)
+				                         Real const gxx, Real const gxy, Real const gxz,
+				                         Real const gyy, Real const gyz, Real const gzz,
+				                         Real * utlx, Real * utly, Real * utlz,
+				                         Real *ut2)
 {
   Real _utlx = gxx*utx + gxy*uty + gxz*utz;
   Real _utly = gxy*utx + gyy*uty + gyz*utz;
@@ -423,116 +429,127 @@ Real M1::GetWLorentz_from_utilde(Real const utx, Real const uty, Real const utz,
 //
 
 void M1::Get4Metric_VC2CCinterp(MeshBlock * pmb,
-				const int k, const int j, const int i,
-				AthenaArray<Real> & u, 
-				AthenaArray<Real> & u_adm,
-				TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & g_dd,
-				TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & beta_u,
-        TensorPointwise<Real, Symmetries::NONE, MDIM, 0> & alpha)
-				//TensorPointwise<Real, Symmetries::NONE, MDIM, 0> & alpha)
+				                        const int k, const int j, const int i,
+                                AthenaArray<Real> & u, 
+                                AthenaArray<Real> & u_adm,
+                                TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & g_dd,
+                                TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & beta_u,
+                                TensorPointwise<Real, Symmetries::NONE, MDIM, 0> & alpha)
 {
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> vc_z4c_alpha;     // lapse
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> vc_z4c_beta_u;    // shift
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> vc_adm_g_dd;      // 3-metric 
-  vc_z4c_alpha.InitWithShallowSlice(u, Z4c::I_Z4c_alpha);
-  vc_z4c_beta_u.InitWithShallowSlice(u, Z4c::I_Z4c_betax);
-  vc_adm_g_dd.InitWithShallowSlice(u_adm, Z4c::I_ADM_gxx);
-  
+  AthenaArray<Real> vc_z4c_alpha;
+  AthenaArray<Real> vc_z4c_beta_u_x, vc_z4c_beta_u_y, vc_z4c_beta_u_z;
+  AthenaArray<Real> vc_gamma_xx, vc_gamma_xy, vc_gamma_xz, vc_gamma_yy,
+                    vc_gamma_yz, vc_gamma_zz;
+
+  vc_z4c_alpha.InitWithShallowSlice(u, Z4c::I_Z4c_alpha,1);
+  vc_z4c_beta_u_x.InitWithShallowSlice(u, Z4c::I_Z4c_betax,1);
+  vc_z4c_beta_u_y.InitWithShallowSlice(u, Z4c::I_Z4c_betay,1);
+  vc_z4c_beta_u_z.InitWithShallowSlice(u, Z4c::I_Z4c_betaz,1);
+  vc_gamma_xx.InitWithShallowSlice(u_adm, Z4c::I_ADM_gxx,1);
+  vc_gamma_xy.InitWithShallowSlice(u_adm, Z4c::I_ADM_gxy,1);
+  vc_gamma_xz.InitWithShallowSlice(u_adm, Z4c::I_ADM_gxz,1);
+  vc_gamma_yy.InitWithShallowSlice(u_adm, Z4c::I_ADM_gyy,1);
+  vc_gamma_yz.InitWithShallowSlice(u_adm, Z4c::I_ADM_gyz,1);
+  vc_gamma_zz.InitWithShallowSlice(u_adm, Z4c::I_ADM_gzz,1);
+
   TensorPointwise<Real, Symmetries::SYM2, MDIM, 1> beta_d;
   beta_d.NewTensorPointwise();
   
   // Map from VC to CC gauge and spatial part g_ij
   // Note we go from 3-tensors to 4-tensors (indexes!!!) TODO
-  alpha() = pmb->pz4c->ig->map3d_VC2CC(vc_z4c_alpha(k,j,i));
+  alpha() = VCInterpolation(vc_z4c_alpha,k,j,i);
 
   beta_u(0)   = 0.;
-  beta_u(1) = pmb->pz4c->ig->map3d_VC2CC(vc_z4c_beta_u(0,k,j,i));
-  beta_u(2) = pmb->pz4c->ig->map3d_VC2CC(vc_z4c_beta_u(1,k,j,i));
-  beta_u(3) = pmb->pz4c->ig->map3d_VC2CC(vc_z4c_beta_u(2,k,j,i));
+  beta_u(1) = VCInterpolation(vc_z4c_beta_u_x,k,j,i);
+  beta_u(2) = VCInterpolation(vc_z4c_beta_u_y,k,j,i);
+  beta_u(3) = VCInterpolation(vc_z4c_beta_u_z,k,j,i);
 
-  for(int a = 1; a < MDIM; ++a) {
-    for(int b = a; b < MDIM; ++b) {
-      g_dd(a,b) = pmb->pz4c->ig->map3d_VC2CC(vc_adm_g_dd(a-1,b-1,k,j,i));
-    }
-  }
-
+  // g_ij
+  g_dd(1,1) = VCInterpolation(vc_gamma_xx, k, j, i);
+  g_dd(1,2) = VCInterpolation(vc_gamma_xy, k, j, i);
+  g_dd(1,3) = VCInterpolation(vc_gamma_xz, k, j, i);
+  g_dd(2,2) = VCInterpolation(vc_gamma_yy, k, j, i);
+  g_dd(2,3) = VCInterpolation(vc_gamma_yz, k, j, i);
+  g_dd(3,3) = VCInterpolation(vc_gamma_zz, k, j, i);
+  
   // beta_a
-  for(int a = 0; a < MDIM; ++a) 
+  for (int a = 0; a < MDIM; ++a) {
     beta_d(a) = 0.0;  
-  for(int a = 1; a < MDIM; ++a) {
+  }
+  for (int a = 1; a < MDIM; ++a) {
     for(int b = 1; a < MDIM; ++a) {
       beta_d(a) += g_dd(a,b) * beta_u(b);
     }
   }
   
   // g_0i
-  for(int a = 1; a < MDIM; ++a) 
+  for (int a = 1; a < MDIM; ++a) {
     g_dd(0,a) = g_dd(a,0) = beta_d(a);
-  
+  }
+
   // g_00
   g_dd(0,0) = - SQ(alpha());
-  for(int a = 1; a < MDIM; ++a) {
+  for (int a = 1; a < MDIM; ++a) {
     g_dd(0,0) += beta_u(a)*beta_d(a);
   }
-  
+
   beta_d.DeleteTensorPointwise();  
 }
 
 // Inverse 4-metric
 void M1::Get4Metric_Inv(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd,
-			TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & beta_u,
-			TensorPointwise<Real, Symmetries::NONE, MDIM, 0> const & alpha,
-			TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & g_uu)
+			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & beta_u,
+			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 0> const & alpha,
+			                  TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & g_uu)
 {
   // g^00
   g_uu(0,0) = - 1.0/SQ(alpha());
   
   // g^0i
-  for(int a = 1; a < MDIM; ++a) 
+  for (int a = 1; a < MDIM; ++a) {
     g_uu(0,a) = g_uu(a,0) =  beta_u(a) * (-g_uu(0,0));
-  
+  }
+
   // g^ij 
   Real const det = SpatialDet(g_dd(1,1), g_dd(1,2), g_dd(1,3),
-			      g_dd(2,2), g_dd(2,3),
-			      g_dd(3,3));
+			                        g_dd(2,2), g_dd(2,3), g_dd(3,3));
   
   SpatialInv(1.0/det,
-	     g_dd(1,1), g_dd(1,2), g_dd(1,3),
-	     g_dd(2,2), g_dd(2,3), g_dd(3,3),
-	     &g_uu(1,1), &g_uu(1,2), &g_uu(1,3),
-	     &g_uu(2,2), &g_uu(2,3), &g_uu(3,3));
+	           g_dd(1,1), g_dd(1,2), g_dd(1,3),
+	           g_dd(2,2), g_dd(2,3), g_dd(3,3),
+	           &g_uu(1,1), &g_uu(1,2), &g_uu(1,3),
+	           &g_uu(2,2), &g_uu(2,3), &g_uu(3,3));
   
-  for(int a = 1; a < MDIM; ++a) {
-    for(int b = 1; a < MDIM; ++a) {
+  for (int a = 1; a < MDIM; ++a) {
+    for (int b = 1; a < MDIM; ++a) {
       g_uu(a,b) += beta_u(a) * beta_u(b) * g_uu(0,0);      
     }
-  } 
+  }
 }
 
 // Return also the inverse 3-metric
 void M1::Get4Metric_Inv_Inv3(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd,
-			     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & beta_u,
-			     TensorPointwise<Real, Symmetries::NONE, MDIM, 0> const & alpha,
-			     TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & g_uu,
-			     TensorPointwise<Real, Symmetries::SYM2, MDIM-1, 2> & gam_uu)
+			                       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & beta_u,
+			                       TensorPointwise<Real, Symmetries::NONE, MDIM, 0> const & alpha,
+			                       TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & g_uu,
+			                       TensorPointwise<Real, Symmetries::SYM2, MDIM-1, 2> & gam_uu)
 {
   // g^00
   g_uu(0,0) = - 1.0/SQ(alpha());
   
   // g^0i
-  for(int a = 1; a < MDIM; ++a) 
+  for (int a = 1; a < MDIM; ++a) {
     g_uu(0,a) = g_uu(a,0) =  beta_u(a) * (-g_uu(0,0));
-  
+  }
   // gamma^ij 
   Real const det = SpatialDet(g_dd(1,1), g_dd(1,2), g_dd(1,3),
-			      g_dd(2,2), g_dd(2,3),
-			      g_dd(3,3));
+			                        g_dd(2,2), g_dd(2,3), g_dd(3,3));
   
   SpatialInv(1.0/det,
-	     g_dd(1,1), g_dd(1,2), g_dd(1,3),
-	     g_dd(2,2), g_dd(2,3), g_dd(3,3),
-	     &g_uu(1,1), &g_uu(1,2), &g_uu(1,3),
-	     &g_uu(2,2), &g_uu(2,3), &g_uu(3,3));
+	           g_dd(1,1), g_dd(1,2), g_dd(1,3),
+	           g_dd(2,2), g_dd(2,3), g_dd(3,3),
+	           &g_uu(1,1), &g_uu(1,2), &g_uu(1,3),
+	           &g_uu(2,2), &g_uu(2,3), &g_uu(3,3));
 
   gam_uu(0,0) = g_uu(1,1);
   gam_uu(0,1) = g_uu(1,2);
@@ -546,33 +563,33 @@ void M1::Get4Metric_Inv_Inv3(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> co
     for(int b = 1; a < MDIM; ++a) {
       g_uu(a,b) += beta_u(a) * beta_u(b) * g_uu(0,0);      
     }
-  } 
+  }
 }
 
 void M1::Get4Metric_ExtrCurv_VC2CCinterp(MeshBlock * pmb,
-					 const int k, const int j, const int i,
-					 AthenaArray<Real> & u_adm,
-					 TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & K_dd)
+					                               const int k, const int j, const int i,
+					                               AthenaArray<Real> & u_adm,
+					                               TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & K_dd)
 {
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> vc_adm_K_dd;
+  AthenaTensor<Real, TensorSymm::SYM2, MDIM, 2> vc_adm_K_dd;
   vc_adm_K_dd.InitWithShallowSlice(u_adm, Z4c::I_ADM_Kxx);
-  
+
   // Map K_ij from VC to CC
   // Note we go from 3-tensors to 4-tensors (indexes!!!)
-  for(int a = 1; a < MDIM; ++a) {
-    for(int b = a; b < MDIM; ++b) {
-      K_dd(a,b) = pmb->pz4c->ig->map3d_VC2CC(vc_adm_K_dd(a-1,b-1,k,j,i));
+  for (int a=1; a<MDIM; a++) {
+    for (int b=a; b<MDIM; b++) {
+      K_dd(a,b) = VCInterpolation(vc_adm_K_dd(a-1,b-1),k,j,i);
     }
   }
 }
 
 void M1::Get4Metric_Normal(TensorPointwise<Real, Symmetries::NONE, MDIM, 0> const & alpha,
-			   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & beta_u,
-			   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & n_u)
+			                     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & beta_u,
+			                     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & n_u)
 {
   Real const ooalp = 1.0/alpha();
   n_u(0) = ooalp;
-  for(int a = 1; a < MDIM; ++a) {
+  for (int a = 1; a < MDIM; ++a) {
     n_u(a) = - beta_u(a) * ooalp;
   }
 }
@@ -587,13 +604,12 @@ void M1::Get4Metric_NormalForm(TensorPointwise<Real, Symmetries::NONE, MDIM, 0> 
 }
 
 void M1::Get4Metric_SpaceProj(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_u,
-			      TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d,
-			      TensorPointwise<Real, Symmetries::NONE, MDIM, 2> & gamma_ud)
+                              TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d,
+                              TensorPointwise<Real, Symmetries::NONE, MDIM, 2> & gamma_ud)
 {
   for (int a = 0; a < MDIM; ++a)
-    for (int b = 0; b < MDIM; ++b) {
+    for (int b = 0; b < MDIM; ++b)
       gamma_ud(a,b) = tensor::delta(a,b) + n_u(a)*n_d(b);
-    }
 }
 
 Real M1::SpatialDet(Real const gxx, Real const gxy, Real const gxz,
@@ -609,12 +625,11 @@ Real M1::SpatialDet(Real const gxx, Real const gxy, Real const gxz,
 //           Real * uxx, Real * uxy, Real * uxz,
 //           Real * uyy, Real * uyz, Real * uzz)
 // \brief returns inverse of 3-metric
-
 void M1::SpatialInv(Real const detginv,
-                     Real const gxx, Real const gxy, Real const gxz,
-                     Real const gyy, Real const gyz, Real const gzz,
-                     Real * uxx, Real * uxy, Real * uxz,
-                     Real * uyy, Real * uyz, Real * uzz)
+                    Real const gxx, Real const gxy, Real const gxz,
+                    Real const gyy, Real const gyz, Real const gzz,
+                    Real * uxx, Real * uxy, Real * uxz,
+                    Real * uyy, Real * uyz, Real * uzz)
 {
   *uxx = (-SQR(gyz) + gyy*gzz)*detginv;
   *uxy = (gxz*gyz  - gxy*gzz)*detginv;
