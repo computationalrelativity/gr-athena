@@ -673,8 +673,8 @@ void MeshRefinement::RestrictCellCenteredXValues(
                 Real const f_lll = fine(n, cx_fk_l, cx_fj_l, cx_fi_l);
 
                 coarse(n,cx_ck,cx_cj,cx_ci) += lckji * FloatingPoint::sum_associative(
-                  f_rrr, f_lrr, f_rlr, f_rrr,
-                  f_llr, f_rll, f_lrl, f_lll
+                  f_rrr, f_lll, f_rrl, f_llr,
+                  f_lrl, f_rlr, f_lrr, f_rll
                 );
               }
             }
