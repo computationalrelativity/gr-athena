@@ -8,9 +8,9 @@ export FN=$(readlink -f "$0"); export DIR_SCRIPTS=$(dirname "${FN}")
 
 ###############################################################################
 # configure here
-export RUN_NAME=two_punctures_cx
+export RUN_NAME=mpi_two_punctures_vc
 export BIN_NAME=z4c
-export REL_OUTPUT=outputs/z4c_cx
+export REL_OUTPUT=outputs/mpi_z4c_vc
 export REL_INPUT=scripts/problems
 export INPUT_NAME=z4c_two_punctures.inp
 
@@ -20,11 +20,11 @@ export DIR_GSL=$(spack location -i gsl)
 export DIR_TP=$(spack location -i twopuncturesc)
 
 export COMPILE_STR="--prob=z4c_two_punctures
-                    -z -z_cx
-                    --cxx g++ -omp
+                    -z -z_vc
+                    --cxx g++ -omp  -mpi
                     --nghost=4
-                    --ncghost=4
-                    --ncghost_cx=4
+                    --ncghost=5
+                    --ncghost_cx=5
                     --nextrapolate=4"
 
 # apply caching compiler together with gold linker
@@ -72,7 +72,7 @@ source ${DIR_SCRIPTS}/utils/dump_info.sh
 
 ###############################################################################
 # execute
-source utils/exec.sh
+source utils/mpi_exec.sh
 ###############################################################################
 
 tail -n5 ${DIR_OUTPUT}/one_puncture.hst

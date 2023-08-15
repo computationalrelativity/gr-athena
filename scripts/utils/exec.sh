@@ -8,6 +8,8 @@ cd ${DIR_OUTPUT}
 
 ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
 
+# ./${EXEC_NAME}.x -r z4c.00000.rst
+
 # echo "> Executing: ${EXEC_NAME} in ${REL_OUTPUT}/${RUN_NAME} ..."
 # echo "> Using input: ${REL_INPUT}/${INPUT_NAME} ..."
 
