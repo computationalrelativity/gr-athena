@@ -108,6 +108,7 @@ BoundaryValues::BoundaryValues(MeshBlock *pmb, BoundaryFlag *input_bcs,
   bvars_main_int_cx.reserve(2);
 
   bvars_aux.reserve(2);
+  bvars_rbc.reserve(2);
 
   // Matches initial value of Mesh::next_phys_id_
   // reserve phys=0 for former TAG_AMR=8; now hard-coded in Mesh::CreateAMRMPITag()
@@ -177,6 +178,11 @@ void BoundaryValues::SetupPersistentMPI() {
   }
 
   for (auto bvars_it = bvars_aux.begin(); bvars_it != bvars_aux.end();
+       ++bvars_it) {
+    (*bvars_it)->SetupPersistentMPI();
+  }
+
+  for (auto bvars_it = bvars_rbc.begin(); bvars_it != bvars_rbc.end();
        ++bvars_it) {
     (*bvars_it)->SetupPersistentMPI();
   }
@@ -327,6 +333,22 @@ void BoundaryValues::StartReceivingAux(BoundaryCommSubset phase) {
 
 void BoundaryValues::ClearBoundaryAux(BoundaryCommSubset phase) {
   for (auto bvars_it = bvars_aux.begin(); bvars_it != bvars_aux.end();
+       ++bvars_it) {
+    (*bvars_it)->ClearBoundary(phase);
+  }
+  return;
+}
+
+void BoundaryValues::StartReceivingRBC(BoundaryCommSubset phase) {
+  for (auto bvars_it = bvars_rbc.begin(); bvars_it != bvars_rbc.end();
+       ++bvars_it) {
+    (*bvars_it)->StartReceiving(phase);
+  }
+  return;
+}
+
+void BoundaryValues::ClearBoundaryRBC(BoundaryCommSubset phase) {
+  for (auto bvars_it = bvars_rbc.begin(); bvars_it != bvars_rbc.end();
        ++bvars_it) {
     (*bvars_it)->ClearBoundary(phase);
   }

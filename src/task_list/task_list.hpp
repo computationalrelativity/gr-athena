@@ -477,11 +477,11 @@ public:
   Z4cAuxTaskList(ParameterInput *pin, Mesh *pm);
 
   // functions
-  TaskStatus Nop(MeshBlock *pmb, int stage);                // NOP           [x]
-  TaskStatus SendAux(MeshBlock *pmb, int stage);            // SEND_DER      [x]
-  TaskStatus ReceiveAux(MeshBlock *pmb, int stage);         // RECV_DER      [x]
-  TaskStatus SetBoundariesAux(MeshBlock *pmb, int stage);   // SETB_DER      [x]
-  TaskStatus ProlongAux(MeshBlock *pmb, int stage);         // PROL_AUX      [x]
+  TaskStatus Nop(MeshBlock *pmb, int stage);                 // NOP          [x]
+  TaskStatus SendAux(MeshBlock *pmb, int stage);             // SEND_AUX     [x]
+  TaskStatus ReceiveAux(MeshBlock *pmb, int stage);          // RECV_AUX     [x]
+  TaskStatus SetBoundariesAux(MeshBlock *pmb, int stage);    // SETB_AUX     [x]
+  TaskStatus ProlongAux(MeshBlock *pmb, int stage);          // PROL_AUX     [x]
   TaskStatus WeylDecompose(MeshBlock *pmb, int stage);       // WEYL_DECOMP  [x]
   TaskStatus ClearAllAuxBoundary(MeshBlock *pmb, int stage); // CLEAR_AUXBND [x]
 
@@ -523,5 +523,37 @@ namespace Z4cAuxTaskNames {
 
 }  // namespace Z4cAuxTaskNames
 
+
+// recommunicate BC (iteration for CX)
+class Z4cRBCTaskList : public TaskList {
+public:
+  Z4cRBCTaskList(ParameterInput *pin, Mesh *pm);
+
+  // functions
+  TaskStatus Nop(MeshBlock *pmb, int stage);                // NOP           [x]
+  TaskStatus SendRBC(MeshBlock *pmb, int stage);            // SEND_RBC      [x]
+  TaskStatus ReceiveRBC(MeshBlock *pmb, int stage);         // RECV_RBC      [x]
+  TaskStatus SetBoundariesRBC(MeshBlock *pmb, int stage);   // SETB_RBC      [x]
+  TaskStatus ProlongRBC(MeshBlock *pmb, int stage);         // PROL_RBC      [x]
+  TaskStatus ClearAllRBCBoundary(MeshBlock *pmb, int stage); // CLEAR_RBCBND [x]
+
+
+private:
+  void AddTask(const TaskID& id, const TaskID& dep) override;
+  void StartupTaskList(MeshBlock *pmb, int stage) override;
+};
+
+// 64-bit integers with "1" in different bit positions used to ID each wave task.
+namespace Z4cRBCTaskNames {
+
+  const TaskID NONE(0);
+  const TaskID NOP(1);
+  const TaskID SEND_RBC(4);
+  const TaskID RECV_RBC(5);
+  const TaskID SETB_RBC(6);
+  const TaskID PROL_RBC(7);
+  const TaskID CLEAR_RBCBND(9);
+
+}  // namespace Z4cRBCTaskNames
 
 #endif  // TASK_LIST_TASK_LIST_HPP_

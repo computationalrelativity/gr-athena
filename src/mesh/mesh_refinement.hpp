@@ -99,6 +99,10 @@ class MeshRefinement {
                                    AthenaArray<Real> &coarse, int sn, int en,
                                    int csi, int cei, int csj, int cej, int csk, int cek);
 
+  void RestrictCellCenteredXValuesLO(const AthenaArray<Real> &fine,
+                                     AthenaArray<Real> &coarse, int sn, int en,
+                                     int csi, int cei, int csj, int cej, int csk, int cek);
+
   void RestrictCellCenteredXWithInteriorValues(
     const AthenaArray<Real> &fine,
     AthenaArray<Real> &coarse, int sn, int en
@@ -146,12 +150,64 @@ class MeshRefinement {
   std::vector<std::tuple<AthenaArray<Real> *, AthenaArray<Real> *>> pvars_cx_;
 
   // --------------------------------------------------------------------------
+  // BD: cx coarse ghosts can exceed NCGHOST so grid regen needed
+  static inline int sz_linspace(
+    int num,
+    bool staggered,
+    int num_ghost)
+  {
+    return num + 2 * num_ghost;
+    // return num + 2 * num_ghost - staggered;
+  }
+
+  template <typename Tsta, typename Tsto>
+  static inline auto linspace(
+    Tsta start, Tsto stop, int num,
+    bool staggered,
+    int num_ghost) -> decltype(start + stop) *
+  {
+    // Reduce to common value
+    typedef typename std::common_type<Tsta, Tsto>::type R;
+
+    const int inum = num + staggered;
+
+    // spacing [note promotion]
+    auto ds = (stop - start) / (inum - 1 + 0.0);
+    R s_0 = (staggered) ? ds / 2 : 0;
+
+    R * ret = new R[sz_linspace(inum, staggered, num_ghost)];
+
+    if (std::is_integral<R>::value)
+    {
+      for (int six = -num_ghost; six < (inum + num_ghost - staggered); ++six)
+      {
+        ret[six + num_ghost] = std::round(start + s_0 + six * ds);
+      }
+
+    }
+    else
+    {
+      for (int six = -num_ghost; six < (inum + num_ghost - staggered); ++six)
+      {
+        ret[six + num_ghost] = start + s_0 + six * ds;
+      }
+    }
+
+    return ret;
+  }
+
+  // --------------------------------------------------------------------------
   // Class for barycentric interpolation; weights precomputed in MeshRefinement
   // ctor
   typedef Floater_Hormann::interp_nd<Real, Real>
     interp_nd;
 
   interp_nd * ind_interior_r_op;
+  interp_nd * ind_physical_r_op;
+  interp_nd * ind_physical_p_op;
+
+  Real *x1c_cx, *x2c_cx, *x3c_cx;
+  Real *x1f_cx, *x2f_cx, *x3f_cx;
   // --------------------------------------------------------------------------
 
 };

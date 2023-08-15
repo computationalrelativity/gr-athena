@@ -98,6 +98,9 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
              AthenaArray<Real>::DataStatus::allocated :
              AthenaArray<Real>::DataStatus::empty)),
   abvar(pmb, &storage.weyl, &coarse_a_, empty_flux)
+#if defined(Z4C_CX_ENABLED)
+  ,rbvar(pmb, &storage.u, &coarse_u_, empty_flux)
+#endif
 {
   Mesh *pm = pmy_block->pmy_mesh;
   Coordinates * pco = pmb->pcoord;
@@ -169,11 +172,15 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
     pmb->pbval->bvars_main_int_vc.push_back(&ubvar)
   );
 
+#if defined(Z4C_CX_ENABLED)
+  rbvar.bvar_index = pmb->pbval->bvars.size();
+  pmb->pbval->bvars.push_back(&rbvar);
+  pmb->pbval->bvars_rbc.push_back(&rbvar);
+#endif
 
   abvar.bvar_index = pmb->pbval->bvars.size();
   pmb->pbval->bvars.push_back(&abvar);
   pmb->pbval->bvars_aux.push_back(&abvar);
-
 
   dt1_.NewAthenaArray(mbi.nn1);
   dt2_.NewAthenaArray(mbi.nn2);
@@ -253,9 +260,10 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   }
 
 #ifdef TWO_PUNCTURES
-  opt.impose_bitant_id = pin->GetOrAddBoolean("problem", "impose_bitant_id",
-                                              false);
+    opt.impose_bitant_id = pin->GetOrAddBoolean(
+      "problem", "impose_bitant_id", false);
 #endif
+
 
   //---------------------------------------------------------------------------
   // Set aliases
@@ -559,7 +567,8 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
       detg(i) = SpatialDet(z4c.g_dd,k,j,i);
       detg(i) = detg(i) > 0. ? detg(i) : 1.;
       Real eps = detg(i) - 1.;
-      oopsi4(i) = (eps < opt.eps_floor) ? (1. - opt.eps_floor/3.) : (pow(1./detg(i), 1./3.));
+      // oopsi4(i) = (eps < opt.eps_floor) ? (1. - opt.eps_floor/3.) : (pow(1./detg(i), 1./3.));
+      oopsi4(i) = std::cbrt(1./detg(i));
     }
     // enforce unitary determinant for conformal metric
     for(int a = 0; a < NDIM; ++a)

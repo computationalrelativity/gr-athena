@@ -251,6 +251,9 @@ public:
     VertexCenteredBoundaryVariable abvar
   );
 
+#if defined(Z4C_CX_ENABLED)
+  CellCenteredXBoundaryVariable  rbvar;
+#endif
 
   AthenaArray<Real> empty_flux[3];
 

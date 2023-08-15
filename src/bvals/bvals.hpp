@@ -112,6 +112,9 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   // communication of auxiliary quantities
   std::vector<BoundaryVariable *> bvars_aux;
 
+  // recycle boundary data through iterated comm.
+  std::vector<BoundaryVariable *> bvars_rbc;
+
 
   // inherited functions (interface shared with BoundaryVariable objects):
   // ------
@@ -130,6 +133,9 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   // ------
   void StartReceivingAux(BoundaryCommSubset phase);
   void ClearBoundaryAux(BoundaryCommSubset phase);
+
+  void StartReceivingRBC(BoundaryCommSubset phase);
+  void ClearBoundaryRBC(BoundaryCommSubset phase);
 
 
   void ApplyPhysicalBoundaries(const Real time, const Real dt);

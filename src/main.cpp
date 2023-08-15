@@ -381,6 +381,7 @@ int main(int argc, char *argv[]) {
 #endif // ENABLE_EXCEPTIONS
 
   Z4cIntegratorTaskList *pz4clist = nullptr;
+  Z4cRBCTaskList        *pz4crbclist = nullptr;
   Z4cAuxTaskList        *pz4cauxlist = nullptr;
 
 #ifdef ENABLE_EXCEPTIONS
@@ -388,6 +389,7 @@ int main(int argc, char *argv[]) {
 #endif
     if(Z4C_ENABLED) { // only init. when required
       pz4clist = new Z4cIntegratorTaskList(pinput, pmesh);
+      pz4crbclist = new Z4cRBCTaskList(pinput, pmesh);
       pz4cauxlist = new Z4cAuxTaskList(pinput, pmesh);
     }
 #ifdef ENABLE_EXCEPTIONS
@@ -542,7 +544,18 @@ int main(int argc, char *argv[]) {
       // This effectively means hydro takes a time-step and _then_ the given problem takes one
       for (int stage=1; stage<=pz4clist->nstages; ++stage) {
         pz4clist->DoTaskListOneStage(pmesh, stage);
+
+#if defined(Z4C_CX_ENABLED)
+        // recommunicate BC
+        for (int num=1; num<=Z4C_CX_NUM_RBC; num++)
+        {
+          pz4crbclist->DoTaskListOneStage(pmesh, num);
+        }
+#endif // Z4C_CX_ENABLED
+
       }
+
+
       pz4cauxlist->DoTaskListOneStage(pmesh, 1);  // only 1 stage
 
       // BD: TODO - check that the following are not displaced by \dt ?
@@ -730,6 +743,7 @@ int main(int argc, char *argv[]) {
   delete pmesh;
   delete ptlist;
   delete pz4clist;
+  delete pz4crbclist;
   delete pz4cauxlist;
   delete pouts;
 

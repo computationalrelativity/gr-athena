@@ -67,6 +67,7 @@ class CellCenteredXBoundaryVariable : public BoundaryVariable {
   // VC
   // BoundaryBuffer:
   void SendBoundaryBuffers() override;
+  void SendBoundaryBuffersFullRestriction();
   void ReceiveAndSetBoundariesWithWait() override;
   void SetBoundaries() override;
   void SendFluxCorrection() override {return;};

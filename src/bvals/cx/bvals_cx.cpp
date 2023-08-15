@@ -567,6 +567,32 @@ void CellCenteredXBoundaryVariable::SendBoundaryBuffers() {
   BoundaryVariable::SendBoundaryBuffers();
 }
 
+void CellCenteredXBoundaryVariable::SendBoundaryBuffersFullRestriction() {
+  MeshBlock *pmb = pmy_block_;
+  MeshRefinement *pmr = pmb->pmr;
+
+
+
+  // restrict all data (except ghosts) to coarse buffer
+  if (pmy_mesh_->multilevel) //  && nn_level_different)
+  {
+    AthenaArray<Real> &var = *var_cx;
+    AthenaArray<Real> &coarse_var = *coarse_buf;
+
+    const int nu = var_cx->GetDim4() - 1;
+    pmr->RestrictCellCenteredXValues(
+      var,
+      coarse_var,
+      0, nu,
+      pmb->cx_cis, pmb->cx_cie,
+      pmb->cx_cjs, pmb->cx_cje,
+      pmb->cx_cks, pmb->cx_cke
+    );
+  }
+
+  BoundaryVariable::SendBoundaryBuffers();
+}
+
 //----------------------------------------------------------------------------------------
 //! \fn void CellCenteredXBoundaryVariable::SetBoundaries()
 //  \brief set the vertex-centered boundary data

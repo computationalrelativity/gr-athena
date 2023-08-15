@@ -86,7 +86,7 @@
 #define @Z4C_CC_ENABLED@
 #define @Z4C_CX_ENABLED@
 #define @Z4C_VC_ENABLED@
-
+#define Z4C_CX_NUM_RBC 0
 
 // enable GR frame transformations? default=0 (false)
 #define FRAME_TRANSFORMATIONS @FRAME_TRANSFORMATIONS@
