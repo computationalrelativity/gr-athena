@@ -14,7 +14,7 @@
 #include "../../athena.hpp"
 #include "../../athena_arrays.hpp"
 #include "bvals_cx.hpp"
-// #include "../../z4c/z4c.hpp"
+#include "../../z4c/z4c.hpp"
 
 //----------------------------------------------------------------------------------------
 //! \fn void CellCenteredXBoundaryVariable::ReflectInnerX1(
@@ -24,17 +24,17 @@
 void CellCenteredXBoundaryVariable::ReflectInnerX1(
     Real time, Real dt, int il, int jl, int ju, int kl, int ku, int ngh) {
   for (int n=0; n<=nu_; ++n) {
-//     if(n == (Z4c::I_Z4c_gxy) || n == (Z4c::I_Z4c_gxz) || n == (Z4c::I_Z4c_Axy) || n == (Z4c::I_Z4c_Axz) || n == (Z4c::I_Z4c_Gamx) || n == (Z4c::I_Z4c_betax)){
-//       for (int k=kl; k<=ku; ++k) {
-//         for (int j=jl; j<=ju; ++j) {
-// #pragma omp simd
-//           for (int i=1; i<=ngh; ++i) {
-//             (*var_cx)(n,k,j,il-i) = -(*var_cx)(n,k,j,(il+i));
-//           }
-//         }
-//       }
-//     }
-//     else
+    if(n == (Z4c::I_Z4c_gxy) || n == (Z4c::I_Z4c_gxz) || n == (Z4c::I_Z4c_Axy) || n == (Z4c::I_Z4c_Axz) || n == (Z4c::I_Z4c_Gamx) || n == (Z4c::I_Z4c_betax)){
+      for (int k=kl; k<=ku; ++k) {
+        for (int j=jl; j<=ju; ++j) {
+#pragma omp simd
+          for (int i=1; i<=ngh; ++i) {
+            (*var_cx)(n,k,j,il-i) = -(*var_cx)(n,k,j,(il+i));
+          }
+        }
+      }
+    }
+    else
     {
       for (int k=kl; k<=ku; ++k) {
         for (int j=jl; j<=ju; ++j) {
@@ -77,17 +77,17 @@ void CellCenteredXBoundaryVariable::ReflectOuterX1(
 void CellCenteredXBoundaryVariable::ReflectInnerX2(
     Real time, Real dt, int il, int iu, int jl, int kl, int ku, int ngh) {
   for (int n=0; n<=nu_; ++n) {
-//     if(n == (Z4c::I_Z4c_gxy) || n == (Z4c::I_Z4c_gyz) || n == (Z4c::I_Z4c_Axy) || n == (Z4c::I_Z4c_Ayz) || n == (Z4c::I_Z4c_Gamy) || n == (Z4c::I_Z4c_betay)){
-//       for (int k=kl; k<=ku; ++k) {
-//         for (int j=1; j<=ngh; ++j) {
-// #pragma omp simd
-//           for (int i=il; i<=iu; ++i) {
-// 	    (*var_cx)(n,k,jl-j,i) = -(*var_cx)(n,k,jl+j,i);
-//           }
-//         }
-//       }
-//     }
-//     else
+    if(n == (Z4c::I_Z4c_gxy) || n == (Z4c::I_Z4c_gyz) || n == (Z4c::I_Z4c_Axy) || n == (Z4c::I_Z4c_Ayz) || n == (Z4c::I_Z4c_Gamy) || n == (Z4c::I_Z4c_betay)){
+      for (int k=kl; k<=ku; ++k) {
+        for (int j=1; j<=ngh; ++j) {
+#pragma omp simd
+          for (int i=il; i<=iu; ++i) {
+	    (*var_cx)(n,k,jl-j,i) = -(*var_cx)(n,k,jl+j,i);
+          }
+        }
+      }
+    }
+    else
     {
       for (int k=kl; k<=ku; ++k) {
         for (int j=1; j<=ngh; ++j) {
@@ -130,17 +130,17 @@ void CellCenteredXBoundaryVariable::ReflectOuterX2(
 void CellCenteredXBoundaryVariable::ReflectInnerX3(
     Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ngh) {
   for (int n=0; n<=nu_; ++n) {
-//    if(n == (Z4c::I_Z4c_gxz) || n == (Z4c::I_Z4c_gyz) || n == (Z4c::I_Z4c_Axz) || n == (Z4c::I_Z4c_Ayz) || n == (Z4c::I_Z4c_Gamz) || n == (Z4c::I_Z4c_betaz)){
-//     for (int k=1; k<=ngh; ++k) {
-//       for (int j=jl; j<=ju; ++j) {
-// #pragma omp simd
-//         for (int i=il; i<=iu; ++i) {
-//           (*var_cx)(n,kl-k,j,i) = -(*var_cx)(n,kl+k,j,i);
-//         }
-//       }
-//     }
-//    }
-//    else
+   if(n == (Z4c::I_Z4c_gxz) || n == (Z4c::I_Z4c_gyz) || n == (Z4c::I_Z4c_Axz) || n == (Z4c::I_Z4c_Ayz) || n == (Z4c::I_Z4c_Gamz) || n == (Z4c::I_Z4c_betaz)){
+    for (int k=1; k<=ngh; ++k) {
+      for (int j=jl; j<=ju; ++j) {
+#pragma omp simd
+        for (int i=il; i<=iu; ++i) {
+          (*var_cx)(n,kl-k,j,i) = -(*var_cx)(n,kl+k,j,i);
+        }
+      }
+    }
+   }
+   else
    {
     for (int k=1; k<=ngh; ++k) {
       for (int j=jl; j<=ju; ++j) {
