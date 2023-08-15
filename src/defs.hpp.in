@@ -18,6 +18,9 @@
 // remove double VC restrict (& hence mitigate MB size restr.)
 #define NO_DBG_VC_DOUBLE_RESTRICT
 
+// debugging weyl projection
+#define NO_DBG_WEYL_SWSH_SEED_CART
+
 //----------------------------------------------------------------------------------------
 // macros which define physics and algorithms
 

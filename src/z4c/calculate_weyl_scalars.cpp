@@ -19,7 +19,17 @@
 #include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
 
+#if defined(DBG_WEYL_SWSH_SEED_CART)
+#include "wave_extract.hpp"
+#endif // DBG_WEYL_SWSH_SEED_CART
+
 #define SQ(X) ((X)*(X))
+
+template<typename T>
+static int sgn(T val)
+{
+  return (T(0) < val) - (val < T(0));
+}
 
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaArray<Real> & u_weyl)
@@ -41,6 +51,54 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
 
   // Simplify constants (2 & sqrt 2 factors) featured in re/im[psi4]
   const Real FR4 = 0.25;
+
+#if defined(DBG_WEYL_SWSH_SEED_CART)
+
+  ILOOP3(k,j,i)
+  {
+
+    const Real x = mbi.x1(i);
+    const Real y = mbi.x2(j);
+    const Real z = mbi.x3(k);
+
+    const Real r_xy = std::sqrt(SQR(x) + SQR(y));
+    const Real r = std::sqrt(SQR(x) + SQR(y) + SQR(z));
+
+    Real theta = std::acos(z / r);
+    Real phi = sgn(y) * std::acos(x / (std::sqrt(SQR(x) + SQR(y))));
+
+    // deal with axis
+    if (r == 0)
+    {
+      theta = 0;
+    }
+
+    if (r_xy == 0)
+    {
+      phi = 0;
+    }
+
+    Real ylmR;
+    Real ylmI;
+
+    WaveExtractLocal::swsh(&ylmR, &ylmI, 2, 2, theta, phi);
+
+    weyl.rpsi4(k,j,i) = ylmR;
+    weyl.ipsi4(k,j,i) = ylmI;
+
+    // weyl.rpsi4(k,j,i) = std::cos(phi);
+    // weyl.ipsi4(k,j,i) = 0;
+
+
+    // WaveExtractLocal::swsh(&ylmR, &ylmI, 4, 0, theta, phi);
+
+    // weyl.rpsi4(k,j,i) -= ylmR;
+    // weyl.ipsi4(k,j,i) -= ylmI;
+
+  }
+
+  return;
+#endif // DBG_WEYL_SWSH_SEED_CART
 
   ILOOP2(k,j) {
 

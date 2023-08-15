@@ -53,13 +53,7 @@ SphericalPatch::SphericalPatch(SphericalGrid const * psphere, MeshBlock const * 
   int size[3];
 
   switch (coll) {
-    case cell: 
-      xmin = pmc->x1v(pmb->is);
-      xmax = pmc->x1v(pmb->ie);
-      ymin = pmc->x2v(pmb->js);
-      ymax = pmc->x2v(pmb->je);
-      zmin = pmc->x3v(pmb->ks);
-      zmax = pmc->x3v(pmb->ke);
+    case cell:
       origin[0] = pmc->x1v(0);
       origin[1] = pmc->x2v(0);
       origin[2] = pmc->x3v(0);
@@ -68,12 +62,6 @@ SphericalPatch::SphericalPatch(SphericalGrid const * psphere, MeshBlock const * 
       size[2] = pmb->block_size.nx3 + 2*(NGHOST);
       break;
     case vertex:
-      xmin = pmc->x1f(pmb->is);
-      xmax = pmc->x1f(pmb->ie+1);
-      ymin = pmc->x2f(pmb->js);
-      ymax = pmc->x2f(pmb->je+1);
-      zmin = pmc->x3f(pmb->ks);
-      zmax = pmc->x3f(pmb->ke+1);
       origin[0] = pmc->x1f(0);
       origin[1] = pmc->x2f(0);
       origin[2] = pmc->x3f(0);
@@ -85,6 +73,14 @@ SphericalPatch::SphericalPatch(SphericalGrid const * psphere, MeshBlock const * 
   delta[0] = pmc->dx1v(0);
   delta[1] = pmc->dx2v(0);
   delta[2] = pmc->dx3v(0);
+
+  // utilize VC limits (CC/CX are sandwiched so can recycle conditional below)
+  xmin = pmc->x1f(pmb->is);
+  xmax = pmc->x1f(pmb->ie+1);
+  ymin = pmc->x2f(pmb->js);
+  ymax = pmc->x2f(pmb->je+1);
+  zmin = pmc->x3f(pmb->ks);
+  zmax = pmc->x3f(pmb->ke+1);
 
   // Loop over all points to find those belonging to this spherical patch
   int const np = psphere->NumVertices();
