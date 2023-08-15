@@ -59,10 +59,12 @@ Z4cAuxTaskList::Z4cAuxTaskList(ParameterInput *pin, Mesh *pm){
     // SMR should be dealt with in this function too for consistency
     if (pm->multilevel) { // SMR or AMR
       AddTask(PROL_AUX, (SEND_AUX|SETB_AUX));
-      AddTask(NOP, PROL_AUX);
+      AddTask(PHY_BVAL, PROL_AUX);
     } else {
-      AddTask(NOP, SETB_AUX);
+      AddTask(PHY_BVAL, SETB_AUX);
     }
+
+    AddTask(NOP, PHY_BVAL);
 
     // have data on new grid, can do various calculations here...
     AddTask(WEYL_DECOMP, NOP);
@@ -108,6 +110,11 @@ void Z4cAuxTaskList::AddTask(const TaskID& id, const TaskID& dep) {
       task_list_[ntasks].TaskFunc=
         static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
         (&Z4cAuxTaskList::ProlongAux);
+      task_list_[ntasks].lb_time = true;
+    } else if (id == PHY_BVAL) {
+      task_list_[ntasks].TaskFunc=
+        static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
+        (&Z4cAuxTaskList::PhysicalBoundary);
       task_list_[ntasks].lb_time = true;
     } else if (id == WEYL_DECOMP) {
       task_list_[ntasks].TaskFunc=
@@ -181,6 +188,22 @@ TaskStatus Z4cAuxTaskList::ProlongAux(MeshBlock *pmb, int stage) {
   // this is post-integ loop
   Real t_end_stage = pmb->pmy_mesh->time;
   pbval->ProlongateBoundaries(t_end_stage, 0);
+
+  return TaskStatus::success;
+}
+
+TaskStatus Z4cAuxTaskList::PhysicalBoundary(MeshBlock *pmb, int stage) {
+  BoundaryValues *pbval = pmb->pbval;
+
+  if (stage <= nstages) {
+
+  // this is post-integ loop
+  Real t_end_stage = pmb->pmy_mesh->time;
+  pbval->ApplyPhysicalBoundariesAux(t_end_stage, 0);
+
+  } else {
+    return TaskStatus::fail;
+  }
 
   return TaskStatus::success;
 }

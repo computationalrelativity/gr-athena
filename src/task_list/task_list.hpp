@@ -482,6 +482,7 @@ public:
   TaskStatus ReceiveAux(MeshBlock *pmb, int stage);          // RECV_AUX     [x]
   TaskStatus SetBoundariesAux(MeshBlock *pmb, int stage);    // SETB_AUX     [x]
   TaskStatus ProlongAux(MeshBlock *pmb, int stage);          // PROL_AUX     [x]
+  TaskStatus PhysicalBoundary(MeshBlock *pmb, int stage);    // PHY_BVAL     [x]
   TaskStatus WeylDecompose(MeshBlock *pmb, int stage);       // WEYL_DECOMP  [x]
   TaskStatus ClearAllAuxBoundary(MeshBlock *pmb, int stage); // CLEAR_AUXBND [x]
 
@@ -518,8 +519,9 @@ namespace Z4cAuxTaskNames {
   const TaskID RECV_AUX(5);
   const TaskID SETB_AUX(6);
   const TaskID PROL_AUX(7);
-  const TaskID WEYL_DECOMP(8);
-  const TaskID CLEAR_AUXBND(9);
+  const TaskID PHY_BVAL(8);
+  const TaskID WEYL_DECOMP(9);
+  const TaskID CLEAR_AUXBND(10);
 
 }  // namespace Z4cAuxTaskNames
 

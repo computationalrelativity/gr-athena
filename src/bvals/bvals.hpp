@@ -149,6 +149,9 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   void ProlongateCellCenteredXBoundaries(const Real time, const Real dt);
   //---------------------------------------------------------------------------
 
+  // Interface to deal with garbage interface...
+  void ApplyPhysicalBoundariesAux(const Real time, const Real dt);
+
   // compute the shear at each integrator stage
   // TODO(felker): consider making this fn private again if calling within StartRecv()
   void FindShearBlock(const Real time);
@@ -236,6 +239,7 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
       std::vector<BoundaryVariable *> &bvars_main);
 
   void CheckPolarBoundaries();  // called in BoundaryValues() ctor
+
 
   // temporary--- Added by @tomidakn on 2015-11-27 in f0f989f85f
   // TODO(KGF): consider removing this friendship designation

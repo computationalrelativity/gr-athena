@@ -297,6 +297,26 @@ void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt) {
   return;
 }
 
+void BoundaryValues::ApplyPhysicalBoundariesAux(const Real time, const Real dt)
+{
+  if (Z4C_ENABLED)
+  {
+    #if defined(Z4C_VC_ENABLED)
+      std::swap(bvars_main_int_vc, bvars_aux);
+      ApplyPhysicalVertexCenteredBoundaries(time, dt);
+      std::swap(bvars_main_int_vc, bvars_aux);
+    #elif defined(Z4C_CX_ENABLED)
+      std::swap(bvars_main_int_cx, bvars_aux);
+      ApplyPhysicalCellCenteredXBoundaries(time, dt);
+      std::swap(bvars_main_int_cx, bvars_aux);
+    #elif defined(Z4C_CC_ENABLED)
+      std::swap(bvars_main_int, bvars_aux);
+      ApplyPhysicalBoundaries(time, dt);
+      std::swap(bvars_main_int, bvars_aux);
+    #endif
+  }
+}
+
 
 void BoundaryValues::RestrictGhostCellsOnSameLevel(const NeighborBlock& nb, int nk,
                                                    int nj, int ni) {
@@ -727,7 +747,10 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(const Re
   return;
 }
 
-void BoundaryValues::ApplyPhysicalCellCenteredXBoundariesOnCoarseLevel(const Real time, const Real dt) {
+void BoundaryValues::ApplyPhysicalCellCenteredXBoundariesOnCoarseLevel(
+  const Real time,
+  const Real dt)
+{
   MeshBlock *pmb = pmy_block_;
   MeshRefinement *pmr = pmb->pmr;
   int bis = pmb->cx_cis - NCGHOST_CX, bie = pmb->cx_cie + NCGHOST_CX,
