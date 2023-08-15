@@ -16,6 +16,33 @@ namespace numprox { namespace interpolation {
 namespace Floater_Hormann {
 // ============================================================================
 
+// template <typename T>
+// static inline T weight(const T * const gr_s,
+//                        int Ns,
+//                        int k, int d)
+// {
+//   const int il = std::max(k-d, 0);
+//   const int iu = std::min(k, Ns-d);
+
+//   T wei = 0.;
+
+//   for(int i=il; i<=iu; ++i)
+//   {
+//     T wei_i = std::pow(-1, i);
+
+//     for(int s=i; s<=i+d; ++s)
+//     {
+//       T den = gr_s[k] - gr_s[s];
+//       den = den * (s != k) + (s == k);
+//       wei_i = wei_i / den;
+//     }
+
+//     wei += wei_i;
+//   }
+
+//   return wei;
+// }
+
 template <typename T>
 static inline T weight(const T * const gr_s,
                        int Ns,
@@ -25,6 +52,7 @@ static inline T weight(const T * const gr_s,
   const int iu = std::min(k, Ns-d);
 
   T wei = 0.;
+  T c = 0.;
 
   for(int i=il; i<=iu; ++i)
   {
@@ -37,10 +65,15 @@ static inline T weight(const T * const gr_s,
       wei_i = wei_i / den;
     }
 
-    wei += wei_i;
+    // wei += wei_i;
+    T t = wei + wei_i;
+    c += (std::abs(wei) >= std::abs(wei_i)) ?
+      ((wei - t) + wei_i) :
+      ((wei_i - t) + wei);
+    wei = t;
   }
 
-  return wei;
+  return wei + c;
 }
 
 template<typename Tg, typename Tf>
@@ -364,6 +397,9 @@ static Tf interp_nn_3d(Tg x1_t, Tg x2_t, Tg x3_t,
   }
   // --------------------------------------------------------------------------
 
+  Tr s_1 = 0, s_2 = 0;
+  Tr c_1 = 0, c_2 = 0;
+
   for(int k3=0; k3<=W-1; ++k3)
   for(int k2=0; k2<=W-1; ++k2)
   for(int k1=0; k1<=W-1; ++k1)
@@ -374,9 +410,28 @@ static Tf interp_nn_3d(Tg x1_t, Tg x2_t, Tg x3_t,
                        (Ns_x2+1+2*ng) * (k3+ng+ix_kl))
     );
 
-    num += rw_k1[k1]*rw_k2[k2]*rw_k3[k3]*fcn_s[ix];
-    den += rw_k1[k1]*rw_k2[k2]*rw_k3[k3];
+    // num += rw_k1[k1]*rw_k2[k2]*rw_k3[k3]*fcn_s[ix];
+    // den += rw_k1[k1]*rw_k2[k2]*rw_k3[k3];
+
+    const Tr i_1 = rw_k1[k1]*rw_k2[k2]*rw_k3[k3]*fcn_s[ix];
+    const Tr i_2 = rw_k1[k1]*rw_k2[k2]*rw_k3[k3];
+
+    Tr t_1 = s_1 + i_1;
+    c_1 += (std::abs(s_1) >= std::abs(i_1)) ?
+      ((s_1 - t_1) + i_1) :
+      ((i_1 - t_1) + s_1);
+    s_1 = t_1;
+
+    Tr t_2 = s_2 + i_2;
+    c_2 += (std::abs(s_2) >= std::abs(i_2)) ?
+      ((s_2 - t_2) + i_2) :
+      ((i_2 - t_2) + s_2);
+    s_2 = t_2;
+
   }
+
+  num = s_1+c_1;
+  den = s_2+c_2;
 
   delete[] rw_k1;
   delete[] rw_k2;
@@ -963,6 +1018,9 @@ inline void interp_nd<Tg, Tf>::eval_nn(Tf* fcn_t, const Tf* const fcn_s,
   {
     Tr num = 0, den = 0;
 
+    Tr s_1 = 0, s_2 = 0;
+    Tr c_1 = 0, c_2 = 0;
+
     for(int k3=0; k3<=W-1; ++k3)
     for(int k2=0; k2<=W-1; ++k2)
     for(int k1=0; k1<=W-1; ++k1)
@@ -985,9 +1043,28 @@ inline void interp_nd<Tg, Tf>::eval_nn(Tf* fcn_t, const Tf* const fcn_s,
         rwei_nn_x3[ix_k3]
       );
 
-      num += prwei_k1k2k3 * fcn_s[fs_ix];
-      den += prwei_k1k2k3;
+      // num += prwei_k1k2k3 * fcn_s[fs_ix];
+      // den += prwei_k1k2k3;
+
+      const Tr i_1 = prwei_k1k2k3 * fcn_s[fs_ix];
+      const Tr i_2 = prwei_k1k2k3;
+
+      Tr t_1 = s_1 + i_1;
+      c_1 += (std::abs(s_1) >= std::abs(i_1)) ?
+        ((s_1 - t_1) + i_1) :
+        ((i_1 - t_1) + s_1);
+      s_1 = t_1;
+
+      Tr t_2 = s_2 + i_2;
+      c_2 += (std::abs(s_2) >= std::abs(i_2)) ?
+        ((s_2 - t_2) + i_2) :
+        ((i_2 - t_2) + s_2);
+      s_2 = t_2;
+
     }
+
+    num = s_1+c_1;
+    den = s_2+c_2;
 
     const int ft_ix = (
         (i1+ng_t) +
