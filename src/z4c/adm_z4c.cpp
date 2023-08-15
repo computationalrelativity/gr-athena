@@ -53,8 +53,12 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u) {
     // Conformal factor
     GLOOP1(i) {
       detg(i)   = SpatialDet(adm.g_dd, k, j, i);
-      oopsi4(i) = pow(detg(i), -1./3.);
-      z4c.chi(k,j,i) = pow(detg(i), 1./12.*opt.chi_psi_power);
+      // oopsi4(i) = pow(detg(i), -1./3.);
+      // z4c.chi(k,j,i) = pow(detg(i), 1./12.*opt.chi_psi_power);
+
+      oopsi4(i) = std::cbrt(1.0 / detg(i));
+      z4c.chi(k,j,i) = oopsi4(i);
+
     }
 
     // Conformal metric and extrinsic curvature
