@@ -139,7 +139,7 @@ private:
   void FastFlowLoop();
   void UpdateFlowSpectralComponents();
   void RadiiFromSphericalHarmonics();
-  void InitialGuess();
+  void InitialGuess(Real expand_guess_attempts);
   void ComputeSphericalHarmonics();
   void ComputeLegendre(const Real theta);
   int lmindex(const int l, const int m);

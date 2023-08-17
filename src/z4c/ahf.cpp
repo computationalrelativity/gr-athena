@@ -56,7 +56,6 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   lmax1 = lmax+1;
   
   flow_iterations = pin->GetOrAddInteger("ahf", "flow_iterations",100);
-  flow_alpha_beta_const = pin->GetOrAddReal("ahf", "flow_alpha_beta_const",1.0);
   hmean_tol = pin->GetOrAddReal("ahf", "hmean_tol",100.);
   mass_tol = pin->GetOrAddReal("ahf", "mass_tol",1e-2);
   verbose = pin->GetOrAddBoolean("ahf", "verbose", 0);
@@ -116,6 +115,11 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   parname = "wait_until_punc_are_close_";
   parname += n_str;
   wait_until_punc_are_close = pin->GetOrAddBoolean("ahf", parname, 0);
+
+  
+  parname = "flow_alpha_beta_const_";
+  parname += n_str;
+  flow_alpha_beta_const = pin->GetOrAddReal("ahf", parname,1.0);
   
   // Initialize last & found
   last_a0 = -1;
@@ -996,8 +1000,14 @@ void AHF::Find(int iter, Real time)
   if((time < start_time) || (time > stop_time)) return;
   if (wait_until_punc_are_close && !(PuncAreClose())) return;
   if (iter % compute_every_iter != 0) return;
-  InitialGuess();
-  FastFlowLoop();
+  int attempts = 0;
+  do {
+    InitialGuess(std::pow(1.5,attempts));
+    FastFlowLoop();
+    if (!ah_found && ioproc && verbose) std::cout<<"Failed AHF: attempt "<<attempts<<", trying again increasing r_mean by 50%."<<std::endl;
+    attempts += 1;
+  }
+  while (attempts < 3 && !ah_found);
 }
 
 //----------------------------------------------------------------------------------------
@@ -1253,7 +1263,7 @@ void AHF::RadiiFromSphericalHarmonics()
 //----------------------------------------------------------------------------------------
 // \!fn void AHF::InitialGuess()
 // \brief initial guess for spectral coefs of horizon n
-void AHF::InitialGuess()
+void AHF::InitialGuess(Real expand_guess_attempts)
 {
   // Reset Coefficients to Zero  
   a0.ZeroClear();
@@ -1275,7 +1285,7 @@ void AHF::InitialGuess()
       a0(0) = last_a0 * expand_guess;
     } else {
       a0(0) = std::max(0.5 * mass, std::min(mass, 0.5 * largedist)); 
-      a0(0) *= std::sqrt(4.0*PI);
+      a0(0) *= std::sqrt(4.0*PI)*expand_guess_attempts;
     }
     return;
   }
