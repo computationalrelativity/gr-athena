@@ -43,7 +43,6 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   std::string n_str = std::to_string(nh);
   
   ntheta = pin->GetOrAddInteger("ahf", "ntheta",60);
-
   nphi = pin->GetOrAddInteger("ahf", "nphi",30);
   if ((nphi+1)%2==0) {
     std::stringstream msg;
@@ -63,7 +62,8 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   root = pin->GetOrAddInteger("ahf", "mpi_root", 0);
   merger_distance = pin->GetOrAddReal("ahf", "merger_distance", 0.1);
   bitant = pin->GetOrAddBoolean("z4c", "bitant", false);
-  
+  metric_interp_order = pin->GetOrAddInteger("ahf", "metric_interp_order",2);
+    
   // Initial guess
   parname = "initial_radius_";
   parname += n_str;
@@ -384,7 +384,7 @@ void AHF::MetricDerivatives(MeshBlock * pmy_block)
 // Flag here the surface points contained in the MB
 void AHF::MetricInterp(MeshBlock * pmb)
 {
-  LagrangeInterpND<2, 3> * pinterp3 = nullptr;
+  LagrangeInterpND<metric_interp_order, 3> * pinterp3 = nullptr;
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> vc_adm_g_dd;      // 3-metric  (NDIM=3 in z4c.hpp)
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> vc_adm_K_dd;      // extr.curv.
   vc_adm_g_dd.InitWithShallowSlice(pmb->pz4c->storage.adm, Z4c::I_ADM_gxx);
@@ -465,7 +465,7 @@ void AHF::MetricInterp(MeshBlock * pmb)
       delta[2]  = pmb->pcoord->dx3f(0);
       coord[2]  = z;
         
-      pinterp3 =  new LagrangeInterpND<2, 3>(origin, delta, size, coord);
+      pinterp3 =  new LagrangeInterpND<metric_interp_order, 3>(origin, delta, size, coord);
 
       // With bitant wrt z=0, pick a (-) sign every time a z component is 
       // encountered.
