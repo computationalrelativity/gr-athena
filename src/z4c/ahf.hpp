@@ -84,7 +84,6 @@ private:
   int nh;
   bool wait_until_punc_are_close;
   bool bitant;
-  int metric_interp_order;
   //! Number of horizons
   int nhorizon;
   int fastflow_iter=0;
