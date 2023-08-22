@@ -464,7 +464,7 @@ void AHF::MetricInterp(MeshBlock * pmb)
       delta[2]  = pmb->pcoord->dx3f(0);
       coord[2]  = z;
         
-      pinterp3 =  new LagrangeInterpND<metric_interp_order, 3>(origin, delta, size, coord);
+      pinterp3 =  new LagrangeInterpND<2*NGHOST-1, 3>(origin, delta, size, coord);
 
       // With bitant wrt z=0, pick a (-) sign every time a z component is 
       // encountered.
