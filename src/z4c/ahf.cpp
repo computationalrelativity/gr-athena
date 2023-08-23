@@ -1085,17 +1085,17 @@ void AHF::FastFlowLoop()
     //TODO should not happen, check?
     SurfaceIntegrals();
 
-    area = integrals[iarea];
-    hrms = integrals[ihrms]/area;
+    area  = integrals[iarea];
+    hrms  = integrals[ihrms]/area;
     hmean = integrals[ihmean];
     Sx = integrals[iSx]/(8*PI);
     Sy = integrals[iSy]/(8*PI);
     Sz = integrals[iSz]/(8*PI);
-
-    S = std::sqrt(SQR(Sx)+SQR(Sy)+SQR(Sz));
+    S  = std::sqrt(SQR(Sx)+SQR(Sy)+SQR(Sz));
 
     meanradius = a0(0)/std::sqrt(4.0*PI);
 
+    // Irreducible mass
     mass_prev = mass;
     mass = std::sqrt(area/(16.0*PI));     
 
@@ -1137,25 +1137,27 @@ void AHF::FastFlowLoop()
     ah_prop[hcoarea] = integrals[icoarea];
     ah_prop[hhrms] = hrms;
     ah_prop[hhmean] = hmean;
-    ah_prop[hSx] = integrals[iSx];
-    ah_prop[hSy] = integrals[iSy];
-    ah_prop[hSz] = integrals[iSz];
-    ah_prop[hS] = std::sqrt(SQR(ah_prop[hSx]) + SQR(ah_prop[hSy]) + SQR(ah_prop[hSz]));
-    ah_prop[hmass] = mass;
     ah_prop[hmeanradius] = meanradius;
+    ah_prop[hSx] = Sx;
+    ah_prop[hSy] = Sy;
+    ah_prop[hSz] = Sz;    
+    ah_prop[hS]  = S;
+    ah_prop[hmass] = std::sqrt( SQR(mass) + SQR(S/(4.0*mass)) ); // Christodoulu mass
+    
   }
   
   if (verbose && ioproc) {
     
     if (ah_found) {
       std::cout << "Found horizon " << nh << std::endl;
-      std::cout << " mass = " << mass << std::endl;
+      std::cout << " mass_irr = " << mass << std::endl;
       std::cout << " meanradius = " << meanradius << std::endl;
       std::cout << " hrms = " << hrms << std::endl;
       std::cout << " hmean = " << hmean << std::endl;
       std::cout << " Sx = " << Sx << std::endl;
       std::cout << " Sy = " << Sy << std::endl;
       std::cout << " Sz = " << Sz << std::endl;
+      std::cout << " S  = " << S << std::endl;
     } else if (!failed && !ah_found) {
       std::cout << "Failed, reached max iterations " << flow_iterations << std::endl;
     }

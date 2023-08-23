@@ -8,10 +8,6 @@
 //! \file ahf.hpp
 //  \brief definitions for the AHF class
 
-// TODO
-// * check public/private
-// * check for missing definitions
-
 #include <string>
 
 #include "../athena.hpp"
