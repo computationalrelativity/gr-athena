@@ -12,6 +12,7 @@
 #include <iomanip>
 #include <iostream>
 #include <fstream>
+#include <limits>
 
 // Athena++ headers
 #include "z4c.hpp"
@@ -28,6 +29,8 @@
 // This function operates only on the interior points of the MeshBlock
 
 void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaArray<Real> & u_weyl) {
+  u_weyl.Fill(std::numeric_limits<Real>::quiet_NaN());
+
   ADM_vars adm;
   SetADMAliases(u_adm, adm);
 
@@ -36,8 +39,6 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
 
   Weyl_vars weyl;
   SetWeylAliases(u_weyl, weyl);
-  weyl.rpsi4.ZeroClear();
-  weyl.ipsi4.ZeroClear();
 
   // Simplify constants (2 & sqrt 2 factors) featured in re/im[psi4]
   const Real FR4 = 0.25;

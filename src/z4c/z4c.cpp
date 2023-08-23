@@ -56,9 +56,6 @@ char const * const Z4c::Weyl_names[Z4c::N_WEY] = {
 
 Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   pmy_block(pmb),
-  coarse_u_(N_Z4c, pmb->ncv3, pmb->ncv2, pmb->ncv1,
-            (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
-             AthenaArray<Real>::DataStatus::empty)),
   storage{{N_Z4c, pmb->nverts3, pmb->nverts2, pmb->nverts1}, // u
           {N_Z4c, pmb->nverts3, pmb->nverts2, pmb->nverts1}, // u1
           {},                                                // u2
@@ -68,8 +65,15 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
           {N_MAT, pmb->nverts3, pmb->nverts2, pmb->nverts1}, // mat
           {N_WEY, pmb->nverts3, pmb->nverts2, pmb->nverts1}, // weyl
   },
+  coarse_u_(N_Z4c, pmb->ncv3, pmb->ncv2, pmb->ncv1,
+            (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
+             AthenaArray<Real>::DataStatus::empty)),
+  coarse_weyl_(N_WEY, pmb->ncv3, pmb->ncv2, pmb->ncv1,
+            (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
+             AthenaArray<Real>::DataStatus::empty)),
   empty_flux{AthenaArray<Real>(), AthenaArray<Real>(), AthenaArray<Real>()},
-  ubvar(pmb, &storage.u, &coarse_u_, empty_flux)
+  ubvar(pmb, &storage.u, &coarse_u_, empty_flux),
+  weylbvar(pmb, &storage.weyl, &coarse_weyl_, empty_flux)
 {
   Mesh *pm = pmy_block->pmy_mesh;
   Coordinates * pco = pmb->pcoord;
@@ -92,11 +96,16 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   if (integrator == "ssprk5_4")
     storage.u2.NewAthenaArray(N_Z4c, pmb->nverts3, pmb->nverts2, pmb->nverts1);
 
-  // enroll CellCenteredBoundaryVariable / VertexCenteredBoundaryVariable object
+  // enroll VertexCenteredBoundaryVariable object
   ubvar.bvar_index = pmb->pbval->bvars.size();
   pmb->pbval->bvars.push_back(&ubvar);
   pmb->pbval->bvars_main_int_vc.push_back(&ubvar);
 
+  weylbvar.bvar_index = pmb->pbval->bvars.size();
+  pmb->pbval->bvars.push_back(&weylbvar);
+  pmb->pbval->bvars_main_int_vc.push_back(&weylbvar);
+
+  //
   dt1_.NewAthenaArray(pmb->nverts1);
   dt2_.NewAthenaArray(pmb->nverts1);
   dt3_.NewAthenaArray(pmb->nverts1);

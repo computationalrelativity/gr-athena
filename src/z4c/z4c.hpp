@@ -196,15 +196,16 @@ public:
     AthenaArray<Real> sphere_zone_center3;
   } opt;
 
-
-  // boundary and grid data
-  VertexCenteredBoundaryVariable ubvar;
-  AthenaArray<Real> empty_flux[3];
-
   // storage for SMR/AMR
   // BD: this should perhaps be combined with the above stuct.
   AthenaArray<Real> coarse_u_;
+  AthenaArray<Real> coarse_weyl_;
   int refinement_idx{-1};
+
+  // boundary and grid data
+  VertexCenteredBoundaryVariable ubvar;
+  VertexCenteredBoundaryVariable weylbvar;
+  AthenaArray<Real> empty_flux[3];
 
 public:
   // scheduled functions

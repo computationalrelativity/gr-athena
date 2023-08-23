@@ -245,10 +245,12 @@ void BoundaryValues::ProlongateVertexCenteredBoundaries(const Real time, const R
   if (Z4C_ENABLED) {
     pz4c = pmb->pz4c;
     pz4c->ubvar.var_vc = &(pz4c->coarse_u_);
+    pz4c->weylbvar.var_vc = &(pz4c->coarse_weyl_);
   }
   ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(time, dt);
   if (Z4C_ENABLED) {
     pz4c->ubvar.var_vc = &(pz4c->storage.u);
+    pz4c->weylbvar.var_vc = &(pz4c->storage.weyl);
   }
   ApplyProlongateVertexCenteredBoundaries(time, dt);
   return;

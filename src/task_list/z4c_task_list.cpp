@@ -312,36 +312,38 @@ Z4cIntegratorTaskList::Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm){
 
   // Now assemble list of tasks for each stage of z4c integrator
   {using namespace Z4cIntegratorTaskNames;
-    AddTask(CALC_Z4CRHS, NONE);                // CalculateZ4cRHS
-    AddTask(INT_Z4C, CALC_Z4CRHS);             // IntegrateZ4c
+    AddTask(CALC_Z4CRHS, NONE);                         // CalculateZ4cRHS
+    AddTask(Z4C_WEYL, NONE);                            // Calc Psi4
+    AddTask(INT_Z4C, (CALC_Z4CRHS|Z4C_WEYL));           // IntegrateZ4c
 
-    AddTask(SEND_Z4C, INT_Z4C);                // SendZ4c
-    AddTask(RECV_Z4C, NONE);                   // ReceiveZ4c
+    AddTask(SEND_Z4C, (INT_Z4C|Z4C_WEYL));              // SendZ4c
+    AddTask(RECV_Z4C, NONE);                            // ReceiveZ4c
 
-    AddTask(SETB_Z4C, (RECV_Z4C|INT_Z4C));     // SetBoundariesZ4c
-    if (pm->multilevel) { // SMR or AMR
-      AddTask(PROLONG, (SEND_Z4C|SETB_Z4C));   // Prolongation
-      AddTask(PHY_BVAL, PROLONG);              // PhysicalBoundary
+    AddTask(SETB_Z4C, (RECV_Z4C|INT_Z4C|Z4C_WEYL));     // SetBoundariesZ4c
+    if (pm->multilevel) {                               // SMR or AMR
+      AddTask(PROLONG, (SEND_Z4C|SETB_Z4C));            // Prolongation
+      AddTask(PHY_BVAL, PROLONG);                       // PhysicalBoundary
     } else {
-      AddTask(PHY_BVAL, SETB_Z4C);             // PhysicalBoundary
+      AddTask(PHY_BVAL, SETB_Z4C);                      // PhysicalBoundary
     }
 
-    AddTask(ALG_CONSTR, PHY_BVAL);             // EnforceAlgConstr
-    AddTask(Z4C_TO_ADM, ALG_CONSTR);           // Z4cToADM
-    AddTask(ADM_CONSTR, Z4C_TO_ADM);           // ADM_Constraints
-    AddTask(Z4C_WEYL, Z4C_TO_ADM);             // Calc Psi4
-    AddTask(WAVE_EXTR, Z4C_WEYL);              // Project Psi4 multipoles
-    AddTask(USERWORK, ADM_CONSTR);             // UserWork
+    AddTask(ALG_CONSTR, PHY_BVAL);                      // EnforceAlgConstr
+    AddTask(Z4C_TO_ADM, ALG_CONSTR);                    // Z4cToADM
+    AddTask(ADM_CONSTR, Z4C_TO_ADM);                    // ADM_Constraints
+    AddTask(USERWORK, ADM_CONSTR);                      // UserWork
 
-    AddTask(NEW_DT, USERWORK);                 // NewBlockTimeStep
+    AddTask(WAVE_EXTR, PHY_BVAL);                       // Project Psi4 multipoles
+
+    AddTask(NEW_DT, USERWORK);                          // NewBlockTimeStep
     if (pm->adaptive) {
-      AddTask(FLAG_AMR, USERWORK);             // CheckRefinement
-      AddTask(CLEAR_ALLBND, FLAG_AMR);         // ClearAllBoundary
+      AddTask(FLAG_AMR, USERWORK);                      // CheckRefinement
+      AddTask(CLEAR_ALLBND, FLAG_AMR);                  // ClearAllBoundary
     } else {
-      AddTask(CLEAR_ALLBND, NEW_DT);           // ClearAllBoundary
+      AddTask(CLEAR_ALLBND, NEW_DT);                    // ClearAllBoundary
     }
 
-    AddTask(ASSERT_FIN, CLEAR_ALLBND);         // AssertFinite
+
+    AddTask(ASSERT_FIN, CLEAR_ALLBND);                  // AssertFinite
   } // end of using namespace block
 }
 
@@ -546,6 +548,9 @@ TaskStatus Z4cIntegratorTaskList::IntegrateZ4c(MeshBlock *pmb, int stage) {
 // Functions to communicate conserved variables between MeshBlocks
 
 TaskStatus Z4cIntegratorTaskList::SendZ4c(MeshBlock *pmb, int stage) {
+  if (stage == 1) {
+    pmb->pz4c->weylbvar.SendBoundaryBuffers();
+  }
   if (stage <= nstages) {
     pmb->pz4c->ubvar.SendBoundaryBuffers();
   } else {
@@ -558,9 +563,12 @@ TaskStatus Z4cIntegratorTaskList::SendZ4c(MeshBlock *pmb, int stage) {
 // Functions to receive conserved variables between MeshBlocks
 
 TaskStatus Z4cIntegratorTaskList::ReceiveZ4c(MeshBlock *pmb, int stage) {
-  bool ret;
+  bool ret = true;
+  if (stage == 1) {
+    ret = ret && pmb->pz4c->weylbvar.ReceiveBoundaryBuffers();
+  }
   if (stage <= nstages) {
-    ret = pmb->pz4c->ubvar.ReceiveBoundaryBuffers();
+    ret = ret && pmb->pz4c->ubvar.ReceiveBoundaryBuffers();
   } else {
     return TaskStatus::fail;
   }
@@ -572,6 +580,9 @@ TaskStatus Z4cIntegratorTaskList::ReceiveZ4c(MeshBlock *pmb, int stage) {
 }
 
 TaskStatus Z4cIntegratorTaskList::SetBoundariesZ4c(MeshBlock *pmb, int stage) {
+  if (stage == 1) {
+    pmb->pz4c->weylbvar.SetBoundaries();
+  }
   if (stage <= nstages) {
     pmb->pz4c->ubvar.SetBoundaries();
     return TaskStatus::success;
@@ -641,8 +652,7 @@ TaskStatus Z4cIntegratorTaskList::Z4cToADM(MeshBlock *pmb, int stage) {
 }
 
 TaskStatus Z4cIntegratorTaskList::Z4c_Weyl(MeshBlock *pmb, int stage) {
-  // only do on last stage
-  if (stage != nstages) return TaskStatus::success;
+  if (stage != 1) return TaskStatus::success;
 
   Mesh *pm = pmb->pmy_mesh;
   if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction)) {
@@ -655,7 +665,7 @@ TaskStatus Z4cIntegratorTaskList::Z4c_Weyl(MeshBlock *pmb, int stage) {
 
 TaskStatus Z4cIntegratorTaskList::WaveExtract(MeshBlock *pmb, int stage) {
   // only do on last stage
-  if (stage != nstages) return TaskStatus::success;
+  if (stage != 1) return TaskStatus::success;
 
   Mesh *pm = pmb->pmy_mesh;
 

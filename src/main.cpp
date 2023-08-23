@@ -523,7 +523,6 @@ int main(int argc, char *argv[]) {
         pz4clist->DoTaskListOneStage(pmesh, stage);
       }
 
-      // BD: TODO - check that the following are not displaced by \dt ?
       // only do an extraction if NextTime threshold cleared (updated below)
       if (pz4clist->TaskListTriggers.wave_extraction.to_update) {
         for (auto pwextr : pmesh->pwave_extr) {
@@ -532,17 +531,15 @@ int main(int argc, char *argv[]) {
         }
       }
 
-      // TODO: probably we do not want to output tracker data at every timestep
       for (auto ptracker : pmesh->pz4c_tracker) {
         ptracker->EvolveTracker();
+        // TODO: probably we do not want to output tracker data at every timestep
         ptracker->WriteTracker(pmesh->ncycle, pmesh->time);
       }
 
-      //-------------------------------------------------------------------------
       // Update NextTime triggers
       // This needs to be here to share tasklist external (though coupled) ops.
       pz4clist->UpdateTaskListTriggers();
-      //-------------------------------------------------------------------------
     }
 
     pmesh->UserWorkInLoop();
