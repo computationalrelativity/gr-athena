@@ -898,21 +898,21 @@ void AHF::SurfaceIntegrals()
       // Integrand of spin
       Real intSx = 0;
       for(int a = 0; a < NDIM; ++a) {
-	      for(int b = a; b < NDIM; ++b) {
+	      for(int b = 0; b < NDIM; ++b) {
 	        intSx += phix(a) * R(b) * K(a,b,i,j);
 	      }
       }
       
       Real intSy = 0;
       for(int a = 0; a < NDIM; ++a) {
-	      for(int b = a; b < NDIM; ++b) {
+	      for(int b = 0; b < NDIM; ++b) {
 	        intSy += phiy(a) * R(b) * K(a,b,i,j);
 	      }
       }
       
       Real intSz = 0;
       for(int a = 0; a < NDIM; ++a) {
-	      for(int b = a; b < NDIM; ++b) {
+	      for(int b = 0; b < NDIM; ++b) {
 	        intSz += phiz(a) * R(b) * K(a,b,i,j);
 	      }
       }
