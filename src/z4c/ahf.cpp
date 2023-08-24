@@ -903,21 +903,21 @@ void AHF::SurfaceIntegrals()
       // Integrand of spin
       Real intSx = 0;
       for(int a = 0; a < NDIM; ++a) {
-	      for(int b = a; b < NDIM; ++b) {
+	      for(int b = 0; b < NDIM; ++b) {
 	        intSx += phix(a) * R(b) * K(a,b,i,j);
 	      }
       }
       
       Real intSy = 0;
       for(int a = 0; a < NDIM; ++a) {
-	      for(int b = a; b < NDIM; ++b) {
+	      for(int b = 0; b < NDIM; ++b) {
 	        intSy += phiy(a) * R(b) * K(a,b,i,j);
 	      }
       }
       
       Real intSz = 0;
       for(int a = 0; a < NDIM; ++a) {
-	      for(int b = a; b < NDIM; ++b) {
+	      for(int b = 0; b < NDIM; ++b) {
 	        intSz += phiz(a) * R(b) * K(a,b,i,j);
 	      }
       }
@@ -1136,9 +1136,9 @@ void AHF::FastFlowLoop()
     ah_prop[hcoarea] = integrals[icoarea];
     ah_prop[hhrms] = hrms;
     ah_prop[hhmean] = hmean;
-    ah_prop[hSx] = integrals[iSx];
-    ah_prop[hSy] = integrals[iSy];
-    ah_prop[hSz] = integrals[iSz];
+    ah_prop[hSx] = Sx;
+    ah_prop[hSy] = Sy;
+    ah_prop[hSz] = Sz;
     ah_prop[hS] = std::sqrt(SQR(ah_prop[hSx]) + SQR(ah_prop[hSy]) + SQR(ah_prop[hSz]));
     ah_prop[hmass] = mass;
     ah_prop[hmeanradius] = meanradius;
