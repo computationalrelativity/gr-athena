@@ -1142,7 +1142,7 @@ void AHF::FastFlowLoop()
     ah_prop[hSy] = Sy;
     ah_prop[hSz] = Sz;    
     ah_prop[hS]  = S;
-    ah_prop[hmass] = std::sqrt( SQR(mass) + SQR(S/(4.0*mass)) ); // Christodoulu mass
+    ah_prop[hmass] = std::sqrt( SQR(mass) + 0.25*SQR(S/mass) ); // Christodoulu mass
     
   }
   
