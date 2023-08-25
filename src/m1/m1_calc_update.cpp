@@ -103,6 +103,10 @@ void M1::CalcUpdate(int const iteration,
   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> v_u;
   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> v_d;
   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> H_d;
+  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> Hstar_d;
+  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> Hnew_d;
+  TensorPointwise<Real, Symmetries::NONE, MDIM, 2> P_dd;
+  TensorPointwise<Real, Symmetries::NONE, MDIM, 2> rT_dd;
   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> H_u;
   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> fnu_u;
   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> F_d;
@@ -119,9 +123,13 @@ void M1::CalcUpdate(int const iteration,
   v_u.NewTensorPointwise();
   v_d.NewTensorPointwise();
   H_d.NewTensorPointwise();
+  Hstar_d.NewTensorPointwise();
+  Hnew_d.NewTensorPointwise();
   H_u.NewTensorPointwise();
   fnu_u.NewTensorPointwise();
   F_d.NewTensorPointwise();
+  P_dd.NewTensorPointwise();
+  rT_dd.NewTensorPointwise();
   
   //GCLOOP3(k,j,i) {
   CLOOP3(k,j,i) {
@@ -174,7 +182,7 @@ void M1::CalcUpdate(int const iteration,
       
       //
       // Radiation fields
-      Real E = vec.E(j,k,i,ig);
+      Real E = vec.E(ig,k,j,i);
       pack_F_d(beta_u(1), beta_u(2), beta_u(3),
                vec.F_d(0,ig,k,j,i),
                vec.F_d(1,ig,k,j,i),
@@ -199,45 +207,95 @@ void M1::CalcUpdate(int const iteration,
       
       //      
       // Advect radiation
-      Real Estar = vec_p.E(ig,k,j,i) + dt*vec_rhs.E[i4D];
+      Real Estar = vec_p.E(ig,k,j,i) + 0.5*dt*vec_rhs.E[i4D];
       pack_F_d(beta_u(1), beta_u(2), beta_u(3),
-	             vec_p.F_d(0,ig,k,j,i) + dt * vec_rhs.F_d(0,ig,k,j,i),
-	             vec_p.F_d(1,ig,k,j,i) + dt * vec_rhs.F_d(1,ig,k,j,i),
-	             vec_p.F_d(2,ig,k,j,i) + dt * vec_rhs.F_d(2,ig,k,j,i),
+	             vec_p.F_d(0,ig,k,j,i) + 0.5*dt * vec_rhs.F_d(0,ig,k,j,i),
+	             vec_p.F_d(1,ig,k,j,i) + 0.5*dt * vec_rhs.F_d(1,ig,k,j,i),
+	             vec_p.F_d(2,ig,k,j,i) + 0.5*dt * vec_rhs.F_d(2,ig,k,j,i),
 	             &Fstar_d);
-      Real Nstar = vec_p.N(ig,k,j,i) + dt * vec_rhs.N(ig,k,j,i);
-	  
+      Real Nstar = vec_p.N(ig,k,j,i) + 0.5*dt * vec_rhs.N(ig,k,j,i);
+
       // Apply floor
-      if (rad_E_floor >= 0) {
-	      Estar = std::max(Estar, rad_E_floor);	
-	      Real const F2 = tensor::dot(g_uu, Fstar_d, Fstar_d);
-	      if (F2 > E*E) {
-	        Real F1 = std::sqrt(F2);
-	        for (int a = 0; a < MDIM; ++a) {
-	          Fstar_d(a) *= E/F1;
-          }
-	      }
+      if (rad_E_floor > 0) {
+        apply_floor(g_uu, &Estar, &Fstar_d);
       }
       if (rad_N_floor >= 0) {
 	      Nstar = std::max(Nstar, rad_N_floor);
       }
+
+      //if (rad_E_floor >= 0) {
+	    //  Estar = std::max(Estar, rad_E_floor);	
+	    //  Real const F2 = tensor::dot(g_uu, Fstar_d, Fstar_d);
+	    //  if (F2 > E*E) {
+	    //    Real F1 = std::sqrt(F2);
+	    //    for (int a = 0; a < MDIM; ++a) {
+	    //      Fstar_d(a) *= E/F1;
+      //    }
+	    //  }
+      //}
+      //if (rad_N_floor >= 0) {
+	    //  Nstar = std::max(Nstar, rad_N_floor);
+      //}
       
       Real Enew;
 
+      // Compute quantities in the fluid frame
+      calc_closure_pt(iteration, pmb, i, j, k, ig,
+                      closure_fun, gsl_solver_1d, g_dd, g_uu, n_d,
+                      fidu.Wlorentz(k,j,i), u_u, v_d,
+                      proj_ud, Estar, Fstar_d, &rad.chi(ig,k,j,i), P_dd);
+      assemble_rT(n_d, Estar, Fstar_d, P_dd, rT_dd);
+      Real const Jstar = calc_J_from_rT(rT_dd, u_u);
+      calc_H_from_rT(rT_dd, u_u, proj_ud, Hstar_d);
+
+      // Estimate interaction with matteer
+      Real const dtau = 0.5*dt/fidu.Wlorentz(k,j,i);
+      Real const Jnew = (Jstar + dtau*rmat.eta_1(ig,k,j,i)*volform)/(1. + dtau*rmat.abs_1(ig,k,j,i));
+
+      // Only three components of H^a are independent; H^0 is found by
+      // requiring H^a u_a = 0
+      Real const khat = (rmat.abs_1(ig,k,j,i) + rmat.scat_1(ig,k,j,i));
+      Hnew_d(0) = 0.0;
+      for (int a=1; a<4; ++a) {
+        Hnew_d(a) = Hstar_d(a)/(1.+dtau*khat);
+        Hnew_d(0) -= Hnew_d(a)*(u_u(a)/u_u(0));
+      }
+
+      //
+      // Update Tmunu
+      Real const H2 = tensor::dot(g_uu, Hnew_d, Hnew_d);
+
+      // Compute interaction with matter
       source_update_pt(iteration, pmb, i, j, k, ig,
 		                   closure_fun, gsl_solver_1d, gsl_solver_nd, dt,
 		                   alpha(), g_dd, g_uu, n_d, n_u, gamma_ud, u_d, u_u,
 		                   v_d, v_u, proj_ud, fidu.Wlorentz(k,j,i), Estar, Fstar_d,
 		                   Estar, Fstar_d,
-		                   rad.chi(ig,k,j,i), rmat.eta_1(ig,k,j,i), rmat.abs_1(ig,k,j,i),
+		                   &rad.chi(ig,k,j,i), rmat.eta_1(ig,k,j,i), rmat.abs_1(ig,k,j,i),
 		                   rmat.scat_1(ig,k,j,i),
 		                   &Enew, &Fnew_d);
+      apply_floor(g_uu, &Enew, &Fnew_d);
+
+      //
+      // Update closure
+      apply_closure(g_dd, g_uu, n_d, fidu.Wlorentz(k,j,i),
+                    u_u, v_d, proj_ud, Enew, Fnew_d, rad.chi(k,j,i), P_dd);
+      
+      //
+      // Compute new radiation energy density in the fluid frame
+      assemble_rT(n_d, Enew, Fnew_d, P_dd, rT_dd);
+      Jnew = calc_J_from_rT(rT_dd, u_u);
 	  
       DrE[ig]  = Enew - Estar;
       DrFx[ig] = Fnew_d(1) - Fstar_d(1);
       DrFy[ig] = Fnew_d(2) - Fstar_d(2);
       DrFz[ig] = Fnew_d(3) - Fstar_d(3);
 	  
+      //
+      // Compute updated Gamma
+      Real const Gamma = compute_Gamma(fidu.Wlorentz(k,j,i), v_u, Jnew, Enew, Fnew_d);
+      
+      //
       // N^k+1 = N^* + dt ( eta - abs N^k+1 )
       Real Nnew = (Nstar + dt*alpha()*volform*eta_0[i4D])/ 
 	                  (1.0 + dt*alpha()*rmat.abs_0(ig,k,j,i)/Gamma);
@@ -326,14 +384,7 @@ void M1::CalcUpdate(int const iteration,
       //
       // Apply floor
       if (rad_E_floor >= 0) {
-	      E = std::max(E, rad_E_floor);
-	      Real const F2 = tensor::dot(g_uu, F_d, F_d);
-	      if (F2 > E*E) {
-	        Real F1 = sqrt(F2);
-	        for (int a = 0; a < MDIM; ++a) {
-	          F_d(a) *= E/F1;
-	        }
-	      }
+	      apply_floor(g_uu, &E, &F_d);
       }
       if (rad_N_floor >= 0) {
 	      N = std::max(N, rad_N_floor);
@@ -384,7 +435,11 @@ void M1::CalcUpdate(int const iteration,
   v_u.DeleteTensorPointwise();
   v_d.DeleteTensorPointwise();
   H_d.DeleteTensorPointwise();
+  Hstar_d.DeleteTensorPointwise();
+  Hnew_d.DeleteTensorPointwise();
   H_u.DeleteTensorPointwise();
+  P_dd.DeleteTensorPointwise();
+  rT_dd.DeleteTensorPointwise();
   fnu_u.DeleteTensorPointwise();
          
   gsl_root_fsolver_free(gsl_solver_1d);

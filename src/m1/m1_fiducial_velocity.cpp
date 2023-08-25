@@ -15,8 +15,7 @@
 #include "../hydro/hydro.hpp"
 #include "m1.hpp"
 
-void M1::CalcFiducialVelocity()
-{  
+void M1::CalcFiducialVelocity() {  
   MeshBlock * pmb = pmy_block;
   
   // Fidu_vars fidu;

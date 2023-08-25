@@ -78,7 +78,7 @@ void M1::assemble_fnu(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u
 		                  Real const J,
 		                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & H_u,
 		                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & fnu_u)
-{
+{ // Eq. 21
   Real const H2 = tensor::dot(H_u, H_u);     // using Euclidean metric!
   for (int a = 0; a < MDIM; ++a) {
     fnu_u(a) = u_u(a) + (J > M1_EPSILON*H2 ? H_u(a)/J : 0);
@@ -89,7 +89,7 @@ Real compute_Gamma(Real const W,
 		               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_u,
 		               Real const J, Real const E,
 		               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d)
-{
+{ // Eq. 24
   if (E > rad_E_floor && J > rad_E_floor) {
     Real f_dot_v = std::min(tensor::dot(F_d, v_u)/E, 1 - rad_eps);
     return W*(E/J)*(1 - f_dot_v);
@@ -103,7 +103,7 @@ void M1::assemble_rT(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_
 		                 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & H_d,
 		                 TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & K_dd,
 		                 TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & rT_dd)
-{
+{ // Eq. 2
   for (int a = 0; a < MDIM; ++a) {
     for (int b = a; b < MDIM; ++b) {
       rT_dd(a,b) = J*u_d(a)*u_d(b) + H_d(a)*u_d(b) + H_d(b)*u_d(a) + K_dd(a,b);
@@ -114,7 +114,7 @@ void M1::assemble_rT(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_
 // Project out the radiation energy (in any frame)
 Real M1::calc_J_from_rT(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & rT_dd,
 			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u)
-{
+{ // Derived from Eq. 2
   return tensor::dot(rT_dd, u_u, u_u);
 }
 
@@ -122,7 +122,7 @@ void M1::calc_H_from_rT(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const &
 			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
 			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud,
 			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & H_d)
-{
+{ // Derived from Eq. 2
   for (int a = 0; a < MDIM; ++a) {
     H_d(a) = 0.0;
     for (int b = 0; b < MDIM; ++b) {
@@ -136,7 +136,7 @@ void M1::calc_H_from_rT(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const &
 void M1::calc_K_from_rT(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & rT_dd,
 			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud,
 			                  TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & K_dd)
-{
+{ // Derived from Eq. 2
   for (int a = 0; a < MDIM; ++a) {
     for (int b = a; b < MDIM; ++b) {
       K_dd(a,b) = 0.0;
@@ -154,7 +154,7 @@ Real M1::calc_E_flux(Real const alp,
 		                 Real const E,
 		                 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_u,
 		                 int const dir)
-{
+{ // Eq. 4 and 28
   return alp*F_u(dir) - beta_u(dir)*E;
 }
 
@@ -163,7 +163,7 @@ Real M1::calc_F_flux(Real const alp,
 		                 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
 		                 TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & P_ud,
 		                 int const dir, int const comp)
-{
+{ // Eq. 4 and 28
   return alp*P_ud(dir,comp) - beta_u(dir)*F_d(comp);
 }
 
@@ -174,7 +174,7 @@ void M1::calc_rad_sources(Real const eta,
 			                    Real const J,
 			                    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const H_d,
 			                    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & S_d)
-{
+{ // Eq. 5
   for (int a = 0; a < MDIM; ++a) {
     S_d(a) = (eta - kabs*J)*u_d(a) - (kabs + kscat)*H_d(a);
   }
@@ -183,7 +183,7 @@ void M1::calc_rad_sources(Real const eta,
 Real M1::calc_rE_source(Real const alp,
 			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_u,
 			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & S_d)
-{
+{ // Eq. 4 and 29
   return - alp*tensor::dot(n_u, S_d);
 }
 
@@ -191,7 +191,7 @@ void M1::calc_rF_source(Real const alp,
 			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const gamma_ud,
 			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & S_d,
 			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & tS_d)
-{
+{ // Eq. 4 and 29
   for (int a = 0; a < MDIM; ++a) {
     tS_d(a) = 0.0;
     for (int b = 0; b < MDIM; ++b) {
@@ -220,7 +220,7 @@ void M1::uvel(Real alp,
 	            Real w_lorentz,
 	            Real velx,Real vely,Real velz,
 	            Real * u0, Real * u1, Real * u2, Real * u3)
-{
+{ // Four-vel
   Real const ialp = 1.0/alp;
   *u0 = w_lorentz*ialp;
   *u1 = w_lorentz*(velx - betax*ialp);

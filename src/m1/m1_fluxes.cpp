@@ -173,10 +173,10 @@ void M1::CalcFluxes(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs)
     // Scratch space
     Real * cons;
     Real * flux;
-    Real * cmax    = NULL;
-    Real * flux_jm = NULL;
-    Real * flux_jp = NULL;
-    Real * d_ptr   = NULL;
+    Real * cmax    = nullptr;
+    Real * flux_jm = nullptr;
+    Real * flux_jp = nullptr;
+    Real * d_ptr   = nullptr;
     try {
       cons = new Real[5*ngroups*nspecies*lsh[2]];
       flux = new Real[5*ngroups*nspecies*lsh[2]];
@@ -202,30 +202,30 @@ void M1::CalcFluxes(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs)
           index[0] = __i;
           index[1] = __j;
           index[2] = __k;
-        
+          int const ijk = GFINDEX3D(i,j,k);
           // Go from ADM 3-metric VC (AthenaArray/Tensor)
           // to ADM 4-metric on CC at ijk (TensorPointwise)
           Get4Metric_VC2CCinterp(pmb, k,j,i,
-                                pmb->pz4c->storage.u, pmb->pz4c->storage.adm,
-                                g_dd, beta_u, alpha);    
+                                 pmb->pz4c->storage.u, pmb->pz4c->storage.adm,
+                                 g_dd, beta_u, alpha);    
           Get4Metric_Inv_Inv3(g_dd, beta_u, alpha, g_uu, gamma_uu);
           
           uvel(alpha(), beta_u(1), beta_u(2), beta_u(3), fidu.Wlorentz(k,j,i),
-              fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i), 
-              &u_u(0), &u_u(1), &u_u(2), &u_u(3));    
+               fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i), 
+               &u_u(0), &u_u(1), &u_u(2), &u_u(3));    
 
           pack_v_u(fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),  v_u);
 
           for (int ig = 0; ig < ngroups*nspecies; ++ig) {
 
             pack_F_d(beta_u(1), beta_u(2), beta_u(3),
-                    vec.F_d(0,ig,k,j,i),
-                    vec.F_d(1,ig,k,j,i),
-                    vec.F_d(2,ig,k,j,i),
-                    F_d);
+                     vec.F_d(0,ig,k,j,i),
+                     vec.F_d(1,ig,k,j,i),
+                     vec.F_d(2,ig,k,j,i),
+                     F_d);
             pack_H_d(rad.Ht(ig,k,j,i),
-                    rad.H(0,ig,k,j,i), rad.H(1,ig,k,j,i), rad.H(2,ig,k,j,i),
-                    H_d);
+                     rad.H(0,ig,k,j,i), rad.H(1,ig,k,j,i), rad.H(2,ig,k,j,i),
+                     H_d);
 
             pack_P_dd(beta_u(1), beta_u(2), beta_u(3),
                       rad.P_dd(0,0,ig,k,j,i), rad.P_dd(0,1,ig,k,j,i), rad.P_dd(1,1,ig,k,j,i),
@@ -234,12 +234,12 @@ void M1::CalcFluxes(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs)
 
             tensor::contract(g_uu, H_d, H_u);
             tensor::contract(g_uu, F_d, F_u);
-            tensor::contract(g_uu, P_dd, &P_ud);
+            tensor::contract(g_uu, P_dd, P_ud);
             
             assemble_fnu(u_u, rad.J(ig,k,j,i), H_u, fnu_u);
 
             Real const Gamma = compute_Gamma(fidu.Wlorentz(k,j,i), v_u,
-                                            rad.J(ig,k,j,i), vec.E(ig,k,j,i), F_d);
+                                             rad.J(ig,k,j,i), vec.E(ig,k,j,i), F_d);
 
             // Note that nnu is densitized here
             Real const nnu = vec.N(ig,k,j,i)/Gamma;
@@ -296,8 +296,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs)
 #endif
             // Speed of light -- note that gamma_uu has NDIM=3
             Real const clam[2] = {
-              alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir+1),
-              - alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir+1),
+                alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir+1),
+                - alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir+1),
             };
             Real const clight = std::max(std::abs(clam[0]), std::abs(clam[1]));
             
@@ -319,6 +319,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs)
           index[0] = __i;
           index[1] = __j;
           index[2] = __k;
+          int const ijk = GFINDEX3D(i,j,k);
         
           for (int ig = 0; ig < ngroups*nspecies; ++ig) {
 
@@ -336,8 +337,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs)
             Real kapa = 0.5*(avg_abs_1 + avg_scat_1);
             Real A = 1.0;
             if (kapa*delta[dir] > 1.0) {
-              A = std::min(1.0, 1.0/(delta[dir]*kapa));
-              A = std::max(A, mindiss);
+              A = std::max(1.0/(delta[dir]*kapa), mindiss);
             }
 
             for (int iv = 0; iv < 5; ++iv) {
@@ -375,16 +375,15 @@ void M1::CalcFluxes(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs)
 
               if (!rad.mask(k,j,i)) {
           
-                int const ijk = GFINDEX3D(i,j,k);
                 //TODO check this pointer!!!
                 rhs[PINDEX1D(ig, iv)][ijk] += idelta[dir]*(flux_jm[PINDEX1D(ig, iv)] -
-                                              flux_jp[PINDEX1D(ig, iv)]) *
-                                              static_cast<Real>(i >= M1_NGHOST
-                                                  && i <  ncells[0] - M1_NGHOST
-                                                  && j >= M1_NGHOST
-                                                  && j <  ncells[1] - M1_NGHOST
-                                                  && k >= M1_NGHOST
-                                                  && k <  ncells[2] - M1_NGHOST);
+                                                           flux_jp[PINDEX1D(ig, iv)]) *
+                                                           static_cast<Real>(i >= M1_NGHOST
+                                                               && i <  ncells[0] - M1_NGHOST
+                                                               && j >= M1_NGHOST
+                                                               && j <  ncells[1] - M1_NGHOST
+                                                               && k >= M1_NGHOST
+                                                               && k <  ncells[2] - M1_NGHOST);
                 assert(isfinite(rhs[PINDEX1D(ig, iv)][ijk]));
               }
             } //iv loop

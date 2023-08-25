@@ -26,11 +26,9 @@
 //int NeutrinoOpacity(Real const, Real const, Real const, Real *, Real *, Real *, Real *, Real *, Real *); // TODO: define this
 //int NeutrinoAbsorptionRate(Real const, Real const, Real const, Real *, Real *, Real *, Real *, Real *, Real *); // TODO: define this
                                                                                                         
-void M1::CalcOpacity(ParameterInput * pin, AthenaArray<Real> & u)
+void M1::CalcOpacity(AthenaArray<Real> & u)
 {
   MeshBlock * pmb = pmy_block;
-
-  fr = new FakeRates(pin, 1, 1);
 
   Rad_vars vec;
   SetRadVarsAliases(u, vec);

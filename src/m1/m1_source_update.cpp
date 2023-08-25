@@ -36,107 +36,107 @@ int source_maxiter = 100;
 
 namespace {
   
-  inline double radM1_set_dthin(double chi) { return 1.5*chi-0.5; }
-  inline double radM1_set_dthick(double chi){ return 1.5*(1.0-chi); }
+  inline Real radM1_set_dthin(Real chi) { return 1.5*chi-0.5; }
+  inline Real radM1_set_dthick(Real chi){ return 1.5*(1.0-chi); }
   
   void __source_jacobian_low_level(
-				   double *qpre, double Fup[4], double F2,
-				   double chi,
-				   double kapa, double kaps,
-				   double vup[4], double vdown[4], double v2,
-				   double W,
-				   double alpha,
-				   double cdt,
-				   double *qstar,
+				   Real *qpre, Real Fup[4], Real F2,
+				   Real chi,
+				   Real kapa, Real kaps,
+				   Real vup[4], Real vdown[4], Real v2,
+				   Real W,
+				   Real alpha,
+				   Real cdt,
+				   Real *qstar,
 				   gsl_matrix * J)
   {
-    const double kapas = kapa+kaps;
-    const double alpW  = alpha * W;
+    const Real kapas = kapa+kaps;
+    const Real alpW  = alpha * W;
     
-    const double dthin = radM1_set_dthin(chi);
-    const double dthick = radM1_set_dthick(chi);
+    const Real dthin = radM1_set_dthin(chi);
+    const Real dthick = radM1_set_dthick(chi);
     
-    const double vx = vdown[1];
-    const double vy = vdown[2];
-    const double vz = vdown[3];
-    const double W2 = SQ(W);
-    const double W3 = W2*W;
+    const Real vx = vdown[1];
+    const Real vy = vdown[2];
+    const Real vz = vdown[3];
+    const Real W2 = SQ(W);
+    const Real W3 = W2*W;
     
-    const double vdotF = Fup[1]*vdown[1] + Fup[2]*vdown[2] + Fup[3]*vdown[3];
-    const double normF = sqrt(F2);
-    const double inormF = (normF > 0 ? 1/normF : 0);
-    const double vdothatf = vdotF*inormF;
-    const double vdothatf2 = SQ(vdothatf);
-    const double hatfx = qpre[1]*inormF; // hatf_i
-    const double hatfy = qpre[2]*inormF;
-    const double hatfz = qpre[3]*inormF;
-    const double hatfupx = Fup[1]*inormF; // hatf^i
-    const double hatfupy = Fup[2]*inormF;
-    const double hatfupz = Fup[3]*inormF;
-    const double e = qpre[0];
-    const double eonormF = std::min(e*inormF, 1.0); // with factor dthin ...
+    const Real vdotF = Fup[1]*vdown[1] + Fup[2]*vdown[2] + Fup[3]*vdown[3];
+    const Real normF = sqrt(F2);
+    const Real inormF = (normF > 0 ? 1/normF : 0);
+    const Real vdothatf = vdotF*inormF;
+    const Real vdothatf2 = SQ(vdothatf);
+    const Real hatfx = qpre[1]*inormF; // hatf_i
+    const Real hatfy = qpre[2]*inormF;
+    const Real hatfz = qpre[3]*inormF;
+    const Real hatfupx = Fup[1]*inormF; // hatf^i
+    const Real hatfupy = Fup[2]*inormF;
+    const Real hatfupz = Fup[3]*inormF;
+    const Real e = qpre[0];
+    const Real eonormF = std::min(e*inormF, 1.0); // with factor dthin ...
     
     // drvts of J
-    double JdE = W2 + dthin*vdothatf2*W2 + (dthick*(3 - 2*W2)*(-1 + W2))/(1 + 2*W2);
+    Real JdE = W2 + dthin*vdothatf2*W2 + (dthick*(3 - 2*W2)*(-1 + W2))/(1 + 2*W2);
     
-    double JdFv = 2*W2*(-1 + (dthin*eonormF*vdothatf) + (2*dthick*(-1 + W2))/(1 + 2*W2));
-    double JdFf = (-2*dthin*eonormF*vdothatf2*W2);
+    Real JdFv = 2*W2*(-1 + (dthin*eonormF*vdothatf) + (2*dthick*(-1 + W2))/(1 + 2*W2));
+    Real JdFf = (-2*dthin*eonormF*vdothatf2*W2);
     
-    double JdFx = JdFv * vup[1] + JdFf * hatfupx;
-    double JdFy = JdFv * vup[2] + JdFf * hatfupy;
-    double JdFz = JdFv * vup[3] + JdFf * hatfupz;
+    Real JdFx = JdFv * vup[1] + JdFf * hatfupx;
+    Real JdFy = JdFv * vup[2] + JdFf * hatfupy;
+    Real JdFz = JdFv * vup[3] + JdFf * hatfupz;
     
     // drvts of Hi
-    double HdEv = W3*(-1 - dthin*vdothatf2 + (dthick*(-3 + 2*W2))/(1 + 2*W2));
-    double HdEf = -(dthin*vdothatf*W);
+    Real HdEv = W3*(-1 - dthin*vdothatf2 + (dthick*(-3 + 2*W2))/(1 + 2*W2));
+    Real HdEf = -(dthin*vdothatf*W);
     
-    double HxdE = HdEv * vx + HdEf * hatfx;
-    double HydE = HdEv * vy + HdEf * hatfy;
-    double HzdE = HdEv * vz + HdEf * hatfz;
+    Real HxdE = HdEv * vx + HdEf * hatfx;
+    Real HydE = HdEv * vy + HdEf * hatfy;
+    Real HzdE = HdEv * vz + HdEf * hatfz;
     
-    double HdFdelta = (1 - dthick*v2 - (dthin*eonormF*vdothatf))*W;
-    double HdFvv = (2*(1 - dthin*eonormF*vdothatf)*W3) + dthick*W*(2 - 2*W2 + 1/(-1 - 2*W2));
-    double HdFff = (2*dthin*eonormF*vdothatf*W);
-    double HdFvf = (2*dthin*eonormF*vdothatf2*W3);
-    double HdFfv = -(dthin*eonormF*W);
+    Real HdFdelta = (1 - dthick*v2 - (dthin*eonormF*vdothatf))*W;
+    Real HdFvv = (2*(1 - dthin*eonormF*vdothatf)*W3) + dthick*W*(2 - 2*W2 + 1/(-1 - 2*W2));
+    Real HdFff = (2*dthin*eonormF*vdothatf*W);
+    Real HdFvf = (2*dthin*eonormF*vdothatf2*W3);
+    Real HdFfv = -(dthin*eonormF*W);
     
-    double HxdFx = HdFdelta + HdFvv * vx * vup[1] + HdFff * hatfx * hatfupx + HdFvf * vx * hatfupx + HdFfv * hatfx * vup[1];
-    double HydFx = HdFvv * vy * vup[1] + HdFff * hatfy * hatfupx + HdFvf * vy * hatfupx + HdFfv * hatfy * vup[1];
-    double HzdFx = HdFvv * vz * vup[1] + HdFff * hatfz * hatfupx + HdFvf * vz * hatfupx + HdFfv * hatfz * vup[1];
+    Real HxdFx = HdFdelta + HdFvv * vx * vup[1] + HdFff * hatfx * hatfupx + HdFvf * vx * hatfupx + HdFfv * hatfx * vup[1];
+    Real HydFx = HdFvv * vy * vup[1] + HdFff * hatfy * hatfupx + HdFvf * vy * hatfupx + HdFfv * hatfy * vup[1];
+    Real HzdFx = HdFvv * vz * vup[1] + HdFff * hatfz * hatfupx + HdFvf * vz * hatfupx + HdFfv * hatfz * vup[1];
     
-    double HxdFy = HdFvv * vx * vup[2] + HdFff * hatfx * hatfupy + HdFvf * vx * hatfupy + HdFfv * hatfx * vup[2];
-    double HydFy = HdFdelta + HdFvv * vy * vup[2] + HdFff * hatfy * hatfupy + HdFvf * vy * hatfupy + HdFfv * hatfy * vup[2];
-    double HzdFy = HdFvv * vz * vup[2] + HdFff * hatfz * hatfupy + HdFvf * vz * hatfupy + HdFfv * hatfz * vup[2];
+    Real HxdFy = HdFvv * vx * vup[2] + HdFff * hatfx * hatfupy + HdFvf * vx * hatfupy + HdFfv * hatfx * vup[2];
+    Real HydFy = HdFdelta + HdFvv * vy * vup[2] + HdFff * hatfy * hatfupy + HdFvf * vy * hatfupy + HdFfv * hatfy * vup[2];
+    Real HzdFy = HdFvv * vz * vup[2] + HdFff * hatfz * hatfupy + HdFvf * vz * hatfupy + HdFfv * hatfz * vup[2];
     
-    double HxdFz = HdFvv * vx * vup[3] + HdFff * hatfx * hatfupz + HdFvf * vx * hatfupz + HdFfv * hatfx * vup[3];
-    double HydFz = HdFvv * vy * vup[3] + HdFff * hatfy * hatfupz + HdFvf * vy * hatfupz + HdFfv * hatfy * vup[3];
-    double HzdFz = HdFdelta + HdFvv * vz * vup[3] + HdFff * hatfz * hatfupz + HdFvf * vz * hatfupz + HdFfv * hatfz * vup[3];
+    Real HxdFz = HdFvv * vx * vup[3] + HdFff * hatfx * hatfupz + HdFvf * vx * hatfupz + HdFfv * hatfx * vup[3];
+    Real HydFz = HdFvv * vy * vup[3] + HdFff * hatfy * hatfupz + HdFvf * vy * hatfupz + HdFfv * hatfy * vup[3];
+    Real HzdFz = HdFdelta + HdFvv * vz * vup[3] + HdFff * hatfz * hatfupz + HdFvf * vz * hatfupz + HdFfv * hatfz * vup[3];
     
     // Build the Jacobian
-    double J00 = - alpW * ( kapas - kaps * JdE);
+    Real J00 = - alpW * ( kapas - kaps * JdE);
     
-    double J0x = + alpW * kaps * JdFx - alpW * kapas * vup[1];
-    double J0y = + alpW * kaps * JdFy - alpW * kapas * vup[2];
-    double J0z = + alpW * kaps * JdFz - alpW * kapas * vup[3];
+    Real J0x = + alpW * kaps * JdFx - alpW * kapas * vup[1];
+    Real J0y = + alpW * kaps * JdFy - alpW * kapas * vup[2];
+    Real J0z = + alpW * kaps * JdFz - alpW * kapas * vup[3];
     
-    double Jx0 = - alpha * ( kapas * HxdE + W * kapa * vx * JdE );
-    double Jy0 = - alpha * ( kapas * HydE + W * kapa * vy * JdE );
-    double Jz0 = - alpha * ( kapas * HzdE + W * kapa * vz * JdE );
+    Real Jx0 = - alpha * ( kapas * HxdE + W * kapa * vx * JdE );
+    Real Jy0 = - alpha * ( kapas * HydE + W * kapa * vy * JdE );
+    Real Jz0 = - alpha * ( kapas * HzdE + W * kapa * vz * JdE );
     
-    double Jxx = - alpha * ( kapas * HxdFx + W * kapa * vx * JdFx );
-    double Jxy = - alpha * ( kapas * HxdFy + W * kapa * vx * JdFy );
-    double Jxz = - alpha * ( kapas * HxdFz + W * kapa * vx * JdFz );
+    Real Jxx = - alpha * ( kapas * HxdFx + W * kapa * vx * JdFx );
+    Real Jxy = - alpha * ( kapas * HxdFy + W * kapa * vx * JdFy );
+    Real Jxz = - alpha * ( kapas * HxdFz + W * kapa * vx * JdFz );
     
-    double Jyy = - alpha * ( kapas * HydFx + W * kapa * vy * JdFx );
-    double Jyx = - alpha * ( kapas * HydFy + W * kapa * vy * JdFy );
-    double Jyz = - alpha * ( kapas * HydFz + W * kapa * vy * JdFz );
+    Real Jyy = - alpha * ( kapas * HydFx + W * kapa * vy * JdFx );
+    Real Jyx = - alpha * ( kapas * HydFy + W * kapa * vy * JdFy );
+    Real Jyz = - alpha * ( kapas * HydFz + W * kapa * vy * JdFz );
     
-    double Jzx = - alpha * ( kapas * HzdFx + W * kapa * vz * JdFx );
-    double Jzy = - alpha * ( kapas * HzdFy + W * kapa * vz * JdFy );
-    double Jzz = - alpha * ( kapas * HzdFz + W * kapa * vz * JdFz );
+    Real Jzx = - alpha * ( kapas * HzdFx + W * kapa * vz * JdFx );
+    Real Jzy = - alpha * ( kapas * HzdFy + W * kapa * vz * JdFy );
+    Real Jzz = - alpha * ( kapas * HzdFz + W * kapa * vz * JdFz );
 
     // Store Jacobian into J
-    double A_data[4][4] = { 1 - cdt*J00, - cdt*J0x, - cdt*J0y, - cdt*J0z,
+    Real A_data[4][4] = { 1 - cdt*J00, - cdt*J0x, - cdt*J0y, - cdt*J0z,
       - cdt*Jx0, 1 - cdt*Jxx, - cdt*Jxy, - cdt*Jxz,
       - cdt*Jy0, - cdt*Jyx, 1 - cdt*Jyy, - cdt*Jyz,
       - cdt*Jz0, - cdt*Jzx, - cdt*Jzy, 1 - cdt*Jzz, };
@@ -232,24 +232,30 @@ namespace {
              TensorPointwise<Real, Symmetries::NONE, MDIM, 1> tS_d;
   };
 
-  int prepare(gsl_vector const * q, Params * p)
+  int prepare_closure(gsl_vector const * q, Params * p)
   {
     M1 * pm1 = p->pmb->pm1;
         
     p->E = std::max(gsl_vector_get(q, 0), 0.0);
-    if (p->E < 0) return GSL_EBADFUNC;
-           
+    if (p->E < 0) {
+      return GSL_EBADFUNC;
+    }      
     pm1->pack_F_d(-p->alp * p->n_u(1), -p->alp * p->n_u(2), -p->alp * p->n_u(3),
                   gsl_vector_get(q, 1), gsl_vector_get(q, 2), gsl_vector_get(q, 3),
                   p->F_d);
     tensor::contract(p->g_uu, p->F_d, p->F_u);
     
-    Real chi = p->chi; 
     pm1->calc_closure_pt(p->iteration, p->pmb, p->i, p->j, p->k, p->ig,
                          p->closure, p->gsl_solver_1d, p->g_dd, p->g_uu, p->n_d, p->W,
                          p->u_u, p->v_d, p->proj_ud, p->E, p->F_d,
-                         &chi, p->P_dd);
+                         &p->chi, p->P_dd);
     
+    return GSL_SUCCESS;
+  }
+
+  int prepare_sources(gsl_vector const * q, Params * p)
+  { 
+    M1 * pm1 = p->pmb->pm1;
     pm1->assemble_rT(p->n_d, p->E, p->F_d, p->P_dd, p->T_dd);
     
     p->J = pm1->calc_J_from_rT(p->T_dd, p->u_u);
@@ -260,6 +266,21 @@ namespace {
     p->Edot = pm1->calc_rE_source(p->alp, p->n_u, p->S_d);
     pm1->calc_rF_source(p->alp, p->gamma_ud, p->S_d, p->tS_d);
     
+    return GSL_SUCCESS;
+  }
+
+  int prepare(gsl_vector const * q, Params * p)
+  {
+    int ierr = prepare_closure(q, p);
+    if (ierr != GSL_SUCCESS) {
+      return ierr;
+    }
+
+    ierr = prepare_sources(q, p);
+    if (ierr != GSL_SUCCESS) {
+      return ierr;
+    }
+
     return GSL_SUCCESS;
   }
 
@@ -366,7 +387,7 @@ void M1::source_update_pt(
     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & Fold_d,
     Real const Estar,
     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & Fstar_d,
-    Real const chi,
+    Real * chi,
     Real const eta,
     Real const kabs,
     Real const kscat,
@@ -385,15 +406,17 @@ void M1::source_update_pt(
       4, &p};
   
   Real qold[] = {Eold, Fold_d(1), Fold_d(2), Fold_d(3)};
-  gsl_vector_view x = gsl_vector_view_array(qold, 4);
+  gsl_vector_view xold = gsl_vector_view_array(qold, 4);
   
   // Initial guess for the solution
-  Real q[] = {*Enew, Fnew_d(1), Fnew_d(2), Fnew_d(3)};
+  Real q[4] = {*Enew, Fnew_d(1), Fnew_d(2), Fnew_d(3)};
+  gsl_vector_view x = gsl_vector_view_array(q, 4);
+
   int ierr = gsl_multiroot_fdfsolver_set(gsl_solver_nd, &zfunc, &x.vector);
   int iter = 0;
   do {
-    iter++;
     ierr = gsl_multiroot_fdfsolver_iterate(gsl_solver_nd);
+    iter++;
     // The nonlinear solver is stuck: bailing out
     if (ierr == GSL_ENOPROG || ierr == GSL_ENOPROGJ) {
 #ifdef BREAK_ON_ENOPROG
@@ -425,7 +448,11 @@ void M1::source_update_pt(
   Fnew_d(1) = gsl_vector_get(gsl_solver_nd->x, 1);
   Fnew_d(2) = gsl_vector_get(gsl_solver_nd->x, 2);
   Fnew_d(3) = gsl_vector_get(gsl_solver_nd->x, 3);
+  // F_0 = g_0i F^i = beta_i F^i = beta^i F_i
   Fnew_d(0) = - alp*n_u(1)*Fnew_d(1)
               - alp*n_u(2)*Fnew_d(2)
               - alp*n_u(3)*Fnew_d(3);
+  
+  prepare_closure(gsl_solver_nd->x, &p);
+  *chi = p.chi;
 }

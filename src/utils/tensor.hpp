@@ -548,15 +548,15 @@ void contract(TensorPointwise<T, Symmetries::SYM2, N, 2> const & mat,
 template<typename T, int N>
 void contract(TensorPointwise<T, Symmetries::SYM2, N, 2> const & mat,
               TensorPointwise<T, Symmetries::SYM2, N, 2> const & A,
-              TensorPointwise<T, Symmetries::NONE, N, 2> * B)
+              TensorPointwise<T, Symmetries::NONE, N, 2> & B)
 {
   for (int a = 0; a < N; ++a)
   for (int b = 0; b < N; ++b)
   {
-    (*B)(a,b) = 0.0;
+    B(a,b) = 0.0;
     for (int c = 0; c < N; ++c)
     {
-      (*B)(a,b) += mat(a,c)*A(c,b);
+      B(a,b) += mat(a,c)*A(c,b);
     }
   }
 }
