@@ -368,7 +368,7 @@ Real EOSCompOSE::temperature_from_var(int iv, Real var, Real n, Real Yq) const {
   Real flo = f(ilo);
   Real fhi = f(ihi);
   while (flo*fhi>0){
-    if (ilo = ihi - 1) {
+    if (ilo == ihi - 1) {
       break;
     } else {
       ilo += 1;
