@@ -90,10 +90,10 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
     // weyl.ipsi4(k,j,i) = 0;
 
 
-    // WaveExtractLocal::swsh(&ylmR, &ylmI, 4, 0, theta, phi);
+    WaveExtractLocal::swsh(&ylmR, &ylmI, 4, 0, theta, phi);
 
-    // weyl.rpsi4(k,j,i) -= ylmR;
-    // weyl.ipsi4(k,j,i) -= ylmI;
+    weyl.rpsi4(k,j,i) -= ylmR;
+    weyl.ipsi4(k,j,i) -= ylmI;
 
   }
 

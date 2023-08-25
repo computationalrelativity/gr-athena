@@ -203,11 +203,13 @@ class MeshRefinement {
     interp_nd;
 
   interp_nd * ind_interior_r_op;
+#if defined(DBG_CX_ALL_BARY_RP)
   interp_nd * ind_physical_r_op;
   interp_nd * ind_physical_p_op;
 
   Real *x1c_cx, *x2c_cx, *x3c_cx;
   Real *x1f_cx, *x2f_cx, *x3f_cx;
+#endif // DBG_CX_ALL_BARY_RP
   // --------------------------------------------------------------------------
 
 };

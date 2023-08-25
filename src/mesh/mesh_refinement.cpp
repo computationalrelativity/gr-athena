@@ -101,6 +101,7 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) :
   // Floater-Hormann blending parameter controls the formal order of approx.
   const int d = (NCGHOST_CX-1) * 2 - 1;
 
+#if defined(DBG_CX_ALL_BARY_RP)
   if(Ns_x3 > 0)
   {
     x1c_cx = linspace(
@@ -171,7 +172,7 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) :
 
 
   }
-
+#endif // DBG_CX_ALL_BARY_RP
 
   if(Ns_x3 > 0)
   {
@@ -242,6 +243,8 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) :
 MeshRefinement::~MeshRefinement() {
   delete pcoarsec;
   delete ind_interior_r_op;
+
+#if defined(DBG_CX_ALL_BARY_RP)
   delete ind_physical_r_op;
   delete ind_physical_p_op;
 
@@ -252,6 +255,7 @@ MeshRefinement::~MeshRefinement() {
   delete[] x1f_cx;
   delete[] x2f_cx;
   delete[] x3f_cx;
+#endif // DBG_CX_ALL_BARY_RP
 }
 
 //----------------------------------------------------------------------------------------
@@ -2740,7 +2744,7 @@ void MeshRefinement::ProlongateCellCenteredXBCValues(
   // here H_SZ * 2 is resultant interpolant degree
   // formula compatible with ProlongateCellCenteredXGhosts
   const int H_SZ = (2 * NCGHOST_CX - NGHOST) / 2;
-  // const int H_SZ = 1;
+  // const int H_SZ = 2;
 
   if (pmb->block_size.nx3>1)
   { // 3D
@@ -2764,18 +2768,6 @@ void MeshRefinement::ProlongateCellCenteredXBCValues(
           // use templated ----------------------------------------------------
           if (true)
           {
-            // if((cx_fi >= 0) && (cx_fj >= 0))
-            //   fine(n,cx_fk,cx_fj,  cx_fi  ) = 0.0;
-
-            // if((cx_fi+1 < pmb->ncells1) && (cx_fj >= 0))
-            //   fine(n,cx_fk,cx_fj,  cx_fi+1) = 0.0;
-
-            // if((cx_fi >= 0) && (cx_fj+1 < pmb->ncells2))
-            //   fine(n,cx_fk,cx_fj+1,cx_fi  ) = 0.0;
-
-            // if((cx_fi+1 < pmb->ncells1) && (cx_fj+1 < pmb->ncells2))
-            //   fine(n,cx_fk,cx_fj+1,cx_fi+1) = 0.0;
-
             if((cx_fi >= 0) && (cx_fj >= 0) && (cx_fk >= 0))
               fine(n,cx_fk  ,cx_fj,  cx_fi  ) = 0.0;
 
@@ -2800,7 +2792,7 @@ void MeshRefinement::ProlongateCellCenteredXBCValues(
             if((cx_fi+1 < pmb->ncells1) && (cx_fj+1 < pmb->ncells2) && (cx_fk+1 < pmb->ncells3))
               fine(n,cx_fk+1,cx_fj+1,cx_fi+1) = 0.0;
 
-            #pragma unroll
+            // #pragma unroll
             for (int dk=0; dk<2*H_SZ+1; ++dk)
             {
               // see 1d case for description of this
@@ -2811,7 +2803,7 @@ void MeshRefinement::ProlongateCellCenteredXBCValues(
               const int cx_ckl = cx_ck-H_SZ+dk;
               const int cx_ckr = cx_ck+H_SZ-dk;
 
-              #pragma unroll
+              // #pragma unroll
               for (int dj=0; dj<2*H_SZ+1; ++dj)
               {
                 // see 1d case for description of this
@@ -2822,7 +2814,7 @@ void MeshRefinement::ProlongateCellCenteredXBCValues(
                 const int cx_cjl = cx_cj-H_SZ+dj;
                 const int cx_cjr = cx_cj+H_SZ-dj;
 
-                #pragma unroll
+                // #pragma unroll
                 for (int di=0; di<2*H_SZ+1; ++di)
                 {
                   Real const l_kji = l_kj * (
@@ -2911,7 +2903,7 @@ void MeshRefinement::ProlongateCellCenteredXBCValues(
           if((cx_fi+1 < pmb->ncells1) && (cx_fj+1 < pmb->ncells2))
             fine(n,cx_fk,cx_fj+1,cx_fi+1) = 0.0;
 
-          #pragma unroll
+          // #pragma unroll
           for (int dj=0; dj<2*H_SZ+1; ++dj)
           {
             // see 1d case for description of this
@@ -2922,7 +2914,7 @@ void MeshRefinement::ProlongateCellCenteredXBCValues(
             const int cx_cjl = cx_cj-H_SZ+dj;
             const int cx_cjr = cx_cj+H_SZ-dj;
 
-            #pragma unroll
+            // #pragma unroll
             for (int di=0; di<2*H_SZ+1; ++di)
             {
               Real const l_ji = l_j * (
@@ -3000,6 +2992,26 @@ void MeshRefinement::ProlongateCellCenteredXBCValues(
           fine(n,cx_fk,cx_fj,cx_fi+1) += l_i * fc_r;
       }
 
+      /*
+      // deg 4 interp. --------------------------------------------------------
+      // left child
+      fine(n,cx_fk,cx_fj,cx_fi) = (
+        -45.0  * coarse(n,cx_ck,cx_cj,cx_ci-2) +
+        420.0  * coarse(n,cx_ck,cx_cj,cx_ci-1) +
+        1890.0 * coarse(n,cx_ck,cx_cj,cx_ci  ) +
+        -252.0 * coarse(n,cx_ck,cx_cj,cx_ci+1) +
+        35.0   * coarse(n,cx_ck,cx_cj,cx_ci+2)
+      ) / 2048.0;
+      // right child
+      fine(n,cx_fk,cx_fj,cx_fi+1) = (
+        35.0   * coarse(n,cx_ck,cx_cj,cx_ci-2) +
+        -252.0 * coarse(n,cx_ck,cx_cj,cx_ci-1) +
+        1890.0 * coarse(n,cx_ck,cx_cj,cx_ci  ) +
+        420.0  * coarse(n,cx_ck,cx_cj,cx_ci+1) +
+        -45.0  * coarse(n,cx_ck,cx_cj,cx_ci+2)
+      ) / 2048.0;
+      // ----------------------------------------------------------------------
+      */
     }
 
 

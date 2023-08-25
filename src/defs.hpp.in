@@ -21,6 +21,9 @@
 // debugging weyl projection
 #define NO_DBG_WEYL_SWSH_SEED_CART
 
+// debugging bary opers
+#define NO_DBG_CX_ALL_BARY_RP
+
 //----------------------------------------------------------------------------------------
 // macros which define physics and algorithms
 

@@ -10,6 +10,8 @@
 #include <list>
 
 #include "../coordinates/coordinates.hpp"
+#include "../utils/interp_barycentric.hpp"  // New interpolation ops
+
 #include "spherical_grid.hpp"
 
 #define SQ(X) ((X)*(X))
@@ -113,6 +115,63 @@ SphericalPatch::~SphericalPatch() {
 void SphericalPatch::interpToSpherical(Real const * src, Real * dst) const {
   for (int i = 0; i < n; ++i) {
     dst[i] = pinterp[i]->eval(src);
+  }
+
+    //   origin[0] = pmc->x1v(0);
+    //   origin[1] = pmc->x2v(0);
+    //   origin[2] = pmc->x3v(0);
+    //   size[0] = pmb->block_size.nx1 + 2*(NGHOST);
+    //   size[1] = pmb->block_size.nx2 + 2*(NGHOST);
+    //   size[2] = pmb->block_size.nx3 + 2*(NGHOST);
+    //   break;
+    // case vertex:
+    //   origin[0] = pmc->x1f(0);
+    //   origin[1] = pmc->x2f(0);
+    //   origin[2] = pmc->x3f(0);
+    //   size[0] = pmb->block_size.nx1 + 2*(NGHOST) + 1;
+    //   size[1] = pmb->block_size.nx2 + 2*(NGHOST) + 1;
+    //   size[2] = pmb->block_size.nx3 + 2*(NGHOST) + 1;
+
+  MeshBlock * pmb = const_cast<MeshBlock*>(pblock);
+  Coordinates * pco = pblock->pcoord;
+  Real coord[3];
+
+  const int d = 16;
+
+  for (int i = 0; i < n; ++i)
+  {
+    psphere->Position(map[i], &coord[0], &coord[1], &coord[2]);
+
+// #if defined(Z4C_CX_ENABLED)
+//     dst[i] = numprox::interpolation::Floater_Hormann_generalized::interp_3d(
+//       coord[0], coord[1], coord[2],
+//       &(pco->x1v(0)),
+//       &(pco->x2v(0)),
+//       &(pco->x3v(0)),
+//       src,
+//       pmb->block_size.nx1 + 2*(NGHOST) - 1,
+//       pmb->block_size.nx2 + 2*(NGHOST) - 1,
+//       pmb->block_size.nx3 + 2*(NGHOST) - 1,
+//       d,
+//       4,
+//       0
+//     );
+// #else
+//     dst[i] = numprox::interpolation::Floater_Hormann_generalized::interp_3d(
+//       coord[0]+1e-12, coord[1]+1e-12, coord[2],
+//       &(pco->x1f(0)),
+//       &(pco->x2f(0)),
+//       &(pco->x3f(0)),
+//       src,
+//       pmb->block_size.nx1 + 2*(NGHOST) + 1 - 1,
+//       pmb->block_size.nx2 + 2*(NGHOST) + 1 - 1,
+//       pmb->block_size.nx3 + 2*(NGHOST) + 1 - 1,
+//       d,
+//       2,
+//       0
+//     );
+// #endif
+
   }
 }
 
