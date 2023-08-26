@@ -135,7 +135,8 @@ protected:
 private:
   // buffer / index calculators
   void AccumulateBufferSize(int sn, int en,
-                            int si, int ei, int sj, int ej, int sk, int ek,
+                            int si, int ei, int sj, int ej,
+                            int sk, int ek,
                             int &offset, int ijk_step);
 
   void idxLoadSameLevelRanges(const NeighborIndexes& ni,
@@ -162,6 +163,8 @@ private:
     int type);
 
   int NeighborVariableBufferSize(const NeighborIndexes& ni);
+
+  bool NeighborBlocksSameLevel();
 
 #ifdef MPI_PARALLEL
   int MPI_BufferSizeSameLevel(const NeighborIndexes& ni,

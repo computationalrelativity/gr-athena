@@ -164,6 +164,8 @@ private:
 
   int NeighborVariableBufferSize(const NeighborIndexes& ni);
 
+  bool NeighborBlocksSameLevel();
+
 #ifdef MPI_PARALLEL
   int MPI_BufferSizeSameLevel(const NeighborIndexes& ni,
     bool is_send);

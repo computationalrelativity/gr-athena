@@ -335,6 +335,12 @@ void VertexCenteredBoundaryVariable::SetBoundaryFromFiner(Real *buf,
 //  \brief populate coarser buffer with restricted data
 
 void VertexCenteredBoundaryVariable::RestrictNonGhost() {
+  // don't need to fill coarse buffer if nn all on the same level
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+  if (NeighborBlocksSameLevel())
+    return;
+#endif // DBG_NO_REF_NN_SAME_LEVEL
+
   MeshBlock *pmb = pmy_block_;
   MeshRefinement *pmr = pmb->pmr;
   int si, sj, sk, ei, ej, ek;
@@ -357,10 +363,9 @@ void VertexCenteredBoundaryVariable::SendBoundaryBuffers() {
   if (!node_mult_assembled)
     PrepareNodeMult();
 
-  //MeshBlock *pmb = pmy_block_;
-
   // restrict all data (except ghosts) to coarse buffer
-  if (pmy_mesh_->multilevel) {
+  if (pmy_mesh_->multilevel)
+  {
     AthenaArray<Real> &coarse_var = *coarse_buf;
     coarse_var.ZeroClear();
 

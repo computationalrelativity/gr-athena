@@ -27,6 +27,9 @@
 // templated, faster cx prolongation
 #define DBG_CX_FASTER_PROL
 
+// do not refine to complementary block coarse layer if all nn on same level
+#define DBG_NO_REF_NN_SAME_LEVEL
+
 //----------------------------------------------------------------------------------------
 // macros which define physics and algorithms
 

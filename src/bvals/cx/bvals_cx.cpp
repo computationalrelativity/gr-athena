@@ -301,6 +301,12 @@ void CellCenteredXBoundaryVariable::SetBoundaryFromFiner(Real *buf,
 //  \brief populate coarser buffer with restricted data
 
 void CellCenteredXBoundaryVariable::RestrictNonGhost() {
+  // don't need to fill coarse buffer if nn all on the same level
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+  if (NeighborBlocksSameLevel())
+    return;
+#endif // DBG_NO_REF_NN_SAME_LEVEL
+
   MeshBlock *pmb = pmy_block_;
   MeshRefinement *pmr = pmb->pmr;
 
@@ -534,28 +540,8 @@ void CellCenteredXBoundaryVariable::RestrictNonGhost() {
 
 
 void CellCenteredXBoundaryVariable::SendBoundaryBuffers() {
-
-
-  /*
-  // BD: opt- if nn all same level not required
-
-  // only perform RestrictNonGhost if we have neighbour blocks on a different
-  // level otherwise it is a waste
-  MeshBlock *pmb = pmy_block_;
-  bool nn_level_different = false;
-
-  for (int n=0; n<pbval_->nneighbor; n++) {
-    NeighborBlock& nb = pbval_->neighbor[n];
-    if (nb.snb.level != pmb->loc.level)
-    {
-      nn_level_different = true;
-      break;
-    }
-  }
-  */
-
   // restrict all data (except ghosts) to coarse buffer
-  if (pmy_mesh_->multilevel) //  && nn_level_different)
+  if (pmy_mesh_->multilevel)
   {
     // BD: opt- if nn all same level not required
 
@@ -574,7 +560,7 @@ void CellCenteredXBoundaryVariable::SendBoundaryBuffersFullRestriction() {
 
 
   // restrict all data (except ghosts) to coarse buffer
-  if (pmy_mesh_->multilevel) //  && nn_level_different)
+  if (pmy_mesh_->multilevel)
   {
     AthenaArray<Real> &var = *var_cx;
     AthenaArray<Real> &coarse_var = *coarse_buf;
