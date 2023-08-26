@@ -23,8 +23,8 @@ export COMPILE_STR="--prob=z4c_two_punctures
                     -z -z_cx
                     --cxx g++ -omp
                     --nghost=4
-                    --ncghost=4
-                    --ncghost_cx=4
+                    --ncghost=5
+                    --ncghost_cx=5
                     --nextrapolate=4"
 
 # apply caching compiler together with gold linker

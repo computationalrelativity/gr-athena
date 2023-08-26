@@ -19,8 +19,8 @@ data_format     = %.16e
 # dt              = 0.1       # control frequency via time-step
 
 <time>
-cfl_number      = 0.2       # The Courant, Friedrichs, & Lewy (CFL) number
-tlim            = 1     # time limit
+cfl_number      = 0.4       # The Courant, Friedrichs, & Lewy (CFL) number
+tlim            = 0.5     # time limit
 integrator      = rk4       # time integrator
 
 <mesh>
@@ -44,8 +44,8 @@ x3max           =  1.0      # maximum value of X3
 ix3_bc          = periodic  # inner-X3 boundary flag
 ox3_bc          = periodic  # outer-X3 boundary flag
 
-num_threads     = 10         # Number of OpenMP threads per process
-numlevel = 5  # <refinement> level + 1
+num_threads     = 1         # Number of OpenMP threads per process
+numlevel = 7  # <refinement> level + 1
 
 # deref_count = 5
 
@@ -66,7 +66,7 @@ x2min = -1.0
 x2max = -1.0
 x3min = -1.0
 x3max =  1.0
-level = 4
+level = 6
 
 # <refinement2>
 # x1min =  0.7

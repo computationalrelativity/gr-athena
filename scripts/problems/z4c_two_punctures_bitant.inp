@@ -68,6 +68,8 @@ npunct = 2
 bh_0_x = 3.257
 bh_1_x = -3.257
 
+bitant = true
+
 <cce>
 
 dump_every_dt = 1 ## a multiple of the time step
@@ -227,7 +229,7 @@ ghost_zones = true
 
 <time>
 cfl_number = 0.5
-tlim = 0.5
+tlim = 10
 integrator = rk4
 ncycle_out = 1
 nlim = -1
@@ -253,10 +255,10 @@ x2min = -24
 x2max = 24
 ix2_bc = extrapolate_outflow
 ox2_bc = extrapolate_outflow
-nx3 = 96
-x3min = -24
+nx3 = 48
+x3min = 0
 x3max = 24
-ix3_bc = extrapolate_outflow
+ix3_bc = reflecting
 ox3_bc = extrapolate_outflow
 
 <meshblock>
