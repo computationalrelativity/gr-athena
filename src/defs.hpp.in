@@ -18,6 +18,9 @@
 // remove double VC restrict (& hence mitigate MB size restr.)
 #define NO_DBG_VC_DOUBLE_RESTRICT
 
+// remove redundant restrict (taken care of by initial, full-block restr.)
+#define NO_DBG_VC_LOADF2C_RESTRICT
+
 // debugging weyl projection
 #define NO_DBG_WEYL_SWSH_SEED_CART
 

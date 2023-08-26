@@ -161,8 +161,11 @@ int VertexCenteredBoundaryVariable::LoadBoundaryBufferToCoarser(Real *buf,
 
   // vertices that are shared with adjacent MeshBlocks are to be copied to coarser level
   idxLoadToCoarserRanges(nb.ni, si, ei, sj, ej, sk, ek, false);
+
+#if defined(DBG_VC_LOADF2C_RESTRICT)
   pmr->RestrictVertexCenteredValues(var, coarse_var, nl_, nu_,
                                     si, ei, sj, ej, sk, ek);
+#endif // DBG_VC_LOADF2C_RESTRICT
 
   BufferUtility::PackData(coarse_var, buf, nl_, nu_, si, ei, sj, ej, sk, ek, p);
 
