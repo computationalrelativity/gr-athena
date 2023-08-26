@@ -1000,7 +1000,7 @@ void MeshRefinement::RestrictCellCenteredXValuesLO(
               int const cx_fj_r = cx_fj + dj + 1;
               Real const lckj = lck * InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dj-1];
 
-              // #pragma unroll
+              // #pragma omp unroll
               for (int di=0; di<H_SZ; ++di)
               {
                 int const cx_fi_l = cx_fi - di;
@@ -1051,14 +1051,14 @@ void MeshRefinement::RestrictCellCenteredXValuesLO(
         // use templated ------------------------------------------------------
         coarse(n,cx_ck,cx_cj,cx_ci) = 0.0;
 
-        #pragma unroll
+        // #pragma unroll
         for (int dj=0; dj<H_SZ; ++dj)
         {
           int const cx_fj_l = cx_fj - dj;
           int const cx_fj_r = cx_fj + dj + 1;
           Real const lcj = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dj-1];
 
-          #pragma unroll
+          // #pragma unroll
           for (int di=0; di<H_SZ; ++di)
           {
             int const cx_fi_l = cx_fi - di;
@@ -1096,7 +1096,7 @@ void MeshRefinement::RestrictCellCenteredXValuesLO(
       // use templated --------------------------------------------------------
       coarse(n,cx_ck,cx_cj,cx_ci) = 0.0;
 
-      #pragma unroll
+      // #pragma unroll
       for (int di=0; di<H_SZ; ++di)
       {
         Real const lc = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
@@ -1133,8 +1133,8 @@ void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
   sj = pmb->cx_cjs; ej = pmb->cx_cje;
   sk = pmb->cx_cks; ek = pmb->cx_cke;
 
-  // // BD: debug with LO
-  // RestrictCellCenteredXValuesLO(
+  // BD: debug with LO
+  // RestrictCellCenteredXValues(
   //   fine, coarse, sn, en,
   //   si, ei,
   //   sj, ej,
@@ -3516,7 +3516,6 @@ void MeshRefinement::ProlongateCellCenteredX(
   int csi, int cei, int csj, int cej, int csk, int cek)
 {
   MeshBlock *pmb = pmy_block_;
-
   // here H_SZ * 2 is resultant interpolant degree
 
   if (pmb->block_size.nx3>1)
@@ -3545,7 +3544,6 @@ void MeshRefinement::ProlongateCellCenteredX(
     const bool cx_f_jsleft = !((cx_fsj + NGHOST) % 2);
     const bool cx_f_ksleft = !((cx_fsk + NGHOST) % 2);
 
-
     for (int n=sn; n<=en; ++n)
     {
       bool bl_k = cx_f_ksleft;
@@ -3563,7 +3561,8 @@ void MeshRefinement::ProlongateCellCenteredX(
 
           for (int cx_fi=cx_fsi, cx_ci=csi; cx_fi<=cx_fei; ++cx_fi)
           {
-            fine(n,cx_fk,cx_fj,cx_fi) = 0.0;
+            Real fine_val = 0.0;
+            // fine(n,cx_fk,cx_fj,cx_fi) = 0.0;
 
             for (int dk=0; dk<2*H_SZ+1; ++dk)
             {
@@ -3573,21 +3572,95 @@ void MeshRefinement::ProlongateCellCenteredX(
 
               for (int dj=0; dj<2*H_SZ+1; ++dj)
               {
-                Real const l_j = InterpolateLagrangeUniformChildren<H_SZ>::coeff[dj];
+                Real const l_kj = l_k * InterpolateLagrangeUniformChildren<H_SZ>::coeff[dj];
                 // const int cx_cwj = (bl_j) ? cx_cj-H_SZ+dj : cx_cj+H_SZ-dj;
                 const int cx_cwj = cx_cj + ph_j * (H_SZ-dj);
 
                 for (int di=0; di<2*H_SZ+1; ++di)
                 {
-                  Real const l_i = InterpolateLagrangeUniformChildren<H_SZ>::coeff[di];
+                  Real const l_kji = l_kj * InterpolateLagrangeUniformChildren<H_SZ>::coeff[di];
                   // const int cx_cwi = (bl_i) ? cx_ci-H_SZ+di : cx_ci+H_SZ-di;
                   const int cx_cwi = cx_ci + ph_i * (H_SZ-di);
 
-                  Real const fc_ji = coarse(n,cx_cwk,cx_cwj,cx_cwi);
-                  fine(n,cx_fk,cx_fj,cx_fi) += l_k * l_j * l_i * fc_ji;
+                  Real const fc_kji = coarse(n,cx_cwk,cx_cwj,cx_cwi);
+                  // Real const fc_kji = cx_cwk+cx_cwj+cx_cwi;
+                  // fine(n,cx_fk,cx_fj,cx_fi) += l_kji * fc_kji;
+                  fine_val += l_kji * fc_kji;
                 }
               }
             }
+
+            fine(n,cx_fk,cx_fj,cx_fi) = fine_val;
+
+            // Real fine_val = 0.0;
+            // Real const l_c = InterpolateLagrangeUniformChildren<H_SZ>::coeff[H_SZ];
+
+            // for (int dk=0; dk<H_SZ; ++dk)
+            // {
+            //   Real const l_lk = InterpolateLagrangeUniformChildren<H_SZ>::coeff[dk];
+            //   Real const l_uk = InterpolateLagrangeUniformChildren<H_SZ>::coeff[2*H_SZ-dk];
+
+            //   const int cx_cwlk = cx_ck + ph_k * (H_SZ-dk);
+            //   const int cx_cwuk = cx_ck + ph_k * (H_SZ-(2*H_SZ-dk));
+
+            //   for (int dj=0; dj<H_SZ; ++dj)
+            //   {
+            //     Real const l_lj = InterpolateLagrangeUniformChildren<H_SZ>::coeff[dj];
+            //     Real const l_uj = InterpolateLagrangeUniformChildren<H_SZ>::coeff[2*H_SZ-dj];
+
+            //     const int cx_cwlj = cx_cj + ph_j * (H_SZ-dj);
+            //     const int cx_cwuj = cx_cj + ph_j * (H_SZ-(2*H_SZ-dj));
+
+            //     for (int di=0; di<H_SZ; ++di)
+            //     {
+            //       Real const l_li = InterpolateLagrangeUniformChildren<H_SZ>::coeff[di];
+            //       Real const l_ui = InterpolateLagrangeUniformChildren<H_SZ>::coeff[2*H_SZ-di];
+
+            //       const int cx_cwli = cx_ci + ph_i * (H_SZ-di);
+            //       const int cx_cwui = cx_ci + ph_i * (H_SZ-(2*H_SZ-di));
+
+            //       Real const fc_uuu = coarse(n,cx_cwuk,cx_cwuj,cx_cwui);
+            //       Real const fc_lll = coarse(n,cx_cwlk,cx_cwlj,cx_cwli);
+
+            //       Real const fc_luu = coarse(n,cx_cwlk,cx_cwuj,cx_cwui);
+            //       Real const fc_ulu = coarse(n,cx_cwuk,cx_cwlj,cx_cwui);
+            //       Real const fc_uul = coarse(n,cx_cwuk,cx_cwuj,cx_cwli);
+
+            //       Real const fc_llu = coarse(n,cx_cwlk,cx_cwlj,cx_cwui);
+            //       Real const fc_ull = coarse(n,cx_cwuk,cx_cwlj,cx_cwli);
+            //       Real const fc_lul = coarse(n,cx_cwlk,cx_cwuj,cx_cwli);
+
+            //       fine_val += FloatingPoint::sum_associative(
+            //         l_uk*l_uj*l_ui*fc_uuu,
+            //         l_lk*l_lj*l_li*fc_lll,
+            //         l_lk*l_uj*l_ui*fc_luu,
+            //         l_uk*l_lj*l_ui*fc_ulu,
+            //         l_uk*l_uj*l_li*fc_uul,
+            //         l_lk*l_lj*l_ui*fc_llu,
+            //         l_uk*l_lj*l_li*fc_ull,
+            //         l_lk*l_uj*l_li*fc_lul
+            //       );
+            //     }
+            //     Real const fc_uuc = coarse(n,cx_cwuk,cx_cwuj,cx_ci);
+            //     Real const fc_llc = coarse(n,cx_cwlk,cx_cwlj,cx_ci);
+
+            //     Real const fc_luc = coarse(n,cx_cwlk,cx_cwuj,cx_ci);
+            //     Real const fc_ulc = coarse(n,cx_cwuk,cx_cwlj,cx_ci);
+
+            //     fine_val += l_c * FloatingPoint::sum_associative(
+            //       l_uk*l_uj*fc_uuc,
+            //       l_lk*l_lj*fc_llc,
+            //       l_lk*l_uj*fc_luc,
+            //       l_uk*l_lj*fc_ulc
+            //     );
+
+
+            //   }
+            // }
+
+            // fine(n,cx_fk,cx_fj,cx_fi) = fine_val;
+
+
 
             bl_i = !bl_i;
             cx_ci += bl_i;
@@ -3706,6 +3779,7 @@ void MeshRefinement::ProlongateCellCenteredX(
       {
         fine(n,cx_fk,cx_fj,cx_fi) = 0.0;
 
+        /*
         for (int di=0; di<2*H_SZ+1; ++di)
         {
           Real const l_i = InterpolateLagrangeUniformChildren<H_SZ>::coeff[di];
@@ -3718,6 +3792,26 @@ void MeshRefinement::ProlongateCellCenteredX(
           Real const fc_i = coarse(n,cx_ck,cx_cj,cx_cwi);
           fine(n,cx_fk,cx_fj,cx_fi) += l_i * fc_i;
         }
+        */
+
+        for (int di=0; di<H_SZ; ++di)
+        {
+          Real const l_li = InterpolateLagrangeUniformChildren<H_SZ>::coeff[di];
+          Real const l_ui = InterpolateLagrangeUniformChildren<H_SZ>::coeff[2*H_SZ-di];
+
+          // cx_ci-H_SZ+di and cx_ci+H_SZ-di are
+          // left and right coarse idxs resp.
+          // const int cx_cwi = (bl_i) ? cx_ci-H_SZ+di : cx_ci+H_SZ-di;
+          const int cx_cwli = cx_ci + ph_i * (H_SZ-di);
+          const int cx_cwui = cx_ci + ph_i * (H_SZ-(2*H_SZ - di));
+
+          Real const fc_li = coarse(n,cx_ck,cx_cj,cx_cwli);
+          Real const fc_ui = coarse(n,cx_ck,cx_cj,cx_cwui);
+
+          fine(n,cx_fk,cx_fj,cx_fi) += (l_li * fc_li + l_ui * fc_ui);
+        }
+
+        fine(n,cx_fk,cx_fj,cx_fi) += coarse(n,cx_ck,cx_cj,cx_ci) * InterpolateLagrangeUniformChildren<H_SZ>::coeff[H_SZ];
 
         bl_i = !bl_i;  // toggle left-right as fine-values swept
         cx_ci += bl_i; // incr. if next will be a left fine child

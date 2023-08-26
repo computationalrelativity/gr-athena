@@ -4,6 +4,8 @@
 
 // numprox
 #include "interp_barycentric.hpp"
+
+#include "../athena.hpp"
 // ============================================================================
 
 // BD: does rewriting sums as simultaneously approaching center mitigate
@@ -1006,6 +1008,8 @@ inline void interp_nd<Tg, Tf>::eval_nn(Tf* fcn_t, const Tf* const fcn_s)
   }
 }
 
+#if defined(DBG_CX_KBN_CS)
+
 template <typename Tg, typename Tf>
 inline void interp_nd<Tg, Tf>::eval_nn(Tf* fcn_t, const Tf* const fcn_s,
                                        const int il_t, const int iu_t,
@@ -1016,6 +1020,11 @@ inline void interp_nd<Tg, Tf>::eval_nn(Tf* fcn_t, const Tf* const fcn_s,
   for(int i2=jl_t; i2<=ju_t; ++i2)
   for(int i1=il_t; i1<=iu_t; ++i1)
   {
+    // if((NCGHOST_CX <= i1) && (i1 <= Nt_x1 - NCGHOST_CX + 1) &&
+    //    (NCGHOST_CX <= i2) && (i2 <= Nt_x2 - NCGHOST_CX + 1) &&
+    //    (NCGHOST_CX <= i3) && (i3 <= Nt_x3 - NCGHOST_CX + 1))
+    //   continue;
+
     Tr num = 0, den = 0;
 
     Tr s_1 = 0, s_2 = 0;
@@ -1075,6 +1084,57 @@ inline void interp_nd<Tg, Tf>::eval_nn(Tf* fcn_t, const Tf* const fcn_s,
   }
 }
 
+#else
+
+template <typename Tg, typename Tf>
+inline void interp_nd<Tg, Tf>::eval_nn(Tf* fcn_t, const Tf* const fcn_s,
+                                       const int il_t, const int iu_t,
+                                       const int jl_t, const int ju_t,
+                                       const int kl_t, const int ku_t)
+{
+  for(int i3=kl_t; i3<=ku_t; ++i3)
+  for(int i2=jl_t; i2<=ju_t; ++i2)
+  for(int i1=il_t; i1<=iu_t; ++i1)
+  {
+    Tr num = 0, den = 0;
+
+    for(int k3=0; k3<=W-1; ++k3)
+    for(int k2=0; k2<=W-1; ++k2)
+    for(int k1=0; k1<=W-1; ++k1)
+    {
+      // k1 is fastest running index
+      const int ix_k1 = k1 + W*i1;
+      const int ix_k2 = k2 + W*i2;
+      const int ix_k3 = k3 + W*i3;
+
+      const int fs_ix = (
+        (k1+ng_s+ix_nn_x1[i1]) +
+        (Ns_x1+1+2*ng_s) * ((k2+ng_s+ix_nn_x2[i2]) +
+                            (Ns_x2+1+2*ng_s) *
+                            (k3+ng_s+ix_nn_x3[i3]))
+      );
+
+      const Tg prwei_k1k2k3 = (
+        rwei_nn_x1[ix_k1] *
+        rwei_nn_x2[ix_k2] *
+        rwei_nn_x3[ix_k3]
+      );
+
+      num += prwei_k1k2k3 * fcn_s[fs_ix];
+      den += prwei_k1k2k3;
+    }
+
+    const int ft_ix = (
+        (i1+ng_t) +
+        (Nt_x1+1+2*ng_t) * ((i2+ng_t) + (Nt_x2+1+2*ng_t) * (i3+ng_t))
+    );
+
+    fcn_t[ft_ix] = num / den;
+  }
+}
+
+#endif // DBG_CX_KBN_CS
+
 template <typename Tg, typename Tf>
 inline void interp_nd<Tg, Tf>::eval_nn(Tf* fcn_t, const Tf* const fcn_s,
                                        const int il_t, const int iu_t,
@@ -1083,6 +1143,10 @@ inline void interp_nd<Tg, Tf>::eval_nn(Tf* fcn_t, const Tf* const fcn_s,
   for(int i2=jl_t; i2<=ju_t; ++i2)
   for(int i1=il_t; i1<=iu_t; ++i1)
   {
+    // if((NCGHOST_CX <= i1) && (i1 <= Nt_x1 - NCGHOST_CX + 1) &&
+    //    (NCGHOST_CX <= i2) && (i2 <= Nt_x2 - NCGHOST_CX + 1))
+    //   continue;
+
     Tr num = 0, den = 0;
 
     for(int k2=0; k2<=W-1; ++k2)
@@ -1108,6 +1172,41 @@ inline void interp_nd<Tg, Tf>::eval_nn(Tf* fcn_t, const Tf* const fcn_s,
     );
     fcn_t[ft_ix] = num / den;
   }
+
+  // for(int i2=jl_t; i2<=ju_t; ++i2)
+  // {
+  //   for(int i1=il_t; i1<=iu_t; ++i1)
+  //   {
+  //     Tr num = 0, den = 0;
+
+  //     for(int k2=0; k2<=W-1; ++k2)
+  //     {
+  //       const int ix_k2 = k2 + W*i2;
+
+  //       for(int k1=0; k1<=W-1; ++k1)
+  //       {
+  //         const int ix_k1 = k1 + W*i1;
+
+  //         const int fs_ix = (
+  //           (k1+ng_s+ix_nn_x1[i1]) +
+  //           (Ns_x1+1+2*ng_s) * (k2+ng_s+ix_nn_x2[i2])
+  //         );
+
+  //         const Tg prwei_k1k2 = rwei_nn_x1[ix_k1]*rwei_nn_x2[ix_k2];
+
+  //         num += prwei_k1k2 * fcn_s[fs_ix];
+  //         den += prwei_k1k2;
+  //       }
+  //     }
+
+  //     const int ft_ix = ((i1+ng_t) +
+  //       (Nt_x1+1+2*ng_t) * (i2+ng_t)
+  //     );
+  //     fcn_t[ft_ix] = num / den;
+
+  //   }
+  // }
+
 }
 
 template <typename Tg, typename Tf>

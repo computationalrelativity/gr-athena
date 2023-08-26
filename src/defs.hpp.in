@@ -33,6 +33,9 @@
 // do not refine to complementary block coarse layer if all nn on same level
 #define DBG_NO_REF_NN_SAME_LEVEL
 
+// use compensated summation for CX interior restrict?
+#define NO_DBG_CX_KBN_CS
+
 //----------------------------------------------------------------------------------------
 // macros which define physics and algorithms
 
