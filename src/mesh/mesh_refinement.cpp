@@ -2710,9 +2710,17 @@ void MeshRefinement::ProlongateCellCenteredXBCValues(
     const AthenaArray<Real> &coarse, AthenaArray<Real> &fine,
     int sn, int en, int csi, int cei, int csj, int cej, int csk, int cek)
 {
-  // ProlongateCellCenteredValues(coarse, fine, sn, en,
-  //                              csi, cei, csj, cej, csk, cek);
-  // return;
+  // here H_SZ * 2 is resultant interpolant degree,
+  // For boundary use one node fewer for compatibility with
+  // ProlongateCellCenteredXGhosts
+  const int H_SZ = (2 * NCGHOST_CX - NGHOST) / 2;
+
+#if defined(DBG_CX_FASTER_PROL)
+  ProlongateCellCenteredX<H_SZ>(coarse, fine, sn, en,
+                                csi, cei, csj, cej, csk, cek);
+  return;
+#endif // DBG_CX_FASTER_PROL
+
 
   MeshBlock *pmb = pmy_block_;
 
@@ -2741,14 +2749,8 @@ void MeshRefinement::ProlongateCellCenteredXBCValues(
   // return;
   // // --------------------------------------------------------------------------
 
-  // here H_SZ * 2 is resultant interpolant degree
-  // formula compatible with ProlongateCellCenteredXGhosts
-  const int H_SZ = (2 * NCGHOST_CX - NGHOST) / 2;
-  // const int H_SZ = 2;
-
   if (pmb->block_size.nx3>1)
   { // 3D
-
     for(int n=sn; n<=en; ++n)
     for(int cx_ck=csk; cx_ck<=cek; cx_ck++)
     {
@@ -2870,13 +2872,12 @@ void MeshRefinement::ProlongateCellCenteredXBCValues(
       }
     }
 
-
-
   }
   else if (pmb->block_size.nx2>1)
   { // 2D
 
     const int cx_fk = pmb->cx_ks, cx_ck = pmb->cx_cks;
+
     for(int n=sn; n<=en; ++n)
     for(int cx_cj=csj; cx_cj<=cej; cx_cj++)
     {
@@ -2966,7 +2967,7 @@ void MeshRefinement::ProlongateCellCenteredXBCValues(
       if(cx_fi+1 < pmb->ncells1)
         fine(n,cx_fk,cx_fj,cx_fi+1) = 0.0;
 
-      #pragma unroll
+      // #pragma unroll
       for (int di=0; di<2*H_SZ+1; ++di)
       {
         // left / right children coeffs
@@ -2992,42 +2993,44 @@ void MeshRefinement::ProlongateCellCenteredXBCValues(
           fine(n,cx_fk,cx_fj,cx_fi+1) += l_i * fc_r;
       }
 
-      /*
-      // deg 4 interp. --------------------------------------------------------
-      // left child
-      fine(n,cx_fk,cx_fj,cx_fi) = (
-        -45.0  * coarse(n,cx_ck,cx_cj,cx_ci-2) +
-        420.0  * coarse(n,cx_ck,cx_cj,cx_ci-1) +
-        1890.0 * coarse(n,cx_ck,cx_cj,cx_ci  ) +
-        -252.0 * coarse(n,cx_ck,cx_cj,cx_ci+1) +
-        35.0   * coarse(n,cx_ck,cx_cj,cx_ci+2)
-      ) / 2048.0;
-      // right child
-      fine(n,cx_fk,cx_fj,cx_fi+1) = (
-        35.0   * coarse(n,cx_ck,cx_cj,cx_ci-2) +
-        -252.0 * coarse(n,cx_ck,cx_cj,cx_ci-1) +
-        1890.0 * coarse(n,cx_ck,cx_cj,cx_ci  ) +
-        420.0  * coarse(n,cx_ck,cx_cj,cx_ci+1) +
-        -45.0  * coarse(n,cx_ck,cx_cj,cx_ci+2)
-      ) / 2048.0;
-      // ----------------------------------------------------------------------
-      */
-    }
+      // // deg 4 interp. --------------------------------------------------------
+      // // left child
+      // fine(n,cx_fk,cx_fj,cx_fi) = (
+      //   -45.0  * coarse(n,cx_ck,cx_cj,cx_ci-2) +
+      //   420.0  * coarse(n,cx_ck,cx_cj,cx_ci-1) +
+      //   1890.0 * coarse(n,cx_ck,cx_cj,cx_ci  ) +
+      //   -252.0 * coarse(n,cx_ck,cx_cj,cx_ci+1) +
+      //   35.0   * coarse(n,cx_ck,cx_cj,cx_ci+2)
+      // ) / 2048.0;
+      // // right child
+      // fine(n,cx_fk,cx_fj,cx_fi+1) = (
+      //   35.0   * coarse(n,cx_ck,cx_cj,cx_ci-2) +
+      //   -252.0 * coarse(n,cx_ck,cx_cj,cx_ci-1) +
+      //   1890.0 * coarse(n,cx_ck,cx_cj,cx_ci  ) +
+      //   420.0  * coarse(n,cx_ck,cx_cj,cx_ci+1) +
+      //   -45.0  * coarse(n,cx_ck,cx_cj,cx_ci+2)
+      // ) / 2048.0;
+      // // ----------------------------------------------------------------------
 
+    }
 
   }
 
   return;
-
 }
 
 void MeshRefinement::ProlongateCellCenteredXValues(
     const AthenaArray<Real> &coarse, AthenaArray<Real> &fine,
     int sn, int en, int csi, int cei, int csj, int cej, int csk, int cek)
 {
-  // ProlongateCellCenteredXBCValues(coarse, fine, sn, en,
-  //                                 csi, cei, csj, cej, csk, cek);
-  // return;
+  // here H_SZ * 2 is resultant interpolant degree,
+  const int H_SZ = (2 * NCGHOST_CX - NGHOST) / 2 + 1;
+
+#if defined(DBG_CX_FASTER_PROL)
+  ProlongateCellCenteredX<H_SZ>(coarse, fine, sn, en,
+                                csi, cei, csj, cej, csk, cek);
+  return;
+#endif // DBG_CX_FASTER_PROL
 
   MeshBlock *pmb = pmy_block_;
 
@@ -3056,15 +3059,6 @@ void MeshRefinement::ProlongateCellCenteredXValues(
   // }
   // return;
   // // --------------------------------------------------------------------------
-
-  // ProlongateCellCenteredXBCValues(coarse, fine,
-  //   sn, en, csi, cei, csj, cej, csk, cek);
-  // return;
-
-  // here H_SZ * 2 is resultant interpolant degree
-  // formula compatible with ProlongateCellCenteredXGhosts
-  const int H_SZ = (2 * NCGHOST_CX - NGHOST) / 2 + 1;
-  // const int H_SZ = 1;
 
 
   // for(int n=sn; n<=en; ++n)
@@ -3297,137 +3291,6 @@ void MeshRefinement::ProlongateCellCenteredXValues(
   { // 2D
 
 
-    // const int cx_fk = pmb->cx_ks, cx_ck = pmb->cx_cks;
-    // for (int n=sn; n<=en; ++n)
-    // for (int cx_cj=csj; cx_cj<=cej; cx_cj++)
-    // {
-    //   // left child idx on fine grid
-    //   const int cx_fj = 2 * (cx_cj - pmb->cx_cjs) + pmb->cx_js;
-
-    //   for (int cx_ci=csi; cx_ci<=cei; cx_ci++)
-    //   {
-    //     // left child idx on fine grid
-    //     const int cx_fi = 2 * (cx_ci - pmb->cx_cis) + pmb->cx_is;
-
-    //     // fine(n,cx_fk,cx_fj,cx_fi) = coarse(n,cx_ck,cx_cj,cx_ci);
-    //     // fine(n,cx_fk,cx_fj,cx_fi+1) = coarse(n,cx_ck,cx_cj,cx_ci+1);
-    //     // fine(n,cx_fk,cx_fj+1,cx_fi) = coarse(n,cx_ck,cx_cj+1,cx_ci);
-    //     // fine(n,cx_fk,cx_fj+1,cx_fi+1) = coarse(n,cx_ck,cx_cj+1,cx_ci+1);
-
-    //     // use templated ------------------------------------------------------
-    //     if (false)
-    //     {
-    //     fine(n,cx_fk,cx_fj,  cx_fi  ) = 0.0;
-    //     fine(n,cx_fk,cx_fj,  cx_fi+1) = 0.0;
-    //     fine(n,cx_fk,cx_fj+1,cx_fi  ) = 0.0;
-    //     fine(n,cx_fk,cx_fj+1,cx_fi+1) = 0.0;
-
-    //     #pragma unroll
-    //     for (int dj=0; dj<2*H_SZ+1; ++dj)
-    //     {
-    //       // left / right children coeffs
-    //       Real const l_clj = (
-    //         InterpolateLagrangeUniformChildren<H_SZ>::coeff[dj]
-    //       );
-    //       Real const l_crj = InterpolateLagrangeUniformChildren<H_SZ>::coeff[
-    //         2 * H_SZ - dj
-    //       ];
-
-    //       const int cx_cjl = cx_cj-H_SZ+dj;
-    //       const int cx_cjr = cx_cj+H_SZ-dj;
-
-
-    //       #pragma unroll
-    //       for (int di=0; di<2*H_SZ+1; ++di)
-    //       {
-    //         Real const l_cli = (
-    //           InterpolateLagrangeUniformChildren<H_SZ>::coeff[di]
-    //         );
-    //         Real const l_cri = (
-    //             InterpolateLagrangeUniformChildren<H_SZ>::coeff[
-    //               2 * H_SZ - di
-    //             ]
-    //         );
-
-    //         const int cx_cil = cx_ci-H_SZ+di;
-    //         const int cx_cir = cx_ci+H_SZ-di;
-
-    //         Real const fc_ll = coarse(n,cx_ck,cx_cjl,cx_cil);
-    //         Real const fc_lr = coarse(n,cx_ck,cx_cjl,cx_cir);
-    //         Real const fc_rl = coarse(n,cx_ck,cx_cjr,cx_cil);
-    //         Real const fc_rr = coarse(n,cx_ck,cx_cjr,cx_cir);
-
-    //         /*
-    //         Real const fc_ll = coarse(n,cx_ck,cx_cj-H_SZ+dj,cx_ci-H_SZ+di);
-    //         Real const fc_lr = coarse(n,cx_ck,cx_cj-H_SZ+dj,cx_ci+H_SZ-di);
-    //         Real const fc_rl = coarse(n,cx_ck,cx_cj+H_SZ-dj,cx_ci-H_SZ+di);
-    //         Real const fc_rr = coarse(n,cx_ck,cx_cj+H_SZ-dj,cx_ci+H_SZ-di);
-
-    //         fine(n,cx_fk,cx_fj,  cx_fi  ) += l_clj * l_cli * fc_ll;
-    //         fine(n,cx_fk,cx_fj,  cx_fi+1) += l_clj * l_cri * fc_lr;
-    //         fine(n,cx_fk,cx_fj+1,cx_fi  ) += l_crj * l_cli * fc_rl;
-    //         fine(n,cx_fk,cx_fj+1,cx_fi+1) += l_crj * l_cri * fc_rr;
-    //         */
-
-    //         // fine(n,cx_fk,cx_fj,  cx_fi  ) += l_cli * l_clj * (fc_ll + fc_lr + fc_rl + fc_rr);
-    //         // fine(n,cx_fk,cx_fj,  cx_fi+1) += l_cri * l_clj * (fc_ll + fc_lr + fc_rl + fc_rr);
-    //         // fine(n,cx_fk,cx_fj+1,  cx_fi  ) += l_cli * l_crj * (fc_ll + fc_lr + fc_rl + fc_rr);
-    //         // fine(n,cx_fk,cx_fj+1,  cx_fi+1) += l_cri * l_crj * (fc_ll + fc_lr + fc_rl + fc_rr);
-
-    //         fine(n,cx_fk,cx_fj,  cx_fi  ) += l_clj * l_cli * fc_ll;
-    //         fine(n,cx_fk,cx_fj,  cx_fi+1) += l_clj * l_cri * fc_lr;
-    //         fine(n,cx_fk,cx_fj+1,cx_fi  ) += l_crj * l_cli * fc_rl;
-    //         fine(n,cx_fk,cx_fj+1,cx_fi+1) += l_crj * l_cri * fc_rr;
-
-    //       }
-
-    //     }
-
-    //     }
-
-    //   }
-
-    // }
-
-    // debug with poly injection on coarse 1 / 2
-    if(false)
-    {
-      AthenaArray<Real> &ncoarse = const_cast<AthenaArray<Real>&>(coarse);
-      ncoarse.Fill(0);
-
-      AthenaArray<Real> cx_cx1v;
-      AthenaArray<Real> cx_cx2v;
-      cx_cx1v.NewAthenaArray(pmb->cx_ncc1);
-      cx_cx2v.NewAthenaArray(pmb->cx_ncc2);
-
-      Real cdx1 = pcoarsec->x1v(1) - pcoarsec->x1v(0);
-      Real cdx2 = pcoarsec->x2v(1) - pcoarsec->x2v(0);
-
-      for(int i=0; i<pmb->cx_ncc1; ++i)
-        cx_cx1v(i) = (i - pmb->cx_dng) * cdx1 + pcoarsec->x1v(0);
-
-      for(int j=0; j<pmb->cx_ncc2; ++j)
-        cx_cx2v(j) = (j - pmb->cx_dng) * cdx2 + pcoarsec->x2v(0);
-
-
-      for(int cj=0; cj<pmb->cx_ncc2; ++cj)
-      for(int ci=0; ci<pmb->cx_ncc1; ++ci)
-      {
-        ncoarse(0,0,cj,ci) = (
-          std::pow(cx_cx2v(cj), 3.) * std::pow(cx_cx1v(ci), 2.)
-        );
-      }
-
-      fine.Fill(0);
-
-      csi = NCGHOST_CX;
-      csj = NCGHOST_CX;
-
-      cei = pmb->cx_ncc1 - NCGHOST_CX - 1;
-      cej = pmb->cx_ncc2 - NCGHOST_CX - 1;
-
-    }
-
     const int cx_fk = pmb->cx_ks, cx_ck = pmb->cx_cks;
     for(int n=sn; n<=en; ++n)
     for(int cx_cj=csj; cx_cj<=cej; cx_cj++)
@@ -3455,7 +3318,7 @@ void MeshRefinement::ProlongateCellCenteredXValues(
           if((cx_fi+1 < pmb->ncells1) && (cx_fj+1 < pmb->ncells2))
             fine(n,cx_fk,cx_fj+1,cx_fi+1) = 0.0;
 
-          #pragma unroll
+          // #pragma unroll
           for (int dj=0; dj<2*H_SZ+1; ++dj)
           {
             // see 1d case for description of this
@@ -3466,7 +3329,7 @@ void MeshRefinement::ProlongateCellCenteredXValues(
             const int cx_cjl = cx_cj-H_SZ+dj;
             const int cx_cjr = cx_cj+H_SZ-dj;
 
-            #pragma unroll
+            // #pragma unroll
             for (int di=0; di<2*H_SZ+1; ++di)
             {
               Real const l_ji = l_j * (
@@ -3553,7 +3416,7 @@ void MeshRefinement::ProlongateCellCenteredXValues(
       if(cx_fi+1 < pmb->ncells1)
         fine(n,cx_fk,cx_fj,cx_fi+1) = 0.0;
 
-      #pragma unroll
+      // #pragma unroll
       for (int di=0; di<2*H_SZ+1; ++di)
       {
         // left / right children coeffs
@@ -3643,6 +3506,209 @@ void MeshRefinement::ProlongateCellCenteredXValues(
   }
 
   return;
+
+}
+
+template<int H_SZ>
+void MeshRefinement::ProlongateCellCenteredX(
+  const AthenaArray<Real> &coarse,
+  AthenaArray<Real> &fine, int sn, int en,
+  int csi, int cei, int csj, int cej, int csk, int cek)
+{
+  MeshBlock *pmb = pmy_block_;
+
+  // here H_SZ * 2 is resultant interpolant degree
+
+  if (pmb->block_size.nx3>1)
+  { // 3D
+
+    // see 1d case
+    int cx_fsi = 2 * (csi - pmb->cx_cis) + pmb->cx_is;
+    int cx_fei = 2 * (cei - pmb->cx_cis) + pmb->cx_is + 1;
+
+    int cx_fsj = 2 * (csj - pmb->cx_cjs) + pmb->cx_js;
+    int cx_fej = 2 * (cej - pmb->cx_cjs) + pmb->cx_js + 1;
+
+    int cx_fsk = 2 * (csk - pmb->cx_cks) + pmb->cx_ks;
+    int cx_fek = 2 * (cek - pmb->cx_cks) + pmb->cx_ks + 1;
+
+    cx_fsi = (cx_fsi >= 0            ) ? cx_fsi : 0;
+    cx_fei = (cx_fei+1 < pmb->ncells1) ? cx_fei : pmb->ncells1 - 1;
+
+    cx_fsj = (cx_fsj >= 0            ) ? cx_fsj : 0;
+    cx_fej = (cx_fej+1 < pmb->ncells2) ? cx_fej : pmb->ncells2 - 1;
+
+    cx_fsk = (cx_fsk >= 0            ) ? cx_fsk : 0;
+    cx_fek = (cx_fek+1 < pmb->ncells3) ? cx_fek : pmb->ncells3 - 1;
+
+    const bool cx_f_isleft = !((cx_fsi + NGHOST) % 2);
+    const bool cx_f_jsleft = !((cx_fsj + NGHOST) % 2);
+    const bool cx_f_ksleft = !((cx_fsk + NGHOST) % 2);
+
+
+    for (int n=sn; n<=en; ++n)
+    {
+      bool bl_k = cx_f_ksleft;
+      // BD switch ternary conditionals below to phase mul.?
+
+      for (int cx_fk=cx_fsk, cx_ck=csk; cx_fk<=cx_fek; ++cx_fk)
+      {
+        bool bl_j = cx_f_jsleft;
+        for (int cx_fj=cx_fsj, cx_cj=csj; cx_fj<=cx_fej; ++cx_fj)
+        {
+          bool bl_i = cx_f_isleft;
+
+          for (int cx_fi=cx_fsi, cx_ci=csi; cx_fi<=cx_fei; ++cx_fi)
+          {
+            fine(n,cx_fk,cx_fj,cx_fi) = 0.0;
+
+            for (int dk=0; dk<2*H_SZ+1; ++dk)
+            {
+              Real const l_k = InterpolateLagrangeUniformChildren<H_SZ>::coeff[dk];
+              const int cx_cwk = (bl_k) ? cx_ck-H_SZ+dk : cx_ck+H_SZ-dk;
+
+              for (int dj=0; dj<2*H_SZ+1; ++dj)
+              {
+                Real const l_j = InterpolateLagrangeUniformChildren<H_SZ>::coeff[dj];
+                const int cx_cwj = (bl_j) ? cx_cj-H_SZ+dj : cx_cj+H_SZ-dj;
+
+                for (int di=0; di<2*H_SZ+1; ++di)
+                {
+                  Real const l_i = InterpolateLagrangeUniformChildren<H_SZ>::coeff[di];
+
+                  const int cx_cwi = (bl_i) ? cx_ci-H_SZ+di : cx_ci+H_SZ-di;
+
+                  Real const fc_ji = coarse(n,cx_cwk,cx_cwj,cx_cwi);
+                  fine(n,cx_fk,cx_fj,cx_fi) += l_k * l_j * l_i * fc_ji;
+                }
+              }
+            }
+
+            bl_i = !bl_i;
+            cx_ci += bl_i;
+          }
+
+          bl_j = !bl_j;
+          cx_cj += bl_j;
+        }
+
+        bl_k = !bl_k;
+        cx_ck += bl_k;
+      }
+
+    }
+
+  }
+  else if (pmb->block_size.nx2>1)
+  { // 2D
+
+    const int cx_fk = pmb->cx_ks, cx_ck = pmb->cx_cks;
+
+    // see 1d case
+    int cx_fsi = 2 * (csi - pmb->cx_cis) + pmb->cx_is;
+    int cx_fei = 2 * (cei - pmb->cx_cis) + pmb->cx_is + 1;
+
+    int cx_fsj = 2 * (csj - pmb->cx_cjs) + pmb->cx_js;
+    int cx_fej = 2 * (cej - pmb->cx_cjs) + pmb->cx_js + 1;
+
+    cx_fsi = (cx_fsi >= 0            ) ? cx_fsi : 0;
+    cx_fei = (cx_fei+1 < pmb->ncells1) ? cx_fei : pmb->ncells1 - 1;
+
+    cx_fsj = (cx_fsj >= 0            ) ? cx_fsj : 0;
+    cx_fej = (cx_fej+1 < pmb->ncells2) ? cx_fej : pmb->ncells2 - 1;
+
+    const bool cx_f_isleft = !((cx_fsi + NGHOST) % 2);
+    const bool cx_f_jsleft = !((cx_fsj + NGHOST) % 2);
+
+
+    for (int n=sn; n<=en; ++n)
+    {
+      bool bl_j = cx_f_jsleft;
+
+      for (int cx_fj=cx_fsj, cx_cj=csj; cx_fj<=cx_fej; ++cx_fj)
+      {
+        bool bl_i = cx_f_isleft;
+
+        for (int cx_fi=cx_fsi, cx_ci=csi; cx_fi<=cx_fei; ++cx_fi)
+        {
+          fine(n,cx_fk,cx_fj,cx_fi) = 0.0;
+
+          for (int dj=0; dj<2*H_SZ+1; ++dj)
+          {
+            Real const l_j = InterpolateLagrangeUniformChildren<H_SZ>::coeff[dj];
+            const int cx_cwj = (bl_j) ? cx_cj-H_SZ+dj : cx_cj+H_SZ-dj;
+
+
+            for (int di=0; di<2*H_SZ+1; ++di)
+            {
+              Real const l_i = InterpolateLagrangeUniformChildren<H_SZ>::coeff[di];
+
+              const int cx_cwi = (bl_i) ? cx_ci-H_SZ+di : cx_ci+H_SZ-di;
+
+              Real const fc_ji = coarse(n,cx_ck,cx_cwj,cx_cwi);
+              fine(n,cx_fk,cx_fj,cx_fi) += l_j * l_i * fc_ji;
+            }
+          }
+
+          bl_i = !bl_i;
+          cx_ci += bl_i;
+        }
+
+        bl_j = !bl_j;
+        cx_cj += bl_j;
+      }
+    }
+
+  }
+  else
+  { // 1D
+    const int cx_fj = pmb->cx_js, cx_cj = pmb->cx_cjs;
+    const int cx_fk = pmb->cx_ks, cx_ck = pmb->cx_cks;
+
+    // first child idx on fine grid
+    int cx_fsi = 2 * (csi - pmb->cx_cis) + pmb->cx_is;
+    // last child idx on fine grid (+1 for potential right child)
+    int cx_fei = 2 * (cei - pmb->cx_cis) + pmb->cx_is + 1;
+
+    // Adjust bounds to be physical
+    cx_fsi = (cx_fsi >= 0            ) ? cx_fsi : 0;
+    cx_fei = (cx_fei+1 < pmb->ncells1) ? cx_fei : pmb->ncells1 - 1;
+
+    // Does first fine index remain a left child after adjusting?
+    //
+    // NGHOST even:
+    // Then !(cx_fsi % 2) is sufficient
+    // NGHOST odd:
+    // Then the above condition is flipped, this is equivalent to
+    // !((cx_fsi + NGHOST) % 2)
+    const bool cx_f_isleft = !((cx_fsi + NGHOST) % 2);
+
+    for (int n=sn; n<=en; ++n)
+    {
+      bool bl_i = cx_f_isleft;  // flip rather than recompute above condition
+
+      for (int cx_fi=cx_fsi, cx_ci=csi; cx_fi<=cx_fei; ++cx_fi)
+      {
+        fine(n,cx_fk,cx_fj,cx_fi) = 0.0;
+
+        for (int di=0; di<2*H_SZ+1; ++di)
+        {
+          Real const l_i = InterpolateLagrangeUniformChildren<H_SZ>::coeff[di];
+
+          // cx_ci-H_SZ+di and cx_ci+H_SZ-di are
+          // left and right coarse idxs resp.
+          const int cx_cwi = (bl_i) ? cx_ci-H_SZ+di : cx_ci+H_SZ-di;
+
+          Real const fc_i = coarse(n,cx_ck,cx_cj,cx_cwi);
+          fine(n,cx_fk,cx_fj,cx_fi) += l_i * fc_i;
+        }
+
+        bl_i = !bl_i;  // toggle left-right as fine-values swept
+        cx_ci += bl_i; // incr. if next will be a left fine child
+      }
+    }
+
+  }
 
 }
 

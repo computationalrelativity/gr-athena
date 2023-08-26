@@ -24,6 +24,9 @@
 // debugging bary opers
 #define NO_DBG_CX_ALL_BARY_RP
 
+// templated, faster cx prolongation
+#define DBG_CX_FASTER_PROL
+
 //----------------------------------------------------------------------------------------
 // macros which define physics and algorithms
 

@@ -95,6 +95,12 @@ class MeshRefinement {
                                       AthenaArray<Real> &fine, int sn, int en,
                                       int csi, int cei, int csj, int cej, int csk, int cek);
 
+  template<int H_SZ>
+  void ProlongateCellCenteredX(const AthenaArray<Real> &coarse,
+                              AthenaArray<Real> &fine, int sn, int en,
+                              int csi, int cei, int csj, int cej, int csk, int cek);
+
+
   void RestrictCellCenteredXValues(const AthenaArray<Real> &fine,
                                    AthenaArray<Real> &coarse, int sn, int en,
                                    int csi, int cei, int csj, int cej, int csk, int cek);
