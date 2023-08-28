@@ -201,33 +201,29 @@ Real Z4c_AMR::FDTruncErrorChiL2(MeshBlock *const pmy_block,
   if (deriv_order == 7)
   {
     assert(NGHOST > 3);
-    ILOOP2(k,j) {
-      ILOOP1(i) {
-        derive_kji = 0.;
-        // (d^7 chi(kji)/dx^7)^p +
-        // (d^7 chi(kji)/dy^7)^p +
-        // (d^7 chi(kji)/dz^7)^p
-        for(int a = 0; a < NDIM; ++a) {
-          derive_kji += std::pow(pz4c->FD.Dx7(a, z4c.chi(k,j,i)),p);
-        }
-        L2_norm += POW2(derive_kji);
+    ILOOP3(k,j,i) {
+      derive_kji = 0.;
+      // (d^7 chi(kji)/dx^7)^p +
+      // (d^7 chi(kji)/dy^7)^p +
+      // (d^7 chi(kji)/dz^7)^p
+      for(int a = 0; a < NDIM; ++a) {
+        derive_kji += std::pow(pz4c->FD.Dx7(a, z4c.chi(k,j,i)),p);
       }
+      L2_norm += POW2(derive_kji);
     }
   }
   // calc. L2 norm of 2nd derivative
   else if (deriv_order == 2)
   {
-    ILOOP2(k,j) {
-      ILOOP1(i) {
-        derive_kji = 0.;
-        // (d^2 chi(kji)/dx^2)^p +
-        // (d^2 chi(kji)/dy^2)^p +
-        // (d^2 chi(kji)/dz^2)^p
-        for(int a = 0; a < NDIM; ++a) {
-          derive_kji += std::pow(pz4c->FD.Dxx(a, z4c.chi(k,j,i)),p);
-        }
-        L2_norm += POW2(derive_kji);
+    ILOOP3(k,j,i) {
+      derive_kji = 0.;
+      // (d^2 chi(kji)/dx^2)^p +
+      // (d^2 chi(kji)/dy^2)^p +
+      // (d^2 chi(kji)/dz^2)^p
+      for(int a = 0; a < NDIM; ++a) {
+        derive_kji += std::pow(pz4c->FD.Dxx(a, z4c.chi(k,j,i)),p);
       }
+      L2_norm += POW2(derive_kji);
     }
   }
   else
@@ -279,7 +275,7 @@ Real Z4c_AMR::FDTruncErrorChiLinf(MeshBlock *const pmy_block,
   // calc. 2nd derivative in all dirs
   else if (deriv_order == 2)
   {
-    ILOOP2(k,j,i) {
+    ILOOP3(k,j,i) {
       derive_kji = 0.;
       // (d^2 chi(kji)/dx^2)^p +
       // (d^2 chi(kji)/dy^2)^p +
@@ -321,7 +317,7 @@ Real Z4c_AMR::FDTruncErrorChiLinfComponentWise(MeshBlock *const pmy_block,
   if (deriv_order == 7)
   {
     assert(NGHOST > 3 && p == 1);// as p = 1 is optimized
-    ILOOP2(k,j,i) {
+    ILOOP3(k,j,i) {
       Real der_max_comp = 0.;
       // max { |d^7 chi(kji)/dx^7)^p|,
       //       |(d^7 chi(kji)/dy^7)^p|,
