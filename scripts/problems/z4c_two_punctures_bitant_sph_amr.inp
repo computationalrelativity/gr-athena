@@ -68,6 +68,44 @@ npunct = 2
 bh_0_x = 3.257
 bh_1_x = -3.257
 
+bitant = true
+
+
+# amr with spheres
+sphere_zone_number = 3
+
+sphere_zone_level_0    = 4
+sphere_zone_radius_0   = 100
+sphere_zone_puncture_0 = -1  # not pinned to a puncture
+sphere_zone_center1_0  = 0   # fix center
+sphere_zone_center2_0  = 0
+sphere_zone_center3_0  = 0
+
+
+sphere_zone_level_1    = 9
+sphere_zone_radius_1   = 0.1
+sphere_zone_puncture_1 = 0  # pin to puncture
+
+sphere_zone_level_2    = 9
+sphere_zone_radius_2   = 0.1
+sphere_zone_puncture_2 = 1  # pin to puncture
+
+# sphere_zone_level_3    = 6
+# sphere_zone_radius_3   = 0.25
+# sphere_zone_puncture_3 = 0  # pin to puncture
+# 
+# sphere_zone_level_4    = 6
+# sphere_zone_radius_4   = 0.25
+# sphere_zone_puncture_4 = 1  # pin to puncture
+# 
+# sphere_zone_level_5    = 7
+# sphere_zone_radius_5   = 0.01
+# sphere_zone_puncture_5 = 0  # pin to puncture
+# 
+# sphere_zone_level_6    = 7
+# sphere_zone_radius_6   = 0.01
+# sphere_zone_puncture_6 = 1  # pin to puncture
+
 <cce>
 
 dump_every_dt = 1 ## a multiple of the time step
@@ -194,40 +232,40 @@ compute_every_iter_2 = 2
 file_type = rst
 dt = 5
 
-<output2>
-file_type = hdf5
-variable = con
-dt = 1.5
-data_format = %.16e
-ghost_zones = true
+# <output2>
+# file_type = hdf5
+# variable = weyl
+# dt = 0.5
+# data_format = %.16e
+# ghost_zones = true
 # x3_slice = 0
 
 <output3>
 file_type = hdf5
 variable = z4c
-dt = 1.5
+dt = 0.25
 data_format = %.16e
 ghost_zones = true
 x3_slice = 0
-
-<output4>
-file_type = hdf5
-variable = adm
-dt = 1.5
-data_format = %.16e
-ghost_zones = true
-x3_slice = 0
-
-<output5>
-file_type = hdf5
-variable = weyl
-dt = 1.5
-data_format = %.16e
-ghost_zones = true
+# 
+# <output4>
+# file_type = hdf5
+# variable = adm
+# dt = 1.5
+# data_format = %.16e
+# ghost_zones = true
+# x3_slice = 0
+# 
+# <output5>
+# file_type = hdf5
+# variable = weyl
+# dt = 1.5
+# data_format = %.16e
+# ghost_zones = true
 
 <time>
-cfl_number = 0.5
-tlim = 0.5
+cfl_number = 0.2
+tlim = 1
 integrator = rk4
 ncycle_out = 1
 nlim = -1
@@ -235,28 +273,29 @@ nlim = -1
 <mesh>
 
 refinement = adaptive
-num_threads = 2
-numlevel = 3
+num_threads = 12
+# this just becomes an upper-bound with spherical refinement
+numlevel = 20
 deref_count = 0
 # Number of zones in X1-direction
-nx1 = 64
+nx1 = 96
 # Minimum value of X1
-x1min = -24
+x1min = -1536
 # Maximum value of X1
-x1max = 24
+x1max = 1536
 # Inner-X1 boundary flag
 ix1_bc = extrapolate_outflow
 # Outer-X1 boundary flag
 ox1_bc = extrapolate_outflow
-nx2 = 64
-x2min = -24
-x2max = 24
+nx2 = 96
+x2min = -1536
+x2max = 1536
 ix2_bc = extrapolate_outflow
 ox2_bc = extrapolate_outflow
-nx3 = 64
-x3min = -24
-x3max = 24
-ix3_bc = extrapolate_outflow
+nx3 = 48
+x3min = 0
+x3max = 1536
+ix3_bc = reflecting
 ox3_bc = extrapolate_outflow
 
 <meshblock>

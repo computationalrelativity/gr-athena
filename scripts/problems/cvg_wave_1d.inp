@@ -20,7 +20,7 @@ data_format     = %.16e
 
 <time>
 cfl_number      = 0.4       # The Courant, Friedrichs, & Lewy (CFL) number
-tlim            = 0.5     # time limit
+tlim            = 0.2     # time limit
 integrator      = rk4       # time integrator
 
 <mesh>

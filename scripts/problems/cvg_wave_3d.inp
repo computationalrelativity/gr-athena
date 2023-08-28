@@ -45,9 +45,9 @@ c               = 1.0
 use_Sommerfeld  = 0         # type of Sommerfeld condition to apply (if any)
 
 <meshblock>
-nx1        = 32        # Number of zones per MeshBlock in X1-direction
-nx2        = 32        # Number of zones per MeshBlock in X2-direction
-nx3        = 32        # Number of zones per MeshBlock in X3-direction
+nx1        = 16        # Number of zones per MeshBlock in X1-direction
+nx2        = 16        # Number of zones per MeshBlock in X2-direction
+nx3        = 16        # Number of zones per MeshBlock in X3-direction
 
 num_threads = 1        # Number of OpenMP threads per process
 

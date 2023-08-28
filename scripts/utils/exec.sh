@@ -6,9 +6,16 @@
 # cd ${DIR_ATHENA}/${REL_OUTPUT}/${RUN_NAME}
 cd ${DIR_OUTPUT}
 
-./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
+time ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
+# gprof ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME} > analysis.txt
 
-# ./${EXEC_NAME}.x -r z4c.00000.rst
+# gprof -b -p ./${EXEC_NAME}.x > analysis.txt
+
+# time ./${EXEC_NAME}.x -r z4c.00000.rst
+
+# perf record -g ./${EXEC_NAME}.x -r z4c.00000.rst
+# time ./${EXEC_NAME}.x -r z4c.00000.rst
+# perf report --children -g 'graph,0.5,caller' --dsos=${EXEC_NAME}.x -U
 
 # echo "> Executing: ${EXEC_NAME} in ${REL_OUTPUT}/${RUN_NAME} ..."
 # echo "> Using input: ${REL_INPUT}/${INPUT_NAME} ..."

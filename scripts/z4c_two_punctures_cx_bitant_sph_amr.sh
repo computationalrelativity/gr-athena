@@ -6,59 +6,58 @@
 ###############################################################################
 export FN=$(readlink -f "$0"); export DIR_SCRIPTS=$(dirname "${FN}")
 
-# export DIR_INSTALL_MUST=/mnt/nimbus/_Installed/MUST
-# export PATH=${DIR_INSTALL_MUST}/bin:$PATH
-
 ###############################################################################
 # configure here
-export RUN_NAME=cx
-export BIN_NAME=wave_cx
-export REL_OUTPUT=outputs/wave_1d
+export RUN_NAME=two_punctures_cx_bitant_sph_amr
+export BIN_NAME=z4c
+export REL_OUTPUT=outputs/z4c_cx
 export REL_INPUT=scripts/problems
-
-# Will be populated with defaults instead.
-export INPUT_NAME=cvg_wave_1d.inp
+export INPUT_NAME=z4c_two_punctures_bitant_sph_amr.inp
 
 # if compilation is chosen
 export DIR_HDF5=$(spack location -i hdf5)
+export DIR_GSL=$(spack location -i gsl)
+export DIR_TP=$(spack location -i twopuncturesc)
 
-# 4th order
-export COMPILE_STR="--prob=wave_1d_cvg_trig -w -w_cx
-                    --cxx g++
+export COMPILE_STR="--prob=z4c_two_punctures
+                    -z -z_cx -ref_spheres
+                    --cxx g++ -omp
                     --nghost=4
-                    --ncghost=5
-                    --ncghost_cx=5
-                    --nextrapolate=5"
-
-# # 6th order
-# export COMPILE_STR="--prob=wave_1d_cvg_trig -w -w_cx
-#                     --cxx g++ -debug
-#                     --nghost=4
-#                     --ncghost=3
-#                     --ncghost_cx=5
-#                     --nextrapolate=7"
-
-
-# debug
-# export COMPILE_STR="${COMPILE_STR} -debug"
+                    --ncghost=4
+                    --ncghost_cx=4
+                    --nextrapolate=4"
 
 # apply caching compiler together with gold linker
 export COMPILE_STR="${COMPILE_STR} -ccache -link_gold"
 
 # hdf5 compile str
 export COMPILE_STR="${COMPILE_STR} -hdf5 -h5double"
+export COMPILE_STR="${COMPILE_STR} -gsl"
+
 export COMPILE_STR="${COMPILE_STR} --lib_path=${DIR_HDF5}/lib"
 export COMPILE_STR="${COMPILE_STR} --include=${DIR_HDF5}/include"
 
+export COMPILE_STR="${COMPILE_STR} --lib_path=${DIR_GSL}/lib"
+export COMPILE_STR="${COMPILE_STR} --include=${DIR_GSL}/include"
+
+export COMPILE_STR="${COMPILE_STR} --lib_path=${DIR_TP}/lib"
+export COMPILE_STR="${COMPILE_STR} --include=${DIR_TP}/include"
+###############################################################################
+
 echo "COMPILE_STR"
 echo ${COMPILE_STR}
-###############################################################################
 
 ###############################################################################
 # ensure paths are adjusted and directory structure exists
 source ${DIR_SCRIPTS}/utils/provide_library_paths.sh ${DIR_HDF5}
-
+source ${DIR_SCRIPTS}/utils/provide_library_paths.sh ${DIR_GSL}
+source ${DIR_SCRIPTS}/utils/provide_library_paths.sh ${DIR_TP}
 source ${DIR_SCRIPTS}/utils/provide_compile_paths.sh
+###############################################################################
+
+###############################################################################
+# prepare external
+# ...
 ###############################################################################
 
 ###############################################################################
@@ -76,6 +75,6 @@ source ${DIR_SCRIPTS}/utils/dump_info.sh
 source utils/exec.sh
 ###############################################################################
 
-tail -n5 ${DIR_OUTPUT}/wave_1d.hst
+tail -n5 ${DIR_OUTPUT}/one_puncture.hst
 
 # >:D
