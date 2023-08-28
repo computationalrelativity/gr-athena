@@ -1,10 +1,8 @@
-What is this:
+TODO:
 
-Development branch has features built on the latest public Athena++ release.
-
-* What is to be done?
-
-** I/O needs to be cleaned up for VC.
-** Buffer communication for VC could be optimised.
-** Should clean up hard-coding of stencils / allow for order reduction towards boundary
- [this could allow for communication reduction]
+Aside from the above label throughout src/ :
+- TaskListTriggers need to be cleaned up see e.g.
+  https://bitbucket.org/dradice/athena_z4c/commits/75f1ac5677758a9194bee9cfebf3bfd3d6358cbe
+  https://bitbucket.org/dradice/athena_z4c/commits/34fd0a98812fd99795d7162b1bbc967beb27787f
+  https://bitbucket.org/dradice/athena_z4c/commits/38084f963077343b46ee2b1042d13c18abec7408
+- This should be done from scratch and utilize cycles rather than dt
