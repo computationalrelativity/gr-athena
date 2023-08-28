@@ -29,16 +29,37 @@
 
 
 //----------------------------------------------------------------------------------------
-PunctureTracker::PunctureTracker(Mesh * pmesh, ParameterInput * pin, int n):
-    owns_puncture{false}, pos{NAN, NAN, NAN}, betap{NAN, NAN, NAN}, pmesh{pmesh} {
+PunctureTracker::PunctureTracker(Mesh * pmesh, ParameterInput * pin, int n)
+  :
+  owns_puncture {false},
+  pos           {NAN, NAN, NAN},
+  betap         {NAN, NAN, NAN},
+  pmesh         {pmesh}
+{
+
   ofname = pin->GetString("job", "problem_id") + ".";
   ofname += pin->GetOrAddString("z4c", "filename", "puncture_");
   ofname += std::to_string(n) + ".txt";
+
   pos[0] = pin->GetOrAddReal("z4c", "bh_" + std::to_string(n) + "_x", 0.0);
   pos[1] = pin->GetOrAddReal("z4c", "bh_" + std::to_string(n) + "_y", 0.0);
   pos[2] = pin->GetOrAddReal("z4c", "bh_" + std::to_string(n) + "_z", 0.0);
-  initial_mass = pos[0] > 0 ? std::max(pin->GetOrAddReal("problem", "target_M_plus", 0.0),pin->GetOrAddReal("problem", "par_m_plus", 0.0)) : std::max(pin->GetOrAddReal("problem", "target_M_minus", 0.0),pin->GetOrAddReal("problem", "par_m_minus", 0.0));
+
+  initial_mass = (pos[0] > 0) ? std::max(pin->GetOrAddReal("problem",
+                                                           "target_M_plus",
+                                                           0.0),
+                                         pin->GetOrAddReal("problem",
+                                                           "par_m_plus",
+                                                           0.0))
+                              : std::max(pin->GetOrAddReal("problem",
+                                                           "target_M_minus",
+                                                           0.0),
+                                         pin->GetOrAddReal("problem",
+                                                           "par_m_minus",
+                                                           0.0));
+
   bitant = pin->GetOrAddBoolean("z4c", "bitant", false);
+
   if (0 == Globals::my_rank) {
     // check if output file already exists
     if (access(ofname.c_str(), F_OK) == 0) {
@@ -59,20 +80,24 @@ PunctureTracker::PunctureTracker(Mesh * pmesh, ParameterInput * pin, int n):
 }
 
 //----------------------------------------------------------------------------------------
-PunctureTracker::~PunctureTracker() {
-  if (0 == Globals::my_rank) {
+PunctureTracker::~PunctureTracker()
+{
+  if (0 == Globals::my_rank)
+  {
     fclose(pofile);
   }
 }
 
 //----------------------------------------------------------------------------------------
-void PunctureTracker::InterpolateShift(MeshBlock * pmb, AthenaArray<Real> & u) {
+void PunctureTracker::InterpolateShift(MeshBlock * pmb, AthenaArray<Real> & u)
+{
   Z4c * pz4c = pmb->pz4c;
 
   Z4c::Z4c_vars z4c;
   pmb->pz4c->SetZ4cAliases(u, z4c);
 
-  if (pmb->PointContained(pos[0], pos[1], pos[2])) {
+  if (pmb->PointContained(pos[0], pos[1], pos[2]))
+  {
 #pragma omp atomic write
     owns_puncture = true;
 
@@ -93,7 +118,8 @@ void PunctureTracker::InterpolateShift(MeshBlock * pmb, AthenaArray<Real> & u) {
     };
 
     LagrangeInterpND<2*NGHOST-1, 3> linterp(origin, delta, size, pos);
-    for (int a = 0; a < NDIM; ++a) {
+    for (int a = 0; a < NDIM; ++a)
+    {
       Real & beta = z4c.beta_u(a, 0, 0, 0);
 #pragma omp atomic write
       betap[a] = linterp.eval(&beta);
@@ -104,14 +130,16 @@ void PunctureTracker::InterpolateShift(MeshBlock * pmb, AthenaArray<Real> & u) {
 //----------------------------------------------------------------------------------------
 void PunctureTracker::EvolveTracker() {
   if (owns_puncture) {
-    for (int a = 0; a < NDIM; ++a) {
+    for (int a = 0; a < NDIM; ++a)
+    {
       pos[a] -= pmesh->dt * betap[a];
     }
     // Impose the motion on the z = 0 plane with bitant.
     if (bitant) pos[2] = 0;
   }
 #ifndef MPI_PARALLEL
-  else {
+  else
+  {
     std::stringstream msg;
     msg << "### FATAL ERROR in PunctureTracker::EvolveTracker" << std::endl;
     msg << "The puncture is MIA" << std::endl;
@@ -128,7 +156,8 @@ void PunctureTracker::EvolveTracker() {
     buf[5] = betap[2];
     buf[6] = 1.0;
   }
-  MPI_Allreduce(MPI_IN_PLACE, buf, 2*NDIM + 1, MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, buf, 2*NDIM + 1,
+                MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
   if (buf[6] < 1.) {
     std::stringstream msg;
     msg << "### FATAL ERROR in PunctureTracker::EvolveTracker" << std::endl;
@@ -148,8 +177,10 @@ void PunctureTracker::EvolveTracker() {
 }
 
 //----------------------------------------------------------------------------------------
-void PunctureTracker::WriteTracker(int iter, Real time) const {
-  if (0 == Globals::my_rank) {
+void PunctureTracker::WriteTracker(int iter, Real time) const
+{
+  if (0 == Globals::my_rank)
+  {
     fprintf(pofile, "%d %.15e %.15e %.15e %.15e %.15e %.15e %.15e\n",
         iter, time, pos[0], pos[1], pos[2], betap[0], betap[1], betap[2]);
     fflush(pofile);
