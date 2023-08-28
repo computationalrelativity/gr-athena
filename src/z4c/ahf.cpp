@@ -393,7 +393,7 @@ void AHF::MetricInterp(MeshBlock * pmb)
 {
   Z4c *pz4c = pmb->pz4c;
 
-  LagrangeInterpND<2, 3> * pinterp3 = nullptr;
+  LagrangeInterpND<metric_interp_order, 3> * pinterp3 = nullptr;
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> vc_adm_g_dd;      // 3-metric  (NDIM=3 in z4c.hpp)
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> vc_adm_K_dd;      // extr.curv.
   vc_adm_g_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
@@ -474,7 +474,7 @@ void AHF::MetricInterp(MeshBlock * pmb)
       delta[2]  = pz4c->mbi.dx3(0);
       coord[2]  = z;
 
-      pinterp3 =  new LagrangeInterpND<2, 3>(origin, delta, size, coord);
+      pinterp3 =  new LagrangeInterpND<metric_interp_order, 3>(origin, delta, size, coord);
 
       // With bitant wrt z=0, pick a (-) sign every time a z component is 
       // encountered.
