@@ -340,19 +340,19 @@ void AHF::MetricDerivatives(MeshBlock * pmy_block)
           Real oofdx = 1.0 / pz4c->mbi.dx1(i);
           
           if (i==IX_IL-GSIZEI){
-            pz4c->aux_g_ddd(0,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b,k,j,i+1) - vc_adm_g_dd(a,b,k,j, i ) );
+            pz4c->aux_g_ddd(0,a,b,k,j,i) =     oofdx * ( vc_adm_g_dd(a,b,k,j,i+1) - vc_adm_g_dd(a,b,k,j, i ) );
           } else if (i==IX_IU+GSIZEI){
-            pz4c->aux_g_ddd(0,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b,k,j, i ) - vc_adm_g_dd(a,b,k,j,i-1) );
+            pz4c->aux_g_ddd(0,a,b,k,j,i) =     oofdx * ( vc_adm_g_dd(a,b,k,j, i ) - vc_adm_g_dd(a,b,k,j,i-1) );
           } else {
-            pz4c->aux_g_ddd(0,a,b,k,j,i) = 0.5*oofdz * ( vc_adm_g_dd(a,b,k,j,i+1) - vc_adm_g_dd(a,b,k,j,i-1) );
+            pz4c->aux_g_ddd(0,a,b,k,j,i) = 0.5*oofdx * ( vc_adm_g_dd(a,b,k,j,i+1) - vc_adm_g_dd(a,b,k,j,i-1) );
           }
           
           if (j==IX_JL-GSIZEJ){
-            pz4c->aux_g_ddd(1,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b,k,j+1,i) - vc_adm_g_dd(a,b,k, j ,i) );
+            pz4c->aux_g_ddd(1,a,b,k,j,i) =     oofdy * ( vc_adm_g_dd(a,b,k,j+1,i) - vc_adm_g_dd(a,b,k, j ,i) );
           } else if (j==IX_JU+GSIZEJ){
-            pz4c->aux_g_ddd(1,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b,k, j ,i) - vc_adm_g_dd(a,b,k,j-1,i) );
+            pz4c->aux_g_ddd(1,a,b,k,j,i) =     oofdy * ( vc_adm_g_dd(a,b,k, j ,i) - vc_adm_g_dd(a,b,k,j-1,i) );
           } else {
-            pz4c->aux_g_ddd(1,a,b,k,j,i) = 0.5*oofdz * ( vc_adm_g_dd(a,b,k,j+1,i) - vc_adm_g_dd(a,b,k,j-1,i) );
+            pz4c->aux_g_ddd(1,a,b,k,j,i) = 0.5*oofdy * ( vc_adm_g_dd(a,b,k,j+1,i) - vc_adm_g_dd(a,b,k,j-1,i) );
           }
           
           if (k==IX_KL-GSIZEK){
