@@ -347,17 +347,17 @@ void AHF::MetricDerivatives(MeshBlock * pmy_block)
 #endif
   
   GLOOP2(k,j){
-    Real oofdy = 1.0 / pmy_block->pcoord->dx2f(j);
-    Real oofdz = 1.0 / pmy_block->pcoord->dx3f(k);
+    //Real oofdy = 1.0 / pmy_block->pcoord->dx2f(j);
+    //Real oofdz = 1.0 / pmy_block->pcoord->dx3f(k);
     for(int a = 0; a < NDIM; ++a){
       for(int b = 0; b < NDIM; ++b){
         GLOOP1(i){
-          Real oofdx = 1.0 / pmy_block->pcoord->dx1f(i);
-          pmy_block->pz4c->aux_g_ddd(0,a,b,k,j,i) = oofdx * 
+          //Real oofdx = 1.0 / pmy_block->pcoord->dx1f(i);
+          pmy_block->pz4c->aux_g_ddd(0,a,b,k,j,i) = 
                      FD.Gx(0, IX_IL, IX_IU, i, vc_adm_g_dd(a,b,k,j,i));
-          pmy_block->pz4c->aux_g_ddd(1,a,b,k,j,i) = oofdy * 
+          pmy_block->pz4c->aux_g_ddd(1,a,b,k,j,i) =  
                      FD.Gx(1, IX_JL, IX_JU, j, vc_adm_g_dd(a,b,k,j,i));
-          pmy_block->pz4c->aux_g_ddd(2,a,b,k,j,i) = oofdz * 
+          pmy_block->pz4c->aux_g_ddd(2,a,b,k,j,i) = 
                      FD.Gx(2, IX_KL, IX_KU, k, vc_adm_g_dd(a,b,k,j,i));
 
 #if DEBUG_OUTPUT
@@ -388,7 +388,7 @@ void AHF::MetricDerivatives(MeshBlock * pmy_block)
 // Flag here the surface points contained in the MB
 void AHF::MetricInterp(MeshBlock * pmb)
 {
-  LagrangeInterpND<2, 3> * pinterp3 = nullptr;
+  LagrangeInterpND<metric_interp_order, 3> * pinterp3 = nullptr;
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> vc_adm_g_dd;      // 3-metric  (NDIM=3 in z4c.hpp)
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> vc_adm_K_dd;      // extr.curv.
   vc_adm_g_dd.InitWithShallowSlice(pmb->pz4c->storage.adm, Z4c::I_ADM_gxx);
@@ -469,7 +469,7 @@ void AHF::MetricInterp(MeshBlock * pmb)
       delta[2]  = pmb->pcoord->dx3f(0);
       coord[2]  = z;
         
-      pinterp3 =  new LagrangeInterpND<2, 3>(origin, delta, size, coord);
+      pinterp3 =  new LagrangeInterpND<metric_interp_order, 3>(origin, delta, size, coord);
 
       // With bitant wrt z=0, pick a (-) sign every time a z component is 
       // encountered.
@@ -1091,10 +1091,11 @@ void AHF::FastFlowLoop()
     Sy = integrals[iSy]/(8*PI);
     Sz = integrals[iSz]/(8*PI);
 
-    S = std::sqrt(SQR(Sx)+SQR(Sy)+SQR(Sz));
+    S  = std::sqrt(SQR(Sx)+SQR(Sy)+SQR(Sz));
 
     meanradius = a0(0)/std::sqrt(4.0*PI);
-
+    
+    // Irreducible mass
     mass_prev = mass;
     mass = std::sqrt(area/(16.0*PI));     
 
@@ -1139,8 +1140,8 @@ void AHF::FastFlowLoop()
     ah_prop[hSx] = Sx;
     ah_prop[hSy] = Sy;
     ah_prop[hSz] = Sz;
-    ah_prop[hS] = std::sqrt(SQR(ah_prop[hSx]) + SQR(ah_prop[hSy]) + SQR(ah_prop[hSz]));
-    ah_prop[hmass] = mass;
+    ah_prop[hS]  = S;
+    ah_prop[hmass] = std::sqrt( SQR(mass) + 0.25*SQR(S/mass) ); // Christodoulu mass;
     ah_prop[hmeanradius] = meanradius;
   }
   
