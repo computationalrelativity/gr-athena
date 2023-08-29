@@ -178,7 +178,7 @@ namespace {
              Real const _W,
              Real const _Estar,
              TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & _Fstar_d,
-             Real const _chi,
+             Real _chi,
              Real const _eta,
              Real const _kabs,
              Real const _kscat):
@@ -215,7 +215,7 @@ namespace {
              Real const W;
              Real const Estar;
              TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & Fstar_d;
-             Real const chi;
+             Real chi;
              Real const eta;
              Real const kabs;
              Real const kscat;
@@ -396,7 +396,7 @@ void M1::source_update_pt(
 {
   Params p(iteration, pmb, i, j, k, ig,
            closure_fun, gsl_solver_1d, cdt, alp, g_dd, g_uu, n_d, n_u,
-           gamma_ud, u_d, u_u, v_d, v_u, proj_ud, W, Estar, Fstar_d, chi, eta,
+           gamma_ud, u_d, u_u, v_d, v_u, proj_ud, W, Estar, Fstar_d, *chi, eta,
            kabs, kscat);
         
   gsl_multiroot_function_fdf zfunc = {

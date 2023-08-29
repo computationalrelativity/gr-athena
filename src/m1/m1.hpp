@@ -304,7 +304,7 @@ public:
         TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & Fold_d,
         Real const Estar,
         TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & Fstar_d,
-        Real const chi,
+        Real * chi,
         Real const eta,
         Real const kabs,
         Real const kscat,
@@ -318,7 +318,7 @@ public:
   void CalcFluxes(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs);
   void CalcUpdate(int const iteration,
                   AthenaArray<Real> & u_p, AthenaArray<Real> & u_c, AthenaArray<Real> & u_rhs);
-  void CalcOpacity(ParameterInput * pin, AthenaArray<Real> & u);
+  void CalcOpacity(AthenaArray<Real> & u);
   void calc_proj(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d,
                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
                  TensorPointwise<Real, Symmetries::NONE, MDIM, 2> & proj_ud);

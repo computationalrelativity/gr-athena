@@ -384,7 +384,7 @@ void M1::CalcUpdate(int const iteration,
       //
       // Apply floor
       if (rad_E_floor >= 0) {
-	      apply_floor(g_uu, &E, &F_d);
+	      apply_floor(g_uu, &E, F_d);
       }
       if (rad_N_floor >= 0) {
 	      N = std::max(N, rad_N_floor);
