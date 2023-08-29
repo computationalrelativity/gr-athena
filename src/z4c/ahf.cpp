@@ -42,9 +42,13 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   std::string parname;
   std::string n_str = std::to_string(nh);
   
-  ntheta = pin->GetOrAddInteger("ahf", "ntheta",60);
+  parname = "ntheta_";
+  parname += n_str;
+  ntheta = pin->GetOrAddInteger("ahf", parname ,60);
 
-  nphi = pin->GetOrAddInteger("ahf", "nphi",30);
+  parname = "nphi_";
+  parname += n_str;
+  nphi = pin->GetOrAddInteger("ahf", parname, 30);
   if ((nphi+1)%2==0) {
     std::stringstream msg;
     msg << "### FATAL ERROR in AHF setup" << std::endl
@@ -55,9 +59,15 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   lmax = pin->GetOrAddInteger("ahf", "lmax",10);
   lmax1 = lmax+1;
   
+  parname = "hmean_tol_";
+  parname += n_str;
+  hmean_tol = pin->GetOrAddReal("ahf", parname, 100.);
+
+  parname = "mass_tol_";
+  parname += n_str;
+  mass_tol = pin->GetOrAddReal("ahf", parname, 1e-2);
+  
   flow_iterations = pin->GetOrAddInteger("ahf", "flow_iterations",100);
-  hmean_tol = pin->GetOrAddReal("ahf", "hmean_tol",100.);
-  mass_tol = pin->GetOrAddReal("ahf", "mass_tol",1e-2);
   verbose = pin->GetOrAddBoolean("ahf", "verbose", 0);
   root = pin->GetOrAddInteger("ahf", "mpi_root", 0);
   merger_distance = pin->GetOrAddReal("ahf", "merger_distance", 0.1);
