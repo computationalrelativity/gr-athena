@@ -44,11 +44,11 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   
   parname = "ntheta_";
   parname += n_str;
-  ntheta = pin->GetOrAddInteger("ahf", parname ,60);
+  ntheta = pin->GetOrAddInteger("ahf", parname ,30);
 
   parname = "nphi_";
   parname += n_str;
-  nphi = pin->GetOrAddInteger("ahf", parname, 30);
+  nphi = pin->GetOrAddInteger("ahf", parname, 60);
   if ((nphi+1)%2==0) {
     std::stringstream msg;
     msg << "### FATAL ERROR in AHF setup" << std::endl
