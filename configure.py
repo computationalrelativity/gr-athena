@@ -168,6 +168,12 @@ parser.add_argument('--ninterp',
                     default='2',
                     help='set number of ghost zones for intergrid interpolation')
 
+# -hybridinterp argument
+parser.add_argument('-hybridinterp',
+                    action='store_true',
+                    default=False,
+                    help='use hybrid grid-to-grid interpolation')
+
 # -f argument
 parser.add_argument('-f',
                     action='store_true',
@@ -741,6 +747,12 @@ if args['vertex']:
     definitions['PREFER_VC'] = '1'
 else:
     definitions['PREFER_VC'] = '0'
+
+# -hybridinterp argument
+if args['hybridinterp']:
+    definitions['HYBRID_INTERP'] = '1'
+else:
+    definitions['HYBRID_INTERP'] = '0'
 
 # -z_ahf argument
 if args['z_ahf']:
@@ -1360,6 +1372,7 @@ print('  Number of ghost cells:        ' + args['nghost'])
 print('  Number of coarse ghosts (VC): ' + args['ncghost'])
 print('  Total # extrapolation points: ' + args['nextrapolate'])
 print('  Number of extraction radii:   ' + args['nrad'])
+print('  Hybrid interpolation between grids:' + ('ON' if args['hybridinterp'] else 'OFF'))
 print('  MPI parallelism:              ' + ('ON' if args['mpi'] else 'OFF'))
 print('  OpenMP parallelism:           ' + ('ON' if args['omp'] else 'OFF'))
 print('  FFT:                          ' + ('ON' if args['fft'] else 'OFF'))

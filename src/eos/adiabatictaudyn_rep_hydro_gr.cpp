@@ -257,6 +257,50 @@ using namespace EOS_Toolkit;
           beta_u(1,i) = SQR(alpha(i))*g_inv_(I02,i);
           beta_u(2,i) = SQR(alpha(i))*g_inv_(I03,i);
 */
+#ifdef HYBRID_INTERP
+if(coarse_flag==0){
+      #pragma omp simd
+      for (int i=IL; i<=IU; ++i) {
+          gamma_dd(0,0,i) = VCInterpolation(vcgamma_xx, k, j, i);
+          gamma_dd(0,1,i) = VCInterpolation(vcgamma_xy, k, j, i);
+          gamma_dd(0,2,i) = VCInterpolation(vcgamma_xz, k, j, i);
+          gamma_dd(1,1,i) = VCInterpolation(vcgamma_yy, k, j, i);
+          gamma_dd(1,2,i) = VCInterpolation(vcgamma_yz, k, j, i);
+          gamma_dd(2,2,i) = VCInterpolation(vcgamma_zz, k, j, i);
+          alpha(i) = VCInterpolation(vcalpha, k, j, i);
+          beta_u(0,i) = VCInterpolation(vcbeta_x, k, j, i);
+          beta_u(1,i) = VCInterpolation(vcbeta_y, k, j, i);
+          beta_u(2,i) = VCInterpolation(vcbeta_z, k, j, i);
+}
+
+} else{
+      #pragma omp simd
+      for (int i=IL; i<=IU; ++i) {
+          gammat_dd(0,0,i) = VCInterpolation(vcgammat_xx, k, j, i);
+          gammat_dd(0,1,i) = VCInterpolation(vcgammat_xy, k, j, i);
+          gammat_dd(0,2,i) = VCInterpolation(vcgammat_xz, k, j, i);
+          gammat_dd(1,1,i) = VCInterpolation(vcgammat_yy, k, j, i);
+          gammat_dd(1,2,i) = VCInterpolation(vcgammat_yz, k, j, i);
+          gammat_dd(2,2,i) = VCInterpolation(vcgammat_zz, k, j, i);
+          alpha(i) = VCInterpolation(vcalpha, k, j, i);
+          chi(i) =  VCInterpolation(vcchi, k, j, i);
+          beta_u(0,i) = VCInterpolation(vcbeta_x, k, j, i);
+          beta_u(1,i) = VCInterpolation(vcbeta_y, k, j, i);
+          beta_u(2,i) = VCInterpolation(vcbeta_z, k, j, i);
+}
+          for(int a=0;a<3;a++){
+          for(int b=0;b<3;b++){
+      #pragma omp simd
+      for (int i=IL; i<=IU; ++i) {
+          gamma_dd(a,b,i) = gammat_dd(a,b,i)/chi(i);
+}
+}
+}
+
+}
+
+
+#else
 if(coarse_flag==0){
       #pragma omp simd
       for (int i=IL; i<=IU; ++i) {
@@ -297,6 +341,7 @@ if(coarse_flag==0){
 }
 
 }
+#endif
 
 //      }
       
@@ -482,12 +527,22 @@ void EquationOfState::PrimitiveToConserved(
   // Make this more readable
   MeshBlock * pmb = pmy_block_;
   Z4c * pz4c = pmb->pz4c;
-
   // Require only ADM 3-metric and no gauge.
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> cc_g_adm;
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> vc_g_adm;
   cc_g_adm.NewAthenaTensor(pmb->ncells1);
   vc_g_adm.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
+
+  AthenaArray<Real> vcgamma_xx, vcgamma_xy, vcgamma_xz, vcgamma_yy,
+                    vcgamma_yz, vcgamma_zz;
+  vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
+  vcgamma_xy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
+  vcgamma_xz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
+  vcgamma_yy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
+  vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
+  vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
+
+
 
   // sanitize loop-limits
   const int IL = std::max(il, NGRCV_HSZ - 1);
@@ -500,19 +555,37 @@ void EquationOfState::PrimitiveToConserved(
   const int KU = std::min(ku, pmb->ncells3 - 1 - (NGRCV_HSZ - 1));
 
 
-  for (int k=KL; k<=KU; ++k)
-  for (int j=JL; j<=JU; ++j)
-  {
+
+  for (int k=KL; k<=KU; ++k){
+  for (int j=JL; j<=JU; ++j){
+#ifdef HYBRID_INTERP
+    #pragma omp simd
+    for (int i = IL; i <= IU; ++i){
+        cc_g_adm(0,0,i) = VCInterpolation(vcgamma_xx, k, j, i);
+        cc_g_adm(0,1,i) = VCInterpolation(vcgamma_xy, k, j, i);
+        cc_g_adm(0,2,i) = VCInterpolation(vcgamma_xz, k, j, i);
+        cc_g_adm(1,1,i) = VCInterpolation(vcgamma_yy, k, j, i);
+        cc_g_adm(1,2,i) = VCInterpolation(vcgamma_yz, k, j, i);
+        cc_g_adm(2,2,i) = VCInterpolation(vcgamma_zz, k, j, i);
+  }
+#else
+//  }
+//  }
+//  for (int k=KL; k<=KU; ++k)
+//  for (int j=JL; j<=JU; ++j)
+//  {
     for (int a = 0; a < NDIM; ++a)
     for (int b = a; b < NDIM; ++b)
     #pragma omp simd
     for (int i = IL; i <= IU; ++i)
       cc_g_adm(a,b,i) = pz4c->ig->map3d_VC2CC(vc_g_adm(a,b,k,j,i));
+#endif
 
     for (int i=il; i<=iu; ++i)
       PrimitiveToConservedSingle(prim, gamma_, cc_g_adm, k, j, i, cons, pco);
-  }
-
+  
+}
+}
   cc_g_adm.DeleteAthenaTensor();
   return;
 }
