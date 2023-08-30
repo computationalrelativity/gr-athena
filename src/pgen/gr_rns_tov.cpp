@@ -17,6 +17,7 @@
 #include "../hydro/hydro.hpp"
 #include "../eos/eos.hpp"
 #include "../field/field.hpp"
+#include "../scalars/scalars.hpp"
 
 
 // twopuncturesc: Stand-alone library ripped from Cactus
@@ -136,15 +137,36 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
      if (block_size.nx3 > 1) {
         kl -= NGHOST;
         ku += NGHOST;
-     }
+     }    
+     
+     // For high-order VC2CC interpolation to work without accessing invalid memory, we need
+  // to subtract off ghost zones.
+  int ignore = VC2CC_IGNORE;
+  int ilcc = il + ignore;
+  int iucc = iu - ignore;
+  int jlcc = jl + ignore;
+  int jucc = ju - ignore;
+  int klcc = kl + ignore;
+  int kucc = ku - ignore;
                                          
-            // Initialise conserved variables
-              peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord, il, iu, jl, ju, kl, ku);
-  
-                // Initialise VC matter
-                  //TODO(WC) (don't strictly need this here, will be caught in task list before used
-                    pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w,pfield->bcc);
-                      pz4c->ADMConstraints(pz4c->storage.con,pz4c->storage.adm,pz4c->storage.mat,pz4c->storage.u);
+  // Initialise conserved variables
+  #if USETM
+  peos->PrimitiveToConserved(phydro->w, pscalars->r, pfield->bcc, phydro->u, pscalars->s, pcoord, 
+                             ilcc, iucc, jlcc, jucc, klcc, kucc);
+  #else
+  peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord, 
+                             ilcc, iucc, jlcc, jucc, klcc, kucc);
+  #endif
+
+  // Initialise VC matter
+  //TODO(WC) (don't strictly need this here, will be caught in task list before used
+  #if USETM
+    pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pscalars->r, pfield->bcc);
+  #else
+    pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pfield->bcc);
+  #endif
+
+  pz4c->ADMConstraints(pz4c->storage.con,pz4c->storage.adm,pz4c->storage.mat,pz4c->storage.u);
   //
 
 
