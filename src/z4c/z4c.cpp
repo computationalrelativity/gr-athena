@@ -336,6 +336,51 @@ if(pmb->pmy_mesh->multilevel){
   } else {
     pfd = pmy_block->pfd_cc;
   }
+  // Set up finite difference operators
+  Real dx1, dx2, dx3;
+//  auto nn1 = pmb->nverts1;
+//  auto nn2 = pmb->nverts2;
+//  auto nn3 = pmb->nverts3;
+  dx1 = pco->dx1f(0); dx2 = pco->dx2f(0); dx3 = pco->dx3f(0);
+
+  FD.diss = opt.diss*pow(2, -2*NGHOST)*(NGHOST % 2 == 0 ? -1 : 1);
+
+  FD.stride[0] = 1;
+  FD.stride[1] = (nn2 > 1) ? nn1 : 0;
+  FD.stride[2] = (nn3 > 1) ? nn2 * nn1 : 0;
+
+  FD.idx[0] = 1.0 / dx1;
+  FD.idx[1] = (nn2 > 1) ? 1.0 / dx2 : 0.0;
+  FD.idx[2] = (nn3 > 1) ? 1.0 / dx3 : 0.0;
+
+#ifdef DBG_SYMMETRIZE_FD
+  FD.cidx1[0] = 1.0 / (dx1 * FD_::c1::coeff_lcm);
+  FD.cidx1[1] = (nn2 > 1) ? (1.0 / (dx2 * FD_::c1::coeff_lcm)) : 0.0;
+  FD.cidx1[2] = (nn3 > 1) ? (1.0 / (dx3 * FD_::c1::coeff_lcm)) : 0.0;
+
+  FD.cidx2[0] = SQR(1.0 / dx1) / FD_::c2::coeff_lcm;
+  FD.cidx2[1] = (nn2 > 1) ? SQR(1.0 / dx2) / FD_::c2::coeff_lcm : 0.0;
+  FD.cidx2[2] = (nn3 > 1) ? SQR(1.0 / dx3) / FD_::c2::coeff_lcm : 0.0;
+
+  FD.cidx1_lo[0] = 1.0 / (dx1 * FD_::c1_lo::coeff_lcm);
+  FD.cidx1_lo[1] = (nn2 > 1) ? (1.0 / (dx2 * FD_::c1_lo::coeff_lcm)) : 0.0;
+  FD.cidx1_lo[2] = (nn3 > 1) ? (1.0 / (dx3 * FD_::c1_lo::coeff_lcm)) : 0.0;
+
+  FD.diss = opt.diss*pow(2, -2*NGHOST)*(NGHOST % 2 == 0 ? -1 : 1);
+  FD.cidxd[0] = FD.diss / (dx1 * FD_::cd::coeff_lcm);
+  FD.cidxd[1] = (nn2 > 1) ? (FD.diss / (dx2 * FD_::cd::coeff_lcm)) : 0.0;
+  FD.cidxd[2] = (nn3 > 1) ? (FD.diss / (dx3 * FD_::cd::coeff_lcm)) : 0.0;
+
+  // lop left / right
+  FD.lidx_l1[0] = 1.0 / (dx1 * FD_::ll1::coeff_lcm);
+  FD.lidx_l1[1] = (nn2 > 1) ? (1.0 / (dx2 * FD_::ll1::coeff_lcm)) : 0.0;
+  FD.lidx_l1[2] = (nn3 > 1) ? (1.0 / (dx3 * FD_::ll1::coeff_lcm)) : 0.0;
+
+  FD.lidx_r1[0] = 1.0 / (dx1 * FD_::lr1::coeff_lcm);
+  FD.lidx_r1[1] = (nn2 > 1) ? (1.0 / (dx2 * FD_::lr1::coeff_lcm)) : 0.0;
+  FD.lidx_r1[2] = (nn3 > 1) ? (1.0 / (dx3 * FD_::lr1::coeff_lcm)) : 0.0;
+
+#endif // DBG_SYMMETRIZE_FD
 
 }
 
@@ -584,7 +629,8 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
     if(opt.fix_admsource==0){
       SetADMAliases(u_adm,adm);
     } else if (opt.fix_admsource==1){
-      SetADMAliases(storage.adm_init,adm);
+      SetADMAliases(u_adm,adm);
+//      SetADMAliases(storage.adm_init,adm);
     }
 // Cell centred hydro vars
     if(opt.fix_admsource==0){
@@ -658,7 +704,6 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
           bb2vc(i)     = ig->map3d_CC2VC(bb2cc(k,j,i));
           bb3vc(i)     = ig->map3d_CC2VC(bb3cc(k,j,i));
           #endif
-     
           //   NB specific to EOS
           #if USETM
           Real n = rhovc(i)/mb;

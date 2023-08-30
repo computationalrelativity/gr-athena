@@ -30,6 +30,7 @@ int RefinementCondition(MeshBlock *pmb);
 // QUESTION: is it better to setup two different problems instead of using ifdef?
 static ini_data *data;
   Real Maxrho(MeshBlock *pmb, int iout);
+  Real Minalp(MeshBlock *pmb, int iout);
   Real L1rhodiff(MeshBlock *pmb, int iout);
 
 //========================================================================================
@@ -41,9 +42,10 @@ static ini_data *data;
 
 void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag)
 {
-  AllocateUserHistoryOutput(2);
+  AllocateUserHistoryOutput(3);
   EnrollUserHistoryOutput(0, Maxrho, "max-rho", UserHistoryOperation::max);
   EnrollUserHistoryOutput(1, L1rhodiff, "L1rhodiff");
+  EnrollUserHistoryOutput(2, Minalp, "min-alp", UserHistoryOperation::min);
 
     if (!res_flag) {     
       string set_name = "problem";
@@ -325,6 +327,21 @@ Real Maxrho(MeshBlock *pmb, int iout) {
     }
   }
   return max_rho;
+}
+
+Real Minalp(MeshBlock *pmb, int iout) {
+  Real min_alp = 1.0e100;
+  int is = pmb->is, ie = pmb->ie+1, js = pmb->js, je = pmb->je+1, ks = pmb->ks, ke = pmb->ke+1;
+  AthenaArray<Real> alpha;
+  alpha.InitWithShallowSlice(pmb->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
+  for (int k=ks; k<=ke; k++) {
+    for (int j=js; j<=je; j++) {
+      for (int i=is; i<=ie; i++) {
+        min_alp = std::min(std::abs(alpha(k,j,i)), min_alp);
+      }
+    }
+  }
+  return min_alp;
 }
 
 Real L1rhodiff(MeshBlock *pmb, int iout) {
