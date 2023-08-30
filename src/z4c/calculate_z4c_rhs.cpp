@@ -792,7 +792,9 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
   for(int n = 0; n < N_Z4c; ++n)
   for(int a = 0; a < NDIM; ++a) {
     ILOOP3(k,j,i) {
-      u_rhs(n,k,j,i) += pfd->Diss(a, u(n,k,j,i), opt.diss);
+      if(opt.cowling == 0){
+       u_rhs(n,k,j,i) += pfd->Diss(a, u(n,k,j,i), opt.diss);
+      }
     }
   }
 }
