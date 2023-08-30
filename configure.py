@@ -1156,7 +1156,7 @@ if args['prob'] in ('gr_Lorene_neutron_star', 'gr_Lorene_bns'):
     #         raise SystemExit('### CONFIGURE ERROR: To compile the neutron star problem, it is necessary to provide the Lorene initial data library ../Lorene.')
 
 # -rns argument
-if args['prob'] == "gr_rns_tov" or args['prob'] == "gr_pbh_rns":
+if args['prob'] == "gr_rns_tov" or args['prob'] == "gr_pbh_rns" or args['prob'] == "gr_rns_mhd":
 #    if not args['gsl']:
 #        raise SystemExit('### CONFIGURE ERROR: To compile with two punctures -gsl is required.')
 
@@ -1300,6 +1300,10 @@ if args['prob'] == "gr_rns_tov":
     id_aux = ["                $(wildcard src/hydro/initial_data/{}.cpp) \\".format(f) for f in id_files]
     makefile_options['ID_FILES'] = ''.join(id_aux) + '\n'
 elif args['prob'] == "gr_pbh_rns":
+    id_files.append('rns_id')
+    id_aux = ["                $(wildcard src/hydro/initial_data/{}.cpp) \\".format(f) for f in id_files]
+    makefile_options['ID_FILES'] = ''.join(id_aux) + '\n'
+elif args['prob'] == "gr_rns_mhd":
     id_files.append('rns_id')
     id_aux = ["                $(wildcard src/hydro/initial_data/{}.cpp) \\".format(f) for f in id_files]
     makefile_options['ID_FILES'] = ''.join(id_aux) + '\n'
