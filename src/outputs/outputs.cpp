@@ -408,7 +408,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     if (output_params.variable.compare("prim") == 0) {
       pod = new OutputData;
       pod->type = "SCALARS";
-#if USETM
+#if 0
       pod->name = "temp";
       pod->data.InitWithShallowSlice(phyd->temperature, 0, 1);
 #else
