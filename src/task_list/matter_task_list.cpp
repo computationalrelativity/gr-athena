@@ -413,9 +413,17 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
 
     AddTask(SEND_Z4C, INT_Z4C);                // SendZ4c
     if(MAGNETIC_FIELDS_ENABLED){
-    AddTask(RECV_Z4C, (INT_Z4C | RECV_HYD | RECV_FLD | RECV_FLDFLX));                   // ReceiveZ4c
-    }else {
-    AddTask(RECV_Z4C, (INT_Z4C | RECV_HYD));                   // ReceiveZ4c
+      if (NSCALARS > 0) {
+        AddTask(RECV_Z4C, (INT_Z4C | RECV_HYD | RECV_FLD | RECV_FLDFLX | RECV_SCLR));                   // ReceiveZ4c
+      } else {
+        AddTask(RECV_Z4C, (INT_Z4C | RECV_HYD | RECV_FLD | RECV_FLDFLX));                   // ReceiveZ4c
+      }
+    } else {
+      if (NSCALARS > 0) {
+        AddTask(RECV_Z4C, (INT_Z4C | RECV_HYD | RECV_SCLR));                   // ReceiveZ4c
+      } else {
+        AddTask(RECV_Z4C, (INT_Z4C | RECV_HYD));                   // ReceiveZ4c
+      }
     }
     AddTask(SETB_Z4C, (RECV_Z4C|INT_Z4C));     // SetBoundariesZ4c
     if (pm->multilevel) { // SMR or AMR
@@ -1286,15 +1294,23 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
     // Newton-Raphson solver in GR EOS uses the following abscissae:
     // stage=1: W at t^n and
     // stage=2: W at t^{n+1/2} (VL2) or t^{n+1} (RK2)
+#if USETM
+    pmb->peos->ConservedToPrimitive(ph->u, ph->w, pf->b,
+                                    ph->w1, ps->s, ps->r, pf->bcc, pmb->pcoord,
+                                    il, iu, jl, ju, kl, ku,0);
+#else 
     pmb->peos->ConservedToPrimitive(ph->u, ph->w, pf->b,
                                     ph->w1, pf->bcc, pmb->pcoord,
                                     il, iu, jl, ju, kl, ku,0);
+
+
     if (NSCALARS > 0) {
       // r1/r_old for GR is currently unused:
       pmb->peos->PassiveScalarConservedToPrimitive(ps->s, ph->w1, // ph->u, (updated rho)
                                                    ps->r, ps->r,
                                                    pmb->pcoord, il, iu, jl, ju, kl, ku);
     }
+#endif
     // this never tested - potential issue for WENO routines?
     // fourth-order EOS:
     if (pmb->precon->xorder == 4) {
@@ -1307,13 +1323,22 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
       if (pbval->nblevel[2][1][1] != -1) ku -= 1;
       // for MHD, shrink buffer by 3
       // TODO(felker): add MHD loop limit calculation for 4th order W(U)
+#if USETM
       pmb->peos->ConservedToPrimitiveCellAverage(ph->u, ph->w, pf->b,
-                                                 ph->w1, pf->bcc, pmb->pcoord,
+                                                 ph->w1, 
+                                                 ps->s, ps->r, pf->bcc, pmb->pcoord,
                                                  il, iu, jl, ju, kl, ku);
+#else 
+      pmb->peos->ConservedToPrimitiveCellAverage(ph->u, ph->w, pf->b,
+                                                 ph->w1, 
+                                                 pf->bcc, pmb->pcoord,
+                                                 il, iu, jl, ju, kl, ku);
+                                                 
       if (NSCALARS > 0) {
         pmb->peos->PassiveScalarConservedToPrimitiveCellAverage(
             ps->s, ps->r, ps->r, pmb->pcoord, il, iu, jl, ju, kl, ku);
       }
+#endif
     }
     // swap AthenaArray data pointers so that w now contains the updated w_out
     ph->w.SwapAthenaArray(ph->w1);
@@ -1742,7 +1767,11 @@ TaskStatus MatterTaskList::UpdateSource(MeshBlock *pmb, int stage) {
 //printf("updatesrc\n");
   if (stage <= nstages) { 
 // Update VC matter 
+#if USETM
+    pmb->pz4c->GetMatter(pmb->pz4c->storage.mat, pmb->pz4c->storage.adm, pmb->phydro->w, pmb->pscalars->r, pmb->pfield->bcc);
+#else
     pmb->pz4c->GetMatter(pmb->pz4c->storage.mat, pmb->pz4c->storage.adm, pmb->phydro->w, pmb->pfield->bcc);
+#endif
     return TaskStatus::success;
   }
   return TaskStatus::fail;

@@ -136,12 +136,25 @@ class EOSCompOSE : public EOSPolicyInterface {
     Real m_min_h;
 
     // Table storage, care should be made to store these data on the GPU later
-    Real * m_log_nb;
-    Real * m_log_t;
-    Real * m_yq;
-    Real * m_table;
+    // Static pointers used to share access to single instance of table in memory (per MPI process)
+    static Real * m_log_nb;
+    static Real * m_log_t;
+    static Real * m_yq;
+    static Real * m_table;
 
-    bool m_initialized;
+    // bool to protect against access of uninitialised table, and prevent repeated reading of table
+    static bool m_initialized;
+
+    // Auxiliary static variables to share data only available when table is open to those threads that do not open it
+    // variables from EOSCompOSE
+    static Real sm_id_log_nb, sm_id_log_t, sm_id_yq;
+    static int sm_nn, sm_nt, sm_ny;
+    static Real sm_min_h;
+
+    // variables from EOSPolicy
+    static Real s_mb, s_max_n, s_min_n, s_max_T, s_min_T, s_max_Y[MAX_SPECIES], s_min_Y[MAX_SPECIES];
+    // these correspond to defined but unused vars in EOSPolicy
+    // static Real s_max_P, s_min_P, s_max_e, s_min_e;
 };
 
 } // namespace Primitive

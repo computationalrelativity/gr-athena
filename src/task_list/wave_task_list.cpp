@@ -421,7 +421,7 @@ TaskStatus WaveIntegratorTaskList::IntegrateWave(MeshBlock *pmb, int stage) {
   //////////////////////////////////////////////////////////////////////////////
   // coutBoldGreen("STAGE=\n");
   // printf("%d\n", stage);
-  if (FILL_WAVE_INTERIOR){
+#if FILL_WAVE_INTERIOR
     if (stage <= nstages) {
       int il = pwave->mbi.il, iu = pwave->mbi.iu;
       int kl = pwave->mbi.kl, ku = pwave->mbi.ku;
@@ -430,7 +430,7 @@ TaskStatus WaveIntegratorTaskList::IntegrateWave(MeshBlock *pmb, int stage) {
                               il, iu, jl, ju, kl, ku, false);
       return TaskStatus::next;
     }
-  }
+#endif
   //////////////////////////////////////////////////////////////////////////////
 
   if (stage <= nstages) {

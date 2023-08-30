@@ -21,14 +21,14 @@
 #include "../parameter_input.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../field/field.hpp"
+#include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
 #include "../z4c/z4c.hpp"
 #include "../utils/interp_intergrid.hpp"
 
-static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real>& bb_cc,
-    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, 
-    int k, int j, int i,
-    AthenaArray<Real> &cons,
+static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real> &prim_scalar, AthenaArray<Real>& bb_cc,
+    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, int k, int j, int i,
+    AthenaArray<Real> &cons, AthenaArray<Real> &cons_scalar,
     Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& ps);
 
 static Real VCInterpolation(AthenaArray<Real> &in, int k, int j, int i);
@@ -62,6 +62,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   // If we're using a tabulated EOS, load the table.
   #ifdef USE_COMPOSE_EOS
   std::string table = pin->GetString("hydro", "table");
+  eos.SetCodeUnitSystem(&Primitive::GeometricSolar);
   eos.ReadTableFromFile(table);
   #endif
   #ifdef USE_IDEAL_GAS
@@ -84,7 +85,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   }
   eos.SetMaximumMagnetization(bsq_max);
 
-  // If we're working wtih an ideal gas, we need to fix the adiabatic constant.
+  // If we're working with an ideal gas, we need to fix the adiabatic constant.
   #ifdef USE_IDEAL_GAS
   gamma_ = pin->GetOrAddReal("hydro", "gamma", 2.0);
   eos.SetGamma(gamma_);
@@ -120,6 +121,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
 
 void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
      const AthenaArray<Real> &prim_old, const FaceField &bb, AthenaArray<Real> &prim,
+     AthenaArray<Real> &cons_scalar, AthenaArray<Real> &prim_scalar, 
      AthenaArray<Real> &bb_cc, Coordinates *pco, int il, int iu, int jl, int ju, int kl,
      int ku, int coarse_flag) {
   // Parameters
@@ -134,7 +136,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
   InterpIntergridLocal* interp;
   RescaleFunction rescale_metric;
 
-  // Metric at cell centers
+  // Metric at cell centers.
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> chi;
   gamma_dd.NewAthenaTensor(nn1);
@@ -194,7 +196,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
       #pragma omp simd
       for (int i = il; i <= iu; ++i) {
         // DEBUG ONLY
-        #ifdef FORCE_PS_LINEAR
+        #if FORCE_PS_LINEAR
         gamma_dd(0,0,i) = VCInterpolation(vcgamma_xx, k, j, i);
         gamma_dd(0,1,i) = VCInterpolation(vcgamma_xy, k, j, i);
         gamma_dd(0,2,i) = VCInterpolation(vcgamma_xz, k, j, i);
@@ -232,7 +234,11 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         cons_pt[IM2] = cons_old_pt[IM2] = cons(IM2, k, j, i)/sdetg;
         cons_pt[IM3] = cons_old_pt[IM3] = cons(IM3, k, j, i)/sdetg;
         cons_pt[IEN] = cons_old_pt[IEN] = cons(IEN, k, j, i)/sdetg;
-        // FIXME: Need to generalize to particle fractions.
+
+        // Extract the scalars
+        for(int n=0; n<NSCALARS; n++){
+          cons_pt[IYD + n] = cons_old_pt[IYD + n] = cons_scalar(n,k,j,i)/sdetg;
+        }
 
         // Extract the magnetic field.
         Real b3u[NMAG] = {bb_cc(IB1, k, j, i)/sdetg,
@@ -270,6 +276,10 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         prim(IVY, k, j, i) = prim_pt[IVY];
         prim(IVZ, k, j, i) = prim_pt[IVZ];
         prim(IPR, k, j, i) = prim_pt[IPR];
+        pmy_block_->phydro->temperature(k,j,i) = prim_pt[ITM];
+        for(int n=0; n<NSCALARS; n++){
+          prim_scalar(n, k, j, i) = prim_pt[IYF + n];
+        }
         
         // Because the conserved variables may have changed, we update those, too.
         cons(IDN, k, j, i) = cons_pt[IDN]*sdetg;
@@ -277,7 +287,9 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         cons(IM2, k, j, i) = cons_pt[IM2]*sdetg;
         cons(IM3, k, j, i) = cons_pt[IM3]*sdetg;
         cons(IEN, k, j, i) = cons_pt[IEN]*sdetg;
-
+        for(int n=0; n<NSCALARS; n++){
+          cons_scalar(n, k, j, i) = cons_pt[IYD + n]*sdetg;
+        }
       }
     }
   }
@@ -296,8 +308,8 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
 //   single-cell function exists for other purposes; call made to that function rather
 //       than having duplicate code
 
-void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim,
-     AthenaArray<Real> &bb_cc, AthenaArray<Real> &cons, Coordinates *pco, int il,
+void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim, AthenaArray<Real> &prim_scalar,
+     AthenaArray<Real> &bb_cc, AthenaArray<Real> &cons, AthenaArray<Real> &cons_scalar, Coordinates *pco, int il,
      int iu, int jl, int ju, int kl, int ku) {
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
   int nn1 = iu+1;
@@ -314,7 +326,7 @@ void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim,
   for (int k=kl; k<=ku; ++k) {
     for (int j=jl; j<=ju; ++j) {
       for (int i=il; i<=iu; ++i) {
-        #ifdef FORCE_PS_LINEAR
+        #if FORCE_PS_LINEAR
         gamma_dd(0,0,i) = VCInterpolation(vcgamma_xx, k, j, i);
         gamma_dd(0,1,i) = VCInterpolation(vcgamma_xy, k, j, i);
         gamma_dd(0,2,i) = VCInterpolation(vcgamma_xz, k, j, i);
@@ -332,10 +344,9 @@ void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim,
       }
       // Calculate the conserved variables at every point.
       for (int i=il; i<=iu; ++i) {
-        PrimitiveToConservedSingle(prim, bb_cc, gamma_dd, k, j, i, cons, ps);
+        PrimitiveToConservedSingle(prim, prim_scalar, bb_cc, gamma_dd, k, j, i, cons, cons_scalar, ps);
       }
     }
-
   }
 }
 
@@ -350,26 +361,36 @@ void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim,
 // Outputs:
 //   cons: conserved variables set in desired cell
 
-static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real>& bb_cc,
-    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, 
-    int k, int j, int i,
-    AthenaArray<Real> &cons,
+static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real> &prim_scalar, AthenaArray<Real>& bb_cc,
+    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const &gamma_dd, int k, int j, int i,
+    AthenaArray<Real> &cons, AthenaArray<Real> &cons_scalar,
     Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& ps) {
   // Extract the primitive variables
   Real prim_pt[NPRIM] = {0.0};
-  Real Y[MAX_SPECIES] = {0.0}; // FIXME: Need to add support for particle fractions.
+  Real Y[NSCALARS] = {0.0}; // FIXME: Need to add support for particle fractions.
+    for (int n=0; n<NSCALARS; n++) {
+    Y[n] = prim_scalar(n,k,j,i);
+    prim_pt[IYF + n] = Y[n];
+  }
   Real mb = ps.GetEOS()->GetBaryonMass();
   prim_pt[IDN] = prim(IDN, k, j, i)/mb;
   prim_pt[IVX] = prim(IVX, k, j, i);
   prim_pt[IVY] = prim(IVY, k, j, i);
   prim_pt[IVZ] = prim(IVZ, k, j, i);
   prim_pt[IPR] = prim(IPR, k, j, i);
-  prim_pt[ITM] = ps.GetEOS()->GetTemperatureFromP(prim_pt[IDN], prim_pt[IPR], Y);
 
   // Apply the floor to ensure that we get physical conserved variables.
   bool result = ps.GetEOS()->ApplyPrimitiveFloor(prim_pt[IDN], &prim_pt[IVX], prim_pt[IPR], prim_pt[ITM], Y);
 
-  // Extract the metric and calculate the determinant..
+  if (result==false) {
+    prim_pt[ITM] = ps.GetEOS()->GetTemperatureFromP(prim_pt[IDN], prim_pt[IPR], Y);
+  } else {
+    for (int n=0; n<NSCALARS; n++) {
+      prim_pt[IYF + n] = Y[n];
+    }
+  }
+
+  // Extract the metric and calculate the determinant.
   Real g3d[NSPMETRIC] = {gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
                          gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i)};
   Real detg = Primitive::GetDeterminant(g3d);
@@ -390,6 +411,9 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real
   cons(IM2, k, j, i) = cons_pt[IM2]*sdetg;
   cons(IM3, k, j, i) = cons_pt[IM3]*sdetg;
   cons(IEN, k, j, i) = cons_pt[IEN]*sdetg;
+  for (int n = 0; n < NSCALARS; n++) {
+      cons_scalar(n, k, j, i)= cons_pt[IYD + n]*sdetg;
+    }
 
   // If we floored things, we'll need to readjust the primitives.
   if (result) {
@@ -398,11 +422,14 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real
     prim(IVY, k, j, i) = prim_pt[IVY];
     prim(IVZ, k, j, i) = prim_pt[IVZ];
     prim(IPR, k, j, i) = prim_pt[IPR];
+    for (int n=0; n<NSCALARS; n++) {
+      prim_scalar(n,k,j,i) = prim_pt[IYF + n];
+    }
   }
 }
 
 void EquationOfState::FastMagnetosonicSpeedsGR(Real n, Real T, Real bsq, Real vi, Real v2, 
-    Real alpha, Real betai, Real gammaii, Real *plambda_plus, Real *plambda_minus) {
+    Real alpha, Real betai, Real gammaii, Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]) {
   // Constants and stuff
   Real Wlor = std::sqrt(1.0 - v2);
   Wlor = 1.0/Wlor;
@@ -413,7 +440,9 @@ void EquationOfState::FastMagnetosonicSpeedsGR(Real n, Real T, Real bsq, Real vi
   Real g11 = gammaii - betai*betai/(alpha*alpha);
   // Calculate comoving fast magnetosonic speed
   // FIXME: Need to update to work with particle fractions.
-  Real Y[MAX_SPECIES] = {0.0};
+  Real Y[NSCALARS] = {0.0};
+  for (int l=0; l<NSCALARS; l++) Y[l] = prim_scalar[l];
+
   Real cs = ps.GetEOS()->GetSoundSpeed(n, T, Y);
   Real cs_sq = cs*cs;
   Real mb = ps.GetEOS()->GetBaryonMass();
@@ -443,13 +472,13 @@ void EquationOfState::FastMagnetosonicSpeedsGR(Real n, Real T, Real bsq, Real vi
 //           int k, int j, int i)
 // \brief Apply density and pressure floors to reconstructed L/R cell interface states
 
-void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j, int i) {
+void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, AthenaArray<Real> &prim_scalar, int k, int j, int i) {
   // Extract the primitive variables and floor them using PrimitiveSolver.
-
-
   Real mb = ps.GetEOS()->GetBaryonMass();
   Real n, P;
   Real Wvu[3];
+  // FIXME: Update to work with particle species.
+  Real Y[NSCALARS] = {0.0};
   if(prim.GetDim4()==1){
   n = prim(IDN, i)/mb;
 //  Wvu = {prim(IVX, i), prim(IVY, i), prim(IVZ, i)};
@@ -457,6 +486,7 @@ void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j
   Wvu[1] = prim(IVY, i); 
   Wvu[2] = prim(IVZ, i); 
   P = prim(IPR, i);
+  for (int l=0; l<NSCALARS; l++) Y[l] = prim_scalar(l,i);
   } else if(prim.GetDim4()==5){
   n = prim(IDN, k, j, i)/mb;
 //  Wvu = {prim(IVX, k, j, i), prim(IVY, k, j, i), prim(IVZ, k, j, i)};
@@ -464,9 +494,10 @@ void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j
   Wvu[1] = prim(IVY, k, j, i); 
   Wvu[2] = prim(IVZ, k, j, i); 
   P = prim(IPR, k, j, i);
+  for (int l=0; l<NSCALARS; l++) Y[l] = prim_scalar(l,k,j,i);
   }
-  // FIXME: Update to work with particle species.
-  Real Y[MAX_SPECIES] = {0.0};
+
+  ps.GetEOS()->ApplyDensityLimits(n);
   Real T = ps.GetEOS()->GetTemperatureFromP(n, P, Y);
   ps.GetEOS()->ApplyPrimitiveFloor(n, Wvu, P, T, Y);
 
@@ -477,12 +508,14 @@ void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j
   prim(IVY, i) = Wvu[1];
   prim(IVZ, i) = Wvu[2];
   prim(IPR, i) = P;
+  for (int l=0; l<NSCALARS; l++) prim_scalar(l,i) = Y[l];
   } else if(prim.GetDim4()==5){
   prim(IDN, k, j, i) = n*mb;
   prim(IVX, k, j, i) = Wvu[0];
   prim(IVY, k, j, i) = Wvu[1];
   prim(IVZ, k, j, i) = Wvu[2];
   prim(IPR, k, j, i) = P;
+  for (int l=0; l<NSCALARS; l++) prim_scalar(l,k,j,i) = Y[l];
   }
   return;
 }

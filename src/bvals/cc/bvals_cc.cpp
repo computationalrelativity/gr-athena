@@ -1222,15 +1222,18 @@ void CellCenteredBoundaryVariable::SetupPersistentMPI() {
         MPI_Request_free(&bd_var_.req_send[nb.bufid]);
       MPI_Send_init(bd_var_.send[nb.bufid], ssize, MPI_ATHENA_REAL,
                     nb.snb.rank, tag, MPI_COMM_WORLD, &(bd_var_.req_send[nb.bufid]));
+      // std::cout<<"Using tag "<<tag<<" for bd_var_.send["<<nb.bufid<<"] target MB "<<nb.snb.lid<<" target buffer "<<nb.targetid<<" in CCBV::SetupPersistentMPI @ "<<pmy_block_<<std::endl;
       tag = pbval_->CreateBvalsMPITag(pmb->lid, nb.bufid, cc_phys_id_);
       if (bd_var_.req_recv[nb.bufid] != MPI_REQUEST_NULL)
         MPI_Request_free(&bd_var_.req_recv[nb.bufid]);
       MPI_Recv_init(bd_var_.recv[nb.bufid], rsize, MPI_ATHENA_REAL,
                     nb.snb.rank, tag, MPI_COMM_WORLD, &(bd_var_.req_recv[nb.bufid]));
+      // std::cout<<"Using tag "<<tag<<" for bd_var_.recv["<<nb.bufid<<"] target MB "<<pmb->lid<<" target buffer "<<nb.bufid<<" in CCBV::SetupPersistentMPI @ "<<pmy_block_<<std::endl;
 
       if (FLUID_ENABLED) {
         // hydro flux correction: bd_var_flcor_
         if (pmy_mesh_->multilevel && nb.ni.type == NeighborConnect::face) {
+          // std::cout<<"Set up flx comms, my level "<<mylevel<<", neighbour level "<<nb.snb.level<<" in CCBV::SetupPersistentMPI @ "<<pmy_block_<<std::endl;
           int size;
           if (nb.fid == 0 || nb.fid == 1)
             size = ((pmb->block_size.nx2 + 1)/2)*((pmb->block_size.nx3 + 1)/2);
@@ -1290,6 +1293,8 @@ void CellCenteredBoundaryVariable::StartReceiving(BoundaryCommSubset phase) {
 void CellCenteredBoundaryVariable::ClearBoundary(BoundaryCommSubset phase) {
   if (DBGPR_BVALS_CC)
     coutYellow("CellCenteredBoundaryVariable::ClearBoundary\n");
+  
+  // std::cout<<"Entered CellCenteredBoundaryVariable::ClearBoundary @ "<<pmy_block_<<std::endl;
 
   for (int n=0; n<pbval_->nneighbor; n++) {
     NeighborBlock& nb = pbval_->neighbor[n];
@@ -1307,8 +1312,15 @@ void CellCenteredBoundaryVariable::ClearBoundary(BoundaryCommSubset phase) {
     MeshBlock *pmb = pmy_block_;
     int mylevel = pmb->loc.level;
     if (nb.snb.rank != Globals::my_rank) {
+      // std::cout<<"Started Neighbour "<<n + 1<<" of "<<pbval_->nneighbor<<" in CCBV::ClearBoundary @ "<<pmy_block_<<std::endl;
+      // std::cout<<"Target MB has ID "<<nb.snb.lid<<", target buffer has ID "<<nb.targetid<<" in CCBV::ClearBoundary @ "<<pmy_block_<<std::endl;
       // Wait for Isend
+      // std::cout<<"My rank "<<Globals::my_rank<<" Neighbour rank "<<nb.snb.rank<<" in CCBV::ClearBoundary @ "<<pmy_block_<<std::endl;
+      // int test;
+      // MPI_Request_get_status((bd_var_.req_send[nb.bufid]), &test, MPI_STATUS_IGNORE);
+      // std::cout<<"MPI_Request_get_status returns "<<test<<" in CCBV::ClearBoundary @ "<<pmy_block_<<std::endl;
       MPI_Wait(&(bd_var_.req_send[nb.bufid]), MPI_STATUS_IGNORE);
+      // std::cout<<"bd_var_.req_send[nb.bufid] completed in CCBV::ClearBoundary @ "<<pmy_block_<<std::endl;
 
       if (FLUID_ENABLED) {
         if (phase == BoundaryCommSubset::all && nb.ni.type == NeighborConnect::face

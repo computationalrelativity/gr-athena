@@ -35,6 +35,7 @@ using Lorene::Bin_NS;
 #include "mesh_refinement.hpp"
 #include "meshblock_tree.hpp"
 #include "../finite_differencing.hpp"
+#include "../scalars/scalars.hpp"
 
 // Forward declarations
 class ParameterInput;

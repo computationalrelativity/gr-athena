@@ -336,8 +336,8 @@ inline Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::CheckDensityValid(Real& mu
 
 // ConToPrim {{{
 template<typename EOSPolicy, typename ErrorPolicy>
-inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim[NPRIM], 
-      Real cons[NCONS], Real b[NMAG], Real g3d[NSPMETRIC], Real g3u[NSPMETRIC]) {
+inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim[NPRIM], Real cons[NCONS], 
+    Real b[NMAG], Real g3d[NSPMETRIC], Real g3u[NSPMETRIC]) {
 
   SolverResult solver_result{Error::SUCCESS, 0, false, false, false};
 
@@ -348,12 +348,16 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
   Real B_u[3] = {b[IB1], b[IB2], b[IB3]};
   // Extract the particle fractions.
   const int n_species = peos->GetNSpecies();
-  Real Y[MAX_SPECIES] = {0.0};
-  for (int s = 0; s < n_species; s++) {
-    Y[s] = cons[IYD + s]/cons[IDN];
+  Real Y[NSCALARS] = {0.0};
+  for (int n=0; n<NSCALARS; n++) {
+    Y[n] = cons[IYD + n]/cons[IDN];
   }
+  // for (int s = 0; s < n_species; s++) {
+  //   Y[s] = cons[IYD + s]/cons[IDN];
+  // }
+
   // Apply limits to Y to ensure a physical state
-  peos->ApplySpeciesLimits(Y);
+  peos->ApplySpeciesLimits(Y); //FIXME: think abt how to handle this
 
   // Check the conserved variables for consistency and do whatever
   // the EOSPolicy wants us to.
@@ -363,7 +367,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
     HandleFailure(prim, cons, b, g3d);
     solver_result.error = Error::CONS_FLOOR;
     return solver_result;
-  }
+  } 
 
   // Calculate some utility quantities.
   Real sqrtD = std::sqrt(D);
@@ -495,8 +499,8 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
   Real W = D/rho;
   Real Wmux = W*mu/(1.0 + mu*bsqr);
   // Before we retrieve the velocity, we need to raise S.
-  //Real S_u[3] = {0.0};
-  //RaiseForm(S_u, S_d, g3u);
+  // Real S_u[3] = {0.0};
+  // RaiseForm(S_u, S_d, g3u);
   // Now we can get Wv.
   Real Wv_u[3] = {0.0};
   Wv_u[0] = Wmux*(r_u[0] + rbmu*b_u[0]);
@@ -548,6 +552,7 @@ inline Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::PrimToCon(Real prim[NPRIM]
   const Real &t   = prim[ITM]; // temperature
   const Real B_u[3] = {bu[IB1], bu[IB2], bu[IB3]};
   const int n_species = peos->GetNSpecies();
+  //FIXME
   Real Y[MAX_SPECIES] = {0.0};
   for (int s = 0; s < n_species; s++) {
     Y[s] = prim[IYF + s];

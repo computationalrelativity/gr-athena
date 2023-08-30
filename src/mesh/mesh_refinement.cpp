@@ -155,7 +155,7 @@ void MeshRefinement::RestrictCellCenteredValues(
 
 
   AthenaArray<Real>& fine_ = const_cast<AthenaArray<Real>&>(fine);
-  if (false) {
+#if false
     // BD debug
     bool debug = true;
     int debug_block_id = 0;
@@ -219,7 +219,7 @@ void MeshRefinement::RestrictCellCenteredValues(
       }
 
     return;
-  }
+#endif
   //---
 
   // store the restricted data in the prolongation buffer for later use
@@ -688,7 +688,7 @@ void MeshRefinement::ProlongateCellCenteredValues(
   // need mutable
   AthenaArray<Real>& coarse_ = const_cast<AthenaArray<Real>&>(coarse);
 
-  if (FILL_WAVE_COARSE_P) {
+#if FILL_WAVE_COARSE_P
     pmb->DebugWaveMeshBlock(coarse_,
                             pmb->cims, pmb->cipe,
                             pmb->cjme, pmb->cjpe,
@@ -697,11 +697,11 @@ void MeshRefinement::ProlongateCellCenteredValues(
 
     if (DBGPR_MESH_REFINEMENT)
       coutBoldRed("Warning: coarse buffer overridden..\n");
-  }
+#endif
 
 
   // BD: interpolation test
-  if (false) {
+#if false
     int k = pmb->cks, fk = pmb->ks, j = pmb->cjs, fj = pmb->js;
 
     // settings for interpolator
@@ -743,7 +743,7 @@ void MeshRefinement::ProlongateCellCenteredValues(
     }
 
     return;
-  }
+#endif
   //---
 
 

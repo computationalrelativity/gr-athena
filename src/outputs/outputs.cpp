@@ -385,12 +385,36 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     }
 
     // pressure
-    if (output_params.variable.compare("p") == 0 ||
-        output_params.variable.compare("prim") == 0) {
+    if (output_params.variable.compare("p") == 0) {
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = "press";
       pod->data.InitWithShallowSlice(phyd->w, 4, IPR, 1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+
+    // temperature
+    if (output_params.variable.compare("t") == 0) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "temp";
+      pod->data.InitWithShallowSlice(phyd->temperature, 0, 1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+
+    // press or temp depending on EoS
+    if (output_params.variable.compare("prim") == 0) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+#if USETM
+      pod->name = "temp";
+      pod->data.InitWithShallowSlice(phyd->temperature, 0, 1);
+#else
+      pod->name = "press";
+      pod->data.InitWithShallowSlice(phyd->w, 4, IPR, 1);
+#endif
       AppendOutputDataNode(pod);
       num_vars_++;
     }

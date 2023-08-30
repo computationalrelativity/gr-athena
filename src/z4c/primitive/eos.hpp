@@ -50,6 +50,7 @@
 #include <limits>
 #include <cassert>
 #include <cmath>
+#include <cstdio>
 
 #include "../../athena.hpp"
 #include "unit_system.hpp"
@@ -159,8 +160,13 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \param[in] Y  An array of particle fractions, expected to be of size n_species.
     //  \return The temperature according to the EOS.
     inline Real GetTemperatureFromP(Real n, Real p, Real *Y) {
+      // printf("n = %.16e, p = %.16e[code], p = %.16e[eos], Y[0] = %f\n", n, p, p*code_units->PressureConversion(*eos_units), Y[0]);
+      if (n<GetDensityFloor()){
+        return T_atm * eos_units->TemperatureConversion(*code_units);
+      } else {
       return TemperatureFromP(n, p*code_units->PressureConversion(*eos_units), Y) *
              eos_units->TemperatureConversion(*code_units);
+      }
     }
 
     //! \fn Real GetEnergy(Real n, Real T, Real *Y)
@@ -293,7 +299,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \return true if the conserved variables were adjusted, false otherwise.
     inline bool ApplyConservedFloor(Real& D, Real Sd[3], Real& tau, Real *Y, Real Bsq) {
       return ConservedFloor(D, Sd, tau, Y, n_atm*GetBaryonMass(),
-                            GetTauFloor(D, Y, Bsq),
+                            GetTauFloor(std::max(D,min_n*GetBaryonMass()), Y, Bsq),
                             GetTauFloor(n_atm*GetBaryonMass(), Y_atm, Bsq), n_species);
     }
 
@@ -313,6 +319,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \brief Get the atmosphere abundance used by the EOS ErrorPolicy for species i.
     inline Real GetSpeciesAtmosphere(int i) const {
       assert((i < n_species) && "Not enough species");
+      // printf("Used species %d atmosphere = %g.\n",i,Y_atm[i]);
       return Y_atm[i];
     }
 
@@ -350,6 +357,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     inline void SetSpeciesAtmosphere(Real atmo, int i) {
       assert((i < n_species) && "Not enough species");
       Y_atm[i] = std::min(1.0, std::max(0.0, atmo));
+      // printf("Set species %d atmosphere to %g.\n",i,Y_atm[i]);
     }
 
     //! \fn void SetThreshold(Real threshold)

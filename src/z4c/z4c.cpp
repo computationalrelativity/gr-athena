@@ -552,7 +552,11 @@ Real Z4c::Trace(Real const detginv,
 // \!fn Real Z4c::GetMatter(Real detginv, Real gxx, ... , Real gzz, Real Axx, ..., Real Azz)
 // \brief Update matter variables from hydro 
 
+#if USETM
+void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, AthenaArray<Real> & w, AthenaArray<Real> & r, AthenaArray<Real> &bb_cc)
+#else
 void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, AthenaArray<Real> & w, AthenaArray<Real> &bb_cc)
+#endif
 {
     MeshBlock * pmb = pmy_block;
     Matter_vars mat;
@@ -593,6 +597,9 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
       utilde1cc.InitWithShallowSlice(w,IVX,1);
       utilde2cc.InitWithShallowSlice(w,IVY,1);
       utilde3cc.InitWithShallowSlice(w,IVZ,1);
+      for (int Yidx=0; Yidx<NSCALARS; Yidx++) {
+        rscalarcc[Yidx].InitWithShallowSlice(r,Yidx,1);
+      }
       #if MAGNETIC_FIELDS_ENABLED
       bb1cc.InitWithShallowSlice(bb_cc,IB1,1);
       bb2cc.InitWithShallowSlice(bb_cc,IB2,1);
@@ -603,7 +610,10 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
       pgascc.InitWithShallowSlice(pmb->phydro->w_init,IPR,1);
       utilde1cc.InitWithShallowSlice(pmb->phydro->w_init,IVX,1);
       utilde2cc.InitWithShallowSlice(pmb->phydro->w_init,IVY,1);
-      utilde3cc.InitWithShallowSlice(pmb->phydro->w_init,IVZ,1); 
+      utilde3cc.InitWithShallowSlice(pmb->phydro->w_init,IVZ,1);
+      for (int Yidx=0; Yidx<NSCALARS; Yidx++) {
+        rscalarcc[Yidx].InitWithShallowSlice(r,Yidx,1);
+      }
     }
 
     if(opt.Tmunuinterp==0){
@@ -674,6 +684,9 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
           Real Wvu[3] = {utilde1vc(i), utilde2vc(i), utilde3vc(i)};
           // FIXME: Generalize to work with EOSes accepting particle fractions.
           Real Y[MAX_SPECIES] = {0.0};
+          for (int Yidx=0; Yidx<NSCALARS; Yidx++) {
+            Y[Yidx] = ig->map3d_CC2VC(rscalarcc[Yidx](k,j,i));
+          }
           Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgasvc(i), Y);
 //          if(T< 0.0){
 //          printf("T = %.16e, x = %.16e, y = %.16e, z = %.16e, i = %d, j = %d, k = %d \n",T,pmb->pcoord->x1f(i),pmb->pcoord->x2f(j),pmb->pcoord->x3f(k),i,j,k);
