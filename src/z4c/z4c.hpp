@@ -458,8 +458,8 @@ private:
  AthenaArray<Real> utilde1cc;
  AthenaArray<Real> utilde2cc;
  AthenaArray<Real> utilde3cc;
-#if NSCALARS>0
- AthenaArray<Real> rscalarcc[NSCALARS];
+#if MAX_SPECIES>0
+ AthenaArray<Real> rscalarcc[MAX_SPECIES];
 #endif
  AthenaArray<Real> bb1cc;
  AthenaArray<Real> bb2cc;

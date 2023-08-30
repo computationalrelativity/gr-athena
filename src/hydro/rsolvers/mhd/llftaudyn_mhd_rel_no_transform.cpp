@@ -473,8 +473,8 @@ void Hydro::RiemannSolver(const int k, const int j,
         Real nl = rho_l(i)/mb;
         Real nr = rho_r(i)/mb;
         // FIXME: Generalize to work with EOSes accepting particle fractions.
-        Real Yl[NSCALARS] = {0.0}; // Should we worry about r vs l here?
-        Real Yr[NSCALARS] = {0.0};
+        Real Yl[MAX_SPECIES] = {0.0}; // Should we worry about r vs l here?
+        Real Yr[MAX_SPECIES] = {0.0};
         for (int n=0; n<NSCALARS; n++) Yr[n] = pmy_block->pscalars->r(n,k,j,i);
         switch (ivx) {
           case IVX:

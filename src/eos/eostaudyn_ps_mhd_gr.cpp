@@ -367,7 +367,7 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real
     Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& ps) {
   // Extract the primitive variables
   Real prim_pt[NPRIM] = {0.0};
-  Real Y[NSCALARS] = {0.0}; // FIXME: Need to add support for particle fractions.
+  Real Y[MAX_SPECIES] = {0.0}; // FIXME: Need to add support for particle fractions.
     for (int n=0; n<NSCALARS; n++) {
     Y[n] = prim_scalar(n,k,j,i);
     prim_pt[IYF + n] = Y[n];
@@ -440,7 +440,7 @@ void EquationOfState::FastMagnetosonicSpeedsGR(Real n, Real T, Real bsq, Real vi
   Real g11 = gammaii - betai*betai/(alpha*alpha);
   // Calculate comoving fast magnetosonic speed
   // FIXME: Need to update to work with particle fractions.
-  Real Y[NSCALARS] = {0.0};
+  Real Y[MAX_SPECIES] = {0.0};
   for (int l=0; l<NSCALARS; l++) Y[l] = prim_scalar[l];
 
   Real cs = ps.GetEOS()->GetSoundSpeed(n, T, Y);
@@ -478,7 +478,7 @@ void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, AthenaArray<
   Real n, P;
   Real Wvu[3];
   // FIXME: Update to work with particle species.
-  Real Y[NSCALARS] = {0.0};
+  Real Y[MAX_SPECIES] = {0.0};
   if(prim.GetDim4()==1){
   n = prim(IDN, i)/mb;
 //  Wvu = {prim(IVX, i), prim(IVY, i), prim(IVZ, i)};

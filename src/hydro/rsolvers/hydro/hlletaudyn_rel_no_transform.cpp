@@ -172,7 +172,7 @@ void Hydro::RiemannSolver(const int k, const int j, const int il, const int iu,
     Real nl = rho_l/mb;
     Real nr = rho_r/mb;
     // FIXME: Generalize to work with EOSes accepting particle fractions.
-    Real Y[NSCALARS] = {0.0}; // Should we worry about r vs l here?
+    Real Y[MAX_SPECIES] = {0.0}; // Should we worry about r vs l here?
     for (int n=0; n<NSCALARS; n++) Y[n] = prim_scalar[n];
     Real Tl = pmy_block->peos->GetEOS().GetTemperatureFromP(nl, pgas_l, Y);
     Real Tr = pmy_block->peos->GetEOS().GetTemperatureFromP(nr, pgas_r, Y);

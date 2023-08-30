@@ -348,7 +348,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
   Real B_u[3] = {b[IB1], b[IB2], b[IB3]};
   // Extract the particle fractions.
   const int n_species = peos->GetNSpecies();
-  Real Y[NSCALARS] = {0.0};
+  Real Y[MAX_SPECIES] = {0.0};
   for (int n=0; n<NSCALARS; n++) {
     Y[n] = cons[IYD + n]/cons[IDN];
   }

@@ -372,7 +372,7 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real
     Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& ps) {
   // Extract the primitive variables
   Real prim_pt[NPRIM] = {0.0};
-  Real Y[NSCALARS] = {0.0}; // FIXME: Need to add support for particle fractions.
+  Real Y[MAX_SPECIES] = {0.0}; // FIXME: Need to add support for particle fractions.
   for (int n=0; n<NSCALARS; n++) {
     Y[n] = prim_scalar(n,k,j,i);
     prim_pt[IYF + n] = Y[n];
@@ -471,7 +471,7 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real
 void EquationOfState::SoundSpeedsSR(Real n, Real T, Real vx, Real gamma_lorentz_sq,
     Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]) {
   // FIXME: Need to update to work with particle fractions.
-  Real Y[NSCALARS] = {0.0};
+  Real Y[MAX_SPECIES] = {0.0};
   for (int n=0; n<NSCALARS; n++) Y[n] = prim_scalar[n];
 
   Real cs = ps.GetEOS()->GetSoundSpeed(n, T, Y);
@@ -501,7 +501,7 @@ void EquationOfState::SoundSpeedsGR(Real n, Real T, Real vi, Real v2, Real alpha
     Real betai, Real gammaii, Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]) {
   // Calculate comoving sound speed
   // FIXME: Need to update to work with particle fractions.
-  Real Y[NSCALARS] = {0.0};
+  Real Y[MAX_SPECIES] = {0.0};
   for (int l=0; l<NSCALARS; l++) Y[l] = prim_scalar[l];
 
   Real cs = ps.GetEOS()->GetSoundSpeed(n, T, Y);
@@ -540,7 +540,7 @@ void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, AthenaArray<
   Real Wvu[3] = {prim(IVX, i), prim(IVY, i), prim(IVZ, i)};
   Real P = prim(IPR, i);
   // FIXME: Update to work with particle species.
-  Real Y[NSCALARS] = {0.0};
+  Real Y[MAX_SPECIES] = {0.0};
   for (int l=0; l<NSCALARS; l++) Y[l] = prim_scalar(l,i);
 
   ps.GetEOS()->ApplyDensityLimits(n);
