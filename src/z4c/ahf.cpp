@@ -60,6 +60,7 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   lmax1 = lmax+1;
   
   flow_iterations = pin->GetOrAddInteger("ahf", "flow_iterations",100);
+  flow_alpha_beta_const = pin->GetOrAddReal("ahf", "flow_alpha_beta_const",1.0);
   hmean_tol = pin->GetOrAddReal("ahf", "hmean_tol",100.);
   mass_tol = pin->GetOrAddReal("ahf", "mass_tol",1e-2);
   verbose = pin->GetOrAddBoolean("ahf", "verbose", 0);
@@ -392,7 +393,7 @@ void AHF::MetricDerivatives(MeshBlock * pmy_block)
 // Flag here the surface points contained in the MB
 void AHF::MetricInterp(MeshBlock * pmb)
 {
-  LagrangeInterpND<2, 3> * pinterp3 = nullptr;
+  LagrangeInterpND<2*NGHOST-1, 3> * pinterp3 = nullptr;
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> vc_adm_g_dd;      // 3-metric  (NDIM=3 in z4c.hpp)
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> vc_adm_K_dd;      // extr.curv.
   vc_adm_g_dd.InitWithShallowSlice(pmb->pz4c->storage.adm, Z4c::I_ADM_gxx);
@@ -473,7 +474,7 @@ void AHF::MetricInterp(MeshBlock * pmb)
       delta[2]  = pmb->pcoord->dx3f(0);
       coord[2]  = z;
         
-      pinterp3 =  new LagrangeInterpND<2, 3>(origin, delta, size, coord);
+      pinterp3 =  new LagrangeInterpND<2*NGHOST-1, 3>(origin, delta, size, coord);
 
       // With bitant wrt z=0, pick a (-) sign every time a z component is 
       // encountered.
@@ -907,21 +908,21 @@ void AHF::SurfaceIntegrals()
       // Integrand of spin
       Real intSx = 0;
       for(int a = 0; a < NDIM; ++a) {
-	      for(int b = a; b < NDIM; ++b) {
+	      for(int b = 0; b < NDIM; ++b) {
 	        intSx += phix(a) * R(b) * K(a,b,i,j);
 	      }
       }
       
       Real intSy = 0;
       for(int a = 0; a < NDIM; ++a) {
-	      for(int b = a; b < NDIM; ++b) {
+	      for(int b = 0; b < NDIM; ++b) {
 	        intSy += phiy(a) * R(b) * K(a,b,i,j);
 	      }
       }
       
       Real intSz = 0;
       for(int a = 0; a < NDIM; ++a) {
-	      for(int b = a; b < NDIM; ++b) {
+	      for(int b = 0; b < NDIM; ++b) {
 	        intSz += phiz(a) * R(b) * K(a,b,i,j);
 	      }
       }
@@ -1047,6 +1048,7 @@ void AHF::FastFlowLoop()
 
   if (verbose && ioproc) {
     std::cout << "\nSearching for horizon " << nh << std::endl;
+    std::cout << "\nflow_alpha_beta_const = " << flow_alpha_beta_const << std::endl;
     std::cout << "center = ("
 	      << center[0] << ","
 	      << center[1] << ","
@@ -1084,14 +1086,14 @@ void AHF::FastFlowLoop()
     area = integrals[iarea];
     hrms = integrals[ihrms]/area;
     hmean = integrals[ihmean];
-    Sx = integrals[iSx];
-    Sy = integrals[iSy];
-    Sz = integrals[iSz];
-
-    S = std::sqrt(SQ(Sx)+SQ(Sy)+SQ(Sz));
+    Sx = integrals[iSx]/(8*PI);
+    Sy = integrals[iSy]/(8*PI);
+    Sz = integrals[iSz]/(8*PI);
+    S  = std::sqrt(SQ(Sx)+SQ(Sy)+SQ(Sz));
 
     meanradius = a0(0)/std::sqrt(4.0*PI);
 
+    // Irreducible mass
     mass_prev = mass;
     mass = std::sqrt(area/(16.0*PI));     
 
@@ -1151,25 +1153,27 @@ void AHF::FastFlowLoop()
     ah_prop[hcoarea] = integrals[icoarea];
     ah_prop[hhrms] = hrms;
     ah_prop[hhmean] = hmean;
-    ah_prop[hSx] = integrals[iSx];
-    ah_prop[hSy] = integrals[iSy];
-    ah_prop[hSz] = integrals[iSz];
-    ah_prop[hS] = std::sqrt(SQ(ah_prop[hSx]) + SQ(ah_prop[hSy]) + SQ(ah_prop[hSz]));
-    ah_prop[hmass] = mass;
     ah_prop[hmeanradius] = meanradius;
+    ah_prop[hSx] = Sx;
+    ah_prop[hSy] = Sy;
+    ah_prop[hSz] = Sz;    
+    ah_prop[hS]  = S;
+    ah_prop[hmass] = std::sqrt( SQR(mass) + 0.25*SQR(S/mass) ); // Christodoulu mass
+    
   }
   
   if (verbose && ioproc) {
     
     if (ah_found) {
       std::cout << "Found horizon " << nh << std::endl;
-      std::cout << " mass = " << mass << std::endl;
+      std::cout << " mass_irr = " << mass << std::endl;
       std::cout << " meanradius = " << meanradius << std::endl;
       std::cout << " hrms = " << hrms << std::endl;
       std::cout << " hmean = " << hmean << std::endl;
       std::cout << " Sx = " << Sx << std::endl;
       std::cout << " Sy = " << Sy << std::endl;
       std::cout << " Sz = " << Sz << std::endl;
+      std::cout << " S  = " << S << std::endl;
     } else if (!failed && !ah_found) {
       std::cout << "Failed, reached max iterations " << flow_iterations << std::endl;
     }
@@ -1181,10 +1185,10 @@ void AHF::FastFlowLoop()
 // \brief find new spectral components with fast flow
 void AHF::UpdateFlowSpectralComponents()
 {
-  const double alpha = 1.0;
-  const double beta = 0.5;
-  const double A = alpha/(lmax*lmax1) + beta;
-  const double B = beta/alpha;
+  const Real alpha = flow_alpha_beta_const;
+  const Real beta = 0.5 * flow_alpha_beta_const;
+  const Real A = alpha/(lmax*lmax1) + beta;
+  const Real B = beta/alpha;
 
   Real * spec0 = new Real[lmax1];
   Real * specc = new Real[lmpoints];
