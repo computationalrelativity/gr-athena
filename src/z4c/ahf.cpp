@@ -363,9 +363,9 @@ void AHF::MetricDerivatives(MeshBlock * pmy_block)
       for(int b = 0; b < NDIM; ++b){
         GLOOP1(i){
           //Real oofdx = 1.0 / pmy_block->pcoord->dx1f(i);
-          pmy_block->pz4c->aux_g_ddd(0,a,b,k,j,i) = 
+          pmy_block->pz4c->aux_g_ddd(0,a,b,k,j,i) =
                      FD.Gx(0, IX_IL, IX_IU, i, vc_adm_g_dd(a,b,k,j,i));
-          pmy_block->pz4c->aux_g_ddd(1,a,b,k,j,i) =  
+          pmy_block->pz4c->aux_g_ddd(1,a,b,k,j,i) = 
                      FD.Gx(1, IX_JL, IX_JU, j, vc_adm_g_dd(a,b,k,j,i));
           pmy_block->pz4c->aux_g_ddd(2,a,b,k,j,i) = 
                      FD.Gx(2, IX_KL, IX_KU, k, vc_adm_g_dd(a,b,k,j,i));
@@ -398,7 +398,7 @@ void AHF::MetricDerivatives(MeshBlock * pmy_block)
 // Flag here the surface points contained in the MB
 void AHF::MetricInterp(MeshBlock * pmb)
 {
-  LagrangeInterpND<metric_interp_order, 3> * pinterp3 = nullptr;
+  LagrangeInterpND<2*NGHOST-1, 3> * pinterp3 = nullptr;
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> vc_adm_g_dd;      // 3-metric  (NDIM=3 in z4c.hpp)
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> vc_adm_K_dd;      // extr.curv.
   vc_adm_g_dd.InitWithShallowSlice(pmb->pz4c->storage.adm, Z4c::I_ADM_gxx);
@@ -479,7 +479,7 @@ void AHF::MetricInterp(MeshBlock * pmb)
       delta[2]  = pmb->pcoord->dx3f(0);
       coord[2]  = z;
         
-      pinterp3 =  new LagrangeInterpND<metric_interp_order, 3>(origin, delta, size, coord);
+      pinterp3 =  new LagrangeInterpND<2*NGHOST-1, 3>(origin, delta, size, coord);
 
       // With bitant wrt z=0, pick a (-) sign every time a z component is 
       // encountered.
@@ -1159,7 +1159,7 @@ void AHF::FastFlowLoop()
     
     if (ah_found) {
       std::cout << "Found horizon " << nh << std::endl;
-      std::cout << " mass = " << mass << std::endl;
+      std::cout << " Christodoulu mass = " << mass << std::endl;
       std::cout << " meanradius = " << meanradius << std::endl;
       std::cout << " hrms = " << hrms << std::endl;
       std::cout << " hmean = " << hmean << std::endl;

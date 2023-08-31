@@ -86,7 +86,6 @@ private:
   bool bitant;
   //! Number of horizons
   int nstart, nhorizon;
-  static const int metric_interp_order = 2;
   int fastflow_iter=0;
   //! Arrays of Legendre polys and drvts
   AthenaArray<Real> P, dPdth, dPdth2;
