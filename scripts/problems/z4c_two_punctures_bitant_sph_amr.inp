@@ -72,39 +72,41 @@ bitant = true
 
 
 # amr with spheres
-sphere_zone_number = 3
+sphere_zone_number = 1
 
-sphere_zone_level_0    = 4
+# should roughly match the standard box-in-box
+
+sphere_zone_level_0    = 2
 sphere_zone_radius_0   = 100
 sphere_zone_puncture_0 = -1  # not pinned to a puncture
 sphere_zone_center1_0  = 0   # fix center
 sphere_zone_center2_0  = 0
 sphere_zone_center3_0  = 0
 
-
-sphere_zone_level_1    = 9
-sphere_zone_radius_1   = 0.1
+sphere_zone_level_1    = 8
+sphere_zone_radius_1   = 1.5
 sphere_zone_puncture_1 = 0  # pin to puncture
 
-sphere_zone_level_2    = 9
-sphere_zone_radius_2   = 0.1
+sphere_zone_level_2    = 8
+sphere_zone_radius_2   = 1.5
 sphere_zone_puncture_2 = 1  # pin to puncture
 
-# sphere_zone_level_3    = 6
-# sphere_zone_radius_3   = 0.25
-# sphere_zone_puncture_3 = 0  # pin to puncture
-# 
-# sphere_zone_level_4    = 6
-# sphere_zone_radius_4   = 0.25
-# sphere_zone_puncture_4 = 1  # pin to puncture
-# 
-# sphere_zone_level_5    = 7
-# sphere_zone_radius_5   = 0.01
-# sphere_zone_puncture_5 = 0  # pin to puncture
-# 
-# sphere_zone_level_6    = 7
-# sphere_zone_radius_6   = 0.01
-# sphere_zone_puncture_6 = 1  # pin to puncture
+# twice radius in strong field, twice res. in wave-zone
+
+sphere_zone_level_0    = 5
+sphere_zone_radius_0   = 100
+sphere_zone_puncture_0 = -1  # not pinned to a puncture
+sphere_zone_center1_0  = 0   # fix center
+sphere_zone_center2_0  = 0
+sphere_zone_center3_0  = 0
+
+sphere_zone_level_1    = 10
+sphere_zone_radius_1   = 3
+sphere_zone_puncture_1 = 0  # pin to puncture
+
+sphere_zone_level_2    = 10
+sphere_zone_radius_2   = 3
+sphere_zone_puncture_2 = 1  # pin to puncture
 
 <cce>
 
@@ -280,21 +282,21 @@ deref_count = 0
 # Number of zones in X1-direction
 nx1 = 96
 # Minimum value of X1
-x1min = -1536
+x1min = -384
 # Maximum value of X1
-x1max = 1536
+x1max = 384
 # Inner-X1 boundary flag
 ix1_bc = extrapolate_outflow
 # Outer-X1 boundary flag
 ox1_bc = extrapolate_outflow
 nx2 = 96
-x2min = -1536
-x2max = 1536
+x2min = -384
+x2max = 384
 ix2_bc = extrapolate_outflow
 ox2_bc = extrapolate_outflow
 nx3 = 48
 x3min = 0
-x3max = 1536
+x3max = 384
 ix3_bc = reflecting
 ox3_bc = extrapolate_outflow
 

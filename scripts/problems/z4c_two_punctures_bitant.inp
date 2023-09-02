@@ -229,7 +229,7 @@ ghost_zones = true
 
 <time>
 cfl_number = 0.5
-tlim = 10
+tlim = 5
 integrator = rk4
 ncycle_out = 1
 nlim = -1
