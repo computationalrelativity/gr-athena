@@ -140,6 +140,7 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
 
   void ApplyPhysicalBoundaries(const Real time, const Real dt);
   void ProlongateBoundaries(const Real time, const Real dt);
+  void ProlongateBoundariesAux(const Real time, const Real dt);
 
   //--New logic for vertex-centering
   void ApplyPhysicalVertexCenteredBoundaries(const Real time, const Real dt);

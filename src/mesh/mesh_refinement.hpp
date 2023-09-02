@@ -123,6 +123,15 @@ class MeshRefinement {
   int AddToRefinementCX(AthenaArray<Real> *pvar_in, AthenaArray<Real> *pcoarse_in);
   int AddToRefinementFC(FaceField *pvar_fc, FaceField *pcoarse_fc);
 
+  // as above but for use with auxiliary task list
+  int AddToRefinementAuxCC(AthenaArray<Real> *pvar_in, AthenaArray<Real> *pcoarse_in);
+  int AddToRefinementAuxVC(AthenaArray<Real> *pvar_in, AthenaArray<Real> *pcoarse_in);
+  int AddToRefinementAuxCX(AthenaArray<Real> *pvar_in, AthenaArray<Real> *pcoarse_in);
+  int AddToRefinementAuxFC(FaceField *pvar_fc, FaceField *pcoarse_fc);
+
+  // switch internal pvars_X_ <-> pvars_aux_X_
+  void SwapRefinementAux();
+
   // for switching first entry in pvars_cc_ to/from: (w, coarse_prim); (u, coarse_cons_)
   void SetHydroRefinement(HydroBoundaryQuantity hydro_type);
 
@@ -154,6 +163,15 @@ class MeshRefinement {
   std::vector<std::tuple<FaceField *, FaceField *>> pvars_fc_;
   std::vector<std::tuple<AthenaArray<Real> *, AthenaArray<Real> *>> pvars_vc_;
   std::vector<std::tuple<AthenaArray<Real> *, AthenaArray<Real> *>> pvars_cx_;
+
+  // for aux. lists
+  std::vector<std::tuple<AthenaArray<Real> *,
+                         AthenaArray<Real> *>> pvars_aux_cc_;
+  std::vector<std::tuple<FaceField *, FaceField *>> pvars_aux_fc_;
+  std::vector<std::tuple<AthenaArray<Real> *,
+                         AthenaArray<Real> *>> pvars_aux_vc_;
+  std::vector<std::tuple<AthenaArray<Real> *,
+                         AthenaArray<Real> *>> pvars_aux_cx_;
 
   // --------------------------------------------------------------------------
   // BD: cx coarse ghosts can exceed NCGHOST so grid regen needed

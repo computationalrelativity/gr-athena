@@ -188,16 +188,23 @@ TaskStatus Z4cAuxTaskList::ProlongAux(MeshBlock *pmb, int stage) {
   // this is post-integ loop
   Real t_end_stage = pmb->pmy_mesh->time;
 
+#if defined(DBG_REDUCE_AUX_COMM)
+  // Or just tailor to this..
+  pbval->ProlongateBoundariesAux(t_end_stage, 0);
+#else
   // BD: TODO: this is doing much more work than is required
   // We don't need to apply BC on ubvar_cx again
   // We do however need prol. for vars in e.g. pmr->pvars_cx_
   pbval->ProlongateBoundaries(t_end_stage, 0);
+#endif // DBG_REDUCE_AUX_COMM
 
+  // BD: should we split to something like this?
   // FCN_CC_CX_VC(
   //   pbval->ProlongateBoundaries,
   //   pbval->ProlongateCellCenteredXBoundaries,
   //   pbval->ProlongateVertexCenteredBoundaries
   // )(t_end_stage, 0);
+
 
   return TaskStatus::success;
 }

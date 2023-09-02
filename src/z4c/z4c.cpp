@@ -148,6 +148,24 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
     pmb->RegisterMeshBlockDataVC(storage.weyl)
   );
 
+
+  // if (pm->multilevel) {
+  //   refinement_idx = FCN_CC_CX_VC(
+  //     pmy_block->pmr->AddToRefinementCC,
+  //     pmy_block->pmr->AddToRefinementCX,
+  //     pmy_block->pmr->AddToRefinementVC
+  //   )(&storage.weyl, &coarse_a_);
+  // }
+
+#if defined(DBG_REDUCE_AUX_COMM)
+  if (pm->multilevel) {
+    refinement_idx = FCN_CC_CX_VC(
+      pmy_block->pmr->AddToRefinementAuxCC,
+      pmy_block->pmr->AddToRefinementAuxCX,
+      pmy_block->pmr->AddToRefinementAuxVC
+    )(&storage.weyl, &coarse_a_);
+  }
+#else
   if (pm->multilevel) {
     refinement_idx = FCN_CC_CX_VC(
       pmy_block->pmr->AddToRefinementCC,
@@ -155,7 +173,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
       pmy_block->pmr->AddToRefinementVC
     )(&storage.weyl, &coarse_a_);
   }
-
+#endif // DBG_REDUCE_AUX_COMM
 
   // If user-requested time integrator is type 3S* allocate additional memory
   std::string integrator = pin->GetOrAddString("time", "integrator", "vl2");

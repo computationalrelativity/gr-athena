@@ -85,6 +85,11 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) :
   pvars_vc_.reserve(3);
   pvars_cx_.reserve(3);
 
+  pvars_aux_cc_.reserve(3);
+  pvars_aux_fc_.reserve(3);
+  pvars_aux_vc_.reserve(3);
+  pvars_aux_cx_.reserve(3);
+
   // --------------------------------------------------------------------------
   // init interpolation op based on underlying dimensionality
   Coordinates* pco = pmb->pcoord;
@@ -3909,6 +3914,38 @@ int MeshRefinement::AddToRefinementCX(AthenaArray<Real> *pvar_in,
                                       AthenaArray<Real> *pcoarse_in) {
   pvars_cx_.push_back(std::make_tuple(pvar_in, pcoarse_in));
   return static_cast<int>(pvars_cx_.size() - 1);
+}
+
+// as above but for use with auxiliary task list
+int MeshRefinement::AddToRefinementAuxVC(AthenaArray<Real> *pvar_in,
+                                    AthenaArray<Real> *pcoarse_in) {
+  pvars_aux_vc_.push_back(std::make_tuple(pvar_in, pcoarse_in));
+  return static_cast<int>(pvars_aux_vc_.size() - 1);
+}
+
+int MeshRefinement::AddToRefinementAuxCC(AthenaArray<Real> *pvar_in,
+                                    AthenaArray<Real> *pcoarse_in) {
+  pvars_aux_cc_.push_back(std::make_tuple(pvar_in, pcoarse_in));
+  return static_cast<int>(pvars_aux_cc_.size() - 1);
+}
+
+int MeshRefinement::AddToRefinementAuxFC(FaceField *pvar_fc, FaceField *pcoarse_fc) {
+  pvars_aux_fc_.push_back(std::make_tuple(pvar_fc, pcoarse_fc));
+  return static_cast<int>(pvars_aux_fc_.size() - 1);
+}
+
+int MeshRefinement::AddToRefinementAuxCX(AthenaArray<Real> *pvar_in,
+                                      AthenaArray<Real> *pcoarse_in) {
+  pvars_aux_cx_.push_back(std::make_tuple(pvar_in, pcoarse_in));
+  return static_cast<int>(pvars_aux_cx_.size() - 1);
+}
+
+void MeshRefinement::SwapRefinementAux()
+{
+  std::swap(pvars_cc_, pvars_aux_cc_);
+  std::swap(pvars_fc_, pvars_aux_fc_);
+  std::swap(pvars_cx_, pvars_aux_cx_);
+  std::swap(pvars_vc_, pvars_aux_vc_);
 }
 
 // Currently, only called in 2x functions in bvals_refine.cpp:

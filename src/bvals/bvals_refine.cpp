@@ -297,6 +297,70 @@ void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt) {
   return;
 }
 
+
+void BoundaryValues::ProlongateBoundariesAux(const Real time, const Real dt)
+{
+  // BD: currently this only handles the weyl tensor communication in z4c
+
+  MeshBlock *pmb = pmy_block_;
+  MeshRefinement *pmr = pmb->pmr;
+  Z4c *pz4c = nullptr;
+
+  // utilize pvars_aux
+  pmr->SwapRefinementAux();
+
+  // apply BC on coarse level then prol. (VC) ---------------------------------
+  if (Z4C_ENABLED)
+  {
+    #if defined(Z4C_VC_ENABLED)
+      pz4c = pmb->pz4c;
+      pz4c->abvar.var_vc = &(pz4c->coarse_a_);
+    #endif
+  }
+
+  std::swap(bvars_main_int_vc, bvars_aux);
+  ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(time, dt);
+  std::swap(bvars_main_int_vc, bvars_aux);
+
+  if (Z4C_ENABLED)
+  {
+    #if defined(Z4C_VC_ENABLED)
+      pz4c->abvar.var_vc = &(pz4c->storage.weyl);
+    #endif
+  }
+
+  // now do the prolongation
+  ProlongateVertexCenteredBoundaries(time, dt);
+
+
+  // apply BC on coarse level then prol. (CX) ---------------------------------
+  if (Z4C_ENABLED)
+  {
+    #if defined(Z4C_CX_ENABLED)
+      pz4c = pmb->pz4c;
+      pz4c->abvar.var_cx = &(pz4c->coarse_a_);
+    #endif
+  }
+
+  std::swap(bvars_main_int_cx, bvars_aux);
+  ApplyPhysicalCellCenteredXBoundariesOnCoarseLevel(time, dt);
+  std::swap(bvars_main_int_cx, bvars_aux);
+
+  if (Z4C_ENABLED)
+  {
+    #if defined(Z4C_CX_ENABLED)
+      pz4c->abvar.var_cx = &(pz4c->storage.weyl);
+    #endif
+  }
+
+  // now do the prolongation
+  ProlongateCellCenteredXBoundaries(time, dt);
+
+
+  // swap back
+  pmr->SwapRefinementAux();
+}
+
 void BoundaryValues::ApplyPhysicalBoundariesAux(const Real time, const Real dt)
 {
   if (Z4C_ENABLED)
