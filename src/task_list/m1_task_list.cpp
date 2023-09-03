@@ -92,7 +92,7 @@ void M1IntegratorTaskList::AddTask(const TaskID& id, const TaskID& dep) {
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::ClearAllBoundary);
     task_list_[ntasks].lb_time = false;
-  } 
+  }
   else if (id == CALC_FIDU) {
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
@@ -104,31 +104,31 @@ void M1IntegratorTaskList::AddTask(const TaskID& id, const TaskID& dep) {
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::CalcClosure);
     task_list_[ntasks].lb_time = false;
-  } 
+  }
   else if (id == CALC_OPAC) {
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::CalcOpacity);
     task_list_[ntasks].lb_time = false;
-  } 
+  }
   else if (id == CALC_FLUX) {
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::CalcFlux);
     task_list_[ntasks].lb_time = false;
-  } 
+  }
   else if (id == SEND_FLUX) {
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::SendFlux);
     task_list_[ntasks].lb_time = false;
-  } 
+  }
   else if (id == RECV_FLUX) {
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::ReceiveAndCorrectFlux);
     task_list_[ntasks].lb_time = false;
-  } 
+  }
   else if (id == ADD_FLX_DIV) {
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
@@ -140,61 +140,61 @@ void M1IntegratorTaskList::AddTask(const TaskID& id, const TaskID& dep) {
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::CalcGRSources);
     task_list_[ntasks].lb_time = false;
-  } 
+  }
   else if (id == CALC_UPDATE) {
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::CalcUpdate);
     task_list_[ntasks].lb_time = true;
-  } 
+  }
   else if (id == SEND) {
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::Send);
     task_list_[ntasks].lb_time = false;
-  } 
+  }
   else if (id == RECV) {
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::Receive);
     task_list_[ntasks].lb_time = false;
-  } 
+  }
   else if (id == SETB) {
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::SetBoundaries);
     task_list_[ntasks].lb_time = false;
-  } 
+  }
   else if (id == PROLONG) {
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::Prolongation);
     task_list_[ntasks].lb_time = false;
-  } 
+  }
   else if (id == PHY_BVAL) {
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::PhysicalBoundary);
     task_list_[ntasks].lb_time = false;
-  } 
+  }
   else if (id == USERWORK) {
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::UserWork);
     task_list_[ntasks].lb_time = false;
-  } 
+  }
   else if (id == NEW_DT) {
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::NewBlockTimeStep);
     task_list_[ntasks].lb_time = false;
-  } 
+  }
   else if (id == FLAG_AMR) {
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::CheckRefinement);
     task_list_[ntasks].lb_time = false;
-  } 
+  }
   else {
     std::stringstream msg;
     msg << "### FATAL ERROR in AddTask" << std::endl
@@ -210,7 +210,7 @@ void M1IntegratorTaskList::AddTask(const TaskID& id, const TaskID& dep) {
 void M1IntegratorTaskList::StartupTaskList(MeshBlock *pmb, int stage) {
   if (stage == 1) {
     // The auxiliary variable u1 stores the solution at the beginning of the timestep
-    pmb->pm1->storage.u1.DeepCopy(pmb->pm1->storage.u); 
+    pmb->pm1->storage.u1.DeepCopy(pmb->pm1->storage.u);
   }
 
   // Clear the RHS

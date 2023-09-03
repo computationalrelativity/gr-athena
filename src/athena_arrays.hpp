@@ -496,7 +496,7 @@ void AthenaArray<T>::DeleteAthenaArray() {
 
 //----------------------------------------------------------------------------------------
 //! \fn void AthenaArray::DeepCopy()
-//! \brief Copies the content of another array 
+//! \brief Copies the content of another array
 //!
 //! **THIS REQUIRES THAT THE DESTINATION AND SOURCE ARRAYS BE ALREADY ALLOCATED (state_ !=
 //! empty) AND HAVE THE SAME SIZES (does not explicitly check either condition)**
