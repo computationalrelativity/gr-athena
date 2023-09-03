@@ -24,7 +24,7 @@
 
 using namespace utils;
 
-void M1::CalcUpdate(int const iteration,
+void M1::CalcUpdate(Real const dt,
 		    AthenaArray<Real> & u_p, AthenaArray<Real> & u_c, AthenaArray<Real> & u_rhs)
 {
   MeshBlock * pmb = pmy_block;
@@ -56,7 +56,6 @@ void M1::CalcUpdate(int const iteration,
   // Where F^* = F^k + cdt A
 
   //TimeIntegratorStage--; //TODO: fixme
-  Real const dt = NewBlockTimeStep(); //TODO: fix this somewhere  
   Real const mb = fr->AverageBaryonMass(); //TODO: fix this somewhere
 
   AthenaArray<Real> densxp, densxn, sconx, scony, sconz, tau;

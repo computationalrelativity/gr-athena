@@ -50,14 +50,13 @@ namespace {
 // \!fn void M1::CalcFluxes(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs)
 // \brief Compute the numerical fluxes using a simple 2nd order flux-limited method
 //        with high-Peclet limit fix. The fluxes are then added to the RHSs.
-void M1::CalcFluxes(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs)
+void M1::CalcFluxes(AthenaArray<Real> & u)
 {
   MeshBlock * pmb = pmy_block;
   
   Lab_vars vec;
   SetLabVarsAliases(u, vec);  
   Lab_vars vec_rhs;
-  SetLabVarsAliases(u_rhs, vec_rhs);
 
   // Aliases for the RHS pointers
   Real ** rhs = new Real * [ngroups*nspecies*5];
@@ -280,19 +279,19 @@ void M1::CalcFluxes(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs)
             // optically thin closure is acausal in certain
             // conditions, so this is commented for now.
 #if 0
-	    Real const F2 = tensor::dot(F_u, F_d);
-	    Real const F = std::sqrt(F2);
-	    Real const fx = F_u(dir+1)*(F > 0 ? 1/F : 0);
-	    Real const ffx = F_u(dir+1)*(F2 > 0 ? 1/F2 : 0);
-	    Real const lam[3] = {
-	      alpha()*fx - beta_u(dir+1),
-	      - alpha()*fx - beta_u(dir+1),
-	      alpha()*vec.E(ig,k,j,i)*ffx - beta_u(dir+1),
-	    };
-	    Real const cM1 = std::max(std::abs(lam[0]),
-				               std::max(std::abs(lam[1]), std::abs(lam[2])));
-	    
-	    // TODO optically thick characteristic speeds and combination
+	          Real const F2 = tensor::dot(F_u, F_d);
+	          Real const F = std::sqrt(F2);
+	          Real const fx = F_u(dir+1)*(F > 0 ? 1/F : 0);
+	          Real const ffx = F_u(dir+1)*(F2 > 0 ? 1/F2 : 0);
+	          Real const lam[3] = {
+	            alpha()*fx - beta_u(dir+1),
+	            - alpha()*fx - beta_u(dir+1),
+	            alpha()*vec.E(ig,k,j,i)*ffx - beta_u(dir+1),
+	          };
+	          Real const cM1 = std::max(std::abs(lam[0]),
+		        	               std::max(std::abs(lam[1]), std::abs(lam[2])));
+        
+	          // TODO optically thick characteristic speeds and combination
 #endif
             // Speed of light -- note that gamma_uu has NDIM=3
             Real const clam[2] = {
@@ -372,9 +371,11 @@ void M1::CalcFluxes(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs)
               Real flux_num = flux_high -
                               (sawtooth ? 1 : A)*(1 - phi)*(flux_high - flux_low);
               flux_jp[PINDEX1D(ig, iv)] = flux_num;
+              // FIXME: store flux directly in flux[DIR] AthenaArray
 
               if (!rad.mask(k,j,i)) {
           
+                // FIXME: This will not work. Instead, set the value of the 3 flux arrays
                 //TODO check this pointer!!!
                 rhs[PINDEX1D(ig, iv)][ijk] += idelta[dir]*(flux_jm[PINDEX1D(ig, iv)] -
                                                            flux_jp[PINDEX1D(ig, iv)]) *

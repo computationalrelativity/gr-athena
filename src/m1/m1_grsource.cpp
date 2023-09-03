@@ -16,7 +16,7 @@
 
 using namespace utils;
 
-void M1::GRSources(const Real dt, AthenaArray<Real> & u, AthenaArray<Real> & u_rhs)
+void M1::GRSources(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs)
 {
   Lab_vars vec, vec_rhs;
   SetLabVarsAliases(u, vec);

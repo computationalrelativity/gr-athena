@@ -487,6 +487,8 @@ if args['m1']:
     definitions['M1_ENABLED'] = '1'
     aux = ["        $(wildcard src/m1/{}.cpp) \\".format(f) for f in files]
     makefile_options['M1_FILES'] = '\n'.join(aux) + '\n'
+else:
+    definitions['M1_ENABLED'] = '0'
 
 # --flux=[name] argument
 definitions['RSOLVER'] = makefile_options['RSOLVER_FILE'] = args['flux']
@@ -605,8 +607,8 @@ if args['ref_box_in_box']:
 # --cxx=[name] argument
 if args['cxx'] == 'g++':
     # GCC is C++11 feature-complete since v4.8.1 (2013-05-31)
-    definitions['COMPILER_CHOICE'] = 'g++-13'
-    definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'g++-13'
+    definitions['COMPILER_CHOICE'] = 'g++'
+    definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'g++'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
     makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++17 -Wfatal-errors'
     makefile_options['LINKER_FLAGS'] = ''

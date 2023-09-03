@@ -66,6 +66,7 @@
 #include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
 #include "../scalars/scalars.hpp"
+#include "../m1/m1.hpp"
 #include "../z4c/z4c.hpp"
 #include "bvals.hpp"
 #include "cc/hydro/bvals_hydro.hpp"
@@ -132,6 +133,13 @@ void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt,
   if (MAGNETIC_FIELDS_ENABLED) {
     pf = pmb->pfield;
     pfbvar = dynamic_cast<FaceCenteredBoundaryVariable *>(bvars_main_int[1]);
+  }
+
+  CellCenteredBoundaryVariable *pm1var;
+  M1 *pm1 = nullptr;
+  if (M1_ENABLED) {
+    pm1 = pmb->pm1;
+    pm1var = dynamic_cast<CellCenteredBoundaryVariable *>(bvars_m1_int[0]);
   }
 
   // Vertex-centered logic
@@ -234,6 +242,8 @@ void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt,
       ps = pmb->pscalars;
       ps->sbvar.var_cc = &(ps->coarse_r_);
     }
+    if (M1_ENABLED)
+      pm1var->var_cc = &(pm1->coarse_u_);
 
     // Step 2. Re-apply physical boundaries on the coarse boundary:
     ApplyPhysicalBoundariesOnCoarseLevel(nb, time, dt, si, ei, sj, ej, sk, ek,
@@ -249,6 +259,8 @@ void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt,
       ps = pmb->pscalars;
       ps->sbvar.var_cc = &(ps->r);
     }
+    if (M1_ENABLED)
+      pm1var->var_cc = &(pm1->storage.u);
 
     // Step 3. Finally, the ghost-ghost zones are ready for prolongation:
     ProlongateGhostCells(nb, si, ei, sj, ej, sk, ek);

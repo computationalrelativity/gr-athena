@@ -51,7 +51,7 @@
 #include "mesh.hpp"
 #include "mesh_refinement.hpp"
 #include "meshblock_tree.hpp"
-
+#include "../m1/m1.hpp"
 #include "../z4c/z4c.hpp"
 #include "../z4c/puncture_tracker.hpp"
 #include "../z4c/wave_extract.hpp"
@@ -1477,6 +1477,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         pbval->StartReceivingSubset(BoundaryCommSubset::mesh_init,
                                     pbval->bvars_main_int);
         pbval->StartReceivingSubset(BoundaryCommSubset::mesh_init,
+                                    pbval->bvars_m1_int);
+        pbval->StartReceivingSubset(BoundaryCommSubset::mesh_init,
                                     pbval->bvars_main_int_vc);
       }
 
@@ -1494,6 +1496,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         // and (conserved variable) passive scalar masses:
         if (NSCALARS > 0)
           pmb->pscalars->sbvar.SendBoundaryBuffers();
+        if (M1_ENABLED)
+          pmb->pm1->ubvar.SendBoundaryBuffers();
         if (Z4C_ENABLED)
           pmb->pz4c->ubvar.SendBoundaryBuffers();
       }
@@ -1508,6 +1512,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           pmb->pfield->fbvar.ReceiveAndSetBoundariesWithWait();
         if (NSCALARS > 0)
           pmb->pscalars->sbvar.ReceiveAndSetBoundariesWithWait();
+        if (M1_ENABLED)
+          pmb->pm1->ubvar.ReceiveAndSetBoundariesWithWait();
         if (shear_periodic && orbital_advection==0) {
           pmb->phydro->hbvar.AddHydroShearForInit();
         }
@@ -1515,6 +1521,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           pmb->pz4c->ubvar.ReceiveAndSetBoundariesWithWait();
         pbval->ClearBoundarySubset(BoundaryCommSubset::mesh_init,
                                    pbval->bvars_main_int);
+        pbval->ClearBoundarySubset(BoundaryCommSubset::mesh_init,
+                                   pbval->bvars_m1_int);
         pbval->ClearBoundarySubset(BoundaryCommSubset::mesh_init,
                                    pbval->bvars_main_int_vc);
       }
@@ -1588,14 +1596,17 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       Hydro *ph;
       Field *pf;
       PassiveScalars *ps;
+      M1 *pm1;
       Z4c *pz4c;
 #pragma omp for private(pmb,pbval,ph,pf,ps)
       for (int i=0; i<nblocal; ++i) {
         pmb = my_blocks(i);
-        pbval = pmb->pbval, ph = pmb->phydro, pf = pmb->pfield, ps = pmb->pscalars, pz4c = pmb->pz4c;
+        pbval = pmb->pbval, ph = pmb->phydro, pf = pmb->pfield, ps = pmb->pscalars, pm1 = pmb->pm1, pz4c = pmb->pz4c;
         if (multilevel) {
           if (FLUID_ENABLED)
             pbval->ProlongateBoundaries(time, 0.0, pbval->bvars_main_int);
+          if (M1_ENABLED)
+            pbval->ProlongateBoundaries(time, 0.0, pbval->bvars_m1_int);
           if (Z4C_ENABLED)
             pbval->ProlongateBoundaries(time, 0.0, pbval->bvars_main_int_vc);
         }
@@ -1667,6 +1678,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 
         if (FLUID_ENABLED)
           pbval->ApplyPhysicalBoundaries(time, 0.0, pbval->bvars_main_int);
+        if (M1_ENABLED)
+          pbval->ApplyPhysicalBoundaries(time, 0.0, pbval->bvars_m1_int);
         if (Z4C_ENABLED)
           pbval->ApplyPhysicalBoundaries(time, 0.0, pbval->bvars_main_int_vc);
       }

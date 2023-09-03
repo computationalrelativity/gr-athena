@@ -68,18 +68,24 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   coarse_u_(N_Lab, pmb->ncc3, pmb->ncc2, pmb->ncc1,
             (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
             AthenaArray<Real>::DataStatus::empty)),
-  storage{{N_Lab, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1}, // u
-          {N_Lab, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1}, // u1
-          {},                                                                        // u2
+  storage{{N_Lab, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1},  // u
+          {N_Lab, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1},  // u1
+          {                                                                           // flux
+            {N_Lab, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1 + 1},
+            {N_Lab, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2 + 1, pmb->ncells1,
+              (pmb->pmy_mesh->f2 ? AthenaArray<Real>::DataStatus::allocated :
+              AthenaArray<Real>::DataStatus::empty)},
+            {N_Lab, M1_NSPECIES*M1_NGROUPS, pmb->ncells3 + 1, pmb->ncells2, pmb->ncells1,
+              (pmb->pmy_mesh->f3 ? AthenaArray<Real>::DataStatus::allocated :
+              AthenaArray<Real>::DataStatus::empty)},
+          },
           {N_Lab, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1}, // u_rhs
           {N_Rad, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1}, // u_rad
           {N_RadMat, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1}, // radmat
           {N_Diagno, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1}, // diagno
 	  {N_Intern, pmb->ncells3, pmb->ncells2, pmb->ncells1}, // internal
   },
-
-  empty_flux{AthenaArray<Real>(), AthenaArray<Real>(), AthenaArray<Real>()},
-  ubvar(pmb, &storage.u, &coarse_u_, empty_flux)
+  ubvar(pmb, &storage.u, &coarse_u_, storage.flux)
 {
   Mesh *pm = pmy_block->pmy_mesh;
   Coordinates * pco = pmb->pcoord;
@@ -105,8 +111,8 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   // Used for:
   // (1) load-balancing
   // (2) (future) dumping to restart file
-  // WGC separated VC and CC
   pmb->RegisterMeshBlockDataCC(storage.u);
+
   // "Enroll" in SMR/AMR by adding to vector of pointers in MeshRefinement class
   if (pm->multilevel) {
     refinement_idx = pmy_block->pmr->AddToRefinementVC(&storage.u, &coarse_u_);
@@ -121,7 +127,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   // enroll CellCenteredBoundaryVariabl object
   ubvar.bvar_index = pmb->pbval->bvars.size();
   pmb->pbval->bvars.push_back(&ubvar);
-  pmb->pbval->bvars_main_int.push_back(&ubvar);
+  pmb->pbval->bvars_m1_int.push_back(&ubvar);
 
   dt1_.NewAthenaArray(nn1);
   dt2_.NewAthenaArray(nn1);
@@ -213,7 +219,6 @@ M1::~M1()
 {
   storage.u.DeleteAthenaArray();
   storage.u1.DeleteAthenaArray();
-  storage.u2.DeleteAthenaArray();
   storage.u_rhs.DeleteAthenaArray();
   storage.u_rad.DeleteAthenaArray();
   storage.radmat.DeleteAthenaArray();
@@ -223,6 +228,13 @@ M1::~M1()
   dt1_.DeleteAthenaArray();
   dt2_.DeleteAthenaArray();
   dt3_.DeleteAthenaArray();
+}
+
+//----------------------------------------------------------------------------------------
+// \fn void M1::AddFluxDivergence()
+// \brief Add the flux divergence to the RHS (see analogous Hydro method)
+void M1::AddFluxDivergence() {
+  // FIXME rhs += div fluxes
 }
 
 //----------------------------------------------------------------------------------------

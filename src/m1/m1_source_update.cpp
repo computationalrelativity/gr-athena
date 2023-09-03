@@ -155,8 +155,7 @@ namespace {
 namespace {
   
   struct Params {
-      Params(int const _iteration,
-             MeshBlock * _pmb,
+      Params(MeshBlock * _pmb,
              int const _i,
              int const _j,
              int const _k,
@@ -182,7 +181,6 @@ namespace {
              Real const _eta,
              Real const _kabs,
              Real const _kscat):
-              iteration(_iteration),
               pmb(_pmb),
               i(_i), j(_j), k(_k), ig(_ig),
               closure(_closure), gsl_solver_1d(_gsl_solver_1d),
@@ -192,7 +190,6 @@ namespace {
               u_d(_u_d), u_u(_u_u), v_d(_v_d), v_u(_v_u), proj_ud(_proj_ud), W(_W),
               Estar(_Estar), Fstar_d(_Fstar_d), chi(_chi),
               eta(_eta), kabs(_kabs), kscat(_kscat) {}
-             int const iteration;
              MeshBlock * pmb;
              int const i;
              int const j;
@@ -245,7 +242,7 @@ namespace {
                   p->F_d);
     tensor::contract(p->g_uu, p->F_d, p->F_u);
     
-    pm1->calc_closure_pt(p->iteration, p->pmb, p->i, p->j, p->k, p->ig,
+    pm1->calc_closure_pt(p->pmb, p->i, p->j, p->k, p->ig,
                          p->closure, p->gsl_solver_1d, p->g_dd, p->g_uu, p->n_d, p->W,
                          p->u_u, p->v_d, p->proj_ud, p->E, p->F_d,
                          &p->chi, p->P_dd);
@@ -361,7 +358,6 @@ namespace {
 // Source update at one point
 
 void M1::source_update_pt(
-    int const iteration,
     MeshBlock * pmb,
     int const i,
     int const j,
@@ -394,7 +390,7 @@ void M1::source_update_pt(
     Real * Enew,
     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> Fnew_d)
 {
-  Params p(iteration, pmb, i, j, k, ig,
+  Params p(pmb, i, j, k, ig,
            closure_fun, gsl_solver_1d, cdt, alp, g_dd, g_uu, n_d, n_u,
            gamma_ud, u_d, u_u, v_d, v_u, proj_ud, W, Estar, Fstar_d, *chi, eta,
            kabs, kscat);

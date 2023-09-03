@@ -63,17 +63,13 @@ Real kershaw(Real const xi);
 Real minerbo(Real const xi);
 Real thin(Real const xi);
 
-inline Real rad_E_floor = 0.0; // TODO: CORRECT THIS
-inline Real rad_eps = 0.0;
-inline Real closure_epsilon = 1e-8;
-inline int closure_maxiter = 100;
-
 // Indexes of spacetime manifold vars in TensorPointwise 
 #define MDIM (4)
 
 // Indexes for hypersurface manifold vars in AthenaArray
 #define NDIM (3) // Manifold dimension
 
+// FIXME: do not use static member functions
 //! \class M1
 //  \brief M1 data and functions
 class M1 {
@@ -147,14 +143,14 @@ public:
 
   // public data storage
   struct {
-    AthenaArray<Real> u;      // solution of M1 evolution system
-    AthenaArray<Real> u1;     // solution at intermediate steps
-    AthenaArray<Real> u2;     // solution at intermediate steps
-    AthenaArray<Real> u_rhs;  // M1 rhs
-    AthenaArray<Real> u_rad;  // fluid frame variables + P_{ij} Lab
-    AthenaArray<Real> radmat; // radiation-matter fields
-    AthenaArray<Real> diagno; // analysis buffers
-    AthenaArray<Real> intern; // "internals": fiducial velocity, netabs, .. these do not have group dimension!
+    AthenaArray<Real> u;       // solution of M1 evolution system
+    AthenaArray<Real> u1;      // solution at intermediate steps
+    AthenaArray<Real> flux[3]; // flux in the 3 directions
+    AthenaArray<Real> u_rhs;   // M1 rhs
+    AthenaArray<Real> u_rad;   // fluid frame variables + P_{ij} Lab
+    AthenaArray<Real> radmat;  // radiation-matter fields
+    AthenaArray<Real> diagno;  // analysis buffers
+    AthenaArray<Real> intern;  // "internals": fiducial velocity, netabs, .. these do not have group dimension!
   } storage;
 
   // aliases for Lab variables and RHS
@@ -223,6 +219,8 @@ public:
   Real opacity_corr_fac_max;          // Maximum correction factor for optically thin regime
   Real rad_E_floor;                   // Radiation energy density floor
   Real rad_N_floor;                   // Radiation number density floor
+  Real closure_epsilon;               // FIXME: set this
+  int closure_maxiter;                // FIXME: set this
   Real source_limiter;                // Limit the source terms to avoid nonphysical states
   bool backreact;                     // Backreact on the fluid
   Real rad_eps;                       // Impose F_a F^a < (1 - rad_E_eps) E2
@@ -254,7 +252,6 @@ public:
   // Intergrid interpolation 
   // boundary and grid data
   CellCenteredBoundaryVariable ubvar;
-  AthenaArray<Real> empty_flux[3];
 
   // storage for SMR/AMR
   // BD: this should perhaps be combined with the above stuct.
@@ -274,11 +271,11 @@ public:
 public:
   // scheduled functions
   //
+  // FIXME: many local, private functions are defined here. They should be moved to private:
  
-  void CalcFiducialVelocity();
-  void GRSources(const Real dt, AthenaArray<Real> & u, AthenaArray<Real> & u_rhs);
+  void GRSources(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs);
+  // FIXME: This should not be a public function
   void source_update_pt(
-        int const iteration,
         MeshBlock * pmb,
         int const i,
         int const j,
@@ -310,22 +307,32 @@ public:
         Real const kscat,
         Real * Enew,
         TensorPointwise<Real, Symmetries::NONE, MDIM, 1> Fnew_d);  
+  // FIXME: this should not be a public function
   void calc_proj(TensorPointwise<Real, Symmetries::NONE, MDIM, 3> const & u_d,
                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
                  TensorPointwise<Real, Symmetries::NONE, MDIM, 2> & proj_ud);
+  // <--
+  // FIXME: these need to get fluid data
+  void CalcFiducialVelocity();
   void SetEquilibrium(AthenaArray<Real> & u);
   void AddToADMMatter(AthenaArray<Real> & u);
-  void CalcFluxes(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs);
-  void CalcUpdate(int const iteration,
-                  AthenaArray<Real> & u_p, AthenaArray<Real> & u_c, AthenaArray<Real> & u_rhs);
   void CalcOpacity(AthenaArray<Real> & u);
+  // -->
+  void CalcFluxes(AthenaArray<Real> & u);
+  // FIXME: add the flux divergence to the RHS
+  void AddFluxDivergence();
+  void CalcUpdate(const Real dt,
+                  AthenaArray<Real> & u_p, AthenaArray<Real> & u_c, AthenaArray<Real> & u_rhs);
+  // FIXME: this should not be a public function
   void calc_proj(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d,
                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
                  TensorPointwise<Real, Symmetries::NONE, MDIM, 2> & proj_ud);
+  // FIXME: this should not be a public function
   static void calc_Pthin(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
                          Real const E,
                          TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
                          TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd);
+  // FIXME: this should not be a public function
   static void calc_Pthick(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd,
                           TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
                           TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d,
@@ -334,30 +341,37 @@ public:
                           Real const E,
                           TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
                           TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd);
+  // FIXME: this should not be a public function
   void assemble_fnu(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
                     Real const J,
                     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & H_u,
                     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & fnu_u);
+  // FIXME: this should not be a public function
   static Real calc_J_from_rT(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & rT_dd,
                              TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u);
+  // FIXME: this should not be a public function
   static void calc_H_from_rT(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & rT_dd,
                              TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
                              TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud,
                              TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & H_d);
+  // FIXME: this should not be a public function
   void calc_K_from_rT(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & rT_dd,
                       TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud,
                       TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & K_dd);
+  // FIXME: this should not be a public function
   static void assemble_rT(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d,
                           Real const J,
                           TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & H_d,
                           TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & K_dd,
                           TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & rT_dd);
+  // FIXME: this should not be a public function
   Real calc_E_flux(
       Real const alp,
       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & beta_u,
       Real const E,
       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_u,
       int const dir);
+  // FIXME: this should not be a public function
   Real calc_F_flux(
       Real const alp,
       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & beta_u,
@@ -365,6 +379,7 @@ public:
       TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & P_ud,
       int const dir,
       int const comp);
+  // FIXME: this should not be a public function
   void calc_rad_sources(
       Real const eta,
       Real const kabs,
@@ -373,49 +388,64 @@ public:
       Real const J,
       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const H_d,
       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & S_d);
+  // FIXME: this should not be a public function
   Real calc_rE_source(
       Real const alp,
       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_u,
       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & S_d);
+  // FIXME: this should not be a public function
   void calc_rF_source(
       Real const alp,
       TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const gamma_ud,
       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & S_d,
       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & tS_d);
+  // FIXME: this should not be a public function
   void apply_floor(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const g_uu,
                    Real * E,
                    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & F_d);
+  // FIXME: this should not be a public function
   void uvel(Real alp,
             Real betax,Real betay,Real betaz,
             Real w_lorentz,
             Real velx,Real vely,Real velz,
             Real * u0, Real * u1, Real * u2, Real * u3);
+  // FIXME: this should not be a public function
   static void pack_F_d(Real const betax, Real const betay, Real const betaz,
                        Real const Fx, Real const Fy, Real const Fz,
                        TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & F_d);
+  // FIXME: this should not be a public function
   static void unpack_F_d(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
                          Real * Fx, Real * Fy, Real * Fz);
+  // FIXME: this should not be a public function
   static void pack_F_d(Real const Fx, Real const Fy, Real const Fz,
                        TensorPointwise<Real, Symmetries::NONE, MDIM-1, 1> & F_d);
+  // FIXME: this should not be a public function
   static void unpack_F_d(TensorPointwise<Real, Symmetries::NONE, MDIM-1, 1> const & F_d,
                          Real * Fx, Real * Fy, Real * Fz);
+  // FIXME: this should not be a public function
   void pack_H_d(Real const Ht, Real const Hx, Real const Hy, Real const Hz,
                 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & H_d);
+  // FIXME: this should not be a public function
   void unpack_H_d(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & H_d,
                   Real * Ht, Real * Hx, Real * Hy, Real * Hz);
+  // FIXME: this should not be a public function
   void pack_P_dd(Real const betax, Real const betay, Real const betaz,
                  Real const Pxx, Real const Pxy, Real const Pxz,
                  Real const Pyy, Real const Pyz, Real const Pzz,
                  TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd);
+  // FIXME: this should not be a public function
   void unpack_P_dd(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & P_dd,
                    Real * Pxx, Real * Pxy, Real * Pxz,
                    Real * Pyy, Real * Pyz, Real * Pzz);
+  // FIXME: this should not be a public function
   void pack_P_dd(Real const Pxx, Real const Pxy, Real const Pxz,
                  Real const Pyy, Real const Pyz, Real const Pzz,
                  TensorPointwise<Real, Symmetries::SYM2, MDIM-1, 2> & P_dd);
+  // FIXME: this should not be a public function
   void unpack_P_dd(TensorPointwise<Real, Symmetries::SYM2, MDIM-1, 2> const & P_dd,
                    Real * Pxx, Real * Pxy, Real * Pxz,
                    Real * Pyy, Real * Pyz, Real * Pzz);
+  // FIXME: this should not be a public function
   void pack_P_ddd(Real const Pxxx, Real const Pxxy, Real const Pxxz,
                   Real const Pxyy, Real const Pxyz, Real const Pxzz,
                   Real const Pyxx, Real const Pyxy, Real const Pyxz,
@@ -423,13 +453,16 @@ public:
                   Real const Pzxx, Real const Pzxy, Real const Pzxz,
                   Real const Pzyy, Real const Pzyz, Real const Pzzz,
                   TensorPointwise<Real, Symmetries::SYM2, MDIM-1, 3> & P_ddd);
+  // FIXME: this should not be a public function
   void pack_v_u(Real const velx, Real const vely, Real const velz,
                 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & v_u);
+  // FIXME: this should not be a public function
   Real GetWLorentz_from_utilde(Real const utx, Real const uty, Real const utz,
                                Real const gxx, Real const gxy, Real const gxz,
                                Real const gyy, Real const gyz, Real const gzz,
                                Real * utlx, Real * utly, Real * utlz,
                                Real *ut2);
+  // FIXME: this should not be a public function
   void Get4Metric_VC2CCinterp(MeshBlock * pmb,
                               const int k, const int j, const int i,
                               AthenaArray<Real> & u,
@@ -437,6 +470,7 @@ public:
                               TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & g_dd,
                               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & beta_u,
                               TensorPointwise<Real, Symmetries::NONE, MDIM, 0> & alpha);
+  // FIXME: this should not be a public function
   static void apply_closure(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd,
                             TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
                             TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d,
@@ -448,12 +482,14 @@ public:
                             TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
                             Real const chi,
                             TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd);
+  // FIXME: this should not be a public function
   static double zFunction(double xi, void * params);
+  // FIXME: this should not be a public function
   Real flux_factor(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
                    Real const J,
                    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & H_d);
+  // FIXME: this should not be a public function
   void calc_closure_pt(
-      int const iteration,
       MeshBlock * pmb,
       int const i, int const j, int const k,
       int const ig,
@@ -470,30 +506,38 @@ public:
       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
       Real * chi,
       TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd);
-  void CalcClosure(AthenaArray<Real> & u, int const iteration);
+  void CalcClosure(AthenaArray<Real> & u);
+  // FIXME: this should not be a public function
   void Get4Metric_Inv(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd,
                       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & beta_u,
                       TensorPointwise<Real, Symmetries::NONE, MDIM, 0> const & alpha,
                       TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & g_uu);
+  // FIXME: this should not be a public function
   void Get4Metric_Inv_Inv3(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd,
                            TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & beta_u,
                            TensorPointwise<Real, Symmetries::NONE, MDIM, 0> const & alpha,
                            TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & g_uu,
                            TensorPointwise<Real, Symmetries::SYM2, MDIM-1, 2> & gam_uu);
+  // FIXME: this should not be a public function
   void Get4Metric_ExtrCurv_VC2CCinterp(MeshBlock * pmb,
                                        const int k, const int j, const int i,
                                        AthenaArray<Real> & u_adm,
                                        TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & K_dd);
+  // FIXME: this should not be a public function
   void Get4Metric_Normal(TensorPointwise<Real, Symmetries::NONE, MDIM, 0> const & alpha,
                          TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & beta_u,
                          TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & n_u);
+  // FIXME: this should not be a public function
   void Get4Metric_NormalForm(TensorPointwise<Real, Symmetries::NONE, MDIM, 0> const & alpha,
                              TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & n_d);
+  // FIXME: this should not be a public function
   void Get4Metric_SpaceProj(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_u,
                             TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d,
                             TensorPointwise<Real, Symmetries::NONE, MDIM, 2> & gamma_ud);
+  // FIXME: this should not be a public function
   Real SpatialDet(Real const gxx, Real const gxy, Real const gxz,
                   Real const gyy, Real const gyz, Real const gzz);
+  // FIXME: this should not be a public function
   void SpatialInv(Real const detginv,
                   Real const gxx, Real const gxy, Real const gxz,
                   Real const gyy, Real const gyz, Real const gzz,
@@ -503,9 +547,7 @@ public:
   
   Real NewBlockTimeStep(void);
 
-
-
-
+  // FIXME: initial conditions belong to the pgen, not here
   void SetupBeamTest(AthenaArray<double>&);
   // compute new timestep on a MeshBlock
   //Real NewBlockTimeStep(void);

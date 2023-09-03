@@ -115,6 +115,8 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   std::vector<BoundaryVariable *> bvars;
   //! subset of bvars that are exchanged in the main TimeIntegratorTaskList
   std::vector<BoundaryVariable *> bvars_main_int;
+  //! subset of bvars that are exchanged in the M1TimeIntegratorTaskList
+  std::vector<BoundaryVariable *> bvars_m1_int;
   //! as above but particular to vertex-centered 
   std::vector<BoundaryVariable *> bvars_main_int_vc;
   //! subset of bvars that are exchanged in the SuperTimeStepTaskList

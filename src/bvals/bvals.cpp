@@ -109,6 +109,7 @@ BoundaryValues::BoundaryValues(MeshBlock *pmb, BoundaryFlag *input_bcs,
   // std::vector<BoundaryVariable *>.push_back() in Hydro, Field, Gravity, PassiveScalars
   bvars.reserve(3);
   bvars_main_int.reserve(2);
+  bvars_m1_int.reserve(1);
   bvars_main_int_vc.reserve(2);
   if (STS_ENABLED) {
     bvars_sts.reserve(1);
@@ -259,6 +260,11 @@ BoundaryValues::~BoundaryValues() {
 
 void BoundaryValues::SetupPersistentMPI() {
   for (auto bvars_it = bvars_main_int.begin(); bvars_it != bvars_main_int.end();
+       ++bvars_it) {
+    (*bvars_it)->SetupPersistentMPI();
+  }
+
+  for (auto bvars_it = bvars_m1_int.begin(); bvars_it != bvars_m1_int.end();
        ++bvars_it) {
     (*bvars_it)->SetupPersistentMPI();
   }

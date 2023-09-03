@@ -19,6 +19,7 @@
 #include "m1.hpp"
 #include "../mesh/mesh.hpp"
 #include "../coordinates/coordinates.hpp"
+#include "../z4c/z4c_macro.hpp"
 
 #define SQ(X) ((X)*(X))
 
@@ -85,8 +86,7 @@ namespace {
                TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d;
   };
 
-  void print_stuff(int const iteration,
-                   MeshBlock * pmb,
+  void print_stuff(MeshBlock * pmb,
                    int const i, int const j, int const k,
                    int const ig,
                    Parameters const * p,
@@ -103,7 +103,6 @@ namespace {
     //Real x2f = pmb->pcoord->x2f(j);
     //Real x3f = pmb->pcoord->x3f(k);
     
-    ss << "Iteration = " << iteration << std::endl;
     ss << "(i, j, k) = (" << i << ", " << j << ", " << k << ")\n";
     ss << "ig = " << ig << std::endl;
     ss << "(x, y, z) = (" << x1v << ", " << x2v << ", " << x3v << ")\n";
@@ -237,8 +236,7 @@ Real thin(Real const xi) {
   return 1.0;
 }
 
-void M1::calc_closure_pt(int const iteration,
-			                   MeshBlock * pmb,
+void M1::calc_closure_pt(MeshBlock * pmb,
                          int const i, int const j, int const k,
                          int const ig,
                          closure_t closure_fun,
@@ -288,13 +286,13 @@ void M1::calc_closure_pt(int const iteration,
   } else if (ierr == GSL_EBADFUNC) {
     std::ostringstream msg;
     msg << "NaN or Inf found in closure!\n";
-    print_stuff(iteration, pmb, i, j, k, ig, &params, msg);
+    print_stuff(pmb, i, j, k, ig, &params, msg);
     ATHENA_ERROR(msg);
   } else if (ierr != 0) {
     std::ostringstream msg;
     msg << "Unexpected error in gsl_root_fsolver_iterate,  error code \""
 	      << ierr << "\"\n";
-    print_stuff(iteration, pmb, i, j, k, ig, &params, msg);
+    print_stuff(pmb, i, j, k, ig, &params, msg);
     ATHENA_ERROR(msg);
   }
   
@@ -307,13 +305,13 @@ void M1::calc_closure_pt(int const iteration,
     if (ierr == GSL_EBADFUNC) {
       std::ostringstream msg;
       msg << "NaNs or Infs found when computing the closure!\n";
-      print_stuff(iteration, pmb, i, j, k, ig, &params, msg);
+      print_stuff(pmb, i, j, k, ig, &params, msg);
       ATHENA_ERROR(msg);
     } else if (ierr != 0) {
       std::ostringstream msg;
       msg << "Unexpected error in gsl_root_fsolver_iterate,  error code \""
 	        << ierr << "\"\n";
-      print_stuff(iteration, pmb, i, j, k, ig, &params, msg);
+      print_stuff(pmb, i, j, k, ig, &params, msg);
       ATHENA_ERROR(msg);
     }
     *chi = closure_fun(gsl_root_fsolver_root(fsolver));
@@ -335,10 +333,10 @@ void M1::calc_closure_pt(int const iteration,
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn Real M1::CalcClosure(AthenaArray<Real> const & u, int const iteration)
+// \!fn Real M1::CalcClosure(AthenaArray<Real> const & u)
 // \brief computes the closure on a mesh block
 
-void M1::CalcClosure(AthenaArray<Real> & u, int const iteration)
+void M1::CalcClosure(AthenaArray<Real> & u)
 {
   MeshBlock * pmb = pmy_block;
   
@@ -454,7 +452,7 @@ void M1::CalcClosure(AthenaArray<Real> & u, int const iteration)
 	             F_d);
       
       // chi, P_ab
-      calc_closure_pt(iteration, pmb, i, j, k, ig,
+      calc_closure_pt(pmb, i, j, k, ig,
                       closure_fun, gsl_solver, g_dd, g_uu, n_d,
                       W, u_u, v_d, proj_ud, vec.E(ig,k,j,i), F_d,
                       &rad.chi(ig,k,j,i), P_dd);

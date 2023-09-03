@@ -14,6 +14,11 @@
 #endif
 #include "../mesh/mesh.hpp"
 
+// FIXME: do not use global variables, modify functions to take these as parameters
+Real rad_E_floor;
+Real rad_eps;
+int closure_maxiter;
+
 
 using namespace utils;
 
