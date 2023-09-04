@@ -384,7 +384,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   Riemm4_ddd.NewAthenaTensor(mbi.nn1);
   Riemm4_dd.NewAthenaTensor(mbi.nn1);
 
-  // Intergrid communication
+  // Intergrid communication   //SB TODO make this optional for matter?
   int N[] = {pmb->block_size.nx1, pmb->block_size.nx2, pmb->block_size.nx3};
   Real rdx[] = {
     1./(SW_CCX_VC(pco->dx1v(0), pco->dx1f(0))),
@@ -497,6 +497,7 @@ Z4c::~Z4c()
   Riemm4_ddd.DeleteAthenaTensor();
   Riemm4_dd.DeleteAthenaTensor();
 
+  //SB TODO make this optional for matter?
   delete ig;
   if(pmy_block->pmy_mesh->multilevel){
     delete ig_coarse;

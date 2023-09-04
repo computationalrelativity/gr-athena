@@ -58,6 +58,7 @@ SRC_FILES := \
 		$(wildcard src/reconstruct/*.cpp) \
 		$(wildcard src/scalars/*.cpp) \
 		$(wildcard src/task_list/*.cpp) \
+		$(wildcard src/trackers/*.cpp) \
 		$(wildcard src/utils/*.cpp) \
 		$(wildcard src/z4c/*.cpp) \
 		$(CCE_FILE) \
