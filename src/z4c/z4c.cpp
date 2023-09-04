@@ -384,7 +384,9 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   Riemm4_ddd.NewAthenaTensor(mbi.nn1);
   Riemm4_dd.NewAthenaTensor(mbi.nn1);
 
-  // Intergrid communication   //SB TODO make this optional for matter?
+  // Intergrid communication
+  //SB TODO make this optional for matter?
+  //SB FIXME pcoarsec in mesh/mesh_refinement.hpp should be private
   int N[] = {pmb->block_size.nx1, pmb->block_size.nx2, pmb->block_size.nx3};
   Real rdx[] = {
     1./(SW_CCX_VC(pco->dx1v(0), pco->dx1f(0))),
