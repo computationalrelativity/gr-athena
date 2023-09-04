@@ -30,6 +30,7 @@
 Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
     pmy_block(pmb), u(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
     w(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
+    w_init(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
     u1(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
     w1(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
     // C++11: nested brace-init-list in Hydro member initializer list = aggregate init. of

@@ -39,9 +39,9 @@ class Hydro {
   MeshBlock* pmy_block;    // ptr to MeshBlock containing this Hydro
 
   // conserved and primitive variables
-  AthenaArray<Real> u, w;      // time-integrator memory register #1
-  AthenaArray<Real> u1, w1;    // time-integrator memory register #2
-  AthenaArray<Real> u2;        // time-integrator memory register #3
+  AthenaArray<Real> u, w, w_init; // time-integrator memory register #1
+  AthenaArray<Real> u1, w1;       // time-integrator memory register #2
+  AthenaArray<Real> u2;           // time-integrator memory register #3
   // (no more than MAX_NREGISTER allowed)
 
   AthenaArray<Real> flux[3];  // face-averaged flux vector

@@ -21,6 +21,8 @@
 #include "../athena_arrays.hpp"
 #include "../athena_tensor.hpp"
 #include "../utils/finite_differencing.hpp"
+#include "../utils/lagrange_interp.hpp"
+#include "../utils/interp_intergrid.hpp" //SB FIXME imported from matter_tracker_extrema
 
 #include "../bvals/cc/bvals_cc.hpp"
 #include "../bvals/cx/bvals_cx.hpp"
@@ -134,6 +136,8 @@ public:
     AthenaArray<Real> con;   // constraints
     AthenaArray<Real> mat;   // matter variables
     AthenaArray<Real> weyl;  // weyl scalars
+    AthenaArray<Real> u_init;   // init buffers
+    AthenaArray<Real> adm_init; // init buffers
   } storage;
 
   // aliases for variables and RHS
@@ -175,12 +179,14 @@ public:
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> S_dd;      // matter stress tensor
   };
   Matter_vars mat;
+
   // aliases for the Weyl scalars
   struct Weyl_vars {
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> rpsi4;       // Real part of Psi_4
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> ipsi4;       // Imaginary part of Psi_4
   };
   Weyl_vars weyl;
+
   // BD: this should be refactored
   // user settings and options
   struct {
@@ -214,6 +220,15 @@ public:
     Real shift_eta_TP_ix;
 #endif // Z4C_ETA_CONF, Z4C_ETA_TRACK_TP
 
+    // Matter parameters   
+    int cowling; // if 1 then cowling approximation used, rhs of z4c equations -> 0
+    int rhstheta0; // if 1 then rhs of Theta equation -> 0
+    int fixedgauge; // if 1 then gauge is fixed, rhs of alpha, beta^i equations -> 0
+    int fix_admsource; // if 1 then gauge is fixed, rhs of alpha, beta^i equations -> 0
+    int Tmunuinterp; // interpolate stress energy
+    int epsinterp; // interpolate stress energy
+    int bssn; // reduce to bssn
+    
     // AwA parameters
     Real AwA_amplitude; // amplitude parameter
     Real AwA_d_x; // d_x (width) parameter
@@ -236,7 +251,10 @@ public:
 #endif
   } opt;
 
-
+  // intergrid interpolation
+  InterpIntergridLocal * ig;
+  InterpIntergridLocal * ig_coarse;
+    
   // boundary and grid data (associated to state-vector)
   FCN_CC_CX_VC(
     CellCenteredBoundaryVariable   ubvar,
@@ -263,6 +281,7 @@ public:
   AthenaArray<Real> coarse_a_;  // for auxiliary data (split task-list)
 
   int refinement_idx{-1};
+
   // metric derivatives used by AHF
   // it is allocated there as needed
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> aux_g_ddd;
@@ -293,8 +312,9 @@ public:
   // calculate weyl scalars
   void Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat,
                       AthenaArray<Real> & u_weyl);
-
-  void GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, AthenaArray<Real> & w, AthenaArray<Real> & bb_cc);
+  // Update matter variables from hydro  
+  void GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, AthenaArray<Real> & w,
+		 AthenaArray<Real> & bb_cc);  
   // utility functions
   //
   // set ADM aliases given u_adm
@@ -432,7 +452,14 @@ private:
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> Gamma_udd;   // Christoffel symbols of 2nd kind
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> DK_ddd;      // differential of K
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> DK_udd;      // differential of K
-
+  // test cons //SB not used
+  // AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> tGamma_ddd;   // Christoffel symbols of 1st kind
+  // AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> tGamma_udd;   // Christoffel symbols of 2nd kind
+  // AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> tdg_ddd;      // metric 1st drvts
+  // AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> tdetg;        // det(g)
+  // AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> tg_uu;        // inverse of conf. metric
+  // AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> tGamma_u;     // Gamma computed from the metric
+  
   // Spatially dependent shift damping
 #if defined(Z4C_ETA_CONF) || defined(Z4C_ETA_TRACK_TP)
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> eta_damp;
@@ -478,7 +505,17 @@ private:
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 4> Riemm4_dddd; // 4D Riemann tensor
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 3> Riemm4_ddd;  // 4D Riemann * n^a
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> Riemm4_dd;   // 4D Riemann *n^a*n^c
-
+  
+  // aux vars for matter interpolation //SB: TODO remove/cleanup
+  AthenaArray<Real> rhocc;
+  AthenaArray<Real> pgascc;
+  AthenaArray<Real> utilde1cc;
+  AthenaArray<Real> utilde2cc;
+  AthenaArray<Real> utilde3cc;
+  AthenaArray<Real> bb1cc;
+  AthenaArray<Real> bb2cc;
+  AthenaArray<Real> bb3cc;
+  
 private:
   void Z4cSommerfeld_(AthenaArray<Real> & u, AthenaArray<Real> & rhs,
       int const is, int const ie, int const js, int const je, int const ks, int const ke);

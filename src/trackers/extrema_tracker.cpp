@@ -359,18 +359,70 @@ void ExtremaTracker::WriteTracker(int iter, Real time) const
   }
 }
 
-ExtremaTrackerLocal::ExtremaTrackerLocal(MeshBlock * pmb,
-                                         ParameterInput * pin) :
-                                         pmy_block(pmb),
-                                         ptracker_extrema(
-                                           pmb->pmy_mesh->ptracker_extrema
-                                         )
+ExtremaTrackerLocal::ExtremaTrackerLocal(
+  MeshBlock * pmb,
+  ParameterInput * pin)
+  :
+  pmy_block(pmb),
+  ptracker_extrema(
+    pmb->pmy_mesh->ptracker_extrema
+  ),
+  ndim(pmy_block->pmy_mesh->ndim)
 {
   N_tracker = pin->GetOrAddInteger("trackers_extrema", "N_tracker", 0);
-  ndim = pmb->pmy_mesh->ndim;
 
   if (N_tracker > 0)
   {
+    // determine control field sampling ---------------------------------------
+    std::string par_control_field_sampling = pin->GetOrAddString(
+      "trackers_extrema",
+      "control_field_sampling",
+      "VC");
+
+    if (par_control_field_sampling == "VC")
+    {
+      mbi.il = pmb->ivs;            // il
+      mbi.iu = pmb->ive;            // iu
+      mbi.jl = pmb->jvs;            // jl
+      mbi.ju = pmb->jve;            // ju
+      mbi.kl = pmb->kvs;            // kl
+      mbi.ku = pmb->kve;            // ku
+
+      mbi.nn1 = pmb->nverts1;
+      mbi.nn2 = pmb->nverts2;
+      mbi.nn3 = pmb->nverts3;
+
+      mbi.x1.InitWithShallowSlice(pmb->pcoord->x1f, 1, 0, mbi.nn1);
+      mbi.x2.InitWithShallowSlice(pmb->pcoord->x2f, 1, 0, mbi.nn2);
+      mbi.x3.InitWithShallowSlice(pmb->pcoord->x3f, 1, 0, mbi.nn3);
+
+      mbi.dx1.InitWithShallowSlice(pmb->pcoord->dx1f, 1, 0, mbi.nn1);
+      mbi.dx2.InitWithShallowSlice(pmb->pcoord->dx2f, 1, 0, mbi.nn2);
+      mbi.dx3.InitWithShallowSlice(pmb->pcoord->dx3f, 1, 0, mbi.nn3);
+    }
+    else  // CC & CX have same logic
+    {
+      mbi.il = pmb->is;             // il
+      mbi.iu = pmb->ie;             // iu
+      mbi.jl = pmb->js;             // jl
+      mbi.ju = pmb->je;             // ju
+      mbi.kl = pmb->ks;             // kl
+      mbi.ku = pmb->ke;             // ku
+
+      mbi.nn1 = pmb->ncells1;
+      mbi.nn2 = pmb->ncells2;
+      mbi.nn3 = pmb->ncells3;
+
+      mbi.x1.InitWithShallowSlice(pmb->pcoord->x1v, 1, 0, mbi.nn1);
+      mbi.x2.InitWithShallowSlice(pmb->pcoord->x2v, 1, 0, mbi.nn2);
+      mbi.x3.InitWithShallowSlice(pmb->pcoord->x3v, 1, 0, mbi.nn3);
+
+      mbi.dx1.InitWithShallowSlice(pmb->pcoord->dx1v, 1, 0, mbi.nn1);
+      mbi.dx2.InitWithShallowSlice(pmb->pcoord->dx2v, 1, 0, mbi.nn2);
+      mbi.dx3.InitWithShallowSlice(pmb->pcoord->dx3v, 1, 0, mbi.nn3);
+    }
+    // ------------------------------------------------------------------------
+
     to_update.NewAthenaArray(N_tracker);
 
     sign_minima.NewAthenaArray(N_tracker);
@@ -489,9 +541,9 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldTimeStep(const int n)
       int ix_c_x1, ix_c_x2, ix_c_x3;
       int offset_ix_x1, offset_ix_x2, offset_ix_x3;
 
-      ix_c_x1 = LocateCentrePhysicalIndexInVC(n, 0);
-      ix_c_x2 = LocateCentrePhysicalIndexInVC(n, 1);
-      ix_c_x3 = LocateCentrePhysicalIndexInVC(n, 2);
+      ix_c_x1 = LocateCentrePhysicalIndex(n, 0);
+      ix_c_x2 = LocateCentrePhysicalIndex(n, 1);
+      ix_c_x3 = LocateCentrePhysicalIndex(n, 2);
 
       offset_ix_x1 = IxExtremaOffset(
         n,
@@ -524,8 +576,8 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldTimeStep(const int n)
       int ix_c_x1, ix_c_x2;
       int offset_ix_x1, offset_ix_x2;
 
-      ix_c_x1 = LocateCentrePhysicalIndexInVC(n, 0);
-      ix_c_x2 = LocateCentrePhysicalIndexInVC(n, 1);
+      ix_c_x1 = LocateCentrePhysicalIndex(n, 0);
+      ix_c_x2 = LocateCentrePhysicalIndex(n, 1);
 
       offset_ix_x1 = IxExtremaOffset(
         n,
@@ -550,7 +602,7 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldTimeStep(const int n)
       int ix_c_x1;
       int offset_ix_x1;
 
-      ix_c_x1 = LocateCentrePhysicalIndexInVC(n, 0);
+      ix_c_x1 = LocateCentrePhysicalIndex(n, 0);
 
       offset_ix_x1 = IxExtremaOffset(
         n,
@@ -634,23 +686,23 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldQuadInterp(const int n)
   {
     case 3:
     {
-      origin[2] = pmy_block->pcoord->x3f(0);
-      sz[2] = pmy_block->nverts3;
-      ds[2] = pmy_block->pcoord->dx3f(0);
+      origin[2] = mbi.x3(0);
+      sz[2] = mbi.nn3;
+      ds[2] = mbi.dx3(0);
       coord[2] = ptracker_extrema->c_x3(n-1);
     }
     case 2:
     {
-      origin[1] = pmy_block->pcoord->x2f(0);
-      sz[1] = pmy_block->nverts2;
-      ds[1] = pmy_block->pcoord->dx2f(0);
+      origin[1] = mbi.x2(0);
+      sz[1] = mbi.nn2;
+      ds[1] = mbi.dx2(0);
       coord[1] = ptracker_extrema->c_x2(n-1);
     }
     case 1:
     {
-      origin[0] = pmy_block->pcoord->x1f(0);
-      sz[0] = pmy_block->nverts1;
-      ds[0] = pmy_block->pcoord->dx1f(0);
+      origin[0] = mbi.x1(0);
+      sz[0] = mbi.nn1;
+      ds[0] = mbi.dx1(0);
       coord[0] = ptracker_extrema->c_x1(n-1);
       break;
     }
@@ -773,18 +825,16 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldQuadInterp(const int n)
     }
   }
 
-  // Q();
   return;
-
 }
 
-int ExtremaTrackerLocal::LocateCentrePhysicalIndexInVC(const int n,
-                                                       const int axis)
+int ExtremaTrackerLocal::LocateCentrePhysicalIndex(const int n,
+                                                   const int axis)
 {
   // n starts at 1
   // axis is the usual 0,1,2
   //
-  // Search over only _physical_ nodes (assuming VC); data sorted
+  // Search over only _physical_ nodes; data sorted
   //
   // std::lower_bound:
   // points to the first element that is not less than value,
@@ -801,18 +851,18 @@ int ExtremaTrackerLocal::LocateCentrePhysicalIndexInVC(const int n,
   {
     case 2:
       src_val = ptracker_extrema->c_x3(n-1);
-      x = &(pmy_block->pcoord->x3f);
-      idx_u = pmy_block->nverts3-NGHOST+1;
+      x = &(mbi.x3);
+      idx_u = mbi.nn3-NGHOST+1;
       break;
     case 1:
       src_val = ptracker_extrema->c_x2(n-1);
-      x = &(pmy_block->pcoord->x2f);
-      idx_u = pmy_block->nverts2-NGHOST+1;
+      x = &(mbi.x2);
+      idx_u = mbi.nn2-NGHOST+1;
       break;
     case 0:
       src_val = ptracker_extrema->c_x1(n-1);
-      x = &(pmy_block->pcoord->x1f);
-      idx_u = pmy_block->nverts1-NGHOST+1;
+      x = &(mbi.x1);
+      idx_u = mbi.nn1-NGHOST+1;
       break;
     default:
       std::cout << "ExtremaTrackerLocal requires 0<=axis<3" << std::endl;
@@ -828,8 +878,6 @@ int ExtremaTrackerLocal::LocateCentrePhysicalIndexInVC(const int n,
   // check upper range for lower_bound index does not need a +1
   // i.e. the last entry is also checked c.f. function body of IxMinimaOffset
   // std::cout << IxMinimaOffset(3, 4, 2) << std::endl;
-  // Q();
-
 
   // check lower
   Real const low_val = (*x)(idx-1);
@@ -848,18 +896,15 @@ bool ExtremaTrackerLocal::IsOrdPhysical(const int axis, const Real x)
   {
     case 2:
       return (
-        (pmy_block->pcoord->x3f(NGHOST) <= x) &&
-        (x <= pmy_block->pcoord->x3f(pmy_block->nverts3-NGHOST))
+        (mbi.x3(mbi.kl) <= x) && (x <= mbi.x3(mbi.ku))
       );
     case 1:
       return (
-        (pmy_block->pcoord->x2f(NGHOST) <= x) &&
-        (x <= pmy_block->pcoord->x2f(pmy_block->nverts2-NGHOST))
+        (mbi.x2(mbi.jl) <= x) && (x <= mbi.x2(mbi.ju))
       );
     case 0:
       return (
-        (pmy_block->pcoord->x1f(NGHOST) <= x) &&
-        (x <= pmy_block->pcoord->x1f(pmy_block->nverts1-NGHOST))
+        (mbi.x1(mbi.il) <= x) && (x <= mbi.x1(mbi.iu))
       );
     default:
       std::cout << "ExtremaTrackerLocal requires 0<=axis<3" << std::endl;

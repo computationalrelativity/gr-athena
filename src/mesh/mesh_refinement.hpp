@@ -136,10 +136,15 @@ class MeshRefinement {
   // for switching first entry in pvars_cc_ to/from: (w, coarse_prim); (u, coarse_cons_)
   void SetHydroRefinement(HydroBoundaryQuantity hydro_type);
 
+  //SB (from matter_tracker_extrema)
+  //--- BD debug: shift back to private, this is for testing wave eqn.
+  // TODO Fix L389 in z4c/zec.cpp and then move private
+  Coordinates *pcoarsec;
+  
  private:
   // data
   MeshBlock *pmy_block_;
-  Coordinates *pcoarsec;
+  //Coordinates *pcoarsec;
 
   AthenaArray<Real> fvol_[2][2], sarea_x1_[2][2], sarea_x2_[2][3], sarea_x3_[3][2];
   int refine_flag_, neighbor_rflag_, deref_count_, deref_threshold_;
