@@ -532,6 +532,14 @@ void Z4c::SetWeylAliases(AthenaArray<Real> & u, Z4c::Weyl_vars & weyl)
   weyl.rpsi4.InitWithShallowSlice(u, I_WEY_rpsi4);
   weyl.ipsi4.InitWithShallowSlice(u, I_WEY_ipsi4);
 }
+//----------------------------------------------------------------------------------------
+// \!fn Real Z4c::GetMatter(Real detginv, Real gxx, ... , Real gzz, Real Axx, ..., Real Azz)
+// \brief Update matter variables from hydro 
+
+void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, AthenaArray<Real> & w, AthenaArray<Real> &bb_cc)
+{
+//dummy
+}
 
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::AlgConstr(AthenaArray<Real> & u)
