@@ -41,6 +41,7 @@
 #include "../z4c/z4c.hpp"
 #include "../z4c/wave_extract.hpp"
 #include "../wave/wave.hpp"
+#include "../trackers/extrema_tracker.hpp"
 
 //----------------------------------------------------------------------------------------
 // MeshBlock constructor: constructs coordinate, boundary condition, hydro, field
@@ -186,6 +187,9 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
     peos = new EquationOfState(this, pin);
   }
 
+    // must come after pvar to register variables
+  ptracker_extrema_loc = new ExtremaTrackerLocal(this, pin);
+
   // Create user mesh data
   InitUserMeshBlockData(pin);
 
@@ -306,6 +310,9 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     peos = new EquationOfState(this, pin);
   }
 
+  // must come after var to register variables
+  ptracker_extrema_loc = new ExtremaTrackerLocal(this, pin);
+
   InitUserMeshBlockData(pin);
 
   std::size_t os = 0;
@@ -399,6 +406,8 @@ MeshBlock::~MeshBlock() {
     }
     pwave_extr_loc.resize(0);
   }
+
+  delete ptracker_extrema_loc;
 
   // BoundaryValues should be destructed AFTER all BoundaryVariable objects are destroyed
   delete pbval;

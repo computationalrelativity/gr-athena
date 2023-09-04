@@ -61,6 +61,9 @@ class CCE;
 #endif
 class WaveExtractLocal;
 class PunctureTracker;
+class ExtremaTracker;
+class ExtremaTrackerLocal;
+
 
 FluidFormulation GetFluidFormulation(const std::string& input_string);
 
@@ -229,6 +232,8 @@ public:
   Z4c *pz4c;
   std::vector<WaveExtractLocal *> pwave_extr_loc;
 
+  ExtremaTrackerLocal * ptracker_extrema_loc;
+
   MeshBlock *prev, *next;
 
   // functions
@@ -356,6 +361,7 @@ class Mesh {
 #endif
   friend class Z4c;
   friend class PunctureTracker;
+  friend class ExtremaTracker;
 
  public:
   // 2x function overloads of ctor: normal and restarted simulation
@@ -400,6 +406,7 @@ class Mesh {
   std::vector<CCE *> pcce;
 #endif
   std::vector<PunctureTracker *> pz4c_tracker;
+  ExtremaTracker * ptracker_extrema;
 
   AthenaArray<Real> *ruser_mesh_data;
   AthenaArray<int> *iuser_mesh_data;

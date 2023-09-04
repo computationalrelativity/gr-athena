@@ -58,6 +58,7 @@
 #if CCE_ENABLED
 #include "../z4c/cce/cce.hpp"
 #endif
+#include "../trackers/extrema_tracker.hpp"
 
 #include "../wave/wave.hpp"
 
@@ -356,6 +357,10 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
       }
     }
   }
+
+  // Last entry says if it is restart run or not
+  ptracker_extrema = new ExtremaTracker(this, pin, 0);
+
   if (EOS_TABLE_ENABLED) peos_table = new EosTable(pin);
   InitUserMeshData(pin);
 
@@ -803,6 +808,9 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     }
   }
 
+  // Last entry says if it is restart run or not
+  ptracker_extrema = new ExtremaTracker(this, pin, 1);
+
   if (EOS_TABLE_ENABLED) peos_table = new EosTable(pin);
   InitUserMeshData(pin);
   // read user Mesh data
@@ -811,7 +819,14 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     udsize += iuser_mesh_data[n].GetSizeInBytes();
   for (int n=0; n<nreal_user_mesh_data_; n++)
     udsize += ruser_mesh_data[n].GetSizeInBytes();
+
   udsize += 2*NDIM*sizeof(Real)*pz4c_tracker.size();
+
+  // c_x1, c_x2, c_x3
+  udsize += ptracker_extrema->c_x1.GetSizeInBytes();
+  udsize += ptracker_extrema->c_x2.GetSizeInBytes();
+  udsize += ptracker_extrema->c_x3.GetSizeInBytes();
+
   if (udsize != 0) {
     char *userdata = new char[udsize];
     if (Globals::my_rank == 0) { // only the master process reads the ID list
@@ -843,6 +858,22 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
       std::memcpy(ptracker->betap, &userdata[udoffset], NDIM*sizeof(Real));
       udoffset += 3*sizeof(Real);
     }
+
+    std::memcpy(ptracker_extrema->c_x1.data(),
+                &(userdata[udoffset]),
+                ptracker_extrema->c_x1.GetSizeInBytes());
+    udoffset += ptracker_extrema->c_x1.GetSizeInBytes();
+
+    std::memcpy(ptracker_extrema->c_x2.data(),
+                &(userdata[udoffset]),
+                ptracker_extrema->c_x2.GetSizeInBytes());
+    udoffset += ptracker_extrema->c_x2.GetSizeInBytes();
+
+    std::memcpy(ptracker_extrema->c_x3.data(),
+                &(userdata[udoffset]),
+                ptracker_extrema->c_x3.GetSizeInBytes());
+    udoffset += ptracker_extrema->c_x3.GetSizeInBytes();
+
     delete [] userdata;
   }
 
@@ -1010,7 +1041,7 @@ Mesh::~Mesh() {
       delete pwextr;
     }
     pwave_extr.resize(0);
-   
+
 #if CCE_ENABLED
     for (auto cce : pcce) {
       delete cce;
@@ -1028,6 +1059,8 @@ Mesh::~Mesh() {
     }
     pz4c_tracker.resize(0);
   }
+
+  delete ptracker_extrema;
 
   if (adaptive) { // deallocate arrays for AMR
     delete [] nref;
