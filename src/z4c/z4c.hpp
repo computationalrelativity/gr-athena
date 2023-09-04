@@ -293,6 +293,8 @@ public:
   // calculate weyl scalars
   void Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat,
                       AthenaArray<Real> & u_weyl);
+
+  void GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, AthenaArray<Real> & w, AthenaArray<Real> & bb_cc);
   // utility functions
   //
   // set ADM aliases given u_adm
