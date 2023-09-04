@@ -11,6 +11,7 @@
 #include "../athena_arrays.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
+#include "../utils/finite_differencing.hpp"
 #include "wave.hpp"
 
 // test
@@ -39,7 +40,7 @@ void Wave::WaveRHS(AthenaArray<Real> & u){
       for(int a = 0; a < 3; ++a) {
 #pragma omp simd
         for(int i = mbi.il; i <= mbi.iu; ++i) {
-          rhs(1,k,j,i) += c_2 * FD.Dxx(a, wu(k,j,i));
+          rhs(1,k,j,i) += c_2 * fd->Dxx(a, wu(k,j,i));
         }
       }
 
@@ -213,7 +214,7 @@ void Wave::WaveSommerfeld_1d_L_(AthenaArray<Real> & u,
     for(int j = mbi.jl; j <= mbi.ju; ++j)
 #pragma omp simd
       for(int i = mbi.il; i <= mbi.il; ++i) {
-        rhs(1,k,j,i) = c * FD.Ds(0, wpi(k,j,i));
+        rhs(1,k,j,i) = c * fd->Ds(0, wpi(k,j,i));
       }
 }
 
@@ -233,7 +234,7 @@ void Wave::WaveSommerfeld_1d_R_(AthenaArray<Real> & u,
     for(int j = jl; j <= ju; ++j)
 #pragma omp simd
       for(int i = iu; i <= iu; ++i) {
-        rhs(1,k,j,i) = -c * FD.Ds(0, wpi(k,j,i));
+        rhs(1,k,j,i) = -c * fd->Ds(0, wpi(k,j,i));
       }
 
 }
@@ -252,8 +253,8 @@ void Wave::WaveSommerfeld_2d_(AthenaArray<Real> & u,
 #pragma omp simd
       for(int i = il; i <= iu; ++i) {
         // Derivatives of pi
-        Real const wpi_x = FD.Ds(0, wpi(k,j,i));
-        Real const wpi_y = FD.Ds(1, wpi(k,j,i));
+        Real const wpi_x = fd->Ds(0, wpi(k,j,i));
+        Real const wpi_y = fd->Ds(1, wpi(k,j,i));
 
         Real const rr = std::sqrt(SQR(mbi.x1(i)) + SQR(mbi.x2(j)));
         Real const sx = mbi.x1(i);
@@ -280,9 +281,9 @@ void Wave::WaveSommerfeld_3d_(AthenaArray<Real> & u,
 #pragma omp simd
       for(int i = il; i <= iu; ++i) {
         // Derivatives of pi
-        Real const wpi_x = FD.Ds(0, wpi(k,j,i));
-        Real const wpi_y = FD.Ds(1, wpi(k,j,i));
-        Real const wpi_z = FD.Ds(2, wpi(k,j,i));
+        Real const wpi_x = fd->Ds(0, wpi(k,j,i));
+        Real const wpi_y = fd->Ds(1, wpi(k,j,i));
+        Real const wpi_z = fd->Ds(2, wpi(k,j,i));
 
         Real const rr = std::sqrt(SQR(mbi.x1(i)) +
                                   SQR(mbi.x2(j)) + SQR(mbi.x3(k)));

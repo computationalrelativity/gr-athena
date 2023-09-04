@@ -46,6 +46,7 @@
 
 #include "z4c/wave_extract.hpp"
 #include "z4c/puncture_tracker.hpp"
+#include "trackers/extrema_tracker.hpp"
 #include "z4c/ahf.hpp"
 #if CCE_ENABLED
 #include "z4c/cce/cce.hpp"
@@ -684,6 +685,11 @@ int main(int argc, char *argv[]) {
         ptracker->EvolveTracker();
         ptracker->WriteTracker(pmesh->ncycle, pmesh->time);
       }
+
+      // extrema trackers are registered / computed collectively
+      pmesh->ptracker_extrema->ReduceTracker();
+      pmesh->ptracker_extrema->EvolveTracker();
+      pmesh->ptracker_extrema->WriteTracker(pmesh->ncycle, pmesh->time);
 
       //-------------------------------------------------------------------------
       // Update NextTime triggers

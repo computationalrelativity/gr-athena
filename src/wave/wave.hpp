@@ -12,10 +12,12 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 
-#include "../utils/finite_differencing.hpp"
+// #include "../utils/finite_differencing.hpp"
 #include "../bvals/vc/bvals_vc.hpp"
 #include "../bvals/cc/bvals_cc.hpp"
 #include "../bvals/cx/bvals_cx.hpp"
+
+#include "../utils/finite_differencing.hpp"
 
 class MeshBlock;
 class ParameterInput;
@@ -105,34 +107,36 @@ private:
   void WaveBoundaryDirichlet_(AthenaArray<Real> & u,
                               int il, int iu, int jl, int ju, int kl, int ku);
 
-private:
 
-  struct {
-    typedef FDCenteredStencil<2, 4-1> stencil;
+  FiniteDifference::Uniform *fd;
+// private:
 
-    int stride[3];
-    Real idx[3];
+//   struct {
+//     typedef FDCenteredStencil<2, 4-1> stencil;
 
-    inline Real Ds(int dir, Real & u) {
-      Real * pu = &u;
-      return 0.5 * idx[dir] * (pu[stride[dir]] - pu[-stride[dir]]);
-    }
+//     int stride[3];
+//     Real idx[3];
 
-    inline Real Dxx(int dir, Real & u) {
-      Real * pu = &u - stencil::offset*stride[dir];
+//     inline Real Ds(int dir, Real & u) {
+//       Real * pu = &u;
+//       return 0.5 * idx[dir] * (pu[stride[dir]] - pu[-stride[dir]]);
+//     }
 
-      Real out(0.);
-      for(int n1 = 0; n1 < stencil::nghost; ++n1) {
-        int const n2  = stencil::width - n1 - 1;
-        Real const c1 = stencil::coeff[n1] * pu[n1*stride[dir]];
-        Real const c2 = stencil::coeff[n2] * pu[n2*stride[dir]];
-        out += (c1 + c2);
-      }
-      out += stencil::coeff[stencil::nghost] * pu[stencil::nghost*stride[dir]];
+//     inline Real Dxx(int dir, Real & u) {
+//       Real * pu = &u - stencil::offset*stride[dir];
 
-      return out*SQR(idx[dir]);
-    }
-  } FD;
+//       Real out(0.);
+//       for(int n1 = 0; n1 < stencil::nghost; ++n1) {
+//         int const n2  = stencil::width - n1 - 1;
+//         Real const c1 = stencil::coeff[n1] * pu[n1*stride[dir]];
+//         Real const c2 = stencil::coeff[n2] * pu[n2*stride[dir]];
+//         out += (c1 + c2);
+//       }
+//       out += stencil::coeff[stencil::nghost] * pu[stencil::nghost*stride[dir]];
+
+//       return out*SQR(idx[dir]);
+//     }
+//   } FD;
 
 };
 #endif // WAVE_HPP

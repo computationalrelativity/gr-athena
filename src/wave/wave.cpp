@@ -217,37 +217,18 @@ Wave::Wave(MeshBlock *pmb, ParameterInput *pin) :
   dt2_.NewAthenaArray(nn1);
   dt3_.NewAthenaArray(nn1);
 
-  // Set up finite difference operators
-  Real dx1, dx2, dx3;
-  if (WAVE_CC_ENABLED || WAVE_CX_ENABLED)
+  if (WAVE_CC_ENABLED)
   {
-    dx1 = pco->dx1v(0);
-    dx2 = pco->dx2v(0);
-    dx3 = pco->dx3v(0);
+    this->fd = pmb->pcoord->fd_cc;
   }
-  else if (WAVE_VC_ENABLED)
+  else if (WAVE_CX_ENABLED)
   {
-    dx1 = pco->dx1f(0);
-    dx2 = pco->dx2f(0);
-    dx3 = pco->dx3f(0);
+    this->fd = pmb->pcoord->fd_cx;
   }
-
-  FD.stride[0] = 1;
-  FD.stride[1] = 0;
-  FD.stride[2] = 0;
-  FD.idx[0] = 1.0 / dx1;
-  FD.idx[1] = 0.0;
-  FD.idx[2] = 0.0;
-  if(nn2 > 1) {
-    FD.stride[1] = nn1;
-    FD.idx[1] = 1.0 / dx2;
+  else
+  {
+    this->fd = pmb->pcoord->fd_vc;
   }
-
-  if(nn3 > 1) {
-    FD.stride[2] = nn2 * nn1;
-    FD.idx[2] = 1.0 / dx3;
-  }
-
 }
 
 

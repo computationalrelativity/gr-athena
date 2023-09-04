@@ -208,7 +208,10 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   // Parameters
   opt.chi_psi_power = pin->GetOrAddReal("z4c", "chi_psi_power", -4.0);
   opt.chi_div_floor = pin->GetOrAddReal("z4c", "chi_div_floor", -1000.0);
-  opt.diss = pin->GetOrAddReal("z4c", "diss", 0.0);
+
+  const Real diss_val = pin->GetOrAddReal("z4c", "diss", 0.0);
+  opt.diss = diss_val*pow(2, -2*NGHOST)*(NGHOST % 2 == 0 ? -1 : 1);
+
   opt.eps_floor = pin->GetOrAddReal("z4c", "eps_floor", 1e-12);
   opt.damp_kappa1 = pin->GetOrAddReal("z4c", "damp_kappa1", 0.0);
   opt.damp_kappa2 = pin->GetOrAddReal("z4c", "damp_kappa2", 0.0);
@@ -363,51 +366,14 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   Riemm4_ddd.NewAthenaTensor(mbi.nn1);
   Riemm4_dd.NewAthenaTensor(mbi.nn1);
 
-  // Set up finite difference operators
-  Real dx1, dx2, dx3;
-  int nn1 = mbi.nn1;
-  int nn2 = mbi.nn2;
-  int nn3 = mbi.nn3;
-  dx1 = mbi.dx1(0); dx2 = mbi.dx2(0); dx3 = mbi.dx3(0);
 
-  FD.diss = opt.diss*pow(2, -2*NGHOST)*(NGHOST % 2 == 0 ? -1 : 1);
-
-  FD.stride[0] = 1;
-  FD.stride[1] = (nn2 > 1) ? nn1 : 0;
-  FD.stride[2] = (nn3 > 1) ? nn2 * nn1 : 0;
-
-  FD.idx[0] = 1.0 / dx1;
-  FD.idx[1] = (nn2 > 1) ? 1.0 / dx2 : 0.0;
-  FD.idx[2] = (nn3 > 1) ? 1.0 / dx3 : 0.0;
-
-#ifdef DBG_SYMMETRIZE_FD
-  FD.cidx1[0] = 1.0 / (dx1 * FD_::c1::coeff_lcm);
-  FD.cidx1[1] = (nn2 > 1) ? (1.0 / (dx2 * FD_::c1::coeff_lcm)) : 0.0;
-  FD.cidx1[2] = (nn3 > 1) ? (1.0 / (dx3 * FD_::c1::coeff_lcm)) : 0.0;
-
-  FD.cidx2[0] = SQR(1.0 / dx1) / FD_::c2::coeff_lcm;
-  FD.cidx2[1] = (nn2 > 1) ? SQR(1.0 / dx2) / FD_::c2::coeff_lcm : 0.0;
-  FD.cidx2[2] = (nn3 > 1) ? SQR(1.0 / dx3) / FD_::c2::coeff_lcm : 0.0;
-
-  FD.cidx1_lo[0] = 1.0 / (dx1 * FD_::c1_lo::coeff_lcm);
-  FD.cidx1_lo[1] = (nn2 > 1) ? (1.0 / (dx2 * FD_::c1_lo::coeff_lcm)) : 0.0;
-  FD.cidx1_lo[2] = (nn3 > 1) ? (1.0 / (dx3 * FD_::c1_lo::coeff_lcm)) : 0.0;
-
-  FD.diss = opt.diss*pow(2, -2*NGHOST)*(NGHOST % 2 == 0 ? -1 : 1);
-  FD.cidxd[0] = FD.diss / (dx1 * FD_::cd::coeff_lcm);
-  FD.cidxd[1] = (nn2 > 1) ? (FD.diss / (dx2 * FD_::cd::coeff_lcm)) : 0.0;
-  FD.cidxd[2] = (nn3 > 1) ? (FD.diss / (dx3 * FD_::cd::coeff_lcm)) : 0.0;
-
-  // lop left / right
-  FD.lidx_l1[0] = 1.0 / (dx1 * FD_::ll1::coeff_lcm);
-  FD.lidx_l1[1] = (nn2 > 1) ? (1.0 / (dx2 * FD_::ll1::coeff_lcm)) : 0.0;
-  FD.lidx_l1[2] = (nn3 > 1) ? (1.0 / (dx3 * FD_::ll1::coeff_lcm)) : 0.0;
-
-  FD.lidx_r1[0] = 1.0 / (dx1 * FD_::lr1::coeff_lcm);
-  FD.lidx_r1[1] = (nn2 > 1) ? (1.0 / (dx2 * FD_::lr1::coeff_lcm)) : 0.0;
-  FD.lidx_r1[2] = (nn3 > 1) ? (1.0 / (dx3 * FD_::lr1::coeff_lcm)) : 0.0;
-
-#endif // DBG_SYMMETRIZE_FD
+#if defined (Z4C_CC_ENABLED)
+  this->fd = pmb->pcoord->fd_cc;
+#elif defined (Z4C_CX_ENABLED)
+  this->fd = pmb->pcoord->fd_cx;
+#else  // Z4C_VC_ENABLED
+  this->fd = pmb->pcoord->fd_vc;
+#endif
 }
 
 // destructor

@@ -207,7 +207,7 @@ Real Z4c_AMR::FDTruncErrorChiL2(MeshBlock *const pmy_block,
       // (d^7 chi(kji)/dy^7)^p +
       // (d^7 chi(kji)/dz^7)^p
       for(int a = 0; a < NDIM; ++a) {
-        derive_kji += std::pow(pz4c->FD.Dx7(a, z4c.chi(k,j,i)),p);
+        derive_kji += std::pow(pz4c->fd->Dx_ho(a, z4c.chi(k,j,i)),p);
       }
       L2_norm += POW2(derive_kji);
     }
@@ -221,7 +221,7 @@ Real Z4c_AMR::FDTruncErrorChiL2(MeshBlock *const pmy_block,
       // (d^2 chi(kji)/dy^2)^p +
       // (d^2 chi(kji)/dz^2)^p
       for(int a = 0; a < NDIM; ++a) {
-        derive_kji += std::pow(pz4c->FD.Dxx(a, z4c.chi(k,j,i)),p);
+        derive_kji += std::pow(pz4c->fd->Dxx(a, z4c.chi(k,j,i)),p);
       }
       L2_norm += POW2(derive_kji);
     }
@@ -265,8 +265,8 @@ Real Z4c_AMR::FDTruncErrorChiLinf(MeshBlock *const pmy_block,
       // (d^7 chi(kji)/dy^7)^p +
       // (d^7 chi(kji)/dz^7)^p
       for(int a = 0; a < NDIM; ++a) {
-        //derive_kji += std::pow(pz4c->FD.Dx7(a, z4c.chi(k,j,i)),p); // p != 1
-        derive_kji += pz4c->FD.Dx7(a, z4c.chi(k,j,i)); // p = 1 (optimization)
+        //derive_kji += std::pow(pz4c->fd->Dx_ho(a, z4c.chi(k,j,i)),p); // p != 1
+        derive_kji += pz4c->fd->Dx_ho(a, z4c.chi(k,j,i)); // p = 1 (optimization)
       }
       err_pnt[kji] = std::abs(derive_kji);
       kji++;
@@ -281,7 +281,7 @@ Real Z4c_AMR::FDTruncErrorChiLinf(MeshBlock *const pmy_block,
       // (d^2 chi(kji)/dy^2)^p +
       // (d^2 chi(kji)/dz^2)^p
       for(int a = 0; a < NDIM; ++a) {
-        derive_kji += std::pow(pz4c->FD.Dxx(a, z4c.chi(k,j,i)),p);
+        derive_kji += std::pow(pz4c->fd->Dxx(a, z4c.chi(k,j,i)),p);
       }
       err_pnt[kji] = std::abs(derive_kji);
       kji++;
@@ -324,7 +324,7 @@ Real Z4c_AMR::FDTruncErrorChiLinfComponentWise(MeshBlock *const pmy_block,
       //       |(d^7 chi(kji)/dz^7)^p| }
       for(int a = 0; a < NDIM; ++a) {
         // p = 1 (optimization)
-        Real der_abs = std::abs(pz4c->FD.Dx7(a, z4c.chi(k,j,i)));
+        Real der_abs = std::abs(pz4c->fd->Dx_ho(a, z4c.chi(k,j,i)));
         der_max_comp = der_max_comp > der_abs ? der_max_comp : der_abs;
       }
       max_err = der_max_comp > max_err ? der_max_comp : max_err;
