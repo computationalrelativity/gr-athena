@@ -17,6 +17,7 @@
 #   --ncghost_cx=xxx    set NCGHOST_CX=xxx
 #   --nextrapolate=xxx  set NEXTRAPOLATE=xxx  [for ouflow conditions]
 #   --nscalars=xxx      set NSCALARS=xxx
+#   --ninterp=xxx       set NGRCV_HSZ=xxx (number of ghosts for intergrid interpolation)
 #   -eos_table          enable EOS table
 #   -f                  enable fluid
 #   -b                  enable magnetic fields
@@ -155,6 +156,11 @@ parser.add_argument('--nextrapolate',
 parser.add_argument('--nscalars',
                     default='0',
                     help='set number of passive scalars')
+
+# --ninterp=[value] argument
+parser.add_argument('--ninterp',
+                    default='2',
+                    help='set number of ghost zones for intergrid interpolation')
 
 # -f argument
 parser.add_argument('-f',
@@ -574,6 +580,9 @@ else:
 
 # --nscalars=[value] argument
 definitions['NUMBER_PASSIVE_SCALARS'] = args['nscalars']
+
+# --ninterp=[value] argument
+definitions['NUMBER_INTERP_GHOSTS'] = args['ninterp']
 
 # -f argument
 if args['f']:

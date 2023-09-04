@@ -88,7 +88,7 @@ class ExtremaTrackerLocal
 
   public:
     void TreatCentreIfLocalMember();
-    int LocateCentrePhysicalIndexInVC(const int n, const int axis);
+    int LocateCentrePhysicalIndex(const int n, const int axis);
     bool IsOrdPhysical(const int axis, const Real x);
 
   private:
@@ -131,6 +131,18 @@ class ExtremaTrackerLocal
     ExtremaTracker * ptracker_extrema;
 
     int ndim;
+
+    // Switching of sampling
+    struct MB_info {
+      int il, iu, jl, ju, kl, ku;         // local block iter.
+      int nn1, nn2, nn3;                  // total number of nodes (w. ghosts)
+      int ndim;
+
+      AthenaArray<Real> x1, x2, x3;       // deal with (fund.) coordinates
+      AthenaArray<Real> dx1, dx2, dx3;    // & spacings
+    };
+
+    MB_info mbi;
 
     typedef LagrangeInterpND<2*NGHOST-1, 3> Interp_Lag3;
     typedef LagrangeInterpND<2*NGHOST-1, 2> Interp_Lag2;
