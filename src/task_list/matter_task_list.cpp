@@ -30,6 +30,7 @@
 //WGC wext
 //#ifdef Z4C_WEXT
 #include "../z4c/wave_extract.hpp"
+#include "../z4c/puncture_tracker.hpp"
 //#endif
 //WGC end
 //#ifdef Z4C_TRACKER
@@ -1009,7 +1010,7 @@ TaskStatus MatterTaskList::IntegrateHydro(MeshBlock *pmb, int stage) {
     ave_wghts[0] = 1.0;
     ave_wghts[1] = stage_wghts[stage-1].delta;
     ave_wghts[2] = 0.0;
-    pmb->WeightedAve(ph->u1, ph->u, ph->u2, ave_wghts);
+    pmb->WeightedAveCC(ph->u1, ph->u, ph->u2, ave_wghts);
 
     ave_wghts[0] = stage_wghts[stage-1].gamma_1;
     ave_wghts[1] = stage_wghts[stage-1].gamma_2;
@@ -1017,7 +1018,7 @@ TaskStatus MatterTaskList::IntegrateHydro(MeshBlock *pmb, int stage) {
     if (ave_wghts[0] == 0.0 && ave_wghts[1] == 1.0 && ave_wghts[2] == 0.0)
       ph->u.SwapAthenaArray(ph->u1);
     else
-      pmb->WeightedAve(ph->u, ph->u1, ph->u2, ave_wghts);
+      pmb->WeightedAveCC(ph->u, ph->u1, ph->u2, ave_wghts);
 
     const Real wght = stage_wghts[stage-1].beta*pmb->pmy_mesh->dt;
     ph->AddFluxDivergence(wght, ph->u);
@@ -1034,7 +1035,7 @@ TaskStatus MatterTaskList::IntegrateHydro(MeshBlock *pmb, int stage) {
       const Real beta = 0.063692468666290; // F(u^(3)) coeff.
       const Real wght_ssp = beta*pmb->pmy_mesh->dt;
       // writing out to u2 register
-      pmb->WeightedAve(ph->u2, ph->u1, ph->u2, ave_wghts);
+      pmb->WeightedAveCC(ph->u2, ph->u1, ph->u2, ave_wghts);
       ph->AddFluxDivergence(wght_ssp, ph->u2);
       // add coordinate (geometric) source terms
       pmb->pcoord->AddCoordTermsDivergence(wght_ssp, ph->flux, ph->w, pf->bcc, ph->u2);
@@ -1056,7 +1057,7 @@ TaskStatus MatterTaskList::IntegrateField(MeshBlock *pmb, int stage) {
     ave_wghts[0] = 1.0;
     ave_wghts[1] = stage_wghts[stage-1].delta;
     ave_wghts[2] = 0.0;
-    pmb->WeightedAve(pf->b1, pf->b, pf->b2, ave_wghts);
+    pmb->WeightedAveFC(pf->b1, pf->b, pf->b2, ave_wghts);
 
     ave_wghts[0] = stage_wghts[stage-1].gamma_1;
     ave_wghts[1] = stage_wghts[stage-1].gamma_2;
@@ -1066,7 +1067,7 @@ TaskStatus MatterTaskList::IntegrateField(MeshBlock *pmb, int stage) {
       pf->b.x2f.SwapAthenaArray(pf->b1.x2f);
       pf->b.x3f.SwapAthenaArray(pf->b1.x3f);
     } else {
-      pmb->WeightedAve(pf->b, pf->b1, pf->b2, ave_wghts);
+      pmb->WeightedAveFC(pf->b, pf->b1, pf->b2, ave_wghts);
     }
 
     pf->CT(stage_wghts[stage-1].beta*pmb->pmy_mesh->dt, pf->b);
@@ -1478,7 +1479,7 @@ TaskStatus MatterTaskList::IntegrateScalars(MeshBlock *pmb, int stage) {
     ave_wghts[0] = 1.0;
     ave_wghts[1] = stage_wghts[stage-1].delta;
     ave_wghts[2] = 0.0;
-    pmb->WeightedAve(ps->s1, ps->s, ps->s2, ave_wghts);
+    pmb->WeightedAveCC(ps->s1, ps->s, ps->s2, ave_wghts);
 
     ave_wghts[0] = stage_wghts[stage-1].gamma_1;
     ave_wghts[1] = stage_wghts[stage-1].gamma_2;
@@ -1486,7 +1487,7 @@ TaskStatus MatterTaskList::IntegrateScalars(MeshBlock *pmb, int stage) {
     if (ave_wghts[0] == 0.0 && ave_wghts[1] == 1.0 && ave_wghts[2] == 0.0)
       ps->s.SwapAthenaArray(ps->s1);
     else
-      pmb->WeightedAve(ps->s, ps->s1, ps->s2, ave_wghts);
+      pmb->WeightedAveCC(ps->s, ps->s1, ps->s2, ave_wghts);
 
     const Real wght = stage_wghts[stage-1].beta*pmb->pmy_mesh->dt;
     ps->AddFluxDivergence(wght, ps->s);
@@ -1501,7 +1502,7 @@ TaskStatus MatterTaskList::IntegrateScalars(MeshBlock *pmb, int stage) {
       const Real beta = 0.063692468666290; // F(u^(3)) coeff.
       const Real wght_ssp = beta*pmb->pmy_mesh->dt;
       // writing out to s2 register
-      pmb->WeightedAve(ps->s2, ps->s1, ps->s2, ave_wghts);
+      pmb->WeightedAveCC(ps->s2, ps->s1, ps->s2, ave_wghts);
       ps->AddFluxDivergence(wght_ssp, ps->s2);
     }
     return TaskStatus::next;
@@ -1588,6 +1589,8 @@ TaskStatus MatterTaskList::CalculateZ4cRHS(MeshBlock *pmb, int stage) {
 */
 
  // PunctureTracker: interpolate beta at puncture position before evolution
+
+
   if (stage == 1) {
     for (auto ptracker : pmb->pmy_mesh->pz4c_tracker) {
       ptracker->InterpolateShift(pmb, pmb->pz4c->storage.u);
@@ -1692,7 +1695,7 @@ TaskStatus MatterTaskList::Prolongation_Z4c(MeshBlock *pmb, int stage) {
     // Scaled coefficient for RHS time-advance within stage
     Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
 // TODO VC/CC issue: choose appropriate prolongation fn here
-    pbval->ProlongateZ4cBoundaries(t_end_stage, dt);
+//    pbval->ProlongateZ4cBoundaries(t_end_stage, dt);
   } else {
     return TaskStatus::fail;
   }
@@ -1767,6 +1770,7 @@ if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction)) {
 TaskStatus MatterTaskList::WaveExtract(MeshBlock *pmb, int stage) {
  if (stage != nstages) return TaskStatus::success;  
 //#ifdef Z4C_WEXT
+/*
   Mesh *pm = pmb->pmy_mesh;
 
   if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction)) {
@@ -1780,6 +1784,22 @@ TaskStatus MatterTaskList::WaveExtract(MeshBlock *pmb, int stage) {
 }
 //#endif
   return TaskStatus::success;
+*/
+
+Mesh *pm = pmb->pmy_mesh;
+
+  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction)) {
+    AthenaArray<Real> u_R;
+    AthenaArray<Real> u_I;
+    u_R.InitWithShallowSlice(pmb->pz4c->storage.weyl, Z4c::I_WEY_rpsi4, 1);
+    u_I.InitWithShallowSlice(pmb->pz4c->storage.weyl, Z4c::I_WEY_ipsi4, 1);
+    for (auto pwextr : pmb->pwave_extr_loc) {
+        pwextr->Decompose_multipole(u_R,u_I);
+    }
+  }
+
+  return TaskStatus::success;
+
   }
 
 
@@ -1810,11 +1830,13 @@ TaskStatus MatterTaskList::UpdateMetric(MeshBlock *pmb, int stage) {
 //printf("updatemet\n");
   if (stage <= nstages) { 
 //update CC metric
-    pmb->pcoord->UpdateMetric();
+// doesnt do anything anymore
+//    pmb->pcoord->UpdateMetric();
 //Update CC metric on coarse representation of coord. 
 //Is this the right place to call this?
     if(pmb->pmy_mesh->multilevel){
-    pmb->pmr->pcoarsec->UpdateMetric();
+//doesnt do anything anymore
+//    pmb->pmr->pcoarsec->UpdateMetric();
     }
     return TaskStatus::success;
   }
@@ -1876,7 +1898,7 @@ void MatterTaskList::UpdateTaskListTriggers() {
   // note that for global dt > target output dt
   // next_time will 'lag'; this will need to be corrected if an integrator with dense /
   // interpolating output is used.
-
+/*
   if (TaskListTriggers.adm.to_update) {
     TaskListTriggers.adm.next_time += TaskListTriggers.adm.dt;
     TaskListTriggers.adm.to_update = false;
@@ -1902,5 +1924,40 @@ void MatterTaskList::UpdateTaskListTriggers() {
     TaskListTriggers.wave_extraction.to_update = false;
   }
 #endif // Z4C_WEXT
+*/
+
+
+
+ if (TaskListTriggers.adm.to_update) {
+    TaskListTriggers.adm.next_time += TaskListTriggers.adm.dt;
+    TaskListTriggers.adm.to_update = false;
+  }
+
+  if (TaskListTriggers.con.to_update) {
+    TaskListTriggers.con.next_time += TaskListTriggers.con.dt;
+    TaskListTriggers.con.to_update = false;
+  }
+
+  if (TaskListTriggers.con_hst.to_update) {
+    TaskListTriggers.con_hst.next_time += TaskListTriggers.con_hst.dt;
+    TaskListTriggers.con_hst.to_update = false;
+  }
+
+  if (TaskListTriggers.assert_is_finite.to_update) {
+    TaskListTriggers.assert_is_finite.next_time += \
+      TaskListTriggers.assert_is_finite.dt;
+    TaskListTriggers.assert_is_finite.to_update = false;
+  }
+
+  if (TaskListTriggers.wave_extraction.to_update) {
+    TaskListTriggers.wave_extraction.next_time += \
+      TaskListTriggers.wave_extraction.dt;
+    TaskListTriggers.wave_extraction.to_update = false;
+  }
+
+  if (TaskListTriggers.cce_dump.to_update) {
+    TaskListTriggers.cce_dump.next_time += TaskListTriggers.cce_dump.dt;
+    TaskListTriggers.cce_dump.to_update = false;
+  }
 
 }

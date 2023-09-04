@@ -655,6 +655,7 @@ public:
   //---------------------------------------------------------------------------
   // Provide finer-grained control over tasklist
   // Note: If a parameter is zero related task(s) will be ignored
+/*
   struct aux_NextTimeStep{
     Real dt{0.};
     Real next_time{0.};
@@ -670,6 +671,25 @@ public:
 #ifdef Z4C_WEXT
     aux_NextTimeStep wave_extraction;
 #endif // Z4C_WEXT
+  } TaskListTriggers;
+
+  bool CurrentTimeCalculationThreshold(Mesh *pm,
+                                       aux_NextTimeStep *variable);
+  void UpdateTaskListTriggers();
+*/  
+struct aux_NextTimeStep{
+    Real dt{0.};
+    Real next_time{0.};
+    Real to_update{false};
+  };
+
+  struct {
+    aux_NextTimeStep adm;
+    aux_NextTimeStep con;
+    aux_NextTimeStep con_hst;
+    aux_NextTimeStep assert_is_finite;
+    aux_NextTimeStep wave_extraction;
+    aux_NextTimeStep cce_dump;
   } TaskListTriggers;
 
   bool CurrentTimeCalculationThreshold(Mesh *pm,
