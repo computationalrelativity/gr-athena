@@ -176,7 +176,19 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
 
            //#pragma omp simd
             for (int i = is-1; i <= ie+1; ++i){
-        gamma_dd(0,0,i) = pmb->pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
+#ifdef HYBRID_INTERP
+          gamma_dd(0,0,i) = VCInterpolation(vcgamma_xx,k,j,i);
+          gamma_dd(0,1,i) = VCInterpolation(vcgamma_xy,k,j,i);
+          gamma_dd(0,2,i) = VCInterpolation(vcgamma_xz,k,j,i);
+          gamma_dd(1,1,i) = VCInterpolation(vcgamma_yy,k,j,i);
+          gamma_dd(1,2,i) = VCInterpolation(vcgamma_yz,k,j,i);
+          gamma_dd(2,2,i) = VCInterpolation(vcgamma_zz,k,j,i);
+          alpha(i) = VCInterpolation(vcalpha,k,j,i);
+          beta_u(0,i) = VCInterpolation(vcbeta_x,k,j,i);
+          beta_u(1,i) = VCInterpolation(vcbeta_y,k,j,i);
+          beta_u(2,i) = VCInterpolation(vcbeta_z,k,j,i);
+#else
+          gamma_dd(0,0,i) = pmb->pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
           gamma_dd(0,1,i) = pmb->pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
           gamma_dd(0,2,i) = pmb->pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
           gamma_dd(1,1,i) = pmb->pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
@@ -186,6 +198,7 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
           beta_u(0,i) = pmb->pz4c->ig->map3d_VC2CC(vcbeta_x(k,j,i));
           beta_u(1,i) = pmb->pz4c->ig->map3d_VC2CC(vcbeta_y(k,j,i));
           beta_u(2,i) = pmb->pz4c->ig->map3d_VC2CC(vcbeta_z(k,j,i));
+#endif
 }
 
 

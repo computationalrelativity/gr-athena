@@ -117,6 +117,20 @@ void Hydro::RiemannSolver(const int k, const int j, const int il, const int iu,
                             prim_r(IVZ, i)};
 
     // Extract metric components
+#ifdef HYBRID_INTERP
+    g_dd[S11] = VCReconstruct(ivx-1,vcgamma_xx, k, j, i);
+    g_dd[S12] = VCReconstruct(ivx-1,vcgamma_xy, k, j, i);
+    g_dd[S13] = VCReconstruct(ivx-1,vcgamma_xz, k, j, i);
+    g_dd[S22] = VCReconstruct(ivx-1,vcgamma_yy, k, j, i);
+    g_dd[S23] = VCReconstruct(ivx-1,vcgamma_yz, k, j, i);
+    g_dd[S33] = VCReconstruct(ivx-1,vcgamma_zz, k, j, i);
+    
+    beta_u[0] = VCReconstruct(ivx-1,vcbeta_x, k, j, i);
+    beta_u[1] = VCReconstruct(ivx-1,vcbeta_y, k, j, i);
+    beta_u[2] = VCReconstruct(ivx-1,vcbeta_z, k, j, i);
+
+    alpha = VCReconstruct(ivx-1,vcalpha, k, j, i);
+#else
     g_dd[S11] = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcgamma_xx(k, j, i));
     g_dd[S12] = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcgamma_xy(k, j, i));
     g_dd[S13] = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcgamma_xz(k, j, i));
@@ -129,7 +143,7 @@ void Hydro::RiemannSolver(const int k, const int j, const int il, const int iu,
     beta_u[2] = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcbeta_z(k, j, i));
 
     alpha = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcalpha(k, j, i));
-
+#endif
     // Calculate the determinant
     Real detgamma = Det3Metric(g_dd);
     Real sdetgamma = std::sqrt(detgamma);

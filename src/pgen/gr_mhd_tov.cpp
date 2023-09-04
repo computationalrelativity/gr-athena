@@ -387,12 +387,21 @@ pfield->bcc.ZeroClear();
   for(int k = ks-1; k<=ke+1; k++){
   for(int j = js-1; j<=je+1; j++){
   for(int i = is-1; i<=ie+1; i++){
+#ifdef HYBRID_INTERP
+          gamma_dd(0,0,i) = VCInterpolation(vcgamma_xx,k,j,i);
+          gamma_dd(0,1,i) = VCInterpolation(vcgamma_xy,k,j,i);
+          gamma_dd(0,2,i) = VCInterpolation(vcgamma_xz,k,j,i);
+          gamma_dd(1,1,i) = VCInterpolation(vcgamma_yy,k,j,i);
+          gamma_dd(1,2,i) = VCInterpolation(vcgamma_yz,k,j,i);
+          gamma_dd(2,2,i) = VCInterpolation(vcgamma_zz,k,j,i);
+#else
           gamma_dd(0,0,i) = pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
           gamma_dd(0,1,i) = pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
           gamma_dd(0,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
           gamma_dd(1,1,i) = pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
           gamma_dd(1,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
           gamma_dd(2,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
+#endif
 }
    for(int i = is-1; i<=ie+1; i++){
     Real detgamma = std::sqrt(Det3Metric(gamma_dd,i));
