@@ -7,6 +7,9 @@
 //  \brief High-performance finite differencing kernel
 
 #include "finite_differencing.hpp"
+#include <cmath>
+
+namespace FiniteDifference {
 
 // Centered finite differencing 1st derivative
 template<>
@@ -63,29 +66,35 @@ Real const FDCenteredStencil<2, 4>::coeff[] = {
 // add for testing
 template<>
 Real const FDCenteredStencil<2, 5>::coeff[] = {
-  1./3150., -5./1008., 5./126., -5./21., 5./3., -5269./1800., 5./3., -5./21., 5./126., -5./1008., 1./3150.,
+  1./3150., -5./1008., 5./126., -5./21., 5./3., -5269./1800.,
+  5./3., -5./21., 5./126., -5./1008., 1./3150.,
 };
 
 template<>
 Real const FDCenteredStencil<2, 6>::coeff[] = {
-  -1./16632., 2./1925., -1./112., 10./189., -15./56., 12./7., -5369./1800., 12./7., -15./56., 10./189., -1./112., 2./1925., -1./16632.,
+  -1./16632., 2./1925., -1./112., 10./189., -15./56., 12./7., -5369./1800.,
+  12./7., -15./56., 10./189., -1./112., 2./1925., -1./16632.,
 };
 
 template<>
 Real const FDCenteredStencil<2, 7>::coeff[] = {
-  1./84084., -7./30888., 7./3300., -7./528., 7./108., -7./24., 7./4., -266681./88200., 7./4., -7./24., 7./108., -7./528., 7./3300., -7./30888., 1./84084.,
+  1./84084., -7./30888., 7./3300., -7./528., 7./108., -7./24., 7./4.,
+  -266681./88200., 7./4., -7./24., 7./108., -7./528., 7./3300., -7./30888.,
+  1./84084.,
 };
 
 template<>
 Real const FDCenteredStencil<2, 8>::coeff[] = {
- -1./411840., 16./315315., -2./3861., 112./32175., -7./396., 112./1485., -14./45., 16./9., -1077749./352800., 16./9., -14./45., 112./1485., -7./396., 112./32175., -2./3861., 16./315315., -1./411840.,
+ -1./411840., 16./315315., -2./3861., 112./32175., -7./396., 112./1485.,
+ -14./45., 16./9., -1077749./352800., 16./9., -14./45., 112./1485.,
+ -7./396., 112./32175., -2./3861., 16./315315., -1./411840.,
 };
 
+// High order derivative operators for error estimation
 template<>
 Real const FDCenteredStencil<7, 4>::coeff[] = {
--1./2., 3., -7., 7., 0., -7., 7., -3., 1./2.,
+  -1./2., 3., -7., 7., 0., -7., 7., -3., 1./2.,
 };
-
 
 // High order derivative operators for Kreiss-Oliger dissipation
 template<>
@@ -552,3 +561,62 @@ template<>
 Real const FDStencilBiasedRight<1, 8, 6>::coeff_lcm = 360360;
 
 #endif // DBG_SYMMETRIZE_FD
+
+// ctor / dtor ----------------------------------------------------------------
+Uniform::Uniform(const int nn1, const Real dx1)
+{
+  Uniform(nn1, 0, dx1, 0);
+}
+
+Uniform::Uniform(
+  const int nn1, const int nn2,  const Real dx1, const Real dx2)
+{
+  Uniform(nn1, nn2, 0, dx1, dx2, 0);
+}
+
+Uniform::Uniform(
+  const int nn1, const int nn2, const int nn3,
+  const Real dx1, const Real dx2, const Real dx3)
+{
+  diss_scaling = pow(2, -2*NGHOST)*(NGHOST % 2 == 0 ? -1 : 1);
+
+  stride[0] = 1;
+  stride[1] = (nn2 > 1) ? nn1 : 0;
+  stride[2] = (nn3 > 1) ? nn2 * nn1 : 0;
+
+  idx[0] = 1.0 / dx1;
+  idx[1] = (nn2 > 1) ? 1.0 / dx2 : 0.0;
+  idx[2] = (nn3 > 1) ? 1.0 / dx3 : 0.0;
+
+#ifdef DBG_SYMMETRIZE_FD
+  cidx1[0] = 1.0 / (dx1 * c1::coeff_lcm);
+  cidx1[1] = (nn2 > 1) ? (1.0 / (dx2 * c1::coeff_lcm)) : 0.0;
+  cidx1[2] = (nn3 > 1) ? (1.0 / (dx3 * c1::coeff_lcm)) : 0.0;
+
+  cidx2[0] = SQR(1.0 / dx1) / c2::coeff_lcm;
+  cidx2[1] = (nn2 > 1) ? SQR(1.0 / dx2) / c2::coeff_lcm : 0.0;
+  cidx2[2] = (nn3 > 1) ? SQR(1.0 / dx3) / c2::coeff_lcm : 0.0;
+
+  cidx1_lo[0] = 1.0 / (dx1 * c1_lo::coeff_lcm);
+  cidx1_lo[1] = (nn2 > 1) ? (1.0 / (dx2 * c1_lo::coeff_lcm)) : 0.0;
+  cidx1_lo[2] = (nn3 > 1) ? (1.0 / (dx3 * c1_lo::coeff_lcm)) : 0.0;
+
+  cidxd[0] = diss_scaling / (dx1 * cd::coeff_lcm);
+  cidxd[1] = (nn2 > 1) ? (diss_scaling / (dx2 * cd::coeff_lcm)) : 0.0;
+  cidxd[2] = (nn3 > 1) ? (diss_scaling / (dx3 * cd::coeff_lcm)) : 0.0;
+
+  // lop left / right
+  lidx_l1[0] = 1.0 / (dx1 * ll1::coeff_lcm);
+  lidx_l1[1] = (nn2 > 1) ? (1.0 / (dx2 * ll1::coeff_lcm)) : 0.0;
+  lidx_l1[2] = (nn3 > 1) ? (1.0 / (dx3 * ll1::coeff_lcm)) : 0.0;
+
+  lidx_r1[0] = 1.0 / (dx1 * lr1::coeff_lcm);
+  lidx_r1[1] = (nn2 > 1) ? (1.0 / (dx2 * lr1::coeff_lcm)) : 0.0;
+  lidx_r1[2] = (nn3 > 1) ? (1.0 / (dx3 * lr1::coeff_lcm)) : 0.0;
+
+#endif // DBG_SYMMETRIZE_FD
+}
+
+Uniform::~Uniform() { }
+
+} // namespace FiniteDifference

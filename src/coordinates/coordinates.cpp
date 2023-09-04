@@ -35,16 +35,29 @@ Coordinates::Coordinates(MeshBlock *pmb, ParameterInput *pin, bool flag) :
   // Replace: NGHOST -> cng, ng depending on flag
 
   // Set indices
-  if (coarse_flag) {
+  if (coarse_flag)
+  {
     il = pmb->cis; jl = pmb->cjs; kl = pmb->cks;
     iu = pmb->cie; ju = pmb->cje; ku = pmb->cke;
     ng = pmb->cng;
     nc1 = pmy_block->ncc1, nc2 = pmy_block->ncc2, nc3 = pmy_block->ncc3;
-  } else {
+
+    cx_nc1 = pmy_block->cx_ncc1;
+    cx_nc2 = pmy_block->cx_ncc2;
+    cx_nc3 = pmy_block->cx_ncc3;
+
+    nv1 = pmy_block->ncv1, nv2 = pmy_block->ncv2, nv3 = pmy_block->ncv3;
+  }
+  else
+  {
     il = pmb->is; jl = pmb->js; kl = pmb->ks;
     iu = pmb->ie; ju = pmb->je; ku = pmb->ke;
     ng = pmb->ng;
+
     nc1 = pmy_block->ncells1, nc2 = pmy_block->ncells2, nc3 = pmy_block->ncells3;
+    cx_nc1 = nc1, cx_nc2 = nc2, cx_nc3 = nc3;
+
+    nv1 = pmy_block->nverts1, nv2 = pmy_block->nverts2, nv3 = pmy_block->nverts3;
   }
 
   // allocate arrays for volume-centered coordinates and positions of cells

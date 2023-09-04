@@ -21,6 +21,8 @@
 #include "../athena_arrays.hpp"
 #include "../hydro/srcterms/hydro_srcterms.hpp"
 #include "../mesh/mesh.hpp"
+#include "../utils/finite_differencing.hpp"
+
 
 // forward declarations
 class MeshBlock;
@@ -34,7 +36,16 @@ class Coordinates {
  public:
   friend class HydroSourceTerms;
   Coordinates(MeshBlock *pmb, ParameterInput *pin, bool flag = false);
-  virtual ~Coordinates() = default;
+//   virtual ~Coordinates() = default;
+  ~Coordinates()
+  {
+    if (fd_is_defined)
+    {
+      delete fd_cc;
+      delete fd_cx;
+      delete fd_vc;
+    }
+  }
 
   // data
   MeshBlock *pmy_block;  // ptr to MeshBlock containing this Coordinates
@@ -183,11 +194,22 @@ class Coordinates {
   virtual void LowerVectorCell(Real a0, Real a1, Real a2, Real a3, int k, int j, int i,
                                Real *pa_0, Real *pa_1, Real *pa_2, Real *pa_3) {}
 
+  // take care of finite differencing at the coordinate level as that is the
+  // only information that is required to build these classes
+  bool fd_is_defined = false;
+  FiniteDifference::Uniform * fd_cc;
+  FiniteDifference::Uniform * fd_cx;
+  FiniteDifference::Uniform * fd_vc;
+
  protected:
   bool coarse_flag;  // true if this coordinate object is parent (coarse) mesh in AMR
   Mesh *pm;
   int il, iu, jl, ju, kl, ku, ng;  // limits of indices of arrays (normal or coarse)
+
   int nc1, nc2, nc3;               // # cells in each dir of arrays (normal or coarse)
+  int cx_nc1, cx_nc2, cx_nc3;      // # extended cells (needed as ghosts can differ)
+  int nv1, nv2, nv3;               // # the same but for vertices
+
   // Scratch arrays for coordinate factors
   // Format: coord_<type>[<direction>]_<index>[<count>]_
   //   type: vol[ume], area, etc.

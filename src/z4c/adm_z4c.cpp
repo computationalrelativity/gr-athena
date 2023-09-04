@@ -112,7 +112,7 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u) {
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
       ILOOP1(i) {
-        z4c.Gam_u(a,k,j,i) -= FD.Dx(b, g_uu(b,a,k,j,i)); // Is it ba or ab like in the pseudocode? Is the contraction correct?
+        z4c.Gam_u(a,k,j,i) -= fd->Dx(b, g_uu(b,a,k,j,i)); // Is it ba or ab like in the pseudocode? Is the contraction correct?
       }
     }
   }
@@ -206,8 +206,8 @@ void Z4c::ADMConstraints(
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b) {
       ILOOP1(i) {
-        dg_ddd(c,a,b,i) = FD.Dx(c, adm.g_dd(a,b,k,j,i));
-        dK_ddd(c,a,b,i) = FD.Dx(c, adm.K_dd(a,b,k,j,i));
+        dg_ddd(c,a,b,i) = fd->Dx(c, adm.g_dd(a,b,k,j,i));
+        dK_ddd(c,a,b,i) = fd->Dx(c, adm.K_dd(a,b,k,j,i));
       }
     }
     // second derivatives of g
@@ -217,12 +217,12 @@ void Z4c::ADMConstraints(
     for(int d = c; d < NDIM; ++d) {
       if(a == b) {
         ILOOP1(i) {
-          ddg_dddd(a,a,c,d,i) = FD.Dxx(a, adm.g_dd(c,d,k,j,i));
+          ddg_dddd(a,a,c,d,i) = fd->Dxx(a, adm.g_dd(c,d,k,j,i));
         }
       }
       else {
         ILOOP1(i) {
-          ddg_dddd(a,b,c,d,i) = FD.Dxy(a, b, adm.g_dd(c,d,k,j,i));
+          ddg_dddd(a,b,c,d,i) = fd->Dxy(a, b, adm.g_dd(c,d,k,j,i));
         }
       }
     }
@@ -391,7 +391,7 @@ void Z4c::ADMConstraints(
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b) {
       ILOOP1(i) {
-        dg_ddd(c,a,b,i) = FD.Dx(c, z4c.g_dd(a,b,k,j,i));
+        dg_ddd(c,a,b,i) = fd->Dx(c, z4c.g_dd(a,b,k,j,i));
       }
     }
 

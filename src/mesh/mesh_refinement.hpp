@@ -17,6 +17,7 @@
 // Athena++ headers
 #include "../athena.hpp"                    // Real
 #include "../athena_arrays.hpp"             // AthenaArray
+#include "../utils/finite_differencing.hpp"
 #include "../utils/interp_barycentric.hpp"  // New interpolation ops
 
 // MPI headers
