@@ -404,7 +404,7 @@ pfield->bcc.ZeroClear();
 #endif
 }
    for(int i = is-1; i<=ie+1; i++){
-    Real detgamma = std::sqrt(Det3Metric(gamma_dd,i));
+    Real detgamma = 1.0;
 
     bxcc(k,j,i) = - ((ay(k+1,j,i) - ay(k-1,j,i))/(2.0*pcoord->dx3v(k)))*detgamma;
     bycc(k,j,i) =  ((ax(k+1,j,i) - ax(k-1,j,i))/(2.0*pcoord->dx3v(k)))*detgamma;
