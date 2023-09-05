@@ -196,7 +196,6 @@ Real MaxRho(MeshBlock* pmb, int iout) {
 // So conversion is rho0=rho and u = rho*epsl
 
 void MeshBlock::ProblemGenerator(ParameterInput *pin) {
-<<<<<<< HEAD
   
   // Prepare CC index bounds
   int ilcc = is - NGHOST;
