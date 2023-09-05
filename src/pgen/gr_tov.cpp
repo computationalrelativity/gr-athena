@@ -85,7 +85,7 @@ namespace {
 //   pin: input parameters (unused)
 // Outputs: (none)
 
-void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag) {
+void Mesh::InitUserMeshData(ParameterInput *pin) {
   // Read problem parameters
   Real rhoc = pin->GetReal("problem", "rhoc"); // Central value of energy density
   Real rmin = pin->GetReal("problem", "rmin");  // minimum radius to start TOV integration
@@ -166,7 +166,7 @@ void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin) {
   return;
 }
 
-void Mesh::UserWorkAfterLoop(ParameterInput *pin, int res_flag) {
+void Mesh::UserWorkAfterLoop(ParameterInput *pin) {
   // Free TOV data
   if (NULL != tov ) { 
     for (int v = 0; v < itov_nv; v++) {
@@ -345,11 +345,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   pz4c->ADMToZ4c(pz4c->storage.adm,pz4c->storage.u1);
 
   // Initialise coordinate class, CC metric
-  pcoord->UpdateMetric();
+//  pcoord->UpdateMetric();
 
   //TODO(WC) can we update coarsec here? is coarse_u_ set yet?
   if(pmy_mesh->multilevel){
-    pmr->pcoarsec->UpdateMetric();
+//    pmr->pcoarsec->UpdateMetric();
   }
 
 #if MAGNETIC_FIELDS_ENABLED

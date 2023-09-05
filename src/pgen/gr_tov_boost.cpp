@@ -97,7 +97,7 @@ namespace {
 //   pin: input parameters 
 // Outputs: (none)
 
-void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag) {
+void Mesh::InitUserMeshData(ParameterInput *pin) {
       std::stringstream msg;
 
   // Read problem parameters
@@ -451,7 +451,7 @@ pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord, il,iu,jl,ju,k
 
 
 //void Mesh::DeleteTemporaryUserMeshData() { //TODO update: current version error: no ‘void Mesh::DeleteTemporaryUserMeshData()’ member function declared in class ‘Mesh’
-void Mesh::UserWorkAfterLoop(ParameterInput *pin, int res_flag) {
+void Mesh::UserWorkAfterLoop(ParameterInput *pin) {
   // Free TOV data
   for (int s=0; s<ntov; ++s) {
     if (NULL != tov[s] ) { 
