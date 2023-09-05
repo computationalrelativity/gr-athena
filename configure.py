@@ -115,20 +115,21 @@ parser.add_argument(
         'tilted',
         'schwarzschild',
         'kerr-schild',
-        'gr_user'],
+        'gr_user',
+        'gr_dynamical'],
     help='select coordinate system')
 
 # --eos=[name] argument
 parser.add_argument('--eos',
                     default='adiabatic',
-                    choices=['adiabatic', 'isothermal', 'general/eos_table',
+                    choices=['adiabatic', 'isothermal', 'general/eos_table','adiabatictaudyn_rep',
                              'general/hydrogen', 'general/ideal'],
                     help='select equation of state')
 
 # --flux=[name] argument
 parser.add_argument('--flux',
                     default='default',
-                    choices=['default', 'hlle', 'hllc', 'hlld', 'roe', 'llf'],
+                    choices=['default', 'hlle', 'hllc', 'hlld', 'roe', 'llf', 'llftaudyn'],
                     help='select Riemann solver')
 
 # --nghost=[value] argument
@@ -490,7 +491,7 @@ if args['s'] and args['g']:
                      + 'GR implies SR; the -s option is restricted to pure SR')
 if args['t'] and not args['g']:
     raise SystemExit('### CONFIGURE ERROR: Frame transformations only apply to GR')
-if args['g'] and not args['t'] and args['flux'] not in ('llf', 'hlle'):
+if args['g'] and not args['t'] and args['flux'] not in ('llf','llftaudyn', 'hlle'):
     raise SystemExit('### CONFIGURE ERROR: Frame transformations required for {0}'
                      .format(args['flux']))
 if args['g'] and args['coord'] in ('cartesian', 'cylindrical', 'spherical_polar'):
@@ -513,10 +514,10 @@ if args['eos'][:8] == 'general/':
 
 # Check Z4c
 if args['z']:
-    if args['coord'] != "cartesian":
+    if args['coord'] not in ("cartesian","gr_dynamical") :
         raise SystemExit("### CONFIGURE ERROR: Z4c requires Cartesian coordinates")
-    if args["f"] or args["b"] or args["s"] or args["g"]:
-        raise SystemExit("### CONFIGURE ERROR: Z4c only supports vacuum spacetimes for now")
+#    if args["f"] or args["b"] or args["s"] or args["g"]:
+#        raise SystemExit("### CONFIGURE ERROR: Z4c only supports vacuum spacetimes for now")
 
 # --- Step 3. Set definitions and Makefile options based on above argument
 
@@ -541,7 +542,7 @@ makefile_options['GENERAL_EOS_FILE'] = 'noop'
 definitions['EOS_TABLE_ENABLED'] = '0'
 if args['eos'] == 'isothermal':
     definitions['NHYDRO_VARIABLES'] = '4'
-elif args['eos'] == 'adiabatic':
+elif args['eos'] == 'adiabatic' or args['eos'] == 'adiabatictaudyn_rep':
     definitions['NHYDRO_VARIABLES'] = '5'
 else:
     definitions['GENERAL_EOS'] = '1'
@@ -600,7 +601,7 @@ if args['b']:
         makefile_options['EOS_FILE'] += '_mhd'
     definitions['NFIELD_VARIABLES'] = '3'
     makefile_options['RSOLVER_DIR'] = 'mhd/'
-    if args['flux'] == 'hlle' or args['flux'] == 'llf' or args['flux'] == 'roe':
+    if args['flux'] == 'hlle' or args['flux'] == 'llf' or args['flux'] == 'roe' or args['flux'] == 'llftaudyn':
         makefile_options['RSOLVER_FILE'] += '_mhd'
     if args['eos'] == 'isothermal':
         definitions['NWAVE_VALUE'] = '6'
@@ -878,6 +879,8 @@ if args['cxx'] == 'clang++-apple':
     makefile_options['LINKER_FLAGS'] = ''
     makefile_options['LIBRARY_FLAGS'] = ''
 
+if args['eos'] == 'adiabatictaudyn_rep':
+    makefile_options['LIBRARY_FLAGS'] = '-lRePrimAnd'
 # -float argument
 if args['float']:
     definitions['SINGLE_PRECISION_ENABLED'] = '1'

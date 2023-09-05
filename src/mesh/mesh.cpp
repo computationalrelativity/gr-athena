@@ -67,6 +67,10 @@
 #include <mpi.h>
 #endif
 
+#ifdef LORENE
+Lorene::Bin_NS * Mesh::bns;
+#endif
+
 //----------------------------------------------------------------------------------------
 // Mesh constructor, builds mesh at start of calculation using parameters in input file
 
@@ -1683,9 +1687,16 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       for (int i=0; i<nmb; ++i) {
         pmb = pmb_array[i];
         pbval = pmb->pbval, ph = pmb->phydro, pf = pmb->pfield, ps = pmb->pscalars;
+        pz4c = pmb->pz4c;
         if (multilevel)
           pbval->ProlongateBoundaries(time, 0.0);
-
+/* WGC - TODO: prototype for split prolongate boundary functions from mattertrackerextrema
+        if (multilevel){
+          pbval->ProlongateBoundaries(time, 0.0);
+        //WGC separate prol functions
+	pbval->ProlongateZ4cBoundaries(time, 0.0);
+	}
+*/
         int il = pmb->is, iu = pmb->ie,
           jl = pmb->js, ju = pmb->je,
           kl = pmb->ks, ku = pmb->ke;
@@ -1700,7 +1711,17 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           if (pbval->nblevel[2][1][1] != -1) ku += NGHOST;
         }
 
-        if (FLUID_ENABLED) {
+        if (GENERAL_RELATIVITY && res_flag == 2)
+        {
+          // Need ADM variables for con2prim when AMR splits MeshBlock
+          pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
+        }
+
+        if (FLUID_ENABLED && Z4C_ENABLED) {
+          pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b,
+                                          ph->w, pf->bcc, pmb->pcoord,
+                                          il, iu, jl, ju, kl, ku,0);
+        } else if(FLUID_ENABLED && !Z4C_ENABLED){
           pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b,
                                           ph->w, pf->bcc, pmb->pcoord,
                                           il, iu, jl, ju, kl, ku);
@@ -1749,6 +1770,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           ps->sbvar.var_cc = &(ps->r);
 
         pbval->ApplyPhysicalBoundaries(time, 0.0);
+//TODO - WGC separation of physical boundaries VC/CC
+//        pbval->ApplyPhysicalVertexCenteredBoundaries(time, 0.0);
       }
 
       // Calc initial diffusion coefficients
@@ -1762,6 +1785,16 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
             pf->fdif.SetDiffusivity(ph->w, pf->bcc);
         }
       }
+
+if(Z4C_ENABLED && FLUID_ENABLED){
+// Initialise ADM Sources, after CC Bfield has been set in all ghost zones
+// during the C2P above
+#pragma omp for private(pmb,ph,pf,pz4c)
+      for (int i=0; i<nmb; ++i) {
+        pmb = pmb_array[i]; ph = pmb->phydro, pf = pmb->pfield, pz4c = pmb->pz4c;
+        pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, pf->bcc);
+      }
+}
 
       if (!res_flag && adaptive) {
 #pragma omp for
