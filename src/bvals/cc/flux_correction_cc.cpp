@@ -48,7 +48,7 @@ void CellCenteredBoundaryVariable::SendFluxCorrection() {
   // cache pointers to surface area arrays (BoundaryBase protected variable)
   AthenaArray<Real> &sarea0 = pbval_->sarea_[0];
   AthenaArray<Real> &sarea1 = pbval_->sarea_[1];
-
+//TODO: WC gr_dynamical GetFaceXArea ad FaceXArea must reutn flat dx**2
   for (int n=0; n<pbval_->nneighbor; n++) {
     NeighborBlock& nb = pbval_->neighbor[n];
     if (nb.ni.type != NeighborConnect::face) break;
