@@ -560,8 +560,8 @@ definitions['EOS_TABLE_ENABLED'] = '0'
 definitions['USE_TM'] = '0'
 definitions['EOS_POLICY'] = ''
 definitions['ERROR_POLICY'] = ''
-definitions['EOS_POLICY_CODE'] = 0
-definitions['ERROR_POLICY_CODE'] = 0
+definitions['EOS_POLICY_CODE'] = '0'
+definitions['ERROR_POLICY_CODE'] = '0'
 if args['eos'] == 'isothermal':
     definitions['NHYDRO_VARIABLES'] = '4'
 elif args['eos'] == 'adiabatic' or args['eos'] == 'adiabatictaudyn_rep':
