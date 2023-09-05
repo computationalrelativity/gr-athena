@@ -61,6 +61,7 @@ SRC_FILES := \
 		$(wildcard src/trackers/*.cpp) \
 		$(wildcard src/utils/*.cpp) \
 		$(wildcard src/z4c/*.cpp) \
+		$(EOS_FILES) \
 		$(CCE_FILE) \
 		$(wildcard src/wave/*.cpp) \
 		$(MPIFFT_FILE)
