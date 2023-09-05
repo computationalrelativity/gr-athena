@@ -769,23 +769,13 @@ class GRDynamical : public Coordinates {
 
  public:
   GRDynamical(MeshBlock *pmb, ParameterInput *pin, bool flag);
-  //fix sources to Initial data values
+
+  // fix sources to Initial data values
   int fix_sources;
   int zero_sources;
-  // functions...
-
-  // for obtaining CC from VC //SB TODO these need cleanup
-  void GetMetric(const int k, const int j, const int i, AthenaArray<Real>& g, AthenaArray<Real>& g_inv);
-  void GetFace1Metric(const int k, const int j, const int i, AthenaArray<Real>& g, AthenaArray<Real>& g_inv);
-  void GetFace2Metric(const int k, const int j, const int i, AthenaArray<Real>& g, AthenaArray<Real>& g_inv);
-  void GetFace3Metric(const int k, const int j, const int i, AthenaArray<Real>& g, AthenaArray<Real>& g_inv);
-  void GetExCurv(const int k, const int j, const int i,  AthenaArray<Real>& K);
-  void GetDerivs(const int i, const int j, const int k, AthenaArray<Real>& dg_dx1, AthenaArray<Real>& dg_dx2, AthenaArray<Real>& dg_dx3);
-  //void UpdateMetric() final;
-  void UpdateMetric();
   
+  // functions...  
   // ...to compute length of edges
-
   void Edge1Length(const int k, const int j, const int il, const int iu,
                    AthenaArray<Real> &len) final;
   void Edge2Length(const int k, const int j, const int il, const int iu,
@@ -820,21 +810,11 @@ class GRDynamical : public Coordinates {
                   AthenaArray<Real> &vol) final;
   Real GetCellVolume(const int k, const int j, const int i) final;
 
+  // In GR, functions...
   // ...to compute geometrical source terms
   void AddCoordTermsDivergence(const Real dt, const AthenaArray<Real> *flux,
-                     const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc,
-                     AthenaArray<Real> &u) final;
-
-  // In GR, functions...
-  // ...to compute metric
-  void CellMetric(const int k, const int j, const int il, const int iu,
-                  AthenaArray<Real> &g, AthenaArray<Real> &gi) final;
-  void Face1Metric(const int k, const int j, const int il, const int iu,
-                   AthenaArray<Real> &g, AthenaArray<Real> &g_inv) final;
-  void Face2Metric(const int k, const int j, const int il, const int iu,
-                   AthenaArray<Real> &g, AthenaArray<Real> &g_inv) final;
-  void Face3Metric(const int k, const int j, const int il, const int iu,
-                   AthenaArray<Real> &g, AthenaArray<Real> &g_inv) final;
+			       const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc,
+			       AthenaArray<Real> &u) final;
 
   // ...to transform primitives to locally flat space
   void PrimToLocal1(const int k, const int j, const int il, const int iu,
@@ -846,7 +826,6 @@ class GRDynamical : public Coordinates {
   void PrimToLocal3(const int k, const int j, const int il, const int iu,
                     const AthenaArray<Real> &b3_vals, AthenaArray<Real> &prim_left,
                     AthenaArray<Real> &prim_right, AthenaArray<Real> &bx) final;
-
   // ...to transform fluxes in locally flat space to global frame
   void FluxToGlobal1(
       const int k, const int j, const int il, const int iu,
@@ -860,12 +839,6 @@ class GRDynamical : public Coordinates {
       const int k, const int j, const int il, const int iu,
       const AthenaArray<Real> &cons, const AthenaArray<Real> &bbx,
       AthenaArray<Real> &flux, AthenaArray<Real> &ey, AthenaArray<Real> &ez) final;
-
-  // ...for raising (lowering) covariant (contravariant) components of a vector
-  void RaiseVectorCell(Real a_0, Real a_1, Real a_2, Real a_3, int k, int j, int i,
-                       Real *pa0, Real *pa1, Real *pa2, Real *pa3) final;
-  void LowerVectorCell(Real a0, Real a1, Real a2, Real a3, int k, int j, int i,
-                       Real *pa_0, Real *pa_1, Real *pa_2, Real *pa_3) final;
 
 };
 
