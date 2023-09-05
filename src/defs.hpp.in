@@ -62,6 +62,25 @@
 // Equation of state
 #define EQUATION_OF_STATE "@EQUATION_OF_STATE@"
 
+// Whether or not temperature should be counted as a primitive variable.
+#define USETM @USE_TM@
+
+// EOS Policy used by the PrimitiveSolver framework
+#define EOS_POLICY @EOS_POLICY@
+
+// EOS Policy code used for preprocessor checking
+#define EOS_POLICY_CODE @EOS_POLICY_CODE@
+
+// Error Policy used by the PrimitiveSolver framework
+#define ERROR_POLICY @ERROR_POLICY@
+
+// Error Policy code used for preprocessor checking
+#define ERROR_POLICY_CODE @ERROR_POLICY_CODE@
+
+// Maximum supported species by PrimitiveSolver
+// FIXME: Should be added as an argument later.
+#define MAX_SPECIES 1
+
 // use general EOS framework default=0 (false).
 #define GENERAL_EOS @GENERAL_EOS@
 
