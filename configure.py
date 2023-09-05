@@ -126,6 +126,18 @@ parser.add_argument('--eos',
                              'general/hydrogen', 'general/ideal'],
                     help='select equation of state')
 
+# --eospolicy=[name] argument
+parser.add_argument('--eospolicy',
+                    default='idealgas',
+                    choices=['idealgas', 'piecewise_polytrope', 'eos_compose'],
+                    help='select EOS policy for PrimitiveSolver framework')
+
+# --errorpolicy=[name] argument
+parser.add_argument('--errorpolicy',
+                    default='do_nothing',
+                    choices=['do_nothing', 'reset_floor'],
+                    help='select error policy for PrimitiveSolver framework')
+
 # --flux=[name] argument
 parser.add_argument('--flux',
                     default='default',
@@ -504,6 +516,10 @@ if args['eos'] == 'isothermal':
     if args['s'] or args['g']:
         raise SystemExit('### CONFIGURE ERROR: '
                          + 'Isothermal EOS is incompatible with relativity')
+if args['eos'] == 'eostaudyn_ps':
+    if not args['z']:
+        raise SystemExit('### CONFIGURE ERROR: '
+                         + 'PrimitiveSolver EOS interface requires Z4c')
 if args['eos'][:8] == 'general/':
     if args['s'] or args['g']:
         raise SystemExit('### CONFIGURE ERROR: '
@@ -540,10 +556,39 @@ definitions['EQUATION_OF_STATE'] = args['eos']
 definitions['GENERAL_EOS'] = '0'
 makefile_options['GENERAL_EOS_FILE'] = 'noop'
 definitions['EOS_TABLE_ENABLED'] = '0'
+# defaults for PrimitiveSolver definitions
+definitions['USE_TM'] = '0'
+definitions['EOS_POLICY'] = ''
+definitions['ERROR_POLICY'] = ''
+definitions['EOS_POLICY_CODE'] = '0'
+definitions['ERROR_POLICY_CODE'] = '0'
 if args['eos'] == 'isothermal':
     definitions['NHYDRO_VARIABLES'] = '4'
 elif args['eos'] == 'adiabatic' or args['eos'] == 'adiabatictaudyn_rep':
     definitions['NHYDRO_VARIABLES'] = '5'
+elif args['eos'] == 'eostaudynps':
+    definitions['NHYDRO_VARIABLES'] = '5'
+    definitions['USE_TM'] = '1'
+    if args['eospolicy'] == 'idealgas':
+        definitions['EOS_POLICY'] = 'IdealGas'
+        definitions['EOS_POLICY_CODE'] = '0'
+    elif args['eospolicy'] == 'piecewise_polytrope':
+        definitions['EOS_POLICY'] = 'PiecewisePolytrope'
+        definitions['EOS_POLICY_CODE'] = '1'
+    elif args['eospolicy'] == 'eos_compose':
+        definitions['EOS_POLICY'] = 'EOSCompOSE'
+        definitions['EOS_POLICY_CODE'] = '2'
+    if args['errorpolicy'] == 'do_nothing':
+        definitions['ERROR_POLICY'] = 'DoNothing'
+        definitions['ERROR_POLICY_CODE'] = '0'
+    if args['errorpolicy'] == 'reset_floor':
+        definitions['ERROR_POLICY'] = 'ResetFloor'
+        definitions['ERROR_POLICY_CODE'] = '1'
+    else:
+        definitions['ERROR_POLICY'] = ''
+
+    #TODO(JF): Check if this is still needed
+    makefile_options['GENERAL_EOS_FILE'] = 'general_gr'
 else:
     definitions['GENERAL_EOS'] = '1'
     makefile_options['GENERAL_EOS_FILE'] = 'general'
@@ -1147,6 +1192,13 @@ with open(defsfile_input, 'r') as current_file:
     defsfile_template = current_file.read()
 with open(makefile_input, 'r') as current_file:
     makefile_template = current_file.read()
+
+# Add PrimitiveSolver EOS files
+files = [args['eospolicy'], args['errorpolicy'], 'ps_error']
+makefile_options['EOS_FILES'] = ''
+if args['eos'] == 'eostaudyn_ps':
+    aux = ["        src/z4c/primitive/{}.cpp \\".format(f) for f in files]
+    makefile_options['EOS_FILES'] = '\n'.join(aux) + '\n'
 
 # Make substitutions
 for key, val in definitions.items():
