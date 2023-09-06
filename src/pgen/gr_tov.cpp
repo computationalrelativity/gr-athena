@@ -204,32 +204,50 @@ void Mesh::UserWorkAfterLoop(ParameterInput *pin) {
 
 void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 
+  // Prepare CC index bounds
+  int ilcc = is - NGHOST;
+  int iucc = ie + NGHOST;
+  int jlcc = js;
+  int jucc = je;
+  if (block_size.nx2 > 1) {
+    jlcc -= NGHOST;
+    jucc += NGHOST;
+  }
+  int klcc = ks;
+  int kucc = ke;
+  if (block_size.nx3 > 1) {
+    klcc -= NGHOST;
+    kucc += NGHOST;
+  }
+
+  Z4c::MB_info  mbi = pz4c->mbi;
+
+  // Prepare CX (metric) index bounds
+  int ilcx = mbi.il - mbi.ng;
+  int iucx = mbi.iu + mbi.ng;
+  int jlcx = mbi.jl;
+  int jucx = mbi.ju;
+  if (block_size.nx2 > 1) {
+    jlcx -= mbi.ng;
+    jucx += mbi.ng;
+  }
+  int klcx = mbi.kl;
+  int kucx = mbi.ku;
+  if (block_size.nx3 > 1) {
+    klcx -= mbi.ng;
+    kucx += mbi.ng;
+  }
   // Parameters
   phydro->w.Fill(NAN);
   phydro->w1.Fill(NAN);
   pz4c->storage.u.Fill(NAN);
   pz4c->storage.adm.Fill(NAN);
 
-  // Prepare index bounds
-  int il = is - NGHOST;
-  int iu = ie + NGHOST;
-  int jl = js;
-  int ju = je;
-  if (block_size.nx2 > 1) {
-    jl -= NGHOST;
-    ju += NGHOST;
-  }
-  int kl = ks;
-  int ku = ke;
-  if (block_size.nx3 > 1) {
-    kl -= NGHOST;
-    ku += NGHOST;
-  }
 
   // Prepare scratch arrays
-  AthenaArray<Real> g, gi;
-  g.NewAthenaArray(NMETRIC, iu+1);
-  gi.NewAthenaArray(NMETRIC, iu+1);
+//  AthenaArray<Real> g, gi;
+//  g.NewAthenaArray(NMETRIC, iu+1);
+//  gi.NewAthenaArray(NMETRIC, iu+1);
 
   // Star mass & radius
   const Real M = tov->M;  // Mass of TOV star 
@@ -249,9 +267,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   Real lapse_kji, d_lapse_dr_kji, psi4_kji,d_psi4_dr_kji,dummy;
 
   // Initialize primitive values on CC grid
-  for (int k=kl; k<=ku; ++k) {
-    for (int j=jl; j<=ju; ++j) {
-      for (int i=il; i<=iu; ++i) {
+  for (int k=klcc; k<=kucc; ++k) {
+    for (int j=jlcc; j<=jucc; ++j) {
+      for (int i=ilcc; i<=iucc; ++i) {
 	// Isotropic radius
 	Real r = std::sqrt(std::pow(pcoord->x1v(i),2.) +  pow(pcoord->x2v(j),2.) + pow(pcoord->x3v(k),2.));
 	Real rho_pol = std::sqrt(std::pow(pcoord->x1v(i),2.) + std::pow(pcoord->x2v(j),2.));
@@ -275,8 +293,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 	  pgas_kji = pre_atm;
 	  v_kji    = 0.0;
 	}
-	phydro->w(IDN,k,j,i) = rho_kji;
-	phydro->w(IPR,k,j,i) = pgas_kji;
+	phydro->w_init(IDN,k,j,i) = rho_kji;
+	phydro->w_init(IPR,k,j,i) = pgas_kji;
 	phydro->w_init(IVX, k, j, i) = v_kji*sinth*cosphi;
 	phydro->w_init(IVY, k, j, i) = v_kji*sinth*sinphi;
 	phydro->w_init(IVZ, k, j, i) = v_kji*costh;
@@ -293,9 +311,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   //SB TODO following needs to be refactored
 
   // Initialise metric variables on VC grid - setting alpha, beta, g_ij, K_ij
-  for (int k=kl; k<=ku+1; ++k) {
-    for (int j=jl; j<=ju+1; ++j) {
-      for (int i=il; i<=iu+1; ++i) {
+  for (int k=klcx; k<=kucx; ++k) {
+    for (int j=jlcx; j<=jucx; ++j) {
+      for (int i=ilcx; i<=iucx; ++i) {
 	// Isotropic radius
 	Real r = std::sqrt(std::pow(pcoord->x1f(i),2.) +  pow(pcoord->x2f(j),2.) + pow(pcoord->x3f(k),2.));
 	if (r<R){
@@ -389,9 +407,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   vcgamma_zz.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gzz,1);
   
   // Initialize field at xfaces
-  for (int k=kl; k<=ku; k++) {
-    for (int j=jl; j<=ju; j++) {
-      for (int i=il; i<=iu; i++) {
+  for (int k=klcc; k<=kucc; k++) {
+    for (int j=jlcc; j<=jucc; j++) {
+      for (int i=ilcc; i<=iucc; i++) {
 
 	// ay at x faces - need w at xface	
 	ax(k,j,i) = -pcoord->x2v(j)*amp*std::max(phydro->w(IPR,k,j,i) - pcut,0.0)*pow((1.0 - phydro->w(IDN,k,j,i)/rhomax),magindex);
@@ -401,43 +419,35 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     }
   }
   
-  for(int k = ks-1; k<=ke+1; k++){
-    for(int j = js-1; j<=je+1; j++){
-      for(int i = is-1; i<=ie+1; i++){
-	gamma_dd(0,0,i) = pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
-	gamma_dd(0,1,i) = pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
-	gamma_dd(0,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
-	gamma_dd(1,1,i) = pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
-	gamma_dd(1,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
-	gamma_dd(2,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
-      }
-      for(int i = is-1; i<=ie+1; i++){
-	Real detgamma = std::sqrt(Det3Metric(gamma_dd,i));
+  for(int k = klcc+1; k<=kucc-1; k++){
+    for(int j = jlcc+1; j<=jucc-1; j++){
+      for(int i = ilcc+1; i<=iucc-1; i++){
 	
-	bxcc(k,j,i) = - ((ay(k+1,j,i) - ay(k-1,j,i))/(2.0*pcoord->dx3v(k)))*detgamma;
-	bycc(k,j,i) =  ((ax(k+1,j,i) - ax(k-1,j,i))/(2.0*pcoord->dx3v(k)))*detgamma;
+	bxcc(k,j,i) = - ((ay(k+1,j,i) - ay(k-1,j,i))/(2.0*pcoord->dx3v(k)));
+	bycc(k,j,i) =  ((ax(k+1,j,i) - ax(k-1,j,i))/(2.0*pcoord->dx3v(k)));
 	bzcc(k,j,i) = ( (ay(k,j,i+1) - ay(k,j,i-1))/(2.0*pcoord->dx1v(i))
-			- (ax(k,j+1,i) - ax(k,j-1,i))/(2.0*pcoord->dx2v(j)))*detgamma;
+			- (ax(k,j+1,i) - ax(k,j-1,i))/(2.0*pcoord->dx2v(j)));
       }
     }
-  }  
-  for(int k = ks; k<=ke; k++){
-    for(int j = js; j<=je; j++){
-      for(int i = is; i<=ie+1; i++){
+  } 
+// These loop lims are wrong TODO 
+  for(int k = klcc; k<=kucc; k++){
+    for(int j = jlcc; j<=jucc; j++){
+      for(int i = ilcc; i<=iucc+1; i++){
 	pfield->b.x1f(k,j,i) = 0.5*(bxcc(k,j,i-1) + bxcc(k,j,i));
       }
     }
   }
-  for(int k = ks; k<=ke; k++){
-    for(int j = js; j<=je+1; j++){
-      for(int i = is; i<=ie; i++){
+  for(int k = klcc; k<=kucc; k++){
+    for(int j = jlcc; j<=jucc+1; j++){
+      for(int i = ilcc; i<=iucc; i++){
 	pfield->b.x2f(k,j,i) = 0.5*(bycc(k,j-1,i) + bycc(k,j,i));
       }
     }
   }
-  for(int k = ks; k<=ke+1; k++){
-    for(int j = js; j<=je; j++){
-      for(int i = is; i<=ie; i++){
+  for(int k = klcc; k<=kucc+1; k++){
+    for(int j = jlcc; j<=jucc; j++){
+      for(int i = ilcc; i<=iucc; i++){
 	pfield->b.x3f(k,j,i) = 0.5*(bzcc(k-1,j,i) + bzcc(k,j,i));
       }
     }
@@ -448,11 +458,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 #endif
   
   // Initialise conserved variables
-  peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord, il, iu, jl, ju, kl, ku);
-  
+  peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord, ilcc, iucc, jlcc, jucc, klcc, kucc);
   // Initialise VC matter
   //TODO(WC) (don't strictly need this here, will be caught in task list before used
-  //pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pfield->bcc);
+  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pfield->bcc);
   pz4c->ADMConstraints(pz4c->storage.con,pz4c->storage.adm,pz4c->storage.mat,pz4c->storage.u);
   
   return;

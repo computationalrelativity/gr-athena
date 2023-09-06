@@ -37,6 +37,7 @@
 #endif
 
 // Declarations
+int RefinementCondition(MeshBlock *pmb);
 void FixedBoundary(MeshBlock *pmb, Coordinates *pcoord, AthenaArray<Real> &prim,
                    FaceField &bb, Real time, Real dt,
                    int il, int iu, int jl, int ju, int kl, int ku, int ngh);
@@ -213,11 +214,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     kucc += NGHOST;
   }
 
-  MB_info * mbi = pz4c->mbi;
+  Z4c::MB_info  mbi = pz4c->mbi;
 
   // Prepare CX (metric) index bounds
-  int jlcx = mbi.il - mbi.ng;
-  int jucx = mbi.iu + mbi.ng;
+  int ilcx = mbi.il - mbi.ng;
+  int iucx = mbi.iu + mbi.ng;
   int jlcx = mbi.jl;
   int jucx = mbi.ju;
   if (block_size.nx2 > 1) {
@@ -431,12 +432,12 @@ pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord, il,iu,jl,ju,k
   
   // Initialise coordinate class, CC metric
   //TODO(SB) CHECK: Is this needed in full evo?
-  pcoord->UpdateMetric();
+//  pcoord->UpdateMetric();
 
   //TODO(WC) can we update coarsec here? is coarse_u_ set yet?
-  if(pmy_mesh->multilevel){
-    pmr->pcoarsec->UpdateMetric();
-  }
+//  if(pmy_mesh->multilevel){
+//    pmr->pcoarsec->UpdateMetric();
+//  }
   
   // Initialise conserved variables
   peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord, ilcc, iucc, jlcc, jucc, klcc, kucc);
@@ -870,31 +871,31 @@ namespace {
   int iucc = pmb->ie + NGHOST;
   int jlcc = pmb->js;
   int jucc = pmb->je;
-  if (block_size.nx2 > 1) {
+  if (pmb->block_size.nx2 > 1) {
     jlcc -= NGHOST;
     jucc += NGHOST;
   }
   int klcc = pmb->ks;
   int kucc = pmb->ke;
-  if (block_size.nx3 > 1) {
+  if (pmb->block_size.nx3 > 1) {
     klcc -= NGHOST;
     kucc += NGHOST;
   }
 
-  MB_info * mbi = pmb->pz4c->mbi;
+  Z4c::MB_info  mbi = pmb->pz4c->mbi;
 
   // Prepare CX (metric) index bounds
-  int jlcx = mbi.il - mbi.ng;
-  int jucx = mbi.iu + mbi.ng;
+  int ilcx = mbi.il - mbi.ng;
+  int iucx = mbi.iu + mbi.ng;
   int jlcx = mbi.jl;
   int jucx = mbi.ju;
-  if (block_size.nx2 > 1) {
+  if (pmb->block_size.nx2 > 1) {
     jlcx -= mbi.ng;
     jucx += mbi.ng;
   }
   int klcx = mbi.kl;
   int kucx = mbi.ku;
-  if (block_size.nx3 > 1) {
+  if (pmb->block_size.nx3 > 1) {
     klcx -= mbi.ng;
     kucx += mbi.ng;
   }
@@ -1285,7 +1286,7 @@ int RefinementCondition(MeshBlock *pmb)
 //#ifdef TRACKER_EXTREMA
 
   Mesh * pmesh = pmb->pmy_mesh;
-  ExtremaTracker * ptracker_extrema = pmesh->pextrema_tracker;
+  ExtremaTracker * ptracker_extrema = pmesh->ptracker_extrema;
 
   int root_level = ptracker_extrema->root_level;
   int mb_physical_level = pmb->loc.level - root_level;
