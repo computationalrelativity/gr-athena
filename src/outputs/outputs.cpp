@@ -395,6 +395,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     }
 
     // temperature
+#if USETM
     if (output_params.variable.compare("t") == 0) {
       pod = new OutputData;
       pod->type = "SCALARS";
@@ -403,6 +404,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       AppendOutputDataNode(pod);
       num_vars_++;
     }
+#endif
 
     // press or temp depending on EoS
     if (output_params.variable.compare("prim") == 0) {

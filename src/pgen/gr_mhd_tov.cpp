@@ -245,6 +245,14 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   for (int k=klcc; k<=kucc; ++k) {
     for (int j=jlcc; j<=jucc; ++j) {
       for (int i=ilcc; i<=iucc; ++i) {
+
+      #if USETM
+      // Initialize the scalars
+      for (int l=0; l<NSCALARS; l++) {
+        pscalars->r(l,k,j,i) = 0.0;
+        pscalars->s(l,k,j,i) = 0.0;
+      }
+      #endif
 	// Isotropic radius
 	Real r = std::sqrt(std::pow(pcoord->x1v(i),2.) +  pow(pcoord->x2v(j),2.) + pow(pcoord->x3v(k),2.));
 	if (r<R){
@@ -436,8 +444,13 @@ pfield->bcc.ZeroClear();
 }}}
 
 pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord, il,iu,jl,ju,kl,ku);
+#if USETM
+  peos->PrimitiveToConserved(phydro->w, pscalars->r, pfield->bcc, phydro->u, pscalars->s, pcoord, 
+                             ilcc, iucc, jlcc, jucc, klcc, kucc);
+#else
   peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord, 
                              ilcc, iucc, jlcc, jucc, klcc, kucc);
+#endif
 
   // Initialise VC matter
   //TODO(WC) (don't strictly need this here, will be caught in task list before used

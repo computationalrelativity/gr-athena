@@ -597,9 +597,11 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
       utilde1cc.InitWithShallowSlice(w,IVX,1);
       utilde2cc.InitWithShallowSlice(w,IVY,1);
       utilde3cc.InitWithShallowSlice(w,IVZ,1);
+      #if USETM
       for (int Yidx=0; Yidx<NSCALARS; Yidx++) {
         rscalarcc[Yidx].InitWithShallowSlice(r,Yidx,1);
       }
+      #endif
       #if MAGNETIC_FIELDS_ENABLED
       bb1cc.InitWithShallowSlice(bb_cc,IB1,1);
       bb2cc.InitWithShallowSlice(bb_cc,IB2,1);
@@ -611,9 +613,11 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
       utilde1cc.InitWithShallowSlice(pmb->phydro->w_init,IVX,1);
       utilde2cc.InitWithShallowSlice(pmb->phydro->w_init,IVY,1);
       utilde3cc.InitWithShallowSlice(pmb->phydro->w_init,IVZ,1);
+      #if USETM
       for (int Yidx=0; Yidx<NSCALARS; Yidx++) {
         rscalarcc[Yidx].InitWithShallowSlice(r,Yidx,1);
       }
+      #endif
     }
 
     if(opt.Tmunuinterp==0){
