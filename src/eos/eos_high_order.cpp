@@ -67,9 +67,13 @@ void EquationOfState::ConservedToPrimitiveCellAverage(
   pco->Laplacian(prim, laplacian_cc, il, iu, jl, ju, kl, ku, nl, nu);
 
   // Convert cell-centered conserved values to cell-centered primitive values
+#ifdef Z4C_ENABLED
+  ConservedToPrimitive(u_cc, prim_old, b, w_cc, bcc, pco, il, iu,
+                       jl, ju, kl, ku,1);
+#else
   ConservedToPrimitive(u_cc, prim_old, b, w_cc, bcc, pco, il, iu,
                        jl, ju, kl, ku);
-
+#endif
   for (int n=nl; n<=nu; ++n) {
     for (int k=kl; k<=ku; ++k) {
       for (int j=jl; j<=ju; ++j) {

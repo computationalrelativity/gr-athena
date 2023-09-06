@@ -450,7 +450,6 @@ void EquationOfState::PrimitiveToConserved(
   vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
 
 
-
   // sanitize loop-limits
   const int IL = std::max(il, NGRCV_HSZ - 1);
   const int IU = std::min(iu, pmb->ncells1 - 1 - (NGRCV_HSZ - 1));
@@ -483,9 +482,9 @@ void EquationOfState::PrimitiveToConserved(
       cc_g_adm(a,b,i) = pz4c->ig->map3d_VC2CC(vc_g_adm(a,b,k,j,i));
 #endif
 
-    for (int i=il; i<=iu; ++i)
+    for (int i=IL; i<=IU; ++i){
       PrimitiveToConservedSingle(prim, gamma_, cc_g_adm, k, j, i, cons, pco);
-  
+  }
 }
 }
   cc_g_adm.DeleteAthenaTensor();
@@ -542,7 +541,8 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, Real gamma_adi,
 //  Real alpha = std::sqrt(-1.0/gi(I00,i));
    Real detgamma = std::sqrt(Det3Metric(gamma_dd,i));
    if(std::isnan(detgamma)){
-   if(eos_debug){
+//   if(eos_debug){
+   if(0){
     printf("detgamma is nan\n");
     printf("x = %.16e, y = %.16e, z = %.16e, g_xx = %.16e\n g_xy = %.16e, g_xz = %.16e, g_yy = %.16e, g_yz = %.16e, g_zz = %.16e\n",pco->x1v(i), pco->x2v(j), pco->x3v(k), gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i), gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i));
    }
@@ -556,7 +556,8 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, Real gamma_adi,
    }
    Wlor = std::sqrt(1.0+Wlor);
    if(std::isnan(Wlor)){ 
-   if(eos_debug){
+//   if(eos_debug){
+   if(0){
    printf("Wlor is nan\n");
    printf("x = %.16e, y = %.16e, z = %.16e\n",pco->x1v(i), pco->x2v(j), pco->x3v(k));
    }
@@ -601,7 +602,6 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, Real gamma_adi,
   //   std::cout << i << "," << j << "," << k << std::endl;
 
   // }
-
   Real wgas = rho + gamma_adi/(gamma_adi-1.0) * pgas;
   Ddg = rho*Wlor*detgamma;
   taudg = wgas*SQR(Wlor)*detgamma - rho*Wlor*detgamma - pgas*detgamma;
