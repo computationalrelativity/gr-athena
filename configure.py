@@ -175,6 +175,12 @@ parser.add_argument('--ninterp',
                     default='2',
                     help='set number of ghost zones for intergrid interpolation')
 
+# -hybridinterp argument
+parser.add_argument('-hybridinterp',
+                    action='store_true',
+                    default=False,
+                    help='use hybrid grid-to-grid interpolation')
+
 # -f argument
 parser.add_argument('-f',
                     action='store_true',
@@ -794,6 +800,12 @@ else:
     definitions['WAVE_CX_ENABLED'] = '0'
     definitions['WAVE_CC_ENABLED'] = '0'
     definitions['WAVE_VC_ENABLED'] = '0'
+
+# -hybridinterp argument
+if args['hybridinterp']:
+    definitions['HYBRID_INTERP'] = '1'
+else:
+    definitions['HYBRID_INTERP'] = '0'
 
 # -shear argument
 if args['shear']:
