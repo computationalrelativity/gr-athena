@@ -48,7 +48,7 @@ class CCE
     ~CCE();
     void Interpolate(MeshBlock *const pmb);
     void ReduceInterpolation();
-    void DecomposeAndWrite(int iter);
+    void DecomposeAndWrite(int iter, Real curr_time);
 };
 
 #endif

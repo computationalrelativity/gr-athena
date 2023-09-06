@@ -455,7 +455,7 @@ int main(int argc, char *argv[]) {
     for (auto cce : pmesh->pcce)
     {
       cce->ReduceInterpolation();
-      cce->DecomposeAndWrite(cce_iter);
+      cce->DecomposeAndWrite(cce_iter, pmesh->time);
     }
 #endif
   }
@@ -561,7 +561,7 @@ int main(int argc, char *argv[]) {
         for (auto cce : pmesh->pcce)
         {
           cce->ReduceInterpolation();
-          cce->DecomposeAndWrite(cce_iter);
+          cce->DecomposeAndWrite(cce_iter, curr_time);
         }
         if (Globals::my_rank == 0) {
           clock_t tstop_cce = clock();

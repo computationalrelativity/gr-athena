@@ -307,7 +307,7 @@ void CCE::ReduceInterpolation()
 }
 
 // decompose the field and write into an h5 file
-void CCE::DecomposeAndWrite(int iter/* number of times writes into an h5 file */)
+void CCE::DecomposeAndWrite(int iter/* number of times writes into an h5 file */, Real curr_time)
 {
   if (0 != Globals::my_rank) return;
   
@@ -325,7 +325,7 @@ void CCE::DecomposeAndWrite(int iter/* number of times writes into an h5 file */
   decompose3D(dinfo_pp[MAX_SPIN + spin], re_f, im_f, re_m, im_m);
 
   // dump the modes into an h5 file
-  output_3Dmodes(iter, output_dir.c_str(), fieldname.c_str(), rn, pm->time, 
+  output_3Dmodes(iter, output_dir.c_str(), fieldname.c_str(), rn, curr_time,
      spin, num_l_modes, num_n_modes, rin, rout, re_m, im_m);
 
   // free workspace
