@@ -362,14 +362,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   pz4c->ADMToZ4c(pz4c->storage.adm,pz4c->storage.u);
   pz4c->ADMToZ4c(pz4c->storage.adm,pz4c->storage.u1);
 
-  // Initialise coordinate class, CC metric
-//  pcoord->UpdateMetric();
-
-  //TODO(WC) can we update coarsec here? is coarse_u_ set yet?
-  if(pmy_mesh->multilevel){
-//    pmr->pcoarsec->UpdateMetric();
-  }
-
 #if MAGNETIC_FIELDS_ENABLED
   // Initialize magnetic field
   Real pcut = pin->GetReal("problem","pcut") * pgasmax;

@@ -430,15 +430,6 @@ pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord, il,iu,jl,ju,k
   pz4c->ADMToZ4c(pz4c->storage.adm,pz4c->storage.u1); // ???
   pz4c->ADMToZ4c(pz4c->storage.adm_init,pz4c->storage.u_init);
   
-  // Initialise coordinate class, CC metric
-  //TODO(SB) CHECK: Is this needed in full evo?
-//  pcoord->UpdateMetric();
-
-  //TODO(WC) can we update coarsec here? is coarse_u_ set yet?
-//  if(pmy_mesh->multilevel){
-//    pmr->pcoarsec->UpdateMetric();
-//  }
-  
   // Initialise conserved variables
   peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord, ilcc, iucc, jlcc, jucc, klcc, kucc);
   
