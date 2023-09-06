@@ -90,6 +90,8 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
     pcoord = new KerrSchild(this, pin, false);
   } else if (std::strcmp(COORDINATE_SYSTEM, "gr_user") == 0) {
     pcoord = new GRUser(this, pin, false);
+  } else if (std::strcmp(COORDINATE_SYSTEM, "gr_dynamical") == 0) {
+    pcoord = new GRDynamical(this, pin, false);
   }
 
   if (FLUID_ENABLED) {
@@ -233,6 +235,8 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     pcoord = new KerrSchild(this, pin, false);
   } else if (std::strcmp(COORDINATE_SYSTEM, "gr_user") == 0) {
     pcoord = new GRUser(this, pin, false);
+  } else if (std::strcmp(COORDINATE_SYSTEM, "gr_dynamical") == 0) {
+    pcoord = new GRDynamical(this, pin, false);
   }
 
   if (FLUID_ENABLED) {

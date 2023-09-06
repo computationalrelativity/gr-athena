@@ -165,6 +165,22 @@ GRDynamical::GRDynamical(MeshBlock *pmb, ParameterInput *pin, bool flag)
     transformation.NewAthenaArray(2, NTRIANGULAR);
   }
   
+  // Set up finite differencing -----------------------------------------------
+  fd_is_defined = true;
+  fd_cc = new FiniteDifference::Uniform(
+    nc1, nc2, nc3,
+    dx1v(0), dx2v(0), dx3v(0)
+  );
+
+  fd_cx = new FiniteDifference::Uniform(
+    cx_nc1, cx_nc2, cx_nc3,
+    dx1v(0), dx2v(0), dx3v(0)
+  );
+
+  fd_vc = new FiniteDifference::Uniform(
+    nv1, nv2, nv3,
+    dx1f(0), dx2f(0), dx3f(0)
+  );
   // Metric quantities not initialised in constructor, need to wait for UpdateMetric() 
   // to be called once VC metric is initialised in pgen
 }
