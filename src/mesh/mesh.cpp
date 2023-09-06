@@ -1688,15 +1688,17 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         pmb = pmb_array[i];
         pbval = pmb->pbval, ph = pmb->phydro, pf = pmb->pfield, ps = pmb->pscalars;
         pz4c = pmb->pz4c;
-        if (multilevel)
-          pbval->ProlongateBoundaries(time, 0.0);
-/* WGC - TODO: prototype for split prolongate boundary functions from mattertrackerextrema
+//        if (multilevel)
+//          pbval->ProlongateBoundaries(time, 0.0);
+// WGC - TODO: prototype for split prolongate boundary functions from mattertrackerextrema
         if (multilevel){
-          pbval->ProlongateBoundaries(time, 0.0);
+        if(FLUID_ENABLED){        
+        pbval->ProlongateHydroBoundaries(time, 0.0);
+        }
         //WGC separate prol functions
-	pbval->ProlongateZ4cBoundaries(time, 0.0);
+	pbval->ProlongateBoundaries(time, 0.0);
 	}
-*/
+
         int il = pmb->is, iu = pmb->ie,
           jl = pmb->js, ju = pmb->je,
           kl = pmb->ks, ku = pmb->ke;
@@ -1711,6 +1713,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           if (pbval->nblevel[2][1][1] != -1) ku += NGHOST;
         }
 
+        pbval->ApplyPhysicalVertexCenteredBoundaries(time, 0.0);
         if (GENERAL_RELATIVITY && res_flag == 2)
         {
           // Need ADM variables for con2prim when AMR splits MeshBlock
@@ -1771,7 +1774,6 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 
         pbval->ApplyPhysicalBoundaries(time, 0.0);
 //TODO - WGC separation of physical boundaries VC/CC
-//        pbval->ApplyPhysicalVertexCenteredBoundaries(time, 0.0);
       }
 
       // Calc initial diffusion coefficients

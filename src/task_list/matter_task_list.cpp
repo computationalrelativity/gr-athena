@@ -1312,7 +1312,7 @@ TaskStatus MatterTaskList::Prolongation_Hyd(MeshBlock *pmb, int stage) {
 
 
 // TODO : VC/CC issue, use split Prolongate Boundary functions
-    pbval->ProlongateBoundaries(t_end_stage, dt);
+    pbval->ProlongateHydroBoundaries(t_end_stage, dt);
   } else {
     return TaskStatus::fail;
   }
@@ -1695,7 +1695,7 @@ TaskStatus MatterTaskList::Prolongation_Z4c(MeshBlock *pmb, int stage) {
     // Scaled coefficient for RHS time-advance within stage
     Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
 // TODO VC/CC issue: choose appropriate prolongation fn here
-//    pbval->ProlongateZ4cBoundaries(t_end_stage, dt);
+    pbval->ProlongateBoundaries(t_end_stage, dt);
   } else {
     return TaskStatus::fail;
   }
