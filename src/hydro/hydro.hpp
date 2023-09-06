@@ -84,6 +84,9 @@ class Hydro {
   void CalculateGravityFlux(AthenaArray<Real> &phi_in);
 
  private:
+
+  int fix_fluxes;
+  int zero_div;
   AthenaArray<Real> dt1_, dt2_, dt3_;  // scratch arrays used in NewTimeStep
   // scratch space used to compute fluxes
   AthenaArray<Real> dxw_;
