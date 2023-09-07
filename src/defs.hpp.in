@@ -50,7 +50,7 @@
 #define PREFER_VC @PREFER_VC@
 
 // hybrid grid-to-grid interp default=0 (false)
-#define HYBRID_INTERP @HYBRID_INTERP@
+#define @HYBRID_INTERP@
 
 // Dynamical metric default=0 (false) - currently unused
 #define DYNAMICAL @DYNAMICAL@
