@@ -205,6 +205,32 @@ class Coordinates {
   virtual void LowerVectorCell(Real a0, Real a1, Real a2, Real a3, int k, int j, int i,
                                Real *pa_0, Real *pa_1, Real *pa_2, Real *pa_3) {}
 
+  template <typename dtype, TensorSymm TSYM, int DIM, int NVAL>
+  inline void GetGeometricFieldCC(
+    AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
+    const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
+    const int cc_k,
+    const int cc_j
+  );
+
+  template <typename dtype, TensorSymm TSYM, int DIM, int NVAL>
+  inline void GetGeometricFieldFC(
+    AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
+    const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
+    const int dir,
+    const int cc_k,
+    const int cc_j
+  );
+
+  template <typename dtype, TensorSymm TSYM, int DIM, int NVAL>
+  inline void GetGeometricFieldDerCC(
+    AthenaTensor<       dtype, TSYM, DIM, NVAL+1> & tar,
+    const  AthenaTensor<dtype, TSYM, DIM, NVAL  > & src,
+    const int dir,
+    const int cc_k,
+    const int cc_j
+  );
+
   // take care of finite differencing at the coordinate level as that is the
   // only information that is required to build these classes
   bool fd_is_defined = false;
@@ -886,15 +912,15 @@ class GRDynamical : public Coordinates {
     AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
     const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
     const int dir,
-    const int cc_k,
-    const int cc_j
+    const int tr_k,
+    const int tr_j
   )
   {
 #if defined(Z4C_VC_ENABLED)
   #if defined(HYBRID_INTERP)
-    ig_1N->VC2FC(tar, src, dir, cc_k, cc_j);
+    ig_1N->VC2FC(tar, src, dir, tr_k, tr_j);
   #else
-    ig_NN->VC2FC(tar, src, dir, cc_k, cc_j);
+    ig_NN->VC2FC(tar, src, dir, tr_k, tr_j);
   #endif  // HYBRID_INTERP
 #else  // Z4C_CX_ENABLED
     // ... may be non-trivial (depends on NCGHOST_CX etc)
