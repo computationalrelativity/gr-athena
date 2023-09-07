@@ -52,8 +52,9 @@ class Coordinates {
 
     if (ig_is_defined)
     {
-      delete ig_LO;
-      delete ig_HO;
+      delete ig_1N;
+      delete ig_2N;
+      delete ig_NN;
     }
   }
 
@@ -212,11 +213,13 @@ class Coordinates {
   FiniteDifference::Uniform * fd_vc;
 
   bool ig_is_defined = false;
-  typedef InterpIntergrid::InterpIntergrid<Real, 1        > IIG_LO;
-  typedef InterpIntergrid::InterpIntergrid<Real, NGRCV_HSZ> IIG_HO;
+  typedef InterpIntergrid::InterpIntergrid<Real, 1        > IIG_1N;
+  typedef InterpIntergrid::InterpIntergrid<Real, 2        > IIG_2N;
+  typedef InterpIntergrid::InterpIntergrid<Real, NGRCV_HSZ> IIG_NN;
 
-  IIG_LO * ig_LO;
-  IIG_HO * ig_HO;
+  IIG_1N * ig_1N;
+  IIG_2N * ig_2N;
+  IIG_NN * ig_NN;
 
  protected:
   bool coarse_flag;  // true if this coordinate object is parent (coarse) mesh in AMR
@@ -869,9 +872,9 @@ class GRDynamical : public Coordinates {
   {
 #if defined(Z4C_VC_ENABLED)
   #if defined(HYBRID_INTERP)
-    ig_LO->VC2CC(tar, src, cc_k, cc_j);
+    ig_1N->VC2CC(tar, src, cc_k, cc_j);
   #else
-    ig_HO->VC2CC(tar, src, cc_k, cc_j);
+    ig_NN->VC2CC(tar, src, cc_k, cc_j);
   #endif // HYBRID_INTERP
 #else  // Z4C_CX_ENABLED
     // ... may be non-trivial (depends on NCGHOST_CX etc)
@@ -888,7 +891,11 @@ class GRDynamical : public Coordinates {
   )
   {
 #if defined(Z4C_VC_ENABLED)
-    ig_HO->VC2FC(tar, src, dir, cc_k, cc_j);
+  #if defined(HYBRID_INTERP)
+    ig_1N->VC2FC(tar, src, dir, cc_k, cc_j);
+  #else
+    ig_NN->VC2FC(tar, src, dir, cc_k, cc_j);
+  #endif  // HYBRID_INTERP
 #else  // Z4C_CX_ENABLED
     // ... may be non-trivial (depends on NCGHOST_CX etc)
 #endif
@@ -908,7 +915,7 @@ class GRDynamical : public Coordinates {
     // I.e. use 2 nearest neighbours either-side for derivatives
     ig_2N->VC2CC_D1(tar, src, dir, cc_k, cc_j);
   #else
-    ig_HO->VC2CC_D1(tar, src, dir, cc_k, cc_j);
+    ig_NN->VC2CC_D1(tar, src, dir, cc_k, cc_j);
   #endif // HYBRID_INTERP
 #else  // Z4C_CX_ENABLED
     // ... may be non-trivial (depends on NCGHOST_CX etc)

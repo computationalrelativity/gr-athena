@@ -190,9 +190,6 @@ GRDynamical::GRDynamical(MeshBlock *pmb, ParameterInput *pin, bool flag)
   //
   // this motivates the choices of ghosts below
 
-  typedef InterpIntergrid::InterpIntergrid<Real, 1        > IIG_LO;
-  typedef InterpIntergrid::InterpIntergrid<Real, NGRCV_HSZ> IIG_HO;
-
   const int ng_c = (coarse_flag)? NCGHOST_CX : NGHOST;
   const int ng_v = (coarse_flag)? NCGHOST    : NGHOST;
 
@@ -213,8 +210,9 @@ GRDynamical::GRDynamical(MeshBlock *pmb, ParameterInput *pin, bool flag)
 
   ig_is_defined = true;
 
-  ig_LO = new IIG_LO(dim, &N[0], &rdx[0], ng_c, ng_v);
-  ig_HO = new IIG_HO(dim, &N[0], &rdx[0], ng_c, ng_v);
+  ig_1N = new IIG_1N(dim, &N[0], &rdx[0], ng_c, ng_v);
+  ig_2N = new IIG_2N(dim, &N[0], &rdx[0], ng_c, ng_v);
+  ig_NN = new IIG_NN(dim, &N[0], &rdx[0], ng_c, ng_v);
 
   // Metric quantities not initialised in constructor, need to wait for UpdateMetric()
   // to be called once VC metric is initialised in pgen
@@ -502,12 +500,6 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
   z4c_beta_u.InitWithShallowSlice(  pz4c->storage.u,   Z4c::I_Z4c_betax);
 
   //SB TODO these need cleanup
-  AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy;
-  AthenaArray<Real> vcgamma_yz,vcgamma_zz,vcbeta_x,vcbeta_y;
-  AthenaArray<Real> vcbeta_z, vcalpha;
-  AthenaArray<Real> vcK_xx,vcK_xy,vcK_xz,vcK_yy;
-  AthenaArray<Real> vcK_yz,vcK_zz;
-
   AthenaArray<Real> pgas_init, rho_init, w_init;
 
 
@@ -873,7 +865,6 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
   T0i_d.DeleteAthenaTensor();
   Tij_uu.DeleteAthenaTensor();
 
-  
   return;
 }
 

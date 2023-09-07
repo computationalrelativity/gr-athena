@@ -147,9 +147,6 @@ Cartesian::Cartesian(MeshBlock *pmb, ParameterInput *pin, bool flag)
   //
   // this motivates the choices of ghosts below
 
-  typedef InterpIntergrid::InterpIntergrid<Real, 1        > IIG_LO;
-  typedef InterpIntergrid::InterpIntergrid<Real, NGRCV_HSZ> IIG_HO;
-
   const int ng_c = (coarse_flag)? NCGHOST_CX : NGHOST;
   const int ng_v = (coarse_flag)? NCGHOST    : NGHOST;
 
@@ -170,6 +167,7 @@ Cartesian::Cartesian(MeshBlock *pmb, ParameterInput *pin, bool flag)
 
   ig_is_defined = true;
 
-  ig_LO = new IIG_LO(dim, &N[0], &rdx[0], ng_c, ng_v);
-  ig_HO = new IIG_HO(dim, &N[0], &rdx[0], ng_c, ng_v);
+  ig_1N = new IIG_1N(dim, &N[0], &rdx[0], ng_c, ng_v);
+  ig_2N = new IIG_2N(dim, &N[0], &rdx[0], ng_c, ng_v);
+  ig_NN = new IIG_NN(dim, &N[0], &rdx[0], ng_c, ng_v);
 }
