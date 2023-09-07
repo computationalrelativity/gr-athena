@@ -19,6 +19,11 @@ def main(**kwargs):
     input_file = kwargs['input']
     output_file = kwargs['output']
     dimension = kwargs['dimension']
+    xlim = int(kwargs['xlim'])
+    ylim = int(kwargs['ylim'])
+
+    xshift = int(kwargs['xshift']) if not kwargs['xshift'] == None else kwargs['xshift']
+    yshift = int(kwargs['yshift']) if not kwargs['yshift'] == None else kwargs['yshift']
 
     # Load Python plotting modules
     if output_file != 'show':
@@ -56,6 +61,16 @@ def main(**kwargs):
                 x = []
                 y = []
                 z = []
+    shift = 0
+    if xlim > 0:
+        if not xshift == None:
+            shift = xshift
+        ax.set_xlim(-xlim+shift,xlim+shift)
+    shift = 0
+    if ylim > 0:
+        if not yshift == None:
+            shift = yshift
+        ax.set_ylim(-ylim+shift,ylim+shift)
     if output_file == 'show':
         plt.show()
     else:
@@ -79,5 +94,25 @@ if __name__ == '__main__':
                         choices = ['2D', '3D'],
                         help=('choose z=0 2D slice or 3D representation of the '
                               'mesh grid'))
+    parser.add_argument('-xl',
+                        '--xlim',
+                        default='-1',
+                        help=('xlim for plot, must be positive'
+                              '(-xlim,xlim)'))
+    parser.add_argument('-yl',
+                        '--ylim',
+                        default='-1',
+                        help=('ylim for plot, must be positive'
+                              '(-ylim,ylim)'))
+    parser.add_argument('-xs',
+                        '--xshift',
+                        default=None,
+                        help=('xshift from center '
+                              ))
+    parser.add_argument('-ys',
+                        '--yshift',
+                        default=None,
+                        help=('yshift from plot '
+                              ))
     args = parser.parse_args()
     main(**vars(args))
