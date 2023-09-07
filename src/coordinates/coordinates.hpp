@@ -205,32 +205,6 @@ class Coordinates {
   virtual void LowerVectorCell(Real a0, Real a1, Real a2, Real a3, int k, int j, int i,
                                Real *pa_0, Real *pa_1, Real *pa_2, Real *pa_3) {}
 
-  template <typename dtype, TensorSymm TSYM, int DIM, int NVAL>
-  inline void GetGeometricFieldCC(
-    AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
-    const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
-    const int cc_k,
-    const int cc_j
-  );
-
-  template <typename dtype, TensorSymm TSYM, int DIM, int NVAL>
-  inline void GetGeometricFieldFC(
-    AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
-    const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
-    const int dir,
-    const int tr_k,
-    const int tr_j
-  );
-
-  template <typename dtype, TensorSymm TSYM, int DIM, int NVAL>
-  inline void GetGeometricFieldDerCC(
-    AthenaTensor<       dtype, TSYM, DIM, NVAL+1> & tar,
-    const  AthenaTensor<dtype, TSYM, DIM, NVAL  > & src,
-    const int dir,
-    const int cc_k,
-    const int cc_j
-  );
-
   // take care of finite differencing at the coordinate level as that is the
   // only information that is required to build these classes
   bool fd_is_defined = false;
