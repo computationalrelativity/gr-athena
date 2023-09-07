@@ -6,7 +6,7 @@
 # cd ${DIR_ATHENA}/${REL_OUTPUT}/${RUN_NAME}
 cd ${DIR_OUTPUT}
 
-time ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
+# time ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
 # gprof ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME} > analysis.txt
 
 # gprof -b -p ./${EXEC_NAME}.x > analysis.txt
@@ -37,12 +37,12 @@ time ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
 #     -ex 'set print pretty on' \
 #     -ex=r --args ./$EXEC_NAME.x -i $DIR_ATHENA/$REL_INPUT/$INPUT_NAME
 
-# gdb \
-#   -ex 'break bvals_cx.cpp:305' \
-#   -ex 'info b' \
-#   -ex 'set print pretty on' \
-#   -ex 'set output-radix 10' \
-#   -ex=r --args ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
+gdb \
+  -ex 'break gr_dynamical.cpp:561' \
+  -ex 'info b' \
+  -ex 'set print pretty on' \
+  -ex 'set output-radix 10' \
+  -ex=r --args ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
 
 # gdb \
 #   -ex 'break bvals_cx.cpp:221' \

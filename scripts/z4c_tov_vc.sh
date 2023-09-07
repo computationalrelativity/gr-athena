@@ -27,7 +27,7 @@ export COMPILE_STR="--prob=gr_tov
                     --eos=adiabatictaudyn_rep
                     --flux=llftaudyn
                     -z -g -f -z_vc
-                    --cxx g++ -omp
+                    --cxx g++ -omp -debug
                     --nghost=4
                     --ncghost=4
                     --ncghost_cx=4
@@ -72,9 +72,6 @@ source ${DIR_SCRIPTS}/utils/provide_compile_paths.sh
 # prepare external
 # ...
 ###############################################################################
-
-gcc -v
-whereis gcc
 
 ###############################################################################
 # compile
