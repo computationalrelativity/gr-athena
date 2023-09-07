@@ -220,23 +220,23 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     kucc += NGHOST;
   }
 
-  Z4c::MB_info  mbi = pz4c->mbi;
+  Z4c::MB_info* mbi = &(pz4c->mbi);
 
-  // Prepare CX (metric) index bounds
-  int ilcx = mbi.il - mbi.ng;
-  int iucx = mbi.iu + mbi.ng;
-  int jlcx = mbi.jl;
-  int jucx = mbi.ju;
+  int ilcx = mbi->il - mbi->ng;
+  int iucx = mbi->iu + mbi->ng;
+  int jlcx = mbi->jl;
+  int jucx = mbi->ju;
   if (block_size.nx2 > 1) {
-    jlcx -= mbi.ng;
-    jucx += mbi.ng;
+    jlcx -= mbi->ng;
+    jucx += mbi->ng;
   }
-  int klcx = mbi.kl;
-  int kucx = mbi.ku;
+  int klcx = mbi->kl;
+  int kucx = mbi->ku;
   if (block_size.nx3 > 1) {
-    klcx -= mbi.ng;
-    kucx += mbi.ng;
+    klcx -= mbi->ng;
+    kucx += mbi->ng;
   }
+
   // Parameters
   phydro->w.Fill(NAN);
   phydro->w1.Fill(NAN);
