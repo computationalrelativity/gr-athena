@@ -1,0 +1,140 @@
+<job>
+problem_id = gr_tov
+
+<z4c>
+#dt_assert_is_finite = 1   # whatever values, if zero / missing these tasks are not triggered
+dt_wave_extraction =0.1
+lapse_harmonic = 0.0
+lapse_harmonicf = 1.0
+lapse_oplog = 2.0
+lapse_advect = 1.0
+shift_eta = 0.3
+shift_advect = 1.0
+# Kreiss-Oliger dissipation parameter.
+diss = 0.5
+chi_div_floor = 1e-05
+# Constraint damping factor 1.
+damp_kappa1 = 0.02
+# Constraint damping factor 2.
+damp_kappa2 = 0.0
+
+# Cowling? (set metric rhs  = 0)
+cowling_true = 0
+fixedgauge = 0 # set rhs of gauge = 0
+fix_admsources = 0 # calculate adm sources with initial data
+
+<output1>
+file_type = hdf5
+variable  = cons
+dt        = 0.5
+ghost_zones=true
+#x2_slice = 0.0
+#x3_slice = 0.0
+data_format=%.15g
+
+
+<output2>
+file_type = hdf5
+variable  = prim
+dt        = 0.5
+ghost_zones=true
+#x2_slice = 0.0
+#x3_slice = 0.0
+data_format=%.15g
+
+
+<output4>
+file_type = hdf5
+variable  = adm
+dt        = 0.5
+ghost_zones=true
+#x2_slice = 0.0
+#x3_slice = 0.0
+data_format=%.15g
+
+<output5>
+file_type = hdf5
+variable  = z4c
+dt        = 0.5
+ghost_zones=true
+#x2_slice = 0.0
+#x3_slice = 0.0
+data_format=%.15g
+
+<output6>
+file_type = rst
+dt        = 200
+
+<output7>
+file_type = hst
+dt        = 0.5
+data_format=%.15g
+
+
+
+<time>
+cfl_number = 0.25
+nlim       = 1000
+tlim       = 10000
+integrator = rk3   # time integration algorithm
+xorder     = 3     # order of spatial reconstruction
+ncycle_out = 1      # interval for stdout summary info
+
+<mesh>
+nx1    = 32    # number of cells in x-direction
+x1min  = -32   # minimum x
+x1max  = 32 # maximum x
+ix1_bc = extrapolate_outflow  # lower boundary
+ox1_bc = extrapolate_outflow  # upper boundary
+
+nx2    = 32  # number of cells in y-direction
+x2min  = -32  # minimum y
+x2max  = 32  # maximum y
+ix2_bc = extrapolate_outflow # lower boundary
+ox2_bc = extrapolate_outflow # upper boundary
+
+nx3    = 32        # number of cells in z-direction
+x3min  = -32   # minimum z
+x3max  = 32       # maximum z
+ix3_bc = extrapolate_outflow  # lower  boundary
+ox3_bc = extrapolate_outflow  # upper boundary
+
+refinement = none
+#numlevel = 6
+#deref_count = 5
+
+num_threads = 1
+
+
+<meshblock>
+
+
+nx1=16
+nx2=16
+nx3=16
+
+
+<coord>
+m = 0 # black hole parameters 
+a = 0 # leave at 0
+
+
+<hydro>
+gamma = 2  # ratio of specific heats Gamma
+k_adi = 100                # adiabat K, p_gas = K rho^Gamma
+dfloor = 1e-50                # floor value for rho equiv atmosphere rho
+pfloor = 1e-50                # floor value for rho equiv atmosphere rho
+rho_min=1e-50
+pgas_min=1e-50
+fix_fluxes=0  #use initial data in flux calculation
+fix_sources=0 #use initial data in hydro source calculation (stationary spacetime only)
+zero_sources=0 # set hydro sources to 0
+zero_div=0 # set div F = 0 i.e. don't update conservatives with fluxes
+
+<problem>
+rhoc = 0.00128  # energy density at centre of star
+dr = 0.00001  # TOV integration timestep
+rmin = 1e-10 # TOV integration minimum radius
+npts = 1000000 # TOV guess for number of radial points 
+fatm = 0.00000000000000078125  # set atmosphere rho to rho = rhomax * fatm
+fthr = 1  # set point to atmosphere if rho < fthr*fatm*rhomax
