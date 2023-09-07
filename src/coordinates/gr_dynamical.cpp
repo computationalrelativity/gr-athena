@@ -440,7 +440,7 @@ Real GRDynamical::GetCellVolume(const int k, const int j, const int i) {
 void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real> *flux,
 					  const AthenaArray<Real> &prim, const AthenaArray<Real> &bb_cc,
 					  AthenaArray<Real> &cons) {
-  
+
   // Extract indices
   int is = pmy_block->is;
   int ie = pmy_block->ie;
@@ -450,11 +450,14 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
   int ke = pmy_block->ke;
   int nn1 = pmy_block->ncells1;
   int a,b,c,d,e;
+
+#ifdef HYBRID_INTERP
   const Real idx[3] = {
      1.0/pmy_block->pcoord->dx1v(0),
      1.0/pmy_block->pcoord->dx2v(0),
      1.0/pmy_block->pcoord->dx3v(0),
   };
+#endif
 
   // Extract ratio of specific heats
   Real gamma_adi = pmy_block->peos->GetGamma();
@@ -483,16 +486,32 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> b0_u, bsq, u0, T00 ; //lapse
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> bb_u, bi_u, bi_d, T0i_u, T0i_d;  // 3 vel v_i
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> Tij_uu;  // K_{ij}
-  
+
+  // perform variable resampling when required
+  Z4c * pz4c = pmy_block->pz4c;
+
+  // Slice z4c metric quantities  (NDIM=3 in z4c.hpp)
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_gamma_dd;
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_K_dd;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> z4c_alpha;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> z4c_beta_u;
+
+  adm_gamma_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
+  adm_K_dd.InitWithShallowSlice(    pz4c->storage.adm, Z4c::I_ADM_Kxx);
+  z4c_alpha.InitWithShallowSlice(   pz4c->storage.u,   Z4c::I_Z4c_alpha);
+  z4c_beta_u.InitWithShallowSlice(  pz4c->storage.u,   Z4c::I_Z4c_betax);
+
   //SB TODO these need cleanup
   AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy;
   AthenaArray<Real> vcgamma_yz,vcgamma_zz,vcbeta_x,vcbeta_y;
   AthenaArray<Real> vcbeta_z, vcalpha;
   AthenaArray<Real> vcK_xx,vcK_xy,vcK_xz,vcK_yy;
   AthenaArray<Real> vcK_yz,vcK_zz;
-  
+
   AthenaArray<Real> pgas_init, rho_init, w_init;
-    
+
+
+  // allocation
   pgas_init.NewAthenaArray(nn1);
   rho_init.NewAthenaArray(nn1);
   w_init.NewAthenaArray(nn1);
@@ -527,98 +546,25 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
   T0i_u.NewAthenaTensor(nn1);
   T0i_d.NewAthenaTensor(nn1);
   Tij_uu.NewAthenaTensor(nn1);
-    
-  vcgamma_xx.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
-  vcgamma_xy.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
-  vcgamma_xz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
-  vcgamma_yy.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
-  vcgamma_yz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
-  vcgamma_zz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
-  vcK_xx.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_Kxx,1);
-  vcK_xy.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_Kxy,1);
-  vcK_xz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_Kxz,1);
-  vcK_yy.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_Kyy,1);
-  vcK_yz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_Kyz,1);
-  vcK_zz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_Kzz,1);
-  vcbeta_x.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_betax,1);
-  vcbeta_y.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_betay,1);
-  vcbeta_z.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_betaz,1);
-  vcalpha.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
-  
-  // Go through cells
+  // ----------------------------------------------------------------------------
+
+  // cell iteration
   //SB TODO remove CLOOPS when new VC-CC logic is in place
   for (int k=ks; k<=ke; ++k) {
-    for (int j=js; j<=je; ++j) {
-      
-      // populate alpha, beta, gamma, K, derivatives done
-#ifdef HYBRID_INTERP
-      CLOOP1(i){
-	gamma_dd(0,0,i) = VCInterpolation(vcgamma_xx,k,j,i);
-	gamma_dd(0,1,i) = VCInterpolation(vcgamma_xy,k,j,i);
-	gamma_dd(0,2,i) = VCInterpolation(vcgamma_xz,k,j,i);
-	gamma_dd(1,1,i) = VCInterpolation(vcgamma_yy,k,j,i);
-	gamma_dd(1,2,i) = VCInterpolation(vcgamma_yz,k,j,i);
-	gamma_dd(2,2,i) = VCInterpolation(vcgamma_zz,k,j,i);
-	K_dd(0,0,i) = VCInterpolation(vcK_xx,k,j,i);
-	K_dd(0,1,i) = VCInterpolation(vcK_xy,k,j,i);
-	K_dd(0,2,i) = VCInterpolation(vcK_xz,k,j,i);
-	K_dd(1,1,i) = VCInterpolation(vcK_yy,k,j,i);
-	K_dd(1,2,i) = VCInterpolation(vcK_yz,k,j,i);
-	K_dd(2,2,i) = VCInterpolation(vcK_zz,k,j,i);
-	alpha(i) = VCInterpolation(vcalpha,k,j,i);
-	beta_u(0,i) = VCInterpolation(vcbeta_x,k,j,i);
-	beta_u(1,i) = VCInterpolation(vcbeta_y,k,j,i);
-	beta_u(2,i) = VCInterpolation(vcbeta_z,k,j,i);
-      }
-      for(a=0;a<NDIM;++a){
-        CLOOP1(i){
-	  dgamma_ddd(a,0,0,i) = idx[a]*VCDiff(a,vcgamma_xx,k,j,i);
-	  dgamma_ddd(a,0,1,i) = idx[a]*VCDiff(a,vcgamma_xy,k,j,i);
-	  dgamma_ddd(a,0,2,i) = idx[a]*VCDiff(a,vcgamma_xz,k,j,i);
-	  dgamma_ddd(a,1,1,i) = idx[a]*VCDiff(a,vcgamma_yy,k,j,i);
-	  dgamma_ddd(a,1,2,i) = idx[a]*VCDiff(a,vcgamma_yz,k,j,i);
-	  dgamma_ddd(a,2,2,i) = idx[a]*VCDiff(a,vcgamma_zz,k,j,i);
-	  dalpha_d(a,i) = idx[a]*VCDiff(a,vcalpha,k,j,i);
-	  dbeta_du(a,0,i) = idx[a]*VCDiff(a,vcbeta_x,k,j,i);
-	  dbeta_du(a,1,i) = idx[a]*VCDiff(a,vcbeta_y,k,j,i);
-	  dbeta_du(a,2,i) = idx[a]*VCDiff(a,vcbeta_z,k,j,i);
-        }
-      }
-      
-#else
-      CLOOP1(i){
-	gamma_dd(0,0,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
-	gamma_dd(0,1,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
-	gamma_dd(0,2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
-	gamma_dd(1,1,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
-	gamma_dd(1,2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
-	gamma_dd(2,2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
-	K_dd(0,0,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcK_xx(k,j,i));
-	K_dd(0,1,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcK_xy(k,j,i));
-	K_dd(0,2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcK_xz(k,j,i));
-	K_dd(1,1,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcK_yy(k,j,i));
-	K_dd(1,2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcK_yz(k,j,i));
-	K_dd(2,2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcK_zz(k,j,i));
-	alpha(i) = pmy_block->pz4c->ig->map3d_VC2CC(vcalpha(k,j,i));
-	beta_u(0,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcbeta_x(k,j,i));
-	beta_u(1,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcbeta_y(k,j,i));
-	beta_u(2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcbeta_z(k,j,i));
-      } 
-      for(a=0;a<NDIM;++a){
-        CLOOP1(i){
-	  dgamma_ddd(a,0,0,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcgamma_xx(k,j,i));
-	  dgamma_ddd(a,0,1,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcgamma_xy(k,j,i));
-	  dgamma_ddd(a,0,2,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcgamma_xz(k,j,i));
-	  dgamma_ddd(a,1,1,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcgamma_yy(k,j,i));
-	  dgamma_ddd(a,1,2,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcgamma_yz(k,j,i));
-	  dgamma_ddd(a,2,2,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcgamma_zz(k,j,i));
-	  dalpha_d(a,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcalpha(k,j,i));
-	  dbeta_du(a,0,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcbeta_x(k,j,i));
-	  dbeta_du(a,1,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcbeta_y(k,j,i));
-	  dbeta_du(a,2,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcbeta_z(k,j,i));
-        }
-      }
-#endif
+  for (int j=js; j<=je; ++j)
+  {
+    GetGeometricFieldCC(gamma_dd, adm_gamma_dd, k, j);
+    GetGeometricFieldCC(K_dd,     adm_K_dd,     k, j);
+    GetGeometricFieldCC(alpha,    z4c_alpha,    k, j);
+    GetGeometricFieldCC(beta_u,   z4c_beta_u,   k, j);
+
+    for(a=0; a<NDIM; ++a)
+    {
+      GetGeometricFieldDerCC(dgamma_ddd, adm_gamma_dd, a, k, j);
+      GetGeometricFieldDerCC(dalpha_d,   z4c_alpha,    a, k, j);
+      GetGeometricFieldDerCC(dbeta_du,   z4c_beta_u,   a, k, j);
+    }
+
       CLOOP1(i) {
 	detg(i) = Det3Metric(gamma_dd, i);
 	Inverse3Metric(1.0/detg(i),

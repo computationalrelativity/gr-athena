@@ -868,7 +868,11 @@ class GRDynamical : public Coordinates {
   )
   {
 #if defined(Z4C_VC_ENABLED)
+  #if defined(HYBRID_INTERP)
+    ig_LO->VC2CC(tar, src, cc_k, cc_j);
+  #else
     ig_HO->VC2CC(tar, src, cc_k, cc_j);
+  #endif // HYBRID_INTERP
 #else  // Z4C_CX_ENABLED
     // ... may be non-trivial (depends on NCGHOST_CX etc)
 #endif
@@ -892,15 +896,20 @@ class GRDynamical : public Coordinates {
 
   template <typename dtype, TensorSymm TSYM, int DIM, int NVAL>
   inline void GetGeometricFieldDerCC(
-    AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
-    const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
+    AthenaTensor<       dtype, TSYM, DIM, NVAL+1> & tar,
+    const  AthenaTensor<dtype, TSYM, DIM, NVAL  > & src,
     const int dir,
     const int cc_k,
     const int cc_j
   )
   {
 #if defined(Z4C_VC_ENABLED)
+  #if defined(HYBRID_INTERP)
+    // I.e. use 2 nearest neighbours either-side for derivatives
+    ig_2N->VC2CC_D1(tar, src, dir, cc_k, cc_j);
+  #else
     ig_HO->VC2CC_D1(tar, src, dir, cc_k, cc_j);
+  #endif // HYBRID_INTERP
 #else  // Z4C_CX_ENABLED
     // ... may be non-trivial (depends on NCGHOST_CX etc)
 #endif
