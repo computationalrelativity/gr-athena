@@ -86,20 +86,10 @@ void EquationOfState::ConservedToPrimitive(
 //           int il, int iu, int jl, int ju, int kl, int ku);
 // \brief Converts primitive variables into conservative variables
 
-// void EquationOfState::PrimitiveToConserved(
-//     const AthenaArray<Real> &prim, const AthenaArray<Real> &bc,
-//     AthenaArray<Real> &cons, Coordinates *pco,
-//     int il, int iu, int jl, int ju, int kl, int ku) {
-
-#if Z4C_ENABLED
-void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim, AthenaArray<Real> &bc,
-					   AthenaArray<Real> &cons, Coordinates *pco,
-					   int il, int iu, int jl, int ju, int kl, int ku)
-#else
-  void EquationOfState::PrimitiveToConserved(const AthenaArray<Real> &prim, const AthenaArray<Real> &bc,
-					     AthenaArray<Real> &cons, Coordinates *pco,
-					     int il, int iu, int jl, int ju, int kl, int ku) 
-#endif
+void EquationOfState::PrimitiveToConserved(
+    const AthenaArray<Real> &prim, const AthenaArray<Real> &bc,
+    AthenaArray<Real> &cons, Coordinates *pco,
+    int il, int iu, int jl, int ju, int kl, int ku) {
 {
   Real igm1 = 1.0/(GetGamma() - 1.0);
 
