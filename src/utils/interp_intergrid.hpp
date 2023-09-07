@@ -893,10 +893,11 @@ class InterpIntergrid
       const int tr_k,  // target grid idxs
       const int tr_j);
 
+
     template <TensorSymm TSYM, int DIM, int NVAL>
     void VC2CC_D1(
-      AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
-      const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
+      AthenaTensor<       dtype, TSYM, DIM, NVAL+1> & tar,
+      const  AthenaTensor<dtype, TSYM, DIM, NVAL  > & src,
       const int dir,
       const int cc_k,
       const int cc_j);

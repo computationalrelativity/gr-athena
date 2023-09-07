@@ -927,13 +927,18 @@ void InterpIntergrid<dtype, H_SZ>::CC2FC(
 template <typename dtype, int H_SZ>
 template <TensorSymm TSYM, int DIM, int NVAL>
 void InterpIntergrid<dtype, H_SZ>::VC2CC_D1(
-  AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
-  const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
+  AthenaTensor<       dtype, TSYM, DIM, NVAL+1> & tar,
+  const  AthenaTensor<dtype, TSYM, DIM, NVAL  > & src,
   const int dir,
   const int cc_k,
   const int cc_j)
 {
-  VC2CC_D1(tar.array(), src.array(), dir, cc_k, cc_j);
+  // valence changes with deriv, so need to reslice
+  const int ix_slice = dir * (tar.ndof() / DIM);
+  AthenaArray<dtype> tar_arr;
+  tar_arr.InitWithShallowSlice(tar.array(), ix_slice, 1);
+
+  VC2CC_D1(tar_arr, src.array(), dir, cc_k, cc_j);
 }
 
 template <typename dtype, int H_SZ>
