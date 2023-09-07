@@ -19,6 +19,7 @@
 // Athena++ headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
+#include "../athena_tensor.hpp"
 #include "../hydro/srcterms/hydro_srcterms.hpp"
 #include "../mesh/mesh.hpp"
 #include "../utils/finite_differencing.hpp"
@@ -853,6 +854,59 @@ class GRDynamical : public Coordinates {
       const int k, const int j, const int il, const int iu,
       const AthenaArray<Real> &cons, const AthenaArray<Real> &bbx,
       AthenaArray<Real> &flux, AthenaArray<Real> &ey, AthenaArray<Real> &ez) final;
+
+  // logic to handle field component mapping between samplings ----------------
+  //
+  // note that coarse & fine switch automatically taken care of by ctor stuff
+  //
+  template <typename dtype, TensorSymm TSYM, int DIM, int NVAL>
+  inline void GetGeometricFieldCC(
+    AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
+    const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
+    const int cc_k,
+    const int cc_j
+  )
+  {
+#if defined(Z4C_VC_ENABLED)
+    ig_HO->VC2CC(tar, src, cc_k, cc_j);
+#else  // Z4C_CX_ENABLED
+    // ... may be non-trivial (depends on NCGHOST_CX etc)
+#endif
+  };
+
+  template <typename dtype, TensorSymm TSYM, int DIM, int NVAL>
+  inline void GetGeometricFieldFC(
+    AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
+    const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
+    const int dir,
+    const int cc_k,
+    const int cc_j
+  )
+  {
+#if defined(Z4C_VC_ENABLED)
+    ig_HO->VC2FC(tar, src, dir, cc_k, cc_j);
+#else  // Z4C_CX_ENABLED
+    // ... may be non-trivial (depends on NCGHOST_CX etc)
+#endif
+  };
+
+  template <typename dtype, TensorSymm TSYM, int DIM, int NVAL>
+  inline void GetGeometricFieldDerCC(
+    AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
+    const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
+    const int dir,
+    const int cc_k,
+    const int cc_j
+  )
+  {
+#if defined(Z4C_VC_ENABLED)
+    ig_HO->VC2CC_D1(tar, src, dir, cc_k, cc_j);
+#else  // Z4C_CX_ENABLED
+    // ... may be non-trivial (depends on NCGHOST_CX etc)
+#endif
+  };
+  // --------------------------------------------------------------------------
+
 
 };
 
