@@ -218,8 +218,8 @@ class Coordinates {
     AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
     const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
     const int dir,
-    const int cc_k,
-    const int cc_j
+    const int tr_k,
+    const int tr_j
   );
 
   template <typename dtype, TensorSymm TSYM, int DIM, int NVAL>
