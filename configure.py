@@ -803,9 +803,9 @@ else:
 
 # -hybridinterp argument
 if args['hybridinterp']:
-    definitions['HYBRID_INTERP'] = '1'
+    definitions['HYBRID_INTERP'] = 'HYBRID_INTERP'
 else:
-    definitions['HYBRID_INTERP'] = '0'
+    definitions['HYBRID_INTERP'] = 'NO_HYBRID_INTERP'
 
 # -shear argument
 if args['shear']:
