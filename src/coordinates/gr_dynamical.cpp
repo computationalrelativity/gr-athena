@@ -449,14 +449,6 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
   int nn1 = pmy_block->ncells1;
   int a,b,c,d,e;
 
-#ifdef HYBRID_INTERP
-  const Real idx[3] = {
-     1.0/pmy_block->pcoord->dx1v(0),
-     1.0/pmy_block->pcoord->dx2v(0),
-     1.0/pmy_block->pcoord->dx3v(0),
-  };
-#endif
-
   // Extract ratio of specific heats
   Real gamma_adi = pmy_block->peos->GetGamma();
 
@@ -542,7 +534,7 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
 
   // cell iteration
   //SB TODO remove CLOOPS when new VC-CC logic is in place
-  for (int k=ks; k<=ke; ++k) {
+  for (int k=ks; k<=ke; ++k)
   for (int j=js; j<=je; ++j)
   {
     GetGeometricFieldCC(gamma_dd, adm_gamma_dd, k, j);
@@ -557,279 +549,352 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
       GetGeometricFieldDerCC(dbeta_du,   z4c_beta_u,   a, k, j);
     }
 
-      CLOOP1(i) {
-	detg(i) = Det3Metric(gamma_dd, i);
-	Inverse3Metric(1.0/detg(i),
-		       gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
-		       gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i),
-		       &gamma_uu(0,0,i), &gamma_uu(0,1,i), &gamma_uu(0,2,i),
-		       &gamma_uu(1,1,i), &gamma_uu(1,2,i), &gamma_uu(2,2,i));
-      }
+    CLOOP1(i)
+    {
+      detg(i) = Det3Metric(gamma_dd, i);
+      Inverse3Metric(
+        1.0/detg(i),
+        gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
+        gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i),
+        &gamma_uu(0,0,i), &gamma_uu(0,1,i), &gamma_uu(0,2,i),
+        &gamma_uu(1,1,i), &gamma_uu(1,2,i), &gamma_uu(2,2,i));
+    }
 
-      // Read in primitives
-      for(a=0;a<NDIM;++a){
-	CLOOP1(i){
-	  utilde_u(a,i) = prim(a+IVX,k,j,i);
-	}
-      }
-      
-      CLOOP1(i){
-	pgas(i) = prim(IPR,k,j,i);
-	rho(i)  = prim(IDN,k,j,i);
-      }
-      
-      // Calculate enthalpy (rho*h) NB EOS specific!
-      CLOOP1(i){
+    // Read in primitives
+    for(a=0;a<NDIM;++a)
+  	CLOOP1(i)
+    {
+	    utilde_u(a,i) = prim(a+IVX,k,j,i);
+  	}
+
+    CLOOP1(i)
+    {
+      pgas(i) = prim(IPR,k,j,i);
+      rho(i)  = prim(IDN,k,j,i);
+    }
+
+    // Calculate enthalpy (rho*h) NB EOS specific!
+    CLOOP1(i)
+    {
 #if USETM
-	Real n = rho(i)/pmy_block->peos->GetEOS().GetBaryonMass();
-	Real Y[MAX_SPECIES] = {0.0};
-	Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgas(i), Y);
-	wtot(i) = n*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
+      Real n = rho(i)/pmy_block->peos->GetEOS().GetBaryonMass();
+      Real Y[MAX_SPECIES] = {0.0};
+      Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgas(i), Y);
+      wtot(i) = n*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
 #else
-	wtot(i) = rho(i) + gamma_adi/(gamma_adi-1.0) * pgas(i);
+    	wtot(i) = rho(i) + gamma_adi/(gamma_adi-1.0) * pgas(i);
 #endif
-      }
+    }
 
-      // Calculate Lorentz factor
-      Wlor.ZeroClear();
-      for(a=0;a<NDIM;++a){
-	for(b=0;b<NDIM;++b){
+    // Calculate Lorentz factor
+    Wlor.ZeroClear();
+
+    for(a=0;a<NDIM;++a)
+    for(b=0;b<NDIM;++b)
 	  CLOOP1(i){
 	    Wlor(i) += utilde_u(a,i)*utilde_u(b,i)*gamma_dd(a,b,i);
 	  }
-	}
-      }
-      CLOOP1(i){
-	Wlor(i) = std::sqrt(1.0+Wlor(i));
-      }
 
-      // Calculate shift beta_i
-      beta_d.ZeroClear();
-      for(a=0;a<NDIM;++a){
-	for(b=0;b<NDIM;++b){
-          CLOOP1(i){
+    CLOOP1(i){
+    	Wlor(i) = std::sqrt(1.0+Wlor(i));
+    }
+
+    // Calculate shift beta_i
+    beta_d.ZeroClear();
+    for(a=0;a<NDIM;++a)
+  	for(b=0;b<NDIM;++b)
+    CLOOP1(i)
+    {
 	    beta_d(a,i) += gamma_dd(a,b,i)*beta_u(b,i);
-          }
-	}
-      }
+    }
 
-      // Calculate 3 velocity v^i
-      for(a=0;a<NDIM;++a){
-	CLOOP1(i){
-	  v_u(a,i) = utilde_u(a,i)/Wlor(i);
-	}
-      }
-      
-      // Calculate 3 velocity index down v_i
-      v_d.ZeroClear();
-      for(a=0;a<NDIM;++a){
-	for(b=0;b<NDIM;++b){
+    // Calculate 3 velocity v^i
+    for(a=0;a<NDIM;++a)
+  	CLOOP1(i)
+    {
+	    v_u(a,i) = utilde_u(a,i)/Wlor(i);
+  	}
+
+    // Calculate 3 velocity index down v_i
+    v_d.ZeroClear();
+    for(a=0;a<NDIM;++a)
+  	for(b=0;b<NDIM;++b)
 	  CLOOP1(i){
 	    v_d(a,i) += v_u(b,i)*gamma_dd(a,b,i);
 	  }
-	}
+
+    // tau source term of hydro sources
+    Stau.ZeroClear();
+    for(a=0;a<NDIM; ++a)
+    {
+      CLOOP1(i)
+      {
+        Stau(i) -= wtot(i)*SQR(Wlor(i))*( v_u(a,i)*dalpha_d(a,i))/alpha(i);
       }
-      
-      // tau source term of hydro sources
+
+      for(b=0; b<NDIM; ++b)
+      {
+        CLOOP1(i)
+        {
+          Stau(i) += (wtot(i)*SQR(Wlor(i)) * v_u(a,i)*v_u(b,i) +
+                      pgas(i)*gamma_uu(a,b,i))*K_dd(a,b,i);
+        }
+      }
+    }
+
+    // momentum source term of hydro sources
+    SS_d.ZeroClear();
+    for(a=0; a<NDIM; ++a)
+    {
+      CLOOP1(i)
+      {
+        SS_d(a,i) = -(wtot(i)*SQR(Wlor(i)) - pgas(i)) * dalpha_d(a,i)/alpha(i);
+      }
+
+      for(b=0; b<NDIM; ++b)
+      {
+        CLOOP1(i)
+        {
+          SS_d(a,i) += wtot(i) *SQR(Wlor(i))*v_d(b,i)*dbeta_du(a,b,i)/alpha(i);
+        }
+
+        for(c=0; c<NDIM; ++c)
+        {
+          CLOOP1(i){
+            SS_d(a,i) += (0.5*(wtot(i)*SQR(Wlor(i))*v_u(b,i)*v_u(c,i) +
+                               pgas(i)*gamma_uu(b,c,i))*dgamma_ddd(a,b,c,i));
+          }
+        }
+      }
+    }
+
+    if(MAGNETIC_FIELDS_ENABLED)
+    {
+      CLOOP1(i)
+      {
+        bb_u(0,i) = bb_cc(IB1,k,j,i)/std::sqrt(detg(i));
+        bb_u(1,i) = bb_cc(IB2,k,j,i)/std::sqrt(detg(i));
+        bb_u(2,i) = bb_cc(IB3,k,j,i)/std::sqrt(detg(i));
+      }
+
+      b0_u.ZeroClear();
+      for(a=0; a<NDIM; ++a)
+      {
+        CLOOP1(i)
+        {
+          b0_u(i) += Wlor(i)*bb_u(a,i)*v_d(a,i)/alpha(i);
+        }
+      }
+
+      for(a=0; a<NDIM; ++a)
+      {
+        CLOOP1(i)
+        {
+          bi_u(a,i) = (bb_u(a,i) + alpha(i)*b0_u(i)*Wlor(i)*
+                       (v_u(a,i) - beta_u(a,i)/alpha(i))) / Wlor(i);
+        }
+      }
+
+      //  bi_d.ZeroClear();
+      for(a=0; a<NDIM; ++a)
+      {
+
+        CLOOP1(i)
+        {
+          bi_d(a,i) = beta_d(a,i) * b0_u(i);
+          //bi_d(a,i) += bi_u(b,i)*gamma_dd(a,b,i);
+        }
+
+        for(b=0; b<NDIM; ++b)
+        {
+          CLOOP1(i)
+          {
+            bi_d(a,i) += gamma_dd(a,b,i)*bi_u(b,i);
+          }
+        }
+    	}
+
+      CLOOP1(i)
+      {
+        bsq(i) = alpha(i)*alpha(i)*b0_u(i)*b0_u(i)/(Wlor(i)*Wlor(i));
+      }
+
+      for(a=0; a<NDIM; ++a)
+      for(b=0; b<NDIM; ++b)
+      {
+        CLOOP1(i)
+        {
+          bsq(i) += bb_u(a,i)*bb_u(b,i)*gamma_dd(a,b,i)/(Wlor(i)*Wlor(i));
+        }
+      }
+
+      CLOOP1(i)
+      {
+        u0(i) = Wlor(i)/alpha(i);
+      }
+
+      // Tab components
+      CLOOP1(i)
+      {
+        T00(i) = ((wtot(i)+bsq(i))*u0(i)*u0(i) +
+                  (pgas(i)+bsq(i)/2.0)*(-1.0/(alpha(i)*alpha(i))) -
+                  b0_u(i)*b0_u(i));
+      }
+
+      for(a=0; a<NDIM; ++a)
+      {
+        CLOOP1(i)
+        {
+          T0i_u(a,i) = ((wtot(i)+bsq(i))*u0(i)*Wlor(i) *
+                        (v_u(a,i) - beta_u(a,i)/alpha(i)) +
+                        (pgas(i)+bsq(i)/2.0) *
+                        (beta_u(a,i)/(alpha(i)*alpha(i))) - b0_u(i)*bi_u(a,i));
+        }
+      }
+
+      T0i_d.ZeroClear();
+
+      for(a=0; a<NDIM; ++a)
+      for(b=0; b<NDIM; ++b)
+      {
+        CLOOP1(i)
+        {
+          T0i_d(a,i) =(((wtot(i) + bsq(i))*Wlor(i)*Wlor(i)*v_d(a,i))/alpha(i) -
+                       b0_u(i)*bi_d(a,i));
+        }
+      }
+
+      for(a=0; a<NDIM; ++a)
+      for(b=0; b<NDIM; ++b)
+      {
+        CLOOP1(i)
+        {
+          Tij_uu(a,b,i) = ((wtot(i)+bsq(i))*Wlor(i) *
+                           (v_u(a,i) - beta_u(a,i)/alpha(i)) *
+                           Wlor(i)*(v_u(b,i) - beta_u(b,i)/alpha(i)) +
+                           (pgas(i)+bsq(i)/2.0) *
+                           (gamma_uu(a,b,i) - beta_u(a,i)*beta_u(b,i) /
+                                              (alpha(i)*alpha(i))) -
+                           bi_u(a,i)*bi_u(b,i));
+        }
+      }
+
+      // momentum source term
+      for(a=0; a<NDIM; ++a)
+      {
+        CLOOP1(i)
+        {
+          SS_d(a,i) = T00(i)*(- alpha(i)*dalpha_d(a,i));
+        }
+      }
+
+      for(a=0; a<NDIM; ++a)
+      for(b=0; b<NDIM; ++b)
+      {
+        CLOOP1(i)
+        {
+          SS_d(a,i) += T0i_d(b,i)*dbeta_du(a,b,i);
+        }
+      }
+
+      for(a=0; a<NDIM; ++a)
+      for(b=0; b<NDIM; ++b)
+      for(c = 0; c<NDIM; ++c)
+      {
+        CLOOP1(i)
+        {
+          SS_d(a,i) += (0.5*T00(i) *
+                        (beta_u(b,i)*beta_u(c,i)*dgamma_ddd(a,b,c,i)) +
+                        T0i_u(b,i)*beta_u(c,i)*dgamma_ddd(a,b,c,i) +
+                        0.5*Tij_uu(b,c,i)*dgamma_ddd(a,b,c,i));
+        }
+      }
+
+      // tau-source term
       Stau.ZeroClear();
-      for(a=0;a<NDIM; ++a){ 
-	CLOOP1(i){
-	  Stau(i) -= wtot(i)*SQR(Wlor(i))*( v_u(a,i)*dalpha_d(a,i))/alpha(i) ;
-	}
-	for(b = 0; b<NDIM; ++b){ 
-	  CLOOP1(i){
-	    Stau(i) += (wtot(i)*SQR(Wlor(i)) * v_u(a,i)*v_u(b,i) + pgas(i)*gamma_uu(a,b,i))*K_dd(a,b,i) ;
-	  }
-	}
+      for(a=0; a<NDIM; ++a)
+      {
+        CLOOP1(i)
+        {
+          Stau(i) += (T00(i)*(- beta_u(a,i)*dalpha_d(a,i)) +
+                      T0i_u(a,i)*(- dalpha_d(a,i)));
+        }
       }
 
-      // momentum source term of hydro sources      
-      SS_d.ZeroClear();
-      for(a = 0; a<NDIM; ++a){  
-	CLOOP1(i){
-	  SS_d(a,i) = - (wtot(i)*SQR(Wlor(i)) - pgas(i))  * dalpha_d(a,i)/alpha(i);
-	}
-	for(b = 0; b<NDIM; ++b){  
-	  CLOOP1(i){
-	    SS_d(a,i) += wtot(i) *SQR(Wlor(i))*v_d(b,i)*dbeta_du(a,b,i)/alpha(i);
-	  }
-	  for(c = 0; c<NDIM; ++c){  
-	    CLOOP1(i){
-	      SS_d(a,i) +=  0.5*(wtot(i)*SQR(Wlor(i))*v_u(b,i)*v_u(c,i) + pgas(i)*gamma_uu(b,c,i))*dgamma_ddd(a,b,c,i) ;
-	    }
-	  }
-	}
+      for(a=0; a<NDIM; ++a)
+      for(b=0; b<NDIM; ++b)
+      {
+        CLOOP1(i)
+        {
+          Stau(i) += (T00(i)*(beta_u(a,i)*beta_u(b,i)*K_dd(a,b,i)) +
+                      T0i_u(a,i)*(2.0*beta_u(b,i)*K_dd(a,b,i) ) +
+                      Tij_uu(a,b,i)*K_dd(a,b,i));
+        }
       }
-      
-      if(MAGNETIC_FIELDS_ENABLED){
-	
-	CLOOP1(i){
-	  bb_u(0,i) = bb_cc(IB1,k,j,i)/std::sqrt(detg(i)); 
-	  bb_u(1,i) = bb_cc(IB2,k,j,i)/std::sqrt(detg(i)); 
-	  bb_u(2,i) = bb_cc(IB3,k,j,i)/std::sqrt(detg(i)); 
-	}
-	
-	b0_u.ZeroClear();
-	for(a=0;a<NDIM;++a){
-	  CLOOP1(i){
-	    b0_u(i) += Wlor(i)*bb_u(a,i)*v_d(a,i)/alpha(i);
-	  }
-	}
-	for(a=0;a<NDIM;++a){
-	  CLOOP1(i){
-	    bi_u(a,i) = (bb_u(a,i) + alpha(i)*b0_u(i)*Wlor(i)*(v_u(a,i) - beta_u(a,i)/alpha(i)))/Wlor(i);
-	  }
-	}
-	
-	//  bi_d.ZeroClear();
-	for(a=0;a<NDIM;++a){
-	  CLOOP1(i){
-	    bi_d(a,i) = beta_d(a,i) * b0_u(i);
-	    //bi_d(a,i) += bi_u(b,i)*gamma_dd(a,b,i);
-	  }
-	  for(b=0;b<NDIM;++b){
-	    CLOOP1(i){
-	      bi_d(a,i) += gamma_dd(a,b,i)*bi_u(b,i);
-	    }
-	  }
-	}
-	CLOOP1(i){
-	  bsq(i) = alpha(i)*alpha(i)*b0_u(i)*b0_u(i)/(Wlor(i)*Wlor(i));
-	}
-	
-	for(a=0;a<NDIM;++a){
-          for(b=0;b<NDIM;++b){
-	    CLOOP1(i){
-	      bsq(i) += bb_u(a,i)*bb_u(b,i)*gamma_dd(a,b,i)/(Wlor(i)*Wlor(i));
-	    }
-	  }
-	}
-	CLOOP1(i){
-	  u0(i) = Wlor(i)/alpha(i);
-	}    
 
-	// Tab components
-	CLOOP1(i){
-	  T00(i) = (wtot(i)+bsq(i))*u0(i)*u0(i) + (pgas(i)+bsq(i)/2.0)*(-1.0/(alpha(i)*alpha(i))) - b0_u(i)*b0_u(i);
-	}
-	
-	for(a = 0; a<NDIM; ++a){  
-	  CLOOP1(i){
-	    T0i_u(a,i) = (wtot(i)+bsq(i))*u0(i)*Wlor(i)*(v_u(a,i) - beta_u(a,i)/alpha(i)) + (pgas(i)+bsq(i)/2.0)*(beta_u(a,i)/(alpha(i)*alpha(i))) - b0_u(i)*bi_u(a,i);
-	  }
-	}
-	
-	T0i_d.ZeroClear();
-	for(a = 0; a<NDIM; ++a){  
-	  for(b = 0; b<NDIM; ++b){  
-	    CLOOP1(i){
-	      T0i_d(a,i) =( (wtot(i) + bsq(i))*Wlor(i)*Wlor(i)*v_d(a,i))/alpha(i) - b0_u(i)*bi_d(a,i);
-	    }
-	  }
-	}
-	
-	for(a = 0; a<NDIM; ++a){  
-	  for(b = 0; b<NDIM; ++b){  
-	    CLOOP1(i){
-	      Tij_uu(a,b,i) = (wtot(i)+bsq(i))*Wlor(i)*(v_u(a,i) - beta_u(a,i)/alpha(i))*Wlor(i)*(v_u(b,i) - beta_u(b,i)/alpha(i)) + (pgas(i)+bsq(i)/2.0)*(gamma_uu(a,b,i) - beta_u(a,i)*beta_u(b,i)/(alpha(i)*alpha(i))) - bi_u(a,i)*bi_u(b,i);
-	    }
-	  }
-	}
+    } // MAGNETIC_FIELDS_ENABLED
 
-	// momentum source term
-	for(a = 0; a<NDIM; ++a){  
-	  CLOOP1(i){
-	    SS_d(a,i) = T00(i)*(- alpha(i)*dalpha_d(a,i));
-	  }
-	}
-	
-	for(a = 0; a<NDIM; ++a){  
-	  for(b = 0; b<NDIM; ++b){  
-	    CLOOP1(i){
-	      SS_d(a,i) += T0i_d(b,i)*dbeta_du(a,b,i);
-	    }
-	  }
-	}
-	for(a = 0; a<NDIM; ++a){  
-	  for(b = 0; b<NDIM; ++b){  
-	    for(c = 0; c<NDIM; ++c){  
-	      CLOOP1(i){
-		SS_d(a,i) += 0.5*T00(i)*(beta_u(b,i)*beta_u(c,i)*dgamma_ddd(a,b,c,i)) + T0i_u(b,i)*beta_u(c,i)*dgamma_ddd(a,b,c,i) + 0.5*Tij_uu(b,c,i)*dgamma_ddd(a,b,c,i);
-	      }
-	    }
-	  }
-	}
-
-	// tau-source term
-	Stau.ZeroClear();
-	for(a = 0; a<NDIM; ++a){  
-	  CLOOP1(i){
-	    Stau(i) += T00(i)*(- beta_u(a,i)*dalpha_d(a,i)) + T0i_u(a,i)*(- dalpha_d(a,i));
-	  }
-	}
-	
-	for(a = 0; a<NDIM; ++a){  
-	  for(b = 0; b<NDIM; ++b){  
-	    CLOOP1(i){
-	      Stau(i) += T00(i)*(beta_u(a,i)*beta_u(b,i)*K_dd(a,b,i))  + T0i_u(a,i)*(2.0*beta_u(b,i)*K_dd(a,b,i) ) + Tij_uu(a,b,i)*K_dd(a,b,i);
-	    }
-	  }
-	}
-	
-      } // MAGNETIC_FIELDS_ENABLED
-      
-      if(fix_sources==1){
-	CLOOP1(i){
-	  pgas_init(i) = pmy_block->phydro->w_init(IPR,k,j,i); 
-	  rho_init(i) = pmy_block->phydro->w_init(IDN,k,j,i); 
+    if(fix_sources==1)
+    {
+      CLOOP1(i)
+      {
+        pgas_init(i) = pmy_block->phydro->w_init(IPR,k,j,i);
+        rho_init(i) = pmy_block->phydro->w_init(IDN,k,j,i);
 #if USETM
-	  Real n = rho_init(i)/pmy_block->peos->GetEOS().GetBaryonMass();
-	  // FIXME: Generalize to work with EOSes accepting particle fractions.
-	  Real Y[MAX_SPECIES] = {0.0};
-	  Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgas_init(i), Y);
-	  w_init(i) = n*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
+        Real n = rho_init(i)/pmy_block->peos->GetEOS().GetBaryonMass();
+        // FIXME: Generalize to work with EOSes accepting particle fractions.
+        Real Y[MAX_SPECIES] = {0.0};
+        Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgas_init(i), Y);
+        w_init(i) = n*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
 #else
-	  w_init(i) = rho_init(i) + gamma_adi/(gamma_adi-1.0) * pgas_init(i);
+    	  w_init(i) = rho_init(i) + gamma_adi/(gamma_adi-1.0) * pgas_init(i);
 #endif
-	  Stau(i) = 0.0;
-        }
-        for(a=0;a<NDIM;++a){
-	  CLOOP1(i){
-	    SS_d(a,i) = - (w_init(i) - pgas_init(i))*dalpha_d(a,i)/alpha(i)  ;
-	  }
-	  for(b=0;b<NDIM;++b){
-	    for(c=0;c<NDIM;++c){
-	      CLOOP1(i){
-		SS_d(a,i) += 0.5*pgas_init(i)*gamma_uu(b,c,i)*dgamma_ddd(a,b,c,i);
-	      }
-	    }
-	  }
-        }
-      } // fix_sources
-      
-      if(zero_sources == 1){
-	for(a=0;a<NDIM;++a){
-	  CLOOP1(i){
-	    SS_d(a,i) = 0.0 ;
-	  }
-	  
-	}
-	CLOOP1(i){
-	  Stau(i) = 0.0;
-	}
-      } // zero_sources
-
-      // Add sources
-      CLOOP1(i){
-        cons(IEN,k,j,i) += dt * Stau(i)  *alpha(i)*std::sqrt(detg(i));
-        cons(IM1,k,j,i) += dt * SS_d(0,i)*alpha(i)*std::sqrt(detg(i));
-        cons(IM2,k,j,i) += dt * SS_d(1,i)*alpha(i)*std::sqrt(detg(i));
-        cons(IM3,k,j,i) += dt * SS_d(2,i)*alpha(i)*std::sqrt(detg(i));
+	      Stau(i) = 0.0;
       }
-      
-    } // j
-  }// k
-  
+
+      for(a=0;a<NDIM;++a)
+      {
+        CLOOP1(i)
+        {
+          SS_d(a,i) = - (w_init(i) - pgas_init(i))*dalpha_d(a,i)/alpha(i);
+        }
+        for(b=0;b<NDIM;++b)
+        for(c=0;c<NDIM;++c)
+        {
+          CLOOP1(i)
+          {
+            SS_d(a,i) += 0.5*pgas_init(i)*gamma_uu(b,c,i)*dgamma_ddd(a,b,c,i);
+          }
+        }
+
+      }
+    } // fix_sources
+
+    if(zero_sources == 1)
+    {
+      for(a=0;a<NDIM;++a)
+      {
+        CLOOP1(i)
+        {
+          SS_d(a,i) = 0.0 ;
+        }
+      }
+      CLOOP1(i)
+      {
+        Stau(i) = 0.0;
+      }
+    } // zero_sources
+
+    // Add sources
+    CLOOP1(i)
+    {
+      cons(IEN,k,j,i) += dt * Stau(i)  *alpha(i)*std::sqrt(detg(i));
+      cons(IM1,k,j,i) += dt * SS_d(0,i)*alpha(i)*std::sqrt(detg(i));
+      cons(IM2,k,j,i) += dt * SS_d(1,i)*alpha(i)*std::sqrt(detg(i));
+      cons(IM3,k,j,i) += dt * SS_d(2,i)*alpha(i)*std::sqrt(detg(i));
+    }
+  } // j, k
+
   // cleanup 1d buffers
   pgas_init.DeleteAthenaArray();
   rho_init.DeleteAthenaArray();
