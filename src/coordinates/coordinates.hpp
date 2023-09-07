@@ -318,7 +318,6 @@ class Coordinates {
   Real bh_mass_;
   Real bh_spin_;
   Real chi_psi_power;
-  
 };
 
 //----------------------------------------------------------------------------------------
@@ -862,6 +861,37 @@ class GRDynamical : public Coordinates {
   //
   // note that coarse & fine switch automatically taken care of by ctor stuff
   //
+
+  // Calculate maximally permitted indicial ranges for mapping to CC
+  // Based on whatever interpolation has been chosen.
+  //
+  // Indices are those of the _target_ (CC) sampling
+  inline void GetGeometricFieldCCIdxRanges(
+    int &tr_il, int &tr_iu,
+    int &tr_jl, int &tr_ju,
+    int &tr_kl, int &tr_ku)
+  {
+#if defined(Z4C_VC_ENABLED)
+  #if defined(HYBRID_INTERP)
+    tr_il = ig_1N->cc_il;
+    tr_iu = ig_1N->cc_iu;
+    tr_jl = ig_1N->cc_jl;
+    tr_ju = ig_1N->cc_ju;
+    tr_kl = ig_1N->cc_kl;
+    tr_ku = ig_1N->cc_ku;
+  #else
+    tr_il = ig_NN->cc_il;
+    tr_iu = ig_NN->cc_iu;
+    tr_jl = ig_NN->cc_jl;
+    tr_ju = ig_NN->cc_ju;
+    tr_kl = ig_NN->cc_kl;
+    tr_ku = ig_NN->cc_ku;
+  #endif // HYBRID_INTERP
+#else  // Z4C_CX_ENABLED
+    // ... may be non-trivial (depends on NCGHOST_CX etc)
+#endif
+  }
+
   template <typename dtype, TensorSymm TSYM, int DIM, int NVAL>
   inline void GetGeometricFieldCC(
     AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
