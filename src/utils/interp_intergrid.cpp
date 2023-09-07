@@ -9,6 +9,7 @@
 #include "interp_intergrid.hpp"
 
 // base implementations -------------------------------------------------------
+/*x
 void InterpIntergrid::var_map_VC2CC(
   const AthenaArray<Real> & var_vc,
   AthenaArray<Real> & var_cc,
@@ -453,7 +454,7 @@ void InterpIntergrid::var_map_VC2CC_Taylor1(
     }
   }
 }
-
+*/
 // implementations for local calculation and vectorization --------------------
 InterpIntergridLocal::InterpIntergridLocal(
   const int dim, const int *N, const Real *rds)

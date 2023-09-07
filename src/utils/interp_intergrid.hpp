@@ -10,8 +10,12 @@
 // Athena++ headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
+#include "../athena_tensor.hpp"
+
+// TO DELETE -------------------
 #include "interp_univariate.hpp"
 #include "floating_point.hpp"
+// -----------------------------
 
 // Provide centred stencils for VC->D[CC]
 // Odd 'der' take negative values on the left part of the stencil
@@ -26,8 +30,8 @@ class InterpolateVC2DerCC {
 };
 
 
+/*
 namespace InterpIntergrid {
-
   void var_map_VC2CC(
     const AthenaArray<Real> & var_vc,
     AthenaArray<Real> & var_cc,
@@ -57,8 +61,8 @@ namespace InterpIntergrid {
     const int ml, const int mu,
     const int nl, const int nu
   );
-
 }; // namespace InterpIntergrid
+*/
 
 
 class InterpIntergridLocal {
@@ -734,5 +738,210 @@ inline Real VCDiff(int dir, AthenaArray<Real> &in, int k, int j, int i) {
       abort();
   }
 }
+
+
+// ----------------------------------------------------------------------------
+// New impl. here
+namespace InterpIntergrid {
+
+// Provide centred stencils for VC->D[CC]
+// Reversed stencil entry order (smaller values first)
+template<int der_, int half_stencil_size_>
+class InterpolateVC2DerCC_rev {
+  public:
+    // order of convergence (in spacing)
+    enum {order = 2 * half_stencil_size_ - 1};
+    enum {N_I = half_stencil_size_};
+    static Real const coeff[N_I];
+};
+
+// templated on data type and number of nodes utilized either-side of target
+// base-points
+template <typename dtype, int H_SZ>
+class InterpIntergrid
+{
+  public:
+    InterpIntergrid(const int ndim,
+                    const int * N,
+                    const dtype * rds,
+                    const int NG_CC,
+                    const int NG_VC);
+    ~InterpIntergrid();
+
+  public:
+    // interfaces for interpolation; output is into 1d scratch
+    template <TensorSymm TSYM, int DIM, int NVAL>
+    void VC2CC(
+      AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
+      const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
+      const int cc_k,
+      const int cc_j);
+
+    void VC2CC(
+      AthenaArray<       dtype> & tar,
+      const  AthenaArray<dtype> & src,
+      const int cc_k,
+      const int cc_j);
+
+    template <TensorSymm TSYM, int DIM, int NVAL>
+    void CC2VC(
+      AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
+      const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
+      const int vc_k,
+      const int vc_j);
+
+    void CC2VC(
+      AthenaArray<       dtype> & tar,
+      const  AthenaArray<dtype> & src,
+      const int vc_k,
+      const int vc_j);
+
+    // Mapping to face-centers
+    // -----------------------
+    // Consider ordering (k,j,i)
+    //
+    // Vertex-centered maps to FC where FC is aligned on:
+    //
+    // axis 0:
+    // (VC,VC,VC) -> (CC,CC,VC)
+    //
+    // axis 1:
+    // (VC,VC,VC) -> (CC,VC,CC)
+    //
+    // axis 2:
+    // (VC,VC,VC) -> (VC,CC,CC)
+    //
+    // Cell-centered maps to FC where FC is aligned on:
+    //
+    // axis 0:
+    // (CC,CC,CC) -> (CC,CC,VC)
+    //
+    // axis 1:
+    // (CC,CC,CC) -> (CC,VC,CC)
+    //
+    // axis 2:
+    // (CC,CC,CC) -> (VC,CC,CC)
+    //
+    // N.B. as is seen above the character of the target indices changes
+    // based on the direction FC is aligned.
+    void VC2FC(
+      AthenaArray<       dtype> & tar,
+      const  AthenaArray<dtype> & src,
+      const int dir,
+      const int tr_k,  // target grid idxs
+      const int tr_j,
+      const int tr_il,
+      const int tr_iu);
+
+    void CC2FC(
+      AthenaArray<       dtype> & tar,
+      const  AthenaArray<dtype> & src,
+      const int dir,
+      const int tr_k,  // target grid idxs
+      const int tr_j,
+      const int tr_il,
+      const int tr_iu);
+
+    template <TensorSymm TSYM, int DIM, int NVAL>
+    void VC2FC(
+      AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
+      const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
+      const int dir,
+      const int tr_k,  // target grid idxs
+      const int tr_j,
+      const int tr_il,
+      const int tr_iu);
+
+    template <TensorSymm TSYM, int DIM, int NVAL>
+    void CC2FC(
+      AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
+      const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
+      const int dir,
+      const int tr_k,  // target grid idxs
+      const int tr_j,
+      const int tr_il,
+      const int tr_iu);
+
+    // 1d scratch equivalents
+    void VC2FC(
+      AthenaArray<       dtype> & tar,
+      const  AthenaArray<dtype> & src,
+      const int dir,
+      const int tr_k,  // target grid idxs
+      const int tr_j);
+
+    void CC2FC(
+      AthenaArray<       dtype> & tar,
+      const  AthenaArray<dtype> & src,
+      const int dir,
+      const int tr_k,  // target grid idxs
+      const int tr_j);
+
+    template <TensorSymm TSYM, int DIM, int NVAL>
+    void VC2FC(
+      AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
+      const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
+      const int dir,
+      const int tr_k,  // target grid idxs
+      const int tr_j);
+
+    template <TensorSymm TSYM, int DIM, int NVAL>
+    void CC2FC(
+      AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
+      const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
+      const int dir,
+      const int tr_k,  // target grid idxs
+      const int tr_j);
+
+    template <TensorSymm TSYM, int DIM, int NVAL>
+    void VC2CC_D1(
+      AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
+      const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
+      const int dir,
+      const int cc_k,
+      const int cc_j);
+
+    void VC2CC_D1(
+      AthenaArray<       dtype> & tar,
+      const  AthenaArray<dtype> & src,
+      const int dir,
+      const int cc_k,
+      const int cc_j);
+
+  private:
+    const int dim;
+    const int NG_CC;
+    const int NG_VC;
+    const int dg;
+    const int dc;
+    const int dv;
+
+    int * N;           // number of _physical cells_  (vertices will be + 1)
+    int * ncells;      // these include ghosts
+    int * nverts;      // these include ghosts
+    int * strides_cc;
+    int * strides_vc;
+    dtype * rds;
+
+  public:
+    // expose maximal target iteration indices ...
+    int cc_il = 0, cc_iu = 0;
+    int cc_jl = 0, cc_ju = 0;
+    int cc_kl = 0, cc_ku = 0;
+
+    int vc_il = 0, vc_iu = 0;
+    int vc_jl = 0, vc_ju = 0;
+    int vc_kl = 0, vc_ku = 0;
+};
+
+}  // namespace InterpIntergrid
+
+// implementation details (for templates) =====================================
+#include "interp_intergrid.tpp"
+// ============================================================================
+
+//
+// :D
+//
 
 #endif // INTERP_INTERGRID_HPP_
