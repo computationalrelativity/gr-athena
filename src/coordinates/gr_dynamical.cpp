@@ -92,7 +92,7 @@ GRDynamical::GRDynamical(MeshBlock *pmb, ParameterInput *pin, bool flag)
   for (int i=ill; i<=iuu-1; ++i) {
     dx1v(i) = x1v(i+1) - x1v(i);
   }
-  
+
   // Initialize volume-averaged coordinates and spacings: theta-direction
   if (block_size.nx2 == 1) {
     Real theta_m = x2f(jl);
@@ -126,7 +126,7 @@ GRDynamical::GRDynamical(MeshBlock *pmb, ParameterInput *pin, bool flag)
       dx3v(k) = x3v(k+1) - x3v(k);
     }
   }
-  
+
   // Initialize area-averaged coordinates used with MHD AMR
   if (pm->multilevel && MAGNETIC_FIELDS_ENABLED) {
     for (int i=ill; i<=iuu; ++i) {
@@ -164,7 +164,7 @@ GRDynamical::GRDynamical(MeshBlock *pmb, ParameterInput *pin, bool flag)
   if (!coarse_flag) {
     transformation.NewAthenaArray(2, NTRIANGULAR);
   }
-  
+
   // Set up finite differencing -----------------------------------------------
   fd_is_defined = true;
   fd_cc = new FiniteDifference::Uniform(
@@ -181,7 +181,42 @@ GRDynamical::GRDynamical(MeshBlock *pmb, ParameterInput *pin, bool flag)
     nv1, nv2, nv3,
     dx1f(0), dx2f(0), dx3f(0)
   );
-  // Metric quantities not initialised in constructor, need to wait for UpdateMetric() 
+
+  // intergrid interpolators --------------------------------------------------
+  // for metric <-> matter sampling conversion
+  //
+  // if metric_vc then need {vc->fc, vc->cc}
+  // if metric_cx then only need cx->fc
+  //
+  // this motivates the choices of ghosts below
+
+  typedef InterpIntergrid::InterpIntergrid<Real, 1        > IIG_LO;
+  typedef InterpIntergrid::InterpIntergrid<Real, NGRCV_HSZ> IIG_HO;
+
+  const int ng_c = (coarse_flag)? NCGHOST_CX : NGHOST;
+  const int ng_v = (coarse_flag)? NCGHOST    : NGHOST;
+
+  int N[] = {
+    nc1 - 2 * ng_c,
+    nc2 - 2 * ng_c,
+    nc3 - 2 * ng_c
+  };
+  Real rdx[] = {
+    1./(x1f(1)-x1f(0)),
+    1./(x2f(1)-x2f(0)),
+    1./(x3f(1)-x3f(0))
+  };
+
+  const int dim = (pmb->pmy_mesh->f3) ? 3 : (
+    (pmb->pmy_mesh->f2) ? 2 : 1
+  );
+
+  ig_is_defined = true;
+
+  ig_LO = new IIG_LO(dim, &N[0], &rdx[0], ng_c, ng_v);
+  ig_HO = new IIG_HO(dim, &N[0], &rdx[0], ng_c, ng_v);
+
+  // Metric quantities not initialised in constructor, need to wait for UpdateMetric()
   // to be called once VC metric is initialised in pgen
 }
 

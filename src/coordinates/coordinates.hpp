@@ -22,6 +22,7 @@
 #include "../hydro/srcterms/hydro_srcterms.hpp"
 #include "../mesh/mesh.hpp"
 #include "../utils/finite_differencing.hpp"
+#include "../utils/interp_intergrid.hpp"
 #include "../z4c/z4c.hpp"
 #include "../z4c/z4c_macro.hpp"
 //#include "../utils/lagrange_interp.hpp"
@@ -46,6 +47,12 @@ class Coordinates {
       delete fd_cc;
       delete fd_cx;
       delete fd_vc;
+    }
+
+    if (ig_is_defined)
+    {
+      delete ig_LO;
+      delete ig_HO;
     }
   }
 
@@ -202,6 +209,13 @@ class Coordinates {
   FiniteDifference::Uniform * fd_cc;
   FiniteDifference::Uniform * fd_cx;
   FiniteDifference::Uniform * fd_vc;
+
+  bool ig_is_defined = false;
+  typedef InterpIntergrid::InterpIntergrid<Real, 1        > IIG_LO;
+  typedef InterpIntergrid::InterpIntergrid<Real, NGRCV_HSZ> IIG_HO;
+
+  IIG_LO * ig_LO;
+  IIG_HO * ig_HO;
 
  protected:
   bool coarse_flag;  // true if this coordinate object is parent (coarse) mesh in AMR
@@ -773,8 +787,8 @@ class GRDynamical : public Coordinates {
   // fix sources to Initial data values
   int fix_sources;
   int zero_sources;
-  
-  // functions...  
+
+  // functions...
   // ...to compute length of edges
   void Edge1Length(const int k, const int j, const int il, const int iu,
                    AthenaArray<Real> &len) final;
