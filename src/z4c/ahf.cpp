@@ -398,7 +398,7 @@ void AHF::MetricDerivatives(MeshBlock * pmy_block)
 // Flag here the surface points contained in the MB
 void AHF::MetricInterp(MeshBlock * pmb)
 {
-  LagrangeInterpND<2*NGHOST-1, 3> * pinterp3 = nullptr;
+  LagrangeInterpND<2, 3> * pinterp3 = nullptr;
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> vc_adm_g_dd;      // 3-metric  (NDIM=3 in z4c.hpp)
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> vc_adm_K_dd;      // extr.curv.
   vc_adm_g_dd.InitWithShallowSlice(pmb->pz4c->storage.adm, Z4c::I_ADM_gxx);
@@ -479,7 +479,7 @@ void AHF::MetricInterp(MeshBlock * pmb)
       delta[2]  = pmb->pcoord->dx3f(0);
       coord[2]  = z;
         
-      pinterp3 =  new LagrangeInterpND<2*NGHOST-1, 3>(origin, delta, size, coord);
+      pinterp3 =  new LagrangeInterpND<2, 3>(origin, delta, size, coord);
 
       // With bitant wrt z=0, pick a (-) sign every time a z component is 
       // encountered.
