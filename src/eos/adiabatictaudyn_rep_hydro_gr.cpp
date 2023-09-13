@@ -421,18 +421,15 @@ void EquationOfState::PrimitiveToConserved(
     JL, JU,
     KL, KU);
 
-  // BD: TODO - think about this...
-  //
-  // in principle we should restrict the ranges further to a subset of
-  // those that are possible based on input argument as:
-  // IL = std::max(il, IL);
-  // IU = std::min(iu, IU);
+  // Restrict further the ranges to the input argument
+  IL = std::max(il, IL);
+  IU = std::min(iu, IU);
 
-  // JL = std::max(jl, JL);
-  // JU = std::min(ju, JU);
+  JL = std::max(jl, JL);
+  JU = std::min(ju, JU);
 
-  // KL = std::max(kl, KL);
-  // KU = std::min(ku, KU);
+  KL = std::max(kl, KL);
+  KU = std::min(ku, KU);
 
   for (int k=KL; k<=KU; ++k)
   for (int j=JL; j<=JU; ++j)

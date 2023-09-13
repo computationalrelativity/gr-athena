@@ -220,7 +220,7 @@ public:
     Real shift_eta_TP_ix;
 #endif // Z4C_ETA_CONF, Z4C_ETA_TRACK_TP
 
-    // Matter parameters   
+    // Matter parameters
     int cowling; // if 1 then cowling approximation used, rhs of z4c equations -> 0
     int rhstheta0; // if 1 then rhs of Theta equation -> 0
     int fixedgauge; // if 1 then gauge is fixed, rhs of alpha, beta^i equations -> 0
@@ -228,7 +228,7 @@ public:
     int Tmunuinterp; // interpolate stress energy
     int epsinterp; // interpolate stress energy
     int bssn; // reduce to bssn
-    
+
     // AwA parameters
     Real AwA_amplitude; // amplitude parameter
     Real AwA_d_x; // d_x (width) parameter
@@ -311,10 +311,13 @@ public:
                       AthenaArray<Real> & u_mat, AthenaArray<Real> & u_z4c);
   // calculate weyl scalars
   void Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat,
-                      AthenaArray<Real> & u_weyl);
-  // Update matter variables from hydro  
-  void GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, AthenaArray<Real> & w,
-		 AthenaArray<Real> & bb_cc);  
+               AthenaArray<Real> & u_weyl);
+  // Update matter variables from hydro
+  void GetMatter(AthenaArray<Real> & u_mat,
+                 AthenaArray<Real> & u_adm,
+                 AthenaArray<Real> & w,
+                 AthenaArray<Real> & bb_cc);
+
   // utility functions
   //
   // set ADM aliases given u_adm
@@ -462,7 +465,7 @@ private:
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 4> Riemm4_dddd; // 4D Riemann tensor
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 3> Riemm4_ddd;  // 4D Riemann * n^a
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> Riemm4_dd;   // 4D Riemann *n^a*n^c
-  
+
   // aux vars for matter interpolation //SB: TODO remove/cleanup
   AthenaArray<Real> rhocc;
   AthenaArray<Real> pgascc;
@@ -472,7 +475,7 @@ private:
   AthenaArray<Real> bb1cc;
   AthenaArray<Real> bb2cc;
   AthenaArray<Real> bb3cc;
-  
+
 private:
   void Z4cSommerfeld_(AthenaArray<Real> & u, AthenaArray<Real> & rhs,
       int const is, int const ie, int const js, int const je, int const ks, int const ke);
