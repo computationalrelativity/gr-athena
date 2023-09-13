@@ -476,6 +476,11 @@ private:
   AthenaArray<Real> bb2cc;
   AthenaArray<Real> bb3cc;
 
+  // Aux vars handling cx/vc matter interpolation
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> rho;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> pgas;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> utilde;
+
 private:
   void Z4cSommerfeld_(AthenaArray<Real> & u, AthenaArray<Real> & rhs,
       int const is, int const ie, int const js, int const je, int const ks, int const ke);

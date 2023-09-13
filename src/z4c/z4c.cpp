@@ -409,6 +409,16 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
     ig_coarse = new InterpIntergridLocal(NDIM, &N_coarse[0], &rdx_coarse[0]);
   }
 
+
+  // To handle inter-grid interpolation ---------------------------------------
+  if (Z4C_ENABLED && FLUID_ENABLED)
+  {
+    rho.NewAthenaTensor(mbi.nn1);
+    pgas.NewAthenaTensor(mbi.nn1);
+    utilde.NewAthenaTensor(mbi.nn1);
+  }
+
+  // Finite differencing alias ------------------------------------------------
 #if defined (Z4C_CC_ENABLED)
   this->fd = pmb->pcoord->fd_cc;
 #elif defined (Z4C_CX_ENABLED)
@@ -518,6 +528,15 @@ Z4c::~Z4c()
     opt.sphere_zone_center2.DeleteAthenaArray();
     opt.sphere_zone_center3.DeleteAthenaArray();
   }
+
+  // To handle inter-grid interpolation ---------------------------------------
+  if (Z4C_ENABLED && FLUID_ENABLED)
+  {
+    rho.DeleteAthenaTensor();
+    pgas.DeleteAthenaTensor();
+    utilde.DeleteAthenaTensor();
+  }
+
   delete pz4c_amr;
 }
 
