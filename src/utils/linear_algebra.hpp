@@ -76,6 +76,20 @@ static inline Real TraceRank2(
   );
 }
 
+// inner product of 3-vec
+static inline Real InnerProductSlicedVec3Metric(
+  AthenaTensor<Real, TensorSymm::NONE, 3, 1> const & u,
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & g,
+  int const k, int const j, int const i)
+{
+  return (u(0,i)*u(0,i)*g(0,0,k,j,i) +
+          u(1,i)*u(1,i)*g(1,1,k,j,i) +
+          u(2,i)*u(2,i)*g(2,2,k,j,i) +
+          2.0*u(0,i)*u(1,i)*g(0,1,k,j,i) +
+          2.0*u(0,i)*u(2,i)*g(0,2,k,j,i) +
+          2.0*u(1,i)*u(2,i)*g(1,2,k,j,i));
+}
+
 }  // namespace LinearAlgebra
 
 // implementation details (for templates) =====================================

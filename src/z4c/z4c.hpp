@@ -481,6 +481,10 @@ private:
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> pgas;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> utilde;
 
+#if MAGNETIC_FIELDS_ENABLED
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> bb;
+#endif
+
 private:
   void Z4cSommerfeld_(AthenaArray<Real> & u, AthenaArray<Real> & rhs,
       int const is, int const ie, int const js, int const je, int const ks, int const ke);

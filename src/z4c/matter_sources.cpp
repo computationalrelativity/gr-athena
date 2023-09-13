@@ -51,6 +51,15 @@ void Z4c::GetMatter(
   sl_pgas.InitWithShallowSlice(  sl_w, IPR);
   sl_utilde.InitWithShallowSlice(sl_w, IVX);
 
+#if MAGNETIC_FIELDS_ENABLED
+  if(opt.fix_admsource==0)
+  {
+    AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> sl_bb;
+    sl_bb.InitWithShallowSlice(bb_cc, IB1);
+    // check this (? what to do for fixed source)
+  }
+#endif
+
 
   int nn1 = pmb->ncells1;
   int nn2 = pmb->ncells2;
@@ -76,48 +85,12 @@ void Z4c::GetMatter(
     //SetADMAliases(storage.adm_init,adm);
   }
 
-  // Cell centred hydro vars //SB: TODO remove/cleanup *ccvars (L510 z4c.hpp)
-  if(opt.fix_admsource==0)
-  {
-    // rhocc.InitWithShallowSlice(    w,IDN,1);
-    // pgascc.InitWithShallowSlice(   w,IPR,1);
-    // utilde1cc.InitWithShallowSlice(w,IVX,1);
-    // utilde2cc.InitWithShallowSlice(w,IVY,1);
-    // utilde3cc.InitWithShallowSlice(w,IVZ,1);
-#if MAGNETIC_FIELDS_ENABLED
-    bb1cc.InitWithShallowSlice(bb_cc,IB1,1);
-    bb2cc.InitWithShallowSlice(bb_cc,IB2,1);
-    bb3cc.InitWithShallowSlice(bb_cc,IB3,1);   //check this!
-#endif
-  }
-  else if(opt.fix_admsource==1)
-  {
-    // rhocc.InitWithShallowSlice(    phydro->w_init,IDN,1);
-    // pgascc.InitWithShallowSlice(   phydro->w_init,IPR,1);
-    // utilde1cc.InitWithShallowSlice(phydro->w_init,IVX,1);
-    // utilde2cc.InitWithShallowSlice(phydro->w_init,IVY,1);
-    // utilde3cc.InitWithShallowSlice(phydro->w_init,IVZ,1);
-  }
-
-
-
-
   if(opt.Tmunuinterp==0)
   {
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> bb1vc,bb2vc,bb3vc, tmp, wgas, gamma_lor, v1,v2,v3, detgamma, detg, bsq, b0_u;
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> v_d, v_u,  bb_u, bi_u, bi_d, utildevc_u, beta_d;
-    // rhovc.NewAthenaTensor(nn1);
-    // pgasvc.NewAthenaTensor(nn1);
-    // epsvc.NewAthenaTensor(nn1);
-    // utilde1vc.NewAthenaTensor(nn1);
-    // utilde2vc.NewAthenaTensor(nn1);
-    // utilde3vc.NewAthenaTensor(nn1);
+    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> wgas, gamma_lor, v1,v2,v3, detgamma, detg, bsq, b0_u;
+    AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> v_d, v_u,  bb_u, bi_u, bi_d, beta_d;
 
 #if MAGNETIC_FIELDS_ENABLED
-    bb1vc.NewAthenaTensor(nn1);
-    bb2vc.NewAthenaTensor(nn1);
-    bb3vc.NewAthenaTensor(nn1);
-
     bb_u.NewAthenaTensor(nn1);
     bi_u.NewAthenaTensor(nn1);
     bi_d.NewAthenaTensor(nn1);
@@ -125,7 +98,6 @@ void Z4c::GetMatter(
     v1.NewAthenaTensor(nn1);
     v2.NewAthenaTensor(nn1);
     v3.NewAthenaTensor(nn1);
-    tmp.NewAthenaTensor(nn1);
     wgas.NewAthenaTensor(nn1);
     gamma_lor.NewAthenaTensor(nn1);
     detgamma.NewAthenaTensor(nn1);
@@ -136,7 +108,6 @@ void Z4c::GetMatter(
     v_u.NewAthenaTensor(nn1);
     beta_d.NewAthenaTensor(nn1);
 
-    utildevc_u.NewAthenaTensor(nn1);
     alpha.InitWithShallowSlice(pmb->pz4c->storage.u, Z4c::I_Z4c_alpha, 1);
 
     ILOOP2(k,j)
@@ -145,35 +116,12 @@ void Z4c::GetMatter(
       pco_gr->GetMatterField(pgas,   sl_pgas,   k, j);
       pco_gr->GetMatterField(utilde, sl_utilde, k, j);
 
+#if MAGNETIC_FIELDS_ENABLED
+      pco_gr->GetMatterField(bb,     sl_bb,     k, j);
+#endif
+
       ILOOP1(i)
       {
-        // pco_gr->GetMatterField(rho, rhocc, k, j);
-#ifdef HYBRID_INTERP
-    	  // rhovc(i) = CCInterpolation(rhocc, k, j, i);
-        // pgasvc(i) = CCInterpolation(pgascc, k, j, i);
-
-        // utilde1vc(i) = CCInterpolation(utilde1cc, k, j, i);
-        // utilde2vc(i) = CCInterpolation(utilde2cc, k, j, i);
-        // utilde3vc(i) = CCInterpolation(utilde3cc, k, j, i);
-#if MAGNETIC_FIELDS_ENABLED
-        bb1vc(i) = CCInterpolation(bb1cc, k, j, i);
-        bb2vc(i) = CCInterpolation(bb2cc, k, j, i);
-        bb3vc(i) = CCInterpolation(bb3cc, k, j, i);
-#endif // MAGNETIC_FIELDS_ENABLED
-#else
-        // rhovc(i) = ig->map3d_CC2VC(rhocc(k,j,i));
-        // pgas(i) = ig->map3d_CC2VC(pgascc(k,j,i));
-
-        // utilde1vc(i) = ig->map3d_CC2VC(utilde1cc(k,j,i));
-        // utilde2vc(i) = ig->map3d_CC2VC(utilde2cc(k,j,i));
-        // utilde3vc(i) = ig->map3d_CC2VC(utilde3cc(k,j,i));
-#if MAGNETIC_FIELDS_ENABLED
-        bb1vc(i)     = ig->map3d_CC2VC(bb1cc(k,j,i));
-        bb2vc(i)     = ig->map3d_CC2VC(bb2cc(k,j,i));
-        bb3vc(i)     = ig->map3d_CC2VC(bb3cc(k,j,i));
-#endif
-#endif // HYBRID_INTERP
-
         // NB specific to EOS
 #if USETM
         Real n = rho(i)/mb;
@@ -184,14 +132,10 @@ void Z4c::GetMatter(
 #else
         wgas(i) = rho(i) + gamma_adi/(gamma_adi-1.0) * pgas(i);
 #endif
-        tmp(i) = utilde(0,i)*utilde(0,i)*adm.g_dd(0,0,k,j,i)
-               + utilde(1,i)*utilde(1,i)*adm.g_dd(1,1,k,j,i)
-               + utilde(2,i)*utilde(2,i)*adm.g_dd(2,2,k,j,i)
-               + 2.0*utilde(0,i)*utilde(1,i)*adm.g_dd(0,1,k,j,i)
-               + 2.0*utilde(0,i)*utilde(2,i)*adm.g_dd(0,2,k,j,i)
-               + 2.0*utilde(1,i)*utilde(2,i)*adm.g_dd(1,2,k,j,i);
 
-        gamma_lor(i) = sqrt(1.0+tmp(i));
+        Real const norm_utilde = InnerProductSlicedVec3Metric(utilde, adm.g_dd,
+                                                              k, j, i);
+        gamma_lor(i) = sqrt(1.0+norm_utilde);
         //   convert to 3-velocity
         v1(i) = utilde(0,i)/gamma_lor(i);
         v2(i) = utilde(1,i)/gamma_lor(i);
@@ -207,9 +151,10 @@ void Z4c::GetMatter(
         detg(i) = alpha(k,j,i)*detgamma(i);
 
 #if MAGNETIC_FIELDS_ENABLED
-        bb_u(0,i) = bb1vc(i)/std::sqrt(detgamma(i));
-        bb_u(1,i) = bb2vc(i)/std::sqrt(detgamma(i));
-        bb_u(2,i) = bb3vc(i)/std::sqrt(detgamma(i));
+        Real const r_sqrt_detgamma_i = 1.0 / std::sqrt(detgamma(i));
+        bb_u(0,i) = bb(0,i) * r_sqrt_detgamma_i;
+        bb_u(1,i) = bb(1,i) * r_sqrt_detgamma_i;
+        bb_u(2,i) = bb(2,i) * r_sqrt_detgamma_i;
 #endif
       }
       // b0_u = 0.0;
@@ -231,19 +176,16 @@ void Z4c::GetMatter(
         {
     	    ILOOP1(i)
           {
-    	      beta_d(a,i) += adm.g_dd(a,b,k,j,i)*z4c.beta_u(b,k,j,i);
+    	      beta_d(a,i) += adm.g_dd(a,b,k,j,i) * z4c.beta_u(b,k,j,i);
     	    }
 	      }
       }
 
       ILOOP1(i)
       {
-        utildevc_u(0,i) = utilde(0,i);
-        utildevc_u(1,i) = utilde(1,i);
-        utildevc_u(2,i) = utilde(2,i);
-        v_u(0,i)        = v1(i);
-        v_u(1,i)        = v2(i);
-        v_u(2,i)        = v3(i);
+        v_u(0,i) = v1(i);
+        v_u(1,i) = v2(i);
+        v_u(2,i) = v3(i);
       }
 
 #if MAGNETIC_FIELDS_ENABLED

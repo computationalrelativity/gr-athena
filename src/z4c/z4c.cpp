@@ -416,6 +416,10 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
     rho.NewAthenaTensor(mbi.nn1);
     pgas.NewAthenaTensor(mbi.nn1);
     utilde.NewAthenaTensor(mbi.nn1);
+
+#if MAGNETIC_FIELDS_ENABLED
+    bb.NewAthenaTensor(mbi.nn1);
+#endif
   }
 
   // Finite differencing alias ------------------------------------------------
@@ -535,6 +539,11 @@ Z4c::~Z4c()
     rho.DeleteAthenaTensor();
     pgas.DeleteAthenaTensor();
     utilde.DeleteAthenaTensor();
+
+#if MAGNETIC_FIELDS_ENABLED
+    bb.DeleteAthenaTensor();
+#endif
+
   }
 
   delete pz4c_amr;
