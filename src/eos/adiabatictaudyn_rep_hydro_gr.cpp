@@ -164,54 +164,42 @@ void EquationOfState::ConservedToPrimitive(
                      atmo, c2p_acc, max_iter);
 
   // Prepare variables for conversion -----------------------------------------
+  Z4c * pz4c = pmy_block_->pz4c;
 
-  AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy;
-  AthenaArray<Real> vcgamma_yz,vcgamma_zz,vcbeta_x,vcbeta_y;
-  AthenaArray<Real> vcbeta_z, vcalpha;
-  AthenaArray<Real> vcgammat_xx,vcgammat_xy,vcgammat_xz,vcgammat_yy;
-  AthenaArray<Real> vcgammat_yz,vcgammat_zz;
-  AthenaArray<Real> vcchi;
+  // quantities we have (sliced below)
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_gamma_dd;
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> z4c_gamma_dd;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> z4c_alpha;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> z4c_beta_u;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> z4c_chi;
 
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha; //lapse
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> chi; //lapse
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u; //lapse
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd; //lapse
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gammat_dd; //lapse
+  // quantities we will construct (on CC)
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> chi;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> rchi;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u;
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
 
-  if(coarse_flag==0)
+  alpha.NewAthenaTensor(   nn1);
+  beta_u.NewAthenaTensor(  nn1);
+  gamma_dd.NewAthenaTensor(nn1);
+
+  // need to pull quantities from appropriate storage
+  if (!coarse_flag)
   {
-    alpha.NewAthenaTensor(nn1);
-    beta_u.NewAthenaTensor(nn1);
-    gamma_dd.NewAthenaTensor(nn1);
-    vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
-    vcgamma_xy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
-    vcgamma_xz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
-    vcgamma_yy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
-    vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
-    vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
-    vcbeta_x.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betax,1);
-    vcbeta_y.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betay,1);
-    vcbeta_z.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_betaz,1);
-    vcalpha.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
+    adm_gamma_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
+    z4c_alpha.InitWithShallowSlice(   pz4c->storage.u,   Z4c::I_Z4c_alpha);
+    z4c_beta_u.InitWithShallowSlice(  pz4c->storage.u,   Z4c::I_Z4c_betax);
   }
   else
   {
-    alpha.NewAthenaTensor(nn1);
-    chi.NewAthenaTensor(nn1);
-    beta_u.NewAthenaTensor(nn1);
-    gamma_dd.NewAthenaTensor(nn1);
-    gammat_dd.NewAthenaTensor(nn1);
-    vcgammat_xx.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxx,1);
-    vcgammat_xy.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxy,1);
-    vcgammat_xz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxz,1);
-    vcgammat_yy.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gyy,1);
-    vcgammat_yz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gyz,1);
-    vcgammat_zz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gzz,1);
-    vcbeta_x.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_betax,1);
-    vcbeta_y.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_betay,1);
-    vcbeta_z.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_betaz,1);
-    vcalpha.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_alpha,1);
-    vcchi.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_chi,1);
+    chi.NewAthenaTensor( nn1);  // additionally needed on coarse rep.
+    rchi.NewAthenaTensor(nn1);
+
+    z4c_gamma_dd.InitWithShallowSlice(pz4c->coarse_u_, Z4c::I_Z4c_gxx);
+    z4c_alpha.InitWithShallowSlice(   pz4c->coarse_u_, Z4c::I_Z4c_alpha);
+    z4c_beta_u.InitWithShallowSlice(  pz4c->coarse_u_, Z4c::I_Z4c_betax);
+    z4c_chi.InitWithShallowSlice(     pz4c->coarse_u_, Z4c::I_Z4c_chi);
   }
 
   // sanitize loop-limits (coarse / fine auto-switched)
@@ -221,121 +209,51 @@ void EquationOfState::ConservedToPrimitive(
     JL, JU,
     KL, KU);
 
-  // BD: TODO - think about this...
-  //
-  // in principle we should restrict the ranges further to a subset of
-  // those that are possible based on input argument as:
-  // IL = std::max(il, IL);
-  // IU = std::min(iu, IU);
+  // Restrict further the ranges to the input argument
+  IL = std::max(il, IL);
+  IU = std::min(iu, IU);
 
-  // JL = std::max(jl, JL);
-  // JU = std::min(ju, JU);
+  JL = std::max(jl, JL);
+  JU = std::min(ju, JU);
 
-  // KL = std::max(kl, KL);
-  // KU = std::min(ku, KU);
+  KL = std::max(kl, KL);
+  KU = std::min(ku, KU);
 
-  // Go through cells
+  // iterate over cells
   for (int k=KL; k<=KU; ++k)
   for (int j=JL; j<=JU; ++j)
   {
-//TODO VC2CC here
-#ifdef HYBRID_INTERP
-    if(coarse_flag==0)
+    if (!coarse_flag)
     {
-      #pragma omp simd
-      for (int i=IL; i<=IU; ++i)
-      {
-          gamma_dd(0,0,i) = VCInterpolation(vcgamma_xx, k, j, i);
-          gamma_dd(0,1,i) = VCInterpolation(vcgamma_xy, k, j, i);
-          gamma_dd(0,2,i) = VCInterpolation(vcgamma_xz, k, j, i);
-          gamma_dd(1,1,i) = VCInterpolation(vcgamma_yy, k, j, i);
-          gamma_dd(1,2,i) = VCInterpolation(vcgamma_yz, k, j, i);
-          gamma_dd(2,2,i) = VCInterpolation(vcgamma_zz, k, j, i);
-          alpha(i) = VCInterpolation(vcalpha, k, j, i);
-          beta_u(0,i) = VCInterpolation(vcbeta_x, k, j, i);
-          beta_u(1,i) = VCInterpolation(vcbeta_y, k, j, i);
-          beta_u(2,i) = VCInterpolation(vcbeta_z, k, j, i);
-      }
+      pco_gr->GetGeometricFieldCC(gamma_dd, adm_gamma_dd, k, j);
+      pco_gr->GetGeometricFieldCC(alpha,    z4c_alpha,    k, j);
+      pco_gr->GetGeometricFieldCC(beta_u,   z4c_beta_u,   k, j);
     }
     else
     {
+      // coarse variables require also further oper.
+      pco_gr->GetGeometricFieldCC(gamma_dd, z4c_gamma_dd, k, j);
+      pco_gr->GetGeometricFieldCC(alpha,    z4c_alpha,    k, j);
+      pco_gr->GetGeometricFieldCC(beta_u,   z4c_beta_u,   k, j);
+      pco_gr->GetGeometricFieldCC(chi,      z4c_chi,      k, j);
+
       #pragma omp simd
       for (int i=IL; i<=IU; ++i)
       {
-        gammat_dd(0,0,i) = VCInterpolation(vcgammat_xx, k, j, i);
-        gammat_dd(0,1,i) = VCInterpolation(vcgammat_xy, k, j, i);
-        gammat_dd(0,2,i) = VCInterpolation(vcgammat_xz, k, j, i);
-        gammat_dd(1,1,i) = VCInterpolation(vcgammat_yy, k, j, i);
-        gammat_dd(1,2,i) = VCInterpolation(vcgammat_yz, k, j, i);
-        gammat_dd(2,2,i) = VCInterpolation(vcgammat_zz, k, j, i);
-        alpha(i) = VCInterpolation(vcalpha, k, j, i);
-        chi(i) =  VCInterpolation(vcchi, k, j, i);
-        beta_u(0,i) = VCInterpolation(vcbeta_x, k, j, i);
-        beta_u(1,i) = VCInterpolation(vcbeta_y, k, j, i);
-        beta_u(2,i) = VCInterpolation(vcbeta_z, k, j, i);
+        rchi(i) = 1. / chi(i);
       }
 
-      for(int a=0;a<3;a++)
-      {
-        for(int b=0;b<3;b++)
-        {
-          #pragma omp simd
-          for (int i=IL; i<=IU; ++i)
-          {
-            gamma_dd(a,b,i) = gammat_dd(a,b,i)/chi(i);
-          }
-        }
-      }
-    }
-
-#else
-    if(coarse_flag==0)
-    {
-      #pragma omp simd
-      for (int i=IL; i<=IU; ++i)
-      {
-        gamma_dd(0,0,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
-        gamma_dd(0,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
-        gamma_dd(0,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
-        gamma_dd(1,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
-        gamma_dd(1,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
-        gamma_dd(2,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
-        alpha(i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcalpha(k,j,i));
-        beta_u(0,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcbeta_x(k,j,i));
-        beta_u(1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcbeta_y(k,j,i));
-        beta_u(2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcbeta_z(k,j,i));
-      }
-
-    }
-    else
-    {
-      #pragma omp simd
-      for (int i=IL; i<=IU; ++i)
-      {
-        gammat_dd(0,0,i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcgammat_xx(k,j,i));
-        gammat_dd(0,1,i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcgammat_xy(k,j,i));
-        gammat_dd(0,2,i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcgammat_xz(k,j,i));
-        gammat_dd(1,1,i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcgammat_yy(k,j,i));
-        gammat_dd(1,2,i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcgammat_yz(k,j,i));
-        gammat_dd(2,2,i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcgammat_zz(k,j,i));
-        alpha(i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcalpha(k,j,i));
-        chi(i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcchi(k,j,i));
-        beta_u(0,i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcbeta_x(k,j,i));
-        beta_u(1,i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcbeta_y(k,j,i));
-        beta_u(2,i) = pmy_block_->pz4c->ig_coarse->map3d_VC2CC(vcbeta_z(k,j,i));
-      }
-
-      for(int a=0;a<3;a++)
-      for(int b=0;b<3;b++)
+      for(int a=0; a<NDIM; ++a)
+      for(int b=a; b<NDIM; ++b)
       {
         #pragma omp simd
         for (int i=IL; i<=IU; ++i)
         {
-          gamma_dd(a,b,i) = gammat_dd(a,b,i)/chi(i);
+          gamma_dd(a,b,i) = gamma_dd(a,b,i) * rchi(i);
         }
       }
+
     }
-#endif
 
     // do actual variable conversion ------------------------------------------
     #pragma omp simd
@@ -453,19 +371,15 @@ void EquationOfState::ConservedToPrimitive(
     }
   }
 
-  if(coarse_flag==0)
+  // clean-up
+  alpha.DeleteAthenaTensor();
+  beta_u.DeleteAthenaTensor();
+  gamma_dd.DeleteAthenaTensor();
+
+  if (coarse_flag)
   {
-    alpha.DeleteAthenaTensor();
-    beta_u.DeleteAthenaTensor();
-    gamma_dd.DeleteAthenaTensor();
-  }
-  else
-  {
-    alpha.DeleteAthenaTensor();
-    beta_u.DeleteAthenaTensor();
-    gamma_dd.DeleteAthenaTensor();
     chi.DeleteAthenaTensor();
-    gammat_dd.DeleteAthenaTensor();
+    rchi.DeleteAthenaTensor();
   }
 
   return;
