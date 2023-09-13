@@ -15,6 +15,7 @@
 #include "z4c.hpp"
 #include "z4c_macro.hpp"
 #include "../mesh/mesh.hpp"
+#include "../utils/linear_algebra.hpp"
 
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
@@ -40,6 +41,8 @@
 // the Gamma's that can only be set in the interior of the MeshBlock.
 
 void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u) {
+  using namespace LinearAlgebra;
+
   ADM_vars adm;
   SetADMAliases(u_adm, adm);
   Z4c_vars z4c;
@@ -52,7 +55,7 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u) {
 
     // Conformal factor
     GLOOP1(i) {
-      detg(i)   = SpatialDet(adm.g_dd, k, j, i);
+      detg(i) = Det3Metric(adm.g_dd, k, j, i);
       // oopsi4(i) = pow(detg(i), -1./3.);
       // z4c.chi(k,j,i) = pow(detg(i), 1./12.*opt.chi_psi_power);
 
@@ -72,8 +75,8 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u) {
 
     // Determinant of the conformal metric and trace of conf. extr. curvature
     GLOOP1(i) {
-      detg(i) = SpatialDet(z4c.g_dd, k, j, i);
-      z4c.Khat(k,j,i) = Trace(1.0/detg(i),
+      detg(i) = Det3Metric(z4c.g_dd, k, j, i);
+      z4c.Khat(k,j,i) = TraceRank2(1.0/detg(i),
           z4c.g_dd(0,0,k,j,i), z4c.g_dd(0,1,k,j,i), z4c.g_dd(0,2,k,j,i),
           z4c.g_dd(1,1,k,j,i), z4c.g_dd(1,2,k,j,i), z4c.g_dd(2,2,k,j,i),
           Kt_dd(0,0,i), Kt_dd(0,1,i), Kt_dd(0,2,i),
@@ -98,8 +101,8 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u) {
 
   // Inverse conformal metric
   GLOOP3(k,j,i) {
-    detg(i) = SpatialDet(z4c.g_dd, k, j, i);
-    SpatialInv(1.0/detg(i),
+    detg(i) = Det3Metric(z4c.g_dd, k, j, i);
+    Inv3Metric(1.0/detg(i),
         z4c.g_dd(0,0,k,j,i), z4c.g_dd(0,1,k,j,i), z4c.g_dd(0,2,k,j,i),
         z4c.g_dd(1,1,k,j,i), z4c.g_dd(1,2,k,j,i), z4c.g_dd(2,2,k,j,i),
         &g_uu(0,0,k,j,i),    &g_uu(0,1,k,j,i),    &g_uu(0,2,k,j,i),
@@ -182,7 +185,9 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm) {
 
 void Z4c::ADMConstraints(
   AthenaArray<Real> & u_con, AthenaArray<Real> & u_adm,
-  AthenaArray<Real> & u_mat, AthenaArray<Real> & u_z4c) {
+  AthenaArray<Real> & u_mat, AthenaArray<Real> & u_z4c)
+{
+  using namespace LinearAlgebra;
   u_con.ZeroClear();
 
   Constraint_vars con;
@@ -231,8 +236,8 @@ void Z4c::ADMConstraints(
     // inverse metric
     //
     ILOOP1(i) {
-      detg(i) = SpatialDet(adm.g_dd,k,j,i);
-      SpatialInv(1./detg(i),
+      detg(i) = Det3Metric(adm.g_dd,k,j,i);
+      Inv3Metric(1./detg(i),
           adm.g_dd(0,0,k,j,i), adm.g_dd(0,1,k,j,i), adm.g_dd(0,2,k,j,i),
           adm.g_dd(1,1,k,j,i), adm.g_dd(1,2,k,j,i), adm.g_dd(2,2,k,j,i),
           &g_uu(0,0,i), &g_uu(0,1,i), &g_uu(0,2,i),
@@ -399,8 +404,8 @@ void Z4c::ADMConstraints(
     // inverse metric
     //
     ILOOP1(i) {
-      detg(i) = SpatialDet(z4c.g_dd,k,j,i);
-      SpatialInv(1./detg(i),
+      detg(i) = Det3Metric(z4c.g_dd,k,j,i);
+      Inv3Metric(1./detg(i),
           z4c.g_dd(0,0,k,j,i), z4c.g_dd(0,1,k,j,i), z4c.g_dd(0,2,k,j,i),
           z4c.g_dd(1,1,k,j,i), z4c.g_dd(1,2,k,j,i), z4c.g_dd(2,2,k,j,i),
           &g_uu(0,0,i), &g_uu(0,1,i), &g_uu(0,2,i),

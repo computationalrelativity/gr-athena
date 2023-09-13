@@ -14,6 +14,7 @@
 // Athena++ headers
 #include "../../hydro.hpp"
 #include "../../../z4c/z4c.hpp"
+#include "../../../utils/linear_algebra.hpp"
 #include "../../../utils/interp_intergrid.hpp"
 #include "../../../athena.hpp"                   // enums, macros
 #include "../../../athena_arrays.hpp"            // AthenaArray
@@ -38,20 +39,6 @@
 // so a factor of sqrt(detgamma) is included
 // compare with modification to add_flux_divergence_dyn, where factors of face area, cell volume etc are missing
 // since they are included here.
-namespace{
-Real Determinant(Real a11, Real a12, Real a13, Real a21, Real a22, Real a23,
-                 Real a31, Real a32, Real a33);
-Real Determinant(Real a11, Real a12, Real a21, Real a22);
-Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
-                  int const i);
-void Inverse3Metric(Real const detginv,
-                     Real const gxx, Real const gxy, Real const gxz,
-                     Real const gyy, Real const gyz, Real const gzz,
-                     Real * uxx, Real * uxy, Real * uxz,
-                Real * uyy, Real * uyz, Real * uzz);
-
-}
-
 void Hydro::RiemannSolver(
   const int k, const int j,
   const int il, const int iu,
@@ -61,6 +48,8 @@ void Hydro::RiemannSolver(
   AthenaArray<Real> &flux,
   const AthenaArray<Real> &dxw)
 {
+  using namespace LinearAlgebra;
+
   // Calculate cyclic permutations of indices
   int ivy = IVX + ((ivx-IVX)+1)%3;
   int ivz = IVX + ((ivx-IVX)+2)%3;
@@ -142,32 +131,28 @@ void Hydro::RiemannSolver(
   #pragma omp simd
   for (int i = il; i <= iu; ++i)
   {
-    detgamma(i) = Det3Metric(gamma_dd,i);
+    detgamma(i) = Det3Metric(
+      gamma_dd, i
+    );
+
     detg(i) = SQR(alpha(i)) * detgamma(i);
-    Inverse3Metric(
+
+    Inv3Metric(
       1.0/detgamma(i),
       gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
       gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i),
       &gamma_uu(0,0,i), &gamma_uu(0,1,i), &gamma_uu(0,2,i),
       &gamma_uu(1,1,i), &gamma_uu(1,2,i), &gamma_uu(2,2,i));
-/* WC TODO test clean up like this 
-       detgamma(i) = Z4c::SpatialDet(gamma_dd,i);
-       detg(i) = SQR(alpha(i)) * detgamma(i)
-       Z4c::SpatialInv(1.0/detgamma(i),
-          gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
-          gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i),
-          &gamma_uu(0,0,i), &gamma_uu(0,1,i), &gamma_uu(0,2,i),
-          &gamma_uu(1,1,i), &gamma_uu(1,2,i), &gamma_uu(2,2,i));
-*/ 
-     }
+  }
 
-    #pragma omp simd
-      for (int i = il; i <= iu; ++i){
-              rho_l(i) = prim_l(IDN,i);
-              pgas_l(i) = prim_l(IPR,i);
-              rho_r(i) = prim_r(IDN,i);
-              pgas_r(i) = prim_r(IPR,i);
-          }
+  #pragma omp simd
+  for (int i = il; i <= iu; ++i)
+  {
+    rho_l(i) = prim_l(IDN,i);
+    pgas_l(i) = prim_l(IPR,i);
+    rho_r(i) = prim_r(IDN,i);
+    pgas_r(i) = prim_r(IPR,i);
+  }
 
 
 
@@ -406,42 +391,4 @@ void Hydro::RiemannSolver(
       flux_r.DeleteAthenaArray();
 
   return;
-}
-namespace{
-Real Determinant(Real a11, Real a12, Real a13, Real a21, Real a22, Real a23,
-                 Real a31, Real a32, Real a33) {
-  Real det = a11 * Determinant(a22, a23, a32, a33)
-             - a12 * Determinant(a21, a23, a31, a33)
-             + a13 * Determinant(a21, a22, a31, a32);
-  return det;
-}
-
-Real Determinant(Real a11, Real a12, Real a21, Real a22) {
-  return a11 * a22 - a12 * a21;
-}
-Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
-                  int const i)
-{
-  return - SQR(gamma(0,2,i))*gamma(1,1,i) +
-          2*gamma(0,1,i)*gamma(0,2,i)*gamma(1,2,i) -
-          gamma(0,0,i)*SQR(gamma(1,2,i)) - SQR(gamma(0,1,i))*gamma(2,2,i) +
-          gamma(0,0,i)*gamma(1,1,i)*gamma(2,2,i);
-}
-
-void Inverse3Metric(Real const detginv,
-                     Real const gxx, Real const gxy, Real const gxz,
-                     Real const gyy, Real const gyz, Real const gzz,
-                     Real * uxx, Real * uxy, Real * uxz,
-                     Real * uyy, Real * uyz, Real * uzz)
-{
-  *uxx = (-SQR(gyz) + gyy*gzz)*detginv;
-  *uxy = (gxz*gyz  - gxy*gzz)*detginv;
-  *uyy = (-SQR(gxz) + gxx*gzz)*detginv;
-  *uxz = (-gxz*gyy + gxy*gyz)*detginv;
-  *uyz = (gxy*gxz  - gxx*gyz)*detginv;
-  *uzz = (-SQR(gxy) + gxx*gyy)*detginv;
-  return;
-}
-
-
 }

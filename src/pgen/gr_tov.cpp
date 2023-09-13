@@ -50,9 +50,7 @@ namespace {
 		      AthenaArray<Real> &dg_dx1, AthenaArray<Real> &dg_dx2,
 		      AthenaArray<Real> &dg_dx3);//TOV_ID
   int RefinementCondition(MeshBlock *pmb);
-  Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
-                  int const i);
-  
+
   // Global variables
   Real gamma_adi, k_adi;  // hydro EOS parameters
   Real v_amp; // velocity amplitude for linear perturbations
@@ -912,21 +910,7 @@ namespace {
     // otherwise, stay
     return 0;
   }
-  
-  Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
-                  int const i)
-  {
-    return - SQR(gamma(0,2,i))*gamma(1,1,i) +
-      2*gamma(0,1,i)*gamma(0,2,i)*gamma(1,2,i) -
-      gamma(0,0,i)*SQR(gamma(1,2,i)) - SQR(gamma(0,1,i))*gamma(2,2,i) +
-      gamma(0,0,i)*gamma(1,1,i)*gamma(2,2,i);
-  }
-  
-  Real SpatialDet(Real gxx, Real gxy, Real gxz, Real gyy, Real gyz, Real gzz)
-  {
-    return - SQR(gxz)*gyy + 2*gxy*gxz*gyz - gxx*SQR(gyz) - SQR(gxy)*gzz + gxx*gyy*gzz;
-  }
-  
+
   Real Maxrho(MeshBlock *pmb, int iout) {
     Real max_rho = 0.0;
     int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;

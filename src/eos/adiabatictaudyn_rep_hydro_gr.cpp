@@ -20,7 +20,8 @@
 #include "../coordinates/coordinates.hpp"  // Coordinates
 #include "../field/field.hpp"              // FaceField
 #include "../mesh/mesh.hpp"                // MeshBlock
-#include "../z4c/z4c.hpp"                // MeshBlock
+#include "../z4c/z4c.hpp"                  // MeshBlock
+#include "../utils/linear_algebra.hpp"     // Det. & friends
 
 // Reprimand headers
 
@@ -50,13 +51,6 @@ EOS_Toolkit::real_t atmo_cut;
 EOS_Toolkit::real_t atmo_p;
 using namespace EOS_Toolkit;
 EOS_Toolkit::eos_thermal eos;
-namespace{
-Real Determinant(Real a11, Real a12, Real a13, Real a21, Real a22, Real a23,
-                 Real a31, Real a32, Real a33);
-Real Determinant(Real a11, Real a12, Real a21, Real a22);
-Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
-                  int const i);
-}
 
 //----------------------------------------------------------------------------------------
 // Constructor
@@ -472,6 +466,7 @@ static void PrimitiveToConservedSingle(
   int k, int j, int i,
   AthenaArray<Real> &cons, Coordinates *pco)
 {
+  using namespace LinearAlgebra;
 
   AthenaArray<Real> utilde_u;  // primitive gamma^i_a u^a
   AthenaArray<Real> utilde_d;
@@ -510,7 +505,7 @@ static void PrimitiveToConservedSingle(
 
   // Calculate 4-velocity
   // Real alpha = std::sqrt(-1.0/gi(I00,i));
-  Real detgamma = std::sqrt(Det3Metric(gamma_dd,i));
+  Real detgamma = std::sqrt(Det3Metric(gamma_dd, i));
 
   if(std::isnan(detgamma))
   {
@@ -738,24 +733,4 @@ void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j
 
   return;
 }
-namespace{
-Real Determinant(Real a11, Real a12, Real a13, Real a21, Real a22, Real a23,
-                 Real a31, Real a32, Real a33) {
-  Real det = a11 * Determinant(a22, a23, a32, a33)
-             - a12 * Determinant(a21, a23, a31, a33)
-             + a13 * Determinant(a21, a22, a31, a32);
-  return det;
-}
-Real Determinant(Real a11, Real a12, Real a21, Real a22) {
-  return a11 * a22 - a12 * a21;
-}
-Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
-                  int const i)
-{
-  return - SQR(gamma(0,2,i))*gamma(1,1,i) + 
-          2*gamma(0,1,i)*gamma(0,2,i)*gamma(1,2,i) - 
-          gamma(0,0,i)*SQR(gamma(1,2,i)) - SQR(gamma(0,1,i))*gamma(2,2,i) +
-          gamma(0,0,i)*gamma(1,1,i)*gamma(2,2,i);
-}
 
-}

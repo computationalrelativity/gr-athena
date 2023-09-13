@@ -19,10 +19,10 @@
 #include "../outputs/outputs.hpp"
 #include "../eos/eos.hpp"
 #include "../hydro/hydro.hpp"
+#include "../utils/linear_algebra.hpp"
 #include "../utils/interp_intergrid.hpp" //SB FIXME imported from matter_tracker_extrema
 
 // constructor, initializes data structures and parameters
-
 char const * const Z4c::Z4c_names[Z4c::N_Z4c] = {
   "z4c.chi",
   "z4c.gxx", "z4c.gxy", "z4c.gxz", "z4c.gyy", "z4c.gyz", "z4c.gzz",
@@ -585,6 +585,8 @@ void Z4c::SetWeylAliases(AthenaArray<Real> & u, Z4c::Weyl_vars & weyl)
 
 void Z4c::AlgConstr(AthenaArray<Real> & u)
 {
+  using namespace LinearAlgebra;
+
   Z4c_vars z4c;
   SetZ4cAliases(u, z4c);
 
@@ -592,7 +594,7 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
 
     // compute determinant and "conformal conformal factor"
     GLOOP1(i) {
-      detg(i) = SpatialDet(z4c.g_dd,k,j,i);
+      detg(i) = Det3Metric(z4c.g_dd,k,j,i);
       detg(i) = detg(i) > 0. ? detg(i) : 1.;
       Real eps = detg(i) - 1.;
       // oopsi4(i) = (eps < opt.eps_floor) ? (1. - opt.eps_floor/3.) : (pow(1./detg(i), 1./3.));
@@ -609,7 +611,7 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
     // compute trace of A
     GLOOP1(i) {
       // note: here we are assuming that det g = 1, which we enforced above
-      A(i) = Trace(1.0,
+      A(i) = TraceRank2(1.0,
           z4c.g_dd(0,0,k,j,i), z4c.g_dd(0,1,k,j,i), z4c.g_dd(0,2,k,j,i),
           z4c.g_dd(1,1,k,j,i), z4c.g_dd(1,2,k,j,i), z4c.g_dd(2,2,k,j,i),
           z4c.A_dd(0,0,k,j,i), z4c.A_dd(0,1,k,j,i), z4c.A_dd(0,2,k,j,i),
@@ -636,6 +638,8 @@ void Z4c::GetMatter(
   AthenaArray<Real> & w,
   AthenaArray<Real> &bb_cc)
 {
+  using namespace LinearAlgebra;
+
     MeshBlock * pmb = pmy_block;
     Matter_vars mat;
     SetMatterAliases(u_mat, mat);
@@ -649,7 +653,9 @@ void Z4c::GetMatter(
     int nn1 = pmb->ncells1;
     int nn2 = pmb->ncells2;
     int nn3 = pmb->ncells3;
-    if(opt.epsinterp==1){
+
+    if(opt.epsinterp==1)
+    {
       epscc.NewAthenaArray(pmb->ncells3,pmb->ncells2,pmb->ncells1);
     }
 
@@ -663,15 +669,19 @@ void Z4c::GetMatter(
     Z4c_vars z4c;
     SetZ4cAliases(storage.u,z4c);
 
-    if(opt.fix_admsource==0){
+    if(opt.fix_admsource==0)
+    {
       SetADMAliases(u_adm,adm);
-    } else if (opt.fix_admsource==1){
+    }
+    else if (opt.fix_admsource==1)
+    {
       SetADMAliases(u_adm,adm);
       //SetADMAliases(storage.adm_init,adm);
     }
 
     // Cell centred hydro vars //SB: TODO remove/cleanup *ccvars (L510 z4c.hpp)
-    if(opt.fix_admsource==0){
+    if(opt.fix_admsource==0)
+    {
       rhocc.InitWithShallowSlice(w,IDN,1);
       pgascc.InitWithShallowSlice(w,IPR,1);
       utilde1cc.InitWithShallowSlice(w,IVX,1);
@@ -682,7 +692,9 @@ void Z4c::GetMatter(
       bb2cc.InitWithShallowSlice(bb_cc,IB2,1);
       bb3cc.InitWithShallowSlice(bb_cc,IB3,1);   //check this!
 #endif
-    } else if(opt.fix_admsource==1){
+    }
+    else if(opt.fix_admsource==1)
+    {
       rhocc.InitWithShallowSlice(pmb->phydro->w_init,IDN,1);
       pgascc.InitWithShallowSlice(pmb->phydro->w_init,IPR,1);
       utilde1cc.InitWithShallowSlice(pmb->phydro->w_init,IVX,1);
@@ -690,7 +702,8 @@ void Z4c::GetMatter(
       utilde3cc.InitWithShallowSlice(pmb->phydro->w_init,IVZ,1); 
     }
 
-    if(opt.Tmunuinterp==0){
+    if(opt.Tmunuinterp==0)
+    {
 //     Real rhovc, pgasvc, utilde1vc, utilde2vc, utilde3vc, wgas,tmp, gamma_lor, v1,v2,v3,v_1,v_2,v_3,epsvc, bb1vc,bb2vc,bb3vc;
       AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> rhovc, pgasvc, utilde1vc, utilde2vc, utilde3vc, epsvc, bb1vc,bb2vc,bb3vc, tmp, wgas, gamma_lor, v1,v2,v3, detgamma, detg, bsq, b0_u;
       AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> v_d, v_u,  bb_u, bi_u, bi_d, utildevc_u, beta_d; 
@@ -790,8 +803,9 @@ void Z4c::GetMatter(
           v_d(1,i) = v1(i)*adm.g_dd(0,1,k,j,i) + v2(i)*adm.g_dd(1,1,k,j,i) +v3(i)*adm.g_dd(1,2,k,j,i);
           v_d(2,i) = v1(i)*adm.g_dd(0,2,k,j,i) + v2(i)*adm.g_dd(1,2,k,j,i) +v3(i)*adm.g_dd(2,2,k,j,i);
 	  
-          detgamma(i) = SpatialDet(adm.g_dd(0,0,k,j,i),adm.g_dd(0,1,k,j,i), adm.g_dd(0,2,k,j,i), 
-                                   adm.g_dd(1,1,k,j,i), adm.g_dd(1,2,k,j,i), adm.g_dd(2,2,k,j,i));
+          detgamma(i) = Det3Metric(
+            adm.g_dd(0,0,k,j,i),adm.g_dd(0,1,k,j,i), adm.g_dd(0,2,k,j,i),
+            adm.g_dd(1,1,k,j,i), adm.g_dd(1,2,k,j,i), adm.g_dd(2,2,k,j,i));
           detg(i) = alpha(k,j,i)*detgamma(i);
 	  
 #if MAGNETIC_FIELDS_ENABLED

@@ -387,7 +387,8 @@ for(int k = ks-1; k<=ke+1; k++){
           gamma_dd(2,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
 }
    for(int i = is-1; i<=ie+1; i++){
-//    Real detgamma = std::sqrt(Det3Metric(gamma_dd,i));
+    // See LinearAlgebra if still needed.
+    //    Real detgamma = std::sqrt(Det3Metric(gamma_dd,i));
     Real detgamma = 1.0;
 
     bxcc(k,j,i) = - ((Atot(1,k+1,j,i) - Atot(1,k-1,j,i))/(2.0*pcoord->dx3v(k)))*detgamma;

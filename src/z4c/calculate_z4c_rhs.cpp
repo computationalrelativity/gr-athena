@@ -18,6 +18,7 @@
 #include "z4c_macro.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
+#include "../utils/linear_algebra.hpp"
 
 // External libraries
 #ifdef GSL
@@ -33,8 +34,10 @@
 //
 // This function operates only on the interior points of the MeshBlock
 
-void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
-                 AthenaArray<Real> & u_rhs) {
+void Z4c::Z4cRHS(
+  AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<Real> & u_rhs)
+{
+  using namespace LinearAlgebra;
 
   Z4c_vars z4c, rhs;
   SetZ4cAliases(u, z4c);
@@ -189,8 +192,8 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat,
     // Inverse metric
     //
     ILOOP1(i) {
-      detg(i) = SpatialDet(z4c.g_dd, k, j, i);
-      SpatialInv(1.0/detg(i),
+      detg(i) = Det3Metric(z4c.g_dd, k, j, i);
+      Inv3Metric(1.0/detg(i),
           z4c.g_dd(0,0,k,j,i), z4c.g_dd(0,1,k,j,i), z4c.g_dd(0,2,k,j,i),
           z4c.g_dd(1,1,k,j,i), z4c.g_dd(1,2,k,j,i), z4c.g_dd(2,2,k,j,i),
           &g_uu(0,0,i), &g_uu(0,1,i), &g_uu(0,2,i),
