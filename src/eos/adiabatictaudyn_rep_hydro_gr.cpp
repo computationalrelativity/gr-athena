@@ -466,13 +466,16 @@ void EquationOfState::PrimitiveToConserved(
 // Outputs:
 //   cons: conserved variables set in desired cell
 
-static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, Real gamma_adi,
-    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, int k, int j, int i,
-    AthenaArray<Real> &cons, Coordinates *pco) {
+static void PrimitiveToConservedSingle(
+  AthenaArray<Real> &prim, Real gamma_adi,
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd,
+  int k, int j, int i,
+  AthenaArray<Real> &cons, Coordinates *pco)
+{
 
-    AthenaArray<Real> utilde_u;  // primitive gamma^i_a u^a
-    AthenaArray<Real> utilde_d;  // 
-    AthenaArray<Real> v_d;  // 
+  AthenaArray<Real> utilde_u;  // primitive gamma^i_a u^a
+  AthenaArray<Real> utilde_d;
+  AthenaArray<Real> v_d;
 
   utilde_u.NewAthenaArray(3);
   utilde_d.NewAthenaArray(3);
@@ -484,7 +487,8 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, Real gamma_adi,
   // std::cout << atmo_cut << ", ";
   // std::cout << gamma_adi << std::endl;
 
-  if (prim(IDN, k, j, i) < atmo_cut) {
+  if (prim(IDN, k, j, i) < atmo_cut)
+  {
     prim(IDN, k, j, i) = atmo_rho;
     prim(IVX, k, j, i) = 0.0;
     prim(IVY, k, j, i) = 0.0;
@@ -494,63 +498,85 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, Real gamma_adi,
 
   const Real &rho = prim(IDN,k,j,i);
   const Real &pgas = prim(IPR,k,j,i);
-//  const Real &uu1 = prim(IVX,k,j,i);
-//  const Real &uu2 = prim(IVY,k,j,i);
-//  const Real &uu3 = prim(IVZ,k,j,i);
-     for(int a=0;a<NDIM;++a){
-              utilde_u(a) = prim(a+IVX,k,j,i);
-      }
+
+  // const Real &uu1 = prim(IVX,k,j,i);
+  // const Real &uu2 = prim(IVY,k,j,i);
+  // const Real &uu3 = prim(IVZ,k,j,i);
+
+  for(int a=0;a<NDIM;++a)
+  {
+    utilde_u(a) = prim(a+IVX,k,j,i);
+  }
 
   // Calculate 4-velocity
-//  Real alpha = std::sqrt(-1.0/gi(I00,i));
-   Real detgamma = std::sqrt(Det3Metric(gamma_dd,i));
-   if(std::isnan(detgamma)){
-//   if(eos_debug){
-   if(0){
-    printf("detgamma is nan\n");
-    printf("x = %.16e, y = %.16e, z = %.16e, g_xx = %.16e\n g_xy = %.16e, g_xz = %.16e, g_yy = %.16e, g_yz = %.16e, g_zz = %.16e\n",pco->x1v(i), pco->x2v(j), pco->x3v(k), gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i), gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i));
-   }
-   detgamma = 1;
-   } 
-   Real Wlor = 0.0;
-   for(int a=0;a<NDIM;++a){
-           for(int b=0;b<NDIM;++b){
-                  Wlor += utilde_u(a)*utilde_u(b)*gamma_dd(a,b,i);
-           }
-   }
-   Wlor = std::sqrt(1.0+Wlor);
-   if(std::isnan(Wlor)){ 
-//   if(eos_debug){
-   if(0){
+  // Real alpha = std::sqrt(-1.0/gi(I00,i));
+  Real detgamma = std::sqrt(Det3Metric(gamma_dd,i));
+
+  if(std::isnan(detgamma))
+  {
+    if(0)
+    {
+      printf("detgamma is nan\n");
+      printf("x = %.16e, y = %.16e, z = %.16e, \n "
+              "g_xx = %.16e g_xy = %.16e, g_xz = %.16e, "
+              "g_yy = %.16e, g_yz = %.16e, g_zz = %.16e\n",
+              pco->x1v(i), pco->x2v(j), pco->x3v(k),
+              gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
+              gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i));
+    }
+    detgamma = 1;
+  }
+
+  Real Wlor = 0.0;
+  for(int a=0;a<NDIM;++a)
+  {
+  for(int b=0;b<NDIM;++b)
+  {
+    Wlor += utilde_u(a)*utilde_u(b)*gamma_dd(a,b,i);
+  }
+  }
+
+  Wlor = std::sqrt(1.0+Wlor);
+
+  if(std::isnan(Wlor))
+  {
+
+   if(0)
+   {
    printf("Wlor is nan\n");
-   printf("x = %.16e, y = %.16e, z = %.16e\n",pco->x1v(i), pco->x2v(j), pco->x3v(k));
+    printf("x = %.16e, y = %.16e, z = %.16e\n",pco->x1v(i), pco->x2v(j), pco->x3v(k));
    }
+
    Wlor = 1.0;
-   }
-// NB definitions have changed slightly here - a different velocity is being used . Double check me!
-  
+  }
+  // NB definitions have changed slightly here - a different velocity is being used . Double check me!
+
   utilde_d.ZeroClear();
 
-        for(int a=0;a<NDIM;++a){
-          for(int b=0;b<NDIM;++b){
-                  utilde_d(a) += utilde_u(b)*gamma_dd(a,b,i);
-              }
-      }
+  for(int a=0;a<NDIM;++a)
+  {
+    for(int b=0;b<NDIM;++b)
+    {
+      utilde_d(a) += utilde_u(b)*gamma_dd(a,b,i);
+    }
+  }
 
-      for(int a=0;a<NDIM;++a){
-             v_d(a) = utilde_d(a)/Wlor;
-      }
+  for(int a=0;a<NDIM;++a)
+  {
+    v_d(a) = utilde_d(a)/Wlor;
+  }
 
-//  Real utilde_d_1 = g(I11,i)*uu1 + g(I12,i)*uu2 + g(I13,i)*uu3;
-//  Real utilde_d_2 = g(I12,i)*uu1 + g(I22,i)*uu2 + g(I23,i)*uu3;
-//  Real utilde_d_3 = g(I13,i)*uu1 + g(I23,i)*uu2 + g(I33,i)*uu3;
+  // Real utilde_d_1 = g(I11,i)*uu1 + g(I12,i)*uu2 + g(I13,i)*uu3;
+  // Real utilde_d_2 = g(I12,i)*uu1 + g(I22,i)*uu2 + g(I23,i)*uu3;
+  // Real utilde_d_3 = g(I13,i)*uu1 + g(I23,i)*uu2 + g(I33,i)*uu3;
 
-//  Real v_1 = u_1/gamma; 
-//  Real v_2 = u_2/gamma;  
-//  Real v_3 = u_3/gamma;  
-//  Real v_1 = utilde_d_1/gamma; 
-//  Real v_2 = utilde_d_2/gamma;  
-//  Real v_3 = utilde_d_3/gamma;  
+  // Real v_1 = u_1/gamma;
+  // Real v_2 = u_2/gamma;
+  // Real v_3 = u_3/gamma;
+  // Real v_1 = utilde_d_1/gamma;
+  // Real v_2 = utilde_d_2/gamma;
+  // Real v_3 = utilde_d_3/gamma;
+
   // Extract conserved quantities
   Real &Ddg = cons(IDN,k,j,i);
   Real &taudg = cons(IEN,k,j,i);
@@ -564,14 +590,14 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, Real gamma_adi,
   //   std::cout << "detgamma: " << detgamma;
   //   std::cout << "(i,j,k) = ";
   //   std::cout << i << "," << j << "," << k << std::endl;
-
   // }
+
   Real wgas = rho + gamma_adi/(gamma_adi-1.0) * pgas;
   Ddg = rho*Wlor*detgamma;
   taudg = wgas*SQR(Wlor)*detgamma - rho*Wlor*detgamma - pgas*detgamma;
-  S_1dg = wgas*SQR(Wlor) * v_d(0)*detgamma  ;
-  S_2dg = wgas*SQR(Wlor) * v_d(1)*detgamma  ;
-  S_3dg = wgas*SQR(Wlor) * v_d(2)*detgamma  ;
+  S_1dg = wgas*SQR(Wlor) * v_d(0)*detgamma;
+  S_2dg = wgas*SQR(Wlor) * v_d(1)*detgamma;
+  S_3dg = wgas*SQR(Wlor) * v_d(2)*detgamma;
 
   utilde_u.DeleteAthenaArray();
   utilde_d.DeleteAthenaArray();
@@ -688,7 +714,7 @@ void EquationOfState::SoundSpeedsGR(Real rho_h, Real pgas, Real vi, Real v2, Rea
 void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j, int i) {
 
 
-  if(prim.GetDim4()==1){    
+  if(prim.GetDim4()==1){
   Real& w_d  = prim(IDN,i);
   Real& w_p  = prim(IPR,i);
   w_d = (w_d > density_floor_) ?  w_d : density_floor_;

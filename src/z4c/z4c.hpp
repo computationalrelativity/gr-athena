@@ -459,7 +459,7 @@ private:
   // AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> tdetg;        // det(g)
   // AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> tg_uu;        // inverse of conf. metric
   // AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> tGamma_u;     // Gamma computed from the metric
-  
+
   // Spatially dependent shift damping
 #if defined(Z4C_ETA_CONF) || defined(Z4C_ETA_TRACK_TP)
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> eta_damp;

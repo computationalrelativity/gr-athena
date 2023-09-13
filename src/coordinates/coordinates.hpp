@@ -951,6 +951,27 @@ class GRDynamical : public Coordinates {
     // ... may be non-trivial (depends on NCGHOST_CX etc)
 #endif
   };
+
+  // For matter target grid depends on z_cx vs z_vc
+  template <typename dtype, TensorSymm TSYM, int DIM, int NVAL>
+  inline void GetMatterField(
+    AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
+    const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
+    const int tr_k,
+    const int tr_j
+  )
+  {
+#if defined(Z4C_VC_ENABLED)
+    // appears to be taken as cubic in z4c constructor ..
+  #if defined(HYBRID_INTERP)
+    ig_2N->CC2VC(tar, src, tr_k, tr_j);
+  #else
+    ig_NN->CC2VC(tar, src, tr_k, tr_j);
+  #endif // HYBRID_INTERP
+#else  // Z4C_CX_ENABLED
+    // ... may be non-trivial (depends on NCGHOST_CX etc)
+#endif
+  };
   // --------------------------------------------------------------------------
 
 

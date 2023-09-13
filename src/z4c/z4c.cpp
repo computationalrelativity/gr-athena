@@ -93,7 +93,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
           {N_CON, mbi.nn3, mbi.nn2, mbi.nn1},              // con
           {N_MAT, mbi.nn3, mbi.nn2, mbi.nn1},              // mat
           {N_WEY, mbi.nn3, mbi.nn2, mbi.nn1},              // weyl
-	  {N_Z4c, mbi.nn3, mbi.nn2, mbi.nn1},              // init buffers
+	        {N_Z4c, mbi.nn3, mbi.nn2, mbi.nn1},              // init buffers
           {N_ADM, mbi.nn3, mbi.nn2, mbi.nn1},
   },
   empty_flux{AthenaArray<Real>(), AthenaArray<Real>(), AthenaArray<Real>()},
@@ -253,7 +253,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   opt.fix_admsource = pin->GetOrAddInteger("z4c", "fix_admsource", 0);
   opt.Tmunuinterp = pin->GetOrAddInteger("z4c", "Tmunuinterp", 0); // interpolate components of Tmunu if 1 (if 0 interpolate primitives)
   opt.epsinterp = pin->GetOrAddInteger("z4c", "epsinterp", 0); // interpolate internal energy eps instead of pressure p.
-  
+
   // Problem-specific parameters
   // AwA parameters (default to linear wave test)
   opt.AwA_amplitude = pin->GetOrAddReal("z4c", "AwA_amplitude", 1e-10);
@@ -342,7 +342,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   // tdetg.NewAthenaTensor(mbi.nn1);
   // tg_uu.NewAthenaTensor(mbi.nn1);
   // tGamma_u.NewAthenaTensor(mbi.nn1);
-  
+
 #if defined(Z4C_ETA_CONF) || defined(Z4C_ETA_TRACK_TP)
   eta_damp.NewAthenaTensor(mbi.nn1);
 #endif // Z4C_ETA_CONF, Z4C_ETA_TRACK_TP
@@ -397,13 +397,13 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   if(pmb->pmy_mesh->multilevel){
     int N_coarse[] = {pmb->block_size.nx1/2, pmb->block_size.nx2/2, pmb->block_size.nx3/2};
     Real rdx_coarse[] = {
-      1./(SW_CCX_VC(pmb->pmr->pcoarsec->dx1v(0), pmb->pmr->pcoarsec->dx1f(0))),   
+      1./(SW_CCX_VC(pmb->pmr->pcoarsec->dx1v(0), pmb->pmr->pcoarsec->dx1f(0))),
       1./(SW_CCX_VC(pmb->pmr->pcoarsec->dx2v(0), pmb->pmr->pcoarsec->dx2f(0))),
       1./(SW_CCX_VC(pmb->pmr->pcoarsec->dx3v(0), pmb->pmr->pcoarsec->dx3f(0)))
     };
     ig_coarse = new InterpIntergridLocal(NDIM, &N_coarse[0], &rdx_coarse[0]);
   }
-  
+
 #if defined (Z4C_CC_ENABLED)
   this->fd = pmb->pcoord->fd_cc;
 #elif defined (Z4C_CX_ENABLED)
@@ -504,7 +504,7 @@ Z4c::~Z4c()
   if(pmy_block->pmy_mesh->multilevel){
     delete ig_coarse;
   }
-  
+
   if (opt.sphere_zone_number > 0) {
     opt.sphere_zone_levels.DeleteAthenaArray();
     opt.sphere_zone_radii.DeleteAthenaArray();
@@ -630,8 +630,11 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
 // \brief Update matter variables from hydro 
 // SB this needs a cleanup, using the new CC2CC interface
 
-void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, AthenaArray<Real> & w,
-		    AthenaArray<Real> &bb_cc)
+void Z4c::GetMatter(
+  AthenaArray<Real> & u_mat,
+  AthenaArray<Real> & u_adm,
+  AthenaArray<Real> & w,
+  AthenaArray<Real> &bb_cc)
 {
     MeshBlock * pmb = pmy_block;
     Matter_vars mat;
@@ -641,7 +644,7 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
 #else
     Real gamma_adi = pmy_block->peos->GetGamma(); //NB specific to EOS
 #endif
-    
+
     AthenaArray<Real> epscc; //SB: TODO remove/cleanup, use AthenaAtrray 'w'
     int nn1 = pmb->ncells1;
     int nn2 = pmb->ncells2;
@@ -650,9 +653,7 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
       epscc.NewAthenaArray(pmb->ncells3,pmb->ncells2,pmb->ncells1);
     }
 
-    AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy; //SB: TODO remove/cleanup (only alpha used)
-    AthenaArray<Real> vcgamma_yz,vcgamma_zz,vcbeta_x,vcbeta_y;
-    AthenaArray<Real> vcbeta_z, alpha; 
+    AthenaArray<Real> alpha;
 
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> W_lor, rhoadm; //lapse
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u, v_u, v_d, Siadm_d, utilde_u; //lapse
@@ -661,7 +662,7 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
     ADM_vars adm;
     Z4c_vars z4c;
     SetZ4cAliases(storage.u,z4c);
-    
+
     if(opt.fix_admsource==0){
       SetADMAliases(u_adm,adm);
     } else if (opt.fix_admsource==1){
@@ -742,7 +743,7 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
           bb1vc(i) = CCInterpolation(bb1cc, k, j, i);
           bb2vc(i) = CCInterpolation(bb2cc, k, j, i);
           bb3vc(i) = CCInterpolation(bb3cc, k, j, i);
-#endif
+#endif // MAGNETIC_FIELDS_ENABLED
 #else
           rhovc(i) = ig->map3d_CC2VC(rhocc(k,j,i));
           if(opt.epsinterp==0){
@@ -759,7 +760,7 @@ void Z4c::GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, Athena
           bb3vc(i)     = ig->map3d_CC2VC(bb3cc(k,j,i));
 #endif
 #endif // HYBRID_INTERP
-	  
+
           // NB specific to EOS
 #if USETM
           Real n = rhovc(i)/mb;
