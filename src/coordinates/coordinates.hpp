@@ -889,6 +889,22 @@ class GRDynamical : public Coordinates {
   #endif // HYBRID_INTERP
 #else  // Z4C_CX_ENABLED
     // ... may be non-trivial (depends on NCGHOST_CX etc)
+    // BD: debug
+    // MeshBlock * pmb = pmy_block;
+    // tr_il = pmb->is;
+    // tr_iu = pmb->ie;
+    // tr_jl = pmb->js;
+    // tr_ju = pmb->je;
+    // tr_kl = pmb->ks;
+    // tr_ku = pmb->ke;
+
+    tr_il = ig_NN->cc_il;
+    tr_iu = ig_NN->cc_iu;
+    tr_jl = ig_NN->cc_jl;
+    tr_ju = ig_NN->cc_ju;
+    tr_kl = ig_NN->cc_kl;
+    tr_ku = ig_NN->cc_ku;
+
 #endif
   }
 
@@ -908,6 +924,8 @@ class GRDynamical : public Coordinates {
   #endif // HYBRID_INTERP
 #else  // Z4C_CX_ENABLED
     // ... may be non-trivial (depends on NCGHOST_CX etc)
+    // BD: debug
+    ig_NN->CC2CC(tar, src, cc_k, cc_j);
 #endif
   };
 
@@ -927,14 +945,15 @@ class GRDynamical : public Coordinates {
     ig_NN->VC2FC(tar, src, dir, tr_k, tr_j);
   #endif  // HYBRID_INTERP
 #else  // Z4C_CX_ENABLED
-    // ... may be non-trivial (depends on NCGHOST_CX etc)
+    // BD: debug
+    ig_NN->CC2FC(tar, src, dir, tr_k, tr_j);
 #endif
   };
 
   template <typename dtype, TensorSymm TSYM, int DIM, int NVAL>
   inline void GetGeometricFieldDerCC(
-    AthenaTensor<       dtype, TSYM, DIM, NVAL+1> & tar,
-    const  AthenaTensor<dtype, TSYM, DIM, NVAL  > & src,
+    AthenaTensor<      dtype, TSYM, DIM, NVAL+1> & tar,
+    const AthenaTensor<dtype, TSYM, DIM, NVAL  > & src,
     const int dir,
     const int cc_k,
     const int cc_j
@@ -949,6 +968,8 @@ class GRDynamical : public Coordinates {
   #endif // HYBRID_INTERP
 #else  // Z4C_CX_ENABLED
     // ... may be non-trivial (depends on NCGHOST_CX etc)
+    // BD: debug
+    ig_NN->CC2CC_D1(tar, src, dir, cc_k, cc_j);
 #endif
   };
 
@@ -970,6 +991,8 @@ class GRDynamical : public Coordinates {
   #endif // HYBRID_INTERP
 #else  // Z4C_CX_ENABLED
     // ... may be non-trivial (depends on NCGHOST_CX etc)
+    // BD: debug
+    ig_NN->CC2CC(tar, src, tr_k, tr_j);
 #endif
   };
   // --------------------------------------------------------------------------

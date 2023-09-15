@@ -1273,5 +1273,269 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC_D1(
 
 }
 
+// slicer functions -----------------------------------------------------------
+template <typename dtype, int H_SZ>
+template <TensorSymm TSYM, int DIM, int NVAL>
+void InterpIntergrid<dtype, H_SZ>::CC2CC(
+  AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
+  const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
+  const int cc_k,
+  const int cc_j)
+{
+  CC2CC(tar.array(), src.array(), cc_k, cc_j);
+}
+
+template <typename dtype, int H_SZ>
+void InterpIntergrid<dtype, H_SZ>::CC2CC(
+  AthenaArray<       dtype> & tar,
+  const  AthenaArray<dtype> & src,
+  const int cc_k,
+  const int cc_j)
+{
+  const int nu = src.GetDim4()-1;
+
+  switch (dim)
+  {
+    case 3:
+    {
+      for (int n=0; n<=nu; ++n)
+      for (int cc_i=cc_il; cc_i<=cc_iu; ++cc_i)
+      {
+        tar(n,cc_i) = src(n, cc_k, cc_j, cc_i);
+      }
+      break;
+    }
+    case 2:
+    {
+      for (int n=0; n<=nu; ++n)
+      for (int cc_i=cc_il; cc_i<=cc_iu; ++cc_i)
+      {
+        tar(n,cc_i) = src(n, 0, cc_j, cc_i);
+      }
+      break;
+    }
+    default:
+    {
+      for (int n=0; n<=nu; ++n)
+      for (int cc_i=cc_il; cc_i<=cc_iu; ++cc_i)
+      {
+        tar(n,cc_i) = src(n,0,0,cc_i);
+      }
+    }
+  }
+}
+
+template <typename dtype, int H_SZ>
+template <TensorSymm TSYM, int DIM, int NVAL>
+void InterpIntergrid<dtype, H_SZ>::CC2CC_D1(
+  AthenaTensor<       dtype, TSYM, DIM, NVAL+1> & tar,
+  const  AthenaTensor<dtype, TSYM, DIM, NVAL  > & src,
+  const int dir,
+  const int cc_k,
+  const int cc_j)
+{
+  // valence changes with deriv, so need to reslice
+  const int ix_slice = dir * (tar.ndof() / DIM);
+  AthenaArray<dtype> tar_arr;
+  tar_arr.InitWithShallowSlice(tar.array(), ix_slice, 1);
+
+  CC2CC_D1(tar_arr, src.array(), dir, cc_k, cc_j);
+}
+
+template <typename dtype, int H_SZ>
+void InterpIntergrid<dtype, H_SZ>::CC2CC_D1(
+  AthenaArray<       dtype> & tar,
+  const  AthenaArray<dtype> & src,
+  const int dir,
+  const int cc_k,
+  const int cc_j)
+{
+  const int nu = src.GetDim4()-1;
+
+  switch (dim)
+  {
+    case 3:
+    {
+      switch (dir)
+      {
+        case 2:
+        {
+          for (int n=0; n<=nu; ++n)
+          for (int cc_i=cc_il+1; cc_i<=cc_iu-1; ++cc_i)
+          {
+            tar(n,cc_i) = 0.;
+
+            for (int dk=0; dk<H_SZ; ++dk)
+            {
+              const dtype lc_k = InterpolateCC2DerCC<
+                1, H_SZ
+              >::coeff[H_SZ-dk-1];
+
+              const int cc_l = cc_k - dk - 1;
+              const int cc_r = cc_k + dk + 1;
+
+              tar(n,cc_i) += lc_k * (
+                -src(n,cc_l,cc_j,cc_i) + src(n,cc_r,cc_j,cc_i)
+              );
+            }
+
+            // for even orders would need to also add
+            // src(...cc_i)
+
+            tar(n,cc_i) = tar(n,cc_i) * rds[2];
+          }
+          break;
+        }
+        case 1:
+        {
+          for (int n=0; n<=nu; ++n)
+          for (int cc_i=cc_il+1; cc_i<=cc_iu-1; ++cc_i)
+          {
+            tar(n,cc_i) = 0.;
+
+            for (int dj=0; dj<H_SZ; ++dj)
+            {
+              const dtype lc_j = InterpolateCC2DerCC<
+                1, H_SZ
+              >::coeff[H_SZ-dj-1];
+
+              const int cc_l = cc_j - dj - 1;
+              const int cc_r = cc_j + dj + 1;
+
+              tar(n,cc_i) += lc_j * (
+                -src(n,cc_k,cc_l,cc_i) + src(n,cc_k,cc_r,cc_i)
+              );
+            }
+
+            // for even orders would need to also add
+            // src(...cc_i)
+
+            tar(n,cc_i) = tar(n,cc_i) * rds[1];
+          }
+          break;
+        }
+        default:
+        {
+          for (int n=0; n<=nu; ++n)
+          for (int cc_i=cc_il+1; cc_i<=cc_iu-1; ++cc_i)
+          {
+            tar(n,cc_i) = 0.;
+
+            for (int di=0; di<H_SZ; ++di)
+            {
+              const dtype lc_i = InterpolateCC2DerCC<
+                1, H_SZ
+              >::coeff[H_SZ-di-1];
+
+              const int cc_l = cc_i - di - 1;
+              const int cc_r = cc_i + di + 1;
+
+              tar(n,cc_i) += lc_i * (
+                -src(n,cc_k,cc_j,cc_l) + src(n,cc_k,cc_j,cc_r)
+              );
+            }
+
+            // for even orders would need to also add
+            // src(...cc_i)
+
+            tar(n,cc_i) = tar(n,cc_i) * rds[0];
+          }
+        }
+      }
+      break;
+    }
+    case 2:
+    {
+      switch (dir)
+      {
+        case 1:
+        {
+          for (int n=0; n<=nu; ++n)
+          for (int cc_i=cc_il+1; cc_i<=cc_iu-1; ++cc_i)
+          {
+            tar(n,cc_i) = 0.;
+
+            for (int dj=0; dj<H_SZ; ++dj)
+            {
+              const dtype lc_j = InterpolateCC2DerCC<
+                1, H_SZ
+              >::coeff[H_SZ-dj-1];
+
+              const int cc_l = cc_j - dj - 1;
+              const int cc_r = cc_j + dj + 1;
+
+              tar(n,cc_i) += lc_j * (
+                -src(n,cc_l,cc_i) + src(n,cc_r,cc_i)
+              );
+            }
+
+            // for even orders would need to also add
+            // src(...cc_i)
+
+            tar(n,cc_i) = tar(n,cc_i) * rds[1];
+          }
+          break;
+        }
+        default:
+        {
+          for (int n=0; n<=nu; ++n)
+          for (int cc_i=cc_il+1; cc_i<=cc_iu-1; ++cc_i)
+          {
+            tar(n,cc_i) = 0.;
+
+            for (int di=0; di<H_SZ; ++di)
+            {
+              const dtype lc_i = InterpolateCC2DerCC<
+                1, H_SZ
+              >::coeff[H_SZ-di-1];
+
+              const int cc_l = cc_i - di - 1;
+              const int cc_r = cc_i + di + 1;
+
+              tar(n,cc_i) += lc_i * (
+                -src(n,cc_j,cc_l) + src(n,cc_j,cc_r)
+              );
+            }
+
+            // for even orders would need to also add
+            // src(...cc_i)
+
+            tar(n,cc_i) = tar(n,cc_i) * rds[0];
+          }
+        }
+      }
+      break;
+    }
+    default:
+    {
+      for (int n=0; n<=nu; ++n)
+      for (int cc_i=cc_il+1; cc_i<=cc_iu-1; ++cc_i)
+      {
+        tar(n,cc_i) = 0.;
+
+        for (int di=0; di<H_SZ; ++di)
+        {
+          const dtype lc_i = InterpolateCC2DerCC<
+            1, H_SZ
+          >::coeff[H_SZ-di-1];
+
+          const int cc_l = cc_i - di - 1;
+          const int cc_r = cc_i + di + 1;
+
+          tar(n,cc_i) += lc_i * (
+            -src(n,0,0,cc_l) + src(n,0,0,cc_r)
+          );
+        }
+
+        // for even orders would need to also add
+        // src(...cc_i)
+
+        tar(n,cc_i) = tar(n,cc_i) * rds[0];
+      }
+    }
+  }
+
+}
+
 } // namespace InterpIntergrid
 // ============================================================================

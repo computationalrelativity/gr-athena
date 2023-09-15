@@ -27,6 +27,15 @@ class InterpolateVC2DerCC {
     static Real const coeff[N_I];
 };
 
+template<int der_, int half_stencil_size_>
+class InterpolateCC2DerCC {
+  public:
+    // order of convergence (in spacing)
+    enum {order = 2 * half_stencil_size_};
+    enum {N_I = half_stencil_size_ + 1};
+    static Real const coeff[N_I];
+};
+
 // templated on data type and number of nodes utilized either-side of target
 // base-points
 template <typename dtype, int H_SZ>
@@ -180,6 +189,38 @@ class InterpIntergrid
       const int dir,
       const int cc_k,
       const int cc_j);
+
+    // slicer functions
+    template <TensorSymm TSYM, int DIM, int NVAL>
+    void CC2CC(
+      AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
+      const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
+      const int cc_k,
+      const int cc_j);
+
+    void CC2CC(
+      AthenaArray<       dtype> & tar,
+      const  AthenaArray<dtype> & src,
+      const int cc_k,
+      const int cc_j);
+
+    // warning: for the following functions, maximal cc idx range is
+    // narrowed by 1
+    template <TensorSymm TSYM, int DIM, int NVAL>
+    void CC2CC_D1(
+      AthenaTensor<       dtype, TSYM, DIM, NVAL+1> & tar,
+      const  AthenaTensor<dtype, TSYM, DIM, NVAL  > & src,
+      const int dir,
+      const int cc_k,
+      const int cc_j);
+
+    void CC2CC_D1(
+      AthenaArray<       dtype> & tar,
+      const  AthenaArray<dtype> & src,
+      const int dir,
+      const int cc_k,
+      const int cc_j);
+
 
   private:
     const int dim;
