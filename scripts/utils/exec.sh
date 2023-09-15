@@ -37,27 +37,25 @@ cd ${DIR_OUTPUT}
 #     -ex 'set print pretty on' \
 #     -ex=r --args ./$EXEC_NAME.x -i $DIR_ATHENA/$REL_INPUT/$INPUT_NAME
 
+# gdb \
+#   -ex 'break gr_dynamical.cpp:623' \
+#   -ex 'info b' \
+#   -ex 'set print pretty on' \
+#   -ex 'set output-radix 10' \
+#   -ex=r --args ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
+
+# gdb \
+#   -ex 'llftaudyn_rel_no_transform.cpp:65' \
+#   -ex 'info b' \
+#   -ex 'set print pretty on' \
+#   -ex 'set output-radix 10' \
+#   -ex=r --args ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
+
 gdb \
-  -ex 'break gr_dynamical.cpp:561' \
   -ex 'info b' \
   -ex 'set print pretty on' \
   -ex 'set output-radix 10' \
   -ex=r --args ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
-
-# gdb \
-#   -ex 'break bvals_cx.cpp:221' \
-#   -ex 'info b' \
-#   -ex 'set print pretty on' \
-#   -ex 'set output-radix 10' \
-#   -ex=r --args ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
-
-
-# gdb \
-#   -ex 'break bvals_refine.cpp:928' \
-#   -ex 'info b' \
-#   -ex 'set print pretty on' \
-#   -ex 'set output-radix 10' \
-#   -ex=r --args ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
 
 
 # make call log [inspect with qcachegrind]

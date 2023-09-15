@@ -75,25 +75,27 @@ data_format=%.15g
 <time>
 cfl_number = 0.25
 nlim       = 1000
-tlim       = 10000
+# tlim       = 10000
+# nlim       = 1000
+tlim       = 10
 integrator = rk3   # time integration algorithm
 xorder     = 3     # order of spatial reconstruction
 ncycle_out = 1      # interval for stdout summary info
 
 <mesh>
-nx1    = 32    # number of cells in x-direction
+nx1    = 16    # number of cells in x-direction
 x1min  = -32   # minimum x
 x1max  = 32 # maximum x
 ix1_bc = extrapolate_outflow  # lower boundary
 ox1_bc = extrapolate_outflow  # upper boundary
 
-nx2    = 32  # number of cells in y-direction
+nx2    = 16  # number of cells in y-direction
 x2min  = -32  # minimum y
 x2max  = 32  # maximum y
 ix2_bc = extrapolate_outflow # lower boundary
 ox2_bc = extrapolate_outflow # upper boundary
 
-nx3    = 32        # number of cells in z-direction
+nx3    = 16        # number of cells in z-direction
 x3min  = -32   # minimum z
 x3max  = 32       # maximum z
 ix3_bc = extrapolate_outflow  # lower  boundary
@@ -109,9 +111,9 @@ num_threads = 1
 <meshblock>
 
 
-nx1=16
-nx2=16
-nx3=16
+nx1=8
+nx2=8
+nx3=8
 
 
 <coord>
