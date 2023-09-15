@@ -21,6 +21,8 @@ void Z4c::GetMatter(
   AthenaArray<Real> & w,
   AthenaArray<Real> & bb_cc)
 {
+#if defined(Z4C_WITH_HYDRO_ENABLED)
+
   using namespace LinearAlgebra;
 
   MeshBlock * pmb = pmy_block;
@@ -268,12 +270,9 @@ void Z4c::GetMatter(
 
 #endif
     }
-  }
 
 
-// cleanup
-  if(opt.Tmunuinterp==0)
-  {
+    // cleanup
 #if MAGNETIC_FIELDS_ENABLED
     bb_u.DeleteAthenaTensor();
     bi_u.DeleteAthenaTensor();
@@ -289,4 +288,5 @@ void Z4c::GetMatter(
     beta_d.DeleteAthenaTensor();
   }
 
+#endif // Z4C_WITH_HYDRO_ENABLED
 }

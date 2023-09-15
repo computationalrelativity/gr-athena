@@ -37,10 +37,7 @@ SRC_FILES := \
 		$(wildcard src/bvals/fc/*.cpp) \
 		$(wildcard src/bvals/utils/*.cpp) \
 		$(wildcard src/coordinates/*.cpp) \
-		src/eos/general/$(GENERAL_EOS_FILE) \
-		src/eos/$(EOS_FILE) \
-		src/eos/eos_high_order.cpp \
-		src/eos/eos_scalars.cpp \
+		@EOS_BASE_SRC@ \
 		$(wildcard src/fft/*.cpp) \
 		$(wildcard src/field/*.cpp) \
 		$(wildcard src/field/field_diffusion/*.cpp) \
