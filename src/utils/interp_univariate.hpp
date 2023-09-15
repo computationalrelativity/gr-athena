@@ -17,17 +17,6 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 
-// uniform grid assumed; bias_ controls location of interp. point
-// bias_ = 0 corresponds to a point exactly centered
-template<int half_stencil_size_>
-class InterpolateLagrangeUniform {
-  public:
-    // order of convergence (in spacing) for "derivative-dominated" functions
-    enum {interpolation_order = 2 * half_stencil_size_ - 1};
-    enum {npoints = 2 * half_stencil_size_};
-    static Real const coeff[3][npoints];
-};
-
 // uniform grid; stencil fully biased towards right (target left)
 // use for extrapolation
 template<int stencil_size_>
@@ -46,8 +35,9 @@ class InterpolateLagrangeUniformBiasL {
     static Real const coeff[npoints];
 };
 
+// uniform grid assumed
 template<int half_stencil_size_>
-class InterpolateLagrangeUniform_opt {
+class InterpolateLagrangeUniform {
   public:
     enum {interpolation_order = 2 * half_stencil_size_ - 1};
     enum {npoints = half_stencil_size_};

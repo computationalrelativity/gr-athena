@@ -251,10 +251,6 @@ public:
 #endif
   } opt;
 
-  // intergrid interpolation
-  InterpIntergridLocal * ig;
-  InterpIntergridLocal * ig_coarse;
-    
   // boundary and grid data (associated to state-vector)
   FCN_CC_CX_VC(
     CellCenteredBoundaryVariable   ubvar,
@@ -412,13 +408,6 @@ private:
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> Gamma_udd;   // Christoffel symbols of 2nd kind
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> DK_ddd;      // differential of K
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> DK_udd;      // differential of K
-  // test cons //SB not used
-  // AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> tGamma_ddd;   // Christoffel symbols of 1st kind
-  // AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> tGamma_udd;   // Christoffel symbols of 2nd kind
-  // AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> tdg_ddd;      // metric 1st drvts
-  // AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> tdetg;        // det(g)
-  // AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> tg_uu;        // inverse of conf. metric
-  // AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> tGamma_u;     // Gamma computed from the metric
 
   // Spatially dependent shift damping
 #if defined(Z4C_ETA_CONF) || defined(Z4C_ETA_TRACK_TP)

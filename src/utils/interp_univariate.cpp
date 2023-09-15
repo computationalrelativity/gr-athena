@@ -15,53 +15,6 @@
 #include "../athena_arrays.hpp"
 #include "interp_univariate.hpp"
 
-// centered stencils
-template<>
-Real const InterpolateLagrangeUniform<1>::coeff[3][2] = {
-  {1, 0},         // for injection [interp. @ poly root]
-  {1./2., 1./2.}, // interp. to midpoint of stencil
-  {0, 1},         // injected
-};
-template<>
-Real const InterpolateLagrangeUniform<2>::coeff[3][4] = {
-  {0, 1, 0, 0},
-  {-1./16., 9./16., 9./16., -1./16.},
-  {0, 0, 1, 0},
-};
-template<>
-Real const InterpolateLagrangeUniform<3>::coeff[3][6] = {
-  {0, 0, 1, 0, 0, 0},
-  {3./256., -25./256., 75./128., 75./128., -25./256., 3./256.},
-  {0, 0, 0, 1, 0, 0},
-};
-template<>
-Real const InterpolateLagrangeUniform<4>::coeff[3][8] = {
-  {0, 0, 0, 1, 0, 0, 0, 0},
-  {-5./2048., 49./2048., -245./2048., 1225./2048., 1225./2048., -245./2048., 49./2048., -5./2048.},
-  {0, 0, 0, 0, 1, 0, 0, 0},
-};
-template<>
-Real const InterpolateLagrangeUniform<5>::coeff[3][10] = {
-  {0, 0, 0, 0, 1, 0, 0, 0, 0, 0},
-  {35./65536., -405./65536., 567./16384., -2205./16384., 19845./32768., 19845./32768., -2205./16384., 567./16384., -405./65536., 35./65536.},
-  {0, 0, 0, 0, 0, 1, 0, 0, 0, 0},
-};
-
-template<>
-Real const InterpolateLagrangeUniform<6>::coeff[3][12] = {
-  {0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0},
-  {-63./524288., 847./524288., -5445./524288., 22869./524288., -38115./262144., 160083./262144., 160083./262144., -38115./262144., 22869./524288., -5445./524288., 847./524288., -63./524288.},
-  {0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0},
-};
-
-template<>
-Real const InterpolateLagrangeUniform<7>::coeff[3][14] = {
-  {0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0},
-  {231./8388608., -3549./8388608., 13013./4194304., -61347./4194304., 429429./8388608., -1288287./8388608., 1288287./2097152., 1288287./2097152., -1288287./8388608., 429429./8388608., -61347./4194304., 13013./4194304., -3549./8388608., 231./8388608.},
-  {0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0},
-};
-
-
 // right biased stencils
 template<>
 Real const InterpolateLagrangeUniformBiasR<2>::coeff[] = {
@@ -141,23 +94,23 @@ Real const InterpolateLagrangeUniformBiasL<10>::coeff[] = {
 
 // centered stencils
 template<>
-Real const InterpolateLagrangeUniform_opt<1>::coeff[1] = {
+Real const InterpolateLagrangeUniform<1>::coeff[1] = {
   1./2., // interp. to midpoint of stencil
 };
 template<>
-Real const InterpolateLagrangeUniform_opt<2>::coeff[2] = {
+Real const InterpolateLagrangeUniform<2>::coeff[2] = {
   -1./16., 9./16.,
 };
 template<>
-Real const InterpolateLagrangeUniform_opt<3>::coeff[3] = {
+Real const InterpolateLagrangeUniform<3>::coeff[3] = {
   3./256., -25./256., 75./128.,
 };
 template<>
-Real const InterpolateLagrangeUniform_opt<4>::coeff[4] = {
+Real const InterpolateLagrangeUniform<4>::coeff[4] = {
   -5./2048., 49./2048., -245./2048., 1225./2048.,
 };
 template<>
-Real const InterpolateLagrangeUniform_opt<5>::coeff[5] = {
+Real const InterpolateLagrangeUniform<5>::coeff[5] = {
   35./65536., -405./65536., 567./16384., -2205./16384., 19845./32768.,
 };
 

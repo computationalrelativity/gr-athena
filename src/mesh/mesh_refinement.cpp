@@ -760,14 +760,14 @@ void MeshRefinement::RestrictCellCenteredXValues(
           {
             int const cx_fk_l = cx_fk - dk;
             int const cx_fk_r = cx_fk + dk + 1;
-            Real const lck = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dk-1];
+            Real const lck = InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-dk-1];
 
             // #pragma unroll
             for (int dj=0; dj<H_SZ; ++dj)
             {
               int const cx_fj_l = cx_fj - dj;
               int const cx_fj_r = cx_fj + dj + 1;
-              Real const lckj = lck * InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dj-1];
+              Real const lckj = lck * InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-dj-1];
 
               // #pragma unroll
               for (int di=0; di<H_SZ; ++di)
@@ -775,7 +775,7 @@ void MeshRefinement::RestrictCellCenteredXValues(
                 int const cx_fi_l = cx_fi - di;
                 int const cx_fi_r = cx_fi + di + 1;
 
-                Real const lckji = lckj * InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
+                Real const lckji = lckj * InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-di-1];
 
                 Real const f_rrr = fine(n, cx_fk_r, cx_fj_r, cx_fi_r);
                 Real const f_lrr = fine(n, cx_fk_l, cx_fj_r, cx_fi_r);
@@ -825,7 +825,7 @@ void MeshRefinement::RestrictCellCenteredXValues(
         {
           int const cx_fj_l = cx_fj - dj;
           int const cx_fj_r = cx_fj + dj + 1;
-          Real const lcj = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dj-1];
+          Real const lcj = InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-dj-1];
 
           #pragma unroll
           for (int di=0; di<H_SZ; ++di)
@@ -833,7 +833,7 @@ void MeshRefinement::RestrictCellCenteredXValues(
             int const cx_fi_l = cx_fi - di;
             int const cx_fi_r = cx_fi + di + 1;
 
-            Real const lcji = lcj * InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
+            Real const lcji = lcj * InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-di-1];
 
             Real const f_uu = fine(n, 0, cx_fj_r, cx_fi_r);
             Real const f_ul = fine(n, 0, cx_fj_r, cx_fi_l);
@@ -914,7 +914,7 @@ void MeshRefinement::RestrictCellCenteredXValues(
       #pragma unroll
       for (int di=0; di<H_SZ; ++di)
       {
-        Real const lc = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
+        Real const lc = InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-di-1];
         int const cx_fi_l = cx_fi - di;
         int const cx_fi_r = cx_fi + di + 1;
 
@@ -996,14 +996,14 @@ void MeshRefinement::RestrictCellCenteredXValuesLO(
           {
             int const cx_fk_l = cx_fk - dk;
             int const cx_fk_r = cx_fk + dk + 1;
-            Real const lck = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dk-1];
+            Real const lck = InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-dk-1];
 
             // #pragma unroll
             for (int dj=0; dj<H_SZ; ++dj)
             {
               int const cx_fj_l = cx_fj - dj;
               int const cx_fj_r = cx_fj + dj + 1;
-              Real const lckj = lck * InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dj-1];
+              Real const lckj = lck * InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-dj-1];
 
               // #pragma omp unroll
               for (int di=0; di<H_SZ; ++di)
@@ -1011,7 +1011,7 @@ void MeshRefinement::RestrictCellCenteredXValuesLO(
                 int const cx_fi_l = cx_fi - di;
                 int const cx_fi_r = cx_fi + di + 1;
 
-                Real const lckji = lckj * InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
+                Real const lckji = lckj * InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-di-1];
 
                 Real const f_rrr = fine(n, cx_fk_r, cx_fj_r, cx_fi_r);
                 Real const f_lrr = fine(n, cx_fk_l, cx_fj_r, cx_fi_r);
@@ -1061,7 +1061,7 @@ void MeshRefinement::RestrictCellCenteredXValuesLO(
         {
           int const cx_fj_l = cx_fj - dj;
           int const cx_fj_r = cx_fj + dj + 1;
-          Real const lcj = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dj-1];
+          Real const lcj = InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-dj-1];
 
           // #pragma unroll
           for (int di=0; di<H_SZ; ++di)
@@ -1069,7 +1069,7 @@ void MeshRefinement::RestrictCellCenteredXValuesLO(
             int const cx_fi_l = cx_fi - di;
             int const cx_fi_r = cx_fi + di + 1;
 
-            Real const lcji = lcj * InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
+            Real const lcji = lcj * InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-di-1];
 
             Real const f_uu = fine(n, 0, cx_fj_r, cx_fi_r);
             Real const f_ul = fine(n, 0, cx_fj_r, cx_fi_l);
@@ -1104,7 +1104,7 @@ void MeshRefinement::RestrictCellCenteredXValuesLO(
       // #pragma unroll
       for (int di=0; di<H_SZ; ++di)
       {
-        Real const lc = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
+        Real const lc = InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-di-1];
         int const cx_fi_l = cx_fi - di;
         int const cx_fi_r = cx_fi + di + 1;
 
@@ -2171,19 +2171,19 @@ void MeshRefinement::ProlongateVertexCenteredValues(
               int const ck_u = k + dk + 1;
               int const ck_l = k - dk;
 
-              Real const lck = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dk-1];
+              Real const lck = InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-dk-1];
 
               for (int dj=0; dj<H_SZ; ++dj) {
                 int const cj_u = j + dj + 1;
                 int const cj_l = j - dj;
 
-                Real const lckj = lck * InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dj-1];
+                Real const lckj = lck * InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-dj-1];
 
                 for (int di=0; di<H_SZ; ++di) {
                   int const ci_u = i + di + 1;
                   int const ci_l = i - di;
 
-                  Real const lckji = lckj * InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
+                  Real const lckji = lckj * InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-di-1];
 
                   Real const fc_uuu = coarse(n, ck_u, cj_u, ci_u);
                   Real const fc_lll = coarse(n, ck_l, cj_l, ci_l);
@@ -2239,13 +2239,13 @@ void MeshRefinement::ProlongateVertexCenteredValues(
               int const cj_u = j + dj + 1;
               int const cj_l = j - dj;
 
-              Real const lcj = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dj-1];
+              Real const lcj = InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-dj-1];
 
               for (int di=0; di<H_SZ; ++di) {
                 int const ci_u = i + di + 1;
                 int const ci_l = i - di;
 
-                Real const lcji = lcj * InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
+                Real const lcji = lcj * InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-di-1];
 
                 Real const fc_cuu = coarse(n, k, cj_u, ci_u);
                 Real const fc_cul = coarse(n, k, cj_u, ci_l);
@@ -2289,13 +2289,13 @@ void MeshRefinement::ProlongateVertexCenteredValues(
               int const ck_u = k + dk + 1;
               int const ck_l = k - dk;
 
-              Real const lck = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dk-1];
+              Real const lck = InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-dk-1];
 
               for (int di=0; di<H_SZ; ++di) {
                 int const ci_u = i + di + 1;
                 int const ci_l = i - di;
 
-                Real const lcki = lck * InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
+                Real const lcki = lck * InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-di-1];
 
                 Real const fc_ucu = coarse(n, ck_u, j, ci_u);
                 Real const fc_ucl = coarse(n, ck_u, j, ci_l);
@@ -2339,13 +2339,13 @@ void MeshRefinement::ProlongateVertexCenteredValues(
               int const ck_u = k + dk + 1;
               int const ck_l = k - dk;
 
-              Real const lck = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dk-1];
+              Real const lck = InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-dk-1];
 
               for (int dj=0; dj<H_SZ; ++dj) {
                 int const cj_u = j + dj + 1;
                 int const cj_l = j - dj;
 
-                Real const lckj = lck * InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dj-1];
+                Real const lckj = lck * InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-dj-1];
 
                 Real const fc_uuc = coarse(n, ck_u, cj_u, i);
                 Real const fc_ulc = coarse(n, ck_u, cj_l, i);
@@ -2391,7 +2391,7 @@ void MeshRefinement::ProlongateVertexCenteredValues(
               int const ci_u = i + di + 1;
               int const ci_l = i - di;
 
-              Real const lci = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
+              Real const lci = InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-di-1];
 
               Real const fc_ccu = coarse(n, k, j, ci_u);
               Real const fc_ccl = coarse(n, k, j, ci_l);
@@ -2425,7 +2425,7 @@ void MeshRefinement::ProlongateVertexCenteredValues(
               int const cj_u = j + dj + 1;
               int const cj_l = j - dj;
 
-              Real const lcj = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dj-1];
+              Real const lcj = InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-dj-1];
 
               Real const fc_cuc = coarse(n, k, cj_u, i);
               Real const fc_clc = coarse(n, k, cj_l, i);
@@ -2458,7 +2458,7 @@ void MeshRefinement::ProlongateVertexCenteredValues(
               int const ck_u = k + dk + 1;
               int const ck_l = k - dk;
 
-              Real const lck = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dk-1];
+              Real const lck = InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-dk-1];
 
               Real const fc_ucc = coarse(n, ck_u, j, i);
               Real const fc_lcc = coarse(n, ck_l, j, i);
@@ -2552,13 +2552,13 @@ void MeshRefinement::ProlongateVertexCenteredValues(
             int const cj_u = j + dj + 1;
             int const cj_l = j - dj;
 
-            Real const lcj = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dj-1];
+            Real const lcj = InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-dj-1];
 
             for (int di=0; di<H_SZ; ++di) {
               int const ci_u = i + di + 1;
               int const ci_l = i - di;
 
-              Real const lcji = lcj * InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
+              Real const lcji = lcj * InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-di-1];
 
               Real const fc_uu = coarse(n, 0, cj_u, ci_u);
               Real const fc_ul = coarse(n, 0, cj_u, ci_l);
@@ -2595,7 +2595,7 @@ void MeshRefinement::ProlongateVertexCenteredValues(
             int const cj_u = j + dj + 1;
             int const cj_l = j - dj;
 
-            Real const lcj = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-dj-1];
+            Real const lcj = InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-dj-1];
 
             Real const fc_uc = coarse(n, 0, cj_u, i);
             Real const fc_lc = coarse(n, 0, cj_l, i);
@@ -2621,7 +2621,7 @@ void MeshRefinement::ProlongateVertexCenteredValues(
             int const ci_u = i + di + 1;
             int const ci_l = i - di;
 
-            Real const lci = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
+            Real const lci = InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-di-1];
 
             Real const fc_cu = coarse(n, 0, j, ci_u);
             Real const fc_cl = coarse(n, 0, j, ci_l);
@@ -2686,7 +2686,7 @@ void MeshRefinement::ProlongateVertexCenteredValues(
           int const ci_u = i + di + 1;
           int const ci_l = i - di;
 
-          Real const lc = InterpolateLagrangeUniform_opt<H_SZ>::coeff[H_SZ-di-1];
+          Real const lc = InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-di-1];
 
           Real const fc_u = coarse(n, 0, 0, ci_u);
           Real const fc_l = coarse(n, 0, 0, ci_l);

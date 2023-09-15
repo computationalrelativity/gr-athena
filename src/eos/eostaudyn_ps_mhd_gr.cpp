@@ -138,6 +138,9 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> chi;
   gamma_dd.NewAthenaTensor(nn1);
+  /*
+  // BD: TODO see how this is done in "adiabaticaudyn_rep_hdyro_gr.cpp"
+
   if (coarse_flag == 0) {
     vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
     vcgamma_xy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
@@ -185,6 +188,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
     };
     rescale_metric = lambda;
   }
+  */
   pmy_block_->pfield->CalculateCellCenteredField(bb, bb_cc, pco, il, iu, jl, ju, kl, ku);
 
   // Go through the cells
@@ -313,21 +317,8 @@ void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim,
   for (int k=kl; k<=ku; ++k) {
     for (int j=jl; j<=ju; ++j) {
       for (int i=il; i<=iu; ++i) {
-        #ifdef FORCE_PS_LINEAR
-        gamma_dd(0,0,i) = VCInterpolation(vcgamma_xx, k, j, i);
-        gamma_dd(0,1,i) = VCInterpolation(vcgamma_xy, k, j, i);
-        gamma_dd(0,2,i) = VCInterpolation(vcgamma_xz, k, j, i);
-        gamma_dd(1,1,i) = VCInterpolation(vcgamma_yy, k, j, i);
-        gamma_dd(1,2,i) = VCInterpolation(vcgamma_yz, k, j, i);
-        gamma_dd(2,2,i) = VCInterpolation(vcgamma_zz, k, j, i);
-        #else
-        gamma_dd(0,0,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
-        gamma_dd(0,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
-        gamma_dd(0,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
-        gamma_dd(1,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
-        gamma_dd(1,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
-        gamma_dd(2,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
-        #endif
+        // BD: TODO see how this is done in "adiabaticaudyn_rep_hdyro_gr.cpp"
+        // gamma_dd needed
       }
       // Calculate the conserved variables at every point.
       for (int i=il; i<=iu; ++i) {

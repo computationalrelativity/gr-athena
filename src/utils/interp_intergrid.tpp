@@ -5,6 +5,7 @@
 // Athena++ headers
 #include "floating_point.hpp"
 #include "interp_intergrid.hpp"
+#include "interp_univariate.hpp"
 // ============================================================================
 
 // ============================================================================
@@ -152,7 +153,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC(
 
         for (int dk=0; dk<H_SZ; ++dk)
         {
-          const dtype lc_k = InterpolateLagrangeUniform_opt<
+          const dtype lc_k = InterpolateLagrangeUniform<
             H_SZ
           >::coeff[H_SZ-dk-1];
 
@@ -161,7 +162,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC(
 
           for (int dj=0; dj<H_SZ; ++dj)
           {
-            const dtype lc_kj = lc_k * InterpolateLagrangeUniform_opt<
+            const dtype lc_kj = lc_k * InterpolateLagrangeUniform<
               H_SZ
             >::coeff[H_SZ-dj-1];
 
@@ -170,7 +171,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC(
 
             for (int di=0; di<H_SZ; ++di)
             {
-              const dtype lc_kji = lc_kj * InterpolateLagrangeUniform_opt<
+              const dtype lc_kji = lc_kj * InterpolateLagrangeUniform<
                 H_SZ
               >::coeff[H_SZ-di-1];
 
@@ -212,7 +213,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC(
 
         for (int dj=0; dj<H_SZ; ++dj)
         {
-          const dtype lc_j = InterpolateLagrangeUniform_opt<
+          const dtype lc_j = InterpolateLagrangeUniform<
             H_SZ
           >::coeff[H_SZ-dj-1];
 
@@ -221,7 +222,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC(
 
           for (int di=0; di<H_SZ; ++di)
           {
-            const dtype lc_ji = lc_j * InterpolateLagrangeUniform_opt<
+            const dtype lc_ji = lc_j * InterpolateLagrangeUniform<
               H_SZ
             >::coeff[H_SZ-di-1];
 
@@ -252,7 +253,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC(
 
         for (int di=0; di<H_SZ; ++di)
         {
-          const dtype lc_i = InterpolateLagrangeUniform_opt<
+          const dtype lc_i = InterpolateLagrangeUniform<
             H_SZ
           >::coeff[H_SZ-di-1];
 
@@ -293,7 +294,7 @@ void InterpIntergrid<dtype, H_SZ>::CC2VC(
 
         for (int dk=0; dk<H_SZ; ++dk)
         {
-          const dtype lc_k = InterpolateLagrangeUniform_opt<
+          const dtype lc_k = InterpolateLagrangeUniform<
             H_SZ
           >::coeff[H_SZ-dk-1];
 
@@ -302,7 +303,7 @@ void InterpIntergrid<dtype, H_SZ>::CC2VC(
 
           for (int dj=0; dj<H_SZ; ++dj)
           {
-            const dtype lc_kj = lc_k * InterpolateLagrangeUniform_opt<
+            const dtype lc_kj = lc_k * InterpolateLagrangeUniform<
               H_SZ
             >::coeff[H_SZ-dj-1];
 
@@ -312,7 +313,7 @@ void InterpIntergrid<dtype, H_SZ>::CC2VC(
 
             for (int di=0; di<H_SZ; ++di)
             {
-              const dtype lc_kji = lc_kj * InterpolateLagrangeUniform_opt<
+              const dtype lc_kji = lc_kj * InterpolateLagrangeUniform<
                 H_SZ
               >::coeff[H_SZ-di-1];
 
@@ -353,7 +354,7 @@ void InterpIntergrid<dtype, H_SZ>::CC2VC(
 
         for (int dj=0; dj<H_SZ; ++dj)
         {
-          const dtype lc_j = InterpolateLagrangeUniform_opt<
+          const dtype lc_j = InterpolateLagrangeUniform<
             H_SZ
           >::coeff[H_SZ-dj-1];
 
@@ -363,7 +364,7 @@ void InterpIntergrid<dtype, H_SZ>::CC2VC(
 
           for (int di=0; di<H_SZ; ++di)
           {
-            const dtype lc_ji = lc_j * InterpolateLagrangeUniform_opt<
+            const dtype lc_ji = lc_j * InterpolateLagrangeUniform<
               H_SZ
             >::coeff[H_SZ-di-1];
 
@@ -394,7 +395,7 @@ void InterpIntergrid<dtype, H_SZ>::CC2VC(
 
         for (int di=0; di<H_SZ; ++di)
         {
-          const dtype lc_i = InterpolateLagrangeUniform_opt<
+          const dtype lc_i = InterpolateLagrangeUniform<
             H_SZ
           >::coeff[H_SZ-di-1];
 
@@ -541,7 +542,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2FC(
 
             for (int dj=0; dj<H_SZ; ++dj)
             {
-              const dtype lc_j = InterpolateLagrangeUniform_opt<
+              const dtype lc_j = InterpolateLagrangeUniform<
                 H_SZ
               >::coeff[H_SZ-dj-1];
 
@@ -550,7 +551,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2FC(
 
               for (int di=0; di<H_SZ; ++di)
               {
-                const dtype lc_ji = lc_j * InterpolateLagrangeUniform_opt<
+                const dtype lc_ji = lc_j * InterpolateLagrangeUniform<
                   H_SZ
                 >::coeff[H_SZ-di-1];
 
@@ -584,7 +585,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2FC(
 
             for (int dk=0; dk<H_SZ; ++dk)
             {
-              const dtype lc_k = InterpolateLagrangeUniform_opt<
+              const dtype lc_k = InterpolateLagrangeUniform<
                 H_SZ
               >::coeff[H_SZ-dk-1];
 
@@ -593,7 +594,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2FC(
 
               for (int di=0; di<H_SZ; ++di)
               {
-                const dtype lc_ki = lc_k * InterpolateLagrangeUniform_opt<
+                const dtype lc_ki = lc_k * InterpolateLagrangeUniform<
                   H_SZ
                 >::coeff[H_SZ-di-1];
 
@@ -627,7 +628,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2FC(
 
             for (int dk=0; dk<H_SZ; ++dk)
             {
-              const dtype lc_k = InterpolateLagrangeUniform_opt<
+              const dtype lc_k = InterpolateLagrangeUniform<
                 H_SZ
               >::coeff[H_SZ-dk-1];
 
@@ -636,7 +637,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2FC(
 
               for (int dj=0; dj<H_SZ; ++dj)
               {
-                const dtype lc_kj = lc_k * InterpolateLagrangeUniform_opt<
+                const dtype lc_kj = lc_k * InterpolateLagrangeUniform<
                   H_SZ
                 >::coeff[H_SZ-dj-1];
 
@@ -675,7 +676,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2FC(
 
             for (int di=0; di<H_SZ; ++di)
             {
-              const dtype lc_i = InterpolateLagrangeUniform_opt<
+              const dtype lc_i = InterpolateLagrangeUniform<
                 H_SZ
               >::coeff[H_SZ-di-1];
 
@@ -700,7 +701,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2FC(
             const int vc_j = tr_j + dg;
             for (int dj=0; dj<H_SZ; ++dj)
             {
-              const dtype lc_j = InterpolateLagrangeUniform_opt<
+              const dtype lc_j = InterpolateLagrangeUniform<
                 H_SZ
               >::coeff[H_SZ-dj-1];
 
@@ -765,7 +766,7 @@ void InterpIntergrid<dtype, H_SZ>::CC2FC(
 
             for (int dk=0; dk<H_SZ; ++dk)
             {
-              const dtype lc_k = InterpolateLagrangeUniform_opt<
+              const dtype lc_k = InterpolateLagrangeUniform<
                 H_SZ
               >::coeff[H_SZ-dk-1];
 
@@ -791,7 +792,7 @@ void InterpIntergrid<dtype, H_SZ>::CC2FC(
 
             for (int dj=0; dj<H_SZ; ++dj)
             {
-              const dtype lc_j = InterpolateLagrangeUniform_opt<
+              const dtype lc_j = InterpolateLagrangeUniform<
                 H_SZ
               >::coeff[H_SZ-dj-1];
 
@@ -817,7 +818,7 @@ void InterpIntergrid<dtype, H_SZ>::CC2FC(
 
             for (int di=0; di<H_SZ; ++di)
             {
-              const dtype lc_i = InterpolateLagrangeUniform_opt<
+              const dtype lc_i = InterpolateLagrangeUniform<
                 H_SZ
               >::coeff[H_SZ-di-1];
 
@@ -849,7 +850,7 @@ void InterpIntergrid<dtype, H_SZ>::CC2FC(
 
             for (int dj=0; dj<H_SZ; ++dj)
             {
-              const dtype lc_j = InterpolateLagrangeUniform_opt<
+              const dtype lc_j = InterpolateLagrangeUniform<
                 H_SZ
               >::coeff[H_SZ-dj-1];
 
@@ -875,7 +876,7 @@ void InterpIntergrid<dtype, H_SZ>::CC2FC(
 
             for (int di=0; di<H_SZ; ++di)
             {
-              const dtype lc_i = InterpolateLagrangeUniform_opt<
+              const dtype lc_i = InterpolateLagrangeUniform<
                 H_SZ
               >::coeff[H_SZ-di-1];
 
@@ -906,7 +907,7 @@ void InterpIntergrid<dtype, H_SZ>::CC2FC(
 
             for (int di=0; di<H_SZ; ++di)
             {
-              const dtype lc_i = InterpolateLagrangeUniform_opt<
+              const dtype lc_i = InterpolateLagrangeUniform<
                 H_SZ
               >::coeff[H_SZ-di-1];
 
@@ -971,7 +972,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC_D1(
 
             for (int dk=0; dk<H_SZ; ++dk)
             {
-              const dtype lc_k = InterpolateVC2DerCC_rev<
+              const dtype lc_k = InterpolateVC2DerCC<
                 1, H_SZ
               >::coeff[H_SZ-dk-1];
 
@@ -980,7 +981,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC_D1(
 
               for (int dj=0; dj<H_SZ; ++dj)
               {
-                const dtype lc_kj = lc_k * InterpolateLagrangeUniform_opt<
+                const dtype lc_kj = lc_k * InterpolateLagrangeUniform<
                   H_SZ
                 >::coeff[H_SZ-dj-1];
 
@@ -989,7 +990,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC_D1(
 
                 for (int di=0; di<H_SZ; ++di)
                 {
-                  const dtype lc_kji = lc_kj * InterpolateLagrangeUniform_opt<
+                  const dtype lc_kji = lc_kj * InterpolateLagrangeUniform<
                     H_SZ
                   >::coeff[H_SZ-di-1];
 
@@ -1033,7 +1034,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC_D1(
 
             for (int dk=0; dk<H_SZ; ++dk)
             {
-              const dtype lc_k = InterpolateLagrangeUniform_opt<
+              const dtype lc_k = InterpolateLagrangeUniform<
                 H_SZ
               >::coeff[H_SZ-dk-1];
 
@@ -1042,7 +1043,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC_D1(
 
               for (int dj=0; dj<H_SZ; ++dj)
               {
-                const dtype lc_kj = lc_k * InterpolateVC2DerCC_rev<
+                const dtype lc_kj = lc_k * InterpolateVC2DerCC<
                   1, H_SZ
                 >::coeff[H_SZ-dj-1];
 
@@ -1051,7 +1052,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC_D1(
 
                 for (int di=0; di<H_SZ; ++di)
                 {
-                  const dtype lc_kji = lc_kj * InterpolateLagrangeUniform_opt<
+                  const dtype lc_kji = lc_kj * InterpolateLagrangeUniform<
                     H_SZ
                   >::coeff[H_SZ-di-1];
 
@@ -1095,7 +1096,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC_D1(
 
             for (int dk=0; dk<H_SZ; ++dk)
             {
-              const dtype lc_k = InterpolateLagrangeUniform_opt<
+              const dtype lc_k = InterpolateLagrangeUniform<
                 H_SZ
               >::coeff[H_SZ-dk-1];
 
@@ -1104,7 +1105,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC_D1(
 
               for (int dj=0; dj<H_SZ; ++dj)
               {
-                const dtype lc_kj = lc_k * InterpolateLagrangeUniform_opt<
+                const dtype lc_kj = lc_k * InterpolateLagrangeUniform<
                   H_SZ
                 >::coeff[H_SZ-dj-1];
 
@@ -1113,7 +1114,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC_D1(
 
                 for (int di=0; di<H_SZ; ++di)
                 {
-                  const dtype lc_kji = lc_kj * InterpolateVC2DerCC_rev<
+                  const dtype lc_kji = lc_kj * InterpolateVC2DerCC<
                     1, H_SZ
                   >::coeff[H_SZ-di-1];
 
@@ -1165,7 +1166,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC_D1(
 
             for (int dj=0; dj<H_SZ; ++dj)
             {
-              const dtype lc_j = InterpolateVC2DerCC_rev<
+              const dtype lc_j = InterpolateVC2DerCC<
                 1, H_SZ
               >::coeff[H_SZ-dj-1];
 
@@ -1174,7 +1175,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC_D1(
 
               for (int di=0; di<H_SZ; ++di)
               {
-                const dtype lc_ji = lc_j * InterpolateLagrangeUniform_opt<
+                const dtype lc_ji = lc_j * InterpolateLagrangeUniform<
                   H_SZ
                 >::coeff[H_SZ-di-1];
 
@@ -1208,7 +1209,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC_D1(
 
             for (int dj=0; dj<H_SZ; ++dj)
             {
-              const dtype lc_j = InterpolateLagrangeUniform_opt<
+              const dtype lc_j = InterpolateLagrangeUniform<
                 H_SZ
               >::coeff[H_SZ-dj-1];
 
@@ -1217,7 +1218,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC_D1(
 
               for (int di=0; di<H_SZ; ++di)
               {
-                const dtype lc_ji = lc_j * InterpolateVC2DerCC_rev<
+                const dtype lc_ji = lc_j * InterpolateVC2DerCC<
                   1, H_SZ
                 >::coeff[H_SZ-di-1];
 
@@ -1253,7 +1254,7 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC_D1(
 
         for (int di=0; di<H_SZ; ++di)
         {
-          const dtype lc_i = InterpolateVC2DerCC_rev<
+          const dtype lc_i = InterpolateVC2DerCC<
             1, H_SZ
           >::coeff[H_SZ-di-1];
 

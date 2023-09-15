@@ -389,27 +389,6 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   Riemm4_ddd.NewAthenaTensor(mbi.nn1);
   Riemm4_dd.NewAthenaTensor(mbi.nn1);
 
-  // Intergrid communication
-  //SB TODO make this optional for matter?
-  //SB FIXME pcoarsec in mesh/mesh_refinement.hpp should be private
-  int N[] = {pmb->block_size.nx1, pmb->block_size.nx2, pmb->block_size.nx3};
-  Real rdx[] = {
-    1./(SW_CCX_VC(pco->dx1v(0), pco->dx1f(0))),
-    1./(SW_CCX_VC(pco->dx2v(0), pco->dx2f(0))),
-    1./(SW_CCX_VC(pco->dx3v(0), pco->dx3f(0)))
-  };
-  ig = new InterpIntergridLocal(NDIM, &N[0], &rdx[0]);
-  if(pmb->pmy_mesh->multilevel){
-    int N_coarse[] = {pmb->block_size.nx1/2, pmb->block_size.nx2/2, pmb->block_size.nx3/2};
-    Real rdx_coarse[] = {
-      1./(SW_CCX_VC(pmb->pmr->pcoarsec->dx1v(0), pmb->pmr->pcoarsec->dx1f(0))),
-      1./(SW_CCX_VC(pmb->pmr->pcoarsec->dx2v(0), pmb->pmr->pcoarsec->dx2f(0))),
-      1./(SW_CCX_VC(pmb->pmr->pcoarsec->dx3v(0), pmb->pmr->pcoarsec->dx3f(0)))
-    };
-    ig_coarse = new InterpIntergridLocal(NDIM, &N_coarse[0], &rdx_coarse[0]);
-  }
-
-
   // To handle inter-grid interpolation ---------------------------------------
   if (Z4C_ENABLED && FLUID_ENABLED)
   {
@@ -517,12 +496,6 @@ Z4c::~Z4c()
   Riemm4_dddd.DeleteAthenaTensor();
   Riemm4_ddd.DeleteAthenaTensor();
   Riemm4_dd.DeleteAthenaTensor();
-
-  //SB TODO make this optional for matter?
-  delete ig;
-  if(pmy_block->pmy_mesh->multilevel){
-    delete ig_coarse;
-  }
 
   if (opt.sphere_zone_number > 0) {
     opt.sphere_zone_levels.DeleteAthenaArray();

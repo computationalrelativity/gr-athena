@@ -379,12 +379,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 for(int k = ks-1; k<=ke+1; k++){
   for(int j = js-1; j<=je+1; j++){
   for(int i = is-1; i<=ie+1; i++){
-          gamma_dd(0,0,i) = pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
-          gamma_dd(0,1,i) = pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
-          gamma_dd(0,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
-          gamma_dd(1,1,i) = pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
-          gamma_dd(1,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
-          gamma_dd(2,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
+        // BD: TODO see how this is done in "adiabaticaudyn_rep_hdyro_gr.cpp"
+        // gamma_dd needed
 }
    for(int i = is-1; i<=ie+1; i++){
     // See LinearAlgebra if still needed.
