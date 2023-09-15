@@ -130,6 +130,8 @@
 #define @Z4C_VC_ENABLED@
 #define Z4C_CX_NUM_RBC 0
 
+#define @Z4C_WITH_HYDRO_ENABLED@
+
 // enable GR frame transformations? default=0 (false)
 #define FRAME_TRANSFORMATIONS @FRAME_TRANSFORMATIONS@
 
