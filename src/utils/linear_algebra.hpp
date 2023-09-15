@@ -90,6 +90,24 @@ static inline Real InnerProductSlicedVec3Metric(
           2.0*u(1,i)*u(2,i)*g(1,2,k,j,i));
 }
 
+// indicial manipulations
+static inline void SlicedVecMet3Contraction(
+  AthenaTensor<Real, TensorSymm::NONE, 3, 1> & v_res,
+  AthenaTensor<Real, TensorSymm::NONE, 3, 1> const & v_src,
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & met3_src,
+  const int k, const int j, const int i
+)
+{
+  #pragma omp unroll full
+  for (int a=0; a<3; ++a)
+  {
+    v_res(a,i) = (v_src(0,i)*met3_src(a,0,k,j,i) +
+                  v_src(1,i)*met3_src(a,1,k,j,i) +
+                  v_src(2,i)*met3_src(a,2,k,j,i));
+  }
+}
+
+
 }  // namespace LinearAlgebra
 
 // implementation details (for templates) =====================================

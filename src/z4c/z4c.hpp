@@ -466,16 +466,6 @@ private:
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 3> Riemm4_ddd;  // 4D Riemann * n^a
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> Riemm4_dd;   // 4D Riemann *n^a*n^c
 
-  // aux vars for matter interpolation //SB: TODO remove/cleanup
-  AthenaArray<Real> rhocc;
-  AthenaArray<Real> pgascc;
-  AthenaArray<Real> utilde1cc;
-  AthenaArray<Real> utilde2cc;
-  AthenaArray<Real> utilde3cc;
-  AthenaArray<Real> bb1cc;
-  AthenaArray<Real> bb2cc;
-  AthenaArray<Real> bb3cc;
-
   // Aux vars handling cx/vc matter interpolation
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> rho;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> pgas;
