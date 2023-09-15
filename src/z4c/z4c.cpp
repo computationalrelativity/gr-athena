@@ -340,13 +340,6 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   Gamma_udd.NewAthenaTensor(mbi.nn1);
   DK_ddd.NewAthenaTensor(mbi.nn1);
   DK_udd.NewAthenaTensor(mbi.nn1);
-  // testcons //SB not used
-  // tGamma_ddd.NewAthenaTensor(mbi.nn1);
-  // tGamma_udd.NewAthenaTensor(mbi.nn1);
-  // tdg_ddd.NewAthenaTensor(mbi.nn1);
-  // tdetg.NewAthenaTensor(mbi.nn1);
-  // tg_uu.NewAthenaTensor(mbi.nn1);
-  // tGamma_u.NewAthenaTensor(mbi.nn1);
 
 #if defined(Z4C_ETA_CONF) || defined(Z4C_ETA_TRACK_TP)
   eta_damp.NewAthenaTensor(mbi.nn1);

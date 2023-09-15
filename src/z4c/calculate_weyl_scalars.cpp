@@ -24,7 +24,6 @@
 #include "wave_extract.hpp"
 #endif // DBG_WEYL_SWSH_SEED_CART
 
-#define SQ(X) ((X)*(X))
 
 template<typename T>
 static int sgn(T val)
@@ -281,7 +280,7 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
     //     wvec = phi vec
     ILOOP1(i){
       Real xx = mbi.x1(i);
-      if(SQ(mbi.x1(i)) +  SQ(mbi.x2(j)) < 1e-10)
+      if(SQR(mbi.x1(i)) +  SQR(mbi.x2(j)) < 1e-10)
         xx = xx + 1e-8;
       uvec(0,i) = xx;
       uvec(1,i) = mbi.x2(j);

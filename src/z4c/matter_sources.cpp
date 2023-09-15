@@ -270,4 +270,23 @@ void Z4c::GetMatter(
     }
   }
 
+
+// cleanup
+  if(opt.Tmunuinterp==0)
+  {
+#if MAGNETIC_FIELDS_ENABLED
+    bb_u.DeleteAthenaTensor();
+    bi_u.DeleteAthenaTensor();
+    bi_d.DeleteAthenaTensor();
+#endif
+    wgas.DeleteAthenaTensor();
+    gamma_lor.DeleteAthenaTensor();
+    detgamma.DeleteAthenaTensor();
+    bsq.DeleteAthenaTensor();
+    b0_u.DeleteAthenaTensor();
+    v_d.DeleteAthenaTensor();
+    v_u.DeleteAthenaTensor();
+    beta_d.DeleteAthenaTensor();
+  }
+
 }
