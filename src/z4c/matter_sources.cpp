@@ -107,6 +107,19 @@ void Z4c::GetMatter(
       pco_gr->GetMatterField(pgas,   sl_pgas,   k, j);
       pco_gr->GetMatterField(utilde, sl_utilde, k, j);
 
+    if (0)
+    {
+      std::cout << "---------------------------" << std::endl;
+      pgas.array().print_all("%1.4e");
+      std::cout << "---------------------------" << std::endl;
+      sl_pgas.array().print_all("%1.4e");
+
+      while(true)
+      {
+        std::exit(0);
+      }
+    }
+
 #if MAGNETIC_FIELDS_ENABLED
       pco_gr->GetMatterField(bb,     sl_bb,     k, j);
 #endif

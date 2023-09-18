@@ -542,11 +542,48 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
     GetGeometricFieldCC(alpha,    z4c_alpha,    k, j);
     GetGeometricFieldCC(beta_u,   z4c_beta_u,   k, j);
 
+    if (0)
+    {
+      std::cout << "---------------------------" << std::endl;
+      gamma_dd.array().print_all("%1.4e");
+      std::cout << "---------------------------" << std::endl;
+      K_dd.array().print_all("%1.4e");
+      std::cout << "---------------------------" << std::endl;
+      alpha.array().print_all("%1.4e");
+      std::cout << "---------------------------" << std::endl;
+      beta_u.array().print_all("%1.4e");
+      std::cout << "---------------------------" << std::endl;
+      alpha.array().print_all("%1.4e");
+      z4c_alpha.array().print_all("%1.4e");
+
+      while(true)
+      {
+        std::exit(0);
+      }
+    }
+
     for(a=0; a<NDIM; ++a)
     {
       GetGeometricFieldDerCC(dgamma_ddd, adm_gamma_dd, a, k, j);
       GetGeometricFieldDerCC(dalpha_d,   z4c_alpha,    a, k, j);
       GetGeometricFieldDerCC(dbeta_du,   z4c_beta_u,   a, k, j);
+    }
+
+
+    if (0)
+    {
+      std::cout << "---------------------------" << std::endl;
+      dgamma_ddd.array().print_all("%1.4e");
+      std::cout << "---------------------------" << std::endl;
+      dalpha_d.array().print_all("%1.4e");
+      std::cout << "---------------------------" << std::endl;
+      dbeta_du.array().print_all("%1.4e");
+      std::cout << "---------------------------" << std::endl;
+
+      while(true)
+      {
+        std::exit(0);
+      }
     }
 
     CLOOP1(i)

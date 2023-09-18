@@ -898,12 +898,12 @@ class GRDynamical : public Coordinates {
     // tr_kl = pmb->ks;
     // tr_ku = pmb->ke;
 
-    tr_il = ig_NN->cc_il;
-    tr_iu = ig_NN->cc_iu;
-    tr_jl = ig_NN->cc_jl;
-    tr_ju = ig_NN->cc_ju;
-    tr_kl = ig_NN->cc_kl;
-    tr_ku = ig_NN->cc_ku;
+    tr_il = ig_1N->cc_il;
+    tr_iu = ig_1N->cc_iu;
+    tr_jl = ig_1N->cc_jl;
+    tr_ju = ig_1N->cc_ju;
+    tr_kl = ig_1N->cc_kl;
+    tr_ku = ig_1N->cc_ku;
 
 #endif
   }
@@ -918,7 +918,7 @@ class GRDynamical : public Coordinates {
   {
 #if defined(Z4C_VC_ENABLED)
   #if defined(HYBRID_INTERP)
-    ig_1N->VC2CC(tar, src, cc_k, cc_j);
+    ig_2N->VC2CC(tar, src, cc_k, cc_j);
   #else
     ig_NN->VC2CC(tar, src, cc_k, cc_j);
   #endif // HYBRID_INTERP
@@ -940,7 +940,7 @@ class GRDynamical : public Coordinates {
   {
 #if defined(Z4C_VC_ENABLED)
   #if defined(HYBRID_INTERP)
-    ig_1N->VC2FC(tar, src, dir, tr_k, tr_j);
+    ig_2N->VC2FC(tar, src, dir, tr_k, tr_j);
   #else
     ig_NN->VC2FC(tar, src, dir, tr_k, tr_j);
   #endif  // HYBRID_INTERP
@@ -985,14 +985,14 @@ class GRDynamical : public Coordinates {
 #if defined(Z4C_VC_ENABLED)
     // appears to be taken as cubic in z4c constructor ..
   #if defined(HYBRID_INTERP)
-    ig_2N->CC2VC(tar, src, tr_k, tr_j);
+    ig_1N->CC2VC(tar, src, tr_k, tr_j);
   #else
     ig_NN->CC2VC(tar, src, tr_k, tr_j);
   #endif // HYBRID_INTERP
 #else  // Z4C_CX_ENABLED
     // ... may be non-trivial (depends on NCGHOST_CX etc)
     // BD: debug
-    ig_NN->CC2CC(tar, src, tr_k, tr_j);
+    ig_1N->CC2CC(tar, src, tr_k, tr_j);
 #endif
   };
   // --------------------------------------------------------------------------
