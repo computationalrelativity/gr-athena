@@ -6,7 +6,7 @@
 # cd ${DIR_ATHENA}/${REL_OUTPUT}/${RUN_NAME}
 cd ${DIR_OUTPUT}
 
-# time ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
+time ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
 # gprof ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME} > analysis.txt
 
 # gprof -b -p ./${EXEC_NAME}.x > analysis.txt
@@ -45,21 +45,21 @@ cd ${DIR_OUTPUT}
 #   -ex=r --args ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
 
 # gdb \
-#   -ex 'llftaudyn_rel_no_transform.cpp:65' \
+#   -ex 'break gr_dynamical.cpp:547' \
 #   -ex 'info b' \
 #   -ex 'set print pretty on' \
 #   -ex 'set output-radix 10' \
 #   -ex=r --args ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
 
-gdb \
-  -ex 'info b' \
-  -ex 'set print pretty on' \
-  -ex 'set output-radix 10' \
-  -ex=r --args ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
+# gdb \
+#   -ex 'info b' \
+#   -ex 'set print pretty on' \
+#   -ex 'set output-radix 10' \
+#   -ex=r --args ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
 
 
 # make call log [inspect with qcachegrind]
-#valgrind --tool=callgrind --log-file=callgrind.log ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
+# valgrind --tool=callgrind --log-file=callgrind.log ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
 # valgrind --leak-check=full -s --show-leak-kinds=all ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
 # valgrind --leak-check=full -s ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME} -m 2
 

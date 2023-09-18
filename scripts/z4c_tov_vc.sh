@@ -27,12 +27,13 @@ export COMPILE_STR="--prob=gr_tov
                     --eos=adiabatictaudyn_rep
                     --flux=llftaudyn
                     -z -g -f -z_vc
-                    --cxx g++ -omp -debug -hybridinterp
+                    --cxx g++ -omp -hybridinterp
                     --nghost=4
                     --ncghost=4
                     --ncghost_cx=4
                     --nextrapolate=4
                     --ninterp=2"
+
 
 # apply caching compiler together with gold linker
 # export COMPILE_STR="${COMPILE_STR} -ccache -link_gold"

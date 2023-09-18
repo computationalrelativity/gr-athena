@@ -27,7 +27,7 @@ export COMPILE_STR="--prob=gr_tov
                     --eos=adiabatictaudyn_rep
                     --flux=llftaudyn
                     -z -g -f -z_cx
-                    --cxx g++ -omp -debug -hybridinterp
+                    --cxx g++ -omp
                     --nghost=4
                     --ncghost=4
                     --ncghost_cx=4
