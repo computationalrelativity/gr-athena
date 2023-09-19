@@ -1876,6 +1876,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           if (pbval->nblevel[0][1][1] != -1) kl -= NGHOST;
           if (pbval->nblevel[2][1][1] != -1) ku += NGHOST;
         }
+        pbval->ApplyPhysicalVertexCenteredBoundaries(time, 0.0);
 
         if (GENERAL_RELATIVITY && res_flag == 2)
         {
@@ -1933,7 +1934,6 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           ps->sbvar.var_cc = &(ps->r);
 // WGC set phys boundaries for CC and VC
         pbval->ApplyPhysicalBoundaries(time, 0.0);
-        pbval->ApplyPhysicalVertexCenteredBoundaries(time, 0.0);
       }
 
       // Calc initial diffusion coefficients
