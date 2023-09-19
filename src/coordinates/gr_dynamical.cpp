@@ -92,7 +92,7 @@ GRDynamical::GRDynamical(MeshBlock *pmb, ParameterInput *pin, bool flag)
   for (int i=ill; i<=iuu-1; ++i) {
     dx1v(i) = x1v(i+1) - x1v(i);
   }
-  
+
   // Initialize volume-averaged coordinates and spacings: theta-direction
   if (block_size.nx2 == 1) {
     Real theta_m = x2f(jl);
@@ -126,7 +126,7 @@ GRDynamical::GRDynamical(MeshBlock *pmb, ParameterInput *pin, bool flag)
       dx3v(k) = x3v(k+1) - x3v(k);
     }
   }
-  
+
   // Initialize area-averaged coordinates used with MHD AMR
   if (pm->multilevel && MAGNETIC_FIELDS_ENABLED) {
     for (int i=ill; i<=iuu; ++i) {
@@ -164,7 +164,7 @@ GRDynamical::GRDynamical(MeshBlock *pmb, ParameterInput *pin, bool flag)
   if (!coarse_flag) {
     transformation.NewAthenaArray(2, NTRIANGULAR);
   }
-  
+
   // Set up finite differencing -----------------------------------------------
   fd_is_defined = true;
   fd_cc = new FiniteDifference::Uniform(
@@ -181,7 +181,40 @@ GRDynamical::GRDynamical(MeshBlock *pmb, ParameterInput *pin, bool flag)
     nv1, nv2, nv3,
     dx1f(0), dx2f(0), dx3f(0)
   );
-  // Metric quantities not initialised in constructor, need to wait for UpdateMetric() 
+
+  // intergrid interpolators --------------------------------------------------
+  // for metric <-> matter sampling conversion
+  //
+  // if metric_vc then need {vc->fc, vc->cc}
+  // if metric_cx then only need cx->fc
+  //
+  // this motivates the choices of ghosts below
+
+  const int ng_c = (coarse_flag)? NCGHOST_CX : NGHOST;
+  const int ng_v = (coarse_flag)? NCGHOST    : NGHOST;
+
+  int N[] = {
+    nc1 - 2 * ng_c,
+    nc2 - 2 * ng_c,
+    nc3 - 2 * ng_c
+  };
+  Real rdx[] = {
+    1./(x1f(1)-x1f(0)),
+    1./(x2f(1)-x2f(0)),
+    1./(x3f(1)-x3f(0))
+  };
+
+  const int dim = (pmb->pmy_mesh->f3) ? 3 : (
+    (pmb->pmy_mesh->f2) ? 2 : 1
+  );
+
+  ig_is_defined = true;
+
+  ig_1N = new IIG_1N(dim, &N[0], &rdx[0], ng_c, ng_v);
+  ig_2N = new IIG_2N(dim, &N[0], &rdx[0], ng_c, ng_v);
+  ig_NN = new IIG_NN(dim, &N[0], &rdx[0], ng_c, ng_v);
+
+  // Metric quantities not initialised in constructor, need to wait for UpdateMetric()
   // to be called once VC metric is initialised in pgen
 }
 
@@ -405,7 +438,7 @@ Real GRDynamical::GetCellVolume(const int k, const int j, const int i) {
 void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real> *flux,
 					  const AthenaArray<Real> &prim, const AthenaArray<Real> &bb_cc,
 					  AthenaArray<Real> &cons) {
-  
+
   // Extract indices
   int is = pmy_block->is;
   int ie = pmy_block->ie;
@@ -415,11 +448,6 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
   int ke = pmy_block->ke;
   int nn1 = pmy_block->ncells1;
   int a,b,c,d,e;
-  const Real idx[3] = {
-     1.0/pmy_block->pcoord->dx1v(0),
-     1.0/pmy_block->pcoord->dx2v(0),
-     1.0/pmy_block->pcoord->dx3v(0),
-  };
 
   // Extract ratio of specific heats
   Real gamma_adi = pmy_block->peos->GetGamma();
@@ -448,16 +476,26 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> b0_u, bsq, u0, T00 ; //lapse
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> bb_u, bi_u, bi_d, T0i_u, T0i_d;  // 3 vel v_i
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> Tij_uu;  // K_{ij}
-  
+
+  // perform variable resampling when required
+  Z4c * pz4c = pmy_block->pz4c;
+
+  // Slice z4c metric quantities  (NDIM=3 in z4c.hpp)
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_gamma_dd;
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_K_dd;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> z4c_alpha;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> z4c_beta_u;
+
+  adm_gamma_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
+  adm_K_dd.InitWithShallowSlice(    pz4c->storage.adm, Z4c::I_ADM_Kxx);
+  z4c_alpha.InitWithShallowSlice(   pz4c->storage.u,   Z4c::I_Z4c_alpha);
+  z4c_beta_u.InitWithShallowSlice(  pz4c->storage.u,   Z4c::I_Z4c_betax);
+
   //SB TODO these need cleanup
-  AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy;
-  AthenaArray<Real> vcgamma_yz,vcgamma_zz,vcbeta_x,vcbeta_y;
-  AthenaArray<Real> vcbeta_z, vcalpha;
-  AthenaArray<Real> vcK_xx,vcK_xy,vcK_xz,vcK_yy;
-  AthenaArray<Real> vcK_yz,vcK_zz;
-  
   AthenaArray<Real> pgas_init, rho_init, w_init;
-    
+
+
+  // allocation
   pgas_init.NewAthenaArray(nn1);
   rho_init.NewAthenaArray(nn1);
   w_init.NewAthenaArray(nn1);
@@ -492,371 +530,408 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
   T0i_u.NewAthenaTensor(nn1);
   T0i_d.NewAthenaTensor(nn1);
   Tij_uu.NewAthenaTensor(nn1);
-    
-  vcgamma_xx.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
-  vcgamma_xy.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
-  vcgamma_xz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
-  vcgamma_yy.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
-  vcgamma_yz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
-  vcgamma_zz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
-  vcK_xx.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_Kxx,1);
-  vcK_xy.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_Kxy,1);
-  vcK_xz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_Kxz,1);
-  vcK_yy.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_Kyy,1);
-  vcK_yz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_Kyz,1);
-  vcK_zz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_Kzz,1);
-  vcbeta_x.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_betax,1);
-  vcbeta_y.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_betay,1);
-  vcbeta_z.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_betaz,1);
-  vcalpha.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
-  
-  // Go through cells
+  // ----------------------------------------------------------------------------
+
+  // cell iteration
   //SB TODO remove CLOOPS when new VC-CC logic is in place
-  for (int k=ks; k<=ke; ++k) {
-    for (int j=js; j<=je; ++j) {
-      
-      // populate alpha, beta, gamma, K, derivatives done
-#ifdef HYBRID_INTERP
-      CLOOP1(i){
-	gamma_dd(0,0,i) = VCInterpolation(vcgamma_xx,k,j,i);
-	gamma_dd(0,1,i) = VCInterpolation(vcgamma_xy,k,j,i);
-	gamma_dd(0,2,i) = VCInterpolation(vcgamma_xz,k,j,i);
-	gamma_dd(1,1,i) = VCInterpolation(vcgamma_yy,k,j,i);
-	gamma_dd(1,2,i) = VCInterpolation(vcgamma_yz,k,j,i);
-	gamma_dd(2,2,i) = VCInterpolation(vcgamma_zz,k,j,i);
-	K_dd(0,0,i) = VCInterpolation(vcK_xx,k,j,i);
-	K_dd(0,1,i) = VCInterpolation(vcK_xy,k,j,i);
-	K_dd(0,2,i) = VCInterpolation(vcK_xz,k,j,i);
-	K_dd(1,1,i) = VCInterpolation(vcK_yy,k,j,i);
-	K_dd(1,2,i) = VCInterpolation(vcK_yz,k,j,i);
-	K_dd(2,2,i) = VCInterpolation(vcK_zz,k,j,i);
-	alpha(i) = VCInterpolation(vcalpha,k,j,i);
-	beta_u(0,i) = VCInterpolation(vcbeta_x,k,j,i);
-	beta_u(1,i) = VCInterpolation(vcbeta_y,k,j,i);
-	beta_u(2,i) = VCInterpolation(vcbeta_z,k,j,i);
-      }
-      for(a=0;a<NDIM;++a){
-        CLOOP1(i){
-	  dgamma_ddd(a,0,0,i) = idx[a]*VCDiff(a,vcgamma_xx,k,j,i);
-	  dgamma_ddd(a,0,1,i) = idx[a]*VCDiff(a,vcgamma_xy,k,j,i);
-	  dgamma_ddd(a,0,2,i) = idx[a]*VCDiff(a,vcgamma_xz,k,j,i);
-	  dgamma_ddd(a,1,1,i) = idx[a]*VCDiff(a,vcgamma_yy,k,j,i);
-	  dgamma_ddd(a,1,2,i) = idx[a]*VCDiff(a,vcgamma_yz,k,j,i);
-	  dgamma_ddd(a,2,2,i) = idx[a]*VCDiff(a,vcgamma_zz,k,j,i);
-	  dalpha_d(a,i) = idx[a]*VCDiff(a,vcalpha,k,j,i);
-	  dbeta_du(a,0,i) = idx[a]*VCDiff(a,vcbeta_x,k,j,i);
-	  dbeta_du(a,1,i) = idx[a]*VCDiff(a,vcbeta_y,k,j,i);
-	  dbeta_du(a,2,i) = idx[a]*VCDiff(a,vcbeta_z,k,j,i);
-        }
-      }
-      
-#else
-      CLOOP1(i){
-	gamma_dd(0,0,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
-	gamma_dd(0,1,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
-	gamma_dd(0,2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
-	gamma_dd(1,1,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
-	gamma_dd(1,2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
-	gamma_dd(2,2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
-	K_dd(0,0,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcK_xx(k,j,i));
-	K_dd(0,1,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcK_xy(k,j,i));
-	K_dd(0,2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcK_xz(k,j,i));
-	K_dd(1,1,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcK_yy(k,j,i));
-	K_dd(1,2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcK_yz(k,j,i));
-	K_dd(2,2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcK_zz(k,j,i));
-	alpha(i) = pmy_block->pz4c->ig->map3d_VC2CC(vcalpha(k,j,i));
-	beta_u(0,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcbeta_x(k,j,i));
-	beta_u(1,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcbeta_y(k,j,i));
-	beta_u(2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcbeta_z(k,j,i));
-      } 
-      for(a=0;a<NDIM;++a){
-        CLOOP1(i){
-	  dgamma_ddd(a,0,0,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcgamma_xx(k,j,i));
-	  dgamma_ddd(a,0,1,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcgamma_xy(k,j,i));
-	  dgamma_ddd(a,0,2,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcgamma_xz(k,j,i));
-	  dgamma_ddd(a,1,1,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcgamma_yy(k,j,i));
-	  dgamma_ddd(a,1,2,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcgamma_yz(k,j,i));
-	  dgamma_ddd(a,2,2,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcgamma_zz(k,j,i));
-	  dalpha_d(a,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcalpha(k,j,i));
-	  dbeta_du(a,0,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcbeta_x(k,j,i));
-	  dbeta_du(a,1,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcbeta_y(k,j,i));
-	  dbeta_du(a,2,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcbeta_z(k,j,i));
-        }
-      }
-#endif
-      CLOOP1(i) {
-	detg(i) = Det3Metric(gamma_dd, i);
-	Inverse3Metric(1.0/detg(i),
-		       gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
-		       gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i),
-		       &gamma_uu(0,0,i), &gamma_uu(0,1,i), &gamma_uu(0,2,i),
-		       &gamma_uu(1,1,i), &gamma_uu(1,2,i), &gamma_uu(2,2,i));
-      }
+  for (int k=ks; k<=ke; ++k)
+  for (int j=js; j<=je; ++j)
+  {
+    GetGeometricFieldCC(gamma_dd, adm_gamma_dd, k, j);
+    GetGeometricFieldCC(K_dd,     adm_K_dd,     k, j);
+    GetGeometricFieldCC(alpha,    z4c_alpha,    k, j);
+    GetGeometricFieldCC(beta_u,   z4c_beta_u,   k, j);
 
-      // Read in primitives
-      for(a=0;a<NDIM;++a){
-	CLOOP1(i){
-	  utilde_u(a,i) = prim(a+IVX,k,j,i);
-	}
+    if (0)
+    {
+      std::cout << "---------------------------" << std::endl;
+      gamma_dd.array().print_all("%1.4e");
+      std::cout << "---------------------------" << std::endl;
+      K_dd.array().print_all("%1.4e");
+      std::cout << "---------------------------" << std::endl;
+      alpha.array().print_all("%1.4e");
+      std::cout << "---------------------------" << std::endl;
+      beta_u.array().print_all("%1.4e");
+      std::cout << "---------------------------" << std::endl;
+      alpha.array().print_all("%1.4e");
+      z4c_alpha.array().print_all("%1.4e");
+
+      while(true)
+      {
+        std::exit(0);
       }
-      
-      CLOOP1(i){
-	pgas(i) = prim(IPR,k,j,i);
-	rho(i)  = prim(IDN,k,j,i);
+    }
+
+    for(a=0; a<NDIM; ++a)
+    {
+      GetGeometricFieldDerCC(dgamma_ddd, adm_gamma_dd, a, k, j);
+      GetGeometricFieldDerCC(dalpha_d,   z4c_alpha,    a, k, j);
+      GetGeometricFieldDerCC(dbeta_du,   z4c_beta_u,   a, k, j);
+    }
+
+
+    if (0)
+    {
+      std::cout << "---------------------------" << std::endl;
+      dgamma_ddd.array().print_all("%1.4e");
+      std::cout << "---------------------------" << std::endl;
+      dalpha_d.array().print_all("%1.4e");
+      std::cout << "---------------------------" << std::endl;
+      dbeta_du.array().print_all("%1.4e");
+      std::cout << "---------------------------" << std::endl;
+
+      while(true)
+      {
+        std::exit(0);
       }
-      
-      // Calculate enthalpy (rho*h) NB EOS specific!
-      CLOOP1(i){
+    }
+
+    CLOOP1(i)
+    {
+      detg(i) = Det3Metric(gamma_dd, i);
+      Inverse3Metric(
+        1.0/detg(i),
+        gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
+        gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i),
+        &gamma_uu(0,0,i), &gamma_uu(0,1,i), &gamma_uu(0,2,i),
+        &gamma_uu(1,1,i), &gamma_uu(1,2,i), &gamma_uu(2,2,i));
+    }
+
+    // Read in primitives
+    for(a=0;a<NDIM;++a)
+  	CLOOP1(i)
+    {
+	    utilde_u(a,i) = prim(a+IVX,k,j,i);
+  	}
+
+    CLOOP1(i)
+    {
+      pgas(i) = prim(IPR,k,j,i);
+      rho(i)  = prim(IDN,k,j,i);
+    }
+
+    // Calculate enthalpy (rho*h) NB EOS specific!
+    CLOOP1(i)
+    {
 #if USETM
-	Real n = rho(i)/pmy_block->peos->GetEOS().GetBaryonMass();
-	Real Y[MAX_SPECIES] = {0.0};
-	Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgas(i), Y);
-	wtot(i) = n*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
+      Real n = rho(i)/pmy_block->peos->GetEOS().GetBaryonMass();
+      Real Y[MAX_SPECIES] = {0.0};
+      Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgas(i), Y);
+      wtot(i) = n*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
 #else
-	wtot(i) = rho(i) + gamma_adi/(gamma_adi-1.0) * pgas(i);
+    	wtot(i) = rho(i) + gamma_adi/(gamma_adi-1.0) * pgas(i);
 #endif
-      }
+    }
 
-      // Calculate Lorentz factor
-      Wlor.ZeroClear();
-      for(a=0;a<NDIM;++a){
-	for(b=0;b<NDIM;++b){
+    // Calculate Lorentz factor
+    Wlor.ZeroClear();
+
+    for(a=0;a<NDIM;++a)
+    for(b=0;b<NDIM;++b)
 	  CLOOP1(i){
 	    Wlor(i) += utilde_u(a,i)*utilde_u(b,i)*gamma_dd(a,b,i);
 	  }
-	}
-      }
-      CLOOP1(i){
-	Wlor(i) = std::sqrt(1.0+Wlor(i));
-      }
 
-      // Calculate shift beta_i
-      beta_d.ZeroClear();
-      for(a=0;a<NDIM;++a){
-	for(b=0;b<NDIM;++b){
-          CLOOP1(i){
+    CLOOP1(i){
+    	Wlor(i) = std::sqrt(1.0+Wlor(i));
+    }
+
+    // Calculate shift beta_i
+    beta_d.ZeroClear();
+    for(a=0;a<NDIM;++a)
+  	for(b=0;b<NDIM;++b)
+    CLOOP1(i)
+    {
 	    beta_d(a,i) += gamma_dd(a,b,i)*beta_u(b,i);
-          }
-	}
-      }
+    }
 
-      // Calculate 3 velocity v^i
-      for(a=0;a<NDIM;++a){
-	CLOOP1(i){
-	  v_u(a,i) = utilde_u(a,i)/Wlor(i);
-	}
-      }
-      
-      // Calculate 3 velocity index down v_i
-      v_d.ZeroClear();
-      for(a=0;a<NDIM;++a){
-	for(b=0;b<NDIM;++b){
+    // Calculate 3 velocity v^i
+    for(a=0;a<NDIM;++a)
+  	CLOOP1(i)
+    {
+	    v_u(a,i) = utilde_u(a,i)/Wlor(i);
+  	}
+
+    // Calculate 3 velocity index down v_i
+    v_d.ZeroClear();
+    for(a=0;a<NDIM;++a)
+  	for(b=0;b<NDIM;++b)
 	  CLOOP1(i){
 	    v_d(a,i) += v_u(b,i)*gamma_dd(a,b,i);
 	  }
-	}
+
+    // tau source term of hydro sources
+    Stau.ZeroClear();
+    for(a=0;a<NDIM; ++a)
+    {
+      CLOOP1(i)
+      {
+        Stau(i) -= wtot(i)*SQR(Wlor(i))*( v_u(a,i)*dalpha_d(a,i))/alpha(i);
       }
-      
-      // tau source term of hydro sources
+
+      for(b=0; b<NDIM; ++b)
+      {
+        CLOOP1(i)
+        {
+          Stau(i) += (wtot(i)*SQR(Wlor(i)) * v_u(a,i)*v_u(b,i) +
+                      pgas(i)*gamma_uu(a,b,i))*K_dd(a,b,i);
+        }
+      }
+    }
+
+    // momentum source term of hydro sources
+    SS_d.ZeroClear();
+    for(a=0; a<NDIM; ++a)
+    {
+      CLOOP1(i)
+      {
+        SS_d(a,i) = -(wtot(i)*SQR(Wlor(i)) - pgas(i)) * dalpha_d(a,i)/alpha(i);
+      }
+
+      for(b=0; b<NDIM; ++b)
+      {
+        CLOOP1(i)
+        {
+          SS_d(a,i) += wtot(i) *SQR(Wlor(i))*v_d(b,i)*dbeta_du(a,b,i)/alpha(i);
+        }
+
+        for(c=0; c<NDIM; ++c)
+        {
+          CLOOP1(i){
+            SS_d(a,i) += (0.5*(wtot(i)*SQR(Wlor(i))*v_u(b,i)*v_u(c,i) +
+                               pgas(i)*gamma_uu(b,c,i))*dgamma_ddd(a,b,c,i));
+          }
+        }
+      }
+    }
+
+    if(MAGNETIC_FIELDS_ENABLED)
+    {
+      CLOOP1(i)
+      {
+        bb_u(0,i) = bb_cc(IB1,k,j,i)/std::sqrt(detg(i));
+        bb_u(1,i) = bb_cc(IB2,k,j,i)/std::sqrt(detg(i));
+        bb_u(2,i) = bb_cc(IB3,k,j,i)/std::sqrt(detg(i));
+      }
+
+      b0_u.ZeroClear();
+      for(a=0; a<NDIM; ++a)
+      {
+        CLOOP1(i)
+        {
+          b0_u(i) += Wlor(i)*bb_u(a,i)*v_d(a,i)/alpha(i);
+        }
+      }
+
+      for(a=0; a<NDIM; ++a)
+      {
+        CLOOP1(i)
+        {
+          bi_u(a,i) = (bb_u(a,i) + alpha(i)*b0_u(i)*Wlor(i)*
+                       (v_u(a,i) - beta_u(a,i)/alpha(i))) / Wlor(i);
+        }
+      }
+
+      //  bi_d.ZeroClear();
+      for(a=0; a<NDIM; ++a)
+      {
+
+        CLOOP1(i)
+        {
+          bi_d(a,i) = beta_d(a,i) * b0_u(i);
+          //bi_d(a,i) += bi_u(b,i)*gamma_dd(a,b,i);
+        }
+
+        for(b=0; b<NDIM; ++b)
+        {
+          CLOOP1(i)
+          {
+            bi_d(a,i) += gamma_dd(a,b,i)*bi_u(b,i);
+          }
+        }
+    	}
+
+      CLOOP1(i)
+      {
+        bsq(i) = alpha(i)*alpha(i)*b0_u(i)*b0_u(i)/(Wlor(i)*Wlor(i));
+      }
+
+      for(a=0; a<NDIM; ++a)
+      for(b=0; b<NDIM; ++b)
+      {
+        CLOOP1(i)
+        {
+          bsq(i) += bb_u(a,i)*bb_u(b,i)*gamma_dd(a,b,i)/(Wlor(i)*Wlor(i));
+        }
+      }
+
+      CLOOP1(i)
+      {
+        u0(i) = Wlor(i)/alpha(i);
+      }
+
+      // Tab components
+      CLOOP1(i)
+      {
+        T00(i) = ((wtot(i)+bsq(i))*u0(i)*u0(i) +
+                  (pgas(i)+bsq(i)/2.0)*(-1.0/(alpha(i)*alpha(i))) -
+                  b0_u(i)*b0_u(i));
+      }
+
+      for(a=0; a<NDIM; ++a)
+      {
+        CLOOP1(i)
+        {
+          T0i_u(a,i) = ((wtot(i)+bsq(i))*u0(i)*Wlor(i) *
+                        (v_u(a,i) - beta_u(a,i)/alpha(i)) +
+                        (pgas(i)+bsq(i)/2.0) *
+                        (beta_u(a,i)/(alpha(i)*alpha(i))) - b0_u(i)*bi_u(a,i));
+        }
+      }
+
+      T0i_d.ZeroClear();
+
+      for(a=0; a<NDIM; ++a)
+      for(b=0; b<NDIM; ++b)
+      {
+        CLOOP1(i)
+        {
+          T0i_d(a,i) =(((wtot(i) + bsq(i))*Wlor(i)*Wlor(i)*v_d(a,i))/alpha(i) -
+                       b0_u(i)*bi_d(a,i));
+        }
+      }
+
+      for(a=0; a<NDIM; ++a)
+      for(b=0; b<NDIM; ++b)
+      {
+        CLOOP1(i)
+        {
+          Tij_uu(a,b,i) = ((wtot(i)+bsq(i))*Wlor(i) *
+                           (v_u(a,i) - beta_u(a,i)/alpha(i)) *
+                           Wlor(i)*(v_u(b,i) - beta_u(b,i)/alpha(i)) +
+                           (pgas(i)+bsq(i)/2.0) *
+                           (gamma_uu(a,b,i) - beta_u(a,i)*beta_u(b,i) /
+                                              (alpha(i)*alpha(i))) -
+                           bi_u(a,i)*bi_u(b,i));
+        }
+      }
+
+      // momentum source term
+      for(a=0; a<NDIM; ++a)
+      {
+        CLOOP1(i)
+        {
+          SS_d(a,i) = T00(i)*(- alpha(i)*dalpha_d(a,i));
+        }
+      }
+
+      for(a=0; a<NDIM; ++a)
+      for(b=0; b<NDIM; ++b)
+      {
+        CLOOP1(i)
+        {
+          SS_d(a,i) += T0i_d(b,i)*dbeta_du(a,b,i);
+        }
+      }
+
+      for(a=0; a<NDIM; ++a)
+      for(b=0; b<NDIM; ++b)
+      for(c = 0; c<NDIM; ++c)
+      {
+        CLOOP1(i)
+        {
+          SS_d(a,i) += (0.5*T00(i) *
+                        (beta_u(b,i)*beta_u(c,i)*dgamma_ddd(a,b,c,i)) +
+                        T0i_u(b,i)*beta_u(c,i)*dgamma_ddd(a,b,c,i) +
+                        0.5*Tij_uu(b,c,i)*dgamma_ddd(a,b,c,i));
+        }
+      }
+
+      // tau-source term
       Stau.ZeroClear();
-      for(a=0;a<NDIM; ++a){ 
-	CLOOP1(i){
-	  Stau(i) -= wtot(i)*SQR(Wlor(i))*( v_u(a,i)*dalpha_d(a,i))/alpha(i) ;
-	}
-	for(b = 0; b<NDIM; ++b){ 
-	  CLOOP1(i){
-	    Stau(i) += (wtot(i)*SQR(Wlor(i)) * v_u(a,i)*v_u(b,i) + pgas(i)*gamma_uu(a,b,i))*K_dd(a,b,i) ;
-	  }
-	}
+      for(a=0; a<NDIM; ++a)
+      {
+        CLOOP1(i)
+        {
+          Stau(i) += (T00(i)*(- beta_u(a,i)*dalpha_d(a,i)) +
+                      T0i_u(a,i)*(- dalpha_d(a,i)));
+        }
       }
 
-      // momentum source term of hydro sources      
-      SS_d.ZeroClear();
-      for(a = 0; a<NDIM; ++a){  
-	CLOOP1(i){
-	  SS_d(a,i) = - (wtot(i)*SQR(Wlor(i)) - pgas(i))  * dalpha_d(a,i)/alpha(i);
-	}
-	for(b = 0; b<NDIM; ++b){  
-	  CLOOP1(i){
-	    SS_d(a,i) += wtot(i) *SQR(Wlor(i))*v_d(b,i)*dbeta_du(a,b,i)/alpha(i);
-	  }
-	  for(c = 0; c<NDIM; ++c){  
-	    CLOOP1(i){
-	      SS_d(a,i) +=  0.5*(wtot(i)*SQR(Wlor(i))*v_u(b,i)*v_u(c,i) + pgas(i)*gamma_uu(b,c,i))*dgamma_ddd(a,b,c,i) ;
-	    }
-	  }
-	}
+      for(a=0; a<NDIM; ++a)
+      for(b=0; b<NDIM; ++b)
+      {
+        CLOOP1(i)
+        {
+          Stau(i) += (T00(i)*(beta_u(a,i)*beta_u(b,i)*K_dd(a,b,i)) +
+                      T0i_u(a,i)*(2.0*beta_u(b,i)*K_dd(a,b,i) ) +
+                      Tij_uu(a,b,i)*K_dd(a,b,i));
+        }
       }
-      
-      if(MAGNETIC_FIELDS_ENABLED){
-	
-	CLOOP1(i){
-	  bb_u(0,i) = bb_cc(IB1,k,j,i)/std::sqrt(detg(i)); 
-	  bb_u(1,i) = bb_cc(IB2,k,j,i)/std::sqrt(detg(i)); 
-	  bb_u(2,i) = bb_cc(IB3,k,j,i)/std::sqrt(detg(i)); 
-	}
-	
-	b0_u.ZeroClear();
-	for(a=0;a<NDIM;++a){
-	  CLOOP1(i){
-	    b0_u(i) += Wlor(i)*bb_u(a,i)*v_d(a,i)/alpha(i);
-	  }
-	}
-	for(a=0;a<NDIM;++a){
-	  CLOOP1(i){
-	    bi_u(a,i) = (bb_u(a,i) + alpha(i)*b0_u(i)*Wlor(i)*(v_u(a,i) - beta_u(a,i)/alpha(i)))/Wlor(i);
-	  }
-	}
-	
-	//  bi_d.ZeroClear();
-	for(a=0;a<NDIM;++a){
-	  CLOOP1(i){
-	    bi_d(a,i) = beta_d(a,i) * b0_u(i);
-	    //bi_d(a,i) += bi_u(b,i)*gamma_dd(a,b,i);
-	  }
-	  for(b=0;b<NDIM;++b){
-	    CLOOP1(i){
-	      bi_d(a,i) += gamma_dd(a,b,i)*bi_u(b,i);
-	    }
-	  }
-	}
-	CLOOP1(i){
-	  bsq(i) = alpha(i)*alpha(i)*b0_u(i)*b0_u(i)/(Wlor(i)*Wlor(i));
-	}
-	
-	for(a=0;a<NDIM;++a){
-          for(b=0;b<NDIM;++b){
-	    CLOOP1(i){
-	      bsq(i) += bb_u(a,i)*bb_u(b,i)*gamma_dd(a,b,i)/(Wlor(i)*Wlor(i));
-	    }
-	  }
-	}
-	CLOOP1(i){
-	  u0(i) = Wlor(i)/alpha(i);
-	}    
 
-	// Tab components
-	CLOOP1(i){
-	  T00(i) = (wtot(i)+bsq(i))*u0(i)*u0(i) + (pgas(i)+bsq(i)/2.0)*(-1.0/(alpha(i)*alpha(i))) - b0_u(i)*b0_u(i);
-	}
-	
-	for(a = 0; a<NDIM; ++a){  
-	  CLOOP1(i){
-	    T0i_u(a,i) = (wtot(i)+bsq(i))*u0(i)*Wlor(i)*(v_u(a,i) - beta_u(a,i)/alpha(i)) + (pgas(i)+bsq(i)/2.0)*(beta_u(a,i)/(alpha(i)*alpha(i))) - b0_u(i)*bi_u(a,i);
-	  }
-	}
-	
-	T0i_d.ZeroClear();
-	for(a = 0; a<NDIM; ++a){  
-	  for(b = 0; b<NDIM; ++b){  
-	    CLOOP1(i){
-	      T0i_d(a,i) =( (wtot(i) + bsq(i))*Wlor(i)*Wlor(i)*v_d(a,i))/alpha(i) - b0_u(i)*bi_d(a,i);
-	    }
-	  }
-	}
-	
-	for(a = 0; a<NDIM; ++a){  
-	  for(b = 0; b<NDIM; ++b){  
-	    CLOOP1(i){
-	      Tij_uu(a,b,i) = (wtot(i)+bsq(i))*Wlor(i)*(v_u(a,i) - beta_u(a,i)/alpha(i))*Wlor(i)*(v_u(b,i) - beta_u(b,i)/alpha(i)) + (pgas(i)+bsq(i)/2.0)*(gamma_uu(a,b,i) - beta_u(a,i)*beta_u(b,i)/(alpha(i)*alpha(i))) - bi_u(a,i)*bi_u(b,i);
-	    }
-	  }
-	}
+    } // MAGNETIC_FIELDS_ENABLED
 
-	// momentum source term
-	for(a = 0; a<NDIM; ++a){  
-	  CLOOP1(i){
-	    SS_d(a,i) = T00(i)*(- alpha(i)*dalpha_d(a,i));
-	  }
-	}
-	
-	for(a = 0; a<NDIM; ++a){  
-	  for(b = 0; b<NDIM; ++b){  
-	    CLOOP1(i){
-	      SS_d(a,i) += T0i_d(b,i)*dbeta_du(a,b,i);
-	    }
-	  }
-	}
-	for(a = 0; a<NDIM; ++a){  
-	  for(b = 0; b<NDIM; ++b){  
-	    for(c = 0; c<NDIM; ++c){  
-	      CLOOP1(i){
-		SS_d(a,i) += 0.5*T00(i)*(beta_u(b,i)*beta_u(c,i)*dgamma_ddd(a,b,c,i)) + T0i_u(b,i)*beta_u(c,i)*dgamma_ddd(a,b,c,i) + 0.5*Tij_uu(b,c,i)*dgamma_ddd(a,b,c,i);
-	      }
-	    }
-	  }
-	}
-
-	// tau-source term
-	Stau.ZeroClear();
-	for(a = 0; a<NDIM; ++a){  
-	  CLOOP1(i){
-	    Stau(i) += T00(i)*(- beta_u(a,i)*dalpha_d(a,i)) + T0i_u(a,i)*(- dalpha_d(a,i));
-	  }
-	}
-	
-	for(a = 0; a<NDIM; ++a){  
-	  for(b = 0; b<NDIM; ++b){  
-	    CLOOP1(i){
-	      Stau(i) += T00(i)*(beta_u(a,i)*beta_u(b,i)*K_dd(a,b,i))  + T0i_u(a,i)*(2.0*beta_u(b,i)*K_dd(a,b,i) ) + Tij_uu(a,b,i)*K_dd(a,b,i);
-	    }
-	  }
-	}
-	
-      } // MAGNETIC_FIELDS_ENABLED
-      
-      if(fix_sources==1){
-	CLOOP1(i){
-	  pgas_init(i) = pmy_block->phydro->w_init(IPR,k,j,i); 
-	  rho_init(i) = pmy_block->phydro->w_init(IDN,k,j,i); 
+    if(fix_sources==1)
+    {
+      CLOOP1(i)
+      {
+        pgas_init(i) = pmy_block->phydro->w_init(IPR,k,j,i);
+        rho_init(i) = pmy_block->phydro->w_init(IDN,k,j,i);
 #if USETM
-	  Real n = rho_init(i)/pmy_block->peos->GetEOS().GetBaryonMass();
-	  // FIXME: Generalize to work with EOSes accepting particle fractions.
-	  Real Y[MAX_SPECIES] = {0.0};
-	  Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgas_init(i), Y);
-	  w_init(i) = n*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
+        Real n = rho_init(i)/pmy_block->peos->GetEOS().GetBaryonMass();
+        // FIXME: Generalize to work with EOSes accepting particle fractions.
+        Real Y[MAX_SPECIES] = {0.0};
+        Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgas_init(i), Y);
+        w_init(i) = n*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
 #else
-	  w_init(i) = rho_init(i) + gamma_adi/(gamma_adi-1.0) * pgas_init(i);
+    	  w_init(i) = rho_init(i) + gamma_adi/(gamma_adi-1.0) * pgas_init(i);
 #endif
-	  Stau(i) = 0.0;
-        }
-        for(a=0;a<NDIM;++a){
-	  CLOOP1(i){
-	    SS_d(a,i) = - (w_init(i) - pgas_init(i))*dalpha_d(a,i)/alpha(i)  ;
-	  }
-	  for(b=0;b<NDIM;++b){
-	    for(c=0;c<NDIM;++c){
-	      CLOOP1(i){
-		SS_d(a,i) += 0.5*pgas_init(i)*gamma_uu(b,c,i)*dgamma_ddd(a,b,c,i);
-	      }
-	    }
-	  }
-        }
-      } // fix_sources
-      
-      if(zero_sources == 1){
-	for(a=0;a<NDIM;++a){
-	  CLOOP1(i){
-	    SS_d(a,i) = 0.0 ;
-	  }
-	  
-	}
-	CLOOP1(i){
-	  Stau(i) = 0.0;
-	}
-      } // zero_sources
-
-      // Add sources
-      CLOOP1(i){
-        cons(IEN,k,j,i) += dt * Stau(i)  *alpha(i)*std::sqrt(detg(i));
-        cons(IM1,k,j,i) += dt * SS_d(0,i)*alpha(i)*std::sqrt(detg(i));
-        cons(IM2,k,j,i) += dt * SS_d(1,i)*alpha(i)*std::sqrt(detg(i));
-        cons(IM3,k,j,i) += dt * SS_d(2,i)*alpha(i)*std::sqrt(detg(i));
+	      Stau(i) = 0.0;
       }
-      
-    } // j
-  }// k
-  
+
+      for(a=0;a<NDIM;++a)
+      {
+        CLOOP1(i)
+        {
+          SS_d(a,i) = - (w_init(i) - pgas_init(i))*dalpha_d(a,i)/alpha(i);
+        }
+        for(b=0;b<NDIM;++b)
+        for(c=0;c<NDIM;++c)
+        {
+          CLOOP1(i)
+          {
+            SS_d(a,i) += 0.5*pgas_init(i)*gamma_uu(b,c,i)*dgamma_ddd(a,b,c,i);
+          }
+        }
+
+      }
+    } // fix_sources
+
+    if(zero_sources == 1)
+    {
+      for(a=0;a<NDIM;++a)
+      {
+        CLOOP1(i)
+        {
+          SS_d(a,i) = 0.0 ;
+        }
+      }
+      CLOOP1(i)
+      {
+        Stau(i) = 0.0;
+      }
+    } // zero_sources
+
+    // Add sources
+    CLOOP1(i)
+    {
+      cons(IEN,k,j,i) += dt * Stau(i)  *alpha(i)*std::sqrt(detg(i));
+      cons(IM1,k,j,i) += dt * SS_d(0,i)*alpha(i)*std::sqrt(detg(i));
+      cons(IM2,k,j,i) += dt * SS_d(1,i)*alpha(i)*std::sqrt(detg(i));
+      cons(IM3,k,j,i) += dt * SS_d(2,i)*alpha(i)*std::sqrt(detg(i));
+    }
+  } // j, k
+
   // cleanup 1d buffers
   pgas_init.DeleteAthenaArray();
   rho_init.DeleteAthenaArray();
@@ -892,7 +967,6 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
   T0i_d.DeleteAthenaTensor();
   Tij_uu.DeleteAthenaTensor();
 
-  
   return;
 }
 

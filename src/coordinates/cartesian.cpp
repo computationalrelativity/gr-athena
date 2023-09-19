@@ -139,4 +139,35 @@ Cartesian::Cartesian(MeshBlock *pmb, ParameterInput *pin, bool flag)
   );
   // --------------------------------------------------------------------------
 
+  // intergrid interpolators --------------------------------------------------
+  // for metric <-> matter sampling conversion
+  //
+  // if metric_vc then need {vc->fc, vc->cc}
+  // if metric_cx then only need cx->fc
+  //
+  // this motivates the choices of ghosts below
+
+  const int ng_c = (coarse_flag)? NCGHOST_CX : NGHOST;
+  const int ng_v = (coarse_flag)? NCGHOST    : NGHOST;
+
+  int N[] = {
+    nc1 - 2 * ng_c,
+    nc2 - 2 * ng_c,
+    nc3 - 2 * ng_c
+  };
+  Real rdx[] = {
+    1./(x1f(1)-x1f(0)),
+    1./(x2f(1)-x2f(0)),
+    1./(x3f(1)-x3f(0))
+  };
+
+  const int dim = (pmb->pmy_mesh->f3) ? 3 : (
+    (pmb->pmy_mesh->f2) ? 2 : 1
+  );
+
+  ig_is_defined = true;
+
+  ig_1N = new IIG_1N(dim, &N[0], &rdx[0], ng_c, ng_v);
+  ig_2N = new IIG_2N(dim, &N[0], &rdx[0], ng_c, ng_v);
+  ig_NN = new IIG_NN(dim, &N[0], &rdx[0], ng_c, ng_v);
 }

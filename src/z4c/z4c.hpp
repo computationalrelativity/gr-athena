@@ -220,7 +220,7 @@ public:
     Real shift_eta_TP_ix;
 #endif // Z4C_ETA_CONF, Z4C_ETA_TRACK_TP
 
-    // Matter parameters   
+    // Matter parameters
     int cowling; // if 1 then cowling approximation used, rhs of z4c equations -> 0
     int rhstheta0; // if 1 then rhs of Theta equation -> 0
     int fixedgauge; // if 1 then gauge is fixed, rhs of alpha, beta^i equations -> 0
@@ -228,7 +228,7 @@ public:
     int Tmunuinterp; // interpolate stress energy
     int epsinterp; // interpolate stress energy
     int bssn; // reduce to bssn
-    
+
     // AwA parameters
     Real AwA_amplitude; // amplitude parameter
     Real AwA_d_x; // d_x (width) parameter
@@ -251,10 +251,6 @@ public:
 #endif
   } opt;
 
-  // intergrid interpolation
-  InterpIntergridLocal * ig;
-  InterpIntergridLocal * ig_coarse;
-    
   // boundary and grid data (associated to state-vector)
   FCN_CC_CX_VC(
     CellCenteredBoundaryVariable   ubvar,
@@ -311,10 +307,13 @@ public:
                       AthenaArray<Real> & u_mat, AthenaArray<Real> & u_z4c);
   // calculate weyl scalars
   void Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat,
-                      AthenaArray<Real> & u_weyl);
-  // Update matter variables from hydro  
-  void GetMatter(AthenaArray<Real> & u_mat, AthenaArray<Real> & u_adm, AthenaArray<Real> & w,
-		 AthenaArray<Real> & bb_cc);  
+               AthenaArray<Real> & u_weyl);
+  // Update matter variables from hydro
+  void GetMatter(AthenaArray<Real> & u_mat,
+                 AthenaArray<Real> & u_adm,
+                 AthenaArray<Real> & w,
+                 AthenaArray<Real> & bb_cc);
+
   // utility functions
   //
   // set ADM aliases given u_adm
@@ -327,49 +326,6 @@ public:
   static void SetZ4cAliases(AthenaArray<Real> & u, Z4c_vars & z4c);
   // set weyl aliases
   static void SetWeylAliases(AthenaArray<Real> & u_weyl, Weyl_vars & weyl);
-
-  // compute spatial determinant of a 3x3  matrix
-  static inline Real SpatialDet(Real const gxx, Real const gxy, Real const gxz,
-                                Real const gyy, Real const gyz, Real const gzz)
-  {
-    return - SQR(gxz)*gyy + 2*gxy*gxz*gyz - gxx*SQR(gyz) - SQR(gxy)*gzz + gxx*gyy*gzz;
-  }
-  static inline Real SpatialDet(
-    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & g,
-    int const k, int const j, int const i)
-  {
-    return SpatialDet(g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i),
-                      g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i));
-  }
-  // compute inverse of a 3x3 matrix
-  static inline void SpatialInv(
-    Real const detginv,
-    Real const gxx, Real const gxy, Real const gxz,
-    Real const gyy, Real const gyz, Real const gzz,
-    Real * uxx, Real * uxy, Real * uxz,
-    Real * uyy, Real * uyz, Real * uzz)
-  {
-    *uxx = (-SQR(gyz) + gyy*gzz)*detginv;
-    *uxy = (gxz*gyz  - gxy*gzz)*detginv;
-    *uyy = (-SQR(gxz) + gxx*gzz)*detginv;
-    *uxz = (-gxz*gyy + gxy*gyz)*detginv;
-    *uyz = (gxy*gxz  - gxx*gyz)*detginv;
-    *uzz = (-SQR(gxy) + gxx*gyy)*detginv;
-  }
-  // compute trace of a rank 2 covariant spatial tensor
-  static inline Real Trace(
-    Real const detginv,
-    Real const gxx, Real const gxy, Real const gxz,
-    Real const gyy, Real const gyz, Real const gzz,
-    Real const Axx, Real const Axy, Real const Axz,
-    Real const Ayy, Real const Ayz, Real const Azz)
-  {
-    return (detginv*(
-       - 2.*Ayz*gxx*gyz + Axx*gyy*gzz +  gxx*(Azz*gyy + Ayy*gzz)
-       + 2.*(gxz*(Ayz*gxy - Axz*gyy + Axy*gyz) + gxy*(Axz*gyz - Axy*gzz))
-       - Azz*SQR(gxy) - Ayy*SQR(gxz) - Axx*SQR(gyz)
-       ));
-  }
 
   // additional global functions
 
@@ -452,14 +408,7 @@ private:
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> Gamma_udd;   // Christoffel symbols of 2nd kind
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> DK_ddd;      // differential of K
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> DK_udd;      // differential of K
-  // test cons //SB not used
-  // AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> tGamma_ddd;   // Christoffel symbols of 1st kind
-  // AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> tGamma_udd;   // Christoffel symbols of 2nd kind
-  // AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> tdg_ddd;      // metric 1st drvts
-  // AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> tdetg;        // det(g)
-  // AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> tg_uu;        // inverse of conf. metric
-  // AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> tGamma_u;     // Gamma computed from the metric
-  
+
   // Spatially dependent shift damping
 #if defined(Z4C_ETA_CONF) || defined(Z4C_ETA_TRACK_TP)
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> eta_damp;
@@ -505,17 +454,16 @@ private:
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 4> Riemm4_dddd; // 4D Riemann tensor
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 3> Riemm4_ddd;  // 4D Riemann * n^a
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> Riemm4_dd;   // 4D Riemann *n^a*n^c
-  
-  // aux vars for matter interpolation //SB: TODO remove/cleanup
-  AthenaArray<Real> rhocc;
-  AthenaArray<Real> pgascc;
-  AthenaArray<Real> utilde1cc;
-  AthenaArray<Real> utilde2cc;
-  AthenaArray<Real> utilde3cc;
-  AthenaArray<Real> bb1cc;
-  AthenaArray<Real> bb2cc;
-  AthenaArray<Real> bb3cc;
-  
+
+  // Aux vars handling cx/vc matter interpolation
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> rho;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> pgas;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> utilde;
+
+#if MAGNETIC_FIELDS_ENABLED
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> bb;
+#endif
+
 private:
   void Z4cSommerfeld_(AthenaArray<Real> & u, AthenaArray<Real> & rhs,
       int const is, int const ie, int const js, int const je, int const ks, int const ke);

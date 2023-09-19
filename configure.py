@@ -642,6 +642,19 @@ if args['f']:
 else:
     definitions['FLUID_ENABLED'] = '0'
 
+if args['f']:
+    definitions['FLUID_ENABLED'] = '1'
+    aux = [
+      "src/eos/general/$(GENERAL_EOS_FILE)",
+      "src/eos/$(EOS_FILE)",
+      "src/eos/eos_high_order.cpp",
+      "src/eos/eos_scalars.cpp"
+    ]
+    makefile_options['EOS_BASE_SRC'] = '\\\n'.join(aux)
+else:
+    definitions['FLUID_ENABLED'] = '0'
+    makefile_options['EOS_BASE_SRC'] = ''
+
 # -b argument
 # set variety of macros based on whether MHD/hydro or adi/iso are defined
 if args['b']:
@@ -699,6 +712,11 @@ if args['g']:
 # -z argument
 if args['z']:
   definitions['Z4C_ENABLED'] = '1'
+  if args['f']:
+    definitions['Z4C_WITH_HYDRO_ENABLED'] = 'Z4C_WITH_HYDRO_ENABLED'
+  else:
+    definitions['Z4C_WITH_HYDRO_ENABLED'] = 'NO_Z4C_WITH_HYDRO_ENABLED'
+
   try:
       if not int(args['nghost']) >= 2:
           raise Exception
@@ -803,9 +821,9 @@ else:
 
 # -hybridinterp argument
 if args['hybridinterp']:
-    definitions['HYBRID_INTERP'] = '1'
+    definitions['HYBRID_INTERP'] = 'HYBRID_INTERP'
 else:
-    definitions['HYBRID_INTERP'] = '0'
+    definitions['HYBRID_INTERP'] = 'NO_HYBRID_INTERP'
 
 # -shear argument
 if args['shear']:

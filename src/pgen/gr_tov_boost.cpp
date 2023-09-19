@@ -214,22 +214,22 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     kucc += NGHOST;
   }
 
-  Z4c::MB_info  mbi = pz4c->mbi;
+  Z4c::MB_info*  mbi = &(pz4c->mbi);
 
   // Prepare CX (metric) index bounds
-  int ilcx = mbi.il - mbi.ng;
-  int iucx = mbi.iu + mbi.ng;
-  int jlcx = mbi.jl;
-  int jucx = mbi.ju;
+  int ilcx = mbi->il - mbi->ng;
+  int iucx = mbi->iu + mbi->ng;
+  int jlcx = mbi->jl;
+  int jucx = mbi->ju;
   if (block_size.nx2 > 1) {
-    jlcx -= mbi.ng;
-    jucx += mbi.ng;
+    jlcx -= mbi->ng;
+    jucx += mbi->ng;
   }
-  int klcx = mbi.kl;
-  int kucx = mbi.ku;
+  int klcx = mbi->kl;
+  int kucx = mbi->ku;
   if (block_size.nx3 > 1) {
-    klcx -= mbi.ng;
-    kucx += mbi.ng;
+    klcx -= mbi->ng;
+    kucx += mbi->ng;
   }
   
   // Storage
@@ -379,15 +379,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 for(int k = ks-1; k<=ke+1; k++){
   for(int j = js-1; j<=je+1; j++){
   for(int i = is-1; i<=ie+1; i++){
-          gamma_dd(0,0,i) = pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
-          gamma_dd(0,1,i) = pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
-          gamma_dd(0,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
-          gamma_dd(1,1,i) = pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
-          gamma_dd(1,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
-          gamma_dd(2,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
+        // BD: TODO see how this is done in "adiabaticaudyn_rep_hdyro_gr.cpp"
+        // gamma_dd needed
 }
    for(int i = is-1; i<=ie+1; i++){
-//    Real detgamma = std::sqrt(Det3Metric(gamma_dd,i));
+    // See LinearAlgebra if still needed.
+    //    Real detgamma = std::sqrt(Det3Metric(gamma_dd,i));
     Real detgamma = 1.0;
 
     bxcc(k,j,i) = - ((Atot(1,k+1,j,i) - Atot(1,k-1,j,i))/(2.0*pcoord->dx3v(k)))*detgamma;

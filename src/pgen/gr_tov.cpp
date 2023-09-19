@@ -50,9 +50,7 @@ namespace {
 		      AthenaArray<Real> &dg_dx1, AthenaArray<Real> &dg_dx2,
 		      AthenaArray<Real> &dg_dx3);//TOV_ID
   int RefinementCondition(MeshBlock *pmb);
-  Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
-                  int const i);
-  
+
   // Global variables
   Real gamma_adi, k_adi;  // hydro EOS parameters
   Real v_amp; // velocity amplitude for linear perturbations
@@ -87,21 +85,26 @@ namespace {
 
 void Mesh::InitUserMeshData(ParameterInput *pin) {
   // Read problem parameters
-  Real rhoc = pin->GetReal("problem", "rhoc"); // Central value of energy density
-  Real rmin = pin->GetReal("problem", "rmin");  // minimum radius to start TOV integration
-  Real dr = pin->GetReal("problem", "dr");      // radial step for TOV integration 
-  int npts = pin->GetInteger("problem", "npts");    // number of max radial pts for TOV solver
-  
+
+  // Central value of energy density
+  Real rhoc = pin->GetReal("problem", "rhoc");
+  // minimum radius to start TOV integration
+  Real rmin = pin->GetReal("problem", "rmin");
+  // radial step for TOV integration
+  Real dr = pin->GetReal("problem", "dr");
+  // number of max radial pts for TOV solver
+  int npts = pin->GetInteger("problem", "npts");
+
   k_adi = pin->GetReal("hydro", "k_adi");
   gamma_adi = pin->GetReal("hydro","gamma");
   v_amp = pin->GetOrAddReal("problem", "v_amp", 0.0);
-  
+
   // Alloc 1D buffer
   tov = new TOVData;
   tov->npts = npts;
   for (int v = 0; v < itov_nv; v++)
     tov->data[v] = (Real*) malloc(npts*sizeof(Real));
-  
+
   // Solve TOV equations, setting 1D inital data in tov->data
   TOV_solve(rhoc, rmin, dr, &npts);
 
@@ -127,54 +130,61 @@ void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin) {
   AthenaArray<Real> &x1flux = phydro->flux[X1DIR];
   AthenaArray<Real> &x2flux = phydro->flux[X2DIR];
   AthenaArray<Real> &x3flux = phydro->flux[X3DIR];
-  
+
   int il = is - NGHOST;
   int iu = ie + NGHOST;
   int jl = js;
   int ju = je;
-  if (block_size.nx2 > 1) {
+  if (block_size.nx2 > 1)
+  {
     jl -= NGHOST;
     ju += NGHOST;
   }
   int kl = ks;
   int ku = ke;
-  if (block_size.nx3 > 1) {
+  if (block_size.nx3 > 1)
+  {
     kl -= NGHOST;
     ku += NGHOST;
   }
-  for (int k=kl; k<=ku; ++k) {
-    for (int j=jl; j<=ju; ++j) {
-      for (int i=il; i<=iu; ++i) {
-	user_out_var(0,k,j,i) = x1flux(0,k,j,i);
-	user_out_var(1,k,j,i) = x1flux(1,k,j,i);
-	user_out_var(2,k,j,i) = x1flux(2,k,j,i);
-	user_out_var(3,k,j,i) = x1flux(3,k,j,i);
-	user_out_var(4,k,j,i) = x1flux(4,k,j,i);
-	user_out_var(5,k,j,i) = x2flux(0,k,j,i);
-	user_out_var(6,k,j,i) = x2flux(1,k,j,i);
-	user_out_var(7,k,j,i) = x2flux(2,k,j,i);
-	user_out_var(8,k,j,i) = x2flux(3,k,j,i);
-	user_out_var(9,k,j,i) = x2flux(4,k,j,i);
-	user_out_var(10,k,j,i) = x3flux(0,k,j,i);
-	user_out_var(11,k,j,i) = x3flux(1,k,j,i);
-	user_out_var(12,k,j,i) = x3flux(2,k,j,i);
-	user_out_var(13,k,j,i) = x3flux(3,k,j,i);
-	user_out_var(14,k,j,i) = x3flux(4,k,j,i);
-      }
-    }
+
+  for (int k=kl; k<=ku; ++k)
+  for (int j=jl; j<=ju; ++j)
+  for (int i=il; i<=iu; ++i)
+  {
+    user_out_var(0,k,j,i) = x1flux(0,k,j,i);
+    user_out_var(1,k,j,i) = x1flux(1,k,j,i);
+    user_out_var(2,k,j,i) = x1flux(2,k,j,i);
+    user_out_var(3,k,j,i) = x1flux(3,k,j,i);
+    user_out_var(4,k,j,i) = x1flux(4,k,j,i);
+    user_out_var(5,k,j,i) = x2flux(0,k,j,i);
+    user_out_var(6,k,j,i) = x2flux(1,k,j,i);
+    user_out_var(7,k,j,i) = x2flux(2,k,j,i);
+    user_out_var(8,k,j,i) = x2flux(3,k,j,i);
+    user_out_var(9,k,j,i) = x2flux(4,k,j,i);
+    user_out_var(10,k,j,i) = x3flux(0,k,j,i);
+    user_out_var(11,k,j,i) = x3flux(1,k,j,i);
+    user_out_var(12,k,j,i) = x3flux(2,k,j,i);
+    user_out_var(13,k,j,i) = x3flux(3,k,j,i);
+    user_out_var(14,k,j,i) = x3flux(4,k,j,i);
   }
+
   return;
 }
 
 void Mesh::UserWorkAfterLoop(ParameterInput *pin) {
   // Free TOV data
-  if (NULL != tov ) { 
-    for (int v = 0; v < itov_nv; v++) {
-      if (NULL != tov->data[v]) {
-	free(tov->data[v]);
-	tov->data[v] = NULL;
+  if (NULL != tov )
+  {
+    for (int v = 0; v < itov_nv; v++)
+    {
+      if (NULL != tov->data[v])
+      {
+        free(tov->data[v]);
+        tov->data[v] = NULL;
       }
     }
+
     delete tov;
     tov = NULL;
   }
@@ -183,7 +193,7 @@ void Mesh::UserWorkAfterLoop(ParameterInput *pin) {
 
 
 //----------------------------------------------------------------------------------------
-//! \fn 
+//! \fn
 // \brief Function for setting initial conditions
 // Inputs:
 //   pin: parameters
@@ -203,63 +213,31 @@ void Mesh::UserWorkAfterLoop(ParameterInput *pin) {
 // So conversion is rho0=rho and u = rho*epsl
 
 void MeshBlock::ProblemGenerator(ParameterInput *pin) {
+  // container with idx / grids pertaining z4c
+  Z4c::MB_info* mbi = &(pz4c->mbi);
 
-  // Prepare CC index bounds
-  int ilcc = is - NGHOST;
-  int iucc = ie + NGHOST;
-  int jlcc = js;
-  int jucc = je;
-  if (block_size.nx2 > 1) {
-    jlcc -= NGHOST;
-    jucc += NGHOST;
-  }
-  int klcc = ks;
-  int kucc = ke;
-  if (block_size.nx3 > 1) {
-    klcc -= NGHOST;
-    kucc += NGHOST;
-  }
-
-  Z4c::MB_info  mbi = pz4c->mbi;
-
-  // Prepare CX (metric) index bounds
-  int ilcx = mbi.il - mbi.ng;
-  int iucx = mbi.iu + mbi.ng;
-  int jlcx = mbi.jl;
-  int jucx = mbi.ju;
-  if (block_size.nx2 > 1) {
-    jlcx -= mbi.ng;
-    jucx += mbi.ng;
-  }
-  int klcx = mbi.kl;
-  int kucx = mbi.ku;
-  if (block_size.nx3 > 1) {
-    klcx -= mbi.ng;
-    kucx += mbi.ng;
-  }
   // Parameters
   phydro->w.Fill(NAN);
   phydro->w1.Fill(NAN);
   pz4c->storage.u.Fill(NAN);
   pz4c->storage.adm.Fill(NAN);
 
-
   // Prepare scratch arrays
-//  AthenaArray<Real> g, gi;
-//  g.NewAthenaArray(NMETRIC, iu+1);
-//  gi.NewAthenaArray(NMETRIC, iu+1);
+  // AthenaArray<Real> g, gi;
+  // g.NewAthenaArray(NMETRIC, iu+1);
+  // gi.NewAthenaArray(NMETRIC, iu+1);
 
   // Star mass & radius
-  const Real M = tov->M;  // Mass of TOV star 
+  const Real M = tov->M;     // Mass of TOV star
   const Real R = tov->Riso;  // Isotropic Radius of TOV star
 
-  // Atmosphere 
+  // Atmosphere
   Real rhomax = tov->data[itov_rho][0];
   Real pgasmax = k_adi*pow(rhomax,gamma_adi);
   Real fatm = pin->GetReal("problem","fatm");
   const Real rho_atm = rhomax * fatm;
 
-  //TODO (SB) general EOS call 
+  //TODO (SB) general EOS call
   const Real pre_atm = k_adi*std::pow(rhomax*fatm,gamma_adi);
 
   // Pontwise aux vars
@@ -267,95 +245,109 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   Real lapse_kji, d_lapse_dr_kji, psi4_kji,d_psi4_dr_kji,dummy;
 
   // Initialize primitive values on CC grid
-  for (int k=klcc; k<=kucc; ++k) {
-    for (int j=jlcc; j<=jucc; ++j) {
-      for (int i=ilcc; i<=iucc; ++i) {
-	// Isotropic radius
-	Real r = std::sqrt(std::pow(pcoord->x1v(i),2.) +  pow(pcoord->x2v(j),2.) + pow(pcoord->x3v(k),2.));
-	Real rho_pol = std::sqrt(std::pow(pcoord->x1v(i),2.) + std::pow(pcoord->x2v(j),2.));
-	Real costh = pcoord->x3v(k)/r;
-	Real sinth = rho_pol/r;
-	Real cosphi = pcoord->x1v(i)/rho_pol;
-	Real sinphi = pcoord->x2v(j)/rho_pol;
-	if (r<R){
- 	  // Interpolate rho to star interior
-	  interp_lag4(tov->data[itov_rho], tov->data[itov_riso], tov->npts, r,
-		      &rho_kji, &dummy,&dummy);
-	  // Pressure from EOS
-	  //TODO (SB) general EOS call 
-	  pgas_kji = k_adi*pow(rho_kji,gamma_adi);
-	  // Add perturbation
-	  x_kji = r/R;
-	  v_kji = (v_amp>0) ? (0.5*v_amp*(3.0*x_kji - x_kji*x_kji*x_kji)) : 0.0;
-	} else {
-	  // Set exterior to atmos
-	  rho_kji  = rho_atm;
-	  pgas_kji = pre_atm;
-	  v_kji    = 0.0;
-	}
-	phydro->w_init(IDN,k,j,i) = rho_kji;
-	phydro->w_init(IPR,k,j,i) = pgas_kji;
-	phydro->w_init(IVX, k, j, i) = v_kji*sinth*cosphi;
-	phydro->w_init(IVY, k, j, i) = v_kji*sinth*sinphi;
-	phydro->w_init(IVZ, k, j, i) = v_kji*costh;
-	
-	phydro->w(IDN,k,j,i) = phydro->w1(IDN,k,j,i) = phydro->w_init(IDN,k,j,i);
-	phydro->w(IPR,k,j,i) = phydro->w1(IPR,k,j,i) = phydro->w_init(IPR,k,j,i);
-	phydro->w(IVX,k,j,i) = phydro->w1(IVX,k,j,i) = phydro->w_init(IVX,k,j,i);
-	phydro->w(IVY,k,j,i) = phydro->w1(IVY,k,j,i) = phydro->w_init(IVY,k,j,i);
-	phydro->w(IVZ,k,j,i) = phydro->w1(IVZ,k,j,i) = phydro->w_init(IVZ,k,j,i);
-      }
+  for (int k=0; k<ncells3; ++k)
+  for (int j=0; j<ncells2; ++j)
+  for (int i=0; i<ncells1; ++i)
+  {
+    // Isotropic radius
+    Real r = (std::sqrt(pow(pcoord->x1v(i),2.) +
+                        pow(pcoord->x2v(j),2.) +
+                        pow(pcoord->x3v(k),2.)));
+    Real rho_pol = std::sqrt(pow(pcoord->x1v(i),2.) +
+                             pow(pcoord->x2v(j),2.));
+
+    Real costh = pcoord->x3v(k)/r;
+    Real sinth = rho_pol/r;
+    Real cosphi = pcoord->x1v(i)/rho_pol;
+    Real sinphi = pcoord->x2v(j)/rho_pol;
+
+    if (r<R)
+    {
+      // Interpolate rho to star interior
+      interp_lag4(tov->data[itov_rho], tov->data[itov_riso], tov->npts, r,
+            &rho_kji, &dummy,&dummy);
+      // Pressure from EOS
+      //TODO (SB) general EOS call
+      pgas_kji = k_adi*pow(rho_kji,gamma_adi);
+      // Add perturbation
+      x_kji = r / R;
+      v_kji = (v_amp>0) ? (0.5*v_amp*(3.0*x_kji - x_kji*x_kji*x_kji)) : 0.0;
     }
+    else
+    {
+      // Set exterior to atmos
+      rho_kji  = rho_atm;
+      pgas_kji = pre_atm;
+      v_kji    = 0.0;
+    }
+
+    phydro->w_init(IDN,k,j,i) = rho_kji;
+    phydro->w_init(IPR,k,j,i) = pgas_kji;
+    phydro->w_init(IVX, k, j, i) = v_kji*sinth*cosphi;
+    phydro->w_init(IVY, k, j, i) = v_kji*sinth*sinphi;
+    phydro->w_init(IVZ, k, j, i) = v_kji*costh;
+
+    phydro->w(IDN,k,j,i) = phydro->w1(IDN,k,j,i) = phydro->w_init(IDN,k,j,i);
+    phydro->w(IPR,k,j,i) = phydro->w1(IPR,k,j,i) = phydro->w_init(IPR,k,j,i);
+    phydro->w(IVX,k,j,i) = phydro->w1(IVX,k,j,i) = phydro->w_init(IVX,k,j,i);
+    phydro->w(IVY,k,j,i) = phydro->w1(IVY,k,j,i) = phydro->w_init(IVY,k,j,i);
+    phydro->w(IVZ,k,j,i) = phydro->w1(IVZ,k,j,i) = phydro->w_init(IVZ,k,j,i);
   }
 
-  //SB TODO following needs to be refactored
+  // Initialise metric variables on geometric grid
+  // Sets alpha, beta, g_ij, K_ij
+  for (int k=0; k<mbi->nn3; ++k)
+  for (int j=0; j<mbi->nn2; ++j)
+  for (int i=0; i<mbi->nn1; ++i)
+  {
+    // Isotropic radius
+    Real const r = std::sqrt(
+      pow(mbi->x1(i), 2.) + pow(mbi->x2(j), 2.) + pow(mbi->x3(k), 2.)
+    );
 
-  // Initialise metric variables on VC grid - setting alpha, beta, g_ij, K_ij
-  for (int k=klcx; k<=kucx; ++k) {
-    for (int j=jlcx; j<=jucx; ++j) {
-      for (int i=ilcx; i<=iucx; ++i) {
-	// Isotropic radius
-	Real r = std::sqrt(std::pow(pcoord->x1f(i),2.) +  pow(pcoord->x2f(j),2.) + pow(pcoord->x3f(k),2.));
-	if (r<R){
-	  // Interior metric, lapse and conf.fact.
-	  if (r == 0.) {
-	    lapse_kji = tov->lapse_0;
-	    d_lapse_dr_kji = 0.0;
-	    psi4_kji = tov->psi4_0;
-	    d_psi4_dr_kji = 0.0; 
-	  } else {
-	    interp_lag4(tov->data[itov_lapse], tov->data[itov_riso], tov->npts, r,
-			&lapse_kji, &d_lapse_dr_kji,  &dummy);
-	    interp_lag4(tov->data[itov_psi4], tov->data[itov_riso], tov->npts, r,
-			&psi4_kji, &d_psi4_dr_kji,  &dummy);
-	  }	
-	} else {
-	  // Exterior schw. metric, lapse and conf.fact.
-	  lapse_kji = ((r-M/2.)/(r+M/2.)); 
-	  psi4_kji = std::pow((1.+0.5*M/r),4.); 
-	}
-
-	// Set lapse, shift, ADM metric, and extr. curvature
-	pz4c->storage.u(Z4c::I_Z4c_alpha,k,j,i) = lapse_kji;
-	pz4c->storage.u(Z4c::I_Z4c_betax,k,j,i) = 0.0; 
-	pz4c->storage.u(Z4c::I_Z4c_betay,k,j,i) = 0.0; 
-	pz4c->storage.u(Z4c::I_Z4c_betaz,k,j,i) = 0.0; 
-	pz4c->storage.adm(Z4c::I_ADM_gxx,k,j,i) = psi4_kji;
-	pz4c->storage.adm(Z4c::I_ADM_gyy,k,j,i) = psi4_kji;
-	pz4c->storage.adm(Z4c::I_ADM_gzz,k,j,i) = psi4_kji;
-	pz4c->storage.adm(Z4c::I_ADM_gxy,k,j,i) = 0.0;
-	pz4c->storage.adm(Z4c::I_ADM_gxz,k,j,i) = 0.0;
-	pz4c->storage.adm(Z4c::I_ADM_gyz,k,j,i) = 0.0;
-	pz4c->storage.adm(Z4c::I_ADM_Kxx,k,j,i) = 0.0; 
-	pz4c->storage.adm(Z4c::I_ADM_Kyy,k,j,i) = 0.0; 
-	pz4c->storage.adm(Z4c::I_ADM_Kzz,k,j,i) = 0.0; 
-	pz4c->storage.adm(Z4c::I_ADM_Kxy,k,j,i) = 0.0;
-	pz4c->storage.adm(Z4c::I_ADM_Kxz,k,j,i) = 0.0;
-	pz4c->storage.adm(Z4c::I_ADM_Kyz,k,j,i) = 0.0;
-	pz4c->storage.adm(Z4c::I_ADM_psi4,k,j,i) = psi4_kji;
-	
+    if (r<R){
+      // Interior metric, lapse and conf.fact.
+      if (r == 0.)
+      {
+        lapse_kji = tov->lapse_0;
+        d_lapse_dr_kji = 0.0;
+        psi4_kji = tov->psi4_0;
+        d_psi4_dr_kji = 0.0;
+      }
+      else
+      {
+        interp_lag4(tov->data[itov_lapse], tov->data[itov_riso], tov->npts, r,
+        &lapse_kji, &d_lapse_dr_kji,  &dummy);
+        interp_lag4(tov->data[itov_psi4], tov->data[itov_riso], tov->npts, r,
+        &psi4_kji, &d_psi4_dr_kji,  &dummy);
       }
     }
+    else
+    {
+      // Exterior schw. metric, lapse and conf.fact.
+      lapse_kji = ((r-M/2.)/(r+M/2.));
+      psi4_kji = std::pow((1.+0.5*M/r),4.);
+    }
+
+    // Set lapse, shift, ADM metric, and extr. curvature
+    pz4c->storage.u(Z4c::I_Z4c_alpha,k,j,i) = lapse_kji;
+    pz4c->storage.u(Z4c::I_Z4c_betax,k,j,i) = 0.0;
+    pz4c->storage.u(Z4c::I_Z4c_betay,k,j,i) = 0.0;
+    pz4c->storage.u(Z4c::I_Z4c_betaz,k,j,i) = 0.0;
+    pz4c->storage.adm(Z4c::I_ADM_gxx,k,j,i) = psi4_kji;
+    pz4c->storage.adm(Z4c::I_ADM_gyy,k,j,i) = psi4_kji;
+    pz4c->storage.adm(Z4c::I_ADM_gzz,k,j,i) = psi4_kji;
+    pz4c->storage.adm(Z4c::I_ADM_gxy,k,j,i) = 0.0;
+    pz4c->storage.adm(Z4c::I_ADM_gxz,k,j,i) = 0.0;
+    pz4c->storage.adm(Z4c::I_ADM_gyz,k,j,i) = 0.0;
+    pz4c->storage.adm(Z4c::I_ADM_Kxx,k,j,i) = 0.0;
+    pz4c->storage.adm(Z4c::I_ADM_Kyy,k,j,i) = 0.0;
+    pz4c->storage.adm(Z4c::I_ADM_Kzz,k,j,i) = 0.0;
+    pz4c->storage.adm(Z4c::I_ADM_Kxy,k,j,i) = 0.0;
+    pz4c->storage.adm(Z4c::I_ADM_Kxz,k,j,i) = 0.0;
+    pz4c->storage.adm(Z4c::I_ADM_Kyz,k,j,i) = 0.0;
+    pz4c->storage.adm(Z4c::I_ADM_psi4,k,j,i) = psi4_kji;
+
   }
 
   // Initialize remaining z4c variables
@@ -363,6 +355,26 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   pz4c->ADMToZ4c(pz4c->storage.adm,pz4c->storage.u1);
 
 #if MAGNETIC_FIELDS_ENABLED
+
+  // Prepare CC index bounds (BD: TODO why not just use [0, ncellsN] ?)
+  int ilcc = is - NGHOST;
+  int iucc = ie + NGHOST;
+  int jlcc = js;
+  int jucc = je;
+  if (block_size.nx2 > 1)
+  {
+    jlcc -= NGHOST;
+    jucc += NGHOST;
+  }
+
+  int klcc = ks;
+  int kucc = ke;
+  if (block_size.nx3 > 1)
+  {
+    klcc -= NGHOST;
+    kucc += NGHOST;
+  }
+
   // Initialize magnetic field
   Real pcut = pin->GetReal("problem","pcut") * pgasmax;
   Real amp = pin->GetOrAddReal("problem","b_amp", 0.0);
@@ -376,7 +388,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   pfield->b.x2f.ZeroClear();
   pfield->b.x3f.ZeroClear();
   pfield->bcc.ZeroClear();
-  
+
   AthenaArray<Real> ax,ay,az,bxcc,bycc,bzcc;
   // should be athena tensors if we merge w/ dynamical metric
   ax.NewAthenaArray(nx3,nx2,nx1);
@@ -448,20 +460,25 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord, il,iu,jl,ju,kl,ku);
 
 #endif
-  
   // Initialise conserved variables
-  peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord, ilcc, iucc, jlcc, jucc, klcc, kucc);
-  // Initialise VC matter
-  //TODO(WC) (don't strictly need this here, will be caught in task list before used
-  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pfield->bcc);
-  pz4c->ADMConstraints(pz4c->storage.con,pz4c->storage.adm,pz4c->storage.mat,pz4c->storage.u);
-  
+  peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord,
+                             0, ncells1,
+                             0, ncells2,
+                             0, ncells3);
+  // Initialise matter (also taken care of in task-list)
+  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm,
+                  phydro->w, pfield->bcc);
+  pz4c->ADMConstraints(pz4c->storage.con,
+                       pz4c->storage.adm,
+                       pz4c->storage.mat,
+                       pz4c->storage.u);
+
   return;
 }
 
 
 //----------------------------------------------------------------------------------------
-//! \fn 
+//! \fn
 // \brief Fixed boundary condition
 // Inputs:
 //   pmb: pointer to MeshBlock
@@ -487,7 +504,7 @@ namespace {
   //! \fn int TOV_rhs(Real dr, Real *u, Real *k)
   // \brief Calculate right hand sides for TOV equations
   //
-  
+
   int TOV_rhs(Real r, Real *u, Real *k) {
 
     Real rho = u[TOV_IRHO];
@@ -912,21 +929,7 @@ namespace {
     // otherwise, stay
     return 0;
   }
-  
-  Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
-                  int const i)
-  {
-    return - SQR(gamma(0,2,i))*gamma(1,1,i) +
-      2*gamma(0,1,i)*gamma(0,2,i)*gamma(1,2,i) -
-      gamma(0,0,i)*SQR(gamma(1,2,i)) - SQR(gamma(0,1,i))*gamma(2,2,i) +
-      gamma(0,0,i)*gamma(1,1,i)*gamma(2,2,i);
-  }
-  
-  Real SpatialDet(Real gxx, Real gxy, Real gxz, Real gyy, Real gyz, Real gzz)
-  {
-    return - SQR(gxz)*gyy + 2*gxy*gxz*gyz - gxx*SQR(gyz) - SQR(gxy)*gzz + gxx*gyy*gzz;
-  }
-  
+
   Real Maxrho(MeshBlock *pmb, int iout) {
     Real max_rho = 0.0;
     int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;

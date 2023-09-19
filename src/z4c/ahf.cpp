@@ -24,6 +24,7 @@
 #include "../globals.hpp"
 #include "../parameter_input.hpp"
 #include "../mesh/mesh.hpp"
+#include "../utils/linear_algebra.hpp"
 #include "../utils/tensor.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "puncture_tracker.hpp"
@@ -522,6 +523,8 @@ void AHF::MetricInterp(MeshBlock * pmb)
 // Performs local sums and MPI reduce
 void AHF::SurfaceIntegrals()
 {
+  using namespace LinearAlgebra;
+
   const Real dtheta = dth_grid(); 
   const Real dphi   = dph_grid();
   const Real dthdph = dtheta * dphi; 
@@ -624,27 +627,29 @@ void AHF::SurfaceIntegrals()
 
       // Calculate the expansion
       // -----------------------
-      
+
       // Determinant of 3-metric
-      Real detg = Z4c::SpatialDet(g(0,0,i,j), g(0,1,i,j), g(0,2,i,j),
-			     g(1,1,i,j), g(1,2,i,j), g(2,2,i,j));
+      Real detg = Det3Metric(
+        g(0,0,i,j), g(0,1,i,j), g(0,2,i,j),
+        g(1,1,i,j), g(1,2,i,j), g(2,2,i,j)
+      );
 
       // Inverse metric
-      Z4c::SpatialInv(
+      Inv3Metric(
         1.0/detg,
 		    g(0,0,i,j), g(0,1,i,j),  g(0,2,i,j),
 		    g(1,1,i,j), g(1,2,i,j),  g(2,2,i,j),
 		    &ginv(0,0), &ginv(0,1),  &ginv(0,2),
 		    &ginv(1,1), &ginv(1,2) , &ginv(2,2)
       );
-      
+
       // Trace of K
-      Real TrK = Z4c::Trace(1.0/detg,
+      Real TrK = TraceRank2(1.0/detg,
 		       g(0,0,i,j), g(0,1,i,j), g(0,2,i,j),
 		       g(1,1,i,j), g(1,2,i,j), g(2,2,i,j),
 		       K(0,0,i,j), K(0,1,i,j), K(0,2,i,j),
 		       K(1,1,i,j), K(1,2,i,j), K(2,2,i,j));
-      
+
       // Local coordinates of the surface (re-used below)
       Real const xp = rr(i,j) * sinth * cosph;
       Real const yp = rr(i,j) * sinth * sinph;

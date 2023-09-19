@@ -38,22 +38,20 @@ time ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
 #     -ex=r --args ./$EXEC_NAME.x -i $DIR_ATHENA/$REL_INPUT/$INPUT_NAME
 
 # gdb \
-#   -ex 'break bvals_cx.cpp:305' \
+#   -ex 'break gr_dynamical.cpp:623' \
 #   -ex 'info b' \
 #   -ex 'set print pretty on' \
 #   -ex 'set output-radix 10' \
 #   -ex=r --args ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
 
 # gdb \
-#   -ex 'break bvals_cx.cpp:221' \
+#   -ex 'break gr_dynamical.cpp:547' \
 #   -ex 'info b' \
 #   -ex 'set print pretty on' \
 #   -ex 'set output-radix 10' \
 #   -ex=r --args ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
 
-
 # gdb \
-#   -ex 'break bvals_refine.cpp:928' \
 #   -ex 'info b' \
 #   -ex 'set print pretty on' \
 #   -ex 'set output-radix 10' \
@@ -61,7 +59,7 @@ time ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
 
 
 # make call log [inspect with qcachegrind]
-#valgrind --tool=callgrind --log-file=callgrind.log ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
+# valgrind --tool=callgrind --log-file=callgrind.log ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
 # valgrind --leak-check=full -s --show-leak-kinds=all ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
 # valgrind --leak-check=full -s ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME} -m 2
 

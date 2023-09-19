@@ -14,6 +14,7 @@
 // Athena++ headers
 #include "../../hydro.hpp"
 #include "../../../z4c/z4c.hpp"
+#include "../../../utils/linear_algebra.hpp"
 #include "../../../utils/interp_intergrid.hpp"
 #include "../../../athena.hpp"                   // enums, macros
 #include "../../../athena_arrays.hpp"            // AthenaArray
@@ -38,28 +39,22 @@
 // so a factor of sqrt(detgamma) is included
 // compare with modification to add_flux_divergence_dyn, where factors of face area, cell volume etc are missing
 // since they are included here.
-namespace{
-Real Determinant(Real a11, Real a12, Real a13, Real a21, Real a22, Real a23,
-                 Real a31, Real a32, Real a33);
-Real Determinant(Real a11, Real a12, Real a21, Real a22);
-Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
-                  int const i);
-void Inverse3Metric(Real const detginv,
-                     Real const gxx, Real const gxy, Real const gxz,
-                     Real const gyy, Real const gyz, Real const gzz,
-                     Real * uxx, Real * uxy, Real * uxz,
-                Real * uyy, Real * uyz, Real * uzz);
+void Hydro::RiemannSolver(
+  const int k, const int j,
+  const int il, const int iu,
+  const int ivx,
+  AthenaArray<Real> &prim_l,
+  AthenaArray<Real> &prim_r,
+  AthenaArray<Real> &flux,
+  const AthenaArray<Real> &dxw)
+{
+  using namespace LinearAlgebra;
 
-}
-
-void Hydro::RiemannSolver(const int k, const int j,
-    const int il, const int iu, const int ivx,
-    AthenaArray<Real> &prim_l, AthenaArray<Real> &prim_r, AthenaArray<Real> &flux, const AthenaArray<Real> &dxw) {
   // Calculate cyclic permutations of indices
   int ivy = IVX + ((ivx-IVX)+1)%3;
   int ivz = IVX + ((ivx-IVX)+2)%3;
   int a,b;
-  const int nn1 = iu  +1;
+  const int nn1 = pmy_block->nverts1;  // utilize the verts
   // Extract ratio of specific heats
 #if USETM
   const Real mb = pmy_block->peos->GetEOS().GetBaryonMass();
@@ -67,151 +62,112 @@ void Hydro::RiemannSolver(const int k, const int j,
   const Real gamma_adi = pmy_block->peos->GetGamma();
 #endif
 
-  // Go through 1D arrays of interfaces
-//  for (int k = kl; k <= ku; ++k) {
-//    for (int j = jl; j <= ju; ++j) {
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha, rho_l, rho_r, pgas_l, pgas_r, wgas_l, wgas_r,detgamma,detg;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Wlor_l, Wlor_r;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> u0_l, u0_r;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> v2_l, v2_r;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> lambda_p_l, lambda_m_l;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> lambda_p_r, lambda_m_r;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> lambda;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> utilde_u_l, utilde_u_r;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> utilde_d_l, utilde_d_r;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> v_u_l, v_u_r;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> ucon_l, ucon_r;
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_uu;
 
-//    Returning alpha(i), beta_u(a,i) gamma_dd(a,b,i)
-      // Get metric components in ``old style'' for testing
-/*
-      switch (ivx) {
-        case IVX:
-          pmy_block->pcoord->Face1Metric(k, j, il, iu, g_, gi_);
-          break;
-        case IVY:
-          pmy_block->pcoord->Face2Metric(k, j, il, iu, g_, gi_);
-          break;
-        case IVZ:
-          pmy_block->pcoord->Face3Metric(k, j, il, iu, g_, gi_);
-          break;
-      }
-*/
-      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha, rho_l, rho_r, pgas_l, pgas_r, wgas_l, wgas_r,detgamma,detg;
-      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Wlor_l, Wlor_r;
-      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> u0_l, u0_r;
-      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> v2_l, v2_r;
-      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> lambda_p_l, lambda_m_l;
-      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> lambda_p_r, lambda_m_r;
-      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> lambda;
-      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u;
-      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> utilde_u_l, utilde_u_r;
-      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> utilde_d_l, utilde_d_r;
-      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> v_u_l, v_u_r;
-      AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> ucon_l, ucon_r;
-      AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
-      AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_uu;
+  // perform variable resampling when required
+  Z4c * pz4c = pmy_block->pz4c;
 
+  // Slice z4c metric quantities  (NDIM=3 in z4c.hpp)
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_gamma_dd;
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_K_dd;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> z4c_alpha;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> z4c_beta_u;
 
+  adm_gamma_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
+  adm_K_dd.InitWithShallowSlice(    pz4c->storage.adm, Z4c::I_ADM_Kxx);
+  z4c_alpha.InitWithShallowSlice(   pz4c->storage.u,   Z4c::I_Z4c_alpha);
+  z4c_beta_u.InitWithShallowSlice(  pz4c->storage.u,   Z4c::I_Z4c_betax);
 
-//TODO VC2CC clean up
-     AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy;
-      AthenaArray<Real> vcgamma_yz,vcgamma_zz,vcbeta_x,vcbeta_y;
-      AthenaArray<Real> vcbeta_z, vcalpha;
+  alpha.NewAthenaTensor(nn1);
+  detg.NewAthenaTensor(nn1);
+  detgamma.NewAthenaTensor(nn1);
+  rho_l.NewAthenaTensor(nn1);
+  rho_r.NewAthenaTensor(nn1);
+  pgas_l.NewAthenaTensor(nn1);
+  pgas_r.NewAthenaTensor(nn1);
+  wgas_l.NewAthenaTensor(nn1);
+  wgas_r.NewAthenaTensor(nn1);
+  Wlor_l.NewAthenaTensor(nn1);
+  Wlor_r.NewAthenaTensor(nn1);
+  u0_l.NewAthenaTensor(nn1);
+  u0_r.NewAthenaTensor(nn1);
+  v2_l.NewAthenaTensor(nn1);
+  v2_r.NewAthenaTensor(nn1);
+  lambda.NewAthenaTensor(nn1);
+  lambda_p_l.NewAthenaTensor(nn1);
+  lambda_m_l.NewAthenaTensor(nn1);
+  lambda_p_r.NewAthenaTensor(nn1);
+  lambda_m_r.NewAthenaTensor(nn1);
+  beta_u.NewAthenaTensor(nn1);
+  utilde_u_l.NewAthenaTensor(nn1);
+  utilde_u_r.NewAthenaTensor(nn1);
+  v_u_l.NewAthenaTensor(nn1);
+  v_u_r.NewAthenaTensor(nn1);
+  utilde_d_l.NewAthenaTensor(nn1);
+  utilde_d_r.NewAthenaTensor(nn1);
+  ucon_l.NewAthenaTensor(nn1);
+  ucon_r.NewAthenaTensor(nn1);
+  gamma_dd.NewAthenaTensor(nn1);
+  gamma_uu.NewAthenaTensor(nn1);
 
-    vcgamma_xx.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
-      vcgamma_xy.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
-      vcgamma_xz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
-      vcgamma_yy.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
-      vcgamma_yz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
-      vcgamma_zz.InitWithShallowSlice(pmy_block->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
-  vcbeta_x.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_betax,1);
-      vcbeta_y.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_betay,1);
-      vcbeta_z.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_betaz,1);
-      vcalpha.InitWithShallowSlice(pmy_block->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
+  GRDynamical* pco_gr = static_cast<GRDynamical*>(pmy_block->pcoord);
+  pco_gr->GetGeometricFieldFC(gamma_dd, adm_gamma_dd, ivx-1, k, j);
+  pco_gr->GetGeometricFieldFC(alpha,    z4c_alpha,    ivx-1, k, j);
+  pco_gr->GetGeometricFieldFC(beta_u,   z4c_beta_u,   ivx-1, k, j);
 
+  if (0)
+  {
+    std::cout << "---------------------------" << std::endl;
+    gamma_dd.array().print_all("%1.4e");
+    std::cout << "---------------------------" << std::endl;
+    alpha.array().print_all("%1.4e");
+    std::cout << "---------------------------" << std::endl;
+    beta_u.array().print_all("%1.4e");
+    std::cout << "---------------------------" << std::endl;
+    while(true)
+    {
+      std::exit(0);
+    }
+  }
 
+  #pragma omp simd
+  for (int i = il; i <= iu; ++i)
+  {
+    detgamma(i) = Det3Metric(
+      gamma_dd, i
+    );
 
-      alpha.NewAthenaTensor(nn1);
-      detg.NewAthenaTensor(nn1);
-      detgamma.NewAthenaTensor(nn1);
-      rho_l.NewAthenaTensor(nn1);
-      rho_r.NewAthenaTensor(nn1);
-      pgas_l.NewAthenaTensor(nn1);
-      pgas_r.NewAthenaTensor(nn1);
-      wgas_l.NewAthenaTensor(nn1);
-      wgas_r.NewAthenaTensor(nn1);
-      Wlor_l.NewAthenaTensor(nn1);
-      Wlor_r.NewAthenaTensor(nn1);
-      u0_l.NewAthenaTensor(nn1);
-      u0_r.NewAthenaTensor(nn1);
-      v2_l.NewAthenaTensor(nn1);
-      v2_r.NewAthenaTensor(nn1);
-      lambda.NewAthenaTensor(nn1);
-      lambda_p_l.NewAthenaTensor(nn1);
-      lambda_m_l.NewAthenaTensor(nn1);
-      lambda_p_r.NewAthenaTensor(nn1);
-      lambda_m_r.NewAthenaTensor(nn1);
-      beta_u.NewAthenaTensor(nn1);
-      utilde_u_l.NewAthenaTensor(nn1);
-      utilde_u_r.NewAthenaTensor(nn1);
-      v_u_l.NewAthenaTensor(nn1);
-      v_u_r.NewAthenaTensor(nn1);
-      utilde_d_l.NewAthenaTensor(nn1);
-      utilde_d_r.NewAthenaTensor(nn1);
-      ucon_l.NewAthenaTensor(nn1);
-      ucon_r.NewAthenaTensor(nn1);
-      gamma_dd.NewAthenaTensor(nn1);
-      gamma_uu.NewAthenaTensor(nn1);
-      // Go through each interface
-      // TODO VC2CC cleanup
-       #pragma omp simd
-      for (int i = il; i <= iu; ++i){
-#ifdef HYBRID_INTERP
-          gamma_dd(0,0,i) = VCReconstruct(ivx-1,vcgamma_xx,k,j,i);
-          gamma_dd(0,1,i) = VCReconstruct(ivx-1,vcgamma_xy,k,j,i);
-          gamma_dd(0,2,i) = VCReconstruct(ivx-1,vcgamma_xz,k,j,i);
-          gamma_dd(1,1,i) = VCReconstruct(ivx-1,vcgamma_yy,k,j,i);
-          gamma_dd(1,2,i) = VCReconstruct(ivx-1,vcgamma_yz,k,j,i);
-          gamma_dd(2,2,i) = VCReconstruct(ivx-1,vcgamma_zz,k,j,i);
-          alpha(i) = VCReconstruct(ivx-1,vcalpha,k,j,i);
-          beta_u(0,i) = VCReconstruct(ivx-1,vcbeta_x,k,j,i);
-          beta_u(1,i) = VCReconstruct(ivx-1,vcbeta_y,k,j,i);
-          beta_u(2,i) = VCReconstruct(ivx-1,vcbeta_z,k,j,i);
+    detg(i) = SQR(alpha(i)) * detgamma(i);
 
-#else
-          gamma_dd(0,0,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcgamma_xx(k,j,i));
-          gamma_dd(0,1,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcgamma_xy(k,j,i));
-          gamma_dd(0,2,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcgamma_xz(k,j,i));
-          gamma_dd(1,1,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcgamma_yy(k,j,i));
-          gamma_dd(1,2,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcgamma_yz(k,j,i));
-          gamma_dd(2,2,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcgamma_zz(k,j,i));
-          alpha(i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcalpha(k,j,i));
-          beta_u(0,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcbeta_x(k,j,i));
-          beta_u(1,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcbeta_y(k,j,i));
-          beta_u(2,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcbeta_z(k,j,i));
-#endif
-      }
+    Inv3Metric(
+      1.0/detgamma(i),
+      gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
+      gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i),
+      &gamma_uu(0,0,i), &gamma_uu(0,1,i), &gamma_uu(0,2,i),
+      &gamma_uu(1,1,i), &gamma_uu(1,2,i), &gamma_uu(2,2,i));
+  }
 
-
-
-       #pragma omp simd
-      for (int i = il; i <= iu; ++i) {
-
-      detgamma(i) = Det3Metric(gamma_dd,i);
-      detg(i) = SQR(alpha(i)) * detgamma(i);
-      Inverse3Metric(1.0/detgamma(i),
-          gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
-          gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i),
-          &gamma_uu(0,0,i), &gamma_uu(0,1,i), &gamma_uu(0,2,i),
-          &gamma_uu(1,1,i), &gamma_uu(1,2,i), &gamma_uu(2,2,i));
-/* WC TODO test clean up like this 
-       detgamma(i) = Z4c::SpatialDet(gamma_dd,i);
-       detg(i) = SQR(alpha(i)) * detgamma(i)
-       Z4c::SpatialInv(1.0/detgamma(i),
-          gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
-          gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i),
-          &gamma_uu(0,0,i), &gamma_uu(0,1,i), &gamma_uu(0,2,i),
-          &gamma_uu(1,1,i), &gamma_uu(1,2,i), &gamma_uu(2,2,i));
-*/ 
-     }
-
-    #pragma omp simd
-      for (int i = il; i <= iu; ++i){
-              rho_l(i) = prim_l(IDN,i);
-              pgas_l(i) = prim_l(IPR,i);
-              rho_r(i) = prim_r(IDN,i);
-              pgas_r(i) = prim_r(IPR,i);
-          }
+  #pragma omp simd
+  for (int i = il; i <= iu; ++i)
+  {
+    rho_l(i) = prim_l(IDN,i);
+    pgas_l(i) = prim_l(IPR,i);
+    rho_r(i) = prim_r(IDN,i);
+    pgas_r(i) = prim_r(IPR,i);
+  }
 
 
 
@@ -449,45 +405,5 @@ void Hydro::RiemannSolver(const int k, const int j,
       flux_l.DeleteAthenaArray();
       flux_r.DeleteAthenaArray();
 
-    
-  
   return;
-}
-namespace{
-Real Determinant(Real a11, Real a12, Real a13, Real a21, Real a22, Real a23,
-                 Real a31, Real a32, Real a33) {
-  Real det = a11 * Determinant(a22, a23, a32, a33)
-             - a12 * Determinant(a21, a23, a31, a33)
-             + a13 * Determinant(a21, a22, a31, a32);
-  return det;
-}
-
-Real Determinant(Real a11, Real a12, Real a21, Real a22) {
-  return a11 * a22 - a12 * a21;
-}
-Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
-                  int const i)
-{
-  return - SQR(gamma(0,2,i))*gamma(1,1,i) +
-          2*gamma(0,1,i)*gamma(0,2,i)*gamma(1,2,i) -
-          gamma(0,0,i)*SQR(gamma(1,2,i)) - SQR(gamma(0,1,i))*gamma(2,2,i) +
-          gamma(0,0,i)*gamma(1,1,i)*gamma(2,2,i);
-}
-
-void Inverse3Metric(Real const detginv,
-                     Real const gxx, Real const gxy, Real const gxz,
-                     Real const gyy, Real const gyz, Real const gzz,
-                     Real * uxx, Real * uxy, Real * uxz,
-                     Real * uyy, Real * uyz, Real * uzz)
-{
-  *uxx = (-SQR(gyz) + gyy*gzz)*detginv;
-  *uxy = (gxz*gyz  - gxy*gzz)*detginv;
-  *uyy = (-SQR(gxz) + gxx*gzz)*detginv;
-  *uxz = (-gxz*gyy + gxy*gyz)*detginv;
-  *uyz = (gxy*gxz  - gxx*gyz)*detginv;
-  *uzz = (-SQR(gxy) + gxx*gyy)*detginv;
-  return;
-}
-
-
 }

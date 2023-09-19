@@ -19,9 +19,11 @@
 // Athena++ headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
+#include "../athena_tensor.hpp"
 #include "../hydro/srcterms/hydro_srcterms.hpp"
 #include "../mesh/mesh.hpp"
 #include "../utils/finite_differencing.hpp"
+#include "../utils/interp_intergrid.hpp"
 #include "../z4c/z4c.hpp"
 #include "../z4c/z4c_macro.hpp"
 //#include "../utils/lagrange_interp.hpp"
@@ -46,6 +48,13 @@ class Coordinates {
       delete fd_cc;
       delete fd_cx;
       delete fd_vc;
+    }
+
+    if (ig_is_defined)
+    {
+      delete ig_1N;
+      delete ig_2N;
+      delete ig_NN;
     }
   }
 
@@ -203,6 +212,15 @@ class Coordinates {
   FiniteDifference::Uniform * fd_cx;
   FiniteDifference::Uniform * fd_vc;
 
+  bool ig_is_defined = false;
+  typedef InterpIntergrid::InterpIntergrid<Real, 1        > IIG_1N;
+  typedef InterpIntergrid::InterpIntergrid<Real, 2        > IIG_2N;
+  typedef InterpIntergrid::InterpIntergrid<Real, NGRCV_HSZ> IIG_NN;
+
+  IIG_1N * ig_1N;
+  IIG_2N * ig_2N;
+  IIG_NN * ig_NN;
+
  protected:
   bool coarse_flag;  // true if this coordinate object is parent (coarse) mesh in AMR
   Mesh *pm;
@@ -300,7 +318,6 @@ class Coordinates {
   Real bh_mass_;
   Real bh_spin_;
   Real chi_psi_power;
-  
 };
 
 //----------------------------------------------------------------------------------------
@@ -773,8 +790,8 @@ class GRDynamical : public Coordinates {
   // fix sources to Initial data values
   int fix_sources;
   int zero_sources;
-  
-  // functions...  
+
+  // functions...
   // ...to compute length of edges
   void Edge1Length(const int k, const int j, const int il, const int iu,
                    AthenaArray<Real> &len) final;
@@ -839,6 +856,147 @@ class GRDynamical : public Coordinates {
       const int k, const int j, const int il, const int iu,
       const AthenaArray<Real> &cons, const AthenaArray<Real> &bbx,
       AthenaArray<Real> &flux, AthenaArray<Real> &ey, AthenaArray<Real> &ez) final;
+
+  // logic to handle field component mapping between samplings ----------------
+  //
+  // note that coarse & fine switch automatically taken care of by ctor stuff
+  //
+
+  // Calculate maximally permitted indicial ranges for mapping to CC
+  // Based on whatever interpolation has been chosen.
+  //
+  // Indices are those of the _target_ (CC) sampling
+  inline void GetGeometricFieldCCIdxRanges(
+    int &tr_il, int &tr_iu,
+    int &tr_jl, int &tr_ju,
+    int &tr_kl, int &tr_ku)
+  {
+#if defined(Z4C_VC_ENABLED)
+  #if defined(HYBRID_INTERP)
+    tr_il = ig_1N->cc_il;
+    tr_iu = ig_1N->cc_iu;
+    tr_jl = ig_1N->cc_jl;
+    tr_ju = ig_1N->cc_ju;
+    tr_kl = ig_1N->cc_kl;
+    tr_ku = ig_1N->cc_ku;
+  #else
+    tr_il = ig_NN->cc_il;
+    tr_iu = ig_NN->cc_iu;
+    tr_jl = ig_NN->cc_jl;
+    tr_ju = ig_NN->cc_ju;
+    tr_kl = ig_NN->cc_kl;
+    tr_ku = ig_NN->cc_ku;
+  #endif // HYBRID_INTERP
+#else  // Z4C_CX_ENABLED
+    // ... may be non-trivial (depends on NCGHOST_CX etc)
+    // BD: debug
+    // MeshBlock * pmb = pmy_block;
+    // tr_il = pmb->is;
+    // tr_iu = pmb->ie;
+    // tr_jl = pmb->js;
+    // tr_ju = pmb->je;
+    // tr_kl = pmb->ks;
+    // tr_ku = pmb->ke;
+
+    tr_il = ig_1N->cc_il;
+    tr_iu = ig_1N->cc_iu;
+    tr_jl = ig_1N->cc_jl;
+    tr_ju = ig_1N->cc_ju;
+    tr_kl = ig_1N->cc_kl;
+    tr_ku = ig_1N->cc_ku;
+
+#endif
+  }
+
+  template <typename dtype, TensorSymm TSYM, int DIM, int NVAL>
+  inline void GetGeometricFieldCC(
+    AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
+    const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
+    const int cc_k,
+    const int cc_j
+  )
+  {
+#if defined(Z4C_VC_ENABLED)
+  #if defined(HYBRID_INTERP)
+    ig_2N->VC2CC(tar, src, cc_k, cc_j);
+  #else
+    ig_NN->VC2CC(tar, src, cc_k, cc_j);
+  #endif // HYBRID_INTERP
+#else  // Z4C_CX_ENABLED
+    // ... may be non-trivial (depends on NCGHOST_CX etc)
+    // BD: debug
+    ig_NN->CC2CC(tar, src, cc_k, cc_j);
+#endif
+  };
+
+  template <typename dtype, TensorSymm TSYM, int DIM, int NVAL>
+  inline void GetGeometricFieldFC(
+    AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
+    const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
+    const int dir,
+    const int tr_k,
+    const int tr_j
+  )
+  {
+#if defined(Z4C_VC_ENABLED)
+  #if defined(HYBRID_INTERP)
+    ig_2N->VC2FC(tar, src, dir, tr_k, tr_j);
+  #else
+    ig_NN->VC2FC(tar, src, dir, tr_k, tr_j);
+  #endif  // HYBRID_INTERP
+#else  // Z4C_CX_ENABLED
+    // BD: debug
+    ig_NN->CC2FC(tar, src, dir, tr_k, tr_j);
+#endif
+  };
+
+  template <typename dtype, TensorSymm TSYM, int DIM, int NVAL>
+  inline void GetGeometricFieldDerCC(
+    AthenaTensor<      dtype, TSYM, DIM, NVAL+1> & tar,
+    const AthenaTensor<dtype, TSYM, DIM, NVAL  > & src,
+    const int dir,
+    const int cc_k,
+    const int cc_j
+  )
+  {
+#if defined(Z4C_VC_ENABLED)
+  #if defined(HYBRID_INTERP)
+    // I.e. use 2 nearest neighbours either-side for derivatives
+    ig_2N->VC2CC_D1(tar, src, dir, cc_k, cc_j);
+  #else
+    ig_NN->VC2CC_D1(tar, src, dir, cc_k, cc_j);
+  #endif // HYBRID_INTERP
+#else  // Z4C_CX_ENABLED
+    // ... may be non-trivial (depends on NCGHOST_CX etc)
+    // BD: debug
+    ig_NN->CC2CC_D1(tar, src, dir, cc_k, cc_j);
+#endif
+  };
+
+  // For matter target grid depends on z_cx vs z_vc
+  template <typename dtype, TensorSymm TSYM, int DIM, int NVAL>
+  inline void GetMatterField(
+    AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
+    const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
+    const int tr_k,
+    const int tr_j
+  )
+  {
+#if defined(Z4C_VC_ENABLED)
+    // appears to be taken as cubic in z4c constructor ..
+  #if defined(HYBRID_INTERP)
+    ig_1N->CC2VC(tar, src, tr_k, tr_j);
+  #else
+    ig_NN->CC2VC(tar, src, tr_k, tr_j);
+  #endif // HYBRID_INTERP
+#else  // Z4C_CX_ENABLED
+    // ... may be non-trivial (depends on NCGHOST_CX etc)
+    // BD: debug
+    ig_1N->CC2CC(tar, src, tr_k, tr_j);
+#endif
+  };
+  // --------------------------------------------------------------------------
+
 
 };
 
