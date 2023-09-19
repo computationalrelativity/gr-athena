@@ -65,7 +65,17 @@ WaveExtract::WaveExtract(Mesh * pmesh, ParameterInput * pin, int n, int res_flag
         msg << "Could not open file '" << ofname << "' for writing!";
         throw std::runtime_error(msg.str().c_str());
       }
-    fprintf(pofile, "# 1:iter 2:time 3:l=2 m=-2 R 4: l=2 m=-2 I 5: l=2 m=-1 R 6: l=2 m=-1 I 7: l=2 m=0 R 8: l=2 m=0 I 9: l=2 m=1 R 10: l=2 m=1 I 11: l=2 m=2 R 12: l=2 m=2 I\n");
+//    fprintf(pofile, "# 1:iter 2:time 3:l=2 m=-2 R 4: l=2 m=-2 I 5: l=2 m=-1 R 6: l=2 m=-1 I 7: l=2 m=0 R 8: l=2 m=0 I 9: l=2 m=1 R 10: l=2 m=1 I 11: l=2 m=2 R 12: l=2 m=2 I\n");
+      fprintf(pofile, "# 1:iter 2:time");
+      int idx = 3;
+      for (int l = 2; l <= lmax; ++l) {
+        for (int m = -l; m <= l; ++m) {
+          fprintf(pofile, " %d:l=%d-m=%d-Re", idx++, l, m);
+          fprintf(pofile, " %d:l=%d-m=%d-Im", idx++, l, m);
+        }
+      }
+      fprintf(pofile, "\n");
+      fflush(pofile);
     }
    } else if(res_flag == 1){
      if (ioproc) {
@@ -143,6 +153,7 @@ WaveExtractLocal::WaveExtractLocal(SphericalGrid * psphere, MeshBlock * pmb, Par
   rad_parname += n_str;
   rad = pin->GetOrAddReal("z4c", rad_parname.c_str(), 10.0); 
   lmax = pin->GetOrAddInteger("z4c", "lmax",2);
+  bitant = pin->GetOrAddBoolean("z4c", "bitant", false);
   ppatch = new SphericalPatch(psphere, pmb, SphericalPatch::vertex);
   datareal.NewAthenaArray(ppatch->NumPoints());
   dataim.NewAthenaArray(ppatch->NumPoints());
@@ -175,8 +186,13 @@ void WaveExtractLocal::Decompose_multipole(AthenaArray<Real> const & u_R, Athena
           for (int ip = 0; ip < ppatch->NumPoints(); ++ip) {
             ppatch->psphere->GeodesicGrid::PositionPolar(ppatch->idxMap(ip),&theta,&phi);
             swsh(&ylmR,&ylmI,l,m,theta,phi);
-            psilmR += datareal(ip)*weight(ip)*ylmR + dataim(ip)*weight(ip)*ylmI;
-            psilmI += dataim(ip)*weight(ip)*ylmR -datareal(ip)*weight(ip)*ylmI;       
+            // The spherical harmonics transform as Y^s_{l m}( Pi-th, ph ) = (-1)^{l+s} Y^s_{l -m}(th, ph)
+            // but the PoisitionPolar function returns theta \in [0,\pi], so these are correct for bitant.
+            // With bitant, under reflection the imaginary part of the weyl scalar should pick a - sign,
+            // which is accounted for here.
+            Real bitant_z_fac = (bitant && theta > PI/2) ? -1 : 1;
+            psilmR += datareal(ip)*weight(ip)*ylmR + bitant_z_fac*dataim(ip)*weight(ip)*ylmI;
+            psilmI += bitant_z_fac*dataim(ip)*weight(ip)*ylmR - datareal(ip)*weight(ip)*ylmI;
           }
         psi(l-2,m+l,0) = psilmR;
         psi(l-2,m+l,1) = psilmI;
