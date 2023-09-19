@@ -37,9 +37,16 @@ void FormattedTableOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool f
   // Loop over MeshBlocks
   while (pmb != nullptr) {
     // set start/end array indices depending on whether ghost zones are included
+// output on vc grid
+    if (output_params.vc){
+    out_is = pmb->is; out_ie = pmb->ie+1;
+    out_js = pmb->js; out_je = pmb->je+1;
+    out_ks = pmb->ks; out_ke = pmb->ke+1;
+    } else {
     out_is = pmb->is; out_ie = pmb->ie;
     out_js = pmb->js; out_je = pmb->je;
     out_ks = pmb->ks; out_ke = pmb->ke;
+    }
     if (output_params.include_ghost_zones) {
       out_is -= NGHOST; out_ie += NGHOST;
       if (out_js != out_je) {out_js -= NGHOST; out_je += NGHOST;}
@@ -89,9 +96,16 @@ void FormattedTableOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool f
 
     // write x1, x2, x3 column headers
     std::fprintf(pfile, "#");
+//output on vc grid
+    if (output_params.vc){
+    if (out_is != out_ie) std::fprintf(pfile, " i       x1f     ");
+    if (out_js != out_je) std::fprintf(pfile, " j       x2f     ");
+    if (out_ks != out_ke) std::fprintf(pfile, " k       x3f     ");
+    } else {
     if (out_is != out_ie) std::fprintf(pfile, " i       x1v     ");
     if (out_js != out_je) std::fprintf(pfile, " j       x2v     ");
     if (out_ks != out_ke) std::fprintf(pfile, " k       x3v     ");
+    }
     // write data col headers from "name" stored in OutputData nodes of doubly linked list
     OutputData *pdata = pfirst_data_;
     while (pdata != nullptr) {
@@ -113,15 +127,28 @@ void FormattedTableOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool f
           // write x1, x2, x3 indices and coordinates on start of new line
           if (out_is != out_ie) {
             std::fprintf(pfile, "%04d", i);
+//output on vc grid
+            if (output_params.vc){
+            std::fprintf(pfile, output_params.data_format.c_str(), pmb->pcoord->x1f(i));
+            } else {
             std::fprintf(pfile, output_params.data_format.c_str(), pmb->pcoord->x1v(i));
+            }
           }
           if (out_js != out_je) {
             std::fprintf(pfile, " %04d", j);  // note extra space for formatting
+            if (output_params.vc){
+            std::fprintf(pfile, output_params.data_format.c_str(), pmb->pcoord->x2f(j));
+            } else {
             std::fprintf(pfile, output_params.data_format.c_str(), pmb->pcoord->x2v(j));
+            }
           }
           if (out_ks != out_ke) {
             std::fprintf(pfile, " %04d", k);  // note extra space for formatting
+            if (output_params.vc){
+            std::fprintf(pfile, output_params.data_format.c_str(), pmb->pcoord->x3f(k));
+            } else {
             std::fprintf(pfile, output_params.data_format.c_str(), pmb->pcoord->x3v(k));
+            }
           }
 
           // step through doubly linked list of OutputData's and write each on same line
