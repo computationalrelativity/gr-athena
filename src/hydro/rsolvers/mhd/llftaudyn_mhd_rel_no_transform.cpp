@@ -1,0 +1,659 @@
+//========================================================================================
+// Athena++ astrophysical MHD code
+// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
+// Licensed under the 3-clause BSD License, see LICENSE file for details
+//========================================================================================
+//! \file llf_rel_no_transform.cpp
+//  \brief Implements local Lax-Friedrichs Riemann solver for relativistic hydrodynamics
+//  in pure GR.
+
+// C++ headers
+#include <algorithm>  // max(), min()
+#include <cmath>      // sqrt()
+
+// Athena++ headers
+#include "../../hydro.hpp"
+#include "../../../z4c/z4c.hpp"
+#include "../../../utils/interp_intergrid.hpp"
+#include "../../../athena.hpp"                   // enums, macros
+#include "../../../athena_arrays.hpp"            // AthenaArray
+#include "../../../coordinates/coordinates.hpp"  // Coordinates
+#include "../../../eos/eos.hpp"                  // EquationOfState
+#include "../../../mesh/mesh.hpp"                // MeshBlock
+
+
+#include "../../../z4c/ahf.hpp"
+//----------------------------------------------------------------------------------------
+// Riemann solver
+// Inputs:
+//   kl,ku,jl,ju,il,iu: lower and upper x1-, x2-, and x3-indices
+//   ivx: type of interface (IVX for x1, IVY for x2, IVZ for x3)
+//   bb: 3D array of normal magnetic fields (not used)
+//   prim_l,prim_r: 3D arrays of left and right primitive states
+// Outputs:
+//   flux: 3D array of hydrodynamical fluxes across interfaces
+//   ey,ez: 3D arrays of magnetic fluxes (electric fields) across interfaces (not used)
+// Notes:
+//   implements LLF algorithm similar to that of fluxcalc() in step_ch.c in Harm
+//   cf. LLFNonTransforming() in llf_rel.cpp
+// Here we use the D, S, tau variable choice for conservatives, and assume a dynamically evolving spacetime
+// so a factor of sqrt(detgamma) is included
+
+void Hydro::RiemannSolver(
+  const int k, const int j,
+  const int il, const int iu, 
+  const int ivx, 
+  const AthenaArray<Real> &bb,  
+  AthenaArray<Real> &prim_l, 
+  AthenaArray<Real> &prim_r, 
+  AthenaArray<Real> &flux,   
+  AthenaArray<Real> &ey, 
+  AthenaArray<Real> &ez, 
+  AthenaArray<Real> &wct, 
+  const AthenaArray<Real> &dxw) 
+{
+  using namespace LinearAlgebra;
+  // Calculate cyclic permutations of indices
+  int ivy = IVX + ((ivx-IVX)+1)%3;
+  int ivz = IVX + ((ivx-IVX)+2)%3;
+  int a,b;
+  const int nn1 = pmy_block->nverts1;  // utilize the verts
+  // Extract ratio of specific heats
+  const Real gamma_adi = pmy_block->peos->GetGamma();
+  Real dt = pmy_block->pmy_mesh->dt;
+  Coordinates *pco = pmy_block->pcoord;
+  Real alpha_excision = pmy_block->peos->alpha_excision;
+  bool horizon_excision = pmy_block->peos->horizon_excision;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha, rho_l, rho_r, pgas_l, pgas_r, wgas_l, wgas_r,detgamma,detg;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Wlor_l, Wlor_r;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> u0_l, u0_r;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> v2_l, v2_r;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> b0_u_l, b0_u_r, bsq_l, bsq_r;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> lambda_p_l, lambda_m_l;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> lambda_p_r, lambda_m_r;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> lambda;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u, beta_d;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> utilde_u_l, utilde_u_r;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> utilde_d_l, utilde_d_r;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> v_u_l, v_u_r;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> v_d_l, v_d_r;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> ucon_l, ucon_r;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> bb_l, bb_r, bi_u_l, bi_u_r, bi_d_l, bi_d_r;
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_uu;
+
+
+  // perform variable resampling when required
+  Z4c * pz4c = pmy_block->pz4c;
+
+  // Slice z4c metric quantities  (NDIM=3 in z4c.hpp)
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_gamma_dd;
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_K_dd;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> z4c_alpha;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> z4c_beta_u;
+
+  adm_gamma_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
+  adm_K_dd.InitWithShallowSlice(    pz4c->storage.adm, Z4c::I_ADM_Kxx);
+  z4c_alpha.InitWithShallowSlice(   pz4c->storage.u,   Z4c::I_Z4c_alpha);
+  z4c_beta_u.InitWithShallowSlice(  pz4c->storage.u,   Z4c::I_Z4c_betax);
+
+
+
+
+  alpha.NewAthenaTensor(nn1);
+  detg.NewAthenaTensor(nn1);
+  detgamma.NewAthenaTensor(nn1);
+  rho_l.NewAthenaTensor(nn1);
+  rho_r.NewAthenaTensor(nn1);
+  pgas_l.NewAthenaTensor(nn1);
+  pgas_r.NewAthenaTensor(nn1);
+  wgas_l.NewAthenaTensor(nn1);
+  wgas_r.NewAthenaTensor(nn1);
+  Wlor_l.NewAthenaTensor(nn1);
+  Wlor_r.NewAthenaTensor(nn1);
+  u0_l.NewAthenaTensor(nn1);
+  u0_r.NewAthenaTensor(nn1);
+  v2_l.NewAthenaTensor(nn1);
+  v2_r.NewAthenaTensor(nn1);
+  lambda.NewAthenaTensor(nn1);
+  lambda_p_l.NewAthenaTensor(nn1);
+  lambda_m_l.NewAthenaTensor(nn1);
+  lambda_p_r.NewAthenaTensor(nn1);
+  lambda_m_r.NewAthenaTensor(nn1);
+  beta_u.NewAthenaTensor(nn1);
+  beta_d.NewAthenaTensor(nn1);
+  utilde_u_l.NewAthenaTensor(nn1);
+  utilde_u_r.NewAthenaTensor(nn1);
+  v_u_l.NewAthenaTensor(nn1);
+  v_u_r.NewAthenaTensor(nn1);
+  v_d_l.NewAthenaTensor(nn1);
+  v_d_r.NewAthenaTensor(nn1);
+  utilde_d_l.NewAthenaTensor(nn1);
+  utilde_d_r.NewAthenaTensor(nn1);
+  ucon_l.NewAthenaTensor(nn1);
+  ucon_r.NewAthenaTensor(nn1);
+  gamma_dd.NewAthenaTensor(nn1);
+  gamma_uu.NewAthenaTensor(nn1);
+  b0_u_l.NewAthenaTensor(nn1);
+  b0_u_r.NewAthenaTensor(nn1);
+  bsq_l.NewAthenaTensor(nn1);
+  bsq_r.NewAthenaTensor(nn1);
+  bb_l.NewAthenaTensor(nn1);
+  bb_r.NewAthenaTensor(nn1); 
+  bi_u_l.NewAthenaTensor(nn1);
+  bi_u_r.NewAthenaTensor(nn1); 
+  bi_d_l.NewAthenaTensor(nn1);
+  bi_d_r.NewAthenaTensor(nn1);
+
+
+  GRDynamical* pco_gr = static_cast<GRDynamical*>(pmy_block->pcoord);
+  pco_gr->GetGeometricFieldFC(gamma_dd, adm_gamma_dd, ivx-1, k, j);
+  pco_gr->GetGeometricFieldFC(alpha,    z4c_alpha,    ivx-1, k, j);
+  pco_gr->GetGeometricFieldFC(beta_u,   z4c_beta_u,   ivx-1, k, j);
+
+  if (0)
+  {
+    std::cout << "---------------------------" << std::endl;
+    gamma_dd.array().print_all("%1.4e");
+    std::cout << "---------------------------" << std::endl;
+    alpha.array().print_all("%1.4e");
+    std::cout << "---------------------------" << std::endl;
+    beta_u.array().print_all("%1.4e");
+    std::cout << "---------------------------" << std::endl;
+    while(true)
+    {
+      std::exit(0);
+    }
+  }
+
+  #pragma omp simd
+  for (int i = il; i <= iu; ++i)
+  {
+    detgamma(i) = Det3Metric(
+      gamma_dd, i
+    );
+
+    detg(i) = SQR(alpha(i)) * detgamma(i);
+
+    Inv3Metric(
+      1.0/detgamma(i),
+      gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
+      gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i),
+      &gamma_uu(0,0,i), &gamma_uu(0,1,i), &gamma_uu(0,2,i),
+      &gamma_uu(1,1,i), &gamma_uu(1,2,i), &gamma_uu(2,2,i));
+  }
+       #pragma omp simd
+  for (int i = il; i <= iu; ++i) 
+  {
+   
+    bool in_horizon = false;
+    if(horizon_excision)
+    {
+  // if ahf enabled set flat space if in horizon
+  // TODO: read in centre of each horizon and shift origin - not needed for now if collapse is at origin
+      for (auto pah_f : pmy_block->pmy_mesh->pah_finder) 
+      {
+        switch (ivx) 
+        {
+          case(IVX): 
+             if(((SQR(pco->x1f(i)) + SQR(pco->x2v(j)) + SQR(pco->x3v(k))) < 
+                  SQR(pah_f->ah_prop[AHF::hmeanradius])) || (alpha(i) < alpha_excision)) 
+             {
+               in_horizon = true;
+             }
+          case(IVY): 
+             if(((SQR(pco->x1v(i)) + SQR(pco->x2f(j)) + SQR(pco->x3v(k))) < 
+                  SQR(pah_f->ah_prop[AHF::hmeanradius])) || (alpha(i) < alpha_excision)) 
+             {
+               in_horizon = true;
+             }
+          case(IVZ): 
+             if(((SQR(pco->x1v(i)) + SQR(pco->x2v(j)) + SQR(pco->x3f(k))) < 
+                  SQR(pah_f->ah_prop[AHF::hmeanradius])) || (alpha(i) < alpha_excision)) 
+             {
+               in_horizon = true;
+             }
+        }
+      }
+    }
+    else
+    {
+  // if no ahf check if lapse below alpha_excision parameter - if you don't want excision this is by default 0
+      if(alpha(i) < alpha_excision)
+      {
+        in_horizon = true;
+      }
+    }
+  //      set flat space if the interpolated det is negative and inside horizon (either in ahf or lapse below excision value)
+    if(detgamma(i) < 0.0 && in_horizon)
+    {
+      printf("set flat space\n");
+      gamma_dd(0,0,i) = 1.0;
+      gamma_dd(1,1,i) = 1.0;
+      gamma_dd(2,2,i) = 1.0;
+      gamma_dd(0,1,i) = 0.0;
+      gamma_dd(0,2,i) = 0.0;
+      gamma_dd(1,2,i) = 0.0;
+      gamma_uu(0,0,i) = 1.0;
+      gamma_uu(1,1,i) = 1.0;
+      gamma_uu(2,2,i) = 1.0;
+      gamma_uu(0,1,i) = 0.0;
+      gamma_uu(0,2,i) = 0.0;
+      gamma_uu(1,2,i) = 0.0;
+      detgamma(i) = 1.0;
+      detg(i) = SQR(alpha(i));
+    }
+  }
+
+    beta_d.ZeroClear();
+    for(a=0;a<NDIM;++a)
+    {
+      for(b=0;b<NDIM;++b)
+      {
+        #pragma omp simd
+        for(int i = il; i <= iu; ++i) 
+        {
+          beta_d(a,i) += gamma_dd(a,b,i)*beta_u(b,i);
+        }
+      }
+    }
+
+
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      rho_l(i) = prim_l(IDN,i);
+      pgas_l(i) = prim_l(IPR,i);
+      rho_r(i) = prim_r(IDN,i);
+      pgas_r(i) = prim_r(IPR,i);
+      switch (ivx) 
+      {
+        case IVX:
+          bb_l(0,i) = bb(k,j,i)/std::sqrt(detgamma(i));
+          bb_l(1,i) = prim_l(IBY,i)/std::sqrt(detgamma(i));
+          bb_l(2,i) = prim_l(IBZ,i)/std::sqrt(detgamma(i));
+          bb_r(0,i) = bb(k,j,i)/std::sqrt(detgamma(i));
+          bb_r(1,i) = prim_r(IBY,i)/std::sqrt(detgamma(i));
+          bb_r(2,i) = prim_r(IBZ,i)/std::sqrt(detgamma(i));
+          break;
+        case IVY:
+          bb_l(1,i) = bb(k,j,i)/std::sqrt(detgamma(i));
+          bb_l(2,i) = prim_l(IBY,i)/std::sqrt(detgamma(i));
+          bb_l(0,i) = prim_l(IBZ,i)/std::sqrt(detgamma(i));
+          bb_r(1,i) = bb(k,j,i)/std::sqrt(detgamma(i));
+          bb_r(2,i) = prim_r(IBY,i)/std::sqrt(detgamma(i));
+          bb_r(0,i) = prim_r(IBZ,i)/std::sqrt(detgamma(i));
+          break;
+      case IVZ:
+          bb_l(2,i) = bb(k,j,i)/std::sqrt(detgamma(i));
+          bb_l(0,i) = prim_l(IBY,i)/std::sqrt(detgamma(i));
+          bb_l(1,i) = prim_l(IBZ,i)/std::sqrt(detgamma(i));
+          bb_r(2,i) = bb(k,j,i)/std::sqrt(detgamma(i));
+          bb_r(0,i) = prim_r(IBY,i)/std::sqrt(detgamma(i));
+          bb_r(1,i) = prim_r(IBZ,i)/std::sqrt(detgamma(i));
+          break;
+      }
+    }
+
+// Everything here is undensitised.
+    for(a=0;a<NDIM;++a)
+    {
+      #pragma omp simd
+      for (int i = il; i <= iu; ++i)
+      {
+        utilde_u_l(a,i) = prim_l(a+IVX,i);
+      }
+    }
+    for(a=0;a<NDIM;++a)
+    {
+      #pragma omp simd
+      for (int i = il; i <= iu; ++i)
+      {
+        utilde_u_r(a,i) = prim_r(a+IVX,i);
+      }
+    }
+    Wlor_l.ZeroClear();
+    for(a=0;a<NDIM;++a)
+    {
+      for(b=0;b<NDIM;++b)
+      {
+        #pragma omp simd
+        for (int i = il; i <= iu; ++i)
+        {
+          Wlor_l(i) += utilde_u_l(a,i)*utilde_u_l(b,i)*gamma_dd(a,b,i);
+        }
+      }
+     }
+     #pragma omp simd
+     for (int i = il; i <= iu; ++i)
+     {
+            Wlor_l(i) = std::sqrt(1.0+Wlor_l(i));
+     }
+      Wlor_r.ZeroClear();
+      for(a=0;a<NDIM;++a){
+          for(b=0;b<NDIM;++b){
+               #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+                  Wlor_r(i) += utilde_u_r(a,i)*utilde_u_r(b,i)*gamma_dd(a,b,i);
+              }
+           }
+       }
+        #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+            Wlor_r(i) = std::sqrt(1.0+Wlor_r(i));
+       }
+      for(a=0;a<NDIM;++a){
+           #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+             v_u_l(a,i) = utilde_u_l(a,i)/Wlor_l(i);
+          }
+      }
+      for(a=0;a<NDIM;++a){
+           #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+             v_u_r(a,i) = utilde_u_r(a,i)/Wlor_r(i);
+          }
+      }
+
+      v2_l.ZeroClear();
+      for(a=0;a<NDIM;++a){
+            for(b=0;b<NDIM;++b){
+               #pragma omp simd
+                   for (int i = il; i <= iu; ++i){
+                       v2_l(i) += gamma_dd(a,b,i)*v_u_l(a,i)*v_u_l(b,i);
+                   }
+             }
+       }
+      v2_r.ZeroClear();
+      for(a=0;a<NDIM;++a){
+            for(b=0;b<NDIM;++b){
+               #pragma omp simd
+                   for (int i = il; i <= iu; ++i){
+                       v2_r(i) += gamma_dd(a,b,i)*v_u_r(a,i)*v_u_r(b,i);
+                   }
+             }
+       }
+
+     v_d_l.ZeroClear();
+      for(a=0;a<NDIM;++a){
+          for(b=0;b<NDIM;++b){
+      #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+                  v_d_l(a,i) += v_u_l(b,i)*gamma_dd(a,b,i);
+              }
+          }
+      }
+     v_d_r.ZeroClear();
+      for(a=0;a<NDIM;++a){
+          for(b=0;b<NDIM;++b){
+               #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+                  v_d_r(a,i) += v_u_r(b,i)*gamma_dd(a,b,i);
+              }
+          }
+      }
+
+    b0_u_l.ZeroClear();
+    for(a=0;a<NDIM;++a){
+       #pragma omp simd
+       for (int i = il; i <= iu; ++i){
+          b0_u_l(i) += Wlor_l(i)*bb_l(a,i)*v_d_l(a,i)/alpha(i);  
+       } 
+     }
+    b0_u_r.ZeroClear();
+    for(a=0;a<NDIM;++a){
+       #pragma omp simd
+       for (int i = il; i <= iu; ++i){
+          b0_u_r(i) += Wlor_r(i)*bb_r(a,i)*v_d_r(a,i)/alpha(i);  
+       } 
+     }
+    for(a=0;a<NDIM;++a){
+       #pragma omp simd
+       for (int i = il; i <= iu; ++i){
+          bi_u_l(a,i) = (bb_l(a,i) + alpha(i)*b0_u_l(i)*Wlor_l(i)*(v_u_l(a,i) - beta_u(a,i)/alpha(i)))/Wlor_l(i);
+       }
+     }
+    for(a=0;a<NDIM;++a){
+       #pragma omp simd
+       for (int i = il; i <= iu; ++i){
+          bi_u_r(a,i) = (bb_r(a,i) + alpha(i)*b0_u_r(i)*Wlor_r(i)*(v_u_r(a,i) - beta_u(a,i)/alpha(i)))/Wlor_r(i);
+       }
+     }
+     #pragma omp simd
+     for (int i = il; i <= iu; ++i){
+       bsq_l(i) = alpha(i)*alpha(i)*b0_u_l(i)*b0_u_l(i)/(Wlor_l(i)*Wlor_l(i));
+     }
+      for(a=0;a<NDIM;++a){
+          for(b=0;b<NDIM;++b){
+               #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+         bsq_l(i) += bb_l(a,i)*bb_l(b,i)*gamma_dd(a,b,i)/(Wlor_l(i)*Wlor_l(i));
+      }
+      }
+      } 
+     #pragma omp simd
+     for (int i = il; i <= iu; ++i){
+       bsq_r(i) = alpha(i)*alpha(i)*b0_u_r(i)*b0_u_r(i)/(Wlor_r(i)*Wlor_r(i));
+     }
+      for(a=0;a<NDIM;++a){
+          for(b=0;b<NDIM;++b){
+               #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+         bsq_r(i) += bb_r(a,i)*bb_r(b,i)*gamma_dd(a,b,i)/(Wlor_r(i)*Wlor_r(i));
+      }
+      }
+      }
+       for(a=0;a<NDIM;++a){
+#pragma omp simd
+        for (int i = il; i <= iu; ++i){
+         bi_d_l(a,i) = beta_d(a,i) * b0_u_l(i);
+        }
+        for(b=0;b<NDIM;++b){
+#pragma omp simd
+         for (int i = il; i <= iu; ++i){
+          bi_d_l(a,i) += gamma_dd(a,b,i)*bi_u_l(b,i);
+         }
+        }
+       }
+       for(a=0;a<NDIM;++a){
+#pragma omp simd
+        for (int i = il; i <= iu; ++i){
+         bi_d_r(a,i) = beta_d(a,i) * b0_u_r(i);
+        }
+        for(b=0;b<NDIM;++b){
+#pragma omp simd
+         for (int i = il; i <= iu; ++i){
+          bi_d_r(a,i) += gamma_dd(a,b,i)*bi_u_r(b,i);
+         }
+        }
+       }
+                     
+     utilde_d_l.ZeroClear();
+      for(a=0;a<NDIM;++a){
+          for(b=0;b<NDIM;++b){
+               #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+                  utilde_d_l(a,i) += utilde_u_l(b,i)*gamma_dd(a,b,i);
+              }
+          }
+      }
+     utilde_d_r.ZeroClear();
+      for(a=0;a<NDIM;++a){
+          for(b=0;b<NDIM;++b){
+               #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+                  utilde_d_r(a,i) += utilde_u_r(b,i)*gamma_dd(a,b,i);
+              }
+          }
+      }
+       #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+      u0_l(i) = Wlor_l(i)/alpha(i);
+      u0_r(i) = Wlor_r(i)/alpha(i);
+      }
+/*      for(a=0;a<NDIM;++a){
+           #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+            ucon_u_l(a,i) = utilde_u_l(a,i) + Wlor_l(i) * beta_u(a,i)/alpha(i);
+            ucon_u_r(a,i) = utilde_u_r(a,i) + Wlor_r(i) * beta_u(a,i)/alpha(i);
+          }
+       }
+*/
+      
+//copy from below!
+       #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+        // Calculate wavespeeds in left state NB EOS specific
+        wgas_l(i) = rho_l(i) + gamma_adi/(gamma_adi-1.0) * pgas_l(i);
+        wgas_r(i) = rho_r(i) + gamma_adi/(gamma_adi-1.0) * pgas_r(i);
+       
+     pmy_block->peos->FastMagnetosonicSpeedsGR(wgas_l(i), pgas_l(i), bsq_l(i), v_u_l(ivx-1,i), v2_l(i), alpha(i), beta_u(ivx-1,i), gamma_uu(ivx-1,ivx-1,i),  &lambda_p_l(i), &lambda_m_l(i));
+     pmy_block->peos->FastMagnetosonicSpeedsGR(wgas_r(i), pgas_r(i), bsq_r(i), v_u_r(ivx-1,i), v2_r(i), alpha(i), beta_u(ivx-1,i), gamma_uu(ivx-1,ivx-1,i),  &lambda_p_r(i), &lambda_m_r(i));
+}
+        // Calculate extremal wavespeed
+         #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+        Real lambda_l = std::min(lambda_m_l(i), lambda_m_r(i));
+        Real lambda_r = std::max(lambda_p_l(i), lambda_p_r(i));
+        lambda(i) = std::max(lambda_r, -lambda_l);
+        }
+        AthenaArray<Real> cons_l, cons_r, flux_l, flux_r;
+        cons_l.NewAthenaArray(NWAVE,nn1);
+        cons_r.NewAthenaArray(NWAVE,nn1);
+        flux_l.NewAthenaArray(NWAVE,nn1);
+        flux_r.NewAthenaArray(NWAVE,nn1);
+        // Calculate conserved quantities in L region including factor of sqrt(detgamma)
+         #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+
+//TODO cons definitions change for Magfield
+//TODO add in cons B field (for flux calc at end)
+        // D = rho * gamma_lorentz
+        cons_l(IDN,i) = rho_l(i)*Wlor_l(i)*std::sqrt(detgamma(i));
+        // tau = (rho * h = ) wgas * gamma_lorentz**2 - rho * gamma_lorentz - p
+        cons_l(IEN,i) = ((wgas_l(i)+bsq_l(i)) * SQR(Wlor_l(i)) - rho_l(i)*Wlor_l(i) - pgas_l(i) - bsq_l(i)/2.0 - alpha(i)*alpha(i)*b0_u_l(i)*b0_u_l(i))*std::sqrt(detgamma(i));
+        // S_i = wgas * gamma_lorentz**2 * v_i = wgas * gamma_lorentz * u_i
+//        cons_l(IVX,i) = wgas_l * gamma_l * ucov_l[1]*std::sqrt(detgamma);
+//        cons_l(IVY,i) = wgas_l * gamma_l * ucov_l[2]*std::sqrt(detgamma);
+//        cons_l(IVZ,i) = wgas_l * gamma_l * ucov_l[3]*std::sqrt(detgamma);
+//NB TODO double check velocity has chenged here (also in right state)
+        cons_l(IVX,i) = ((wgas_l(i)+bsq_l(i)) * Wlor_l(i) * utilde_d_l(0,i) - alpha(i)*b0_u_l(i)*bi_d_l(0,i)  )*std::sqrt(detgamma(i));
+        cons_l(IVY,i) = ((wgas_l(i)+bsq_l(i)) * Wlor_l(i) * utilde_d_l(1,i) - alpha(i)*b0_u_l(i)*bi_d_l(1,i)  )*std::sqrt(detgamma(i));
+        cons_l(IVZ,i) = ((wgas_l(i)+bsq_l(i)) * Wlor_l(i) * utilde_d_l(2,i) - alpha(i)*b0_u_l(i)*bi_d_l(2,i)  )*std::sqrt(detgamma(i));
+        cons_l(IBY,i) = std::sqrt(detgamma(i))*bb_l(ivy-1,i);
+        cons_l(IBZ,i) = std::sqrt(detgamma(i))*bb_l(ivz-1,i);
+        // Calculate fluxes in L region (rho u^i and T^i_\mu, where i = ivx)
+        // D flux: D(v^i - beta^i/alpha)
+        //
+         flux_l(IDN,i) = cons_l(IDN,i)*alpha(i)*(v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i));
+
+        // tau flux: alpha(S^i - Dv^i) - beta^i tau
+          flux_l(IEN,i) = cons_l(IEN,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) + std::sqrt(detg(i))*((pgas_l(i)+ bsq_l(i)/2.0)*v_u_l(ivx-1,i) - alpha(i)*b0_u_l(i)*bb_l(ivx-1,i)/Wlor_l(i));
+ 
+        //S_i flux alpha S^j_i - beta^j S_i
+        flux_l(IVX,i) = cons_l(IVX,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - std::sqrt(detg(i))*bi_d_l(0,i)*bb_l(ivx-1,i)/Wlor_l(i);      
+        flux_l(IVY,i) = cons_l(IVY,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - std::sqrt(detg(i))*bi_d_l(1,i)*bb_l(ivx-1,i)/Wlor_l(i);      
+        flux_l(IVZ,i) = cons_l(IVZ,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - std::sqrt(detg(i))*bi_d_l(2,i)*bb_l(ivx-1,i)/Wlor_l(i);      
+        flux_l(ivx,i) += (pgas_l(i)+bsq_l(i)/2.0)*std::sqrt(detg(i));
+        flux_l(IBY,i) = alpha(i)*(cons_l(IBY,i)*(v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - bb_l(ivx-1,i)*std::sqrt(detgamma(i))*(v_u_l(ivy-1,i) - beta_u(ivy-1,i)/alpha(i))  );
+        flux_l(IBZ,i) = alpha(i)*(cons_l(IBZ,i)*(v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - bb_l(ivx-1,i)*std::sqrt(detgamma(i))*(v_u_l(ivz-1,i) - beta_u(ivz-1,i)/alpha(i))  ); //check these indices
+
+        cons_r(IDN,i) = rho_r(i)*Wlor_r(i)*std::sqrt(detgamma(i));
+        // tau = (rho * h = ) wgas * gamma_lorentz**2 - rho * gamma_lorentz - p
+        cons_r(IEN,i) = ((wgas_r(i)+bsq_r(i)) * SQR(Wlor_r(i)) - rho_r(i)*Wlor_r(i) - pgas_r(i) - bsq_r(i)/2.0 - alpha(i)*alpha(i)*b0_u_r(i)*b0_u_r(i))*std::sqrt(detgamma(i));
+        // S_i = wgas * gamma_lorentz**2 * v_i = wgas * gamma_lorentz * u_i
+//        cons_l(IVX,i) = wgas_l * gamma_l * ucov_l[1]*std::sqrt(detgamma);
+//        cons_l(IVY,i) = wgas_l * gamma_l * ucov_l[2]*std::sqrt(detgamma);
+//        cons_l(IVZ,i) = wgas_l * gamma_l * ucov_l[3]*std::sqrt(detgamma);
+        cons_r(IVX,i) = ((wgas_r(i)+bsq_r(i)) * Wlor_r(i) * utilde_d_r(0,i) - alpha(i)*b0_u_r(i)*bi_d_r(0,i)  )*std::sqrt(detgamma(i));
+        cons_r(IVY,i) = ((wgas_r(i)+bsq_r(i)) * Wlor_r(i) * utilde_d_r(1,i) - alpha(i)*b0_u_r(i)*bi_d_r(1,i)  )*std::sqrt(detgamma(i));
+        cons_r(IVZ,i) = ((wgas_r(i)+bsq_r(i)) * Wlor_r(i) * utilde_d_r(2,i) - alpha(i)*b0_u_r(i)*bi_d_r(2,i)  )*std::sqrt(detgamma(i));
+        cons_r(IBY,i) = std::sqrt(detgamma(i))*bb_r(ivy-1,i);
+        cons_r(IBZ,i) = std::sqrt(detgamma(i))*bb_r(ivz-1,i);
+        // Calculate fluxes in L region (rho u^i and T^i_\mu, where i = ivx)
+        // D flux: D(v^i - beta^i/alpha)
+        //
+         flux_r(IDN,i) = cons_r(IDN,i)*alpha(i)*(v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i));
+
+        // tau flux: alpha(S^i - Dv^i) - beta^i tau
+          flux_r(IEN,i) = cons_r(IEN,i) * alpha(i) * (v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) + std::sqrt(detg(i))*((pgas_r(i)+ bsq_r(i)/2.0)*v_u_r(ivx-1,i) - alpha(i)*b0_u_r(i)*bb_r(ivx-1,i)/Wlor_r(i));
+ 
+        //S_i flux alpha S^j_i - beta^j S_i
+        flux_r(IVX,i) = cons_r(IVX,i) * alpha(i) * (v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - std::sqrt(detg(i))*bi_d_r(0,i)*bb_r(ivx-1,i)/Wlor_r(i);      
+        flux_r(IVY,i) = cons_r(IVY,i) * alpha(i) * (v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - std::sqrt(detg(i))*bi_d_r(1,i)*bb_r(ivx-1,i)/Wlor_r(i);      
+        flux_r(IVZ,i) = cons_r(IVZ,i) * alpha(i) * (v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - std::sqrt(detg(i))*bi_d_r(2,i)*bb_r(ivx-1,i)/Wlor_r(i);      
+        flux_r(ivx,i) += (pgas_r(i)+bsq_r(i)/2.0)*std::sqrt(detg(i));
+        flux_r(IBY,i) = alpha(i)*(cons_r(IBY,i)*(v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - bb_r(ivx-1,i)*std::sqrt(detgamma(i))*(v_u_r(ivy-1,i) - beta_u(ivy-1,i)/alpha(i))  ); //check indices
+        flux_r(IBZ,i) = alpha(i)*(cons_r(IBZ,i)*(v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - bb_r(ivx-1, i)*std::sqrt(detgamma(i))*(v_u_r(ivz-1,i) - beta_u(ivz-1,i)/alpha(i))  );
+       } 
+      // Set fluxes
+        for (int n = 0; n < NHYDRO; ++n) {
+           #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+          flux(n,k,j,i) =
+              0.5 * (flux_l(n,i) + flux_r(n,i) - lambda(i) * (cons_r(n,i) - cons_l(n,i)));
+          }
+        }
+        
+           #pragma omp simd
+      for (int i = il; i <= iu; ++i){
+    ey(k,j,i) =
+            -0.5 * (flux_l(IBY,i) + flux_r(IBY,i) - lambda(i) * (cons_r(IBY,i) - cons_l(IBY,i)));
+     ez(k,j,i) =
+            0.5 * (flux_l(IBZ,i) + flux_r(IBZ,i) - lambda(i) * (cons_r(IBZ,i) - cons_l(IBZ,i)));
+
+    wct(k,j,i) =
+        GetWeightForCT(flux(IDN,k,j,i), prim_l(IDN,i), prim_r(IDN,i), dxw(i), dt);
+}
+    
+      alpha.DeleteAthenaTensor();
+      detg.DeleteAthenaTensor();
+      detgamma.DeleteAthenaTensor();
+      rho_l.DeleteAthenaTensor();
+      rho_r.DeleteAthenaTensor();
+      pgas_l.DeleteAthenaTensor();
+      pgas_r.DeleteAthenaTensor();
+      wgas_l.DeleteAthenaTensor();
+      wgas_r.DeleteAthenaTensor();
+      Wlor_l.DeleteAthenaTensor();
+      Wlor_r.DeleteAthenaTensor();
+      u0_l.DeleteAthenaTensor();
+      u0_r.DeleteAthenaTensor();
+      v2_l.DeleteAthenaTensor();
+      v2_r.DeleteAthenaTensor();
+      lambda.DeleteAthenaTensor();
+      lambda_p_l.DeleteAthenaTensor();
+      lambda_m_l.DeleteAthenaTensor();
+      lambda_p_r.DeleteAthenaTensor();
+      lambda_m_r.DeleteAthenaTensor();
+      beta_u.DeleteAthenaTensor();
+      beta_d.DeleteAthenaTensor();
+      utilde_u_l.DeleteAthenaTensor();
+      utilde_u_r.DeleteAthenaTensor();
+      v_u_l.DeleteAthenaTensor();
+      v_u_r.DeleteAthenaTensor();
+      v_d_l.DeleteAthenaTensor();
+      v_d_r.DeleteAthenaTensor();
+      utilde_d_l.DeleteAthenaTensor();
+      utilde_d_r.DeleteAthenaTensor();
+      ucon_l.DeleteAthenaTensor();
+      ucon_r.DeleteAthenaTensor();
+      gamma_dd.DeleteAthenaTensor();
+      gamma_uu.DeleteAthenaTensor();
+      b0_u_l.DeleteAthenaTensor();
+      b0_u_r.DeleteAthenaTensor();
+      bsq_l.DeleteAthenaTensor();
+      bsq_r.DeleteAthenaTensor();
+      bb_l.DeleteAthenaTensor();
+      bb_r.DeleteAthenaTensor(); 
+      bi_u_l.DeleteAthenaTensor();
+      bi_u_r.DeleteAthenaTensor(); 
+      bi_d_l.DeleteAthenaTensor();
+      bi_d_r.DeleteAthenaTensor();
+      cons_l.DeleteAthenaArray();
+      cons_r.DeleteAthenaArray();
+      flux_l.DeleteAthenaArray();
+      flux_r.DeleteAthenaArray();
+  
+  return;
+}
