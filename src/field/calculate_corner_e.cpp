@@ -166,7 +166,7 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
 
         pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
 
-        Z4c * pz4c = pmy_block_->pz4c;
+        Z4c * pz4c = pmb->pz4c;
         AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_gamma_dd;
         AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> z4c_alpha;
         AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> z4c_beta_u;

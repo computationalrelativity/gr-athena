@@ -21,6 +21,7 @@
 #include "../field/field.hpp"              // FaceField
 #include "../mesh/mesh.hpp"                // MeshBlock
 #include "../z4c/z4c.hpp"                // MeshBlock
+#include "../utils/linear_algebra.hpp"     // Det. & friends
 
 //#ifdef Z4C_AHF
 #include "../z4c/ahf.hpp"                // MeshBlock
@@ -166,6 +167,7 @@ void EquationOfState::ConservedToPrimitive(
   con2prim_mhd cv2pv(eos, rho_strict, ye_lenient, max_z, max_b,
                      atmo, c2p_acc, max_iter);
 
+  Real detg_ceil = pow((pmy_block_->pz4c->opt.chi_div_floor),-1.5);
   // Prepare variables for conversion -----------------------------------------
   Z4c * pz4c = pmy_block_->pz4c;
 
@@ -288,9 +290,11 @@ void EquationOfState::ConservedToPrimitive(
         bool in_horizon = false;
         if(horizon_excision)
         {
+          Real horizon_radius;
           for (auto pah_f : pmy_block_->pmy_mesh->pah_finder) 
           {
-            if(((SQR(pco->x1v(i)) + SQR(pco->x2v(j)) + SQR(pco->x3v(k))) < SQR(pah_f->ah_prop[AHF::hmeanradius])) || (alpha(i) < alpha_excision)     )  
+            horizon_radius = pah_f->GetHorizonRadius();
+            if(((SQR(pco->x1v(i)) + SQR(pco->x2v(j)) + SQR(pco->x3v(k))) < SQR(horizon_radius)) || (alpha(i) < alpha_excision)     )  
             {
               in_horizon = true;
             }
@@ -432,7 +436,6 @@ if(eos_debug){
 
       }   
     }
-  }
 }
   alpha.DeleteAthenaTensor();
   beta_u.DeleteAthenaTensor();
@@ -470,9 +473,11 @@ void EquationOfState::PrimitiveToConserved(
 )
 {
 
+
   MeshBlock* pmb = pmy_block_;
   GRDynamical* pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
   Z4c * pz4c = pmb->pz4c;
+  Real detg_ceil = pow((pz4c->opt.chi_div_floor),-1.5);
 
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_gamma_dd;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> z4c_alpha;
@@ -516,7 +521,7 @@ void EquationOfState::PrimitiveToConserved(
         PrimitiveToConservedSingle(prim, gamma_, bb_cc, gamma_dd, beta_u, alpha, k, j, i, cons, pco, detg_ceil);
       }
     }
-  }
+  
   gamma_dd.DeleteAthenaTensor();
   alpha.DeleteAthenaTensor();
   beta_u.DeleteAthenaTensor();
@@ -587,8 +592,8 @@ static void PrimitiveToConservedSingle(
     if(0)
     {
       printf("detgamma is nan\n");
-      printf("x = %.16e, y = %.16e, z = %.16e, g_xx = %.16e\n g_xy = %.16e, 
-              g_xz = %.16e, g_yy = %.16e, g_yz = %.16e, g_zz = %.16e\n",
+      printf("x = %.16e, y = %.16e, z = %.16e, g_xx = %.16e\n g_xy = %.16e," 
+              "g_xz = %.16e, g_yy = %.16e, g_yz = %.16e, g_zz = %.16e\n",
               pco->x1v(i), pco->x2v(j), pco->x3v(k), gamma_dd(0,0,i), gamma_dd(0,1,i), 
               gamma_dd(0,2,i), gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i));
      }

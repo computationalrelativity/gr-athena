@@ -40,6 +40,8 @@ public:
   //!
   bool DeleteMetricDerivatives(int iter, Real time);
 
+  Real GetHorizonRadius() const
+  { return ah_prop[hmeanradius];}
   //! Horizon found
   bool ah_found;
   //! Initial guess

@@ -54,9 +54,9 @@ void Z4c::GetMatter(
   sl_utilde.InitWithShallowSlice(sl_w, IVX);
 
 #if MAGNETIC_FIELDS_ENABLED
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> sl_bb;
   if(opt.fix_admsource==0)
   {
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> sl_bb;
     sl_bb.InitWithShallowSlice(bb_cc, IB1);
     // BD: TODO check this (? what to do for fixed source)
   }

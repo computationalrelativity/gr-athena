@@ -14,6 +14,7 @@
 // Athena++ headers
 #include "../../hydro.hpp"
 #include "../../../z4c/z4c.hpp"
+#include "../../../utils/linear_algebra.hpp"
 #include "../../../utils/interp_intergrid.hpp"
 #include "../../../athena.hpp"                   // enums, macros
 #include "../../../athena_arrays.hpp"            // AthenaArray
@@ -191,25 +192,27 @@ void Hydro::RiemannSolver(
     {
   // if ahf enabled set flat space if in horizon
   // TODO: read in centre of each horizon and shift origin - not needed for now if collapse is at origin
+    Real horizon_radius;
       for (auto pah_f : pmy_block->pmy_mesh->pah_finder) 
       {
+      horizon_radius = pah_f->GetHorizonRadius();
         switch (ivx) 
         {
           case(IVX): 
              if(((SQR(pco->x1f(i)) + SQR(pco->x2v(j)) + SQR(pco->x3v(k))) < 
-                  SQR(pah_f->ah_prop[AHF::hmeanradius])) || (alpha(i) < alpha_excision)) 
+                  SQR(horizon_radius)) || (alpha(i) < alpha_excision)) 
              {
                in_horizon = true;
              }
           case(IVY): 
              if(((SQR(pco->x1v(i)) + SQR(pco->x2f(j)) + SQR(pco->x3v(k))) < 
-                  SQR(pah_f->ah_prop[AHF::hmeanradius])) || (alpha(i) < alpha_excision)) 
+                  SQR(horizon_radius)) || (alpha(i) < alpha_excision)) 
              {
                in_horizon = true;
              }
           case(IVZ): 
              if(((SQR(pco->x1v(i)) + SQR(pco->x2v(j)) + SQR(pco->x3f(k))) < 
-                  SQR(pah_f->ah_prop[AHF::hmeanradius])) || (alpha(i) < alpha_excision)) 
+                  SQR(horizon_radius)) || (alpha(i) < alpha_excision)) 
              {
                in_horizon = true;
              }

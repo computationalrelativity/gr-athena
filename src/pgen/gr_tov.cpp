@@ -459,7 +459,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     }
   }
   
-  pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord, il,iu,jl,ju,kl,ku);
+  pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord, ilcc,iucc,jlcc,jucc,klcc,kucc);
 
 #endif
   // Initialise conserved variables
