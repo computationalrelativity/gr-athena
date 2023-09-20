@@ -126,6 +126,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
      int ku, int coarse_flag) {
   // Parameters
   int nn1 = iu + 1;
+  Real error = 0.;
 
   // Vertex-centered containers for the metric.
   AthenaArray<Real> vcgamma_xx, vcgamma_xy, vcgamma_xz, vcgamma_yy,
@@ -193,7 +194,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
   for (int k = kl; k <= ku; ++k) {
     for (int j = jl; j <= ju; ++j) {
       // Extract the metric at the vertex centers and interpolate to cell centers.
-      #pragma omp simd
+      //#pragma omp simd
       for (int i = il; i <= iu; ++i) {
         // DEBUG ONLY
         #if FORCE_PS_LINEAR
@@ -269,6 +270,23 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
           // FIXME: Add particle fractions
           std::cerr << "  b_u = [" << bb_cc(IB1, k, j, i) << ", " << bb_cc(IB2, k, j, i)
                                    << bb_cc(IB3, k, j, i) << "]\n";
+          // Calculate mass loss with compensated summation.
+          if (coarse_flag == 0) {
+            Real vol = pmy_block_->pcoord->dx1v(i)*pmy_block_->pcoord->dx2v(j)*
+                       pmy_block_->pcoord->dx3v(k);
+            Real old = pmy_block_->mass_loss;
+            pmy_block_->mass_loss += (cons_pt[IDN] - cons_old_pt[IDN])*sdetg*vol + error;
+            error = pmy_block_->mass_loss - ((pmy_block_->mass_loss - old) - error);
+          }
+        }
+        else if (result.cons_adjusted && coarse_flag == 0) {
+          // Calculate mass loss with compensated summation.
+          Real vol = pmy_block_->pcoord->dx1v(i)*pmy_block_->pcoord->dx2v(j)*
+                     pmy_block_->pcoord->dx3v(k);
+          Real old = pmy_block_->mass_loss;
+          pmy_block_->mass_loss += (cons_pt[IDN] - cons_old_pt[IDN])*sdetg*vol + error;
+          error = pmy_block_->mass_loss - ((pmy_block_->mass_loss - old) - error);
+
         }
         // Update the primitive variables.
         prim(IDN, k, j, i) = prim_pt[IDN]*ps.GetEOS()->GetBaryonMass();

@@ -1295,6 +1295,7 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
     // stage=1: W at t^n and
     // stage=2: W at t^{n+1/2} (VL2) or t^{n+1} (RK2)
 #if USETM
+    pmb->mass_loss = 0.;
     pmb->peos->ConservedToPrimitive(ph->u, ph->w, pf->b,
                                     ph->w1, ps->s, ps->r, pf->bcc, pmb->pcoord,
                                     il, iu, jl, ju, kl, ku,0);

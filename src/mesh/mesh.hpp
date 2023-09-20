@@ -228,6 +228,11 @@ public:
   TrackerExtremaLocal * ptracker_extrema_loc;
 #endif // TRACKER_EXTREMA
 
+#if USETM
+  Real mass_loss;
+  Real cumulative_mass_loss;
+#endif
+
   MeshBlock *prev, *next;
 
   // functions

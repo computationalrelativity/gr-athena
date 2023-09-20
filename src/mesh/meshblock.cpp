@@ -215,6 +215,10 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   ptracker_extrema_loc = new TrackerExtremaLocal(this, pin);
 #endif // TRACKER_EXTREMA
 
+#if USETM
+  mass_loss = 0.;
+  cumulative_mass_loss = 0.;
+#endif
 
   // KGF: suboptimal solution, since developer must copy/paste BoundaryVariable derived
   // class type that is used in each PassiveScalars, Gravity, Field, Hydro, ... etc. class

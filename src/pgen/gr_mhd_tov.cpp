@@ -70,6 +70,7 @@ namespace {
   };
   TOVData * tov = NULL;
   Real Maxrho(MeshBlock *pmb, int iout);
+  Real AtmosphereLoss(MeshBlock *pmb, int iout);
   Real DivB(MeshBlock *pmb, int iout);
   Real MaxPb(MeshBlock *pmb, int iout);
 
@@ -104,10 +105,11 @@ void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag) {
   // Solve TOV equations, setting 1D inital data in tov->data
   TOV_solve(rhoc, rmin, dr, &npts);
 
-  AllocateUserHistoryOutput(3);
+  AllocateUserHistoryOutput(4);
   EnrollUserHistoryOutput(0, Maxrho, "max-rho", UserHistoryOperation::max);
   EnrollUserHistoryOutput(1, DivB, "divB");
   EnrollUserHistoryOutput(2, MaxPb, "maxPb", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(3, AtmosphereLoss, "atm-loss");
 
 
 }
@@ -1054,5 +1056,8 @@ Real DivB(MeshBlock *pmb, int iout) {
   return divB;
 }
 
+Real AtmosphereLoss(MeshBlock *pmb, int iout) {
+  return pmb->mass_loss;
+}
  
 } // namespace
