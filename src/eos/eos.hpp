@@ -186,6 +186,8 @@ class EquationOfState {
   const Real float_min{std::numeric_limits<float>::min()};
   MeshBlock *pmy_block_;                 // ptr to MeshBlock containing this EOS
   Real alpha_excision;                   // excise hydro if alpha < alpha_excision
+  bool b_excision;                       // set cc and fc b field to 0 if alpha < alpha_excision
+  bool horizon_excision;                       // set cc and fc b field to 0 if alpha < alpha_excision
   Real iso_sound_speed_, gamma_;         // isothermal Cs, ratio of specific heats
   Real density_floor_, pressure_floor_;  // density and pressure floors
   Real energy_floor_;                    // energy floor
