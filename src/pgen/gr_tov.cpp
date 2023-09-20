@@ -393,12 +393,15 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   // should be athena tensors if we merge w/ dynamical metric
   ax.NewAthenaArray(nx3,nx2,nx1);
   ay.NewAthenaArray(nx3,nx2,nx1);
-  az.NewAthenaArray(nx3,nx2,nx1);
+// don't use az for poloidal field
+//  az.NewAthenaArray(nx3,nx2,nx1);
   bxcc.NewAthenaArray(nx3,nx2,nx1);
   bycc.NewAthenaArray(nx3,nx2,nx1);
   bzcc.NewAthenaArray(nx3,nx2,nx1);
 
   //SB TODO cleanup, should use directly pz4c->storage.adm
+  //no metric weighting here
+  /*
   AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy;
   AthenaArray<Real> vcgamma_yz,vcgamma_zz;
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd; 
@@ -409,20 +412,19 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   vcgamma_yy.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gyy,1);
   vcgamma_yz.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gyz,1);
   vcgamma_zz.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gzz,1);
-  
-  // Initialize field at xfaces
+  */
+  // Initialize construct cell centred potential
   for (int k=klcc; k<=kucc; k++) {
     for (int j=jlcc; j<=jucc; j++) {
       for (int i=ilcc; i<=iucc; i++) {
 
-	// ay at x faces - need w at xface	
 	ax(k,j,i) = -pcoord->x2v(j)*amp*std::max(phydro->w(IPR,k,j,i) - pcut,0.0)*pow((1.0 - phydro->w(IDN,k,j,i)/rhomax),magindex);
 	ay(k,j,i) = pcoord->x1v(i)*amp*std::max(phydro->w(IPR,k,j,i) - pcut,0.0)*pow((1.0 - phydro->w(IDN,k,j,i)/rhomax),magindex);
 	
       }
     }
   }
-  
+ // construct cell centred B field from cell centred potential  TODO should use pfield->bcc storage here.
   for(int k = klcc+1; k<=kucc-1; k++){
     for(int j = jlcc+1; j<=jucc-1; j++){
       for(int i = ilcc+1; i<=iucc-1; i++){
@@ -434,24 +436,24 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
       }
     }
   } 
-// These loop lims are wrong TODO 
-  for(int k = klcc; k<=kucc; k++){
-    for(int j = jlcc; j<=jucc; j++){
-      for(int i = ilcc; i<=iucc+1; i++){
+// Initialise face centred field by averaging cc field
+  for(int k = klcc+1; k<=kucc-1; k++){
+    for(int j = jlcc+1; j<=jucc-1; j++){
+      for(int i = ilcc+2; i<=iucc-1; i++){
 	pfield->b.x1f(k,j,i) = 0.5*(bxcc(k,j,i-1) + bxcc(k,j,i));
       }
     }
   }
-  for(int k = klcc; k<=kucc; k++){
-    for(int j = jlcc; j<=jucc+1; j++){
-      for(int i = ilcc; i<=iucc; i++){
+  for(int k = klcc+1; k<=kucc-1; k++){
+    for(int j = jlcc+2; j<=jucc-1; j++){
+      for(int i = ilcc+1; i<=iucc-1; i++){
 	pfield->b.x2f(k,j,i) = 0.5*(bycc(k,j-1,i) + bycc(k,j,i));
       }
     }
   }
-  for(int k = klcc; k<=kucc+1; k++){
-    for(int j = jlcc; j<=jucc; j++){
-      for(int i = ilcc; i<=iucc; i++){
+  for(int k = klcc+2; k<=kucc-1; k++){
+    for(int j = jlcc+1; j<=jucc-1; j++){
+      for(int i = ilcc+1; i<=iucc-1; i++){
 	pfield->b.x3f(k,j,i) = 0.5*(bzcc(k-1,j,i) + bzcc(k,j,i));
       }
     }
