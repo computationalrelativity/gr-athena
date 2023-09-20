@@ -162,13 +162,28 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
           cc_e_(IB3,k,j,i) = b1 * u2 - b2 * u1;
         }
 #elif GENERAL_RELATIVITY == 1 && Z4C_ENABLED
-       alpha.NewAthenaTensor(nn1);
-       Wlor.NewAthenaTensor(nn1);
-       beta_u.NewAthenaTensor(nn1);
-       gamma_dd.NewAthenaTensor(nn1);
-       v_u.NewAthenaTensor(nn1);
-       utilde_u.NewAthenaTensor(nn1);
-       bb.NewAthenaTensor(nn1);
+        GRDynamical* pco_gr;
+
+        pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
+
+        Z4c * pz4c = pmy_block_->pz4c;
+        AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_gamma_dd;
+        AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> z4c_alpha;
+        AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> z4c_beta_u;
+        AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha;
+        AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u;
+        AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
+
+
+
+        alpha.NewAthenaTensor(nn1);
+        Wlor.NewAthenaTensor(nn1);
+        beta_u.NewAthenaTensor(nn1);
+        gamma_dd.NewAthenaTensor(nn1);
+        v_u.NewAthenaTensor(nn1);
+        utilde_u.NewAthenaTensor(nn1);
+        bb.NewAthenaTensor(nn1);
+/*
        vcgamma_xx.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
        vcgamma_xy.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
        vcgamma_xz.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
@@ -205,8 +220,18 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
           beta_u(2,i) = pmb->pz4c->ig->map3d_VC2CC(vcbeta_z(k,j,i));
 #endif
 }
+*/
+        adm_gamma_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
+        z4c_alpha.InitWithShallowSlice(   pz4c->storage.u,   Z4c::I_Z4c_alpha);
+        z4c_beta_u.InitWithShallowSlice(  pz4c->storage.u,   Z4c::I_Z4c_betax);
 
-
+        for (int i = is-1; i <= ie+1; ++i)
+        {
+          pco_gr->GetGeometricFieldCC(gamma_dd, adm_gamma_dd, k, j);
+          pco_gr->GetGeometricFieldCC(alpha,    z4c_alpha,    k, j);
+          pco_gr->GetGeometricFieldCC(beta_u,   z4c_beta_u,   k, j);
+        }
+ 
            for(int a=0;a<NDIM;++a){
            //#pragma omp simd
             for (int i = is-1; i <= ie+1; ++i){
