@@ -29,9 +29,17 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
   MeshBlock *pmb = pmy_block;
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
+  int nn1 = pmb->ncells1;
 
   AthenaArray<Real> &e1 = e.x1e, &e2 = e.x2e, &e3 = e.x3e,
                  &w_x1f = wght.x1f, &w_x2f = wght.x2f, &w_x3f = wght.x3f;
+  AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy;
+  AthenaArray<Real> vcgamma_yz,vcgamma_zz,vcbeta_x,vcbeta_y;
+  AthenaArray<Real> vcbeta_z, vcalpha;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha, Wlor; //lapse
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u; //lapse
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> bb, v_u, utilde_u;
   //---- 1-D update:
   //  copy face-centered E-fields to edges and return.
 
@@ -124,7 +132,7 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
         // E1=-(v X B)=VzBy-VyBz
         // E2=-(v X B)=VxBz-VzBx
         // E3=-(v X B)=VyBx-VxBy
-#if GENERAL_RELATIVITY==1
+#if GENERAL_RELATIVITY==1 && !Z4C_ENABLED
         pmb->pcoord->CellMetric(k, j, is-1, ie+1, g_, gi_);
 #pragma omp simd
         for (int i=is-1; i<=ie+1; ++i) {
@@ -153,6 +161,91 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
           cc_e_(IB2,k,j,i) = b3 * u1 - b1 * u3;
           cc_e_(IB3,k,j,i) = b1 * u2 - b2 * u1;
         }
+#elif GENERAL_RELATIVITY == 1 && Z4C_ENABLED
+       alpha.NewAthenaTensor(nn1);
+       Wlor.NewAthenaTensor(nn1);
+       beta_u.NewAthenaTensor(nn1);
+       gamma_dd.NewAthenaTensor(nn1);
+       v_u.NewAthenaTensor(nn1);
+       utilde_u.NewAthenaTensor(nn1);
+       bb.NewAthenaTensor(nn1);
+       vcgamma_xx.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
+       vcgamma_xy.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
+       vcgamma_xz.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
+       vcgamma_yy.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
+       vcgamma_yz.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
+       vcgamma_zz.InitWithShallowSlice(pmb->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
+       vcbeta_x.InitWithShallowSlice(pmb->pz4c->storage.u,Z4c::I_Z4c_betax,1);
+       vcbeta_y.InitWithShallowSlice(pmb->pz4c->storage.u,Z4c::I_Z4c_betay,1);
+       vcbeta_z.InitWithShallowSlice(pmb->pz4c->storage.u,Z4c::I_Z4c_betaz,1);
+       vcalpha.InitWithShallowSlice(pmb->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
+            for (int i = is-1; i <= ie+1; ++i){
+//TODO metric interpolation here
+#ifdef HYBRID_INTERP
+          gamma_dd(0,0,i) = VCInterpolation(vcgamma_xx,k,j,i);
+          gamma_dd(0,1,i) = VCInterpolation(vcgamma_xy,k,j,i);
+          gamma_dd(0,2,i) = VCInterpolation(vcgamma_xz,k,j,i);
+          gamma_dd(1,1,i) = VCInterpolation(vcgamma_yy,k,j,i);
+          gamma_dd(1,2,i) = VCInterpolation(vcgamma_yz,k,j,i);
+          gamma_dd(2,2,i) = VCInterpolation(vcgamma_zz,k,j,i);
+          alpha(i) = VCInterpolation(vcalpha,k,j,i);
+          beta_u(0,i) = VCInterpolation(vcbeta_x,k,j,i);
+          beta_u(1,i) = VCInterpolation(vcbeta_y,k,j,i);
+          beta_u(2,i) = VCInterpolation(vcbeta_z,k,j,i);
+#else
+          gamma_dd(0,0,i) = pmb->pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
+          gamma_dd(0,1,i) = pmb->pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
+          gamma_dd(0,2,i) = pmb->pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
+          gamma_dd(1,1,i) = pmb->pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
+          gamma_dd(1,2,i) = pmb->pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
+          gamma_dd(2,2,i) = pmb->pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
+          alpha(i) = pmb->pz4c->ig->map3d_VC2CC(vcalpha(k,j,i));
+          beta_u(0,i) = pmb->pz4c->ig->map3d_VC2CC(vcbeta_x(k,j,i));
+          beta_u(1,i) = pmb->pz4c->ig->map3d_VC2CC(vcbeta_y(k,j,i));
+          beta_u(2,i) = pmb->pz4c->ig->map3d_VC2CC(vcbeta_z(k,j,i));
+#endif
+}
+
+
+           for(int a=0;a<NDIM;++a){
+           //#pragma omp simd
+            for (int i = is-1; i <= ie+1; ++i){
+              utilde_u(a,i) = w(a+IVX,k,j,i);
+          }
+      }
+      Wlor.ZeroClear();
+      for(int a=0;a<NDIM;++a){
+          for(int b=0;b<NDIM;++b){
+               //#pragma omp simd
+      for (int i = is-1; i <= ie+1; ++i){
+                  Wlor(i) += utilde_u(a,i)*utilde_u(b,i)*gamma_dd(a,b,i);
+              }
+           }
+       }
+        //#pragma omp simd
+      for (int i = is-1; i <= ie+1; ++i){
+            Wlor(i) = std::sqrt(1.0+Wlor(i));
+       }
+      for(int a=0;a<NDIM;++a){
+           //#pragma omp simd
+      for (int i = is-1; i <= ie+1; ++i){
+             v_u(a,i) = utilde_u(a,i)/Wlor(i);
+          }
+      }
+
+           //#pragma omp simd
+      for (int i = is-1; i <= ie+1; ++i){
+          bb(0,i) = bcc(IB1,k,j,i);
+          bb(1,i) = bcc(IB2,k,j,i);
+          bb(2,i) = bcc(IB3,k,j,i);
+           }
+// make sure bb densitised
+      for (int i = is-1; i <= ie+1; ++i){
+          cc_e_(IB1,k,j,i) = (bb(1,i) * (alpha(i)*v_u(2,i) - beta_u(2,i)) - bb(2,i) * (alpha(i)*v_u(1,i) - beta_u(1,i)));
+          cc_e_(IB2,k,j,i) = (bb(2,i) * (alpha(i)*v_u(0,i) - beta_u(0,i)) - bb(0,i) * (alpha(i)*v_u(2,i) - beta_u(2,i)));
+          cc_e_(IB3,k,j,i) = (bb(0,i) * (alpha(i)*v_u(1,i) - beta_u(1,i)) - bb(1,i) * (alpha(i)*v_u(0,i) - beta_u(0,i)));
+        }
+
 #else
 #pragma omp simd
         for (int i=is-1; i<=ie+1; ++i) {
@@ -212,6 +305,15 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
   if (!STS_ENABLED) // add diffusion flux
     if (fdif.field_diffusion_defined) fdif.AddEMF(fdif.e_oa, e);
 
+#if GENERAL_RELATIVITY == 1 && Z4C_ENABLED
+  alpha.DeleteAthenaTensor();
+  Wlor.DeleteAthenaTensor();
+  beta_u.DeleteAthenaTensor();
+  gamma_dd.DeleteAthenaTensor();
+  v_u.DeleteAthenaTensor();
+  utilde_u.DeleteAthenaTensor();
+  bb.DeleteAthenaTensor();
+#endif
   return;
 }
 
