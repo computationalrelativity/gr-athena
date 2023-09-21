@@ -37,7 +37,7 @@ x3max           = 1.0      # maximum value of X3
 ix3_bc          = periodic  # inner-X3 boundary flag
 ox3_bc          = periodic  # outer-X3 boundary flag
 
-numlevel = 6  # <refinement> level + 1
+numlevel = 4  # <refinement> level + 1
 num_threads = 1        # Number of OpenMP threads per process
 
 <wave>
@@ -58,7 +58,7 @@ x2min =  -0.2
 x2max =  0.2
 x3min =  -0.2
 x3max =  0.2
-level = 5
+level = 3
 
 
 # <refinement2>

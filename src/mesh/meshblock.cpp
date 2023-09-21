@@ -31,6 +31,7 @@
 #include "mesh_refinement.hpp"
 #include "meshblock_tree.hpp"
 #include "../wave/wave.hpp"
+#include "../dummy/dummy.hpp"
 #include "../trackers/extrema_tracker.hpp"
 
 //----------------------------------------------------------------------------------------
@@ -101,6 +102,11 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
 
   }
 
+  if (DUMMY_ENABLED)
+  {
+    pdummy = new Dummy(this, pin);
+  }
+
     // must come after pvar to register variables
   ptracker_extrema_loc = new ExtremaTrackerLocal(this, pin);
 
@@ -159,6 +165,11 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
 
   }
 
+  if (DUMMY_ENABLED)
+  {
+    pdummy = new Dummy(this, pin);
+  }
+
   // must come after var to register variables
   ptracker_extrema_loc = new ExtremaTrackerLocal(this, pin);
 
@@ -198,6 +209,8 @@ MeshBlock::~MeshBlock() {
   if (pmy_mesh->multilevel) delete pmr;
 
   if (WAVE_ENABLED) delete pwave;
+
+  if (DUMMY_ENABLED) delete pdummy;
 
   delete ptracker_extrema_loc;
 

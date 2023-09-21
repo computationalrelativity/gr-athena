@@ -170,4 +170,29 @@ namespace WaveIntegratorTaskNames {
 // -BD
 //----------------------------------------------------------------------------------------
 
+class DummyIntegratorTaskList : public TaskList {
+public:
+  DummyIntegratorTaskList(ParameterInput *pin, Mesh *pm);
+
+  // functions
+  TaskStatus UserWork(MeshBlock *pmb, int stage);          // USERWORK     [x]
+  TaskStatus CheckRefinement(MeshBlock *pmb, int stage);   // FLAG_AMR     [x]
+
+private:
+  void AddTask(const TaskID& id, const TaskID& dep) override;
+  void StartupTaskList(MeshBlock *pmb, int stage) override;
+};
+
+//----------------------------------------------------------------------------------------
+// 64-bit integers with "1" in different bit positions used to ID each wave task.
+namespace DummyIntegratorTaskNames {
+
+  const TaskID NONE(0);
+  const TaskID USERWORK(9);
+  const TaskID FLAG_AMR(11);
+}  // namespace DummyIntegratorTaskNames
+// -BD
+//----------------------------------------------------------------------------------------
+
+
 #endif  // TASK_LIST_TASK_LIST_HPP_

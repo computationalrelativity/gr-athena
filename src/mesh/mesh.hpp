@@ -42,6 +42,7 @@ class TaskList;
 struct TaskStates;
 class Coordinates;
 class Wave;
+class Dummy;
 class ExtremaTracker;
 class ExtremaTrackerLocal;
 
@@ -196,6 +197,8 @@ public:
 
   // physics-related objects (possibly containing their derived bvals classes)
   Wave *pwave;
+  Dummy *pdummy;
+
   ExtremaTrackerLocal * ptracker_extrema_loc;
 
   MeshBlock *prev, *next;
@@ -223,10 +226,10 @@ public:
   void UserWorkBeforeOutput(ParameterInput *pin); // called in Mesh fn (friend class)
   void UserWorkInLoop();                          // called in TimeIntegratorTaskList
 
-  // This is a quick fix to prevent multiple calls to 'UserWorkInLoop' if
-  // TimeIntegratorTaskList and Z4cIntegratorTaskList are both running..
-  void Z4cUserWorkInLoop();
+  // This is a quick fix to prevent multiple calls to 'UserWorkInLoop'
+  // for multiple taskslists
   void WaveUserWorkInLoop();
+  void DummyUserWorkInLoop();
 
   bool PointContained(Real const x, Real const y, Real const z);
   bool PointContainedExclusive(Real const x, Real const y, Real const z);

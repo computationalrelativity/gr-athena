@@ -55,6 +55,9 @@
 // evolve the wave equation? default=0 (false)
 #define WAVE_ENABLED @WAVE_ENABLED@
 
+#define DUMMY_ENABLED @DUMMY_ENABLED@
+
+
 // wave equation sampling
 #define WAVE_CC_ENABLED @WAVE_CC_ENABLED@
 #define WAVE_CX_ENABLED @WAVE_CX_ENABLED@

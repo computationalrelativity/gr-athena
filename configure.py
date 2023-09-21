@@ -171,6 +171,13 @@ parser.add_argument("-w_vc",
                     default=False,
                     help='enable wave equation: vc sampling')
 
+# -d argument
+parser.add_argument("-d",
+                    action='store_true',
+                    default=False,
+                    help='enable wave equation')
+
+
 # -debug argument
 parser.add_argument('-debug',
                     action='store_true',
@@ -407,6 +414,12 @@ else:
     definitions['WAVE_CX_ENABLED'] = '0'
     definitions['WAVE_CC_ENABLED'] = '0'
     definitions['WAVE_VC_ENABLED'] = '0'
+
+# -d dummy
+if args['d']:
+    definitions['DUMMY_ENABLED'] = '1'
+else:
+    definitions['DUMMY_ENABLED'] = '0'
 
 # -hybridinterp argument
 if args['hybridinterp']:
@@ -771,6 +784,7 @@ if args['w']:
     print('  w_cc:                         ' + ('ON' if args['w_cc'] else 'OFF'))
     print('  w_cx:                         ' + ('ON' if args['w_cx'] else 'OFF'))
     print('  w_vc:                         ' + ('ON' if args['w_vc'] else 'OFF'))
+print('  Dummy:                        ' + ('ON' if args['d'] else 'OFF'))
 print('  Debug flags:                  ' + ('ON' if args['debug'] else 'OFF'))
 print('  Code coverage flags:          ' + ('ON' if args['coverage'] else 'OFF'))
 print('  Linker flags:                 ' + makefile_options['LINKER_FLAGS'] + ' '

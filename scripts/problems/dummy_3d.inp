@@ -1,0 +1,90 @@
+<job>
+problem_id      = dummy_3d   # Basename of output filenames
+
+<problem>
+
+
+<time>
+cfl_number      = 0.5       # The Courant, Friedrichs, & Lewy (CFL) number
+tlim            = 0       # time limit
+integrator      = rk4       # time integrator
+
+<dummy>
+# amr with spheres
+sphere_zone_number = 3
+
+# should roughly match the standard box-in-box
+
+sphere_zone_level_0    = 5
+sphere_zone_radius_0   = 100
+sphere_zone_puncture_0 = -1  # not pinned to a puncture
+sphere_zone_center1_0  = 0   # fix center
+sphere_zone_center2_0  = 0
+sphere_zone_center3_0  = 0
+
+sphere_zone_level_1    = 10
+sphere_zone_radius_1   = 4
+sphere_zone_puncture_1 = -1  # not pinned to a puncture
+sphere_zone_center1_1  = -4   # fix center
+sphere_zone_center2_1  = -4
+sphere_zone_center3_1  = -4
+
+
+sphere_zone_level_2    = 10
+sphere_zone_radius_2   = 4
+# sphere_zone_puncture_2 = 0  # pin to puncture
+sphere_zone_puncture_2 = -1  # not pinned to a puncture
+sphere_zone_center1_2  = 4   # fix center
+sphere_zone_center2_2  = 4
+sphere_zone_center3_2  = 4
+
+
+<mesh>
+refinement      = adaptive    # Static mesh refinement
+
+nx1             = 64      # Number of zones in X1-direction
+x1min           = -1536      # minimum value of X1
+x1max           = 1536      # maximum value of X1
+ix1_bc          = periodic  # inner-X1 boundary flag
+ox1_bc          = periodic  # outer-X1 boundary flag
+
+nx2             = 64         # Number of zones in X2-direction
+x2min           = -1536      # minimum value of X2
+x2max           = 1536      # maximum value of X2
+ix2_bc          = periodic  # inner-X2 boundary flag
+ox2_bc          = periodic  # outer-X2 boundary flag
+
+nx3             = 64         # Number of zones in X3-direction
+x3min           = -1536      # minimum value of X3
+x3max           = 1536      # maximum value of X3
+ix3_bc          = periodic  # inner-X3 boundary flag
+ox3_bc          = periodic  # outer-X3 boundary flag
+
+numlevel = 32  # <refinement> level + 1
+num_threads = 1        # Number of OpenMP threads per process
+
+<meshblock>
+nx1        = 16        # Number of zones per MeshBlock in X1-direction
+nx2        = 16        # Number of zones per MeshBlock in X2-direction
+nx3        = 16        # Number of zones per MeshBlock in X3-direction
+
+num_threads = 1        # Number of OpenMP threads per process
+
+# <refinement1>
+# x1min =  -0.2
+# x1max =  0.2
+# x2min =  -0.2
+# x2max =  0.2
+# x3min =  -0.2
+# x3max =  0.2
+# level = 5
+
+
+# <refinement2>
+# x1min =  -0.8
+# x1max =  -0.7
+# x2min =  -0.8
+# x2max =  -0.7
+# x3min =  -0.8
+# x3max =  -0.7
+# level = 2

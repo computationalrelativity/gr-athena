@@ -345,7 +345,8 @@ int main(int argc, char *argv[]) {
 #endif // ENABLE_EXCEPTIONS
 
   // BD: new problem
-  WaveIntegratorTaskList *pwlist = nullptr;
+  WaveIntegratorTaskList  *pwlist = nullptr;
+  DummyIntegratorTaskList *pdlist = nullptr;
   // -BD
 
 #ifdef ENABLE_EXCEPTIONS
@@ -367,6 +368,12 @@ int main(int argc, char *argv[]) {
     return(0);
   }
 #endif // ENABLE_EXCEPTIONS
+
+  if(DUMMY_ENABLED) { // only init. when required
+    pdlist = new DummyIntegratorTaskList(pinput, pmesh);
+  }
+
+
 
   //--- Step 6. --------------------------------------------------------------------------
   // Set initial conditions by calling problem generator, or reading restart file
@@ -452,6 +459,11 @@ int main(int argc, char *argv[]) {
       }
     }
     // -BD
+
+    if (DUMMY_ENABLED)
+    {
+      pdlist->DoTaskListOneStage(pmesh, 0);
+    }
 
     pmesh->UserWorkInLoop();
     pmesh->ncycle++;
