@@ -744,6 +744,7 @@ else:
   definitions['Z4C_CX_ENABLED'] = 'NO_Z4C_CX_ENABLED'
   definitions['Z4C_CC_ENABLED'] = 'NO_Z4C_CC_ENABLED'
   definitions['Z4C_VC_ENABLED'] = 'NO_Z4C_VC_ENABLED'
+  definitions['Z4C_WITH_HYDRO_ENABLED'] = 'NO_Z4C_WITH_HYDRO_ENABLED'
 
 # -z_eta_track_tp argument
 ERR_MUL_ETA_STR = "### CONFIGURE ERROR: select at most ONE of {z_eta_track_tp, z_eta_conf}"
