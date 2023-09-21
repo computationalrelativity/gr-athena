@@ -55,7 +55,7 @@ void ShowConfig() {
 #else
       std::cout<<"  Z4c shift damping:          Constant" << std::endl;
 #endif
-    if (CCE_ENABLED) { 
+    if (CCE_ENABLED) {
       std::cout<<"  CCE waveform extraction:    ON" << std::endl;
     } else {
       std::cout<<"  CCE waveform extraction:    OFF" << std::endl;
@@ -64,13 +64,6 @@ void ShowConfig() {
     std::cout<<"  Z4c equations:              OFF" << std::endl;
   }
   // configure.py output: "Frame transformations"
-  if (SELF_GRAVITY_ENABLED == 1) {
-    std::cout<<"  Self-Gravity:               FFT" << std::endl;
-  } else if (SELF_GRAVITY_ENABLED == 2) {
-    std::cout<<"  Self-Gravity:               Multigrid" << std::endl;
-  } else {
-    std::cout<<"  Self-Gravity:               OFF" << std::endl;
-  }
   if (STS_ENABLED) {
     std::cout<<"  Super-Time-Stepping:        ON" << std::endl;
   } else {

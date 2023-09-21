@@ -34,10 +34,7 @@
 
 // Athena++ headers
 #include "athena.hpp"
-#include "fft/turbulence.hpp"
 #include "globals.hpp"
-#include "gravity/fft_gravity.hpp"
-#include "gravity/mg_gravity.hpp"
 #include "mesh/mesh.hpp"
 #include "outputs/io_wrapper.hpp"
 #include "outputs/outputs.hpp"
@@ -562,18 +559,6 @@ int main(int argc, char *argv[]) {
       // take super-timestep
       for (int stage=1; stage<=pststlist->nstages; ++stage)
         pststlist->DoTaskListOneStage(pmesh,stage);
-    }
-
-    if (FLUID_ENABLED && !Z4C_ENABLED){  //Turbulence, self gravity not enabled for z4c
-      if (pmesh->turb_flag > 1) pmesh->ptrbd->Driving(); // driven turbulence
-
-      for (int stage=1; stage<=ptlist->nstages; ++stage) {
-        if (SELF_GRAVITY_ENABLED == 1) // fft (flag 0 for discrete kernel, 1 for continuous)
-          pmesh->pfgrd->Solve(stage, 0);
-        else if (SELF_GRAVITY_ENABLED == 2) // multigrid
-          pmesh->pmgrd->Solve(stage);
-        ptlist->DoTaskListOneStage(pmesh, stage);
-      }
     }
 
     // BD: new problem

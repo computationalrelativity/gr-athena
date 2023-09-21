@@ -158,9 +158,9 @@ enum CoordinateDirection {X1DIR=0, X2DIR=1, X3DIR=2};
 //------------------
 // KGF: Except for the 2x MG* enums, these may be unnessary w/ the new class inheritance
 // Now, only passed to BoundaryVariable::InitBoundaryData(); could replace w/ bool switch
-enum class BoundaryQuantity {cc, cx, fc, vc, cc_flcor, fc_flcor, mggrav, mggrav_f};
+enum class BoundaryQuantity {cc, cx, fc, vc, cc_flcor, fc_flcor};
 enum class HydroBoundaryQuantity {cons, prim};
-enum class BoundaryCommSubset {mesh_init, gr_amr, all};
+enum class BoundaryCommSubset {mesh_init, all};
 // TODO(felker): consider generalizing/renaming to QuantityFormulation
 enum class FluidFormulation {evolve, background, disabled}; // rename background -> fixed?
 enum class UserHistoryOperation {sum, max, min};
@@ -183,10 +183,6 @@ using MetricFunc = void (*)(
     Real x1, Real x2, Real x3, ParameterInput *pin,
     AthenaArray<Real> &g, AthenaArray<Real> &g_inv,
     AthenaArray<Real> &dg_dx1, AthenaArray<Real> &dg_dx2, AthenaArray<Real> &dg_dx3);
-using MGBoundaryFunc = void (*)(
-    AthenaArray<Real> &dst,Real time, int nvar,
-    int is, int ie, int js, int je, int ks, int ke, int ngh,
-    Real x0, Real y0, Real z0, Real dx, Real dy, Real dz);
 using ViscosityCoeffFunc = void (*)(
     HydroDiffusion *phdif, MeshBlock *pmb,
     const  AthenaArray<Real> &w, const AthenaArray<Real> &bc,

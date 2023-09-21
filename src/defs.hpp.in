@@ -98,9 +98,6 @@
 // include super-time-stepping? default=0 (false)
 #define STS_ENABLED @STS_ENABLED@
 
-// include self gravity? default=0 (false)
-#define SELF_GRAVITY_ENABLED @SELF_GRAVITY_ENABLED@
-
 // include radiative transfer? default=0 (false)
 #define RADIATION_ENABLED 0
 
@@ -159,9 +156,6 @@
 
 // configure.py dict(definitions) Boolean string macros:
 // (these options have the latter (false) option as defaults, unless noted otherwise)
-// make use of FFT? (FFT or NO_FFT)
-#define @FFT_OPTION@
-
 // MPI parallelization (MPI_PARALLEL or NOT_MPI_PARALLEL)
 #define @MPI_OPTION@
 

@@ -25,11 +25,8 @@
 #include "../bvals/bvals.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../eos/eos.hpp"
-#include "../fft/athena_fft.hpp"
 #include "../field/field.hpp"
 #include "../globals.hpp"
-#include "../gravity/gravity.hpp"
-#include "../gravity/mg_gravity.hpp"
 #include "../hydro/hydro.hpp"
 #include "../parameter_input.hpp"
 #include "../reconstruct/reconstruction.hpp"
@@ -111,7 +108,7 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   // background fluid that is not dynamically evolved)
   // 2) MPI ranks containing MeshBlocks that solve a subset of the physics, e.g. Gravity
   // but not Hydro.
-  // 3) MAGNETIC_FIELDS_ENABLED, SELF_GRAVITY_ENABLED, NSCALARS, (future) FLUID_ENABLED,
+  // 3) MAGNETIC_FIELDS_ENABLED, NSCALARS, (future) FLUID_ENABLED,
   // etc. become runtime switches
 
   if (FLUID_ENABLED) {
@@ -128,14 +125,6 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
     // if (this->field_block)
     pfield = new Field(this, pin);
     pbval->AdvanceCounterPhysID(FaceCenteredBoundaryVariable::max_phys_id);
-  }
-
-  if (SELF_GRAVITY_ENABLED) {
-    // if (this->grav_block)
-    pgrav = new Gravity(this, pin);
-    pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
-    if (SELF_GRAVITY_ENABLED == 2)
-      pmg = new MGGravity(pmy_mesh->pmgrd, this);
   }
 
   if (NSCALARS > 0) {
@@ -262,14 +251,6 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     // if (this->field_block)
     pfield = new Field(this, pin);
     pbval->AdvanceCounterPhysID(FaceCenteredBoundaryVariable::max_phys_id);
-  }
-
-  if (SELF_GRAVITY_ENABLED) {
-    // if (this->grav_block)
-    pgrav = new Gravity(this, pin);
-    pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
-    if (SELF_GRAVITY_ENABLED == 2)
-      pmg = new MGGravity(pmy_mesh->pmgrd, this);
   }
 
   if (NSCALARS > 0) {
@@ -399,7 +380,6 @@ MeshBlock::~MeshBlock() {
   if (FLUID_ENABLED) delete phydro;
   if (MAGNETIC_FIELDS_ENABLED) delete pfield;
   if (FLUID_ENABLED) delete peos;
-  if (SELF_GRAVITY_ENABLED) delete pgrav;
   if (NSCALARS > 0) delete pscalars;
   if (WAVE_ENABLED) delete pwave;
 
@@ -833,8 +813,7 @@ std::size_t MeshBlock::GetBlockSizeInBytes() {
   if (MAGNETIC_FIELDS_ENABLED)
     size += (pfield->b.x1f.GetSizeInBytes() + pfield->b.x2f.GetSizeInBytes()
              + pfield->b.x3f.GetSizeInBytes());
-  if (SELF_GRAVITY_ENABLED)
-    size += pgrav->phi.GetSizeInBytes();
+
   if (NSCALARS > 0)
     size += pscalars->s.GetSizeInBytes();
 

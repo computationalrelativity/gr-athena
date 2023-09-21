@@ -46,12 +46,7 @@ class Hydro;
 class Field;
 class PassiveScalars;
 class Gravity;
-class MGGravity;
-class MGGravityDriver;
 class EquationOfState;
-class FFTDriver;
-class FFTGravityDriver;
-class TurbulenceDriver;
 class Wave;
 class Z4c;
 class WaveExtract;
@@ -222,8 +217,6 @@ public:
   // physics-related objects (possibly containing their derived bvals classes)
   Hydro *phydro;
   Field *pfield;
-  Gravity *pgrav;
-  MGGravity* pmg;
   PassiveScalars *pscalars;
   EquationOfState *peos;
 
@@ -343,17 +336,10 @@ class Mesh {
   friend class CellCenteredBoundaryVariable;
   friend class VertexCenteredBoundaryVariable;
   friend class FaceCenteredBoundaryVariable;
-  friend class MGBoundaryValues;
   friend class Coordinates;
   friend class MeshRefinement;
   friend class HydroSourceTerms;
   friend class Hydro;
-  friend class FFTDriver;
-  friend class FFTGravityDriver;
-  friend class TurbulenceDriver;
-  friend class MultigridDriver;
-  friend class MGGravityDriver;
-  friend class Gravity;
   friend class HydroDiffusion;
   friend class FieldDiffusion;
 #ifdef HDF5OUTPUT
@@ -390,15 +376,10 @@ class Mesh {
 
   int step_since_lb;
   int gflag;
-  int turb_flag; // turbulence flag
   EosTable *peos_table;
 
   // ptr to first MeshBlock (node) in linked list of blocks belonging to this MPI rank:
   MeshBlock *pblock;
-
-  TurbulenceDriver *ptrbd;
-  FFTGravityDriver *pfgrd;
-  MGGravityDriver *pmgrd;
 
   std::vector<WaveExtract *> pwave_extr;
   std::vector<AHF *> pah_finder;
@@ -463,9 +444,6 @@ class Mesh {
   std::string *user_history_output_names_;
   UserHistoryOperation *user_history_ops_;
 
-  // global constants
-  Real four_pi_G_, grav_eps_, grav_mean_rho_;
-
   // variables for load balancing control
   bool lb_flag_, lb_automatic_, lb_manual_;
   double lb_tolerance_;
@@ -482,7 +460,6 @@ class Mesh {
   ViscosityCoeffFunc ViscosityCoeff_;
   ConductionCoeffFunc ConductionCoeff_;
   FieldDiffusionCoeffFunc FieldDiffusivity_;
-  MGBoundaryFunc MGGravityBoundaryFunction_[6];
 
   void AllocateRealUserMeshDataField(int n);
   void AllocateIntUserMeshDataField(int n);
@@ -519,10 +496,8 @@ class Mesh {
 
   // often used (not defined) in prob file in ../pgen/
   void EnrollUserBoundaryFunction(BoundaryFace face, BValFunc my_func);
-  void EnrollUserMGGravityBoundaryFunction(BoundaryFace dir, MGBoundaryFunc my_bc);
   // DEPRECATED(felker): provide trivial overload for old-style BoundaryFace enum argument
   void EnrollUserBoundaryFunction(int face, BValFunc my_func);
-  void EnrollUserMGGravityBoundaryFunction(int dir, MGBoundaryFunc my_bc);
 
   void EnrollUserRefinementCondition(AMRFlagFunc amrflag);
   void EnrollUserMeshGenerator(CoordinateDirection dir, MeshGenFunc my_mg);
@@ -535,10 +510,6 @@ class Mesh {
   void EnrollViscosityCoefficient(ViscosityCoeffFunc my_func);
   void EnrollConductionCoefficient(ConductionCoeffFunc my_func);
   void EnrollFieldDiffusivity(FieldDiffusionCoeffFunc my_func);
-  void SetGravitationalConstant(Real g) { four_pi_G_=4.0*PI*g; }
-  void SetFourPiG(Real fpg) { four_pi_G_=fpg; }
-  void SetGravityThreshold(Real eps) { grav_eps_=eps; }
-  void SetMeanDensity(Real d0) { grav_mean_rho_=d0; }
 };
 
 

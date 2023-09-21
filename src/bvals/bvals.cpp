@@ -30,11 +30,9 @@
 #include "../eos/eos.hpp"
 #include "../field/field.hpp"
 #include "../globals.hpp"
-#include "../gravity/mg_gravity.hpp"
 #include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
 #include "../mesh/mesh_refinement.hpp"
-#include "../multigrid/multigrid.hpp"
 #include "../parameter_input.hpp"
 #include "../scalars/scalars.hpp"
 #include "../utils/buffer_utils.hpp"
@@ -282,15 +280,6 @@ void BoundaryValues::StartReceivingShear(BoundaryCommSubset phase) {
       for (auto bvar : bvars_main_int) {
         bvar->StartReceivingShear(phase);
       }
-      break;
-    case BoundaryCommSubset::gr_amr:
-      // shearing box is currently incompatible with both GR and AMR
-      std::stringstream msg;
-      msg << "### FATAL ERROR in BoundaryValues::StartReceiving" << std::endl
-          << "BoundaryCommSubset::gr_amr was passed as the 'phase' argument while\n"
-          << "SHEARING_BOX=1 is enabled. Shearing box calculations are currently\n"
-          << "incompatible with both AMR and GR" << std::endl;
-      ATHENA_ERROR(msg);
       break;
   }
   return;

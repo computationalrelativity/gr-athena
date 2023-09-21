@@ -92,7 +92,6 @@
 #include "../athena_arrays.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../field/field.hpp"
-#include "../gravity/gravity.hpp"
 #include "../hydro/hydro.hpp"
 #include "../z4c/z4c.hpp"
 #include "../wave/wave.hpp"
@@ -335,7 +334,6 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   Hydro *phyd = pmb->phydro;
   Field *pfld = pmb->pfield;
   PassiveScalars *psclr = pmb->pscalars;
-  Gravity *pgrav = pmb->pgrav;
   Wave *pwave = pmb->pwave;
   Z4c *pz4c = pmb->pz4c;
 
@@ -588,19 +586,6 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       }
     }
   }
-
-  if (SELF_GRAVITY_ENABLED) {
-    if (output_params.variable.compare("phi") == 0 ||
-        output_params.variable.compare("prim") == 0 ||
-        output_params.variable.compare("cons") == 0) {
-      pod = new OutputData;
-      pod->type = "SCALARS";
-      pod->name = "Phi";
-      pod->data.InitWithShallowSlice(pgrav->phi, 4, 0, 1);
-      AppendOutputDataNode(pod);
-      num_vars_++;
-    }
-  } // endif (SELF_GRAVITY_ENABLED)
 
   if (NSCALARS > 0) {
     std::string root_name_cons = "s";

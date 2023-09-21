@@ -31,17 +31,11 @@
 #include "../bvals/bvals.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../eos/eos.hpp"
-#include "../fft/athena_fft.hpp"
-#include "../fft/turbulence.hpp"
 #include "../field/field.hpp"
 #include "../field/field_diffusion/field_diffusion.hpp"
 #include "../globals.hpp"
-#include "../gravity/fft_gravity.hpp"
-#include "../gravity/gravity.hpp"
-#include "../gravity/mg_gravity.hpp"
 #include "../hydro/hydro.hpp"
 #include "../hydro/hydro_diffusion/hydro_diffusion.hpp"
-#include "../multigrid/multigrid.hpp"
 #include "../outputs/io_wrapper.hpp"
 #include "../parameter_input.hpp"
 #include "../reconstruct/reconstruction.hpp"
@@ -107,21 +101,19 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     dt_diagnostics(pin->GetOrAddInteger("time", "dt_diagnostics", -1)),
     muj(), nuj(), muj_tilde(),
     nbnew(), nbdel(),
-    step_since_lb(), gflag(), turb_flag(),
+    step_since_lb(), gflag(),
     // private members:
     next_phys_id_(), num_mesh_threads_(pin->GetOrAddInteger("mesh", "num_threads", 1)),
     tree(this),
     use_uniform_meshgen_fn_{true, true, true},
     nreal_user_mesh_data_(), nint_user_mesh_data_(), nuser_history_output_(),
-    four_pi_G_(), grav_eps_(-1.0), grav_mean_rho_(-1.0),
     lb_flag_(true), lb_automatic_(), lb_manual_(),
     MeshGenerator_{UniformMeshGeneratorX1, UniformMeshGeneratorX2,
                    UniformMeshGeneratorX3},
     BoundaryFunction_{nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
     AMRFlag_{}, UserSourceTerm_{}, UserTimeStep_{}, ViscosityCoeff_{},
-    ConductionCoeff_{}, FieldDiffusivity_{},
-    MGGravityBoundaryFunction_{MGPeriodicInnerX1, MGPeriodicOuterX1, MGPeriodicInnerX2,
-                               MGPeriodicOuterX2, MGPeriodicInnerX3, MGPeriodicOuterX3} {
+    ConductionCoeff_{}, FieldDiffusivity_{}
+{
 
   std::stringstream msg;
   RegionSize block_size;
@@ -564,16 +556,6 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     return;
   }
 
-  if (SELF_GRAVITY_ENABLED == 1) {
-    gflag = 1; // set gravity flag
-    pfgrd = new FFTGravityDriver(this, pin);
-  } else if (SELF_GRAVITY_ENABLED == 2) {
-    // MGDriver must be initialzied before MeshBlocks
-    pmgrd = new MGGravityDriver(this, pin);
-  }
-  //  if (SELF_GRAVITY_ENABLED == 2 && ...) // independent allocation
-  //    gflag = 2;
-
   // create MeshBlock list for this process
   int nbs = nslist[Globals::my_rank];
   int nbe = nbs + nblist[Globals::my_rank] - 1;
@@ -596,9 +578,6 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
   pblock = pfirst;
 
   ResetLoadBalanceVariables();
-
-  if (turb_flag > 0) // TurbulenceDriver depends on the MeshBlock ctor
-    ptrbd = new TurbulenceDriver(this, pin);
 
 }
 
@@ -639,21 +618,19 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     dt_diagnostics(pin->GetOrAddInteger("time", "dt_diagnostics", -1)),
     muj(), nuj(), muj_tilde(),
     nbnew(), nbdel(),
-    step_since_lb(), gflag(), turb_flag(),
+    step_since_lb(), gflag(),
     // private members:
     next_phys_id_(), num_mesh_threads_(pin->GetOrAddInteger("mesh", "num_threads", 1)),
     tree(this),
     use_uniform_meshgen_fn_{true, true, true},
     nreal_user_mesh_data_(), nint_user_mesh_data_(), nuser_history_output_(),
-    four_pi_G_(), grav_eps_(-1.0), grav_mean_rho_(-1.0),
     lb_flag_(true), lb_automatic_(), lb_manual_(),
     MeshGenerator_{UniformMeshGeneratorX1, UniformMeshGeneratorX2,
                    UniformMeshGeneratorX3},
     BoundaryFunction_{nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
     AMRFlag_{}, UserSourceTerm_{}, UserTimeStep_{}, ViscosityCoeff_{},
-    ConductionCoeff_{}, FieldDiffusivity_{},
-    MGGravityBoundaryFunction_{MGPeriodicInnerX1, MGPeriodicOuterX1, MGPeriodicInnerX2,
-                        MGPeriodicOuterX2, MGPeriodicInnerX3, MGPeriodicOuterX3} {
+    ConductionCoeff_{}, FieldDiffusivity_{}
+  {
 
   std::stringstream msg;
   RegionSize block_size;
@@ -963,16 +940,6 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     return;
   }
 
-  if (SELF_GRAVITY_ENABLED == 1) {
-    gflag = 1; // set gravity flag
-    pfgrd = new FFTGravityDriver(this, pin);
-  } else if (SELF_GRAVITY_ENABLED == 2) {
-    // MGDriver must be initialzied before MeshBlocks
-    pmgrd = new MGGravityDriver(this, pin);
-  }
-  //  if (SELF_GRAVITY_ENABLED == 2 && ...) // independent allocation
-  //    gflag=2;
-
   // allocate data buffer
   int nb = nblist[Globals::my_rank];
   int nbs = nslist[Globals::my_rank];
@@ -1017,9 +984,6 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
 
   // clean up
   delete [] offset;
-
-  if (turb_flag > 0) // TurbulenceDriver depends on the MeshBlock ctor
-    ptrbd = new TurbulenceDriver(this, pin);
 }
 
 //----------------------------------------------------------------------------------------
@@ -1036,9 +1000,6 @@ Mesh::~Mesh() {
   delete [] ranklist;
   delete [] costlist;
   delete [] loclist;
-  if (SELF_GRAVITY_ENABLED == 1) delete pfgrd;
-  else if (SELF_GRAVITY_ENABLED == 2) delete pmgrd;
-  if (turb_flag > 0) delete ptrbd;
 
   if (Z4C_ENABLED) {
     for (auto pwextr : pwave_extr) {
@@ -1299,30 +1260,9 @@ void Mesh::EnrollUserBoundaryFunction(BoundaryFace dir, BValFunc my_bc) {
   return;
 }
 
-//----------------------------------------------------------------------------------------
-//! \fn void Mesh::EnrollUserMGGravityBoundaryFunction(BoundaryFace dir
-//                                                     MGBoundaryFunc my_bc)
-//  \brief Enroll a user-defined Multigrid boundary function
-
-void Mesh::EnrollUserMGGravityBoundaryFunction(BoundaryFace dir, MGBoundaryFunc my_bc) {
-  std::stringstream msg;
-  if (dir < 0 || dir > 5) {
-    msg << "### FATAL ERROR in EnrollBoundaryCondition function" << std::endl
-        << "dirName = " << dir << " not valid" << std::endl;
-    ATHENA_ERROR(msg);
-  }
-  MGGravityBoundaryFunction_[static_cast<int>(dir)] = my_bc;
-  return;
-}
-
 // DEPRECATED(felker): provide trivial overloads for old-style BoundaryFace enum argument
 void Mesh::EnrollUserBoundaryFunction(int dir, BValFunc my_bc) {
   EnrollUserBoundaryFunction(static_cast<BoundaryFace>(dir), my_bc);
-  return;
-}
-
-void Mesh::EnrollUserMGGravityBoundaryFunction(int dir, MGBoundaryFunc my_bc) {
-  EnrollUserMGGravityBoundaryFunction(static_cast<BoundaryFace>(dir), my_bc);
   return;
 }
 
@@ -1530,10 +1470,6 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       }
     }
 
-    // add initial perturbation for decaying or impulsive turbulence
-    if (((turb_flag == 1) || (turb_flag == 2)) && (res_flag == 0))
-      ptrbd->Driving();
-
     // Create send/recv MPI_Requests for all BoundaryData objects
 #pragma omp parallel for num_threads(nthreads)
     for (int i=0; i<nmb; ++i) {
@@ -1541,15 +1477,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       // BoundaryVariable objects evolved in main TimeIntegratorTaskList:
       pmb->pbval->SetupPersistentMPI();
       // other BoundaryVariable objects:
-      if (SELF_GRAVITY_ENABLED == 1)
-        pmb->pgrav->gbvar.SetupPersistentMPI();
     }
-
-    // solve gravity for the first time
-    if (SELF_GRAVITY_ENABLED == 1)
-      pfgrd->Solve(1, 0);
-    else if (SELF_GRAVITY_ENABLED == 2)
-      pmgrd->Solve(1);
 
 #pragma omp parallel num_threads(nthreads)
     {
@@ -1639,36 +1567,6 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       }
 
       // With AMR/SMR GR send primitives to enable cons->prim before prolongation
-      if (GENERAL_RELATIVITY && multilevel) {
-        // prepare to receive primitives
-#pragma omp for private(pmb,pbval)
-        for (int i=0; i<nmb; ++i) {
-          pmb = pmb_array[i]; pbval = pmb->pbval;
-          pbval->StartReceiving(BoundaryCommSubset::gr_amr);
-        }
-
-        if(FLUID_ENABLED) {
-          // send primitives
-#pragma omp for private(pmb,pbval)
-          for (int i=0; i<nmb; ++i) {
-            pmb = pmb_array[i]; pbval = pmb->pbval;
-            pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->w,
-                                                 HydroBoundaryQuantity::prim);
-            pmb->phydro->hbvar.SendBoundaryBuffers();
-          }
-
-          // wait to receive AMR/SMR GR primitives
-#pragma omp for private(pmb,pbval)
-          for (int i=0; i<nmb; ++i) {
-            pmb = pmb_array[i]; pbval = pmb->pbval;
-            pmb->phydro->hbvar.ReceiveAndSetBoundariesWithWait();
-            pbval->ClearBoundary(BoundaryCommSubset::gr_amr);
-            pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->u,
-                                                 HydroBoundaryQuantity::cons);
-          }
-        }
-      } // multilevel
-
       if (FLUID_ENABLED) {
         // perform fourth-order correction of midpoint initial condition:
         // (correct IC on all MeshBlocks or none; switch cannot be toggled independently)
@@ -2096,9 +1994,6 @@ void Mesh::ReserveMeshBlockPhysIDs() {
   }
   if (MAGNETIC_FIELDS_ENABLED) {
     ReserveTagPhysIDs(FaceCenteredBoundaryVariable::max_phys_id);
-  }
-  if (SELF_GRAVITY_ENABLED) {
-    ReserveTagPhysIDs(CellCenteredBoundaryVariable::max_phys_id);
   }
   if (NSCALARS > 0) {
     ReserveTagPhysIDs(CellCenteredBoundaryVariable::max_phys_id);

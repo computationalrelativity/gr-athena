@@ -1070,36 +1070,6 @@ else:
         #   3180: pragma omp not recognized
         makefile_options['COMPILER_FLAGS'] += ' -diag-disable 3180'
 
-# --grav argument
-if args['grav'] == "none":
-    definitions['SELF_GRAVITY_ENABLED'] = '0'
-else:
-    if args['grav'] == "fft":
-        definitions['SELF_GRAVITY_ENABLED'] = '1'
-        if not args['fft']:
-            raise SystemExit(
-                '### CONFIGURE ERROR: FFT Poisson solver only be used with FFT')
-
-    if args['grav'] == "mg":
-        definitions['SELF_GRAVITY_ENABLED'] = '2'
-
-# -fft argument
-makefile_options['MPIFFT_FILE'] = ' '
-definitions['FFT_OPTION'] = 'NO_FFT'
-if args['fft']:
-    definitions['FFT_OPTION'] = 'FFT'
-    if args['fftw_path'] != '':
-        makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/include'.format(
-            args['fftw_path'])
-        makefile_options['LINKER_FLAGS'] += ' -L{0}/lib'.format(args['fftw_path'])
-        if args['rpath']:
-            makefile_options['LINKER_FLAGS'] += ' -Wl,-rpath {0}/lib'.format(args['fftw_path'])
-    if args['omp']:
-        makefile_options['LIBRARY_FLAGS'] += ' -lfftw3_omp'
-    if args['mpi']:
-        makefile_options['MPIFFT_FILE'] = ' $(wildcard src/fft/plimpton/*.cpp)'
-    makefile_options['LIBRARY_FLAGS'] += ' -lfftw3'
-
 # -hdf5 argument
 if args['hdf5']:
     definitions['HDF5_OPTION'] = 'HDF5OUTPUT'
@@ -1246,12 +1216,6 @@ with open(makefile_output, 'w') as current_file:
 # Finish with diagnostic output
 # To match show_config.cpp output: use 2 space indent for option, value string starts on
 # column 30
-self_grav_string = 'OFF'
-if args['grav'] == 'fft':
-    self_grav_string = 'FFT'
-elif args['grav'] == 'mg':
-    self_grav_string = 'Multigrid'
-
 self_eta_damp_string = 'Constant'
 if args['z_eta_track_tp']:
     self_eta_damp_string = 'TP'
@@ -1287,7 +1251,6 @@ if args['w']:
     print('  w_vc:                         ' + ('ON' if args['w_vc'] else 'OFF'))
 
 print('  Frame transformations:        ' + ('ON' if args['t'] else 'OFF'))
-print('  Self-Gravity:                 ' + self_grav_string)
 print('  Super-Time-Stepping:          ' + ('ON' if args['sts'] else 'OFF'))
 print('  Shearing Box BCs:             ' + ('ON' if args['shear'] else 'OFF'))
 print('  Debug flags:                  ' + ('ON' if args['debug'] else 'OFF'))
@@ -1301,7 +1264,6 @@ print('  Number of coarse ghosts (CX): ' + definitions['NUMBER_COARSE_GHOSTS_CX'
 print('  Total # extrapolation points: ' + definitions['NUMBER_EXTRAPOLATION_POINTS'])
 print('  MPI parallelism:              ' + ('ON' if args['mpi'] else 'OFF'))
 print('  OpenMP parallelism:           ' + ('ON' if args['omp'] else 'OFF'))
-print('  FFT:                          ' + ('ON' if args['fft'] else 'OFF'))
 print('  HDF5 output:                  ' + ('ON' if args['hdf5'] else 'OFF'))
 if args['hdf5']:
     print('  HDF5 precision:               ' + ('double' if args['h5double'] else 'single'))
