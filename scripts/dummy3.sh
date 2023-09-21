@@ -20,7 +20,7 @@ export REL_INPUT=scripts/problems
 export INPUT_NAME=dummy_3d.inp
 
 # if compilation is chosen
-export DIR_HDF5=$(spack location -i hdf5)
+# export DIR_HDF5=$(spack location -i hdf5)
 
 # 4th order
 export COMPILE_STR="--prob=dummy_3d
@@ -43,12 +43,12 @@ export COMPILE_STR="--prob=dummy_3d
 # export COMPILE_STR="${COMPILE_STR} -debug"
 
 # apply caching compiler together with gold linker
-export COMPILE_STR="${COMPILE_STR} -ccache -link_gold"
+# export COMPILE_STR="${COMPILE_STR} -ccache -link_gold"
 
 # hdf5 compile str
-export COMPILE_STR="${COMPILE_STR} -hdf5 -h5double"
-export COMPILE_STR="${COMPILE_STR} --lib_path=${DIR_HDF5}/lib"
-export COMPILE_STR="${COMPILE_STR} --include=${DIR_HDF5}/include"
+# export COMPILE_STR="${COMPILE_STR} -hdf5 -h5double"
+# export COMPILE_STR="${COMPILE_STR} --lib_path=${DIR_HDF5}/lib"
+# export COMPILE_STR="${COMPILE_STR} --include=${DIR_HDF5}/include"
 
 echo "COMPILE_STR"
 echo ${COMPILE_STR}
@@ -73,7 +73,7 @@ source ${DIR_SCRIPTS}/utils/dump_info.sh
 
 ###############################################################################
 # execute
-source utils/mpi_exec.sh
+source utils/exec.sh
 ###############################################################################
 
 # >:D

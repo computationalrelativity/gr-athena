@@ -42,19 +42,19 @@ sphere_zone_center3_2  = 4
 <mesh>
 refinement      = adaptive    # Static mesh refinement
 
-nx1             = 64      # Number of zones in X1-direction
+nx1             = 128      # Number of zones in X1-direction
 x1min           = -1536      # minimum value of X1
 x1max           = 1536      # maximum value of X1
 ix1_bc          = periodic  # inner-X1 boundary flag
 ox1_bc          = periodic  # outer-X1 boundary flag
 
-nx2             = 64         # Number of zones in X2-direction
+nx2             = 128         # Number of zones in X2-direction
 x2min           = -1536      # minimum value of X2
 x2max           = 1536      # maximum value of X2
 ix2_bc          = periodic  # inner-X2 boundary flag
 ox2_bc          = periodic  # outer-X2 boundary flag
 
-nx3             = 64         # Number of zones in X3-direction
+nx3             = 128         # Number of zones in X3-direction
 x3min           = -1536      # minimum value of X3
 x3max           = 1536      # maximum value of X3
 ix3_bc          = periodic  # inner-X3 boundary flag
