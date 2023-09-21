@@ -27,14 +27,10 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../coordinates/coordinates.hpp"
-#include "../eos/eos.hpp"
-#include "../field/field.hpp"
 #include "../globals.hpp"
-#include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
 #include "../mesh/mesh_refinement.hpp"
 #include "../parameter_input.hpp"
-#include "../scalars/scalars.hpp"
 #include "../utils/buffer_utils.hpp"
 #include "bvals.hpp"
 
@@ -48,9 +44,8 @@
 // dirs of a MeshBlock
 BoundaryValues::BoundaryValues(MeshBlock *pmb, BoundaryFlag *input_bcs,
                                ParameterInput *pin)
-    : BoundaryBase(pmb->pmy_mesh, pmb->loc, pmb->block_size, input_bcs), pmy_block_(pmb),
-      shear_send_neighbor_{}, shear_recv_neighbor_{},
-      shear_send_count_{}, shear_recv_count_{} {
+    : BoundaryBase(pmb->pmy_mesh, pmb->loc, pmb->block_size, input_bcs), pmy_block_(pmb)
+{
   // Check BC functions for each of the 6 boundaries in turn ---------------------
   for (int i=0; i<6; i++) {
     switch (block_bcs[i]) {
@@ -98,7 +93,7 @@ BoundaryValues::BoundaryValues(MeshBlock *pmb, BoundaryFlag *input_bcs,
     azimuthal_shift_.NewAthenaArray(pmb->ke + NGHOST + 2);
 
   // prevent reallocation of contiguous memory space for each of 4x possible calls to
-  // std::vector<BoundaryVariable *>.push_back() in Hydro, Field, Gravity, PassiveScalars
+  // std::vector<BoundaryVariable *>.push_back() in ..
   bvars.reserve(3);
   // TOOD(KGF): rename to "bvars_time_int"? What about a std::vector for bvars_sts?
   bvars_main_int.reserve(2);
@@ -111,48 +106,11 @@ BoundaryValues::BoundaryValues(MeshBlock *pmb, BoundaryFlag *input_bcs,
   // Matches initial value of Mesh::next_phys_id_
   // reserve phys=0 for former TAG_AMR=8; now hard-coded in Mesh::CreateAMRMPITag()
   bvars_next_phys_id_ = 1;
-
-  // KGF: BVals constructor section only containing ALL shearing box-specific stuff
-  // set parameters for shearing box bc and allocate buffers
-  if (SHEARING_BOX) {
-    // TODO(felker): add checks on the requisite number of dimensions
-    // TODO(felker): move all of these to member initializer list of new shearing class
-    Omega_0_ = pin->GetOrAddReal("problem", "Omega0", 0.001);
-    qshear_  = pin->GetOrAddReal("problem", "qshear", 1.5);
-    ShBoxCoord_ = pin->GetOrAddInteger("problem", "shboxcoord", 1);
-    int level = pmb->loc.level - pmy_mesh_->root_level;
-    // nblx2 is only used for allocating SimpleNeighborBlock arrays; nblx1 for loc_shear
-    // TODO(felker): initialize loc_shear{0, pmy_mesh_->nrbx2*(1L << pmb->loc.level - ..)}
-    // in ctor member initializer list and update as refinement occurs. And nblx2
-    std::int64_t nblx1 = pmy_mesh_->nrbx1*(1L << level);
-    std::int64_t nblx2 = pmy_mesh_->nrbx2*(1L << level);
-    // is_shear{} in member init_list
-    is_shear[0] = false;
-    is_shear[1] = false;
-    loc_shear[0] = 0;
-    loc_shear[1] = nblx1 - 1;
-
-    if (ShBoxCoord_ == 1) {
-      int nc3 = pmb->ncells3;
-      ssize_ = NGHOST*nc3;
-      // TODO(KGF): much of this should be a part of InitBoundaryData()
-      for (int upper=0; upper<2; upper++) {
-        if (pmb->loc.lx1 == loc_shear[upper]) { // if true for shearing inner blocks
-          is_shear[upper] = true;
-          shbb_[upper] = new SimpleNeighborBlock[nblx2];
-        } // end "if is a shearing boundary"
-      }  // end loop over inner, outer shearing boundaries
-    } // end "if (ShBoxCoord_ == 1)"
-  } // end shearing box component of BoundaryValues ctor
 }
 
 // destructor
 
 BoundaryValues::~BoundaryValues() {
-  if (SHEARING_BOX) {
-    for (int upper=0; upper<2; upper++)
-      if (is_shear[upper]) delete[] shbb_[upper];
-  }
 }
 
 //----------------------------------------------------------------------------------------
@@ -185,31 +143,6 @@ void BoundaryValues::SetupPersistentMPI() {
     (*bvars_it)->SetupPersistentMPI();
   }
 
-  // KGF: begin exclusive shearing-box section in BoundaryValues::SetupPersistentMPI()
-  // initialize the shearing block lists
-  if (SHEARING_BOX) {
-    MeshBlock *pmb = pmy_block_;
-    int nbtotal = pmy_mesh_->nbtotal;
-    int *ranklist = pmy_mesh_->ranklist;
-    int *nslist = pmy_mesh_->nslist;
-    LogicalLocation *loclist = pmy_mesh_->loclist;
-
-    for (int upper=0; upper<2; upper++) {
-      int count = 0;
-      if (is_shear[upper]) {
-        for (int i=0; i<nbtotal; i++) {
-          if (loclist[i].lx1 == loc_shear[upper] && loclist[i].lx3 == pmb->loc.lx3 &&
-              loclist[i].level == pmb->loc.level) {
-            shbb_[upper][count].gid = i;
-            shbb_[upper][count].lid = i - nslist[ranklist[i]];
-            shbb_[upper][count].rank = ranklist[i];
-            shbb_[upper][count].level = loclist[i].level;
-            count++;
-          }
-        }
-      }
-    }
-  } // end KGF: exclusive shearing box portion of SetupPersistentMPI()
   return;
 }
 
@@ -252,39 +185,8 @@ void BoundaryValues::StartReceiving(BoundaryCommSubset phase) {
        ++bvars_it) {
     (*bvars_it)->StartReceiving(phase);
   }
-
-  // KGF: begin shearing-box exclusive section of original StartReceivingForInit()
-  // find send_block_id and recv_block_id;
-  if (SHEARING_BOX) {
-    StartReceivingShear(phase);
-  }
   return;
 }
-
-
-void BoundaryValues::StartReceivingShear(BoundaryCommSubset phase) {
-  switch (phase) {
-    case BoundaryCommSubset::mesh_init:
-      //FindShearBlock(pmy_mesh_->time);
-      break;
-    case BoundaryCommSubset::all:
-      // KGF: must pass "time" parameter from time_integrator.cpp
-      //FindShearBlock(time);
-
-      // KGF: cannot simply combine StartReceivingShear() at end of StartReceiving()
-      // (which is done for ClearBoundary), because the "shared"/non-virtual fn
-      // BoundaryValues::FindShearBlock() must be called in between 2x fns
-
-      // TODO(felker): consider calling FindShearBlock() at the beginning of this fn,
-      // which will allow the 2x StartReceiving() to be combined
-      for (auto bvar : bvars_main_int) {
-        bvar->StartReceivingShear(phase);
-      }
-      break;
-  }
-  return;
-}
-
 
 //----------------------------------------------------------------------------------------
 //! \fn void BoundaryValues::ClearBoundary(BoundaryCommSubset phase)
@@ -366,81 +268,20 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
   if (!apply_bndry_fn_[BoundaryFace::outer_x3] && pmb->block_size.nx3 > 1)
     bke = pmb->ke + NGHOST;
 
-  // KGF: temporarily hardcode Hydro and Field access for coupling in EOS U(W) + calc bcc
-  // and when passed to user-defined boundary function stored in function pointer array
-
-  // KGF: COUPLING OF QUANTITIES (must be manually specified)
-  // downcast BoundaryVariable ptrs to known derived class types: RTTI via dynamic_cast
-  HydroBoundaryVariable *phbvar = nullptr;
-  (void)phbvar;
-  Hydro *ph = nullptr;
-
-  if (FLUID_ENABLED) {
-    ph = pmb->phydro;
-    phbvar = dynamic_cast<HydroBoundaryVariable *>(bvars_main_int[0]);
-  }
-
-  // TODO(KGF): passing nullptrs (pf) if no MHD (coarse_* no longer in MeshRefinement)
-  // (may be fine to unconditionally directly set to pmb->pfield. See bvals_refine.cpp)
-
-  FaceCenteredBoundaryVariable *pfbvar = nullptr;
-  (void)pfbvar;
-  Field *pf = nullptr;
-  if (MAGNETIC_FIELDS_ENABLED) {
-    pf = pmb->pfield;
-    pfbvar = dynamic_cast<FaceCenteredBoundaryVariable *>(bvars_main_int[1]);
-  }
-  PassiveScalars *ps = nullptr;
-  if (NSCALARS > 0) {
-    ps = pmb->pscalars;
-  }
-
   // Apply boundary function on inner-x1 and update W,bcc (if not periodic)
   if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
     DispatchBoundaryFunctions(pmb, pco, time, dt,
                               pmb->is, pmb->ie, bjs, bje, bks, bke, NGHOST,
-                              ph->w, pf->b, BoundaryFace::inner_x1,
+                              BoundaryFace::inner_x1,
                               bvars_main_int);
-    // KGF: COUPLING OF QUANTITIES (must be manually specified)
-    if (MAGNETIC_FIELDS_ENABLED) {
-      pmb->pfield->CalculateCellCenteredField(pf->b, pf->bcc, pco,
-                                              pmb->is-NGHOST, pmb->is-1,
-                                              bjs, bje, bks, bke);
-    }
-
-    if (FLUID_ENABLED){
-      pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                      pmb->is-NGHOST, pmb->is-1, bjs, bje, bks, bke);
-    }
-
-    if (NSCALARS > 0) {
-      pmb->peos->PassiveScalarPrimitiveToConserved(
-        ps->r, ph->w, ps->s, pco, pmb->is-NGHOST, pmb->is-1, bjs, bje, bks, bke);
-    }
   }
 
   // Apply boundary function on outer-x1 and update W,bcc (if not periodic)
   if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
     DispatchBoundaryFunctions(pmb, pco, time, dt,
                               pmb->is, pmb->ie, bjs, bje, bks, bke, NGHOST,
-                              ph->w, pf->b, BoundaryFace::outer_x1,
+                              BoundaryFace::outer_x1,
                               bvars_main_int);
-    // KGF: COUPLING OF QUANTITIES (must be manually specified)
-    if (MAGNETIC_FIELDS_ENABLED) {
-      pmb->pfield->CalculateCellCenteredField(pf->b, pf->bcc, pco,
-                                              pmb->ie+1, pmb->ie+NGHOST,
-                                              bjs, bje, bks, bke);
-    }
-
-    if (FLUID_ENABLED) {
-      pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                      pmb->ie+1, pmb->ie+NGHOST, bjs, bje, bks, bke);
-    }
-
-    if (NSCALARS > 0) {
-      pmb->peos->PassiveScalarPrimitiveToConserved(
-        ps->r, ph->w, ps->s, pco, pmb->ie+1, pmb->ie+NGHOST, bjs, bje, bks, bke);
-    }
   }
 
   if (pmb->block_size.nx2 > 1) { // 2D or 3D
@@ -448,48 +289,16 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
     if (apply_bndry_fn_[BoundaryFace::inner_x2]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie, pmb->js, pmb->je, bks, bke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::inner_x2,
+                                BoundaryFace::inner_x2,
                                 bvars_main_int);
-      // KGF: COUPLING OF QUANTITIES (must be manually specified)
-      if (MAGNETIC_FIELDS_ENABLED) {
-        pmb->pfield->CalculateCellCenteredField(pf->b, pf->bcc, pco,
-                                                bis, bie, pmb->js-NGHOST, pmb->js-1,
-                                                bks, bke);
-      }
-
-      if (FLUID_ENABLED) {
-        pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                        bis, bie, pmb->js-NGHOST, pmb->js-1, bks, bke);
-      }
-
-      if (NSCALARS > 0) {
-        pmb->peos->PassiveScalarPrimitiveToConserved(
-            ps->r, ph->w, ps->s, pco, bis, bie, pmb->js-NGHOST, pmb->js-1, bks, bke);
-      }
     }
 
     // Apply boundary function on outer-x2 and update W,bcc (if not periodic)
     if (apply_bndry_fn_[BoundaryFace::outer_x2]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie, pmb->js, pmb->je, bks, bke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::outer_x2,
+                                BoundaryFace::outer_x2,
                                 bvars_main_int);
-      // KGF: COUPLING OF QUANTITIES (must be manually specified)
-      if (MAGNETIC_FIELDS_ENABLED) {
-        pmb->pfield->CalculateCellCenteredField(pf->b, pf->bcc, pco,
-                                                bis, bie, pmb->je+1, pmb->je+NGHOST,
-                                                bks, bke);
-      }
-
-      if (FLUID_ENABLED) {
-        pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                        bis, bie, pmb->je+1, pmb->je+NGHOST, bks, bke);
-      }
-
-      if (NSCALARS > 0) {
-        pmb->peos->PassiveScalarPrimitiveToConserved(
-          ps->r, ph->w, ps->s, pco, bis, bie, pmb->je+1, pmb->je+NGHOST, bks, bke);
-      }
     }
   }
 
@@ -501,48 +310,16 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
     if (apply_bndry_fn_[BoundaryFace::inner_x3]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie, bjs, bje, pmb->ks, pmb->ke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::inner_x3,
+                                BoundaryFace::inner_x3,
                                 bvars_main_int);
-      // KGF: COUPLING OF QUANTITIES (must be manually specified)
-      if (MAGNETIC_FIELDS_ENABLED) {
-        pmb->pfield->CalculateCellCenteredField(pf->b, pf->bcc, pco,
-                                                bis, bie, bjs, bje,
-                                                pmb->ks-NGHOST, pmb->ks-1);
-      }
-
-      if (FLUID_ENABLED) {
-        pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                        bis, bie, bjs, bje, pmb->ks-NGHOST, pmb->ks-1);
-      }
-
-      if (NSCALARS > 0) {
-        pmb->peos->PassiveScalarPrimitiveToConserved(
-            ps->r, ph->w, ps->s, pco, bis, bie, bjs, bje, pmb->ks-NGHOST, pmb->ks-1);
-      }
     }
 
     // Apply boundary function on outer-x3 and update W,bcc (if not periodic)
     if (apply_bndry_fn_[BoundaryFace::outer_x3]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie, bjs, bje, pmb->ks, pmb->ke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::outer_x3,
+                                BoundaryFace::outer_x3,
                                 bvars_main_int);
-      // KGF: COUPLING OF QUANTITIES (must be manually specified)
-      if (MAGNETIC_FIELDS_ENABLED) {
-        pmb->pfield->CalculateCellCenteredField(pf->b, pf->bcc, pco,
-                                                bis, bie, bjs, bje,
-                                                pmb->ke+1, pmb->ke+NGHOST);
-      }
-
-      if (FLUID_ENABLED) {
-      pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                      bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
-      }
-
-      if (NSCALARS > 0) {
-        pmb->peos->PassiveScalarPrimitiveToConserved(
-            ps->r, ph->w, ps->s, pco, bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
-      }
     }
   }
   return;
@@ -571,19 +348,11 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundaries(const Real time, cons
   if (!apply_bndry_fn_[BoundaryFace::outer_x3] && pmb->block_size.nx3 > 1)
     bke = pmb->kve + NGHOST;
 
-  // KGF: temporarily hardcode Hydro and Field access for coupling in EOS U(W) + calc bcc
-  // and when passed to user-defined boundary function stored in function pointer array
-
-  // KGF: COUPLING OF QUANTITIES (must be manually specified)
-  // downcast BoundaryVariable ptrs to known derived class types: RTTI via dynamic_cast
-  Hydro *ph = nullptr;
-  Field *pf = nullptr;
-
   // Apply boundary function on inner-x1 and update W,bcc (if not periodic)
   if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
     DispatchBoundaryFunctions(pmb, pco, time, dt,
                               pmb->ivs, pmb->ive, bjs, bje, bks, bke, NGHOST,
-                              ph->w, pf->b, BoundaryFace::inner_x1,
+                              BoundaryFace::inner_x1,
                               bvars_main_int_vc);
   }
 
@@ -591,7 +360,7 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundaries(const Real time, cons
   if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
     DispatchBoundaryFunctions(pmb, pco, time, dt,
                               pmb->ivs, pmb->ive, bjs, bje, bks, bke, NGHOST,
-                              ph->w, pf->b, BoundaryFace::outer_x1,
+                              BoundaryFace::outer_x1,
                               bvars_main_int_vc);
   }
 
@@ -600,7 +369,7 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundaries(const Real time, cons
     if (apply_bndry_fn_[BoundaryFace::inner_x2]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie, pmb->jvs, pmb->jve, bks, bke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::inner_x2,
+                                BoundaryFace::inner_x2,
                                 bvars_main_int_vc);
     }
 
@@ -608,7 +377,7 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundaries(const Real time, cons
     if (apply_bndry_fn_[BoundaryFace::outer_x2]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie, pmb->jvs, pmb->jve, bks, bke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::outer_x2,
+                                BoundaryFace::outer_x2,
                                 bvars_main_int_vc);
     }
   }
@@ -621,7 +390,7 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundaries(const Real time, cons
     if (apply_bndry_fn_[BoundaryFace::inner_x3]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie, bjs, bje, pmb->kvs, pmb->kve, NGHOST,
-                                ph->w, pf->b, BoundaryFace::inner_x3,
+                                BoundaryFace::inner_x3,
                                 bvars_main_int_vc);
     }
 
@@ -629,7 +398,7 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundaries(const Real time, cons
     if (apply_bndry_fn_[BoundaryFace::outer_x3]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie, bjs, bje, pmb->kvs, pmb->kve, NGHOST,
-                                ph->w, pf->b, BoundaryFace::outer_x3,
+                                BoundaryFace::outer_x3,
                                 bvars_main_int_vc);
     }
   }
@@ -654,19 +423,11 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const
   if (!apply_bndry_fn_[BoundaryFace::outer_x3] && pmb->block_size.nx3 > 1)
     bke = pmb->cx_ke + NGHOST;
 
-  // KGF: temporarily hardcode Hydro and Field access for coupling in EOS U(W) + calc bcc
-  // and when passed to user-defined boundary function stored in function pointer array
-
-  // KGF: COUPLING OF QUANTITIES (must be manually specified)
-  // downcast BoundaryVariable ptrs to known derived class types: RTTI via dynamic_cast
-  Hydro *ph = nullptr;
-  Field *pf = nullptr;
-
   // Apply boundary function on inner-x1 and update W,bcc (if not periodic)
   if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
     DispatchBoundaryFunctions(pmb, pco, time, dt,
                               pmb->cx_is, pmb->cx_ie, bjs, bje, bks, bke, NGHOST,
-                              ph->w, pf->b, BoundaryFace::inner_x1,
+                              BoundaryFace::inner_x1,
                               bvars_main_int_cx);
   }
 
@@ -674,7 +435,7 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const
   if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
     DispatchBoundaryFunctions(pmb, pco, time, dt,
                               pmb->cx_is, pmb->cx_ie, bjs, bje, bks, bke, NGHOST,
-                              ph->w, pf->b, BoundaryFace::outer_x1,
+                              BoundaryFace::outer_x1,
                               bvars_main_int_cx);
   }
 
@@ -683,7 +444,7 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const
     if (apply_bndry_fn_[BoundaryFace::inner_x2]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie, pmb->cx_js, pmb->cx_je, bks, bke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::inner_x2,
+                                BoundaryFace::inner_x2,
                                 bvars_main_int_cx);
     }
 
@@ -691,7 +452,7 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const
     if (apply_bndry_fn_[BoundaryFace::outer_x2]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie, pmb->cx_js, pmb->cx_je, bks, bke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::outer_x2,
+                                BoundaryFace::outer_x2,
                                 bvars_main_int_cx);
     }
   }
@@ -704,7 +465,7 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const
     if (apply_bndry_fn_[BoundaryFace::inner_x3]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie, bjs, bje, pmb->cx_ks, pmb->cx_ke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::inner_x3,
+                                BoundaryFace::inner_x3,
                                 bvars_main_int_cx);
     }
 
@@ -712,7 +473,7 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const
     if (apply_bndry_fn_[BoundaryFace::outer_x3]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie, bjs, bje, pmb->cx_ks, pmb->cx_ke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::outer_x3,
+                                BoundaryFace::outer_x3,
                                 bvars_main_int_cx);
     }
   }
@@ -724,10 +485,10 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const
 void BoundaryValues::DispatchBoundaryFunctions(
     MeshBlock *pmb, Coordinates *pco, Real time, Real dt,
     int il, int iu, int jl, int ju, int kl, int ku, int ngh,
-    AthenaArray<Real> &prim, FaceField &b, BoundaryFace face,
+    BoundaryFace face,
     std::vector<BoundaryVariable *> &bvars_main) {
   if (block_bcs[face] ==  BoundaryFlag::user) {  // user-enrolled BCs
-    pmy_mesh_->BoundaryFunction_[face](pmb, pco, prim, b, time, dt,
+    pmy_mesh_->BoundaryFunction_[face](pmb, pco, time, dt,
                                        il, iu, jl, ju, kl, ku, ngh);
   }
   // KGF: this is only to silence the compiler -Wswitch warnings about not handling the
@@ -848,219 +609,6 @@ void BoundaryValues::DispatchBoundaryFunctions(
     } // end switch (block_bcs[face])
   } // end loop over BoundaryVariable *
 }
-
-
-//--------------------------------------------------------------------------------------
-//! \fn void BoundaryValues::ComputeShear(const Real time)
-//  \brief Calculate the following quantities:
-//  send_gid recv_gid send_lid recv_lid send_rank recv_rank,
-//  send_size_hydro  recv_size_hydro: for MPI_Irecv
-//  eps_,joverlap_: for update the conservative
-
-// TODO(felker): consider breaking up this ~200 (originally 400)line function:
-
-void BoundaryValues::ComputeShear(const Real time) {
-  MeshBlock *pmb = pmy_block_;
-  Coordinates *pco = pmb->pcoord;
-  Mesh *pmesh = pmb->pmy_mesh;
-  int nx2 = pmb->block_size.nx2;
-  int js = pmb->js; int je = pmb->je;
-
-  int level = pmb->loc.level - pmesh->root_level;
-  // TODO(felker): share nblx2 with ctor?
-  std::int64_t nblx2 = pmesh->nrbx2*(1L << level);
-
-  // Update the amount of shear:
-  Real x1size = pmy_mesh_->mesh_size.x1max - pmy_mesh_->mesh_size.x1min;
-  Real x2size = pmy_mesh_->mesh_size.x2max - pmy_mesh_->mesh_size.x2min;
-  qomL_ = qshear_*Omega_0_*x1size;
-  Real yshear = qomL_*time;
-  Real deltay = std::fmod(yshear, x2size);
-  int joffset = static_cast<int>(deltay/pco->dx2v(js)); // assumes uniform grid in azimuth
-  int Ngrids  = static_cast<int>(joffset/nx2);
-  joverlap_   = joffset - Ngrids*nx2;
-  eps_ = (std::fmod(deltay, pco->dx2v(js)))/pco->dx2v(js);
-
-  // TODO(felker): generalize from inner case. If upper==1, swap all send/recv arrays:
-  // shear_send_neighbor_[][], shear_recv_neighbor_[][]
-  // shear_send_count_*_ / shear_recv_count_*_
-  for (int upper=0; upper<2; upper++) {
-    if (is_shear[upper]) {
-      int *counts1 = shear_send_count_[upper];
-      int *counts2 = shear_recv_count_[upper];
-      SimpleNeighborBlock *nb1 = shear_send_neighbor_[upper];
-      SimpleNeighborBlock *nb2 = shear_recv_neighbor_[upper];
-      // permute the 2x pairs of send/recv variables if we are at the outer shear boundary
-      if (upper) {
-        std::swap(counts1, counts2);
-        std::swap(nb1, nb2);
-      }
-
-      for (int n=0; n<4; n++) {
-        nb1[n].gid  = -1;
-        nb1[n].lid  = -1;
-        nb1[n].rank  = -1;
-
-        nb2[n].gid  = -1;
-        nb2[n].lid  = -1;
-        nb2[n].rank  = -1;
-
-        counts1[n] = 0;
-        counts2[n] = 0;
-      }
-
-      int jblock = 0;
-      for (int j=0; j<nblx2; j++) {
-        // find global index of current MeshBlock on the shearing boundary block list
-        if (shbb_[upper][j].gid == pmb->gid) jblock = j;
-      }
-      // send [js-NGHOST:je-joverlap] of the current MeshBlock to the shearing neighbor
-      // attach [je-joverlap+1:MIN(je-joverlap + NGHOST, je-js+1)] to its right end.
-      std::int64_t jtmp = jblock + Ngrids;
-      if (jtmp > (nblx2 - 1)) jtmp -= nblx2;
-      // TODO(felker): replace this with C++ copy semantics (also copy shbb_.level!):
-      nb1[1].gid  = shbb_[upper][jtmp].gid;
-      nb1[1].rank = shbb_[upper][jtmp].rank;
-      nb1[1].lid  = shbb_[upper][jtmp].lid;
-
-      int nx_attach = std::min(je - js - joverlap_ + 1 + NGHOST, je -js + 1);
-      // KGF: ssize_=NGHOST*nc3 is unset if ShBoxCoord==2. Is this fine?
-      // all counts are scaled by (nu_+1) e.g. NHYDRO in cc/
-      counts1[1] = nx_attach;
-
-      // recv [js+joverlap:je] of the current MeshBlock to the shearing neighbor
-      // attach [je+1:MIN(je+NGHOST, je+joverlap)] to its right end.
-      jtmp = jblock - Ngrids;
-      if (jtmp < 0) jtmp += nblx2;
-      nb2[1].gid  = shbb_[upper][jtmp].gid;
-      nb2[1].rank = shbb_[upper][jtmp].rank;
-      nb2[1].lid  = shbb_[upper][jtmp].lid;
-
-      counts2[1] = nx_attach;
-
-      // KGF: what is going on in the above code (since the end of the "for" loop)?
-
-      // if there is overlap to next blocks
-      if (joverlap_ != 0) {
-        // COMMENT SYNTAX: inner then outer (x1) boundaries
-        // send to the right
-        // recv from the right
-        jtmp = jblock + (Ngrids + 1);
-        if (jtmp > (nblx2 - 1)) jtmp -= nblx2;
-        nb1[0].gid  = shbb_[upper][jtmp].gid;
-        nb1[0].rank = shbb_[upper][jtmp].rank;
-        nb1[0].lid  = shbb_[upper][jtmp].lid;
-
-        int nx_exchange = std::min(joverlap_+NGHOST, je -js + 1);
-        counts1[0] = nx_exchange;
-
-        // receive from its left
-        // send to its left
-        jtmp = jblock - (Ngrids + 1);
-        if (jtmp < 0) jtmp += nblx2;
-        nb2[0].gid  = shbb_[upper][jtmp].gid;
-        nb2[0].rank = shbb_[upper][jtmp].rank;
-        nb2[0].lid  = shbb_[upper][jtmp].lid;
-
-        counts2[0] = nx_exchange;
-
-        // deal the left boundary cells with send[2]
-        if (joverlap_ > (nx2 - NGHOST)) {
-          // send to Right
-          // send to left
-          jtmp = jblock + (Ngrids + 2);
-          while (jtmp > (nblx2 - 1)) jtmp -= nblx2;
-          nb1[2].gid  = shbb_[upper][jtmp].gid;
-          nb1[2].rank = shbb_[upper][jtmp].rank;
-          nb1[2].lid  = shbb_[upper][jtmp].lid;
-
-          int nx_exchange_left = joverlap_ - (nx2 - NGHOST);
-          counts1[2] = nx_exchange_left;
-
-          // recv from Left
-          // send to right
-          jtmp = jblock - (Ngrids + 2);
-          while (jtmp < 0) jtmp += nblx2;
-          nb2[2].gid  = shbb_[upper][jtmp].gid;
-          nb2[2].rank = shbb_[upper][jtmp].rank;
-          nb2[2].lid  = shbb_[upper][jtmp].lid;
-
-          counts2[2] = nx_exchange_left;
-        }
-        // deal with the right boundary cells with send[3]
-        if (joverlap_ < NGHOST) {
-          jtmp = jblock + (Ngrids - 1);
-          while (jtmp > (nblx2 - 1)) jtmp -= nblx2;
-          while (jtmp < 0) jtmp += nblx2;
-          nb1[3].gid  = shbb_[upper][jtmp].gid;
-          nb1[3].rank = shbb_[upper][jtmp].rank;
-          nb1[3].lid  = shbb_[upper][jtmp].lid;
-
-          int nx_exchange_right = NGHOST - joverlap_;
-          counts1[3] = nx_exchange_right;
-
-          jtmp = jblock - (Ngrids - 1);
-          while (jtmp > (nblx2 - 1)) jtmp -= nblx2;
-          while (jtmp < 0) jtmp += nblx2;
-          nb2[3].gid  = shbb_[upper][jtmp].gid;
-          nb2[3].rank = shbb_[upper][jtmp].rank;
-          nb2[3].lid  = shbb_[upper][jtmp].lid;
-
-          counts2[3] = nx_exchange_right;
-        }
-      } else {  // joverlap_ == 0
-        // send [je-(NGHOST-1):je] to Right (outer x2)
-        // recv [je + 1:je+NGHOST] from Left
-        jtmp = jblock + (Ngrids + 1);
-        while (jtmp > (nblx2 - 1)) jtmp -= nblx2;
-        nb1[2].gid  = shbb_[upper][jtmp].gid;
-        nb1[2].rank = shbb_[upper][jtmp].rank;
-        nb1[2].lid  = shbb_[upper][jtmp].lid;
-
-        int nx_exchange = NGHOST;
-        counts1[2] = nx_exchange;
-
-        // recv [js-NGHOST:js-1] from Left
-        // send [js:js+NGHOST-1] to Right
-        jtmp = jblock - (Ngrids + 1);
-        while (jtmp < 0) jtmp += nblx2;
-        nb2[2].gid  = shbb_[upper][jtmp].gid;
-        nb2[2].rank = shbb_[upper][jtmp].rank;
-        nb2[2].lid  = shbb_[upper][jtmp].lid;
-
-        counts2[2] = nx_exchange;
-
-        // send [js:js+(NGHOST-1)] to Left (inner x2)
-        // recv [js-NGHOST:js-1] from Left
-        jtmp = jblock + (Ngrids - 1);
-        while (jtmp > (nblx2 - 1)) jtmp -= nblx2;
-        while (jtmp < 0) jtmp += nblx2;
-        nb1[3].gid  = shbb_[upper][jtmp].gid;
-        nb1[3].rank = shbb_[upper][jtmp].rank;
-        nb1[3].lid  = shbb_[upper][jtmp].lid;
-
-        counts1[3] = nx_exchange;
-
-        // recv [je + 1:je+(NGHOST-1)] from Right (outer x2)
-        // send [je-(NGHOST-1):je] to Right
-        jtmp = jblock - (Ngrids - 1);
-        while (jtmp > (nblx2 - 1)) jtmp -= nblx2;
-        while (jtmp < 0) jtmp += nblx2;
-        nb2[3].gid  = shbb_[upper][jtmp].gid;
-        nb2[3].rank = shbb_[upper][jtmp].rank;
-        nb2[3].lid  = shbb_[upper][jtmp].lid;
-
-        counts2[3] = nx_exchange;
-      }
-    }
-  } // end loop over inner, outer shearing boundaries
-
-  for (auto bvar : bvars_main_int) {
-    bvar->ComputeShear(time);
-  }
-  return;
-}
-
 
 // Public function, to be called in MeshBlock ctor for keeping MPI tag bitfields
 // consistent across MeshBlocks, even if certain MeshBlocks only construct a subset of

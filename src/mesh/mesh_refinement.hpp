@@ -32,11 +32,9 @@ using namespace numprox::interpolation;
 class MeshBlock;
 class ParameterInput;
 class Coordinates;
-struct FaceField;
 class BoundaryValues;
 class FaceCenteredBoundaryVariable;
 class VertexCenteredBoundaryVariable;
-class HydroBoundaryVariable;
 
 //----------------------------------------------------------------------------------------
 //! \class MeshRefinement
@@ -56,13 +54,6 @@ class MeshRefinement {
   void RestrictCellCenteredValues(const AthenaArray<Real> &fine,
                                   AthenaArray<Real> &coarse, int sn, int en,
                                   int csi, int cei, int csj, int cej, int csk, int cek);
-  void RestrictFieldX1(const AthenaArray<Real> &fine, AthenaArray<Real> &coarse,
-                       int csi, int cei, int csj, int cej, int csk, int cek);
-  void RestrictFieldX2(const AthenaArray<Real> &fine, AthenaArray<Real> &coarse,
-                       int csi, int cei, int csj, int cej, int csk, int cek);
-  void RestrictFieldX3(const AthenaArray<Real> &fine, AthenaArray<Real> &coarse,
-                       int csi, int cei, int csj, int cej, int csk, int cek);
-
   void RestrictVertexCenteredValues(const AthenaArray<Real> &fine,
                                     AthenaArray<Real> &coarse, int sn, int en,
                                     int csi, int cei, int csj, int cej, int csk, int cek);
@@ -74,14 +65,6 @@ class MeshRefinement {
   void ProlongateCellCenteredValues(const AthenaArray<Real> &coarse,
                                     AthenaArray<Real> &fine, int sn, int en,
                                     int si, int ei, int sj, int ej, int sk, int ek);
-  void ProlongateSharedFieldX1(const AthenaArray<Real> &coarse, AthenaArray<Real> &fine,
-                               int si, int ei, int sj, int ej, int sk, int ek);
-  void ProlongateSharedFieldX2(const AthenaArray<Real> &coarse, AthenaArray<Real> &fine,
-                               int si, int ei, int sj, int ej, int sk, int ek);
-  void ProlongateSharedFieldX3(const AthenaArray<Real> &coarse, AthenaArray<Real> &fine,
-                               int si, int ei, int sj, int ej, int sk, int ek);
-  void ProlongateInternalField(FaceField &fine,
-                               int si, int ei, int sj, int ej, int sk, int ek);
 
   void ProlongateVertexCenteredValues(const AthenaArray<Real> &coarse,
                                       AthenaArray<Real> &fine, int sn, int en,
@@ -122,19 +105,15 @@ class MeshRefinement {
   int AddToRefinementCC(AthenaArray<Real> *pvar_in, AthenaArray<Real> *pcoarse_in);
   int AddToRefinementVC(AthenaArray<Real> *pvar_in, AthenaArray<Real> *pcoarse_in);
   int AddToRefinementCX(AthenaArray<Real> *pvar_in, AthenaArray<Real> *pcoarse_in);
-  int AddToRefinementFC(FaceField *pvar_fc, FaceField *pcoarse_fc);
 
   // as above but for use with auxiliary task list
   int AddToRefinementAuxCC(AthenaArray<Real> *pvar_in, AthenaArray<Real> *pcoarse_in);
   int AddToRefinementAuxVC(AthenaArray<Real> *pvar_in, AthenaArray<Real> *pcoarse_in);
   int AddToRefinementAuxCX(AthenaArray<Real> *pvar_in, AthenaArray<Real> *pcoarse_in);
-  int AddToRefinementAuxFC(FaceField *pvar_fc, FaceField *pcoarse_fc);
 
   // switch internal pvars_X_ <-> pvars_aux_X_
   void SwapRefinementAux();
 
-  // for switching first entry in pvars_cc_ to/from: (w, coarse_prim); (u, coarse_cons_)
-  void SetHydroRefinement(HydroBoundaryQuantity hydro_type);
 
   //SB (from matter_tracker_extrema)
   //--- BD debug: shift back to private, this is for testing wave eqn.
@@ -166,14 +145,12 @@ class MeshRefinement {
 
   // tuples of references to AMR-enrolled arrays (quantity, coarse_quantity)
   std::vector<std::tuple<AthenaArray<Real> *, AthenaArray<Real> *>> pvars_cc_;
-  std::vector<std::tuple<FaceField *, FaceField *>> pvars_fc_;
   std::vector<std::tuple<AthenaArray<Real> *, AthenaArray<Real> *>> pvars_vc_;
   std::vector<std::tuple<AthenaArray<Real> *, AthenaArray<Real> *>> pvars_cx_;
 
   // for aux. lists
   std::vector<std::tuple<AthenaArray<Real> *,
                          AthenaArray<Real> *>> pvars_aux_cc_;
-  std::vector<std::tuple<FaceField *, FaceField *>> pvars_aux_fc_;
   std::vector<std::tuple<AthenaArray<Real> *,
                          AthenaArray<Real> *>> pvars_aux_vc_;
   std::vector<std::tuple<AthenaArray<Real> *,

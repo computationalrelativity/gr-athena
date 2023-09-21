@@ -125,9 +125,6 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   void StartReceiving(BoundaryCommSubset phase) final;
   void ClearBoundary(BoundaryCommSubset phase) final;
 
-  void StartReceivingShear(BoundaryCommSubset phase) final;
-  void ComputeShear(const Real time) final;
-
   // non-inhertied / unique functions (do not exist in BoundaryVariable objects):
   // (these typically involve a coupled interaction of boundary variable/quantities)
   // ------
@@ -154,10 +151,6 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   // Interface to deal with garbage interface...
   void ApplyPhysicalBoundariesAux(const Real time, const Real dt);
 
-  // compute the shear at each integrator stage
-  // TODO(felker): consider making this fn private again if calling within StartRecv()
-  void FindShearBlock(const Real time);
-
   // safety check of user's boundary fns in Mesh::Initialize before SetupPersistentMPI()
   void CheckUserBoundaries();
 
@@ -180,26 +173,6 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   // local counter for generating unique MPI tags for per-MeshBlock BoundaryVariable
   // communication (subset of Mesh::next_phys_id_)
   int bvars_next_phys_id_;
-
-  // Shearing box (shared with Field and Hydro)
-  // KGF: remove the redundancies in these variables:
-  Real Omega_0_, qshear_;       // orbital freq and shear rate
-  int ShBoxCoord_;              // shearcoordinate type: 1 = xy (default), 2 = xz
-  int joverlap_;                // # of cells the shear runs over one block
-  Real ssize_;                  // # of ghost cells in x-z plane
-  Real eps_;                    // fraction part of the shear
-  Real qomL_;
-
-  // it is possible for a MeshBlock to have is_shear={true, true}, if it is the only block
-  // along x1
-  bool is_shear[2]; // inner_x1=0, outer_x1=1
-  SimpleNeighborBlock *shbb_[2];
-  std::int64_t loc_shear[2];  // x1 LogicalLocation of block(s) on inner/outer shear bndry
-
-  // KGF: why 4x? shouldn't in only require +/-1 MeshBlock along the shear, aka 3x?
-  // KGF: fold 4x arrays into 2x 2D array of structs (combine recv/send); inner=0, outer=1
-  SimpleNeighborBlock shear_send_neighbor_[2][4], shear_recv_neighbor_[2][4];
-  int shear_send_count_[2][4], shear_recv_count_[2][4];
 
   // ProlongateBoundaries() wraps the following S/AMR-operations (within nneighbor loop):
   // (the next function is also called within 3x nested loops over nk,nj,ni)
@@ -237,7 +210,7 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   void DispatchBoundaryFunctions(
       MeshBlock *pmb, Coordinates *pco, Real time, Real dt,
       int il, int iu, int jl, int ju, int kl, int ku, int ngh,
-      AthenaArray<Real> &prim, FaceField &b, BoundaryFace face,
+      BoundaryFace face,
       std::vector<BoundaryVariable *> &bvars_main);
 
   void CheckPolarBoundaries();  // called in BoundaryValues() ctor
@@ -254,6 +227,5 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   friend class CellCenteredBoundaryVariable;
   friend class CellCenteredXBoundaryVariable;
   friend class VertexCenteredBoundaryVariable;
-  friend class HydroBoundaryVariable;  // needed for shearing box quantities
 };
 #endif // BVALS_BVALS_HPP_

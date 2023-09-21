@@ -14,7 +14,6 @@
 #include "../../athena.hpp"
 #include "../../athena_arrays.hpp"
 #include "bvals_cx.hpp"
-#include "../../z4c/z4c.hpp"
 
 //----------------------------------------------------------------------------------------
 //! \fn void CellCenteredXBoundaryVariable::ReflectInnerX1(
@@ -25,19 +24,12 @@ void CellCenteredXBoundaryVariable::ReflectInnerX1(
     Real time, Real dt, int il, int jl, int ju, int kl, int ku, int ngh) {
   for (int n=0; n<=nu_; ++n)
   {
-    const int ph = (n == (Z4c::I_Z4c_gxy)  ||
-                    n == (Z4c::I_Z4c_gxz)  ||
-                    n == (Z4c::I_Z4c_Axy)  ||
-                    n == (Z4c::I_Z4c_Axz)  ||
-                    n == (Z4c::I_Z4c_Gamx) ||
-                    n == (Z4c::I_Z4c_betax)  ) ? -1 : 1;
-
     for (int k=kl; k<=ku; ++k)
     for (int j=jl; j<=ju; ++j)
 #pragma omp simd
     for (int i=1; i<=ngh; ++i)
     {
-      (*var_cx)(n,k,j,il-i) = ph * (*var_cx)(n,k,j,(il+i-1));
+      (*var_cx)(n,k,j,il-i) = (*var_cx)(n,k,j,(il+i-1));
     }
   }
   return;
@@ -72,19 +64,12 @@ void CellCenteredXBoundaryVariable::ReflectInnerX2(
     Real time, Real dt, int il, int iu, int jl, int kl, int ku, int ngh) {
   for (int n=0; n<=nu_; ++n)
   {
-    const int ph = (n == (Z4c::I_Z4c_gxy)  ||
-                    n == (Z4c::I_Z4c_gyz)  ||
-                    n == (Z4c::I_Z4c_Axy)  ||
-                    n == (Z4c::I_Z4c_Ayz)  ||
-                    n == (Z4c::I_Z4c_Gamy) ||
-                    n == (Z4c::I_Z4c_betay)  ) ? -1 : 1;
-
     for (int k=kl; k<=ku; ++k)
     for (int j=1; j<=ngh; ++j)
 #pragma omp simd
     for (int i=il; i<=iu; ++i)
     {
-      (*var_cx)(n,k,jl-j,i) = ph * (*var_cx)(n,k,jl+j-1,i);
+      (*var_cx)(n,k,jl-j,i) = (*var_cx)(n,k,jl+j-1,i);
     }
   }
   return;
@@ -119,19 +104,12 @@ void CellCenteredXBoundaryVariable::ReflectInnerX3(
     Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ngh) {
   for (int n=0; n<=nu_; ++n)
   {
-    const int ph = (n == (Z4c::I_Z4c_gxz)  ||
-                    n == (Z4c::I_Z4c_gyz)  ||
-                    n == (Z4c::I_Z4c_Axz)  ||
-                    n == (Z4c::I_Z4c_Ayz)  ||
-                    n == (Z4c::I_Z4c_Gamz) ||
-                    n == (Z4c::I_Z4c_betaz)  ) ? -1 : 1;
-
     for (int k=1; k<=ngh; ++k)
     for (int j=jl; j<=ju; ++j)
 #pragma omp simd
     for (int i=il; i<=iu; ++i)
     {
-      (*var_cx)(n,kl-k,j,i) = ph * (*var_cx)(n,kl+k-1,j,i);
+      (*var_cx)(n,kl-k,j,i) = (*var_cx)(n,kl+k-1,j,i);
     }
   }
 

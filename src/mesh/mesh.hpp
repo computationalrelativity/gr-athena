@@ -41,26 +41,9 @@ class FaceCenteredBoundaryVariable;
 class TaskList;
 struct TaskStates;
 class Coordinates;
-class Reconstruction;
-class Hydro;
-class Field;
-class PassiveScalars;
-class Gravity;
-class EquationOfState;
 class Wave;
-class Z4c;
-class WaveExtract;
-class AHF;
-#if CCE_ENABLED
-class CCE;
-#endif
-class WaveExtractLocal;
-class PunctureTracker;
 class ExtremaTracker;
 class ExtremaTrackerLocal;
-
-
-FluidFormulation GetFluidFormulation(const std::string& input_string);
 
 //----------------------------------------------------------------------------------------
 //! \class MeshBlock
@@ -73,12 +56,10 @@ class MeshBlock {
   friend class VertexCenteredBoundaryVariable;
   friend class FaceCenteredBoundaryVariable;
   friend class Mesh;
-  friend class Hydro;
   friend class TaskList;
 #ifdef HDF5OUTPUT
   friend class ATHDF5Output;
 #endif
-  friend class Z4c;
   friend class Wave;
 
 public:
@@ -211,20 +192,10 @@ public:
   // mesh-related objects
   Coordinates *pcoord;
   BoundaryValues *pbval;
-  Reconstruction *precon;
   MeshRefinement *pmr;
 
   // physics-related objects (possibly containing their derived bvals classes)
-  Hydro *phydro;
-  Field *pfield;
-  PassiveScalars *pscalars;
-  EquationOfState *peos;
-
   Wave *pwave;
-
-  Z4c *pz4c;
-  std::vector<WaveExtractLocal *> pwave_extr_loc;
-
   ExtremaTrackerLocal * ptracker_extrema_loc;
 
   MeshBlock *prev, *next;
@@ -238,8 +209,6 @@ public:
                      AthenaArray<Real> &u_in2, const Real wght[3]);
   void WeightedAveVC(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
                      AthenaArray<Real> &u_in2, const Real wght[3]);
-  void WeightedAveFC(FaceField &b_out, FaceField &b_in1, FaceField &b_in2,
-                     const Real wght[3]);
   void WeightedAveCX(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
                      AthenaArray<Real> &u_in2, const Real wght[3]);
 
@@ -248,7 +217,6 @@ public:
   // that data are used for (1) load balancing (2) (future) dumping to restart file
   void RegisterMeshBlockDataCC(AthenaArray<Real> &pvar_in);
   void RegisterMeshBlockDataVC(AthenaArray<Real> &pvar_in);
-  void RegisterMeshBlockDataFC(FaceField &pvar_fc);
   void RegisterMeshBlockDataCX(AthenaArray<Real> &pvar_in);
 
   // defined in either the prob file or default_pgen.cpp in ../pgen/
@@ -275,7 +243,6 @@ private:
   TaskStates tasks;
   int nreal_user_meshblock_data_, nint_user_meshblock_data_;
   std::vector<std::reference_wrapper<AthenaArray<Real>>> vars_cc_;
-  std::vector<std::reference_wrapper<FaceField>> vars_fc_;
   std::vector<std::reference_wrapper<AthenaArray<Real>>> vars_vc_;
   std::vector<std::reference_wrapper<AthenaArray<Real>>> vars_cx_;
 
@@ -338,15 +305,10 @@ class Mesh {
   friend class FaceCenteredBoundaryVariable;
   friend class Coordinates;
   friend class MeshRefinement;
-  friend class HydroSourceTerms;
-  friend class Hydro;
-  friend class HydroDiffusion;
-  friend class FieldDiffusion;
 #ifdef HDF5OUTPUT
   friend class ATHDF5Output;
 #endif
   friend class Z4c;
-  friend class PunctureTracker;
   friend class ExtremaTracker;
 
  public:
@@ -368,7 +330,6 @@ class Mesh {
   const bool f2, f3; // flags indicating (at least) 2D or 3D Mesh
   const int ndim;     // number of dimensions
   const bool adaptive, multilevel;
-  const FluidFormulation fluid_setup;
   Real start_time, time, tlim, dt, dt_hyperbolic, dt_parabolic, dt_user, cfl_number;
   int nlim, ncycle, ncycle_out, dt_diagnostics;
   Real muj, nuj, muj_tilde;
@@ -376,17 +337,10 @@ class Mesh {
 
   int step_since_lb;
   int gflag;
-  EosTable *peos_table;
 
   // ptr to first MeshBlock (node) in linked list of blocks belonging to this MPI rank:
   MeshBlock *pblock;
 
-  std::vector<WaveExtract *> pwave_extr;
-  std::vector<AHF *> pah_finder;
-#if CCE_ENABLED
-  std::vector<CCE *> pcce;
-#endif
-  std::vector<PunctureTracker *> pz4c_tracker;
   ExtremaTracker * ptracker_extrema;
 
   AthenaArray<Real> *ruser_mesh_data;
@@ -453,13 +407,9 @@ class Mesh {
   MeshGenFunc MeshGenerator_[3];
   BValFunc BoundaryFunction_[6];
   AMRFlagFunc AMRFlag_;
-  SrcTermFunc UserSourceTerm_;
   TimeStepFunc UserTimeStep_;
   HistoryOutputFunc *user_history_func_;
   MetricFunc UserMetric_;
-  ViscosityCoeffFunc ViscosityCoeff_;
-  ConductionCoeffFunc ConductionCoeff_;
-  FieldDiffusionCoeffFunc FieldDiffusivity_;
 
   void AllocateRealUserMeshDataField(int n);
   void AllocateIntUserMeshDataField(int n);
@@ -501,15 +451,11 @@ class Mesh {
 
   void EnrollUserRefinementCondition(AMRFlagFunc amrflag);
   void EnrollUserMeshGenerator(CoordinateDirection dir, MeshGenFunc my_mg);
-  void EnrollUserExplicitSourceFunction(SrcTermFunc my_func);
   void EnrollUserTimeStepFunction(TimeStepFunc my_func);
   void AllocateUserHistoryOutput(int n);
   void EnrollUserHistoryOutput(int i, HistoryOutputFunc my_func, const char *name,
                                UserHistoryOperation op=UserHistoryOperation::sum);
   void EnrollUserMetric(MetricFunc my_func);
-  void EnrollViscosityCoefficient(ViscosityCoeffFunc my_func);
-  void EnrollConductionCoefficient(ConductionCoeffFunc my_func);
-  void EnrollFieldDiffusivity(FieldDiffusionCoeffFunc my_func);
 };
 
 

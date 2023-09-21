@@ -19,9 +19,7 @@
 // Athena++ headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
-#include "../field/field.hpp"
 #include "../globals.hpp"
-#include "../hydro/hydro.hpp"
 #include "../utils/buffer_utils.hpp"
 #include "mesh.hpp"
 #include "mesh_refinement.hpp"
@@ -452,7 +450,6 @@ void Mesh::RedistributeAndRefineMeshBlocks(ParameterInput *pin, int ntot) {
   // pb->pmr->pvars_cc/fc_ v point to the same objects, if adaptive
 
   // int num_cc = pblock->pmr->pvars_cc_.size();
-  int num_fc = pblock->vars_fc_.size();
   int nx4_tot = 0;
   for (AthenaArray<Real> &var_cc : pblock->vars_cc_) {
     nx4_tot += var_cc.GetDim4();
@@ -515,16 +512,6 @@ void Mesh::RedistributeAndRefineMeshBlocks(ParameterInput *pin, int ntot) {
     (hbnx3 + 2 * ndg3)
   );
   bsf2c += hbnx1 * hbnx2 * hbnx3 * nx4_vc_tot;
-
-  // face-centered quantities enrolled in SMR/AMR -----------------------------
-  bssame += num_fc*((bnx1 + 1)*bnx2*bnx3 + bnx1*(bnx2 + f2)*bnx3
-                    + bnx1*bnx2*(bnx3 + f3));
-  bsf2c += num_fc*(((bnx1/2) + 1)*((bnx2 + 1)/2)*((bnx3 + 1)/2)
-                   + (bnx1/2)*(((bnx2 + 1)/2) + f2)*((bnx3 + 1)/2)
-                   + (bnx1/2)*((bnx2 + 1)/2)*(((bnx3 + 1)/2) + f3));
-  bsc2f += num_fc*(((bnx1/2) + 1 + 2)*((bnx2 + 1)/2 + 2*f2)*((bnx3 + 1)/2 + 2*f3)
-                   + (bnx1/2 + 2)*(((bnx2 + 1)/2) + f2 + 2*f2)*((bnx3 + 1)/2 + 2*f3)
-                   + (bnx1/2 + 2)*((bnx2 + 1)/2 + 2*f2)*(((bnx3 + 1)/2) + f3 + 2*f3));
 
   // add one more element to buffer size for storing the derefinement counter
   bssame++;
@@ -797,23 +784,6 @@ void Mesh::PrepareSendSameLevel(MeshBlock* pb, Real *sendbuf) {
                             pb->kvs, pb->kve, p);
   }
 
-  // face-centered ------------------------------------------------------------
-  for (FaceField &var_fc : pb->vars_fc_) {
-    BufferUtility::PackData(var_fc.x1f, sendbuf,
-                            pb->is, pb->ie+1,
-                            pb->js, pb->je,
-                            pb->ks, pb->ke, p);
-    BufferUtility::PackData(var_fc.x2f, sendbuf,
-                            pb->is, pb->ie,
-                            pb->js, pb->je+f2,
-                            pb->ks, pb->ke, p);
-    BufferUtility::PackData(var_fc.x3f, sendbuf,
-                            pb->is, pb->ie,
-                            pb->js, pb->je,
-                            pb->ks, pb->ke+f3, p);
-  }
-
-
   // WARNING(felker): casting from "Real *" to "int *" in order to append single integer
   // to send buffer is slightly unsafe (especially if sizeof(int) > sizeof(Real))
   if (adaptive) {
@@ -973,17 +943,6 @@ void Mesh::PrepareSendCoarseToFineAMR(MeshBlock* pb, Real *sendbuf,
                             vc_kl, vc_ku, p);
   }
 
-  // face-centered ------------------------------------------------------------
-  for (auto fc_pair : pb->pmr->pvars_fc_) {
-    FaceField *var_fc = std::get<0>(fc_pair);
-    BufferUtility::PackData((*var_fc).x1f, sendbuf,
-                            il, iu+1, jl, ju, kl, ku, p);
-    BufferUtility::PackData((*var_fc).x2f, sendbuf,
-                            il, iu, jl, ju+f2, kl, ku, p);
-    BufferUtility::PackData((*var_fc).x3f, sendbuf,
-                            il, iu, jl, ju, kl, ku+f3, p);
-  }
-
   return;
 }
 
@@ -1042,37 +1001,6 @@ void Mesh::PrepareSendFineToCoarseAMR(MeshBlock* pb, Real *sendbuf) {
                             pb->ckvs, pb->ckve, p);
 
   }
-
-  // face-centered ------------------------------------------------------------
-  for (auto fc_pair : pb->pmr->pvars_fc_) {
-    FaceField *var_fc = std::get<0>(fc_pair);
-    FaceField *coarse_fc = std::get<1>(fc_pair);
-    pmr->RestrictFieldX1((*var_fc).x1f, (*coarse_fc).x1f,
-                         pb->cis, pb->cie+1,
-                         pb->cjs, pb->cje,
-                         pb->cks, pb->cke);
-    BufferUtility::PackData((*coarse_fc).x1f, sendbuf,
-                            pb->cis, pb->cie+1,
-                            pb->cjs, pb->cje,
-                            pb->cks, pb->cke, p);
-    pmr->RestrictFieldX2((*var_fc).x2f, (*coarse_fc).x2f,
-                         pb->cis, pb->cie,
-                         pb->cjs, pb->cje+f2,
-                         pb->cks, pb->cke);
-    BufferUtility::PackData((*coarse_fc).x2f, sendbuf,
-                            pb->cis, pb->cie,
-                            pb->cjs, pb->cje+f2,
-                            pb->cks, pb->cke, p);
-    pmr->RestrictFieldX3((*var_fc).x3f, (*coarse_fc).x3f,
-                         pb->cis, pb->cie,
-                         pb->cjs, pb->cje,
-                         pb->cks, pb->cke+f3);
-    BufferUtility::PackData((*coarse_fc).x3f, sendbuf,
-                            pb->cis, pb->cie,
-                            pb->cjs, pb->cje,
-                            pb->cks, pb->cke+f3, p);
-  }
-
 
   return;
 }
@@ -1185,59 +1113,6 @@ void Mesh::FillSameRankFineToCoarseAMR(MeshBlock* pob, MeshBlock* pmb,
     }
 
     pmb_vc_it++;
-  }
-
-  // face-centered ------------------------------------------------------------
-  auto pmb_fc_it = pmb->pmr->pvars_fc_.begin();
-  for (auto fc_pair : pmr->pvars_fc_) {
-    FaceField *var_fc = std::get<0>(fc_pair);
-    FaceField *coarse_fc = std::get<1>(fc_pair);
-    pmr->RestrictFieldX1((*var_fc).x1f, (*coarse_fc).x1f,
-                         pob->cis, pob->cie+1,
-                         pob->cjs, pob->cje,
-                         pob->cks, pob->cke);
-    pmr->RestrictFieldX2((*var_fc).x2f, (*coarse_fc).x2f,
-                         pob->cis, pob->cie,
-                         pob->cjs, pob->cje+f2,
-                         pob->cks, pob->cke);
-    pmr->RestrictFieldX3((*var_fc).x3f, (*coarse_fc).x3f,
-                         pob->cis, pob->cie,
-                         pob->cjs, pob->cje,
-                         pob->cks, pob->cke+f3);
-    FaceField &src_b = *coarse_fc;
-    FaceField &dst_b = *std::get<0>(*pmb_fc_it); // pmb->pfield->b;
-    for (int k=kl, fk=pob->cks; fk<=pob->cke; k++, fk++) {
-      for (int j=jl, fj=pob->cjs; fj<=pob->cje; j++, fj++) {
-        for (int i=il, fi=pob->cis; fi<=pob->cie+1; i++, fi++)
-          dst_b.x1f(k, j, i) = src_b.x1f(fk, fj, fi);
-      }
-    }
-    for (int k=kl, fk=pob->cks; fk<=pob->cke; k++, fk++) {
-      for (int j=jl, fj=pob->cjs; fj<=pob->cje+f2; j++, fj++) {
-        for (int i=il, fi=pob->cis; fi<=pob->cie; i++, fi++)
-          dst_b.x2f(k, j, i) = src_b.x2f(fk, fj, fi);
-      }
-    }
-    if (pmb->block_size.nx2 == 1) {
-      int iu = il + b_hsz1 - 1;
-      for (int i=il; i<=iu; i++)
-        dst_b.x2f(pmb->ks, pmb->js+1, i) = dst_b.x2f(pmb->ks, pmb->js, i);
-    }
-    for (int k=kl, fk=pob->cks; fk<=pob->cke+f3; k++, fk++) {
-      for (int j=jl, fj=pob->cjs; fj<=pob->cje; j++, fj++) {
-        for (int i=il, fi=pob->cis; fi<=pob->cie; i++, fi++)
-          dst_b.x3f(k, j, i) = src_b.x3f(fk, fj, fi);
-      }
-    }
-    if (pmb->block_size.nx3 == 1) {
-      int iu = il + b_hsz1 - 1, ju = jl + b_hsz2 - 1;
-      if (pmb->block_size.nx2 == 1) ju = jl;
-      for (int j=jl; j<=ju; j++) {
-        for (int i=il; i<=iu; i++)
-          dst_b.x3f(pmb->ks+1, j, i) = dst_b.x3f(pmb->ks, j, i);
-      }
-    }
-    pmb_fc_it++;
   }
 
   return;
@@ -1393,48 +1268,6 @@ void Mesh::FillSameRankCoarseToFineAMR(MeshBlock* pob, MeshBlock* pmb,
 
   }
 
-  // face-centered ------------------------------------------------------------
-  auto pob_fc_it = pob->pmr->pvars_fc_.begin();
-  // iterate MeshRefinement std::vectors on new pmb
-  for (auto fc_pair : pmr->pvars_fc_) {
-    FaceField *var_fc = std::get<0>(fc_pair);
-    FaceField *coarse_fc = std::get<1>(fc_pair);
-
-    FaceField &src_b = *std::get<0>(*pob_fc_it);
-    FaceField &dst_b = *coarse_fc;
-    for (int k=kl, ck=cks; k<=ku; k++, ck++) {
-      for (int j=jl, cj=cjs; j<=ju; j++, cj++) {
-        for (int i=il, ci=cis; i<=iu+1; i++, ci++)
-          dst_b.x1f(k, j, i) = src_b.x1f(ck, cj, ci);
-      }
-    }
-    for (int k=kl, ck=cks; k<=ku; k++, ck++) {
-      for (int j=jl, cj=cjs; j<=ju+f2; j++, cj++) {
-        for (int i=il, ci=cis; i<=iu; i++, ci++)
-          dst_b.x2f(k, j, i) = src_b.x2f(ck, cj, ci);
-      }
-    }
-    for (int k=kl, ck=cks; k<=ku+f3; k++, ck++) {
-      for (int j=jl, cj=cjs; j<=ju; j++, cj++) {
-        for (int i=il, ci=cis; i<=iu; i++, ci++)
-          dst_b.x3f(k, j, i) = src_b.x3f(ck, cj, ci);
-      }
-    }
-    pmr->ProlongateSharedFieldX1(
-        dst_b.x1f, (*var_fc).x1f,
-        pob->cis, pob->cie+1, pob->cjs, pob->cje, pob->cks, pob->cke);
-    pmr->ProlongateSharedFieldX2(
-        dst_b.x2f, (*var_fc).x2f,
-        pob->cis, pob->cie, pob->cjs, pob->cje+f2, pob->cks, pob->cke);
-    pmr->ProlongateSharedFieldX3(
-        dst_b.x3f, (*var_fc).x3f,
-        pob->cis, pob->cie, pob->cjs, pob->cje, pob->cks, pob->cke+f3);
-    pmr->ProlongateInternalField(
-        *var_fc, pob->cis, pob->cie,
-        pob->cjs, pob->cje, pob->cks, pob->cke);
-    pob_fc_it++;
-  }
-
   return;
 }
 
@@ -1468,33 +1301,6 @@ void Mesh::FinishRecvSameLevel(MeshBlock *pb, Real *recvbuf) {
                               pb->jvs, pb->jve,
                               pb->kvs, pb->kve, p);
   }
-
-  // face-centered ------------------------------------------------------------
-  for (FaceField &var_fc : pb->vars_fc_) {
-    BufferUtility::UnpackData(recvbuf, var_fc.x1f,
-                              pb->is, pb->ie+1,
-                              pb->js, pb->je,
-                              pb->ks, pb->ke, p);
-    BufferUtility::UnpackData(recvbuf, var_fc.x2f,
-                              pb->is, pb->ie,
-                              pb->js, pb->je+f2,
-                              pb->ks, pb->ke, p);
-    BufferUtility::UnpackData(recvbuf, var_fc.x3f,
-                              pb->is, pb->ie,
-                              pb->js, pb->je,
-                              pb->ks, pb->ke+f3, p);
-    if (pb->block_size.nx2 == 1) {
-      for (int i=pb->is; i<=pb->ie; i++)
-        var_fc.x2f(pb->ks, pb->js+1, i) = var_fc.x2f(pb->ks, pb->js, i);
-    }
-    if (pb->block_size.nx3 == 1) {
-      for (int j=pb->js; j<=pb->je; j++) {
-        for (int i=pb->is; i<=pb->ie; i++)
-          var_fc.x3f(pb->ks+1, j, i) = var_fc.x3f(pb->ks, j, i);
-      }
-    }
-  }
-
 
   // WARNING(felker): casting from "Real *" to "int *" in order to read single
   // appended integer from received buffer is slightly unsafe
@@ -1644,28 +1450,6 @@ void Mesh::FinishRecvFineToCoarseAMR(MeshBlock *pb, Real *recvbuf,
                               vc_kl, vc_ku, p);
   }
 
-  // face-centered ------------------------------------------------------------
-  for (auto fc_pair : pb->pmr->pvars_fc_) {
-    FaceField *var_fc = std::get<0>(fc_pair);
-    FaceField &dst_b = *var_fc;
-    BufferUtility::UnpackData(recvbuf, dst_b.x1f,
-                              il, iu+1, jl, ju, kl, ku, p);
-    BufferUtility::UnpackData(recvbuf, dst_b.x2f,
-                              il, iu, jl, ju+f2, kl, ku, p);
-    BufferUtility::UnpackData(recvbuf, dst_b.x3f,
-                              il, iu, jl, ju, kl, ku+f3, p);
-    if (pb->block_size.nx2 == 1) {
-      for (int i=il; i<=iu; i++)
-        dst_b.x2f(pb->ks, pb->js+1, i) = dst_b.x2f(pb->ks, pb->js, i);
-    }
-    if (pb->block_size.nx3 == 1) {
-      for (int j=jl; j<=ju; j++) {
-        for (int i=il; i<=iu; i++)
-          dst_b.x3f(pb->ks+1, j, i) = dst_b.x3f(pb->ks, j, i);
-      }
-    }
-  }
-
   return;
 }
 
@@ -1752,31 +1536,6 @@ void Mesh::FinishRecvCoarseToFineAMR(MeshBlock *pb, Real *recvbuf) {
         *coarse_vc, *var_vc, 0, nu,
         pb->civs, pb->cive, pb->cjvs, pb->cjve, pb->ckvs, pb->ckve);
 
-  }
-
-  // face-centered ------------------------------------------------------------
-  for (auto fc_pair : pb->pmr->pvars_fc_) {
-    FaceField *var_fc = std::get<0>(fc_pair);
-    FaceField *coarse_fc = std::get<1>(fc_pair);
-
-    BufferUtility::UnpackData(recvbuf, (*coarse_fc).x1f,
-                              il, iu+1, jl, ju, kl, ku, p);
-    BufferUtility::UnpackData(recvbuf, (*coarse_fc).x2f,
-                              il, iu, jl, ju+f2, kl, ku, p);
-    BufferUtility::UnpackData(recvbuf, (*coarse_fc).x3f,
-                              il, iu, jl, ju, kl, ku+f3, p);
-    pmr->ProlongateSharedFieldX1(
-        (*coarse_fc).x1f, (*var_fc).x1f,
-        pb->cis, pb->cie+1, pb->cjs, pb->cje, pb->cks, pb->cke);
-    pmr->ProlongateSharedFieldX2(
-        (*coarse_fc).x2f, (*var_fc).x2f,
-        pb->cis, pb->cie, pb->cjs, pb->cje+f2, pb->cks, pb->cke);
-    pmr->ProlongateSharedFieldX3(
-        (*coarse_fc).x3f, (*var_fc).x3f,
-        pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke+f3);
-    pmr->ProlongateInternalField(
-        *var_fc, pb->cis, pb->cie,
-        pb->cjs, pb->cje, pb->cks, pb->cke);
   }
 
   return;

@@ -16,18 +16,11 @@
 // Athena++ headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
-#include "../eos/eos.hpp"
-#include "../field/field.hpp"
-#include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
-#include "../scalars/scalars.hpp"
 #include "bvals.hpp"
-#include "cc/hydro/bvals_hydro.hpp"
-#include "fc/bvals_fc.hpp"
 #include "vc/bvals_vc.hpp"
 #include "cx/bvals_cx.hpp"
 
-#include "../z4c/z4c.hpp"
 #include "../wave/wave.hpp"
 
 // -----------
@@ -83,9 +76,6 @@ void BoundaryValues::ProlongateHydroBoundaries(const Real time, const Real dt) {
 
   //////////////////////////////////////////////////////////////////////////////
 
-  // TODO(KGF): temporarily hardcode Hydro and Field array access for the below switch
-  // around ApplyPhysicalBoundariesOnCoarseLevel()
-
   // This hardcoded technique is also used to manually specify the coupling between
   // physical variables in:
   // - step 2, ApplyPhysicalBoundariesOnCoarseLevel(): calls to W(U) and user BoundaryFunc
@@ -98,32 +88,9 @@ void BoundaryValues::ProlongateHydroBoundaries(const Real time, const Real dt) {
 
   // downcast BoundaryVariable pointers to known derived class pointer types:
   // RTTI via dynamic_case
-  
+
   MeshBlock *pmb = pmy_block_;
   int &mylevel = pmb->loc.level;
-
-  HydroBoundaryVariable *phbvar = nullptr;
-  Hydro *ph = nullptr;
-
-  if (FLUID_ENABLED) {
-    phbvar = dynamic_cast<HydroBoundaryVariable *>(bvars_main_int[0]);
-    ph = pmb->phydro;
-  }
-
-  //CellCenteredBoundaryVariable *psbvar = nullptr;
-  PassiveScalars *ps = nullptr;
-  if (NSCALARS > 0) {
-    ps = pmb->pscalars;
-    // cannot assume the vector index:
-    //psbvar = dynamic_cast<CellCenteredBoundaryVariable *>(bvars_main_int[???]);
-  }
-
-  FaceCenteredBoundaryVariable *pfbvar = nullptr;
-  Field *pf = nullptr;
-  if (MAGNETIC_FIELDS_ENABLED) {
-    pf = pmb->pfield;
-    pfbvar = dynamic_cast<FaceCenteredBoundaryVariable *>(bvars_main_int[1]);
-  }
 
   // For each finer neighbor, to prolongate a boundary we need to fill one more cell
   // surrounding the boundary zone to calculate the slopes ("ghost-ghost zone"). 3x steps:
@@ -194,30 +161,9 @@ void BoundaryValues::ProlongateHydroBoundaries(const Real time, const Real dt) {
     } else if (nb.ni.ox3 > 0) { sk = pmb->cke + 1,  ek = pmb->cke + cn;}
     else              sk = pmb->cks-cn, ek = pmb->cks-1;
 
-    // (temp workaround) to automatically call all BoundaryFunction_[] on coarse_prim/b
-    // instead of previous targets var_cc=cons, var_fc=b
-    if (FLUID_ENABLED)
-      phbvar->var_cc = &(ph->coarse_prim_);
-    if (MAGNETIC_FIELDS_ENABLED)
-      pfbvar->var_fc = &(pf->coarse_b_);
-    if (NSCALARS > 0) {
-      ps = pmb->pscalars;
-      ps->sbvar.var_cc = &(ps->coarse_r_);
-    }
 
     // Step 2. Re-apply physical boundaries on the coarse boundary:
     ApplyPhysicalBoundariesOnCoarseLevel(nb, time, dt, si, ei, sj, ej, sk, ek);
-
-    // (temp workaround) swap BoundaryVariable var_cc/fc to standard primitive variable
-    // arrays (not coarse) from coarse primitive variables arrays
-    if (FLUID_ENABLED)
-      phbvar->var_cc = &(ph->w);
-    if (MAGNETIC_FIELDS_ENABLED)
-      pfbvar->var_fc = &(pf->b);
-    if (NSCALARS > 0) {
-      ps = pmb->pscalars;
-      ps->sbvar.var_cc = &(ps->r);
-    }
 
     // Step 3. Finally, the ghost-ghost zones are ready for prolongation:
     ProlongateGhostCells(nb, si, ei, sj, ej, sk, ek);
@@ -226,6 +172,7 @@ void BoundaryValues::ProlongateHydroBoundaries(const Real time, const Real dt) {
 
   return;
 }
+
 void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt) {
 
   // BD: opt- if nn all same level not required
@@ -240,18 +187,10 @@ void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt) {
   // Ensure coarse buffer has physical boundaries applied
   // (temp workaround) to automatically call all BoundaryFunction_[] on coarse var
   Wave *pw = nullptr;
-  Z4c *pz4c = nullptr;
 
   if (WAVE_ENABLED && WAVE_VC_ENABLED) {
     pw = pmb->pwave;
     pw->ubvar_vc.var_vc = &(pw->coarse_u_);
-  }
-
-  if (Z4C_ENABLED) {
-    #if defined(Z4C_VC_ENABLED)
-      pz4c = pmb->pz4c;
-      pz4c->ubvar.var_vc = &(pz4c->coarse_u_);
-    #endif
   }
 
   ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(time, dt);
@@ -259,12 +198,6 @@ void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt) {
   // switch back
   if (WAVE_ENABLED && WAVE_VC_ENABLED) {
     pw->ubvar_vc.var_vc = &(pw->u);
-  }
-
-  if (Z4C_ENABLED) {
-    #if defined(Z4C_VC_ENABLED)
-      pz4c->ubvar.var_vc = &(pz4c->storage.u);
-    #endif
   }
 
   // Prolongate
@@ -279,24 +212,11 @@ void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt) {
     pw->ubvar_cx.var_cx = &(pw->coarse_u_);
   }
 
-  if (Z4C_ENABLED) {
-    #if defined(Z4C_CX_ENABLED)
-      pz4c = pmb->pz4c;
-      pz4c->ubvar.var_cx = &(pz4c->coarse_u_);
-    #endif
-  }
-
   ApplyPhysicalCellCenteredXBoundariesOnCoarseLevel(time, dt);
 
   // switch back
   if (WAVE_ENABLED && WAVE_CX_ENABLED) {
     pw->ubvar_cx.var_cx = &(pw->u);
-  }
-
-  if (Z4C_ENABLED) {
-    #if defined(Z4C_CX_ENABLED)
-      pz4c->ubvar.var_cx = &(pz4c->storage.u);
-    #endif
   }
 
   // Prolongate
@@ -313,54 +233,53 @@ void BoundaryValues::ProlongateBoundariesAux(const Real time, const Real dt)
 
   MeshBlock *pmb = pmy_block_;
   MeshRefinement *pmr = pmb->pmr;
-  Z4c *pz4c = nullptr;
 
   // utilize pvars_aux
   pmr->SwapRefinementAux();
 
   // apply BC on coarse level then prol. (VC) ---------------------------------
-  if (Z4C_ENABLED)
-  {
-    #if defined(Z4C_VC_ENABLED)
-      pz4c = pmb->pz4c;
-      pz4c->abvar.var_vc = &(pz4c->coarse_a_);
-    #endif
-  }
+  // if (Z4C_ENABLED)
+  // {
+  //   #if defined(Z4C_VC_ENABLED)
+  //     pz4c = pmb->pz4c;
+  //     pz4c->abvar.var_vc = &(pz4c->coarse_a_);
+  //   #endif
+  // }
 
   std::swap(bvars_main_int_vc, bvars_aux);
   ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(time, dt);
   std::swap(bvars_main_int_vc, bvars_aux);
 
-  if (Z4C_ENABLED)
-  {
-    #if defined(Z4C_VC_ENABLED)
-      pz4c->abvar.var_vc = &(pz4c->storage.weyl);
-    #endif
-  }
+  // if (Z4C_ENABLED)
+  // {
+  //   #if defined(Z4C_VC_ENABLED)
+  //     pz4c->abvar.var_vc = &(pz4c->storage.weyl);
+  //   #endif
+  // }
 
   // now do the prolongation
   ProlongateVertexCenteredBoundaries(time, dt);
 
 
   // apply BC on coarse level then prol. (CX) ---------------------------------
-  if (Z4C_ENABLED)
-  {
-    #if defined(Z4C_CX_ENABLED)
-      pz4c = pmb->pz4c;
-      pz4c->abvar.var_cx = &(pz4c->coarse_a_);
-    #endif
-  }
+  // if (Z4C_ENABLED)
+  // {
+  //   #if defined(Z4C_CX_ENABLED)
+  //     pz4c = pmb->pz4c;
+  //     pz4c->abvar.var_cx = &(pz4c->coarse_a_);
+  //   #endif
+  // }
 
   std::swap(bvars_main_int_cx, bvars_aux);
   ApplyPhysicalCellCenteredXBoundariesOnCoarseLevel(time, dt);
   std::swap(bvars_main_int_cx, bvars_aux);
 
-  if (Z4C_ENABLED)
-  {
-    #if defined(Z4C_CX_ENABLED)
-      pz4c->abvar.var_cx = &(pz4c->storage.weyl);
-    #endif
-  }
+  // if (Z4C_ENABLED)
+  // {
+  //   #if defined(Z4C_CX_ENABLED)
+  //     pz4c->abvar.var_cx = &(pz4c->storage.weyl);
+  //   #endif
+  // }
 
   // now do the prolongation
   ProlongateCellCenteredXBoundaries(time, dt);
@@ -372,22 +291,22 @@ void BoundaryValues::ProlongateBoundariesAux(const Real time, const Real dt)
 
 void BoundaryValues::ApplyPhysicalBoundariesAux(const Real time, const Real dt)
 {
-  if (Z4C_ENABLED)
-  {
-    #if defined(Z4C_VC_ENABLED)
-      std::swap(bvars_main_int_vc, bvars_aux);
-      ApplyPhysicalVertexCenteredBoundaries(time, dt);
-      std::swap(bvars_main_int_vc, bvars_aux);
-    #elif defined(Z4C_CX_ENABLED)
-      std::swap(bvars_main_int_cx, bvars_aux);
-      ApplyPhysicalCellCenteredXBoundaries(time, dt);
-      std::swap(bvars_main_int_cx, bvars_aux);
-    #elif defined(Z4C_CC_ENABLED)
-      std::swap(bvars_main_int, bvars_aux);
-      ApplyPhysicalBoundaries(time, dt);
-      std::swap(bvars_main_int, bvars_aux);
-    #endif
-  }
+  // if (Z4C_ENABLED)
+  // {
+  //   #if defined(Z4C_VC_ENABLED)
+  //     std::swap(bvars_main_int_vc, bvars_aux);
+  //     ApplyPhysicalVertexCenteredBoundaries(time, dt);
+  //     std::swap(bvars_main_int_vc, bvars_aux);
+  //   #elif defined(Z4C_CX_ENABLED)
+  //     std::swap(bvars_main_int_cx, bvars_aux);
+  //     ApplyPhysicalCellCenteredXBoundaries(time, dt);
+  //     std::swap(bvars_main_int_cx, bvars_aux);
+  //   #elif defined(Z4C_CC_ENABLED)
+  //     std::swap(bvars_main_int, bvars_aux);
+  //     ApplyPhysicalBoundaries(time, dt);
+  //     std::swap(bvars_main_int, bvars_aux);
+  //   #endif
+  // }
 }
 
 
@@ -436,54 +355,6 @@ void BoundaryValues::RestrictGhostCellsOnSameLevel(const NeighborBlock& nb, int 
     pmb->pmr->RestrictCellCenteredValues(*var_cc, *coarse_cc, 0, nu,
                                          ris, rie, rjs, rje, rks, rke);
   }
-  // (unique to Hydro) also restrict primitive values in ghost zones when GR + multilevel
-  if (GENERAL_RELATIVITY) {
-    pmr->SetHydroRefinement(HydroBoundaryQuantity::prim);
-    auto cc_pair = pmr->pvars_cc_.front();
-    AthenaArray<Real> *var_cc = std::get<0>(cc_pair);
-    AthenaArray<Real> *coarse_cc = std::get<1>(cc_pair);
-    int nu = var_cc->GetDim4() - 1;
-    pmb->pmr->RestrictCellCenteredValues(*var_cc, *coarse_cc, 0, nu,
-                                         ris, rie, rjs, rje, rks, rke);
-    pmr->SetHydroRefinement(HydroBoundaryQuantity::cons);
-  }
-
-  for (auto fc_pair : pmr->pvars_fc_) {
-    FaceField *var_fc = std::get<0>(fc_pair);
-    FaceField *coarse_fc = std::get<1>(fc_pair);
-    int &mylevel = pmb->loc.level;
-    int rs = ris, re = rie + 1;
-    if (rs == pmb->cis   && nblevel[nk+1][nj+1][ni  ] < mylevel) rs++;
-    if (re == pmb->cie+1 && nblevel[nk+1][nj+1][ni+2] < mylevel) re--;
-    pmr->RestrictFieldX1((*var_fc).x1f, (*coarse_fc).x1f, rs, re, rjs, rje, rks,
-                         rke);
-    if (pmb->block_size.nx2 > 1) {
-      rs = rjs, re = rje + 1;
-      if (rs == pmb->cjs   && nblevel[nk+1][nj  ][ni+1] < mylevel) rs++;
-      if (re == pmb->cje+1 && nblevel[nk+1][nj+2][ni+1] < mylevel) re--;
-      pmr->RestrictFieldX2((*var_fc).x2f, (*coarse_fc).x2f, ris, rie, rs, re, rks,
-                           rke);
-    } else { // 1D
-      pmr->RestrictFieldX2((*var_fc).x2f, (*coarse_fc).x2f, ris, rie, rjs, rje, rks,
-                           rke);
-      for (int i=ris; i<=rie; i++)
-        (*coarse_fc).x2f(rks,rjs+1,i) = (*coarse_fc).x2f(rks,rjs,i);
-    }
-    if (pmb->block_size.nx3 > 1) {
-      rs = rks, re =  rke + 1;
-      if (rs == pmb->cks   && nblevel[nk  ][nj+1][ni+1] < mylevel) rs++;
-      if (re == pmb->cke+1 && nblevel[nk+2][nj+1][ni+1] < mylevel) re--;
-      pmr->RestrictFieldX3((*var_fc).x3f, (*coarse_fc).x3f, ris, rie, rjs, rje, rs,
-                           re);
-    } else { // 1D or 2D
-      pmr->RestrictFieldX3((*var_fc).x3f, (*coarse_fc).x3f, ris, rie, rjs, rje, rks,
-                           rke);
-      for (int j=rjs; j<=rje; j++) {
-        for (int i=ris; i<=rie; i++)
-          (*coarse_fc).x3f(rks+1,j,i) = (*coarse_fc).x3f(rks,j,i);
-      }
-    }
-  } // end loop over pvars_fc_
 
   return;
 }
@@ -499,17 +370,6 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
     int si, int ei, int sj, int ej, int sk, int ek) {
   MeshBlock *pmb = pmy_block_;
   MeshRefinement *pmr = pmb->pmr;
-
-  // temporarily hardcode Hydro and Field array access:
-  Hydro *ph = nullptr;
-  if (FLUID_ENABLED) {
-    ph = pmb->phydro;
-  }
-
-  Field *pf = nullptr;
-  if (MAGNETIC_FIELDS_ENABLED) {
-    pf = pmb->pfield;
-  }
 
   // convert the ghost zone and ghost-ghost zones into primitive variables
   // this includes cell-centered field calculation
@@ -545,41 +405,17 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
   // to bind references to coarse_b_, coarse_bcc, since coarse_* are no longer members of
   // MeshRefinement that always exist (even if not allocated).
 
-  if (FLUID_ENABLED) {
-    // KGF: COUPLING OF QUANTITIES (must be manually specified)
-#ifdef Z4C_ENABLED
-    pmb->peos->ConservedToPrimitive(ph->coarse_cons_, ph->coarse_prim_,
-                                    pf->coarse_b_, ph->coarse_prim_,
-                                    pf->coarse_bcc_, pmr->pcoarsec,
-                                    si-f1m, ei+f1p, sj-f2m, ej+f2p, sk-f3m, ek+f3p,1);
-#else
-    pmb->peos->ConservedToPrimitive(ph->coarse_cons_, ph->coarse_prim_,
-                                    pf->coarse_b_, ph->coarse_prim_,
-                                    pf->coarse_bcc_, pmr->pcoarsec,
-                                    si-f1m, ei+f1p, sj-f2m, ej+f2p, sk-f3m, ek+f3p);
-#endif
-  }
-
-  if (NSCALARS > 0) {
-    PassiveScalars *ps = pmb->pscalars;
-    pmb->peos->PassiveScalarConservedToPrimitive(ps->coarse_s_, ph->coarse_prim_,
-                                                 ps->coarse_r_, ps->coarse_r_,
-                                                 pmr->pcoarsec,
-                                                 si-f1m, ei+f1p, sj-f2m, ej+f2p,
-                                                 sk-f3m, ek+f3p);
-  }
-
   if (nb.ni.ox1 == 0) {
     if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
                                 pmb->cis, pmb->cie, sj, ej, sk, ek, 1,
-                                ph->coarse_prim_, pf->coarse_b_, BoundaryFace::inner_x1,
+                                BoundaryFace::inner_x1,
                                 bvars_main_int);
     }
     if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
                                 pmb->cis, pmb->cie, sj, ej, sk, ek, 1,
-                                ph->coarse_prim_, pf->coarse_b_, BoundaryFace::outer_x1,
+                                BoundaryFace::outer_x1,
                                 bvars_main_int);
     }
   }
@@ -587,13 +423,13 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
     if (apply_bndry_fn_[BoundaryFace::inner_x2]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
                                 si, ei, pmb->cjs, pmb->cje, sk, ek, 1,
-                                ph->coarse_prim_, pf->coarse_b_, BoundaryFace::inner_x2,
+                                BoundaryFace::inner_x2,
                                 bvars_main_int);
     }
     if (apply_bndry_fn_[BoundaryFace::outer_x2]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
                                 si, ei, pmb->cjs, pmb->cje, sk, ek, 1,
-                                ph->coarse_prim_, pf->coarse_b_, BoundaryFace::outer_x2,
+                                BoundaryFace::outer_x2,
                                 bvars_main_int);
     }
   }
@@ -601,13 +437,13 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
     if (apply_bndry_fn_[BoundaryFace::inner_x3]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
                                 si, ei, sj, ej, pmb->cks, pmb->cke, 1,
-                                ph->coarse_prim_, pf->coarse_b_, BoundaryFace::inner_x3,
+                                BoundaryFace::inner_x3,
                                 bvars_main_int);
     }
     if (apply_bndry_fn_[BoundaryFace::outer_x3]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
                                 si, ei, sj, ej, pmb->cks, pmb->cke, 1,
-                                ph->coarse_prim_, pf->coarse_b_, BoundaryFace::outer_x3,
+                                BoundaryFace::outer_x3,
                                 bvars_main_int);
     }
   }
@@ -621,15 +457,6 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
   MeshRefinement *pmr = pmb->pmr;
 
   // prolongate cell-centered S/AMR-enrolled quantities (hydro, radiation, scalars, ...)
-  //(unique to Hydro, PassiveScalars): swap ptrs to (w, coarse_prim) from (u, coarse_cons)
-  if (FLUID_ENABLED)
-    pmr->SetHydroRefinement(HydroBoundaryQuantity::prim);
-
-  // (r, coarse_r) from (s, coarse_s)
-  if (NSCALARS > 0) {
-    PassiveScalars *ps = pmb->pscalars;
-    pmr->pvars_cc_[ps->refinement_idx] = std::make_tuple(&ps->r, &ps->coarse_r_);
-  }
 
   for (auto cc_pair : pmr->pvars_cc_) {
     AthenaArray<Real> *var_cc = std::get<0>(cc_pair);
@@ -639,14 +466,6 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
     pmr->ProlongateCellCenteredValues(*coarse_cc, *var_cc, 0, nu,
                                       si, ei, sj, ej, sk, ek);
 
-  }
-  // swap back MeshRefinement ptrs to standard/coarse conserved variable arrays:
-  if (FLUID_ENABLED)
-    pmr->SetHydroRefinement(HydroBoundaryQuantity::cons);
-
-  if (NSCALARS > 0) {
-    PassiveScalars *ps = pmb->pscalars;
-    pmr->pvars_cc_[ps->refinement_idx] = std::make_tuple(&ps->s, &ps->coarse_s_);
   }
 
   // prolongate face-centered S/AMR-enrolled quantities (magnetic fields)
@@ -677,20 +496,6 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
     kl = sk;
     ku = ek;
   }
-  for (auto fc_pair : pmr->pvars_fc_) {
-    FaceField *var_fc = std::get<0>(fc_pair);
-    FaceField *coarse_fc = std::get<1>(fc_pair);
-
-    // step 1. calculate x1 outer surface fields and slopes
-    pmr->ProlongateSharedFieldX1((*coarse_fc).x1f, (*var_fc).x1f, il, iu, sj, ej, sk, ek);
-    // step 2. calculate x2 outer surface fields and slopes
-    pmr->ProlongateSharedFieldX2((*coarse_fc).x2f, (*var_fc).x2f, si, ei, jl, ju, sk, ek);
-    // step 3. calculate x3 outer surface fields and slopes
-    pmr->ProlongateSharedFieldX3((*coarse_fc).x3f, (*var_fc).x3f, si, ei, sj, ej, kl, ku);
-
-    // step 4. calculate the internal finer fields using the Toth & Roe method
-    pmr->ProlongateInternalField((*var_fc), si, ei, sj, ej, sk, ek);
-  }
 
   // now that the ghost-ghost zones are filled and prolongated,
   // calculate the loop limits for the finer grid
@@ -710,34 +515,6 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
   } else {
     fsk = pmb->ks;
     fek = pmb->ke;
-  }
-
-  // temporarily hardcode Hydro and Field array access
-  Hydro *ph = nullptr;
-  Field *pf = nullptr;
-
-  // KGF: COUPLING OF QUANTITIES (must be manually specified)
-  // Field prolongation completed, calculate cell centered fields
-  if (MAGNETIC_FIELDS_ENABLED) {
-    pf = pmb->pfield;
-    pf->CalculateCellCenteredField(pf->b, pf->bcc, pmb->pcoord,
-                                   fsi, fei, fsj, fej, fsk, fek);
-  }
-  // TODO(KGF): passing nullptrs (pf) if no MHD (coarse_* no longer in MeshRefinement)
-  // (may be fine to unconditionally directly set to pmb->pfield now. see above comment)
-
-  // KGF: COUPLING OF QUANTITIES (must be manually specified)
-  // calculate conservative variables
-  if (FLUID_ENABLED) {
-    ph = pmb->phydro;
-    pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pmb->pcoord,
-                                    fsi, fei, fsj, fej, fsk, fek);
-  }
-
-  if (NSCALARS > 0) {
-    PassiveScalars *ps = pmb->pscalars;
-    pmb->peos->PassiveScalarPrimitiveToConserved(ps->r, ph->w, ps->s, pmb->pcoord,
-                                                 fsi, fei, fsj, fej, fsk, fek);
   }
 
   return;
@@ -766,15 +543,11 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(const Re
   if (!apply_bndry_fn_[BoundaryFace::outer_x3] && pmb->block_size.nx3 > 1)
     bke = pmb->ckve + NCGHOST;
 
-  // prevent modification of dispatch
-  Hydro *ph = nullptr;
-  Field *pf = nullptr;
-
   // Apply boundary function on inner-x1 and update W,bcc (if not periodic)
   if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
     DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
                               pmb->civs, pmb->cive, bjs, bje, bks, bke, NCGHOST,
-                              ph->w, pf->b, BoundaryFace::inner_x1,
+                              BoundaryFace::inner_x1,
                               bvars_main_int_vc);
   }
 
@@ -782,7 +555,7 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(const Re
   if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
     DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
                               pmb->civs, pmb->cive, bjs, bje, bks, bke, NCGHOST,
-                              ph->w, pf->b, BoundaryFace::outer_x1,
+                              BoundaryFace::outer_x1,
                               bvars_main_int_vc);
   }
 
@@ -791,7 +564,7 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(const Re
     if (apply_bndry_fn_[BoundaryFace::inner_x2]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
                                 bis, bie, pmb->cjvs, pmb->cjve, bks, bke, NCGHOST,
-                                ph->w, pf->b, BoundaryFace::inner_x2,
+                                BoundaryFace::inner_x2,
                                 bvars_main_int_vc);
     }
 
@@ -799,7 +572,7 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(const Re
     if (apply_bndry_fn_[BoundaryFace::outer_x2]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
                                 bis, bie, pmb->cjvs, pmb->cjve, bks, bke, NCGHOST,
-                                ph->w, pf->b, BoundaryFace::outer_x2,
+                                BoundaryFace::outer_x2,
                                 bvars_main_int_vc);
     }
   }
@@ -812,7 +585,7 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(const Re
     if (apply_bndry_fn_[BoundaryFace::inner_x3]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
                                 bis, bie, bjs, bje, pmb->ckvs, pmb->ckve, NCGHOST,
-                                ph->w, pf->b, BoundaryFace::inner_x3,
+                                BoundaryFace::inner_x3,
                                 bvars_main_int_vc);
     }
 
@@ -820,7 +593,7 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(const Re
     if (apply_bndry_fn_[BoundaryFace::outer_x3]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
                                 bis, bie, bjs, bje, pmb->ckvs, pmb->ckve, NCGHOST,
-                                ph->w, pf->b, BoundaryFace::outer_x3,
+                                BoundaryFace::outer_x3,
                                 bvars_main_int_vc);
     }
   }
@@ -848,15 +621,11 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundariesOnCoarseLevel(
   if (!apply_bndry_fn_[BoundaryFace::outer_x3] && pmb->block_size.nx3 > 1)
     bke = pmb->cx_cke + NCGHOST_CX;
 
-  // prevent modification of dispatch
-  Hydro *ph = nullptr;
-  Field *pf = nullptr;
-
   // Apply boundary function on inner-x1 and update W,bcc (if not periodic)
   if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
     DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
                               pmb->cx_cis, pmb->cx_cie, bjs, bje, bks, bke, NCGHOST_CX,
-                              ph->w, pf->b, BoundaryFace::inner_x1,
+                              BoundaryFace::inner_x1,
                               bvars_main_int_cx);
   }
 
@@ -864,7 +633,7 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundariesOnCoarseLevel(
   if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
     DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
                               pmb->cx_cis, pmb->cx_cie, bjs, bje, bks, bke, NCGHOST_CX,
-                              ph->w, pf->b, BoundaryFace::outer_x1,
+                              BoundaryFace::outer_x1,
                               bvars_main_int_cx);
   }
 
@@ -873,7 +642,7 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundariesOnCoarseLevel(
     if (apply_bndry_fn_[BoundaryFace::inner_x2]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
                                 bis, bie, pmb->cx_cjs, pmb->cx_cje, bks, bke, NCGHOST_CX,
-                                ph->w, pf->b, BoundaryFace::inner_x2,
+                                BoundaryFace::inner_x2,
                                 bvars_main_int_cx);
     }
 
@@ -881,7 +650,7 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundariesOnCoarseLevel(
     if (apply_bndry_fn_[BoundaryFace::outer_x2]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
                                 bis, bie, pmb->cx_cjs, pmb->cx_cje, bks, bke, NCGHOST_CX,
-                                ph->w, pf->b, BoundaryFace::outer_x2,
+                                BoundaryFace::outer_x2,
                                 bvars_main_int_cx);
     }
   }
@@ -894,7 +663,7 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundariesOnCoarseLevel(
     if (apply_bndry_fn_[BoundaryFace::inner_x3]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
                                 bis, bie, bjs, bje, pmb->cx_cks, pmb->cx_cke, NCGHOST_CX,
-                                ph->w, pf->b, BoundaryFace::inner_x3,
+                                BoundaryFace::inner_x3,
                                 bvars_main_int_cx);
     }
 
@@ -902,7 +671,7 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundariesOnCoarseLevel(
     if (apply_bndry_fn_[BoundaryFace::outer_x3]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
                                 bis, bie, bjs, bje, pmb->cx_cks, pmb->cx_cke, NCGHOST_CX,
-                                ph->w, pf->b, BoundaryFace::outer_x3,
+                                BoundaryFace::outer_x3,
                                 bvars_main_int_cx);
     }
   }

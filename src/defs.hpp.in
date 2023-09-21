@@ -49,69 +49,8 @@
 // coordinate system
 #define COORDINATE_SYSTEM "@COORDINATE_SYSTEM@"
 
-// Riemann solver
-#define RIEMANN_SOLVER "@RSOLVER@"
-
-// configure.py dict(definitions) Boolean values:
-// evolve hydrodynamics? default=0 (false)
-#define FLUID_ENABLED @FLUID_ENABLED@
-
 // hybrid grid-to-grid interp default=0 (false)
 #define @HYBRID_INTERP@
-// enable shearing box? default=0 (false)
-#define SHEARING_BOX @SHEARING_BOX@
-
-// Equation of state
-#define EQUATION_OF_STATE "@EQUATION_OF_STATE@"
-
-// Whether or not temperature should be counted as a primitive variable.
-#define USETM @USE_TM@
-
-// EOS Policy used by the PrimitiveSolver framework
-#define EOS_POLICY @EOS_POLICY@
-
-// EOS Policy code used for preprocessor checking
-#define EOS_POLICY_CODE @EOS_POLICY_CODE@
-
-// Error Policy used by the PrimitiveSolver framework
-#define ERROR_POLICY @ERROR_POLICY@
-
-// Error Policy code used for preprocessor checking
-#define ERROR_POLICY_CODE @ERROR_POLICY_CODE@
-
-// Maximum supported species by PrimitiveSolver
-// FIXME: Should be added as an argument later.
-#define MAX_SPECIES 1
-
-// use general EOS framework default=0 (false).
-#define GENERAL_EOS @GENERAL_EOS@
-
-// use EOS table default=0 (false).
-#define EOS_TABLE_ENABLED @EOS_TABLE_ENABLED@
-
-// non-barotropic equation of state (i.e. P not simply a func of rho)? default=1 (true)
-#define NON_BAROTROPIC_EOS @NON_BAROTROPIC_EOS@
-
-// include magnetic fields? default=0 (false)
-#define MAGNETIC_FIELDS_ENABLED @MAGNETIC_FIELDS_ENABLED@
-
-// include super-time-stepping? default=0 (false)
-#define STS_ENABLED @STS_ENABLED@
-
-// include radiative transfer? default=0 (false)
-#define RADIATION_ENABLED 0
-
-// enable special or general relativity? default=0 (false)
-#define RELATIVISTIC_DYNAMICS @RELATIVISTIC_DYNAMICS@
-
-// enable general relativity? default=0 (false)
-#define GENERAL_RELATIVITY @GENERAL_RELATIVITY@
-
-// evolve the z4c equation? default=0 (false)
-#define Z4C_ENABLED @Z4C_ENABLED@
-
-// enable CCE? default=0 (false)
-#define CCE_ENABLED @CCE_ENABLED@
 
 // evolve the wave equation? default=0 (false)
 #define WAVE_ENABLED @WAVE_ENABLED@
@@ -121,38 +60,11 @@
 #define WAVE_CX_ENABLED @WAVE_CX_ENABLED@
 #define WAVE_VC_ENABLED @WAVE_VC_ENABLED@
 
-// z4c equation sampling
-#define @Z4C_CC_ENABLED@
-#define @Z4C_CX_ENABLED@
-#define @Z4C_VC_ENABLED@
-#define Z4C_CX_NUM_RBC 0
-
-#define @Z4C_WITH_HYDRO_ENABLED@
-
-// enable GR frame transformations? default=0 (false)
-#define FRAME_TRANSFORMATIONS @FRAME_TRANSFORMATIONS@
-
 // use single precision floating-point values (binary32)? default=0 (false; use binary64)
 #define SINGLE_PRECISION_ENABLED @SINGLE_PRECISION_ENABLED@
 
 // use double precision for HDF5 output? default=0 (false; write out binary32)
 #define H5_DOUBLE_PRECISION_ENABLED @H5_DOUBLE_PRECISION_ENABLED@
-
-// two_punctures
-#define @TWO_PUNCTURES_OPTION@
-
-// allow for spatially varying shift-damping based on conformal factor
-#define @Z4C_ETA_CONF@
-
-// allow for spatially varying shift-damping based on tracker computed distance
-#define @Z4C_ETA_TRACK_TP@
-
-// refinement strategy
-#define @Z4C_REF_BOX_IN_BOX@
-#define @Z4C_REF_SPHERES@
-
-// enable CCE? default=0 (false)
-#define CCE_ENABLED @CCE_ENABLED@
 
 // configure.py dict(definitions) Boolean string macros:
 // (these options have the latter (false) option as defaults, unless noted otherwise)
@@ -183,10 +95,7 @@
 //----------------------------------------------------------------------------------------
 // macros associated with numerical algorithm (rarely modified)
 
-#define NHYDRO @NHYDRO_VARIABLES@
-#define NFIELD @NFIELD_VARIABLES@
 #define NWAVE @NWAVE_VALUE@
-#define NSCALARS @NUMBER_PASSIVE_SCALARS@
 #define NGHOST @NUMBER_GHOST_CELLS@
 #define NCGHOST @NUMBER_COARSE_GHOSTS@                 // for vertex-centered communication
 #define NCGHOST_CX @NUMBER_COARSE_GHOSTS_CX@           // for cell-centered extended

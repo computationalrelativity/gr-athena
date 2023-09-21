@@ -25,22 +25,15 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../coordinates/coordinates.hpp"
-#include "../field/field.hpp"
 #include "../globals.hpp"
-#include "../hydro/hydro.hpp"
-#include "../z4c/z4c.hpp"
 #include "../wave/wave.hpp"
 #include "../mesh/mesh.hpp"
-#include "../scalars/scalars.hpp"
 #include "outputs.hpp"
 
 // NEW_OUTPUT_TYPES:
 
 // "3" for 1-KE, 2-KE, 3-KE additional columns (come before tot-E)
-#define NHISTORY_VARS (((NHYDRO) + 3) * (FLUID_ENABLED) + \
-                       (NFIELD) + (NSCALARS) + \
-                       3 * (WAVE_ENABLED) + \
-                       8 * (Z4C_ENABLED))
+#define NHISTORY_VARS (3 * (WAVE_ENABLED))
 
 //----------------------------------------------------------------------------------------
 //! \fn void OutputType::HistoryFile()
@@ -72,11 +65,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
 
   // Loop over MeshBlocks
   while (pmb != nullptr) {
-    Hydro *phyd = pmb->phydro;
-    Field *pfld = pmb->pfield;
-    PassiveScalars *psclr = pmb->pscalars;
     Wave *pwave = pmb->pwave;
-    Z4c *pz4c = pmb->pz4c;
 
 
     Real abs_ma = 0;
@@ -88,44 +77,6 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
           // NEW_OUTPUT_TYPES:
 
           int isum = 0;
-          if (FLUID_ENABLED) {
-            // Hydro conserved variables:
-            Real& u_d  = phyd->u(IDN,k,j,i);
-            Real& u_mx = phyd->u(IM1,k,j,i);
-            Real& u_my = phyd->u(IM2,k,j,i);
-            Real& u_mz = phyd->u(IM3,k,j,i);
-
-            hst_data[isum++] += vol(i)*u_d;
-            hst_data[isum++] += vol(i)*u_mx;
-            hst_data[isum++] += vol(i)*u_my;
-            hst_data[isum++] += vol(i)*u_mz;
-            // + partitioned KE by coordinate direction:
-            hst_data[isum++] += vol(i)*0.5*SQR(u_mx)/u_d;
-            hst_data[isum++] += vol(i)*0.5*SQR(u_my)/u_d;
-            hst_data[isum++] += vol(i)*0.5*SQR(u_mz)/u_d;
-
-            if (NON_BAROTROPIC_EOS) {
-              Real& u_e = phyd->u(IEN,k,j,i);;
-              hst_data[isum++] += vol(i)*u_e;
-            }
-            // Cell-centered magnetic energy, partitioned by coordinate direction:
-            if (MAGNETIC_FIELDS_ENABLED) {
-              Real& bcc1 = pfld->bcc(IB1,k,j,i);
-              Real& bcc2 = pfld->bcc(IB2,k,j,i);
-              Real& bcc3 = pfld->bcc(IB3,k,j,i);
-              // constexpr int prev_out = NHYDRO + 3;
-              hst_data[isum++] += vol(i)*0.5*bcc1*bcc1;
-              hst_data[isum++] += vol(i)*0.5*bcc2*bcc2;
-              hst_data[isum++] += vol(i)*0.5*bcc3*bcc3;
-            }
-            // (conserved variable) Passive scalars:
-            for (int n=0; n<NSCALARS; n++) {
-              Real& s = psclr->s(n,k,j,i);
-              // constexpr int prev_out = NHYDRO + 3 + NFIELD;
-              hst_data[isum++] += vol(i)*s;
-            }
-          }
-
           if (WAVE_ENABLED) {
             Real& wave_error = pwave->error(k,j,i);
             abs_ma = (abs_ma < std::abs(wave_error)) ? std::abs(wave_error) : abs_ma;
@@ -133,27 +84,6 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
             hst_data[isum++] += vol(i)*SQR(wave_error);
             hst_data[isum++] = abs_ma;
           }
-
-          if (Z4C_ENABLED) {
-            Real const H_err  = std::abs(pz4c->con.H(k,j,i));
-            Real const M2_err = std::abs(pz4c->con.M(k,j,i));
-            Real const Mx_err = std::abs(pz4c->con.M_d(0,k,j,i));
-            Real const My_err = std::abs(pz4c->con.M_d(1,k,j,i));
-            Real const Mz_err = std::abs(pz4c->con.M_d(2,k,j,i));
-            Real const Z2_err = std::abs(pz4c->con.Z(k,j,i));
-            Real const theta  = std::abs(pz4c->z4c.Theta(k,j,i));
-            Real const C2_err = std::abs(pz4c->con.C(k,j,i));
-
-            hst_data[isum++] += vol(i)*SQR(H_err);
-            hst_data[isum++] += vol(i)*M2_err; //M is already squared
-            hst_data[isum++] += vol(i)*SQR(Mx_err);
-            hst_data[isum++] += vol(i)*SQR(My_err);
-            hst_data[isum++] += vol(i)*SQR(Mz_err);
-            hst_data[isum++] += vol(i)*Z2_err; //Z is already squared
-            hst_data[isum++] += vol(i)*SQR(theta);
-            hst_data[isum++] += vol(i)*C2_err; //C is already squared
-          }
-
         }
       }
     }
@@ -249,40 +179,11 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
       std::fprintf(pfile,"# Athena++ history data\n"); // descriptor is first line
       std::fprintf(pfile,"# [%d]=time     ", iout++);
       std::fprintf(pfile,"[%d]=dt       ", iout++);
-      if (FLUID_ENABLED) {
-        std::fprintf(pfile,"[%d]=mass     ", iout++);
-        std::fprintf(pfile,"[%d]=1-mom    ", iout++);
-        std::fprintf(pfile,"[%d]=2-mom    ", iout++);
-        std::fprintf(pfile,"[%d]=3-mom    ", iout++);
-        std::fprintf(pfile,"[%d]=1-KE     ", iout++);
-        std::fprintf(pfile,"[%d]=2-KE     ", iout++);
-        std::fprintf(pfile,"[%d]=3-KE     ", iout++);
-        if (NON_BAROTROPIC_EOS) std::fprintf(pfile,"[%d]=tot-E   ", iout++);
-        if (MAGNETIC_FIELDS_ENABLED) {
-          std::fprintf(pfile,"[%d]=1-ME    ", iout++);
-          std::fprintf(pfile,"[%d]=2-ME    ", iout++);
-          std::fprintf(pfile,"[%d]=3-ME    ", iout++);
-        }
-        for (int n=0; n<NSCALARS; n++) {
-          std::fprintf(pfile,"[%d]=%d-scalar    ", iout++, n);
-        }
-      }
 
       if (WAVE_ENABLED) {
         std::fprintf(pfile,"[%d]=err-norm1 ", iout++);
         std::fprintf(pfile,"[%d]=err-norm2 ", iout++);
         std::fprintf(pfile,"[%d]=err-max-pw ", iout++);
-      }
-
-      if (Z4C_ENABLED) {
-        std::fprintf(pfile,"[%d]=H-norm2 ",     iout++);
-        std::fprintf(pfile,"[%d]=M-norm2 ",     iout++);
-        std::fprintf(pfile,"[%d]=Mx-norm2 ",    iout++);
-        std::fprintf(pfile,"[%d]=My-norm2 ",    iout++);
-        std::fprintf(pfile,"[%d]=Mz-norm2 ",    iout++);
-        std::fprintf(pfile,"[%d]=Z-norm2 ",     iout++);
-        std::fprintf(pfile,"[%d]=Theta-norm2 ", iout++);
-        std::fprintf(pfile,"[%d]=C-norm2 ",     iout++);
       }
 
       for (int n=0; n<pm->nuser_history_output_; n++)

@@ -48,12 +48,6 @@ void BoundaryVariable::InitBoundaryData(BoundaryData<> &bd, BoundaryQuantity typ
   // KGF: what is happening in the next two conditionals??
   // they are preventing the elimination of "BoundaryQuantity type" function parameter in
   // favor of a simpler boolean switch
-  if (type == BoundaryQuantity::cc_flcor || type == BoundaryQuantity::fc_flcor) {
-    for (bd.nbmax = 0; pbval_->ni[bd.nbmax].type == NeighborConnect::face; bd.nbmax++) {}
-  }
-  if (type == BoundaryQuantity::fc_flcor) {
-    for (          ; pbval_->ni[bd.nbmax].type == NeighborConnect::edge; bd.nbmax++) {}
-  }
   for (int n=0; n<bd.nbmax; n++) {
     // Clear flags and requests
     bd.flag[n] = BoundaryStatus::waiting;
@@ -68,8 +62,6 @@ void BoundaryVariable::InitBoundaryData(BoundaryData<> &bd, BoundaryQuantity typ
     if (type == BoundaryQuantity::cc || type == BoundaryQuantity::fc ||
         type == BoundaryQuantity::vc || type == BoundaryQuantity::cx) {
       size = this->ComputeVariableBufferSize(ni[n], cng);
-    } else if (type == BoundaryQuantity::cc_flcor || type == BoundaryQuantity::fc_flcor) {
-      size = this->ComputeFluxCorrectionBufferSize(ni[n], cng);
     } else {
       std::stringstream msg;
       msg << "### FATAL ERROR in InitBoundaryData" << std::endl
@@ -122,55 +114,6 @@ void BoundaryVariable::CopyVariableBufferSameProcess(NeighborBlock& nb, int ssiz
   ptarget_bdata->flag[nb.targetid] = BoundaryStatus::arrived;
   return;
 }
-
-// KGF: change ssize to send_count
-
-void BoundaryVariable::CopyFluxCorrectionBufferSameProcess(NeighborBlock& nb, int ssize) {
-  // Locate target buffer
-  // 1) which MeshBlock?
-  MeshBlock *ptarget_block = pmy_mesh_->FindMeshBlock(nb.snb.gid);
-  // 2) which element in vector of BoundaryVariable *?
-  BoundaryData<> *ptarget_bdata =
-      &(ptarget_block->pbval->bvars[bvar_index]->bd_var_flcor_);
-  std::memcpy(ptarget_bdata->recv[nb.targetid], bd_var_flcor_.send[nb.bufid],
-              ssize*sizeof(Real));
-  ptarget_bdata->flag[nb.targetid] = BoundaryStatus::arrived;
-  return;
-}
-
-// no nb.targetid, nb.bufid in SimpleNeighborBlock.
-// fixed "int bufid" is used for both IDs. Seems unnecessarily strict.
-void BoundaryVariable::CopyShearBufferSameProcess(SimpleNeighborBlock& snb, int ssize,
-                                                  int bufid, bool upper) {
-  // Locate target buffer
-  // 1) which MeshBlock?
-  MeshBlock *ptarget_block = pmy_mesh_->FindMeshBlock(snb.gid);
-  // 2) which element in vector of BoundaryVariable *?
-  ShearingBoundaryData *ptarget_bdata =
-      &(ptarget_block->pbval->bvars[bvar_index]->shear_bd_var_[upper]);
-  std::memcpy(ptarget_bdata->recv[bufid], shear_bd_var_[upper].send[bufid],
-              ssize*sizeof(Real));
-  // finally, set the BoundaryStatus flag on the destination buffer
-  ptarget_bdata->flag[bufid] = BoundaryStatus::arrived;
-  return;
-}
-
-void BoundaryVariable::CopyShearEMFSameProcess(SimpleNeighborBlock& snb, int ssize,
-                                               int bufid, bool upper) {
-  // Locate target buffer
-  // 1) which MeshBlock?
-  MeshBlock *ptarget_block = pmy_mesh_->FindMeshBlock(snb.gid);
-  // 2) which element in vector of BoundaryVariable *?
-  ShearingBoundaryData *ptarget_bdata =
-      &(ptarget_block->pbval->bvars[bvar_index]->shear_bd_emf_[upper]);
-  std::memcpy(ptarget_bdata->recv[bufid], shear_bd_emf_[upper].send[bufid],
-              ssize*sizeof(Real));
-  // finally, set the BoundaryStatus flag on the destination buffer
-  ptarget_bdata->flag[bufid] = BoundaryStatus::arrived;
-  return;
-}
-
-// Default / shared implementations of 4x BoundaryBuffer public functions
 
 //----------------------------------------------------------------------------------------
 //! \fn void BoundaryVariable::SendBoundaryBuffers()
@@ -289,5 +232,3 @@ void BoundaryVariable::ReceiveAndSetBoundariesWithWait() {
 
   return;
 }
-
-//PolarFieldBoundaryAverage();

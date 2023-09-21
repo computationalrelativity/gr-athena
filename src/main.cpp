@@ -40,14 +40,7 @@
 #include "outputs/outputs.hpp"
 #include "parameter_input.hpp"
 #include "utils/utils.hpp"
-
-#include "z4c/wave_extract.hpp"
-#include "z4c/puncture_tracker.hpp"
 #include "trackers/extrema_tracker.hpp"
-#include "z4c/ahf.hpp"
-#if CCE_ENABLED
-#include "z4c/cce/cce.hpp"
-#endif
 
 // MPI/OpenMP headers
 #ifdef MPI_PARALLEL
@@ -334,15 +327,11 @@ int main(int argc, char *argv[]) {
   }
   //--- Step 5. --------------------------------------------------------------------------
   // Construct and initialize TaskList
-  TimeIntegratorTaskList *ptlist = nullptr;
 
 #ifdef ENABLE_EXCEPTIONS
   try {
 #endif
 // Fluid but no dynamical spacetime
-    if(FLUID_ENABLED  && !Z4C_ENABLED){
-      ptlist = new TimeIntegratorTaskList(pinput, pmesh);
-    }
 #ifdef ENABLE_EXCEPTIONS
   }
   catch(std::bad_alloc& ba) {
@@ -378,90 +367,6 @@ int main(int argc, char *argv[]) {
     return(0);
   }
 #endif // ENABLE_EXCEPTIONS
-
-  Z4cIntegratorTaskList *pz4clist = nullptr;
-  Z4cRBCTaskList        *pz4crbclist = nullptr;
-  Z4cAuxTaskList        *pz4cauxlist = nullptr;
-
-#ifdef ENABLE_EXCEPTIONS
-  try {
-#endif
-// Dynamical spacetime - no matter
-    if(Z4C_ENABLED && !FLUID_ENABLED) { // only init. when required
-      pz4clist = new Z4cIntegratorTaskList(pinput, pmesh);
-    }
-#ifdef ENABLE_EXCEPTIONS
-  }
-  catch(std::bad_alloc& ba) {
-    std::cout << "### FATAL ERROR in main" << std::endl << "memory allocation failed "
-              << "in creating task list " << ba.what() << std::endl;
-#ifdef MPI_PARALLEL
-    MPI_Finalize();
-#endif
-    return(0);
-  }
-#endif // ENABLE_EXCEPTIONS
-
-
-  SuperTimeStepTaskList *pststlist = nullptr;
-  if (STS_ENABLED) {
-#ifdef ENABLE_EXCEPTIONS
-    try {
-#endif
-      pststlist = new SuperTimeStepTaskList(pinput, pmesh, ptlist);
-#ifdef ENABLE_EXCEPTIONS
-    }
-    catch(std::bad_alloc& ba) {
-      std::cout << "### FATAL ERROR in main" << std::endl << "memory allocation failed "
-                << "in creating task list " << ba.what() << std::endl;
-#ifdef MPI_PARALLEL
-      MPI_Finalize();
-#endif
-      return(0);
-    }
-#endif // ENABLE_EXCEPTIONS
-}
-  MatterTaskList *pmatterlist = nullptr;
-
-#ifdef ENABLE_EXCEPTIONS
-  try {
-#endif
-//Matter and dynamical spacetime
-    if(Z4C_ENABLED && FLUID_ENABLED) { // only init. when required
-      pmatterlist = new MatterTaskList(pinput, pmesh);
-    }
-#ifdef ENABLE_EXCEPTIONS
-  }
-  catch(std::bad_alloc& ba) {
-    std::cout << "### FATAL ERROR in main" << std::endl << "memory allocation failed "
-              << "in creating task list " << ba.what() << std::endl;
-#ifdef MPI_PARALLEL
-    MPI_Finalize();
-#endif
-    return(0);
-  }
-#endif // ENABLE_EXCEPTIONS
-
-#ifdef ENABLE_EXCEPTIONS
-  try {
-#endif
-// Auxiliary tasklists for use with z4c and z4c+matter
-    if(Z4C_ENABLED) { // only init. when required
-      pz4crbclist = new Z4cRBCTaskList(pinput, pmesh);
-      pz4cauxlist = new Z4cAuxTaskList(pinput, pmesh);
-    }
-#ifdef ENABLE_EXCEPTIONS
-  }
-  catch(std::bad_alloc& ba) {
-    std::cout << "### FATAL ERROR in main" << std::endl << "memory allocation failed "
-              << "in creating task list " << ba.what() << std::endl;
-#ifdef MPI_PARALLEL
-    MPI_Finalize();
-#endif
-    return(0);
-  }
-#endif // ENABLE_EXCEPTIONS
-  
 
   //--- Step 6. --------------------------------------------------------------------------
   // Set initial conditions by calling problem generator, or reading restart file
@@ -532,34 +437,12 @@ int main(int argc, char *argv[]) {
   double omp_start_time = omp_get_wtime();
 #endif
 
-  // BD: populate z4c struct carrying output dt for various quantities
-  // This controls computation of quantities within the main tasklist
-  if (Z4C_ENABLED) {
-    Real dt_con = pouts->GetOutputTimeStep("con");
-    if(!FLUID_ENABLED){
-      pz4clist->TaskListTriggers.con.dt = dt_con;
-    } else{
-      pmatterlist->TaskListTriggers.con.dt = dt_con;
-    }
-  }
 
   while ((pmesh->time < pmesh->tlim) &&
          (pmesh->nlim < 0 || pmesh->ncycle < pmesh->nlim)) {
 
     if (Globals::my_rank == 0)
       pmesh->OutputCycleDiagnostics();
-
-    if (STS_ENABLED) {
-      // compute nstages for this STS
-      Real my_dt = pmesh->dt;
-      Real dt_parabolic  = pmesh->dt_parabolic;
-      pststlist->nstages =
-        static_cast<int>(0.5*(-1. + std::sqrt(1. + 8.*my_dt/dt_parabolic))) + 1;
-
-      // take super-timestep
-      for (int stage=1; stage<=pststlist->nstages; ++stage)
-        pststlist->DoTaskListOneStage(pmesh,stage);
-    }
 
     // BD: new problem
     if (WAVE_ENABLED) {
@@ -569,124 +452,6 @@ int main(int argc, char *argv[]) {
       }
     }
     // -BD
-
-
-    if (Z4C_ENABLED) {
-      if(!FLUID_ENABLED){
-      // This effectively means hydro takes a time-step and _then_ the given problem takes one
-        for (int stage=1; stage<=pz4clist->nstages; ++stage) {
-          pz4clist->DoTaskListOneStage(pmesh, stage);
-
-#if defined(Z4C_CX_ENABLED)
-          // recommunicate BC
-          for (int num=1; num<=Z4C_CX_NUM_RBC; num++)
-          {
-            pz4crbclist->DoTaskListOneStage(pmesh, num);
-          }
-#endif // Z4C_CX_ENABLED
-
-        }
-      } else{ //FLUID_ENABLED && Z4C_ENABLED
-      for (int stage=1; stage<=pmatterlist->nstages; ++stage) {
-        pmatterlist->DoTaskListOneStage(pmesh, stage);
-      }
-
-#if defined(Z4C_CX_ENABLED)
-          // recommunicate BC
-          for (int num=1; num<=Z4C_CX_NUM_RBC; num++)
-          {
-            pz4crbclist->DoTaskListOneStage(pmesh, num);
-          }
-#endif // Z4C_CX_ENABLED
-
-      } //FLUID_ENABLED
-
-
-      pz4cauxlist->DoTaskListOneStage(pmesh, 1);  // only 1 stage
-
-      
-
-      // BD: TODO - check that the following are not displaced by \dt ?
-      // only do an extraction if NextTime threshold cleared (updated below)
-
-      bool wave_update, cce_update;
-      Real cce_dt;
-
-      if(!FLUID_ENABLED){
-        wave_update = pz4clist->TaskListTriggers.wave_extraction.to_update;
-      } else {
-        wave_update = pmatterlist->TaskListTriggers.wave_extraction.to_update;
-      }
-
-      if (wave_update) {
-        for (auto pwextr : pmesh->pwave_extr) {
-          pwextr->ReduceMultipole();
-          pwextr->Write(pmesh->ncycle, pmesh->time);
-        }
-      }
-#if CCE_ENABLED
-      if(!FLUID_ENABLED){
-        cce_update = pz4clist->TaskListTriggers.cce_dump.to_update;
-        cce_dt = pz4clist->TaskListTriggers.cce_dump.dt;
-      } else {
-        cce_update = pmatterlist->TaskListTriggers.cce_dump.to_update;
-        cce_dt = pmatterlist->TaskListTriggers.cce_dump.dt;
-      }
-      // only do a CCE dump if NextTime threshold cleared (updated below)
-      if (cce_update) {
-        // gather all interpolation values from all processors to the root proc.
-        for (auto cce : pmesh->pcce)
-        {
-          cce->ReduceInterpolation();
-        }
-        // number of cce iteration(dump)
-        int cce_iter = static_cast<int>(pmesh->time / 
-                                       cce_dt);
-        int w_iter = 0; // write iter
-
-        // update the bookkeeping file to ensure resuming from the correct iter number 
-        // after a restart. note: for a duplicated iter, hdf5 writer gives an error!
-        if (CCE::BookKeeping(pinput,cce_iter,w_iter))
-        {
-          for (auto cce : pmesh->pcce)
-          {
-            cce->DecomposeAndWrite(w_iter);
-          }
-        }
-      }
-#endif
-      for (auto pah_f : pmesh->pah_finder) {
-        if (pah_f->CalculateMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
-      }
-      for (auto pah_f : pmesh->pah_finder) {
-        pah_f->Find(pmesh->ncycle, pmesh->time);
-        pah_f->Write(pmesh->ncycle, pmesh->time);
-      }
-      for (auto pah_f : pmesh->pah_finder) {
-        if (pah_f->DeleteMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
-      }
-      // TODO: probably we do not want to output tracker data at every timestep
-      for (auto ptracker : pmesh->pz4c_tracker) {
-        ptracker->EvolveTracker();
-        ptracker->WriteTracker(pmesh->ncycle, pmesh->time);
-      }
-
-      // extrema trackers are registered / computed collectively
-      pmesh->ptracker_extrema->ReduceTracker();
-      pmesh->ptracker_extrema->EvolveTracker();
-      pmesh->ptracker_extrema->WriteTracker(pmesh->ncycle, pmesh->time);
-
-      //-------------------------------------------------------------------------
-      // Update NextTime triggers
-      // This needs to be here to share tasklist external (though coupled) ops.
-      if(!FLUID_ENABLED){
-        pz4clist->UpdateTaskListTriggers();
-      } else {
-        pmatterlist->UpdateTaskListTriggers();
-      }
-      pz4cauxlist->UpdateTaskListTriggers();
-      //-------------------------------------------------------------------------
-    }
 
     pmesh->UserWorkInLoop();
     pmesh->ncycle++;
@@ -815,11 +580,6 @@ int main(int argc, char *argv[]) {
 
   delete pinput;
   delete pmesh;
-  delete ptlist;
-  delete pz4clist;
-  delete pz4crbclist;
-  delete pz4cauxlist;
-  delete pmatterlist;
   delete pouts;
 
 #ifdef MPI_PARALLEL

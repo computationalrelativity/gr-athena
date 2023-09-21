@@ -20,9 +20,7 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../coordinates/coordinates.hpp"
-#include "../field/field.hpp"
 #include "../globals.hpp"
-#include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "outputs.hpp"
@@ -118,27 +116,16 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     // cell-centered data packed into 1 dataset: (prim, phi, s0, etc.)
     num_datasets = 1;
     // face-centered data packed into 1 dataset:
-    if (MAGNETIC_FIELDS_ENABLED)
-      num_datasets += 1;
     num_variables = new int[num_datasets];
 
     // n_dataset = 0: all cell-centered AthenaArray variable data of the same size
     // Hydro conserved variables:
-    num_variables[n_dataset] = NHYDRO;
+    num_variables[n_dataset] = 0; // NHYDRO;
     if (output_params.cartesian_vector)
       num_variables[n_dataset] += 3;
-    // Passive scalars:
-    if (NSCALARS > 0)
-      num_variables[n_dataset] += NSCALARS;
 
     // n_dataset = 1: face-centered FaceField variable data
     n_dataset++;
-    // Longitudinal, face-centered magnetic field components:
-    if (MAGNETIC_FIELDS_ENABLED) {
-      num_variables[n_dataset] = 3;
-      if (output_params.cartesian_vector)
-        num_variables[n_dataset] += 3;
-    }
   } else {
     num_datasets = 1;
     num_variables = new int[num_datasets];
@@ -154,12 +141,8 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
       std::strncpy(dataset_names[n_dataset_names++], "prim", max_name_length+1);
     else
       std::strncpy(dataset_names[n_dataset_names++], "cons", max_name_length+1);
-    if (MAGNETIC_FIELDS_ENABLED)
-      std::strncpy(dataset_names[n_dataset_names++], "B", max_name_length+1);
   } else { // single data
-    if (variable.compare(0,1,"B") == 0 && MAGNETIC_FIELDS_ENABLED)
-      std::strncpy(dataset_names[n_dataset_names++], "B", max_name_length+1);
-    else if (variable.compare(0,3,"uov") == 0
+    if (variable.compare(0,3,"uov") == 0
              || variable.compare(0,12,"user_out_var") == 0)
       std::strncpy(dataset_names[n_dataset_names++], "user_out_var", max_name_length+1);
     else

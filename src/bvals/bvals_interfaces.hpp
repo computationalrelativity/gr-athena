@@ -28,13 +28,10 @@
 class Mesh;
 class MeshBlock;
 class MeshBlockTree;
-class Hydro;
-class Field;
 class ParameterInput;
 class Coordinates;
 class BoundaryValues;
 struct RegionSize;
-struct FaceField;
 
 // TODO(felker): nest these enum definitions inside bvals/ classes, when possible.
 
@@ -160,15 +157,6 @@ struct BoundaryData { // aggregate and POD (even when MPI_PARALLEL is defined)
 #endif
 };
 
-using ShearingBoundaryData = BoundaryData<4>;
-
-// Struct for describing blocks which touch the shearing-periodic boundaries
-// struct ShearingBoundaryBlock {
-//   int *igidlist, *ilidlist, *irnklist, *ilevlist;
-//   int *ogidlist, *olidlist, *ornklist, *olevlist;
-//   bool inner, outer;
-// };
-
 //----------------------------------------------------------------------------------------
 // Interfaces = abstract classes containing ONLY pure virtual functions
 //              Merely lists functions and their argument lists that must be implemented
@@ -192,9 +180,6 @@ class BoundaryCommunication {
   virtual void StartReceiving(BoundaryCommSubset phase) = 0;
   // call MPI_Wait() on req_send[] and set flag[] to BoundaryStatus::waiting
   virtual void ClearBoundary(BoundaryCommSubset phase) = 0;
-
-  virtual void StartReceivingShear(BoundaryCommSubset phase) = 0;
-  virtual void ComputeShear(const Real time) = 0;
 };
 
 //----------------------------------------------------------------------------------------
@@ -215,9 +200,6 @@ class BoundaryBuffer {
   // this next fn is used only during problem initialization in mesh.cpp:
   virtual void ReceiveAndSetBoundariesWithWait() = 0;
   virtual void SetBoundaries() = 0;
-
-  virtual void SendFluxCorrection() = 0;
-  virtual bool ReceiveFluxCorrection() = 0;
 
  protected:
   // universal buffer management methods for Cartesian grids (unrefined and SMR/AMR):
@@ -315,7 +297,6 @@ class BoundaryVariable : public BoundaryCommunication, public BoundaryBuffer,
   std::vector<BoundaryVariable *>::size_type bvar_index;
 
   virtual int ComputeVariableBufferSize(const NeighborIndexes& ni, int cng) = 0;
-  virtual int ComputeFluxCorrectionBufferSize(const NeighborIndexes& ni, int cng) = 0;
 
   // BoundaryBuffer public functions with shared implementations
   void SendBoundaryBuffers() override;
@@ -325,7 +306,7 @@ class BoundaryVariable : public BoundaryCommunication, public BoundaryBuffer,
 
  protected:
   // deferred initialization of BoundaryData objects in derived class constructors
-  BoundaryData<> bd_var_, bd_var_flcor_;
+  BoundaryData<> bd_var_;
   // derived class dtors are also responsible for calling DestroyBoundaryData(bd_var_)
 
   MeshBlock *pmy_block_;   // ptr to MeshBlock containing this BoundaryVariable
@@ -334,18 +315,10 @@ class BoundaryVariable : public BoundaryCommunication, public BoundaryBuffer,
                            // BoundaryVariable objects
 
   void CopyVariableBufferSameProcess(NeighborBlock& nb, int ssize);
-  void CopyFluxCorrectionBufferSameProcess(NeighborBlock& nb, int ssize);
 
   void InitBoundaryData(BoundaryData<> &bd, BoundaryQuantity type);
   void DestroyBoundaryData(BoundaryData<> &bd);
 
-  ShearingBoundaryData shear_bd_var_[2], shear_bd_emf_[2];
-  // TODO(felker): combine 4x Copy*SameProcess() functions
-  void CopyShearBufferSameProcess(SimpleNeighborBlock& snb, int ssize, int bufid,
-                                  bool upper);
-  void CopyShearEMFSameProcess(SimpleNeighborBlock& snb, int ssize, int bufid,
-                               bool upper);
-  // private:
 };
 
 #endif // BVALS_BVALS_INTERFACES_HPP_

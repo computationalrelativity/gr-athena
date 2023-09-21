@@ -19,7 +19,6 @@
 
 // for registration of control field..
 #include "../wave/wave.hpp"
-#include "../z4c/z4c.hpp"
 
 ExtremaTracker::ExtremaTracker(Mesh * pmesh, ParameterInput * pin,
                                int res_flag):
@@ -439,26 +438,6 @@ ExtremaTrackerLocal::ExtremaTrackerLocal(
     {
       case ExtremaTracker::control_fields::wave_auxiliary_ref:
         // control_field = &(pmb->pwave->aux_ref.auxiliary_ref_field);
-        break;
-      case ExtremaTracker::control_fields::Z4c_alpha:
-        // need to slice and point
-
-        control_field_slicer.InitWithShallowSlice(
-          pmb->pz4c->storage.u, Z4c::I_Z4c_alpha, 1
-        );
-
-        control_field = &(control_field_slicer);
-
-        break;
-      case ExtremaTracker::control_fields::Z4c_chi:
-        // need to slice and point
-
-        control_field_slicer.InitWithShallowSlice(
-          pmb->pz4c->storage.u, Z4c::I_Z4c_chi, 1
-        );
-
-        control_field = &(control_field_slicer);
-
         break;
     }
 

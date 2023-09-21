@@ -28,7 +28,6 @@
 #   -z_eta_conf         enable conformal factor based shift-damping
 #   -cce                enable CCE
 #   -t                  enable interface frame transformations for GR
-#   -shear              enable shearing periodic boundary conditions
 #   -debug              enable debug flags (-g -O0); override other compiler options
 #   -coverage           enable compiler-dependent code coverage flags
 #   -float              enable single precision (default is double)
@@ -119,31 +118,6 @@ parser.add_argument(
         'gr_dynamical'],
     help='select coordinate system')
 
-# --eos=[name] argument
-parser.add_argument('--eos',
-                    default='adiabatic',
-                    choices=['adiabatic', 'isothermal', 'general/eos_table','adiabatictaudyn_rep',
-                             'general/hydrogen', 'general/ideal'],
-                    help='select equation of state')
-
-# --eospolicy=[name] argument
-parser.add_argument('--eospolicy',
-                    default='idealgas',
-                    choices=['idealgas', 'piecewise_polytrope', 'eos_compose'],
-                    help='select EOS policy for PrimitiveSolver framework')
-
-# --errorpolicy=[name] argument
-parser.add_argument('--errorpolicy',
-                    default='do_nothing',
-                    choices=['do_nothing', 'reset_floor'],
-                    help='select error policy for PrimitiveSolver framework')
-
-# --flux=[name] argument
-parser.add_argument('--flux',
-                    default='default',
-                    choices=['default', 'hlle', 'hllc', 'hlld', 'roe', 'llf', 'llftaudyn'],
-                    help='select Riemann solver')
-
 # --nghost=[value] argument
 parser.add_argument('--nghost',
                     default='2',
@@ -165,11 +139,6 @@ parser.add_argument('--nextrapolate',
                     default='default',
                     help='number of points to use for outflow extrapolation (defaults to nghosts + 1)')
 
-# --nscalars=[value] argument
-parser.add_argument('--nscalars',
-                    default='0',
-                    help='set number of passive scalars')
-
 # --ninterp=[value] argument
 parser.add_argument('--ninterp',
                     default='2',
@@ -180,76 +149,6 @@ parser.add_argument('-hybridinterp',
                     action='store_true',
                     default=False,
                     help='use hybrid grid-to-grid interpolation')
-
-# -f argument
-parser.add_argument('-f',
-                    action='store_true',
-                    default=False,
-                    help='enable fluid')
-
-# -b argument
-parser.add_argument('-b',
-                    action='store_true',
-                    default=False,
-                    help='enable magnetic field')
-
-# -sts argument
-parser.add_argument('-sts',
-                    action='store_true',
-                    default=False,
-                    help='enable super-time-stepping')
-
-# -s argument
-parser.add_argument('-s',
-                    action='store_true',
-                    default=False,
-                    help='enable special relativity')
-
-# -g argument
-parser.add_argument('-g',
-                    action='store_true',
-                    default=False,
-                    help='enable general relativity')
-
-# -z argument
-parser.add_argument("-z",
-                    action='store_true',
-                    default=False,
-                    help='enable Z4c system')
-
-parser.add_argument("-z_cc",
-                    action='store_true',
-                    default=False,
-                    help='enable Z4c system: cc sampling')
-
-parser.add_argument("-z_cx",
-                    action='store_true',
-                    default=False,
-                    help='enable Z4c system: cx sampling')
-
-parser.add_argument("-z_vc",
-                    action='store_true',
-                    default=False,
-                    help='enable Z4c system: vc sampling')
-
-
-# -z_eta_track_tp argument
-parser.add_argument("-z_eta_track_tp",
-                    action='store_true',
-                    default=False,
-                    help='enable (TP) based shift-damping')
-
-# -z_eta_conf argument
-parser.add_argument("-z_eta_conf",
-                    action='store_true',
-                    default=False,
-                    help='enable conformal factor based shift-damping')
-
-# -cce argument
-parser.add_argument("-cce",
-                    action='store_true',
-                    default=False,
-                    help='enable CCE wave extraction')
 
 # -w argument
 parser.add_argument("-w",
@@ -271,30 +170,6 @@ parser.add_argument("-w_vc",
                     action='store_true',
                     default=False,
                     help='enable wave equation: vc sampling')
-
-# -t argument
-parser.add_argument('-t',
-                    action='store_true',
-                    default=False,
-                    help='enable interface frame transformations for GR')
-
-# -ref_box_in_box argument
-parser.add_argument("-ref_box_in_box",
-                    action='store_true',
-                    default=True,
-                    help='use box-in-box refinement')
-
-# -ref_spheres argument
-parser.add_argument("-ref_spheres",
-                    action='store_true',
-                    default=False,
-                    help='use sphere refinement (disables box-in-box)')
-
-# -shear argument
-parser.add_argument('-shear',
-                    action='store_true',
-                    default=False,
-                    help='enable shearing box')
 
 # -debug argument
 parser.add_argument('-debug',
@@ -325,23 +200,6 @@ parser.add_argument('-omp',
                     action='store_true',
                     default=False,
                     help='enable parallelization with OpenMP')
-
-# --grav=[name] argument
-parser.add_argument('--grav',
-                    default='none',
-                    choices=['none', 'fft', 'mg'],
-                    help='select self-gravity solver')
-
-# -fft argument
-parser.add_argument('-fft',
-                    action='store_true',
-                    default=False,
-                    help='enable FFT')
-
-# --fftw_path argument
-parser.add_argument('--fftw_path',
-                    default='',
-                    help='path to FFTW libraries')
 
 # -hdf5 argument
 parser.add_argument('-hdf5',
@@ -484,63 +342,6 @@ args = vars(parser.parse_args())
 
 # --- Step 2. Test for incompatible arguments ----------------------------
 
-# Set default flux; HLLD for MHD, HLLC for hydro, HLLE for isothermal hydro or any GR
-if args['flux'] == 'default':
-    if args['g']:
-        args['flux'] = 'hlle'
-    elif args['b']:
-        args['flux'] = 'hlld'
-    elif args['eos'] == 'isothermal':
-        args['flux'] = 'hlle'
-    else:
-        args['flux'] = 'hllc'
-
-# Check Riemann solver compatibility
-if args['flux'] == 'hllc' and args['eos'] == 'isothermal':
-    raise SystemExit('### CONFIGURE ERROR: HLLC flux cannot be used with isothermal EOS')
-if args['flux'] == 'hllc' and args['b']:
-    raise SystemExit('### CONFIGURE ERROR: HLLC flux cannot be used with MHD')
-if args['flux'] == 'hlld' and not args['b']:
-    raise SystemExit('### CONFIGURE ERROR: HLLD flux can only be used with MHD')
-
-# Check relativity
-if args['s'] and args['g']:
-    raise SystemExit('### CONFIGURE ERROR: '
-                     + 'GR implies SR; the -s option is restricted to pure SR')
-if args['t'] and not args['g']:
-    raise SystemExit('### CONFIGURE ERROR: Frame transformations only apply to GR')
-if args['g'] and not args['t'] and args['flux'] not in ('llf','llftaudyn', 'hlle'):
-    raise SystemExit('### CONFIGURE ERROR: Frame transformations required for {0}'
-                     .format(args['flux']))
-if args['g'] and args['coord'] in ('cartesian', 'cylindrical', 'spherical_polar'):
-    raise SystemExit('### CONFIGURE ERROR: GR cannot be used with {0} coordinates'
-                     .format(args['coord']))
-if not args['g'] and args['coord'] not in ('cartesian', 'cylindrical', 'spherical_polar'):
-    raise SystemExit('### CONFIGURE ERROR: '
-                     + args['coord'] + ' coordinates only apply to GR')
-if args['eos'] == 'isothermal':
-    if args['s'] or args['g']:
-        raise SystemExit('### CONFIGURE ERROR: '
-                         + 'Isothermal EOS is incompatible with relativity')
-if args['eos'] == 'eostaudyn_ps':
-    if not args['z']:
-        raise SystemExit('### CONFIGURE ERROR: '
-                         + 'PrimitiveSolver EOS interface requires Z4c')
-if args['eos'][:8] == 'general/':
-    if args['s'] or args['g']:
-        raise SystemExit('### CONFIGURE ERROR: '
-                         + 'General EOS is incompatible with relativity')
-    if args['flux'] not in ['hllc', 'hlld', 'hlle']:
-        raise SystemExit('### CONFIGURE ERROR: '
-                         + 'General EOS is incompatible with flux ' + args['flux'])
-
-# Check Z4c
-if args['z']:
-    if args['coord'] not in ("cartesian","gr_dynamical") :
-        raise SystemExit("### CONFIGURE ERROR: Z4c requires Cartesian coordinates")
-#    if args["f"] or args["b"] or args["s"] or args["g"]:
-#        raise SystemExit("### CONFIGURE ERROR: Z4c only supports vacuum spacetimes for now")
-
 # --- Step 3. Set definitions and Makefile options based on above argument
 
 # Prepare dictionaries of substitutions to be made
@@ -553,57 +354,6 @@ definitions['PROBLEM'] = makefile_options['PROBLEM_FILE'] = args['prob']
 
 # --coord=[name] argument
 definitions['COORDINATE_SYSTEM'] = makefile_options['COORDINATES_FILE'] = args['coord']
-
-# --eos=[name] argument
-definitions['NON_BAROTROPIC_EOS'] = '0' if args['eos'] == 'isothermal' else '1'
-makefile_options['EOS_FILE'] = args['eos']
-definitions['EQUATION_OF_STATE'] = args['eos']
-# set number of hydro variables for adiabatic/isothermal
-definitions['GENERAL_EOS'] = '0'
-makefile_options['GENERAL_EOS_FILE'] = 'noop'
-definitions['EOS_TABLE_ENABLED'] = '0'
-# defaults for PrimitiveSolver definitions
-definitions['USE_TM'] = '0'
-definitions['EOS_POLICY'] = ''
-definitions['ERROR_POLICY'] = ''
-definitions['EOS_POLICY_CODE'] = '0'
-definitions['ERROR_POLICY_CODE'] = '0'
-if args['eos'] == 'isothermal':
-    definitions['NHYDRO_VARIABLES'] = '4'
-elif args['eos'] == 'adiabatic' or args['eos'] == 'adiabatictaudyn_rep':
-    definitions['NHYDRO_VARIABLES'] = '5'
-elif args['eos'] == 'eostaudynps':
-    definitions['NHYDRO_VARIABLES'] = '5'
-    definitions['USE_TM'] = '1'
-    if args['eospolicy'] == 'idealgas':
-        definitions['EOS_POLICY'] = 'IdealGas'
-        definitions['EOS_POLICY_CODE'] = '0'
-    elif args['eospolicy'] == 'piecewise_polytrope':
-        definitions['EOS_POLICY'] = 'PiecewisePolytrope'
-        definitions['EOS_POLICY_CODE'] = '1'
-    elif args['eospolicy'] == 'eos_compose':
-        definitions['EOS_POLICY'] = 'EOSCompOSE'
-        definitions['EOS_POLICY_CODE'] = '2'
-    if args['errorpolicy'] == 'do_nothing':
-        definitions['ERROR_POLICY'] = 'DoNothing'
-        definitions['ERROR_POLICY_CODE'] = '0'
-    if args['errorpolicy'] == 'reset_floor':
-        definitions['ERROR_POLICY'] = 'ResetFloor'
-        definitions['ERROR_POLICY_CODE'] = '1'
-    else:
-        definitions['ERROR_POLICY'] = ''
-
-    #TODO(JF): Check if this is still needed
-    makefile_options['GENERAL_EOS_FILE'] = 'general_gr'
-else:
-    definitions['GENERAL_EOS'] = '1'
-    makefile_options['GENERAL_EOS_FILE'] = 'general'
-    definitions['NHYDRO_VARIABLES'] = '5'
-    if args['eos'] == 'general/eos_table':
-        definitions['EOS_TABLE_ENABLED'] = '1'
-
-# --flux=[name] argument
-definitions['RSOLVER'] = makefile_options['RSOLVER_FILE'] = args['flux']
 
 # --nghost=[value] argument
 definitions['NUMBER_GHOST_CELLS'] = args['nghost']
@@ -630,170 +380,8 @@ if args['nextrapolate'].isnumeric():
 else:
     definitions['NUMBER_EXTRAPOLATION_POINTS'] = str(int(args['nghost']) + 1)
 
-# --nscalars=[value] argument
-definitions['NUMBER_PASSIVE_SCALARS'] = args['nscalars']
-
 # --ninterp=[value] argument
 definitions['NUMBER_INTERP_GHOSTS'] = args['ninterp']
-
-# -f argument
-if args['f']:
-    definitions['FLUID_ENABLED'] = '1'
-else:
-    definitions['FLUID_ENABLED'] = '0'
-
-if args['f']:
-    definitions['FLUID_ENABLED'] = '1'
-    aux = [
-      "src/eos/general/$(GENERAL_EOS_FILE)",
-      "src/eos/$(EOS_FILE)",
-      "src/eos/eos_high_order.cpp",
-      "src/eos/eos_scalars.cpp"
-    ]
-    makefile_options['EOS_BASE_SRC'] = '\\\n'.join(aux)
-else:
-    definitions['FLUID_ENABLED'] = '0'
-    makefile_options['EOS_BASE_SRC'] = ''
-
-# -b argument
-# set variety of macros based on whether MHD/hydro or adi/iso are defined
-if args['b']:
-    definitions['MAGNETIC_FIELDS_ENABLED'] = '1'
-    if definitions['GENERAL_EOS'] != '0':
-        makefile_options['GENERAL_EOS_FILE'] += '_mhd'
-    else:
-        makefile_options['EOS_FILE'] += '_mhd'
-    definitions['NFIELD_VARIABLES'] = '3'
-    makefile_options['RSOLVER_DIR'] = 'mhd/'
-    if args['flux'] == 'hlle' or args['flux'] == 'llf' or args['flux'] == 'roe' or args['flux'] == 'llftaudyn':
-        makefile_options['RSOLVER_FILE'] += '_mhd'
-    if args['eos'] == 'isothermal':
-        definitions['NWAVE_VALUE'] = '6'
-        if args['flux'] == 'hlld':
-            makefile_options['RSOLVER_FILE'] += '_iso'
-    else:
-        definitions['NWAVE_VALUE'] = '7'
-else:
-    definitions['MAGNETIC_FIELDS_ENABLED'] = '0'
-    if definitions['GENERAL_EOS'] != '0':
-        makefile_options['GENERAL_EOS_FILE'] += '_hydro'
-    else:
-        makefile_options['EOS_FILE'] += '_hydro'
-    definitions['NFIELD_VARIABLES'] = '0'
-    makefile_options['RSOLVER_DIR'] = 'hydro/'
-    if args['eos'] == 'isothermal':
-        definitions['NWAVE_VALUE'] = '4'
-    else:
-        definitions['NWAVE_VALUE'] = '5'
-
-# -sts argument
-if args['sts']:
-    definitions['STS_ENABLED'] = '1'
-else:
-    definitions['STS_ENABLED'] = '0'
-
-# -s, -g, and -t arguments
-definitions['RELATIVISTIC_DYNAMICS'] = '1' if args['s'] or args['g'] else '0'
-definitions['GENERAL_RELATIVITY'] = '1' if args['g'] else '0'
-definitions['FRAME_TRANSFORMATIONS'] = '1' if args['t'] else '0'
-if args['s']:
-    makefile_options['EOS_FILE'] += '_sr'
-    if definitions['GENERAL_EOS'] != '0':
-        makefile_options['GENERAL_EOS_FILE'] += '_sr'
-    makefile_options['RSOLVER_FILE'] += '_rel'
-if args['g']:
-    makefile_options['EOS_FILE'] += '_gr'
-    if definitions['GENERAL_EOS'] != '0':
-        makefile_options['GENERAL_EOS_FILE'] += '_gr'
-    makefile_options['RSOLVER_FILE'] += '_rel'
-    if not args['t']:
-        makefile_options['RSOLVER_FILE'] += '_no_transform'
-
-# -z argument
-if args['z']:
-  definitions['Z4C_ENABLED'] = '1'
-  if args['f']:
-    definitions['Z4C_WITH_HYDRO_ENABLED'] = 'Z4C_WITH_HYDRO_ENABLED'
-  else:
-    definitions['Z4C_WITH_HYDRO_ENABLED'] = 'NO_Z4C_WITH_HYDRO_ENABLED'
-
-  try:
-      if not int(args['nghost']) >= 2:
-          raise Exception
-  except:
-      raise SystemExit("### CONFIGURE ERROR: Z4c requires 2 or more ghost zones")
-
-  # default is VC
-  definitions['Z4C_CX_ENABLED'] = 'NO_Z4C_CX_ENABLED'
-  definitions['Z4C_CC_ENABLED'] = 'NO_Z4C_CC_ENABLED'
-  definitions['Z4C_VC_ENABLED'] = 'Z4C_VC_ENABLED'
-
-  if args['z_cc']:
-    definitions['Z4C_CX_ENABLED'] = 'NO_Z4C_CX_ENABLED'
-    definitions['Z4C_CC_ENABLED'] = 'Z4C_CC_ENABLED'
-    definitions['Z4C_VC_ENABLED'] = 'NO_Z4C_VC_ENABLED'
-
-  if args['z_cx']:
-    definitions['Z4C_CX_ENABLED'] = 'Z4C_CX_ENABLED'
-    definitions['Z4C_CC_ENABLED'] = 'NO_Z4C_CC_ENABLED'
-    definitions['Z4C_VC_ENABLED'] = 'NO_Z4C_VC_ENABLED'
-
-
-else:
-  definitions['Z4C_ENABLED'] = '0'
-  definitions['Z4C_CX_ENABLED'] = 'NO_Z4C_CX_ENABLED'
-  definitions['Z4C_CC_ENABLED'] = 'NO_Z4C_CC_ENABLED'
-  definitions['Z4C_VC_ENABLED'] = 'NO_Z4C_VC_ENABLED'
-  definitions['Z4C_WITH_HYDRO_ENABLED'] = 'NO_Z4C_WITH_HYDRO_ENABLED'
-
-# -z_eta_track_tp argument
-ERR_MUL_ETA_STR = "### CONFIGURE ERROR: select at most ONE of {z_eta_track_tp, z_eta_conf}"
-if args['z_eta_track_tp']:
-    if not args['z']:
-        raise SystemExit("### CONFIGURE ERROR: z_eta_track_tp requires z flag")
-    if args['z_eta_conf']:
-        raise SystemExit(ERR_MUL_ETA_STR)
-    definitions['Z4C_ETA_TRACK_TP'] = 'Z4C_ETA_TRACK_TP'
-else:
-  definitions['Z4C_ETA_TRACK_TP'] = 'NO_Z4C_ETA_TRACK_TP'
-
-# -z_eta_conf argument
-if args['z_eta_conf']:
-    if not args['z']:
-        raise SystemExit("### CONFIGURE ERROR: z_eta_conf requires z flag")
-    if args['z_eta_track_tp']:
-        raise SystemExit(ERR_MUL_ETA_STR)
-    definitions['Z4C_ETA_CONF'] = 'Z4C_ETA_CONF'
-else:
-  definitions['Z4C_ETA_CONF'] = 'NO_Z4C_ETA_CONF'
-
-# -cce argument
-makefile_options['CCE_FILE'] = ""
-if args['cce']:
-  definitions['CCE_ENABLED'] = '1'
-  makefile_options['CCE_FILE'] = "$(wildcard src/z4c/cce/*.cpp)"
-  try:
-      if not args['z']:
-          raise Exception
-  except:
-      raise SystemExit("### CONFIGURE ERROR: cce requires that z4c is enabled")
-  try:
-      if not args['hdf5']:
-          raise Exception
-  except:
-      raise SystemExit("### CONFIGURE ERROR: cce requires hdf5 library")
-else:
-  definitions['CCE_ENABLED'] = '0'
-
-# -ref_box_in_box / ref_spheres arguments
-if args['ref_spheres']:
-    args['ref_box_in_box'] = False
-    definitions['Z4C_REF_BOX_IN_BOX'] = 'NO_Z4C_REF_BOX_IN_BOX'
-    definitions['Z4C_REF_SPHERES'] = 'Z4C_REF_SPHERES'
-
-if args['ref_box_in_box']:
-    definitions['Z4C_REF_BOX_IN_BOX'] = 'Z4C_REF_BOX_IN_BOX'
-    definitions['Z4C_REF_SPHERES'] = 'NO_Z4C_REF_SPHERES'
 
 # -w - wave equation
 if args['w']:
@@ -825,12 +413,6 @@ if args['hybridinterp']:
     definitions['HYBRID_INTERP'] = 'HYBRID_INTERP'
 else:
     definitions['HYBRID_INTERP'] = 'NO_HYBRID_INTERP'
-
-# -shear argument
-if args['shear']:
-    definitions['SHEARING_BOX'] = '1'
-else:
-    definitions['SHEARING_BOX'] = '0'
 
 # --cxx=[name] argument
 if args['cxx'] == 'g++':
@@ -955,8 +537,6 @@ if args['cxx'] == 'clang++-apple':
     makefile_options['LINKER_FLAGS'] = ''
     makefile_options['LIBRARY_FLAGS'] = ''
 
-if args['eos'] == 'adiabatictaudyn_rep':
-    makefile_options['LIBRARY_FLAGS'] = '-lRePrimAnd'
 # -float argument
 if args['float']:
     definitions['SINGLE_PRECISION_ENABLED'] = '1'
@@ -1108,30 +688,6 @@ if args['h5double']:
 else:
     definitions['H5_DOUBLE_PRECISION_ENABLED'] = '0'
 
-if args['prob'] == "z4c_two_punctures":
-    if not args['gsl']:
-        raise SystemExit('### CONFIGURE ERROR: To compile with two punctures -gsl is required.')
-
-    definitions['TWO_PUNCTURES_OPTION'] = 'TWO_PUNCTURES'
-
-    # library name
-    libtwopunc_name = 'TwoPunctures'
-
-    # add to flags
-    if args['two_punctures_path'] != '':
-        makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/include'.format(
-            args['two_punctures_path'])
-        makefile_options['LINKER_FLAGS'] += ' -L{0}/lib'.format(args['two_punctures_path'])
-        if args['rpath']:
-            makefile_options['LINKER_FLAGS'] += ' -Wl,-rpath {0}/lib'.format(args['two_punctures_path'])
-
-    makefile_options['LIBRARY_FLAGS'] += ' -l{lib_name}'.format(lib_name=libtwopunc_name)
-else:
-    definitions['TWO_PUNCTURES_OPTION'] = 'NO_TWO_PUNCTURES'
-    if args['prob'] == 'z4c_one_puncture':
-        definitions['TWO_PUNCTURES_OPTION'] = definitions['TWO_PUNCTURES_OPTION']
-
-
 definitions['GSL_OPTION'] = 'NO_GSL'
 if args['gsl']:
     definitions['GSL_OPTION'] = 'GSL'
@@ -1184,22 +740,12 @@ if args['link_gold']:
 # Terminate all filenames with .cpp extension
 makefile_options['PROBLEM_FILE'] += '.cpp'
 makefile_options['COORDINATES_FILE'] += '.cpp'
-makefile_options['EOS_FILE'] += '.cpp'
-makefile_options['GENERAL_EOS_FILE'] += '.cpp'
-makefile_options['RSOLVER_FILE'] += '.cpp'
 
 # Read templates
 with open(defsfile_input, 'r') as current_file:
     defsfile_template = current_file.read()
 with open(makefile_input, 'r') as current_file:
     makefile_template = current_file.read()
-
-# Add PrimitiveSolver EOS files
-files = [args['eospolicy'], args['errorpolicy'], 'ps_error']
-makefile_options['EOS_FILES'] = ''
-if args['eos'] == 'eostaudyn_ps':
-    aux = ["        src/z4c/primitive/{}.cpp \\".format(f) for f in files]
-    makefile_options['EOS_FILES'] = '\n'.join(aux) + '\n'
 
 # Make substitutions
 for key, val in definitions.items():
@@ -1216,43 +762,15 @@ with open(makefile_output, 'w') as current_file:
 # Finish with diagnostic output
 # To match show_config.cpp output: use 2 space indent for option, value string starts on
 # column 30
-self_eta_damp_string = 'Constant'
-if args['z_eta_track_tp']:
-    self_eta_damp_string = 'TP'
-elif args['z_eta_conf']:
-    self_eta_damp_string = 'Conformal'
 
 print('Your Athena++ distribution has now been configured with the following options:')
 print('  Problem generator:            ' + args['prob'])
 print('  Coordinate system:            ' + args['coord'])
-print('  Equation of state:            ' + args['eos'])
-print('  Riemann solver:               ' + args['flux'])
-print('  Hydrodynamics:                ' + ('ON' if args['f'] else 'OFF'))
-print('  Magnetic fields:              ' + ('ON' if args['b'] else 'OFF'))
-print('  Number of scalars:            ' + args['nscalars'])
-print('  Special relativity:           ' + ('ON' if args['s'] else 'OFF'))
-print('  General relativity:           ' + ('ON' if args['g'] else 'OFF'))
-print('  Z4c equations:                ' + ('ON' if args['z'] else 'OFF'))
-if args['z']:
-    print('  z_cc:                         ' + ('ON' if args['z_cc'] else 'OFF'))
-    print('  z_cx:                         ' + ('ON' if args['z_cx'] else 'OFF'))
-    print('  z_vc:                         ' + ('ON' if args['z_vc'] else 'OFF'))
-
-if args['z']:
-    print('  Z4c shift damping:            ' + self_eta_damp_string)
-    print('  Z4c refinement strategy:      ' + ('box-in-box' if args['ref_box_in_box']
-                                                else 'spheres'))
-    print('  CCE:                          ' + ('ON' if args['cce'] else 'OFF'))
-
 print('  Wave equation:                ' + ('ON' if args['w'] else 'OFF'))
 if args['w']:
     print('  w_cc:                         ' + ('ON' if args['w_cc'] else 'OFF'))
     print('  w_cx:                         ' + ('ON' if args['w_cx'] else 'OFF'))
     print('  w_vc:                         ' + ('ON' if args['w_vc'] else 'OFF'))
-
-print('  Frame transformations:        ' + ('ON' if args['t'] else 'OFF'))
-print('  Super-Time-Stepping:          ' + ('ON' if args['sts'] else 'OFF'))
-print('  Shearing Box BCs:             ' + ('ON' if args['shear'] else 'OFF'))
 print('  Debug flags:                  ' + ('ON' if args['debug'] else 'OFF'))
 print('  Code coverage flags:          ' + ('ON' if args['coverage'] else 'OFF'))
 print('  Linker flags:                 ' + makefile_options['LINKER_FLAGS'] + ' '

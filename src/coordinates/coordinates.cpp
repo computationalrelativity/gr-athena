@@ -15,7 +15,6 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../bvals/bvals.hpp"
-#include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "coordinates.hpp"
@@ -78,30 +77,18 @@ Coordinates::Coordinates(MeshBlock *pmb, ParameterInput *pin, bool flag) :
 
   // allocate arrays for volume- and face-centered geometry coefficients of cells
   // (only for spherical-polar, cylindrical, cartesian coordinates, for now)
-  if (!GENERAL_RELATIVITY) { // exclude: minkowski, gr_user, schwarzschild, kerr-schild
-    h2f.NewAthenaArray(nc1);
-    dh2fd1.NewAthenaArray(nc1);
-    h31f.NewAthenaArray(nc1);
-    dh31fd1.NewAthenaArray(nc1);
-    h32f.NewAthenaArray(nc2);
-    dh32fd2.NewAthenaArray(nc2);
-    h2v.NewAthenaArray(nc1);
-    dh2vd1.NewAthenaArray(nc1);
-    h31v.NewAthenaArray(nc1);
-    dh31vd1.NewAthenaArray(nc1);
-    h32v.NewAthenaArray(nc2);
-    dh32vd2.NewAthenaArray(nc2);
-  }
-
-  // allocate arrays for area weighted positions for AMR/SMR MHD
-  if (pm->multilevel && MAGNETIC_FIELDS_ENABLED) {
-    x1s2.NewAthenaArray(nc1);
-    x1s3.NewAthenaArray(nc1);
-    x2s1.NewAthenaArray(nc2);
-    x2s3.NewAthenaArray(nc2);
-    x3s1.NewAthenaArray(nc3);
-    x3s2.NewAthenaArray(nc3);
-  }
+  h2f.NewAthenaArray(nc1);
+  dh2fd1.NewAthenaArray(nc1);
+  h31f.NewAthenaArray(nc1);
+  dh31fd1.NewAthenaArray(nc1);
+  h32f.NewAthenaArray(nc2);
+  dh32fd2.NewAthenaArray(nc2);
+  h2v.NewAthenaArray(nc1);
+  dh2vd1.NewAthenaArray(nc1);
+  h31v.NewAthenaArray(nc1);
+  dh31vd1.NewAthenaArray(nc1);
+  h32v.NewAthenaArray(nc2);
+  dh32vd2.NewAthenaArray(nc2);
 
   std::int64_t nrootmesh, noffset;
   std::int64_t &lx1 = pmy_block->loc.lx1;
@@ -747,14 +734,6 @@ void Coordinates::LaplacianX3All(const AthenaArray<Real> &s, AthenaArray<Real> &
       }
     }
   }
-  return;
-}
-
-//----------------------------------------------------------------------------------------
-// Coordinate (Geometric) source term function
-void Coordinates::AddCoordTermsDivergence(
-    const Real dt, const AthenaArray<Real> *flux,
-    const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc, AthenaArray<Real> &u) {
   return;
 }
 

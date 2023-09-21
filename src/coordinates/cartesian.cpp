@@ -101,25 +101,6 @@ Cartesian::Cartesian(MeshBlock *pmb, ParameterInput *pin, bool flag)
   }
 
   // initialize area-averaged coordinates used with MHD AMR
-  if ((pmb->pmy_mesh->multilevel) && MAGNETIC_FIELDS_ENABLED) {
-    for (int i=il-ng; i<=iu+ng; ++i) {
-      x1s2(i) = x1s3(i) = x1v(i);
-    }
-    if (pmb->block_size.nx2 == 1) {
-      x2s1(jl) = x2s3(jl) = x2v(jl);
-    } else {
-      for (int j=jl-ng; j<=ju+ng; ++j) {
-        x2s1(j) = x2s3(j) = x2v(j);
-      }
-    }
-    if (pmb->block_size.nx3 == 1) {
-      x3s1(kl) = x3s2(kl) = x3v(kl);
-    } else {
-      for (int k=kl-ng; k<=ku+ng; ++k) {
-        x3s1(k) = x3s2(k) = x3v(k);
-      }
-    }
-  }
 
   // Set up finite differencing -----------------------------------------------
   fd_is_defined = true;

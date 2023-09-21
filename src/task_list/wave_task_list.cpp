@@ -15,8 +15,6 @@
 // Athena++ classes headers
 #include "../athena.hpp"
 #include "../bvals/bvals.hpp"
-#include "../field/field.hpp"
-#include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
 #include "../wave/wave.hpp"
 #include "../parameter_input.hpp"
@@ -213,14 +211,6 @@ WaveIntegratorTaskList::WaveIntegratorTaskList(ParameterInput *pin, Mesh *pm){
 
   // Set cfl_number based on user input and time integrator CFL limit
   Real cfl_number = pin->GetReal("time", "cfl_number");
-  if (cfl_number > cfl_limit
-      && pm->fluid_setup == FluidFormulation::evolve) {
-    std::cout << "### Warning in TimeIntegratorTaskList constructor" << std::endl
-              << "User CFL number " << cfl_number << " must be smaller than " << cfl_limit
-              << " for integrator=" << integrator << " in " << pm->ndim
-              << "D simulation" << std::endl << "Setting to limit" << std::endl;
-    cfl_number = cfl_limit;
-  }
   // Save to Mesh class
   pm->cfl_number = cfl_number;
 

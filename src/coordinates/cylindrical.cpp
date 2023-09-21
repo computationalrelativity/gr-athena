@@ -15,9 +15,6 @@
 // Athena++ headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
-#include "../eos/eos.hpp"
-#include "../hydro/hydro.hpp"
-#include "../hydro/hydro_diffusion/hydro_diffusion.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "coordinates.hpp"
@@ -90,27 +87,6 @@ Cylindrical::Cylindrical(MeshBlock *pmb, ParameterInput *pin, bool flag)
       h32f(j) = 1.0;
       dh32vd2(j) = 0.0;
       dh32fd2(j) = 0.0;
-    }
-  }
-
-  // initialize area-averaged coordinates used with MHD AMR
-  if ((pmb->pmy_mesh->multilevel) && MAGNETIC_FIELDS_ENABLED) {
-    for (int i=il-ng; i<=iu+ng; ++i) {
-      x1s2(i) = x1s3(i) = x1v(i);
-    }
-    if (pmb->block_size.nx2 == 1) {
-      x2s1(jl) = x2s3(jl) = x2v(jl);
-    } else {
-      for (int j=jl-ng; j<=ju+ng; ++j) {
-        x2s1(j) = x2s3(j) = x2v(j);
-      }
-    }
-    if (pmb->block_size.nx3 == 1) {
-      x3s1(kl) = x3s2(kl) = x3v(kl);
-    } else {
-      for (int k=kl-ng; k<=ku+ng; ++k) {
-        x3s1(k) = x3s2(k) = x3v(k);
-      }
     }
   }
 
@@ -278,49 +254,4 @@ void Cylindrical::CellVolume(const int k, const int j, const int il, const int i
 
 Real Cylindrical::GetCellVolume(const int k, const int j, const int i) {
   return coord_vol_i_(i)*dx2f(j)*dx3f(k);
-}
-
-//----------------------------------------------------------------------------------------
-// Coordinate (Geometric) source term function
-
-void Cylindrical::AddCoordTermsDivergence(
-    const Real dt, const AthenaArray<Real> *flux,
-    const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc, AthenaArray<Real> &u) {
-  Real iso_cs = pmy_block->peos->GetIsoSoundSpeed();
-
-  HydroDiffusion &hd = pmy_block->phydro->hdif;
-  bool do_hydro_diffusion = (hd.hydro_diffusion_defined &&
-                             (hd.nu_iso > 0.0 || hd.nu_aniso > 0.0));
-
-  for (int k=pmy_block->ks; k<=pmy_block->ke; ++k) {
-    for (int j=pmy_block->js; j<=pmy_block->je; ++j) {
-#pragma omp simd
-      for (int i=pmy_block->is; i<=pmy_block->ie; ++i) {
-        // src_1 = <M_{phi phi}><1/r>
-        // Skinner and Ostriker (2010) eq. 11a
-        Real m_pp = prim(IDN,k,j,i)*prim(IM2,k,j,i)*prim(IM2,k,j,i);
-        if (NON_BAROTROPIC_EOS) {
-          m_pp += prim(IEN,k,j,i);
-        } else {
-          m_pp += (iso_cs*iso_cs)*prim(IDN,k,j,i);
-        }
-        if (MAGNETIC_FIELDS_ENABLED) {
-          m_pp += 0.5*(SQR(bcc(IB1,k,j,i)) - SQR(bcc(IB2,k,j,i)) + SQR(bcc(IB3,k,j,i)) );
-        }
-        if (do_hydro_diffusion)
-          m_pp += 0.5*(hd.visflx[X2DIR](IM2,k,j+1,i) + hd.visflx[X2DIR](IM2,k,j,i));
-
-        u(IM1,k,j,i) += dt*coord_src1_i_(i)*m_pp;
-
-        // src_2 = -< M_{phi r} ><1/r>
-        Real& x_i   = x1f(i);
-        Real& x_ip1 = x1f(i+1);
-        // Ju PhD thesis equation 2.14
-        u(IM2,k,j,i) -= dt*coord_src2_i_(i)*(x_i*flux[X1DIR](IM2,k,j,i)
-                                             + x_ip1*flux[X1DIR](IM2,k,j,i+1));
-      }
-    }
-  }
-
-  return;
 }

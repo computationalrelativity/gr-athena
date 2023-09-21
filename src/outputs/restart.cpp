@@ -21,15 +21,10 @@
 // Athena++ headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
-#include "../field/field.hpp"
 #include "../globals.hpp"
-#include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
-#include "../scalars/scalars.hpp"
 #include "../wave/wave.hpp"
-#include "../z4c/z4c.hpp"
-#include "../z4c/puncture_tracker.hpp"
 #include "../trackers/extrema_tracker.hpp"
 #include "outputs.hpp"
 
@@ -81,8 +76,6 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
   for (int n=0; n<pm->nreal_user_mesh_data_; n++)
     udsize += pm->ruser_mesh_data[n].GetSizeInBytes();
 
-  udsize += 2*NDIM*sizeof(Real)*pm->pz4c_tracker.size();
-
   udsize += pm->ptracker_extrema->c_x1.GetSizeInBytes();
   udsize += pm->ptracker_extrema->c_x2.GetSizeInBytes();
   udsize += pm->ptracker_extrema->c_x3.GetSizeInBytes();
@@ -124,12 +117,6 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
         std::memcpy(&(ud[udoffset]), pm->ruser_mesh_data[n].data(),
                     pm->ruser_mesh_data[n].GetSizeInBytes());
         udoffset += pm->ruser_mesh_data[n].GetSizeInBytes();
-      }
-      for (auto ptracker : pm->pz4c_tracker) {
-        std::memcpy(&(ud[udoffset]), ptracker->pos, NDIM*sizeof(Real));
-        udoffset += NDIM*sizeof(Real);
-        std::memcpy(&(ud[udoffset]), ptracker->betap, NDIM*sizeof(Real));
-        udoffset += NDIM*sizeof(Real);
       }
 
       std::memcpy(&(ud[udoffset]),
@@ -182,58 +169,9 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
     // NEW_OUTPUT_TYPES: add output of additional physics to restarts here also update
     // MeshBlock::GetBlockSizeInBytes accordingly and MeshBlock constructor for restarts.
 
-    // Hydro conserved variables:
-    if (FLUID_ENABLED) {
-      std::memcpy(pdata, pmb->phydro->u.data(), pmb->phydro->u.GetSizeInBytes());
-      pdata += pmb->phydro->u.GetSizeInBytes();
-    }
-
-    // Hydro primitive variables (at current and previous step):
-    if (GENERAL_RELATIVITY) {
-      std::memcpy(pdata, pmb->phydro->w.data(), pmb->phydro->w.GetSizeInBytes());
-      pdata += pmb->phydro->w.GetSizeInBytes();
-      std::memcpy(pdata, pmb->phydro->w1.data(), pmb->phydro->w1.GetSizeInBytes());
-      pdata += pmb->phydro->w1.GetSizeInBytes();
-    }
-
-    // Longitudinal, face-centered magnetic field components:
-    if (MAGNETIC_FIELDS_ENABLED) {
-      std::memcpy(pdata, pmb->pfield->b.x1f.data(), pmb->pfield->b.x1f.GetSizeInBytes());
-      pdata += pmb->pfield->b.x1f.GetSizeInBytes();
-      std::memcpy(pdata, pmb->pfield->b.x2f.data(), pmb->pfield->b.x2f.GetSizeInBytes());
-      pdata += pmb->pfield->b.x2f.GetSizeInBytes();
-      std::memcpy(pdata, pmb->pfield->b.x3f.data(), pmb->pfield->b.x3f.GetSizeInBytes());
-      pdata += pmb->pfield->b.x3f.GetSizeInBytes();
-    }
-
-    // (conserved variable) Passive scalars:
-    if (NSCALARS > 0) {
-      AthenaArray<Real> &s = pmb->pscalars->s;
-      std::memcpy(pdata, s.data(), s.GetSizeInBytes());
-      pdata += s.GetSizeInBytes();
-    }
-    // (primitive variable) density-normalized passive scalar concentrations
-    // if ???
-    // for (int n=0; n<NSCALARS; n++) {
-    //   AthenaArray<Real> &r = pmb->pscalars->r;
-    //   std::memcpy(pdata, r.data(), r.GetSizeInBytes());
-    //   pdata += r.GetSizeInBytes();
-    // }
-
     if (WAVE_ENABLED) {
       std::memcpy(pdata, pmb->pwave->u.data(), pmb->pwave->u.GetSizeInBytes());
       pdata += pmb->pwave->u.GetSizeInBytes();
-    }
-
-    if (Z4C_ENABLED) {
-      std::memcpy(pdata, pmb->pz4c->storage.u.data(),
-                  pmb->pz4c->storage.u.GetSizeInBytes());
-      pdata += pmb->pz4c->storage.u.GetSizeInBytes();
-
-      // BD: TODO: extend as new data structures added
-      std::memcpy(pdata, pmb->pz4c->storage.mat.data(),
-                  pmb->pz4c->storage.mat.GetSizeInBytes());
-      pdata += pmb->pz4c->storage.mat.GetSizeInBytes();
     }
 
     // User MeshBlock data:

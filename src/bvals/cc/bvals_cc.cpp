@@ -21,10 +21,7 @@
 #include "../../athena.hpp"
 #include "../../athena_arrays.hpp"
 #include "../../coordinates/coordinates.hpp"
-#include "../../eos/eos.hpp"
-#include "../../field/field.hpp"
 #include "../../globals.hpp"
-#include "../../hydro/hydro.hpp"
 #include "../../mesh/mesh.hpp"
 #include "../../parameter_input.hpp"
 #include "../../utils/buffer_utils.hpp"
@@ -62,73 +59,13 @@ CellCenteredBoundaryVariable::CellCenteredBoundaryVariable(
   // cc_phys_id_ = pbval_->ReserveTagVariableIDs(1);
   cc_phys_id_ = pbval_->bvars_next_phys_id_;
 #endif
-  if (pmy_mesh_->multilevel) { // SMR or AMR
-    InitBoundaryData(bd_var_flcor_, BoundaryQuantity::cc_flcor);
-#ifdef MPI_PARALLEL
-    cc_flx_phys_id_ = cc_phys_id_ + 1;
-#endif
-  }
 
-  if (SHEARING_BOX) {
-#ifdef MPI_PARALLEL
-    shear_cc_phys_id_ = cc_phys_id_ + 2;
-#endif
-    if (pbval_->ShBoxCoord_ == 1) {
-      int nc2 = pmb->ncells2;
-      int nc3 = pmb->ncells3;
-      for (int upper=0; upper<2; upper++) {
-        if (pbval_->is_shear[upper]) {
-          shear_cc_[upper].NewAthenaArray(nu_+1, nc3, nc2, NGHOST);
-          shear_flx_cc_[upper].NewAthenaArray(nc2);
-
-          // TODO(KGF): the rest of this should be a part of InitBoundaryData()
-
-          // attach corner cells from L/R side
-          int size = (pmb->block_size.nx2 + NGHOST)*pbval_->ssize_*(nu_ + 1);
-          for (int n=0; n<2; n++) {
-            shear_bd_var_[upper].send[n] = new Real[size];
-            shear_bd_var_[upper].recv[n] = new Real[size];
-            shear_bd_var_[upper].flag[n] = BoundaryStatus::waiting;
-#ifdef MPI_PARALLEL
-            shear_bd_var_[upper].req_send[n] = MPI_REQUEST_NULL;
-            shear_bd_var_[upper].req_recv[n] = MPI_REQUEST_NULL;
-#endif
-          }
-          // corner cells only
-          size = NGHOST*pbval_->ssize_*(nu_ + 1);
-          for (int n=2; n<4; n++) {
-            shear_bd_var_[upper].send[n] = new Real[size];
-            shear_bd_var_[upper].recv[n] = new Real[size];
-            shear_bd_var_[upper].flag[n] = BoundaryStatus::waiting;
-#ifdef MPI_PARALLEL
-            shear_bd_var_[upper].req_send[n] = MPI_REQUEST_NULL;
-            shear_bd_var_[upper].req_recv[n] = MPI_REQUEST_NULL;
-#endif
-          }
-        } // end "if is a shearing boundary"
-      }  // end loop over inner, outer shearing boundaries
-    } // end "if (pbval_->ShBoxCoord_ == 1)"
-  } // end shearing box component of ctor
 }
 
 // destructor
 
 CellCenteredBoundaryVariable::~CellCenteredBoundaryVariable() {
   DestroyBoundaryData(bd_var_);
-  if (pmy_mesh_->multilevel)
-    DestroyBoundaryData(bd_var_flcor_);
-
-  // TODO(KGF): this should be a part of DestroyBoundaryData()
-  if (SHEARING_BOX) {
-    for (int upper=0; upper<2; upper++) {
-      if (pbval_->is_shear[upper]) { // if true for shearing inner blocks
-        for (int n=0; n<4; n++) {
-          delete[] shear_bd_var_[upper].send[n];
-          delete[] shear_bd_var_[upper].recv[n];
-        }
-      }
-    }
-  }
 }
 
 int CellCenteredBoundaryVariable::ComputeVariableBufferSize(const NeighborIndexes& ni,
@@ -154,19 +91,6 @@ int CellCenteredBoundaryVariable::ComputeVariableBufferSize(const NeighborIndexe
   }
   size *= nu_ + 1;
 
-  return size;
-}
-
-int CellCenteredBoundaryVariable::ComputeFluxCorrectionBufferSize(
-    const NeighborIndexes& ni, int cng) {
-  MeshBlock *pmb = pmy_block_;
-  int size = 0;
-  if (ni.ox1 != 0)
-    size = (pmb->block_size.nx2 + 1)/2*(pmb->block_size.nx3 + 1)/2*(nu_ + 1);
-  if (ni.ox2 != 0)
-    size = (pmb->block_size.nx1 + 1)/2*(pmb->block_size.nx3 + 1)/2*(nu_ + 1);
-  if (ni.ox3 != 0)
-    size = (pmb->block_size.nx1 + 1)/2*(pmb->block_size.nx2 + 1)/2*(nu_ + 1);
   return size;
 }
 
@@ -314,28 +238,6 @@ void CellCenteredBoundaryVariable::SetBoundarySameLevel(Real *buf,
   } else {
     BufferUtility::UnpackData(buf, var, nl_, nu_, si, ei, sj, ej, sk, ek, p);
   }
-  if (SHEARING_BOX) {
-    // 2D shearing box in x-z plane: additional step to shift azimuthal velocity
-    if (pbval_->ShBoxCoord_ == 2) {
-      int sign[2]{1, -1};
-      Real qomL = pbval_->qomL_;
-      for (int upper=0; upper<2; upper++) {
-        if ((pmb->loc.lx1 == pbval_->loc_shear[upper]) && (sign[upper]*nb.ni.ox1 < 0)) {
-          for (int k=sk; k<=ek; ++k) {
-            for (int j=sj; j<=ej; ++j) {
-              for (int i=si; i<=ei; ++i) {
-                if (NON_BAROTROPIC_EOS)
-                  var(IEN,k,j,i) += (0.5/var(IDN,k,j,i))*(
-                      SQR(var(IM3,k,j,i) + sign[upper]*qomL*var(IDN,k,j,i))
-                      - SQR(var(IM3,k,j,i)));
-                var(IM3,k,j,i) += sign[upper]*qomL*var(IDN,k,j,i);
-              }
-            }
-          }
-        }
-      }
-    }
-  } // end KGF: shearing box in SetBoundarySameLevel
 
   return;
 }
@@ -578,35 +480,6 @@ void CellCenteredBoundaryVariable::SetupPersistentMPI() {
       MPI_Recv_init(bd_var_.recv[nb.bufid], rsize, MPI_ATHENA_REAL,
                     nb.snb.rank, tag, MPI_COMM_WORLD, &(bd_var_.req_recv[nb.bufid]));
 
-      if (FLUID_ENABLED) {
-        // hydro flux correction: bd_var_flcor_
-        if (pmy_mesh_->multilevel && nb.ni.type == NeighborConnect::face) {
-          int size;
-          if (nb.fid == 0 || nb.fid == 1)
-            size = ((pmb->block_size.nx2 + 1)/2)*((pmb->block_size.nx3 + 1)/2);
-          else if (nb.fid == 2 || nb.fid == 3)
-            size = ((pmb->block_size.nx1 + 1)/2)*((pmb->block_size.nx3 + 1)/2);
-          else // (nb.fid == 4 || nb.fid == 5)
-            size = ((pmb->block_size.nx1 + 1)/2)*((pmb->block_size.nx2 + 1)/2);
-          size *= (nu_ + 1);
-          if (nb.snb.level < mylevel) { // send to coarser
-            tag = pbval_->CreateBvalsMPITag(nb.snb.lid, nb.targetid, cc_flx_phys_id_);
-            if (bd_var_flcor_.req_send[nb.bufid] != MPI_REQUEST_NULL)
-              MPI_Request_free(&bd_var_flcor_.req_send[nb.bufid]);
-            MPI_Send_init(bd_var_flcor_.send[nb.bufid], size, MPI_ATHENA_REAL,
-                          nb.snb.rank, tag, MPI_COMM_WORLD,
-                          &(bd_var_flcor_.req_send[nb.bufid]));
-          } else if (nb.snb.level > mylevel) { // receive from finer
-            tag = pbval_->CreateBvalsMPITag(pmb->lid, nb.bufid, cc_flx_phys_id_);
-            if (bd_var_flcor_.req_recv[nb.bufid] != MPI_REQUEST_NULL)
-              MPI_Request_free(&bd_var_flcor_.req_recv[nb.bufid]);
-            MPI_Recv_init(bd_var_flcor_.recv[nb.bufid], size, MPI_ATHENA_REAL,
-                          nb.snb.rank, tag, MPI_COMM_WORLD,
-                          &(bd_var_flcor_.req_recv[nb.bufid]));
-          }
-        }
-      }
-
     }
   }
 #endif
@@ -621,11 +494,6 @@ void CellCenteredBoundaryVariable::StartReceiving(BoundaryCommSubset phase) {
     NeighborBlock& nb = pbval_->neighbor[n];
     if (nb.snb.rank != Globals::my_rank) {
       MPI_Start(&(bd_var_.req_recv[nb.bufid]));
-      if(FLUID_ENABLED) {
-        if (phase == BoundaryCommSubset::all && nb.ni.type == NeighborConnect::face
-            && nb.snb.level > mylevel) // opposite condition in ClearBoundary()
-          MPI_Start(&(bd_var_flcor_.req_recv[nb.bufid]));
-      }
     }
 
   }
@@ -640,47 +508,16 @@ void CellCenteredBoundaryVariable::ClearBoundary(BoundaryCommSubset phase) {
     bd_var_.flag[nb.bufid] = BoundaryStatus::waiting;
     bd_var_.sflag[nb.bufid] = BoundaryStatus::waiting;
 
-    if (FLUID_ENABLED) {
-      if (nb.ni.type == NeighborConnect::face) {
-        bd_var_flcor_.flag[nb.bufid] = BoundaryStatus::waiting;
-        bd_var_flcor_.sflag[nb.bufid] = BoundaryStatus::waiting;
-      }
-    }
-
 #ifdef MPI_PARALLEL
     MeshBlock *pmb = pmy_block_;
     int mylevel = pmb->loc.level;
     if (nb.snb.rank != Globals::my_rank) {
       // Wait for Isend
       MPI_Wait(&(bd_var_.req_send[nb.bufid]), MPI_STATUS_IGNORE);
-
-      if (FLUID_ENABLED) {
-        if (phase == BoundaryCommSubset::all && nb.ni.type == NeighborConnect::face
-            && nb.snb.level < mylevel)
-          MPI_Wait(&(bd_var_flcor_.req_send[nb.bufid]), MPI_STATUS_IGNORE);
-      }
-
     }
 
 #endif
   }
 
-  // clear shearing box boundary communications
-  if (SHEARING_BOX) {
-    // TODO(KGF): clear sflag arrays
-    for (int upper=0; upper<2; upper++) {
-      if (pbval_->is_shear[upper]) {
-        for (int n=0; n<4; n++) {
-          if (pbval_->shear_send_neighbor_[upper][n].rank == -1) continue;
-          shear_bd_var_[upper].flag[n] = BoundaryStatus::waiting;
-#ifdef MPI_PARALLEL
-          if (pbval_->shear_send_neighbor_[upper][n].rank != Globals::my_rank) {
-            MPI_Wait(&shear_bd_var_[upper].req_send[n], MPI_STATUS_IGNORE);
-          }
-#endif
-        }
-      }
-    }
-  }
   return;
 }

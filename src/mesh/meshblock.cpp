@@ -24,19 +24,12 @@
 #include "../athena_arrays.hpp"
 #include "../bvals/bvals.hpp"
 #include "../coordinates/coordinates.hpp"
-#include "../eos/eos.hpp"
-#include "../field/field.hpp"
 #include "../globals.hpp"
-#include "../hydro/hydro.hpp"
 #include "../parameter_input.hpp"
-#include "../reconstruct/reconstruction.hpp"
-#include "../scalars/scalars.hpp"
 #include "../utils/buffer_utils.hpp"
 #include "mesh.hpp"
 #include "mesh_refinement.hpp"
 #include "meshblock_tree.hpp"
-#include "../z4c/z4c.hpp"
-#include "../z4c/wave_extract.hpp"
 #include "../wave/wave.hpp"
 #include "../trackers/extrema_tracker.hpp"
 
@@ -60,7 +53,6 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
 
   // (probably don't need to preallocate space for references in these vectors)
   vars_cc_.reserve(3);
-  vars_fc_.reserve(3);
   vars_vc_.reserve(3);
   vars_cx_.reserve(1);
 
@@ -79,22 +71,8 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
     pcoord = new Cylindrical(this, pin, false);
   } else if (std::strcmp(COORDINATE_SYSTEM, "spherical_polar") == 0) {
     pcoord = new SphericalPolar(this, pin, false);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "minkowski") == 0) {
-    pcoord = new Minkowski(this, pin, false);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "schwarzschild") == 0) {
-    pcoord = new Schwarzschild(this, pin, false);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "kerr-schild") == 0) {
-    pcoord = new KerrSchild(this, pin, false);
   } else if (std::strcmp(COORDINATE_SYSTEM, "gr_user") == 0) {
     pcoord = new GRUser(this, pin, false);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "gr_dynamical") == 0) {
-    pcoord = new GRDynamical(this, pin, false);
-  }
-
-  if (FLUID_ENABLED) {
-    // Reconstruction: constructor may implicitly depend on Coordinates, and PPM variable
-    // floors depend on EOS, but EOS isn't needed in Reconstruction constructor-> this is ok
-    precon = new Reconstruction(this, pin);
   }
 
   if (pm->multilevel) pmr = new MeshRefinement(this, pin);
@@ -111,28 +89,6 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   // 3) MAGNETIC_FIELDS_ENABLED, NSCALARS, (future) FLUID_ENABLED,
   // etc. become runtime switches
 
-  if (FLUID_ENABLED) {
-    // if (this->hydro_block)
-    phydro = new Hydro(this, pin);
-    // } else
-    // }
-    // Regardless, advance MeshBlock's local counter (initialized to bvars_next_phys_id=1)
-    // Greedy reservation of phys IDs (only 1 of 2 needed for Hydro if multilevel==false)
-    pbval->AdvanceCounterPhysID(HydroBoundaryVariable::max_phys_id);
-  }
-
-  if (MAGNETIC_FIELDS_ENABLED) {
-    // if (this->field_block)
-    pfield = new Field(this, pin);
-    pbval->AdvanceCounterPhysID(FaceCenteredBoundaryVariable::max_phys_id);
-  }
-
-  if (NSCALARS > 0) {
-    // if (this->scalars_block)
-    pscalars = new PassiveScalars(this, pin);
-    pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
-  }
-
   if (WAVE_ENABLED) {
     pwave = new Wave(this, pin);
 
@@ -145,37 +101,6 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
     if (WAVE_CX_ENABLED)
       pbval->AdvanceCounterPhysID(CellCenteredXBoundaryVariable::max_phys_id);
 
-  }
-
-
-  if (Z4C_ENABLED) {
-    pz4c = new Z4c(this, pin);
-    int nrad = pin->GetOrAddInteger("z4c", "nrad_wave_extraction", 0);
-    if (nrad > 0) {
-      pwave_extr_loc.reserve(nrad);
-      for (int n = 0; n < nrad; ++n) {
-        pwave_extr_loc.push_back(new WaveExtractLocal(this->pmy_mesh->pwave_extr[n]->psphere, this, pin, n));
-      }
-    }
-    #if defined(Z4C_CC_ENABLED)
-      pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
-    #elif defined(Z4C_CX_ENABLED)
-      pbval->AdvanceCounterPhysID(CellCenteredXBoundaryVariable::max_phys_id);
-    #else // VC
-      pbval->AdvanceCounterPhysID(VertexCenteredBoundaryVariable::max_phys_id);
-    #endif
-  }
-
-  // KGF: suboptimal solution, since developer must copy/paste BoundaryVariable derived
-  // class type that is used in each PassiveScalars, Gravity, Field, Hydro, ... etc. class
-  // in order to correctly advance the BoundaryValues::bvars_next_phys_id_ local counter.
-
-  // TODO(felker): check that local counter pbval->bvars_next_phys_id_ agrees with shared
-  // Mesh::next_phys_id_ counter (including non-BoundaryVariable / per-MeshBlock reserved
-  // values). Compare both private member variables via BoundaryValues::CheckCounterPhysID
-
-  if (FLUID_ENABLED) {
-    peos = new EquationOfState(this, pin);
   }
 
     // must come after pvar to register variables
@@ -216,48 +141,13 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     pcoord = new Cylindrical(this, pin, false);
   } else if (std::strcmp(COORDINATE_SYSTEM, "spherical_polar") == 0) {
     pcoord = new SphericalPolar(this, pin, false);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "minkowski") == 0) {
-    pcoord = new Minkowski(this, pin, false);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "schwarzschild") == 0) {
-    pcoord = new Schwarzschild(this, pin, false);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "kerr-schild") == 0) {
-    pcoord = new KerrSchild(this, pin, false);
   } else if (std::strcmp(COORDINATE_SYSTEM, "gr_user") == 0) {
     pcoord = new GRUser(this, pin, false);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "gr_dynamical") == 0) {
-    pcoord = new GRDynamical(this, pin, false);
-  }
-
-  if (FLUID_ENABLED) {
-    // Reconstruction (constructor may implicitly depend on Coordinates)
-    precon = new Reconstruction(this, pin);
   }
 
   if (pm->multilevel) pmr = new MeshRefinement(this, pin);
 
   // (re-)create physics-related objects in MeshBlock
-
-  if (FLUID_ENABLED) {
-    // if (this->hydro_block)
-    phydro = new Hydro(this, pin);
-    // } else
-    // }
-    // Regardless, advance MeshBlock's local counter (initialized to bvars_next_phys_id=1)
-    // Greedy reservation of phys IDs (only 1 of 2 needed for Hydro if multilevel==false)
-    pbval->AdvanceCounterPhysID(HydroBoundaryVariable::max_phys_id);
-  }
-
-  if (MAGNETIC_FIELDS_ENABLED) {
-    // if (this->field_block)
-    pfield = new Field(this, pin);
-    pbval->AdvanceCounterPhysID(FaceCenteredBoundaryVariable::max_phys_id);
-  }
-
-  if (NSCALARS > 0) {
-    // if (this->scalars_block)
-    pscalars = new PassiveScalars(this, pin);
-    pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
-  }
 
   if (WAVE_ENABLED) {
     pwave = new Wave(this, pin);
@@ -273,28 +163,6 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
 
   }
 
-  if (Z4C_ENABLED) {
-    pz4c = new Z4c(this, pin);
-    int nrad = pin->GetOrAddInteger("z4c", "nrad_wave_extraction", 0);
-    if (nrad > 0) {
-      pwave_extr_loc.reserve(nrad);
-      for (int n = 0; n < nrad; ++n) {
-        pwave_extr_loc.push_back(new WaveExtractLocal(this->pmy_mesh->pwave_extr[n]->psphere, this, pin, n));
-      }
-    }
-    #if defined(Z4C_CC_ENABLED)
-      pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
-    #elif defined(Z4C_CX_ENABLED)
-      pbval->AdvanceCounterPhysID(CellCenteredXBoundaryVariable::max_phys_id);
-    #else // VC
-      pbval->AdvanceCounterPhysID(VertexCenteredBoundaryVariable::max_phys_id);
-    #endif
-  }
-
-  if (FLUID_ENABLED) {
-    peos = new EquationOfState(this, pin);
-  }
-
   // must come after var to register variables
   ptracker_extrema_loc = new ExtremaTrackerLocal(this, pin);
 
@@ -303,52 +171,9 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   std::size_t os = 0;
   // NEW_OUTPUT_TYPES:
 
-  if (FLUID_ENABLED) {
-    // load hydro and field data
-    std::memcpy(phydro->u.data(), &(mbdata[os]), phydro->u.GetSizeInBytes());
-    // load it into the other memory register(s) too
-    std::memcpy(phydro->u1.data(), &(mbdata[os]), phydro->u1.GetSizeInBytes());
-    os += phydro->u.GetSizeInBytes();
-  }
-
-  if (GENERAL_RELATIVITY) {
-    std::memcpy(phydro->w.data(), &(mbdata[os]), phydro->w.GetSizeInBytes());
-    os += phydro->w.GetSizeInBytes();
-    std::memcpy(phydro->w1.data(), &(mbdata[os]), phydro->w1.GetSizeInBytes());
-    os += phydro->w1.GetSizeInBytes();
-  }
-  if (MAGNETIC_FIELDS_ENABLED) {
-    std::memcpy(pfield->b.x1f.data(), &(mbdata[os]), pfield->b.x1f.GetSizeInBytes());
-    std::memcpy(pfield->b1.x1f.data(), &(mbdata[os]), pfield->b1.x1f.GetSizeInBytes());
-    os += pfield->b.x1f.GetSizeInBytes();
-    std::memcpy(pfield->b.x2f.data(), &(mbdata[os]), pfield->b.x2f.GetSizeInBytes());
-    std::memcpy(pfield->b1.x2f.data(), &(mbdata[os]), pfield->b1.x2f.GetSizeInBytes());
-    os += pfield->b.x2f.GetSizeInBytes();
-    std::memcpy(pfield->b.x3f.data(), &(mbdata[os]), pfield->b.x3f.GetSizeInBytes());
-    std::memcpy(pfield->b1.x3f.data(), &(mbdata[os]), pfield->b1.x3f.GetSizeInBytes());
-    os += pfield->b.x3f.GetSizeInBytes();
-  }
-
-  // (conserved variable) Passive scalars:
-  if (NSCALARS > 0) {
-    std::memcpy(pscalars->s.data(), &(mbdata[os]), pscalars->s.GetSizeInBytes());
-    // load it into the other memory register(s) too
-    std::memcpy(pscalars->s1.data(), &(mbdata[os]), pscalars->s1.GetSizeInBytes());
-    os += pscalars->s.GetSizeInBytes();
-  }
-
   if (WAVE_ENABLED) {
     std::memcpy(pwave->u.data(), &(mbdata[os]), pwave->u.GetSizeInBytes());
     os += pwave->u.GetSizeInBytes();
-  }
-
-  if (Z4C_ENABLED) {
-    std::memcpy(pz4c->storage.u.data(), &(mbdata[os]), pz4c->storage.u.GetSizeInBytes());
-    os += pz4c->storage.u.GetSizeInBytes();
-
-    // BD: TODO: extend as new data structures added
-    std::memcpy(pz4c->storage.mat.data(), &(mbdata[os]), pz4c->storage.mat.GetSizeInBytes());
-    os += pz4c->storage.mat.GetSizeInBytes();
   }
 
   // load user MeshBlock data
@@ -374,22 +199,9 @@ MeshBlock::~MeshBlock() {
   if (next != nullptr) next->prev = prev;
 
   delete pcoord;
-  if (FLUID_ENABLED) delete precon;
   if (pmy_mesh->multilevel) delete pmr;
 
-  if (FLUID_ENABLED) delete phydro;
-  if (MAGNETIC_FIELDS_ENABLED) delete pfield;
-  if (FLUID_ENABLED) delete peos;
-  if (NSCALARS > 0) delete pscalars;
   if (WAVE_ENABLED) delete pwave;
-
-  if (Z4C_ENABLED) {
-    delete pz4c;
-    for(auto pwextr : pwave_extr_loc) {
-      delete pwextr;
-    }
-    pwave_extr_loc.resize(0);
-  }
 
   delete ptracker_extrema_loc;
 
@@ -803,28 +615,8 @@ void MeshBlock::SetUserOutputVariableName(int n, const char *name) {
 std::size_t MeshBlock::GetBlockSizeInBytes() {
   std::size_t size = 0;
   // NEW_OUTPUT_TYPES:
-  if (FLUID_ENABLED)
-    size += phydro->u.GetSizeInBytes();
-
-  if (GENERAL_RELATIVITY) {
-    size += phydro->w.GetSizeInBytes();
-    size += phydro->w1.GetSizeInBytes();
-  }
-  if (MAGNETIC_FIELDS_ENABLED)
-    size += (pfield->b.x1f.GetSizeInBytes() + pfield->b.x2f.GetSizeInBytes()
-             + pfield->b.x3f.GetSizeInBytes());
-
-  if (NSCALARS > 0)
-    size += pscalars->s.GetSizeInBytes();
-
   if (WAVE_ENABLED) {
     size += pwave->u.GetSizeInBytes();
-  }
-
-  if (Z4C_ENABLED) {
-    // BD: TODO: extend as new data structures added
-    size+=pz4c->storage.u.GetSizeInBytes();
-    size+=pz4c->storage.mat.GetSizeInBytes();
   }
 
   // calculate user MeshBlock data size
@@ -896,41 +688,10 @@ void MeshBlock::RegisterMeshBlockDataVC(AthenaArray<Real> &pvar_in) {
   return;
 }
 
-void MeshBlock::RegisterMeshBlockDataFC(FaceField &pvar_fc) {
-  vars_fc_.push_back(pvar_fc);
-  return;
-}
-
 void MeshBlock::RegisterMeshBlockDataCX(AthenaArray<Real> &pvar_in) {
   vars_cx_.push_back(pvar_in);
   return;
 }
-
-// TODO(felker): consider merging the MeshRefinement::pvars_cc/fc_ into the
-// MeshBlock::pvars_cc/fc_. Would need to weaken the MeshBlock std::vector to use tuples
-// of pointers instead of a std::vector of references, so that:
-// - nullptr can be passed for the second entry if multilevel==false
-// - we can rebind the pointers to Hydro for GR purposes in bvals_refine.cpp
-// If GR, etc. in the future requires additional flexiblity from non-refinement load
-// balancing, we will need to use ptrs instead of references anyways, and add:
-
-// void MeshBlock::SetHydroData(HydroBoundaryQuantity hydro_type)
-//   Hydro *ph = pmy_block_->phydro;
-//   // hard-coded assumption that, if multilevel, then Hydro is always present
-//   // and enrolled in mesh refinement in the first pvars_cc_ vector entry
-//   switch (hydro_type) {
-//     case (HydroBoundaryQuantity::cons): {
-//       pvars_cc_.front() = &ph->u;
-//       break;
-//     }
-//     case (HydroBoundaryQuantity::prim): {
-//       pvars_cc_.front() = &ph->w;
-//       break;
-//     }
-//   }
-//   return;
-// }
-
 
 //----------------------------------------------------------------------------------------
 //! \fn bool MeshBlock::PointContained(Real const x, Real const y,

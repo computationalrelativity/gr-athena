@@ -53,16 +53,11 @@ class CellCenteredXBoundaryVariable : public BoundaryVariable {
 
   // BoundaryVariable:
   int ComputeVariableBufferSize(const NeighborIndexes& ni, int cng) override;
-  // VC
-  int ComputeFluxCorrectionBufferSize(const NeighborIndexes& ni, int cng) override {return 0;};
 
   // BoundaryCommunication:
   void SetupPersistentMPI() override;
   void StartReceiving(BoundaryCommSubset phase) override;
   void ClearBoundary(BoundaryCommSubset phase) override;
-  // VC
-  void StartReceivingShear(BoundaryCommSubset phase) override {return;};
-  void ComputeShear(const Real time) override {return;};
 
   // VC
   // BoundaryBuffer:
@@ -70,8 +65,6 @@ class CellCenteredXBoundaryVariable : public BoundaryVariable {
   void SendBoundaryBuffersFullRestriction();
   void ReceiveAndSetBoundariesWithWait() override;
   void SetBoundaries() override;
-  void SendFluxCorrection() override {return;};
-  bool ReceiveFluxCorrection() override {return false;};
 
   void RestrictNonGhost();
   void ZeroVertexGhosts();
@@ -190,7 +183,6 @@ private:
   void PolarBoundarySingleAzimuthalBlock() override;
 
   void ErrorIfPolarNotImplemented(const NeighborBlock& nb);
-  void ErrorIfShearingBoxNotImplemented();
 
   // helper functions for assigning indices (inlined on definition)
   void SetIndexRangesSBSL(int ox, int &ix_s, int &ix_e,

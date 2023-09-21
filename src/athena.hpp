@@ -48,8 +48,6 @@ using Real = double;
 class MeshBlock;
 class Coordinates;
 class ParameterInput;
-class HydroDiffusion;
-class FieldDiffusion;
 
 //--------------------------------------------------------------------------------------
 //! \struct LogicalLocation
@@ -86,32 +84,6 @@ struct RegionSize {  // aggregate and POD type; do NOT reorder member declaratio
   int nx1, nx2, nx3;        // number of active cells (not including ghost zones)
 };
 
-//---------------------------------------------------------------------------------------
-//! \struct FaceField
-//  \brief container for face-centered fields
-
-struct FaceField {
-  AthenaArray<Real> x1f, x2f, x3f;
-  FaceField() = default;
-  FaceField(int ncells3, int ncells2, int ncells1,
-            AthenaArray<Real>::DataStatus init=AthenaArray<Real>::DataStatus::allocated) :
-      x1f(ncells3, ncells2, ncells1+1, init), x2f(ncells3, ncells2+1, ncells1, init),
-      x3f(ncells3+1, ncells2, ncells1, init) {}
-};
-
-//----------------------------------------------------------------------------------------
-//! \struct EdgeField
-//  \brief container for edge-centered fields
-
-struct EdgeField {
-  AthenaArray<Real> x1e, x2e, x3e;
-  EdgeField() = default;
-  EdgeField(int ncells3, int ncells2, int ncells1,
-            AthenaArray<Real>::DataStatus init=AthenaArray<Real>::DataStatus::allocated) :
-      x1e(ncells3+1, ncells2+1, ncells1, init), x2e(ncells3+1, ncells2, ncells1+1, init),
-      x3e(ncells3, ncells2+1, ncells1+1, init) {}
-};
-
 //------------------------------------------------------------------------------------// enums used everywhere
 // (not specifying underlying integral type (C++11) for portability & performance)
 
@@ -126,16 +98,6 @@ struct EdgeField {
 
 // enumerators only used for indexing AthenaArray and regular arrays; typename and
 // explicitly specified enumerator values aare unnecessary, but provided for clarity:
-
-// array indices for conserved: density, momemtum, total energy, face-centered field
-enum ConsIndex {IDN=0, IM1=1, IM2=2, IM3=3, IEN=4};
-enum MagneticIndex {IB1=0, IB2=1, IB3=2};
-
-// array indices for 1D primitives: velocity, transverse components of field
-enum PrimIndex {IVX=1, IVY=2, IVZ=3, IPR=4, IBY=(NHYDRO), IBZ=((NHYDRO)+1)};
-
-// array indices for face-centered electric fields returned by Riemann solver
-enum ElectricIndex {X1E2=0, X1E3=1, X2E3=0, X2E1=1, X3E1=0, X3E2=1};
 
 // array indices for 4-metric and triangular matrices in GR
 enum MetricIndex {I00=0, I01=1, I02=2, I03=3, I11=4, I12=5, I13=6, I22=7, I23=8, I33=9,
@@ -158,43 +120,24 @@ enum CoordinateDirection {X1DIR=0, X2DIR=1, X3DIR=2};
 //------------------
 // KGF: Except for the 2x MG* enums, these may be unnessary w/ the new class inheritance
 // Now, only passed to BoundaryVariable::InitBoundaryData(); could replace w/ bool switch
-enum class BoundaryQuantity {cc, cx, fc, vc, cc_flcor, fc_flcor};
-enum class HydroBoundaryQuantity {cons, prim};
+enum class BoundaryQuantity {cc, cx, fc, vc};
 enum class BoundaryCommSubset {mesh_init, all};
-// TODO(felker): consider generalizing/renaming to QuantityFormulation
-enum class FluidFormulation {evolve, background, disabled}; // rename background -> fixed?
 enum class UserHistoryOperation {sum, max, min};
 
 //----------------------------------------------------------------------------------------
 // function pointer prototypes for user-defined modules set at runtime
 
 using BValFunc = void (*)(
-    MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
+    MeshBlock *pmb, Coordinates *pco,
     Real time, Real dt,
     int is, int ie, int js, int je, int ks, int ke, int ngh);
 using AMRFlagFunc = int (*)(MeshBlock *pmb);
 using MeshGenFunc = Real (*)(Real x, RegionSize rs);
-using SrcTermFunc = void (*)(
-    MeshBlock *pmb, const Real time, const Real dt,
-    const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc, AthenaArray<Real> &cons);
 using TimeStepFunc = Real (*)(MeshBlock *pmb);
 using HistoryOutputFunc = Real (*)(MeshBlock *pmb, int iout);
 using MetricFunc = void (*)(
     Real x1, Real x2, Real x3, ParameterInput *pin,
     AthenaArray<Real> &g, AthenaArray<Real> &g_inv,
     AthenaArray<Real> &dg_dx1, AthenaArray<Real> &dg_dx2, AthenaArray<Real> &dg_dx3);
-using ViscosityCoeffFunc = void (*)(
-    HydroDiffusion *phdif, MeshBlock *pmb,
-    const  AthenaArray<Real> &w, const AthenaArray<Real> &bc,
-    int is, int ie, int js, int je, int ks, int ke);
-using ConductionCoeffFunc = void (*)(
-    HydroDiffusion *phdif, MeshBlock *pmb,
-    const AthenaArray<Real> &w, const AthenaArray<Real> &bc,
-    int is, int ie, int js, int je, int ks, int ke);
-using FieldDiffusionCoeffFunc = void (*)(
-    FieldDiffusion *pfdif, MeshBlock *pmb,
-    const AthenaArray<Real> &w,
-    const AthenaArray<Real> &bmag,
-    int is, int ie, int js, int je, int ks, int ke);
 
 #endif // ATHENA_HPP_

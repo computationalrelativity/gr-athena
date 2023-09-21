@@ -21,10 +21,7 @@
 #include "../../athena.hpp"
 #include "../../athena_arrays.hpp"
 #include "../../coordinates/coordinates.hpp"
-#include "../../eos/eos.hpp"
-#include "../../field/field.hpp"
 #include "../../globals.hpp"
-#include "../../hydro/hydro.hpp"
 #include "../../mesh/mesh.hpp"
 #include "../../parameter_input.hpp"
 #include "../../utils/buffer_utils.hpp"
@@ -65,20 +62,12 @@ CellCenteredXBoundaryVariable::CellCenteredXBoundaryVariable(
   // cc_phys_id_ = pbval_->ReserveTagVariableIDs(1);
   cx_phys_id_ = pbval_->bvars_next_phys_id_;
 #endif
-  if (pmy_mesh_->multilevel) { // SMR or AMR
-    // InitBoundaryData(bd_var_flcor_, BoundaryQuantity::cc_flcor);
-#ifdef MPI_PARALLEL
-    // cc_flx_phys_id_ = cc_phys_id_ + 1;
-#endif
-  }
 
 }
 
 // destructor
 CellCenteredXBoundaryVariable::~CellCenteredXBoundaryVariable() {
   DestroyBoundaryData(bd_var_);
- // if (pmy_mesh_->multilevel)
- //   DestroyBoundaryData(bd_var_flcor_);
 }
 
 void CellCenteredXBoundaryVariable::ErrorIfPolarNotImplemented(
@@ -92,16 +81,6 @@ void CellCenteredXBoundaryVariable::ErrorIfPolarNotImplemented(
   ATHENA_ERROR(msg);
   }
   return;
-}
-
-void CellCenteredXBoundaryVariable::ErrorIfShearingBoxNotImplemented() {
-  // BD: TODO implement shearing box
-  if (SHEARING_BOX){
-    std::stringstream msg;
-    msg << "### FATAL ERROR" << std::endl
-        << "Shearing box not implemented for vertex-centered." << std::endl;
-    ATHENA_ERROR(msg);
-  }
 }
 
 int CellCenteredXBoundaryVariable::ComputeVariableBufferSize(const NeighborIndexes& ni,
@@ -221,7 +200,6 @@ void CellCenteredXBoundaryVariable::SetBoundarySameLevel(Real *buf,
 
   // BD: TODO implement
   ErrorIfPolarNotImplemented(nb);
-  ErrorIfShearingBoxNotImplemented();
 
   // BD: ok
   idxSetSameLevelRanges(nb.ni, si, ei, sj, ej, sk, ek, 1);

@@ -360,15 +360,13 @@ MeshBlockTree* MeshBlockTree::FindNeighbor(LogicalLocation myloc,
   lx+=ox1; ly+=ox2; lz+=ox3;
   // periodic and polar boundaries
   if (lx<0) {
-    if (pmesh_->mesh_bcs[BoundaryFace::inner_x1] == BoundaryFlag::periodic
-        || pmesh_->mesh_bcs[BoundaryFace::inner_x1] == BoundaryFlag::shear_periodic)
+    if (pmesh_->mesh_bcs[BoundaryFace::inner_x1] == BoundaryFlag::periodic)
       lx=(pmesh_->nrbx1<<(ll-pmesh_->root_level))-1;
     else
       return nullptr;
   }
   if (lx>=pmesh_->nrbx1<<(ll-pmesh_->root_level)) {;
-    if (pmesh_->mesh_bcs[BoundaryFace::outer_x1] == BoundaryFlag::periodic
-        || pmesh_->mesh_bcs[BoundaryFace::outer_x1] == BoundaryFlag::shear_periodic)
+    if (pmesh_->mesh_bcs[BoundaryFace::outer_x1] == BoundaryFlag::periodic)
       lx=0;
     else
       return nullptr;
