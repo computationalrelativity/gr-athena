@@ -71,8 +71,6 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
     pcoord = new Cylindrical(this, pin, false);
   } else if (std::strcmp(COORDINATE_SYSTEM, "spherical_polar") == 0) {
     pcoord = new SphericalPolar(this, pin, false);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "gr_user") == 0) {
-    pcoord = new GRUser(this, pin, false);
   }
 
   if (pm->multilevel) pmr = new MeshRefinement(this, pin);
@@ -141,8 +139,6 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     pcoord = new Cylindrical(this, pin, false);
   } else if (std::strcmp(COORDINATE_SYSTEM, "spherical_polar") == 0) {
     pcoord = new SphericalPolar(this, pin, false);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "gr_user") == 0) {
-    pcoord = new GRUser(this, pin, false);
   }
 
   if (pm->multilevel) pmr = new MeshRefinement(this, pin);

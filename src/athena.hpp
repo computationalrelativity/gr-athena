@@ -99,16 +99,6 @@ struct RegionSize {  // aggregate and POD type; do NOT reorder member declaratio
 // enumerators only used for indexing AthenaArray and regular arrays; typename and
 // explicitly specified enumerator values aare unnecessary, but provided for clarity:
 
-// array indices for 4-metric and triangular matrices in GR
-enum MetricIndex {I00=0, I01=1, I02=2, I03=3, I11=4, I12=5, I13=6, I22=7, I23=8, I33=9,
-  NMETRIC=10};
-enum TriangleIndex {T00=0, T10=1, T11=2, T20=3, T21=4, T22=5, T30=6, T31=7, T32=8, T33=9,
-  NTRIANGULAR=10};
-
-// array indices for 3-metric and extrinsic curv in GR in 3D
-enum SpatialMetricIndex {S11=0, S12=1, S13=2, S22=3, S23=4, S33=5,
-  NSPMETRIC=6};
-
 // enumerator types that are used for variables and function parameters:
 
 // needed for arrays dimensioned over grid directions

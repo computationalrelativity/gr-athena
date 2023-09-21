@@ -84,7 +84,6 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     nlim(pin->GetOrAddInteger("time", "nlim", -1)), ncycle(),
     ncycle_out(pin->GetOrAddInteger("time", "ncycle_out", 1)),
     dt_diagnostics(pin->GetOrAddInteger("time", "dt_diagnostics", -1)),
-    muj(), nuj(), muj_tilde(),
     nbnew(), nbdel(),
     step_since_lb(), gflag(),
     // private members:
@@ -546,7 +545,6 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     nlim(pin->GetOrAddInteger("time", "nlim", -1)), ncycle(),
     ncycle_out(pin->GetOrAddInteger("time", "ncycle_out", 1)),
     dt_diagnostics(pin->GetOrAddInteger("time", "dt_diagnostics", -1)),
-    muj(), nuj(), muj_tilde(),
     nbnew(), nbdel(),
     step_since_lb(), gflag(),
     // private members:

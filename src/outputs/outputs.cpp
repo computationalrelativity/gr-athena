@@ -236,8 +236,6 @@ Outputs::Outputs(Mesh *pm, ParameterInput *pin) {
           num_hst_outputs++;
         } else if (op.file_type.compare("tab") == 0) {
           pnew_type = new FormattedTableOutput(op);
-        } else if (op.file_type.compare("vtk") == 0) {
-          pnew_type = new VTKOutput(op);
         } else if (op.file_type.compare("rst") == 0) {
           pnew_type = new RestartOutput(op);
           num_rst_outputs++;

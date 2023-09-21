@@ -136,16 +136,6 @@ class FormattedTableOutput : public OutputType {
 };
 
 //----------------------------------------------------------------------------------------
-//! \class VTKOutput
-//  \brief derived OutputType class for vtk dumps
-
-class VTKOutput : public OutputType {
- public:
-  explicit VTKOutput(OutputParameters oparams) : OutputType(oparams) {}
-  void WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) override;
-};
-
-//----------------------------------------------------------------------------------------
 //! \class RestartOutput
 //  \brief derived OutputType class for restart dumps
 

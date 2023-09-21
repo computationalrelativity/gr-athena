@@ -332,7 +332,6 @@ class Mesh {
   const bool adaptive, multilevel;
   Real start_time, time, tlim, dt, dt_hyperbolic, dt_parabolic, dt_user, cfl_number;
   int nlim, ncycle, ncycle_out, dt_diagnostics;
-  Real muj, nuj, muj_tilde;
   int nbtotal, nbnew, nbdel; // note: nbnew and nbdel are accumulative quantities
 
   int step_since_lb;

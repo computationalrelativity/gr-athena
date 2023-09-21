@@ -45,8 +45,6 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) :
     pcoarsec = new Cylindrical(pmb, pin, true);
   } else if (std::strcmp(COORDINATE_SYSTEM, "spherical_polar") == 0) {
     pcoarsec = new SphericalPolar(pmb, pin, true);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "gr_user") == 0) {
-    pcoarsec = new GRUser(pmb, pin, true);
   }
 
   int nc1 = pmb->ncells1;
