@@ -502,6 +502,15 @@ if(eos_debug){
 }
 }
 }
+
+    alpha.DeleteAthenaTensor();
+    beta_u.DeleteAthenaTensor();
+    gamma_dd.DeleteAthenaTensor();
+    if(coarse_flag==1)
+    {
+     chi.DeleteAthenaTensor();
+     gammat_dd.DeleteAthenaTensor();
+    }
   return;
 }
 
@@ -707,6 +716,10 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, Real gamma_adi,
   S_1dg = wgas*SQR(Wlor) * v_d(0)*detgamma  ;
   S_2dg = wgas*SQR(Wlor) * v_d(1)*detgamma  ;
   S_3dg = wgas*SQR(Wlor) * v_d(2)*detgamma  ;
+
+  utilde_u.DeleteAthenaArray();
+  utilde_d.DeleteAthenaArray();
+  v_d.DeleteAthenaArray();
   return;
 }
 

@@ -868,6 +868,47 @@ Stau(i) += T00(i)*(beta_u(a,i)*beta_u(b,i)*K_dd(a,b,i))  + T0i_u(a,i)*(2.0*beta_
         }
     }
   }
+
+      pgas_init.DeleteAthenaArray();
+      rho_init.DeleteAthenaArray();
+      w_init.DeleteAthenaArray();
+      alpha.DeleteAthenaTensor();
+      detg.DeleteAthenaTensor();
+      Wlor.DeleteAthenaTensor();
+      wtot.DeleteAthenaTensor();
+      pgas.DeleteAthenaTensor();
+      rho.DeleteAthenaTensor();
+      Stau.DeleteAthenaTensor();
+      dalpha_d.DeleteAthenaTensor();
+      beta_u.DeleteAthenaTensor();
+      utilde_u.DeleteAthenaTensor();
+      v_u.DeleteAthenaTensor();
+      v_d.DeleteAthenaTensor();
+      SS_d.DeleteAthenaTensor();
+      dbeta_du.DeleteAthenaTensor();
+      gamma_dd.DeleteAthenaTensor();
+      gamma_uu.DeleteAthenaTensor();
+      dgamma_ddd.DeleteAthenaTensor();
+      K_dd.DeleteAthenaTensor();
+// to delete for testing
+      dbeta_dd.DeleteAthenaTensor();
+      beta_d.DeleteAthenaTensor();
+      dgamma_duu.DeleteAthenaTensor();
+      betadbeta_ddu.DeleteAthenaTensor();
+      betadbeta_udd.DeleteAthenaTensor();
+
+//bfield
+      b0_u.DeleteAthenaTensor();
+      bb_u.DeleteAthenaTensor();
+      bi_u.DeleteAthenaTensor();
+      bi_d.DeleteAthenaTensor();
+      bsq.DeleteAthenaTensor();
+      u0.DeleteAthenaTensor();
+      T00.DeleteAthenaTensor();
+      T0i_u.DeleteAthenaTensor();
+      T0i_d.DeleteAthenaTensor();
+      Tij_uu.DeleteAthenaTensor();
+
   return;
 }
 

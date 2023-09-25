@@ -464,6 +464,15 @@ if(eos_debug){
 }
 }
 }
+      alpha.DeleteAthenaTensor();
+      beta_u.DeleteAthenaTensor();
+      gamma_dd.DeleteAthenaTensor();
+      order_flag.DeleteAthenaArray();
+      if(coarse_flag==1)
+      {
+       chi.DeleteAthenaTensor();
+       gammat_dd.DeleteAthenaTensor();
+      }
   return;
 }
 
@@ -539,6 +548,10 @@ void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim,
       }
     }
   }
+      gamma_dd.DeleteAthenaTensor();
+      beta_u.DeleteAthenaTensor();
+      alpha.DeleteAthenaTensor();
+      order_flag.DeleteAthenaArray();
   return;
 }
 
@@ -711,6 +724,15 @@ if(eos_debug){
   S_1dg = (wgas+bsq)*SQR(Wlor) * v_d(0)*detgamma - alpha(i)*b0_u*bi_d(0)*detgamma ;
   S_2dg = (wgas+bsq)*SQR(Wlor) * v_d(1)*detgamma - alpha(i)*b0_u*bi_d(1)*detgamma  ;
   S_3dg = (wgas+bsq)*SQR(Wlor) * v_d(2)*detgamma - alpha(i)*b0_u*bi_d(2)*detgamma  ;
+
+  utilde_u.DeleteAthenaArray();
+  utilde_d.DeleteAthenaArray();
+  v_d.DeleteAthenaArray();
+  v_u.DeleteAthenaArray();
+  bb_u.DeleteAthenaArray();
+  bi_u.DeleteAthenaArray();
+  bi_d.DeleteAthenaArray();
+  beta_d.DeleteAthenaArray();
   return;
 }
 

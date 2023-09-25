@@ -625,6 +625,54 @@ void Hydro::RiemannSolver(const int k, const int j,
 }
     
   
+      alpha.DeleteAthenaTensor();
+      detg.DeleteAthenaTensor();
+      detgamma.DeleteAthenaTensor();
+      rho_l.DeleteAthenaTensor();
+      rho_r.DeleteAthenaTensor();
+      pgas_l.DeleteAthenaTensor();
+      pgas_r.DeleteAthenaTensor();
+      wgas_l.DeleteAthenaTensor();
+      wgas_r.DeleteAthenaTensor();
+      Wlor_l.DeleteAthenaTensor();
+      Wlor_r.DeleteAthenaTensor();
+      u0_l.DeleteAthenaTensor();
+      u0_r.DeleteAthenaTensor();
+      v2_l.DeleteAthenaTensor();
+      v2_r.DeleteAthenaTensor();
+      lambda.DeleteAthenaTensor();
+      lambda_p_l.DeleteAthenaTensor();
+      lambda_m_l.DeleteAthenaTensor();
+      lambda_p_r.DeleteAthenaTensor();
+      lambda_m_r.DeleteAthenaTensor();
+      beta_u.DeleteAthenaTensor();
+      beta_d.DeleteAthenaTensor();
+      utilde_u_l.DeleteAthenaTensor();
+      utilde_u_r.DeleteAthenaTensor();
+      v_u_l.DeleteAthenaTensor();
+      v_u_r.DeleteAthenaTensor();
+      v_d_l.DeleteAthenaTensor();
+      v_d_r.DeleteAthenaTensor();
+      utilde_d_l.DeleteAthenaTensor();
+      utilde_d_r.DeleteAthenaTensor();
+      ucon_l.DeleteAthenaTensor();
+      ucon_r.DeleteAthenaTensor();
+      gamma_dd.DeleteAthenaTensor();
+      gamma_uu.DeleteAthenaTensor();
+      b0_u_l.DeleteAthenaTensor();
+      b0_u_r.DeleteAthenaTensor();
+      bsq_l.DeleteAthenaTensor();
+      bsq_r.DeleteAthenaTensor();
+      bb_l.DeleteAthenaTensor();
+      bb_r.DeleteAthenaTensor(); 
+      bi_u_l.DeleteAthenaTensor();
+      bi_u_r.DeleteAthenaTensor(); 
+      bi_d_l.DeleteAthenaTensor();
+      bi_d_r.DeleteAthenaTensor();
+        cons_l.DeleteAthenaArray();
+        cons_r.DeleteAthenaArray();
+        flux_l.DeleteAthenaArray();
+        flux_r.DeleteAthenaArray();
   return;
 }
 namespace{
