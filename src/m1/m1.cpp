@@ -132,6 +132,17 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   dt1_.NewAthenaArray(nn1);
   dt2_.NewAthenaArray(nn1);
   dt3_.NewAthenaArray(nn1);
+  x1face_area_.NewAthenaArray(mbi.nn1+1);
+  if (pm->f2) {
+    x2face_area_.NewAthenaArray(mbi.nn1);
+    x2face_area_p1_.NewAthenaArray(mbi.nn1);
+  }
+  if (pm->f3) {
+    x3face_area_.NewAthenaArray(mbi.nn1);
+    x3face_area_p1_.NewAthenaArray(mbi.nn1);
+  }
+  cell_volume_.NewAthenaArray(mbi.nn1);
+  dflx_.NewAthenaArray(N_Lab, ngroups*nspecies, mbi.nn1);
 
   //---------------------------------------------------------------------------
   
@@ -233,8 +244,73 @@ M1::~M1()
 //----------------------------------------------------------------------------------------
 // \fn void M1::AddFluxDivergence()
 // \brief Add the flux divergence to the RHS (see analogous Hydro method)
-void M1::AddFluxDivergence() {
+void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
   // FIXME rhs += div fluxes
+  MeshBlock *pmb = pmy_block;
+  AthenaArray<Real> &x1flux = storage.flux[X1DIR];
+  AthenaArray<Real> &x2flux = storage.flux[X2DIR];
+  AthenaArray<Real> &x3flux = storage.flux[X3DIR];
+  int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
+  int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
+  AthenaArray<Real> &x1area = x1face_area_, &x2area = x2face_area_,
+                 &x2area_p1 = x2face_area_p1_, &x3area = x3face_area_,
+                 &x3area_p1 = x3face_area_p1_, &vol = cell_volume_, &dflx = dflx_;
+
+  for (int k=ks; k<=ke; ++k) {
+    for (int j=js; j<=je; ++j) {
+      // calculate x1-flux divergence
+      pmb->pcoord->Face1Area(k, j, is, ie+1, x1area);
+      for (int iv=0; iv<N_Lab; ++iv) {
+        for (int ig=0; ig<ngroups*nspecies; ++ig) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            dflx(iv,ig,i) = (x1area(i+1)*x1flux(iv,ig,k,j,i+1) - x1area(i)*x1flux(iv,ig,k,j,i));
+          }
+        }
+      }
+
+      // calculate x2-flux divergence
+      if (pmb->block_size.nx2 > 1) {
+        pmb->pcoord->Face2Area(k, j  , is, ie, x2area   );
+        pmb->pcoord->Face2Area(k, j+1, is, ie, x2area_p1);
+        for (int iv=0; iv<N_Lab; ++iv) {
+          for (int ig=0; ig<ngroups*nspecies; ++ig) {
+#pragma omp simd
+            for (int i=is; i<=ie; ++i) {
+              dflx(iv,ig,i) += (x2area_p1(i)*x2flux(iv,ig,k,j+1,i) - x2area(i)*x2flux(iv,ig,k,j,i));
+            }
+          }
+        }
+      }
+
+      // calculate x3-flux divergence
+      if (pmb->block_size.nx3 > 1) {
+        pmb->pcoord->Face3Area(k  , j, is, ie, x3area   );
+        pmb->pcoord->Face3Area(k+1, j, is, ie, x3area_p1);
+        for (int iv=0; iv<N_Lab; ++iv) {
+          for (int ig=0; ig<ngroups*nspecies; ++ig) {
+#pragma omp simd
+            for (int i=is; i<=ie; ++i) {
+              dflx(iv,ig,i) += (x3area_p1(i)*x3flux(iv,ig,k+1,j,i) - x3area(i)*x3flux(iv,ig,k,j,i));
+            }
+          }
+        }
+      }
+
+      // update conserved variables
+      pmb->pcoord->CellVolume(k, j, is, ie, vol);
+      for (int iv=0; iv<N_Lab; ++iv) {
+        for (int ig=0; ig<ngroups*nspecies; ++ig) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            // ASK: wght??
+            u_rhs(iv,ig,k,j,i) -= dflx(iv,ig,i)/vol(i);
+          }
+        }
+      }
+    }
+  }
+  return;
 }
 
 //----------------------------------------------------------------------------------------

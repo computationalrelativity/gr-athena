@@ -236,7 +236,8 @@ namespace {
     p->E = std::max(gsl_vector_get(q, 0), 0.0);
     if (p->E < 0) {
       return GSL_EBADFUNC;
-    }      
+    }
+    // ASK: how to deal with this    
     pm1->pack_F_d(-p->alp * p->n_u(1), -p->alp * p->n_u(2), -p->alp * p->n_u(3),
                   gsl_vector_get(q, 1), gsl_vector_get(q, 2), gsl_vector_get(q, 3),
                   p->F_d);

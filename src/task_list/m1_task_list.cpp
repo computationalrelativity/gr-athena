@@ -298,7 +298,7 @@ TaskStatus M1IntegratorTaskList::ReceiveAndCorrectFlux(MeshBlock *pmb, int stage
 // Function to calculates fluxes
 TaskStatus M1IntegratorTaskList::AddFluxDivergence(MeshBlock *pmb, int stage) {
   if (stage <= nstages) {
-    pmb->pm1->AddFluxDivergence();
+    pmb->pm1->AddFluxDivergence(pmb->pm1->storage.u_rhs);
     return TaskStatus::success;
   }
   return TaskStatus::fail;

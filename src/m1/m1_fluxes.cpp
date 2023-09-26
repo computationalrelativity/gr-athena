@@ -38,7 +38,8 @@ using namespace utils;
 Real compute_Gamma(Real const W,
 		 		   				 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_u,
 		 							 Real const J, Real const E,
-									 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d);
+									 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
+                   Real rad_E_floor, Real rad_eps);
 
 namespace {
   Real minmod2(Real rl, Real rp, Real th) {
@@ -238,7 +239,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
             assemble_fnu(u_u, rad.J(ig,k,j,i), H_u, fnu_u);
 
             Real const Gamma = compute_Gamma(fidu.Wlorentz(k,j,i), v_u,
-                                             rad.J(ig,k,j,i), vec.E(ig,k,j,i), F_d);
+                                             rad.J(ig,k,j,i), vec.E(ig,k,j,i), F_d,
+                                             rad_E_floor, rad_eps);
 
             // Note that nnu is densitized here
             Real const nnu = vec.N(ig,k,j,i)/Gamma;
@@ -339,7 +341,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
               A = std::max(1.0/(delta[dir]*kapa), mindiss);
             }
 
-            for (int iv = 0; iv < 5; ++iv) {
+            for (int iv = 0; iv < N_Lab; ++iv) {
               Real const ujm = cons[GFINDEX1D(__k-1, ig, iv)];
               Real const uj = cons[GFINDEX1D(__k, ig, iv)];
               Real const ujp = cons[GFINDEX1D(__k+1, ig, iv)];
@@ -369,24 +371,27 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
               Real const flux_high = 0.5*(fj + fjp);
               
               Real flux_num = flux_high -
-                              (sawtooth ? 1 : A)*(1 - phi)*(flux_high - flux_low);
-              flux_jp[PINDEX1D(ig, iv)] = flux_num;
+                              (sawtooth ? 1 : A)*(1.0 - phi)*(flux_high - flux_low);
+              //flux_jp[PINDEX1D(ig, iv)] = flux_num;
+              storage.flux[dir](iv,ig,k,j,i) = flux_num;
               // FIXME: store flux directly in flux[DIR] AthenaArray
+              // ASK: FLUX IS AT LEFT FACE OR RIGHT
+              // ASK: EQ. 31
 
-              if (!rad.mask(k,j,i)) {
+              //if (!rad.mask(k,j,i)) {
           
                 // FIXME: This will not work. Instead, set the value of the 3 flux arrays
                 //TODO check this pointer!!!
-                rhs[PINDEX1D(ig, iv)][ijk] += idelta[dir]*(flux_jm[PINDEX1D(ig, iv)] -
-                                                           flux_jp[PINDEX1D(ig, iv)]) *
-                                                           static_cast<Real>(i >= M1_NGHOST
-                                                               && i <  ncells[0] - M1_NGHOST
-                                                               && j >= M1_NGHOST
-                                                               && j <  ncells[1] - M1_NGHOST
-                                                               && k >= M1_NGHOST
-                                                               && k <  ncells[2] - M1_NGHOST);
-                assert(isfinite(rhs[PINDEX1D(ig, iv)][ijk]));
-              }
+              //  rhs[PINDEX1D(ig, iv)][ijk] += idelta[dir]*(flux_jm[PINDEX1D(ig, iv)] -
+              //                                             flux_jp[PINDEX1D(ig, iv)]) *
+              //                                             static_cast<Real>(i >= M1_NGHOST
+              //                                                 && i <  ncells[0] - M1_NGHOST
+              //                                                 && j >= M1_NGHOST
+              //                                                 && j <  ncells[1] - M1_NGHOST
+              //                                                 && k >= M1_NGHOST
+              //                                                 && k <  ncells[2] - M1_NGHOST);
+              //  assert(isfinite(rhs[PINDEX1D(ig, iv)][ijk]));
+              //}
             } //iv loop
           } //ig loop
           // Rotate flux pointer

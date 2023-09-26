@@ -14,12 +14,6 @@
 #endif
 #include "../mesh/mesh.hpp"
 
-// FIXME: do not use global variables, modify functions to take these as parameters
-Real rad_E_floor;
-Real rad_eps;
-int closure_maxiter;
-
-
 using namespace utils;
 
 #define SQ(X) ((X)*(X))
@@ -93,7 +87,8 @@ void M1::assemble_fnu(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u
 Real compute_Gamma(Real const W,
 		               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_u,
 		               Real const J, Real const E,
-		               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d)
+		               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
+                   Real rad_E_floor, Real rad_eps)
 { // Eq. 24
   if (E > rad_E_floor && J > rad_E_floor) {
     Real f_dot_v = std::min(tensor::dot(F_d, v_u)/E, 1 - rad_eps);

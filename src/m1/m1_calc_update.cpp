@@ -292,7 +292,7 @@ void M1::CalcUpdate(Real const dt,
 	  
       //
       // Compute updated Gamma
-      Real const Gamma = compute_Gamma(fidu.Wlorentz(k,j,i), v_u, Jnew, Enew, Fnew_d);
+      Real const Gamma = compute_Gamma(fidu.Wlorentz(k,j,i), v_u, Jnew, Enew, Fnew_d, rad_E_floor, rad_eps);
       
       //
       // N^k+1 = N^* + dt ( eta - abs N^k+1 )
