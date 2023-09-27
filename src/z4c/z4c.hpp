@@ -109,8 +109,8 @@ public:
     AthenaArray<Real> mat;   // matter variables
 //WGC wext  
     AthenaArray<Real> weyl;  // weyl scalars
-    AthenaArray<Real> u_init;     // init buffrers
-    AthenaArray<Real> adm_init;     // init buffers
+//    AthenaArray<Real> u_init;     // init buffrers
+//    AthenaArray<Real> adm_init;     // init buffers
 //WGC end
   } storage;
 

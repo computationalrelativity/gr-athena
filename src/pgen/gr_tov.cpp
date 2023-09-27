@@ -352,23 +352,23 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 	pz4c->storage.adm(Z4c::I_ADM_Kxz,k,j,i) = 0.0;
 	pz4c->storage.adm(Z4c::I_ADM_Kyz,k,j,i) = 0.0;
 	pz4c->storage.adm(Z4c::I_ADM_psi4,k,j,i) = psi4_kji;
-	pz4c->storage.u_init(Z4c::I_Z4c_alpha,k,j,i) = lapse_kji;
-	pz4c->storage.u_init(Z4c::I_Z4c_betax,k,j,i) = 0.0; 
-	pz4c->storage.u_init(Z4c::I_Z4c_betay,k,j,i) = 0.0; 
-	pz4c->storage.u_init(Z4c::I_Z4c_betaz,k,j,i) = 0.0; 
-	pz4c->storage.adm_init(Z4c::I_ADM_gxx,k,j,i) = psi4_kji;
-	pz4c->storage.adm_init(Z4c::I_ADM_gyy,k,j,i) = psi4_kji;
-	pz4c->storage.adm_init(Z4c::I_ADM_gzz,k,j,i) = psi4_kji;
-	pz4c->storage.adm_init(Z4c::I_ADM_gxy,k,j,i) = 0.0;
-	pz4c->storage.adm_init(Z4c::I_ADM_gxz,k,j,i) = 0.0;
-	pz4c->storage.adm_init(Z4c::I_ADM_gyz,k,j,i) = 0.0;
-	pz4c->storage.adm_init(Z4c::I_ADM_Kxx,k,j,i) = 0.0; 
-	pz4c->storage.adm_init(Z4c::I_ADM_Kyy,k,j,i) = 0.0; 
-	pz4c->storage.adm_init(Z4c::I_ADM_Kzz,k,j,i) = 0.0; 
-	pz4c->storage.adm_init(Z4c::I_ADM_Kxy,k,j,i) = 0.0;
-	pz4c->storage.adm_init(Z4c::I_ADM_Kxz,k,j,i) = 0.0;
-	pz4c->storage.adm_init(Z4c::I_ADM_Kyz,k,j,i) = 0.0;
-	pz4c->storage.adm_init(Z4c::I_ADM_psi4,k,j,i) = psi4_kji;
+//	pz4c->storage.u_init(Z4c::I_Z4c_alpha,k,j,i) = lapse_kji;
+//	pz4c->storage.u_init(Z4c::I_Z4c_betax,k,j,i) = 0.0; 
+//	pz4c->storage.u_init(Z4c::I_Z4c_betay,k,j,i) = 0.0; 
+//	pz4c->storage.u_init(Z4c::I_Z4c_betaz,k,j,i) = 0.0; 
+//	pz4c->storage.adm_init(Z4c::I_ADM_gxx,k,j,i) = psi4_kji;
+//	pz4c->storage.adm_init(Z4c::I_ADM_gyy,k,j,i) = psi4_kji;
+//	pz4c->storage.adm_init(Z4c::I_ADM_gzz,k,j,i) = psi4_kji;
+//	pz4c->storage.adm_init(Z4c::I_ADM_gxy,k,j,i) = 0.0;
+//	pz4c->storage.adm_init(Z4c::I_ADM_gxz,k,j,i) = 0.0;
+//	pz4c->storage.adm_init(Z4c::I_ADM_gyz,k,j,i) = 0.0;
+//	pz4c->storage.adm_init(Z4c::I_ADM_Kxx,k,j,i) = 0.0; 
+//	pz4c->storage.adm_init(Z4c::I_ADM_Kyy,k,j,i) = 0.0; 
+//	pz4c->storage.adm_init(Z4c::I_ADM_Kzz,k,j,i) = 0.0; 
+//	pz4c->storage.adm_init(Z4c::I_ADM_Kxy,k,j,i) = 0.0;
+//	pz4c->storage.adm_init(Z4c::I_ADM_Kxz,k,j,i) = 0.0;
+//	pz4c->storage.adm_init(Z4c::I_ADM_Kyz,k,j,i) = 0.0;
+//	pz4c->storage.adm_init(Z4c::I_ADM_psi4,k,j,i) = psi4_kji;
 	
       }
     }
@@ -377,7 +377,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   // Initialize remaining z4c variables
   pz4c->ADMToZ4c(pz4c->storage.adm,pz4c->storage.u);
   pz4c->ADMToZ4c(pz4c->storage.adm,pz4c->storage.u1); //?????
-  pz4c->ADMToZ4c(pz4c->storage.adm_init,pz4c->storage.u_init);
+//  pz4c->ADMToZ4c(pz4c->storage.adm_init,pz4c->storage.u_init);
   // Initialise coordinate class, CC metric
   pcoord->UpdateMetric();
 

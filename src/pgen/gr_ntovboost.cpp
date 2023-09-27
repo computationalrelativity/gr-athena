@@ -76,7 +76,7 @@ namespace {
   void Gamma33(Real g[3][3], Real dg[3][3][3], Real Gamma[3][3][3]);
   void set_Lambda(Real LAMBDA[4][4], Real LAMBDAi[4][4], Real xix,Real xiy,Real xiz);
 
-  void BoostedTOV(MeshBlock* pmb, TOVData * tov, Real pos[3], Real mom[3]);
+  void BoostedTOV(MeshBlock* pmb, TOVData * tov, Real pos[3], Real mom[3], AthenaArray<Real> & u_init, AthenaArray<Real> & adm_init);
   
   // Global variables
   Real gamma_adi, k_adi;  // hydro EOS parameters
@@ -220,8 +220,17 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 
   // fill these:
   phydro->w_init.Fill(NAN);
-  pz4c->storage.u_init.Fill(NAN);
-  pz4c->storage.adm_init.Fill(NAN);
+//  pz4c->storage.u_init.Fill(NAN);
+//  pz4c->storage.adm_init.Fill(NAN);
+
+  AthenaArray<Real> u_init, adm_init;
+  
+  u_init.NewAthenaArray(Z4c::N_Z4c,nverts3,nverts2,nverts1);
+  adm_init.NewAthenaArray(Z4c::N_ADM,nverts3,nverts2,nverts1);
+
+
+  u_init.Fill(NAN);
+  adm_init.Fill(NAN);
 
   // add to these:
   phydro->w.ZeroClear();
@@ -233,7 +242,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   for (int s=0; s<ntov; ++s) {
     
     // Compute a boosted TOV, save on _init
-    BoostedTOV(this, tov[s], pos[s], mom[s]);
+    BoostedTOV(this, tov[s], pos[s], mom[s], u_init, adm_init);
     
     // Add _init to w, u, adm
     //TODO(SB) there should be a more compact way to do this copy!
@@ -256,12 +265,19 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
       for (int j=jl; j<=ju+1; ++j) {
 	for (int i=il; i<=iu+1; ++i) {
 	  for (int v=0; v<Z4c::N_ADM; ++v) {
-	    pz4c->storage.adm(v,k,j,i) += pz4c->storage.adm_init(v,k,j,i);
+//	    pz4c->storage.adm(v,k,j,i) += pz4c->storage.adm_init(v,k,j,i);
+	    pz4c->storage.adm(v,k,j,i) += adm_init(v,k,j,i);
 	  }
+/*
 	  pz4c->storage.u(Z4c::I_Z4c_alpha,k,j,i) += pz4c->storage.u_init(Z4c::I_Z4c_alpha,k,j,i);
 	  pz4c->storage.u(Z4c::I_Z4c_betax,k,j,i) += pz4c->storage.u_init(Z4c::I_Z4c_betax,k,j,i);
 	  pz4c->storage.u(Z4c::I_Z4c_betay,k,j,i) += pz4c->storage.u_init(Z4c::I_Z4c_betay,k,j,i);
 	  pz4c->storage.u(Z4c::I_Z4c_betaz,k,j,i) += pz4c->storage.u_init(Z4c::I_Z4c_betaz,k,j,i);
+*/
+	  pz4c->storage.u(Z4c::I_Z4c_alpha,k,j,i) += u_init(Z4c::I_Z4c_alpha,k,j,i);
+	  pz4c->storage.u(Z4c::I_Z4c_betax,k,j,i) += u_init(Z4c::I_Z4c_betax,k,j,i);
+	  pz4c->storage.u(Z4c::I_Z4c_betay,k,j,i) += u_init(Z4c::I_Z4c_betay,k,j,i);
+	  pz4c->storage.u(Z4c::I_Z4c_betaz,k,j,i) += u_init(Z4c::I_Z4c_betaz,k,j,i);
 	  if (s>0) {
 	    // Subtract Mikowski
 	    pz4c->storage.u(Z4c::I_Z4c_alpha,k,j,i) -= 1.; // lapse has a minus in front.
@@ -296,12 +312,16 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     for (int j=jl; j<=ju+1; ++j) {
       for (int i=il; i<=iu+1; ++i) {
 	for (int v=0; v<Z4c::N_ADM; ++v) {
-	  pz4c->storage.adm_init(v,k,j,i) = pz4c->storage.adm(v,k,j,i);
+//	  pz4c->storage.adm_init(v,k,j,i) = pz4c->storage.adm(v,k,j,i);
 	}
-	pz4c->storage.u_init(Z4c::I_Z4c_alpha,k,j,i) = pz4c->storage.u1(Z4c::I_Z4c_alpha,k,j,i) = pz4c->storage.u(Z4c::I_Z4c_alpha,k,j,i);
-	pz4c->storage.u_init(Z4c::I_Z4c_betax,k,j,i) = pz4c->storage.u1(Z4c::I_Z4c_betax,k,j,i) = pz4c->storage.u(Z4c::I_Z4c_betax,k,j,i);
-	pz4c->storage.u_init(Z4c::I_Z4c_betay,k,j,i) = pz4c->storage.u1(Z4c::I_Z4c_betay,k,j,i) = pz4c->storage.u(Z4c::I_Z4c_betay,k,j,i); 
-	pz4c->storage.u_init(Z4c::I_Z4c_betaz,k,j,i) = pz4c->storage.u1(Z4c::I_Z4c_betaz,k,j,i) = pz4c->storage.u(Z4c::I_Z4c_betaz,k,j,i);
+//	pz4c->storage.u_init(Z4c::I_Z4c_alpha,k,j,i) = pz4c->storage.u1(Z4c::I_Z4c_alpha,k,j,i) = pz4c->storage.u(Z4c::I_Z4c_alpha,k,j,i);
+//	pz4c->storage.u_init(Z4c::I_Z4c_betax,k,j,i) = pz4c->storage.u1(Z4c::I_Z4c_betax,k,j,i) = pz4c->storage.u(Z4c::I_Z4c_betax,k,j,i);
+//	pz4c->storage.u_init(Z4c::I_Z4c_betay,k,j,i) = pz4c->storage.u1(Z4c::I_Z4c_betay,k,j,i) = pz4c->storage.u(Z4c::I_Z4c_betay,k,j,i); 
+//	pz4c->storage.u_init(Z4c::I_Z4c_betaz,k,j,i) = pz4c->storage.u1(Z4c::I_Z4c_betaz,k,j,i) = pz4c->storage.u(Z4c::I_Z4c_betaz,k,j,i);
+	pz4c->storage.u1(Z4c::I_Z4c_alpha,k,j,i) = pz4c->storage.u(Z4c::I_Z4c_alpha,k,j,i);
+	pz4c->storage.u1(Z4c::I_Z4c_betax,k,j,i) = pz4c->storage.u(Z4c::I_Z4c_betax,k,j,i);
+	pz4c->storage.u1(Z4c::I_Z4c_betay,k,j,i) = pz4c->storage.u(Z4c::I_Z4c_betay,k,j,i); 
+	pz4c->storage.u1(Z4c::I_Z4c_betaz,k,j,i) = pz4c->storage.u(Z4c::I_Z4c_betaz,k,j,i);
       }
     }
   }
@@ -309,7 +329,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   // Initialize remaining z4c variables
   pz4c->ADMToZ4c(pz4c->storage.adm,pz4c->storage.u);
   pz4c->ADMToZ4c(pz4c->storage.adm,pz4c->storage.u1); // ???
-  pz4c->ADMToZ4c(pz4c->storage.adm_init,pz4c->storage.u_init);
+//  pz4c->ADMToZ4c(pz4c->storage.adm_init,pz4c->storage.u_init);
   
   // Initialise coordinate class, CC metric
   //TODO(SB) CHECK: Is this needed in full evo?
@@ -327,7 +347,15 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   //TODO(WC) (don't strictly need this here, will be caught in task list before used
   pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pfield->bcc);
   pz4c->ADMConstraints(pz4c->storage.con,pz4c->storage.adm,pz4c->storage.mat,pz4c->storage.u);
-  
+ 
+
+  u_init.DeleteAthenaArray();
+  adm_init.DeleteAthenaArray();
+
+
+
+
+ 
   return;
 }
 
@@ -744,7 +772,7 @@ namespace {
   //          For the superposition one needs to copy things before adding the next star
   //
   
-  void BoostedTOV(MeshBlock* pmb, TOVData * tov, Real pos[3], Real mom[3])
+  void BoostedTOV(MeshBlock* pmb, TOVData * tov, Real pos[3], Real mom[3], AthenaArray<Real> & u_init, AthenaArray<Real> & adm_init)
   {
     
     // Prepare index bounds
@@ -1083,7 +1111,7 @@ namespace {
 	    betax_kji = -gip[0][1]/gip[0][0];
 	    betay_kji = -gip[0][2]/gip[0][0];
 	    betaz_kji = -gip[0][3]/gip[0][0];
-	    
+/*	    
 	    // Set lapse, shift, ADM metric, and extr. curvature	  
 	    pmb->pz4c->storage.u_init(Z4c::I_Z4c_alpha,k,j,i) = lapse_kji;
 	    pmb->pz4c->storage.u_init(Z4c::I_Z4c_betax,k,j,i) = betax_kji;
@@ -1105,11 +1133,33 @@ namespace {
 	    pmb->pz4c->storage.adm_init(Z4c::I_ADM_Kzz,k,j,i) = -lapse_kji * Gammap[0][3][3];
 
 	    pmb->pz4c->storage.adm_init(Z4c::I_ADM_psi4,k,j,i) = psi4_kji;
+*/
 
+
+	    u_init(Z4c::I_Z4c_alpha,k,j,i) = lapse_kji;
+	    u_init(Z4c::I_Z4c_betax,k,j,i) = betax_kji;
+	    u_init(Z4c::I_Z4c_betay,k,j,i) = betay_kji; 
+	    u_init(Z4c::I_Z4c_betaz,k,j,i) = betaz_kji;
+	    
+	    adm_init(Z4c::I_ADM_gxx,k,j,i) = gp[1][1];
+	    adm_init(Z4c::I_ADM_gxy,k,j,i) = gp[1][2];
+	    adm_init(Z4c::I_ADM_gxz,k,j,i) = gp[1][3];
+	    adm_init(Z4c::I_ADM_gyy,k,j,i) = gp[2][2];
+	    adm_init(Z4c::I_ADM_gyz,k,j,i) = gp[2][3];
+	    adm_init(Z4c::I_ADM_gzz,k,j,i) = gp[3][3];
+	    
+	    adm_init(Z4c::I_ADM_Kxx,k,j,i) = -lapse_kji * Gammap[0][1][1];
+	    adm_init(Z4c::I_ADM_Kxy,k,j,i) = -lapse_kji * Gammap[0][1][2];
+	    adm_init(Z4c::I_ADM_Kxz,k,j,i) = -lapse_kji * Gammap[0][1][3];  
+	    adm_init(Z4c::I_ADM_Kyy,k,j,i) = -lapse_kji * Gammap[0][2][2];
+	    adm_init(Z4c::I_ADM_Kyz,k,j,i) = -lapse_kji * Gammap[0][2][3];	  
+	    adm_init(Z4c::I_ADM_Kzz,k,j,i) = -lapse_kji * Gammap[0][3][3];
+
+	    adm_init(Z4c::I_ADM_psi4,k,j,i) = psi4_kji;
 
 	  } else {
 
-	    // unboosted metric
+/*	    // unboosted metric
 	    pmb->pz4c->storage.u_init(Z4c::I_Z4c_alpha,k,j,i) = lapse_kji;
 	    pmb->pz4c->storage.u_init(Z4c::I_Z4c_betax,k,j,i) = 0.0;
 	    pmb->pz4c->storage.u_init(Z4c::I_Z4c_betay,k,j,i) = 0.0;
@@ -1130,6 +1180,28 @@ namespace {
 	    pmb->pz4c->storage.adm_init(Z4c::I_ADM_Kzz,k,j,i) = 0.0;
 	    
 	    pmb->pz4c->storage.adm_init(Z4c::I_ADM_psi4,k,j,i) = psi4_kji;
+*/
+
+	    u_init(Z4c::I_Z4c_alpha,k,j,i) = lapse_kji;
+	    u_init(Z4c::I_Z4c_betax,k,j,i) = 0.0;
+	    u_init(Z4c::I_Z4c_betay,k,j,i) = 0.0;
+	    u_init(Z4c::I_Z4c_betaz,k,j,i) = 0.0;
+	    
+	    adm_init(Z4c::I_ADM_gxx,k,j,i) = psi4_kji;
+	    adm_init(Z4c::I_ADM_gxy,k,j,i) = 0.0;
+	    adm_init(Z4c::I_ADM_gxz,k,j,i) = 0.0;
+	    adm_init(Z4c::I_ADM_gyy,k,j,i) = psi4_kji;
+	    adm_init(Z4c::I_ADM_gyz,k,j,i) = 0.0;
+	    adm_init(Z4c::I_ADM_gzz,k,j,i) = psi4_kji;
+	    
+	    adm_init(Z4c::I_ADM_Kxx,k,j,i) = 0.0;
+	    adm_init(Z4c::I_ADM_Kxy,k,j,i) = 0.0;
+	    adm_init(Z4c::I_ADM_Kxz,k,j,i) = 0.0;
+	    adm_init(Z4c::I_ADM_Kyy,k,j,i) = 0.0;
+	    adm_init(Z4c::I_ADM_Kyz,k,j,i) = 0.0;
+	    adm_init(Z4c::I_ADM_Kzz,k,j,i) = 0.0;
+	    
+	    adm_init(Z4c::I_ADM_psi4,k,j,i) = psi4_kji;
 	    
 	  } // boostme
 	  

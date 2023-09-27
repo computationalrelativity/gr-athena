@@ -74,8 +74,8 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
 //WGC wext
           {N_WEY, pmb->nverts3, pmb->nverts2, pmb->nverts1}, // weyl
 //init buffers
-          {N_Z4c, pmb->nverts3, pmb->nverts2, pmb->nverts1},
-          {N_ADM, pmb->nverts3, pmb->nverts2, pmb->nverts1},
+//          {N_Z4c, pmb->nverts3, pmb->nverts2, pmb->nverts1},
+//          {N_ADM, pmb->nverts3, pmb->nverts2, pmb->nverts1},
 //WGC end
   },
 #else
