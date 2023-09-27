@@ -330,7 +330,7 @@ int main(int argc, char *argv[]) {
 #ifdef ENABLE_EXCEPTIONS
   try {
 #endif
-    if(FLUID_ENABLED){
+    if (FLUID_ENABLED) {
       ptlist = new TimeIntegratorTaskList(pinput, pmesh);
     }
 #ifdef ENABLE_EXCEPTIONS
@@ -365,6 +365,26 @@ int main(int argc, char *argv[]) {
   }
 #endif // ENABLE_EXCEPTIONS
 
+
+  M1IntegratorTaskList *pm1tlist = nullptr;
+
+#ifdef ENABLE_EXCEPTIONS
+  try {
+#endif
+    if(M1_ENABLED) { // only init. when required
+      pm1tlist = new M1IntegratorTaskList(pinput, pmesh);
+    }
+#ifdef ENABLE_EXCEPTIONS
+  }
+  catch(std::bad_alloc& ba) {
+    std::cout << "### FATAL ERROR in main" << std::endl << "memory allocation failed "
+              << "in creating task list " << ba.what() << std::endl;
+#ifdef MPI_PARALLEL
+    MPI_Finalize();
+#endif
+    return(0);
+  }
+#endif // ENABLE_EXCEPTIONS
 
   SuperTimeStepTaskList *pststlist = nullptr;
   if (STS_ENABLED) {
@@ -535,6 +555,12 @@ int main(int argc, char *argv[]) {
       // This needs to be here to share tasklist external (though coupled) ops.
       pz4clist->UpdateTaskListTriggers();
       //-------------------------------------------------------------------------
+    }
+
+    if (M1_ENABLED) {
+      for (int stage=1; stage<=pm1tlist->nstages; ++stage) {
+        pm1tlist->DoTaskListOneStage(pmesh, stage);
+      }
     }
 
     pmesh->UserWorkInLoop();

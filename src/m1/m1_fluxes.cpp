@@ -57,17 +57,6 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
   
   Lab_vars vec;
   SetLabVarsAliases(u, vec);  
-  Lab_vars vec_rhs;
-
-  // Aliases for the RHS pointers
-  Real ** rhs = new Real * [ngroups*nspecies*5];
-  for (int ig = 0; ig < ngroups*nspecies; ++ig) {
-    rhs[PINDEX1D(ig, 0)] = &vec_rhs.N  (   ig, 0,0,0);
-    rhs[PINDEX1D(ig, 1)] = &vec_rhs.F_d(0, ig, 0,0,0);
-    rhs[PINDEX1D(ig, 2)] = &vec_rhs.F_d(1, ig, 0,0,0);
-    rhs[PINDEX1D(ig, 3)] = &vec_rhs.F_d(2, ig, 0,0,0);
-    rhs[PINDEX1D(ig, 4)] = &vec_rhs.E  (   ig, 0,0,0);
-  }
 
   // Grid data
   Real const delta[3] = {
@@ -348,11 +337,11 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
               Real const ujpp = cons[GFINDEX1D(__k+2, ig, iv)];
               
               Real const fj = flux[GFINDEX1D(__k, ig, iv)];
-              Real const fjp = flux[GFINDEX1D(__k+1, ig, iv)];
+              Real const fjm = flux[GFINDEX1D(__k-1, ig, iv)];
               
               Real const cc = cmax[GFINDEX1D(__k, ig, 0)];
-              Real const ccp = cmax[GFINDEX1D(__k+1, ig, 0)];
-              Real const cmx = std::max(cc, ccp);
+              Real const ccm = cmax[GFINDEX1D(__k-1, ig, 0)];
+              Real const cmx = std::max(cc, ccm);
 
               Real const dup = ujpp - ujp;
               Real const duc = ujp - uj;
@@ -367,21 +356,15 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
               }
               assert(isfinite(phi));
 
-              Real const flux_low = 0.5*(fj + fjp - cmx*(ujp - uj));
-              Real const flux_high = 0.5*(fj + fjp);
+              Real const flux_low = 0.5*(fj + fjm - cmx*(uj - ujm));
+              Real const flux_high = 0.5*(fj + fjm);
               
               Real flux_num = flux_high -
-                              (sawtooth ? 1 : A)*(1.0 - phi)*(flux_high - flux_low);
+                              (sawtooth ? 1.0 : A)*(1.0 - phi)*(flux_high - flux_low);
               //flux_jp[PINDEX1D(ig, iv)] = flux_num;
               storage.flux[dir](iv,ig,k,j,i) = flux_num;
-              // FIXME: store flux directly in flux[DIR] AthenaArray
-              // ASK: FLUX IS AT LEFT FACE OR RIGHT
-              // ASK: EQ. 31
 
               //if (!rad.mask(k,j,i)) {
-          
-                // FIXME: This will not work. Instead, set the value of the 3 flux arrays
-                //TODO check this pointer!!!
               //  rhs[PINDEX1D(ig, iv)][ijk] += idelta[dir]*(flux_jm[PINDEX1D(ig, iv)] -
               //                                             flux_jp[PINDEX1D(ig, iv)]) *
               //                                             static_cast<Real>(i >= M1_NGHOST
@@ -408,8 +391,6 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
     }
   } // dir loop
 
-  delete[] rhs;
-    
   g_dd.DeleteTensorPointwise();
   beta_u.DeleteTensorPointwise();
   alpha.DeleteTensorPointwise();

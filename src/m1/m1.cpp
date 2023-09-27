@@ -245,7 +245,6 @@ M1::~M1()
 // \fn void M1::AddFluxDivergence()
 // \brief Add the flux divergence to the RHS (see analogous Hydro method)
 void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
-  // FIXME rhs += div fluxes
   MeshBlock *pmb = pmy_block;
   AthenaArray<Real> &x1flux = storage.flux[X1DIR];
   AthenaArray<Real> &x2flux = storage.flux[X2DIR];
@@ -303,7 +302,6 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
         for (int ig=0; ig<ngroups*nspecies; ++ig) {
 #pragma omp simd
           for (int i=is; i<=ie; ++i) {
-            // ASK: wght??
             u_rhs(iv,ig,k,j,i) -= dflx(iv,ig,i)/vol(i);
           }
         }

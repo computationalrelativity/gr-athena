@@ -282,7 +282,6 @@ public:
   void CalcOpacity(AthenaArray<Real> & u);
   void CalcClosure(AthenaArray<Real> & u);
   void CalcFluxes(AthenaArray<Real> & u);
-  // FIXME: add the flux divergence to the RHS
   void AddFluxDivergence(AthenaArray<Real> & u_rhs);
   void GRSources(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs);
   void CalcUpdate(const Real dt,

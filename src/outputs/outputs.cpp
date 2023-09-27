@@ -94,6 +94,7 @@
 #include "../gravity/gravity.hpp"
 #include "../hydro/hydro.hpp"
 #include "../z4c/z4c.hpp"
+#include "../m1/m1.hpp"
 #include "../mesh/mesh.hpp"
 #include "../orbital_advection/orbital_advection.hpp"
 #include "../parameter_input.hpp"
@@ -350,6 +351,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   PassiveScalars *psclr = pmb->pscalars;
   Gravity *pgrav = pmb->pgrav;
   Z4c *pz4c = pmb->pz4c;
+  M1 *pm1 = pmb->pm1;
   OrbitalAdvection *porb = pmb->porb;
 
   num_vars_ = 0;
@@ -558,6 +560,19 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     }
     AppendOutputDataNode(pod);
     num_vars_++;
+  }
+
+  if (M1_ENABLED) {
+    for (int v = 0; v < M1::N_Lab; ++v) {
+      if (output_params.variable.compare("m1_lab") == 0) {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = M1::Lab_names[v];
+        pod->data.InitWithShallowSlice(pm1->storage.u,v,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
   }
 
   if (Z4C_ENABLED) {

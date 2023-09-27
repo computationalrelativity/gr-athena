@@ -143,6 +143,7 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   }
   if (M1_ENABLED) {
     pm1 = new M1(this, pin);
+    pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
     // TODO: pvbal
   }
   if (Z4C_ENABLED) {
@@ -248,6 +249,10 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     pscalars = new PassiveScalars(this, pin);
     pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
   }
+  if (M1_ENABLED) {
+    pm1 = new M1(this, pin);
+    pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
+  }
   if (Z4C_ENABLED) {
     pz4c = new Z4c(this, pin);
     int nrad = pin->GetOrAddInteger("z4c", "nrad_wave_extraction", 0);
@@ -295,6 +300,14 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   if (NSCALARS > 0) {
     std::memcpy(pscalars->s.data(), &(mbdata[os]), pscalars->s.GetSizeInBytes());
     os += pscalars->s.GetSizeInBytes();
+  }
+
+  if (M1_ENABLED) {
+    std::memcpy(pm1->storage.u.data(), &(mbdata[os]), pm1->storage.u.GetSizeInBytes());
+    os += pm1->storage.u.GetSizeInBytes();
+
+    std::memcpy(pm1->storage.radmat.data(), &(mbdata[os]), pm1->storage.radmat.GetSizeInBytes());
+    os += pm1->storage.radmat.GetSizeInBytes();
   }
 
   if (Z4C_ENABLED) {
@@ -561,6 +574,10 @@ std::size_t MeshBlock::GetBlockSizeInBytes() {
              + pfield->b.x3f.GetSizeInBytes());
   if (NSCALARS > 0)
     size += pscalars->s.GetSizeInBytes();
+  if (M1_ENABLED) {
+    size += pm1->storage.u.GetSizeInBytes();
+    size += pm1->storage.radmat.GetSizeInBytes();
+  }
   if (Z4C_ENABLED) {
     // BD: TODO: extend as new data structures added
     size+=pz4c->storage.u.GetSizeInBytes();

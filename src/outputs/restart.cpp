@@ -28,6 +28,7 @@
 #include "../parameter_input.hpp"
 #include "../scalars/scalars.hpp"
 #include "../z4c/z4c.hpp"
+#include "../m1/m1.hpp"
 #include "../z4c/puncture_tracker.hpp"
 #include "outputs.hpp"
 
@@ -203,6 +204,16 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
       std::memcpy(pdata, pmb->pz4c->storage.mat.data(),
                   pmb->pz4c->storage.mat.GetSizeInBytes());
       pdata += pmb->pz4c->storage.mat.GetSizeInBytes();
+    }
+
+    if (M1_ENABLED) {
+      std::memcpy(pdata, pmb->pm1->storage.u.data(),
+                         pmb->pm1->storage.u.GetSizeInBytes());
+      pdata += pmb->pm1->storage.u.GetSizeInBytes();
+
+      std::memcpy(pdata, pmb->pm1->storage.radmat.data(),
+                         pmb->pm1->storage.radmat.GetSizeInBytes());
+      pdata += pmb->pm1->storage.radmat.GetSizeInBytes();
     }
 
     // User MeshBlock data:
