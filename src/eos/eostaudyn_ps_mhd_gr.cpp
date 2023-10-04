@@ -23,7 +23,6 @@
 #include "../field/field.hpp"
 #include "../mesh/mesh.hpp"
 #include "../z4c/z4c.hpp"
-#include "../utils/interp_intergrid.hpp"
 
 static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real>& bb_cc,
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, 
@@ -32,12 +31,6 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real
     Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& ps);
 
 static Real VCInterpolation(AthenaArray<Real> &in, int k, int j, int i);
-
-using RescaleFunction = void(*)(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>& gamma_dd,
-                                AthenaArray<Real>& vcchi,
-                                AthenaTensor<Real, TensorSymm::NONE, NDIM, 0>& chi,
-                                InterpIntergridLocal* interp,
-                                int il, int iu, int j, int k);
 
 //----------------------------------------------------------------------------------------
 // Constructor
@@ -122,103 +115,89 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
      const AthenaArray<Real> &prim_old, const FaceField &bb, AthenaArray<Real> &prim,
      AthenaArray<Real> &bb_cc, Coordinates *pco, int il, int iu, int jl, int ju, int kl,
      int ku, int coarse_flag) {
-  // Parameters
-  int nn1 = iu + 1;
+  int nn1;
+  GRDynamical* pco_gr;
+  MeshBlock* pmb = pmy_block_;
+  Z4c* pz4c = pmb->pz4c;
 
-  // Vertex-centered containers for the metric.
-  AthenaArray<Real> vcgamma_xx, vcgamma_xy, vcgamma_xz, vcgamma_yy,
-                    vcgamma_yz, vcgamma_zz, vcchi;
-  
-  // Operations that change based on whether or not we have coarse variables;
-  // this avoids an extra branch during the interpolation loop.
-  InterpIntergridLocal* interp;
-  RescaleFunction rescale_metric;
-
-  // Metric at cell centers
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> chi;
-  gamma_dd.NewAthenaTensor(nn1);
-  /*
-  // BD: TODO see how this is done in "adiabaticaudyn_rep_hdyro_gr.cpp"
-
-  if (coarse_flag == 0) {
-    vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
-    vcgamma_xy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
-    vcgamma_xz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
-    vcgamma_yy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
-    vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
-    vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
-    interp = pmy_block_->pz4c->ig;
-    auto lambda = [](AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>& gamma_dd,
-                     AthenaArray<Real>& vcchi,
-                     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0>& chi,
-                     InterpIntergridLocal* interp,
-                     int il, int iu, int j, int k) -> void {return;};
-    rescale_metric = lambda;
+  if (coarse_flag) {
+    pco_gr = static_cast<GRDynamical*>(pmb->pmr->pcoarsec);
+    nn1 = pmb->ncv1;
   }
   else {
-    chi.NewAthenaTensor(nn1);
-    vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxx,1);
-    vcgamma_xy.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxy,1);
-    vcgamma_xz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gxz,1);
-    vcgamma_yy.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gyy,1);
-    vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gyz,1);
-    vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gzz,1);
-    vcchi.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_chi,1);
-    interp = pmy_block_->pz4c->ig_coarse;
-    auto lambda = [](AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>& gamma_dd,
-                     AthenaArray<Real>& vcchi,
-                     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0>& chi,
-                     InterpIntergridLocal* interp,
-                     int il, int iu, int j, int k) -> void {
-      #pragma omp simd
-      for (int i = il; i <= iu; i++) {
-        #if FORCE_PS_LINEAR
-        chi(i) = VCInterpolation(vcchi, k, j, i);
-        #else
-        chi(i) = interp->map3d_VC2CC(vcchi(k, j, i));
-        #endif
-        gamma_dd(0, 0, i) = gamma_dd(0, 0, i)/chi(i);
-        gamma_dd(0, 1, i) = gamma_dd(0, 1, i)/chi(i);
-        gamma_dd(0, 2, i) = gamma_dd(0, 2, i)/chi(i);
-        gamma_dd(1, 1, i) = gamma_dd(1, 1, i)/chi(i);
-        gamma_dd(1, 2, i) = gamma_dd(1, 2, i)/chi(i);
-        gamma_dd(2, 2, i) = gamma_dd(2, 2, i)/chi(i);
-      }
-    };
-    rescale_metric = lambda;
+    pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
+    nn1 = pmb->nverts1;
   }
-  */
+
+  // Full 3D metric quantities
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> full_gamma_dd;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> full_alpha;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> full_chi;
+
+  // Sliced quantities
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> rchi;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha;
+  gamma_dd.NewAthenaTensor(nn1);
+  alpha.NewAthenaTensor(nn1);
+  
+  if (!coarse_flag) {
+    full_gamma_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
+    full_alpha.InitWithShallowSlice(pz4c->storage.u, Z4c::I_Z4c_alpha);
+  }
+  else {
+    rchi.NewAthenaTensor(nn1);
+
+    full_gamma_dd.InitWithShallowSlice(pz4c->coarse_u_, Z4c::I_Z4c_gxx);
+    full_alpha.InitWithShallowSlice(pz4c->coarse_u_, Z4c::I_Z4c_alpha);
+    full_chi.InitWithShallowSlice(pz4c->coarse_u_, Z4c::I_Z4c_chi);
+  }
+
+  // sanitize loop limits (coarse / fine auto-switched)
+  int IL, IU, JL, JU, KL, KU;
+  pco_gr->GetGeometricFieldCCIdxRanges(
+    IL, IU,
+    JL, JU,
+    KL, KU);
+
+  // Restrict further the ranges to the input argument
+  IL = std::max(il, IL);
+  IU = std::min(iu, IU);
+
+  JL = std::max(jl, JL);
+  JU = std::min(ju, JU);
+
+  KL = std::max(kl, KL);
+  KU = std::min(ku, KU);
+
   pmy_block_->pfield->CalculateCellCenteredField(bb, bb_cc, pco, il, iu, jl, ju, kl, ku);
 
   // Go through the cells
-  for (int k = kl; k <= ku; ++k) {
-    for (int j = jl; j <= ju; ++j) {
-      // Extract the metric at the vertex centers and interpolate to cell centers.
-      #pragma omp simd
-      for (int i = il; i <= iu; ++i) {
-        // DEBUG ONLY
-        #ifdef FORCE_PS_LINEAR
-        gamma_dd(0,0,i) = VCInterpolation(vcgamma_xx, k, j, i);
-        gamma_dd(0,1,i) = VCInterpolation(vcgamma_xy, k, j, i);
-        gamma_dd(0,2,i) = VCInterpolation(vcgamma_xz, k, j, i);
-        gamma_dd(1,1,i) = VCInterpolation(vcgamma_yy, k, j, i);
-        gamma_dd(1,2,i) = VCInterpolation(vcgamma_yz, k, j, i);
-        gamma_dd(2,2,i) = VCInterpolation(vcgamma_zz, k, j, i);
-        #else
-        gamma_dd(0,0,i) = interp->map3d_VC2CC(vcgamma_xx(k,j,i));
-        gamma_dd(0,1,i) = interp->map3d_VC2CC(vcgamma_xy(k,j,i));
-        gamma_dd(0,2,i) = interp->map3d_VC2CC(vcgamma_xz(k,j,i));
-        gamma_dd(1,1,i) = interp->map3d_VC2CC(vcgamma_yy(k,j,i));
-        gamma_dd(1,2,i) = interp->map3d_VC2CC(vcgamma_yz(k,j,i));
-        gamma_dd(2,2,i) = interp->map3d_VC2CC(vcgamma_zz(k,j,i));
-        #endif
+  for (int k = KL; k <= KU; ++k) {
+    for (int j = JL; j <= JU; ++j) {
+      pco_gr->GetGeometricFieldCC(gamma_dd, full_gamma_dd, k, j);
+      pco_gr->GetGeometricFieldCC(alpha, full_alpha, k, j);
+      if (coarse_flag) {
+        pco_gr->GetGeometricFieldCC(rchi, full_chi, k, j);
+
+        #pragma omp simd
+        for (int i = IL; i <= IU; ++i) {
+          rchi(i) = 1./rchi(i);
+        }
+
+        for (int a = 0; a < NDIM; ++a) {
+          for (int b = 0; b < NDIM; ++b) {
+            #pragma omp simd
+            for (int i = IL; i <= IU; ++i) {
+              gamma_dd(a, b, i) = gamma_dd(a, b, i) * rchi(i);
+            }
+          }
+        }
       }
-      rescale_metric(gamma_dd, vcchi, chi, interp, il, iu, j, k);
 
       // Extract the primitive variables
       #pragma omp simd
-      for (int i = il; i <= iu; ++i) {
+      for (int i = IL; i <= IU; ++i) {
         // Extract the local metric and stuff it into a smaller array for PrimitiveSolver.
         Real g3d[NSPMETRIC] = {gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
                                gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i)};
@@ -284,6 +263,14 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
       }
     }
   }
+
+  // clean-up
+  alpha.DeleteAthenaTensor();
+  gamma_dd.DeleteAthenaTensor();
+
+  if (coarse_flag) {
+    rchi.DeleteAthenaTensor();
+  }
 }
 
 //----------------------------------------------------------------------------------------
@@ -302,31 +289,41 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
 void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim,
      AthenaArray<Real> &bb_cc, AthenaArray<Real> &cons, Coordinates *pco, int il,
      int iu, int jl, int ju, int kl, int ku) {
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> full_gamma_dd;
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
-  int nn1 = iu+1;
-  gamma_dd.NewAthenaTensor(nn1);
-  AthenaArray<Real> vcgamma_xx, vcgamma_xy, vcgamma_xz, vcgamma_yy,
-                    vcgamma_yz, vcgamma_zz;
-  vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
-  vcgamma_xy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
-  vcgamma_xz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
-  vcgamma_yy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
-  vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
-  vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
+  GRDynamical* pco_gr = static_cast<GRDynamical*>(pmy_block_->pcoord);
+
+  full_gamma_dd.InitWithShallowSlice(pmy_block_->pz4c->storage.adm, Z4c::I_ADM_gxx);
+  gamma_dd.NewAthenaTensor(pmy_block_->nverts1);
+
+  // sanitize loop limits
+  int IL, IU, JL, JU, KL, KU;
+  pco_gr->GetGeometricFieldCCIdxRanges(
+    IL, IU,
+    JL, JU,
+    KL, KU);
   
-  for (int k=kl; k<=ku; ++k) {
-    for (int j=jl; j<=ju; ++j) {
-      for (int i=il; i<=iu; ++i) {
-        // BD: TODO see how this is done in "adiabaticaudyn_rep_hdyro_gr.cpp"
-        // gamma_dd needed
-      }
+  // Restrict further the ranges to the input argument
+  IL = std::max(il, IL);
+  IU = std::min(iu, IU);
+
+  JL = std::max(jl, JL);
+  JU = std::min(ju, JU);
+
+  KL = std::max(kl, KL);
+  KU = std::min(ku, KU);
+
+  for (int k=KL; k<=KU; ++k) {
+    for (int j=JL; j<=JU; ++j) {
+      pco_gr->GetGeometricFieldCC(gamma_dd, full_gamma_dd, k, j);
       // Calculate the conserved variables at every point.
-      for (int i=il; i<=iu; ++i) {
+      for (int i=IL; i<=IU; ++i) {
         PrimitiveToConservedSingle(prim, bb_cc, gamma_dd, k, j, i, cons, ps);
       }
     }
-
   }
+
+  gamma_dd.DeleteAthenaTensor();
 }
 
 //----------------------------------------------------------------------------------------
