@@ -10,6 +10,7 @@
 
 // C++ headers
 #include <algorithm>  // std::sort()
+#include <cassert>
 #include <cstdint>
 #include <iostream>
 #include <limits>
@@ -1387,5 +1388,7 @@ int Mesh::CreateAMRMPITag(int lid, int ox1, int ox2, int ox3) {
     coutYellow("Mesh::CreateAMRMPITag\n");
 
   // former "AthenaTagMPI" AthenaTagMPI::amr=8 redefined to 0
-  return (lid<<8) | (ox1<<7)| (ox2<<6) | (ox3<<5) | 0;
+  int tag = (lid<<8) | (ox1<<7)| (ox2<<6) | (ox3<<5) | 0;
+  assert (tag <= Globals::mpi_tag_ub);
+  return tag;
 }
