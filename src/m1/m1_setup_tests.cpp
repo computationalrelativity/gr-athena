@@ -82,9 +82,9 @@ void M1::SetupBeamTest(AthenaArray<Real> & u)
   SetLabVarsAliases(u, vec);
 
   // Beam direction (normalized)
-  Real nx = beam_test_dir[0];
-  Real ny = beam_test_dir[1];
-  Real nz = beam_test_dir[2];
+  Real nx = beam_dir[0];
+  Real ny = beam_dir[1];
+  Real nz = beam_dir[2];
   Real n2 = SQ(nx) + SQ(ny) + SQ(nz);
   if (n2 > 0) {
     Real nn = std::sqrt(n2);
@@ -97,37 +97,34 @@ void M1::SetupBeamTest(AthenaArray<Real> & u)
     nz = ny = 0.0;
   }
   
-  CLOOP3(k,j,i) {
-    Real const x = pmb->pcoord->x1v(i);;
-    Real const y = pmb->pcoord->x2v(j);;
-    Real const z = pmb->pcoord->x3v(k);;
-    
-    Real proj = nx*x + ny*y + nz*z;
-    Real offset2 = SQ(x - nx*x) + SQ(y - ny*y) + SQ(z - nz*z);
-
-    if (proj < beam_position && offset2 < SQ(beam_width)) {
-
-      for (int ig = 0; ig < ngroups*nspecies; ++ig) {
-	vec.E  (   k,j,i, ig) = 1.0;
-	vec.N  (   k,j,i, ig) = 1.0;
-	vec.F_d(0, k,j,i, ig) = nx;
-	vec.F_d(1, k,j,i, ig) = ny;
-	vec.F_d(2, k,j,i, ig) = nz;
+  for (int k=pmb->ks; k<=pmb->ke; ++k) {
+    Real z = pmb->pcoord->x3v(k);
+    for (int j=pmb->js; j<=pmb->je; ++j) {
+      Real y = pmb->pcoord->x2v(j);
+      for (int i=pmb->is; i<=pmb->ie; ++i) {
+        Real x = pmb->pcoord->x1v(i);
+        Real proj = nx*x + ny*y + nz*z;
+        Real offset2 = SQR(x-nx*x) + SQR(y-ny*y) + SQR(z-nz*z);
+        if (proj < beam_position && offset2 < SQR(beam_width)) {
+          for (int ig=0; ig<ngroups*nspecies; ++ig) {
+            vec.N(ig,k,j,i) = 1.0;
+            vec.E(ig,k,j,i) = 1.0;
+            vec.F_d(0,ig,k,j,i) = nx;
+            vec.F_d(1,ig,k,j,i) = ny;
+            vec.F_d(2,ig,k,j,i) = nz;
+          }
+        } else {
+          for (int ig=0; ig<ngroups*nspecies; ++ig) {
+            vec.N(ig,k,j,i) = 0.0;
+            vec.E(ig,k,j,i) = 0.0;
+            vec.F_d(0,ig,k,j,i) = 0.0;
+            vec.F_d(1,ig,k,j,i) = 0.0;
+            vec.F_d(2,ig,k,j,i) = 0.0;
+          }
+        }
       }
     }
-    
-    // else {
-    //   for (int ig = 0; ig < ngroups*nspecies; ++ig) {
-    // 	vec.E  (   k,j,i, ig) = 0.0;
-    // 	vec.N  (   k,j,i, ig) = 0.0;
-    // 	vec.F_d(0, k,j,i, ig) = 0.0;
-    // 	vec.F_d(1, k,j,i, ig) = 0.0;
-    // 	vec.F_d(2, k,j,i, ig) = 0.0;
-    //   }
-    // }
-    
-  } // CLOOP3
-
+  }
 }
 
 //----------------------------------------------------------------------------------------
@@ -153,28 +150,28 @@ void M1::SetupDiffusionTest(AthenaArray<Real> & u)
     
       if (diff_profile == "step") {
 	if (x > -0.5 && x < 0.5) {
-	  vec.E(k,j,i,ig) = 1.0;
+	  vec.E(ig,k,j,i) = 1.0;
 	}
 	// else {
-	//   vec.E(k,j,i,ig) = 0.0;
+	//   vec.E(ig,k,j,i) = 0.0;
 	// }
       }
       else if (diff_profile == "gaussian") {
-	vec.E(k,j,i,ig) = std::exp(-SQ(3*x));
+	vec.E(ig,k,j,i) = std::exp(-SQ(3*x));
       }
       else {
-	ostringstream msg;
-	msg << "Unknown diffusion profile " << diff_profile << endl;
+	std::ostringstream msg;
+	msg << "Unknown diffusion profile " << diff_profile << std::endl;
 	ATHENA_ERROR(msg);
       }
       
-      vec.N(k,j,i,ig) = vec.E(k,j,i,ig);
+      vec.N(ig,k,j,i) = vec.E(ig,k,j,i);
       
       // Use thick closure to compute the fluxes
       Real const W = fidu.Wlorentz(k,j,i);
-      Real const Jo3 = vec.E(k,j,i,ig)/(4*SQ(W) - 1);
+      Real const Jo3 = vec.E(ig,k,j,i)/(4*SQ(W) - 1);
       for (int a = 0; a < NDIM; ++a) {
-	vec.F_d(a,k,j,i,ig) = 4*SQ(W)*fidu.vel_u(a,k,j,i)*Jo3;
+	vec.F_d(a,ig,k,j,i) = 4*SQ(W)*fidu.vel_u(a,k,j,i)*Jo3;
       }
       
     } // ig loop
@@ -207,15 +204,13 @@ void M1::SetupEquilibriumTest(AthenaArray<Real> & u)
 
     for (int is = 0; is < nspecies; ++is) {
       Real const Jnu = equil_nudens_1[is];
-      vec.E(k,j,i,ig)  = (4.*W*W - 1.)/3.*Jnu;
-      vec.N(k,j,i,ig)  = equil_nudens_0[is]*W;
+      vec.E(is,k,j,i)  = (4.*W*W - 1.)/3.*Jnu;
+      vec.N(is,k,j,i)  = equil_nudens_0[is]*W;
       for (int a = 0; a < NDIM; ++a) {
-	vec.F_d(a,k,j,i,ig) = 4./3.*SQ(W)*fidu.vel_u(a,k,j,i)*Jnu;
+	      vec.F_d(a,is,k,j,i) = 4./3.*SQ(W)*fidu.vel_u(a,k,j,i)*Jnu;
       }
     }
-    
   } // CLOOP3
-  
 }
 
 
@@ -223,10 +218,12 @@ void M1::SetupEquilibriumTest(AthenaArray<Real> & u)
 // \!fn void M1::SetupKerrSchildMask() 
 // \brief Setup the mask for Kerrschild test
 
-void M1::SetupKerrSchildMask() 
+void M1::SetupKerrSchildMask(AthenaArray<Real> & u) 
 {
   MeshBlock * pmb = pmy_block;
 
+  Lab_vars vec;
+  SetLabVarsAliases(u, vec); 
   // Init mask to zero
   rad.mask.ZeroClear();
   
@@ -237,11 +234,11 @@ void M1::SetupKerrSchildMask()
     if (SQ(x) + SQ(y) + SQ(z) < SQ(kerr_mask_radius)) {
       rad.mask(k,j,i) = 1;
       for (int ig = 0; ig < nspecies*ngroups; ++ig) {
-	vec.E  (   k,j,i, ig) = 0.0;
-	vec.N  (   k,j,i, ig) = 0.0;
-	vec.F_d(0, k,j,i, ig) = 0.0;
-	vec.F_d(1, k,j,i, ig) = 0.0;
-	vec.F_d(2, k,j,i, ig) = 0.0;
+        vec.E  (   k,j,i, ig) = 0.0;
+        vec.N  (   k,j,i, ig) = 0.0;
+        vec.F_d(0, k,j,i, ig) = 0.0;
+        vec.F_d(1, k,j,i, ig) = 0.0;
+        vec.F_d(2, k,j,i, ig) = 0.0;
       }
     }
     // else {
@@ -256,28 +253,3 @@ void M1::SetupKerrSchildMask()
 // \!fn void M1::SetupTestHydro()
 // \brief Setup the hydro variables for shadow and sphere tests
 
-void M1::SetupTestHydro()
-{
-  MeshBlock * pmb = pmy_block;
-
-  Real const dx = pmb->pcoord->dx1v(0);;
-  Real const dy = pmb->pcoord->dx2v(1);;
-  Real const dz = pmb->pcoord->dx3v(2);;
-
-  if ((m1_test != "shadow") && (m1_test != "sphere")) {
-    ostringstream msg;
-    msg << "Unknown hydro setup for test problem " << m1_test << endl;
-    ATHENA_ERROR(msg);
-  }
-  
-  CLOOP3(k,j,i) {
-    Real const x = pmb->pcoord->x1v(i);;
-    Real const y = pmb->pcoord->x2v(j);;
-    Real const z = pmb->pcoord->x3v(k);;
-    pmb->phydro->w(IDN,k,j,i) = volume(1.0, x,y,z, dx, dy, dz);
-    pmb->phydro->w(IVX,k,j,i) = 0;
-    pmb->phydro->w(IVY,k,j,i) = 0;
-    pmb->phydro->w(IVZ,k,j,i) = 0;
-  }
-
-}

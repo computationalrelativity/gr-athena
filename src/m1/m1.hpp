@@ -358,6 +358,12 @@ public:
 
   void SetFiduVarsAliases(AthenaArray<Real> & intern, Fidu_vars & fid);
   void SetNetVarsAliases(AthenaArray<Real> & intern, Net_vars & net);
+  void SetupBeamTest(AthenaArray<Real> & u);
+  void SetupDiffusionTest(AthenaArray<Real> & u);
+  void SetupEquilibriumTest(AthenaArray<Real> & u);
+  void SetupKerrSchildMask(AthenaArray<Real> & u);
+  //void SetupTestHydro();
+
   
   // additional global functions
   //

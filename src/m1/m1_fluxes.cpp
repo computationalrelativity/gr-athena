@@ -166,6 +166,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
     Real * flux_jm = nullptr;
     Real * flux_jp = nullptr;
     Real * d_ptr   = nullptr;
+            
     try {
       cons = new Real[5*ngroups*nspecies*lsh[2]];
       flux = new Real[5*ngroups*nspecies*lsh[2]];
@@ -177,7 +178,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
       msg << "Out of memory!" << std::endl;
       ATHENA_ERROR(msg);
     }
-    
+
     //TODO check the order of these loops!
     for (__i = M1_NGHOST; __i < lsh[0] - M1_NGHOST; ++__i) {
       for (__j = M1_NGHOST; __j < lsh[1] - M1_NGHOST; ++__j) {
@@ -191,6 +192,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
           index[0] = __i;
           index[1] = __j;
           index[2] = __k;
+
           int const ijk = GFINDEX3D(i,j,k);
           // Go from ADM 3-metric VC (AthenaArray/Tensor)
           // to ADM 4-metric on CC at ijk (TensorPointwise)
@@ -257,6 +259,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
             flux[GFINDEX1D(__k, ig, 4)] =
                 calc_E_flux(alpha(), beta_u, vec.E(ig,k,j,i), F_u, dir+1);
             
+
+            
             assert(isfinite(flux[GFINDEX1D(__k, ig, 0)]));
             assert(isfinite(flux[GFINDEX1D(__k, ig, 1)]));
             assert(isfinite(flux[GFINDEX1D(__k, ig, 2)]));
@@ -298,7 +302,6 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
             // = std::min(clight, cM1);
           }
         }
-	
         // Cleanup the flux buffer
         memset(flux_jm, 0, 5*ngroups*nspecies*sizeof(Real));
         memset(flux_jp, 0, 5*ngroups*nspecies*sizeof(Real));
@@ -310,7 +313,6 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
           index[1] = __j;
           index[2] = __k;
           int const ijk = GFINDEX3D(i,j,k);
-        
           for (int ig = 0; ig < ngroups*nspecies; ++ig) {
 
             Real avg_abs_1 = rmat.abs_1(ig,k,j,i);
@@ -389,8 +391,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
       delete[] flux_jm;
       delete[] flux_jp;
     }
-  } // dir loop
 
+  } // dir loop
   g_dd.DeleteTensorPointwise();
   beta_u.DeleteTensorPointwise();
   alpha.DeleteTensorPointwise();

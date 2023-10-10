@@ -158,8 +158,8 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   fiducial_vel_rho_fluid = pin->GetReal("M1", "fiducial_velocity_rho_fluid") * CGS_GCC;
   opacity_equil_depth = pin->GetOrAddReal("M1", "opacity_equil_depth", 1.0);
   opacity_corr_fac_max = pin->GetOrAddReal("M1", "opacity_corr_fac_max", 10.);
-  rad_E_floor = pin->GetOrAddReal("M1", "rad_E_floor", 0.);
-  rad_N_floor = pin->GetOrAddReal("M1", "rad_N_floor", 0.);
+  rad_E_floor = pin->GetOrAddReal("M1", "rad_E_floor", 1e-15);
+  rad_N_floor = pin->GetOrAddReal("M1", "rad_N_floor", 1e-15);
   source_limiter = pin->GetOrAddReal("M1", "source_limiter", 0.5);
   backreact = pin->GetOrAddBoolean("M1", "backreact",true); 
   rad_eps = pin->GetOrAddReal("M1", "rad_eps", 1e-5);
@@ -171,9 +171,6 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   
   // Problem-specific parameters
   m1_test = pin->GetOrAddString("M1", "m1_test","none");  
-  beam_dir[0] = pin->GetOrAddReal("M1", "beam_dir1", 1.0);
-  beam_dir[1] = pin->GetOrAddReal("M1", "beam_dir2", 0.0);
-  beam_dir[2] = pin->GetOrAddReal("M1", "beam_dir3", 0.0);
   beam_position = pin->GetOrAddReal("M1", "beam_position", 0.0);
   beam_width = pin->GetOrAddReal("M1", "beam_width", 1.0);
   equil_nudens_0[0] = pin->GetOrAddReal("M1", "equil_nudens_0_0", 0.0);

@@ -19,7 +19,10 @@
 #include "m1.hpp"
 #include "../mesh/mesh.hpp"
 #include "../coordinates/coordinates.hpp"
+
+#if Z4C_ENABLED
 #include "../z4c/z4c_macro.hpp"
+#endif
 
 #define SQ(X) ((X)*(X))
 

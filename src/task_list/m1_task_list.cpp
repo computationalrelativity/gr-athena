@@ -40,6 +40,7 @@
 M1IntegratorTaskList::M1IntegratorTaskList(ParameterInput *pin, Mesh *pm) {
   // Now assemble list of tasks for each stage of time integrator
   {using namespace M1IntegratorTaskNames; // NOLINT (build/namespace)
+
     AddTask(CALC_FIDU, NONE);
     AddTask(CALC_CLOSURE, CALC_FIDU);
 

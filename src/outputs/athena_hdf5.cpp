@@ -167,6 +167,8 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     else if (variable.compare(0,3,"uov") == 0
              || variable.compare(0,12,"user_out_var") == 0)
       std::strncpy(dataset_names[n_dataset_names++], "user_out_var", max_name_length+1);
+    else if (variable.compare("m1_lab") == 0)
+      std::strncpy(dataset_names[n_dataset_names++], "m1_lab", max_name_length+1);
     else
       std::strncpy(dataset_names[n_dataset_names++], "hydro", max_name_length+1);
   }

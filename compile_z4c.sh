@@ -3,7 +3,7 @@ python3 configure.py \
     -gsl --gsl_path=${GSL_PATH} \
     --nghost=4 --ncghost=4 \
     -hdf5 -h5double  --hdf5_path=${HDF5_PATH} \
-    --prob=shock_tube \
+    --prob=neutrino_beam \
     -m1
 
 #make clean
