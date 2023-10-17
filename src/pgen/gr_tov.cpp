@@ -210,6 +210,7 @@ void Mesh::UserWorkAfterLoop(ParameterInput *pin) {
 //
 // BAM:   T^{mu nu} = (e + p) u^mu u^nu + p g^{mu nu}
 //        e = rho(1+epsl)
+//
 // So conversion is rho0=rho and u = rho*epsl
 
 void MeshBlock::ProblemGenerator(ParameterInput *pin) {
@@ -221,11 +222,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   phydro->w1.Fill(NAN);
   pz4c->storage.u.Fill(NAN);
   pz4c->storage.adm.Fill(NAN);
-
-  // Prepare scratch arrays
-  // AthenaArray<Real> g, gi;
-  // g.NewAthenaArray(NMETRIC, iu+1);
-  // gi.NewAthenaArray(NMETRIC, iu+1);
 
   // Star mass & radius
   const Real M = tov->M;     // Mass of TOV star
@@ -376,6 +372,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   }
 
   // Initialize magnetic field
+  // No metric weighting here
   Real pcut = pin->GetReal("problem","pcut") * pgasmax;
   Real amp = pin->GetOrAddReal("problem","b_amp", 0.0);
   int magindex=pin->GetInteger("problem","magindex");
@@ -393,26 +390,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   // should be athena tensors if we merge w/ dynamical metric
   ax.NewAthenaArray(nx3,nx2,nx1);
   ay.NewAthenaArray(nx3,nx2,nx1);
-// don't use az for poloidal field
-//  az.NewAthenaArray(nx3,nx2,nx1);
+  // Don't use az for poloidal field
+  //az.NewAthenaArray(nx3,nx2,nx1);
   bxcc.NewAthenaArray(nx3,nx2,nx1);
   bycc.NewAthenaArray(nx3,nx2,nx1);
   bzcc.NewAthenaArray(nx3,nx2,nx1);
 
-  //SB TODO cleanup, should use directly pz4c->storage.adm
-  //no metric weighting here
-  /*
-  AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy;
-  AthenaArray<Real> vcgamma_yz,vcgamma_zz;
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd; 
-  gamma_dd.NewAthenaTensor(iu+1);
-  vcgamma_xx.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gxx,1);
-  vcgamma_xy.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gxy,1);
-  vcgamma_xz.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gxz,1);
-  vcgamma_yy.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gyy,1);
-  vcgamma_yz.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gyz,1);
-  vcgamma_zz.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gzz,1);
-  */
   // Initialize construct cell centred potential
   for (int k=klcc; k<=kucc; k++) {
     for (int j=jlcc; j<=jucc; j++) {
@@ -424,7 +407,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
       }
     }
   }
- // construct cell centred B field from cell centred potential  TODO should use pfield->bcc storage here.
+  // Construct cell centred B field from cell centred potential
+  //TODO should use pfield->bcc storage here.
   for(int k = klcc+1; k<=kucc-1; k++){
     for(int j = jlcc+1; j<=jucc-1; j++){
       for(int i = ilcc+1; i<=iucc-1; i++){
@@ -436,7 +420,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
       }
     }
   } 
-// Initialise face centred field by averaging cc field
+  // Initialise face centred field by averaging cc field
   for(int k = klcc+1; k<=kucc-1; k++){
     for(int j = jlcc+1; j<=jucc-1; j++){
       for(int i = ilcc+2; i<=iucc-1; i++){
@@ -462,11 +446,13 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord, ilcc,iucc,jlcc,jucc,klcc,kucc);
 
 #endif
+  
   // Initialise conserved variables
   peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord,
                              0, ncells1,
                              0, ncells2,
                              0, ncells3);
+
   // Initialise matter (also taken care of in task-list)
   pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm,
                   phydro->w, pfield->bcc);
@@ -893,9 +879,9 @@ namespace {
 
   
   //----------------------------------------------------------------------------------------
-  ////! \fn
-  ////  \brief refinement condition: refine at large gradients of velocity
-  //relic from cowling approx
+  //! \fn
+  //  \brief refinement condition: refine at large gradients of velocity
+  //relic from cowling approx tests
   int RefinementCondition(MeshBlock *pmb) {
     AthenaArray<Real> &w = pmb->phydro->w;
     Real maxeps=0.0;
