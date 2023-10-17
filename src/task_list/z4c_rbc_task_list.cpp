@@ -141,6 +141,8 @@ TaskStatus Z4cRBCTaskList::ReceiveRBC(MeshBlock *pmb, int stage) {
   } else {
     return TaskStatus::fail;
   }
+#else
+  return TaskStatus::success;
 #endif
 
 }
