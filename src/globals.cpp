@@ -22,4 +22,5 @@ namespace Globals {
 // all of these global variables are set at the start of main():
 int my_rank;         // MPI rank of this process
 int nranks;          // total number of MPI ranks
+int mpi_tag_ub;      // largest allowed MPI tag
 }
