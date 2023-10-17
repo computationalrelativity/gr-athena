@@ -288,7 +288,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
     bns = pmy_mesh->bns;
     assert(bns->np == npoints_cc);
     sep = bns->dist/coord_unit;
-    pgasmax = 0.00013; //todo work out how to properly set this
+    pgasmax = pin->GetReal("problem","pgasmax");; //todo work out how to properly set this
     I = 0;      // reset
 
     for (int k = kl; k <= ku; ++k)
