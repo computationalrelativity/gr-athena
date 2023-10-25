@@ -16,9 +16,19 @@
 
 
 namespace {
+  bool warn_not_implemented = true;
+
   void NotImplementedError_(){
     std::cerr << "FC extrapolation not implemented." << std::endl;
     std::abort();
+  };
+
+  void NotImplementedWarn_(){
+    if (warn_not_implemented)
+    {
+      std::cout << "FC extrapolation not implemented; run with nop" << std::endl;
+      warn_not_implemented = false;
+    }
   };
 }
 
@@ -29,7 +39,7 @@ namespace {
 
 void FaceCenteredBoundaryVariable::ExtrapolateOutflowInnerX1(
     Real time, Real dt, int il, int jl, int ju, int kl, int ku, int ngh) {
-  NotImplementedError_();
+  NotImplementedWarn_();
 }
 
 //----------------------------------------------------------------------------------------
@@ -39,7 +49,7 @@ void FaceCenteredBoundaryVariable::ExtrapolateOutflowInnerX1(
 
 void FaceCenteredBoundaryVariable::ExtrapolateOutflowOuterX1(
     Real time, Real dt, int iu, int jl, int ju, int kl, int ku, int ngh) {
-  NotImplementedError_();
+  NotImplementedWarn_();
 }
 
 //----------------------------------------------------------------------------------------
@@ -49,7 +59,7 @@ void FaceCenteredBoundaryVariable::ExtrapolateOutflowOuterX1(
 
 void FaceCenteredBoundaryVariable::ExtrapolateOutflowInnerX2(
     Real time, Real dt, int il, int iu, int jl, int kl, int ku, int ngh) {
-  NotImplementedError_();
+  NotImplementedWarn_();
 }
 
 //----------------------------------------------------------------------------------------
@@ -59,7 +69,7 @@ void FaceCenteredBoundaryVariable::ExtrapolateOutflowInnerX2(
 
 void FaceCenteredBoundaryVariable::ExtrapolateOutflowOuterX2(
     Real time, Real dt, int il, int iu, int ju, int kl, int ku, int ngh) {
-  NotImplementedError_();
+  NotImplementedWarn_();
 }
 
 //----------------------------------------------------------------------------------------
@@ -69,7 +79,7 @@ void FaceCenteredBoundaryVariable::ExtrapolateOutflowOuterX2(
 
 void FaceCenteredBoundaryVariable::ExtrapolateOutflowInnerX3(
     Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ngh) {
-  NotImplementedError_();
+  NotImplementedWarn_();
 }
 
 //----------------------------------------------------------------------------------------
@@ -79,5 +89,5 @@ void FaceCenteredBoundaryVariable::ExtrapolateOutflowInnerX3(
 
 void FaceCenteredBoundaryVariable::ExtrapolateOutflowOuterX3(
     Real time, Real dt, int il, int iu, int jl, int ju, int ku, int ngh) {
-  NotImplementedError_();
+  NotImplementedWarn_();
 }
