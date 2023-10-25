@@ -32,7 +32,7 @@ export COMPILE_STR="--prob=gr_tov
                     --ncghost=4
                     --ncghost_cx=4
                     --nextrapolate=4
-                    --ninterp=2"
+                    --ninterp=2 -hybridinterp"
 
 # apply caching compiler together with gold linker
 # export COMPILE_STR="${COMPILE_STR} -ccache -link_gold"

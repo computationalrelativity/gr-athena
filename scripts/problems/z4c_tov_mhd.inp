@@ -31,8 +31,8 @@ fix_admsources = 0 # calculate adm sources with initial data
 # #x2_slice = 0.0
 # #x3_slice = 0.0
 # data_format=%.15g
-# 
-# 
+
+
 # <output2>
 # file_type = hdf5
 # variable  = prim
@@ -41,8 +41,8 @@ fix_admsources = 0 # calculate adm sources with initial data
 # #x2_slice = 0.0
 # #x3_slice = 0.0
 # data_format=%.15g
-# 
-# 
+
+
 # <output4>
 # file_type = hdf5
 # variable  = adm
@@ -51,7 +51,7 @@ fix_admsources = 0 # calculate adm sources with initial data
 # #x2_slice = 0.0
 # #x3_slice = 0.0
 # data_format=%.15g
-# 
+
 # <output5>
 # file_type = hdf5
 # variable  = z4c
@@ -60,7 +60,7 @@ fix_admsources = 0 # calculate adm sources with initial data
 # #x2_slice = 0.0
 # #x3_slice = 0.0
 # data_format=%.15g
-# 
+
 # <output6>
 # file_type = rst
 # dt        = 200
@@ -71,31 +71,28 @@ dt        = 0.5
 data_format=%.15g
 
 
-
 <time>
 cfl_number = 0.25
 nlim       = 1000
-# tlim       = 10000
-# nlim       = 1000
-tlim       = 100
+tlim       = 10
 integrator = rk3   # time integration algorithm
 xorder     = 3     # order of spatial reconstruction
 ncycle_out = 1      # interval for stdout summary info
 
 <mesh>
-nx1    = 64    # number of cells in x-direction
+nx1    = 32    # number of cells in x-direction
 x1min  = -32   # minimum x
 x1max  = 32 # maximum x
 ix1_bc = extrapolate_outflow  # lower boundary
 ox1_bc = extrapolate_outflow  # upper boundary
 
-nx2    = 64  # number of cells in y-direction
+nx2    = 32  # number of cells in y-direction
 x2min  = -32  # minimum y
 x2max  = 32  # maximum y
 ix2_bc = extrapolate_outflow # lower boundary
 ox2_bc = extrapolate_outflow # upper boundary
 
-nx3    = 64        # number of cells in z-direction
+nx3    = 32        # number of cells in z-direction
 x3min  = -32   # minimum z
 x3max  = 32       # maximum z
 ix3_bc = extrapolate_outflow  # lower  boundary
@@ -105,19 +102,19 @@ refinement = none
 #numlevel = 6
 #deref_count = 5
 
-num_threads = 6
+num_threads = 1
 
 
 <meshblock>
 
 
-nx1=32
-nx2=32
-nx3=32
+nx1=16
+nx2=16
+nx3=16
 
 
 <coord>
-m = 0 # black hole parameters 
+m = 0 # black hole parameters
 a = 0 # leave at 0
 
 
@@ -137,6 +134,9 @@ zero_div=0 # set div F = 0 i.e. don't update conservatives with fluxes
 rhoc = 0.00128  # energy density at centre of star
 dr = 0.00001  # TOV integration timestep
 rmin = 1e-10 # TOV integration minimum radius
-npts = 1000000 # TOV guess for number of radial points 
+npts = 1000000 # TOV guess for number of radial points
 fatm = 0.00000000000000078125  # set atmosphere rho to rho = rhomax * fatm
 fthr = 1  # set point to atmosphere if rho < fthr*fatm*rhomax
+pcut = 0.04
+b_amp = 0.1
+magindex = 0
