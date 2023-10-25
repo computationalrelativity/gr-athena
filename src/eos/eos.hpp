@@ -20,6 +20,13 @@
 #include "../coordinates/coordinates.hpp" // Coordinates
 #include "../utils/interp_table.hpp"
 
+#if USETM
+// PrimitiveSolver headers
+#include "../z4c/primitive/eos.hpp"
+#include "../z4c/primitive/primitive_solver.hpp"
+#include "include_eos.hpp"
+#endif
+
 // Declarations
 class Hydro;
 class ParameterInput;
@@ -175,6 +182,12 @@ class EquationOfState {
   Real GetDensityFloor() const {return density_floor_;}
   Real GetPressureFloor() const {return pressure_floor_;}
   EosTable* ptable; // pointer to EOS table data
+#if USETM
+  inline Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& GetEOS() {
+    return eos;
+  }
+  Real GetTemperatureFloor() const {return temperature_floor_;}
+#endif
 #if GENERAL_EOS
   Real GetGamma();
 #else // not GENERAL_EOS
@@ -207,6 +220,13 @@ class EquationOfState {
   AthenaArray<Real> normal_bb_;          // normal-frame fields, used in GR MHD
   AthenaArray<Real> normal_tt_;          // normal-frame M.B, used in GR MHD
   void InitEosConstants(ParameterInput *pin);
+#if USETM
+  // If we're using the PrimitiveSolver framework, we need to declare the
+  // EOS and PrimitiveSolver objects.
+  Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> eos;
+  Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> ps;
+  Real temperature_floor_;
+#endif
 };
 
 #endif // EOS_EOS_HPP_

@@ -316,8 +316,8 @@ void AHF::MetricDerivatives(MeshBlock * pmy_block)
 {
   Z4c *pz4c = pmy_block->pz4c;  // also needed for LOOP macros etc.
 
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> vc_adm_g_dd; // 3-metric  (NDIM=3 in z4c.hpp)
-  vc_adm_g_dd.InitWithShallowSlice(pmy_block->pz4c->storage.adm, Z4c::I_ADM_gxx);
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_g_dd; // 3-metric  (NDIM=3 in z4c.hpp)
+  adm_g_dd.InitWithShallowSlice(pmy_block->pz4c->storage.adm, Z4c::I_ADM_gxx);
   pz4c->aux_g_ddd.ZeroClear();
 
 #if DEBUG_OUTPUT
@@ -341,33 +341,33 @@ void AHF::MetricDerivatives(MeshBlock * pmy_block)
           Real oofdx = 1.0 / pz4c->mbi.dx1(i);
           
           if (i==IX_IL-GSIZEI){
-            pz4c->aux_g_ddd(0,a,b,k,j,i) =     oofdx * ( vc_adm_g_dd(a,b,k,j,i+1) - vc_adm_g_dd(a,b,k,j, i ) );
+            pz4c->aux_g_ddd(0,a,b,k,j,i) =     oofdx * ( adm_g_dd(a,b,k,j,i+1) - adm_g_dd(a,b,k,j, i ) );
           } else if (i==IX_IU+GSIZEI){
-            pz4c->aux_g_ddd(0,a,b,k,j,i) =     oofdx * ( vc_adm_g_dd(a,b,k,j, i ) - vc_adm_g_dd(a,b,k,j,i-1) );
+            pz4c->aux_g_ddd(0,a,b,k,j,i) =     oofdx * ( adm_g_dd(a,b,k,j, i ) - adm_g_dd(a,b,k,j,i-1) );
           } else {
-            pz4c->aux_g_ddd(0,a,b,k,j,i) = 0.5*oofdx * ( vc_adm_g_dd(a,b,k,j,i+1) - vc_adm_g_dd(a,b,k,j,i-1) );
+            pz4c->aux_g_ddd(0,a,b,k,j,i) = 0.5*oofdx * ( adm_g_dd(a,b,k,j,i+1) - adm_g_dd(a,b,k,j,i-1) );
           }
           
           if (j==IX_JL-GSIZEJ){
-            pz4c->aux_g_ddd(1,a,b,k,j,i) =     oofdy * ( vc_adm_g_dd(a,b,k,j+1,i) - vc_adm_g_dd(a,b,k, j ,i) );
+            pz4c->aux_g_ddd(1,a,b,k,j,i) =     oofdy * ( adm_g_dd(a,b,k,j+1,i) - adm_g_dd(a,b,k, j ,i) );
           } else if (j==IX_JU+GSIZEJ){
-            pz4c->aux_g_ddd(1,a,b,k,j,i) =     oofdy * ( vc_adm_g_dd(a,b,k, j ,i) - vc_adm_g_dd(a,b,k,j-1,i) );
+            pz4c->aux_g_ddd(1,a,b,k,j,i) =     oofdy * ( adm_g_dd(a,b,k, j ,i) - adm_g_dd(a,b,k,j-1,i) );
           } else {
-            pz4c->aux_g_ddd(1,a,b,k,j,i) = 0.5*oofdy * ( vc_adm_g_dd(a,b,k,j+1,i) - vc_adm_g_dd(a,b,k,j-1,i) );
+            pz4c->aux_g_ddd(1,a,b,k,j,i) = 0.5*oofdy * ( adm_g_dd(a,b,k,j+1,i) - adm_g_dd(a,b,k,j-1,i) );
           }
           
           if (k==IX_KL-GSIZEK){
-            pz4c->aux_g_ddd(2,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b,k+1,j,i) - vc_adm_g_dd(a,b, k ,j,i) );
+            pz4c->aux_g_ddd(2,a,b,k,j,i) =     oofdz * ( adm_g_dd(a,b,k+1,j,i) - adm_g_dd(a,b, k ,j,i) );
           } else if (k==IX_KU+GSIZEK){
-            pz4c->aux_g_ddd(2,a,b,k,j,i) =     oofdz * ( vc_adm_g_dd(a,b, k ,j,i) - vc_adm_g_dd(a,b,k-1,j,i) );
+            pz4c->aux_g_ddd(2,a,b,k,j,i) =     oofdz * ( adm_g_dd(a,b, k ,j,i) - adm_g_dd(a,b,k-1,j,i) );
           } else {
-            pz4c->aux_g_ddd(2,a,b,k,j,i) = 0.5*oofdz * ( vc_adm_g_dd(a,b,k+1,j,i) - vc_adm_g_dd(a,b,k-1,j,i) );
+            pz4c->aux_g_ddd(2,a,b,k,j,i) = 0.5*oofdz * ( adm_g_dd(a,b,k+1,j,i) - adm_g_dd(a,b,k-1,j,i) );
           }
 
 #if DEBUG_OUTPUT
           if (a==0 && b==0){
             fprintf(fp, "%23.15e %23.15e %23.15e %23.15e\n",pz4c->mbi.x1(i),pz4c->mbi.x2(j), 
-                pz4c->mbi.x3(k), vc_adm_g_dd(0,0,k,j,i));
+                pz4c->mbi.x3(k), adm_g_dd(0,0,k,j,i));
             fprintf(fpd, "%23.15e %23.15e %23.15e %23.15e\n",pz4c->mbi.x1(i),pz4c->mbi.x2(j), 
                 pz4c->mbi.x3(k), pz4c->aux_g_ddd(0,0,0,k,j,i));
           }
@@ -378,7 +378,7 @@ void AHF::MetricDerivatives(MeshBlock * pmy_block)
     }
   }
   
-  vc_adm_g_dd.DeleteAthenaTensor();
+  adm_g_dd.DeleteAthenaTensor();
 #if DEBUG_OUTPUT
   fclose(fp);
   fclose(fpd);
@@ -395,10 +395,10 @@ void AHF::MetricInterp(MeshBlock * pmb)
   Z4c *pz4c = pmb->pz4c;
 
   LagrangeInterpND<metric_interp_order, 3> * pinterp3 = nullptr;
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> vc_adm_g_dd;      // 3-metric  (NDIM=3 in z4c.hpp)
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> vc_adm_K_dd;      // extr.curv.
-  vc_adm_g_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
-  vc_adm_K_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_Kxx);
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_g_dd;      // 3-metric  (NDIM=3 in z4c.hpp)
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_K_dd;      // extr.curv.
+  adm_g_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
+  adm_K_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_Kxx);
 
   // For interp
   Real origin[NDIM];
@@ -486,8 +486,8 @@ void AHF::MetricInterp(MeshBlock * pmb)
           if (a == 2) bitant_z_fac *= -1;
           if (b == 2) bitant_z_fac *= -1;
         }
-        g(a,b,i,j) = pinterp3->eval(&(vc_adm_g_dd(a,b,0,0,0)))*bitant_z_fac;
-        K(a,b,i,j) = pinterp3->eval(&(vc_adm_K_dd(a,b,0,0,0)))*bitant_z_fac;
+        g(a,b,i,j) = pinterp3->eval(&(adm_g_dd(a,b,0,0,0)))*bitant_z_fac;
+        K(a,b,i,j) = pinterp3->eval(&(adm_K_dd(a,b,0,0,0)))*bitant_z_fac;
         for(int c = 0; c < NDIM; ++c) {
           if (bitant_sym)  {
             if (c == 2) bitant_z_fac *= -1;
@@ -507,8 +507,8 @@ void AHF::MetricInterp(MeshBlock * pmb)
     } // phi loop
   } // theta loop
   
-  vc_adm_g_dd.DeleteAthenaTensor();
-  vc_adm_K_dd.DeleteAthenaTensor();
+  adm_g_dd.DeleteAthenaTensor();
+  adm_K_dd.DeleteAthenaTensor();
   
 #if DEBUG_OUTPUT
   fclose(fp);
