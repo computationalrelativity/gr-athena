@@ -271,10 +271,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     }
     else
     {
-      // Set exterior to atmos
-      rho_kji  = rho_atm;
-      pgas_kji = pre_atm;
-      v_kji    = 0.0;
+      // Let the EOS decide how to set the atmosphere.
+      rho_kji = 0.0;
+      pgas_kji = 0.0;
+      v_kji = 0.0;
     }
 
     phydro->w_init(IDN,k,j,i) = rho_kji;
