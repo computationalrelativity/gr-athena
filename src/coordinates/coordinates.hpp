@@ -918,7 +918,7 @@ class GRDynamical : public Coordinates {
   {
 #if defined(Z4C_VC_ENABLED)
   #if defined(HYBRID_INTERP)
-    ig_2N->VC2CC(tar, src, cc_k, cc_j);
+    ig_1N->VC2CC(tar, src, cc_k, cc_j);
   #else
     ig_NN->VC2CC(tar, src, cc_k, cc_j);
   #endif // HYBRID_INTERP
@@ -940,7 +940,7 @@ class GRDynamical : public Coordinates {
   {
 #if defined(Z4C_VC_ENABLED)
   #if defined(HYBRID_INTERP)
-    ig_2N->VC2FC(tar, src, dir, tr_k, tr_j);
+    ig_1N->VC2FC(tar, src, dir, tr_k, tr_j);
   #else
     ig_NN->VC2FC(tar, src, dir, tr_k, tr_j);
   #endif  // HYBRID_INTERP
@@ -985,7 +985,7 @@ class GRDynamical : public Coordinates {
 #if defined(Z4C_VC_ENABLED)
     // appears to be taken as cubic in z4c constructor ..
   #if defined(HYBRID_INTERP)
-    ig_1N->CC2VC(tar, src, tr_k, tr_j);
+    ig_2N->CC2VC(tar, src, tr_k, tr_j);
   #else
     ig_NN->CC2VC(tar, src, tr_k, tr_j);
   #endif // HYBRID_INTERP
