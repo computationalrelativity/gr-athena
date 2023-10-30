@@ -123,7 +123,7 @@ parser.add_argument(
 parser.add_argument('--eos',
                     default='adiabatic',
                     choices=['adiabatic', 'isothermal', 'general/eos_table','adiabatictaudyn_rep',
-                             'general/hydrogen', 'general/ideal'],
+                             'general/hydrogen', 'general/ideal', 'eostaudyn_ps'],
                     help='select equation of state')
 
 # --eospolicy=[name] argument
@@ -572,7 +572,7 @@ if args['eos'] == 'isothermal':
     definitions['NHYDRO_VARIABLES'] = '4'
 elif args['eos'] == 'adiabatic' or args['eos'] == 'adiabatictaudyn_rep':
     definitions['NHYDRO_VARIABLES'] = '5'
-elif args['eos'] == 'eostaudynps':
+elif args['eos'] == 'eostaudyn_ps':
     definitions['NHYDRO_VARIABLES'] = '5'
     definitions['USE_TM'] = '1'
     if args['eospolicy'] == 'idealgas':
@@ -594,7 +594,7 @@ elif args['eos'] == 'eostaudynps':
         definitions['ERROR_POLICY'] = ''
 
     #TODO(JF): Check if this is still needed
-    makefile_options['GENERAL_EOS_FILE'] = 'general_gr'
+    #makefile_options['GENERAL_EOS_FILE'] = 'general_gr'
 else:
     definitions['GENERAL_EOS'] = '1'
     makefile_options['GENERAL_EOS_FILE'] = 'general'
