@@ -214,7 +214,8 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   opt.chi_div_floor = pin->GetOrAddReal("z4c", "chi_div_floor", -1000.0);
 
   const Real diss_val = pin->GetOrAddReal("z4c", "diss", 0.0);
-  opt.diss = diss_val*pow(2, -2*NGHOST)*(NGHOST % 2 == 0 ? -1 : 1);
+  const int ng = SW_CC_CX_VC(NGHOST, NGHOST_CX, NGHOST);
+  opt.diss = (diss_val * pow(2, -2*ng) * (ng % 2 == 0 ? -1 : 1));
 
   opt.eps_floor = pin->GetOrAddReal("z4c", "eps_floor", 1e-12);
   opt.damp_kappa1 = pin->GetOrAddReal("z4c", "damp_kappa1", 0.0);
