@@ -35,6 +35,9 @@ class Reconstruction {
   // (Cartesian reconstruction formulas are used for x3 azimuthal coordinate in both
   // cylindrical and spherical-polar coordinates)
 
+  // reconstruction with eps (internal energy) == 1 or pressure == 0 (default)
+  bool eps_rec;
+
   // related fourth-order solver switches
   const bool correct_ic, correct_err; // used in Mesh::Initialize() and ProblemGenerator()
 
@@ -92,6 +95,19 @@ class Reconstruction {
                             const AthenaArray<Real> &w, const AthenaArray<Real> &bcc,
                             AthenaArray<Real> &wl, AthenaArray<Real> &wr);
 
+  void WenoX1(const int k, const int j, const int il, const int iu,
+              const AthenaArray<Real> &w, const AthenaArray<Real> &bcc,
+              AthenaArray<Real> &wl, AthenaArray<Real> &wr);
+
+  void WenoX2(const int k, const int j, const int il, const int iu,
+              const AthenaArray<Real> &w, const AthenaArray<Real> &bcc,
+              AthenaArray<Real> &wl, AthenaArray<Real> &wr);
+
+  void WenoX3(const int k, const int j, const int il, const int iu,
+              const AthenaArray<Real> &w, const AthenaArray<Real> &bcc,
+              AthenaArray<Real> &wl, AthenaArray<Real> &wr);
+
+
   // overloads for non-fluid (cell-centered Hydro prim. and magnetic field) reconstruction
   void DonorCellX1(const int k, const int j, const int il, const int iu,
                    const AthenaArray<Real> &q,
@@ -128,6 +144,19 @@ class Reconstruction {
   void PiecewiseParabolicX3(const int k, const int j, const int il, const int iu,
                             const AthenaArray<Real> &q,
                             AthenaArray<Real> &ql, AthenaArray<Real> &qr);
+
+  void WenoX1(const int k, const int j, const int il, const int iu,
+              const AthenaArray<Real> &q,
+              AthenaArray<Real> &ql, AthenaArray<Real> &qr);
+
+  void WenoX2(const int k, const int j, const int il, const int iu,
+              const AthenaArray<Real> &q,
+              AthenaArray<Real> &ql, AthenaArray<Real> &qr);
+
+  void WenoX3(const int k, const int j, const int il, const int iu,
+              const AthenaArray<Real> &q,
+              AthenaArray<Real> &ql, AthenaArray<Real> &qr);
+
 
  private:
   MeshBlock* pmy_block_;  // ptr to MeshBlock containing this Reconstruction
