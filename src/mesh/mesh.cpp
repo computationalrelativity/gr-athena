@@ -1823,9 +1823,6 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         int il = pmb->is, iu = pmb->ie,
           jl = pmb->js, ju = pmb->je,
           kl = pmb->ks, ku = pmb->ke;
-        int ignore = VC2CC_IGNORE;
-//WGC testing 
-//        ignore = 0;
         if (pbval->nblevel[1][1][0] != -1) il -= NGHOST;
         if (pbval->nblevel[1][1][2] != -1) iu += NGHOST;
         if (pmb->block_size.nx2 > 1) {
@@ -1848,13 +1845,13 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b,
                                           ph->w, 
                                           ps->s, ps->r, pf->bcc, pmb->pcoord,
-                                          il+ignore, iu-ignore, 
-                                          jl+ignore, ju-ignore, kl+ignore, ku-ignore,0);
+                                          il, iu, 
+                                          jl, ju, kl, ku,0);
 #else
           pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b,
                                           ph->w, pf->bcc, pmb->pcoord,
-                                          il+ignore, iu-ignore, 
-                                          jl+ignore, ju-ignore, kl+ignore, ku-ignore,0);
+                                          il, iu, 
+                                          jl, ju, kl, ku,0);
 #endif
         }
 
@@ -1863,9 +1860,9 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           // r1/r_old for GR is currently unused:
           pmb->peos->PassiveScalarConservedToPrimitive(ps->s, ph->w, ps->r, ps->r,
                                                        pmb->pcoord,
-                                                       il+ignore, iu-ignore,
-                                                       jl+ignore, ju-ignore, 
-                                                       kl+ignore, ku-ignore);
+                                                       il, iu,
+                                                       jl, ju, 
+                                                       kl, ku);
         }
 #endif
         // --------------------------

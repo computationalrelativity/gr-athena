@@ -422,6 +422,11 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
   int ke = pmy_block->ke;
   int nn1 = pmy_block->ncells1;
   int a,b,c,d,e;
+  const Real idx[3] = {
+     1.0/pmy_block->pcoord->dx1v(0),
+     1.0/pmy_block->pcoord->dx2v(0),
+     1.0/pmy_block->pcoord->dx3v(0),
+  };
 //  bool fix_sources=0;
   // Extract ratio of specific heats
   Real gamma_adi = pmy_block->peos->GetGamma();
@@ -530,35 +535,33 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
  
 // populate alpha, beta, gamma, K, derivatives done
      CLOOP1(i){
-     gamma_dd(0,0,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
-     gamma_dd(0,1,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
-     gamma_dd(0,2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
-     gamma_dd(1,1,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
-     gamma_dd(1,2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
-     gamma_dd(2,2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
-     K_dd(0,0,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcK_xx(k,j,i));
-     K_dd(0,1,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcK_xy(k,j,i));
-     K_dd(0,2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcK_xz(k,j,i));
-     K_dd(1,1,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcK_yy(k,j,i));
-     K_dd(1,2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcK_yz(k,j,i));
-     K_dd(2,2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcK_zz(k,j,i));
-     alpha(i) = pmy_block->pz4c->ig->map3d_VC2CC(vcalpha(k,j,i));
-     beta_u(0,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcbeta_x(k,j,i));
-     beta_u(1,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcbeta_y(k,j,i));
-     beta_u(2,i) = pmy_block->pz4c->ig->map3d_VC2CC(vcbeta_z(k,j,i));
+     gamma_dd(0,0,i) = VCInterpolation(vcgamma_xx,k,j,i);
+     gamma_dd(0,1,i) = VCInterpolation(vcgamma_xy,k,j,i);
+     gamma_dd(0,2,i) = VCInterpolation(vcgamma_xz,k,j,i);
+     gamma_dd(1,1,i) = VCInterpolation(vcgamma_yy,k,j,i);
+     gamma_dd(1,2,i) = VCInterpolation(vcgamma_yz,k,j,i);
+     gamma_dd(2,2,i) = VCInterpolation(vcgamma_zz,k,j,i);
+     K_dd(0,0,i) = VCInterpolation(vcK_xx,k,j,i);
+     K_dd(0,1,i) = VCInterpolation(vcK_xy,k,j,i);
+     K_dd(0,2,i) = VCInterpolation(vcK_xz,k,j,i);
+     K_dd(1,1,i) = VCInterpolation(vcK_yy,k,j,i);
+     K_dd(1,2,i) = VCInterpolation(vcK_yz,k,j,i);
+     K_dd(2,2,i) = VCInterpolation(vcK_zz,k,j,i);
+     alpha(i) = VCInterpolation(vcalpha,k,j,i);
+     beta_u(0,i) = VCInterpolation(vcbeta_x,k,j,i);
+     beta_u(1,i) = VCInterpolation(vcbeta_y,k,j,i);
+     beta_u(2,i) = VCInterpolation(vcbeta_z,k,j,i);
     } 
     for(a=0;a<NDIM;++a){
         CLOOP1(i){
-              dgamma_ddd(a,0,0,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcgamma_xx(k,j,i));
-              dgamma_ddd(a,0,1,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcgamma_xy(k,j,i));
-              dgamma_ddd(a,0,2,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcgamma_xz(k,j,i));
-              dgamma_ddd(a,1,1,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcgamma_yy(k,j,i));
-              dgamma_ddd(a,1,2,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcgamma_yz(k,j,i));
-              dgamma_ddd(a,2,2,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcgamma_zz(k,j,i));
-              dalpha_d(a,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcalpha(k,j,i));
-              dbeta_du(a,0,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcbeta_x(k,j,i));
-              dbeta_du(a,1,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcbeta_y(k,j,i));
-              dbeta_du(a,2,i) = pmy_block->pz4c->ig->map3d_VC2CC_der(a,vcbeta_z(k,j,i));
+          dgamma_ddd(a,0,0,i) = idx[a]*VCDiff(a,vcgamma_xx,k,j,i);
+          dgamma_ddd(a,0,1,i) = idx[a]*VCDiff(a,vcgamma_xy,k,j,i);
+          dgamma_ddd(a,0,2,i) = idx[a]*VCDiff(a,vcgamma_xz,k,j,i);
+          dgamma_ddd(a,1,1,i) = idx[a]*VCDiff(a,vcgamma_yy,k,j,i);
+          dgamma_ddd(a,1,2,i) = idx[a]*VCDiff(a,vcgamma_yz,k,j,i);
+          dgamma_ddd(a,2,2,i) = idx[a]*VCDiff(a,vcgamma_zz,k,j,i);
+          dalpha_d(a,i) = idx[a]*VCDiff(a,vcalpha,k,j,i);
+          dbeta_du(a,0,i) = idx[a]*VCDiff(a,vcbeta_x,k,j,i);
         }
     }
 

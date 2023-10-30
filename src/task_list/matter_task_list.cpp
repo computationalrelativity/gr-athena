@@ -1270,19 +1270,14 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
   Field *pf = pmb->pfield;
   PassiveScalars *ps = pmb->pscalars;
   BoundaryValues *pbval = pmb->pbval;
-  // For VC2CC interpolation to work properly without accessing invalid memory,
-  // we need to subtract off a few ghost zones from the calculation.
-  int ignore = VC2CC_IGNORE;
-// WGC testing: 
-//  ignore = 0;
 //printf("prim\n");
   int il = pmb->is, iu = pmb->ie, jl = pmb->js, ju = pmb->je, kl = pmb->ks, ku = pmb->ke;
-  if (pbval->nblevel[1][1][0] != -1) il -= NGHOST - ignore;
-  if (pbval->nblevel[1][1][2] != -1) iu += NGHOST - ignore;
-  if (pbval->nblevel[1][0][1] != -1) jl -= NGHOST - ignore;
-  if (pbval->nblevel[1][2][1] != -1) ju += NGHOST - ignore;
-  if (pbval->nblevel[0][1][1] != -1) kl -= NGHOST - ignore;
-  if (pbval->nblevel[2][1][1] != -1) ku += NGHOST - ignore;
+  if (pbval->nblevel[1][1][0] != -1) il -= NGHOST;
+  if (pbval->nblevel[1][1][2] != -1) iu += NGHOST;
+  if (pbval->nblevel[1][0][1] != -1) jl -= NGHOST;
+  if (pbval->nblevel[1][2][1] != -1) ju += NGHOST;
+  if (pbval->nblevel[0][1][1] != -1) kl -= NGHOST;
+  if (pbval->nblevel[2][1][1] != -1) ku += NGHOST;
 
 //  int il = pmb->is-NGHOST, iu = pmb->ie+NGHOST, jl = pmb->js-NGHOST, ju = pmb->je+NGHOST, kl = pmb->ks-NGHOST, ku = pmb->ke+NGHOST;
 

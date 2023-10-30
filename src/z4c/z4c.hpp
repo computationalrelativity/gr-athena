@@ -208,10 +208,6 @@ public:
     int epsinterp; // interpolate stress energy
   } opt;
      
-//intergrid interpolation 
-
-   InterpIntergridLocal * ig;
-   InterpIntergridLocal * ig_coarse;
   // boundary and grid data
 #if PREFER_VC
   VertexCenteredBoundaryVariable ubvar;

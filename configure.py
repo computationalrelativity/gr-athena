@@ -19,7 +19,6 @@
 #   --nextrapolate=xxx  set NEXTRAPOLATE=xxx  [for ouflow conditions]
 #   --nscalars=xxx      set NSCALARS=xxx
 #   --nrad=xxx          set NRAD=xxx (for wave extraction)
-#   --ninterp=xxx       set NGRCV_HSZ=xxx (number of ghosts for intergrid interpolation)
 #   -force_ps_linear    set FORCE_PS_LINEAR to true (always use linear-order VC2CC)
 #   -eos_table          enable EOS table
 #   -f                  enable fluid
@@ -162,17 +161,6 @@ parser.add_argument('--nscalars',
 parser.add_argument('--nrad',
                     default='5',
                     help='set number of extraction radii')
-
-# --ninterp=[value] argument
-parser.add_argument('--ninterp',
-                    default='2',
-                    help='set number of ghost zones for intergrid interpolation')
-
-# -force_ps_linear argument
-parser.add_argument('-force_ps_linear',
-                    action='store_true',
-                    default=False,
-                    help='make PrimitiveSolver use linear VC2CC interpolation')
 
 # -f argument
 parser.add_argument('-f',
@@ -604,21 +592,6 @@ definitions['NUMBER_PASSIVE_SCALARS'] = args['nscalars']
 
 # --nrad=[value] argument
 definitions['NUMBER_EXT_RAD'] = args['nrad']
-
-# --ninterp=[value] argument
-definitions['NUMBER_INTERP_GHOSTS'] = args['ninterp']
-
-# Number of ghost points to ignore in VC2CC calculation
-if args['vertex']:
-    definitions['VC2CC_IGNORE'] = str(int(args['ninterp']) - 1)
-else:
-    definitions['VC2CC_IGNORE'] = '0'
-
-# -force_ps_linear argument
-if args['force_ps_linear']:
-    definitions['FORCE_PS_LINEAR'] = '1'
-else:
-    definitions['FORCE_PS_LINEAR'] = '0'
 
 # -f argument
 if args['f']:
@@ -1124,7 +1097,7 @@ if args['lorene_path'] != '':
     makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/Export/C++/Include'.format(args['lorene_path'])
     makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/C++/Include'.format(args['lorene_path'])
     makefile_options['LINKER_FLAGS'] += ' -L{0}/Lib'.format(args['lorene_path'])
-    makefile_options['LIBRARY_FLAGS'] += ' -llorene_export -llorene -llorenef77 -lgfortran -llapack -lblas'
+    makefile_options['LIBRARY_FLAGS'] += ' -llorene_export -llorene -llorenef77 -lgfortran'
 else:
     definitions['LORENE_OPTION'] = 'NO_LORENE'
 

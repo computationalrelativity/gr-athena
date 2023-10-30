@@ -210,16 +210,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     kl -= NGHOST;
     ku += NGHOST;
   }
-  // For high-order VC2CC interpolation to work without accessing invalid memory, we need
-  // to subtract off ghost zones.
-  int ignore = VC2CC_IGNORE;
-  int ilcc = il + ignore;
-  int iucc = iu - ignore;
-  int jlcc = jl + ignore;
-  int jucc = ju - ignore;
-  int klcc = kl + ignore;
-  int kucc = ku - ignore;
-
 
   // Prepare scratch arrays
   AthenaArray<Real> g, gi;
@@ -244,9 +234,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   Real lapse_kji, d_lapse_dr_kji, psi4_kji,d_psi4_dr_kji,dummy;
 
   // Initialize primitive values on CC grid
-  for (int k=klcc; k<=kucc; ++k) {
-    for (int j=jlcc; j<=jucc; ++j) {
-      for (int i=ilcc; i<=iucc; ++i) {
+  for (int k=kl; k<=ku; ++k) {
+    for (int j=jl; j<=ju; ++j) {
+      for (int i=il; i<=iu; ++i) {
 
       #if USETM
       // Initialize the scalars
@@ -448,10 +438,10 @@ pfield->bcc.ZeroClear();
 pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord, il,iu,jl,ju,kl,ku);
 #if USETM
   peos->PrimitiveToConserved(phydro->w, pscalars->r, pfield->bcc, phydro->u, pscalars->s, pcoord, 
-                             ilcc, iucc, jlcc, jucc, klcc, kucc);
+                             il, iu, jl, ju, kl, ku);
 #else
   peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord, 
-                             ilcc, iucc, jlcc, jucc, klcc, kucc);
+                             il, iu, jl, ju, kl, ku);
 #endif
 
   // Initialise VC matter

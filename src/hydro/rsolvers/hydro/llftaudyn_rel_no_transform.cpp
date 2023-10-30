@@ -150,16 +150,16 @@ void Hydro::RiemannSolver(const int k, const int j,
       // Go through each interface
        #pragma omp simd
       for (int i = il; i <= iu; ++i){
-          gamma_dd(0,0,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcgamma_xx(k,j,i));
-          gamma_dd(0,1,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcgamma_xy(k,j,i));
-          gamma_dd(0,2,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcgamma_xz(k,j,i));
-          gamma_dd(1,1,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcgamma_yy(k,j,i));
-          gamma_dd(1,2,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcgamma_yz(k,j,i));
-          gamma_dd(2,2,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcgamma_zz(k,j,i));
-          alpha(i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcalpha(k,j,i));
-          beta_u(0,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcbeta_x(k,j,i));
-          beta_u(1,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcbeta_y(k,j,i));
-          beta_u(2,i) = pmy_block->pz4c->ig->map3d_VC2FC(ivx-1,vcbeta_z(k,j,i));
+          gamma_dd(0,0,i) = VCReconstruct(ivx-1,vcgamma_xx,k,j,i);
+          gamma_dd(0,1,i) = VCReconstruct(ivx-1,vcgamma_xy,k,j,i);
+          gamma_dd(0,2,i) = VCReconstruct(ivx-1,vcgamma_xz,k,j,i);
+          gamma_dd(1,1,i) = VCReconstruct(ivx-1,vcgamma_yy,k,j,i);
+          gamma_dd(1,2,i) = VCReconstruct(ivx-1,vcgamma_yz,k,j,i);
+          gamma_dd(2,2,i) = VCReconstruct(ivx-1,vcgamma_zz,k,j,i);
+          alpha(i) = VCReconstruct(ivx-1,vcalpha,k,j,i);
+          beta_u(0,i) = VCReconstruct(ivx-1,vcbeta_x,k,j,i);
+          beta_u(1,i) = VCReconstruct(ivx-1,vcbeta_y,k,j,i);
+          beta_u(2,i) = VCReconstruct(ivx-1,vcbeta_z,k,j,i);
       }
 
 

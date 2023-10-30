@@ -31,12 +31,9 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real
     AthenaArray<Real> &cons, AthenaArray<Real> &cons_scalar,
     Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& ps);
 
-static Real VCInterpolation(AthenaArray<Real> &in, int k, int j, int i);
-
 using RescaleFunction = void(*)(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>& gamma_dd,
                                 AthenaArray<Real>& vcchi,
                                 AthenaTensor<Real, TensorSymm::NONE, NDIM, 0>& chi,
-                                InterpIntergridLocal* interp,
                                 int il, int iu, int j, int k);
 
 //----------------------------------------------------------------------------------------
@@ -134,7 +131,6 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
   
   // Operations that change based on whether or not we have coarse variables;
   // this avoids an extra branch during the interpolation loop.
-  InterpIntergridLocal* interp;
   RescaleFunction rescale_metric;
 
   // Metric at cell centers.
@@ -148,11 +144,9 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
     vcgamma_yy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyy,1);
     vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gyz,1);
     vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gzz,1);
-    interp = pmy_block_->pz4c->ig;
     auto lambda = [](AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>& gamma_dd,
                      AthenaArray<Real>& vcchi,
                      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0>& chi,
-                     InterpIntergridLocal* interp,
                      int il, int iu, int j, int k) -> void {return;};
     rescale_metric = lambda;
   }
@@ -165,19 +159,13 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
     vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gyz,1);
     vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gzz,1);
     vcchi.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_chi,1);
-    interp = pmy_block_->pz4c->ig_coarse;
     auto lambda = [](AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>& gamma_dd,
                      AthenaArray<Real>& vcchi,
                      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0>& chi,
-                     InterpIntergridLocal* interp,
                      int il, int iu, int j, int k) -> void {
       #pragma omp simd
       for (int i = il; i <= iu; i++) {
-        #if FORCE_PS_LINEAR
         chi(i) = VCInterpolation(vcchi, k, j, i);
-        #else
-        chi(i) = interp->map3d_VC2CC(vcchi(k, j, i));
-        #endif
         gamma_dd(0, 0, i) = gamma_dd(0, 0, i)/chi(i);
         gamma_dd(0, 1, i) = gamma_dd(0, 1, i)/chi(i);
         gamma_dd(0, 2, i) = gamma_dd(0, 2, i)/chi(i);
@@ -196,24 +184,14 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
       // Extract the metric at the vertex centers and interpolate to cell centers.
       //#pragma omp simd
       for (int i = il; i <= iu; ++i) {
-        // DEBUG ONLY
-        #if FORCE_PS_LINEAR
         gamma_dd(0,0,i) = VCInterpolation(vcgamma_xx, k, j, i);
         gamma_dd(0,1,i) = VCInterpolation(vcgamma_xy, k, j, i);
         gamma_dd(0,2,i) = VCInterpolation(vcgamma_xz, k, j, i);
         gamma_dd(1,1,i) = VCInterpolation(vcgamma_yy, k, j, i);
         gamma_dd(1,2,i) = VCInterpolation(vcgamma_yz, k, j, i);
         gamma_dd(2,2,i) = VCInterpolation(vcgamma_zz, k, j, i);
-        #else
-        gamma_dd(0,0,i) = interp->map3d_VC2CC(vcgamma_xx(k,j,i));
-        gamma_dd(0,1,i) = interp->map3d_VC2CC(vcgamma_xy(k,j,i));
-        gamma_dd(0,2,i) = interp->map3d_VC2CC(vcgamma_xz(k,j,i));
-        gamma_dd(1,1,i) = interp->map3d_VC2CC(vcgamma_yy(k,j,i));
-        gamma_dd(1,2,i) = interp->map3d_VC2CC(vcgamma_yz(k,j,i));
-        gamma_dd(2,2,i) = interp->map3d_VC2CC(vcgamma_zz(k,j,i));
-        #endif
       }
-      rescale_metric(gamma_dd, vcchi, chi, interp, il, iu, j, k);
+      rescale_metric(gamma_dd, vcchi, chi, il, iu, j, k);
 
       // Extract the primitive variables
       #pragma omp simd
@@ -344,21 +322,12 @@ void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim, AthenaArray<
   for (int k=kl; k<=ku; ++k) {
     for (int j=jl; j<=ju; ++j) {
       for (int i=il; i<=iu; ++i) {
-        #if FORCE_PS_LINEAR
         gamma_dd(0,0,i) = VCInterpolation(vcgamma_xx, k, j, i);
         gamma_dd(0,1,i) = VCInterpolation(vcgamma_xy, k, j, i);
         gamma_dd(0,2,i) = VCInterpolation(vcgamma_xz, k, j, i);
         gamma_dd(1,1,i) = VCInterpolation(vcgamma_yy, k, j, i);
         gamma_dd(1,2,i) = VCInterpolation(vcgamma_yz, k, j, i);
         gamma_dd(2,2,i) = VCInterpolation(vcgamma_zz, k, j, i);
-        #else
-        gamma_dd(0,0,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
-        gamma_dd(0,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
-        gamma_dd(0,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
-        gamma_dd(1,1,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
-        gamma_dd(1,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
-        gamma_dd(2,2,i) = pmy_block_->pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
-        #endif
       }
       // Calculate the conserved variables at every point.
       for (int i=il; i<=iu; ++i) {
@@ -536,15 +505,4 @@ void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, AthenaArray<
   for (int l=0; l<NSCALARS; l++) prim_scalar(l,k,j,i) = Y[l];
   }
   return;
-}
-
-//---------------------------------------------------------------------------------------
-// \!fn static Real VCInterpolation(AthenaArray<Real> &in, int k, int j, int i)
-// \brief Perform linear interpolation to the desired cell-centered grid index.
-
-static Real VCInterpolation(AthenaArray<Real> &in, int k, int j, int i) {
-  return 0.125*(((in(k, j, i) + in(k + 1, j + 1, i + 1)) // lower-left-front to upper-right-back
-               + (in(k+1, j+1, i) + in(k, j, i+1))) // upper-left-back to lower-right-front
-               +((in(k, j+1, i) + in(k + 1, j, i+1)) // lower-left-back to upper-right-front
-               + (in(k+1, j, i) + in(k, j+1, i+1)))); // upper-left-front to lower-right-back
 }
