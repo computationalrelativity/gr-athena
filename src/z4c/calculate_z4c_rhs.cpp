@@ -154,8 +154,8 @@ void Z4c::Z4cRHS(
     for(int a = 0; a < NDIM; ++a) {
       ILOOP1(i) {
         Lalpha(i) += fd->Lx(a, z4c.beta_u(a,k,j,i), z4c.alpha(k,j,i));
-        Lchi(i) += fd->Lx(a, z4c.beta_u(a,k,j,i), z4c.chi(k,j,i));
-        LKhat(i) += fd->Lx(a, z4c.beta_u(a,k,j,i), z4c.Khat(k,j,i));
+        Lchi(i)   += fd->Lx(a, z4c.beta_u(a,k,j,i), z4c.chi(k,j,i)  );
+        LKhat(i)  += fd->Lx(a, z4c.beta_u(a,k,j,i), z4c.Khat(k,j,i) );
         LTheta(i) += fd->Lx(a, z4c.beta_u(a,k,j,i), z4c.Theta(k,j,i));
       }
     }

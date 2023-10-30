@@ -68,9 +68,10 @@ markersize = 0.7
 # specify directory containing simulation output in athdf
 dir_base = "${PWD}/../outputs/"
 sim_tags = [
+  "z4c_cx/tov_cx_ninterp1",
   "z4c_cx/tov_cx_ninterp2",
+  "z4c_vc/tov_vc_ninterp1",
   "z4c_vc/tov_vc_ninterp2",
-  "z4c_cx/tov_cx_ninterp2_hybridinterp",
   "z4c_vc/tov_vc_ninterp2_hybridinterp",
 ]
 
@@ -93,30 +94,28 @@ for tix, tag_sim in enumerate(sim_tags):
                    color=col_s[tix],
                    ms=markersize)
 
-  ax_A[1].plot(T, max_rho,
+  ax_A[1].plot(T, max_rho - max_rho[0],
                mkr_s[tix],
                label=tag_sim,
                color=col_s[tix],
                ms=markersize)
 
-  ax_A[0].legend(loc="upper left", fontsize="small")
+ax_A[0].legend(loc="lower right", fontsize="small")
 
-  ax_A[0].set_ylabel("$|1 - M(t) / M(0)|$")
-  ax_A[1].set_ylabel("$\\rho_c$")
-  ax_A[1].set_xlabel("$t$")
+ax_A[0].set_ylabel("$|1 - M(t) / M(0)|$")
+ax_A[1].set_ylabel("$\\rho_c - \\rho_c(0)$")
+ax_A[1].set_xlabel("$t$")
 
-  # ax_A.set_xlim([0, 12])
-  # ax_A.set_ylim([1e-17, 1e-9])
+fig_A.align_ylabels()
+fig_A.tight_layout()
 
-  fig_A.align_ylabels()
-  fig_A.tight_layout()
+# ax_A[1].set_xlim([0, 12])
+ax_A[1].set_ylim([-45e-5, 5e-5])
 
-
-  plt.savefig(
-    "fig_cx_vc.png",
-    **plot_save_settings
-  )
-
+plt.savefig(
+  "fig_cx_vc.png",
+  **plot_save_settings
+)
 
 plt.show()
 

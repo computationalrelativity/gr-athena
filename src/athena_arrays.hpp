@@ -20,6 +20,14 @@
 #include <cstring>   // memset()
 #include <utility>   // swap()
 #include <cstdio>    // debug
+
+// dump data as ascii ---------------------------------------------------------
+#include <sys/stat.h>
+#include <fstream>
+#include <ios>
+#include <sstream>
+// ----------------------------------------------------------------------------
+
 // Athena++ headers
 
 template <typename T>
@@ -169,6 +177,63 @@ class AthenaArray {
 
   // make use of internal dim if not provided
   void InitWithShallowSlice(AthenaArray<T> &src, const int indx, const int nvar);
+
+  // --------------------------------------------------------------------------
+  // dump to file for debug
+  inline bool file_exists(const std::string& fn)
+  {
+    struct stat buffer;
+    return (stat (fn.c_str(), &buffer) == 0);
+  }
+
+  void dump(const char * fn)
+  {
+    return dump(std::string(fn));
+  }
+
+  void dump(const std::string& fn)
+  {
+    std::ofstream     sout;
+
+    const bool need_dim_info = !file_exists(fn);
+
+    if (need_dim_info)
+    {
+      sout.open(fn, std::ios::app);
+
+      std::stringstream ssdata;
+      ssdata << "# ";
+
+      for(int d = 0; d < dim_; d++)
+      {
+        ssdata << GetDim(d + 1 ) << " ";
+      }
+
+      sout << ssdata.str() << std::endl;
+
+      sout.close();
+    }
+
+    // actual data...
+    {
+      std::stringstream ssdata;
+
+      const int PREC { 18 };
+      std::ios_base::fmtflags ff = ssdata.flags();
+      ff |= std::ios_base::scientific;
+      ssdata.flags(ff);
+      ssdata.precision(PREC);
+
+      for(size_t ix=0; ix < GetSize(); ++ix)
+      {
+        ssdata << pdata_[ix] << " ";
+      }
+
+      sout.open(fn, std::ios::app);
+      sout << ssdata.str() << std::endl;
+      sout.close();
+    }
+  }
 
   // --------------------------------------------------------------------------
   // dump various information of array and contents

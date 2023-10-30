@@ -261,7 +261,7 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
   TaskListTriggers.con.next_time = pm->time;
   // Seed TaskListTriggers.con.dt in main
 
-//from Z4cIntegratorTaskList
+//from MatterTaskList
 
   // Initialize dt for history output to calculate the constraint
   InputBlock *pib = pin->pfirst_block;
@@ -934,6 +934,13 @@ TaskStatus MatterTaskList::ClearAllBoundary(MeshBlock *pmb, int stage) {
 // Functions to calculates fluxes
 
 TaskStatus MatterTaskList::CalculateHydroFlux(MeshBlock *pmb, int stage) {
+#if defined(DBG_HYDRO_DUMPS)
+    pmb->phydro->w.dump("data.CalculateHydroFlux.w.pre.tov");
+    pmb->phydro->flux[0].dump("data.CalculateHydroFlux.flux_0.pre.tov");
+    pmb->phydro->flux[1].dump("data.CalculateHydroFlux.flux_1.pre.tov");
+    pmb->phydro->flux[2].dump("data.CalculateHydroFlux.flux_2.pre.tov");
+#endif // DBG_HYDRO_DUMPS
+
   Hydro *phydro = pmb->phydro;
   Field *pfield = pmb->pfield;
 
@@ -943,7 +950,16 @@ TaskStatus MatterTaskList::CalculateHydroFlux(MeshBlock *pmb, int stage) {
       phydro->CalculateFluxes(phydro->w,  pfield->b,  pfield->bcc, 1);
       return TaskStatus::next;
     } else {
+
       phydro->CalculateFluxes(phydro->w,  pfield->b,  pfield->bcc, pmb->precon->xorder);
+
+#if defined(DBG_HYDRO_DUMPS)
+    pmb->phydro->w.dump("data.CalculateHydroFlux.w.post.tov");
+    pmb->phydro->flux[0].dump("data.CalculateHydroFlux.flux_0.post.tov");
+    pmb->phydro->flux[1].dump("data.CalculateHydroFlux.flux_1.post.tov");
+    pmb->phydro->flux[2].dump("data.CalculateHydroFlux.flux_2.post.tov");
+#endif // DBG_HYDRO_DUMPS
+
       return TaskStatus::next;
     }
   }
@@ -1322,6 +1338,15 @@ TaskStatus MatterTaskList::Prolongation_Hyd(MeshBlock *pmb, int stage) {
 
 
 TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
+#if defined(DBG_HYDRO_DUMPS)
+    pmb->phydro->w.dump("data.Primitives.w.pre.tov");
+    pmb->phydro->u.dump("data.Primitives.u.pre.tov");
+
+    pmb->pz4c->storage.u.dump("data.Primitives.storage.u.pre.tov");
+    pmb->pz4c->storage.adm.dump("data.Primitives.storage.adm.pre.tov");
+#endif // DBG_HYDRO_DUMPS
+
+
   Hydro *ph = pmb->phydro;
   Field *pf = pmb->pfield;
   PassiveScalars *ps = pmb->pscalars;
@@ -1340,6 +1365,8 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
 
 
   if (stage <= nstages) {
+    // pmb->pz4c->Z4cToADM(pmb->pz4c->storage.u, pmb->pz4c->storage.adm);  // DEBUG
+
     // At beginning of this task, ph->w contains previous stage's W(U) output
     // and ph->w1 is used as a register to store the current stage's output.
     // For the second order integrators VL2 and RK2, the prim_old initial guess for the
@@ -1382,6 +1409,14 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
   } else {
     return TaskStatus::fail;
   }
+
+#if defined(DBG_HYDRO_DUMPS)
+    pmb->phydro->w.dump("data.Primitives.w.post.tov");
+    pmb->phydro->u.dump("data.Primitives.u.post.tov");
+
+    pmb->pz4c->storage.u.dump("data.Primitives.storage.u.post.tov");
+    pmb->pz4c->storage.adm.dump("data.Primitives.storage.adm.post.tov");
+#endif // DBG_HYDRO_DUMPS
 
   return TaskStatus::success;
 }
@@ -1576,39 +1611,42 @@ TaskStatus MatterTaskList::DiffuseScalars(MeshBlock *pmb, int stage) {
 // Z4C tasks begin here
 
 TaskStatus MatterTaskList::CalculateZ4cRHS(MeshBlock *pmb, int stage) {
-//printf("rhsz4c\n");
-/*
-#ifdef Z4C_TRACKER
-  // Tracker: interpolate beta at puncture position before evolution
-  if (stage==1) {
-    for (int i_punc = 0; i_punc<NPUNCT; i_punc++) {
-      pmb->pz4c_tracker_loc->StoreBetaPrev(pmb->pz4c_tracker_loc->betap, pmb->pz4c->storage.u, i_punc);
-    }
-  }
-#endif // Z4C_TRACKER
-*/
+#if defined(DBG_HYDRO_DUMPS)
+    pmb->pz4c->mbi.x1.dump("z4c_x1");
+    pmb->pz4c->mbi.x2.dump("z4c_x2");
+    pmb->pz4c->mbi.x3.dump("z4c_x3");
+
+    pmb->pz4c->storage.u.dump(  "data.CalculateZ4cRHS.storage.u.pre.tov");
+    pmb->pz4c->storage.mat.dump("data.CalculateZ4cRHS.storage.mat.pre.tov");
+    pmb->pz4c->storage.rhs.dump("data.CalculateZ4cRHS.storage.rhs.pre.tov");
+    pmb->phydro->w.dump(        "data.CalculateZ4cRHS.w.pre.tov");
+#endif // DBG_HYDRO_DUMPS
 
  // PunctureTracker: interpolate beta at puncture position before evolution
-
-
   if (stage == 1) {
     for (auto ptracker : pmb->pmy_mesh->pz4c_tracker) {
       ptracker->InterpolateShift(pmb, pmb->pz4c->storage.u);
     }
   }
 
-
-
-
-  if (stage <= nstages) {
+  if (stage <= nstages)
+  {
     pmb->pz4c->Z4cRHS(pmb->pz4c->storage.u,
                       pmb->pz4c->storage.mat,
                       pmb->pz4c->storage.rhs);
 
     // application of Sommerfeld boundary conditions
-        pmb->pz4c->Z4cBoundaryRHS(pmb->pz4c->storage.u,
-                              pmb->pz4c->storage.mat,
-                              pmb->pz4c->storage.rhs);
+    pmb->pz4c->Z4cBoundaryRHS(pmb->pz4c->storage.u,
+                          pmb->pz4c->storage.mat,
+                          pmb->pz4c->storage.rhs);
+
+#if defined(DBG_HYDRO_DUMPS)
+    pmb->pz4c->storage.u.dump(  "data.CalculateZ4cRHS.storage.u.post.tov");
+    pmb->pz4c->storage.mat.dump("data.CalculateZ4cRHS.storage.mat.post.tov");
+    pmb->pz4c->storage.rhs.dump("data.CalculateZ4cRHS.storage.rhs.post.tov");
+    pmb->phydro->w.dump(        "data.CalculateZ4cRHS.w.post.tov");
+#endif // DBG_HYDRO_DUMPS
+
     return TaskStatus::next;
   }
   return TaskStatus::fail;
@@ -1736,17 +1774,37 @@ TaskStatus MatterTaskList::PhysicalBoundary_Z4c(MeshBlock *pmb, int stage) {
 TaskStatus MatterTaskList::EnforceAlgConstr(MeshBlock *pmb, int stage) {
   if (stage != nstages) return TaskStatus::success; // only do on last stage
 
+#if defined(DBG_HYDRO_DUMPS)
+    pmb->pz4c->storage.u.dump("data.EnforceAlgConstr.storage.u.pre.tov");
+#endif // DBG_HYDRO_DUMPS
+
   pmb->pz4c->AlgConstr(pmb->pz4c->storage.u);
+
+#if defined(DBG_HYDRO_DUMPS)
+    pmb->pz4c->storage.u.dump("data.EnforceAlgConstr.storage.u.post.tov");
+#endif // DBG_HYDRO_DUMPS
+
   return TaskStatus::success;
 }
 
 TaskStatus MatterTaskList::Z4cToADM(MeshBlock *pmb, int stage) {
+#if defined(DBG_HYDRO_DUMPS)
+    pmb->pz4c->storage.u.dump(  "data.Z4cToADM.storage.u.pre.tov");
+    pmb->pz4c->storage.adm.dump("data.Z4cToADM.storage.adm.pre.tov");
+#endif // DBG_HYDRO_DUMPS
+
   if (stage <= nstages) {
 //  if (stage != nstages) return TaskStatus::success;
     pmb->pz4c->Z4cToADM(pmb->pz4c->storage.u, pmb->pz4c->storage.adm);
   } else {
     return TaskStatus::fail;
   }
+
+#if defined(DBG_HYDRO_DUMPS)
+    pmb->pz4c->storage.u.dump(  "data.Z4cToADM.storage.u.post.tov");
+    pmb->pz4c->storage.adm.dump("data.Z4cToADM.storage.adm.post.tov");
+#endif // DBG_HYDRO_DUMPS
+
   return TaskStatus::success;
 }
 //WGC wext
@@ -1846,8 +1904,22 @@ TaskStatus MatterTaskList::UpdateMetric(MeshBlock *pmb, int stage) {
 TaskStatus MatterTaskList::UpdateSource(MeshBlock *pmb, int stage) {
 //printf("updatesrc\n");
   if (stage <= nstages) { 
+
+#if defined(DBG_HYDRO_DUMPS)
+    pmb->pz4c->storage.mat.dump("data.UpdateSource.storage.mat.pre.tov");
+    pmb->pz4c->storage.adm.dump("data.UpdateSource.storage.adm.pre.tov");
+    pmb->phydro->w.dump("data.UpdateSource.phydro.w.pre.tov");
+#endif // DBG_HYDRO_DUMPS
+
 // Update VC matter 
     pmb->pz4c->GetMatter(pmb->pz4c->storage.mat, pmb->pz4c->storage.adm, pmb->phydro->w, pmb->pfield->bcc);
+
+#if defined(DBG_HYDRO_DUMPS)
+    pmb->pz4c->storage.mat.dump("data.UpdateSource.storage.mat.post.tov");
+    pmb->pz4c->storage.adm.dump("data.UpdateSource.storage.adm.post.tov");
+    pmb->phydro->w.dump(        "data.UpdateSource.phydro.w.post.tov");
+#endif // DBG_HYDRO_DUMPS
+
     return TaskStatus::success;
   }
   return TaskStatus::fail;

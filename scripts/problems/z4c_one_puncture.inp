@@ -55,7 +55,7 @@ data_format     = %.16e
 <output4>
 file_type       = hdf5                 # Athena++ hdf5 data
 variable        = con                  # variables to be output
-dt              = 1                  # time increment between outputs
+dt              = 0.1                  # time increment between outputs
 data_format     = %.16e
 
 <time>

@@ -546,6 +546,10 @@ int main(int argc, char *argv[]) {
     }
   }
 
+#if defined(DBG_HYDRO_DUMPS)
+  int DBG_TICK = 0;
+#endif // DBG_HYDRO_DUMPS
+
   while ((pmesh->time < pmesh->tlim) &&
          (pmesh->nlim < 0 || pmesh->ncycle < pmesh->nlim)) {
 
@@ -616,10 +620,7 @@ int main(int argc, char *argv[]) {
 
       } //FLUID_ENABLED
 
-
       pz4cauxlist->DoTaskListOneStage(pmesh, 1);  // only 1 stage
-
-      
 
       // BD: TODO - check that the following are not displaced by \dt ?
       // only do an extraction if NextTime threshold cleared (updated below)
@@ -701,6 +702,16 @@ int main(int argc, char *argv[]) {
       }
       pz4cauxlist->UpdateTaskListTriggers();
       //-------------------------------------------------------------------------
+
+#if defined(DBG_HYDRO_DUMPS)
+      // dump data during task-list of a single step (all stages)
+      // then exit.
+      if ( DBG_TICK == 5)
+        std::exit(0);
+      else
+        DBG_TICK++;
+#endif // DBG_HYDRO_DUMPS
+
     }
 
     pmesh->UserWorkInLoop();

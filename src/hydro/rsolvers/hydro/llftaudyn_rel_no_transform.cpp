@@ -48,6 +48,13 @@ void Hydro::RiemannSolver(
   AthenaArray<Real> &flux,
   const AthenaArray<Real> &dxw)
 {
+
+// #if defined(DBG_HYDRO_DUMPS)
+//     prim_l.dump("data.rsolver.prim_l.tov");
+//     prim_r.dump("data.rsolver.prim_r.tov");
+//     const_cast<AthenaArray<Real>&>(dxw).dump("data.rsolver.dxw.tov");
+// #endif // DBG_HYDRO_DUMPS
+
   using namespace LinearAlgebra;
 
   // Calculate cyclic permutations of indices
@@ -128,20 +135,28 @@ void Hydro::RiemannSolver(
   pco_gr->GetGeometricFieldFC(alpha,    z4c_alpha,    ivx-1, k, j);
   pco_gr->GetGeometricFieldFC(beta_u,   z4c_beta_u,   ivx-1, k, j);
 
-  if (0)
-  {
-    std::cout << "---------------------------" << std::endl;
-    gamma_dd.array().print_all("%1.4e");
-    std::cout << "---------------------------" << std::endl;
-    alpha.array().print_all("%1.4e");
-    std::cout << "---------------------------" << std::endl;
-    beta_u.array().print_all("%1.4e");
-    std::cout << "---------------------------" << std::endl;
-    while(true)
-    {
-      std::exit(0);
-    }
-  }
+
+// #if defined(DBG_HYDRO_DUMPS)
+//   if (ivx==1)
+//   {
+//     alpha.array().dump("data.rsolver.alpha_1.tov");
+//     beta_u.array().dump("data.rsolver.beta_1.tov");
+//     gamma_dd.array().dump("data.rsolver.gamma_1.tov");
+//   }
+//   else if (ivx==2)
+//   {
+//     alpha.array().dump("data.rsolver.alpha_2.tov");
+//     beta_u.array().dump("data.rsolver.beta_2.tov");
+//     gamma_dd.array().dump("data.rsolver.gamma_2.tov");
+//   }
+//   else if (ivx==3)
+//   {
+//     alpha.array().dump("data.rsolver.alpha_3.tov");
+//     beta_u.array().dump("data.rsolver.beta_3.tov");
+//     gamma_dd.array().dump("data.rsolver.gamma_3.tov");
+//   }
+// #endif // DBG_HYDRO_DUMPS
+
 
   #pragma omp simd
   for (int i = il; i <= iu; ++i)
@@ -169,6 +184,10 @@ void Hydro::RiemannSolver(
     pgas_r(i) = prim_r(IPR,i);
   }
 
+// #if defined(DBG_HYDRO_DUMPS)
+//     pgas_l.array().dump("data.rsolver.pgas_l_first.tov");
+//     pgas_r.array().dump("data.rsolver.pgas_r_first.tov");
+// #endif // DBG_HYDRO_DUMPS
 
 
       for(a=0;a<NDIM;++a){
@@ -301,6 +320,27 @@ void Hydro::RiemannSolver(
         pmy_block->peos->SoundSpeedsGR(wgas_r(i), pgas_r(i), v_u_r(ivx-1,i), v2_r(i), alpha(i), beta_u(ivx-1,i), gamma_uu(ivx-1,ivx-1,i),  &lambda_p_r(i), &lambda_m_r(i));
 #endif
 }
+
+// #if defined(DBG_HYDRO_DUMPS)
+//         pgas_l.array().dump("data.rsolver.pgas_l.tov");
+//         pgas_r.array().dump("data.rsolver.pgas_r.tov");
+//         wgas_l.array().dump("data.rsolver.wgas_l.tov");
+//         wgas_r.array().dump("data.rsolver.wgas_r.tov");
+//         v_u_l.array().dump("data.rsolver.v_u_l.tov");
+//         v_u_r.array().dump("data.rsolver.v_u_r.tov");
+//         v2_l.array().dump("data.rsolver.v2_l.tov");
+//         v2_r.array().dump("data.rsolver.v2_r.tov");
+
+//         gamma_uu.array().dump("data.rsolver.gamma_uu.tov");
+
+//         lambda_p_l.array().dump("data.rsolver.lambda_p_l.tov");
+//         lambda_m_l.array().dump("data.rsolver.lambda_m_l.tov");
+
+//         lambda_p_r.array().dump("data.rsolver.lambda_p_r.tov");
+//         lambda_m_r.array().dump("data.rsolver.lambda_m_r.tov");
+// #endif // DBG_HYDRO_DUMPS
+
+
         // Calculate extremal wavespeed
          #pragma omp simd
       for (int i = il; i <= iu; ++i){
@@ -358,6 +398,12 @@ void Hydro::RiemannSolver(
         flux_r(IVY,i) = cons_r(IVY,i) * alpha(i) * (v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i));      
         flux_r(IVZ,i) = cons_r(IVZ,i) * alpha(i) * (v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i));      
         flux_r(ivx,i) += pgas_r(i)*std::sqrt(detg(i));
+
+// #if defined(DBG_HYDRO_DUMPS)
+//         flux_l.dump("data.rsolver.flux_l.tov");
+//         flux_r.dump("data.rsolver.flux_r.tov");
+// #endif // DBG_HYDRO_DUMPS
+
        } 
       // Set fluxes
         for (int n = 0; n < NHYDRO; ++n) {
@@ -367,7 +413,6 @@ void Hydro::RiemannSolver(
               0.5 * (flux_l(n,i) + flux_r(n,i) - lambda(i) * (cons_r(n,i) - cons_l(n,i)));
           }
         }
-
 
       alpha.DeleteAthenaTensor();
       detg.DeleteAthenaTensor();

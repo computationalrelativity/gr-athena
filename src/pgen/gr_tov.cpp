@@ -446,7 +446,13 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord, ilcc,iucc,jlcc,jucc,klcc,kucc);
 
 #endif
-  
+  // phydro->w.dump("w.txt");
+  // std::exit(0);
+  // phydro->w_init.Fill(0);
+  // phydro->w.Fill(0);
+  // phydro->w1.Fill(0);
+  // pz4c->storage.mat.Fill(0);
+
   // Initialise conserved variables
   peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord,
                              0, ncells1,
@@ -456,10 +462,24 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   // Initialise matter (also taken care of in task-list)
   pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm,
                   phydro->w, pfield->bcc);
+
   pz4c->ADMConstraints(pz4c->storage.con,
                        pz4c->storage.adm,
                        pz4c->storage.mat,
                        pz4c->storage.u);
+
+  // dump files for ini pointwise cmp.
+#if defined(DBG_HYDRO_DUMPS)
+    pz4c->storage.u.dump("data.ini.u.tov");
+    pz4c->storage.con.dump("data.ini.con.tov");
+    pz4c->storage.adm.dump("data.ini.adm.tov");
+    pz4c->storage.mat.dump("data.ini.mat.tov");
+    phydro->w.dump("data.ini.w.tov");
+
+    mbi->x1.dump("vc_x1");
+    mbi->x2.dump("vc_x2");
+    mbi->x3.dump("vc_x3");
+#endif // DBG_HYDRO_DUMPS
 
   return;
 }

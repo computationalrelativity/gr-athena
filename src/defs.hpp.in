@@ -39,6 +39,9 @@
 // reduce auxiliary comms. (removes coarse buffer BC application however)
 #define NO_DBG_REDUCE_AUX_COMM
 
+// debug dumping
+#define NO_DBG_HYDRO_DUMPS
+
 //----------------------------------------------------------------------------------------
 // macros which define physics and algorithms
 
