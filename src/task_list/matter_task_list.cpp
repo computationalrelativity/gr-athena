@@ -787,7 +787,7 @@ void MatterTaskList::AddTask(const TaskID& id, const TaskID& dep) {
     } else if (id == Z4C_TO_ADM) {
       task_list_[ntasks].TaskFunc=
         static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&Z4cIntegratorTaskList::Z4cToADM);
+        (&MatterTaskList::Z4cToADM);
       task_list_[ntasks].lb_time = true;
     } else if (id == ADM_CONSTR) {
       task_list_[ntasks].TaskFunc=
@@ -809,7 +809,7 @@ void MatterTaskList::AddTask(const TaskID& id, const TaskID& dep) {
     else if (id == ASSERT_FIN) {
       task_list_[ntasks].TaskFunc=
         static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&Z4cIntegratorTaskList::AssertFinite);
+        (&MatterTaskList::AssertFinite);
       task_list_[ntasks].lb_time = false;
     }
 #endif // Z4C_ASSERT_FINITE
