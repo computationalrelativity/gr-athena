@@ -22,30 +22,12 @@
 #include "../z4c/z4c.hpp"
 #include "../z4c/z4c_macro.hpp"
 #include "coordinates.hpp"
+#include "../utils/linear_algebra.hpp"
 
 //SB TODO this needs a cleanup
 #define CLOOP1(i)				\
   _Pragma("omp simd")				\
   for (int i=is; i<=ie; ++i)
-
-namespace {
-  // Declarations
-  Real Determinant(const AthenaArray<Real> &g);
-  Real Determinant(Real a11, Real a12, Real a13, Real a21, Real a22, Real a23,
-		   Real a31, Real a32, Real a33);
-  Real Determinant(Real a11, Real a12, Real a21, Real a22);
-  void Invert4Metric(AthenaArray<Real> &ginv, AthenaArray<Real> &g);
-  void CalculateTransformation(
-			       const AthenaArray<Real> &g,
-			       const AthenaArray<Real> &g_inv, int face, AthenaArray<Real> &transformation);
-  Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
-                  int const i);
-  void Inverse3Metric(Real const detginv,
-		      Real const gxx, Real const gxy, Real const gxz,
-		      Real const gyy, Real const gyz, Real const gzz,
-		      Real * uxx, Real * uxy, Real * uxz,
-		      Real * uyy, Real * uyz, Real * uzz);
-} // namespace
 
 //----------------------------------------------------------------------------------------
 // GRDynamical Constructor
@@ -435,9 +417,14 @@ Real GRDynamical::GetCellVolume(const int k, const int j, const int i) {
 // Outputs:
 //   cons: source terms added to 3D array of conserved variables
 
-void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real> *flux,
-					  const AthenaArray<Real> &prim, const AthenaArray<Real> &bb_cc,
-					  AthenaArray<Real> &cons) {
+void GRDynamical::AddCoordTermsDivergence(
+  const Real dt,
+  const AthenaArray<Real> *flux,
+  const AthenaArray<Real> &prim,
+  const AthenaArray<Real> &bb_cc,
+  AthenaArray<Real> &cons)
+{
+  using namespace LinearAlgebra;
 
   // Extract indices
   int is = pmy_block->is;
@@ -586,10 +573,11 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
       }
     }
 
-    CLOOP1(i)
+    _Pragma("omp simd")
+    for (int i=is; i<=ie; ++i)
     {
       detg(i) = Det3Metric(gamma_dd, i);
-      Inverse3Metric(
+      Inv3Metric(
         1.0/detg(i),
         gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
         gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i),
@@ -628,11 +616,13 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
 
     for(a=0;a<NDIM;++a)
     for(b=0;b<NDIM;++b)
-	  CLOOP1(i){
+	  CLOOP1(i)
+  {
 	    Wlor(i) += utilde_u(a,i)*utilde_u(b,i)*gamma_dd(a,b,i);
 	  }
 
-    CLOOP1(i){
+    CLOOP1(i)
+    {
     	Wlor(i) = std::sqrt(1.0+Wlor(i));
     }
 
@@ -656,7 +646,8 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
     v_d.ZeroClear();
     for(a=0;a<NDIM;++a)
   	for(b=0;b<NDIM;++b)
-	  CLOOP1(i){
+	  CLOOP1(i)
+  {
 	    v_d(a,i) += v_u(b,i)*gamma_dd(a,b,i);
 	  }
 
@@ -697,7 +688,8 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
 
         for(c=0; c<NDIM; ++c)
         {
-          CLOOP1(i){
+          CLOOP1(i)
+          {
             SS_d(a,i) += (0.5*(wtot(i)*SQR(Wlor(i))*v_u(b,i)*v_u(c,i) +
                                pgas(i)*gamma_uu(b,c,i))*dgamma_ddd(a,b,c,i));
           }
@@ -1134,184 +1126,3 @@ void GRDynamical::FluxToGlobal3(
   // Possibly useful in the future, See GRUser for code.
   return;
 }
-
-namespace {
-
-  //SB TODO this can be probably removed
-  
-  //----------------------------------------------------------------------------------------
-  // Functions for calculating determinant
-  // Inputs:
-  //   g: array of covariant metric coefficients
-  //   a11,a12,a13,a21,a22,a23,a31,a32,a33: elements of matrix
-  //   a11,a12,a21,a22: elements of matrix
-  // Outputs:
-  //   returned value: determinant
-
-  Real Determinant(const AthenaArray<Real> &g) {
-    const Real &a11 = g(I00);
-    const Real &a12 = g(I01);
-    const Real &a13 = g(I02);
-    const Real &a14 = g(I03);
-    const Real &a21 = g(I01);
-    const Real &a22 = g(I11);
-    const Real &a23 = g(I12);
-    const Real &a24 = g(I13);
-    const Real &a31 = g(I02);
-    const Real &a32 = g(I12);
-    const Real &a33 = g(I22);
-    const Real &a34 = g(I23);
-    const Real &a41 = g(I03);
-    const Real &a42 = g(I13);
-    const Real &a43 = g(I23);
-    const Real &a44 = g(I33);
-    Real det = a11 * Determinant(a22, a23, a24, a32, a33, a34, a42, a43, a44)
-      - a12 * Determinant(a21, a23, a24, a31, a33, a34, a41, a43, a44)
-      + a13 * Determinant(a21, a22, a24, a31, a32, a34, a41, a42, a44)
-      - a14 * Determinant(a21, a22, a23, a31, a32, a33, a41, a42, a43);
-    return det;
-  }
-
-  Real Determinant(Real a11, Real a12, Real a13, Real a21, Real a22, Real a23,
-		   Real a31, Real a32, Real a33) {
-    Real det = a11 * Determinant(a22, a23, a32, a33)
-      - a12 * Determinant(a21, a23, a31, a33)
-      + a13 * Determinant(a21, a22, a31, a32);
-    return det;
-  }
-
-  Real Determinant(Real a11, Real a12, Real a21, Real a22) {
-    return a11 * a22 - a12 * a21;
-  }
-
-  void Invert4Metric(AthenaArray<Real> &ginv, AthenaArray<Real> &g){
-    const Real &a11 = g(I00);
-    const Real &a12 = g(I01);
-    const Real &a13 = g(I02);
-    const Real &a14 = g(I03);
-    const Real &a21 = g(I01);
-    const Real &a22 = g(I11);
-    const Real &a23 = g(I12);
-    const Real &a24 = g(I13);
-    const Real &a31 = g(I02);
-    const Real &a32 = g(I12);
-    const Real &a33 = g(I22);
-    const Real &a34 = g(I23);
-    const Real &a41 = g(I03);
-    const Real &a42 = g(I13);
-    const Real &a43 = g(I23);
-    const Real &a44 = g(I33);
-
-    Real detg = Determinant(g);
-    ginv(I00) = Determinant(a22,a23,a24,a32,a33,a34,a42,a43,a44)/detg;
-    ginv(I01) = -1.0*Determinant(a12,a13,a14,a32,a33,a34,a42,a43,a44)/detg;
-    ginv(I02) = Determinant(a12,a13,a14,a22,a23,a24,a42,a43,a44)/detg;
-    ginv(I03) = -1.0*Determinant(a12,a13,a14,a22,a23,a24,a32,a33,a34)/detg;
-    ginv(I11) = Determinant(a11,a13,a14,a31,a33,a34,a41,a43,a44)/detg;
-    ginv(I12) = -1.0*Determinant(a11,a13,a14,a21,a23,a24,a41,a43,a44)/detg;
-    ginv(I13) = Determinant(a11,a13,a14,a21,a23,a24,a31,a33,a34)/detg;
-    ginv(I22) = Determinant(a11,a12,a14,a21,a22,a24,a41,a42,a44)/detg;
-    ginv(I23) = -1.0*Determinant(a11,a12,a14,a21,a22,a24,a31,a32,a34)/detg;
-    ginv(I33) = Determinant(a11,a12,a13,a21,a22,a23,a31,a32,a33)/detg;
-  }
-
-  //----------------------------------------------------------------------------------------
-  // Function for calculating frame transformation coefficients
-  // Inputs:
-  //   g,g_inv: arrays of covariant and contravariant metric coefficients
-  //   face: 1, 2, or 3 depending on which face is considered
-  // Outputs:
-  //   transformation: array of transformation coefficients
-
-  void CalculateTransformation(
-			       const AthenaArray<Real> &g,
-			       const AthenaArray<Real> &g_inv, int face, AthenaArray<Real> &transformation) {
-    // Prepare indices
-    int index[4][4];
-    index[0][0] = I00;
-    index[0][1] = I01; index[0][2] = I02; index[0][3] = I03;
-    index[1][1] = I11; index[1][2] = I12; index[1][3] = I13;
-    index[2][1] = I12; index[2][2] = I22; index[2][3] = I23;
-    index[3][1] = I13; index[3][2] = I23; index[3][3] = I33;
-
-    // Shift indices according to face
-    int i0 = 0;
-    int i1 = face;
-    int i2 = 1 + face%3;
-    int i3 = 1 + (face+1)%3;
-
-    // Extract metric coefficients
-    const Real &g_22 = g(index[i2][i2]);
-    const Real &g_23 = g(index[i2][i3]);
-    const Real &g_33 = g(index[i3][i3]);
-    const Real &g00 = g_inv(index[i0][i0]);
-    const Real &g01 = g_inv(index[i0][i1]);
-    const Real &g02 = g_inv(index[i0][i2]);
-    const Real &g03 = g_inv(index[i0][i3]);
-    const Real &g11 = g_inv(index[i1][i1]);
-    const Real &g12 = g_inv(index[i1][i2]);
-    const Real &g13 = g_inv(index[i1][i3]);
-
-    // Calculate intermediate quantities
-    Real aa = -1.0 / std::sqrt(-g00);
-    Real bb = 1.0 / std::sqrt(g00 * (g00 * g11 - SQR(g01)));
-    Real cc = 1.0 / std::sqrt(g_33);
-    Real dd = 1.0 / std::sqrt(g_33 * (g_22 * g_33 - SQR(g_23)));
-    Real ee = g01 * g12 - g11 * g02;
-    Real ff = g01 * g02 - g00 * g12;
-    Real gg = g01 * g13 - g11 * g03;
-    Real hh = g01 * g03 - g00 * g13;
-    Real ii = SQR(bb)/cc * g00 * (gg + ee * g_23/g_33);
-    Real jj = SQR(bb)/cc * g00 * (hh + ff * g_23/g_33);
-
-    // Set local-to-global transformation coefficients
-    transformation(0,T00) = aa * g00;
-    transformation(0,T10) = aa * g01;
-    transformation(0,T20) = aa * g02;
-    transformation(0,T30) = aa * g03;
-    transformation(0,T11) = bb * (g01 * g01 - g00 * g11);
-    transformation(0,T21) = bb * (g01 * g02 - g00 * g12);
-    transformation(0,T31) = bb * (g01 * g03 - g00 * g13);
-    transformation(0,T22) = dd * g_33;
-    transformation(0,T32) = -dd * g_23;
-    transformation(0,T33) = cc;
-
-    // Set global-to-local transformation coefficients
-    transformation(1,T00) = -aa;
-    transformation(1,T10) = bb * g01;
-    transformation(1,T11) = -bb * g00;
-    transformation(1,T20) = SQR(bb)*ee/dd * g00/g_33;
-    transformation(1,T21) = SQR(bb)*ff/dd * g00/g_33;
-    transformation(1,T22) = 1.0 / (dd * g_33);
-    transformation(1,T30) = ii;
-    transformation(1,T31) = jj;
-    transformation(1,T32) = 1.0/cc * g_23/g_33;
-    transformation(1,T33) = 1.0/cc;
-    return;
-  }
-
-  Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
-                  int const i)
-  {
-    return - SQR(gamma(0,2,i))*gamma(1,1,i) + 
-      2*gamma(0,1,i)*gamma(0,2,i)*gamma(1,2,i) - 
-      gamma(0,0,i)*SQR(gamma(1,2,i)) - SQR(gamma(0,1,i))*gamma(2,2,i) + 
-      gamma(0,0,i)*gamma(1,1,i)*gamma(2,2,i);
-  }
-
-  void Inverse3Metric(Real const detginv,
-		      Real const gxx, Real const gxy, Real const gxz,
-		      Real const gyy, Real const gyz, Real const gzz,
-		      Real * uxx, Real * uxy, Real * uxz,
-		      Real * uyy, Real * uyz, Real * uzz)
-  {
-    *uxx = (-SQR(gyz) + gyy*gzz)*detginv;
-    *uxy = (gxz*gyz  - gxy*gzz)*detginv;
-    *uyy = (-SQR(gxz) + gxx*gzz)*detginv;
-    *uxz = (-gxz*gyy + gxy*gyz)*detginv;
-    *uyz = (gxy*gxz  - gxx*gyz)*detginv;
-    *uzz = (-SQR(gxy) + gxx*gyy)*detginv;
-    return;
-  }
-
-} // namespace
