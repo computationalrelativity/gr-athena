@@ -55,6 +55,8 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) :
     pcoarsec = new KerrSchild(pmb, pin, true);
   } else if (std::strcmp(COORDINATE_SYSTEM, "gr_user") == 0) {
     pcoarsec = new GRUser(pmb, pin, true);
+  } else if (std::strcmp(COORDINATE_SYSTEM, "gr_dynamical") == 0) {
+    pcoarsec = new GRDynamical(pmb, pin, true);
   }
 
   int nc1 = pmb->ncells1;

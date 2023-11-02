@@ -240,19 +240,29 @@ void BoundaryValues::CheckUserBoundaries() {
 //  \brief initiate MPI_Irecv()
 
 void BoundaryValues::StartReceiving(BoundaryCommSubset phase) {
-  for (auto bvars_it = bvars_main_int.begin(); bvars_it != bvars_main_int.end();
-       ++bvars_it) {
+  for (auto bvars_it = bvars_main_int.begin();
+       bvars_it != bvars_main_int.end();
+       ++bvars_it)
+  {
     (*bvars_it)->StartReceiving(phase);
   }
 
-  for (auto bvars_it = bvars_main_int_vc.begin(); bvars_it != bvars_main_int_vc.end();
-       ++bvars_it) {
-    (*bvars_it)->StartReceiving(phase);
-  }
+  // Additional comm. for gr_amr in Mesh::Initialize
+  if (phase != BoundaryCommSubset::gr_amr)
+  {
+    for (auto bvars_it = bvars_main_int_vc.begin();
+         bvars_it != bvars_main_int_vc.end();
+         ++bvars_it)
+    {
+      (*bvars_it)->StartReceiving(phase);
+    }
 
-  for (auto bvars_it = bvars_main_int_cx.begin(); bvars_it != bvars_main_int_cx.end();
-       ++bvars_it) {
-    (*bvars_it)->StartReceiving(phase);
+    for (auto bvars_it = bvars_main_int_cx.begin();
+         bvars_it != bvars_main_int_cx.end();
+         ++bvars_it)
+    {
+      (*bvars_it)->StartReceiving(phase);
+    }
   }
 
   // KGF: begin shearing-box exclusive section of original StartReceivingForInit()
