@@ -562,6 +562,8 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real>
           dgamma_ddd(a,2,2,i) = idx[a]*VCDiff(a,vcgamma_zz,k,j,i);
           dalpha_d(a,i) = idx[a]*VCDiff(a,vcalpha,k,j,i);
           dbeta_du(a,0,i) = idx[a]*VCDiff(a,vcbeta_x,k,j,i);
+          dbeta_du(a,1,i) = idx[a]*VCDiff(a,vcbeta_y,k,j,i);
+          dbeta_du(a,2,i) = idx[a]*VCDiff(a,vcbeta_z,k,j,i);
         }
     }
 
