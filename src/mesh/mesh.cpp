@@ -1001,6 +1001,13 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
       pblock->next->prev = pblock;
       pblock = pblock->next;
     }
+
+    // BD: needed for cons<->prim after restart
+    if(Z4C_ENABLED && FLUID_ENABLED)
+    {
+      pblock->pz4c->Z4cToADM(pblock->pz4c->storage.u, pblock->pz4c->storage.adm);
+    }
+
     pblock->pbval->SearchAndSetNeighbors(tree, ranklist, nslist);
   }
   pblock = pfirst;
@@ -1688,16 +1695,16 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         pmb = pmb_array[i];
         pbval = pmb->pbval, ph = pmb->phydro, pf = pmb->pfield, ps = pmb->pscalars;
         pz4c = pmb->pz4c;
-//        if (multilevel)
-//          pbval->ProlongateBoundaries(time, 0.0);
-// WGC - TODO: prototype for split prolongate boundary functions from mattertrackerextrema
-        if (multilevel){
-        if(FLUID_ENABLED){        
-        pbval->ProlongateHydroBoundaries(time, 0.0);
+
+        if (multilevel)
+        {
+          if (FLUID_ENABLED)
+          {
+            pbval->ProlongateHydroBoundaries(time, 0.0);
+          }
+          //WGC separate prol functions
+          pbval->ProlongateBoundaries(time, 0.0);
         }
-        //WGC separate prol functions
-	pbval->ProlongateBoundaries(time, 0.0);
-	}
 
         int il = pmb->is, iu = pmb->ie,
           jl = pmb->js, ju = pmb->je,
@@ -1772,8 +1779,15 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         if (NSCALARS > 0)
           ps->sbvar.var_cc = &(ps->r);
 
-        pbval->ApplyPhysicalBoundaries(time, 0.0);
-//TODO - WGC separation of physical boundaries VC/CC
+        //TODO - WGC separation of physical boundaries VC/CC
+        // pbval->ApplyPhysicalBoundaries(time, 0.0);
+
+        FCN_CC_CX_VC(
+          pbval->ApplyPhysicalBoundaries,
+          pbval->ApplyPhysicalCellCenteredXBoundaries,
+          pbval->ApplyPhysicalVertexCenteredBoundaries
+        )(time, 0);
+
       }
 
       // Calc initial diffusion coefficients
