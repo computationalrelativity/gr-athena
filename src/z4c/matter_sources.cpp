@@ -24,6 +24,8 @@ void Z4c::GetMatter(
 #if defined(Z4C_WITH_HYDRO_ENABLED)
 
   using namespace LinearAlgebra;
+  typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> AT_N_sca;
+  typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> AT_N_vec;
 
   MeshBlock * pmb = pmy_block;
   Hydro * phydro = pmb->phydro;
@@ -31,6 +33,10 @@ void Z4c::GetMatter(
 
   Matter_vars mat;
   SetMatterAliases(u_mat, mat);
+
+  ADM_vars adm;
+  Z4c_vars z4c;
+  SetZ4cAliases(storage.u, z4c);
 
   // set up some parameters ---------------------------------------------------
 #if USETM
@@ -41,20 +47,16 @@ void Z4c::GetMatter(
   // --------------------------------------------------------------------------
 
   // quantities we have (sliced below)
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> sl_rho;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> sl_pgas;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> sl_utilde;
-
   AthenaArray<Real> & sl_w = (
     (opt.fix_admsource == 0) ? w : phydro->w_init
   );
 
-  sl_rho.InitWithShallowSlice(   sl_w, IDN);
-  sl_pgas.InitWithShallowSlice(  sl_w, IPR);
-  sl_utilde.InitWithShallowSlice(sl_w, IVX);
+  AT_N_sca sl_w_rho(   sl_w, IDN);
+  AT_N_sca sl_w_p(     sl_w, IPR);
+  AT_N_vec sl_w_util_u(sl_w, IVX);
 
 #if MAGNETIC_FIELDS_ENABLED
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> sl_bb;
+  AT_N_vec sl_bb;  // BD: TODO this is not properly populated?
   if(opt.fix_admsource==0)
   {
     sl_bb.InitWithShallowSlice(bb_cc, IB1);
@@ -62,12 +64,8 @@ void Z4c::GetMatter(
   }
 #endif
 
-  AthenaArray<Real> alpha;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u, v_u, v_d;
-
-  ADM_vars adm;
-  Z4c_vars z4c;
-  SetZ4cAliases(storage.u,z4c);
+  AT_N_sca alpha( pz4c->storage.u, Z4c::I_Z4c_alpha);
+  AT_N_vec beta_u(pz4c->storage.u, Z4c::I_Z4c_betax);
 
   if(opt.fix_admsource==0)
   {
@@ -82,65 +80,51 @@ void Z4c::GetMatter(
 
   if(opt.Tmunuinterp==0)
   {
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> wgas, gamma_lor, detgamma, bsq, b0_u;
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> v_d, v_u, bb_u, bi_u, bi_d, beta_d;
+    AT_N_sca w_hrho(   mbi.nn1);
+    AT_N_sca W(        mbi.nn1);  // Lorentz factor
+
+    AT_N_sca detgamma(mbi.nn1);
+    AT_N_sca bsq(     mbi.nn1);
+    AT_N_sca b0_u(    mbi.nn1);
+
+    AT_N_vec v_d(mbi.nn1);
+    AT_N_vec v_u(mbi.nn1);
 
 #if MAGNETIC_FIELDS_ENABLED
-    bb_u.NewAthenaTensor(mbi.nn1);
-    bi_u.NewAthenaTensor(mbi.nn1);
-    bi_d.NewAthenaTensor(mbi.nn1);
+    AT_N_vec bb_u(  mbi.nn1);
+    AT_N_vec bi_u(  mbi.nn1);
+    AT_N_vec bi_d(  mbi.nn1);
+    AT_N_vec beta_d(mbi.nn1);
 #endif
-    wgas.NewAthenaTensor(mbi.nn1);
-    gamma_lor.NewAthenaTensor(mbi.nn1);
-    detgamma.NewAthenaTensor(mbi.nn1);
-    bsq.NewAthenaTensor(mbi.nn1);
-    b0_u.NewAthenaTensor(mbi.nn1);
-    v_d.NewAthenaTensor(mbi.nn1);
-    v_u.NewAthenaTensor(mbi.nn1);
-    beta_d.NewAthenaTensor(mbi.nn1);
-
-    alpha.InitWithShallowSlice(pmb->pz4c->storage.u, Z4c::I_Z4c_alpha, 1);
 
     ILOOP2(k,j)
     {
-      pco_gr->GetMatterField(rho,    sl_rho,    k, j);
-      pco_gr->GetMatterField(pgas,   sl_pgas,   k, j);
-      pco_gr->GetMatterField(utilde, sl_utilde, k, j);
-
-    if (0)
-    {
-      std::cout << "---------------------------" << std::endl;
-      pgas.array().print_all("%1.4e");
-      std::cout << "---------------------------" << std::endl;
-      sl_pgas.array().print_all("%1.4e");
-
-      while(true)
-      {
-        std::exit(0);
-      }
-    }
+      pco_gr->GetMatterField(w_rho,      sl_w_rho,    k, j);
+      pco_gr->GetMatterField(w_p,        sl_w_p,      k, j);
+      pco_gr->GetMatterField(w_utilde_u, sl_w_util_u, k, j);
 
 #if MAGNETIC_FIELDS_ENABLED
-      pco_gr->GetMatterField(bb,     sl_bb,     k, j);
+      pco_gr->GetMatterField(bb,         sl_bb,       k, j);
 #endif
 
       ILOOP1(i)
       {
         // NB specific to EOS
 #if USETM
-        Real n = rho(i)/mb;
+        Real n = w_rho(i)/mb;
         // FIXME: Generalize to work with EOSes accepting particle fractions.
         Real Y[MAX_SPECIES] = {0.0};
-        Real T = pmb->peos->GetEOS().GetTemperatureFromP(n, pgas(i), Y);
-        wgas(i) = n*pmb->peos->GetEOS().GetEnthalpy(n, T, Y);
+        Real T = pmb->peos->GetEOS().GetTemperatureFromP(n, w_p(i), Y);
+        w_hrho(i) = n*pmb->peos->GetEOS().GetEnthalpy(n, T, Y);
 #else
-        wgas(i) = rho(i) + gamma_adi/(gamma_adi-1.0) * pgas(i);
+        w_hrho(i) = w_rho(i) + gamma_adi/(gamma_adi-1.0) * w_p(i);
 #endif
 
         // compute Lorenz factors
-        Real const norm_utilde = InnerProductSlicedVec3Metric(utilde, adm.g_dd,
-                                                              k, j, i);
-        gamma_lor(i) = sqrt(1.0+norm_utilde);
+        Real const norm2_utilde = InnerProductSlicedVec3Metric(w_utilde_u,
+                                                               adm.g_dd,
+                                                               k, j, i);
+        W(i) = std::sqrt(1.0 + norm2_utilde);
         detgamma(i) = Det3Metric(adm.g_dd, k, j, i);
       }
 
@@ -149,7 +133,7 @@ void Z4c::GetMatter(
       {
         ILOOP1(i)
         {
-          v_u(a,i) = utilde(a,i) / gamma_lor(i);
+          v_u(a,i) = w_utilde_u(a,i) / W(i);
         }
       }
 
@@ -171,10 +155,9 @@ void Z4c::GetMatter(
       {
         ILOOP1(i)
         {
-          b0_u(i) += gamma_lor(i)*bb_u(a,i)*v_d(a,i)/alpha(k,j,i);
+          b0_u(i) += W(i)*bb_u(a,i)*v_d(a,i)/alpha(k,j,i);
         }
       }
-#endif
 
       beta_d.ZeroClear();
       for(int a=0;a<NDIM;++a)
@@ -188,13 +171,12 @@ void Z4c::GetMatter(
 	      }
       }
 
-#if MAGNETIC_FIELDS_ENABLED
       for(int a=0;a<NDIM;++a)
       {
         ILOOP1(i)
         {
-          bi_u(a,i) = (bb_u(a,i)+alpha(k,j,i)*b0_u(i)*gamma_lor(i)*(v_u(a,i)-
-                       z4c.beta_u(a,k,j,i)/alpha(k,j,i)))/gamma_lor(i);
+          bi_u(a,i) = (bb_u(a,i)+alpha(k,j,i)*b0_u(i)*W(i)*(v_u(a,i)-
+                       z4c.beta_u(a,k,j,i)/alpha(k,j,i)))/W(i);
         }
       }
 
@@ -216,8 +198,7 @@ void Z4c::GetMatter(
 
       ILOOP1(i)
       {
-        bsq(i) = (alpha(k,j,i)*alpha(k,j,i)*b0_u(i)*b0_u(i) /
-                  (gamma_lor(i)*gamma_lor(i)));
+        bsq(i) = alpha(k,j,i)*alpha(k,j,i)*b0_u(i)*b0_u(i) / SQR(W(i));
       }
 
       for(int a=0;a<NDIM;++a)
@@ -226,19 +207,18 @@ void Z4c::GetMatter(
         {
           ILOOP1(i)
           {
-            bsq(i) += (bb_u(a,i)*bb_u(b,i)*adm.g_dd(a,b,k,j,i) /
-                       (gamma_lor(i)*gamma_lor(i)));
+            bsq(i) += bb_u(a,i)*bb_u(b,i)*adm.g_dd(a,b,k,j,i) / SQR(W(i));
           }
         }
       }
 #endif
 
+    //  Update matter variables
 #if MAGNETIC_FIELDS_ENABLED
       ILOOP1(i)
       {
-        Real const gam_lor2 = SQR(gamma_lor(i));
-        Real const wb_fac = (wgas(i)+bsq(i))*gam_lor2;
-        Real const pb_sum = (pgas(i)+bsq(i)/2.0);
+        Real const wb_fac = (w_hrho(i)+bsq(i))*SQR(W(i));
+        Real const pb_sum = (w_p(i)+bsq(i)/2.0);
 
         mat.rho(k,j,i) = (wb_fac-pb_sum -
                           alpha(k,j,i)*alpha(k,j,i)*b0_u(i)*b0_u(i));
@@ -263,20 +243,20 @@ void Z4c::GetMatter(
 #else
       ILOOP1(i)
       {
-        mat.rho(k,j,i) = wgas(i)*SQR(gamma_lor(i)) - pgas(i);
+        mat.rho(k,j,i) = w_hrho(i)*SQR(W(i)) - w_p(i);
       }
       for (int a=0; a<NDIM; ++a)
       {
         ILOOP1(i)
         {
-          mat.S_d(a,k,j,i) = wgas(i)*SQR(gamma_lor(i))*v_d(a,i);
+          mat.S_d(a,k,j,i) = w_hrho(i)*SQR(W(i))*v_d(a,i);
         }
         for (int b=a; b<NDIM; ++b)
         {
           ILOOP1(i)
           {
-            mat.S_dd(a,b,k,j,i) = (wgas(i)*SQR(gamma_lor(i))*v_d(a,i)*v_d(b,i)+
-                                   pgas(i)*adm.g_dd(a,b,k,j,i));
+            mat.S_dd(a,b,k,j,i) = (w_hrho(i)*SQR(W(i))*v_d(a,i)*v_d(b,i)+
+                                   w_p(i)*adm.g_dd(a,b,k,j,i));
           }
         }
       }
@@ -284,21 +264,6 @@ void Z4c::GetMatter(
 #endif
     }
 
-
-    // cleanup
-#if MAGNETIC_FIELDS_ENABLED
-    bb_u.DeleteAthenaTensor();
-    bi_u.DeleteAthenaTensor();
-    bi_d.DeleteAthenaTensor();
-#endif
-    wgas.DeleteAthenaTensor();
-    gamma_lor.DeleteAthenaTensor();
-    detgamma.DeleteAthenaTensor();
-    bsq.DeleteAthenaTensor();
-    b0_u.DeleteAthenaTensor();
-    v_d.DeleteAthenaTensor();
-    v_u.DeleteAthenaTensor();
-    beta_d.DeleteAthenaTensor();
   }
 
 #endif // Z4C_WITH_HYDRO_ENABLED

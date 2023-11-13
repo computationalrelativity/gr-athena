@@ -136,8 +136,6 @@ public:
     AthenaArray<Real> con;   // constraints
     AthenaArray<Real> mat;   // matter variables
     AthenaArray<Real> weyl;  // weyl scalars
-    AthenaArray<Real> u_init;   // init buffers
-    AthenaArray<Real> adm_init; // init buffers
   } storage;
 
   // aliases for variables and RHS
@@ -456,9 +454,9 @@ private:
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> Riemm4_dd;   // 4D Riemann *n^a*n^c
 
   // Aux vars handling cx/vc matter interpolation
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> rho;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> pgas;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> utilde;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> w_rho;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> w_p;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> w_utilde_u;
 
 #if MAGNETIC_FIELDS_ENABLED
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> bb;

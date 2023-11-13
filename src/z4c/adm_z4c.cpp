@@ -115,7 +115,8 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u) {
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
       ILOOP1(i) {
-        z4c.Gam_u(a,k,j,i) -= fd->Dx(b, g_uu(b,a,k,j,i)); // Is it ba or ab like in the pseudocode? Is the contraction correct?
+        // Is it ba or ab like in the pseudocode? Is the contraction correct?
+        z4c.Gam_u(a,k,j,i) -= fd->Dx(b, g_uu(b,a,k,j,i));
       }
     }
   }
@@ -131,7 +132,6 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u) {
   // Algebraic constraints enforcement
   //
   AlgConstr(u);
-
 }
 
 //----------------------------------------------------------------------------------------

@@ -92,9 +92,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
           {N_ADM, mbi.nn3, mbi.nn2, mbi.nn1},              // adm
           {N_CON, mbi.nn3, mbi.nn2, mbi.nn1},              // con
           {N_MAT, mbi.nn3, mbi.nn2, mbi.nn1},              // mat
-          {N_WEY, mbi.nn3, mbi.nn2, mbi.nn1},              // weyl
-	        {N_Z4c, mbi.nn3, mbi.nn2, mbi.nn1},              // init buffers
-          {N_ADM, mbi.nn3, mbi.nn2, mbi.nn1},
+          {N_WEY, mbi.nn3, mbi.nn2, mbi.nn1}               // weyl
   },
   empty_flux{AthenaArray<Real>(), AthenaArray<Real>(), AthenaArray<Real>()},
   ubvar(pmb, &storage.u, &coarse_u_, empty_flux),
@@ -383,9 +381,9 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   // To handle inter-grid interpolation ---------------------------------------
   if (Z4C_ENABLED && FLUID_ENABLED)
   {
-    rho.NewAthenaTensor(mbi.nn1);
-    pgas.NewAthenaTensor(mbi.nn1);
-    utilde.NewAthenaTensor(mbi.nn1);
+    w_rho.NewAthenaTensor(     mbi.nn1);
+    w_p.NewAthenaTensor(       mbi.nn1);
+    w_utilde_u.NewAthenaTensor(mbi.nn1);
 
 #if MAGNETIC_FIELDS_ENABLED
     bb.NewAthenaTensor(mbi.nn1);
@@ -500,9 +498,9 @@ Z4c::~Z4c()
   // To handle inter-grid interpolation ---------------------------------------
   if (Z4C_ENABLED && FLUID_ENABLED)
   {
-    rho.DeleteAthenaTensor();
-    pgas.DeleteAthenaTensor();
-    utilde.DeleteAthenaTensor();
+    w_rho.DeleteAthenaTensor();
+    w_p.DeleteAthenaTensor();
+    w_utilde_u.DeleteAthenaTensor();
 
 #if MAGNETIC_FIELDS_ENABLED
     bb.DeleteAthenaTensor();
