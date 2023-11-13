@@ -80,6 +80,14 @@ public:
     data_.DeleteAthenaArray();
   }
 
+  // USE WITH CAUTION!
+  // Operands must both be allocated and have same sizes
+  void SwapAthenaTensor(AthenaTensor<T, sym, ndim, 0>& other)
+  {
+    std::swap(data_, other.data_);
+    return;
+  }
+
   // get a reference to the array
   AthenaArray<T> & array() {
     return data_;
@@ -196,6 +204,14 @@ public:
   }
   void DeleteAthenaTensor() {
     data_.DeleteAthenaArray();
+  }
+
+  // USE WITH CAUTION!
+  // Operands must both be allocated and have same sizes
+  void SwapAthenaTensor(AthenaTensor<T, sym, ndim, 1>& other)
+  {
+    std::swap(data_, other.data_);
+    return;
   }
 
   // get a reference to the array
@@ -330,6 +346,14 @@ public:
   }
   void DeleteAthenaTensor() {
     data_.DeleteAthenaArray();
+  }
+
+  // USE WITH CAUTION!
+  // Operands must both be allocated and have same sizes
+  void SwapAthenaTensor(AthenaTensor<T, sym, ndim, 2>& other)
+  {
+    std::swap(data_, other.data_);
+    return;
   }
 
   // get a reference to the array
@@ -472,6 +496,14 @@ public:
     data_.DeleteAthenaArray();
   }
 
+  // USE WITH CAUTION!
+  // Operands must both be allocated and have same sizes
+  void SwapAthenaTensor(AthenaTensor<T, sym, ndim, 3>& other)
+  {
+    std::swap(data_, other.data_);
+    return;
+  }
+
   // get a reference to the array
   AthenaArray<T> & array() {
     return data_;
@@ -608,6 +640,14 @@ public:
   }
   void DeleteAthenaTensor() {
     data_.DeleteAthenaArray();
+  }
+
+  // USE WITH CAUTION!
+  // Operands must both be allocated and have same sizes
+  void SwapAthenaTensor(AthenaTensor<T, sym, ndim, 4>& other)
+  {
+    std::swap(data_, other.data_);
+    return;
   }
 
   // get a reference to the array
