@@ -13,6 +13,8 @@
 #include "../athena_arrays.hpp"
 #include "floating_point.hpp"
 
+namespace FiniteDifference {
+
 // Centered finite differencing stencils
 // * degree : Degree of the derivative, eg, 1 for 1st derivative
 // * nghost : Number of ghost points used for the derivative
@@ -114,45 +116,6 @@ public:
   static Real const coeff[width];
 };
 
-// Right-biased finite differencing stencils
-// * degree : Degree of the derivative, eg, 1 for 1st derivative
-// * nghost : Number of ghost points used for the derivative
-// * lopsize : Number of points to be biased
-template<int degree_, int nghost_, int lopsize_>
-class FDRightBiasedStencilBeyond {
-public:
-  // Degree of the derivative to be approximated
-  enum {degree = degree_};
-  // Number of ghost points required for the differencing
-  enum {nghost = nghost_};
-  // Position at which the derivative is computed wrt the beginning of the stencil
-  //enum {offset = lopsize_};
-  enum {offset = nghost_ - lopsize_ - 1};
-  // Width of the stencil
-  enum {width = 2*nghost_ - 1 + degree_ - 1};
-  // Finite differencing coefficients
-  static Real const coeff[width];
-};
-
-// Left-biased finite differencing stencils
-// * degree : Degree of the derivative, eg, 1 for 1st derivative
-// * nghost : Number of ghost points used for the derivative
-// * lopsize : Number of points to be biased
-template<int degree_, int nghost_, int lopsize_>
-class FDLeftBiasedStencilBeyond {
-public:
-  // Degree of the derivative to be approximated
-  enum {degree = degree_};
-  // Number of ghost points required for the differencing
-  enum {nghost = nghost_};
-  // Position at which the derivative is computed wrt the beginning of the stencil
-  enum {offset = nghost_ + lopsize_ - 1};
-  // Width of the stencil
-  enum {width = 2*nghost_ - 1 + degree_ - 1};
-  // Finite differencing coefficients
-  static Real const coeff[width];
-};
-
 #ifdef DBG_SYMMETRIZE_FD
 // Rewrite with denominator LCM factoring to mitigate some error ==============
 
@@ -247,8 +210,6 @@ public:
 
 #endif // DBG_SYMMETRIZE_FD
 
-
-namespace FiniteDifference {
 class Uniform
 {
   // internal definitions -----------------------------------------------------
@@ -345,7 +306,19 @@ class Uniform
       //    9.0 * ( pu[-2 * stride[dir]] - pu[2 * stride[dir]]) +
       //   45.0 * (-pu[-1 * stride[dir]] + pu[1 * stride[dir]])
       // );
-      // return out * idx[dir] / 60.0;
+      // return out * idx[dir] * (1. / 60.0);
+
+      // Real * pu_l = &u - c1::offset*stride[dir];
+      // Real * pu_r = &pu_l[c1::width-1];
+
+      // Real out(0.);
+      // for(int n1 = 0; n1 < c1::nghost; ++n1)
+      // {
+      //   const int n_ = n1*stride[dir];
+      //   out += c1::coeff[n1] * (pu_l[n_] - pu_r[-n_]);
+      //   // int const n2  = c1::width - n1 - 1;
+      //   // out += c1::coeff[n1] * (pu[n1*stride[dir]] - pu[n2*stride[dir]]);
+      // }
 
       Real * pu = &u - c1::offset*stride[dir];
 
@@ -354,6 +327,7 @@ class Uniform
         int const n2  = c1::width - n1 - 1;
         out += c1::coeff[n1] * (pu[n1*stride[dir]] - pu[n2*stride[dir]]);
       }
+
       return out * cidx1[dir];
     }
 #else
@@ -492,14 +466,13 @@ class Uniform
       Real * pu = &u - c1::offset*(stride[dirx] + stride[diry]);
       Real out(0.);
 
-      for(int nx1 = 0; nx1 < c1::nghost; ++nx1) {
-        int const nx2 = c1::width - nx1 - 1;
-        for(int ny1 = 0; ny1 < c1::nghost; ++ny1) {
-          int const ny2 = c1::width - ny1 - 1;
-          // out += c1::coeff[nx1] * c1::coeff[ny1] * (
-          //   ( pu[nx1*stride[dirx] + ny1*stride[diry]] + pu[nx2*stride[dirx] + ny2*stride[diry]]) -
-          //   ( pu[nx2*stride[dirx] + ny1*stride[diry]] + pu[nx1*stride[dirx] + ny2*stride[diry]])
-          // );
+      for (int nx1 = 0; nx1 < c1::nghost; ++nx1)
+      {
+        const int nx2 = c1::width - nx1 - 1;
+
+        for (int ny1 = 0; ny1 < c1::nghost; ++ny1)
+        {
+          const int ny2 = c1::width - ny1 - 1;
 
           const Real v11 = pu[nx1*stride[dirx] + ny1*stride[diry]];
           const Real v22 = pu[nx2*stride[dirx] + ny2*stride[diry]];
@@ -514,6 +487,7 @@ class Uniform
           // out += 0.5 * c11 * (std::max({ca, cb, cc}) + std::min({ca, cb, cc}));
         }
       }
+
       return out * cidx1[dirx] * cidx1[diry];
     }
 #else
@@ -570,6 +544,7 @@ class Uniform
       Real * pu = &u - cd::offset*stride[dir];
 
       Real out(0.);
+      // #pragma omp simd reduction(+:out)
       for(int n1 = 0; n1 < cd::nghost; ++n1) {
         int const n2  = cd::width - n1 - 1;
         out += cd::coeff[n1] * (pu[n1*stride[dir]] + pu[n2*stride[dir]]);
