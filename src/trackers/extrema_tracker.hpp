@@ -8,12 +8,13 @@
 // Athena++
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
+#include "../mesh/mesh.hpp"
 #include "../utils/lagrange_interp.hpp"
 
 // Forward declaration
-class Mesh;
-class MeshBlock;
-class MeshBlockTree;
+// class Mesh;
+// class MeshBlock;
+// class MeshBlockTree;
 class ParameterInput;
 class Coordinates;
 class ParameterInput;
@@ -133,20 +134,11 @@ class ExtremaTrackerLocal
     int ndim;
 
     // Switching of sampling
-    struct MB_info {
-      int il, iu, jl, ju, kl, ku;         // local block iter.
-      int nn1, nn2, nn3;                  // total number of nodes (w. ghosts)
-      int ndim;
+    MB_info * mbi;
 
-      AthenaArray<Real> x1, x2, x3;       // deal with (fund.) coordinates
-      AthenaArray<Real> dx1, dx2, dx3;    // & spacings
-    };
-
-    MB_info mbi;
-
-    typedef LagrangeInterpND<2*NGHOST-1, 3> Interp_Lag3;
-    typedef LagrangeInterpND<2*NGHOST-1, 2> Interp_Lag2;
-    typedef LagrangeInterpND<2*NGHOST-1, 1> Interp_Lag1;
+    typedef LagrangeInterpND<2*(NGHOST-1)-1, 3> Interp_Lag3;
+    typedef LagrangeInterpND<2*(NGHOST-1)-1, 2> Interp_Lag2;
+    typedef LagrangeInterpND<2*(NGHOST-1)-1, 1> Interp_Lag1;
 
 };
 

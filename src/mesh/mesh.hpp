@@ -541,6 +541,18 @@ class Mesh {
   void SetMeanDensity(Real d0) { grav_mean_rho_=d0; }
 };
 
+// collect sampling information into struct
+struct MB_info {
+  bool f1, f2, f3;                      // dimensionality flags
+  int il, iu, jl, ju, kl, ku;           // local block iter.
+  int nn1, nn2, nn3;                    // total number of nodes (w. ghosts)
+  int cnn1, cnn2, cnn3;                 // coarse analogue ^
+  int ng, cng;                          // number of ghosts
+  int ndim;
+
+  AthenaArray<Real> x1, x2, x3;         // deal with (fund.) coordinates
+  AthenaArray<Real> dx1, dx2, dx3;      // & spacings
+};
 
 //----------------------------------------------------------------------------------------
 // \!fn Real ComputeMeshGeneratorX(std::int64_t index, std::int64_t nrange,

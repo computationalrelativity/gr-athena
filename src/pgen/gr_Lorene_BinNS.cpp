@@ -123,7 +123,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
   bool verbose = pin->GetOrAddBoolean("problem", "verbose", 0);
   
   // container with idx / grids pertaining z4c
-  Z4c::MB_info* mbi = &(pz4c->mbi);
+  MB_info* mbi = &(pz4c->mbi);
   
   // --------------------------------------------------------------------------
   // Set some aliases for the variables.

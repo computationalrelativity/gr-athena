@@ -31,22 +31,15 @@
 //#ifdef Z4C_WEXT
 #include "../z4c/wave_extract.hpp"
 #include "../z4c/puncture_tracker.hpp"
+#include "../trackers/extrema_tracker.hpp"
 //#endif
 //WGC end
-//#ifdef Z4C_TRACKER
-//#include "../z4c/trackers.hpp"
-//#endif // Z4C_TRACKER
 
 // #include "../parameter_input.hpp"
 
 #include "../reconstruct/reconstruction.hpp"
 #include "../scalars/scalars.hpp"
 #include "task_list.hpp"
-/*
-#ifdef TRACKER_EXTREMA
-#include "../trackers/tracker_extrema.hpp"
-#endif // TRACKER_EXTREMA
-*/
 //----------------------------------------------------------------------------------------
 //  MatterTaskList constructor
 
@@ -1454,12 +1447,8 @@ TaskStatus MatterTaskList::UserWork(MeshBlock *pmb, int stage) {
 
   pmb->UserWorkInLoop();
 
-
-//TODO: TRacker implementation
-#ifdef TRACKER_EXTREMA
   // TODO: BD- this should be shifted to its own task
   pmb->ptracker_extrema_loc->TreatCentreIfLocalMember();
-#endif // TRACKER_EXTREMA
 
   return TaskStatus::success;
 }
@@ -1868,11 +1857,11 @@ TaskStatus MatterTaskList::ADM_Constraints(MeshBlock *pmb, int stage) {
   if (stage != nstages) return TaskStatus::success;
   Mesh *pm = pmb->pmy_mesh;
 
-    if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.con)) {      // Time at the end of stage for (u, b) register pair                
+    // if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.con)) {      // Time at the end of stage for (u, b) register pair                
 
     pmb->pz4c->ADMConstraints(pmb->pz4c->storage.con, pmb->pz4c->storage.adm,
                               pmb->pz4c->storage.mat, pmb->pz4c->storage.u);
-    }
+    // }
     return TaskStatus::success;
   }
 //  return TaskStatus::fail;

@@ -115,7 +115,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   Z4c * pz4c = pmb->pz4c;
 
   // container with idx / grids pertaining z4c
-  Z4c::MB_info* mbi = &(pz4c->mbi);
+  MB_info* mbi = &(pz4c->mbi);
   
   //---------------------------------------------------------------------------  
   // Interpolate ADM metric

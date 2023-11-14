@@ -20,6 +20,7 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../athena_tensor.hpp"
+#include "../mesh/mesh.hpp"
 #include "../utils/finite_differencing.hpp"
 #include "../utils/lagrange_interp.hpp"
 #include "../utils/interp_intergrid.hpp" //SB FIXME imported from matter_tracker_extrema
@@ -110,19 +111,6 @@ public:
   MeshBlock *pmy_block;      // pointer to MeshBlock containing this Z4c
   Coordinates *pmy_coord;    // coordinates of current block
   Z4c_AMR *pz4c_amr;         // pointer to Z4c_AMR for the refinement condition
-
-  // Switching of sampling and cleaner Z4c macro
-  struct MB_info {
-    bool f1, f2, f3;                      // dimensionality flags
-    int il, iu, jl, ju, kl, ku;           // local block iter.
-    int nn1, nn2, nn3;                    // total number of nodes (w. ghosts)
-    int cnn1, cnn2, cnn3;                 // coarse analogue ^
-    int ng, cng;                          // number of ghosts
-    int ndim;
-
-    AthenaArray<Real> x1, x2, x3;         // deal with (fund.) coordinates
-    AthenaArray<Real> dx1, dx2, dx3;      // & spacings
-  };
 
   MB_info mbi;
 

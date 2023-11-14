@@ -373,7 +373,11 @@ ExtremaTrackerLocal::ExtremaTrackerLocal(
 
   if (N_tracker > 0)
   {
+    // BD: TODO control field sampling should be set based on variable type
+    mbi = &pmb->pz4c->mbi;
+
     // determine control field sampling ---------------------------------------
+    /*
     std::string par_control_field_sampling = pin->GetOrAddString(
       "trackers_extrema",
       "control_field_sampling",
@@ -381,47 +385,48 @@ ExtremaTrackerLocal::ExtremaTrackerLocal(
 
     if (par_control_field_sampling == "VC")
     {
-      mbi.il = pmb->ivs;            // il
-      mbi.iu = pmb->ive;            // iu
-      mbi.jl = pmb->jvs;            // jl
-      mbi.ju = pmb->jve;            // ju
-      mbi.kl = pmb->kvs;            // kl
-      mbi.ku = pmb->kve;            // ku
+      mbi->il = pmb->ivs;            // il
+      mbi->iu = pmb->ive;            // iu
+      mbi->jl = pmb->jvs;            // jl
+      mbi->ju = pmb->jve;            // ju
+      mbi->kl = pmb->kvs;            // kl
+      mbi->ku = pmb->kve;            // ku
 
-      mbi.nn1 = pmb->nverts1;
-      mbi.nn2 = pmb->nverts2;
-      mbi.nn3 = pmb->nverts3;
+      mbi->nn1 = pmb->nverts1;
+      mbi->nn2 = pmb->nverts2;
+      mbi->nn3 = pmb->nverts3;
 
-      mbi.x1.InitWithShallowSlice(pmb->pcoord->x1f, 1, 0, mbi.nn1);
-      mbi.x2.InitWithShallowSlice(pmb->pcoord->x2f, 1, 0, mbi.nn2);
-      mbi.x3.InitWithShallowSlice(pmb->pcoord->x3f, 1, 0, mbi.nn3);
+      mbi->x1.InitWithShallowSlice(pmb->pcoord->x1f, 1, 0, mbi->nn1);
+      mbi->x2.InitWithShallowSlice(pmb->pcoord->x2f, 1, 0, mbi->nn2);
+      mbi->x3.InitWithShallowSlice(pmb->pcoord->x3f, 1, 0, mbi->nn3);
 
-      mbi.dx1.InitWithShallowSlice(pmb->pcoord->dx1f, 1, 0, mbi.nn1);
-      mbi.dx2.InitWithShallowSlice(pmb->pcoord->dx2f, 1, 0, mbi.nn2);
-      mbi.dx3.InitWithShallowSlice(pmb->pcoord->dx3f, 1, 0, mbi.nn3);
+      mbi->dx1.InitWithShallowSlice(pmb->pcoord->dx1f, 1, 0, mbi->nn1);
+      mbi->dx2.InitWithShallowSlice(pmb->pcoord->dx2f, 1, 0, mbi->nn2);
+      mbi->dx3.InitWithShallowSlice(pmb->pcoord->dx3f, 1, 0, mbi->nn3);
     }
     else  // CC & CX have same logic
     {
-      mbi.il = pmb->is;             // il
-      mbi.iu = pmb->ie;             // iu
-      mbi.jl = pmb->js;             // jl
-      mbi.ju = pmb->je;             // ju
-      mbi.kl = pmb->ks;             // kl
-      mbi.ku = pmb->ke;             // ku
+      mbi->il = pmb->is;             // il
+      mbi->iu = pmb->ie;             // iu
+      mbi->jl = pmb->js;             // jl
+      mbi->ju = pmb->je;             // ju
+      mbi->kl = pmb->ks;             // kl
+      mbi->ku = pmb->ke;             // ku
 
-      mbi.nn1 = pmb->ncells1;
-      mbi.nn2 = pmb->ncells2;
-      mbi.nn3 = pmb->ncells3;
+      mbi->nn1 = pmb->ncells1;
+      mbi->nn2 = pmb->ncells2;
+      mbi->nn3 = pmb->ncells3;
 
-      mbi.x1.InitWithShallowSlice(pmb->pcoord->x1v, 1, 0, mbi.nn1);
-      mbi.x2.InitWithShallowSlice(pmb->pcoord->x2v, 1, 0, mbi.nn2);
-      mbi.x3.InitWithShallowSlice(pmb->pcoord->x3v, 1, 0, mbi.nn3);
+      mbi->x1.InitWithShallowSlice(pmb->pcoord->x1v, 1, 0, mbi->nn1);
+      mbi->x2.InitWithShallowSlice(pmb->pcoord->x2v, 1, 0, mbi->nn2);
+      mbi->x3.InitWithShallowSlice(pmb->pcoord->x3v, 1, 0, mbi->nn3);
 
-      mbi.dx1.InitWithShallowSlice(pmb->pcoord->dx1v, 1, 0, mbi.nn1);
-      mbi.dx2.InitWithShallowSlice(pmb->pcoord->dx2v, 1, 0, mbi.nn2);
-      mbi.dx3.InitWithShallowSlice(pmb->pcoord->dx3v, 1, 0, mbi.nn3);
+      mbi->dx1.InitWithShallowSlice(pmb->pcoord->dx1v, 1, 0, mbi->nn1);
+      mbi->dx2.InitWithShallowSlice(pmb->pcoord->dx2v, 1, 0, mbi->nn2);
+      mbi->dx3.InitWithShallowSlice(pmb->pcoord->dx3v, 1, 0, mbi->nn3);
     }
     // ------------------------------------------------------------------------
+    */
 
     to_update.NewAthenaArray(N_tracker);
 
@@ -632,7 +637,7 @@ Real ExtremaTrackerLocal::ExtremaStepQuadInterp(const Real ds,
 
   Real i_fac = (f_0 - f_2) / (2. * (f_0 - 2 * f_1 + f_2));
 
-  // implement safety factor as specific in parameter file
+  // implement safety factor as specified in parameter file
   const Real umsf = ptracker_extrema->update_max_step_factor;
   i_fac = (std::abs(i_fac) > umsf) ? sign(i_fac) * umsf : i_fac;
 
@@ -686,23 +691,23 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldQuadInterp(const int n)
   {
     case 3:
     {
-      origin[2] = mbi.x3(0);
-      sz[2] = mbi.nn3;
-      ds[2] = mbi.dx3(0);
+      origin[2] = mbi->x3(0);
+      sz[2] = mbi->nn3;
+      ds[2] = mbi->dx3(0);
       coord[2] = ptracker_extrema->c_x3(n-1);
     }
     case 2:
     {
-      origin[1] = mbi.x2(0);
-      sz[1] = mbi.nn2;
-      ds[1] = mbi.dx2(0);
+      origin[1] = mbi->x2(0);
+      sz[1] = mbi->nn2;
+      ds[1] = mbi->dx2(0);
       coord[1] = ptracker_extrema->c_x2(n-1);
     }
     case 1:
     {
-      origin[0] = mbi.x1(0);
-      sz[0] = mbi.nn1;
-      ds[0] = mbi.dx1(0);
+      origin[0] = mbi->x1(0);
+      sz[0] = mbi->nn1;
+      ds[0] = mbi->dx1(0);
       coord[0] = ptracker_extrema->c_x1(n-1);
       break;
     }
@@ -843,26 +848,28 @@ int ExtremaTrackerLocal::LocateCentrePhysicalIndex(const int n,
   // We therefore compare result and result at one index smaller
 
   Real src_val;
-  const int idx_l = NGHOST;
-  int idx_u;
+  int idx_l, idx_u;
   AthenaArray<Real> * x;
 
   switch(axis)
   {
     case 2:
       src_val = ptracker_extrema->c_x3(n-1);
-      x = &(mbi.x3);
-      idx_u = mbi.nn3-NGHOST+1;
+      x = &(mbi->x3);
+      idx_l = mbi->kl-1;
+      idx_u = mbi->ku+1;
       break;
     case 1:
       src_val = ptracker_extrema->c_x2(n-1);
-      x = &(mbi.x2);
-      idx_u = mbi.nn2-NGHOST+1;
+      x = &(mbi->x2);
+      idx_l = mbi->jl-1;
+      idx_u = mbi->ju+1;
       break;
     case 0:
       src_val = ptracker_extrema->c_x1(n-1);
-      x = &(mbi.x1);
-      idx_u = mbi.nn1-NGHOST+1;
+      x = &(mbi->x1);
+      idx_l = mbi->il-1;
+      idx_u = mbi->iu+1;
       break;
     default:
       std::cout << "ExtremaTrackerLocal requires 0<=axis<3" << std::endl;
@@ -896,15 +903,15 @@ bool ExtremaTrackerLocal::IsOrdPhysical(const int axis, const Real x)
   {
     case 2:
       return (
-        (mbi.x3(mbi.kl) <= x) && (x <= mbi.x3(mbi.ku))
+        (mbi->x3(mbi->kl-1) <= x) && (x <= mbi->x3(mbi->ku+1))
       );
     case 1:
       return (
-        (mbi.x2(mbi.jl) <= x) && (x <= mbi.x2(mbi.ju))
+        (mbi->x2(mbi->jl-1) <= x) && (x <= mbi->x2(mbi->ju+1))
       );
     case 0:
       return (
-        (mbi.x1(mbi.il) <= x) && (x <= mbi.x1(mbi.iu))
+        (mbi->x1(mbi->il-1) <= x) && (x <= mbi->x1(mbi->iu+1))
       );
     default:
       std::cout << "ExtremaTrackerLocal requires 0<=axis<3" << std::endl;
