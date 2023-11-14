@@ -30,27 +30,36 @@
 #include "reprimand/eos_idealgas.h"
 
 
-// Declarations
-static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, Real gamma_adi,
-    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, int k, int j, int i,
-    AthenaArray<Real> &cons, Coordinates *pco);
-Real fthr, fatm, rhoc;
-Real epsatm;
-Real k_adi, gamma_adi;
-EOS_Toolkit::real_t atmo_rho;
-EOS_Toolkit::real_t rho_strict;
-bool  ye_lenient;
-bool eos_debug;
-int max_iter;
-EOS_Toolkit::real_t c2p_acc;
-EOS_Toolkit::real_t max_b;
-EOS_Toolkit::real_t max_z;
-EOS_Toolkit::real_t atmo_eps;
-EOS_Toolkit::real_t atmo_ye;
-EOS_Toolkit::real_t atmo_cut;
-EOS_Toolkit::real_t atmo_p;
-using namespace EOS_Toolkit;
-EOS_Toolkit::eos_thermal eos;
+namespace {
+
+  // Declarations
+  inline static void PrimitiveToConservedSingle(
+    AthenaArray<Real> &prim,
+    Real gamma_adi,
+    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd,
+    int k, int j, int i,
+    AthenaArray<Real> &cons,
+    Coordinates *pco);
+
+  Real fthr, fatm, rhoc;
+  Real epsatm;
+  Real k_adi, gamma_adi;
+  EOS_Toolkit::real_t atmo_rho;
+  EOS_Toolkit::real_t rho_strict;
+  bool  ye_lenient;
+  bool eos_debug;
+  int max_iter;
+  EOS_Toolkit::real_t c2p_acc;
+  EOS_Toolkit::real_t max_b;
+  EOS_Toolkit::real_t max_z;
+  EOS_Toolkit::real_t atmo_eps;
+  EOS_Toolkit::real_t atmo_ye;
+  EOS_Toolkit::real_t atmo_cut;
+  EOS_Toolkit::real_t atmo_p;
+  using namespace EOS_Toolkit;
+  EOS_Toolkit::eos_thermal eos;
+
+}
 
 //----------------------------------------------------------------------------------------
 // Constructor
@@ -67,9 +76,6 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin)
   pgas_min_ = pin->GetReal("hydro", "pgas_min");
   pgas_pow_ = pin->GetOrAddReal("hydro", "pgas_pow", 0.0);
   gamma_max_ = pin->GetOrAddReal("hydro", "gamma_max", 1000.0);
-  int ncells1 = pmb->block_size.nx1 + 2*NGHOST;
-  int ncells2 = (pmb->block_size.nx2 > 1) ? pmb->block_size.nx2 + 2*NGHOST : 1;
-  int ncells3 = (pmb->block_size.nx3 > 1) ? pmb->block_size.nx3 + 2*NGHOST : 1;
   fthr = pin -> GetReal("problem","fthr");
   fatm = pin -> GetReal("problem","fatm");
   epsatm = pin -> GetOrAddReal("problem","epsatm",1.0e-8);
@@ -146,10 +152,6 @@ void EquationOfState::ConservedToPrimitive(
 
   // Parameters
   using namespace EOS_Toolkit;
-
-  const Real max_wgas_rel = 1.0e8;
-  const Real initial_guess_multiplier = 10.0;
-  const int initial_guess_multiplications = 10;
 
   // Extract ratio of specific heats
   const Real &gamma_adi = gamma_;
@@ -446,6 +448,8 @@ void EquationOfState::PrimitiveToConserved(
   return;
 }
 
+
+namespace {
 //----------------------------------------------------------------------------------------
 // Function for converting primitives to conserved variables in a single cell
 // Inputs:
@@ -457,7 +461,7 @@ void EquationOfState::PrimitiveToConserved(
 // Outputs:
 //   cons: conserved variables set in desired cell
 
-static void PrimitiveToConservedSingle(
+inline static void PrimitiveToConservedSingle(
   AthenaArray<Real> &prim, Real gamma_adi,
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd,
   int k, int j, int i,
@@ -595,8 +599,10 @@ static void PrimitiveToConservedSingle(
   utilde_d.DeleteAthenaArray();
   v_d.DeleteAthenaArray();
   return;
+
 }
 
+}
 //----------------------------------------------------------------------------------------
 // Function for calculating relativistic sound speeds
 // Inputs:

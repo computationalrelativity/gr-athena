@@ -573,8 +573,7 @@ void GRDynamical::AddCoordTermsDivergence(
       }
     }
 
-    _Pragma("omp simd")
-    for (int i=is; i<=ie; ++i)
+  	CLOOP1(i)
     {
       detg(i) = Det3Metric(gamma_dd, i);
       Inv3Metric(
@@ -617,7 +616,7 @@ void GRDynamical::AddCoordTermsDivergence(
     for(a=0;a<NDIM;++a)
     for(b=0;b<NDIM;++b)
 	  CLOOP1(i)
-  {
+    {
 	    Wlor(i) += utilde_u(a,i)*utilde_u(b,i)*gamma_dd(a,b,i);
 	  }
 

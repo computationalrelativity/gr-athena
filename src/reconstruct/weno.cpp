@@ -453,6 +453,7 @@ double rec1d_m_weno5(double uimt, double uimo, double ui, double uipo, double ui
   return um;
 }
 
+#pragma omp declare simd
 double rec1d_p_wenoz(double uimt, double uimo, double ui, double uipo, double uipt)
 {
   double up;
@@ -488,6 +489,7 @@ double rec1d_p_wenoz(double uimt, double uimo, double ui, double uipo, double ui
   return up;
 }
 // WENOZ 
+#pragma omp declare simd
 double rec1d_m_wenoz(double uimt, double uimo, double ui, double uipo, double uipt)
 {
   double um;
