@@ -60,7 +60,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
 
   // Set up the EOS
   // If we're using a tabulated EOS, load the table.
-  #ifdef USE_COMPOSE_EOS
+  #if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
   std::string table = pin->GetString("hydro", "table");
   eos.SetCodeUnitSystem(&Primitive::GeometricSolar);
   eos.ReadTableFromFile(table);
