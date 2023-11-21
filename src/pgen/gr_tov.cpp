@@ -23,7 +23,9 @@
 #include "../bvals/bvals.hpp"              // BoundaryValues
 #include "../coordinates/coordinates.hpp"  // Coordinates
 #include "../eos/eos.hpp"                  // EquationOfState
-#include "../z4c/z4c.hpp"                  // EquationOfState
+#include "../z4c/z4c.hpp"
+// #include "../z4c/z4c_amr.hpp"
+#include "../trackers/extrema_tracker.hpp"
 #include "../field/field.hpp"              // Field
 #include "../hydro/hydro.hpp"              // Hydro
 #include "../mesh/mesh.hpp"
@@ -141,6 +143,9 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
 
   // Solve TOV equations, setting 1D inital data in tov->data
   TOV_solve(rhoc, rmin, dr, &npts);
+
+  if(adaptive==true)
+    EnrollUserRefinementCondition(RefinementCondition);
 
   AllocateUserHistoryOutput(2);
   EnrollUserHistoryOutput(0, Maxrho, "max-rho", UserHistoryOperation::max);
@@ -1721,45 +1726,90 @@ void TOV_populate(MeshBlock *pmb,
 
 //----------------------------------------------------------------------------------------
 //! \fn
-//  \brief refinement condition: refine at large gradients of velocity
-//relic from cowling approx tests
+//  \brief refinement condition: extrema based
+// 1: refines, -1: de-refines, 0: does nothing
 int RefinementCondition(MeshBlock *pmb)
 {
   /*
-  AthenaArray<Real> &w = pmb->phydro->w;
-  Real maxeps=0.0;
-  for (int k=pmb->ks; k<=pmb->ke; k++) {
-    for (int j=pmb->js; j<=pmb->je; j++) {
-for (int i=pmb->is; i<=pmb->ie; i++) {
-  
-  Real eps = fabs((w(IVX,k,j,i+1) - w(IVX,k,j,i-1))/pmb->pcoord->dx1v(i));
-  maxeps = std::max(maxeps,eps);
-  eps = fabs((w(IVY,k,j,i+1) - w(IVY,k,j,i-1))/pmb->pcoord->dx1v(i));
-  maxeps = std::max(maxeps,eps);
-  eps  = fabs((w(IVZ,k,j,i+1) - w(IVZ,k,j,i-1))/pmb->pcoord->dx1v(i));
-  maxeps = std::max(maxeps,eps);
-  eps  = fabs((w(IVX,k,j+1,i) - w(IVX,k,j-1,i))/pmb->pcoord->dx2v(i));
-  maxeps = std::max(maxeps,eps);
-  eps  = fabs((w(IVY,k,j+1,i) - w(IVY,k,j-1,i))/pmb->pcoord->dx2v(i));
-  maxeps = std::max(maxeps,eps);
-  eps  = fabs((w(IVZ,k,j+1,i) - w(IVZ,k,j-1,i))/pmb->pcoord->dx2v(i));
-  maxeps = std::max(maxeps,eps);
-  eps  = fabs((w(IVX,k+1,j,i) - w(IVX,k-1,j,i))/pmb->pcoord->dx3v(i));
-  maxeps = std::max(maxeps,eps);
-  eps  = fabs((w(IVY,k+1,j,i) - w(IVY,k-1,j,i))/pmb->pcoord->dx3v(i));
-  maxeps = std::max(maxeps,eps);
-  eps  = fabs((w(IVZ,k+1,j,i) - w(IVZ,k-1,j,i))/pmb->pcoord->dx3v(i));
-  maxeps = std::max(maxeps,eps);
-}
+  // BD: TODO in principle this should be possible
+  Z4c_AMR *const pz4c_amr = pmb->pz4c->pz4c_amr;
+
+  // ensure we actually have a tracker
+  if (pmb->pmy_mesh->ptracker_extrema->N_tracker > 0)
+  {
+    return 0;
+  }
+
+  return pz4c_amr->ShouldIRefine(pmb);
+  */
+
+  Mesh * pmesh = pmb->pmy_mesh;
+  ExtremaTracker * ptracker_extrema = pmesh->ptracker_extrema;
+
+  int root_level = ptracker_extrema->root_level;
+  int mb_physical_level = pmb->loc.level - root_level;
+
+  // to get behaviour correct for when multiple centres occur in a single
+  // MeshBlock we need to carry information
+  bool centres_contained = false;
+
+  for (int n=1; n<=ptracker_extrema->N_tracker; ++n)
+  {
+    bool is_contained = false;
+
+    if (ptracker_extrema->ref_type(n-1) == 0)
+    {
+      is_contained = pmb->PointContained(
+        ptracker_extrema->c_x1(n-1),
+        ptracker_extrema->c_x2(n-1),
+        ptracker_extrema->c_x3(n-1)
+      );
+    }
+    else if (ptracker_extrema->ref_type(n-1) == 1)
+    {
+      is_contained = pmb->SphereIntersects(
+        ptracker_extrema->c_x1(n-1),
+        ptracker_extrema->c_x2(n-1),
+        ptracker_extrema->c_x3(n-1),
+        ptracker_extrema->ref_zone_radius(n-1)
+      );
+
+      // is_contained = pmb->PointContained(
+      //   ptracker_extrema->c_x1(n-1),
+      //   ptracker_extrema->c_x2(n-1),
+      //   ptracker_extrema->c_x3(n-1)
+      // ) or pmb->PointCentralDistanceSquared(
+      //   ptracker_extrema->c_x1(n-1),
+      //   ptracker_extrema->c_x2(n-1),
+      //   ptracker_extrema->c_x3(n-1)
+      // ) < SQR(ptracker_extrema->ref_zone_radius(n-1));
+
+    }
+
+    if (is_contained)
+    {
+      centres_contained = true;
+
+      // a point in current MeshBlock, now check whether level sufficient
+      if (mb_physical_level < ptracker_extrema->ref_level(n-1))
+      {
+        return 1;
+      }
+
     }
   }
-  // refine : curvature > 0.01
-  if (maxeps > 0.02) return 1;
-  // derefinement: curvature < 0.005
-  if (maxeps < 0.005) return -1;
-  // otherwise, stay
-  */
-  return 0;
+
+  // Here one could put composite criteria (such as spherical patch cond.)
+  // ...
+
+  if (centres_contained)
+  {
+    // all contained centres are at a sufficient level of refinement
+    return 0;
+  }
+
+  // Nothing satisfied - flag for de-refinement
+  return -1;
 }
 
 Real Maxrho(MeshBlock *pmb, int iout)
