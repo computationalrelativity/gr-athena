@@ -23,6 +23,27 @@ cowling_true = 0
 fixedgauge = 0 # set rhs of gauge = 0
 fix_admsources = 0 # calculate adm sources with initial data
 
+<trackers_extrema>  # =====================================
+N_tracker = 1
+filename = tra.ext
+
+control_field = Z4c.chi
+
+ini_1_x1 = 0               # initial offset
+ini_1_x2 = 0
+ini_1_x3 = 0
+minima_1 = true              # for update_strategy = 1
+ref_level_1 = 1
+ref_type_1 = 1              # 0: to the point, 1: sph. region
+ref_zone_radius_1 = 12
+
+
+update_strategy = 1         # 0: based on dt, 1: based on quad interp.
+# safety factor avoids taking too large step (multiple of local dx)
+update_max_step_factor = 10
+# =========================================================
+
+
 # <output1>
 # file_type = hdf5
 # variable  = cons
@@ -33,14 +54,14 @@ fix_admsources = 0 # calculate adm sources with initial data
 # data_format=%.15g
 # 
 # 
-# <output2>
-# file_type = hdf5
-# variable  = prim
-# dt        = 0.5
-# ghost_zones=true
-# #x2_slice = 0.0
-# #x3_slice = 0.0
-# data_format=%.15g
+<output2>
+file_type = hdf5
+variable  = prim
+dt        = 0.5
+ghost_zones=true
+#x2_slice = 0.0
+x3_slice = 0.0
+data_format=%.15g
 # 
 # 
 # <output4>
@@ -73,10 +94,20 @@ fix_admsources = 0 # calculate adm sources with initial data
 # x2_slice = 0
 # x3_slice = 0
 
+# <output6>
+# file_type = hdf5
+# variable  = con
+# dt        = 0.1
+# ghost_zones=true
+# x2_slice = 0.0
+# x3_slice = 0.0
+# data_format=%.15g
+
 <output7>
 file_type = hst
 dt        = 0.5
-data_format=%.15g
+# data_format=%.15g
+data_format=%.15e
 
 # <output4>
 # file_type       = hdf5                 # Athena++ hdf5 data
@@ -88,35 +119,36 @@ data_format=%.15g
 
 <time>
 cfl_number = 0.25
-nlim       = 10000
+# nlim       = 10000
 # tlim       = 10000
 # nlim       = 1000
-tlim       = 100
+tlim       = 1
 integrator = rk3   # time integration algorithm
-xorder     = 3    # order of spatial reconstruction
+xorder     = 5    # order of spatial reconstruction
 ncycle_out = 1      # interval for stdout summary info
 
 <mesh>
 nx1    = 64    # number of cells in x-direction
-x1min  = -32   # minimum x
-x1max  = 32 # maximum x
+x1min  = -32.0   # minimum x
+x1max  = 32.0 # maximum x
 ix1_bc = periodic  # lower boundary
 ox1_bc = periodic  # upper boundary
 
 nx2    = 64  # number of cells in y-direction
-x2min  = -32  # minimum y
-x2max  = 32  # maximum y
+x2min  = -32.0  # minimum y
+x2max  = 32.0  # maximum y
 ix2_bc = periodic # lower boundary
 ox2_bc = periodic # upper boundary
 
 nx3    = 64        # number of cells in z-direction
-x3min  = -32   # minimum z
-x3max  = 32       # maximum z
+x3min  = -32.0   # minimum z
+x3max  = 32.0       # maximum z
 ix3_bc = periodic  # lower  boundary
 ox3_bc = periodic  # upper boundary
 
-refinement = none
-#numlevel = 6
+refinement = adaptive
+# maximum
+numlevel = 2
 #deref_count = 5
 
 num_threads = 8
@@ -148,9 +180,31 @@ zero_sources=0 # set hydro sources to 0
 zero_div=0 # set div F = 0 i.e. don't update conservatives with fluxes
 
 <problem>
-rhoc = 0.00128  # energy density at centre of star
-dr = 0.00001  # TOV integration timestep
-rmin = 1e-10 # TOV integration minimum radius
-npts = 1000000 # TOV guess for number of radial points 
+
+# TOV: central density
+rhoc = 0.00128
+
+# TOV: starting integration radius
+rmin = 0
+# TOV: integration step-size & max-points
+dr   = 1e-7  # TOV integration step
+npts = 1000000000
+# TOV: spacing & number of points to retain for polar->cart interpolation
+interp_dr   = 1e-6
+interp_npts = 10000000
+
+# TOV: minimum step-size for surface identification
+surf_dr = 1e-14
+
+# TOV: shift & boost params
+x_0_x1 = 0.0
+x_0_x2 = 0.0
+x_0_x3 = 0.0
+
+v_b_x1 = 0
+v_b_x2 = 0
+v_b_x3 = 0
+
+# Atmosphere settings
 fatm = 0.00000000000000078125  # set atmosphere rho to rho = rhomax * fatm
 fthr = 1  # set point to atmosphere if rho < fthr*fatm*rhomax

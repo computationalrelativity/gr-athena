@@ -307,6 +307,7 @@ inline void ApplyLinearTransform(
 
 }
 
+// compute norm-squared with (v_u, g_dd) or (v_d, g_uu)
 template<typename T>
 void MetricNorm2Vector(
   AthenaTensor<T, TensorSymm::NONE,       3, 0> & v_norm2,
@@ -332,6 +333,7 @@ void MetricNorm2Vector(
   );
 }
 
+// Construct space-time (ST) metric from ADM decomposed quantities
 template<typename T, int D>
 void Assemble_ST_Metric_dd(
   AthenaTensor<T, TensorSymm::SYM2, D, 2>         & st_g_dd,
