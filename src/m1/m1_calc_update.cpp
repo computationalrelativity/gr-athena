@@ -36,6 +36,9 @@ void M1::CalcUpdate(Real const dt,
   if (closure == "Eddington") {
     closure_fun = eddington;
   }
+  else if (closure == "Kershaw") {
+    closure_fun = kershaw;
+  }
   else if (closure == "Minerbo") {
     closure_fun = minerbo;
   }
@@ -55,8 +58,13 @@ void M1::CalcUpdate(Real const dt,
   //    F = F^* + cdt S[F]
   // Where F^* = F^k + cdt A
 
+  //Real const dt = CCTK_DELTA_TIME / static_cast<CCTK_REAL>( *TimeIntegratorStage);
   //TimeIntegratorStage--; //TODO: fixme
-  Real const mb = fr->AverageBaryonMass(); //TODO: fix this somewhere
+  
+  Real mb = 0.0;
+  (void)mb;
+  if (nspecies > 1)
+    mb = 1.0; //AverageBaryonMass(); // fakerates->AverageBaryonMass(); //TODO: fix this somewhere
 
   AthenaArray<Real> densxp, densxn, sconx, scony, sconz, tau;
   //TODO: fix ptrs to fluid vars 3D grid vars (see also below)
@@ -140,7 +148,6 @@ void M1::CalcUpdate(Real const dt,
       continue;
     }
 
-    
     // Go from ADM 3-metric VC (AthenaArray/Tensor)
     // to ADM 4-metric on CC at ijk (TensorPointwise) 
     Get4Metric_VC2CCinterp(pmb, k,j,i,

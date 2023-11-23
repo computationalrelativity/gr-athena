@@ -84,11 +84,11 @@ void M1::assemble_fnu(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u
   }
 }
 
-Real compute_Gamma(Real const W,
-		               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_u,
-		               Real const J, Real const E,
-		               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
-                   Real rad_E_floor, Real rad_eps)
+Real M1::compute_Gamma(Real const W,
+		       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_u,
+		       Real const J, Real const E,
+		       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
+		       Real rad_E_floor, Real rad_eps)
 { // Eq. 24
   if (E > rad_E_floor && J > rad_E_floor) {
     Real f_dot_v = std::min(tensor::dot(F_d, v_u)/E, 1 - rad_eps);
@@ -168,12 +168,12 @@ Real M1::calc_F_flux(Real const alp,
 }
 
 void M1::calc_rad_sources(Real const eta,
-			                    Real const kabs,
-			                    Real const kscat,
-			                    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d,
-			                    Real const J,
-			                    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const H_d,
-			                    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & S_d)
+			  Real const kabs,
+			  Real const kscat,
+			  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d,
+			  Real const J,
+			  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const H_d,
+			  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & S_d)
 { // Eq. 5
   for (int a = 0; a < MDIM; ++a) {
     S_d(a) = (eta - kabs*J)*u_d(a) - (kabs + kscat)*H_d(a);
@@ -181,16 +181,16 @@ void M1::calc_rad_sources(Real const eta,
 }
 
 Real M1::calc_rE_source(Real const alp,
-			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_u,
-			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & S_d)
+			TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_u,
+			TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & S_d)
 { // Eq. 4 and 29
   return - alp*tensor::dot(n_u, S_d);
 }
 
 void M1::calc_rF_source(Real const alp,
-			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const gamma_ud,
-			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & S_d,
-			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & tS_d)
+			TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const gamma_ud,
+			TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & S_d,
+			TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & tS_d)
 { // Eq. 4 and 29
   for (int a = 0; a < MDIM; ++a) {
     tS_d(a) = 0.0;
@@ -201,8 +201,8 @@ void M1::calc_rF_source(Real const alp,
 }
 
 void M1::apply_floor(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const g_uu,
-		                 Real * E,
-		                 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & F_d)
+		     Real * E,
+		     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & F_d)
 {
   *E = std::max(rad_E_floor, *E);
   Real const F2 = tensor::dot(g_uu, F_d, F_d);
@@ -235,8 +235,8 @@ void M1::uvel(Real alp,
 // 
 
 void M1::pack_F_d(Real const betax, Real const betay, Real const betaz,
-		              Real const Fx, Real const Fy, Real const Fz,
-		              TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & F_d)
+		  Real const Fx, Real const Fy, Real const Fz,
+		  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & F_d)
 {
   // F_0 = g_0i F^i = beta_i F^i = beta^i F_i
   F_d(0) = betax*Fx + betay*Fy + betaz*Fz;
@@ -246,7 +246,7 @@ void M1::pack_F_d(Real const betax, Real const betay, Real const betaz,
 }
 
 void M1::unpack_F_d(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
-		                Real * Fx, Real * Fy, Real * Fz)
+		    Real * Fx, Real * Fy, Real * Fz)
 {
   *Fx = F_d(1);
   *Fy = F_d(2);
@@ -254,7 +254,7 @@ void M1::unpack_F_d(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d
 }
 
 void M1::pack_F_d(Real const Fx, Real const Fy, Real const Fz,
-		              TensorPointwise<Real, Symmetries::NONE, MDIM-1, 1> & F_d)
+		  TensorPointwise<Real, Symmetries::NONE, MDIM-1, 1> & F_d)
 {
   F_d(0) = Fx;
   F_d(1) = Fy;
@@ -262,7 +262,7 @@ void M1::pack_F_d(Real const Fx, Real const Fy, Real const Fz,
 }
 
 void M1::unpack_F_d(TensorPointwise<Real, Symmetries::NONE, MDIM-1, 1> const & F_d,
-		                Real * Fx, Real * Fy, Real * Fz)
+		    Real * Fx, Real * Fy, Real * Fz)
 {
   *Fx = F_d(0);
   *Fy = F_d(1);
@@ -498,9 +498,9 @@ void M1::Get4Metric_VC2CCinterp(MeshBlock * pmb,
 
 // Inverse 4-metric
 void M1::Get4Metric_Inv(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd,
-			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & beta_u,
-			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 0> const & alpha,
-			                  TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & g_uu)
+			TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & beta_u,
+			TensorPointwise<Real, Symmetries::NONE, MDIM, 0> const & alpha,
+			TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & g_uu)
 {
   // g^00
   g_uu(0,0) = - 1.0/SQ(alpha());

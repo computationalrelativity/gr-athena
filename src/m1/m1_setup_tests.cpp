@@ -11,6 +11,7 @@
 #include <cmath> // sqrt
 #include <iomanip>
 #include <iostream>
+#include <sstream> // stringstream
 #include <fstream>
 
 // Athena++ headers
@@ -160,7 +161,7 @@ void M1::SetupDiffusionTest(AthenaArray<Real> & u)
 	vec.E(ig,k,j,i) = std::exp(-SQ(3*x));
       }
       else {
-	std::ostringstream msg;
+	std::stringstream msg;
 	msg << "Unknown diffusion profile " << diff_profile << std::endl;
 	ATHENA_ERROR(msg);
       }

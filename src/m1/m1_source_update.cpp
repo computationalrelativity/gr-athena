@@ -27,12 +27,9 @@
 #define TINY (1e-10)
 
 using namespace utils;
+
 //----------------------------------------------------------------------------------------
 // Low level kernel computing the Jacobian matrix
-
-// TODO: check where to define or read this
-Real source_epsabs = 1e-3,source_epsrel = 1e-3;
-int source_maxiter = 100;
 
 namespace {
   
@@ -154,8 +151,8 @@ namespace {
 
 namespace {
   
-  struct Params {
-      Params(MeshBlock * _pmb,
+  struct Parameters {
+      Parameters(MeshBlock * _pmb,
              int const _i,
              int const _j,
              int const _k,
@@ -229,45 +226,25 @@ namespace {
              TensorPointwise<Real, Symmetries::NONE, MDIM, 1> tS_d;
   };
 
-  int prepare_closure(gsl_vector const * q, Params * p)
-  {
-    M1 * pm1 = p->pmb->pm1;
-        
+  int prepare_closure(gsl_vector const * q, void * params) 
+  {        
+    Parameters *p = reinterpret_cast<Parameters *>(params);
     p->E = std::max(gsl_vector_get(q, 0), 0.0);
     if (p->E < 0) {
       return GSL_EBADFUNC;
     }
-    // ASK: how to deal with this    
-    pm1->pack_F_d(-p->alp * p->n_u(1), -p->alp * p->n_u(2), -p->alp * p->n_u(3),
-                  gsl_vector_get(q, 1), gsl_vector_get(q, 2), gsl_vector_get(q, 3),
-                  p->F_d);
-    tensor::contract(p->g_uu, p->F_d, p->F_u);
-    
-    pm1->calc_closure_pt(p->pmb, p->i, p->j, p->k, p->ig,
-                         p->closure, p->gsl_solver_1d, p->g_dd, p->g_uu, p->n_d, p->W,
-                         p->u_u, p->v_d, p->proj_ud, p->E, p->F_d,
-                         &p->chi, p->P_dd);
-    
+    p->pmb->pm1->prepare_closure(q, params);
     return GSL_SUCCESS;
   }
 
-  int prepare_sources(gsl_vector const * q, Params * p)
-  { 
-    M1 * pm1 = p->pmb->pm1;
-    pm1->assemble_rT(p->n_d, p->E, p->F_d, p->P_dd, p->T_dd);
-    
-    p->J = pm1->calc_J_from_rT(p->T_dd, p->u_u);
-    pm1->calc_H_from_rT(p->T_dd, p->u_u, p->proj_ud, p->H_d);
-      
-    pm1->calc_rad_sources(p->eta, p->kabs, p->kscat, p->u_d, p->J, p->H_d, p->S_d);
-    
-    p->Edot = pm1->calc_rE_source(p->alp, p->n_u, p->S_d);
-    pm1->calc_rF_source(p->alp, p->gamma_ud, p->S_d, p->tS_d);
-    
+  int prepare_sources(gsl_vector const * q, void * params) 
+  {
+    Parameters *p = reinterpret_cast<Parameters *>(params);
+    p->pmb->pm1->prepare_sources(q, params);
     return GSL_SUCCESS;
   }
 
-  int prepare(gsl_vector const * q, Params * p)
+  int prepare(gsl_vector const * q, void *p) 
   {
     int ierr = prepare_closure(q, p);
     if (ierr != GSL_SUCCESS) {
@@ -286,7 +263,7 @@ namespace {
   //    f(q) = q - q^* - dt S[q]
   int impl_func_val(gsl_vector const * q, void * params, gsl_vector * f)
   {
-    Params * p = reinterpret_cast<Params *>(params);
+    Parameters * p = reinterpret_cast<Parameters *>(params);
     int ierr = prepare(q, p);
     if (ierr != GSL_SUCCESS) return ierr;
 
@@ -304,7 +281,7 @@ namespace {
   // Jacobian of the implicit function
   int impl_func_jac(gsl_vector const * q, void * params, gsl_matrix * J)
   {
-    Params * p = reinterpret_cast<Params *>(params);
+    Parameters * p = reinterpret_cast<Parameters *>(params);
 
     int ierr = prepare(q, p);
     if (ierr != GSL_SUCCESS) {
@@ -336,7 +313,7 @@ namespace {
   // Function and Jacobian evaluation
   int impl_func_val_jac(gsl_vector const * q, void * params, gsl_vector * f, gsl_matrix * J)
   {
-    Params * p = reinterpret_cast<Params *>(params);
+    Parameters * p = reinterpret_cast<Parameters *>(params);
 
     int ierr = prepare(q, p);
     if (ierr != GSL_SUCCESS) {
@@ -351,59 +328,128 @@ namespace {
 
 #undef EVALUATE_ZFUNC
 #undef EVALUATE_ZJAC
-
+  
+  void explicit_update(Parameters * p,
+		       Real * Enew,
+		       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & Fnew_d) {
+    *Enew = p->Estar + p->cdt * p->Edot;
+    Fnew_d(1) = p->Fstar_d(1) + p->cdt * p->tS_d(1);
+    Fnew_d(2) = p->Fstar_d(2) + p->cdt * p->tS_d(2);
+    Fnew_d(3) = p->Fstar_d(3) + p->cdt * p->tS_d(3);
+    // F_0 = g_0i F^i = beta_i F^i = beta^i F_i
+    Fnew_d(0) =
+      - p->alp * p->n_u(1) * Fnew_d(1)
+      - p->alp * p->n_u(2) * Fnew_d(2)
+      - p->alp * p->n_u(3) * Fnew_d(3);
+  }
+  
 } // namespace
 
+//----------------------------------------------------------------------------------------
+// Helpers
+
+void M1::prepare_closure(gsl_vector const * q, void * params)
+{
+  Parameters *p = reinterpret_cast<Parameters *>(params);
+  pack_F_d(-p->alp * p->n_u(1), -p->alp * p->n_u(2), -p->alp * p->n_u(3),
+	   gsl_vector_get(q, 1), gsl_vector_get(q, 2), gsl_vector_get(q, 3),
+	   p->F_d);
+  tensor::contract(p->g_uu, p->F_d, p->F_u);
+  calc_closure_pt(p->pmb, p->i, p->j, p->k, p->ig,
+		  p->closure, p->gsl_solver_1d, p->g_dd, p->g_uu, p->n_d, p->W,
+		  p->u_u, p->v_d, p->proj_ud, p->E, p->F_d,
+		  &p->chi, p->P_dd);
+  return;
+}
+
+void M1::prepare_sources(gsl_vector const * q, void * params)
+{
+  Parameters *p = reinterpret_cast<Parameters *>(params);
+  assemble_rT(p->n_d, p->E, p->F_d, p->P_dd, p->T_dd);
+  p->J = calc_J_from_rT(p->T_dd, p->u_u);
+  calc_H_from_rT(p->T_dd, p->u_u, p->proj_ud, p->H_d);
+  calc_rad_sources(p->eta, p->kabs, p->kscat, p->u_d, p->J, p->H_d, p->S_d);
+  p->Edot = calc_rE_source(p->alp, p->n_u, p->S_d);
+  calc_rF_source(p->alp, p->gamma_ud, p->S_d, p->tS_d);
+  return;
+}
 
 //----------------------------------------------------------------------------------------
-// Source update at one point
+// \!fn int M1::source_update_pt(...
+// \brief Source update at one point
 
-void M1::source_update_pt(
-    MeshBlock * pmb,
-    int const i,
-    int const j,
-    int const k,
-    int const ig,
-    closure_t closure_fun,
-    gsl_root_fsolver * gsl_solver_1d,
-    gsl_multiroot_fdfsolver * gsl_solver_nd,
-    Real const cdt,
-    Real const alp,
-    TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd,
-    TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d,
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_u,
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & gamma_ud,
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d,
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_d,
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_u,
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud,
-    Real const W,
-    Real const Eold,
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & Fold_d,
-    Real const Estar,
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & Fstar_d,
-    Real * chi,
-    Real const eta,
-    Real const kabs,
-    Real const kscat,
-    Real * Enew,
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> Fnew_d)
+int M1::source_update_pt(MeshBlock * pmb,
+			 int const i,
+			 int const j,
+			 int const k,
+			 int const ig,
+			 closure_t closure_fun,
+			 gsl_root_fsolver * gsl_solver_1d,
+			 gsl_multiroot_fdfsolver * gsl_solver_nd,
+			 Real const cdt,
+			 Real const alp,
+			 TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd,
+			 TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
+			 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d,
+			 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_u,
+			 TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & gamma_ud,
+			 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d,
+			 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
+			 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_d,
+			 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_u,
+			 TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud,
+			 Real const W,
+			 Real const Eold,
+			 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & Fold_d,
+			 Real const Estar,
+			 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & Fstar_d,
+			 Real * chi,
+			 Real const eta,
+			 Real const kabs,
+			 Real const kscat,
+			 Real * Enew,
+			 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> Fnew_d)
 {
-  Params p(pmb, i, j, k, ig,
-           closure_fun, gsl_solver_1d, cdt, alp, g_dd, g_uu, n_d, n_u,
-           gamma_ud, u_d, u_u, v_d, v_u, proj_ud, W, Estar, Fstar_d, *chi, eta,
-           kabs, kscat);
-        
-  gsl_multiroot_function_fdf zfunc = {
-      impl_func_val,
-      impl_func_jac,
-      impl_func_val_jac,
-      4, &p};
+  Parameters p(pmb, i, j, k, ig,
+	       closure_fun, gsl_solver_1d, cdt, alp, g_dd, g_uu, n_d, n_u,
+	       gamma_ud, u_d, u_u, v_d, v_u, proj_ud, W, Estar, Fstar_d, *chi, eta,
+	       kabs, kscat);
   
+  gsl_multiroot_function_fdf zfunc = {
+    impl_func_val,
+    impl_func_jac,
+    impl_func_val_jac,
+    4, &p};
+
+  // Old solution
   Real qold[] = {Eold, Fold_d(1), Fold_d(2), Fold_d(3)};
   gsl_vector_view xold = gsl_vector_view_array(qold, 4);
+
+  
+  // Non stiff limit, use explicit update
+  if (cdt*kabs < 1 && cdt*kscat < 1) {
+    prepare(&xold.vector, &p);
+    explicit_update(&p, Enew, Fnew_d);
+    
+    Real q[4] = {*Enew, Fnew_d(1), Fnew_d(2), Fnew_d(3)};
+    gsl_vector_view x = gsl_vector_view_array(q, 4);
+    prepare_closure(&x.vector, &p);
+    *chi = p.chi;
+
+    return SOURCE_UPDATE_THIN;
+  }
+
+  // Our scheme cannot capture this dynamics (tau << dt), so we go
+  // directly to the equilibrium
+  if (source_thick_limit > 0 &&
+      SQ(cdt)*(kabs*(kabs + kscat)) > SQ(source_thick_limit)) {
+    return SOURCE_UPDATE_EQUIL;
+  }
+
+  // This handles the scattering dominated limit
+  if (source_scat_limit > 0 && cdt*kscat > source_scat_limit) {
+    return SOURCE_UPDATE_SCAT;
+  }
   
   // Initial guess for the solution
   Real q[4] = {*Enew, Fnew_d(1), Fnew_d(2), Fnew_d(3)};
@@ -412,34 +458,67 @@ void M1::source_update_pt(
   int ierr = gsl_multiroot_fdfsolver_set(gsl_solver_nd, &zfunc, &x.vector);
   int iter = 0;
   do {
-    ierr = gsl_multiroot_fdfsolver_iterate(gsl_solver_nd);
-    iter++;
-    // The nonlinear solver is stuck: bailing out
-    if (ierr == GSL_ENOPROG || ierr == GSL_ENOPROGJ) {
-#ifdef BREAK_ON_ENOPROG
-      break;
-#else
-      *Enew = Eold;
-      Fnew_d(0) = Fold_d(0);
-      Fnew_d(1) = Fold_d(1);
-      Fnew_d(2) = Fold_d(2);
-      Fnew_d(3) = Fold_d(3);
-      return;
-#endif
-    } else if (ierr == GSL_EBADFUNC) {
-    // NaNs or Infs are found, this should not have happened
+    if (iter < source_maxiter) {
+      ierr = gsl_multiroot_fdfsolver_iterate(gsl_solver_nd);
+      iter++;
+    }
+    
+    // The nonlinear solver is stuck.
+    if (ierr == GSL_ENOPROG || ierr == GSL_ENOPROGJ ||
+	ierr == GSL_EBADFUNC || iter >= source_maxiter) {
+      
+      // If we are here, then we are in trouble
+#ifdef WARN_FOR_SRC_FIX
       std::ostringstream msg;
-      msg << "NaNs or Infs found in the implicit solve!";
-      ATHENA_ERROR(msg);
-    } else if (ierr != 0) {
+      if (ierr == GSL_EBADFUNC) {
+	msg << "NaNs or Infs found in the implicit solve\n";
+      }
+      else if (iter > source_maxiter) {
+        msg << "Source solver exceeded the maximum number of iterations\n";
+      }
+      else {
+	msg << "Stuck nonlinear solver.\n";
+      }
+      msg << "Trying to save the day... ";
+      std::cout << msg.str();
+#endif
+    
+      // We are optically thick, suggest to retry with Eddington closure
+      if (closure_fun != eddington) {
+#ifdef WARN_FOR_SRC_FIX
+	msg << "Eddington closure\n";
+	std::cout << msg.str();
+#endif
+	ierr = source_update_pt(pmb, i, j, k, ig,
+				eddington, gsl_solver_1d, gsl_solver_nd, cdt,
+				alp, g_dd, g_uu, n_d, n_u, gamma_ud, u_d, u_u,
+				v_d, v_u, proj_ud, W, Eold, Fold_d,
+				Estar, Fstar_d, chi,
+				eta, kabs, kscat, Enew, Fnew_d);
+	if (ierr == SOURCE_UPDATE_OK) {
+	  return SOURCE_UPDATE_EDDINGTON;
+	}
+	else {
+	  return ierr;
+	}
+      }
+      else {
+#ifdef WARN_FOR_SRC_FIX
+      msg << "using initial guess\n";
+      std::cout << msg.str();
+#endif
+      return SOURCE_UPDATE_FAIL;
+      }
+    }
+    else if (ierr != GSL_SUCCESS) {
       std::ostringstream msg;
       msg << "Unexpected error in "
-	           "gsl_multirootroot_fdfsolver_iterate, error code " << ierr << std::endl;
+	"gsl_multirootroot_fdfsolver_iterate, error code " << ierr;
       ATHENA_ERROR(msg);
     }
     ierr = gsl_multiroot_test_delta(gsl_solver_nd->dx, gsl_solver_nd->x,
-				                            source_epsabs, source_epsrel);
-  } while (ierr == GSL_CONTINUE && iter < source_maxiter);
+				    source_epsabs, source_epsrel);
+  } while (ierr == GSL_CONTINUE);
   
   *Enew = gsl_vector_get(gsl_solver_nd->x, 0);
   Fnew_d(1) = gsl_vector_get(gsl_solver_nd->x, 1);
@@ -452,4 +531,6 @@ void M1::source_update_pt(
   
   prepare_closure(gsl_solver_nd->x, &p);
   *chi = p.chi;
+
+  return SOURCE_UPDATE_OK;
 }

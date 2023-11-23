@@ -17,12 +17,10 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../athena_tensor.hpp"
-//#include "../finite_differencing.hpp"
 #include "../utils/lagrange_interp.hpp"
 #include "../utils/interp_intergrid.hpp"
 #include "../bvals/cc/bvals_cc.hpp"
 #include "../bvals/vc/bvals_vc.hpp"
-#include "fake_rates.hpp"
 
 #if Z4C_ENABLED
 #include "../z4c/z4c.hpp"
@@ -31,13 +29,15 @@
 
 #include "../utils/tensor.hpp" // TensorPointwise
 
+#include "fake_rates.hpp"
+
 #include <gsl/gsl_vector.h>
 #include <gsl/gsl_roots.h>
 #include <gsl/gsl_multiroots.h>
 #include <gsl/gsl_errno.h>
 
 #ifndef M1_NGHOST
-#define M1_NGHOST (2)
+#define M1_NGHOST (2) //TODO: check we have enough, NGHOSTS >= M1_NGHOSTS
 #endif
 
 #ifndef M1_NSPECIES
@@ -51,6 +51,17 @@
 #ifndef M1_EPSILON
 #define M1_EPSILON (1e-10)
 #endif
+
+#ifndef WARN_FOR_SRC_FIX
+#define WARN_FOR_SRC_FIX (1)
+#endif
+
+#ifndef USE_EIGENVALUES_THIN
+#define USE_EIGENVALUES_THIN (0)
+#endif
+
+// CGS density conv. fact
+#define CGS_GCC (1.619100425158886e-18) 
 
 using namespace utils::tensor;
 
@@ -134,12 +145,25 @@ public:
   // Names of internal variables
   static char const * const Intern_names[N_Intern];
 
+  // Source update results
+  enum {
+    SOURCE_UPDATE_OK,
+    SOURCE_UPDATE_THIN,
+    SOURCE_UPDATE_EQUIL,
+    SOURCE_UPDATE_SCAT,
+    SOURCE_UPDATE_EDDINGTON,
+    SOURCE_UPDATE_FAIL,
+    SOURCE_UPDATE_RESULTS,
+  };
+  // Messages
+  static char const * const source_update_msg[SOURCE_UPDATE_RESULTS];
+  
 public:
   M1(MeshBlock *pmb, ParameterInput *pin);
   ~M1();
 
   MeshBlock * pmy_block;     // pointer to MeshBlock containing this M1
-  FakeRates * fr;            // pointer to fake rates
+  FakeRates * fakerates;     // pointer to fake rates
 
   // public data storage
   struct {
@@ -227,8 +251,13 @@ public:
   bool set_to_equilibrium;            // Initialize everything to thermodynamic equilibrium
   bool reset_to_equilibrium;          // Set everything to equilibrium at recovery
   Real equilibrium_rho_min;           // Set to equilibrium only if the density is larger than this (CGS)
+  Real source_thick_limit;            // Use the optically thick limit if the equilibration time is less than the timestep over this factor
+  Real source_scat_limit;             // Use the scattering limit if the isotropization time is less than the timestep over this factor 
   Real mindiss;                       // TODO: check this
-
+  Real source_epsabs;                 // Target absolute precision for the nonlinear solver
+  Real source_epsrel;                 // Target relative precision for the nonlinear solver
+  int source_maxiter;                 // Maximum number of iterations in the nonlinear solver
+  
   // Problem-specific parameters
   std::string m1_test; // Simple tests:
   // "beam"       :: "Evolve a single beam propagating through the grid"
@@ -267,15 +296,8 @@ public:
   };
 
   MB_info mbi;
-
+  
 public:
-  // scheduled functions
-  //
-  void calc_proj(TensorPointwise<Real, Symmetries::NONE, MDIM, 3> const & u_d,
-                 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
-                 TensorPointwise<Real, Symmetries::NONE, MDIM, 2> & proj_ud);
-  // <--
-  // FIXME: these need to get fluid data
   void CalcFiducialVelocity();
   void SetEquilibrium(AthenaArray<Real> & u);
   void AddToADMMatter(AthenaArray<Real> & u);
@@ -286,171 +308,171 @@ public:
   void GRSources(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs);
   void CalcUpdate(const Real dt,
                 AthenaArray<Real> & u_p, AthenaArray<Real> & u_c, AthenaArray<Real> & u_rhs);
-  
-  Real NewBlockTimeStep(void);
 
   // compute new timestep on a MeshBlock
-  //Real NewBlockTimeStep(void);
+  Real NewBlockTimeStep(void);
 
-  static void pack_F_d(Real const betax, Real const betay, Real const betaz,
-                       Real const Fx, Real const Fy, Real const Fz,
-                       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & F_d);
-  static void unpack_F_d(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
-                         Real * Fx, Real * Fy, Real * Fz);
-  static void pack_F_d(Real const Fx, Real const Fy, Real const Fz,
-                       TensorPointwise<Real, Symmetries::NONE, MDIM-1, 1> & F_d);
-  static void unpack_F_d(TensorPointwise<Real, Symmetries::NONE, MDIM-1, 1> const & F_d,
-                         Real * Fx, Real * Fy, Real * Fz);
-  //...
-  void calc_closure_pt(
-    MeshBlock * pmb,
-    int const i, int const j, int const k,
-    int const ig,
-    closure_t closure_fun,
-    gsl_root_fsolver * fsolver,
-    TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd,
-    TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d,
-    Real const w_lorentz,
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_d,
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud,
-    Real const E,
-    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
-    Real * chi,
-    TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd);
-  static void assemble_rT(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d,
-                        Real const J,
-                        TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & H_d,
-                        TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & K_dd,
-                        TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & rT_dd);
-  static void calc_H_from_rT(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & rT_dd,
-                            TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
-                            TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud,
-                            TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & H_d);
-  // utility functions
-  //...
-  static Real calc_J_from_rT(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & rT_dd,
-                             TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u);
-  void calc_rad_sources(
-      Real const eta,
-      Real const kabs,
-      Real const kscat,
-      TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d,
-      Real const J,
-      TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const H_d,
-      TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & S_d);
-  Real calc_rE_source(
-      Real const alp,
-      TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_u,
-      TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & S_d);
-  void calc_rF_source(
-      Real const alp,
-      TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const gamma_ud,
-      TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & S_d,
-      TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & tS_d);
   // set aliases 
   void SetZeroLabVars(AthenaArray<Real> & u);
   void SetLabVarsAliases(AthenaArray<Real> & u, Lab_vars & lab);
   void SetRadVarsAliases(AthenaArray<Real> & r, Rad_vars & rad);
   void SetRadMatVarsAliases(AthenaArray<Real> & radmat, RadMat_vars & rmat);
   void SetDiagnoVarsAliases(AthenaArray<Real> & diagno, Diagno_vars & rdia);
-
   void SetFiduVarsAliases(AthenaArray<Real> & intern, Fidu_vars & fid);
   void SetNetVarsAliases(AthenaArray<Real> & intern, Net_vars & net);
+
+  // initial data for the tests
   void SetupBeamTest(AthenaArray<Real> & u);
   void SetupDiffusionTest(AthenaArray<Real> & u);
   void SetupEquilibriumTest(AthenaArray<Real> & u);
   void SetupKerrSchildMask(AthenaArray<Real> & u);
   //void SetupTestHydro();
 
-  
-  // additional global functions
-  //
-
-  // initial data for the tests
-  //...
-
-  //...
-  //..
-
+  // wrappers/interfaces with GSL for source update and closure
+  void prepare_closure(gsl_vector const * q, void * params);
+  void prepare_sources(gsl_vector const * q, void * params);
+  double zFunction(double xi, void * params);
+   
 private:
   AthenaArray<Real> dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep
-    // scratch space used to compute fluxes
+  // scratch space used to compute fluxes
   AthenaArray<Real> dxw_;
   AthenaArray<Real> x1face_area_, x2face_area_, x3face_area_;
   AthenaArray<Real> x2face_area_p1_, x3face_area_p1_;
   AthenaArray<Real> cell_volume_;
-  // 2D
-  AthenaArray<Real> dflx_;
+  AthenaArray<Real> dflx_; //  (N_Lab, ngroups*nspecies, ncells1)
+    
+  // m1_source_update.cpp  
+  int source_update_pt(MeshBlock * pmb,
+		       int const i,
+		       int const j,
+		       int const k,
+		       int const ig,
+		       closure_t closure_fun,
+		       gsl_root_fsolver * gsl_solver_1d,
+		       gsl_multiroot_fdfsolver * gsl_solver_nd,
+		       Real const cdt,
+		       Real const alp,
+		       TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd,
+		       TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
+		       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d,
+		       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_u,
+		       TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & gamma_ud,
+		       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d,
+		       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
+		       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_d,
+		       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_u,
+		       TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud,
+		       Real const W,
+		       Real const Eold,
+		       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & Fold_d,
+		       Real const Estar,
+		       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & Fstar_d,
+		       Real * chi,
+		       Real const eta,
+		       Real const kabs,
+		       Real const kscat,
+		       Real * Enew,
+		       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> Fnew_d);  
+  
+  // m1_closure.cpp
+  void calc_closure_pt(MeshBlock * pmb,
+		       int const i, int const j, int const k,
+		       int const ig,
+		       closure_t closure_fun,
+		       gsl_root_fsolver * fsolver,
+		       TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd,
+		       TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
+		       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d,
+		       Real const w_lorentz,
+		       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
+		       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_d,
+		       TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud,
+		       Real const E,
+		       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
+		       Real * chi,
+		       TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd);
 
-  void source_update_pt(
-        MeshBlock * pmb,
-        int const i,
-        int const j,
-        int const k,
-        int const ig,
-        closure_t closure_fun,
-        gsl_root_fsolver * gsl_solver_1d,
-        gsl_multiroot_fdfsolver * gsl_solver_nd,
-        Real const cdt,
-        Real const alp,
-        TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd,
-        TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
-        TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d,
-        TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_u,
-        TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & gamma_ud,
-        TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d,
-        TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
-        TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_d,
-        TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_u,
-        TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud,
-        Real const W,
-        Real const Eold,
-        TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & Fold_d,
-        Real const Estar,
-        TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & Fstar_d,
-        Real * chi,
-        Real const eta,
-        Real const kabs,
-        Real const kscat,
-        Real * Enew,
-        TensorPointwise<Real, Symmetries::NONE, MDIM, 1> Fnew_d);  
+  void apply_closure(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd,
+		     TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
+		     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d,
+		     Real const w_lorentz,
+		     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
+		     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_d,
+		     TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud,
+		     Real const E,
+		     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
+		     Real const chi,
+		     TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd);
+
+  // m1_utils.cpp
   void calc_proj(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d,
                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
                  TensorPointwise<Real, Symmetries::NONE, MDIM, 2> & proj_ud);
-  static void calc_Pthin(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
-                         Real const E,
-                         TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
-                         TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd);
-  static void calc_Pthick(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd,
-                          TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
-                          TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d,
-                          Real const W,
-                          TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_d,
-                          Real const E,
-                          TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
-                          TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd);
+  void calc_Pthin(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
+		  Real const E,
+		  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
+		  TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd);
+  void calc_Pthick(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd,
+		   TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
+		   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d,
+		   Real const W,
+		   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_d,
+		   Real const E,
+		   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
+		   TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd);
   void assemble_fnu(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
                     Real const J,
                     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & H_u,
                     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & fnu_u);
+  Real compute_Gamma(Real const W,
+		     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_u,
+		     Real const J, Real const E,
+		     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
+		     Real rad_E_floor, Real rad_eps);
+  void assemble_rT(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d,
+		   Real const J,
+		   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & H_d,
+		   TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & K_dd,
+		   TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & rT_dd);
+
+  Real calc_J_from_rT(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & rT_dd,
+		      TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u);
+  void calc_H_from_rT(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & rT_dd,
+		      TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
+		      TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud,
+		      TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & H_d);
   void calc_K_from_rT(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & rT_dd,
                       TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud,
                       TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & K_dd);
-  Real calc_E_flux(
-      Real const alp,
-      TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & beta_u,
-      Real const E,
-      TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_u,
-      int const dir);
-  Real calc_F_flux(
-      Real const alp,
-      TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & beta_u,
-      TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
-      TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & P_ud,
-      int const dir,
-      int const comp);
+  void calc_rad_sources(Real const eta,
+			Real const kabs,
+			Real const kscat,
+			TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d,
+			Real const J,
+			TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const H_d,
+			TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & S_d);
+
+  Real calc_rE_source(Real const alp,
+		      TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_u,
+		      TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & S_d);
+  void calc_rF_source(Real const alp,
+		      TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const gamma_ud,
+		      TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & S_d,
+		      TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & tS_d);
+  
+  Real calc_E_flux(Real const alp,
+		   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & beta_u,
+		   Real const E,
+		   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_u,
+		   int const dir);
+  Real calc_F_flux(Real const alp,
+		   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & beta_u,
+		   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
+		   TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & P_ud,
+		   int const dir,
+		   int const comp);
+
   void apply_floor(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const g_uu,
                    Real * E,
                    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & F_d);
@@ -459,6 +481,16 @@ private:
             Real w_lorentz,
             Real velx,Real vely,Real velz,
             Real * u0, Real * u1, Real * u2, Real * u3);
+
+  void pack_F_d(Real const betax, Real const betay, Real const betaz,
+		Real const Fx, Real const Fy, Real const Fz,
+		TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & F_d);
+  void unpack_F_d(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
+		  Real * Fx, Real * Fy, Real * Fz);
+  void pack_F_d(Real const Fx, Real const Fy, Real const Fz,
+		TensorPointwise<Real, Symmetries::NONE, MDIM-1, 1> & F_d);
+  void unpack_F_d(TensorPointwise<Real, Symmetries::NONE, MDIM-1, 1> const & F_d,
+		  Real * Fx, Real * Fy, Real * Fz);
   void pack_H_d(Real const Ht, Real const Hx, Real const Hy, Real const Hz,
                 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & H_d);
   void unpack_H_d(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & H_d,
@@ -485,6 +517,7 @@ private:
                   TensorPointwise<Real, Symmetries::SYM2, MDIM-1, 3> & P_ddd);
   void pack_v_u(Real const velx, Real const vely, Real const velz,
                 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & v_u);
+  
   Real GetWLorentz_from_utilde(Real const utx, Real const uty, Real const utz,
                                Real const gxx, Real const gxy, Real const gxz,
                                Real const gyy, Real const gyz, Real const gzz,
@@ -497,21 +530,6 @@ private:
                               TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & g_dd,
                               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & beta_u,
                               TensorPointwise<Real, Symmetries::NONE, MDIM, 0> & alpha);
-  static void apply_closure(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd,
-                            TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
-                            TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d,
-                            Real const w_lorentz,
-                            TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
-                            TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_d,
-                            TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud,
-                            Real const E,
-                            TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
-                            Real const chi,
-                            TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd);
-  static double zFunction(double xi, void * params);
-  Real flux_factor(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
-                   Real const J,
-                   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & H_d);
   void Get4Metric_Inv(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd,
                       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & beta_u,
                       TensorPointwise<Real, Symmetries::NONE, MDIM, 0> const & alpha,

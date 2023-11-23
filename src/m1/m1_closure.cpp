@@ -28,6 +28,198 @@
 
 using namespace utils;
 
+//----------------------------------------------------------------------------------------
+// Setup for the root finder
+
+namespace {
+  
+  struct Parameters {
+    Parameters(MeshBlock * _pmb,
+	       closure_t _closure,
+               TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & _g_dd,
+               TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & _g_uu,
+               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & _n_d,
+               Real const _w_lorentz,
+               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & _u_u,
+               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & _v_d,
+               TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & _proj_ud,
+               Real const _E,
+               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & _F_d):      
+      pmb(_pmb), closure(_closure), g_dd(_g_dd), g_uu(_g_uu), n_d(_n_d),
+      w_lorentz(_w_lorentz), u_u(_u_u), v_d(_v_d), proj_ud(_proj_ud),
+      E(_E), F_d(_F_d) {}
+    MeshBlock * pmb;
+    closure_t closure;
+    TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd;
+    TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu;
+    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d;
+    Real const w_lorentz;
+    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u;
+    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_d;
+    TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud;
+    Real const E;
+    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d;
+  };
+
+  void print_stuff(MeshBlock * pmb,
+                   int const i, int const j, int const k,
+                   int const ig,
+                   Parameters const * p,
+                   std::ostream & msg)
+  {
+
+    // CC coords
+    Real x1v = pmb->pcoord->x1v(i);
+    Real x2v = pmb->pcoord->x2v(j);
+    Real x3v = pmb->pcoord->x3v(k);
+
+    // VC coords
+    //Real x1f = pmb->pcoord->x1f(i);
+    //Real x2f = pmb->pcoord->x2f(j);
+    //Real x3f = pmb->pcoord->x3f(k);
+    
+    msg << "(i, j, k) = (" << i << ", " << j << ", " << k << ")\n";
+    msg << "ig = " << ig << std::endl;
+    msg << "(x, y, z) = (" << x1v << ", " << x2v << ", " << x3v << ")\n";
+
+    // msg << "abs_0 = " << abs_0(k,j,i) << std::endl;
+    // msg << "abs_1 = " << abs_1(k,j,i) << std::endl;
+    // msg << "eta_0 = " << eta_0(k,j,i) << std::endl;
+    // msg << "eta_1 = " << eta_1(k,j,i) << std::endl;
+    // msg << "scat_1 = " << scat_1(k,j,i) << std::endl;
+    
+    //TODO: get hydro vars as well here
+    //      this need the new eos/c2p!!!
+    // msg << "rho = " << rho[ijk] << endl;
+    // msg << "temperature = " << temperature[ijk] << endl;
+    // msg << "Y_e = " << Y_e[ijk] << endl;
+
+    //TODO: not sure printing these is useful,
+    //      we already print the 4D metric interp.ed at the cell
+    /*
+    //Z4c::Z4c_vars z4c;
+    //Z4c::SetZ4cliases(pmb->pz4c->storage.u, z4c);
+    msg << "alp = " << z4c.alpha(k,j,i) << endl;
+    msg << "beta = (" << z4c.beta(0,k,j,i) << ", "
+                     << z4c.beta(1,k,j,i) << ", "
+                     << z4c.beta(2,k,j,i) << ")\n";
+    */
+    
+    msg << "g_uu = (";
+    for (int a = 0; a < MDIM; ++a) {
+      for (int b = 0; b < MDIM; ++b) {
+        msg << p->g_uu(a,b) << ", ";
+      }
+    }
+
+    msg << "\b\b)\n";
+    msg << "g_dd = (";
+    for (int a = 0; a < MDIM; ++a) {
+      for (int b = 0; b < MDIM; ++b) {
+        msg << p->g_dd(a,b) << ", ";
+      }
+    }
+
+    msg << "\b\b)\n";
+    msg << "w_lorentz = " << p->w_lorentz << std::endl;
+    msg << "n_d = (";
+    for (int a = 0; a < MDIM; ++a) {
+      msg << p->n_d(a) << ", ";
+    }
+
+    msg << "\b\b)\n";
+    msg << "u_u = (";
+    for (int a = 0; a < MDIM; ++a) {
+      msg << p->u_u(a) << ", ";
+    }
+    
+    msg << "\b\b)\n";
+    msg << "v_d = (";
+    for (int a = 0; a < MDIM; ++a) {
+      msg << p->v_d(a) << ", ";
+    }
+
+    msg << "\b\b)\n";
+    msg << "E = " << p->E << std::endl;
+    msg << "F_d = (";
+    for (int a = 0; a < MDIM; ++a) {
+        msg << p->F_d(a) << ", ";
+    }
+
+    msg << "\b\b)\n";
+  }
+  
+  double zFunction_gsl(double xi, void * params)
+  {
+    Parameters * p = reinterpret_cast<Parameters *>(params);
+    return p->pmb->pm1->zFunction(xi, params);
+  }
+  
+} // anonymous namespace
+
+//----------------------------------------------------------------------------------------
+// !\fn double M1::zFunction(double xi, void * params) 
+// \brief Function to rootfind in order to determine the closure
+
+double M1::zFunction(double xi, void * params) 
+{
+  Parameters *p = reinterpret_cast<Parameters *>(params);
+ 
+  TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> P_dd;
+  TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> rT_dd;
+  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> H_d;
+
+  P_dd.NewTensorPointwise();
+  rT_dd.NewTensorPointwise();
+  H_d.NewTensorPointwise();
+
+  apply_closure(p->g_dd, p->g_uu, p->n_d, p->w_lorentz, p->u_u, p->v_d,
+                p->proj_ud, p->E, p->F_d, p->closure(xi), P_dd);
+
+  assemble_rT(p->n_d, p->E, p->F_d, P_dd, rT_dd);
+  Real const J = calc_J_from_rT(rT_dd, p->u_u);
+
+  calc_H_from_rT(rT_dd, p->u_u, p->proj_ud, H_d);
+  Real const H2 = tensor::dot(p->g_uu, H_d, H_d);
+
+  P_dd.DeleteTensorPointwise();
+  rT_dd.DeleteTensorPointwise();
+  H_d.DeleteTensorPointwise();
+
+  return SQ(J*xi) - H2;
+}
+
+//----------------------------------------------------------------------------------------
+// Low level kernels
+
+Real thin(Real const xi) {
+  return 1.0;
+}
+
+Real eddington(Real const xi) {
+  return 1.0/3.0;
+}
+
+Real kershaw(Real const xi) {
+  return 1.0/3.0 + 2.0/3.0*xi*xi;
+}
+
+Real minerbo(Real const xi) {
+  return 1.0/3.0 + xi*xi*(6.0 - 2.0*xi + 6.0*xi*xi)/15.0;
+}
+
+Real flux_factor(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
+		 Real const J,
+		 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & H_d)
+{
+  Real xi = (J > 0 ? tensor::dot(g_uu, H_d, H_d)/SQ(J) : 0);
+  return std::max(0.0, std::min(xi, 1.0));
+}
+
+//----------------------------------------------------------------------------------------
+// \!fn void M1::apply_closure(...
+// \brief Calculate radiation pressure tensor
+
 void M1::apply_closure(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd,
                        TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
                        TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d,
@@ -61,183 +253,9 @@ void M1::apply_closure(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & 
   Pthick_dd.DeleteTensorPointwise();
 }
 
-namespace {
-  
-  struct Parameters {
-    Parameters(closure_t _closure,
-               TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & _g_dd,
-               TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & _g_uu,
-               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & _n_d,
-               Real const _w_lorentz,
-               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & _u_u,
-               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & _v_d,
-               TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & _proj_ud,
-               Real const _E,
-               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & _F_d):      
-               closure(_closure), g_dd(_g_dd), g_uu(_g_uu), n_d(_n_d),
-               w_lorentz(_w_lorentz), u_u(_u_u), v_d(_v_d), proj_ud(_proj_ud),
-               E(_E), F_d(_F_d) {}
-               closure_t closure;
-               TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd;
-               TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu;
-               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d;
-               Real const w_lorentz;
-               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u;
-               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_d;
-               TensorPointwise<Real, Symmetries::NONE, MDIM, 2> const & proj_ud;
-               Real const E;
-               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d;
-  };
-
-  void print_stuff(MeshBlock * pmb,
-                   int const i, int const j, int const k,
-                   int const ig,
-                   Parameters const * p,
-                   std::ostream & ss)
-  {
-
-    // CC coords
-    Real x1v = pmb->pcoord->x1v(i);
-    Real x2v = pmb->pcoord->x2v(j);
-    Real x3v = pmb->pcoord->x3v(k);
-
-    // VC coords
-    //Real x1f = pmb->pcoord->x1f(i);
-    //Real x2f = pmb->pcoord->x2f(j);
-    //Real x3f = pmb->pcoord->x3f(k);
-    
-    ss << "(i, j, k) = (" << i << ", " << j << ", " << k << ")\n";
-    ss << "ig = " << ig << std::endl;
-    ss << "(x, y, z) = (" << x1v << ", " << x2v << ", " << x3v << ")\n";
-
-    // ss << "abs_0 = " << abs_0(k,j,i) << std::endl;
-    // ss << "abs_1 = " << abs_1(k,j,i) << std::endl;
-    // ss << "eta_0 = " << eta_0(k,j,i) << std::endl;
-    // ss << "eta_1 = " << eta_1(k,j,i) << std::endl;
-    // ss << "scat_1 = " << scat_1(k,j,i) << std::endl;
-    
-    //TODO: get hydro vars as well here
-    //      this need the new eos/c2p!!!
-    // ss << "rho = " << rho[ijk] << endl;
-    // ss << "temperature = " << temperature[ijk] << endl;
-    // ss << "Y_e = " << Y_e[ijk] << endl;
-
-    //TODO: not sure printing these is useful,
-    //      we already print the 4D metric interp.ed at the cell
-    /*
-    //Z4c::Z4c_vars z4c;
-    //Z4c::SetZ4cliases(pmb->pz4c->storage.u, z4c);
-    ss << "alp = " << z4c.alpha(k,j,i) << endl;
-    ss << "beta = (" << z4c.beta(0,k,j,i) << ", "
-                     << z4c.beta(1,k,j,i) << ", "
-                     << z4c.beta(2,k,j,i) << ")\n";
-    */
-    
-    ss << "g_uu = (";
-    for (int a = 0; a < MDIM; ++a) {
-      for (int b = 0; b < MDIM; ++b) {
-        ss << p->g_uu(a,b) << ", ";
-      }
-    }
-
-    ss << "\b\b)\n";
-    ss << "g_dd = (";
-    for (int a = 0; a < MDIM; ++a) {
-      for (int b = 0; b < MDIM; ++b) {
-        ss << p->g_dd(a,b) << ", ";
-      }
-    }
-
-    ss << "\b\b)\n";
-    ss << "w_lorentz = " << p->w_lorentz << std::endl;
-    ss << "n_d = (";
-    for (int a = 0; a < MDIM; ++a) {
-      ss << p->n_d(a) << ", ";
-    }
-
-    ss << "\b\b)\n";
-    ss << "u_u = (";
-    for (int a = 0; a < MDIM; ++a) {
-      ss << p->u_u(a) << ", ";
-    }
-    
-    ss << "\b\b)\n";
-    ss << "v_d = (";
-    for (int a = 0; a < MDIM; ++a) {
-      ss << p->v_d(a) << ", ";
-    }
-
-    ss << "\b\b)\n";
-    ss << "E = " << p->E << std::endl;
-    ss << "F_d = (";
-    for (int a = 0; a < MDIM; ++a) {
-        ss << p->F_d(a) << ", ";
-    }
-
-    ss << "\b\b)\n";
-  }
-} // anonymous namespace
-
-  // Function to rootfind in order to determine the closure
-double M1::zFunction(double xi, void * params) // Parameters * p)
-{
-  Parameters *p = reinterpret_cast<Parameters *>(params);
-
-  TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> P_dd;
-  TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> rT_dd;
-  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> H_d;
-
-  P_dd.NewTensorPointwise();
-  rT_dd.NewTensorPointwise();
-  H_d.NewTensorPointwise();
-
-  apply_closure(p->g_dd, p->g_uu, p->n_d, p->w_lorentz, p->u_u, p->v_d,
-                p->proj_ud, p->E, p->F_d, p->closure(xi), P_dd);
-
-  assemble_rT(p->n_d, p->E, p->F_d, P_dd, rT_dd);
-  Real const J = calc_J_from_rT(rT_dd, p->u_u);
-
-  calc_H_from_rT(rT_dd, p->u_u, p->proj_ud, H_d);
-  Real const H2 = tensor::dot(p->g_uu, H_d, H_d);
-
-  P_dd.DeleteTensorPointwise();
-  rT_dd.DeleteTensorPointwise();
-  H_d.DeleteTensorPointwise();
-
-  return SQ(J*xi) - H2;
-}
-
-  //static double zFunctionWrapper(double x, void* obj) {
-  //  M1* self = static_cast<M1*>(obj);
-  //  return self->zFunction(x);
- // }
-
-//double zFunction_gsl(double xi, void * params)
-//{
-//  Parameters * pgsl = reinterpret_cast<Parameters *>(params);
-//  return pgsl->statePtr->zFunction(xi, params);
-//}
-
-Real flux_factor(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
-                 Real const J,
-                 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & H_d)
-{
-  Real xi = (J > 0 ? tensor::dot(g_uu, H_d, H_d)/SQ(J) : 0);
-  return std::max(0.0, std::min(xi, 1.0));
-}
-
-Real eddington(Real const xi) {
-  return 1.0/3.0;
-}
-
-Real minerbo(Real const xi) {
-  //TODO: Isn't here xi actually xi*xi?
-  return 1.0/3.0 + xi*xi*(6.0 - 2.0*xi + 6.0*xi*xi)/15.0;
-}
-
-Real thin(Real const xi) {
-  return 1.0;
-}
+//----------------------------------------------------------------------------------------
+// \!fn void M1::calc_closure_pt(...
+// \brief Calculate closure at one point
 
 void M1::calc_closure_pt(MeshBlock * pmb,
                          int const i, int const j, int const k,
@@ -260,19 +278,19 @@ void M1::calc_closure_pt(MeshBlock * pmb,
   if (closure_fun == eddington) {
     *chi = 1./3.;
     apply_closure(g_dd, g_uu, n_d, w_lorentz, u_u, v_d, proj_ud,
-		              E, F_d, *chi, P_dd);
+		  E, F_d, *chi, P_dd);
     return;
   } else if (closure_fun == thin) {
     *chi = 1.0;
     apply_closure(g_dd, g_uu, n_d, w_lorentz, u_u, v_d, proj_ud,
-		              E, F_d, *chi, P_dd);
+		  E, F_d, *chi, P_dd);
     return;
   }
   
-  Parameters params(closure_fun, g_dd, g_uu, n_d,
-		                w_lorentz, u_u, v_d, proj_ud, E, F_d);
+  Parameters params(pmb, closure_fun, g_dd, g_uu, n_d,
+		    w_lorentz, u_u, v_d, proj_ud, E, F_d);
   gsl_function F;
-  F.function = &zFunction;
+  F.function = zFunction_gsl;
   F.params = reinterpret_cast<void *>(&params);
   
   double x_lo = 0.0;
@@ -284,7 +302,7 @@ void M1::calc_closure_pt(MeshBlock * pmb,
   if (ierr == GSL_EINVAL) {
     *chi = 1.0;
     apply_closure(g_dd, g_uu, n_d, w_lorentz, u_u, v_d, proj_ud,
-		              E, F_d, *chi, P_dd);
+		  E, F_d, *chi, P_dd);
     return;
   } else if (ierr == GSL_EBADFUNC) {
     std::ostringstream msg;
@@ -294,7 +312,7 @@ void M1::calc_closure_pt(MeshBlock * pmb,
   } else if (ierr != 0) {
     std::ostringstream msg;
     msg << "Unexpected error in gsl_root_fsolver_iterate,  error code \""
-	      << ierr << "\"\n";
+	<< ierr << "\"\n";
     print_stuff(pmb, i, j, k, ig, &params, msg);
     ATHENA_ERROR(msg);
   }
@@ -313,7 +331,7 @@ void M1::calc_closure_pt(MeshBlock * pmb,
     } else if (ierr != 0) {
       std::ostringstream msg;
       msg << "Unexpected error in gsl_root_fsolver_iterate,  error code \""
-	        << ierr << "\"\n";
+	  << ierr << "\"\n";
       print_stuff(pmb, i, j, k, ig, &params, msg);
       ATHENA_ERROR(msg);
     }
@@ -326,18 +344,18 @@ void M1::calc_closure_pt(MeshBlock * pmb,
   if (ierr != GSL_SUCCESS) {
     std::ostringstream msg;
     msg << "Maximum number of iterations exceeded "
-           "when computing the M1 closure\n";
+      "when computing the M1 closure\n";
     std::cout << msg.str();
   }
   
   // We are done, update the closure with the newly found chi
   apply_closure(g_dd, g_uu, n_d, w_lorentz, u_u, v_d, proj_ud,
-		            E, F_d, *chi, P_dd);
+		E, F_d, *chi, P_dd);
 }
 
 //----------------------------------------------------------------------------------------
 // \!fn Real M1::CalcClosure(AthenaArray<Real> const & u)
-// \brief computes the closure on a mesh block
+// \brief Computes the closure on a mesh block
 
 void M1::CalcClosure(AthenaArray<Real> & u)
 {

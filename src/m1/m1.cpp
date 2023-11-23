@@ -23,8 +23,6 @@
 #include "../z4c/z4c_macro.hpp"
 #endif
 
-#define CGS_GCC (1.619100425158886e-18) // CGS density conv. fact
-
 // constructor, initializes data structures and parameters
 
 char const * const M1::Lab_names[M1::N_Lab] = {
@@ -62,21 +60,29 @@ char const * const M1::Intern_names[M1::N_Intern] = {
   "net.heat",
 };
 
+char const * const M1::source_update_msg[M1::SOURCE_UPDATE_RESULTS] = {
+  "Ok",
+  "explicit update (thin source)",
+  "imposed equilibrium",
+  "(scattering dominated source)",
+  "imposed eddington",
+  "failed"
+};
 
 M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   pmy_block(pmb),
   coarse_u_(N_Lab, pmb->ncc3, pmb->ncc2, pmb->ncc1,
             (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
-            AthenaArray<Real>::DataStatus::empty)),
+	     AthenaArray<Real>::DataStatus::empty)),
   storage{{N_Lab, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1},  // u
           {N_Lab, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1},  // u1
           {                                                                           // flux
             {N_Lab, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1 + 1},
             {N_Lab, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2 + 1, pmb->ncells1,
-              (pmb->pmy_mesh->f2 ? AthenaArray<Real>::DataStatus::allocated :
+	     (pmb->pmy_mesh->f2 ? AthenaArray<Real>::DataStatus::allocated :
               AthenaArray<Real>::DataStatus::empty)},
             {N_Lab, M1_NSPECIES*M1_NGROUPS, pmb->ncells3 + 1, pmb->ncells2, pmb->ncells1,
-              (pmb->pmy_mesh->f3 ? AthenaArray<Real>::DataStatus::allocated :
+	     (pmb->pmy_mesh->f3 ? AthenaArray<Real>::DataStatus::allocated :
               AthenaArray<Real>::DataStatus::empty)},
           },
           {N_Lab, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1}, // u_rhs
@@ -89,13 +95,13 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
 {
   Mesh *pm = pmy_block->pmy_mesh;
   Coordinates * pco = pmb->pcoord;
-
+  
   mbi.nn1 = pmb->ncells1;
   mbi.nn2 = pmb->ncells2;
   mbi.nn3 = pmb->ncells3;
-
+  
   int nn1 = mbi.nn1, nn2 = mbi.nn2, nn3 = mbi.nn3;
-
+  
   // convenience for per-block iteration (private Wave scope)
   mbi.il = pmb->is; mbi.jl = pmb->js; mbi.kl = pmb->ks;
   mbi.iu = pmb->ie; mbi.ju = pmb->je; mbi.ku = pmb->ke;
@@ -150,9 +156,6 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   nspecies = M1_NSPECIES;
   ngroups = M1_NGROUPS;
 
-  // Fake Rates
-  fr = new FakeRates(pin, ngroups, nspecies);
-
   closure = pin->GetString("M1", "closure");  
   fiducial_velocity = pin->GetString("M1", "fiducial_velocity");
   fiducial_vel_rho_fluid = pin->GetReal("M1", "fiducial_velocity_rho_fluid") * CGS_GCC;
@@ -166,9 +169,12 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   set_to_equilibrium = pin->GetOrAddBoolean("M1", "set_to_equilibrium",false); 
   reset_to_equilibrium = pin->GetOrAddBoolean("M1", "set_to_equilibrium",false); 
   equilibrium_rho_min =  pin->GetOrAddReal("M1", "fiducial_velocity_rho_fluid",1e11) * CGS_GCC;
+  source_thick_limit = pin->GetOrAddReal("M1","source_thick_limit", -1);
+  source_scat_limit = pin->GetOrAddReal("M1","source_scat_limit", -1);
+  source_epsabs = pin->GetOrAddReal("M1","source_epsabs",1e-3);
+  source_epsrel = pin->GetOrAddReal("M1","source_epsrel",1e-3);
+  source_maxiter = pin->GetOrAddInteger("M1","source_maxiter", 100);
 
-  //...
-  
   // Problem-specific parameters
   m1_test = pin->GetOrAddString("M1", "m1_test","none");  
   beam_position = pin->GetOrAddReal("M1", "beam_position", 0.0);
@@ -184,10 +190,13 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   kerr_beam_width = pin->GetOrAddReal("M1", "kerr_beam_width", 0.5);
   kerr_mask_radius = pin->GetOrAddReal("M1", "kerr_mask_radius", 2.0);
   
-  //...
-  
   //---------------------------------------------------------------------------
 
+  if (pin->GetOrAddBoolean("FakeRates","use",false)) 
+    fakerates = new FakeRates(pin, ngroups, nspecies);
+  else
+    fakerates = nullptr;
+  
   // Set aliases
   SetLabVarsAliases(storage.u, lab);
   SetRadVarsAliases(storage.u_rad, rad);
@@ -205,7 +214,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     1./pmb->pcoord->dx1f(0), 1./pmb->pcoord->dx2f(0), 1./pmb->pcoord->dx3f(0)
   };
 
-// TODO: CHECK THIS
+  // TODO: CHECK THIS
   if(pmb->pmy_mesh->multilevel){
     int N_coarse[] = {pmb->block_size.nx1/2, pmb->block_size.nx2/2, pmb->block_size.nx3/2};
     Real rdx_coarse[] = {
@@ -213,16 +222,15 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     };
     
   }
-
+  
   //---------------------------------------------------------------------------
-
+  
   // Initialize excision mask (no excision)
   rad.mask.ZeroClear();
   
 }
 
 // destructor
-
 M1::~M1()
 {
   storage.u.DeleteAthenaArray();
@@ -236,76 +244,9 @@ M1::~M1()
   dt1_.DeleteAthenaArray();
   dt2_.DeleteAthenaArray();
   dt3_.DeleteAthenaArray();
-}
 
-//----------------------------------------------------------------------------------------
-// \fn void M1::AddFluxDivergence()
-// \brief Add the flux divergence to the RHS (see analogous Hydro method)
-void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
-  MeshBlock *pmb = pmy_block;
-  AthenaArray<Real> &x1flux = storage.flux[X1DIR];
-  AthenaArray<Real> &x2flux = storage.flux[X2DIR];
-  AthenaArray<Real> &x3flux = storage.flux[X3DIR];
-  int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
-  int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
-  AthenaArray<Real> &x1area = x1face_area_, &x2area = x2face_area_,
-                 &x2area_p1 = x2face_area_p1_, &x3area = x3face_area_,
-                 &x3area_p1 = x3face_area_p1_, &vol = cell_volume_, &dflx = dflx_;
-
-  for (int k=ks; k<=ke; ++k) {
-    for (int j=js; j<=je; ++j) {
-      // calculate x1-flux divergence
-      pmb->pcoord->Face1Area(k, j, is, ie+1, x1area);
-      for (int iv=0; iv<N_Lab; ++iv) {
-        for (int ig=0; ig<ngroups*nspecies; ++ig) {
-#pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            dflx(iv,ig,i) = (x1area(i+1)*x1flux(iv,ig,k,j,i+1) - x1area(i)*x1flux(iv,ig,k,j,i));
-          }
-        }
-      }
-
-      // calculate x2-flux divergence
-      if (pmb->block_size.nx2 > 1) {
-        pmb->pcoord->Face2Area(k, j  , is, ie, x2area   );
-        pmb->pcoord->Face2Area(k, j+1, is, ie, x2area_p1);
-        for (int iv=0; iv<N_Lab; ++iv) {
-          for (int ig=0; ig<ngroups*nspecies; ++ig) {
-#pragma omp simd
-            for (int i=is; i<=ie; ++i) {
-              dflx(iv,ig,i) += (x2area_p1(i)*x2flux(iv,ig,k,j+1,i) - x2area(i)*x2flux(iv,ig,k,j,i));
-            }
-          }
-        }
-      }
-
-      // calculate x3-flux divergence
-      if (pmb->block_size.nx3 > 1) {
-        pmb->pcoord->Face3Area(k  , j, is, ie, x3area   );
-        pmb->pcoord->Face3Area(k+1, j, is, ie, x3area_p1);
-        for (int iv=0; iv<N_Lab; ++iv) {
-          for (int ig=0; ig<ngroups*nspecies; ++ig) {
-#pragma omp simd
-            for (int i=is; i<=ie; ++i) {
-              dflx(iv,ig,i) += (x3area_p1(i)*x3flux(iv,ig,k+1,j,i) - x3area(i)*x3flux(iv,ig,k,j,i));
-            }
-          }
-        }
-      }
-
-      // update conserved variables
-      pmb->pcoord->CellVolume(k, j, is, ie, vol);
-      for (int iv=0; iv<N_Lab; ++iv) {
-        for (int ig=0; ig<ngroups*nspecies; ++ig) {
-#pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            u_rhs(iv,ig,k,j,i) -= dflx(iv,ig,i)/vol(i);
-          }
-        }
-      }
-    }
-  }
-  return;
+  if (fakerates != nullptr)
+    delete fakerates;
 }
 
 //----------------------------------------------------------------------------------------

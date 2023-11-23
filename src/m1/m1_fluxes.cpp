@@ -20,26 +20,13 @@
 #include "../utils/tensor.hpp"
 
 #define SQ(X) ((X)*(X))
-
-// TODO: Check this: need to run over ngroups*nspecies
-#define GFINDEX3D(i,j,k) \
-    (i + lsh[0]*(j+lsh[1]*k))
-
 #define TINY (1e-10)
 
-#define GFINDEX1D(__k, ig, iv) \
-    ((iv) + (ig)*5 + (__k)*(5*ngroups*nspecies))
-
-#define PINDEX1D(ig, iv) \
-    ((iv) + (ig)*5)
+// 1D index on scratch space with directional index i
+#define GFINDEX1D(i, ig, iv)				\
+  ((iv) + (ig)*N_Lab + (i)*(N_Lab * ngroups*nspecies))
 
 using namespace utils;
-
-Real compute_Gamma(Real const W,
-		 		   				 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_u,
-		 							 Real const J, Real const E,
-									 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
-                   Real rad_E_floor, Real rad_eps);
 
 namespace {
   Real minmod2(Real rl, Real rp, Real th) {
@@ -48,13 +35,89 @@ namespace {
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn void M1::CalcFluxes(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs)
+// \fn void M1::AddFluxDivergence()
+// \brief Add the flux divergence to the RHS (see analogous Hydro method)
+
+void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
+  MeshBlock *pmb = pmy_block;
+  AthenaArray<Real> &x1flux = storage.flux[X1DIR];
+  AthenaArray<Real> &x2flux = storage.flux[X2DIR];
+  AthenaArray<Real> &x3flux = storage.flux[X3DIR];
+  int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
+  int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
+  AthenaArray<Real> &x1area = x1face_area_, &x2area = x2face_area_,
+    &x2area_p1 = x2face_area_p1_, &x3area = x3face_area_,
+    &x3area_p1 = x3face_area_p1_, &vol = cell_volume_, &dflx = dflx_;
+  
+  for (int k=ks; k<=ke; ++k) {
+    for (int j=js; j<=je; ++j) {
+      
+      // calculate x1-flux divergence
+      pmb->pcoord->Face1Area(k, j, is, ie+1, x1area); //SB(FIXME) for GR, this works in master_cx_matter, but not in matter_* branches!
+      for (int iv=0; iv<N_Lab; ++iv) {
+        for (int ig=0; ig<ngroups*nspecies; ++ig) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            dflx(iv,ig,i) = (x1area(i+1)*x1flux(iv,ig,k,j,i+1) - x1area(i)*x1flux(iv,ig,k,j,i));
+          }
+        }
+      }
+      
+      // calculate x2-flux divergence
+      if (pmb->block_size.nx2 > 1) {
+        pmb->pcoord->Face2Area(k, j  , is, ie, x2area   );
+        pmb->pcoord->Face2Area(k, j+1, is, ie, x2area_p1);
+        for (int iv=0; iv<N_Lab; ++iv) {
+          for (int ig=0; ig<ngroups*nspecies; ++ig) {
+#pragma omp simd
+            for (int i=is; i<=ie; ++i) {
+              dflx(iv,ig,i) += (x2area_p1(i)*x2flux(iv,ig,k,j+1,i) - x2area(i)*x2flux(iv,ig,k,j,i));
+            }
+          }
+        }
+      }
+      
+      // calculate x3-flux divergence
+      if (pmb->block_size.nx3 > 1) {
+        pmb->pcoord->Face3Area(k  , j, is, ie, x3area   );
+        pmb->pcoord->Face3Area(k+1, j, is, ie, x3area_p1);
+        for (int iv=0; iv<N_Lab; ++iv) {
+          for (int ig=0; ig<ngroups*nspecies; ++ig) {
+#pragma omp simd
+            for (int i=is; i<=ie; ++i) {
+              dflx(iv,ig,i) += (x3area_p1(i)*x3flux(iv,ig,k+1,j,i) - x3area(i)*x3flux(iv,ig,k,j,i));
+            }
+          }
+        }
+      }
+      
+      // update conserved variables
+      pmb->pcoord->CellVolume(k, j, is, ie, vol);
+      for (int iv=0; iv<N_Lab; ++iv) {
+        for (int ig=0; ig<ngroups*nspecies; ++ig) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            u_rhs(iv,ig,k,j,i) -= dflx(iv,ig,i)/vol(i);
+          }
+        }
+      }
+      
+    }
+  }
+  return;
+}
+
+//----------------------------------------------------------------------------------------
+// \!fn void M1::CalcFluxes(AthenaArray<Real> & u)
 // \brief Compute the numerical fluxes using a simple 2nd order flux-limited method
-//        with high-Peclet limit fix. The fluxes are then added to the RHSs.
+//        with high-Peclet limit fix. Cf. Hydro::CalculateFluxes(...)
+
 void M1::CalcFluxes(AthenaArray<Real> & u)
 {
   MeshBlock * pmb = pmy_block;
-  
+  int const is = pmb->is; int const js = pmb->js; int const ks = pmb->ks;
+  int const ie = pmb->ie; int const je = pmb->je; int const ke = pmb->ke;
+
   Lab_vars vec;
   SetLabVarsAliases(u, vec);  
 
@@ -64,18 +127,13 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
     pmb->pcoord->dx1v(1),
     pmb->pcoord->dx1v(0),
   };
-  Real const idelta[3] = {
-    1.0/pmb->pcoord->dx1v(0),
-    1.0/pmb->pcoord->dx1v(1),
-    1.0/pmb->pcoord->dx1v(0),
-  };
   int const ncells[3] = {
     pmb->ncells1,
     pmb->ncells2,
     pmb->ncells3,
   };
-
-  // Pointwise 4D tensors used in the loop
+  
+  // Pointwise 4D tensors used in the loops
   TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> g_dd;
   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> beta_u;
   TensorPointwise<Real, Symmetries::NONE, MDIM, 0> alpha;  
@@ -109,290 +167,609 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
   P_ud.NewTensorPointwise();
   fnu_u.NewTensorPointwise();
 
-  // Go through directions
-  for (int dir = 0; dir < NDIM; ++dir) {
-    int index[3];
-    int lsh[3];
+  // Scratch space
+  Real * cons;
+  Real * flux;
+  Real * cmax = nullptr;
+  
+  //--------------------------------------------------------------------------------------
+  // i-direction
+  int dir = X1DIR;
+  AthenaArray<Real> &x1flux = storage.flux[X1DIR];
 
-    // We have to leave as the most internal loop the one on the
-    // direction. For this reason we will remap the usual indices
-    // i,j,k into different points of index[:].
-    int ii, ij, ik;
-    switch(dir) {
-			case 0:
-				ii = 2;
-				ij = 1;
-				ik = 0;
+  try {
+    cons = new Real[ N_Lab * ngroups*nspecies * ncells[X1DIR] ];
+    flux = new Real[ N_Lab * ngroups*nspecies * ncells[X1DIR] ];
+    cmax = new Real[ N_Lab * ngroups*nspecies * ncells[X1DIR] ];
+  } catch (std::bad_alloc &e) {
+    std::stringstream msg;
+    msg << "Out of memory!" << std::endl;
+    ATHENA_ERROR(msg);
+  }
+  
+  // set the loop limits 
+  for (int k=ks; k<=ke; ++k) {
+    for (int j=js; j<=je; ++j) {
+      
+      // ----------------------------------------------
+      // 1st pass compute the fluxes
+      for (int i = 0; i < ncells[dir]; ++i) {
+	int Id = i; // directional index for scratch buffers
+	
+	// From ADM 3-metric VC (AthenaArray/Tensor) to 
+	// ADM 4-metric on CC at ijk (TensorPointwise) 
+	Get4Metric_VC2CCinterp(pmb, k,j,i,				      
+			       pmb->pz4c->storage.u, pmb->pz4c->storage.adm,  
+			       g_dd, beta_u, alpha);			      
+	Get4Metric_Inv_Inv3(g_dd, beta_u, alpha, g_uu, gamma_uu);	      
+	uvel(alpha(), beta_u(1), beta_u(2), beta_u(3), fidu.Wlorentz(k,j,i),  
+	     fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),   
+	     &u_u(0), &u_u(1), &u_u(2), &u_u(3));				 
+	pack_v_u(fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),  v_u);  
+	
+	for (int ig = 0; ig < ngroups*nspecies; ++ig) {			 
 
-				lsh[0] = ncells[2];
-				lsh[1] = ncells[1];
-				lsh[2] = ncells[0];
-				
-				break;
-			case 1:
-				ii = 1;
-				ij = 2;
-				ik = 0;
-				
-				lsh[0] = ncells[2];
-				lsh[1] = ncells[0];
-				lsh[2] = ncells[1];
-				
-				break;
-			case 2:
-				ii = 1;
-				ij = 0;
-				ik = 2;
-				
-				lsh[0] = ncells[1];
-				lsh[1] = ncells[0];
-				lsh[2] = ncells[2];
-				
-				break;
-    }
-    
-    // Indices aliases
-    int & i = index[ii];
-    int & j = index[ij];
-    int & k = index[ik];
-    
-    // Actual indices
-    int __i, __j, __k;
-    
-    // Scratch space
-    Real * cons;
-    Real * flux;
-    Real * cmax    = nullptr;
-    Real * flux_jm = nullptr;
-    Real * flux_jp = nullptr;
-    Real * d_ptr   = nullptr;
+	  pack_F_d(beta_u(1), beta_u(2), beta_u(3),			 
+		   vec.F_d(0,ig,k,j,i),					 
+		   vec.F_d(1,ig,k,j,i),					 
+		   vec.F_d(2,ig,k,j,i),					 
+		   F_d);						 
+	  pack_H_d(rad.Ht(ig,k,j,i),					 
+		   rad.H(0,ig,k,j,i), rad.H(1,ig,k,j,i), rad.H(2,ig,k,j,i),  
+		   H_d);						 
+	  pack_P_dd(beta_u(1), beta_u(2), beta_u(3),			 
+		    rad.P_dd(0,0,ig,k,j,i), rad.P_dd(0,1,ig,k,j,i), rad.P_dd(1,1,ig,k,j,i),  
+		    rad.P_dd(1,1,ig,k,j,i), rad.P_dd(1,2,ig,k,j,i), rad.P_dd(2,2,ig,k,j,i),  
+		    P_dd);						 
+	  tensor::contract(g_uu, H_d, H_u);				 
+	  tensor::contract(g_uu, F_d, F_u);				 
+	  tensor::contract(g_uu, P_dd, P_ud);				 
+	  assemble_fnu(u_u, rad.J(ig,k,j,i), H_u, fnu_u);		 
+	  Real const Gamma = compute_Gamma(fidu.Wlorentz(k,j,i), v_u,	 
+					   rad.J(ig,k,j,i), vec.E(ig,k,j,i), F_d,  
+					   rad_E_floor, rad_eps);	 
+	  
+	  Real nnu;							 
+	  (void)nnu;							 
+	  if (nspecies > 1)						 
+	    nnu = vec.N(ig,k,j,i)/Gamma;				 
+
+	  // Scratch buffers in direction Id
+	  cons[GFINDEX1D(Id, ig, 0)] = vec.F_d(0,ig,k,j,i);		 
+	  cons[GFINDEX1D(Id, ig, 1)] = vec.F_d(1,ig,k,j,i);		 
+	  cons[GFINDEX1D(Id, ig, 2)] = vec.F_d(2,ig,k,j,i);		 
+	  cons[GFINDEX1D(Id, ig, 3)] = vec.E(ig,k,j,i);			 
+	  if (nspecies > 1)						 
+	    cons[GFINDEX1D(Id, ig, 4)] = vec.N(ig,k,j,i);		 
+	  
+	  assert(isfinite(cons[GFINDEX1D(Id, ig, 0)]));			 
+	  assert(isfinite(cons[GFINDEX1D(Id, ig, 1)]));			 
+	  assert(isfinite(cons[GFINDEX1D(Id, ig, 2)]));			 
+	  assert(isfinite(cons[GFINDEX1D(Id, ig, 3)]));			 
+	  if (nspecies > 1)						 
+	    assert(isfinite(cons[GFINDEX1D(Id, ig, 4)]));		 
+	  
+	  flux[GFINDEX1D(Id, ig, 0)] =					 
+	    calc_F_flux(alpha(), beta_u, F_d, P_ud, dir, 1);		 
+	  flux[GFINDEX1D(Id, ig, 1)] =					 
+	    calc_F_flux(alpha(), beta_u, F_d, P_ud, dir, 2);		 
+	  flux[GFINDEX1D(Id, ig, 2)] =					 
+	    calc_F_flux(alpha(), beta_u, F_d, P_ud, dir, 3);		 
+	  flux[GFINDEX1D(Id, ig, 3)] =					 
+	    calc_E_flux(alpha(), beta_u, vec.E(ig,k,j,i), F_u, dir);	 
+	  if (nspecies > 1)						 
+	    flux[GFINDEX1D(Id, ig, 4)] =					 
+	      alpha() * nnu * fnu_u(dir);				 
+   
+	  assert(isfinite(flux[GFINDEX1D(Id, ig, 0)]));			 
+	  assert(isfinite(flux[GFINDEX1D(Id, ig, 1)]));			 
+	  assert(isfinite(flux[GFINDEX1D(Id, ig, 2)]));			 
+	  assert(isfinite(flux[GFINDEX1D(Id, ig, 3)]));			 
+	  if (nspecies > 1)						 
+	    assert(isfinite(flux[GFINDEX1D(Id, ig, 4)]));		 
+	  
+	  // Eigenvalues in the optically thin limit
+	  //
+	  // Using the optically thin eigenvalues seems to cause
+	  // problems in some situations, possibly because the
+	  // optically thin closure is acausal in certain
+	  // conditions, so this is commented for now.
+#if (USE_EIGENVALUES_THIN)
+	  Real const F2 = tensor::dot(F_u, F_d);
+	  Real const F = std::sqrt(F2);
+	  Real const fx = F_u(dir)*(F > 0 ? 1/F : 0);
+	  Real const ffx = F_u(dir)*(F2 > 0 ? 1/F2 : 0);
+	  Real const lam[3] = {
+	    alpha()*fx - beta_u(dir),
+	    - alpha()*fx - beta_u(dir),
+	    alpha()*vec.E(ig,k,j,i)*ffx - beta_u(dir),
+	  };
+	  Real const cM1 = std::max(std::abs(lam[0]),
+				    std::max(std::abs(lam[1]), std::abs(lam[2])));
+	  //TODO optically thick characteristic speeds and combination
+#endif
+	  // Speed of light -- note that gamma_uu has NDIM=3
+	  Real const clam[2] = {
+	    alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir),
+	    - alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir),
+	  };
+	  Real const clight = std::max(std::abs(clam[0]), std::abs(clam[1]));
+          
+	  // In some cases the eigenvalues in the thin limit
+	  // overestimate the actual characteristic speed and can
+	  // become larger than c
+	  cmax[GFINDEX1D(Id, ig, 0)] = clight;
+	  // = std::min(clight, cM1);
+
+	}  // ig loop 
+      } // i loop
             
+      // ----------------------------------------------
+      // 2nd pass store the num fluxes
+      for (int i = is-1; i <= ie; ++i) { 
+	int Id = i;
+	  
+	for (int ig = 0; ig < ngroups*nspecies; ++ig) {		
+  								
+	  Real avg_abs_1 = rmat.abs_1(ig,k,j,i);			
+	  Real avg_scat_1 = rmat.scat_1(ig,k,j,i);			
+	  avg_abs_1 += rmat.abs_1(ig,k,j,i+1);				
+	  avg_scat_1 += rmat.scat_1(ig,k,j,i+1);
+	  
+	  // Remove dissipation at high Peclet numbers 
+	  Real kapa = 0.5*(avg_abs_1 + avg_scat_1); 
+	  Real A = 1.0;  
+	  if (kapa*delta[dir] > 1.0) {			
+	    A = std::max(1.0/(delta[dir]*kapa), mindiss);	
+	  }							
+	  
+	  for (int iv = 0; iv < N_Lab; ++iv) { 
+	    Real const ujm = cons[GFINDEX1D(Id-1, ig, iv)]; 
+	    Real const uj = cons[GFINDEX1D(Id, ig, iv)]; 
+	    Real const ujp = cons[GFINDEX1D(Id+1, ig, iv)]; 
+	    Real const ujpp = cons[GFINDEX1D(Id+2, ig, iv)]; 
+	    
+	    Real const fj = flux[GFINDEX1D(Id, ig, iv)]; 
+	    Real const fjp = flux[GFINDEX1D(Id+1, ig, iv)]; 
+	    
+	    Real const cc = cmax[GFINDEX1D(Id, ig, 0)]; 
+	    Real const ccm = cmax[GFINDEX1D(Id+1, ig, 0)]; 
+	    Real const cmx = std::max(cc, ccm); 
+	    
+	    Real const dup = ujpp - ujp; 
+	    Real const duc = ujp - uj; 
+	    Real const dum = uj - ujm; 
+	    
+	    bool sawtooth = false; 
+	    Real phi = 0; 
+	    if (dup*duc > 0 && dum*duc > 0) { 
+	      phi = minmod2(dum/duc, dup/duc, 1.0); 
+	    } else if (dup*duc < 0 && dum*duc < 0) { 
+	      sawtooth = true; 
+	    } 
+	    assert(isfinite(phi)); 
+	    
+	    Real const flux_low = 0.5*(fj + fjp - cmx*(ujp - uj));
+	    Real const flux_high = 0.5*(fj + fjp);
+	    
+	    Real flux_num = flux_high - (sawtooth ? 1.0 : A)*(1.0 - phi)*(flux_high - flux_low); 
+	    x1flux(iv,ig,k,j,i+1) = flux_num; // Note THC (Athena++) stores F_{i+1/2} (F_{i-1/2})!
+	    
+	  } // iv loop 
+	} // ig loop
+	
+      }//i loop
+      
+    } // j loop
+  } // k loop
+  
+  delete[] cons;
+  delete[] flux;
+  delete[] cmax;
+  
+  //--------------------------------------------------------------------------------------
+  // j-direction
+
+  if (pmb->pmy_mesh->f2) {
+
+    int dir = X2DIR;
+    AthenaArray<Real> &x2flux = storage.flux[X2DIR];
+    
     try {
-      cons = new Real[5*ngroups*nspecies*lsh[2]];
-      flux = new Real[5*ngroups*nspecies*lsh[2]];
-      cmax = new Real[5*ngroups*nspecies*lsh[2]];
-      flux_jm = new Real[5*ngroups*nspecies];
-      flux_jp = new Real[5*ngroups*nspecies];
+      cons = new Real[ N_Lab * ngroups*nspecies * ncells[X2DIR] ];
+      flux = new Real[ N_Lab * ngroups*nspecies * ncells[X2DIR] ];
+      cmax = new Real[ N_Lab * ngroups*nspecies * ncells[X2DIR] ];
     } catch (std::bad_alloc &e) {
       std::stringstream msg;
       msg << "Out of memory!" << std::endl;
       ATHENA_ERROR(msg);
     }
-
-    //TODO check the order of these loops!
-    for (__i = M1_NGHOST; __i < lsh[0] - M1_NGHOST; ++__i) {
-      for (__j = M1_NGHOST; __j < lsh[1] - M1_NGHOST; ++__j) {
-
-        // ----------------------------------------------
-        // 1st pass compute the fluxes
-        // . this could be made into a separate Cactus scheduled
-        //   function to avoid some duplicated calculations
-        for (__k = 0; __k < lsh[2]; ++__k) {
+    
+    // set the loop limits
+    for (int i=is; i<=ie; ++i) {
+      for (int k=ks; k<=ke; ++k) {
+	
+	// ----------------------------------------------
+	// 1st pass compute the fluxes
+	for (int j = 0; j < ncells[dir]; ++j) {
+	  int Id = j; // directional index for scratch buffers
 	  
-          index[0] = __i;
-          index[1] = __j;
-          index[2] = __k;
-
-          int const ijk = GFINDEX3D(i,j,k);
-          // Go from ADM 3-metric VC (AthenaArray/Tensor)
-          // to ADM 4-metric on CC at ijk (TensorPointwise)
-          Get4Metric_VC2CCinterp(pmb, k,j,i,
-                                 pmb->pz4c->storage.u, pmb->pz4c->storage.adm,
-                                 g_dd, beta_u, alpha);    
-          Get4Metric_Inv_Inv3(g_dd, beta_u, alpha, g_uu, gamma_uu);
-          
-          uvel(alpha(), beta_u(1), beta_u(2), beta_u(3), fidu.Wlorentz(k,j,i),
-               fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i), 
-               &u_u(0), &u_u(1), &u_u(2), &u_u(3));    
-
-          pack_v_u(fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),  v_u);
-
-          for (int ig = 0; ig < ngroups*nspecies; ++ig) {
-
-            pack_F_d(beta_u(1), beta_u(2), beta_u(3),
-                     vec.F_d(0,ig,k,j,i),
-                     vec.F_d(1,ig,k,j,i),
-                     vec.F_d(2,ig,k,j,i),
-                     F_d);
-            pack_H_d(rad.Ht(ig,k,j,i),
-                     rad.H(0,ig,k,j,i), rad.H(1,ig,k,j,i), rad.H(2,ig,k,j,i),
-                     H_d);
-
-            pack_P_dd(beta_u(1), beta_u(2), beta_u(3),
-                      rad.P_dd(0,0,ig,k,j,i), rad.P_dd(0,1,ig,k,j,i), rad.P_dd(1,1,ig,k,j,i),
-                      rad.P_dd(1,1,ig,k,j,i), rad.P_dd(1,2,ig,k,j,i), rad.P_dd(2,2,ig,k,j,i),
-                      P_dd);
-
-            tensor::contract(g_uu, H_d, H_u);
-            tensor::contract(g_uu, F_d, F_u);
-            tensor::contract(g_uu, P_dd, P_ud);
-            
-            assemble_fnu(u_u, rad.J(ig,k,j,i), H_u, fnu_u);
-
-            Real const Gamma = compute_Gamma(fidu.Wlorentz(k,j,i), v_u,
-                                             rad.J(ig,k,j,i), vec.E(ig,k,j,i), F_d,
-                                             rad_E_floor, rad_eps);
-
-            // Note that nnu is densitized here
-            Real const nnu = vec.N(ig,k,j,i)/Gamma;
-
-            cons[GFINDEX1D(__k, ig, 0)] = vec.N(ig,k,j,i);
-            cons[GFINDEX1D(__k, ig, 1)] = vec.F_d(0,ig,k,j,i);
-            cons[GFINDEX1D(__k, ig, 2)] = vec.F_d(1,ig,k,j,i);
-            cons[GFINDEX1D(__k, ig, 3)] = vec.F_d(2,ig,k,j,i);
-            cons[GFINDEX1D(__k, ig, 4)] = vec.E(ig,k,j,i);
-            
-            assert(isfinite(cons[GFINDEX1D(__k, ig, 0)]));
-            assert(isfinite(cons[GFINDEX1D(__k, ig, 1)]));
-            assert(isfinite(cons[GFINDEX1D(__k, ig, 2)]));
-            assert(isfinite(cons[GFINDEX1D(__k, ig, 3)]));
-            assert(isfinite(cons[GFINDEX1D(__k, ig, 4)]));
-            
-            flux[GFINDEX1D(__k, ig, 0)] =
-                alpha() * nnu * fnu_u(dir+1);
-            flux[GFINDEX1D(__k, ig, 1)] =
-                calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 1);
-            flux[GFINDEX1D(__k, ig, 2)] =
-                calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 2);
-            flux[GFINDEX1D(__k, ig, 3)] =
-                calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 3);
-            flux[GFINDEX1D(__k, ig, 4)] =
-                calc_E_flux(alpha(), beta_u, vec.E(ig,k,j,i), F_u, dir+1);
-            
-
-            
-            assert(isfinite(flux[GFINDEX1D(__k, ig, 0)]));
-            assert(isfinite(flux[GFINDEX1D(__k, ig, 1)]));
-            assert(isfinite(flux[GFINDEX1D(__k, ig, 2)]));
-            assert(isfinite(flux[GFINDEX1D(__k, ig, 3)]));
-            assert(isfinite(flux[GFINDEX1D(__k, ig, 4)]));
-            
-            // Eigenvalues in the optically thin limit
-            //
-            // Using the optically thin eigenvalues seems to cause
-            // problems in some situations, possibly because the
-            // optically thin closure is acausal in certain
-            // conditions, so this is commented for now.
-#if 0
-	          Real const F2 = tensor::dot(F_u, F_d);
-	          Real const F = std::sqrt(F2);
-	          Real const fx = F_u(dir+1)*(F > 0 ? 1/F : 0);
-	          Real const ffx = F_u(dir+1)*(F2 > 0 ? 1/F2 : 0);
-	          Real const lam[3] = {
-	            alpha()*fx - beta_u(dir+1),
-	            - alpha()*fx - beta_u(dir+1),
-	            alpha()*vec.E(ig,k,j,i)*ffx - beta_u(dir+1),
-	          };
-	          Real const cM1 = std::max(std::abs(lam[0]),
-		        	               std::max(std::abs(lam[1]), std::abs(lam[2])));
-        
-	          // TODO optically thick characteristic speeds and combination
+	  // From ADM 3-metric VC (AthenaArray/Tensor) to 
+	  // ADM 4-metric on CC at ijk (TensorPointwise) 
+	  Get4Metric_VC2CCinterp(pmb, k,j,i,				      
+				 pmb->pz4c->storage.u, pmb->pz4c->storage.adm,  
+				 g_dd, beta_u, alpha);			      
+	  Get4Metric_Inv_Inv3(g_dd, beta_u, alpha, g_uu, gamma_uu);	      
+	  uvel(alpha(), beta_u(1), beta_u(2), beta_u(3), fidu.Wlorentz(k,j,i),  
+	       fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),   
+	       &u_u(0), &u_u(1), &u_u(2), &u_u(3));				 
+	  pack_v_u(fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),  v_u);  
+	  
+	  for (int ig = 0; ig < ngroups*nspecies; ++ig) {			 
+	    
+	    pack_F_d(beta_u(1), beta_u(2), beta_u(3),			 
+		     vec.F_d(0,ig,k,j,i),					 
+		     vec.F_d(1,ig,k,j,i),					 
+		     vec.F_d(2,ig,k,j,i),					 
+		     F_d);						 
+	    pack_H_d(rad.Ht(ig,k,j,i),					 
+		     rad.H(0,ig,k,j,i), rad.H(1,ig,k,j,i), rad.H(2,ig,k,j,i),  
+		     H_d);						 
+	    pack_P_dd(beta_u(1), beta_u(2), beta_u(3),			 
+		      rad.P_dd(0,0,ig,k,j,i), rad.P_dd(0,1,ig,k,j,i), rad.P_dd(1,1,ig,k,j,i),  
+		      rad.P_dd(1,1,ig,k,j,i), rad.P_dd(1,2,ig,k,j,i), rad.P_dd(2,2,ig,k,j,i),  
+		      P_dd);						 
+	    tensor::contract(g_uu, H_d, H_u);				 
+	    tensor::contract(g_uu, F_d, F_u);				 
+	    tensor::contract(g_uu, P_dd, P_ud);				 
+	    assemble_fnu(u_u, rad.J(ig,k,j,i), H_u, fnu_u);		 
+	    Real const Gamma = compute_Gamma(fidu.Wlorentz(k,j,i), v_u,	 
+					     rad.J(ig,k,j,i), vec.E(ig,k,j,i), F_d,  
+					     rad_E_floor, rad_eps);	 
+	    
+	    Real nnu;							 
+	    (void)nnu;							 
+	    if (nspecies > 1)						 
+	      nnu = vec.N(ig,k,j,i)/Gamma;				 
+	    
+	    // Scratch buffers in direction Id
+	    cons[GFINDEX1D(Id, ig, 0)] = vec.F_d(0,ig,k,j,i);		 
+	    cons[GFINDEX1D(Id, ig, 1)] = vec.F_d(1,ig,k,j,i);		 
+	    cons[GFINDEX1D(Id, ig, 2)] = vec.F_d(2,ig,k,j,i);		 
+	    cons[GFINDEX1D(Id, ig, 3)] = vec.E(ig,k,j,i);			 
+	    if (nspecies > 1)						 
+	      cons[GFINDEX1D(Id, ig, 4)] = vec.N(ig,k,j,i);		 
+	    
+	    assert(isfinite(cons[GFINDEX1D(Id, ig, 0)]));			 
+	    assert(isfinite(cons[GFINDEX1D(Id, ig, 1)]));			 
+	    assert(isfinite(cons[GFINDEX1D(Id, ig, 2)]));			 
+	    assert(isfinite(cons[GFINDEX1D(Id, ig, 3)]));			 
+	    if (nspecies > 1)						 
+	      assert(isfinite(cons[GFINDEX1D(Id, ig, 4)]));		 
+	    
+	    flux[GFINDEX1D(Id, ig, 0)] =					 
+	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir, 1);		 
+	    flux[GFINDEX1D(Id, ig, 1)] =					 
+	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir, 2);		 
+	    flux[GFINDEX1D(Id, ig, 2)] =					 
+	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir, 3);		 
+	    flux[GFINDEX1D(Id, ig, 3)] =					 
+	      calc_E_flux(alpha(), beta_u, vec.E(ig,k,j,i), F_u, dir);	 
+	    if (nspecies > 1)						 
+	      flux[GFINDEX1D(Id, ig, 4)] =					 
+		alpha() * nnu * fnu_u(dir);				 
+	    
+	    assert(isfinite(flux[GFINDEX1D(Id, ig, 0)]));			 
+	    assert(isfinite(flux[GFINDEX1D(Id, ig, 1)]));			 
+	    assert(isfinite(flux[GFINDEX1D(Id, ig, 2)]));			 
+	    assert(isfinite(flux[GFINDEX1D(Id, ig, 3)]));			 
+	    if (nspecies > 1)						 
+	      assert(isfinite(flux[GFINDEX1D(Id, ig, 4)]));		 
+	    
+	    // Eigenvalues in the optically thin limit
+	    //
+	    // Using the optically thin eigenvalues seems to cause
+	    // problems in some situations, possibly because the
+	    // optically thin closure is acausal in certain
+	    // conditions, so this is commented for now.
+#if (USE_EIGENVALUES_THIN)
+	    Real const F2 = tensor::dot(F_u, F_d);
+	    Real const F = std::sqrt(F2);
+	    Real const fx = F_u(dir)*(F > 0 ? 1/F : 0);
+	    Real const ffx = F_u(dir)*(F2 > 0 ? 1/F2 : 0);
+	    Real const lam[3] = {
+	      alpha()*fx - beta_u(dir),
+	      - alpha()*fx - beta_u(dir),
+	      alpha()*vec.E(ig,k,j,i)*ffx - beta_u(dir),
+	    };
+	    Real const cM1 = std::max(std::abs(lam[0]),
+				      std::max(std::abs(lam[1]), std::abs(lam[2])));
+	    //TODO optically thick characteristic speeds and combination
 #endif
-            // Speed of light -- note that gamma_uu has NDIM=3
-            Real const clam[2] = {
-                alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir+1),
-                - alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir+1),
-            };
-            Real const clight = std::max(std::abs(clam[0]), std::abs(clam[1]));
-            
-            // In some cases the eigenvalues in the thin limit
-            // overestimate the actual characteristic speed and can
-            // become larger than c
-            cmax[GFINDEX1D(__k, ig, 0)] = clight;
-            // = std::min(clight, cM1);
-          }
-        }
-        // Cleanup the flux buffer
-        memset(flux_jm, 0, 5*ngroups*nspecies*sizeof(Real));
-        memset(flux_jp, 0, 5*ngroups*nspecies*sizeof(Real));
-          
-        // ----------------------------------------------
-        // 2nd pass update the RHS
-        for (__k = M1_NGHOST-1; __k < lsh[2]-M1_NGHOST; ++__k) {
-          index[0] = __i;
-          index[1] = __j;
-          index[2] = __k;
-          int const ijk = GFINDEX3D(i,j,k);
-          for (int ig = 0; ig < ngroups*nspecies; ++ig) {
+	    // Speed of light -- note that gamma_uu has NDIM=3
+	    Real const clam[2] = {
+	      alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir),
+	      - alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir),
+	    };
+	    Real const clight = std::max(std::abs(clam[0]), std::abs(clam[1]));
+	    
+	    // In some cases the eigenvalues in the thin limit
+	    // overestimate the actual characteristic speed and can
+	    // become larger than c
+	    cmax[GFINDEX1D(Id, ig, 0)] = clight;
+	    // = std::min(clight, cM1);
+	    
+	  }  // ig loop 
+	} // j loop
+	
+	// ----------------------------------------------
+	// 2nd pass store the num fluxes
+	for (int j = js-1; j <= je; ++j) { 
+	  int Id = j;
+	  
+	  for (int ig = 0; ig < ngroups*nspecies; ++ig) {		
+  								
+	    Real avg_abs_1 = rmat.abs_1(ig,k,j,i);			
+	    Real avg_scat_1 = rmat.scat_1(ig,k,j,i);			
+	    avg_abs_1 += rmat.abs_1(ig,k,j+1,i);				
+	    avg_scat_1 += rmat.scat_1(ig,k,j+1,i);
+	    
+	    // Remove dissipation at high Peclet numbers 
+	    Real kapa = 0.5*(avg_abs_1 + avg_scat_1); 
+	    Real A = 1.0;  
+	    if (kapa*delta[dir] > 1.0) {			
+	      A = std::max(1.0/(delta[dir]*kapa), mindiss);	
+	    }							
+	    
+	    for (int iv = 0; iv < N_Lab; ++iv) { 
+	      Real const ujm = cons[GFINDEX1D(Id-1, ig, iv)]; 
+	      Real const uj = cons[GFINDEX1D(Id, ig, iv)]; 
+	      Real const ujp = cons[GFINDEX1D(Id+1, ig, iv)]; 
+	      Real const ujpp = cons[GFINDEX1D(Id+2, ig, iv)]; 
+	      
+	      Real const fj = flux[GFINDEX1D(Id, ig, iv)]; 
+	      Real const fjp = flux[GFINDEX1D(Id+1, ig, iv)]; 
+	      
+	      Real const cc = cmax[GFINDEX1D(Id, ig, 0)]; 
+	      Real const ccm = cmax[GFINDEX1D(Id+1, ig, 0)]; 
+	      Real const cmx = std::max(cc, ccm); 
+	      
+	      Real const dup = ujpp - ujp; 
+	      Real const duc = ujp - uj; 
+	      Real const dum = uj - ujm; 
+	      
+	      bool sawtooth = false; 
+	      Real phi = 0; 
+	      if (dup*duc > 0 && dum*duc > 0) { 
+		phi = minmod2(dum/duc, dup/duc, 1.0); 
+	      } else if (dup*duc < 0 && dum*duc < 0) { 
+	      sawtooth = true; 
+	      } 
+	    assert(isfinite(phi)); 
+	    
+	    Real const flux_low = 0.5*(fj + fjp - cmx*(ujp - uj));
+	    Real const flux_high = 0.5*(fj + fjp);
+	    
+	    Real flux_num = flux_high - (sawtooth ? 1.0 : A)*(1.0 - phi)*(flux_high - flux_low); 
+	    x2flux(iv,ig,k,j+1,i) = flux_num; 
+	    
+	    } // iv loop 
+	  } // ig loop
+	  
+	} // j loop
+	
+      } // k loop
+    } // i loop
 
-            Real avg_abs_1 = rmat.abs_1(ig,k,j,i);
-            Real avg_scat_1 = rmat.scat_1(ig,k,j,i);
-            
-            index[2]++;
-            
-            avg_abs_1 += rmat.abs_1(ig,k,j,i);
-            avg_scat_1 += rmat.scat_1(ig,k,j,i);
-            
-            index[2]--;
-            
-            // Remove dissipation at high Peclet numbers
-            Real kapa = 0.5*(avg_abs_1 + avg_scat_1);
-            Real A = 1.0;
-            if (kapa*delta[dir] > 1.0) {
-              A = std::max(1.0/(delta[dir]*kapa), mindiss);
-            }
+    delete[] cons;
+    delete[] flux;
+    delete[] cmax;
 
-            for (int iv = 0; iv < N_Lab; ++iv) {
-              Real const ujm = cons[GFINDEX1D(__k-1, ig, iv)];
-              Real const uj = cons[GFINDEX1D(__k, ig, iv)];
-              Real const ujp = cons[GFINDEX1D(__k+1, ig, iv)];
-              Real const ujpp = cons[GFINDEX1D(__k+2, ig, iv)];
-              
-              Real const fj = flux[GFINDEX1D(__k, ig, iv)];
-              Real const fjm = flux[GFINDEX1D(__k-1, ig, iv)];
-              
-              Real const cc = cmax[GFINDEX1D(__k, ig, 0)];
-              Real const ccm = cmax[GFINDEX1D(__k-1, ig, 0)];
-              Real const cmx = std::max(cc, ccm);
+  }
+  
+  //--------------------------------------------------------------------------------------
+  // k-direction
+  
+  if (pmb->pmy_mesh->f3) {
+    
+    int dir = X3DIR;
+    AthenaArray<Real> &x3flux = storage.flux[X3DIR];
 
-              Real const dup = ujpp - ujp;
-              Real const duc = ujp - uj;
-              Real const dum = uj - ujm;
-              
-              bool sawtooth = false;
-              Real phi = 0;
-              if (dup*duc > 0 && dum*duc > 0) {
-                phi = minmod2(dum/duc, dup/duc, 1.0);
-              } else if (dup*duc < 0 && dum*duc < 0) {
-                sawtooth = true;
-              }
-              assert(isfinite(phi));
-
-              Real const flux_low = 0.5*(fj + fjm - cmx*(uj - ujm));
-              Real const flux_high = 0.5*(fj + fjm);
-              
-              Real flux_num = flux_high -
-                              (sawtooth ? 1.0 : A)*(1.0 - phi)*(flux_high - flux_low);
-              //flux_jp[PINDEX1D(ig, iv)] = flux_num;
-              storage.flux[dir](iv,ig,k,j,i) = flux_num;
-
-              //if (!rad.mask(k,j,i)) {
-              //  rhs[PINDEX1D(ig, iv)][ijk] += idelta[dir]*(flux_jm[PINDEX1D(ig, iv)] -
-              //                                             flux_jp[PINDEX1D(ig, iv)]) *
-              //                                             static_cast<Real>(i >= M1_NGHOST
-              //                                                 && i <  ncells[0] - M1_NGHOST
-              //                                                 && j >= M1_NGHOST
-              //                                                 && j <  ncells[1] - M1_NGHOST
-              //                                                 && k >= M1_NGHOST
-              //                                                 && k <  ncells[2] - M1_NGHOST);
-              //  assert(isfinite(rhs[PINDEX1D(ig, iv)][ijk]));
-              //}
-            } //iv loop
-          } //ig loop
-          // Rotate flux pointer
-          d_ptr = flux_jm;
-          flux_jm = flux_jp;
-          flux_jp = d_ptr;
-	      }
-      }
-      delete[] cons;
-      delete[] flux;
-      delete[] cmax;
-      delete[] flux_jm;
-      delete[] flux_jp;
+    try {
+      cons = new Real[ N_Lab * ngroups*nspecies * ncells[X3DIR] ];
+      flux = new Real[ N_Lab * ngroups*nspecies * ncells[X3DIR] ];
+      cmax = new Real[ N_Lab * ngroups*nspecies * ncells[X3DIR] ];
+    } catch (std::bad_alloc &e) {
+      std::stringstream msg;
+      msg << "Out of memory!" << std::endl;
+      ATHENA_ERROR(msg);
     }
+  
+    // set the loop limits
+    for (int j=js; j<=je; ++j) {
+      for (int i=is; i<=ie; ++i) {
+	
+	// ----------------------------------------------
+	// 1st pass compute the fluxes
+	for (int k = 0; k < ncells[dir]; ++k) {
+	  int Id = k; // directional index for scratch buffers
+	  
+	  // From ADM 3-metric VC (AthenaArray/Tensor) to 
+	  // ADM 4-metric on CC at ijk (TensorPointwise) 
+	  Get4Metric_VC2CCinterp(pmb, k,j,i,				      
+				 pmb->pz4c->storage.u, pmb->pz4c->storage.adm,  
+				 g_dd, beta_u, alpha);			      
+	  Get4Metric_Inv_Inv3(g_dd, beta_u, alpha, g_uu, gamma_uu);	      
+	  uvel(alpha(), beta_u(1), beta_u(2), beta_u(3), fidu.Wlorentz(k,j,i),  
+	       fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),   
+	       &u_u(0), &u_u(1), &u_u(2), &u_u(3));				 
+	  pack_v_u(fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),  v_u);  
+	  
+	  for (int ig = 0; ig < ngroups*nspecies; ++ig) {			 
+	    
+	    pack_F_d(beta_u(1), beta_u(2), beta_u(3),			 
+		     vec.F_d(0,ig,k,j,i),					 
+		     vec.F_d(1,ig,k,j,i),					 
+		     vec.F_d(2,ig,k,j,i),					 
+		     F_d);						 
+	    pack_H_d(rad.Ht(ig,k,j,i),					 
+		     rad.H(0,ig,k,j,i), rad.H(1,ig,k,j,i), rad.H(2,ig,k,j,i),  
+		     H_d);						 
+	    pack_P_dd(beta_u(1), beta_u(2), beta_u(3),			 
+		      rad.P_dd(0,0,ig,k,j,i), rad.P_dd(0,1,ig,k,j,i), rad.P_dd(1,1,ig,k,j,i),  
+		      rad.P_dd(1,1,ig,k,j,i), rad.P_dd(1,2,ig,k,j,i), rad.P_dd(2,2,ig,k,j,i),  
+		      P_dd);						 
+	    tensor::contract(g_uu, H_d, H_u);				 
+	    tensor::contract(g_uu, F_d, F_u);				 
+	    tensor::contract(g_uu, P_dd, P_ud);				 
+	    assemble_fnu(u_u, rad.J(ig,k,j,i), H_u, fnu_u);		 
+	    Real const Gamma = compute_Gamma(fidu.Wlorentz(k,j,i), v_u,	 
+					     rad.J(ig,k,j,i), vec.E(ig,k,j,i), F_d,  
+					     rad_E_floor, rad_eps);	 
+	    
+	    Real nnu;							 
+	    (void)nnu;							 
+	    if (nspecies > 1)						 
+	      nnu = vec.N(ig,k,j,i)/Gamma;				 
+	    
+	    // Scratch buffers in direction Id
+	    cons[GFINDEX1D(Id, ig, 0)] = vec.F_d(0,ig,k,j,i);		 
+	    cons[GFINDEX1D(Id, ig, 1)] = vec.F_d(1,ig,k,j,i);		 
+	    cons[GFINDEX1D(Id, ig, 2)] = vec.F_d(2,ig,k,j,i);		 
+	    cons[GFINDEX1D(Id, ig, 3)] = vec.E(ig,k,j,i);			 
+	    if (nspecies > 1)						 
+	      cons[GFINDEX1D(Id, ig, 4)] = vec.N(ig,k,j,i);		 
+	    
+	    assert(isfinite(cons[GFINDEX1D(Id, ig, 0)]));			 
+	    assert(isfinite(cons[GFINDEX1D(Id, ig, 1)]));			 
+	    assert(isfinite(cons[GFINDEX1D(Id, ig, 2)]));			 
+	    assert(isfinite(cons[GFINDEX1D(Id, ig, 3)]));			 
+	    if (nspecies > 1)						 
+	      assert(isfinite(cons[GFINDEX1D(Id, ig, 4)]));		 
+	    
+	    flux[GFINDEX1D(Id, ig, 0)] =					 
+	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir, 1);		 
+	    flux[GFINDEX1D(Id, ig, 1)] =					 
+	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir, 2);		 
+	    flux[GFINDEX1D(Id, ig, 2)] =					 
+	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir, 3);		 
+	    flux[GFINDEX1D(Id, ig, 3)] =					 
+	      calc_E_flux(alpha(), beta_u, vec.E(ig,k,j,i), F_u, dir);	 
+	    if (nspecies > 1)						 
+	      flux[GFINDEX1D(Id, ig, 4)] =					 
+		alpha() * nnu * fnu_u(dir);				 
+	    
+	    assert(isfinite(flux[GFINDEX1D(Id, ig, 0)]));			 
+	    assert(isfinite(flux[GFINDEX1D(Id, ig, 1)]));			 
+	    assert(isfinite(flux[GFINDEX1D(Id, ig, 2)]));			 
+	    assert(isfinite(flux[GFINDEX1D(Id, ig, 3)]));			 
+	    if (nspecies > 1)						 
+	      assert(isfinite(flux[GFINDEX1D(Id, ig, 4)]));		 
+	    
+	    // Eigenvalues in the optically thin limit
+	    //
+	    // Using the optically thin eigenvalues seems to cause
+	    // problems in some situations, possibly because the
+	    // optically thin closure is acausal in certain
+	    // conditions, so this is commented for now.
+#if (USE_EIGENVALUES_THIN)
+	    Real const F2 = tensor::dot(F_u, F_d);
+	    Real const F = std::sqrt(F2);
+	    Real const fx = F_u(dir)*(F > 0 ? 1/F : 0);
+	    Real const ffx = F_u(dir)*(F2 > 0 ? 1/F2 : 0);
+	    Real const lam[3] = {
+	      alpha()*fx - beta_u(dir),
+	      - alpha()*fx - beta_u(dir),
+	      alpha()*vec.E(ig,k,j,i)*ffx - beta_u(dir),
+	    };
+	    Real const cM1 = std::max(std::abs(lam[0]),
+				      std::max(std::abs(lam[1]), std::abs(lam[2])));
+	    //TODO optically thick characteristic speeds and combination
+#endif
+	    // Speed of light -- note that gamma_uu has NDIM=3
+	    Real const clam[2] = {
+	      alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir),
+	      - alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir),
+	    };
+	    Real const clight = std::max(std::abs(clam[0]), std::abs(clam[1]));
+          
+	    // In some cases the eigenvalues in the thin limit
+	    // overestimate the actual characteristic speed and can
+	    // become larger than c
+	    cmax[GFINDEX1D(Id, ig, 0)] = clight;
+	    // = std::min(clight, cM1);
+	  
+	  } // ig loop
+	  
+	} // k loop
 
-  } // dir loop
+	// ----------------------------------------------
+	// 2nd pass store the num fluxes
+	for (int k = ks-1; k <= ke; ++k) { 
+	  int Id = k;
+	  
+	  for (int ig = 0; ig < ngroups*nspecies; ++ig) {		
+	    
+	    Real avg_abs_1 = rmat.abs_1(ig,k,j,i);			
+	    Real avg_scat_1 = rmat.scat_1(ig,k,j,i);			
+	    avg_abs_1 += rmat.abs_1(ig,k+1,j,i);				
+	    avg_scat_1 += rmat.scat_1(ig,k+1,j,i);
+	  
+	    // Remove dissipation at high Peclet numbers 
+	    Real kapa = 0.5*(avg_abs_1 + avg_scat_1); 
+	    Real A = 1.0;  
+	    if (kapa*delta[dir] > 1.0) {			
+	      A = std::max(1.0/(delta[dir]*kapa), mindiss);	
+	    }							
+	  
+	    for (int iv = 0; iv < N_Lab; ++iv) { 
+	      Real const ujm = cons[GFINDEX1D(Id-1, ig, iv)]; 
+	      Real const uj = cons[GFINDEX1D(Id, ig, iv)]; 
+	      Real const ujp = cons[GFINDEX1D(Id+1, ig, iv)]; 
+	      Real const ujpp = cons[GFINDEX1D(Id+2, ig, iv)]; 
+	    
+	      Real const fj = flux[GFINDEX1D(Id, ig, iv)]; 
+	      Real const fjp = flux[GFINDEX1D(Id+1, ig, iv)]; 
+	    
+	      Real const cc = cmax[GFINDEX1D(Id, ig, 0)]; 
+	      Real const ccm = cmax[GFINDEX1D(Id+1, ig, 0)]; 
+	      Real const cmx = std::max(cc, ccm); 
+	    
+	      Real const dup = ujpp - ujp; 
+	      Real const duc = ujp - uj; 
+	      Real const dum = uj - ujm; 
+	    
+	      bool sawtooth = false; 
+	      Real phi = 0; 
+	      if (dup*duc > 0 && dum*duc > 0) { 
+		phi = minmod2(dum/duc, dup/duc, 1.0); 
+	      } else if (dup*duc < 0 && dum*duc < 0) { 
+		sawtooth = true; 
+	      } 
+	      assert(isfinite(phi)); 
+	    
+	      Real const flux_low = 0.5*(fj + fjp - cmx*(ujp - uj));
+	      Real const flux_high = 0.5*(fj + fjp);
+	    
+	      Real flux_num = flux_high - (sawtooth ? 1.0 : A)*(1.0 - phi)*(flux_high - flux_low); 
+	      x3flux(iv,ig,k+1,j,i) = flux_num; 
+
+	    } // iv loop 
+	  } // ig loop
+		    
+	}// k loop
+	
+      } // i loop
+    } // j loop 
+    
+   delete[] cons;
+   delete[] flux;
+   delete[] cmax;
+      
+  }
+
+  //--------------------------------------------------------------------------------------
+
   g_dd.DeleteTensorPointwise();
   beta_u.DeleteTensorPointwise();
   alpha.DeleteTensorPointwise();

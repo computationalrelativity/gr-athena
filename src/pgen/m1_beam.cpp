@@ -36,9 +36,28 @@
 //  functions in this file.  Called in Mesh constructor.
 //========================================================================================
 
+Real threshold;
+
+int RefinementCondition(MeshBlock *pmb);
+
+void Mesh::InitUserMeshData(ParameterInput *pin) {
+  if (adaptive) {
+    EnrollUserRefinementCondition(RefinementCondition);
+    threshold = pin->GetReal("problem","thr");
+  }
+  return;
+}
+
+//========================================================================================
+//! \fn void MeshBlock::ProblemGenerator(ParameterInput *pin)
+//! \brief Problem Generator for the beam test
+//========================================================================================
+
 void MeshBlock::ProblemGenerator(ParameterInput * pin) {
 
   pz4c->ADMMinkowski(pz4c->storage.adm);
+  pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
+  
   pm1->beam_dir[0] = pin->GetOrAddReal("problem", "beam_dir1", 1.0);
   pm1->beam_dir[1] = pin->GetOrAddReal("problem", "beam_dir2", 0.0);
   pm1->beam_dir[2] = pin->GetOrAddReal("problem", "beam_dir3", 0.0);
@@ -47,71 +66,11 @@ void MeshBlock::ProblemGenerator(ParameterInput * pin) {
   pm1->SetupBeamTest(pm1->storage.u);
 }
 
-//========================================================================================
-//! \fn void MeshBlock::ProblemGenerator(ParameterInput *pin)
-//! \brief Problem Generator for the shock tube tests
-//========================================================================================
 
-/* void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 
-  pz4c->ADMMinkowski(pz4c->storage.adm);
-  M1::Lab_vars & vec = pm1->lab;
-  Real nx = beam_dir[0];
-  Real ny = beam_dir[1];
-  Real nz = beam_dir[2];
-  Real n2 = SQR(nx) + SQR(ny) + SQR(nz);
-  if (n2 > 0.0) {
-    Real nn = sqrt(n2);
-    nx /= nn;
-    ny /= nn;
-    nz /= nn;
-  } else {
-    nx = 1.0;
-    nz = ny = 0.0;
-  }
 
-  for (int k=ks; k<=ke; ++k) {
-    Real z = pcoord->x3v(k);
-    for (int j=js; j<=je; ++j) {
-      Real y = pcoord->x2v(j);
-      for (int i=is; i<=ie; ++i) {
-        Real x = pcoord->x1v(i);
-        Real proj = nx*x + ny*y + nz*z;
-        Real offset2 = SQR(x-nx*x) + SQR(y-ny*y) + SQR(z-nz*z);
-        if (proj < beam_position && offset2 < SQR(beam_width)) {
-          for (int ig=0; ig<(pm1->ngroups)*(pm1->nspecies); ++ig) {
-            vec.N(ig,k,j,i) = 1.0;
-            vec.E(ig,k,j,i) = 1.0;
-            vec.F_d(0,ig,k,j,i) = nx;
-            vec.F_d(1,ig,k,j,i) = ny;
-            vec.F_d(2,ig,k,j,i) = nz;
-          }
-        } else {
-          for (int ig=0; ig<(pm1->ngroups)*(pm1->nspecies); ++ig) {
-            vec.N(ig,k,j,i) = 0.0;
-            vec.E(ig,k,j,i) = 0.0;
-            vec.F_d(0,ig,k,j,i) = 0.0;
-            vec.F_d(1,ig,k,j,i) = 0.0;
-            vec.F_d(2,ig,k,j,i) = 0.0;
-          }
-        }
-      }
-    }
-  }
-
-  for (int ig=0; ig<(pm1->ngroups)*(pm1->nspecies); ig++) {
-    for (int k=ks; k<=ke; ++k) {
-      for (int j=js; j<=je; ++j) {
-        for (int i=is; i<=ie; ++i) {
-          pm1->storage.u(0,ig,k,j,i) = vec.N(ig,k,j,i);
-          pm1->storage.u(1,ig,k,j,i) = vec.E(ig,k,j,i);
-          pm1->storage.u(2,ig,k,j,i) = vec.F_d(1,ig,k,j,i);
-          pm1->storage.u(3,ig,k,j,i) = vec.F_d(2,ig,k,j,i);
-          pm1->storage.u(4,ig,k,j,i) = vec.F_d(3,ig,k,j,i);
-        }
-      }
-    }
-  }
-  return;
+// refinement condition: check the maximum pressure gradient
+int RefinementCondition(MeshBlock *pmb) {
+  //TODO
+  return 0;
 }
-*/

@@ -45,4 +45,3 @@ private:
   Real * kappa_abs; // Specific absorption opacity
   Real avg_atomic_mass;  // Average atomic mass
 };
-//#endif

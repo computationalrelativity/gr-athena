@@ -33,13 +33,6 @@ void M1::CalcOpacity(AthenaArray<Real> & u)
   Rad_vars vec;
   SetRadVarsAliases(u, vec);
   
-  // RadMat_vars rad;
-  // SetRadVarsAliases(storage.u_rad, rad);
-  // RadMat_vars rmat;
-  // SetRadMatVarsAliases(storage.radmat, rmat);
-  // Fidu_vars fidu;
-  // SetFiduVarsAliases(storage.intern, fidu);
-
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> vc_z4c_alpha;
   vc_z4c_alpha.InitWithShallowSlice(pmb->pz4c->storage.u, Z4c::I_Z4c_alpha);
   
@@ -74,11 +67,11 @@ void M1::CalcOpacity(AthenaArray<Real> & u)
     
     // Get the local thermodynamic equilibrium neutrino density and energy
     Real nudens_0[3], nudens_1[3];
-    //int ierr = fr->NeutrinoDensity(rho, temperature, Y_e,
+    //int ierr = fakerates->NeutrinoDensity(rho, temperature, Y_e,
     //	                         &nudens_0[0], &nudens_0[1], &nudens_0[2],
     //	                         &nudens_1[0], &nudens_1[1], &nudens_1[2]);
     // TODO: check rates
-    int ierr = fr->NeutrinoDensity(rho, temperature, Y_e, &nudens_0[0], &nudens_0[1]);
+    int ierr = fakerates->NeutrinoDensity(rho, temperature, Y_e, &nudens_0[0], &nudens_0[1]);
 
     assert(!ierr);
     assert(isfinite(nudens_0[0]));
@@ -90,7 +83,7 @@ void M1::CalcOpacity(AthenaArray<Real> & u)
 
     // Get the local neutrino emissivities
     Real eta_0_loc[3], eta_1_loc[3];
-    ierr = fr->NeutrinoEmission(rho, temperature, Y_e, &eta_0_loc[0]);
+    ierr = fakerates->NeutrinoEmission(rho, temperature, Y_e, &eta_0_loc[0]);
     //	    &eta_0_loc[0], &eta_0_loc[1], &eta_0_loc[2],
     //	    &eta_1_loc[0], &eta_1_loc[1], &eta_1_loc[2]);
 
@@ -104,7 +97,7 @@ void M1::CalcOpacity(AthenaArray<Real> & u)
 
     // Get the transport opacity (absorption + scattering)
     Real kappa_0_loc[3], kappa_1_loc[3];
-    ierr = fr->NeutrinoOpacity(rho, temperature, Y_e, &kappa_0_loc[0]);
+    ierr = fakerates->NeutrinoOpacity(rho, temperature, Y_e, &kappa_0_loc[0]);
     //	   &kappa_0_loc[0], &kappa_0_loc[1], &kappa_0_loc[2],
     //	   &kappa_1_loc[0], &kappa_1_loc[1], &kappa_1_loc[2]);
     
@@ -118,7 +111,7 @@ void M1::CalcOpacity(AthenaArray<Real> & u)
     
     // Get the absorption opacity (absorption + scattering)
     Real abs_0_loc[3], abs_1_loc[3];
-    ierr = fr->NeutrinoAbsorptionRate(rho, temperature, Y_e, &abs_0_loc[0]);
+    ierr = fakerates->NeutrinoAbsorptionRate(rho, temperature, Y_e, &abs_0_loc[0]);
     //		  &abs_0_loc[0], &abs_0_loc[1], &abs_0_loc[2],
     //		  &abs_1_loc[0], &abs_1_loc[1], &abs_1_loc[2]);
     
