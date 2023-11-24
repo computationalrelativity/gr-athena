@@ -18,17 +18,14 @@
 void M1::CalcFiducialVelocity() {  
   MeshBlock * pmb = pmy_block;
   
-  // Fidu_vars fidu;
-  // SetFiduVarsAliases(storage.intern, fidu);
-  
   fidu.vel_u.ZeroClear();
-  fidu.Wlorentz.ZeroClear();
+  fidu.Wlorentz.Fill(1.0);
 
   if (fiducial_velocity == "fluid") {
     GCLOOP2(k,j) {
       for(int a = 0; a < NDIM; ++a) {
-	      CLOOP1(i) {
-	        fidu.vel_u(a,k,j,i) = pmb->phydro->w(IVX+a,k,j,i);
+	CLOOP1(i) {
+	  fidu.vel_u(a,k,j,i) = pmb->phydro->w(IVX+a,k,j,i);
         }
       }
     }
@@ -37,13 +34,13 @@ void M1::CalcFiducialVelocity() {
       Real const rho = pmb->phydro->w(IDN,k,j,i);
       Real const fac = 1.0/std::max(rho, fiducial_vel_rho_fluid);
       for(int a = 0; a < NDIM; ++a) {
-	      fidu.vel_u(a,k,j,i) = pmb->phydro->w(IVX+a,k,j,i) * rho * fac;      
+	fidu.vel_u(a,k,j,i) = pmb->phydro->w(IVX+a,k,j,i) * rho * fac;      
       }
     }
   } else {
     return;
   }
-
+  
   // Here fidu.vel_u contains utilde^i = W v^i
   // compute Lorentz factor and store v^i
   
@@ -58,12 +55,11 @@ void M1::CalcFiducialVelocity() {
   g_dd.NewTensorPointwise();
   
   GCLOOP3(k,j,i) {
-    
     // Go from ADM 3-metric VC (AthenaArray/Tensor)
     // to ADM 3-metric on CC at ijk (TensorPointwise)       
     for(int a = 0; a < NDIM; ++a) {
       for(int b = a; b < NDIM; ++b) {
-	      g_dd(a,b) = VCInterpolation(vc_adm_g_dd(a,b),k,j,i);
+	g_dd(a,b) = VCInterpolation(vc_adm_g_dd(a,b),k,j,i);
       }
     }
     // Compute W Lorentz from utilde
@@ -73,13 +69,12 @@ void M1::CalcFiducialVelocity() {
                                            g_dd(0,0), g_dd(0,1), g_dd(0,2),
                                            g_dd(1,1), g_dd(1,2), g_dd(2,2),
                                            nullptr, nullptr, nullptr,  nullptr);
-
     fidu.Wlorentz(k,j,i) = W;
     Real const ooW = 1.0/W;
     for(int a = 0; a < NDIM; ++a) {
       fidu.vel_u(a,k,j,i) *= ooW;
     }
-    
   }
+  
   g_dd.DeleteTensorPointwise(); 
 }
