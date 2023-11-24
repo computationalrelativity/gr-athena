@@ -421,22 +421,25 @@ void M1::CalcClosure(AthenaArray<Real> & u)
   
   //GCLOOP3(k,j,i) {
   CLOOP3(k,j,i) {
-    for (int ig = 0; ig < nspecies*ngroups; ++ig) {
-      if (rad.mask(k,j,i)) {
-	      rad.J(ig,k,j,i) = 0;
-	      for (int a = 0; a < NDIM; ++a) {
+
+    if (rad.mask(k,j,i)) {
+      for (int ig = 0; ig < nspecies*ngroups; ++ig) {
+      	rad.J(ig,k,j,i) = 0;
+	for (int a = 0; a < NDIM; ++a) {
           rad.Ht(a,ig,k,j,i) = 0;
-	        rad.H(a,ig,k,j,i)  = 0;
+	  rad.H(a,ig,k,j,i)  = 0;
         }
-	      for (int a = 0; a < NDIM; ++a) {
-	        for (int b = a; b < NDIM; ++b) {
-	          rad.P_dd(a,b,ig,k,j,i) = 0;
+	for (int a = 0; a < NDIM; ++a) {
+	  for (int b = a; b < NDIM; ++b) {
+	    rad.P_dd(a,b,ig,k,j,i) = 0;
           }
         }
-	      continue;
-      }
-    }
-
+	if (nspecies > 1)
+	  rad.nnu(ig,k,j,i) = 0;
+      } // ig loop
+      continue;
+    } // mask
+    
     // Go from ADM 3-metric VC (AthenaArray/Tensor)
     // to ADM 4-metric on CC at ijk (TensorPointwise) 
     Get4Metric_VC2CCinterp(pmb, k,j,i,
@@ -445,9 +448,9 @@ void M1::CalcClosure(AthenaArray<Real> & u)
     Get4Metric_Inv(g_dd, beta_u, alpha, g_uu);
     Get4Metric_NormalForm(alpha, n_d);
 
-    Real const W = fidu.Wlorentz(k,j,i);
+    Real const fidu_w_lorentz = fidu.Wlorentz(k,j,i);
 
-    uvel(alpha(), beta_u(1), beta_u(2), beta_u(3), W,
+    uvel(alpha(), beta_u(1), beta_u(2), beta_u(3), fidu_w_lorentz,
 	       fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i), 
 	       &u_u(0), &u_u(1), &u_u(2), &u_u(3));    
 
@@ -458,7 +461,7 @@ void M1::CalcClosure(AthenaArray<Real> & u)
     tensor::contract(g_dd, v_u, v_d);
   
    for (int ig = 0; ig < nspecies*ngroups; ++ig) {
-      Real const W = fidu.Wlorentz(k,j,i);
+
       pack_F_d(beta_u(1), beta_u(2), beta_u(3),
 	             vec.F_d(0,ig,k,j,i),
 	             vec.F_d(1,ig,k,j,i),
@@ -468,18 +471,19 @@ void M1::CalcClosure(AthenaArray<Real> & u)
       // chi, P_ab
       calc_closure_pt(pmb, i, j, k, ig,
                       closure_fun, gsl_solver, g_dd, g_uu, n_d,
-                      W, u_u, v_d, proj_ud, vec.E(ig,k,j,i), F_d,
+                      fidu_w_lorentz, u_u, v_d, proj_ud, vec.E(ig,k,j,i), F_d,
                       &rad.chi(ig,k,j,i), P_dd);
       unpack_P_dd(P_dd,
-		              &rad.P_dd(0,0,ig,k,j,i), &rad.P_dd(0,1,ig,k,j,i), &rad.P_dd(0,2,ig,k,j,i),
+		  &rad.P_dd(0,0,ig,k,j,i), &rad.P_dd(0,1,ig,k,j,i), &rad.P_dd(0,2,ig,k,j,i),
                   &rad.P_dd(1,1,ig,k,j,i), &rad.P_dd(1,2,ig,k,j,i),
                   &rad.P_dd(2,2,ig,k,j,i));
       
       for (int a = 0; a < NDIM; ++a) {
-	      for (int b = a; b < a; ++b) {
-	        assert(isfinite(rad.P_dd(a,b,ig,k,j,i)));
+	for (int b = a; b < a; ++b) {
+	  assert(isfinite(rad.P_dd(a,b,ig,k,j,i)));
         }
       }
+      
       // J
       // TODO: Check this E
       assemble_rT(n_d, lab.E(ig,k,j,i), F_d, P_dd, T_dd);
@@ -491,25 +495,33 @@ void M1::CalcClosure(AthenaArray<Real> & u)
       // H_a
       calc_H_from_rT(T_dd, u_u, proj_ud, H_d);
 
+      apply_floor(g_uu, &rad.J(ig,k,j,i), H_d);
+      
       unpack_H_d(H_d,
                  &rad.Ht(ig,k,j,i),
                  &rad.H(1,ig,k,j,i),
                  &rad.H(2,ig,k,j,i),
                  &rad.H(3,ig,k,j,i));
 
+      
       assert(isfinite(rad.Ht(ig,k,j,i)));
       for (int a = 0; a < NDIM; ++a) {
-	      assert(isfinite(rad.H(a,ig,k,j,i)));
+	assert(isfinite(rad.H(a,ig,k,j,i)));
       }
       
       // nnu
-      tensor::contract(g_uu, H_d, H_u);
-
-      assemble_fnu(u_u, rad.J(ig,k,j,i), H_u, fnu_u);
-
-      Real const Gamma = alpha()*fnu_u(0);
-
-      rad.nnu(ig,k,j,i) = vec.N(ig,k,j,i)/Gamma;
+      if (nspecies > 1) {
+	tensor::contract(g_uu, H_d, H_u);
+	//tensor::contract(g_uu, H_d, &H_u);
+	assemble_fnu(u_u, rad.J(ig,k,j,i), H_u, fnu_u);
+	//Real const Gamma = alpha()*fnu_u(0);
+	Real const Gamma = compute_Gamma(fidu_w_lorentz, v_u,
+					 rad.J(ig,k,j,i),
+					 vec.E(ig,k,j,i), F_d,
+					 rad_E_floor, rad_eps);
+	assert(Gamma > 0);
+	rad.nnu(ig,k,j,i) = vec.N(ig,k,j,i)/Gamma;
+      }
 
     } // ig loop
   } // CLOOP (k,j,i)
