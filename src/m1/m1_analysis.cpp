@@ -20,7 +20,10 @@ void M1::Analyse(AthenaArray<Real> const & u)
   Lab_vars vec;
   SetLabVarsAliases(u, vec);  
   
-  Real const mb = AverageBaryonMass(); //TODO fix this somewhere
+  Real const mb = AverageBaryonMass();
+
+  assert(ngroups == 1);
+  
   Real * enu = new Real [ngroups*nspecies];
 
   // Pointwise 4D tensors used in the loop
@@ -47,7 +50,6 @@ void M1::Analyse(AthenaArray<Real> const & u)
   H_u.NewTensorPointwise();
   fnu_u.NewTensorPointwise();
   r_d.NewTensorPointwise();
-
   
   // Go through cells
   CLOOP3(k,j,i) {
@@ -56,7 +58,6 @@ void M1::Analyse(AthenaArray<Real> const & u)
     Real const y = pmb->pcoord->x2v(j);;
     Real const z = pmb->pcoord->x3v(k);;
 
-    
     //
     // Go from ADM 3-metric VC (AthenaArray/Tensor)
     // to ADM 4-metric on CC at ijk (TensorPointwise) 
@@ -67,34 +68,30 @@ void M1::Analyse(AthenaArray<Real> const & u)
     Real const detg = SpatialDet(g_dd(1,1), g_dd(1,2), g_dd(1,3), 
 				 g_dd(2,2), g_dd(2,3), g_dd(3,3));
     Real const oovolform = 1.0/(std::sqrt(detg));
-
     
     //
     // Fluid quantities
     Real const rho = pmb->phydro->w(IDN,k,j,i);
-    Real const egas = pmb->phydro->w(IDE,k,j,i);//TODO fixme! what is stored?
+    Real const egas = pmb->phydro->w(IDE,k,j,i);//TODO fixme! what is exactly stored?call EOS?
     //Real const eps = pmb->phydro->w(IDE,k,j,i);
     //Real const egas = rho*(1.0 + eps);
 
     Real etot  = egas;
     Real const oonb = 1.0/(rho/mb);
-
     
     //
     // Neutrino fractions
     for (int ig = 0; ig < ngroups*nspecies; ++ig) {
-      rdia.ynu(k,j,i,ig) = rad.nnu(k,j,i,ig) * oovolform * oonb;
-      enu[ig] = rad.J(k,j,i,ig) * oovolform;
+      rdia.ynu(ig, k,j,i,ig) = rad.nnu(ig, k,j,i) * oovolform * oonb;
+      enu[ig] = rad.J(ig, k,j,i) * oovolform;
       etot += enu[ig];
     }
-
     
     //
     // Neutrino energies
     for (int ig = 0; ig < ngroups*nspecies; ++ig) {
       rdia.znu(k,j,i,ig) = enu[ig]/etot;
     }
-
     
     //
     // Radial fluxes
@@ -132,6 +129,7 @@ void M1::Analyse(AthenaArray<Real> const & u)
 	    
 	    assemble_fnu(u_u, rad.J(k,j,i,ig), H_u, &fnu_u);
 	    Real const Gamma = alpha() * fnu_u(0);
+	    
 	    // Note that nnu is densitized here
 	    Real const nnu = vec.N(k,j,i,ig)/Gamma;
 
