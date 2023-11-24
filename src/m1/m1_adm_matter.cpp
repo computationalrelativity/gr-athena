@@ -22,11 +22,8 @@ void M1::AddToADMMatter(AthenaArray<Real> & u)
 {
   MeshBlock * pmb = pmy_block;
 
-  Lab_vars lab;
-  Rad_vars rad;
-  SetLabVarsAliases(u, lab);
-  SetRadVarsAliases(u, rad);
-  //TODO: SetRadVarsAliases??
+  Lab_vars vec;
+  SetLabVarsAliases(u, vec);
 
   // ADM matter vars VC
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> vc_mat_rho;
@@ -42,19 +39,19 @@ void M1::AddToADMMatter(AthenaArray<Real> & u)
     const int shift = ig*mbi.nn1*mbi.nn2*mbi.nn3;
     ILOOP2(k,j) {
       ILOOP1(i) {
-        vc_mat_rho(ig,k,j,i) += CCInterpolation(*(&lab.E()+shift),k,j,i);
+        vc_mat_rho(k,j,i) += CCInterpolation(*(&vec.E()+shift),k,j,i);
       }
     
       ILOOP1(i) {      
         for(int a = 0; a < NDIM; ++a) {
-          vc_mat_S_d(a,ig,k,j,i) += CCInterpolation(*(&lab.F_d(a)+shift),k,j,i);
+          vc_mat_S_d(a,k,j,i) += CCInterpolation(*(&vec.F_d(a)+shift),k,j,i);
         }
       }
 
       ILOOP1(i) {      
         for(int a = 0; a < NDIM; ++a) {
           for(int b = a; b < NDIM; ++b) {
-            vc_mat_S_dd(a,b,ig,k,j,i) += CCInterpolation(*(&rad.P_dd(a,b)+shift),k,j,i);
+            vc_mat_S_dd(a,b,k,j,i) += CCInterpolation(*(&rad.P_dd(a,b)+shift),k,j,i);
           }
         }
       }
