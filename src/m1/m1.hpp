@@ -36,6 +36,11 @@
 #include <gsl/gsl_multiroots.h>
 #include <gsl/gsl_errno.h>
 
+#ifndef M1_SRC_METHOD
+#define M1_SRC_METHOD (0) // = M1_SRC_METHOD_IMPL
+#endif
+
+
 #ifndef M1_NGHOST
 #define M1_NGHOST (2) //TODO: check we have enough, NGHOSTS >= M1_NGHOSTS
 #endif
@@ -73,6 +78,8 @@ Real eddington(Real const xi);
 Real kershaw(Real const xi);
 Real minerbo(Real const xi);
 Real thin(Real const xi);
+
+typedef Real (*average_baryon_mass_t)();
 
 // Indexes of spacetime manifold vars in TensorPointwise 
 #define MDIM (4)
@@ -145,18 +152,26 @@ public:
   // Names of internal variables
   static char const * const Intern_names[N_Intern];
 
+  // Source update method
+  enum {
+    M1_SRC_METHOD_IMPL, // default
+    M1_SRC_BOOST,       // still IMPL
+    M1_SRC_METHOD_EXPL,
+    M1_SRC_METHODS,
+  };
+  
   // Source update results
   enum {
-    SOURCE_UPDATE_OK,
-    SOURCE_UPDATE_THIN,
-    SOURCE_UPDATE_EQUIL,
-    SOURCE_UPDATE_SCAT,
-    SOURCE_UPDATE_EDDINGTON,
-    SOURCE_UPDATE_FAIL,
-    SOURCE_UPDATE_RESULTS,
+    M1_SRC_UPDATE_OK,
+    M1_SRC_UPDATE_THIN,
+    M1_SRC_UPDATE_EQUIL,
+    M1_SRC_UPDATE_SCAT,
+    M1_SRC_UPDATE_EDDINGTON,
+    M1_SRC_UPDATE_FAIL,
+    M1_SRC_UPDATE_RESULTS,
   };
   // Messages
-  static char const * const source_update_msg[SOURCE_UPDATE_RESULTS];
+  static char const * const source_update_msg[M1_SRC_UPDATE_RESULTS];
   
 public:
   M1(MeshBlock *pmb, ParameterInput *pin);
@@ -164,7 +179,8 @@ public:
 
   MeshBlock * pmy_block;     // pointer to MeshBlock containing this M1
   FakeRates * fakerates;     // pointer to fake rates
-
+  //TODO pointer to rate class
+  
   // public data storage
   struct {
     AthenaArray<Real> u;       // solution of M1 evolution system
@@ -309,6 +325,8 @@ public:
   void CalcUpdate(const Real dt,
                 AthenaArray<Real> & u_p, AthenaArray<Real> & u_c, AthenaArray<Real> & u_rhs);
 
+  average_baryon_mass_t AverageBaryonMass;
+  
   // compute new timestep on a MeshBlock
   Real NewBlockTimeStep(void);
 

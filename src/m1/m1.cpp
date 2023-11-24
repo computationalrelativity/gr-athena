@@ -60,7 +60,7 @@ char const * const M1::Intern_names[M1::N_Intern] = {
   "net.heat",
 };
 
-char const * const M1::source_update_msg[M1::SOURCE_UPDATE_RESULTS] = {
+char const * const M1::source_update_msg[M1::M1_SRC_UPDATE_RESULTS] = {
   "Ok",
   "explicit update (thin source)",
   "imposed equilibrium",
@@ -192,10 +192,13 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   
   //---------------------------------------------------------------------------
 
-  if (pin->GetOrAddBoolean("FakeRates","use",false)) 
+  AverageBaryonMass = nullptr;
+
+  fakerates = nullptr;
+  if (pin->GetOrAddBoolean("FakeRates","use",false)) {
     fakerates = new FakeRates(pin, ngroups, nspecies);
-  else
-    fakerates = nullptr;
+    //TODO set AverageBaryonMass, etc
+  }
   
   // Set aliases
   SetLabVarsAliases(storage.u, lab);

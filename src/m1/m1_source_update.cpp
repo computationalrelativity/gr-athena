@@ -436,19 +436,19 @@ int M1::source_update_pt(MeshBlock * pmb,
     prepare_closure(&x.vector, &p);
     *chi = p.chi;
 
-    return SOURCE_UPDATE_THIN;
+    return M1_SRC_UPDATE_THIN;
   }
 
   // Our scheme cannot capture this dynamics (tau << dt), so we go
   // directly to the equilibrium
   if (source_thick_limit > 0 &&
       SQ(cdt)*(kabs*(kabs + kscat)) > SQ(source_thick_limit)) {
-    return SOURCE_UPDATE_EQUIL;
+    return M1_SRC_UPDATE_EQUIL;
   }
 
   // This handles the scattering dominated limit
   if (source_scat_limit > 0 && cdt*kscat > source_scat_limit) {
-    return SOURCE_UPDATE_SCAT;
+    return M1_SRC_UPDATE_SCAT;
   }
   
   // Initial guess for the solution
@@ -495,8 +495,8 @@ int M1::source_update_pt(MeshBlock * pmb,
 				v_d, v_u, proj_ud, W, Eold, Fold_d,
 				Estar, Fstar_d, chi,
 				eta, kabs, kscat, Enew, Fnew_d);
-	if (ierr == SOURCE_UPDATE_OK) {
-	  return SOURCE_UPDATE_EDDINGTON;
+	if (ierr == M1_SRC_UPDATE_OK) {
+	  return M1_SRC_UPDATE_EDDINGTON;
 	}
 	else {
 	  return ierr;
@@ -507,7 +507,7 @@ int M1::source_update_pt(MeshBlock * pmb,
       msg << "using initial guess\n";
       std::cout << msg.str();
 #endif
-      return SOURCE_UPDATE_FAIL;
+      return M1_SRC_UPDATE_FAIL;
       }
     }
     else if (ierr != GSL_SUCCESS) {
@@ -532,5 +532,5 @@ int M1::source_update_pt(MeshBlock * pmb,
   prepare_closure(gsl_solver_nd->x, &p);
   *chi = p.chi;
 
-  return SOURCE_UPDATE_OK;
+  return M1_SRC_UPDATE_OK;
 }

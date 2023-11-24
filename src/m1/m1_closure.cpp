@@ -380,14 +380,7 @@ void M1::CalcClosure(AthenaArray<Real> & u)
   gsl_root_fsolver * gsl_solver = gsl_root_fsolver_alloc(gsl_root_fsolver_brent);
 
   Lab_vars vec;
-  //SetLabVarsAliases(storage.u, vec);
   SetLabVarsAliases(u, vec);  
-  // Rad_vars rad;
-  // SetRadVarsAliases(storage.u_rad, rad);  
-  // RadMat_vars rmat;
-  // SetRadMatVarsAliases(storage.radmat, rmat);
-  // Fidu_vars fidu;
-  // SetFiduVarsAliases(storage.intern, fidu);
   
   // Pointwise 4D tensors used in the loop
   TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> g_dd;
