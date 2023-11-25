@@ -408,7 +408,7 @@ int M1::source_update_pt(MeshBlock * pmb,
 			 Real const kabs,
 			 Real const kscat,
 			 Real * Enew,
-			 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> Fnew_d)
+			 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & Fnew_d)
 {
   Parameters p(pmb, i, j, k, ig,
 	       closure_fun, gsl_solver_1d, cdt, alp, g_dd, g_uu, n_d, n_u,

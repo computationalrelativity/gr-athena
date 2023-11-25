@@ -246,8 +246,8 @@ void M1::CalcUpdate(Real const dt,
 	       vec_p.F_d(0,ig,k,j,i) + 0.5*dt * vec_rhs.F_d(0,ig,k,j,i),
 	       vec_p.F_d(1,ig,k,j,i) + 0.5*dt * vec_rhs.F_d(1,ig,k,j,i),
 	       vec_p.F_d(2,ig,k,j,i) + 0.5*dt * vec_rhs.F_d(2,ig,k,j,i),
-	       &Fstar_d);
-      apply_floor(g_uu, &Estar, &Fstar_d);
+	       Fstar_d);
+      apply_floor(g_uu, &Estar, Fstar_d);
       Real Nstar = 0; (void)Nstar;
       if (nspecies > 1)
 	Nstar = std::max(vec_p.N(ig,k,j,i) + dt * vec_rhs.N(ig,k,j,i), rad_N_floor);
@@ -305,7 +305,7 @@ void M1::CalcUpdate(Real const dt,
       // Boost back to the lab frame
       Enew = calc_J_from_rT(rT_dd, n_u);
       calc_H_from_rT(rT_dd, n_u, gamma_ud, Fnew_d);
-      apply_floor(g_uu, &Enew, &Fnew_d);
+      apply_floor(g_uu, &Enew, Fnew_d);
       
 #if (THC_M1_SRC_METHOD == THC_M1_SRC_IMPL)
 
@@ -317,8 +317,8 @@ void M1::CalcUpdate(Real const dt,
 		       Estar, Fstar_d,
 		       &rad.chi(ig,k,j,i), rmat.eta_1(ig,k,j,i), rmat.abs_1(ig,k,j,i),
 		       rmat.scat_1(ig,k,j,i),
-		       &Enew, &Fnew_d);
-      apply_floor(g_uu, &Enew, &Fnew_d);
+		       &Enew, Fnew_d);
+      apply_floor(g_uu, &Enew, Fnew_d);
       
       //
       // Update closure

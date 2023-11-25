@@ -391,7 +391,7 @@ private:
 		       Real const kabs,
 		       Real const kscat,
 		       Real * Enew,
-		       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> Fnew_d);  
+		       TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & Fnew_d);  
   
   // m1_closure.cpp
   void calc_closure_pt(MeshBlock * pmb,

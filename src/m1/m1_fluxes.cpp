@@ -213,7 +213,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 		   vec.F_d(0,ig,k,j,i),					 
 		   vec.F_d(1,ig,k,j,i),					 
 		   vec.F_d(2,ig,k,j,i),					 
-		   F_d);						 
+		   F_d);
 	  pack_H_d(rad.Ht(ig,k,j,i),					 
 		   rad.H(0,ig,k,j,i), rad.H(1,ig,k,j,i), rad.H(2,ig,k,j,i),  
 		   H_d);						 
