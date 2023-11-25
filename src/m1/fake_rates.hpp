@@ -43,5 +43,6 @@ private:
   Real * eta; // Specific emissivity coefficient
   Real * kappa_scat; // Specific opacity 
   Real * kappa_abs; // Specific absorption opacity
-  Real avg_atomic_mass;  // Average atomic mass
+  Real avg_atomic_mass;  
+  Real avg_baryon_mass; 
 };

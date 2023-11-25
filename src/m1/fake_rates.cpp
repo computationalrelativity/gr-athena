@@ -31,6 +31,7 @@ FakeRates::FakeRates(ParameterInput *pin, int _nspecies, int _ngroups)
   kappa_abs = new Real[nspecies*ngroups];
 
   avg_atomic_mass = pin->GetOrAddReal("FakeRates", "avg_atomic_mass", 1.0);
+  avg_baryon_mass = pin->GetOrAddReal("FakeRates", "avg_baryon_mass", 1.0);
 
   // Read-in eta and kappas
   std::string parname;  // X_<group>_<species>
@@ -104,7 +105,8 @@ int FakeRates::NeutrinoAbsorptionRate(Real const rho, Real const temp, Real cons
   return 0;
 }
 
-int FakeRates::NeutrinoDensity(Real const rho, Real const temp, Real const Y_e, Real * num, Real * ene)
+int FakeRates::NeutrinoDensity(Real const rho, Real const temp, Real const Y_e,
+			       Real * num, Real * ene)
 {
   for (int ig = 0; ig < ngroups*nspecies; ++ig) {
     num[ig] = 1.0;
@@ -135,6 +137,6 @@ int FakeRates::AverageAtomicMass(Real const rho, Real const temp, Real const Y_e
 
 Real FakeRates::AverageBaryonMass()
 {
-  return 1.0;
+  return avg_baryon_mass;
 }
 
