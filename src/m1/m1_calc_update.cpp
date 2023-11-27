@@ -68,17 +68,17 @@ void M1::CalcUpdate(Real const dt,
   Real mb = 0.0;
   (void)mb;
   if (nspecies > 1)
-    mb = AverageBaryonMass(); 
+    mb = fakerates->AverageBaryonMass(); 
 
-  AthenaArray<Real> densxp, densxn, sconx, scony, sconz, tau;
+  //AthenaArray<Real> densxp, densxn, sconx, scony, sconz, tau;
   
   //TODO: fix ptrs to fluid vars 3D grid vars (see also below)
-  densxp.InitWithShallowSlice(pmb->phydro->u,IDN,1);
-  densxn.InitWithShallowSlice(pmb->phydro->u,IDN,1);
-  sconx.InitWithShallowSlice(pmb->phydro->u,IVX,1);
-  scony.InitWithShallowSlice(pmb->phydro->u,IVY,1);
-  sconz.InitWithShallowSlice(pmb->phydro->u,IVZ,1);
-  tau.InitWithShallowSlice(pmb->phydro->u,IDN,1); 
+  //densxp.InitWithShallowSlice(pmb->phydro->u,IDN,1);
+  //densxn.InitWithShallowSlice(pmb->phydro->u,IDN,1);
+  //sconx.InitWithShallowSlice(pmb->phydro->u,IVX,1);
+  //scony.InitWithShallowSlice(pmb->phydro->u,IVY,1);
+  //sconz.InitWithShallowSlice(pmb->phydro->u,IVZ,1);
+  //tau.InitWithShallowSlice(pmb->phydro->u,IDN,1); 
   
   Lab_vars vec_p;
   SetLabVarsAliases(u_p, vec_p);
@@ -121,7 +121,9 @@ void M1::CalcUpdate(Real const dt,
   beta_u.NewTensorPointwise();
   alpha.NewTensorPointwise();
   g_uu.NewTensorPointwise();
+  gamma_ud.NewTensorPointwise();
   n_d.NewTensorPointwise();
+  n_u.NewTensorPointwise();
 
   F_u.NewTensorPointwise();
   S_d.NewTensorPointwise();
@@ -394,29 +396,29 @@ void M1::CalcUpdate(Real const dt,
 	DTau_sum -= DrE[ig];
       } // ig loop
       if (DTau_sum < 0) {
-	theta = std::min(source_limiter*std::max(tau(k,j,i), 0.0)/DTau_sum, theta);
+	//theta = std::min(source_limiter*std::max(tau(k,j,i), 0.0)/DTau_sum, theta);
+        theta = std::min(0.0, theta);
       }
       
       if (nspecies > 1) {
-	Real DDxp_sum = 0.0;
-	for (int ig = 0; ig < ngroups*nspecies; ++ig) {
-	  Real Nstar = vec_p.N(ig,k,j,i) + dt * vec_rhs.N(ig,k,j,i);
-	  if (DrN[ig] < 0) {
-	    theta = std::min(-source_limiter*std::max(Nstar, 0.0)/DrN[ig], theta);
-	  }
-	  DDxp_sum += DDxp[ig];
-	}
-	
-	Real const DYe = DDxp_sum/pmb->phydro->u(IDN,k,j,i);
-	if (DYe < 0) {
-	  //FIXME theta = min(source_limiter*max(source_Ye_max - XXX.Y_e(k,j,i), 0.0)/DYe, theta);
-	}
-	else if (DYe < 0) {
-	  //FIXME theta = min(source_limiter*min(source_Ye_min - XXX.Y_e(k,j,i), 0.0)/DYe, theta);
-	}
+        Real DDxp_sum = 0.0;
+        for (int ig = 0; ig < ngroups*nspecies; ++ig) {
+          Real Nstar = vec_p.N(ig,k,j,i) + dt * vec_rhs.N(ig,k,j,i);
+          if (DrN[ig] < 0) {
+            theta = std::min(-source_limiter*std::max(Nstar, 0.0)/DrN[ig], theta);
+          }
+          DDxp_sum += DDxp[ig];
+        }
+        
+        //Real const DYe = DDxp_sum/pmb->phydro->u(IDN,k,j,i);
+        //if (DYe < 0) {
+          //FIXME theta = min(source_limiter*max(source_Ye_max - XXX.Y_e(k,j,i), 0.0)/DYe, theta);
+        //}
+        //else if (DYe < 0) {
+          //FIXME theta = min(source_limiter*min(source_Ye_min - XXX.Y_e(k,j,i), 0.0)/DYe, theta);
+        //}
       }
       theta = std::max(0.0, theta);
-      
     } // source limiter
 
     
@@ -449,16 +451,16 @@ void M1::CalcUpdate(Real const dt,
       assert (ngroups == 1);
       
       //TODO: fix ptrs to fluid vars
-      sconx(k,j,i)  -= theta*DrFx[ig];
-      scony(k,j,i)  -= theta*DrFy[ig];
-      sconz(k,j,i)  -= theta*DrFz[ig];
-      tau(k,j,i)    -= theta*DrE[ig];
+      //sconx(k,j,i)  -= theta*DrFx[ig];
+      //scony(k,j,i)  -= theta*DrFy[ig];
+      //sconz(k,j,i)  -= theta*DrFz[ig];
+      //tau(k,j,i)    -= theta*DrE[ig];
       
       net.heat(k,j,i) -= theta*DrE[ig];
 
       if (nspecies > 1) {
-	densxp(k,j,i)  += theta*DDxp[ig];
-	densxn(k,j,i)  -= theta*DDxp[ig];
+	//densxp(k,j,i)  += theta*DDxp[ig];
+	//densxn(k,j,i)  -= theta*DDxp[ig];
 	net.abs(k,j,i) += theta*DDxp[ig];
       }
 

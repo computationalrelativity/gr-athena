@@ -157,8 +157,8 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   ngroups = M1_NGROUPS;
 
   closure = pin->GetString("M1", "closure");  
-  fiducial_velocity = pin->GetString("M1", "fiducial_velocity");
-  fiducial_vel_rho_fluid = pin->GetReal("M1", "fiducial_velocity_rho_fluid") * CGS_GCC;
+  fiducial_velocity = pin->GetOrAddString("M1", "fiducial_velocity", "");
+  fiducial_vel_rho_fluid = pin->GetOrAddReal("M1", "fiducial_velocity_rho_fluid", 0.0) * CGS_GCC;
   opacity_equil_depth = pin->GetOrAddReal("M1", "opacity_equil_depth", 1.0);
   opacity_corr_fac_max = pin->GetOrAddReal("M1", "opacity_corr_fac_max", 10.);
   rad_E_floor = pin->GetOrAddReal("M1", "rad_E_floor", 1e-15);

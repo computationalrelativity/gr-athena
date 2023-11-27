@@ -532,7 +532,7 @@ void M1::CalcClosure(AthenaArray<Real> & u)
   g_uu.DeleteTensorPointwise();
   n_d.DeleteTensorPointwise();
 
-  fidu.vel_u.DeleteAthenaTensor();
+  //fidu.vel_u.DeleteAthenaTensor();
   u_u.DeleteTensorPointwise();
   u_d.DeleteTensorPointwise();
   proj_ud.DeleteTensorPointwise();

@@ -56,6 +56,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
 void MeshBlock::ProblemGenerator(ParameterInput * pin) {
 
   pz4c->ADMMinkowski(pz4c->storage.adm);
+  pz4c->GaugeGeodesic(pz4c->storage.u);
   pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
   
   pm1->beam_dir[0] = pin->GetOrAddReal("problem", "beam_dir1", 1.0);

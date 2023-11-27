@@ -65,6 +65,7 @@ void M1::GRSources(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs)
   F_d.NewTensorPointwise();
   P_dd.NewTensorPointwise();
   P_uu.NewTensorPointwise();
+  g_uu.NewTensorPointwise();
   K_dd__.NewTensorPointwise();
   dalp_d.NewTensorPointwise();
   dg_ddd.NewTensorPointwise();

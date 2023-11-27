@@ -61,6 +61,8 @@ void M1::calc_Pthick(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_
   
   // tH = gamma_ud H_d
   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> tH_d;
+  tH_d.NewTensorPointwise();
+
   for (int a = 0; a < MDIM; ++a) {
     tH_d(a) = F_d(a)/W + coef*W*v_d(a)*((4.*W2 + 1.)*v_dot_F - 4.*W2*E);
   }
@@ -221,6 +223,8 @@ void M1::uvel(Real alp,
 	            Real velx,Real vely,Real velz,
 	            Real * u0, Real * u1, Real * u2, Real * u3)
 { // Four-vel
+
+
   Real const ialp = 1.0/alp;
   *u0 = w_lorentz*ialp;
   *u1 = w_lorentz*(velx - betax*ialp);

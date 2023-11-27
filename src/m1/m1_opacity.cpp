@@ -61,7 +61,7 @@ void M1::CalcOpacity(AthenaArray<Real> & u)
     }
     
     //TODO: fixme, need new eos/c2p
-    Real const rho = pmb->phydro->w(IDN,k,j,i);
+    Real const rho = 0.0; //pmb->phydro->w(IDN,k,j,i);
     Real const temperature = 0; //pmb->phydro->w(IDN,k,j,i);
     Real const Y_e = 0; //pmb->phydro->w(IDN,k,j,i);
     
