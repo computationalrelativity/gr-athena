@@ -12,7 +12,9 @@
 #include <cmath>   // abs(), NAN, pow(), sqrt()
 #include <cstring> // strcmp()
 #include <fstream>    // ifstream
+#include <iomanip>
 #include <iostream>   // endl, ostream
+#include <limits>
 #include <sstream>    // stringstream
 #include <stdexcept>  // runtime_error
 #include <string>     // string
@@ -269,7 +271,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   // Initialize remaining z4c variables
   pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
-  pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u1);
+  // pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u1);
 
   // // Impose algebraic constraints
   // pz4c->AlgConstr(pz4c->storage.u);
@@ -301,8 +303,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                        pz4c->storage.u);
 
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> H(pz4c->storage.con, Z4c::I_CON_H);
-  // AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> rho(pz4c->storage.mat, Z4c::I_MAT_rho);
-
 
   Real s_H {0.};
   for (int k=pz4c->mbi.kl; k<=pz4c->mbi.ku; ++k)
@@ -332,8 +332,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   // reinject
   MB_info* mbi = &(pz4c->mbi);
 
-  if (false)
+  if (true)
   {
+    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> rho(pz4c->storage.mat, Z4c::I_MAT_rho);
+
     // adjust ADM density by initial Hamiltonian error
     for (int k=0; k<=pz4c->mbi.nn3; ++k)
     for (int j=0; j<=pz4c->mbi.nn2; ++j)
@@ -341,7 +343,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     {
       rho(k,j,i) += H(k,j,i) / (16.0 * M_PI);
     }
-
 
     // update the hydro state-vec
     const Real gamma_adi { pin->GetReal("hydro", "gamma") };
@@ -358,8 +359,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
         const Real W = 1.;
 
         phydro->w(IDN,k,j,i) = (-1.+std::sqrt(1.+4.*K*rh_adm)) / (2. * K);
-        // phydro->w(IPR,k,j,i) = K*pow(phydro->w(IDN,k,j,i),gamma_adi);
-        phydro->w(IPR,k,j,i) = 0.5*(1./K+2*rh_adm-std::sqrt(1.+4.*K*rh_adm)/K);
+        phydro->w(IPR,k,j,i) = K*pow(phydro->w(IDN,k,j,i),gamma_adi);
+        // phydro->w(IPR,k,j,i) = 0.5*(1./K+2*rh_adm-std::sqrt(1.+4.*K*rh_adm)/K);
 
         // const Real w_p = phydro->w(IPR,k,j,i);
         // phydro->w(IDN,k,j,i) = (
@@ -387,23 +388,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                          pz4c->storage.u);
 
 
-  }
-
-  Real s_H {0.};
-
-  for (int k=mbi->kl; k<=mbi->ku; ++k)
-  for (int j=mbi->jl; j<=mbi->ju; ++j)
-  for (int i=mbi->il; i<=mbi->iu; ++i)
-  {
-    s_H += std::abs(H(k,j,i));
-  }
-  if (s_H > 1e-2)
-  {
-    std::cout << s_H << std::endl;
-    std::cout << mbi->x1(mbi->il) << ", " << mbi->x1(mbi->iu) << ", ";
-    std::cout << mbi->x2(mbi->jl) << ", " << mbi->x2(mbi->ju) << ", ";
-    std::cout << mbi->x3(mbi->kl) << ", " << mbi->x3(mbi->ku) << ", ";
-    std::cout << std::endl;
   }
   */
 
@@ -464,29 +448,6 @@ int TOV_rhs(Real r, Real *u, Real *k)
   k[TOV_IMASS] = dmdr;
   k[TOV_IPHI] = dphidr;
   k[TOV_IINT] = dIdr;
-
-  /*
-  std::cout << "m,r,dum,den:" << std::endl;
-  std::cout << m << std::endl;
-  std::cout << r << std::endl;
-  std::cout << num << std::endl;
-  std::cout << den << std::endl;
-
-  std::cout << "dpdrho,dphidr,drhodr:" << std::endl;
-  std::cout << dpdrho << std::endl;
-
-  std::cout << dphidr << std::endl;
-  std::cout << drhodr << std::endl;
-
-  std::cout << "dmdr,f,dIdr:" << std::endl;
-  std::cout << dmdr << std::endl;
-  std::cout << f << std::endl;
-  std::cout << dIdr << std::endl;
-
-
-  std::exit(0);
-  */
-
 
   int knotfinite = 0;
   for (int v = 0; v < TOV_NVAR; v++) {
@@ -605,136 +566,6 @@ int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts)
     }
   }
 
-
-  // RK2 ----------------------------------------------------------------------
-  if (0)
-  {
-    Real ut[TOV_NVAR];  // next argument for rhs
-    Real k1[TOV_NVAR], k2[TOV_NVAR];  // stages
-
-    const Real c2 = 1.0, a21 = 1.0;
-    const Real b1 = 0.5, b2 = 0.5;
-
-    while (n < maxsize)
-    {
-      // stage 1
-      for (int v = 0; v < TOV_NVAR; v++)
-        ut[v] = u[v];
-
-      stop += TOV_rhs(r, ut, k1);
-
-      // stage 2
-      for (int v = 0; v < TOV_NVAR; v++)
-        ut[v] = u[v] + (a21 * k1[v]) * dr;
-
-      stop += TOV_rhs(r, ut, k2);
-
-
-      // assemble
-      for (int v = 0; v < TOV_NVAR; v++)
-      {
-        u[v] = u[v] + dr * (
-          b1 * k1[v] + b2 * k2[v]
-        );
-      }
-
-      if (stop)
-      {
-        msg << "### FATAL ERROR in function [TOV_solve]"
-            << std::endl << "TOV r.h.s. not finite";
-        ATHENA_ERROR(msg);
-      }
-
-      // Stop if radius reached
-      rhoo = u[TOV_IRHO];
-      if (rhoo < rho_zero)
-      {
-        break;
-      }
-
-      // Store data
-      tov->data[itov_rsch][n] = r;
-      tov->data[itov_rho][n] =  u[TOV_IRHO];
-      tov->data[itov_mass][n] = u[TOV_IMASS];
-      tov->data[itov_phi][n] =  u[TOV_IPHI];
-      tov->data[itov_riso][n] = r * std::exp(u[TOV_IINT]); // Mu. by C later
-
-      // Prepare next step
-      n++;
-      r = n * dr;
-    }
-  }
-  // --------------------------------------------------------------------------
-
-  // RK3 ----------------------------------------------------------------------
-  if (0)
-  {
-    Real ut[TOV_NVAR];  // next argument for rhs
-    Real k1[TOV_NVAR], k2[TOV_NVAR], k3[TOV_NVAR];  // stages
-
-    const Real c2 = 0.5, a21 =  0.5;
-    const Real c3 = 1.0, a31 = -1.0, a32 = 2.0;
-
-    const Real b1 = 1./6., b2 = 2./3., b3 = 1./6.;
-
-    while (n < maxsize)
-    {
-      // stage 1
-      for (int v = 0; v < TOV_NVAR; v++)
-        ut[v] = u[v];
-
-      stop += TOV_rhs(r, ut, k1);
-
-      // stage 2
-      for (int v = 0; v < TOV_NVAR; v++)
-        ut[v] = u[v] + (a21 * k1[v]) * dr;
-
-      stop += TOV_rhs(r, ut, k2);
-
-      // stage 3
-      for (int v = 0; v < TOV_NVAR; v++)
-        ut[v] = u[v] + (a31 * k1[v] +
-                        a32 * k2[v]) * dr;
-
-      stop += TOV_rhs(r, ut, k3);
-
-      // assemble
-      for (int v = 0; v < TOV_NVAR; v++)
-      {
-        u[v] = u[v] + dr * (
-          b1 * k1[v] + b2 * k2[v] + b3 * k3[v]
-        );
-      }
-
-      if (stop)
-      {
-        msg << "### FATAL ERROR in function [TOV_solve]"
-            << std::endl << "TOV r.h.s. not finite";
-        ATHENA_ERROR(msg);
-      }
-
-      // Stop if radius reached
-      rhoo = u[TOV_IRHO];
-      if (rhoo < rho_zero)
-      {
-        break;
-      }
-
-      // Store data
-      tov->data[itov_rsch][n] = r;
-      tov->data[itov_rho][n] =  u[TOV_IRHO];
-      tov->data[itov_mass][n] = u[TOV_IMASS];
-      tov->data[itov_phi][n] =  u[TOV_IPHI];
-      tov->data[itov_riso][n] = r * std::exp(u[TOV_IINT]); // Mu. by C later
-
-      // Prepare next step
-      n++;
-      r = n * dr;
-    }
-  }
-  // --------------------------------------------------------------------------
-
-
   int n_halving = 0;
   bool tol_surf_achieved = false;
   // RK4 ----------------------------------------------------------------------
@@ -797,18 +628,20 @@ int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts)
       // Stop if radius reached
       rhoo = u[TOV_IRHO];
       bool exceeded_radius = rhoo < rho_zero;
-      // if (rhoo < rho_zero)
-      // {
-      //   break;
-      // }
 
       if (exceeded_radius)
       {
         if (dr < tov->surf_dr)
         {
           tol_surf_achieved = true;
-          n++;
-          r += dr;
+
+          // revert last step
+          for (int v = 0; v < TOV_NVAR; v++)
+          {
+            u[v] = u[v] - dr * (
+              b1 * k1[v] + b2 * k2[v] + b3 * k3[v] + b4 * k4[v]
+            );
+          }
         }
         else
         {
@@ -875,16 +708,31 @@ int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts)
   tov->npts = n;
   tov->interp_npts = interp_n;
 
-  tov->R = r;
-  tov->M = u[TOV_IMASS];
+  tov->R = tov->data[itov_rsch][tov->interp_npts-1]; // r;
+  tov->M = tov->data[itov_mass][tov->interp_npts-1]; // u[TOV_IMASS];
+
 
   // Re-Alloc 1D data
   for (int v = 0; v < itov_nv; v++)
     tov->data[v] = (Real*) realloc(tov->data[v], (tov->interp_npts)*sizeof(Real));
 
+  // dump ---------------------------------------------------------------------
+  /*
+  AthenaArray<Real> array_TOV(itov_nv, interp_n);
+  for (int v = 0; v < itov_nv; v++)
+  for (int ix = 0; ix < interp_n; ++ix)
+  {
+    array_TOV(v,ix) = tov->data[v][ix];
+  }
+  array_TOV.dump("tov.pre.ini");
+  */
+  // --------------------------------------------------------------------------
+
+
   // Match to exterior
-  const Real phiR  = u[TOV_IPHI];
-  const Real IR    = u[TOV_IINT];
+  const Real phiR  = tov->data[itov_phi][tov->interp_npts-1]; // u[TOV_IPHI];
+  // const Real IR    = u[TOV_IINT];
+  const Real IR    = std::log(tov->data[itov_riso][tov->interp_npts-1] / tov->R);
   const Real phiRa = 0.5*std::log(1.-2.*tov->M/tov->R);
   const Real C     = 1./(2*tov->R) * (std::sqrt(tov->R*tov->R-2*tov->M*tov->R)+tov->R-tov->M) * std::exp(-IR);
 
@@ -893,7 +741,7 @@ int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts)
     tov->data[itov_riso][n] *= C; // riso = rsch * C * exp(IINT)
   }
 
-  tov->Riso = tov->data[itov_riso][(tov->interp_npts)-1];
+  tov->Riso = tov->data[itov_riso][tov->interp_npts-1];
 
   // Pressure
   //TODO(SB) general EOS call
@@ -919,6 +767,21 @@ int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts)
   printf("TOV_solve: M = %.16e\n",tov->M);
   printf("TOV_solve: lapse(0) = %.16e\n",tov->lapse_0);
   printf("TOV_solve: psi4(0) = %.16e\n",tov->psi4_0);
+
+  printf("TOV_solve: lapse(R(iso)) = %.16e\n",tov->data[itov_lapse][tov->interp_npts-1]);
+  printf("TOV_solve: psi4(R(iso)) = %.16e\n", tov->data[itov_psi4][tov->interp_npts-1]);
+
+  // dump ---------------------------------------------------------------------
+  /*
+  for (int v = 0; v < itov_nv; v++)
+  for (int ix = 0; ix < interp_n; ++ix)
+  {
+    array_TOV(v,ix) = tov->data[v][ix];
+  }
+  array_TOV.dump("tov.post.ini");
+  */
+  // --------------------------------------------------------------------------
+
 
   return 0;
 }
@@ -985,47 +848,10 @@ void interp_lag4(Real *f, Real *x, int Nx, Real xv,
   *dfv_p  = C1 - (CC1 - CCC1*(xi + xipo - 2.*xv))*(ximo - xv) + (-xi + xv)*(CC1 + CCC1*(-xipo + xv));
   *ddfv_p = 2.*(CC1 - CCC1*(xi + ximo + xipo - 3.*xv));
 
-  /*
-  if (i > (Nx-3))
-  {
-    i = Nx-3;
-  }
-
-  const Real d1x_0 = x[i  ] - x[i-1];
-  const Real d1x_1 = x[i+1] - x[i  ];
-  const Real d1x_2 = x[i+2] - x[i+1];
-
-  const Real d2x_1 = x[i+1] - x[i-1];
-  const Real d2x_2 = x[i+2] - x[i  ];
-
-  const Real d3x_2 = x[i+2] - x[i-1];
-
-  const Real d1f_0 = f[i  ] - f[i-1];
-  const Real d1f_1 = f[i+1] - f[i  ];
-  const Real d1f_2 = f[i+2] - f[i+1];
-
-  const Real d1fx_0 = d1f_0 / d1x_0;
-  const Real d1fx_1 = d1f_1 / d1x_1;
-  // const Real d1fx_2 = d1f_2 / d1x_2;
-
-  const Real dd1fx_1 = d1f_1 - d1f_0;
-  const Real dd1fx_2 = d1f_2 - d1f_1;
-
-
-  *fv_p = (
-    f[i-1] + (xv - x[i-1]) * (
-      d1fx_0 + (xv - x[0]) * (
-        dd1fx_1 / d2x_1 + (
-          (-dd1fx_1 / d2x_1 + dd1fx_2 / d2x_2) * (xv - x[i+1])
-        ) / d3x_2
-      )
-    )
-  );
-  */
-
-  // if (i > (Nx-2))
+  // LO: debug
+  // if (i > (Nx-1))
   // {
-  //   i = Nx-2;
+  //   i = Nx-1;
   // }
 
   // const Real d1x_0 = x[i  ] - x[i-1];
@@ -1038,11 +864,13 @@ void interp_lag4(Real *f, Real *x, int Nx, Real xv,
   // const Real dd1fx_1 = d1f_1 - d1f_0;
 
 
-  // *fv_p = (
-  //   f[i-1] + (xv - x[i-1]) * (
-  //     d1fx_0 + dd1fx_1 * (xv-x[i]) / d2x_1
-  //   )
-  // );
+  // // *fv_p = (
+  // //   f[i-1] + (xv - x[i-1]) * (
+  // //     d1fx_0 + dd1fx_1 * (xv-x[i]) / d2x_1
+  // //   )
+  // // );
+
+  // *fv_p = f[i-1] + (xv - x[i-1]) * d1fx_0;
 
 }
 
@@ -1132,6 +960,7 @@ void TOV_populate(MeshBlock *pmb,
   AT_D_Dsym st_Gamma_udd_(Nx1);
 
   // geometric: transformed to (p)rimed
+  // AT_N_sca alphap_(    Nx1);
   AT_D_sym st_gp_dd_(  Nx1);
   AT_D_sym st_gp_uu_(  Nx1);
   AT_N_sym sp_gp_dd_(  Nx1);
@@ -1180,6 +1009,80 @@ void TOV_populate(MeshBlock *pmb,
   // Interpolation dummy
   Real dummy;
 
+  // Debug dump ---------------------------------------------------------------
+  if (1)
+  {
+    const Real R_max = 50;
+    const int N_R   = 5000;
+    const Real dR = R_max / (N_R - 1);
+
+    Real interp_val;
+
+    AthenaArray<Real> data(itov_nv, N_R);
+    data.Fill(0.);
+
+    for (int ix=0; ix<N_R; ++ix)
+    {
+      const Real r = ix * dR;
+      data(0, ix) = r;
+
+      if (r < R)
+      {
+        interp_lag4(
+          tov->data[itov_rho],
+          tov->data[itov_riso],
+          tov->interp_npts,
+          r,
+          &data(itov_rho, ix),
+          &dummy,
+          &dummy);
+
+        interp_lag4(
+          tov->data[itov_lapse],
+          tov->data[itov_riso],
+          tov->interp_npts,
+          r,
+          &data(itov_lapse, ix),
+          &dummy,
+          &dummy);
+
+        interp_lag4(
+          tov->data[itov_psi4],
+          tov->data[itov_riso],
+          tov->interp_npts,
+          r,
+          &data(itov_psi4, ix),
+          &dummy,
+          &dummy);
+
+        interp_lag4(
+          tov->data[itov_mass],
+          tov->data[itov_riso],
+          tov->interp_npts,
+          r,
+          &data(itov_mass, ix),
+          &dummy,
+          &dummy);
+
+      }
+      else
+      {
+        data(itov_rho, ix)   = 0;
+        data(itov_mass, ix)  = M;
+        // 4, 5
+        data(itov_psi4, ix)  = std::pow((1.+0.5*M/r),4);
+        data(itov_lapse, ix) = ((r-M/2.)/(r+M/2.));
+      }
+
+      data(1, ix) = k_adi*pow(data(itov_rho, ix),gamma_adi);
+      data(5, ix) = R;
+    }
+    data.dump("tov_r.ini");
+    std::exit(0);
+
+  }
+  // --------------------------------------------------------------------------
+
   // Initialize primitive values on CC grid -----------------------------------
   Real up_r { 0. };  // for perturbations
 
@@ -1200,7 +1103,9 @@ void TOV_populate(MeshBlock *pmb,
 
         // Active Lorentz transform on translated coordinates if boosted
         if (boost)
+        {
           ApplyLinearTransform(L_a, Xp, X);
+        }
 
         sp_x_(0,i) = x_(i) = (boost) ? Xp(1) : X(1);
         sp_x_(1,i) = y_(i) = (boost) ? Xp(2) : X(2);
@@ -1262,7 +1167,7 @@ void TOV_populate(MeshBlock *pmb,
           {
             // Star interior
             interp_lag4(
-              tov->data[itov_rho],
+              tov->data[itov_lapse],
               tov->data[itov_riso],
               tov->interp_npts,
               r_(i),
@@ -1271,7 +1176,7 @@ void TOV_populate(MeshBlock *pmb,
               &dummy);
 
             interp_lag4(
-              tov->data[itov_rho],
+              tov->data[itov_psi4],
               tov->data[itov_riso],
               tov->interp_npts,
               r_(i),
@@ -1389,7 +1294,9 @@ void TOV_populate(MeshBlock *pmb,
 
         // Active Lorentz transform on translated coordinates if boosted
         if (boost)
+        {
           ApplyLinearTransform(L_a, Xp, X);
+        }
 
         sp_x_(0,i) = x_(i) = (boost) ? Xp(1) : X(1);
         sp_x_(1,i) = y_(i) = (boost) ? Xp(2) : X(2);
@@ -1457,6 +1364,8 @@ void TOV_populate(MeshBlock *pmb,
       {
         // metric assembly ----------------------------------------------------
         Inv3Metric(sp_g_dd_, sp_g_uu_, il, iu);
+        // raise idx
+        SlicedVecMet3Contraction(sp_beta_u_, sp_beta_d_, sp_g_uu_, il, iu);
 
         Assemble_ST_Metric_uu(st_g_uu_, sp_g_uu_, alpha_, sp_beta_u_, il, iu);
         Assemble_ST_Metric_dd(st_g_dd_, sp_g_dd_, alpha_, sp_beta_d_, il, iu);
@@ -1517,6 +1426,7 @@ void TOV_populate(MeshBlock *pmb,
         ApplyLinearTransform(L_a, L_a, st_gp_uu_, st_g_uu_, il, iu);
         ApplyLinearTransform(iL_a, iL_a, st_gp_dd_, st_g_dd_, il, iu);
 
+
         // extract alpha, beta_u, gamma_dd
         ExtractFrom_ST_Metric_uu(
           st_gp_uu_, sp_gp_uu_, alpha_, sp_betap_u_,
@@ -1548,6 +1458,7 @@ void TOV_populate(MeshBlock *pmb,
         sp_beta_u_.SwapAthenaTensor(sp_betap_u_);
         sp_g_dd_.SwapAthenaTensor(  sp_gp_dd_);
         sp_K_dd_.SwapAthenaTensor(  sp_Kp_dd_);
+
       }
 
       // Populate metric quantities additively --------------------------------
@@ -1573,50 +1484,6 @@ void TOV_populate(MeshBlock *pmb,
       {
         g_dd_init(a,b,k,j,i) += sp_g_dd_(a,b,i);
         K_dd_init(a,b,k,j,i) += sp_K_dd_(a,b,i);
-      }
-
-      if (0)  // debug (seed directly rho adm)
-      {
-        for (int i=il; i<=iu; ++i)
-        {
-
-          if (r_(i)<R)
-          {
-            // Interpolate rho to star interior
-            interp_lag4(
-              tov->data[itov_rho],
-              tov->data[itov_riso],
-              tov->interp_npts,
-              r_(i),
-              &w_rho_(i),
-              &dummy,
-              &dummy);
-
-            // Pressure from EOS
-            // TODO (SB) general EOS call
-            w_p_(i) = k_adi*pow(w_rho_(i),gamma_adi);
-          }
-          else
-          {
-            w_p_(i) = 0.0;
-          }
-
-          // const Real w_hrho = w_rho_(i) + gamma_adi/(gamma_adi-1.0) * w_p_(i);
-          // sl_rho(k,j,i) += w_hrho * SQR(1.0) - w_p_(i);
-          sl_rho(k,j,i) += w_rho_(i) + w_p_(i) / (gamma_adi - 1.0);
-
-          for (int a=0; a<N; ++a)
-          {
-            sl_S_d(a,k,j,i) += 0;
-
-            for (int b=a; b<NDIM; ++b)
-            {
-              sl_S_dd(a,b,k,j,i) += w_p_(i) * g_dd_init(a,b,k,j,i);
-            }
-          }
-
-        }
-
       }
 
     }
