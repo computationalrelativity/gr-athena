@@ -30,6 +30,12 @@
 #endif // TRACKER_EXTREMA
 
 int RefinementCondition(MeshBlock *pmb);
+
+  Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
+                  int const i);
+  Real DivBface(MeshBlock *pmb, int iout);
+  Real MaxB(MeshBlock *pmb, int iout);
+  Real B_threshold;
   Real Maxrho(MeshBlock *pmb, int iout);
   Real Minalp(MeshBlock *pmb, int iout);
 
@@ -41,9 +47,12 @@ int RefinementCondition(MeshBlock *pmb);
 //========================================================================================
 
 void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag) {
-  AllocateUserHistoryOutput(2);
-  EnrollUserHistoryOutput(0, Maxrho, "max-rho", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(1, Minalp, "min-alp", UserHistoryOperation::min);
+  B_threshold = pin->GetReal("problem","B_threshold");
+  AllocateUserHistoryOutput(4);
+  EnrollUserHistoryOutput(0, DivBface, "divBface");
+  EnrollUserHistoryOutput(1, MaxB, "MaxB", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(2, Maxrho, "max-rho", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(3, Minalp, "min-alp", UserHistoryOperation::min);
   if(adaptive==true)
     EnrollUserRefinementCondition(RefinementCondition);
   return;
@@ -87,6 +96,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 	Real const vel_unit = athenaL / athenaT / c_light; // c
 	Real const B_unit = athenaB / 1.0e+9; // 10^9 T
 
+        Real pgasmax, sep;
   // --------------------------------------------------------------------------
 
   // settings -----------------------------------------------------------------
@@ -284,7 +294,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 
     bns = pmy_mesh->bns;
     assert(bns->np == npoints_cc);
-
+    sep = bns->dist/coord_unit;
+    pgasmax = pin->GetReal("problem","pgasmax"); //todo work out how to properly set this
     I = 0;      // reset
 
     for (int k = kl; k <= ku; ++k)
@@ -298,7 +309,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
       // Real egas = rho * (1.0 + eps);  <-------- ?
       Real egas = rho * eps;
       Real pgas = peos->PresFromRhoEg(rho, egas);
-
       // Kludge to make the pressure work with the EOS framework.
       if (!std::isfinite(pgas) && (egas == 0. || rho == 0.)) {
         pgas = 0.;
@@ -329,7 +339,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
       phydro->w(IPR, k, j, i) = pgas;
 
       // FIXME: There needs to be a more consistent way to do this.
-      peos->ApplyPrimitiveFloors(phydro->w, k, j, i);
+//      peos->ApplyPrimitiveFloors(phydro->w, k, j, i);
       phydro->w1(IDN, k, j, i) = phydro->w(IDN, k, j, i);
       phydro->w1(IVX, k, j, i) = phydro->w(IVX, k, j, i);
       phydro->w1(IVY, k, j, i) = phydro->w(IVY, k, j, i);
@@ -353,6 +363,109 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 
   // --------------------------------------------------------------------------
 
+  //B field. 
+  //Assume stars are located on x axis - TODO generalise.
+  //
+
+ Real pcut = pin->GetReal("problem","pcut")*pgasmax;
+  Real b_amp = pin->GetReal("problem","b_amp");
+  int magindex=pin->GetInteger("problem","magindex");
+  AthenaArray<Real> bxcc,bycc,bzcc;
+  int nx1 = (ie-is)+1 + 2*(NGHOST);
+  int nx2 = (je-js)+1 + 2*(NGHOST);
+  int nx3 = (ke-ks)+1 + 2*(NGHOST);
+pfield->b.x1f.ZeroClear();
+pfield->b.x2f.ZeroClear();
+pfield->b.x3f.ZeroClear();
+pfield->bcc.ZeroClear();
+ bxcc.NewAthenaArray(nx3,nx2,nx1);
+  bycc.NewAthenaArray(nx3,nx2,nx1);
+  bzcc.NewAthenaArray(nx3,nx2,nx1);
+     AthenaArray<Real> vcgamma_xx,vcgamma_xy,vcgamma_xz,vcgamma_yy;
+      AthenaArray<Real> vcgamma_yz,vcgamma_zz;
+      AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
+      gamma_dd.NewAthenaTensor(iu+1);
+ vcgamma_xx.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gxx,1);
+      vcgamma_xy.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gxy,1);
+      vcgamma_xz.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gxz,1);
+      vcgamma_yy.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gyy,1);
+      vcgamma_yz.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gyz,1);
+      vcgamma_zz.InitWithShallowSlice(pz4c->storage.adm,Z4c::I_ADM_gzz,1);
+
+
+  AthenaArray<Real> Atot;
+
+  Atot.NewAthenaArray(3,nx3,nx2,nx1);
+
+    for (int k = kl; k <= ku; ++k)
+    for (int j = jl; j <= ju; ++j)
+    for (int i = il; i <= iu; ++i)
+    {
+  if(pcoord->x1v(i) > 0){
+  Atot(0,k,j,i) = -pcoord->x2v(j) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
+  Atot(1,k,j,i) = (pcoord->x1v(i) - 0.5*sep) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
+  Atot(2,k,j,i) = 0.0;
+  } else {
+  Atot(0,k,j,i) = -pcoord->x2v(j) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
+  Atot(1,k,j,i) = (pcoord->x1v(i) + 0.5*sep) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
+  Atot(2,k,j,i) = 0.0;
+  }
+  }
+
+
+  for(int k = ks-1; k<=ke+1; k++){
+  for(int j = js-1; j<=je+1; j++){
+  for(int i = is-1; i<=ie+1; i++){
+//#ifdef HYBRID_INTERP
+//#else
+          gamma_dd(0,0,i) = pz4c->ig->map3d_VC2CC(vcgamma_xx(k,j,i));
+          gamma_dd(0,1,i) = pz4c->ig->map3d_VC2CC(vcgamma_xy(k,j,i));
+          gamma_dd(0,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_xz(k,j,i));
+          gamma_dd(1,1,i) = pz4c->ig->map3d_VC2CC(vcgamma_yy(k,j,i));
+          gamma_dd(1,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_yz(k,j,i));
+          gamma_dd(2,2,i) = pz4c->ig->map3d_VC2CC(vcgamma_zz(k,j,i));
+//#endif
+}
+   for(int i = is-1; i<=ie+1; i++){
+//    Real detgamma = std::sqrt(Det3Metric(gamma_dd,i));
+    Real detgamma = 1.0;
+
+    bxcc(k,j,i) = - ((Atot(1,k+1,j,i) - Atot(1,k-1,j,i))/(2.0*pcoord->dx3v(k)))*detgamma;
+    bycc(k,j,i) =  ((Atot(0,k+1,j,i) - Atot(0,k-1,j,i))/(2.0*pcoord->dx3v(k)))*detgamma;
+    bzcc(k,j,i) = ( (Atot(1,k,j,i+1) - Atot(1,k,j,i-1))/(2.0*pcoord->dx1v(i))
+                   - (Atot(0,k,j+1,i) - Atot(0,k,j-1,i))/(2.0*pcoord->dx2v(j)))*detgamma;
+
+    }
+    }
+    }
+
+
+  for(int k = ks; k<=ke; k++){
+  for(int j = js; j<=je; j++){
+  for(int i = is; i<=ie+1; i++){
+
+  pfield->b.x1f(k,j,i) = 0.5*(bxcc(k,j,i-1) + bxcc(k,j,i));
+}}}
+  for(int k = ks; k<=ke; k++){
+  for(int j = js; j<=je+1; j++){
+  for(int i = is; i<=ie; i++){
+  pfield->b.x2f(k,j,i) = 0.5*(bycc(k,j-1,i) + bycc(k,j,i));
+}}}
+  for(int k = ks; k<=ke+1; k++){
+  for(int j = js; j<=je; j++){
+  for(int i = is; i<=ie; i++){
+
+  pfield->b.x3f(k,j,i) = 0.5*(bzcc(k-1,j,i) + bzcc(k,j,i));
+}}}
+
+pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord, il,iu,jl,ju,kl,ku);
+
+
+
+
+
+
+  //  -------------------------------------------------------------------------
 
   // Construct Z4c vars from ADM vars. ----------------------------------------
   pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
@@ -375,9 +488,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 
   // TODO: BD - this needs to be fixed properly
   // No magnetic field, pass dummy or fix with overload
-  AthenaArray<Real> null_bb_cc;
+//  AthenaArray<Real> null_bb_cc;
 
-  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, null_bb_cc);
+  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pfield->bcc);
 
   // --------------------------------------------------------------------------
 	return;
@@ -386,78 +499,77 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 int RefinementCondition(MeshBlock *pmb)
 {
 
-#ifdef TRACKER_EXTREMA
+    int refine = 0;
+    Real Bmod;
+    int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
+    for (int k=ks; k<=ke; k++) {
+      for (int j=js; j<=je; j++) {
+        for (int i=is; i<=ie; i++) {
 
-  Mesh * pmesh = pmb->pmy_mesh;
-  TrackerExtrema * ptracker_extrema = pmesh->ptracker_extrema;
+             Bmod = std::sqrt(SQR(pmb->pfield->bcc(0,k,j,i)) + SQR(pmb->pfield->bcc(1,k,j,i)) + SQR(pmb->pfield->bcc(2,k,j,i)));
 
-  int root_level = ptracker_extrema->root_level;
-  int mb_physical_level = pmb->loc.level - root_level;
-
-  // to get behaviour correct for when multiple centres occur in a single
-  // MeshBlock we need to carry information
-  bool centres_contained = false;
-
-  for (int n=1; n<=ptracker_extrema->N_tracker; ++n)
-  {
-    bool is_contained = false;
-
-    if (ptracker_extrema->ref_type(n-1) == 0)
-    {
-      is_contained = pmb->PointContained(
-        ptracker_extrema->c_x1(n-1),
-        ptracker_extrema->c_x2(n-1),
-        ptracker_extrema->c_x3(n-1)
-      );
-    }
-    else if (ptracker_extrema->ref_type(n-1) == 1)
-    {
-      is_contained = pmb->SphereIntersects(
-        ptracker_extrema->c_x1(n-1),
-        ptracker_extrema->c_x2(n-1),
-        ptracker_extrema->c_x3(n-1),
-        ptracker_extrema->ref_zone_radius(n-1)
-      );
-
-      // is_contained = pmb->PointContained(
-      //   ptracker_extrema->c_x1(n-1),
-      //   ptracker_extrema->c_x2(n-1),
-      //   ptracker_extrema->c_x3(n-1)
-      // ) or pmb->PointCentralDistanceSquared(
-      //   ptracker_extrema->c_x1(n-1),
-      //   ptracker_extrema->c_x2(n-1),
-      //   ptracker_extrema->c_x3(n-1)
-      // ) < SQR(ptracker_extrema->ref_zone_radius(n-1));
-
-    }
-
-    if (is_contained)
-    {
-      centres_contained = true;
-
-      // a point in current MeshBlock, now check whether level sufficient
-      if (mb_physical_level < ptracker_extrema->ref_level(n-1))
-      {
-        return 1;
+             if(Bmod > B_threshold){
+                 return 1;
+             } else if(pmb->block_size.x1max < 25 && pmb->block_size.x1min > - 25 && pmb->block_size.x2max < 25 && pmb->block_size.x2min > - 25 && pmb->block_size.x3max < 25 && pmb->block_size.x3min > - 25 && pmb->loc.level > 8){
+                 refine = -1;
+             } else {
+                 refine = 0;
+             }
+        }
       }
+    }
+  
 
+    return refine;
+}
+
+
+
+
+Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
+                  int const i)
+{
+  return - SQR(gamma(0,2,i))*gamma(1,1,i) +
+          2*gamma(0,1,i)*gamma(0,2,i)*gamma(1,2,i) -
+          gamma(0,0,i)*SQR(gamma(1,2,i)) - SQR(gamma(0,1,i))*gamma(2,2,i) +
+          gamma(0,0,i)*gamma(1,1,i)*gamma(2,2,i);
+}
+
+Real DivBface(MeshBlock *pmb, int iout) {
+  Real divB = 0.0;
+  Real vol,dx,dy,dz;
+  int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
+  for (int k=ks; k<=ke; k++) {
+    for (int j=js; j<=je; j++) {
+      for (int i=is; i<=ie; i++) {
+        dx = pmb->pcoord->dx1v(i);
+        dy = pmb->pcoord->dx2v(j);
+        dz = pmb->pcoord->dx3v(k);
+        vol = dx*dy*dz;
+        divB += ((pmb->pfield->b.x1f(k,j,i+1) - pmb->pfield->b.x1f(k,j,i))/dx + (pmb->pfield->b.x2f(k,j+1,i) - pmb->pfield->b.x2f(k,j,i))/(dy) + (pmb->pfield->b.x3f(k+1,j,i) - pmb->pfield->b.x3f(k,j,i))/(dz))*vol;
+      }
     }
   }
+  return divB;
+}
 
-  // Here one could put composite criteria (such as spherical patch cond.)
-  // ...
-
-  if (centres_contained)
-  {
-    // all contained centres are at a sufficient level of refinement
-    return 0;
+Real MaxB(MeshBlock *pmb, int iout) {
+  Real MaxB = 0.0;
+  Real B;
+  Real vol,dx,dy,dz;
+  int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
+  for (int k=ks; k<=ke; k++) {
+    for (int j=js; j<=je; j++) {
+      for (int i=is; i<=ie; i++) {
+          B = SQR(pmb->pfield->bcc(0,k,j,i)) + SQR(pmb->pfield->bcc(1,k,j,i)) +SQR(pmb->pfield->bcc(2,k,j,i));
+          B = std::sqrt(B);
+          if(B > MaxB){
+            MaxB = B;
+          }
+      }
+    }
   }
-
-  // Nothing satisfied - flag for de-refinement
-  return -1;
-
-#endif // TRACKER_EXTREMA
- return 0;
+  return MaxB;
 }
 Real Maxrho(MeshBlock *pmb, int iout) {
   Real max_rho = 0.0;

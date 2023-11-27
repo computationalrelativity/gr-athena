@@ -2336,7 +2336,7 @@ void Mesh::OutputCycleDiagnostics() {
     if (ncycle % ncycle_out == 0) {
       std::cout << "cycle=" << ncycle << std::scientific
                 << std::setprecision(dt_precision)
-                << " time=" << time << " dt=" << dt;
+                << " time=" << time << " dt=" << dt << " nmb=" << nbtotal;
       if (dt_diagnostics != -1) {
         if (STS_ENABLED) {
           if (UserTimeStep_ == nullptr)

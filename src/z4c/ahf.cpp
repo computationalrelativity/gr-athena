@@ -28,6 +28,7 @@
 #include "../mesh/mesh.hpp"
 #include "../utils/tensor.hpp"
 #include "../coordinates/coordinates.hpp"
+#include "../trackers/tracker_extrema.hpp"
 //#include "puncture_tracker.hpp"
 #ifdef Z4C_TRACKER
 #include "trackers.hpp"
@@ -1321,6 +1322,9 @@ void AHF::InitialGuess()
   // Take a0 either from previous or from input value
   if (ah_found && last_a0>0) {
     a0(0) = last_a0 * expand_guess;
+    center[0] = pmesh->ptracker_extrema->c_x1(0);
+    center[1] = pmesh->ptracker_extrema->c_x2(0);
+    center[2] = pmesh->ptracker_extrema->c_x3(0);
   } else {
     a0(0) = std::sqrt(4.0*PI) * initial_radius;
   }

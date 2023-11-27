@@ -381,6 +381,8 @@ class Mesh {
   int GetNumMeshThreads() const {return num_mesh_threads_;}
   std::int64_t GetTotalCells() {return static_cast<std::int64_t> (nbtotal)*
         pblock->block_size.nx1*pblock->block_size.nx2*pblock->block_size.nx3;}
+  int GetRootLevel() const {return root_level;}
+
 
   // data
   RegionSize mesh_size;
