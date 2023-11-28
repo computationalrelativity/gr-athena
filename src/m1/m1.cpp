@@ -168,7 +168,8 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   rad_eps = pin->GetOrAddReal("M1", "rad_eps", 1e-5);
   set_to_equilibrium = pin->GetOrAddBoolean("M1", "set_to_equilibrium",false); 
   reset_to_equilibrium = pin->GetOrAddBoolean("M1", "set_to_equilibrium",false); 
-  equilibrium_rho_min =  pin->GetOrAddReal("M1", "fiducial_velocity_rho_fluid",1e11) * CGS_GCC;
+  equilibrium_rho_min = pin->GetOrAddReal("M1", "fiducial_velocity_rho_fluid",1e11) * CGS_GCC;
+  source_therm_limit =  pin->GetOrAddReal("M1", "source_therm_limit",-1);
   source_thick_limit = pin->GetOrAddReal("M1","source_thick_limit", -1);
   source_scat_limit = pin->GetOrAddReal("M1","source_scat_limit", -1);
   source_epsabs = pin->GetOrAddReal("M1","source_epsabs",1e-3);

@@ -107,8 +107,8 @@ void M1::CalcUpdate(Real const dt,
   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> v_d;
   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> H_d;
   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> Hstar_d;
-  TensorPointwise<Real, Symmetries::NONE, MDIM, 2> P_dd;
-  TensorPointwise<Real, Symmetries::NONE, MDIM, 2> rT_dd;
+  TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> P_dd;
+  TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> rT_dd;
   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> H_u;
   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> fnu_u;
   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> F_d;
@@ -243,7 +243,7 @@ void M1::CalcUpdate(Real const dt,
       
       //      
       // Advect radiation
-      Real Estar = vec_p.E(ig,k,j,i) + 0.5*dt*vec_rhs.E[i4D];
+      Real Estar = vec_p.E(ig,k,j,i) + 0.5*dt*vec_rhs.E(k,j,i);
       pack_F_d(beta_u(1), beta_u(2), beta_u(3),
 	       vec_p.F_d(0,ig,k,j,i) + 0.5*dt * vec_rhs.F_d(0,ig,k,j,i),
 	       vec_p.F_d(1,ig,k,j,i) + 0.5*dt * vec_rhs.F_d(1,ig,k,j,i),
@@ -257,7 +257,7 @@ void M1::CalcUpdate(Real const dt,
 
       //
       // Compute quantities in the fluid frame
-      calc_closure_pt(iteration, pmb, i, j, k, ig,
+      calc_closure_pt(pmb, i, j, k, ig,
                       closure_fun, gsl_solver_1d, g_dd, g_uu, n_d,
                       fidu_w_lorentz, u_u, v_d,
                       proj_ud, Estar, Fstar_d, &rad.chi(ig,k,j,i), P_dd);
@@ -270,7 +270,8 @@ void M1::CalcUpdate(Real const dt,
       //
       // Estimate interaction with matteer
       Real const dtau = dt/fidu_w_lorentz;
-      Real const Jnew = (Jstar + dtau*rmat.eta_1(ig,k,j,i)*volform)/(1. + dtau*rmat.abs_1(ig,k,j,i));
+      Real Jnew = (Jstar + dtau*rmat.eta_1(ig,k,j,i)*volform)/(1. + dtau*rmat.abs_1(ig,k,j,i));
+
       // Only three components of H^a are independent; H^0 is found by
       // requiring H^a u_a = 0
       Real const khat = (rmat.abs_1(ig,k,j,i) + rmat.scat_1(ig,k,j,i));
@@ -293,7 +294,7 @@ void M1::CalcUpdate(Real const dt,
       rad.chi(ig,k,j,i) = 1.0/3.0;
 #endif
       
-      Real const dthick = 3.*(1. - chi[i4D])/2.;
+      Real const dthick = 3.*(1. - rad.chi(ig,k,j,i))/2.;
       Real const dthin = 1. - dthick;
       
       for(int a = 0; a < 4; ++a)
@@ -312,7 +313,7 @@ void M1::CalcUpdate(Real const dt,
 #if (THC_M1_SRC_METHOD == THC_M1_SRC_IMPL)
 
       // Compute interaction with matter
-      source_update_pt(iteration, pmb, i, j, k, ig,
+      source_update_pt(pmb, i, j, k, ig,
 		       closure_fun, gsl_solver_1d, gsl_solver_nd, dt,
 		       alpha(), g_dd, g_uu, n_d, n_u, gamma_ud, u_d, u_u,
 		       v_d, v_u, proj_ud, fidu.Wlorentz(k,j,i), Estar, Fstar_d,
@@ -352,7 +353,7 @@ void M1::CalcUpdate(Real const dt,
 	if (source_therm_limit < 0 || dt*rmat.abs_0(ig,k,j,i) < source_therm_limit) {
 	  //
 	  // N^k+1 = N^* + dt ( eta - abs N^k+1 )
-	  Real Nnew = (Nstar + dt*alpha()*volform*eta_0[i4D])/ 
+	  Real Nnew = (Nstar + dt*alpha()*volform*rmat.eta_0(ig,k,j,i))/ 
 	    (1.0 + dt*alpha()*rmat.abs_0(ig,k,j,i)/Gamma);
 	  DrN[ig]  = Nnew - Nstar;
 	}

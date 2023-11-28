@@ -24,13 +24,10 @@ void M1::CalcFiducialVelocity()
 
   MeshBlock * pmb = pmy_block;
   
-  fidu.vel_u.ZeroClear();
-  fidu.Wlorentz.Fill(1.0);
-
   if (fiducial_velocity == "fluid") {
     GCLOOP2(k,j) {
       for(int a = 0; a < NDIM; ++a) {
-	CLOOP1(i) {
+	GCLOOP1(i) {
 	  fidu.vel_u(a,k,j,i) = pmb->phydro->w(IVX+a,k,j,i);
         }
       }
@@ -44,6 +41,9 @@ void M1::CalcFiducialVelocity()
       }
     }
   } else {
+    // Zero velocity
+    fidu.vel_u.ZeroClear();
+    fidu.Wlorentz.Fill(1.0);
     return;
   }
   

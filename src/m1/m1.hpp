@@ -157,9 +157,9 @@ public:
 
   // Source update method
   enum {
-    M1_SRC_METHOD_IMPL, // default
-    M1_SRC_BOOST,       // still IMPL
-    M1_SRC_METHOD_EXPL,
+    M1_SRC_METHOD_IMPL, // 0: implicit (default)
+    M1_SRC_BOOST,       // 1: still implicit 
+    M1_SRC_METHOD_EXPL, // 2: explicit
     M1_SRC_METHODS,
   };
   
@@ -270,6 +270,7 @@ public:
   bool set_to_equilibrium;            // Initialize everything to thermodynamic equilibrium
   bool reset_to_equilibrium;          // Set everything to equilibrium at recovery
   Real equilibrium_rho_min;           // Set to equilibrium only if the density is larger than this (CGS)
+  Real source_therm_limit;            // Assume neutrinos to be thermalized above this optical depth
   Real source_thick_limit;            // Use the optically thick limit if the equilibration time is less than the timestep over this factor
   Real source_scat_limit;             // Use the scattering limit if the isotropization time is less than the timestep over this factor 
   Real mindiss;                       // TODO: check this

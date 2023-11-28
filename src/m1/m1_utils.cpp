@@ -80,9 +80,9 @@ void M1::calc_Pthick(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_
 }
 
 void M1::assemble_fnu(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
-		                  Real const J,
-		                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & H_u,
-		                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & fnu_u)
+		      Real const J,
+		      TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & H_u,
+		      TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & fnu_u)
 { // Eq. 21
   Real const H2 = tensor::dot(H_u, H_u);     // using Euclidean metric!
   for (int a = 0; a < MDIM; ++a) {
@@ -105,10 +105,10 @@ Real M1::compute_Gamma(Real const W,
 }
 
 void M1::assemble_rT(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d,
-		                 Real const J,
-		                 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & H_d,
-		                 TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & K_dd,
-		                 TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & rT_dd)
+		     Real const J,
+		     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & H_d,
+		     TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & K_dd,
+		     TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & rT_dd)
 { // Eq. 2
   for (int a = 0; a < MDIM; ++a) {
     for (int b = a; b < MDIM; ++b) {
@@ -119,7 +119,7 @@ void M1::assemble_rT(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_
 
 // Project out the radiation energy (in any frame)
 Real M1::calc_J_from_rT(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & rT_dd,
-			                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u)
+			TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u)
 { // Derived from Eq. 2
   return tensor::dot(rT_dd, u_u, u_u);
 }
