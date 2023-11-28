@@ -36,8 +36,15 @@
 #include <gsl/gsl_multiroots.h>
 #include <gsl/gsl_errno.h>
 
+// Source update method
+enum {
+  M1_SRC_METHOD_IMPL, // 0: implicit (default)
+  M1_SRC_BOOST,       // 1: boost to fluid frame (approximate!)
+  M1_SRC_METHOD_EXPL, // 2: explicit
+};
+
 #ifndef M1_SRC_METHOD
-#define M1_SRC_METHOD (0) // = M1_SRC_METHOD_IMPL
+#define M1_SRC_METHOD (M1_SRC_METHOD_IMPL) 
 #endif
 
 #ifndef M1_NGHOST
@@ -154,14 +161,6 @@ public:
   };
   // Names of internal variables
   static char const * const Intern_names[N_Intern];
-
-  // Source update method
-  enum {
-    M1_SRC_METHOD_IMPL, // 0: implicit (default)
-    M1_SRC_BOOST,       // 1: still implicit 
-    M1_SRC_METHOD_EXPL, // 2: explicit
-    M1_SRC_METHODS,
-  };
   
   // Source update results
   enum {
