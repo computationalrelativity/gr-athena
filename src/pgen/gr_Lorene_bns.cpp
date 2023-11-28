@@ -11,6 +11,10 @@
 #include <cassert>
 #include <iostream>
 
+// https://lorene.obspm.fr/
+#include <bin_ns.h>
+// #include <unites.h>
+
 // Athena++ headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
@@ -24,18 +28,10 @@
 #include "../bvals/bvals.hpp"
 #include "../mesh/mesh.hpp"
 #include "../mesh/mesh_refinement.hpp"
-
-#ifdef TRACKER_EXTREMA
-#include "../trackers/tracker_extrema.hpp"
-#endif // TRACKER_EXTREMA
-
-// https://lorene.obspm.fr/
-#include <bin_ns.h>
-#include <unites.h>
+#include "../trackers/extrema_tracker.hpp"
+#include "../utils/linear_algebra.hpp"
 
 int RefinementCondition(MeshBlock *pmb);
-Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
-		int const i);
 #if MAGNETIC_FIELDS_ENABLED
 Real DivBface(MeshBlock *pmb, int iout);
 #endif
@@ -47,7 +43,8 @@ Real DivBface(MeshBlock *pmb, int iout);
 //  functions in this file.  Called in Mesh constructor.
 //========================================================================================
 
-void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag) {
+void Mesh::InitUserMeshData(ParameterInput *pin)
+{
   if(adaptive==true)
     EnrollUserRefinementCondition(RefinementCondition);
 #if MAGNETIC_FIELDS_ENABLED
@@ -61,25 +58,28 @@ void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag) {
 //! \fn void MeshBlock::ProblemGenerator(ParameterInput *pin)
 //  \brief Sets the initial conditions.
 //========================================================================================
-void MeshBlock::ProblemGenerator(ParameterInput *pin){
+void MeshBlock::ProblemGenerator(ParameterInput *pin)
+{
+  using namespace LinearAlgebra;
+
   // Interpolate Lorene data onto the grid.
-  
+
   // constants ----------------------------------------------------------------
 #if (1)
   // Some conversion factors to go between Lorene data and Athena data.
   // Shamelessly stolen from the Einstein Toolkit's Mag_NS.cc.
-  // 
+  //
   //SB Constants should be taken from Lorene's "unites" so to ensure consistency.
   //   Note the Lorene library has chandged some constants recently (2022),
-  //   This is temporarily kept here for testing purposes.  
+  //   This is temporarily kept here for testing purposes.
   Real const c_light = 299792458.0;              // Speed of light [m/s]
   Real const mu0 = 4.0 * M_PI * 1.0e-7;          // Vacuum permeability [N/A^2]
   Real const eps0 = 1.0 / (mu0 * std::pow(c_light, 2));
-  
+
   // Constants of nature (IAU, CODATA):
   Real const G_grav = 6.67428e-11;       // Gravitational constant [m^3/kg/s^2]
   Real const M_sun = 1.98892e+30;        // Solar mass [kg]
-  
+
   // Athena units in SI
   // Athena code units: c = G = 1, M = M_sun
   Real const athenaM = M_sun;
@@ -87,7 +87,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
   Real const athenaT = athenaL / c_light;
   // This is just a guess based on what Cactus uses.
   Real const athenaB = (1.0 / athenaL /
-			std::sqrt(eps0 * G_grav / (c_light * c_light)));  
+			std::sqrt(eps0 * G_grav / (c_light * c_light)));
 #else
   Real const c_light  = Unites::c_si;      // speed of light [m/s]
   Real const nuc_dens = Unites::rhonuc_si; // Nuclear density as used in Lorene units [kg/m^3]
@@ -106,7 +106,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 
   // Other quantities in terms of Athena units
   Real const coord_unit = athenaL / 1.0e+3;         // from km (~1.477)
-  Real const rho_unit   = athenaM / pow(athenaL,3); // from kg/m^3  
+  Real const rho_unit   = athenaM / pow(athenaL,3); // from kg/m^3
 #endif
 
   // Athena units for conversion.
@@ -121,61 +121,63 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
   std::string fn_ini_data = pin->GetOrAddString("problem", "filename", "resu.d");
   Real const tol_det_zero =  pin->GetOrAddReal("problem","tolerance_det_zero",1e-10);
   bool verbose = pin->GetOrAddBoolean("problem", "verbose", 0);
-  
+
   // container with idx / grids pertaining z4c
   MB_info* mbi = &(pz4c->mbi);
-  
+
+  const int N = NDIM;
+
+  typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
+  typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
+  typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
+
   // --------------------------------------------------------------------------
   // Set some aliases for the variables.
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u;
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g_dd;
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> K_dd;
-  
-  alpha.InitWithShallowSlice ( pz4c->storage.u,   Z4c::I_Z4c_alpha );
-  beta_u.InitWithShallowSlice( pz4c->storage.u,   Z4c::I_Z4c_betax );
-  g_dd.InitWithShallowSlice  ( pz4c->storage.adm, Z4c::I_ADM_gxx   );
-  K_dd.InitWithShallowSlice  ( pz4c->storage.adm, Z4c::I_ADM_Kxx   );
+  AT_N_sca alpha( pz4c->storage.u,   Z4c::I_Z4c_alpha);
+  AT_N_vec beta_u(pz4c->storage.u,   Z4c::I_Z4c_betax);
+  AT_N_sym g_dd(  pz4c->storage.adm, Z4c::I_ADM_gxx);
+  AT_N_sym K_dd(  pz4c->storage.adm, Z4c::I_ADM_Kxx);
 
   // --------------------------------------------------------------------------
   #pragma omp critical
   {
-    
+
     // prepare geometry grid --------------------------------------------------
-    int npoints_vc = 0;
+    int npoints_gs = 0;
 
     for (int k=0; k<mbi->nn3; ++k)
     for (int j=0; j<mbi->nn2; ++j)
     for (int i=0; i<mbi->nn1; ++i)
-      {
-	++npoints_vc;
-      }
+    {
+    	++npoints_gs;
+    }
 
-    Real * xx_vc = new Real[npoints_vc];
-    Real * yy_vc = new Real[npoints_vc];
-    Real * zz_vc = new Real[npoints_vc];
+    Real * xx_gs = new Real[npoints_gs];
+    Real * yy_gs = new Real[npoints_gs];
+    Real * zz_gs = new Real[npoints_gs];
 
     int I = 0;  // collapsed ijk index
 
-    for (int k = kms; k <= kpe; ++k)
-    for (int j = jms; j <= jpe; ++j)
-    for (int i = ims; i <= ipe; ++i)
+    for (int k=0; k<mbi->nn3; ++k)
+    for (int j=0; j<mbi->nn2; ++j)
+    for (int i=0; i<mbi->nn1; ++i)
     {
-      zz_vc[I] = coord_unit * pcoord->x3f(k);
-      yy_vc[I] = coord_unit * pcoord->x2f(j);
-      xx_vc[I] = coord_unit * pcoord->x1f(i);
+      zz_gs[I] = coord_unit * mbi->x3(k);
+      yy_gs[I] = coord_unit * mbi->x2(j);
+      xx_gs[I] = coord_unit * mbi->x1(i);
 
       ++I;
     }
     // ------------------------------------------------------------------------
 
     // prepare Lorene interpolator for geometry -------------------------------
-    pmy_mesh->bns = new Lorene::Bin_NS(npoints_vc, xx_vc, yy_vc, zz_vc,
+    pmy_mesh->bns = new Lorene::Bin_NS(npoints_gs,
+                                       xx_gs, yy_gs, zz_gs,
                                        fn_ini_data.c_str());
-    
+
     Lorene::Bin_NS * bns = pmy_mesh->bns;
-    assert(bns->np == npoints_vc);
-    
+    assert(bns->np == npoints_gs);
+
     I = 0;      // reset
 
     for (int k=0; k<mbi->nn3; ++k)
@@ -184,50 +186,39 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
     {
       // Gauge from Lorene
       //TODO Option to reset?
-      alpha(k, j, i)     = bns->nnn[I];
-      beta_u(0, k, j, i) = - bns->beta_x[I];  
-      beta_u(1, k, j, i) = - bns->beta_y[I];
-      beta_u(2, k, j, i) = - bns->beta_z[I];
+      alpha(k, j, i)     =  bns->nnn[I];
+      beta_u(0, k, j, i) = -bns->beta_x[I];
+      beta_u(1, k, j, i) = -bns->beta_y[I];
+      beta_u(2, k, j, i) = -bns->beta_z[I];
 
-      const Real g_xx = bns->g_xx[I];
-      const Real g_xy = bns->g_xy[I];
-      const Real g_xz = bns->g_xz[I];
-      const Real g_yy = bns->g_yy[I];
-      const Real g_yz = bns->g_yz[I];
-      const Real g_zz = bns->g_zz[I];
+      g_dd(0, 0, k, j, i) = bns->g_xx[I];
+      K_dd(0, 0, k, j, i) = coord_unit * bns->k_xx[I];
 
-      const Real det = (
-        -(SQR(g_xz) * g_yy) + 2 * g_xy * g_xz * g_yz
-        - g_xx * SQR(g_yz) - SQR(g_xy) * g_zz
-        + g_xx * g_yy * g_zz
-      );
-
-      assert(std::fabs(det) > tol_det_zero);
-
-      g_dd(0, 0, k, j, i) = g_xx;
-      K_dd(0, 0, k, j, i) = coord_unit * bns->k_xx[I];  
-
-      g_dd(0, 1, k, j, i) = g_xy;
+      g_dd(0, 1, k, j, i) = bns->g_xy[I];
       K_dd(0, 1, k, j, i) = coord_unit * bns->k_xy[I];
 
-      g_dd(0, 2, k, j, i) = g_xz;
+      g_dd(0, 2, k, j, i) = bns->g_xz[I];
       K_dd(0, 2, k, j, i) = coord_unit * bns->k_xz[I];
 
-      g_dd(1, 1, k, j, i) = g_yy;
+      g_dd(1, 1, k, j, i) = bns->g_yy[I];
       K_dd(1, 1, k, j, i) = coord_unit * bns->k_yy[I];
 
-      g_dd(1, 2, k, j, i) = g_yz;
+      g_dd(1, 2, k, j, i) = bns->g_yz[I];
       K_dd(1, 2, k, j, i) = coord_unit * bns->k_yz[I];
 
-      g_dd(2, 2, k, j, i) = g_zz;
+      g_dd(2, 2, k, j, i) = bns->g_zz[I];
       K_dd(2, 2, k, j, i) = coord_unit * bns->k_zz[I];
+
+      const Real det = Det3Metric(g_dd, k, j, i);
+      assert(std::fabs(det) > tol_det_zero);
 
       ++I;
     }
     // ------------------------------------------------------------------------
 
     // show some info ---------------------------------------------------------
-    if(verbose) {
+    if(verbose)
+    {
       std::cout << "Lorene data on current MeshBlock." << std::endl;
       std::cout <<" omega [rad/s]:       " << bns->omega << std::endl;
       std::cout <<" dist [km]:           " << bns->dist<< std::endl;
@@ -256,40 +247,41 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
       // In Cactus units P and rho have the same units thus K_Cactus is unitless.
       // Conversion between K_SI and K_Cactus thus amounts to dividing out the
       // units of the SI quantity.
-      Real K = bns->kappa_poly1 * pow((pow(c_light, 6.0) /
-					 ( pow(G_grav, 3.0) * M_sun * M_sun *
-					   nuc_dens )),bns->gamma_poly1-1.);
-      std::cout << "EOS K ]:              " << K<< std::endl;
+      // Real K = bns->kappa_poly1 * pow((pow(c_light, 6.0) /
+			// 		 ( pow(G_grav, 3.0) * M_sun * M_sun *
+			// 		   nuc_dens )),bns->gamma_poly1-1.);
+      // std::cout << "EOS K ]:              " << K<< std::endl;
+
+      std::cout << "EOS K ]: (fix units for this)" << std::endl;
     }
 
     // clean up
-    delete[] xx_vc;
-    delete[] yy_vc;
-    delete[] zz_vc;
-    
-    delete pmy_mesh->bns;   
+    delete[] xx_gs;
+    delete[] yy_gs;
+    delete[] zz_gs;
+
+    delete pmy_mesh->bns;
     // ------------------------------------------------------------------------
-    
+
     // prepare matter grid ----------------------------------------------------
     int npoints_cc = 0;
 
     const int il = (block_size.nx1 > 1) ? is - NGHOST : is;
     const int iu = (block_size.nx1 > 1) ? ie + NGHOST : ie;
-    
+
     const int jl = (block_size.nx2 > 1) ? js - NGHOST : js;
     const int ju = (block_size.nx2 > 1) ? je + NGHOST : je;
-    
+
     const int kl = (block_size.nx3 > 1) ? ks - NGHOST : ks;
     const int ku = (block_size.nx3 > 1) ? ke + NGHOST : ke;
-    
 
     for (int k = kl; k <= ku; ++k)
     for (int j = jl; j <= ju; ++j)
     for (int i = il; i <= iu; ++i)
-      {
-	++npoints_cc;
-      }
-    
+    {
+      ++npoints_cc;
+    }
+
     Real * xx_cc = new Real[npoints_cc];
     Real * yy_cc = new Real[npoints_cc];
     Real * zz_cc = new Real[npoints_cc];
@@ -306,8 +298,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 
       ++I;
     }
+
     // ------------------------------------------------------------------------
-    
     // prepare Lorene interpolator for matter ---------------------------------
     pmy_mesh->bns = new Lorene::Bin_NS(npoints_cc, xx_cc, yy_cc, zz_cc,
                                        fn_ini_data.c_str());
@@ -315,8 +307,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
     bns = pmy_mesh->bns;
     assert(bns->np == npoints_cc);
 
-    Real sep = bns->dist/coord_unit;
-    Real pgasmax = 0.0; //0.00013; ?? // compute below
+    Real sep = bns->dist / coord_unit;
+    // Real w_p_max = 0.0; //0.00013; ?? // compute below
 
     I = 0;      // reset
 
@@ -325,20 +317,20 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
     for (int i = il; i <= iu; ++i)
     {
 
-      const Real rho = bns->nbar[I] / rho_unit;
+      const Real w_rho = bns->nbar[I] / rho_unit;
       const Real eps = bns->ener_spec[I] / ener_unit;
 
       // Real egas = rho * (1.0 + eps);  <-------- ?
-      Real egas = rho * eps;
-      Real pgas = peos->PresFromRhoEg(rho, egas);
-      
+      Real egas = w_rho * eps;
+      Real w_p = peos->PresFromRhoEg(w_rho, egas);
+
       // Kludge to make the pressure work with the EOS framework.
-      if (!std::isfinite(pgas) && (egas == 0. || rho == 0.)) {
-        pgas = 0.;
+      if (!std::isfinite(w_p) && (egas == 0. || w_rho == 0.)) {
+        w_p = 0.;
       }
 
-      pgasmax = std:max(pgasmax, pgas);
-      
+      // w_p_max = std::max(w_p_max, w_p);
+
       const Real u_E_x = bns->u_euler_x[I] / vel_unit;
       const Real u_E_y = bns->u_euler_y[I] / vel_unit;
       const Real u_E_z = bns->u_euler_z[I] / vel_unit;
@@ -355,20 +347,22 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
       const Real W = 1.0 / std::sqrt(1.0 - vsq);
 
       // Copy all the variables over to Athena.
-      phydro->w(IDN, k, j, i) = rho;
+      phydro->w(IDN, k, j, i) = w_rho;
       phydro->w(IVX, k, j, i) = W * u_E_x;
       phydro->w(IVY, k, j, i) = W * u_E_y;
       phydro->w(IVZ, k, j, i) = W * u_E_z;
-      phydro->w(IPR, k, j, i) = pgas;
+      phydro->w(IPR, k, j, i) = w_p;
 
-      phydro->w1(IDN, k, j, i) = phydro->w(IDN, k, j, i);
-      phydro->w1(IVX, k, j, i) = phydro->w(IVX, k, j, i);
-      phydro->w1(IVY, k, j, i) = phydro->w(IVY, k, j, i);
-      phydro->w1(IVZ, k, j, i) = phydro->w(IVZ, k, j, i);
-      phydro->w1(IPR, k, j, i) = phydro->w(IPR, k, j, i);
+      // phydro->w1(IDN, k, j, i) = phydro->w(IDN, k, j, i);
+      // phydro->w1(IVX, k, j, i) = phydro->w(IVX, k, j, i);
+      // phydro->w1(IVY, k, j, i) = phydro->w(IVY, k, j, i);
+      // phydro->w1(IVZ, k, j, i) = phydro->w(IVZ, k, j, i);
+      // phydro->w1(IPR, k, j, i) = phydro->w(IPR, k, j, i);
 
       ++I;
     }
+
+    phydro->w1 = phydro->w;
 
     // clean up
     delete[] xx_cc;
@@ -381,197 +375,194 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 
   // --------------------------------------------------------------------------
 
-#if MAGNETIC_FIELDS_ENABLED
-  
-  // B field ------------------------------------------------------------------
-  // Assume stars are located on x axis
-  
-  Real pcut = pin->GetReal("problem","pcut") * pgasmax;
-  Real b_amp = pin->GetReal("problem","b_amp");
-  int magindex = pin->GetInteger("problem","magindex");  
+  /*
+  if (MAGNETIC_FIELDS_ENABLED)
+  {
+    // B field ------------------------------------------------------------------
+    // Assume stars are located on x axis
 
-  int nx1 = (ie-is)+1 + 2*(NGHOST); //TODO Shouldn't this be ncell[123]?
-  int nx2 = (je-js)+1 + 2*(NGHOST);
-  int nx3 = (ke-ks)+1 + 2*(NGHOST);
+    Real pcut = pin->GetReal("problem","pcut") * pgasmax;
+    Real b_amp = pin->GetReal("problem","b_amp");
+    int magindex = pin->GetInteger("problem","magindex");
 
-  pfield->b.x1f.ZeroClear();
-  pfield->b.x2f.ZeroClear();
-  pfield->b.x3f.ZeroClear();
-  pfield->bcc.ZeroClear();
+    int nx1 = (ie-is)+1 + 2*(NGHOST); //TODO Shouldn't this be ncell[123]?
+    int nx2 = (je-js)+1 + 2*(NGHOST);
+    int nx3 = (ke-ks)+1 + 2*(NGHOST);
 
-  AthenaArray<Real> bxcc,bycc,bzcc;    
-  bxcc.NewAthenaArray(nx3,nx2,nx1);
-  bycc.NewAthenaArray(nx3,nx2,nx1);
-  bzcc.NewAthenaArray(nx3,nx2,nx1);
-  
-  AthenaArray<Real> Atot;  
-  Atot.NewAthenaArray(3,nx3,nx2,nx1);
-  
-  for (int k = kl; k <= ku; ++k)
-  for (int j = jl; j <= ju; ++j)
-  for (int i = il; i <= iu; ++i)
-    {
-      if(pcoord->x1v(i) > 0){
-	Atot(0,k,j,i) = -pcoord->x2v(j) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
-	Atot(1,k,j,i) = (pcoord->x1v(i) - 0.5*sep) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
-	Atot(2,k,j,i) = 0.0;
-      } else {
-	Atot(0,k,j,i) = -pcoord->x2v(j) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
-	Atot(1,k,j,i) = (pcoord->x1v(i) + 0.5*sep) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
-	Atot(2,k,j,i) = 0.0;
+    pfield->b.x1f.ZeroClear();
+    pfield->b.x2f.ZeroClear();
+    pfield->b.x3f.ZeroClear();
+    pfield->bcc.ZeroClear();
+
+    AthenaArray<Real> bxcc,bycc,bzcc;
+    bxcc.NewAthenaArray(nx3,nx2,nx1);
+    bycc.NewAthenaArray(nx3,nx2,nx1);
+    bzcc.NewAthenaArray(nx3,nx2,nx1);
+
+    AthenaArray<Real> Atot;
+    Atot.NewAthenaArray(3,nx3,nx2,nx1);
+
+    for (int k = kl; k <= ku; ++k)
+    for (int j = jl; j <= ju; ++j)
+    for (int i = il; i <= iu; ++i)
+      {
+        if(pcoord->x1v(i) > 0){
+    Atot(0,k,j,i) = -pcoord->x2v(j) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
+    Atot(1,k,j,i) = (pcoord->x1v(i) - 0.5*sep) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
+    Atot(2,k,j,i) = 0.0;
+        } else {
+    Atot(0,k,j,i) = -pcoord->x2v(j) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
+    Atot(1,k,j,i) = (pcoord->x1v(i) + 0.5*sep) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
+    Atot(2,k,j,i) = 0.0;
+        }
       }
-    }
 
-  for(int k = ks-1; k<=ke+1; k++)
-  for(int j = js-1; j<=je+1; j++)
-  for(int i = is-1; i<=ie+1; i++)
-    {
-      
-    bxcc(k,j,i) = - ((Atot(1,k+1,j,i) - Atot(1,k-1,j,i))/(2.0*pcoord->dx3v(k)));
-    bycc(k,j,i) =  ((Atot(0,k+1,j,i) - Atot(0,k-1,j,i))/(2.0*pcoord->dx3v(k)));
-    bzcc(k,j,i) = ( (Atot(1,k,j,i+1) - Atot(1,k,j,i-1))/(2.0*pcoord->dx1v(i))
-                   - (Atot(0,k,j+1,i) - Atot(0,k,j-1,i))/(2.0*pcoord->dx2v(j)));
-    }
+    for(int k = ks-1; k<=ke+1; k++)
+    for(int j = js-1; j<=je+1; j++)
+    for(int i = is-1; i<=ie+1; i++)
+      {
 
-  for(int k = ks; k<=ke; k++)
-  for(int j = js; j<=je; j++)
-  for(int i = is; i<=ie+1; i++)
-    {
+      bxcc(k,j,i) = - ((Atot(1,k+1,j,i) - Atot(1,k-1,j,i))/(2.0*pcoord->dx3v(k)));
+      bycc(k,j,i) =  ((Atot(0,k+1,j,i) - Atot(0,k-1,j,i))/(2.0*pcoord->dx3v(k)));
+      bzcc(k,j,i) = ( (Atot(1,k,j,i+1) - Atot(1,k,j,i-1))/(2.0*pcoord->dx1v(i))
+                    - (Atot(0,k,j+1,i) - Atot(0,k,j-1,i))/(2.0*pcoord->dx2v(j)));
+      }
 
-    pfield->b.x1f(k,j,i) = 0.5*(bxcc(k,j,i-1) + bxcc(k,j,i));
-    }
+    for(int k = ks; k<=ke; k++)
+    for(int j = js; j<=je; j++)
+    for(int i = is; i<=ie+1; i++)
+      {
 
-  for(int k = ks; k<=ke; k++)
-  for(int j = js; j<=je+1; j++)
-  for(int i = is; i<=ie; i++)
-    {
-    pfield->b.x2f(k,j,i) = 0.5*(bycc(k,j-1,i) + bycc(k,j,i));
-    }
-  
-  for(int k = ks; k<=ke+1; k++)
-  for(int j = js; j<=je; j++)
-  for(int i = is; i<=ie; i++)
-    {
-      pfield->b.x3f(k,j,i) = 0.5*(bzcc(k-1,j,i) + bzcc(k,j,i));
-    }
-  
-  pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord, il,iu,jl,ju,kl,ku);
-  
+      pfield->b.x1f(k,j,i) = 0.5*(bxcc(k,j,i-1) + bxcc(k,j,i));
+      }
+
+    for(int k = ks; k<=ke; k++)
+    for(int j = js; j<=je+1; j++)
+    for(int i = is; i<=ie; i++)
+      {
+      pfield->b.x2f(k,j,i) = 0.5*(bycc(k,j-1,i) + bycc(k,j,i));
+      }
+
+    for(int k = ks; k<=ke+1; k++)
+    for(int j = js; j<=je; j++)
+    for(int i = is; i<=ie; i++)
+      {
+        pfield->b.x3f(k,j,i) = 0.5*(bzcc(k-1,j,i) + bzcc(k,j,i));
+      }
+
+    pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord, il,iu,jl,ju,kl,ku);
+  } // MAGNETIC_FIELDS_ENABLED
+  */
   //  -------------------------------------------------------------------------
-#endif // MAGNETIC_FIELDS_ENABLED
-  
+
   // Construct Z4c vars from ADM vars ------------------------------------------
   pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
   pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u1);
-  
-  // Initialize the coordinates
-  pcoord->UpdateMetric();
-  if (pmy_mesh->multilevel)
-    {
-      pmr->pcoarsec->UpdateMetric();
-    }
 
-  // We've only set up the primitive variables; go ahead and initialize
-  // the conserved variables.
+  // Initialise conserved variables
   peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord,
-                             il, iu, jl, ju, kl, ku);
-  
+                             0, ncells1,
+                             0, ncells2,
+                             0, ncells3);
+
   //TODO Check if the momentum and velocity are finite.
-  
+
   // Set up the matter tensor in the Z4c variables.
   // TODO: BD - this needs to be fixed properly
   // No magnetic field, pass dummy or fix with overload
-  //  AthenaArray<Real> null_bb_cc;  
+  //  AthenaArray<Real> null_bb_cc;
   pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pfield->bcc);
-  
+
   // --------------------------------------------------------------------------
   return;
 }
 
+//----------------------------------------------------------------------------------------
+//! \fn
+//  \brief refinement condition: extrema based
+// 1: refines, -1: de-refines, 0: does nothing
 int RefinementCondition(MeshBlock *pmb)
 {
-  
-#ifdef TRACKER_EXTREMA
-  
+  /*
+  // BD: TODO in principle this should be possible
+  Z4c_AMR *const pz4c_amr = pmb->pz4c->pz4c_amr;
+
+  // ensure we actually have a tracker
+  if (pmb->pmy_mesh->ptracker_extrema->N_tracker > 0)
+  {
+    return 0;
+  }
+
+  return pz4c_amr->ShouldIRefine(pmb);
+  */
+
   Mesh * pmesh = pmb->pmy_mesh;
-  TrackerExtrema * ptracker_extrema = pmesh->ptracker_extrema;
-  
+  ExtremaTracker * ptracker_extrema = pmesh->ptracker_extrema;
+
   int root_level = ptracker_extrema->root_level;
   int mb_physical_level = pmb->loc.level - root_level;
-  
+
   // to get behaviour correct for when multiple centres occur in a single
   // MeshBlock we need to carry information
   bool centres_contained = false;
-  
-  for (int n=1; n<=ptracker_extrema->N_tracker; ++n)
-    {
-      bool is_contained = false;
-      
-      if (ptracker_extrema->ref_type(n-1) == 0)
-	{
-	  is_contained = pmb->PointContained(
-					     ptracker_extrema->c_x1(n-1),
-					     ptracker_extrema->c_x2(n-1),
-					     ptracker_extrema->c_x3(n-1)
-					     );
-	}
-    else if (ptracker_extrema->ref_type(n-1) == 1)
-      {
-	is_contained = pmb->SphereIntersects(
-					     ptracker_extrema->c_x1(n-1),
-					     ptracker_extrema->c_x2(n-1),
-					     ptracker_extrema->c_x3(n-1),
-        ptracker_extrema->ref_zone_radius(n-1)
-					     );
 
-	// is_contained = pmb->PointContained(
-	//   ptracker_extrema->c_x1(n-1),
-	//   ptracker_extrema->c_x2(n-1),
-	//   ptracker_extrema->c_x3(n-1)
-	// ) or pmb->PointCentralDistanceSquared(
-	//   ptracker_extrema->c_x1(n-1),
-	//   ptracker_extrema->c_x2(n-1),
-	//   ptracker_extrema->c_x3(n-1)
-	// ) < SQR(ptracker_extrema->ref_zone_radius(n-1));
-	
-      }
-      
-      if (is_contained)
-	{
-	  centres_contained = true;
-	  
-	  // a point in current MeshBlock, now check whether level sufficient
-	  if (mb_physical_level < ptracker_extrema->ref_level(n-1))
-	    {
-	      return 1;
-	    }
-	  
-	}
+  for (int n=1; n<=ptracker_extrema->N_tracker; ++n)
+  {
+    bool is_contained = false;
+
+    if (ptracker_extrema->ref_type(n-1) == 0)
+    {
+      is_contained = pmb->PointContained(
+        ptracker_extrema->c_x1(n-1),
+        ptracker_extrema->c_x2(n-1),
+        ptracker_extrema->c_x3(n-1)
+      );
     }
-  
+    else if (ptracker_extrema->ref_type(n-1) == 1)
+    {
+      is_contained = pmb->SphereIntersects(
+        ptracker_extrema->c_x1(n-1),
+        ptracker_extrema->c_x2(n-1),
+        ptracker_extrema->c_x3(n-1),
+        ptracker_extrema->ref_zone_radius(n-1)
+      );
+
+      // is_contained = pmb->PointContained(
+      //   ptracker_extrema->c_x1(n-1),
+      //   ptracker_extrema->c_x2(n-1),
+      //   ptracker_extrema->c_x3(n-1)
+      // ) or pmb->PointCentralDistanceSquared(
+      //   ptracker_extrema->c_x1(n-1),
+      //   ptracker_extrema->c_x2(n-1),
+      //   ptracker_extrema->c_x3(n-1)
+      // ) < SQR(ptracker_extrema->ref_zone_radius(n-1));
+
+    }
+
+    if (is_contained)
+    {
+      centres_contained = true;
+
+      // a point in current MeshBlock, now check whether level sufficient
+      if (mb_physical_level < ptracker_extrema->ref_level(n-1))
+      {
+        return 1;
+      }
+
+    }
+  }
+
   // Here one could put composite criteria (such as spherical patch cond.)
   // ...
-  
+
   if (centres_contained)
-    {
-      // all contained centres are at a sufficient level of refinement
-      return 0;
-    }
-  
+  {
+    // all contained centres are at a sufficient level of refinement
+    return 0;
+  }
+
   // Nothing satisfied - flag for de-refinement
   return -1;
-  
-#endif // TRACKER_EXTREMA
-  return 0;
-}
-
-Real Det3Metric(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma,
-		int const i)
-{
-  return - SQR(gamma(0,2,i))*gamma(1,1,i) +
-    2*gamma(0,1,i)*gamma(0,2,i)*gamma(1,2,i) -
-    gamma(0,0,i)*SQR(gamma(1,2,i)) - SQR(gamma(0,1,i))*gamma(2,2,i) +
-    gamma(0,0,i)*gamma(1,1,i)*gamma(2,2,i);
 }
 
 #if MAGNETIC_FIELDS_ENABLED
@@ -579,6 +570,7 @@ Real DivBface(MeshBlock *pmb, int iout) {
   Real divB = 0.0;
   Real vol,dx,dy,dz;
   int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
+
   for (int k=ks; k<=ke; k++) {
     for (int j=js; j<=je; j++) {
       for (int i=is; i<=ie; i++) {
@@ -586,7 +578,9 @@ Real DivBface(MeshBlock *pmb, int iout) {
         dy = pmb->pcoord->dx2v(j);
         dz = pmb->pcoord->dx3v(k);
         vol = dx*dy*dz;
-        divB += ((pmb->pfield->b.x1f(k,j,i+1) - pmb->pfield->b.x1f(k,j,i))/dx + (pmb->pfield->b.x2f(k,j+1,i) - pmb->pfield->b.x2f(k,j,i))/(dy) + (pmb->pfield->b.x3f(k+1,j,i) - pmb->pfield->b.x3f(k,j,i))/(dz))*vol;
+        divB += ((pmb->pfield->b.x1f(k,j,i+1) - pmb->pfield->b.x1f(k,j,i))/ dx +
+                 (pmb->pfield->b.x2f(k,j+1,i) - pmb->pfield->b.x2f(k,j,i))/ dy +
+                 (pmb->pfield->b.x3f(k+1,j,i) - pmb->pfield->b.x3f(k,j,i))/ dz) * vol;
       }
     }
   }

@@ -16,7 +16,7 @@ CCE_FILE    = @CCE_FILE@
 
 CXX := @COMPILER_COMMAND@
 CPPFLAGS := @PREPROCESSOR_FLAGS@
-CXXFLAGS := @COMPILER_FLAGS@ -g # -fsanitize=thread #-pg -fdebug-prefix-map=${PWD}=. @COMPILER_FLAGS@ #-fsanitize=thread #-fsanitize=bounds-strict -fsanitize=address -fsanitize=leak -Wpedantic -fsanitize=undefined -fsanitize-address-use-after-scope
+CXXFLAGS := @COMPILER_FLAGS@ # -fsanitize=thread #-pg -fdebug-prefix-map=${PWD}=. @COMPILER_FLAGS@ #-fsanitize=thread #-fsanitize=bounds-strict -fsanitize=address -fsanitize=leak -Wpedantic -fsanitize=undefined -fsanitize-address-use-after-scope
 LDFLAGS := @LINKER_FLAGS@
 LDLIBS := @LIBRARY_FLAGS@
 GCOV_CMD := @GCOV_COMMAND@

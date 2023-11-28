@@ -40,6 +40,8 @@
 #   --fftw_path=path    path to FFTW libraries (requires the FFTW library)
 #   -gsl                enable GNU scientific library (requires the gsl library)
 #   --gsl_path=path     path to gsl libraries (requires the gsl library)
+#   -lorene             enable LORENE
+#   --lorene_path=path  path to LORENE (requires the LORENE library)
 #   --grav=xxx          use xxx as the self-gravity solver
 #   --cxx=xxx           use xxx as the C++ compiler
 #   --ccmd=name         use name as the command to call the (non-MPI) C++ compiler
@@ -376,6 +378,17 @@ parser.add_argument('--gsl_path',
                     default='',
                     help='path to gsl libraries')
 
+# -lorene argument
+parser.add_argument('-lorene',
+                    action='store_true',
+                    default=False,
+                    help='enable GNU scientific library')
+
+# --lorene_path argument
+parser.add_argument('--lorene_path',
+                    default='',
+                    help='path to LORENE libraries')
+
 # -ccache argument
 parser.add_argument('-ccache',
                     action='store_true',
@@ -572,6 +585,7 @@ if args['eos'] == 'isothermal':
     definitions['NHYDRO_VARIABLES'] = '4'
 elif args['eos'] == 'adiabatic' or args['eos'] == 'adiabatictaudyn_rep':
     definitions['NHYDRO_VARIABLES'] = '5'
+    makefile_options['GENERAL_EOS_FILE'] = 'ideal'
 elif args['eos'] == 'eostaudyn_ps':
     definitions['NHYDRO_VARIABLES'] = '5'
     definitions['USE_TM'] = '1'
@@ -841,8 +855,10 @@ if args['cxx'] == 'g++':
     makefile_options['COMPILER_FLAGS'] = (
         '-O3 -std=c++11 -fwhole-program -flto=auto -fprefetch-loop-arrays -march=native '
         '-ffp-contract=off ' # disables FMA
+        # '-finline-limit=2048 '
+        # '-Wunknown-pragmas '
     )
-    makefile_options['LINKER_FLAGS'] = ''
+    makefile_options['LINKER_FLAGS'] = '' # '-Wunknown-pragmas '
     makefile_options['LIBRARY_FLAGS'] = ''
 if args['cxx'] == 'g++-simd':
     # GCC version >= 4.9, for OpenMP 4.0; version >= 6.1 for OpenMP 4.5 support
@@ -852,14 +868,18 @@ if args['cxx'] == 'g++-simd':
     makefile_options['COMPILER_FLAGS'] = (
         '-O3 -std=c++11 -fwhole-program -flto=auto -fprefetch-loop-arrays -march=native '
         '-fopenmp-simd '
-        '-ffp-contract=off ' # disables FMA
+        '-Wunknown-pragmas '
+        '-fopt-info-vec-missed '
+        # '-fopt-info-inline-missed '
+        # '-finline-limit=2048 '
+        # '-ffp-contract=off ' # disables FMA
         # -march=skylake-avx512, skylake, core-avx2
         # -mprefer-vector-width=128  # available in gcc-8, but not gcc-7
         # -mtune=native, generic, broadwell
         # -mprefer-avx128
         # -m64 (default)
     )
-    makefile_options['LINKER_FLAGS'] = ''
+    makefile_options['LINKER_FLAGS'] = '-Wunknown-pragmas '
     makefile_options['LIBRARY_FLAGS'] = ''
 if args['cxx'] == 'icpc':
     # ICC is C++11 feature-complete since v15.0 (2014-08-26)
@@ -1172,6 +1192,39 @@ if args['gsl']:
         if args['rpath']:
             makefile_options['LINKER_FLAGS'] += ' -Wl,-rpath {0}/lib'.format(args['gsl_path'])
     makefile_options['LIBRARY_FLAGS'] += ' -lgsl -lgslcblas'
+
+if args['lorene']:
+    definitions['LORENE_OPTION'] = 'LORENE'
+
+    makefile_options['LIBRARY_FLAGS'] += ' -llorene_export -llorene -llorenef77 -lgfortran -llapack -lblas'
+
+    # this can be specified as lorene_path _or_ directly
+    if args['lorene_path'] != '':
+        definitions['LORENE_OPTION'] = 'LORENE'
+
+        makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/Export/C++/Include'.format(args['lorene_path'])
+        makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/C++/Include'.format(args['lorene_path'])
+        makefile_options['LINKER_FLAGS'] += ' -L{0}/Lib'.format(args['lorene_path'])
+
+else:
+    definitions['LORENE_OPTION'] = 'NO_LORENE'
+
+if 'Lorene' in args['prob']:
+    if not args['f'] or not args['g'] or not args['z']:
+        raise SystemExit(
+            '### CONFIGURE ERROR: The pgen "{name}" requires flags '
+            '-f -g -z.'.format(
+                name=args['prob']
+            )
+        )
+
+    if not args['lorene']:
+        raise SystemExit(
+            '### CONFIGURE ERROR: The pgen "{name}" requires flags '
+            '-lorene.'.format(
+                name=args['prob']
+            )
+        )
 
 # --cflag=[string] argument
 if args['cflag'] is not None:
