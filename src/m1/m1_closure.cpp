@@ -458,9 +458,9 @@ void M1::CalcClosure(AthenaArray<Real> & u)
       continue;
     } // mask
 
-    // char sbuf[128];
-    // sprintf(sbuf,"k = %d j = %d i = %d", k,j,i);
-    // M1_DEBUG_PR(sbuf);
+    char sbuf[128];
+    sprintf(sbuf,"k = %d j = %d i = %d", k,j,i);
+    M1_DEBUG_PR(sbuf);
     
     // Go from ADM 3-metric VC (AthenaArray/Tensor)
     // to ADM 4-metric on CC at ijk (TensorPointwise) 
@@ -481,14 +481,14 @@ void M1::CalcClosure(AthenaArray<Real> & u)
     pack_v_u(fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),  v_u);
 
     tensor::contract(g_dd, v_u, v_d);
-
+    
     for (int ig = 0; ig < nspecies*ngroups; ++ig) {
       
       pack_F_d(beta_u(1), beta_u(2), beta_u(3),
-	             vec.F_d(0,ig,k,j,i),
-	             vec.F_d(1,ig,k,j,i),
-	             vec.F_d(2,ig,k,j,i),
-	             F_d);
+	       vec.F_d(0,ig,k,j,i),
+	       vec.F_d(1,ig,k,j,i),
+	       vec.F_d(2,ig,k,j,i),
+	       F_d);
       
       // chi, P_ab
       calc_closure_pt(pmb, i, j, k, ig,
@@ -499,21 +499,26 @@ void M1::CalcClosure(AthenaArray<Real> & u)
 		  &rad.P_dd(0,0,ig,k,j,i), &rad.P_dd(0,1,ig,k,j,i), &rad.P_dd(0,2,ig,k,j,i),
                   &rad.P_dd(1,1,ig,k,j,i), &rad.P_dd(1,2,ig,k,j,i),
                   &rad.P_dd(2,2,ig,k,j,i));
-      
+
       for (int a = 0; a < NDIM; ++a) {
-	for (int b = a; b < a; ++b) {
+	for (int b = a; b < NDIM; ++b) {
 	  assert(isfinite(rad.P_dd(a,b,ig,k,j,i)));
+      	  sprintf(sbuf," rad: a = %d b = %d  P_dd= %e", a,b, rad.P_dd(a,b,ig,k,j,i));M1_DEBUG_PR(sbuf); 
         }
       }
       
+      //sprintf(sbuf," rad:  P_xx = %f", rad.P_dd(0,0,ig,k,j,i)); M1_DEBUG_PR(sbuf); 
+
+
       // J
-      // TODO: Check this E
       assemble_rT(n_d, lab.E(ig,k,j,i), F_d, P_dd, T_dd);
       
       rad.J(ig,k,j,i) = calc_J_from_rT(T_dd, u_u);      
-
-      assert(isfinite(rad.J(ig,k,j,i)));
       
+      assert(isfinite(rad.J(ig,k,j,i)));
+
+      //sprintf(sbuf," rad: J = %e", rad.J(ig,k,j,i)); M1_DEBUG_PR(sbuf);
+            
       // H_a
       calc_H_from_rT(T_dd, u_u, proj_ud, H_d);
 
@@ -529,6 +534,7 @@ void M1::CalcClosure(AthenaArray<Real> & u)
       assert(isfinite(rad.Ht(ig,k,j,i)));
       for (int a = 0; a < NDIM; ++a) {
 	assert(isfinite(rad.H(a,ig,k,j,i)));
+	sprintf(sbuf," rad: a = %d  H = %e", a, rad.H(a,ig,k,j,i)); M1_DEBUG_PR(sbuf);
       }
       
       // nnu
@@ -544,7 +550,7 @@ void M1::CalcClosure(AthenaArray<Real> & u)
 	assert(Gamma > 0);
 	rad.nnu(ig,k,j,i) = vec.N(ig,k,j,i)/Gamma;
       }
-
+      
     } // ig loop
   } // CLOOP (k,j,i)
   

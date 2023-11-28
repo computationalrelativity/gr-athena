@@ -27,6 +27,11 @@ using namespace utils;
 void M1::CalcUpdate(Real const dt,
 		    AthenaArray<Real> & u_p, AthenaArray<Real> & u_c, AthenaArray<Real> & u_rhs)
 {
+
+  M1_DEBUG_PR(" ");
+  M1_DEBUG_PR("in: CalcUpdate, dt = ");M1_DEBUG_PR(dt);
+  M1_DEBUG_PR(" ");
+  
   MeshBlock * pmb = pmy_block;
 
   // Disable GSL error handler

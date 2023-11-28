@@ -175,7 +175,9 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   source_epsabs = pin->GetOrAddReal("M1","source_epsabs",1e-3);
   source_epsrel = pin->GetOrAddReal("M1","source_epsrel",1e-3);
   source_maxiter = pin->GetOrAddInteger("M1","source_maxiter", 100);
-
+  mindiss = pin->GetOrAddReal("M1","mindiss",0.0);
+  minmod_theta = pin->GetOrAddReal("M1","minmod_theta",1.0);
+    
   // Problem-specific parameters
   m1_test = pin->GetOrAddString("M1", "m1_test","none");  
   beam_position = pin->GetOrAddReal("M1", "beam_position", 0.0);
@@ -197,7 +199,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
 
   fakerates = nullptr;
   //if (pin->GetOrAddBoolean("FakeRates","use",false)) {
-  fakerates = new FakeRates(pin, ngroups, nspecies);
+  //fakerates = new FakeRates(pin, ngroups, nspecies);
   //TODO set AverageBaryonMass, etc
   //}
   
@@ -249,8 +251,8 @@ M1::~M1()
   dt2_.DeleteAthenaArray();
   dt3_.DeleteAthenaArray();
 
-  if (fakerates != nullptr)
-    delete fakerates;
+  //if (fakerates != nullptr)
+  // delete fakerates;
 }
 
 //----------------------------------------------------------------------------------------

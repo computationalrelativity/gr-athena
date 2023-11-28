@@ -43,6 +43,8 @@ namespace {
 // \brief Add the flux divergence to the RHS (see analogous Hydro method)
 
 void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
+  //M1_DEBUG_PR("in: AddFluxDivergence");
+  
   MeshBlock *pmb = pmy_block;
   AthenaArray<Real> &x1flux = storage.flux[X1DIR];
   AthenaArray<Real> &x2flux = storage.flux[X2DIR];
@@ -62,7 +64,8 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
         for (int ig=0; ig<ngroups*nspecies; ++ig) {
 #pragma omp simd
           for (int i=is; i<=ie; ++i) {
-            dflx(iv,ig,i) = (x1area(i+1)*x1flux(iv,ig,k,j,i+1) - x1area(i)*x1flux(iv,ig,k,j,i));
+            //dflx(iv,ig,i) = (x1area(i+1)*x1flux(iv,ig,k,j,i+1) - x1area(i)*x1flux(iv,ig,k,j,i));
+	    dflx(iv,ig,i) = (x1flux(iv,ig,k,j,i+1) - x1flux(iv,ig,k,j,i));
 	  }
         }
       }
@@ -75,7 +78,7 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
           for (int ig=0; ig<ngroups*nspecies; ++ig) {
 #pragma omp simd
             for (int i=is; i<=ie; ++i) {
-              dflx(iv,ig,i) += (x2area_p1(i)*x2flux(iv,ig,k,j+1,i) - x2area(i)*x2flux(iv,ig,k,j,i));
+	      dflx(iv,ig,i) += (x2area_p1(i)*x2flux(iv,ig,k,j+1,i) - x2area(i)*x2flux(iv,ig,k,j,i));
             }
           }
         }
@@ -101,7 +104,7 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
         for (int ig=0; ig<ngroups*nspecies; ++ig) {
 #pragma omp simd
           for (int i=is; i<=ie; ++i) {
-            u_rhs(iv,ig,k,j,i) -= dflx(iv,ig,i)/vol(i);
+            u_rhs(iv,ig,k,j,i) -= dflx(iv,ig,i)/vol(i); //TODO CHECK THIS vol(i)
           }
         }
       }
@@ -119,14 +122,14 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
 void M1::CalcFluxes(AthenaArray<Real> & u)
 {
   M1_DEBUG_PR("in: CalcFluxes");
-
+  
   MeshBlock * pmb = pmy_block;
   int const is = pmb->is; int const js = pmb->js; int const ks = pmb->ks;
   int const ie = pmb->ie; int const je = pmb->je; int const ke = pmb->ke;
-
+  
   Lab_vars vec;
   SetLabVarsAliases(u, vec);  
-
+  
   // Grid data
   Real const delta[3] = {
     pmb->pcoord->dx1v(0),
@@ -139,13 +142,11 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
     pmb->ncells3,
   };
   
-  // Pointwise 4D tensors used in the loops
+  // Pointwise 4D tensors used in the loops (MDIM)
   TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> g_dd;
   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> beta_u;
   TensorPointwise<Real, Symmetries::NONE, MDIM, 0> alpha;  
   TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> g_uu;    
-
-  TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> gamma_uu; // NDIM !
 
   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> u_u;
   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> v_u;
@@ -156,12 +157,13 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
   TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> P_dd;
   TensorPointwise<Real, Symmetries::NONE, MDIM, 2> P_ud;
   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> fnu_u;
-    
+
+  TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> gamma_uu; 
+  
   g_dd.NewTensorPointwise();
   beta_u.NewTensorPointwise();
   alpha.NewTensorPointwise();
   g_uu.NewTensorPointwise();
-  gamma_uu.NewTensorPointwise();
 
   u_u.NewTensorPointwise();
   v_u.NewTensorPointwise();
@@ -173,6 +175,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
   P_ud.NewTensorPointwise();
   fnu_u.NewTensorPointwise();
 
+  gamma_uu.NewTensorPointwise(); // NDIM !
+  
   // Scratch space
   Real * cons;
   Real * flux;
@@ -180,13 +184,14 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 
   //--------------------------------------------------------------------------------------
   // i-direction
-  int dir = X1DIR;
-  AthenaArray<Real> &x1flux = storage.flux[X1DIR];
-
+  if (!M1_FLUXX_SET_ZERO) M1_DEBUG_PR("in: CalcFluxes direction i");
+  int dir = X1DIR; // NB several TensorPointwise are 4D!
+  AthenaArray<Real> &x1flux = storage.flux[dir];
+  
   try {
-    cons = new Real[ N_Lab * ngroups*nspecies * ncells[X1DIR] ];
-    flux = new Real[ N_Lab * ngroups*nspecies * ncells[X1DIR] ];
-    cmax = new Real[ N_Lab * ngroups*nspecies * ncells[X1DIR] ];
+    cons = new Real[ N_Lab * ngroups*nspecies * ncells[dir] ];
+    flux = new Real[ N_Lab * ngroups*nspecies * ncells[dir] ];
+    cmax = new Real[ N_Lab * ngroups*nspecies * ncells[dir] ];
   } catch (std::bad_alloc &e) {
     std::stringstream msg;
     msg << "Out of memory!" << std::endl;
@@ -214,7 +219,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	pack_v_u(fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),  v_u);  
 	
 	for (int ig = 0; ig < ngroups*nspecies; ++ig) {			 
-
+	  
 	  pack_F_d(beta_u(1), beta_u(2), beta_u(3),			 
 		   vec.F_d(0,ig,k,j,i),					 
 		   vec.F_d(1,ig,k,j,i),					 
@@ -239,7 +244,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	  (void)nnu;							 
 	  if (nspecies > 1)						 
 	    nnu = vec.N(ig,k,j,i)/Gamma;				 
-
+	  
 	  // Scratch buffers in direction Id
 	  cons[GFINDEX1D(Id, ig, 0)] = vec.F_d(0,ig,k,j,i);		 
 	  cons[GFINDEX1D(Id, ig, 1)] = vec.F_d(1,ig,k,j,i);		 
@@ -256,17 +261,17 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	    assert(isfinite(cons[GFINDEX1D(Id, ig, 4)]));		 
 	  
 	  flux[GFINDEX1D(Id, ig, 0)] =					 
-	    calc_F_flux(alpha(), beta_u, F_d, P_ud, dir, 1);		 
+	    calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 1);		 
 	  flux[GFINDEX1D(Id, ig, 1)] =					 
-	    calc_F_flux(alpha(), beta_u, F_d, P_ud, dir, 2);		 
+	    calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 2);		 
 	  flux[GFINDEX1D(Id, ig, 2)] =					 
-	    calc_F_flux(alpha(), beta_u, F_d, P_ud, dir, 3);		 
+	    calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 3);		 
 	  flux[GFINDEX1D(Id, ig, 3)] =					 
-	    calc_E_flux(alpha(), beta_u, vec.E(ig,k,j,i), F_u, dir);	 
+	    calc_E_flux(alpha(), beta_u, vec.E(ig,k,j,i), F_u, dir+1);	 
 	  if (nspecies > 1)						 
 	    flux[GFINDEX1D(Id, ig, 4)] =					 
-	      alpha() * nnu * fnu_u(dir);				 
-   
+	      alpha() * nnu * fnu_u(dir+1);				 
+	  
 	  assert(isfinite(flux[GFINDEX1D(Id, ig, 0)]));			 
 	  assert(isfinite(flux[GFINDEX1D(Id, ig, 1)]));			 
 	  assert(isfinite(flux[GFINDEX1D(Id, ig, 2)]));			 
@@ -283,21 +288,21 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 #if (M1_USE_EIGENVALUES_THIN)
 	  Real const F2 = tensor::dot(F_u, F_d);
 	  Real const F = std::sqrt(F2);
-	  Real const fx = F_u(dir)*(F > 0 ? 1/F : 0);
-	  Real const ffx = F_u(dir)*(F2 > 0 ? 1/F2 : 0);
+	  Real const fx = F_u(dir+1)*(F > 0 ? 1/F : 0);
+	  Real const ffx = F_u(dir+1)*(F2 > 0 ? 1/F2 : 0);
 	  Real const lam[3] = {
-	    alpha()*fx - beta_u(dir),
-	    - alpha()*fx - beta_u(dir),
-	    alpha()*vec.E(ig,k,j,i)*ffx - beta_u(dir),
+	    alpha()*fx - beta_u(dir+1),
+	    - alpha()*fx - beta_u(dir+1),
+	    alpha()*vec.E(ig,k,j,i)*ffx - beta_u(dir+1),
 	  };
 	  Real const cM1 = std::max(std::abs(lam[0]),
 				    std::max(std::abs(lam[1]), std::abs(lam[2])));
 	  //TODO optically thick characteristic speeds and combination
 #endif
-	  // Speed of light -- note that gamma_uu has NDIM=3
+	  // Speed of light -- note that gamma_uu has NDIM=3 but beta has MDIM
 	  Real const clam[2] = {
-	    alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir),
-	    - alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir),
+	    alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir+1),
+	    - alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir+1),
 	  };
 	  Real const clight = std::max(std::abs(clam[0]), std::abs(clam[1]));
           
@@ -306,17 +311,17 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	  // become larger than c
 	  cmax[GFINDEX1D(Id, ig, 0)] = clight;
 	  // = std::min(clight, cM1);
-
+	  
 	}  // ig loop 
       } // i loop
             
       // ----------------------------------------------
       // 2nd pass store the num fluxes
-      for (int i = is-1; i <= ie; ++i) { 
-	int Id = i;
-	  
+      for (int i = is-1; i <= ie; ++i) {
+      	int Id = i;
+	
 	for (int ig = 0; ig < ngroups*nspecies; ++ig) {		
-  								
+	  
 	  Real avg_abs_1 = rmat.abs_1(ig,k,j,i);			
 	  Real avg_scat_1 = rmat.scat_1(ig,k,j,i);			
 	  avg_abs_1 += rmat.abs_1(ig,k,j,i+1);				
@@ -324,10 +329,11 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	  
 	  // Remove dissipation at high Peclet numbers 
 	  Real kapa = 0.5*(avg_abs_1 + avg_scat_1); 
-	  Real A = 1.0;  
-	  if (kapa*delta[dir] > 1.0) {			
-	    A = std::max(1.0/(delta[dir]*kapa), mindiss);	
-	  }							
+	  Real A = 1.0;
+	  if (kapa*delta[dir] > 1.0) {
+	    A = std::min(1.0, 1.0/(delta[dir]*kapa));
+	    A = std::max(A, mindiss);
+	  }
 	  
 	  for (int iv = 0; iv < N_Lab; ++iv) { 
 	    Real const ujm = cons[GFINDEX1D(Id-1, ig, iv)]; 
@@ -344,12 +350,12 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	    
 	    Real const dup = ujpp - ujp; 
 	    Real const duc = ujp - uj; 
-	    Real const dum = uj - ujm; 
+	    Real const dum = uj - ujm;
 	    
 	    bool sawtooth = false; 
 	    Real phi = 0; 
 	    if (dup*duc > 0 && dum*duc > 0) { 
-	      phi = minmod2(dum/duc, dup/duc, 1.0); 
+	      phi = minmod2(dum/duc, dup/duc, minmod_theta); 
 	    } else if (dup*duc < 0 && dum*duc < 0) { 
 	      sawtooth = true; 
 	    } 
@@ -359,11 +365,11 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	    Real const flux_high = 0.5*(fj + fjp);
 	    
 	    Real flux_num = flux_high - (sawtooth ? 1.0 : A)*(1.0 - phi)*(flux_high - flux_low); 
-#if (M1_FLUXX_SET_ZERO)
-	    x1flux(iv,ig,k,j,i+1) = 0.0;
-#else
+#if M1_FLUXX_SET_ZERO
+	    flux_num = 0.0;
+#endif
 	    x1flux(iv,ig,k,j,i+1) = flux_num; // Note THC (Athena++) stores F_{i+1/2} (F_{i-1/2})!
-#endif	    
+
 	  } // iv loop 
 	} // ig loop
 	
@@ -382,14 +388,14 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
   if (pmb->pmy_mesh->f2) {
 
     if (!M1_FLUXY_SET_ZERO) M1_DEBUG_PR("in: CalcFluxes direction j");
-      
+    
     int dir = X2DIR;
-    AthenaArray<Real> &x2flux = storage.flux[X2DIR];
+    AthenaArray<Real> &x2flux = storage.flux[dir];
     
     try {
-      cons = new Real[ N_Lab * ngroups*nspecies * ncells[X2DIR] ];
-      flux = new Real[ N_Lab * ngroups*nspecies * ncells[X2DIR] ];
-      cmax = new Real[ N_Lab * ngroups*nspecies * ncells[X2DIR] ];
+      cons = new Real[ N_Lab * ngroups*nspecies * ncells[dir] ];
+      flux = new Real[ N_Lab * ngroups*nspecies * ncells[dir] ];
+      cmax = new Real[ N_Lab * ngroups*nspecies * ncells[dir] ];
     } catch (std::bad_alloc &e) {
       std::stringstream msg;
       msg << "Out of memory!" << std::endl;
@@ -459,16 +465,16 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	      assert(isfinite(cons[GFINDEX1D(Id, ig, 4)]));		 
 	    
 	    flux[GFINDEX1D(Id, ig, 0)] =					 
-	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir, 1);		 
+	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 1);		 
 	    flux[GFINDEX1D(Id, ig, 1)] =					 
-	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir, 2);		 
+	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 2);		 
 	    flux[GFINDEX1D(Id, ig, 2)] =					 
-	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir, 3);		 
+	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 3);		 
 	    flux[GFINDEX1D(Id, ig, 3)] =					 
-	      calc_E_flux(alpha(), beta_u, vec.E(ig,k,j,i), F_u, dir);	 
+	      calc_E_flux(alpha(), beta_u, vec.E(ig,k,j,i), F_u, dir+1);	 
 	    if (nspecies > 1)						 
 	      flux[GFINDEX1D(Id, ig, 4)] =					 
-		alpha() * nnu * fnu_u(dir);				 
+		alpha() * nnu * fnu_u(dir+1);				 
 	    
 	    assert(isfinite(flux[GFINDEX1D(Id, ig, 0)]));			 
 	    assert(isfinite(flux[GFINDEX1D(Id, ig, 1)]));			 
@@ -486,21 +492,21 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 #if (M1_USE_EIGENVALUES_THIN)
 	    Real const F2 = tensor::dot(F_u, F_d);
 	    Real const F = std::sqrt(F2);
-	    Real const fx = F_u(dir)*(F > 0 ? 1/F : 0);
-	    Real const ffx = F_u(dir)*(F2 > 0 ? 1/F2 : 0);
+	    Real const fx = F_u(dir+1)*(F > 0 ? 1/F : 0);
+	    Real const ffx = F_u(dir+1)*(F2 > 0 ? 1/F2 : 0);
 	    Real const lam[3] = {
-	      alpha()*fx - beta_u(dir),
-	      - alpha()*fx - beta_u(dir),
-	      alpha()*vec.E(ig,k,j,i)*ffx - beta_u(dir),
+	      alpha()*fx - beta_u(dir+1),
+	      - alpha()*fx - beta_u(dir+1),
+	      alpha()*vec.E(ig,k,j,i)*ffx - beta_u(dir+1),
 	    };
 	    Real const cM1 = std::max(std::abs(lam[0]),
 				      std::max(std::abs(lam[1]), std::abs(lam[2])));
 	    //TODO optically thick characteristic speeds and combination
 #endif
-	    // Speed of light -- note that gamma_uu has NDIM=3
+	    // Speed of light -- note that gamma_uu has NDIM=3 but beta has MDIM
 	    Real const clam[2] = {
-	      alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir),
-	      - alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir),
+	      alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir+1),
+	      - alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir+1),
 	    };
 	    Real const clight = std::max(std::abs(clam[0]), std::abs(clam[1]));
 	    
@@ -527,11 +533,12 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	    
 	    // Remove dissipation at high Peclet numbers 
 	    Real kapa = 0.5*(avg_abs_1 + avg_scat_1); 
-	    Real A = 1.0;  
-	    if (kapa*delta[dir] > 1.0) {			
-	      A = std::max(1.0/(delta[dir]*kapa), mindiss);	
-	    }							
-	    
+	    Real A = 1.0;
+	    if (kapa*delta[dir] > 1.0) {
+	      A = std::min(1.0, 1.0/(delta[dir]*kapa));
+	      A = std::max(A, mindiss);
+	    }
+
 	    for (int iv = 0; iv < N_Lab; ++iv) { 
 	      Real const ujm = cons[GFINDEX1D(Id-1, ig, iv)]; 
 	      Real const uj = cons[GFINDEX1D(Id, ig, iv)]; 
@@ -552,7 +559,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	      bool sawtooth = false; 
 	      Real phi = 0; 
 	      if (dup*duc > 0 && dum*duc > 0) { 
-		phi = minmod2(dum/duc, dup/duc, 1.0); 
+		phi = minmod2(dum/duc, dup/duc, minmod_theta); 
 	      } else if (dup*duc < 0 && dum*duc < 0) { 
 	      sawtooth = true; 
 	      } 
@@ -562,11 +569,11 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	    Real const flux_high = 0.5*(fj + fjp);
 	    
 	    Real flux_num = flux_high - (sawtooth ? 1.0 : A)*(1.0 - phi)*(flux_high - flux_low); 
-#if M1_FLXY_SET_ZERO
-	    x2flux(iv,ig,k,j+1,i) = 0.0;
-#else
-	    x2flux(iv,ig,k,j+1,i) = flux_num; 
+#if M1_FLUXY_SET_ZERO
+	    flux_num = 0.0;
 #endif
+	    x2flux(iv,ig,k,j+1,i) = flux_num; 
+	    
 	    } // iv loop 
 	  } // ig loop
 	  
@@ -589,12 +596,12 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
     if (!M1_FLUXZ_SET_ZERO) M1_DEBUG_PR("in: CalcFluxes direction k");
     
     int dir = X3DIR;
-    AthenaArray<Real> &x3flux = storage.flux[X3DIR];
+    AthenaArray<Real> &x3flux = storage.flux[dir];
 
     try {
-      cons = new Real[ N_Lab * ngroups*nspecies * ncells[X3DIR] ];
-      flux = new Real[ N_Lab * ngroups*nspecies * ncells[X3DIR] ];
-      cmax = new Real[ N_Lab * ngroups*nspecies * ncells[X3DIR] ];
+      cons = new Real[ N_Lab * ngroups*nspecies * ncells[dir] ];
+      flux = new Real[ N_Lab * ngroups*nspecies * ncells[dir] ];
+      cmax = new Real[ N_Lab * ngroups*nspecies * ncells[dir] ];
     } catch (std::bad_alloc &e) {
       std::stringstream msg;
       msg << "Out of memory!" << std::endl;
@@ -664,16 +671,16 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	      assert(isfinite(cons[GFINDEX1D(Id, ig, 4)]));		 
 	    
 	    flux[GFINDEX1D(Id, ig, 0)] =					 
-	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir, 1);		 
+	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 1);		 
 	    flux[GFINDEX1D(Id, ig, 1)] =					 
-	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir, 2);		 
+	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 2);		 
 	    flux[GFINDEX1D(Id, ig, 2)] =					 
-	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir, 3);		 
+	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 3);		 
 	    flux[GFINDEX1D(Id, ig, 3)] =					 
-	      calc_E_flux(alpha(), beta_u, vec.E(ig,k,j,i), F_u, dir);	 
+	      calc_E_flux(alpha(), beta_u, vec.E(ig,k,j,i), F_u, dir+1);	 
 	    if (nspecies > 1)						 
 	      flux[GFINDEX1D(Id, ig, 4)] =					 
-		alpha() * nnu * fnu_u(dir);				 
+		alpha() * nnu * fnu_u(dir+1);				 
 	    
 	    assert(isfinite(flux[GFINDEX1D(Id, ig, 0)]));			 
 	    assert(isfinite(flux[GFINDEX1D(Id, ig, 1)]));			 
@@ -691,21 +698,21 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 #if (M1_USE_EIGENVALUES_THIN)
 	    Real const F2 = tensor::dot(F_u, F_d);
 	    Real const F = std::sqrt(F2);
-	    Real const fx = F_u(dir)*(F > 0 ? 1/F : 0);
-	    Real const ffx = F_u(dir)*(F2 > 0 ? 1/F2 : 0);
+	    Real const fx = F_u(dir+1)*(F > 0 ? 1/F : 0);
+	    Real const ffx = F_u(dir+1)*(F2 > 0 ? 1/F2 : 0);
 	    Real const lam[3] = {
-	      alpha()*fx - beta_u(dir),
-	      - alpha()*fx - beta_u(dir),
-	      alpha()*vec.E(ig,k,j,i)*ffx - beta_u(dir),
+	      alpha()*fx - beta_u(dir+1),
+	      - alpha()*fx - beta_u(dir+1),
+	      alpha()*vec.E(ig,k,j,i)*ffx - beta_u(dir+1),
 	    };
 	    Real const cM1 = std::max(std::abs(lam[0]),
 				      std::max(std::abs(lam[1]), std::abs(lam[2])));
 	    //TODO optically thick characteristic speeds and combination
 #endif
-	    // Speed of light -- note that gamma_uu has NDIM=3
+	    // Speed of light -- note that gamma_uu has NDIM=3 but beta has MDIM
 	    Real const clam[2] = {
-	      alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir),
-	      - alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir),
+	      alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir+1),
+	      - alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir+1),
 	    };
 	    Real const clight = std::max(std::abs(clam[0]), std::abs(clam[1]));
           
@@ -730,14 +737,14 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	    Real avg_scat_1 = rmat.scat_1(ig,k,j,i);			
 	    avg_abs_1 += rmat.abs_1(ig,k+1,j,i);				
 	    avg_scat_1 += rmat.scat_1(ig,k+1,j,i);
-	  
+	    
 	    // Remove dissipation at high Peclet numbers 
 	    Real kapa = 0.5*(avg_abs_1 + avg_scat_1); 
 	    Real A = 1.0;  
 	    if (kapa*delta[dir] > 1.0) {			
 	      A = std::max(1.0/(delta[dir]*kapa), mindiss);	
 	    }							
-	  
+	    
 	    for (int iv = 0; iv < N_Lab; ++iv) { 
 	      Real const ujm = cons[GFINDEX1D(Id-1, ig, iv)]; 
 	      Real const uj = cons[GFINDEX1D(Id, ig, iv)]; 
@@ -751,28 +758,28 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	      Real const ccm = cmax[GFINDEX1D(Id+1, ig, 0)]; 
 	      Real const cmx = std::max(cc, ccm); 
 	    
-	      Real const dup = ujpp - ujp; 
+	      Real const dup = ujpp - ujp;
 	      Real const duc = ujp - uj; 
 	      Real const dum = uj - ujm; 
 	    
 	      bool sawtooth = false; 
 	      Real phi = 0; 
 	      if (dup*duc > 0 && dum*duc > 0) { 
-		phi = minmod2(dum/duc, dup/duc, 1.0); 
+		phi = minmod2(dum/duc, dup/duc, minmod_theta); 
 	      } else if (dup*duc < 0 && dum*duc < 0) { 
 		sawtooth = true; 
 	      } 
 	      assert(isfinite(phi)); 
-	    
+	      
 	      Real const flux_low = 0.5*(fj + fjp - cmx*(ujp - uj));
 	      Real const flux_high = 0.5*(fj + fjp);
-	    
+	      
 	      Real flux_num = flux_high - (sawtooth ? 1.0 : A)*(1.0 - phi)*(flux_high - flux_low); 
-#if M1_FLXZ_SET_ZERO
-	      x3flux(iv,ig,k+1,j,i) = 0.0; 
-#else
-	      x3flux(iv,ig,k+1,j,i) = flux_num; 
+#if M1_FLUXZ_SET_ZERO
+	      flux_num = 0.0;
 #endif
+	      x3flux(iv,ig,k+1,j,i) = flux_num; 
+	      
 	    } // iv loop 
 	  } // ig loop
 		    
@@ -794,8 +801,6 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
   alpha.DeleteTensorPointwise();
   g_uu.DeleteTensorPointwise();
   
-  gamma_uu.DeleteTensorPointwise();
-
   u_u.DeleteTensorPointwise();
   v_u.DeleteTensorPointwise();
   H_d.DeleteTensorPointwise();
@@ -805,5 +810,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
   P_dd.DeleteTensorPointwise();
   P_ud.DeleteTensorPointwise();
   fnu_u.DeleteTensorPointwise();
+
+  gamma_uu.DeleteTensorPointwise();
+
 }
 

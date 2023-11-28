@@ -44,7 +44,7 @@ enum {
 };
 
 #ifndef M1_SRC_METHOD
-#define M1_SRC_METHOD (M1_SRC_METHOD_IMPL) 
+#define M1_SRC_METHOD (M1_SRC_METHOD_EXPL)  //(M1_SRC_METHOD_IMPL) 
 #endif
 
 #ifndef M1_NGHOST
@@ -272,10 +272,11 @@ public:
   Real source_therm_limit;            // Assume neutrinos to be thermalized above this optical depth
   Real source_thick_limit;            // Use the optically thick limit if the equilibration time is less than the timestep over this factor
   Real source_scat_limit;             // Use the scattering limit if the isotropization time is less than the timestep over this factor 
-  Real mindiss;                       // TODO: check this
   Real source_epsabs;                 // Target absolute precision for the nonlinear solver
   Real source_epsrel;                 // Target relative precision for the nonlinear solver
   int source_maxiter;                 // Maximum number of iterations in the nonlinear solver
+  Real mindiss;                       // Minimum numberical dissipation (use with caution)
+  Real minmod_theta;                  // Theta parameter used for the minmod limiter, in (0,2)
   
   // Problem-specific parameters
   std::string m1_test; // Simple tests:
