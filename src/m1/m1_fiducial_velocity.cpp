@@ -15,7 +15,13 @@
 #include "../hydro/hydro.hpp"
 #include "m1.hpp"
 
-void M1::CalcFiducialVelocity() {  
+#define M1_CALCFIDUCIALVELOCITY_OFF (1)
+
+void M1::CalcFiducialVelocity()
+{  
+  if (M1_CALCFIDUCIALVELOCITY_OFF) return;
+  M1_DEBUG_PR("in: CalcFiducialVelocity");
+
   MeshBlock * pmb = pmy_block;
   
   fidu.vel_u.ZeroClear();

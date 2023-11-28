@@ -40,13 +40,12 @@
 #define M1_SRC_METHOD (0) // = M1_SRC_METHOD_IMPL
 #endif
 
-
 #ifndef M1_NGHOST
 #define M1_NGHOST (2) //TODO: check we have enough, NGHOSTS >= M1_NGHOSTS
 #endif
 
 #ifndef M1_NSPECIES
-#define M1_NSPECIES (3)
+#define M1_NSPECIES (1)
 #endif
 
 #ifndef M1_NGROUPS
@@ -57,13 +56,17 @@
 #define M1_EPSILON (1e-10)
 #endif
 
-#ifndef WARN_FOR_SRC_FIX
-#define WARN_FOR_SRC_FIX (1)
+#ifndef M1_WARN_FOR_SRC_FIX
+#define M1_WARN_FOR_SRC_FIX (1)
 #endif
 
-#ifndef USE_EIGENVALUES_THIN
-#define USE_EIGENVALUES_THIN (0)
+#ifndef M1_USE_EIGENVALUES_THIN
+#define M1_USE_EIGENVALUES_THIN (0)
 #endif
+
+#define M1_DEBUG (1)
+#define M1_DEBUG_PR(var)\
+  if (M1_DEBUG) { std::cout << "M1_DEBUG: " << var << std::endl; }
 
 // CGS density conv. fact
 #define CGS_GCC (1.619100425158886e-18) 

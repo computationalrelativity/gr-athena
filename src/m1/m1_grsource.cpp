@@ -16,8 +16,13 @@
 
 using namespace utils;
 
+#define M1_GRSOURCES_OFF (1)
+
 void M1::GRSources(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs)
 {
+  if (M1_GRSOURCES_OFF) return;
+  M1_DEBUG_PR("in: GRSources");
+
   Lab_vars vec, vec_rhs;
   SetLabVarsAliases(u, vec);
   SetLabVarsAliases(u_rhs, vec_rhs); 

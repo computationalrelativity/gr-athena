@@ -19,8 +19,8 @@ using namespace utils;
 #define SQ(X) ((X)*(X))
 
 void M1::calc_proj(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d,
-		               TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
-		               TensorPointwise<Real, Symmetries::NONE, MDIM, 2> & proj_ud)
+		   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,
+		   TensorPointwise<Real, Symmetries::NONE, MDIM, 2> & proj_ud)
 {
   for (int a = 0; a < MDIM; ++a) {
     for (int b = 0; b < MDIM; ++b) {
@@ -30,28 +30,32 @@ void M1::calc_proj(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d,
 }
 
 void M1::calc_Pthin(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
-		                Real const E,
-		                TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
-		                TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd)
+		    Real const E,
+		    TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
+		    TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd)
 {
+  //M1_DEBUG_PR("in calc_Pthin");
   Real const F2 = tensor::dot(g_uu, F_d, F_d);
   Real fac = (F2 > 0 ? E/F2 : 0);
   for (int a = 0; a < MDIM; ++a) {
     for (int b = a; b < MDIM; ++b) {
+      //char sbuf[128]; M1_DEBUG_PR(sbuf); sprintf(sbuf," a = %d b = %d  g_uu= %f", a,b, g_uu(a,b));
       P_dd(a,b) = fac * F_d(a) * F_d(b);
     }
   }
 }
 
 void M1::calc_Pthick(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd,
-		                 TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
-		                 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d,
-		                 Real const W,
-		                 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_d,
-		                 Real const E,
-		                 TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
-		                 TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd)
+		     TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
+		     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & n_d,
+		     Real const W,
+		     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & v_d,
+		     Real const E,
+		     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
+		     TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd)
 {
+  //M1_DEBUG_PR("in calc_Pthick");
+  
   Real const v_dot_F = tensor::dot(g_uu, v_d, F_d);  
   Real const W2 = W*W;
   Real const coef = 1./(2.*W2 + 1.);

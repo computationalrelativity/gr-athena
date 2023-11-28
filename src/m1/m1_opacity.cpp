@@ -25,9 +25,15 @@
 //int NeutrinoEmission(Real const, Real const, Real const, Real *, Real *, Real *, Real *, Real *, Real *); // TODO: define this
 //int NeutrinoOpacity(Real const, Real const, Real const, Real *, Real *, Real *, Real *, Real *, Real *); // TODO: define this
 //int NeutrinoAbsorptionRate(Real const, Real const, Real const, Real *, Real *, Real *, Real *, Real *, Real *); // TODO: define this
-                                                                                                        
+
+
+#define M1_CALCOPACITY_OFF (0)
+#define M1_CALCOPACITY_ZERO (1)
+
 void M1::CalcOpacity(AthenaArray<Real> & u)
 {
+  if (M1_CALCOPACITY_OFF) return;
+
   MeshBlock * pmb = pmy_block;
 
   Rad_vars vec;
@@ -43,6 +49,8 @@ void M1::CalcOpacity(AthenaArray<Real> & u)
   rmat.eta_1.ZeroClear();
   rmat.scat_1.ZeroClear();
 
+  if (M1_CALCOPACITY_ZERO) return;
+  
   // Minimum grid spacing
   Real const dx = pmb->pcoord->dx1v(0);
   Real const dy = pmb->pcoord->dx2v(1);

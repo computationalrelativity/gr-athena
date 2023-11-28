@@ -34,6 +34,10 @@ namespace {
   } 
 }
 
+#define M1_FLUXX_SET_ZERO (0)
+#define M1_FLUXY_SET_ZERO (1)
+#define M1_FLUXZ_SET_ZERO (1)
+
 //----------------------------------------------------------------------------------------
 // \fn void M1::AddFluxDivergence()
 // \brief Add the flux divergence to the RHS (see analogous Hydro method)
@@ -59,7 +63,7 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
 #pragma omp simd
           for (int i=is; i<=ie; ++i) {
             dflx(iv,ig,i) = (x1area(i+1)*x1flux(iv,ig,k,j,i+1) - x1area(i)*x1flux(iv,ig,k,j,i));
-          }
+	  }
         }
       }
       
@@ -114,6 +118,8 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
 
 void M1::CalcFluxes(AthenaArray<Real> & u)
 {
+  M1_DEBUG_PR("in: CalcFluxes");
+
   MeshBlock * pmb = pmy_block;
   int const is = pmb->is; int const js = pmb->js; int const ks = pmb->ks;
   int const ie = pmb->ie; int const je = pmb->je; int const ke = pmb->ke;
@@ -171,7 +177,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
   Real * cons;
   Real * flux;
   Real * cmax = nullptr;
-  
+
   //--------------------------------------------------------------------------------------
   // i-direction
   int dir = X1DIR;
@@ -274,7 +280,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	  // problems in some situations, possibly because the
 	  // optically thin closure is acausal in certain
 	  // conditions, so this is commented for now.
-#if (USE_EIGENVALUES_THIN)
+#if (M1_USE_EIGENVALUES_THIN)
 	  Real const F2 = tensor::dot(F_u, F_d);
 	  Real const F = std::sqrt(F2);
 	  Real const fx = F_u(dir)*(F > 0 ? 1/F : 0);
@@ -353,8 +359,11 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	    Real const flux_high = 0.5*(fj + fjp);
 	    
 	    Real flux_num = flux_high - (sawtooth ? 1.0 : A)*(1.0 - phi)*(flux_high - flux_low); 
+#if (M1_FLUXX_SET_ZERO)
+	    x1flux(iv,ig,k,j,i+1) = 0.0;
+#else
 	    x1flux(iv,ig,k,j,i+1) = flux_num; // Note THC (Athena++) stores F_{i+1/2} (F_{i-1/2})!
-	    
+#endif	    
 	  } // iv loop 
 	} // ig loop
 	
@@ -372,6 +381,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 
   if (pmb->pmy_mesh->f2) {
 
+    if (!M1_FLUXY_SET_ZERO) M1_DEBUG_PR("in: CalcFluxes direction j");
+      
     int dir = X2DIR;
     AthenaArray<Real> &x2flux = storage.flux[X2DIR];
     
@@ -472,7 +483,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	    // problems in some situations, possibly because the
 	    // optically thin closure is acausal in certain
 	    // conditions, so this is commented for now.
-#if (USE_EIGENVALUES_THIN)
+#if (M1_USE_EIGENVALUES_THIN)
 	    Real const F2 = tensor::dot(F_u, F_d);
 	    Real const F = std::sqrt(F2);
 	    Real const fx = F_u(dir)*(F > 0 ? 1/F : 0);
@@ -551,8 +562,11 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	    Real const flux_high = 0.5*(fj + fjp);
 	    
 	    Real flux_num = flux_high - (sawtooth ? 1.0 : A)*(1.0 - phi)*(flux_high - flux_low); 
+#if M1_FLXY_SET_ZERO
+	    x2flux(iv,ig,k,j+1,i) = 0.0;
+#else
 	    x2flux(iv,ig,k,j+1,i) = flux_num; 
-	    
+#endif
 	    } // iv loop 
 	  } // ig loop
 	  
@@ -571,6 +585,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
   // k-direction
   
   if (pmb->pmy_mesh->f3) {
+
+    if (!M1_FLUXZ_SET_ZERO) M1_DEBUG_PR("in: CalcFluxes direction k");
     
     int dir = X3DIR;
     AthenaArray<Real> &x3flux = storage.flux[X3DIR];
@@ -672,7 +688,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	    // problems in some situations, possibly because the
 	    // optically thin closure is acausal in certain
 	    // conditions, so this is commented for now.
-#if (USE_EIGENVALUES_THIN)
+#if (M1_USE_EIGENVALUES_THIN)
 	    Real const F2 = tensor::dot(F_u, F_d);
 	    Real const F = std::sqrt(F2);
 	    Real const fx = F_u(dir)*(F > 0 ? 1/F : 0);
@@ -752,8 +768,11 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	      Real const flux_high = 0.5*(fj + fjp);
 	    
 	      Real flux_num = flux_high - (sawtooth ? 1.0 : A)*(1.0 - phi)*(flux_high - flux_low); 
+#if M1_FLXZ_SET_ZERO
+	      x3flux(iv,ig,k+1,j,i) = 0.0; 
+#else
 	      x3flux(iv,ig,k+1,j,i) = flux_num; 
-
+#endif
 	    } // iv loop 
 	  } // ig loop
 		    
