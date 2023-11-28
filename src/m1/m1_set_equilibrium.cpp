@@ -28,14 +28,6 @@ void M1::SetEquilibrium(AthenaArray<Real> & u)
   FakeRates * fr = new FakeRates(pin, 1, 1);
   Lab_vars vec;
   SetLabVarsAliases(u, vec);  
-  //SetLabVarsAliases(storage.u, vec);
-
-  // Rad_vars rad;
-  // SetRadVarsAliases(storage.u_rad, rad);  
-  // RadMat_vars rmat;
-  // SetRadMatVarsAliases(storage.radmat, rmat);
-  // Fidu_vars fidu;
-  // SetFiduVarsAliases(storage.intern, fidu);
   
   // Pointwise 4D tensors used in the loop
   TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> g_dd;

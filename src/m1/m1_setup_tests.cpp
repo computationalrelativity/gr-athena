@@ -97,35 +97,41 @@ void M1::SetupBeamTest(AthenaArray<Real> & u)
     nx = 1.0;
     nz = ny = 0.0;
   }
-  
-  for (int k=pmb->ks; k<=pmb->ke; ++k) {
+
+  GCLOOP3(k,j,i) { 
+
     Real z = pmb->pcoord->x3v(k);
-    for (int j=pmb->js; j<=pmb->je; ++j) {
-      Real y = pmb->pcoord->x2v(j);
-      for (int i=pmb->is; i<=pmb->ie; ++i) {
-        Real x = pmb->pcoord->x1v(i);
-        Real proj = nx*x + ny*y + nz*z;
-        Real offset2 = SQR(x-nx*x) + SQR(y-ny*y) + SQR(z-nz*z);
-        if (proj < beam_position && offset2 < SQR(beam_width)) {
-          for (int ig=0; ig<ngroups*nspecies; ++ig) {
-            vec.N(ig,k,j,i) = 1.0;
-            vec.E(ig,k,j,i) = 1.0;
-            vec.F_d(0,ig,k,j,i) = nx;
-            vec.F_d(1,ig,k,j,i) = ny;
-            vec.F_d(2,ig,k,j,i) = nz;
-          }
-        } else {
-          for (int ig=0; ig<ngroups*nspecies; ++ig) {
-            vec.N(ig,k,j,i) = 0.0;
-            vec.E(ig,k,j,i) = 0.0;
-            vec.F_d(0,ig,k,j,i) = 0.0;
-            vec.F_d(1,ig,k,j,i) = 0.0;
-            vec.F_d(2,ig,k,j,i) = 0.0;
-          }
-        }
+    Real y = pmb->pcoord->x2v(j);
+    Real x = pmb->pcoord->x1v(i);
+    Real proj = nx*x + ny*y + nz*z;
+    Real offset2 = SQR(x-nx*x) + SQR(y-ny*y) + SQR(z-nz*z);
+
+    if (proj < beam_position && offset2 < SQR(beam_width)) {
+      for (int ig=0; ig<ngroups*nspecies; ++ig) {
+	vec.N(ig,k,j,i) = 1.0;
+	vec.E(ig,k,j,i) = 1.0;
+	vec.F_d(0,ig,k,j,i) = nx;
+	vec.F_d(1,ig,k,j,i) = ny;
+	vec.F_d(2,ig,k,j,i) = nz;
+      }
+    } else {
+      for (int ig=0; ig<ngroups*nspecies; ++ig) {
+	vec.N(ig,k,j,i) = (rad_E_floor>0)? rad_N_floor : 0.0;
+	vec.E(ig,k,j,i) = (rad_N_floor>0)? rad_E_floor : 0.0;
+	vec.F_d(0,ig,k,j,i) = 0.0;
+	vec.F_d(1,ig,k,j,i) = 0.0;
+	vec.F_d(2,ig,k,j,i) = 0.0;
       }
     }
-  }
+    
+    // There is no fluid, but set the fiducial velocity to zero
+    for(int a = 0; a < NDIM; ++a) {
+      fidu.vel_u(a,k,j,i) = 0.0;
+    }
+    fidu.Wlorentz(k,j,i) = 1.0;
+    
+  } // k, j, i 
+  
 }
 
 //----------------------------------------------------------------------------------------

@@ -17,9 +17,13 @@
 #include "../z4c/z4c_macro.hpp"
 #include "../mesh/mesh.hpp"
 
+#define M1_ADDTOADMMATTER_OFF (1)
 
 void M1::AddToADMMatter(AthenaArray<Real> & u)
 {
+  if (M1_ADDTOADMMATTER_OFF) return;
+  M1_DEBUG_PR("in: AddToADMMatter");
+  
   MeshBlock * pmb = pmy_block;
 
   Lab_vars vec;

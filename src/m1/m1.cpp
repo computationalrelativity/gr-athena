@@ -195,10 +195,10 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   AverageBaryonMass = nullptr;
 
   fakerates = nullptr;
-  if (pin->GetOrAddBoolean("FakeRates","use",false)) {
-    fakerates = new FakeRates(pin, ngroups, nspecies);
-    //TODO set AverageBaryonMass, etc
-  }
+  //if (pin->GetOrAddBoolean("FakeRates","use",false)) {
+  fakerates = new FakeRates(pin, ngroups, nspecies);
+  //TODO set AverageBaryonMass, etc
+  //}
   
   // Set aliases
   SetLabVarsAliases(storage.u, lab);

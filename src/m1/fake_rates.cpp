@@ -23,7 +23,7 @@ class ParameterInput;
 
 FakeRates::FakeRates(ParameterInput *pin, int _nspecies, int _ngroups)
 {
-  nspecies =  _nspecies;
+  nspecies = _nspecies;
   ngroups = _ngroups;
 
   eta = new Real[nspecies*ngroups];
@@ -44,7 +44,7 @@ FakeRates::FakeRates(ParameterInput *pin, int _nspecies, int _ngroups)
       parname += gstr;
       parname += "_";
       parname += istr;
-      eta[INDEX(g,i)] = pin->GetOrAddReal("FakeRates", parname, 1.0);
+      eta[INDEX(g,i)] = pin->GetOrAddReal("FakeRates", parname, 0.0);
     }
   }
 
@@ -68,7 +68,7 @@ FakeRates::FakeRates(ParameterInput *pin, int _nspecies, int _ngroups)
       parname += gstr;
       parname += "_";
       parname += istr;
-      kappa_abs[INDEX(g,i)] = pin->GetOrAddReal("FakeRates", parname, 1.0);
+      kappa_abs[INDEX(g,i)] = pin->GetOrAddReal("FakeRates", parname, 0.0);
     }
   }
 

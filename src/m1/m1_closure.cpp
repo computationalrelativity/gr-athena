@@ -28,6 +28,8 @@
 
 using namespace utils;
 
+#define M1_CALCCLOSURE_OFF (0)
+
 //----------------------------------------------------------------------------------------
 // Setup for the root finder
 
@@ -232,9 +234,11 @@ void M1::apply_closure(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & 
                        Real const chi,
                        TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd)
 {
+  //char sbuf[128];
+  //M1_DEBUG_PR("in apply_closure");
+  
   TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> Pthin_dd;
   TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> Pthick_dd;
-
   Pthin_dd.NewTensorPointwise();
   Pthick_dd.NewTensorPointwise();
 
@@ -244,13 +248,20 @@ void M1::apply_closure(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & 
   Real const dthick = 1.5*(1. - chi);
   Real const dthin = 1. - dthick;
 
+  // M1_DEBUG_PR(dthick);
+  // M1_DEBUG_PR(dthin);
+  
   for (int a = 0; a < MDIM; ++a) {
     for (int b = a; b < MDIM; ++b) {
       P_dd(a,b) = dthick*Pthick_dd(a,b) + dthin*Pthin_dd(a,b);
+
+      // M1_DEBUG_PR(sbuf); sprintf(sbuf," a = %d b = %d   Pab = %f  Pab_thick = %f  Pab_thin = %f", a,b, P_dd(a,b),Pthick_dd(a,b),Pthin_dd(a,b));
+      
     }
   }
   Pthin_dd.DeleteTensorPointwise();
   Pthick_dd.DeleteTensorPointwise();
+
 }
 
 //----------------------------------------------------------------------------------------
@@ -274,6 +285,8 @@ void M1::calc_closure_pt(MeshBlock * pmb,
                          Real * chi,
                          TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd)
 {    
+  //M1_DEBUG_PR("in calc_closure_pt");
+
   // These are special cases for which no root finding is needed
   if (closure_fun == eddington) {
     *chi = 1./3.;
@@ -297,6 +310,7 @@ void M1::calc_closure_pt(MeshBlock * pmb,
   double x_hi = 1.0;
   
   int ierr = gsl_root_fsolver_set(fsolver, &F, x_lo, x_hi);
+
   // No root, most likely because of high velocities in the fluid
   // We default to optically thin closure
   if (ierr == GSL_EINVAL) {
@@ -359,6 +373,10 @@ void M1::calc_closure_pt(MeshBlock * pmb,
 
 void M1::CalcClosure(AthenaArray<Real> & u)
 {
+  if (M1_CALCCLOSURE_OFF) return;
+  M1_DEBUG_PR("in: CalcClosure");
+  //M1_DEBUG_PR(closure);
+  
   MeshBlock * pmb = pmy_block;
   
   // Disable GSL error handler
@@ -439,6 +457,10 @@ void M1::CalcClosure(AthenaArray<Real> & u)
       } // ig loop
       continue;
     } // mask
+
+    // char sbuf[128];
+    // sprintf(sbuf,"k = %d j = %d i = %d", k,j,i);
+    // M1_DEBUG_PR(sbuf);
     
     // Go from ADM 3-metric VC (AthenaArray/Tensor)
     // to ADM 4-metric on CC at ijk (TensorPointwise) 
@@ -459,9 +481,9 @@ void M1::CalcClosure(AthenaArray<Real> & u)
     pack_v_u(fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),  v_u);
 
     tensor::contract(g_dd, v_u, v_d);
-  
-   for (int ig = 0; ig < nspecies*ngroups; ++ig) {
 
+    for (int ig = 0; ig < nspecies*ngroups; ++ig) {
+      
       pack_F_d(beta_u(1), beta_u(2), beta_u(3),
 	             vec.F_d(0,ig,k,j,i),
 	             vec.F_d(1,ig,k,j,i),

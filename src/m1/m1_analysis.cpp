@@ -12,9 +12,13 @@
 // Athena++ headers
 #include "m1.hpp"
 
+#define M1_ANALYSE_OFF (1)
 
 void M1::Analyse(AthenaArray<Real> const & u)
-{  
+{
+  if (M1_ANALYSE_OFF) return;
+  M1_DEBUG_PR("in: Analyse");
+  
   MeshBlock * pmb = pmy_block;
 
   Lab_vars vec;

@@ -468,7 +468,7 @@ int M1::source_update_pt(MeshBlock * pmb,
 	ierr == GSL_EBADFUNC || iter >= source_maxiter) {
       
       // If we are here, then we are in trouble
-#ifdef WARN_FOR_SRC_FIX
+#if (M1_WARN_FOR_SRC_FIX)
       std::ostringstream msg;
       if (ierr == GSL_EBADFUNC) {
 	msg << "NaNs or Infs found in the implicit solve\n";
@@ -485,7 +485,7 @@ int M1::source_update_pt(MeshBlock * pmb,
     
       // We are optically thick, suggest to retry with Eddington closure
       if (closure_fun != eddington) {
-#ifdef WARN_FOR_SRC_FIX
+#if (M1_WARN_FOR_SRC_FIX)
 	msg << "Eddington closure\n";
 	std::cout << msg.str();
 #endif
@@ -503,7 +503,7 @@ int M1::source_update_pt(MeshBlock * pmb,
 	}
       }
       else {
-#ifdef WARN_FOR_SRC_FIX
+#if (M1_WARN_FOR_SRC_FIX)
       msg << "using initial guess\n";
       std::cout << msg.str();
 #endif
