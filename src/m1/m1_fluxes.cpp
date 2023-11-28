@@ -187,86 +187,86 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
     ATHENA_ERROR(msg);
   }
   
+
   // set the loop limits 
   for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
-      
       // ----------------------------------------------
       // 1st pass compute the fluxes
       for (int i = 0; i < ncells[dir]; ++i) {
-	int Id = i; // directional index for scratch buffers
-	
-	// From ADM 3-metric VC (AthenaArray/Tensor) to 
-	// ADM 4-metric on CC at ijk (TensorPointwise) 
-	Get4Metric_VC2CCinterp(pmb, k,j,i,				      
-			       pmb->pz4c->storage.u, pmb->pz4c->storage.adm,  
-			       g_dd, beta_u, alpha);			      
-	Get4Metric_Inv_Inv3(g_dd, beta_u, alpha, g_uu, gamma_uu);	      
-	uvel(alpha(), beta_u(1), beta_u(2), beta_u(3), fidu.Wlorentz(k,j,i),  
-	     fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),   
-	     &u_u(0), &u_u(1), &u_u(2), &u_u(3));				 
-	pack_v_u(fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),  v_u);  
-	
-	for (int ig = 0; ig < ngroups*nspecies; ++ig) {			 
+				int Id = i; // directional index for scratch buffers
+				
+				// From ADM 3-metric VC (AthenaArray/Tensor) to 
+				// ADM 4-metric on CC at ijk (TensorPointwise) 
+				Get4Metric_VC2CCinterp(pmb, k,j,i,				      
+									pmb->pz4c->storage.u, pmb->pz4c->storage.adm,  
+									g_dd, beta_u, alpha);			      
+				Get4Metric_Inv_Inv3(g_dd, beta_u, alpha, g_uu, gamma_uu);	      
+				uvel(alpha(), beta_u(1), beta_u(2), beta_u(3), fidu.Wlorentz(k,j,i),  
+						fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),   
+						&u_u(0), &u_u(1), &u_u(2), &u_u(3));				 
+				pack_v_u(fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),  v_u);  
+				
+				for (int ig = 0; ig < ngroups*nspecies; ++ig) {			 
 
-	  pack_F_d(beta_u(1), beta_u(2), beta_u(3),			 
-		   vec.F_d(0,ig,k,j,i),					 
-		   vec.F_d(1,ig,k,j,i),					 
-		   vec.F_d(2,ig,k,j,i),					 
-		   F_d);
-	  pack_H_d(rad.Ht(ig,k,j,i),					 
-		   rad.H(0,ig,k,j,i), rad.H(1,ig,k,j,i), rad.H(2,ig,k,j,i),  
-		   H_d);						 
-	  pack_P_dd(beta_u(1), beta_u(2), beta_u(3),			 
-		    rad.P_dd(0,0,ig,k,j,i), rad.P_dd(0,1,ig,k,j,i), rad.P_dd(1,1,ig,k,j,i),  
-		    rad.P_dd(1,1,ig,k,j,i), rad.P_dd(1,2,ig,k,j,i), rad.P_dd(2,2,ig,k,j,i),  
-		    P_dd);						 
-	  tensor::contract(g_uu, H_d, H_u);				 
-	  tensor::contract(g_uu, F_d, F_u);				 
-	  tensor::contract(g_uu, P_dd, P_ud);				 
-	  assemble_fnu(u_u, rad.J(ig,k,j,i), H_u, fnu_u);		 
-	  Real const Gamma = compute_Gamma(fidu.Wlorentz(k,j,i), v_u,	 
-					   rad.J(ig,k,j,i), vec.E(ig,k,j,i), F_d,  
-					   rad_E_floor, rad_eps);	 
-	  
-	  Real nnu;							 
-	  (void)nnu;							 
-	  if (nspecies > 1)						 
-	    nnu = vec.N(ig,k,j,i)/Gamma;				 
+					pack_F_d(beta_u(1), beta_u(2), beta_u(3),			 
+						vec.F_d(0,ig,k,j,i),					 
+						vec.F_d(1,ig,k,j,i),					 
+						vec.F_d(2,ig,k,j,i),					 
+						F_d);
+					pack_H_d(rad.Ht(ig,k,j,i),					 
+						rad.H(0,ig,k,j,i), rad.H(1,ig,k,j,i), rad.H(2,ig,k,j,i),  
+						H_d);						 
+					pack_P_dd(beta_u(1), beta_u(2), beta_u(3),			 
+							rad.P_dd(0,0,ig,k,j,i), rad.P_dd(0,1,ig,k,j,i), rad.P_dd(1,1,ig,k,j,i),  
+							rad.P_dd(1,1,ig,k,j,i), rad.P_dd(1,2,ig,k,j,i), rad.P_dd(2,2,ig,k,j,i),  
+							P_dd);						 
+					tensor::contract(g_uu, H_d, H_u);				 
+					tensor::contract(g_uu, F_d, F_u);				 
+					tensor::contract(g_uu, P_dd, P_ud);				 
+					assemble_fnu(u_u, rad.J(ig,k,j,i), H_u, fnu_u);		 
+					Real const Gamma = compute_Gamma(fidu.Wlorentz(k,j,i), v_u,	 
+									rad.J(ig,k,j,i), vec.E(ig,k,j,i), F_d,  
+									rad_E_floor, rad_eps);	 
+					
+					Real nnu;							 
+					(void)nnu;							 
+					if (nspecies > 1)						 
+						nnu = vec.N(ig,k,j,i)/Gamma;				 
 
-	  // Scratch buffers in direction Id
-	  cons[GFINDEX1D(Id, ig, 0)] = vec.F_d(0,ig,k,j,i);		 
-	  cons[GFINDEX1D(Id, ig, 1)] = vec.F_d(1,ig,k,j,i);		 
-	  cons[GFINDEX1D(Id, ig, 2)] = vec.F_d(2,ig,k,j,i);		 
-	  cons[GFINDEX1D(Id, ig, 3)] = vec.E(ig,k,j,i);			 
-	  if (nspecies > 1)						 
-	    cons[GFINDEX1D(Id, ig, 4)] = vec.N(ig,k,j,i);		 
-	  
-	  assert(isfinite(cons[GFINDEX1D(Id, ig, 0)]));			 
-	  assert(isfinite(cons[GFINDEX1D(Id, ig, 1)]));			 
-	  assert(isfinite(cons[GFINDEX1D(Id, ig, 2)]));			 
-	  assert(isfinite(cons[GFINDEX1D(Id, ig, 3)]));			 
-	  if (nspecies > 1)						 
-	    assert(isfinite(cons[GFINDEX1D(Id, ig, 4)]));		 
-	  
-	  flux[GFINDEX1D(Id, ig, 0)] =					 
-	    calc_F_flux(alpha(), beta_u, F_d, P_ud, dir, 1);		 
-	  flux[GFINDEX1D(Id, ig, 1)] =					 
-	    calc_F_flux(alpha(), beta_u, F_d, P_ud, dir, 2);		 
-	  flux[GFINDEX1D(Id, ig, 2)] =					 
-	    calc_F_flux(alpha(), beta_u, F_d, P_ud, dir, 3);		 
-	  flux[GFINDEX1D(Id, ig, 3)] =					 
-	    calc_E_flux(alpha(), beta_u, vec.E(ig,k,j,i), F_u, dir);	 
-	  if (nspecies > 1)						 
-	    flux[GFINDEX1D(Id, ig, 4)] =					 
-	      alpha() * nnu * fnu_u(dir);				 
-   
-	  assert(isfinite(flux[GFINDEX1D(Id, ig, 0)]));			 
-	  assert(isfinite(flux[GFINDEX1D(Id, ig, 1)]));			 
-	  assert(isfinite(flux[GFINDEX1D(Id, ig, 2)]));			 
-	  assert(isfinite(flux[GFINDEX1D(Id, ig, 3)]));			 
-	  if (nspecies > 1)						 
-	    assert(isfinite(flux[GFINDEX1D(Id, ig, 4)]));		 
+					// Scratch buffers in direction Id
+					cons[GFINDEX1D(Id, ig, 0)] = vec.F_d(0,ig,k,j,i);		 
+					cons[GFINDEX1D(Id, ig, 1)] = vec.F_d(1,ig,k,j,i);		 
+					cons[GFINDEX1D(Id, ig, 2)] = vec.F_d(2,ig,k,j,i);		 
+					cons[GFINDEX1D(Id, ig, 3)] = vec.E(ig,k,j,i);			 
+					if (nspecies > 1)						 
+						cons[GFINDEX1D(Id, ig, 4)] = vec.N(ig,k,j,i);		 
+					
+					assert(isfinite(cons[GFINDEX1D(Id, ig, 0)]));			 
+					assert(isfinite(cons[GFINDEX1D(Id, ig, 1)]));			 
+					assert(isfinite(cons[GFINDEX1D(Id, ig, 2)]));			 
+					assert(isfinite(cons[GFINDEX1D(Id, ig, 3)]));			 
+					if (nspecies > 1)						 
+						assert(isfinite(cons[GFINDEX1D(Id, ig, 4)]));		 
+					
+					flux[GFINDEX1D(Id, ig, 0)] =					 
+						calc_F_flux(alpha(), beta_u, F_d, P_ud, dir, 1);		 
+					flux[GFINDEX1D(Id, ig, 1)] =					 
+						calc_F_flux(alpha(), beta_u, F_d, P_ud, dir, 2);		 
+					flux[GFINDEX1D(Id, ig, 2)] =					 
+						calc_F_flux(alpha(), beta_u, F_d, P_ud, dir, 3);		 
+					flux[GFINDEX1D(Id, ig, 3)] =					 
+						calc_E_flux(alpha(), beta_u, vec.E(ig,k,j,i), F_u, dir);	 
+					if (nspecies > 1)						 
+						flux[GFINDEX1D(Id, ig, 4)] =					 
+							alpha() * nnu * fnu_u(dir);				 
+				
+					assert(isfinite(flux[GFINDEX1D(Id, ig, 0)]));			 
+					assert(isfinite(flux[GFINDEX1D(Id, ig, 1)]));			 
+					assert(isfinite(flux[GFINDEX1D(Id, ig, 2)]));			 
+					assert(isfinite(flux[GFINDEX1D(Id, ig, 3)]));			 
+					if (nspecies > 1)						 
+						assert(isfinite(flux[GFINDEX1D(Id, ig, 4)]));		 
 	  
 	  // Eigenvalues in the optically thin limit
 	  //

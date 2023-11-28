@@ -20,12 +20,11 @@ void M1::CalcFiducialVelocity() {
   
   fidu.vel_u.ZeroClear();
   fidu.Wlorentz.Fill(1.0);
-
   if (fiducial_velocity == "fluid") {
     GCLOOP2(k,j) {
       for(int a = 0; a < NDIM; ++a) {
-	CLOOP1(i) {
-	  fidu.vel_u(a,k,j,i) = pmb->phydro->w(IVX+a,k,j,i);
+	      CLOOP1(i) {
+	        fidu.vel_u(a,k,j,i) = pmb->phydro->w(IVX+a,k,j,i);
         }
       }
     }
