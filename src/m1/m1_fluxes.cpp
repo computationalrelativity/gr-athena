@@ -246,38 +246,38 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	    nnu = vec.N(ig,k,j,i)/Gamma;				 
 	  
 	  // Scratch buffers in direction Id
-	  cons[GFINDEX1D(Id, ig, 0)] = vec.F_d(0,ig,k,j,i);		 
-	  cons[GFINDEX1D(Id, ig, 1)] = vec.F_d(1,ig,k,j,i);		 
-	  cons[GFINDEX1D(Id, ig, 2)] = vec.F_d(2,ig,k,j,i);		 
-	  cons[GFINDEX1D(Id, ig, 3)] = vec.E(ig,k,j,i);			 
+	  cons[GFINDEX1D(Id, ig, I_Lab_Fx)] = vec.F_d(0,ig,k,j,i);		 
+	  cons[GFINDEX1D(Id, ig, I_Lab_Fy)] = vec.F_d(1,ig,k,j,i);		 
+	  cons[GFINDEX1D(Id, ig, I_Lab_Fz)] = vec.F_d(2,ig,k,j,i);		 
+	  cons[GFINDEX1D(Id, ig, I_Lab_E)] = vec.E(ig,k,j,i);			 
 	  if (nspecies > 1)						 
-	    cons[GFINDEX1D(Id, ig, 4)] = vec.N(ig,k,j,i);		 
+	    cons[GFINDEX1D(Id, ig, I_Lab_N)] = vec.N(ig,k,j,i);		 
 	  
-	  assert(isfinite(cons[GFINDEX1D(Id, ig, 0)]));			 
-	  assert(isfinite(cons[GFINDEX1D(Id, ig, 1)]));			 
-	  assert(isfinite(cons[GFINDEX1D(Id, ig, 2)]));			 
-	  assert(isfinite(cons[GFINDEX1D(Id, ig, 3)]));			 
+	  assert(isfinite(cons[GFINDEX1D(Id, ig, I_Lab_Fx)]));			 
+	  assert(isfinite(cons[GFINDEX1D(Id, ig, I_Lab_Fy)]));			 
+	  assert(isfinite(cons[GFINDEX1D(Id, ig, I_Lab_Fz)]));			 
+	  assert(isfinite(cons[GFINDEX1D(Id, ig, I_Lab_E)]));			 
 	  if (nspecies > 1)						 
-	    assert(isfinite(cons[GFINDEX1D(Id, ig, 4)]));		 
+	    assert(isfinite(cons[GFINDEX1D(Id, ig, I_Lab_N)]));		 
 	  
-	  flux[GFINDEX1D(Id, ig, 0)] =					 
+	  flux[GFINDEX1D(Id, ig, I_Lab_Fx)] =					 
 	    calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 1);		 
-	  flux[GFINDEX1D(Id, ig, 1)] =					 
+	  flux[GFINDEX1D(Id, ig, I_Lab_Fy)] =					 
 	    calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 2);		 
-	  flux[GFINDEX1D(Id, ig, 2)] =					 
+	  flux[GFINDEX1D(Id, ig, I_Lab_Fz)] =					 
 	    calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 3);		 
-	  flux[GFINDEX1D(Id, ig, 3)] =					 
+	  flux[GFINDEX1D(Id, ig, I_Lab_E)] =					 
 	    calc_E_flux(alpha(), beta_u, vec.E(ig,k,j,i), F_u, dir+1);	 
 	  if (nspecies > 1)						 
-	    flux[GFINDEX1D(Id, ig, 4)] =					 
+	    flux[GFINDEX1D(Id, ig, I_Lab_N)] =					 
 	      alpha() * nnu * fnu_u(dir+1);				 
 	  
-	  assert(isfinite(flux[GFINDEX1D(Id, ig, 0)]));			 
-	  assert(isfinite(flux[GFINDEX1D(Id, ig, 1)]));			 
-	  assert(isfinite(flux[GFINDEX1D(Id, ig, 2)]));			 
-	  assert(isfinite(flux[GFINDEX1D(Id, ig, 3)]));			 
+	  assert(isfinite(flux[GFINDEX1D(Id, ig, I_Lab_Fx)]));			 
+	  assert(isfinite(flux[GFINDEX1D(Id, ig, I_Lab_Fy)]));			 
+	  assert(isfinite(flux[GFINDEX1D(Id, ig, I_Lab_Fz)]));			 
+	  assert(isfinite(flux[GFINDEX1D(Id, ig, I_Lab_E)]));			 
 	  if (nspecies > 1)						 
-	    assert(isfinite(flux[GFINDEX1D(Id, ig, 4)]));		 
+	    assert(isfinite(flux[GFINDEX1D(Id, ig, I_Lab_N)]));		 
 	  
 	  // Eigenvalues in the optically thin limit
 	  //
@@ -345,8 +345,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	    Real const fjp = flux[GFINDEX1D(Id+1, ig, iv)]; 
 	    
 	    Real const cc = cmax[GFINDEX1D(Id, ig, 0)]; 
-	    Real const ccm = cmax[GFINDEX1D(Id+1, ig, 0)]; 
-	    Real const cmx = std::max(cc, ccm); 
+	    Real const ccp = cmax[GFINDEX1D(Id+1, ig, 0)]; 
+	    Real const cmx = std::max(cc, ccp); 
 	    
 	    Real const dup = ujpp - ujp; 
 	    Real const duc = ujp - uj; 
@@ -364,12 +364,17 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	    Real const flux_low = 0.5*(fj + fjp - cmx*(ujp - uj));
 	    Real const flux_high = 0.5*(fj + fjp);
 	    
-	    Real flux_num = flux_high - (sawtooth ? 1.0 : A)*(1.0 - phi)*(flux_high - flux_low); 
+	    Real flux_num = flux_high
+	      - (sawtooth ? 1.0 : A)*(1.0 - phi)*(flux_high - flux_low); 
 #if M1_FLUXX_SET_ZERO
 	    flux_num = 0.0;
 #endif
 	    x1flux(iv,ig,k,j,i+1) = flux_num; // Note THC (Athena++) stores F_{i+1/2} (F_{i-1/2})!
 
+	    
+	    char sbuf[128]; sprintf(sbuf," iv = %d  (k,j,i+1) = (%d,%d,%d)  flux_x= %e", iv, k,j,i+1, flux_num); M1_DEBUG_PR(sbuf); 
+
+	    
 	  } // iv loop 
 	} // ig loop
 	
@@ -381,6 +386,15 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
   delete[] cons;
   delete[] flux;
   delete[] cmax;
+
+
+
+  
+
+  //TODO FIX The scratch arrays order to the Lab variabled indexes!!!
+
+
+  
   
   //--------------------------------------------------------------------------------------
   // j-direction
@@ -549,8 +563,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	      Real const fjp = flux[GFINDEX1D(Id+1, ig, iv)]; 
 	      
 	      Real const cc = cmax[GFINDEX1D(Id, ig, 0)]; 
-	      Real const ccm = cmax[GFINDEX1D(Id+1, ig, 0)]; 
-	      Real const cmx = std::max(cc, ccm); 
+	      Real const ccp = cmax[GFINDEX1D(Id+1, ig, 0)]; 
+	      Real const cmx = std::max(cc, ccp); 
 	      
 	      Real const dup = ujpp - ujp; 
 	      Real const duc = ujp - uj; 
@@ -755,8 +769,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	      Real const fjp = flux[GFINDEX1D(Id+1, ig, iv)]; 
 	    
 	      Real const cc = cmax[GFINDEX1D(Id, ig, 0)]; 
-	      Real const ccm = cmax[GFINDEX1D(Id+1, ig, 0)]; 
-	      Real const cmx = std::max(cc, ccm); 
+	      Real const ccp = cmax[GFINDEX1D(Id+1, ig, 0)]; 
+	      Real const cmx = std::max(cc, ccp); 
 	    
 	      Real const dup = ujpp - ujp;
 	      Real const duc = ujp - uj; 
