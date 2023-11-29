@@ -153,8 +153,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
   // Grid data
   Real const delta[3] = {
     pmb->pcoord->dx1v(0),
-    pmb->pcoord->dx1v(1),
-    pmb->pcoord->dx1v(0),
+    pmb->pcoord->dx2v(0),
+    pmb->pcoord->dx3v(0),
   };
   int const ncells[3] = {
     pmb->ncells1,
@@ -511,6 +511,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	    if (M1_FLUXY_SET_ZERO && dir==1) flux_num[iv] = 0.0;
 	    if (M1_FLUXZ_SET_ZERO && dir==2) flux_num[iv] = 0.0;
 
+	    //M1_DEBUG_PR(flux_num[iv]);
+	    	    
 #if (test_thc_mode)
 	    flux_jp[PINDEX1D(ig, iv)] = flux_num[iv];
 	    xdirflux(iv, ig, k,j,i) += 1.0/delta[dir]*(
@@ -551,7 +553,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 				  //xdirflux(I_Lab_Fx, ig, k,j,i),
 				  //xdirflux(I_Lab_Fy, ig, k,j,i),
 				  //xdirflux(I_Lab_Fz, ig, k,j,i)
-				  ); M1_DEBUG_PR(sbuf); 
+				  ); M1_DEBUG_PR(sbuf);
+	  
 #endif
 	  
 	  } // ig loop
