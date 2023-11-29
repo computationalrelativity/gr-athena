@@ -196,9 +196,14 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
   fnu_u.NewTensorPointwise();
 
   gamma_uu.NewTensorPointwise(); // NDIM !
-  
-  int const nvars = (nspecies > 1 ? N_Lab : N_Lab-1);
 
+  // For scratch errors
+  int const nvars = (nspecies > 1 ? N_Lab : N_Lab-1);
+  int mapiv [] = {
+    I_Lab_Fx, I_Lab_Fy, I_Lab_Fz,
+    I_Lab_E, I_Lab_N,
+  };
+  
   //--------------------------------------------------------------------------------------
   for (int dir = 0; dir < NDIM; ++dir) {
 
@@ -290,7 +295,6 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
       break;
     }
 
-
 #if (test_thc_mode)
     beg[0] = M1_NGHOST;
     beg[1] = M1_NGHOST;
@@ -318,6 +322,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
     Real * flux_jm = NULL;
     Real * flux_jp = NULL;
     Real * d_ptr   = NULL;
+    xdirflux.ZeroClear();
 #endif
     
     try {
@@ -514,10 +519,13 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	    //M1_DEBUG_PR(flux_num[iv]);
 	    	    
 #if (test_thc_mode)
+
 	    flux_jp[PINDEX1D(ig, iv)] = flux_num[iv];
-	    xdirflux(iv, ig, k,j,i) += 1.0/delta[dir]*(
-						       flux_jm[PINDEX1D(ig, iv)] -
-						       flux_jp[PINDEX1D(ig, iv)])*
+	    
+	    xdirflux(mapiv[iv],
+		     ig, k,j,i) += 1.0/delta[dir]*(
+						   flux_jm[PINDEX1D(ig, iv)] -
+						   flux_jp[PINDEX1D(ig, iv)])*
 	      static_cast<Real>(
 				i >= M1_NGHOST
 				&& i <  pts[0] - M1_NGHOST
@@ -525,18 +533,24 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 				&& j <  pts[1] - M1_NGHOST
 				&& k >= M1_NGHOST
 				&& k <  pts[2] - M1_NGHOST);
+#else
+	    
+	    xdirflux(mapiv[iv], ig, k,j,i) = flux_num[iv];
+	    
+	    // Note THC (Athena++) stores F_{i+1/2} (F_{i-1/2})!
+	    // xdirflux(mapiv[iv], ig, k+shift[2],j+shift[1],i+shift[0]) = flux_num[iv];
+
+	    
 #endif
 	    
 	  } // iv loop 
 
-#if (!test_thc_mode)
-	  
-	  xdirflux(I_Lab_Fx, ig, k,j,i) = flux_num[0];
-	  xdirflux(I_Lab_Fy, ig, k,j,i) = flux_num[1];
-	  xdirflux(I_Lab_Fz, ig, k,j,i) = flux_num[2];
-	  xdirflux(I_Lab_E, ig, k,j,i) = flux_num[3];
-	  if (nspecies > 1)
-	    xdirflux(I_Lab_N, ig, k,j,i) = flux_num[4]; 
+	  // xdirflux(I_Lab_Fx, ig, k,j,i) = flux_num[0];
+	  // xdirflux(I_Lab_Fy, ig, k,j,i) = flux_num[1];
+	  // xdirflux(I_Lab_Fz, ig, k,j,i) = flux_num[2];
+	  // xdirflux(I_Lab_E, ig, k,j,i) = flux_num[3];
+	  // if (nspecies > 1)
+	  //   xdirflux(I_Lab_N, ig, k,j,i) = flux_num[4]; 
 
 	  // Note THC (Athena++) stores F_{i+1/2} (F_{i-1/2})!
 	  // xdirflux(I_Lab_Fx, ig, k+shift[2],j+shift[1],i+shift[0]) = flux_num[0];
@@ -547,15 +561,13 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	  //   xdirflux(I_Lab_N, ig, k+shift[2],j+shift[1],i+shift[0]) = flux_num[4]; 
 
 	  // char sbuf[128]; sprintf(sbuf,"FLUX(%d) (k,j,i) = (%d,%d,%d)  rE= %e  rFx= %e  rFy= %e  rFz= %e",
-	  char sbuf[128]; sprintf(sbuf,"FLUX(%d) %d %d %d %e",
-				  dir, k,j,i,
-				  xdirflux(I_Lab_E, ig, k,j,i)
-				  //xdirflux(I_Lab_Fx, ig, k,j,i),
-				  //xdirflux(I_Lab_Fy, ig, k,j,i),
-				  //xdirflux(I_Lab_Fz, ig, k,j,i)
-				  ); M1_DEBUG_PR(sbuf);
-	  
-#endif
+	  // char sbuf[128]; sprintf(sbuf,"FLUX(%d) %d %d %d %e",
+	  // 			  dir, k,j,i,
+	  // 			  xdirflux(I_Lab_E, ig, k,j,i)
+	  // 			  //xdirflux(I_Lab_Fx, ig, k,j,i),
+	  // 			  //xdirflux(I_Lab_Fy, ig, k,j,i),
+	  // 			  //xdirflux(I_Lab_Fz, ig, k,j,i)
+	  // 			  ); M1_DEBUG_PR(sbuf);
 	  
 	  } // ig loop
 
@@ -576,9 +588,9 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
   delete[] cmax;
 
   } // dir loop
-  
+
   //--------------------------------------------------------------------------------------
-  
+
   g_dd.DeleteTensorPointwise();
   beta_u.DeleteTensorPointwise();
   alpha.DeleteTensorPointwise();
