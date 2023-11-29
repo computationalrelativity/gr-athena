@@ -201,7 +201,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
   int const nvars = (nspecies > 1 ? N_Lab : N_Lab-1);
   int mapiv [] = {
     I_Lab_Fx, I_Lab_Fy, I_Lab_Fz,
-    I_Lab_E, I_Lab_N,
+    I_Lab_E,
+    I_Lab_N,
   };
   
   //--------------------------------------------------------------------------------------
@@ -345,7 +346,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	
 	// ----------------------------------------------
 	// 1st pass compute the fluxes
-	for (__k = 0; __k < ncells[2]; ++__k) {
+	for (__k = 0; __k < pts[2]; ++__k) {
 	  index[0] = __i;
 	  index[1] = __j;
 	  index[2] = __k;
