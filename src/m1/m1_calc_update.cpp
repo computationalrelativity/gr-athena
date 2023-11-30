@@ -24,11 +24,12 @@
 
 using namespace utils;
 
-void M1::CalcUpdate(Real const dt,
-		    AthenaArray<Real> & u_p, AthenaArray<Real> & u_c, AthenaArray<Real> & u_rhs)
+void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & u_c,
+		    AthenaArray<Real> & u_rhs)
 {
 
   M1_DEBUG_PR(" ");
+  M1_DEBUG_PR(M1_SRC_METHOD);
   M1_DEBUG_PR("in: CalcUpdate, dt = ");M1_DEBUG_PR(dt);
   M1_DEBUG_PR(" ");
   
@@ -248,7 +249,7 @@ void M1::CalcUpdate(Real const dt,
       
       //      
       // Advect radiation
-      Real Estar = vec_p.E(ig,k,j,i) + 0.5*dt*vec_rhs.E(k,j,i);
+      Real Estar = vec_p.E(ig,k,j,i) + 0.5*dt*vec_rhs.E(ig,k,j,i);
       pack_F_d(beta_u(1), beta_u(2), beta_u(3),
 	       vec_p.F_d(0,ig,k,j,i) + 0.5*dt * vec_rhs.F_d(0,ig,k,j,i),
 	       vec_p.F_d(1,ig,k,j,i) + 0.5*dt * vec_rhs.F_d(1,ig,k,j,i),
