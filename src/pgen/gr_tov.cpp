@@ -1010,7 +1010,7 @@ void TOV_populate(MeshBlock *pmb,
   Real dummy;
 
   // Debug dump ---------------------------------------------------------------
-  if (1)
+  if (0)
   {
     const Real R_max = 50;
     const int N_R   = 5000;

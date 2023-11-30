@@ -13,7 +13,6 @@
 // C headers
 
 // C++ headers
-#include "bin_ns.h"
 #include <cstdint>     // int64_t
 #include <functional>  // reference_wrapper
 #include <string>
