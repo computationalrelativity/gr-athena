@@ -26,7 +26,10 @@
 //  \brief OUTFLOW boundary conditions with extrapolation, inner x1 boundary
 
 void CellCenteredXBoundaryVariable::ExtrapolateOutflowInnerX1(
-    Real time, Real dt, int il, int jl, int ju, int kl, int ku, int ngh) {
+    Real time, Real dt, int il, int jl, int ju, int kl, int ku, int ngh)
+{
+  using InterpUniform::InterpolateLagrangeUniformBiasR;
+
   for (int n=0; n<=nu_; ++n) {
     for (int k=kl; k<=ku; ++k) {
       for (int j=jl; j<=ju; ++j) {
@@ -54,7 +57,10 @@ void CellCenteredXBoundaryVariable::ExtrapolateOutflowInnerX1(
 //  \brief OUTFLOW boundary conditions with extrapolation, outer x1 boundary
 
 void CellCenteredXBoundaryVariable::ExtrapolateOutflowOuterX1(
-    Real time, Real dt, int iu, int jl, int ju, int kl, int ku, int ngh) {
+    Real time, Real dt, int iu, int jl, int ju, int kl, int ku, int ngh)
+{
+  using InterpUniform::InterpolateLagrangeUniformBiasL;
+
   for (int n=0; n<=nu_; ++n) {
     for (int k=kl; k<=ku; ++k) {
       for (int j=jl; j<=ju; ++j) {
@@ -84,7 +90,9 @@ void CellCenteredXBoundaryVariable::ExtrapolateOutflowOuterX1(
 //  \brief OUTFLOW boundary conditions with extrapolation, inner x2 boundary
 
 void CellCenteredXBoundaryVariable::ExtrapolateOutflowInnerX2(
-    Real time, Real dt, int il, int iu, int jl, int kl, int ku, int ngh) {
+    Real time, Real dt, int il, int iu, int jl, int kl, int ku, int ngh)
+{
+  using InterpUniform::InterpolateLagrangeUniformBiasR;
 
   for (int n=0; n<=nu_; ++n) {
     for (int k=kl; k<=ku; ++k) {
@@ -112,7 +120,9 @@ void CellCenteredXBoundaryVariable::ExtrapolateOutflowInnerX2(
 //  \brief OUTFLOW boundary conditions with extrapolation, outer x2 boundary
 
 void CellCenteredXBoundaryVariable::ExtrapolateOutflowOuterX2(
-    Real time, Real dt, int il, int iu, int ju, int kl, int ku, int ngh) {
+    Real time, Real dt, int il, int iu, int ju, int kl, int ku, int ngh)
+{
+  using InterpUniform::InterpolateLagrangeUniformBiasL;
 
   for (int n=0; n<=nu_; ++n) {
     for (int k=kl; k<=ku; ++k) {
@@ -139,7 +149,9 @@ void CellCenteredXBoundaryVariable::ExtrapolateOutflowOuterX2(
 //  \brief OUTFLOW boundary conditions with extrapolation, inner x3 boundary
 
 void CellCenteredXBoundaryVariable::ExtrapolateOutflowInnerX3(
-    Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ngh) {
+    Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ngh)
+{
+  using InterpUniform::InterpolateLagrangeUniformBiasR;
 
   for (int n=0; n<=nu_; ++n) {
     for (int k=kl-1; k>=kl-ngh; --k) {
@@ -166,7 +178,9 @@ void CellCenteredXBoundaryVariable::ExtrapolateOutflowInnerX3(
 //  \brief OUTFLOW boundary conditions with extrapolation, outer x3 boundary
 
 void CellCenteredXBoundaryVariable::ExtrapolateOutflowOuterX3(
-    Real time, Real dt, int il, int iu, int jl, int ju, int ku, int ngh) {
+    Real time, Real dt, int il, int iu, int jl, int ju, int ku, int ngh)
+{
+  using InterpUniform::InterpolateLagrangeUniformBiasL;
 
   for (int n=0; n<=nu_; ++n) {
     for (int k=ku+1; k<=ku+ngh; ++k) {
