@@ -459,8 +459,7 @@ void M1::CalcClosure(AthenaArray<Real> & u)
     } // mask
 
     
-    //
-    char sbuf[128];sprintf(sbuf,"k = %d j = %d i = %d", k,j,i);M1_DEBUG_PR(sbuf);
+    //char sbuf[128];sprintf(sbuf,"k = %d j = %d i = %d", k,j,i);M1_DEBUG_PR(sbuf);
     
     // Go from ADM 3-metric VC (AthenaArray/Tensor)
     // to ADM 4-metric on CC at ijk (TensorPointwise) 
@@ -503,9 +502,8 @@ void M1::CalcClosure(AthenaArray<Real> & u)
       for (int a = 0; a < NDIM; ++a) {
 	for (int b = a; b < NDIM; ++b) {
 	  assert(isfinite(rad.P_dd(a,b,ig,k,j,i)));
-      	  //
-	  char sbuf[128]; //sprintf(sbuf," rad: a = %d b = %d  P_dd= %e", a,b, rad.P_dd(a,b,ig,k,j,i));M1_DEBUG_PR(sbuf); 
-      	  sprintf(sbuf," rad: a = %d b = %d ig = %d P_dd= %e", a,b,ig, rad.P_dd(a,b,ig,k,j,i));M1_DEBUG_PR(sbuf); 
+      	  //	  char sbuf[128]; //sprintf(sbuf," rad: a = %d b = %d  P_dd= %e", a,b, rad.P_dd(a,b,ig,k,j,i));M1_DEBUG_PR(sbuf); 
+      	  //sprintf(sbuf," rad: a = %d b = %d ig = %d P_dd= %e", a,b,ig, rad.P_dd(a,b,ig,k,j,i));M1_DEBUG_PR(sbuf); 
 
         }
       }
@@ -515,9 +513,7 @@ void M1::CalcClosure(AthenaArray<Real> & u)
 
       // J
       assemble_rT(n_d, lab.E(ig,k,j,i), F_d, P_dd, T_dd);
-      
       rad.J(ig,k,j,i) = calc_J_from_rT(T_dd, u_u);      
-      
       assert(isfinite(rad.J(ig,k,j,i)));
 
       //sprintf(sbuf," rad: J = %e", rad.J(ig,k,j,i)); M1_DEBUG_PR(sbuf);
@@ -531,10 +527,9 @@ void M1::CalcClosure(AthenaArray<Real> & u)
                  &rad.Ht(ig,k,j,i),
                  &rad.H(0,ig,k,j,i),
                  &rad.H(1,ig,k,j,i),
-                 &rad.H(2,ig,k,j,i));
-
-      
+                 &rad.H(2,ig,k,j,i));      
       assert(isfinite(rad.Ht(ig,k,j,i)));
+      
       for (int a = 0; a < NDIM; ++a) {
 	assert(isfinite(rad.H(a,ig,k,j,i)));
 	//sprintf(sbuf," rad: a = %d  H = %e", a, rad.H(a,ig,k,j,i)); M1_DEBUG_PR(sbuf);
@@ -543,7 +538,6 @@ void M1::CalcClosure(AthenaArray<Real> & u)
       // nnu
       if (nspecies > 1) {
 	tensor::contract(g_uu, H_d, H_u);
-	//tensor::contract(g_uu, H_d, &H_u);
 	assemble_fnu(u_u, rad.J(ig,k,j,i), H_u, fnu_u);
 	//Real const Gamma = alpha()*fnu_u(0);
 	Real const Gamma = compute_Gamma(fidu_w_lorentz, v_u,

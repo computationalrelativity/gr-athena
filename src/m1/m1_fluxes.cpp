@@ -347,7 +347,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
     for (__i = beg[0]; __i < end[0]; ++__i) {
       for (__j = beg[1]; __j < end[1]; ++__j) {
 	
-  char sbuf[128];
+	char sbuf[128];
+	
 	// ----------------------------------------------
 	// 1st pass compute the fluxes
 	for (__k = 0; __k < pts[2]; ++__k) {
@@ -357,7 +358,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	  
     sprintf(sbuf,"k = %d j = %d i = %d", k,j,i);
     M1_DEBUG_PR(sbuf);
-	  // From ADM 3-metric VC (AthenaArray/Tensor) to 
+
+    // From ADM 3-metric VC (AthenaArray/Tensor) to 
 	  // ADM 4-metric on CC at ijk (TensorPointwise) 
 	  Get4Metric_VC2CCinterp(pmb, k,j,i,				      
 				 pmb->pz4c->storage.u, pmb->pz4c->storage.adm,  
@@ -397,12 +399,13 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 
 	    pack_H_d(rad.Ht(ig,k,j,i),					 
 		     rad.H(0,ig,k,j,i), rad.H(1,ig,k,j,i), rad.H(2,ig,k,j,i),  
-		     H_d);	
+		     H_d);
+	    
       for (int a = 0; a < NDIM; ++a) {
         for (int b = a; b < NDIM; ++b) {
           
           assert(isfinite(rad.P_dd(a,b,ig,k,j,i)));
-          sprintf(sbuf," in Flux: a = %d b = %d ig = %d P_dd= %e", a,b,ig, rad.P_dd(a,b,ig,k,j,i));M1_DEBUG_PR(sbuf); 
+          //sprintf(sbuf," in Flux: a = %d b = %d ig = %d P_dd= %e", a,b,ig, rad.P_dd(a,b,ig,k,j,i));M1_DEBUG_PR(sbuf); 
         }
       }				 
 	    pack_P_dd(beta_u(1), beta_u(2), beta_u(3),			 
@@ -410,19 +413,16 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 		      rad.P_dd(1,1,ig,k,j,i), rad.P_dd(1,2,ig,k,j,i), rad.P_dd(2,2,ig,k,j,i),  
 		      P_dd);						 
 
-	    M1_DEBUG_PR("P_dd");
- 	    for (int a = 0; a < MDIM; ++a)
-	      for (int b = 0; b < MDIM; ++b)
-		M1_DEBUG_PR(P_dd(a,b));
-
-	    M1_DEBUG_PR("rad.P_dd");
- 	    for (int a = 0; a < 3; ++a)
-	      for (int b = 0; b < 3; ++b)
-		M1_DEBUG_PR(rad.P_dd(a,b,ig,k,j,i));
-
-	    
-	    M1_DEBUG_PR("rad.J");
-	    M1_DEBUG_PR(rad.J(ig,k,j,i));
+	    // M1_DEBUG_PR("P_dd");
+ 	    // for (int a = 0; a < MDIM; ++a)
+	    //   for (int b = 0; b < MDIM; ++b)
+	    // 	M1_DEBUG_PR(P_dd(a,b));
+	    // M1_DEBUG_PR("rad.P_dd");
+ 	    // for (int a = 0; a < 3; ++a)
+	    //   for (int b = 0; b < 3; ++b)
+	    // 	M1_DEBUG_PR(rad.P_dd(a,b,ig,k,j,i));
+	    // M1_DEBUG_PR("rad.J");
+	    // M1_DEBUG_PR(rad.J(ig,k,j,i));
 
 
 
@@ -453,22 +453,22 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 
 
 	    
-	    M1_DEBUG_PR("alpha");
-	    M1_DEBUG_PR(alpha());
+	    // M1_DEBUG_PR("alpha");
+	    // M1_DEBUG_PR(alpha());
 
-	    M1_DEBUG_PR("beta_u");
-	    for (int a = 0; a < MDIM; ++a)
-	      M1_DEBUG_PR(beta_u(a));
+	    // M1_DEBUG_PR("beta_u");
+	    // for (int a = 0; a < MDIM; ++a)
+	    //   M1_DEBUG_PR(beta_u(a));
 
-	    M1_DEBUG_PR("F_u");
-	    for (int a = 0; a < MDIM; ++a)
-	      M1_DEBUG_PR(F_u(a));
+	    // M1_DEBUG_PR("F_u");
+	    // for (int a = 0; a < MDIM; ++a)
+	    //   M1_DEBUG_PR(F_u(a));
 
-	    M1_DEBUG_PR("     P_dd    P_ud");
- 	    for (int a = 0; a < MDIM; ++a)
-	      for (int b = 0; b < MDIM; ++b) {
-		char sbuf[128]; sprintf(sbuf,"%d %d  %e  %e",a,b,P_dd(a,b),P_ud(a,b)); M1_DEBUG_PR(sbuf);
-	      }
+	    // M1_DEBUG_PR("     P_dd    P_ud");
+ 	    // for (int a = 0; a < MDIM; ++a)
+	    //   for (int b = 0; b < MDIM; ++b) {
+	    // 	char sbuf[128]; sprintf(sbuf,"%d %d  %e  %e",a,b,P_dd(a,b),P_ud(a,b)); M1_DEBUG_PR(sbuf);
+	    //   }
 
 
 	    
@@ -488,9 +488,9 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	      assert(isfinite(flux[GFINDEX1D(__k, ig, iv)]));			 
 
 
-	    for (int iv = 0; iv < nvars; ++iv) {
-	      char sbuf[128]; sprintf(sbuf,"(%d,%d,%d) h=%g iv = %d var = %d flux = %e",k,j,i,delta[dir],iv,mapiv[iv], flux[GFINDEX1D(__k, ig, iv)]); M1_DEBUG_PR(sbuf);
-	    }
+	    // for (int iv = 0; iv < nvars; ++iv) {
+	    //   char sbuf[128]; sprintf(sbuf,"(%d,%d,%d) h=%g iv = %d var = %d flux = %e",k,j,i,delta[dir],iv,mapiv[iv], flux[GFINDEX1D(__k, ig, iv)]); M1_DEBUG_PR(sbuf);
+	    // }
 
 
 	    
@@ -609,11 +609,12 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 						   flux_jp[PINDEX1D(ig, iv)])*
 	      static_cast<Real>(
 				i >= M1_NGHOST
-				&& i <  pts[0] - M1_NGHOST
+				&& i <  ncells[0] - M1_NGHOST
 				&& j >= M1_NGHOST
-				&& j <  pts[1] - M1_NGHOST
+				&& j <  ncells[1] - M1_NGHOST
 				&& k >= M1_NGHOST
-				&& k <  pts[2] - M1_NGHOST);
+				&& k <  ncells[2] - M1_NGHOST);
+
 #else
 	    
 	    //
