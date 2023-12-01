@@ -512,7 +512,10 @@ class Mesh {
   void CalculateLoadBalance(double *clist, int *rlist, int *slist, int *nlist, int nb);
   void ResetLoadBalanceVariables();
 
+#if FLUID_ENABLED
   void CorrectMidpointInitialCondition(std::vector<MeshBlock*> &pmb_array, int nmb);
+#endif // FLUID_ENABLED
+
   void ReserveMeshBlockPhysIDs();
 
   // Mesh::LoadBalancingAndAdaptiveMeshRefinement() helper functions:

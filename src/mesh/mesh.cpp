@@ -1726,6 +1726,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         }
       } // multilevel
 
+#if FLUID_ENABLED
       if (FLUID_ENABLED) {
         // perform fourth-order correction of midpoint initial condition:
         // (correct IC on all MeshBlocks or none; switch cannot be toggled independently)
@@ -1734,6 +1735,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           CorrectMidpointInitialCondition(pmb_array, nmb);
         }
       }
+#endif // FLUID_ENABLED
+
       // Now do prolongation, compute primitives, apply BCs
       Hydro *ph = nullptr;
       Field *pf = nullptr;
@@ -2015,6 +2018,7 @@ void Mesh::SetBlockSizeAndBoundaries(LogicalLocation loc, RegionSize &block_size
 }
 
 
+#if FLUID_ENABLED
 void Mesh::CorrectMidpointInitialCondition(std::vector<MeshBlock*> &pmb_array, int nmb) {
   MeshBlock *pmb;
   Hydro *ph;
@@ -2126,6 +2130,7 @@ void Mesh::CorrectMidpointInitialCondition(std::vector<MeshBlock*> &pmb_array, i
   } // end second exchange of ghost cells
   return;
 }
+#endif // FLUID_ENABLED
 
 // Public function for advancing next_phys_id_ counter
 // E.g. if chemistry or radiation elects to communicate additional information with MPI

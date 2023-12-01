@@ -672,9 +672,24 @@ if args['f']:
       "src/eos/eos_scalars.cpp"
     ]
     makefile_options['EOS_BASE_SRC'] = '\\\n'.join(aux)
+
+    aux = [
+      "$(wildcard src/bvals/cc/hydro/*.cpp)",
+      "$(wildcard src/field/*.cpp)",
+      "$(wildcard src/field/field_diffusion/*.cpp)",
+      "$(wildcard src/hydro/*.cpp)",
+      "$(wildcard src/hydro/srcterms/*.cpp)",
+      "$(wildcard src/hydro/hydro_diffusion/*.cpp)",
+      "src/hydro/rsolvers/$(RSOLVER_DIR)$(RSOLVER_FILE)",
+      "$(wildcard src/reconstruct/*.cpp)",
+      "$(wildcard src/scalars/*.cpp)"
+    ]
+    makefile_options['HYDRO_DEPENDENT_SRC'] = '\\\n'.join(aux)
+
 else:
     definitions['FLUID_ENABLED'] = '0'
     makefile_options['EOS_BASE_SRC'] = ''
+    makefile_options['HYDRO_DEPENDENT_SRC'] = ''
 
 # -mg argument
 if args['mg']:
