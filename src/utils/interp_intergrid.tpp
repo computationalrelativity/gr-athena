@@ -135,6 +135,9 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC(
   const int cc_k,
   const int cc_j)
 {
+  using InterpUniform::InterpolateLagrangeUniform;
+
+
   const int nu = src.GetDim4()-1;
 
   switch (dim)
@@ -276,6 +279,9 @@ void InterpIntergrid<dtype, H_SZ>::CC2VC(
   const int vc_k,
   const int vc_j)
 {
+  using InterpUniform::InterpolateLagrangeUniform;
+
+
   const int nu = src.GetDim4()-1;
 
   switch (dim)
@@ -520,6 +526,8 @@ void InterpIntergrid<dtype, H_SZ>::VC2FC(
   const int tr_il,
   const int tr_iu)
 {
+  using InterpUniform::InterpolateLagrangeUniform;
+
   const int nu = src.GetDim4()-1;
 
   switch (dim)
@@ -746,6 +754,9 @@ void InterpIntergrid<dtype, H_SZ>::CC2FC(
   const int tr_il,
   const int tr_iu)
 {
+  using InterpUniform::InterpolateLagrangeUniform;
+
+
   const int nu = src.GetDim4()-1;
 
   switch (dim)
@@ -950,6 +961,9 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC_D1(
   const int cc_k,
   const int cc_j)
 {
+  using InterpUniform::InterpolateLagrangeUniform;
+
+
   const int nu = src.GetDim4()-1;
 
   switch (dim)

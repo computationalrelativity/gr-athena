@@ -1,116 +1,110 @@
-//========================================================================================
-// Athena++ astrophysical MHD code
-// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
-// Licensed under the 3-clause BSD License, see LICENSE file for details
-//========================================================================================
-//! \file interp_univariate.cpp
-//  \brief Collection of univariate interpolators
-
-// C headers
-
-// C++ headers
+// headers ====================================================================
+// c / c++
+// #include <algorithm>
 
 // Athena++ headers
 #include "../athena.hpp"
-#include "../athena_arrays.hpp"
 #include "interp_univariate.hpp"
+
+// ----------------------------------------------------------------------------
+namespace InterpUniform {
 
 // right biased stencils
 template<>
-Real const InterpolateLagrangeUniformBiasR<2>::coeff[] = {
+inline Real const InterpolateLagrangeUniformBiasR<2>::coeff[] = {
   2., -1.
 };
 template<>
-Real const InterpolateLagrangeUniformBiasR<3>::coeff[] = {
+inline Real const InterpolateLagrangeUniformBiasR<3>::coeff[] = {
   3., -3., 1.
 };
 template<>
-Real const InterpolateLagrangeUniformBiasR<4>::coeff[] = {
+inline Real const InterpolateLagrangeUniformBiasR<4>::coeff[] = {
   4., -6., 4., -1.
 };
 template<>
-Real const InterpolateLagrangeUniformBiasR<5>::coeff[] = {
+inline Real const InterpolateLagrangeUniformBiasR<5>::coeff[] = {
   5., -10., 10., -5., 1.
 };
 template<>
-Real const InterpolateLagrangeUniformBiasR<6>::coeff[] = {
+inline Real const InterpolateLagrangeUniformBiasR<6>::coeff[] = {
   6., -15., 20., -15., 6., -1.
 };
 template<>
-Real const InterpolateLagrangeUniformBiasR<7>::coeff[] = {
+inline Real const InterpolateLagrangeUniformBiasR<7>::coeff[] = {
   7., -21., 35., -35., 21., -7., 1.
 };
 template<>
-Real const InterpolateLagrangeUniformBiasR<8>::coeff[] = {
+inline Real const InterpolateLagrangeUniformBiasR<8>::coeff[] = {
   8., -28., 56., -70., 56., -28., 8., -1.
 };
 template<>
-Real const InterpolateLagrangeUniformBiasR<9>::coeff[] = {
+inline Real const InterpolateLagrangeUniformBiasR<9>::coeff[] = {
   9., -36., 84., -126., 126., -84., 36., -9., 1.
 };
 template<>
-Real const InterpolateLagrangeUniformBiasR<10>::coeff[] = {
+inline Real const InterpolateLagrangeUniformBiasR<10>::coeff[] = {
   10., -45., 120., -210., 252., -210., 120., -45., 10., -1.
 };
 
 // left biased stencils
 template<>
-Real const InterpolateLagrangeUniformBiasL<2>::coeff[] = {
+inline Real const InterpolateLagrangeUniformBiasL<2>::coeff[] = {
   -1., 2.
 };
 template<>
-Real const InterpolateLagrangeUniformBiasL<3>::coeff[] = {
+inline Real const InterpolateLagrangeUniformBiasL<3>::coeff[] = {
   1., -3., 3.
 };
 template<>
-Real const InterpolateLagrangeUniformBiasL<4>::coeff[] = {
+inline Real const InterpolateLagrangeUniformBiasL<4>::coeff[] = {
   -1., 4., -6., 4.
 };
 template<>
-Real const InterpolateLagrangeUniformBiasL<5>::coeff[] = {
+inline Real const InterpolateLagrangeUniformBiasL<5>::coeff[] = {
   1., -5., 10., -10., 5.
 };
 template<>
-Real const InterpolateLagrangeUniformBiasL<6>::coeff[] = {
+inline Real const InterpolateLagrangeUniformBiasL<6>::coeff[] = {
   -1., 6., -15., 20., -15., 6.
 };
 template<>
-Real const InterpolateLagrangeUniformBiasL<7>::coeff[] = {
+inline Real const InterpolateLagrangeUniformBiasL<7>::coeff[] = {
   1., -7., 21., -35., 35., -21., 7.
 };
 template<>
-Real const InterpolateLagrangeUniformBiasL<8>::coeff[] = {
+inline Real const InterpolateLagrangeUniformBiasL<8>::coeff[] = {
   -1., 8., -28., 56., -70., 56., -28., 8.
 };
 template<>
-Real const InterpolateLagrangeUniformBiasL<9>::coeff[] = {
+inline Real const InterpolateLagrangeUniformBiasL<9>::coeff[] = {
   1., -9., 36., -84., 126., -126., 84., -36., 9.
 };
 template<>
-Real const InterpolateLagrangeUniformBiasL<10>::coeff[] = {
+inline Real const InterpolateLagrangeUniformBiasL<10>::coeff[] = {
   -1., 10., -45., 120., -210., 252., -210., 120., -45., 10.
 };
 
 
 // centered stencils
 template<>
-Real const InterpolateLagrangeUniform<1>::coeff[1] = {
+inline Real const InterpolateLagrangeUniform<1>::coeff[1] = {
   1./2., // interp. to midpoint of stencil
 };
 template<>
-Real const InterpolateLagrangeUniform<2>::coeff[2] = {
+inline Real const InterpolateLagrangeUniform<2>::coeff[2] = {
   -1./16., 9./16.,
 };
 template<>
-Real const InterpolateLagrangeUniform<3>::coeff[3] = {
+inline Real const InterpolateLagrangeUniform<3>::coeff[3] = {
   3./256., -25./256., 75./128.,
 };
 template<>
-Real const InterpolateLagrangeUniform<4>::coeff[4] = {
+inline Real const InterpolateLagrangeUniform<4>::coeff[4] = {
   -5./2048., 49./2048., -245./2048., 1225./2048.,
 };
 template<>
-Real const InterpolateLagrangeUniform<5>::coeff[5] = {
+inline Real const InterpolateLagrangeUniform<5>::coeff[5] = {
   35./65536., -405./65536., 567./16384., -2205./16384., 19845./32768.,
 };
 
@@ -119,12 +113,12 @@ Real const InterpolateLagrangeUniform<5>::coeff[5] = {
 //
 // interp. to x_i+dx/4 by flipping stencil
 template<>
-Real const InterpolateLagrangeUniformChildren<1>::coeff[3] = {
+inline Real const InterpolateLagrangeUniformChildren<1>::coeff[3] = {
   5.0 / 32.0, 30.0 / 32.0, -3.0 / 32.0
 };
 
 template<>
-Real const InterpolateLagrangeUniformChildren<2>::coeff[5] = {
+inline Real const InterpolateLagrangeUniformChildren<2>::coeff[5] = {
   -45.0 / 2048.0,
    420.0 / 2048.0,
    1890.0 / 2048.0,
@@ -138,7 +132,7 @@ Real const InterpolateLagrangeUniformChildren<2>::coeff[5] = {
 };
 
 template<>
-Real const InterpolateLagrangeUniformChildren<3>::coeff[7] = {
+inline Real const InterpolateLagrangeUniformChildren<3>::coeff[7] = {
    273.0 / 65536.0,
   -2574.0 / 65536.0,
    15015.0 / 65536.0,
@@ -156,7 +150,7 @@ Real const InterpolateLagrangeUniformChildren<3>::coeff[7] = {
 };
 
 template<>
-Real const InterpolateLagrangeUniformChildren<4>::coeff[9] = {
+inline Real const InterpolateLagrangeUniformChildren<4>::coeff[9] = {
   -7293.0 / 8388608.0,
    79560.0 / 8388608.0,
   -437580.0 / 8388608.0,
@@ -175,3 +169,9 @@ Real const InterpolateLagrangeUniformChildren<4>::coeff[9] = {
   // 935.0/262144.0,
   // -(715.0/1048576.0)
 };
+
+} // InterpUniform
+
+//
+// :D
+//

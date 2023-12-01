@@ -17,6 +17,9 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 
+// ----------------------------------------------------------------------------
+namespace InterpUniform {
+
 // uniform grid; stencil fully biased towards right (target left)
 // use for extrapolation
 template<int stencil_size_>
@@ -55,4 +58,14 @@ class InterpolateLagrangeUniformChildren {
     static Real const coeff[npoints];
 };
 
+} // InterpUniform
+
+// implementation details (for templates) =====================================
+#include "interp_univariate_stencils.tpp"
+// ============================================================================
+
 #endif
+
+//
+// :D
+//

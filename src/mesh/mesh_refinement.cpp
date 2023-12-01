@@ -701,6 +701,8 @@ void MeshRefinement::RestrictCellCenteredXValues(
   int sn, int en,
   int csi, int cei, int csj, int cej, int csk, int cek)
 {
+  using InterpUniform::InterpolateLagrangeUniform;
+
   // RestrictCellCenteredValues(fine, coarse, sn, en,
   //                            csi, cei, csj, cej, csk, cek);
   // return;
@@ -938,6 +940,7 @@ void MeshRefinement::RestrictCellCenteredXValuesLO(
   int sn, int en,
   int csi, int cei, int csj, int cej, int csk, int cek)
 {
+  using InterpUniform::InterpolateLagrangeUniform;
 
   // RestrictCellCenteredValues(fine, coarse, sn, en,
   //                            csi, cei, csj, cej, csk, cek);
@@ -2089,7 +2092,9 @@ inline void MeshRefinement::ProlongateVertexCenteredIndicialHelper(
 
 void MeshRefinement::ProlongateVertexCenteredValues(
     const AthenaArray<Real> &coarse, AthenaArray<Real> &fine,
-    int sn, int en, int si, int ei, int sj, int ej, int sk, int ek) {
+    int sn, int en, int si, int ei, int sj, int ej, int sk, int ek)
+{
+  using InterpUniform::InterpolateLagrangeUniform;
 
   // // half number of ghosts
   // int const H_NCGHOST = NCGHOST / 2;
@@ -2717,6 +2722,8 @@ void MeshRefinement::ProlongateCellCenteredXBCValues(
     const AthenaArray<Real> &coarse, AthenaArray<Real> &fine,
     int sn, int en, int csi, int cei, int csj, int cej, int csk, int cek)
 {
+  using InterpUniform::InterpolateLagrangeUniformChildren;
+
   // here H_SZ * 2 is resultant interpolant degree,
   // For boundary use one node fewer for compatibility with
   // ProlongateCellCenteredXGhosts
@@ -3030,6 +3037,8 @@ void MeshRefinement::ProlongateCellCenteredXValues(
     const AthenaArray<Real> &coarse, AthenaArray<Real> &fine,
     int sn, int en, int csi, int cei, int csj, int cej, int csk, int cek)
 {
+  using InterpUniform::InterpolateLagrangeUniformChildren;
+
   // here H_SZ * 2 is resultant interpolant degree,
   const int H_SZ = (2 * NCGHOST_CX - NGHOST) / 2 + 1;
 
@@ -3522,6 +3531,8 @@ void MeshRefinement::ProlongateCellCenteredX(
   AthenaArray<Real> &fine, int sn, int en,
   int csi, int cei, int csj, int cej, int csk, int cek)
 {
+  using InterpUniform::InterpolateLagrangeUniformChildren;
+
   MeshBlock *pmb = pmy_block_;
   // here H_SZ * 2 is resultant interpolant degree
 

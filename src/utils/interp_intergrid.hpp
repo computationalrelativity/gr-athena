@@ -251,6 +251,7 @@ class InterpIntergrid
 }  // namespace InterpIntergrid
 
 // implementation details (for templates) =====================================
+#include "interp_intergrid_stencils.tpp"
 #include "interp_intergrid.tpp"
 // ============================================================================
 
