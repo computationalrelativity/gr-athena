@@ -362,7 +362,7 @@ public:
 private:
   AthenaArray<Real> dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep
   // scratch space used to compute fluxes
-  AthenaArray<Real> dxw_;
+  //AthenaArray<Real> dxw_;
   AthenaArray<Real> x1face_area_, x2face_area_, x3face_area_;
   AthenaArray<Real> x2face_area_p1_, x3face_area_p1_;
   AthenaArray<Real> cell_volume_;
