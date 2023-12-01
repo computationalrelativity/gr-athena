@@ -61,14 +61,17 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
     &x3area_p1 = x3face_area_p1_, &vol = cell_volume_, &dflx = dflx_;
 
 #if (test_thc_mode)
-  for (int k=ks; k<=ke; ++k) {
-    for (int j=js; j<=je; ++j) {
-      for (int iv=0; iv<N_Lab; ++iv) {
-        for (int ig=0; ig<ngroups*nspecies; ++ig) {
+  for (int iv=0; iv<N_Lab; ++iv) {
+    for (int ig=0; ig<ngroups*nspecies; ++ig) {
+      for (int k=ks; k<=ke; ++k) {
+        for (int j=js; j<=je; ++j) {
           for (int i=is; i<=ie; ++i) {
+            char sbuf[128]; //sprintf(sbuf," rad: a = %d b = %d  P_dd= %e", a,b, rad.P_dd(a,b,ig,k,j,i));M1_DEBUG_PR(sbuf); 
+      	    sprintf(sbuf,"iv = %d k = %d j = %d i = %d flux = %e", iv,k,j,i, x1flux(iv,ig,k,j,i));
+            M1_DEBUG_PR(sbuf);
             u_rhs(iv,ig,k,j,i) = x1flux(iv,ig,k,j,i);
-	  }
-	}
+          }
+        }
       }
     }
   }
@@ -385,22 +388,11 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 		     vec.F_d(2,ig,k,j,i),					 
 		     F_d);
 
-	    
-	  // M1_DEBUG_PR("F_d");
-	  // for (int a = 0; a < 3; ++a)
-	  //   M1_DEBUG_PR(vec.F_d(a,ig,k,j,i));
-	  // M1_DEBUG_PR("packed F_d");
-	  // for (int a = 0; a < MDIM; ++a)
-	  //   M1_DEBUG_PR(F_d(a));
-
-
-
 	    pack_H_d(rad.Ht(ig,k,j,i),					 
 		     rad.H(0,ig,k,j,i), rad.H(1,ig,k,j,i), rad.H(2,ig,k,j,i),  
 		     H_d);	
       for (int a = 0; a < NDIM; ++a) {
         for (int b = a; b < NDIM; ++b) {
-          
           assert(isfinite(rad.P_dd(a,b,ig,k,j,i)));
           sprintf(sbuf," in Flux: a = %d b = %d ig = %d P_dd= %e", a,b,ig, rad.P_dd(a,b,ig,k,j,i));M1_DEBUG_PR(sbuf); 
         }
@@ -603,6 +595,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 
 	    flux_jp[PINDEX1D(ig, iv)] = flux_num[iv];
 	    
+
 	    xdirflux(mapiv[iv],
 		     ig, k,j,i) += 1.0/delta[dir]*(
 						   flux_jm[PINDEX1D(ig, iv)] -
@@ -614,6 +607,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 				&& j <  pts[1] - M1_NGHOST
 				&& k >= M1_NGHOST
 				&& k <  pts[2] - M1_NGHOST);
+        
 #else
 	    
 	    //

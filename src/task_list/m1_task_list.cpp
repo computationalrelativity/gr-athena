@@ -320,7 +320,8 @@ TaskStatus M1IntegratorTaskList::CalcGRSources(MeshBlock *pmb, int stage) {
 TaskStatus M1IntegratorTaskList::CalcUpdate(MeshBlock *pmb, int stage) {
   if (stage <= nstages) {
     Real const dt = pmb->pmy_mesh->dt * dt_fac[stage - 1];
-    pmb->pm1->CalcUpdate(dt, pmb->pm1->storage.u1, pmb->pm1->storage.u, pmb->pm1->storage.u_rhs);
+    // pmb->pm1->CalcUpdate(dt, pmb->pm1->storage.u1, pmb->pm1->storage.u, pmb->pm1->storage.u_rhs);
+    pmb->pm1->CalcUpdate_advection(dt, pmb->pm1->storage.u1, pmb->pm1->storage.u, pmb->pm1->storage.u_rhs);
     return TaskStatus::next;
   }
   return TaskStatus::fail;
