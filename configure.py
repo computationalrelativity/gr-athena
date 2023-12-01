@@ -1304,7 +1304,7 @@ if definitions['Z4C_ENABLED']:
 
   str_stem = 'filter-out src/task_list'
 
-  if definitions['Z4C_WITH_HYDRO_ENABLED']:
+  if args['f']:
     # need matter task-list, remove hydro
     src_aux.append(f'$({str_stem}/z4c_vacuum_task_list.cpp, {str_z4c})')
   else:
