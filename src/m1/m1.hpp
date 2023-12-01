@@ -44,7 +44,7 @@ enum {
 };
 
 #ifndef M1_SRC_METHOD
-#define M1_SRC_METHOD (M1_SRC_METHOD_EXPL)  //(M1_SRC_METHOD_IMPL) 
+#define M1_SRC_METHOD (M1_SRC_METHOD_IMPL)
 #endif
 
 #ifndef M1_NGHOST
@@ -326,8 +326,10 @@ public:
   void CalcFluxes(AthenaArray<Real> & u);
   void AddFluxDivergence(AthenaArray<Real> & u_rhs);
   void GRSources(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs);
-  void CalcUpdate(const Real dt,
-                AthenaArray<Real> & u_p, AthenaArray<Real> & u_c, AthenaArray<Real> & u_rhs);
+  void CalcUpdate(const Real dt, AthenaArray<Real> & u_p, AthenaArray<Real> & u_c,
+		  AthenaArray<Real> & u_rhs);
+  void CalcUpdate_advection(const Real dt, AthenaArray<Real> & u_p, AthenaArray<Real> & u_c,
+			    AthenaArray<Real> & u_rhs);
 
   average_baryon_mass_t AverageBaryonMass;
   

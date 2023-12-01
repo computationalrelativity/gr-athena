@@ -24,6 +24,9 @@
 
 using namespace utils;
 
+//----------------------------------------------------------------------------------------
+// Function to update the radiation field 
+
 void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & u_c,
 		    AthenaArray<Real> & u_rhs)
 {
@@ -152,7 +155,6 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
   Fstar_d.NewTensorPointwise();
   Fnew_d.NewTensorPointwise();
   
-  //GCLOOP3(k,j,i) {
   CLOOP3(k,j,i) {
     
     net.abs(k,j,i) = 0;
@@ -511,11 +513,11 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
   rT_dd.DeleteTensorPointwise();
   H_u.DeleteTensorPointwise();
   fnu_u.DeleteTensorPointwise();
-  F_d.NewTensorPointwise();
+  F_d.DeleteTensorPointwise();
   
   Hnew_d.DeleteTensorPointwise();
-  Fstar_d.NewTensorPointwise();
-  Fnew_d.NewTensorPointwise();
+  Fstar_d.DeleteTensorPointwise();
+  Fnew_d.DeleteTensorPointwise();
   
   gsl_root_fsolver_free(gsl_solver_1d);
   gsl_multiroot_fdfsolver_free(gsl_solver_nd);
@@ -523,4 +525,49 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
   // Restore GSL error handler
   gsl_set_error_handler(gsl_err);
  
+}
+
+
+//----------------------------------------------------------------------------------------
+// Function to update the radiation field without sources
+
+void M1::CalcUpdate_advection(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & u_c,
+			      AthenaArray<Real> & u_rhs)
+{
+  M1_DEBUG_PR(" ");
+  M1_DEBUG_PR("in: CalcUpdate_advection, dt = ");M1_DEBUG_PR(dt);
+  M1_DEBUG_PR(" ");
+  
+  MeshBlock * pmb = pmy_block;
+
+  Lab_vars vec_p;
+  SetLabVarsAliases(u_p, vec_p);
+  Lab_vars vec;
+  SetLabVarsAliases(u_c, vec);  
+  Lab_vars vec_rhs;
+  SetLabVarsAliases(u_rhs, vec_rhs);
+  
+  CLOOP3(k,j,i) {
+    
+    for (int ig = 0; ig < ngroups*nspecies; ++ig) {
+      
+      vec.E(ig,k,j,i) = std::max(vec_p.E(ig,k,j,i) + dt * vec_rhs.E(ig,k,j,i),
+				 rad_E_floor);
+      assert(isfinite(vec.E(ig,k,j,i)));
+      
+      for (int a = 0; a < 3; ++a) {
+	vec.F_d(a,ig,k,j,i) = vec_p.F_d(a,ig,k,j,i) + dt * vec_rhs.F_d(a,ig,k,j,i);
+	assert(isfinite(vec.F_d(a,ig,k,j,i)));
+      }
+      
+      if (nspecies > 1) {
+	vec.N(ig,k,j,i) = std::max(vec_p.N(ig,k,j,i) + dt * vec_rhs.N(ig,k,j,i),
+				   rad_N_floor);
+	assert(isfinite(vec.N(ig,k,j,i)));
+      }
+      
+    } // ig loop
+    
+  } // CLOOP3
+  
 }
