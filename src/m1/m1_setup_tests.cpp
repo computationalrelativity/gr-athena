@@ -116,8 +116,8 @@ void M1::SetupBeamTest(AthenaArray<Real> & u)
       }
     } else {
       for (int ig=0; ig<ngroups*nspecies; ++ig) {
-	vec.N(ig,k,j,i) = (rad_E_floor>0)? rad_N_floor : 0.0;
-	vec.E(ig,k,j,i) = (rad_N_floor>0)? rad_E_floor : 0.0;
+	vec.N(ig,k,j,i) = (rad_N_floor>0)? rad_N_floor : 0.0;
+	vec.E(ig,k,j,i) = (rad_E_floor>0)? rad_E_floor : 0.0;
 	vec.F_d(0,ig,k,j,i) = 0.0;
 	vec.F_d(1,ig,k,j,i) = 0.0;
 	vec.F_d(2,ig,k,j,i) = 0.0;
