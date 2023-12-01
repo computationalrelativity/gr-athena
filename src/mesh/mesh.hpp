@@ -51,12 +51,16 @@ class Hydro;
 class Field;
 class PassiveScalars;
 class Gravity;
+#ifdef MULTIGRID
 class MGGravity;
 class MGGravityDriver;
+#endif // MULTIGRID
 class EquationOfState;
+#ifdef FFT
 class FFTDriver;
 class FFTGravityDriver;
 class TurbulenceDriver;
+#endif // FFT
 class Wave;
 class Z4c;
 class WaveExtract;
@@ -228,7 +232,9 @@ public:
   Hydro *phydro;
   Field *pfield;
   Gravity *pgrav;
+#ifdef MULTIGRID
   MGGravity* pmg;
+#endif // MULTIGRID
   PassiveScalars *pscalars;
   EquationOfState *peos;
 
@@ -348,7 +354,9 @@ class Mesh {
   friend class CellCenteredBoundaryVariable;
   friend class VertexCenteredBoundaryVariable;
   friend class FaceCenteredBoundaryVariable;
+#ifdef MULTIGRID
   friend class MGBoundaryValues;
+#endif // MULTIGRID
   friend class Coordinates;
   friend class MeshRefinement;
   friend class HydroSourceTerms;
@@ -356,8 +364,10 @@ class Mesh {
   friend class FFTDriver;
   friend class FFTGravityDriver;
   friend class TurbulenceDriver;
+#ifdef MULTIGRID
   friend class MultigridDriver;
   friend class MGGravityDriver;
+#endif // MULTIGRID
   friend class Gravity;
   friend class HydroDiffusion;
   friend class FieldDiffusion;
@@ -401,9 +411,14 @@ class Mesh {
   // ptr to first MeshBlock (node) in linked list of blocks belonging to this MPI rank:
   MeshBlock *pblock;
 
+#ifdef FFT
   TurbulenceDriver *ptrbd;
   FFTGravityDriver *pfgrd;
+#endif // FFT
+
+#ifdef MULTIGRID
   MGGravityDriver *pmgrd;
+#endif // MULTIGRID
 
   std::vector<WaveExtract *> pwave_extr;
   std::vector<AHF *> pah_finder;
@@ -487,7 +502,9 @@ class Mesh {
   ViscosityCoeffFunc ViscosityCoeff_;
   ConductionCoeffFunc ConductionCoeff_;
   FieldDiffusionCoeffFunc FieldDiffusivity_;
+#ifdef MULTIGRID
   MGBoundaryFunc MGGravityBoundaryFunction_[6];
+#endif
 
   void AllocateRealUserMeshDataField(int n);
   void AllocateIntUserMeshDataField(int n);
@@ -524,10 +541,14 @@ class Mesh {
 
   // often used (not defined) in prob file in ../pgen/
   void EnrollUserBoundaryFunction(BoundaryFace face, BValFunc my_func);
+#ifdef MULTIGRID
   void EnrollUserMGGravityBoundaryFunction(BoundaryFace dir, MGBoundaryFunc my_bc);
+#endif // MULTIGRID
   // DEPRECATED(felker): provide trivial overload for old-style BoundaryFace enum argument
   void EnrollUserBoundaryFunction(int face, BValFunc my_func);
+#ifdef MULTIGRID
   void EnrollUserMGGravityBoundaryFunction(int dir, MGBoundaryFunc my_bc);
+#endif // MULTIGRID
 
   void EnrollUserRefinementCondition(AMRFlagFunc amrflag);
   void EnrollUserMeshGenerator(CoordinateDirection dir, MeshGenFunc my_mg);

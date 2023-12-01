@@ -20,13 +20,10 @@
 #   --ninterp=xxx       set NGRCV_HSZ=xxx (number of ghosts for intergrid interpolation)
 #   -eos_table          enable EOS table
 #   -f                  enable fluid
+#   -mg                 enable multigrid
 #   -b                  enable magnetic fields
 #   -s                  enable special relativity
 #   -g                  enable general relativity
-#   -z                  enable Z4c system
-#   -z_eta_track_tp     enable (TP) based shift-damping
-#   -z_eta_conf         enable conformal factor based shift-damping
-#   -cce                enable CCE
 #   -t                  enable interface frame transformations for GR
 #   -shear              enable shearing periodic boundary conditions
 #   -debug              enable debug flags (-g -O0); override other compiler options
@@ -61,6 +58,10 @@
 #   -z_cc               use cell-centered            sampling
 #   -z_cx               use cell-centered (extended) sampling
 #   -z_vc               use vertex-centered          sampling  (DEFAULT)
+#
+#   -z_eta_track_tp     enable (TP) based shift-damping
+#   -z_eta_conf         enable conformal factor based shift-damping
+#   -cce                enable CCE
 #
 # wave equation tests:
 #
@@ -188,6 +189,12 @@ parser.add_argument('-f',
                     action='store_true',
                     default=False,
                     help='enable fluid')
+
+# -mg argument
+parser.add_argument('-mg',
+                    action='store_true',
+                    default=False,
+                    help='enable multigrid')
 
 # -b argument
 parser.add_argument('-b',
@@ -669,6 +676,17 @@ else:
     definitions['FLUID_ENABLED'] = '0'
     makefile_options['EOS_BASE_SRC'] = ''
 
+# -mg argument
+if args['mg']:
+    definitions['MULTIGRID'] = 'MULTIGRID'
+
+    aux = ["$(wildcard src/multigrid/*.cpp)",
+           "$(wildcard src/bvals/cc/mg/*.cpp)", ]
+    makefile_options['MULTIGRID_SRC'] = '\\\n'.join(aux)
+else:
+    definitions['MULTIGRID'] = 'NO_MULTIGRID'
+    makefile_options['MULTIGRID_SRC'] = ''
+
 # -b argument
 # set variety of macros based on whether MHD/hydro or adi/iso are defined
 if args['b']:
@@ -1091,17 +1109,25 @@ else:
         makefile_options['COMPILER_FLAGS'] += ' -diag-disable 3180'
 
 # --grav argument
-if args['grav'] == "none":
+if args['grav'] == 'none':
     definitions['SELF_GRAVITY_ENABLED'] = '0'
+    makefile_options['GRAVITY_SRC'] = ''
 else:
-    if args['grav'] == "fft":
+    aux = ['src/gravity/gravity.cpp', ]
+
+    if args['grav'] == 'fft':
         definitions['SELF_GRAVITY_ENABLED'] = '1'
+        aux.append('src/gravity/fft_gravity.cpp')
         if not args['fft']:
             raise SystemExit(
                 '### CONFIGURE ERROR: FFT Poisson solver only be used with FFT')
 
-    if args['grav'] == "mg":
+    if args['grav'] == 'mg':
         definitions['SELF_GRAVITY_ENABLED'] = '2'
+        aux.append('src/gravity/mg_gravity.cpp')
+
+    makefile_options['GRAVITY_SRC'] = '\\\n'.join(aux)
+
 
 # -fft argument
 makefile_options['MPIFFT_FILE'] = ' '
@@ -1119,6 +1145,12 @@ if args['fft']:
     if args['mpi']:
         makefile_options['MPIFFT_FILE'] = ' $(wildcard src/fft/plimpton/*.cpp)'
     makefile_options['LIBRARY_FLAGS'] += ' -lfftw3'
+
+    aux = ['$(wildcard src/bvals/cc/fft_grav/*.cpp)',
+           '$(wildcard src/fft/*.cpp)']
+    makefile_options['FFT_SRC'] = '\\\n'.join(aux)
+else:
+    makefile_options['FFT_SRC'] = ''
 
 # -hdf5 argument
 if args['hdf5']:
@@ -1262,6 +1294,46 @@ if args['ccache']:
 if args['link_gold']:
     makefile_options['LIBRARY_FLAGS'] += ' -fuse-ld=gold'
 
+# === Trimmed-down SRC_FILES needs treatment here =============================
+
+# task list: ------------------------------------------------------------------
+src_aux = ['$(wildcard src/task_list/task_*.cpp)', ]
+
+if definitions['Z4C_ENABLED']:
+  str_z4c = '$(wildcard src/task_list/z4c_*.cpp)'
+
+  str_stem = 'filter-out src/task_list'
+
+  if definitions['Z4C_WITH_HYDRO_ENABLED']:
+    # need matter task-list, remove hydro
+    src_aux.append(f'$({str_stem}/z4c_vacuum_task_list.cpp, {str_z4c})')
+  else:
+    # ^ complement
+    src_aux.append(f'$({str_stem}/z4c_matter_task_list.cpp, {str_z4c})')
+
+elif definitions['WAVE_ENABLED']:
+  src_aux.append('$(wildcard src/task_list/wave_task_list.cpp)')
+
+else:
+  src_aux.append('$(wildcard src/task_list/time_integrator.cpp)')
+
+if args['mg']:
+  src_aux.append('$(wildcard src/task_list/mg_*.cpp)')
+
+if args['sts']:
+  src_aux.append('$(wildcard src/task_list/sts_task_list.cpp)')
+
+makefile_options['TASK_LIST_SRC'] = '\\\n'.join(src_aux)
+
+# wave eqn: -------------------------------------------------------------------
+src_aux = []
+
+if args['w']:
+  src_aux.append("$(wildcard src/wave/*.cpp)")
+
+makefile_options['WAVE_SRC'] = '\\\n'.join(src_aux)
+
+
 # --- Step 4. Create new files, finish up --------------------------------
 
 # Terminate all filenames with .cpp extension
@@ -1343,6 +1415,7 @@ print('  Frame transformations:        ' + ('ON' if args['t'] else 'OFF'))
 print('  Self-Gravity:                 ' + self_grav_string)
 print('  Super-Time-Stepping:          ' + ('ON' if args['sts'] else 'OFF'))
 print('  Shearing Box BCs:             ' + ('ON' if args['shear'] else 'OFF'))
+print('  Multigrid:                    ' + ('ON' if args['mg'] else 'OFF'))
 print('  Debug flags:                  ' + ('ON' if args['debug'] else 'OFF'))
 print('  Code coverage flags:          ' + ('ON' if args['coverage'] else 'OFF'))
 print('  Linker flags:                 ' + makefile_options['LINKER_FLAGS'] + ' '

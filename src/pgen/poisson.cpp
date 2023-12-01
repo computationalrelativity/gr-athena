@@ -27,10 +27,14 @@
 #include "../globals.hpp"
 #include "../gravity/fft_gravity.hpp"
 #include "../gravity/gravity.hpp"
+#ifdef MULTIGRID
 #include "../gravity/mg_gravity.hpp"
+#endif // MULTIGRID
 #include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
+#ifdef MULTIGRID
 #include "../multigrid/multigrid.hpp"
+#endif // MULTIGRID
 #include "../parameter_input.hpp"
 
 #ifdef OPENMP_PARALLEL

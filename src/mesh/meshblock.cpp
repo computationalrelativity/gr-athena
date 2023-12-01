@@ -29,7 +29,9 @@
 #include "../field/field.hpp"
 #include "../globals.hpp"
 #include "../gravity/gravity.hpp"
+#ifdef MULTIGRID
 #include "../gravity/mg_gravity.hpp"
+#endif // MULTIGRID
 #include "../hydro/hydro.hpp"
 #include "../parameter_input.hpp"
 #include "../reconstruct/reconstruction.hpp"
@@ -135,7 +137,11 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
     pgrav = new Gravity(this, pin);
     pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
     if (SELF_GRAVITY_ENABLED == 2)
+    {
+#ifdef MULTIGRID
       pmg = new MGGravity(pmy_mesh->pmgrd, this);
+#endif // MULTIGRID
+    }
   }
 
   if (NSCALARS > 0) {
@@ -269,7 +275,11 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     pgrav = new Gravity(this, pin);
     pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
     if (SELF_GRAVITY_ENABLED == 2)
+    {
+#ifdef MULTIGRID
       pmg = new MGGravity(pmy_mesh->pmgrd, this);
+#endif // MULTIGRID
+    }
   }
 
   if (NSCALARS > 0) {

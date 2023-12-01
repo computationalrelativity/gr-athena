@@ -23,7 +23,9 @@
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "gravity.hpp"
+#ifdef MULTIGRID
 #include "mg_gravity.hpp"
+#endif // MULTIGRID
 
 // constructor, initializes data structures and parameters
 

@@ -37,7 +37,9 @@
 #include "fft/turbulence.hpp"
 #include "globals.hpp"
 #include "gravity/fft_gravity.hpp"
+#ifdef MULTIGRID
 #include "gravity/mg_gravity.hpp"
+#endif // MULTIGRID
 #include "mesh/mesh.hpp"
 #include "outputs/io_wrapper.hpp"
 #include "outputs/outputs.hpp"
@@ -569,13 +571,24 @@ int main(int argc, char *argv[]) {
     }
 
     if (FLUID_ENABLED && !Z4C_ENABLED){  //Turbulence, self gravity not enabled for z4c
+
+#ifdef FFT
       if (pmesh->turb_flag > 1) pmesh->ptrbd->Driving(); // driven turbulence
+#endif // FFT
 
       for (int stage=1; stage<=ptlist->nstages; ++stage) {
         if (SELF_GRAVITY_ENABLED == 1) // fft (flag 0 for discrete kernel, 1 for continuous)
+        {
+#ifdef FFT
           pmesh->pfgrd->Solve(stage, 0);
+#endif // FFT
+        }
         else if (SELF_GRAVITY_ENABLED == 2) // multigrid
+        {
+#ifdef MULTIGRID
           pmesh->pmgrd->Solve(stage);
+#endif // MULTIGRID
+        }
         ptlist->DoTaskListOneStage(pmesh, stage);
       }
     }

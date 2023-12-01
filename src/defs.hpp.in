@@ -59,6 +59,8 @@
 // evolve hydrodynamics? default=0 (false)
 #define FLUID_ENABLED @FLUID_ENABLED@
 
+#define @MULTIGRID@
+
 // hybrid grid-to-grid interp default=0 (false)
 #define @HYBRID_INTERP@
 // enable shearing box? default=0 (false)

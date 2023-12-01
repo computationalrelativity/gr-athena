@@ -89,7 +89,7 @@ void EquationOfState::ConservedToPrimitive(
 void EquationOfState::PrimitiveToConserved(
     const AthenaArray<Real> &prim, const AthenaArray<Real> &bc,
     AthenaArray<Real> &cons, Coordinates *pco,
-    int il, int iu, int jl, int ju, int kl, int ku) {
+    int il, int iu, int jl, int ju, int kl, int ku)
 {
   Real igm1 = 1.0/(GetGamma() - 1.0);
 

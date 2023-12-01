@@ -38,10 +38,14 @@
 #include "../globals.hpp"
 #include "../gravity/fft_gravity.hpp"
 #include "../gravity/gravity.hpp"
+#ifdef MULTIGRID
 #include "../gravity/mg_gravity.hpp"
+#endif // MULTIGRID
 #include "../hydro/hydro.hpp"
 #include "../hydro/hydro_diffusion/hydro_diffusion.hpp"
+#ifdef MULTIGRID
 #include "../multigrid/multigrid.hpp"
+#endif // MULTIGRID
 #include "../outputs/io_wrapper.hpp"
 #include "../parameter_input.hpp"
 #include "../reconstruct/reconstruction.hpp"
@@ -115,9 +119,12 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
                    UniformMeshGeneratorX3},
     BoundaryFunction_{nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
     AMRFlag_{}, UserSourceTerm_{}, UserTimeStep_{}, ViscosityCoeff_{},
-    ConductionCoeff_{}, FieldDiffusivity_{},
-    MGGravityBoundaryFunction_{MGPeriodicInnerX1, MGPeriodicOuterX1, MGPeriodicInnerX2,
-                               MGPeriodicOuterX2, MGPeriodicInnerX3, MGPeriodicOuterX3} {
+    ConductionCoeff_{}, FieldDiffusivity_{}
+#ifdef MULTIGRID
+    ,MGGravityBoundaryFunction_{MGPeriodicInnerX1, MGPeriodicOuterX1, MGPeriodicInnerX2,
+                                MGPeriodicOuterX2, MGPeriodicInnerX3, MGPeriodicOuterX3}
+#endif // MULTIGRID
+  {
 
   std::stringstream msg;
   RegionSize block_size;
@@ -562,10 +569,14 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
 
   if (SELF_GRAVITY_ENABLED == 1) {
     gflag = 1; // set gravity flag
+#ifdef FFT
     pfgrd = new FFTGravityDriver(this, pin);
+#endif // FFT
   } else if (SELF_GRAVITY_ENABLED == 2) {
     // MGDriver must be initialzied before MeshBlocks
+#ifdef MULTIGRID
     pmgrd = new MGGravityDriver(this, pin);
+#endif // MULTIGRID
   }
   //  if (SELF_GRAVITY_ENABLED == 2 && ...) // independent allocation
   //    gflag = 2;
@@ -594,7 +605,11 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
   ResetLoadBalanceVariables();
 
   if (turb_flag > 0) // TurbulenceDriver depends on the MeshBlock ctor
+  {
+#ifdef FFT
     ptrbd = new TurbulenceDriver(this, pin);
+#endif // FFT
+  }
 
 }
 
@@ -647,9 +662,12 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
                    UniformMeshGeneratorX3},
     BoundaryFunction_{nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
     AMRFlag_{}, UserSourceTerm_{}, UserTimeStep_{}, ViscosityCoeff_{},
-    ConductionCoeff_{}, FieldDiffusivity_{},
-    MGGravityBoundaryFunction_{MGPeriodicInnerX1, MGPeriodicOuterX1, MGPeriodicInnerX2,
-                        MGPeriodicOuterX2, MGPeriodicInnerX3, MGPeriodicOuterX3} {
+    ConductionCoeff_{}, FieldDiffusivity_{}
+#ifdef MULTIGRID
+    ,MGGravityBoundaryFunction_{MGPeriodicInnerX1, MGPeriodicOuterX1, MGPeriodicInnerX2,
+                                MGPeriodicOuterX2, MGPeriodicInnerX3, MGPeriodicOuterX3}
+#endif // MULTIGRID
+{
 
   std::stringstream msg;
   RegionSize block_size;
@@ -961,10 +979,14 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
 
   if (SELF_GRAVITY_ENABLED == 1) {
     gflag = 1; // set gravity flag
+#ifdef FFT
     pfgrd = new FFTGravityDriver(this, pin);
+#endif // FFT
   } else if (SELF_GRAVITY_ENABLED == 2) {
     // MGDriver must be initialzied before MeshBlocks
+#ifdef MULTIGRID
     pmgrd = new MGGravityDriver(this, pin);
+#endif // MULTIGRID
   }
   //  if (SELF_GRAVITY_ENABLED == 2 && ...) // independent allocation
   //    gflag=2;
@@ -1022,7 +1044,11 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
   delete [] offset;
 
   if (turb_flag > 0) // TurbulenceDriver depends on the MeshBlock ctor
+  {
+#ifdef FFT
     ptrbd = new TurbulenceDriver(this, pin);
+#endif // FFT
+  }
 }
 
 //----------------------------------------------------------------------------------------
@@ -1039,9 +1065,22 @@ Mesh::~Mesh() {
   delete [] ranklist;
   delete [] costlist;
   delete [] loclist;
-  if (SELF_GRAVITY_ENABLED == 1) delete pfgrd;
-  else if (SELF_GRAVITY_ENABLED == 2) delete pmgrd;
+  if (SELF_GRAVITY_ENABLED == 1)
+  {
+#ifdef FFT
+    delete pfgrd;
+#endif // FFT
+  }
+  else if (SELF_GRAVITY_ENABLED == 2)
+  {
+#ifdef MULTIGRID
+    delete pmgrd;
+#endif // MULTIGRID
+  }
+
+#ifdef FFT
   if (turb_flag > 0) delete ptrbd;
+#endif // FFT
 
   if (Z4C_ENABLED) {
     for (auto pwextr : pwave_extr) {
@@ -1306,7 +1345,7 @@ void Mesh::EnrollUserBoundaryFunction(BoundaryFace dir, BValFunc my_bc) {
 //! \fn void Mesh::EnrollUserMGGravityBoundaryFunction(BoundaryFace dir
 //                                                     MGBoundaryFunc my_bc)
 //  \brief Enroll a user-defined Multigrid boundary function
-
+#ifdef MULTIGRID
 void Mesh::EnrollUserMGGravityBoundaryFunction(BoundaryFace dir, MGBoundaryFunc my_bc) {
   std::stringstream msg;
   if (dir < 0 || dir > 5) {
@@ -1317,6 +1356,7 @@ void Mesh::EnrollUserMGGravityBoundaryFunction(BoundaryFace dir, MGBoundaryFunc 
   MGGravityBoundaryFunction_[static_cast<int>(dir)] = my_bc;
   return;
 }
+#endif // MULTIGRID
 
 // DEPRECATED(felker): provide trivial overloads for old-style BoundaryFace enum argument
 void Mesh::EnrollUserBoundaryFunction(int dir, BValFunc my_bc) {
@@ -1324,10 +1364,12 @@ void Mesh::EnrollUserBoundaryFunction(int dir, BValFunc my_bc) {
   return;
 }
 
+#ifdef MULTIGRID
 void Mesh::EnrollUserMGGravityBoundaryFunction(int dir, MGBoundaryFunc my_bc) {
   EnrollUserMGGravityBoundaryFunction(static_cast<BoundaryFace>(dir), my_bc);
   return;
 }
+#endif // MULTIGRID
 
 //----------------------------------------------------------------------------------------
 //! \fn void Mesh::EnrollUserRefinementCondition(AMRFlagFunc amrflag)
@@ -1535,7 +1577,11 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 
     // add initial perturbation for decaying or impulsive turbulence
     if (((turb_flag == 1) || (turb_flag == 2)) && (res_flag == 0))
+    {
+#ifdef FFT
       ptrbd->Driving();
+#endif // FFT
+    }
 
     // Create send/recv MPI_Requests for all BoundaryData objects
 #pragma omp parallel for num_threads(nthreads)
@@ -1550,9 +1596,17 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 
     // solve gravity for the first time
     if (SELF_GRAVITY_ENABLED == 1)
+    {
+#ifdef FFT
       pfgrd->Solve(1, 0);
+#endif // FFT
+    }
     else if (SELF_GRAVITY_ENABLED == 2)
+    {
+#ifdef MULTIGRID
       pmgrd->Solve(1);
+#endif // MULTIGRID
+    }
 
 #pragma omp parallel num_threads(nthreads)
     {
