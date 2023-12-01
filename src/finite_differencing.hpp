@@ -117,6 +117,45 @@ public:
   static Real const coeff[width];
 };
 
+// Right-biased finite differencing stencils
+// * degree : Degree of the derivative, eg, 1 for 1st derivative
+// * nghost : Number of ghost points used for the derivative
+// * lopsize : Number of points to be biased
+template<int degree_, int nghost_, int lopsize_>
+class FDRightBiasedStencilBeyond {
+public:
+  // Degree of the derivative to be approximated
+  enum {degree = degree_};
+  // Number of ghost points required for the differencing
+  enum {nghost = nghost_};
+  // Position at which the derivative is computed wrt the beginning of the stencil
+  //enum {offset = lopsize_};
+  enum {offset = nghost_ - lopsize_ - 1};
+  // Width of the stencil
+  enum {width = 2*nghost_ - 1 + degree_ - 1};
+  // Finite differencing coefficients
+  static Real const coeff[width];
+};
+
+// Left-biased finite differencing stencils
+// * degree : Degree of the derivative, eg, 1 for 1st derivative
+// * nghost : Number of ghost points used for the derivative
+// * lopsize : Number of points to be biased
+template<int degree_, int nghost_, int lopsize_>
+class FDLeftBiasedStencilBeyond {
+public:
+  // Degree of the derivative to be approximated
+  enum {degree = degree_};
+  // Number of ghost points required for the differencing
+  enum {nghost = nghost_};
+  // Position at which the derivative is computed wrt the beginning of the stencil
+  enum {offset = nghost_ + lopsize_ - 1};
+  // Width of the stencil
+  enum {width = 2*nghost_ - 1 + degree_ - 1};
+  // Finite differencing coefficients
+  static Real const coeff[width];
+};
+
 #ifdef DBG_SYMMETRIZE_FD
 // Rewrite with denominator LCM factoring to mitigate some error ==============
 

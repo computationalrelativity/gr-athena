@@ -319,6 +319,18 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   } else {
     pfd = pmy_block->pfd_cc;
   }
+  Real dx1, dx2, dx3;
+  dx1 = pco->dx1f(0); dx2 = pco->dx2f(0); dx3 = pco->dx3f(0);
+
+
+  FD.stride[0] = 1;
+  FD.stride[1] = (nn2 > 1) ? nn1 : 0;
+  FD.stride[2] = (nn3 > 1) ? nn2 * nn1 : 0;
+
+  FD.idx[0] = 1.0 / dx1;
+  FD.idx[1] = (nn2 > 1) ? 1.0 / dx2 : 0.0;
+  FD.idx[2] = (nn3 > 1) ? 1.0 / dx3 : 0.0;
+
 
 }
 
