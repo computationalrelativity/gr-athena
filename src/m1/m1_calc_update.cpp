@@ -160,7 +160,7 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
     net.abs(k,j,i) = 0;
     net.heat(k,j,i) = 0;
     
-    if (rad.mask(k,j,i)) {
+    if (m1_mask(k,j,i)) {
       continue;
     }
 
@@ -527,7 +527,6 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
  
 }
 
-
 //----------------------------------------------------------------------------------------
 // Function to update the radiation field without sources
 
@@ -550,9 +549,9 @@ void M1::CalcUpdate_advection(Real const dt, AthenaArray<Real> & u_p, AthenaArra
   CLOOP3(k,j,i) {
     
     for (int ig = 0; ig < ngroups*nspecies; ++ig) {
-      
+
       vec.E(ig,k,j,i) = std::max(vec_p.E(ig,k,j,i) + dt * vec_rhs.E(ig,k,j,i),
-				 rad_E_floor);
+				   rad_E_floor);
       assert(isfinite(vec.E(ig,k,j,i)));
       
       for (int a = 0; a < 3; ++a) {
@@ -560,11 +559,11 @@ void M1::CalcUpdate_advection(Real const dt, AthenaArray<Real> & u_p, AthenaArra
 	assert(isfinite(vec.F_d(a,ig,k,j,i)));
       }
       
-      if (nspecies > 1) {
-	vec.N(ig,k,j,i) = std::max(vec_p.N(ig,k,j,i) + dt * vec_rhs.N(ig,k,j,i),
+      //if (nspecies > 1) {
+      vec.N(ig,k,j,i) = std::max(vec_p.N(ig,k,j,i) + dt * vec_rhs.N(ig,k,j,i),
 				   rad_N_floor);
-	assert(isfinite(vec.N(ig,k,j,i)));
-      }
+      assert(isfinite(vec.N(ig,k,j,i)));
+      //}
       
     } // ig loop
     

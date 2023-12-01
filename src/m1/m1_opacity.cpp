@@ -63,7 +63,7 @@ void M1::CalcOpacity(AthenaArray<Real> & u)
 
   // Go through cells
   CLOOP3(k,j,i) {
-    if (rad.mask(k,j,i)) {
+    if (m1_mask(k,j,i)) {
       // already set to zero
       continue;
     }

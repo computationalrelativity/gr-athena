@@ -41,14 +41,14 @@ namespace {
 #define M1_FLUXY_SET_ZERO (1)
 #define M1_FLUXZ_SET_ZERO (1)
 
-#define test_thc_mode (0) // compile with 2 ghosts.
+#define test_thc_mode (1) // compile with 2 ghosts.
 
 //----------------------------------------------------------------------------------------
 // \fn void M1::AddFluxDivergence()
 // \brief Add the flux divergence to the RHS (see analogous Hydro method)
 
 void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
-  //M1_DEBUG_PR("in: AddFluxDivergence");
+  M1_DEBUG_PR("in: AddFluxDivergence");
   
   MeshBlock *pmb = pmy_block;
   AthenaArray<Real> &x1flux = storage.flux[X1DIR];
@@ -66,7 +66,7 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
       for (int iv=0; iv<N_Lab; ++iv) {
         for (int ig=0; ig<ngroups*nspecies; ++ig) {
           for (int i=is; i<=ie; ++i) {
-            u_rhs(iv,ig,k,j,i) += x1flux(iv,ig,k,j,i);
+            u_rhs(iv,ig,k,j,i) = x1flux(iv,ig,k,j,i);
 	  }
 	}
       }
@@ -319,6 +319,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
     Real * cons;
     Real * flux;
     Real * cmax = nullptr;
+    
 #if (test_thc_mode)
     Real * flux_jm = NULL;
     Real * flux_jp = NULL;
@@ -330,10 +331,12 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
       cons = new Real[ nvars * ngroups*nspecies * ncells[dir] ];
       flux = new Real[ nvars * ngroups*nspecies * ncells[dir] ];
       cmax = new Real[ nvars * ngroups*nspecies * ncells[dir] ];
+      
 #if (test_thc_mode)
       flux_jm = new Real[nvars*ngroups*nspecies];
       flux_jp = new Real[nvars*ngroups*nspecies];
 #endif
+      
     } catch (std::bad_alloc &e) {
       std::stringstream msg;
       msg << "Out of memory!" << std::endl;
@@ -361,6 +364,15 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	       fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),   
 	       &u_u(0), &u_u(1), &u_u(2), &u_u(3));				 
 	  pack_v_u(fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),  v_u);  
+
+
+	  
+	  // M1_DEBUG_PR("g_uu");
+	  //   for (int a = 0; a < MDIM; ++a)
+	  //     for (int b = 0; b < MDIM; ++b)
+	  // 	M1_DEBUG_PR(g_uu(a,b));
+
+
 	  
 	  for (int ig = 0; ig < ngroups*nspecies; ++ig) {			 
 	  
@@ -369,6 +381,17 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 		     vec.F_d(1,ig,k,j,i),					 
 		     vec.F_d(2,ig,k,j,i),					 
 		     F_d);
+
+	    
+	  // M1_DEBUG_PR("F_d");
+	  // for (int a = 0; a < 3; ++a)
+	  //   M1_DEBUG_PR(vec.F_d(a,ig,k,j,i));
+	  // M1_DEBUG_PR("packed F_d");
+	  // for (int a = 0; a < MDIM; ++a)
+	  //   M1_DEBUG_PR(F_d(a));
+
+
+
 	    pack_H_d(rad.Ht(ig,k,j,i),					 
 		     rad.H(0,ig,k,j,i), rad.H(1,ig,k,j,i), rad.H(2,ig,k,j,i),  
 		     H_d);						 
@@ -376,6 +399,23 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 		      rad.P_dd(0,0,ig,k,j,i), rad.P_dd(0,1,ig,k,j,i), rad.P_dd(1,1,ig,k,j,i),  
 		      rad.P_dd(1,1,ig,k,j,i), rad.P_dd(1,2,ig,k,j,i), rad.P_dd(2,2,ig,k,j,i),  
 		      P_dd);						 
+
+	    M1_DEBUG_PR("P_dd");
+ 	    for (int a = 0; a < MDIM; ++a)
+	      for (int b = 0; b < MDIM; ++b)
+		M1_DEBUG_PR(P_dd(a,b));
+
+	    M1_DEBUG_PR("rad.P_dd");
+ 	    for (int a = 0; a < 3; ++a)
+	      for (int b = 0; b < 3; ++b)
+		M1_DEBUG_PR(rad.P_dd(a,b,ig,k,j,i));
+
+	    
+	    M1_DEBUG_PR("rad.J");
+	    M1_DEBUG_PR(rad.J(ig,k,j,i));
+
+
+
 	    tensor::contract(g_uu, H_d, H_u);				 
 	    tensor::contract(g_uu, F_d, F_u);				 
 	    tensor::contract(g_uu, P_dd, P_ud);				 
@@ -399,7 +439,30 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 
 	    for (int iv = 0; iv < nvars; ++iv)
 	      assert(isfinite(cons[GFINDEX1D(__k, ig, iv)]));			 
-	  
+
+
+
+	    
+	    M1_DEBUG_PR("alpha");
+	    M1_DEBUG_PR(alpha());
+
+	    M1_DEBUG_PR("beta_u");
+	    for (int a = 0; a < MDIM; ++a)
+	      M1_DEBUG_PR(beta_u(a));
+
+	    M1_DEBUG_PR("F_u");
+	    for (int a = 0; a < MDIM; ++a)
+	      M1_DEBUG_PR(F_u(a));
+
+	    M1_DEBUG_PR("     P_dd    P_ud");
+ 	    for (int a = 0; a < MDIM; ++a)
+	      for (int b = 0; b < MDIM; ++b) {
+		char sbuf[128]; sprintf(sbuf,"%d %d  %e  %e",a,b,P_dd(a,b),P_ud(a,b)); M1_DEBUG_PR(sbuf);
+	      }
+
+
+	    
+	    
 	    flux[GFINDEX1D(__k, ig, 0)] =					 
 	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 1);		 
 	    flux[GFINDEX1D(__k, ig, 1)] =					 
@@ -413,6 +476,13 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 
 	    for (int iv = 0; iv < nvars; ++iv)
 	      assert(isfinite(flux[GFINDEX1D(__k, ig, iv)]));			 
+
+
+	    for (int iv = 0; iv < nvars; ++iv) {
+	      char sbuf[128]; sprintf(sbuf,"(%d,%d,%d) h=%g iv = %d var = %d flux = %e",k,j,i,delta[dir],iv,mapiv[iv], flux[GFINDEX1D(__k, ig, iv)]); M1_DEBUG_PR(sbuf);
+	    }
+
+
 	    
 	    // Eigenvalues in the optically thin limit
 	    //
@@ -536,13 +606,17 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 				&& k <  pts[2] - M1_NGHOST);
 #else
 	    
+	    //
 	    xdirflux(mapiv[iv], ig, k,j,i) = flux_num[iv];
 	    
 	    // Note THC (Athena++) stores F_{i+1/2} (F_{i-1/2})!
-	    // xdirflux(mapiv[iv], ig, k+shift[2],j+shift[1],i+shift[0]) = flux_num[iv];
+	    //xdirflux(mapiv[iv], ig, k+shift[2],j+shift[1],i+shift[0]) = flux_num[iv];
 
 	    
 #endif
+
+	    char sbuf[128]; sprintf(sbuf,"(%d,%d,%d) h=%g iv = %d  var = %d ig = %d  fluxnum = %e",k,j,i,delta[dir],iv,mapiv[iv],ig, xdirflux(mapiv[iv],ig, k,j,i)); M1_DEBUG_PR(sbuf);
+	    
 	    
 	  } // iv loop 
 

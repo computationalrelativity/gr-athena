@@ -375,7 +375,7 @@ void M1::CalcClosure(AthenaArray<Real> & u)
 {
   if (M1_CALCCLOSURE_OFF) return;
   M1_DEBUG_PR("in: CalcClosure");
-  //M1_DEBUG_PR(closure);
+  M1_DEBUG_PR(closure);
   
   MeshBlock * pmb = pmy_block;
   
@@ -437,10 +437,10 @@ void M1::CalcClosure(AthenaArray<Real> & u)
   P_dd.NewTensorPointwise();
   T_dd.NewTensorPointwise();
   
-  //GCLOOP3(k,j,i) {
-  CLOOP3(k,j,i) {
+  GCLOOP3(k,j,i) {
+  //CLOOP3(k,j,i) {
 
-    if (rad.mask(k,j,i)) {
+    if (m1_mask(k,j,i)) {
       for (int ig = 0; ig < nspecies*ngroups; ++ig) {
       	rad.J(ig,k,j,i) = 0;
 	for (int a = 0; a < NDIM; ++a) {
@@ -458,9 +458,9 @@ void M1::CalcClosure(AthenaArray<Real> & u)
       continue;
     } // mask
 
-    char sbuf[128];
-    sprintf(sbuf,"k = %d j = %d i = %d", k,j,i);
-    M1_DEBUG_PR(sbuf);
+    
+    //
+    char sbuf[128];sprintf(sbuf,"k = %d j = %d i = %d", k,j,i);M1_DEBUG_PR(sbuf);
     
     // Go from ADM 3-metric VC (AthenaArray/Tensor)
     // to ADM 4-metric on CC at ijk (TensorPointwise) 
@@ -503,7 +503,8 @@ void M1::CalcClosure(AthenaArray<Real> & u)
       for (int a = 0; a < NDIM; ++a) {
 	for (int b = a; b < NDIM; ++b) {
 	  assert(isfinite(rad.P_dd(a,b,ig,k,j,i)));
-      	  sprintf(sbuf," rad: a = %d b = %d  P_dd= %e", a,b, rad.P_dd(a,b,ig,k,j,i));M1_DEBUG_PR(sbuf); 
+      	  //
+	  char sbuf[128]; sprintf(sbuf," rad: a = %d b = %d  P_dd= %e", a,b, rad.P_dd(a,b,ig,k,j,i));M1_DEBUG_PR(sbuf); 
         }
       }
       
@@ -534,7 +535,7 @@ void M1::CalcClosure(AthenaArray<Real> & u)
       assert(isfinite(rad.Ht(ig,k,j,i)));
       for (int a = 0; a < NDIM; ++a) {
 	assert(isfinite(rad.H(a,ig,k,j,i)));
-	sprintf(sbuf," rad: a = %d  H = %e", a, rad.H(a,ig,k,j,i)); M1_DEBUG_PR(sbuf);
+	//sprintf(sbuf," rad: a = %d  H = %e", a, rad.H(a,ig,k,j,i)); M1_DEBUG_PR(sbuf);
       }
       
       // nnu
