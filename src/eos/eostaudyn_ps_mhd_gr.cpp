@@ -354,8 +354,8 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real
     Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& ps) {
   // Extract the primitive variables
   Real prim_pt[NPRIM] = {0.0};
-  Real Y[MAX_SPECIES] = {0.0}; // FIXME: Need to add support for particle fractions.
-  
+  Real Y[MAX_SPECIES] = {0.0};
+
   Real mb = ps.GetEOS()->GetBaryonMass();
   prim_pt[IDN] = prim(IDN, k, j, i)/mb;
   prim_pt[IVX] = prim(IVX, k, j, i);
@@ -363,15 +363,16 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real
   prim_pt[IVZ] = prim(IVZ, k, j, i);
   prim_pt[IPR] = prim(IPR, k, j, i);
 
-  // Apply the floor to ensure that we get physical conserved variables.
   for (int n=0; n<NSCALARS; n++) {
     Y[n] = prim_scalar(n,k,j,i);
   }
+
+  // Get temperature and apply floor
   ps.GetEOS()->ApplyDensityLimits(prim_pt[IDN]);
   ps.GetEOS()->ApplySpeciesLimits(Y);
   prim_pt[ITM] = ps.GetEOS()->GetTemperatureFromP(prim_pt[IDN], prim_pt[IPR], Y);
   bool result = ps.GetEOS()->ApplyPrimitiveFloor(prim_pt[IDN], &prim_pt[IVX], prim_pt[IPR], prim_pt[ITM], Y);
-
+  
   for (int n=0; n<NSCALARS; n++) {
     prim_pt[IYF + n] = Y[n];
   }
