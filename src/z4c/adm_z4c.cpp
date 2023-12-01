@@ -379,6 +379,59 @@ void Z4c::ADMConstraints(
         con.M(k,j,i) += adm.g_dd(a,b,k,j,i) * M_u(a,i) * M_u(b,i);
       }
     }
+    // -----------------------------------------------------------------------------------
+    // derivatives
+    //
+    // first derivatives of g and K
+    for(int c = 0; c < NDIM; ++c)
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b) {
+      ILOOP1(i) {
+        dg_ddd(c,a,b,i) = pfd->Dx(c, z4c.g_dd(a,b,k,j,i));
+      }
+    }
+
+    // -----------------------------------------------------------------------------------
+    // inverse metric
+    //
+    ILOOP1(i) {
+      detg(i) = SpatialDet(z4c.g_dd,k,j,i);
+      SpatialInv(1./detg(i),
+          z4c.g_dd(0,0,k,j,i), z4c.g_dd(0,1,k,j,i), z4c.g_dd(0,2,k,j,i),
+          z4c.g_dd(1,1,k,j,i), z4c.g_dd(1,2,k,j,i), z4c.g_dd(2,2,k,j,i),
+          &g_uu(0,0,i), &g_uu(0,1,i), &g_uu(0,2,i),
+          &g_uu(1,1,i), &g_uu(1,2,i), &g_uu(2,2,i));
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Christoffel symbols
+    //
+    for(int c = 0; c < NDIM; ++c)
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b) {
+      ILOOP1(i) {
+        Gamma_ddd(c,a,b,i) = 0.5*(dg_ddd(a,b,c,i) + dg_ddd(b,a,c,i) - dg_ddd(c,a,b,i));
+      }
+    }
+
+    Gamma_udd.ZeroClear();
+    for(int c = 0; c < NDIM; ++c)
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b)
+    for(int d = 0; d < NDIM; ++d) {
+      ILOOP1(i) {
+        Gamma_udd(c,a,b,i) += g_uu(c,d,i)*Gamma_ddd(d,a,b,i);
+      }
+    }
+
+    Gamma_u.ZeroClear();
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = 0; b < NDIM; ++b)
+    for(int c = 0; c < NDIM; ++c) {
+      ILOOP1(i) {
+        Gamma_u(a,i) += g_uu(b,c,i)*Gamma_udd(a,b,c,i);
+      }
+    }
     // Constraint violation Z (norm squared)
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
