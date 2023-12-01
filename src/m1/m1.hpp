@@ -36,8 +36,15 @@
 #include <gsl/gsl_multiroots.h>
 #include <gsl/gsl_errno.h>
 
+// Source update method
+enum {
+  M1_SRC_METHOD_IMPL, // 0: implicit (default)
+  M1_SRC_BOOST,       // 1: boost to fluid frame (approximate!)
+  M1_SRC_METHOD_EXPL, // 2: explicit
+};
+
 #ifndef M1_SRC_METHOD
-#define M1_SRC_METHOD (0) // = M1_SRC_METHOD_IMPL
+#define M1_SRC_METHOD (M1_SRC_METHOD_IMPL)
 #endif
 
 #ifndef M1_NGHOST
@@ -154,14 +161,6 @@ public:
   };
   // Names of internal variables
   static char const * const Intern_names[N_Intern];
-
-  // Source update method
-  enum {
-    M1_SRC_METHOD_IMPL, // default
-    M1_SRC_BOOST,       // still IMPL
-    M1_SRC_METHOD_EXPL,
-    M1_SRC_METHODS,
-  };
   
   // Source update results
   enum {
@@ -270,12 +269,14 @@ public:
   bool set_to_equilibrium;            // Initialize everything to thermodynamic equilibrium
   bool reset_to_equilibrium;          // Set everything to equilibrium at recovery
   Real equilibrium_rho_min;           // Set to equilibrium only if the density is larger than this (CGS)
+  Real source_therm_limit;            // Assume neutrinos to be thermalized above this optical depth
   Real source_thick_limit;            // Use the optically thick limit if the equilibration time is less than the timestep over this factor
   Real source_scat_limit;             // Use the scattering limit if the isotropization time is less than the timestep over this factor 
-  Real mindiss;                       // TODO: check this
   Real source_epsabs;                 // Target absolute precision for the nonlinear solver
   Real source_epsrel;                 // Target relative precision for the nonlinear solver
   int source_maxiter;                 // Maximum number of iterations in the nonlinear solver
+  Real mindiss;                       // Minimum numberical dissipation (use with caution)
+  Real minmod_theta;                  // Theta parameter used for the minmod limiter, in (0,2)
   
   // Problem-specific parameters
   std::string m1_test; // Simple tests:
@@ -325,8 +326,10 @@ public:
   void CalcFluxes(AthenaArray<Real> & u);
   void AddFluxDivergence(AthenaArray<Real> & u_rhs);
   void GRSources(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs);
-  void CalcUpdate(const Real dt,
-                AthenaArray<Real> & u_p, AthenaArray<Real> & u_c, AthenaArray<Real> & u_rhs);
+  void CalcUpdate(const Real dt, AthenaArray<Real> & u_p, AthenaArray<Real> & u_c,
+		  AthenaArray<Real> & u_rhs);
+  void CalcUpdate_advection(const Real dt, AthenaArray<Real> & u_p, AthenaArray<Real> & u_c,
+			    AthenaArray<Real> & u_rhs);
 
   average_baryon_mass_t AverageBaryonMass;
   

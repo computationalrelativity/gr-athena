@@ -66,7 +66,7 @@ char const * const M1::source_update_msg[M1::M1_SRC_UPDATE_RESULTS] = {
   "imposed equilibrium",
   "(scattering dominated source)",
   "imposed eddington",
-  "failed"
+  "failed",
 };
 
 M1::M1(MeshBlock *pmb, ParameterInput *pin) :
@@ -168,13 +168,16 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   rad_eps = pin->GetOrAddReal("M1", "rad_eps", 1e-5);
   set_to_equilibrium = pin->GetOrAddBoolean("M1", "set_to_equilibrium",false); 
   reset_to_equilibrium = pin->GetOrAddBoolean("M1", "set_to_equilibrium",false); 
-  equilibrium_rho_min =  pin->GetOrAddReal("M1", "fiducial_velocity_rho_fluid",1e11) * CGS_GCC;
+  equilibrium_rho_min = pin->GetOrAddReal("M1", "fiducial_velocity_rho_fluid",1e11) * CGS_GCC;
+  source_therm_limit = pin->GetOrAddReal("M1", "source_therm_limit",-1);
   source_thick_limit = pin->GetOrAddReal("M1","source_thick_limit", -1);
   source_scat_limit = pin->GetOrAddReal("M1","source_scat_limit", -1);
   source_epsabs = pin->GetOrAddReal("M1","source_epsabs",1e-3);
   source_epsrel = pin->GetOrAddReal("M1","source_epsrel",1e-3);
   source_maxiter = pin->GetOrAddInteger("M1","source_maxiter", 100);
-
+  mindiss = pin->GetOrAddReal("M1","mindiss",0.0);
+  minmod_theta = pin->GetOrAddReal("M1","minmod_theta",1.0);
+    
   // Problem-specific parameters
   m1_test = pin->GetOrAddString("M1", "m1_test","none");  
   beam_position = pin->GetOrAddReal("M1", "beam_position", 0.0);
@@ -196,7 +199,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
 
   fakerates = nullptr;
   //if (pin->GetOrAddBoolean("FakeRates","use",false)) {
-  fakerates = new FakeRates(pin, ngroups, nspecies);
+  //fakerates = new FakeRates(pin, ngroups, nspecies);
   //TODO set AverageBaryonMass, etc
   //}
   
@@ -216,14 +219,12 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   Real rdx[] = {
     1./pmb->pcoord->dx1f(0), 1./pmb->pcoord->dx2f(0), 1./pmb->pcoord->dx3f(0)
   };
-
-  // TODO: CHECK THIS
+  
   if(pmb->pmy_mesh->multilevel){
     int N_coarse[] = {pmb->block_size.nx1/2, pmb->block_size.nx2/2, pmb->block_size.nx3/2};
     Real rdx_coarse[] = {
       1./pmb->pmr->pcoarsec->dx1f(0), 1./pmb->pmr->pcoarsec->dx2f(0), 1./pmb->pmr->pcoarsec->dx3f(0)
-    };
-    
+    }; 
   }
   
   //---------------------------------------------------------------------------
@@ -238,6 +239,9 @@ M1::~M1()
 {
   storage.u.DeleteAthenaArray();
   storage.u1.DeleteAthenaArray();
+  storage.flux[0].DeleteAthenaArray();
+  storage.flux[1].DeleteAthenaArray();
+  storage.flux[2].DeleteAthenaArray();
   storage.u_rhs.DeleteAthenaArray();
   storage.u_rad.DeleteAthenaArray();
   storage.radmat.DeleteAthenaArray();
@@ -248,8 +252,8 @@ M1::~M1()
   dt2_.DeleteAthenaArray();
   dt3_.DeleteAthenaArray();
 
-  if (fakerates != nullptr)
-    delete fakerates;
+  //if (fakerates != nullptr)
+  // delete fakerates;
 }
 
 //----------------------------------------------------------------------------------------

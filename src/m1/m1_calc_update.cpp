@@ -24,9 +24,18 @@
 
 using namespace utils;
 
-void M1::CalcUpdate(Real const dt,
-		    AthenaArray<Real> & u_p, AthenaArray<Real> & u_c, AthenaArray<Real> & u_rhs)
+//----------------------------------------------------------------------------------------
+// Function to update the radiation field 
+
+void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & u_c,
+		    AthenaArray<Real> & u_rhs)
 {
+
+  M1_DEBUG_PR(" ");
+  M1_DEBUG_PR(M1_SRC_METHOD);
+  M1_DEBUG_PR("in: CalcUpdate, dt = ");M1_DEBUG_PR(dt);
+  M1_DEBUG_PR(" ");
+  
   MeshBlock * pmb = pmy_block;
 
   // Disable GSL error handler
@@ -107,8 +116,8 @@ void M1::CalcUpdate(Real const dt,
   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> v_d;
   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> H_d;
   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> Hstar_d;
-  TensorPointwise<Real, Symmetries::NONE, MDIM, 2> P_dd;
-  TensorPointwise<Real, Symmetries::NONE, MDIM, 2> rT_dd;
+  TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> P_dd;
+  TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> rT_dd;
   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> H_u;
   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> fnu_u;
   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> F_d;
@@ -146,7 +155,6 @@ void M1::CalcUpdate(Real const dt,
   Fstar_d.NewTensorPointwise();
   Fnew_d.NewTensorPointwise();
   
-  //GCLOOP3(k,j,i) {
   CLOOP3(k,j,i) {
     
     net.abs(k,j,i) = 0;
@@ -243,7 +251,7 @@ void M1::CalcUpdate(Real const dt,
       
       //      
       // Advect radiation
-      Real Estar = vec_p.E(ig,k,j,i) + 0.5*dt*vec_rhs.E[i4D];
+      Real Estar = vec_p.E(ig,k,j,i) + 0.5*dt*vec_rhs.E(ig,k,j,i);
       pack_F_d(beta_u(1), beta_u(2), beta_u(3),
 	       vec_p.F_d(0,ig,k,j,i) + 0.5*dt * vec_rhs.F_d(0,ig,k,j,i),
 	       vec_p.F_d(1,ig,k,j,i) + 0.5*dt * vec_rhs.F_d(1,ig,k,j,i),
@@ -257,7 +265,7 @@ void M1::CalcUpdate(Real const dt,
 
       //
       // Compute quantities in the fluid frame
-      calc_closure_pt(iteration, pmb, i, j, k, ig,
+      calc_closure_pt(pmb, i, j, k, ig,
                       closure_fun, gsl_solver_1d, g_dd, g_uu, n_d,
                       fidu_w_lorentz, u_u, v_d,
                       proj_ud, Estar, Fstar_d, &rad.chi(ig,k,j,i), P_dd);
@@ -270,7 +278,8 @@ void M1::CalcUpdate(Real const dt,
       //
       // Estimate interaction with matteer
       Real const dtau = dt/fidu_w_lorentz;
-      Real const Jnew = (Jstar + dtau*rmat.eta_1(ig,k,j,i)*volform)/(1. + dtau*rmat.abs_1(ig,k,j,i));
+      Real Jnew = (Jstar + dtau*rmat.eta_1(ig,k,j,i)*volform)/(1. + dtau*rmat.abs_1(ig,k,j,i));
+
       // Only three components of H^a are independent; H^0 is found by
       // requiring H^a u_a = 0
       Real const khat = (rmat.abs_1(ig,k,j,i) + rmat.scat_1(ig,k,j,i));
@@ -293,7 +302,7 @@ void M1::CalcUpdate(Real const dt,
       rad.chi(ig,k,j,i) = 1.0/3.0;
 #endif
       
-      Real const dthick = 3.*(1. - chi[i4D])/2.;
+      Real const dthick = 3.*(1. - rad.chi(ig,k,j,i))/2.;
       Real const dthin = 1. - dthick;
       
       for(int a = 0; a < 4; ++a)
@@ -312,7 +321,7 @@ void M1::CalcUpdate(Real const dt,
 #if (THC_M1_SRC_METHOD == THC_M1_SRC_IMPL)
 
       // Compute interaction with matter
-      source_update_pt(iteration, pmb, i, j, k, ig,
+      source_update_pt(pmb, i, j, k, ig,
 		       closure_fun, gsl_solver_1d, gsl_solver_nd, dt,
 		       alpha(), g_dd, g_uu, n_d, n_u, gamma_ud, u_d, u_u,
 		       v_d, v_u, proj_ud, fidu.Wlorentz(k,j,i), Estar, Fstar_d,
@@ -352,7 +361,7 @@ void M1::CalcUpdate(Real const dt,
 	if (source_therm_limit < 0 || dt*rmat.abs_0(ig,k,j,i) < source_therm_limit) {
 	  //
 	  // N^k+1 = N^* + dt ( eta - abs N^k+1 )
-	  Real Nnew = (Nstar + dt*alpha()*volform*eta_0[i4D])/ 
+	  Real Nnew = (Nstar + dt*alpha()*volform*rmat.eta_0(ig,k,j,i))/ 
 	    (1.0 + dt*alpha()*rmat.abs_0(ig,k,j,i)/Gamma);
 	  DrN[ig]  = Nnew - Nstar;
 	}
@@ -504,11 +513,11 @@ void M1::CalcUpdate(Real const dt,
   rT_dd.DeleteTensorPointwise();
   H_u.DeleteTensorPointwise();
   fnu_u.DeleteTensorPointwise();
-  F_d.NewTensorPointwise();
+  F_d.DeleteTensorPointwise();
   
   Hnew_d.DeleteTensorPointwise();
-  Fstar_d.NewTensorPointwise();
-  Fnew_d.NewTensorPointwise();
+  Fstar_d.DeleteTensorPointwise();
+  Fnew_d.DeleteTensorPointwise();
   
   gsl_root_fsolver_free(gsl_solver_1d);
   gsl_multiroot_fdfsolver_free(gsl_solver_nd);
@@ -516,4 +525,49 @@ void M1::CalcUpdate(Real const dt,
   // Restore GSL error handler
   gsl_set_error_handler(gsl_err);
  
+}
+
+
+//----------------------------------------------------------------------------------------
+// Function to update the radiation field without sources
+
+void M1::CalcUpdate_advection(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & u_c,
+			      AthenaArray<Real> & u_rhs)
+{
+  M1_DEBUG_PR(" ");
+  M1_DEBUG_PR("in: CalcUpdate_advection, dt = ");M1_DEBUG_PR(dt);
+  M1_DEBUG_PR(" ");
+  
+  MeshBlock * pmb = pmy_block;
+
+  Lab_vars vec_p;
+  SetLabVarsAliases(u_p, vec_p);
+  Lab_vars vec;
+  SetLabVarsAliases(u_c, vec);  
+  Lab_vars vec_rhs;
+  SetLabVarsAliases(u_rhs, vec_rhs);
+  
+  CLOOP3(k,j,i) {
+    
+    for (int ig = 0; ig < ngroups*nspecies; ++ig) {
+      
+      vec.E(ig,k,j,i) = std::max(vec_p.E(ig,k,j,i) + dt * vec_rhs.E(ig,k,j,i),
+				 rad_E_floor);
+      assert(isfinite(vec.E(ig,k,j,i)));
+      
+      for (int a = 0; a < 3; ++a) {
+	vec.F_d(a,ig,k,j,i) = vec_p.F_d(a,ig,k,j,i) + dt * vec_rhs.F_d(a,ig,k,j,i);
+	assert(isfinite(vec.F_d(a,ig,k,j,i)));
+      }
+      
+      if (nspecies > 1) {
+	vec.N(ig,k,j,i) = std::max(vec_p.N(ig,k,j,i) + dt * vec_rhs.N(ig,k,j,i),
+				   rad_N_floor);
+	assert(isfinite(vec.N(ig,k,j,i)));
+      }
+      
+    } // ig loop
+    
+  } // CLOOP3
+  
 }
