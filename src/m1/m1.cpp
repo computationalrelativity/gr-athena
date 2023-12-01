@@ -239,21 +239,33 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
 // destructor
 M1::~M1()
 {
-  storage.u.DeleteAthenaArray();
-  storage.u1.DeleteAthenaArray();
-  storage.flux[0].DeleteAthenaArray();
-  storage.flux[1].DeleteAthenaArray();
-  storage.flux[2].DeleteAthenaArray();
-  storage.u_rhs.DeleteAthenaArray();
-  storage.u_rad.DeleteAthenaArray();
-  storage.radmat.DeleteAthenaArray();
-  storage.diagno.DeleteAthenaArray();
-  storage.intern.DeleteAthenaArray();
+  // storage.u.DeleteAthenaArray();
+  // storage.u1.DeleteAthenaArray();
+  // storage.flux[0].DeleteAthenaArray();
+  // storage.flux[1].DeleteAthenaArray();
+  // storage.flux[2].DeleteAthenaArray();
+  // storage.u_rhs.DeleteAthenaArray();
+  // storage.u_rad.DeleteAthenaArray();
+  // storage.radmat.DeleteAthenaArray();
+  // storage.diagno.DeleteAthenaArray();
+  // storage.intern.DeleteAthenaArray();
 
   dt1_.DeleteAthenaArray();
   dt2_.DeleteAthenaArray();
   dt3_.DeleteAthenaArray();
 
+  //x1face_area_.DeleteAthenaArray();
+  // if (pm->f2) {
+  //   x2face_area_.DeleteAthenaArray();
+  //   x2face_area_p1_.DeleteAthenaArray();
+  // }
+  // if (pm->f3) {
+  //   x3face_area_.DeleteAthenaArray();
+  //   x3face_area_p1_.DeleteAthenaArray();
+  // }
+  cell_volume_.DeleteAthenaArray();
+  dflx_.DeleteAthenaArray();
+  
   //if (fakerates != nullptr)
   // delete fakerates;
 }
