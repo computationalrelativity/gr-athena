@@ -503,7 +503,7 @@ void M1::CalcClosure(AthenaArray<Real> & u)
       for (int a = 0; a < NDIM; ++a) {
 	for (int b = a; b < NDIM; ++b) {
 	  assert(isfinite(rad.P_dd(a,b,ig,k,j,i)));
-      	  sprintf(sbuf," rad: a = %d b = %d  P_dd= %e", a,b, rad.P_dd(a,b,ig,k,j,i));M1_DEBUG_PR(sbuf); 
+      	  sprintf(sbuf," rad: a = %d b = %d ig = %d P_dd= %e", a,b,ig, rad.P_dd(a,b,ig,k,j,i));M1_DEBUG_PR(sbuf); 
         }
       }
       
@@ -526,9 +526,9 @@ void M1::CalcClosure(AthenaArray<Real> & u)
       
       unpack_H_d(H_d,
                  &rad.Ht(ig,k,j,i),
+                 &rad.H(0,ig,k,j,i),
                  &rad.H(1,ig,k,j,i),
-                 &rad.H(2,ig,k,j,i),
-                 &rad.H(3,ig,k,j,i));
+                 &rad.H(2,ig,k,j,i));
 
       
       assert(isfinite(rad.Ht(ig,k,j,i)));

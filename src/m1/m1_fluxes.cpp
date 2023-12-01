@@ -41,7 +41,7 @@ namespace {
 #define M1_FLUXY_SET_ZERO (1)
 #define M1_FLUXZ_SET_ZERO (1)
 
-#define test_thc_mode (0) // compile with 2 ghosts.
+#define test_thc_mode (1) // compile with 2 ghosts.
 
 //----------------------------------------------------------------------------------------
 // \fn void M1::AddFluxDivergence()
@@ -344,6 +344,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
     for (__i = beg[0]; __i < end[0]; ++__i) {
       for (__j = beg[1]; __j < end[1]; ++__j) {
 	
+  char sbuf[128];
 	// ----------------------------------------------
 	// 1st pass compute the fluxes
 	for (__k = 0; __k < pts[2]; ++__k) {
@@ -351,6 +352,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	  index[1] = __j;
 	  index[2] = __k;
 	  
+    sprintf(sbuf,"k = %d j = %d i = %d", k,j,i);
+    M1_DEBUG_PR(sbuf);
 	  // From ADM 3-metric VC (AthenaArray/Tensor) to 
 	  // ADM 4-metric on CC at ijk (TensorPointwise) 
 	  Get4Metric_VC2CCinterp(pmb, k,j,i,				      
@@ -371,7 +374,14 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 		     F_d);
 	    pack_H_d(rad.Ht(ig,k,j,i),					 
 		     rad.H(0,ig,k,j,i), rad.H(1,ig,k,j,i), rad.H(2,ig,k,j,i),  
-		     H_d);						 
+		     H_d);	
+      for (int a = 0; a < NDIM; ++a) {
+        for (int b = a; b < NDIM; ++b) {
+          
+          assert(isfinite(rad.P_dd(a,b,ig,k,j,i)));
+          sprintf(sbuf," in Flux: a = %d b = %d ig = %d P_dd= %e", a,b,ig, rad.P_dd(a,b,ig,k,j,i));M1_DEBUG_PR(sbuf); 
+        }
+      }				 
 	    pack_P_dd(beta_u(1), beta_u(2), beta_u(3),			 
 		      rad.P_dd(0,0,ig,k,j,i), rad.P_dd(0,1,ig,k,j,i), rad.P_dd(1,1,ig,k,j,i),  
 		      rad.P_dd(1,1,ig,k,j,i), rad.P_dd(1,2,ig,k,j,i), rad.P_dd(2,2,ig,k,j,i),  
