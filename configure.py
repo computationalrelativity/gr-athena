@@ -234,6 +234,11 @@ parser.add_argument("-z_eta_conf",
                     default=False,
                     help='enable conformal factor based shift-damping')
 
+# -z_ahf argument
+parser.add_argument("-z_ahf",
+                    action='store_true',
+                    default=False,
+                    help='enable Z4c apparent horizon finder')
 
 # -z_assert_is_finite argument
 parser.add_argument("-z_assert_is_finite",
@@ -731,6 +736,13 @@ if args['vertex']:
 else:
     definitions['PREFER_VC'] = '0'
 
+# -z_ahf argument
+if args['z_ahf']:
+    if not args['z']:
+        raise SystemExit("### CONFIGURE ERROR: z_ahf requires z flag")
+    definitions['Z4C_AHF'] = 'Z4C_AHF'
+else:
+  definitions['Z4C_AHF'] = 'NO_Z4C_AHF'
 # -tracker_extrema argument
 if args['tracker_extrema']:
     definitions['TRACKER_EXTREMA'] = 'TRACKER_EXTREMA'
@@ -1097,7 +1109,7 @@ if args['lorene_path'] != '':
     makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/Export/C++/Include'.format(args['lorene_path'])
     makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/C++/Include'.format(args['lorene_path'])
     makefile_options['LINKER_FLAGS'] += ' -L{0}/Lib'.format(args['lorene_path'])
-    makefile_options['LIBRARY_FLAGS'] += ' -llorene_export -llorene -llorenef77 -lgfortran'
+    makefile_options['LIBRARY_FLAGS'] += ' -llorene_export -llorene -llorenef77 -lgfortran -llapack -lblas'
 else:
     definitions['LORENE_OPTION'] = 'NO_LORENE'
 
@@ -1234,6 +1246,8 @@ if args['z']:
     if args['z_wext']:
         files.append('calculate_weyl_scalars')
         files.append('wave_extract')
+    if args['z_ahf']:
+        files.append('ahf')
     if args['z_tracker']:
         files.append('trackers')
     if args['prob'] == "z4c_two_punctures":
@@ -1329,6 +1343,7 @@ if args['z']:
 
 have_tracker = args['z_tracker'] or args['tracker_extrema']
 
+print('  Z4c apparent horizon finder:  ' + ('ON' if args['z_ahf'] else 'OFF'))
 print('  Trackers:                     ' + ('ON' if have_tracker else 'OFF'))
 if have_tracker:
     print('    Punctures:                  ' + ('ON' if args['z_tracker'] in args else 'OFF'))

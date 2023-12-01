@@ -69,6 +69,9 @@
 #ifdef Z4C_WEXT
 #include "../z4c/wave_extract.hpp"
 #endif
+#ifdef Z4C_AHF
+#include "../z4c/ahf.hpp"
+#endif
 //WGC: wext end
 // MPI/OpenMP header
 #ifdef MPI_PARALLEL
@@ -348,6 +351,14 @@ if (Z4C_ENABLED){
    }
 #endif
 // WGC end
+#ifdef Z4C_AHF
+    // 0 is restart flag for restart
+    int nhorizon = pin->GetOrAddInteger("ahf", "num_horizons",1);
+    pah_finder.reserve(nhorizon);
+    for (int n = 0; n < nhorizon; ++n) {
+      pah_finder.push_back(new AHF(this, pin, n));
+    }
+#endif 
 #ifdef Z4C_TRACKER
   // Last entry says if it is restart run or not
   pz4c_tracker = new Tracker(this, pin, 0);
@@ -789,6 +800,13 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
 //end multi
 #endif
 //WGC end
+#ifdef Z4C_AHF
+    int nhorizon = pin->GetOrAddInteger("ahf", "num_horizons",1);
+    pah_finder.reserve(nhorizon);
+    for (int n = 0; n < nhorizon; ++n) {
+      pah_finder.push_back(new AHF(this, pin, n));
+    }
+#endif
 
 #ifdef Z4C_TRACKER
   // Last entry tells if it is restart run or not
@@ -1049,6 +1067,23 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
   }
   pblock = pfirst;
   delete [] mbdata;
+
+// do a horizon find here to set the radius so no nans in fluxs/c2p
+//wGC
+#ifdef Z4C_AHF
+      for (auto pah_f : pah_finder) {
+        if (pah_f->CalculateMetricDerivatives(ncycle, time)) break;
+      }
+      for (auto pah_f : pah_finder) {
+        pah_f->Find(ncycle, time);
+        pah_f->Write(ncycle, time);
+      }
+      for (auto pah_f : pah_finder) {
+        if (pah_f->DeleteMetricDerivatives(ncycle, time)) break;
+      }
+#endif
+
+
   // check consistency
   if (datasize != pblock->GetBlockSizeInBytes()) {
     msg << "### FATAL ERROR in Mesh constructor" << std::endl
@@ -1091,6 +1126,12 @@ Mesh::~Mesh() {
  for(int n=0;n<NRAD;++n){
  delete pwave_extr[n];
  }
+#endif
+#ifdef Z4C_AHF
+    for (auto pah_f : pah_finder) {
+      delete pah_f;
+    }
+    pah_finder.resize(0);
 #endif
 
 #ifdef Z4C_TRACKER
@@ -1833,6 +1874,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           if (pbval->nblevel[0][1][1] != -1) kl -= NGHOST;
           if (pbval->nblevel[2][1][1] != -1) ku += NGHOST;
         }
+        pbval->ApplyPhysicalVertexCenteredBoundaries(time, 0.0);
 
         if (GENERAL_RELATIVITY && res_flag == 2)
         {
@@ -1912,7 +1954,6 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           ps->sbvar.var_cc = &(ps->r);
 // WGC set phys boundaries for CC and VC
         pbval->ApplyPhysicalBoundaries(time, 0.0);
-        pbval->ApplyPhysicalVertexCenteredBoundaries(time, 0.0);
       }
 
       // Calc initial diffusion coefficients
