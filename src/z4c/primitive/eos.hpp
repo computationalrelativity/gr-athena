@@ -131,7 +131,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
       n_atm = 1e-10;
       n_threshold = 1.0;
       T_atm = 1e-10;
-      v_max = 1.0 - 1e-15;
+      v_max = 0.99; //1.0 - 1e-15;
       max_bsq = std::numeric_limits<Real>::max();
       code_units = eos_units;
       for (int i = 0; i < MAX_SPECIES; i++) {
@@ -379,7 +379,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //
     //  \param[in] v The maximum velocity
     inline void SetMaxVelocity(Real v) {
-      v_max = (v >= 0) ? ((v <= 1.0-1e-15) ? v : 1.0e-15) : 0.0;
+      v_max = (v >= 0) ? ((v <= 0.99) ? v : 1.0e-15) : 0.0;
     }
 
     //! \brief Get the maximum number density (in EOS units) permitted by the EOS.

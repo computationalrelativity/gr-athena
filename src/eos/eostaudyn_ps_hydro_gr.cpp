@@ -40,7 +40,6 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real
 using RescaleFunction = void(*)(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>& gamma_dd,
                                 AthenaArray<Real>& vcchi,
                                 AthenaTensor<Real, TensorSymm::NONE, NDIM, 0>& chi,
-                                InterpIntergridLocal* interp,
                                 int il, int iu, int j, int k);
 
 //Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> eos;
@@ -132,6 +131,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
     int ku, int coarse_flag) {
   // Parameters
   int nn1 = iu + 1;
+  Real error = 0.;
 
   // Vertex-centered containers for the metric.
   AthenaArray<Real> vcgamma_xx, vcgamma_xy, vcgamma_xz, vcgamma_yy,
@@ -343,10 +343,7 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real
   // Extract the primitive variables
   Real prim_pt[NPRIM] = {0.0};
   Real Y[MAX_SPECIES] = {0.0}; // FIXME: Need to add support for particle fractions.
-  for (int n=0; n<NSCALARS; n++) {
-    Y[n] = prim_scalar(n,k,j,i);
-    prim_pt[IYF + n] = Y[n];
-  }
+  
   Real bu[NMAG] = {0.0};
   Real mb = ps.GetEOS()->GetBaryonMass();
   prim_pt[IDN] = prim(IDN, k, j, i)/mb;
@@ -356,14 +353,16 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real
   prim_pt[IPR] = prim(IPR, k, j, i);
 
   // Apply the floor to ensure that we get physical conserved variables.
+  for (int n=0; n<NSCALARS; n++) {
+    Y[n] = prim_scalar(n,k,j,i);
+  }
+  ps.GetEOS()->ApplyDensityLimits(prim_pt[IDN]);
+  ps.GetEOS()->ApllySpeciesLimits(Y);
+  prim_pt[ITM] = ps.GetEOS()->GetTemperatureFromP(prim_pt[IDN], prim_pt[IPR], Y);
   bool result = ps.GetEOS()->ApplyPrimitiveFloor(prim_pt[IDN], &prim_pt[IVX], prim_pt[IPR], prim_pt[ITM], Y);
-
-  if (result==false) {
-    prim_pt[ITM] = ps.GetEOS()->GetTemperatureFromP(prim_pt[IDN], prim_pt[IPR], Y);
-  } else {
-    for (int n=0; n<NSCALARS; n++) {
-      prim_pt[IYF + n] = Y[n];
-    }
+    
+  for (int n=0; n<NSCALARS; n++) {
+    prim_pt[IYF + n] = Y[n];
   }
 
   // Extract the metric and calculate the determinant.
