@@ -853,7 +853,7 @@ if args['cxx'] == 'g++':
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'g++'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
     makefile_options['COMPILER_FLAGS'] = (
-        '-O3 -std=c++11 -fwhole-program -flto=auto -fprefetch-loop-arrays -march=native '
+        '-O3 -std=c++17 -fwhole-program -flto=auto -fprefetch-loop-arrays -march=native '
         '-ffp-contract=off ' # disables FMA
         # '-finline-limit=2048 '
         # '-Wunknown-pragmas '
@@ -866,7 +866,7 @@ if args['cxx'] == 'g++-simd':
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'g++'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
     makefile_options['COMPILER_FLAGS'] = (
-        '-O3 -std=c++11 -fwhole-program -flto=auto -fprefetch-loop-arrays -march=native '
+        '-O3 -std=c++17 -fwhole-program -flto=auto -fprefetch-loop-arrays -march=native '
         '-fopenmp-simd '
         '-Wunknown-pragmas '
         '-fopt-info-vec-missed '
@@ -887,7 +887,7 @@ if args['cxx'] == 'icpc':
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'icpc'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
     makefile_options['COMPILER_FLAGS'] = (
-      '-O3 -std=c++11 -ipo -xhost -inline-forceinline -qopenmp-simd -qopt-prefetch=4 '
+      '-O3 -std=c++17 -ipo -xhost -inline-forceinline -qopenmp-simd -qopt-prefetch=4 '
       '-fp-model strict -no-fma '  # precise + disables FMA
       '-qoverride-limits'  # -qopt-report-phase=ipo (does nothing without -ipo)
     )
@@ -901,7 +901,7 @@ if args['cxx'] == 'icpc-debug':
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'icpc'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
     makefile_options['COMPILER_FLAGS'] = (
-      '-O3 -std=c++11 -xhost -qopenmp-simd -fp-model precise -qopt-prefetch=4 '
+      '-O3 -std=c++17 -xhost -qopenmp-simd -fp-model precise -qopt-prefetch=4 '
       '-qopt-report=5 -qopt-report-phase=openmp,vec -g -qoverride-limits '
       '-fp-model precise '
     )
@@ -914,7 +914,7 @@ if args['cxx'] == 'icpc-phi':
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'icpc'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
     makefile_options['COMPILER_FLAGS'] = (
-      '-O3 -std=c++11 -ipo -xMIC-AVX512 -inline-forceinline -qopenmp-simd '
+      '-O3 -std=c++17 -ipo -xMIC-AVX512 -inline-forceinline -qopenmp-simd '
       '-qopt-prefetch=4 -qoverride-limits '
       '-fp-model precise '
     )
@@ -926,7 +926,7 @@ if args['cxx'] == 'cray':
     definitions['COMPILER_CHOICE'] = 'cray'
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'CC'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
-    makefile_options['COMPILER_FLAGS'] = '-O3 -h std=c++11 -h aggress -h vector3 -hfp3'
+    makefile_options['COMPILER_FLAGS'] = '-O3 -h std=c++17 -h aggress -h vector3 -hfp3'
     makefile_options['LINKER_FLAGS'] = '-hwp -hpl=obj/lib'
     makefile_options['LIBRARY_FLAGS'] = '-lm'
 if args['cxx'] == 'bgxlc++':
@@ -954,7 +954,7 @@ if args['cxx'] == 'clang++':
     definitions['COMPILER_CHOICE'] = 'clang++'
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'clang++'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
-    makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++11'
+    makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++17'
     makefile_options['LINKER_FLAGS'] = ''
     makefile_options['LIBRARY_FLAGS'] = ''
 if args['cxx'] == 'clang++-simd':
@@ -963,7 +963,7 @@ if args['cxx'] == 'clang++-simd':
     definitions['COMPILER_CHOICE'] = 'clang++-simd'
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'clang++'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
-    makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++11 -fopenmp-simd'
+    makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++17 -fopenmp-simd'
     makefile_options['LINKER_FLAGS'] = ''
     makefile_options['LIBRARY_FLAGS'] = ''
 if args['cxx'] == 'clang++-apple':
@@ -971,7 +971,7 @@ if args['cxx'] == 'clang++-apple':
     definitions['COMPILER_CHOICE'] = 'clang++-apple'
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'clang++'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
-    makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++11'
+    makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++17'
     makefile_options['LINKER_FLAGS'] = ''
     makefile_options['LIBRARY_FLAGS'] = ''
 
@@ -992,14 +992,14 @@ if args['debug']:
             or args['cxx'] == 'icpc' or args['cxx'] == 'icpc-debug'
             or args['cxx'] == 'clang++' or args['cxx'] == 'clang++-simd'
             or args['cxx'] == 'clang++-apple'):
-        makefile_options['COMPILER_FLAGS'] = '-O0 --std=c++11 -g3'  # -Og
+        makefile_options['COMPILER_FLAGS'] = '-O0 --std=c++17 -g3'  # -Og
         makefile_options['LINKER_FLAGS'] = '-rdynamic'
     if args['cxx'] == 'cray':
-        makefile_options['COMPILER_FLAGS'] = '-O0 -h std=c++11'
+        makefile_options['COMPILER_FLAGS'] = '-O0 -h std=c++17'
     if args['cxx'] == 'bgxlc++':
         makefile_options['COMPILER_FLAGS'] = '-O0 -g -qlanglvl=extended0x'
     if args['cxx'] == 'icpc-phi':
-        makefile_options['COMPILER_FLAGS'] = '-O0 --std=c++11 -g -xMIC-AVX512'
+        makefile_options['COMPILER_FLAGS'] = '-O0 --std=c++17 -g -xMIC-AVX512'
         makefile_options['LINKER_FLAGS'] = '-rdynamic'
 else:
     definitions['DEBUG_OPTION'] = 'NOT_DEBUG'
