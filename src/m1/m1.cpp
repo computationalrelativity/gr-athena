@@ -239,16 +239,16 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
 // destructor
 M1::~M1()
 {
-  // storage.u.DeleteAthenaArray();
-  // storage.u1.DeleteAthenaArray();
-  // storage.flux[0].DeleteAthenaArray();
-  // storage.flux[1].DeleteAthenaArray();
-  // storage.flux[2].DeleteAthenaArray();
-  // storage.u_rhs.DeleteAthenaArray();
-  // storage.u_rad.DeleteAthenaArray();
-  // storage.radmat.DeleteAthenaArray();
-  // storage.diagno.DeleteAthenaArray();
-  // storage.intern.DeleteAthenaArray();
+  storage.u.DeleteAthenaArray();
+  storage.u1.DeleteAthenaArray();
+  storage.flux[0].DeleteAthenaArray();
+  storage.flux[1].DeleteAthenaArray();
+  storage.flux[2].DeleteAthenaArray();
+  storage.u_rhs.DeleteAthenaArray();
+  storage.u_rad.DeleteAthenaArray();
+  storage.radmat.DeleteAthenaArray();
+  storage.diagno.DeleteAthenaArray();
+  storage.intern.DeleteAthenaArray();
 
   dt1_.DeleteAthenaArray();
   dt2_.DeleteAthenaArray();
