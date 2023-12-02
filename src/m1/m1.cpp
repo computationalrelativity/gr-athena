@@ -54,7 +54,7 @@ char const * const M1::Diagno_names[M1::N_Diagno] = {
 
 char const * const M1::Intern_names[M1::N_Intern] = {
   "fidu.vx", "fidu.vy", "fidu.vz",
-  "fidu.Wlorents", 
+  "fidu.Wlorentz", 
   "net.abs",
   "net.heat",
   "mask",
@@ -234,7 +234,27 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   
   // Initialize excision mask (no excision)
   m1_mask.ZeroClear();
-  
+
+  //DEBUG just a check/warning 
+#define M1_DEBUG_SETUP_MSG(msg)\
+  std::cout << "WARNING: " << msg << std::endl;
+  if(M1_CALCFIDUCIALVELOCITY_OFF)
+    M1_DEBUG_SETUP_MSG("Fiducial velocity calculation is OFF");
+  if(M1_CALCCLOSURE_OFF)
+    M1_DEBUG_SETUP_MSG("Closure calculation is OFF");
+  if(M1_CALCOPACITY_OFF)
+    M1_DEBUG_SETUP_MSG("Opacities calculation is OFF");
+  if(M1_CALCOPACITY_ZERO) 
+    M1_DEBUG_SETUP_MSG("Opacities are ZERO");
+  if(M1_GRSOURCES_OFF)
+    M1_DEBUG_SETUP_MSG("GR source calculation is OFF");
+  if(M1_FLUXX_SET_ZERO) 
+    M1_DEBUG_SETUP_MSG("Flux in x-direction is ZERO");
+  if(M1_FLUXY_SET_ZERO)
+    M1_DEBUG_SETUP_MSG("Flux in y-direction is ZERO");
+  if(M1_FLUXZ_SET_ZERO)
+    M1_DEBUG_SETUP_MSG("Flux in z-direction is ZERO");
+
 }
 
 // destructor

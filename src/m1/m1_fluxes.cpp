@@ -37,11 +37,7 @@ namespace {
   } 
 }
 
-#define M1_FLUXX_SET_ZERO (0)
-#define M1_FLUXY_SET_ZERO (1)
-#define M1_FLUXZ_SET_ZERO (1)
-
-#define test_thc_mode (0) // compile with 2 ghosts.
+#define test_thc_mode (0) //TO DEBUG ONLY (compile with 2 ghosts)
 
 //----------------------------------------------------------------------------------------
 // \fn void M1::AddFluxDivergence()
