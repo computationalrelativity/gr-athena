@@ -68,8 +68,7 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
           for (int i=is; i<=ie; ++i) {
             u_rhs(iv,ig,k,j,i) = x1flux(iv,ig,k,j,i);
 
-	    //char sbuf[128]; sprintf(sbuf," k=%d j=%d i=%d   iv=%d  ig=%d   rhs = %e", k,j,i, iv, ig, u_rhs(iv,ig,k,j,i)); M1_DEBUG_PR(sbuf); 
-
+	    //char sbuf[128]; sprintf(sbuf," k=%d j=%d i=%d   iv=%d  ig=%d   rhs = %e", k,j,i, iv, ig, u_rhs(iv,ig,k,j,i)); M1_DEBUG_PR(sbuf);
 	    
 	  }
 	}
@@ -82,18 +81,16 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
   for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
 
-
-      pmb->pcoord->CellVolume(k, j, is, ie, vol);
-      
       // calculate x1-flux divergence
-      pmb->pcoord->Face1Area(k, j, is, ie+1, x1area); //SB(FIXME) for GR, this will work in master_cx_matter, but not in matter_* branches!
+      pmb->pcoord->Face1Area(k, j, is, ie+1, x1area); 
       for (int iv=0; iv<N_Lab; ++iv) {
         for (int ig=0; ig<ngroups*nspecies; ++ig) {
 #pragma omp simd
           for (int i=is; i<=ie; ++i) {
             dflx(iv,ig,i) = (x1area(i+1)*x1flux(iv,ig,k,j,i+1) - x1area(i)*x1flux(iv,ig,k,j,i));
 
-	    char sbuf[128]; sprintf(sbuf,"div: k=%d j=%d i=%d   iv=%d  ig=%d   flux = %e  area=%e dflx=%e  RHS=%e", k,j,i, iv, ig, x1flux(iv,ig,k,j,i), x1area(i), dflx(iv,ig,i), -dflx(iv,ig,i)/vol(i)); M1_DEBUG_PR(sbuf); 
+	    //pmb->pcoord->CellVolume(k, j, is, ie, vol);//DEBUG only for printting below
+	    //char sbuf[128]; sprintf(sbuf,"div: k=%d j=%d i=%d   iv=%d  ig=%d   flux = %e  area=%e dflx=%e  RHS=%e", k,j,i, iv, ig, x1flux(iv,ig,k,j,i), x1area(i), dflx(iv,ig,i), -dflx(iv,ig,i)/vol(i)); M1_DEBUG_PR(sbuf); 
 	    
 	  }
         }
@@ -108,6 +105,8 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
 #pragma omp simd
             for (int i=is; i<=ie; ++i) {
 	      dflx(iv,ig,i) += (x2area_p1(i)*x2flux(iv,ig,k,j+1,i) - x2area(i)*x2flux(iv,ig,k,j,i));
+	      //char sbuf[128]; sprintf(sbuf,"div2: k=%d j=%d i=%d   iv=%d  ig=%d   dflx=%e", k,j,i, iv, ig, dflx(iv,ig,i)); M1_DEBUG_PR(sbuf); 
+	      
             }
           }
         }
@@ -122,6 +121,8 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
 #pragma omp simd
             for (int i=is; i<=ie; ++i) {
               dflx(iv,ig,i) += (x3area_p1(i)*x3flux(iv,ig,k+1,j,i) - x3area(i)*x3flux(iv,ig,k,j,i));
+	      //char sbuf[128]; sprintf(sbuf,"div3: k=%d j=%d i=%d   iv=%d  ig=%d   dflx=%e", k,j,i, iv, ig, dflx(iv,ig,i)); M1_DEBUG_PR(sbuf);
+
             }
           }
         }
@@ -135,12 +136,8 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
           for (int i=is; i<=ie; ++i) {	    
             u_rhs(iv,ig,k,j,i) -= dflx(iv,ig,i)/vol(i); 
 
-
-	    char sbuf[128]; sprintf(sbuf," k=%d j=%d i=%d   iv=%d  ig=%d   rhs = %e (dflx=%e  vol=%e)",
-				    k,j,i, iv, ig, u_rhs(iv,ig,k,j,i), dflx(iv,ig,i), vol(i)); M1_DEBUG_PR(sbuf); 
-
-
-
+	    //char sbuf[128]; sprintf(sbuf," k=%d j=%d i=%d   iv=%d  ig=%d   rhs = %e (dflx=%e  vol=%e)", k,j,i, iv, ig, u_rhs(iv,ig,k,j,i), dflx(iv,ig,i), vol(i)); M1_DEBUG_PR(sbuf); 
+	    
 	  }
         }
       }
@@ -251,11 +248,11 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
       pts[1] = ncells[1];
       pts[2] = ncells[0];
 
-      beg[0] = ks;   // M1_NGHOST
+      beg[0] = ks;   
       beg[1] = js;
       beg[2] = is-1; 
       
-      end[0] = ke+1; // pts - M1_NGHOST
+      end[0] = ke+1; 
       end[1] = je+1;
       end[2] = ie+1;
 
@@ -370,7 +367,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	  index[1] = __j;
 	  index[2] = __k;
 	  
-	  // 	char sbuf[128]; sprintf(sbuf,"k = %d j = %d i = %d", k,j,i); M1_DEBUG_PR(sbuf);
+	  //char sbuf[128]; sprintf(sbuf,"k = %d j = %d i = %d", k,j,i); M1_DEBUG_PR(sbuf);
 	  
 	  // From ADM 3-metric VC (AthenaArray/Tensor) to 
 	  // ADM 4-metric on CC at ijk (TensorPointwise) 
@@ -384,9 +381,9 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	  pack_v_u(fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),  v_u);  
 
 	  // M1_DEBUG_PR("g_uu");
-	  //   for (int a = 0; a < MDIM; ++a)
+	  // for (int a = 0; a < MDIM; ++a)
 	  //     for (int b = 0; b < MDIM; ++b)
-	  // 	M1_DEBUG_PR(g_uu(a,b));
+	  // M1_DEBUG_PR(g_uu(a,b));
 	  
 	  for (int ig = 0; ig < ngroups*nspecies; ++ig) {			 
 	    
@@ -409,9 +406,10 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	    
 	    for (int a = 0; a < NDIM; ++a) {
 	      for (int b = a; b < NDIM; ++b) {
-		
 		assert(isfinite(rad.P_dd(a,b,ig,k,j,i)));
-		//sprintf(sbuf," in Flux: a = %d b = %d ig = %d P_dd= %e", a,b,ig, rad.P_dd(a,b,ig,k,j,i));M1_DEBUG_PR(sbuf); 
+		
+		//sprintf(sbuf," in Flux: a = %d b = %d ig = %d P_dd= %e", a,b,ig, rad.P_dd(a,b,ig,k,j,i));M1_DEBUG_PR(sbuf);
+		
 	      }
 	    }				 
 	    pack_P_dd(beta_u(1), beta_u(2), beta_u(3),			 
