@@ -231,15 +231,16 @@ void M1::SetupKerrSchildMask(AthenaArray<Real> & u)
 
   Lab_vars vec;
   SetLabVarsAliases(u, vec); 
-  // Init mask to zero
-  rad.mask.ZeroClear();
+
+  // Init excision mask to zero
+  m1_mask.ZeroClear();
   
   CLOOP3(k,j,i) {
     Real const x = pmb->pcoord->x1v(i);;
     Real const y = pmb->pcoord->x2v(j);;
     Real const z = pmb->pcoord->x3v(k);;
     if (SQ(x) + SQ(y) + SQ(z) < SQ(kerr_mask_radius)) {
-      rad.mask(k,j,i) = 1;
+      m1_mask(k,j,i) = 1;
       for (int ig = 0; ig < nspecies*ngroups; ++ig) {
         vec.E  (   k,j,i, ig) = 0.0;
         vec.N  (   k,j,i, ig) = 0.0;
@@ -248,9 +249,6 @@ void M1::SetupKerrSchildMask(AthenaArray<Real> & u)
         vec.F_d(2, k,j,i, ig) = 0.0;
       }
     }
-    // else {
-    //   rad.mask(k,j,i) = 0;
-    // }
   } // CLOOP3
 
 }

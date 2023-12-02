@@ -48,7 +48,7 @@ namespace {
 // \brief Add the flux divergence to the RHS (see analogous Hydro method)
 
 void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
-  //M1_DEBUG_PR("in: AddFluxDivergence");
+  M1_DEBUG_PR("in: AddFluxDivergence");
   
   MeshBlock *pmb = pmy_block;
   AthenaArray<Real> &x1flux = storage.flux[X1DIR];
@@ -66,7 +66,7 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
       for (int iv=0; iv<N_Lab; ++iv) {
         for (int ig=0; ig<ngroups*nspecies; ++ig) {
           for (int i=is; i<=ie; ++i) {
-            u_rhs(iv,ig,k,j,i) += x1flux(iv,ig,k,j,i);
+            u_rhs(iv,ig,k,j,i) = x1flux(iv,ig,k,j,i);
 	  }
 	}
       }
@@ -237,9 +237,9 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 
       beg[0] = ks;   // M1_NGHOST
       beg[1] = js;
-      beg[2] = is;
-      //beg[2] = is-1;
-
+      beg[2] = is; 
+      //beg[2] = is-1; // CHECK THIS, see below (*)
+      
       end[0] = ke+1; // pts - M1_NGHOST
       end[1] = je+1;
       end[2] = ie+2;
@@ -319,6 +319,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
     Real * cons;
     Real * flux;
     Real * cmax = nullptr;
+    
 #if (test_thc_mode)
     Real * flux_jm = NULL;
     Real * flux_jp = NULL;
@@ -330,19 +331,22 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
       cons = new Real[ nvars * ngroups*nspecies * ncells[dir] ];
       flux = new Real[ nvars * ngroups*nspecies * ncells[dir] ];
       cmax = new Real[ nvars * ngroups*nspecies * ncells[dir] ];
+      
 #if (test_thc_mode)
       flux_jm = new Real[nvars*ngroups*nspecies];
       flux_jp = new Real[nvars*ngroups*nspecies];
 #endif
+      
     } catch (std::bad_alloc &e) {
       std::stringstream msg;
       msg << "Out of memory!" << std::endl;
       ATHENA_ERROR(msg);
     }
-
+    
     
     for (__i = beg[0]; __i < end[0]; ++__i) {
       for (__j = beg[1]; __j < end[1]; ++__j) {
+	
 	
 	// ----------------------------------------------
 	// 1st pass compute the fluxes
@@ -350,6 +354,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	  index[0] = __i;
 	  index[1] = __j;
 	  index[2] = __k;
+	  
+	  // 	char sbuf[128]; sprintf(sbuf,"k = %d j = %d i = %d", k,j,i); M1_DEBUG_PR(sbuf);
 	  
 	  // From ADM 3-metric VC (AthenaArray/Tensor) to 
 	  // ADM 4-metric on CC at ijk (TensorPointwise) 
@@ -361,21 +367,54 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	       fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),   
 	       &u_u(0), &u_u(1), &u_u(2), &u_u(3));				 
 	  pack_v_u(fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),  v_u);  
+
+	  // M1_DEBUG_PR("g_uu");
+	  //   for (int a = 0; a < MDIM; ++a)
+	  //     for (int b = 0; b < MDIM; ++b)
+	  // 	M1_DEBUG_PR(g_uu(a,b));
 	  
 	  for (int ig = 0; ig < ngroups*nspecies; ++ig) {			 
-	  
+	    
 	    pack_F_d(beta_u(1), beta_u(2), beta_u(3),			 
 		     vec.F_d(0,ig,k,j,i),					 
 		     vec.F_d(1,ig,k,j,i),					 
 		     vec.F_d(2,ig,k,j,i),					 
 		     F_d);
+	    
+	    // M1_DEBUG_PR("F_d");
+	    // for (int a = 0; a < 3; ++a)
+	    //   M1_DEBUG_PR(vec.F_d(a,ig,k,j,i));
+	    // M1_DEBUG_PR("packed F_d");
+	    // for (int a = 0; a < MDIM; ++a)
+	    //   M1_DEBUG_PR(F_d(a));
+	    
 	    pack_H_d(rad.Ht(ig,k,j,i),					 
 		     rad.H(0,ig,k,j,i), rad.H(1,ig,k,j,i), rad.H(2,ig,k,j,i),  
-		     H_d);						 
+		     H_d);
+	    
+	    for (int a = 0; a < NDIM; ++a) {
+	      for (int b = a; b < NDIM; ++b) {
+		
+		assert(isfinite(rad.P_dd(a,b,ig,k,j,i)));
+		//sprintf(sbuf," in Flux: a = %d b = %d ig = %d P_dd= %e", a,b,ig, rad.P_dd(a,b,ig,k,j,i));M1_DEBUG_PR(sbuf); 
+	      }
+	    }				 
 	    pack_P_dd(beta_u(1), beta_u(2), beta_u(3),			 
 		      rad.P_dd(0,0,ig,k,j,i), rad.P_dd(0,1,ig,k,j,i), rad.P_dd(1,1,ig,k,j,i),  
 		      rad.P_dd(1,1,ig,k,j,i), rad.P_dd(1,2,ig,k,j,i), rad.P_dd(2,2,ig,k,j,i),  
 		      P_dd);						 
+	    
+	    // M1_DEBUG_PR("P_dd");
+ 	    // for (int a = 0; a < MDIM; ++a)
+	    //   for (int b = 0; b < MDIM; ++b)
+	    // 	M1_DEBUG_PR(P_dd(a,b));
+	    // M1_DEBUG_PR("rad.P_dd");
+ 	    // for (int a = 0; a < 3; ++a)
+	    //   for (int b = 0; b < 3; ++b)
+	    // 	M1_DEBUG_PR(rad.P_dd(a,b,ig,k,j,i));
+	    // M1_DEBUG_PR("rad.J");
+	    // M1_DEBUG_PR(rad.J(ig,k,j,i));
+
 	    tensor::contract(g_uu, H_d, H_u);				 
 	    tensor::contract(g_uu, F_d, F_u);				 
 	    tensor::contract(g_uu, P_dd, P_ud);				 
@@ -388,7 +427,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	    (void)nnu;							 
 	    if (nspecies > 1)						 
 	      nnu = vec.N(ig,k,j,i)/Gamma;				 
-	  
+	    
 	    // Scratch buffers 
 	    cons[GFINDEX1D(__k, ig, 0)] = vec.F_d(0,ig,k,j,i);		 
 	    cons[GFINDEX1D(__k, ig, 1)] = vec.F_d(1,ig,k,j,i);		 
@@ -399,7 +438,21 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 
 	    for (int iv = 0; iv < nvars; ++iv)
 	      assert(isfinite(cons[GFINDEX1D(__k, ig, iv)]));			 
-	  
+
+	    // M1_DEBUG_PR("alpha");
+	    // M1_DEBUG_PR(alpha());
+	    // M1_DEBUG_PR("beta_u");
+	    // for (int a = 0; a < MDIM; ++a)
+	    //   M1_DEBUG_PR(beta_u(a));
+	    // M1_DEBUG_PR("F_u");
+	    // for (int a = 0; a < MDIM; ++a)
+	    //   M1_DEBUG_PR(F_u(a));
+	    // M1_DEBUG_PR("     P_dd    P_ud");
+ 	    // for (int a = 0; a < MDIM; ++a)
+	    //   for (int b = 0; b < MDIM; ++b) {
+	    // 	char sbuf[128]; sprintf(sbuf,"%d %d  %e  %e",a,b,P_dd(a,b),P_ud(a,b)); M1_DEBUG_PR(sbuf);
+	    //   }
+	    
 	    flux[GFINDEX1D(__k, ig, 0)] =					 
 	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 1);		 
 	    flux[GFINDEX1D(__k, ig, 1)] =					 
@@ -413,6 +466,10 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 
 	    for (int iv = 0; iv < nvars; ++iv)
 	      assert(isfinite(flux[GFINDEX1D(__k, ig, iv)]));			 
+
+	    // for (int iv = 0; iv < nvars; ++iv) {
+	    //   char sbuf[128]; sprintf(sbuf,"(%d,%d,%d) h=%g iv = %d var = %d flux = %e",k,j,i,delta[dir],iv,mapiv[iv], flux[GFINDEX1D(__k, ig, iv)]); M1_DEBUG_PR(sbuf);
+	    // }
 	    
 	    // Eigenvalues in the optically thin limit
 	    //
@@ -440,7 +497,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	      - alpha()*std::sqrt(gamma_uu(dir,dir)) - beta_u(dir+1),
 	    };
 	    Real const clight = std::max(std::abs(clam[0]), std::abs(clam[1]));
-
+	    
 	    //M1_DEBUG_PR("clight=");M1_DEBUG_PR(clight);
 	    
 	    // In some cases the eigenvalues in the thin limit
@@ -451,7 +508,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	    
 	  }  // ig loop 
 	} // __k loop
-
+	
 #if (test_thc_mode)
 	// Cleanup the flux buffer
 	memset(flux_jm, 0, nvars*ngroups*nspecies*sizeof(Real));
@@ -464,7 +521,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	  index[0] = __i;
 	  index[1] = __j;
 	  index[2] = __k;
-            
+          
 	  for (int ig = 0; ig < ngroups*nspecies; ++ig) {		
 	    
 	    Real avg_abs_1 = 0.5*(rmat.abs_1(ig,k,j,i)
@@ -480,98 +537,77 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	      A = std::max(A, mindiss);
 	    }
 	  
-	  for (int iv = 0; iv < nvars; ++iv) { 
-	    Real const ujm = cons[GFINDEX1D(__k-1, ig, iv)]; 
-	    Real const uj = cons[GFINDEX1D(__k, ig, iv)]; 
-	    Real const ujp = cons[GFINDEX1D(__k+1, ig, iv)]; 
-	    Real const ujpp = cons[GFINDEX1D(__k+2, ig, iv)]; 
-	    
-	    Real const fj = flux[GFINDEX1D(__k, ig, iv)]; 
-	    Real const fjp = flux[GFINDEX1D(__k+1, ig, iv)]; 
-	    
-	    Real const cc = cmax[GFINDEX1D(__k, ig, 0)]; 
-	    Real const ccp = cmax[GFINDEX1D(__k+1, ig, 0)]; 
-	    Real const cmx = std::max(cc, ccp); 
-	    
-	    Real const dup = ujpp - ujp; 
-	    Real const duc = ujp - uj; 
-	    Real const dum = uj - ujm;
-	    
-	    bool sawtooth = false; 
-	    Real phi = 0; 
-	    if (dup*duc > 0 && dum*duc > 0) { 
+	    for (int iv = 0; iv < nvars; ++iv) { 
+	      Real const ujm = cons[GFINDEX1D(__k-1, ig, iv)]; 
+	      Real const uj = cons[GFINDEX1D(__k, ig, iv)]; 
+	      Real const ujp = cons[GFINDEX1D(__k+1, ig, iv)]; 
+	      Real const ujpp = cons[GFINDEX1D(__k+2, ig, iv)]; 
+	      
+	      Real const fj = flux[GFINDEX1D(__k, ig, iv)]; 
+	      Real const fjp = flux[GFINDEX1D(__k+1, ig, iv)]; 
+	      
+	      Real const cc = cmax[GFINDEX1D(__k, ig, 0)]; 
+	      Real const ccp = cmax[GFINDEX1D(__k+1, ig, 0)]; 
+	      Real const cmx = std::max(cc, ccp); 
+	      
+	      Real const dup = ujpp - ujp; 
+	      Real const duc = ujp - uj; 
+	      Real const dum = uj - ujm;
+	      
+	      bool sawtooth = false; 
+	      Real phi = 0; 
+	      if (dup*duc > 0 && dum*duc > 0) { 
 	      phi = minmod2(dum/duc, dup/duc, minmod_theta); 
-	    } else if (dup*duc < 0 && dum*duc < 0) { 
-	      sawtooth = true; 
-	    } 
-	    assert(isfinite(phi)); 
-	    
-	    Real const flux_low =
-	      0.5*(fj + fjp - cmx*(ujp - uj));
-	    Real const flux_high = 0.5*(fj + fjp);
-	    
-	    flux_num[iv] = flux_high
-	      - (sawtooth ? 1.0 : A)*(1.0 - phi)*(flux_high - flux_low); 
-
-	    if (M1_FLUXX_SET_ZERO && dir==0) flux_num[iv] = 0.0;
-	    if (M1_FLUXY_SET_ZERO && dir==1) flux_num[iv] = 0.0;
-	    if (M1_FLUXZ_SET_ZERO && dir==2) flux_num[iv] = 0.0;
-
-	    //M1_DEBUG_PR(flux_num[iv]);
-	    	    
+	      } else if (dup*duc < 0 && dum*duc < 0) { 
+		sawtooth = true; 
+	      } 
+	      assert(isfinite(phi)); 
+	      
+	      Real const flux_low =
+		0.5*(fj + fjp - cmx*(ujp - uj));
+	      Real const flux_high = 0.5*(fj + fjp);
+	      
+	      flux_num[iv] = flux_high
+		- (sawtooth ? 1.0 : A)*(1.0 - phi)*(flux_high - flux_low); 
+	      
+	      if (M1_FLUXX_SET_ZERO && dir==0) flux_num[iv] = 0.0;
+	      if (M1_FLUXY_SET_ZERO && dir==1) flux_num[iv] = 0.0;
+	      if (M1_FLUXZ_SET_ZERO && dir==2) flux_num[iv] = 0.0;
+	      
+	      //M1_DEBUG_PR(flux_num[iv]);
+	      
 #if (test_thc_mode)
-
-	    flux_jp[PINDEX1D(ig, iv)] = flux_num[iv];
-	    
-	    xdirflux(mapiv[iv],
-		     ig, k,j,i) += 1.0/delta[dir]*(
-						   flux_jm[PINDEX1D(ig, iv)] -
-						   flux_jp[PINDEX1D(ig, iv)])*
-	      static_cast<Real>(
-				i >= M1_NGHOST
-				&& i <  pts[0] - M1_NGHOST
-				&& j >= M1_NGHOST
-				&& j <  pts[1] - M1_NGHOST
-				&& k >= M1_NGHOST
-				&& k <  pts[2] - M1_NGHOST);
+	      
+	      flux_jp[PINDEX1D(ig, iv)] = flux_num[iv];
+	      
+	      xdirflux(mapiv[iv],
+		       ig, k,j,i) += 1.0/delta[dir]*(
+						     flux_jm[PINDEX1D(ig, iv)] -
+						     flux_jp[PINDEX1D(ig, iv)])*
+		static_cast<Real>(
+				  i >= M1_NGHOST
+				  && i <  ncells[0] - M1_NGHOST
+				  && j >= M1_NGHOST
+				  && j <  ncells[1] - M1_NGHOST
+				  && k >= M1_NGHOST
+				  && k <  ncells[2] - M1_NGHOST);
+	      
 #else
-	    
-	    xdirflux(mapiv[iv], ig, k,j,i) = flux_num[iv];
-	    
-	    // Note THC (Athena++) stores F_{i+1/2} (F_{i-1/2})!
-	    // xdirflux(mapiv[iv], ig, k+shift[2],j+shift[1],i+shift[0]) = flux_num[iv];
-
-	    
+	      
+	      xdirflux(mapiv[iv], ig, k,j,i) = flux_num[iv];
+	      // (*) CHECK THIS THC (Athena++) stores F_{i+1/2} (F_{i-1/2})!
+	      //xdirflux(mapiv[iv], ig, k+shift[2],j+shift[1],i+shift[0]) = flux_num[iv];
+	      
 #endif
+	      
+	      //char sbuf[128]; sprintf(sbuf,"(%d,%d,%d) h=%g iv = %d  var = %d ig = %d  fluxnum = %e",k,j,i,delta[dir],iv,mapiv[iv],ig, xdirflux(mapiv[iv],ig, k,j,i)); M1_DEBUG_PR(sbuf);
+	      
 	    
-	  } // iv loop 
-
-	  // xdirflux(I_Lab_Fx, ig, k,j,i) = flux_num[0];
-	  // xdirflux(I_Lab_Fy, ig, k,j,i) = flux_num[1];
-	  // xdirflux(I_Lab_Fz, ig, k,j,i) = flux_num[2];
-	  // xdirflux(I_Lab_E, ig, k,j,i) = flux_num[3];
-	  // if (nspecies > 1)
-	  //   xdirflux(I_Lab_N, ig, k,j,i) = flux_num[4]; 
-
-	  // Note THC (Athena++) stores F_{i+1/2} (F_{i-1/2})!
-	  // xdirflux(I_Lab_Fx, ig, k+shift[2],j+shift[1],i+shift[0]) = flux_num[0];
-	  // xdirflux(I_Lab_Fy, ig, k+shift[2],j+shift[1],i+shift[0]) = flux_num[1];
-	  // xdirflux(I_Lab_Fz, ig, k+shift[2],j+shift[1],i+shift[0]) = flux_num[2];
-	  // xdirflux(I_Lab_E, ig, k+shift[2],j+shift[1],i+shift[0]) = flux_num[3];
-	  // if (nspecies > 1)
-	  //   xdirflux(I_Lab_N, ig, k+shift[2],j+shift[1],i+shift[0]) = flux_num[4]; 
-
-	  // char sbuf[128]; sprintf(sbuf,"FLUX(%d) (k,j,i) = (%d,%d,%d)  rE= %e  rFx= %e  rFy= %e  rFz= %e",
-	  // char sbuf[128]; sprintf(sbuf,"FLUX(%d) %d %d %d %e",
-	  // 			  dir, k,j,i,
-	  // 			  xdirflux(I_Lab_E, ig, k,j,i)
-	  // 			  //xdirflux(I_Lab_Fx, ig, k,j,i),
-	  // 			  //xdirflux(I_Lab_Fy, ig, k,j,i),
-	  // 			  //xdirflux(I_Lab_Fz, ig, k,j,i)
-	  // 			  ); M1_DEBUG_PR(sbuf);
-	  
+	    } // iv loop 
+	    
+	    
 	  } // ig loop
-
+	  
 #if (test_thc_mode)
 	  // Rotate flux pointer
 	  d_ptr = flux_jm;
@@ -580,18 +616,18 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 #endif
 	  
 	}// __k loop
-      
-    } // __j loop
-  } // __i loop
-  
-  delete[] cons;
-  delete[] flux;
-  delete[] cmax;
-
+	
+      } // __j loop
+    } // __i loop
+    
+    delete[] cons;
+    delete[] flux;
+    delete[] cmax;
+    
   } // dir loop
-
+  
   //--------------------------------------------------------------------------------------
-
+  
   g_dd.DeleteTensorPointwise();
   beta_u.DeleteTensorPointwise();
   alpha.DeleteTensorPointwise();

@@ -106,9 +106,9 @@ public:
 
   // Indexes of Lab frame variables
   enum {
-    I_Lab_N,
     I_Lab_E,
     I_Lab_Fx, I_Lab_Fy, I_Lab_Fz,
+    I_Lab_N,
     N_Lab
   };
   // Names of Lab frame variables
@@ -122,7 +122,6 @@ public:
     I_Rad_Hx, I_Rad_Hy, I_Rad_Hz,
     I_Rad_Pxx, I_Rad_Pxy, I_Rad_Pxz, I_Rad_Pyy, I_Rad_Pyz, I_Rad_Pzz,
     I_Rad_chi,
-    I_Rad_mask,
     I_Rad_ynu,
     I_Rad_znu,
     N_Rad
@@ -157,6 +156,7 @@ public:
     I_Intern_fidu_Wlorentz,
     I_Intern_netabs,
     I_Intern_netheat,
+    I_Intern_mask,
     N_Intern
   };
   // Names of internal variables
@@ -212,7 +212,6 @@ public:
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> H;
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> P_dd; // Lab frame (normalized by E)
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> chi;
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> mask;
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> ynu;
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> znu;
   };
@@ -243,13 +242,16 @@ public:
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Wlorentz;
   };
   Fidu_vars fidu;
-
+  
   // aliases for the net heat and abs (no group dependency)
   struct Net_vars {
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> abs;
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> heat;
   };
   Net_vars net;
+
+  // Excision mask
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> m1_mask;
   
   // Parameters
   int nspecies;
@@ -344,7 +346,7 @@ public:
   void SetDiagnoVarsAliases(AthenaArray<Real> & diagno, Diagno_vars & rdia);
   void SetFiduVarsAliases(AthenaArray<Real> & intern, Fidu_vars & fid);
   void SetNetVarsAliases(AthenaArray<Real> & intern, Net_vars & net);
-
+  
   // initial data for the tests
   void SetupBeamTest(AthenaArray<Real> & u);
   void SetupDiffusionTest(AthenaArray<Real> & u);
@@ -360,7 +362,7 @@ public:
 private:
   AthenaArray<Real> dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep
   // scratch space used to compute fluxes
-  AthenaArray<Real> dxw_;
+  //AthenaArray<Real> dxw_;
   AthenaArray<Real> x1face_area_, x2face_area_, x3face_area_;
   AthenaArray<Real> x2face_area_p1_, x3face_area_p1_;
   AthenaArray<Real> cell_volume_;

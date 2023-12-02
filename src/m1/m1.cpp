@@ -37,7 +37,6 @@ char const * const M1::Rad_names[M1::N_Rad] = {
   "rad.Ht", "rad.Hx", "rad.Hy", "rad.Hz",
   "rad.Pxx", "rad.Pxy", "rad.Pxz", "rad.Pyy", "rad.Pyz", "rad.Pzz",
   "rad.chi",
-  "rad.mask",
 };
 
 char const * const M1::RadMat_names[M1::N_RadMat] = {
@@ -58,6 +57,7 @@ char const * const M1::Intern_names[M1::N_Intern] = {
   "fidu.Wlorents", 
   "net.abs",
   "net.heat",
+  "mask",
 };
 
 char const * const M1::source_update_msg[M1::M1_SRC_UPDATE_RESULTS] = {
@@ -210,7 +210,9 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   SetDiagnoVarsAliases(storage.diagno, rdia);
   SetFiduVarsAliases(storage.intern, fidu);
   SetNetVarsAliases(storage.intern, net);
-  
+
+  m1_mask.InitWithShallowSlice(storage.intern, I_Intern_mask);
+
   // Allocate memory for auxiliary vars
   //...
   
@@ -230,28 +232,40 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   //---------------------------------------------------------------------------
   
   // Initialize excision mask (no excision)
-  rad.mask.ZeroClear();
+  m1_mask.ZeroClear();
   
 }
 
 // destructor
 M1::~M1()
 {
-  storage.u.DeleteAthenaArray();
-  storage.u1.DeleteAthenaArray();
-  storage.flux[0].DeleteAthenaArray();
-  storage.flux[1].DeleteAthenaArray();
-  storage.flux[2].DeleteAthenaArray();
-  storage.u_rhs.DeleteAthenaArray();
-  storage.u_rad.DeleteAthenaArray();
-  storage.radmat.DeleteAthenaArray();
-  storage.diagno.DeleteAthenaArray();
-  storage.intern.DeleteAthenaArray();
+  // storage.u.DeleteAthenaArray();
+  // storage.u1.DeleteAthenaArray();
+  // storage.flux[0].DeleteAthenaArray();
+  // storage.flux[1].DeleteAthenaArray();
+  // storage.flux[2].DeleteAthenaArray();
+  // storage.u_rhs.DeleteAthenaArray();
+  // storage.u_rad.DeleteAthenaArray();
+  // storage.radmat.DeleteAthenaArray();
+  // storage.diagno.DeleteAthenaArray();
+  // storage.intern.DeleteAthenaArray();
 
   dt1_.DeleteAthenaArray();
   dt2_.DeleteAthenaArray();
   dt3_.DeleteAthenaArray();
 
+  //x1face_area_.DeleteAthenaArray();
+  // if (pm->f2) {
+  //   x2face_area_.DeleteAthenaArray();
+  //   x2face_area_p1_.DeleteAthenaArray();
+  // }
+  // if (pm->f3) {
+  //   x3face_area_.DeleteAthenaArray();
+  //   x3face_area_p1_.DeleteAthenaArray();
+  // }
+  cell_volume_.DeleteAthenaArray();
+  dflx_.DeleteAthenaArray();
+  
   //if (fakerates != nullptr)
   // delete fakerates;
 }
@@ -279,7 +293,6 @@ void M1::SetRadVarsAliases(AthenaArray<Real> & u, M1::Rad_vars & rad)
   rad.H.InitWithShallowSlice(u, I_Rad_Hx);
   rad.P_dd.InitWithShallowSlice(u, I_Rad_Pxx);
   rad.chi.InitWithShallowSlice(u, I_Rad_chi);
-  rad.mask.InitWithShallowSlice(u, I_Rad_mask);
   rad.ynu.InitWithShallowSlice(u, I_Rad_ynu);
   rad.znu.InitWithShallowSlice(u, I_Rad_znu);  
 }
