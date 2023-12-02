@@ -67,6 +67,10 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
         for (int ig=0; ig<ngroups*nspecies; ++ig) {
           for (int i=is; i<=ie; ++i) {
             u_rhs(iv,ig,k,j,i) = x1flux(iv,ig,k,j,i);
+
+	    //char sbuf[128]; sprintf(sbuf," k=%d j=%d i=%d   iv=%d  ig=%d   rhs = %e", k,j,i, iv, ig, u_rhs(iv,ig,k,j,i)); M1_DEBUG_PR(sbuf); 
+
+	    
 	  }
 	}
       }
@@ -77,6 +81,9 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
   
   for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
+
+
+      pmb->pcoord->CellVolume(k, j, is, ie, vol);
       
       // calculate x1-flux divergence
       pmb->pcoord->Face1Area(k, j, is, ie+1, x1area); //SB(FIXME) for GR, this will work in master_cx_matter, but not in matter_* branches!
@@ -84,8 +91,10 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
         for (int ig=0; ig<ngroups*nspecies; ++ig) {
 #pragma omp simd
           for (int i=is; i<=ie; ++i) {
-            //dflx(iv,ig,i) = (x1area(i+1)*x1flux(iv,ig,k,j,i+1) - x1area(i)*x1flux(iv,ig,k,j,i));
-	    dflx(iv,ig,i) = (x1flux(iv,ig,k,j,i+1) - x1flux(iv,ig,k,j,i));
+            dflx(iv,ig,i) = (x1area(i+1)*x1flux(iv,ig,k,j,i+1) - x1area(i)*x1flux(iv,ig,k,j,i));
+
+	    char sbuf[128]; sprintf(sbuf,"div: k=%d j=%d i=%d   iv=%d  ig=%d   flux = %e  area=%e dflx=%e  RHS=%e", k,j,i, iv, ig, x1flux(iv,ig,k,j,i), x1area(i), dflx(iv,ig,i), -dflx(iv,ig,i)/vol(i)); M1_DEBUG_PR(sbuf); 
+	    
 	  }
         }
       }
@@ -123,9 +132,16 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
       for (int iv=0; iv<N_Lab; ++iv) {
         for (int ig=0; ig<ngroups*nspecies; ++ig) {
 #pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            u_rhs(iv,ig,k,j,i) -= dflx(iv,ig,i)/vol(i); //TODO CHECK THIS vol(i)
-          }
+          for (int i=is; i<=ie; ++i) {	    
+            u_rhs(iv,ig,k,j,i) -= dflx(iv,ig,i)/vol(i); 
+
+
+	    char sbuf[128]; sprintf(sbuf," k=%d j=%d i=%d   iv=%d  ig=%d   rhs = %e (dflx=%e  vol=%e)",
+				    k,j,i, iv, ig, u_rhs(iv,ig,k,j,i), dflx(iv,ig,i), vol(i)); M1_DEBUG_PR(sbuf); 
+
+
+
+	  }
         }
       }
       
@@ -237,13 +253,11 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 
       beg[0] = ks;   // M1_NGHOST
       beg[1] = js;
-      beg[2] = is; 
-      //beg[2] = is-1; // CHECK THIS, see below (*)
+      beg[2] = is-1; 
       
       end[0] = ke+1; // pts - M1_NGHOST
       end[1] = je+1;
-      end[2] = ie+2;
-      //end[2] = ie+1;
+      end[2] = ie+1;
 
       shift[0] = 1;
       shift[1] = 0;
@@ -324,8 +338,9 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
     Real * flux_jm = NULL;
     Real * flux_jp = NULL;
     Real * d_ptr   = NULL;
-    xdirflux.ZeroClear();
 #endif
+
+    xdirflux.ZeroClear();
     
     try {
       cons = new Real[ nvars * ngroups*nspecies * ncells[dir] ];
@@ -575,6 +590,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	      if (M1_FLUXZ_SET_ZERO && dir==2) flux_num[iv] = 0.0;
 	      
 	      //M1_DEBUG_PR(flux_num[iv]);
+	      //char sbuf[128]; sprintf(sbuf,"(%d,%d,%d) h=%g iv = %d  var = %d ig = %d  fluxnum = %e",k,j,i,delta[dir],iv,mapiv[iv],ig, flux_num[iv]); M1_DEBUG_PR(sbuf);
 	      
 #if (test_thc_mode)
 	      
@@ -593,10 +609,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 				  && k <  ncells[2] - M1_NGHOST);
 	      
 #else
-	      
-	      xdirflux(mapiv[iv], ig, k,j,i) = flux_num[iv];
-	      // (*) CHECK THIS THC (Athena++) stores F_{i+1/2} (F_{i-1/2})!
-	      //xdirflux(mapiv[iv], ig, k+shift[2],j+shift[1],i+shift[0]) = flux_num[iv];
+
+	      xdirflux(mapiv[iv], ig, k+shift[2],j+shift[1],i+shift[0]) = flux_num[iv];
 	      
 #endif
 	      
