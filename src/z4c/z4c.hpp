@@ -286,6 +286,28 @@ public:
   void ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u);
   // compute ADM variables from Z4c variables
   void Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm);
+
+  // Conformal factor conversions
+  // Floor applied: std::max(chi, opt.chi_div_floor)
+  //
+  // psi4 == g^(1/3)
+  // g    == psi4^3
+  // chi  == g^(1/12 * p)
+  // g    == chi^(12/p)
+  //
+  // chi == psi4^(p/4), psi4 == chi^(4/p)
+  inline Real psi4Regularized(const Real & psi4_bare)
+  {
+    // A floor on chi is a ceil on psi4
+    const Real T_chi = opt.chi_div_floor;
+    const Real p = opt.chi_psi_power;
+
+    const Real T_psi4 = std::pow(T_chi, 4. / p);
+    const Real psi4_guarded = (std::isfinite(psi4_bare)) ?
+                               std::min(T_psi4, psi4_bare) : T_psi4;
+    return psi4_guarded;
+  }
+
   // enforce algebraic constraints on the solution
   void AlgConstr(AthenaArray<Real> & u);
   // compute ADM constraints

@@ -24,7 +24,6 @@ void Z4c::ADMOnePuncture(ParameterInput *pin, AthenaArray<Real> & u_adm)
   ADM_vars adm;
   SetADMAliases(u_adm, adm);
   Real ADM_mass = pin->GetOrAddReal("problem", "punc_ADM_mass", 1.);
-  Real r_floor = pin->GetOrAddReal("z4c", "one_punc_r_floor", 0.00001);
 
   // Flat spacetime
   ADMMinkowski(u_adm);
@@ -34,10 +33,11 @@ void Z4c::ADMOnePuncture(ParameterInput *pin, AthenaArray<Real> & u_adm)
     GLOOP1(i) {
       r(i) = std::sqrt(SQR(mbi.x1(i)) + SQR(mbi.x2(j)) + SQR(mbi.x3(k)));
     }
-    // psi4
+
     GLOOP1(i) {
-      if (r(i) < r_floor) r(i) = r_floor;
-      adm.psi4(k,j,i) = std::pow(1.0+0.5*ADM_mass/r(i),4);
+      const Real psi4_bare = std::pow(1.0+0.5*ADM_mass / r(i), 4.);
+      // Ensure finite through thresholding trick
+      adm.psi4(k,j,i) = Z4c::psi4Regularized(psi4_bare);
     }
     // g_ab
     for(int a = 0; a < NDIM; ++a)
