@@ -468,9 +468,9 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 1);		 
 	    flux[GFINDEX1D(__k, ig, 1)] =					 
 	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 2);		 
-	    flux[GFINDEX1D(__k, ig, 2)] =					 
+	    flux[GFINDEX1D(__k, ig, 2)] =
 	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 3);		 
-	    flux[GFINDEX1D(__k, ig, 3)] =					 
+	    flux[GFINDEX1D(__k, ig, 3)] =
 	      calc_E_flux(alpha(), beta_u, vec.E(ig,k,j,i), F_u, dir+1);	 
 	    if (nspecies > 1)						 
 	      flux[GFINDEX1D(__k, ig, 4)] = alpha() * nnu * fnu_u(dir+1);		 
@@ -541,7 +541,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 				   + rmat.scat_1(ig,k+shift[2],j+shift[1],i+shift[0]));
 	    
 	    // Remove dissipation at high Peclet numbers 
-	    Real kapa = 0.5*(avg_abs_1 + avg_scat_1); 
+	    Real kapa = avg_abs_1 + avg_scat_1; 
 	    Real A = 1.0;
 	    if (kapa*delta[dir] > 1.0) {
 	      A = std::min(1.0, 1.0/(delta[dir]*kapa));
