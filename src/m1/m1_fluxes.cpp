@@ -62,8 +62,10 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
       for (int iv=0; iv<N_Lab; ++iv) {
         for (int ig=0; ig<ngroups*nspecies; ++ig) {
           for (int i=is; i<=ie; ++i) {
-            u_rhs(iv,ig,k,j,i) = x1flux(iv,ig,k,j,i);
-
+            u_rhs(iv,ig,k,j,i) = x1flux(iv,ig,k,j,i)
+	      + x2flux(iv,ig,k,j,i)
+	      + x3flux(iv,ig,k,j,i);
+	    
 	    //char sbuf[128]; sprintf(sbuf," k=%d j=%d i=%d   iv=%d  ig=%d   rhs = %e", k,j,i, iv, ig, u_rhs(iv,ig,k,j,i)); M1_DEBUG_PR(sbuf);
 	    
 	  }
