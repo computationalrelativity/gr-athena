@@ -84,18 +84,15 @@ Real EOSCompOSE::s_min_Y[MAX_SPECIES] = {0};
 
 Real EOSCompOSE::TemperatureFromE(Real n, Real e, Real *Y) {
   assert (m_initialized);
+  //Real e_min = MinimumEnergy(n, Y);
   return temperature_from_var(ECLOGE, log(e), n, Y[0]);
+  //return (e <= e_min) ? min_T : temperature_from_var(ECLOGE, log(e), n, Y[0]);
 }
 
 Real EOSCompOSE::TemperatureFromP(Real n, Real p, Real *Y) {
   assert (m_initialized);
   Real p_min = MinimumPressure(n, Y);
-  if (p <= p_min) {
-    p = p_min;
-    return min_T;
-  } else {
-    return temperature_from_var(ECLOGP, log(p), n, Y[0]);
-  }
+  return (p <= p_min) ? min_T : temperature_from_var(ECLOGP, log(p), n, Y[0]);
 }
 
 Real EOSCompOSE::Energy(Real n, Real T, Real *Y) {
@@ -374,6 +371,9 @@ Real EOSCompOSE::temperature_from_var(int iv, Real var, Real n, Real Yq) const {
       ilo += 1;
       flo = f(ilo);
     }
+  }
+  if (flo*fhi > 0) {
+    std::cout << "iv = " << iv << ", var = " << var << ", n = " << n << ", Yq = " << Yq << std::endl;
   }
   assert(flo*fhi <= 0);
   while (ihi - ilo > 1) {

@@ -40,7 +40,6 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real
 using RescaleFunction = void(*)(AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>& gamma_dd,
                                 AthenaArray<Real>& vcchi,
                                 AthenaTensor<Real, TensorSymm::NONE, NDIM, 0>& chi,
-                                InterpIntergridLocal* interp,
                                 int il, int iu, int j, int k);
 
 //Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> eos;
@@ -132,6 +131,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
     int ku, int coarse_flag) {
   // Parameters
   int nn1 = iu + 1;
+  Real error = 0.;
 
   // Vertex-centered containers for the metric.
   AthenaArray<Real> vcgamma_xx, vcgamma_xy, vcgamma_xz, vcgamma_yy,
