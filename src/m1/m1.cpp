@@ -54,7 +54,7 @@ char const * const M1::Diagno_names[M1::N_Diagno] = {
 
 char const * const M1::Intern_names[M1::N_Intern] = {
   "fidu.vx", "fidu.vy", "fidu.vz",
-  "fidu.Wlorents", 
+  "fidu.Wlorentz", 
   "net.abs",
   "net.heat",
   "mask",
@@ -128,7 +128,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   // If user-requested time integrator is type 3S* allocate additional memory
   // std::string integrator = pin->GetOrAddString("time", "integrator", "vl2");
   // if (integrator == "ssprk5_4")
-  //   storage.u2.NewAthenaArray(N_Z4c, nn3, nn2, nn1);
+  //   storage.u2.NewAthenaArray(N_Lab, nn3, nn2, nn1);
 
   // enroll CellCenteredBoundaryVariabl object
   ubvar.bvar_index = pmb->pbval->bvars.size();
@@ -148,7 +148,6 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     x3face_area_p1_.NewAthenaArray(mbi.nn1);
   }
   cell_volume_.NewAthenaArray(mbi.nn1);
-  dflx_.NewAthenaArray(N_Lab, ngroups*nspecies, mbi.nn1);
 
   //---------------------------------------------------------------------------
   
@@ -192,9 +191,11 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   kerr_beam_position = pin->GetOrAddReal("M1", "kerr_beam_position", 3.25);
   kerr_beam_width = pin->GetOrAddReal("M1", "kerr_beam_width", 0.5);
   kerr_mask_radius = pin->GetOrAddReal("M1", "kerr_mask_radius", 2.0);
-  
+
   //---------------------------------------------------------------------------
 
+  dflx_.NewAthenaArray(N_Lab, ngroups*nspecies, mbi.nn1);
+  
   AverageBaryonMass = nullptr;
 
   fakerates = nullptr;
@@ -233,22 +234,42 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   
   // Initialize excision mask (no excision)
   m1_mask.ZeroClear();
-  
+
+  //DEBUG just a check/warning 
+#define M1_DEBUG_SETUP_MSG(msg)\
+  std::cout << "WARNING: " << msg << std::endl;
+  if(M1_CALCFIDUCIALVELOCITY_OFF)
+    M1_DEBUG_SETUP_MSG("Fiducial velocity calculation is OFF");
+  if(M1_CALCCLOSURE_OFF)
+    M1_DEBUG_SETUP_MSG("Closure calculation is OFF");
+  if(M1_CALCOPACITY_OFF)
+    M1_DEBUG_SETUP_MSG("Opacities calculation is OFF");
+  if(M1_CALCOPACITY_ZERO) 
+    M1_DEBUG_SETUP_MSG("Opacities are ZERO");
+  if(M1_GRSOURCES_OFF)
+    M1_DEBUG_SETUP_MSG("GR source calculation is OFF");
+  if(M1_FLUXX_SET_ZERO) 
+    M1_DEBUG_SETUP_MSG("Flux in x-direction is ZERO");
+  if(M1_FLUXY_SET_ZERO)
+    M1_DEBUG_SETUP_MSG("Flux in y-direction is ZERO");
+  if(M1_FLUXZ_SET_ZERO)
+    M1_DEBUG_SETUP_MSG("Flux in z-direction is ZERO");
+
 }
 
 // destructor
 M1::~M1()
 {
-  // storage.u.DeleteAthenaArray();
-  // storage.u1.DeleteAthenaArray();
-  // storage.flux[0].DeleteAthenaArray();
-  // storage.flux[1].DeleteAthenaArray();
-  // storage.flux[2].DeleteAthenaArray();
-  // storage.u_rhs.DeleteAthenaArray();
-  // storage.u_rad.DeleteAthenaArray();
-  // storage.radmat.DeleteAthenaArray();
-  // storage.diagno.DeleteAthenaArray();
-  // storage.intern.DeleteAthenaArray();
+  storage.u.DeleteAthenaArray();
+  storage.u1.DeleteAthenaArray();
+  storage.flux[0].DeleteAthenaArray();
+  storage.flux[1].DeleteAthenaArray();
+  storage.flux[2].DeleteAthenaArray();
+  storage.u_rhs.DeleteAthenaArray();
+  storage.u_rad.DeleteAthenaArray();
+  storage.radmat.DeleteAthenaArray();
+  storage.diagno.DeleteAthenaArray();
+  storage.intern.DeleteAthenaArray();
 
   dt1_.DeleteAthenaArray();
   dt2_.DeleteAthenaArray();

@@ -26,10 +26,6 @@
 //int NeutrinoOpacity(Real const, Real const, Real const, Real *, Real *, Real *, Real *, Real *, Real *); // TODO: define this
 //int NeutrinoAbsorptionRate(Real const, Real const, Real const, Real *, Real *, Real *, Real *, Real *, Real *); // TODO: define this
 
-
-#define M1_CALCOPACITY_OFF (0)
-#define M1_CALCOPACITY_ZERO (1)
-
 void M1::CalcOpacity(AthenaArray<Real> & u)
 {
   if (M1_CALCOPACITY_OFF) return;

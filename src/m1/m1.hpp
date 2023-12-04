@@ -74,6 +74,14 @@ enum {
 #define M1_DEBUG (1)
 #define M1_DEBUG_PR(var)\
   if (M1_DEBUG) { std::cout << "M1_DEBUG: " << var << std::endl; }
+#define M1_CALCFIDUCIALVELOCITY_OFF (1)
+#define M1_CALCCLOSURE_OFF (0)
+#define M1_CALCOPACITY_OFF (0)
+#define M1_CALCOPACITY_ZERO (1)
+#define M1_GRSOURCES_OFF (1)
+#define M1_FLUXX_SET_ZERO (0)
+#define M1_FLUXY_SET_ZERO (1)
+#define M1_FLUXZ_SET_ZERO (1)
 
 // CGS density conv. fact
 #define CGS_GCC (1.619100425158886e-18) 

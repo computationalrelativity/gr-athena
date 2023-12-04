@@ -28,8 +28,6 @@
 
 using namespace utils;
 
-#define M1_CALCCLOSURE_OFF (0)
-
 //----------------------------------------------------------------------------------------
 // Setup for the root finder
 
@@ -234,8 +232,7 @@ void M1::apply_closure(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & 
                        Real const chi,
                        TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd)
 {
-  //char sbuf[128];
-  //M1_DEBUG_PR("in apply_closure");
+  //char sbuf[128];M1_DEBUG_PR("in apply_closure");
   
   TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> Pthin_dd;
   TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> Pthick_dd;
@@ -438,7 +435,6 @@ void M1::CalcClosure(AthenaArray<Real> & u)
   T_dd.NewTensorPointwise();
   
   GCLOOP3(k,j,i) {
-  //CLOOP3(k,j,i) {
 
     if (m1_mask(k,j,i)) {
       for (int ig = 0; ig < nspecies*ngroups; ++ig) {
@@ -557,7 +553,6 @@ void M1::CalcClosure(AthenaArray<Real> & u)
   g_uu.DeleteTensorPointwise();
   n_d.DeleteTensorPointwise();
 
-  //fidu.vel_u.DeleteAthenaTensor();
   u_u.DeleteTensorPointwise();
   u_d.DeleteTensorPointwise();
   proj_ud.DeleteTensorPointwise();

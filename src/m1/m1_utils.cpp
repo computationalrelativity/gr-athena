@@ -521,7 +521,7 @@ void M1::Get4Metric_Inv(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const &
 
   // g^ij 
   Real const det = SpatialDet(g_dd(1,1), g_dd(1,2), g_dd(1,3),
-			                        g_dd(2,2), g_dd(2,3), g_dd(3,3));
+			      g_dd(2,2), g_dd(2,3), g_dd(3,3));
   
   SpatialInv(1.0/det,
 	           g_dd(1,1), g_dd(1,2), g_dd(1,3),
@@ -552,13 +552,13 @@ void M1::Get4Metric_Inv_Inv3(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> co
   }
   // gamma^ij 
   Real const det = SpatialDet(g_dd(1,1), g_dd(1,2), g_dd(1,3),
-			                        g_dd(2,2), g_dd(2,3), g_dd(3,3));
+			      g_dd(2,2), g_dd(2,3), g_dd(3,3));
   
   SpatialInv(1.0/det,
-	           g_dd(1,1), g_dd(1,2), g_dd(1,3),
-	           g_dd(2,2), g_dd(2,3), g_dd(3,3),
-	           &g_uu(1,1), &g_uu(1,2), &g_uu(1,3),
-	           &g_uu(2,2), &g_uu(2,3), &g_uu(3,3));
+	     g_dd(1,1), g_dd(1,2), g_dd(1,3),
+	     g_dd(2,2), g_dd(2,3), g_dd(3,3),
+	     &g_uu(1,1), &g_uu(1,2), &g_uu(1,3),
+	     &g_uu(2,2), &g_uu(2,3), &g_uu(3,3));
 
   gam_uu(0,0) = g_uu(1,1);
   gam_uu(0,1) = g_uu(1,2);
