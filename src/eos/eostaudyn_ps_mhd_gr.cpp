@@ -131,7 +131,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
 
   // Vertex-centered containers for the metric.
   AthenaArray<Real> vcgamma_xx, vcgamma_xy, vcgamma_xz, vcgamma_yy,
-                    vcgamma_yz, vcgamma_zz, vcchi;
+                    vcgamma_yz, vcgamma_zz, vcchi, vcalpha;
   
   // Operations that change based on whether or not we have coarse variables;
   // this avoids an extra branch during the interpolation loop.
@@ -139,9 +139,11 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
 
   // Metric at cell centers.
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> chi;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> chi,alpha;
   gamma_dd.NewAthenaTensor(nn1);
+  alpha.NewAthenaTensor(nn1);
   if (coarse_flag == 0) {
+    vcalpha.InitWithShallowSlice(pmy_block_->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
     vcgamma_xx.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxx,1);
     vcgamma_xy.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxy,1);
     vcgamma_xz.InitWithShallowSlice(pmy_block_->pz4c->storage.adm,Z4c::I_ADM_gxz,1);
@@ -163,6 +165,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
     vcgamma_yz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gyz,1);
     vcgamma_zz.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_gzz,1);
     vcchi.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_chi,1);
+    vcalpha.InitWithShallowSlice(pmy_block_->pz4c->coarse_u_,Z4c::I_Z4c_alpha,1);
     auto lambda = [](AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>& gamma_dd,
                      AthenaArray<Real>& vcchi,
                      AthenaTensor<Real, TensorSymm::NONE, NDIM, 0>& chi,
@@ -188,6 +191,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
       // Extract the metric at the vertex centers and interpolate to cell centers.
       //#pragma omp simd
       for (int i = il; i <= iu; ++i) {
+        alpha(i) = VCInterpolation(vcalpha,k,j,i);
         gamma_dd(0,0,i) = VCInterpolation(vcgamma_xx, k, j, i);
         gamma_dd(0,1,i) = VCInterpolation(vcgamma_xy, k, j, i);
         gamma_dd(0,2,i) = VCInterpolation(vcgamma_xz, k, j, i);
@@ -226,9 +230,10 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         Real b3u[NMAG] = {bb_cc(IB1, k, j, i)/sdetg,
                           bb_cc(IB2, k, j, i)/sdetg,
                           bb_cc(IB3, k, j, i)/sdetg};
+        Real cons_pt[NCONS] = {0.0};
+        Real prim_pt[NPRIM] = {0.0};
         if(!in_horizon){
         // Extract and undensitize the conserved variables.
-        Real cons_pt[NCONS] = {0.0};
         Real cons_old_pt[NCONS] = {0.0}; // Redundancy in case things go bad.
         cons_pt[IDN] = cons_old_pt[IDN] = cons(IDN, k, j, i)/sdetg;
         cons_pt[IM1] = cons_old_pt[IM1] = cons(IM1, k, j, i)/sdetg;
@@ -242,7 +247,6 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         }
 
         // Find the primitive variables.
-        Real prim_pt[NPRIM] = {0.0};
         Primitive::SolverResult result = ps.ConToPrim(prim_pt, cons_pt, b3u, g3d, g3u);
         
         if (result.error != Primitive::Error::SUCCESS) {
@@ -285,8 +289,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         }
 	} else {
            // set atmosphere inside horizon if using excision
-           Real prim_pt[NPRIM]  = {0.0};
-           Real n_atm = ps.GetEOS()->GetDensityfloor();
+           Real n_atm = ps.GetEOS()->GetDensityFloor();
            Real T_atm = ps.GetEOS()->GetTemperatureFloor();
            Real Y_atm[NSCALARS] = {0.0};
            for(int n=0; n<NSCALARS; n++){
@@ -302,8 +305,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
                prim_pt[IYF+n] = Y_atm[n];
            }
     
-           Real cons_pt[NCONS] = {0.0};
-           ps.GetEOS()->PrimToCon(prim_pt, cons_pt, bu, g3d);
+           ps.PrimToCon(prim_pt, cons_pt, b3u, g3d);
        }
         // Update the primitive variables.
         prim(IDN, k, j, i) = prim_pt[IDN]*ps.GetEOS()->GetBaryonMass();
