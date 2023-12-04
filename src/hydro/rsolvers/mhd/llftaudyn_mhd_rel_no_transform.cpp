@@ -21,6 +21,10 @@
 #include "../../../eos/eos.hpp"                  // EquationOfState
 #include "../../../mesh/mesh.hpp"                // MeshBlock
 
+
+#ifdef Z4C_AHF
+#include "../../../z4c/ahf.hpp"
+#endif
 //----------------------------------------------------------------------------------------
 // Riemann solver
 // Inputs:
@@ -67,6 +71,8 @@ void Hydro::RiemannSolver(const int k, const int j,
   const Real gamma_adi = pmy_block->peos->GetGamma();
 #endif
   Real dt = pmy_block->pmy_mesh->dt;
+  Coordinates *pco = pmy_block->pcoord;
+  Real alpha_excision = pmy_block->peos->alpha_excision;
 
   // Go through 1D arrays of interfaces
 //  for (int k = kl; k <= ku; ++k) {
@@ -184,9 +190,12 @@ void Hydro::RiemannSolver(const int k, const int j,
       }
 
 
+      bool in_horizon;
 
        #pragma omp simd
       for (int i = il; i <= iu; ++i) {
+// by default not in horizon, so no setting of flat space
+           in_horizon = false;
       detgamma(i) = Det3Metric(gamma_dd,i);
       detg(i) = SQR(alpha(i)) * detgamma(i);
       Inverse3Metric(1.0/detgamma(i),
@@ -195,6 +204,49 @@ void Hydro::RiemannSolver(const int k, const int j,
           &gamma_uu(0,0,i), &gamma_uu(0,1,i), &gamma_uu(0,2,i),
           &gamma_uu(1,1,i), &gamma_uu(1,2,i), &gamma_uu(2,2,i));
  
+#ifdef Z4C_AHF
+// if ahf enabled set flat space if in horizon
+// TODO: read in centre of each horizon and shift origin - not needed for now if collapse is at origin
+      for (auto pah_f : pmy_block->pmy_mesh->pah_finder) {
+      switch (ivx) {
+        case(IVX): 
+           if(((SQR(pco->x1f(i)) + SQR(pco->x2v(j)) + SQR(pco->x3v(k))) < SQR(pah_f->ah_prop[AHF::hmeanradius])) || (alpha(i) < alpha_excision)) {
+           in_horizon = true;
+           }
+        case(IVY): 
+           if(((SQR(pco->x1v(i)) + SQR(pco->x2f(j)) + SQR(pco->x3v(k))) < SQR(pah_f->ah_prop[AHF::hmeanradius])) || (alpha(i) < alpha_excision)) {
+           in_horizon = true;
+           }
+        case(IVZ): 
+           if(((SQR(pco->x1v(i)) + SQR(pco->x2v(j)) + SQR(pco->x3f(k))) < SQR(pah_f->ah_prop[AHF::hmeanradius])) || (alpha(i) < alpha_excision)  ) {
+           in_horizon = true;
+           }
+       }
+       }
+#else
+// if no ahf check if lapse below alpha_excision parameter - if you don't want excision this is by default 0
+       if(alpha(i) < alpha_excision){
+       in_horizon = true;
+       }
+#endif
+//      set flat space if the interpolated det is negative and inside horizon (either in ahf or lapse below excision value)
+      if(detgamma(i) < 0.0 && in_horizon){
+      printf("set flat space\n");
+      gamma_dd(0,0,i) = 1.0;
+      gamma_dd(1,1,i) = 1.0;
+      gamma_dd(2,2,i) = 1.0;
+      gamma_dd(0,1,i) = 0.0;
+      gamma_dd(0,2,i) = 0.0;
+      gamma_dd(1,2,i) = 0.0;
+      gamma_uu(0,0,i) = 1.0;
+      gamma_uu(1,1,i) = 1.0;
+      gamma_uu(2,2,i) = 1.0;
+      gamma_uu(0,1,i) = 0.0;
+      gamma_uu(0,2,i) = 0.0;
+      gamma_uu(1,2,i) = 0.0;
+      detgamma(i) = 1.0;
+      detg(i) = SQR(alpha(i));
+      }
       }
 
     beta_d.ZeroClear();

@@ -25,6 +25,9 @@
 #include "../mesh/mesh.hpp"
 #include "../z4c/z4c.hpp"
 #include "../utils/interp_intergrid.hpp"
+#ifdef Z4C_AHF
+#include "../z4c/ahf.hpp"                // MeshBlock
+#endif
 
 static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real> &prim_scalar, AthenaArray<Real>& bb_cc,
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, int k, int j, int i,
@@ -54,6 +57,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   int ncells2 = (pmb->block_size.nx2 > 1) ? pmb->block_size.nx2 + 2*NGHOST : 1;
   int ncells3 = (pmb->block_size.nx3 > 1) ? pmb->block_size.nx3 + 2*NGHOST : 1;
   fixed_.NewAthenaArray(ncells3, ncells2, ncells1);
+  alpha_excision = pin->GetOrAddReal("hydro", "alpha_excision", 0.0);
 
   // Set up the EOS
   // If we're using a tabulated EOS, load the table.
@@ -196,6 +200,18 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
       // Extract the primitive variables
       #pragma omp simd
       for (int i = il; i <= iu; ++i) {
+        bool in_horizon = false;
+#ifdef Z4C_AHF
+        for (auto pah_f : pmy_block_->pmy_mesh->pah_finder) {
+        if(((SQR(pco->x1v(i)) + SQR(pco->x2v(j)) + SQR(pco->x3v(k))) < SQR(pah_f->ah_prop[AHF::hmeanradius])) || (alpha(i) < alpha_excision)     ) {
+           in_horizon = true;
+        }
+        }
+#else
+        if(alpha(i) < alpha_excision){
+           in_horizon = true;
+        }
+#endif
         // Extract the local metric and stuff it into a smaller array for PrimitiveSolver.
         Real g3d[NSPMETRIC] = {gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
                                gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i)};
@@ -205,6 +221,12 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         Real g3u[NSPMETRIC];
         Primitive::InvertMatrix(g3u, g3d, detg);
 
+
+        // Extract the magnetic field.
+        Real b3u[NMAG] = {bb_cc(IB1, k, j, i)/sdetg,
+                          bb_cc(IB2, k, j, i)/sdetg,
+                          bb_cc(IB3, k, j, i)/sdetg};
+        if(!in_horizon){
         // Extract and undensitize the conserved variables.
         Real cons_pt[NCONS] = {0.0};
         Real cons_old_pt[NCONS] = {0.0}; // Redundancy in case things go bad.
@@ -218,11 +240,6 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         for(int n=0; n<NSCALARS; n++){
           cons_pt[IYD + n] = cons_old_pt[IYD + n] = cons_scalar(n,k,j,i)/sdetg;
         }
-
-        // Extract the magnetic field.
-        Real b3u[NMAG] = {bb_cc(IB1, k, j, i)/sdetg,
-                          bb_cc(IB2, k, j, i)/sdetg,
-                          bb_cc(IB3, k, j, i)/sdetg};
 
         // Find the primitive variables.
         Real prim_pt[NPRIM] = {0.0};
@@ -266,6 +283,28 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
           error = pmy_block_->mass_loss - ((pmy_block_->mass_loss - old) - error);
 
         }
+	} else {
+           // set atmosphere inside horizon if using excision
+           Real prim_pt[NPRIM]  = {0.0};
+           Real n_atm = ps.GetEOS()->GetDensityfloor();
+           Real T_atm = ps.GetEOS()->GetTemperatureFloor();
+           Real Y_atm[NSCALARS] = {0.0};
+           for(int n=0; n<NSCALARS; n++){
+               Y_atm[n] = ps.GetEOS()->GetSpeciesAtmosphere(n);
+           }
+           prim_pt[IDN] = n_atm;
+           prim_pt[IVX] = 0.0;
+           prim_pt[IVY] = 0.0;
+           prim_pt[IVZ] = 0.0;
+           prim_pt[IPR] = ps.GetEOS()->GetPressure(n_atm,T_atm,Y_atm);
+           prim_pt[ITM] = T_atm;
+           for(int n=0; n<NSCALARS; n++){
+               prim_pt[IYF+n] = Y_atm[n];
+           }
+    
+           Real cons_pt[NCONS] = {0.0};
+           ps.GetEOS()->PrimToCon(prim_pt, cons_pt, bu, g3d);
+       }
         // Update the primitive variables.
         prim(IDN, k, j, i) = prim_pt[IDN]*ps.GetEOS()->GetBaryonMass();
         prim(IVX, k, j, i) = prim_pt[IVX];
