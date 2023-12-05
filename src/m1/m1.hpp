@@ -74,6 +74,14 @@ enum {
 #define M1_DEBUG (1)
 #define M1_DEBUG_PR(var)\
   if (M1_DEBUG) { std::cout << "M1_DEBUG: " << var << std::endl; }
+#define M1_CALCFIDUCIALVELOCITY_OFF (1)
+#define M1_CALCCLOSURE_OFF (0)
+#define M1_CALCOPACITY_OFF (0)
+#define M1_CALCOPACITY_ZERO (1)
+#define M1_GRSOURCES_OFF (1)
+#define M1_FLUXX_SET_ZERO (0)
+#define M1_FLUXY_SET_ZERO (0)
+#define M1_FLUXZ_SET_ZERO (1)
 
 // CGS density conv. fact
 #define CGS_GCC (1.619100425158886e-18) 
@@ -90,6 +98,30 @@ Real minerbo(Real const xi);
 Real thin(Real const xi);
 
 typedef Real (*average_baryon_mass_t)();
+
+typedef int (*NeutrinoRates_t)(Real const rho, Real const temperature, Real const Y_e,
+			     Real const nudens_00, Real const nudens_10, Real const chi_loc0,
+			     Real const nudens_01, Real const nudens_11, Real const chi_loc1,
+			     Real const nudens_02, Real const nudens_12, Real const chi_loc2,
+			     Real * eta_0_loc0, Real * eta_0_loc1, Real * eta_0_loc2,
+			     Real * eta_1_loc0, Real * eta_1_loc1, Real * eta_1_loc2,
+			     Real * abs_0_loc0, Real * abs_0_loc1, Real * abs_0_loc2,
+			     Real * abs_1_loc0, Real * abs_1_loc1, Real * abs_1_loc2,
+			     Real * scat_0_loc0, Real * scat_0_loc1, Real * scat_0_loc2,
+			     Real * scat_1_loc0, Real * scat_1_loc1, Real * scat_1_loc2);
+typedef int (*WeakEquilibrium_t)(Real const rho, Real const temperature, Real const Y_e,
+				 Real const nudens_00, Real const nudens_01, Real const nudens_02,
+				 Real const nudens_10, Real const nudens_11, Real const nudens_12,
+				 Real * temperature_trap, Real * Y_e_trap,
+				 Real * nudens_0_trap0, Real * nudens_0_trap1, Real * nudens_0_trap2,
+			       Real * nudens_1_trap0, Real * nudens_1_trap1, Real * nudens_1_trap2);
+typedef int (*NeutrinoDensity_t)(Real const rho, Real const temperature, Real const Y_e,
+				 Real * nudens_0_thin0, Real * nudens_0_thin1, Real * nudens_0_thin2,
+				 Real * nudens_1_thin0, Real * nudens_1_thin1, Real * nudens_1_thin2);
+
+typedef int (*PhotonOpacity_t)(Real const rho, Real const temperature, Real const Y_e,
+			      Real * abs_1, Real * scat_1);
+typedef int (*PhotonBlackBody_t)(Real const temperature);
 
 // Indexes of spacetime manifold vars in TensorPointwise 
 #define MDIM (4)
@@ -134,6 +166,7 @@ public:
     I_RadMat_abs_0, I_RadMat_abs_1,
     I_RadMat_eta_0, I_RadMat_eta_1,
     I_RadMat_scat_1,
+    I_RadMat_nueave,
     N_RadMat
   };
   // Names of radiation-matter variables
@@ -224,6 +257,7 @@ public:
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> eta_0;
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> eta_1;
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> scat_1;
+    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> nueave;
   };
   RadMat_vars rmat;
   
@@ -257,10 +291,14 @@ public:
   int nspecies;
   int ngroups;
   std::string closure;
+  std::string opacities;
   std::string fiducial_velocity;      // Prescription for fiducial velocity; zero if not {"fluid","mixed"}
   Real fiducial_vel_rho_fluid;        // Density above which the fluid velocity is used (CGS) (if "mixed")
   Real opacity_equil_depth;           // Enforce Kirchhoff's law if the cell optical depth is larger than this
   Real opacity_corr_fac_max;          // Maximum correction factor for optically thin regime
+  Real opacity_tau_trap;              // Include the effect of neutrino trapping above this optical depth (NB <0 never assume trapping)
+  Real opacity_tau_delta;             // Range of optical depths over which trapping is introduced
+  
   Real rad_E_floor;                   // Radiation energy density floor
   Real rad_N_floor;                   // Radiation number density floor
   Real closure_epsilon;               // FIXME: set this
@@ -323,7 +361,10 @@ public:
   void CalcFiducialVelocity();
   void SetEquilibrium(AthenaArray<Real> & u);
   void AddToADMMatter(AthenaArray<Real> & u);
-  void CalcOpacity(AthenaArray<Real> & u);
+  void CalcOpacity(Real const dt,AthenaArray<Real> & u);
+  void CalcOpacityNeutrinos(Real const dt,AthenaArray<Real> & u);
+  void CalcOpacityPhotons(Real const dt,AthenaArray<Real> & u);
+  void CalcOpacityFake(Real const dt,AthenaArray<Real> & u);
   void CalcClosure(AthenaArray<Real> & u);
   void CalcFluxes(AthenaArray<Real> & u);
   void AddFluxDivergence(AthenaArray<Real> & u_rhs);
@@ -367,7 +408,14 @@ private:
   AthenaArray<Real> x2face_area_p1_, x3face_area_p1_;
   AthenaArray<Real> cell_volume_;
   AthenaArray<Real> dflx_; //  (N_Lab, ngroups*nspecies, ncells1)
-    
+
+  NeutrinoRates_t NeutrinoRates;
+  WeakEquilibrium_t WeakEquilibrium;
+  NeutrinoDensity_t NeutrinoDensity;
+
+  PhotonOpacity_t PhotonOpacity;
+  PhotonBlackBody_t PhotonBlackBody;
+  
   // m1_source_update.cpp  
   int source_update_pt(MeshBlock * pmb,
 		       int const i,
@@ -430,7 +478,7 @@ private:
 		     TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
 		     Real const chi,
 		     TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & P_dd);
-
+  
   // m1_utils.cpp
   void calc_proj(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_d,
                  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & u_u,

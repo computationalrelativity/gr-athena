@@ -19,13 +19,11 @@
 
 using namespace utils;
 
-//TODO NeutrinoDensity() etc routines. The class FakeRates can be used for testing but below code needs to be slightly adapted
-
 void M1::SetEquilibrium(AthenaArray<Real> & u)
 {
   MeshBlock * pmb = pmy_block;
   ParameterInput * pin = new ParameterInput;
-  FakeRates * fr = new FakeRates(pin, 1, 1);
+
   Lab_vars vec;
   SetLabVarsAliases(u, vec);  
   
@@ -57,11 +55,17 @@ void M1::SetEquilibrium(AthenaArray<Real> & u)
   T_dd.NewTensorPointwise();
 
   // Current implementation is restricted.
-  assert(nspecies == 3);
   assert(ngroups == 1);
+  assert(nspecies <= 4);
+  assert( ((opacities == "neutrinos") && (nspecies>1)) ||
+	  ((opacities == "photons") && (nspecies==1)) );
 
+  // For 4 species neutrino transport we need to divide the nux luminosity by 2
+  Real const nux_weight = (nspecies == 3 ? 1.0 : 0.5);
+  
   // Go through cells
   CLOOP3(k,j,i) {
+    
     //TODO: fixme, need new eos/c2p
     Real const rho = pmb->phydro->w(IDN,k,j,i);
     Real const temperature = 0; //pmb->phydro->w(IDN,k,j,i);
@@ -94,22 +98,35 @@ void M1::SetEquilibrium(AthenaArray<Real> & u)
     
     //
     // Compute the optically thick weak equilibrium
-    Real nudens_0[3], nudens_1[3];
-    int ierr = fr->NeutrinoDensity(rho, temperature, Y_e, &nudens_0[0], &nudens_0[1]);
-    //			       &nudens_1[0], &nudens_1[1], &nudens_1[2]);
-    assert(!ierr);
-
+    Real nudens_0[4] = {0., 0., 0., 0.};
+    Real nudens_1[4] = {0., 0., 0., 0.};
+    if (nspecies > 1) { // (opacities == "neutrinos")
+      int ierr = NeutrinoDensity(
+				 rho, temperature, Y_e,
+				 &nudens_0[0], &nudens_0[1], &nudens_0[2],
+				 &nudens_1[0], &nudens_1[1], &nudens_1[2]);
+      assert(!ierr);
+      nudens_0[2] = nux_weight*nudens_0[2];
+      nudens_1[2] = nux_weight*nudens_1[2];
+      nudens_0[3] = nudens_0[2];
+      nudens_1[3] = nudens_1[2];
+    }
+    else if (nspecies == 1) { // (opacities == "photons")
+      nudens_1[0] = PhotonBlackBody(temperature);
+    } 
+    
     for (int ig = 0; ig < nspecies*ngroups; ++ig) {
+
+      Real const J = nudens_1[ig]*volform;
+      
       //
       // Set to equilibrium in the fluid frame
       rad.Ht(  ig,k,j,i) = 0.0;
       rad.H(0, ig,k,j,i) = 0.0;
       rad.H(1, ig,k,j,i) = 0.0;
       rad.H(2, ig,k,j,i) = 0.0;
+      rad.J(   ig,k,j,i) = J;
       rad.chi( ig,k,j,i) = 1.0/3.0;
-
-      Real const J = nudens_1[ig]*volform;
-      rad.J(ig,k,j,i) = J;
       
       //
       // Compute quantities in the lab frame
@@ -117,9 +134,9 @@ void M1::SetEquilibrium(AthenaArray<Real> & u)
 	      for (int b = 0; b < 4; ++b) {
 	        T_dd(a,b) = (4./3.) * J * u_d(a) * u_d(b) +
 	                    (1./3.) * J * g_dd(a,b);
-        }
-	    }
-
+	      }
+      }
+      
       vec.E(ig,k,j,i) = calc_J_from_rT(T_dd, n_u);
       calc_H_from_rT(T_dd, n_u, gamma_ud, F_d);
       apply_floor(g_uu, &vec.E(ig,k,j,i), F_d);
@@ -136,9 +153,11 @@ void M1::SetEquilibrium(AthenaArray<Real> & u)
       
       //
       // Now compute neutrino number density
-      rad.nnu(ig,k,j,i) = nudens_0[ig]*volform;
-      vec.N(ig,k,j,i) = std::max(Wlorentz * rad.nnu(ig,k,j,i), rad_N_floor);
-
+      if (nspecies > 1) {
+	rad.nnu(ig,k,j,i) = nudens_0[ig]*volform;
+	vec.N(ig,k,j,i) = std::max(Wlorentz * rad.nnu(ig,k,j,i), rad_N_floor);
+      }
+	
     } // ig looop
   } // CLOOP3
 

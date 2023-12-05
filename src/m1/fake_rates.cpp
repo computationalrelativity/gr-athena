@@ -4,7 +4,7 @@
 // Licensed under the 3-clause BSD License, see LICENSE file for details
 //========================================================================================
 //! \file fake_rates.cpp
-//  \brief this class implements fake neutrino rates for testing purposes
+//  \brief this class implements fake opacities rates for testing purposes
 
 // C++ standard headers
 #include <iostream>
@@ -27,7 +27,7 @@ FakeRates::FakeRates(ParameterInput *pin, int _nspecies, int _ngroups)
   ngroups = _ngroups;
 
   eta = new Real[nspecies*ngroups];
-  kappa_scat = new Real[nspecies*ngroups];
+  kappa_sca = new Real[nspecies*ngroups];
   kappa_abs = new Real[nspecies*ngroups];
 
   avg_atomic_mass = pin->GetOrAddReal("FakeRates", "avg_atomic_mass", 1.0);
@@ -48,7 +48,7 @@ FakeRates::FakeRates(ParameterInput *pin, int _nspecies, int _ngroups)
     }
   }
 
-  parname = "kappa_scat_";
+  parname = "kappa_sca_";
   for (int g = 0; g < ngroups; ++g) {
     std::string gstr = std::to_string(g);
     for (int i = 0; i < nspecies; ++i) {
@@ -56,7 +56,7 @@ FakeRates::FakeRates(ParameterInput *pin, int _nspecies, int _ngroups)
       parname += gstr;
       parname += "_";
       parname += istr;
-      kappa_scat[INDEX(g,i)] = pin->GetOrAddReal("FakeRates", parname, 0.0);
+      kappa_sca[INDEX(g,i)] = pin->GetOrAddReal("FakeRates", parname, 0.0);
     }
   }
 
@@ -77,59 +77,42 @@ FakeRates::FakeRates(ParameterInput *pin, int _nspecies, int _ngroups)
 FakeRates::~FakeRates()
 {
   delete [] eta;
-  delete [] kappa_scat;
+  delete [] kappa_sca;
   delete [] kappa_abs;
 }
 
-int FakeRates::NeutrinoEmission(Real const rho, Real const temp, Real const Y_e, Real *R)
+int FakeRates::Emission(Real const rho, Real const temp, Real const Y_e,
+			Real *_eta)
 {
   for (int ig = 0; ig < ngroups*nspecies; ++ig) {
-    R[ig] = rho * eta[ig];
+    _eta[ig] = eta[ig];
+    //_eta[ig] = rho * eta[ig];
   }
   return 0;
 }
 
-int FakeRates::NeutrinoOpacity(Real const rho, Real const temp, Real const Y_e, Real * kappa)
+int FakeRates::Absorption_abs(Real const rho, Real const temp, Real const Y_e,
+			   Real * _kappa_abs)
 {
   for (int ig = 0; ig < ngroups*nspecies; ++ig) {
-    kappa[ig] = rho * (kappa_scat[ig] + kappa_abs[ig]);
+    _kappa_abs[ig] = kappa_abs[ig];
+    //_kappa_abs[ig] = rho * kappa_abs[ig];
   }
   return 0;
 }
 
-int FakeRates::NeutrinoAbsorptionRate(Real const rho, Real const temp, Real const Y_e, Real * abs)
+int FakeRates::Absorption_sca(Real const rho, Real const temp, Real const Y_e,
+			      Real * _kappa_sca)
 {
   for (int ig = 0; ig < ngroups*nspecies; ++ig) {
-    abs[ig] = rho * kappa_abs[ig];
+    _kappa_sca[ig] = kappa_sca[ig];
+    //_kappa_sca[ig] = rho * kappa_sca[ig];
   }
   return 0;
 }
 
-int FakeRates::NeutrinoDensity(Real const rho, Real const temp, Real const Y_e,
-			       Real * num, Real * ene)
-{
-  for (int ig = 0; ig < ngroups*nspecies; ++ig) {
-    num[ig] = 1.0;
-    ene[ig] = 1.0;
-    if(rho*kappa_abs[ig] > FLT_EPSILON*eta[ig]) {
-      num[ig] = eta[ig]/(rho*kappa_abs[ig]);
-      ene[ig] = eta[ig]/(rho*kappa_abs[ig]);
-    } 
-  }
-  return 0;
-}
-
-int FakeRates::WeakEquilibrium(Real const rho, Real const temp, Real const Y_e,
-			       Real const & num,  Real const & ene,
-			       Real * temp_eq, Real * ye_eq,
-			       Real * num_eq, Real * ene_eq)
-{
-  *temp_eq = temp;
-  *ye_eq = Y_e;
-  return NeutrinoDensity(rho, *temp_eq, *ye_eq, num_eq, ene_eq);
-}
-
-int FakeRates::AverageAtomicMass(Real const rho, Real const temp, Real const Y_e, Real * Abar)
+int FakeRates::AverageAtomicMass(Real const rho, Real const temp, Real const Y_e,
+				 Real * Abar)
 {
   *Abar = avg_atomic_mass;
   return 0;

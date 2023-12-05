@@ -8,6 +8,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <sstream>
 
 // Athena++ headers
 #include "m1.hpp"
@@ -43,6 +44,7 @@ char const * const M1::RadMat_names[M1::N_RadMat] = {
   "rmat.abs_0", "rmat.abs_1",
   "rmat.eta_0", "rmat.eta_1",
   "rmat.scat_1",
+  "rmat.nueave",
 };
 
 char const * const M1::Diagno_names[M1::N_Diagno] = {
@@ -54,7 +56,7 @@ char const * const M1::Diagno_names[M1::N_Diagno] = {
 
 char const * const M1::Intern_names[M1::N_Intern] = {
   "fidu.vx", "fidu.vy", "fidu.vz",
-  "fidu.Wlorents", 
+  "fidu.Wlorentz", 
   "net.abs",
   "net.heat",
   "mask",
@@ -155,25 +157,33 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   nspecies = M1_NSPECIES;
   ngroups = M1_NGROUPS;
 
-  closure = pin->GetString("M1", "closure");  
+  closure = pin->GetString("M1", "closure");
+  opacities = pin->GetOrAddString("M1", "opacities","from_fakerates");  
+  
   fiducial_velocity = pin->GetOrAddString("M1", "fiducial_velocity", "");
   fiducial_vel_rho_fluid = pin->GetOrAddReal("M1", "fiducial_velocity_rho_fluid", 0.0) * CGS_GCC;
+
   opacity_equil_depth = pin->GetOrAddReal("M1", "opacity_equil_depth", 1.0);
-  opacity_corr_fac_max = pin->GetOrAddReal("M1", "opacity_corr_fac_max", 10.);
+  opacity_corr_fac_max = pin->GetOrAddReal("M1", "opacity_corr_fac_max", 3.0);
+  opacity_tau_trap = pin->GetOrAddReal("M1", "opacity_tau_trap", 1.0);
+  opacity_tau_delta = pin->GetOrAddReal("M1", "opacity_tau_delta", 1.0);
+
   rad_E_floor = pin->GetOrAddReal("M1", "rad_E_floor", 1e-15);
   rad_N_floor = pin->GetOrAddReal("M1", "rad_N_floor", 1e-15);
   source_limiter = pin->GetOrAddReal("M1", "source_limiter", 0.5);
   backreact = pin->GetOrAddBoolean("M1", "backreact",true); 
   rad_eps = pin->GetOrAddReal("M1", "rad_eps", 1e-5);
   set_to_equilibrium = pin->GetOrAddBoolean("M1", "set_to_equilibrium",false); 
-  reset_to_equilibrium = pin->GetOrAddBoolean("M1", "set_to_equilibrium",false); 
+  reset_to_equilibrium = pin->GetOrAddBoolean("M1", "reset_to_equilibrium",false); 
   equilibrium_rho_min = pin->GetOrAddReal("M1", "fiducial_velocity_rho_fluid",1e11) * CGS_GCC;
+
   source_therm_limit = pin->GetOrAddReal("M1", "source_therm_limit",-1);
   source_thick_limit = pin->GetOrAddReal("M1","source_thick_limit", -1);
   source_scat_limit = pin->GetOrAddReal("M1","source_scat_limit", -1);
   source_epsabs = pin->GetOrAddReal("M1","source_epsabs",1e-3);
   source_epsrel = pin->GetOrAddReal("M1","source_epsrel",1e-3);
   source_maxiter = pin->GetOrAddInteger("M1","source_maxiter", 100);
+
   mindiss = pin->GetOrAddReal("M1","mindiss",0.0);
   minmod_theta = pin->GetOrAddReal("M1","minmod_theta",1.0);
     
@@ -182,30 +192,24 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   beam_position[0] = pin->GetOrAddReal("M1", "beam_position_x", 0.0);
   beam_position[1] = pin->GetOrAddReal("M1", "beam_position_y", 0.0);
   beam_position[2] = pin->GetOrAddReal("M1", "beam_position_z", 0.0);
+  beam_position = pin->GetOrAddReal("M1", "beam_position", 0.0);
   beam_width = pin->GetOrAddReal("M1", "beam_width", 1.0);
+
   equil_nudens_0[0] = pin->GetOrAddReal("M1", "equil_nudens_0_0", 0.0);
   equil_nudens_0[1] = pin->GetOrAddReal("M1", "equil_nudens_0_1", 0.0);
   equil_nudens_0[2] = pin->GetOrAddReal("M1", "equil_nudens_0_2", 0.0);
   equil_nudens_1[0] = pin->GetOrAddReal("M1", "equil_nudens_1_0", 0.0);
   equil_nudens_1[1] = pin->GetOrAddReal("M1", "equil_nudens_1_1", 0.0);
   equil_nudens_1[2] = pin->GetOrAddReal("M1", "equil_nudens_1_2", 0.0);
-  diff_profile = pin->GetOrAddString("M1", "diffusion_profile","step");  
+
+  diff_profile = pin->GetOrAddString("M1", "diffusion_profile","step");
+  
   kerr_beam_position = pin->GetOrAddReal("M1", "kerr_beam_position", 3.25);
   kerr_beam_width = pin->GetOrAddReal("M1", "kerr_beam_width", 0.5);
   kerr_mask_radius = pin->GetOrAddReal("M1", "kerr_mask_radius", 2.0);
 
   //---------------------------------------------------------------------------
 
-  dflx_.NewAthenaArray(N_Lab, ngroups*nspecies, mbi.nn1);
-  
-  AverageBaryonMass = nullptr;
-
-  fakerates = nullptr;
-  //if (pin->GetOrAddBoolean("FakeRates","use",false)) {
-  //fakerates = new FakeRates(pin, ngroups, nspecies);
-  //TODO set AverageBaryonMass, etc
-  //}
-  
   // Set aliases
   SetLabVarsAliases(storage.u, lab);
   SetRadVarsAliases(storage.u_rad, rad);
@@ -216,10 +220,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
 
   m1_mask.InitWithShallowSlice(storage.intern, I_Intern_mask);
 
-  // Allocate memory for auxiliary vars
-  //...
-  
-  //Intergrid communication
+  // Intergrid communication
   int N[] = {pmb->block_size.nx1, pmb->block_size.nx2, pmb->block_size.nx3};
   Real rdx[] = {
     1./pmb->pcoord->dx1f(0), 1./pmb->pcoord->dx2f(0), 1./pmb->pcoord->dx3f(0)
@@ -232,11 +233,54 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     }; 
   }
   
+  // Allocate memory for auxiliary vars
+  dflx_.NewAthenaArray(N_Lab, ngroups*nspecies, mbi.nn1);
+  
+  AverageBaryonMass = nullptr;
+  fakerates = nullptr;
+  
+  if (opacities == "from_fakerates") {
+    fakerates = new FakeRates(pin, ngroups, nspecies);
+  } else if (opacities == "neutrinos") {
+    //TODO
+    NeutrinoRates = nullptr;
+    WeakEquilibrium = nullptr;
+    NeutrinoDensity = nullptr;
+  } else if (opacities == "photons") {
+    //TODO
+    PhotonOpacity = nullptr;
+    PhotonBlackBody = nullptr;
+  } else {
+    std::ostringstream msg;
+    msg << "Unknown opacities " << opacities << std::endl;
+    ATHENA_ERROR(msg);
+  }
+    
   //---------------------------------------------------------------------------
   
   // Initialize excision mask (no excision)
   m1_mask.ZeroClear();
-  
+
+  //DEBUG just a check/warning 
+#define M1_DEBUG_SETUP_MSG(msg)\
+  std::cout << "WARNING: " << msg << std::endl;
+  if(M1_CALCFIDUCIALVELOCITY_OFF)
+    M1_DEBUG_SETUP_MSG("Fiducial velocity calculation is OFF");
+  if(M1_CALCCLOSURE_OFF)
+    M1_DEBUG_SETUP_MSG("Closure calculation is OFF");
+  if(M1_CALCOPACITY_OFF)
+    M1_DEBUG_SETUP_MSG("Opacities calculation is OFF");
+  if(M1_CALCOPACITY_ZERO) 
+    M1_DEBUG_SETUP_MSG("Opacities are ZERO");
+  if(M1_GRSOURCES_OFF)
+    M1_DEBUG_SETUP_MSG("GR source calculation is OFF");
+  if(M1_FLUXX_SET_ZERO) 
+    M1_DEBUG_SETUP_MSG("Flux in x-direction is ZERO");
+  if(M1_FLUXY_SET_ZERO)
+    M1_DEBUG_SETUP_MSG("Flux in y-direction is ZERO");
+  if(M1_FLUXZ_SET_ZERO)
+    M1_DEBUG_SETUP_MSG("Flux in z-direction is ZERO");
+
 }
 
 // destructor
@@ -269,8 +313,8 @@ M1::~M1()
   cell_volume_.DeleteAthenaArray();
   dflx_.DeleteAthenaArray();
   
-  //if (fakerates != nullptr)
-  // delete fakerates;
+  if (fakerates != nullptr)
+    delete fakerates;
 }
 
 //----------------------------------------------------------------------------------------
@@ -311,6 +355,7 @@ void M1::SetRadMatVarsAliases(AthenaArray<Real> & u, M1::RadMat_vars & rmat)
   rmat.eta_0.InitWithShallowSlice(u, I_RadMat_eta_0);
   rmat.eta_1.InitWithShallowSlice(u, I_RadMat_eta_1);
   rmat.scat_1.InitWithShallowSlice(u, I_RadMat_scat_1);
+  rmat.nueave.InitWithShallowSlice(u, I_RadMat_nueave);
 }
 
 //----------------------------------------------------------------------------------------
