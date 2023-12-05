@@ -28,20 +28,19 @@ public:
   FakeRates(ParameterInput * pin, int _nspecies, int _ngroups);
   ~FakeRates();
 public:
-  int NeutrinoEmission(Real const rho, Real const temp, Real const Y_e, Real *R);
-  int NeutrinoOpacity(Real const rho, Real const temp, Real const Y_e, Real * kappa);
-  int NeutrinoAbsorptionRate(Real const rho, Real const temp, Real const Y_e, Real * abs);
-  int NeutrinoDensity(Real const rho, Real const temp, Real const Y_e, Real * num, Real * ene);
-  int WeakEquilibrium(Real const rho, Real const temp, Real const Y_e,
-		      Real const & num,  Real const & ene,
-		      Real * temp_eq, Real * ye_eq,
-		      Real * num_eq, Real * ene_eq);
-  int AverageAtomicMass(Real const rho, Real const temp, Real const Y_e, Real * Abar);
+  int Emission(Real const rho, Real const temp, Real const Y_e,
+	       Real *_eta);
+  int Absorption_abs(Real const rho, Real const temp, Real const Y_e,
+		     Real * _kappa_abs);
+  int Absorption_sca(Real const rho, Real const temp, Real const Y_e,
+		     Real * _kappa_sca);
+  int AverageAtomicMass(Real const rho, Real const temp, Real const Y_e,
+			Real * Abar);
   Real AverageBaryonMass();
 private:
   int nspecies, ngroups;
   Real * eta; // Specific emissivity coefficient
-  Real * kappa_scat; // Specific opacity 
+  Real * kappa_sca; // Specific opacity 
   Real * kappa_abs; // Specific absorption opacity
   Real avg_atomic_mass;  
   Real avg_baryon_mass; 
