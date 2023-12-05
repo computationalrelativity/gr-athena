@@ -408,7 +408,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	      }
 	    }				 
 	    pack_P_dd(beta_u(1), beta_u(2), beta_u(3),			 
-		      rad.P_dd(0,0,ig,k,j,i), rad.P_dd(0,1,ig,k,j,i), rad.P_dd(1,1,ig,k,j,i),  
+		      rad.P_dd(0,0,ig,k,j,i), rad.P_dd(0,1,ig,k,j,i), rad.P_dd(0,2,ig,k,j,i),  
 		      rad.P_dd(1,1,ig,k,j,i), rad.P_dd(1,2,ig,k,j,i), rad.P_dd(2,2,ig,k,j,i),  
 		      P_dd);						 
 	    
