@@ -62,7 +62,9 @@ void MeshBlock::ProblemGenerator(ParameterInput * pin) {
   pm1->beam_dir[0] = pin->GetOrAddReal("problem", "beam_dir1", 1.0);
   pm1->beam_dir[1] = pin->GetOrAddReal("problem", "beam_dir2", 0.0);
   pm1->beam_dir[2] = pin->GetOrAddReal("problem", "beam_dir3", 0.0);
-  pm1->beam_position = pin->GetOrAddReal("problem", "beam_position", 0.0);
+  pm1->beam_position[0] = pin->GetOrAddReal("problem", "beam_position_x", 0.0);
+  pm1->beam_position[1] = pin->GetOrAddReal("problem", "beam_position_y", 0.0);
+  pm1->beam_position[2] = pin->GetOrAddReal("problem", "beam_position_z", 0.0);
   pm1->beam_width = pin->GetOrAddReal("problem", "beam_width", 1.0);
   pm1->SetupBeamTest(pm1->storage.u);
 }

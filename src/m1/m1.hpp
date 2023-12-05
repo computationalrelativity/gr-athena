@@ -291,7 +291,7 @@ public:
   // "sphere"     :: "Homogeneous sphere test"
   // ---
   Real beam_dir[3];                   // Direction of propagation for the beam (internally normalized)
-  Real beam_position;                 // Offset with respect to the plane with normal beam_test_dir passing through the origin
+  Real beam_position[3];              // Offset with respect to the plane with normal beam_test_dir passing through the origin
   Real beam_width;                    // Width of the beam
   Real equil_nudens_0[3];             // Comoving neutrino number densities // Hardocoded to 3 species!
   Real equil_nudens_1[3];             // Comoving neutrino energy densities // Hardocoded to 3 species!
