@@ -464,7 +464,7 @@ void EquationOfState::FastMagnetosonicSpeedsGR(Real n, Real T, Real bsq, Real vi
   Real u0 = Wlor/alpha;
   Real g00 = -1.0/(alpha*alpha);
   Real g01 = betai/(alpha*alpha);
-  Real u1 = vi*Wlor;
+  Real u1 = (vi-betai/alpha)*Wlor;
   Real g11 = gammaii - betai*betai/(alpha*alpha);
   // Calculate comoving fast magnetosonic speed
   // FIXME: Need to update to work with particle fractions.
