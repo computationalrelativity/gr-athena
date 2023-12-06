@@ -170,6 +170,10 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
 
   rad_E_floor = pin->GetOrAddReal("M1", "rad_E_floor", 1e-15);
   rad_N_floor = pin->GetOrAddReal("M1", "rad_N_floor", 1e-15);
+
+  closure_epsilon = pin->GetOrAddReal("M1", "closure_epsilon", 1e-6);
+  closure_maxiter = pin->GetOrAddInteger("M1", "closure_maxiter", 64);
+  
   source_limiter = pin->GetOrAddReal("M1", "source_limiter", 0.5);
   backreact = pin->GetOrAddBoolean("M1", "backreact",true); 
   rad_eps = pin->GetOrAddReal("M1", "rad_eps", 1e-5);

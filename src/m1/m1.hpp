@@ -301,8 +301,8 @@ public:
   
   Real rad_E_floor;                   // Radiation energy density floor
   Real rad_N_floor;                   // Radiation number density floor
-  Real closure_epsilon;               // FIXME: set this
-  int closure_maxiter;                // FIXME: set this
+  Real closure_epsilon;               // recision with which to find the closure
+  int closure_maxiter;                // Maximum number of iterations in the closure root finding
   Real source_limiter;                // Limit the source terms to avoid nonphysical states
   bool backreact;                     // Backreact on the fluid
   Real rad_eps;                       // Impose F_a F^a < (1 - rad_E_eps) E2

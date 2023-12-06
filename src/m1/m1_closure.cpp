@@ -355,7 +355,9 @@ void M1::calc_closure_pt(MeshBlock * pmb,
   if (ierr != GSL_SUCCESS) {
     std::ostringstream msg;
     msg << "Maximum number of iterations exceeded "
-      "when computing the M1 closure\n";
+      "when computing the M1 closure" << std::endl;
+    msg << "iter = " << iter << " maxiter = " << closure_maxiter << std::endl;
+    msg << "(i, j, k) = (" << i << ", " << j << ", " << k << ")\n";
     std::cout << msg.str();
   }
   
