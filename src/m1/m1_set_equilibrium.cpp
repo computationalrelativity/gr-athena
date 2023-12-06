@@ -112,7 +112,7 @@ void M1::SetEquilibrium(AthenaArray<Real> & u)
       nudens_1[3] = nudens_1[2];
     }
     else if (nspecies == 1) { // (opacities == "photons")
-      nudens_1[0] = PhotonBlackBody(temperature);
+      nudens_1[0] = photon_opac->PhotonBlackBody(temperature);
     } 
     
     for (int ig = 0; ig < nspecies*ngroups; ++ig) {

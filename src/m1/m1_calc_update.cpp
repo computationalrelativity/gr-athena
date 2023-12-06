@@ -77,7 +77,7 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
   Real mb = 0.0;
   (void)mb;
   if (nspecies > 1)
-    mb = fakerates->AverageBaryonMass(); 
+    mb = 1.0; //FIXME available from fake_opac or neutrino_opac
 
   //AthenaArray<Real> densxp, densxn, sconx, scony, sconz, tau;
   

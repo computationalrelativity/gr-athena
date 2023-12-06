@@ -37,11 +37,11 @@ void M1::CalcOpacity(Real const dt, AthenaArray<Real> & u)
   if (M1_CALCOPACITY_ZERO) return;
 
   // Note each type has its own routines 
-  if (opacities == "from_fakerates") {
+  if (opacities == "fake") {
     CalcOpacityFake(dt,u);
-  } else if (opacities == "neutrinos") {
+  } else if (opacities == "neutrino") {
     CalcOpacityNeutrinos(dt,u);
-  } else if (opacities == "photons") {
+  } else if (opacities == "photon") {
     CalcOpacityPhotons(dt,u);
   } else {
     std::ostringstream msg;
@@ -76,11 +76,11 @@ void M1::CalcOpacityFake(Real const dt, AthenaArray<Real> & u)
 
     //
     // Set opacities (for all species & groups)
-    ierr[0] = fakerates->Emission(rho,temperature,Ye, eta_0);
-    ierr[1] = fakerates->Emission(rho,temperature,Ye, eta_1);
-    ierr[2] = fakerates->Absorption_abs(rho,temperature,Ye, abs_0);
-    ierr[3] = fakerates->Absorption_abs(rho,temperature,Ye, abs_1);
-    ierr[4] = fakerates->Absorption_sca(rho,temperature,Ye, sca_1);
+    ierr[0] = fake_opac->Emission(rho,temperature,Ye, eta_0);
+    ierr[1] = fake_opac->Emission(rho,temperature,Ye, eta_1);
+    ierr[2] = fake_opac->Absorption_abs(rho,temperature,Ye, abs_0);
+    ierr[3] = fake_opac->Absorption_abs(rho,temperature,Ye, abs_1);
+    ierr[4] = fake_opac->Absorption_sca(rho,temperature,Ye, sca_1);
     for (int r=0; r<5; ++r)
       assert(ierr[r]);
     
@@ -366,17 +366,17 @@ void M1::CalcOpacityPhotons(Real const dt, AthenaArray<Real> & u)
     
     //
     // Matter variables FIXME: call to finite-T EOS
-    Real const rho = 0.0; //pmb->phydro->w(IDN,k,j,i);
+    Real const rho = 1.0; //pmb->phydro->w(IDN,k,j,i);
     Real const temperature = 0; //pmb->phydro->w(IDN,k,j,i);
     Real const Y_e = 0; //pmb->phydro->w(IDN,k,j,i);
 
     //
     // Set & store opacities
-    int ierr = PhotonOpacity(
-			     rho, temperature, Y_e,
-			     &rmat.abs_1(0,k,j,i), &rmat.scat_1(0,k,j,i));
+    int ierr = photon_opac->PhotonOpacity(
+					  rho, temperature, Y_e,
+					  &rmat.abs_1(0,k,j,i), &rmat.scat_1(0,k,j,i));
     assert(!ierr);
-    rmat.eta_1(0,k,j,i) = rmat.abs_1(0,k,j,i) * PhotonBlackBody(temperature);
+    rmat.eta_1(0,k,j,i) = rmat.abs_1(0,k,j,i) * photon_opac->PhotonBlackBody(temperature);
     
   } // CLOOP
   

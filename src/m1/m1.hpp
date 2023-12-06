@@ -29,7 +29,8 @@
 
 #include "../utils/tensor.hpp" // TensorPointwise
 
-#include "fake_rates.hpp"
+#include "fake_opacities.hpp"
+#include "photon_opacities.hpp"
 
 #include <gsl/gsl_vector.h>
 #include <gsl/gsl_roots.h>
@@ -97,8 +98,9 @@ Real kershaw(Real const xi);
 Real minerbo(Real const xi);
 Real thin(Real const xi);
 
-typedef Real (*average_baryon_mass_t)();
 
+//FIXME (temporary stuff)
+typedef Real (*average_baryon_mass_t)();
 typedef int (*NeutrinoRates_t)(Real const rho, Real const temperature, Real const Y_e,
 			     Real const nudens_00, Real const nudens_10, Real const chi_loc0,
 			     Real const nudens_01, Real const nudens_11, Real const chi_loc1,
@@ -119,9 +121,6 @@ typedef int (*NeutrinoDensity_t)(Real const rho, Real const temperature, Real co
 				 Real * nudens_0_thin0, Real * nudens_0_thin1, Real * nudens_0_thin2,
 				 Real * nudens_1_thin0, Real * nudens_1_thin1, Real * nudens_1_thin2);
 
-typedef int (*PhotonOpacity_t)(Real const rho, Real const temperature, Real const Y_e,
-			      Real * abs_1, Real * scat_1);
-typedef int (*PhotonBlackBody_t)(Real const temperature);
 
 // Indexes of spacetime manifold vars in TensorPointwise 
 #define MDIM (4)
@@ -213,8 +212,9 @@ public:
   ~M1();
 
   MeshBlock * pmy_block;     // pointer to MeshBlock containing this M1
-  FakeRates * fakerates;     // pointer to fake rates
-  //TODO pointer to rate class
+  FakeOpacities * fake_opac;     // pointer to fake opacities
+  PhotonOpacities * photon_opac;     // pointer to photon opacities
+  //NeutrinoOpacities * neutrino_opac;     // pointer to neutrino opacities //TODO
   
   // public data storage
   struct {
@@ -413,9 +413,6 @@ private:
   WeakEquilibrium_t WeakEquilibrium;
   NeutrinoDensity_t NeutrinoDensity;
 
-  PhotonOpacity_t PhotonOpacity;
-  PhotonBlackBody_t PhotonBlackBody;
-  
   // m1_source_update.cpp  
   int source_update_pt(MeshBlock * pmb,
 		       int const i,

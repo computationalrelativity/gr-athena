@@ -158,7 +158,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   ngroups = M1_NGROUPS;
 
   closure = pin->GetString("M1", "closure");
-  opacities = pin->GetOrAddString("M1", "opacities","from_fakerates");  
+  opacities = pin->GetOrAddString("M1", "opacities","fake");  
   
   fiducial_velocity = pin->GetOrAddString("M1", "fiducial_velocity", "");
   fiducial_vel_rho_fluid = pin->GetOrAddReal("M1", "fiducial_velocity_rho_fluid", 0.0) * CGS_GCC;
@@ -237,19 +237,23 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   dflx_.NewAthenaArray(N_Lab, ngroups*nspecies, mbi.nn1);
   
   AverageBaryonMass = nullptr;
-  fakerates = nullptr;
+
+  fake_opac = nullptr;
+  photon_opac = nullptr;
+  //neutrino_opac = nullptr;
   
-  if (opacities == "from_fakerates") {
-    fakerates = new FakeRates(pin, ngroups, nspecies);
-  } else if (opacities == "neutrinos") {
+  if (opacities == "fake") {
+    fake_opac = new FakeOpacities(pin, ngroups, nspecies);
+  } else if (opacities == "neutrino") {
     //TODO
     NeutrinoRates = nullptr;
     WeakEquilibrium = nullptr;
     NeutrinoDensity = nullptr;
-  } else if (opacities == "photons") {
-    //TODO
-    PhotonOpacity = nullptr;
-    PhotonBlackBody = nullptr;
+  } else if (opacities == "photon") {
+    // Current implementation is restricted.
+    assert(ngroups == 1);
+    assert(nspecies > 1);
+    photon_opac = new PhotonOpacities(pin);
   } else {
     std::ostringstream msg;
     msg << "Unknown opacities " << opacities << std::endl;
@@ -313,8 +317,12 @@ M1::~M1()
   cell_volume_.DeleteAthenaArray();
   dflx_.DeleteAthenaArray();
   
-  if (fakerates != nullptr)
-    delete fakerates;
+  if (fake_opac != nullptr)
+    delete fake_opac;
+  if (photon_opac !=nullptr)
+    delete photon_opac;
+  //if (neutrino_opac !=nullptr)
+  // delete neutrino_opac;
 }
 
 //----------------------------------------------------------------------------------------
