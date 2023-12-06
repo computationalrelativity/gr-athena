@@ -75,10 +75,9 @@ enum {
 #define M1_DEBUG (1)
 #define M1_DEBUG_PR(var)\
   if (M1_DEBUG) { std::cout << "M1_DEBUG: " << var << std::endl; }
-#define M1_CALCFIDUCIALVELOCITY_OFF (1)
+#define M1_CALCFIDUCIALVELOCITY_OFF (0)
 #define M1_CALCCLOSURE_OFF (0)
 #define M1_CALCOPACITY_OFF (0)
-#define M1_CALCOPACITY_ZERO (1)
 #define M1_GRSOURCES_OFF (1)
 #define M1_FLUXX_SET_ZERO (0)
 #define M1_FLUXY_SET_ZERO (0)
@@ -320,20 +319,23 @@ public:
   
   // Problem-specific parameters
   std::string m1_test; // Simple tests:
-  // "beam"       :: "Evolve a single beam propagating through the grid"
-  // "diff"       :: "Diffusion test"
-  // "equil"      :: "Thermal equilibrium test"
-  // "kerrschild" :: "Radiation beam in Kerr geometry"
-  // "none"       :: "No test is performed (production mode)"
-  // "shadow"     :: "Sphere shadow test"
-  // "sphere"     :: "Homogeneous sphere test"
+  // "beam"        :: "Evolve a single beam propagating through the grid"
+  // "diffusion"   :: "Diffusion test"
+  // "equilibrium" :: "Thermal equilibrium test"
+  // "kerrschild"  :: "Radiation beam in Kerr geometry"
+  // "none"        :: "No test is performed (production mode)"
+  // "shadow"      :: "Sphere shadow test"
+  // "sphere"      :: "Homogeneous sphere test"
   // ---
-  Real beam_dir[3];                   // Direction of propagation for the beam (internally normalized)
-  Real beam_position[3];              // Offset with respect to the plane with normal beam_test_dir passing through the origin
-  Real beam_width;                    // Width of the beam
-  Real equil_nudens_0[3];             // Comoving neutrino number densities // Hardocoded to 3 species!
-  Real equil_nudens_1[3];             // Comoving neutrino energy densities // Hardocoded to 3 species!
+  Real beam_dir[3];        // Direction of propagation for the beam (internally normalized)
+  Real beam_position[3];   // Offset with respect to the plane with normal beam_test_dir passing through the origin
+  Real beam_width;         // Width of the beam
+  Real equil_nudens_0[3];  // Comoving neutrino number densities // Hardocoded to 3 species!
+  Real equil_nudens_1[3];  // Comoving neutrino energy densities // Hardocoded to 3 species!
+
   std::string diff_profile;           // Diffusion profile { "step", "gaussian" }
+  Real medium_velocity;               // Modulus of fiducial velocity for tests
+  
   Real kerr_beam_position;            // Position at which the ray is injected
   Real kerr_beam_width;               // Width of the beam used for the kerr test
   Real kerr_mask_radius;              // Excision radius for the Kerr Schild test

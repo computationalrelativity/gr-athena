@@ -26,6 +26,7 @@
 void M1::CalcOpacity(Real const dt, AthenaArray<Real> & u)
 {
   if (M1_CALCOPACITY_OFF) return;
+  M1_DEBUG_PR("in: CalcOpacity");
   
   // Zero by default
   rmat.abs_0.ZeroClear();
@@ -34,11 +35,11 @@ void M1::CalcOpacity(Real const dt, AthenaArray<Real> & u)
   rmat.eta_1.ZeroClear();
   rmat.scat_1.ZeroClear();
 
-  if (M1_CALCOPACITY_ZERO) return;
-
   // Note each type has its own routines 
-  if (opacities == "fake") {
-    CalcOpacityFake(dt,u);
+  if (opacities == "zero") {
+    return;
+  } else if (opacities == "fake") {
+    CalcOpacityFake(dt,u);      
   } else if (opacities == "neutrino") {
     CalcOpacityNeutrinos(dt,u);
   } else if (opacities == "photon") {
@@ -70,7 +71,7 @@ void M1::CalcOpacityFake(Real const dt, AthenaArray<Real> & u)
 
     //
     // Matter variables (dummy)
-    Real const rho = 0.0; 
+    Real const rho = 1.0; 
     Real const temperature = 0; 
     Real const Ye = 0; 
 
@@ -82,7 +83,7 @@ void M1::CalcOpacityFake(Real const dt, AthenaArray<Real> & u)
     ierr[3] = fake_opac->Absorption_abs(rho,temperature,Ye, abs_1);
     ierr[4] = fake_opac->Absorption_sca(rho,temperature,Ye, sca_1);
     for (int r=0; r<5; ++r)
-      assert(ierr[r]);
+      assert(!ierr[r]);
     
     //
     // Store opacities

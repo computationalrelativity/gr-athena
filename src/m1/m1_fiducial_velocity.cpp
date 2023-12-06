@@ -8,14 +8,13 @@
 
 // C++ standard headers
 //#include <cmath> 
+#include <sstream>
 
 // Athena++ headers
 #include "../mesh/mesh.hpp"
 #include "../z4c/z4c.hpp"
 #include "../hydro/hydro.hpp"
 #include "m1.hpp"
-
-#define M1_CALCFIDUCIALVELOCITY_OFF (1)
 
 void M1::CalcFiducialVelocity()
 {  
@@ -40,11 +39,14 @@ void M1::CalcFiducialVelocity()
 	fidu.vel_u(a,k,j,i) = pmb->phydro->w(IVX+a,k,j,i) * rho * fac;      
       }
     }
-  } else {
-    // Zero velocity
+  } else if (fiducial_velocity == "zero") {
     fidu.vel_u.ZeroClear();
     fidu.Wlorentz.Fill(1.0);
     return;
+  } else {
+    std::ostringstream msg;
+    msg << "Unknown fiducial velocity " << fiducial_velocity << std::endl;
+    ATHENA_ERROR(msg);
   }
   
   // Here fidu.vel_u contains utilde^i = W v^i

@@ -3,19 +3,19 @@
 // Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
 // Licensed under the 3-clause BSD License, see LICENSE file for details
 //========================================================================================
-//! \file m1_beam.cpp
-//! \brief Problem generator for M1 beam tests (thin regime) in flat spacetime
+//! \file m1_diffusion.cpp
+//! \brief Problem generator for M1 diffusion tests (thick regime) in flat spacetime
 //========================================================================================
 
 // C headers
 
 // C++ headers
-//#include <cmath>      // sqrt()
-//#include <cstdio>     // fopen(), freopen(), fprintf(), fclose()
-//#include <iostream>   // endl
-//#include <sstream>    // stringstream
-//#include <stdexcept>  // runtime_error
-//#include <string>
+// #include <cmath>      // sqrt()
+// #include <cstdio>     // fopen(), freopen(), fprintf(), fclose()
+// #include <iostream>   // endl
+// #include <sstream>    // stringstream
+// #include <stdexcept>  // runtime_error
+// #include <string>
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -54,16 +54,12 @@ void MeshBlock::ProblemGenerator(ParameterInput * pin) {
   pz4c->ADMMinkowski(pz4c->storage.adm);
   pz4c->GaugeGeodesic(pz4c->storage.u);
   pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
-
-  pm1->beam_dir[0] = pin->GetOrAddReal("problem", "beam_dir1", 1.0);
-  pm1->beam_dir[1] = pin->GetOrAddReal("problem", "beam_dir2", 0.0);
-  pm1->beam_dir[2] = pin->GetOrAddReal("problem", "beam_dir3", 0.0);
-  pm1->beam_position[0] = pin->GetOrAddReal("problem", "beam_position_x", 0.0);
-  pm1->beam_position[1] = pin->GetOrAddReal("problem", "beam_position_y", 0.0);
-  pm1->beam_position[2] = pin->GetOrAddReal("problem", "beam_position_z", 0.0);
-  pm1->beam_width = pin->GetOrAddReal("problem", "beam_width", 1.0);
   
-  pm1->SetupBeamTest(pm1->storage.u); 
+  pm1->diff_profile = pin->GetOrAddString("problem", "diff_profile", "step");
+  pm1->medium_velocity = pin->GetOrAddReal("problem", "medium_velocity", 0.0);
+  
+  pm1->SetupDiffusionTest(pm1->storage.u);
+  
 }
 
 
