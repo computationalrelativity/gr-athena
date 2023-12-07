@@ -27,9 +27,9 @@
 // constructor, initializes data structures and parameters
 
 char const * const M1::Lab_names[M1::N_Lab] = {
-  "lab.N",
   "lab.E",
-  "lab.Fx", "lab.Fy", "lab.Fz", 
+  "lab.Fx", "lab.Fy", "lab.Fz",
+  "lab.N",
 };
 
 char const * const M1::Rad_names[M1::N_Rad] = {
