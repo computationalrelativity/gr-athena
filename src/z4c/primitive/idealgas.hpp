@@ -49,6 +49,18 @@ class IdealGas : public EOSPolicyInterface {
     /// Calculate the internal energy per mass
     Real SpecificInternalEnergy(Real n, Real T, Real *Y);
 
+    /// Calculate the baryon chemical potential
+    [[ noreturn ]]
+    Real BaryonChemicalPotential(Real n, Real T, Real *Y);
+
+    /// Calculate the charge chemical potential
+    [[ noreturn ]]
+    Real ChargeChemicalPotential(Real n, Real T, Real *Y);
+
+    /// Calculate the electron-lepton chemical potential
+    [[ noreturn ]]
+    Real ElectronLeptonChemicalPotential(Real n, Real T, Real *Y);
+
     /// Calculate the minimum pressure at a given density and composition
     inline Real MinimumPressure(Real n, Real *Y) {
       return 0.0;

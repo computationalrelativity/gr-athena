@@ -139,6 +139,18 @@ Real PiecewisePolytrope::SpecificInternalEnergy(Real n, Real T, Real *Y) {
   return eps_cold + T/(mb*(gamma_thermal - 1.0));
 }
 
+Real PiecewisePolytrope::BaryonChemicalPotential(Real n, Real T, Real *Y) {
+  throw std::logic_error("IdealGas::BaryonChemicalPotential not currently implemented.");
+}
+
+Real PiecewisePolytrope::ChargeChemicalPotential(Real n, Real T, Real *Y) {
+  throw std::logic_error("IdealGas::ChargeChemicalPotential not currently implemented.");
+}
+
+Real PiecewisePolytrope::ElectronLeptonChemicalPotential(Real n, Real T, Real *Y) {
+  throw std::logic_error("IdealGas::ElectronLeptonChemicalPotential not currently implemented.");
+}
+
 Real PiecewisePolytrope::MinimumPressure(Real n, Real *Y) {
   int p = FindPiece(n);
   return GetColdPressure(n, p);

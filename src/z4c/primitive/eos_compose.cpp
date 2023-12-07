@@ -129,6 +129,21 @@ Real EOSCompOSE::SpecificInternalEnergy(Real n, Real T, Real *Y) {
   return Energy(n, T, Y)/(mb*n) - 1;
 }
 
+Real EOSCompOSE::BaryonChemicalPotential(Real n, Real T, Real *Y) {
+  assert (m_initialized);
+  return eval_at_nty(ECMUB, n, T, Y[0]);
+}
+
+Real EOSCompOSE::ChargeChemicalPotential(Real n, Real T, Real *Y) {
+  assert (m_initialized);
+  return eval_at_nty(ECMUQ, n, T, Y[0]);
+}
+
+Real EOSCompOSE::ElectronLeptonChemicalPotential(Real n, Real T, Real *Y) {
+  assert (m_initialized);
+  return eval_at_nty(ECMUL, n, T, Y[0]);
+}
+
 Real EOSCompOSE::MinimumEnthalpy() {
   return m_min_h;
 }

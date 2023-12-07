@@ -21,13 +21,14 @@ struct UnitSystem {
   const Real Msun; //! Solar mass
   const Real MeV;  // 10^6 electronvolt
 
-  const Real length;      //! Length unit
-  const Real time;        //! Time unit
-  const Real density;     //! Number density unit
-  const Real mass;        //! Mass unit
-  const Real energy;      //! Energy unit
-  const Real pressure;    //! Pressure unit
-  const Real temperature; //! Temperature unit
+  const Real length;            //! Length unit
+  const Real time;              //! Time unit
+  const Real density;           //! Number density unit
+  const Real mass;              //! Mass unit
+  const Real energy;            //! Energy unit
+  const Real pressure;          //! Pressure unit
+  const Real temperature;       //! Temperature unit
+  const Real chemicalPotential; //! Chemical potential unit
 
   //! \defgroup conversiongroup Conversion Methods
   //  A collection of methods for getting unit
@@ -69,6 +70,10 @@ struct UnitSystem {
   inline constexpr Real TemperatureConversion(UnitSystem& b) const {
     return b.temperature/temperature;
   }
+
+  inline constexpr Real ChemicalPotentialConversion(UnitSystem& b) const {
+    return b.chemicalPotential/chemicalPotential;
+  }
   //! \}
 };
 
@@ -94,7 +99,8 @@ static UnitSystem CGS{
   1.0, // mass, g
   1.0, // energy, erg
   1.0, // pressure, erg/cm^3
-  1.0  // temperature, K
+  1.0, // temperature, K
+  1.0, // chemical potential, erg
 };
 //! Geometric units with length in kilometers
 static UnitSystem GeometricKilometer{
@@ -111,6 +117,7 @@ static UnitSystem GeometricKilometer{
   CGS.Gnewt/(CGS.c*CGS.c*CGS.c*CGS.c)*1e-5, // energy, km
   CGS.Gnewt/(CGS.c*CGS.c*CGS.c*CGS.c)*1e10, // pressure, km^-2
   CGS.kb*CGS.Gnewt/(CGS.c*CGS.c*CGS.c*CGS.c)*1e-5, // temperature, km
+  CGS.kb/CGS.MeV, // chemical potential, MeV
 };
 //! Geometric units with length in solar masses
 static UnitSystem GeometricSolar{
@@ -126,7 +133,8 @@ static UnitSystem GeometricSolar{
   1.0 / CGS.Msun, // mass, Msun
   1.0 / (CGS.Msun * CGS.c*CGS.c), // energy, Msun
   PS_CUBE( CGS.Gnewt/(CGS.c*CGS.c) ) * PS_SQR( CGS.Msun/(CGS.c) ), // pressure, Msun^-2
-  CGS.kb/CGS.MeV // temperature, MeV
+  CGS.kb/CGS.MeV, // temperature, MeV
+  CGS.kb/CGS.MeV, // chemical potential, MeV
 };
 //! Nuclear units
 static UnitSystem Nuclear{
@@ -143,6 +151,7 @@ static UnitSystem Nuclear{
   1.0/CGS.MeV, // energy, MeV
   1e-39/CGS.MeV, // pressure, MeV/fm^3
   CGS.kb/CGS.MeV, // temperature, MeV
+  CGS.kb/CGS.MeV, // chemical potential, MeV
 };
 
 } // namespace

@@ -71,6 +71,9 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     using EOSPolicy::Enthalpy;
     using EOSPolicy::SoundSpeed;
     using EOSPolicy::SpecificInternalEnergy;
+    using EOSPolicy::BaryonChemicalPotential;
+    using EOSPolicy::ChargeChemicalPotential;
+    using EOSPolicy::ElectronLeptonChemicalPotential;
     using EOSPolicy::MinimumEnthalpy;
     using EOSPolicy::MinimumPressure;
     using EOSPolicy::MaximumPressure;
@@ -256,6 +259,45 @@ class EOS : public EOSPolicy, public ErrorPolicy {
              eos_units->EnergyConversion(*code_units)/eos_units->MassConversion(*code_units);
     }
 
+    //! \fn Real GetBaryonChemicalPotential(Real n, Real T, Real *Y)
+    //  \brief Get the baryon chemical potential from the number density, temperature,
+    //         and particle fractions.
+    //
+    //  \param[in] n  The number density
+    //  \param[in] T  The temperature
+    //  \param[in] Y  An array of size n_species of the particle fractions.
+    //  \return The baryon chemical potential for the EOS.
+    inline Real GetBaryonChemicalPotential(Real n, Real T, Real *Y) {
+      return BaryonChemicalPotential(n, T*code_units->TemperatureConversion(*eos_units), Y) *
+             eos_units->ChemicalPotentialConversion(*code_units);
+    }
+    
+     //! \fn Real GetChargeChemicalPotential(Real n, Real T, Real *Y)
+    //  \brief Get the charge chemical potential from the number density, temperature,
+    //         and particle fractions.
+    //
+    //  \param[in] n  The number density
+    //  \param[in] T  The temperature
+    //  \param[in] Y  An array of size n_species of the particle fractions.
+    //  \return The charge chemical potential for the EOS.
+    inline Real GetChargeChemicalPotential(Real n, Real T, Real *Y) {
+      return ChargeChemicalPotential(n, T*code_units->TemperatureConversion(*eos_units), Y) *
+             eos_units->ChemicalPotentialConversion(*code_units);
+    }
+    
+     //! \fn Real GetElectronLeptonChemicalPotential(Real n, Real T, Real *Y)
+    //  \brief Get the electron-lepton chemical potential from the number density, temperature,
+    //         and particle fractions.
+    //
+    //  \param[in] n  The number density
+    //  \param[in] T  The temperature
+    //  \param[in] Y  An array of size n_species of the particle fractions.
+    //  \return The electron-lepton chemical potential for the EOS.
+    inline Real GetElectronLeptonChemicalPotential(Real n, Real T, Real *Y) {
+      return ElectronLeptonChemicalPotential(n, T*code_units->TemperatureConversion(*eos_units), Y) *
+             eos_units->ChemicalPotentialConversion(*code_units);
+    }
+    
     //! \fn int Getn_species() const
     //  \brief Get the number of particle species in this EOS.
     inline int GetNSpecies() const {

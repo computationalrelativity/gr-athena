@@ -64,6 +64,18 @@ Real IdealGas::SpecificInternalEnergy(Real n, Real T, Real *Y) {
   return T/(mb*gammam1);
 }
 
+Real IdealGas::BaryonChemicalPotential(Real n, Real T, Real *Y) {
+  throw std::logic_error("IdealGas::BaryonChemicalPotential not currently implemented.");
+}
+
+Real IdealGas::ChargeChemicalPotential(Real n, Real T, Real *Y) {
+  throw std::logic_error("IdealGas::ChargeChemicalPotential not currently implemented.");
+}
+
+Real IdealGas::ElectronLeptonChemicalPotential(Real n, Real T, Real *Y) {
+  throw std::logic_error("IdealGas::ElectronLeptonChemicalPotential not currently implemented.");
+}
+
 Real IdealGas::MinimumEnergy(Real n, Real *Y) {
   return n*mb;
 }

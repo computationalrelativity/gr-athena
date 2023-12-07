@@ -63,6 +63,15 @@ class EOSCompOSE : public EOSPolicyInterface {
     /// Calculate the specific internal energy per unit mass
     Real SpecificInternalEnergy(Real n, Real T, Real *Y);
 
+    /// Calculate the baryon chemical potential
+    Real BaryonChemicalPotential(Real n, Real T, Real *Y);
+
+    /// Calculate the charge chemical potential
+    Real ChargeChemicalPotential(Real n, Real T, Real *Y);
+
+    /// Calculate the electron-lepton chemical potential
+    Real ElectronLeptonChemicalPotential(Real n, Real T, Real *Y);
+
     /// Get the minimum enthalpy per baryon.
     Real MinimumEnthalpy();
 
