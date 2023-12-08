@@ -5,6 +5,7 @@ src/defs.hpp
 # Object and binary directories
 obj/
 bin/
+src/.vscode
 
 # Compiled object files
 *.slo
