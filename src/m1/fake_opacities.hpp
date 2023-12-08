@@ -1,12 +1,12 @@
-//#ifndef FAKE_RATES_HPP
-//#define FAKE_RATES_HPP
+//#ifndef FAKE_OPACITIES_HPP
+//#define FAKE_OPACITIES_HPP
 //========================================================================================
 // Athena++ astrophysical MHD code
 // Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
 // Licensed under the 3-clause BSD License, see LICENSE file for details
 //========================================================================================
-//! \file fake_rates.hpp
-//  \brief definitions for the FakeRates class
+//! \file fake_opacities.hpp
+//  \brief definitions for the FakeOpacities class
 
 // C++ standard headers
 #include <iostream>
@@ -21,12 +21,12 @@
 // Forward declaration
 class ParameterInput;
 
-//! \class FakeRates
-//! \brief Computes fake neutrino rates for testing
-class FakeRates {
+//! \class FakeOpacities
+//! \brief Computes fake neutrino opacities for testing
+class FakeOpacities {
 public:
-  FakeRates(ParameterInput * pin, int _nspecies, int _ngroups);
-  ~FakeRates();
+  FakeOpacities(ParameterInput * pin, int _nspecies, int _ngroups);
+  ~FakeOpacities();
 public:
   int Emission(Real const rho, Real const temp, Real const Y_e,
 	       Real *_eta);
@@ -45,3 +45,4 @@ private:
   Real avg_atomic_mass;  
   Real avg_baryon_mass; 
 };
+//#endif

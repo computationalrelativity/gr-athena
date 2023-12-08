@@ -221,13 +221,11 @@ void M1::apply_floor(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const g_uu
 }
 
 void M1::uvel(Real alp,
-	            Real betax,Real betay,Real betaz,
-	            Real w_lorentz,
-	            Real velx,Real vely,Real velz,
-	            Real * u0, Real * u1, Real * u2, Real * u3)
+	      Real betax,Real betay,Real betaz,
+	      Real w_lorentz,
+	      Real velx,Real vely,Real velz,
+	      Real * u0, Real * u1, Real * u2, Real * u3)
 { // Four-vel
-
-
   Real const ialp = 1.0/alp;
   *u0 = w_lorentz*ialp;
   *u1 = w_lorentz*(velx - betax*ialp);

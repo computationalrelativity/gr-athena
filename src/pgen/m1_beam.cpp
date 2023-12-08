@@ -3,22 +3,19 @@
 // Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
 // Licensed under the 3-clause BSD License, see LICENSE file for details
 //========================================================================================
-//! \file shock_tube.cpp
-//! \brief Problem generator for shock tube problems.
-//!
-//! Problem generator for shock tube (1-D Riemann) problems. Initializes plane-parallel
-//! shock along x1 (in 1D, 2D, 3D), along x2 (in 2D, 3D), and along x3 (in 3D).
+//! \file m1_beam.cpp
+//! \brief Problem generator for M1 beam tests (thin regime) in flat spacetime
 //========================================================================================
 
 // C headers
 
 // C++ headers
-#include <cmath>      // sqrt()
-#include <cstdio>     // fopen(), freopen(), fprintf(), fclose()
-#include <iostream>   // endl
-#include <sstream>    // stringstream
-#include <stdexcept>  // runtime_error
-#include <string>
+//#include <cmath>      // sqrt()
+//#include <cstdio>     // fopen(), freopen(), fprintf(), fclose()
+//#include <iostream>   // endl
+//#include <sstream>    // stringstream
+//#include <stdexcept>  // runtime_error
+//#include <string>
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -27,7 +24,6 @@
 #include "../m1/m1.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
-
 
 //========================================================================================
 //! \fn void Mesh::InitUserMeshData(ParameterInput *pin)
@@ -108,9 +104,7 @@ void MeshBlock::ProblemGenerator(ParameterInput * pin) {
 }
 
 
-
-
-// refinement condition: check the maximum pressure gradient
+// refinement condition: 
 int RefinementCondition(MeshBlock *pmb) {
   //TODO
   return 0;

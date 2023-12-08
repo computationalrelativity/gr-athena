@@ -29,7 +29,8 @@
 
 #include "../utils/tensor.hpp" // TensorPointwise
 
-#include "fake_rates.hpp"
+#include "fake_opacities.hpp"
+#include "photon_opacities.hpp"
 
 #include <gsl/gsl_vector.h>
 #include <gsl/gsl_roots.h>
@@ -74,7 +75,7 @@ enum {
 #define M1_DEBUG (0)
 #define M1_DEBUG_PR(var)\
   if (M1_DEBUG) { std::cout << "M1_DEBUG: " << var << std::endl; }
-#define M1_CALCFIDUCIALVELOCITY_OFF (1)
+#define M1_CALCFIDUCIALVELOCITY_OFF (0)
 #define M1_CALCCLOSURE_OFF (0)
 #define M1_CALCOPACITY_OFF (0)
 #define M1_CALCOPACITY_ZERO (1)
@@ -97,8 +98,9 @@ Real kershaw(Real const xi);
 Real minerbo(Real const xi);
 Real thin(Real const xi);
 
-typedef Real (*average_baryon_mass_t)();
 
+//FIXME (temporary stuff)
+typedef Real (*average_baryon_mass_t)();
 typedef int (*NeutrinoRates_t)(Real const rho, Real const temperature, Real const Y_e,
 			     Real const nudens_00, Real const nudens_10, Real const chi_loc0,
 			     Real const nudens_01, Real const nudens_11, Real const chi_loc1,
@@ -119,9 +121,6 @@ typedef int (*NeutrinoDensity_t)(Real const rho, Real const temperature, Real co
 				 Real * nudens_0_thin0, Real * nudens_0_thin1, Real * nudens_0_thin2,
 				 Real * nudens_1_thin0, Real * nudens_1_thin1, Real * nudens_1_thin2);
 
-typedef int (*PhotonOpacity_t)(Real const rho, Real const temperature, Real const Y_e,
-			      Real * abs_1, Real * scat_1);
-typedef int (*PhotonBlackBody_t)(Real const temperature);
 
 // Indexes of spacetime manifold vars in TensorPointwise 
 #define MDIM (4)
@@ -213,8 +212,9 @@ public:
   ~M1();
 
   MeshBlock * pmy_block;     // pointer to MeshBlock containing this M1
-  FakeRates * fakerates;     // pointer to fake rates
-  //TODO pointer to rate class
+  FakeOpacities * fake_opac;     // pointer to fake opacities
+  PhotonOpacities * photon_opac;     // pointer to photon opacities
+  //NeutrinoOpacities * neutrino_opac;     // pointer to neutrino opacities //TODO
   
   // public data storage
   struct {
@@ -301,8 +301,8 @@ public:
   
   Real rad_E_floor;                   // Radiation energy density floor
   Real rad_N_floor;                   // Radiation number density floor
-  Real closure_epsilon;               // FIXME: set this
-  int closure_maxiter;                // FIXME: set this
+  Real closure_epsilon;               // recision with which to find the closure
+  int closure_maxiter;                // Maximum number of iterations in the closure root finding
   Real source_limiter;                // Limit the source terms to avoid nonphysical states
   bool backreact;                     // Backreact on the fluid
   Real rad_eps;                       // Impose F_a F^a < (1 - rad_E_eps) E2
@@ -320,20 +320,23 @@ public:
   
   // Problem-specific parameters
   std::string m1_test; // Simple tests:
-  // "beam"       :: "Evolve a single beam propagating through the grid"
-  // "diff"       :: "Diffusion test"
-  // "equil"      :: "Thermal equilibrium test"
-  // "kerrschild" :: "Radiation beam in Kerr geometry"
-  // "none"       :: "No test is performed (production mode)"
-  // "shadow"     :: "Sphere shadow test"
-  // "sphere"     :: "Homogeneous sphere test"
+  // "beam"        :: "Evolve a single beam propagating through the grid"
+  // "diffusion"   :: "Diffusion test"
+  // "equilibrium" :: "Thermal equilibrium test"
+  // "kerrschild"  :: "Radiation beam in Kerr geometry"
+  // "none"        :: "No test is performed (production mode)"
+  // "shadow"      :: "Sphere shadow test"
+  // "sphere"      :: "Homogeneous sphere test"
   // ---
-  Real beam_dir[3];                   // Direction of propagation for the beam (internally normalized)
-  Real beam_position[3];              // Offset with respect to the plane with normal beam_test_dir passing through the origin
-  Real beam_width;                    // Width of the beam
-  Real equil_nudens_0[3];             // Comoving neutrino number densities // Hardocoded to 3 species!
-  Real equil_nudens_1[3];             // Comoving neutrino energy densities // Hardocoded to 3 species!
+  Real beam_dir[3];        // Direction of propagation for the beam (internally normalized)
+  Real beam_position[3];   // Offset with respect to the plane with normal beam_test_dir passing through the origin
+  Real beam_width;         // Width of the beam
+  Real equil_nudens_0[3];  // Comoving neutrino number densities // Hardocoded to 3 species!
+  Real equil_nudens_1[3];  // Comoving neutrino energy densities // Hardocoded to 3 species!
+
   std::string diff_profile;           // Diffusion profile { "step", "gaussian" }
+  Real medium_velocity;               // Modulus of fiducial velocity for tests
+  
   Real kerr_beam_position;            // Position at which the ray is injected
   Real kerr_beam_width;               // Width of the beam used for the kerr test
   Real kerr_mask_radius;              // Excision radius for the Kerr Schild test
@@ -426,9 +429,6 @@ private:
   WeakEquilibrium_t WeakEquilibrium;
   NeutrinoDensity_t NeutrinoDensity;
 
-  PhotonOpacity_t PhotonOpacity;
-  PhotonBlackBody_t PhotonBlackBody;
-  
   // m1_source_update.cpp  
   int source_update_pt(MeshBlock * pmb,
 		       int const i,

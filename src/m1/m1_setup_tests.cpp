@@ -150,6 +150,9 @@ void M1::SetupDiffusionTest(AthenaArray<Real> & u)
   Lab_vars vec;
   SetLabVarsAliases(u, vec);  
 
+  Real const vel = medium_velocity;
+  Real const wlorentz = 1.0/(std::sqrt(1-POW2(medium_velocity)));
+  
   CLOOP3(k,j,i) {
     Real const x = pmb->pcoord->x1v(i);;
     Real const y = pmb->pcoord->x2v(j);;
@@ -161,9 +164,6 @@ void M1::SetupDiffusionTest(AthenaArray<Real> & u)
 	if (x > -0.5 && x < 0.5) {
 	  vec.E(ig,k,j,i) = 1.0;
 	}
-	// else {
-	//   vec.E(ig,k,j,i) = 0.0;
-	// }
       }
       else if (diff_profile == "gaussian") {
 	vec.E(ig,k,j,i) = std::exp(-SQ(3*x));
@@ -175,6 +175,12 @@ void M1::SetupDiffusionTest(AthenaArray<Real> & u)
       }
       
       vec.N(ig,k,j,i) = vec.E(ig,k,j,i);
+
+      // Set the medium velocity
+      for(int a = 0; a < NDIM; ++a) {
+	fidu.vel_u(a,k,j,i) = vel;
+      }
+      fidu.Wlorentz(k,j,i) = wlorentz;
       
       // Use thick closure to compute the fluxes
       Real const W = fidu.Wlorentz(k,j,i);

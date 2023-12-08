@@ -158,9 +158,9 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   ngroups = M1_NGROUPS;
 
   closure = pin->GetString("M1", "closure");
-  opacities = pin->GetOrAddString("M1", "opacities","from_fakerates");  
+  opacities = pin->GetOrAddString("M1", "opacities","zero");  
   
-  fiducial_velocity = pin->GetOrAddString("M1", "fiducial_velocity", "");
+  fiducial_velocity = pin->GetOrAddString("M1", "fiducial_velocity", "zero");
   fiducial_vel_rho_fluid = pin->GetOrAddReal("M1", "fiducial_velocity_rho_fluid", 0.0) * CGS_GCC;
 
   opacity_equil_depth = pin->GetOrAddReal("M1", "opacity_equil_depth", 1.0);
@@ -170,6 +170,10 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
 
   rad_E_floor = pin->GetOrAddReal("M1", "rad_E_floor", 1e-15);
   rad_N_floor = pin->GetOrAddReal("M1", "rad_N_floor", 1e-15);
+
+  closure_epsilon = pin->GetOrAddReal("M1", "closure_epsilon", 1e-6);
+  closure_maxiter = pin->GetOrAddInteger("M1", "closure_maxiter", 64);
+  
   source_limiter = pin->GetOrAddReal("M1", "source_limiter", 0.5);
   backreact = pin->GetOrAddBoolean("M1", "backreact",true); 
   rad_eps = pin->GetOrAddReal("M1", "rad_eps", 1e-5);
@@ -189,11 +193,19 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     
   // Problem-specific parameters
   m1_test = pin->GetOrAddString("M1", "m1_test","none");  
+
   beam_position[0] = pin->GetOrAddReal("M1", "beam_position_x", 0.0);
   beam_position[1] = pin->GetOrAddReal("M1", "beam_position_y", 0.0);
   beam_position[2] = pin->GetOrAddReal("M1", "beam_position_z", 0.0);
   //beam_position = pin->GetOrAddReal("M1", "beam_position", 0.0);
   beam_width = pin->GetOrAddReal("M1", "beam_width", 1.0);
+
+  diff_profile = pin->GetOrAddString("M1", "diffusion_profile","step");
+  medium_velocity = pin->GetOrAddReal("M1", "medium_velocity", 0.0);
+  
+  kerr_beam_position = pin->GetOrAddReal("M1", "kerr_beam_position", 3.25);
+  kerr_beam_width = pin->GetOrAddReal("M1", "kerr_beam_width", 0.5);
+  kerr_mask_radius = pin->GetOrAddReal("M1", "kerr_mask_radius", 2.0);
 
   equil_nudens_0[0] = pin->GetOrAddReal("M1", "equil_nudens_0_0", 0.0);
   equil_nudens_0[1] = pin->GetOrAddReal("M1", "equil_nudens_0_1", 0.0);
@@ -201,13 +213,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   equil_nudens_1[0] = pin->GetOrAddReal("M1", "equil_nudens_1_0", 0.0);
   equil_nudens_1[1] = pin->GetOrAddReal("M1", "equil_nudens_1_1", 0.0);
   equil_nudens_1[2] = pin->GetOrAddReal("M1", "equil_nudens_1_2", 0.0);
-
-  diff_profile = pin->GetOrAddString("M1", "diffusion_profile","step");
   
-  kerr_beam_position = pin->GetOrAddReal("M1", "kerr_beam_position", 3.25);
-  kerr_beam_width = pin->GetOrAddReal("M1", "kerr_beam_width", 0.5);
-  kerr_mask_radius = pin->GetOrAddReal("M1", "kerr_mask_radius", 2.0);
-
   //---------------------------------------------------------------------------
 
   // Set aliases
@@ -237,24 +243,24 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   dflx_.NewAthenaArray(N_Lab, ngroups*nspecies, mbi.nn1);
   
   AverageBaryonMass = nullptr;
-  fakerates = nullptr;
+
+  fake_opac = nullptr;
+  photon_opac = nullptr;
+  //neutrino_opac = nullptr;
   
-  if (opacities == "from_fakerates") {
-    fakerates = new FakeRates(pin, ngroups, nspecies);
-  } else if (opacities == "neutrinos") {
+  if (opacities == "fake") {
+    fake_opac = new FakeOpacities(pin, ngroups, nspecies);
+  } else if (opacities == "neutrino") {
     //TODO
     NeutrinoRates = nullptr;
     WeakEquilibrium = nullptr;
     NeutrinoDensity = nullptr;
-  } else if (opacities == "photons") {
-    //TODO
-    PhotonOpacity = nullptr;
-    PhotonBlackBody = nullptr;
-  } else {
-    std::ostringstream msg;
-    msg << "Unknown opacities " << opacities << std::endl;
-    ATHENA_ERROR(msg);
-  }
+  } else if (opacities == "photon") {
+    // Current implementation is restricted.
+    assert(ngroups == 1);
+    assert(nspecies > 1);
+    photon_opac = new PhotonOpacities(pin);
+  } 
     
   //---------------------------------------------------------------------------
   
@@ -270,8 +276,6 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     M1_DEBUG_SETUP_MSG("Closure calculation is OFF");
   if(M1_CALCOPACITY_OFF)
     M1_DEBUG_SETUP_MSG("Opacities calculation is OFF");
-  if(M1_CALCOPACITY_ZERO) 
-    M1_DEBUG_SETUP_MSG("Opacities are ZERO");
   if(M1_GRSOURCES_OFF)
     M1_DEBUG_SETUP_MSG("GR source calculation is OFF");
   if(M1_FLUXX_SET_ZERO) 
@@ -313,8 +317,12 @@ M1::~M1()
   cell_volume_.DeleteAthenaArray();
   dflx_.DeleteAthenaArray();
   
-  if (fakerates != nullptr)
-    delete fakerates;
+  if (fake_opac != nullptr)
+    delete fake_opac;
+  if (photon_opac !=nullptr)
+    delete photon_opac;
+  //if (neutrino_opac !=nullptr)
+  // delete neutrino_opac;
 }
 
 //----------------------------------------------------------------------------------------

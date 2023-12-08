@@ -100,7 +100,7 @@ void M1::SetEquilibrium(AthenaArray<Real> & u)
     // Compute the optically thick weak equilibrium
     Real nudens_0[4] = {0., 0., 0., 0.};
     Real nudens_1[4] = {0., 0., 0., 0.};
-    if (nspecies > 1) { // (opacities == "neutrinos")
+    if (nspecies > 1) { // (opacities == "neutrino")
       int ierr = NeutrinoDensity(
 				 rho, temperature, Y_e,
 				 &nudens_0[0], &nudens_0[1], &nudens_0[2],
@@ -111,8 +111,8 @@ void M1::SetEquilibrium(AthenaArray<Real> & u)
       nudens_0[3] = nudens_0[2];
       nudens_1[3] = nudens_1[2];
     }
-    else if (nspecies == 1) { // (opacities == "photons")
-      nudens_1[0] = PhotonBlackBody(temperature);
+    else if (nspecies == 1) { // (opacities == "photon")
+      nudens_1[0] = photon_opac->PhotonBlackBody(temperature);
     } 
     
     for (int ig = 0; ig < nspecies*ngroups; ++ig) {
