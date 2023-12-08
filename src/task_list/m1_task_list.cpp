@@ -34,6 +34,7 @@
 #include "task_list.hpp"
 //#include "m1_task_list.hpp"
 
+#define KERR_BEAM_TEST 0
 //----------------------------------------------------------------------------------------
 //! TimeIntegratorTaskList constructor
 
@@ -50,7 +51,7 @@ M1IntegratorTaskList::M1IntegratorTaskList(ParameterInput *pin, Mesh *pm) {
     AddTask(CALC_FLUX, CALC_CLOSURE);
     AddTask(SEND_FLUX, CALC_FLUX);
     AddTask(RECV_FLUX, CALC_FLUX);
-    AddTask(ADD_FLX_DIV, RECV_FLUX);
+    AddTask(ADD_FLX_DIV, RECV_FLUX|CALC_GRSRC);
 
     AddTask(CALC_UPDATE, (ADD_FLX_DIV|CALC_OPAC|CALC_GRSRC));
 
@@ -382,9 +383,25 @@ TaskStatus M1IntegratorTaskList::Prolongation(MeshBlock *pmb, int stage) {
 // Function to apply the boundary conditions
 TaskStatus M1IntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int stage) {
   BoundaryValues *pbval = pmb->pbval;
+  M1 *pm1 = pmb->pm1;
+  Coordinates *pco = pmb->pcoord;
   if (stage <= nstages) {
     Real const dt = pmb->pmy_mesh->dt * dt_fac[stage - 1];
     Real t_end_stage = pmb->pmy_mesh->time + dt;
+#if KERR_BEAM_TEST
+    int il = pmb->pm1->mbi.il;
+    int iu = pmb->pm1->mbi.iu;
+    int jl = pmb->pm1->mbi.jl;
+    int ju = pmb->pm1->mbi.ju;
+    int kl = pmb->pm1->mbi.kl;
+    int ku = pmb->pm1->mbi.ku;
+    pm1->BeamInnerX1(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
+    pm1->BeamOuterX1(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
+    pm1->BeamInnerX2(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
+    pm1->BeamOuterX2(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
+    pm1->BeamInnerX3(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
+    pm1->BeamOuterX3(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
+#endif
     pbval->ApplyPhysicalBoundaries(t_end_stage, dt, pmb->pbval->bvars_m1_int);
     return TaskStatus::success;
   }

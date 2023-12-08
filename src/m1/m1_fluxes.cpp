@@ -62,9 +62,9 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
       for (int k=ks; k<=ke; ++k) {
         for (int j=js; j<=je; ++j) {
           for (int i=is; i<=ie; ++i) {
-            u_rhs(iv,ig,k,j,i) = x1flux(iv,ig,k,j,i)
-	          + x2flux(iv,ig,k,j,i)
-	          + x3flux(iv,ig,k,j,i);
+            u_rhs(iv,ig,k,j,i) += x1flux(iv,ig,k,j,i)
+                                + x2flux(iv,ig,k,j,i)
+                                + x3flux(iv,ig,k,j,i);
 	        }
 	      }
       }
@@ -83,11 +83,7 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
 #pragma omp simd
           for (int i=is; i<=ie; ++i) {
             dflx(iv,ig,i) = (x1area(i+1)*x1flux(iv,ig,k,j,i+1) - x1area(i)*x1flux(iv,ig,k,j,i));
-
-	    //pmb->pcoord->CellVolume(k, j, is, ie, vol);//DEBUG only for printting below
-	    //char sbuf[128]; sprintf(sbuf,"div: k=%d j=%d i=%d   iv=%d  ig=%d   flux = %e  area=%e dflx=%e  RHS=%e", k,j,i, iv, ig, x1flux(iv,ig,k,j,i), x1area(i), dflx(iv,ig,i), -dflx(iv,ig,i)/vol(i)); M1_DEBUG_PR(sbuf); 
-	    
-	  }
+	        }
         }
       }
       
@@ -99,9 +95,7 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
           for (int ig=0; ig<ngroups*nspecies; ++ig) {
 #pragma omp simd
             for (int i=is; i<=ie; ++i) {
-	      dflx(iv,ig,i) += (x2area_p1(i)*x2flux(iv,ig,k,j+1,i) - x2area(i)*x2flux(iv,ig,k,j,i));
-	      //char sbuf[128]; sprintf(sbuf,"div2: k=%d j=%d i=%d   iv=%d  ig=%d   dflx=%e", k,j,i, iv, ig, dflx(iv,ig,i)); M1_DEBUG_PR(sbuf); 
-	      
+	            dflx(iv,ig,i) += (x2area_p1(i)*x2flux(iv,ig,k,j+1,i) - x2area(i)*x2flux(iv,ig,k,j,i));
             }
           }
         }
@@ -116,8 +110,6 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
 #pragma omp simd
             for (int i=is; i<=ie; ++i) {
               dflx(iv,ig,i) += (x3area_p1(i)*x3flux(iv,ig,k+1,j,i) - x3area(i)*x3flux(iv,ig,k,j,i));
-	      //char sbuf[128]; sprintf(sbuf,"div3: k=%d j=%d i=%d   iv=%d  ig=%d   dflx=%e", k,j,i, iv, ig, dflx(iv,ig,i)); M1_DEBUG_PR(sbuf);
-
             }
           }
         }
@@ -129,11 +121,8 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
         for (int ig=0; ig<ngroups*nspecies; ++ig) {
 #pragma omp simd
           for (int i=is; i<=ie; ++i) {	    
-            u_rhs(iv,ig,k,j,i) -= dflx(iv,ig,i)/vol(i); 
-
-	    //char sbuf[128]; sprintf(sbuf," k=%d j=%d i=%d   iv=%d  ig=%d   rhs = %e (dflx=%e  vol=%e)", k,j,i, iv, ig, u_rhs(iv,ig,k,j,i), dflx(iv,ig,i), vol(i)); M1_DEBUG_PR(sbuf); 
-	    
-	  }
+            u_rhs(iv,ig,k,j,i) -= dflx(iv,ig,i)/vol(i);
+	        }
         }
       }
       
@@ -208,8 +197,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
   // For scratch errors
   int const nvars = (nspecies > 1 ? N_Lab : N_Lab-1);
   int mapiv [] = {
-    I_Lab_Fx, I_Lab_Fy, I_Lab_Fz,
     I_Lab_E,
+    I_Lab_Fx, I_Lab_Fy, I_Lab_Fz,
     I_Lab_N,
   };
   
@@ -366,14 +355,19 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	  
 	  // From ADM 3-metric VC (AthenaArray/Tensor) to 
 	  // ADM 4-metric on CC at ijk (TensorPointwise) 
-	  Get4Metric_VC2CCinterp(pmb, k,j,i,				      
-				 pmb->pz4c->storage.u, pmb->pz4c->storage.adm,  
-				 g_dd, beta_u, alpha);			      
-	  Get4Metric_Inv_Inv3(g_dd, beta_u, alpha, g_uu, gamma_uu);	      
-	  uvel(alpha(), beta_u(1), beta_u(2), beta_u(3), fidu.Wlorentz(k,j,i),  
-	       fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),   
-	       &u_u(0), &u_u(1), &u_u(2), &u_u(3));				 
-	  pack_v_u(fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),  v_u);  
+
+    if (m1_mask(k,j,i)) {
+      continue;
+    }
+
+    Get4Metric_VC2CCinterp(pmb, k,j,i,				      
+        pmb->pz4c->storage.u, pmb->pz4c->storage.adm,  
+        g_dd, beta_u, alpha);
+    Get4Metric_Inv_Inv3(g_dd, beta_u, alpha, g_uu, gamma_uu);      
+    uvel(alpha(), beta_u(1), beta_u(2), beta_u(3), fidu.Wlorentz(k,j,i),  
+        fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),   
+        &u_u(0), &u_u(1), &u_u(2), &u_u(3));				 
+    pack_v_u(fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),  v_u);
 
 	  for (int ig = 0; ig < ngroups*nspecies; ++ig) {			 
 	    
@@ -390,9 +384,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	    for (int a = 0; a < NDIM; ++a) {
 	      for (int b = a; b < NDIM; ++b) {
 		assert(isfinite(rad.P_dd(a,b,ig,k,j,i)));
-		
-		//sprintf(sbuf," in Flux: a = %d b = %d ig = %d P_dd= %e", a,b,ig, rad.P_dd(a,b,ig,k,j,i));M1_DEBUG_PR(sbuf);
-		
+
 	      }
 	    }				 
 	    pack_P_dd(beta_u(1), beta_u(2), beta_u(3),			 
@@ -401,7 +393,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 		      P_dd);						 
 
 	    tensor::contract(g_uu, H_d, H_u);				 
-	    tensor::contract(g_uu, F_d, F_u);				 
+	    tensor::contract(g_uu, F_d, F_u);
 	    tensor::contract(g_uu, P_dd, P_ud);				 
 	    assemble_fnu(u_u, rad.J(ig,k,j,i), H_u, fnu_u);		 
 	    Real const Gamma = compute_Gamma(fidu.Wlorentz(k,j,i), v_u,	 
@@ -414,24 +406,24 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	      nnu = vec.N(ig,k,j,i)/Gamma;				 
 	    
 	    // Scratch buffers 
-	    cons[GFINDEX1D(__k, ig, 0)] = vec.F_d(0,ig,k,j,i);		 
-	    cons[GFINDEX1D(__k, ig, 1)] = vec.F_d(1,ig,k,j,i);		 
-	    cons[GFINDEX1D(__k, ig, 2)] = vec.F_d(2,ig,k,j,i);		 
-	    cons[GFINDEX1D(__k, ig, 3)] = vec.E(ig,k,j,i);			 
+      cons[GFINDEX1D(__k, ig, 0)] = vec.E(ig,k,j,i);
+	    cons[GFINDEX1D(__k, ig, 1)] = vec.F_d(0,ig,k,j,i);		 
+	    cons[GFINDEX1D(__k, ig, 2)] = vec.F_d(1,ig,k,j,i);		 
+	    cons[GFINDEX1D(__k, ig, 3)] = vec.F_d(2,ig,k,j,i);			 
 	    if (nspecies > 1)						 
 	      cons[GFINDEX1D(__k, ig, 4)] = vec.N(ig,k,j,i);		 
 
 	    for (int iv = 0; iv < nvars; ++iv)
 	      assert(isfinite(cons[GFINDEX1D(__k, ig, iv)]));			 
 	    
-	    flux[GFINDEX1D(__k, ig, 0)] =					 
-	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 1);		 
+      flux[GFINDEX1D(__k, ig, 0)] =
+	      calc_E_flux(alpha(), beta_u, vec.E(ig,k,j,i), F_u, dir+1);
 	    flux[GFINDEX1D(__k, ig, 1)] =					 
+	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 1);		 
+	    flux[GFINDEX1D(__k, ig, 2)] =					 
 	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 2);		 
-	    flux[GFINDEX1D(__k, ig, 2)] =
-	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 3);		 
 	    flux[GFINDEX1D(__k, ig, 3)] =
-	      calc_E_flux(alpha(), beta_u, vec.E(ig,k,j,i), F_u, dir+1);	 
+	      calc_F_flux(alpha(), beta_u, F_d, P_ud, dir+1, 3); 
 	    if (nspecies > 1)						 
 	      flux[GFINDEX1D(__k, ig, 4)] = alpha() * nnu * fnu_u(dir+1);		 
 
@@ -483,6 +475,10 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	  index[0] = __i;
 	  index[1] = __j;
 	  index[2] = __k;
+
+    if (m1_mask(k,j,i)) {
+      continue;
+    }
           
 	  for (int ig = 0; ig < ngroups*nspecies; ++ig) {		
 	    

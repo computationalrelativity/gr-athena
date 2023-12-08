@@ -531,9 +531,9 @@ int main(int argc, char *argv[]) {
 
     if (Z4C_ENABLED) {
       // This effectively means hydro takes a time-step and _then_ the given problem takes one
-      for (int stage=1; stage<=pz4clist->nstages; ++stage) {
-        pz4clist->DoTaskListOneStage(pmesh, stage);
-      }
+      //for (int stage=1; stage<=pz4clist->nstages; ++stage) {
+      //  pz4clist->DoTaskListOneStage(pmesh, stage);
+      //}
 
       // BD: TODO - check that the following are not displaced by \dt ?
       // only do an extraction if NextTime threshold cleared (updated below)

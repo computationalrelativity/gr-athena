@@ -236,27 +236,393 @@ void M1::SetupKerrSchildMask(AthenaArray<Real> & u)
 
   // Init excision mask to zero
   m1_mask.ZeroClear();
-  
-  CLOOP3(k,j,i) {
-    Real const x = pmb->pcoord->x1v(i);;
-    Real const y = pmb->pcoord->x2v(j);;
-    Real const z = pmb->pcoord->x3v(k);;
+  GCLOOP3(k,j,i) {
+    Real const x = pmb->pcoord->x1v(i);
+    Real const y = pmb->pcoord->x2v(j);
+    Real const z = pmb->pcoord->x3v(k);
+
     if (SQ(x) + SQ(y) + SQ(z) < SQ(kerr_mask_radius)) {
       m1_mask(k,j,i) = 1;
       for (int ig = 0; ig < nspecies*ngroups; ++ig) {
-        vec.E  (   k,j,i, ig) = 0.0;
-        vec.N  (   k,j,i, ig) = 0.0;
-        vec.F_d(0, k,j,i, ig) = 0.0;
-        vec.F_d(1, k,j,i, ig) = 0.0;
-        vec.F_d(2, k,j,i, ig) = 0.0;
+        vec.E(ig,k,j,i) = 0.0;
+        vec.N(ig,k,j,i) = 0.0;
+        vec.F_d(0,ig,k,j,i) = 0.0;
+        vec.F_d(1,ig,k,j,i) = 0.0;
+        vec.F_d(2,ig,k,j,i) = 0.0;
       }
     }
-  } // CLOOP3
+  } // GCLOOP3
 
 }
 
 
 //----------------------------------------------------------------------------------------
-// \!fn void M1::SetupTestHydro()
+// \!fn void M1::SetupKerrBeamTest()
 // \brief Setup the hydro variables for shadow and sphere tests
+void M1::SetupKerrBeamTest(AthenaArray<Real> & u)
+{
+  MeshBlock * pmb = pmy_block;
 
+  // Initialize to zero
+  SetZeroLabVars(u);
+  Lab_vars vec;
+  SetLabVarsAliases(u, vec);
+
+  TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> g_dd;
+  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> beta_u;
+  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> beta_d;  
+  TensorPointwise<Real, Symmetries::NONE, MDIM, 0> alpha;
+  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> F_d;
+  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> F_u;
+
+  g_dd.NewTensorPointwise();
+  beta_u.NewTensorPointwise();
+  beta_d.NewTensorPointwise();
+  alpha.NewTensorPointwise();
+  F_u.NewTensorPointwise();
+  F_d.NewTensorPointwise();
+
+  Real const eps = 0.01;
+  
+  GCLOOP3(k,j,i) {
+
+    Real z = pmb->pcoord->x3v(k);
+    Real y = pmb->pcoord->x2v(j);
+    Real x = pmb->pcoord->x1v(i);
+
+    for (int ig=0; ig<ngroups*nspecies; ++ig) {
+      vec.N(ig,k,j,i) = 0.0;
+      vec.E(ig,k,j,i) = 0.0;
+      vec.F_d(0,ig,k,j,i) = 0.0;
+      vec.F_d(1,ig,k,j,i) = 0.0;
+      vec.F_d(2,ig,k,j,i) = 0.0;
+    }
+    
+    /*
+    if (!m1_mask(k,j,i) &&
+        SQR(x - beam_position[0]) + SQR(y-beam_position[1]) + SQR(z-beam_position[2]) < SQR(beam_width)) {
+        //SQR(x-beam_position[0]) + SQR(y-beam_position[1]) + SQR(z-beam_position[2]) < SQR(beam_width)) {
+
+      Get4Metric_VC2CCinterp(pmb, k,j,i,
+                            pmb->pz4c->storage.u, pmb->pz4c->storage.adm,
+                            g_dd, beta_u, alpha);
+      // beta_a
+      utils::tensor::contract(g_dd, beta_u, beta_d);
+      Real const detg = SpatialDet(g_dd(1,1), g_dd(1,2), g_dd(1,3),
+                                  g_dd(2,2), g_dd(2,3), g_dd(3,3));
+      Real const volform = std::sqrt(detg);
+      Real const beta2 = utils::tensor::dot(beta_u, beta_d);
+      Real const a = (-beta_d(1) + sqrt(SQR(beta_d(1)) - beta2 +
+                          SQR(alpha())*(1.0 - eps)))/g_dd(1,1);
+      
+      for (int ig=0; ig<ngroups*nspecies; ++ig) {
+
+        vec.N(ig,k,j,i) = 1.0;
+        vec.E(ig,k,j,i) = volform;
+        std::cout << vec.E(ig, k,j,i) << std::endl;
+        F_u(0) = 0.0;
+        F_u(1) = vec.E(ig,k,j,i)/alpha() * (a + beta_u(1));
+        F_u(2) = vec.E(ig,k,j,i)/alpha() * beta_u(2);
+        F_u(3) = 0.0;//vec.E(ig,k,j,i)/alpha() * beta_u(3);
+
+        utils::tensor::contract(g_dd, F_u, F_d);
+        vec.F_d(0,ig,k,j,i) = F_d(1);
+        vec.F_d(1,ig,k,j,i) = F_d(2);
+        vec.F_d(2,ig,k,j,i) = F_d(3);
+      }
+    } else {
+      for (int ig=0; ig<ngroups*nspecies; ++ig) {
+        vec.N(ig,k,j,i) = 0.0; // (rad_N_floor>0)? rad_N_floor : 0.0;
+        vec.E(ig,k,j,i) = 0.0; //(rad_E_floor>0)? rad_E_floor : 0.0;
+        vec.F_d(0,ig,k,j,i) = 0.0;
+        vec.F_d(1,ig,k,j,i) = 0.0;
+        vec.F_d(2,ig,k,j,i) = 0.0;
+      }
+    }
+    */
+    
+    // There is no fluid, but set the fiducial velocity to zero
+    for(int a = 0; a < NDIM; ++a) {
+      fidu.vel_u(a,k,j,i) = 0.0;
+    }
+    fidu.Wlorentz(k,j,i) = 1.0;
+    
+  } // k, j, i 
+  
+}
+
+
+// void M1::BeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &uu,
+//                 Real time, Real dt,
+//                 int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
+  
+//   Lab_vars vec;
+//   SetLabVarsAliases(storage.u, vec);
+
+//   TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> gamma_dd;
+//   TensorPointwise<Real, Symmetries::NONE, NDIM, 1> bet_u;
+//   TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> K_dd;  
+//   TensorPointwise<Real, Symmetries::NONE, NDIM, 0> alp;
+
+//   TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> g_dd;
+//   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> beta_u;
+//   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> beta_d;  
+//   TensorPointwise<Real, Symmetries::NONE, MDIM, 0> alpha;
+//   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> F_d;
+//   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> F_u;
+
+//   gamma_dd.NewTensorPointwise();
+//   bet_u.NewTensorPointwise();
+//   alp.NewTensorPointwise();
+//   K_dd.NewTensorPointwise();
+
+//   g_dd.NewTensorPointwise();
+//   beta_u.NewTensorPointwise();
+//   beta_d.NewTensorPointwise();
+//   alpha.NewTensorPointwise();
+//   F_u.NewTensorPointwise();
+//   F_d.NewTensorPointwise();
+
+//   for (int k=kl; k<ku; ++k) {
+//     for (int j=jl; j<ju; ++j) {
+//       for (int i=1; i<=ngh; ++i) {
+//         Real z = pmb->pcoord->x3v(k);
+//         Real y = pmb->pcoord->x2v(j);
+//         Real x = pmb->pcoord->x1v(il-i);
+
+//         // Real const xv[3] = {x, y, z};
+//         // Real const r = std::sqrt(x*x+y*y+z*z);
+//         // alpha() = std::pow(1+2.0/r, -0.5);
+//         // beta_u(0) = 0.0;
+//         // for (int a=1; a<4; ++a) {
+//         //   beta_u(a) = (2.0/r)*SQR(alpha())*xv[a-1]/r;
+//         //   for (int b=1; b<4; ++b) {
+//         //     g_dd(a,b) = (a == b ? 1.0 : 0.0) + 2./POW3(r) * xv[a-1]*xv[b-1];
+//         //   }
+//         // }
+//         // Real beta2=0.0;
+//         // for (int a=1; a<4; ++a) {
+//         //   for (int b=1; b<4; ++b) {
+//         //     beta2 += g_dd(a,b) * beta_u(a) * beta_u(b);
+//         //   }
+//         // }
+//         // g_dd(0,0) = SQR(alpha()) + beta2;
+//         // for (int a=1; a<4; ++a) {
+//         //   g_dd(0,a) = g_dd(a,0) = beta_d(a);
+//         // }
+//         if (!m1_mask(k,j,il-i) &&
+//             std::abs(y) <= kerr_beam_width &&
+//                         std::abs(z - beam_position[2]) <= 0.5*kerr_beam_width) {
+
+//           pmb->pz4c->ADMKerrSchild(x, y, z, alp, bet_u, gamma_dd, K_dd);
+//           pack_v_u(bet_u(0), bet_u(1), bet_u(2), beta_u);
+//           // Get4Metric_VC2CCinterp(pmb, k,j,il-i,
+//           //                   pmb->pz4c->storage.u, pmb->pz4c->storage.adm,
+//           //                   g_dd, beta_u, alpha);
+//           utils::tensor::contract(g_dd, beta_u, beta_d);
+//           Real const detg = SpatialDet(g_dd(1,1), g_dd(1,2), g_dd(1,3),
+//                                       g_dd(2,2), g_dd(2,3), g_dd(3,3));
+//           Real const volform = std::sqrt(detg);
+//           Real const beta2 = utils::tensor::dot(beta_u, beta_d);
+//           Real const a = (-beta_d(1) + sqrt(SQR(beta_d(1)) - beta2 +
+//                               SQR(alpha())*0.99))/g_dd(1,1);
+//           for (int ig=0; ig<ngroups*nspecies; ++ig) {
+
+//             if (nspecies > 1) {
+//               vec.N(ig,k,j,il-i) = 1.0;
+//             }
+//             vec.E(ig,k,j,il-i) = volform;
+            
+//             F_u(0) = 0.0;
+//             F_u(1) = vec.E(ig,k,j,il-i)/alpha() * (a + beta_u(1));
+//             F_u(2) = vec.E(ig,k,j,il-i)/alpha() * beta_u(2);
+//             F_u(3) = vec.E(ig,k,j,il-i)/alpha() * beta_u(3);
+
+//             utils::tensor::contract(g_dd, F_u, F_d);
+//             vec.F_d(0,ig,k,j,il-i) = F_d(1);
+//             vec.F_d(1,ig,k,j,il-i) = F_d(2);
+//             vec.F_d(2,ig,k,j,il-i) = F_d(3);
+//           }
+//         } else {
+//           for (int ig=0; ig<ngroups*nspecies; ++ig) {
+//             vec.N(ig,k,j,il-i) = 0.0;
+//             vec.E(ig,k,j,il-i) = 0.0;
+//             vec.F_d(0,ig,k,j,il-i) = 0.0;
+//             vec.F_d(1,ig,k,j,il-i) = 0.0;
+//             vec.F_d(2,ig,k,j,il-i) = 0.0;
+//           }
+//         }
+//       }
+//     }
+//   }
+// }
+
+void M1::BeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &uu,
+                Real time, Real dt,
+                int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
+  
+  Lab_vars vec;
+  SetLabVarsAliases(storage.u, vec); 
+
+  TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> g_dd;
+  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> beta_u;
+  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> beta_d;  
+  TensorPointwise<Real, Symmetries::NONE, NDIM, 0> alpha;
+  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> F_d;
+  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> F_u;
+  TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> K_dd; 
+
+  g_dd.NewTensorPointwise();
+  beta_u.NewTensorPointwise();
+  beta_d.NewTensorPointwise();
+  alpha.NewTensorPointwise();
+  F_u.NewTensorPointwise();
+  F_d.NewTensorPointwise();
+  K_dd.NewTensorPointwise();
+
+  for (int k=kl; k<=ku; ++k) {
+    for (int j=jl; j<=ju; ++j) {
+      for (int i=1; i<=ngh; ++i) {
+        Real z = pmb->pcoord->x3v(k);
+        Real y = pmb->pcoord->x2v(j);
+        Real x = pmb->pcoord->x1v(il-i);
+        if (!m1_mask(k,j,il-i) &&
+                        std::abs(y) <= kerr_beam_width &&
+                        std::abs(z - beam_position[2]) <= 0.5*kerr_beam_width) {
+
+          pmb->pz4c->ADMKerrSchild(x, y, z, alpha, beta_u, g_dd, K_dd);
+          utils::tensor::contract(g_dd, beta_u, beta_d);
+          Real const detg = SpatialDet(g_dd);
+          Real const volform = std::sqrt(detg);
+          Real const beta2 = utils::tensor::dot(beta_u, beta_d);
+          Real const a = (-beta_d(0) + sqrt(SQR(beta_d(0)) - beta2 +
+                              SQR(alpha())*0.99))/g_dd(0,0);
+          for (int ig=0; ig<ngroups*nspecies; ++ig) {
+
+            if (nspecies > 1) {
+              vec.N(ig,k,j,il-i) = 1.0;
+            }
+            vec.E(ig,k,j,il-i) = volform;
+            
+            F_u(0) = vec.E(ig,k,j,il-i)/alpha() * (a + beta_u(0));
+            F_u(1) = vec.E(ig,k,j,il-i)/alpha() * beta_u(1);
+            F_u(2) = vec.E(ig,k,j,il-i)/alpha() * beta_u(2);
+
+            utils::tensor::contract(g_dd, F_u, F_d);
+            vec.F_d(0,ig,k,j,il-i) = F_d(0);
+            vec.F_d(1,ig,k,j,il-i) = F_d(1);
+            vec.F_d(2,ig,k,j,il-i) = F_d(2);
+          }
+        } else {
+          for (int ig=0; ig<ngroups*nspecies; ++ig) {
+            vec.N(ig,k,j,il-i) = 0.0;
+            vec.E(ig,k,j,il-i) = 0.0;
+            vec.F_d(0,ig,k,j,il-i) = 0.0;
+            vec.F_d(1,ig,k,j,il-i) = 0.0;
+            vec.F_d(2,ig,k,j,il-i) = 0.0;
+          }
+        }
+      }
+    }
+  }
+}
+
+void M1::BeamOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
+  Lab_vars vec;
+  SetLabVarsAliases(storage.u, vec);
+
+  for (int k=kl; k<=ku; ++k) {
+    for (int j=jl; j<=ju; ++j) {
+      for (int i=1; i<=ngh; ++i) {
+        for (int ig=0; ig<ngroups*nspecies; ++ig) {
+          vec.N(ig,k,j,iu+i) = vec.N(ig,k,j,iu);
+          vec.E(ig,k,j,iu+i) = vec.E(ig,k,j,iu);
+          vec.F_d(0,ig,k,j,iu+i) = vec.F_d(0,ig,k,j,iu);
+          vec.F_d(1,ig,k,j,iu+i) = vec.F_d(1,ig,k,j,iu);
+          vec.F_d(2,ig,k,j,iu+i) = vec.F_d(2,ig,k,j,iu);
+        }
+      }
+    }
+  }
+}
+
+void M1::BeamInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
+  Lab_vars vec;
+  SetLabVarsAliases(storage.u, vec);
+
+  for (int k=kl; k<=ku; ++k) {
+    for (int j=1; j<=ngh; ++j) {
+      for (int i=il; i<=iu; ++i) {
+        for (int ig=0; ig<ngroups*nspecies; ++ig) {
+          vec.N(ig,k,jl-j,i) = vec.N(ig,k,jl,i);
+          vec.E(ig,k,jl-j,i) = vec.E(ig,k,jl,i);
+          vec.F_d(0,ig,k,jl-j,i) = vec.F_d(0,ig,k,jl,i);
+          vec.F_d(1,ig,k,jl-j,i) = vec.F_d(1,ig,k,jl,i);
+          vec.F_d(2,ig,k,jl-j,i) = vec.F_d(2,ig,k,jl,i);
+        }
+      }
+    }
+  }
+}
+
+void M1::BeamOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
+  Lab_vars vec;
+  SetLabVarsAliases(storage.u, vec);
+
+  for (int k=kl; k<=ku; ++k) {
+    for (int j=1; j<=ngh; ++j) {
+      for (int i=il; i<=iu; ++i) {
+        for (int ig=0; ig<ngroups*nspecies; ++ig) {
+          vec.N(ig,k,ju+j,i) = vec.N(ig,k,ju,i);
+          vec.E(ig,k,ju+j,i) = vec.E(ig,k,ju,i);
+          vec.F_d(0,ig,k,ju+j,i) = vec.F_d(0,ig,k,ju,i);
+          vec.F_d(1,ig,k,ju+j,i) = vec.F_d(1,ig,k,ju,i);
+          vec.F_d(2,ig,k,ju+j,i) = vec.F_d(2,ig,k,ju,i);
+        }
+      }
+    }
+  }
+}
+
+void M1::BeamInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
+  Lab_vars vec;
+  SetLabVarsAliases(storage.u, vec);
+
+  for (int k=1; k<=ngh; ++k) {
+    for (int j=jl; j<=ju; ++j) {
+      for (int i=il; i<=iu; ++i) {
+        for (int ig=0; ig<ngroups*nspecies; ++ig) {
+          vec.N(ig,kl-k,j,i) = vec.N(ig,kl,j,i);
+          vec.E(ig,kl-k,j,i) = vec.E(ig,kl,j,i);
+          vec.F_d(0,ig,kl-k,j,i) = vec.F_d(0,ig,kl,j,i);
+          vec.F_d(1,ig,kl-k,j,i) = vec.F_d(1,ig,kl,j,i);
+          vec.F_d(2,ig,kl-k,j,i) = vec.F_d(2,ig,kl,j,i);
+        }
+      }
+    }
+  }
+}
+
+void M1::BeamOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
+  Lab_vars vec;
+  SetLabVarsAliases(storage.u, vec);
+
+  for (int k=1; k<=ngh; ++k) {
+    for (int j=jl; j<=ju; ++j) {
+      for (int i=il; i<=iu; ++i) {
+        for (int ig=0; ig<ngroups*nspecies; ++ig) {
+          vec.N(ig,ku+k,j,i) = vec.N(ig,ku,j,i);
+          vec.E(ig,ku+k,j,i) = vec.E(ig,ku,j,i);
+          vec.F_d(0,ig,ku+k,j,i) = vec.F_d(0,ig,ku,j,i);
+          vec.F_d(1,ig,ku+k,j,i) = vec.F_d(1,ig,ku,j,i);
+          vec.F_d(2,ig,ku+k,j,i) = vec.F_d(2,ig,ku,j,i);
+        }
+      }
+    }
+  }
+}

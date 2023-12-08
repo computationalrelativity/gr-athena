@@ -27,9 +27,9 @@
 // constructor, initializes data structures and parameters
 
 char const * const M1::Lab_names[M1::N_Lab] = {
-  "lab.N",
   "lab.E",
-  "lab.Fx", "lab.Fy", "lab.Fz", 
+  "lab.Fx", "lab.Fy", "lab.Fz",
+  "lab.N" 
 };
 
 char const * const M1::Rad_names[M1::N_Rad] = {
@@ -323,9 +323,9 @@ M1::~M1()
 
 void M1::SetLabVarsAliases(AthenaArray<Real> & u, M1::Lab_vars & lab)
 {
-  lab.N.InitWithShallowSlice(u, I_Lab_N);
   lab.E.InitWithShallowSlice(u, I_Lab_E);
   lab.F_d.InitWithShallowSlice(u, I_Lab_Fx);
+  lab.N.InitWithShallowSlice(u, I_Lab_N);
 }
 
 //----------------------------------------------------------------------------------------

@@ -40,8 +40,6 @@ void M1::calc_Pthin(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_u
   for (int a = 0; a < MDIM; ++a) {
     for (int b = a; b < MDIM; ++b) {
       P_dd(a,b) = fac * F_d(a) * F_d(b);
-      //char sbuf[128]; sprintf(sbuf," a = %d b = %d  g_uu= %f", a,b, g_uu(a,b));M1_DEBUG_PR(sbuf); 
-      //char sbuf[128]; sprintf(sbuf," a = %d b = %d  P_dd= %f", a,b, P_dd(a,b));M1_DEBUG_PR(sbuf); 
     }
   }
 }
@@ -134,7 +132,7 @@ void M1::calc_H_from_rT(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const &
     H_d(a) = 0.0;
     for (int b = 0; b < MDIM; ++b) {
       for (int c = 0; c < MDIM; ++c) {
-	H_d(a) -= proj_ud(b,a)*u_u(c)*rT_dd(b,c);
+	      H_d(a) -= proj_ud(b,a)*u_u(c)*rT_dd(b,c);
       }
     }
   }
@@ -149,7 +147,7 @@ void M1::calc_K_from_rT(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const &
       K_dd(a,b) = 0.0;
       for (int c = 0; c < MDIM; ++c) {
         for (int d = 0; d < MDIM; ++d) {
-	  K_dd(a,b) += proj_ud(c,a)*proj_ud(d,b)*rT_dd(c,d);
+	        K_dd(a,b) += proj_ud(c,a)*proj_ud(d,b)*rT_dd(c,d);
         }
       }
     }
@@ -237,6 +235,19 @@ void M1::uvel(Real alp,
   *u3 = w_lorentz*(velz - betaz*ialp);
 }
 
+void M1::uvel(TensorPointwise<Real, Symmetries::NONE, NDIM, 0> const & alpha,
+	            TensorPointwise<Real, Symmetries::NONE, NDIM, 1> const & beta_u,
+	            Real const w_lorentz,
+	            TensorPointwise<Real, Symmetries::NONE, NDIM, 1> const & vel_u,
+	            TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & u_u)
+{ // Four-vel
+  Real const ialp = 1.0/alpha();
+  u_u(0) = w_lorentz*ialp;
+  u_u(1) = w_lorentz*(vel_u(0) - beta_u(0)*ialp);
+  u_u(2) = w_lorentz*(vel_u(1) - beta_u(1)*ialp);
+  u_u(3) = w_lorentz*(vel_u(2) - beta_u(2)*ialp);
+}
+
 //
 // Pack/unpack routines
 // Note some of these work for both MDIM and NDIM=MDIM-1
@@ -257,6 +268,7 @@ void M1::pack_F_d(Real const betax, Real const betay, Real const betaz,
 void M1::unpack_F_d(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> const & F_d,
 		    Real * Fx, Real * Fy, Real * Fz)
 {
+
   *Fx = F_d(1);
   *Fy = F_d(2);
   *Fz = F_d(3);
@@ -486,7 +498,7 @@ void M1::Get4Metric_VC2CCinterp(MeshBlock * pmb,
     beta_d(a) = 0.0;  
   }
   for (int a = 1; a < MDIM; ++a) {
-    for(int b = 1; a < MDIM; ++a) {
+    for (int b = 1; b < MDIM; ++b) {
       beta_d(a) += g_dd(a,b) * beta_u(b);
     }
   }
@@ -501,7 +513,6 @@ void M1::Get4Metric_VC2CCinterp(MeshBlock * pmb,
   for (int a = 1; a < MDIM; ++a) {
     g_dd(0,0) += beta_u(a)*beta_d(a);
   }
-
   beta_d.DeleteTensorPointwise();  
 }
 
@@ -520,17 +531,10 @@ void M1::Get4Metric_Inv(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const &
   }
 
   // g^ij 
-  Real const det = SpatialDet(g_dd(1,1), g_dd(1,2), g_dd(1,3),
-			      g_dd(2,2), g_dd(2,3), g_dd(3,3));
-  
-  SpatialInv(1.0/det,
-	           g_dd(1,1), g_dd(1,2), g_dd(1,3),
-	           g_dd(2,2), g_dd(2,3), g_dd(3,3),
-	           &g_uu(1,1), &g_uu(1,2), &g_uu(1,3),
-	           &g_uu(2,2), &g_uu(2,3), &g_uu(3,3));
+  SpatialInv(g_dd, g_uu);
   
   for (int a = 1; a < MDIM; ++a) {
-    for (int b = 1; a < MDIM; ++a) {
+    for (int b = a; b < MDIM; ++b) {
       g_uu(a,b) += beta_u(a) * beta_u(b) * g_uu(0,0);      
     }
   }
@@ -548,28 +552,20 @@ void M1::Get4Metric_Inv_Inv3(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> co
   
   // g^0i
   for (int a = 1; a < MDIM; ++a) {
-    g_uu(0,a) = g_uu(a,0) =  beta_u(a) * (-g_uu(0,0));
+    g_uu(0,a) =  beta_u(a) * (-g_uu(0,0));
   }
-  // gamma^ij 
-  Real const det = SpatialDet(g_dd(1,1), g_dd(1,2), g_dd(1,3),
-			      g_dd(2,2), g_dd(2,3), g_dd(3,3));
-  
-  SpatialInv(1.0/det,
-	     g_dd(1,1), g_dd(1,2), g_dd(1,3),
-	     g_dd(2,2), g_dd(2,3), g_dd(3,3),
-	     &g_uu(1,1), &g_uu(1,2), &g_uu(1,3),
-	     &g_uu(2,2), &g_uu(2,3), &g_uu(3,3));
+  // gamma^ij
+  SpatialInv(g_dd, g_uu);
 
-  gam_uu(0,0) = g_uu(1,1);
-  gam_uu(0,1) = g_uu(1,2);
-  gam_uu(0,2) = g_uu(1,3);
-  gam_uu(1,1) = g_uu(2,2);
-  gam_uu(1,2) = g_uu(2,3);
-  gam_uu(2,2) = g_uu(3,3);
+  for (int a=0; a<MDIM-1; ++a) {
+    for (int b=a; b<MDIM-1; ++b) {
+      gam_uu(a,b) = g_uu(a+1,b+1);
+    }
+  }
   
   // g^ij   
   for(int a = 1; a < MDIM; ++a) {
-    for(int b = 1; a < MDIM; ++a) {
+    for(int b = a; b < MDIM; ++b) {
       g_uu(a,b) += beta_u(a) * beta_u(b) * g_uu(0,0);      
     }
   }
@@ -617,7 +613,7 @@ void M1::Get4Metric_SpaceProj(TensorPointwise<Real, Symmetries::NONE, MDIM, 1> c
                               TensorPointwise<Real, Symmetries::NONE, MDIM, 2> & gamma_ud)
 {
   for (int a = 0; a < MDIM; ++a)
-    for (int b = 0; b < MDIM; ++b)
+    for (int b = a; b < MDIM; ++b)
       gamma_ud(a,b) = tensor::delta(a,b) + n_u(a)*n_d(b);
 }
 
@@ -625,6 +621,16 @@ Real M1::SpatialDet(Real const gxx, Real const gxy, Real const gxz,
                      Real const gyy, Real const gyz, Real const gzz)
 {
   return - SQR(gxz)*gyy + 2*gxy*gxz*gyz - gxx*SQR(gyz) - SQR(gxy)*gzz + gxx*gyy*gzz;
+}
+
+Real M1::SpatialDet(TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> const & g)
+{
+  return - SQR(g(0,2))*g(1,1) + 2*g(0,1)*g(0,2)*g(1,2) - g(0,0)*SQR(g(1,2)) - SQR(g(0,1))*g(2,2) + g(0,0)*g(1,1)*g(2,2);
+}
+
+Real M1::SpatialDet(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g)
+{
+  return - SQR(g(1,3))*g(2,2) + 2*g(1,2)*g(1,3)*g(2,3) - g(1,1)*SQR(g(2,3)) - SQR(g(1,2))*g(3,3) + g(1,1)*g(2,2)*g(3,3);
 }
 
 //----------------------------------------------------------------------------------------
@@ -642,10 +648,36 @@ void M1::SpatialInv(Real const detginv,
 {
   *uxx = (-SQR(gyz) + gyy*gzz)*detginv;
   *uxy = (gxz*gyz  - gxy*gzz)*detginv;
-  *uyy = (-SQR(gxz) + gxx*gzz)*detginv;
   *uxz = (-gxz*gyy + gxy*gyz)*detginv;
+  *uyy = (-SQR(gxz) + gxx*gzz)*detginv;
   *uyz = (gxy*gxz  - gxx*gyz)*detginv;
   *uzz = (-SQR(gxy) + gxx*gyy)*detginv;
+  return;
+}
+
+void M1::SpatialInv(TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> const & g_dd,
+                    TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> & g_uu)
+{
+  Real const detginv = 1.0/SpatialDet(g_dd);
+  g_uu(0,0) = (-SQR(g_dd(1,2)) + g_dd(1,1)*g_dd(2,2)) * detginv;
+  g_uu(0,1) = (g_dd(0,2)*g_dd(1,2)  - g_dd(0,1)*g_dd(2,2)) * detginv;
+  g_uu(0,2) = (-g_dd(0,2)*g_dd(1,1) + g_dd(0,1)*g_dd(1,2)) * detginv;
+  g_uu(1,1) = (-SQR(g_dd(0,2)) + g_dd(0,0)*g_dd(2,2)) * detginv;
+  g_uu(1,2)= (g_dd(0,1)*g_dd(0,2)  - g_dd(0,0)*g_dd(1,2)) * detginv;
+  g_uu(2,2) = (-SQR(g_dd(0,1)) + g_dd(0,0)*g_dd(1,1)) * detginv;
+  return;
+}
+
+void M1::SpatialInv(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd,
+                    TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & g_uu)
+{
+  Real const detginv = 1.0/SpatialDet(g_dd);
+  g_uu(1,1) = (-SQR(g_dd(2,3)) + g_dd(2,2)*g_dd(3,3)) * detginv;
+  g_uu(1,2) = (g_dd(1,3)*g_dd(2,3)  - g_dd(1,2)*g_dd(3,3)) * detginv;
+  g_uu(1,3) = (-g_dd(1,3)*g_dd(2,2) + g_dd(1,2)*g_dd(2,3)) * detginv;
+  g_uu(2,2) = (-SQR(g_dd(1,3)) + g_dd(1,1)*g_dd(3,3)) * detginv;
+  g_uu(2,3)= (g_dd(1,2)*g_dd(1,3)  - g_dd(1,1)*g_dd(2,3)) * detginv;
+  g_uu(3,3) = (-SQR(g_dd(1,2)) + g_dd(1,1)*g_dd(2,2)) * detginv;
   return;
 }
 

@@ -241,7 +241,7 @@ void M1::apply_closure(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & 
 
   calc_Pthin(g_uu, E, F_d, Pthin_dd);
   calc_Pthick(g_dd, g_uu, n_d, w_lorentz, v_d, E, F_d, Pthick_dd);
-
+  
   Real const dthick = 1.5*(1. - chi);
   Real const dthin = 1. - dthick;
 
@@ -251,14 +251,10 @@ void M1::apply_closure(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & 
   for (int a = 0; a < MDIM; ++a) {
     for (int b = a; b < MDIM; ++b) {
       P_dd(a,b) = dthick*Pthick_dd(a,b) + dthin*Pthin_dd(a,b);
-
-      // M1_DEBUG_PR(sbuf); sprintf(sbuf," a = %d b = %d   Pab = %f  Pab_thick = %f  Pab_thin = %f", a,b, P_dd(a,b),Pthick_dd(a,b),Pthin_dd(a,b));
-      
     }
   }
   Pthin_dd.DeleteTensorPointwise();
   Pthick_dd.DeleteTensorPointwise();
-
 }
 
 //----------------------------------------------------------------------------------------
@@ -383,6 +379,7 @@ void M1::CalcClosure(AthenaArray<Real> & u)
   if (closure == "Eddington") {
     closure_fun = eddington;
   } else if (closure == "Minerbo") {
+    std::cout << closure << std::endl;
     closure_fun = minerbo;
   } else if (closure == "thin") {
     closure_fun = thin;
@@ -439,24 +436,21 @@ void M1::CalcClosure(AthenaArray<Real> & u)
     if (m1_mask(k,j,i)) {
       for (int ig = 0; ig < nspecies*ngroups; ++ig) {
       	rad.J(ig,k,j,i) = 0;
-	for (int a = 0; a < NDIM; ++a) {
+	      for (int a = 0; a < NDIM; ++a) {
           rad.Ht(a,ig,k,j,i) = 0;
-	  rad.H(a,ig,k,j,i)  = 0;
+	        rad.H(a,ig,k,j,i)  = 0;
         }
-	for (int a = 0; a < NDIM; ++a) {
-	  for (int b = a; b < NDIM; ++b) {
-	    rad.P_dd(a,b,ig,k,j,i) = 0;
+        for (int a = 0; a < NDIM; ++a) {
+          for (int b = a; b < NDIM; ++b) {
+            rad.P_dd(a,b,ig,k,j,i) = 0;
           }
         }
-	if (nspecies > 1)
-	  rad.nnu(ig,k,j,i) = 0;
+        if (nspecies > 1)
+          rad.nnu(ig,k,j,i) = 0;
       } // ig loop
       continue;
     } // mask
 
-    
-    //char sbuf[128];sprintf(sbuf,"k = %d j = %d i = %d", k,j,i);M1_DEBUG_PR(sbuf);
-    
     // Go from ADM 3-metric VC (AthenaArray/Tensor)
     // to ADM 4-metric on CC at ijk (TensorPointwise) 
     Get4Metric_VC2CCinterp(pmb, k,j,i,
@@ -490,11 +484,18 @@ void M1::CalcClosure(AthenaArray<Real> & u)
                       closure_fun, gsl_solver, g_dd, g_uu, n_d,
                       fidu_w_lorentz, u_u, v_d, proj_ud, vec.E(ig,k,j,i), F_d,
                       &rad.chi(ig,k,j,i), P_dd);
+      
+      //for (int a=0; a<NDIM; ++a)
+      //  for (int b=0; b<NDIM; ++b)
+      //    std::cout << k << " " << j << " " << i << " " <<  P_dd(a,b) << std::endl;
+      
+      
       unpack_P_dd(P_dd,
 		  &rad.P_dd(0,0,ig,k,j,i), &rad.P_dd(0,1,ig,k,j,i), &rad.P_dd(0,2,ig,k,j,i),
                   &rad.P_dd(1,1,ig,k,j,i), &rad.P_dd(1,2,ig,k,j,i),
                   &rad.P_dd(2,2,ig,k,j,i));
 
+      //std::cout << k << " " << j << " " << i << std::endl;
       for (int a = 0; a < NDIM; ++a) {
 	for (int b = a; b < NDIM; ++b) {
 	  assert(isfinite(rad.P_dd(a,b,ig,k,j,i)));
