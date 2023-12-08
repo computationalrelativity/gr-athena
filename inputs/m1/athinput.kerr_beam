@@ -1,0 +1,55 @@
+<job>
+problem_id  = beam       # problem ID: basename of output filenames
+
+<output1>
+file_type   = hdf5
+variable    = m1_lab      # variables to be output
+dt          = 0.2      # time increment between outputs
+ghost_zones = true
+#x2_slice    = true
+
+<time>
+cfl_number  = 0.2       # The Courant, Friedrichs, & Lewy (CFL) Number
+nlim        = -1          # cycle limit
+tlim        = 40
+xorder      = 2         # order of spatial reconstruction
+ncycle_out  = 1         # interval for stdout summary info
+
+<mesh>
+nx1         = 100        # Number of zones in X1-direction
+x1min       = 0.      # minimum value of X1
+x1max       = 5.       # maximum value of X1
+ix1_bc      = outflow   # Inner-X1 boundary condition flag
+ox1_bc      = outflow   # Outer-X1 boundary condition flag
+
+nx2         = 3         # Number of zones in X2-direction
+x2min       = -0.8.      # minimum value of X2
+x2max       = 0.8.       # maximum value of X2
+ix2_bc      = periodic   # Inner-X2 boundary condition flag
+ox2_bc      = periodic  # Outer-X2 boundary condition flag
+
+nx3         = 100         # Number of zones in X3-direction
+x3min       = 0.        # minimum value of X3
+x3max       = 5       # maximum value of X3
+ix3_bc      = outflow   # Inner-X3 boundary condition flag
+ox3_bc      = outflow   # Outer-X3 boundary condition flag
+
+num_threads = 1         # maximum number of OMP threads
+
+#<FakeRates>
+#use = true
+
+<M1>
+
+closure = thin # Eddington
+test = kerr_beam
+
+<problem>
+
+beam_dir1 = 1.0
+beam_dir2 = 0.0
+beam_dir3 = 0.0
+beam_width = 0.5
+kerr_mask_radius = 1.1
+beam_position_x = 0.
+beam_position_z = 3.5
