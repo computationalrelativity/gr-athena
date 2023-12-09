@@ -72,15 +72,16 @@ enum {
 #define M1_USE_EIGENVALUES_THIN (0)
 #endif
 
-#define M1_DEBUG (1)
+#define M1_DEBUG (0)
 #define M1_DEBUG_PR(var)\
   if (M1_DEBUG) { std::cout << "M1_DEBUG: " << var << std::endl; }
 #define M1_CALCFIDUCIALVELOCITY_OFF (0)
 #define M1_CALCCLOSURE_OFF (0)
 #define M1_CALCOPACITY_OFF (0)
-#define M1_GRSOURCES_OFF (1)
+#define M1_CALCOPACITY_ZERO (1)
+#define M1_GRSOURCES_OFF (0)
 #define M1_FLUXX_SET_ZERO (0)
-#define M1_FLUXY_SET_ZERO (0)
+#define M1_FLUXY_SET_ZERO (1)
 #define M1_FLUXZ_SET_ZERO (0)
 
 // CGS density conv. fact
@@ -229,9 +230,9 @@ public:
 
   // aliases for Lab variables and RHS
   struct Lab_vars {
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> N; 
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> E; 
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> F_d; 
+    AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> F_d;
+    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> N;
   };
   Lab_vars lab;
   Lab_vars rhs;
@@ -392,9 +393,22 @@ public:
   
   // initial data for the tests
   void SetupBeamTest(AthenaArray<Real> & u);
+  void SetupKerrBeamTest(AthenaArray<Real> & u);
   void SetupDiffusionTest(AthenaArray<Real> & u);
   void SetupEquilibriumTest(AthenaArray<Real> & u);
   void SetupKerrSchildMask(AthenaArray<Real> & u);
+  void BeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
+  void BeamOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
+  void BeamInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
+  void BeamOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
+  void BeamInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
+  void BeamOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
   //void SetupTestHydro();
 
   // wrappers/interfaces with GSL for source update and closure
@@ -554,6 +568,11 @@ private:
             Real w_lorentz,
             Real velx,Real vely,Real velz,
             Real * u0, Real * u1, Real * u2, Real * u3);
+  void uvel(TensorPointwise<Real, Symmetries::NONE, NDIM, 0> const & alpha,
+	            TensorPointwise<Real, Symmetries::NONE, NDIM, 1> const & beta_u,
+	            Real const w_lorentz,
+	            TensorPointwise<Real, Symmetries::NONE, NDIM, 1> const & vel_u,
+	            TensorPointwise<Real, Symmetries::NONE, MDIM, 1> & u_u);
 
   void pack_F_d(Real const betax, Real const betay, Real const betaz,
 		Real const Fx, Real const Fy, Real const Fz,
@@ -626,11 +645,17 @@ private:
                             TensorPointwise<Real, Symmetries::NONE, MDIM, 2> & gamma_ud);
   Real SpatialDet(Real const gxx, Real const gxy, Real const gxz,
                   Real const gyy, Real const gyz, Real const gzz);
+  Real SpatialDet(TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> const & g_dd);
+  Real SpatialDet(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd);
   void SpatialInv(Real const detginv,
                   Real const gxx, Real const gxy, Real const gxz,
                   Real const gyy, Real const gyz, Real const gzz,
                   Real * uxx, Real * uxy, Real * uxz,
                   Real * uyy, Real * uyz, Real * uzz);
+  void SpatialInv(TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> const & g_dd,
+                  TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> & g_uu);
+  void SpatialInv(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_dd,
+                  TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> & g_uu);
   
 };
 

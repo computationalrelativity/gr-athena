@@ -175,8 +175,7 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
     Get4Metric_SpaceProj(n_u, n_d, gamma_ud);
 
     //TODO: check following:
-    Real const volform = std::sqrt(SpatialDet(g_dd(1,1), g_dd(1,2), g_dd(1,3), 
-					      g_dd(2,2), g_dd(2,3), g_dd(3,3)));
+    Real const volform = std::sqrt(SpatialDet(g_dd));
       
     uvel(alpha(), beta_u(1), beta_u(2), beta_u(3), fidu.Wlorentz(k,j,i),
 	       fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i), 
@@ -441,6 +440,7 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
       F_d(1) = vec_p.F_d(0,ig,k,j,i) + dt * vec_rhs.F_d(0,ig,k,j,i) + theta*DrFx[ig];
       F_d(2) = vec_p.F_d(1,ig,k,j,i) + dt * vec_rhs.F_d(1,ig,k,j,i) + theta*DrFy[ig];
       F_d(3) = vec_p.F_d(2,ig,k,j,i) + dt * vec_rhs.F_d(2,ig,k,j,i) + theta*DrFz[ig];
+
       apply_floor(g_uu, &E, F_d);
 
       Real N = 0; (void)N;

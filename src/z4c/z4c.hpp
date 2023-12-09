@@ -21,6 +21,7 @@
 #include "../athena_arrays.hpp"
 #include "../athena_tensor.hpp"
 #include "../utils/finite_differencing.hpp"
+#include "../utils/tensor.hpp"
 
 #include "../bvals/cc/bvals_cc.hpp"
 #include "../bvals/vc/bvals_vc.hpp"
@@ -34,6 +35,8 @@
 
 class MeshBlock;
 class ParameterInput;
+
+using namespace utils::tensor;
 
 // Indexes for variables in AthenaArray
 #define NDIM (3) // Manifold dimension
@@ -280,6 +283,13 @@ public:
 
   // setup a Minkowski spacetime
   void ADMMinkowski(AthenaArray<Real> & u_adm);
+  // setup a Kerr-Schild spacetime
+  void ADMKerrSchild(Real const x, Real const y, Real const z,
+                        TensorPointwise<Real, Symmetries::NONE, NDIM, 0> & alpha,
+                        TensorPointwise<Real, Symmetries::NONE, NDIM, 1> & beta_u,
+                        TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> & gamma_dd,
+                        TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> & K_dd);
+  void SetKerrSchild(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_z4c);
   // set the gauge condition to geodesic slicing
   void GaugeGeodesic(AthenaArray<Real> & u);
   // set the matter variables to zero
