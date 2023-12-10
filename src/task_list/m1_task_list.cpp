@@ -35,7 +35,8 @@
 //#include "m1_task_list.hpp"
 
 #define KERR_BEAM_TEST (0)
-#define BEAM_TEST (1)
+#define BEAM_TEST (0)
+#define EQUILIBRIUM_TEST (0)
 //----------------------------------------------------------------------------------------
 //! TimeIntegratorTaskList constructor
 
@@ -396,6 +397,13 @@ TaskStatus M1IntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int stage) {
     int ju = pmb->pm1->mbi.ju;
     int kl = pmb->pm1->mbi.kl;
     int ku = pmb->pm1->mbi.ku;
+
+#if EQUILIBRIUM_TEST
+    pm1->ReflectInnerX1(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
+    pm1->ReflectInnerX2(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
+    pm1->ReflectInnerX3(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
+#else
+
 #if KERR_BEAM_TEST
     pm1->KerrBeamInnerX1(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
 #elif BEAM_TEST
@@ -403,10 +411,11 @@ TaskStatus M1IntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int stage) {
 #else
     pm1->OutflowInnerX1(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
 #endif
-    pm1->OutflowOuterX1(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
     pm1->OutflowInnerX2(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
-    pm1->OutflowOuterX2(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
     pm1->OutflowInnerX3(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
+#endif
+    pm1->OutflowOuterX1(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
+    pm1->OutflowOuterX2(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
     pm1->OutflowOuterX3(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
 
     pbval->ApplyPhysicalBoundaries(t_end_stage, dt, pmb->pbval->bvars_m1_int);

@@ -81,11 +81,10 @@
 #define M1_CALCFIDUCIALVELOCITY_OFF (0)
 #define M1_CALCCLOSURE_OFF (0)
 #define M1_CALCOPACITY_OFF (0)
-#define M1_CALCOPACITY_ZERO (1)
-#define M1_GRSOURCES_OFF (0)
+#define M1_GRSOURCES_OFF (1)
 #define M1_FLUXX_SET_ZERO (0)
 #define M1_FLUXY_SET_ZERO (1)
-#define M1_FLUXZ_SET_ZERO (0)
+#define M1_FLUXZ_SET_ZERO (1)
 
 // CGS density conv. fact
 #define CGS_GCC (1.619100425158886e-18) 
@@ -417,6 +416,12 @@ public:
   void OutflowInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
   void OutflowOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
+  void ReflectInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
+  void ReflectInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
+  void ReflectInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
   //void SetupTestHydro();
 

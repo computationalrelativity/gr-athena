@@ -151,7 +151,7 @@ void M1::SetupDiffusionTest(AthenaArray<Real> & u)
   SetLabVarsAliases(u, vec);  
 
   Real const vel = medium_velocity;
-  Real const wlorentz = 1.0/(std::sqrt(1-POW2(medium_velocity)));
+  Real const wlorentz = 1.0/std::sqrt(1.0 - SQR(medium_velocity));
   
   GCLOOP3(k,j,i) {
     Real const x = pmb->pcoord->x1v(i);;
@@ -164,7 +164,7 @@ void M1::SetupDiffusionTest(AthenaArray<Real> & u)
           vec.E(ig,k,j,i) = 1.0;
         }
       } else if (diff_profile == "gaussian") {
-	        vec.E(ig,k,j,i) = std::exp(-SQ(3*x));
+	        vec.E(ig,k,j,i) = std::exp(-SQR(3*x));
       }
       else {
         std::stringstream msg;
@@ -176,12 +176,14 @@ void M1::SetupDiffusionTest(AthenaArray<Real> & u)
 
       // Set the medium velocity
 	    fidu.vel_u(0,k,j,i) = vel;
+      fidu.vel_u(1,k,j,i) = 0.0;
+      fidu.vel_u(2,k,j,i) = 0.0;
       fidu.Wlorentz(k,j,i) = wlorentz;
       // Use thick closure to compute the fluxes
       Real const W = fidu.Wlorentz(k,j,i);
-      Real const Jo3 = vec.E(ig,k,j,i)/(4*SQ(W) - 1);
+      Real const Jo3 = vec.E(ig,k,j,i)/(4*SQR(W) - 1);
       for (int a = 0; a < NDIM; ++a) {
-	      vec.F_d(a,ig,k,j,i) = 4*SQ(W)*fidu.vel_u(a,k,j,i)*Jo3;
+	      vec.F_d(a,ig,k,j,i) = 4*SQR(W)*fidu.vel_u(a,k,j,i)*Jo3;
       }
     } // ig loop
   } // CLOOP3
@@ -570,6 +572,66 @@ void M1::OutflowOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
           vec.F_d(0,ig,ku+k,j,i) = vec.F_d(0,ig,ku,j,i);
           vec.F_d(1,ig,ku+k,j,i) = vec.F_d(1,ig,ku,j,i);
           vec.F_d(2,ig,ku+k,j,i) = vec.F_d(2,ig,ku,j,i);
+        }
+      }
+    }
+  }
+}
+  
+void M1::ReflectInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
+  Lab_vars vec;
+  SetLabVarsAliases(storage.u, vec);
+
+  for (int k=kl; k<=ku; ++k) {
+    for (int j=jl; j<=ju; ++j) {
+      for (int i=1; i<=ngh; ++i) {
+        for (int ig=0; ig<ngroups*nspecies; ++ig) {
+          vec.N(ig,k,j,il-i) = vec.N(ig,k,j,il+i-1);
+          vec.E(ig,k,j,il-i) = vec.E(ig,k,j,il+i-1);
+          vec.F_d(0,ig,k,j,il-i) = vec.F_d(0,ig,k,j,il+i-1);
+          vec.F_d(1,ig,k,j,il-i) = vec.F_d(1,ig,k,j,il+i-1);
+          vec.F_d(2,ig,k,j,il-i) = vec.F_d(2,ig,k,j,il+i-1);
+        }
+      }
+    }
+  }
+}
+
+void M1::ReflectInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
+  Lab_vars vec;
+  SetLabVarsAliases(storage.u, vec);
+
+  for (int k=kl; k<=ku; ++k) {
+    for (int j=1; j<=ngh; ++j) {
+      for (int i=il; i<=iu; ++i) {
+        for (int ig=0; ig<ngroups*nspecies; ++ig) {
+          vec.N(ig,k,jl-j,i) = vec.N(ig,k,jl+j-1,i);
+          vec.E(ig,k,jl-j,i) = vec.E(ig,k,jl+j-1,i);
+          vec.F_d(0,ig,k,jl-j,i) = vec.F_d(0,ig,k,jl+j-1,i);
+          vec.F_d(1,ig,k,jl-j,i) = vec.F_d(1,ig,k,jl+j-1,i);
+          vec.F_d(2,ig,k,jl-j,i) = vec.F_d(2,ig,k,jl+j-1,i);
+        }
+      }
+    }
+  }
+}
+
+void M1::ReflectInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
+  Lab_vars vec;
+  SetLabVarsAliases(storage.u, vec);
+
+  for (int k=1; k<=ngh; ++k) {
+    for (int j=jl; j<=ju; ++j) {
+      for (int i=il; i<=iu; ++i) {
+        for (int ig=0; ig<ngroups*nspecies; ++ig) {
+          vec.N(ig,kl-k,j,i) = vec.N(ig,kl+k-1,j,i);
+          vec.E(ig,kl-k,j,i) = vec.E(ig,kl+k-1,j,i);
+          vec.F_d(0,ig,kl-k,j,i) = vec.F_d(0,ig,kl+k-1,j,i);
+          vec.F_d(1,ig,kl-k,j,i) = vec.F_d(1,ig,kl+k-1,j,i);
+          vec.F_d(2,ig,kl-k,j,i) = vec.F_d(2,ig,kl+k-1,j,i);
         }
       }
     }

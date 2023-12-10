@@ -75,7 +75,7 @@ void M1::CalcOpacityFake(Real const dt, AthenaArray<Real> & u)
     Real y = pmb->pcoord->x2v(j);
     Real x = pmb->pcoord->x1v(i);
     if ( (m1_test == "shadow" && SQR(x) + SQR(z) > 1) ||
-         (m1_test == "equilibrium_sphere" && SQR(x) + SQR(y) + SQR(z) > 1) ) {
+         (m1_test == "sphere" && SQR(x) + SQR(y) + SQR(z) > 1) ) {
       continue;
     }
 
