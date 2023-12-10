@@ -40,6 +40,7 @@ test = diffusion
 #closure = Eddington
 closure = Minerbo
 opacities = fake
+fiducial_velocity = donothing
 
 <FakeOpacities>
 kappa_sca_0_0 = 1000.
