@@ -6,7 +6,7 @@ python3 configure.py \
 	-gsl --gsl_path=${GSL_PATH} \
 	-hdf5 -h5double  --hdf5_path=${HDF5_PATH} \
 	--nghost=2 --ncghost=2 \
-	--prob=m1_shadow \
+	--prob=m1_tests \
 	-m1 -omp
 
 make clean

@@ -55,7 +55,6 @@ namespace {
 //----------------------------------------------------------------------------------------
 // \!fn void M1::SetupZeroLabVars(AthenaArray<Real> & u)
 // \brief Initialize to zero. This is used for kerrschild, shadow and sphere.
-
 void M1::SetZeroLabVars(AthenaArray<Real> & u)
 {
   Lab_vars vec;
@@ -65,6 +64,19 @@ void M1::SetZeroLabVars(AthenaArray<Real> & u)
   vec.E.ZeroClear();
   vec.N.ZeroClear();
   vec.F_d.ZeroClear();
+}
+
+//----------------------------------------------------------------------------------------
+// \!fn void M1::SetupZeroFiduVars(AthenaArray<Real> & u)
+// \brief Initialize to zero. This is used for kerrschild, shadow and sphere.
+void M1::SetZeroFiduVars(AthenaArray<Real> & u)
+{
+  Fidu_vars vec;
+  SetFiduVarsAliases(u, vec);  
+
+  // Initialize to zero
+  vec.vel_u.ZeroClear();
+  vec.Wlorentz.Fill(1.0);
 }
 
 
@@ -131,9 +143,7 @@ void M1::SetupBeamTest(AthenaArray<Real> & u)
       fidu.vel_u(a,k,j,i) = 0.0;
     }
     fidu.Wlorentz(k,j,i) = 1.0;
-    
   } // k, j, i 
-  
 }
 
 //----------------------------------------------------------------------------------------

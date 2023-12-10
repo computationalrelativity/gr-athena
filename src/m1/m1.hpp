@@ -386,6 +386,7 @@ public:
 
   // set aliases 
   void SetZeroLabVars(AthenaArray<Real> & u);
+  void SetZeroFiduVars(AthenaArray<Real> & u);
   void SetLabVarsAliases(AthenaArray<Real> & u, Lab_vars & lab);
   void SetRadVarsAliases(AthenaArray<Real> & r, Rad_vars & rad);
   void SetRadMatVarsAliases(AthenaArray<Real> & radmat, RadMat_vars & rmat);

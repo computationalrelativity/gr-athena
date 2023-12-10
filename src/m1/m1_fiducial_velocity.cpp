@@ -42,7 +42,7 @@ void M1::CalcFiducialVelocity()
     fidu.vel_u.ZeroClear();
     fidu.Wlorentz.Fill(1.0);
     return;
-  } else if (fiducial_velocity == "test") {
+  } else if (fiducial_velocity == "donothing") {
     return;
   } else {
     std::ostringstream msg;

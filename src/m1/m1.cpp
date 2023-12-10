@@ -192,7 +192,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   minmod_theta = pin->GetOrAddReal("M1","minmod_theta",1.0);
     
   // Problem-specific parameters
-  m1_test = pin->GetOrAddString("M1", "m1_test","none");  
+  m1_test = pin->GetOrAddString("M1", "test","none");  
 
   beam_position[0] = pin->GetOrAddReal("M1", "beam_position_x", 0.0);
   beam_position[1] = pin->GetOrAddReal("M1", "beam_position_y", 0.0);

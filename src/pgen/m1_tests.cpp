@@ -10,12 +10,12 @@
 // C headers
 
 // C++ headers
-//#include <cmath>      // sqrt()
-//#include <cstdio>     // fopen(), freopen(), fprintf(), fclose()
-//#include <iostream>   // endl
-//#include <sstream>    // stringstream
-//#include <stdexcept>  // runtime_error
-//#include <string>
+// #include <cmath>      // sqrt()
+// #include <cstdio>     // fopen(), freopen(), fprintf(), fclose()
+// #include <iostream>   // endl
+// #include <sstream>    // stringstream
+// #include <stdexcept>  // runtime_error
+// #include <string>
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -48,16 +48,18 @@ int RefinementCondition(MeshBlock *pmb);
 // void BeamOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
 //                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
 
-void Mesh::InitUserMeshData(ParameterInput *pin) {
+void Mesh::InitUserMeshData(ParameterInput *pin)
+{
   // EnrollUserBoundaryFunction(BoundaryFace::inner_x1, BeamInnerX1);
   // EnrollUserBoundaryFunction(BoundaryFace::outer_x1, BeamOuterX1);
   // EnrollUserBoundaryFunction(BoundaryFace::inner_x2, BeamInnerX2);
   // EnrollUserBoundaryFunction(BoundaryFace::outer_x2, BeamOuterX2);
   // EnrollUserBoundaryFunction(BoundaryFace::inner_x3, BeamInnerX3);
   // EnrollUserBoundaryFunction(BoundaryFace::outer_x3, BeamOuterX3);
-  if (adaptive) {
+  if (adaptive)
+  {
     EnrollUserRefinementCondition(RefinementCondition);
-    threshold = pin->GetReal("problem","thr");
+    threshold = pin->GetReal("problem", "thr");
   }
   return;
 }
@@ -67,14 +69,13 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
 //! \brief Problem Generator for the beam test
 //========================================================================================
 
-void MeshBlock::ProblemGenerator(ParameterInput * pin) {
+void MeshBlock::ProblemGenerator(ParameterInput *pin)
+{
 
   pm1->m1_test = pin->GetOrAddString("M1", "test", "beam");
 
+  // Read necessary <problem> paramters
   if (pm1->m1_test == "beam") {
-    pz4c->ADMMinkowski(pz4c->storage.adm);
-    pz4c->GaugeGeodesic(pz4c->storage.u);
-    pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u); 
     pm1->beam_dir[0] = pin->GetOrAddReal("problem", "beam_dir1", 1.0);
     pm1->beam_dir[1] = pin->GetOrAddReal("problem", "beam_dir2", 0.0);
     pm1->beam_dir[2] = pin->GetOrAddReal("problem", "beam_dir3", 0.0);
@@ -82,24 +83,45 @@ void MeshBlock::ProblemGenerator(ParameterInput * pin) {
     pm1->beam_position[1] = pin->GetOrAddReal("problem", "beam_position_y", 0.0);
     pm1->beam_position[2] = pin->GetOrAddReal("problem", "beam_position_z", 0.0);
     pm1->beam_width = pin->GetOrAddReal("problem", "beam_width", 1.0);
-    pm1->SetupBeamTest(pm1->storage.u);
-  } else if (pm1->m1_test == "advection") {
-    pz4c->ADMMinkowski(pz4c->storage.adm);
-    pz4c->GaugeGeodesic(pz4c->storage.u);
-    pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
-    pm1->SetupAdvectionJumpTest(pm1->storage.u);
+  } else if (pm1->m1_test == "shadow") {
+    pm1->beam_position[2] = pin->GetOrAddReal("problem", "beam_position_z", 0.0);
+    pm1->beam_width = pin->GetOrAddReal("problem", "beam_width", 1.0);
   } else if (pm1->m1_test == "kerr_beam") {
     pm1->kerr_mask_radius = pin->GetOrAddReal("problem", "kerr_mask_radius", 2.0);
+    pm1->beam_position[2] = pin->GetOrAddReal("problem", "beam_position_z", 0.0);
+    pm1->beam_width = pin->GetOrAddReal("problem", "beam_width", 1.0);
+  } else if (pm1->m1_test == "diffusion") {
+    pm1->diff_profile = pin->GetOrAddString("problem", "diff_profile", "step");
+    pm1->medium_velocity = pin->GetOrAddReal("problem", "medium_velocity", 0.0);
+  }
+
+  // Set metric quantities
+  if (pm1->m1_test == "kerr_beam") {
     pm1->SetupKerrSchildMask(pm1->storage.u);
     pz4c->SetKerrSchild(pz4c->storage.adm, pz4c->storage.u);
-    pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
-    pm1->SetupKerrBeamTest(pm1->storage.u);
+  } else {
+    pz4c->ADMMinkowski(pz4c->storage.adm);
+    pz4c->GaugeGeodesic(pz4c->storage.u);
+  }
+  pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
+
+  // Set M1 Lab variables and fiducial velocity
+  if (pm1->m1_test == "beam") {
+    pm1->SetupBeamTest(pm1->storage.u);
+  } else if (pm1->m1_test == "advection") {
+    pm1->SetupAdvectionJumpTest(pm1->storage.u);
+  } else if (pm1->m1_test == "diffusion") {
+    pm1->SetupDiffusionTest(pm1->storage.u);
+  } else {
+    pm1->SetZeroLabVars(pm1->storage.u);
+    pm1->SetZeroFiduVars(pm1->storage.u);
   }
 }
 
-// refinement condition: 
-int RefinementCondition(MeshBlock *pmb) {
-  //TODO
+// refinement condition:
+int RefinementCondition(MeshBlock *pmb)
+{
+  // TODO
   return 0;
 }
 

@@ -44,5 +44,5 @@ opacities = fake
 kappa_sca_0_0 = 1000.
 
 <problem>
-diff_profile = step # only in x direction!
-medium_velocity = 0.0
+diff_profile = gaussian # only in x direction!
+medium_velocity = 0.5
