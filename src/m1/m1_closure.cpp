@@ -205,7 +205,7 @@ Real kershaw(Real const xi) {
 }
 
 Real minerbo(Real const xi) {
-  return 1.0/3.0 + xi*xi*(6.0 - 2.0*xi + 6.0*xi*xi)/15.0;
+  return 1.0/3.0 + xi*xi*(6.0 + xi*(6.0*xi - 2.0))/15.0;
 }
 
 Real flux_factor(TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> const & g_uu,
@@ -492,31 +492,23 @@ void M1::CalcClosure(AthenaArray<Real> & u)
       //    std::cout << k << " " << j << " " << i << " " <<  P_dd(a,b) << std::endl;
       
       
-      unpack_P_dd(P_dd,
-		  &rad.P_dd(0,0,ig,k,j,i), &rad.P_dd(0,1,ig,k,j,i), &rad.P_dd(0,2,ig,k,j,i),
-                  &rad.P_dd(1,1,ig,k,j,i), &rad.P_dd(1,2,ig,k,j,i),
-                  &rad.P_dd(2,2,ig,k,j,i));
+      unpack_P_dd(P_dd, &rad.P_dd(0,0,ig,k,j,i), &rad.P_dd(0,1,ig,k,j,i), &rad.P_dd(0,2,ig,k,j,i),
+                        &rad.P_dd(1,1,ig,k,j,i), &rad.P_dd(1,2,ig,k,j,i), &rad.P_dd(2,2,ig,k,j,i));
 
       //std::cout << k << " " << j << " " << i << std::endl;
       for (int a = 0; a < NDIM; ++a) {
-	for (int b = a; b < NDIM; ++b) {
-	  assert(isfinite(rad.P_dd(a,b,ig,k,j,i)));
-      	  //	  char sbuf[128]; //sprintf(sbuf," rad: a = %d b = %d  P_dd= %e", a,b, rad.P_dd(a,b,ig,k,j,i));M1_DEBUG_PR(sbuf); 
-      	  //sprintf(sbuf," rad: a = %d b = %d ig = %d P_dd= %e", a,b,ig, rad.P_dd(a,b,ig,k,j,i));M1_DEBUG_PR(sbuf); 
-
+        for (int b = a; b < NDIM; ++b) {
+          assert(isfinite(rad.P_dd(a,b,ig,k,j,i)));
         }
       }
       
       //sprintf(sbuf," rad:  P_xx = %f", rad.P_dd(0,0,ig,k,j,i)); M1_DEBUG_PR(sbuf); 
-
-
       // J
       assemble_rT(n_d, lab.E(ig,k,j,i), F_d, P_dd, T_dd);
       rad.J(ig,k,j,i) = calc_J_from_rT(T_dd, u_u);      
       assert(isfinite(rad.J(ig,k,j,i)));
 
-      //sprintf(sbuf," rad: J = %e", rad.J(ig,k,j,i)); M1_DEBUG_PR(sbuf);
-            
+      //sprintf(sbuf," rad: J = %e", rad.J(ig,k,j,i)); M1_DEBUG_PR(sbuf);  
       // H_a
       calc_H_from_rT(T_dd, u_u, proj_ud, H_d);
 
@@ -530,23 +522,22 @@ void M1::CalcClosure(AthenaArray<Real> & u)
       assert(isfinite(rad.Ht(ig,k,j,i)));
       
       for (int a = 0; a < NDIM; ++a) {
-	assert(isfinite(rad.H(a,ig,k,j,i)));
-	//sprintf(sbuf," rad: a = %d  H = %e", a, rad.H(a,ig,k,j,i)); M1_DEBUG_PR(sbuf);
+        assert(isfinite(rad.H(a,ig,k,j,i)));
+        //sprintf(sbuf," rad: a = %d  H = %e", a, rad.H(a,ig,k,j,i)); M1_DEBUG_PR(sbuf);
       }
       
       // nnu
       if (nspecies > 1) {
-	tensor::contract(g_uu, H_d, H_u);
-	assemble_fnu(u_u, rad.J(ig,k,j,i), H_u, fnu_u);
-	//Real const Gamma = alpha()*fnu_u(0);
-	Real const Gamma = compute_Gamma(fidu_w_lorentz, v_u,
-					 rad.J(ig,k,j,i),
-					 vec.E(ig,k,j,i), F_d,
-					 rad_E_floor, rad_eps);
-	assert(Gamma > 0);
-	rad.nnu(ig,k,j,i) = vec.N(ig,k,j,i)/Gamma;
+        tensor::contract(g_uu, H_d, H_u);
+        assemble_fnu(u_u, rad.J(ig,k,j,i), H_u, fnu_u);
+        //Real const Gamma = alpha()*fnu_u(0);
+        Real const Gamma = compute_Gamma(fidu_w_lorentz, v_u,
+                rad.J(ig,k,j,i),
+                vec.E(ig,k,j,i), F_d,
+                rad_E_floor, rad_eps);
+        assert(Gamma > 0);
+        rad.nnu(ig,k,j,i) = vec.N(ig,k,j,i)/Gamma;
       }
-      
     } // ig loop
   } // CLOOP (k,j,i)
   

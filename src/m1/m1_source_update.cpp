@@ -414,6 +414,13 @@ int M1::source_update_pt(MeshBlock * pmb,
 	       closure_fun, gsl_solver_1d, cdt, alp, g_dd, g_uu, n_d, n_u,
 	       gamma_ud, u_d, u_u, v_d, v_u, proj_ud, W, Estar, Fstar_d, *chi, eta,
 	       kabs, kscat);
+  p.F_d.NewTensorPointwise();
+  p.F_u.NewTensorPointwise();
+  p.P_dd.NewTensorPointwise();
+  p.T_dd.NewTensorPointwise();
+  p.H_d.NewTensorPointwise();
+  p.S_d.NewTensorPointwise();
+  p.tS_d.NewTensorPointwise();
   
   gsl_multiroot_function_fdf zfunc = {
     impl_func_val,

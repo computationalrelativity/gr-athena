@@ -35,18 +35,18 @@
 Real threshold;
 
 int RefinementCondition(MeshBlock *pmb);
-void BeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
-                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
-void BeamOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
-                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
-void BeamInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
-                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
-void BeamOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
-                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
-void BeamInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
-                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
-void BeamOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
-                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
+// void BeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
+//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
+// void BeamOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
+//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
+// void BeamInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
+//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
+// void BeamOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
+//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
+// void BeamInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
+//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
+// void BeamOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
+//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
 
 void Mesh::InitUserMeshData(ParameterInput *pin) {
   // EnrollUserBoundaryFunction(BoundaryFace::inner_x1, BeamInnerX1);
@@ -74,8 +74,7 @@ void MeshBlock::ProblemGenerator(ParameterInput * pin) {
   if (pm1->m1_test == "beam") {
     pz4c->ADMMinkowski(pz4c->storage.adm);
     pz4c->GaugeGeodesic(pz4c->storage.u);
-    pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
-    
+    pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u); 
     pm1->beam_dir[0] = pin->GetOrAddReal("problem", "beam_dir1", 1.0);
     pm1->beam_dir[1] = pin->GetOrAddReal("problem", "beam_dir2", 0.0);
     pm1->beam_dir[2] = pin->GetOrAddReal("problem", "beam_dir3", 0.0);
@@ -84,17 +83,12 @@ void MeshBlock::ProblemGenerator(ParameterInput * pin) {
     pm1->beam_position[2] = pin->GetOrAddReal("problem", "beam_position_z", 0.0);
     pm1->beam_width = pin->GetOrAddReal("problem", "beam_width", 1.0);
     pm1->SetupBeamTest(pm1->storage.u);
+  } else if (pm1->m1_test == "advection") {
+    pz4c->ADMMinkowski(pz4c->storage.adm);
+    pz4c->GaugeGeodesic(pz4c->storage.u);
+    pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
+    pm1->SetupAdvectionJumpTest(pm1->storage.u);
   } else if (pm1->m1_test == "kerr_beam") {
-    //pz4c->ADMOnePuncture(pin, pz4c->storage.adm);
-    //pz4c->GaugePreCollapsedLapse(pz4c->storage.adm, pz4c->storage.u);
-
-    pm1->beam_dir[0] = pin->GetOrAddReal("problem", "beam_dir1", 1.0);
-    pm1->beam_dir[1] = pin->GetOrAddReal("problem", "beam_dir2", 0.0);
-    pm1->beam_dir[2] = pin->GetOrAddReal("problem", "beam_dir3", 0.0);
-    pm1->beam_width = pin->GetOrAddReal("problem", "beam_width", 1.0);
-    pm1->beam_position[0] = pin->GetOrAddReal("problem", "beam_position_x", 0.0);
-    pm1->beam_position[1] = pin->GetOrAddReal("problem", "beam_position_y", 0.0);
-    pm1->beam_position[2] = pin->GetOrAddReal("problem", "beam_position_z", 0.0);
     pm1->kerr_mask_radius = pin->GetOrAddReal("problem", "kerr_mask_radius", 2.0);
     pm1->SetupKerrSchildMask(pm1->storage.u);
     pz4c->SetKerrSchild(pz4c->storage.adm, pz4c->storage.u);
@@ -103,38 +97,37 @@ void MeshBlock::ProblemGenerator(ParameterInput * pin) {
   }
 }
 
-
 // refinement condition: 
 int RefinementCondition(MeshBlock *pmb) {
   //TODO
   return 0;
 }
 
-void BeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u, FaceField &b,
-                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
-  pmb->pm1->BeamInnerX1(pmb, pco, u, time, dt, il, iu, jl, ju, kl, ku, ngh);
-}
+// void BeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u, FaceField &b,
+//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
+//   pmb->pm1->BeamInnerX1(pmb, pco, u, time, dt, il, iu, jl, ju, kl, ku, ngh);
+// }
 
-void BeamOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u, FaceField &b,
-                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
-  pmb->pm1->BeamOuterX1(pmb, pco, u, time, dt, il, iu, jl, ju, kl, ku, ngh);
-}
+// void BeamOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u, FaceField &b,
+//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
+//   pmb->pm1->BeamOuterX1(pmb, pco, u, time, dt, il, iu, jl, ju, kl, ku, ngh);
+// }
 
-void BeamInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u, FaceField &b,
-                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
-  pmb->pm1->BeamInnerX2(pmb, pco, u, time, dt, il, iu, jl, ju, kl, ku, ngh);
-}
-void BeamOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u, FaceField &b,
-                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
-  pmb->pm1->BeamOuterX2(pmb, pco, u, time, dt, il, iu, jl, ju, kl, ku, ngh);
-}
+// void BeamInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u, FaceField &b,
+//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
+//   pmb->pm1->BeamInnerX2(pmb, pco, u, time, dt, il, iu, jl, ju, kl, ku, ngh);
+// }
+// void BeamOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u, FaceField &b,
+//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
+//   pmb->pm1->BeamOuterX2(pmb, pco, u, time, dt, il, iu, jl, ju, kl, ku, ngh);
+// }
 
-void BeamInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u, FaceField &b,
-                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
-  pmb->pm1->BeamInnerX3(pmb, pco, u, time, dt, il, iu, jl, ju, kl, ku, ngh);
-}
+// void BeamInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u, FaceField &b,
+//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
+//   pmb->pm1->BeamInnerX3(pmb, pco, u, time, dt, il, iu, jl, ju, kl, ku, ngh);
+// }
 
-void BeamOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u, FaceField &b,
-                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
-  pmb->pm1->BeamOuterX3(pmb, pco, u, time, dt, il, iu, jl, ju, kl, ku, ngh);
-}
+// void BeamOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u, FaceField &b,
+//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
+//   pmb->pm1->BeamOuterX3(pmb, pco, u, time, dt, il, iu, jl, ju, kl, ku, ngh);
+// }

@@ -63,9 +63,19 @@ void M1::CalcOpacityFake(Real const dt, AthenaArray<Real> & u)
   Real *abs_1 = new Real[ngroups*nspecies];
   Real *sca_1 = new Real[ngroups*nspecies];
   int ierr[5];
+
+  MeshBlock *pmb = pmy_block;
   
   GCLOOP3(k,j,i) {
     if (m1_mask(k,j,i)) {
+      continue;
+    }
+
+    Real z = pmb->pcoord->x3v(k);
+    Real y = pmb->pcoord->x2v(j);
+    Real x = pmb->pcoord->x1v(i);
+    if ( (m1_test == "shadow" && SQR(x) + SQR(z) > 1) ||
+         (m1_test == "equilibrium_sphere" && SQR(x) + SQR(y) + SQR(z) > 1) ) {
       continue;
     }
 
@@ -88,11 +98,11 @@ void M1::CalcOpacityFake(Real const dt, AthenaArray<Real> & u)
     //
     // Store opacities
     for (int ig = 0; ig < ngroups*nspecies; ++ig) {
-      rmat.eta_0 (ig,k,j,i) = eta_0 [ig];
-      rmat.eta_1 (ig,k,j,i) = eta_1 [ig];
-      rmat.abs_0 (ig,k,j,i) = abs_0 [ig];
-      rmat.abs_1 (ig,k,j,i) = abs_1 [ig];
-      rmat.scat_1(ig,k,j,i) = sca_1 [ig];
+      rmat.eta_0 (ig,k,j,i) = eta_0[ig];
+      rmat.eta_1 (ig,k,j,i) = eta_1[ig];
+      rmat.abs_0 (ig,k,j,i) = abs_0[ig];
+      rmat.abs_1 (ig,k,j,i) = abs_1[ig];
+      rmat.scat_1(ig,k,j,i) = sca_1[ig];
     }
   }
 
@@ -162,11 +172,9 @@ void M1::CalcOpacityNeutrinos(Real const dt, AthenaArray<Real> & u)
 			   pmb->pz4c->storage.u, pmb->pz4c->storage.adm,
 			   g_dd, beta_u, alpha);
     Get4Metric_Inv(g_dd, beta_u, alpha, g_uu);
-    Real const detg = SpatialDet(g_dd(1,1), g_dd(1,2), g_dd(1,3), 
-				 g_dd(2,2), g_dd(2,3), g_dd(3,3));
+    Real const detg = SpatialDet(g_dd);
     Real const oovolform = 1.0/(std::sqrt(detg));
-    
-    //
+  
     // Matter variables FIXME: call to finite-T EOS
     Real const rho = 0.0; //pmb->phydro->w(IDN,k,j,i);
     Real const temperature = 0; //pmb->phydro->w(IDN,k,j,i);
@@ -223,31 +231,31 @@ void M1::CalcOpacityNeutrinos(Real const dt, AthenaArray<Real> & u)
 			     &nudens_0_trap[0], &nudens_0_trap[1], &nudens_0_trap[2],
 			     &nudens_1_trap[0], &nudens_1_trap[1], &nudens_1_trap[2]);
       if (ierr) {
-	// Try to recompute the weak equilibrium using neglecting
-	// current neutrino data
-	ierr = WeakEquilibrium(
-			       rho, temperature, Y_e,
-			       0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-			       &temperature_trap, &Y_e_trap,
-			       &nudens_0_trap[0], &nudens_0_trap[1], &nudens_0_trap[2],
-			       &nudens_1_trap[0], &nudens_1_trap[1], &nudens_1_trap[2]);
-	if (ierr) {
-	  std::ostringstream msg;
-	  msg << "Could not find the weak equilibrium!" << std::endl;
-	  //msg << "Iteration = " << iteration << std::endl;
-	  msg << "(i, j, k) = (" << i << ", " << j << ", " << k << ")\n";
-	  msg << "(x, y, z) = (" << pmb->pcoord->x1v(i) << ", " << pmb->pcoord->x2v(j) << ", "
-	      << pmb->pcoord->x3v(k) << ")\n";
-	  msg << "rho = " << rho << std::endl;
-	  msg << "temperature = " << temperature << std::endl;
-	  msg << "Y_e = " << Y_e << std::endl;
-	  msg << "alp = " << alpha() << std::endl;
-	  msg << "nudens_0 = " << nudens_0[0] << " " << nudens_0[1]
-	      << " " << nudens_0[2] << std::endl;
-	  msg << "nudens_1 = " << nudens_1[0] << " " << nudens_1[1]
-	      << " " << nudens_1[2] << std::endl;
-	  ATHENA_ERROR(msg);
-	}
+        // Try to recompute the weak equilibrium using neglecting
+        // current neutrino data
+        ierr = WeakEquilibrium(
+                  rho, temperature, Y_e,
+                  0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                  &temperature_trap, &Y_e_trap,
+                  &nudens_0_trap[0], &nudens_0_trap[1], &nudens_0_trap[2],
+                  &nudens_1_trap[0], &nudens_1_trap[1], &nudens_1_trap[2]);
+        if (ierr) {
+          std::ostringstream msg;
+          msg << "Could not find the weak equilibrium!" << std::endl;
+          //msg << "Iteration = " << iteration << std::endl;
+          msg << "(i, j, k) = (" << i << ", " << j << ", " << k << ")\n";
+          msg << "(x, y, z) = (" << pmb->pcoord->x1v(i) << ", " << pmb->pcoord->x2v(j) << ", "
+              << pmb->pcoord->x3v(k) << ")\n";
+          msg << "rho = " << rho << std::endl;
+          msg << "temperature = " << temperature << std::endl;
+          msg << "Y_e = " << Y_e << std::endl;
+          msg << "alp = " << alpha() << std::endl;
+          msg << "nudens_0 = " << nudens_0[0] << " " << nudens_0[1]
+              << " " << nudens_0[2] << std::endl;
+          msg << "nudens_1 = " << nudens_1[0] << " " << nudens_1[1]
+              << " " << nudens_1[2] << std::endl;
+          ATHENA_ERROR(msg);
+        }
       }
       assert(isfinite(nudens_0_trap[0]));
       assert(isfinite(nudens_0_trap[1]));
@@ -278,17 +286,17 @@ void M1::CalcOpacityNeutrinos(Real const dt, AthenaArray<Real> & u)
       // Set the neutrino black body function
       Real my_nudens_0, my_nudens_1;
       if (opacity_tau_trap < 0 || tau <= opacity_tau_trap) {
-	my_nudens_0 = nudens_0_thin[is];
-	my_nudens_1 = nudens_1_thin[is];
+        my_nudens_0 = nudens_0_thin[is];
+        my_nudens_1 = nudens_1_thin[is];
       }
       else if (tau > opacity_tau_trap + opacity_tau_delta) {
-	my_nudens_0 = nudens_0_trap[is];
-	my_nudens_1 = nudens_1_trap[is];
+        my_nudens_0 = nudens_0_trap[is];
+        my_nudens_1 = nudens_1_trap[is];
       }
       else {
-	Real const lam = (tau - opacity_tau_trap)/opacity_tau_delta;
-	my_nudens_0 = lam*nudens_0_trap[is] + (1 - lam)*nudens_0_thin[is];
-	my_nudens_1 = lam*nudens_1_trap[is] + (1 - lam)*nudens_1_thin[is];
+        Real const lam = (tau - opacity_tau_trap)/opacity_tau_delta;
+        my_nudens_0 = lam*nudens_0_trap[is] + (1 - lam)*nudens_0_thin[is];
+        my_nudens_1 = lam*nudens_1_trap[is] + (1 - lam)*nudens_1_thin[is];
       }
       
       // Set the neutrino energies
@@ -302,15 +310,12 @@ void M1::CalcOpacityNeutrinos(Real const dt, AthenaArray<Real> & u)
       // Enforce Kirchhoff's laws.
       rmat.eta_0(is,k,j,i) = rmat.abs_0(is,k,j,i)*my_nudens_0;
       rmat.eta_1(is,k,j,i) = rmat.abs_1(is,k,j,i)*my_nudens_1;
-    }
-         
-  } // CLOOP
-  
+    }     
+  } // GCLOOP
   g_dd.DeleteTensorPointwise();
   beta_u.DeleteTensorPointwise();
   alpha.DeleteTensorPointwise();
   g_uu.DeleteTensorPointwise();
-  
 }
 
 //----------------------------------------------------------------------------------------
@@ -350,10 +355,10 @@ void M1::CalcOpacityPhotons(Real const dt, AthenaArray<Real> & u)
   //
   // Go through cells
   GCLOOP3(k,j,i) {
+
     if (m1_mask(k,j,i)) {
       continue;
     }
-    
     //
     // Go from ADM 3-metric VC (AthenaArray/Tensor)
     // to ADM 4-metric on CC at ijk (TensorPointwise) 
@@ -361,9 +366,7 @@ void M1::CalcOpacityPhotons(Real const dt, AthenaArray<Real> & u)
 			   pmb->pz4c->storage.u, pmb->pz4c->storage.adm,
 			   g_dd, beta_u, alpha);
     Get4Metric_Inv(g_dd, beta_u, alpha, g_uu);
-    Real const detg = SpatialDet(g_dd(1,1), g_dd(1,2), g_dd(1,3), 
-				 g_dd(2,2), g_dd(2,3), g_dd(3,3));
-    Real const oovolform = 1.0/(std::sqrt(detg));
+    Real const oovolform = 1.0/(std::sqrt(SpatialDet(g_dd)));
     
     //
     // Matter variables FIXME: call to finite-T EOS
@@ -379,7 +382,7 @@ void M1::CalcOpacityPhotons(Real const dt, AthenaArray<Real> & u)
     assert(!ierr);
     rmat.eta_1(0,k,j,i) = rmat.abs_1(0,k,j,i) * photon_opac->PhotonBlackBody(temperature);
     
-  } // CLOOP
+  } // GCLOOP
   
   g_dd.DeleteTensorPointwise();
   beta_u.DeleteTensorPointwise();

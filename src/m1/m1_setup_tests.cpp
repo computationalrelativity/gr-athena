@@ -153,47 +153,81 @@ void M1::SetupDiffusionTest(AthenaArray<Real> & u)
   Real const vel = medium_velocity;
   Real const wlorentz = 1.0/(std::sqrt(1-POW2(medium_velocity)));
   
-  CLOOP3(k,j,i) {
+  GCLOOP3(k,j,i) {
     Real const x = pmb->pcoord->x1v(i);;
     Real const y = pmb->pcoord->x2v(j);;
     Real const z = pmb->pcoord->x3v(k);;
     
     for (int ig = 0; ig < ngroups*nspecies; ++ig) {
-    
       if (diff_profile == "step") {
-	if (x > -0.5 && x < 0.5) {
-	  vec.E(ig,k,j,i) = 1.0;
-	}
-      }
-      else if (diff_profile == "gaussian") {
-	vec.E(ig,k,j,i) = std::exp(-SQ(3*x));
+        if (x > -0.5 && x < 0.5) {
+          vec.E(ig,k,j,i) = 1.0;
+        }
+      } else if (diff_profile == "gaussian") {
+	        vec.E(ig,k,j,i) = std::exp(-SQ(3*x));
       }
       else {
-	std::stringstream msg;
-	msg << "Unknown diffusion profile " << diff_profile << std::endl;
-	ATHENA_ERROR(msg);
+        std::stringstream msg;
+        msg << "Unknown diffusion profile " << diff_profile << std::endl;
+        ATHENA_ERROR(msg);
       }
       
       vec.N(ig,k,j,i) = vec.E(ig,k,j,i);
 
       // Set the medium velocity
-      for(int a = 0; a < NDIM; ++a) {
-	fidu.vel_u(a,k,j,i) = vel;
-      }
+	    fidu.vel_u(0,k,j,i) = vel;
       fidu.Wlorentz(k,j,i) = wlorentz;
-      
       // Use thick closure to compute the fluxes
       Real const W = fidu.Wlorentz(k,j,i);
       Real const Jo3 = vec.E(ig,k,j,i)/(4*SQ(W) - 1);
       for (int a = 0; a < NDIM; ++a) {
-	vec.F_d(a,ig,k,j,i) = 4*SQ(W)*fidu.vel_u(a,k,j,i)*Jo3;
+	      vec.F_d(a,ig,k,j,i) = 4*SQ(W)*fidu.vel_u(a,k,j,i)*Jo3;
       }
-      
     } // ig loop
-
   } // CLOOP3
+}
+
+void M1::SetupAdvectionJumpTest(AthenaArray<Real> & u)
+{
+  MeshBlock * pmb = pmy_block;
+
+  // Initialize to zero
+  SetZeroLabVars(u);
   
-}  
+  Lab_vars vec;
+  SetLabVarsAliases(u, vec);
+
+  GCLOOP3(k,j,i) { 
+    Real x = pmb->pcoord->x1v(i);
+    if (x+0.5 < 0.0) {
+      for (int ig=0; ig<ngroups*nspecies; ++ig) {
+        vec.N(ig,k,j,i) = 1.0;
+        vec.E(ig,k,j,i) = 1.0;
+        vec.F_d(0,ig,k,j,i) = 1.0;
+        vec.F_d(1,ig,k,j,i) = 0.0;
+        vec.F_d(2,ig,k,j,i) = 0.0;
+      }
+    } else {
+      for (int ig=0; ig<ngroups*nspecies; ++ig) {
+        vec.N(ig,k,j,i) = (rad_N_floor>0)? rad_N_floor : 0.0;
+        vec.E(ig,k,j,i) = (rad_E_floor>0)? rad_E_floor : 0.0;
+        vec.F_d(0,ig,k,j,i) = 0.0;
+        vec.F_d(1,ig,k,j,i) = 0.0;
+        vec.F_d(2,ig,k,j,i) = 0.0;
+      }
+    }
+    
+    if (x < 0.) {
+      fidu.vel_u(0,k,j,i) = 0.87;
+    } else {
+      fidu.vel_u(0,k,j,i) = -0.87;
+    }
+    for(int a = 1; a < NDIM; ++a) {
+      fidu.vel_u(a,k,j,i) = 0.0;
+    }
+    fidu.Wlorentz(k,j,i) = 1.0/std::sqrt(1.0 - SQR(fidu.vel_u(0,k,j,i)));
+  } // k, j, i  
+}
 
 
 //----------------------------------------------------------------------------------------
@@ -227,7 +261,6 @@ void M1::SetupEquilibriumTest(AthenaArray<Real> & u)
     }
   } // CLOOP3
 }
-
 
 //----------------------------------------------------------------------------------------
 // \!fn void M1::SetupKerrSchildMask() 
@@ -304,49 +337,6 @@ void M1::SetupKerrBeamTest(AthenaArray<Real> & u)
       vec.F_d(2,ig,k,j,i) = 0.0;
     }
     
-    /*
-    if (!m1_mask(k,j,i) &&
-        SQR(x - beam_position[0]) + SQR(y-beam_position[1]) + SQR(z-beam_position[2]) < SQR(beam_width)) {
-        //SQR(x-beam_position[0]) + SQR(y-beam_position[1]) + SQR(z-beam_position[2]) < SQR(beam_width)) {
-
-      Get4Metric_VC2CCinterp(pmb, k,j,i,
-                            pmb->pz4c->storage.u, pmb->pz4c->storage.adm,
-                            g_dd, beta_u, alpha);
-      // beta_a
-      utils::tensor::contract(g_dd, beta_u, beta_d);
-      Real const detg = SpatialDet(g_dd(1,1), g_dd(1,2), g_dd(1,3),
-                                  g_dd(2,2), g_dd(2,3), g_dd(3,3));
-      Real const volform = std::sqrt(detg);
-      Real const beta2 = utils::tensor::dot(beta_u, beta_d);
-      Real const a = (-beta_d(1) + sqrt(SQR(beta_d(1)) - beta2 +
-                          SQR(alpha())*(1.0 - eps)))/g_dd(1,1);
-      
-      for (int ig=0; ig<ngroups*nspecies; ++ig) {
-
-        vec.N(ig,k,j,i) = 1.0;
-        vec.E(ig,k,j,i) = volform;
-        std::cout << vec.E(ig, k,j,i) << std::endl;
-        F_u(0) = 0.0;
-        F_u(1) = vec.E(ig,k,j,i)/alpha() * (a + beta_u(1));
-        F_u(2) = vec.E(ig,k,j,i)/alpha() * beta_u(2);
-        F_u(3) = 0.0;//vec.E(ig,k,j,i)/alpha() * beta_u(3);
-
-        utils::tensor::contract(g_dd, F_u, F_d);
-        vec.F_d(0,ig,k,j,i) = F_d(1);
-        vec.F_d(1,ig,k,j,i) = F_d(2);
-        vec.F_d(2,ig,k,j,i) = F_d(3);
-      }
-    } else {
-      for (int ig=0; ig<ngroups*nspecies; ++ig) {
-        vec.N(ig,k,j,i) = 0.0; // (rad_N_floor>0)? rad_N_floor : 0.0;
-        vec.E(ig,k,j,i) = 0.0; //(rad_E_floor>0)? rad_E_floor : 0.0;
-        vec.F_d(0,ig,k,j,i) = 0.0;
-        vec.F_d(1,ig,k,j,i) = 0.0;
-        vec.F_d(2,ig,k,j,i) = 0.0;
-      }
-    }
-    */
-    
     // There is no fluid, but set the fiducial velocity to zero
     for(int a = 0; a < NDIM; ++a) {
       fidu.vel_u(a,k,j,i) = 0.0;
@@ -357,113 +347,7 @@ void M1::SetupKerrBeamTest(AthenaArray<Real> & u)
   
 }
 
-
-// void M1::BeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &uu,
-//                 Real time, Real dt,
-//                 int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
-  
-//   Lab_vars vec;
-//   SetLabVarsAliases(storage.u, vec);
-
-//   TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> gamma_dd;
-//   TensorPointwise<Real, Symmetries::NONE, NDIM, 1> bet_u;
-//   TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> K_dd;  
-//   TensorPointwise<Real, Symmetries::NONE, NDIM, 0> alp;
-
-//   TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> g_dd;
-//   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> beta_u;
-//   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> beta_d;  
-//   TensorPointwise<Real, Symmetries::NONE, MDIM, 0> alpha;
-//   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> F_d;
-//   TensorPointwise<Real, Symmetries::NONE, MDIM, 1> F_u;
-
-//   gamma_dd.NewTensorPointwise();
-//   bet_u.NewTensorPointwise();
-//   alp.NewTensorPointwise();
-//   K_dd.NewTensorPointwise();
-
-//   g_dd.NewTensorPointwise();
-//   beta_u.NewTensorPointwise();
-//   beta_d.NewTensorPointwise();
-//   alpha.NewTensorPointwise();
-//   F_u.NewTensorPointwise();
-//   F_d.NewTensorPointwise();
-
-//   for (int k=kl; k<ku; ++k) {
-//     for (int j=jl; j<ju; ++j) {
-//       for (int i=1; i<=ngh; ++i) {
-//         Real z = pmb->pcoord->x3v(k);
-//         Real y = pmb->pcoord->x2v(j);
-//         Real x = pmb->pcoord->x1v(il-i);
-
-//         // Real const xv[3] = {x, y, z};
-//         // Real const r = std::sqrt(x*x+y*y+z*z);
-//         // alpha() = std::pow(1+2.0/r, -0.5);
-//         // beta_u(0) = 0.0;
-//         // for (int a=1; a<4; ++a) {
-//         //   beta_u(a) = (2.0/r)*SQR(alpha())*xv[a-1]/r;
-//         //   for (int b=1; b<4; ++b) {
-//         //     g_dd(a,b) = (a == b ? 1.0 : 0.0) + 2./POW3(r) * xv[a-1]*xv[b-1];
-//         //   }
-//         // }
-//         // Real beta2=0.0;
-//         // for (int a=1; a<4; ++a) {
-//         //   for (int b=1; b<4; ++b) {
-//         //     beta2 += g_dd(a,b) * beta_u(a) * beta_u(b);
-//         //   }
-//         // }
-//         // g_dd(0,0) = SQR(alpha()) + beta2;
-//         // for (int a=1; a<4; ++a) {
-//         //   g_dd(0,a) = g_dd(a,0) = beta_d(a);
-//         // }
-//         if (!m1_mask(k,j,il-i) &&
-//             std::abs(y) <= kerr_beam_width &&
-//                         std::abs(z - beam_position[2]) <= 0.5*kerr_beam_width) {
-
-//           pmb->pz4c->ADMKerrSchild(x, y, z, alp, bet_u, gamma_dd, K_dd);
-//           pack_v_u(bet_u(0), bet_u(1), bet_u(2), beta_u);
-//           // Get4Metric_VC2CCinterp(pmb, k,j,il-i,
-//           //                   pmb->pz4c->storage.u, pmb->pz4c->storage.adm,
-//           //                   g_dd, beta_u, alpha);
-//           utils::tensor::contract(g_dd, beta_u, beta_d);
-//           Real const detg = SpatialDet(g_dd(1,1), g_dd(1,2), g_dd(1,3),
-//                                       g_dd(2,2), g_dd(2,3), g_dd(3,3));
-//           Real const volform = std::sqrt(detg);
-//           Real const beta2 = utils::tensor::dot(beta_u, beta_d);
-//           Real const a = (-beta_d(1) + sqrt(SQR(beta_d(1)) - beta2 +
-//                               SQR(alpha())*0.99))/g_dd(1,1);
-//           for (int ig=0; ig<ngroups*nspecies; ++ig) {
-
-//             if (nspecies > 1) {
-//               vec.N(ig,k,j,il-i) = 1.0;
-//             }
-//             vec.E(ig,k,j,il-i) = volform;
-            
-//             F_u(0) = 0.0;
-//             F_u(1) = vec.E(ig,k,j,il-i)/alpha() * (a + beta_u(1));
-//             F_u(2) = vec.E(ig,k,j,il-i)/alpha() * beta_u(2);
-//             F_u(3) = vec.E(ig,k,j,il-i)/alpha() * beta_u(3);
-
-//             utils::tensor::contract(g_dd, F_u, F_d);
-//             vec.F_d(0,ig,k,j,il-i) = F_d(1);
-//             vec.F_d(1,ig,k,j,il-i) = F_d(2);
-//             vec.F_d(2,ig,k,j,il-i) = F_d(3);
-//           }
-//         } else {
-//           for (int ig=0; ig<ngroups*nspecies; ++ig) {
-//             vec.N(ig,k,j,il-i) = 0.0;
-//             vec.E(ig,k,j,il-i) = 0.0;
-//             vec.F_d(0,ig,k,j,il-i) = 0.0;
-//             vec.F_d(1,ig,k,j,il-i) = 0.0;
-//             vec.F_d(2,ig,k,j,il-i) = 0.0;
-//           }
-//         }
-//       }
-//     }
-//   }
-// }
-
-void M1::BeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &uu,
+void M1::KerrBeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &uu,
                 Real time, Real dt,
                 int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
   
@@ -533,7 +417,66 @@ void M1::BeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &uu,
   }
 }
 
-void M1::BeamOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+void M1::BeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &uu,
+                Real time, Real dt,
+                int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
+  
+  Lab_vars vec;
+  SetLabVarsAliases(storage.u, vec); 
+
+  for (int k=kl; k<=ku; ++k) {
+    for (int j=jl; j<=ju; ++j) {
+      for (int i=1; i<=ngh; ++i) {
+        Real z = pmb->pcoord->x3v(k);
+        Real y = pmb->pcoord->x2v(j);
+        Real x = pmb->pcoord->x1v(il-i);
+        if (std::abs(y) <= beam_width &&
+            std::abs(z - beam_position[2]) <= 0.5*beam_width) {
+          for (int ig=0; ig<ngroups*nspecies; ++ig) {
+
+            if (nspecies > 1) {
+              vec.N(ig,k,j,il-i) = 1.0;
+            }
+            vec.E(ig,k,j,il-i) = 1.0;
+            vec.F_d(0,ig,k,j,il-i) = 1.0;
+            vec.F_d(1,ig,k,j,il-i) = 0.0;
+            vec.F_d(2,ig,k,j,il-i) = 0.0;
+          }
+        } else {
+          for (int ig=0; ig<ngroups*nspecies; ++ig) {
+            vec.N(ig,k,j,il-i) = 0.0;
+            vec.E(ig,k,j,il-i) = 0.0;
+            vec.F_d(0,ig,k,j,il-i) = 0.0;
+            vec.F_d(1,ig,k,j,il-i) = 0.0;
+            vec.F_d(2,ig,k,j,il-i) = 0.0;
+          }
+        }
+      }
+    }
+  }
+}
+
+void M1::OutflowInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
+  Lab_vars vec;
+  SetLabVarsAliases(storage.u, vec);
+
+  for (int k=kl; k<=ku; ++k) {
+    for (int j=jl; j<=ju; ++j) {
+      for (int i=1; i<=ngh; ++i) {
+        for (int ig=0; ig<ngroups*nspecies; ++ig) {
+          vec.N(ig,k,j,il-i) = vec.N(ig,k,j,il);
+          vec.E(ig,k,j,il-i) = vec.E(ig,k,j,il);
+          vec.F_d(0,ig,k,j,il-i) = vec.F_d(0,ig,k,j,il);
+          vec.F_d(1,ig,k,j,il-i) = vec.F_d(1,ig,k,j,il);
+          vec.F_d(2,ig,k,j,il-i) = vec.F_d(2,ig,k,j,il);
+        }
+      }
+    }
+  }
+}
+
+void M1::OutflowOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
   Lab_vars vec;
   SetLabVarsAliases(storage.u, vec);
@@ -553,7 +496,7 @@ void M1::BeamOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
   }
 }
 
-void M1::BeamInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+void M1::OutflowInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
   Lab_vars vec;
   SetLabVarsAliases(storage.u, vec);
@@ -573,7 +516,7 @@ void M1::BeamInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
   }
 }
 
-void M1::BeamOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+void M1::OutflowOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
   Lab_vars vec;
   SetLabVarsAliases(storage.u, vec);
@@ -593,7 +536,7 @@ void M1::BeamOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
   }
 }
 
-void M1::BeamInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+void M1::OutflowInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
   Lab_vars vec;
   SetLabVarsAliases(storage.u, vec);
@@ -613,7 +556,7 @@ void M1::BeamInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
   }
 }
 
-void M1::BeamOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+void M1::OutflowOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
   Lab_vars vec;
   SetLabVarsAliases(storage.u, vec);

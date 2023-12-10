@@ -38,11 +38,14 @@
 #include <gsl/gsl_errno.h>
 
 // Source update method
-enum {
-  M1_SRC_METHOD_IMPL, // 0: implicit (default)
-  M1_SRC_BOOST,       // 1: boost to fluid frame (approximate!)
-  M1_SRC_METHOD_EXPL, // 2: explicit
-};
+#define M1_SRC_METHOD_EXPL (0)
+#define M1_SRC_METHOD_IMPL (1)
+#define M1_SRC_BOOST (2)
+// enum {
+//   M1_SRC_METHOD_IMPL, // 0: implicit (default)
+//   M1_SRC_BOOST,       // 1: boost to fluid frame (approximate!)
+//   M1_SRC_METHOD_EXPL, // 2: explicit
+// };
 
 #ifndef M1_SRC_METHOD
 #define M1_SRC_METHOD (M1_SRC_METHOD_IMPL)
@@ -393,21 +396,27 @@ public:
   
   // initial data for the tests
   void SetupBeamTest(AthenaArray<Real> & u);
+  void SetupAdvectionJumpTest(AthenaArray<Real> & u);
   void SetupKerrBeamTest(AthenaArray<Real> & u);
   void SetupDiffusionTest(AthenaArray<Real> & u);
+  void SetupShadowTest(AthenaArray<Real> & u);
   void SetupEquilibriumTest(AthenaArray<Real> & u);
   void SetupKerrSchildMask(AthenaArray<Real> & u);
   void BeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
-  void BeamOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+  void KerrBeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
-  void BeamInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+  void OutflowInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
-  void BeamOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+  void OutflowOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
-  void BeamInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+  void OutflowInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
-  void BeamOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+  void OutflowOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
+  void OutflowInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
+                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
+  void OutflowOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
   //void SetupTestHydro();
 

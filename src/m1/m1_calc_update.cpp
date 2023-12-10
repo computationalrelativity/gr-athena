@@ -203,8 +203,7 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
     // Step 1 -- compute the sources
     for (int ig = 0; ig < ngroups*nspecies; ++ig) {
 
-#if (M1_SRC_METHOD == M1_SRC_EXPL)
-      
+#if (M1_SRC_METHOD == M1_SRC_METHOD_EXPL)
       //
       // Radiation fields
       Real E = vec.E(ig,k,j,i);
@@ -238,7 +237,7 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
       DrFz[ig] = dt * tS_d(3);
 
       if (nspecies > 1)
-	DrN[ig] = dt*alpha()*(volform*rmat.eta_0(ig,k,j,i) -  
+	      DrN[ig] = dt*alpha()*(volform*rmat.eta_0(ig,k,j,i) -  
 			      rmat.abs_0(ig,k,j,i)*vec.N(ig,k,j,i)/Gamma);
       
 #else
@@ -283,18 +282,18 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
       // requiring H^a u_a = 0
       Real const khat = (rmat.abs_1(ig,k,j,i) + rmat.scat_1(ig,k,j,i));
       for (int a = 1; a < 4; ++a) {
-	Hnew_d(a) = Hstar_d(a)/(1 + dtau*khat);
+	      Hnew_d(a) = Hstar_d(a)/(1 + dtau*khat);
       }
       Hnew_d(0) = 0.0;
       for (int a = 1; a < 4; ++a) {
-	Hnew_d(0) -= Hnew_d(a)*(u_u(a)/u_u(0));
+	      Hnew_d(0) -= Hnew_d(a)*(u_u(a)/u_u(0));
       }
       
       //
       // Update Tmunu
       Real const H2 = tensor::dot(g_uu, Hnew_d, Hnew_d);
 
-#if (M1_SRC_METHOD == M1_SRC_BOOST)
+#if (M1_SRC_METHOD==M1_SRC_BOOST)
       Real const xi = sqrt(H2)*(Jnew > rad_E_floor ? 1/Jnew : 0);
       rad.chi(ig,k,j,i) = closure_fun(xi);
 #else // this is really only important in the thick limit, so take chi = 1/3
@@ -304,12 +303,13 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
       Real const dthick = 3.*(1. - rad.chi(ig,k,j,i))/2.;
       Real const dthin = 1. - dthick;
       
-      for(int a = 0; a < 4; ++a)
-	for(int b = a; b < 4; ++b) {
-	  rT_dd(a,b) = Jnew*u_d(a)*u_d(b) + Hnew_d(a)*u_d(b) + Hnew_d(b)*u_d(a) +
-	    dthin*Jnew*(Hnew_d(a)*Hnew_d(b)*(H2 > 0 ? 1/H2 : 0)) +
-	    dthick*Jnew*(g_dd(a,b) + u_d(a)*u_d(b))/3.0;
-	}
+      for(int a = 0; a < 4; ++a) {
+        for(int b = a; b < 4; ++b) {
+          rT_dd(a,b) = Jnew*u_d(a)*u_d(b) + Hnew_d(a)*u_d(b) + Hnew_d(b)*u_d(a) +
+            dthin*Jnew*(Hnew_d(a)*Hnew_d(b)*(H2 > 0 ? 1/H2 : 0)) +
+            dthick*Jnew*(g_dd(a,b) + u_d(a)*u_d(b))/3.0;
+	      }
+      }
       
       //
       // Boost back to the lab frame
@@ -317,7 +317,7 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
       calc_H_from_rT(rT_dd, n_u, gamma_ud, Fnew_d);
       apply_floor(g_uu, &Enew, Fnew_d);
       
-#if (THC_M1_SRC_METHOD == THC_M1_SRC_IMPL)
+#if (M1_SRC_METHOD == M1_SRC_METHOD_IMPL)
 
       // Compute interaction with matter
       source_update_pt(pmb, i, j, k, ig,
@@ -329,7 +329,6 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
 		       rmat.scat_1(ig,k,j,i),
 		       &Enew, Fnew_d);
       apply_floor(g_uu, &Enew, Fnew_d);
-      
       //
       // Update closure
       apply_closure(g_dd, g_uu, n_d, fidu.Wlorentz(k,j,i),

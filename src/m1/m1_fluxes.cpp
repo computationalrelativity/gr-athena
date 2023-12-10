@@ -24,7 +24,7 @@
 
 // 1D index on scratch space with directional index i
 #define GFINDEX1D(i, ig, iv)				\
-  ((iv) + (ig)*nvars + (i)*(nvars * ngroups*nspecies))
+  ((iv) + (ig)*nvars + (i)*(nvars*ngroups*nspecies))
 
 #define PINDEX1D(ig, iv) \
     ((iv) + (ig)*nvars)
@@ -363,7 +363,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
     Get4Metric_VC2CCinterp(pmb, k,j,i,				      
         pmb->pz4c->storage.u, pmb->pz4c->storage.adm,  
         g_dd, beta_u, alpha);
-    Get4Metric_Inv_Inv3(g_dd, beta_u, alpha, g_uu, gamma_uu);      
+    Get4Metric_Inv_Inv3(g_dd, beta_u, alpha, g_uu, gamma_uu);
     uvel(alpha(), beta_u(1), beta_u(2), beta_u(3), fidu.Wlorentz(k,j,i),  
         fidu.vel_u(0,k,j,i), fidu.vel_u(1,k,j,i), fidu.vel_u(2,k,j,i),   
         &u_u(0), &u_u(1), &u_u(2), &u_u(3));				 
@@ -515,18 +515,16 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	      bool sawtooth = false; 
 	      Real phi = 0; 
 	      if (dup*duc > 0 && dum*duc > 0) { 
-	      phi = minmod2(dum/duc, dup/duc, minmod_theta); 
+	        phi = minmod2(dum/duc, dup/duc, minmod_theta); 
 	      } else if (dup*duc < 0 && dum*duc < 0) { 
-		sawtooth = true; 
+		      sawtooth = true; 
 	      } 
 	      assert(isfinite(phi)); 
 	      
-	      Real const flux_low =
-		0.5*(fj + fjp - cmx*(ujp - uj));
+	      Real const flux_low = 0.5*(fj + fjp - cmx*(ujp - uj));
 	      Real const flux_high = 0.5*(fj + fjp);
 	      
-	      flux_num[iv] = flux_high
-		- (sawtooth ? 1.0 : A)*(1.0 - phi)*(flux_high - flux_low); 
+	      flux_num[iv] = flux_high - (sawtooth ? 1.0 : A)*(1.0 - phi)*(flux_high - flux_low); 
 	      
 	      if (M1_FLUXX_SET_ZERO && dir==0) flux_num[iv] = 0.0;
 	      if (M1_FLUXY_SET_ZERO && dir==1) flux_num[iv] = 0.0;

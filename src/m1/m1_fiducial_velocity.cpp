@@ -22,7 +22,6 @@ void M1::CalcFiducialVelocity()
   M1_DEBUG_PR("in: CalcFiducialVelocity");
 
   MeshBlock * pmb = pmy_block;
-  
   if (fiducial_velocity == "fluid") {
     GCLOOP2(k,j) {
       for(int a = 0; a < NDIM; ++a) {
@@ -42,6 +41,8 @@ void M1::CalcFiducialVelocity()
   } else if (fiducial_velocity == "zero") {
     fidu.vel_u.ZeroClear();
     fidu.Wlorentz.Fill(1.0);
+    return;
+  } else if (fiducial_velocity == "test") {
     return;
   } else {
     std::ostringstream msg;
