@@ -44,7 +44,7 @@ nx3 = 32
 #use = true
 
 <M1>
-
+test = beam
 closure = thin # Eddington
 
 <problem>

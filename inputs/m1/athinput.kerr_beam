@@ -40,9 +40,8 @@ num_threads = 1         # maximum number of OMP threads
 #use = true
 
 <M1>
-
-closure = thin # Eddington
 test = kerr_beam
+closure = thin # Eddington
 
 <problem>
 

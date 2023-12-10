@@ -36,11 +36,11 @@ ox3_bc      = outflow   # Outer-X3 boundary condition flag
 num_threads = 1         # maximum number of OMP threads
 
 <M1>
+test = s[jere
 #closure = Eddington
 closure = Minerbo
 opacities = fake
 fiducial_velocity = zero
-m1_test = sphere
 
 <FakeOpacities>
 kappa_abs_0_0 = 10.

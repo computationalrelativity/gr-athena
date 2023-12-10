@@ -36,8 +36,9 @@ ox3_bc      = outflow   # Outer-X3 boundary condition flag
 num_threads = 1         # maximum number of OMP threads
 
 <M1>
-closure = Eddington
-#closure = Minerbo
+test = diffusion
+#closure = Eddington
+closure = Minerbo
 opacities = fake
 
 <FakeOpacities>
