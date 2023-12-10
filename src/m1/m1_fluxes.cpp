@@ -383,8 +383,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	    
 	    for (int a = 0; a < NDIM; ++a) {
 	      for (int b = a; b < NDIM; ++b) {
-		assert(isfinite(rad.P_dd(a,b,ig,k,j,i)));
-
+		      assert(isfinite(rad.P_dd(a,b,ig,k,j,i)));
 	      }
 	    }				 
 	    pack_P_dd(beta_u(1), beta_u(2), beta_u(3),			 

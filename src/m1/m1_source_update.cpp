@@ -32,7 +32,7 @@ using namespace utils;
 // Low level kernel computing the Jacobian matrix
 
 namespace {
-  
+
   inline Real radM1_set_dthin(Real chi) { return 1.5*chi-0.5; }
   inline Real radM1_set_dthick(Real chi){ return 1.5*(1.0-chi); }
   
@@ -225,6 +225,51 @@ namespace {
              Real Edot;
              TensorPointwise<Real, Symmetries::NONE, MDIM, 1> tS_d;
   };
+
+  void print_stuff(MeshBlock *pmb,
+        int const i, int const j, int const k,
+        int const ig,
+        Parameters const * p) {
+
+    std::cout << "(i, j, k) = (" << i << ", " << j << ", " << k << ")\n";
+    std::cout << "ig = " << ig << std::endl;
+    std::cout << "(x, y, z) = (" << pmb->pcoord->x1v(i) << ", " << pmb->pcoord->x2v(j) << ", " << pmb->pcoord->x3v(k) << ")\n";
+    std::cout << "g_uu = (";
+    for (int a = 0; a < 4; ++a)
+    for (int b = 0; b < 4; ++b) {
+        std::cout << p->g_uu(a,b) << ", ";
+    }
+    std::cout << "\b\b)\n";
+    std::cout << "g_dd = (";
+    for (int a = 0; a < 4; ++a)
+    for (int b = 0; b < 4; ++b) {
+        std::cout << p->g_dd(a,b) << ", ";
+    }
+    std::cout << "\b\b)\n";
+    std::cout << "w_lorentz = " << p->W << std::endl;
+    std::cout << "n_d = (";
+    for (int a = 0; a < 4; ++a) {
+        std::cout << p->n_d(a) << ", ";
+    }
+    std::cout << "\b\b)\n";
+    std::cout << "u_u = (";
+    for (int a = 0; a < 4; ++a) {
+        std::cout << p->u_u(a) << ", ";
+    }
+    std::cout << "\b\b)\n";
+    std::cout << "v_d = (";
+    for (int a = 0; a < 4; ++a) {
+        std::cout << p->v_d(a) << ", ";
+    }
+    std::cout << "\b\b)\n";
+    std::cout << "E = " << p->E << std::endl;
+    std::cout << "F_d = (";
+    for (int a = 0; a < 4; ++a) {
+        std::cout << p->F_d(a) << ", ";
+    }
+    std::cout << "\b\b)\n";
+    std::cout << std::flush;
+  }
 
   int prepare_closure(gsl_vector const * q, void * params) 
   {        
@@ -432,7 +477,7 @@ int M1::source_update_pt(MeshBlock * pmb,
   Real qold[] = {Eold, Fold_d(1), Fold_d(2), Fold_d(3)};
   gsl_vector_view xold = gsl_vector_view_array(qold, 4);
 
-  
+  //print_stuff(pmb, i, j, k, ig, &p);
   // Non stiff limit, use explicit update
   if (cdt*kabs < 1 && cdt*kscat < 1) {
     prepare(&xold.vector, &p);
@@ -493,34 +538,32 @@ int M1::source_update_pt(MeshBlock * pmb,
       // We are optically thick, suggest to retry with Eddington closure
       if (closure_fun != eddington) {
 #if (M1_WARN_FOR_SRC_FIX)
-	msg << "Eddington closure\n";
-	std::cout << msg.str();
+        msg << "Eddington closure\n";
+        std::cout << msg.str();
 #endif
-	ierr = source_update_pt(pmb, i, j, k, ig,
-				eddington, gsl_solver_1d, gsl_solver_nd, cdt,
-				alp, g_dd, g_uu, n_d, n_u, gamma_ud, u_d, u_u,
-				v_d, v_u, proj_ud, W, Eold, Fold_d,
-				Estar, Fstar_d, chi,
-				eta, kabs, kscat, Enew, Fnew_d);
-	if (ierr == M1_SRC_UPDATE_OK) {
-	  return M1_SRC_UPDATE_EDDINGTON;
-	}
-	else {
-	  return ierr;
-	}
-      }
-      else {
+        ierr = source_update_pt(pmb, i, j, k, ig,
+              eddington, gsl_solver_1d, gsl_solver_nd, cdt,
+              alp, g_dd, g_uu, n_d, n_u, gamma_ud, u_d, u_u,
+              v_d, v_u, proj_ud, W, Eold, Fold_d,
+              Estar, Fstar_d, chi,
+              eta, kabs, kscat, Enew, Fnew_d);
+        if (ierr == M1_SRC_UPDATE_OK) {
+          return M1_SRC_UPDATE_EDDINGTON;
+        } else {
+          return ierr;
+        }
+      } else {
 #if (M1_WARN_FOR_SRC_FIX)
       msg << "using initial guess\n";
+      //print_stuff(pmb, i, j, k, ig, &p);
       std::cout << msg.str();
 #endif
       return M1_SRC_UPDATE_FAIL;
       }
-    }
-    else if (ierr != GSL_SUCCESS) {
+    } else if (ierr != GSL_SUCCESS) {
       std::ostringstream msg;
       msg << "Unexpected error in "
-	"gsl_multirootroot_fdfsolver_iterate, error code " << ierr;
+	           "gsl_multirootroot_fdfsolver_iterate, error code " << ierr;
       ATHENA_ERROR(msg);
     }
     ierr = gsl_multiroot_test_delta(gsl_solver_nd->dx, gsl_solver_nd->x,

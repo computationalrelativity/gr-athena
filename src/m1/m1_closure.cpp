@@ -319,7 +319,7 @@ void M1::calc_closure_pt(MeshBlock * pmb,
   } else if (ierr != 0) {
     std::ostringstream msg;
     msg << "Unexpected error in gsl_root_fsolver_iterate,  error code \""
-	<< ierr << "\"\n";
+	      << ierr << "\"\n";
     print_stuff(pmb, i, j, k, ig, &params, msg);
     ATHENA_ERROR(msg);
   }

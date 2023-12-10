@@ -79,8 +79,6 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
   if (nspecies > 1) {
     mb = 1.0; //FIXME available from fake_opac or neutrino_opac
   }
-  AthenaArray<Real> tau;
-  tau.Fill(1.);
   
   //TODO: fix ptrs to fluid vars 3D grid vars (see also below)
   //densxp.InitWithShallowSlice(pmb->phydro->u,IDN,1);
@@ -88,7 +86,7 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
   //sconx.InitWithShallowSlice(pmb->phydro->u,IVX,1);
   //scony.InitWithShallowSlice(pmb->phydro->u,IVY,1);
   //sconz.InitWithShallowSlice(pmb->phydro->u,IVZ,1);
-  //tau.InitWithShallowSlice(pmb->phydro->u,IDN,1);
+  //tau.InitWithShallowSlice(pmb->phydro->u,IEN,1);
   
   Lab_vars vec_p;
   SetLabVarsAliases(u_p, vec_p);
@@ -284,6 +282,7 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
       // Only three components of H^a are independent; H^0 is found by
       // requiring H^a u_a = 0
       Real const khat = (rmat.abs_1(ig,k,j,i) + rmat.scat_1(ig,k,j,i));
+
       for (int a = 1; a < 4; ++a) {
         Hnew_d(a) = Hstar_d(a)/(1 + dtau*khat);
       }
@@ -324,7 +323,7 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
 
       // Compute interaction with matter
       source_update_pt(pmb, i, j, k, ig,
-            closure_fun, gsl_solver_1d, gsl_solver_nd, dt,
+            closure_fun, gsl_solver_1d, gsl_solver_nd, dt/2,
             alpha(), g_dd, g_uu, n_d, n_u, gamma_ud, u_d, u_u,
             v_d, v_u, proj_ud, fidu.Wlorentz(k,j,i), Estar, Fstar_d,
             Estar, Fstar_d,
@@ -342,8 +341,7 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
       assemble_rT(n_d, Enew, Fnew_d, P_dd, rT_dd);
       Jnew = calc_J_from_rT(rT_dd, u_u);
 
-#endif // (THC_M1_SRC_METHOD == THC_M1_SRC_IMPL)
-
+#endif // (M1_SRC_METHOD == M1_SRC_IMPL)
 
       //
       // Compute changes in radiation energy and momentum
@@ -398,7 +396,7 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
         DTau_sum -= DrE[ig];
       } // ig loop
       if (DTau_sum < 0) {
-        //theta = std::min(source_limiter*std::max(tau(k,j,i), 0.0)/DTau_sum, theta);
+        theta = std::min(-source_limiter/DTau_sum, theta);
         //theta = std::min(0.0, theta);
       }
     

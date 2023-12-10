@@ -34,9 +34,6 @@
 #include "task_list.hpp"
 //#include "m1_task_list.hpp"
 
-#define KERR_BEAM_TEST (0)
-#define BEAM_TEST (0)
-#define EQUILIBRIUM_TEST (0)
 //----------------------------------------------------------------------------------------
 //! TimeIntegratorTaskList constructor
 
@@ -391,29 +388,28 @@ TaskStatus M1IntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int stage) {
     Real const dt = pmb->pmy_mesh->dt * dt_fac[stage - 1];
     Real t_end_stage = pmb->pmy_mesh->time + dt;
 
-    int il = pmb->pm1->mbi.il;
-    int iu = pmb->pm1->mbi.iu;
-    int jl = pmb->pm1->mbi.jl;
-    int ju = pmb->pm1->mbi.ju;
-    int kl = pmb->pm1->mbi.kl;
-    int ku = pmb->pm1->mbi.ku;
+    int il = pm1->mbi.il;
+    int iu = pm1->mbi.iu;
+    int jl = pm1->mbi.jl;
+    int ju = pm1->mbi.ju;
+    int kl = pm1->mbi.kl;
+    int ku = pm1->mbi.ku;
 
-#if EQUILIBRIUM_TEST
-    pm1->ReflectInnerX1(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
-    pm1->ReflectInnerX2(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
-    pm1->ReflectInnerX3(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
-#else
-
-#if KERR_BEAM_TEST
-    pm1->KerrBeamInnerX1(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
-#elif BEAM_TEST
-    pm1->BeamInnerX1(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
-#else
-    pm1->OutflowInnerX1(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
-#endif
-    pm1->OutflowInnerX2(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
-    pm1->OutflowInnerX3(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
-#endif
+    if (pm1->m1_test == "sphere") {
+        pm1->ReflectInnerX1(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
+        pm1->ReflectInnerX2(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
+        pm1->ReflectInnerX3(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
+    } else {
+      if (pm1->m1_test == "kerr_beam") {
+        pm1->KerrBeamInnerX1(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
+      } else if (pm1->m1_test == "beam") {
+        pm1->BeamInnerX1(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
+      } else {
+        pm1->OutflowInnerX1(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
+      }
+      pm1->OutflowInnerX2(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
+      pm1->OutflowInnerX3(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
+    }
     pm1->OutflowOuterX1(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
     pm1->OutflowOuterX2(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
     pm1->OutflowOuterX3(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);

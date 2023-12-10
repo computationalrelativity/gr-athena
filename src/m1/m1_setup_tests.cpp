@@ -104,22 +104,15 @@ void M1::SetupBeamTest(AthenaArray<Real> & u)
     nx /= nn;
     ny /= nn;
     nz /= nn;
-  }
-  else {
+  } else {
     nx = 1.0;
     nz = ny = 0.0;
   }
 
   GCLOOP3(k,j,i) { 
-
     Real z = pmb->pcoord->x3v(k);
     Real y = pmb->pcoord->x2v(j);
     Real x = pmb->pcoord->x1v(i);
-    Real proj = nx*x + ny*y + nz*z;
-    Real offset2 = SQR(x-nx*x) + SQR(y-ny*y) + SQR(z-nz*z);
-    //std::cout << "z2 = " << z*z << std::endl;
-    //std::cout << "y2 = " << y*y << std::endl;
-    //std::cout << "x2 = " << SQR(x-beam_position) << std::endl;
     if (SQR(x-beam_position[0]) + SQR(y-beam_position[1]) + SQR(z-beam_position[2]) < SQR(beam_width)) {
       for (int ig=0; ig<ngroups*nspecies; ++ig) {
         vec.N(ig,k,j,i) = 1.0;
@@ -175,8 +168,7 @@ void M1::SetupDiffusionTest(AthenaArray<Real> & u)
         }
       } else if (diff_profile == "gaussian") {
 	        vec.E(ig,k,j,i) = std::exp(-SQR(3*x));
-      }
-      else {
+      } else {
         std::stringstream msg;
         msg << "Unknown diffusion profile " << diff_profile << std::endl;
         ATHENA_ERROR(msg);
@@ -256,7 +248,7 @@ void M1::SetupEquilibriumTest(AthenaArray<Real> & u)
   Lab_vars vec;
   SetLabVarsAliases(u, vec);  
 
-  CLOOP3(k,j,i) {
+  GCLOOP3(k,j,i) {
 
     assert(ngroups == 1);
     assert(nspecies == 3);
@@ -304,59 +296,6 @@ void M1::SetupKerrSchildMask(AthenaArray<Real> & u)
     }
   } // GCLOOP3
 
-}
-
-
-//----------------------------------------------------------------------------------------
-// \!fn void M1::SetupKerrBeamTest()
-// \brief Setup the hydro variables for shadow and sphere tests
-void M1::SetupKerrBeamTest(AthenaArray<Real> & u)
-{
-  MeshBlock * pmb = pmy_block;
-
-  // Initialize to zero
-  SetZeroLabVars(u);
-  Lab_vars vec;
-  SetLabVarsAliases(u, vec);
-
-  TensorPointwise<Real, Symmetries::SYM2, MDIM, 2> g_dd;
-  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> beta_u;
-  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> beta_d;  
-  TensorPointwise<Real, Symmetries::NONE, MDIM, 0> alpha;
-  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> F_d;
-  TensorPointwise<Real, Symmetries::NONE, MDIM, 1> F_u;
-
-  g_dd.NewTensorPointwise();
-  beta_u.NewTensorPointwise();
-  beta_d.NewTensorPointwise();
-  alpha.NewTensorPointwise();
-  F_u.NewTensorPointwise();
-  F_d.NewTensorPointwise();
-
-  Real const eps = 0.01;
-  
-  GCLOOP3(k,j,i) {
-
-    Real z = pmb->pcoord->x3v(k);
-    Real y = pmb->pcoord->x2v(j);
-    Real x = pmb->pcoord->x1v(i);
-
-    for (int ig=0; ig<ngroups*nspecies; ++ig) {
-      vec.N(ig,k,j,i) = 0.0;
-      vec.E(ig,k,j,i) = 0.0;
-      vec.F_d(0,ig,k,j,i) = 0.0;
-      vec.F_d(1,ig,k,j,i) = 0.0;
-      vec.F_d(2,ig,k,j,i) = 0.0;
-    }
-    
-    // There is no fluid, but set the fiducial velocity to zero
-    for(int a = 0; a < NDIM; ++a) {
-      fidu.vel_u(a,k,j,i) = 0.0;
-    }
-    fidu.Wlorentz(k,j,i) = 1.0;
-    
-  } // k, j, i 
-  
 }
 
 void M1::KerrBeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &uu,
