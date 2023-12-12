@@ -62,7 +62,7 @@ inline void Inv3Metric(
 }
 
 inline void Inv3Metric(
-  AthenaTensor<Real, TensorSymm::SYM2, 3, 0> const & oodetg,
+  AthenaTensor<Real, TensorSymm::NONE, 3, 0> const & oodetg,
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & g_dd,
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> & g_uu,
   int const i)
@@ -77,7 +77,7 @@ inline void Inv3Metric(
 }
 
 inline void Inv3Metric(
-  AthenaTensor<Real, TensorSymm::SYM2, 3, 0> const & oodetg,
+  AthenaTensor<Real, TensorSymm::NONE, 3, 0> const & oodetg,
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & g_dd,
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> & g_uu,
   int const il, int const iu)

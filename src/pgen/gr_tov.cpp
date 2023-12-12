@@ -1308,14 +1308,7 @@ void TOV_populate(MeshBlock *pmb,
         if (r_(i)<R)
         {
           // Interior metric, lapse and conf.fact.
-          if (r_(i) == 0.)
-          {
-            alpha_(i)   = tov->lapse_0;
-            dralpha_(i) = 0.0;
-            psi4_(i)    = tov->psi4_0;
-            drpsi4_(i)  = 0.0;
-          }
-          else
+          if (r_(i) > 0.)
           {
             interp_lag4(
               tov->data[itov_lapse],
@@ -1334,6 +1327,13 @@ void TOV_populate(MeshBlock *pmb,
               &psi4_(i),
               &drpsi4_(i),
               &dummy);
+          }
+          else
+          {
+            alpha_(i)   = tov->lapse_0;
+            dralpha_(i) = 0.0;
+            psi4_(i)    = tov->psi4_0;
+            drpsi4_(i)  = 0.0;
           }
         }
         else
@@ -1377,8 +1377,12 @@ void TOV_populate(MeshBlock *pmb,
         for (int a=0; a<N; ++a)
         for (int i=il; i<=iu; ++i)
         {
-          d1alpha_(a,i) += dralpha_(i) * sp_x_(a,i) / r_(i);
-          d1psi4_( a,i) += drpsi4_( i) * sp_x_(a,i) / r_(i);
+          // if r == 0 then drX == 0
+          if (r_(i) > 0.)
+          {
+            d1alpha_(a,i) += dralpha_(i) * sp_x_(a,i) / r_(i);
+            d1psi4_( a,i) += drpsi4_( i) * sp_x_(a,i) / r_(i);
+          }
         }
 
 
@@ -1486,8 +1490,49 @@ void TOV_populate(MeshBlock *pmb,
         K_dd_init(a,b,k,j,i) += sp_K_dd_(a,b,i);
       }
 
+
+      // Check regular --------------------------------------------------------
+      const bool geom_fin = (alpha_.is_finite() and
+                             psi4_.is_finite()  and
+                             sp_beta_u_.is_finite() and
+                             sp_g_dd_.is_finite() and
+                             sp_K_dd_.is_finite());
+      if (!geom_fin)
+      {
+        alpha_.array().print_all("%.1e");
+        psi4_.array().print_all("%.1e");
+        sp_beta_u_.array().print_all("%.1e");
+        sp_g_dd_.array().print_all("%.1e");
+        sp_K_dd_.array().print_all("%.1e");
+
+        L_a.print_all("%.1e");
+        iL_a.print_all("%.1e");
+
+        d1alpha_.array().print_all("%.1e");
+        d1psi4_.array().print_all("%.1e");
+        r_.print_all("%.1e");
+
+        std::exit(0);
+      }
+
+
     }
   }
+
+  // const bool geom_fin = (g_dd_init.is_finite() and
+  //                        K_dd_init.is_finite());
+  // if (!geom_fin)
+  // {
+  //   std::cout << alpha_init.is_finite() << std::endl;
+  //   std::cout << beta_u_init.is_finite() << std::endl;
+  //   std::cout << psi4_init.is_finite() << std::endl;
+
+  //   std::cout << g_dd_init.is_finite() << std::endl;
+  //   std::cout << K_dd_init.is_finite() << std::endl;
+
+  //   std::exit(0);
+  // }
+
 
   // register u has been populated directly, u1 does not need to be populated
 
