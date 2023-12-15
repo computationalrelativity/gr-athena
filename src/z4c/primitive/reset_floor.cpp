@@ -17,7 +17,7 @@ ResetFloor::ResetFloor() {
 
 /// Floor for the primitive variables
 bool ResetFloor::PrimitiveFloor(Real& n, Real v[3], Real& T, Real *Y, int n_species) {
-  if (n < n_atm*n_threshold) {
+  if (n <= n_atm*n_threshold) {
     n = n_atm;
     v[0] = 0.0;
     v[1] = 0.0;
@@ -39,7 +39,7 @@ bool ResetFloor::PrimitiveFloor(Real& n, Real v[3], Real& T, Real *Y, int n_spec
 /// FIXME: Take a closer look at how the tau floor is performed.
 bool ResetFloor::ConservedFloor(Real& D, Real Sd[3], Real& tau, Real *Y, Real D_floor, 
       Real tau_floor, Real tau_abs_floor, int n_species) {
-  if (D < D_floor*n_threshold) {
+  if (D <= D_floor*n_threshold) {
     D = D_floor;
     Sd[0] = 0.0;
     Sd[1] = 0.0;
