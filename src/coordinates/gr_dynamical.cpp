@@ -426,6 +426,255 @@ void GRDynamical::AddCoordTermsDivergence(
 {
   using namespace LinearAlgebra;
 
+  MeshBlock * pmb = pmy_block;
+
+  // NDIM=3 in z4c.hpp
+  typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> AT_N_sca;
+  typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> AT_N_vec;
+  typedef AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> AT_N_sym;
+
+  // scalar derivs.
+  typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> AT_N_D1sca;
+
+  // vector derivs.
+  typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> AT_N_D1vec;
+
+  // symmetric tensor derivatives
+  typedef AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> AT_N_D1sym;
+
+  const int il = pmb->is, iu = pmb->ie;
+  const int jl = pmb->js, ju = pmb->je;
+  const int kl = pmb->ks, ku = pmb->ke;
+
+  // this is for matter
+  int ms_nn1 = pmb->ncells1;
+
+  // --------------------------------------------------------------------------
+  // Perform variable resampling when required
+  Z4c * pz4c = pmb->pz4c;
+
+  // Slice z4c metric quantities
+  AT_N_sym adm_gamma_dd(pz4c->storage.adm, Z4c::I_ADM_gxx);
+  AT_N_sym adm_K_dd(    pz4c->storage.adm, Z4c::I_ADM_Kxx);
+  AT_N_sca z4c_alpha(   pz4c->storage.u,   Z4c::I_Z4c_alpha);
+  AT_N_vec z4c_beta_u(  pz4c->storage.u,   Z4c::I_Z4c_betax);
+
+  // Slice matter
+  AT_N_sca sl_w_rho(   const_cast<AthenaArray<Real>&>(prim), IDN);
+  AT_N_sca sl_w_p(     const_cast<AthenaArray<Real>&>(prim), IPR);
+  AT_N_vec sl_w_util_u(const_cast<AthenaArray<Real>&>(prim), IVX);
+
+  // Scratch for matter sampling
+  AT_N_sca ms_oo_detg_( ms_nn1); // det metric
+  AT_N_sca ms_alpha_(   ms_nn1); // lapse
+  AT_N_sca ms_w_hrho_(  ms_nn1); // h rho (EoS dep.)
+  AT_N_sca ms_W_(       ms_nn1); // Lorentz factor
+  AT_N_vec ms_beta_u_(  ms_nn1); // beta^i
+  // AT_N_vec ms_beta_d_(  ms_nn1); // beta_j
+  AT_N_vec ms_w_util_u_(ms_nn1); // fluid velocity
+
+  AT_N_sca ms_src_wei_( ms_nn1); // alpha * sqrt(det)
+
+  AT_N_sym ms_adm_gamma_dd_(ms_nn1); // gamma_{ij}
+  AT_N_sym ms_adm_gamma_uu_(ms_nn1); // gamma^{ij}
+  AT_N_sym ms_adm_K_dd_(    ms_nn1); // K_{ij}
+
+
+  // Derivative scratch
+  AT_N_D1sca ms_dalpha_d_(      ms_nn1); // pd_i alpha
+  AT_N_D1vec ms_dbeta_du_(      ms_nn1); // pd_i beta^j
+  AT_N_D1sym ms_adm_dgamma_ddd_(ms_nn1); // pd_i gamma_{jk}
+
+  // Source terms
+  AT_N_sca ms_S_tau(ms_nn1);
+  AT_N_vec ms_S_S_d(ms_nn1);
+
+  // --------------------------------------------------------------------------
+
+  for (int k=kl; k<=ku; ++k)
+  for (int j=jl; j<=ju; ++j)
+  {
+    // Note: internally maps geometric sampling to matter sampling
+    GetGeometricFieldCC(ms_adm_gamma_dd_, adm_gamma_dd, k, j);
+    GetGeometricFieldCC(ms_adm_K_dd_,     adm_K_dd,     k, j);
+    GetGeometricFieldCC(ms_alpha_,        z4c_alpha,    k, j);
+    GetGeometricFieldCC(ms_beta_u_,       z4c_beta_u,   k, j);
+
+    for(int a=0; a<NDIM; ++a)
+    {
+      GetGeometricFieldDerCC(ms_adm_dgamma_ddd_, adm_gamma_dd, a, k, j);
+      GetGeometricFieldDerCC(ms_dalpha_d_,       z4c_alpha,    a, k, j);
+      GetGeometricFieldDerCC(ms_dbeta_du_,       z4c_beta_u,   a, k, j);
+    }
+
+    /*
+    ms_adm_dgamma_ddd_.Fill(0);
+    ms_dalpha_d_.Fill(0);
+    ms_dbeta_du_.Fill(0);
+
+    for (int c = 0; c < NDIM; ++c)
+    for (int a = 0; a < NDIM; ++a)
+    {
+      for (int b = 0; b < NDIM; ++b)
+      for (int i=il; i<=iu; ++i)
+      {
+        ms_adm_dgamma_ddd_(c,a,b,i) = fd_cx->Dx(c, adm_gamma_dd(a,b,k,j,i));
+      }
+
+      for (int i=il; i<=iu; ++i)
+      {
+        ms_dbeta_du_(c,a,i) = fd_cx->Dx(c, z4c_beta_u(a,k,j,i));
+      }
+
+    }
+
+    for (int c = 0; c < NDIM; ++c)
+    for (int i=il; i<=iu; ++i)
+    {
+      ms_dalpha_d_(c,i) = fd_cx->Dx(c, z4c_alpha(k,j,i));
+    }
+    */
+
+
+
+    // prepare (g^{ij}, alpha * sqrt(detg), h*rho)
+    for (int i=il; i<=iu; ++i)
+    {
+      const Real detg = Det3Metric(ms_adm_gamma_dd_, i);
+
+      ms_oo_detg_(i) = 1. / detg;
+      Inv3Metric(ms_oo_detg_, ms_adm_gamma_dd_, ms_adm_gamma_uu_, i);
+
+      ms_src_wei_(i) = ms_alpha_(i) * std::sqrt(detg);
+
+#if USETM
+      Real n = sl_w_rho(k,j,i)/mb;
+      // FIXME: Generalize to work with EOSes accepting particle fractions.
+      Real Y[MAX_SPECIES] = {0.0};
+      Real T = pmb->peos->GetEOS().GetTemperatureFromP(n,  sl_w_p(k,j,i), Y);
+      ms_w_hrho(i) = n*pmb->peos->GetEOS().GetEnthalpy(n, T, Y);
+#else
+      Real gamma_adi = pmy_block->peos->GetGamma();
+      const Real Eos_Gamma_ratio = gamma_adi / (gamma_adi - 1.0);
+
+      ms_w_hrho_(i) = sl_w_rho(k,j,i) + Eos_Gamma_ratio * sl_w_p(k,j,i);
+#endif
+    }
+
+    // prepare util^i (this slicing is needed for IP impl. below)
+    for (int a=0; a<NDIM; ++a)
+    for (int i=il; i<=iu; ++i)
+    {
+      ms_w_util_u_(a,i) = sl_w_util_u(a,k,j,i);
+    }
+
+    // Lorentz factor
+    for (int i=il; i<=iu; ++i)
+    {
+      Real const norm2_utilde = InnerProductSlicedVec3Metric(
+        ms_w_util_u_, ms_adm_gamma_uu_, i
+      );
+
+      ms_W_(i) = std::sqrt(1. + norm2_utilde);
+    }
+
+    // Prepare updates terms for sources
+    ms_S_tau.ZeroClear();
+    ms_S_S_d.ZeroClear();
+
+    for (int a=0; a<NDIM; ++a)
+    {
+      for (int b=0; b<NDIM; ++b)
+      for (int i=il; i<=iu; ++i)
+      {
+        ms_S_tau(i) += sl_w_p(k,j,i) * (
+          2 * SQR(ms_alpha_(i)) - 1./ SQR(ms_alpha_(i))
+        ) * ms_beta_u_(a,i) * ms_beta_u_(b,i) * ms_adm_K_dd_(a,b,i);
+
+        ms_S_tau(i) += (
+          sl_w_util_u(a,k,j,i) * sl_w_util_u(b,k,j,i) * ms_w_hrho_(i) +
+          sl_w_p(k,j,i) * ms_adm_gamma_uu_(a,b,i)
+        ) * ms_adm_K_dd_(a,b,i);
+      }
+
+      for (int i=il; i<=iu; ++i)
+      {
+        ms_S_tau(i) -= (
+          SQR(ms_alpha_(i)) * sl_w_p(k,j,i) * ms_beta_u_(a,i) +
+          ms_w_hrho_(i) * ms_W_(i) * sl_w_util_u(a,k,j,i) / ms_alpha_(i)
+        ) * ms_dalpha_d_(a,i);
+      }
+    }
+
+    for (int c=0; c<NDIM; ++c)
+    {
+      for (int a=0; a<NDIM; ++a)
+      for (int b=0; b<NDIM; ++b)
+      for (int i=il; i<=iu; ++i)
+      {
+        const Real oo_alpha  = 1. / ms_alpha_(i);
+        const Real oo_alpha2 = SQR(oo_alpha2);
+
+        // pd g terms
+        ms_S_S_d(c,i) += (
+          (SQR(ms_alpha_(i)) - 0.5 * oo_alpha2) * sl_w_p(k,j,i) +
+          0.5 * ms_w_hrho_(i) * SQR(ms_W_(i)) * oo_alpha2
+        ) * ms_beta_u_(a,i) * ms_beta_u_(b,i) * ms_adm_dgamma_ddd_(c,a,b,i);
+
+        ms_S_S_d(c,i) += 0.5 * ms_w_hrho_(i) * (
+          sl_w_util_u(a,k,j,i) * sl_w_util_u(b,k,j,i)
+        ) * ms_adm_dgamma_ddd_(c,a,b,i);
+
+        ms_S_S_d(c,i) += 0.5 * sl_w_p(k,j,i) * (
+          ms_adm_gamma_uu_(a,b,i)
+        ) * ms_adm_dgamma_ddd_(c,a,b,i);
+
+        // pd beta terms
+        ms_S_S_d(c,i) += ms_beta_u_(b,i) * (
+          SQR(ms_alpha_(i)) * sl_w_p(k,j,i) -
+          ms_w_hrho_(i) * SQR(ms_W_(i)) * ms_adm_gamma_dd_(a,b,i) * oo_alpha2
+        ) * ms_dbeta_du_(c,a,i);
+
+        ms_S_S_d(c,i) += (
+          ms_w_hrho_(i) * ms_W_(i) * sl_w_util_u(b,k,j,i) *
+          ms_adm_gamma_dd_(a,b,i) * oo_alpha
+        ) * ms_dbeta_du_(c,a,i);
+      }
+
+      for (int i=il; i<=iu; ++i)
+      {
+        const Real oo_alpha  = 1. / ms_alpha_(i);
+
+        // pd alpha terms
+        ms_S_S_d(c,i) -= (
+          ms_w_hrho_(i) * SQR(ms_W_(i)) * oo_alpha
+        ) * ms_dalpha_d_(c,i);
+      }
+    }
+
+    // Add sources
+    for (int i=il; i<=iu; ++i)
+    {
+      cons(IEN,k,j,i) += dt * ms_S_tau(i) * ms_src_wei_(i);
+    }
+
+    for (int c=0; c<NDIM; ++c)
+    for (int i=il; i<=iu; ++i)
+    {
+      cons(IM1+c,k,j,i) += dt * ms_S_S_d(c,i) * ms_src_wei_(i);
+    }
+  }
+}
+
+void GRDynamical::_AddCoordTermsDivergence(
+  const Real dt,
+  const AthenaArray<Real> *flux,
+  const AthenaArray<Real> &prim,
+  const AthenaArray<Real> &bb_cc,
+  AthenaArray<Real> &cons)
+{
+  using namespace LinearAlgebra;
+
   // Extract indices
   int is = pmy_block->is;
   int ie = pmy_block->ie;

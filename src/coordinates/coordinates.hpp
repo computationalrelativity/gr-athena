@@ -829,6 +829,10 @@ class GRDynamical : public Coordinates {
 
   // In GR, functions...
   // ...to compute geometrical source terms
+  void _AddCoordTermsDivergence(const Real dt, const AthenaArray<Real> *flux,
+			       const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc,
+			       AthenaArray<Real> &u);
+
   void AddCoordTermsDivergence(const Real dt, const AthenaArray<Real> *flux,
 			       const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc,
 			       AthenaArray<Real> &u) final;
