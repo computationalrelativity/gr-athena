@@ -307,7 +307,7 @@ inline void ApplyLinearTransform(
 
 }
 
-// compute norm-squared with (v_u, g_dd) or (v_d, g_uu)
+// compute norm-squared with (v_d, g_dd)
 template<typename T>
 void MetricNorm2Vector(
   AthenaTensor<T, TensorSymm::NONE,       3, 0> & v_norm2,

@@ -214,7 +214,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     kucc += NGHOST;
   }
 
-  Z4c::MB_info*  mbi = &(pz4c->mbi);
+  MB_info* mbi  mbi = &(pz4c->mbi);
 
   // Prepare CX (metric) index bounds
   int ilcx = mbi->il - mbi->ng;

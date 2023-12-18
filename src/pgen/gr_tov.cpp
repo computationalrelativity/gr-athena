@@ -1212,7 +1212,8 @@ void TOV_populate(MeshBlock *pmb,
         // W = (1 - ||v,v||_g_sp^2)^{-1/2}; between fluid fr. and Eul. obs.
         // u^0 = W / alpha
         // u^i = U^i
-        MetricNorm2Vector(sp_utilde_norm2_, w_util_u_, sp_g_dd_, il, iu);
+        InnerProductSlicedVec3Metric(sp_utilde_norm2_, w_util_u_, sp_g_dd_,
+                                     il, iu);
 
         for (int i=il; i<=iu; ++i)
         {

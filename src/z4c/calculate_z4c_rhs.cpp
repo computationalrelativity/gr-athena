@@ -463,6 +463,7 @@ void Z4c::Z4cRHS(
     // -----------------------------------------------------------------------------------
     // Assemble RHS
     //
+
     // Khat, chi, and Theta
     ILOOP1(i) {
       rhs.Khat(k,j,i) = - Ddalpha(i) + z4c.alpha(k,j,i) * (AA(i) + (1./3.)*SQR(K(i))) +
