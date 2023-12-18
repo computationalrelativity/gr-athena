@@ -647,6 +647,10 @@ public:
   TaskStatus UpdateMetric(MeshBlock *pmb, int stage);       // WAVE_EXTR    [x]
   TaskStatus UpdateSource(MeshBlock *pmb, int stage);       // WAVE_EXTR    [x]
 
+#if defined(DBG_MONOLITHIC_MATTER)
+  TaskStatus DebugMonolithic(MeshBlock *pmb, int stage);       // MONOLITHIC    [x]
+#endif // DBG_MONOLITHIC_MATTER
+
 #ifdef Z4C_ASSERT_FINITE
   // monitor
   TaskStatus AssertFinite(MeshBlock *pmb, int stage);      // ASSERT_FIN   [x]
@@ -708,6 +712,9 @@ private:
 //----------------------------------------------------------------------------------------
 // 64-bit integers with "1" in different bit positions used to ID each z4c task.
 namespace MatterIntegratorTaskNames {
+#if defined(DBG_MONOLITHIC_MATTER)
+  const TaskID MONOLITHIC(21);  // debugging
+#endif // DBG_MONOLITHIC_MATTER
 
   const TaskID NONE(0);
   const TaskID CLEAR_ALLBND(1);

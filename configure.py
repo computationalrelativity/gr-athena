@@ -414,7 +414,6 @@ parser.add_argument('-link_gold',
                     default=False,
                     help='use gold linker')
 
-
 # The main choices for --cxx flag, using "ctype[-suffix]" formatting, where "ctype" is the
 # major family/suite/group of compilers and "suffix" may represent variants of the
 # compiler version and/or predefined sets of compiler options. The C++ compiler front ends
@@ -899,10 +898,11 @@ if args['cxx'] == 'g++-simd':
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'g++'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
     makefile_options['COMPILER_FLAGS'] = (
-        '-O3 -std=c++17 -fwhole-program -flto=auto -fprefetch-loop-arrays -march=native '
+        '-O3 -std=c++17 -fwhole-program -flto=auto '
+        '-fprefetch-loop-arrays -march=native '
         '-fopenmp-simd '
-        '-Wunknown-pragmas '
-        '-fopt-info-vec-missed '
+        # '-Wunknown-pragmas '
+        # '-fopt-info-vec-missed '
         # '-fopt-info-inline-missed '
         # '-finline-limit=2048 '
         # '-ffp-contract=off ' # disables FMA
@@ -912,7 +912,8 @@ if args['cxx'] == 'g++-simd':
         # -mprefer-avx128
         # -m64 (default)
     )
-    makefile_options['LINKER_FLAGS'] = '-Wunknown-pragmas '
+    # makefile_options['LINKER_FLAGS'] = '-Wunknown-pragmas '
+    makefile_options['LINKER_FLAGS'] = ''
     makefile_options['LIBRARY_FLAGS'] = ''
 if args['cxx'] == 'icpc':
     # ICC is C++11 feature-complete since v15.0 (2014-08-26)
@@ -987,7 +988,10 @@ if args['cxx'] == 'clang++':
     definitions['COMPILER_CHOICE'] = 'clang++'
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'clang++'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
-    makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++17'
+    makefile_options['COMPILER_FLAGS'] = (
+      '-O3 -std=c++17 '
+      '-flto=auto -march=native '
+    )
     makefile_options['LINKER_FLAGS'] = ''
     makefile_options['LIBRARY_FLAGS'] = ''
 if args['cxx'] == 'clang++-simd':
@@ -996,8 +1000,11 @@ if args['cxx'] == 'clang++-simd':
     definitions['COMPILER_CHOICE'] = 'clang++-simd'
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'clang++'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
-    makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++17 -fopenmp-simd'
-    makefile_options['LINKER_FLAGS'] = ''
+    makefile_options['COMPILER_FLAGS'] = (
+      '-O3 -std=c++17 -fopenmp-simd '
+      '-flto=auto -march=native '
+    )
+    makefile_options['LINKER_FLAGS'] = '-flto=auto '
     makefile_options['LIBRARY_FLAGS'] = ''
 if args['cxx'] == 'clang++-apple':
     # Apple LLVM/Clang: forked version of the open-source LLVM project bundled in macOS
