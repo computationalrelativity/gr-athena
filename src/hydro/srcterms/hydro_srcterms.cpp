@@ -98,5 +98,7 @@ void HydroSourceTerms::AddHydroSourceTerms(const Real time, const Real dt,
   if (UserSourceTerm != nullptr)
     UserSourceTerm(pmb, time,dt,prim,bcc,cons);
 
+  // pmb->pcoord->AddCoordTermsDivergence(dt, flux, prim, bcc, cons);
+
   return;
 }

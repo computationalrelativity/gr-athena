@@ -20,6 +20,8 @@
 #include <cstring>   // memset()
 #include <utility>   // swap()
 #include <cstdio>    // debug
+#include <cassert>
+#include <limits>    // numeric_limits<Real>::infinity()
 
 // dump data as ascii ---------------------------------------------------------
 #include <sys/stat.h>
@@ -341,6 +343,112 @@ class AthenaArray {
   //---------------------------------------------------------------------------
 
 
+  //---------------------------------------------------------------------------
+  // basic numerical properties (for debug)
+  T num_avg (const int nghost=0)
+  {
+    T avg = 0;
+    ssize_t sz = 0;
+
+    switch (dim_)
+    {
+      case 3:
+      {
+        for (int kx=nghost; kx<nx3_-nghost; ++kx)
+        for (int jx=nghost; jx<nx2_-nghost; ++jx)
+        for (int ix=nghost; ix<nx1_-nghost; ++ix)
+        {
+          avg += operator()(kx,jx,ix);
+          sz++;
+        }
+
+        break;
+      }
+      case 2:
+      {
+        for (int jx=nghost; jx<nx2_-nghost; ++jx)
+        for (int ix=nghost; ix<nx1_-nghost; ++ix)
+        {
+          avg += operator()(jx,ix);
+          sz++;
+        }
+
+        break;
+      }
+      case 1:
+      {
+        for (int ix=nghost; ix<nx1_-nghost; ++ix)
+        {
+          avg += operator()(ix);
+          sz++;
+        }
+        avg = avg / sz;
+
+        break;
+      }
+      default:
+      {
+        assert(false); // you shouldn't be here
+        abort();
+      }
+
+    }
+
+    return avg;
+  }
+
+  T num_max (const int nghost=0)
+  {
+    T max = -std::numeric_limits<T>::infinity();
+
+    switch (dim_)
+    {
+      case 3:
+      {
+        for (int kx=nghost; kx<nx3_-nghost; ++kx)
+        for (int jx=nghost; jx<nx2_-nghost; ++jx)
+        for (int ix=nghost; ix<nx1_-nghost; ++ix)
+        {
+          const T data = operator()(kx,jx,ix);
+          max = (data > max) ? data : max;
+        }
+
+        break;
+      }
+      case 2:
+      {
+        for (int jx=nghost; jx<nx2_-nghost; ++jx)
+        for (int ix=nghost; ix<nx1_-nghost; ++ix)
+        {
+          const T data = operator()(jx,ix);
+          max = (data > max) ? data : max;
+        }
+
+        break;
+      }
+      case 1:
+      {
+        for (int ix=nghost; ix<nx1_-nghost; ++ix)
+        {
+          const T data = operator()(ix);
+          max = (data > max) ? data : max;
+        }
+
+        break;
+      }
+      default:
+      {
+        assert(false); // you shouldn't be here
+        abort();
+      }
+
+    }
+
+    return max;
+  }
+  //---------------------------------------------------------------------------
+
+
 private:
   T *pdata_;
   int nx1_, nx2_, nx3_, nx4_, nx5_, nx6_;
@@ -478,6 +586,7 @@ AthenaArray<T> &AthenaArray<T>::operator= (AthenaArray<T> &&src) {
 template<typename T>
 void AthenaArray<T>::InitWithShallowSlice(AthenaArray<T> &src, const int dim,
                                           const int indx, const int nvar) {
+  dim_ = dim;
   pdata_ = src.pdata_;
   if (dim == 6) {
     nx6_ = nvar;
