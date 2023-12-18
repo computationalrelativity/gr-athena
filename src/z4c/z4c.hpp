@@ -308,6 +308,13 @@ public:
     return psi4_guarded;
   }
 
+  inline Real chiRegularized(const Real & chi_bare)
+  {
+    const Real T_chi = opt.chi_div_floor;
+    return std::max(chi_bare, opt.chi_div_floor);
+  }
+
+
   // enforce algebraic constraints on the solution
   void AlgConstr(AthenaArray<Real> & u);
   // compute ADM constraints
