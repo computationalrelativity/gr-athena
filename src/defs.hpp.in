@@ -42,6 +42,10 @@
 // debug dumping
 #define NO_DBG_HYDRO_DUMPS
 
+// use monolithic task in matter
+#define DBG_MONOLITHIC_MATTER
+
+
 //----------------------------------------------------------------------------------------
 // macros which define physics and algorithms
 
