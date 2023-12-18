@@ -35,8 +35,8 @@ void Z4c::GetMatter(
   SetMatterAliases(u_mat, mat);
 
   ADM_vars adm;
-  Z4c_vars z4c;
-  SetZ4cAliases(storage.u, z4c);
+  // Z4c_vars z4c;
+  // SetZ4cAliases(storage.u, z4c);
 
   // set up some parameters ---------------------------------------------------
 #if USETM
@@ -64,8 +64,8 @@ void Z4c::GetMatter(
   }
 #endif
 
-  AT_N_sca alpha( pz4c->storage.u, Z4c::I_Z4c_alpha);
-  AT_N_vec beta_u(pz4c->storage.u, Z4c::I_Z4c_betax);
+  // AT_N_sca alpha( pz4c->storage.u, Z4c::I_Z4c_alpha);
+  // AT_N_vec beta_u(pz4c->storage.u, Z4c::I_Z4c_betax);
 
   if(opt.fix_admsource==0)
   {
