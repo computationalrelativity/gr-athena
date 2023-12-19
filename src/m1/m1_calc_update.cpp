@@ -249,16 +249,16 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
       
       //      
       // Advect radiation
-      Real Estar = vec_p.E(ig,k,j,i) + 0.5*dt*vec_rhs.E(ig,k,j,i);
+      Real Estar = vec_p.E(ig,k,j,i) + dt*vec_rhs.E(ig,k,j,i);
       pack_F_d(beta_u(1), beta_u(2), beta_u(3),
-          vec_p.F_d(0,ig,k,j,i) + 0.5*dt * vec_rhs.F_d(0,ig,k,j,i),
-          vec_p.F_d(1,ig,k,j,i) + 0.5*dt * vec_rhs.F_d(1,ig,k,j,i),
-          vec_p.F_d(2,ig,k,j,i) + 0.5*dt * vec_rhs.F_d(2,ig,k,j,i),
+          vec_p.F_d(0,ig,k,j,i) + dt * vec_rhs.F_d(0,ig,k,j,i),
+          vec_p.F_d(1,ig,k,j,i) + dt * vec_rhs.F_d(1,ig,k,j,i),
+          vec_p.F_d(2,ig,k,j,i) + dt * vec_rhs.F_d(2,ig,k,j,i),
           Fstar_d);
       apply_floor(g_uu, &Estar, Fstar_d);
       Real Nstar = 0; (void)Nstar;
       if (nspecies > 1) {
-        Nstar = std::max(vec_p.N(ig,k,j,i) + 0.5*dt * vec_rhs.N(ig,k,j,i), rad_N_floor);
+        Nstar = std::max(vec_p.N(ig,k,j,i) + dt * vec_rhs.N(ig,k,j,i), rad_N_floor);
       }
       Real Enew;
 
@@ -323,7 +323,7 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
 
       // Compute interaction with matter
       source_update_pt(pmb, i, j, k, ig,
-            closure_fun, gsl_solver_1d, gsl_solver_nd, dt/2,
+            closure_fun, gsl_solver_1d, gsl_solver_nd, dt,
             alpha(), g_dd, g_uu, n_d, n_u, gamma_ud, u_d, u_u,
             v_d, v_u, proj_ud, fidu.Wlorentz(k,j,i), Estar, Fstar_d,
             Estar, Fstar_d,

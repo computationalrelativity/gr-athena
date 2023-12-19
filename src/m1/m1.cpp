@@ -184,8 +184,8 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   source_therm_limit = pin->GetOrAddReal("M1", "source_therm_limit",-1);
   source_thick_limit = pin->GetOrAddReal("M1","source_thick_limit", -1);
   source_scat_limit = pin->GetOrAddReal("M1","source_scat_limit", -1);
-  source_epsabs = pin->GetOrAddReal("M1","source_epsabs",1e-3);
-  source_epsrel = pin->GetOrAddReal("M1","source_epsrel",1e-3);
+  source_epsabs = pin->GetOrAddReal("M1","source_epsabs",1e-15);
+  source_epsrel = pin->GetOrAddReal("M1","source_epsrel",1e-5);
   source_maxiter = pin->GetOrAddInteger("M1","source_maxiter", 100);
 
   mindiss = pin->GetOrAddReal("M1","mindiss",0.0);
