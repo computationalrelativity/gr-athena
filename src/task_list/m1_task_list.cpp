@@ -402,7 +402,7 @@ TaskStatus M1IntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int stage) {
     } else {
       if (pm1->m1_test == "kerr_beam") {
         pm1->KerrBeamInnerX1(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
-      } else if (pm1->m1_test == "beam") {
+      } else if (pm1->m1_test == "beam" || pm1->m1_test == "shadow") {
         pm1->BeamInnerX1(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
       } else {
         pm1->OutflowInnerX1(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
@@ -414,7 +414,7 @@ TaskStatus M1IntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int stage) {
     pm1->OutflowOuterX2(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
     pm1->OutflowOuterX3(pmb, pco, pm1->storage.u, t_end_stage, dt, il, iu, jl, ju, kl, ku, NGHOST);
 
-    pbval->ApplyPhysicalBoundaries(t_end_stage, dt, pmb->pbval->bvars_m1_int);
+    //pbval->ApplyPhysicalBoundaries(t_end_stage, dt, pmb->pbval->bvars_m1_int);
     return TaskStatus::success;
   }
   return TaskStatus::fail;
