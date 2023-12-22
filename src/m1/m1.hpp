@@ -84,8 +84,8 @@
 #define M1_CALCOPACITY_OFF (0)
 #define M1_GRSOURCES_OFF (1)
 #define M1_FLUXX_SET_ZERO (0)
-#define M1_FLUXY_SET_ZERO (1)
-#define M1_FLUXZ_SET_ZERO (1)
+#define M1_FLUXY_SET_ZERO (0)
+#define M1_FLUXZ_SET_ZERO (0)
 
 // CGS density conv. fact
 #define CGS_GCC (1.619100425158886e-18) 
