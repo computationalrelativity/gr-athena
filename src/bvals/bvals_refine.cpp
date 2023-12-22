@@ -511,6 +511,10 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
     PassiveScalars *ps = pmb->pscalars;
     pmr->pvars_cc_[ps->refinement_idx] = std::make_tuple(&ps->r, &ps->coarse_r_);
   }
+  if (M1_ENABLED) {
+    M1 *pm1 = pmb->pm1;
+    pmr->pvars_cc_[pm1->refinement_idx] = std::make_tuple(&pm1->storage.u, &pm1->coarse_u_);
+  }
 
   for (auto cc_pair : pmr->pvars_cc_) {
     AthenaArray<Real> *var_cc = std::get<0>(cc_pair);
@@ -527,6 +531,11 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
     PassiveScalars *ps = pmb->pscalars;
     pmr->pvars_cc_[ps->refinement_idx] = std::make_tuple(&ps->s, &ps->coarse_s_);
   }
+  if (M1_ENABLED) {
+    M1 *pm1 = pmb->pm1;
+    pmr->pvars_cc_[pm1->refinement_idx] = std::make_tuple(&pm1->storage.u, &pm1->coarse_u_);
+  }
+  
 
   // prolongate face-centered S/AMR-enrolled quantities (magnetic fields)
   int &mylevel = pmb->loc.level;

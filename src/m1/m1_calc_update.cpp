@@ -249,16 +249,16 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
       
       //      
       // Advect radiation
-      Real Estar = vec_p.E(ig,k,j,i) + 0.5*dt*vec_rhs.E(ig,k,j,i);
+      Real Estar = vec_p.E(ig,k,j,i) + dt*vec_rhs.E(ig,k,j,i);
       pack_F_d(beta_u(1), beta_u(2), beta_u(3),
-          vec_p.F_d(0,ig,k,j,i) + 0.5*dt * vec_rhs.F_d(0,ig,k,j,i),
-          vec_p.F_d(1,ig,k,j,i) + 0.5*dt * vec_rhs.F_d(1,ig,k,j,i),
-          vec_p.F_d(2,ig,k,j,i) + 0.5*dt * vec_rhs.F_d(2,ig,k,j,i),
+          vec_p.F_d(0,ig,k,j,i) + dt * vec_rhs.F_d(0,ig,k,j,i),
+          vec_p.F_d(1,ig,k,j,i) + dt * vec_rhs.F_d(1,ig,k,j,i),
+          vec_p.F_d(2,ig,k,j,i) + dt * vec_rhs.F_d(2,ig,k,j,i),
           Fstar_d);
       apply_floor(g_uu, &Estar, Fstar_d);
       Real Nstar = 0; (void)Nstar;
       if (nspecies > 1) {
-        Nstar = std::max(vec_p.N(ig,k,j,i) + 0.5*dt * vec_rhs.N(ig,k,j,i), rad_N_floor);
+        Nstar = std::max(vec_p.N(ig,k,j,i) + dt * vec_rhs.N(ig,k,j,i), rad_N_floor);
       }
       Real Enew;
 
@@ -276,7 +276,7 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
 
       //
       // Estimate interaction with matteer
-      Real const dtau = dt/fidu_w_lorentz;
+      Real const dtau = dt  /fidu_w_lorentz;
       Real Jnew = (Jstar + dtau*rmat.eta_1(ig,k,j,i)*volform)/(1. + dtau*rmat.abs_1(ig,k,j,i));
 
       // Only three components of H^a are independent; H^0 is found by
@@ -320,12 +320,11 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
       apply_floor(g_uu, &Enew, Fnew_d);
       
 #if (M1_SRC_METHOD == M1_SRC_METHOD_IMPL)
-
       // Compute interaction with matter
       source_update_pt(pmb, i, j, k, ig,
-            closure_fun, gsl_solver_1d, gsl_solver_nd, dt/2,
+            closure_fun, gsl_solver_1d, gsl_solver_nd, dt,
             alpha(), g_dd, g_uu, n_d, n_u, gamma_ud, u_d, u_u,
-            v_d, v_u, proj_ud, fidu.Wlorentz(k,j,i), Estar, Fstar_d,
+            v_d, v_u, proj_ud, fidu_w_lorentz, Estar, Fstar_d,
             Estar, Fstar_d,
             &rad.chi(ig,k,j,i), rmat.eta_1(ig,k,j,i), rmat.abs_1(ig,k,j,i),
             rmat.scat_1(ig,k,j,i),
@@ -333,7 +332,7 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
       apply_floor(g_uu, &Enew, Fnew_d);
       //
       // Update closure
-      apply_closure(g_dd, g_uu, n_d, fidu.Wlorentz(k,j,i),
+      apply_closure(g_dd, g_uu, n_d, fidu_w_lorentz,
                     u_u, v_d, proj_ud, Enew, Fnew_d, rad.chi(k,j,i), P_dd);
 
       //
@@ -357,9 +356,8 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
         if (source_therm_limit < 0 || dt*rmat.abs_0(ig,k,j,i) < source_therm_limit) {
           //
           // N^k+1 = N^* + dt ( eta - abs N^k+1 )
-          Real Nnew = (Nstar + dt*alpha()*volform*rmat.eta_0(ig,k,j,i))/ 
-            (1.0 + dt*alpha()*rmat.abs_0(ig,k,j,i)/Gamma);
-          DrN[ig]  = Nnew - Nstar;
+          DrN[ig] = (Nstar + dt*alpha()*volform*rmat.eta_0(ig,k,j,i))/ 
+            (1.0 + dt*alpha()*rmat.abs_0(ig,k,j,i)/Gamma) - Nstar;
         } else {
           //
           // The neutrino number density is updated assuming the neutrino
@@ -370,7 +368,7 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
         }
       } 
 
-#endif // (THC_M1_SRC_METHOD == THC_M1_SRC_EXPL)
+#endif // (M1_SRC_METHOD == M1_SRC_EXPL)
       
       //
       // Fluid lepton sources
@@ -418,7 +416,7 @@ void M1::CalcUpdate(Real const dt, AthenaArray<Real> & u_p, AthenaArray<Real> & 
           //FIXME theta = min(source_limiter*min(source_Ye_min - XXX.Y_e(k,j,i), 0.0)/DYe, theta);
         //}
       }
-      theta = std::max(0.0, theta);
+      //theta = std::max(0.0, theta);
     } // source limiter
     
     //

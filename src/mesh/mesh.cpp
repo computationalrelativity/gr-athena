@@ -1938,6 +1938,8 @@ void Mesh::CorrectMidpointInitialCondition() {
     // and (conserved variable) passive scalar masses:
     if (NSCALARS > 0)
       pmb->pscalars->sbvar.SendBoundaryBuffers();
+    if (M1_ENABLED)
+      pmb->pm1->ubvar.SendBoundaryBuffers();
   }
 
   // wait to receive conserved variables
@@ -1951,11 +1953,15 @@ void Mesh::CorrectMidpointInitialCondition() {
       pmb->pfield->fbvar.ReceiveAndSetBoundariesWithWait();
     if (NSCALARS > 0)
       pmb->pscalars->sbvar.ReceiveAndSetBoundariesWithWait();
+    if (M1_ENABLED)
+      pmb->pm1->ubvar.ReceiveAndSetBoundariesWithWait();
     if (shear_periodic && orbital_advection==0) {
       pmb->phydro->hbvar.AddHydroShearForInit();
     }
     pbval->ClearBoundarySubset(BoundaryCommSubset::mesh_init,
                                pbval->bvars_main_int);
+    pbval->ClearBoundarySubset(BoundaryCommSubset::mesh_init,
+                               pbval->bvars_m1_int);
   } // end second exchange of ghost cells
   return;
 }
@@ -2005,6 +2011,9 @@ void Mesh::ReserveMeshBlockPhysIDs() {
     ReserveTagPhysIDs(CellCenteredBoundaryVariable::max_phys_id);
   }
   if (NSCALARS > 0) {
+    ReserveTagPhysIDs(CellCenteredBoundaryVariable::max_phys_id);
+  }
+  if (M1_ENABLED) {
     ReserveTagPhysIDs(CellCenteredBoundaryVariable::max_phys_id);
   }
   if (Z4C_ENABLED) {

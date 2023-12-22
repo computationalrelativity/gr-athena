@@ -64,6 +64,7 @@ void M1::SetZeroLabVars(AthenaArray<Real> & u)
   vec.E.ZeroClear();
   vec.N.ZeroClear();
   vec.F_d.ZeroClear();
+
 }
 
 //----------------------------------------------------------------------------------------
@@ -77,6 +78,33 @@ void M1::SetZeroFiduVars(AthenaArray<Real> & u)
   // Initialize to zero
   vec.vel_u.ZeroClear();
   vec.Wlorentz.Fill(1.0);
+}
+
+void M1::SetupZeroVars(AthenaArray<Real> & u)
+{
+  MeshBlock * pmb = pmy_block;
+
+  // Initialize to zero
+  SetZeroLabVars(u);
+  
+  Lab_vars vec;
+  SetLabVarsAliases(u, vec);
+
+  GCLOOP3(k,j,i) {
+    for (int ig=0; ig<ngroups*nspecies; ++ig) {
+      vec.N(ig,k,j,i) = (rad_N_floor>0)? rad_N_floor : 0.0;
+      vec.E(ig,k,j,i) = (rad_E_floor>0)? rad_E_floor : 0.0;
+      vec.F_d(0,ig,k,j,i) = 0.0;
+      vec.F_d(1,ig,k,j,i) = 0.0;
+      vec.F_d(2,ig,k,j,i) = 0.0;
+    }
+    
+    // There is no fluid, but set the fiducial velocity to zero
+    for(int a = 0; a < NDIM; ++a) {
+      fidu.vel_u(a,k,j,i) = 0.0;
+    }
+    fidu.Wlorentz(k,j,i) = 1.0;
+  } // k, j, i 
 }
 
 
@@ -299,8 +327,7 @@ void M1::SetupKerrSchildMask(AthenaArray<Real> & u)
 }
 
 void M1::KerrBeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &uu,
-                Real time, Real dt,
-                int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
+                Real time, Real dt, int ngh) {
   
   Lab_vars vec;
   SetLabVarsAliases(storage.u, vec); 
@@ -320,6 +347,13 @@ void M1::KerrBeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &uu
   F_u.NewTensorPointwise();
   F_d.NewTensorPointwise();
   K_dd.NewTensorPointwise();
+
+  int il = mbi.il;
+  int iu = mbi.iu;
+  int jl = mbi.jl;
+  int ju = mbi.ju;
+  int kl = mbi.kl;
+  int ku = mbi.ku;
 
   for (int k=kl; k<=ku; ++k) {
     for (int j=jl; j<=ju; ++j) {

@@ -41,6 +41,7 @@
 #define M1_SRC_METHOD_EXPL (0)
 #define M1_SRC_METHOD_IMPL (1)
 #define M1_SRC_BOOST (2)
+
 // enum {
 //   M1_SRC_METHOD_IMPL, // 0: implicit (default)
 //   M1_SRC_BOOST,       // 1: boost to fluid frame (approximate!)
@@ -208,7 +209,7 @@ public:
   };
   // Messages
   static char const * const source_update_msg[M1_SRC_UPDATE_RESULTS];
-  
+
 public:
   M1(MeshBlock *pmb, ParameterInput *pin);
   ~M1();
@@ -395,17 +396,16 @@ public:
   void SetNetVarsAliases(AthenaArray<Real> & intern, Net_vars & net);
   
   // initial data for the tests
+  void SetupZeroVars(AthenaArray<Real> & u);
   void SetupBeamTest(AthenaArray<Real> & u);
   void SetupAdvectionJumpTest(AthenaArray<Real> & u);
-  void SetupKerrBeamTest(AthenaArray<Real> & u);
   void SetupDiffusionTest(AthenaArray<Real> & u);
-  void SetupShadowTest(AthenaArray<Real> & u);
   void SetupEquilibriumTest(AthenaArray<Real> & u);
   void SetupKerrSchildMask(AthenaArray<Real> & u);
   void BeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
   void KerrBeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
-                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
+                Real time, Real dt, int ngh);
   void OutflowInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
   void OutflowOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
@@ -424,7 +424,7 @@ public:
                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
   void ReflectInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u,
                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
-  //void SetupTestHydro();
+  void SetupTestHydro();
 
   // wrappers/interfaces with GSL for source update and closure
   void prepare_closure(gsl_vector const * q, void * params);

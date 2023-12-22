@@ -35,8 +35,8 @@
 Real threshold;
 
 int RefinementCondition(MeshBlock *pmb);
-// void BeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
-//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
+void KerrBeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
+                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
 // void BeamOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
 //                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
 // void BeamInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
@@ -50,6 +50,11 @@ int RefinementCondition(MeshBlock *pmb);
 
 void Mesh::InitUserMeshData(ParameterInput *pin)
 {
+  std::string m1_test = pin->GetOrAddString("M1", "test", "beam");
+
+  if (m1_test == "kerr_beam") {
+    //EnrollUserBoundaryFunction(BoundaryFace::inner_x1, KerrBeamInnerX1);
+  }
   // EnrollUserBoundaryFunction(BoundaryFace::inner_x1, BeamInnerX1);
   // EnrollUserBoundaryFunction(BoundaryFace::outer_x1, BeamOuterX1);
   // EnrollUserBoundaryFunction(BoundaryFace::inner_x2, BeamInnerX2);
@@ -59,7 +64,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   if (adaptive)
   {
     EnrollUserRefinementCondition(RefinementCondition);
-    threshold = pin->GetReal("problem", "thr");
+    //threshold = pin->GetReal("problem", "thr");
   }
   return;
 }
@@ -113,22 +118,30 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   } else if (pm1->m1_test == "diffusion") {
     pm1->SetupDiffusionTest(pm1->storage.u);
   } else {
-    pm1->SetZeroLabVars(pm1->storage.u);
-    pm1->SetZeroFiduVars(pm1->storage.u);
+    pm1->SetupZeroVars(pm1->storage.u);
   }
 }
 
 // refinement condition:
 int RefinementCondition(MeshBlock *pmb)
 {
-  // TODO
-  return 0;
+  M1::Lab_vars vec;
+  pmb->pm1->SetLabVarsAliases(pmb->pm1->storage.u, vec);
+  for(int k=pmb->ks; k<=pmb->ke; k++) {
+    for(int j=pmb->js; j<=pmb->je; j++) {
+      for(int i=pmb->is; i<=pmb->ie; i++) {
+        if (vec.E(0,k,j,i) > 0.1)
+          return 1.;
+      }
+    }
+  }
+  return -1.;
 }
 
-// void BeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u, FaceField &b,
-//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
-//   pmb->pm1->BeamInnerX1(pmb, pco, u, time, dt, il, iu, jl, ju, kl, ku, ngh);
-// }
+void KerrBeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u, FaceField &b,
+               Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
+ pmb->pm1->KerrBeamInnerX1(pmb, pco, u, time, dt, ngh);
+}
 
 // void BeamOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u, FaceField &b,
 //                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {

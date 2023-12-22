@@ -29,6 +29,9 @@
 #define PINDEX1D(ig, iv) \
     ((iv) + (ig)*nvars)
 
+#define FINDEX1D(ig, iv) \
+    ((iv) + (ig)*nvars2)
+
 using namespace utils;
 
 namespace {
@@ -46,6 +49,7 @@ namespace {
 void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
   M1_DEBUG_PR("in: AddFluxDivergence");
   
+  int const nvars2 = N_Lab;
   MeshBlock *pmb = pmy_block;
   AthenaArray<Real> &x1flux = storage.flux[X1DIR];
   AthenaArray<Real> &x2flux = storage.flux[X2DIR];
@@ -62,9 +66,9 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
       for (int k=ks; k<=ke; ++k) {
         for (int j=js; j<=je; ++j) {
           for (int i=is; i<=ie; ++i) {
-            u_rhs(iv,ig,k,j,i) += x1flux(iv,ig,k,j,i)
-                                + x2flux(iv,ig,k,j,i)
-                                + x3flux(iv,ig,k,j,i);
+            u_rhs(FINDEX1D(ig,iv),k,j,i) += x1flux(FINDEX1D(ig,iv),k,j,i)
+                                + x2flux(FINDEX1D(ig,iv),k,j,i)
+                                + x3flux(FINDEX1D(ig,iv),k,j,i);
 	        }
 	      }
       }
@@ -82,7 +86,7 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
         for (int ig=0; ig<ngroups*nspecies; ++ig) {
 #pragma omp simd
           for (int i=is; i<=ie; ++i) {
-            dflx(iv,ig,i) = (x1area(i+1)*x1flux(iv,ig,k,j,i+1) - x1area(i)*x1flux(iv,ig,k,j,i));
+            dflx(iv,ig,i) = (x1area(i+1)*x1flux(FINDEX1D(ig,iv),k,j,i+1) - x1area(i)*x1flux(FINDEX1D(ig, iv),k,j,i));
 	        }
         }
       }
@@ -95,7 +99,7 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
           for (int ig=0; ig<ngroups*nspecies; ++ig) {
 #pragma omp simd
             for (int i=is; i<=ie; ++i) {
-	            dflx(iv,ig,i) += (x2area_p1(i)*x2flux(iv,ig,k,j+1,i) - x2area(i)*x2flux(iv,ig,k,j,i));
+	            dflx(iv,ig,i) += (x2area_p1(i)*x2flux(FINDEX1D(ig, iv),k,j+1,i) - x2area(i)*x2flux(FINDEX1D(ig, iv),k,j,i));
             }
           }
         }
@@ -109,7 +113,7 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
           for (int ig=0; ig<ngroups*nspecies; ++ig) {
 #pragma omp simd
             for (int i=is; i<=ie; ++i) {
-              dflx(iv,ig,i) += (x3area_p1(i)*x3flux(iv,ig,k+1,j,i) - x3area(i)*x3flux(iv,ig,k,j,i));
+              dflx(iv,ig,i) += (x3area_p1(i)*x3flux(FINDEX1D(ig, iv),k+1,j,i) - x3area(i)*x3flux(FINDEX1D(ig, iv),k,j,i));
             }
           }
         }
@@ -121,7 +125,7 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs) {
         for (int ig=0; ig<ngroups*nspecies; ++ig) {
 #pragma omp simd
           for (int i=is; i<=ie; ++i) {	    
-            u_rhs(iv,ig,k,j,i) -= dflx(iv,ig,i)/vol(i);
+            u_rhs(FINDEX1D(ig,iv),k,j,i) -= dflx(iv,ig,i)/vol(i);
 	        }
         }
       }
@@ -196,6 +200,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 
   // For scratch errors
   int const nvars = (nspecies > 1 ? N_Lab : N_Lab-1);
+  int const nvars2 = N_Lab;
   int mapiv [] = {
     I_Lab_E,
     I_Lab_Fx, I_Lab_Fy, I_Lab_Fz,
@@ -536,8 +541,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	      
 	      flux_jp[PINDEX1D(ig, iv)] = flux_num[iv];
 	      
-	      xdirflux(mapiv[iv],
-		       ig, k,j,i) += 1.0/delta[dir]*(
+	      xdirflux(iv, k,j,i) += 1.0/delta[dir]*(
 						     flux_jm[PINDEX1D(ig, iv)] -
 						     flux_jp[PINDEX1D(ig, iv)])*
 		static_cast<Real>(
@@ -550,7 +554,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 	      
 #else
 
-	      xdirflux(mapiv[iv], ig, k+shift[2],j+shift[1],i+shift[0]) = flux_num[iv];
+	      xdirflux(FINDEX1D(ig, iv), k+shift[2],j+shift[1],i+shift[0]) = flux_num[iv];
 	      
 #endif
 	      

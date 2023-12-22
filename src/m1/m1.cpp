@@ -73,24 +73,24 @@ char const * const M1::source_update_msg[M1::M1_SRC_UPDATE_RESULTS] = {
 
 M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   pmy_block(pmb),
-  coarse_u_(N_Lab, pmb->ncc3, pmb->ncc2, pmb->ncc1,
+  coarse_u_(N_Lab*M1_NSPECIES*M1_NGROUPS, pmb->ncc3, pmb->ncc2, pmb->ncc1,
             (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
 	     AthenaArray<Real>::DataStatus::empty)),
-  storage{{N_Lab, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1},  // u
-          {N_Lab, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1},  // u1
+  storage{{N_Lab*M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1},  // u
+          {N_Lab*M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1},  // u1
           {                                                                           // flux
-            {N_Lab, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1 + 1},
-            {N_Lab, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2 + 1, pmb->ncells1,
+            {N_Lab*M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1 + 1},
+            {N_Lab*M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2 + 1, pmb->ncells1,
 	     (pmb->pmy_mesh->f2 ? AthenaArray<Real>::DataStatus::allocated :
               AthenaArray<Real>::DataStatus::empty)},
-            {N_Lab, M1_NSPECIES*M1_NGROUPS, pmb->ncells3 + 1, pmb->ncells2, pmb->ncells1,
+            {N_Lab*M1_NSPECIES*M1_NGROUPS, pmb->ncells3 + 1, pmb->ncells2, pmb->ncells1,
 	     (pmb->pmy_mesh->f3 ? AthenaArray<Real>::DataStatus::allocated :
               AthenaArray<Real>::DataStatus::empty)},
           },
-          {N_Lab, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1}, // u_rhs
-          {N_Rad, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1}, // u_rad
-          {N_RadMat, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1}, // radmat
-          {N_Diagno, M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1}, // diagno
+          {N_Lab*M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1}, // u_rhs
+          {N_Rad,M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1}, // u_rad
+          {N_RadMat,M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1}, // radmat
+          {N_Diagno,M1_NSPECIES*M1_NGROUPS, pmb->ncells3, pmb->ncells2, pmb->ncells1}, // diagno
 	  {N_Intern, pmb->ncells3, pmb->ncells2, pmb->ncells1}, // internal
   },
   ubvar(pmb, &storage.u, &coarse_u_, storage.flux)
@@ -123,7 +123,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
 
   // "Enroll" in SMR/AMR by adding to vector of pointers in MeshRefinement class
   if (pm->multilevel) {
-    refinement_idx = pmy_block->pmr->AddToRefinementVC(&storage.u, &coarse_u_);
+    refinement_idx = pmy_block->pmr->AddToRefinementCC(&storage.u, &coarse_u_);
   }
 
   //TODO:
@@ -184,8 +184,8 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   source_therm_limit = pin->GetOrAddReal("M1", "source_therm_limit",-1);
   source_thick_limit = pin->GetOrAddReal("M1","source_thick_limit", -1);
   source_scat_limit = pin->GetOrAddReal("M1","source_scat_limit", -1);
-  source_epsabs = pin->GetOrAddReal("M1","source_epsabs",1e-3);
-  source_epsrel = pin->GetOrAddReal("M1","source_epsrel",1e-3);
+  source_epsabs = pin->GetOrAddReal("M1","source_epsabs",1e-15);
+  source_epsrel = pin->GetOrAddReal("M1","source_epsrel",1e-5);
   source_maxiter = pin->GetOrAddInteger("M1","source_maxiter", 100);
 
   mindiss = pin->GetOrAddReal("M1","mindiss",0.0);
@@ -229,13 +229,12 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   // Intergrid communication
   int N[] = {pmb->block_size.nx1, pmb->block_size.nx2, pmb->block_size.nx3};
   Real rdx[] = {
-    1./pmb->pcoord->dx1f(0), 1./pmb->pcoord->dx2f(0), 1./pmb->pcoord->dx3f(0)
+    1./pmb->pcoord->dx1v(0), 1./pmb->pcoord->dx2v(0), 1./pmb->pcoord->dx3v(0)
   };
-  
   if(pmb->pmy_mesh->multilevel){
     int N_coarse[] = {pmb->block_size.nx1/2, pmb->block_size.nx2/2, pmb->block_size.nx3/2};
     Real rdx_coarse[] = {
-      1./pmb->pmr->pcoarsec->dx1f(0), 1./pmb->pmr->pcoarsec->dx2f(0), 1./pmb->pmr->pcoarsec->dx3f(0)
+      1./pmb->pmr->pcoarsec->dx1v(0), 1./pmb->pmr->pcoarsec->dx2v(0), 1./pmb->pmr->pcoarsec->dx3v(0)
     }; 
   }
   
@@ -331,9 +330,9 @@ M1::~M1()
 
 void M1::SetLabVarsAliases(AthenaArray<Real> & u, M1::Lab_vars & lab)
 {
-  lab.E.InitWithShallowSlice(u, I_Lab_E);
-  lab.F_d.InitWithShallowSlice(u, I_Lab_Fx);
-  lab.N.InitWithShallowSlice(u, I_Lab_N);
+  lab.E.InitWithShallowSliceVar(u, I_Lab_E, M1_NGROUPS*M1_NSPECIES);
+  lab.F_d.InitWithShallowSliceVar(u, I_Lab_Fx, M1_NGROUPS*M1_NSPECIES);
+  lab.N.InitWithShallowSliceVar(u, I_Lab_N, M1_NGROUPS*M1_NSPECIES);
 }
 
 //----------------------------------------------------------------------------------------
