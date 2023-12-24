@@ -40,6 +40,7 @@
 namespace {
   int RefinementCondition(MeshBlock *pmb);
   Real Maxrho(MeshBlock *pmb, int iout);
+  Real linf_H(MeshBlock *pmb, int iout);
 }
 
 namespace matter_debug {
@@ -279,8 +280,8 @@ void Trig_Functions(
 void Set_Geom_Gauge(MeshBlock * pmb)
 {
   Z4c * pz4c = pmb->pz4c;
-  // pz4c->GaugeGeodesic(pz4c->storage.u);
-  pz4c->GaugePreCollapsedLapse(pz4c->storage.adm, pz4c->storage.u);
+  pz4c->GaugeGeodesic(pz4c->storage.u);
+  // pz4c->GaugePreCollapsedLapse(pz4c->storage.adm, pz4c->storage.u);
 }
 
 void Set_Geom_g(MeshBlock * pmb,
@@ -1807,6 +1808,8 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   AllocateUserHistoryOutput(2);
   EnrollUserHistoryOutput(0, Maxrho,
                           "max-rho", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(1, linf_H,
+                          "linf_H", UserHistoryOperation::max);
 #if MAGNETIC_FIELDS_ENABLED
   EnrollUserHistoryOutput(1, DivB, "divB");
 #endif
@@ -2131,15 +2134,79 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                        pz4c->storage.mat,
                        pz4c->storage.u);
 
+  // // Initialise conserved variables
+  // peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord,
+  //                            0, ncells1-1,
+  //                            0, ncells2-1,
+  //                            0, ncells3-1);
+
+
+  // sanity check [basic debug impl.]
+
+  matter_debug::AT_N_sca sl_w_rho( phydro->w,  IDN);
+  matter_debug::AT_N_sca sl_w1_rho(phydro->w1, IDN);
+
+
+  matter_debug::AT_N_sca sl_w_p(   phydro->w,  IPR);
+  matter_debug::AT_N_sca sl_w1_p(  phydro->w1, IPR);
+
+  matter_debug::AT_N_sca sl_q_D( phydro->u,  IDN);
+  matter_debug::AT_N_sca sl_q1_D(phydro->u1, IDN);
+
+  const int ng_cmp = NGHOST;
+
+  phydro->Hydro_IdealEoS_Prim2Cons(
+    matter_debug::ID_EoS_Gamma,
+    phydro->w,
+    phydro->u,
+    0, ncells1-1,
+    0, ncells2-1,
+    0, ncells3-1);
+
+  phydro->Hydro_IdealEoS_Cons2Prim(
+    matter_debug::ID_EoS_Gamma,
+    phydro->u,
+    phydro->w1,
+    0, ncells1-1,
+    0, ncells2-1,
+    0, ncells3-1);
+
   /*
-  // Sanity check for prim<->cons
+  std::cout << std::setprecision(16);
+  std::cout << "prim2cons, cons2prim; debug" << std::endl;
+  std::cout << "sl_w_rho" << std::endl;
+  std::cout << sl_w_rho.array().num_min(ng_cmp) << std::endl;
+  std::cout << sl_w_rho.array().num_max(ng_cmp) << std::endl;
+  std::cout << sl_w_rho.array().num_avg(ng_cmp) << std::endl;
+
+  std::cout << "sl_w1_rho" << std::endl;
+  std::cout << sl_w1_rho.array().num_min(ng_cmp) << std::endl;
+  std::cout << sl_w1_rho.array().num_max(ng_cmp) << std::endl;
+  std::cout << sl_w1_rho.array().num_avg(ng_cmp) << std::endl;
+
+  std::cout << "sl_w_p" << std::endl;
+  std::cout << sl_w_p.array().num_min(ng_cmp) << std::endl;
+  std::cout << sl_w_p.array().num_max(ng_cmp) << std::endl;
+  std::cout << sl_w_p.array().num_avg(ng_cmp) << std::endl;
+
+  std::cout << "sl_w1_p" << std::endl;
+  std::cout << sl_w1_p.array().num_min(ng_cmp) << std::endl;
+  std::cout << sl_w1_p.array().num_max(ng_cmp) << std::endl;
+  std::cout << sl_w1_p.array().num_avg(ng_cmp) << std::endl;
+
+  std::cout << "sl_q_D" << std::endl;
+  std::cout << sl_q_D.array().num_min(ng_cmp) << std::endl;
+  std::cout << sl_q_D.array().num_max(ng_cmp) << std::endl;
+  std::cout << sl_q_D.array().num_avg(ng_cmp) << std::endl;
+
+  // out-source to reprimand
   peos->PrimitiveToConserved(phydro->w,
                              pfield->bcc,  // dummy here
                              phydro->u,
                              pcoord,
-                             0, ncells1,
-                             0, ncells2,
-                             0, ncells3);
+                             0, ncells1-1,
+                             0, ncells2-1,
+                             0, ncells3-1);
 
   const int coarse_flag = 0;
   peos->ConservedToPrimitive(phydro->u,    // cons.
@@ -2148,19 +2215,89 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                              phydro->w1,   // result goes here
                              pfield->bcc,  // dummy here
                              pcoord,
-                             0, ncells1,
-                             0, ncells2,
-                             0, ncells3, coarse_flag);
+                             0, ncells1-1,
+                             0, ncells2-1,
+                             0, ncells3-1, coarse_flag);
+
+
+  std::cout << "prim2cons, cons2prim; reprimand" << std::endl;
+  std::cout << "sl_w_rho" << std::endl;
+  std::cout << sl_w_rho.array().num_min(ng_cmp) << std::endl;
+  std::cout << sl_w_rho.array().num_max(ng_cmp) << std::endl;
+  std::cout << sl_w_rho.array().num_avg(ng_cmp) << std::endl;
+
+  std::cout << "sl_w1_rho" << std::endl;
+  std::cout << sl_w1_rho.array().num_min(ng_cmp) << std::endl;
+  std::cout << sl_w1_rho.array().num_max(ng_cmp) << std::endl;
+  std::cout << sl_w1_rho.array().num_avg(ng_cmp) << std::endl;
+
+  std::cout << "sl_w_p" << std::endl;
+  std::cout << sl_w_p.array().num_min(ng_cmp) << std::endl;
+  std::cout << sl_w_p.array().num_max(ng_cmp) << std::endl;
+  std::cout << sl_w_p.array().num_avg(ng_cmp) << std::endl;
+
+  std::cout << "sl_w1_p" << std::endl;
+  std::cout << sl_w1_p.array().num_min(ng_cmp) << std::endl;
+  std::cout << sl_w1_p.array().num_max(ng_cmp) << std::endl;
+  std::cout << sl_w1_p.array().num_avg(ng_cmp) << std::endl;
+
+  std::cout << "sl_q_D" << std::endl;
+  std::cout << sl_q_D.array().num_min(ng_cmp) << std::endl;
+  std::cout << sl_q_D.array().num_max(ng_cmp) << std::endl;
+  std::cout << sl_q_D.array().num_avg(ng_cmp) << std::endl;
+  */
+
+
+  // Get matter from reprimand loop & recompute constraints
+
+  // // Initialise matter (seed storage.mat with phydro)
+  // pz4c->GetMatter(pz4c->storage.mat,
+  //                 pz4c->storage.adm,
+  //                 phydro->w1,           // use reprimand data
+  //                 pfield->bcc);
+
+  // // Recalculate constraints
+  // pz4c->ADMConstraints(pz4c->storage.con,
+  //                      pz4c->storage.adm,
+  //                      pz4c->storage.mat,
+  //                      pz4c->storage.u);
+
+  // std::exit(0);
+
+
+  // std::cout << phydro->w1(8,8,8) - phydro->w(8,8,8)<< ", ";
+  // std::cout << phydro->w1(20,20,20) - phydro->w(20,20,20)<< ", ";
+  // std::exit(0);
+
+  /*
+  const int coarse_flag = 0;
+  peos->ConservedToPrimitive(phydro->u,    // cons.
+                             phydro->w,    // prim_old (unused)
+                             pfield->b,    // dummy here
+                             phydro->w1,   // result goes here
+                             pfield->bcc,  // dummy here
+                             pcoord,
+                             0, ncells1-1,
+                             0, ncells2-1,
+                             0, ncells3-1, coarse_flag);
 
   std::cout << phydro->w1(8,8,8) - phydro->w(8,8,8)<< ", ";
+  std::cout << phydro->w1(20,20,20) - phydro->w(20,20,20)<< ", ";
   std::exit(0);
   */
 
-  // Initialise conserved variables
-  peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord,
-                             0, ncells1,
-                             0, ncells2,
-                             0, ncells3);
+
+  /*
+  phydro->Hydro_IdealEoS_Prim2Cons(
+    matter_debug::ID_EoS_Gamma,
+    phydro->w, phydro->u,
+    0, ncells1-1,
+    0, ncells2-1,
+    0, ncells3-1);
+  */
+  // std::cout << phydro->w1(5,8,8) - phydro->w(5,8,8)<< ", ";
+  // phydro->u.print_all();
+  // std::exit(0);
 
   std::cout << "post Init." << std::endl;
 
@@ -2183,6 +2320,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   std::cout << cons_fd_amax(2) << ", ";
   std::cout << cons_fd_amax(3) << std::endl;
 
+  std::cout << "pgen done!" << std::endl;
+
+  // std::exit(0);
 
   return;
 }
@@ -2266,5 +2406,27 @@ Real Maxrho(MeshBlock *pmb, int iout)
 
   return max_rho;
 }
+
+Real linf_H(MeshBlock *pmb, int iout)
+{
+  Z4c * pz4c = pmb->pz4c;
+
+  Real linf_H = 0.0;
+  int is = pmb->is, ie = pmb->ie;
+  int js = pmb->js, je = pmb->je;
+  int ks = pmb->ks, ke = pmb->ke;
+
+  matter_debug::AT_N_sca H(pz4c->storage.con, Z4c::I_CON_H);
+
+  for (int k=ks; k<=ke; k++)
+  for (int j=js; j<=je; j++)
+  for (int i=is; i<=ie; i++)
+  {
+    linf_H = std::max(std::abs(H(k,j,i)), linf_H);
+  }
+
+  return linf_H;
+}
+
 
 } // namespace

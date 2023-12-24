@@ -8,19 +8,19 @@ export FN=$(readlink -f "$0"); export DIR_SCRIPTS=$(dirname "${FN}")
 
 ###############################################################################
 # configure here
-export NINTERP=1
+export NINTERP=2
 export USE_HYBRIDINTERP=0
 
-export RUN_NAME=tov_vc_ninterp${NINTERP}
+export RUN_NAME=tov_boost_ninterp${NINTERP}
 if [ $USE_HYBRIDINTERP == 1 ]
 then
   export RUN_NAME=${RUN_NAME}_hybridinterp
 fi
 
 export BIN_NAME=z4c
-export REL_OUTPUT=outputs/z4c_vc
+export REL_OUTPUT=outputs/z4c_cx
 export REL_INPUT=scripts/problems
-export INPUT_NAME=z4c_tov.inp
+export INPUT_NAME=z4c_tov_boost.inp
 
 # if compilation is chosen
 export DIR_HDF5=$(spack location -i hdf5)
@@ -34,8 +34,8 @@ export COMPILE_STR="--prob=gr_tov
                     --coord=gr_dynamical
                     --eos=adiabatictaudyn_rep
                     --flux=llftaudyn
-                    -z -g -f -z_vc
-                    --cxx g++
+                    -z -g -f -z_cx
+                    --cxx g++ -omp
                     --nghost=4
                     --ncghost=4
                     --ncghost_cx=4
@@ -98,8 +98,10 @@ source ${DIR_SCRIPTS}/utils/dump_info.sh
 ###############################################################################
 
 ###############################################################################
-# execute
-source utils/exec.sh
+# execute [first restart gen, with static]
+source ${DIR_SCRIPTS}/utils/exec.i.sh
+# execute [restart with adaptive refinement]
+source ${DIR_SCRIPTS}/utils/exec.r.sh
 ###############################################################################
 
 

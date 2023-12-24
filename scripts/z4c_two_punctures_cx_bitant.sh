@@ -21,7 +21,7 @@ export DIR_TP=$(spack location -i twopuncturesc)
 
 export COMPILE_STR="--prob=z4c_two_punctures
                     -z -z_cx
-                    --cxx g++ -omp
+                    --cxx clang++
                     --nghost=4
                     --ncghost=4
                     --ncghost_cx=4

@@ -22,18 +22,16 @@ k_adi = 123.63657447688378
 rho_min = 0     # junk
 pgas_min = 0    # junk
 
-<z4c>
 
-# 1+log (moving puncture) gauge (for BNS)
-lapse_oplog = 2.0             # alpha_l
-lapse_harmonicf = 1.0   # alpha_hf
-lapse_harmonic = 0.0    # alpha_h
-lapse_advect = 1.0          # alpha_adv
-# shift_Gamma = 0.75            # sigma_Gamma
-shift_eta = 0.3         # sigma_eta
-# shift_alpha2Gamma = 0.0 # sigma_{alpha^2 Gamma}
-# shift_H = 0.0           # sigma_H
-shift_advect = 1.0          # sigma_adv
+<z4c>
+#dt_assert_is_finite = 1   # whatever values, if zero / missing these tasks are not triggered
+dt_wave_extraction =0.1
+lapse_harmonic = 0.0
+lapse_harmonicf = 1.0
+lapse_oplog = 2.0
+lapse_advect = 1.0
+shift_eta = 0 # 0.3
+shift_advect = 1.0
 
 # Kreiss-Oliger dissipation parameter.
 diss = 0.5
@@ -105,7 +103,7 @@ data_format=%.2e
 
 <time>
 cfl_number = 0.25
-tlim	   = 3000.0
+tlim	   = 5.0
 integrator = rk3  # time integration algorithm
 xorder     = 5    # order of spatial reconstruction
 ncycle_out = 1    # interval for stdout summary info
@@ -139,7 +137,7 @@ update_max_step_factor = 1
 # =========================================================
 
 <mesh>
-num_threads = 1
+num_threads = 8
 refinement = none
 numlevel = 10       # upper bound (tracker controls lev.)
 # deref_count = 5

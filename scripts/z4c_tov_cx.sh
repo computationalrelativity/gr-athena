@@ -8,10 +8,10 @@ export FN=$(readlink -f "$0"); export DIR_SCRIPTS=$(dirname "${FN}")
 
 ###############################################################################
 # configure here
-export NINTERP=1
+export NINTERP=2
 export USE_HYBRIDINTERP=0
 
-export RUN_NAME=tov_cx_ninterp${NINTERP}
+export RUN_NAME=MA_tov_cx_ninterp${NINTERP}.hlletaudyn
 
 if [ $USE_HYBRIDINTERP == 1 ]
 then
@@ -34,7 +34,7 @@ export DIR_GCC=$(spack location -i gcc)
 export COMPILE_STR="--prob=gr_tov
                     --coord=gr_dynamical
                     --eos=adiabatictaudyn_rep
-                    --flux=llftaudyn
+                    --flux=hlletaudyn
                     -z -g -f -z_cx
                     --cxx g++ -omp
                     --nghost=4
@@ -42,6 +42,9 @@ export COMPILE_STR="--prob=gr_tov
                     --ncghost_cx=4
                     --nextrapolate=4
                     --ninterp=${NINTERP}"
+
+#                   --flux=llftaudyn
+
 
 if [ $USE_HYBRIDINTERP == 1 ]
 then

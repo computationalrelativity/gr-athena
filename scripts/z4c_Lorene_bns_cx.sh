@@ -11,31 +11,33 @@ export FN=$(readlink -f "$0"); export DIR_SCRIPTS=$(dirname "${FN}")
 export NINTERP=1
 export USE_HYBRIDINTERP=0
 
-export RUN_NAME=tov_vc_ninterp${NINTERP}
+export RUN_NAME=Lorene_bns_cx_ninterp${NINTERP}
 if [ $USE_HYBRIDINTERP == 1 ]
 then
   export RUN_NAME=${RUN_NAME}_hybridinterp
 fi
 
 export BIN_NAME=z4c
-export REL_OUTPUT=outputs/z4c_vc
+export REL_OUTPUT=outputs/z4c_cx
 export REL_INPUT=scripts/problems
-export INPUT_NAME=z4c_tov.inp
+export INPUT_NAME=z4c_Lorene_bns_WENO.inp
 
 # if compilation is chosen
 export DIR_HDF5=$(spack location -i hdf5)
 export DIR_GSL=$(spack location -i gsl)
+export DIR_LOR=$(spack location -i lorene)
+export DIR_FFTW=$(spack location -i fftw)
 export DIR_REP=$(spack location -i reprimand)
 export DIR_BOS=$(spack location -i boost)
 # this is needed...
 export DIR_GCC=$(spack location -i gcc)
 
-export COMPILE_STR="--prob=gr_tov
+export COMPILE_STR="--prob=gr_Lorene_bns
                     --coord=gr_dynamical
                     --eos=adiabatictaudyn_rep
                     --flux=llftaudyn
-                    -z -g -f -z_vc
-                    --cxx g++
+                    -z -g -f -z_cx
+                    --cxx g++ -omp
                     --nghost=4
                     --ncghost=4
                     --ncghost_cx=4
@@ -53,7 +55,9 @@ export COMPILE_STR="${COMPILE_STR} -ccache"
 
 # hdf5 compile str
 export COMPILE_STR="${COMPILE_STR} -hdf5 -h5double"
+# gsl + LORENE
 export COMPILE_STR="${COMPILE_STR} -gsl"
+export COMPILE_STR="${COMPILE_STR} -lorene"
 
 export COMPILE_STR="${COMPILE_STR} --lib_path=${DIR_HDF5}/lib"
 export COMPILE_STR="${COMPILE_STR} --include=${DIR_HDF5}/include"
@@ -66,6 +70,14 @@ export COMPILE_STR="${COMPILE_STR} --include=${DIR_REP}/include"
 
 export COMPILE_STR="${COMPILE_STR} --lib_path=${DIR_BOS}/lib"
 export COMPILE_STR="${COMPILE_STR} --include=${DIR_BOS}/include"
+
+export COMPILE_STR="${COMPILE_STR} --lib_path=${DIR_LOR}/lib"
+export COMPILE_STR="${COMPILE_STR} --include=${DIR_LOR}/include"
+
+# depending on compilation, Lorene may need fftw
+export COMPILE_STR="${COMPILE_STR} --lib_path=${DIR_FFTW}/lib"
+export COMPILE_STR="${COMPILE_STR} --include=${DIR_FFTW}/include"
+export COMPILE_STR="${COMPILE_STR} --lib=fftw3"
 
 ###############################################################################
 

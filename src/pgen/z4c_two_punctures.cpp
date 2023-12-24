@@ -208,12 +208,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 static int RefinementCondition(MeshBlock *pmb)
 {
   Z4c_AMR *const pz4c_amr = pmb->pz4c->pz4c_amr;
-  
+
   // make sure we have 2 punctures
   if (pmb->pmy_mesh->pz4c_tracker.size() != 2) {
     return 0;
   }
-  
+
   return pz4c_amr->ShouldIRefine(pmb);
-  
 }

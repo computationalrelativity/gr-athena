@@ -15,7 +15,33 @@ cd ${DIR_OUTPUT}
 
 # mpirun -np 2 ${EXEC_NAME}.x -r /mnt/nebula/_Repositories/NR/athena/development/outputs/z4c_c_tp/two_puncture/z4c.final.rst
 
-mpirun -np 2 ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
+
+# OMP_NUM_THREADS=thds
+# mpirun -np Total_Tasks --bind-to core
+# --map-by ppr:Tasks_Per_Node:node:pe=thds
+# -x OMP_NUM_THREADS
+
+export TOTAL_TASKS=4
+export TASKS_PER_NODE=4
+export OMP_NUM_THREADS=2
+
+# mpirun -np Total_Tasks --bind-to core
+# --map-by ppr:Tasks_Per_Node:node:pe=thds
+# -x OMP_NUM_THREADS
+
+# mpirun \
+#   -np ${TOTAL_TASKS} \
+#   --bind-to core \
+#   --map-by ppr:${TASKS_PER_NODE}:node:pe=${OMP_NUM_THREADS} \
+#   -x OMP_NUM_THREADS=${OMP_NUM_THREADS} \
+#   ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
+
+mpirun \
+  -np ${TOTAL_TASKS} \
+  --bind-to none \
+  -x OMP_NUM_THREADS=${OMP_NUM_THREADS} \
+  ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
+
 # valgrind
 # export DIR_VG=$(spack location -i valgrind)
 

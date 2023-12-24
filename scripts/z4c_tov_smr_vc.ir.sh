@@ -18,9 +18,9 @@ then
 fi
 
 export BIN_NAME=z4c
-export REL_OUTPUT=outputs/z4c_vc
+export REL_OUTPUT=outputs/z4c_vc_smri.ir
 export REL_INPUT=scripts/problems
-export INPUT_NAME=z4c_tov.inp
+export INPUT_NAME=z4c_tov_smr_interior.inp
 
 # if compilation is chosen
 export DIR_HDF5=$(spack location -i hdf5)
@@ -34,7 +34,7 @@ export COMPILE_STR="--prob=gr_tov
                     --coord=gr_dynamical
                     --eos=adiabatictaudyn_rep
                     --flux=llftaudyn
-                    -z -g -f -z_vc
+                    -z -g -f -z_vc -omp
                     --cxx g++
                     --nghost=4
                     --ncghost=4
@@ -99,7 +99,8 @@ source ${DIR_SCRIPTS}/utils/dump_info.sh
 
 ###############################################################################
 # execute
-source utils/exec.sh
+source utils/exec.i.sh
+source utils/exec.r.sh
 ###############################################################################
 
 

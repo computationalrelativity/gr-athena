@@ -20,7 +20,7 @@ export DIR_GSL=$(spack location -i gsl)
 
 export COMPILE_STR="--prob=z4c_one_puncture
                     -z -z_cx
-                    --cxx g++ -omp
+                    --cxx g++-simd -omp
                     --nghost=4
                     --ncghost=4
                     --ncghost_cx=4

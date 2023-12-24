@@ -20,10 +20,10 @@ export DIR_GSL=$(spack location -i gsl)
 
 export COMPILE_STR="--prob=z4c_one_puncture
                     -z -z_vc
-                    --cxx g++ -omp
+                    --cxx g++-simd -omp
                     --nghost=4
-                    --ncghost=5
-                    --ncghost_cx=5
+                    --ncghost=4
+                    --ncghost_cx=4
                     --nextrapolate=4"
 
 # apply caching compiler together with gold linker
@@ -70,6 +70,6 @@ source ${DIR_SCRIPTS}/utils/dump_info.sh
 source utils/exec.sh
 ###############################################################################
 
-tail -n5 ${DIR_OUTPUT}/one_puncture.hst
+# tail -n5 ${DIR_OUTPUT}/one_puncture.hst
 
 # >:D

@@ -3,20 +3,24 @@ problem_id      = one_puncture         # Basename of output filenames
 
 <problem>
 puncture        = one_puncture
+punc_ADM_mass    = 1.0
 
 <z4c>
 lapse_harmonic  = 0.0       # Harmonic lapse parameter mu_L
 lapse_oplog     = 1.0       # 1+log lapse parameter
 shift_eta       = 2.0       # Shift damping term
-diss            = 0.05      # Kreiss-Oliger dissipation parameter
+diss            = 0.02      # Kreiss-Oliger dissipation parameter
 chi_div_floor   = 1e-6
-damp_kappa1     = 0.00      # Constraint damping factor 1
-damp_kappa2     = 0.01      # Constraint damping factor 2
+damp_kappa1     = 0.02      # Constraint damping factor 1
+damp_kappa2     = 0.0       # Constraint damping factor 2
+
+chi_psi_power   = -4.0    # GRA paper "moving puncture gauge" take -4
+                          # For W^2 style can take -8?
 
 npunct = 1
 
 # Wave extraction
-nrad_wave_extraction = 1
+nrad_wave_extraction = 0
 extraction_radius_0 = 10
 
 extraction_nlev = 60
@@ -31,67 +35,72 @@ start_time_0 = 0
 stop_time_0  = 10000
 wait_until_punc_are_close_0 = false
 
-
-<initial_data>
-punc_ADM_mass    = 1.0
-
 <output1>
-file_type       = hst       # History data
+file_type       = hst      # History data
 dt              = 0.1      # time increment between outputs
 data_format     = %.16e
 
 <output2>
 file_type       = hdf5                 # Athena++ hdf5 data
 variable        = z4c                  # variables to be output
-dt              = 1                  # time increment between outputs
-data_format     = %.16e
+dt              = 0.5                  # time increment between outputs
+x3_slice = 0.0
+data_format=%.15g
 
 <output3>
 file_type       = hdf5                 # Athena++ hdf5 data
 variable        = adm                  # variables to be output
-dt              = 0.1                  # time increment between outputs
-data_format     = %.16e
+dt              = 0.5                  # time increment between outputs
+x3_slice = 0.0
+data_format=%.15g
 
-<output4>
-file_type       = hdf5                 # Athena++ hdf5 data
-variable        = con                  # variables to be output
-dt              = 0.1                  # time increment between outputs
-data_format     = %.16e
+#
+# <output3>
+# file_type       = hdf5                 # Athena++ hdf5 data
+# variable        = adm                  # variables to be output
+# dt              = 0.1                  # time increment between outputs
+# data_format     = %.16e
+#
+# <output4>
+# file_type       = hdf5                 # Athena++ hdf5 data
+# variable        = con                  # variables to be output
+# dt              = 0.1                  # time increment between outputs
+# data_format     = %.16e
 
 <time>
-cfl_number      = 0.75                 # The Courant, Friedrichs, & Lewy (CFL) number
-tlim            = 0.05                   # time limit
+cfl_number      = 0.25                 # The Courant, Friedrichs, & Lewy (CFL) number
+tlim            = 1                   # time limit
 integrator      = rk4                  # time integrator
 
 <mesh>
-refinement      = static               # Static mesh refinement
+refinement      = none               # Static mesh refinement
 
-nx1             = 64                    # Number of zones in X1-direction
-x1min           = -20.1                  # minimum value of X1
-x1max           =  20                  # maximum value of X1
+nx1             = 64                   # Number of zones in X1-direction
+x1min           = -4                   # minimum value of X1
+x1max           =  4                   # maximum value of X1
 ix1_bc          = extrapolate_outflow  # inner-X1 boundary flag
 ox1_bc          = extrapolate_outflow  # inner-X1 boundary flag
 
 nx2             = 64                    # Number of zones in X2-direction
-x2min           = -20                  # minimum value of X2
-x2max           =  20.1                  # maximum value of X2
+x2min           = -4                  # minimum value of X2
+x2max           =  4                  # maximum value of X2
 ix2_bc          = extrapolate_outflow  # inner-X2 boundary flag
 ox2_bc          = extrapolate_outflow  # inner-X2 boundary flag
 
 nx3             = 64                    # Number of zones in X3-direction
-x3min           = -20.1                  # minimum value of X3
-x3max           =  20                  # maximum value of X3
+x3min           = -4                  # minimum value of X3
+x3max           =  4                  # maximum value of X3
 ix3_bc          = extrapolate_outflow  # inner-X3 boundary flag
 ox3_bc          = extrapolate_outflow  # inner-X3 boundary flag
 
 num_threads = 1                      # Number of OpenMP threads per process
-numlevel = 3  # <refinement> level + 1
+numlevel = 2  # <refinement> level + 1
 
 
 <meshblock>
-nx1             = 16
-nx2             = 16
-nx3             = 16
+nx1             = 64
+nx2             = 64
+nx3             = 64
 
 <refinement1>
 x1min           = -1.1

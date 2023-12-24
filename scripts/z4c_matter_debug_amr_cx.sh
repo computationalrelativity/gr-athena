@@ -10,7 +10,7 @@ export FN=$(readlink -f "$0"); export DIR_SCRIPTS=$(dirname "${FN}")
 # configure here
 export NINTERP=2
 
-export RUN_NAME=z4c_matter_debug_ninterp${NINTERP}
+export RUN_NAME=dbg_z4c_matter_debug_ninterp${NINTERP}
 
 export BIN_NAME=z4c
 export REL_OUTPUT=outputs/z4c_cx

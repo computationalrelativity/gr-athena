@@ -7,9 +7,9 @@
 cd ${DIR_OUTPUT}
 
 time ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
-# gprof ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME} > analysis.txt
+# gprof "./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}" > analysis.txt
 
-# gprof -b -p ./${EXEC_NAME}.x > analysis.txt
+gprof -b -p ./${EXEC_NAME}.x > analysis.txt
 
 # time ./${EXEC_NAME}.x -r z4c.00000.rst
 
@@ -45,7 +45,7 @@ time ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
 #   -ex=r --args ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
 
 # gdb \
-#   -ex 'break gr_dynamical.cpp:547' \
+#   -ex 'break calculate_z4c_rhs.cpp:47' \
 #   -ex 'info b' \
 #   -ex 'set print pretty on' \
 #   -ex 'set output-radix 10' \

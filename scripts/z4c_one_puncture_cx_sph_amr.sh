@@ -8,48 +8,26 @@ export FN=$(readlink -f "$0"); export DIR_SCRIPTS=$(dirname "${FN}")
 
 ###############################################################################
 # configure here
-export NINTERP=1
-export USE_HYBRIDINTERP=0
-
-export RUN_NAME=tov_vc_ninterp${NINTERP}
-if [ $USE_HYBRIDINTERP == 1 ]
-then
-  export RUN_NAME=${RUN_NAME}_hybridinterp
-fi
-
+export RUN_NAME=one_puncture_cx
 export BIN_NAME=z4c
-export REL_OUTPUT=outputs/z4c_vc
+export REL_OUTPUT=outputs/z4c_cx
 export REL_INPUT=scripts/problems
-export INPUT_NAME=z4c_tov.inp
+export INPUT_NAME=z4c_one_puncture.inp
 
 # if compilation is chosen
 export DIR_HDF5=$(spack location -i hdf5)
 export DIR_GSL=$(spack location -i gsl)
-export DIR_REP=$(spack location -i reprimand)
-export DIR_BOS=$(spack location -i boost)
-# this is needed...
-export DIR_GCC=$(spack location -i gcc)
 
-export COMPILE_STR="--prob=gr_tov
-                    --coord=gr_dynamical
-                    --eos=adiabatictaudyn_rep
-                    --flux=llftaudyn
-                    -z -g -f -z_vc
-                    --cxx g++
+export COMPILE_STR="--prob=z4c_one_puncture
+                    -z -z_cx
+                    --cxx g++ -omp
                     --nghost=4
                     --ncghost=4
                     --ncghost_cx=4
-                    --nextrapolate=5
-                    --ninterp=${NINTERP}"
-
-if [ $USE_HYBRIDINTERP == 1 ]
-then
-  export COMPILE_STR="${COMPILE_STR} -hybridinterp"
-fi
+                    --nextrapolate=4"
 
 # apply caching compiler together with gold linker
-# export COMPILE_STR="${COMPILE_STR} -ccache -link_gold"
-export COMPILE_STR="${COMPILE_STR} -ccache"
+export COMPILE_STR="${COMPILE_STR} -ccache -link_gold"
 
 # hdf5 compile str
 export COMPILE_STR="${COMPILE_STR} -hdf5 -h5double"
@@ -60,13 +38,6 @@ export COMPILE_STR="${COMPILE_STR} --include=${DIR_HDF5}/include"
 
 export COMPILE_STR="${COMPILE_STR} --lib_path=${DIR_GSL}/lib"
 export COMPILE_STR="${COMPILE_STR} --include=${DIR_GSL}/include"
-
-export COMPILE_STR="${COMPILE_STR} --lib_path=${DIR_REP}/lib"
-export COMPILE_STR="${COMPILE_STR} --include=${DIR_REP}/include"
-
-export COMPILE_STR="${COMPILE_STR} --lib_path=${DIR_BOS}/lib"
-export COMPILE_STR="${COMPILE_STR} --include=${DIR_BOS}/include"
-
 ###############################################################################
 
 echo "COMPILE_STR"
@@ -74,11 +45,8 @@ echo ${COMPILE_STR}
 
 ###############################################################################
 # ensure paths are adjusted and directory structure exists
-source ${DIR_SCRIPTS}/utils/provide_library_paths.sh ${DIR_GCC}
 source ${DIR_SCRIPTS}/utils/provide_library_paths.sh ${DIR_HDF5}
 source ${DIR_SCRIPTS}/utils/provide_library_paths.sh ${DIR_GSL}
-source ${DIR_SCRIPTS}/utils/provide_library_paths.sh ${DIR_REP}
-source ${DIR_SCRIPTS}/utils/provide_library_paths.sh ${DIR_BOS}
 source ${DIR_SCRIPTS}/utils/provide_compile_paths.sh
 ###############################################################################
 
@@ -102,5 +70,6 @@ source ${DIR_SCRIPTS}/utils/dump_info.sh
 source utils/exec.sh
 ###############################################################################
 
+tail -n5 ${DIR_OUTPUT}/one_puncture.hst
 
 # >:D

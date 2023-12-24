@@ -175,6 +175,14 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                                        xx_gs, yy_gs, zz_gs,
                                        fn_ini_data.c_str());
 
+    // std::cout << pmy_mesh->bns->gamma_poly1 << std::endl;
+    // std::cout << pmy_mesh->bns->kappa_poly1 / 2.6875380639256204e-4 << std::endl;
+
+    // std::cout << pmy_mesh->bns->gamma_poly2 << std::endl;
+    // std::cout << pmy_mesh->bns->kappa_poly2 / 2.6875380639256204e-4 << std::endl;
+
+    // std::exit(0);
+
     Lorene::Bin_NS * bns = pmy_mesh->bns;
     assert(bns->np == npoints_gs);
 
@@ -312,17 +320,23 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
     I = 0;      // reset
 
+    Real k_adi = pin->GetReal("hydro", "k_adi");
+    Real gamma_adi = pin->GetReal("hydro","gamma");
+
+
     for (int k = kl; k <= ku; ++k)
     for (int j = jl; j <= ju; ++j)
     for (int i = il; i <= iu; ++i)
     {
-
+      /*
       const Real w_rho = bns->nbar[I] / rho_unit;
       const Real eps = bns->ener_spec[I] / ener_unit;
 
       // Real egas = rho * (1.0 + eps);  <-------- ?
       Real egas = w_rho * eps;
       Real w_p = peos->PresFromRhoEg(w_rho, egas);
+
+      // Real w_p = k_adi*pow(w_rho,gamma_adi);
 
       // Kludge to make the pressure work with the EOS framework.
       if (!std::isfinite(w_p) && (egas == 0. || w_rho == 0.)) {
@@ -346,12 +360,45 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
       const Real W = 1.0 / std::sqrt(1.0 - vsq);
 
+      */
+      const Real w_rho = bns->nbar[I] / rho_unit;
+      const Real w_p = k_adi*pow(w_rho,gamma_adi);
+
+      // const Real alpha    = bns->nnn[I];
+      // const Real beta_u_x = -bns->beta_x[I];
+      // const Real beta_u_y = -bns->beta_y[I];
+      // const Real beta_u_z = -bns->beta_z[I];
+
+      const Real v_u_x = bns->u_euler_x[I] / vel_unit; //  - beta_u_x / alpha;
+      const Real v_u_y = bns->u_euler_y[I] / vel_unit; //  - beta_u_y / alpha;
+      const Real v_u_z = bns->u_euler_z[I] / vel_unit; //  - beta_u_z / alpha;
+
+      const Real vsq = (
+        2.0*(v_u_x * v_u_y * bns->g_xy[I] +
+             v_u_x * v_u_z * bns->g_xz[I] +
+             v_u_y * v_u_z * bns->g_yz[I]) +
+        v_u_x * v_u_x * bns->g_xx[I] +
+        v_u_y * v_u_y * bns->g_yy[I] +
+        v_u_z * v_u_z * bns->g_zz[I]
+      );
+
+      const Real W = 1.0 / std::sqrt(1.0 - vsq);
+
+      phydro->w(IDN, k, j, i) = w_rho;
+      phydro->w(IVX, k, j, i) = W * v_u_x;
+      phydro->w(IVY, k, j, i) = W * v_u_y;
+      phydro->w(IVZ, k, j, i) = W * v_u_z;
+      phydro->w(IPR, k, j, i) = w_p;
+
+
+      /*
       // Copy all the variables over to Athena.
       phydro->w(IDN, k, j, i) = w_rho;
       phydro->w(IVX, k, j, i) = W * u_E_x;
       phydro->w(IVY, k, j, i) = W * u_E_y;
       phydro->w(IVZ, k, j, i) = W * u_E_z;
       phydro->w(IPR, k, j, i) = w_p;
+      */
 
       // phydro->w1(IDN, k, j, i) = phydro->w(IDN, k, j, i);
       // phydro->w1(IVX, k, j, i) = phydro->w(IVX, k, j, i);
@@ -472,6 +519,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   // No magnetic field, pass dummy or fix with overload
   //  AthenaArray<Real> null_bb_cc;
   pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pfield->bcc);
+
+  pz4c->ADMConstraints(pz4c->storage.con,
+                       pz4c->storage.adm,
+                       pz4c->storage.mat,
+                       pz4c->storage.u);
 
   // --------------------------------------------------------------------------
   return;
