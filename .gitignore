@@ -16,6 +16,9 @@ scripts/utils/__pycache__/
 deprecated/
 outputs/
 
+# clang
+.clang*
+
 # Compiled object files
 *.slo
 *.lo
