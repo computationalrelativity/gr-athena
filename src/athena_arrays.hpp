@@ -382,7 +382,6 @@ class AthenaArray {
           avg += operator()(ix);
           sz++;
         }
-        avg = avg / sz;
 
         break;
       }
@@ -394,7 +393,7 @@ class AthenaArray {
 
     }
 
-    return avg;
+    return avg / sz;
   }
 
   T num_max (const int nghost=0)
@@ -445,6 +444,56 @@ class AthenaArray {
     }
 
     return max;
+  }
+
+  T num_min (const int nghost=0)
+  {
+    T min = std::numeric_limits<T>::infinity();
+
+    switch (dim_)
+    {
+      case 3:
+      {
+        for (int kx=nghost; kx<nx3_-nghost; ++kx)
+        for (int jx=nghost; jx<nx2_-nghost; ++jx)
+        for (int ix=nghost; ix<nx1_-nghost; ++ix)
+        {
+          const T data = operator()(kx,jx,ix);
+          min = (data < min) ? data : min;
+        }
+
+        break;
+      }
+      case 2:
+      {
+        for (int jx=nghost; jx<nx2_-nghost; ++jx)
+        for (int ix=nghost; ix<nx1_-nghost; ++ix)
+        {
+          const T data = operator()(jx,ix);
+          min = (data < min) ? data : min;
+        }
+
+        break;
+      }
+      case 1:
+      {
+        for (int ix=nghost; ix<nx1_-nghost; ++ix)
+        {
+          const T data = operator()(ix);
+          min = (data < min) ? data : min;
+        }
+
+        break;
+      }
+      default:
+      {
+        assert(false); // you shouldn't be here
+        abort();
+      }
+
+    }
+
+    return min;
   }
   //---------------------------------------------------------------------------
 
@@ -586,7 +635,7 @@ AthenaArray<T> &AthenaArray<T>::operator= (AthenaArray<T> &&src) {
 template<typename T>
 void AthenaArray<T>::InitWithShallowSlice(AthenaArray<T> &src, const int dim,
                                           const int indx, const int nvar) {
-  dim_ = dim;
+  dim_ = dim - (dim > 0);  // case 1 is distinct
   pdata_ = src.pdata_;
   if (dim == 6) {
     nx6_ = nvar;
