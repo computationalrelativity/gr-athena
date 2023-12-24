@@ -144,7 +144,7 @@ parser.add_argument('--errorpolicy',
 # --flux=[name] argument
 parser.add_argument('--flux',
                     default='default',
-                    choices=['default', 'hlle', 'hllc', 'hlld', 'roe', 'llf', 'llftaudyn'],
+                    choices=['default', 'hlle', 'hlletaudyn', 'hllc', 'hlld', 'roe', 'llf', 'llftaudyn'],
                     help='select Riemann solver')
 
 # --nghost=[value] argument
@@ -528,7 +528,7 @@ if args['s'] and args['g']:
                      + 'GR implies SR; the -s option is restricted to pure SR')
 if args['t'] and not args['g']:
     raise SystemExit('### CONFIGURE ERROR: Frame transformations only apply to GR')
-if args['g'] and not args['t'] and args['flux'] not in ('llf','llftaudyn', 'hlle'):
+if args['g'] and not args['t'] and args['flux'] not in ('llf','llftaudyn', 'hlle', 'hlletaudyn'):
     raise SystemExit('### CONFIGURE ERROR: Frame transformations required for {0}'
                      .format(args['flux']))
 if args['g'] and args['coord'] in ('cartesian', 'cylindrical', 'spherical_polar'):
@@ -886,6 +886,7 @@ if args['cxx'] == 'g++':
     makefile_options['PREPROCESSOR_FLAGS'] = ''
     makefile_options['COMPILER_FLAGS'] = (
         '-O3 -std=c++17 -fwhole-program -flto=auto -fprefetch-loop-arrays -march=native '
+        # '-O3 -std=c++17 -fprefetch-loop-arrays -march=native '
         '-ffp-contract=off ' # disables FMA
         # '-finline-limit=2048 '
         # '-Wunknown-pragmas '

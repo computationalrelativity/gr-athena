@@ -136,6 +136,10 @@ void Hydro::RiemannSolver(
   pco_gr->GetGeometricFieldFC(beta_u,   z4c_beta_u,   ivx-1, k, j);
 
 
+  // various scratches
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> sqrt_detg_(    iu+1);
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> sqrt_detgamma_(iu+1);
+
 // #if defined(DBG_HYDRO_DUMPS)
 //   if (ivx==1)
 //   {
@@ -173,6 +177,10 @@ void Hydro::RiemannSolver(
       gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i),
       &gamma_uu(0,0,i), &gamma_uu(0,1,i), &gamma_uu(0,2,i),
       &gamma_uu(1,1,i), &gamma_uu(1,2,i), &gamma_uu(2,2,i));
+
+
+    sqrt_detgamma_(i) = std::sqrt(detgamma(i));
+    sqrt_detg_(i) = alpha(i) * sqrt_detgamma_(i);
   }
 
   #pragma omp simd
@@ -358,46 +366,46 @@ void Hydro::RiemannSolver(
          #pragma omp simd
       for (int i = il; i <= iu; ++i){
         // D = rho * gamma_lorentz
-        cons_l(IDN,i) = rho_l(i)*Wlor_l(i)*std::sqrt(detgamma(i));
+        cons_l(IDN,i) = rho_l(i)*Wlor_l(i)*sqrt_detgamma_(i);
         // tau = (rho * h = ) wgas * gamma_lorentz**2 - rho * gamma_lorentz - p
-        cons_l(IEN,i) = (wgas_l(i) * SQR(Wlor_l(i)) - rho_l(i)*Wlor_l(i) - pgas_l(i))*std::sqrt(detgamma(i));
+        cons_l(IEN,i) = (wgas_l(i) * SQR(Wlor_l(i)) - rho_l(i)*Wlor_l(i) - pgas_l(i))*sqrt_detgamma_(i);
         // S_i = wgas * gamma_lorentz**2 * v_i = wgas * gamma_lorentz * u_i
-        cons_l(IVX,i) = wgas_l(i) * Wlor_l(i) * utilde_d_l(0,i)*std::sqrt(detgamma(i));
-        cons_l(IVY,i) = wgas_l(i) * Wlor_l(i) * utilde_d_l(1,i)*std::sqrt(detgamma(i));
-        cons_l(IVZ,i) = wgas_l(i) * Wlor_l(i) * utilde_d_l(2,i)*std::sqrt(detgamma(i));
+        cons_l(IVX,i) = wgas_l(i) * Wlor_l(i) * utilde_d_l(0,i)*sqrt_detgamma_(i);
+        cons_l(IVY,i) = wgas_l(i) * Wlor_l(i) * utilde_d_l(1,i)*sqrt_detgamma_(i);
+        cons_l(IVZ,i) = wgas_l(i) * Wlor_l(i) * utilde_d_l(2,i)*sqrt_detgamma_(i);
         // Calculate fluxes in L region (rho u^i and T^i_\mu, where i = ivx)
         // D flux: D(v^i - beta^i/alpha)
          flux_l(IDN,i) = cons_l(IDN,i)*alpha(i)*(v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i));
 
         // tau flux: alpha(S^i - Dv^i) - beta^i tau
-          flux_l(IEN,i) = cons_l(IEN,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) + std::sqrt(detg(i))*pgas_l(i)*v_u_l(ivx-1,i);
+          flux_l(IEN,i) = cons_l(IEN,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) + sqrt_detg_(i)*pgas_l(i)*v_u_l(ivx-1,i);
  
         //S_i flux alpha S^j_i - beta^j S_i
-        flux_l(IVX,i) = cons_l(IVX,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i));      
-        flux_l(IVY,i) = cons_l(IVY,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i));      
-        flux_l(IVZ,i) = cons_l(IVZ,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i));      
-        flux_l(ivx,i) += pgas_l(i)*std::sqrt(detg(i));
+        flux_l(IVX,i) = cons_l(IVX,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i));
+        flux_l(IVY,i) = cons_l(IVY,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i));
+        flux_l(IVZ,i) = cons_l(IVZ,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i));
+        flux_l(ivx,i) += pgas_l(i)*sqrt_detg_(i);
 
         // D = rho * gamma_rorentz
-        cons_r(IDN,i) = rho_r(i)*Wlor_r(i)*std::sqrt(detgamma(i));
+        cons_r(IDN,i) = rho_r(i)*Wlor_r(i)*sqrt_detgamma_(i);
         // tau = (rho * h = ) wgas * gamma_rorentz**2 - rho * gamma_rorentz - p
-        cons_r(IEN,i) = (wgas_r(i) * SQR(Wlor_r(i)) - rho_r(i)*Wlor_r(i) - pgas_r(i))*std::sqrt(detgamma(i));
+        cons_r(IEN,i) = (wgas_r(i) * SQR(Wlor_r(i)) - rho_r(i)*Wlor_r(i) - pgas_r(i))*sqrt_detgamma_(i);
         // S_i = wgas * gamma_rorentz**2 * v_i = wgas * gamma_rorentz * u_i
-        cons_r(IVX,i) = wgas_r(i) * Wlor_r(i) * utilde_d_r(0,i)*std::sqrt(detgamma(i));
-        cons_r(IVY,i) = wgas_r(i) * Wlor_r(i) * utilde_d_r(1,i)*std::sqrt(detgamma(i));
-        cons_r(IVZ,i) = wgas_r(i) * Wlor_r(i) * utilde_d_r(2,i)*std::sqrt(detgamma(i));
+        cons_r(IVX,i) = wgas_r(i) * Wlor_r(i) * utilde_d_r(0,i)*sqrt_detgamma_(i);
+        cons_r(IVY,i) = wgas_r(i) * Wlor_r(i) * utilde_d_r(1,i)*sqrt_detgamma_(i);
+        cons_r(IVZ,i) = wgas_r(i) * Wlor_r(i) * utilde_d_r(2,i)*sqrt_detgamma_(i);
         // Calculate fluxes in L region (rho u^i and T^i_\mu, where i = ivx)
         // D flux: D(v^i - beta^i/alpha)
          flux_r(IDN,i) = cons_r(IDN,i)*alpha(i)*(v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i));
 
         // tau flux: alpha(S^i - Dv^i) - beta^i tau
-          flux_r(IEN,i) = cons_r(IEN,i) * alpha(i) * (v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) + std::sqrt(detg(i))*pgas_r(i)*v_u_r(ivx-1,i);
+          flux_r(IEN,i) = cons_r(IEN,i) * alpha(i) * (v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) + sqrt_detg_(i)*pgas_r(i)*v_u_r(ivx-1,i);
  
         //S_i flux alpha S^j_i - beta^j S_i
         flux_r(IVX,i) = cons_r(IVX,i) * alpha(i) * (v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i));      
         flux_r(IVY,i) = cons_r(IVY,i) * alpha(i) * (v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i));      
         flux_r(IVZ,i) = cons_r(IVZ,i) * alpha(i) * (v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i));      
-        flux_r(ivx,i) += pgas_r(i)*std::sqrt(detg(i));
+        flux_r(ivx,i) += pgas_r(i)*sqrt_detg_(i);
 
 // #if defined(DBG_HYDRO_DUMPS)
 //         flux_l.dump("data.rsolver.flux_l.tov");
