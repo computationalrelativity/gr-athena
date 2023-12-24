@@ -437,7 +437,10 @@ class Mesh {
                                  BoundaryFlag *block_bcs);
   void NewTimeStep();
   void OutputCycleDiagnostics();
-  void LoadBalancingAndAdaptiveMeshRefinement(ParameterInput *pin);
+
+  // returns true when Mesh changes, false otherwise
+  bool LoadBalancingAndAdaptiveMeshRefinement(ParameterInput *pin);
+
   int CreateAMRMPITag(int lid, int ox1, int ox2, int ox3);
   MeshBlock* FindMeshBlock(int tgid);
   void ApplyUserWorkBeforeOutput(ParameterInput *pin);

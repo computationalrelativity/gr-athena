@@ -1855,7 +1855,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         }
       }
 
-if(Z4C_ENABLED && FLUID_ENABLED){
+if(Z4C_ENABLED && FLUID_ENABLED)
+{
 // Initialise ADM Sources, after CC Bfield has been set in all ghost zones
 // during the C2P above
 #pragma omp for private(pmb,ph,pf,pz4c)

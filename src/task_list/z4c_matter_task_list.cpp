@@ -509,10 +509,6 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
 #endif // DBG_MONOLITHIC_MATTER
    } // end of using namespace block
 
-
-
-
-
 }
 
 //---------------------------------------------------------------------------------------
@@ -943,6 +939,15 @@ TaskStatus MatterTaskList::CalculateHydroFlux(MeshBlock *pmb, int stage) {
   Hydro *phydro = pmb->phydro;
   Field *pfield = pmb->pfield;
 
+#if defined(DBG_DIRECT_GRHD)
+  if (stage <= nstages)
+  {
+    // RHS eval.
+    return TaskStatus::next;
+  }
+  return TaskStatus::fail;
+#endif // DBG_DIRECT_GRHD
+
 //printf("chydfl\n");
   if (stage <= nstages) {
     if ((stage == 1) && (integrator == "vl2")) {
@@ -1019,7 +1024,8 @@ TaskStatus MatterTaskList::IntegrateHydro(MeshBlock *pmb, int stage) {
 
   if (pmb->pmy_mesh->fluid_setup != FluidFormulation::evolve) return TaskStatus::next;
 
-  if (stage <= nstages) {
+  if (stage <= nstages)
+  {
     // This time-integrator-specific averaging operation logic is identical to FieldInt
     Real ave_wghts[3];
     ave_wghts[0] = 1.0;
@@ -1030,6 +1036,27 @@ TaskStatus MatterTaskList::IntegrateHydro(MeshBlock *pmb, int stage) {
     ave_wghts[0] = stage_wghts[stage-1].gamma_1;
     ave_wghts[1] = stage_wghts[stage-1].gamma_2;
     ave_wghts[2] = stage_wghts[stage-1].gamma_3;
+
+#if defined(DBG_DIRECT_GRHD)
+    Real ave_wghts_1[3];
+    ave_wghts_1[0] = 1.0;
+    ave_wghts_1[1] = stage_wghts[stage-1].delta;
+    ave_wghts_1[2] = 0.0;
+
+    Real ave_wghts_2[3];
+    ave_wghts_2[0] = stage_wghts[stage-1].gamma_1;
+    ave_wghts_2[1] = stage_wghts[stage-1].gamma_2;
+    ave_wghts_2[2] = stage_wghts[stage-1].gamma_3;
+
+    ph->HydroRHS(ph->u, ph->w_init);
+
+    pmb->WeightedAveCC(ph->u1, ph->u, ph->u2, ave_wghts_1);
+    pmb->WeightedAveCC(ph->u, ph->u1, ph->u2, ave_wghts_2);
+    ph->AddHydroRHS(ph->w_init, stage_wghts[stage-1].beta, ph->u);
+
+    return TaskStatus::next;
+#endif // DBG_DIRECT_GRHD
+
     if (ave_wghts[0] == 0.0 && ave_wghts[1] == 1.0 && ave_wghts[2] == 0.0)
       ph->u.SwapAthenaArray(ph->u1);
     else
@@ -1042,6 +1069,7 @@ TaskStatus MatterTaskList::IntegrateHydro(MeshBlock *pmb, int stage) {
 //WGC this integrator never tested
     // Hardcode an additional flux divergence weighted average for the penultimate
     // stage of SSPRK(5,4) since it cannot be expressed in a 3S* framework
+
     if (stage == 4 && integrator == "ssprk5_4") {
       // From Gottlieb (2009), u^(n+1) partial calculation
       ave_wghts[0] = -1.0; // -u^(n) coeff.
@@ -2041,242 +2069,6 @@ void MatterTaskList::UpdateTaskListTriggers() {
 }
 
 
-#ifdef DBG_FULL_MONOLITHIC_MATTER
-TaskStatus MatterTaskList::DebugMonolithic(MeshBlock *pmb, int stage)
-{
-  Mesh *pm = pmb->pmy_mesh;
-  Hydro *ph = pmb->phydro;
-  Field *pf = pmb->pfield;
-  BoundaryValues *pbval = pmb->pbval;
-  Z4c *pz4c = pmb->pz4c;
-
-  if (stage <= nstages)
-  {
-    // CalculateHydroFlux [CALC_HYDFLX,NONE] ---------------------------------------
-    {
-      ph->CalculateFluxes(ph->w,  pf->b,  pf->bcc, pmb->precon->xorder);
-    }
-
-    // IntegrateHydro [INT_HYD,CALC_HYDFLX] -----------------------------------------------
-    {
-      Real ave_wghts[3];
-      ave_wghts[0] = 1.0;
-      ave_wghts[1] = stage_wghts[stage-1].delta;
-      ave_wghts[2] = 0.0;
-      pmb->WeightedAveCC(ph->u1, ph->u, ph->u2, ave_wghts);
-
-      ave_wghts[0] = stage_wghts[stage-1].gamma_1;
-      ave_wghts[1] = stage_wghts[stage-1].gamma_2;
-      ave_wghts[2] = stage_wghts[stage-1].gamma_3;
-      if (ave_wghts[0] == 0.0 && ave_wghts[1] == 1.0 && ave_wghts[2] == 0.0)
-        ph->u.SwapAthenaArray(ph->u1);
-      else
-        pmb->WeightedAveCC(ph->u, ph->u1, ph->u2, ave_wghts);
-
-      const Real wght = stage_wghts[stage-1].beta*pmb->pmy_mesh->dt;
-      ph->AddFluxDivergence(wght, ph->u);
-      // add coordinate (geometric) source terms
-      pmb->pcoord->AddCoordTermsDivergence(wght, ph->flux, ph->w, pf->bcc, ph->u);
-    }
-
-    // SendHydro [SEND_HYD,INT_HYD] ---------------------------------------------------
-    {
-      // Swap Hydro quantity in BoundaryVariable interface back to conserved var formulation
-      // (also needed in SetBoundariesHydro(), since the tasks are independent)
-      pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->u, HydroBoundaryQuantity::cons);
-      pmb->phydro->hbvar.SendBoundaryBuffers();
-      // pmb->phydro->hbvar.ClearBoundary(BoundaryCommSubset::all);
-    }
-
-    // ReceiveHydro [RECV_HYD,INT_HYD] ------------------------------------------------
-    {
-      // Note: Needs a blocking loop for debug
-      volatile bool recv_bnd = false;
-      do
-      {
-        recv_bnd = pmb->phydro->hbvar.ReceiveBoundaryBuffers();
-      }
-      while (!recv_bnd);
-
-      // g++ performs strange optimization with the following
-      // while (!(pmb->phydro->hbvar.ReceiveBoundaryBuffers()))
-      // { };
-    }
-
-    // CalculateZ4cRHS [CALC_Z4CRHS,NONE] ------------------------------------------
-    {
-      if (stage == 1)
-      {
-        for (auto ptracker : pmb->pmy_mesh->pz4c_tracker)
-        {
-          ptracker->InterpolateShift(pmb, pmb->pz4c->storage.u);
-        }
-      }
-
-      pmb->pz4c->Z4cRHS(pmb->pz4c->storage.u,
-                        pmb->pz4c->storage.mat,
-                        pmb->pz4c->storage.rhs);
-
-      // application of Sommerfeld boundary conditions
-      pmb->pz4c->Z4cBoundaryRHS(pmb->pz4c->storage.u,
-                            pmb->pz4c->storage.mat,
-                            pmb->pz4c->storage.rhs);
-    }
-
-    // IntegrateZ4c [INT_Z4C,CALC_Z4CRHS] -------------------------------------------------
-    {
-      // This time-integrator-specific averaging operation logic is identical
-      // to IntegrateField
-      Real ave_wghts[3];
-      ave_wghts[0] = 1.0;
-      ave_wghts[1] = stage_wghts[stage-1].delta;
-      ave_wghts[2] = 0.0;
-      pz4c->WeightedAve(pz4c->storage.u1, pz4c->storage.u,
-                        pz4c->storage.u2, ave_wghts);
-
-      ave_wghts[0] = stage_wghts[stage-1].gamma_1;
-      ave_wghts[1] = stage_wghts[stage-1].gamma_2;
-      ave_wghts[2] = stage_wghts[stage-1].gamma_3;
-
-      pz4c->WeightedAve(pz4c->storage.u, pz4c->storage.u1,
-                        pz4c->storage.u2, ave_wghts);
-      pz4c->AddZ4cRHS(pz4c->storage.rhs, stage_wghts[stage-1].beta,
-                      pz4c->storage.u);
-    }
-
-    // SendZ4c [SEND_Z4C,INT_Z4C] -----------------------------------------------------
-    {
-      pmb->pz4c->ubvar.SendBoundaryBuffers();
-    }
-
-    // ReceiveZ4c [RECV_Z4C,(INT_Z4C | RECV_HYD)] --------------------------------------------------
-    {
-      // Note: Needs a blocking loop for debug
-
-      volatile bool recv_bnd = false;
-      do
-      {
-        recv_bnd = pmb->pz4c->ubvar.ReceiveBoundaryBuffers();
-      }
-      while (!recv_bnd);
-    }
-
-    // SetBoundariesZ4c [SETB_Z4C,(RECV_Z4C|INT_Z4C)] --------------------------------------------
-    {
-      pmb->pz4c->ubvar.SetBoundaries();
-    }
-
-    // SetBoundariesHydro [SETB_HYD,(RECV_HYD|INT_HYD)] ------------------------------------------
-    {
-      pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->u, HydroBoundaryQuantity::cons);
-      pmb->phydro->hbvar.SetBoundaries();
-    }
-
-    // PhysicalBoundary_Z4c [PHY_BVAL_Z4C,SETB_Z4C] ------------------------------------
-    {
-      // Time at the end of stage for (u, b) register pair
-      Real t_end_stage = pmb->pmy_mesh->time + pmb->stage_abscissae[stage][0];
-      // Scaled coefficient for RHS time-advance within stage
-      Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
-
-      FCN_CC_CX_VC(
-          pbval->ApplyPhysicalBoundaries,
-          pbval->ApplyPhysicalCellCenteredXBoundaries,
-          pbval->ApplyPhysicalVertexCenteredBoundaries
-      )(t_end_stage, dt);
-    }
-
-    // EnforceAlgConstr [ALG_CONSTR,PHY_BVAL_Z4C] ------------------------------------------
-    if (stage == nstages)
-    {
-      pmb->pz4c->AlgConstr(pmb->pz4c->storage.u);
-    }
-
-    // Z4cToADM [Z4C_TO_ADM,(ALG_CONSTR|INT_HYD)] --------------------------------------------------
-    {
-      pmb->pz4c->Z4cToADM(pmb->pz4c->storage.u, pmb->pz4c->storage.adm);
-    }
-
-    // Primitives [CONS2PRIM,(SETB_HYD|Z4C_TO_ADM)] ---------------------------
-    {
-      int il = pmb->is, iu = pmb->ie, jl = pmb->js, ju = pmb->je, kl = pmb->ks, ku = pmb->ke;
-      if (pbval->nblevel[1][1][0] != -1) il -= NGHOST;
-      if (pbval->nblevel[1][1][2] != -1) iu += NGHOST;
-      if (pbval->nblevel[1][0][1] != -1) jl -= NGHOST;
-      if (pbval->nblevel[1][2][1] != -1) ju += NGHOST;
-      if (pbval->nblevel[0][1][1] != -1) kl -= NGHOST;
-      if (pbval->nblevel[2][1][1] != -1) ku += NGHOST;
-
-      pmb->peos->ConservedToPrimitive(ph->u, ph->w, pf->b,
-                                      ph->w1, pf->bcc, pmb->pcoord,
-                                      il, iu, jl, ju, kl, ku,0);
-
-      // swap AthenaArray data pointers so that w now contains the updated w_out
-      ph->w.SwapAthenaArray(ph->w1);
-    }
-
-    // PhysicalBoundary_Hyd [PHY_BVAL_HYD,CONS2PRIM] ------------------------------------
-    {
-      // Time at the end of stage for (u, b) register pair
-      Real t_end_stage = pmb->pmy_mesh->time + pmb->stage_abscissae[stage][0];
-      // Scaled coefficient for RHS time-advance within stage
-      Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
-      // Swap Hydro and (possibly) passive scalar quantities in BoundaryVariable interface
-      // from conserved to primitive formulations:
-      ph->hbvar.SwapHydroQuantity(ph->w, HydroBoundaryQuantity::prim);
-
-      //TODO VC/CC issue use correct Physical Boundary function
-      pbval->ApplyPhysicalBoundaries(t_end_stage, dt);
-
-    }
-
-    // UpdateSource [UPDATE_SRC,(CONS2PRIM|CALC_Z4CRHS)] ----------------------------------------------
-    {
-      pmb->pz4c->GetMatter(pmb->pz4c->storage.mat, pmb->pz4c->storage.adm, pmb->phydro->w, pmb->pfield->bcc);
-    }
-
-    // ADM_Constraints [ADM_CONSTR,(Z4C_TO_ADM | UPDATE_SRC)] -------------------------------------------
-    if (stage == nstages)
-    {
-      pmb->pz4c->Z4cToADM(pmb->pz4c->storage.u, pmb->pz4c->storage.adm);
-      /*
-
-      pmb->pz4c->GetMatter(pmb->pz4c->storage.mat,
-                          pmb->pz4c->storage.adm,
-                          pmb->phydro->w,
-                          pmb->pfield->bcc);
-      */
-      pmb->pz4c->ADMConstraints(pmb->pz4c->storage.con, pmb->pz4c->storage.adm,
-                                pmb->pz4c->storage.mat, pmb->pz4c->storage.u);
-    }
-
-    // UserWork [USERWORK,(ADM_CONSTR | PHY_BVAL_HYD)] ----------------------------------------------------
-    if (stage == nstages)
-    {
-      pmb->UserWorkInLoop();
-
-      // TODO: BD- this should be shifted to its own task
-      pmb->ptracker_extrema_loc->TreatCentreIfLocalMember();
-    }
-
-    // NewBlockTimeStep [NEW_DT,USERWORK] ----------------------------------------------
-    if (stage == nstages)
-    {
-      pmb->pz4c->NewBlockTimeStep();
-    }
-  }
-
-  // ClearAllBoundary [CLEAR_ALLBND] ------------------------------------------
-  {
-    pmb->pbval->ClearBoundary(BoundaryCommSubset::all);
-  }
-
-  return TaskStatus::success;
-}
-
-#endif // DBG_MONOLITHIC_MATTER
-
-
 #ifdef DBG_MONOLITHIC_MATTER
 TaskStatus MatterTaskList::DebugMonolithic(MeshBlock *pmb, int stage)
 {
@@ -2300,31 +2092,47 @@ TaskStatus MatterTaskList::DebugMonolithic(MeshBlock *pmb, int stage)
     ave_wghts_2[1] = stage_wghts[stage-1].gamma_2;
     ave_wghts_2[2] = stage_wghts[stage-1].gamma_3;
 
-    const Real wght = stage_wghts[stage-1].beta*pmb->pmy_mesh->dt;
-
     // Time at the end of stage for (u, b) register pair
     Real t_end_stage = pm->time + pmb->stage_abscissae[stage][0];
     // Scaled coefficient for RHS time-advance within stage
     Real dt = (stage_wghts[(stage-1)].beta)*(pm->dt);
 
-    int il = 0, iu = pmb->ncells1;
-    int jl = 0, ju = pmb->ncells2;
-    int kl = 0, ku = pmb->ncells3;
+    int il = 0, iu = pmb->ncells1-1;
+    int jl = 0, ju = pmb->ncells2-1;
+    int kl = 0, ku = pmb->ncells3-1;
     // ------------------------------------------------------------------------
+#if defined(DBG_DIRECT_GRHD)
+    // Debug: evolve hydro in conservative form without flux formulation
+    // Note:
+    // - Primitives need to be known / consistently seeded in ph->w
+    // - ph->w_init is used for storage (i.e. serves as ph->rhs)
+
+    // use w_init as rhs scratch
+    pmb->WeightedAveCC(ph->u1, ph->u, ph->u2, ave_wghts_1);
+    pmb->WeightedAveCC(ph->u, ph->u1, ph->u2, ave_wghts_2);
+
+    ph->HydroRHS(ph->u, ph->w_init);
+    ph->AddHydroRHS(ph->w_init, stage_wghts[stage-1].beta, ph->u);
+#else
+    // Hydro evolution in flux-conservative form
 
     // CalculateHydroFlux
-    ph->CalculateFluxes(ph->w,  pf->b,  pf->bcc, pmb->precon->xorder);
+    ph->CalculateFluxes(ph->w, pf->b, pf->bcc, pmb->precon->xorder);
 
     // IntegrateHydro
     pmb->WeightedAveCC(ph->u1, ph->u, ph->u2, ave_wghts_1);
     pmb->WeightedAveCC(ph->u, ph->u1, ph->u2, ave_wghts_2);
 
-    ph->AddFluxDivergence(wght, ph->u);
-    pmb->pcoord->AddCoordTermsDivergence(wght, ph->flux, ph->w, pf->bcc, ph->u);
+    ph->AddFluxDivergence(dt, ph->u);
+    pmb->pcoord->AddCoordTermsDivergence(dt, ph->flux, ph->w, pf->bcc, ph->u);
+
+#endif // DBG_DIRECT_GRHD
 
     // SendHydro
-    pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->u, HydroBoundaryQuantity::cons);
-    pmb->phydro->hbvar.SendBoundaryBuffers();
+    {
+      ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
+      ph->hbvar.SendBoundaryBuffers();
+    }
 
     // ReceiveHydro
     {
@@ -2332,23 +2140,25 @@ TaskStatus MatterTaskList::DebugMonolithic(MeshBlock *pmb, int stage)
       volatile bool recv_bnd = false;
       do
       {
-        recv_bnd = pmb->phydro->hbvar.ReceiveBoundaryBuffers();
+        recv_bnd = ph->hbvar.ReceiveBoundaryBuffers();
       }
       while (!recv_bnd);
 
       // g++ performs strange optimization with the following
-      // while (!(pmb->phydro->hbvar.ReceiveBoundaryBuffers()))
+      // while (!(ph->hbvar.ReceiveBoundaryBuffers()))
       // { };
     }
 
-    // CalculateZ4cRHS
-    pmb->pz4c->Z4cRHS(pmb->pz4c->storage.u,
-                      pmb->pz4c->storage.mat,
-                      pmb->pz4c->storage.rhs);
+    // // DEBUG: update ADM matter before z4c step?
+    // pmb->peos->ConservedToPrimitive(ph->u, ph->w, pf->b,
+    //                                 ph->w1, pf->bcc, pmb->pcoord,
+    //                                 il, iu, jl, ju, kl, ku, 0);
+    // pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, pmb->pfield->bcc);
 
-    pmb->pz4c->Z4cBoundaryRHS(pmb->pz4c->storage.u,
-                          pmb->pz4c->storage.mat,
-                          pmb->pz4c->storage.rhs);
+
+    // CalculateZ4cRHS
+    pz4c->Z4cRHS(pz4c->storage.u, pz4c->storage.mat, pz4c->storage.rhs);
+    pz4c->Z4cBoundaryRHS(pz4c->storage.u, pz4c->storage.mat, pz4c->storage.rhs);
 
     // IntegrateZ4c
     pz4c->WeightedAve(pz4c->storage.u1, pz4c->storage.u,
@@ -2359,7 +2169,7 @@ TaskStatus MatterTaskList::DebugMonolithic(MeshBlock *pmb, int stage)
                     pz4c->storage.u);
 
     // SendZ4c
-    pmb->pz4c->ubvar.SendBoundaryBuffers();
+    pz4c->ubvar.SendBoundaryBuffers();
 
     // ReceiveZ4c
     {
@@ -2368,17 +2178,17 @@ TaskStatus MatterTaskList::DebugMonolithic(MeshBlock *pmb, int stage)
       volatile bool recv_bnd = false;
       do
       {
-        recv_bnd = pmb->pz4c->ubvar.ReceiveBoundaryBuffers();
+        recv_bnd = pz4c->ubvar.ReceiveBoundaryBuffers();
       }
       while (!recv_bnd);
     }
 
     // SetBoundariesZ4c
-    pmb->pz4c->ubvar.SetBoundaries();
+    pz4c->ubvar.SetBoundaries();
 
     // SetBoundariesHydro
-    pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->u, HydroBoundaryQuantity::cons);
-    pmb->phydro->hbvar.SetBoundaries();
+    ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
+    ph->hbvar.SetBoundaries();
 
     // PhysicalBoundary_Z4c
     FCN_CC_CX_VC(
@@ -2388,16 +2198,16 @@ TaskStatus MatterTaskList::DebugMonolithic(MeshBlock *pmb, int stage)
     )(t_end_stage, dt);
 
     // EnforceAlgConstr
-    if (stage == nstages)
-      pmb->pz4c->AlgConstr(pmb->pz4c->storage.u);
+    // if (stage == nstages)
+      pz4c->AlgConstr(pz4c->storage.u);
 
     // Z4cToADM
-    pmb->pz4c->Z4cToADM(pmb->pz4c->storage.u, pmb->pz4c->storage.adm);
+    pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
 
     // Primitives
     pmb->peos->ConservedToPrimitive(ph->u, ph->w, pf->b,
                                     ph->w1, pf->bcc, pmb->pcoord,
-                                    il, iu, jl, ju, kl, ku,0);
+                                    il, iu, jl, ju, kl, ku, 0);
 
     // swap AthenaArray data pointers so that w now contains the updated w_out
     ph->w.SwapAthenaArray(ph->w1);
@@ -2406,13 +2216,20 @@ TaskStatus MatterTaskList::DebugMonolithic(MeshBlock *pmb, int stage)
     ph->hbvar.SwapHydroQuantity(ph->w, HydroBoundaryQuantity::prim);
     pbval->ApplyPhysicalBoundaries(t_end_stage, dt);
 
+    // // Debug: the prims carry physical BC, should the cons now be rebuilt?
+    if (true)
+    {
+      pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pmb->pcoord,
+                                      il, iu, jl, ju, kl, ku);
+    }
+
     // UpdateSource
-    pmb->pz4c->GetMatter(pmb->pz4c->storage.mat, pmb->pz4c->storage.adm, pmb->phydro->w, pmb->pfield->bcc);
+    pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, pmb->pfield->bcc);
 
     // ADM_Constraints
     if (stage == nstages)
-      pmb->pz4c->ADMConstraints(pmb->pz4c->storage.con, pmb->pz4c->storage.adm,
-                                pmb->pz4c->storage.mat, pmb->pz4c->storage.u);
+      pz4c->ADMConstraints(pz4c->storage.con, pz4c->storage.adm,
+                           pz4c->storage.mat, pz4c->storage.u);
 
     // UserWork
     if (stage == nstages)
@@ -2420,7 +2237,7 @@ TaskStatus MatterTaskList::DebugMonolithic(MeshBlock *pmb, int stage)
 
     // NewBlockTimeStep
     if (stage == nstages)
-      pmb->pz4c->NewBlockTimeStep();
+      pz4c->NewBlockTimeStep();
   }
 
   // ClearAllBoundary

@@ -83,6 +83,38 @@ class Hydro {
   void AddGravityFluxWithGflx();
   void CalculateGravityFlux(AthenaArray<Real> &phi_in);
 
+  // Debug
+  void HydroRHS(   AthenaArray<Real> & u_cons, AthenaArray<Real> & u_rhs);
+  void AddHydroRHS(AthenaArray<Real> & rhs,
+                   Real const wght,
+                   AthenaArray<Real> &u_out);
+
+  void Hydro_IdealEoS_Prim2Cons(
+    const Real Gamma,
+    AthenaArray<Real> & prim,
+    AthenaArray<Real> & cons,
+    const int il, const int iu,
+    const int jl, const int ju,
+    const int kl, const int ku);
+
+  void Hydro_IdealEoS_Cons2Prim(
+    const Real Gamma,
+    AthenaArray<Real> & cons,
+    AthenaArray<Real> & prim,
+    const int il, const int iu,
+    const int jl, const int ju,
+    const int kl, const int ku);
+
+  void Hydro_IdealEoS_Cons2Prim(
+    const Real Gamma,
+    AthenaArray<Real> & cons,
+    AthenaArray<Real> & prim,
+    AthenaArray<Real> & prim_old,
+    const int il, const int iu,
+    const int jl, const int ju,
+    const int kl, const int ku);
+
+
  private:
 
   int fix_fluxes;

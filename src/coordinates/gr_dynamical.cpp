@@ -416,13 +416,21 @@ Real GRDynamical::GetCellVolume(const int k, const int j, const int i) {
 //   bb_cc: 3D array of cell-centered magnetic fields
 // Outputs:
 //   cons: source terms added to 3D array of conserved variables
-
+#ifdef DBG_MA_SOURCES
 void GRDynamical::AddCoordTermsDivergence(
   const Real dt,
   const AthenaArray<Real> *flux,
   const AthenaArray<Real> &prim,
   const AthenaArray<Real> &bb_cc,
   AthenaArray<Real> &cons)
+#else
+void GRDynamical::_AddCoordTermsDivergence(
+  const Real dt,
+  const AthenaArray<Real> *flux,
+  const AthenaArray<Real> &prim,
+  const AthenaArray<Real> &bb_cc,
+  AthenaArray<Real> &cons)
+#endif // DBG_MA_SOURCES
 {
   using namespace LinearAlgebra;
 
@@ -465,19 +473,27 @@ void GRDynamical::AddCoordTermsDivergence(
   AT_N_vec sl_w_util_u(const_cast<AthenaArray<Real>&>(prim), IVX);
 
   // Scratch for matter sampling
-  AT_N_sca ms_oo_detg_( ms_nn1); // det metric
-  AT_N_sca ms_alpha_(   ms_nn1); // lapse
-  AT_N_sca ms_w_hrho_(  ms_nn1); // h rho (EoS dep.)
-  AT_N_sca ms_W_(       ms_nn1); // Lorentz factor
-  AT_N_vec ms_beta_u_(  ms_nn1); // beta^i
-  // AT_N_vec ms_beta_d_(  ms_nn1); // beta_j
-  AT_N_vec ms_w_util_u_(ms_nn1); // fluid velocity
+  AT_N_sca ms_detg_(     ms_nn1); // det metric
+  AT_N_sca ms_sqrt_detg_(ms_nn1); // sqrt det metric
+  AT_N_sca ms_oo_detg_(  ms_nn1); // 1 / det metric
+  AT_N_sca ms_alpha_(    ms_nn1); // lapse
+  AT_N_sca ms_w_hrho_(   ms_nn1); // h rho (EoS dep.)
+  AT_N_sca ms_W_(        ms_nn1); // Lorentz factor
+  AT_N_vec ms_beta_u_(   ms_nn1); // beta^i
+  AT_N_vec ms_w_util_u_( ms_nn1); // fluid velocity
+  AT_N_vec ms_w_util_d_( ms_nn1); // fluid velocity
 
-  AT_N_sca ms_src_wei_( ms_nn1); // alpha * sqrt(det)
+  AT_N_sca ms_K_(        ms_nn1); // trace extrinsic
+
+  // AT_N_sca ms_src_wei_( ms_nn1);  // alpha * sqrt(det)
 
   AT_N_sym ms_adm_gamma_dd_(ms_nn1); // gamma_{ij}
   AT_N_sym ms_adm_gamma_uu_(ms_nn1); // gamma^{ij}
   AT_N_sym ms_adm_K_dd_(    ms_nn1); // K_{ij}
+
+  AT_N_D1sym ms_Gamma_ddd_(ms_nn1);  // Christoffel symbols of 1st kind
+  AT_N_D1sym ms_Gamma_udd_(ms_nn1);  // Christoffel symbols of 2nd kind
+  AT_N_vec   ms_Gamma_d_(  ms_nn1);    // contracted Christoffel
 
 
   // Derivative scratch
@@ -486,8 +502,8 @@ void GRDynamical::AddCoordTermsDivergence(
   AT_N_D1sym ms_adm_dgamma_ddd_(ms_nn1); // pd_i gamma_{jk}
 
   // Source terms
-  AT_N_sca ms_S_tau(ms_nn1);
-  AT_N_vec ms_S_S_d(ms_nn1);
+  AT_N_sca ms_S_tau_(ms_nn1);
+  AT_N_vec ms_S_S_d_(ms_nn1);
 
   // --------------------------------------------------------------------------
 
@@ -507,46 +523,59 @@ void GRDynamical::AddCoordTermsDivergence(
       GetGeometricFieldDerCC(ms_dbeta_du_,       z4c_beta_u,   a, k, j);
     }
 
-    /*
-    ms_adm_dgamma_ddd_.Fill(0);
-    ms_dalpha_d_.Fill(0);
-    ms_dbeta_du_.Fill(0);
+    // prepare g^{ij}
+    for (int i=il; i<=iu; ++i)
+    {
+      ms_detg_(i) = Det3Metric(ms_adm_gamma_dd_, i);
+      ms_sqrt_detg_(i) = std::sqrt(ms_detg_(i));
+      ms_oo_detg_(i) = 1. / ms_detg_(i);
+      Inv3Metric(ms_oo_detg_, ms_adm_gamma_dd_, ms_adm_gamma_uu_, i);
+    }
 
+    // prepare K
+    ms_K_.ZeroClear();
+    for (int a = 0; a < NDIM; ++a)
+    for (int b = 0; b < NDIM; ++b)
+    for (int i=il; i<=iu; ++i)
+    {
+      ms_K_(i) += ms_adm_gamma_uu_(a,b,i) * ms_adm_K_dd_(a,b,i);
+    }
+
+    // Prepare Christoffels (Gamma_{ijk})
+    for (int c=0; c<NDIM; ++c)
+    for (int a=0; a<NDIM; ++a)
+    for (int b=a; b<NDIM; ++b)
+    for (int i=il; i<=iu; ++i)
+    {
+      ms_Gamma_ddd_(c,a,b,i) = 0.5*(ms_adm_dgamma_ddd_(a,b,c,i) +
+                                    ms_adm_dgamma_ddd_(b,a,c,i) -
+                                    ms_adm_dgamma_ddd_(c,a,b,i));
+    }
+
+    // Prepare Christoffels (Gamma^i_{jk})
+    ms_Gamma_udd_.ZeroClear();
     for (int c = 0; c < NDIM; ++c)
     for (int a = 0; a < NDIM; ++a)
-    {
-      for (int b = 0; b < NDIM; ++b)
-      for (int i=il; i<=iu; ++i)
-      {
-        ms_adm_dgamma_ddd_(c,a,b,i) = fd_cx->Dx(c, adm_gamma_dd(a,b,k,j,i));
-      }
-
-      for (int i=il; i<=iu; ++i)
-      {
-        ms_dbeta_du_(c,a,i) = fd_cx->Dx(c, z4c_beta_u(a,k,j,i));
-      }
-
-    }
-
-    for (int c = 0; c < NDIM; ++c)
+    for (int b = a; b < NDIM; ++b)
+    for (int d = 0; d < NDIM; ++d)
     for (int i=il; i<=iu; ++i)
     {
-      ms_dalpha_d_(c,i) = fd_cx->Dx(c, z4c_alpha(k,j,i));
+      ms_Gamma_udd_(c,a,b,i) += ms_adm_gamma_uu_(c,d,i) * ms_Gamma_ddd_(d,a,b,i);
     }
-    */
 
-
-
-    // prepare (g^{ij}, alpha * sqrt(detg), h*rho)
+    // Prepare Christoffels (Gamma^k_{ik})
+    ms_Gamma_d_.ZeroClear();
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = 0; b < NDIM; ++b)
     for (int i=il; i<=iu; ++i)
     {
-      const Real detg = Det3Metric(ms_adm_gamma_dd_, i);
+      ms_Gamma_d_(a,i) += ms_Gamma_udd_(b,a,b,i);
+    }
 
-      ms_oo_detg_(i) = 1. / detg;
-      Inv3Metric(ms_oo_detg_, ms_adm_gamma_dd_, ms_adm_gamma_uu_, i);
 
-      ms_src_wei_(i) = ms_alpha_(i) * std::sqrt(detg);
-
+    // prepare h*rho
+    for (int i=il; i<=iu; ++i)
+    {
 #if USETM
       Real n = sl_w_rho(k,j,i)/mb;
       // FIXME: Generalize to work with EOSes accepting particle fractions.
@@ -568,110 +597,114 @@ void GRDynamical::AddCoordTermsDivergence(
       ms_w_util_u_(a,i) = sl_w_util_u(a,k,j,i);
     }
 
+    // prepare util_i
+    SlicedVecMet3Contraction(ms_w_util_d_, ms_w_util_u_, ms_adm_gamma_dd_,
+                             il, iu);
+
     // Lorentz factor
     for (int i=il; i<=iu; ++i)
     {
       Real const norm2_utilde = InnerProductSlicedVec3Metric(
-        ms_w_util_u_, ms_adm_gamma_uu_, i
+        ms_w_util_u_, ms_adm_gamma_dd_, i
       );
 
       ms_W_(i) = std::sqrt(1. + norm2_utilde);
     }
 
+
     // Prepare updates terms for sources
-    ms_S_tau.ZeroClear();
-    ms_S_S_d.ZeroClear();
+
+    // S_tau ------------------------------------------------------------------
+    ms_S_tau_.ZeroClear();
 
     for (int a=0; a<NDIM; ++a)
+    for (int b=0; b<NDIM; ++b)
+    for (int i=il; i<=iu; ++i)
     {
-      for (int b=0; b<NDIM; ++b)
-      for (int i=il; i<=iu; ++i)
-      {
-        ms_S_tau(i) += sl_w_p(k,j,i) * (
-          2 * SQR(ms_alpha_(i)) - 1./ SQR(ms_alpha_(i))
-        ) * ms_beta_u_(a,i) * ms_beta_u_(b,i) * ms_adm_K_dd_(a,b,i);
-
-        ms_S_tau(i) += (
-          sl_w_util_u(a,k,j,i) * sl_w_util_u(b,k,j,i) * ms_w_hrho_(i) +
-          sl_w_p(k,j,i) * ms_adm_gamma_uu_(a,b,i)
-        ) * ms_adm_K_dd_(a,b,i);
-      }
-
-      for (int i=il; i<=iu; ++i)
-      {
-        ms_S_tau(i) -= (
-          SQR(ms_alpha_(i)) * sl_w_p(k,j,i) * ms_beta_u_(a,i) +
-          ms_w_hrho_(i) * ms_W_(i) * sl_w_util_u(a,k,j,i) / ms_alpha_(i)
-        ) * ms_dalpha_d_(a,i);
-      }
+      ms_S_tau_(i) += ms_alpha_(i) * ms_w_hrho_(i) * (
+        ms_w_util_u_(a,i) * ms_w_util_u_(b,i) * ms_adm_K_dd_(a,b,i)
+      );
     }
 
-    for (int c=0; c<NDIM; ++c)
+    for (int a=0; a<NDIM; ++a)
+    for (int i=il; i<=iu; ++i)
     {
-      for (int a=0; a<NDIM; ++a)
-      for (int b=0; b<NDIM; ++b)
-      for (int i=il; i<=iu; ++i)
-      {
-        const Real oo_alpha  = 1. / ms_alpha_(i);
-        const Real oo_alpha2 = SQR(oo_alpha2);
+      ms_S_tau_(i) -= ms_w_hrho_(i) * ms_W_(i) * (
+        ms_w_util_u_(a,i) * ms_dalpha_d_(a,i)
+      );
+    }
 
-        // pd g terms
-        ms_S_S_d(c,i) += (
-          (SQR(ms_alpha_(i)) - 0.5 * oo_alpha2) * sl_w_p(k,j,i) +
-          0.5 * ms_w_hrho_(i) * SQR(ms_W_(i)) * oo_alpha2
-        ) * ms_beta_u_(a,i) * ms_beta_u_(b,i) * ms_adm_dgamma_ddd_(c,a,b,i);
+    for (int i=il; i<=iu; ++i)
+    {
+      ms_S_tau_(i) += ms_alpha_(i) * sl_w_p(k,j,i) * ms_K_(i);
+    }
 
-        ms_S_S_d(c,i) += 0.5 * ms_w_hrho_(i) * (
-          sl_w_util_u(a,k,j,i) * sl_w_util_u(b,k,j,i)
-        ) * ms_adm_dgamma_ddd_(c,a,b,i);
 
-        ms_S_S_d(c,i) += 0.5 * sl_w_p(k,j,i) * (
-          ms_adm_gamma_uu_(a,b,i)
-        ) * ms_adm_dgamma_ddd_(c,a,b,i);
+    // S_d --------------------------------------------------------------------
+    ms_S_S_d_.ZeroClear();
 
-        // pd beta terms
-        ms_S_S_d(c,i) += ms_beta_u_(b,i) * (
-          SQR(ms_alpha_(i)) * sl_w_p(k,j,i) -
-          ms_w_hrho_(i) * SQR(ms_W_(i)) * ms_adm_gamma_dd_(a,b,i) * oo_alpha2
-        ) * ms_dbeta_du_(c,a,i);
+    for (int a=0; a<NDIM; ++a)
+    for (int i=il; i<=iu; ++i)
+    {
+      ms_S_S_d_(a,i) += sl_w_p(k,j,i) * (
+        ms_dalpha_d_(a,i) + ms_alpha_(i) * ms_Gamma_d_(a,i)
+      );
 
-        ms_S_S_d(c,i) += (
-          ms_w_hrho_(i) * ms_W_(i) * sl_w_util_u(b,k,j,i) *
-          ms_adm_gamma_dd_(a,b,i) * oo_alpha
-        ) * ms_dbeta_du_(c,a,i);
-      }
+      ms_S_S_d_(a,i) -= SQR(ms_W_(i)) * ms_w_hrho_(i) * (
+        ms_dalpha_d_(a,i)
+      );
+    }
 
-      for (int i=il; i<=iu; ++i)
-      {
-        const Real oo_alpha  = 1. / ms_alpha_(i);
+    for (int a=0; a<NDIM; ++a)
+    for (int b=0; b<NDIM; ++b)
+    for (int i=il; i<=iu; ++i)
+    {
+      ms_S_S_d_(a,i) += ms_W_(i) * ms_w_hrho_(i) * (
+        ms_w_util_d_(b,i) * ms_dbeta_du_(a,b,i)
+      );
+    }
 
-        // pd alpha terms
-        ms_S_S_d(c,i) -= (
-          ms_w_hrho_(i) * SQR(ms_W_(i)) * oo_alpha
-        ) * ms_dalpha_d_(c,i);
-      }
+    for (int a=0; a<NDIM; ++a)
+    for (int b=0; b<NDIM; ++b)
+    for (int c=0; c<NDIM; ++c)
+    for (int i=il; i<=iu; ++i)
+    {
+      ms_S_S_d_(a,i) += ms_w_hrho_(i) * ms_alpha_(i) * (
+        ms_w_util_u_(b,i) * ms_w_util_d_(c,i) * ms_Gamma_udd_(c,a,b,i)
+      );
     }
 
     // Add sources
     for (int i=il; i<=iu; ++i)
     {
-      cons(IEN,k,j,i) += dt * ms_S_tau(i) * ms_src_wei_(i);
+      cons(IEN,k,j,i) += dt * ms_S_tau_(i) * ms_sqrt_detg_(i);
     }
 
     for (int c=0; c<NDIM; ++c)
     for (int i=il; i<=iu; ++i)
     {
-      cons(IM1+c,k,j,i) += dt * ms_S_S_d(c,i) * ms_src_wei_(i);
+      cons(IM1+c,k,j,i) += dt * ms_S_S_d_(c,i) * ms_sqrt_detg_(i);
     }
+
+
   }
 }
 
+#ifdef DBG_MA_SOURCES
 void GRDynamical::_AddCoordTermsDivergence(
   const Real dt,
   const AthenaArray<Real> *flux,
   const AthenaArray<Real> &prim,
   const AthenaArray<Real> &bb_cc,
   AthenaArray<Real> &cons)
+#else
+void GRDynamical::AddCoordTermsDivergence(
+  const Real dt,
+  const AthenaArray<Real> *flux,
+  const AthenaArray<Real> &prim,
+  const AthenaArray<Real> &bb_cc,
+  AthenaArray<Real> &cons)
+#endif // DBG_MA_SOURCES
 {
   using namespace LinearAlgebra;
 

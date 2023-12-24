@@ -37,7 +37,7 @@
 // \!fn void Mesh::LoadBalancingAndAdaptiveMeshRefinement(ParameterInput *pin)
 // \brief Main function for adaptive mesh refinement
 
-void Mesh::LoadBalancingAndAdaptiveMeshRefinement(ParameterInput *pin) {
+bool Mesh::LoadBalancingAndAdaptiveMeshRefinement(ParameterInput *pin) {
   int nnew = 0, ndel = 0;
 
   if (adaptive) {
@@ -45,11 +45,15 @@ void Mesh::LoadBalancingAndAdaptiveMeshRefinement(ParameterInput *pin) {
     nbnew += nnew; nbdel += ndel;
   }
 
+  // at least one (de)refinement happened
+  bool mesh_updated = nnew != 0 || ndel != 0;
+
   lb_flag_ |= lb_automatic_;
 
   UpdateCostList();
 
-  if (nnew != 0 || ndel != 0) { // at least one (de)refinement happened
+  if (mesh_updated)
+  {
     GatherCostListAndCheckBalance();
     RedistributeAndRefineMeshBlocks(pin, nbtotal + nnew - ndel);
   } else if (lb_flag_ && step_since_lb >= lb_interval_) {
@@ -57,7 +61,8 @@ void Mesh::LoadBalancingAndAdaptiveMeshRefinement(ParameterInput *pin) {
       RedistributeAndRefineMeshBlocks(pin, nbtotal);
     lb_flag_ = false;
   }
-  return;
+
+  return mesh_updated;
 }
 
 

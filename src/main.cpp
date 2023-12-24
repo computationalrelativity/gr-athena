@@ -34,9 +34,11 @@
 
 // Athena++ headers
 #include "athena.hpp"
+#include "defs.hpp"
 #include "fft/turbulence.hpp"
 #include "globals.hpp"
 #include "gravity/fft_gravity.hpp"
+#include "task_list/task_list.hpp"
 #ifdef MULTIGRID
 #include "gravity/mg_gravity.hpp"
 #endif // MULTIGRID
@@ -345,7 +347,7 @@ int main(int argc, char *argv[]) {
   try {
 #endif
 // Fluid but no dynamical spacetime
-    if(FLUID_ENABLED  && !Z4C_ENABLED){
+    if (FLUID_ENABLED  && !Z4C_ENABLED){
       ptlist = new TimeIntegratorTaskList(pinput, pmesh);
     }
 #ifdef ENABLE_EXCEPTIONS
@@ -368,7 +370,7 @@ int main(int argc, char *argv[]) {
   try {
 #endif
     // BD: new problem
-    if(WAVE_ENABLED) { // only init. when required
+    if (WAVE_ENABLED) { // only init. when required
       pwlist = new WaveIntegratorTaskList(pinput, pmesh);
     }
     // -BD
@@ -387,12 +389,13 @@ int main(int argc, char *argv[]) {
   Z4cIntegratorTaskList *pz4clist = nullptr;
   Z4cRBCTaskList        *pz4crbclist = nullptr;
   Z4cAuxTaskList        *pz4cauxlist = nullptr;
+  Z4cPostAMRTaskList    *pz4cpostamrlist = nullptr;
 
 #ifdef ENABLE_EXCEPTIONS
   try {
 #endif
 // Dynamical spacetime - no matter
-    if(Z4C_ENABLED && !FLUID_ENABLED) { // only init. when required
+    if (Z4C_ENABLED && !FLUID_ENABLED) { // only init. when required
       pz4clist = new Z4cIntegratorTaskList(pinput, pmesh);
     }
 #ifdef ENABLE_EXCEPTIONS
@@ -432,7 +435,7 @@ int main(int argc, char *argv[]) {
   try {
 #endif
 //Matter and dynamical spacetime
-    if(Z4C_ENABLED && FLUID_ENABLED) { // only init. when required
+    if (Z4C_ENABLED && FLUID_ENABLED) { // only init. when required
       pmatterlist = new MatterTaskList(pinput, pmesh);
     }
 #ifdef ENABLE_EXCEPTIONS
@@ -451,9 +454,10 @@ int main(int argc, char *argv[]) {
   try {
 #endif
 // Auxiliary tasklists for use with z4c and z4c+matter
-    if(Z4C_ENABLED) { // only init. when required
+    if (Z4C_ENABLED) { // only init. when required
       pz4crbclist = new Z4cRBCTaskList(pinput, pmesh);
       pz4cauxlist = new Z4cAuxTaskList(pinput, pmesh);
+      pz4cpostamrlist = new Z4cPostAMRTaskList(pinput, pmesh);
     }
 #ifdef ENABLE_EXCEPTIONS
   }
@@ -541,7 +545,7 @@ int main(int argc, char *argv[]) {
   // This controls computation of quantities within the main tasklist
   if (Z4C_ENABLED) {
     Real dt_con = pouts->GetOutputTimeStep("con");
-    if(!FLUID_ENABLED){
+    if (!FLUID_ENABLED){
       pz4clist->TaskListTriggers.con.dt = dt_con;
     } else{
       pmatterlist->TaskListTriggers.con.dt = dt_con;
@@ -604,7 +608,7 @@ int main(int argc, char *argv[]) {
 
 
     if (Z4C_ENABLED) {
-      if(!FLUID_ENABLED){
+      if (!FLUID_ENABLED){
       // This effectively means hydro takes a time-step and _then_ the given problem takes one
         for (int stage=1; stage<=pz4clist->nstages; ++stage) {
           pz4clist->DoTaskListOneStage(pmesh, stage);
@@ -641,20 +645,23 @@ int main(int argc, char *argv[]) {
       bool wave_update, cce_update;
       Real cce_dt;
 
-      if(!FLUID_ENABLED){
+      if (!FLUID_ENABLED)
+      {
         wave_update = pz4clist->TaskListTriggers.wave_extraction.to_update;
       } else {
         wave_update = pmatterlist->TaskListTriggers.wave_extraction.to_update;
       }
 
-      if (wave_update) {
+      if (wave_update)
+      {
         for (auto pwextr : pmesh->pwave_extr) {
           pwextr->ReduceMultipole();
           pwextr->Write(pmesh->ncycle, pmesh->time);
         }
       }
 #if CCE_ENABLED
-      if(!FLUID_ENABLED){
+      if (!FLUID_ENABLED)
+      {
         cce_update = pz4clist->TaskListTriggers.cce_dump.to_update;
         cce_dt = pz4clist->TaskListTriggers.cce_dump.dt;
       } else {
@@ -684,18 +691,22 @@ int main(int argc, char *argv[]) {
         }
       }
 #endif
-      for (auto pah_f : pmesh->pah_finder) {
+      for (auto pah_f : pmesh->pah_finder)
+      {
         if (pah_f->CalculateMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
       }
-      for (auto pah_f : pmesh->pah_finder) {
+      for (auto pah_f : pmesh->pah_finder)
+      {
         pah_f->Find(pmesh->ncycle, pmesh->time);
         pah_f->Write(pmesh->ncycle, pmesh->time);
       }
-      for (auto pah_f : pmesh->pah_finder) {
+      for (auto pah_f : pmesh->pah_finder)
+      {
         if (pah_f->DeleteMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
       }
       // TODO: probably we do not want to output tracker data at every timestep
-      for (auto ptracker : pmesh->pz4c_tracker) {
+      for (auto ptracker : pmesh->pz4c_tracker)
+      {
         ptracker->EvolveTracker();
         ptracker->WriteTracker(pmesh->ncycle, pmesh->time);
       }
@@ -708,7 +719,8 @@ int main(int argc, char *argv[]) {
       //-------------------------------------------------------------------------
       // Update NextTime triggers
       // This needs to be here to share tasklist external (though coupled) ops.
-      if(!FLUID_ENABLED){
+      if (!FLUID_ENABLED)
+      {
         pz4clist->UpdateTaskListTriggers();
       } else {
         pmatterlist->UpdateTaskListTriggers();
@@ -733,7 +745,21 @@ int main(int argc, char *argv[]) {
     mbcnt += pmesh->nbtotal;
     pmesh->step_since_lb++;
 
-    pmesh->LoadBalancingAndAdaptiveMeshRefinement(pinput);
+    bool mesh_updated = pmesh->LoadBalancingAndAdaptiveMeshRefinement(pinput);
+
+    // Post AMR hook;
+    // While state vectors are suitably populated on the blocks, other derived
+    // quantities such as e.g. ADM constraints, Weyl scalar are not.
+    //
+    // Some quantities, e.g. ADM constraints also _should not_ be interpolated.
+    //
+    // To rectify, we add a final task-list dealing with such quantities before
+    // output.
+
+    if (mesh_updated && Z4C_ENABLED)
+    {
+      pz4cpostamrlist->DoTaskListOneStage(pmesh, 1);  // only 1 stage
+    }
 
     pmesh->NewTimeStep();
 

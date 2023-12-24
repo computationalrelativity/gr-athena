@@ -29,6 +29,10 @@
 #include "reprimand/c2p_report.h"
 #include "reprimand/eos_idealgas.h"
 
+// debug:
+#include "../hydro/hydro.hpp"
+
+
 
 namespace {
 
@@ -138,6 +142,15 @@ void EquationOfState::ConservedToPrimitive(
   MeshBlock* pmb = pmy_block_;
   GRDynamical* pco_gr;
   int nn1;
+
+  // Debug:
+  if (false) {
+    pmb->phydro->Hydro_IdealEoS_Cons2Prim(gamma_adi, cons, prim,
+                                          const_cast<AthenaArray<Real> &>(prim_old),
+                                          il, iu, jl, ju, kl, ku);
+    return;
+  }
+
 
   if (coarse_flag)
   {
@@ -292,6 +305,7 @@ void EquationOfState::ConservedToPrimitive(
 
         if (rep.failed())
         {
+          // std::cout << "RF" << std::endl;
           /*
           if(eos_debug)
           {
@@ -408,6 +422,13 @@ void EquationOfState::PrimitiveToConserved(
   MeshBlock* pmb = pmy_block_;
   GRDynamical* pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
   Z4c * pz4c = pmb->pz4c;
+
+  // Debug:
+  if (false) {
+    pmb->phydro->Hydro_IdealEoS_Prim2Cons(gamma_adi, prim, cons,
+                                          il, iu, jl, ju, kl, ku);
+    return;
+  }
 
   // Require only ADM 3-metric and no gauge.
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_gamma_dd;
