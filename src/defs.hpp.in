@@ -43,13 +43,13 @@
 #define NO_DBG_HYDRO_DUMPS
 
 // use monolithic task in matter
-#define DBG_MONOLITHIC_MATTER
+#define NO_DBG_MONOLITHIC_MATTER
 
 // GRHD: use sources from Alcubierre book
-#define NO_DBG_MA_SOURCES
+#define @DBG_MA_SOURCES@
 
-// GRHD: use flux formulation (Riemann solver) vs direct integ.
-#define NO_DBG_DIRECT_GRHD
+// GRHD: flux formulation (Riemann solver) vs direct integ.
+#define @DBG_DIRECT_GRHD@
 
 //----------------------------------------------------------------------------------------
 // macros which define physics and algorithms

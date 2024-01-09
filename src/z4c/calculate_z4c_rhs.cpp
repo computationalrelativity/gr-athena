@@ -507,7 +507,9 @@ void Z4c::Z4cRHS(
     // lapse function
     ILOOP1(i) {
       Real const f = opt.lapse_oplog * opt.lapse_harmonicf + opt.lapse_harmonic * z4c.alpha(k,j,i);
-      rhs.alpha(k,j,i) = opt.lapse_advect * Lalpha(i) - f * z4c.alpha(k,j,i) * z4c.Khat(k,j,i);
+      rhs.alpha(k,j,i) = (opt.lapse_advect * Lalpha(i) -
+                          f * z4c.alpha(k,j,i) * (z4c.Khat(k,j,i) +
+                                                  2 * opt.lapse_K * z4c.Theta(k,j,i)));
     }
 
     // shift vector

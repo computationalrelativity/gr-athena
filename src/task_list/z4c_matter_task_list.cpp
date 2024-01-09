@@ -1026,17 +1026,6 @@ TaskStatus MatterTaskList::IntegrateHydro(MeshBlock *pmb, int stage) {
 
   if (stage <= nstages)
   {
-    // This time-integrator-specific averaging operation logic is identical to FieldInt
-    Real ave_wghts[3];
-    ave_wghts[0] = 1.0;
-    ave_wghts[1] = stage_wghts[stage-1].delta;
-    ave_wghts[2] = 0.0;
-    pmb->WeightedAveCC(ph->u1, ph->u, ph->u2, ave_wghts);
-
-    ave_wghts[0] = stage_wghts[stage-1].gamma_1;
-    ave_wghts[1] = stage_wghts[stage-1].gamma_2;
-    ave_wghts[2] = stage_wghts[stage-1].gamma_3;
-
 #if defined(DBG_DIRECT_GRHD)
     Real ave_wghts_1[3];
     ave_wghts_1[0] = 1.0;
@@ -1056,6 +1045,17 @@ TaskStatus MatterTaskList::IntegrateHydro(MeshBlock *pmb, int stage) {
 
     return TaskStatus::next;
 #endif // DBG_DIRECT_GRHD
+
+    // This time-integrator-specific averaging operation logic is identical to FieldInt
+    Real ave_wghts[3];
+    ave_wghts[0] = 1.0;
+    ave_wghts[1] = stage_wghts[stage-1].delta;
+    ave_wghts[2] = 0.0;
+    pmb->WeightedAveCC(ph->u1, ph->u, ph->u2, ave_wghts);
+
+    ave_wghts[0] = stage_wghts[stage-1].gamma_1;
+    ave_wghts[1] = stage_wghts[stage-1].gamma_2;
+    ave_wghts[2] = stage_wghts[stage-1].gamma_3;
 
     if (ave_wghts[0] == 0.0 && ave_wghts[1] == 1.0 && ave_wghts[2] == 0.0)
       ph->u.SwapAthenaArray(ph->u1);

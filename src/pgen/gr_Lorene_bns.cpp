@@ -47,10 +47,12 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 {
   if(adaptive==true)
     EnrollUserRefinementCondition(RefinementCondition);
+
 #if MAGNETIC_FIELDS_ENABLED
   AllocateUserHistoryOutput(1);
   EnrollUserHistoryOutput(0, DivBface, "divBface");
 #endif
+
   return;
 }
 
@@ -504,7 +506,20 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   // Construct Z4c vars from ADM vars ------------------------------------------
   pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
-  pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u1);
+  // pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u1);
+
+  // Allow override of Lorene gauge -------------------------------------------
+  bool fix_gauge_precollapsed = pin->GetOrAddBoolean(
+    "problem", "fix_gauge_precollapsed", false);
+
+  if (fix_gauge_precollapsed)
+  {
+    // to construct psi4
+    pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
+    pz4c->GaugePreCollapsedLapse(pz4c->storage.adm, pz4c->storage.u);
+  }
+  // --------------------------------------------------------------------------
+
 
   // Initialise conserved variables
   peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord,

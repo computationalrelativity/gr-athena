@@ -188,6 +188,7 @@ public:
     Real lapse_harmonicf;
     Real lapse_harmonic;
     Real lapse_advect;
+    Real lapse_K;
     // Gauge condition for the shift
     Real shift_Gamma;
     Real shift_alpha2Gamma;

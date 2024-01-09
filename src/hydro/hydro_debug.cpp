@@ -218,13 +218,13 @@ void Hydro::HydroRHS(AthenaArray<Real> & u_cons, AthenaArray<Real> & u_rhs)
 
   pco_gr->AddCoordTermsDivergence(1, _flux, w, _bcc, u_rhs);
 
-  // // dissipation
-  // for(int n = 0; n < NHYDRO; ++n)
-  // for(int a = 0; a < NDIM; ++a) {
-  //   ILOOP3(k,j,i) {
-  //     u_rhs(n,k,j,i) += fd->Diss(a, u_cons(n,k,j,i), 1e-2*pz4c->opt.diss);
-  //   }
-  // }
+  // dissipation
+  for(int n = 0; n < NHYDRO; ++n)
+  for(int a = 0; a < NDIM; ++a) {
+    ILOOP3(k,j,i) {
+      u_rhs(n,k,j,i) += fd->Diss(a, u_cons(n,k,j,i), pz4c->opt.diss);
+    }
+  }
 
 }
 
