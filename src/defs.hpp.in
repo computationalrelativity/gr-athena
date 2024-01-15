@@ -51,6 +51,11 @@
 // GRHD: flux formulation (Riemann solver) vs direct integ.
 #define @DBG_DIRECT_GRHD@
 
+// GRHD: sound speed
+#define @DBG_SOUNDSPEED_GRHD@
+
+#define @DBG_FLUX_FLOOR_GRHD@
+
 //----------------------------------------------------------------------------------------
 // macros which define physics and algorithms
 

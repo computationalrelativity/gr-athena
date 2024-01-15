@@ -52,6 +52,17 @@ void Hydro::RiemannSolver(
 
   MeshBlock * pmb = pmy_block;
 
+  if (0)
+  {
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      pmb->peos->ApplyPrimitiveFloors(prim_l,k,j,i);
+      pmb->peos->ApplyPrimitiveFloors(prim_r,k,j,i);
+    }
+  }
+
+
   // for readability
   const int D = NDIM + 1;
   const int N = NDIM;
@@ -148,6 +159,7 @@ void Hydro::RiemannSolver(
   for (int i = il; i <= iu; ++i)
   {
     detgamma_(i)      = Det3Metric(gamma_dd_, i);
+
     sqrt_detgamma_(i) = std::sqrt(detgamma_(i));
     oo_detgamma_(i)   = 1. / detgamma_(i);
 
@@ -375,6 +387,28 @@ void Hydro::RiemannSolver(
       flux(n,k,j,i) = 0.5 * (
         flux_l_(n,i) + flux_r_(n,i) - lambda(i) * (cons_r_(n,i) - cons_l_(n,i))
       );
+    }
+  }
+
+  if (0)
+  {
+    for (int i = il; i <= iu; ++i)
+    {
+      if ((cons_l_(IDN,i) < 0) || (cons_r_(IDN,i) < 0))
+      {
+        std::cout << "ERR_0:" << "k,j,i" << k << "," << j << "," << i << " vals:" << cons_l_(IDN,i) << ", " << cons_r_(IDN,i) << std::endl;
+      }
+
+      if ((w_rho_l_(i) < 1e-20) || (w_rho_r_(i) < 1e-20))
+      {
+        std::cout << "ERR_1:" << "k,j,i" << k << "," << j << "," << i << " vals:" << w_rho_l_(i) << "," << w_rho_r_(i) << std::endl;
+      }
+
+      if (detgamma_(i) < 0)
+      {
+        std::cout << "ERR_2" << "k,j,i" << k << "," << j << "," << i << std::endl;
+      }
+
     }
   }
 

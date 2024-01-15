@@ -358,7 +358,12 @@ void Hydro::Hydro_IdealEoS_Prim2Cons(
       );
 
 
-      if ((sl_q_D(k,j,i) < 0.) || (sl_q_tau(k,j,i) < 0.))
+      if ((sl_q_D(k,j,i) < 0.) || (sl_q_tau(k,j,i) < 0.) ||
+           std::isnan(sl_q_D(k,j,i)) ||
+           std::isnan(sl_q_S_d(0,k,j,i)) ||
+           std::isnan(sl_q_S_d(1,k,j,i)) ||
+           std::isnan(sl_q_S_d(2,k,j,i)) ||
+           std::isnan(sl_q_tau(k,j,i)))
       {
         sl_q_D(k,j,i) = 1e-20;
         sl_q_S_d(0,k,j,i) = 0;
@@ -514,8 +519,8 @@ void Hydro::Hydro_IdealEoS_Cons2Prim(
   const gsl_multiroot_fsolver_type *T;
   gsl_multiroot_fsolver *s;
 
-  const int max_iter = 10000;
-  const Real tol = 1e-15;
+  const int max_iter = 100;
+  const Real tol = 1e-12;
 
   int status;
   size_t i, iter = 0;
@@ -611,19 +616,19 @@ void Hydro::Hydro_IdealEoS_Cons2Prim(
       }
       */
 
-      if ((W < 1-tol) || (sl_w_rho(k,j,i) < 0.) || (sl_w_p(k,j,i) < 0.))
+      if ((W < 1-tol) || (sl_w_rho(k,j,i) < 1e-11) || (sl_w_p(k,j,i) < 0.) || (W > 100))
       {
-        sl_w_rho(k,j,i) = 1e-16;
+        sl_w_rho(k,j,i) = 1e-14;
         sl_w_util_u(0,k,j,i) = 0;
         sl_w_util_u(1,k,j,i) = 0;
         sl_w_util_u(2,k,j,i) = 0;
-        sl_w_p(k,j,i) = 1e-30;
+        sl_w_p(k,j,i) = 1e-26;
         // std::cout << "sl_w_rh: " << sl_w_rho(k,j,i)       << std::endl;
         // std::cout << "sl_w_ut: " << sl_w_util_u(0,k,j,i)  << std::endl;
         // std::cout << "sl_w_ut: " << sl_w_util_u(1,k,j,i)  << std::endl;
         // std::cout << "sl_w_ut: " << sl_w_util_u(2,k,j,i)  << std::endl;
         // std::cout << "sl_w_p(: " << sl_w_p(k,j,i)         << std::endl;
-        std::cout << "Flooring... " << iter << std::endl;
+        // std::cout << "Flooring... " << iter << std::endl;
         // std::exit(0);
       }
 
@@ -631,7 +636,7 @@ void Hydro::Hydro_IdealEoS_Cons2Prim(
 
   }
 
-  std::cout << "avg_iter: " << static_cast<Real>(avg_iter) / sz << std::endl;
+  // std::cout << "avg_iter: " << static_cast<Real>(avg_iter) / sz << std::endl;
 
   gsl_multiroot_fsolver_free(s);
   gsl_vector_free(x);
@@ -678,8 +683,8 @@ void Hydro::Hydro_IdealEoS_Cons2Prim(
   const gsl_multiroot_fsolver_type *T;
   gsl_multiroot_fsolver *s;
 
-  const int max_iter = 10000;
-  const Real tol = 1e-15;
+  const int max_iter = 100;
+  const Real tol = 1e-12;
 
   int status;
   size_t i, iter = 0;
@@ -706,11 +711,11 @@ void Hydro::Hydro_IdealEoS_Cons2Prim(
     {
       const Real sqrt_detg = std::sqrt(Det3Metric(sl_g_dd, k,j,i));
 
-      x_init[1] = prim_old(IDN,k,j,i);
-      x_init[2] = prim_old(IVX+0,k,j,i);
-      x_init[3] = prim_old(IVX+1,k,j,i);
-      x_init[4] = prim_old(IVX+2,k,j,i);
-      x_init[5] = prim_old(IPR,k,j,i);
+      x_init[1] = prim_old(IDN,k,j,i)   + 1e-5;
+      x_init[2] = prim_old(IVX+0,k,j,i) + 1e-5;
+      x_init[3] = prim_old(IVX+1,k,j,i) + 1e-5;
+      x_init[4] = prim_old(IVX+2,k,j,i) + 1e-5;
+      x_init[5] = prim_old(IPR,k,j,i)   + 1e-5;
 
       struct sys_Hydro_cons2prim_rparams p = {
         Eos_Gamma_ratio,
@@ -766,24 +771,27 @@ void Hydro::Hydro_IdealEoS_Cons2Prim(
       avg_iter += iter;
       sz++;
 
-      // if ((W < 1) || (sl_w_rho(k,j,i) < 0.))
-      if ((W < 1-tol) || (sl_w_rho(k,j,i) < 0.) || (sl_w_p(k,j,i) < 0.))
+      if ((W < 1-tol) || (sl_w_rho(k,j,i) < 1e-12) || (sl_w_p(k,j,i) < 0.))
       {
-        std::cout << std::setprecision(16);
-        std::cout << "W: " << W << std::endl;
-        std::cout << "sl_w_rh: " << sl_w_rho(k,j,i)       << std::endl;
-        std::cout << "sl_w_ut: " << sl_w_util_u(0,k,j,i)  << std::endl;
-        std::cout << "sl_w_ut: " << sl_w_util_u(1,k,j,i)  << std::endl;
-        std::cout << "sl_w_ut: " << sl_w_util_u(2,k,j,i)  << std::endl;
-        std::cout << "sl_w_p(: " << sl_w_p(k,j,i)         << std::endl;
-        std::cout << "iter: " << iter << std::endl;
-        std::exit(0);
+        sl_w_rho(k,j,i) = 1e-15;
+        sl_w_util_u(0,k,j,i) = 0;
+        sl_w_util_u(1,k,j,i) = 0;
+        sl_w_util_u(2,k,j,i) = 0;
+        sl_w_p(k,j,i) = 1e-28;
+        // std::cout << "sl_w_rh: " << sl_w_rho(k,j,i)       << std::endl;
+        // std::cout << "sl_w_ut: " << sl_w_util_u(0,k,j,i)  << std::endl;
+        // std::cout << "sl_w_ut: " << sl_w_util_u(1,k,j,i)  << std::endl;
+        // std::cout << "sl_w_ut: " << sl_w_util_u(2,k,j,i)  << std::endl;
+        // std::cout << "sl_w_p(: " << sl_w_p(k,j,i)         << std::endl;
+        // std::cout << "Flooring... " << iter << std::endl;
+        // std::exit(0);
       }
+
     }
 
   }
 
-  std::cout << "avg_iter: " << static_cast<Real>(avg_iter) / sz << std::endl;
+  // std::cout << "avg_iter: " << static_cast<Real>(avg_iter) / sz << std::endl;
 
   gsl_multiroot_fsolver_free(s);
   gsl_vector_free(x);

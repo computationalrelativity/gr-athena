@@ -31,6 +31,11 @@
 
 // debug:
 #include "../hydro/hydro.hpp"
+#include "reprimand/hydro_atmo.h"
+#include "reprimand/hydro_cons.h"
+#include "reprimand/hydro_prim.h"
+#include "reprimand/smtensor.h"
+#include "reprimand/unitconv.h"
 
 
 
@@ -45,7 +50,9 @@ namespace {
     AthenaArray<Real> &cons,
     Coordinates *pco);
 
-  Real fthr, fatm, rhoc;
+  using namespace EOS_Toolkit;
+
+  Real fthr, fatm;
   Real epsatm;
   Real k_adi, gamma_adi;
   EOS_Toolkit::real_t atmo_rho;
@@ -59,10 +66,17 @@ namespace {
   EOS_Toolkit::real_t atmo_eps;
   EOS_Toolkit::real_t atmo_ye;
   EOS_Toolkit::real_t atmo_cut;
+  EOS_Toolkit::real_t atmo_cut_p;
   EOS_Toolkit::real_t atmo_p;
-  using namespace EOS_Toolkit;
   EOS_Toolkit::eos_thermal eos;
 
+  // for readability
+  const int D = NDIM + 1;
+  const int N = NDIM;
+
+  typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
+  typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
+  typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
 }
 
 //----------------------------------------------------------------------------------------
@@ -74,54 +88,52 @@ namespace {
 EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin)
 {
   pmy_block_ = pmb;
+
+  // These variables (referred to elsewhere) are not meant to do anything
+  rho_min_ = NAN;
+  rho_pow_ = NAN;
+  pgas_min_ = NAN;
+  pgas_pow_ = NAN;
+  gamma_max_ = NAN;
+  epsatm = NAN;
+
+  // Active
   gamma_ = pin->GetReal("hydro", "gamma");
-  rho_min_ = pin->GetReal("hydro", "rho_min");
-  rho_pow_ = pin->GetOrAddReal("hydro", "rho_pow", 0.0);
-  pgas_min_ = pin->GetReal("hydro", "pgas_min");
-  pgas_pow_ = pin->GetOrAddReal("hydro", "pgas_pow", 0.0);
-  gamma_max_ = pin->GetOrAddReal("hydro", "gamma_max", 1000.0);
   fthr = pin -> GetReal("problem","fthr");
   fatm = pin -> GetReal("problem","fatm");
-  epsatm = pin -> GetOrAddReal("problem","epsatm",1.0e-8);
-  rhoc = pin -> GetReal("problem","rhoc");
   k_adi = pin -> GetReal("hydro","k_adi");
   gamma_adi = pin -> GetReal("hydro","gamma");
   alpha_excision = pin->GetOrAddReal("hydro", "alpha_excision", 0.0);
 
+  // Reprimand
   using namespace EOS_Toolkit;
  //Get some EOS
   real_t max_eps = 10000.;
   real_t max_rho = 1e6;
-  real_t adiab_ind = 1.0/(gamma_-1.0);
+  real_t adiab_ind = 1.0/(gamma_adi-1.0);
   eos = make_eos_idealgas(adiab_ind, max_eps, max_rho);
 
   //Set up atmosphere
-  atmo_rho = fatm*rhoc;
+  atmo_rho = fatm;
   atmo_eps = atmo_rho*k_adi;
   atmo_ye = 0.0;
   atmo_cut = atmo_rho * fthr;
   atmo_p = eos.at_rho_eps_ye(atmo_rho, atmo_eps, atmo_ye).press();
-  density_floor_ = atmo_rho;
-  pressure_floor_ = atmo_p;
+  atmo_cut_p = 0 * eos.at_rho_eps_ye(atmo_cut, atmo_eps, atmo_ye).press();
+
+  // // Needed?
+  // density_floor_ = atmo_rho;
+  // pressure_floor_ = atmo_p;
 
   //Primitive recovery parameters
-  rho_strict = 1e-20;
-  ye_lenient = false;
-  max_iter = 10000;
-  c2p_acc = 1e-10;
-  max_b = 10.;
-  max_z = pin -> GetOrAddReal("problem","max_z",20.0);
+  rho_strict = pin->GetOrAddReal("hydro", "rho_strict", atmo_rho);
 
-/*
-eos_debug = pin->GetOrAddBoolean("problem","eos_debug", false);
-if(eos_debug){
-  std::snprintf(ofname, BUFSIZ, "eos_fail_mb.%d.txt", pmb->gid);
-  ofile = fopen(ofname, "a");
-  fprintf(ofile, "EOS failures in MB %d.\n", pmb->gid);
-  fprintf(ofile, "#0 time #1: i  #2: j  #3: k  #4: x  #5: y  #6: z  #7: D  #8: tau  #9: S_1  #10: S_2  #11: S_3  #12: B^1  #13: B^2  #14: B^3  #15: g_11  #16: g_12  #17: g_13  #18: g_22  #19: g_23  #20: g_33  #21: coarseflag      .\n");
-  fclose(ofile);
-}
-*/
+  ye_lenient = false;
+  max_iter = pin->GetOrAddReal("hydro", "max_iter", 10000);
+  c2p_acc = pin->GetOrAddReal("hydro", "c2p_acc", 1e-12);
+  max_b = 10.;
+  max_z = pin -> GetOrAddReal("problem", "max_z", 100.0);
+
 }
 
 
@@ -141,13 +153,16 @@ void EquationOfState::ConservedToPrimitive(
 {
   MeshBlock* pmb = pmy_block_;
   GRDynamical* pco_gr;
+  Hydro* phydro = pmb->phydro;
+
   int nn1;
 
   // Debug:
   if (false) {
     pmb->phydro->Hydro_IdealEoS_Cons2Prim(gamma_adi, cons, prim,
-                                          const_cast<AthenaArray<Real> &>(prim_old),
+                                          // const_cast<AthenaArray<Real> &>(prim_old),
                                           il, iu, jl, ju, kl, ku);
+    // const_cast<AthenaArray<Real> &>(prim_old) = prim;
     return;
   }
 
@@ -192,6 +207,11 @@ void EquationOfState::ConservedToPrimitive(
   alpha.NewAthenaTensor(   nn1);
   beta_u.NewAthenaTensor(  nn1);
   gamma_dd.NewAthenaTensor(nn1);
+
+  // Prepare inverse + det outside Reprimand
+  AT_N_sym gamma_uu_(    iu+1);
+  AT_N_sca det_gamma_(   iu+1);
+  AT_N_sca oo_det_gamma_(iu+1);
 
   // need to pull quantities from appropriate storage
   if (!coarse_flag)
@@ -264,135 +284,124 @@ void EquationOfState::ConservedToPrimitive(
 
     }
 
+    #pragma omp simd
+    for (int i=IL; i<=IU; ++i)
+    {
+      det_gamma_(i) = LinearAlgebra::Det3Metric(gamma_dd, i);
+      oo_det_gamma_(i) = 1. / det_gamma_(i);
+      LinearAlgebra::Inv3Metric(oo_det_gamma_, gamma_dd, gamma_uu_, i);
+    }
+
     // do actual variable conversion ------------------------------------------
     #pragma omp simd
     for (int i=IL; i<=IU; ++i)
     {
       // Extract conserved quantities
-      const Real &Dg = cons(IDN,k,j,i);
-      const Real &taug = cons(IEN,k,j,i);
-      const Real &S_1g = cons(IVX,k,j,i);
-      const Real &S_2g = cons(IVY,k,j,i);
-      const Real &S_3g = cons(IVZ,k,j,i);
+      Real &Dg =   cons(IDN,k,j,i);
+      Real &taug = cons(IEN,k,j,i);
+      Real &S_1g = cons(IVX,k,j,i);
+      Real &S_2g = cons(IVY,k,j,i);
+      Real &S_3g = cons(IVZ,k,j,i);
 
       //Extract prims
-      Real &rho = prim(IDN,k,j,i);
-      Real &pgas = prim(IPR,k,j,i);
-      Real &uu1 = prim(IVX,k,j,i);
-      Real &uu2 = prim(IVY,k,j,i);
-      Real &uu3 = prim(IVZ,k,j,i);
-      Real eps=0.0;
-      Real w_lor = 1.0;
+      Real &w_rho = prim(IDN,k,j,i);
+      Real &w_p  = prim(IPR,k,j,i);
+      Real &uu1  = prim(IVX,k,j,i);
+      Real &uu2  = prim(IVY,k,j,i);
+      Real &uu3  = prim(IVZ,k,j,i);
+      Real eps   = 0.0;
+      Real W = 1.0;
       Real dummy = 0.0;
 
-      if(alpha(i) > alpha_excision)
+      // cons->prim requires atmosphere reset
+      phydro->q_reset_mask(k,j,i) = (
+        (alpha(i) <= alpha_excision) ||
+        std::isnan(Dg)   ||
+        std::isnan(taug) ||
+        std::isnan(S_1g) ||
+        std::isnan(S_2g) ||
+        std::isnan(S_3g) ||
+        (det_gamma_(i) < 0.)
+      );
+
+      if (~phydro->q_reset_mask(k,j,i))
       {
-        cons_vars_mhd evolved{Dg, taug, 0.0,
-                              {S_1g, S_2g, S_3g},
-                              {0.0, 0.0, 0.0}};
-        sm_tensor2_sym<real_t, 3, false, false> gtens(gamma_dd(0,0,i),
-                                                      gamma_dd(0,1,i),
-                                                      gamma_dd(1,1,i),
-                                                      gamma_dd(0,2,i),
-                                                      gamma_dd(1,2,i),
-                                                      gamma_dd(2,2,i));
-        sm_metric3 g_eos(gtens);
+        sm_tensor1<real_t, 3, false>  S_dg(S_1g, S_2g, S_3g);
+
+        cons_vars_mhd evolved{Dg, taug, 0.0, S_dg, {0., 0., 0.}};
+
+        sm_tensor2_sym<real_t, 3, false, false> rpgamma_dd(
+          gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(1,1,i),
+          gamma_dd(0,2,i), gamma_dd(1,2,i), gamma_dd(2,2,i));
+
+        sm_tensor2_sym<real_t, 3, true, true> rpgamma_uu(
+          gamma_uu_(0,0,i), gamma_uu_(0,1,i), gamma_uu_(1,1,i),
+          gamma_uu_(0,2,i), gamma_uu_(1,2,i), gamma_uu_(2,2,i));
+
+
+        sm_metric3 g_eos(rpgamma_dd, rpgamma_uu, det_gamma_(i));
         prim_vars_mhd primitives;
         con2prim_mhd::report rep;
         //recover
         cv2pv(primitives, evolved, g_eos, rep);
-        //check
 
-        if (rep.failed())
+        phydro->q_reset_mask(k,j,i) = (
+          phydro->q_reset_mask(k,j,i)  || rep.failed()
+        );
+
+        if (~phydro->q_reset_mask(k,j,i))
         {
-          // std::cout << "RF" << std::endl;
-          /*
-          if(eos_debug)
-          {
-            std::cerr << rep.debug_message();
-            std::cerr << " i = " << i << ", j = " << j << ", k = " << k << ", x = " << pco->x1v(i) << ", y = " << pco->x2v(j) << ", z = " << pco->x3v(k) << ", t = " << pmy_block_->pmy_mesh->time  << ", MB = " << pmy_block_->gid  << "\n";
-            ofile = fopen(ofname, "a");
-            fprintf(ofile, "%.16g  %d  %d  %d  %.16g  %.16g  %.16g  %.16g  %.16g  %.16g  %.16g  %.16g  0  0  0  %.16g  %.16g  %.16g  %.16g  %.16g  %.16g  %d      .\n",pmy_block_->pmy_mesh->time,i,j,k,pco->x1v(i),pco->x2v(j),pco->x3v(k),Dg,taug,S_1g,S_2g,S_3g,gamma_dd(0,0,i),gamma_dd(0,1,i),gamma_dd(0,2,i),gamma_dd(1,1,i),gamma_dd(1,2,i),gamma_dd(2,2,i),coarse_flag);
-            fclose(ofile);
-          }
-          */
-          uu1 = 0.0;
-          uu2 = 0.0;
-          uu3 = 0.0;
-          rho = atmo_rho;
-          pgas = k_adi*pow(atmo_rho,gamma_adi);
-          PrimitiveToConservedSingle(prim, gamma_adi, gamma_dd,
-                                     k, j, i, cons, pco);
-        }
-        else
-        {
-          primitives.scatter(rho, eps, dummy, pgas,
-                             uu1, uu2, uu3, w_lor,
+          primitives.scatter(w_rho, eps, dummy, w_p,
+                             uu1, uu2, uu3, W,
                              dummy, dummy, dummy,
                              dummy, dummy, dummy);
-          uu1 *= w_lor;
-          uu2 *= w_lor;
-          uu3 *= w_lor;
-          bool pgasfix = false;
+          uu1 *= W;
+          uu2 *= W;
+          uu3 *= W;
 
-          if(std::isnan(Dg)   || std::isnan(taug) ||
-             std::isnan(S_1g) || std::isnan(S_2g) ||
-             std::isnan(S_3g))
-          {
-            uu1 = 0.0;
-            uu2 = 0.0;
-            uu3 = 0.0;
-            rho = atmo_rho;
-            pgas = k_adi*pow(atmo_rho,gamma_adi);
-            PrimitiveToConservedSingle(prim, gamma_adi, gamma_dd,
-                                       k, j, i, cons, pco);
-            printf("NAN after success");
-          }
-
-          if(rho < fthr*atmo_rho)
-          {
-            uu1 = 0.0;
-            uu2 = 0.0;
-            uu3 = 0.0;
-            pgas = k_adi*pow(atmo_rho,gamma_adi);
-            rho = atmo_rho;
-            pgasfix = true;
-          }
-
-          if (rep.adjust_cons || rep.set_atmo || pgasfix)
-          {
-            PrimitiveToConservedSingle(prim, gamma_adi, gamma_dd,
-                                       k, j, i, cons, pco);
-          }
+          // check recovered do not need cut
+          phydro->q_reset_mask(k,j,i) = (
+            phydro->q_reset_mask(k,j,i)  ||
+            (w_rho < atmo_cut) ||
+            // // Below are additional checks (Use with PTCS disabled below)
+            (w_p < atmo_cut_p)   ||
+            (W < 1.)
+          );
         }
-
       }
-      else
+
+      // check if atmo. reset required
+      if (phydro->q_reset_mask(k,j,i))
       {
-        // hydro excision triggered if lapse < 0.3
-        pgas = k_adi*pow(atmo_rho,gamma_adi);
-        rho = atmo_rho;
+        w_p   = atmo_p;
+        w_rho = atmo_rho;
         uu1 = 0.0;
         uu2 = 0.0;
         uu3 = 0.0;
+
+        // PTCS: disabled
         PrimitiveToConservedSingle(prim, gamma_adi, gamma_dd,
                                    k, j, i, cons, pco);
+
+        /*
+        const Real Eos_Gamma_ratio = gamma_adi / (gamma_adi - 1.0);
+        const Real w_hrho = w_rho + Eos_Gamma_ratio * w_p;
+
+        // conservatives
+        const Real W_ = 1.;
+        Dg   = det_gamma_(i) * w_rho * W_;
+        S_1g = 0;
+        S_2g = 0;
+        S_3g = 0;
+        taug = det_gamma_(i) * (w_hrho * SQR(W_) -
+                                w_rho  * W_ -
+                                w_p);
+        */
       }
+
     }
   }
 
-  // clean-up
-  alpha.DeleteAthenaTensor();
-  beta_u.DeleteAthenaTensor();
-  gamma_dd.DeleteAthenaTensor();
-
-  if (coarse_flag)
-  {
-    chi.DeleteAthenaTensor();
-    rchi.DeleteAthenaTensor();
-  }
-
-  return;
 }
 
 //----------------------------------------------------------------------------------------
@@ -424,18 +433,16 @@ void EquationOfState::PrimitiveToConserved(
   Z4c * pz4c = pmb->pz4c;
 
   // Debug:
-  if (false) {
+  if (false)
+  {
     pmb->phydro->Hydro_IdealEoS_Prim2Cons(gamma_adi, prim, cons,
                                           il, iu, jl, ju, kl, ku);
     return;
   }
 
   // Require only ADM 3-metric and no gauge.
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_gamma_dd;
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
-
-  adm_gamma_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
-  gamma_dd.NewAthenaTensor(pmb->nverts1);
+  AT_N_sym sl_g_dd( pz4c->storage.adm, Z4c::I_ADM_gxx);
+  AT_N_sym gamma_dd(pmb->nverts1);
 
   // sanitize loop-limits
   int IL, IU, JL, JU, KL, KU;
@@ -457,16 +464,13 @@ void EquationOfState::PrimitiveToConserved(
   for (int k=KL; k<=KU; ++k)
   for (int j=JL; j<=JU; ++j)
   {
-    pco_gr->GetGeometricFieldCC(gamma_dd, adm_gamma_dd, k, j);
+    pco_gr->GetGeometricFieldCC(gamma_dd, sl_g_dd, k, j);
     for (int i=IL; i<=IU; ++i)
     {
-      PrimitiveToConservedSingle(prim, gamma_, gamma_dd,
+      PrimitiveToConservedSingle(prim, gamma_adi, gamma_dd,
                                  k, j, i, cons, pco);
     }
   }
-
-  gamma_dd.DeleteAthenaTensor();
-  return;
 }
 
 
@@ -492,135 +496,67 @@ inline static void PrimitiveToConservedSingle(
 
   AthenaArray<Real> utilde_u;  // primitive gamma^i_a u^a
   AthenaArray<Real> utilde_d;
-  AthenaArray<Real> v_d;
 
   utilde_u.NewAthenaArray(3);
   utilde_d.NewAthenaArray(3);
-  v_d.NewAthenaArray(3);
 
   // Apply floor to primitive variables. This should be
   // identical to what RePrimAnd does.
-  // coutBoldBlue("cut, gamma_adi: ");
-  // std::cout << atmo_cut << ", ";
-  // std::cout << gamma_adi << std::endl;
-
-  if (prim(IDN, k, j, i) < atmo_cut)
+  if ((prim(IDN,k,j,i) < atmo_cut) ||
+      (prim(IPR,k,j,i) < atmo_cut_p))
+  // if (prim(IDN,k,j,i) < atmo_cut)
   {
-    prim(IDN, k, j, i) = atmo_rho;
-    prim(IVX, k, j, i) = 0.0;
-    prim(IVY, k, j, i) = 0.0;
-    prim(IVZ, k, j, i) = 0.0;
-    prim(IPR, k, j, i) = atmo_p;
+    prim(IDN,k,j,i) = atmo_rho;
+    prim(IVX,k,j,i) = 0.0;
+    prim(IVY,k,j,i) = 0.0;
+    prim(IVZ,k,j,i) = 0.0;
+    prim(IPR,k,j,i) = atmo_p;
   }
 
-  const Real &rho = prim(IDN,k,j,i);
-  const Real &pgas = prim(IPR,k,j,i);
-
-  // const Real &uu1 = prim(IVX,k,j,i);
-  // const Real &uu2 = prim(IVY,k,j,i);
-  // const Real &uu3 = prim(IVZ,k,j,i);
+  const Real &w_rho = prim(IDN,k,j,i);
+  const Real &w_p   = prim(IPR,k,j,i);
 
   for(int a=0;a<NDIM;++a)
   {
     utilde_u(a) = prim(a+IVX,k,j,i);
   }
 
-  // Calculate 4-velocity
-  // Real alpha = std::sqrt(-1.0/gi(I00,i));
-  Real detgamma = std::sqrt(Det3Metric(gamma_dd, i));
+  // robust calc. of sqrt det
+  const Real detgamma = Det3Metric(gamma_dd, i);
+  const Real sqrt_detgamma = (
+    detgamma > 0
+  ) ? std::sqrt(Det3Metric(gamma_dd, i)) : 1.;
 
-  if(std::isnan(detgamma))
-  {
-    if(0)
-    {
-      printf("detgamma is nan\n");
-      printf("x = %.16e, y = %.16e, z = %.16e, \n "
-              "g_xx = %.16e g_xy = %.16e, g_xz = %.16e, "
-              "g_yy = %.16e, g_yz = %.16e, g_zz = %.16e\n",
-              pco->x1v(i), pco->x2v(j), pco->x3v(k),
-              gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
-              gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i));
-    }
-    detgamma = 1;
-  }
-
-  Real Wlor = 0.0;
+  // robust calc. of Lorentz factor
+  Real util_norm2 = 0;
   for(int a=0;a<NDIM;++a)
-  {
   for(int b=0;b<NDIM;++b)
   {
-    Wlor += utilde_u(a)*utilde_u(b)*gamma_dd(a,b,i);
+    util_norm2 += utilde_u(a)*utilde_u(b)*gamma_dd(a,b,i);
   }
-  }
 
-  Wlor = std::sqrt(1.0+Wlor);
-
-  if(std::isnan(Wlor))
-  {
-
-   if(0)
-   {
-   printf("Wlor is nan\n");
-    printf("x = %.16e, y = %.16e, z = %.16e\n",pco->x1v(i), pco->x2v(j), pco->x3v(k));
-   }
-
-   Wlor = 1.0;
-  }
-  // NB definitions have changed slightly here - a different velocity is being used . Double check me!
+  const Real W = (util_norm2 > -1.) ? std::sqrt(1.0 + util_norm2) : 1.;
 
   utilde_d.ZeroClear();
 
   for(int a=0;a<NDIM;++a)
+  for(int b=0;b<NDIM;++b)
   {
-    for(int b=0;b<NDIM;++b)
-    {
-      utilde_d(a) += utilde_u(b)*gamma_dd(a,b,i);
-    }
+    utilde_d(a) += utilde_u(b)*gamma_dd(a,b,i);
   }
-
-  for(int a=0;a<NDIM;++a)
-  {
-    v_d(a) = utilde_d(a)/Wlor;
-  }
-
-  // Real utilde_d_1 = g(I11,i)*uu1 + g(I12,i)*uu2 + g(I13,i)*uu3;
-  // Real utilde_d_2 = g(I12,i)*uu1 + g(I22,i)*uu2 + g(I23,i)*uu3;
-  // Real utilde_d_3 = g(I13,i)*uu1 + g(I23,i)*uu2 + g(I33,i)*uu3;
-
-  // Real v_1 = u_1/gamma;
-  // Real v_2 = u_2/gamma;
-  // Real v_3 = u_3/gamma;
-  // Real v_1 = utilde_d_1/gamma;
-  // Real v_2 = utilde_d_2/gamma;
-  // Real v_3 = utilde_d_3/gamma;
 
   // Extract conserved quantities
-  Real &Ddg = cons(IDN,k,j,i);
-  Real &taudg = cons(IEN,k,j,i);
-  Real &S_1dg = cons(IM1,k,j,i);
-  Real &S_2dg = cons(IM2,k,j,i);
-  Real &S_3dg = cons(IM3,k,j,i);
+  const Real w_hrho = w_rho + gamma_adi/(gamma_adi-1.0) * w_p;
 
-  // Set conserved quantities
-  // if (std::abs(detgamma - 1) > 1e-12)
-  // {
-  //   std::cout << "detgamma: " << detgamma;
-  //   std::cout << "(i,j,k) = ";
-  //   std::cout << i << "," << j << "," << k << std::endl;
-  // }
-
-  Real wgas = rho + gamma_adi/(gamma_adi-1.0) * pgas;
-  Ddg = rho*Wlor*detgamma;
-  taudg = wgas*SQR(Wlor)*detgamma - rho*Wlor*detgamma - pgas*detgamma;
-  S_1dg = wgas*SQR(Wlor) * v_d(0)*detgamma;
-  S_2dg = wgas*SQR(Wlor) * v_d(1)*detgamma;
-  S_3dg = wgas*SQR(Wlor) * v_d(2)*detgamma;
+  // Ddg, taudg, S_1dg, S_2dg, S_3dg
+  cons(IDN,k,j,i) = sqrt_detgamma * w_rho * W;
+  cons(IEN,k,j,i) = sqrt_detgamma * (w_hrho * SQR(W) - w_rho*W - w_p);
+  cons(IM1,k,j,i) = sqrt_detgamma * w_hrho * W * utilde_d(0);
+  cons(IM2,k,j,i) = sqrt_detgamma * w_hrho * W * utilde_d(1);
+  cons(IM3,k,j,i) = sqrt_detgamma * w_hrho * W * utilde_d(2);
 
   utilde_u.DeleteAthenaArray();
   utilde_d.DeleteAthenaArray();
-  v_d.DeleteAthenaArray();
-  return;
-
 }
 
 }
@@ -696,6 +632,54 @@ void EquationOfState::SoundSpeedsGR(Real rho_h, Real pgas, Real u0, Real u1, Rea
   return;
 }
 */
+
+#if defined (DBG_SOUNDSPEED_GRHD)
+
+void EquationOfState::SoundSpeedsGR(
+  Real rho_h, Real pgas,
+  Real vi, Real v2,
+  Real alpha,
+  Real betai, Real gammaii,
+  Real *plambda_plus, Real *plambda_minus) {
+
+  // Parameters and constants
+  const Real gamma_adi = gamma_;
+
+  const Real W = 1.0 / std::sqrt(1.0 - v2);
+  const Real alpha_2 = SQR(alpha);
+
+  const Real u0 = W / alpha;
+  const Real g00 = -1.0 / alpha_2;
+  const Real g01 = betai / alpha_2;
+  const Real u1 = (vi - betai / alpha) * W;
+  const Real g11 = gammaii - SQR(betai) / alpha_2;
+
+  // Calculate comoving sound speed
+  const Real cs_sq = gamma_adi * pgas / rho_h;
+
+  // Set sound speeds in appropriate coordinates
+  const Real a = SQR(u0) - (g00 + SQR(u0)) * cs_sq;
+  const Real b = -2.0 * (u0*u1 - (g01 + u0*u1) * cs_sq);
+  const Real c = SQR(u1) - (g11 + SQR(u1)) * cs_sq;
+  const Real d = std::max(SQR(b) - 4.0*a*c, 0.0);
+  // if (d < 0.0 && d > discriminant_tol) {
+  //   d = 0.0;
+  // }
+  const Real d_sqrt = std::sqrt(d);
+  const Real root_1 = (-b + d_sqrt) / (2.0*a);
+  const Real root_2 = (-b - d_sqrt) / (2.0*a);
+  if (root_1 > root_2) {
+    *plambda_plus = root_1;
+    *plambda_minus = root_2;
+  } else {
+    *plambda_plus = root_2;
+    *plambda_minus = root_1;
+  }
+  return;
+}
+
+#else
+
 void EquationOfState::SoundSpeedsGR(Real rho_h, Real pgas, Real vi, Real v2, Real alpha,
     Real betai, Real gammaii, Real *plambda_plus, Real *plambda_minus) {
   // Parameters and constants
@@ -724,37 +708,63 @@ void EquationOfState::SoundSpeedsGR(Real rho_h, Real pgas, Real vi, Real v2, Rea
   return;
 }
 
+#endif // DBG_SOUNDSPEED_GRHD
 
 //---------------------------------------------------------------------------------------
 // \!fn void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim,
 //           int k, int j, int i)
 // \brief Apply density and pressure floors to reconstructed L/R cell interface states
 
-void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j, int i) {
+void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j, int i)
+{
 
 
-  if(prim.GetDim4()==1){
-  Real& w_d  = prim(IDN,i);
-  Real& w_p  = prim(IPR,i);
-  w_d = (w_d > density_floor_) ?  w_d : density_floor_;
-  // apply pressure floor
-  w_p = (w_p > pressure_floor_) ?  w_p : pressure_floor_;
-  } else if(prim.GetDim4()==5){
-  Real& w_d  = prim(IDN,k,j,i);
-  Real& w_p  = prim(IPR,k,j,i); 
-  w_d = (w_d > density_floor_) ?  w_d : density_floor_;
-  // apply pressure floor
-  w_p = (w_p > pressure_floor_) ?  w_p : pressure_floor_;
+  if(prim.GetDim4()==1)
+  {
+    if ((prim(IDN,i) < atmo_cut) ||
+        (prim(IPR,i) < atmo_cut_p))
+    // if (prim(IDN,i) < atmo_cut)
+    {
+      prim(IDN,i) = atmo_rho;
+      prim(IVX,i) = 0.0;
+      prim(IVY,i) = 0.0;
+      prim(IVZ,i) = 0.0;
+      prim(IPR,i) = atmo_p;
+    }
   }
-  else{
-  printf("prim.GetDim4() = %d ApplyPrimitiveFloors only works with 1 or 5",prim.GetDim4());
+  else if(prim.GetDim4()==5)
+  {
+    if ((prim(IDN,k,j,i) < atmo_cut) ||
+        (prim(IPR,k,j,i) < atmo_cut_p))
+    // if (prim(IDN,k,j,i) < atmo_cut)
+    {
+      prim(IDN,k,j,i) = atmo_rho;
+      prim(IVX,k,j,i) = 0.0;
+      prim(IVY,k,j,i) = 0.0;
+      prim(IVZ,k,j,i) = 0.0;
+      prim(IPR,k,j,i) = atmo_p;
+    }
   }
-  // Not applying position-dependent floors here in GR, nor using rho_min
-  // apply density floor
-//  w_d = (w_d > density_floor_) ?  w_d : density_floor_;
-  // apply pressure floor
-//  w_p = (w_p > pressure_floor_) ?  w_p : pressure_floor_;
 
   return;
 }
 
+bool EquationOfState::RequirePrimitiveFloor(
+  const AthenaArray<Real> &prim, int k, int j, int i)
+{
+
+  bool rpf = false;
+
+  if(prim.GetDim4()==1)
+  {
+    rpf = ((prim(IDN,i) < atmo_cut) ||
+           (prim(IPR,i) < atmo_cut_p));
+  }
+  else if(prim.GetDim4()==5)
+  {
+    rpf = ((prim(IDN,k,j,i) < atmo_cut) ||
+           (prim(IPR,k,j,i) < atmo_cut_p));
+  }
+
+  return rpf;
+}

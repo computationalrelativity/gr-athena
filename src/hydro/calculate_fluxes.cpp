@@ -41,6 +41,29 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
   int il, iu, jl, ju, kl, ku;
 
+  if (0)
+  {
+
+    /*
+    for (int k=kl; k<=ku; ++k)
+    for (int j=jl; j<=ju; ++j)
+    for (int i=il; i<=iu; ++i)
+    {
+      pmb->peos->ApplyPrimitiveFloors(w,k,j,i);
+    }
+    */
+    for (int k=kl; k<=ku; ++k)
+    for (int j=jl; j<=ju; ++j)
+    for (int i=il; i<=iu; ++i)
+    {
+      if (pmb->peos->RequirePrimitiveFloor(w,k,j,i))
+      {
+        pmb->peos->ApplyPrimitiveFloors(w,k,j,i);
+        pmb->peos->PrimitiveToConserved(w,bcc,u,pmb->pcoord,i,i,j,j,k,k);
+      }
+    }
+  }
+
   // b,bcc are passed as fn parameters becausse clients may want to pass different bcc1,
   // b1, b2, etc., but the remaining members of the Field class are accessed directly via
   // pointers because they are unique. NOTE: b, bcc are nullptrs if no MHD.
@@ -87,6 +110,35 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
         pmb->precon->PiecewiseParabolicX1(k, j, is-1, ie+1, w, bcc, wl_, wr_);
       } else {
         pmb->precon->WenoX1(k, j, is-1, ie+1, w, bcc, wl_, wr_);
+
+#ifdef DBG_FLUX_FLOOR_GRHD
+        for (int i=is-1; i<=ie+1; ++i)
+        {
+          const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, k, j, i) ||
+                            pmb->peos->RequirePrimitiveFloor(wr_, k, j, i));
+
+          if (rpf)
+          {
+            // Floor the left/right states and reset conserved variable in parent
+            pmb->peos->ApplyPrimitiveFloors(w,k,j,i);
+            pmb->peos->ApplyPrimitiveFloors(wl_,k,j,i);
+            pmb->peos->ApplyPrimitiveFloors(wr_,k,j,i);
+            pmb->peos->PrimitiveToConserved(w,bcc,u,pmb->pcoord,i,i,j,j,k,k);
+
+            /*
+            pmb->precon->DonorCellX1(k, j, i-1, i, w, bcc, wl_, wr_);
+
+            const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, k, j, i) ||
+                              pmb->peos->RequirePrimitiveFloor(wr_, k, j, i));
+            if (rpf)
+            {
+            }
+            std::cout << "ERR1@k,j,i:" << k << "," << j << "," << i << std::endl;
+            */
+          }
+        }
+#endif // DBG_FLUX_FLOOR_GRHD
+
       }
       }
       else if(fix_fluxes==1){
@@ -203,6 +255,34 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
         pmb->precon->PiecewiseParabolicX2(k, js-1, il, iu, w, bcc, wl_, wr_);
       } else {
         pmb->precon->WenoX2(k, js-1, il, iu, w, bcc, wl_, wr_);
+
+#ifdef DBG_FLUX_FLOOR_GRHD
+        for (int i=il; i<=iu; ++i)
+        {
+
+          const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, k, js-1, i) ||
+                            pmb->peos->RequirePrimitiveFloor(wr_, k, js-1, i));
+
+          if (rpf)
+          {
+            pmb->peos->ApplyPrimitiveFloors(w,k,js-1,i);
+            pmb->peos->ApplyPrimitiveFloors(wl_,k,js-1,i);
+            pmb->peos->ApplyPrimitiveFloors(wr_,k,js-1,i);
+            pmb->peos->PrimitiveToConserved(w,bcc,u,pmb->pcoord,i,i,js-1,js-1,k,k);
+
+            /*
+            pmb->precon->DonorCellX2(k, js-1, i, i, w, bcc, wl_, wr_);
+
+            const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, k, js-1, i) ||
+                              pmb->peos->RequirePrimitiveFloor(wr_, k, js-1, i));
+            if (rpf)
+            {
+              std::cout << "ERR2@k,j,i:" << k << "," << js-1 << "," << i << std::endl;
+            }
+            */
+          }
+        }
+#endif // DBG_FLUX_FLOOR_GRHD
       }
       } else if(fix_fluxes==1){
       if (order == 1) {
@@ -227,6 +307,38 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
           pmb->precon->PiecewiseParabolicX2(k, j, il, iu, w, bcc, wlb_, wr_);
         } else {
           pmb->precon->WenoX2(k, j, il, iu, w, bcc, wlb_, wr_);
+
+#ifdef DBG_FLUX_FLOOR_GRHD
+          for (int i=il; i<=iu; ++i)
+          {
+
+            const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, k, j, i) ||
+                              pmb->peos->RequirePrimitiveFloor(wr_, k, j, i));
+
+            if (rpf)
+            {
+              pmb->peos->ApplyPrimitiveFloors(w,k,j,i);
+              pmb->peos->ApplyPrimitiveFloors(wl_,k,j,i);
+              pmb->peos->ApplyPrimitiveFloors(wr_,k,j,i);
+              pmb->peos->PrimitiveToConserved(w,bcc,u,pmb->pcoord,i,i,j,j,k,k);
+            }
+            /*
+            if (pmb->peos->RequirePrimitiveFloor(wl_, k, j, i) ||
+                pmb->peos->RequirePrimitiveFloor(wr_, k, j, i))
+            {
+              pmb->precon->DonorCellX2(k, j, i, i, w, bcc, wl_, wr_);
+
+              const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, k, j, i) ||
+                                pmb->peos->RequirePrimitiveFloor(wr_, k, j, i));
+              if (rpf)
+              {
+                std::cout << "ERR2@k,j,i:" << k << "," << j << "," << i << std::endl;
+              }
+            }
+            */
+          }
+#endif // DBG_FLUX_FLOOR_GRHD
+
         }
         } else if(fix_fluxes==1){
         if (order == 1) {
@@ -337,6 +449,39 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
         pmb->precon->PiecewiseParabolicX3(ks-1, j, il, iu, w, bcc, wl_, wr_);
       } else {
         pmb->precon->WenoX3(ks-1, j, il, iu, w, bcc, wl_, wr_);
+
+#ifdef DBG_FLUX_FLOOR_GRHD
+        for (int i=il; i<=iu; ++i)
+        {
+
+          const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, ks-1, j, i) ||
+                            pmb->peos->RequirePrimitiveFloor(wr_, ks-1, j, i));
+
+          if (rpf)
+          {
+            // Floor the left/right states and reset conserved variable in parent
+            pmb->peos->ApplyPrimitiveFloors(w,ks-1,j,i);
+            pmb->peos->ApplyPrimitiveFloors(wl_,ks-1,j,i);
+            pmb->peos->ApplyPrimitiveFloors(wr_,ks-1,j,i);
+            pmb->peos->PrimitiveToConserved(w,bcc,u,pmb->pcoord,i,i,j,j,ks-1,ks-1);
+
+          }
+          /*
+          if (pmb->peos->RequirePrimitiveFloor(wl_, ks-1, j, i) ||
+              pmb->peos->RequirePrimitiveFloor(wr_, ks-1, j, i))
+          {
+            pmb->precon->DonorCellX3(ks-1, j, i, i, w, bcc, wl_, wr_);
+
+            const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, ks-1, j, i) ||
+                              pmb->peos->RequirePrimitiveFloor(wr_, ks-1, j, i));
+            if (rpf)
+            {
+              std::cout << "ERR3@k,j,i:" << ks-1 << "," << j << "," << i << std::endl;
+            }
+          }
+          */
+        }
+#endif // DBG_FLUX_FLOOR_GRHD
       }
       } else if(fix_fluxes==1){
       if (order == 1) {
@@ -361,6 +506,39 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
           pmb->precon->PiecewiseParabolicX3(k, j, il, iu, w, bcc, wlb_, wr_);
         } else {
           pmb->precon->WenoX3(k, j, il, iu, w, bcc, wlb_, wr_);
+
+#ifdef DBG_FLUX_FLOOR_GRHD
+          for (int i=il; i<=iu; ++i)
+          {
+
+            const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, k, j, i) ||
+                              pmb->peos->RequirePrimitiveFloor(wr_, k, j, i));
+
+            if (rpf)
+            {
+              // Floor the left/right states and reset conserved variable in parent
+              pmb->peos->ApplyPrimitiveFloors(w,k,j,i);
+              pmb->peos->ApplyPrimitiveFloors(wl_,k,j,i);
+              pmb->peos->ApplyPrimitiveFloors(wr_,k,j,i);
+              pmb->peos->PrimitiveToConserved(w,bcc,u,pmb->pcoord,i,i,j,j,k,k);
+            }
+
+            /*
+            if (pmb->peos->RequirePrimitiveFloor(wl_, k, j, i) ||
+                pmb->peos->RequirePrimitiveFloor(wr_, k, j, i))
+            {
+              pmb->precon->DonorCellX3(k, j, i, i, w, bcc, wl_, wr_);
+
+              const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, k, j, i) ||
+                                pmb->peos->RequirePrimitiveFloor(wr_, k, j, i));
+              if (rpf)
+              {
+                std::cout << "ERR3@k,j,i:" << k << "," << j << "," << i << std::endl;
+              }
+            }
+            */
+          }
+#endif // DBG_FLUX_FLOOR_GRHD
         }
         } else if(fix_fluxes==1){
         if (order == 1) {

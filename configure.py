@@ -425,6 +425,16 @@ parser.add_argument('-DBG_MA_SOURCES',
                     default=False,
                     help="GRHD: use sources based on Alcubierre book?")
 
+parser.add_argument('-DBG_SOUNDSPEED_GRHD',
+                    action='store_true',
+                    default=False,
+                    help="GRHD: Check of sound-speed.")
+
+parser.add_argument('-DBG_FLUX_FLOOR_GRHD',
+                    action='store_true',
+                    default=False,
+                    help="GRHD: Floor prim l/r.")
+
 
 # The main choices for --cxx flag, using "ctype[-suffix]" formatting, where "ctype" is the
 # major family/suite/group of compilers and "suffix" may represent variants of the
@@ -1340,6 +1350,15 @@ if args['DBG_MA_SOURCES']:
 else:
     definitions['DBG_MA_SOURCES'] = "NO_DBG_MA_SOURCES"
 
+if args['DBG_SOUNDSPEED_GRHD']:
+    definitions['DBG_SOUNDSPEED_GRHD'] = "DBG_SOUNDSPEED_GRHD"
+else:
+    definitions['DBG_SOUNDSPEED_GRHD'] = "NO_DBG_SOUNDSPEED_GRHD"
+
+if args['DBG_FLUX_FLOOR_GRHD']:
+    definitions['DBG_FLUX_FLOOR_GRHD'] = "DBG_FLUX_FLOOR_GRHD"
+else:
+    definitions['DBG_FLUX_FLOOR_GRHD'] = "NO_DBG_FLUX_FLOOR_GRHD"
 
 # === Trimmed-down SRC_FILES needs treatment here =============================
 
