@@ -51,6 +51,11 @@ class Hydro {
   AthenaArray<Real> coarse_cons_, coarse_prim_;
   int refinement_idx{-1};
 
+  // prim: w, cons: q
+  // q<->w can fail; in this situation values need to be reset
+  // It is helpful to make a mask to this end
+  AthenaArray<bool> q_reset_mask;
+
   // fourth-order intermediate quantities
   AthenaArray<Real> u_cc, w_cc;      // cell-centered approximations
 

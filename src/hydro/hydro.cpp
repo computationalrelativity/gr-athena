@@ -30,7 +30,7 @@
 Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
     pmy_block(pmb), u(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
     w(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
-    w_init(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
+    // w_init(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
     u1(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
     w1(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
     // C++11: nested brace-init-list in Hydro member initializer list = aggregate init. of
@@ -50,17 +50,24 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
     coarse_prim_(NHYDRO, pmb->ncc3, pmb->ncc2, pmb->ncc1,
                  (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
                   AthenaArray<Real>::DataStatus::empty)),
+    q_reset_mask(pmb->ncells3, pmb->ncells2, pmb->ncells1),
     hbvar(pmb, &u, &coarse_cons_, flux, HydroBoundaryQuantity::cons),
     hsrc(this, pin),
-    hdif(this, pin) {
+    hdif(this, pin)
+{
   int nc1 = pmb->ncells1, nc2 = pmb->ncells2, nc3 = pmb->ncells3;
   Mesh *pm = pmy_block->pmy_mesh;
 
   pmb->RegisterMeshBlockDataCC(u);
-// debug fix flux
-fix_fluxes = pin->GetOrAddInteger("hydro","fix_fluxes",0);
-zero_div = pin->GetOrAddInteger("hydro","zero_div",0);
+  // debug fix flux
+  fix_fluxes = pin->GetOrAddInteger("hydro","fix_fluxes",0);
+  zero_div = pin->GetOrAddInteger("hydro","zero_div",0);
 
+  // only needed if fluxes / sources fixed
+  if (fix_fluxes || pin->GetOrAddBoolean("z4c","fix_admsource",0))
+  {
+    w_init.NewAthenaArray(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1);
+  }
 
   // Allocate optional memory primitive/conserved variable registers for time-integrator
   if (pmb->precon->xorder == 4) {

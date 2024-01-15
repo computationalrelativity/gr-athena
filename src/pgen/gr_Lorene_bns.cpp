@@ -276,14 +276,14 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     // prepare matter grid ----------------------------------------------------
     int npoints_cc = 0;
 
-    const int il = (block_size.nx1 > 1) ? is - NGHOST : is;
-    const int iu = (block_size.nx1 > 1) ? ie + NGHOST : ie;
+    const int il = 0;
+    const int iu = ncells1-1;
 
-    const int jl = (block_size.nx2 > 1) ? js - NGHOST : js;
-    const int ju = (block_size.nx2 > 1) ? je + NGHOST : je;
+    const int jl = 0;
+    const int ju = ncells2-1;
 
-    const int kl = (block_size.nx3 > 1) ? ks - NGHOST : ks;
-    const int ku = (block_size.nx3 > 1) ? ke + NGHOST : ke;
+    const int kl = 0;
+    const int ku = ncells3-1;
 
     for (int k = kl; k <= ku; ++k)
     for (int j = jl; j <= ju; ++j)
@@ -366,14 +366,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       const Real w_rho = bns->nbar[I] / rho_unit;
       const Real w_p = k_adi*pow(w_rho,gamma_adi);
 
-      // const Real alpha    = bns->nnn[I];
-      // const Real beta_u_x = -bns->beta_x[I];
-      // const Real beta_u_y = -bns->beta_y[I];
-      // const Real beta_u_z = -bns->beta_z[I];
-
-      const Real v_u_x = bns->u_euler_x[I] / vel_unit; //  - beta_u_x / alpha;
-      const Real v_u_y = bns->u_euler_y[I] / vel_unit; //  - beta_u_y / alpha;
-      const Real v_u_z = bns->u_euler_z[I] / vel_unit; //  - beta_u_z / alpha;
+      const Real v_u_x = bns->u_euler_x[I] / vel_unit;
+      const Real v_u_y = bns->u_euler_y[I] / vel_unit;
+      const Real v_u_z = bns->u_euler_z[I] / vel_unit;
 
       const Real vsq = (
         2.0*(v_u_x * v_u_y * bns->g_xy[I] +
@@ -391,22 +386,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       phydro->w(IVY, k, j, i) = W * v_u_y;
       phydro->w(IVZ, k, j, i) = W * v_u_z;
       phydro->w(IPR, k, j, i) = w_p;
-
-
-      /*
-      // Copy all the variables over to Athena.
-      phydro->w(IDN, k, j, i) = w_rho;
-      phydro->w(IVX, k, j, i) = W * u_E_x;
-      phydro->w(IVY, k, j, i) = W * u_E_y;
-      phydro->w(IVZ, k, j, i) = W * u_E_z;
-      phydro->w(IPR, k, j, i) = w_p;
-      */
-
-      // phydro->w1(IDN, k, j, i) = phydro->w(IDN, k, j, i);
-      // phydro->w1(IVX, k, j, i) = phydro->w(IVX, k, j, i);
-      // phydro->w1(IVY, k, j, i) = phydro->w(IVY, k, j, i);
-      // phydro->w1(IVZ, k, j, i) = phydro->w(IVZ, k, j, i);
-      // phydro->w1(IPR, k, j, i) = phydro->w(IPR, k, j, i);
 
       ++I;
     }
@@ -517,6 +496,23 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     // to construct psi4
     pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
     pz4c->GaugePreCollapsedLapse(pz4c->storage.adm, pz4c->storage.u);
+  }
+  // --------------------------------------------------------------------------
+
+  // consistent pressure atmosphere -------------------------------------------
+  bool id_floor_primitives = pin->GetOrAddBoolean(
+    "problem", "id_floor_primitives", false);
+
+  if (id_floor_primitives)
+  {
+
+    for (int k = 0; k <= ncells3-1; ++k)
+    for (int j = 0; j <= ncells2-1; ++j)
+    for (int i = 0; i <= ncells1-1; ++i)
+    {
+      peos->ApplyPrimitiveFloors(phydro->w, k, j, i);
+    }
+
   }
   // --------------------------------------------------------------------------
 

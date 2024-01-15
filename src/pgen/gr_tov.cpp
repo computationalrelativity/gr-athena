@@ -258,7 +258,6 @@ void Mesh::UserWorkAfterLoop(ParameterInput *pin)
 void MeshBlock::ProblemGenerator(ParameterInput *pin)
 {
   // Parameters - prefilled as TOV is added to these quantities
-  phydro->w_init.Fill(   0);
   phydro->w.Fill(        0);
   phydro->w1.Fill(       0);
   pz4c->storage.u.Fill(  0);
@@ -280,12 +279,23 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   AthenaTensor<Real, TensorSymm::SYM2, 4, 2> g_dd;
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> h_dd;
 
-  // phydro->w.dump("w.txt");
-  // std::exit(0);
-  // phydro->w_init.Fill(0);
-  // phydro->w.Fill(0);
-  // phydro->w1.Fill(0);
-  // pz4c->storage.mat.Fill(0);
+  // consistent pressure atmosphere -------------------------------------------
+  bool id_floor_primitives = pin->GetOrAddBoolean(
+    "problem", "id_floor_primitives", false);
+
+  if (id_floor_primitives)
+  {
+
+    for (int k = 0; k < ncells3; ++k)
+    for (int j = 0; j < ncells2; ++j)
+    for (int i = 0; i < ncells1; ++i)
+    {
+      peos->ApplyPrimitiveFloors(phydro->w, k, j, i);
+    }
+
+  }
+  // --------------------------------------------------------------------------
+
 
   // Initialise conserved variables
   peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord,
@@ -439,6 +449,7 @@ int TOV_rhs(Real r, Real *u, Real *k)
   Real drhodr = -(e+p) * dphidr / dpdrho;
 
   Real dmdr   = 4.*PI*r*r*e;
+  // Real dmdr   = 4.*PI*r*r*rho;
 
   // limiting behaviours (note m scales with r)
   Real f      = (r > 0) ? std::sqrt(1.-2.*m/r) : 1.;
@@ -580,6 +591,13 @@ int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts)
     const Real c4 = 1.0, a41 = 0.0, a42 = 0.0, a43 = 1.0;
 
     const Real b1 = 1./6., b2 = 1./3., b3 = 1./3., b4 = 1./6.;
+
+    // const Real c2 = 1./3., a21 = 1./3.;
+    // const Real c3 = 2./3., a31 =-1./3., a32 = 1.0;
+    // const Real c4 = 1.0,   a41 = 1.0,   a42 =-1.0, a43 = 1.0;
+
+    // const Real b1 = 1./8., b2 = 3./8., b3 = 3./8., b4 = 1./8.;
+
 
     while (n < maxsize)
     {
@@ -992,9 +1010,9 @@ void TOV_populate(MeshBlock *pmb,
   AT_N_sca psi4_init(  pz4c->storage.adm, Z4c::I_ADM_psi4);
 
   // matter
-  AT_N_sca sl_w_rho_init(   phydro->w_init, IDN);
-  AT_N_sca sl_w_p_init(     phydro->w_init, IPR);
-  AT_N_vec sl_w_util_u_init(phydro->w_init, IVX);
+  AT_N_sca sl_w_rho_init(   phydro->w, IDN);
+  AT_N_sca sl_w_p_init(     phydro->w, IPR);
+  AT_N_vec sl_w_util_u_init(phydro->w, IVX);
 
   // for debugging
   AT_N_sca sl_rho( pz4c->storage.mat, Z4c::I_MAT_rho);
@@ -1273,7 +1291,7 @@ void TOV_populate(MeshBlock *pmb,
   }
 
   // Populate hydro registers with the initial data
-  phydro->w = phydro->w1 = phydro->w_init;
+  phydro->w1 = phydro->w;
 
   // Initialise metric variables on geometric grid ----------------------------
   // Sets alpha, beta, g_ij, K_ij
