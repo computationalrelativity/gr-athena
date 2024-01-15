@@ -465,6 +465,26 @@ void Z4c::ADMConstraints(
       con.C(k,j,i) = SQR(con.H(k,j,i)) + con.M(k,j,i) + SQR(z4c.Theta(k,j,i)) + 4.0*con.Z(k,j,i);
     }
   }
+
+
+  // zero out values beyond fixed radius
+  ILOOP3(k,j,i)
+  {
+    const Real R = std::sqrt(SQR(mbi.x1(i)) + SQR(mbi.x2(j)) + SQR(mbi.x3(k)));
+
+    if (R > pz4c->opt.r_max_con)
+    {
+      con.Z(k,j,i) = 0.;
+      con.C(k,j,i) = 0.;
+      con.H(k,j,i) = 0.;
+      con.M(k,j,i) = 0.;
+      for(int a = 0; a < NDIM; ++a)
+      {
+        con.M_d(a,k,j,i) = 0.;
+      }
+    }
+  }
+
 }
 
 //----------------------------------------------------------------------------------------

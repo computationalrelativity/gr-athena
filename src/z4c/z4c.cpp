@@ -299,6 +299,8 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
       "problem", "impose_bitant_id", false);
 #endif
 
+  opt.r_max_con = pin->GetOrAddReal("z4c", "r_max_con",
+                                    std::numeric_limits<Real>::infinity());
 
   //---------------------------------------------------------------------------
   // Set aliases

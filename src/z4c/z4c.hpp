@@ -236,6 +236,9 @@ public:
 #ifdef TWO_PUNCTURES
     bool impose_bitant_id;
 #endif
+
+    // Compute constraints up to a maximum radius
+    Real r_max_con;
   } opt;
 
   // boundary and grid data (associated to state-vector)
