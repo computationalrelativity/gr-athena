@@ -561,15 +561,15 @@ namespace {
       for (int v = 0; v < TOV_NVAR; v++)
 	u1[v] = u[v] + 0.5*dr*k[v]; 
       // u_2 = u + dt/2 rhs(u_1)
-      stop += TOV_rhs(r, u1, k);
+      stop += TOV_rhs(r+0.5*dr, u1, k);
       for (int v = 0; v < TOV_NVAR; v++)
 	u2[v] = u[v] + 0.5*dr*k[v]; 
       // u_3 = u + dt rhs(u_2)
-      stop += TOV_rhs(r, u2, k);
+      stop += TOV_rhs(r+0.5*dr, u2, k);
       for (int v = 0; v < TOV_NVAR; v++)
 	u3[v] = u[v] + dr*k[v];
       // u = 1/6 ( -2 u + 2 u_1 + 4 u_2 + 2 u_3 + dt rhs(u_3) ) 
-      stop += TOV_rhs(r, u3, k);
+      stop += TOV_rhs(r+dr, u3, k);
       for (int v = 0; v < TOV_NVAR; v++) {
 	u[v] = oosix*( 2.*( - u[v] + u1[v] + u3[v] ) + 4.*u2[v] + dr*k[v] );
       }
