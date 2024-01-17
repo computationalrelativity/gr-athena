@@ -24,7 +24,7 @@
   #ifndef HDF5OUTPUT
     #error "HDF5 must be enabled to use HybridTable."
   #endif
-  #define USE_COMPOSE_EOS
+  #define USE_HYBRID_EOS
   #include "../z4c/primitive/hybrid_table.hpp"
 #else
   #error EOS_POLICY_CODE not recognized.

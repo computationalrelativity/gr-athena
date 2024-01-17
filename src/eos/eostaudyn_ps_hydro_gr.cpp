@@ -73,6 +73,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   eos.SetCodeUnitSystem(&Primitive::GeometricSolar);
   eos.ReadTableFromFile(table);
   #endif
+
   #ifdef USE_IDEAL_GAS
   // Baryon mass
   Real mb = pin->GetOrAddReal("hydro", "bmass", 1.0);
@@ -97,6 +98,9 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   #ifdef USE_IDEAL_GAS
   gamma_ = pin->GetOrAddReal("hydro", "gamma", 2.0);
   eos.SetGamma(gamma_);
+  #elif defined(USE_HYBRID_EOS)
+  gamma_ = pin->GetOrAddReal("hydro", "gamma_th", 2.0);
+  eos.SetThermalGamma(gamma_);
   #else
   // If we're not using a gamma-law EOS, we should not ever reference gamma.
   // Make sure that's the case by setting it to NaN.
@@ -372,11 +376,8 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real
     Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& ps) {
   // Extract the primitive variables
   Real prim_pt[NPRIM] = {0.0};
-  Real Y[MAX_SPECIES] = {0.0}; // FIXME: Need to add support for particle fractions.
-  for (int n=0; n<NSCALARS; n++) {
-    Y[n] = prim_scalar(n,k,j,i);
-    prim_pt[IYF + n] = Y[n];
-  }
+  Real Y[MAX_SPECIES] = {0.0};
+
   Real bu[NMAG] = {0.0};
   Real mb = ps.GetEOS()->GetBaryonMass();
   prim_pt[IDN] = prim(IDN, k, j, i)/mb;
@@ -385,15 +386,18 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real
   prim_pt[IVZ] = prim(IVZ, k, j, i);
   prim_pt[IPR] = prim(IPR, k, j, i);
 
-  // Apply the floor to ensure that we get physical conserved variables.
-  bool result = ps.GetEOS()->ApplyPrimitiveFloor(prim_pt[IDN], &prim_pt[IVX], prim_pt[IPR], prim_pt[ITM], Y);
+  for (int n=0; n<NSCALARS; n++) {
+    Y[n] = prim_scalar(n,k,j,i);
+  }
 
-  if (result==false) {
-    prim_pt[ITM] = ps.GetEOS()->GetTemperatureFromP(prim_pt[IDN], prim_pt[IPR], Y);
-  } else {
-    for (int n=0; n<NSCALARS; n++) {
-      prim_pt[IYF + n] = Y[n];
-    }
+  // Get temperature and apply floor
+  ps.GetEOS()->ApplyDensityLimits(prim_pt[IDN]);
+  ps.GetEOS()->ApplySpeciesLimits(Y);
+  prim_pt[ITM] = ps.GetEOS()->GetTemperatureFromP(prim_pt[IDN], prim_pt[IPR], Y);
+  bool result = ps.GetEOS()->ApplyPrimitiveFloor(prim_pt[IDN], &prim_pt[IVX], prim_pt[IPR], prim_pt[ITM], Y);
+  
+  for (int n=0; n<NSCALARS; n++) {
+    prim_pt[IYF + n] = Y[n];
   }
 
   // Extract the metric and calculate the determinant.
