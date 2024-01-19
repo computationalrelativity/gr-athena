@@ -32,7 +32,9 @@
 #   -z_wext             enable wave extraction
 #   -z_eta_track_tp     enable (TP) based shift-damping
 #   -z_eta_conf         enable conformal factor based shift-damping
+#   -z_ahf              enable apparent horizon finder
 #   -z_assert_is_finite enable checking for nan/inf within Z4c tasklist
+#   -ej                 enable ejecta extraction
 #   -tracker_extrema    enable extrema tracker
 #   -t                  enable interface frame transformations for GR
 #   -vertex             prefer vertex-centered (where available)
@@ -245,6 +247,12 @@ parser.add_argument("-z_assert_is_finite",
                     action='store_true',
                     default=False,
                     help='enable Z4c assert is_finite checks')
+
+# -ej argument
+parser.add_argument("-ej",
+                    action='store_true',
+                    default=False,
+                    help='enable ejecta extraction')
 
 # -tracker_extrema argument
 parser.add_argument("-tracker_extrema",
@@ -743,6 +751,13 @@ if args['z_ahf']:
     definitions['Z4C_AHF'] = 'Z4C_AHF'
 else:
   definitions['Z4C_AHF'] = 'NO_Z4C_AHF'
+
+# -ej argument
+if args['ej']:
+    definitions['EJECTA'] = 'EJECTA'
+else:
+    definitions['EJECTA'] = 'NO_EJECTA'
+
 # -tracker_extrema argument
 if args['tracker_extrema']:
     definitions['TRACKER_EXTREMA'] = 'TRACKER_EXTREMA'
@@ -1109,7 +1124,7 @@ if args['lorene_path'] != '':
     makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/Export/C++/Include'.format(args['lorene_path'])
     makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/C++/Include'.format(args['lorene_path'])
     makefile_options['LINKER_FLAGS'] += ' -L{0}/Lib'.format(args['lorene_path'])
-    makefile_options['LIBRARY_FLAGS'] += ' -llorene_export -llorene -llorenef77 -lgfortran -llapack -lblas'
+    makefile_options['LIBRARY_FLAGS'] += ' -llorene_export -llorene -llorenef77 -lgfortran'
 else:
     definitions['LORENE_OPTION'] = 'NO_LORENE'
 
@@ -1248,6 +1263,8 @@ if args['z']:
         files.append('wave_extract')
     if args['z_ahf']:
         files.append('ahf')
+    if args['ej']:
+        files.append('ejecta')
     if args['z_tracker']:
         files.append('trackers')
     if args['prob'] == "z4c_two_punctures":
@@ -1282,7 +1299,7 @@ else:
 id_files = []
 makefile_options['ID_FILES'] = ''
 
-if args['prob'] == "gr_rns_tov":
+if args['prob'] == "gr_rns_tov" or args['prob'] == "gr_mhd_rns_tov":
     id_files.append('rns_id')
     id_aux = ["                $(wildcard src/hydro/initial_data/{}.cpp) \\".format(f) for f in id_files]
     makefile_options['ID_FILES'] = ''.join(id_aux) + '\n'
@@ -1349,6 +1366,7 @@ if have_tracker:
     print('    Punctures:                  ' + ('ON' if args['z_tracker'] in args else 'OFF'))
     print('    Extrema:                    ' + ('ON' if args['tracker_extrema'] else 'OFF'))
 
+print('  Ejecta extraction:            ' + ('ON' if args['ej'] else 'OFF'))
 print('  Frame transformations:        ' + ('ON' if args['t'] else 'OFF'))
 print('  Self-Gravity:                 ' + self_grav_string)
 print('  Super-Time-Stepping:          ' + ('ON' if args['sts'] else 'OFF'))

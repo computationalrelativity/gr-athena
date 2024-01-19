@@ -72,6 +72,9 @@
 #ifdef Z4C_AHF
 #include "../z4c/ahf.hpp"
 #endif
+#ifdef EJECTA
+#include "../z4c/ejecta.hpp"
+#endif
 //WGC: wext end
 // MPI/OpenMP header
 #ifdef MPI_PARALLEL
@@ -358,7 +361,16 @@ if (Z4C_ENABLED){
     for (int n = 0; n < nhorizon; ++n) {
       pah_finder.push_back(new AHF(this, pin, n));
     }
-#endif 
+#endif
+
+#ifdef EJECTA
+  int nrad = pin->GetOrAddInteger("ejecta", "num_rad", 1);
+  pej_extract.reserve(nrad);
+  for (int n=0; n<nrad; ++n) {
+    pej_extract.push_back(new Ejecta(this, pin, n));
+  }
+#endif
+ 
 #ifdef Z4C_TRACKER
   // Last entry says if it is restart run or not
   pz4c_tracker = new Tracker(this, pin, 0);
@@ -808,6 +820,14 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     }
 #endif
 
+#ifdef EJECTA
+  int nrad = pin->GetOrAddInteger("ejecta", "num_rad", 1);
+  pej_extract.reserve(nrad);
+  for (int n=0; n<nrad; ++n) {
+    pej_extract.push_back(new Ejecta(this, pin, n));
+  }
+#endif
+
 #ifdef Z4C_TRACKER
   // Last entry tells if it is restart run or not
   pz4c_tracker = new Tracker(this, pin, 1);
@@ -1083,6 +1103,12 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
       }
 #endif
 
+#ifdef EJECTA
+      for (auto pej : pej_extract) {
+        pej->Calculate(ncycle, time);
+        pej->Write(ncycle, time);
+      }
+#endif
 
   // check consistency
   if (datasize != pblock->GetBlockSizeInBytes()) {
@@ -1132,6 +1158,13 @@ Mesh::~Mesh() {
       delete pah_f;
     }
     pah_finder.resize(0);
+#endif
+
+#ifdef EJECTA
+    for (auto pej : pej_extract) {
+      delete pej;
+    }
+    pej_extract.resize(0);
 #endif
 
 #ifdef Z4C_TRACKER
@@ -2361,7 +2394,7 @@ void Mesh::OutputCycleDiagnostics() {
     if (ncycle % ncycle_out == 0) {
       std::cout << "cycle=" << ncycle << std::scientific
                 << std::setprecision(dt_precision)
-                << " time=" << time << " dt=" << dt;
+                << " time=" << time << " dt=" << dt << " nmb=" << nbtotal;
       if (dt_diagnostics != -1) {
         if (STS_ENABLED) {
           if (UserTimeStep_ == nullptr)

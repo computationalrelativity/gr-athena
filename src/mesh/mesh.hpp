@@ -73,6 +73,9 @@ class WaveExtractLocal;
 #ifdef Z4C_AHF
 class AHF;
 #endif
+#ifdef EJECTA
+class Ejecta;
+#endif
 //WGC end
 #ifdef Z4C_TRACKER
 class Tracker;
@@ -425,6 +428,10 @@ class Mesh {
 #endif // Z4C_TRACKER
 #ifdef Z4C_AHF
   std::vector<AHF *> pah_finder;
+#endif
+
+#ifdef EJECTA
+  std::vector<Ejecta *> pej_extract;
 #endif
 
 #ifdef TRACKER_EXTREMA
