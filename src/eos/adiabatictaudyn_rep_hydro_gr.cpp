@@ -321,7 +321,8 @@ void EquationOfState::ConservedToPrimitive(
         std::isnan(S_1g) ||
         std::isnan(S_2g) ||
         std::isnan(S_3g) ||
-        (det_gamma_(i) < 0.)
+        (det_gamma_(i) < 0.) ||
+        (Dg < 0.)
       );
 
       if (~phydro->q_reset_mask(k,j,i))
@@ -502,6 +503,7 @@ inline static void PrimitiveToConservedSingle(
 
   // Apply floor to primitive variables. This should be
   // identical to what RePrimAnd does.
+
   if ((prim(IDN,k,j,i) < atmo_cut) ||
       (prim(IPR,k,j,i) < atmo_cut_p))
   // if (prim(IDN,k,j,i) < atmo_cut)
@@ -666,8 +668,8 @@ void EquationOfState::SoundSpeedsGR(
   //   d = 0.0;
   // }
   const Real d_sqrt = std::sqrt(d);
-  const Real root_1 = (-b + d_sqrt) / (2.0*a);
-  const Real root_2 = (-b - d_sqrt) / (2.0*a);
+  Real root_1 = (-b + d_sqrt) / (2.0*a);
+  Real root_2 = (-b - d_sqrt) / (2.0*a);
   if (root_1 > root_2) {
     *plambda_plus = root_1;
     *plambda_minus = root_2;
@@ -680,28 +682,39 @@ void EquationOfState::SoundSpeedsGR(
 
 #else
 
-void EquationOfState::SoundSpeedsGR(Real rho_h, Real pgas, Real vi, Real v2, Real alpha,
-    Real betai, Real gammaii, Real *plambda_plus, Real *plambda_minus) {
-  // Parameters and constants
+void EquationOfState::SoundSpeedsGR(
+  Real rho_h, Real pgas,
+  Real vi, Real v2, Real alpha,
+  Real betai, Real gammaii,
+  Real *plambda_plus, Real *plambda_minus)
+{
 
   // Calculate comoving sound speed
-  Real cs_sq = gamma_adi * pgas / rho_h;
-  Real cs = std::sqrt(cs_sq);
+  const Real cs_sq = gamma_adi * pgas / rho_h;
+  const Real cs = std::sqrt(cs_sq);
 
-  Real  root_1 = alpha*(vi*(1.0-cs_sq) + cs*std::sqrt( (1-v2)*(gammaii*(1.0-v2*cs_sq) - vi*vi*(1-cs_sq)  )     )    )/(1-v2*cs_sq) - betai;
+  const Real fac_sqrt = cs * std::sqrt(
+    (1.0-v2)*(gammaii*(1.0-v2*cs_sq)-vi*vi*(1.0-cs_sq))
+  );
 
-  Real  root_2 = alpha*(vi*(1.0-cs_sq) - cs*std::sqrt( (1-v2)*(gammaii*(1.0-v2*cs_sq) - vi*vi*(1-cs_sq)  )     )    )/(1-v2*cs_sq) - betai;
-  bool collapse = true;
-  if(collapse){ 
-  if(std::isnan(root_1) || std::isnan(root_2)){
-  root_1 = 1.0;
-  root_2 = 1.0;
+  const Real fac_alpha = alpha / (1.0-v2*cs_sq);
+
+  Real root_1 = fac_alpha * (vi*(1.0-cs_sq) + fac_sqrt) - betai;
+  Real root_2 = fac_alpha * (vi*(1.0-cs_sq) - fac_sqrt) - betai;
+
+  // collapse correction
+  if (std::isnan(root_1) || std::isnan(root_2))
+  {
+    root_1 = 1.0;
+    root_2 = 1.0;
   }
-  }
+
   if (root_1 > root_2) {
     *plambda_plus = root_1;
     *plambda_minus = root_2;
-  } else {
+  }
+  else
+  {
     *plambda_plus = root_2;
     *plambda_minus = root_1;
   }
@@ -744,6 +757,30 @@ void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j
       prim(IVZ,k,j,i) = 0.0;
       prim(IPR,k,j,i) = atmo_p;
     }
+  }
+
+  return;
+}
+
+void EquationOfState::ForcePrimitiveFloor(AthenaArray<Real> &prim, int k, int j, int i)
+{
+
+
+  if(prim.GetDim4()==1)
+  {
+    prim(IDN,i) = atmo_rho;
+    prim(IVX,i) = 0.0;
+    prim(IVY,i) = 0.0;
+    prim(IVZ,i) = 0.0;
+    prim(IPR,i) = atmo_p;
+  }
+  else if(prim.GetDim4()==5)
+  {
+    prim(IDN,k,j,i) = atmo_rho;
+    prim(IVX,k,j,i) = 0.0;
+    prim(IVY,k,j,i) = 0.0;
+    prim(IVZ,k,j,i) = 0.0;
+    prim(IPR,k,j,i) = atmo_p;
   }
 
   return;

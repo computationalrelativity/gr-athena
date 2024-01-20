@@ -68,6 +68,11 @@ class Hydro {
   void AddFluxDivergence(const Real wght, AthenaArray<Real> &u_out);
   void CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
                        AthenaArray<Real> &bcc, const int order);
+
+  // debugging
+  void _CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
+                        AthenaArray<Real> &bcc, const int order);
+
   void CalculateFluxes_STS();
 #if !MAGNETIC_FIELDS_ENABLED  // Hydro:
   void RiemannSolver(

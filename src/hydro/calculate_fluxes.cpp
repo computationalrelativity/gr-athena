@@ -33,6 +33,132 @@
 //! \fn  void Hydro::CalculateFluxes
 //  \brief Calculate Hydrodynamic Fluxes using the Riemann solver
 
+void Hydro::_CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
+                            AthenaArray<Real> &bcc, const int order)
+{
+
+  MeshBlock *pmb = pmy_block;
+  int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
+  int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
+
+  int il, iu, jl, ju, kl, ku;
+
+  // AthenaArray<Real> w_avg(NHYDRO,pmb->ncells3, pmb->ncells2, pmb->ncells1);
+  // AthenaArray<Real> u_avg(NHYDRO,pmb->ncells3, pmb->ncells2, pmb->ncells1);
+
+  // // prepare averages for reconstruction
+  // for (int n=0; n<NHYDRO; ++n)
+  // for (int k=1; k<pmb->ncells3-1; ++k)
+  // for (int j=1; j<pmb->ncells2-1; ++j)
+  // for (int i=1; i<pmb->ncells1-1; ++i)
+  // {
+  //   const Real w_c    = w(n,k,j,i);
+  //   const Real dx_w_c = w(n,k,j,i-1)-2.*w_c+w(n,k,j,i+1);
+  //   const Real dy_w_c = w(n,k,j-1,i)-2.*w_c+w(n,k,j+1,i);
+  //   const Real dz_w_c = w(n,k-1,j,i)-2.*w_c+w(n,k+1,j,i);
+  //   const Real dw_c   = (dx_w_c + dy_w_c + dz_w_c);
+
+  //   w_avg(n,k,j,i) = w_c + dw_c / 24.;
+
+  //   const Real u_c    = u(n,k,j,i);
+  //   const Real dx_u_c = u(n,k,j,i-1)-2.*u_c+u(n,k,j,i+1);
+  //   const Real dy_u_c = u(n,k,j-1,i)-2.*u_c+u(n,k,j+1,i);
+  //   const Real dz_u_c = u(n,k-1,j,i)-2.*u_c+u(n,k+1,j,i);
+  //   const Real du_c   = (dx_u_c + dy_u_c + dz_u_c);
+
+  //   u_avg(n,k,j,i) = u_c + du_c / 24.;
+
+  // }
+
+  // w.SwapAthenaArray(w_avg);  // cell-average for reconstructions
+  // u.SwapAthenaArray(u_avg);
+
+  //--------------------------------------------------------------------------------------
+  // i-direction
+
+  if(0)  // debug FC transfer
+  {
+    for (int k=0; k<pmb->ncells3; ++k)
+    for (int j=0; j<pmb->ncells2; ++j)
+    for (int i=0; i<pmb->ncells1; ++i)
+    {
+      auto w_fcn = [&](const Real i_, const Real j_, const Real k_)
+      {
+        return 11. + std::sin((i_+1.)*(j_+1.)*(k_+1.));
+        // return SQR((i_+1)*(j_+1)*(k_+1));
+        // return SQR((i_+1));
+      };
+
+
+      // prepare cell-averaged value (4th order accurate conversion)
+      const Real w_c    = w_fcn(i, j, k);
+      const Real dx_w_c = w_fcn(i-1,j,k)-2.*w_c+w_fcn(i+1,j,k);
+      const Real dy_w_c = w_fcn(i,j-1,k)-2.*w_c+w_fcn(i,j+1,k);
+      const Real dz_w_c = w_fcn(i,j,k-1)-2.*w_c+w_fcn(i,j,k+1);
+      const Real dw_c   = (dx_w_c + dy_w_c + dz_w_c);
+
+      w(0,k,j,i) = w_c + dw_c / 24.;
+
+    }
+  }
+
+
+  AthenaArray<Real> &x1flux = flux[X1DIR];
+  jl = js, ju = je, kl = ks, ku = ke;
+
+  for (int k=kl; k<=ku; ++k)
+  for (int j=jl; j<=ju; ++j)
+  {
+    pmb->precon->WenoX1(k, j, is-1, ie+1, w, bcc, wl_, wr_);
+    RiemannSolver(k, j, is, ie+1, IVX, wl_, wr_, x1flux, dxw_);
+  }
+
+  //--------------------------------------------------------------------------------------
+  // j-direction
+  AthenaArray<Real> &x2flux = flux[X2DIR];
+
+  il = is-1, iu = ie+1, kl = ks, ku = ke;
+
+  for (int k=kl; k<=ku; ++k)
+  {
+
+    pmb->precon->WenoX2(k, js-1, il, iu, w, bcc, wl_, wr_);
+
+    for (int j=js; j<=je+1; ++j)
+    {
+      pmb->precon->WenoX2(k, j, il, iu, w, bcc, wlb_, wr_);
+      RiemannSolver(k, j, il, iu, IVY, wl_, wr_, x2flux, dxw_);
+
+      wl_.SwapAthenaArray(wlb_);
+    }
+  }
+
+
+  //--------------------------------------------------------------------------------------
+  // k-direction
+  AthenaArray<Real> &x3flux = flux[X3DIR];
+
+  il = is-1, iu = ie+1, jl = js-1, ju = je+1;
+  for (int j=jl; j<=ju; ++j)
+  {
+    pmb->precon->WenoX3(ks-1, j, il, iu, w, bcc, wl_, wr_);
+
+    for (int k=ks; k<=ke+1; ++k)
+    {
+      pmb->precon->WenoX3(k, j, il, iu, w, bcc, wlb_, wr_);
+      RiemannSolver(k, j, il, iu, IVZ, wl_, wr_, x3flux, dxw_);
+
+      wl_.SwapAthenaArray(wlb_);
+    }
+  }
+
+  // swap back to pointwise
+  // w.SwapAthenaArray(w_avg);  // cell-average for reconstructions
+  // u.SwapAthenaArray(u_avg);
+
+}
+
+
 
 void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
                             AthenaArray<Real> &bcc, const int order) {
@@ -58,7 +184,7 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
     {
       if (pmb->peos->RequirePrimitiveFloor(w,k,j,i))
       {
-        pmb->peos->ApplyPrimitiveFloors(w,k,j,i);
+        pmb->peos->ForcePrimitiveFloor(w,k,j,i);
         pmb->peos->PrimitiveToConserved(w,bcc,u,pmb->pcoord,i,i,j,j,k,k);
       }
     }
@@ -114,28 +240,30 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
 #ifdef DBG_FLUX_FLOOR_GRHD
         for (int i=is-1; i<=ie+1; ++i)
         {
-          const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, k, j, i) ||
-                            pmb->peos->RequirePrimitiveFloor(wr_, k, j, i));
+          // const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, k, j, i+1) ||
+          //                   pmb->peos->RequirePrimitiveFloor(wr_, k, j, i));
+
+          // if (rpf)
+          // {
+          //   // Floor the left/right states and reset conserved variable in parent
+          //   // pmb->peos->ForcePrimitiveFloor(w,k,j,i);
+          //   pmb->peos->ApplyPrimitiveFloors(wl_,k,j,i+1);
+          //   pmb->peos->ApplyPrimitiveFloors(wr_,k,j,i);
+          //   // pmb->peos->PrimitiveToConserved(w,bcc,u,pmb->pcoord,i,i,j,j,k,k);
+          // }
+
+          const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_,k,j,i+1) &&
+                            pmb->peos->RequirePrimitiveFloor(wr_,k,j,i));
 
           if (rpf)
           {
-            // Floor the left/right states and reset conserved variable in parent
-            pmb->peos->ApplyPrimitiveFloors(w,k,j,i);
-            pmb->peos->ApplyPrimitiveFloors(wl_,k,j,i);
-            pmb->peos->ApplyPrimitiveFloors(wr_,k,j,i);
+            pmb->peos->ForcePrimitiveFloor( w,k,j,i);
             pmb->peos->PrimitiveToConserved(w,bcc,u,pmb->pcoord,i,i,j,j,k,k);
-
-            /*
-            pmb->precon->DonorCellX1(k, j, i-1, i, w, bcc, wl_, wr_);
-
-            const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, k, j, i) ||
-                              pmb->peos->RequirePrimitiveFloor(wr_, k, j, i));
-            if (rpf)
-            {
-            }
-            std::cout << "ERR1@k,j,i:" << k << "," << j << "," << i << std::endl;
-            */
           }
+
+          pmb->peos->ApplyPrimitiveFloors(wl_,k,j,i+1);
+          pmb->peos->ApplyPrimitiveFloors(wr_,k,j,i);
+
         }
 #endif // DBG_FLUX_FLOOR_GRHD
 
@@ -259,28 +387,28 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
 #ifdef DBG_FLUX_FLOOR_GRHD
         for (int i=il; i<=iu; ++i)
         {
+          // const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, k, js-1, i) ||
+          //                   pmb->peos->RequirePrimitiveFloor(wr_, k, js-1, i));
 
-          const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, k, js-1, i) ||
-                            pmb->peos->RequirePrimitiveFloor(wr_, k, js-1, i));
+          // if (rpf)
+          // {
+          //   // pmb->peos->ForcePrimitiveFloor(w,k,js-1,i);
+          //   pmb->peos->ApplyPrimitiveFloors(wl_,k,js-1,i);
+          //   pmb->peos->ApplyPrimitiveFloors(wr_,k,js-1,i);
+          // }
+
+          const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_,k,js-1,i) &&
+                            pmb->peos->RequirePrimitiveFloor(wr_,k,js-1,i));
 
           if (rpf)
           {
-            pmb->peos->ApplyPrimitiveFloors(w,k,js-1,i);
-            pmb->peos->ApplyPrimitiveFloors(wl_,k,js-1,i);
-            pmb->peos->ApplyPrimitiveFloors(wr_,k,js-1,i);
+            pmb->peos->ForcePrimitiveFloor( w,k,js-1,i);
             pmb->peos->PrimitiveToConserved(w,bcc,u,pmb->pcoord,i,i,js-1,js-1,k,k);
-
-            /*
-            pmb->precon->DonorCellX2(k, js-1, i, i, w, bcc, wl_, wr_);
-
-            const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, k, js-1, i) ||
-                              pmb->peos->RequirePrimitiveFloor(wr_, k, js-1, i));
-            if (rpf)
-            {
-              std::cout << "ERR2@k,j,i:" << k << "," << js-1 << "," << i << std::endl;
-            }
-            */
           }
+
+          pmb->peos->ApplyPrimitiveFloors(wl_,k,js-1,i);
+          pmb->peos->ApplyPrimitiveFloors(wr_,k,js-1,i);
+
         }
 #endif // DBG_FLUX_FLOOR_GRHD
       }
@@ -312,30 +440,29 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
           for (int i=il; i<=iu; ++i)
           {
 
-            const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, k, j, i) ||
-                              pmb->peos->RequirePrimitiveFloor(wr_, k, j, i));
+            // const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, k, j, i) ||
+            //                   pmb->peos->RequirePrimitiveFloor(wr_, k, j, i));
+
+            // if (rpf)
+            // {
+            //   // pmb->peos->ForcePrimitiveFloor(w,k,j,i);
+            //   pmb->peos->ApplyPrimitiveFloors(wl_,k,j,i);
+            //   pmb->peos->ApplyPrimitiveFloors(wr_,k,j,i);
+            //   // pmb->peos->PrimitiveToConserved(w,bcc,u,pmb->pcoord,i,i,j,j,k,k);
+            // }
+
+            const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_,k,j,i) &&
+                              pmb->peos->RequirePrimitiveFloor(wr_,k,j,i));
 
             if (rpf)
             {
-              pmb->peos->ApplyPrimitiveFloors(w,k,j,i);
-              pmb->peos->ApplyPrimitiveFloors(wl_,k,j,i);
-              pmb->peos->ApplyPrimitiveFloors(wr_,k,j,i);
+              pmb->peos->ForcePrimitiveFloor( w,k,j,i);
               pmb->peos->PrimitiveToConserved(w,bcc,u,pmb->pcoord,i,i,j,j,k,k);
             }
-            /*
-            if (pmb->peos->RequirePrimitiveFloor(wl_, k, j, i) ||
-                pmb->peos->RequirePrimitiveFloor(wr_, k, j, i))
-            {
-              pmb->precon->DonorCellX2(k, j, i, i, w, bcc, wl_, wr_);
 
-              const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, k, j, i) ||
-                                pmb->peos->RequirePrimitiveFloor(wr_, k, j, i));
-              if (rpf)
-              {
-                std::cout << "ERR2@k,j,i:" << k << "," << j << "," << i << std::endl;
-              }
-            }
-            */
+            pmb->peos->ApplyPrimitiveFloors(wl_,k,j,i);
+            pmb->peos->ApplyPrimitiveFloors(wr_,k,j,i);
+
           }
 #endif // DBG_FLUX_FLOOR_GRHD
 
@@ -454,32 +581,30 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
         for (int i=il; i<=iu; ++i)
         {
 
-          const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, ks-1, j, i) ||
-                            pmb->peos->RequirePrimitiveFloor(wr_, ks-1, j, i));
+          // const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, ks-1, j, i) ||
+          //                   pmb->peos->RequirePrimitiveFloor(wr_, ks-1, j, i));
+
+          // if (rpf)
+          // {
+          //   // Floor the left/right states and reset conserved variable in parent
+          //   // pmb->peos->ForcePrimitiveFloor(w,ks-1,j,i);
+          //   pmb->peos->ApplyPrimitiveFloors(wl_,ks-1,j,i);
+          //   pmb->peos->ApplyPrimitiveFloors(wr_,ks-1,j,i);
+          //   // pmb->peos->PrimitiveToConserved(w,bcc,u,pmb->pcoord,i,i,j,j,ks-1,ks-1);
+
+          // }
+          const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_,ks-1,j,i) &&
+                            pmb->peos->RequirePrimitiveFloor(wr_,ks-1,j,i));
 
           if (rpf)
           {
-            // Floor the left/right states and reset conserved variable in parent
-            pmb->peos->ApplyPrimitiveFloors(w,ks-1,j,i);
-            pmb->peos->ApplyPrimitiveFloors(wl_,ks-1,j,i);
-            pmb->peos->ApplyPrimitiveFloors(wr_,ks-1,j,i);
+            pmb->peos->ForcePrimitiveFloor( w,ks-1,j,i);
             pmb->peos->PrimitiveToConserved(w,bcc,u,pmb->pcoord,i,i,j,j,ks-1,ks-1);
-
           }
-          /*
-          if (pmb->peos->RequirePrimitiveFloor(wl_, ks-1, j, i) ||
-              pmb->peos->RequirePrimitiveFloor(wr_, ks-1, j, i))
-          {
-            pmb->precon->DonorCellX3(ks-1, j, i, i, w, bcc, wl_, wr_);
 
-            const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, ks-1, j, i) ||
-                              pmb->peos->RequirePrimitiveFloor(wr_, ks-1, j, i));
-            if (rpf)
-            {
-              std::cout << "ERR3@k,j,i:" << ks-1 << "," << j << "," << i << std::endl;
-            }
-          }
-          */
+          pmb->peos->ApplyPrimitiveFloors(wl_,ks-1,j,i);
+          pmb->peos->ApplyPrimitiveFloors(wr_,ks-1,j,i);
+
         }
 #endif // DBG_FLUX_FLOOR_GRHD
       }
@@ -511,32 +636,30 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
           for (int i=il; i<=iu; ++i)
           {
 
-            const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, k, j, i) ||
-                              pmb->peos->RequirePrimitiveFloor(wr_, k, j, i));
+            // const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, k, j, i) ||
+            //                   pmb->peos->RequirePrimitiveFloor(wr_, k, j, i));
+
+            // if (rpf)
+            // {
+            //   // Floor the left/right states and reset conserved variable in parent
+            //   // pmb->peos->ForcePrimitiveFloor(w,k,j,i);
+            //   pmb->peos->ApplyPrimitiveFloors(wl_,k,j,i);
+            //   pmb->peos->ApplyPrimitiveFloors(wr_,k,j,i);
+            //   // pmb->peos->PrimitiveToConserved(w,bcc,u,pmb->pcoord,i,i,j,j,k,k);
+            // }
+
+            const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_,k,j,i) &&
+                              pmb->peos->RequirePrimitiveFloor(wr_,k,j,i));
 
             if (rpf)
             {
-              // Floor the left/right states and reset conserved variable in parent
-              pmb->peos->ApplyPrimitiveFloors(w,k,j,i);
-              pmb->peos->ApplyPrimitiveFloors(wl_,k,j,i);
-              pmb->peos->ApplyPrimitiveFloors(wr_,k,j,i);
+              pmb->peos->ForcePrimitiveFloor( w,k,j,i);
               pmb->peos->PrimitiveToConserved(w,bcc,u,pmb->pcoord,i,i,j,j,k,k);
             }
 
-            /*
-            if (pmb->peos->RequirePrimitiveFloor(wl_, k, j, i) ||
-                pmb->peos->RequirePrimitiveFloor(wr_, k, j, i))
-            {
-              pmb->precon->DonorCellX3(k, j, i, i, w, bcc, wl_, wr_);
+            pmb->peos->ApplyPrimitiveFloors(wl_,k,j,i);
+            pmb->peos->ApplyPrimitiveFloors(wr_,k,j,i);
 
-              const bool rpf = (pmb->peos->RequirePrimitiveFloor(wl_, k, j, i) ||
-                                pmb->peos->RequirePrimitiveFloor(wr_, k, j, i));
-              if (rpf)
-              {
-                std::cout << "ERR3@k,j,i:" << k << "," << j << "," << i << std::endl;
-              }
-            }
-            */
           }
 #endif // DBG_FLUX_FLOOR_GRHD
         }

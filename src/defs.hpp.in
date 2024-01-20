@@ -56,6 +56,8 @@
 
 #define @DBG_FLUX_FLOOR_GRHD@
 
+#define NO_DBG_RECONSTRUCT_GEOM
+
 //----------------------------------------------------------------------------------------
 // macros which define physics and algorithms
 

@@ -92,6 +92,9 @@ class EquationOfState {
     int n, int k, int j, int i);
 
 #pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this,prim,k,j) linear(i)
+  void ForcePrimitiveFloor(AthenaArray<Real> &prim, int k, int j, int i);
+
+#pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this,prim,k,j) linear(i)
   bool RequirePrimitiveFloor(const AthenaArray<Real> &prim, int k, int j, int i);
 
   // Sound speed functions in different regimes
