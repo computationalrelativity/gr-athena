@@ -53,6 +53,10 @@
 #include "z4c/ahf.hpp"
 #endif
 
+#ifdef EJECTA
+#include "z4c/ejecta.hpp"
+#endif
+
 #ifdef Z4C_TRACKER
 #include "z4c/trackers.hpp"
 #endif // Z4C_TRACKER
@@ -128,6 +132,7 @@ int main(int argc, char *argv[]) {
     MPI_Finalize();
     return(0);
   }
+
 #else  // no MPI
   Globals::my_rank = 0;
   Globals::nranks  = 1;
@@ -640,6 +645,14 @@ pmesh->pwave_extr[n]->Write(pmesh->ncycle, pmesh->time);
         if (pah_f->DeleteMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
       }
 #endif
+
+#ifdef EJECTA
+      for (auto pej : pmesh->pej_extract) {
+        pej->Calculate(pmesh->ncycle, pmesh->time);
+        pej->Write(pmesh->ncycle, pmesh->time);
+      }
+#endif
+
 #ifdef Z4C_TRACKER
     //Tracker
     pmesh->pz4c_tracker->ReduceTracker();
