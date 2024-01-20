@@ -30,6 +30,14 @@ class Reconstruction {
   // data
   // switches for reconstruction method variants:
   int xorder;   // roughly the formal order of accuracy of overall reconstruction method
+
+  // for xorder == 5 we can switch between reconstruction styles
+  enum class ReconstructionVariant {
+    none,ceno3,mp3,mp5,mp7,weno5,weno5z,weno5z_r
+  };
+  ReconstructionVariant xorder_style;
+  Real xorder_eps;  // for methods for epsilon control parameters
+
   bool characteristic_projection; // reconstruct on characteristic or primitive hydro vars
   bool uniform[3], curvilinear[2];
   // (Cartesian reconstruction formulas are used for x3 azimuthal coordinate in both
@@ -97,15 +105,18 @@ class Reconstruction {
 
   void WenoX1(const int k, const int j, const int il, const int iu,
               const AthenaArray<Real> &w, const AthenaArray<Real> &bcc,
-              AthenaArray<Real> &wl, AthenaArray<Real> &wr);
+              AthenaArray<Real> &wl, AthenaArray<Real> &wr,
+              const bool enforce_floors=true);
 
   void WenoX2(const int k, const int j, const int il, const int iu,
               const AthenaArray<Real> &w, const AthenaArray<Real> &bcc,
-              AthenaArray<Real> &wl, AthenaArray<Real> &wr);
+              AthenaArray<Real> &wl, AthenaArray<Real> &wr,
+              const bool enforce_floors=true);
 
   void WenoX3(const int k, const int j, const int il, const int iu,
               const AthenaArray<Real> &w, const AthenaArray<Real> &bcc,
-              AthenaArray<Real> &wl, AthenaArray<Real> &wr);
+              AthenaArray<Real> &wl, AthenaArray<Real> &wr,
+              const bool enforce_floors=true);
 
 
   // overloads for non-fluid (cell-centered Hydro prim. and magnetic field) reconstruction

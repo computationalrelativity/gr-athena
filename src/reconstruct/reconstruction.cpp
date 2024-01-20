@@ -65,11 +65,51 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
     xorder = 4;
     if (input_recon == "4c")
       characteristic_projection = true;
-// WGC '5' just used as dummy for WENO
-  } else if (input_recon == "5") {
-    // WENO
-    xorder = 5;
-  } else {
+  // additional reconstruction methods
+  }
+  else if (input_recon == "ceno3")
+  {
+    xorder = 5;  // 5 is dummy for WENO interface
+    xorder_style = ReconstructionVariant::ceno3;
+  }
+  else if (input_recon == "mp3")
+  {
+    xorder = 5;  // 5 is dummy for WENO interface
+    xorder_style = ReconstructionVariant::mp3;
+    xorder_eps = pin->GetOrAddReal("time", "xorder_eps", 0);
+  }
+  else if (input_recon == "mp5")
+  {
+    xorder = 5;  // 5 is dummy for WENO interface
+    xorder_style = ReconstructionVariant::mp5;
+    xorder_eps = pin->GetOrAddReal("time", "xorder_eps", 0);
+  }
+  else if (input_recon == "mp7")
+  {
+    xorder = 5;  // 5 is dummy for WENO interface
+    xorder_style = ReconstructionVariant::mp7;
+    xorder_eps = pin->GetOrAddReal("time", "xorder_eps", 0);
+  }
+  else if (input_recon == "weno5")
+  {
+    xorder = 5;  // 5 is dummy for WENO interface
+    xorder_style = ReconstructionVariant::weno5;
+    xorder_eps = pin->GetOrAddReal("time", "xorder_eps", 0);
+  }
+  else if (input_recon == "weno5z")
+  {
+    xorder = 5;  // 5 is dummy for WENO interface
+    xorder_style = ReconstructionVariant::weno5z;
+    xorder_eps = pin->GetOrAddReal("time", "xorder_eps", 0);
+  }
+  else if (input_recon == "weno5z_r")
+  {
+    xorder = 5;  // 5 is dummy for WENO interface
+    xorder_style = ReconstructionVariant::weno5z_r;
+    xorder_eps = pin->GetOrAddReal("time", "xorder_eps", 0);
+  }
+  else
+  {
     std::stringstream msg;
     msg << "### FATAL ERROR in Reconstruction constructor" << std::endl
         << "xorder=" << input_recon << " not valid choice for reconstruction"<< std::endl;
