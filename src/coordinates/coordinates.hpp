@@ -928,8 +928,10 @@ class GRDynamical : public Coordinates {
   #endif // HYBRID_INTERP
 #else  // Z4C_CX_ENABLED
     // ... may be non-trivial (depends on NCGHOST_CX etc)
-    // BD: debug
-    ig_NN->CC2CC(tar, src, cc_k, cc_j);
+
+    // In principle this is nothing but a copy-
+    // Hence take 1N as this gives maximal extent
+    ig_1N->CC2CC(tar, src, cc_k, cc_j);
 #endif
   };
 
