@@ -1109,7 +1109,7 @@ if args['lorene_path'] != '':
     makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/Export/C++/Include'.format(args['lorene_path'])
     makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/C++/Include'.format(args['lorene_path'])
     makefile_options['LINKER_FLAGS'] += ' -L{0}/Lib'.format(args['lorene_path'])
-    makefile_options['LIBRARY_FLAGS'] += ' -llorene_export -llorene -llorenef77 -lgfortran -llapack -lblas'
+    makefile_options['LIBRARY_FLAGS'] += ' -llorene_export -llorene -llorenef77 -lgfortran'
 else:
     definitions['LORENE_OPTION'] = 'NO_LORENE'
 

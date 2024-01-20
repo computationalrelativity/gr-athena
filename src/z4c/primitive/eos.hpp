@@ -379,7 +379,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //
     //  \param[in] v The maximum velocity
     inline void SetMaxVelocity(Real v) {
-      v_max = (v >= 0) ? ((v <= 0.99) ? v : 1.0e-15) : 0.0;
+      v_max = (v >= 0) ? ((v <= 0.99) ? v : 1.0-1.0e-15) : 0.0;
     }
 
     //! \brief Get the maximum number density (in EOS units) permitted by the EOS.
