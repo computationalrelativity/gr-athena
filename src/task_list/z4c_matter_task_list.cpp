@@ -27,13 +27,9 @@
 #include "../hydro/srcterms/hydro_srcterms.hpp"
 #include "../mesh/mesh.hpp"
 #include "../z4c/z4c.hpp"
-//WGC wext
-//#ifdef Z4C_WEXT
 #include "../z4c/wave_extract.hpp"
 #include "../z4c/puncture_tracker.hpp"
 #include "../trackers/extrema_tracker.hpp"
-//#endif
-//WGC end
 
 // #include "../parameter_input.hpp"
 
@@ -246,7 +242,8 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
   // Output frequency control (on task-list)
 #ifdef Z4C_ASSERT_FINITE
   TaskListTriggers.assert_is_finite.next_time = pm->time;
-  TaskListTriggers.assert_is_finite.dt = pin->GetOrAddReal("z4c",
+  TaskListTriggers.assert_is_finite.dt = pin->GetOrAddReal(
+    "task_triggers",
     "dt_assert_is_finite", 0);
 #endif // Z4C_ASSERT_FINITE
 
@@ -275,8 +272,9 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
 
   TaskListTriggers.wave_extraction.to_update = false;
 
-  TaskListTriggers.wave_extraction.dt = pin->GetOrAddReal("z4c", "dt_wave_extraction", 1.0);
-  if (pin->GetOrAddInteger("z4c", "nrad_wave_extraction", 0) == 0) {
+  TaskListTriggers.wave_extraction.dt = pin->GetOrAddReal(
+    "task_triggers", "dt_psi4_extraction", 1.0);
+  if (pin->GetOrAddInteger("psi4_extraction", "num_radii", 0) == 0) {
     TaskListTriggers.wave_extraction.dt = 0.0;
     TaskListTriggers.wave_extraction.next_time = 0.0;
     TaskListTriggers.wave_extraction.to_update = false;
@@ -901,7 +899,7 @@ void MatterTaskList::StartupTaskList(MeshBlock *pmb, int stage) {
   // addition to hydro start up from z4c
   pmb->pz4c->storage.u1.ZeroClear();
   if (integrator == "ssprk5_4")
-      pmb->pz4c->storage.u2 = pmb->pz4c->storage.u2;
+      pmb->pz4c->storage.u2 = pmb->pz4c->storage.u;
   }
 
   if (SHEARING_BOX) {
@@ -1070,7 +1068,8 @@ TaskStatus MatterTaskList::IntegrateHydro(MeshBlock *pmb, int stage) {
     // Hardcode an additional flux divergence weighted average for the penultimate
     // stage of SSPRK(5,4) since it cannot be expressed in a 3S* framework
 
-    if (stage == 4 && integrator == "ssprk5_4") {
+    if (stage == 4 && integrator == "ssprk5_4")
+    {
       // From Gottlieb (2009), u^(n+1) partial calculation
       ave_wghts[0] = -1.0; // -u^(n) coeff.
       ave_wghts[1] = 0.0;
@@ -1701,6 +1700,25 @@ TaskStatus MatterTaskList::IntegrateZ4c(MeshBlock *pmb, int stage) {
     pz4c->AddZ4cRHS(pz4c->storage.rhs, stage_wghts[stage-1].beta,
                     pz4c->storage.u);
 
+    if (stage == 4 && integrator == "ssprk5_4")
+    {
+      // From Gottlieb (2009), u^(n+1) partial calculation
+      ave_wghts[0] = -1.0; // -u^(n) coeff.
+      ave_wghts[1] = 0.0;
+      ave_wghts[2] = 0.0;
+      const Real beta = 0.063692468666290; // F(u^(3)) coeff.
+      const Real wght_ssp = beta*pmb->pmy_mesh->dt;
+      // writing out to u2 register
+      pz4c->WeightedAve(pz4c->storage.u2,
+                        pz4c->storage.u1,
+                        pz4c->storage.u2,
+                        ave_wghts);
+
+      pz4c->AddZ4cRHS(pz4c->storage.rhs,
+                      wght_ssp,
+                      pz4c->storage.u);
+    }
+
     return TaskStatus::next;
   }
   return TaskStatus::fail;
@@ -1831,42 +1849,24 @@ TaskStatus MatterTaskList::Z4cToADM(MeshBlock *pmb, int stage) {
 
   return TaskStatus::success;
 }
-//WGC wext
-TaskStatus MatterTaskList::Z4c_Weyl(MeshBlock *pmb, int stage) {
- if (stage != nstages) return TaskStatus::success;
-#ifdef Z4C_WEXT
-  Mesh *pm = pmb->pmy_mesh;
-if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction)) {
- pmb->pz4c->Z4cWeyl(pmb->pz4c->storage.adm, pmb->pz4c->storage.mat,
-    pmb->pz4c->storage.weyl);
-}
-#endif
-   return TaskStatus::success;
-// }
-// else {
-// return TaskStatus::fail;
-// }
-}  
 
+TaskStatus MatterTaskList::Z4c_Weyl(MeshBlock *pmb, int stage) {
+  // only do on last stage
+  if (stage != nstages) return TaskStatus::success;
+
+  Mesh *pm = pmb->pmy_mesh;
+  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction))
+  {
+    pmb->pz4c->Z4cWeyl(pmb->pz4c->storage.adm,
+                       pmb->pz4c->storage.mat,
+                       pmb->pz4c->storage.weyl);
+  }
+
+  return TaskStatus::success;
+}
 
 TaskStatus MatterTaskList::WaveExtract(MeshBlock *pmb, int stage) {
- if (stage != nstages) return TaskStatus::success;  
-//#ifdef Z4C_WEXT
-/*
-  Mesh *pm = pmb->pmy_mesh;
-
-  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction)) {
- AthenaArray<Real> u_R;
- AthenaArray<Real> u_I;
- u_R.InitWithShallowSlice(pmb->pz4c->storage.weyl, Z4c::I_WEY_rpsi4, 1);
- u_I.InitWithShallowSlice(pmb->pz4c->storage.weyl, Z4c::I_WEY_ipsi4, 1);
- for(int n = 0; n<NRAD;++n){
-   pmb->pwave_extr_loc[n]->Decompose_multipole(u_R,u_I);
- }
-}
-//#endif
-  return TaskStatus::success;
-*/
+ if (stage != nstages) return TaskStatus::success;
 
 Mesh *pm = pmb->pmy_mesh;
 
@@ -1888,27 +1888,31 @@ Mesh *pm = pmb->pmy_mesh;
 //WGC end
 
 
-TaskStatus MatterTaskList::ADM_Constraints(MeshBlock *pmb, int stage) {
+TaskStatus MatterTaskList::ADM_Constraints(MeshBlock *pmb, int stage)
+{
 
   if (stage != nstages) return TaskStatus::success;
   Mesh *pm = pmb->pmy_mesh;
 
-    // if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.con)) {      // Time at the end of stage for (u, b) register pair                
+  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.con) ||
+      CurrentTimeCalculationThreshold(pm, &TaskListTriggers.con_hst))
+  {      // Time at the end of stage for (u, b) register pair
 
     pmb->pz4c->Z4cToADM(pmb->pz4c->storage.u, pmb->pz4c->storage.adm);
+
     /*
 
     pmb->pz4c->GetMatter(pmb->pz4c->storage.mat,
-                         pmb->pz4c->storage.adm,
-                         pmb->phydro->w,
-                         pmb->pfield->bcc);
+                          pmb->pz4c->storage.adm,
+                          pmb->phydro->w,
+                          pmb->pfield->bcc);
     */
     pmb->pz4c->ADMConstraints(pmb->pz4c->storage.con, pmb->pz4c->storage.adm,
                               pmb->pz4c->storage.mat, pmb->pz4c->storage.u);
 
-    // }
-    return TaskStatus::success;
   }
+  return TaskStatus::success;
+}
 //  return TaskStatus::fail;
 //}
 TaskStatus MatterTaskList::NewBlockTimeStep(MeshBlock *pmb, int stage) {
@@ -2004,35 +2008,6 @@ void MatterTaskList::UpdateTaskListTriggers() {
   // note that for global dt > target output dt
   // next_time will 'lag'; this will need to be corrected if an integrator with dense /
   // interpolating output is used.
-/*
-  if (TaskListTriggers.adm.to_update) {
-    TaskListTriggers.adm.next_time += TaskListTriggers.adm.dt;
-    TaskListTriggers.adm.to_update = false;
-  }
-
-  if (TaskListTriggers.con.to_update) {
-    TaskListTriggers.con.next_time += TaskListTriggers.con.dt;
-    TaskListTriggers.con.to_update = false;
-  }
-
-#ifdef Z4C_ASSERT_FINITE
-  if (TaskListTriggers.assert_is_finite.to_update) {
-    TaskListTriggers.assert_is_finite.next_time += \
-      TaskListTriggers.assert_is_finite.dt;
-    TaskListTriggers.assert_is_finite.to_update = false;
-  }
-#endif // Z4C_ASSERT_FINITE
-
-#ifdef Z4C_WEXT
-  if (TaskListTriggers.wave_extraction.to_update) {
-    TaskListTriggers.wave_extraction.next_time += \
-      TaskListTriggers.wave_extraction.dt;
-    TaskListTriggers.wave_extraction.to_update = false;
-  }
-#endif // Z4C_WEXT
-*/
-
-
 
  if (TaskListTriggers.adm.to_update) {
     TaskListTriggers.adm.next_time += TaskListTriggers.adm.dt;

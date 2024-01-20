@@ -26,10 +26,10 @@ Z4cAuxTaskList::Z4cAuxTaskList(ParameterInput *pin, Mesh *pm){
 
   // task list trigger logic --------------------------------------------------
   TaskListTriggers.wave_extraction.to_update = false;
-  TaskListTriggers.wave_extraction.dt = pin->GetOrAddReal("z4c",
-                                                          "dt_wave_extraction",
+  TaskListTriggers.wave_extraction.dt = pin->GetOrAddReal("task_triggers",
+                                                          "dt_psi4_extraction",
                                                           1.0);
-  if (pin->GetOrAddInteger("z4c", "nrad_wave_extraction", 0) == 0)
+  if (pin->GetOrAddInteger("psi4_extraction", "num_radii", 0) == 0)
   {
     TaskListTriggers.wave_extraction.dt = 0.0;
     TaskListTriggers.wave_extraction.next_time = 0.0;

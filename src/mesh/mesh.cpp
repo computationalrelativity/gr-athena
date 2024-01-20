@@ -322,7 +322,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     max_level = 63;
   }
   if (Z4C_ENABLED) {
-    int nrad = pin->GetOrAddInteger("z4c", "nrad_wave_extraction", 0);
+    int nrad = pin->GetOrAddInteger("psi4_extraction", "num_radii", 0);
     if (nrad > 0) {
       pwave_extr.reserve(nrad);
       for(int n = 0; n < nrad; ++n){
@@ -786,7 +786,7 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
   }
 
   if (Z4C_ENABLED) {
-    int nrad = pin->GetOrAddInteger("z4c", "nrad_wave_extraction", 0);
+    int nrad = pin->GetOrAddInteger("psi4_extraction", "num_radii", 0);
     if (nrad > 0) {
       pwave_extr.reserve(nrad);
       for(int n = 0; n < nrad; ++n) {

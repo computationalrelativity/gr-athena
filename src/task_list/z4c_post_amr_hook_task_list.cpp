@@ -171,6 +171,13 @@ TaskStatus Z4cPostAMRTaskList::ADM_Constraints(MeshBlock *pmb, int stage)
 {
   Z4c *pz4c = pmb->pz4c;
 
+  pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
+
+  pz4c->GetMatter(pz4c->storage.mat,
+                  pz4c->storage.adm,
+                  pmb->phydro->w,
+                  pmb->pfield->bcc);
+
   pz4c->ADMConstraints(pz4c->storage.con, pz4c->storage.adm,
                        pz4c->storage.mat, pz4c->storage.u);
 

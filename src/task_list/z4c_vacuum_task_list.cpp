@@ -234,7 +234,8 @@ Z4cIntegratorTaskList::Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm){
   //---------------------------------------------------------------------------
   // Output frequency control (on task-list)
   TaskListTriggers.assert_is_finite.next_time = pm->time;
-  TaskListTriggers.assert_is_finite.dt = pin->GetOrAddReal("z4c",
+  TaskListTriggers.assert_is_finite.dt = pin->GetOrAddReal(
+    "task_triggers",
     "dt_assert_is_finite", 0.0);
 
   // For constraint calculation
@@ -260,8 +261,9 @@ Z4cIntegratorTaskList::Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm){
 
   TaskListTriggers.wave_extraction.to_update = false;
 
-  TaskListTriggers.wave_extraction.dt = pin->GetOrAddReal("z4c", "dt_wave_extraction", 1.0);
-  if (pin->GetOrAddInteger("z4c", "nrad_wave_extraction", 0) == 0) {
+  TaskListTriggers.wave_extraction.dt = pin->GetOrAddReal(
+    "task_triggers", "dt_psi4_extraction", 1.0);
+  if (pin->GetOrAddInteger("psi4_extraction", "num_radii", 0) == 0) {
     TaskListTriggers.wave_extraction.dt = 0.0;
     TaskListTriggers.wave_extraction.next_time = 0.0;
     TaskListTriggers.wave_extraction.to_update = false;
@@ -562,8 +564,28 @@ TaskStatus Z4cIntegratorTaskList::IntegrateZ4c(MeshBlock *pmb, int stage) {
     pz4c->AddZ4cRHS(pz4c->storage.rhs, stage_wghts[stage-1].beta,
                     pz4c->storage.u);
 
+    if (stage == 4 && integrator == "ssprk5_4")
+    {
+      // From Gottlieb (2009), u^(n+1) partial calculation
+      ave_wghts[0] = -1.0; // -u^(n) coeff.
+      ave_wghts[1] = 0.0;
+      ave_wghts[2] = 0.0;
+      const Real beta = 0.063692468666290; // F(u^(3)) coeff.
+      const Real wght_ssp = beta*pmb->pmy_mesh->dt;
+      // writing out to u2 register
+      pz4c->WeightedAve(pz4c->storage.u2,
+                        pz4c->storage.u1,
+                        pz4c->storage.u2,
+                        ave_wghts);
+
+      pz4c->AddZ4cRHS(pz4c->storage.rhs,
+                      wght_ssp,
+                      pz4c->storage.u);
+    }
+
     return TaskStatus::next;
   }
+
   return TaskStatus::fail;
 }
 //----------------------------------------------------------------------------------------
@@ -670,10 +692,11 @@ TaskStatus Z4cIntegratorTaskList::Z4c_Weyl(MeshBlock *pmb, int stage) {
   // only do on last stage
   if (stage != nstages) return TaskStatus::success;
 
-
   Mesh *pm = pmb->pmy_mesh;
-  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction)) {
-    pmb->pz4c->Z4cWeyl(pmb->pz4c->storage.adm, pmb->pz4c->storage.mat,
+  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction))
+  {
+    pmb->pz4c->Z4cWeyl(pmb->pz4c->storage.adm,
+                       pmb->pz4c->storage.mat,
                        pmb->pz4c->storage.weyl);
   }
 
@@ -725,11 +748,9 @@ TaskStatus Z4cIntegratorTaskList::ADM_Constraints(MeshBlock *pmb, int stage) {
   Mesh *pm = pmb->pmy_mesh;
 
   // check last stage is actually at a relevant time
-  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.con)) {
-    pmb->pz4c->ADMConstraints(pmb->pz4c->storage.con, pmb->pz4c->storage.adm,
-                              pmb->pz4c->storage.mat, pmb->pz4c->storage.u);
-  }
-  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.con_hst)) {
+  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.con) ||
+      CurrentTimeCalculationThreshold(pm, &TaskListTriggers.con_hst))
+  {
     pmb->pz4c->ADMConstraints(pmb->pz4c->storage.con, pmb->pz4c->storage.adm,
                               pmb->pz4c->storage.mat, pmb->pz4c->storage.u);
   }
@@ -827,7 +848,7 @@ void Z4cIntegratorTaskList::UpdateTaskListTriggers() {
       TaskListTriggers.wave_extraction.dt;
     TaskListTriggers.wave_extraction.to_update = false;
   }
-  
+
   if (TaskListTriggers.cce_dump.to_update) {
     TaskListTriggers.cce_dump.next_time += TaskListTriggers.cce_dump.dt;
     TaskListTriggers.cce_dump.to_update = false;

@@ -31,10 +31,21 @@
 #include "../trackers/extrema_tracker.hpp"
 #include "../utils/linear_algebra.hpp"
 
-int RefinementCondition(MeshBlock *pmb);
+
+namespace {
+  int RefinementCondition(MeshBlock *pmb);
+
 #if MAGNETIC_FIELDS_ENABLED
-Real DivBface(MeshBlock *pmb, int iout);
+  Real DivBface(MeshBlock *pmb, int iout);
 #endif
+
+  Real max_rho(      MeshBlock *pmb, int iout);
+  Real min_alpha(    MeshBlock *pmb, int iout);
+  Real max_abs_con_H(MeshBlock *pmb, int iout);
+
+
+}
+
 
 //========================================================================================
 //! \fn void Mesh::InitUserMeshData(ParameterInput *pin)
@@ -48,9 +59,18 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   if(adaptive==true)
     EnrollUserRefinementCondition(RefinementCondition);
 
+
+  AllocateUserHistoryOutput(4);
+  EnrollUserHistoryOutput(0, max_rho,   "max-rho",
+    UserHistoryOperation::max);
+  EnrollUserHistoryOutput(1, min_alpha, "min-alpha",
+    UserHistoryOperation::min);
+  EnrollUserHistoryOutput(2, max_abs_con_H, "max-abs-con.H",
+    UserHistoryOperation::max);
+
 #if MAGNETIC_FIELDS_ENABLED
-  AllocateUserHistoryOutput(1);
-  EnrollUserHistoryOutput(0, DivBface, "divBface");
+  // AllocateUserHistoryOutput(1);
+  EnrollUserHistoryOutput(3, DivBface, "divBface");
 #endif
 
   return;
@@ -540,6 +560,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   return;
 }
 
+namespace {
+
 //----------------------------------------------------------------------------------------
 //! \fn
 //  \brief refinement condition: extrema based
@@ -651,3 +673,78 @@ Real DivBface(MeshBlock *pmb, int iout) {
 }
 #endif
 
+Real max_rho(MeshBlock *pmb, int iout)
+{
+  Real max_rho = -std::numeric_limits<Real>::infinity();
+  int is = pmb->is, ie = pmb->ie;
+  int js = pmb->js, je = pmb->je;
+  int ks = pmb->ks, ke = pmb->ke;
+
+  AthenaArray<Real> &w = pmb->phydro->w;
+  for (int k=ks; k<=ke; k++)
+  for (int j=js; j<=je; j++)
+  for (int i=is; i<=ie; i++)
+  {
+    max_rho = std::max(std::abs(w(IDN,k,j,i)), max_rho);
+  }
+
+  return max_rho;
+}
+
+Real min_alpha(MeshBlock *pmb, int iout)
+{
+
+  const int N = NDIM;
+
+  typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
+  typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
+  typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
+
+  // --------------------------------------------------------------------------
+  // Set some aliases for the variables.
+  AT_N_sca alpha(pmb->pz4c->storage.u, Z4c::I_Z4c_alpha);
+
+  // container with idx / grids pertaining z4c
+  MB_info* mbi = &(pmb->pz4c->mbi);
+
+  Real m_alpha = std::numeric_limits<Real>::infinity();
+
+  for (int k=mbi->kl; k<=mbi->ku; k++)
+  for (int j=mbi->jl; j<=mbi->ju; j++)
+  for (int i=mbi->il; i<=mbi->iu; i++)
+  {
+    m_alpha = std::min(alpha(k,j,i), m_alpha);
+  }
+
+  return m_alpha;
+}
+
+Real max_abs_con_H(MeshBlock *pmb, int iout)
+{
+
+  const int N = NDIM;
+
+  typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
+  typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
+  typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
+
+  // --------------------------------------------------------------------------
+  // Set some aliases for the variables.
+  AT_N_sca con_H(pmb->pz4c->storage.con, Z4c::I_CON_H);
+
+  // container with idx / grids pertaining z4c
+  MB_info* mbi = &(pmb->pz4c->mbi);
+
+  Real m_abs_con_H = -std::numeric_limits<Real>::infinity();
+
+  for (int k=mbi->kl; k<=mbi->ku; k++)
+  for (int j=mbi->jl; j<=mbi->ju; j++)
+  for (int i=mbi->il; i<=mbi->iu; i++)
+  {
+    m_abs_con_H = std::max(std::abs(con_H(k,j,i)), m_abs_con_H);
+  }
+
+  return m_abs_con_H;
+}
+
+}

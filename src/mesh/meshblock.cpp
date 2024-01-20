@@ -167,7 +167,7 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
 
   if (Z4C_ENABLED) {
     pz4c = new Z4c(this, pin);
-    int nrad = pin->GetOrAddInteger("z4c", "nrad_wave_extraction", 0);
+    int nrad = pin->GetOrAddInteger("psi4_extraction", "num_radii", 0);
     if (nrad > 0) {
       pwave_extr_loc.reserve(nrad);
       for (int n = 0; n < nrad; ++n) {
@@ -304,7 +304,7 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
 
   if (Z4C_ENABLED) {
     pz4c = new Z4c(this, pin);
-    int nrad = pin->GetOrAddInteger("z4c", "nrad_wave_extraction", 0);
+    int nrad = pin->GetOrAddInteger("psi4_extraction", "num_radii", 0);
     if (nrad > 0) {
       pwave_extr_loc.reserve(nrad);
       for (int n = 0; n < nrad; ++n) {

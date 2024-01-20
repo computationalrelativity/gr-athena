@@ -63,7 +63,7 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   verbose = pin->GetOrAddBoolean("ahf", "verbose", 0);
   root = pin->GetOrAddInteger("ahf", "mpi_root", 0);
   merger_distance = pin->GetOrAddReal("ahf", "merger_distance", 0.1);
-  bitant = pin->GetOrAddBoolean("z4c", "bitant", false);
+  bitant = pin->GetOrAddBoolean("mesh", "bitant", false);
   
   // Initial guess
   parname = "initial_radius_";

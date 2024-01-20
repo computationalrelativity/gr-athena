@@ -28,22 +28,21 @@
 
 WaveExtract::WaveExtract(Mesh * pmesh, ParameterInput * pin, int n):
     pmesh(pmesh), pofile(NULL) {
-  int nlev = pin->GetOrAddInteger("z4c", "extraction_nlev", 3);
+  int nlev = pin->GetOrAddInteger("psi4_extraction", "nlev", 3);
   Real rad;
   std::string rad_parname;
-  rad_parname = "extraction_radius_";
+  rad_parname = "radius_";
   std::string n_str = std::to_string(n);
   rad_parname += n_str;
-  rad = pin->GetOrAddReal("z4c", rad_parname, 10.0);
+  rad = pin->GetOrAddReal("psi4_extraction", rad_parname, 10.0);
   rad_id = n;
-  ofname = pin->GetString("job", "problem_id") + ".";
-  ofname += pin->GetOrAddString("z4c", "extract_filename", "wave_");
-  lmax = pin->GetOrAddInteger("z4c", "lmax", 2);
+  ofname = pin->GetOrAddString("psi4_extraction", "filename", "wave");
+  lmax = pin->GetOrAddInteger("psi4_extraction", "lmax", 2);
   psi.NewAthenaArray(lmax-1,2*(lmax)+1,2);
   psi.ZeroClear();
-  bool bitant = pin->GetOrAddBoolean("z4c", "bitant", false);
+  bool bitant = pin->GetOrAddBoolean("mesh", "bitant", false);
   psphere = new SphericalGrid(nlev, rad, bitant);
-  ofname += "r";
+  ofname += "_r";
   std::stringstream strObj3;
   strObj3 << std::setfill('0') << std::setw(5) << std::fixed << std::setprecision(2) << rad;
   ofname += strObj3.str();
@@ -132,14 +131,14 @@ void WaveExtract::Write(int iter, Real time) const {
 
 WaveExtractLocal::WaveExtractLocal(SphericalGrid * psphere, MeshBlock * pmb, ParameterInput * pin, int n) {
   std::string rad_parname;
-  rad_parname = "extraction_radius_";
+  rad_parname = "radius_";
   std::string n_str = std::to_string(n);
   rad_parname += n_str;
-  rad = pin->GetOrAddReal("z4c", rad_parname.c_str(), 10.0);
-  lmax = pin->GetOrAddInteger("z4c", "lmax", 2);
+  rad = pin->GetOrAddReal("psi4_extraction", rad_parname.c_str(), 10.0);
+  lmax = pin->GetOrAddInteger("psi4_extraction", "lmax", 2);
   psi.NewAthenaArray(lmax-1,2*(lmax)+1,2);
   psi.ZeroClear();
-  bitant = pin->GetOrAddBoolean("z4c", "bitant", false);
+  bitant = pin->GetOrAddBoolean("mesh", "bitant", false);
 #if defined(Z4C_VC_ENABLED)
   ppatch = new SphericalPatch(psphere, pmb, SphericalPatch::vertex);
 #else

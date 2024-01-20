@@ -67,7 +67,7 @@ CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int rn):
     rn(rn),
     count_interp_pnts(0)
 {
-  bitant     = pin->GetOrAddBoolean("z4c", "bitant", false);
+  bitant     = pin->GetOrAddBoolean("mesh", "bitant", false);
   output_dir = pin->GetString("cce","output_dir");
   bfname = output_dir + "/" + BOOKKEEPING_NAME;
   rin  = pin->GetReal("cce", "rin_"  + std::to_string(rn));

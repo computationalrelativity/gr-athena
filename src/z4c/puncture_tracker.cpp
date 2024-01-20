@@ -58,7 +58,7 @@ PunctureTracker::PunctureTracker(Mesh * pmesh, ParameterInput * pin, int n)
                                                            "par_m_minus",
                                                            0.0));
 
-  bitant = pin->GetOrAddBoolean("z4c", "bitant", false);
+  bitant = pin->GetOrAddBoolean("mesh", "bitant", false);
 
   if (0 == Globals::my_rank) {
     // check if output file already exists
