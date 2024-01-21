@@ -171,6 +171,15 @@ void Ejecta::Interp(MeshBlock * pmb)
     Bz_.InitWithShallowSlice(pmb->pfield->bcc, IB3, 1);
   }
 
+  rho.ZeroClear();
+  press.ZeroClear();
+  vx.ZeroClear();
+  vy.ZeroClear();
+  vz.ZeroClear();
+  Bx.ZeroClear();
+  By.ZeroClear();
+  Bz.ZeroClear();
+
   // For interp
   Real origin[NDIM];
   Real delta[NDIM];
@@ -302,90 +311,119 @@ void Ejecta::Calculate(int iter, Real time)
 // \brief Output ejecta quantities
 void Ejecta::Write(int iter, Real time)
 {
-  if((time < start_time) || (time > stop_time)) return;
-  if (iter % compute_every_iter != 0) return;
-  MeshBlock * pmb = pmesh->pblock;
 
-  std::stringstream ss_i;
-  ss_i << std::setw(6) << std::setfill('0') << iter;
-  std::string s_i = ss_i.str();
-  std::string filename = "ejecta_" + s_i + ".h5";
-  hid_t file = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-  hid_t prim_id = H5Gcreate1(file, "prim", H5P_DEFAULT);
-  //Create the data space for the data set//
-  hsize_t dim_1[1], dim_2[2];
-  hid_t dataset, dataspace;
+//#ifdef MPI_PARALLEL
+//  MPI_Allreduce(MPI_IN_PLACE, rho.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
+//#endif
+#ifdef MPI_PARALLEL
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  if (rank == root) {
+    MPI_Reduce(MPI_IN_PLACE, rho.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(MPI_IN_PLACE, press.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(MPI_IN_PLACE, vx.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(MPI_IN_PLACE, vy.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(MPI_IN_PLACE, vz.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(MPI_IN_PLACE, Bx.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(MPI_IN_PLACE, By.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(MPI_IN_PLACE, Bz.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+  } else {
+    MPI_Reduce(rho.data(), rho.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(press.data(), press.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(vx.data(), vx.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(vy.data(), vy.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(vz.data(), vz.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(Bx.data(), Bx.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(By.data(), By.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(Bz.data(), Bz.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+  }
+#endif
+  if (ioproc) {
 
-  // Time
-  dim_1[0] = 1;
-  dataspace = H5Screate_simple(1, dim_1, NULL);
-  Real tvec[1] = {time};
-  dataset = H5Dcreate(file, "time", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-  H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, tvec);
-  H5Dclose(dataset);
+    if((time < start_time) || (time > stop_time)) return;
+    if (iter % compute_every_iter != 0) return;
 
-  // Theta
-  dim_1[0] = ntheta;
-  dataspace = H5Screate_simple(1, dim_1, NULL);
-  dataset = H5Dcreate(file, "theta", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-  H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, theta.data());
-  H5Dclose(dataset);
+    std::stringstream ss_i;
+    ss_i << std::setw(6) << std::setfill('0') << iter;
+    std::string s_i = ss_i.str();
+    std::string filename = "ejecta_" + s_i + ".h5";
+    hid_t file = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    hid_t prim_id = H5Gcreate1(file, "prim", H5P_DEFAULT);
+    //Create the data space for the data set//
+    hsize_t dim_1[1], dim_2[2];
+    hid_t dataset, dataspace;
 
-  // Phi
-  dim_1[0] = nphi;
-  dataspace = H5Screate_simple(1, dim_1, NULL);
-  dataset = H5Dcreate(file, "phi", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-  H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, phi.data());
-  H5Dclose(dataset);
+    // Time
+    dim_1[0] = 1;
+    dataspace = H5Screate_simple(1, dim_1, NULL);
+    Real tvec[1] = {time};
+    dataset = H5Dcreate(file, "time", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, tvec);
+    H5Dclose(dataset);
 
-  // Primitive variables
-  dim_2[0] = ntheta;
-  dim_2[1] = nphi;
-  dataspace = H5Screate_simple(2, dim_2, NULL);
+    // Theta
+    dim_1[0] = ntheta;
+    dataspace = H5Screate_simple(1, dim_1, NULL);
+    dataset = H5Dcreate(file, "theta", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, theta.data());
+    H5Dclose(dataset);
 
-  // rho
-  dataset = H5Dcreate(file, "prim/rho", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-  H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, rho.data());
-  H5Dclose(dataset);
+    // Phi
+    dim_1[0] = nphi;
+    dataspace = H5Screate_simple(1, dim_1, NULL);
+    dataset = H5Dcreate(file, "phi", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, phi.data());
+    H5Dclose(dataset);
 
-  // press
-  dataset = H5Dcreate(file, "prim/press", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-  H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, press.data());
-  H5Dclose(dataset);
+    // Primitive variables
+    dim_2[0] = ntheta;
+    dim_2[1] = nphi;
+    dataspace = H5Screate_simple(2, dim_2, NULL);
 
-  // vx
-  dataset = H5Dcreate(file, "prim/vx", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-  H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, vx.data());
-  H5Dclose(dataset);
+    // rho
+    dataset = H5Dcreate(file, "prim/rho", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, rho.data());
+    H5Dclose(dataset);
 
-  // vy
-  dataset = H5Dcreate(file, "prim/vy", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-  H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, vy.data());
-  H5Dclose(dataset);
+    // press
+    dataset = H5Dcreate(file, "prim/press", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, press.data());
+    H5Dclose(dataset);
 
-  // vz
-  dataset = H5Dcreate(file, "prim/vz", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-  H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, vz.data());
-  H5Dclose(dataset);
+    // vx
+    dataset = H5Dcreate(file, "prim/vx", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, vx.data());
+    H5Dclose(dataset);
 
-  // Bx
-  dataset = H5Dcreate(file, "prim/Bx", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-  H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, Bx.data());
-  H5Dclose(dataset);
+    // vy
+    dataset = H5Dcreate(file, "prim/vy", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, vy.data());
+    H5Dclose(dataset);
 
-  // By
-  dataset = H5Dcreate(file, "prim/By", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-  H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, By.data());
-  H5Dclose(dataset);
+    // vz
+    dataset = H5Dcreate(file, "prim/vz", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, vz.data());
+    H5Dclose(dataset);
 
-  // Bz
-  dataset = H5Dcreate(file, "prim/Bz", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-  H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, Bz.data());
-  H5Dclose(dataset);
+    // Bx
+    dataset = H5Dcreate(file, "prim/Bx", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, Bx.data());
+    H5Dclose(dataset);
 
-  H5Sclose(dataspace);
-  H5Gclose(prim_id);
-  H5Fclose(file);
+    // By
+    dataset = H5Dcreate(file, "prim/By", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, By.data());
+    H5Dclose(dataset);
+
+    // Bz
+    dataset = H5Dcreate(file, "prim/Bz", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, Bz.data());
+    H5Dclose(dataset);
+
+    H5Sclose(dataspace);
+    H5Gclose(prim_id);
+    H5Fclose(file);
+  }
 }
 
 
