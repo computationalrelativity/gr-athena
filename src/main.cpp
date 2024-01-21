@@ -649,7 +649,6 @@ pmesh->pwave_extr[n]->Write(pmesh->ncycle, pmesh->time);
 #ifdef EJECTA
       for (auto pej : pmesh->pej_extract) {
         pej->Calculate(pmesh->ncycle, pmesh->time);
-        pej->Write(pmesh->ncycle, pmesh->time);
       }
 #endif
 

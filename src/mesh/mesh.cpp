@@ -1106,7 +1106,6 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
 #ifdef EJECTA
       for (auto pej : pej_extract) {
         pej->Calculate(ncycle, time);
-        pej->Write(ncycle, time);
       }
 #endif
 
