@@ -171,6 +171,8 @@
 // make use of FFT? (FFT or NO_FFT)
 #define @FFT_OPTION@
 
+#define @EJECTA@
+
 // MPI parallelization (MPI_PARALLEL or NOT_MPI_PARALLEL)
 #define @MPI_OPTION@
 
