@@ -952,7 +952,11 @@ class GRDynamical : public Coordinates {
   #endif  // HYBRID_INTERP
 #else  // Z4C_CX_ENABLED
     // BD: debug
+  #if defined(HYBRID_INTERP)
+    ig_1N->CC2FC(tar, src, dir, tr_k, tr_j);
+  #else
     ig_NN->CC2FC(tar, src, dir, tr_k, tr_j);
+  #endif  // HYBRID_INTERP
 #endif
   };
 

@@ -268,6 +268,7 @@ void Hydro::RiemannSolver(
   {
     if ((ivx==1) && (k==7) && (j==6))
     {
+      /*
       std::cout << setprecision(16);
       std::cout << "k,j:" << k << "," << j << std::endl;
       std::cout << "prim_l:" << prim_l(0,8) << std::endl;
@@ -281,6 +282,7 @@ void Hydro::RiemannSolver(
       // std::cout << "prim_r" << std::endl;
       // prim_r.print_all("%.4e");
       std::exit(0);
+      */
     }
   }
 

@@ -34,6 +34,13 @@ Real rec1d_p_mp7(Real eps, Real uim3, Real uimt, Real uimo, Real ui, Real uipo, 
 double rec1d_m_ceno3(double uimt, double uimo, double ui, double uipo, double uipt);
 double rec1d_p_ceno3(double uimt, double uimo, double ui, double uipo, double uipt);
 
+double rec1d_p_weno5d_si(double uimt, double uimo, double ui, double uipo, double uipt);
+// const double W5D_SI_EPSL = 1e-40;
+const double W5D_SI_EPSL = 1e-12;
+const double W5D_SI_p    = 2;
+const double W5D_SI_s    = 1;
+const double W5D_SI_mu_0 = 1e-40;
+
 Real mpnlimiter(Real eps_mpn,
                 Real u,
                 Real uimt,Real uimo,Real ui,Real uipo,Real uipt);
@@ -63,7 +70,7 @@ const double alpha       = 0.7; // CENO coef
 static double optimw[3]  = {1./10., 3./5., 3./10.};// WENO optimal weights
 
 // point-wise
-// static double optimw[3]  = {1./16., 5./8., 5./16.};// WENO optimal weights
+static double optimw_pw[3]  = {1./16., 5./8., 5./16.};
 
 // for mpn schemes
 static double cl3[3] = {-1./6., 5./6., 2./6.};
@@ -235,6 +242,12 @@ void Reconstruction::WenoX1(
             qr(n,i  ) = rec1d_p_ceno3(uipt,uipo,ui,uimo,uimt);
           }
 
+          break;
+        }
+        case ReconstructionVariant::weno5d_si:
+        {
+          ql(n,i+1) = rec1d_p_weno5d_si(uimt,uimo,ui,uipo,uipt);
+          qr(n,i  ) = rec1d_p_weno5d_si(uipt,uipo,ui,uimo,uimt);
           break;
         }
         case ReconstructionVariant::none:
@@ -467,6 +480,12 @@ void Reconstruction::WenoX2(
 
           break;
         }
+        case ReconstructionVariant::weno5d_si:
+        {
+          ql(n,i) = rec1d_p_weno5d_si(uimt,uimo,ui,uipo,uipt);
+          qr(n,i) = rec1d_p_weno5d_si(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
         case ReconstructionVariant::none:
         {
           break;
@@ -684,6 +703,12 @@ void Reconstruction::WenoX3(
             qr(n,i) = rec1d_p_ceno3(uipt,uipo,ui,uimo,uimt);
           }
 
+          break;
+        }
+        case ReconstructionVariant::weno5d_si:
+        {
+          ql(n,i) = rec1d_p_weno5d_si(uimt,uimo,ui,uipo,uipt);
+          qr(n,i) = rec1d_p_weno5d_si(uipt,uipo,ui,uimo,uimt);
           break;
         }
         case ReconstructionVariant::none:
@@ -931,6 +956,78 @@ double rec1d_m_wenoz(double uimt, double uimo, double ui, double uipo, double ui
   um = w[0]*uk[0] + w[1]*uk[1] + w[2]*uk[2];
 
   return um;
+}
+
+#pragma omp declare simd
+double rec1d_p_weno5d_si(double uimt, double uimo, double ui, double uipo, double uipt)
+{
+/*
+  // Computes u[i + 1/2]
+  double uimt = u [i-2];
+  double uimo = u [i-1];
+  double ui   = u [i];
+  double uipo = u [i+1];
+  double uipt = u [i+2];
+*/
+  double up;
+
+  double uk[3], a[3], b[3], w[3], dsa;
+  int j;
+
+#if (USE_WEIGHTS_OPTIMAL)
+  for( j = 0 ; j<3; ++j) w[j] = optimw[j];
+#else
+  // smoothness coefs, Jiag & Shu '96
+  b[0] = othreeotwo * SQR(( uimt-cc[2]*uimo+ui   )) + oocc[4] * SQR((uimt-cc[4]*uimo+cc[3]*ui));
+  b[1] = othreeotwo * SQR(( uimo-cc[2]*ui  +uipo )) + oocc[4] * SQR((uimo-uipo ) );
+  b[2] = othreeotwo * SQR(( ui  -cc[2]*uipo+uipt )) + oocc[4] * SQR((cc[3]*ui-cc[4]*uipo+uipt));
+
+  const double phi = std::sqrt(std::abs(b[0]-2.*b[1]+b[2]));
+  const double tau = std::abs(b[0]-b[2]);
+
+  // local descaling function
+  const int r = 3;
+  const double xi = (std::abs(uimt) +
+                     std::abs(uimo) +
+                     std::abs(ui) +
+                     std::abs(uipo) +
+                     std::abs(uipt)) / (2. * (r) - 1.);
+
+  const double mu  = xi + W5D_SI_mu_0;
+  const double mu2 = SQR(mu);
+  const double Phi = std::min(1., phi / mu);
+
+  const double eps_mu2 = W5D_SI_EPSL * mu2;
+
+  for( j = 0; j<3; ++j)
+  {
+    const double Z_j = std::pow(tau / (b[j] + eps_mu2), W5D_SI_p);
+    const double Gam_j = Phi * Z_j;
+    a[j] = optimw[j] * std::pow((1. + Gam_j), W5D_SI_s);
+  }
+
+  dsa = cc[1]/( a[0] + a[1] + a[2] );
+
+  for( j = 0 ; j<3; ++j)
+  {
+    w[j] = a[j] * dsa;
+  }
+#endif
+
+  uk[0] = oocc[6]*(   cc[2]*uimt - cc[7]*uimo + cc[11]*ui   );
+  uk[1] = oocc[6]*( - cc[1]*uimo + cc[5]*ui   + cc[2] *uipo );
+  uk[2] = oocc[6]*(   cc[2]*ui   + cc[5]*uipo -        uipt );
+
+  /*
+  // point-wise
+  uk[0] = oocc[8]*(   cc[3]*uimt - cc[10]*uimo + cc[15]*ui   );
+  uk[1] = oocc[8]*( - cc[1]*uimo + cc[6]*ui    + cc[3] *uipo );
+  uk[2] = oocc[8]*(   cc[3]*ui   + cc[6]*uipo  -        uipt );
+  */
+
+  up = w[0]*uk[0] + w[1]*uk[1] + w[2]*uk[2];
+
+  return up;
 }
 
 double rec1d_m_mp3(double eps, double uimt, double uimo, double ui, double uipo, double uipt)

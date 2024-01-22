@@ -1155,12 +1155,15 @@ void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
   const int Ns_x2 = pmb->block_size.nx2 - 1;  // # phys. nodes - 1
   const int Ns_x1 = pmb->block_size.nx1 - 1;
 
+#ifdef Z4C_CX_NUM_RBC_INIT_LO
   if (Z4C_CX_NUM_RBC > 0)
   {
     RestrictCellCenteredXValuesLO(fine, coarse, sn, en,
                                   si, ei, sj, ej, sk, ek);
     return;
   }
+#endif
+
   // RestrictCellCenteredXValuesLO(fine, coarse, sn, en,
   //                               si, ei, sj, ej, sk, ek);
   // return;

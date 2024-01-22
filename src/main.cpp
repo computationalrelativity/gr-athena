@@ -607,10 +607,13 @@ int main(int argc, char *argv[]) {
     // -BD
 
 
-    if (Z4C_ENABLED) {
-      if (!FLUID_ENABLED){
+    if (Z4C_ENABLED)
+    {
+      if (!FLUID_ENABLED)
+      {
       // This effectively means hydro takes a time-step and _then_ the given problem takes one
-        for (int stage=1; stage<=pz4clist->nstages; ++stage) {
+        for (int stage=1; stage<=pz4clist->nstages; ++stage)
+        {
           pz4clist->DoTaskListOneStage(pmesh, stage);
 
 #if defined(Z4C_CX_ENABLED)
@@ -622,18 +625,21 @@ int main(int argc, char *argv[]) {
 #endif // Z4C_CX_ENABLED
 
         }
-      } else{ //FLUID_ENABLED && Z4C_ENABLED
-      for (int stage=1; stage<=pmatterlist->nstages; ++stage) {
-        pmatterlist->DoTaskListOneStage(pmesh, stage);
       }
+      else
+      { //FLUID_ENABLED && Z4C_ENABLED
+        for (int stage=1; stage<=pmatterlist->nstages; ++stage)
+        {
+          pmatterlist->DoTaskListOneStage(pmesh, stage);
 
 #if defined(Z4C_CX_ENABLED)
-          // recommunicate BC
+          // recommunicate boundaries
           for (int num=1; num<=Z4C_CX_NUM_RBC; num++)
           {
             pz4crbclist->DoTaskListOneStage(pmesh, num);
           }
 #endif // Z4C_CX_ENABLED
+        }
 
       } //FLUID_ENABLED
 

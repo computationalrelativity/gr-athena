@@ -112,13 +112,10 @@ void Z4cRBCTaskList::StartupTaskList(MeshBlock *pmb, int stage)
 
 TaskStatus Z4cRBCTaskList::Nop(MeshBlock *pmb, int stage)
 {
-  // std::cout << "in Nop" << std::endl;
   return TaskStatus::success;
 }
 
 //----------------------------------------------------------------------------------------
-// Functions to calculate the RHS
-
 TaskStatus Z4cRBCTaskList::SendRBC(MeshBlock *pmb, int stage) {
   // std::cout << "in SendDer" << std::endl;
 #if defined(Z4C_CX_ENABLED)
@@ -128,8 +125,6 @@ TaskStatus Z4cRBCTaskList::SendRBC(MeshBlock *pmb, int stage) {
 }
 
 //----------------------------------------------------------------------------------------
-// Functions to receive conserved variables between MeshBlocks
-
 TaskStatus Z4cRBCTaskList::ReceiveRBC(MeshBlock *pmb, int stage) {
   bool ret;
 

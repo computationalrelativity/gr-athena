@@ -827,11 +827,13 @@ void MatterTaskList::AddTask(const TaskID& id, const TaskID& dep) {
 }
 
 
-void MatterTaskList::StartupTaskList(MeshBlock *pmb, int stage) {
+void MatterTaskList::StartupTaskList(MeshBlock *pmb, int stage)
+{
+
+
   pmb->pz4c->Z4cBoundaryRHS(pmb->pz4c->storage.u,
                             pmb->pz4c->storage.mat,
                             pmb->pz4c->storage.rhs);
-//WGC
 
   BoundaryValues *pbval = pmb->pbval;
 
@@ -1062,12 +1064,12 @@ TaskStatus MatterTaskList::IntegrateHydro(MeshBlock *pmb, int stage) {
 
     const Real wght = stage_wghts[stage-1].beta*pmb->pmy_mesh->dt;
     ph->AddFluxDivergence(wght, ph->u);
+
     // add coordinate (geometric) source terms
     pmb->pcoord->AddCoordTermsDivergence(wght, ph->flux, ph->w, pf->bcc, ph->u);
-//WGC this integrator never tested
+
     // Hardcode an additional flux divergence weighted average for the penultimate
     // stage of SSPRK(5,4) since it cannot be expressed in a 3S* framework
-
     if (stage == 4 && integrator == "ssprk5_4")
     {
       // From Gottlieb (2009), u^(n+1) partial calculation
@@ -1679,6 +1681,8 @@ TaskStatus MatterTaskList::CalculateZ4cRHS(MeshBlock *pmb, int stage) {
 // Functions to integrate variables
 TaskStatus MatterTaskList::IntegrateZ4c(MeshBlock *pmb, int stage) {
   Z4c *pz4c = pmb->pz4c;
+  Hydro *ph = pmb->phydro;
+  Field *pf = pmb->pfield;
 
 //printf("intz4c\n");
   if (stage <= nstages) {

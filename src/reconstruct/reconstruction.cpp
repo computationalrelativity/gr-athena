@@ -108,6 +108,12 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
     xorder_style = ReconstructionVariant::weno5z_r;
     xorder_eps = pin->GetOrAddReal("time", "xorder_eps", 0);
   }
+  else if (input_recon == "weno5d_si")
+  {
+    xorder = 5;  // 5 is dummy for WENO interface
+    xorder_style = ReconstructionVariant::weno5d_si;
+    xorder_eps = pin->GetOrAddReal("time", "xorder_eps", 0);
+  }
   else
   {
     std::stringstream msg;

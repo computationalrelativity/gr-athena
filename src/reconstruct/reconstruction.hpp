@@ -33,7 +33,7 @@ class Reconstruction {
 
   // for xorder == 5 we can switch between reconstruction styles
   enum class ReconstructionVariant {
-    none,ceno3,mp3,mp5,mp7,weno5,weno5z,weno5z_r
+    none,ceno3,mp3,mp5,mp7,weno5,weno5z,weno5z_r,weno5d_si
   };
   ReconstructionVariant xorder_style;
   Real xorder_eps;  // for methods for epsilon control parameters
