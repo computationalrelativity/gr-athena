@@ -59,6 +59,10 @@
 #   -z_cx               use cell-centered (extended) sampling
 #   -z_vc               use vertex-centered          sampling  (DEFAULT)
 #
+# Boundary fixed-point (CX):
+#   --cx_rbc=NUM        control fixed-point iteration on com.
+#   -cx_rbc_nlo         enable polynomial interp as init. for fpi
+#
 #   -z_eta_track_tp     enable (TP) based shift-damping
 #   -z_eta_conf         enable conformal factor based shift-damping
 #   -cce                enable CCE
@@ -241,6 +245,15 @@ parser.add_argument("-z_vc",
                     default=False,
                     help='enable Z4c system: vc sampling')
 
+# --z_cx_rbc=[value] argument
+parser.add_argument('--cx_rbc',
+                    default='0',
+                    help='Number of MeshBlock boundary fixed-point iterations')
+
+parser.add_argument("-cx_rbc_nlo",
+                    action='store_true',
+                    default=False,
+                    help='Init. BND FPI with biased polynomial interpolation?')
 
 # -z_eta_track_tp argument
 parser.add_argument("-z_eta_track_tp",
@@ -677,6 +690,15 @@ definitions['NUMBER_PASSIVE_SCALARS'] = args['nscalars']
 
 # --ninterp=[value] argument
 definitions['NUMBER_INTERP_GHOSTS'] = args['ninterp']
+
+# --ninterp=[value] argument
+definitions['Z4C_CX_NUM_RBC'] = args['cx_rbc']
+
+# -cx_rbc_nlo
+if args['cx_rbc_nlo']:
+    definitions['Z4C_CX_NUM_RBC_INIT_LO'] = 'NO_Z4C_CX_NUM_RBC_INIT_LO'
+else:
+    definitions['Z4C_CX_NUM_RBC_INIT_LO'] = 'Z4C_CX_NUM_RBC_INIT_LO'
 
 # -f argument
 if args['f']:
