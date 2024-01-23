@@ -20,6 +20,9 @@ void ChangeRunDir(const char *pdir);
 double ran2(std::int64_t *idum);
 void ShowConfig();
 
+// Check if file exists
+bool file_exists(const char *fname);
+
 //----------------------------------------------------------------------------------------
 //! SignalHandler
 //  \brief static data and functions that implement a simple signal handling system

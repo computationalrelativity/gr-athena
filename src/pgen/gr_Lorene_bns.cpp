@@ -30,6 +30,7 @@
 #include "../mesh/mesh_refinement.hpp"
 #include "../trackers/extrema_tracker.hpp"
 #include "../utils/linear_algebra.hpp"
+#include "../utils/utils.hpp"
 
 
 namespace {
@@ -42,7 +43,6 @@ namespace {
   Real max_rho(      MeshBlock *pmb, int iout);
   Real min_alpha(    MeshBlock *pmb, int iout);
   Real max_abs_con_H(MeshBlock *pmb, int iout);
-
 
 }
 
@@ -143,6 +143,15 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   std::string fn_ini_data = pin->GetOrAddString("problem", "filename", "resu.d");
   Real const tol_det_zero =  pin->GetOrAddReal("problem","tolerance_det_zero",1e-10);
   bool verbose = pin->GetOrAddBoolean("problem", "verbose", 0);
+
+  // check ID is accessible
+  if (!file_exists(fn_ini_data.c_str()))
+  {
+    std::stringstream msg;
+    msg << "### FATAL ERROR problem/filename: " << fn_ini_data << " "
+        << " could not be accessed.";
+    ATHENA_ERROR(msg);
+  }
 
   // container with idx / grids pertaining z4c
   MB_info* mbi = &(pz4c->mbi);
