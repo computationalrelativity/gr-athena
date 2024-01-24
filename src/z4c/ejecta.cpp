@@ -261,11 +261,40 @@ void Ejecta::Calculate(int iter, Real time)
 {
   if((time < start_time) || (time > stop_time)) return;
   if (iter % compute_every_iter != 0) return;
+
   MeshBlock * pmb = pmesh->pblock;
   while (pmb != nullptr) {
     Interp(pmb);
     pmb = pmb->next;
   }
+
+//#ifdef MPI_PARALLEL
+//  MPI_Allreduce(MPI_IN_PLACE, rho.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
+//#endif
+#ifdef MPI_PARALLEL
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  if (rank == root) {
+    MPI_Reduce(MPI_IN_PLACE, rho.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(MPI_IN_PLACE, press.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(MPI_IN_PLACE, vx.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(MPI_IN_PLACE, vy.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(MPI_IN_PLACE, vz.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(MPI_IN_PLACE, Bx.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(MPI_IN_PLACE, By.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(MPI_IN_PLACE, Bz.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+  } else {
+    MPI_Reduce(rho.data(), rho.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(press.data(), press.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(vx.data(), vx.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(vy.data(), vy.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(vz.data(), vz.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(Bx.data(), Bx.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(By.data(), By.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    MPI_Reduce(Bz.data(), Bz.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+  }
+#endif
+  Write(iter, time);
 }
 
 //----------------------------------------------------------------------------------------
@@ -311,37 +340,7 @@ void Ejecta::Calculate(int iter, Real time)
 // \brief Output ejecta quantities
 void Ejecta::Write(int iter, Real time)
 {
-
-//#ifdef MPI_PARALLEL
-//  MPI_Allreduce(MPI_IN_PLACE, rho.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
-//#endif
-#ifdef MPI_PARALLEL
-  int rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  if (rank == root) {
-    MPI_Reduce(MPI_IN_PLACE, rho.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(MPI_IN_PLACE, press.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(MPI_IN_PLACE, vx.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(MPI_IN_PLACE, vy.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(MPI_IN_PLACE, vz.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(MPI_IN_PLACE, Bx.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(MPI_IN_PLACE, By.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(MPI_IN_PLACE, Bz.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-  } else {
-    MPI_Reduce(rho.data(), rho.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(press.data(), press.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(vx.data(), vx.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(vy.data(), vy.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(vz.data(), vz.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(Bx.data(), Bx.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(By.data(), By.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(Bz.data(), Bz.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-  }
-#endif
   if (ioproc) {
-
-    if((time < start_time) || (time > stop_time)) return;
-    if (iter % compute_every_iter != 0) return;
 
     std::stringstream ss_i;
     ss_i << std::setw(6) << std::setfill('0') << iter;
