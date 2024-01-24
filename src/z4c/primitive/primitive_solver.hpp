@@ -191,7 +191,7 @@ class PrimitiveSolver {
     PrimitiveSolver(EOS<EOSPolicy, ErrorPolicy> *eos) : peos(eos) {
       //root = NumTools::Root();
       root.tol = 1e-15;
-      root.iterations = 30;
+      root.iterations = 100;
     }
 
     /// Destructor

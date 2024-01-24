@@ -67,8 +67,7 @@ Ejecta::Ejecta(Mesh * pmesh, ParameterInput * pin, int n):
   start_time = 0.;
   parname = "stop_time_";
   parname += n_str;
-  stop_time = pin->GetOrAddReal("ejecta", parname, -1.0);
-  stop_time = 1000.;
+  stop_time = pin->GetOrAddReal("ejecta", parname, 10000.0);
   // the spherical grid is the same for all surfaces
 
   theta.NewAthenaArray(ntheta);
@@ -171,15 +170,6 @@ void Ejecta::Interp(MeshBlock * pmb)
     Bz_.InitWithShallowSlice(pmb->pfield->bcc, IB3, 1);
   }
 
-  rho.ZeroClear();
-  press.ZeroClear();
-  vx.ZeroClear();
-  vy.ZeroClear();
-  vz.ZeroClear();
-  Bx.ZeroClear();
-  By.ZeroClear();
-  Bz.ZeroClear();
-
   // For interp
   Real origin[NDIM];
   Real delta[NDIM];
@@ -262,6 +252,15 @@ void Ejecta::Calculate(int iter, Real time)
   if((time < start_time) || (time > stop_time)) return;
   if (iter % compute_every_iter != 0) return;
 
+  rho.ZeroClear();
+  press.ZeroClear();
+  vx.ZeroClear();
+  vy.ZeroClear();
+  vz.ZeroClear();
+  Bx.ZeroClear();
+  By.ZeroClear();
+  Bz.ZeroClear();
+  
   MeshBlock * pmb = pmesh->pblock;
   while (pmb != nullptr) {
     Interp(pmb);

@@ -250,6 +250,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         Primitive::SolverResult result = ps.ConToPrim(prim_pt, cons_pt, b3u, g3d, g3u);
         
         if (result.error != Primitive::Error::SUCCESS) {
+          std::cerr.precision(std::numeric_limits<Real>::max_digits10 + 2);
           std::cerr << "There was an error during the primitive solve!\n";
           std::cerr << "  Iteration: " << pmy_block_->pmy_mesh->ncycle << "\n";
           std::cerr << "  Error: " << Primitive::ErrorString[(int)result.error] << "\n";
@@ -266,6 +267,9 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
           std::cerr << "  S_2 = " << cons_old_pt[IM2] << "\n";
           std::cerr << "  S_3 = " << cons_old_pt[IM3] << "\n";
           std::cerr << "  tau = " << cons_old_pt[IEN] << "\n";
+          for (int n=0; n<NSCALARS; n++) {
+            std::cerr << "  Ye  = " << cons_old_pt[IYD + n] << "\n";
+          }
           // FIXME: Add particle fractions
           std::cerr << "  b_u = [" << bb_cc(IB1, k, j, i) << ", " << bb_cc(IB2, k, j, i)
                                    << bb_cc(IB3, k, j, i) << "]\n";
