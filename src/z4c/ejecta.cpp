@@ -89,17 +89,20 @@ Ejecta::Ejecta(Mesh * pmesh, ParameterInput * pin, int n):
   parname += n_str;
   radius = pin->GetOrAddReal("ejecta", parname, 300);
 
-  parname = "compute_every_iter_";
-  parname += n_str;
-  compute_every_iter = pin->GetOrAddInteger("ejecta", parname, 1);
+  //parname = "compute_every_iter_";
+  //parname += n_str;
+  //compute_every_iter = pin->GetOrAddInteger("ejecta", parname, 1);
+  compute_every_iter = pin->GetOrAddInteger("ejecta", "compute_every_iter", 10);
 
-  parname = "start_time_";
-  parname += n_str;
-  start_time = pin->GetOrAddReal("ejecta", parname, 0.0);
-
-  parname = "stop_time_";
-  parname += n_str;
-  stop_time = pin->GetOrAddReal("ejecta", parname, 10000.0);
+  //parname = "start_time_";
+  //parname += n_str;
+  //start_time = pin->GetOrAddReal("ejecta", parname, 0.0);
+  start_time = pin->GetOrAddReal("ejecta", "start_time", 0.0);
+  
+  //parname = "stop_time_";
+  //parname += n_str;
+  //stop_time = pin->GetOrAddReal("ejecta", parname, 10000.0);
+  stop_time = pin->GetOrAddReal("ejecta", "stop_time", 10000.0);
 
   theta.NewAthenaArray(ntheta);
   phi.NewAthenaArray(nphi);
