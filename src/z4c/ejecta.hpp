@@ -19,6 +19,7 @@
 #include "../athena_arrays.hpp"
 #include "../athena_tensor.hpp"
 #include "../utils/lagrange_interp.hpp"
+#include "z4c.hpp"
 
 // Forward declaration
 class Mesh;
@@ -27,6 +28,7 @@ class ParameterInput;
 
 #define SQ(X) ((X)*(X))
 #define NDIM (3)
+#define NOTHER (1)
 
 //! \class Ejecta
 //! \brief Ejecta extraction
@@ -62,7 +64,9 @@ private:
   //! Number of horizons
   int nstart, nrad;
   int fastflow_iter=0;
-  AthenaArray<Real> rho, press, Y, vx, vy, vz, Bx, By, Bz;
+  AthenaArray<Real> prim[NHYDRO], cons[NHYDRO], Y[NSCALARS], T, Bcc[3];
+  AthenaArray<Real> z4c[Z4c::N_Z4c], adm[Z4c::N_ADM];
+  AthenaArray<Real> other[NOTHER];
   AthenaArray<Real> theta, phi;
 
   //! Flag points 

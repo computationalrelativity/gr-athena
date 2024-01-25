@@ -28,8 +28,38 @@
 #include "../mesh/mesh.hpp"
 #include "../utils/tensor.hpp"
 #include "../coordinates/coordinates.hpp"
+#include "../utils/interp_intergrid.hpp"
 
 using namespace utils::tensor;
+
+std::string prim_names[NHYDRO] = {
+  "rho", "vx", "vy", "vz", "press",
+};
+
+std::string cons_names[NHYDRO] = {
+  "dens", "Mx", "My", "Mz", "tau",
+};
+
+std::string adm_names[Z4c::N_ADM] = {
+  "gxx", "gxy", "gxz", "gyy", "gyz", "gzz",
+  "Kxx", "Kxy", "Kxz", "Kyy", "Kyz", "Kzz",
+  "psi4",
+};
+
+std::string z4c_names[Z4c::N_Z4c] = {
+  "chi",
+  "gxx", "gxy", "gxz", "gyy", "gyz", "gzz",
+  "Khat",
+  "Axx", "Axy", "Axz", "Ayy", "Ayz", "Azz",
+  "Gamx", "Gamy", "Gamz",
+  "Theta",
+  "alpha",
+  "betax", "betay", "betaz",
+};
+
+std::string other_names[NOTHER] = {
+  "detg",
+};
 
 //----------------------------------------------------------------------------------------
 //! \fn Ejecta::Ejecta(Mesh * pmesh, ParameterInput * pin, int n)
@@ -37,8 +67,7 @@ using namespace utils::tensor;
 Ejecta::Ejecta(Mesh * pmesh, ParameterInput * pin, int n):
   pmesh(pmesh) 
 {
-  nrad = pin->GetOrAddInteger("ejecta", "nrad", 1);
-  radius = pin->GetOrAddReal("ejecta", "radius", 1.0); 
+  nrad = pin->GetOrAddInteger("ejecta", "num_rad", 1);
   nr = n;
   std::string parname;
   std::string n_str = std::to_string(nr);
@@ -53,34 +82,51 @@ Ejecta::Ejecta(Mesh * pmesh, ParameterInput * pin, int n):
   }
 
   verbose = pin->GetOrAddBoolean("ejecta", "verbose", 0);
-  root = pin->GetOrAddInteger("ejejcta", "mpi_root", 0);
+  root = pin->GetOrAddInteger("ejecta", "mpi_root", 0);
   bitant = pin->GetOrAddBoolean("z4c", "bitant", false);
   
+  parname = "radius_";
+  parname += n_str;
+  radius = pin->GetOrAddReal("ejecta", parname, 300);
+
   parname = "compute_every_iter_";
   parname += n_str;
   compute_every_iter = pin->GetOrAddInteger("ejecta", parname, 1);
 
   parname = "start_time_";
   parname += n_str;
-  start_time = pin->GetOrAddReal("ejecta", parname, std::numeric_limits<double>::max());
+  start_time = pin->GetOrAddReal("ejecta", parname, 0.0);
 
-  start_time = 0.;
   parname = "stop_time_";
   parname += n_str;
   stop_time = pin->GetOrAddReal("ejecta", parname, 10000.0);
-  // the spherical grid is the same for all surfaces
 
   theta.NewAthenaArray(ntheta);
   phi.NewAthenaArray(nphi);
-  rho.NewAthenaArray(ntheta, nphi);
-  press.NewAthenaArray(ntheta, nphi);
-  Y.NewAthenaArray(ntheta, nphi);
-  vx.NewAthenaArray(ntheta, nphi);
-  vy.NewAthenaArray(ntheta, nphi);
-  vz.NewAthenaArray(ntheta, nphi);
-  Bx.NewAthenaArray(ntheta, nphi);
-  By.NewAthenaArray(ntheta, nphi);
-  Bz.NewAthenaArray(ntheta, nphi);
+
+  for (int n=0; n<NHYDRO; ++n) {
+    prim[n].NewAthenaArray(ntheta, nphi);
+    cons[n].NewAthenaArray(ntheta, nphi);
+  }
+  for (int n=0; n<3; ++n) {
+    Bcc[n].NewAthenaArray(ntheta, nphi);
+  }
+#if USETM
+  for (int n=0; n<NSCALARS; ++n) {
+    Y[n].NewAthenaArray(ntheta, nphi);
+  }
+  T.NewAthenaArray(ntheta, nphi);
+#endif
+
+  for (int n=0; n<Z4c::N_ADM; ++n) {
+    adm[n].NewAthenaArray(ntheta, nphi);
+  }
+  for (int n=0; n<Z4c::N_Z4c; ++n) {
+    z4c[n].NewAthenaArray(ntheta, nphi);
+  }
+  for (int n=0; n<NOTHER; ++n) {
+    other[n].NewAthenaArray(ntheta, nphi);
+  }
 
   for (int i=0; i<ntheta; ++i) {
     theta(i)   = th_grid(i);
@@ -90,7 +136,6 @@ Ejecta::Ejecta(Mesh * pmesh, ParameterInput * pin, int n):
     phi(j)   = ph_grid(j);
   }
 
-  
   // Flag points existing on this mesh
   havepoint.NewAthenaArray(ntheta, nphi);
 
@@ -130,15 +175,30 @@ Ejecta::Ejecta(Mesh * pmesh, ParameterInput * pin, int n):
 
 Ejecta::~Ejecta() {
 
-  rho.DeleteAthenaArray();
-  press.DeleteAthenaArray();
-  Y.DeleteAthenaArray();
-  vx.DeleteAthenaArray();
-  vy.DeleteAthenaArray();
-  vz.DeleteAthenaArray();
-  Bx.DeleteAthenaArray();
-  By.DeleteAthenaArray();
-  Bz.DeleteAthenaArray();  
+  for (int n=0; n<NHYDRO; ++n) {
+    prim[n].DeleteAthenaArray();
+    cons[n].DeleteAthenaArray();
+  }
+#if USETM
+  T.DeleteAthenaArray();
+  for (int n=0; n<NSCALARS; ++n) {
+    Y[n].DeleteAthenaArray();
+  }
+#endif
+  for (int n=0; n<3; ++n) {
+    Bcc[n].DeleteAthenaArray();
+  }
+
+  for (int n=0; n<Z4c::N_ADM; ++n) {
+    adm[n].DeleteAthenaArray();
+  }
+  for (int n=0; n<Z4c::N_Z4c; ++n) {
+    z4c[n].DeleteAthenaArray();
+  }
+  for (int n=0; n<NOTHER; ++n) {
+    other[n].DeleteAthenaArray();
+  }
+
   // Flag points existing on this mesh
   havepoint.DeleteAthenaArray();
 
@@ -155,19 +215,47 @@ Ejecta::~Ejecta() {
 void Ejecta::Interp(MeshBlock * pmb)
 {
 
+  int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
   LagrangeInterpND<2*NGHOST-1, 3> * pinterp3 = nullptr;
-  AthenaArray<Real> rho_, press_, Y_, vx_, vy_, vz_, Bx_, By_, Bz_;
-  rho_.InitWithShallowSlice(pmb->phydro->w, IDN, 1);
-  press_.InitWithShallowSlice(pmb->phydro->w, IPR, 1);
-  //Y_.InitWithShallowSlice(pmb->pscalars->r, IYF, 1);
-  vx_.InitWithShallowSlice(pmb->phydro->w, IVX, 1);
-  vy_.InitWithShallowSlice(pmb->phydro->w, IVY, 1);
-  vz_.InitWithShallowSlice(pmb->phydro->w, IVZ, 1);
+  AthenaArray<Real> prim_[NHYDRO], cons_[NHYDRO], T_, Y_[NSCALARS], Bcc_[3];
+  AthenaArray<Real> vc_adm_[Z4c::N_ADM], vc_z4c_[Z4c::N_Z4c], adm_[Z4c::N_ADM], z4c_[Z4c::N_Z4c];
 
-  if (MAGNETIC_FIELDS_ENABLED) {
-    Bx_.InitWithShallowSlice(pmb->pfield->bcc, IB1, 1);
-    By_.InitWithShallowSlice(pmb->pfield->bcc, IB2, 1);
-    Bz_.InitWithShallowSlice(pmb->pfield->bcc, IB3, 1);
+  for (int n=0; n<NHYDRO; ++n) {
+    prim_[n].InitWithShallowSlice(pmb->phydro->w, IDN+n, 1);
+    cons_[n].InitWithShallowSlice(pmb->phydro->u, IDN+n, 1);
+  }
+#if USETM
+  for(int n=0; n<NSCALARS; n++){
+    Y_[n].InitWithShallowSlice(pmb->pscalars->r, IYF+n, 1);
+  }
+  T_.InitWithShallowSlice(pmb->phydro->temperature, ITM, 1);
+#endif
+
+  for (int n=0; n<3; ++n) {
+    Bcc_[n].InitWithShallowSlice(pmb->pfield->bcc, IB1+n, 1);
+  }
+
+  for (int n=0; n<Z4c::N_ADM; ++n) {
+    vc_adm_[n].InitWithShallowSlice(pmb->pz4c->storage.adm, Z4c::I_ADM_gxx+n, 1);
+    adm_[n].NewAthenaArray(pmb->ncells3, pmb->ncells2, pmb->ncells1);
+    for (int k=ks; k<=ke; k++) {
+      for (int j=js; j<=je; j++) {
+        for (int i=is; i<=ie; i++) {
+          adm_[n](k,j,i) = VCInterpolation(vc_adm_[n], k, j, i);
+        }
+      }
+    }
+  }
+  for (int n=0; n<Z4c::N_Z4c; ++n) {
+    vc_z4c_[n].InitWithShallowSlice(pmb->pz4c->storage.u, Z4c::I_Z4c_chi+n, 1);
+    z4c_[n].NewAthenaArray(pmb->ncells3, pmb->ncells2, pmb->ncells1);
+    for (int k=ks; k<=ke; k++) {
+      for (int j=js; j<=je; j++) {
+        for (int i=is; i<=ie; i++) {
+          z4c_[n](k,j,i) = VCInterpolation(vc_z4c_[n], k, j, i);
+        }
+      }
+    }
   }
 
   // For interp
@@ -216,32 +304,54 @@ void Ejecta::Interp(MeshBlock * pmb)
         
       pinterp3 =  new LagrangeInterpND<2*NGHOST-1, 3>(origin, delta, size, coord);
 
-      rho(i,j) = pinterp3->eval(&(rho_(0,0,0)));
-      press(i,j) = pinterp3->eval(&(press_(0,0,0)));
-      //Y(i,j) = pinterp3->eval(&(Y_(0,0,0)));
-      vx(i,j) = pinterp3->eval(&(vx_(0,0,0)));
-      vy(i,j) = pinterp3->eval(&(vy_(0,0,0)));
-      vz(i,j) = pinterp3->eval(&(vz_(0,0,0)));
-      if (MAGNETIC_FIELDS_ENABLED) {
-        Bx(i,j) = pinterp3->eval(&(Bx_(0,0,0)));
-        By(i,j) = pinterp3->eval(&(By_(0,0,0)));
-        Bz(i,j) = pinterp3->eval(&(Bz_(0,0,0)));
+      for (int n=0; n<NHYDRO; ++n) {
+        prim[n](i,j) = pinterp3->eval(&(prim_[n](0,0,0)));
+        cons[n](i,j) = pinterp3->eval(&(cons_[n](0,0,0)));
       }
+#if USETM
+      for (int n=0; n<NSCALARS; ++n) {
+        Y[n](i,j) = pinterp3->eval(&(Y_[n](0,0,0)));
+      }
+      T(i,j) = pinterp3->eval(&(T_(0,0,0)));
+#endif
+      if (MAGNETIC_FIELDS_ENABLED) {
+        for (int n=0; n<3; ++n) {
+          Bcc[n](i,j) = pinterp3->eval(&(Bcc_[n](0,0,0)));
+        }
+      }
+
+      for (int n=0; n<Z4c::N_ADM; ++n) {
+        adm[n](i,j) = pinterp3->eval(&(adm_[n](0,0,0)));
+      }
+      for (int n=0; n<Z4c::N_Z4c; ++n) {
+        z4c[n](i,j) = pinterp3->eval(&(z4c_[n](0,0,0)));
+      }
+      other[0](i,j) = SpatialDet(adm[0](i,j), adm[1](i,j), adm[2](i,j),
+                                 adm[3](i,j), adm[4](i,j), adm[5](i,j));
     
       delete pinterp3;
     } // phi loop
   } // theta loop
   
-  rho_.DeleteAthenaArray();
-  press_.DeleteAthenaArray();
-  //Y_.DeleteAthenaArray();
-  vx_.DeleteAthenaArray();
-  vy_.DeleteAthenaArray();
-  vz_.DeleteAthenaArray();
-  Bx_.DeleteAthenaArray();
-  By_.DeleteAthenaArray();
-  Bz_.DeleteAthenaArray();
-
+  for (int n=0; n<NHYDRO; ++n) {
+    prim_[n].DeleteAthenaArray();
+    cons_[n].DeleteAthenaArray();
+  }
+  T_.DeleteAthenaArray();
+  for (int n=0; n<NSCALARS; ++n) {
+    Y_[n].DeleteAthenaArray();
+  }
+  for (int n=0; n<3; ++n) {
+    Bcc_[n].DeleteAthenaArray();
+  }
+  for (int n=0; n<Z4c::N_ADM; ++n) {
+    vc_adm_[n].DeleteAthenaArray();
+    adm_[n].DeleteAthenaArray();
+  }
+  for (int n=0; n<Z4c::N_Z4c; ++n) {
+    vc_z4c_[n].DeleteAthenaArray();
+    z4c_[n].DeleteAthenaArray();
+  }
 }
 
 //----------------------------------------------------------------------------------------
@@ -252,15 +362,30 @@ void Ejecta::Calculate(int iter, Real time)
   if((time < start_time) || (time > stop_time)) return;
   if (iter % compute_every_iter != 0) return;
 
-  rho.ZeroClear();
-  press.ZeroClear();
-  vx.ZeroClear();
-  vy.ZeroClear();
-  vz.ZeroClear();
-  Bx.ZeroClear();
-  By.ZeroClear();
-  Bz.ZeroClear();
-  
+  for (int n=0; n<NHYDRO; ++n) {
+    prim[n].ZeroClear();
+    cons[n].ZeroClear();
+  }
+#if USETM
+  for (int n=0; n<NSCALARS; ++n) {
+    Y[n].ZeroClear();
+  }
+  T.ZeroClear();
+#endif
+  for (int n=0; n<3; ++n) {
+    Bcc[n].ZeroClear();
+  }
+  for (int n=0; n<Z4c::N_ADM; ++n) {
+    adm[n].ZeroClear();
+  }
+  for (int n=0; n<Z4c::N_Z4c; ++n) {
+    z4c[n].ZeroClear();
+  }
+  for (int n=0; n<NOTHER; ++n) {
+    other[n].ZeroClear();
+  }
+
+
   MeshBlock * pmb = pmesh->pblock;
   while (pmb != nullptr) {
     Interp(pmb);
@@ -274,23 +399,54 @@ void Ejecta::Calculate(int iter, Real time)
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   if (rank == root) {
-    MPI_Reduce(MPI_IN_PLACE, rho.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(MPI_IN_PLACE, press.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(MPI_IN_PLACE, vx.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(MPI_IN_PLACE, vy.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(MPI_IN_PLACE, vz.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(MPI_IN_PLACE, Bx.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(MPI_IN_PLACE, By.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(MPI_IN_PLACE, Bz.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    for (int n=0; n<NHYDRO; ++n) {
+      MPI_Reduce(MPI_IN_PLACE, prim[n].data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+      MPI_Reduce(MPI_IN_PLACE, cons[n].data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    }
+#if USETM
+    MPI_Reduce(MPI_IN_PLACE, T.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    for (int n=0; n<NSCALARS; ++n) {
+      MPI_Reduce(MPI_IN_PLACE, Y[n].data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    }
+#endif
+    for (int n=0; n<3; ++n) {
+      MPI_Reduce(MPI_IN_PLACE, Bcc[n].data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    }
+
+    for (int n=0; n<Z4c::N_ADM; ++n) {
+      MPI_Reduce(MPI_IN_PLACE, adm[n].data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    }
+    for (int n=0; n<Z4c::N_Z4c; ++n) {
+      MPI_Reduce(MPI_IN_PLACE, z4c[n].data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    }
+    for (int n=0; n<NOTHER; ++n) {
+      MPI_Reduce(MPI_IN_PLACE, other[n].data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    }
+
   } else {
-    MPI_Reduce(rho.data(), rho.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(press.data(), press.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(vx.data(), vx.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(vy.data(), vy.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(vz.data(), vz.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(Bx.data(), Bx.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(By.data(), By.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-    MPI_Reduce(Bz.data(), Bz.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    for (int n=0; n<NHYDRO; ++n) {
+      MPI_Reduce(prim[n].data(), prim[n].data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+      MPI_Reduce(cons[n].data(), cons[n].data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    }
+#if USETM
+    MPI_Reduce(T.data(), T.data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    for (int n=0; n<NSCALARS; ++n) {
+      MPI_Reduce(Y[n].data(), Y[n].data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    }
+#endif
+    for (int n=0; n<3; ++n) {
+      MPI_Reduce(Bcc[n].data(), Bcc[n].data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    }
+
+    for (int n=0; n<Z4c::N_ADM; ++n) {
+      MPI_Reduce(adm[n].data(), adm[n].data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    }
+    for (int n=0; n<Z4c::N_Z4c; ++n) {
+      MPI_Reduce(z4c[n].data(), z4c[n].data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    }
+    for (int n=0; n<NOTHER; ++n) {
+      MPI_Reduce(other[n].data(), other[n].data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
+    }
   }
 #endif
   Write(iter, time);
@@ -342,11 +498,17 @@ void Ejecta::Write(int iter, Real time)
   if (ioproc) {
 
     std::stringstream ss_i;
-    ss_i << std::setw(6) << std::setfill('0') << iter;
+    ss_i << std::setw(6) << std::setfill('0') << iter / compute_every_iter;
     std::string s_i = ss_i.str();
-    std::string filename = "ejecta_" + s_i + ".h5";
+    std::string filename = "ejecta" + std::to_string(nr) + "_" + s_i + ".h5";
     hid_t file = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     hid_t prim_id = H5Gcreate1(file, "prim", H5P_DEFAULT);
+    hid_t cons_id = H5Gcreate1(file, "cons", H5P_DEFAULT);
+    hid_t Bcc_id = H5Gcreate1(file, "Bcc", H5P_DEFAULT);
+    hid_t adm_id = H5Gcreate1(file, "adm", H5P_DEFAULT);
+    hid_t z4c_id = H5Gcreate1(file, "z4c", H5P_DEFAULT);
+    hid_t other_id = H5Gcreate1(file, "other", H5P_DEFAULT);
+
     //Create the data space for the data set//
     hsize_t dim_1[1], dim_2[2];
     hid_t dataset, dataspace;
@@ -357,6 +519,14 @@ void Ejecta::Write(int iter, Real time)
     Real tvec[1] = {time};
     dataset = H5Dcreate(file, "time", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, tvec);
+    H5Dclose(dataset);
+
+    // R
+    dim_1[0] = 1;
+    dataspace = H5Screate_simple(1, dim_1, NULL);
+    Real rvec[1] = {radius};
+    dataset = H5Dcreate(file, "radius", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, rvec);
     H5Dclose(dataset);
 
     // Theta
@@ -378,48 +548,69 @@ void Ejecta::Write(int iter, Real time)
     dim_2[1] = nphi;
     dataspace = H5Screate_simple(2, dim_2, NULL);
 
-    // rho
-    dataset = H5Dcreate(file, "prim/rho", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, rho.data());
+    for (int n=0; n<NHYDRO; ++n) {
+      dataset = H5Dcreate(file, ("prim/" + prim_names[n] + "/").c_str(), H5T_NATIVE_DOUBLE,
+          dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+      H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, prim[n].data());
+      H5Dclose(dataset);
+
+      dataset = H5Dcreate(file, ("cons/" + cons_names[n] + "/").c_str(), H5T_NATIVE_DOUBLE,
+          dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+      H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, cons[n].data());
+      H5Dclose(dataset);
+    }
+
+
+#if USETM
+
+    // T
+    dataset = H5Dcreate(file, "prim/T", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, T.data());
     H5Dclose(dataset);
 
-    // press
-    dataset = H5Dcreate(file, "prim/press", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, press.data());
-    H5Dclose(dataset);
+    // Y
+    for (int n=0; n<NSCALARS; ++n) {
+      dataset = H5Dcreate(file, ("prim/Y_" + std::to_string(n) + "/").c_str(), H5T_NATIVE_DOUBLE,
+          dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+      H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, Y[n].data());
+      H5Dclose(dataset);
+    }
+#endif
 
-    // vx
-    dataset = H5Dcreate(file, "prim/vx", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, vx.data());
-    H5Dclose(dataset);
+    for (int n=0; n<3; ++n) {
+      dataset = H5Dcreate(file, ("Bcc/B_" + std::to_string(n+1) + "/").c_str(), H5T_NATIVE_DOUBLE,
+          dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+      H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, Bcc[n].data());
+      H5Dclose(dataset);
+    }
 
-    // vy
-    dataset = H5Dcreate(file, "prim/vy", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, vy.data());
-    H5Dclose(dataset);
+    for (int n=0; n<Z4c::N_ADM; ++n) {
+      dataset = H5Dcreate(file, ("adm/" + adm_names[n] + "/").c_str(), H5T_NATIVE_DOUBLE,
+          dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+      H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, adm[n].data());
+      H5Dclose(dataset);
+    }
+    for (int n=0; n<Z4c::N_Z4c; ++n) {
+      dataset = H5Dcreate(file, ("z4c/" + z4c_names[n] + "/").c_str(), H5T_NATIVE_DOUBLE,
+          dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+      H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, z4c[n].data());
+      H5Dclose(dataset);
+    }
 
-    // vz
-    dataset = H5Dcreate(file, "prim/vz", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, vz.data());
-    H5Dclose(dataset);
-
-    // Bx
-    dataset = H5Dcreate(file, "prim/Bx", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, Bx.data());
-    H5Dclose(dataset);
-
-    // By
-    dataset = H5Dcreate(file, "prim/By", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, By.data());
-    H5Dclose(dataset);
-
-    // Bz
-    dataset = H5Dcreate(file, "prim/Bz", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, Bz.data());
-    H5Dclose(dataset);
+    for (int n=0; n<NOTHER; ++n) {
+      dataset = H5Dcreate(file, ("other/" + other_names[n] + "/").c_str(), H5T_NATIVE_DOUBLE,
+          dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+      H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, other[n].data());
+      H5Dclose(dataset);
+    }
 
     H5Sclose(dataspace);
     H5Gclose(prim_id);
+    H5Gclose(cons_id);
+    H5Gclose(Bcc_id);
+    H5Gclose(adm_id);
+    H5Gclose(z4c_id);
+    H5Gclose(other_id);
     H5Fclose(file);
   }
 }
