@@ -28,7 +28,7 @@ class ParameterInput;
 
 #define SQ(X) ((X)*(X))
 #define NDIM (3)
-#define NOTHER (1)
+#define NOTHER (2)
 
 //! \class Ejecta
 //! \brief Ejecta extraction
@@ -68,11 +68,14 @@ private:
   AthenaArray<Real> z4c[Z4c::N_Z4c], adm[Z4c::N_ADM];
   AthenaArray<Real> other[NOTHER];
   AthenaArray<Real> theta, phi;
+  Real mass_contained;
 
   //! Flag points 
   AthenaArray<int> havepoint;
 
   void Interp(MeshBlock * pmb);
+  void Mass(MeshBlock * pmb);
+
   int tpindex(const int i, const int j);
   Real th_grid(const int i);
   Real ph_grid(const int j);

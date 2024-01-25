@@ -58,7 +58,7 @@ std::string z4c_names[Z4c::N_Z4c] = {
 };
 
 std::string other_names[NOTHER] = {
-  "detg",
+  "detg", "mass",
 };
 
 //----------------------------------------------------------------------------------------
@@ -106,6 +106,7 @@ Ejecta::Ejecta(Mesh * pmesh, ParameterInput * pin, int n):
 
   theta.NewAthenaArray(ntheta);
   phi.NewAthenaArray(nphi);
+  mass_contained = 0.0;
 
   for (int n=0; n<NHYDRO; ++n) {
     prim[n].NewAthenaArray(ntheta, nphi);
@@ -208,6 +209,25 @@ Ejecta::~Ejecta() {
   // Close files
   if (ioproc) {
     fclose(pofile_summary);
+  }
+}
+
+void Ejecta::Mass(MeshBlock * pmb)
+{
+  int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
+  for (int k=ks; k<=ke; k++) {
+    Real z = pmb->pcoord->x3v(k);
+    for (int j=js; j<=je; j++) {
+      Real y = pmb->pcoord->x2v(j);
+      for (int i=is; i<=ie; i++) {
+        Real x = pmb->pcoord->x1v(i);
+        Real vol = (pmb->pcoord->dx1v(i)) * (pmb->pcoord->dx2v(j)) * (pmb->pcoord->dx3v(k));
+        Real rad2 = x*x + y*y + z*z;
+        if (rad2 < SQR(radius)) {
+          mass_contained += vol * pmb->phydro->u(IDN,k,j,i);
+        }
+      }
+    }
   }
 }
 
@@ -387,11 +407,12 @@ void Ejecta::Calculate(int iter, Real time)
   for (int n=0; n<NOTHER; ++n) {
     other[n].ZeroClear();
   }
-
+  mass_contained = 0.0;
 
   MeshBlock * pmb = pmesh->pblock;
   while (pmb != nullptr) {
     Interp(pmb);
+    Mass(pmb);
     pmb = pmb->next;
   }
 
@@ -425,6 +446,7 @@ void Ejecta::Calculate(int iter, Real time)
     for (int n=0; n<NOTHER; ++n) {
       MPI_Reduce(MPI_IN_PLACE, other[n].data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
     }
+    MPI_Reduce(MPI_IN_PLACE, &mass_contained, 1, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
 
   } else {
     for (int n=0; n<NHYDRO; ++n) {
@@ -450,6 +472,7 @@ void Ejecta::Calculate(int iter, Real time)
     for (int n=0; n<NOTHER; ++n) {
       MPI_Reduce(other[n].data(), other[n].data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
     }
+    MPI_Reduce(&mass_contained, &mass_contained, 1, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
   }
 #endif
   Write(iter, time);
@@ -606,6 +629,14 @@ void Ejecta::Write(int iter, Real time)
       H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, other[n].data());
       H5Dclose(dataset);
     }
+
+    // M
+    dim_1[0] = 1;
+    dataspace = H5Screate_simple(1, dim_1, NULL);
+    Real Mvec[1] = {mass_contained};
+    dataset = H5Dcreate(file, "mass", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, Mvec);
+    H5Dclose(dataset);
 
     H5Sclose(dataspace);
     H5Gclose(prim_id);

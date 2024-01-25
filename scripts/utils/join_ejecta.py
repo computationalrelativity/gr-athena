@@ -105,6 +105,13 @@ for dsname in h5f_old['other'].keys():
             dset[irad, itime] = h5f_in['other'][dsname]
             h5f_in.close()
 
+dset = h5f.create_dataset('mass', (nrad, ntime,), dtype=h5f_old['mass'].dtype)
+for irad in range(nrad):
+    for itime, h5fname in enumerate(h5files[irad]):
+        h5f_in = h5py.File(h5fname, 'r')
+        dset[irad, itime] = h5f_in['mass'][0]
+        h5f_in.close()
+
 h5f_old.close()
 h5f.close()
 
