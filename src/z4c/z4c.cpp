@@ -202,9 +202,10 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   pmb->pbval->bvars.push_back(&abvar);
   pmb->pbval->bvars_aux.push_back(&abvar);
 
+  // should all be of size mbi.nn1
   dt1_.NewAthenaArray(mbi.nn1);
-  dt2_.NewAthenaArray(mbi.nn2);
-  dt3_.NewAthenaArray(mbi.nn3);
+  dt2_.NewAthenaArray(mbi.nn1);
+  dt3_.NewAthenaArray(mbi.nn1);
 
   // BD: TODO shift defaults to header [C++11 so can use def. declaration]..
   // Parameters
