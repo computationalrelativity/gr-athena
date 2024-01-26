@@ -105,6 +105,10 @@ class ExtremaTrackerLocal
                                const Real f_1,
                                const Real f_2);
 
+    Real ExtremaFunctionQuadInterp(const Real f_0,
+                                   const Real f_1,
+                                   const Real f_2);
+
     void UpdateLocStepByControlFieldQuadInterp(const int n);
 
     inline int sign(Real val)
@@ -133,12 +137,18 @@ class ExtremaTrackerLocal
 
     int ndim;
 
+    // control iterations
+    int iter_max;
+    Real tol_ds;
+    Real interp_ds_fac;
+
     // Switching of sampling
     MB_info * mbi;
 
-    typedef LagrangeInterpND<2*(NGHOST-1)-1, 3> Interp_Lag3;
-    typedef LagrangeInterpND<2*(NGHOST-1)-1, 2> Interp_Lag2;
-    typedef LagrangeInterpND<2*(NGHOST-1)-1, 1> Interp_Lag1;
+    // match FD order
+    typedef LagrangeInterpND<2*(NGHOST-1), 3> Interp_Lag3;
+    typedef LagrangeInterpND<2*(NGHOST-1), 2> Interp_Lag2;
+    typedef LagrangeInterpND<2*(NGHOST-1), 1> Interp_Lag1;
 
 };
 

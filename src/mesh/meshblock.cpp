@@ -988,7 +988,7 @@ bool MeshBlock::PointContained(Real const x, Real const y, Real const z) {
 //                                     Real const z)
 //  \brief Check whether a point is exclusively contained in the MeshBlock.
 //
-// note: this function should be used for those points that are away from 
+// note: this function should be used for those points that are away from
 // the computational grid boundaries as the upper limits are not included.
 bool MeshBlock::PointContainedExclusive(Real const x, Real const y, Real const z) {
 
@@ -1006,6 +1006,26 @@ bool MeshBlock::PointContainedExclusive(Real const x, Real const y, Real const z
           (mb_mi_x3 <= z) && (z < mb_ma_x3));
 }
 
+//----------------------------------------------------------------------------------------
+//! \fn bool MeshBlock::PointContainedExtended(
+// Real const x, Real const y,
+// Real const z)
+//  \brief As in PointContained but also check ghost-layer
+bool MeshBlock::PointContainedExtended(Real const x, Real const y, Real const z) {
+
+  Real const mb_mi_x1 = pcoord->x1f(0);
+  Real const mb_ma_x1 = pcoord->x1f(nverts1-1);
+
+  Real const mb_mi_x2 = pcoord->x2f(0);
+  Real const mb_ma_x2 = pcoord->x2f(nverts2-1);
+
+  Real const mb_mi_x3 = pcoord->x3f(0);
+  Real const mb_ma_x3 = pcoord->x3f(nverts3-1);
+
+  return ((mb_mi_x1 <= x) && (x <= mb_ma_x1) &&
+          (mb_mi_x2 <= y) && (y <= mb_ma_x2) &&
+          (mb_mi_x3 <= z) && (z <= mb_ma_x3));
+}
 
 //----------------------------------------------------------------------------------------
 //! \fn Real MeshBlock::PointCentralDistanceSquared(Real const x, Real const y,

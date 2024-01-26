@@ -717,10 +717,20 @@ int main(int argc, char *argv[]) {
         ptracker->WriteTracker(pmesh->ncycle, pmesh->time);
       }
 
-      // extrema trackers are registered / computed collectively
-      pmesh->ptracker_extrema->ReduceTracker();
-      pmesh->ptracker_extrema->EvolveTracker();
-      pmesh->ptracker_extrema->WriteTracker(pmesh->ncycle, pmesh->time);
+    }
+
+    // extrema trackers are registered / computed collectively
+    // non-z4c quantities can be tracked
+    pmesh->ptracker_extrema->ReduceTracker();
+    pmesh->ptracker_extrema->EvolveTracker();
+    // TODO: output times need to corrected
+    // First step has been taken pmesh->time needs update (done below)
+    pmesh->ptracker_extrema->WriteTracker(pmesh->ncycle+1,
+                                          pmesh->time+pmesh->dt);
+
+
+    if (Z4C_ENABLED)
+    {
 
       //-------------------------------------------------------------------------
       // Update NextTime triggers

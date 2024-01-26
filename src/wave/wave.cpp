@@ -17,25 +17,60 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../coordinates/coordinates.hpp"
-#include "../mesh/mesh.hpp"
 
 #include "wave.hpp"
+
+#if WAVE_CC_ENABLED
+  #define WAVE_SW_CC_CX_VC(a, b, c)                                                 \
+    a
+#elif WAVE_CX_ENABLED
+  #define WAVE_SW_CC_CX_VC(a, b, c)                                                 \
+    b
+#else
+  #define WAVE_SW_CC_CX_VC(a, b, c)                                                 \
+    c
+#endif
+
+#if WAVE_CC_ENABLED || WAVE_CX_ENABLED
+  #define WAVE_SW_CCX_VC(a, b)                                                      \
+    a
+#else
+  #define WAVE_SW_CCX_VC(a, b)                                                      \
+    b
+#endif
 
 // constructor, initializes data structures and parameters
 
 Wave::Wave(MeshBlock *pmb, ParameterInput *pin) :
+  pmy_mesh(pmb->pmy_mesh),
   pmy_block(pmb),
-  u(NWAVE_CPT,
-    (WAVE_VC_ENABLED) ? pmb->nverts3 : pmb->ncells3,
-    (WAVE_VC_ENABLED) ? pmb->nverts2 : pmb->ncells2,
-    (WAVE_VC_ENABLED) ? pmb->nverts1 : pmb->ncells1),
-  coarse_u_(NWAVE_CPT,
-            (WAVE_VC_ENABLED) ? pmb->ncv3 : ((WAVE_CX_ENABLED) ? pmb->cx_ncc3 : pmb->ncc3),
-            (WAVE_VC_ENABLED) ? pmb->ncv2 : ((WAVE_CX_ENABLED) ? pmb->cx_ncc2 : pmb->ncc2),
-            (WAVE_VC_ENABLED) ? pmb->ncv1 : ((WAVE_CX_ENABLED) ? pmb->cx_ncc1 : pmb->ncc1),
-            (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
+  mbi{
+    1, pmy_mesh->f2, pmy_mesh->f3,                         // f1, f2, f3
+    WAVE_SW_CC_CX_VC(pmb->is, pmb->cx_is, pmb->ivs),       // il
+    WAVE_SW_CC_CX_VC(pmb->ie, pmb->cx_ie, pmb->ive),       // iu
+    WAVE_SW_CC_CX_VC(pmb->js, pmb->cx_js, pmb->jvs),       // jl
+    WAVE_SW_CC_CX_VC(pmb->je, pmb->cx_je, pmb->jve),       // ju
+    WAVE_SW_CC_CX_VC(pmb->ks, pmb->cx_ks, pmb->kvs),       // kl
+    WAVE_SW_CC_CX_VC(pmb->ke, pmb->cx_ke, pmb->kve),       // ku
+    WAVE_SW_CCX_VC(pmb->ncells1, pmb->nverts1),            // nn1
+    WAVE_SW_CCX_VC(pmb->ncells2, pmb->nverts2),            // nn2
+    WAVE_SW_CCX_VC(pmb->ncells3, pmb->nverts3),            // nn3
+    WAVE_SW_CC_CX_VC(pmb->ncc1, pmb->cx_ncc1, pmb->ncv1),  // cnn1
+    WAVE_SW_CC_CX_VC(pmb->ncc2, pmb->cx_ncc2, pmb->ncv2),  // cnn2
+    WAVE_SW_CC_CX_VC(pmb->ncc3, pmb->cx_ncc3, pmb->ncv3),  // cnn3
+    NGHOST,                                                // ng
+    WAVE_SW_CC_CX_VC(NCGHOST, NCGHOST_CX, NCGHOST),        // cng
+    (pmy_mesh->f3) ? 3 : (pmy_mesh->f2) ? 2 : 1            // ndim
+  },
+  u(NWAVE_CPT, mbi.nn3, mbi.nn2, mbi.nn1),
+  ref_tra(mbi.nn3, mbi.nn2, mbi.nn1),  // tracker debug
+  coarse_u_(NWAVE_CPT, mbi.cnn3, mbi.cnn2, mbi.cnn1,
+            (pmb->pmy_mesh->multilevel ?
+             AthenaArray<Real>::DataStatus::allocated :
              AthenaArray<Real>::DataStatus::empty)),
-  empty_flux{AthenaArray<Real>(), AthenaArray<Real>(), AthenaArray<Real>()},
+  empty_flux{AthenaArray<Real>(),
+             AthenaArray<Real>(),
+             AthenaArray<Real>()},
   ubvar_cc(pmb, &u, &coarse_u_, empty_flux),  // dirty but safe as only _one_ is registered
   ubvar_vc(pmb, &u, &coarse_u_, empty_flux),
   ubvar_cx(pmb, &u, &coarse_u_, empty_flux)
@@ -43,36 +78,27 @@ Wave::Wave(MeshBlock *pmb, ParameterInput *pin) :
   Mesh *pm = pmb->pmy_mesh;
   Coordinates * pco = pmb->pcoord;
 
+  //---------------------------------------------------------------------------
+  // set up sampling
+  //---------------------------------------------------------------------------
+  mbi.x1.InitWithShallowSlice(WAVE_SW_CCX_VC(pco->x1v, pco->x1f),
+                              1, 0, mbi.nn1);
+  mbi.x2.InitWithShallowSlice(WAVE_SW_CCX_VC(pco->x2v, pco->x2f),
+                              1, 0, mbi.nn2);
+  mbi.x3.InitWithShallowSlice(WAVE_SW_CCX_VC(pco->x3v, pco->x3f),
+                              1, 0, mbi.nn3);
+
+  // sizes are the same in either case
+  mbi.dx1.InitWithShallowSlice(WAVE_SW_CCX_VC(pco->dx1v, pco->dx1f),
+                               1, 0, mbi.nn1);
+  mbi.dx2.InitWithShallowSlice(WAVE_SW_CCX_VC(pco->dx2v, pco->dx2f),
+                               1, 0, mbi.nn2);
+  mbi.dx3.InitWithShallowSlice(WAVE_SW_CCX_VC(pco->dx3v, pco->dx3f),
+                               1, 0, mbi.nn3);
+  //---------------------------------------------------------------------------
+
   // dimensions required for data allocation
-  mbi.nn1 = (WAVE_VC_ENABLED) ? pmb->nverts1 : pmb->ncells1;
-  mbi.nn2 = (WAVE_VC_ENABLED) ? pmb->nverts2 : pmb->ncells2;
-  mbi.nn3 = (WAVE_VC_ENABLED) ? pmb->nverts3 : pmb->ncells3;
-
   int nn1 = mbi.nn1, nn2 = mbi.nn2, nn3 = mbi.nn3;
-
-  // convenience for per-block iteration (private Wave scope)
-  mbi.il = pmb->is;
-  mbi.iu = (WAVE_VC_ENABLED) ? pmb->ive : pmb->ie;
-
-  mbi.jl = pmb->js;
-  mbi.ju = (WAVE_VC_ENABLED) ? pmb->jve : pmb->je;
-
-  mbi.kl = pmb->ks;
-  mbi.ku = (WAVE_VC_ENABLED) ? pmb->kve : pmb->ke;
-
-  // point to appropriate grid
-  if (WAVE_CC_ENABLED || WAVE_CX_ENABLED)
-  {
-    mbi.x1.InitWithShallowSlice(pco->x1v, 1, 0, nn1);
-    mbi.x2.InitWithShallowSlice(pco->x2v, 1, 0, nn2);
-    mbi.x3.InitWithShallowSlice(pco->x3v, 1, 0, nn3);
-  }
-  else if (WAVE_VC_ENABLED)
-  {
-    mbi.x1.InitWithShallowSlice(pco->x1f, 1, 0, nn1);
-    mbi.x2.InitWithShallowSlice(pco->x2f, 1, 0, nn2);
-    mbi.x3.InitWithShallowSlice(pco->x3f, 1, 0, nn3);
-  }
 
   // inform MeshBlock that this array is the "primary" representation
   // Used for:

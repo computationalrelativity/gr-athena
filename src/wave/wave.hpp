@@ -11,6 +11,7 @@
 // Athena++ classes headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
+#include "../mesh/mesh.hpp"
 
 // #include "../utils/finite_differencing.hpp"
 #include "../bvals/vc/bvals_vc.hpp"
@@ -31,7 +32,10 @@ public:
   ~Wave();
 
   // data
+  Mesh *pmy_mesh;               // pointer to Mesh containing MeshBlock
   MeshBlock *pmy_block;         // ptr to MeshBlock containing this Wave
+
+  MB_info mbi;
 
   AthenaArray<Real> u;          // solution of the wave equation
   AthenaArray<Real> u1, u2;     // auxiliary arrays at intermediate steps
@@ -39,6 +43,8 @@ public:
 
   AthenaArray<Real> exact;      // exact solution of of the wave equation
   AthenaArray<Real> error;      // error with respect to the exact solution
+
+  AthenaArray<Real> ref_tra;    // reference field for tr.extrema dbg
 
   Real c;                       // characteristic speed
 
@@ -67,20 +73,6 @@ public:
   void AddWaveRHS(const Real wght, AthenaArray<Real> &u_out);
 
   static const int NWAVE_CPT = 2;      // num. of wave equation field components
-
-  struct MB_info {
-    int il, iu, jl, ju, kl, ku;        // local block iter.
-    int nn1, nn2, nn3;                 // number of nodes (simplify switching)
-
-    AthenaArray<Real> x1, x2, x3;      // for CC / VC grid switch
-    AthenaArray<Real> cx1, cx2, cx3;   // for CC / VC grid switch (coarse)
-
-    // provide coarse analogues of the above
-    // int cnn1, cnn2, cnn3;
-    // int cil, ciu, cjl, cju, ckl, cku;
-  };
-
-  MB_info mbi;
 
   // For Dirichlet problem [need to be exposed for pgen]
   int M_, N_, O_;                      // max eigenfunction indices

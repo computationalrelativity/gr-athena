@@ -1387,7 +1387,7 @@ else:
 # task list: ------------------------------------------------------------------
 src_aux = ['$(wildcard src/task_list/task_*.cpp)', ]
 
-if definitions['Z4C_ENABLED']:
+if args['z']:
   str_z4c = '$(wildcard src/task_list/z4c_*.cpp)'
 
   str_stem = 'filter-out src/task_list'
@@ -1399,7 +1399,7 @@ if definitions['Z4C_ENABLED']:
     # ^ complement
     src_aux.append(f'$({str_stem}/z4c_matter_task_list.cpp, {str_z4c})')
 
-elif definitions['WAVE_ENABLED']:
+elif args['w']:
   src_aux.append('$(wildcard src/task_list/wave_task_list.cpp)')
 
 else:

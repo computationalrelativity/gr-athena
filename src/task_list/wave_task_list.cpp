@@ -21,6 +21,7 @@
 #include "../wave/wave.hpp"
 #include "../parameter_input.hpp"
 #include "task_list.hpp"
+#include "../trackers/extrema_tracker.hpp"
 
 // BD TODO: Significant code duplication with time_integrator, leave decoupled
 
@@ -603,6 +604,10 @@ TaskStatus WaveIntegratorTaskList::UserWork(MeshBlock *pmb, int stage) {
   if (stage != nstages) return TaskStatus::success; // only do on last stage
 
   pmb->WaveUserWorkInLoop();
+
+  // TODO: BD- this should be shifted to its own task
+  pmb->ptracker_extrema_loc->TreatCentreIfLocalMember();
+
   return TaskStatus::success;
 }
 

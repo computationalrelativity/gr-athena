@@ -195,6 +195,20 @@ void MeshBlock::WaveUserWorkInLoop() {
     pwave->error.print_all("%1.1e");
     printf("<<<\n");
   }
+
+  // tracker reference field (full block- mock ref. field as communicated)
+  for(int k = 0; k < pwave->mbi.nn3; ++k)
+  for(int j = 0; j < pwave->mbi.nn2; ++j)
+  for(int i = 0; i < pwave->mbi.nn1; ++i)
+  {
+    Real x = pwave->mbi.x1(i);
+    Real f = 0.25;
+
+    pwave->ref_tra(k,j,i) = (
+      std::exp(-(SQR(x-c*t)) / f)
+    );
+  }
+
   return;
 }
 
