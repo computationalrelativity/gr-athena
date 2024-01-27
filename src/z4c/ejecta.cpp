@@ -57,8 +57,8 @@ std::string z4c_names[Z4c::N_Z4c] = {
   "betax", "betay", "betaz",
 };
 
-std::string other_names[NOTHER] = {
-  "detg", "mass",
+std::string other_names[Ejecta::NOTHER] = {
+  "detg", "Mdot",
 };
 
 //----------------------------------------------------------------------------------------
@@ -112,7 +112,7 @@ Ejecta::Ejecta(Mesh * pmesh, ParameterInput * pin, int n):
     prim[n].NewAthenaArray(ntheta, nphi);
     cons[n].NewAthenaArray(ntheta, nphi);
   }
-  for (int n=0; n<3; ++n) {
+  for (int n=0; n<NDIM; ++n) {
     Bcc[n].NewAthenaArray(ntheta, nphi);
   }
 #if USETM
@@ -240,21 +240,27 @@ void Ejecta::Interp(MeshBlock * pmb)
 
   int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
   LagrangeInterpND<2*NGHOST-1, 3> * pinterp3 = nullptr;
-  AthenaArray<Real> prim_[NHYDRO], cons_[NHYDRO], T_, Y_[NSCALARS], Bcc_[3];
-  AthenaArray<Real> vc_adm_[Z4c::N_ADM], vc_z4c_[Z4c::N_Z4c], adm_[Z4c::N_ADM], z4c_[Z4c::N_Z4c];
+  LagrangeInterpND<2*NGHOST-1, 3> * pinterp3_fx = nullptr;
+  LagrangeInterpND<2*NGHOST-1, 3> * pinterp3_fy = nullptr;
+  LagrangeInterpND<2*NGHOST-1, 3> * pinterp3_fz = nullptr;
 
+  AthenaArray<Real> prim_[NHYDRO], cons_[NHYDRO], T_, Y_[NSCALARS], Bcc_[NDIM];
+  AthenaArray<Real> vc_adm_[Z4c::N_ADM], vc_z4c_[Z4c::N_Z4c], adm_[Z4c::N_ADM], z4c_[Z4c::N_Z4c];
+  AthenaArray<Real> flux_[NDIM];
+  
   for (int n=0; n<NHYDRO; ++n) {
     prim_[n].InitWithShallowSlice(pmb->phydro->w, IDN+n, 1);
     cons_[n].InitWithShallowSlice(pmb->phydro->u, IDN+n, 1);
   }
 #if USETM
-  for(int n=0; n<NSCALARS; n++){
+  for(int n=0; n<NSCALARS; ++n){
     Y_[n].InitWithShallowSlice(pmb->pscalars->r, IYF+n, 1);
   }
   T_.InitWithShallowSlice(pmb->phydro->temperature, ITM, 1);
 #endif
 
-  for (int n=0; n<3; ++n) {
+  for (int n=0; n<NDIM; ++n) {
+    flux_[n].InitWithShallowSlice(pmb->phydro->flux[n], IDN, 1);
     Bcc_[n].InitWithShallowSlice(pmb->pfield->bcc, IB1+n, 1);
   }
 
@@ -269,6 +275,7 @@ void Ejecta::Interp(MeshBlock * pmb)
       }
     }
   }
+
   for (int n=0; n<Z4c::N_Z4c; ++n) {
     vc_z4c_[n].InitWithShallowSlice(pmb->pz4c->storage.u, Z4c::I_Z4c_chi+n, 1);
     z4c_[n].NewAthenaArray(pmb->ncells3, pmb->ncells2, pmb->ncells1);
@@ -282,50 +289,39 @@ void Ejecta::Interp(MeshBlock * pmb)
   }
 
   // For interp
-  Real origin[NDIM];
-  Real delta[NDIM];
-  int size[NDIM];
+  Real origin[NDIM] = {pmb->pcoord->x1v(0), pmb->pcoord->x2v(0), pmb->pcoord->x3v(0)};
+  Real delta[NDIM] = {pmb->pcoord->dx1v(0), pmb->pcoord->dx2v(0), pmb->pcoord->dx3v(0)};
+  int size[NDIM] = {pmb->ncells1, pmb->ncells2, pmb->ncells3};
+
+  Real origin_f[NDIM] = {pmb->pcoord->x1f(0), pmb->pcoord->x2f(0), pmb->pcoord->x3f(0)};
+  Real delta_f[NDIM] = {pmb->pcoord->dx1f(0), pmb->pcoord->dx2f(0), pmb->pcoord->dx3f(0)};
+  int size_fx[NDIM] = {pmb->ncells1+1, pmb->ncells2, pmb->ncells3};
+  int size_fy[NDIM] = {pmb->ncells1, pmb->ncells2+1, pmb->ncells3};
+  int size_fz[NDIM] = {pmb->ncells1, pmb->ncells2, pmb->ncells3+1};
   Real coord[NDIM];
-  
+ 
   for (int i=0; i<ntheta; i++) {
     Real sinth = std::sin(theta(i));
     Real costh = std::cos(theta(i));
     for (int j=0; j<nphi; j++) {
       Real sinph = std::sin(phi(j));
       Real cosph = std::cos(phi(j));
-      
-      // Global coordinates of the surface
-      Real x = radius * sinth * cosph;
-      Real y = radius * sinth * sinph;
-      Real z = radius * costh;
-
+     
+      coord[0]  = radius * sinth * cosph;
+      coord[1]  = radius * sinth * sinph;
+      coord[2]  = radius * costh;
       // Impose bitant symmetry below
-      bool bitant_sym = ( bitant && z < 0 ) ? true : false;
+      bool bitant_sym = ( bitant && coord[2] < 0 ) ? true : false;
       // Associate z -> -z if bitant
-      if (bitant) z = std::abs(z);
+      if (bitant) coord[2] = std::abs(coord[2]);
 
-      if (!pmb->PointContained(x,y,z)) continue;
+      if (!pmb->PointContained(coord[0], coord[1], coord[2])) continue;
 
       // this surface point is in this MB
       havepoint(i,j) += 1;
       
       // Interpolate
-      origin[0] = pmb->pcoord->x1v(0);
-      size[0]   = pmb->ncells1;
-      delta[0]  = pmb->pcoord->dx1v(0);
-      coord[0]  = x;
-      
-      origin[1] = pmb->pcoord->x2v(0);
-      size[1]   = pmb->ncells2;
-      delta[1]  = pmb->pcoord->dx2v(0);
-      coord[1]  = y;
-      
-      origin[2] = pmb->pcoord->x3v(0);
-      size[2]   = pmb->ncells3;
-      delta[2]  = pmb->pcoord->dx3v(0);
-      coord[2]  = z;
-        
-      pinterp3 =  new LagrangeInterpND<2*NGHOST-1, 3>(origin, delta, size, coord);
+      pinterp3 = new LagrangeInterpND<2*NGHOST-1, 3>(origin, delta, size, coord);
 
       for (int n=0; n<NHYDRO; ++n) {
         prim[n](i,j) = pinterp3->eval(&(prim_[n](0,0,0)));
@@ -338,7 +334,7 @@ void Ejecta::Interp(MeshBlock * pmb)
       T(i,j) = pinterp3->eval(&(T_(0,0,0)));
 #endif
       if (MAGNETIC_FIELDS_ENABLED) {
-        for (int n=0; n<3; ++n) {
+        for (int n=0; n<NDIM; ++n) {
           Bcc[n](i,j) = pinterp3->eval(&(Bcc_[n](0,0,0)));
         }
       }
@@ -349,10 +345,24 @@ void Ejecta::Interp(MeshBlock * pmb)
       for (int n=0; n<Z4c::N_Z4c; ++n) {
         z4c[n](i,j) = pinterp3->eval(&(z4c_[n](0,0,0)));
       }
-      other[0](i,j) = SpatialDet(adm[0](i,j), adm[1](i,j), adm[2](i,j),
+      other[I_detg](i,j) = SpatialDet(adm[0](i,j), adm[1](i,j), adm[2](i,j),
                                  adm[3](i,j), adm[4](i,j), adm[5](i,j));
-    
-      delete pinterp3;
+
+      pinterp3_fx = new LagrangeInterpND<2*NGHOST-1, 3>(origin_f, delta_f, size_fx, coord);
+      pinterp3_fy = new LagrangeInterpND<2*NGHOST-1, 3>(origin_f, delta_f, size_fy, coord);
+      pinterp3_fz = new LagrangeInterpND<2*NGHOST-1, 3>(origin_f, delta_f, size_fz, coord);
+
+      Real fx = pinterp3->eval(&(flux_[0](0,0,0)));
+      Real fy = pinterp3->eval(&(flux_[1](0,0,0)));
+      Real fz = pinterp3->eval(&(flux_[2](0,0,0)));
+
+      //Real W = GetLorentzFactor
+      //other[1](i,j) = MassLossRate2(cons[IDN](i,j), prim[IVX](i,j), prim[IVY](i,j), prim[IVZ](i,j), W,
+      //                              z4c[Z4c::I_Z4c_alpha](i,j), z4c[Z4c::I_Z4c_betax](i,j), z4c[Z4c::I_Z4c_betay](i,j), z4c[Z4c::I_Z4c_betaz](i,j),
+      //                              sinth, costh, sinph, cosph);
+      other[I_Mdot](i,j) = MassLossRate(fx, fy, fz, sinth, costh, sinph, cosph);
+      Mdot_total += other[1](i,j);
+      delete pinterp3, pinterp3_fx, pinterp3_fy, pinterp3_fz;
     } // phi loop
   } // theta loop
   
@@ -364,7 +374,8 @@ void Ejecta::Interp(MeshBlock * pmb)
   for (int n=0; n<NSCALARS; ++n) {
     Y_[n].DeleteAthenaArray();
   }
-  for (int n=0; n<3; ++n) {
+  for (int n=0; n<NDIM; ++n) {
+    flux_[n].DeleteAthenaArray();
     Bcc_[n].DeleteAthenaArray();
   }
   for (int n=0; n<Z4c::N_ADM; ++n) {
@@ -408,6 +419,7 @@ void Ejecta::Calculate(int iter, Real time)
     other[n].ZeroClear();
   }
   mass_contained = 0.0;
+  Mdot_total = 0.0;
 
   MeshBlock * pmb = pmesh->pblock;
   while (pmb != nullptr) {
@@ -446,8 +458,8 @@ void Ejecta::Calculate(int iter, Real time)
     for (int n=0; n<NOTHER; ++n) {
       MPI_Reduce(MPI_IN_PLACE, other[n].data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
     }
+    MPI_Reduce(MPI_IN_PLACE, &Mdot_total, 1, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
     MPI_Reduce(MPI_IN_PLACE, &mass_contained, 1, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
-
   } else {
     for (int n=0; n<NHYDRO; ++n) {
       MPI_Reduce(prim[n].data(), prim[n].data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
@@ -472,6 +484,7 @@ void Ejecta::Calculate(int iter, Real time)
     for (int n=0; n<NOTHER; ++n) {
       MPI_Reduce(other[n].data(), other[n].data(), ntheta*nphi, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
     }
+    MPI_Reduce(&Mdot_total, &Mdot_total, 1, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
     MPI_Reduce(&mass_contained, &mass_contained, 1, MPI_ATHENA_REAL, MPI_SUM, root, MPI_COMM_WORLD);
   }
 #endif
@@ -638,6 +651,14 @@ void Ejecta::Write(int iter, Real time)
     H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, Mvec);
     H5Dclose(dataset);
 
+    // Mdot
+    dim_1[0] = 1;
+    dataspace = H5Screate_simple(1, dim_1, NULL);
+    Real Mdot_vec[1] = {Mdot_total};
+    dataset = H5Dcreate(file, "Mdot_total", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, Mdot_vec);
+    H5Dclose(dataset);
+
     H5Sclose(dataspace);
     H5Gclose(prim_id);
     H5Gclose(cons_id);
@@ -745,3 +766,26 @@ Real Ejecta::Trace(Real const detginv,
        - Azz*SQR(gxy) - Ayy*SQR(gxz) - Axx*SQR(gyz)
        ));
 }
+
+Real Ejecta::MassLossRate(Real const fx, Real const fy, Real const fz,
+                          Real const sinth, Real const costh, Real const sinph, Real const cosph)
+{
+  Real r_x = cosph * sinth;
+  Real r_y = sinph * sinth;
+  Real r_z = costh;
+  return (fx*r_x + fy*r_y + fz*r_z) * SQR(radius) * sinth * dth_grid() * dph_grid();
+}
+
+Real Ejecta::MassLossRate2(Real const D, Real const ux, Real const uy, Real const uz, Real const W,
+                           Real const alpha, Real const betax, Real const betay, Real const betaz,
+                           Real const sinth, Real const costh, Real const sinph, Real const cosph)
+{
+  Real r_x = cosph * sinth;
+  Real r_y = sinph * sinth;
+  Real r_z = costh;
+  Real v_x = alpha*ux/W - betax;
+  Real v_y = alpha*uy/W - betay;
+  Real v_z = alpha*uz/W - betaz;
+  return D * (v_x*r_x + v_y*r_y + v_z*r_z) * SQR(radius) * sinth * dth_grid() * dph_grid();
+}
+

@@ -246,7 +246,7 @@ class NextStencil<ndim, 0> {
 // This class assumes that
 // . the grid is uniformly spaced in each direction, different grid spacing in
 //   different direction is allowed;
-// . the fastest running index in the data is that corrsponding to the first dimension
+// . the fastest running index in the data is that corresponding to the first dimension
 // . the stride used to access the data along the first dimension is 1
 template<int order, int ndim>
 class LagrangeInterpND {

@@ -28,13 +28,19 @@ class ParameterInput;
 
 #define SQ(X) ((X)*(X))
 #define NDIM (3)
-#define NOTHER (2)
+
 
 //! \class Ejecta
 //! \brief Ejecta extraction
 class Ejecta {
   
 public:
+
+  enum {
+    I_detg,
+    I_Mdot,
+    NOTHER
+  };
   //! Creates the AHF object
   Ejecta(Mesh * pmesh, ParameterInput * pin, int nrad);
   //! Destructor (will close output file)
@@ -69,6 +75,7 @@ private:
   AthenaArray<Real> other[NOTHER];
   AthenaArray<Real> theta, phi;
   Real mass_contained;
+  Real Mdot_total;
 
   //! Flag points 
   AthenaArray<int> havepoint;
@@ -106,7 +113,11 @@ private:
              Real const gyy, Real const gyz, Real const gzz,
              Real const Axx, Real const Axy, Real const Axz,
              Real const Ayy, Real const Ayz, Real const Azz);
-
+  Real MassLossRate(Real const fx, Real const fy, Real const fz,
+                          Real const sinth, Real const costh, Real const sinph, Real const cosph);
+  Real MassLossRate2(Real const D, Real const ux, Real const uy, Real const uz, Real const W,
+                           Real const alpha, Real const betax, Real const betay, Real const betaz,
+                           Real const sinth, Real const costh, Real const sinph, Real const cosph);
 };
 
 #endif

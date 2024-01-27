@@ -112,6 +112,13 @@ for irad in range(nrad):
         dset[irad, itime] = h5f_in['mass'][0]
         h5f_in.close()
 
+dset = h5f.create_dataset('Mdot_total', (nrad, ntime,), dtype=h5f_old['Mdot_total'].dtype)
+for irad in range(nrad):
+    for itime, h5fname in enumerate(h5files[irad]):
+        h5f_in = h5py.File(h5fname, 'r')
+        dset[irad, itime] = h5f_in['Mdot_total'][0]
+        h5f_in.close()
+
 h5f_old.close()
 h5f.close()
 
