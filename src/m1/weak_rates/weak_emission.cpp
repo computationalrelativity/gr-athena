@@ -193,7 +193,10 @@ int WeakEmissionMod::Emissions_cgs(Real rho, Real temp, Real ye, Real& emi_n_nue
   // A. Burrows et al. Nuclear Physics A 777 (2006) 356-394
   // The factor 1/2 is to convert from emissivity of the pair to
   // emissivity for a single neutrino species
-  Real Qbrem = 0.5 * 1.04e2 * 0.5 * (1.0/mev_to_erg) * ((xn*xn) + (xp*xp) + 28.0/3.0 * xn * xp) * (rho*rho) * pow(temp,5.5);
+  // The factor 2.0778 is different from the paper 1.04 to account
+  // for the nuclear matrix element for one-pion exchange
+  // (Adam Burrows, private comm)
+  Real Qbrem = 0.5 * 2.0778e2 * 0.5 * (1.0/mev_to_erg) * ((xn*xn) + (xp*xp) + 28.0/3.0 * xn * xp) * (rho*rho) * pow(temp,5.5);
   Real Rbrem = 2.0 * Qbrem / (4.364 * temp);
 
   // Remeber the rates are in (MeV / ) sec / cm^3
