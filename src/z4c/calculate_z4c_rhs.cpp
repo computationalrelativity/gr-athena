@@ -34,6 +34,7 @@
 //
 // This function operates only on the interior points of the MeshBlock
 
+#ifndef DBG_EOM
 void Z4c::Z4cRHS(
   AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<Real> & u_rhs)
 {
@@ -630,7 +631,9 @@ void Z4c::Z4cRHS(
       u_rhs(n,k,j,i) += fd->Diss(a, u(n,k,j,i), opt.diss);
     }
   }
+
 }
+#endif // DBG_EOM
 
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::Z4cBoundaryRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<Real> & u_rhs)
@@ -794,3 +797,849 @@ void Z4c::Z4cSommerfeld_(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs,
     }
   }
 }
+
+
+// Debug EOM ------------------------------------------------------------------
+// H&R 2018
+#ifdef DBG_EOM
+// For readability
+typedef AthenaArray< Real>                            AA;
+typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> AT_N_sca;
+typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> AT_N_vec;
+typedef AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> AT_N_sym;
+
+// derivatives
+typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> AT_N_D1sca;
+typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> AT_N_D1vec;
+typedef AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> AT_N_D1sym;
+
+typedef AthenaTensor<Real, TensorSymm::SYM2,  NDIM, 2> AT_N_d2sca;
+typedef AthenaTensor<Real, TensorSymm::ISYM2, NDIM, 3> AT_N_d2vec;
+typedef AthenaTensor<Real, TensorSymm::SYM22, NDIM, 4> AT_N_d2sym;
+
+void Z4c::Z4cRHS(AthenaArray<Real> & u,
+                 AthenaArray<Real> & u_mat,
+                 AthenaArray<Real> & u_rhs)
+{
+  using namespace LinearAlgebra;
+
+  // Slice rhs 3d quantities --------------------------------------------------
+  AT_N_sca rhs_alpha(u_rhs, Z4c::I_Z4c_alpha);
+  AT_N_sca rhs_chi(  u_rhs, Z4c::I_Z4c_chi);
+  AT_N_sca rhs_Theta(u_rhs, Z4c::I_Z4c_Theta);
+  AT_N_sca rhs_Khat( u_rhs, Z4c::I_Z4c_Khat);
+
+  AT_N_vec rhs_beta_u(     u_rhs, Z4c::I_Z4c_betax);
+  AT_N_vec rhs_Gammatil_u( u_rhs, Z4c::I_Z4c_Gamx);
+
+  AT_N_sym rhs_Atil_dd(    u_rhs, Z4c::I_Z4c_Axx);
+  AT_N_sym rhs_gammatil_dd(u_rhs, Z4c::I_Z4c_gxx);
+
+  // Slice 3d z4c metric quantities  (NDIM=3 in z4c.hpp) ----------------------
+  AT_N_sca z4c_alpha(u, Z4c::I_Z4c_alpha);
+  AT_N_sca z4c_chi(  u, Z4c::I_Z4c_chi);
+  AT_N_sca z4c_Theta(u, Z4c::I_Z4c_Theta);
+  AT_N_sca z4c_Khat( u, Z4c::I_Z4c_Khat);
+
+  AT_N_vec z4c_beta_u(     u, Z4c::I_Z4c_betax);
+  AT_N_vec z4c_Gammatil_u( u, Z4c::I_Z4c_Gamx);
+
+  AT_N_sym z4c_Atil_dd(    u, Z4c::I_Z4c_Axx);
+  AT_N_sym z4c_gammatil_dd(u, Z4c::I_Z4c_gxx);
+
+  AT_N_sca adm_rho( u_mat, Z4c::I_MAT_rho);
+
+  AT_N_vec adm_S_d( u_mat, Z4c::I_MAT_Sx);
+
+  AT_N_sym adm_S_dd(u_mat, Z4c::I_MAT_Sxx);
+
+  // Scratch & parameters -----------------------------------------------------
+  AT_N_sca z4c_detgamma_(   mbi.nn1);
+  AT_N_sca z4c_oodetgamma_( mbi.nn1);
+  AT_N_sca z4c_oochi_(      mbi.nn1);
+
+  AT_N_sym z4c_gammatil_uu_(mbi.nn1);
+  AT_N_sym z4c_Atil_uu_(    mbi.nn1);
+  AT_N_sym z4c_AAtil_dd_(   mbi.nn1);
+
+  AT_N_sca z4c_AAtil_(      mbi.nn1);
+
+  // for trace-free piece
+  AT_N_sca z4c_AtilTr_(   mbi.nn1);
+
+  AT_N_sym z4c_AtilTF_dd_(mbi.nn1);
+
+  AT_N_vec z4c_Gammatild_u_(mbi.nn1);
+
+  AT_N_sym z4c_Rictilchi_dd_(mbi.nn1);
+  AT_N_sym z4c_Rictil_dd_(   mbi.nn1);
+
+  AT_N_sca z4c_R_(           mbi.nn1);
+  AT_N_sca adm_S_(       mbi.nn1);
+
+  AT_N_sym adm_gamma_dd_(mbi.nn1);
+  AT_N_sym adm_gamma_uu_(mbi.nn1);
+
+  // derivatives
+  AT_N_D1sca z4c_dalpha_d_(mbi.nn1);
+  AT_N_D1sca z4c_dchi_d_(  mbi.nn1);
+  AT_N_D1sca z4c_dKhat_d_( mbi.nn1);
+  AT_N_D1sca z4c_dTheta_d_(mbi.nn1);
+
+  // contracted
+  AT_N_sca z4c_dbeta_(mbi.nn1);
+
+  AT_N_D1vec z4c_dbeta_du_(    mbi.nn1);
+  AT_N_D1vec z4c_dGammatil_du_(mbi.nn1);
+
+  AT_N_D1sym z4c_dgammatil_ddd_(mbi.nn1);
+  AT_N_D1sym z4c_dAtil_ddd_(    mbi.nn1);
+
+  AT_N_d2sca z4c_ddalpha_dd_( mbi.nn1);
+  AT_N_d2sca z4c_ddchi_dd_(   mbi.nn1);
+
+  AT_N_d2vec z4c_ddbeta_ddu_(mbi.nn1);
+
+  AT_N_d2sym z4c_ddgammatil_dddd_(mbi.nn1);
+
+  // derivatives (advective)
+  AT_N_sca z4c_Lalpha_(mbi.nn1);
+  AT_N_sca z4c_Lchi_(  mbi.nn1);
+  AT_N_sca z4c_LKhat_( mbi.nn1);
+  AT_N_sca z4c_LTheta_(mbi.nn1);
+
+  AT_N_vec z4c_Lbeta_u_(    mbi.nn1);
+  AT_N_vec z4c_LGammatil_u_(mbi.nn1);
+
+  AT_N_sym z4c_Lgammatil_dd_(mbi.nn1);
+  AT_N_sym z4c_LAtil_dd_(    mbi.nn1);
+
+  // Christoffels
+  AT_N_D1sym z4c_Gammatil_ddd_(mbi.nn1);
+  AT_N_D1sym z4c_Gammatil_udd_(mbi.nn1);
+
+  // Difference between connections
+  AT_N_D1sym z4c_GammaDDtil_udd_(mbi.nn1);
+
+  // 1st covariants contracted
+  AT_N_sca z4c_Dbeta_(mbi.nn1);
+
+  // 2nd covariant of scalars
+  AT_N_sca z4c_DDalpha_(       mbi.nn1);
+  AT_N_sym z4c_DDalpha_dd_(    mbi.nn1);
+  AT_N_sym z4c_DtilDtilchi_dd_(mbi.nn1);
+
+  // debug
+  AT_N_D1sca dphi_d(    mbi.nn1);
+
+
+  const int il = mbi.il;
+  const int iu = mbi.iu;
+
+  const Real kappa_1 = opt.damp_kappa1;
+  const Real kappa_2 = opt.damp_kappa2;
+
+  // coupling term between connections
+  const Real p_connection = -12.0 / (3.0 * opt.chi_psi_power);
+
+  // enforce standard z4c?
+#ifdef DBG_EOM_Z4C_ENFORCE
+  const Real enf_z4c = 1.;
+#else
+  const Real enf_z4c = 0.;
+#endif // DBG_EOM_Z4C_ENFORCE
+
+  // gauge
+  const Real alpha_l   = opt.lapse_oplog;
+  const Real alpha_hf  = opt.lapse_harmonicf;
+  const Real alpha_h   = opt.lapse_harmonic;
+  const Real alpha_adv = opt.lapse_advect;
+
+  const Real sigma_Gamma       = opt.shift_Gamma;
+  const Real sigma_eta         = opt.shift_eta;
+  const Real sigma_alpha2Gamma = opt.shift_alpha2Gamma;
+  const Real sigma_H           = opt.shift_H;
+  const Real sigma_adv         = opt.shift_advect;
+
+  ILOOP2(k,j)
+  {
+    // 1st derivatives --------------------------------------------------------
+    {
+      // Scalars
+      for (int a=0; a<NDIM; ++a)
+      ILOOP1(i)
+      {
+        z4c_dalpha_d_(a,i) = fd->Dx(a, z4c_alpha(k,j,i));
+        z4c_dchi_d_(  a,i) = fd->Dx(a, z4c_chi(  k,j,i));
+        z4c_dKhat_d_( a,i) = fd->Dx(a, z4c_Khat( k,j,i));
+        z4c_dTheta_d_(a,i) = fd->Dx(a, z4c_Theta(k,j,i));
+      }
+
+      // Vectors
+      for (int a=0; a<NDIM; ++a)
+      for (int b=0; b<NDIM; ++b)
+      ILOOP1(i)
+      {
+        z4c_dbeta_du_(    b,a,i) = fd->Dx(b, z4c_beta_u(    a,k,j,i));
+        z4c_dGammatil_du_(b,a,i) = fd->Dx(b, z4c_Gammatil_u(a,k,j,i));
+      }
+
+      // Tensors
+      for (int a=0; a<NDIM; ++a)
+      for (int b=a; b<NDIM; ++b)
+      for (int c=0; c<NDIM; ++c)
+      ILOOP1(i)
+      {
+        z4c_dgammatil_ddd_(c,a,b,i) = fd->Dx(c, z4c_gammatil_dd(a,b,k,j,i));
+        z4c_dAtil_ddd_(    c,a,b,i) = fd->Dx(c, z4c_Atil_dd(    a,b,k,j,i));
+      }
+    }
+
+
+    // 2nd derivatives --------------------------------------------------------
+    {
+      // Scalars
+      for (int a=0; a<NDIM; ++a)
+      {
+        ILOOP1(i)
+        {
+          z4c_ddalpha_dd_(a,a,i) = fd->Dxx(a, z4c_alpha(k,j,i));
+          z4c_ddchi_dd_(  a,a,i) = fd->Dxx(a, z4c_chi(  k,j,i));
+        }
+        for(int b = a + 1; b < NDIM; ++b)
+        ILOOP1(i)
+        {
+            z4c_ddalpha_dd_(a,b,i) = fd->Dxy(a, b, z4c_alpha(k,j,i));
+            z4c_ddchi_dd_(  a,b,i) = fd->Dxy(a, b, z4c_chi(  k,j,i));
+        }
+      }
+
+      // Vectors
+      for (int c=0; c<NDIM; ++c)
+      for (int a=0; a<NDIM; ++a)
+      for (int b=a; b<NDIM; ++b)
+      {
+        if(a==b)
+        {
+          ILOOP1(i)
+          {
+            z4c_ddbeta_ddu_(a,b,c,i) = fd->Dxx(a, z4c_beta_u(c,k,j,i));
+          }
+        }
+        else
+        {
+          ILOOP1(i)
+          {
+            z4c_ddbeta_ddu_(a,b,c,i) = fd->Dxy(a, b, z4c_beta_u(c,k,j,i));
+          }
+        }
+      }
+
+      // Tensors
+      for (int c=0; c<NDIM; ++c)
+      for (int d=c; d<NDIM; ++d)
+      for (int a=0; a<NDIM; ++a)
+      for (int b=a; b<NDIM; ++b)
+      {
+        if(a == b)
+        {
+          ILOOP1(i)
+          {
+            z4c_ddgammatil_dddd_(a,b,c,d,i) = fd->Dxx(
+              a, z4c_gammatil_dd(c,d,k,j,i)
+            );
+          }
+        }
+        else
+        {
+          ILOOP1(i)
+          {
+            z4c_ddgammatil_dddd_(a,b,c,d,i) = fd->Dxy(
+              a, b, z4c_gammatil_dd(c,d,k,j,i)
+            );
+          }
+        }
+      }
+    }
+
+
+    // Advective derivatives --------------------------------------------------
+    {
+      // Scalars
+      z4c_Lalpha_.ZeroClear();
+      z4c_Lchi_.ZeroClear();
+      z4c_LKhat_.ZeroClear();
+      z4c_LTheta_.ZeroClear();
+      for (int a=0; a<NDIM; ++a)
+      ILOOP1(i)
+      {
+        z4c_Lalpha_(i) += fd->Lx(a, z4c_beta_u(a,k,j,i), z4c_alpha(k,j,i));
+        z4c_Lchi_(i)   += fd->Lx(a, z4c_beta_u(a,k,j,i), z4c_chi(k,j,i)  );
+        z4c_LKhat_(i)  += fd->Lx(a, z4c_beta_u(a,k,j,i), z4c_Khat(k,j,i) );
+        z4c_LTheta_(i) += fd->Lx(a, z4c_beta_u(a,k,j,i), z4c_Theta(k,j,i));
+      }
+
+      // Vectors
+      z4c_Lbeta_u_.ZeroClear();
+      z4c_LGammatil_u_.ZeroClear();
+      for (int a=0; a<NDIM; ++a)
+      for (int b=0; b<NDIM; ++b)
+      ILOOP1(i)
+      {
+        z4c_Lbeta_u_(b,i)     += fd->Lx(a, z4c_beta_u(a,k,j,i),
+                                        z4c_beta_u(b,k,j,i));
+        z4c_LGammatil_u_(b,i) += fd->Lx(a, z4c_beta_u(a,k,j,i),
+                                        z4c_Gammatil_u(b,k,j,i));
+      }
+
+      // Tensors
+      z4c_Lgammatil_dd_.ZeroClear();
+      z4c_LAtil_dd_.ZeroClear();
+      for (int a=0; a<NDIM; ++a)
+      for (int b=a; b<NDIM; ++b)
+      for (int c=0; c<NDIM; ++c)
+      ILOOP1(i)
+      {
+        z4c_Lgammatil_dd_(a,b,i) += fd->Lx(c, z4c_beta_u(c,k,j,i),
+                                          z4c_gammatil_dd(a,b,k,j,i));
+        z4c_LAtil_dd_(a,b,i) += fd->Lx(c, z4c_beta_u(c,k,j,i),
+                                      z4c_Atil_dd(a,b,k,j,i));
+      }
+    }
+
+    // Auxiliary quantities (I) -----------------------------------------------
+    // z4c_detgamma_, z4c_oodetgamma_, z4c_gammatil_uu_, z4c_oochi_, z4c_dbeta_
+    {
+
+      // prepare z4c_detgamma_, z4c_gammatil_uu_
+      Det3Metric(z4c_detgamma_, z4c_gammatil_dd, k, j, il, iu);
+      ILOOP1(i)
+      {
+        z4c_oodetgamma_(i) = 1.0 / z4c_detgamma_(i);
+      }
+      Inv3Metric(z4c_oodetgamma_, z4c_gammatil_dd, z4c_gammatil_uu_,
+                 k, j, il, iu);
+
+      // prepare 1 / chi (note recip. flooring procedure)
+      ILOOP1(i)
+      {
+        z4c_oochi_(i) = 1.0 / std::max(z4c_chi(k,j,i), opt.chi_div_floor);
+      }
+
+      z4c_dbeta_.ZeroClear();
+      for (int a=0; a<NDIM; ++a)
+      ILOOP1(i)
+      {
+        z4c_dbeta_(i) += z4c_dbeta_du_(a,a,i);
+      }
+
+    }
+
+    // Auxiliary quantities (II) ----------------------------------------------
+    // adm_gamma_dd_, adm_gamma_uu_, adm_S_;
+    {
+      for (int a=0; a<NDIM; ++a)
+      for (int b=a; b<NDIM; ++b)
+      ILOOP1(i)
+      {
+        adm_gamma_dd_(a,b,i) = z4c_oochi_(i) * z4c_gammatil_dd(a,b,k,j,i);
+      }
+
+      for (int a=0; a<NDIM; ++a)
+      for (int b=a; b<NDIM; ++b)
+      ILOOP1(i)
+      {
+        adm_gamma_uu_(a,b,i) = z4c_chi(k,j,i) * z4c_gammatil_uu_(a,b,i);
+      }
+
+      adm_S_.ZeroClear();
+      for (int a=0; a<NDIM; ++a)
+      for (int b=0; b<NDIM; ++b)
+      ILOOP1(i)
+      {
+        adm_S_(i) += adm_gamma_uu_(a,b,i) * adm_S_dd(a,b,k,j,i);
+      }
+    }
+
+    // Christoffels / Gammatil_d_u_ -------------------------------------------
+    // z4c_Gammatil_ddd_, z4c_Gammatil_udd_, z4c_Gammatild_u_
+    {
+      for (int c=0; c<NDIM; ++c)
+      for (int a=0; a<NDIM; ++a)
+      for (int b=a; b<NDIM; ++b)
+      ILOOP1(i)
+      {
+        z4c_Gammatil_ddd_(c,a,b,i) = 0.5*(z4c_dgammatil_ddd_(a,b,c,i) +
+                                          z4c_dgammatil_ddd_(b,a,c,i) -
+                                          z4c_dgammatil_ddd_(c,a,b,i));
+      }
+
+      z4c_Gammatil_udd_.ZeroClear();
+      for (int c=0; c<NDIM; ++c)
+      for (int a=0; a<NDIM; ++a)
+      for (int b=a; b<NDIM; ++b)
+      for (int d=0; d<NDIM; ++d)
+      ILOOP1(i)
+      {
+        z4c_Gammatil_udd_(c,a,b,i) += z4c_gammatil_uu_( c,d,i) *
+                                      z4c_Gammatil_ddd_(d,a,b,i);
+      }
+
+      // Gamma's computed from the conformal metric (not evolved)
+      z4c_Gammatild_u_.ZeroClear();
+      for (int a=0; a<NDIM; ++a)
+      for (int b=0; b<NDIM; ++b)
+      for (int c=0; c<NDIM; ++c)
+      ILOOP1(i)
+      {
+        z4c_Gammatild_u_(a,i) += z4c_gammatil_uu_( b,c,i) *
+                                 z4c_Gammatil_udd_(a,b,c,i);
+      }
+
+    }
+
+    // Connection difference --------------------------------------------------
+    // z4c_GammaDDtil_udd_
+    {
+      for (int c=0; c<NDIM; ++c)
+      for (int a=0; a<NDIM; ++a)
+      for (int b=a; b<NDIM; ++b)
+      ILOOP1(i)
+      {
+        z4c_GammaDDtil_udd_(c,a,b,i) = -0.5 * p_connection * z4c_oochi_(i) * (
+          (c==a) * z4c_dchi_d_(b,i) + (c==b) * z4c_dchi_d_(a,i)
+        );
+      }
+
+      for (int c=0; c<NDIM; ++c)
+      for (int a=0; a<NDIM; ++a)
+      for (int b=a; b<NDIM; ++b)
+      for (int d=0; d<NDIM; ++d)
+      ILOOP1(i)
+      {
+        z4c_GammaDDtil_udd_(c,a,b,i) += 0.5 * p_connection * z4c_oochi_(i) * (
+          z4c_gammatil_dd(a,b,k,j,i) * z4c_gammatil_uu_(c,d,i) *
+                                       z4c_dchi_d_(d,i)
+        );
+      }
+    }
+
+    // Covariant derivatives (I) ----------------------------------------------
+    // z4c_Dbeta_, z4c_DtilDtilchi_dd_
+    {
+      const Real fac = 6.0 / opt.chi_psi_power;
+      ILOOP1(i)
+      {
+        z4c_Dbeta_(i) = fac * z4c_oochi_(i) * z4c_Lchi_(i);
+      }
+
+      for (int a=0; a<NDIM; ++a)
+      ILOOP1(i)
+      {
+        z4c_Dbeta_(i) += z4c_dbeta_du_(a,a,i);
+      }
+
+
+      for (int a=0; a<NDIM; ++a)
+      for (int b=a; b<NDIM; ++b)
+      {
+        ILOOP1(i)
+        {
+          z4c_DtilDtilchi_dd_(a,b,i) = z4c_ddchi_dd_(a,b,i);
+        }
+        for (int c=0; c<NDIM; ++c)
+        ILOOP1(i)
+        {
+          z4c_DtilDtilchi_dd_(a,b,i) -= z4c_Gammatil_udd_(c,a,b,i) *
+                                        z4c_dchi_d_(c,i);
+        }
+      }
+
+    }
+
+    // Covariant derivatives (II) ---------------------------------------------
+    // z4c_DDalpha_dd_, z4c_DDalpha_
+    {
+      for (int a=0; a<NDIM; ++a)
+      for (int b=a; b<NDIM; ++b)
+      {
+        ILOOP1(i)
+        {
+          z4c_DDalpha_dd_(a,b,i) = z4c_ddalpha_dd_(a,b,i);
+        }
+        for (int c=0; c<NDIM; ++c)
+        ILOOP1(i)
+        {
+          z4c_DDalpha_dd_(a,b,i) += -z4c_dalpha_d_(c,i) * (
+            z4c_GammaDDtil_udd_(c,a,b,i) + z4c_Gammatil_udd_(c,a,b,i)
+          );
+        }
+      }
+
+      TraceRank2(z4c_DDalpha_, adm_gamma_uu_, z4c_DDalpha_dd_, il, iu);
+
+
+    /*
+    for(int a = 0; a < NDIM; ++a) {
+      ILOOP1(i) {
+        dphi_d(a,i) = z4c_oochi_(i) * z4c_dchi_d_(a,i)/(opt.chi_psi_power);
+      }
+    }
+
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = 0; b < NDIM; ++b) {
+      ILOOP1(i) {
+        z4c_DDalpha_dd_(a,b,i) = z4c_ddalpha_dd_(a,b,i)
+                          - 2.*(dphi_d(a,i)*z4c_dalpha_d_(b,i) + dphi_d(b,i)*z4c_dalpha_d_(a,i));
+      }
+      for(int c = 0; c < NDIM; ++c) {
+        ILOOP1(i) {
+          z4c_DDalpha_dd_(a,b,i) -= z4c_Gammatil_udd_(c,a,b,i)*z4c_dalpha_d_(c,i);
+        }
+        for(int d = 0; d < NDIM; ++d) {
+          ILOOP1(i) {
+            z4c_DDalpha_dd_(a,b,i) += 2.*z4c_gammatil_dd(a,b,k,j,i) * z4c_gammatil_uu_(c,d,i) * dphi_d(c,i) * z4c_dalpha_d_(d,i);
+          }
+        }
+      }
+    }
+    */
+
+    }
+
+    // Auxiliary quantities (III) ---------------------------------------------
+    // z4c_Atil_uu_, z4c_AAtil_dd_, z4c_AAtil_
+    {
+      z4c_Atil_uu_.ZeroClear();
+      for(int a = 0; a < NDIM; ++a)
+      for(int b = a; b < NDIM; ++b)
+      for(int c = 0; c < NDIM; ++c)
+      for(int d = 0; d < NDIM; ++d)
+      ILOOP1(i)
+      {
+        z4c_Atil_uu_(a,b,i) += z4c_gammatil_uu_(a,c,i) *
+                               z4c_gammatil_uu_(b,d,i) *
+                               z4c_Atil_dd(c,d,k,j,i);
+      }
+
+      z4c_AAtil_dd_.ZeroClear();
+      for (int a=0; a<NDIM; ++a)
+      for (int b=a; b<NDIM; ++b)
+      for (int c=0; c<NDIM; ++c)
+      for (int d=0; d<NDIM; ++d)
+      ILOOP1(i)
+      {
+        z4c_AAtil_dd_(a,b,i) += z4c_gammatil_uu_(c,d,i) *
+                                z4c_Atil_dd(a,c,k,j,i) *
+                                z4c_Atil_dd(d,b,k,j,i);
+      }
+
+      z4c_AAtil_.ZeroClear();
+      for (int a=0; a<NDIM; ++a)
+      for (int b=0; b<NDIM; ++b)
+      ILOOP1(i)
+      {
+        z4c_AAtil_(i) += z4c_gammatil_uu_(a,b,i) *
+                         z4c_AAtil_dd_(a,b,i);
+      }
+
+    }
+
+    // Auxiliary quantities (IV) ----------------------------------------------
+    // z4c_Rictilchi_dd_, z4c_Rictil_dd_, z4c_R_
+    {
+      // z4c_Rictilchi_dd_
+      for (int a=0; a<NDIM; ++a)
+      for (int b=a; b<NDIM; ++b)
+      ILOOP1(i)
+      {
+        z4c_Rictilchi_dd_(a,b,i) = 0.5 * z4c_oochi_(i) * (
+          z4c_DtilDtilchi_dd_(a,b,i) -
+          0.5 * z4c_oochi_(i) * z4c_dchi_d_(a,i) * z4c_dchi_d_(b,i)
+        );
+      }
+
+      for (int a=0; a<NDIM; ++a)
+      for (int b=a; b<NDIM; ++b)
+      for (int c=0; c<NDIM; ++c)
+      for (int d=0; d<NDIM; ++d)
+      ILOOP1(i)
+      {
+        z4c_Rictilchi_dd_(a,b,i) += 0.5 * z4c_oochi_(i) * (
+          z4c_DtilDtilchi_dd_(c,d,i) -
+          1.5 * z4c_oochi_(i) * z4c_dchi_d_(c,i) * z4c_dchi_d_(d,i)
+        ) * z4c_gammatil_dd(a,b,k,j,i) * z4c_gammatil_uu_(c,d,i);
+      }
+
+      // z4c_Rictil_dd_
+      z4c_Rictil_dd_.ZeroClear();
+      for (int a=0; a<NDIM; ++a)
+      for (int b=a; b<NDIM; ++b)
+      for (int c=0; c<NDIM; ++c)
+      ILOOP1(i)
+      {
+        z4c_Rictil_dd_(a,b,i) += 0.5 * (
+          z4c_gammatil_dd(c,a,k,j,i) * z4c_dGammatil_du_(b,c,i) +
+          z4c_gammatil_dd(c,b,k,j,i) * z4c_dGammatil_du_(a,c,i)
+        );
+
+        z4c_Rictil_dd_(a,b,i) += 0.5 * z4c_Gammatild_u_(c,i) * (
+          z4c_Gammatil_ddd_(a,b,c,i) + z4c_Gammatil_ddd_(b,a,c,i)
+        );
+      }
+
+      for (int a=0; a<NDIM; ++a)
+      for (int b=a; b<NDIM; ++b)
+      for (int c=0; c<NDIM; ++c)
+      for (int d=0; d<NDIM; ++d)
+      ILOOP1(i)
+      {
+        z4c_Rictil_dd_(a,b,i) -= 0.5 * (
+          z4c_gammatil_uu_(c,d,i) * z4c_ddgammatil_dddd_(c,d,a,b,i)
+        );
+      }
+
+      for (int a=0; a<NDIM; ++a)
+      for (int b=a; b<NDIM; ++b)
+      for (int c=0; c<NDIM; ++c)
+      for (int d=0; d<NDIM; ++d)
+      for (int e=0; e<NDIM; ++e)
+      ILOOP1(i)
+      {
+        z4c_Rictil_dd_(a,b,i) += z4c_gammatil_uu_(c,d,i) * (
+          z4c_Gammatil_udd_(e,c,a,i) * z4c_Gammatil_ddd_(b,e,d,i) +
+          z4c_Gammatil_udd_(e,c,b,i) * z4c_Gammatil_ddd_(a,e,d,i) +
+          z4c_Gammatil_udd_(e,a,d,i) * z4c_Gammatil_ddd_(e,c,b,i)
+        );
+      }
+
+      // z4c_R_
+      z4c_R_.ZeroClear();
+      for (int a=0; a<NDIM; ++a)
+      for (int b=0; b<NDIM; ++b)
+      ILOOP1(i)
+      {
+        z4c_R_(i) += adm_gamma_uu_(a,b,i) * (
+          z4c_Rictilchi_dd_(a,b,i) + z4c_Rictil_dd_(a,b,i)
+        );
+      }
+
+
+    }
+
+    // Auxiliary quantities (V) -----------------------------------------------
+    // z4c_AtilTr_, z4c_AtilTF_dd_
+    {
+      ILOOP1(i)
+      {
+        z4c_AtilTr_(i) = (
+          -z4c_DDalpha_(i) + z4c_alpha(k,j,i) * (z4c_R_(i) - 8.0 * M_PI *
+                                                 adm_S_(i))
+        );
+      }
+
+      for (int a=0; a<NDIM; ++a)
+      for (int b=a; b<NDIM; ++b)
+      ILOOP1(i)
+      {
+        z4c_AtilTF_dd_(a,b,i) = (
+          -z4c_DDalpha_dd_(a,b,i) + z4c_alpha(k,j,i) * (
+            (z4c_Rictilchi_dd_(a,b,i) + z4c_Rictil_dd_(a,b,i)) -
+            8.0 * M_PI * adm_S_dd(a,b,k,j,i)) -
+          ONE_3RD * adm_gamma_dd_(a,b,i) * z4c_AtilTr_(i)
+        );
+      }
+
+    }
+
+    // Assemble RHS (EOM I) ---------------------------------------------------
+    // rhs_chi, rhs_gammatil_dd
+    {
+      ILOOP1(i)
+      {
+        rhs_chi(k,j,i) = TWO_3RD * z4c_chi(k,j,i) * (
+          z4c_alpha(k,j,i) * (z4c_Khat(k,j,i) + 2.0 * z4c_Theta(k,j,i)) -
+          z4c_Dbeta_(i)
+        );
+      }
+
+      for (int a=0; a<NDIM; ++a)
+      for (int b=a; b<NDIM; ++b)
+      {
+        ILOOP1(i)
+        {
+          rhs_gammatil_dd(a,b,k,j,i) = z4c_Lgammatil_dd_(a,b,i) + (
+            -2.0 * z4c_alpha(k,j,i) * z4c_Atil_dd(a,b,k,j,i)
+          );
+        }
+        for (int c=0; c<NDIM; ++c)
+        ILOOP1(i)
+        {
+          rhs_gammatil_dd(a,b,k,j,i) += (
+            (z4c_gammatil_dd(c,a,k,j,i) * z4c_dbeta_du_(b,c,i) +
+             z4c_gammatil_dd(c,b,k,j,i) * z4c_dbeta_du_(a,c,i)) -
+            TWO_3RD * z4c_gammatil_dd(a,b,k,j,i) * z4c_dbeta_du_(c,c,i)
+          );
+        }
+
+      }
+
+    }
+
+    // Assemble RHS (EOM II) --------------------------------------------------
+    // rhs_Gammatil_u
+    {
+      for (int a=0; a<NDIM; ++a)
+      ILOOP1(i)
+      {
+        rhs_Gammatil_u(a,k,j,i) = (
+          z4c_LGammatil_u_(a,i) -
+          2.0 * z4c_alpha(k,j,i) * kappa_1 * (
+            z4c_Gammatil_u(a,k,j,i) - z4c_Gammatild_u_(a,i)
+          )
+        );
+      }
+
+      for (int a=0; a<NDIM; ++a)
+      for (int b=0; b<NDIM; ++b)
+      ILOOP1(i)
+      {
+        rhs_Gammatil_u(a,k,j,i) += (
+          -2.0 * z4c_Atil_uu_(a,b,i) * z4c_dalpha_d_(b,i)
+          -z4c_Gammatild_u_(b,i) * z4c_dbeta_du_(b,a,i) +
+          TWO_3RD * z4c_Gammatild_u_(a,i) * z4c_dbeta_du_(b,b,i) +
+          2.0 * z4c_alpha(k,j,i) * (
+            -1.5 * z4c_Atil_uu_(a,b,i) * z4c_oochi_(i) * z4c_dchi_d_(b,i)
+            -ONE_3RD * z4c_gammatil_uu_(a,b,i) * (
+              2.0 * z4c_dKhat_d_(b,i) + enf_z4c * z4c_dTheta_d_(b,i))
+            -8.0 * M_PI * z4c_gammatil_uu_(a,b,i) * adm_S_d(b,k,j,i)
+          )
+        );
+      }
+
+      for (int a=0; a<NDIM; ++a)
+      for (int b=0; b<NDIM; ++b)
+      for (int c=0; c<NDIM; ++c)
+      ILOOP1(i)
+      {
+        rhs_Gammatil_u(a,k,j,i) += (
+          2.0 * z4c_alpha(k,j,i) * z4c_Gammatil_udd_(a,b,c,i) *
+                                   z4c_Atil_uu_(b,c,i) +
+          z4c_gammatil_uu_(b,c,i) * z4c_ddbeta_ddu_(b,c,a,i) +
+          ONE_3RD * z4c_gammatil_uu_(a,b,i) *
+                    z4c_ddbeta_ddu_(b,c,c,i)
+        );
+      }
+
+
+    }
+
+    // Assemble RHS (EOM III) -------------------------------------------------
+    // rhs_Theta
+    {
+      ILOOP1(i)
+      {
+        rhs_Theta(k,j,i) = z4c_LTheta_(i) +  0.5 * z4c_alpha(k,j,i) * (
+          z4c_R_(i) - z4c_AAtil_(i) +
+          TWO_3RD * SQR(z4c_Khat(k,j,i) + 2.0 * z4c_Theta(k,j,i))
+        ) - z4c_alpha(k,j,i) * (
+          8.0 * M_PI * adm_rho(k,j,i) +
+          kappa_1 * (2.0 + kappa_2) * z4c_Theta(k,j,i)
+        );
+      }
+    }
+
+    // Assemble RHS (EOM IV) --------------------------------------------------
+    // rhs_Khat
+    {
+      ILOOP1(i)
+      {
+        rhs_Khat(k,j,i) = z4c_LKhat_(i) + z4c_alpha(k,j,i) * (
+          z4c_AAtil_(i) + ONE_3RD * SQR(z4c_Khat(k,j,i) + 2.0 *
+                                        z4c_Theta(k,j,i))
+        ) + (
+          4.0 * M_PI * z4c_alpha(k,j,i) * (adm_rho(k,j,i) + adm_S_(i)) +
+          z4c_alpha(k,j,i) * kappa_1 * (1.0 - kappa_2) * z4c_Theta(k,j,i)
+        ) - z4c_DDalpha_(i);
+      }
+    }
+
+    // Assemble RHS (EOM V) ---------------------------------------------------
+    // rhs_Atil_dd
+    {
+      for (int a=0; a<NDIM; ++a)
+      for (int b=a; b<NDIM; ++b)
+      ILOOP1(i)
+      {
+        rhs_Atil_dd(a,b,k,j,i) = z4c_LAtil_dd_(a,b,i) + (
+          z4c_chi(k,j,i) * z4c_AtilTF_dd_(a,b,i)
+          + z4c_alpha(k,j,i) * (
+            (z4c_Khat(k,j,i) + 2.0 * z4c_Theta(k,j,i)) *
+            z4c_Atil_dd(a,b,k,j,i) - 2.0 * z4c_AAtil_dd_(a,b,i)
+          )
+        ) - TWO_3RD * z4c_Atil_dd(a,b,k,j,i) * z4c_dbeta_(i);
+      }
+
+      for (int a=0; a<NDIM; ++a)
+      for (int b=a; b<NDIM; ++b)
+      for (int c=0; c<NDIM; ++c)
+      ILOOP1(i)
+      {
+        rhs_Atil_dd(a,b,k,j,i) += (
+          z4c_Atil_dd(c,a,k,j,i) * z4c_dbeta_du_(b,c,i) +
+          z4c_Atil_dd(c,b,k,j,i) * z4c_dbeta_du_(a,c,i)
+        );
+      }
+
+
+    }
+
+    // Assemble RHS [gauge subsystem] -----------------------------------------
+    // rhs_alpha, rhs_beta_u
+    {
+      ILOOP1(i)
+      {
+        const Real f = alpha_l * alpha_hf + alpha_h * z4c_alpha(k,j,i);
+        rhs_alpha(k,j,i) = (
+          alpha_adv * z4c_Lalpha_(i) -
+          f * z4c_alpha(k,j,i) * z4c_Khat(k,j,i)
+        );
+      }
+
+      for (int a=0; a<NDIM; ++a)
+      ILOOP1(i)
+      {
+        rhs_beta_u(a,k,j,i) = sigma_adv * z4c_Lbeta_u_(a,i) + (
+          (sigma_Gamma + sigma_alpha2Gamma * SQR(z4c_alpha(k,j,i))) *
+          z4c_Gammatil_u(a,k,j,i) -
+          sigma_eta * z4c_beta_u(a,k,j,i)
+        );
+      }
+
+      for (int a=0; a<NDIM; ++a)
+      for (int b=0; b<NDIM; ++b)
+      ILOOP1(i)
+      {
+        rhs_beta_u(a,k,j,i) += sigma_H * z4c_alpha(k,j,i) * z4c_chi(k,j,i) * (
+          0.5 * z4c_alpha(k,j,i) * z4c_dchi_d_(b,i) -
+          z4c_dalpha_d_(b,i)
+        ) * z4c_gammatil_uu_(a,b,i);
+      }
+
+    }
+
+  }
+
+  // ==========================================================================
+  // Add dissipation for stability
+  //
+  for (int n=0; n<N_Z4c; ++n)
+  for (int a=0; a<NDIM; ++a)
+  ILOOP3(k,j,i)
+  {
+    u_rhs(n,k,j,i) += fd->Diss(a, u(n,k,j,i), opt.diss);
+  }
+
+}
+
+#endif // DBG_EOM

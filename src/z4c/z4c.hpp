@@ -279,6 +279,8 @@ public:
   Real NewBlockTimeStep(void);
   // compute the RHS given the Z4c and matter variables
   void Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & mat, AthenaArray<Real> & rhs);
+  void Z4cRHS_(AthenaArray<Real> & u, AthenaArray<Real> & mat, AthenaArray<Real> & rhs);
+
   // compute the boundary RHS given the Z4c and matter variables
   void Z4cBoundaryRHS(AthenaArray<Real> & u, AthenaArray<Real> & mat, AthenaArray<Real> & rhs);
   // compute linear combination of states
@@ -489,6 +491,7 @@ private:
 
 private:
   FiniteDifference::Uniform *fd;
+
 };
 
 #endif // Z4c_HPP

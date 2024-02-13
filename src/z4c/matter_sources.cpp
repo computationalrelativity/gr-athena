@@ -102,7 +102,6 @@ void Z4c::GetMatter(
       pco_gr->GetMatterField(w_rho,      sl_w_rho,    k, j);
       pco_gr->GetMatterField(w_p,        sl_w_p,      k, j);
       pco_gr->GetMatterField(w_utilde_u, sl_w_util_u, k, j);
-
 #if MAGNETIC_FIELDS_ENABLED
       pco_gr->GetMatterField(bb,         sl_bb,       k, j);
 #endif
@@ -241,6 +240,7 @@ void Z4c::GetMatter(
                                pb_sum*adm.g_dd(2,2,k,j,i)-bi_d(2,i)*bi_d(2,i));
       }
 #else
+
       ILOOP1(i)
       {
         mat.rho(k,j,i) = w_hrho(i)*SQR(W(i)) - w_p(i);

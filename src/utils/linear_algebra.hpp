@@ -45,6 +45,21 @@ inline Real Det3Metric(
   );
 }
 
+inline void Det3Metric(
+  AthenaTensor<Real, TensorSymm::NONE, 3, 0> & detg_,
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & g,
+  int const k, int const j,
+  int const il, int const iu)
+{
+  for (int i=il; i<=iu; ++i)
+  {
+    detg_(i) = Det3Metric(
+      g(0,0,k,j,i), g(0,1,k,j,i), g(0,2,k,j,i),
+      g(1,1,k,j,i), g(1,2,k,j,i), g(2,2,k,j,i)
+    );
+  }
+}
+
 // compute inverse of a 3x3 symmetric matrix
 inline void Inv3Metric(
   Real const oodetg,
@@ -94,6 +109,25 @@ inline void Inv3Metric(
   }
 }
 
+inline void Inv3Metric(
+  AthenaTensor<Real, TensorSymm::NONE, 3, 0> const & oodetg_,
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & g_dd,
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> & g_uu_,
+  int const k, int const j,
+  int const il, int const iu)
+{
+  for (int i=il; i<=iu; ++i)
+  {
+    Inv3Metric(
+      oodetg_(i),
+      g_dd(0,0,k,j,i), g_dd(0,1,k,j,i), g_dd(0,2,k,j,i),
+      g_dd(1,1,k,j,i), g_dd(1,2,k,j,i), g_dd(2,2,k,j,i),
+      &g_uu_(0,0,i), &g_uu_(0,1,i), &g_uu_(0,2,i),
+      &g_uu_(1,1,i), &g_uu_(1,2,i), &g_uu_(2,2,i)
+    );
+  }
+}
+
 // BD: TODO shift target to first slot
 inline void Inv3Metric(
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & g_dd,
@@ -126,6 +160,46 @@ inline Real TraceRank2(
     + 2.*(gxz*(Ayz*gxy - Axz*gyy + Axy*gyz) + gxy*(Axz*gyz - Axy*gzz))
     - Azz*SQR(gxy) - Ayy*SQR(gxz) - Axx*SQR(gyz)
   );
+}
+
+inline void TraceRank2(
+  AthenaTensor<Real, TensorSymm::NONE, 3, 0> & Tr_,
+  AthenaTensor<Real, TensorSymm::NONE, 3, 0> const & detginv_,
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & g_dd,
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & S_dd,
+  int const k, int const j,
+  int const il, int const iu)
+{
+  for (int i=il; i<=iu; ++i)
+  {
+    Tr_(i) = TraceRank2(
+      1.0 / detginv_(i),
+      g_dd(0,0,k,j,i), g_dd(0,1,k,j,i), g_dd(0,2,k,j,i),
+      g_dd(1,1,k,j,i), g_dd(1,2,k,j,i), g_dd(2,2,k,j,i),
+      S_dd(0,0,k,j,i), S_dd(0,1,k,j,i), S_dd(0,2,k,j,i),
+      S_dd(1,1,k,j,i), S_dd(1,2,k,j,i), S_dd(2,2,k,j,i)
+    );
+  }
+}
+
+inline void TraceRank2(
+  AthenaTensor<Real, TensorSymm::NONE, 3, 0> & Tr_,
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & g_uu_,
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & S_dd_,
+  int const il, int const iu)
+{
+  for (int i=il; i<=iu; ++i)
+  {
+    Tr_(i) = 0;
+  }
+
+  for (int a=0; a<3; ++a)
+  for (int b=0; b<3; ++b)
+  for (int i=il; i<=iu; ++i)
+  {
+    Tr_(i) += g_uu_(a,b,i) * S_dd_(a,b,i);
+  }
+
 }
 
 // inner product of 3-vec

@@ -26,6 +26,17 @@
 
 #include "../../../reconstruct/reconstruction.hpp"
 
+namespace {
+// for readability
+const int D = NDIM + 1;
+const int N = NDIM;
+
+typedef AthenaArray< Real>                         AA;
+typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
+typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
+typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
+}
+
 //----------------------------------------------------------------------------------------
 // Riemann solver
 // Inputs:
@@ -55,16 +66,6 @@ void Hydro::RiemannSolver(
   using namespace LinearAlgebra;
 
   MeshBlock * pmb = pmy_block;
-
-  if (0)
-  {
-    #pragma omp simd
-    for (int i=il; i<=iu; ++i)
-    {
-      pmb->peos->ApplyPrimitiveFloors(prim_l,k,j,i);
-      pmb->peos->ApplyPrimitiveFloors(prim_r,k,j,i);
-    }
-  }
 
   // for readability
   const int D = NDIM + 1;
@@ -99,36 +100,15 @@ void Hydro::RiemannSolver(
   AT_N_sca sl_z4c_alpha(   pz4c->storage.u,   Z4c::I_Z4c_alpha);
   AT_N_vec sl_z4c_beta_u(  pz4c->storage.u,   Z4c::I_Z4c_betax);
 
-  if(0)  // debug FC transfer
-  {
-
-    for (int k=0; k<pmb->ncells3; ++k)
-    for (int j=0; j<pmb->ncells2; ++j)
-    for (int i=0; i<pmb->ncells1; ++i)
-    {
-      sl_z4c_alpha(k,j,i) = 11 + std::sin((i+1)*(j+1)*(k+1));
-      // sl_z4c_alpha(k,j,i) = SQR((i+1)*(j+1)*(k+1));
-    }
-
-  }
-
-
   // various scratches --------------------------------------------------------
   AT_N_sca sqrt_detgamma_(iu+1);
   AT_N_sca detgamma_(     iu+1);  // spatial met det
   AT_N_sca oo_detgamma_(  iu+1);  // 1 / spatial met det
 
-  // AT_N_sca alpha_(   nn1);   // reconstruction performed on all possible i
-  // AT_N_vec beta_u_(  nn1);   // so need nn1
+  AT_N_sca alpha_(   nn1);   // reconstruction performed on all possible i
+  AT_N_vec beta_u_(  nn1);   // so need nn1
   AT_N_sym gamma_dd_(nn1);
   AT_N_sym gamma_uu_(iu+1);
-
-  // debug: reconstruction of variables
-  AT_N_sca r_alpha_l_(nn1);
-  AT_N_sca r_alpha_r_;
-
-  AT_N_vec r_beta_u_l_(nn1);
-  AT_N_vec r_beta_u_r_;
 
   AT_N_vec w_v_u_l_(iu+1);
   AT_N_vec w_v_u_r_(iu+1);
@@ -172,119 +152,9 @@ void Hydro::RiemannSolver(
 
   // Reconstruction to FC -----------------------------------------------------
   GRDynamical* pco_gr = static_cast<GRDynamical*>(pmy_block->pcoord);
-  pco_gr->GetGeometricFieldFC(gamma_dd_,   sl_adm_gamma_dd, ivx-1, k, j);
-
-#ifndef DBG_RECONSTRUCT_GEOM
-  pco_gr->GetGeometricFieldFC(r_alpha_l_,  sl_z4c_alpha,    ivx-1, k, j);
-  pco_gr->GetGeometricFieldFC(r_beta_u_l_, sl_z4c_beta_u,   ivx-1, k, j);
-
-  r_alpha_r_.InitWithShallowSlice( r_alpha_l_.array(), 0);
-  r_beta_u_r_.InitWithShallowSlice(r_beta_u_l_.array(), 0);
-#else
-
-  const bool enforce_floors = false;
-
-  AthenaArray<Real> empty_array;
-  r_alpha_r_.NewAthenaTensor( nn1);
-  r_beta_u_r_.NewAthenaTensor(nn1);
-
-  AT_N_sca r_alpha_lb_( nn1);
-  AT_N_vec r_beta_u_lb_(nn1);
-
-  if (ivx == IVX)
-  {
-    pmb->precon->WenoX1(k, j, pmb->is-1, pmb->ie+1,
-                        sl_z4c_alpha.array(), empty_array,
-                        r_alpha_l_.array(), r_alpha_r_.array(),
-                        enforce_floors);
-
-    pmb->precon->WenoX1(k, j, pmb->is-1, pmb->ie+1,
-                        sl_z4c_beta_u.array(), empty_array,
-                        r_beta_u_l_.array(), r_beta_u_r_.array(),
-                        enforce_floors);
-  }
-/*  else if (ivx == IVY)
-  {
-    pmb->precon->WenoX2(k, j-1, pmb->is-1, pmb->ie+1,
-                        sl_z4c_alpha.array(), empty_array,
-                        r_alpha_l_.array(), r_alpha_r_.array(),
-                        enforce_floors);
-
-    pmb->precon->WenoX2(k, j, pmb->is-1, pmb->ie+1,
-                        sl_z4c_alpha.array(), empty_array,
-                        r_alpha_lb_.array(), r_alpha_r_.array(),
-                        enforce_floors);
-
-    // beta
-    pmb->precon->WenoX2(k, j-1, pmb->is-1, pmb->ie+1,
-                        sl_z4c_beta_u.array(), empty_array,
-                        r_beta_u_l_.array(), r_beta_u_r_.array(),
-                        enforce_floors);
-
-    pmb->precon->WenoX2(k, j, pmb->is-1, pmb->ie+1,
-                        sl_z4c_beta_u.array(), empty_array,
-                        r_beta_u_lb_.array(), r_beta_u_r_.array(),
-                        enforce_floors);
-
-  }
-  else if (ivx == IVZ)
-  {
-    pmb->precon->WenoX3(k-1, j, pmb->is-1, pmb->ie+1,
-                        sl_z4c_alpha.array(), empty_array,
-                        r_alpha_l_.array(), r_alpha_r_.array(),
-                        enforce_floors);
-
-    pmb->precon->WenoX3(k, j, pmb->is-1, pmb->ie+1,
-                        sl_z4c_alpha.array(), empty_array,
-                        r_alpha_lb_.array(), r_alpha_r_.array(),
-                        enforce_floors);
-
-    // beta
-    pmb->precon->WenoX3(k-1, j, pmb->is-1, pmb->ie+1,
-                        sl_z4c_beta_u.array(), empty_array,
-                        r_beta_u_l_.array(), r_beta_u_r_.array(),
-                        enforce_floors);
-
-    pmb->precon->WenoX3(k, j, pmb->is-1, pmb->ie+1,
-                        sl_z4c_beta_u.array(), empty_array,
-                        r_beta_u_lb_.array(), r_beta_u_r_.array(),
-                        enforce_floors);
-
-  }*/
-  else
-  {
-    pco_gr->GetGeometricFieldFC(r_alpha_l_,  sl_z4c_alpha,    ivx-1, k, j);
-    pco_gr->GetGeometricFieldFC(r_beta_u_l_, sl_z4c_beta_u,   ivx-1, k, j);
-
-    pco_gr->GetGeometricFieldFC(r_alpha_r_,  sl_z4c_alpha,    ivx-1, k, j);
-    pco_gr->GetGeometricFieldFC(r_beta_u_r_, sl_z4c_beta_u,   ivx-1, k, j);
-  }
-
-#endif // DBG_RECONSTRUCT_GEOM
-
-
-
-  if (0)   // debug FC transfer
-  {
-    if ((ivx==1) && (k==7) && (j==6))
-    {
-      /*
-      std::cout << setprecision(16);
-      std::cout << "k,j:" << k << "," << j << std::endl;
-      std::cout << "prim_l:" << prim_l(0,8) << std::endl;
-      std::cout << "prim_r:" << prim_r(0,8) << std::endl;
-
-      std::cout << "alpha_l:"  << r_alpha_l_(0,8) << std::endl;
-      std::cout << "alpha_r:"  << r_alpha_r_(0,8) << std::endl;
-
-      // prim_l.print_all("%.4e");
-
-      // std::cout << "prim_r" << std::endl;
-      // prim_r.print_all("%.4e");
-      std::exit(0);
-      */
-    }
-  }
+  pco_gr->GetGeometricFieldFC(gamma_dd_, sl_adm_gamma_dd, ivx-1, k, j);
+  pco_gr->GetGeometricFieldFC(alpha_,    sl_z4c_alpha,    ivx-1, k, j);
+  pco_gr->GetGeometricFieldFC(beta_u_,   sl_z4c_beta_u,   ivx-1, k, j);
 
   // Prepare determinant-like
   #pragma omp simd
@@ -313,11 +183,11 @@ void Hydro::RiemannSolver(
   for (int i=il; i<=iu; ++i)
   {
     const Real norm2_utilde_l = InnerProductSlicedVec3Metric(
-      w_util_u_l_, gamma_dd_, i
+      w_util_d_l_, gamma_uu_, i
     );
 
     const Real norm2_utilde_r = InnerProductSlicedVec3Metric(
-      w_util_u_r_, gamma_dd_, i
+      w_util_d_r_, gamma_uu_, i
     );
 
     W_l_(i) = std::sqrt(1. + norm2_utilde_l);
@@ -357,11 +227,11 @@ void Hydro::RiemannSolver(
 
     // Calculate the sound speeds
     pmy_block->peos->SoundSpeedsGR(nl, Tl, w_v_u_l_(ivx-1,i), w_norm2_v_l(i),
-                                   r_alpha_l_(i), r_beta_u_l_(ivx-1,i),
+                                   alpha_(i), beta_u_(ivx-1,i),
                                    gamma_uu_(ivx-1,ivx-1,i),
                                    &lambda_p_l(i), &lambda_m_l(i));
     pmy_block->peos->SoundSpeedsGR(nr, Tr, w_v_u_r_(ivx-1,i), w_norm2_v_r(i),
-                                   r_alpha_r_(i), r_beta_u_r_(ivx-1,i),
+                                   alpha_(i), beta_u_(ivx-1,i),
                                    gamma_uu_(ivx-1,ivx-1,i),
                                    &lambda_p_r(i), &lambda_m_r(i));
 #else
@@ -370,12 +240,12 @@ void Hydro::RiemannSolver(
 
     pmy_block->peos->SoundSpeedsGR(w_hrho_l_(i), w_p_l_(i), w_v_u_l_(ivx-1,i),
                                    w_norm2_v_l(i),
-                                   r_alpha_l_(i), r_beta_u_l_(ivx-1,i),
+                                   alpha_(i), beta_u_(ivx-1,i),
                                    gamma_uu_(ivx-1,ivx-1,i),
                                    &lambda_p_l(i), &lambda_m_l(i));
     pmy_block->peos->SoundSpeedsGR(w_hrho_r_(i), w_p_r_(i), w_v_u_r_(ivx-1,i),
                                    w_norm2_v_r(i),
-                                   r_alpha_r_(i), r_beta_u_r_(ivx-1,i),
+                                   alpha_(i), beta_u_(ivx-1,i),
                                    gamma_uu_(ivx-1,ivx-1,i),
                                    &lambda_p_r(i), &lambda_m_r(i));
 #endif
@@ -389,41 +259,6 @@ void Hydro::RiemannSolver(
     const Real lambda_r = std::max(lambda_p_l(i), lambda_p_r(i));
     lambda(i) = std::max(lambda_r, -lambda_l);
   }
-
-  /*
-  #pragma omp simd
-  for (int i = il; i <= iu; ++i)
-  {
-    // const Real lambda_l = std::min(lambda_m_l(i), lambda_m_r(i));
-    // const Real lambda_r = std::max(lambda_p_l(i), lambda_p_r(i));
-    // lambda(i) = std::max(lambda_r, -lambda_l);
-
-    const Real lambda_l = std::min(lambda_m_l(i), lambda_p_l(i));
-    const Real lambda_r = std::max(lambda_m_r(i), lambda_p_r(i));
-    lambda(i) = std::max(std::abs(lambda_l), std::abs(lambda_r));
-  }
-  */
-
-  /*
-  #pragma omp simd
-  for (int i = il; i <= iu; ++i)
-  {
-    const Real lambda_l = r_alpha_l_(i) * w_v_u_l_(ivx-1,i) - beta_u_(ivx-1,i);
-    const Real lambda_r = r_alpha_r_(i) * w_v_u_r_(ivx-1,i) - beta_u_(ivx-1,i);
-
-    const Real ma_lam_m = std::max(
-      std::abs(lambda_m_l(i)), std::abs(lambda_m_r(i))
-    );
-
-    const Real ma_lam_p = std::max(
-      std::abs(lambda_p_l(i)), std::abs(lambda_p_r(i))
-    );
-
-    lambda(i) = std::max(std::max(ma_lam_m, ma_lam_p),
-                         std::max(std::abs(lambda_l), std::abs(lambda_r)));
-  }
-  */
-
 
   // Calculate conserved quantities in L region incl. factor of sqrt(detgamma)
 
@@ -456,14 +291,14 @@ void Hydro::RiemannSolver(
   for (int i = il; i <= iu; ++i)
   {
     // D flux: D(v^i - beta^i/alpha)
-    flux_l_(IDN,i) = cons_l_(IDN,i) * r_alpha_l_(i) * (
-      w_v_u_l_(ivx-1,i) - r_beta_u_l_(ivx-1,i)/r_alpha_l_(i)
+    flux_l_(IDN,i) = cons_l_(IDN,i) * alpha_(i) * (
+      w_v_u_l_(ivx-1,i) - beta_u_(ivx-1,i)/alpha_(i)
     );
 
-    // tau flux: r_alpha_l_(S^i - Dv^i) - beta^i tau
-    flux_l_(IEN,i) = cons_l_(IEN,i) * r_alpha_l_(i) * (
-      w_v_u_l_(ivx-1,i) - r_beta_u_l_(ivx-1,i)/r_alpha_l_(i)
-    ) + r_alpha_l_(i)*sqrt_detgamma_(i)*w_p_l_(i)*w_v_u_l_(ivx-1,i);
+    // tau flux: alpha_(S^i - Dv^i) - beta^i tau
+    flux_l_(IEN,i) = cons_l_(IEN,i) * alpha_(i) * (
+      w_v_u_l_(ivx-1,i) - beta_u_(ivx-1,i)/alpha_(i)
+    ) + alpha_(i)*sqrt_detgamma_(i)*w_p_l_(i)*w_v_u_l_(ivx-1,i);
   }
 
   for (int a=0; a<NDIM; ++a)
@@ -472,9 +307,9 @@ void Hydro::RiemannSolver(
     for (int i = il; i <= iu; ++i)
     {
       //S_i flux alpha S^j_i - beta^j S_i
-      flux_l_(IVX+a,i) = (cons_l_(IVX+a,i) * r_alpha_l_(i) *
+      flux_l_(IVX+a,i) = (cons_l_(IVX+a,i) * alpha_(i) *
                           (w_v_u_l_(ivx-1,i) -
-                           r_beta_u_l_(ivx-1,i)/r_alpha_l_(i)));
+                           beta_u_(ivx-1,i)/alpha_(i)));
 
     }
   }
@@ -482,8 +317,9 @@ void Hydro::RiemannSolver(
   #pragma omp simd
   for (int i = il; i <= iu; ++i)
   {
-    flux_l_(ivx,i) += w_p_l_(i) * r_alpha_l_(i) * sqrt_detgamma_(i);
+    flux_l_(ivx,i) += w_p_l_(i) * alpha_(i) * sqrt_detgamma_(i);
   }
+
 
   // right --------------------------------------------------------------------
   #pragma omp simd
@@ -514,14 +350,14 @@ void Hydro::RiemannSolver(
   for (int i = il; i <= iu; ++i)
   {
     // D flux: D(v^i - beta^i/alpha)
-    flux_r_(IDN,i) = cons_r_(IDN,i) * r_alpha_r_(i) * (
-      w_v_u_r_(ivx-1,i) - r_beta_u_r_(ivx-1,i)/r_alpha_r_(i)
+    flux_r_(IDN,i) = cons_r_(IDN,i) * alpha_(i) * (
+      w_v_u_r_(ivx-1,i) - beta_u_(ivx-1,i)/alpha_(i)
     );
 
-    // tau flux: r_alpha_r_(S^i - Dv^i) - beta^i tau
-    flux_r_(IEN,i) = cons_r_(IEN,i) * r_alpha_r_(i) * (
-      w_v_u_r_(ivx-1,i) - r_beta_u_r_(ivx-1,i)/r_alpha_r_(i)
-    ) + r_alpha_r_(i)*sqrt_detgamma_(i)*w_p_r_(i)*w_v_u_r_(ivx-1,i);
+    // tau flux: alpha_(S^i - Dv^i) - beta^i tau
+    flux_r_(IEN,i) = cons_r_(IEN,i) * alpha_(i) * (
+      w_v_u_r_(ivx-1,i) - beta_u_(ivx-1,i)/alpha_(i)
+    ) + alpha_(i)*sqrt_detgamma_(i)*w_p_r_(i)*w_v_u_r_(ivx-1,i);
   }
 
   for (int a=0; a<NDIM; ++a)
@@ -530,9 +366,9 @@ void Hydro::RiemannSolver(
     for (int i = il; i <= iu; ++i)
     {
       //S_i flux alpha S^j_i - beta^j S_i
-      flux_r_(IVX+a,i) = (cons_r_(IVX+a,i) * r_alpha_r_(i) *
+      flux_r_(IVX+a,i) = (cons_r_(IVX+a,i) * alpha_(i) *
                           (w_v_u_r_(ivx-1,i) -
-                           r_beta_u_r_(ivx-1,i)/r_alpha_r_(i)));
+                           beta_u_(ivx-1,i)/alpha_(i)));
 
     }
   }
@@ -540,7 +376,7 @@ void Hydro::RiemannSolver(
   #pragma omp simd
   for (int i = il; i <= iu; ++i)
   {
-    flux_r_(ivx,i) += w_p_r_(i) * r_alpha_r_(i) * sqrt_detgamma_(i);
+    flux_r_(ivx,i) += w_p_r_(i) * alpha_(i) * sqrt_detgamma_(i);
   }
 
   // Set fluxes
@@ -550,32 +386,11 @@ void Hydro::RiemannSolver(
     for (int i=il; i<=iu; ++i)
     {
       flux(n,k,j,i) = 0.5 * (
-        flux_l_(n,i) + flux_r_(n,i) - lambda(i) * (cons_r_(n,i) - cons_l_(n,i))
+       (flux_l_(n,i) + flux_r_(n,i)) - lambda(i) * (cons_r_(n,i) - cons_l_(n,i))
       );
     }
   }
 
-  if (0)
-  {
-    for (int i = il; i <= iu; ++i)
-    {
-      if ((cons_l_(IDN,i) < 0) || (cons_r_(IDN,i) < 0))
-      {
-        std::cout << "ERR_0:" << "k,j,i" << k << "," << j << "," << i << " vals:" << cons_l_(IDN,i) << ", " << cons_r_(IDN,i) << std::endl;
-      }
-
-      if ((w_rho_l_(i) < 1e-20) || (w_rho_r_(i) < 1e-20))
-      {
-        std::cout << "ERR_1:" << "k,j,i" << k << "," << j << "," << i << " vals:" << w_rho_l_(i) << "," << w_rho_r_(i) << std::endl;
-      }
-
-      if (detgamma_(i) < 0)
-      {
-        std::cout << "ERR_2" << "k,j,i" << k << "," << j << "," << i << std::endl;
-      }
-
-    }
-  }
 
   return;
 }

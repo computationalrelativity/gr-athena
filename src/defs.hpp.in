@@ -39,24 +39,22 @@
 // reduce auxiliary comms. (removes coarse buffer BC application however)
 #define NO_DBG_REDUCE_AUX_COMM
 
-// debug dumping
-#define NO_DBG_HYDRO_DUMPS
-
-// use monolithic task in matter
-#define NO_DBG_MONOLITHIC_MATTER
-
 // GRHD: use sources from Alcubierre book
 #define @DBG_MA_SOURCES@
 
-// GRHD: flux formulation (Riemann solver) vs direct integ.
-#define @DBG_DIRECT_GRHD@
+// use shared CX FD in AddCoordTermsDivergence if possible?
+// this will make order actually consistent
+#define NO_DBG_FD_CX_COORDDIV
 
-// GRHD: sound speed
-#define @DBG_SOUNDSPEED_GRHD@
+// enfore algebraic constraints on all t-evo substeps?
+#define NO_DBG_ALGCONSTR_ALL
 
-#define @DBG_FLUX_FLOOR_GRHD@
+// Debug EOM (H&R 2018)
+#define NO_DBG_EOM
+#define NO_DBG_EOM_Z4C_ENFORCE  // add back theta term in Gammatil evo?
 
-#define NO_DBG_RECONSTRUCT_GEOM
+// Checks on MB/UNI in tasklist
+#define DBG_TASKLIST_ORDER
 
 //----------------------------------------------------------------------------------------
 // macros which define physics and algorithms
@@ -258,6 +256,7 @@
 #define ONE_6TH 0.16666666666666666
 #define TINY_NUMBER 1.0e-20
 #define HUGE_NUMBER 1.0e+36
+#define OO(x) 1.0 / (x)
 #define SQR(x) ( (x)*(x) )
 #define POW2(x) ( (x)*(x) )
 #define POW3(x) ( (x)*(x)*(x) )

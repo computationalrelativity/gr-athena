@@ -432,6 +432,7 @@ void GRDynamical::_AddCoordTermsDivergence(
   AthenaArray<Real> &cons)
 #endif // DBG_MA_SOURCES
 {
+
   using namespace LinearAlgebra;
 
   MeshBlock * pmb = pmy_block;
@@ -516,12 +517,36 @@ void GRDynamical::_AddCoordTermsDivergence(
     GetGeometricFieldCC(ms_alpha_,        z4c_alpha,    k, j);
     GetGeometricFieldCC(ms_beta_u_,       z4c_beta_u,   k, j);
 
+#ifndef DBG_FD_CX_COORDDIV
     for(int a=0; a<NDIM; ++a)
     {
       GetGeometricFieldDerCC(ms_adm_dgamma_ddd_, adm_gamma_dd, a, k, j);
       GetGeometricFieldDerCC(ms_dalpha_d_,       z4c_alpha,    a, k, j);
       GetGeometricFieldDerCC(ms_dbeta_du_,       z4c_beta_u,   a, k, j);
     }
+#else
+    for (int a=0; a<NDIM; ++a)
+    ILOOP1(i)
+    {
+      ms_dalpha_d_(a,i) = fd_cx->Dx(a, z4c_alpha(k,j,i));
+    }
+
+    for (int a=0; a<NDIM; ++a)
+    for (int b=0; b<NDIM; ++b)
+    ILOOP1(i)
+    {
+      ms_dbeta_du_(b,a,i) = fd_cx->Dx(b, z4c_beta_u(a,k,j,i));
+    }
+
+    // Tensors
+    for (int a=0; a<NDIM; ++a)
+    for (int b=a; b<NDIM; ++b)
+    for (int c=0; c<NDIM; ++c)
+    ILOOP1(i)
+    {
+      ms_adm_dgamma_ddd_(c,a,b,i) = fd_cx->Dx(c, adm_gamma_dd(a,b,k,j,i));
+    }
+#endif // DBG_FD_CX_COORDDIV
 
     // prepare g^{ij}
     for (int i=il; i<=iu; ++i)
@@ -686,8 +711,8 @@ void GRDynamical::_AddCoordTermsDivergence(
       cons(IM1+c,k,j,i) += dt * ms_S_S_d_(c,i) * ms_sqrt_detg_(i);
     }
 
-
   }
+
 }
 
 #ifdef DBG_MA_SOURCES

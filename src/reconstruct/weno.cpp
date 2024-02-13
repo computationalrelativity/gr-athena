@@ -224,7 +224,7 @@ void Reconstruction::WenoX1(
         case ReconstructionVariant::weno5z:
         {
           ql(n,i+1) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
-          qr(n,i  ) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
+          qr(n,i)   = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
           break;
         }
         case ReconstructionVariant::weno5z_r:

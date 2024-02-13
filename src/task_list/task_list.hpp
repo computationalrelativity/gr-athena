@@ -670,7 +670,7 @@ public:
   TaskStatus SendScalars(MeshBlock *pmb, int stage);
   TaskStatus ReceiveScalars(MeshBlock *pmb, int stage);
   TaskStatus SetBoundariesScalars(MeshBlock *pmb, int stage);
-  
+
   TaskStatus CalculateZ4cRHS(MeshBlock *pmb, int stage);   // CALC_Z4CRHS  [x]
   TaskStatus IntegrateZ4c(MeshBlock *pmb, int stage);      // INT_Z4C      [x]
   TaskStatus SendZ4c(MeshBlock *pmb, int stage);           // SEND_Z4C     [x]
@@ -685,10 +685,6 @@ public:
   TaskStatus WaveExtract(MeshBlock *pmb, int stage);       // WAVE_EXTR    [x]
   TaskStatus UpdateMetric(MeshBlock *pmb, int stage);       // UPDATE_MET    [x]
   TaskStatus UpdateSource(MeshBlock *pmb, int stage);       // UPDATE_SRC    [x]
-
-#if defined(DBG_MONOLITHIC_MATTER)
-  TaskStatus DebugMonolithic(MeshBlock *pmb, int stage);       // MONOLITHIC    [x]
-#endif // DBG_MONOLITHIC_MATTER
 
 #ifdef Z4C_ASSERT_FINITE
   // monitor
@@ -729,10 +725,6 @@ private:
 //----------------------------------------------------------------------------------------
 // 64-bit integers with "1" in different bit positions used to ID each z4c task.
 namespace MatterIntegratorTaskNames {
-#if defined(DBG_MONOLITHIC_MATTER)
-  const TaskID MONOLITHIC(21);  // debugging
-#endif // DBG_MONOLITHIC_MATTER
-
   const TaskID NONE(0);
   const TaskID CLEAR_ALLBND(1);
   const TaskID UPDATE_MET(2);

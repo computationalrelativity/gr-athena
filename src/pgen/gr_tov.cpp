@@ -299,9 +299,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   // Initialise conserved variables
   peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord,
-                             0, ncells1,
-                             0, ncells2,
-                             0, ncells3);
+                             0, ncells1-1,
+                             0, ncells2-1,
+                             0, ncells3-1);
 
   // Initialise matter (also taken care of in task-list)
   pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm,
@@ -326,94 +326,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   std::cout << "TOV_solve (ProblemGenerator,MB): ||H||_2=";
   std::cout << s_H << std::endl;
-
-
-  // if (s_H > 1e-2)
-  // {
-  //   pz4c->mbi.x1.print_all();
-  //   pz4c->mbi.x2.print_all();
-  //   pz4c->mbi.x3.print_all();
-  //   // H.array().print_all("%.1e");
-  //   // rho.array().print_all("%.1e");
-  //   // std::exit(0);
-  // }
-
-  /*
-  // reinject
-  MB_info* mbi = &(pz4c->mbi);
-
-  if (true)
-  {
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> rho(pz4c->storage.mat, Z4c::I_MAT_rho);
-
-    // adjust ADM density by initial Hamiltonian error
-    for (int k=0; k<=pz4c->mbi.nn3; ++k)
-    for (int j=0; j<=pz4c->mbi.nn2; ++j)
-    for (int i=0; i<=pz4c->mbi.nn1; ++i)
-    {
-      rho(k,j,i) += H(k,j,i) / (16.0 * M_PI);
-    }
-
-    // update the hydro state-vec
-    const Real gamma_adi { pin->GetReal("hydro", "gamma") };
-    const Real K     { pin->GetReal("hydro", "k_adi") };
-    const Real W { 1.0 };  // Lorentz factor in absence of util_u
-
-
-    for (int k=mbi->kl; k<=mbi->ku; ++k)
-    for (int j=mbi->jl; j<=mbi->ju; ++j)
-    {
-      for (int i=mbi->il; i<=mbi->iu; ++i)
-      {
-        const Real rh_adm = rho(k,j,i);
-        const Real W = 1.;
-
-        phydro->w(IDN,k,j,i) = (-1.+std::sqrt(1.+4.*K*rh_adm)) / (2. * K);
-        phydro->w(IPR,k,j,i) = K*pow(phydro->w(IDN,k,j,i),gamma_adi);
-        // phydro->w(IPR,k,j,i) = 0.5*(1./K+2*rh_adm-std::sqrt(1.+4.*K*rh_adm)/K);
-
-        // const Real w_p = phydro->w(IPR,k,j,i);
-        // phydro->w(IDN,k,j,i) = (
-        //   w_p * (-1.0 + gamma_adi - SQR(W) * gamma_adi) /
-        //   (-1.0 + gamma_adi) + rho(k,j,i)
-        // ) / SQR(W);
-
-      }
-    }
-
-
-    // Recompute conserved variables
-    peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord,
-                               0, ncells1,
-                               0, ncells2,
-                               0, ncells3);
-
-    pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm,
-                    phydro->w, pfield->bcc);
-
-    // recompute constraints
-    pz4c->ADMConstraints(pz4c->storage.con,
-                         pz4c->storage.adm,
-                         pz4c->storage.mat,
-                         pz4c->storage.u);
-
-
-  }
-  */
-
-
-  // dump files for ini pointwise cmp.
-#if defined(DBG_HYDRO_DUMPS)
-    pz4c->storage.u.dump("data.ini.u.tov");
-    pz4c->storage.con.dump("data.ini.con.tov");
-    pz4c->storage.adm.dump("data.ini.adm.tov");
-    pz4c->storage.mat.dump("data.ini.mat.tov");
-    phydro->w.dump("data.ini.w.tov");
-
-    mbi->x1.dump("vc_x1");
-    mbi->x2.dump("vc_x2");
-    mbi->x3.dump("vc_x3");
-#endif // DBG_HYDRO_DUMPS
 
   return;
 }

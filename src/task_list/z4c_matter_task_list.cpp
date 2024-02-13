@@ -309,16 +309,204 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
   // Now assemble list of tasks for each stage of time integrator
   {using namespace MatterIntegratorTaskNames; // NOLINT (build/namespace)
 
-#if !defined(DBG_MONOLITHIC_MATTER)
-//various things not yet tested: MHD, scalars, diffusive terms, STS, shearing box, wext, punc trackers
-//update metric to cell centres for hydro evolution
-//WC edit: take out updatemetric from tasklist optimisation
-//    AddTask(UPDATE_MET,NONE);
-//Update matter terms to VC for metric evol
-    // calculate hydro/field diffusive fluxes
+#if defined(DBG_TASKLIST_ORDER)
+
     if (!STS_ENABLED) {
-//WC edit remove updateMet dependnecy
-//      AddTask(DIFFUSE_HYD,UPDATE_MET);
+      AddTask(DIFFUSE_HYD,NONE);
+      if (MAGNETIC_FIELDS_ENABLED) {
+        AddTask(DIFFUSE_FLD,NONE);
+        // compute hydro fluxes, integrate hydro variables
+        AddTask(CALC_HYDFLX,(DIFFUSE_HYD|DIFFUSE_FLD));
+      } else { // Hydro
+        AddTask(CALC_HYDFLX,DIFFUSE_HYD);
+      }
+      if (NSCALARS > 0) {
+        AddTask(DIFFUSE_SCLR,NONE);
+        AddTask(CALC_SCLRFLX,(CALC_HYDFLX|DIFFUSE_SCLR));
+      }
+    } else { // STS enabled:
+      AddTask(CALC_HYDFLX,NONE);
+      if (NSCALARS > 0)
+        AddTask(CALC_SCLRFLX,CALC_HYDFLX);
+    }
+    if (pm->multilevel) { // SMR or AMR
+      AddTask(SEND_HYDFLX,CALC_HYDFLX);
+      AddTask(RECV_HYDFLX,CALC_HYDFLX);
+      AddTask(INT_HYD, RECV_HYDFLX);
+    } else {
+      AddTask(INT_HYD, CALC_HYDFLX);
+    }
+
+    AddTask(SRCTERM_HYD,INT_HYD);
+    AddTask(SEND_HYD,SRCTERM_HYD);
+    AddTask(RECV_HYD,INT_HYD);
+    AddTask(SETB_HYD,(RECV_HYD|SRCTERM_HYD));
+
+    if (SHEARING_BOX) { // Shearingbox BC for Hydro
+      AddTask(SEND_HYDSH,SETB_HYD);
+      AddTask(RECV_HYDSH,SETB_HYD);
+    }
+
+    if (NSCALARS > 0) {
+      if (pm->multilevel) {
+        AddTask(SEND_SCLRFLX,CALC_SCLRFLX);
+        AddTask(RECV_SCLRFLX,CALC_SCLRFLX);
+        AddTask(INT_SCLR,RECV_SCLRFLX);
+      } else {
+        AddTask(INT_SCLR,CALC_SCLRFLX);
+      }
+      // there is no SRCTERM_SCLR task
+      AddTask(SEND_SCLR,INT_SCLR);
+      AddTask(RECV_SCLR,NONE);
+      AddTask(SETB_SCLR,(RECV_SCLR|INT_SCLR));
+      // if (SHEARING_BOX) {
+      //   AddTask(SEND_SCLRSH,SETB_SCLR);
+      //   AddTask(RECV_SCLRSH,SETB_SCLR);
+      // }
+    }
+
+    if (MAGNETIC_FIELDS_ENABLED) { // MHD
+      // compute MHD fluxes, integrate field
+      AddTask(CALC_FLDFLX,CALC_HYDFLX);
+      AddTask(SEND_FLDFLX,CALC_FLDFLX);
+      AddTask(RECV_FLDFLX,SEND_FLDFLX);
+      if (SHEARING_BOX) {// Shearingbox BC for EMF
+        AddTask(SEND_EMFSH,RECV_FLDFLX);
+        AddTask(RECV_EMFSH,RECV_FLDFLX);
+        AddTask(RMAP_EMFSH,RECV_EMFSH);
+        AddTask(INT_FLD,RMAP_EMFSH);
+      } else {
+        AddTask(INT_FLD,RECV_FLDFLX);
+      }
+
+      AddTask(SEND_FLD,INT_FLD);
+      AddTask(RECV_FLD,NONE);
+      AddTask(SETB_FLD,(RECV_FLD|INT_FLD));
+      if (SHEARING_BOX) { // Shearingbox BC for Bfield
+        AddTask(SEND_FLDSH,SETB_FLD);
+        AddTask(RECV_FLDSH,SETB_FLD);
+      }
+
+      // prolongate, compute new primitives
+      if (pm->multilevel) { // SMR or AMR
+        if (NSCALARS > 0) {
+          AddTask(PROLONG_HYD,(SEND_HYD|SETB_HYD|SEND_FLD|SETB_FLD|SEND_SCLR|SETB_SCLR|Z4C_TO_ADM));
+        } else {
+          AddTask(PROLONG_HYD,(SEND_HYD|SETB_HYD|SEND_FLD|SETB_FLD|Z4C_TO_ADM));
+        }
+        AddTask(CONS2PRIM,(PROLONG_HYD|Z4C_TO_ADM));
+      } else {
+        if (SHEARING_BOX) {
+          if (NSCALARS > 0) {
+            AddTask(CONS2PRIM,
+                    (SETB_HYD|SETB_FLD|SETB_SCLR|RECV_HYDSH|RECV_FLDSH|RMAP_EMFSH));
+          } else {
+            AddTask(CONS2PRIM,(SETB_HYD|SETB_FLD|RECV_HYDSH|RECV_FLDSH|RMAP_EMFSH));
+          }
+        } else {
+          if (NSCALARS > 0) {
+            AddTask(CONS2PRIM,(SETB_HYD|SETB_FLD|SETB_SCLR));
+          } else {
+            AddTask(CONS2PRIM,(SETB_HYD|SETB_FLD|Z4C_TO_ADM));
+          }
+        }
+      }
+    } else {  // HYDRO
+      // prolongate, compute new primitives
+      if (pm->multilevel) { // SMR or AMR
+        if (NSCALARS > 0) {
+          AddTask(PROLONG_HYD,(SEND_HYD|SETB_HYD|SETB_SCLR|SEND_SCLR|Z4C_TO_ADM));
+        } else {
+          AddTask(PROLONG_HYD,(SEND_HYD|SETB_HYD));
+        }
+        AddTask(CONS2PRIM,Z4C_TO_ADM);
+      } else {
+        if (SHEARING_BOX) {
+          if (NSCALARS > 0) {
+            AddTask(CONS2PRIM,(SETB_HYD|RECV_HYDSH|SETB_SCLR));  // RECV_SCLRSH
+          } else {
+            AddTask(CONS2PRIM,(SETB_HYD|RECV_HYDSH));
+          }
+        } else {
+          if (NSCALARS > 0) {
+            AddTask(CONS2PRIM,(SETB_HYD|SETB_SCLR));
+          } else {
+            AddTask(CONS2PRIM,Z4C_TO_ADM);
+          }
+        }
+      }
+    }
+
+    AddTask(PHY_BVAL_HYD,CONS2PRIM);
+    AddTask(UPDATE_SRC,PHY_BVAL_HYD);
+
+    AddTask(CALC_Z4CRHS, NONE);                // CalculateZ4cRHS
+    AddTask(INT_Z4C, CALC_Z4CRHS);             // IntegrateZ4c
+
+    AddTask(SEND_Z4C, INT_Z4C);                // SendZ4c
+
+    if(MAGNETIC_FIELDS_ENABLED)
+    {
+      AddTask(RECV_Z4C, (INT_Z4C | RECV_HYD | RECV_FLD | RECV_FLDFLX));                   // ReceiveZ4c
+    }
+    else
+    {
+      AddTask(RECV_Z4C, INT_Z4C);                   // ReceiveZ4c
+    }
+
+    AddTask(SETB_Z4C, RECV_Z4C);     // SetBoundariesZ4c
+
+    if (pm->multilevel)
+    { // SMR or AMR
+      AddTask(PROLONG_Z4C, (SEND_Z4C|SETB_Z4C));   // Prolongation
+      AddTask(PHY_BVAL_Z4C, PROLONG_Z4C);              // PhysicalBoundary
+    }
+    else
+    {
+      AddTask(PHY_BVAL_Z4C, SETB_Z4C);             // PhysicalBoundary
+    }
+
+    AddTask(ALG_CONSTR, PHY_BVAL_Z4C);             // EnforceAlgConstr
+    if(MAGNETIC_FIELDS_ENABLED)
+    {
+      AddTask(Z4C_TO_ADM, (ALG_CONSTR|INT_HYD|INT_FLD));           // Z4cToADM 
+    } else {
+      if (pm->multilevel)
+      {
+        AddTask(Z4C_TO_ADM, (ALG_CONSTR|PROLONG_HYD));           // Z4cToADM 
+      }
+      else
+      {
+        AddTask(Z4C_TO_ADM, (ALG_CONSTR|SETB_HYD));           // Z4cToADM     
+      }
+    }
+
+    AddTask(ADM_CONSTR, UPDATE_SRC);           // ADM_Constraints
+
+    AddTask(Z4C_WEYL, Z4C_TO_ADM);           // Calc Psi4
+    AddTask(WAVE_EXTR, Z4C_WEYL);           // Project Psi4 multipoles
+
+    AddTask(USERWORK, ADM_CONSTR);             // UserWork
+
+    AddTask(NEW_DT, USERWORK);                 // NewBlockTimeStep
+    if (pm->adaptive)
+    {
+      AddTask(FLAG_AMR, USERWORK);             // CheckRefinement
+      AddTask(CLEAR_ALLBND, FLAG_AMR);         // ClearAllBoundary
+    }
+    else
+    {
+      AddTask(CLEAR_ALLBND, NEW_DT);           // ClearAllBoundary
+    }
+
+    #ifdef Z4C_ASSERT_FINITE
+    AddTask(ASSERT_FIN, CLEAR_ALLBND);         // AssertFinite
+    #endif // Z4C_ASSERT_FINITE
+
+
+#else
+
+    if (!STS_ENABLED) {
       AddTask(DIFFUSE_HYD,NONE);
       if (MAGNETIC_FIELDS_ENABLED) {
         AddTask(DIFFUSE_FLD,NONE);
@@ -501,10 +689,9 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
     AddTask(ASSERT_FIN, CLEAR_ALLBND);         // AssertFinite
     #endif // Z4C_ASSERT_FINITE
 
+#endif // DBG_TASKLIST_ORDER
 
-#else
-    AddTask(MONOLITHIC, NONE);
-#endif // DBG_MONOLITHIC_MATTER
+
    } // end of using namespace block
 
 }
@@ -807,15 +994,6 @@ void MatterTaskList::AddTask(const TaskID& id, const TaskID& dep) {
       task_list_[ntasks].lb_time = false;
     }
 #endif // Z4C_ASSERT_FINITE
-#ifdef DBG_MONOLITHIC_MATTER
-    else if (id == MONOLITHIC)
-    {
-      task_list_[ntasks].TaskFunc=
-        static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&MatterTaskList::DebugMonolithic);
-      task_list_[ntasks].lb_time = false;
-    }
-#endif // DBG_MONOLITHIC_MATTER
    else {
     std::stringstream msg;
     msg << "### FATAL ERROR in AddTask" << std::endl
@@ -829,25 +1007,6 @@ void MatterTaskList::AddTask(const TaskID& id, const TaskID& dep) {
 
 void MatterTaskList::StartupTaskList(MeshBlock *pmb, int stage)
 {
-
-
-  pmb->pz4c->Z4cBoundaryRHS(pmb->pz4c->storage.u,
-                            pmb->pz4c->storage.mat,
-                            pmb->pz4c->storage.rhs);
-
-  BoundaryValues *pbval = pmb->pbval;
-
-  Real t_end_stage = pmb->pmy_mesh->time + pmb->stage_abscissae[stage][0];
-  // Scaled coefficient for RHS time-advance within stage
-   Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
-
-
-  FCN_CC_CX_VC(
-    pbval->ApplyPhysicalBoundaries,
-    pbval->ApplyPhysicalCellCenteredXBoundaries,
-    pbval->ApplyPhysicalVertexCenteredBoundaries
-  )(t_end_stage, dt);
-
   if (stage == 1)
   {
     // For each Meshblock, initialize time abscissae of each memory register pair (u,b)
@@ -929,40 +1088,18 @@ TaskStatus MatterTaskList::ClearAllBoundary(MeshBlock *pmb, int stage) {
 // Functions to calculates fluxes
 
 TaskStatus MatterTaskList::CalculateHydroFlux(MeshBlock *pmb, int stage) {
-#if defined(DBG_HYDRO_DUMPS)
-    pmb->phydro->w.dump("data.CalculateHydroFlux.w.pre.tov");
-    pmb->phydro->flux[0].dump("data.CalculateHydroFlux.flux_0.pre.tov");
-    pmb->phydro->flux[1].dump("data.CalculateHydroFlux.flux_1.pre.tov");
-    pmb->phydro->flux[2].dump("data.CalculateHydroFlux.flux_2.pre.tov");
-#endif // DBG_HYDRO_DUMPS
-
   Hydro *phydro = pmb->phydro;
   Field *pfield = pmb->pfield;
 
-#if defined(DBG_DIRECT_GRHD)
+//printf("chydfl\n");
   if (stage <= nstages)
   {
-    // RHS eval.
-    return TaskStatus::next;
-  }
-  return TaskStatus::fail;
-#endif // DBG_DIRECT_GRHD
-
-//printf("chydfl\n");
-  if (stage <= nstages) {
     if ((stage == 1) && (integrator == "vl2")) {
       phydro->CalculateFluxes(phydro->w,  pfield->b,  pfield->bcc, 1);
       return TaskStatus::next;
     } else {
 
       phydro->CalculateFluxes(phydro->w,  pfield->b,  pfield->bcc, pmb->precon->xorder);
-
-#if defined(DBG_HYDRO_DUMPS)
-    pmb->phydro->w.dump("data.CalculateHydroFlux.w.post.tov");
-    pmb->phydro->flux[0].dump("data.CalculateHydroFlux.flux_0.post.tov");
-    pmb->phydro->flux[1].dump("data.CalculateHydroFlux.flux_1.post.tov");
-    pmb->phydro->flux[2].dump("data.CalculateHydroFlux.flux_2.post.tov");
-#endif // DBG_HYDRO_DUMPS
 
       return TaskStatus::next;
     }
@@ -983,7 +1120,6 @@ TaskStatus MatterTaskList::CalculateEMF(MeshBlock *pmb, int stage) {
 // Functions to communicate fluxes between MeshBlocks for flux correction with AMR
 
 TaskStatus MatterTaskList::SendHydroFlux(MeshBlock *pmb, int stage) {
-//printf("sendhydfl\n");
   pmb->phydro->hbvar.SendFluxCorrection();
   return TaskStatus::success;
 }
@@ -998,8 +1134,8 @@ TaskStatus MatterTaskList::SendEMF(MeshBlock *pmb, int stage) {
 // Functions to receive fluxes between MeshBlocks
 
 TaskStatus MatterTaskList::ReceiveAndCorrectHydroFlux(MeshBlock *pmb, int stage) {
-//printf("recvcorrhydfl\n");
-  if (pmb->phydro->hbvar.ReceiveFluxCorrection()) {
+  if (pmb->phydro->hbvar.ReceiveFluxCorrection())
+  {
     return TaskStatus::next;
   } else {
     return TaskStatus::fail;
@@ -1026,26 +1162,6 @@ TaskStatus MatterTaskList::IntegrateHydro(MeshBlock *pmb, int stage) {
 
   if (stage <= nstages)
   {
-#if defined(DBG_DIRECT_GRHD)
-    Real ave_wghts_1[3];
-    ave_wghts_1[0] = 1.0;
-    ave_wghts_1[1] = stage_wghts[stage-1].delta;
-    ave_wghts_1[2] = 0.0;
-
-    Real ave_wghts_2[3];
-    ave_wghts_2[0] = stage_wghts[stage-1].gamma_1;
-    ave_wghts_2[1] = stage_wghts[stage-1].gamma_2;
-    ave_wghts_2[2] = stage_wghts[stage-1].gamma_3;
-
-    ph->HydroRHS(ph->u, ph->w_init);
-
-    pmb->WeightedAveCC(ph->u1, ph->u, ph->u2, ave_wghts_1);
-    pmb->WeightedAveCC(ph->u, ph->u1, ph->u2, ave_wghts_2);
-    ph->AddHydroRHS(ph->w_init, stage_wghts[stage-1].beta, ph->u);
-
-    return TaskStatus::next;
-#endif // DBG_DIRECT_GRHD
-
     // This time-integrator-specific averaging operation logic is identical to FieldInt
     Real ave_wghts[3];
     ave_wghts[0] = 1.0;
@@ -1063,6 +1179,7 @@ TaskStatus MatterTaskList::IntegrateHydro(MeshBlock *pmb, int stage) {
       pmb->WeightedAveCC(ph->u, ph->u1, ph->u2, ave_wghts);
 
     const Real wght = stage_wghts[stage-1].beta*pmb->pmy_mesh->dt;
+
     ph->AddFluxDivergence(wght, ph->u);
 
     // add coordinate (geometric) source terms
@@ -1191,7 +1308,6 @@ TaskStatus MatterTaskList::DiffuseField(MeshBlock *pmb, int stage) {
 // Functions to communicate conserved variables between MeshBlocks
 
 TaskStatus MatterTaskList::SendHydro(MeshBlock *pmb, int stage) {
-//printf("sendhydro\n");
   if (stage <= nstages) {
     // Swap Hydro quantity in BoundaryVariable interface back to conserved var formulation
     // (also needed in SetBoundariesHydro(), since the tasks are independent)
@@ -1217,11 +1333,9 @@ TaskStatus MatterTaskList::SendField(MeshBlock *pmb, int stage) {
 // Functions to receive conserved variables between MeshBlocks
 
 TaskStatus MatterTaskList::ReceiveHydro(MeshBlock *pmb, int stage) {
-//printf("recvhydro\n");
   bool ret;
   if (stage <= nstages) {
     ret = pmb->phydro->hbvar.ReceiveBoundaryBuffers();
-//    ret=1;
   } else {
     return TaskStatus::fail;
   }
@@ -1249,7 +1363,6 @@ TaskStatus MatterTaskList::ReceiveField(MeshBlock *pmb, int stage) {
 
 
 TaskStatus MatterTaskList::SetBoundariesHydro(MeshBlock *pmb, int stage) {
-//printf("setbhydro\n");
   if (stage <= nstages) {
     pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->u, HydroBoundaryQuantity::cons);
     pmb->phydro->hbvar.SetBoundaries();
@@ -1367,21 +1480,11 @@ TaskStatus MatterTaskList::Prolongation_Hyd(MeshBlock *pmb, int stage) {
 
 
 TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
-#if defined(DBG_HYDRO_DUMPS)
-    pmb->phydro->w.dump("data.Primitives.w.pre.tov");
-    pmb->phydro->u.dump("data.Primitives.u.pre.tov");
-
-    pmb->pz4c->storage.u.dump("data.Primitives.storage.u.pre.tov");
-    pmb->pz4c->storage.adm.dump("data.Primitives.storage.adm.pre.tov");
-#endif // DBG_HYDRO_DUMPS
-
-
   Hydro *ph = pmb->phydro;
   Field *pf = pmb->pfield;
   PassiveScalars *ps = pmb->pscalars;
   BoundaryValues *pbval = pmb->pbval;
 
-//printf("prim\n");
   int il = pmb->is, iu = pmb->ie, jl = pmb->js, ju = pmb->je, kl = pmb->ks, ku = pmb->ke;
   if (pbval->nblevel[1][1][0] != -1) il -= NGHOST;
   if (pbval->nblevel[1][1][2] != -1) iu += NGHOST;
@@ -1390,12 +1493,7 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
   if (pbval->nblevel[0][1][1] != -1) kl -= NGHOST;
   if (pbval->nblevel[2][1][1] != -1) ku += NGHOST;
 
-//  int il = pmb->is-NGHOST, iu = pmb->ie+NGHOST, jl = pmb->js-NGHOST, ju = pmb->je+NGHOST, kl = pmb->ks-NGHOST, ku = pmb->ke+NGHOST;
-
-
   if (stage <= nstages) {
-    // pmb->pz4c->Z4cToADM(pmb->pz4c->storage.u, pmb->pz4c->storage.adm);  // DEBUG
-
     // At beginning of this task, ph->w contains previous stage's W(U) output
     // and ph->w1 is used as a register to store the current stage's output.
     // For the second order integrators VL2 and RK2, the prim_old initial guess for the
@@ -1439,14 +1537,6 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
     return TaskStatus::fail;
   }
 
-#if defined(DBG_HYDRO_DUMPS)
-    pmb->phydro->w.dump("data.Primitives.w.post.tov");
-    pmb->phydro->u.dump("data.Primitives.u.post.tov");
-
-    pmb->pz4c->storage.u.dump("data.Primitives.storage.u.post.tov");
-    pmb->pz4c->storage.adm.dump("data.Primitives.storage.adm.post.tov");
-#endif // DBG_HYDRO_DUMPS
-
   return TaskStatus::success;
 }
 
@@ -1456,7 +1546,6 @@ TaskStatus MatterTaskList::PhysicalBoundary_Hyd(MeshBlock *pmb, int stage) {
   PassiveScalars *ps = pmb->pscalars;
   BoundaryValues *pbval = pmb->pbval;
 //physical boundaries only for hydro vars
-//printf("phybdyhydro\n");
 
   if (stage <= nstages) {
     // Time at the end of stage for (u, b) register pair
@@ -1468,8 +1557,10 @@ TaskStatus MatterTaskList::PhysicalBoundary_Hyd(MeshBlock *pmb, int stage) {
     ph->hbvar.SwapHydroQuantity(ph->w, HydroBoundaryQuantity::prim);
     if (NSCALARS > 0)
       ps->sbvar.var_cc = &(ps->r);
-//TODO VC/CC issue use correct Physical Boundary function
+    //TODO VC/CC issue use correct Physical Boundary function
+
     pbval->ApplyPhysicalBoundaries(t_end_stage, dt);
+
   } else {
     return TaskStatus::fail;
   }
@@ -1635,18 +1726,8 @@ TaskStatus MatterTaskList::DiffuseScalars(MeshBlock *pmb, int stage) {
 
 // Z4C tasks begin here
 
-TaskStatus MatterTaskList::CalculateZ4cRHS(MeshBlock *pmb, int stage) {
-#if defined(DBG_HYDRO_DUMPS)
-    pmb->pz4c->mbi.x1.dump("z4c_x1");
-    pmb->pz4c->mbi.x2.dump("z4c_x2");
-    pmb->pz4c->mbi.x3.dump("z4c_x3");
-
-    pmb->pz4c->storage.u.dump(  "data.CalculateZ4cRHS.storage.u.pre.tov");
-    pmb->pz4c->storage.mat.dump("data.CalculateZ4cRHS.storage.mat.pre.tov");
-    pmb->pz4c->storage.rhs.dump("data.CalculateZ4cRHS.storage.rhs.pre.tov");
-    pmb->phydro->w.dump(        "data.CalculateZ4cRHS.w.pre.tov");
-#endif // DBG_HYDRO_DUMPS
-
+TaskStatus MatterTaskList::CalculateZ4cRHS(MeshBlock *pmb, int stage)
+{
  // PunctureTracker: interpolate beta at puncture position before evolution
   if (stage == 1) {
     for (auto ptracker : pmb->pmy_mesh->pz4c_tracker) {
@@ -1664,13 +1745,6 @@ TaskStatus MatterTaskList::CalculateZ4cRHS(MeshBlock *pmb, int stage) {
     pmb->pz4c->Z4cBoundaryRHS(pmb->pz4c->storage.u,
                           pmb->pz4c->storage.mat,
                           pmb->pz4c->storage.rhs);
-
-#if defined(DBG_HYDRO_DUMPS)
-    pmb->pz4c->storage.u.dump(  "data.CalculateZ4cRHS.storage.u.post.tov");
-    pmb->pz4c->storage.mat.dump("data.CalculateZ4cRHS.storage.mat.post.tov");
-    pmb->pz4c->storage.rhs.dump("data.CalculateZ4cRHS.storage.rhs.post.tov");
-    pmb->phydro->w.dump(        "data.CalculateZ4cRHS.w.post.tov");
-#endif // DBG_HYDRO_DUMPS
 
     return TaskStatus::next;
   }
@@ -1720,7 +1794,7 @@ TaskStatus MatterTaskList::IntegrateZ4c(MeshBlock *pmb, int stage) {
 
       pz4c->AddZ4cRHS(pz4c->storage.rhs,
                       wght_ssp,
-                      pz4c->storage.u);
+                      pz4c->storage.u2);
     }
 
     return TaskStatus::next;
@@ -1731,7 +1805,6 @@ TaskStatus MatterTaskList::IntegrateZ4c(MeshBlock *pmb, int stage) {
 // Functions to communicate conserved variables between MeshBlocks
 
 TaskStatus MatterTaskList::SendZ4c(MeshBlock *pmb, int stage) {
-//printf("sendz4c\n");
   if (stage <= nstages) {
     pmb->pz4c->ubvar.SendBoundaryBuffers();
   } else {
@@ -1744,7 +1817,6 @@ TaskStatus MatterTaskList::SendZ4c(MeshBlock *pmb, int stage) {
 // Functions to receive conserved variables between MeshBlocks
 
 TaskStatus MatterTaskList::ReceiveZ4c(MeshBlock *pmb, int stage) {
-//printf("recvz4c\n");
   bool ret;
   if (stage <= nstages) {
     ret = pmb->pz4c->ubvar.ReceiveBoundaryBuffers();
@@ -1760,7 +1832,6 @@ TaskStatus MatterTaskList::ReceiveZ4c(MeshBlock *pmb, int stage) {
 }
 
 TaskStatus MatterTaskList::SetBoundariesZ4c(MeshBlock *pmb, int stage) {
-//printf("setbz4c\n");
   if (stage <= nstages) {
      	  pmb->pz4c->ubvar.SetBoundaries();
     return TaskStatus::success;
@@ -1770,7 +1841,6 @@ TaskStatus MatterTaskList::SetBoundariesZ4c(MeshBlock *pmb, int stage) {
 //--------------------------------------------------------------------------------------
 // Functions for everything else
 TaskStatus MatterTaskList::Prolongation_Z4c(MeshBlock *pmb, int stage) {
-//printf("prolz4c\n");
   BoundaryValues *pbval = pmb->pbval;
 //prolongates only z4c vars
   if (stage <= nstages) {
@@ -1787,29 +1857,20 @@ TaskStatus MatterTaskList::Prolongation_Z4c(MeshBlock *pmb, int stage) {
   return TaskStatus::success;
 }
 TaskStatus MatterTaskList::PhysicalBoundary_Z4c(MeshBlock *pmb, int stage) {
-//printf("phybdyz4c\n");
   BoundaryValues *pbval = pmb->pbval;
- 
+
   if (stage <= nstages) {
     // Time at the end of stage for (u, b) register pair
     Real t_end_stage = pmb->pmy_mesh->time + pmb->stage_abscissae[stage][0];
     // Scaled coefficient for RHS time-advance within stage
     Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
-//TODO VC/CC issue here use correct boundary function:
-/*
-//only ever calls prefer_vc option
-    if (PREFER_VC) {
-      pbval->ApplyPhysicalVertexCenteredBoundaries(t_end_stage, dt);
-    } else {
-      pbval->ApplyPhysicalBoundaries(t_end_stage, dt);
-    }
-*/
-   FCN_CC_CX_VC(
-      pbval->ApplyPhysicalBoundaries,
-      pbval->ApplyPhysicalCellCenteredXBoundaries,
-      pbval->ApplyPhysicalVertexCenteredBoundaries
-    )(t_end_stage, dt);
 
+    // switch based on sampling
+    FCN_CC_CX_VC(
+        pbval->ApplyPhysicalBoundaries,
+        pbval->ApplyPhysicalCellCenteredXBoundaries,
+        pbval->ApplyPhysicalVertexCenteredBoundaries
+    )(t_end_stage, dt);
 
   } else {
     return TaskStatus::fail;
@@ -1817,39 +1878,24 @@ TaskStatus MatterTaskList::PhysicalBoundary_Z4c(MeshBlock *pmb, int stage) {
   return TaskStatus::success;
 }
 
-TaskStatus MatterTaskList::EnforceAlgConstr(MeshBlock *pmb, int stage) {
+TaskStatus MatterTaskList::EnforceAlgConstr(MeshBlock *pmb, int stage)
+{
+#ifndef DBG_ALGCONSTR_ALL
   if (stage != nstages) return TaskStatus::success; // only do on last stage
-
-#if defined(DBG_HYDRO_DUMPS)
-    pmb->pz4c->storage.u.dump("data.EnforceAlgConstr.storage.u.pre.tov");
-#endif // DBG_HYDRO_DUMPS
+#endif // DBG_ALGCONSTR_ALL
 
   pmb->pz4c->AlgConstr(pmb->pz4c->storage.u);
-
-#if defined(DBG_HYDRO_DUMPS)
-    pmb->pz4c->storage.u.dump("data.EnforceAlgConstr.storage.u.post.tov");
-#endif // DBG_HYDRO_DUMPS
 
   return TaskStatus::success;
 }
 
 TaskStatus MatterTaskList::Z4cToADM(MeshBlock *pmb, int stage) {
-#if defined(DBG_HYDRO_DUMPS)
-    pmb->pz4c->storage.u.dump(  "data.Z4cToADM.storage.u.pre.tov");
-    pmb->pz4c->storage.adm.dump("data.Z4cToADM.storage.adm.pre.tov");
-#endif // DBG_HYDRO_DUMPS
-
   if (stage <= nstages) {
 //  if (stage != nstages) return TaskStatus::success;
     pmb->pz4c->Z4cToADM(pmb->pz4c->storage.u, pmb->pz4c->storage.adm);
   } else {
     return TaskStatus::fail;
   }
-
-#if defined(DBG_HYDRO_DUMPS)
-    pmb->pz4c->storage.u.dump(  "data.Z4cToADM.storage.u.post.tov");
-    pmb->pz4c->storage.adm.dump("data.Z4cToADM.storage.adm.post.tov");
-#endif // DBG_HYDRO_DUMPS
 
   return TaskStatus::success;
 }
@@ -1902,15 +1948,6 @@ TaskStatus MatterTaskList::ADM_Constraints(MeshBlock *pmb, int stage)
       CurrentTimeCalculationThreshold(pm, &TaskListTriggers.con_hst))
   {      // Time at the end of stage for (u, b) register pair
 
-    pmb->pz4c->Z4cToADM(pmb->pz4c->storage.u, pmb->pz4c->storage.adm);
-
-    /*
-
-    pmb->pz4c->GetMatter(pmb->pz4c->storage.mat,
-                          pmb->pz4c->storage.adm,
-                          pmb->phydro->w,
-                          pmb->pfield->bcc);
-    */
     pmb->pz4c->ADMConstraints(pmb->pz4c->storage.con, pmb->pz4c->storage.adm,
                               pmb->pz4c->storage.mat, pmb->pz4c->storage.u);
 
@@ -1944,23 +1981,11 @@ TaskStatus MatterTaskList::UpdateMetric(MeshBlock *pmb, int stage) {
 }
 
 TaskStatus MatterTaskList::UpdateSource(MeshBlock *pmb, int stage) {
-//printf("updatesrc\n");
-  if (stage <= nstages) { 
+  if (stage <= nstages)
+  {
 
-#if defined(DBG_HYDRO_DUMPS)
-    pmb->pz4c->storage.mat.dump("data.UpdateSource.storage.mat.pre.tov");
-    pmb->pz4c->storage.adm.dump("data.UpdateSource.storage.adm.pre.tov");
-    pmb->phydro->w.dump("data.UpdateSource.phydro.w.pre.tov");
-#endif // DBG_HYDRO_DUMPS
-
-// Update VC matter 
+    // Update matter
     pmb->pz4c->GetMatter(pmb->pz4c->storage.mat, pmb->pz4c->storage.adm, pmb->phydro->w, pmb->pfield->bcc);
-
-#if defined(DBG_HYDRO_DUMPS)
-    pmb->pz4c->storage.mat.dump("data.UpdateSource.storage.mat.post.tov");
-    pmb->pz4c->storage.adm.dump("data.UpdateSource.storage.adm.post.tov");
-    pmb->phydro->w.dump(        "data.UpdateSource.phydro.w.post.tov");
-#endif // DBG_HYDRO_DUMPS
 
     return TaskStatus::success;
   }
@@ -1986,7 +2011,9 @@ TaskStatus MatterTaskList::AssertFinite(MeshBlock *pmb, int stage) {
 //        to calculate something?
 //        Secondary effect is to mutate next_time
 bool MatterTaskList::CurrentTimeCalculationThreshold(
-  Mesh *pm, aux_NextTimeStep *variable) {
+  Mesh *pm, aux_NextTimeStep *variable)
+{
+
 //  printf("dt = %g \n",variable->dt);
   // this variable is not dumped / computed
   if (variable->dt == 0 )
@@ -2046,183 +2073,3 @@ void MatterTaskList::UpdateTaskListTriggers() {
   }
 
 }
-
-
-#ifdef DBG_MONOLITHIC_MATTER
-TaskStatus MatterTaskList::DebugMonolithic(MeshBlock *pmb, int stage)
-{
-  Mesh *pm = pmb->pmy_mesh;
-  Hydro *ph = pmb->phydro;
-  Field *pf = pmb->pfield;
-  BoundaryValues *pbval = pmb->pbval;
-  Z4c *pz4c = pmb->pz4c;
-
-  if (stage <= nstages)
-  {
-
-    // set up some constants for integration etc ------------------------------
-    Real ave_wghts_1[3];
-    ave_wghts_1[0] = 1.0;
-    ave_wghts_1[1] = stage_wghts[stage-1].delta;
-    ave_wghts_1[2] = 0.0;
-
-    Real ave_wghts_2[3];
-    ave_wghts_2[0] = stage_wghts[stage-1].gamma_1;
-    ave_wghts_2[1] = stage_wghts[stage-1].gamma_2;
-    ave_wghts_2[2] = stage_wghts[stage-1].gamma_3;
-
-    // Time at the end of stage for (u, b) register pair
-    Real t_end_stage = pm->time + pmb->stage_abscissae[stage][0];
-    // Scaled coefficient for RHS time-advance within stage
-    Real dt = (stage_wghts[(stage-1)].beta)*(pm->dt);
-
-    int il = 0, iu = pmb->ncells1-1;
-    int jl = 0, ju = pmb->ncells2-1;
-    int kl = 0, ku = pmb->ncells3-1;
-    // ------------------------------------------------------------------------
-#if defined(DBG_DIRECT_GRHD)
-    // Debug: evolve hydro in conservative form without flux formulation
-    // Note:
-    // - Primitives need to be known / consistently seeded in ph->w
-    // - ph->w_init is used for storage (i.e. serves as ph->rhs)
-
-    // use w_init as rhs scratch
-    pmb->WeightedAveCC(ph->u1, ph->u, ph->u2, ave_wghts_1);
-    pmb->WeightedAveCC(ph->u, ph->u1, ph->u2, ave_wghts_2);
-
-    ph->HydroRHS(ph->u, ph->w_init);
-    ph->AddHydroRHS(ph->w_init, stage_wghts[stage-1].beta, ph->u);
-#else
-    // Hydro evolution in flux-conservative form
-
-    // CalculateHydroFlux
-    ph->CalculateFluxes(ph->w, pf->b, pf->bcc, pmb->precon->xorder);
-
-    // IntegrateHydro
-    pmb->WeightedAveCC(ph->u1, ph->u, ph->u2, ave_wghts_1);
-    pmb->WeightedAveCC(ph->u, ph->u1, ph->u2, ave_wghts_2);
-
-    ph->AddFluxDivergence(dt, ph->u);
-    pmb->pcoord->AddCoordTermsDivergence(dt, ph->flux, ph->w, pf->bcc, ph->u);
-
-#endif // DBG_DIRECT_GRHD
-
-    // SendHydro
-    {
-      ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
-      ph->hbvar.SendBoundaryBuffers();
-    }
-
-    // ReceiveHydro
-    {
-      // Note: Needs a blocking loop for debug
-      volatile bool recv_bnd = false;
-      do
-      {
-        recv_bnd = ph->hbvar.ReceiveBoundaryBuffers();
-      }
-      while (!recv_bnd);
-
-      // g++ performs strange optimization with the following
-      // while (!(ph->hbvar.ReceiveBoundaryBuffers()))
-      // { };
-    }
-
-    // // DEBUG: update ADM matter before z4c step?
-    // pmb->peos->ConservedToPrimitive(ph->u, ph->w, pf->b,
-    //                                 ph->w1, pf->bcc, pmb->pcoord,
-    //                                 il, iu, jl, ju, kl, ku, 0);
-    // pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, pmb->pfield->bcc);
-
-
-    // CalculateZ4cRHS
-    pz4c->Z4cRHS(pz4c->storage.u, pz4c->storage.mat, pz4c->storage.rhs);
-    pz4c->Z4cBoundaryRHS(pz4c->storage.u, pz4c->storage.mat, pz4c->storage.rhs);
-
-    // IntegrateZ4c
-    pz4c->WeightedAve(pz4c->storage.u1, pz4c->storage.u,
-                      pz4c->storage.u2, ave_wghts_1);
-    pz4c->WeightedAve(pz4c->storage.u, pz4c->storage.u1,
-                      pz4c->storage.u2, ave_wghts_2);
-    pz4c->AddZ4cRHS(pz4c->storage.rhs, stage_wghts[stage-1].beta,
-                    pz4c->storage.u);
-
-    // SendZ4c
-    pz4c->ubvar.SendBoundaryBuffers();
-
-    // ReceiveZ4c
-    {
-      // Note: Needs a blocking loop for debug
-
-      volatile bool recv_bnd = false;
-      do
-      {
-        recv_bnd = pz4c->ubvar.ReceiveBoundaryBuffers();
-      }
-      while (!recv_bnd);
-    }
-
-    // SetBoundariesZ4c
-    pz4c->ubvar.SetBoundaries();
-
-    // SetBoundariesHydro
-    ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
-    ph->hbvar.SetBoundaries();
-
-    // PhysicalBoundary_Z4c
-    FCN_CC_CX_VC(
-        pbval->ApplyPhysicalBoundaries,
-        pbval->ApplyPhysicalCellCenteredXBoundaries,
-        pbval->ApplyPhysicalVertexCenteredBoundaries
-    )(t_end_stage, dt);
-
-    // EnforceAlgConstr
-    // if (stage == nstages)
-      pz4c->AlgConstr(pz4c->storage.u);
-
-    // Z4cToADM
-    pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
-
-    // Primitives
-    pmb->peos->ConservedToPrimitive(ph->u, ph->w, pf->b,
-                                    ph->w1, pf->bcc, pmb->pcoord,
-                                    il, iu, jl, ju, kl, ku, 0);
-
-    // swap AthenaArray data pointers so that w now contains the updated w_out
-    ph->w.SwapAthenaArray(ph->w1);
-
-    // PhysicalBoundary_Hyd
-    ph->hbvar.SwapHydroQuantity(ph->w, HydroBoundaryQuantity::prim);
-    pbval->ApplyPhysicalBoundaries(t_end_stage, dt);
-
-    // // Debug: the prims carry physical BC, should the cons now be rebuilt?
-    if (true)
-    {
-      pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pmb->pcoord,
-                                      il, iu, jl, ju, kl, ku);
-    }
-
-    // UpdateSource
-    pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, pmb->pfield->bcc);
-
-    // ADM_Constraints
-    if (stage == nstages)
-      pz4c->ADMConstraints(pz4c->storage.con, pz4c->storage.adm,
-                           pz4c->storage.mat, pz4c->storage.u);
-
-    // UserWork
-    if (stage == nstages)
-      pmb->UserWorkInLoop();
-
-    // NewBlockTimeStep
-    if (stage == nstages)
-      pz4c->NewBlockTimeStep();
-  }
-
-  // ClearAllBoundary
-  pmb->pbval->ClearBoundary(BoundaryCommSubset::all);
-
-  return TaskStatus::success;
-}
-
-#endif // DBG_MONOLITHIC_MATTER

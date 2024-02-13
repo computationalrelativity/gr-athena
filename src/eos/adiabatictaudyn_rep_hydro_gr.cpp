@@ -159,8 +159,9 @@ void EquationOfState::ConservedToPrimitive(
 
   // Debug:
   if (false) {
+    pmb->pz4c->Z4cToADM(pmb->pz4c->storage.u, pmb->pz4c->storage.adm);
     pmb->phydro->Hydro_IdealEoS_Cons2Prim(gamma_adi, cons, prim,
-                                          // const_cast<AthenaArray<Real> &>(prim_old),
+                                          const_cast<AthenaArray<Real> &>(prim_old),
                                           il, iu, jl, ju, kl, ku);
     // const_cast<AthenaArray<Real> &>(prim_old) = prim;
     return;
@@ -209,9 +210,9 @@ void EquationOfState::ConservedToPrimitive(
   gamma_dd.NewAthenaTensor(nn1);
 
   // Prepare inverse + det outside Reprimand
-  AT_N_sym gamma_uu_(    iu+1);
-  AT_N_sca det_gamma_(   iu+1);
-  AT_N_sca oo_det_gamma_(iu+1);
+  AT_N_sym gamma_uu_(    nn1);
+  AT_N_sca det_gamma_(   nn1);
+  AT_N_sca oo_det_gamma_(nn1);
 
   // need to pull quantities from appropriate storage
   if (!coarse_flag)
@@ -247,6 +248,18 @@ void EquationOfState::ConservedToPrimitive(
 
   KL = std::max(kl, KL);
   KU = std::min(ku, KU);
+
+  // if (JL != std::max(jl, JL))
+  // {
+  //   std::cout << il << "," << IL << std::endl;
+  //   std::cout << jl << "," << JL << std::endl;
+  //   std::cout << kl << "," << KL << std::endl;
+  //   std::exit(0);
+  // }
+
+  // IU--;
+  // JU--;
+  // KU--;
 
   // iterate over cells
   for (int k=KL; k<=KU; ++k)
@@ -327,7 +340,9 @@ void EquationOfState::ConservedToPrimitive(
 
       if (~phydro->q_reset_mask(k,j,i))
       {
-        sm_tensor1<real_t, 3, false>  S_dg(S_1g, S_2g, S_3g);
+        sm_tensor1<real_t, 3, false>  S_dg(S_1g,
+                                           S_2g,
+                                           S_3g);
 
         cons_vars_mhd evolved{Dg, taug, 0.0, S_dg, {0., 0., 0.}};
 
@@ -356,6 +371,18 @@ void EquationOfState::ConservedToPrimitive(
                              uu1, uu2, uu3, W,
                              dummy, dummy, dummy,
                              dummy, dummy, dummy);
+
+          // AT_N_sca W_(        iu+1);
+          // AT_N_vec V_(        iu+1);
+          // V_(0,i) = uu1;
+          // V_(1,i) = uu2;
+          // V_(2,i) = uu3;
+
+          // const Real norm2_V = LinearAlgebra::InnerProductSlicedVec3Metric(
+          //   V_, gamma_uu_, i
+          // );
+          // const Real W_c = 1. / std::sqrt(1.-norm2_V);
+
           uu1 *= W;
           uu2 *= W;
           uu3 *= W;
@@ -461,6 +488,9 @@ void EquationOfState::PrimitiveToConserved(
 
   KL = std::max(kl, KL);
   KU = std::min(ku, KU);
+  // IU--;
+  // JU--;
+  // KU--;
 
   for (int k=KL; k<=KU; ++k)
   for (int j=JL; j<=JU; ++j)
@@ -527,7 +557,7 @@ inline static void PrimitiveToConservedSingle(
   const Real detgamma = Det3Metric(gamma_dd, i);
   const Real sqrt_detgamma = (
     detgamma > 0
-  ) ? std::sqrt(Det3Metric(gamma_dd, i)) : 1.;
+  ) ? std::sqrt(detgamma) : 1.;
 
   // robust calc. of Lorentz factor
   Real util_norm2 = 0;
@@ -588,99 +618,6 @@ void EquationOfState::SoundSpeedsSR(Real rho_h, Real pgas, Real vx, Real gamma_l
   return;
 }
 
-//----------------------------------------------------------------------------------------
-// Function for calculating relativistic sound speeds in arbitrary coordinates
-// Inputs:
-//   rho_h: enthalpy per unit volume
-//   pgas: gas pressure
-//   u0,u1: 4-velocity components u^0, u^1
-//   g00,g01,g11: metric components g^00, g^01, g^11
-// Outputs:
-//   plambda_plus: value set to most positive wavespeed
-//   plambda_minus: value set to most negative wavespeed
-// Notes:
-//   follows same general procedure as vchar() in phys.c in Harm
-//   variables are named as though 1 is normal direction
-/*
-void EquationOfState::SoundSpeedsGR(Real rho_h, Real pgas, Real u0, Real u1, Real g00,
-    Real g01, Real g11, Real *plambda_plus, Real *plambda_minus) {
-  // Parameters and constants
-  const Real discriminant_tol = -1.0e-1;  // values between this and 0 are considered 0
-  const Real gamma_adi = gamma_;
-
-  // Calculate comoving sound speed
-  Real cs_sq = gamma_adi * pgas / rho_h;
-
-  // Set sound speeds in appropriate coordinates
-  Real a = SQR(u0) - (g00 + SQR(u0)) * cs_sq;
-  Real b = -2.0 * (u0*u1 - (g01 + u0*u1) * cs_sq);
-  Real c = SQR(u1) - (g11 + SQR(u1)) * cs_sq;
-  Real d = SQR(b) - 4.0*a*c;
-//  if (d < 0.0 and d > discriminant_tol) {
-  if (d < 0.0) {
-    d = 0.0;
-    b = 0.0;
-  }
-  Real d_sqrt = std::sqrt(d);
-  Real root_1 = (-b + d_sqrt) / (2.0*a);
-  Real root_2 = (-b - d_sqrt) / (2.0*a);
-  if (root_1 > root_2) {
-    *plambda_plus = root_1;
-    *plambda_minus = root_2;
-  } else {
-    *plambda_plus = root_2;
-    *plambda_minus = root_1;
-  }
-  return;
-}
-*/
-
-#if defined (DBG_SOUNDSPEED_GRHD)
-
-void EquationOfState::SoundSpeedsGR(
-  Real rho_h, Real pgas,
-  Real vi, Real v2,
-  Real alpha,
-  Real betai, Real gammaii,
-  Real *plambda_plus, Real *plambda_minus) {
-
-  // Parameters and constants
-  const Real gamma_adi = gamma_;
-
-  const Real W = 1.0 / std::sqrt(1.0 - v2);
-  const Real alpha_2 = SQR(alpha);
-
-  const Real u0 = W / alpha;
-  const Real g00 = -1.0 / alpha_2;
-  const Real g01 = betai / alpha_2;
-  const Real u1 = (vi - betai / alpha) * W;
-  const Real g11 = gammaii - SQR(betai) / alpha_2;
-
-  // Calculate comoving sound speed
-  const Real cs_sq = gamma_adi * pgas / rho_h;
-
-  // Set sound speeds in appropriate coordinates
-  const Real a = SQR(u0) - (g00 + SQR(u0)) * cs_sq;
-  const Real b = -2.0 * (u0*u1 - (g01 + u0*u1) * cs_sq);
-  const Real c = SQR(u1) - (g11 + SQR(u1)) * cs_sq;
-  const Real d = std::max(SQR(b) - 4.0*a*c, 0.0);
-  // if (d < 0.0 && d > discriminant_tol) {
-  //   d = 0.0;
-  // }
-  const Real d_sqrt = std::sqrt(d);
-  Real root_1 = (-b + d_sqrt) / (2.0*a);
-  Real root_2 = (-b - d_sqrt) / (2.0*a);
-  if (root_1 > root_2) {
-    *plambda_plus = root_1;
-    *plambda_minus = root_2;
-  } else {
-    *plambda_plus = root_2;
-    *plambda_minus = root_1;
-  }
-  return;
-}
-
-#else
 
 void EquationOfState::SoundSpeedsGR(
   Real rho_h, Real pgas,
@@ -720,8 +657,6 @@ void EquationOfState::SoundSpeedsGR(
   }
   return;
 }
-
-#endif // DBG_SOUNDSPEED_GRHD
 
 //---------------------------------------------------------------------------------------
 // \!fn void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim,

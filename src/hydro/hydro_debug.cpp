@@ -58,7 +58,6 @@ void Hydro::HydroRHS(AthenaArray<Real> & u_cons, AthenaArray<Real> & u_rhs)
 
   // symmetric tensor derivatives
   typedef AthenaTensor<Real, TensorSymm::SYM2, N, 3> AT_N_D1sym;
-  typedef AthenaTensor<Real, TensorSymm::SYM2, N, 4> AT_N_D2sym;
 
   // slice storage
   AT_N_sym sl_g_dd( pz4c->storage.adm, Z4c::I_ADM_gxx);
@@ -519,7 +518,7 @@ void Hydro::Hydro_IdealEoS_Cons2Prim(
   const gsl_multiroot_fsolver_type *T;
   gsl_multiroot_fsolver *s;
 
-  const int max_iter = 100;
+  const int max_iter = 10;
   const Real tol = 1e-12;
 
   int status;
@@ -529,9 +528,10 @@ void Hydro::Hydro_IdealEoS_Cons2Prim(
   // W, F_rho, util_u, F_p
   Real x_init[n] = {
     1.0,
-    1e-2,
-    1e-2, 1e-2, 1e-2,
-    1e-2};  // initial value for search
+    0.00128,
+    // 1e-2, 1e-2, 1e-2,
+    0., 0., 0.,
+    0};  // initial value for search
   gsl_vector *x = gsl_vector_alloc(n);
   T = gsl_multiroot_fsolver_hybrids;
   s = gsl_multiroot_fsolver_alloc(T, n);
@@ -616,7 +616,7 @@ void Hydro::Hydro_IdealEoS_Cons2Prim(
       }
       */
 
-      if ((W < 1-tol) || (sl_w_rho(k,j,i) < 1e-11) || (sl_w_p(k,j,i) < 0.) || (W > 100))
+      if ((W < 1-tol) || (sl_w_rho(k,j,i) < 1e-18) || (sl_w_p(k,j,i) < 0.) || (W > 100))
       {
         sl_w_rho(k,j,i) = 1e-14;
         sl_w_util_u(0,k,j,i) = 0;
@@ -712,9 +712,9 @@ void Hydro::Hydro_IdealEoS_Cons2Prim(
       const Real sqrt_detg = std::sqrt(Det3Metric(sl_g_dd, k,j,i));
 
       x_init[1] = prim_old(IDN,k,j,i)   + 1e-5;
-      x_init[2] = prim_old(IVX+0,k,j,i) + 1e-5;
-      x_init[3] = prim_old(IVX+1,k,j,i) + 1e-5;
-      x_init[4] = prim_old(IVX+2,k,j,i) + 1e-5;
+      x_init[2] = 0 * (prim_old(IVX+0,k,j,i) + 1e-5);
+      x_init[3] = 0 * (prim_old(IVX+1,k,j,i) + 1e-5);
+      x_init[4] = 0 * (prim_old(IVX+2,k,j,i) + 1e-5);
       x_init[5] = prim_old(IPR,k,j,i)   + 1e-5;
 
       struct sys_Hydro_cons2prim_rparams p = {
