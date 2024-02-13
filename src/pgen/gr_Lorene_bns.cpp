@@ -596,67 +596,56 @@ int RefinementCondition(MeshBlock *pmb)
   int root_level = ptracker_extrema->root_level;
   int mb_physical_level = pmb->loc.level - root_level;
 
-  // to get behaviour correct for when multiple centres occur in a single
-  // MeshBlock we need to carry information
-  bool centres_contained = false;
+
+  // Iterate over refinement levels offered by trackers.
+  //
+  // By default if a point is not in any sphere, completely de-refine.
+  int req_level = 0;
 
   for (int n=1; n<=ptracker_extrema->N_tracker; ++n)
   {
     bool is_contained = false;
+    int cur_req_level = ptracker_extrema->ref_level(n-1);
 
-    if (ptracker_extrema->ref_type(n-1) == 0)
     {
-      is_contained = pmb->PointContained(
-        ptracker_extrema->c_x1(n-1),
-        ptracker_extrema->c_x2(n-1),
-        ptracker_extrema->c_x3(n-1)
-      );
-    }
-    else if (ptracker_extrema->ref_type(n-1) == 1)
-    {
-      is_contained = pmb->SphereIntersects(
-        ptracker_extrema->c_x1(n-1),
-        ptracker_extrema->c_x2(n-1),
-        ptracker_extrema->c_x3(n-1),
-        ptracker_extrema->ref_zone_radius(n-1)
-      );
-
-      // is_contained = pmb->PointContained(
-      //   ptracker_extrema->c_x1(n-1),
-      //   ptracker_extrema->c_x2(n-1),
-      //   ptracker_extrema->c_x3(n-1)
-      // ) or pmb->PointCentralDistanceSquared(
-      //   ptracker_extrema->c_x1(n-1),
-      //   ptracker_extrema->c_x2(n-1),
-      //   ptracker_extrema->c_x3(n-1)
-      // ) < SQR(ptracker_extrema->ref_zone_radius(n-1));
-
+      if (ptracker_extrema->ref_type(n-1) == 0)
+      {
+        is_contained = pmb->PointContained(
+          ptracker_extrema->c_x1(n-1),
+          ptracker_extrema->c_x2(n-1),
+          ptracker_extrema->c_x3(n-1)
+        );
+      }
+      else if (ptracker_extrema->ref_type(n-1) == 1)
+      {
+        is_contained = pmb->SphereIntersects(
+          ptracker_extrema->c_x1(n-1),
+          ptracker_extrema->c_x2(n-1),
+          ptracker_extrema->c_x3(n-1),
+          ptracker_extrema->ref_zone_radius(n-1)
+        );
+      }
     }
 
     if (is_contained)
     {
-      centres_contained = true;
-
-      // a point in current MeshBlock, now check whether level sufficient
-      if (mb_physical_level < ptracker_extrema->ref_level(n-1))
-      {
-        return 1;
-      }
-
+      req_level = std::max(cur_req_level, req_level);
     }
+
   }
 
-  // Here one could put composite criteria (such as spherical patch cond.)
-  // ...
-
-  if (centres_contained)
+  if (req_level > mb_physical_level)
   {
-    // all contained centres are at a sufficient level of refinement
-    return 0;
+    return 1;  // currently too coarse, refine
+  }
+  else if (req_level == mb_physical_level)
+  {
+    return 0;  // level satisfied, do nothing
   }
 
-  // Nothing satisfied - flag for de-refinement
+  // otherwise de-refine
   return -1;
+
 }
 
 #if MAGNETIC_FIELDS_ENABLED
