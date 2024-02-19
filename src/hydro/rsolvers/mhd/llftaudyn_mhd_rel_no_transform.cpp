@@ -169,20 +169,6 @@ void Hydro::RiemannSolver(
   pco_gr->GetGeometricFieldFC(alpha,    z4c_alpha,    ivx-1, k, j);
   pco_gr->GetGeometricFieldFC(beta_u,   z4c_beta_u,   ivx-1, k, j);
 
-  if (0)
-  {
-    std::cout << "---------------------------" << std::endl;
-    gamma_dd.array().print_all("%1.4e");
-    std::cout << "---------------------------" << std::endl;
-    alpha.array().print_all("%1.4e");
-    std::cout << "---------------------------" << std::endl;
-    beta_u.array().print_all("%1.4e");
-    std::cout << "---------------------------" << std::endl;
-    while(true)
-    {
-      std::exit(0);
-    }
-  }
 
   #pragma omp simd
   for (int i = il; i <= iu; ++i)
@@ -200,10 +186,10 @@ void Hydro::RiemannSolver(
       &gamma_uu(0,0,i), &gamma_uu(0,1,i), &gamma_uu(0,2,i),
       &gamma_uu(1,1,i), &gamma_uu(1,2,i), &gamma_uu(2,2,i));
   }
-       #pragma omp simd
-  for (int i = il; i <= iu; ++i) 
+
+  #pragma omp simd
+  for (int i = il; i <= iu; ++i)
   {
-   
     bool in_horizon = false;
     if(horizon_excision)
     {

@@ -1,6 +1,11 @@
 TODO:
 
-Aside from the above label throughout src/ :
+- Check AHF & fix
+
+- Check CCE & fix
+
+- Clean up LLF for MHD to match the pure HD case
+
 - TaskListTriggers need to be cleaned up see e.g.
   https://bitbucket.org/dradice/athena_z4c/commits/75f1ac5677758a9194bee9cfebf3bfd3d6358cbe
   https://bitbucket.org/dradice/athena_z4c/commits/34fd0a98812fd99795d7162b1bbc967beb27787f
