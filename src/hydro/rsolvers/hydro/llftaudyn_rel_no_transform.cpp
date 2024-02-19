@@ -24,8 +24,6 @@
 #include "../../../mesh/mesh.hpp"                // MeshBlock
 
 
-#include "../../../reconstruct/reconstruction.hpp"
-
 namespace {
 // for readability
 const int D = NDIM + 1;
@@ -35,6 +33,10 @@ typedef AthenaArray< Real>                         AA;
 typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
 typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
 typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
+
+// For fluid-variable vector
+typedef AthenaTensor<Real, TensorSymm::NONE, NHYDRO, 1> AT_F_vec;
+
 }
 
 //----------------------------------------------------------------------------------------
@@ -66,18 +68,6 @@ void Hydro::RiemannSolver(
   using namespace LinearAlgebra;
 
   MeshBlock * pmb = pmy_block;
-
-  // for readability
-  const int D = NDIM + 1;
-  const int N = NDIM;
-
-  typedef AthenaArray< Real>                         AA;
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
-  typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
-
-  // For fluid-variable vector
-  typedef AthenaTensor<Real, TensorSymm::NONE, NWAVE, 1> AT_F_vec;
 
   // Calculate cyclic permutations of indices
   int ivy = IVX + ((ivx-IVX)+1)%3;

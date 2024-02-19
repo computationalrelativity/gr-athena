@@ -490,6 +490,46 @@ void EquationOfState::PrimitiveToConserved(
   }
 }
 
+void EquationOfState::SoundSpeedsGR(
+  Real rho_h, Real pgas,
+  Real vi, Real v2, Real alpha,
+  Real betai, Real gammaii,
+  Real *plambda_plus, Real *plambda_minus)
+{
+
+  // Calculate comoving sound speed
+  const Real cs_sq = (pgas > 0) ? gamma_adi * pgas / rho_h : 0;
+  const Real cs = std::sqrt(cs_sq);
+
+  const Real fac_sqrt = cs * std::sqrt(
+    (1.0-v2)*(gammaii*(1.0-v2*cs_sq)-vi*vi*(1.0-cs_sq))
+  );
+
+  const Real fac_alpha = alpha / (1.0-v2*cs_sq);
+
+  Real root_1 = fac_alpha * (vi*(1.0-cs_sq) + fac_sqrt) - betai;
+  Real root_2 = fac_alpha * (vi*(1.0-cs_sq) - fac_sqrt) - betai;
+
+  // collapse correction
+  if (std::isnan(root_1) || std::isnan(root_2))
+  {
+    root_1 = 1.0;
+    root_2 = 1.0;
+  }
+
+  if (root_1 > root_2) {
+    *plambda_plus = root_1;
+    *plambda_minus = root_2;
+  }
+  else
+  {
+    *plambda_plus = root_2;
+    *plambda_minus = root_1;
+  }
+
+  return;
+}
+
 //---------------------------------------------------------------------------------------
 // \!fn void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim,
 //           int k, int j, int i)

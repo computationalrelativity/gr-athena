@@ -116,10 +116,11 @@ void Reconstruction::WenoX1(
   const int nu = q.GetDim4();
 
   // compute L/R slopes for each variable
-//  for (int n=0; n< NHYDRO-1; ++n) {
-  for (int n=0; n< nu; ++n) {
-#pragma omp simd
-    for (int i=il; i<=iu; ++i) {
+  for (int n=0; n< nu; ++n)
+  {
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
       /*
       Real luimt = q(n,k,j,i-3);
       Real luimo = q(n,k,j,i-2);
@@ -258,61 +259,235 @@ void Reconstruction::WenoX1(
 
     }
   }
-if(eps_rec){
-#pragma omp simd
-    for (int i=il; i<=iu; ++i) {
-      Real luimt = q(IPR,k,j,i-3)/q(IDN,k,j,i-3);
-      Real luimo = q(IPR,k,j,i-2)/q(IDN,k,j,i-2);
-      Real lui = q(IPR,k,j,i-1)/q(IDN,k,j,i-1);
-      Real luipo = q(IPR,k,j,i)/q(IDN,k,j,i);
-      Real luipt = q(IPR,k,j,i+1)/q(IDN,k,j,i+1);
-      Real ruimt = q(IPR,k,j,i-2)/q(IDN,k,j,i-2);
-      Real ruimo = q(IPR,k,j,i-1)/q(IDN,k,j,i-1);
-      Real rui = q(IPR,k,j,i)/q(IDN,k,j,i);
-      Real ruipo = q(IPR,k,j,i+1)/q(IDN,k,j,i+1);
-      Real ruipt = q(IPR,k,j,i+2)/q(IDN,k,j,i+2);
-//      ql(n,i) = rec1d_p_weno5(luimt,luimo,lui,luipo,luipt);
-//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-//    possible other reconstruction routines for testing - to be separated into separate callable reconstruction routines
-      ql(IPR,i) = rec1d_p_wenoz(luimt,luimo,lui,luipo,luipt)*ql(IDN,i);
-      qr(IPR,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*qr(IDN,i);
-//      ql(n,i) = rec1d_p_mp5(luimt,luimo,lui,luipo,luipt);
-//      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_ceno3(luimt,luimo,lui,luipo,luipt);
-//      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
-    }
-}
 
-  if(MAGNETIC_FIELDS_ENABLED){
-#pragma omp simd
-    for (int i=il; i<=iu; ++i) {
-      Real luimt = bcc(IB2,k,j,i-3);
-      Real luimo = bcc(IB2,k,j,i-2);
-      Real lui = bcc(IB2,k,j,i-1);
-      Real luipo = bcc(IB2,k,j,i);
-      Real luipt = bcc(IB2,k,j,i+1);
-      Real ruimt = bcc(IB2,k,j,i-2);
-      Real ruimo = bcc(IB2,k,j,i-1);
-      Real rui = bcc(IB2,k,j,i);
-      Real ruipo = bcc(IB2,k,j,i+1);
-      Real ruipt = bcc(IB2,k,j,i+2);
-      ql(IBY,i) = rec1d_p_wenoz(luimt,luimo,lui,luipo,luipt);
-      qr(IBY,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+  if(eps_rec)
+  {
+    // BD: This should not live here.
+    // If you want to reconstruct mapped variables map first then pass to
+    // The reconstruction procedure.
+    std::cout << "TO FIX: see weno.cpp" << std::endl;
+    std::exit(0);
+
+    /*
+    #pragma omp simd
+        for (int i=il; i<=iu; ++i) {
+          Real luimt = q(IPR,k,j,i-3)/q(IDN,k,j,i-3);
+          Real luimo = q(IPR,k,j,i-2)/q(IDN,k,j,i-2);
+          Real lui = q(IPR,k,j,i-1)/q(IDN,k,j,i-1);
+          Real luipo = q(IPR,k,j,i)/q(IDN,k,j,i);
+          Real luipt = q(IPR,k,j,i+1)/q(IDN,k,j,i+1);
+          Real ruimt = q(IPR,k,j,i-2)/q(IDN,k,j,i-2);
+          Real ruimo = q(IPR,k,j,i-1)/q(IDN,k,j,i-1);
+          Real rui = q(IPR,k,j,i)/q(IDN,k,j,i);
+          Real ruipo = q(IPR,k,j,i+1)/q(IDN,k,j,i+1);
+          Real ruipt = q(IPR,k,j,i+2)/q(IDN,k,j,i+2);
+    //      ql(n,i) = rec1d_p_weno5(luimt,luimo,lui,luipo,luipt);
+    //      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+    //    possible other reconstruction routines for testing - to be separated into separate callable reconstruction routines
+          ql(IPR,i) = rec1d_p_wenoz(luimt,luimo,lui,luipo,luipt)*ql(IDN,i);
+          qr(IPR,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*qr(IDN,i);
+    //      ql(n,i) = rec1d_p_mp5(luimt,luimo,lui,luipo,luipt);
+    //      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+    //      ql(n,i) = rec1d_p_ceno3(luimt,luimo,lui,luipo,luipt);
+    //      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+        }
+    */
+  }
+
+  if(MAGNETIC_FIELDS_ENABLED)
+  {
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      // Real luimt = bcc(IB2,k,j,i-3);
+      // Real luimo = bcc(IB2,k,j,i-2);
+      // Real lui = bcc(IB2,k,j,i-1);
+      // Real luipo = bcc(IB2,k,j,i);
+      // Real luipt = bcc(IB2,k,j,i+1);
+      // Real ruimt = bcc(IB2,k,j,i-2);
+      // Real ruimo = bcc(IB2,k,j,i-1);
+      // Real rui = bcc(IB2,k,j,i);
+      // Real ruipo = bcc(IB2,k,j,i+1);
+      // Real ruipt = bcc(IB2,k,j,i+2);
+
+      // ql(IBY,i) = rec1d_p_wenoz(luimt,luimo,lui,luipo,luipt);
+      // qr(IBY,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+
+      const Real uimt = bcc(IB2,k,j,i-2);
+      const Real uimo = bcc(IB2,k,j,i-1);
+      const Real ui   = bcc(IB2,k,j,i);
+      const Real uipo = bcc(IB2,k,j,i+1);
+      const Real uipt = bcc(IB2,k,j,i+2);
+
+      // N.B offset for x-dir rec.
+      switch (xorder_style)  // should check if this gets loop-lifted...
+      {
+        case ReconstructionVariant::ceno3:
+        {
+          ql(IBY,i+1) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
+          qr(IBY,i  ) = rec1d_p_ceno3(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::mp3:
+        {
+          ql(IBY,i+1) = rec1d_p_mp3(xorder_eps,uimt,uimo,ui,uipo,uipt);
+          qr(IBY,i  ) = rec1d_p_mp3(xorder_eps,uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::mp5:
+        {
+          ql(IBY,i+1) = rec1d_p_mp5(xorder_eps,uimt,uimo,ui,uipo,uipt);
+          qr(IBY,i  ) = rec1d_p_mp5(xorder_eps,uipt,uipo,ui,uimo,uimt);
+
+          break;
+        }
+        case ReconstructionVariant::mp7:
+        {
+          const Real uim3 = q(IBY,k,j,i-3);
+          const Real uip3 = q(IBY,k,j,i+3);
+          ql(IBY,i+1) = rec1d_p_mp7(xorder_eps,uim3,uimt,uimo,ui,uipo,uipt,uip3);
+          qr(IBY,i  ) = rec1d_p_mp7(xorder_eps,uip3,uipt,uipo,ui,uimo,uimt,uim3);
+
+          break;
+        }
+        case ReconstructionVariant::weno5:
+        {
+          ql(IBY,i+1) = rec1d_p_weno5(uimt,uimo,ui,uipo,uipt);
+          qr(IBY,i  ) = rec1d_p_weno5(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::weno5z:
+        {
+          ql(IBY,i+1) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
+          qr(IBY,i)   = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::weno5z_r:
+        {
+          ql(IBY,i+1) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
+          qr(IBY,i  ) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
+
+         const bool rpf = (
+            pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i+1) ||
+            pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
+
+          if (rpf)
+          {
+            ql(IBY,i+1) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
+            qr(IBY,i  ) = rec1d_p_ceno3(uipt,uipo,ui,uimo,uimt);
+          }
+
+          break;
+        }
+        case ReconstructionVariant::weno5d_si:
+        {
+          ql(IBY,i+1) = rec1d_p_weno5d_si(uimt,uimo,ui,uipo,uipt);
+          qr(IBY,i  ) = rec1d_p_weno5d_si(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::none:
+        {
+          break;
+        }
+      }
+
     }
-#pragma omp simd
-    for (int i=il; i<=iu; ++i) {
-      Real luimt = bcc(IB3,k,j,i-3);
-      Real luimo = bcc(IB3,k,j,i-2);
-      Real lui = bcc(IB3,k,j,i-1);
-      Real luipo = bcc(IB3,k,j,i);
-      Real luipt = bcc(IB3,k,j,i+1);
-      Real ruimt = bcc(IB3,k,j,i-2);
-      Real ruimo = bcc(IB3,k,j,i-1);
-      Real rui = bcc(IB3,k,j,i);
-      Real ruipo = bcc(IB3,k,j,i+1);
-      Real ruipt = bcc(IB3,k,j,i+2);
-      ql(IBZ,i) = rec1d_p_wenoz(luimt,luimo,lui,luipo,luipt);
-      qr(IBZ,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      // Real luimt = bcc(IB3,k,j,i-3);
+      // Real luimo = bcc(IB3,k,j,i-2);
+      // Real lui = bcc(IB3,k,j,i-1);
+      // Real luipo = bcc(IB3,k,j,i);
+      // Real luipt = bcc(IB3,k,j,i+1);
+      // Real ruimt = bcc(IB3,k,j,i-2);
+      // Real ruimo = bcc(IB3,k,j,i-1);
+      // Real rui = bcc(IB3,k,j,i);
+      // Real ruipo = bcc(IB3,k,j,i+1);
+      // Real ruipt = bcc(IB3,k,j,i+2);
+
+      // ql(IBZ,i) = rec1d_p_wenoz(luimt,luimo,lui,luipo,luipt);
+      // qr(IBZ,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+
+      const Real uimt = bcc(IB3,k,j,i-2);
+      const Real uimo = bcc(IB3,k,j,i-1);
+      const Real ui   = bcc(IB3,k,j,i);
+      const Real uipo = bcc(IB3,k,j,i+1);
+      const Real uipt = bcc(IB3,k,j,i+2);
+
+      // N.B offset for x-dir rec.
+      switch (xorder_style)  // should check if this gets loop-lifted...
+      {
+        case ReconstructionVariant::ceno3:
+        {
+          ql(IBZ,i+1) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
+          qr(IBZ,i  ) = rec1d_p_ceno3(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::mp3:
+        {
+          ql(IBZ,i+1) = rec1d_p_mp3(xorder_eps,uimt,uimo,ui,uipo,uipt);
+          qr(IBZ,i  ) = rec1d_p_mp3(xorder_eps,uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::mp5:
+        {
+          ql(IBZ,i+1) = rec1d_p_mp5(xorder_eps,uimt,uimo,ui,uipo,uipt);
+          qr(IBZ,i  ) = rec1d_p_mp5(xorder_eps,uipt,uipo,ui,uimo,uimt);
+
+          break;
+        }
+        case ReconstructionVariant::mp7:
+        {
+          const Real uim3 = q(IBZ,k,j,i-3);
+          const Real uip3 = q(IBZ,k,j,i+3);
+          ql(IBZ,i+1) = rec1d_p_mp7(xorder_eps,uim3,uimt,uimo,ui,uipo,uipt,uip3);
+          qr(IBZ,i  ) = rec1d_p_mp7(xorder_eps,uip3,uipt,uipo,ui,uimo,uimt,uim3);
+
+          break;
+        }
+        case ReconstructionVariant::weno5:
+        {
+          ql(IBZ,i+1) = rec1d_p_weno5(uimt,uimo,ui,uipo,uipt);
+          qr(IBZ,i  ) = rec1d_p_weno5(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::weno5z:
+        {
+          ql(IBZ,i+1) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
+          qr(IBZ,i)   = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::weno5z_r:
+        {
+          ql(IBZ,i+1) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
+          qr(IBZ,i  ) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
+
+         const bool rpf = (
+            pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i+1) ||
+            pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
+
+          if (rpf)
+          {
+            ql(IBZ,i+1) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
+            qr(IBZ,i  ) = rec1d_p_ceno3(uipt,uipo,ui,uimo,uimt);
+          }
+
+          break;
+        }
+        case ReconstructionVariant::weno5d_si:
+        {
+          ql(IBZ,i+1) = rec1d_p_weno5d_si(uimt,uimo,ui,uipo,uipt);
+          qr(IBZ,i  ) = rec1d_p_weno5d_si(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::none:
+        {
+          break;
+        }
+      }
+
     }
 
   }
@@ -357,28 +532,30 @@ void Reconstruction::WenoX2(
   }
   */
 
-  for (int n=0; n<nu; ++n) {
-#pragma omp simd
-    for (int i=il; i<=iu; ++i) {
+  for (int n=0; n<nu; ++n)
+  {
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
       /*
-      Real luimt = q(n,k,j-3,i);
-      Real luimo = q(n,k,j-2,i);
-      Real lui = q(n,k,j-1,i);
-      Real luipo = q(n,k,j,i);
-      Real luipt = q(n,k,j+1,i);
-      Real ruimt = q(n,k,j-2,i);
-      Real ruimo = q(n,k,j-1,i);
-      Real rui = q(n,k,j,i);
-      Real ruipo = q(n,k,j+1,i);
-      Real ruipt = q(n,k,j+2,i);
-//      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-      ql(n,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-      qr(n,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-//      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
-//      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+            Real luimt = q(n,k,j-3,i);
+            Real luimo = q(n,k,j-2,i);
+            Real lui = q(n,k,j-1,i);
+            Real luipo = q(n,k,j,i);
+            Real luipt = q(n,k,j+1,i);
+            Real ruimt = q(n,k,j-2,i);
+            Real ruimo = q(n,k,j-1,i);
+            Real rui = q(n,k,j,i);
+            Real ruipo = q(n,k,j+1,i);
+            Real ruipt = q(n,k,j+2,i);
+      //      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+      //      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+            ql(n,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+            qr(n,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+      //      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+      //      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+      //      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+      //      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
       */
 
       const Real uimt = q(n,k,j-2,i);
@@ -494,70 +671,232 @@ void Reconstruction::WenoX2(
 
     }
   }
-if(eps_rec){
-#pragma omp simd
-    for (int i=il; i<=iu; ++i) {
-      Real ruimt = q(IPR,k,j-2,i)/q(IDN,k,j-2,i);
-      Real ruimo = q(IPR,k,j-1,i)/q(IDN,k,j-1,i);
-      Real rui = q(IPR,k,j,i)/q(IDN,k,j,i);
-      Real ruipo = q(IPR,k,j+1,i)/q(IDN,k,j+1,i);
-      Real ruipt = q(IPR,k,j+2,i)/q(IDN,k,j+2,i);
-//      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-      ql(IPR,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*ql(IDN,i);
-      qr(IPR,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*qr(IDN,i);
-//      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-//      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
-//      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+
+  if(eps_rec)
+  {
+    // BD: This should not live here.
+    // If you want to reconstruct mapped variables map first then pass to
+    // The reconstruction procedure.
+    std::cout << "TO FIX: see weno.cpp" << std::endl;
+    std::exit(0);
+
+    /*
+        #pragma omp simd
+        for (int i=il; i<=iu; ++i) {
+          Real ruimt = q(IPR,k,j-2,i)/q(IDN,k,j-2,i);
+          Real ruimo = q(IPR,k,j-1,i)/q(IDN,k,j-1,i);
+          Real rui = q(IPR,k,j,i)/q(IDN,k,j,i);
+          Real ruipo = q(IPR,k,j+1,i)/q(IDN,k,j+1,i);
+          Real ruipt = q(IPR,k,j+2,i)/q(IDN,k,j+2,i);
+    //      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+    //      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+          ql(IPR,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*ql(IDN,i);
+          qr(IPR,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*qr(IDN,i);
+    //      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+    //      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+    //      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+    //      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+        }
+    */
+
+  }
+
+
+  if(MAGNETIC_FIELDS_ENABLED)
+  {
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      // Real luimt = bcc(IB3,k,j-3,i);
+      // Real luimo = bcc(IB3,k,j-2,i);
+      // Real lui = bcc(IB3,k,j-1,i);
+      // Real luipo = bcc(IB3,k,j,i);
+      // Real luipt = bcc(IB3,k,j+1,i);
+      // Real ruimt = bcc(IB3,k,j-2,i);
+      // Real ruimo = bcc(IB3,k,j-1,i);
+      // Real rui = bcc(IB3,k,j,i);
+      // Real ruipo = bcc(IB3,k,j+1,i);
+      // Real ruipt = bcc(IB3,k,j+2,i);
+
+      // ql(IBY,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+      // qr(IBY,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+
+      const Real uimt = bcc(IB3,k,j-2,i);
+      const Real uimo = bcc(IB3,k,j-1,i);
+      const Real ui   = bcc(IB3,k,j,i);
+      const Real uipo = bcc(IB3,k,j+1,i);
+      const Real uipt = bcc(IB3,k,j+2,i);
+
+      switch (xorder_style)  // should check if this gets loop-lifted...
+      {
+        case ReconstructionVariant::ceno3:
+        {
+          ql(IBY,i) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
+          qr(IBY,i) = rec1d_p_ceno3(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::mp3:
+        {
+          ql(IBY,i) = rec1d_p_mp3(xorder_eps,uimt,uimo,ui,uipo,uipt);
+          qr(IBY,i) = rec1d_p_mp3(xorder_eps,uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::mp5:
+        {
+
+          ql(IBY,i) = rec1d_p_mp5(xorder_eps,uimt,uimo,ui,uipo,uipt);
+          qr(IBY,i) = rec1d_p_mp5(xorder_eps,uipt,uipo,ui,uimo,uimt);
+
+          break;
+        }
+        case ReconstructionVariant::mp7:
+        {
+          const Real uim3 = q(IBY,k,j-3,i);
+          const Real uip3 = q(IBY,k,j+3,i);
+          ql(IBY,i) = rec1d_p_mp7(xorder_eps,uim3,uimt,uimo,ui,uipo,uipt,uip3);
+          qr(IBY,i) = rec1d_p_mp7(xorder_eps,uip3,uipt,uipo,ui,uimo,uimt,uim3);
+
+          break;
+        }
+        case ReconstructionVariant::weno5:
+        {
+          ql(IBY,i) = rec1d_p_weno5(uimt,uimo,ui,uipo,uipt);
+          qr(IBY,i) = rec1d_p_weno5(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::weno5z:
+        {
+          ql(IBY,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
+          qr(IBY,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::weno5z_r:
+        {
+          ql(IBY,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
+          qr(IBY,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
+
+         const bool rpf = (
+            pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i) ||
+            pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
+
+          if (rpf)
+          {
+            ql(IBY,i) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
+            qr(IBY,i) = rec1d_p_ceno3(uipt,uipo,ui,uimo,uimt);
+          }
+
+          break;
+        }
+        case ReconstructionVariant::weno5d_si:
+        {
+          ql(IBY,i) = rec1d_p_weno5d_si(uimt,uimo,ui,uipo,uipt);
+          qr(IBY,i) = rec1d_p_weno5d_si(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::none:
+        {
+          break;
+        }
+      }
     }
-}
-  if(MAGNETIC_FIELDS_ENABLED){
-#pragma omp simd
-    for (int i=il; i<=iu; ++i) {
-      Real luimt = bcc(IB3,k,j-3,i);
-      Real luimo = bcc(IB3,k,j-2,i);
-      Real lui = bcc(IB3,k,j-1,i);
-      Real luipo = bcc(IB3,k,j,i);
-      Real luipt = bcc(IB3,k,j+1,i);
-      Real ruimt = bcc(IB3,k,j-2,i);
-      Real ruimo = bcc(IB3,k,j-1,i);
-      Real rui = bcc(IB3,k,j,i);
-      Real ruipo = bcc(IB3,k,j+1,i);
-      Real ruipt = bcc(IB3,k,j+2,i);
-//      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-      ql(IBY,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-      qr(IBY,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-//      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
-//      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
-     }
-#pragma omp simd
-    for (int i=il; i<=iu; ++i) {
-      Real luimt = bcc(IB1,k,j-3,i);
-      Real luimo = bcc(IB1,k,j-2,i);
-      Real lui = bcc(IB1,k,j-1,i);
-      Real luipo = bcc(IB1,k,j,i);
-      Real luipt = bcc(IB1,k,j+1,i);
-      Real ruimt = bcc(IB1,k,j-2,i);
-      Real ruimo = bcc(IB1,k,j-1,i);
-      Real rui = bcc(IB1,k,j,i);
-      Real ruipo = bcc(IB1,k,j+1,i);
-      Real ruipt = bcc(IB1,k,j+2,i);
-//      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-      ql(IBZ,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-      qr(IBZ,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-//      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
-//      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
-     }
 
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      // Real luimt = bcc(IB1,k,j-3,i);
+      // Real luimo = bcc(IB1,k,j-2,i);
+      // Real lui = bcc(IB1,k,j-1,i);
+      // Real luipo = bcc(IB1,k,j,i);
+      // Real luipt = bcc(IB1,k,j+1,i);
+      // Real ruimt = bcc(IB1,k,j-2,i);
+      // Real ruimo = bcc(IB1,k,j-1,i);
+      // Real rui = bcc(IB1,k,j,i);
+      // Real ruipo = bcc(IB1,k,j+1,i);
+      // Real ruipt = bcc(IB1,k,j+2,i);
 
-}
+      // ql(IBZ,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+      // qr(IBZ,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+
+      const Real uimt = bcc(IB1,k,j-2,i);
+      const Real uimo = bcc(IB1,k,j-1,i);
+      const Real ui   = bcc(IB1,k,j,i);
+      const Real uipo = bcc(IB1,k,j+1,i);
+      const Real uipt = bcc(IB1,k,j+2,i);
+
+      switch (xorder_style)  // should check if this gets loop-lifted...
+      {
+        case ReconstructionVariant::ceno3:
+        {
+          ql(IBZ,i) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
+          qr(IBZ,i) = rec1d_p_ceno3(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::mp3:
+        {
+          ql(IBZ,i) = rec1d_p_mp3(xorder_eps,uimt,uimo,ui,uipo,uipt);
+          qr(IBZ,i) = rec1d_p_mp3(xorder_eps,uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::mp5:
+        {
+
+          ql(IBZ,i) = rec1d_p_mp5(xorder_eps,uimt,uimo,ui,uipo,uipt);
+          qr(IBZ,i) = rec1d_p_mp5(xorder_eps,uipt,uipo,ui,uimo,uimt);
+
+          break;
+        }
+        case ReconstructionVariant::mp7:
+        {
+          const Real uim3 = q(IBZ,k,j-3,i);
+          const Real uip3 = q(IBZ,k,j+3,i);
+          ql(IBZ,i) = rec1d_p_mp7(xorder_eps,uim3,uimt,uimo,ui,uipo,uipt,uip3);
+          qr(IBZ,i) = rec1d_p_mp7(xorder_eps,uip3,uipt,uipo,ui,uimo,uimt,uim3);
+
+          break;
+        }
+        case ReconstructionVariant::weno5:
+        {
+          ql(IBZ,i) = rec1d_p_weno5(uimt,uimo,ui,uipo,uipt);
+          qr(IBZ,i) = rec1d_p_weno5(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::weno5z:
+        {
+          ql(IBZ,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
+          qr(IBZ,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::weno5z_r:
+        {
+          ql(IBZ,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
+          qr(IBZ,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
+
+         const bool rpf = (
+            pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i) ||
+            pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
+
+          if (rpf)
+          {
+            ql(IBZ,i) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
+            qr(IBZ,i) = rec1d_p_ceno3(uipt,uipo,ui,uimo,uimt);
+          }
+
+          break;
+        }
+        case ReconstructionVariant::weno5d_si:
+        {
+          ql(IBZ,i) = rec1d_p_weno5d_si(uimt,uimo,ui,uipo,uipt);
+          qr(IBZ,i) = rec1d_p_weno5d_si(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::none:
+        {
+          break;
+        }
+      }
+
+    }
+  }
 
   if (enforce_floors)
   {
@@ -602,9 +941,11 @@ void Reconstruction::WenoX3(
   const int nu = q.GetDim4();
 
 
-  for (int n=0; n<nu; ++n) {
-#pragma omp simd
-    for (int i=il; i<=iu; ++i) {
+  for (int n=0; n<nu; ++n)
+  {
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
 
       const Real uimt = q(n,k-2,j,i);
       const Real uimo = q(n,k-1,j,i);
@@ -721,67 +1062,229 @@ void Reconstruction::WenoX3(
 
     }
   }
-if(eps_rec){
-#pragma omp simd
-    for (int i=il; i<=iu; ++i) {
-      Real ruimt = q(IPR,k-2,j,i)/q(IDN,k-2,j,i);
-      Real ruimo = q(IPR,k-1,j,i)/q(IDN,k-1,j,i);
-      Real rui = q(IPR,k,j,i)/q(IDN,k,j,i);
-      Real ruipo = q(IPR,k+1,j,i)/q(IDN,k+1,j,i);
-      Real ruipt = q(IPR,k+2,j,i)/q(IDN,k+2,j,i);
-//      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-      ql(IPR,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*ql(IDN,i);
-      qr(IPR,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*qr(IDN,i);
-//      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-//      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
-//      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
-    }
-}
 
-  if(MAGNETIC_FIELDS_ENABLED){
-#pragma omp simd
-    for (int i=il; i<=iu; ++i) {
-      Real luimt = bcc(IB1,k-3,j,i);
-      Real luimo = bcc(IB1,k-2,j,i);
-      Real lui = bcc(IB1,k-1,j,i);
-      Real luipo = bcc(IB1,k,j,i);
-      Real luipt = bcc(IB1,k+1,j,i);
-      Real ruimt = bcc(IB1,k-2,j,i);
-      Real ruimo = bcc(IB1,k-1,j,i);
-      Real rui = bcc(IB1,k,j,i);
-      Real ruipo = bcc(IB1,k+1,j,i);
-      Real ruipt = bcc(IB1,k+2,j,i);
-//      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-      ql(IBY,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-      qr(IBY,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-//      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
-//      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+  if(eps_rec)
+  {
+    // BD: This should not live here.
+    // If you want to reconstruct mapped variables map first then pass to
+    // The reconstruction procedure.
+    std::cout << "TO FIX: see weno.cpp" << std::endl;
+    std::exit(0);
+
+    /*
+        #pragma omp simd
+        for (int i=il; i<=iu; ++i)
+        {
+          Real ruimt = q(IPR,k-2,j,i)/q(IDN,k-2,j,i);
+          Real ruimo = q(IPR,k-1,j,i)/q(IDN,k-1,j,i);
+          Real rui = q(IPR,k,j,i)/q(IDN,k,j,i);
+          Real ruipo = q(IPR,k+1,j,i)/q(IDN,k+1,j,i);
+          Real ruipt = q(IPR,k+2,j,i)/q(IDN,k+2,j,i);
+    //      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+    //      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
+          ql(IPR,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*ql(IDN,i);
+          qr(IPR,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*qr(IDN,i);
+    //      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+    //      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
+    //      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+    //      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+        }
+    */
+
+  }
+
+  if(MAGNETIC_FIELDS_ENABLED)
+  {
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      // Real luimt = bcc(IB1,k-3,j,i);
+      // Real luimo = bcc(IB1,k-2,j,i);
+      // Real lui = bcc(IB1,k-1,j,i);
+      // Real luipo = bcc(IB1,k,j,i);
+      // Real luipt = bcc(IB1,k+1,j,i);
+      // Real ruimt = bcc(IB1,k-2,j,i);
+      // Real ruimo = bcc(IB1,k-1,j,i);
+      // Real rui = bcc(IB1,k,j,i);
+      // Real ruipo = bcc(IB1,k+1,j,i);
+      // Real ruipt = bcc(IB1,k+2,j,i);
+
+      // ql(IBY,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+      // qr(IBY,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+
+      const Real uimt = bcc(IB1,k-2,j,i);
+      const Real uimo = bcc(IB1,k-1,j,i);
+      const Real ui   = bcc(IB1,k,j,i);
+      const Real uipo = bcc(IB1,k+1,j,i);
+      const Real uipt = bcc(IB1,k+2,j,i);
+
+      switch (xorder_style)  // should check if this gets loop-lifted...
+      {
+        case ReconstructionVariant::ceno3:
+        {
+          ql(IBY,i) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
+          qr(IBY,i) = rec1d_p_ceno3(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::mp3:
+        {
+          ql(IBY,i) = rec1d_p_mp3(xorder_eps,uimt,uimo,ui,uipo,uipt);
+          qr(IBY,i) = rec1d_p_mp3(xorder_eps,uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::mp5:
+        {
+          ql(IBY,i) = rec1d_p_mp5(xorder_eps,uimt,uimo,ui,uipo,uipt);
+          qr(IBY,i) = rec1d_p_mp5(xorder_eps,uipt,uipo,ui,uimo,uimt);
+
+          break;
+        }
+        case ReconstructionVariant::mp7:
+        {
+          const Real uim3 = q(IBY,k-3,j,i);
+          const Real uip3 = q(IBY,k+3,j,i);
+          ql(IBY,i) = rec1d_p_mp7(xorder_eps,uim3,uimt,uimo,ui,uipo,uipt,uip3);
+          qr(IBY,i) = rec1d_p_mp7(xorder_eps,uip3,uipt,uipo,ui,uimo,uimt,uim3);
+
+          break;
+        }
+        case ReconstructionVariant::weno5:
+        {
+          ql(IBY,i) = rec1d_p_weno5(uimt,uimo,ui,uipo,uipt);
+          qr(IBY,i) = rec1d_p_weno5(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::weno5z:
+        {
+          ql(IBY,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
+          qr(IBY,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::weno5z_r:
+        {
+          ql(IBY,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
+          qr(IBY,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
+
+         const bool rpf = (
+            pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i) ||
+            pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
+
+          if (rpf)
+          {
+            ql(IBY,i) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
+            qr(IBY,i) = rec1d_p_ceno3(uipt,uipo,ui,uimo,uimt);
+          }
+
+          break;
+        }
+        case ReconstructionVariant::weno5d_si:
+        {
+          ql(IBY,i) = rec1d_p_weno5d_si(uimt,uimo,ui,uipo,uipt);
+          qr(IBY,i) = rec1d_p_weno5d_si(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::none:
+        {
+          break;
+        }
+      }
+
     }
-#pragma omp simd
-    for (int i=il; i<=iu; ++i) {
-      Real luimt = bcc(IB2,k-3,j,i);
-      Real luimo = bcc(IB2,k-2,j,i);
-      Real lui = bcc(IB2,k-1,j,i);
-      Real luipo = bcc(IB2,k,j,i);
-      Real luipt = bcc(IB2,k+1,j,i);
-      Real ruimt = bcc(IB2,k-2,j,i);
-      Real ruimo = bcc(IB2,k-1,j,i);
-      Real rui = bcc(IB2,k,j,i);
-      Real ruipo = bcc(IB2,k+1,j,i);
-      Real ruipt = bcc(IB2,k+2,j,i);
-//      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-      ql(IBZ,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-      qr(IBZ,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-//      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
-//      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      // Real luimt = bcc(IB2,k-3,j,i);
+      // Real luimo = bcc(IB2,k-2,j,i);
+      // Real lui = bcc(IB2,k-1,j,i);
+      // Real luipo = bcc(IB2,k,j,i);
+      // Real luipt = bcc(IB2,k+1,j,i);
+      // Real ruimt = bcc(IB2,k-2,j,i);
+      // Real ruimo = bcc(IB2,k-1,j,i);
+      // Real rui = bcc(IB2,k,j,i);
+      // Real ruipo = bcc(IB2,k+1,j,i);
+      // Real ruipt = bcc(IB2,k+2,j,i);
+
+      // ql(IBZ,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+      // qr(IBZ,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
+
+      const Real uimt = bcc(IB2,k-2,j,i);
+      const Real uimo = bcc(IB2,k-1,j,i);
+      const Real ui   = bcc(IB2,k,j,i);
+      const Real uipo = bcc(IB2,k+1,j,i);
+      const Real uipt = bcc(IB2,k+2,j,i);
+
+      switch (xorder_style)  // should check if this gets loop-lifted...
+      {
+        case ReconstructionVariant::ceno3:
+        {
+          ql(IBZ,i) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
+          qr(IBZ,i) = rec1d_p_ceno3(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::mp3:
+        {
+          ql(IBZ,i) = rec1d_p_mp3(xorder_eps,uimt,uimo,ui,uipo,uipt);
+          qr(IBZ,i) = rec1d_p_mp3(xorder_eps,uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::mp5:
+        {
+          ql(IBZ,i) = rec1d_p_mp5(xorder_eps,uimt,uimo,ui,uipo,uipt);
+          qr(IBZ,i) = rec1d_p_mp5(xorder_eps,uipt,uipo,ui,uimo,uimt);
+
+          break;
+        }
+        case ReconstructionVariant::mp7:
+        {
+          const Real uim3 = q(IBZ,k-3,j,i);
+          const Real uip3 = q(IBZ,k+3,j,i);
+          ql(IBZ,i) = rec1d_p_mp7(xorder_eps,uim3,uimt,uimo,ui,uipo,uipt,uip3);
+          qr(IBZ,i) = rec1d_p_mp7(xorder_eps,uip3,uipt,uipo,ui,uimo,uimt,uim3);
+
+          break;
+        }
+        case ReconstructionVariant::weno5:
+        {
+          ql(IBZ,i) = rec1d_p_weno5(uimt,uimo,ui,uipo,uipt);
+          qr(IBZ,i) = rec1d_p_weno5(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::weno5z:
+        {
+          ql(IBZ,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
+          qr(IBZ,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::weno5z_r:
+        {
+          ql(IBZ,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
+          qr(IBZ,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
+
+         const bool rpf = (
+            pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i) ||
+            pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
+
+          if (rpf)
+          {
+            ql(IBZ,i) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
+            qr(IBZ,i) = rec1d_p_ceno3(uipt,uipo,ui,uimo,uimt);
+          }
+
+          break;
+        }
+        case ReconstructionVariant::weno5d_si:
+        {
+          ql(IBZ,i) = rec1d_p_weno5d_si(uimt,uimo,ui,uipo,uipt);
+          qr(IBZ,i) = rec1d_p_weno5d_si(uipt,uipo,ui,uimo,uimt);
+          break;
+        }
+        case ReconstructionVariant::none:
+        {
+          break;
+        }
+      }
+
     }
   }
 

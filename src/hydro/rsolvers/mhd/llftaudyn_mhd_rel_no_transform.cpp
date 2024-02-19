@@ -24,6 +24,22 @@
 
 
 #include "../../../z4c/ahf.hpp"
+
+namespace {
+// for readability
+const int D = NDIM + 1;
+const int N = NDIM;
+
+typedef AthenaArray< Real>                         AA;
+typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
+typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
+typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
+
+// For fluid-variable vector
+typedef AthenaTensor<Real, TensorSymm::NONE, NHYDRO, 1> AT_F_vec;
+
+}
+
 //----------------------------------------------------------------------------------------
 // Riemann solver
 // Inputs:
@@ -42,17 +58,18 @@
 
 void Hydro::RiemannSolver(
   const int k, const int j,
-  const int il, const int iu, 
-  const int ivx, 
-  const AthenaArray<Real> &bb,  
-  AthenaArray<Real> &prim_l, 
-  AthenaArray<Real> &prim_r, 
-  AthenaArray<Real> &flux,   
-  AthenaArray<Real> &ey, 
-  AthenaArray<Real> &ez, 
-  AthenaArray<Real> &wct, 
-  const AthenaArray<Real> &dxw) 
+  const int il, const int iu,
+  const int ivx,
+  const AthenaArray<Real> &bb,
+  AthenaArray<Real> &prim_l,
+  AthenaArray<Real> &prim_r,
+  AthenaArray<Real> &flux,
+  AthenaArray<Real> &ey,
+  AthenaArray<Real> &ez,
+  AthenaArray<Real> &wct,
+  const AthenaArray<Real> &dxw)
 {
+
   using namespace LinearAlgebra;
   // Calculate cyclic permutations of indices
   int ivy = IVX + ((ivx-IVX)+1)%3;
