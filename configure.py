@@ -129,7 +129,9 @@ parser.add_argument(
 # --eos=[name] argument
 parser.add_argument('--eos',
                     default='adiabatic',
-                    choices=['adiabatic', 'isothermal', 'general/eos_table','adiabatictaudyn_rep',
+                    choices=['adiabatic', 'isothermal', 'general/eos_table',
+                             'adiabatictaudyn_rep',
+                             'adiabatictaudyn_rep_mhd_gr',
                              'general/hydrogen', 'general/ideal', 'eostaudyn_ps'],
                     help='select equation of state')
 
@@ -148,7 +150,8 @@ parser.add_argument('--errorpolicy',
 # --flux=[name] argument
 parser.add_argument('--flux',
                     default='default',
-                    choices=['default', 'hlle', 'hlletaudyn', 'hllc', 'hlld', 'roe', 'llf', 'llftaudyn'],
+                    choices=['default', 'hlle', 'hlletaudyn', 'hllc', 'hlld',
+                             'roe', 'llf', 'llftaudyn'],
                     help='select Riemann solver')
 
 # --nghost=[value] argument

@@ -41,42 +41,44 @@
 
 namespace {
 
-  // Declarations
-  inline static void PrimitiveToConservedSingle(
-    AthenaArray<Real> &prim,
-    Real gamma_adi,
-    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd,
-    int k, int j, int i,
-    AthenaArray<Real> &cons,
-    Coordinates *pco);
+// for readability
+const int D = NDIM + 1;
+const int N = NDIM;
 
-  using namespace EOS_Toolkit;
+typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
+typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
+typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
 
-  Real fthr, fatm;
-  Real epsatm;
-  Real k_adi, gamma_adi;
-  EOS_Toolkit::real_t atmo_rho;
-  EOS_Toolkit::real_t rho_strict;
-  bool  ye_lenient;
-  bool eos_debug;
-  int max_iter;
-  EOS_Toolkit::real_t c2p_acc;
-  EOS_Toolkit::real_t max_b;
-  EOS_Toolkit::real_t max_z;
-  EOS_Toolkit::real_t atmo_eps;
-  EOS_Toolkit::real_t atmo_ye;
-  EOS_Toolkit::real_t atmo_cut;
-  EOS_Toolkit::real_t atmo_cut_p;
-  EOS_Toolkit::real_t atmo_p;
-  EOS_Toolkit::eos_thermal eos;
+// Declarations
+inline static void PrimitiveToConservedSingle(
+  MeshBlock * pmb,
+  AthenaArray<Real> &prim,
+  Real gamma_adi,
+  AT_N_sym const & gamma_dd,
+  int k, int j, int i,
+  AthenaArray<Real> &cons,
+  Coordinates *pco);
 
-  // for readability
-  const int D = NDIM + 1;
-  const int N = NDIM;
+using namespace EOS_Toolkit;
 
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
-  typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
+Real fthr, fatm;
+Real epsatm;
+Real k_adi, gamma_adi;
+EOS_Toolkit::real_t atmo_rho;
+EOS_Toolkit::real_t rho_strict;
+bool  ye_lenient;
+bool eos_debug;
+int max_iter;
+EOS_Toolkit::real_t c2p_acc;
+EOS_Toolkit::real_t max_b;
+EOS_Toolkit::real_t max_z;
+EOS_Toolkit::real_t atmo_eps;
+EOS_Toolkit::real_t atmo_ye;
+EOS_Toolkit::real_t atmo_cut;
+EOS_Toolkit::real_t atmo_cut_p;
+EOS_Toolkit::real_t atmo_p;
+EOS_Toolkit::eos_thermal eos;
+
 }
 
 //----------------------------------------------------------------------------------------
@@ -96,6 +98,10 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin)
   pgas_pow_ = NAN;
   gamma_max_ = NAN;
   epsatm = NAN;
+
+  // Needed?
+  density_floor_ = NAN;
+  pressure_floor_ = NAN;
 
   // Active
   gamma_ = pin->GetReal("hydro", "gamma");
@@ -120,10 +126,6 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin)
   atmo_cut = atmo_rho * fthr;
   atmo_p = eos.at_rho_eps_ye(atmo_rho, atmo_eps, atmo_ye).press();
   atmo_cut_p = 0 * eos.at_rho_eps_ye(atmo_cut, atmo_eps, atmo_ye).press();
-
-  // // Needed?
-  // density_floor_ = atmo_rho;
-  // pressure_floor_ = atmo_p;
 
   //Primitive recovery parameters
   rho_strict = pin->GetOrAddReal("hydro", "rho_strict", atmo_rho);
@@ -192,18 +194,18 @@ void EquationOfState::ConservedToPrimitive(
   Z4c * pz4c = pmy_block_->pz4c;
 
   // quantities we have (sliced below)
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_gamma_dd;
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> z4c_gamma_dd;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> z4c_alpha;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> z4c_beta_u;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> z4c_chi;
+  AT_N_sym adm_gamma_dd;
+  AT_N_sym z4c_gamma_dd;
+  AT_N_sca z4c_alpha;
+  AT_N_vec z4c_beta_u;
+  AT_N_sca z4c_chi;
 
   // quantities we will construct (on CC)
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> chi;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> rchi;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u;
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
+  AT_N_sca alpha;
+  AT_N_sca chi;
+  AT_N_sca rchi;
+  AT_N_vec beta_u;
+  AT_N_sym gamma_dd;
 
   alpha.NewAthenaTensor(   nn1);
   beta_u.NewAthenaTensor(  nn1);
@@ -248,18 +250,6 @@ void EquationOfState::ConservedToPrimitive(
 
   KL = std::max(kl, KL);
   KU = std::min(ku, KU);
-
-  // if (JL != std::max(jl, JL))
-  // {
-  //   std::cout << il << "," << IL << std::endl;
-  //   std::cout << jl << "," << JL << std::endl;
-  //   std::cout << kl << "," << KL << std::endl;
-  //   std::exit(0);
-  // }
-
-  // IU--;
-  // JU--;
-  // KU--;
 
   // iterate over cells
   for (int k=KL; k<=KU; ++k)
@@ -318,13 +308,13 @@ void EquationOfState::ConservedToPrimitive(
 
       //Extract prims
       Real &w_rho = prim(IDN,k,j,i);
-      Real &w_p  = prim(IPR,k,j,i);
-      Real &uu1  = prim(IVX,k,j,i);
-      Real &uu2  = prim(IVY,k,j,i);
-      Real &uu3  = prim(IVZ,k,j,i);
-      Real eps   = 0.0;
-      Real W = 1.0;
-      Real dummy = 0.0;
+      Real &w_p   = prim(IPR,k,j,i);
+      Real &uu1   = prim(IVX,k,j,i);
+      Real &uu2   = prim(IVY,k,j,i);
+      Real &uu3   = prim(IVZ,k,j,i);
+      Real eps    = 0.0;
+      Real W      = 1.0;
+      Real dummy  = 0.0;
 
       // cons->prim requires atmosphere reset
       phydro->q_reset_mask(k,j,i) = (
@@ -408,7 +398,7 @@ void EquationOfState::ConservedToPrimitive(
         uu3 = 0.0;
 
         // PTCS: disabled
-        PrimitiveToConservedSingle(prim, gamma_adi, gamma_dd,
+        PrimitiveToConservedSingle(pmb, prim, gamma_adi, gamma_dd,
                                    k, j, i, cons, pco);
 
         /*
@@ -452,8 +442,7 @@ void EquationOfState::PrimitiveToConserved(
   Coordinates *pco,
   int il, int iu,
   int jl, int ju,
-  int kl, int ku
-)
+  int kl, int ku)
 {
   // Make this more readable
   MeshBlock* pmb = pmy_block_;
@@ -488,9 +477,6 @@ void EquationOfState::PrimitiveToConserved(
 
   KL = std::max(kl, KL);
   KU = std::min(ku, KU);
-  // IU--;
-  // JU--;
-  // KU--;
 
   for (int k=KL; k<=KU; ++k)
   for (int j=JL; j<=JU; ++j)
@@ -498,164 +484,10 @@ void EquationOfState::PrimitiveToConserved(
     pco_gr->GetGeometricFieldCC(gamma_dd, sl_g_dd, k, j);
     for (int i=IL; i<=IU; ++i)
     {
-      PrimitiveToConservedSingle(prim, gamma_adi, gamma_dd,
+      PrimitiveToConservedSingle(pmb, prim, gamma_adi, gamma_dd,
                                  k, j, i, cons, pco);
     }
   }
-}
-
-
-namespace {
-//----------------------------------------------------------------------------------------
-// Function for converting primitives to conserved variables in a single cell
-// Inputs:
-//   prim: 3D array of primitives
-//   gamma_adi: ratio of specific heats
-//   g,gi: 1D arrays of metric covariant and contravariant coefficients
-//   k,j,i: indices of cell
-//   pco: pointer to Coordinates
-// Outputs:
-//   cons: conserved variables set in desired cell
-
-inline static void PrimitiveToConservedSingle(
-  AthenaArray<Real> &prim, Real gamma_adi,
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd,
-  int k, int j, int i,
-  AthenaArray<Real> &cons, Coordinates *pco)
-{
-  using namespace LinearAlgebra;
-
-  AthenaArray<Real> utilde_u;  // primitive gamma^i_a u^a
-  AthenaArray<Real> utilde_d;
-
-  utilde_u.NewAthenaArray(3);
-  utilde_d.NewAthenaArray(3);
-
-  // Apply floor to primitive variables. This should be
-  // identical to what RePrimAnd does.
-
-  if ((prim(IDN,k,j,i) < atmo_cut) ||
-      (prim(IPR,k,j,i) < atmo_cut_p))
-  // if (prim(IDN,k,j,i) < atmo_cut)
-  {
-    prim(IDN,k,j,i) = atmo_rho;
-    prim(IVX,k,j,i) = 0.0;
-    prim(IVY,k,j,i) = 0.0;
-    prim(IVZ,k,j,i) = 0.0;
-    prim(IPR,k,j,i) = atmo_p;
-  }
-
-  const Real &w_rho = prim(IDN,k,j,i);
-  const Real &w_p   = prim(IPR,k,j,i);
-
-  for(int a=0;a<NDIM;++a)
-  {
-    utilde_u(a) = prim(a+IVX,k,j,i);
-  }
-
-  // robust calc. of sqrt det
-  const Real detgamma = Det3Metric(gamma_dd, i);
-  const Real sqrt_detgamma = (
-    detgamma > 0
-  ) ? std::sqrt(detgamma) : 1.;
-
-  // robust calc. of Lorentz factor
-  Real util_norm2 = 0;
-  for(int a=0;a<NDIM;++a)
-  for(int b=0;b<NDIM;++b)
-  {
-    util_norm2 += utilde_u(a)*utilde_u(b)*gamma_dd(a,b,i);
-  }
-
-  const Real W = (util_norm2 > -1.) ? std::sqrt(1.0 + util_norm2) : 1.;
-
-  utilde_d.ZeroClear();
-
-  for(int a=0;a<NDIM;++a)
-  for(int b=0;b<NDIM;++b)
-  {
-    utilde_d(a) += utilde_u(b)*gamma_dd(a,b,i);
-  }
-
-  // Extract conserved quantities
-  const Real w_hrho = w_rho + gamma_adi/(gamma_adi-1.0) * w_p;
-
-  // Ddg, taudg, S_1dg, S_2dg, S_3dg
-  cons(IDN,k,j,i) = sqrt_detgamma * w_rho * W;
-  cons(IEN,k,j,i) = sqrt_detgamma * (w_hrho * SQR(W) - w_rho*W - w_p);
-  cons(IM1,k,j,i) = sqrt_detgamma * w_hrho * W * utilde_d(0);
-  cons(IM2,k,j,i) = sqrt_detgamma * w_hrho * W * utilde_d(1);
-  cons(IM3,k,j,i) = sqrt_detgamma * w_hrho * W * utilde_d(2);
-
-  utilde_u.DeleteAthenaArray();
-  utilde_d.DeleteAthenaArray();
-}
-
-}
-//----------------------------------------------------------------------------------------
-// Function for calculating relativistic sound speeds
-// Inputs:
-//   rho_h: enthalpy per unit volume
-//   pgas: gas pressure
-//   vx: 3-velocity component v^x
-//   gamma_lorentz_sq: Lorentz factor \gamma^2
-// Outputs:
-//   plambda_plus: value set to most positive wavespeed
-//   plambda_minus: value set to most negative wavespeed
-// Notes:
-//   same function as in adiabatic_hydro_sr.cpp
-//     uses SR formula (should be called in locally flat coordinates)
-//   references Mignone & Bodo 2005, MNRAS 364 126 (MB)
-
-void EquationOfState::SoundSpeedsSR(Real rho_h, Real pgas, Real vx, Real gamma_lorentz_sq,
-    Real *plambda_plus, Real *plambda_minus) {
-  const Real gamma_adi = gamma_;
-  Real cs_sq = gamma_adi * pgas / rho_h;                                 // (MB 4)
-  Real sigma_s = cs_sq / (gamma_lorentz_sq * (1.0-cs_sq));
-  Real relative_speed = std::sqrt(sigma_s * (1.0 + sigma_s - SQR(vx)));
-  *plambda_plus = 1.0/(1.0+sigma_s) * (vx + relative_speed);             // (MB 23)
-  *plambda_minus = 1.0/(1.0+sigma_s) * (vx - relative_speed);            // (MB 23)
-  return;
-}
-
-
-void EquationOfState::SoundSpeedsGR(
-  Real rho_h, Real pgas,
-  Real vi, Real v2, Real alpha,
-  Real betai, Real gammaii,
-  Real *plambda_plus, Real *plambda_minus)
-{
-
-  // Calculate comoving sound speed
-  const Real cs_sq = gamma_adi * pgas / rho_h;
-  const Real cs = std::sqrt(cs_sq);
-
-  const Real fac_sqrt = cs * std::sqrt(
-    (1.0-v2)*(gammaii*(1.0-v2*cs_sq)-vi*vi*(1.0-cs_sq))
-  );
-
-  const Real fac_alpha = alpha / (1.0-v2*cs_sq);
-
-  Real root_1 = fac_alpha * (vi*(1.0-cs_sq) + fac_sqrt) - betai;
-  Real root_2 = fac_alpha * (vi*(1.0-cs_sq) - fac_sqrt) - betai;
-
-  // collapse correction
-  if (std::isnan(root_1) || std::isnan(root_2))
-  {
-    root_1 = 1.0;
-    root_2 = 1.0;
-  }
-
-  if (root_1 > root_2) {
-    *plambda_plus = root_1;
-    *plambda_minus = root_2;
-  }
-  else
-  {
-    *plambda_plus = root_2;
-    *plambda_minus = root_1;
-  }
-  return;
 }
 
 //---------------------------------------------------------------------------------------
@@ -666,12 +498,10 @@ void EquationOfState::SoundSpeedsGR(
 void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j, int i)
 {
 
-
   if(prim.GetDim4()==1)
   {
     if ((prim(IDN,i) < atmo_cut) ||
         (prim(IPR,i) < atmo_cut_p))
-    // if (prim(IDN,i) < atmo_cut)
     {
       prim(IDN,i) = atmo_rho;
       prim(IVX,i) = 0.0;
@@ -684,7 +514,6 @@ void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j
   {
     if ((prim(IDN,k,j,i) < atmo_cut) ||
         (prim(IPR,k,j,i) < atmo_cut_p))
-    // if (prim(IDN,k,j,i) < atmo_cut)
     {
       prim(IDN,k,j,i) = atmo_rho;
       prim(IVX,k,j,i) = 0.0;
@@ -739,4 +568,82 @@ bool EquationOfState::RequirePrimitiveFloor(
   }
 
   return rpf;
+}
+
+namespace {
+//----------------------------------------------------------------------------------------
+// Function for converting primitives to conserved variables in a single cell
+// Inputs:
+//   prim: 3D array of primitives
+//   gamma_adi: ratio of specific heats
+//   g,gi: 1D arrays of metric covariant and contravariant coefficients
+//   k,j,i: indices of cell
+//   pco: pointer to Coordinates
+// Outputs:
+//   cons: conserved variables set in desired cell
+
+inline static void PrimitiveToConservedSingle(
+  MeshBlock * pmb,
+  AthenaArray<Real> &prim, Real gamma_adi,
+  AT_N_sym const & adm_gamma_dd_,
+  int k, int j, int i,
+  AthenaArray<Real> &cons, Coordinates *pco)
+{
+  using namespace LinearAlgebra;
+
+  AthenaArray<Real> utilde_u;  // primitive gamma^i_a u^a
+  AthenaArray<Real> utilde_d;
+
+  utilde_u.NewAthenaArray(3);
+  utilde_d.NewAthenaArray(3);
+
+  // Apply floor to primitive variables as required.
+  pmb->peos->ApplyPrimitiveFloors(prim, k, j, i);
+
+  const Real &w_rho = prim(IDN,k,j,i);
+  const Real &w_p   = prim(IPR,k,j,i);
+
+  for(int a=0;a<NDIM;++a)
+  {
+    utilde_u(a) = prim(a+IVX,k,j,i);
+  }
+
+  // robust calc. of sqrt det
+  const Real detgamma = Det3Metric(adm_gamma_dd_, i);
+  const Real sqrt_detgamma = (
+    detgamma > 0
+  ) ? std::sqrt(detgamma) : 1.;
+
+  // robust calc. of Lorentz factor
+  Real util_norm2 = 0;
+  for(int a=0;a<NDIM;++a)
+  for(int b=0;b<NDIM;++b)
+  {
+    util_norm2 += utilde_u(a)*utilde_u(b)*adm_gamma_dd_(a,b,i);
+  }
+
+  const Real W = (util_norm2 > -1.) ? std::sqrt(1.0 + util_norm2) : 1.;
+
+  utilde_d.ZeroClear();
+
+  for(int a=0;a<NDIM;++a)
+  for(int b=0;b<NDIM;++b)
+  {
+    utilde_d(a) += utilde_u(b)*adm_gamma_dd_(a,b,i);
+  }
+
+  // Set conserved quantities
+  const Real w_hrho = w_rho + gamma_adi/(gamma_adi-1.0) * w_p;
+
+  // Ddg, taudg, S_1dg, S_2dg, S_3dg
+  cons(IDN,k,j,i) = sqrt_detgamma * w_rho * W;
+  cons(IEN,k,j,i) = sqrt_detgamma * (w_hrho * SQR(W) - w_rho*W - w_p);
+  cons(IM1,k,j,i) = sqrt_detgamma * w_hrho * W * utilde_d(0);
+  cons(IM2,k,j,i) = sqrt_detgamma * w_hrho * W * utilde_d(1);
+  cons(IM3,k,j,i) = sqrt_detgamma * w_hrho * W * utilde_d(2);
+
+  utilde_u.DeleteAthenaArray();
+  utilde_d.DeleteAthenaArray();
+}
+
 }

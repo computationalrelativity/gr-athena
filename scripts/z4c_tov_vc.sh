@@ -9,7 +9,7 @@ export FN=$(readlink -f "$0"); export DIR_SCRIPTS=$(dirname "${FN}")
 ###############################################################################
 # configure here
 export NINTERP=1
-export USE_HYBRIDINTERP=0
+export USE_HYBRIDINTERP=1
 
 export RUN_NAME=tov_vc_ninterp${NINTERP}
 if [ $USE_HYBRIDINTERP == 1 ]

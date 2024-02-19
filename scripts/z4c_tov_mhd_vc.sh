@@ -8,6 +8,9 @@ export FN=$(readlink -f "$0"); export DIR_SCRIPTS=$(dirname "${FN}")
 
 ###############################################################################
 # configure here
+export NINTERP=1
+export USE_HYBRIDINTERP=1
+
 export RUN_NAME=tov_mhd_vc
 export BIN_NAME=z4c
 export REL_OUTPUT=outputs/z4c_vc
@@ -32,7 +35,12 @@ export COMPILE_STR="--prob=gr_tov
                     --ncghost=4
                     --ncghost_cx=4
                     --nextrapolate=4
-                    --ninterp=2"
+                    --ninterp=${NINTERP}"
+
+if [ $USE_HYBRIDINTERP == 1 ]
+then
+  export COMPILE_STR="${COMPILE_STR} -hybridinterp"
+fi
 
 
 # apply caching compiler together with gold linker

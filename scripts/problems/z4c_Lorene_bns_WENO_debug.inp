@@ -92,6 +92,13 @@ update_strategy = 1       # 0: based on dt, 1: based on quad interp.
 
 # safety factor avoids taking too large step (multiple of local dx)
 update_max_step_factor = 10
+
+# number of iterations to perform for interp method
+iter_max = 250
+# abs. tol. for step update
+tol_ds = 1e-14
+# take ds / interp_ds_fac during interpolation / interp
+interp_ds_fac = 10
 # =============================================================================
 
 <time> # ======================================================================
@@ -100,15 +107,15 @@ tlim	       = 100
 integrator   = rk3   # time integration algorithm
 
 # spatial reconstruction - element of:
-# {1, 2, 2c, 3, 3c, 4, 4c, ceno3, mp3, mp5, mp7, weno5, weno5z}
+# {1, 2, 2c, 3, 3c, 4, 4c, ceno3, mp3, mp5, mp7, weno5, weno5z, weno5d_si}
 xorder       = weno5z
 
 ncycle_out   = 1      # interval for stdout summary info
 # =============================================================================
 
 <hydro> # =====================================================================
-gamma      = 2  # ratio of specific heats Gamma
-k_adi      = 123.63657447688378
+gamma      = 2                    # ratio of specific heats Gamma
+k_adi      = 123.63657447688378   # adiabat K, p_gas = K rho^Gamma
 c2p_acc    = 1e-12
 rho_strict = 1e-20
 # =============================================================================
@@ -150,13 +157,15 @@ nx3=16
 # =============================================================================
 
 <problem> # ===================================================================
+# filename = /mnt/lahblajska
+
 filename = /mnt/hyperion/_Data/GR-Athena++/bns_qc/initial_data/Lorene/Lorene_POLYTROPE/gamma2/Irrotation/EqualMass/equal_14vs14/G2_I14vs14_D4R33_45km/resu.d # Filename
 
 fix_gauge_precollapsed = 1
 
 # Atmosphere settings
-fatm = 0  # set atmosphere rho to rho = fatm
-fthr = 1e2  # set point to atmosphere if rho < fthr*fatm
+fatm = 1e-18  # set atmosphere rho to rho = fatm
+fthr = 1  # set point to atmosphere if rho < fthr*fatm
 
 max_z = 10
 # =============================================================================

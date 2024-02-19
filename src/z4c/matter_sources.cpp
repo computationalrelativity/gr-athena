@@ -35,8 +35,10 @@ void Z4c::GetMatter(
   SetMatterAliases(u_mat, mat);
 
   ADM_vars adm;
-  // Z4c_vars z4c;
-  // SetZ4cAliases(storage.u, z4c);
+  Z4c_vars z4c;
+
+  SetZ4cAliases(storage.u,   z4c);
+  SetADMAliases(storage.adm, adm);
 
   // set up some parameters ---------------------------------------------------
 #if USETM
@@ -66,17 +68,6 @@ void Z4c::GetMatter(
 
   // AT_N_sca alpha( pz4c->storage.u, Z4c::I_Z4c_alpha);
   // AT_N_vec beta_u(pz4c->storage.u, Z4c::I_Z4c_betax);
-
-  if(opt.fix_admsource==0)
-  {
-    SetADMAliases(u_adm,adm);
-  }
-  else if (opt.fix_admsource==1)
-  {
-    SetADMAliases(u_adm,adm);
-    // BD: TODO 
-    //SetADMAliases(storage.adm_init,adm);
-  }
 
   if(opt.Tmunuinterp==0)
   {
@@ -147,14 +138,14 @@ void Z4c::GetMatter(
         bb_u(2,i) = bb(2,i)*r_sqrt_detgamma_i;
 #endif
       }
-      // b0_u = 0.0;
+
 #if MAGNETIC_FIELDS_ENABLED
       b0_u.ZeroClear();
       for(int a=0;a<NDIM;++a)
       {
         ILOOP1(i)
         {
-          b0_u(i) += W(i)*bb_u(a,i)*v_d(a,i)/alpha(k,j,i);
+          b0_u(i) += W(i)*bb_u(a,i)*v_d(a,i)/z4c.alpha(k,j,i);
         }
       }
 
@@ -174,8 +165,8 @@ void Z4c::GetMatter(
       {
         ILOOP1(i)
         {
-          bi_u(a,i) = (bb_u(a,i)+alpha(k,j,i)*b0_u(i)*W(i)*(v_u(a,i)-
-                       z4c.beta_u(a,k,j,i)/alpha(k,j,i)))/W(i);
+          bi_u(a,i) = (bb_u(a,i)+z4c.alpha(k,j,i)*b0_u(i)*W(i)*(v_u(a,i)-
+                       z4c.beta_u(a,k,j,i)/z4c.alpha(k,j,i)))/W(i);
         }
       }
 
@@ -197,7 +188,7 @@ void Z4c::GetMatter(
 
       ILOOP1(i)
       {
-        bsq(i) = alpha(k,j,i)*alpha(k,j,i)*b0_u(i)*b0_u(i) / SQR(W(i));
+        bsq(i) = z4c.alpha(k,j,i)*z4c.alpha(k,j,i)*b0_u(i)*b0_u(i) / SQR(W(i));
       }
 
       for(int a=0;a<NDIM;++a)
@@ -220,11 +211,11 @@ void Z4c::GetMatter(
         Real const pb_sum = (w_p(i)+bsq(i)/2.0);
 
         mat.rho(k,j,i) = (wb_fac-pb_sum -
-                          alpha(k,j,i)*alpha(k,j,i)*b0_u(i)*b0_u(i));
+                          z4c.alpha(k,j,i)*z4c.alpha(k,j,i)*b0_u(i)*b0_u(i));
 
-        mat.S_d(0,k,j,i) = wb_fac*v_d(0,i)-b0_u(i)*bi_d(0,i)*alpha(k,j,i);
-        mat.S_d(1,k,j,i) = wb_fac*v_d(1,i)-b0_u(i)*bi_d(1,i)*alpha(k,j,i);
-        mat.S_d(2,k,j,i) = wb_fac*v_d(2,i)-b0_u(i)*bi_d(2,i)*alpha(k,j,i);
+        mat.S_d(0,k,j,i) = wb_fac*v_d(0,i)-b0_u(i)*bi_d(0,i)*z4c.alpha(k,j,i);
+        mat.S_d(1,k,j,i) = wb_fac*v_d(1,i)-b0_u(i)*bi_d(1,i)*z4c.alpha(k,j,i);
+        mat.S_d(2,k,j,i) = wb_fac*v_d(2,i)-b0_u(i)*bi_d(2,i)*z4c.alpha(k,j,i);
 
         mat.S_dd(0,0,k,j,i) = (wb_fac*v_d(0,i)*v_d(0,i) +
                                pb_sum*adm.g_dd(0,0,k,j,i)-bi_d(0,i)*bi_d(0,i));

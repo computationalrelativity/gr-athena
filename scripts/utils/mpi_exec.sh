@@ -21,9 +21,10 @@ cd ${DIR_OUTPUT}
 # --map-by ppr:Tasks_Per_Node:node:pe=thds
 # -x OMP_NUM_THREADS
 
-export TOTAL_TASKS=4
+export TOTAL_TASKS=12
 export TASKS_PER_NODE=4
-export OMP_NUM_THREADS=2
+export OMP_NUM_THREADS=1
+
 
 # mpirun -np Total_Tasks --bind-to core
 # --map-by ppr:Tasks_Per_Node:node:pe=thds
@@ -39,8 +40,81 @@ export OMP_NUM_THREADS=2
 mpirun \
   -np ${TOTAL_TASKS} \
   --bind-to none \
+  --oversubscribe \
   -x OMP_NUM_THREADS=${OMP_NUM_THREADS} \
   ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
+
+# # less aggressive
+# mpirun \
+#   -np ${TOTAL_TASKS} \
+#   --bind-to none \
+#   --oversubscribe \
+#   -x OMP_NUM_THREADS=${OMP_NUM_THREADS} \
+#   ./${EXEC_NAME}.x -r gr_Lor.00000.rst \
+#   mesh/num_threads=${OMP_NUM_THREADS} \
+#   time/cfl_number=0.25 \
+#   problem/fatm=1e-20 \
+#   problem/fthr=1 \
+#   hydro/c2p_acc=1e-12 \
+#   hydro/rho_strict=0 \
+#   z4c/diss=0.1 \
+#   z4c/shift_eta=0.3 \
+#   z4c/chi_div_floor=1e-12 \
+#   z4c/eps_floor=0 \
+#   z4c/shift_Gamma=0.75 \
+#   z4c/shift_advect=1.0 \
+#   z4c/damp_kappa1=0.02 \
+#   z4c/damp_kappa2=0.0 \
+#   z4c/r_max_con=30 \
+#   problem/max_z=100 \
+#   time/xorder=weno5z \
+#   time/integrator=rk3 \
+#   time/tlim=15 \
+#   psi4_extraction/filename=wav \
+#   psi4_extraction/num_radii=0 \
+#   task_triggers/dt_psi4_extraction=0.5 \
+#   trackers_extrema/tol_ds=1e-13 \
+#   trackers_extrema/iter_max=25 \
+#   trackers_extrema/interp_ds_fac=10
+
+# # aggressive
+# mpirun \
+#   -np ${TOTAL_TASKS} \
+#   --bind-to none \
+#   --oversubscribe \
+#   -x OMP_NUM_THREADS=${OMP_NUM_THREADS} \
+#   ./${EXEC_NAME}.x -r gr_Lor.00000.rst \
+#   mesh/num_threads=${OMP_NUM_THREADS} \
+#   time/cfl_number=0.25 \
+#   problem/fatm=1e-18 \
+#   problem/fthr=1e2 \
+#   hydro/c2p_acc=1e-12 \
+#   hydro/rho_strict=0 \
+#   z4c/diss=0.02 \
+#   z4c/shift_eta=0.3 \
+#   z4c/shift_Gamma=0.75 \
+#   z4c/shift_advect=1.0 \
+#   z4c/r_max_con=30 \
+#   problem/max_z=100 \
+#   time/xorder=weno5d_si \
+#   time/integrator=ssprk5_4 \
+#   psi4_extraction/filename=wav \
+#   psi4_extraction/num_radii=0 \
+#   task_triggers/dt_psi4_extraction=0.5
+  # \
+  # trackers_extrema/ref_level_1=1 \
+  # trackers_extrema/ref_level_2=1 \
+  # trackers_extrema/ref_zone_radius_1=10 \
+  # trackers_extrema/ref_zone_radius_2=10 \
+  # mesh/refinement=adaptive
+
+
+#  time/integrator=ssprk5_4 \
+
+#  time/xorder=3
+
+#   time/xorder_style=weno5z \
+
 
 # valgrind
 # export DIR_VG=$(spack location -i valgrind)

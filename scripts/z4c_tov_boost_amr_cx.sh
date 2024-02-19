@@ -40,7 +40,10 @@ export COMPILE_STR="--prob=gr_tov
                     --ncghost=4
                     --ncghost_cx=4
                     --nextrapolate=5
+                    -DBG_MA_SOURCES
                     --ninterp=${NINTERP}"
+
+
 
 if [ $USE_HYBRIDINTERP == 1 ]
 then

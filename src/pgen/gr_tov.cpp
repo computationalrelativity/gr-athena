@@ -1469,23 +1469,12 @@ void TOV_populate(MeshBlock *pmb,
 
 #if MAGNETIC_FIELDS_ENABLED
   // Prepare CC index bounds (BD: TODO why not just use [0, ncellsN] ?)
-  int ilcc = is - NGHOST;
-  int iucc = ie + NGHOST;
-  int jlcc = js;
-  int jucc = je;
-  if (block_size.nx2 > 1)
-  {
-    jlcc -= NGHOST;
-    jucc += NGHOST;
-  }
 
-  int klcc = ks;
-  int kucc = ke;
-  if (block_size.nx3 > 1)
-  {
-    klcc -= NGHOST;
-    kucc += NGHOST;
-  }
+  Field * pfield = pmb->pfield;
+
+  int ilcc = 0, iucc = pmb->ncells1-1;
+  int jlcc = 0, jucc = pmb->ncells1-1;
+  int klcc = 0, kucc = pmb->ncells1-1;
 
   // Initialize magnetic field
   // No metric weighting here
@@ -1495,9 +1484,9 @@ void TOV_populate(MeshBlock *pmb,
   Real amp = pin->GetOrAddReal("problem","b_amp", 0.0);
   int magindex=pin->GetInteger("problem","magindex");
 
-  int nx1 = (ie-is)+1 + 2*(NGHOST);
-  int nx2 = (je-js)+1 + 2*(NGHOST);
-  int nx3 = (ke-ks)+1 + 2*(NGHOST);
+  int nx1 = (pmb->ie-pmb->is)+1 + 2*(NGHOST);
+  int nx2 = (pmb->je-pmb->js)+1 + 2*(NGHOST);
+  int nx3 = (pmb->ke-pmb->ks)+1 + 2*(NGHOST);
 
   pfield->b.x1f.ZeroClear();
   pfield->b.x2f.ZeroClear();
@@ -1515,53 +1504,52 @@ void TOV_populate(MeshBlock *pmb,
   bzcc.NewAthenaArray(nx3,nx2,nx1);
 
   // Initialize construct cell centred potential
-  for (int k=klcc; k<=kucc; k++) {
-    for (int j=jlcc; j<=jucc; j++) {
-      for (int i=ilcc; i<=iucc; i++) {
-
-	ax(k,j,i) = -pcoord->x2v(j)*amp*std::max(phydro->w(IPR,k,j,i) - pcut,0.0)*pow((1.0 - phydro->w(IDN,k,j,i)/rhomax),magindex);
-	ay(k,j,i) = pcoord->x1v(i)*amp*std::max(phydro->w(IPR,k,j,i) - pcut,0.0)*pow((1.0 - phydro->w(IDN,k,j,i)/rhomax),magindex);
-	
-      }
-    }
+  for (int k=klcc; k<=kucc; k++)
+  for (int j=jlcc; j<=jucc; j++)
+  for (int i=ilcc; i<=iucc; i++)
+  {
+    ax(k,j,i) = -pcoord->x2v(j)*amp*std::max(phydro->w(IPR,k,j,i)-pcut,0.0) *
+                 std::pow((1.0 - phydro->w(IDN,k,j,i)/rhomax),magindex);
+    ay(k,j,i) = pcoord->x1v(i)*amp*std::max(phydro->w(IPR,k,j,i)-pcut,0.0) *
+                std::pow((1.0 - phydro->w(IDN,k,j,i)/rhomax),magindex);
   }
+
   // Construct cell centred B field from cell centred potential
   //TODO should use pfield->bcc storage here.
-  for(int k = klcc+1; k<=kucc-1; k++){
-    for(int j = jlcc+1; j<=jucc-1; j++){
-      for(int i = ilcc+1; i<=iucc-1; i++){
-	
-	bxcc(k,j,i) = - ((ay(k+1,j,i) - ay(k-1,j,i))/(2.0*pcoord->dx3v(k)));
-	bycc(k,j,i) =  ((ax(k+1,j,i) - ax(k-1,j,i))/(2.0*pcoord->dx3v(k)));
-	bzcc(k,j,i) = ( (ay(k,j,i+1) - ay(k,j,i-1))/(2.0*pcoord->dx1v(i))
-			- (ax(k,j+1,i) - ax(k,j-1,i))/(2.0*pcoord->dx2v(j)));
-      }
-    }
-  } 
+  for(int k = klcc+1; k<=kucc-1; k++)
+  for(int j = jlcc+1; j<=jucc-1; j++)
+  for(int i = ilcc+1; i<=iucc-1; i++)
+  {
+    bxcc(k,j,i) = - ((ay(k+1,j,i) - ay(k-1,j,i))/(2.0*pcoord->dx3v(k)));
+    bycc(k,j,i) =  ((ax(k+1,j,i) - ax(k-1,j,i))/(2.0*pcoord->dx3v(k)));
+    bzcc(k,j,i) = ( (ay(k,j,i+1) - ay(k,j,i-1))/(2.0*pcoord->dx1v(i))
+        - (ax(k,j+1,i) - ax(k,j-1,i))/(2.0*pcoord->dx2v(j)));
+  }
+
   // Initialise face centred field by averaging cc field
-  for(int k = klcc+1; k<=kucc-1; k++){
-    for(int j = jlcc+1; j<=jucc-1; j++){
-      for(int i = ilcc+2; i<=iucc-1; i++){
-	pfield->b.x1f(k,j,i) = 0.5*(bxcc(k,j,i-1) + bxcc(k,j,i));
-      }
-    }
+  for(int k = klcc+1; k<=kucc-1; k++)
+  for(int j = jlcc+1; j<=jucc-1; j++)
+  for(int i = ilcc+2; i<=iucc-1; i++)
+  {
+  	pfield->b.x1f(k,j,i) = 0.5*(bxcc(k,j,i-1) + bxcc(k,j,i));
   }
-  for(int k = klcc+1; k<=kucc-1; k++){
-    for(int j = jlcc+2; j<=jucc-1; j++){
-      for(int i = ilcc+1; i<=iucc-1; i++){
-	pfield->b.x2f(k,j,i) = 0.5*(bycc(k,j-1,i) + bycc(k,j,i));
-      }
-    }
+
+  for(int k = klcc+1; k<=kucc-1; k++)
+  for(int j = jlcc+2; j<=jucc-1; j++)
+  for(int i = ilcc+1; i<=iucc-1; i++)
+  {
+  	pfield->b.x2f(k,j,i) = 0.5*(bycc(k,j-1,i) + bycc(k,j,i));
   }
-  for(int k = klcc+2; k<=kucc-1; k++){
-    for(int j = jlcc+1; j<=jucc-1; j++){
-      for(int i = ilcc+1; i<=iucc-1; i++){
-	pfield->b.x3f(k,j,i) = 0.5*(bzcc(k-1,j,i) + bzcc(k,j,i));
-      }
-    }
+
+  for(int k = klcc+2; k<=kucc-1; k++)
+  for(int j = jlcc+1; j<=jucc-1; j++)
+  for(int i = ilcc+1; i<=iucc-1; i++)
+  {
+	  pfield->b.x3f(k,j,i) = 0.5*(bzcc(k-1,j,i) + bzcc(k,j,i));
   }
-  
-  pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord, ilcc,iucc,jlcc,jucc,klcc,kucc);
+
+  pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord,
+                                     ilcc,iucc,jlcc,jucc,klcc,kucc);
 
 #endif
 

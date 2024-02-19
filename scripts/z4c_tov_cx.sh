@@ -8,14 +8,19 @@ export FN=$(readlink -f "$0"); export DIR_SCRIPTS=$(dirname "${FN}")
 
 ###############################################################################
 # configure here
-export NINTERP=2
-export USE_HYBRIDINTERP=0
+export NINTERP=1
+export USE_DIRECT=0
+export TAG="64"
 
-export RUN_NAME=MA_tov_cx_ninterp${NINTERP}.hlletaudyn
+export RIEMANN_SOLVER=llftaudyn
+# export RIEMANN_SOLVER=hlletaudyn
+# export RIEMANN_SOLVER=marquinataudyn
 
-if [ $USE_HYBRIDINTERP == 1 ]
+if [ $USE_DIRECT == 1 ]
 then
-  export RUN_NAME=${RUN_NAME}_hybridinterp
+  export RUN_NAME=gra_tov_cx_ninterp${NINTERP}_dir_${TAG}
+else
+  export RUN_NAME=gra_tov_cx_ninterp${NINTERP}_${RIEMANN_SOLVER}_${TAG}
 fi
 
 export BIN_NAME=z4c
@@ -34,22 +39,16 @@ export DIR_GCC=$(spack location -i gcc)
 export COMPILE_STR="--prob=gr_tov
                     --coord=gr_dynamical
                     --eos=adiabatictaudyn_rep
-                    --flux=hlletaudyn
+                    --flux=${RIEMANN_SOLVER}
                     -z -g -f -z_cx
                     --cxx g++ -omp
                     --nghost=4
                     --ncghost=4
                     --ncghost_cx=4
                     --nextrapolate=4
+                    -hybridinterp
+                    -DBG_MA_SOURCES
                     --ninterp=${NINTERP}"
-
-#                   --flux=llftaudyn
-
-
-if [ $USE_HYBRIDINTERP == 1 ]
-then
-  export COMPILE_STR="${COMPILE_STR} -hybridinterp"
-fi
 
 # apply caching compiler together with gold linker
 # export COMPILE_STR="${COMPILE_STR} -ccache -link_gold"

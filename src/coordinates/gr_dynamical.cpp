@@ -836,48 +836,11 @@ void GRDynamical::AddCoordTermsDivergence(
     GetGeometricFieldCC(alpha,    z4c_alpha,    k, j);
     GetGeometricFieldCC(beta_u,   z4c_beta_u,   k, j);
 
-    if (0)
-    {
-      std::cout << "---------------------------" << std::endl;
-      gamma_dd.array().print_all("%1.4e");
-      std::cout << "---------------------------" << std::endl;
-      K_dd.array().print_all("%1.4e");
-      std::cout << "---------------------------" << std::endl;
-      alpha.array().print_all("%1.4e");
-      std::cout << "---------------------------" << std::endl;
-      beta_u.array().print_all("%1.4e");
-      std::cout << "---------------------------" << std::endl;
-      alpha.array().print_all("%1.4e");
-      z4c_alpha.array().print_all("%1.4e");
-
-      while(true)
-      {
-        std::exit(0);
-      }
-    }
-
     for(a=0; a<NDIM; ++a)
     {
       GetGeometricFieldDerCC(dgamma_ddd, adm_gamma_dd, a, k, j);
       GetGeometricFieldDerCC(dalpha_d,   z4c_alpha,    a, k, j);
       GetGeometricFieldDerCC(dbeta_du,   z4c_beta_u,   a, k, j);
-    }
-
-
-    if (0)
-    {
-      std::cout << "---------------------------" << std::endl;
-      dgamma_ddd.array().print_all("%1.4e");
-      std::cout << "---------------------------" << std::endl;
-      dalpha_d.array().print_all("%1.4e");
-      std::cout << "---------------------------" << std::endl;
-      dbeta_du.array().print_all("%1.4e");
-      std::cout << "---------------------------" << std::endl;
-
-      while(true)
-      {
-        std::exit(0);
-      }
     }
 
   	CLOOP1(i)
@@ -1230,42 +1193,6 @@ void GRDynamical::AddCoordTermsDivergence(
     }
   } // j, k
 
-  // cleanup 1d buffers
-  pgas_init.DeleteAthenaArray();
-  rho_init.DeleteAthenaArray();
-  w_init.DeleteAthenaArray();
-  alpha.DeleteAthenaTensor();
-  detg.DeleteAthenaTensor();
-  Wlor.DeleteAthenaTensor();
-  wtot.DeleteAthenaTensor();
-  pgas.DeleteAthenaTensor();
-  rho.DeleteAthenaTensor();
-  Stau.DeleteAthenaTensor();
-  dalpha_d.DeleteAthenaTensor();
-  beta_u.DeleteAthenaTensor();
-  beta_d.DeleteAthenaTensor();
-  utilde_u.DeleteAthenaTensor();
-  v_u.DeleteAthenaTensor();
-  v_d.DeleteAthenaTensor();
-  SS_d.DeleteAthenaTensor();
-  dbeta_du.DeleteAthenaTensor();
-  gamma_dd.DeleteAthenaTensor();
-  gamma_uu.DeleteAthenaTensor();
-  dgamma_ddd.DeleteAthenaTensor();
-  K_dd.DeleteAthenaTensor();
-
-  b0_u.DeleteAthenaTensor();
-  bb_u.DeleteAthenaTensor();
-  bi_u.DeleteAthenaTensor();
-  bi_d.DeleteAthenaTensor();
-  bsq.DeleteAthenaTensor();
-  u0.DeleteAthenaTensor();
-  T00.DeleteAthenaTensor();
-  T0i_u.DeleteAthenaTensor();
-  T0i_d.DeleteAthenaTensor();
-  Tij_uu.DeleteAthenaTensor();
-
-  return;
 }
 
 //----------------------------------------------------------------------------------------

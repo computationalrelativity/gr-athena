@@ -8,11 +8,19 @@ export FN=$(readlink -f "$0"); export DIR_SCRIPTS=$(dirname "${FN}")
 
 ###############################################################################
 # configure here
+export NINTERP=1
+export USE_HYBRIDINTERP=1
+
 export RUN_NAME=tov_mhd_cx
 export BIN_NAME=z4c
 export REL_OUTPUT=outputs/z4c_cx
 export REL_INPUT=scripts/problems
 export INPUT_NAME=z4c_tov_mhd.inp
+
+if [ $USE_HYBRIDINTERP == 1 ]
+then
+  export RUN_NAME=${RUN_NAME}_hybridinterp
+fi
 
 # if compilation is chosen
 export DIR_HDF5=$(spack location -i hdf5)
@@ -32,7 +40,12 @@ export COMPILE_STR="--prob=gr_tov
                     --ncghost=4
                     --ncghost_cx=4
                     --nextrapolate=4
-                    --ninterp=2"
+                    --ninterp=${NINTERP}"
+
+if [ $USE_HYBRIDINTERP == 1 ]
+then
+  export COMPILE_STR="${COMPILE_STR} -hybridinterp"
+fi
 
 # apply caching compiler together with gold linker
 # export COMPILE_STR="${COMPILE_STR} -ccache -link_gold"

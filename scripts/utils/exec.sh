@@ -6,6 +6,9 @@
 # cd ${DIR_ATHENA}/${REL_OUTPUT}/${RUN_NAME}
 cd ${DIR_OUTPUT}
 
+# valgrind --leak-check=full -s --show-leak-kinds=all ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
+
+
 time ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}
 # gprof "./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME}" > analysis.txt
 
