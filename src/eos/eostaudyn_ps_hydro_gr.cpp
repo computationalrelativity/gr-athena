@@ -68,11 +68,12 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
 
   // Set up the EOS
   // If we're using a tabulated EOS, load the table.
-  #ifdef USE_COMPOSE_EOS
+  #if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
   std::string table = pin->GetString("hydro", "table");
   eos.SetCodeUnitSystem(&Primitive::GeometricSolar);
   eos.ReadTableFromFile(table);
   #endif
+
   #ifdef USE_IDEAL_GAS
   // Baryon mass
   Real mb = pin->GetOrAddReal("hydro", "bmass", 1.0);
@@ -97,6 +98,9 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   #ifdef USE_IDEAL_GAS
   gamma_ = pin->GetOrAddReal("hydro", "gamma", 2.0);
   eos.SetGamma(gamma_);
+  #elif defined(USE_HYBRID_EOS)
+  gamma_ = pin->GetOrAddReal("hydro", "gamma_th", 2.0);
+  eos.SetThermalGamma(gamma_);
   #else
   // If we're not using a gamma-law EOS, we should not ever reference gamma.
   // Make sure that's the case by setting it to NaN.

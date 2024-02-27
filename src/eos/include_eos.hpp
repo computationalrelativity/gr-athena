@@ -20,6 +20,12 @@
   #endif
   #define USE_COMPOSE_EOS
   #include "../z4c/primitive/eos_compose.hpp"
+#elif EOS_POLICY_CODE == 3
+  #ifndef HDF5OUTPUT
+    #error "HDF5 must be enabled to use HybridTable."
+  #endif
+  #define USE_HYBRID_EOS
+  #include "../z4c/primitive/hybrid_table.hpp"
 #else
   #error EOS_POLICY_CODE not recognized.
 #endif

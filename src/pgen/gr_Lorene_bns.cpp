@@ -29,7 +29,25 @@
 #include "../trackers/tracker_extrema.hpp"
 #endif // TRACKER_EXTREMA
 
+#ifdef USE_COMPOSE_EOS
+#define USE_LORENE_EOS
+#include "../utils/read_lorene.hpp"
+#endif
+
 int RefinementCondition(MeshBlock *pmb);
+#ifdef USE_LORENE_EOS
+double linear_interp(double *f, double *x, int n, double xv);
+int interp_locate(Real *x, int Nx, Real xval);
+#endif
+
+namespace {
+  // Global variables
+#ifdef USE_LORENE_EOS
+  std::string table_fname;
+  LoreneTable * Table = NULL;
+  std::string filename, filename_Y;
+#endif
+}
 
 //========================================================================================
 //! \fn void Mesh::InitUserMeshData(ParameterInput *pin)
@@ -39,6 +57,19 @@ int RefinementCondition(MeshBlock *pmb);
 //========================================================================================
 
 void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag) {
+
+#ifdef USE_LORENE_EOS
+  filename = pin->GetString("hydro", "lorene");
+  filename_Y = pin->GetString("hydro", "lorene_Y");
+  Table = new LoreneTable;
+  ReadLoreneTable(filename, Table);
+  ReadLoreneFractions(filename_Y, Table);
+  ConvertLoreneTable(Table);
+  #if USETM
+    Table->rho_atm = pin->GetReal("hydro", "dfloor");
+  #endif
+#endif
+
   if(adaptive==true)
     EnrollUserRefinementCondition(RefinementCondition);
   return;
@@ -273,30 +304,70 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
 
     I = 0;      // reset
 
+// Read atmosphere values from input, and get mb from EOS.
+#if USETM
+    Real rho_atm = pin->GetReal("hydro", "dfloor");
+    Real T_atm = pin->GetReal("hydro", "tfloor");
+    Real mb = peos->GetEOS().GetBaryonMass();
+#ifdef USE_COMPOSE_EOS
+    Real Y_atm = pin->GetReal("hydro", "y0_atmosphere");
+#endif
+#endif
+
     for (int k = kl; k <= ku; ++k)
     for (int j = jl; j <= ju; ++j)
     for (int i = il; i <= iu; ++i)
     {
 
-      const Real rho = bns->nbar[I] / rho_unit;
-      const Real eps = bns->ener_spec[I] / ener_unit;
+// If scalars are on we should initialise to zero
+      Real Y[NSCALARS];
+#if NSCALARS > 0
+      for (int r=0;r<NSCALARS;r++) {
+        pscalars->s(r,k,j,i) = 0.;
+        pscalars->r(r,k,j,i) = 0.;
+        Y[r] = 0.0;
+      }
+#endif
 
+      // temp vars for ID
+      Real rho = bns->nbar[I] / rho_unit;
+      rho = (rho > rho_atm ? rho : 0.0);
+      Real nb = rho/mb;
+      Real eps = bns->ener_spec[I] / ener_unit;
+      Real pgas = 0.0;
+      Real u_E_x = 0.0;
+      Real u_E_y = 0.0;
+      Real u_E_z = 0.0;
+      Real vsq = 0.0;
+      Real W = 1.0;
+
+#if USETM
+#ifdef USE_COMPOSE_EOS
+      Y[0] = (rho > rho_atm ? linear_interp(Table->Y[0], Table->data[tab_logrho], Table->size, log(rho)) : Y_atm);
+#endif
+      //pgas = peos->GetEOS().GetPressure(nb, T_atm, Y);
+      pgas = (rho > rho_atm ? peos->GetEOS().GetPressure(nb, T_atm, Y) : 0.0);
+#else
       // Real egas = rho * (1.0 + eps);  <-------- ?
       Real egas = rho * eps;
-      Real pgas = peos->PresFromRhoEg(rho, egas);
+      pgas = peos->PresFromRhoEg(rho, egas);
+#endif
 
       // Kludge to make the pressure work with the EOS framework.
-      if (!std::isfinite(pgas) && (egas == 0. || rho == 0.)) {
-        pgas = 0.;
-      }
+      // if (!std::isfinite(pgas) && (egas == 0. || rho == 0.)) {
+      //   pgas = 0.;
+      // }
 
       // TODO: BD - Can we just get CC data directly from the additional Lorene
       //            interpolator?
-      const Real u_E_x = bns->u_euler_x[I] / vel_unit;
-      const Real u_E_y = bns->u_euler_y[I] / vel_unit;
-      const Real u_E_z = bns->u_euler_z[I] / vel_unit;
 
-      const Real vsq = (
+      // PH: we set atmosphere defaults above, so else is omitted
+      if (rho > rho_atm) {
+      u_E_x = bns->u_euler_x[I] / vel_unit;
+      u_E_y = bns->u_euler_y[I] / vel_unit;
+      u_E_z = bns->u_euler_z[I] / vel_unit;
+
+      vsq = (
         2.0*(u_E_x * u_E_y * bns->g_xy[I] +
              u_E_x * u_E_z * bns->g_xz[I] +
              u_E_y * u_E_z * bns->g_yz[I]) +
@@ -305,7 +376,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
         u_E_z * u_E_z * bns->g_zz[I]
       );
 
-      const Real W = 1.0 / std::sqrt(1.0 - vsq);
+      W = 1.0 / std::sqrt(1.0 - vsq);
+      }
 
       // Copy all the variables over to Athena.
       phydro->w(IDN, k, j, i) = rho;
@@ -313,9 +385,19 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
       phydro->w(IVY, k, j, i) = W * u_E_y;
       phydro->w(IVZ, k, j, i) = W * u_E_z;
       phydro->w(IPR, k, j, i) = pgas;
+#if NSCALARS > 0
+      for (int r=0;r<NSCALARS;r++) {
+        pscalars->r(r,k,j,i) = Y[r];
+      }
+#endif
 
       // FIXME: There needs to be a more consistent way to do this.
+#if USETM
+      // peos->ApplyPrimitiveFloors(phydro->w, pscalars->r, k, j, i);
+      phydro->temperature(k,j,i) = T_atm;
+#else
       peos->ApplyPrimitiveFloors(phydro->w, k, j, i);
+#endif
       phydro->w1(IDN, k, j, i) = phydro->w(IDN, k, j, i);
       phydro->w1(IVX, k, j, i) = phydro->w(IVX, k, j, i);
       phydro->w1(IVY, k, j, i) = phydro->w(IVY, k, j, i);
@@ -351,18 +433,24 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin){
     pmr->pcoarsec->UpdateMetric();
   }
 
-  // We've only set up the primitive variables; go ahead and initialize
-  // the conserved variables.
+#if USETM
+  peos->PrimitiveToConserved(phydro->w, pscalars->r, pfield->bcc, phydro->u, pscalars->s, pcoord,
+                             il, iu, jl, ju, kl, ku);
+#else
   peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord,
                              il, iu, jl, ju, kl, ku);
+#endif
 
   // Check if the momentum and velocity are finite.
   // TODO: BD - this needs to be fixed properly
   // No magnetic field, pass dummy or fix with overload
   AthenaArray<Real> null_bb_cc;
 
+#if USETM
+  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pscalars->r, null_bb_cc);
+#else
   pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, null_bb_cc);
-
+#endif
 
   // --------------------------------------------------------------------------
 
@@ -445,3 +533,48 @@ int RefinementCondition(MeshBlock *pmb)
 #endif // TRACKER_EXTREMA
  return 0;
 }
+
+#ifdef USE_LORENE_EOS
+  //--------------------------------------------------------------------------------------
+  //! \fn double linear_interp(double *f, double *x, int n, double xv)
+  // \brief linearly interpolate f(x), compute f(xv)
+  double linear_interp(double *f, double *x, int n, double xv)
+  {
+    int i = interp_locate(x,n,xv);
+    if (i < 0)  i=1;
+    if (i == n) i=n-1;
+    int j;
+    if(xv < x[i]) j = i-1;
+    else j = i+1;
+    double xj = x[j]; double xi = x[i];
+    double fj = f[j]; double fi = f[i];
+    double m = (fj-fi)/(xj-xi);
+    double df = m*(xv-xj)+fj;
+    return df;
+  }
+
+  //-----------------------------------------------------------------------------------------
+  //! \fn int interp_locate(Real *x, int Nx, Real xval)
+  // \brief Bisection to find closest point in interpolating table
+  // 
+  int interp_locate(Real *x, int Nx, Real xval) {
+    int ju,jm,jl;
+    int ascnd;
+    jl=-1;
+    ju=Nx;
+    if (xval <= x[0]) {
+      return 0;
+    } else if (xval >= x[Nx-1]) {
+      return Nx-1;
+    }
+    ascnd = (x[Nx-1] >= x[0]);
+    while (ju-jl > 1) {
+      jm = (ju+jl) >> 1;
+      if (xval >= x[jm] == ascnd)
+  jl=jm;
+      else
+  ju=jm;
+    }
+    return jl;
+  }
+  #endif

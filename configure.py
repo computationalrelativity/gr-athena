@@ -123,7 +123,7 @@ parser.add_argument('--eos',
 # --eospolicy=[name] argument
 parser.add_argument('--eospolicy',
                     default='idealgas',
-                    choices=['idealgas', 'piecewise_polytrope', 'eos_compose'], 
+                    choices=['idealgas', 'piecewise_polytrope', 'eos_compose', 'hybrid_table'], 
                     help='select EOS policy for PrimitiveSolver framework')
 
 # --errorpolicy=[name] argument
@@ -568,6 +568,9 @@ elif args['eos'] == 'eostaudyn_ps':
     elif args['eospolicy'] == 'eos_compose':
         definitions['EOS_POLICY'] = 'EOSCompOSE'
         definitions['EOS_POLICY_CODE'] = '2'
+    elif args['eospolicy'] == 'hybrid_table':
+        definitions['EOS_POLICY'] = 'HybridTable'
+        definitions['EOS_POLICY_CODE'] = '3'
     else:
         definitions['EOS_POLICY'] = ''
     if args['errorpolicy'] == 'do_nothing':
