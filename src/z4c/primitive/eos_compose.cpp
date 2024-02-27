@@ -84,15 +84,21 @@ Real EOSCompOSE::s_min_Y[MAX_SPECIES] = {0};
 
 Real EOSCompOSE::TemperatureFromE(Real n, Real e, Real *Y) {
   assert (m_initialized);
-  //Real e_min = MinimumEnergy(n, Y);
-  return temperature_from_var(ECLOGE, log(e), n, Y[0]);
-  //return (e <= e_min) ? min_T : temperature_from_var(ECLOGE, log(e), n, Y[0]);
+  Real e_min = MinimumEnergy(n, Y);
+  Real e_max = MaximumEnergy(n, Y);
+//  return temperature_from_var(ECLOGE, log(e), n, Y[0]);
+  return (e <= e_min) ? min_T : (e >= e_max) ? max_T : 
+	   temperature_from_var(ECLOGE, log(e), n, Y[0]);
 }
 
 Real EOSCompOSE::TemperatureFromP(Real n, Real p, Real *Y) {
   assert (m_initialized);
   Real p_min = MinimumPressure(n, Y);
-  return (p <= p_min) ? min_T : temperature_from_var(ECLOGP, log(p), n, Y[0]);
+  Real p_max = MaximumPressure(n,Y);
+  
+  return (p <= p_min) ? min_T : (p >= p_max) ? max_T : 
+	       temperature_from_var(ECLOGP, log(p), n, Y[0]);
+	 	  
 }
 
 Real EOSCompOSE::Energy(Real n, Real T, Real *Y) {
@@ -409,18 +415,38 @@ Real EOSCompOSE::eval_at_nty(int vi, Real n, Real T, Real Yq) const {
 
 void EOSCompOSE::weight_idx_ln(Real *w0, Real *w1, int *in, Real log_n) const {
   *in = (log_n - m_log_nb[0])*m_id_log_nb;
+  // if outside table limits, linearly extrapolate
+  if(*in > m_nn-2){
+     *in = m_nn-2;
+  }else if(*in < 0 ) {
+      *in = 0;
+  }
+
   *w1 = (log_n - m_log_nb[*in])*m_id_log_nb;
   *w0 = 1.0 - (*w1);
 }
 
 void EOSCompOSE::weight_idx_yq(Real *w0, Real *w1, int *iy, Real yq) const {
   *iy = (yq - m_yq[0])*m_id_yq;
+  // if outside table limits, linearly extrapolate
+  if(*iy > m_ny-2){
+      *iy = m_ny-2;
+  }else if(*iy < 0 ) {
+      *iy = 0;
+  }
+
   *w1 = (yq - m_yq[*iy])*m_id_yq;
   *w0 = 1.0 - (*w1);
 }
 
 void EOSCompOSE::weight_idx_lt(Real *w0, Real *w1, int *it, Real log_t) const {
   *it = (log_t - m_log_t[0])*m_id_log_t;
+  // if outside table limits, linearly extrapolate
+  if(*it > m_nt-2){
+      *it = m_nt-2;
+  } else if(*it < 0 ) {
+      *it = 0;
+  }
   *w1 = (log_t - m_log_t[*it])*m_id_log_t;
   *w0 = 1.0 - (*w1);
 }
