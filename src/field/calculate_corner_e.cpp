@@ -307,13 +307,9 @@ void Field::ComputeCornerE_Z4c_3D(
     // E1=-(v X B)=VzBy-VyBz
     // E2=-(v X B)=VxBz-VzBx
     // E3=-(v X B)=VyBx-VxBy
-
-    for (int i = is-1; i <= ie+1; ++i)
-    {
-      pco_gr->GetGeometricFieldCC(gamma_dd_, adm_gamma_dd, k, j);
-      pco_gr->GetGeometricFieldCC(alpha_,    z4c_alpha,    k, j);
-      pco_gr->GetGeometricFieldCC(beta_u_,   z4c_beta_u,   k, j);
-    }
+    pco_gr->GetGeometricFieldCC(gamma_dd_, adm_gamma_dd, k, j);
+    pco_gr->GetGeometricFieldCC(alpha_,    z4c_alpha,    k, j);
+    pco_gr->GetGeometricFieldCC(beta_u_,   z4c_beta_u,   k, j);
 
     for(int a=0;a<NDIM;++a)
     {
