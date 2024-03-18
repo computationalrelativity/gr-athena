@@ -1,4 +1,10 @@
-TODO:
+# Collection of scripts for running & debugging
+
+These scripts are for demonstrating basic functionality, visualisation, and debugging.
+
+# TODO:
+
+- Clean up GR(M)HD task-lists - they are spaghetti.
 
 - Check AHF & fix
 
