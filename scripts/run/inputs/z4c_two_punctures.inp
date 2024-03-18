@@ -1,95 +1,157 @@
-<job>
+<comment> # ===================================================================
+# additional comments (such as e.g. compilation parameters go here)
+# ...
+# =============================================================================
 
-# Basename of output filenames.
-problem_id = z4c
-repository_info = code_development_a07324599c416c5612fa4d87ff7049ce612a0933
+<job> # =======================================================================
+problem_id = z4c_two_punctures
+# =============================================================================
 
-<z4c>
+<z4c> # =======================================================================
+lapse_harmonic  = 0.0
+lapse_harmonicf = 1.0
+lapse_oplog     = 2.0
+lapse_advect    = 1.0
+lapse_K         = 0.0
 
-# # 1+log (moving puncture) gauge
-# lapse_oplog = 2.0       # alpha_l
-# lapse_harmonicf = 1.0   # alpha_hf
-# lapse_harmonic = 0.0    # alpha_h
-# lapse_advect = 1.0      # alpha_adv
-# shift_Gamma = 1.0       # sigma_Gamma
-# shift_eta = 2.0         # sigma_eta
-# shift_alpha2Gamma = 0.0 # sigma_{alpha^2 Gamma}
-# shift_H = 0.0           # sigma_H
-# shift_advect = 1.0      # sigma_adv
-
-## harmonic gauge
-#lapse_oplog = 0.0       # alpha_l
-#lapse_harmonicf = 0.0   # alpha_hf
-#lapse_harmonic = 1.0    # alpha_h
-#lapse_advect = 1.0      # alpha_adv
-#shift_Gamma = 0.0       # sigma_Gamma
-#shift_alpha2Gamma = 1.0 # sigma_{alpha^2 Gamma}
-#shift_H = 1.0           # sigma_H
-#shift_eta = 0.0         # sigma_eta
-#shift_advect = 1.0      # sigma_adv
-
-# 1+log (moving puncture) gauge
-lapse_oplog = 2.0       # alpha_l
-lapse_harmonicf = 1.0   # alpha_hf
-lapse_harmonic = 0.0    # alpha_h
-lapse_advect = 1.0      # alpha_adv
-shift_Gamma = 1.0       # sigma_Gamma
-shift_eta = 0.0         # sigma_eta
-shift_alpha2Gamma = 0.0 # sigma_{alpha^2 Gamma}
-shift_H = 0.0           # sigma_H
-shift_advect = 1.0      # sigma_adv
-
+shift_Gamma       = 1.0  # T 2011: BNS takes 0.75
+shift_eta         = 2.0   # T 2011
+shift_alpha2Gamma = 0.0
+shift_H           = 0.0
+shift_advect      = 1.0
 
 # Kreiss-Oliger dissipation parameter.
-diss = 0.02
-chi_div_floor = 1e-5 # 1e-5
-eps_floor = 1e-11
+diss = 0.2
+# conformal factor flooring
+chi_div_floor = 1e-5
 
-# Constraint damping factor 1.
+# Constraint damping factors
 damp_kappa1 = 0.02
-# Constraint damping factor 2.
 damp_kappa2 = 0.0
 
-# Wave extraction
-nrad_wave_extraction = 1
-extraction_radius_0 = 10
-extraction_radius_1 = 90
-extraction_radius_2 = 100
-extraction_radius_3 = 110
-extraction_radius_4 = 120
-extraction_radius_5 = 130
-extraction_radius_6 = 140
-extraction_nlev = 30
-dt_wave_extraction = 0.56255
-lmax = 8
+# do not compute constraints outside this radius (relative to origin)
+r_max_con = 512
 
-# Puncture tracker
+# shift based tracker
 npunct = 2
 bh_0_x = 3.257
 bh_1_x = -3.257
 
-<cce>
+# =============================================================================
 
-dump_every_dt = 1 ## a multiple of the time step
-output_dir    = .
+<task_triggers>  # ============================================================
+# control frequency of task execution
 
-num_theta        = 41
-num_phi          = 82
-num_r_inshell    = 28
-num_l_modes      = 7
-num_radial_modes = 7
+# whatever values, if zero / missing these tasks are not triggered
+dt_psi4_extraction  = 0.1
+dt_assert_is_finite = 0.0
+# =============================================================================
 
-num_radii        = 3
-rin_0            = 18
-rout_0           = 22
-rin_1            = 47
-rout_1           = 53
-rin_2            = 94
-rout_2           = 106
+<psi4_extraction>  # ==========================================================
+# control psi4 extraction
 
+filename  = wav
 
-<problem>
+nlev = 30  # Controls # of points on spherical grid
+lmax = 8   # Extracted set: {l <= lmax && |m|<=l}
 
+# specify extraction radii
+num_radii = 11
+radius_0  = 50
+radius_1  = 60
+radius_2  = 70
+radius_3  = 80
+radius_4  = 90
+radius_5  = 100
+radius_6  = 110
+radius_7  = 120
+radius_8  = 130
+radius_9  = 140
+radius_10 = 150
+# =============================================================================
+
+<trackers_extrema>  # =========================================================
+# control trackers based on field extrema
+
+N_tracker = 2
+filename = tra.ext
+
+control_field = Z4c.alpha
+
+ini_1_x1          = -3.257 # initial offset
+ini_1_x2          = 0
+ini_1_x3          = 0
+minima_1          = true  # for update_strategy = 1
+ref_level_1       = 2
+ref_type_1        = 1     # 0: to the point, 1: sph. region
+ref_zone_radius_1 = 2.5
+
+ini_2_x1          = 3.257
+ini_2_x2          = 0.0
+ini_2_x3          = 0.0
+minima_2          = true
+ref_level_2       = 2
+ref_type_2        = 1
+ref_zone_radius_2 = 2.5
+
+update_strategy = 1       # 0: based on dt, 1: based on quad interp.
+
+# safety factor avoids taking too large step (multiple of local dx)
+update_max_step_factor = 10
+
+# max number of iterations to perform for interp method
+iter_max = 250
+# abs. tol. for step update
+tol_ds = 1e-12
+# take ds / interp_ds_fac during interpolation / interp
+interp_ds_fac = 10
+# =============================================================================
+
+<time> # ======================================================================
+cfl_number   = 0.2
+tlim	     = 100
+integrator   = rk4   # time integration algorithm
+
+ncycle_out   = 1      # interval for stdout summary info
+# =============================================================================
+
+<mesh> # ======================================================================
+# no. cell in dir, min/max x, inner/outer BC
+nx1    = 96
+x1min  = -64
+x1max  = 64
+ix1_bc = extrapolate_outflow
+ox1_bc = extrapolate_outflow
+
+nx2    = 96
+x2min  = -64
+x2max  = 64
+ix2_bc = extrapolate_outflow
+ox2_bc = extrapolate_outflow
+
+nx3    = 96
+x3min  = -64
+x3max  = 64
+ix3_bc = extrapolate_outflow
+ox3_bc = extrapolate_outflow
+
+refinement = static
+numlevel = 15
+#deref_count = 5
+
+num_threads = 4
+
+# impose bitant symmetry (use with ix3_bc=reflecting)
+# bitant = true
+# =============================================================================
+
+<meshblock> # =================================================================
+nx1=16
+nx2=16
+nx3=16
+# =============================================================================
+
+<problem> # ===================================================================
 verbose = True
 
 # x coordinate of the m+ puncture
@@ -126,11 +188,11 @@ center_offset3 = 0.0
 # User provides bare masses not target M_ADM
 give_bare_mass = True
 # No. coeff in the compactified radial dir.
-npoints_A = 30
+npoints_A = 36
 # No. coeff in the angular dir.
-npoints_B = 30
+npoints_B = 36
 # no. coeff in the phi dir.
-npoints_phi = 24
+npoints_phi = 26
 # Tolerance for Newton solver
 Newton_tol = 1e-10
 # Maximum number of Newton iterations
@@ -155,112 +217,101 @@ n_punct = 2
 
 # impose bitant symmetry on ID directly through spectral interp. massage
 impose_bitant_id = True
+# =============================================================================
 
-<ahf>
+<refinement1> # ===============================================================
+x1min           = -6.257
+x1max           = -0.257
+x2min           = -3
+x2max           = 3
+x3min           = -3
+x3max           = 3
+level           = 2
+# =============================================================================
 
-num_horizons     = 0
-verbose      = 1
+<refinement2> # ===============================================================
+x1min           = 0.257
+x1max           = 6.257
+x2min           = -3
+x2max           = 3
+x3min           = -3
+x3max           = 3
+level           = 2
+# =============================================================================
 
-# First horizon at puncture 0
-initial_radius_0 = 2.5
-center_x_0 = 3.257
-center_y_0 = 0.
-center_z_0 = 0.
-use_puncture_0 = 0 # This will override the pars above and initialize the horizon at the puncture
-start_time_0 = 0.1
-stop_time_0  = 500
-compute_every_iter_0 = 3
-
-# Second horizon at puncture 1
-initial_radius_1 = 2.5
-center_x_1 = -3.257
-center_y_1 = 0.
-center_z_1 = 0.
-use_puncture_1 = 1 # This will override the pars above and initialize the horizon at the puncture
-start_time_1 = 0.
-stop_time_1  = 500
-compute_every_iter_1 = 5
-
-# Third horizon at the center
-initial_radius_2 = 9.0
-center_x_2 = 0.
-center_y_2 = 0.
-center_z_2 = 0.
-start_time_2 = 0.
-stop_time_2  = 500
-compute_every_iter_2 = 2
-
+# dumped quantities ===========================================================
 <output1>
 file_type = rst
-dt = 5
+dt        = 100
 
 <output2>
-file_type = hdf5
-variable = con
-dt = 1.5
-data_format = %.16e
-ghost_zones = true
-# x3_slice = 0
+file_type   = hst
+dt          = 0.1
+data_format = %.18g
 
 <output3>
-file_type = hdf5
-variable = z4c
-dt = 1.5
-data_format = %.16e
+file_type   = hdf5
+variable    = con
 ghost_zones = true
-x3_slice = 0
+dt          = 0.5
+x3_slice    = 0
 
 <output4>
-file_type = hdf5
-variable = adm
-dt = 1.5
-data_format = %.16e
+file_type   = hdf5
+variable    = adm
 ghost_zones = true
-x3_slice = 0
+dt          = 0.5
+x3_slice    = 0.0
 
 <output5>
-file_type = hdf5
-variable = weyl
-dt = 1.5
-data_format = %.16e
+file_type   = hdf5
+variable    = z4c
 ghost_zones = true
+dt          = 0.5
+x3_slice    = 0.0
 
-<time>
-cfl_number = 0.5
-tlim = 0.5
-integrator = rk4
-ncycle_out = 1
-nlim = -1
+<output6>
+file_type   = hdf5
+variable    = con
+ghost_zones = true
+dt          = 0.5
+x2_slice    = 0
 
-<mesh>
+<output7>
+file_type   = hdf5
+variable    = adm
+ghost_zones = true
+dt          = 0.5
+x2_slice    = 0.0
 
-refinement = adaptive
-num_threads = 2
-numlevel = 3
-deref_count = 0
-# Number of zones in X1-direction
-nx1 = 64
-# Minimum value of X1
-x1min = -24
-# Maximum value of X1
-x1max = 24
-# Inner-X1 boundary flag
-ix1_bc = extrapolate_outflow
-# Outer-X1 boundary flag
-ox1_bc = extrapolate_outflow
-nx2 = 64
-x2min = -24
-x2max = 24
-ix2_bc = extrapolate_outflow
-ox2_bc = extrapolate_outflow
-nx3 = 64
-x3min = -24
-x3max = 24
-ix3_bc = extrapolate_outflow
-ox3_bc = extrapolate_outflow
+<output8>
+file_type   = hdf5
+variable    = z4c
+ghost_zones = true
+dt          = 0.5
+x2_slice    = 0.0
 
-<meshblock>
+<output9>
+file_type   = hdf5
+variable    = con
+ghost_zones = true
+dt          = 0.5
+x1_slice    = 0
 
-nx1 = 16
-nx2 = 16
-nx3 = 16
+<output10>
+file_type   = hdf5
+variable    = adm
+ghost_zones = true
+dt          = 0.5
+x1_slice    = 0.0
+
+<output11>
+file_type   = hdf5
+variable    = z4c
+ghost_zones = true
+dt          = 0.5
+x1_slice    = 0.0
+
+#
+# :D
+#

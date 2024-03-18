@@ -4,7 +4,7 @@
 # =============================================================================
 
 <job> # =======================================================================
-problem_id = gr_Lor
+problem_id = z4c_bns_Lorene
 # =============================================================================
 
 <z4c> # =======================================================================
@@ -144,7 +144,7 @@ refinement = none
 numlevel = 10
 #deref_count = 5
 
-num_threads = 1
+num_threads = 8
 
 # impose bitant symmetry (use with ix3_bc=reflecting)
 bitant = false
@@ -157,9 +157,7 @@ nx3=16
 # =============================================================================
 
 <problem> # ===================================================================
-# filename = /mnt/lahblajska
-
-filename = /mnt/hyperion/_Data/GR-Athena++/bns_qc/initial_data/Lorene/Lorene_POLYTROPE/gamma2/Irrotation/EqualMass/equal_14vs14/G2_I14vs14_D4R33_45km/resu.d # Filename
+filename = OVERWRITE_ME # can be done on cmd line..
 
 fix_gauge_precollapsed = 1
 

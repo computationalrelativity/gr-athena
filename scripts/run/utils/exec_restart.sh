@@ -15,8 +15,7 @@ then
     --show-leak-kinds=all    \
     --track-origins=yes      \
     --log-file=valgrind.log  \
-    ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME} \
-    $1
+    ./${EXEC_NAME}.x -r ${1} ${2}
   # valgrind --leak-check=full -s \
   #   ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME} -m 2
 
@@ -27,11 +26,10 @@ then
     -ex 'info b' \
     -ex 'set print pretty on' \
     -ex 'set output-radix 10' \
-    -ex=r --args ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME} \
-    ${1}
+    -ex=r --args ./${EXEC_NAME}.x -r ${1} ${2}
 
 else
-  time ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME} ${1}
+  time ./${EXEC_NAME}.x -r ${1} ${2}
 fi
 
 echo "Done >:D"

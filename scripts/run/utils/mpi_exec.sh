@@ -24,7 +24,8 @@ then
      --log-file=vg.log.%p \
      --suppressions=${dir_ompi}/share/openmpi/openmpi-valgrind.supp \
     ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME} \
-    mesh/num_threads=${OMP_NUM_THREADS}
+    mesh/num_threads=${OMP_NUM_THREADS} \
+    ${1}
 else
   mpirun \
     -np ${TOTAL_TASKS} \
@@ -32,7 +33,8 @@ else
     --oversubscribe \
     -x OMP_NUM_THREADS=${OMP_NUM_THREADS} \
     ./${EXEC_NAME}.x -i ${DIR_ATHENA}/${REL_INPUT}/${INPUT_NAME} \
-    mesh/num_threads=${OMP_NUM_THREADS}
+    mesh/num_threads=${OMP_NUM_THREADS} \
+    ${1}
 fi
 
 echo "Done >:D"
