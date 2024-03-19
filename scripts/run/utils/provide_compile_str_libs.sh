@@ -41,9 +41,9 @@ fi
 
 if [ $USE_CX == 1 ]
 then
-  export COMPILE_STR="${COMPILE_STR} -z_cx"
+  export COMPILE_STR="${COMPILE_STR} -${FIELD_VAR}_cx"
 else
-  export COMPILE_STR="${COMPILE_STR} -z_vc"
+  export COMPILE_STR="${COMPILE_STR} -${FIELD_VAR}_vc"
 fi
 
 # apply caching compiler together with gold linker

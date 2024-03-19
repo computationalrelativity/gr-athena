@@ -24,15 +24,17 @@ export RIEMANN_SOLVER=llftaudyn
 
 export BIN_NAME=z4c_tov
 export REL_INPUT=scripts/run/inputs
-export INPUT_NAME=z4c_tov.inp
-export RUN_NAME=gr_tov_${DIR_TAG}
+export INPUT_NAME=grhd/z4c_tov.inp
+export RUN_NAME=grhd_tov_${DIR_TAG}
 # pass to executable on cmdline
 export GRA_CMD=""
 
 # uncomment to use this restart segment
 # export USE_RESTART="00000"
 
-export REL_OUTPUT=outputs/z4c_
+export FIELD_VAR="z"
+
+export REL_OUTPUT=outputs/${FIELD_VAR}_
 if [ $USE_CX == 1 ]
 then
   export REL_OUTPUT="${REL_OUTPUT}cx"
@@ -44,7 +46,8 @@ export COMPILE_STR="--prob=gr_tov
                     --coord=gr_dynamical
                     --eos=adiabatictaudyn_rep
                     --flux=${RIEMANN_SOLVER}
-                    -z -g -f
+                    -${FIELD_VAR}
+                    -g -f
                     --cxx g++ -omp
                     --nghost=4
                     --ncghost=4

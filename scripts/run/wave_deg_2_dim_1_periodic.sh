@@ -10,29 +10,29 @@ export FN=$(readlink -f "$0"); export DIR_SCRIPTS=$(dirname "${FN}")
 # configure here
 
 # 0 - normal, 1 - valgrind, 2 - gdb, ...
-export RUN_MODE=1
+export RUN_MODE=0
 export USE_MPI=0
 
 export USE_CX=1
-export NINTERP=1
-export USE_HYBRIDINTERP=1
 export DIR_TAG="MPI${USE_MPI}_HYB${USE_HYBRIDINTERP}_NI${NINTERP}"
 
 export RIEMANN_SOLVER=llftaudyn
 # export RIEMANN_SOLVER=hlletaudyn
 # export RIEMANN_SOLVER=marquinataudyn
 
-export BIN_NAME=z4c_tov_mhd
+export BIN_NAME=wave_1d
 export REL_INPUT=scripts/run/inputs
-export INPUT_NAME=z4c_tov_mhd.inp
-export RUN_NAME=gr_tov_mhd_${DIR_TAG}
+export INPUT_NAME=wave/wave_deg_2_dim_1_periodic.inp
+export RUN_NAME=wave_deg_2_dim_1_${DIR_TAG}
 # pass to executable on cmdline
 export GRA_CMD=""
 
 # uncomment to use this restart segment
 # export USE_RESTART="00000"
 
-export REL_OUTPUT=outputs/z4c_
+export FIELD_VAR="w"
+
+export REL_OUTPUT=outputs/${FIELD_VAR}_
 if [ $USE_CX == 1 ]
 then
   export REL_OUTPUT="${REL_OUTPUT}cx"
@@ -40,21 +40,16 @@ else
   export REL_OUTPUT="${REL_OUTPUT}vc"
 fi
 
-export COMPILE_STR="--prob=gr_tov
-                    --coord=gr_dynamical
-                    --eos=adiabatictaudyn_rep
-                    --flux=${RIEMANN_SOLVER}
-                    -z -g -f -b
+export COMPILE_STR="--prob=wave_1d_cvg_trig
+                    -${FIELD_VAR}
                     --cxx g++ -omp
                     --nghost=4
                     --ncghost=4
                     --ncghost_cx=4
-                    --nextrapolate=4
-                    --ninterp=${NINTERP}"
+                    --nextrapolate=4"
 
 # complete COMPILE_STR specification
-export USE_REPRIMAND=1
-export USE_BOOST=1
+#export USE_...=0
 
 source ${DIR_SCRIPTS}/utils/provide_compile_str_libs.sh
 ###############################################################################

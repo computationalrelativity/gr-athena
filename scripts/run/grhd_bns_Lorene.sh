@@ -13,7 +13,7 @@ export FN=$(readlink -f "$0"); export DIR_SCRIPTS=$(dirname "${FN}")
 export RUN_MODE=0
 export USE_MPI=0
 
-export USE_CX=1
+export USE_CX=0
 export NINTERP=1
 export USE_HYBRIDINTERP=1
 export DIR_TAG="MPI${USE_MPI}_HYB${USE_HYBRIDINTERP}_NI${NINTERP}"
@@ -22,17 +22,18 @@ export RIEMANN_SOLVER=llftaudyn
 # export RIEMANN_SOLVER=hlletaudyn
 # export RIEMANN_SOLVER=marquinataudyn
 
-export BIN_NAME=z4c_two_punctures
+export BIN_NAME=z4c_bns_Lorene
 export REL_INPUT=scripts/run/inputs
-export INPUT_NAME=z4c_two_punctures.inp
-export RUN_NAME=gr_z4c_two_punctures_${DIR_TAG}
-# pass to executable on cmdline
-export GRA_CMD=""
+export INPUT_NAME=grhd/z4c_bns_Lorene.inp
+export RUN_NAME=grhd_bns_Lorene_${DIR_TAG}
+export GRA_CMD="problem/filename=${NR_DATA}/GR-Athena++/bns_qc/initial_data/Lorene/Lorene_POLYTROPE/gamma2/Irrotation/EqualMass/equal_14vs14/G2_I14vs14_D4R33_45km/resu.d"
 
 # uncomment to use this restart segment
 # export USE_RESTART="00000"
 
-export REL_OUTPUT=outputs/z4c_
+export FIELD_VAR="z"
+
+export REL_OUTPUT=outputs/${FIELD_VAR}_
 if [ $USE_CX == 1 ]
 then
   export REL_OUTPUT="${REL_OUTPUT}cx"
@@ -40,8 +41,12 @@ else
   export REL_OUTPUT="${REL_OUTPUT}vc"
 fi
 
-export COMPILE_STR="--prob=z4c_two_punctures
-                    -z
+export COMPILE_STR="--prob=gr_Lorene_bns
+                    --coord=gr_dynamical
+                    --eos=adiabatictaudyn_rep
+                    --flux=${RIEMANN_SOLVER}
+                    -${FIELD_VAR}
+                    -g -f
                     --cxx g++ -omp
                     --nghost=4
                     --ncghost=4
@@ -50,7 +55,10 @@ export COMPILE_STR="--prob=z4c_two_punctures
                     --ninterp=${NINTERP}"
 
 # complete COMPILE_STR specification
-export USE_TWOPUNCTURESC=1
+export USE_REPRIMAND=1
+export USE_BOOST=1
+export USE_FFTW=1
+export USE_LORENE=1
 
 source ${DIR_SCRIPTS}/utils/provide_compile_str_libs.sh
 ###############################################################################
