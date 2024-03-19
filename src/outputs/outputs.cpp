@@ -96,6 +96,7 @@
 #include "../hydro/hydro.hpp"
 #include "../z4c/z4c.hpp"
 #include "../wave/wave.hpp"
+#include "../m1/m1.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "../scalars/scalars.hpp"
@@ -338,6 +339,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   Gravity *pgrav = pmb->pgrav;
   Wave *pwave = pmb->pwave;
   Z4c *pz4c = pmb->pz4c;
+  M1 *pm1 = pmb->pm1;
 
   num_vars_ = 0;
   OutputData *pod;
@@ -597,6 +599,22 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
         pod->type = "SCALARS";
         pod->name = Z4c::Weyl_names[v];
         pod->data.InitWithShallowSlice(pz4c->storage.weyl,v,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
+  }
+
+  if (M1_ENABLED)
+  {
+    for (int v = 0; v < M1::N_Lab; ++v)
+    {
+      if (output_params.variable.compare("m1_lab") == 0)
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = M1::Lab_names[v];
+        pod->data.InitWithShallowSlice(pm1->storage.u,v,1);
         AppendOutputDataNode(pod);
         num_vars_++;
       }

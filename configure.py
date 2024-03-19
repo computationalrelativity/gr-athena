@@ -84,6 +84,10 @@
 #   -w_cx               use cell-centered (extended) sampling
 #   -w_vc               use vertex-centered          sampling
 #
+# M1 neutrino transport:
+#
+#   -m1                 enable M1 neutrino transport
+#
 # development stuff:
 #
 #    -compiler_sanitize_address  sanitizers
@@ -346,6 +350,12 @@ parser.add_argument("-w_vc",
                     action='store_true',
                     default=False,
                     help='enable wave equation: vc sampling')
+
+# -m1 argument
+parser.add_argument("-m1",
+                    action='store_true',
+                    default=False,
+                    help='enable M1 neutrino transport')
 
 # -t argument
 parser.add_argument('-t',
@@ -990,6 +1000,12 @@ else:
     definitions['WAVE_CC_ENABLED'] = '0'
     definitions['WAVE_VC_ENABLED'] = '0'
 
+# -m1 - neutrino transport
+if args['m1']:
+  definitions['M1_ENABLED'] = '1'
+else:
+  definitions['M1_ENABLED'] = '0'
+
 # -hybridinterp argument
 if args['hybridinterp']:
     definitions['HYBRID_INTERP'] = 'HYBRID_INTERP'
@@ -1544,11 +1560,19 @@ if args['z']:
   str_gr = '$(wildcard src/task_list/gr/*.cpp)'
   src_aux.append(f'{str_gr}')
 
+  if args['m1']:
+    # need M1 task-list
+    print("TODO@conf: ADD m1 as -z, -f, -m1")
+
+
 elif args['w']:
   src_aux.append('$(wildcard src/task_list/wave_task_list.cpp)')
 
 else:
   src_aux.append('$(wildcard src/task_list/time_integrator.cpp)')
+
+if args['m1']:
+  src_aux.append('$(wildcard src/task_list/m1_task_list.cpp)')
 
 if args['mg']:
   src_aux.append('$(wildcard src/task_list/mg_*.cpp)')
@@ -1565,6 +1589,17 @@ if args['w']:
   src_aux.append("$(wildcard src/wave/*.cpp)")
 
 makefile_options['WAVE_SRC'] = '\\\n'.join(src_aux)
+
+# M1: -------------------------------------------------------------------------
+src_aux = []
+
+if args['m1']:
+  src_aux.append("$(wildcard src/m1/*.cpp)")
+
+  print("TODO@conf: Remove m1 task-list stand-alone")
+
+makefile_options['M1_SRC'] = '\\\n'.join(src_aux)
+
 
 
 # --- Step 4. Create new files, finish up --------------------------------
@@ -1637,6 +1672,8 @@ if args['z']:
     print('  Z4c refinement strategy:      ' + ('box-in-box' if args['ref_box_in_box']
                                                 else 'spheres'))
     print('  CCE:                          ' + ('ON' if args['cce'] else 'OFF'))
+
+print('  M1 neutrino transport:        ' + ('ON' if args['m1'] else 'OFF'))
 
 print('  Wave equation:                ' + ('ON' if args['w'] else 'OFF'))
 if args['w']:

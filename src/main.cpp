@@ -125,10 +125,17 @@ int main(int argc, char *argv[])
 
   // BD: TODO - move to collection etc.
   WaveIntegratorTaskList *pwlist = nullptr;
+  M1IntegratorTaskList *pm1list = nullptr;
 
   // now populate requisite task-lists
   gra::tasklist::Collection ptlc { trgs };
   gra::tasklist::PopulateCollection(ptlc, pmesh, pinput);
+
+  // BD: TODO - move to collection
+  if (M1_ENABLED)
+  {
+    pm1list = new M1IntegratorTaskList(pinput, pmesh);
+  }
 
   //=== Step 8. === START OF MAIN INTEGRATION LOOP ============================
   // For performance, there is no error handler protecting this step
@@ -298,6 +305,15 @@ int main(int argc, char *argv[])
     // Update triggers as required
     trgs.Update();
     //-------------------------------------------------------------------------
+
+    // BD: TODO - shift to correct place
+    if (M1_ENABLED)
+    {
+      for (int stage=1; stage<=pm1list->nstages; ++stage)
+      {
+        pm1list->DoTaskListOneStage(pmesh, stage);
+      }
+    }
 
     pmesh->UserWorkInLoop();
     pmesh->ncycle++;

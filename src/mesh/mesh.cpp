@@ -66,6 +66,7 @@
 // #include "../z4c/ejecta.hpp"
 
 #include "../wave/wave.hpp"
+#include "../m1/m1.hpp"
 
 // MPI/OpenMP header
 #ifdef MPI_PARALLEL
@@ -2058,6 +2059,10 @@ if(Z4C_ENABLED && FLUID_ENABLED)
 
     if (Z4C_ENABLED)
       pmb_array[i]->pz4c->NewBlockTimeStep();
+
+    if (M1_ENABLED)
+      pmb_array[i]->pm1->NewBlockTimeStep();
+
   }
 
   NewTimeStep();

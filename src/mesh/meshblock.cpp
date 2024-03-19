@@ -44,6 +44,7 @@
 #include "../z4c/wave_extract.hpp"
 #include "../wave/wave.hpp"
 #include "../trackers/extrema_tracker.hpp"
+#include "../m1/m1.hpp"
 
 //----------------------------------------------------------------------------------------
 // MeshBlock constructor: constructs coordinate, boundary condition, hydro, field
@@ -185,6 +186,13 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
     #endif
   }
 
+  if (M1_ENABLED)
+  {
+    pm1 = new M1(this, pin);
+    pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
+  }
+
+
   // KGF: suboptimal solution, since developer must copy/paste BoundaryVariable derived
   // class type that is used in each PassiveScalars, Gravity, Field, Hydro, ... etc. class
   // in order to correctly advance the BoundaryValues::bvars_next_phys_id_ local counter.
@@ -322,6 +330,12 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     #endif
   }
 
+  if (M1_ENABLED)
+  {
+    pm1 = new M1(this, pin);
+    pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
+  }
+
   if (FLUID_ENABLED) {
     peos = new EquationOfState(this, pin);
   }
@@ -382,6 +396,16 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     os += pz4c->storage.mat.GetSizeInBytes();
   }
 
+  if (M1_ENABLED)
+  {
+    std::memcpy(pm1->storage.u.data(), &(mbdata[os]), pm1->storage.u.GetSizeInBytes());
+    os += pm1->storage.u.GetSizeInBytes();
+
+    std::memcpy(pm1->storage.radmat.data(), &(mbdata[os]), pm1->storage.radmat.GetSizeInBytes());
+    os += pm1->storage.radmat.GetSizeInBytes();
+  }
+
+
   // load user MeshBlock data
   for (int n=0; n<nint_user_meshblock_data_; n++) {
     std::memcpy(iuser_meshblock_data[n].data(), &(mbdata[os]),
@@ -424,6 +448,8 @@ MeshBlock::~MeshBlock() {
   }
 
   delete ptracker_extrema_loc;
+
+  if (M1_ENABLED) delete pm1;
 
   // BoundaryValues should be destructed AFTER all BoundaryVariable objects are destroyed
   delete pbval;
@@ -858,6 +884,12 @@ std::size_t MeshBlock::GetBlockSizeInBytes() {
     // BD: TODO: extend as new data structures added
     size+=pz4c->storage.u.GetSizeInBytes();
     size+=pz4c->storage.mat.GetSizeInBytes();
+  }
+
+  if (M1_ENABLED)
+  {
+    size += pm1->storage.u.GetSizeInBytes();
+    size += pm1->storage.radmat.GetSizeInBytes();
   }
 
   // calculate user MeshBlock data size
