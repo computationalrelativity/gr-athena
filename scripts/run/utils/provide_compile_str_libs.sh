@@ -39,11 +39,14 @@ then
   export COMPILE_STR="${COMPILE_STR} -hybridinterp"
 fi
 
-if [ $USE_CX == 1 ]
+if ! [ -z "${FIELD_VAR}" ]
 then
-  export COMPILE_STR="${COMPILE_STR} -${FIELD_VAR}_cx"
-else
-  export COMPILE_STR="${COMPILE_STR} -${FIELD_VAR}_vc"
+  if [ $USE_CX == 1 ]
+  then
+    export COMPILE_STR="${COMPILE_STR} -${FIELD_VAR}_cx"
+  else
+    export COMPILE_STR="${COMPILE_STR} -${FIELD_VAR}_vc"
+  fi
 fi
 
 # apply caching compiler together with gold linker
