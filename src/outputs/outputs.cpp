@@ -613,7 +613,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       {
         pod = new OutputData;
         pod->type = "SCALARS";
-        pod->name = M1::Lab_names[v];
+        pod->name = M1::names_Lab[v];
         pod->data.InitWithShallowSlice(pm1->storage.u,v,1);
         AppendOutputDataNode(pod);
         num_vars_++;

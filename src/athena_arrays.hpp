@@ -180,6 +180,11 @@ class AthenaArray {
   // make use of internal dim if not provided
   void InitWithShallowSlice(AthenaArray<T> &src, const int indx, const int nvar);
 
+  void InitWithShallowSliceVar(AthenaArray<T> &src,
+                               const int indx,
+                               const int nvar,
+                               const int nint);
+
   // --------------------------------------------------------------------------
   // dump to file for debug
   inline bool file_exists(const std::string& fn)
@@ -690,6 +695,23 @@ void AthenaArray<T>::InitWithShallowSlice(AthenaArray<T> &src, const int dim,
   return;
 }
 
+template<typename T>
+void AthenaArray<T>::InitWithShallowSliceVar(AthenaArray<T> &src,
+                                             const int indx,
+                                             const int nvar,
+                                             const int nint)
+{
+  pdata_ = src.pdata_;
+  nx6_ = 1;
+  nx5_ = nvar;
+  nx4_ = nint;
+  nx3_ = src.nx3_;
+  nx2_ = src.nx2_;
+  nx1_ = src.nx1_;
+  pdata_ += indx*(nx1_*nx2_*nx3_*nint);
+  state_ = DataStatus::shallow_slice;
+  return;
+}
 
 template<typename T>
 void AthenaArray<T>::InitWithShallowSlice(AthenaArray<T> &src,

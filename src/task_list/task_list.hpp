@@ -398,9 +398,9 @@ class M1IntegratorTaskList: public TaskList {
 
     // functions
     TaskStatus ClearAllBoundary(MeshBlock *pmb, int stage);
+    TaskStatus CalcFiducialVelocity(MeshBlock *pmb, int stage);
 
     /*
-    TaskStatus CalcFiducialVelocity(MeshBlock *pmb, int stage);
     TaskStatus CalcClosure(MeshBlock *pmb, int stage);
     TaskStatus CalcOpacity(MeshBlock *pmb, int stage);
 
@@ -427,6 +427,8 @@ class M1IntegratorTaskList: public TaskList {
     TaskStatus NewBlockTimeStep(MeshBlock *pmb, int stage);
     // TaskStatus CheckRefinement(MeshBlock *pmb, int stage);
 
+    TaskStatus Nop(MeshBlock *pmb, int stage);
+
   private:
     Real const dt_fac[2]{0.5, 1.0}; // timestep factor for each stage
     void AddTask(const TaskID& id, const TaskID& dep) override;
@@ -436,8 +438,8 @@ class M1IntegratorTaskList: public TaskList {
 namespace M1IntegratorTaskNames {
   const TaskID NONE(0);
   const TaskID CLEAR_ALLBND(1);
-  /*
   const TaskID CALC_FIDU(2);
+  /*
   const TaskID CALC_CLOSURE(3);
   const TaskID CALC_OPAC(4);
   const TaskID CALC_FLUX(5);
@@ -455,6 +457,9 @@ namespace M1IntegratorTaskNames {
   */
   const TaskID NEW_DT(17);
   // const TaskID FLAG_AMR(18);
+
+
+  const TaskID NOP(60);
 }  // namespace M1IntegratorTaskNames
 // ----------------------------------------------------------------------------
 

@@ -42,6 +42,8 @@ test = diffusion
 #closure = Eddington
 closure = Minerbo
 opacities = fake
+
+fiducial_velocity = none  # {fluid, mixed, zero, none}
 # =============================================================================
 
 <FakeOpacities> # =============================================================

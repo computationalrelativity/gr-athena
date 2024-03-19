@@ -533,7 +533,7 @@ inline Real delta(int a, int b)
 template<typename T, int N>
 void contract(TensorPointwise<T, Symmetries::SYM2, N, 2> const & mat,
               TensorPointwise<T, Symmetries::NONE, N, 1> const & va,
-              TensorPointwise<T, Symmetries::NONE, N, 1> * vb)
+              TensorPointwise<T, Symmetries::NONE, N, 1> & vb)
 {
   for (int a = 0; a < N; ++a)
   {
@@ -548,7 +548,7 @@ void contract(TensorPointwise<T, Symmetries::SYM2, N, 2> const & mat,
 template<typename T, int N>
 void contract(TensorPointwise<T, Symmetries::SYM2, N, 2> const & mat,
               TensorPointwise<T, Symmetries::SYM2, N, 2> const & A,
-              TensorPointwise<T, Symmetries::NONE, N, 2> * B)
+              TensorPointwise<T, Symmetries::NONE, N, 2> & B)
 {
   for (int a = 0; a < N; ++a)
   for (int b = 0; b < N; ++b)
@@ -564,7 +564,7 @@ void contract(TensorPointwise<T, Symmetries::SYM2, N, 2> const & mat,
 template<typename T, int N>
 void contract2(TensorPointwise<T, Symmetries::SYM2, N, 2> const & mat,
                TensorPointwise<T, Symmetries::SYM2, N, 2> const & A,
-               TensorPointwise<T, Symmetries::SYM2, N, 2> * B)
+               TensorPointwise<T, Symmetries::SYM2, N, 2> & B)
 {
   for (int a = 0; a < N; ++a)
   for (int b = a; b < N; ++b)

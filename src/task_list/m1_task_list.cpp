@@ -37,8 +37,12 @@ M1IntegratorTaskList::M1IntegratorTaskList(ParameterInput *pin, Mesh *pm)
   // Now assemble list of tasks for each stage of time integrator
   { using namespace M1IntegratorTaskNames; // NOLINT (build/namespace)
 
-    AddTask(CLEAR_ALLBND, NONE);
-    AddTask(NEW_DT, CLEAR_ALLBND);
+    AddTask(CALC_FIDU, NONE);
+
+    AddTask(NOP, CALC_FIDU);
+
+    AddTask(NEW_DT, NOP);
+    AddTask(CLEAR_ALLBND, NEW_DT);
 
     /*
     AddTask(CALC_FIDU, NONE);
@@ -97,14 +101,14 @@ void M1IntegratorTaskList::AddTask(const TaskID& id, const TaskID& dep)
       (&M1IntegratorTaskList::ClearAllBoundary);
     task_list_[ntasks].lb_time = false;
   }
-  /*
   else if (id == CALC_FIDU)
   {
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::CalcFiducialVelocity);
-    task_list_[ntasks].lb_time = false;
+    task_list_[ntasks].lb_time = true;
   }
+  /*
   else if (id == CALC_CLOSURE)
   {
     task_list_[ntasks].TaskFunc=
@@ -218,6 +222,13 @@ void M1IntegratorTaskList::AddTask(const TaskID& id, const TaskID& dep)
   //     (&M1IntegratorTaskList::CheckRefinement);
   //   task_list_[ntasks].lb_time = false;
   // }
+  else if (id == NOP)
+  {
+    task_list_[ntasks].TaskFunc=
+      static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
+      (&M1IntegratorTaskList::Nop);
+    task_list_[ntasks].lb_time = false;
+  }
   else
   {
     std::stringstream msg;
@@ -259,17 +270,18 @@ TaskStatus M1IntegratorTaskList::ClearAllBoundary(MeshBlock *pmb, int stage)
   return TaskStatus::success;
 }
 
-/*
 // ----------------------------------------------------------------------------
 // Function to Calculate Fiducial Velocity
 TaskStatus M1IntegratorTaskList::CalcFiducialVelocity(MeshBlock *pmb, int stage) {
-  if (stage <= nstages) {
+  if (stage <= nstages)
+  {
     pmb->pm1->CalcFiducialVelocity();
     return TaskStatus::success;
   }
   return TaskStatus::fail;
 }
 
+/*
 // ----------------------------------------------------------------------------
 // Function to calculate Closure
 TaskStatus M1IntegratorTaskList::CalcClosure(MeshBlock *pmb, int stage) {
@@ -450,3 +462,9 @@ TaskStatus M1IntegratorTaskList::NewBlockTimeStep(MeshBlock *pmb, int stage) {
 //   pmb->pmr->CheckRefinementCondition();
 //   return TaskStatus::success;
 // }
+
+TaskStatus M1IntegratorTaskList::Nop(MeshBlock *pmb, int stage) {
+  // debug.
+
+  return TaskStatus::success;
+}

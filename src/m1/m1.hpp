@@ -18,17 +18,47 @@
 #include "../athena_arrays.hpp"
 #include "../athena_tensor.hpp"
 #include "../mesh/mesh.hpp"
+#include "../utils/tensor.hpp"
+#include "m1_macro.hpp"
 
 // M1 settings ----------------------------------------------------------------
-#ifndef M1_NSPECIES
-#define M1_NSPECIES (1)
-#endif
 
-#ifndef M1_NGROUPS
-#define M1_NGROUPS (1)
-#endif
+// TODO: move to sane place with all units..
+#define CGS_GCC (1.619100425158886e-18)  // CGS density conv. fact
+#define M1_NDIM 3
 
-// Class ----------------------------------------------------------------------
+// define some types to make everything more readable
+namespace {
+
+static const int D = M1_NDIM + 1;
+static const int N = M1_NDIM;
+
+typedef AthenaArray< Real>                         AA;
+typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
+typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
+typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
+
+typedef utils::tensor::TensorPointwise<
+  Real,
+  utils::tensor::Symmetries::NONE,
+  N,
+  0> TP_N_sca;
+
+typedef utils::tensor::TensorPointwise<
+  Real,
+  utils::tensor::Symmetries::NONE,
+  N,
+  1> TP_N_vec;
+
+typedef utils::tensor::TensorPointwise<
+  Real,
+  utils::tensor::Symmetries::SYM2,
+  N,
+  2> TP_N_sym;
+
+}
+
+// Class ======================================================================
 
 class MeshBlock;
 class ParameterInput;
@@ -36,42 +66,114 @@ class ParameterInput;
 class M1
 {
 
-// methods --------------------------------------------------------------------
+// methods ====================================================================
 public:
   M1(MeshBlock *pmb, ParameterInput *pin);
   ~M1();
 
-  // new time-step for current block
+  void CalcFiducialVelocity();
   Real NewBlockTimeStep(void);
 
-// data -----------------------------------------------------------------------
+// data =======================================================================
 public:
   // Mesh->MeshBlock->M1
+  M1 *pm1;
   Mesh *pmy_mesh;
   MeshBlock *pmy_block;
+  Coordinates *pmy_coord;
+
   // M1-indicial information
   MB_info mbi;
 
+  // Species and groups (from parameter file)
+  const int NSPCS;
+  const int NGRPS;
+
   struct
   {
-    AthenaArray<Real> u;       // solution of M1 evolution system
-    AthenaArray<Real> u1;      // solution at intermediate steps
-    AthenaArray<Real> flux[3]; // flux in the 3 directions
-    AthenaArray<Real> u_rhs;   // M1 rhs
-    AthenaArray<Real> u_rad;   // fluid frame variables + P_{ij} Lab
-    AthenaArray<Real> radmat;  // radiation-matter fields
-    AthenaArray<Real> diagno;  // analysis buffers
+    AA u;       // solution of M1 evolution system
+    AA u1;      // solution at intermediate steps
+    AA flux[3]; // flux in the 3 directions
+    AA u_rhs;   // M1 rhs
+    AA u_rad;   // fluid frame variables + P_{ij} Lab
+    AA radmat;  // radiation-matter fields
+    AA diagno;  // analysis buffers
     // "internals": fiducial velocity, netabs, ..
     // N.B. these do not have group dimension!
-    AthenaArray<Real> intern;
+    AA intern;
   } storage;
+
+  // variable alias -----------------------------------------------------------
+
+  // Lab variables and RHS
+  struct vars_Lab {
+    AT_N_sca E;
+    AT_N_vec F_d;
+    AT_N_sca N;
+  };
+  vars_Lab lab, rhs;
+
+  // fluid variables + P_ij Lab, etc.
+  struct vars_Rad {
+    AT_N_sca nnu;
+    AT_N_sca J;
+    AT_N_sca Ht;
+    AT_N_vec H;
+    AT_N_sym P_dd; // Lab frame (normalized by E)
+    AT_N_sca chi;
+    AT_N_sca ynu;
+    AT_N_sca znu;
+  };
+  vars_Rad rad;
+
+  // radiation-matter variables
+  struct vars_RadMat {
+    AT_N_sca abs_0;
+    AT_N_sca abs_1;
+    AT_N_sca eta_0;
+    AT_N_sca eta_1;
+    AT_N_sca scat_1;
+    AT_N_sca nueave;
+  };
+  vars_RadMat rmat;
+
+  // diagnostic variables
+  struct vars_Diagno {
+    AT_N_sca radflux_0;
+    AT_N_sca radflux_1;
+    AT_N_sca ynu;
+    AT_N_sca znu;
+  };
+  vars_Diagno rdia;
+
+  // fiducial vel. variables (no group dependency)
+  struct vars_Fidu {
+    AT_N_vec vel_u;
+    AT_N_sca Wlorentz;
+  };
+  vars_Fidu fidu;
+
+  // net heat and abs (no group dependency)
+  struct vars_Net {
+    AT_N_sca abs;
+    AT_N_sca heat;
+  };
+  vars_Net net;
+
+  AT_N_sca m1_mask;  // Excision mask
+
+// configuration ==============================================================
+public:
+  enum class opt_fiducial_velocity { fluid, mixed, zero, none };
 
   struct
   {
-    // options will go here ...
+    // Prescription for fiducial velocity; zero if not {"fluid","mixed"}
+    opt_fiducial_velocity fiducial_velocity;
+    Real fiducial_velocity_rho_fluid;
   } opt;
 
-// idx & constants ------------------------------------------------------------
+// idx & constants ============================================================
 public:
   // Lab frame variables
   enum
@@ -81,7 +183,11 @@ public:
     I_Lab_N,
     N_Lab
   };
-  static char const * const Lab_names[N_Lab];
+  static constexpr char const * const names_Lab[] = {
+    "lab.E",
+    "lab.Fx", "lab.Fy", "lab.Fz",
+    "lab.N"
+  };
 
   // Fluid frame radiation variables + P_{ij}, etc.
   enum
@@ -96,7 +202,13 @@ public:
     I_Rad_znu,
     N_Rad
   };
-  static char const * const Rad_names[N_Rad];
+  static constexpr char const * const names_Rad[] = {
+    "rad.nnu",
+    "rad.J",
+    "rad.Ht", "rad.Hx", "rad.Hy", "rad.Hz",
+    "rad.Pxx", "rad.Pxy", "rad.Pxz", "rad.Pyy", "rad.Pyz", "rad.Pzz",
+    "rad.chi",
+  };
 
   // Radiation-matter variables
   enum
@@ -107,7 +219,12 @@ public:
     I_RadMat_nueave,
     N_RadMat
   };
-  static char const * const RadMat_names[N_RadMat];
+  static constexpr char const * const names_RadMat[] = {
+    "rmat.abs_0", "rmat.abs_1",
+    "rmat.eta_0", "rmat.eta_1",
+    "rmat.scat_1",
+    "rmat.nueave",
+  };
 
   // Diagnostic variables
   enum
@@ -118,7 +235,12 @@ public:
     I_Diagno_znu,
     N_Diagno
   };
-  static char const * const Diagno_names[N_Diagno];
+  static constexpr char const * const names_Diagno[] = {
+    "rdia.radial_flux_0",
+    "rdia.radial_flux_1",
+    "rdia.ynu",
+    "rdia.znu",
+  };
 
   // Internal variables (no group dimension)
   enum
@@ -130,7 +252,13 @@ public:
     I_Intern_mask,
     N_Intern
   };
-  static char const * const Intern_names[N_Intern];
+  static constexpr char const * const names_Intern[] = {
+    "fidu.vx", "fidu.vy", "fidu.vz",
+    "fidu.Wlorentz",
+    "net.abs",
+    "net.heat",
+    "mask",
+  };
 
   // Source update results
   enum
@@ -143,16 +271,34 @@ public:
     M1_SRC_UPDATE_FAIL,
     M1_SRC_UPDATE_RESULTS,
   };
-  static char const * const source_update_msg[M1_SRC_UPDATE_RESULTS];
+  static constexpr char const * const source_update_msg[] = {
+    "Ok",
+    "explicit update (thin source)",
+    "imposed equilibrium",
+    "(scattering dominated source)",
+    "imposed eddington",
+    "failed",
+  };
 
 
-// internal methods -----------------------------------------------------------
+// additional methods =========================================================
+public:
+  // aliases ------------------------------------------------------------------
+  void SetLabVarsAliases(   AA & u,      vars_Lab    & lab);
+  void SetRadVarsAliases(   AA & r,      vars_Rad    & rad);
+  void SetRadMatVarsAliases(AA & radmat, vars_RadMat & rmat);
+  void SetDiagnoVarsAliases(AA & diagno, vars_Diagno & rdia);
+  void SetFiduVarsAliases(  AA & intern, vars_Fidu   & fid);
+  void SetNetVarsAliases(   AA & intern, vars_Net    & net);
+
+
+// internal methods ===========================================================
 private:
-  // ...
+  void PopulateOptions(ParameterInput *pin);
 
-// internal data --------------------------------------------------------------
+// internal data ==============================================================
 private:
-  AthenaArray<Real> dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep
+  AA dt1_, dt2_, dt3_;  // scratch arrays used in NewTimeStep
 
 
 };
