@@ -66,6 +66,11 @@ public:
     AthenaArray<Real> intern;
   } storage;
 
+  struct
+  {
+    // options will go here ...
+  } opt;
+
 // idx & constants ------------------------------------------------------------
 public:
   // Lab frame variables
