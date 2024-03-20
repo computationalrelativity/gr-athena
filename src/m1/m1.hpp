@@ -18,6 +18,7 @@
 #include "../athena_arrays.hpp"
 #include "../athena_tensor.hpp"
 #include "../mesh/mesh.hpp"
+#include "../bvals/cc/bvals_cc.hpp"
 #include "m1_containers.hpp"
 
 // M1 settings ----------------------------------------------------------------
@@ -47,7 +48,7 @@ public:
   void AddFluxDivergence(AthenaArray<Real> & u_rhs);
   void AddGRSources(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs);
 
-  Real NewBlockTimeStep(void);
+  Real NewBlockTimeStep();
 
 // data =======================================================================
 public:
@@ -77,6 +78,12 @@ public:
     // N.B. these do not have group dimension!
     AA intern;
   } storage;
+
+  // Variables to deal with refinement
+  AthenaArray<Real> empty_flux[3];
+  AthenaArray<Real> coarse_u_;
+  CellCenteredBoundaryVariable ubvar;
+  int refinement_idx{-1};
 
   // variable alias -----------------------------------------------------------
 

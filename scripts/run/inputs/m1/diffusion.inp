@@ -37,6 +37,12 @@ refinement = none
 num_threads = 1
 # =============================================================================
 
+<meshblock> # =================================================================
+nx1 = 10
+nx2 = 4
+nx3 = 4
+# =============================================================================
+
 <M1> # ========================================================================
 test = diffusion
 #closure = Eddington
@@ -63,12 +69,12 @@ medium_velocity = 0.0
 # file_type = rst
 # dt        = 1
 
-<output2>
-file_type   = hdf5
-variable    = m1_lab
-dt          = 0.1
-ghost_zones = true
-# x3_slice    = true
+# <output2>
+# file_type   = hdf5
+# variable    = m1_lab
+# dt          = 0.1
+# ghost_zones = true
+# # x3_slice    = true
 
 #
 # :D

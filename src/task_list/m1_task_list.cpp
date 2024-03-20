@@ -13,7 +13,7 @@
 
 // Athena++ headers
 #include "../athena.hpp"
-// #include "../bvals/bvals.hpp"
+#include "../bvals/bvals.hpp"
 // #include "../eos/eos.hpp"
 // #include "../field/field.hpp"
 // #include "../field/field_diffusion/field_diffusion.hpp"
@@ -37,26 +37,30 @@ M1IntegratorTaskList::M1IntegratorTaskList(ParameterInput *pin, Mesh *pm)
   // Now assemble list of tasks for each stage of time integrator
   { using namespace M1IntegratorTaskNames; // NOLINT (build/namespace)
 
-    AddTask(CALC_FIDU, NONE);
+    AddTask(NOP, NONE);
 
-    AddTask(NOP, CALC_FIDU);
+    AddTask(SEND_FLUX, NOP);
+    AddTask(RECV_FLUX, NOP);
 
-    AddTask(NEW_DT, NOP);
-    AddTask(CLEAR_ALLBND, NEW_DT);
+    AddTask(SEND, NOP);
+    AddTask(RECV, NOP);
+
+
+    AddTask(CLEAR_ALLBND, (SEND_FLUX|RECV_FLUX|SEND|RECV));
 
     /*
     AddTask(CALC_FIDU, NONE);
     AddTask(CALC_CLOSURE, CALC_FIDU);
 
     AddTask(CALC_OPAC, CALC_CLOSURE);
-    AddTask(CALC_GRSRC, CALC_CLOSURE);
+    AddTask(ADD_GRSRC, CALC_CLOSURE);
 
     AddTask(CALC_FLUX, CALC_CLOSURE);
     AddTask(SEND_FLUX, CALC_FLUX);
     AddTask(RECV_FLUX, CALC_FLUX);
     AddTask(ADD_FLX_DIV, RECV_FLUX);
 
-    AddTask(CALC_UPDATE, (ADD_FLX_DIV|CALC_OPAC|CALC_GRSRC));
+    AddTask(CALC_UPDATE, (ADD_FLX_DIV|CALC_OPAC|ADD_GRSRC));
 
     AddTask(SEND, CALC_UPDATE);
     AddTask(RECV, CALC_UPDATE);
@@ -108,7 +112,6 @@ void M1IntegratorTaskList::AddTask(const TaskID& id, const TaskID& dep)
       (&M1IntegratorTaskList::CalcFiducialVelocity);
     task_list_[ntasks].lb_time = true;
   }
-  /*
   else if (id == CALC_CLOSURE)
   {
     task_list_[ntasks].TaskFunc=
@@ -151,11 +154,11 @@ void M1IntegratorTaskList::AddTask(const TaskID& id, const TaskID& dep)
       (&M1IntegratorTaskList::AddFluxDivergence);
     task_list_[ntasks].lb_time = false;
   }
-  else if (id == CALC_GRSRC)
+  else if (id == ADD_GRSRC)
   {
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-      (&M1IntegratorTaskList::CalcGRSources);
+      (&M1IntegratorTaskList::AddGRSources);
     task_list_[ntasks].lb_time = false;
   }
   else if (id == CALC_UPDATE)
@@ -207,7 +210,6 @@ void M1IntegratorTaskList::AddTask(const TaskID& id, const TaskID& dep)
       (&M1IntegratorTaskList::UserWork);
     task_list_[ntasks].lb_time = false;
   }
-  */
   else if (id == NEW_DT)
   {
     task_list_[ntasks].TaskFunc=
@@ -215,13 +217,13 @@ void M1IntegratorTaskList::AddTask(const TaskID& id, const TaskID& dep)
       (&M1IntegratorTaskList::NewBlockTimeStep);
     task_list_[ntasks].lb_time = false;
   }
-  // else if (id == FLAG_AMR)
-  // {
-  //   task_list_[ntasks].TaskFunc=
-  //     static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-  //     (&M1IntegratorTaskList::CheckRefinement);
-  //   task_list_[ntasks].lb_time = false;
-  // }
+  else if (id == FLAG_AMR)
+  {
+    task_list_[ntasks].TaskFunc=
+      static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
+      (&M1IntegratorTaskList::CheckRefinement);
+    task_list_[ntasks].lb_time = false;
+  }
   else if (id == NOP)
   {
     task_list_[ntasks].TaskFunc=
@@ -253,10 +255,8 @@ void M1IntegratorTaskList::StartupTaskList(MeshBlock *pmb, int stage)
 
   // Clear the RHS
   pmb->pm1->storage.u_rhs.ZeroClear();
-
-  // TODO fix this
-  pmb->pbval->StartReceivingSubset(BoundaryCommSubset::all, pmb->pbval->bvars_main_int);
   */
+  pmb->pbval->StartReceivingM1(BoundaryCommSubset::all);
   return;
 }
 
@@ -264,15 +264,14 @@ void M1IntegratorTaskList::StartupTaskList(MeshBlock *pmb, int stage)
 //! Functions to end MPI communication
 TaskStatus M1IntegratorTaskList::ClearAllBoundary(MeshBlock *pmb, int stage)
 {
-  // pmb->pbval->ClearBoundarySubset(BoundaryCommSubset::all,
-  //                                 pmb->pbval->bvars_m1_int);
-
+  pmb->pbval->ClearBoundaryM1(BoundaryCommSubset::all);
   return TaskStatus::success;
 }
 
 // ----------------------------------------------------------------------------
 // Function to Calculate Fiducial Velocity
-TaskStatus M1IntegratorTaskList::CalcFiducialVelocity(MeshBlock *pmb, int stage) {
+TaskStatus M1IntegratorTaskList::CalcFiducialVelocity(MeshBlock *pmb, int stage)
+{
   if (stage <= nstages)
   {
     pmb->pm1->CalcFiducialVelocity();
@@ -281,42 +280,55 @@ TaskStatus M1IntegratorTaskList::CalcFiducialVelocity(MeshBlock *pmb, int stage)
   return TaskStatus::fail;
 }
 
-/*
 // ----------------------------------------------------------------------------
 // Function to calculate Closure
-TaskStatus M1IntegratorTaskList::CalcClosure(MeshBlock *pmb, int stage) {
+TaskStatus M1IntegratorTaskList::CalcClosure(MeshBlock *pmb, int stage)
+{
+  /*
   if (stage <= nstages) {
     pmb->pm1->CalcClosure(pmb->pm1->storage.u);
     return TaskStatus::success;
   }
   return TaskStatus::fail;
+  */
+  return TaskStatus::success;
 }
 
 // ----------------------------------------------------------------------------
 // Function to calculate Opacities
-TaskStatus M1IntegratorTaskList::CalcOpacity(MeshBlock *pmb, int stage) {
+TaskStatus M1IntegratorTaskList::CalcOpacity(MeshBlock *pmb, int stage)
+{
+  /*
   if (stage <= nstages) {
     Real const dt = pmb->pmy_mesh->dt * dt_fac[stage - 1];
     pmb->pm1->CalcOpacity(dt, pmb->pm1->storage.u);
     return TaskStatus::success;
   }
   return TaskStatus::fail;
+  */
+  return TaskStatus::success;
 }
 
 // ----------------------------------------------------------------------------
 // Function to calculates fluxes
-TaskStatus M1IntegratorTaskList::CalcFlux(MeshBlock *pmb, int stage) {
+TaskStatus M1IntegratorTaskList::CalcFlux(MeshBlock *pmb, int stage)
+{
+  /*
   if (stage <= nstages) {
     pmb->pm1->CalcFluxes(pmb->pm1->storage.u);
     return TaskStatus::next;
   }
   return TaskStatus::fail;
+  */
+  return TaskStatus::success;
 }
 
 // ----------------------------------------------------------------------------
 // Function to communicate fluxes between MeshBlocks for flux correction with AMR
-TaskStatus M1IntegratorTaskList::SendFlux(MeshBlock *pmb, int stage) {
-  if (stage <= nstages) {
+TaskStatus M1IntegratorTaskList::SendFlux(MeshBlock *pmb, int stage)
+{
+  if (stage <= nstages)
+  {
     pmb->pm1->ubvar.SendFluxCorrection();
     return TaskStatus::next;
   }
@@ -325,9 +337,12 @@ TaskStatus M1IntegratorTaskList::SendFlux(MeshBlock *pmb, int stage) {
 
 // ----------------------------------------------------------------------------
 // Function to receive fluxes between MeshBlocks
-TaskStatus M1IntegratorTaskList::ReceiveAndCorrectFlux(MeshBlock *pmb, int stage) {
-  if (stage <= nstages) {
-    if (pmb->pm1->ubvar.ReceiveFluxCorrection()) {
+TaskStatus M1IntegratorTaskList::ReceiveAndCorrectFlux(MeshBlock *pmb, int stage)
+{
+  if (stage <= nstages)
+  {
+    if (pmb->pm1->ubvar.ReceiveFluxCorrection())
+    {
       return TaskStatus::next;
     }
     else {
@@ -339,41 +354,57 @@ TaskStatus M1IntegratorTaskList::ReceiveAndCorrectFlux(MeshBlock *pmb, int stage
 
 // ----------------------------------------------------------------------------
 // Function to calculates fluxes
-TaskStatus M1IntegratorTaskList::AddFluxDivergence(MeshBlock *pmb, int stage) {
+TaskStatus M1IntegratorTaskList::AddFluxDivergence(MeshBlock *pmb, int stage)
+{
+  /*
   if (stage <= nstages) {
     pmb->pm1->AddFluxDivergence(pmb->pm1->storage.u_rhs);
     return TaskStatus::success;
   }
   return TaskStatus::fail;
+  */
+  return TaskStatus::success;
 }
 
 // ----------------------------------------------------------------------------
 // Function to add GR sources
-TaskStatus M1IntegratorTaskList::CalcGRSources(MeshBlock *pmb, int stage) {
+TaskStatus M1IntegratorTaskList::AddGRSources(MeshBlock *pmb, int stage)
+{
+  /*
   if (stage <= nstages) {
     pmb->pm1->GRSources(pmb->pm1->storage.u, pmb->pm1->storage.u_rhs);
     return TaskStatus::success;
   }
   return TaskStatus::fail;
+  */
+  return TaskStatus::success;
 }
 
 // ----------------------------------------------------------------------------
 // Function to update the radiation field
-TaskStatus M1IntegratorTaskList::CalcUpdate(MeshBlock *pmb, int stage) {
+TaskStatus M1IntegratorTaskList::CalcUpdate(MeshBlock *pmb, int stage)
+{
+  /*
   if (stage <= nstages) {
     Real const dt = pmb->pmy_mesh->dt * dt_fac[stage - 1];
     pmb->pm1->CalcUpdate(dt, pmb->pm1->storage.u1, pmb->pm1->storage.u, pmb->pm1->storage.u_rhs);
     return TaskStatus::next;
   }
   return TaskStatus::fail;
+  */
+  return TaskStatus::success;
 }
 
 // ----------------------------------------------------------------------------
 // Function to send the updated fields to the other MeshBlocks
-TaskStatus M1IntegratorTaskList::Send(MeshBlock *pmb, int stage) {
-  if (stage <= nstages) {
+TaskStatus M1IntegratorTaskList::Send(MeshBlock *pmb, int stage)
+{
+  if (stage <= nstages)
+  {
     pmb->pm1->ubvar.SendBoundaryBuffers();
-  } else {
+  }
+  else
+  {
     return TaskStatus::fail;
   }
   return TaskStatus::success;
@@ -382,24 +413,34 @@ TaskStatus M1IntegratorTaskList::Send(MeshBlock *pmb, int stage) {
 
 // ----------------------------------------------------------------------------
 // Function to receive updated fields from the other MeshBlocks
-TaskStatus M1IntegratorTaskList::Receive(MeshBlock *pmb, int stage) {
+TaskStatus M1IntegratorTaskList::Receive(MeshBlock *pmb, int stage)
+{
   bool ret;
-  if (stage <= nstages) {
+  if (stage <= nstages)
+  {
     ret = pmb->pm1->ubvar.ReceiveBoundaryBuffers();
-  } else {
+  }
+  else
+  {
     return TaskStatus::fail;
   }
-  if (ret) {
+
+  if (ret)
+  {
     return TaskStatus::success;
-  } else {
+  }
+  else
+  {
     return TaskStatus::fail;
   }
 }
 
 // ----------------------------------------------------------------------------
 // Function to set boundaries
-TaskStatus M1IntegratorTaskList::SetBoundaries(MeshBlock *pmb, int stage) {
-  if (stage <= nstages) {
+TaskStatus M1IntegratorTaskList::SetBoundaries(MeshBlock *pmb, int stage)
+{
+  if (stage <= nstages)
+  {
     pmb->pm1->ubvar.SetBoundaries();
     return TaskStatus::success;
   }
@@ -408,7 +449,9 @@ TaskStatus M1IntegratorTaskList::SetBoundaries(MeshBlock *pmb, int stage) {
 
 // ----------------------------------------------------------------------------
 // Function to prolongate data
-TaskStatus M1IntegratorTaskList::Prolongation(MeshBlock *pmb, int stage) {
+TaskStatus M1IntegratorTaskList::Prolongation(MeshBlock *pmb, int stage)
+{
+  /*
   BoundaryValues *pbval = pmb->pbval;
   if (stage <= nstages) {
     Real const dt = pmb->pmy_mesh->dt * dt_fac[stage - 1];
@@ -417,11 +460,15 @@ TaskStatus M1IntegratorTaskList::Prolongation(MeshBlock *pmb, int stage) {
     return TaskStatus::success;
   }
   return TaskStatus::fail;
+  */
+  return TaskStatus::success;
 }
 
 // ----------------------------------------------------------------------------
 // Function to apply the boundary conditions
-TaskStatus M1IntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int stage) {
+TaskStatus M1IntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int stage)
+{
+  /*
   BoundaryValues *pbval = pmb->pbval;
   M1 *pm1 = pmb->pm1;
   Coordinates *pco = pmb->pcoord;
@@ -433,35 +480,42 @@ TaskStatus M1IntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int stage) {
     return TaskStatus::success;
   }
   return TaskStatus::fail;
+  */
+  return TaskStatus::success;
 }
 
 // ----------------------------------------------------------------------------
 // Function to schedule user work
 TaskStatus M1IntegratorTaskList::UserWork(MeshBlock *pmb, int stage) {
+  /*
   if (stage != nstages) return TaskStatus::success; // only do on last stage
 
   pmb->UserWorkInLoop();
+  */
   return TaskStatus::success;
 }
-*/
 
 // ----------------------------------------------------------------------------
 // Determine the new timestep (used for the time adaptivity)
-TaskStatus M1IntegratorTaskList::NewBlockTimeStep(MeshBlock *pmb, int stage) {
+TaskStatus M1IntegratorTaskList::NewBlockTimeStep(MeshBlock *pmb, int stage)
+{
   if (stage != nstages) return TaskStatus::success; // only do on last stage
 
   pmb->pm1->NewBlockTimeStep();
   return TaskStatus::success;
 }
 
-// // ----------------------------------------------------------------------------
-// // Flag cells for MeshBlocks (de)refinement
-// TaskStatus M1IntegratorTaskList::CheckRefinement(MeshBlock *pmb, int stage) {
-//   if (stage != nstages) return TaskStatus::success; // only do on last stage
+// ----------------------------------------------------------------------------
+// Flag cells for MeshBlocks (de)refinement
+TaskStatus M1IntegratorTaskList::CheckRefinement(MeshBlock *pmb, int stage)
+{
+  /*
+  if (stage != nstages) return TaskStatus::success; // only do on last stage
 
-//   pmb->pmr->CheckRefinementCondition();
-//   return TaskStatus::success;
-// }
+  pmb->pmr->CheckRefinementCondition();
+  */
+  return TaskStatus::success;
+}
 
 TaskStatus M1IntegratorTaskList::Nop(MeshBlock *pmb, int stage) {
   // debug.

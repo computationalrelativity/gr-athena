@@ -43,23 +43,29 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   N_SPCS(pin->GetOrAddInteger("M1", "nspecies", 1)),
   N_GRPS(pin->GetOrAddInteger("M1", "ngroups",  1)),
   storage{
-    { N_Lab*N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1},  // u
-    { N_Lab*N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1},  // u1
+    { N_Lab*N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1 },  // u
+    { N_Lab*N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1 },  // u1
     { // flux
-     {N_Lab*N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1 + 1},
-     {N_Lab*N_SPCS*N_GRPS, mbi.nn3, mbi.nn2 + 1, mbi.nn1,
-	    (pmb->pmy_mesh->f2 ? AthenaArray<Real>::DataStatus::allocated
-                         : AthenaArray<Real>::DataStatus::empty)},
-     {N_Lab*N_SPCS*N_GRPS, mbi.nn3 + 1, mbi.nn2, mbi.nn1,
-	    (pmb->pmy_mesh->f3 ? AthenaArray<Real>::DataStatus::allocated
-                         : AthenaArray<Real>::DataStatus::empty)},
+     { N_Lab*N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1 + 1 },
+     { N_Lab*N_SPCS*N_GRPS, mbi.nn3, mbi.nn2 + 1, mbi.nn1,
+	    (pmy_mesh->f2 ? AA::DataStatus::allocated
+                    : AA::DataStatus::empty) },
+     { N_Lab*N_SPCS*N_GRPS, mbi.nn3 + 1, mbi.nn2, mbi.nn1,
+	    (pmy_mesh->f3 ? AA::DataStatus::allocated
+                    : AA::DataStatus::empty) },
     },
-    {N_Lab*N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1},     // u_rhs
-    {N_Rad,N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1},     // u_rad
-    {N_RadMat,N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1},  // radmat
-    {N_Diagno,N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1},  // diagno
-	  {N_Intern, mbi.nn3, mbi.nn2, pmb->ncells1},         // internal
+    { N_Lab*N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1 },     // u_rhs
+    { N_Rad,N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1 },     // u_rad
+    { N_RadMat,N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1 },  // radmat
+    { N_Diagno,N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1 },  // diagno
+	  { N_Intern, mbi.nn3, mbi.nn2, mbi.nn1 },         // internal
   },
+  coarse_u_(N_Lab*N_SPCS*N_GRPS, mbi.cnn3, mbi.cnn2, mbi.cnn1,
+            (pmy_mesh->multilevel ? AA::DataStatus::allocated
+                                  : AA::DataStatus::empty)),
+  empty_flux{AthenaArray<Real>(), AthenaArray<Real>(), AthenaArray<Real>()},
+  ubvar(pmb, &storage.u, &coarse_u_, storage.flux),
+  // alias storage
   lab{
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
@@ -71,11 +77,24 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     {N_GRPS,N_SPCS}
   }
 {
+
+  // Registration of boundary variables for refinement etc. -------------------
+  pmb->RegisterMeshBlockDataCC(storage.u);
+  if (pmy_mesh->multilevel)
+  {
+    pmb->pmr->AddToRefinementM1CC(&storage.u, &coarse_u_);
+  }
+
+  ubvar.bvar_index = pmb->pbval->bvars.size();
+  pmb->pbval->bvars.push_back(&ubvar);
+  pmb->pbval->bvars_m1.push_back(&ubvar);
+  // --------------------------------------------------------------------------
+
+  // --------------------------------------------------------------------------
+  // set up sampling
+  // --------------------------------------------------------------------------
   Coordinates * pco = pmy_coord;
 
-  //---------------------------------------------------------------------------
-  // set up sampling
-  //---------------------------------------------------------------------------
   mbi.x1.InitWithShallowSlice(pco->x1v, 1, 0, mbi.nn1);
   mbi.x2.InitWithShallowSlice(pco->x2v, 1, 0, mbi.nn2);
   mbi.x3.InitWithShallowSlice(pco->x3v, 1, 0, mbi.nn3);
@@ -84,7 +103,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   mbi.dx1.InitWithShallowSlice(pco->dx1v, 1, 0, mbi.nn1);
   mbi.dx2.InitWithShallowSlice(pco->dx2v, 1, 0, mbi.nn2);
   mbi.dx3.InitWithShallowSlice(pco->dx3v, 1, 0, mbi.nn3);
-  //---------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
 
   // should all be of size mbi.nn1
   dt1_.NewAthenaArray(mbi.nn1);

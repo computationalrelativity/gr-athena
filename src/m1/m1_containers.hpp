@@ -7,9 +7,7 @@
 #include <vector>
 
 // Athena++ classes headers
-#include "../athena.hpp"
-#include "../athena_arrays.hpp"
-#include "../athena_tensor.hpp"
+#include "../athena_aliases.hpp"
 #include "../utils/tensor.hpp"
 
 // typedef ====================================================================
@@ -17,13 +15,7 @@
 // define some types to make everything more readable
 namespace {
 
-static const int D = M1_NDIM + 1;
-static const int N = M1_NDIM;
-
-typedef AthenaArray< Real>                         AA;
-typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
-typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
-typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
+using namespace gra::aliases;
 
 // Treat group & species as super-indices with this nested structure
 typedef AthenaArray<AT_N_sca> GS_AT_N_sca;
