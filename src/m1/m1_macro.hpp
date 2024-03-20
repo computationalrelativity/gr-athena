@@ -7,6 +7,22 @@
 //========================================================================================
 //! \file m1_macro.hpp
 
+// Various constants ----------------------------------------------------------
+
+// TODO: move to sane place with all units
+#ifndef CGS_GCC
+#define CGS_GCC (1.619100425158886e-18)  // CGS density conv. fact
+#endif
+
+#ifndef M1_NDIM
+#define M1_NDIM 3
+#endif
+
+#ifndef M1_NGHOST_MIN
+#define M1_NGHOST_MIN 2
+#endif
+
+// Indicial magic -------------------------------------------------------------
 #define M1_IX_IL                                                              \
   pm1->mbi.il
 

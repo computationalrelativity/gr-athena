@@ -10,6 +10,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <vector>
 
 // Athena++ headers
 #include "m1.hpp"
@@ -39,28 +40,38 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     NCGHOST,                        // cng
     (pmy_mesh->f3) ? 3 : (pmy_mesh->f2) ? 2 : 1    // ndim
   },
-  NSPCS(pin->GetOrAddInteger("M1", "nspecies", 1)),
-  NGRPS(pin->GetOrAddInteger("M1", "ngroups",  1)),
+  N_SPCS(pin->GetOrAddInteger("M1", "nspecies", 1)),
+  N_GRPS(pin->GetOrAddInteger("M1", "ngroups",  1)),
   storage{
-    { N_Lab*NSPCS*NGRPS, mbi.nn3, mbi.nn2, mbi.nn1},  // u
-    { N_Lab*NSPCS*NGRPS, mbi.nn3, mbi.nn2, mbi.nn1},  // u1
+    { N_Lab*N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1},  // u
+    { N_Lab*N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1},  // u1
     { // flux
-     {N_Lab*NSPCS*NGRPS, mbi.nn3, mbi.nn2, mbi.nn1 + 1},
-     {N_Lab*NSPCS*NGRPS, mbi.nn3, mbi.nn2 + 1, mbi.nn1,
+     {N_Lab*N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1 + 1},
+     {N_Lab*N_SPCS*N_GRPS, mbi.nn3, mbi.nn2 + 1, mbi.nn1,
 	    (pmb->pmy_mesh->f2 ? AthenaArray<Real>::DataStatus::allocated
                          : AthenaArray<Real>::DataStatus::empty)},
-     {N_Lab*NSPCS*NGRPS, mbi.nn3 + 1, mbi.nn2, mbi.nn1,
+     {N_Lab*N_SPCS*N_GRPS, mbi.nn3 + 1, mbi.nn2, mbi.nn1,
 	    (pmb->pmy_mesh->f3 ? AthenaArray<Real>::DataStatus::allocated
                          : AthenaArray<Real>::DataStatus::empty)},
     },
-    {N_Lab*NSPCS*NGRPS, mbi.nn3, mbi.nn2, mbi.nn1},     // u_rhs
-    {N_Rad,NSPCS*NGRPS, mbi.nn3, mbi.nn2, mbi.nn1},     // u_rad
-    {N_RadMat,NSPCS*NGRPS, mbi.nn3, mbi.nn2, mbi.nn1},  // radmat
-    {N_Diagno,NSPCS*NGRPS, mbi.nn3, mbi.nn2, mbi.nn1},  // diagno
+    {N_Lab*N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1},     // u_rhs
+    {N_Rad,N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1},     // u_rad
+    {N_RadMat,N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1},  // radmat
+    {N_Diagno,N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1},  // diagno
 	  {N_Intern, mbi.nn3, mbi.nn2, pmb->ncells1},         // internal
+  },
+  lab{
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS}
+  },
+  rhs{
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS}
   }
 {
-  Coordinates * pco = pmb->pcoord;
+  Coordinates * pco = pmy_coord;
 
   //---------------------------------------------------------------------------
   // set up sampling
@@ -83,20 +94,15 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   // Populate options
   PopulateOptions(pin);
 
-
   // Point variables to correct locations -------------------------------------
-  SetLabVarsAliases(storage.u, lab);
-  SetRadVarsAliases(storage.u_rad, rad);
-  SetRadMatVarsAliases(storage.radmat, rmat);
-  SetDiagnoVarsAliases(storage.diagno, rdia);
-  SetFiduVarsAliases(storage.intern, fidu);
-  SetNetVarsAliases(storage.intern, net);
+  SetVarAliasesLab(storage.u, lab);
+  SetVarAliasesRad(storage.u_rad, rad);
+  SetVarAliasesRadMat(storage.radmat, rmat);
+  SetVarAliasesDiagno(storage.diagno, rdia);
+  SetVarAliasesFidu(storage.intern, fidu);
+  SetVarAliasesNet(storage.intern, net);
 
   m1_mask.InitWithShallowSlice(storage.intern, I_Intern_mask);
-}
-
-M1::~M1()
-{
 
 }
 
@@ -137,14 +143,19 @@ void M1::PopulateOptions(ParameterInput *pin)
 
 // set aliases for variables ==================================================
 
-void M1::SetLabVarsAliases(AthenaArray<Real> & u, M1::vars_Lab & lab)
+void M1::SetVarAliasesLab(AthenaArray<Real> & u, vars_Lab & lab)
 {
-  lab.E.InitWithShallowSliceVar(  u, I_Lab_E,  NGRPS*NSPCS);
-  lab.F_d.InitWithShallowSliceVar(u, I_Lab_Fx, NGRPS*NSPCS);
-  lab.N.InitWithShallowSliceVar(  u, I_Lab_N,  NGRPS*NSPCS);
+  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  {
+    const int N_gs = (ix_s + N_SPCS * (ix_g + 0)) * N_Lab;
+    lab.E(  ix_g,ix_s).InitWithShallowSlice(u, N_gs+I_Lab_E);
+    lab.F_d(ix_g,ix_s).InitWithShallowSlice(u, N_gs+I_Lab_Fx);
+    lab.N(  ix_g,ix_s).InitWithShallowSlice(u, N_gs+I_Lab_N);
+  }
 }
 
-void M1::SetRadVarsAliases(AthenaArray<Real> & u, M1::vars_Rad & rad)
+void M1::SetVarAliasesRad(AthenaArray<Real> & u, vars_Rad & rad)
 {
   rad.nnu.InitWithShallowSlice(u, I_Rad_nnu);
   rad.J.InitWithShallowSlice(u, I_Rad_J);
@@ -156,7 +167,7 @@ void M1::SetRadVarsAliases(AthenaArray<Real> & u, M1::vars_Rad & rad)
   rad.znu.InitWithShallowSlice(u, I_Rad_znu);
 }
 
-void M1::SetRadMatVarsAliases(AthenaArray<Real> & u, M1::vars_RadMat & rmat)
+void M1::SetVarAliasesRadMat(AthenaArray<Real> & u, vars_RadMat & rmat)
 {
   rmat.abs_0.InitWithShallowSlice(u, I_RadMat_abs_0);
   rmat.abs_1.InitWithShallowSlice(u, I_RadMat_abs_1);
@@ -166,7 +177,7 @@ void M1::SetRadMatVarsAliases(AthenaArray<Real> & u, M1::vars_RadMat & rmat)
   rmat.nueave.InitWithShallowSlice(u, I_RadMat_nueave);
 }
 
-void M1::SetDiagnoVarsAliases(AthenaArray<Real> & u, M1::vars_Diagno & rdia)
+void M1::SetVarAliasesDiagno(AthenaArray<Real> & u, vars_Diagno & rdia)
 {
   rdia.radflux_0.InitWithShallowSlice(u, I_Diagno_radflux_0);
   rdia.radflux_1.InitWithShallowSlice(u, I_Diagno_radflux_1);
@@ -174,13 +185,13 @@ void M1::SetDiagnoVarsAliases(AthenaArray<Real> & u, M1::vars_Diagno & rdia)
   rdia.znu.InitWithShallowSlice(u, I_Diagno_znu);
 }
 
-void M1::SetFiduVarsAliases(AthenaArray<Real> & u, M1::vars_Fidu & fidu)
+void M1::SetVarAliasesFidu(AthenaArray<Real> & u, vars_Fidu & fidu)
 {
   fidu.vel_u.InitWithShallowSlice(u, I_Intern_fidu_vx);
   fidu.Wlorentz.InitWithShallowSlice(u, I_Intern_fidu_Wlorentz);
 }
 
-void M1::SetNetVarsAliases(AthenaArray<Real> & u, M1::vars_Net & net)
+void M1::SetVarAliasesNet(AthenaArray<Real> & u, vars_Net & net)
 {
   net.abs.InitWithShallowSlice(u, I_Intern_netabs);
   net.heat.InitWithShallowSlice(u, I_Intern_netheat);

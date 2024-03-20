@@ -18,45 +18,10 @@
 #include "../athena_arrays.hpp"
 #include "../athena_tensor.hpp"
 #include "../mesh/mesh.hpp"
-#include "../utils/tensor.hpp"
-#include "m1_macro.hpp"
+#include "m1_containers.hpp"
 
 // M1 settings ----------------------------------------------------------------
 
-// TODO: move to sane place with all units..
-#define CGS_GCC (1.619100425158886e-18)  // CGS density conv. fact
-#define M1_NDIM 3
-
-// define some types to make everything more readable
-namespace {
-
-static const int D = M1_NDIM + 1;
-static const int N = M1_NDIM;
-
-typedef AthenaArray< Real>                         AA;
-typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
-typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
-typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
-
-typedef utils::tensor::TensorPointwise<
-  Real,
-  utils::tensor::Symmetries::NONE,
-  N,
-  0> TP_N_sca;
-
-typedef utils::tensor::TensorPointwise<
-  Real,
-  utils::tensor::Symmetries::NONE,
-  N,
-  1> TP_N_vec;
-
-typedef utils::tensor::TensorPointwise<
-  Real,
-  utils::tensor::Symmetries::SYM2,
-  N,
-  2> TP_N_sym;
-
-}
 
 // Class ======================================================================
 
@@ -69,9 +34,19 @@ class M1
 // methods ====================================================================
 public:
   M1(MeshBlock *pmb, ParameterInput *pin);
-  ~M1();
+  ~M1() { };
 
   void CalcFiducialVelocity();
+  void CalcClosure(AthenaArray<Real> & u);
+  void CalcOpacity(Real const dt, AthenaArray<Real> & u);
+  void CalcUpdate(Real const dt,
+                  AthenaArray<Real> & u_p,
+                  AthenaArray<Real> & u_c,
+		              AthenaArray<Real> & u_rhs);
+  void CalcFluxes(AthenaArray<Real> & u);
+  void AddFluxDivergence(AthenaArray<Real> & u_rhs);
+  void AddGRSources(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs);
+
   Real NewBlockTimeStep(void);
 
 // data =======================================================================
@@ -86,8 +61,8 @@ public:
   MB_info mbi;
 
   // Species and groups (from parameter file)
-  const int NSPCS;
-  const int NGRPS;
+  const int N_SPCS { 1 };
+  const int N_GRPS { 1 };
 
   struct
   {
@@ -107,9 +82,9 @@ public:
 
   // Lab variables and RHS
   struct vars_Lab {
-    AT_N_sca E;
-    AT_N_vec F_d;
-    AT_N_sca N;
+    GroupSpeciesContainer<AT_N_sca> E;
+    GroupSpeciesContainer<AT_N_vec> F_d;
+    GroupSpeciesContainer<AT_N_sca> N;
   };
   vars_Lab lab, rhs;
 
@@ -284,12 +259,12 @@ public:
 // additional methods =========================================================
 public:
   // aliases ------------------------------------------------------------------
-  void SetLabVarsAliases(   AA & u,      vars_Lab    & lab);
-  void SetRadVarsAliases(   AA & r,      vars_Rad    & rad);
-  void SetRadMatVarsAliases(AA & radmat, vars_RadMat & rmat);
-  void SetDiagnoVarsAliases(AA & diagno, vars_Diagno & rdia);
-  void SetFiduVarsAliases(  AA & intern, vars_Fidu   & fid);
-  void SetNetVarsAliases(   AA & intern, vars_Net    & net);
+  void SetVarAliasesLab(   AA & u,      vars_Lab    & lab);
+  void SetVarAliasesRad(   AA & r,      vars_Rad    & rad);
+  void SetVarAliasesRadMat(AA & radmat, vars_RadMat & rmat);
+  void SetVarAliasesDiagno(AA & diagno, vars_Diagno & rdia);
+  void SetVarAliasesFidu(  AA & intern, vars_Fidu   & fid);
+  void SetVarAliasesNet(   AA & intern, vars_Net    & net);
 
 
 // internal methods ===========================================================

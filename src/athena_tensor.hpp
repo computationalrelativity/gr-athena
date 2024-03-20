@@ -157,12 +157,6 @@ public:
   {
     data_.InitWithShallowSlice(src, indx, ndof());
   }
-  void InitWithShallowSliceVar(AthenaArray<T> &src,
-                               const int indx,
-                               const int nint)
-  {
-    data_.InitWithShallowSliceVar(src, indx, ndof(), nint);
-  }
 
 private:
   AthenaArray<T> data_;
@@ -290,13 +284,6 @@ public:
   }
   void InitWithShallowSlice(AthenaArray<T> &src, const int indx) {
     data_.InitWithShallowSlice(src, indx, ndof());
-  }
-
-  void InitWithShallowSliceVar(AthenaArray<T> &src,
-                               const int indx,
-                               const int nint)
-  {
-    data_.InitWithShallowSliceVar(src, indx, ndof(), nint);
   }
 
 private:

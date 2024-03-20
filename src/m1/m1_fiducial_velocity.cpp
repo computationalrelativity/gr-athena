@@ -83,7 +83,7 @@ void M1::CalcFiducialVelocity()
     // Note: internally maps geometric sampling to matter sampling (& M1)
     pmy_coord->GetGeometricFieldCC(adm_gamma_dd_, sl_adm_gamma_dd, k, j);
 
-    // prepare slice
+    // prepare scratch
     for (int a=0; a<NDIM; ++a)
     for (int i=mbi.il; i<=mbi.iu; ++i)
     {

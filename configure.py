@@ -1568,11 +1568,11 @@ if args['z']:
 elif args['w']:
   src_aux.append('$(wildcard src/task_list/wave_task_list.cpp)')
 
+elif args['m1']:
+  src_aux.append('$(wildcard src/task_list/m1_task_list.cpp)')
+
 else:
   src_aux.append('$(wildcard src/task_list/time_integrator.cpp)')
-
-if args['m1']:
-  src_aux.append('$(wildcard src/task_list/m1_task_list.cpp)')
 
 if args['mg']:
   src_aux.append('$(wildcard src/task_list/mg_*.cpp)')

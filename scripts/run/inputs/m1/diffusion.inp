@@ -44,6 +44,9 @@ closure = Minerbo
 opacities = fake
 
 fiducial_velocity = none  # {fluid, mixed, zero, none}
+
+ngroups  = 2
+nspecies = 3
 # =============================================================================
 
 <FakeOpacities> # =============================================================

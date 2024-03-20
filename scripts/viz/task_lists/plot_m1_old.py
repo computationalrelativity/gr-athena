@@ -205,7 +205,7 @@ if "multilevel" in flags_M1:
   cc_M1.add_node_unparsed(
     NODE_LABEL='PHY_BVAL',
     NODE_PARENTS=["PROLONG"],
-    description=['SendHydroFlux',
+    description=['PhysicalBoundary',
                  r'<[...]>'])
 
 else:
