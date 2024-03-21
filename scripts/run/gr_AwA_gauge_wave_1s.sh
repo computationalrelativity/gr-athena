@@ -13,13 +13,13 @@ export FN=$(readlink -f "$0"); export DIR_SCRIPTS=$(dirname "${FN}")
 export RUN_MODE=0
 export USE_MPI=0
 
-export USE_CX=1
+export USE_CX=0
 export DIR_TAG="MPI${USE_MPI}"
 
-export BIN_NAME=z4c_two_punctures
+export BIN_NAME=z4c_AwA_gauge_wave_1s
 export REL_INPUT=scripts/run/inputs
-export INPUT_NAME=gr/z4c_two_punctures.inp
-export RUN_NAME=gr_two_punctures_${DIR_TAG}
+export INPUT_NAME=gr/z4c_AwA_gauge_wave_1s.inp
+export RUN_NAME=gr_AwA_gauge_wave_1s_${DIR_TAG}
 # pass to executable on cmdline
 export GRA_CMD=""
 
@@ -36,7 +36,7 @@ else
   export REL_OUTPUT="${REL_OUTPUT}vc"
 fi
 
-export COMPILE_STR="--prob=z4c_two_punctures
+export COMPILE_STR="--prob=z4c_awa_tests
                     -z
                     --cxx g++ -omp
                     --nghost=4
@@ -45,7 +45,7 @@ export COMPILE_STR="--prob=z4c_two_punctures
                     --nextrapolate=4"
 
 # complete COMPILE_STR specification
-export USE_TWOPUNCTURESC=1
+# export USE_...=1
 
 source ${DIR_SCRIPTS}/utils/provide_compile_str_libs.sh
 ###############################################################################

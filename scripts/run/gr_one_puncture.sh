@@ -11,15 +11,15 @@ export FN=$(readlink -f "$0"); export DIR_SCRIPTS=$(dirname "${FN}")
 
 # 0 - normal, 1 - valgrind, 2 - gdb, ...
 export RUN_MODE=0
-export USE_MPI=0
+export USE_MPI=1
 
 export USE_CX=1
 export DIR_TAG="MPI${USE_MPI}"
 
-export BIN_NAME=z4c_two_punctures
+export BIN_NAME=z4c_one_puncture
 export REL_INPUT=scripts/run/inputs
-export INPUT_NAME=gr/z4c_two_punctures.inp
-export RUN_NAME=gr_two_punctures_${DIR_TAG}
+export INPUT_NAME=gr/z4c_one_puncture.inp
+export RUN_NAME=gr_one_puncture_${DIR_TAG}
 # pass to executable on cmdline
 export GRA_CMD=""
 
@@ -36,7 +36,7 @@ else
   export REL_OUTPUT="${REL_OUTPUT}vc"
 fi
 
-export COMPILE_STR="--prob=z4c_two_punctures
+export COMPILE_STR="--prob=z4c_one_puncture
                     -z
                     --cxx g++ -omp
                     --nghost=4
@@ -45,7 +45,7 @@ export COMPILE_STR="--prob=z4c_two_punctures
                     --nextrapolate=4"
 
 # complete COMPILE_STR specification
-export USE_TWOPUNCTURESC=1
+# export USE_...=1
 
 source ${DIR_SCRIPTS}/utils/provide_compile_str_libs.sh
 ###############################################################################
