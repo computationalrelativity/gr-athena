@@ -80,4 +80,8 @@
     M1_GLOOP2(k,j)                                                            \
     M1_GLOOP1(i)
 
-#endif
+#endif  // M1_MACRO_HPP
+
+//
+// :D
+//

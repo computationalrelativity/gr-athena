@@ -15,6 +15,11 @@
 // Athena++ headers
 #include "m1.hpp"
 #include "../coordinates/coordinates.hpp"
+#include "m1_macro.hpp"
+
+// ============================================================================
+namespace M1 {
+// ============================================================================
 
 // ----------------------------------------------------------------------------
 M1::M1(MeshBlock *pmb, ParameterInput *pin) :
@@ -40,32 +45,32 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     NCGHOST,                        // cng
     (pmy_mesh->f3) ? 3 : (pmy_mesh->f2) ? 2 : 1    // ndim
   },
-  N_SPCS(pin->GetOrAddInteger("M1", "nspecies", 1)),
   N_GRPS(pin->GetOrAddInteger("M1", "ngroups",  1)),
+  N_SPCS(pin->GetOrAddInteger("M1", "nspecies", 1)),
   storage{
-    { N_Lab*N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1 },  // u
-    { N_Lab*N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1 },  // u1
+    { ixn_Lab::N*N_GRPS*N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1 },  // u
+    { ixn_Lab::N*N_GRPS*N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1 },  // u1
     { // flux
-     { N_Lab*N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1 + 1 },
-     { N_Lab*N_SPCS*N_GRPS, mbi.nn3, mbi.nn2 + 1, mbi.nn1,
-	    (pmy_mesh->f2 ? AA::DataStatus::allocated
-                    : AA::DataStatus::empty) },
-     { N_Lab*N_SPCS*N_GRPS, mbi.nn3 + 1, mbi.nn2, mbi.nn1,
-	    (pmy_mesh->f3 ? AA::DataStatus::allocated
-                    : AA::DataStatus::empty) },
+     { ixn_Lab::N*N_GRPS*N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1 + 1 },
+     { ixn_Lab::N*N_GRPS*N_SPCS, mbi.nn3, mbi.nn2 + 1, mbi.nn1 },
+     { ixn_Lab::N*N_GRPS*N_SPCS, mbi.nn3 + 1, mbi.nn2, mbi.nn1 },
     },
-    { N_Lab*N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1 },     // u_rhs
-    { N_Rad,N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1 },     // u_rad
-    { N_RadMat,N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1 },  // radmat
-    { N_Diagno,N_SPCS*N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1 },  // diagno
-	  { N_Intern, mbi.nn3, mbi.nn2, mbi.nn1 },         // internal
+    { ixn_Lab::N*N_GRPS*N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1 },     // u_rhs
+    { N_Rad,N_GRPS*N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1 },          // u_rad
+    { N_RadMat,N_GRPS*N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1 },       // radmat
+    { N_Diagno,N_GRPS*N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1 },       // diagno
+	  { N_Intern, mbi.nn3, mbi.nn2, mbi.nn1 },                     // internal
   },
-  coarse_u_(N_Lab*N_SPCS*N_GRPS, mbi.cnn3, mbi.cnn2, mbi.cnn1,
+  coarse_u_(ixn_Lab::N*N_GRPS*N_SPCS, mbi.cnn3, mbi.cnn2, mbi.cnn1,
             (pmy_mesh->multilevel ? AA::DataStatus::allocated
                                   : AA::DataStatus::empty)),
-  empty_flux{AthenaArray<Real>(), AthenaArray<Real>(), AthenaArray<Real>()},
   ubvar(pmb, &storage.u, &coarse_u_, storage.flux),
   // alias storage
+  fluxes{
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS}
+  },
   lab{
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
@@ -77,7 +82,6 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     {N_GRPS,N_SPCS}
   }
 {
-
   // Registration of boundary variables for refinement etc. -------------------
   pmb->RegisterMeshBlockDataCC(storage.u);
   if (pmy_mesh->multilevel)
@@ -113,15 +117,102 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   // Populate options
   PopulateOptions(pin);
 
-  // Point variables to correct locations -------------------------------------
-  SetVarAliasesLab(storage.u, lab);
-  SetVarAliasesRad(storage.u_rad, rad);
-  SetVarAliasesRadMat(storage.radmat, rmat);
-  SetVarAliasesDiagno(storage.diagno, rdia);
-  SetVarAliasesFidu(storage.intern, fidu);
-  SetVarAliasesNet(storage.intern, net);
+  // initialize storage for auxiliary fields ----------------------------------
+  InitializeScratch(scratch);
+  InitializeGeometry(geom);
+  InitializeHydro(hydro, geom);
 
-  m1_mask.InitWithShallowSlice(storage.intern, I_Intern_mask);
+  // Point variables to correct locations -------------------------------------
+  SetVarAliasesFluxes(storage.flux, fluxes);
+  SetVarAliasesLab(storage.u, lab);
+  SetVarAliasesLab(storage.u_rhs, rhs);
+  // SetVarAliasesRad(storage.u_rad, rad);
+  // SetVarAliasesRadMat(storage.radmat, rmat);
+  // SetVarAliasesDiagno(storage.diagno, rdia);
+  // SetVarAliasesFidu(storage.intern, fidu);
+  // SetVarAliasesNet(storage.intern, net);
+
+  // m1_mask.InitWithShallowSlice(storage.intern, I_Intern_mask);
+
+
+  // debug
+  // GroupSpeciesContainer<AT_N_sca> E(1,2);
+  // lab.E(0,0).InitWithShallowSlice(storage.u,I_Lab_E);
+  // lab.E(0,1).InitWithShallowSlice(storage.u,I_Lab_E+1);
+
+  // E(0,0).array().print_all();
+
+  // GroupSpeciesFluxContainer<AT_N_sca> fluxes_E;
+
+  // x1dir = fluxes(ix_g,ix_s)[0](ix_lab::E,k,j,i)
+  // x2dir = fluxes(ix_g,ix_s)[1](ix_lab::E,k,j,i)
+  // x3dir = fluxes(ix_g,ix_s)[2](ix_lab::E,k,j,i)
+  //
+  // x1dir = fluxes(ix_g,ix_s,0)(ix_lab::E,k,j,i)
+  // x2dir = fluxes(ix_g,ix_s,1)(ix_lab::E,k,j,i)
+  // x3dir = fluxes(ix_g,ix_s,2)(ix_lab::E,k,j,i)
+
+  /*
+  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  {
+    lab.E(ix_g,ix_s).Fill(ix_g+ix_s);
+  }
+
+  const int ix_g = 1;
+  const int ix_s = 2;
+  lab.E(ix_g,ix_s).array().print_all();
+
+  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  for (int ix_f=0; ix_f<M1_NDIM; ++ix_f)
+  {
+    fluxes.E(ix_g,ix_s,ix_f).array().print_all();
+  }
+  */
+
+  /*
+  GroupSpeciesFluxContainer<AT_N_sca> fluxes_E(1,1);
+
+  for (int ix_f=0; ix_f<M1_NDIM; ++ix_f)
+    fluxes_E(0,0,ix_f).InitWithShallowSlice(storage.flux[ix_f], I_Lab_E);
+
+  fluxes_E(0,0,0).array().print_all();
+  fluxes.E(0,0,0).array().print_all();
+
+  fluxes_E(0,0,1).array().print_all();
+  // fluxes.E(0,0,1).array().print_all();
+
+  std::exit(0);
+  */
+  /*
+
+  // const int N_gs = (ix_s + N_SPCS * (ix_g + 0)) * N_Lab;
+  // fluxes_E(ix_g,ix_s,0).InitWithShallowSlice(
+  //   storage.flux[0], N_gs+I_Lab_E);
+
+
+  fluxes.E(ix_g,ix_s,1).array().print_all();
+  */
+  // lab.E(ix_g,ix_s).array().print_all();
+
+  // const int ix_g = 1;
+  // const int ix_s = 2;
+  // fluxes.E(ix_g,ix_s,0).array().print_all();
+  // std::exit(0);
+
+  // debug
+  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  M1_ILOOP3(k,j,i)
+  {
+    lab.E(ix_g,ix_s)(k,j,i) = mbi.x1(i) + ix_g + ix_s;
+  }
+
+  // const int ix_g = 1;
+  // const int ix_s = 2;
+  // lab.E(ix_g,ix_s).array().print_all();
+  // std::exit(0);
 
 }
 
@@ -158,19 +249,31 @@ void M1::PopulateOptions(ParameterInput *pin)
       "M1", "fiducial_velocity_rho_fluid", 0.0) * CGS_GCC;
   }
 
+
 }
 
 // set aliases for variables ==================================================
+
+void M1::SetVarAliasesFluxes(AA (&u_flux)[M1_NDIM], vars_Flux & fluxes)
+{
+  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  for (int ix_f=0; ix_f<M1_NDIM; ++ix_f)
+  {
+    SetVarAlias(fluxes.E,   u_flux, ix_g, ix_s, ix_f, ixn_Lab::E,  ixn_Lab::N);
+    SetVarAlias(fluxes.F_d, u_flux, ix_g, ix_s, ix_f, ixn_Lab::Fx, ixn_Lab::N);
+    SetVarAlias(fluxes.nG,  u_flux, ix_g, ix_s, ix_f, ixn_Lab::nG, ixn_Lab::N);
+  }
+}
 
 void M1::SetVarAliasesLab(AthenaArray<Real> & u, vars_Lab & lab)
 {
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
   {
-    const int N_gs = (ix_s + N_SPCS * (ix_g + 0)) * N_Lab;
-    lab.E(  ix_g,ix_s).InitWithShallowSlice(u, N_gs+I_Lab_E);
-    lab.F_d(ix_g,ix_s).InitWithShallowSlice(u, N_gs+I_Lab_Fx);
-    lab.N(  ix_g,ix_s).InitWithShallowSlice(u, N_gs+I_Lab_N);
+    SetVarAlias(lab.E,   u, ix_g, ix_s, ixn_Lab::E,  ixn_Lab::N);
+    SetVarAlias(lab.F_d, u, ix_g, ix_s, ixn_Lab::Fx, ixn_Lab::N);
+    SetVarAlias(lab.nG,  u, ix_g, ix_s, ixn_Lab::nG, ixn_Lab::N);
   }
 }
 
@@ -215,3 +318,11 @@ void M1::SetVarAliasesNet(AthenaArray<Real> & u, vars_Net & net)
   net.abs.InitWithShallowSlice(u, I_Intern_netabs);
   net.heat.InitWithShallowSlice(u, I_Intern_netheat);
 }
+
+// ============================================================================
+} // namespace M1
+// ============================================================================
+
+//
+// :D
+//

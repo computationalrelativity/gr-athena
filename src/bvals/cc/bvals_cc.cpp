@@ -578,7 +578,7 @@ void CellCenteredBoundaryVariable::SetupPersistentMPI() {
       MPI_Recv_init(bd_var_.recv[nb.bufid], rsize, MPI_ATHENA_REAL,
                     nb.snb.rank, tag, MPI_COMM_WORLD, &(bd_var_.req_recv[nb.bufid]));
 
-      if (FLUID_ENABLED) {
+      if (FLUID_ENABLED || M1_ENABLED) {
         // hydro flux correction: bd_var_flcor_
         if (pmy_mesh_->multilevel && nb.ni.type == NeighborConnect::face) {
           int size;
@@ -621,7 +621,7 @@ void CellCenteredBoundaryVariable::StartReceiving(BoundaryCommSubset phase) {
     NeighborBlock& nb = pbval_->neighbor[n];
     if (nb.snb.rank != Globals::my_rank) {
       MPI_Start(&(bd_var_.req_recv[nb.bufid]));
-      if(FLUID_ENABLED) {
+      if(FLUID_ENABLED || M1_ENABLED) {
         if (phase == BoundaryCommSubset::all && nb.ni.type == NeighborConnect::face
             && nb.snb.level > mylevel) // opposite condition in ClearBoundary()
           MPI_Start(&(bd_var_flcor_.req_recv[nb.bufid]));
@@ -640,7 +640,7 @@ void CellCenteredBoundaryVariable::ClearBoundary(BoundaryCommSubset phase) {
     bd_var_.flag[nb.bufid] = BoundaryStatus::waiting;
     bd_var_.sflag[nb.bufid] = BoundaryStatus::waiting;
 
-    if (FLUID_ENABLED) {
+    if (FLUID_ENABLED || M1_ENABLED) {
       if (nb.ni.type == NeighborConnect::face) {
         bd_var_flcor_.flag[nb.bufid] = BoundaryStatus::waiting;
         bd_var_flcor_.sflag[nb.bufid] = BoundaryStatus::waiting;
@@ -654,7 +654,7 @@ void CellCenteredBoundaryVariable::ClearBoundary(BoundaryCommSubset phase) {
       // Wait for Isend
       MPI_Wait(&(bd_var_.req_send[nb.bufid]), MPI_STATUS_IGNORE);
 
-      if (FLUID_ENABLED) {
+      if (FLUID_ENABLED || M1_ENABLED) {
         if (phase == BoundaryCommSubset::all && nb.ni.type == NeighborConnect::face
             && nb.snb.level < mylevel)
           MPI_Wait(&(bd_var_flcor_.req_send[nb.bufid]), MPI_STATUS_IGNORE);

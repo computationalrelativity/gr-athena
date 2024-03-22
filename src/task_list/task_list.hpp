@@ -396,8 +396,10 @@ class M1IntegratorTaskList: public TaskList {
 
     M1IntegratorTaskList(ParameterInput *pin, Mesh *pm);
 
-    // functions
     TaskStatus ClearAllBoundary(MeshBlock *pmb, int stage);
+
+    TaskStatus UpdateBackground(MeshBlock *pmb, int stage);
+
     TaskStatus CalcFiducialVelocity(MeshBlock *pmb, int stage);
     TaskStatus CalcClosure(MeshBlock *pmb, int stage);
     TaskStatus CalcOpacity(MeshBlock *pmb, int stage);
@@ -424,6 +426,7 @@ class M1IntegratorTaskList: public TaskList {
     TaskStatus CheckRefinement(MeshBlock *pmb, int stage);
 
     TaskStatus Nop(MeshBlock *pmb, int stage);
+    TaskStatus NopFinal(MeshBlock *pmb, int stage);
 
   private:
     Real const dt_fac[2]{0.5, 1.0}; // timestep factor for each stage
@@ -434,31 +437,35 @@ class M1IntegratorTaskList: public TaskList {
 namespace M1IntegratorTaskNames {
   const TaskID NONE(0);
   const TaskID CLEAR_ALLBND(1);
-  const TaskID CALC_FIDU(2);
-  const TaskID CALC_CLOSURE(3);
-  const TaskID CALC_OPAC(4);
 
-  const TaskID CALC_FLUX(5);
-  const TaskID SEND_FLUX(6);
-  const TaskID RECV_FLUX(7);
+  const TaskID UPDATE_BG(2);
 
-  const TaskID ADD_FLX_DIV(8);
-  const TaskID ADD_GRSRC(9);
-  const TaskID CALC_UPDATE(10);
+  const TaskID CALC_FIDU(3);
+  const TaskID CALC_CLOSURE(4);
+  const TaskID CALC_OPAC(5);
 
-  const TaskID SEND(11);
-  const TaskID RECV(12);
-  const TaskID SETB(13);
-  const TaskID PROLONG(14);
-  const TaskID PHY_BVAL(15);
+  const TaskID CALC_FLUX(6);
+  const TaskID SEND_FLUX(7);
+  const TaskID RECV_FLUX(8);
 
-  const TaskID USERWORK(16);
+  const TaskID ADD_FLX_DIV(9);
+  const TaskID ADD_GRSRC(10);
+  const TaskID CALC_UPDATE(11);
 
-  const TaskID NEW_DT(17);
-  const TaskID FLAG_AMR(18);
+  const TaskID SEND(12);
+  const TaskID RECV(13);
+  const TaskID SETB(14);
+  const TaskID PROLONG(15);
+  const TaskID PHY_BVAL(16);
+
+  const TaskID USERWORK(17);
+
+  const TaskID NEW_DT(18);
+  const TaskID FLAG_AMR(19);
 
 
   const TaskID NOP(60);
+  const TaskID NOP_FINAL(61);
 }  // namespace M1IntegratorTaskNames
 // ----------------------------------------------------------------------------
 

@@ -15,32 +15,32 @@ ncycle_out   = 1      # interval for stdout summary info
 
 <mesh> # ======================================================================
 # no. cell in dir, min/max x, inner/outer BC
-nx1    = 100
+nx1    = 20
 x1min  = -1
 x1max  = 1
 ix1_bc = extrapolate_outflow
 ox1_bc = extrapolate_outflow
 
-nx2    = 4
+nx2    = 1
 x2min  = -1
 x2max  = 1
 ix2_bc = outflow
 ox2_bc = outflow
 
-nx3    = 4
+nx3    = 1
 x3min  = -1
 x3max  = 1
 ix3_bc = outflow
 ox3_bc = outflow
 
-refinement = none
+refinement = static
 num_threads = 1
 # =============================================================================
 
 <meshblock> # =================================================================
 nx1 = 10
-nx2 = 4
-nx3 = 4
+nx2 = 1
+nx3 = 1
 # =============================================================================
 
 <M1> # ========================================================================
@@ -64,17 +64,27 @@ diff_profile = step # only in x direction!
 medium_velocity = 0.0
 # =============================================================================
 
+<refinement1> # ===============================================================
+x1min =  -0.2
+x1max =  0.2
+x2min = -1.0
+x2max = -1.0
+x3min = -1.0
+x3max =  1.0
+level = 2
+# =============================================================================
+
 # dumped quantities ===========================================================
 # <output1>
 # file_type = rst
 # dt        = 1
 
-# <output2>
-# file_type   = hdf5
-# variable    = m1_lab
-# dt          = 0.1
-# ghost_zones = true
-# # x3_slice    = true
+<output2>
+file_type   = hdf5
+variable    = m1_lab
+dt          = 0.1
+ghost_zones = true
+# x3_slice    = true
 
 #
 # :D

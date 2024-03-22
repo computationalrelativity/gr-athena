@@ -19,6 +19,10 @@
 
 #include "m1.hpp"
 
+// ============================================================================
+namespace M1 {
+// ============================================================================
+
 //! \fn Real Z4c::NewBlockTimeStep(void)
 //  \brief calculate the minimum timestep within a MeshBlock
 Real M1::NewBlockTimeStep(void)
@@ -69,3 +73,11 @@ Real M1::NewBlockTimeStep(void)
   pmb->new_block_dt_ = min_dt;
   return min_dt;
 }
+
+// ============================================================================
+} // namespace M1
+// ============================================================================
+
+//
+// :D
+//

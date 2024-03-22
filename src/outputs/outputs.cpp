@@ -339,7 +339,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   Gravity *pgrav = pmb->pgrav;
   Wave *pwave = pmb->pwave;
   Z4c *pz4c = pmb->pz4c;
-  M1 *pm1 = pmb->pm1;
+  M1::M1 *pm1 = pmb->pm1;
 
   num_vars_ = 0;
   OutputData *pod;
@@ -607,13 +607,13 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
 
   if (M1_ENABLED)
   {
-    for (int v = 0; v < M1::N_Lab; ++v)
+    for (int v = 0; v < M1::M1::ixn_Lab::N; ++v)
     {
       if (output_params.variable.compare("m1_lab") == 0)
       {
         pod = new OutputData;
         pod->type = "SCALARS";
-        pod->name = M1::names_Lab[v];
+        pod->name = M1::M1::ixn_Lab::names[v];
         pod->data.InitWithShallowSlice(pm1->storage.u,v,1);
         AppendOutputDataNode(pod);
         num_vars_++;

@@ -398,6 +398,12 @@ int main(int argc, char *argv[])
   delete pmesh;
   delete pouts;
 
+  // BD: TODO - move to TearDown
+  if (M1_ENABLED)
+  {
+    delete pm1list;
+  }
+
   gra::tasklist::TearDown(ptlc);
   gra::parallelism::Teardown();
 

@@ -69,7 +69,11 @@ class WaveExtractLocal;
 class PunctureTracker;
 class ExtremaTracker;
 class ExtremaTrackerLocal;
-class M1;
+
+namespace M1 {
+  class M1;
+}
+
 
 FluidFormulation GetFluidFormulation(const std::string& input_string);
 
@@ -91,7 +95,7 @@ class MeshBlock {
 #endif
   friend class Z4c;
   friend class Wave;
-  friend class M1;
+  friend class M1::M1;
 
 public:
   MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_size,
@@ -243,7 +247,7 @@ public:
 
   ExtremaTrackerLocal * ptracker_extrema_loc;
 
-  M1 *pm1;
+  M1::M1 *pm1;
 
   MeshBlock *prev, *next;
 

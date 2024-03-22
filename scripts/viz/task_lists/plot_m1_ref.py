@@ -111,7 +111,7 @@ class col_con(object):
 
 show_old = False
 
-flags_M1 = 'm1_task_list (old): (pm->adaptive, pm->multilevel)'
+flags_M1 = 'm1_task_list (ref): (pm->adaptive, pm->multilevel)'
 
 cc_M1 = col_con()
 

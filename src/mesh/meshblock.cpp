@@ -188,7 +188,7 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
 
   if (M1_ENABLED)
   {
-    pm1 = new M1(this, pin);
+    pm1 = new M1::M1(this, pin);
     pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
   }
 
@@ -332,7 +332,7 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
 
   if (M1_ENABLED)
   {
-    pm1 = new M1(this, pin);
+    pm1 = new M1::M1(this, pin);
     pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
   }
 

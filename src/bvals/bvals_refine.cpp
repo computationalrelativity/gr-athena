@@ -388,16 +388,6 @@ void BoundaryValues::ApplyPhysicalBoundariesAux(const Real time, const Real dt)
   }
 }
 
-void BoundaryValues::ProlongateBoundariesM1(const Real time, const Real dt)
-{
-  // ...
-}
-
-void BoundaryValues::ApplyPhysicalBoundariesM1(const Real time, const Real dt)
-{
-  // ...
-}
-
 void BoundaryValues::RestrictGhostCellsOnSameLevel(const NeighborBlock& nb, int nk,
                                                    int nj, int ni) {
   MeshBlock *pmb = pmy_block_;

@@ -202,7 +202,11 @@ inline void TraceRank2(
 
 }
 
+<<<<<<< HEAD
 // inner product of 3-vec
+=======
+// inner product of dense 3-vec, metric
+>>>>>>> cc2a74d6 (Namespace M1 to avoid future headaches. Couple (mock) external fluid / geometry)
 inline Real InnerProductVec3Metric(
   AthenaTensor<Real, TensorSymm::NONE, 3, 1> const & u,
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & g,
@@ -216,6 +220,10 @@ inline Real InnerProductVec3Metric(
           2.0*u(1,k,j,i)*u(2,k,j,i)*g(1,2,k,j,i));
 }
 
+<<<<<<< HEAD
+=======
+// inner product of sliced 3-vec, metric
+>>>>>>> cc2a74d6 (Namespace M1 to avoid future headaches. Couple (mock) external fluid / geometry)
 inline Real InnerProductSlicedVec3Metric(
   AthenaTensor<Real, TensorSymm::NONE, 3, 1> const & u,
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & g,

@@ -21,13 +21,14 @@
 #include "../bvals/cc/bvals_cc.hpp"
 #include "m1_containers.hpp"
 
+// ============================================================================
+namespace M1 {
+// ============================================================================
+
 // M1 settings ----------------------------------------------------------------
 
 
 // Class ======================================================================
-
-class MeshBlock;
-class ParameterInput;
 
 class M1
 {
@@ -62,8 +63,8 @@ public:
   MB_info mbi;
 
   // Species and groups (from parameter file)
-  const int N_SPCS { 1 };
   const int N_GRPS { 1 };
+  const int N_SPCS { 1 };
 
   struct
   {
@@ -80,69 +81,9 @@ public:
   } storage;
 
   // Variables to deal with refinement
-  AthenaArray<Real> empty_flux[3];
   AthenaArray<Real> coarse_u_;
   CellCenteredBoundaryVariable ubvar;
   int refinement_idx{-1};
-
-  // variable alias -----------------------------------------------------------
-
-  // Lab variables and RHS
-  struct vars_Lab {
-    GroupSpeciesContainer<AT_N_sca> E;
-    GroupSpeciesContainer<AT_N_vec> F_d;
-    GroupSpeciesContainer<AT_N_sca> N;
-  };
-  vars_Lab lab, rhs;
-
-  // fluid variables + P_ij Lab, etc.
-  struct vars_Rad {
-    AT_N_sca nnu;
-    AT_N_sca J;
-    AT_N_sca Ht;
-    AT_N_vec H;
-    AT_N_sym P_dd; // Lab frame (normalized by E)
-    AT_N_sca chi;
-    AT_N_sca ynu;
-    AT_N_sca znu;
-  };
-  vars_Rad rad;
-
-  // radiation-matter variables
-  struct vars_RadMat {
-    AT_N_sca abs_0;
-    AT_N_sca abs_1;
-    AT_N_sca eta_0;
-    AT_N_sca eta_1;
-    AT_N_sca scat_1;
-    AT_N_sca nueave;
-  };
-  vars_RadMat rmat;
-
-  // diagnostic variables
-  struct vars_Diagno {
-    AT_N_sca radflux_0;
-    AT_N_sca radflux_1;
-    AT_N_sca ynu;
-    AT_N_sca znu;
-  };
-  vars_Diagno rdia;
-
-  // fiducial vel. variables (no group dependency)
-  struct vars_Fidu {
-    AT_N_vec vel_u;
-    AT_N_sca Wlorentz;
-  };
-  vars_Fidu fidu;
-
-  // net heat and abs (no group dependency)
-  struct vars_Net {
-    AT_N_sca abs;
-    AT_N_sca heat;
-  };
-  vars_Net net;
-
-  AT_N_sca m1_mask;  // Excision mask
 
 // configuration ==============================================================
 public:
@@ -157,18 +98,16 @@ public:
 
 // idx & constants ============================================================
 public:
+
   // Lab frame variables
-  enum
+  struct ixn_Lab
   {
-    I_Lab_E,
-    I_Lab_Fx, I_Lab_Fy, I_Lab_Fz,
-    I_Lab_N,
-    N_Lab
-  };
-  static constexpr char const * const names_Lab[] = {
-    "lab.E",
-    "lab.Fx", "lab.Fy", "lab.Fz",
-    "lab.N"
+    enum { E, Fx, Fy, Fz, nG, N };
+    static constexpr char const * const names[] = {
+      "lab.E",
+      "lab.Fx", "lab.Fy", "lab.Fz",
+      "lab.nG"
+    };
   };
 
   // Fluid frame radiation variables + P_{ij}, etc.
@@ -262,16 +201,174 @@ public:
     "failed",
   };
 
+  // variable alias / storage -------------------------------------------------
+  typedef AthenaTensor<Real, TensorSymm::NONE, ixn_Lab::N, 1> AT_F_vec;
+
+  struct vars_Flux
+  {
+    GroupSpeciesFluxContainer<AT_N_sca> E;
+    GroupSpeciesFluxContainer<AT_N_vec> F_d;
+    GroupSpeciesFluxContainer<AT_N_sca> nG;
+    GroupSpeciesFluxContainer<AT_F_vec> all;
+  };
+  vars_Flux fluxes;
+
+  // Lab variables and RHS
+  struct vars_Lab {
+    GroupSpeciesContainer<AT_N_sca> E;
+    GroupSpeciesContainer<AT_N_vec> F_d;
+    GroupSpeciesContainer<AT_N_sca> nG;
+  };
+  vars_Lab lab, rhs;
+
+  // fluid variables + P_ij Lab, etc.
+  struct vars_Rad {
+    AT_N_sca nnu;
+    AT_N_sca J;
+    AT_N_sca Ht;
+    AT_N_vec H;
+    AT_N_sym P_dd; // Lab frame (normalized by E)
+    AT_N_sca chi;
+    AT_N_sca ynu;
+    AT_N_sca znu;
+  };
+  vars_Rad rad;
+
+  // radiation-matter variables
+  struct vars_RadMat {
+    AT_N_sca abs_0;
+    AT_N_sca abs_1;
+    AT_N_sca eta_0;
+    AT_N_sca eta_1;
+    AT_N_sca scat_1;
+    AT_N_sca nueave;
+  };
+  vars_RadMat rmat;
+
+  // diagnostic variables
+  struct vars_Diagno {
+    AT_N_sca radflux_0;
+    AT_N_sca radflux_1;
+    AT_N_sca ynu;
+    AT_N_sca znu;
+  };
+  vars_Diagno rdia;
+
+  // fiducial vel. variables (no group dependency)
+  struct vars_Fidu {
+    AT_N_vec vel_u;
+    AT_N_sca Wlorentz;
+  };
+  vars_Fidu fidu;
+
+  // net heat and abs (no group dependency)
+  struct vars_Net {
+    AT_N_sca abs;
+    AT_N_sca heat;
+  };
+  vars_Net net;
+
+  // geometric quantities (storage)
+  struct vars_Geom {
+    // (sc)alar fields
+    AT_N_sca sc_alpha;
+
+    // (sp)atial quantities
+    AT_N_vec   sp_beta_u;
+    AT_N_sym   sp_g_dd;
+    AT_N_sym   sp_K_dd;
+
+    // derived quantities
+    AT_N_sca sc_sqrt_det_g;
+    AT_N_sym sp_g_uu;
+
+    AT_N_D1sym sp_dg_ddd;
+
+    // (s)pace-(t)ime quantities (scratch assembled as required)
+    AT_D_vec st_beta_u_;
+    AT_D_sym st_g_dd_;
+    AT_D_sym st_g_uu_;
+  };
+  vars_Geom geom;
+
+  // hydrodynamical quantities (storage)
+  struct vars_Hydro {
+    // (sc)alar fields
+    AT_N_sca sc_w_rho;
+    AT_N_sca sc_w_p;
+    AT_N_sca sc_W;
+
+    // (sp)atial quantities
+    AT_N_vec sp_w_util_u;
+
+    // (s)pace-(t)ime quantities (scratch assembled as required)
+    AT_D_vec st_w_u_u_;
+  };
+  vars_Hydro hydro;
+
+  // various persistent scratch quantities not fitting elsewhere
+  struct vars_Scratch {
+    AA dflx;
+  };
+  vars_Scratch scratch;
+
+  AT_N_sca m1_mask;  // Excision mask
 
 // additional methods =========================================================
 public:
+  void UpdateGeometry(vars_Geom  & geom);
+  void UpdateHydro(vars_Hydro & hydro, vars_Geom & geom);
+
+private:
+  // These manipulate internal M1 mem-state; don't call external to class
+  void InitializeGeometry(vars_Geom  & geom);
+  void DerivedGeometry(   vars_Geom  & geom);
+
+  void InitializeHydro(vars_Hydro & hydro, vars_Geom & geom);
+  void DerivedHydro(   vars_Hydro & hydro, vars_Geom & geom);
+
+  void InitializeScratch(vars_Scratch & scratch)
+  {
+    scratch.dflx.NewAthenaArray(N_GRPS, N_SPCS, ixn_Lab::N, mbi.nn1);
+  }
+
+public:
   // aliases ------------------------------------------------------------------
-  void SetVarAliasesLab(   AA & u,      vars_Lab    & lab);
-  void SetVarAliasesRad(   AA & r,      vars_Rad    & rad);
-  void SetVarAliasesRadMat(AA & radmat, vars_RadMat & rmat);
-  void SetVarAliasesDiagno(AA & diagno, vars_Diagno & rdia);
-  void SetVarAliasesFidu(  AA & intern, vars_Fidu   & fid);
-  void SetVarAliasesNet(   AA & intern, vars_Net    & net);
+  inline int ix_map_GS(const int ix_g, const int ix_s, const int N)
+  {
+    return (ix_s + N_SPCS * (ix_g + 0)) * N;
+  }
+
+  template<typename A_tar>
+  inline void SetVarAlias(A_tar & tar, AA & src,
+                          const int ix_g, // group
+                          const int ix_s, // species
+                          const int ix_v, // variable idx in src
+                          const int N)    // number of vars in src
+  {
+    const int N_gs = ix_map_GS(ix_s, ix_g, N);
+    tar(ix_g,ix_s).InitWithShallowSlice(src, N_gs+ix_v);
+  }
+
+  template<typename A_tar>
+  inline void SetVarAlias(A_tar & tar, AA (&src)[M1_NDIM],
+                          const int ix_g, // group
+                          const int ix_s, // species
+                          const int ix_f, // flux direction
+                          const int ix_v, // variable idx in src
+                          const int N)    // number of vars in src
+  {
+    const int N_gs = ix_map_GS(ix_s, ix_g, N);
+    tar(ix_g,ix_s,ix_f).InitWithShallowSlice(src[ix_f], N_gs+ix_v);
+  }
+
+  void SetVarAliasesFluxes(AA (&u_fluxes)[M1_NDIM], vars_Flux   & fluxes);
+  void SetVarAliasesLab(   AA  &u,                  vars_Lab    & lab);
+  void SetVarAliasesRad(   AA  &r,                  vars_Rad    & rad);
+  void SetVarAliasesRadMat(AA  &radmat,             vars_RadMat & rmat);
+  void SetVarAliasesDiagno(AA  &diagno,             vars_Diagno & rdia);
+  void SetVarAliasesFidu(  AA  &intern,             vars_Fidu   & fid);
+  void SetVarAliasesNet(   AA  &intern,             vars_Net    & net);
 
 
 // internal methods ===========================================================
@@ -285,4 +382,12 @@ private:
 
 };
 
+// ============================================================================
+} // namespace M1
+// ============================================================================
+
 #endif // M1_HPP
+
+//
+// :D
+//
