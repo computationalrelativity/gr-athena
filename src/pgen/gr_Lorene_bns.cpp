@@ -199,6 +199,19 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   AT_N_sym g_dd(  pz4c->storage.adm, Z4c::I_ADM_gxx);
   AT_N_sym K_dd(  pz4c->storage.adm, Z4c::I_ADM_Kxx);
 
+
+  // prepare matter grid ----------------------------------------------------
+  const int il = 0;
+  const int iu = ncells1-1;
+
+  const int jl = 0;
+  const int ju = ncells2-1;
+
+  const int kl = 0;
+  const int ku = ncells3-1;
+
+  Real sep;
+
   // --------------------------------------------------------------------------
   #pragma omp critical
   {
@@ -335,14 +348,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     // prepare matter grid ----------------------------------------------------
     int npoints_cc = 0;
 
-    const int il = 0;
-    const int iu = ncells1-1;
-
-    const int jl = 0;
-    const int ju = ncells2-1;
-
-    const int kl = 0;
-    const int ku = ncells3-1;
 
     for (int k = kl; k <= ku; ++k)
     for (int j = jl; j <= ju; ++j)
@@ -376,7 +381,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     bns = pmy_mesh->bns;
     assert(bns->np == npoints_cc);
 
-    Real sep = bns->dist / coord_unit;
+    sep = bns->dist / coord_unit;
     // Real w_p_max = 0.0; //0.00013; ?? // compute below
 
     I = 0;      // reset
@@ -499,12 +504,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   // --------------------------------------------------------------------------
 
-  /*
   if (MAGNETIC_FIELDS_ENABLED)
   {
     // B field ------------------------------------------------------------------
     // Assume stars are located on x axis
 
+    Real pgasmax = pin->GetReal("problem","pmax");
     Real pcut = pin->GetReal("problem","pcut") * pgasmax;
     Real b_amp = pin->GetReal("problem","b_amp");
     int magindex = pin->GetInteger("problem","magindex");
@@ -576,7 +581,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
     pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord, il,iu,jl,ju,kl,ku);
   } // MAGNETIC_FIELDS_ENABLED
-  */
   //  -------------------------------------------------------------------------
 
   // Construct Z4c vars from ADM vars ------------------------------------------
