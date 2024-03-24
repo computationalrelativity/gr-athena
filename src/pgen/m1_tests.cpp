@@ -150,8 +150,6 @@ void InitM1DiffusionMovingMedium(MeshBlock *pmb, ParameterInput *pin)
 
 void BCOutFlowInnerX1(MeshBlock *pmb,
                       Coordinates *pco,
-                      AthenaArray<Real> &u,
-                      FaceField &b,
                       Real time, Real dt,
                       int il, int iu,
                       int jl, int ju,
@@ -201,8 +199,6 @@ void BCOutFlowInnerX1(MeshBlock *pmb,
 
 void BCShadowInnerX1(MeshBlock *pmb,
                      Coordinates *pco,
-                     AthenaArray<Real> &u,
-                     FaceField &b,
                      Real time, Real dt,
                      int il, int iu,
                      int jl, int ju,
@@ -540,8 +536,6 @@ void SetADMKerrSchild(MeshBlock *pmb, ParameterInput *pin)
 
 void BCInnerX1(MeshBlock *pmb,
                Coordinates *pco,
-               AthenaArray<Real> &u,
-               FaceField &b,
                Real time, Real dt,
                int il, int iu,
                int jl, int ju,

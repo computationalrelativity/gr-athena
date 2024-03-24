@@ -1916,7 +1916,6 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 #else
                                           il, iu, jl, ju, kl, ku);
 #endif
-
         }
 
 #if !USETM

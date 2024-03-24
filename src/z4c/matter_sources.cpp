@@ -62,6 +62,9 @@ void Z4c::GetMatter(::AA & u_mat, ::AA & u_adm, ::AA & w, ::AA & bb_cc)
   AthenaArray<Real> & sl_w = (
     (opt.fix_admsource == 0) ? w : phydro->w_init
   );
+#if USETM
+  AthenaArray<Real> & sl_scalars = r;
+#endif
 
   AT_N_sca sl_w_rho(   sl_w, IDN);
   AT_N_sca sl_w_p(     sl_w, IPR);

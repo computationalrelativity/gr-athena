@@ -62,7 +62,7 @@ class HybridTable : public EOSPolicyInterface {
 
     /// Calculate the specific internal energy per unit mass
     Real SpecificInternalEnergy(Real n, Real T, Real *Y);
-    
+
     /// Calculate the baryon chemical potential
     [[ noreturn ]]
     Real BaryonChemicalPotential(Real n, Real T, Real *Y);
