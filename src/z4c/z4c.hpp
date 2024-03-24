@@ -333,6 +333,9 @@ public:
   void GetMatter(AthenaArray<Real> & u_mat,
                  AthenaArray<Real> & u_adm,
                  AthenaArray<Real> & w,
+#if USETM
+                 AthenaArray<Real> & r,
+#endif
                  AthenaArray<Real> & bb_cc);
 
   // utility functions
@@ -480,6 +483,9 @@ private:
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> w_rho;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> w_p;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> w_utilde_u;
+#if USETM
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> w_r;
+#endif
 
 #if MAGNETIC_FIELDS_ENABLED
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> bb;

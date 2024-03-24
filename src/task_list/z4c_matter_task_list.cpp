@@ -1156,6 +1156,7 @@ TaskStatus MatterTaskList::ReceiveAndCorrectEMF(MeshBlock *pmb, int stage) {
 TaskStatus MatterTaskList::IntegrateHydro(MeshBlock *pmb, int stage) {
 //printf("inthydro\n");
   Hydro *ph = pmb->phydro;
+  PassiveScalars *ps = pmb->pscalars;
   Field *pf = pmb->pfield;
 
   if (pmb->pmy_mesh->fluid_setup != FluidFormulation::evolve) return TaskStatus::next;
@@ -1183,7 +1184,11 @@ TaskStatus MatterTaskList::IntegrateHydro(MeshBlock *pmb, int stage) {
     ph->AddFluxDivergence(wght, ph->u);
 
     // add coordinate (geometric) source terms
+#if USETM
+    pmb->pcoord->AddCoordTermsDivergence(wght, ph->flux, ph->w, ps->r, pf->bcc, ph->u);
+#else
     pmb->pcoord->AddCoordTermsDivergence(wght, ph->flux, ph->w, pf->bcc, ph->u);
+#endif
 
     // Hardcode an additional flux divergence weighted average for the penultimate
     // stage of SSPRK(5,4) since it cannot be expressed in a 3S* framework
@@ -1199,7 +1204,11 @@ TaskStatus MatterTaskList::IntegrateHydro(MeshBlock *pmb, int stage) {
       pmb->WeightedAveCC(ph->u2, ph->u1, ph->u2, ave_wghts);
       ph->AddFluxDivergence(wght_ssp, ph->u2);
       // add coordinate (geometric) source terms
+#if USETM
+      pmb->pcoord->AddCoordTermsDivergence(wght_ssp, ph->flux, ph->w, ps->r, pf->bcc, ph->u2);
+#else
       pmb->pcoord->AddCoordTermsDivergence(wght_ssp, ph->flux, ph->w, pf->bcc, ph->u2);
+#endif
     }
     return TaskStatus::next;
   }
@@ -1500,15 +1509,20 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
     // Newton-Raphson solver in GR EOS uses the following abscissae:
     // stage=1: W at t^n and
     // stage=2: W at t^{n+1/2} (VL2) or t^{n+1} (RK2)
-    pmb->peos->ConservedToPrimitive(ph->u, ph->w, pf->b,
-                                    ph->w1, pf->bcc, pmb->pcoord,
+    pmb->peos->ConservedToPrimitive(ph->u, ph->w, pf->b, ph->w1, 
+#if USETM
+                                    ps->s, ps->r,
+#endif
+                                    pf->bcc, pmb->pcoord,
                                     il, iu, jl, ju, kl, ku,0);
+#if !USETM
     if (NSCALARS > 0) {
       // r1/r_old for GR is currently unused:
       pmb->peos->PassiveScalarConservedToPrimitive(ps->s, ph->w1, // ph->u, (updated rho)
                                                    ps->r, ps->r,
                                                    pmb->pcoord, il, iu, jl, ju, kl, ku);
     }
+#endif
     // this never tested - potential issue for WENO routines?
     // fourth-order EOS:
     if (pmb->precon->xorder == 4) {
@@ -1521,13 +1535,18 @@ TaskStatus MatterTaskList::Primitives(MeshBlock *pmb, int stage) {
       if (pbval->nblevel[2][1][1] != -1) ku -= 1;
       // for MHD, shrink buffer by 3
       // TODO(felker): add MHD loop limit calculation for 4th order W(U)
-      pmb->peos->ConservedToPrimitiveCellAverage(ph->u, ph->w, pf->b,
-                                                 ph->w1, pf->bcc, pmb->pcoord,
+      pmb->peos->ConservedToPrimitiveCellAverage(ph->u, ph->w, pf->b, ph->w1, 
+#if USETM
+                                                 ps->s, ps->r,
+#endif
+                                                 pf->bcc, pmb->pcoord,
                                                  il, iu, jl, ju, kl, ku);
+#if !USETM
       if (NSCALARS > 0) {
         pmb->peos->PassiveScalarConservedToPrimitiveCellAverage(
             ps->s, ps->r, ps->r, pmb->pcoord, il, iu, jl, ju, kl, ku);
       }
+#endif
     }
     // swap AthenaArray data pointers so that w now contains the updated w_out
     ph->w.SwapAthenaArray(ph->w1);
@@ -1985,7 +2004,11 @@ TaskStatus MatterTaskList::UpdateSource(MeshBlock *pmb, int stage) {
   {
 
     // Update matter
-    pmb->pz4c->GetMatter(pmb->pz4c->storage.mat, pmb->pz4c->storage.adm, pmb->phydro->w, pmb->pfield->bcc);
+    pmb->pz4c->GetMatter(pmb->pz4c->storage.mat, pmb->pz4c->storage.adm, pmb->phydro->w, 
+#if USETM
+    pmb->pscalars->r,
+#endif
+    pmb->pfield->bcc);
 
     return TaskStatus::success;
   }

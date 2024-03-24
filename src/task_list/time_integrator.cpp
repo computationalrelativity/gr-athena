@@ -1073,20 +1073,25 @@ TaskStatus TimeIntegratorTaskList::Primitives(MeshBlock *pmb, int stage) {
     // stage=1: W at t^n and
     // stage=2: W at t^{n+1/2} (VL2) or t^{n+1} (RK2)
 #ifdef Z4C_ENABLED
-    pmb->peos->ConservedToPrimitive(ph->u, ph->w, pf->b,
-                                    ph->w1, pf->bcc, pmb->pcoord,
-                                    il, iu, jl, ju, kl, ku,0);
+    pmb->peos->ConservedToPrimitive(ph->u, ph->w, pf->b, ph->w1, 
+#if USETM
+                                    ps->s, ps->r,
+#endif
+                                    pf->bcc, pmb->pcoord,
+#ifdef Z4C_ENABLED
+                                   il, iu, jl, ju, kl, ku,0);
 #else
-    pmb->peos->ConservedToPrimitive(ph->u, ph->w, pf->b,
-                                    ph->w1, pf->bcc, pmb->pcoord,
                                     il, iu, jl, ju, kl, ku);
 #endif
+
+#if !USETM
     if (NSCALARS > 0) {
       // r1/r_old for GR is currently unused:
       pmb->peos->PassiveScalarConservedToPrimitive(ps->s, ph->w1, // ph->u, (updated rho)
                                                    ps->r, ps->r,
                                                    pmb->pcoord, il, iu, jl, ju, kl, ku);
     }
+#endif
     // fourth-order EOS:
     if (pmb->precon->xorder == 4) {
       // for hydro, shrink buffer by 1 on all sides
@@ -1099,12 +1104,18 @@ TaskStatus TimeIntegratorTaskList::Primitives(MeshBlock *pmb, int stage) {
       // for MHD, shrink buffer by 3
       // TODO(felker): add MHD loop limit calculation for 4th order W(U)
       pmb->peos->ConservedToPrimitiveCellAverage(ph->u, ph->w, pf->b,
-                                                 ph->w1, pf->bcc, pmb->pcoord,
+                                                 ph->w1, 
+#if USETM
+                                                 ps->s, ps->r,
+#endif
+                                                 pf->bcc, pmb->pcoord,
                                                  il, iu, jl, ju, kl, ku);
+#if !USETM
       if (NSCALARS > 0) {
         pmb->peos->PassiveScalarConservedToPrimitiveCellAverage(
             ps->s, ps->r, ps->r, pmb->pcoord, il, iu, jl, ju, kl, ku);
       }
+#endif
     }
     // swap AthenaArray data pointers so that w now contains the updated w_out
     ph->w.SwapAthenaArray(ph->w1);

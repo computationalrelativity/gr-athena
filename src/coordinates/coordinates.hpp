@@ -144,9 +144,14 @@ class Coordinates {
   virtual Real GetCellVolume(const int k, const int j, const int i);
 
   // ...to compute geometrical source terms
-  virtual void AddCoordTermsDivergence(const Real dt, const AthenaArray<Real> *flux,
-                             const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc,
-                             AthenaArray<Real> &u);
+  virtual void AddCoordTermsDivergence(const Real dt, 
+                                       const AthenaArray<Real> *flux,
+                                       const AthenaArray<Real> &prim, 
+#if USETM
+                                       const AthenaArray<Real> &prim_scalar,
+#endif
+                                       const AthenaArray<Real> &bcc,
+                                       AthenaArray<Real> &u);
 
   // ...to determine if index is a pole
   bool IsPole(int j);
@@ -373,9 +378,14 @@ class Cylindrical : public Coordinates {
   Real GetCellVolume(const int k, const int j, const int i) final;
 
   // ...to compute geometrical source terms
-  void AddCoordTermsDivergence(const Real dt, const AthenaArray<Real> *flux,
-                     const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc,
-                     AthenaArray<Real> &u) final;
+  void AddCoordTermsDivergence(const Real dt, 
+                               const AthenaArray<Real> *flux,
+                               const AthenaArray<Real> &prim, 
+#if USETM
+                               const AthenaArray<Real> &prim_scalar,
+#endif
+                               const AthenaArray<Real> &bcc,
+                               AthenaArray<Real> &u) final;
 };
 
 //----------------------------------------------------------------------------------------
@@ -431,9 +441,14 @@ class SphericalPolar : public Coordinates {
   Real GetCellVolume(const int k, const int j, const int i) final;
 
   // ...to compute geometrical source terms
-  void AddCoordTermsDivergence(const Real dt, const AthenaArray<Real> *flux,
-                     const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc,
-                     AthenaArray<Real> &u) final;
+  void AddCoordTermsDivergence(const Real dt, 
+                               const AthenaArray<Real> *flux,
+                               const AthenaArray<Real> &prim, 
+#if USETM
+                               const AthenaArray<Real> &prim_scalar,
+#endif
+                               const AthenaArray<Real> &bcc,
+                               AthenaArray<Real> &u) final;
 };
 
 //----------------------------------------------------------------------------------------
@@ -539,9 +554,14 @@ class Schwarzschild : public Coordinates {
   Real GetCellVolume(const int k, const int j, const int i) final;
 
   // ...to compute geometrical source terms
-  void AddCoordTermsDivergence(const Real dt, const AthenaArray<Real> *flux,
-                     const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc,
-                     AthenaArray<Real> &u) final;
+  void AddCoordTermsDivergence(const Real dt, 
+                               const AthenaArray<Real> *flux,
+                               const AthenaArray<Real> &prim, 
+#if USETM
+                               const AthenaArray<Real> &prim_scalar,
+#endif
+                               const AthenaArray<Real> &bcc,
+                               AthenaArray<Real> &u) final;
 
   // In GR, functions...
   // ...to compute metric
@@ -634,9 +654,14 @@ class KerrSchild : public Coordinates {
   Real GetCellVolume(const int k, const int j, const int i) final;
 
   // ...to compute geometrical source terms
-  void AddCoordTermsDivergence(const Real dt, const AthenaArray<Real> *flux,
-                     const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc,
-                     AthenaArray<Real> &u) final;
+  void AddCoordTermsDivergence(const Real dt, 
+                               const AthenaArray<Real> *flux,
+                               const AthenaArray<Real> &prim, 
+#if USETM
+                               const AthenaArray<Real> &prim_scalar,
+#endif
+                               const AthenaArray<Real> &bcc,
+                               AthenaArray<Real> &u) final;
 
   // In GR, functions...
   // ...to compute metric
@@ -729,9 +754,14 @@ class GRUser : public Coordinates {
   Real GetCellVolume(const int k, const int j, const int i) final;
 
   // ...to compute geometrical source terms
-  void AddCoordTermsDivergence(const Real dt, const AthenaArray<Real> *flux,
-                     const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc,
-                     AthenaArray<Real> &u) final;
+  void AddCoordTermsDivergence(const Real dt, 
+                               const AthenaArray<Real> *flux,
+                               const AthenaArray<Real> &prim, 
+#if USETM
+                               const AthenaArray<Real> &prim_scalar,
+#endif
+                               const AthenaArray<Real> &bcc,
+                               AthenaArray<Real> &u) final;
 
   // In GR, functions...
   // ...to compute metric
@@ -829,13 +859,23 @@ class GRDynamical : public Coordinates {
 
   // In GR, functions...
   // ...to compute geometrical source terms
-  void _AddCoordTermsDivergence(const Real dt, const AthenaArray<Real> *flux,
-			       const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc,
-			       AthenaArray<Real> &u);
+  void _AddCoordTermsDivergence(const Real dt, 
+                               const AthenaArray<Real> *flux,
+                               const AthenaArray<Real> &prim, 
+#if USETM
+                               const AthenaArray<Real> &prim_scalar,
+#endif
+                               const AthenaArray<Real> &bcc,
+                               AthenaArray<Real> &u);
 
-  void AddCoordTermsDivergence(const Real dt, const AthenaArray<Real> *flux,
-			       const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc,
-			       AthenaArray<Real> &u) final;
+  void AddCoordTermsDivergence(const Real dt, 
+                               const AthenaArray<Real> *flux,
+                               const AthenaArray<Real> &prim, 
+#if USETM
+                               const AthenaArray<Real> &prim_scalar,
+#endif
+                               const AthenaArray<Real> &bcc,
+                               AthenaArray<Real> &u) final;
 
   // ...to transform primitives to locally flat space
   void PrimToLocal1(const int k, const int j, const int il, const int iu,

@@ -583,9 +583,15 @@ Real GRUser::GetCellVolume(const int k, const int j, const int i) {
 // Outputs:
 //   cons: source terms added to 3D array of conserved variables
 
-void GRUser::AddCoordTermsDivergence(const Real dt, const AthenaArray<Real> *flux,
-                           const AthenaArray<Real> &prim, const AthenaArray<Real> &bb_cc,
-                           AthenaArray<Real> &cons) {
+void GRUser::AddCoordTermsDivergence(
+    const Real dt, 
+    const AthenaArray<Real> *flux,
+    const AthenaArray<Real> &prim, 
+#if USETM
+    const AthenaArray<Real> &prim_scalar,
+#endif
+    const AthenaArray<Real> &bb_cc,
+    AthenaArray<Real> &cons) {
   // Extract indices
   int is = pmy_block->is;
   int ie = pmy_block->ie;

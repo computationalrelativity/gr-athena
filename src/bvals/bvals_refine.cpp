@@ -511,6 +511,11 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
     pf = pmb->pfield;
   }
 
+  PassiveScalars *ps = nullptr;
+  if (NSCALARS>0) {
+    ps = pmb->pscalars;
+}
+
   // convert the ghost zone and ghost-ghost zones into primitive variables
   // this includes cell-centered field calculation
   int f1m = 0, f1p = 0, f2m = 0, f2p = 0, f3m = 0, f3p = 0;
@@ -550,6 +555,9 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
 #ifdef Z4C_ENABLED
     pmb->peos->ConservedToPrimitive(ph->coarse_cons_, ph->coarse_prim_,
                                     pf->coarse_b_, ph->coarse_prim_,
+#if USETM
+                                    ps->coarse_s_, ps->coarse_r_,
+#endif
                                     pf->coarse_bcc_, pmr->pcoarsec,
                                     si-f1m, ei+f1p, sj-f2m, ej+f2p, sk-f3m, ek+f3p,1);
 #else
@@ -560,6 +568,7 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
 #endif
   }
 
+#if !USETM
   if (NSCALARS > 0) {
     PassiveScalars *ps = pmb->pscalars;
     pmb->peos->PassiveScalarConservedToPrimitive(ps->coarse_s_, ph->coarse_prim_,
@@ -568,6 +577,7 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
                                                  si-f1m, ei+f1p, sj-f2m, ej+f2p,
                                                  sk-f3m, ek+f3p);
   }
+#endif
 
   if (nb.ni.ox1 == 0) {
     if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
@@ -619,7 +629,10 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
                                           int sk, int ek) {
   MeshBlock *pmb = pmy_block_;
   MeshRefinement *pmr = pmb->pmr;
-
+  PassiveScalars *ps = nullptr;
+  if (NSCALARS>0) {
+    ps = pmb->pscalars;
+}
   // prolongate cell-centered S/AMR-enrolled quantities (hydro, radiation, scalars, ...)
   //(unique to Hydro, PassiveScalars): swap ptrs to (w, coarse_prim) from (u, coarse_cons)
   if (FLUID_ENABLED)
@@ -627,7 +640,6 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
 
   // (r, coarse_r) from (s, coarse_s)
   if (NSCALARS > 0) {
-    PassiveScalars *ps = pmb->pscalars;
     pmr->pvars_cc_[ps->refinement_idx] = std::make_tuple(&ps->r, &ps->coarse_r_);
   }
 
@@ -645,7 +657,6 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
     pmr->SetHydroRefinement(HydroBoundaryQuantity::cons);
 
   if (NSCALARS > 0) {
-    PassiveScalars *ps = pmb->pscalars;
     pmr->pvars_cc_[ps->refinement_idx] = std::make_tuple(&ps->s, &ps->coarse_s_);
   }
 
@@ -730,15 +741,21 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
   // calculate conservative variables
   if (FLUID_ENABLED) {
     ph = pmb->phydro;
+#if USETM
+    pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pmb->pcoord,
+                                    fsi, fei, fsj, fej, fsk, fek);
+#else
     pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pmb->pcoord,
                                     fsi, fei, fsj, fej, fsk, fek);
+#endif
   }
 
+#if !USETM
   if (NSCALARS > 0) {
-    PassiveScalars *ps = pmb->pscalars;
     pmb->peos->PassiveScalarPrimitiveToConserved(ps->r, ph->w, ps->s, pmb->pcoord,
                                                  fsi, fei, fsj, fej, fsk, fek);
   }
+#endif
 
   return;
 }

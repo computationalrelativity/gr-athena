@@ -421,6 +421,9 @@ void GRDynamical::AddCoordTermsDivergence(
   const Real dt,
   const AthenaArray<Real> *flux,
   const AthenaArray<Real> &prim,
+#if USETM
+  const AthenaArray<Real> &prim_scalar,
+#endif
   const AthenaArray<Real> &bb_cc,
   AthenaArray<Real> &cons)
 #else
@@ -428,6 +431,9 @@ void GRDynamical::_AddCoordTermsDivergence(
   const Real dt,
   const AthenaArray<Real> *flux,
   const AthenaArray<Real> &prim,
+#if USETM
+  const AthenaArray<Real> &prim_scalar,
+#endif
   const AthenaArray<Real> &bb_cc,
   AthenaArray<Real> &cons)
 #endif // DBG_MA_SOURCES
@@ -472,6 +478,9 @@ void GRDynamical::_AddCoordTermsDivergence(
   AT_N_sca sl_w_rho(   const_cast<AthenaArray<Real>&>(prim), IDN);
   AT_N_sca sl_w_p(     const_cast<AthenaArray<Real>&>(prim), IPR);
   AT_N_vec sl_w_util_u(const_cast<AthenaArray<Real>&>(prim), IVX);
+#if NSCALARS > 0
+  AT_N_vec sl_scalars_r(const_cast<AthenaArray<Real>&>(prim_scalar), 0);
+#endif
 
   // Scratch for matter sampling
   AT_N_sca ms_detg_(     ms_nn1); // det metric
@@ -602,11 +611,14 @@ void GRDynamical::_AddCoordTermsDivergence(
     for (int i=il; i<=iu; ++i)
     {
 #if USETM
-      Real n = sl_w_rho(k,j,i)/mb;
+      Real n = sl_w_rho(k,j,i)/pmy_block->peos->GetEOS().GetBaryonMass();
       // FIXME: Generalize to work with EOSes accepting particle fractions.
       Real Y[MAX_SPECIES] = {0.0};
+      for (int l=0; l<NSCALARS; l++){
+        Y[l] = sl_scalars_r(l,k,j,i);
+      }
       Real T = pmb->peos->GetEOS().GetTemperatureFromP(n,  sl_w_p(k,j,i), Y);
-      ms_w_hrho(i) = n*pmb->peos->GetEOS().GetEnthalpy(n, T, Y);
+      ms_w_hrho_(i) = sl_w_rho(k,j,i)*pmb->peos->GetEOS().GetEnthalpy(n, T, Y);
 #else
       Real gamma_adi = pmy_block->peos->GetGamma();
       const Real Eos_Gamma_ratio = gamma_adi / (gamma_adi - 1.0);
@@ -720,6 +732,9 @@ void GRDynamical::_AddCoordTermsDivergence(
   const Real dt,
   const AthenaArray<Real> *flux,
   const AthenaArray<Real> &prim,
+#if USETM
+  const AthenaArray<Real> &prim_scalar,
+#endif
   const AthenaArray<Real> &bb_cc,
   AthenaArray<Real> &cons)
 #else
@@ -727,6 +742,9 @@ void GRDynamical::AddCoordTermsDivergence(
   const Real dt,
   const AthenaArray<Real> *flux,
   const AthenaArray<Real> &prim,
+#if USETM
+  const AthenaArray<Real> &prim_scalar,
+#endif
   const AthenaArray<Real> &bb_cc,
   AthenaArray<Real> &cons)
 #endif // DBG_MA_SOURCES
@@ -873,8 +891,11 @@ void GRDynamical::AddCoordTermsDivergence(
 #if USETM
       Real n = rho(i)/pmy_block->peos->GetEOS().GetBaryonMass();
       Real Y[MAX_SPECIES] = {0.0};
+      for(int l=0; l<NSCALARS; ++l) {
+        Y[l] = prim_scalar(l,k,j,i);
+      }
       Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgas(i), Y);
-      wtot(i) = n*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
+      wtot(i) = rho(i)*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
 #else
     	wtot(i) = rho(i) + gamma_adi/(gamma_adi-1.0) * pgas(i);
 #endif
@@ -1142,8 +1163,11 @@ void GRDynamical::AddCoordTermsDivergence(
         Real n = rho_init(i)/pmy_block->peos->GetEOS().GetBaryonMass();
         // FIXME: Generalize to work with EOSes accepting particle fractions.
         Real Y[MAX_SPECIES] = {0.0};
+        for(int l=0; l<NSCALARS; ++l) {
+          Y[l] = prim_scalar(l,k,j,i);
+        }
         Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgas_init(i), Y);
-        w_init(i) = n*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
+        w_init(i) = rho_init(i)*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
 #else
     	  w_init(i) = rho_init(i) + gamma_adi/(gamma_adi-1.0) * pgas_init(i);
 #endif

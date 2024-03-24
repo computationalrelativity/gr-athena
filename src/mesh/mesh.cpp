@@ -1780,22 +1780,27 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
         }
 
-        if (FLUID_ENABLED && Z4C_ENABLED) {
-          pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b,
-                                          ph->w, pf->bcc, pmb->pcoord,
+        if (FLUID_ENABLED) {
+          pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b, ph->w,  
+#if USETM
+                                          ps->s, ps->r,
+#endif
+                                          pf->bcc, pmb->pcoord,
+#if Z4C_ENABLED
                                           il, iu, jl, ju, kl, ku,0);
-        } else if(FLUID_ENABLED && !Z4C_ENABLED){
-          pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b,
-                                          ph->w, pf->bcc, pmb->pcoord,
+#else
                                           il, iu, jl, ju, kl, ku);
+#endif
         }
 
+#if !USETM
         if (NSCALARS > 0) {
           // r1/r_old for GR is currently unused:
           pmb->peos->PassiveScalarConservedToPrimitive(ps->s, ph->w, ps->r, ps->r,
                                                        pmb->pcoord,
                                                        il, iu, jl, ju, kl, ku);
         }
+#endif
         // --------------------------
         if (FLUID_ENABLED) {
           int order = pmb->precon->xorder;
@@ -1811,13 +1816,19 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
             // for MHD, shrink buffer by 3
             // TODO(felker): add MHD loop limit calculation for 4th order W(U)
             pmb->peos->ConservedToPrimitiveCellAverage(ph->u, ph->w1, pf->b,
-                                                        ph->w, pf->bcc, pmb->pcoord,
+                                                        ph->w, 
+#if USETM
+                                                        ps->s, ps->r,
+#endif
+                                                        pf->bcc, pmb->pcoord,
                                                         il, iu, jl, ju, kl, ku);
 
+#if !USETM
             if (NSCALARS > 0) {
               pmb->peos->PassiveScalarConservedToPrimitiveCellAverage(
                 ps->s, ps->r, ps->r, pmb->pcoord, il, iu, jl, ju, kl, ku);
             }
+#endif
           }
           }
         // --------------------------
@@ -1859,10 +1870,15 @@ if(Z4C_ENABLED && FLUID_ENABLED)
 {
 // Initialise ADM Sources, after CC Bfield has been set in all ghost zones
 // during the C2P above
-#pragma omp for private(pmb,ph,pf,pz4c)
+#pragma omp for private(pmb,ph,ps,pf,pz4c)
       for (int i=0; i<nmb; ++i) {
         pmb = pmb_array[i]; ph = pmb->phydro, pf = pmb->pfield, pz4c = pmb->pz4c;
+#if USETM
+        ps = pmb->pscalars;
+        pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, ps->r, pf->bcc);
+#else
         pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, pf->bcc);
+#endif
       }
 }
 

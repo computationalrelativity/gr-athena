@@ -369,9 +369,9 @@ void PassiveScalars::ComputeUpwindFlux(const int k, const int j, const int il,
     for (int i=il; i<=iu; i++) {
       Real fluid_flx = mass_flx(k,j,i);
       if (fluid_flx >= 0.0)
-        flx_out(n,k,j,i) = fluid_flx*rl_(n,i);
+        flx_out(n,k,j,i) = fluid_flx*rl(n,i);
       else
-        flx_out(n,k,j,i) = fluid_flx*rr_(n,i);
+        flx_out(n,k,j,i) = fluid_flx*rr(n,i);
     }
   }
   return;

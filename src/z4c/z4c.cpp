@@ -389,6 +389,9 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
     w_rho.NewAthenaTensor(     mbi.nn1);
     w_p.NewAthenaTensor(       mbi.nn1);
     w_utilde_u.NewAthenaTensor(mbi.nn1);
+#if USETM
+    w_r.NewAthenaTensor(       mbi.nn1);
+#endif
 
 #if MAGNETIC_FIELDS_ENABLED
     bb.NewAthenaTensor(mbi.nn1);
@@ -506,6 +509,10 @@ Z4c::~Z4c()
     w_rho.DeleteAthenaTensor();
     w_p.DeleteAthenaTensor();
     w_utilde_u.DeleteAthenaTensor();
+
+#if USETM
+    w_r.DeleteAthenaTensor();
+#endif
 
 #if MAGNETIC_FIELDS_ENABLED
     bb.DeleteAthenaTensor();

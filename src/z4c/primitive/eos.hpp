@@ -159,8 +159,12 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \param[in] Y  An array of particle fractions, expected to be of size n_species.
     //  \return The temperature according to the EOS.
     inline Real GetTemperatureFromP(Real n, Real p, Real *Y) {
-      return TemperatureFromP(n, p*code_units->PressureConversion(*eos_units), Y) *
-             eos_units->TemperatureConversion(*code_units);
+      if (n<GetDensityFloor()){
+        return T_atm * eos_units->TemperatureConversion(*code_units);
+      } else {
+        return TemperatureFromP(n, p*code_units->PressureConversion(*eos_units), Y) *
+               eos_units->TemperatureConversion(*code_units);
+      }
     }
 
     //! \fn Real GetEnergy(Real n, Real T, Real *Y)
@@ -293,7 +297,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \return true if the conserved variables were adjusted, false otherwise.
     inline bool ApplyConservedFloor(Real& D, Real Sd[3], Real& tau, Real *Y, Real Bsq) {
       return ConservedFloor(D, Sd, tau, Y, n_atm*GetBaryonMass(),
-                            GetTauFloor(D, Y, Bsq),
+                            GetTauFloor(std::max(D,min_n*GetBaryonMass()), Y, Bsq),
                             GetTauFloor(n_atm*GetBaryonMass(), Y_atm, Bsq), n_species);
     }
 
@@ -355,7 +359,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //! \fn void SetThreshold(Real threshold)
     //  \brief Set the threshold factor for the density floor.
     inline void SetThreshold(Real threshold) {
-      threshold = (threshold >= 0.0) ? threshold : 0.0;
+      n_threshold = (threshold >= 0.0) ? threshold : 0.0;
     }
 
     //! \fn Real GetMaxVelocity() const

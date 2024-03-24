@@ -302,6 +302,11 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
     scr7_ni_.NewAthenaArray(NWAVE, nc1);
     scr8_ni_.NewAthenaArray(NWAVE, nc1);
 
+#if USETM
+  scalar_l.NewAthenaArray(NSCALARS,nc1);
+  scalar_r.NewAthenaArray(NSCALARS,nc1);
+#endif
+
     // Precompute PPM coefficients in x1-direction ---------------------------------------
     c1i.NewAthenaArray(nc1);
     c2i.NewAthenaArray(nc1);

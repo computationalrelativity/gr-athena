@@ -32,9 +32,17 @@
 #include "../utils/linear_algebra.hpp"
 #include "../utils/utils.hpp"
 
+// For reading composition tables
+#if EOS_POLICY_CODE == 2 || EOS_POLICY_CODE == 3
+#include "../utils/lorene_table.hpp"
+#define LORENE_EOS (1)
+#endif
 
 namespace {
   int RefinementCondition(MeshBlock *pmb);
+
+  Real linear_interp(Real *f, Real *x, int n, Real xv);
+  int interp_locate(Real *x, int Nx, Real xval);
 
 #if MAGNETIC_FIELDS_ENABLED
   Real DivBface(MeshBlock *pmb, int iout);
@@ -44,6 +52,14 @@ namespace {
   Real min_alpha(    MeshBlock *pmb, int iout);
   Real max_abs_con_H(MeshBlock *pmb, int iout);
 
+  // Global variables
+#ifdef LORENE_EOS
+  LoreneTable * LORENE_EoS_Table = NULL; // Lorene table object
+  std::string LORENE_EoS_fname; // Barotropic table
+#if EOS_POLICY_CODE == 2
+  std::string LORENE_EoS_fname_Y; // Conposition table
+#endif
+#endif
 }
 
 
@@ -71,6 +87,20 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 #if MAGNETIC_FIELDS_ENABLED
   // AllocateUserHistoryOutput(1);
   EnrollUserHistoryOutput(3, DivBface, "divBface");
+#endif
+
+#ifdef LORENE_EOS
+  LORENE_EoS_fname   = pin->GetString("hydro", "lorene");
+#if EOS_POLICY_CODE == 2
+  LORENE_EoS_fname_Y = pin->GetString("hydro", "lorene_Y");
+#endif
+  LORENE_EoS_Table = new LoreneTable;
+  ReadLoreneTable(LORENE_EoS_fname, LORENE_EoS_Table);
+#if EOS_POLICY_CODE == 2
+  ReadLoreneFractions(LORENE_EoS_fname_Y, LORENE_EoS_Table);
+#endif
+  ConvertLoreneTable(LORENE_EoS_Table);
+  LORENE_EoS_Table->rho_atm = pin->GetReal("hydro", "dfloor"); 
 #endif
 
   return;
@@ -351,9 +381,19 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
     I = 0;      // reset
 
+// Set up EoS.
+#if USETM
+    Real rho_atm = pin->GetReal("hydro", "dfloor");
+    Real T_atm = pin->GetReal("hydro", "tfloor");
+    Real mb = peos->GetEOS().GetBaryonMass();
+    Real Y_atm[MAX_SPECIES] = {0.0};
+#if EOS_POLICY_CODE == 2
+    Y_atm[0] = pin->GetReal("hydro", "y0_atmosphere");
+#endif
+#else
     Real k_adi = pin->GetReal("hydro", "k_adi");
     Real gamma_adi = pin->GetReal("hydro","gamma");
-
+#endif
 
     for (int k = kl; k <= ku; ++k)
     for (int j = jl; j <= ju; ++j)
@@ -392,9 +432,32 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       const Real W = 1.0 / std::sqrt(1.0 - vsq);
 
       */
+
+// If scalars are on we should initialise to zero
+      Real Y[MAX_SPECIES];
+#if NSCALARS > 0
+      for (int r=0;r<NSCALARS;r++) {
+        pscalars->r(r,k,j,i) = 0.;
+        pscalars->s(r,k,j,i) = 0.;
+        Y[r] = 0.0;
+      }
+#endif
+
+#if USETM
+      const Real w_rho = (bns->nbar[I] / rho_unit > rho_atm ? bns->nbar[I] / rho_unit : 0.0);
+      Real nb = w_rho/mb;
+#if NSCALARS > 0
+      for (int l=0; l<NSCALARS; ++l) {
+        Y[l] = (w_rho > rho_atm ? linear_interp(LORENE_EoS_Table->Y[l], LORENE_EoS_Table->data[tab_logrho], LORENE_EoS_Table->size, log(w_rho)) : Y_atm[l]);
+      }
+#endif
+      const Real w_p = (w_rho > rho_atm ? peos->GetEOS().GetPressure(nb, T_atm, Y) : 0.0);
+      phydro->temperature(k,j,i) = T_atm;
+#else
       const Real w_rho = bns->nbar[I] / rho_unit;
       const Real w_p = k_adi*pow(w_rho,gamma_adi);
-
+#endif
+      
       const Real v_u_x = bns->u_euler_x[I] / vel_unit;
       const Real v_u_y = bns->u_euler_y[I] / vel_unit;
       const Real v_u_z = bns->u_euler_z[I] / vel_unit;
@@ -415,7 +478,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       phydro->w(IVY, k, j, i) = W * v_u_y;
       phydro->w(IVZ, k, j, i) = W * v_u_z;
       phydro->w(IPR, k, j, i) = w_p;
-
+#if NSCALARS > 0
+      for (int r=0;r<NSCALARS;r++) {
+        pscalars->r(r,k,j,i) = Y[r];
+      }
+#endif
       ++I;
     }
 
@@ -539,7 +606,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int j = 0; j <= ncells2-1; ++j)
     for (int i = 0; i <= ncells1-1; ++i)
     {
+#if USETM
+      peos->ApplyPrimitiveFloors(phydro->w, pscalars->r, k, j, i);
+#else
       peos->ApplyPrimitiveFloors(phydro->w, k, j, i);
+#endif
     }
 
   }
@@ -547,18 +618,28 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
 
   // Initialise conserved variables
+#if USETM
+  peos->PrimitiveToConserved(phydro->w, pscalars->r, pfield->bcc, phydro->u, pscalars->s, pcoord,
+                             0, ncells1,
+                             0, ncells2,
+                             0, ncells3);
+#else
   peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord,
                              0, ncells1,
                              0, ncells2,
                              0, ncells3);
-
+#endif
   //TODO Check if the momentum and velocity are finite.
 
   // Set up the matter tensor in the Z4c variables.
   // TODO: BD - this needs to be fixed properly
   // No magnetic field, pass dummy or fix with overload
   //  AthenaArray<Real> null_bb_cc;
+#if USETM
+  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pscalars->r, pfield->bcc);
+#else
   pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pfield->bcc);
+#endif
 
   pz4c->ADMConstraints(pz4c->storage.con,
                        pz4c->storage.adm,
@@ -744,5 +825,50 @@ Real max_abs_con_H(MeshBlock *pmb, int iout)
 
   return m_abs_con_H;
 }
+
+#ifdef LORENE_EOS
+  //--------------------------------------------------------------------------------------
+  //! \fn double linear_interp(double *f, double *x, int n, double xv)
+  // \brief linearly interpolate f(x), compute f(xv)
+  Real linear_interp(Real *f, Real *x, int n, Real xv)
+  {
+    int i = interp_locate(x,n,xv);
+    if (i < 0)  i=1;
+    if (i == n) i=n-1;
+    int j;
+    if(xv < x[i]) j = i-1;
+    else j = i+1;
+    Real xj = x[j]; Real xi = x[i];
+    Real fj = f[j]; Real fi = f[i];
+    Real m = (fj-fi)/(xj-xi);
+    Real df = m*(xv-xj)+fj;
+    return df;
+  }
+
+  //-----------------------------------------------------------------------------------------
+  //! \fn int interp_locate(Real *x, int Nx, Real xval)
+  // \brief Bisection to find closest point in interpolating table
+  // 
+  int interp_locate(Real *x, int Nx, Real xval) {
+    int ju,jm,jl;
+    int ascnd;
+    jl=-1;
+    ju=Nx;
+    if (xval <= x[0]) {
+      return 0;
+    } else if (xval >= x[Nx-1]) {
+      return Nx-1;
+    }
+    ascnd = (x[Nx-1] >= x[0]);
+    while (ju-jl > 1) {
+      jm = (ju+jl) >> 1;
+      if (xval >= x[jm] == ascnd)
+  jl=jm;
+      else
+  ju=jm;
+    }
+    return jl;
+  }
+  #endif
 
 }

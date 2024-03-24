@@ -213,9 +213,14 @@ void Hydro::HydroRHS(AthenaArray<Real> & u_cons, AthenaArray<Real> & u_rhs)
 
   // geometric sources
   AthenaArray<Real> * _flux; // unused
+  AthenaArray<Real> _r; // unused
   AthenaArray<Real> _bcc;
 
+#if USETM
+  pco_gr->AddCoordTermsDivergence(1, _flux, w, _r, _bcc, u_rhs);
+#else
   pco_gr->AddCoordTermsDivergence(1, _flux, w, _bcc, u_rhs);
+#endif
 
   // dissipation
   for(int n = 0; n < NHYDRO; ++n)

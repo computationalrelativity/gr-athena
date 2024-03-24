@@ -494,11 +494,26 @@ void Reconstruction::WenoX1(
 
   if (enforce_floors)
   {
+#if USETM
+for (int l=0; l<NSCALARS; l++){
+#pragma omp simd
+  for (int i=il; i<=iu; ++i) {
+      scalar_l(l,i+1) = pmy_block_->pscalars->r(l,k,j,i);
+      scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+    }
+  }
+#endif
+
     #pragma omp simd
     for (int i=il; i<=iu; ++i)
     {
+#if USETM
+      pmy_block_->peos->ApplyPrimitiveFloors(ql, scalar_l, k ,j, i+1);
+      pmy_block_->peos->ApplyPrimitiveFloors(qr, scalar_r, k ,j, i);
+#else
       pmy_block_->peos->ApplyPrimitiveFloors(ql,k,j,i+1);
       pmy_block_->peos->ApplyPrimitiveFloors(qr,k,j,i);
+#endif
     }
   }
 
@@ -900,11 +915,26 @@ void Reconstruction::WenoX2(
 
   if (enforce_floors)
   {
+#if USETM
+    for (int l=0; l<NSCALARS; l++){
+#pragma omp simd
+      for (int i=il; i<=iu; ++i) {
+        scalar_l(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+        scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+    }
+  }
+#endif
+
     #pragma omp simd
     for (int i=il; i<=iu; ++i)
     {
-      pmy_block_->peos->ApplyPrimitiveFloors(ql,k,j,i);
-      pmy_block_->peos->ApplyPrimitiveFloors(qr,k,j,i);
+#if USETM
+      pmy_block_->peos->ApplyPrimitiveFloors(ql, scalar_l, k ,j, i);
+      pmy_block_->peos->ApplyPrimitiveFloors(qr, scalar_r, k ,j, i);
+#else
+      pmy_block_->peos->ApplyPrimitiveFloors(ql, k ,j, i);
+      pmy_block_->peos->ApplyPrimitiveFloors(qr, k ,j, i);
+#endif
     }
   }
 
@@ -1291,11 +1321,26 @@ void Reconstruction::WenoX3(
 
   if (enforce_floors)
   {
+#if USETM
+  for (int l=0; l<NSCALARS; l++){
+#pragma omp simd
+    for (int i=il; i<=iu; ++i) {
+      scalar_l(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+      scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+    }
+  }
+#endif
+
     #pragma omp simd
     for (int i=il; i<=iu; ++i)
     {
-      pmy_block_->peos->ApplyPrimitiveFloors(ql,k,j,i);
-      pmy_block_->peos->ApplyPrimitiveFloors(qr,k,j,i);
+#if USETM
+      pmy_block_->peos->ApplyPrimitiveFloors(ql, scalar_l, k ,j, i);
+      pmy_block_->peos->ApplyPrimitiveFloors(qr, scalar_r, k ,j, i);
+#else
+      pmy_block_->peos->ApplyPrimitiveFloors(ql, k ,j, i);
+      pmy_block_->peos->ApplyPrimitiveFloors(qr, k ,j, i);
+#endif
     }
   }
 

@@ -40,27 +40,47 @@ class EquationOfState {
  public:
   EquationOfState(MeshBlock *pmb, ParameterInput *pin);
 
+  #if USETM
   void ConservedToPrimitive(
       AthenaArray<Real> &cons, const AthenaArray<Real> &prim_old, const FaceField &b,
-      AthenaArray<Real> &prim, AthenaArray<Real> &bcc,
-      Coordinates *pco, int il, int iu, int jl, int ju, int kl, int ku);
+      AthenaArray<Real> &prim, 
+      AthenaArray<Real> &cons_scalar, AthenaArray<Real> &prim_scalar, AthenaArray<Real> &bcc, 
+      Coordinates *pco, int il, int iu, int jl, int ju, int kl, int ku, int coarseflag);
+  #else
   void ConservedToPrimitive(
       AthenaArray<Real> &cons, const AthenaArray<Real> &prim_old, const FaceField &b,
       AthenaArray<Real> &prim, AthenaArray<Real> &bcc,
       Coordinates *pco, int il, int iu, int jl, int ju, int kl, int ku, int coarseflag);
+  #endif
+
   #if Z4C_ENABLED & FLUID_ENABLED
+  #if USETM
+  void PrimitiveToConserved(AthenaArray<Real> &prim, AthenaArray<Real> &prim_scalar, AthenaArray<Real> &bc,
+                            AthenaArray<Real> &cons, AthenaArray<Real> &cons_scalar, Coordinates *pco,
+                            int il, int iu, int jl, int ju, int kl, int ku);
+  #else
   void PrimitiveToConserved(AthenaArray<Real> &prim, AthenaArray<Real> &bc,
                             AthenaArray<Real> &cons, Coordinates *pco,
                             int il, int iu, int jl, int ju, int kl, int ku);
+  #endif // USETM
   #else
   void PrimitiveToConserved(const AthenaArray<Real> &prim, const AthenaArray<Real> &bc,
                             AthenaArray<Real> &cons, Coordinates *pco,
                             int il, int iu, int jl, int ju, int kl, int ku);
   #endif
+
+  #if USETM
+  void ConservedToPrimitiveCellAverage(
+      AthenaArray<Real> &cons, const AthenaArray<Real> &prim_old, const FaceField &b,
+      AthenaArray<Real> &prim,
+      AthenaArray<Real> &cons_scalar, AthenaArray<Real> &prim_scalar, AthenaArray<Real> &bcc,
+      Coordinates *pco, int il, int iu, int jl, int ju, int kl, int ku);
+  #else
   void ConservedToPrimitiveCellAverage(
       AthenaArray<Real> &cons, const AthenaArray<Real> &prim_old, const FaceField &b,
       AthenaArray<Real> &prim, AthenaArray<Real> &bcc,
       Coordinates *pco, int il, int iu, int jl, int ju, int kl, int ku);
+  #endif
 
   // void PrimitiveToConservedCellAverage(const AthenaArray<Real> &prim,
   //   const AthenaArray<Real> &bc, AthenaArray<Real> &cons, Coordinates *pco, int il,
@@ -81,8 +101,11 @@ class EquationOfState {
   // pass k, j, i to following 2x functions even though x1-sliced input array is expected
   // in order to accomodate position-dependent floors
 #pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this,prim,k,j) linear(i)
+#if USETM
+  void ApplyPrimitiveFloors(AthenaArray<Real> &prim, AthenaArray<Real> &prim_scalar, int k, int j, int i);
+#else
   void ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j, int i);
-
+#endif
 #pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this,s,n,k,j) linear(i)
   void ApplyPassiveScalarFloors(AthenaArray<Real> &s, int n, int k, int j, int i);
 
@@ -154,16 +177,28 @@ class EquationOfState {
       int, int, int) {return;}
 #if !MAGNETIC_FIELDS_ENABLED  // GR hydro: GR+SR MHD defined as no-op
 #pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this)
+
+#if USETM
+  void SoundSpeedsSR(Real rho_h, Real pgas, Real vx, Real gamma_lorentz_sq,
+                     Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]);
+#else
   void SoundSpeedsSR(Real rho_h, Real pgas, Real vx, Real gamma_lorentz_sq,
                      Real *plambda_plus, Real *plambda_minus);
+#endif // USETM
   void FastMagnetosonicSpeedsSR(
       const AthenaArray<Real> &, const AthenaArray<Real> &,
       int, int, int, int, int, AthenaArray<Real> &,
       AthenaArray<Real> &) {return;}
 #pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this)
+#if USETM
+  void SoundSpeedsGR(Real rho_h, Real pgas, Real u0, Real u1,
+                     Real g00, Real g01, Real g11,
+                     Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]);
+#else
   void SoundSpeedsGR(Real rho_h, Real pgas, Real u0, Real u1,
                      Real g00, Real g01, Real g11,
                      Real *plambda_plus, Real *plambda_minus);
+#endif // USETM
   void FastMagnetosonicSpeedsGR(Real, Real, Real, Real, Real, Real, Real, Real,
                                 Real *, Real *) {return;}
 #else  // GR MHD: GR+SR hydro defined as no-op
@@ -174,10 +209,17 @@ class EquationOfState {
       AthenaArray<Real> &lambdas_p, AthenaArray<Real> &lambdas_m);
   void SoundSpeedsGR(Real, Real, Real, Real, Real, Real, Real, Real *, Real *)
   {return;}
+#if USETM
+#pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this)
+  void FastMagnetosonicSpeedsGR(Real rho_h, Real pgas, Real u0, Real u1, Real b_sq,
+                                Real g00, Real g01, Real g11,
+                                Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]);
+#else
 #pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this)
   void FastMagnetosonicSpeedsGR(Real rho_h, Real pgas, Real u0, Real u1, Real b_sq,
                                 Real g00, Real g01, Real g11,
                                 Real *plambda_plus, Real *plambda_minus);
+#endif  // USETM
 #endif  // !MAGNETIC_FIELDS_ENABLED (GR)
 #endif  // #else (#if !RELATIVISTIC_DYNAMICS, #elif !GENERAL_RELATIVITY)
 

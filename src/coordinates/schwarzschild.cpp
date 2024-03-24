@@ -459,8 +459,13 @@ Real Schwarzschild::GetCellVolume(const int k, const int j, const int i) {
 //   cons: source terms added to 3D array of conserved variables
 
 void Schwarzschild::AddCoordTermsDivergence(
-    const Real dt, const AthenaArray<Real> *flux,
-    const AthenaArray<Real> &prim, const AthenaArray<Real> &bb_cc,
+    const Real dt, 
+    const AthenaArray<Real> *flux,
+    const AthenaArray<Real> &prim, 
+#if USETM
+    const AthenaArray<Real> &prim_scalar,
+#endif
+    const AthenaArray<Real> &bb_cc,
     AthenaArray<Real> &cons) {
   // Extract ratio of specific heats
   const Real gamma_adi = pmy_block->peos->GetGamma();

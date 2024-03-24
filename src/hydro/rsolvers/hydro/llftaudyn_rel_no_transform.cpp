@@ -208,22 +208,43 @@ void Hydro::RiemannSolver(
     // and temperature to help calculate enthalpy.
     Real nl = w_rho_l_(i)/mb;
     Real nr = w_rho_r_(i)/mb;
-    // FIXME: Generalize to work with EOSes accepting particle fractions.
-    Real Y[MAX_SPECIES] = {0.0};
-    Real Tl = pmy_block->peos->GetEOS().GetTemperatureFromP(nl, w_p_l_(i), Y);
-    Real Tr = pmy_block->peos->GetEOS().GetTemperatureFromP(nr, w_p_r_(i), Y);
-    w_hrho_l_(i) = nl*pmy_block->peos->GetEOS().GetEnthalpy(nl, Tl, Y);
-    w_hrho_r_(i) = nr*pmy_block->peos->GetEOS().GetEnthalpy(nr, Tr, Y);
+    Real Yl[MAX_SPECIES] = {0.0};
+    Real Yr[MAX_SPECIES] = {0.0};
+    // PH TODO scalars should be passed in?
+    for (int n=0; n<NSCALARS; n++) {
+      Yr[n] = pmy_block->pscalars->r(n,k,j,i);
+    }
+    switch (ivx) {
+      case IVX:
+        for (int n=0; n<NSCALARS; n++) {
+          Yl[n] = pmy_block->pscalars->r(n,k,j,i-1);
+        }
+        break;
+      case IVY:
+        for (int n=0; n<NSCALARS; n++) {
+          Yl[n] = pmy_block->pscalars->r(n,k,j-1,i);
+        }
+        break;
+      case IVZ:
+        for (int n=0; n<NSCALARS; n++) {
+          Yl[n] = pmy_block->pscalars->r(n,k-1,j,i);
+        }
+        break;
+    }
+    Real Tl = pmy_block->peos->GetEOS().GetTemperatureFromP(nl, w_p_l_(i), Yl);
+    Real Tr = pmy_block->peos->GetEOS().GetTemperatureFromP(nr, w_p_r_(i), Yr);
+    w_hrho_l_(i) = w_rho_l_(i)*pmy_block->peos->GetEOS().GetEnthalpy(nl, Tl, Yl);
+    w_hrho_r_(i) = w_rho_r_(i)*pmy_block->peos->GetEOS().GetEnthalpy(nr, Tr, Yr);
 
     // Calculate the sound speeds
     pmy_block->peos->SoundSpeedsGR(nl, Tl, w_v_u_l_(ivx-1,i), w_norm2_v_l(i),
                                    alpha_(i), beta_u_(ivx-1,i),
                                    gamma_uu_(ivx-1,ivx-1,i),
-                                   &lambda_p_l(i), &lambda_m_l(i));
+                                   &lambda_p_l(i), &lambda_m_l(i), Yl);
     pmy_block->peos->SoundSpeedsGR(nr, Tr, w_v_u_r_(ivx-1,i), w_norm2_v_r(i),
                                    alpha_(i), beta_u_(ivx-1,i),
                                    gamma_uu_(ivx-1,ivx-1,i),
-                                   &lambda_p_r(i), &lambda_m_r(i));
+                                   &lambda_p_r(i), &lambda_m_r(i), Yr);
 #else
     w_hrho_l_(i) = w_rho_l_(i) + Eos_Gamma_ratio * w_p_l_(i);
     w_hrho_r_(i) = w_rho_r_(i) + Eos_Gamma_ratio * w_p_r_(i);

@@ -132,7 +132,11 @@ TaskStatus Z4cPostAMRTaskList::Nop(MeshBlock *pmb, int stage)
   Z4c *pz4c = pmb->pz4c;
 
   // UpdateSource
-  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, pmb->pfield->bcc);
+  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, 
+#if USETM
+    pmb->pscalars->r,
+#endif
+    pmb->pfield->bcc);
 
   // ADM_Constraints
   pz4c->ADMConstraints(pz4c->storage.con, pz4c->storage.adm,
@@ -162,7 +166,11 @@ TaskStatus Z4cPostAMRTaskList::UpdateSource(MeshBlock *pmb, int stage)
   Z4c *pz4c = pmb->pz4c;
 
   // UpdateSource
-  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, pmb->pfield->bcc);
+  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, 
+#if USETM
+    pmb->pscalars->r,
+#endif
+    pmb->pfield->bcc);
 
   return TaskStatus::success;
 }
@@ -176,6 +184,9 @@ TaskStatus Z4cPostAMRTaskList::ADM_Constraints(MeshBlock *pmb, int stage)
   pz4c->GetMatter(pz4c->storage.mat,
                   pz4c->storage.adm,
                   pmb->phydro->w,
+#if USETM
+                  pmb->pscalars->r,
+#endif
                   pmb->pfield->bcc);
 
   pz4c->ADMConstraints(pz4c->storage.con, pz4c->storage.adm,

@@ -284,8 +284,14 @@ Real Cylindrical::GetCellVolume(const int k, const int j, const int i) {
 // Coordinate (Geometric) source term function
 
 void Cylindrical::AddCoordTermsDivergence(
-    const Real dt, const AthenaArray<Real> *flux,
-    const AthenaArray<Real> &prim, const AthenaArray<Real> &bcc, AthenaArray<Real> &u) {
+    const Real dt, 
+    const AthenaArray<Real> *flux,
+    const AthenaArray<Real> &prim,
+#if USETM
+    const AthenaArray<Real> &prim_scalar,
+#endif 
+    const AthenaArray<Real> &bcc, 
+    AthenaArray<Real> &u) {
   Real iso_cs = pmy_block->peos->GetIsoSoundSpeed();
 
   HydroDiffusion &hd = pmy_block->phydro->hdif;

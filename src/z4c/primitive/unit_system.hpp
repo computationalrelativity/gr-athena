@@ -126,7 +126,7 @@ static UnitSystem GeometricSolar{
   1.0 / CGS.Msun, // mass, Msun
   1.0 / (CGS.Msun * CGS.c*CGS.c), // energy, Msun
   PS_CUBE( CGS.Gnewt/(CGS.c*CGS.c) ) * PS_SQR( CGS.Msun/(CGS.c) ), // pressure, Msun^-2
-  CGS.kb / (CGS.Msun * CGS.c*CGS.c), // temperature, Msun
+  CGS.kb/CGS.MeV // temperature, MeV
 };
 //! Nuclear units
 static UnitSystem Nuclear{

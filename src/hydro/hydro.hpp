@@ -44,6 +44,11 @@ class Hydro {
   AthenaArray<Real> u2;           // time-integrator memory register #3
   // (no more than MAX_NREGISTER allowed)
 
+#if USETM
+// Storage for temperature output
+  AthenaArray<Real> temperature;
+#endif
+
   AthenaArray<Real> flux[3];  // face-averaged flux vector
 
   // storage for SMR/AMR

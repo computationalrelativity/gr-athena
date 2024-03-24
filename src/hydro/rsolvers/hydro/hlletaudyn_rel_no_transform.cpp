@@ -181,11 +181,11 @@ void Hydro::RiemannSolver(const int k, const int j, const int il, const int iu,
     Real nl = rho_l/mb;
     Real nr = rho_r/mb;
     // FIXME: Generalize to work with EOSes accepting particle fractions.
-    Real Y[MAX_SPECIES] = {0.0};
+    Real Y[MAX_SPECIES] = {0.0}; // TODO PH: Fix
     Real Tl = pmy_block->peos->GetEOS().GetTemperatureFromP(nl, pgas_l, Y);
     Real Tr = pmy_block->peos->GetEOS().GetTemperatureFromP(nr, pgas_r, Y);
-    Real wgas_l = nl*pmy_block->peos->GetEOS().GetEnthalpy(nl, Tl, Y);
-    Real wgas_r = nr*pmy_block->peos->GetEOS().GetEnthalpy(nr, Tr, Y);
+    Real wgas_l = rho_l*pmy_block->peos->GetEOS().GetEnthalpy(nl, Tl, Y);
+    Real wgas_r = rho_r*pmy_block->peos->GetEOS().GetEnthalpy(nr, Tr, Y);
 
     // Calculate the sound speeds
     pmy_block->peos->SoundSpeedsGR(nl, Tl, v_l[ivx-1], vsq_l,

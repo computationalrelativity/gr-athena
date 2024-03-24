@@ -9,6 +9,7 @@
 #include "../mesh/mesh.hpp"
 #include "../eos/eos.hpp"
 #include "../hydro/hydro.hpp"
+#include "../scalars/scalars.hpp"
 #include "../utils/linear_algebra.hpp"
 
 #include "../utils/interp_intergrid.hpp" //SB FIXME imported from matter_tracker_extrema
@@ -19,6 +20,9 @@ void Z4c::GetMatter(
   AthenaArray<Real> & u_mat,
   AthenaArray<Real> & u_adm,
   AthenaArray<Real> & w,
+#if USETM
+  AthenaArray<Real> & r,
+#endif
   AthenaArray<Real> & bb_cc)
 {
 #if defined(Z4C_WITH_HYDRO_ENABLED)
@@ -29,6 +33,10 @@ void Z4c::GetMatter(
 
   MeshBlock * pmb = pmy_block;
   Hydro * phydro = pmb->phydro;
+#if USETM
+  PassiveScalars * pscalars = pmb->pscalars;
+#endif
+
   GRDynamical* pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
 
   Matter_vars mat;
@@ -52,10 +60,16 @@ void Z4c::GetMatter(
   AthenaArray<Real> & sl_w = (
     (opt.fix_admsource == 0) ? w : phydro->w_init
   );
+#if USETM
+  AthenaArray<Real> & sl_scalars = r;
+#endif
 
   AT_N_sca sl_w_rho(   sl_w, IDN);
   AT_N_sca sl_w_p(     sl_w, IPR);
   AT_N_vec sl_w_util_u(sl_w, IVX);
+#if USETM && NSCALARS>0
+  AT_N_vec sl_scalars_r(sl_scalars, 0);
+#endif
 
 #if MAGNETIC_FIELDS_ENABLED
   AT_N_vec sl_bb;  // BD: TODO this is not properly populated?
@@ -93,6 +107,9 @@ void Z4c::GetMatter(
       pco_gr->GetMatterField(w_rho,      sl_w_rho,    k, j);
       pco_gr->GetMatterField(w_p,        sl_w_p,      k, j);
       pco_gr->GetMatterField(w_utilde_u, sl_w_util_u, k, j);
+#if USETM && NSCALARS>0
+      pco_gr->GetMatterField(w_r,        sl_scalars_r,k, j);
+#endif
 #if MAGNETIC_FIELDS_ENABLED
       pco_gr->GetMatterField(bb,         sl_bb,       k, j);
 #endif
@@ -104,8 +121,13 @@ void Z4c::GetMatter(
         Real n = w_rho(i)/mb;
         // FIXME: Generalize to work with EOSes accepting particle fractions.
         Real Y[MAX_SPECIES] = {0.0};
+#if NSCALARS>0
+        for (int l=0; l<NSCALARS; l++) {
+          Y[l] = w_r(l,i);
+        }
+#endif
         Real T = pmb->peos->GetEOS().GetTemperatureFromP(n, w_p(i), Y);
-        w_hrho(i) = n*pmb->peos->GetEOS().GetEnthalpy(n, T, Y);
+        w_hrho(i) = w_rho(i)*pmb->peos->GetEOS().GetEnthalpy(n, T, Y);
 #else
         w_hrho(i) = w_rho(i) + gamma_adi/(gamma_adi-1.0) * w_p(i);
 #endif

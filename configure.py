@@ -11,6 +11,8 @@
 #   --prob=name         use src/pgen/name.cpp as the problem generator
 #   --coord=xxx         use xxx as the coordinate system
 #   --eos=xxx           use xxx as the equation of state
+#   --eospolicy=xxx     use xxx as eos policy for eostaudyn_ps
+#   --errorpolicy=xxx   use xxx as error policy for eostaudyn_ps
 #   --flux=xxx          use xxx as the Riemann solver
 #   --nghost=xxx        set NGHOST=xxx
 #   --ncghost=xxx       set NCGHOST=xxx
@@ -138,7 +140,7 @@ parser.add_argument('--eos',
 # --eospolicy=[name] argument
 parser.add_argument('--eospolicy',
                     default='idealgas',
-                    choices=['idealgas', 'piecewise_polytrope', 'eos_compose'],
+                    choices=['idealgas', 'piecewise_polytrope', 'eos_compose', 'hybrid_table'], 
                     help='select EOS policy for PrimitiveSolver framework')
 
 # --errorpolicy=[name] argument
@@ -626,6 +628,11 @@ elif args['eos'] == 'eostaudyn_ps':
     elif args['eospolicy'] == 'eos_compose':
         definitions['EOS_POLICY'] = 'EOSCompOSE'
         definitions['EOS_POLICY_CODE'] = '2'
+    elif args['eospolicy'] == 'hybrid_table':
+        definitions['EOS_POLICY'] = 'HybridTable'
+        definitions['EOS_POLICY_CODE'] = '3'
+    else:
+        definitions['EOS_POLICY'] = ''
     if args['errorpolicy'] == 'do_nothing':
         definitions['ERROR_POLICY'] = 'DoNothing'
         definitions['ERROR_POLICY_CODE'] = '0'
@@ -1221,7 +1228,7 @@ if args['hdf5']:
             or args['cxx'] == 'icpc-debug' or args['cxx'] == 'icpc-phi'
             or args['cxx'] == 'clang++' or args['cxx'] == 'clang++-simd'
             or args['cxx'] == 'clang++-apple'):
-        makefile_options['LIBRARY_FLAGS'] += ' -lhdf5'
+        makefile_options['LIBRARY_FLAGS'] += ' -lhdf5 -lhdf5_hl'
     if args['cxx'] == 'bgxlc++':
         makefile_options['PREPROCESSOR_FLAGS'] += (
             ' -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_BSD_SOURCE'
