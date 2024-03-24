@@ -14,9 +14,7 @@
 // For example g_dd is a tensor, or tensor-like object, with two covariant indices.
 
 // Athena++ classes headers
-#include "../athena.hpp"
-#include "../athena_arrays.hpp"
-#include "../athena_tensor.hpp"
+#include "../athena_aliases.hpp"
 #include "../mesh/mesh.hpp"
 #include "../bvals/cc/bvals_cc.hpp"
 #include "m1_containers.hpp"
@@ -63,8 +61,8 @@ public:
   MB_info mbi;
 
   // Species and groups (from parameter file)
-  const int N_GRPS { 1 };
-  const int N_SPCS { 1 };
+  const int N_GRPS;
+  const int N_SPCS;
 
   struct
   {
@@ -96,141 +94,40 @@ public:
     Real fiducial_velocity_rho_fluid;
   } opt;
 
-// idx & constants ============================================================
-public:
-
-  // Lab frame variables
-  struct ixn_Lab
-  {
-    enum { E, Fx, Fy, Fz, nG, N };
-    static constexpr char const * const names[] = {
-      "lab.E",
-      "lab.Fx", "lab.Fy", "lab.Fz",
-      "lab.nG"
-    };
-  };
-
-  // Fluid frame radiation variables + P_{ij}, etc.
-  enum
-  {
-    I_Rad_nnu,
-    I_Rad_J,
-    I_Rad_Ht,
-    I_Rad_Hx, I_Rad_Hy, I_Rad_Hz,
-    I_Rad_Pxx, I_Rad_Pxy, I_Rad_Pxz, I_Rad_Pyy, I_Rad_Pyz, I_Rad_Pzz,
-    I_Rad_chi,
-    I_Rad_ynu,
-    I_Rad_znu,
-    N_Rad
-  };
-  static constexpr char const * const names_Rad[] = {
-    "rad.nnu",
-    "rad.J",
-    "rad.Ht", "rad.Hx", "rad.Hy", "rad.Hz",
-    "rad.Pxx", "rad.Pxy", "rad.Pxz", "rad.Pyy", "rad.Pyz", "rad.Pzz",
-    "rad.chi",
-  };
-
-  // Radiation-matter variables
-  enum
-  {
-    I_RadMat_abs_0, I_RadMat_abs_1,
-    I_RadMat_eta_0, I_RadMat_eta_1,
-    I_RadMat_scat_1,
-    I_RadMat_nueave,
-    N_RadMat
-  };
-  static constexpr char const * const names_RadMat[] = {
-    "rmat.abs_0", "rmat.abs_1",
-    "rmat.eta_0", "rmat.eta_1",
-    "rmat.scat_1",
-    "rmat.nueave",
-  };
-
-  // Diagnostic variables
-  enum
-  {
-    I_Diagno_radflux_0,
-    I_Diagno_radflux_1,
-    I_Diagno_ynu,
-    I_Diagno_znu,
-    N_Diagno
-  };
-  static constexpr char const * const names_Diagno[] = {
-    "rdia.radial_flux_0",
-    "rdia.radial_flux_1",
-    "rdia.ynu",
-    "rdia.znu",
-  };
-
-  // Internal variables (no group dimension)
-  enum
-  {
-    I_Intern_fidu_vx, I_Intern_fidu_vy, I_Intern_fidu_vz,
-    I_Intern_fidu_Wlorentz,
-    I_Intern_netabs,
-    I_Intern_netheat,
-    I_Intern_mask,
-    N_Intern
-  };
-  static constexpr char const * const names_Intern[] = {
-    "fidu.vx", "fidu.vy", "fidu.vz",
-    "fidu.Wlorentz",
-    "net.abs",
-    "net.heat",
-    "mask",
-  };
-
-  // Source update results
-  enum
-  {
-    M1_SRC_UPDATE_OK,
-    M1_SRC_UPDATE_THIN,
-    M1_SRC_UPDATE_EQUIL,
-    M1_SRC_UPDATE_SCAT,
-    M1_SRC_UPDATE_EDDINGTON,
-    M1_SRC_UPDATE_FAIL,
-    M1_SRC_UPDATE_RESULTS,
-  };
-  static constexpr char const * const source_update_msg[] = {
-    "Ok",
-    "explicit update (thin source)",
-    "imposed equilibrium",
-    "(scattering dominated source)",
-    "imposed eddington",
-    "failed",
-  };
 
   // variable alias / storage -------------------------------------------------
-  typedef AthenaTensor<Real, TensorSymm::NONE, ixn_Lab::N, 1> AT_F_vec;
+  // Conventions for fields:
+  // sc: (s)calar-(f)ield
+  // sp: (sp)atial
+  // st: (s)pace-time
+  // Appended "_" indicates scratch (in i)
 
   struct vars_Flux
   {
-    GroupSpeciesFluxContainer<AT_N_sca> E;
-    GroupSpeciesFluxContainer<AT_N_vec> F_d;
-    GroupSpeciesFluxContainer<AT_N_sca> nG;
-    GroupSpeciesFluxContainer<AT_F_vec> all;
+    GroupSpeciesFluxContainer<AT_N_sca> sc_E;
+    GroupSpeciesFluxContainer<AT_N_vec> sp_F_d;
+    GroupSpeciesFluxContainer<AT_N_sca> sc_nG;
   };
   vars_Flux fluxes;
 
   // Lab variables and RHS
   struct vars_Lab {
-    GroupSpeciesContainer<AT_N_sca> E;
-    GroupSpeciesContainer<AT_N_vec> F_d;
-    GroupSpeciesContainer<AT_N_sca> nG;
+    GroupSpeciesContainer<AT_N_sca> sc_E;
+    GroupSpeciesContainer<AT_N_vec> sp_F_d;
+    GroupSpeciesContainer<AT_N_sca> sc_nG;
   };
   vars_Lab lab, rhs;
 
   // fluid variables + P_ij Lab, etc.
   struct vars_Rad {
-    AT_N_sca nnu;
-    AT_N_sca J;
-    AT_N_sca Ht;
-    AT_N_vec H;
-    AT_N_sym P_dd; // Lab frame (normalized by E)
-    AT_N_sca chi;
-    AT_N_sca ynu;
-    AT_N_sca znu;
+    GroupSpeciesContainer<AT_N_sca> sc_nnu;
+    GroupSpeciesContainer<AT_N_sca> sc_J;
+    GroupSpeciesContainer<AT_N_sca> sc_H_t;
+    GroupSpeciesContainer<AT_N_vec> sp_H_d;
+    GroupSpeciesContainer<AT_N_sym> sp_P_dd; // Lab frame (normalized by E)
+    GroupSpeciesContainer<AT_N_sca> sc_chi;
+    GroupSpeciesContainer<AT_N_sca> sc_ynu;
+    GroupSpeciesContainer<AT_N_sca> sc_znu;
   };
   vars_Rad rad;
 
@@ -246,18 +143,17 @@ public:
   vars_RadMat rmat;
 
   // diagnostic variables
-  struct vars_Diagno {
+  struct vars_Diag {
     AT_N_sca radflux_0;
     AT_N_sca radflux_1;
     AT_N_sca ynu;
     AT_N_sca znu;
   };
-  vars_Diagno rdia;
+  vars_Diag rdia;
 
   // fiducial vel. variables (no group dependency)
   struct vars_Fidu {
-    AT_N_vec vel_u;
-    AT_N_sca Wlorentz;
+    AT_N_vec sp_v_u;
   };
   vars_Fidu fidu;
 
@@ -274,20 +170,28 @@ public:
     AT_N_sca sc_alpha;
 
     // (sp)atial quantities
-    AT_N_vec   sp_beta_u;
-    AT_N_sym   sp_g_dd;
-    AT_N_sym   sp_K_dd;
+    AT_N_vec sp_beta_u;
+    AT_N_sym sp_g_dd;
+    AT_N_sym sp_K_dd;
 
     // derived quantities
+    AT_N_vec sp_beta_d;
     AT_N_sca sc_sqrt_det_g;
     AT_N_sym sp_g_uu;
 
+    AT_N_D1sca sp_dalpha_d;
+    AT_N_D1vec sp_dbeta_du;
     AT_N_D1sym sp_dg_ddd;
 
-    // (s)pace-(t)ime quantities (scratch assembled as required)
+    // (s)pace-(t)ime quantities (scratch: assembled as required)
+    AT_D_vec st_n_u_;
+    AT_D_vec st_n_d_;
+
     AT_D_vec st_beta_u_;
     AT_D_sym st_g_dd_;
     AT_D_sym st_g_uu_;
+
+    AT_D_bil st_P_ud_;  // projector
   };
   vars_Geom geom;
 
@@ -301,7 +205,7 @@ public:
     // (sp)atial quantities
     AT_N_vec sp_w_util_u;
 
-    // (s)pace-(t)ime quantities (scratch assembled as required)
+    // (s)pace-(t)ime quantities (scratch: assembled as required)
     AT_D_vec st_w_u_u_;
   };
   vars_Hydro hydro;
@@ -309,44 +213,181 @@ public:
   // various persistent scratch quantities not fitting elsewhere
   struct vars_Scratch {
     AA dflx;
+
+    // for general quantities that need specific valence
+    AT_N_sca sc_;
+    AT_N_vec sp_vec_;
+
+    AT_D_sym st_T_rad_;
   };
   vars_Scratch scratch;
 
   AT_N_sca m1_mask;  // Excision mask
 
+// idx & constants ============================================================
+public:
+
+  // Lab frame variables
+  struct ixn_Lab
+  {
+    enum { E, F_x, F_y, F_z, nG, N };
+    static constexpr char const * const names[] = {
+      "lab.E",
+      "lab.Fx", "lab.Fy", "lab.Fz",
+      "lab.nG"
+    };
+  };
+
+  // Fluid frame radiation variables + P_{ij}, etc.
+  struct ixn_Rad
+  {
+    enum
+    {
+      nnu,
+      J,
+      H_t,
+      H_x, H_y, H_z,
+      P_xx, P_xy, P_xz, P_yy, P_yz, P_zz,
+      chi,
+      ynu,
+      znu,
+      N
+    };
+    static constexpr char const * const names[] = {
+      "rad.nnu",
+      "rad.J",
+      "rad.Ht", "rad.Hx", "rad.Hy", "rad.Hz",
+      "rad.Pxx", "rad.Pxy", "rad.Pxz", "rad.Pyy", "rad.Pyz", "rad.Pzz",
+      "rad.chi",
+    };
+  };
+
+  // Radiation-matter variables
+  struct ixn_RaM
+  {
+    enum
+    {
+      abs_0, abs_1,
+      eta_0, eta_1,
+      scat_1,
+      nueave,
+      N
+    };
+    static constexpr char const * const names[] = {
+      "rmat.abs_0", "rmat.abs_1",
+      "rmat.eta_0", "rmat.eta_1",
+      "rmat.scat_1",
+      "rmat.nueave",
+    };
+  };
+
+
+  // Diagnostic variables
+  struct ixn_Diag
+  {
+    enum
+    {
+      radflux_0,
+      radflux_1,
+      ynu,
+      znu,
+      N
+    };
+    static constexpr char const * const names[] = {
+      "rdia.radial_flux_0",
+      "rdia.radial_flux_1",
+      "rdia.ynu",
+      "rdia.znu",
+    };
+  };
+
+  // Internal variables (no group dimension)
+  struct ixn_Internal
+  {
+    enum
+    {
+      fidu_v_x, fidu_v_y, fidu_v_z,
+      netabs,
+      netheat,
+      mask,
+      N
+    };
+    static constexpr char const * const names[] = {
+      "fidu.vx", "fidu.vy", "fidu.vz",
+      "net.abs",
+      "net.heat",
+      "mask",
+    };
+  };
+
+  // Source update results
+  struct ixn_Status
+  {
+    enum
+    {
+      OK,
+      THIN,
+      EQUIL,
+      SCAT,
+      EDDINGTON,
+      FAIL,
+      RESULTS,
+    };
+    static constexpr char const * const msg[] = {
+      "Ok",
+      "explicit update (thin source)",
+      "imposed equilibrium",
+      "(scattering dominated source)",
+      "imposed eddington",
+      "failed",
+    };
+  };
+
 // additional methods =========================================================
 public:
-  void UpdateGeometry(vars_Geom  & geom);
-  void UpdateHydro(vars_Hydro & hydro, vars_Geom & geom);
+  void UpdateGeometry(vars_Geom  & geom,
+                      vars_Scratch & scratch);
+  void UpdateHydro(vars_Hydro & hydro,
+                   vars_Geom & geom,
+                   vars_Scratch & scratch);
 
 private:
   // These manipulate internal M1 mem-state; don't call external to class
-  void InitializeGeometry(vars_Geom  & geom);
-  void DerivedGeometry(   vars_Geom  & geom);
+  void InitializeGeometry(vars_Geom & geom,
+                          vars_Scratch & scratch);
+  void DerivedGeometry(vars_Geom & geom,
+                       vars_Scratch & scratch);
 
-  void InitializeHydro(vars_Hydro & hydro, vars_Geom & geom);
-  void DerivedHydro(   vars_Hydro & hydro, vars_Geom & geom);
+  void InitializeHydro(vars_Hydro & hydro,
+                       vars_Geom & geom,
+                       vars_Scratch & scratch);
+  void DerivedHydro(vars_Hydro & hydro,
+                    vars_Geom & geom,
+                    vars_Scratch & scratch);
 
   void InitializeScratch(vars_Scratch & scratch)
   {
     scratch.dflx.NewAthenaArray(N_GRPS, N_SPCS, ixn_Lab::N, mbi.nn1);
+    scratch.sc_.NewAthenaTensor(mbi.nn1);
+    scratch.sp_vec_.NewAthenaTensor(mbi.nn1);
+
+    scratch.st_T_rad_.NewAthenaTensor(mbi.nn1);
   }
 
 public:
   // aliases ------------------------------------------------------------------
-  inline int ix_map_GS(const int ix_g, const int ix_s, const int N)
-  {
-    return (ix_s + N_SPCS * (ix_g + 0)) * N;
-  }
-
   template<typename A_tar>
   inline void SetVarAlias(A_tar & tar, AA & src,
                           const int ix_g, // group
                           const int ix_s, // species
                           const int ix_v, // variable idx in src
-                          const int N)    // number of vars in src
+                          const int Nv)   // number of vars in src
   {
-    const int N_gs = ix_map_GS(ix_s, ix_g, N);
+    // Warning: strange bug-
+    //
+    // Do not write support fcn for N_gs calc. with such template.
+    const int N_gs = (ix_s + N_SPCS * (ix_g + 0)) * Nv;
+
     tar(ix_g,ix_s).InitWithShallowSlice(src, N_gs+ix_v);
   }
 
@@ -356,9 +397,9 @@ public:
                           const int ix_s, // species
                           const int ix_f, // flux direction
                           const int ix_v, // variable idx in src
-                          const int N)    // number of vars in src
+                          const int Nv)   // number of vars in src
   {
-    const int N_gs = ix_map_GS(ix_s, ix_g, N);
+    const int N_gs = (ix_s + N_SPCS * (ix_g + 0)) * Nv;
     tar(ix_g,ix_s,ix_f).InitWithShallowSlice(src[ix_f], N_gs+ix_v);
   }
 
@@ -366,7 +407,7 @@ public:
   void SetVarAliasesLab(   AA  &u,                  vars_Lab    & lab);
   void SetVarAliasesRad(   AA  &r,                  vars_Rad    & rad);
   void SetVarAliasesRadMat(AA  &radmat,             vars_RadMat & rmat);
-  void SetVarAliasesDiagno(AA  &diagno,             vars_Diagno & rdia);
+  void SetVarAliasesDiagno(AA  &diagno,             vars_Diag   & rdia);
   void SetVarAliasesFidu(  AA  &intern,             vars_Fidu   & fid);
   void SetVarAliasesNet(   AA  &intern,             vars_Net    & net);
 

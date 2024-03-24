@@ -36,9 +36,9 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs)
       for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
       for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
       {
-        AT_N_sca & F_E   = fluxes.E(  ix_g,ix_s,ix_d);
-        AT_N_vec & F_f_d = fluxes.F_d(ix_g,ix_s,ix_d);
-        AT_N_sca & F_nG  = fluxes.nG( ix_g,ix_s,ix_d);
+        AT_N_sca & F_E   = fluxes.sc_E(  ix_g,ix_s,ix_d);
+        AT_N_vec & F_f_d = fluxes.sp_F_d(ix_g,ix_s,ix_d);
+        AT_N_sca & F_nG  = fluxes.sc_nG( ix_g,ix_s,ix_d);
 
         M1_ILOOP1(i)
         {
@@ -50,7 +50,7 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs)
         for (int a=0; a<N; ++a)
         M1_ILOOP1(i)
         {
-          scratch.dflx(ix_g,ix_s,ixn_Lab::Fx+a,i) += (
+          scratch.dflx(ix_g,ix_s,ixn_Lab::F_x+a,i) += (
             F_f_d(a,k,j,i+1) - F_f_d(a,k,j,i)
           ) / mbi.dx1(i);
         }
@@ -71,32 +71,29 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs)
       for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
       for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
       {
-        AT_N_sca & F_E   = fluxes.E(  ix_g,ix_s,ix_d);
-        AT_N_vec & F_f_d = fluxes.F_d(ix_g,ix_s,ix_d);
-        AT_N_sca & F_nG  = fluxes.nG( ix_g,ix_s,ix_d);
+        AT_N_sca & F_E   = fluxes.sc_E(  ix_g,ix_s,ix_d);
+        AT_N_vec & F_f_d = fluxes.sp_F_d(ix_g,ix_s,ix_d);
+        AT_N_sca & F_nG  = fluxes.sc_nG( ix_g,ix_s,ix_d);
 
         M1_ILOOP1(i)
         {
           scratch.dflx(ix_g,ix_s,ixn_Lab::E,i) += (
-            fluxes.E(ix_g,ix_s,ix_d)(k,j+1,i) -
-            fluxes.E(ix_g,ix_s,ix_d)(k,j,i)
+            F_E(k,j+1,i) - F_E(k,j,i)
           ) / mbi.dx2(i);
         }
 
         for (int a=0; a<N; ++a)
         M1_ILOOP1(i)
         {
-          scratch.dflx(ix_g,ix_s,ixn_Lab::Fx+a,i) += (
-            fluxes.F_d(ix_g,ix_s,ix_d)(a,k,j+1,i) -
-            fluxes.F_d(ix_g,ix_s,ix_d)(a,k,j,i)
+          scratch.dflx(ix_g,ix_s,ixn_Lab::F_x+a,i) += (
+            F_f_d(a,k,j+1,i) - F_f_d(a,k,j,i)
           ) / mbi.dx2(i);
         }
 
         M1_ILOOP1(i)
         {
           scratch.dflx(ix_g,ix_s,ixn_Lab::nG,i) += (
-            fluxes.nG(ix_g,ix_s,ix_d)(k,j+1,i) -
-            fluxes.nG(ix_g,ix_s,ix_d)(k,j,i)
+            F_nG(k,j+1,i) - F_nG(k,j,i)
           ) / mbi.dx2(i);
         }
       }
@@ -109,32 +106,29 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs)
       for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
       for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
       {
-        AT_N_sca & F_E   = fluxes.E(  ix_g,ix_s,ix_d);
-        AT_N_vec & F_f_d = fluxes.F_d(ix_g,ix_s,ix_d);
-        AT_N_sca & F_nG  = fluxes.nG( ix_g,ix_s,ix_d);
+        AT_N_sca & F_E   = fluxes.sc_E(  ix_g,ix_s,ix_d);
+        AT_N_vec & F_f_d = fluxes.sp_F_d(ix_g,ix_s,ix_d);
+        AT_N_sca & F_nG  = fluxes.sc_nG( ix_g,ix_s,ix_d);
 
         M1_ILOOP1(i)
         {
           scratch.dflx(ix_g,ix_s,ixn_Lab::E,i) += (
-            fluxes.E(ix_g,ix_s,ix_d)(k+1,j,i) -
-            fluxes.E(ix_g,ix_s,ix_d)(k,j,i)
+            F_E(k+1,j,i) - F_E(k,j,i)
           ) / mbi.dx3(i);
         }
 
         for (int a=0; a<N; ++a)
         M1_ILOOP1(i)
         {
-          scratch.dflx(ix_g,ix_s,ixn_Lab::Fx+a,i) += (
-            fluxes.F_d(ix_g,ix_s,ix_d)(a,k+1,j,i) -
-            fluxes.F_d(ix_g,ix_s,ix_d)(a,k,j,i)
+          scratch.dflx(ix_g,ix_s,ixn_Lab::F_x+a,i) += (
+            F_f_d(a,k+1,j,i) - F_f_d(a,k,j,i)
           ) / mbi.dx3(i);
         }
 
         M1_ILOOP1(i)
         {
           scratch.dflx(ix_g,ix_s,ixn_Lab::nG,i) += (
-            fluxes.nG(ix_g,ix_s,ix_d)(k+1,j,i) -
-            fluxes.nG(ix_g,ix_s,ix_d)(k,j,i)
+            F_nG(k+1,j,i) - F_nG(k,j,i)
           ) / mbi.dx3(i);
         }
       }
@@ -146,18 +140,19 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs)
     {
       M1_ILOOP1(i)
       {
-        rhs.E(ix_g,ix_s)(k,j,i) -= scratch.dflx(ix_g,ix_s,ixn_Lab::E,i);
+        rhs.sc_E(ix_g,ix_s)(k,j,i) -= scratch.dflx(ix_g,ix_s,ixn_Lab::E,i);
       }
 
       for (int a=0; a<N; ++a)
       M1_ILOOP1(i)
       {
-        rhs.F_d(ix_g,ix_s)(a,k,j,i) -= scratch.dflx(ix_g,ix_s,ixn_Lab::Fx+a,i);
+        rhs.sp_F_d(ix_g,ix_s)(a,k,j,i) -= scratch.dflx(ix_g,ix_s,
+                                                       ixn_Lab::F_x+a,i);
       }
 
       M1_ILOOP1(i)
       {
-        rhs.nG(ix_g,ix_s)(k,j,i) -= scratch.dflx(ix_g,ix_s,ixn_Lab::nG,i);
+        rhs.sc_nG(ix_g,ix_s)(k,j,i) -= scratch.dflx(ix_g,ix_s,ixn_Lab::nG,i);
       }
 
     }

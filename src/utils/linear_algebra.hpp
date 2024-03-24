@@ -202,28 +202,42 @@ inline void TraceRank2(
 
 }
 
-<<<<<<< HEAD
-// inner product of 3-vec
-=======
-// inner product of dense 3-vec, metric
->>>>>>> cc2a74d6 (Namespace M1 to avoid future headaches. Couple (mock) external fluid / geometry)
-inline Real InnerProductVec3Metric(
+// inner product of dense vec, metric
+inline Real InnerProductVecMetric(
   AthenaTensor<Real, TensorSymm::NONE, 3, 1> const & u,
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & g,
   int const k, int const j, int const i)
 {
-  return (u(0,k,j,i)*u(0,k,j,i)*g(0,0,k,j,i) +
-          u(1,k,j,i)*u(1,k,j,i)*g(1,1,k,j,i) +
-          u(2,k,j,i)*u(2,k,j,i)*g(2,2,k,j,i) +
-          2.0*u(0,k,j,i)*u(1,k,j,i)*g(0,1,k,j,i) +
-          2.0*u(0,k,j,i)*u(2,k,j,i)*g(0,2,k,j,i) +
-          2.0*u(1,k,j,i)*u(2,k,j,i)*g(1,2,k,j,i));
+  return (
+    u(0,k,j,i)*u(0,k,j,i)*g(0,0,k,j,i) +
+    u(1,k,j,i)*u(1,k,j,i)*g(1,1,k,j,i) +
+    u(2,k,j,i)*u(2,k,j,i)*g(2,2,k,j,i) +
+    2.0*(u(0,k,j,i)*u(1,k,j,i)*g(0,1,k,j,i) +
+         u(0,k,j,i)*u(2,k,j,i)*g(0,2,k,j,i) +
+         u(1,k,j,i)*u(2,k,j,i)*g(1,2,k,j,i))
+  );
 }
 
-<<<<<<< HEAD
-=======
+inline Real InnerProductVecMetric(
+  AthenaTensor<Real, TensorSymm::NONE, 4, 1> const & u,
+  AthenaTensor<Real, TensorSymm::SYM2, 4, 2> const & g,
+  int const k, int const j, int const i)
+{
+  return (
+    u(0,k,j,i)*u(0,k,j,i)*g(0,0,k,j,i) +
+    u(1,k,j,i)*u(1,k,j,i)*g(1,1,k,j,i) +
+    u(2,k,j,i)*u(2,k,j,i)*g(2,2,k,j,i) +
+    u(3,k,j,i)*u(3,k,j,i)*g(3,3,k,j,i) +
+    2.0*(u(0,k,j,i)*u(1,k,j,i)*g(0,1,k,j,i) +
+         u(0,k,j,i)*u(2,k,j,i)*g(0,2,k,j,i) +
+         u(0,k,j,i)*u(3,k,j,i)*g(0,3,k,j,i) +
+         u(1,k,j,i)*u(2,k,j,i)*g(1,2,k,j,i) +
+         u(1,k,j,i)*u(3,k,j,i)*g(1,3,k,j,i) +
+         u(2,k,j,i)*u(3,k,j,i)*g(2,3,k,j,i))
+  );
+}
+
 // inner product of sliced 3-vec, metric
->>>>>>> cc2a74d6 (Namespace M1 to avoid future headaches. Couple (mock) external fluid / geometry)
 inline Real InnerProductSlicedVec3Metric(
   AthenaTensor<Real, TensorSymm::NONE, 3, 1> const & u,
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & g,
@@ -266,12 +280,35 @@ inline void InnerProductSlicedVec3Metric(
 
 
 // indicial manipulations
+template<typename T, int D>
+inline void VecMetContraction(
+  AthenaTensor<T, TensorSymm::NONE, D, 1> & tar_v_,
+  AthenaTensor<T, TensorSymm::NONE, D, 1> const & v,
+  AthenaTensor<T, TensorSymm::SYM2, D, 2> const & met,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  for (int a=0; a<D; ++a)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    tar_v_(a, i) = 0;
+  }
+
+  for (int a=0; a<D; ++a)
+  for (int b=0; b<D; ++b)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    tar_v_(a, i) += v(b,k,j,i) * met(a,b,k,j,i);
+  }
+}
+
 inline void SlicedVecMet3Contraction(
   AthenaTensor<Real, TensorSymm::NONE, 3, 1> & v_dst,
   AthenaTensor<Real, TensorSymm::NONE, 3, 1> const & v_src,
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & met3_src,
-  const int k, const int j, const int i
-)
+  const int k, const int j, const int i)
 {
   // #pragma omp unroll full
   for (int a=0; a<3; ++a)
@@ -286,8 +323,7 @@ inline void SlicedVecMet3Contraction(
   AthenaTensor<Real, TensorSymm::NONE, 3, 1> & v_dst,
   AthenaTensor<Real, TensorSymm::NONE, 3, 1> const & v_src,
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & met3_src,
-  const int il, const int iu
-)
+  const int il, const int iu)
 {
   // #pragma omp unroll full
   for (int a=0; a<3; ++a)
@@ -305,8 +341,7 @@ template<typename T>
 inline void ApplyLinearTransform(
   const AthenaArray<T> & T_mat,
   AthenaArray<T>       & tar_vec,
-  const AthenaArray<T> & src_vec
-)
+  const AthenaArray<T> & src_vec)
 {
   const int D = T_mat.GetDim1();
   for (int jx=0; jx<D; ++jx)
@@ -324,8 +359,7 @@ inline void ApplyLinearTransform(
   const AthenaArray<T> & T_mat,
   AthenaTensor<T, TensorSymm::NONE, D, 1>       & dst,
   const AthenaTensor<T, TensorSymm::NONE, D, 1> & src,
-  const int il, const int iu
-)
+  const int il, const int iu)
 {
 
   for (int a=0; a<D; ++a)
@@ -349,8 +383,7 @@ inline void ApplyLinearTransform(
   const AthenaArray<T> & T_mat_B,
   AthenaTensor<T, TensorSymm::SYM2, D, 2>       & dst,
   const AthenaTensor<T, TensorSymm::SYM2, D, 2> & src,
-  const int il, const int iu
-)
+  const int il, const int iu)
 {
   for (int b=0; b<D; ++b)
   for (int a=0; a<=b; ++a)
@@ -377,8 +410,7 @@ inline void ApplyLinearTransform(
   const AthenaArray<T> & T_mat_C,
   AthenaTensor<T, TensorSymm::SYM2, D, 3>       & dst,
   const AthenaTensor<T, TensorSymm::SYM2, D, 3> & src,
-  const int il, const int iu
-)
+  const int il, const int iu)
 {
   for (int c=0; c<D; ++c)
   for (int b=0; b<D; ++b)
@@ -408,8 +440,7 @@ void MetricNorm2Vector(
   AthenaTensor<T, TensorSymm::NONE,       3, 0> & v_norm2,
   const AthenaTensor<T, TensorSymm::NONE, 3, 1> & v_d,
   const AthenaTensor<T, TensorSymm::SYM2, 3, 2> & g_dd,
-  const int il, const int iu
-)
+  const int il, const int iu)
 {
   AthenaTensor<Real, TensorSymm::NONE, 3, 1> v_u( iu+1);
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> g_uu(iu+1);
@@ -462,6 +493,46 @@ void Assemble_ST_Metric_dd(
 }
 
 template<typename T, int D>
+void Assemble_ST_Metric_dd(
+  AthenaTensor<T, TensorSymm::SYM2, D, 2>         & st_g_dd_,
+  const AthenaTensor<T, TensorSymm::SYM2, D-1, 2> & sp_g_dd,
+  const AthenaTensor<T, TensorSymm::NONE, D-1, 0> & alpha,
+  const AthenaTensor<T, TensorSymm::NONE, D-1, 1> & sp_beta_d,
+  const AthenaTensor<T, TensorSymm::NONE, D-1, 1> & sp_beta_u,
+  AthenaTensor<T, TensorSymm::NONE, D-1, 0> & sp_norm2_beta_,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  // need <beta,beta>_sp_g
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sp_norm2_beta_(i) = InnerProductVecMetric(
+      sp_beta_u, sp_g_dd, k, j, i
+    );
+  }
+
+  for (int i=il; i<=iu; ++i)
+  {
+    st_g_dd_(0,0,i) = -SQR(alpha(k,j,i)) + sp_norm2_beta_(i);
+  }
+
+  for (int b=0; b<D-1; ++b)  // spatial ranges
+  {
+    for (int i=il; i<=iu; ++i)
+    {
+      st_g_dd_(0,b+1,i) = sp_beta_d(b,k,j,i);
+    }
+
+    for (int a=0; a<=b; ++a)
+    for (int i=il; i<=iu; ++i)
+    {
+      st_g_dd_(a+1,b+1,i) = sp_g_dd(a,b,k,j,i);
+    }
+  }
+}
+
+template<typename T, int D>
 void Assemble_ST_Metric_uu(
   AthenaTensor<T, TensorSymm::SYM2, D, 2>         & st_g_uu,
   const AthenaTensor<T, TensorSymm::SYM2, D-1, 2> & sp_g_uu,
@@ -499,13 +570,50 @@ void Assemble_ST_Metric_uu(
 }
 
 template<typename T, int D>
+void Assemble_ST_Metric_uu(
+  AthenaTensor<T, TensorSymm::SYM2, D, 2>         & st_g_uu_,
+  const AthenaTensor<T, TensorSymm::SYM2, D-1, 2> & sp_g_uu,
+  const AthenaTensor<T, TensorSymm::NONE, D-1, 0> & sc_alpha,
+  const AthenaTensor<T, TensorSymm::NONE, D-1, 1> & sp_beta_u,
+  AthenaTensor<T, TensorSymm::NONE, D-1, 0> & sc_oo_alpha2_,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  for (int i=il; i<=iu; ++i)
+  {
+    sc_oo_alpha2_(i) = 1. / SQR(sc_alpha(k,j,i));
+  }
+
+  for (int i=il; i<=iu; ++i)
+  {
+    st_g_uu_(0,0,i) = -sc_oo_alpha2_(i);
+  }
+
+  for (int b=0; b<D-1; ++b)  // spatial ranges
+  {
+    for (int a=0; a<=b; ++a)
+    for (int i=il; i<=iu; ++i)
+    {
+      st_g_uu_(a+1,b+1,i) = (sp_g_uu(a,b,k,j,i) -
+                             sc_oo_alpha2_(i)*
+                             sp_beta_u(a,k,j,i)*sp_beta_u(b,k,j,i));
+    }
+
+    for (int i=il; i<=iu; ++i)
+    {
+      st_g_uu_(0,b+1,i) = sp_beta_u(b,k,j,i) * sc_oo_alpha2_(i);
+    }
+
+  }
+}
+
+template<typename T, int D>
 void ExtractFrom_ST_Metric_dd(
   const AthenaTensor<T, TensorSymm::SYM2, D, 2> & st_g_dd,
   AthenaTensor<T, TensorSymm::SYM2, D-1, 2>     & sp_g_dd,
   AthenaTensor<T, TensorSymm::NONE, D-1, 0>     & alpha,
   AthenaTensor<T, TensorSymm::NONE, D-1, 1>     & sp_beta_d,
-  const int il, const int iu
-)
+  const int il, const int iu)
 {
   for (int a=0; a<D-1; ++a)
   for (int i=il; i<=iu; ++i)
@@ -538,8 +646,7 @@ void ExtractFrom_ST_Metric_uu(
   AthenaTensor<T, TensorSymm::SYM2, D-1, 2>     & sp_g_uu,
   AthenaTensor<T, TensorSymm::NONE, D-1, 0>     & alpha,
   AthenaTensor<T, TensorSymm::NONE, D-1, 1>     & sp_beta_u,
-  const int il, const int iu
-)
+  const int il, const int iu)
 {
   for (int i=il; i<=iu; ++i)
   {

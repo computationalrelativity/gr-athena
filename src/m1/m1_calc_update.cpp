@@ -25,6 +25,7 @@ void M1::CalcUpdate(Real const dt,
                     AthenaArray<Real> & u_c,
 		                AthenaArray<Real> & u_rhs)
 {
+
   return;
 }
 

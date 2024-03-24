@@ -10,7 +10,7 @@ export FN=$(readlink -f "$0"); export DIR_SCRIPTS=$(dirname "${FN}")
 # configure here
 
 # 0 - normal, 1 - valgrind, 2 - gdb, ...
-export RUN_MODE=0
+export RUN_MODE=1
 export USE_MPI=0
 
 export USE_CX=1

@@ -7,44 +7,27 @@
 #include <vector>
 
 // Athena++ classes headers
-<<<<<<< HEAD
 #include "../athena_aliases.hpp"
-#include "../utils/tensor.hpp"
-=======
-#include "../athena.hpp"
-#include "../athena_arrays.hpp"
-#include "../athena_tensor.hpp"
 // #include "../utils/tensor.hpp"
 
-// ============================================================================
-namespace M1 {
-// ============================================================================
->>>>>>> cc2a74d6 (Namespace M1 to avoid future headaches. Couple (mock) external fluid / geometry)
-
 // typedef ====================================================================
+namespace M1 {
 
 // define some types to make everything more readable
-
-<<<<<<< HEAD
 using namespace gra::aliases;
-=======
-static const int D = M1_NDIM + 1;
-static const int N = M1_NDIM;
 
-typedef AthenaArray< Real>                         AA;
-// spatial hypersurface
-typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
-typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
-typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
->>>>>>> cc2a74d6 (Namespace M1 to avoid future headaches. Couple (mock) external fluid / geometry)
-
-// symmetric tensor derivatives
+// scalar, vector symmetric tensor derivatives
+typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_D1sca;
+typedef AthenaTensor<Real, TensorSymm::NONE, N, 2> AT_N_D1vec;
 typedef AthenaTensor<Real, TensorSymm::SYM2, N, 3> AT_N_D1sym;
 
 // space-time fields
 typedef AthenaTensor<Real, TensorSymm::NONE, D, 0> AT_D_sca;
 typedef AthenaTensor<Real, TensorSymm::NONE, D, 1> AT_D_vec;
 typedef AthenaTensor<Real, TensorSymm::SYM2, D, 2> AT_D_sym;
+
+// generic bilinear
+typedef AthenaTensor<Real, TensorSymm::NONE, D, 2> AT_D_bil;
 
 // Treat group & species as super-indices with this nested structure
 typedef AthenaArray<AT_N_sca> GS_AT_N_sca;

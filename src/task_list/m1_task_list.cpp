@@ -38,14 +38,16 @@ M1IntegratorTaskList::M1IntegratorTaskList(ParameterInput *pin, Mesh *pm)
   { using namespace M1IntegratorTaskNames; // NOLINT (build/namespace)
 
 
-    AddTask(UPDATE_BG, NONE);
-    AddTask(NOP, UPDATE_BG);
+    AddTask(NOP, NONE);
 
-    AddTask(SEND_FLUX, NOP);
-    AddTask(RECV_FLUX, NOP);
+    AddTask(UPDATE_BG, NOP);
+    AddTask(CALC_FLUX, UPDATE_BG);
 
-    AddTask(SEND, NOP);
-    AddTask(RECV, NOP);
+    AddTask(SEND_FLUX, CALC_FLUX);
+    AddTask(RECV_FLUX, CALC_FLUX);
+
+    AddTask(SEND, CALC_FLUX);
+    AddTask(RECV, CALC_FLUX);
     AddTask(ADD_FLX_DIV, RECV_FLUX);
 
     AddTask(SETB, RECV);
@@ -304,8 +306,8 @@ TaskStatus M1IntegratorTaskList::UpdateBackground(MeshBlock *pmb, int stage)
   // only need to do this on the first step.
   if (stage == 1)
   {
-    pmb->pm1->UpdateGeometry(pmb->pm1->geom);
-    pmb->pm1->UpdateHydro(pmb->pm1->hydro, pmb->pm1->geom);
+    pmb->pm1->UpdateGeometry(pmb->pm1->geom, pmb->pm1->scratch);
+    pmb->pm1->UpdateHydro(pmb->pm1->hydro, pmb->pm1->geom, pmb->pm1->scratch);
   }
   return TaskStatus::success;
 }
@@ -355,14 +357,12 @@ TaskStatus M1IntegratorTaskList::CalcOpacity(MeshBlock *pmb, int stage)
 // Function to calculates fluxes
 TaskStatus M1IntegratorTaskList::CalcFlux(MeshBlock *pmb, int stage)
 {
-  /*
-  if (stage <= nstages) {
+  if (stage <= nstages)
+  {
     pmb->pm1->CalcFluxes(pmb->pm1->storage.u);
     return TaskStatus::next;
   }
   return TaskStatus::fail;
-  */
-  return TaskStatus::success;
 }
 
 // ----------------------------------------------------------------------------
@@ -592,7 +592,7 @@ TaskStatus M1IntegratorTaskList::NopFinal(MeshBlock *pmb, int stage)
   const int ix_s = 2;
 
   std::cout << "lab.E:" << std::endl;
-  pm1->lab.E(ix_g,ix_s).array().print_all();
+  pm1->lab.sc_E(ix_g,ix_s).array().print_all();
 
   // std::cout << "flux 0:" << std::endl;
   // pm1->fluxes.E(ix_g,ix_s,0).array().print_all();

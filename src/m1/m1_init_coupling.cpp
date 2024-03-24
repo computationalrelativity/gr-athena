@@ -8,6 +8,7 @@
 #include "../utils/linear_algebra.hpp"
 #include "m1.hpp"
 #include "m1_macro.hpp"
+#include "m1_utils.hpp"
 
 // ============================================================================
 namespace M1 {
@@ -15,7 +16,7 @@ namespace M1 {
 
 // ----------------------------------------------------------------------------
 // Prepare coupled (background) geometry (only during M1 ctor)
-void M1::InitializeGeometry(vars_Geom & geom)
+void M1::InitializeGeometry(vars_Geom & geom, vars_Scratch & scratch)
 {
   // Allocate dense storage ---------------------------------------------------
   geom.sc_alpha.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
@@ -25,12 +26,28 @@ void M1::InitializeGeometry(vars_Geom & geom)
   geom.sp_g_dd.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
   geom.sp_K_dd.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
 
+  geom.sp_dalpha_d.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
+
+  geom.sp_dbeta_du.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
+
   geom.sp_dg_ddd.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
 
   // For derived quantities
+  geom.sp_beta_d.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
+
   geom.sc_sqrt_det_g.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
 
   geom.sp_g_uu.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
+
+  // For scratch
+  geom.st_n_u_.NewAthenaTensor(mbi.nn1);
+  geom.st_n_d_.NewAthenaTensor(mbi.nn1);
+
+  geom.st_beta_u_.NewAthenaTensor(mbi.nn1);
+  geom.st_g_dd_.NewAthenaTensor(mbi.nn1);
+  geom.st_g_uu_.NewAthenaTensor(mbi.nn1);
+
+  geom.st_P_ud_.NewAthenaTensor(mbi.nn1);
 
   // Populate storage ---------------------------------------------------------
   if (!Z4C_ENABLED)
@@ -52,7 +69,7 @@ void M1::InitializeGeometry(vars_Geom & geom)
   }
 
   // Derived quantities (sqrt_det, spatial inv)
-  DerivedGeometry(geom);
+  DerivedGeometry(geom, scratch);
 
   return;
 }
@@ -60,7 +77,7 @@ void M1::InitializeGeometry(vars_Geom & geom)
 
 // ----------------------------------------------------------------------------
 // Update coupled (background) geometry (only _after_ M1 ctor)
-void M1::UpdateGeometry(vars_Geom & geom)
+void M1::UpdateGeometry(vars_Geom & geom, vars_Scratch & scratch)
 {
   // Populate storage ---------------------------------------------------------
   if (Z4C_ENABLED)
@@ -83,6 +100,10 @@ void M1::UpdateGeometry(vars_Geom & geom)
     AT_N_sym g_dd_(mbi.nn1);
     AT_N_sym K_dd_(mbi.nn1);
 
+    AT_N_D1sca dalpha_d_(mbi.nn1);
+
+    AT_N_D1vec dbeta_du_(mbi.nn1);
+
     AT_N_D1sym dg_ddd_(mbi.nn1);
 
     // M1: on CC --------------------------------------------------------------
@@ -104,7 +125,9 @@ void M1::UpdateGeometry(vars_Geom & geom)
 
       for(int a=0; a<NDIM; ++a)
       {
-        pmy_coord->GetGeometricFieldDerCC(dg_ddd_, sl_g_dd, a, k, j);
+        pmy_coord->GetGeometricFieldDerCC(dalpha_d_, sl_alpha,  a, k, j);
+        pmy_coord->GetGeometricFieldDerCC(dbeta_du_, sl_beta_u, a, k, j);
+        pmy_coord->GetGeometricFieldDerCC(dg_ddd_,   sl_g_dd,   a, k, j);
       }
 
       // Copy to dense storage ------------------------------------------------
@@ -131,6 +154,22 @@ void M1::UpdateGeometry(vars_Geom & geom)
       }
 
       for(int c = 0; c < NDIM; ++c)
+      #pragma omp simd
+      for (int i=IL; i<=IU; ++i)
+      {
+        geom.sp_dalpha_d(c,k,j,i) = dalpha_d_(c,i);
+      }
+
+      for(int c = 0; c < NDIM; ++c)
+      for(int a = 0; a < NDIM; ++a)
+      #pragma omp simd
+      for (int i=IL; i<=IU; ++i)
+      {
+        geom.sp_dbeta_du(c,a,k,j,i) = dbeta_du_(c,a,i);
+      }
+
+
+      for(int c = 0; c < NDIM; ++c)
       for(int a = 0; a < NDIM; ++a)
       for(int b = a; b < NDIM; ++b)
       #pragma omp simd
@@ -141,15 +180,14 @@ void M1::UpdateGeometry(vars_Geom & geom)
 
     }
 
-
     // Derived quantities (sqrt_det, spatial inv)
-    DerivedGeometry(geom);
+    DerivedGeometry(geom, scratch);
   }
 }
 
 // ----------------------------------------------------------------------------
 // Derived quantities based on coupled (background) geometry
-void M1::DerivedGeometry(vars_Geom & geom)
+void M1::DerivedGeometry(vars_Geom & geom, vars_Scratch & scratch)
 {
   using namespace LinearAlgebra;
 
@@ -158,34 +196,56 @@ void M1::DerivedGeometry(vars_Geom & geom)
 
   AT_N_sym sp_g_uu_(mbi.nn1);
 
-  M1_GLOOP2(k,j)
+  // M1: on CC ----------------------------------------------------------------
+  int IL, IU, JL, JU, KL, KU;
+  pmy_coord->GetGeometricFieldCCIdxRanges(
+    IL, IU,
+    JL, JU,
+    KL, KU);
+
+  for (int k=KL; k<=KU; ++k)
+  for (int j=JL; j<=JU; ++j)
   {
     Det3Metric(detgamma_,geom.sp_g_dd,
-               k,j,0,mbi.nn1-1);
-    M1_GLOOP1(i)
+               k,j,IL,IU);
+
+    #pragma omp simd
+    for (int i=IL; i<=IU; ++i)
     {
       oo_detgamma_(i) = 1.0 / detgamma_(i);
       geom.sc_sqrt_det_g(k,j,i) = std::sqrt(detgamma_(i));
     }
 
     Inv3Metric(oo_detgamma_, geom.sp_g_dd, sp_g_uu_,
-               k,j,0,mbi.nn1-1);
+               k,j,IL,IU);
 
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b)
-    M1_GLOOP1(i)
+    #pragma omp simd
+    for (int i=IL; i<=IU; ++i)
     {
       geom.sp_g_uu(a,b,k,j,i) = sp_g_uu_(a,b,i);
     }
+
+    Assemble::sp_beta_d(geom.sp_beta_d, geom.sp_beta_u, geom.sp_g_dd, scratch,
+                        k, j, IL, IU);
+
   }
+
+
 }
 
 // ----------------------------------------------------------------------------
 // Prepare coupled (background) hydro (only during M1 ctor)
-void M1::InitializeHydro(vars_Hydro & hydro, vars_Geom & geom)
+void M1::InitializeHydro(vars_Hydro & hydro,
+                         vars_Geom & geom,
+                         vars_Scratch & scratch)
 {
   // Allocate dense storage ---------------------------------------------------
   hydro.sc_W.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
+
+  // For scratch --------------------------------------------------------------
+  hydro.st_w_u_u_.NewAthenaTensor(mbi.nn1);
 
   if (FLUID_ENABLED)
   {
@@ -217,25 +277,29 @@ void M1::InitializeHydro(vars_Hydro & hydro, vars_Geom & geom)
   }
 
   // Lorentz factor etc
-  DerivedHydro(hydro, geom);
+  DerivedHydro(hydro, geom, scratch);
   return;
 }
 
 // ----------------------------------------------------------------------------
 // Update coupled (background) hydro (only _after_ M1 ctor)
-void M1::UpdateHydro(vars_Hydro & hydro, vars_Geom & geom)
+void M1::UpdateHydro(vars_Hydro & hydro,
+                     vars_Geom & geom,
+                     vars_Scratch & scratch)
 {
   if (FLUID_ENABLED)
   {
     // Lorentz factor etc
-    DerivedHydro(hydro, geom);
+    DerivedHydro(hydro, geom, scratch);
   }
   return;
 }
 
 // ----------------------------------------------------------------------------
 // Derived quantities based on coupled (background) geometry
-void M1::DerivedHydro(vars_Hydro & hydro, vars_Geom & geom)
+void M1::DerivedHydro(vars_Hydro & hydro,
+                      vars_Geom & geom,
+                      vars_Scratch & scratch)
 {
   using namespace LinearAlgebra;
 
@@ -244,7 +308,7 @@ void M1::DerivedHydro(vars_Hydro & hydro, vars_Geom & geom)
   {
     for (int i=mbi.il; i<=mbi.iu; ++i)
     {
-      const Real norm2_util = InnerProductVec3Metric(
+      const Real norm2_util = InnerProductVecMetric(
         hydro.sp_w_util_u, geom.sp_g_dd,
         k,j,i
       );

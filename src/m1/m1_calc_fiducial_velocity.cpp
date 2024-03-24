@@ -38,7 +38,7 @@ void M1::CalcFiducialVelocity()
       {
         M1_GLOOP1(i)
         {
-          fidu.vel_u(a,k,j,i) = hydro.sp_w_util_u(a,k,j,i);
+          fidu.sp_v_u(a,k,j,i) = hydro.sp_w_util_u(a,k,j,i);
         }
       }
       break;
@@ -52,7 +52,7 @@ void M1::CalcFiducialVelocity()
         {
           Real const rho = hydro.sc_w_rho(k,j,i);
           Real const fac = 1.0/std::max(rho, opt.fiducial_velocity_rho_fluid);
-        	fidu.vel_u(a,k,j,i) = hydro.sp_w_util_u(a,k,j,i) * rho * fac;
+        	fidu.sp_v_u(a,k,j,i) = hydro.sp_w_util_u(a,k,j,i) * rho * fac;
         }
       }
 
@@ -60,7 +60,7 @@ void M1::CalcFiducialVelocity()
     }
     case opt_fiducial_velocity::zero:
     {
-      fidu.vel_u.ZeroClear();
+      fidu.sp_v_u.ZeroClear();
       return;
     }
     case opt_fiducial_velocity::none:
@@ -69,14 +69,14 @@ void M1::CalcFiducialVelocity()
     }
   }
 
-  // Have: fidu.vel_u = utilde^i = W v^i
-  // Want: fidu.vel_u = v^i
+  // Have: fidu.sp_v_u = utilde^i = W v^i
+  // Want: fidu.sp_v_u = v^i
   M1_GLOOP3(k,j,i)
   {
     Real const oo_W = 1.0 / hydro.sc_W(k,j,i);
     for(int a = 0; a < NDIM; ++a)
     {
-      fidu.vel_u(a,k,j,i) = oo_W * fidu.vel_u(a,k,j,i);
+      fidu.sp_v_u(a,k,j,i) = oo_W * fidu.sp_v_u(a,k,j,i);
     }
   }
 }

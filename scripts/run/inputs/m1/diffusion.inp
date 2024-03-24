@@ -49,7 +49,7 @@ test = diffusion
 closure = Minerbo
 opacities = fake
 
-fiducial_velocity = none  # {fluid, mixed, zero, none}
+fiducial_velocity = fluid  # {fluid, mixed, zero, none}
 
 ngroups  = 2
 nspecies = 3
