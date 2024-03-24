@@ -21,8 +21,8 @@ cd ${DIR_OUTPUT}
 # --map-by ppr:Tasks_Per_Node:node:pe=thds
 # -x OMP_NUM_THREADS
 
-export TOTAL_TASKS=12
-export TASKS_PER_NODE=4
+export TOTAL_TASKS=8
+export TASKS_PER_NODE=1
 export OMP_NUM_THREADS=1
 
 

@@ -1,4 +1,15 @@
-TODO:
+# Collection of scripts for running & debugging
+
+These scripts are for demonstrating basic functionality, visualisation, and debugging.
+
+## `run/`:
+
+- Minimal compile and run (with debug) scripts.
+- Uses spack environment.
+
+# TODO:
+
+- Clean up GR(M)HD task-lists - they are spaghetti.
 
 - Check AHF & fix
 

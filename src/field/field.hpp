@@ -69,5 +69,9 @@ class Field {
   AthenaArray<Real> cc_e_;
   AthenaArray<Real> face_area_, edge_length_, edge_length_p1_;
   AthenaArray<Real> g_, gi_;  // only used in GR
+
+  // Called internally by ComputeCornerE
+  void ComputeCornerE_Z4c_3D(AthenaArray<Real> &w, AthenaArray<Real> &bcc);
+
 };
 #endif // FIELD_FIELD_HPP_

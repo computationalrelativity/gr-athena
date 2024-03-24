@@ -4,7 +4,7 @@
 # =============================================================================
 
 <job> # =======================================================================
-problem_id = gr_tov
+problem_id = z4c_tov
 # =============================================================================
 
 <z4c> # =======================================================================
@@ -108,7 +108,7 @@ refinement = none
 numlevel = 10
 #deref_count = 5
 
-num_threads = 12
+num_threads = 4
 
 # impose bitant symmetry (use with ix3_bc=reflecting)
 bitant = false
@@ -169,11 +169,6 @@ x_0_x3 = 0.0
 v_b_x1 = 0. # 0.2
 v_b_x2 = 0. # 0.1
 v_b_x3 = 0. # -0.1
-
-# Magnetic fields
-b_amp    = 0.1
-pcut     = 0.04
-magindex = 0
 
 # Atmosphere settings
 fatm = 1e-18  # set atmosphere rho to rho = fatm

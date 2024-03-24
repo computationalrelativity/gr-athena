@@ -1,0 +1,211 @@
+<comment> # ===================================================================
+# additional comments (such as e.g. compilation parameters go here)
+# ...
+# =============================================================================
+
+<job> # =======================================================================
+problem_id = z4c_one_puncture
+# =============================================================================
+
+<z4c> # =======================================================================
+lapse_harmonic  = 0.0
+lapse_harmonicf = 1.0
+lapse_oplog     = 2.0
+lapse_advect    = 1.0
+lapse_K         = 0.0
+
+shift_Gamma       = 1.0  # T 2011: BNS takes 0.75
+shift_eta         = 2.0   # T 2011
+shift_alpha2Gamma = 0.0
+shift_H           = 0.0
+shift_advect      = 1.0
+
+# Kreiss-Oliger dissipation parameter.
+diss = 0.2
+# conformal factor flooring
+chi_div_floor = 1e-5
+
+# Constraint damping factors
+damp_kappa1 = 0.02
+damp_kappa2 = 0.0
+
+# do not compute constraints outside this radius (relative to origin)
+r_max_con = 16
+
+# shift based tracker
+npunct = 1
+bh_0_x = 0
+
+# =============================================================================
+
+<task_triggers>  # ============================================================
+# control frequency of task execution
+
+# whatever values, if zero / missing these tasks are not triggered
+dt_psi4_extraction  = 0
+dt_assert_is_finite = 0
+# =============================================================================
+
+<trackers_extrema>  # =========================================================
+# control trackers based on field extrema
+
+N_tracker = 1
+filename = tra.ext
+
+control_field = Z4c.alpha
+
+ini_1_x1          = 0 # initial offset
+ini_1_x2          = 0
+ini_1_x3          = 0
+minima_1          = true  # for update_strategy = 1
+ref_level_1       = 2
+ref_type_1        = 1     # 0: to the point, 1: sph. region
+ref_zone_radius_1 = 5.0
+
+update_strategy = 1       # 0: based on dt, 1: based on quad interp.
+
+# safety factor avoids taking too large step (multiple of local dx)
+update_max_step_factor = 10
+
+# max number of iterations to perform for interp method
+iter_max = 250
+# abs. tol. for step update
+tol_ds = 1e-12
+# take ds / interp_ds_fac during interpolation / interp
+interp_ds_fac = 10
+# =============================================================================
+
+<time> # ======================================================================
+cfl_number   = 0.2
+tlim	     = 100
+integrator   = rk4   # time integration algorithm
+
+ncycle_out   = 1      # interval for stdout summary info
+# =============================================================================
+
+<mesh> # ======================================================================
+# no. cell in dir, min/max x, inner/outer BC
+nx1    = 64
+x1min  = -32
+x1max  = 32
+ix1_bc = extrapolate_outflow
+ox1_bc = extrapolate_outflow
+
+nx2    = 64
+x2min  = -32
+x2max  = 32
+ix2_bc = extrapolate_outflow
+ox2_bc = extrapolate_outflow
+
+nx3    = 64
+x3min  = -32
+x3max  = 32
+ix3_bc = extrapolate_outflow
+ox3_bc = extrapolate_outflow
+
+refinement = static
+numlevel = 15
+#deref_count = 5
+
+num_threads = 4
+
+# impose bitant symmetry (use with ix3_bc=reflecting)
+# bitant = true
+# =============================================================================
+
+<meshblock> # =================================================================
+nx1=16
+nx2=16
+nx3=16
+# =============================================================================
+
+<problem> # ===================================================================
+# ...
+# =============================================================================
+
+<refinement1> # ===============================================================
+x1min           = -5
+x1max           =  5
+x2min           = -5
+x2max           =  5
+x3min           = -5
+x3max           =  5
+level           = 2
+# =============================================================================
+
+# dumped quantities ===========================================================
+<output1>
+file_type = rst
+dt        = 100
+
+<output2>
+file_type   = hst
+dt          = 0.1
+data_format = %.18g
+
+<output3>
+file_type   = hdf5
+variable    = con
+ghost_zones = true
+dt          = 0.5
+x3_slice    = 0
+
+<output4>
+file_type   = hdf5
+variable    = adm
+ghost_zones = true
+dt          = 0.5
+x3_slice    = 0.0
+
+<output5>
+file_type   = hdf5
+variable    = z4c
+ghost_zones = true
+dt          = 0.5
+x3_slice    = 0.0
+
+<output6>
+file_type   = hdf5
+variable    = con
+ghost_zones = true
+dt          = 0.5
+x2_slice    = 0
+
+<output7>
+file_type   = hdf5
+variable    = adm
+ghost_zones = true
+dt          = 0.5
+x2_slice    = 0.0
+
+<output8>
+file_type   = hdf5
+variable    = z4c
+ghost_zones = true
+dt          = 0.5
+x2_slice    = 0.0
+
+<output9>
+file_type   = hdf5
+variable    = con
+ghost_zones = true
+dt          = 0.5
+x1_slice    = 0
+
+<output10>
+file_type   = hdf5
+variable    = adm
+ghost_zones = true
+dt          = 0.5
+x1_slice    = 0.0
+
+<output11>
+file_type   = hdf5
+variable    = z4c
+ghost_zones = true
+dt          = 0.5
+x1_slice    = 0.0
+
+#
+# :D
+#
