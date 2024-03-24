@@ -124,6 +124,18 @@ Real HybridTable::SpecificInternalEnergy(Real n, Real T, Real *Y) {
   return Energy(n, T, Y)/(mb*n) - 1;
 }
 
+Real HybridTable::BaryonChemicalPotential(Real n, Real T, Real *Y) {
+  throw std::logic_error("HybridTable::BaryonChemicalPotential not currently implemented.");
+}
+
+Real HybridTable::ChargeChemicalPotential(Real n, Real T, Real *Y) {
+  throw std::logic_error("HybridTable::ChargeChemicalPotential not currently implemented.");
+}
+
+Real HybridTable::ElectronLeptonChemicalPotential(Real n, Real T, Real *Y) {
+  throw std::logic_error("HybridTable::ElectronLeptonChemicalPotential not currently implemented.");
+}
+
 Real HybridTable::ColdEnergy(Real n) {
   assert (m_initialized);
   return exp(eval_at_n(ECLOGE, n));
