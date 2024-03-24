@@ -284,7 +284,6 @@ class EOS : public EOSPolicy, public ErrorPolicy {
       return BaryonChemicalPotential(n, T*code_units->TemperatureConversion(*eos_units), Y) *
              eos_units->ChemicalPotentialConversion(*code_units);
     }
-
      //! \fn Real GetChargeChemicalPotential(Real n, Real T, Real *Y)
     //  \brief Get the charge chemical potential from the number density, temperature,
     //         and particle fractions.
@@ -297,7 +296,6 @@ class EOS : public EOSPolicy, public ErrorPolicy {
       return ChargeChemicalPotential(n, T*code_units->TemperatureConversion(*eos_units), Y) *
              eos_units->ChemicalPotentialConversion(*code_units);
     }
-
      //! \fn Real GetElectronLeptonChemicalPotential(Real n, Real T, Real *Y)
     //  \brief Get the electron-lepton chemical potential from the number density, temperature,
     //         and particle fractions.
