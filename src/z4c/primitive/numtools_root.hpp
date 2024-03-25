@@ -7,6 +7,7 @@
 //  \brief Declares some functions for root-finding.
 
 #include <cmath>
+#include <limits>
 #include "../../athena.hpp"
 
 namespace NumTools {
@@ -16,12 +17,10 @@ class Root {
   public:
     /// Maximum number of iterations
     unsigned int iterations;
-    /// Solver tolerance
-    Real tol;
     /// Only used for benchmarking, not thread-safe.
     int last_count;
 
-    Root() : iterations(30), tol(1e-15) {}
+    Root() : iterations(30) {}
 
     Root(Root const&) = delete;
     void operator=(Root const&) = delete;
@@ -43,7 +42,7 @@ class Root {
     // \param[in]  args  Additional arguments required by f.
 
     template<class Functor, class ... Types>
-    inline bool FalsePosition(Functor&& f, Real &lb, Real &ub, Real& x, Types ... args) {
+    inline bool FalsePosition(Functor&& f, Real &lb, Real &ub, Real& x,  Real tol, Types ... args) {
       int side = 0;
       Real ftest;
       unsigned int count = 0;
@@ -124,7 +123,7 @@ class Root {
     // \param[in]  args  Additional arguments required by f.
 
     template<class Functor, class ... Types>
-    inline bool Chandrupatla(Functor&& f, Real &lb, Real &ub, Real& x, Types ... args) {
+    inline bool Chandrupatla(Functor&& f, Real &lb, Real &ub, Real& x, Real tol, Types ... args) {
       unsigned int count = 0;
       last_count = 0;
       // Get our initial bracket.
@@ -210,7 +209,7 @@ class Root {
      * \param[in]     args  Additional arguments required by f.
      */
     template<class Functor, class ... Types>
-    inline bool NewtonSafe(Functor&& f, Real &lb, Real &ub, Real& x, Types ... args) {
+    inline bool NewtonSafe(Functor&& f, Real &lb, Real &ub, Real& x, Real tol, Types ... args) {
       Real fx;
       Real dfx;
       Real xold;

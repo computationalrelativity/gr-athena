@@ -187,10 +187,11 @@ class PrimitiveSolver {
     //  \return an Error code, usually RHO_TOO_BIG, RHO_TOO_SMALL, or SUCCESS
     Error CheckDensityValid(Real& mul, Real& muh, Real D, Real bsq, Real rsq, Real rbsq, Real h_min);
   public:
+    Real tol;
     /// Constructor
     PrimitiveSolver(EOS<EOSPolicy, ErrorPolicy> *eos) : peos(eos) {
       //root = NumTools::Root();
-      root.tol = 1e-15;
+      tol = 1e-15;
       root.iterations = 30;
     }
 
@@ -296,10 +297,10 @@ inline Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::CheckDensityValid(Real& mu
         Real muhc = muh;
         // We can tighten up the bounds for mul.
         // The derivative is zero at mu = 0, so we perturb it slightly.
-        if (mu <= root.tol) {
+        /*if (mu <= root.tol) {
           mu += root.tol;
-        }
-        bool result = root.NewtonSafe(MuFromW, mulc, muhc, mu, bsq, rsq, rbsq, W);
+        }*/
+        bool result = root.NewtonSafe(MuFromW, mulc, muhc, mu, 1e-10, bsq, rsq, rbsq, W);
         if (!result) {
           return Error::BRACKETING_FAILED;
         }
@@ -322,7 +323,7 @@ inline Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::CheckDensityValid(Real& mu
         Real mulc = mul;
         Real muhc = muh;
         // We can tighten up the bounds for muh.
-        bool result = root.NewtonSafe(MuFromW, mulc, muhc, mu, bsq, rsq, rbsq, W);
+        bool result = root.NewtonSafe(MuFromW, mulc, muhc, mu, 1e-10, bsq, rsq, rbsq, W);
         if (!result) {
           return Error::BRACKETING_FAILED;
         }
@@ -449,7 +450,8 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
     // the accuracy of the root solve for speed reasons.
     Real mulc = mul;
     Real mulh = muh;
-    bool result = root.NewtonSafe(UpperRoot, mulc, mulh, mu, bsqr, rsqr, rbsqr, min_h);
+    bool result = root.NewtonSafe(UpperRoot, mulc, mulh, mu, 1e-10,
+                                  bsqr, rsqr, rbsqr, min_h);
     // Scream if the bracketing failed.
     if (!result) {
       HandleFailure(prim, cons, b, g3d);
@@ -460,7 +462,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
       // To avoid problems with the case where the root and the upper bound collide,
       // we will perturb the bound slightly upward.
       // TODO: Is there a more rigorous way of treating this?
-      muh = mu*(1. + root.tol);
+      muh = mu*(1. + 1e-10);
     }
   }
 
@@ -479,7 +481,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
   // TODO: This should be done with something like TOMS748 once it's
   // available.
   Real n, P, T, mu;
-  bool result = root.FalsePosition(RootFunction, mul, muh, mu, D, q, bsqr, rsqr, rbsqr, Y, peos, &n, &T, &P);
+  bool result = root.FalsePosition(RootFunction, mul, muh, mu, tol, D, q, bsqr, rsqr, rbsqr, Y, peos, &n, &T, &P);
   // WARNING: the reported number of iterations is not thread-safe and should only be trusted
   // on single-thread benchmarks.
   solver_result.iterations = root.iterations;
