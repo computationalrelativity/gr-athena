@@ -96,6 +96,11 @@ public:
     // Prescription for fiducial velocity; zero if not {"fluid","mixed"}
     opt_fiducial_velocity fiducial_velocity;
     Real fiducial_velocity_rho_fluid;
+
+    // Various tolerances / ad-hoc fiddle parameters
+    Real floor_rad_E;
+    Real eps_rad_E;
+    Real eps_f_J;
   } opt;
 
 
@@ -119,6 +124,10 @@ public:
     GroupSpeciesContainer<AT_C_sca> sc_E;
     GroupSpeciesContainer<AT_N_vec> sp_F_d;
     GroupSpeciesContainer<AT_C_sca> sc_nG;
+
+    // (s)pace-(t)ime quantities (scratch: assembled as required)
+    AT_D_vec st_F_d_;
+    AT_C_sca sc_norm_st_F_;
   };
   vars_Lab lab, rhs;
 
@@ -132,6 +141,13 @@ public:
     GroupSpeciesContainer<AT_C_sca> sc_chi;
     GroupSpeciesContainer<AT_C_sca> sc_ynu;
     GroupSpeciesContainer<AT_C_sca> sc_znu;
+
+    // (s)pace-(t)ime quantities (scratch: assembled as required)
+    AT_C_sca sc_norm_st_H_;
+    AT_D_vec st_H_d_;
+    AT_D_vec st_H_u_;
+    AT_D_sym st_P_dd_;
+    AT_D_vec st_f_u_;
   };
   vars_Rad rad;
 
@@ -158,6 +174,7 @@ public:
   // fiducial vel. variables (no group dependency)
   struct vars_Fidu {
     AT_N_vec sp_v_u;
+    AT_C_sca sc_W;
 
     // (s)pace-(t)ime quantities (scratch: assembled as required)
     AT_D_bil st_P_ud_;  // projector (based on fiducial vel.)
@@ -240,6 +257,8 @@ public:
 private:
   // called during ctor for scratch (see descriptions in vars_Scratch)
   void InitializeScratch(vars_Scratch & scratch,
+                         vars_Lab     & lab,
+                         vars_Rad     & rad,
                          vars_Geom    & geom,
                          vars_Hydro   & hydro,
                          vars_Fidu    & fidu)
@@ -255,6 +274,17 @@ private:
 
     scratch.sc_.NewAthenaTensor(mbi.nn1);
     scratch.sp_vec_.NewAthenaTensor(mbi.nn1);
+
+    // Lab (Eulerian) frame ---------------------------------------------------
+    lab.st_F_d_.NewAthenaTensor(mbi.nn1);
+    lab.sc_norm_st_F_.NewAthenaTensor(mbi.nn1);
+
+    // Rad (fiducial) frame ---------------------------------------------------
+    rad.sc_norm_st_H_.NewAthenaTensor(mbi.nn1);
+    rad.st_H_d_.NewAthenaTensor(mbi.nn1);
+    rad.st_H_u_.NewAthenaTensor(mbi.nn1);
+    rad.st_P_dd_.NewAthenaTensor(mbi.nn1);
+    rad.st_f_u_.NewAthenaTensor(mbi.nn1);
 
     // geometric --------------------------------------------------------------
     geom.st_n_u_.NewAthenaTensor(mbi.nn1);
@@ -356,6 +386,7 @@ public:
     enum
     {
       fidu_v_x, fidu_v_y, fidu_v_z,
+      fidu_W,
       netabs,
       netheat,
       mask,
@@ -363,6 +394,7 @@ public:
     };
     static constexpr char const * const names[] = {
       "fidu.vx", "fidu.vy", "fidu.vz",
+      "fidu.W",
       "net.abs",
       "net.heat",
       "mask",

@@ -60,6 +60,7 @@ void M1::CalcFiducialVelocity()
     }
     case opt_fiducial_velocity::zero:
     {
+      fidu.sc_W.Fill(1.);
       fidu.sp_v_u.ZeroClear();
       return;
     }
@@ -71,9 +72,37 @@ void M1::CalcFiducialVelocity()
 
   // Have: fidu.sp_v_u = utilde^i = W v^i
   // Want: fidu.sp_v_u = v^i
+  //
+  // Fiducial velocity does not necessarily coincide with hydro, recompute
+  // Lorentz factor.
+
+  // Lorentz factor (if fid not fluid derived)
+  if (opt.fiducial_velocity == opt_fiducial_velocity::fluid)
+  {
+    M1_GLOOP3(k,j,i)
+    {
+      fidu.sc_W(k,j,i) = hydro.sc_W(k,j,i);
+    }
+  }
+  else
+  {
+    M1_GLOOP2(k,j)
+    {
+      for (int i=mbi.il; i<=mbi.iu; ++i)
+      {
+        const Real norm2_util = InnerProductVecMetric(
+          fidu.sp_v_u, geom.sp_g_dd,
+          k,j,i
+        );
+        fidu.sc_W(k,j,i) = std::sqrt(1. + norm2_util);
+      }
+    }
+  }
+
+  // rescale fluid velocity
   M1_GLOOP3(k,j,i)
   {
-    Real const oo_W = 1.0 / hydro.sc_W(k,j,i);
+    Real const oo_W = 1.0 / fidu.sc_W(k,j,i);
     for(int a = 0; a < NDIM; ++a)
     {
       fidu.sp_v_u(a,k,j,i) = oo_W * fidu.sp_v_u(a,k,j,i);

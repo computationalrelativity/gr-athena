@@ -16,6 +16,21 @@
 // New impl. here; leverage polymorphism to make this more readable elsewhere
 namespace LinearAlgebra {
 
+template<typename T, int D>
+inline T Dot(
+  const AthenaTensor<T, TensorSymm::NONE, D, 1> & v_d_,
+  const AthenaTensor<T, TensorSymm::NONE, D, 1> & v_u_,
+  const int i)
+{
+  Real out (0);
+  for (int a=0; a<D; ++a)
+  {
+    out += v_d_(a,i) * v_u_(a,i);
+  }
+
+  return out;
+}
+
 // compute spatial determinant of a 3x3  matrix
 inline Real Det3Metric(
   Real const gxx, Real const gxy, Real const gxz,
@@ -234,6 +249,40 @@ inline Real InnerProductVecMetric(
          u(1,k,j,i)*u(2,k,j,i)*g(1,2,k,j,i) +
          u(1,k,j,i)*u(3,k,j,i)*g(1,3,k,j,i) +
          u(2,k,j,i)*u(3,k,j,i)*g(2,3,k,j,i))
+  );
+}
+
+inline Real InnerProductSlicedVecMetric(
+  AthenaTensor<Real, TensorSymm::NONE, 3, 1> const & u_,
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & g_,
+  int const i)
+{
+  return (
+    u_(0,i)*u_(0,i)*g_(0,0,i) +
+    u_(1,i)*u_(1,i)*g_(1,1,i) +
+    u_(2,i)*u_(2,i)*g_(2,2,i) +
+    2.0*(u_(0,i)*u_(1,i)*g_(0,1,i) +
+         u_(0,i)*u_(2,i)*g_(0,2,i) +
+         u_(1,i)*u_(2,i)*g_(1,2,i))
+  );
+}
+
+inline Real InnerProductSlicedVecMetric(
+  AthenaTensor<Real, TensorSymm::NONE, 4, 1> const & u_,
+  AthenaTensor<Real, TensorSymm::SYM2, 4, 2> const & g_,
+  int const i)
+{
+  return (
+    u_(0,i)*u_(0,i)*g_(0,0,i) +
+    u_(1,i)*u_(1,i)*g_(1,1,i) +
+    u_(2,i)*u_(2,i)*g_(2,2,i) +
+    u_(3,i)*u_(3,i)*g_(3,3,i) +
+    2.0*(u_(0,i)*u_(1,i)*g_(0,1,i) +
+         u_(0,i)*u_(2,i)*g_(0,2,i) +
+         u_(0,i)*u_(3,i)*g_(0,3,i) +
+         u_(1,i)*u_(2,i)*g_(1,2,i) +
+         u_(1,i)*u_(3,i)*g_(1,3,i) +
+         u_(2,i)*u_(3,i)*g_(2,3,i))
   );
 }
 

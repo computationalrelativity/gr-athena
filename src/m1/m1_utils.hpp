@@ -10,8 +10,6 @@
 // #include "../athena_tensor.hpp"
 // #include "../mesh/mesh.hpp"
 #include "../utils/linear_algebra.hpp"
-// #include "m1_containers.hpp"
-// #include "m1_macro.hpp"
 #include "m1.hpp"
 #include "m1_containers.hpp"
 
@@ -243,19 +241,138 @@ inline void st_proj_oo(
 
 // Hydro ----------------------------------------------------------------------
 inline void st_w_u_u_(
-
-)
+  AT_D_vec & st_tar_u_,
+  const AT_C_sca & sc_alpha,
+  const AT_C_sca & sc_W,
+  const AT_N_vec & sp_w_util_u,
+  const int k, const int j,
+  const int il, const int iu)
 {
 
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_u_(0,i) = sc_W(k,j,i) / sc_alpha(k,j,i);
+  }
+
+
+  for (int a=0; a<D-1; ++a)  // spatial ranges
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_u_(a+1,i) = sp_w_util_u(a,k,j,i);
+  }
 }
 
 // Radiation ------------------------------------------------------------------
+inline void st_F_d_(
+  AT_D_vec & st_tar_d_,
+  const AT_N_vec & sp_F_d,
+  const AT_N_vec & sp_beta_u,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  // F_0 = g_0i F^i = beta_i F^i = beta^i F_i
+
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_d_(0,i) = 0;
+  }
+
+  for (int a=0; a<D-1; ++a)  // spatial ranges
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_d_(0,i) += sp_beta_u(a,k,j,i) * sp_F_d(a,k,j,i);
+  }
+
+  for (int a=0; a<D-1; ++a)  // spatial ranges
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_d_(a+1,i) = sp_F_d(a,k,j,i);
+  }
+}
+
+inline void st_H_d_(
+  AT_D_vec & st_tar_d_,
+  const AT_C_sca & sc_H_t,
+  const AT_N_vec & sp_H_d,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_d_(0,i) = sc_H_t(k,j,i);
+  }
+
+  for (int a=0; a<D-1; ++a)  // spatial ranges
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_d_(a+1,i) = sp_H_d(a,k,j,i);
+  }
+}
+
+inline void st_P_dd_(
+  AT_D_vec & st_tar_dd_,
+  const AT_N_vec & sp_P_dd,
+  const AT_N_vec & sp_beta_u,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  // P_00 = g_0i g_k0 P^ik = beta^i beta^k P_ik
+  // P_0i = g_0j g_ki P^jk = beta_j P_i^j = beta^j P_ij
+
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_dd_(0,0,i) = 0;
+  }
+
+  for (int a=0; a<N; ++a)  // spatial ranges
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_dd_(a+1,0,i) = 0;
+  }
+
+  for (int a=0; a<N; ++a)  // spatial ranges
+  for (int b=0; b<N; ++b)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_dd_(0,0,i) += sp_P_dd(a,b,k,j,i) *
+                         sp_beta_u(a,k,j,i) *
+                         sp_beta_u(b,k,j,i);
+  }
+
+  for (int a=0; a<N; ++a)  // spatial ranges
+  for (int b=0; b<N; ++b)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_dd_(0,a+1,i) += sp_P_dd(a,b,k,j,i) *
+                           sp_beta_u(b,k,j,i);
+  }
+
+  // P_ij
+  for (int a=0; a<N; ++a)  // spatial ranges
+  for (int b=a; b<N; ++b)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_dd_(a+1,b+1,i) = sp_P_dd(a,b,k,j,i);
+  }
+}
 
 // Eq.(2) of [1]
 inline void st_T_rad_dd_(
   AT_D_sym & st_tar_dd_,
   const AT_D_vec & st_u_d_,
-  const AT_C_sca & sc_J_,
+  const AT_C_sca & sc_J,
   const AT_D_vec & st_H_d_,
   const AT_D_sym & st_K_dd_,
   const int k, const int j,
@@ -267,7 +384,7 @@ inline void st_T_rad_dd_(
   for (int i=il; i<=iu; ++i)
   {
     st_tar_dd_(a,b,i) = (
-      sc_J_(i) * st_u_d_(a,i) * st_u_d_(b,i) +
+      sc_J(k,j,i) * st_u_d_(a,i) * st_u_d_(b,i) +
       st_H_d_(a,i) * st_u_d_(b,i) +
       st_u_d_(a,i) * st_H_d_(b,i) +
       st_K_dd_(a,b,i)
@@ -324,6 +441,77 @@ inline void st_J_o_T_rad_(
     st_tar_, st_u_u_, st_T_rad_,
     k, j, il, iu
   );
+}
+
+// f^alpha in Eq.(21) of [1]
+inline void st_f_u_(
+  AT_D_vec & st_tar_u_,
+  const AT_D_vec & st_u_u_,
+  const AT_D_vec & st_H_u_,
+  const AT_C_sca & sc_J,
+  const AT_C_sca & sc_norm_st_H_,
+  const Real eps_f_J,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  for (int a=0; a<D; ++a)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_u_(a,i) = (
+      st_u_u_(a,i) +
+      ((sc_J(k,j,i) > eps_f_J * sc_norm_st_H_(i)) ? st_H_u_(a,i) / sc_J(k,j,i)
+                                                  : 0.0)
+    );
+  }
+}
+
+// Gamma in Eq.(24) of [1]
+inline void sc_G_(
+  AT_C_sca & st_tar_,
+  const AT_C_sca & sc_W,
+  const AT_C_sca & sc_E,
+  const AT_C_sca & sc_J,
+  const AT_D_vec & st_F_d_,
+  const AT_D_vec & st_v_u_,
+  const Real floor_rad_E,
+  const Real eps_rad_E,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  // could be rewritten as branchless.. probably not worth it
+
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    if ((sc_E(k,j,i) > floor_rad_E) && (sc_J(k,j,i) > floor_rad_E))
+    {
+      st_tar_(i) = sc_W(k,j,i) * sc_E(k,j,i) / sc_J(k,j,i) * (
+        1 - std::min(LinearAlgebra::Dot(st_F_d_, st_v_u_, i) / sc_E(k,j,i),
+                     1.0-eps_rad_E)
+      );
+    }
+    else
+    {
+      st_tar_(i) = 1.0;
+    }
+  }
+}
+
+inline void Norm_st_(
+  AT_C_sca & st_tar_,
+  const AT_D_vec & st_V_d_,  // alternative u_, dd_
+  const AT_D_sym & st_g_uu_,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_(i) = LinearAlgebra::InnerProductSlicedVecMetric(
+      st_V_d_, st_g_uu_, i
+    );
+  }
 }
 
 // ============================================================================

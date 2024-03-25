@@ -41,7 +41,10 @@ M1IntegratorTaskList::M1IntegratorTaskList(ParameterInput *pin, Mesh *pm)
     AddTask(NOP, NONE);
 
     AddTask(UPDATE_BG, NOP);
-    AddTask(CALC_FLUX, UPDATE_BG);
+    AddTask(CALC_FIDU, UPDATE_BG);
+    AddTask(CALC_CLOSURE, CALC_FIDU);
+
+    AddTask(CALC_FLUX, CALC_CLOSURE);
 
     AddTask(SEND_FLUX, CALC_FLUX);
     AddTask(RECV_FLUX, CALC_FLUX);
@@ -328,14 +331,11 @@ TaskStatus M1IntegratorTaskList::CalcFiducialVelocity(MeshBlock *pmb, int stage)
 // Function to calculate Closure
 TaskStatus M1IntegratorTaskList::CalcClosure(MeshBlock *pmb, int stage)
 {
-  /*
   if (stage <= nstages) {
     pmb->pm1->CalcClosure(pmb->pm1->storage.u);
     return TaskStatus::success;
   }
   return TaskStatus::fail;
-  */
-  return TaskStatus::success;
 }
 
 // ----------------------------------------------------------------------------
@@ -591,8 +591,8 @@ TaskStatus M1IntegratorTaskList::NopFinal(MeshBlock *pmb, int stage)
   const int ix_g = 1;
   const int ix_s = 2;
 
-  std::cout << "lab.E:" << std::endl;
-  pm1->lab.sc_E(ix_g,ix_s).array().print_all();
+  // std::cout << "lab.E:" << std::endl;
+  // pm1->lab.sc_E(ix_g,ix_s).array().print_all();
 
   // std::cout << "flux 0:" << std::endl;
   // pm1->fluxes.E(ix_g,ix_s,0).array().print_all();

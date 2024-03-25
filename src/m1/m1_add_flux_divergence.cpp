@@ -79,7 +79,7 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs)
         {
           scratch.dflx(ix_g,ix_s,ixn_Lab::E,i) += (
             F_E(k,j+1,i) - F_E(k,j,i)
-          ) / mbi.dx2(i);
+          ) / mbi.dx2(j);
         }
 
         for (int a=0; a<N; ++a)
@@ -87,14 +87,14 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs)
         {
           scratch.dflx(ix_g,ix_s,ixn_Lab::F_x+a,i) += (
             F_f_d(a,k,j+1,i) - F_f_d(a,k,j,i)
-          ) / mbi.dx2(i);
+          ) / mbi.dx2(j);
         }
 
         M1_ILOOP1(i)
         {
           scratch.dflx(ix_g,ix_s,ixn_Lab::nG,i) += (
             F_nG(k,j+1,i) - F_nG(k,j,i)
-          ) / mbi.dx2(i);
+          ) / mbi.dx2(j);
         }
       }
     }
@@ -114,7 +114,7 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs)
         {
           scratch.dflx(ix_g,ix_s,ixn_Lab::E,i) += (
             F_E(k+1,j,i) - F_E(k,j,i)
-          ) / mbi.dx3(i);
+          ) / mbi.dx3(k);
         }
 
         for (int a=0; a<N; ++a)
@@ -122,14 +122,14 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs)
         {
           scratch.dflx(ix_g,ix_s,ixn_Lab::F_x+a,i) += (
             F_f_d(a,k+1,j,i) - F_f_d(a,k,j,i)
-          ) / mbi.dx3(i);
+          ) / mbi.dx3(k);
         }
 
         M1_ILOOP1(i)
         {
           scratch.dflx(ix_g,ix_s,ixn_Lab::nG,i) += (
             F_nG(k+1,j,i) - F_nG(k,j,i)
-          ) / mbi.dx3(i);
+          ) / mbi.dx3(k);
         }
       }
     }

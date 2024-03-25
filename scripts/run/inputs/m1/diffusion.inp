@@ -21,26 +21,26 @@ x1max  = 1
 ix1_bc = extrapolate_outflow
 ox1_bc = extrapolate_outflow
 
-nx2    = 1
+nx2    = 4
 x2min  = -1
 x2max  = 1
 ix2_bc = outflow
 ox2_bc = outflow
 
-nx3    = 1
+nx3    = 4
 x3min  = -1
 x3max  = 1
 ix3_bc = outflow
 ox3_bc = outflow
 
-refinement = static
+refinement = none
 num_threads = 1
 # =============================================================================
 
 <meshblock> # =================================================================
 nx1 = 10
-nx2 = 1
-nx3 = 1
+nx2 = 4
+nx3 = 4
 # =============================================================================
 
 <M1> # ========================================================================

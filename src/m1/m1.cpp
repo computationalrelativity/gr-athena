@@ -130,7 +130,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   PopulateOptions(pin);
 
   // initialize storage for auxiliary fields ----------------------------------
-  InitializeScratch(scratch, geom, hydro, fidu);
+  InitializeScratch(scratch, lab, rad, geom, hydro, fidu);
   InitializeGeometry(geom, scratch);
   InitializeHydro(hydro, geom, scratch);
 
@@ -145,6 +145,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   // SetVarAliasesNet(storage.intern, net);
 
   m1_mask.InitWithShallowSlice(storage.intern, ixn_Internal::mask);
+
 
   // debug
   // GroupSpeciesContainer<AT_N_sca> E(1,2);
@@ -220,7 +221,10 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     lab.sc_E(ix_g,ix_s)(k,j,i) = mbi.x1(i) + ix_g + ix_s;
   }
 
+  // lab.sp_F_d(0, 1).array().print_all();
+  // rad.sp_P_dd(0, 1).array().print_all();
 
+  // std::exit(0);
   // M1_GLOOP2(k,j)
   // {
   //   std::cout << k << "," << j << std::endl;
@@ -264,6 +268,12 @@ void M1::PopulateOptions(ParameterInput *pin)
       "M1", "fiducial_velocity_rho_fluid", 0.0) * CGS_GCC;
   }
 
+  { // tol / ad-hoc
+    opt.floor_rad_E = pin->GetOrAddReal("M1", "floor_rad_E", 1e-15);
+    opt.eps_rad_E   = pin->GetOrAddReal("M1", "eps_rad_E",   1e-5);
+    opt.eps_f_J     = pin->GetOrAddReal("M1", "eps_f_J",     1e-10);
+    // ...
+  }
 
 }
 
@@ -275,11 +285,11 @@ void M1::SetVarAliasesFluxes(AA (&u_flux)[M1_NDIM], vars_Flux & fluxes)
   for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
   for (int ix_f=0; ix_f<M1_NDIM; ++ix_f)
   {
-    SetVarAlias(fluxes.sc_E,   u_flux, ix_g, ix_s, ix_f,
-                ixn_Lab::E,   ixn_Lab::N);
+    SetVarAlias(fluxes.sc_E, u_flux, ix_g, ix_s, ix_f,
+                ixn_Lab::E,  ixn_Lab::N);
     SetVarAlias(fluxes.sp_F_d, u_flux, ix_g, ix_s, ix_f,
-                ixn_Lab::F_x, ixn_Lab::N);
-    SetVarAlias(fluxes.sc_nG,  u_flux, ix_g, ix_s, ix_f,
+                ixn_Lab::F_x,  ixn_Lab::N);
+    SetVarAlias(fluxes.sc_nG, u_flux, ix_g, ix_s, ix_f,
                 ixn_Lab::nG,  ixn_Lab::N);
   }
 }
@@ -332,6 +342,7 @@ void M1::SetVarAliasesDiagno(AthenaArray<Real> & u, vars_Diag & rdia)
 void M1::SetVarAliasesFidu(AthenaArray<Real> & u, vars_Fidu & fidu)
 {
   fidu.sp_v_u.InitWithShallowSlice(u, ixn_Internal::fidu_v_x);
+  fidu.sc_W.InitWithShallowSlice(  u, ixn_Internal::fidu_W);
 }
 
 void M1::SetVarAliasesNet(AthenaArray<Real> & u, vars_Net & net)
