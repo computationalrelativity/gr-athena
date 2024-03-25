@@ -23,7 +23,12 @@ static const int N = NDIM;
 
 // Data structures ------------------------------------------------------------
 typedef AthenaArray< Real>                         AA;
+
+// BD: TODO - Replace AT_C_sca -> AT_N_sca
+// scalars feature common treatment as \Sigma x {t*} so container at fixed t*
+typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_C_sca;
 typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
+
 typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
 typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
 

@@ -4,10 +4,10 @@
 // Licensed under the 3-clause BSD License, see LICENSE file for details
 //========================================================================================
 //! \file m1_fiducial_velocity.cpp
-//  \brief computes the fiducial velocity (CC) on a mesh block 
+//  \brief computes the fiducial velocity (CC) on a mesh block
 
 // C++ standard headers
-//#include <cmath> 
+//#include <cmath>
 #include <sstream>
 #include <iostream>
 

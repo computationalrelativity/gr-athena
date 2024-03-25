@@ -22,16 +22,11 @@ typedef AthenaTensor<Real, TensorSymm::NONE, N, 2> AT_N_D1vec;
 typedef AthenaTensor<Real, TensorSymm::SYM2, N, 3> AT_N_D1sym;
 
 // space-time fields
-typedef AthenaTensor<Real, TensorSymm::NONE, D, 0> AT_D_sca;
 typedef AthenaTensor<Real, TensorSymm::NONE, D, 1> AT_D_vec;
 typedef AthenaTensor<Real, TensorSymm::SYM2, D, 2> AT_D_sym;
 
 // generic bilinear
 typedef AthenaTensor<Real, TensorSymm::NONE, D, 2> AT_D_bil;
-
-// Treat group & species as super-indices with this nested structure
-typedef AthenaArray<AT_N_sca> GS_AT_N_sca;
-typedef AthenaArray<AT_N_vec> GS_AT_N_vec;
 
 /*
 typedef utils::tensor::TensorPointwise<

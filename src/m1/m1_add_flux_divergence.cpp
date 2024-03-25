@@ -36,9 +36,9 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs)
       for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
       for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
       {
-        AT_N_sca & F_E   = fluxes.sc_E(  ix_g,ix_s,ix_d);
+        AT_C_sca & F_E   = fluxes.sc_E(  ix_g,ix_s,ix_d);
         AT_N_vec & F_f_d = fluxes.sp_F_d(ix_g,ix_s,ix_d);
-        AT_N_sca & F_nG  = fluxes.sc_nG( ix_g,ix_s,ix_d);
+        AT_C_sca & F_nG  = fluxes.sc_nG( ix_g,ix_s,ix_d);
 
         M1_ILOOP1(i)
         {
@@ -71,9 +71,9 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs)
       for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
       for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
       {
-        AT_N_sca & F_E   = fluxes.sc_E(  ix_g,ix_s,ix_d);
+        AT_C_sca & F_E   = fluxes.sc_E(  ix_g,ix_s,ix_d);
         AT_N_vec & F_f_d = fluxes.sp_F_d(ix_g,ix_s,ix_d);
-        AT_N_sca & F_nG  = fluxes.sc_nG( ix_g,ix_s,ix_d);
+        AT_C_sca & F_nG  = fluxes.sc_nG( ix_g,ix_s,ix_d);
 
         M1_ILOOP1(i)
         {
@@ -106,9 +106,9 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_rhs)
       for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
       for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
       {
-        AT_N_sca & F_E   = fluxes.sc_E(  ix_g,ix_s,ix_d);
+        AT_C_sca & F_E   = fluxes.sc_E(  ix_g,ix_s,ix_d);
         AT_N_vec & F_f_d = fluxes.sp_F_d(ix_g,ix_s,ix_d);
-        AT_N_sca & F_nG  = fluxes.sc_nG( ix_g,ix_s,ix_d);
+        AT_C_sca & F_nG  = fluxes.sc_nG( ix_g,ix_s,ix_d);
 
         M1_ILOOP1(i)
         {

@@ -82,6 +82,16 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS}
+  },
+  rad{
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS}
   }
 {
   // Registration of boundary variables for refinement etc. -------------------
@@ -120,7 +130,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   PopulateOptions(pin);
 
   // initialize storage for auxiliary fields ----------------------------------
-  InitializeScratch(scratch);
+  InitializeScratch(scratch, geom, hydro, fidu);
   InitializeGeometry(geom, scratch);
   InitializeHydro(hydro, geom, scratch);
 
@@ -128,13 +138,13 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   SetVarAliasesFluxes(storage.flux, fluxes);
   SetVarAliasesLab(storage.u,     lab);
   SetVarAliasesLab(storage.u_rhs, rhs);
-  // SetVarAliasesRad(storage.u_rad, rad);
+  SetVarAliasesRad(storage.u_rad, rad);
   // SetVarAliasesRadMat(storage.radmat, rmat);
   // SetVarAliasesDiagno(storage.diagno, rdia);
-  // SetVarAliasesFidu(storage.intern, fidu);
+  SetVarAliasesFidu(storage.intern, fidu);
   // SetVarAliasesNet(storage.intern, net);
 
-  // m1_mask.InitWithShallowSlice(storage.intern, I_Intern_mask);
+  m1_mask.InitWithShallowSlice(storage.intern, ixn_Internal::mask);
 
   // debug
   // GroupSpeciesContainer<AT_N_sca> E(1,2);

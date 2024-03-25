@@ -73,7 +73,7 @@ inline void st_beta_u_(
 inline void st_g_dd_(
   AT_D_sym & st_tar_,
   const AT_N_sym & sp_g_dd,
-  const AT_N_sca & sc_alpha,
+  const AT_C_sca & sc_alpha,
   const AT_N_vec & sp_beta_d,
   const AT_N_vec & sp_beta_u,
   M1::vars_Scratch & scratch,
@@ -89,7 +89,7 @@ inline void st_g_dd_(
 inline void st_g_uu_(
   AT_D_sym & st_tar_,
   const AT_N_sym & sp_g_uu,
-  const AT_N_sca & sc_alpha,
+  const AT_C_sca & sc_alpha,
   const AT_N_vec & sp_beta_u,
   M1::vars_Scratch & scratch,
   const int k, const int j,
@@ -104,7 +104,7 @@ inline void st_g_uu_(
 // normal contra / cov
 inline void st_n_u_(
   AT_D_vec & st_tar_,
-  const AT_N_sca & sc_alpha,
+  const AT_C_sca & sc_alpha,
   const AT_N_vec & sp_beta_u,
   const int k, const int j,
   const int il, const int iu)
@@ -125,7 +125,7 @@ inline void st_n_u_(
 
 inline void st_n_d_(
   AT_D_vec & st_tar_,
-  const AT_N_sca & sc_alpha,
+  const AT_C_sca & sc_alpha,
   const int k, const int j,
   const int il, const int iu)
 {
@@ -219,7 +219,7 @@ inline void st_proj_oP(
 }
 
 inline void st_proj_oo(
-  AT_D_sca & st_tar_,
+  AT_C_sca & st_tar_,
   const AT_D_vec & st_o_u_,
   const AT_D_sym & st_src_dd_,
   const int k, const int j,
@@ -250,7 +250,81 @@ inline void st_w_u_u_(
 }
 
 // Radiation ------------------------------------------------------------------
-// ...
+
+// Eq.(2) of [1]
+inline void st_T_rad_dd_(
+  AT_D_sym & st_tar_dd_,
+  const AT_D_vec & st_u_d_,
+  const AT_C_sca & sc_J_,
+  const AT_D_vec & st_H_d_,
+  const AT_D_sym & st_K_dd_,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  for (int a=0; a<D; ++a)
+  for (int b=a; b<D; ++b)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_dd_(a,b,i) = (
+      sc_J_(i) * st_u_d_(a,i) * st_u_d_(b,i) +
+      st_H_d_(a,i) * st_u_d_(b,i) +
+      st_u_d_(a,i) * st_H_d_(b,i) +
+      st_K_dd_(a,b,i)
+    );
+  }
+}
+
+// K_{alpha beta} is (projected) linear functional of (T_rad)_{alpha beta}
+inline void st_K_o_T_rad_dd_(
+  AT_D_sym & st_tar_dd_,
+  const AT_D_bil & st_P_ud_,  // N.B. use fiducial projector here
+  const AT_D_sym & st_T_rad_,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  st_proj_PP(
+    st_tar_dd_, st_P_ud_, st_T_rad_,
+    k, j, il, iu
+  );
+}
+
+// H_{alpha} is (projected) linear function of (T_rad)_{alpha beta}
+inline void st_H_o_T_rad_d_(
+  AT_D_vec & st_tar_d_,
+  const AT_D_vec & st_u_u_,   // N.B. use suitably mapped fiducial velocity
+  const AT_D_bil & st_P_ud_,  // N.B. use fiducial projector here
+  const AT_D_sym & st_T_rad_,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  st_proj_oP(
+    st_tar_d_, st_u_u_, st_P_ud_, st_T_rad_,
+    k, j, il, iu
+  );
+
+  // convention <u,u> = -1
+  for (int a=0; a<D; ++a)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_d_(a,i) = -st_tar_d_(a,i);
+  }
+}
+
+// J is (projected) linear function of (T_rad)_{alpha beta}
+inline void st_J_o_T_rad_(
+  AT_C_sca & st_tar_,
+  const AT_D_vec & st_u_u_,   // N.B. use suitably mapped fiducial velocity
+  const AT_D_sym & st_T_rad_,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  st_proj_oo(
+    st_tar_, st_u_u_, st_T_rad_,
+    k, j, il, iu
+  );
+}
 
 // ============================================================================
 }  // M1::Assemble

@@ -8,10 +8,14 @@
 //! \file M1.hpp
 //  \brief definitions for the M1 class
 //
-// Convention: tensor names are followed by tensor type suffixes:
-//    _u --> contravariant component
-//    _d --> covariant component
-// For example g_dd is a tensor, or tensor-like object, with two covariant indices.
+// Ref(s):
+// [1]: Radice, David, et al. "A new moment-based general-relativistic
+//      neutrino-radiation transport code: Methods and first applications to
+//      neutron star mergers." Monthly Notices of the Royal Astronomical
+//      Society 512.1 (2022): 1499-1521.
+
+// c++
+// ...
 
 // Athena++ classes headers
 #include "../athena_aliases.hpp"
@@ -104,70 +108,73 @@ public:
 
   struct vars_Flux
   {
-    GroupSpeciesFluxContainer<AT_N_sca> sc_E;
+    GroupSpeciesFluxContainer<AT_C_sca> sc_E;
     GroupSpeciesFluxContainer<AT_N_vec> sp_F_d;
-    GroupSpeciesFluxContainer<AT_N_sca> sc_nG;
+    GroupSpeciesFluxContainer<AT_C_sca> sc_nG;
   };
   vars_Flux fluxes;
 
   // Lab variables and RHS
   struct vars_Lab {
-    GroupSpeciesContainer<AT_N_sca> sc_E;
+    GroupSpeciesContainer<AT_C_sca> sc_E;
     GroupSpeciesContainer<AT_N_vec> sp_F_d;
-    GroupSpeciesContainer<AT_N_sca> sc_nG;
+    GroupSpeciesContainer<AT_C_sca> sc_nG;
   };
   vars_Lab lab, rhs;
 
   // fluid variables + P_ij Lab, etc.
   struct vars_Rad {
-    GroupSpeciesContainer<AT_N_sca> sc_nnu;
-    GroupSpeciesContainer<AT_N_sca> sc_J;
-    GroupSpeciesContainer<AT_N_sca> sc_H_t;
+    GroupSpeciesContainer<AT_C_sca> sc_nnu;
+    GroupSpeciesContainer<AT_C_sca> sc_J;
+    GroupSpeciesContainer<AT_C_sca> sc_H_t;
     GroupSpeciesContainer<AT_N_vec> sp_H_d;
     GroupSpeciesContainer<AT_N_sym> sp_P_dd; // Lab frame (normalized by E)
-    GroupSpeciesContainer<AT_N_sca> sc_chi;
-    GroupSpeciesContainer<AT_N_sca> sc_ynu;
-    GroupSpeciesContainer<AT_N_sca> sc_znu;
+    GroupSpeciesContainer<AT_C_sca> sc_chi;
+    GroupSpeciesContainer<AT_C_sca> sc_ynu;
+    GroupSpeciesContainer<AT_C_sca> sc_znu;
   };
   vars_Rad rad;
 
   // radiation-matter variables
   struct vars_RadMat {
-    AT_N_sca abs_0;
-    AT_N_sca abs_1;
-    AT_N_sca eta_0;
-    AT_N_sca eta_1;
-    AT_N_sca scat_1;
-    AT_N_sca nueave;
+    AT_C_sca abs_0;
+    AT_C_sca abs_1;
+    AT_C_sca eta_0;
+    AT_C_sca eta_1;
+    AT_C_sca scat_1;
+    AT_C_sca nueave;
   };
   vars_RadMat rmat;
 
   // diagnostic variables
   struct vars_Diag {
-    AT_N_sca radflux_0;
-    AT_N_sca radflux_1;
-    AT_N_sca ynu;
-    AT_N_sca znu;
+    AT_C_sca radflux_0;
+    AT_C_sca radflux_1;
+    AT_C_sca ynu;
+    AT_C_sca znu;
   };
   vars_Diag rdia;
 
   // fiducial vel. variables (no group dependency)
   struct vars_Fidu {
     AT_N_vec sp_v_u;
+
+    // (s)pace-(t)ime quantities (scratch: assembled as required)
+    AT_D_bil st_P_ud_;  // projector (based on fiducial vel.)
   };
   vars_Fidu fidu;
 
   // net heat and abs (no group dependency)
   struct vars_Net {
-    AT_N_sca abs;
-    AT_N_sca heat;
+    AT_C_sca abs;
+    AT_C_sca heat;
   };
   vars_Net net;
 
   // geometric quantities (storage)
   struct vars_Geom {
     // (sc)alar fields
-    AT_N_sca sc_alpha;
+    AT_C_sca sc_alpha;
 
     // (sp)atial quantities
     AT_N_vec sp_beta_u;
@@ -176,7 +183,7 @@ public:
 
     // derived quantities
     AT_N_vec sp_beta_d;
-    AT_N_sca sc_sqrt_det_g;
+    AT_C_sca sc_sqrt_det_g;
     AT_N_sym sp_g_uu;
 
     AT_N_D1sca sp_dalpha_d;
@@ -191,16 +198,16 @@ public:
     AT_D_sym st_g_dd_;
     AT_D_sym st_g_uu_;
 
-    AT_D_bil st_P_ud_;  // projector
+    AT_D_bil st_P_ud_;  // projector (based on hypersurf. normal)
   };
   vars_Geom geom;
 
   // hydrodynamical quantities (storage)
   struct vars_Hydro {
     // (sc)alar fields
-    AT_N_sca sc_w_rho;
-    AT_N_sca sc_w_p;
-    AT_N_sca sc_W;
+    AT_C_sca sc_w_rho;
+    AT_C_sca sc_w_p;
+    AT_C_sca sc_W;
 
     // (sp)atial quantities
     AT_N_vec sp_w_util_u;
@@ -212,17 +219,59 @@ public:
 
   // various persistent scratch quantities not fitting elsewhere
   struct vars_Scratch {
+    // For flux assembly
     AA dflx;
 
-    // for general quantities that need specific valence
-    AT_N_sca sc_;
-    AT_N_vec sp_vec_;
+    // For fields on \Sigma x {t}
+    AT_D_vec st_F_d_;
+    AT_D_vec st_v_d_;
+    AT_D_vec st_v_u_;
 
     AT_D_sym st_T_rad_;
+
+    // Generic quantities of specific valence
+    AT_C_sca sc_;
+    AT_N_vec sp_vec_;
   };
   vars_Scratch scratch;
 
-  AT_N_sca m1_mask;  // Excision mask
+  AT_C_sca m1_mask;  // Excision mask
+
+private:
+  // called during ctor for scratch (see descriptions in vars_Scratch)
+  void InitializeScratch(vars_Scratch & scratch,
+                         vars_Geom    & geom,
+                         vars_Hydro   & hydro,
+                         vars_Fidu    & fidu)
+  {
+    // general scratch --------------------------------------------------------
+    scratch.dflx.NewAthenaArray(N_GRPS, N_SPCS, ixn_Lab::N, mbi.nn1);
+
+    scratch.st_F_d_.NewAthenaTensor(mbi.nn1);
+    scratch.st_v_d_.NewAthenaTensor(mbi.nn1);
+    scratch.st_v_u_.NewAthenaTensor(mbi.nn1);
+
+    scratch.st_T_rad_.NewAthenaTensor(mbi.nn1);
+
+    scratch.sc_.NewAthenaTensor(mbi.nn1);
+    scratch.sp_vec_.NewAthenaTensor(mbi.nn1);
+
+    // geometric --------------------------------------------------------------
+    geom.st_n_u_.NewAthenaTensor(mbi.nn1);
+    geom.st_n_d_.NewAthenaTensor(mbi.nn1);
+
+    geom.st_beta_u_.NewAthenaTensor(mbi.nn1);
+    geom.st_g_dd_.NewAthenaTensor(mbi.nn1);
+    geom.st_g_uu_.NewAthenaTensor(mbi.nn1);
+
+    geom.st_P_ud_.NewAthenaTensor(mbi.nn1);
+
+    // hydro ------------------------------------------------------------------
+    hydro.st_w_u_u_.NewAthenaTensor(mbi.nn1);
+
+    // fiducial ---------------------------------------------------------------
+    fidu.st_P_ud_.NewAthenaTensor(mbi.nn1);
+  }
 
 // idx & constants ============================================================
 public:
@@ -364,15 +413,6 @@ private:
   void DerivedHydro(vars_Hydro & hydro,
                     vars_Geom & geom,
                     vars_Scratch & scratch);
-
-  void InitializeScratch(vars_Scratch & scratch)
-  {
-    scratch.dflx.NewAthenaArray(N_GRPS, N_SPCS, ixn_Lab::N, mbi.nn1);
-    scratch.sc_.NewAthenaTensor(mbi.nn1);
-    scratch.sp_vec_.NewAthenaTensor(mbi.nn1);
-
-    scratch.st_T_rad_.NewAthenaTensor(mbi.nn1);
-  }
 
 public:
   // aliases ------------------------------------------------------------------

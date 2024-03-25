@@ -39,16 +39,6 @@ void M1::InitializeGeometry(vars_Geom & geom, vars_Scratch & scratch)
 
   geom.sp_g_uu.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
 
-  // For scratch
-  geom.st_n_u_.NewAthenaTensor(mbi.nn1);
-  geom.st_n_d_.NewAthenaTensor(mbi.nn1);
-
-  geom.st_beta_u_.NewAthenaTensor(mbi.nn1);
-  geom.st_g_dd_.NewAthenaTensor(mbi.nn1);
-  geom.st_g_uu_.NewAthenaTensor(mbi.nn1);
-
-  geom.st_P_ud_.NewAthenaTensor(mbi.nn1);
-
   // Populate storage ---------------------------------------------------------
   if (!Z4C_ENABLED)
   {
@@ -85,7 +75,7 @@ void M1::UpdateGeometry(vars_Geom & geom, vars_Scratch & scratch)
     Z4c * pz4c = pmy_block->pz4c;
 
     // sliced quantities
-    AT_N_sca sl_alpha(pz4c->storage.u, Z4c::I_Z4c_alpha);
+    AT_C_sca sl_alpha(pz4c->storage.u, Z4c::I_Z4c_alpha);
 
     AT_N_vec sl_beta_u(pz4c->storage.u, Z4c::I_Z4c_betax);
 
@@ -93,7 +83,7 @@ void M1::UpdateGeometry(vars_Geom & geom, vars_Scratch & scratch)
     AT_N_sym sl_K_dd(pz4c->storage.adm, Z4c::I_ADM_Kxx);
 
     // scratch quantities
-    AT_N_sca alpha_(mbi.nn1);
+    AT_C_sca alpha_(mbi.nn1);
 
     AT_N_vec beta_u_(mbi.nn1);
 
@@ -191,8 +181,8 @@ void M1::DerivedGeometry(vars_Geom & geom, vars_Scratch & scratch)
 {
   using namespace LinearAlgebra;
 
-  AT_N_sca detgamma_(   mbi.nn1);  // spatial met det
-  AT_N_sca oo_detgamma_(mbi.nn1);  // 1 / spatial met det
+  AT_C_sca detgamma_(   mbi.nn1);  // spatial met det
+  AT_C_sca oo_detgamma_(mbi.nn1);  // 1 / spatial met det
 
   AT_N_sym sp_g_uu_(mbi.nn1);
 
@@ -243,9 +233,6 @@ void M1::InitializeHydro(vars_Hydro & hydro,
 {
   // Allocate dense storage ---------------------------------------------------
   hydro.sc_W.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
-
-  // For scratch --------------------------------------------------------------
-  hydro.st_w_u_u_.NewAthenaTensor(mbi.nn1);
 
   if (FLUID_ENABLED)
   {
