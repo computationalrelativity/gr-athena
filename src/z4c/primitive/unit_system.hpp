@@ -28,6 +28,7 @@ struct UnitSystem {
   const Real energy;      //! Energy unit
   const Real pressure;    //! Pressure unit
   const Real temperature; //! Temperature unit
+  const Real chemicalPotential; //! Chemical potential unit
 
   //! \defgroup conversiongroup Conversion Methods
   //  A collection of methods for getting unit
@@ -98,8 +99,8 @@ static UnitSystem CGS{
   1.0, // mass, g
   1.0, // energy, erg
   1.0, // pressure, erg/cm^3
-  1.0  // temperature, K
-  1.0, // chemical potential, erg
+  1.0, // temperature, K
+  1.0,  // chemical potential, erg
 };
 //! Geometric units with length in kilometers
 static UnitSystem GeometricKilometer{
@@ -132,7 +133,7 @@ static UnitSystem GeometricSolar{
   1.0 / CGS.Msun, // mass, Msun
   1.0 / (CGS.Msun * CGS.c*CGS.c), // energy, Msun
   PS_CUBE( CGS.Gnewt/(CGS.c*CGS.c) ) * PS_SQR( CGS.Msun/(CGS.c) ), // pressure, Msun^-2
-  CGS.kb/CGS.MeV // temperature, MeV
+  CGS.kb/CGS.MeV, // temperature, MeV
   CGS.kb/CGS.MeV, // chemical potential, MeV
 };
 //! Nuclear units
