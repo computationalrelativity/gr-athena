@@ -56,6 +56,9 @@
 // Checks on MB/UNI in tasklist
 #define DBG_TASKLIST_ORDER
 
+// Abort tasklist on hang; dump info
+#define DBG_TASKLIST_HANG
+
 //----------------------------------------------------------------------------------------
 // macros which define physics and algorithms
 

@@ -19,7 +19,7 @@
 #include "task_list.hpp"
 
 // C++ aux. headers
-#ifdef DBG_TASKLIST_ORDER
+#ifdef DBG_TASKLIST_HANG
 #include <chrono>
 #include <iostream>
 #endif
@@ -90,7 +90,7 @@ void TaskList::DoTaskListOneStage(Mesh *pmesh, int stage) {
     StartupTaskList(pmb_array[i], stage);
   }
 
-  #ifdef DBG_TASKLIST_ORDER
+  #ifdef DBG_TASKLIST_HANG
   auto start = std::chrono::steady_clock::now();
   #endif
 
@@ -115,11 +115,11 @@ void TaskList::DoTaskListOneStage(Mesh *pmesh, int stage) {
       {
         nmb_left--;
 
-        #ifdef DBG_TASKLIST_ORDER
+        #ifdef DBG_TASKLIST_HANG
         start = std::chrono::steady_clock::now();
-        #endif // DBG_TASKLIST_ORDER
+        #endif // DBG_TASKLIST_HANG
       }
-      #ifdef DBG_TASKLIST_ORDER
+      #ifdef DBG_TASKLIST_HANG
       else if (status == TaskListStatus::stuck)
       {
         auto time_now = std::chrono::steady_clock::now();
@@ -144,7 +144,7 @@ void TaskList::DoTaskListOneStage(Mesh *pmesh, int stage) {
           std::exit(EXIT_FAILURE);
         }
       }
-      #endif // DBG_TASKLIST_ORDER
+      #endif // DBG_TASKLIST_HANG
 
     }
   }
