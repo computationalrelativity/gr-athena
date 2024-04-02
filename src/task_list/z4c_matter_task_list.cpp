@@ -390,6 +390,211 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
       // prolongate, compute new primitives
       if (pm->multilevel) { // SMR or AMR
         if (NSCALARS > 0) {
+          AddTask(PROLONG_HYD,(SEND_HYD|SETB_HYD|SEND_FLD|SETB_FLD|SEND_SCLR|SETB_SCLR));
+        } else {
+          AddTask(PROLONG_HYD,(SEND_HYD|SETB_HYD|SEND_FLD|SETB_FLD));
+        }
+        AddTask(CONS2PRIM,Z4C_TO_ADM);
+      } else {
+        if (SHEARING_BOX) {
+          if (NSCALARS > 0) {
+            AddTask(CONS2PRIM,
+                    (SETB_HYD|SETB_FLD|SETB_SCLR|RECV_HYDSH|RECV_FLDSH|RMAP_EMFSH));
+          } else {
+            AddTask(CONS2PRIM,(SETB_HYD|SETB_FLD|RECV_HYDSH|RECV_FLDSH|RMAP_EMFSH));
+          }
+        } else {
+          if (NSCALARS > 0) {
+            AddTask(CONS2PRIM,(SETB_HYD|SETB_FLD|SETB_SCLR));
+          } else {
+            AddTask(CONS2PRIM,(SETB_HYD|SETB_FLD|Z4C_TO_ADM));
+          }
+        }
+      }
+    } else {  // HYDRO
+      // prolongate, compute new primitives
+      if (pm->multilevel) { // SMR or AMR
+        if (NSCALARS > 0) {
+          AddTask(PROLONG_HYD,(SEND_HYD|SETB_HYD|SETB_SCLR|SEND_SCLR|Z4C_TO_ADM));
+        } else {
+          AddTask(PROLONG_HYD,(SEND_HYD|SETB_HYD));
+        }
+        AddTask(CONS2PRIM,Z4C_TO_ADM);
+      } else {
+        if (SHEARING_BOX) {
+          if (NSCALARS > 0) {
+            AddTask(CONS2PRIM,(SETB_HYD|RECV_HYDSH|SETB_SCLR));  // RECV_SCLRSH
+          } else {
+            AddTask(CONS2PRIM,(SETB_HYD|RECV_HYDSH));
+          }
+        } else {
+          if (NSCALARS > 0) {
+            AddTask(CONS2PRIM,(SETB_HYD|SETB_SCLR));
+          } else {
+            AddTask(CONS2PRIM,Z4C_TO_ADM);
+          }
+        }
+      }
+    }
+
+    AddTask(PHY_BVAL_HYD,CONS2PRIM);
+    AddTask(UPDATE_SRC,PHY_BVAL_HYD);
+
+    AddTask(CALC_Z4CRHS, NONE);                // CalculateZ4cRHS
+    AddTask(INT_Z4C, CALC_Z4CRHS);             // IntegrateZ4c
+
+    AddTask(SEND_Z4C, INT_Z4C);                // SendZ4c
+
+    // if(MAGNETIC_FIELDS_ENABLED)
+    // {
+    //   AddTask(RECV_Z4C, (INT_Z4C | RECV_HYD | RECV_FLD | RECV_FLDFLX));                   // ReceiveZ4c
+    // }
+    // else
+    // {
+    //   AddTask(RECV_Z4C, INT_Z4C);                   // ReceiveZ4c
+    // }
+
+    AddTask(RECV_Z4C, INT_Z4C);                   // ReceiveZ4c
+
+    AddTask(SETB_Z4C, RECV_Z4C);     // SetBoundariesZ4c
+
+    if (pm->multilevel)
+    { // SMR or AMR
+      AddTask(PROLONG_Z4C, (SEND_Z4C|SETB_Z4C));   // Prolongation
+      AddTask(PHY_BVAL_Z4C, PROLONG_Z4C);              // PhysicalBoundary
+    }
+    else
+    {
+      AddTask(PHY_BVAL_Z4C, SETB_Z4C);             // PhysicalBoundary
+    }
+
+    AddTask(ALG_CONSTR, PHY_BVAL_Z4C);             // EnforceAlgConstr
+    // if(MAGNETIC_FIELDS_ENABLED)
+    // {
+    //   AddTask(Z4C_TO_ADM, (ALG_CONSTR|INT_HYD|INT_FLD));
+    // } else {
+    //   if (pm->multilevel)
+    //   {
+    //     AddTask(Z4C_TO_ADM, (ALG_CONSTR|PROLONG_HYD));
+    //   }
+    //   else
+    //   {
+    //     AddTask(Z4C_TO_ADM, (ALG_CONSTR|SETB_HYD));
+    //   }
+    // }
+
+    if (pm->multilevel)
+    {
+      AddTask(Z4C_TO_ADM, (ALG_CONSTR|PROLONG_HYD));
+    }
+    else
+    {
+      AddTask(Z4C_TO_ADM, (ALG_CONSTR|SETB_HYD));
+    }
+
+    AddTask(ADM_CONSTR, UPDATE_SRC);           // ADM_Constraints
+
+    AddTask(Z4C_WEYL, Z4C_TO_ADM);           // Calc Psi4
+    AddTask(WAVE_EXTR, Z4C_WEYL);           // Project Psi4 multipoles
+
+    AddTask(USERWORK, ADM_CONSTR);             // UserWork
+
+    AddTask(NEW_DT, USERWORK);                 // NewBlockTimeStep
+    if (pm->adaptive)
+    {
+      AddTask(FLAG_AMR, USERWORK);             // CheckRefinement
+      AddTask(CLEAR_ALLBND, FLAG_AMR);         // ClearAllBoundary
+    }
+    else
+    {
+      AddTask(CLEAR_ALLBND, NEW_DT);           // ClearAllBoundary
+    }
+
+    #ifdef Z4C_ASSERT_FINITE
+    AddTask(ASSERT_FIN, CLEAR_ALLBND);         // AssertFinite
+    #endif // Z4C_ASSERT_FINITE
+
+
+  /*
+    if (!STS_ENABLED) {
+      AddTask(DIFFUSE_HYD,NONE);
+      if (MAGNETIC_FIELDS_ENABLED) {
+        AddTask(DIFFUSE_FLD,NONE);
+        // compute hydro fluxes, integrate hydro variables
+        AddTask(CALC_HYDFLX,(DIFFUSE_HYD|DIFFUSE_FLD));
+      } else { // Hydro
+        AddTask(CALC_HYDFLX,DIFFUSE_HYD);
+      }
+      if (NSCALARS > 0) {
+        AddTask(DIFFUSE_SCLR,NONE);
+        AddTask(CALC_SCLRFLX,(CALC_HYDFLX|DIFFUSE_SCLR));
+      }
+    } else { // STS enabled:
+      AddTask(CALC_HYDFLX,NONE);
+      if (NSCALARS > 0)
+        AddTask(CALC_SCLRFLX,CALC_HYDFLX);
+    }
+    if (pm->multilevel) { // SMR or AMR
+      AddTask(SEND_HYDFLX,CALC_HYDFLX);
+      AddTask(RECV_HYDFLX,CALC_HYDFLX);
+      AddTask(INT_HYD, RECV_HYDFLX);
+    } else {
+      AddTask(INT_HYD, CALC_HYDFLX);
+    }
+
+    AddTask(SRCTERM_HYD,INT_HYD);
+    AddTask(SEND_HYD,SRCTERM_HYD);
+    AddTask(RECV_HYD,INT_HYD);
+    AddTask(SETB_HYD,(RECV_HYD|SRCTERM_HYD));
+
+    if (SHEARING_BOX) { // Shearingbox BC for Hydro
+      AddTask(SEND_HYDSH,SETB_HYD);
+      AddTask(RECV_HYDSH,SETB_HYD);
+    }
+
+    if (NSCALARS > 0) {
+      if (pm->multilevel) {
+        AddTask(SEND_SCLRFLX,CALC_SCLRFLX);
+        AddTask(RECV_SCLRFLX,CALC_SCLRFLX);
+        AddTask(INT_SCLR,RECV_SCLRFLX);
+      } else {
+        AddTask(INT_SCLR,CALC_SCLRFLX);
+      }
+      // there is no SRCTERM_SCLR task
+      AddTask(SEND_SCLR,INT_SCLR);
+      AddTask(RECV_SCLR,NONE);
+      AddTask(SETB_SCLR,(RECV_SCLR|INT_SCLR));
+      // if (SHEARING_BOX) {
+      //   AddTask(SEND_SCLRSH,SETB_SCLR);
+      //   AddTask(RECV_SCLRSH,SETB_SCLR);
+      // }
+    }
+
+    if (MAGNETIC_FIELDS_ENABLED) { // MHD
+      // compute MHD fluxes, integrate field
+      AddTask(CALC_FLDFLX,CALC_HYDFLX);
+      AddTask(SEND_FLDFLX,CALC_FLDFLX);
+      AddTask(RECV_FLDFLX,SEND_FLDFLX);
+      if (SHEARING_BOX) {// Shearingbox BC for EMF
+        AddTask(SEND_EMFSH,RECV_FLDFLX);
+        AddTask(RECV_EMFSH,RECV_FLDFLX);
+        AddTask(RMAP_EMFSH,RECV_EMFSH);
+        AddTask(INT_FLD,RMAP_EMFSH);
+      } else {
+        AddTask(INT_FLD,RECV_FLDFLX);
+      }
+
+      AddTask(SEND_FLD,INT_FLD);
+      AddTask(RECV_FLD,NONE);
+      AddTask(SETB_FLD,(RECV_FLD|INT_FLD));
+      if (SHEARING_BOX) { // Shearingbox BC for Bfield
+        AddTask(SEND_FLDSH,SETB_FLD);
+        AddTask(RECV_FLDSH,SETB_FLD);
+      }
+
+      // prolongate, compute new primitives
+      if (pm->multilevel) { // SMR or AMR
+        if (NSCALARS > 0) {
           AddTask(PROLONG_HYD,(SEND_HYD|SETB_HYD|SEND_FLD|SETB_FLD|SEND_SCLR|SETB_SCLR|Z4C_TO_ADM));
         } else {
           AddTask(PROLONG_HYD,(SEND_HYD|SETB_HYD|SEND_FLD|SETB_FLD|Z4C_TO_ADM));
@@ -503,6 +708,7 @@ MatterTaskList::MatterTaskList(ParameterInput *pin, Mesh *pm) {
     AddTask(ASSERT_FIN, CLEAR_ALLBND);         // AssertFinite
     #endif // Z4C_ASSERT_FINITE
 
+  */
 
 #else
 
