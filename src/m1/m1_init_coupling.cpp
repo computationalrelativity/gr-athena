@@ -293,7 +293,7 @@ void M1::DerivedHydro(vars_Hydro & hydro,
   // Lorentz factor
   M1_GLOOP2(k,j)
   {
-    for (int i=mbi.il; i<=mbi.iu; ++i)
+    M1_GLOOP1(i)
     {
       const Real norm2_util = InnerProductVecMetric(
         hydro.sp_w_util_u, geom.sp_g_dd,

@@ -10,7 +10,7 @@ export FN=$(readlink -f "$0"); export DIR_SCRIPTS=$(dirname "${FN}")
 # configure here
 
 # 0 - normal, 1 - valgrind, 2 - gdb, ...
-export RUN_MODE=1
+export RUN_MODE=0
 export USE_MPI=0
 
 export USE_CX=1
@@ -42,7 +42,7 @@ fi
 
 export COMPILE_STR="--prob=m1_tests
                     -m1
-                    --cxx g++
+                    --cxx g++ -omp
                     --nghost=4
                     --ncghost=4
                     --ncghost_cx=4

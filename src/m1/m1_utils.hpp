@@ -12,6 +12,7 @@
 #include "../utils/linear_algebra.hpp"
 #include "m1.hpp"
 #include "m1_containers.hpp"
+#include "m1_macro.hpp"
 
 // ============================================================================
 namespace M1::Assemble {
@@ -24,6 +25,27 @@ namespace M1::Assemble {
 // sp: (sp)atial
 // st: (s)pace-time
 // Appended "_" indicates scratch (in i)
+
+inline void sc_dot_st_(
+  AT_C_sca & sc_dot_st_,
+  const AT_D_vec & st_V_A,  // alternative: flip for opposite slice
+  const AT_D_vec & st_V_B_,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sc_dot_st_(i) = 0.0;
+  }
+
+  for (int a=0; a<D; ++a)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sc_dot_st_(i) += st_V_A(a,k,j,i) * st_V_B_(a,i);
+  }
+}
 
 // geometric ------------------------------------------------------------------
 inline void sp_beta_d(
@@ -466,42 +488,71 @@ inline void st_f_u_(
   }
 }
 
+inline void sp_f_u_(
+  AT_N_vec & sp_tar_u_,
+  const AT_C_sca & sc_alpha,
+  const AT_N_vec & sp_beta_u,
+  const AT_C_sca & sc_W,
+  const AT_N_vec & sp_v_u,
+  const AT_N_vec & sp_H_u_,
+  const AT_C_sca & sc_norm_sp_H_,
+  const AT_C_sca & sc_J,
+  const Real eps_J,
+  const int a,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sp_tar_u_(a,i) = (
+      sc_W(k,j,i) * (sp_v_u(a,k,j,i) - sp_beta_u(a,k,j,i) / sc_alpha(k,j,i)) +
+      ((sc_J(k,j,i) > eps_J * sc_norm_sp_H_(i))
+        ? sp_H_u_(a,i) / sc_J(k,j,i)
+        : 0.0)
+    );
+  }
+}
+
 // Gamma in Eq.(24) of [1]
 inline void sc_G_(
-  AT_C_sca & st_tar_,
+  AT_C_sca & sc_tar_,
   const AT_C_sca & sc_W,
   const AT_C_sca & sc_E,
   const AT_C_sca & sc_J,
   const AT_D_vec & st_F_d_,
-  const AT_D_vec & st_v_u_,
-  const Real floor_rad_E,
-  const Real eps_rad_E,
+  const AT_D_vec & st_v_u,
+  M1::vars_Scratch & scratch,
+  const Real floor_E,
+  const Real floor_J,
+  const Real eps_E,
   const int k, const int j,
   const int il, const int iu)
 {
   // could be rewritten as branchless.. probably not worth it
 
+  sc_dot_st_(scratch.sc_, st_v_u, st_F_d_, k, j, il, iu);
+
   #pragma omp simd
   for (int i=il; i<=iu; ++i)
   {
-    if ((sc_E(k,j,i) > floor_rad_E) && (sc_J(k,j,i) > floor_rad_E))
+    if ((sc_E(k,j,i) > floor_E) && (sc_J(k,j,i) > floor_J))
     {
-      st_tar_(i) = sc_W(k,j,i) * sc_E(k,j,i) / sc_J(k,j,i) * (
-        1 - std::min(LinearAlgebra::Dot(st_F_d_, st_v_u_, i) / sc_E(k,j,i),
-                     1.0-eps_rad_E)
+      sc_tar_(i) = sc_W(k,j,i) * sc_E(k,j,i) / sc_J(k,j,i) * (
+        1 - std::min(scratch.sc_(i) / sc_E(k,j,i), 1.0-eps_E)
       );
     }
     else
     {
-      st_tar_(i) = 1.0;
+      sc_tar_(i) = 1.0;
     }
   }
 }
 
-inline void Norm_st_(
+inline void st_norm2_(
   AT_C_sca & st_tar_,
-  const AT_D_vec & st_V_d_,  // alternative u_, dd_
-  const AT_D_sym & st_g_uu_,
+  const AT_D_vec & st_V_d_,  // alternative: _u_ &
+  const AT_D_sym & st_g_uu_, // _dd_
   const int k, const int j,
   const int il, const int iu)
 {
@@ -512,6 +563,483 @@ inline void Norm_st_(
       st_V_d_, st_g_uu_, i
     );
   }
+}
+
+inline void sp_norm2_(
+  AT_C_sca & sp_tar_,
+  const AT_N_vec & sp_V_d,  // alternative: _u &
+  const AT_N_sym & sp_g_uu, // _dd
+  const int k, const int j,
+  const int il, const int iu)
+{
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sp_tar_(i) = LinearAlgebra::InnerProductVecMetric(
+      sp_V_d, sp_g_uu, k, j, i
+    );
+  }
+}
+
+
+inline void st_vec_from_t_sp(
+  AT_D_vec & st_tar_,
+  const AT_C_sca & cpt_ut,  // alternative: _dt &
+  const AT_N_vec & vec_u,   // _d
+  const int k, const int j,
+  const int il, const int iu)
+{
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_(0,i) = cpt_ut(k,j,i);
+  }
+
+  for (int a=0; a<N; ++a)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_(a+1,i) = vec_u(a,k,j,i);
+  }
+};
+
+// source related expressions -------------------------------------------------
+/*
+inline void st_S_u_(
+  AT_D_vec & st_S_u_,
+  const AT_C_sca & sc_eta,
+  const AT_C_sca & sc_kap_a,
+  const AT_C_sca & sc_kap_s,
+  const AT_C_sca & sc_J,
+  const AT_D_vec & st_u_u_,
+  const AT_D_vec & st_H_u_,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  for (int a=0; a<D; ++a)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_S_u_(a,i) = (
+      (sc_eta(k,j,i) - sc_kap_a(k,j,i) * sc_J(k,j,i)) * st_u_u_(a,i) -
+      (sc_kap_a(k,j,i) + sc_kap_s(k,j,i)) * st_H_u_(a,i)
+    );
+  }
+}
+
+// Eq.(29) of [1]
+inline void src_mat_nG_(
+  AT_C_sca & sc_tar_,
+  const AT_C_sca & sc_nG,
+  const AT_C_sca & sc_G_,
+  const AT_C_sca & sc_eta,
+  const AT_C_sca & sc_kap_a,
+  const AT_C_sca & sc_sqrt_det_g,
+  const AT_C_sca & sc_alpha,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sc_tar_(i) = sc_alpha(k,j,i) * (
+      sc_sqrt_det_g(k,j,i) * sc_eta(k,j,i) -
+      sc_kap_a(k,j,i) * sc_nG(k,j,i) / sc_G_(i)
+    );
+  }
+}
+
+inline void src_mat_E_(
+  AT_C_sca & sc_tar_,
+  const AT_D_vec & st_S_u_,
+  const AT_C_sca & sc_sqrt_det_g,
+  const AT_C_sca & sc_alpha,
+  const AT_D_vec & st_n_d_,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sc_tar_(i) = 0.0;
+  }
+
+  for (int a=0; a<D; ++a)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sc_tar_(i) -= sc_alpha(k,j,i) * sc_sqrt_det_g(k,j,i) * (
+      st_S_u_(a,i) * st_n_d_(a,i)
+    );
+  }
+}
+
+inline void src_mat_F_d_(
+  AT_N_vec & sc_tar_d_,
+  const AT_D_vec & st_S_u_,
+  const AT_C_sca & sc_sqrt_det_g,
+  const AT_C_sca & sc_alpha,
+  const AT_N_sym & sp_g_dd,
+  const AT_D_vec & st_n_d_,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  for (int a=0; a<D; ++a)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sc_tar_d_(a,i) = 0.0;
+  }
+
+  for (int b=0; b<N; ++b)
+  for (int a=0; a<D; ++a)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sc_tar_d_(b,i) += sc_alpha(k,j,i) * sc_sqrt_det_g(k,j,i) * (
+      st_S_u_(a,i) * (sp_g_dd(b,a,k,j,i) + st_n_d_(b,i)*st_n_d_(a,i))
+    );
+  }
+
+}
+
+// See Eq.(30) of [1]
+inline void src_geom_E_(
+  AT_C_sca & sc_tar_,
+  const AT_N_vec & sp_F_u_,
+  const AT_N_sym & sp_P_uu_,
+  const AT_C_sca & sc_alpha,
+  const AT_N_D1sca & sp_dalpha_d,
+  const AT_N_sym & sp_K_dd,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sc_tar_(i) = 0.0;
+  }
+
+  for (int a=0; a<N; ++a)
+  for (int b=0; b<N; ++b)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sc_tar_(i) += sc_alpha(k,j,i) * (
+      sp_P_uu_(a,b,i) * sp_K_dd(a,b,k,j,i)
+    );
+  }
+
+  for (int a=0; a<N; ++a)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sc_tar_(i) -= (
+      sp_F_u_(a,i) * sp_dalpha_d(a,k,j,i)
+    );
+  }
+}
+
+inline void src_geom_F_d_(
+  AT_N_vec & sc_tar_d_,
+  const AT_C_sca & sc_E,
+  const AT_N_vec & sp_F_d,
+  const AT_N_sym & sp_P_uu_,
+  const AT_C_sca & sc_alpha,
+  const AT_N_D1sca & sp_dalpha_d,
+  const AT_N_D1vec & sp_dbeta_du,
+  const AT_N_D1sym & sp_dg_ddd,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  for (int a=0; a<N; ++a)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sc_tar_d_(a,i) = -sp_dalpha_d(a,k,j,i) * sc_E(k,j,i);
+  }
+
+  for (int a=0; a<N; ++a)
+  for (int b=0; b<N; ++b)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sc_tar_d_(a,i) += (
+      sp_F_d(b,k,j,i) * sp_dbeta_du(b,a,k,j,i)
+    );
+  }
+
+  for (int a=0; a<N; ++a)
+  for (int b=0; b<N; ++b)
+  for (int c=0; c<N; ++c)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sc_tar_d_(a,i) += 0.5 * sc_alpha(k,j,i) * (
+      sp_P_uu_(b,c,i) * sp_dg_ddd(a,b,c,k,j,i)
+    );
+  }
+
+}
+*/
+// // Flux related expressions ---------------------------------------------------
+// // See Eq.(28) of [1]
+// inline void flux_nG_(
+//   AT_C_sca & sc_tar_,
+//   const int dir,
+//   const AT_C_sca & sc_nG,
+//   const AT_C_sca & sc_G_,
+//   const AT_D_vec & st_f_u_,
+//   const AT_C_sca & sc_alpha,
+//   const int k, const int j,
+//   const int il, const int iu)
+// {
+//   #pragma omp simd
+//   for (int i=il; i<=iu; ++i)
+//   {
+//     sc_tar_(i) = sc_alpha(k,j,i) * sc_nG(k,j,i) / sc_G_(i) * st_f_u_(1+dir,i);
+//   }
+// }
+
+// inline void flux_E_(
+//   AT_C_sca & sc_tar_,
+//   const int dir,
+//   const AT_C_sca & sc_E,
+//   const AT_N_vec & sp_F_d,
+//   const AT_C_sca & sc_alpha,
+//   const AT_N_vec & sp_beta_u,
+//   const AT_N_sym & sp_g_uu,
+//   const int k, const int j,
+//   const int il, const int iu)
+// {
+//   #pragma omp simd
+//   for (int i=il; i<=iu; ++i)
+//   {
+//     sc_tar_(i) = -sp_beta_u(dir,k,j,i) * sc_E(k,j,i);
+//   }
+
+//   for (int a=0; a<N; ++a)
+//   #pragma omp simd
+//   for (int i=il; i<=iu; ++i)
+//   {
+//     sc_tar_(i) += sc_alpha(k,j,i) *
+//                   sp_g_uu(dir,a,k,j,i) * sp_F_d(a,k,j,i);
+//   }
+// }
+
+// inline void flux_F_d_(
+//   AT_N_vec & sc_tar_d_,
+//   const int dir,
+//   const AT_N_vec & sp_F_d,
+//   const AT_N_sym & sp_P_dd,
+//   const AT_C_sca & sc_alpha,
+//   const AT_N_vec & sp_beta_u,
+//   const AT_N_sym & sp_g_uu,
+//   const int k, const int j,
+//   const int il, const int iu)
+// {
+
+//   for (int a=0; a<N; ++a)
+//   #pragma omp simd
+//   for (int i=il; i<=iu; ++i)
+//   {
+//     sc_tar_d_(a,i) = -sp_beta_u(dir,k,j,i) * sp_F_d(a,k,j,i);
+//   }
+
+//   for (int a=0; a<N; ++a)
+//   for (int b=0; b<N; ++b)
+//   #pragma omp simd
+//   for (int i=il; i<=iu; ++i)
+//   {
+//     sc_tar_d_(a,i) += sc_alpha(k,j,i) *
+//                       sp_g_uu(dir,b,k,j,i) * sp_P_dd(b,a,k,j,i);
+//   }
+
+
+// }
+
+// ============================================================================
+// Convenience methods
+
+// inline void st_g_uu_(
+//   M1 * pm1,
+//   const int k, const int j,
+//   const int il, const int iu)
+// {
+//   st_g_uu_(pm1->geom.st_g_uu_,
+//            pm1->geom.sp_g_uu,
+//            pm1->geom.sc_alpha,
+//            pm1->geom.sp_beta_u,
+//            pm1->scratch,
+//            k, j, il, iu);
+// }
+
+// inline void st_F_d_(
+//   M1 * pm1,
+//   const int ix_g, const int ix_s,
+//   const int k, const int j,
+//   const int il, const int iu)
+// {
+//   st_F_d_(pm1->lab.st_F_d_,
+//           pm1->lab.sp_F_d(ix_g,ix_s),
+//           pm1->geom.sp_beta_u,
+//           k, j, il, iu);
+// }
+
+// inline void sc_norm_st_F_(
+//   M1 * pm1,
+//   const int ix_g, const int ix_s,
+//   const int k, const int j,
+//   const int il, const int iu)
+// {
+//   Norm_st_(pm1->lab.sc_norm_st_F_,
+//            pm1->lab.st_F_d_,
+//            pm1->geom.st_g_uu_,
+//            k, j, il, iu);
+// }
+
+// ============================================================================
+// Convenience methods
+inline void sp_d_to_u_(
+  M1 * pm1,
+  AT_N_vec & sp_tar_u_,
+  const AT_N_vec & sp_src_d,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  LinearAlgebra::VecMetContraction(
+    sp_tar_u_,
+    sp_src_d,
+    pm1->geom.sp_g_uu,
+    k, j,
+    il, iu);
+}
+
+inline void st_g_dd_(
+  M1 * pm1,
+  AT_D_sym & st_tar_dd_,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  LinearAlgebra::Assemble_ST_Metric_dd(
+    st_tar_dd_,
+    pm1->geom.sp_g_dd,
+    pm1->geom.sc_alpha,
+    pm1->geom.sp_beta_d,
+    pm1->geom.sp_beta_u,
+    pm1->scratch.sc_,
+    k, j, il, iu);
+}
+
+inline void st_g_uu_(
+  M1 * pm1,
+  AT_D_sym & st_tar_uu_,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  LinearAlgebra::Assemble_ST_Metric_uu(
+    st_tar_uu_,
+    pm1->geom.sp_g_uu,
+    pm1->geom.sc_alpha,
+    pm1->geom.sp_beta_u,
+    pm1->scratch.sc_,
+    k, j, il, iu);
+}
+
+inline void sc_norm_sp_H_(
+  M1 * pm1,
+  AT_C_sca & sc_norm_sp_H_,
+  const AT_N_vec & sp_H_d,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  sp_norm2_(sc_norm_sp_H_,
+            sp_H_d,
+            pm1->geom.sp_g_uu,
+            k, j, il, iu);
+}
+
+inline void sc_norm_sp_(
+  M1 * pm1,
+  AT_C_sca & sc_norm_sp_,
+  const AT_N_vec & sp_V_u_,
+  const AT_N_vec & sp_V_d,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sc_norm_sp_(i) = 0.0;
+  }
+
+  for (int a=0; a<N; ++a)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sc_norm_sp_(i) += sp_V_d(a,k,j,i) * sp_V_u_(a,i);
+  }
+}
+
+inline void sp_f_u_(
+  M1 * pm1,
+  AT_N_vec & sp_tar_u_,
+  const AT_N_vec & sp_H_u_,
+  const AT_C_sca & sc_norm_sp_H_,
+  const AT_C_sca & sc_J,
+  const int a,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  sp_f_u_(
+    sp_tar_u_,
+    pm1->geom.sc_alpha,
+    pm1->geom.sp_beta_u,
+    pm1->fidu.sc_W,
+    pm1->fidu.sp_v_u,
+    sp_H_u_,
+    sc_norm_sp_H_,
+    sc_J,
+    pm1->opt.eps_J,
+    a,
+    k, j, il, iu
+  );
+}
+
+inline void st_F_d_(
+  M1 * pm1,
+  AT_D_vec & st_tar_d_,
+  const AT_N_vec & sp_F_d,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  st_F_d_(st_tar_d_,
+          sp_F_d,
+          pm1->geom.sp_beta_u,
+          k, j,
+          il, iu);
+}
+
+inline void sc_G_(
+  M1 * pm1,
+  AT_C_sca & sc_tar_,
+  const AT_C_sca & sc_E,
+  const AT_C_sca & sc_J,
+  const AT_D_vec & st_F_d_,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  sc_G_(sc_tar_,
+        pm1->fidu.sc_W,
+        sc_E,
+        sc_J,
+        st_F_d_,
+        pm1->fidu.st_v_u,
+        pm1->scratch,
+        pm1->opt.fl_E,
+        pm1->opt.fl_J,
+        pm1->opt.eps_E,
+        k, j, il, iu);
 }
 
 // ============================================================================

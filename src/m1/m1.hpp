@@ -1,13 +1,5 @@
 #ifndef M1_HPP
 #define M1_HPP
-//========================================================================================
-// Athena++ astrophysical MHD code
-// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
-// Licensed under the 3-clause BSD License, see LICENSE file for details
-//========================================================================================
-//! \file M1.hpp
-//  \brief definitions for the M1 class
-//
 // Ref(s):
 // [1]: Radice, David, et al. "A new moment-based general-relativistic
 //      neutrino-radiation transport code: Methods and first applications to
@@ -44,11 +36,11 @@ public:
   void CalcClosure(AthenaArray<Real> & u);
   void CalcOpacity(Real const dt, AthenaArray<Real> & u);
   void CalcUpdate(Real const dt,
-                  AthenaArray<Real> & u_p,
-                  AthenaArray<Real> & u_c,
-		              AthenaArray<Real> & u_rhs);
+                  AthenaArray<Real> & u_pre,
+                  AthenaArray<Real> & u_cur,
+		              AthenaArray<Real> & u_inh);
   void CalcFluxes(AthenaArray<Real> & u);
-  void AddFluxDivergence(AthenaArray<Real> & u_rhs);
+  void AddFluxDivergence(AthenaArray<Real> & u_inh);
   void AddGRSources(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs);
 
   Real NewBlockTimeStep();
@@ -67,16 +59,18 @@ public:
   // Species and groups (from parameter file)
   const int N_GRPS;
   const int N_SPCS;
+  const int N_GS;
 
   struct
   {
-    AA u;       // solution of M1 evolution system
-    AA u1;      // solution at intermediate steps
-    AA flux[3]; // flux in the 3 directions
-    AA u_rhs;   // M1 rhs
-    AA u_rad;   // fluid frame variables + P_{ij} Lab
-    AA radmat;  // radiation-matter fields
-    AA diagno;  // analysis buffers
+    AA u;         // solution of M1 evolution system
+    AA u1;        // solution at intermediate steps
+    AA flux[3];   // flux in the 3 directions
+    AA u_rhs;     // M1 rhs
+    AA u_lab_aux; // lab frame auxiliaries
+    AA u_rad;     // fluid frame variables
+    AA radmat;    // radiation-matter fields
+    AA diagno;    // analysis buffers
     // "internals": fiducial velocity, netabs, ..
     // N.B. these do not have group dimension!
     AA intern;
@@ -90,17 +84,22 @@ public:
 // configuration ==============================================================
 public:
   enum class opt_fiducial_velocity { fluid, mixed, zero, none };
+  enum class opt_characteristics_variety { approximate, exact };
 
   struct
   {
+    // Control flux calculation
+    opt_characteristics_variety characteristics_variety;
+
     // Prescription for fiducial velocity; zero if not {"fluid","mixed"}
     opt_fiducial_velocity fiducial_velocity;
     Real fiducial_velocity_rho_fluid;
 
     // Various tolerances / ad-hoc fiddle parameters
-    Real floor_rad_E;
-    Real eps_rad_E;
-    Real eps_f_J;
+    Real fl_E;
+    Real fl_J;
+    Real eps_E;
+    Real eps_J;
   } opt;
 
 
@@ -119,48 +118,54 @@ public:
   };
   vars_Flux fluxes;
 
-  // Lab variables and RHS
+  // Eulerian (Lab) variables and RHS
   struct vars_Lab {
+    // N.B.
+    // These quantities should be viewed as \sqrt(\gamma) densitized
     GroupSpeciesContainer<AT_C_sca> sc_E;
     GroupSpeciesContainer<AT_N_vec> sp_F_d;
     GroupSpeciesContainer<AT_C_sca> sc_nG;
-
-    // (s)pace-(t)ime quantities (scratch: assembled as required)
-    AT_D_vec st_F_d_;
-    AT_C_sca sc_norm_st_F_;
   };
   vars_Lab lab, rhs;
 
-  // fluid variables + P_ij Lab, etc.
+  // Eulerian (Lab) variables: not directly evolved
+  struct vars_LabAux {
+    // N.B.
+    // These quantities should be viewed as \sqrt(\gamma) densitized
+    GroupSpeciesContainer<AT_N_sym> sp_P_dd;
+
+    // Closure weight - not densitized
+    GroupSpeciesContainer<AT_C_sca> sc_chi;
+  };
+  vars_LabAux lab_aux;
+
+  // Lagrangian (Rad) fiducial frame
   struct vars_Rad {
+    // N.B.
+    // These quantities should be viewed as \sqrt(\gamma) densitized
     GroupSpeciesContainer<AT_C_sca> sc_nnu;
     GroupSpeciesContainer<AT_C_sca> sc_J;
     GroupSpeciesContainer<AT_C_sca> sc_H_t;
     GroupSpeciesContainer<AT_N_vec> sp_H_d;
-    GroupSpeciesContainer<AT_N_sym> sp_P_dd; // Lab frame (normalized by E)
-    GroupSpeciesContainer<AT_C_sca> sc_chi;
     GroupSpeciesContainer<AT_C_sca> sc_ynu;
     GroupSpeciesContainer<AT_C_sca> sc_znu;
-
-    // (s)pace-(t)ime quantities (scratch: assembled as required)
-    AT_C_sca sc_norm_st_H_;
-    AT_D_vec st_H_d_;
-    AT_D_vec st_H_u_;
-    AT_D_sym st_P_dd_;
-    AT_D_vec st_f_u_;
   };
   vars_Rad rad;
 
   // radiation-matter variables
   struct vars_RadMat {
-    AT_C_sca abs_0;
-    AT_C_sca abs_1;
-    AT_C_sca eta_0;
-    AT_C_sca eta_1;
-    AT_C_sca scat_1;
-    AT_C_sca nueave;
+    GroupSpeciesContainer<AT_C_sca> sc_eta;
+    GroupSpeciesContainer<AT_C_sca> sc_kap_a;
+    GroupSpeciesContainer<AT_C_sca> sc_kap_s;
+
+    // AT_C_sca abs_0;
+    // AT_C_sca abs_1;
+    // AT_C_sca eta_0;
+    // AT_C_sca eta_1;
+    // AT_C_sca scat_1;
+    // AT_C_sca nueave;
   };
-  vars_RadMat rmat;
+  vars_RadMat radmat;
 
   // diagnostic variables
   struct vars_Diag {
@@ -174,10 +179,8 @@ public:
   // fiducial vel. variables (no group dependency)
   struct vars_Fidu {
     AT_N_vec sp_v_u;
+    AT_D_vec st_v_u;
     AT_C_sca sc_W;
-
-    // (s)pace-(t)ime quantities (scratch: assembled as required)
-    AT_D_bil st_P_ud_;  // projector (based on fiducial vel.)
   };
   vars_Fidu fidu;
 
@@ -206,16 +209,6 @@ public:
     AT_N_D1sca sp_dalpha_d;
     AT_N_D1vec sp_dbeta_du;
     AT_N_D1sym sp_dg_ddd;
-
-    // (s)pace-(t)ime quantities (scratch: assembled as required)
-    AT_D_vec st_n_u_;
-    AT_D_vec st_n_d_;
-
-    AT_D_vec st_beta_u_;
-    AT_D_sym st_g_dd_;
-    AT_D_sym st_g_uu_;
-
-    AT_D_bil st_P_ud_;  // projector (based on hypersurf. normal)
   };
   vars_Geom geom;
 
@@ -228,27 +221,58 @@ public:
 
     // (sp)atial quantities
     AT_N_vec sp_w_util_u;
-
-    // (s)pace-(t)ime quantities (scratch: assembled as required)
-    AT_D_vec st_w_u_u_;
   };
   vars_Hydro hydro;
 
   // various persistent scratch quantities not fitting elsewhere
   struct vars_Scratch {
-    // For flux assembly
-    AA dflx;
-
-    // For fields on \Sigma x {t}
-    AT_D_vec st_F_d_;
-    AT_D_vec st_v_d_;
-    AT_D_vec st_v_u_;
-
     AT_D_sym st_T_rad_;
+    AT_D_vec st_S_u_;
+
+    // (sp)atial quantities (scratch: assembled as required)
+    AT_N_vec sp_F_u_;
+    AT_N_vec sp_f_u_;
+    AT_N_vec sp_H_u_;
+    AT_N_sym sp_P_uu_;
+
+    // (s)pace-(t)ime quantities (scratch: assembled as required)
+    AT_D_vec st_F_d_;
+    AT_C_sca sc_norm_st_F_;
+    AT_C_sca sc_G_;
+
+    AT_D_sym st_P_dd_;
+
+    AT_C_sca sc_norm_sp_H_;
+    AT_C_sca sc_norm_st_H_;
+    AT_D_vec st_H_d_;
+    AT_D_vec st_H_u_;
+    AT_D_vec st_f_u_;
+
+    AT_D_vec st_n_u_;
+    AT_D_vec st_n_d_;
+
+    AT_D_vec st_beta_u_;
+    AT_D_sym st_g_dd_;
+    AT_D_sym st_g_uu_;
+
+    AT_D_bil st_Phyp_ud_;  // projector (based on hypersurf. normal)
+    AT_D_bil st_Pfid_ud_;  // projector (based on fiducial vel.)
+
+    AT_D_vec st_w_u_u_;
+
+    // For flux calculation (allocated for N-dim grid / not pencil)
+    AT_C_sca F_sca;
+    AT_N_vec F_vec;
+
+    AT_C_sca lambda;
+
+    // Assembly of flux-divergence
+    AA dflx_;
 
     // Generic quantities of specific valence
     AT_C_sca sc_;
     AT_N_vec sp_vec_;
+    AT_D_vec st_vec_;
   };
   vars_Scratch scratch;
 
@@ -264,43 +288,55 @@ private:
                          vars_Fidu    & fidu)
   {
     // general scratch --------------------------------------------------------
-    scratch.dflx.NewAthenaArray(N_GRPS, N_SPCS, ixn_Lab::N, mbi.nn1);
-
-    scratch.st_F_d_.NewAthenaTensor(mbi.nn1);
-    scratch.st_v_d_.NewAthenaTensor(mbi.nn1);
-    scratch.st_v_u_.NewAthenaTensor(mbi.nn1);
-
     scratch.st_T_rad_.NewAthenaTensor(mbi.nn1);
+    scratch.st_S_u_.NewAthenaTensor(mbi.nn1);
 
     scratch.sc_.NewAthenaTensor(mbi.nn1);
     scratch.sp_vec_.NewAthenaTensor(mbi.nn1);
+    scratch.st_vec_.NewAthenaTensor(mbi.nn1);
 
     // Lab (Eulerian) frame ---------------------------------------------------
-    lab.st_F_d_.NewAthenaTensor(mbi.nn1);
-    lab.sc_norm_st_F_.NewAthenaTensor(mbi.nn1);
+    scratch.sp_F_u_.NewAthenaTensor(mbi.nn1);
+    scratch.sp_f_u_.NewAthenaTensor(mbi.nn1);
+
+    scratch.st_F_d_.NewAthenaTensor(mbi.nn1);
+    scratch.sc_norm_st_F_.NewAthenaTensor(mbi.nn1);
+    scratch.sc_G_.NewAthenaTensor(mbi.nn1);
+
+    // Lab (Eulerian) frame auxiliaries ---------------------------------------
+    scratch.sp_P_uu_.NewAthenaTensor(mbi.nn1);
+    scratch.st_P_dd_.NewAthenaTensor(mbi.nn1);
+
+    // flux-related -----------------------------------------------------------
+    scratch.F_sca.NewAthenaTensor( mbi.nn3,mbi.nn2,mbi.nn1);
+    scratch.F_vec.NewAthenaTensor( mbi.nn3,mbi.nn2,mbi.nn1);
+    scratch.lambda.NewAthenaTensor(mbi.nn3,mbi.nn2,mbi.nn1);
+
+    scratch.dflx_.NewAthenaArray(N_GRPS, N_SPCS, ixn_Lab::N, mbi.nn1);
 
     // Rad (fiducial) frame ---------------------------------------------------
-    rad.sc_norm_st_H_.NewAthenaTensor(mbi.nn1);
-    rad.st_H_d_.NewAthenaTensor(mbi.nn1);
-    rad.st_H_u_.NewAthenaTensor(mbi.nn1);
-    rad.st_P_dd_.NewAthenaTensor(mbi.nn1);
-    rad.st_f_u_.NewAthenaTensor(mbi.nn1);
+    scratch.sc_norm_sp_H_.NewAthenaTensor(mbi.nn1);
+    scratch.sc_norm_st_H_.NewAthenaTensor(mbi.nn1);
+    scratch.sp_H_u_.NewAthenaTensor(mbi.nn1);
+    scratch.st_H_d_.NewAthenaTensor(mbi.nn1);
+    scratch.st_H_u_.NewAthenaTensor(mbi.nn1);
+    scratch.st_f_u_.NewAthenaTensor(mbi.nn1);
 
     // geometric --------------------------------------------------------------
-    geom.st_n_u_.NewAthenaTensor(mbi.nn1);
-    geom.st_n_d_.NewAthenaTensor(mbi.nn1);
+    scratch.st_n_u_.NewAthenaTensor(mbi.nn1);
+    scratch.st_n_d_.NewAthenaTensor(mbi.nn1);
 
-    geom.st_beta_u_.NewAthenaTensor(mbi.nn1);
-    geom.st_g_dd_.NewAthenaTensor(mbi.nn1);
-    geom.st_g_uu_.NewAthenaTensor(mbi.nn1);
+    scratch.st_beta_u_.NewAthenaTensor(mbi.nn1);
+    scratch.st_g_dd_.NewAthenaTensor(mbi.nn1);
+    scratch.st_g_uu_.NewAthenaTensor(mbi.nn1);
 
-    geom.st_P_ud_.NewAthenaTensor(mbi.nn1);
+    scratch.st_Phyp_ud_.NewAthenaTensor(mbi.nn1);
 
     // hydro ------------------------------------------------------------------
-    hydro.st_w_u_u_.NewAthenaTensor(mbi.nn1);
+    scratch.st_w_u_u_.NewAthenaTensor(mbi.nn1);
 
     // fiducial ---------------------------------------------------------------
-    fidu.st_P_ud_.NewAthenaTensor(mbi.nn1);
+    scratch.st_Pfid_ud_.NewAthenaTensor(mbi.nn1);
   }
 
 // idx & constants ============================================================
@@ -317,6 +353,17 @@ public:
     };
   };
 
+  // Lab frame variables
+  struct ixn_Lab_aux
+  {
+    enum { P_xx, P_xy, P_xz, P_yy, P_yz, P_zz, chi, N };
+    static constexpr char const * const names[] = {
+      "lab_aux.Pxx", "lab_aux.Pxy", "lab_aux.Pxz",
+      "lab_aux.Pyy", "lab_aux.Pyz", "lab_aux.Pzz",
+      "lab_aux.chi",
+    };
+  };
+
   // Fluid frame radiation variables + P_{ij}, etc.
   struct ixn_Rad
   {
@@ -326,8 +373,6 @@ public:
       J,
       H_t,
       H_x, H_y, H_z,
-      P_xx, P_xy, P_xz, P_yy, P_yz, P_zz,
-      chi,
       ynu,
       znu,
       N
@@ -336,8 +381,8 @@ public:
       "rad.nnu",
       "rad.J",
       "rad.Ht", "rad.Hx", "rad.Hy", "rad.Hz",
-      "rad.Pxx", "rad.Pxy", "rad.Pxz", "rad.Pyy", "rad.Pyz", "rad.Pzz",
-      "rad.chi",
+      "rad.ynu",
+      "rad.znu"
     };
   };
 
@@ -346,17 +391,23 @@ public:
   {
     enum
     {
-      abs_0, abs_1,
-      eta_0, eta_1,
-      scat_1,
-      nueave,
+      eta,
+      kap_a,
+      kap_s,
+      // abs_0, abs_1,
+      // eta_0, eta_1,
+      // scat_1,
+      // nueave,
       N
     };
     static constexpr char const * const names[] = {
-      "rmat.abs_0", "rmat.abs_1",
-      "rmat.eta_0", "rmat.eta_1",
-      "rmat.scat_1",
-      "rmat.nueave",
+      "rmat.eta",
+      "rmat.kap_a",
+      "rmat.kap_s"
+      // "rmat.abs_0", "rmat.abs_1",
+      // "rmat.eta_0", "rmat.eta_1",
+      // "rmat.scat_1",
+      // "rmat.nueave",
     };
   };
 
@@ -386,6 +437,7 @@ public:
     enum
     {
       fidu_v_x, fidu_v_y, fidu_v_z,
+      fidu_st_v_t, fidu_st_v_x, fidu_st_v_y, fidu_st_v_z,
       fidu_W,
       netabs,
       netheat,
@@ -394,6 +446,7 @@ public:
     };
     static constexpr char const * const names[] = {
       "fidu.vx", "fidu.vy", "fidu.vz",
+      "fidu.st_vt", "fidu.st_vx", "fidu.st_vy", "fidu.st_vz",
       "fidu.W",
       "net.abs",
       "net.heat",
@@ -432,6 +485,9 @@ public:
                    vars_Geom & geom,
                    vars_Scratch & scratch);
 
+  void CalcCharacteristicSpeed(const int dir,
+                               AT_C_sca & lambda);
+
 private:
   // These manipulate internal M1 mem-state; don't call external to class
   void InitializeGeometry(vars_Geom & geom,
@@ -459,7 +515,6 @@ public:
     //
     // Do not write support fcn for N_gs calc. with such template.
     const int N_gs = (ix_s + N_SPCS * (ix_g + 0)) * Nv;
-
     tar(ix_g,ix_s).InitWithShallowSlice(src, N_gs+ix_v);
   }
 
@@ -477,6 +532,7 @@ public:
 
   void SetVarAliasesFluxes(AA (&u_fluxes)[M1_NDIM], vars_Flux   & fluxes);
   void SetVarAliasesLab(   AA  &u,                  vars_Lab    & lab);
+  void SetVarAliasesLabAux(AA  &u,                  vars_LabAux & lab_aux);
   void SetVarAliasesRad(   AA  &r,                  vars_Rad    & rad);
   void SetVarAliasesRadMat(AA  &radmat,             vars_RadMat & rmat);
   void SetVarAliasesDiagno(AA  &diagno,             vars_Diag   & rdia);

@@ -49,9 +49,12 @@ M1IntegratorTaskList::M1IntegratorTaskList(ParameterInput *pin, Mesh *pm)
     AddTask(SEND_FLUX, CALC_FLUX);
     AddTask(RECV_FLUX, CALC_FLUX);
 
-    AddTask(SEND, CALC_FLUX);
-    AddTask(RECV, CALC_FLUX);
     AddTask(ADD_FLX_DIV, RECV_FLUX);
+
+    AddTask(CALC_UPDATE, ADD_FLX_DIV);
+
+    AddTask(SEND, CALC_UPDATE);
+    AddTask(RECV, CALC_UPDATE);
 
     AddTask(SETB, RECV);
 
@@ -63,7 +66,7 @@ M1IntegratorTaskList::M1IntegratorTaskList(ParameterInput *pin, Mesh *pm)
       AddTask(PHY_BVAL, SETB);
     }
 
-    AddTask(NOP_FINAL, (PHY_BVAL|SEND_FLUX|ADD_FLX_DIV));
+    AddTask(NOP_FINAL, (PHY_BVAL|SEND_FLUX|CALC_UPDATE));
 
     AddTask(CLEAR_ALLBND, NOP_FINAL);
 
@@ -279,16 +282,14 @@ void M1IntegratorTaskList::AddTask(const TaskID& id, const TaskID& dep)
 //! Initialize the task list
 void M1IntegratorTaskList::StartupTaskList(MeshBlock *pmb, int stage)
 {
-  /*
   if (stage == 1)
   {
-    // The auxiliary variable u1 stores the solution at the beginning of the timestep
-    pmb->pm1->storage.u1.DeepCopy(pmb->pm1->storage.u);
+    // u1 stores the solution at the beginning of the timestep
+    pmb->pm1->storage.u1 = pmb->pm1->storage.u;
   }
 
   // Clear the RHS
   pmb->pm1->storage.u_rhs.ZeroClear();
-  */
   pmb->pbval->StartReceivingM1(BoundaryCommSubset::all);
   return;
 }
@@ -423,15 +424,17 @@ TaskStatus M1IntegratorTaskList::AddGRSources(MeshBlock *pmb, int stage)
 // Function to update the radiation field
 TaskStatus M1IntegratorTaskList::CalcUpdate(MeshBlock *pmb, int stage)
 {
-  /*
-  if (stage <= nstages) {
+  if (stage <= nstages)
+  {
     Real const dt = pmb->pmy_mesh->dt * dt_fac[stage - 1];
-    pmb->pm1->CalcUpdate(dt, pmb->pm1->storage.u1, pmb->pm1->storage.u, pmb->pm1->storage.u_rhs);
+    pmb->pm1->CalcUpdate(dt,
+                         pmb->pm1->storage.u1,
+                         pmb->pm1->storage.u,
+                         pmb->pm1->storage.u_rhs);
+
     return TaskStatus::next;
   }
   return TaskStatus::fail;
-  */
-  return TaskStatus::success;
 }
 
 // ----------------------------------------------------------------------------

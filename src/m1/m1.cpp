@@ -49,25 +49,27 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   },
   N_GRPS(pin->GetOrAddInteger("M1", "ngroups",  1)),
   N_SPCS(pin->GetOrAddInteger("M1", "nspecies", 1)),
+  N_GS(N_GRPS*N_SPCS),
   storage{
-    { ixn_Lab::N*N_GRPS*N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1 },  // u
-    { ixn_Lab::N*N_GRPS*N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1 },  // u1
+    { ixn_Lab::N*N_GS, mbi.nn3, mbi.nn2, mbi.nn1 },  // u
+    { ixn_Lab::N*N_GS, mbi.nn3, mbi.nn2, mbi.nn1 },  // u1
     { // flux
-     { ixn_Lab::N*N_GRPS*N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1 + 1 },
-     { ixn_Lab::N*N_GRPS*N_SPCS, mbi.nn3, mbi.nn2 + 1, mbi.nn1 },
-     { ixn_Lab::N*N_GRPS*N_SPCS, mbi.nn3 + 1, mbi.nn2, mbi.nn1 },
+     { ixn_Lab::N*N_GS, mbi.nn3, mbi.nn2, mbi.nn1 + 1 },
+     { ixn_Lab::N*N_GS, mbi.nn3, mbi.nn2 + 1, mbi.nn1 },
+     { ixn_Lab::N*N_GS, mbi.nn3 + 1, mbi.nn2, mbi.nn1 },
     },
-    { ixn_Lab::N*N_GRPS*N_SPCS,  mbi.nn3, mbi.nn2, mbi.nn1 },     // u_rhs
-    { ixn_Rad::N*N_GRPS*N_SPCS,  mbi.nn3, mbi.nn2, mbi.nn1 },     // u_rad
-    { ixn_RaM::N*N_GRPS*N_SPCS,  mbi.nn3, mbi.nn2, mbi.nn1 },     // radmat
-    { ixn_Diag::N*N_GRPS*N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1 },     // diagno
-	  { ixn_Internal::N,           mbi.nn3, mbi.nn2, mbi.nn1 },     // internal
+    { ixn_Lab::N*N_GS,     mbi.nn3, mbi.nn2, mbi.nn1 },     // u_rhs
+    { ixn_Lab_aux::N*N_GS, mbi.nn3, mbi.nn2, mbi.nn1 },     // u_lab_aux
+    { ixn_Rad::N*N_GS,     mbi.nn3, mbi.nn2, mbi.nn1 },     // u_rad
+    { ixn_RaM::N*N_GS,     mbi.nn3, mbi.nn2, mbi.nn1 },     // radmat
+    { ixn_Diag::N*N_GS,    mbi.nn3, mbi.nn2, mbi.nn1 },     // diagno
+	  { ixn_Internal::N,     mbi.nn3, mbi.nn2, mbi.nn1 },     // internal
   },
-  coarse_u_(ixn_Lab::N*N_GRPS*N_SPCS, mbi.cnn3, mbi.cnn2, mbi.cnn1,
+  coarse_u_(ixn_Lab::N*N_GS, mbi.cnn3, mbi.cnn2, mbi.cnn1,
             (pmy_mesh->multilevel ? AA::DataStatus::allocated
                                   : AA::DataStatus::empty)),
   ubvar(pmb, &storage.u, &coarse_u_, storage.flux),
-  // alias storage
+  // alias storage (size specs. must match number of containers in struct)
   fluxes{
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
@@ -75,6 +77,10 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   },
   lab{
     {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS}
+  },
+  lab_aux{
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS}
   },
@@ -89,6 +95,9 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS}
+  },
+  radmat{
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS}
@@ -135,10 +144,12 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   InitializeHydro(hydro, geom, scratch);
 
   // Point variables to correct locations -------------------------------------
-  SetVarAliasesFluxes(storage.flux, fluxes);
-  SetVarAliasesLab(storage.u,     lab);
-  SetVarAliasesLab(storage.u_rhs, rhs);
-  SetVarAliasesRad(storage.u_rad, rad);
+  SetVarAliasesFluxes(storage.flux,      fluxes);
+  SetVarAliasesLab(   storage.u,         lab);
+  SetVarAliasesLab(   storage.u_rhs,     rhs);
+  SetVarAliasesLabAux(storage.u_lab_aux, lab_aux);
+  SetVarAliasesRad(   storage.u_rad,     rad);
+
   // SetVarAliasesRadMat(storage.radmat, rmat);
   // SetVarAliasesDiagno(storage.diagno, rdia);
   SetVarAliasesFidu(storage.intern, fidu);
@@ -213,13 +224,13 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   // fluxes.E(ix_g,ix_s,0).array().print_all();
   // std::exit(0);
 
-  // debug
-  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
-  M1_ILOOP3(k,j,i)
-  {
-    lab.sc_E(ix_g,ix_s)(k,j,i) = mbi.x1(i) + ix_g + ix_s;
-  }
+  // // debug
+  // for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  // for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  // M1_ILOOP3(k,j,i)
+  // {
+  //   lab.sc_E(ix_g,ix_s)(k,j,i) = mbi.x1(i) + ix_g + ix_s;
+  // }
 
   // lab.sp_F_d(0, 1).array().print_all();
   // rad.sp_P_dd(0, 1).array().print_all();
@@ -233,12 +244,64 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   // }
   // std::exit(0);
 
+  // --------------------------------------------------------------------------
+  // Advection test init.
+
+  const Real b_x_0 = -0.5;  // beam step at this location
+  const Real f_x_0 = 0.0;  // fluid propagation discontinuity
+  const Real abs_v = 0.87;
+
+  // Initialize Eulerian frame variables
+  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  {
+    AT_C_sca & sc_E   = lab.sc_E(  ix_g,ix_s);
+    AT_N_vec & sp_F_d = lab.sp_F_d(ix_g,ix_s);
+    AT_C_sca & sc_nG  = lab.sc_nG( ix_g,ix_s);
+
+    sc_E.ZeroClear();
+    sp_F_d.ZeroClear();
+    sc_nG.ZeroClear();
+
+    M1_GLOOP3(k,j,i)
+    {
+      sc_E(k,j,i)     = (mbi.x1(i) < b_x_0) ? 1.0 : 0.0;
+      sp_F_d(0,k,j,i) = sc_E(k,j,i);
+    }
+
+  }
+
+  // Initialize fiducial velocity
+  fidu.sp_v_u.ZeroClear();
+  M1_GLOOP3(k,j,i)
+  {
+    hydro.sp_w_util_u(0,k,j,i) = (mbi.x1(i) < f_x_0) ? abs_v : -abs_v;
+  }
+
 }
 
 void M1::PopulateOptions(ParameterInput *pin)
 {
   std::string tmp;
   std::ostringstream msg;
+
+  { // fluxes
+    tmp = pin->GetOrAddString("M1", "characteristics_variety", "approximate");
+    if (tmp == "approximate")
+    {
+      opt.characteristics_variety = opt_characteristics_variety::approximate;
+    }
+    else if (tmp == "exact")
+    {
+      opt.characteristics_variety = opt_characteristics_variety::exact;
+    }
+    else
+    {
+      msg << "M1/characteristics_variety unknown" << std::endl;
+      ATHENA_ERROR(msg);
+    }
+
+  }
 
   { // fiducial
     tmp = pin->GetOrAddString("M1", "fiducial_velocity", "fluid");
@@ -269,16 +332,16 @@ void M1::PopulateOptions(ParameterInput *pin)
   }
 
   { // tol / ad-hoc
-    opt.floor_rad_E = pin->GetOrAddReal("M1", "floor_rad_E", 1e-15);
-    opt.eps_rad_E   = pin->GetOrAddReal("M1", "eps_rad_E",   1e-5);
-    opt.eps_f_J     = pin->GetOrAddReal("M1", "eps_f_J",     1e-10);
+    opt.fl_E = pin->GetOrAddReal("M1", "fl_E", 1e-15);
+    opt.fl_J = pin->GetOrAddReal("M1", "fl_J", 1e-15);
+    opt.eps_E = pin->GetOrAddReal("M1", "eps_E", 1e-5);
+    opt.eps_J = pin->GetOrAddReal("M1", "eps_J", 1e-10);
     // ...
   }
 
 }
 
 // set aliases for variables ==================================================
-
 void M1::SetVarAliasesFluxes(AA (&u_flux)[M1_NDIM], vars_Flux & fluxes)
 {
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
@@ -305,6 +368,18 @@ void M1::SetVarAliasesLab(AthenaArray<Real> & u, vars_Lab & lab)
   }
 }
 
+void M1::SetVarAliasesLabAux(AthenaArray<Real> & u, vars_LabAux & lab_aux)
+{
+  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  {
+    SetVarAlias(lab_aux.sp_P_dd, u, ix_g, ix_s,
+                ixn_Lab_aux::P_xx, ixn_Lab_aux::N);
+    SetVarAlias(lab_aux.sc_chi,  u, ix_g, ix_s,
+                ixn_Lab_aux::chi,  ixn_Lab_aux::N);
+  }
+}
+
 void M1::SetVarAliasesRad(AthenaArray<Real> & u, vars_Rad & rad)
 {
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
@@ -314,8 +389,6 @@ void M1::SetVarAliasesRad(AthenaArray<Real> & u, vars_Rad & rad)
     SetVarAlias(rad.sc_J,    u, ix_g, ix_s, ixn_Rad::J,    ixn_Rad::N);
     SetVarAlias(rad.sc_H_t,  u, ix_g, ix_s, ixn_Rad::H_t,  ixn_Rad::N);
     SetVarAlias(rad.sp_H_d,  u, ix_g, ix_s, ixn_Rad::H_x,  ixn_Rad::N);
-    SetVarAlias(rad.sp_P_dd, u, ix_g, ix_s, ixn_Rad::P_xx, ixn_Rad::N);
-    SetVarAlias(rad.sc_chi,  u, ix_g, ix_s, ixn_Rad::chi,  ixn_Rad::N);
     SetVarAlias(rad.sc_ynu,  u, ix_g, ix_s, ixn_Rad::ynu,  ixn_Rad::N);
     SetVarAlias(rad.sc_znu,  u, ix_g, ix_s, ixn_Rad::znu,  ixn_Rad::N);
   }
@@ -323,12 +396,16 @@ void M1::SetVarAliasesRad(AthenaArray<Real> & u, vars_Rad & rad)
 
 void M1::SetVarAliasesRadMat(AthenaArray<Real> & u, vars_RadMat & rmat)
 {
-  // rmat.abs_0.InitWithShallowSlice(u, I_RadMat_abs_0);
-  // rmat.abs_1.InitWithShallowSlice(u, I_RadMat_abs_1);
-  // rmat.eta_0.InitWithShallowSlice(u, I_RadMat_eta_0);
-  // rmat.eta_1.InitWithShallowSlice(u, I_RadMat_eta_1);
-  // rmat.scat_1.InitWithShallowSlice(u, I_RadMat_scat_1);
-  // rmat.nueave.InitWithShallowSlice(u, I_RadMat_nueave);
+  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  {
+    SetVarAlias(radmat.sc_eta,   u, ix_g, ix_s,
+                ixn_RaM::eta,   ixn_RaM::N);
+    SetVarAlias(radmat.sc_kap_a, u, ix_g, ix_s,
+                ixn_RaM::kap_a, ixn_RaM::N);
+    SetVarAlias(radmat.sc_kap_s, u, ix_g, ix_s,
+                ixn_RaM::kap_s, ixn_RaM::N);
+  }
 }
 
 void M1::SetVarAliasesDiagno(AthenaArray<Real> & u, vars_Diag & rdia)
@@ -342,6 +419,7 @@ void M1::SetVarAliasesDiagno(AthenaArray<Real> & u, vars_Diag & rdia)
 void M1::SetVarAliasesFidu(AthenaArray<Real> & u, vars_Fidu & fidu)
 {
   fidu.sp_v_u.InitWithShallowSlice(u, ixn_Internal::fidu_v_x);
+  fidu.st_v_u.InitWithShallowSlice(u, ixn_Internal::fidu_st_v_t);
   fidu.sc_W.InitWithShallowSlice(  u, ixn_Internal::fidu_W);
 }
 

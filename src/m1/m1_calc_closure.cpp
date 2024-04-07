@@ -11,40 +11,45 @@
 namespace M1::closures {
 // ============================================================================
 
-// P_{i j} in Eq.(15) of [1]
+// P_{i j} in Eq.(15) of [1] - works with densitized variables
 void thin(M1 * pm1)
 {
+  // TODO: fix ranges?
+  const int IL = pm1->mbi.il-M1_FSIZEI;
+  const int IU = pm1->mbi.iu+M1_FSIZEI;
+
   for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
   {
-    AT_N_sym & sp_P_dd = pm1->rad.sp_P_dd(ix_g,ix_s);
-    AT_N_vec & sp_F_d  = pm1->lab.sp_F_d( ix_g,ix_s);
-    AT_C_sca & sc_E    = pm1->lab.sc_E(   ix_g,ix_s);
+    AT_N_sym & sp_P_dd = pm1->lab_aux.sp_P_dd(ix_g,ix_s);
+    AT_N_vec & sp_F_d  = pm1->lab.sp_F_d(     ix_g,ix_s);
+    AT_C_sca & sc_E    = pm1->lab.sc_E(       ix_g,ix_s);
 
-    M1_ILOOP2(k,j)
+    M1_FLOOP2(k,j)  // shift to external?
     {
-      Assemble::st_g_uu_(pm1->geom.st_g_uu_,
+      Assemble::st_g_uu_(pm1->scratch.st_g_uu_,
                          pm1->geom.sp_g_uu,
                          pm1->geom.sc_alpha,
                          pm1->geom.sp_beta_u,
                          pm1->scratch,
-                         k, j, pm1->mbi.il, pm1->mbi.iu);
+                         k, j, IL, IU);
 
-      Assemble::st_F_d_(pm1->lab.st_F_d_,
+      Assemble::st_F_d_(pm1->scratch.st_F_d_,
                         sp_F_d,
                         pm1->geom.sp_beta_u,
-                        k, j, pm1->mbi.il, pm1->mbi.iu);
+                        k, j, IL, IU);
 
-      Assemble::Norm_st_(pm1->lab.sc_norm_st_F_,
-                         pm1->lab.st_F_d_,
-                         pm1->geom.st_g_uu_,
-                         k, j, pm1->mbi.il, pm1->mbi.iu);
+      Assemble::st_norm2_(pm1->scratch.sc_norm_st_F_,
+                          pm1->scratch.st_F_d_,
+                          pm1->scratch.st_g_uu_,
+                          k, j, IL, IU);
 
       for (int a=0; a<N; ++a)
       for (int b=a; b<N; ++b)
-      M1_ILOOP1(i)
+      #pragma omp simd
+      for (int i=IL; i<=IU; ++i)
       {
-        const Real F2 = pm1->lab.sc_norm_st_F_(i);
+        const Real F2 = pm1->scratch.sc_norm_st_F_(i);
         const Real fac = (F2 > 0) ? sc_E(k,j,i) / F2
                                   : 0.0;
         sp_P_dd(a,b,k,j,i) = fac * sp_F_d(a,k,j,i) * sp_F_d(b,k,j,i);

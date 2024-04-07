@@ -48,10 +48,25 @@ namespace M1 {
 #define M1_GSIZEK                                                             \
   ((pm1->mbi.f3) ? (pm1->mbi.ng) : (0))
 
+#define M1_FSIZEI                                                             \
+  (M1_NGHOST_MIN)
+
+#define M1_FSIZEJ                                                             \
+  ((pm1->mbi.f2) ? (M1_NGHOST_MIN) : (0))
+
+#define M1_FSIZEK                                                             \
+  ((pm1->mbi.f3) ? (M1_NGHOST_MIN) : (0))
+
+
 // 2D loop over k and j in the interior of the block
 #define M1_ILOOP2(k,j)                                                        \
   for(int k = M1_IX_KL; k <= M1_IX_KU; ++k)                                   \
   for(int j = M1_IX_JL; j <= M1_IX_JU; ++j)
+
+// 2D loop over k and j over flux-salient nodes
+#define M1_FLOOP2(k,j)                                                        \
+  for(int k = M1_IX_KL - M1_FSIZEK; k <= M1_IX_KU + M1_FSIZEK; ++k)           \
+  for(int j = M1_IX_JL - M1_FSIZEJ; j <= M1_IX_JU + M1_FSIZEJ; ++j)
 
 // 2D loop over k and j on the whole block
 #define M1_GLOOP2(k,j)                                                        \
@@ -63,6 +78,11 @@ namespace M1 {
   _Pragma("omp simd")                                                         \
   for(int i = M1_IX_IL; i <= M1_IX_IU; ++i)
 
+// 1D loop over i over flux-salient nodes
+#define M1_FLOOP1(i)                                                          \
+  _Pragma("omp simd")                                                         \
+  for(int i = M1_IX_IL - M1_FSIZEI; i <= M1_IX_IU + M1_FSIZEI; ++i)
+
 // 1D loop over i on the whole block
 #define M1_GLOOP1(i)                                                          \
   _Pragma("omp simd")                                                         \
@@ -72,6 +92,11 @@ namespace M1 {
 #define M1_ILOOP3(k,j,i)                                                      \
     M1_ILOOP2(k,j)                                                            \
     M1_ILOOP1(i)
+
+// 3D loop over flux-salient nodes
+#define M1_FLOOP3(k,j,i)                                                      \
+    M1_FLOOP2(k,j)                                                            \
+    M1_FLOOP1(i)
 
 // 3D loop over the whole block
 #define M1_GLOOP3(k,j,i)                                                      \

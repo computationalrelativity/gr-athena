@@ -281,7 +281,7 @@ class Coordinates {
     // Hence take 1N as this gives maximal extent
     ig_1N->CC2CC(tar, src, cc_k, cc_j);
 #endif
-  };
+  }
 
   template <typename dtype, TensorSymm TSYM, int DIM, int NVAL>
   inline void GetGeometricFieldFC(
@@ -306,7 +306,7 @@ class Coordinates {
     ig_NN->CC2FC(tar, src, dir, tr_k, tr_j);
   #endif  // HYBRID_INTERP
 #endif
-  };
+  }
 
   template <typename dtype, TensorSymm TSYM, int DIM, int NVAL>
   inline void GetGeometricFieldDerCC(
@@ -329,7 +329,7 @@ class Coordinates {
     // BD: debug
     ig_NN->CC2CC_D1(tar, src, dir, cc_k, cc_j);
 #endif
-  };
+  }
 
   // For matter target grid depends on z_cx vs z_vc
   template <typename dtype, TensorSymm TSYM, int DIM, int NVAL>
@@ -352,7 +352,7 @@ class Coordinates {
     // BD: debug
     ig_1N->CC2CC(tar, src, tr_k, tr_j);
 #endif
-  };
+  }
   // --------------------------------------------------------------------------
 
   // take care of finite differencing at the coordinate level as that is the

@@ -116,8 +116,14 @@ flags_M1 = 'm1_task_list (ref): (pm->adaptive, pm->multilevel)'
 cc_M1 = col_con()
 
 cc_M1.add_node_unparsed(
-  NODE_LABEL='CALC_FIDU',
+  NODE_LABEL='UPDATE_BG',
   NODE_PARENTS=None,
+  description=['UpdateBackground',
+              r'<[...]>'])
+
+cc_M1.add_node_unparsed(
+  NODE_LABEL='CALC_FIDU',
+  NODE_PARENTS=["UPDATE_BG"],
   description=['CalcFiducialVelocity',
               r'<[...]>'])
 
@@ -190,7 +196,7 @@ cc_M1.add_node_unparsed(
 
 cc_M1.add_node_unparsed(
   NODE_LABEL='SETB',
-  NODE_PARENTS=["RECV","CALC_UPDATE"],
+  NODE_PARENTS=["RECV"],
   description=['SetBoundaries',
               r'<[...]>'])
 

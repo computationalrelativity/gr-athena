@@ -19,6 +19,7 @@
 #include "../utils/linear_algebra.hpp"
 #include "m1.hpp"
 #include "m1_macro.hpp"
+#include "m1_utils.hpp"
 
 // ============================================================================
 namespace M1 {
@@ -103,11 +104,44 @@ void M1::CalcFiducialVelocity()
   M1_GLOOP3(k,j,i)
   {
     Real const oo_W = 1.0 / fidu.sc_W(k,j,i);
-    for(int a = 0; a < NDIM; ++a)
+    for(int a=0; a<N; ++a)
     {
       fidu.sp_v_u(a,k,j,i) = oo_W * fidu.sp_v_u(a,k,j,i);
     }
   }
+
+  // space-time extension
+  fidu.st_v_u.ZeroClear();
+
+  AT_D_sym & st_g_uu_ = scratch.st_g_uu_;
+
+  M1_GLOOP2(k,j)
+  {
+    Assemble::st_g_uu_(this, st_g_uu_, k, j, 0, mbi.nn1-1);
+
+    scratch.st_vec_.ZeroClear();
+
+    for(int a=0; a<N; ++a)
+    M1_GLOOP1(i)
+    {
+      scratch.st_vec_(0,i) += fidu.sp_v_u(a,k,j,i) * geom.sp_beta_d(a,k,j,i);
+    }
+
+    for(int a=0; a<N; ++a)
+    for(int b=0; b<N; ++b)
+    M1_GLOOP1(i)
+    {
+      scratch.st_vec_(1+a,i) += geom.sp_g_dd(a,b,k,j,i) * fidu.sp_v_u(b,k,j,i);
+    }
+
+    for(int a=0; a<D; ++a)
+    for(int b=0; b<D; ++b)
+    M1_GLOOP1(i)
+    {
+      fidu.st_v_u(a,k,j,i) += st_g_uu_(a,b,i) * scratch.st_vec_(a,i);
+    }
+  }
+
 }
 
 // ============================================================================
