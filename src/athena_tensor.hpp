@@ -157,6 +157,10 @@ public:
   {
     data_.InitWithShallowSlice(src, indx, ndof());
   }
+  void InitWithShallowSlice(AthenaArray<T> &src, const int dim, const int indx)
+  {
+    data_.InitWithShallowSlice(src, dim, indx, ndof());
+  }
 
 private:
   AthenaArray<T> data_;
@@ -240,6 +244,15 @@ public:
   bool is_nan() { return data_.is_nan(); }
   bool is_inf() { return data_.is_inf(); }
 
+  // slice vector index:
+  // - leaves only grid sampling behind
+  // - non-singleton
+  void slice(const int a,
+             AthenaTensor<T, TensorSymm::NONE, ndim, 0> & tar)
+  {
+    tar.InitWithShallowSlice(data_, ndim+1, a);
+  }
+
   // operators to access the data
   AthenaArray<Real> const & operator()(int const a) {
     slice_.InitWithShallowSlice(data_, a, 1);
@@ -279,10 +292,12 @@ public:
   }
 
   // functions that initialize a tensor with shallow copy or slice from an array
-  void InitWithShallowCopy(AthenaArray<T> &src) {
+  void InitWithShallowCopy(AthenaArray<T> &src)
+  {
     data_.InitWithShallowCopy(src);
   }
-  void InitWithShallowSlice(AthenaArray<T> &src, const int indx) {
+  void InitWithShallowSlice(AthenaArray<T> &src, const int indx)
+  {
     data_.InitWithShallowSlice(src, indx, ndof());
   }
 
@@ -424,12 +439,15 @@ public:
   }
 
   // functions that initialize a tensor with shallow copy or slice from an array
-  void InitWithShallowCopy(AthenaArray<T> &src) {
+  void InitWithShallowCopy(AthenaArray<T> &src)
+  {
     data_.InitWithShallowCopy(src);
   }
-  void InitWithShallowSlice(AthenaArray<T> &src, const int indx) {
+  void InitWithShallowSlice(AthenaArray<T> &src, const int indx)
+  {
     data_.InitWithShallowSlice(src, indx, ndof());
   }
+
 private:
   AthenaArray<T> data_;
   AthenaArray<T> slice_;
