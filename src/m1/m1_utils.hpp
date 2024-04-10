@@ -47,6 +47,27 @@ inline void sc_dot_st_(
   }
 }
 
+inline void sc_dot_dense_sp_(
+  AT_C_sca & sc_dot_sp_,
+  const AT_N_vec & sp_V_A,
+  const AT_N_vec & sp_V_B,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sc_dot_sp_(i) = sp_V_A(0,k,j,i) * sp_V_B(0,k,j,i);
+  }
+
+  for (int a=1; a<N; ++a)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sc_dot_sp_(i) += sp_V_A(a,k,j,i) * sp_V_B(a,k,j,i);
+  }
+}
+
 // geometric ------------------------------------------------------------------
 inline void sp_beta_d(
   AT_N_vec & sp_tar,
@@ -102,7 +123,7 @@ inline void st_g_dd_(
 {
   LinearAlgebra::Assemble_ST_Metric_dd(
     st_tar_, sp_g_dd, sc_alpha, sp_beta_d, sp_beta_u,
-    scratch.sc_,
+    scratch.sc_A_,
     k, j, il, iu);
 }
 
@@ -117,7 +138,7 @@ inline void st_g_uu_(
 {
   LinearAlgebra::Assemble_ST_Metric_uu(
     st_tar_, sp_g_uu, sc_alpha, sp_beta_u,
-    scratch.sc_,
+    scratch.sc_A_,
     k, j, il, iu);
 }
 
@@ -531,7 +552,7 @@ inline void sc_G_(
 {
   // could be rewritten as branchless.. probably not worth it
 
-  sc_dot_st_(scratch.sc_, st_v_u, st_F_d_, k, j, il, iu);
+  sc_dot_st_(scratch.sc_A_, st_v_u, st_F_d_, k, j, il, iu);
 
   #pragma omp simd
   for (int i=il; i<=iu; ++i)
@@ -539,7 +560,7 @@ inline void sc_G_(
     if ((sc_E(k,j,i) > floor_E) && (sc_J(k,j,i) > floor_J))
     {
       sc_tar_(i) = sc_W(k,j,i) * sc_E(k,j,i) / sc_J(k,j,i) * (
-        1 - std::min(scratch.sc_(i) / sc_E(k,j,i), 1.0-eps_E)
+        1 - std::min(scratch.sc_A_(i) / sc_E(k,j,i), 1.0-eps_E)
       );
     }
     else
@@ -580,7 +601,6 @@ inline void sp_norm2_(
     );
   }
 }
-
 
 inline void st_vec_from_t_sp(
   AT_D_vec & st_tar_,
@@ -927,7 +947,7 @@ inline void st_g_dd_(
     pm1->geom.sc_alpha,
     pm1->geom.sp_beta_d,
     pm1->geom.sp_beta_u,
-    pm1->scratch.sc_,
+    pm1->scratch.sc_A_,
     k, j, il, iu);
 }
 
@@ -942,7 +962,7 @@ inline void st_g_uu_(
     pm1->geom.sp_g_uu,
     pm1->geom.sc_alpha,
     pm1->geom.sp_beta_u,
-    pm1->scratch.sc_,
+    pm1->scratch.sc_A_,
     k, j, il, iu);
 }
 
@@ -1041,6 +1061,38 @@ inline void sc_G_(
         pm1->opt.eps_E,
         k, j, il, iu);
 }
+
+// given data over an i strip populate compatible dense quantity
+inline void ScratchToDense(
+  AT_N_sym & sp_tar_aa,
+  AT_N_sym & sp_S_aa_,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  for (int a=0; a<N; ++a)
+  for (int b=a; b<N; ++b)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sp_tar_aa(a,b,k,j,i) = sp_S_aa_(a,b,i);
+  }
+}
+
+inline void ScratchAddToDense(
+  AT_N_sym & sp_tar_aa,
+  const AT_N_sym & sp_S_aa_,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  for (int a=0; a<N; ++a)
+  for (int b=a; b<N; ++b)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sp_tar_aa(a,b,k,j,i) += sp_S_aa_(a,b,i);
+  }
+}
+
 
 // ============================================================================
 }  // M1::Assemble

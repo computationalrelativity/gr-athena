@@ -328,7 +328,28 @@ void M1::PopulateOptions(ParameterInput *pin)
     }
 
     opt.fiducial_velocity_rho_fluid = pin->GetOrAddReal(
-      "M1", "fiducial_velocity_rho_fluid", 0.0) * CGS_GCC;
+      "M1", "fiducial_velocity_rho_fluid", 0.0) * M1_UNITS_CGS_GCC;
+  }
+
+  { // closure
+    tmp = pin->GetOrAddString("M1", "closure_variety", "thin");
+    if (tmp == "thin")
+    {
+      opt.closure_variety = opt_closure_variety::thin;
+    }
+    else if (tmp == "thick")
+    {
+      opt.closure_variety = opt_closure_variety::thick;
+    }
+    else if (tmp == "Minerbo")
+    {
+      opt.closure_variety = opt_closure_variety::Minerbo;
+    }
+    else
+    {
+      msg << "M1/closure_variety unknown" << std::endl;
+      ATHENA_ERROR(msg);
+    }
   }
 
   { // tol / ad-hoc
@@ -336,7 +357,10 @@ void M1::PopulateOptions(ParameterInput *pin)
     opt.fl_J = pin->GetOrAddReal("M1", "fl_J", 1e-15);
     opt.eps_E = pin->GetOrAddReal("M1", "eps_E", 1e-5);
     opt.eps_J = pin->GetOrAddReal("M1", "eps_J", 1e-10);
-    // ...
+
+    opt.eps_C      = pin->GetOrAddReal(   "M1", "eps_C",      1e-6);
+    opt.max_iter_C = pin->GetOrAddInteger("M1", "max_iter_C", 64);
+
   }
 
 }
@@ -418,7 +442,8 @@ void M1::SetVarAliasesDiagno(AthenaArray<Real> & u, vars_Diag & rdia)
 
 void M1::SetVarAliasesFidu(AthenaArray<Real> & u, vars_Fidu & fidu)
 {
-  fidu.sp_v_u.InitWithShallowSlice(u, ixn_Internal::fidu_v_x);
+  fidu.sp_v_u.InitWithShallowSlice(u, ixn_Internal::fidu_v_u_x);
+  fidu.sp_v_d.InitWithShallowSlice(u, ixn_Internal::fidu_v_d_x);
   fidu.st_v_u.InitWithShallowSlice(u, ixn_Internal::fidu_st_v_t);
   fidu.sc_W.InitWithShallowSlice(  u, ixn_Internal::fidu_W);
 }

@@ -44,6 +44,8 @@ M1IntegratorTaskList::M1IntegratorTaskList(ParameterInput *pin, Mesh *pm)
     AddTask(CALC_FIDU, UPDATE_BG);
     AddTask(CALC_CLOSURE, CALC_FIDU);
 
+    AddTask(CALC_FIDU_FRAME, CALC_CLOSURE);
+
     AddTask(CALC_FLUX, CALC_CLOSURE);
 
     AddTask(SEND_FLUX, CALC_FLUX);
@@ -51,7 +53,7 @@ M1IntegratorTaskList::M1IntegratorTaskList(ParameterInput *pin, Mesh *pm)
 
     AddTask(ADD_FLX_DIV, RECV_FLUX);
 
-    AddTask(CALC_UPDATE, ADD_FLX_DIV);
+    AddTask(CALC_UPDATE, (CALC_FIDU_FRAME|ADD_FLX_DIV));
 
     AddTask(SEND, CALC_UPDATE);
     AddTask(RECV, CALC_UPDATE);
@@ -146,21 +148,28 @@ void M1IntegratorTaskList::AddTask(const TaskID& id, const TaskID& dep)
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::CalcClosure);
-    task_list_[ntasks].lb_time = false;
+    task_list_[ntasks].lb_time = true;
+  }
+  else if (id == CALC_FIDU_FRAME)
+  {
+    task_list_[ntasks].TaskFunc=
+      static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
+      (&M1IntegratorTaskList::CalcFiducialFrame);
+    task_list_[ntasks].lb_time = true;
   }
   else if (id == CALC_OPAC)
   {
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::CalcOpacity);
-    task_list_[ntasks].lb_time = false;
+    task_list_[ntasks].lb_time = true;
   }
   else if (id == CALC_FLUX)
   {
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::CalcFlux);
-    task_list_[ntasks].lb_time = false;
+    task_list_[ntasks].lb_time = true;
   }
   else if (id == SEND_FLUX)
   {
@@ -181,14 +190,14 @@ void M1IntegratorTaskList::AddTask(const TaskID& id, const TaskID& dep)
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::AddFluxDivergence);
-    task_list_[ntasks].lb_time = false;
+    task_list_[ntasks].lb_time = true;
   }
   else if (id == ADD_GRSRC)
   {
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::AddGRSources);
-    task_list_[ntasks].lb_time = false;
+    task_list_[ntasks].lb_time = true;
   }
   else if (id == CALC_UPDATE)
   {
@@ -223,21 +232,21 @@ void M1IntegratorTaskList::AddTask(const TaskID& id, const TaskID& dep)
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::Prolongation);
-    task_list_[ntasks].lb_time = false;
+    task_list_[ntasks].lb_time = true;
   }
   else if (id == PHY_BVAL)
   {
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::PhysicalBoundary);
-    task_list_[ntasks].lb_time = false;
+    task_list_[ntasks].lb_time = true;
   }
   else if (id == USERWORK)
   {
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::UserWork);
-    task_list_[ntasks].lb_time = false;
+    task_list_[ntasks].lb_time = true;
   }
   else if (id == NEW_DT)
   {
@@ -340,6 +349,17 @@ TaskStatus M1IntegratorTaskList::CalcClosure(MeshBlock *pmb, int stage)
 }
 
 // ----------------------------------------------------------------------------
+// Map (closed) Eulerian fields (E, F_d, P_dd) to (J, H_d)
+TaskStatus M1IntegratorTaskList::CalcFiducialFrame(MeshBlock *pmb, int stage)
+{
+  if (stage <= nstages) {
+    pmb->pm1->CalcFiducialFrame(pmb->pm1->storage.u);
+    return TaskStatus::success;
+  }
+  return TaskStatus::fail;
+}
+
+// ----------------------------------------------------------------------------
 // Function to calculate Opacities
 TaskStatus M1IntegratorTaskList::CalcOpacity(MeshBlock *pmb, int stage)
 {
@@ -421,7 +441,7 @@ TaskStatus M1IntegratorTaskList::AddGRSources(MeshBlock *pmb, int stage)
 }
 
 // ----------------------------------------------------------------------------
-// Function to update the radiation field
+// Function to update the state vector
 TaskStatus M1IntegratorTaskList::CalcUpdate(MeshBlock *pmb, int stage)
 {
   if (stage <= nstages)

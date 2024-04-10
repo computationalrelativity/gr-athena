@@ -402,6 +402,7 @@ class M1IntegratorTaskList: public TaskList {
 
     TaskStatus CalcFiducialVelocity(MeshBlock *pmb, int stage);
     TaskStatus CalcClosure(MeshBlock *pmb, int stage);
+    TaskStatus CalcFiducialFrame(MeshBlock *pmb, int stage);
     TaskStatus CalcOpacity(MeshBlock *pmb, int stage);
 
     TaskStatus CalcFlux(MeshBlock *pmb, int stage);
@@ -442,26 +443,27 @@ namespace M1IntegratorTaskNames {
 
   const TaskID CALC_FIDU(3);
   const TaskID CALC_CLOSURE(4);
-  const TaskID CALC_OPAC(5);
+  const TaskID CALC_FIDU_FRAME(5);
+  const TaskID CALC_OPAC(6);
 
-  const TaskID CALC_FLUX(6);
-  const TaskID SEND_FLUX(7);
-  const TaskID RECV_FLUX(8);
+  const TaskID CALC_FLUX(7);
+  const TaskID SEND_FLUX(8);
+  const TaskID RECV_FLUX(9);
 
-  const TaskID ADD_FLX_DIV(9);
-  const TaskID ADD_GRSRC(10);
-  const TaskID CALC_UPDATE(11);
+  const TaskID ADD_FLX_DIV(10);
+  const TaskID ADD_GRSRC(11);
+  const TaskID CALC_UPDATE(12);
 
-  const TaskID SEND(12);
-  const TaskID RECV(13);
-  const TaskID SETB(14);
-  const TaskID PROLONG(15);
-  const TaskID PHY_BVAL(16);
+  const TaskID SEND(13);
+  const TaskID RECV(14);
+  const TaskID SETB(15);
+  const TaskID PROLONG(16);
+  const TaskID PHY_BVAL(17);
 
-  const TaskID USERWORK(17);
+  const TaskID USERWORK(18);
 
-  const TaskID NEW_DT(18);
-  const TaskID FLAG_AMR(19);
+  const TaskID NEW_DT(19);
+  const TaskID FLAG_AMR(20);
 
 
   const TaskID NOP(60);

@@ -8,8 +8,8 @@ namespace M1 {
 // Various constants ----------------------------------------------------------
 
 // TODO: move to sane place with all units
-#ifndef CGS_GCC
-#define CGS_GCC (1.619100425158886e-18)  // CGS density conv. fact
+#ifndef M1_UNITS_CGS_GCC
+#define M1_UNITS_CGS_GCC (1.619100425158886e-18)  // CGS density conv. fact
 #endif
 
 #ifndef M1_NDIM

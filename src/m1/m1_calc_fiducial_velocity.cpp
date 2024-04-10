@@ -63,6 +63,8 @@ void M1::CalcFiducialVelocity()
     {
       fidu.sc_W.Fill(1.);
       fidu.sp_v_u.ZeroClear();
+      fidu.sp_v_d.ZeroClear();
+      fidu.st_v_u.ZeroClear();
       return;
     }
     case opt_fiducial_velocity::none:
@@ -107,6 +109,19 @@ void M1::CalcFiducialVelocity()
     for(int a=0; a<N; ++a)
     {
       fidu.sp_v_u(a,k,j,i) = oo_W * fidu.sp_v_u(a,k,j,i);
+    }
+  }
+
+  // map to form
+  fidu.sp_v_d.ZeroClear();
+
+  M1_GLOOP2(k,j)
+  {
+    for (int a=0; a<N; ++a)
+    for (int b=0; b<N; ++b)
+    M1_GLOOP1(i)
+    {
+      fidu.sp_v_d(a,k,j,i) += geom.sp_g_dd(a,b,k,j,i) * fidu.sp_v_u(b,k,j,i);
     }
   }
 

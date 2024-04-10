@@ -34,6 +34,7 @@ public:
 
   void CalcFiducialVelocity();
   void CalcClosure(AthenaArray<Real> & u);
+  void CalcFiducialFrame(AthenaArray<Real> & u);
   void CalcOpacity(Real const dt, AthenaArray<Real> & u);
   void CalcUpdate(Real const dt,
                   AthenaArray<Real> & u_pre,
@@ -85,6 +86,7 @@ public:
 public:
   enum class opt_fiducial_velocity { fluid, mixed, zero, none };
   enum class opt_characteristics_variety { approximate, exact };
+  enum class opt_closure_variety { thin, thick, Minerbo };
 
   struct
   {
@@ -95,11 +97,17 @@ public:
     opt_fiducial_velocity fiducial_velocity;
     Real fiducial_velocity_rho_fluid;
 
+    // Closure settings
+    opt_closure_variety closure_variety;
+
     // Various tolerances / ad-hoc fiddle parameters
     Real fl_E;
     Real fl_J;
     Real eps_E;
     Real eps_J;
+
+    Real eps_C;
+    int max_iter_C;
   } opt;
 
 
@@ -179,7 +187,10 @@ public:
   // fiducial vel. variables (no group dependency)
   struct vars_Fidu {
     AT_N_vec sp_v_u;
+    AT_N_vec sp_v_d;
+
     AT_D_vec st_v_u;
+
     AT_C_sca sc_W;
   };
   vars_Fidu fidu;
@@ -270,9 +281,12 @@ public:
     AA dflx_;
 
     // Generic quantities of specific valence
-    AT_C_sca sc_;
+    AT_C_sca sc_A_;
+    AT_C_sca sc_B_;
     AT_N_vec sp_vec_;
     AT_D_vec st_vec_;
+    AT_N_sym sp_sym_A_;
+    AT_N_sym sp_sym_B_;
   };
   vars_Scratch scratch;
 
@@ -291,9 +305,12 @@ private:
     scratch.st_T_rad_.NewAthenaTensor(mbi.nn1);
     scratch.st_S_u_.NewAthenaTensor(mbi.nn1);
 
-    scratch.sc_.NewAthenaTensor(mbi.nn1);
+    scratch.sc_A_.NewAthenaTensor(mbi.nn1);
+    scratch.sc_B_.NewAthenaTensor(mbi.nn1);
     scratch.sp_vec_.NewAthenaTensor(mbi.nn1);
     scratch.st_vec_.NewAthenaTensor(mbi.nn1);
+    scratch.sp_sym_A_.NewAthenaTensor(mbi.nn1);
+    scratch.sp_sym_B_.NewAthenaTensor(mbi.nn1);
 
     // Lab (Eulerian) frame ---------------------------------------------------
     scratch.sp_F_u_.NewAthenaTensor(mbi.nn1);
@@ -436,7 +453,8 @@ public:
   {
     enum
     {
-      fidu_v_x, fidu_v_y, fidu_v_z,
+      fidu_v_u_x, fidu_v_u_y, fidu_v_u_z,
+      fidu_v_d_x, fidu_v_d_y, fidu_v_d_z,
       fidu_st_v_t, fidu_st_v_x, fidu_st_v_y, fidu_st_v_z,
       fidu_W,
       netabs,
@@ -445,7 +463,8 @@ public:
       N
     };
     static constexpr char const * const names[] = {
-      "fidu.vx", "fidu.vy", "fidu.vz",
+      "fidu.v_u_x", "fidu.v_u_y", "fidu.v_u_z",
+      "fidu.v_d_x", "fidu.v_d_y", "fidu.v_d_z",
       "fidu.st_vt", "fidu.st_vx", "fidu.st_vy", "fidu.st_vz",
       "fidu.W",
       "net.abs",

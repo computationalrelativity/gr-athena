@@ -15,9 +15,10 @@ ipython -i ${repos}/numerical_relativity/simtroller/cmd_vis_gra.py -- \
   --sampling x1v             \
   --plot_range [-0.2, 1.2]   \
   --range [-3,3]             \
-  --var lab.E --plot_show 0  \
-  --make_movie 1             \
-  --movie_fps 15
+  --var lab.E --plot_show 0
+
+#  --make_movie 1             \
+#  --movie_fps 15
 
 #
 # :D

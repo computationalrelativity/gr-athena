@@ -42,7 +42,7 @@ fi
 
 export COMPILE_STR="--prob=m1_tests
                     -m1
-                    --cxx g++ -omp
+                    --cxx g++
                     --nghost=4
                     --ncghost=4
                     --ncghost_cx=4
