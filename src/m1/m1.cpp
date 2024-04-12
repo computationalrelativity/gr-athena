@@ -82,6 +82,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   },
   lab_aux{
     {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS}
   },
   rhs{
@@ -98,6 +99,8 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     {N_GRPS,N_SPCS}
   },
   radmat{
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS}
@@ -150,7 +153,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   SetVarAliasesLabAux(storage.u_lab_aux, lab_aux);
   SetVarAliasesRad(   storage.u_rad,     rad);
 
-  // SetVarAliasesRadMat(storage.radmat, rmat);
+  SetVarAliasesRadMat(storage.radmat, radmat);
   // SetVarAliasesDiagno(storage.diagno, rdia);
   SetVarAliasesFidu(storage.intern, fidu);
   // SetVarAliasesNet(storage.intern, net);
@@ -246,37 +249,78 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
 
   // --------------------------------------------------------------------------
   // Advection test init.
-
-  const Real b_x_0 = -0.5;  // beam step at this location
-  const Real f_x_0 = 0.0;  // fluid propagation discontinuity
-  const Real abs_v = 0.87;
-
-  // Initialize Eulerian frame variables
-  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  if (0)
   {
-    AT_C_sca & sc_E   = lab.sc_E(  ix_g,ix_s);
-    AT_N_vec & sp_F_d = lab.sp_F_d(ix_g,ix_s);
-    AT_C_sca & sc_nG  = lab.sc_nG( ix_g,ix_s);
+    const Real b_x_0 = -0.5;  // beam step at this location
+    const Real f_x_0 = 0.0;  // fluid propagation discontinuity
+    const Real abs_v = 0.87;
 
-    sc_E.ZeroClear();
-    sp_F_d.ZeroClear();
-    sc_nG.ZeroClear();
-
-    M1_GLOOP3(k,j,i)
+    // Initialize Eulerian frame variables
+    for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+    for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
     {
-      sc_E(k,j,i)     = (mbi.x1(i) < b_x_0) ? 1.0 : 0.0;
-      sp_F_d(0,k,j,i) = sc_E(k,j,i);
+      AT_C_sca & sc_E   = lab.sc_E(  ix_g,ix_s);
+      AT_N_vec & sp_F_d = lab.sp_F_d(ix_g,ix_s);
+      AT_C_sca & sc_nG  = lab.sc_nG( ix_g,ix_s);
+
+      sc_E.ZeroClear();
+      sp_F_d.ZeroClear();
+      sc_nG.ZeroClear();
+
+      M1_GLOOP3(k,j,i)
+      {
+        sc_E(k,j,i)     = (mbi.x1(i) < b_x_0) ? 1.0 : 0.0;
+        sp_F_d(0,k,j,i) = sc_E(k,j,i);
+      }
+
     }
 
+    // Initialize fiducial velocity
+    fidu.sp_v_u.ZeroClear();
+    M1_GLOOP3(k,j,i)
+    {
+      hydro.sp_w_util_u(0,k,j,i) = (mbi.x1(i) < f_x_0) ? abs_v : -abs_v;
+    }
   }
 
-  // Initialize fiducial velocity
-  fidu.sp_v_u.ZeroClear();
-  M1_GLOOP3(k,j,i)
+
+  // diffusion test init.
+  if (1)
   {
-    hydro.sp_w_util_u(0,k,j,i) = (mbi.x1(i) < f_x_0) ? abs_v : -abs_v;
+    const Real b_x_a = -0.5;  // E = 1 on [a,b]
+    const Real b_x_b = +0.5;
+    const Real rho   = 1.0;
+    const Real kap_s = 1000;
+
+    // Initialize Eulerian frame variables
+    for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+    for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+    {
+      AT_C_sca & sc_E   = lab.sc_E(  ix_g,ix_s);
+      AT_N_vec & sp_F_d = lab.sp_F_d(ix_g,ix_s);
+      AT_C_sca & sc_nG  = lab.sc_nG( ix_g,ix_s);
+
+      AT_C_sca & sc_kap_s = radmat.sc_kap_s(ix_g,ix_s);
+
+      sc_E.ZeroClear();
+      sp_F_d.ZeroClear();
+      sc_nG.ZeroClear();
+
+      M1_GLOOP3(k,j,i)
+      {
+        const bool nz = (mbi.x1(i) >= b_x_a) && (mbi.x1(i) <= b_x_b);
+        sc_E(k,j,i) = nz ? 1.0 : 0.0;
+      }
+
+      sc_kap_s.Fill(kap_s);
+
+    }
+
+    // Initialize fiducial velocity
+    fidu.sp_v_u.ZeroClear();
+    hydro.sc_w_rho.Fill(rho);
   }
+
 
 }
 
@@ -300,7 +344,6 @@ void M1::PopulateOptions(ParameterInput *pin)
       msg << "M1/characteristics_variety unknown" << std::endl;
       ATHENA_ERROR(msg);
     }
-
   }
 
   { // fiducial
@@ -352,6 +395,23 @@ void M1::PopulateOptions(ParameterInput *pin)
     }
   }
 
+  { // opacities
+    tmp = pin->GetOrAddString("M1_opacities", "variety", "none");
+    if (tmp == "none")
+    {
+      opt.opacity_variety = opt_opacity_variety::none;
+    }
+    else if (tmp == "zero")
+    {
+      opt.opacity_variety = opt_opacity_variety::zero;
+    }
+    else
+    {
+      msg << "M1_opacities/variety unknown" << std::endl;
+      ATHENA_ERROR(msg);
+    }
+  }
+
   { // tol / ad-hoc
     opt.fl_E = pin->GetOrAddReal("M1", "fl_E", 1e-15);
     opt.fl_J = pin->GetOrAddReal("M1", "fl_J", 1e-15);
@@ -360,7 +420,6 @@ void M1::PopulateOptions(ParameterInput *pin)
 
     opt.eps_C      = pin->GetOrAddReal(   "M1", "eps_C",      1e-6);
     opt.max_iter_C = pin->GetOrAddInteger("M1", "max_iter_C", 64);
-
   }
 
 }
@@ -399,6 +458,8 @@ void M1::SetVarAliasesLabAux(AthenaArray<Real> & u, vars_LabAux & lab_aux)
   {
     SetVarAlias(lab_aux.sp_P_dd, u, ix_g, ix_s,
                 ixn_Lab_aux::P_xx, ixn_Lab_aux::N);
+    SetVarAlias(lab_aux.sc_n,    u, ix_g, ix_s,
+                ixn_Lab_aux::n,    ixn_Lab_aux::N);
     SetVarAlias(lab_aux.sc_chi,  u, ix_g, ix_s,
                 ixn_Lab_aux::chi,  ixn_Lab_aux::N);
   }
@@ -423,12 +484,18 @@ void M1::SetVarAliasesRadMat(AthenaArray<Real> & u, vars_RadMat & rmat)
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
   {
+    SetVarAlias(radmat.sc_eta_0,   u, ix_g, ix_s,
+                ixn_RaM::eta_0,   ixn_RaM::N);
+    SetVarAlias(radmat.sc_kap_a_0, u, ix_g, ix_s,
+                ixn_RaM::kap_a_0, ixn_RaM::N);
+
     SetVarAlias(radmat.sc_eta,   u, ix_g, ix_s,
                 ixn_RaM::eta,   ixn_RaM::N);
     SetVarAlias(radmat.sc_kap_a, u, ix_g, ix_s,
                 ixn_RaM::kap_a, ixn_RaM::N);
     SetVarAlias(radmat.sc_kap_s, u, ix_g, ix_s,
                 ixn_RaM::kap_s, ixn_RaM::N);
+
   }
 }
 

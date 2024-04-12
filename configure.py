@@ -1595,6 +1595,7 @@ src_aux = []
 
 if args['m1']:
   src_aux.append("$(wildcard src/m1/*.cpp)")
+  src_aux.append("$(wildcard src/m1/opacities/*.cpp)")
 
   print("TODO@conf: Remove m1 task-list stand-alone")
 

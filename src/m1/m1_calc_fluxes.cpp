@@ -20,7 +20,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
   vars_Lab U { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
   SetVarAliasesLab(u, U);
 
-  // scratch for flux vector component assembly (cell-centered sampling)
+  // (dense) scratch for flux vector component assembly (cell-centered samp.)
   AT_C_sca & F_sca = scratch.F_sca;
   AT_N_vec & F_vec = scratch.F_vec;
 
@@ -57,19 +57,22 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
           opt_characteristics_variety::exact)
         CalcCharacteristicSpeed(ix_d, lambda);
 
-
       AT_C_sca & F_nG  = fluxes.sc_nG( ix_g,ix_s,ix_d);
       AT_C_sca & F_E   = fluxes.sc_E(  ix_g,ix_s,ix_d);
       AT_N_vec & F_F_d = fluxes.sp_F_d(ix_g,ix_s,ix_d);
 
-      AT_C_sca & U_nG   = U.sc_E(  ix_g,ix_s);
+      AT_C_sca & U_nG   = U.sc_nG( ix_g,ix_s);
       AT_N_vec & U_F_d  = U.sp_F_d(ix_g,ix_s);
       AT_C_sca & U_E    = U.sc_E(  ix_g,ix_s);
 
       AT_N_sym & sp_P_dd = lab_aux.sp_P_dd(ix_g,ix_s);
+      AT_C_sca & sc_n    = lab_aux.sc_n(   ix_g,ix_s);
 
       AT_C_sca & sc_J   = rad.sc_J(ix_g,ix_s);
       AT_N_vec & sp_H_d = rad.sp_H_d(ix_g,ix_s);
+
+      AT_C_sca & sc_kap_a = radmat.sc_kap_a(ix_g,ix_s);
+      AT_C_sca & sc_kap_s = radmat.sc_kap_s(ix_g,ix_s);
 
       // Flux assembly and reconstruction =====================================
       // See Eq.(28) of [1] (note densitized)
@@ -87,16 +90,17 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
         );
 
         Assemble::st_F_d_(this, st_F_d_, U_F_d, k, j, il, iu);
+        // TODO: could reduce the internal contraction to only utilize sp_F_d
         Assemble::sc_G_(this, sc_G_, U_E, sc_J, st_F_d_, k, j, il, iu);
 
         M1_FLOOP1(i)
         {
-          F_sca(k,j,i) = alpha(k,j,i) *
-                         U_nG(ix_d,k,j,i) / sc_G_(i) *
-                         sp_f_u_(ix_d,i);
+          sc_n(k,j,i) = U_nG(k,j,i) / sc_G_(i);
+          F_sca(k,j,i) = alpha(k,j,i) * sc_n(k,j,i) * sp_f_u_(ix_d,i);
         }
       }
-      Fluxes::ReconstructLimitedFlux(this, ix_d, U_nG, F_sca, lambda, F_nG);
+      Fluxes::ReconstructLimitedFlux(this, ix_d, U_nG, F_sca,
+                                     sc_kap_a, sc_kap_s, lambda, F_nG);
 
       // E --------------------------------------------------------------------
       M1_FLOOP2(k,j)
@@ -114,7 +118,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
         }
 
       }
-      Fluxes::ReconstructLimitedFlux(this, ix_d, U_E, F_sca, lambda, F_E);
+      Fluxes::ReconstructLimitedFlux(this, ix_d, U_E, F_sca,
+                                     sc_kap_a, sc_kap_s, lambda, F_E);
 
       // F_k ------------------------------------------------------------------
       M1_FLOOP2(k,j)
@@ -134,7 +139,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
           }
         }
       }
-      Fluxes::ReconstructLimitedFlux(this, ix_d, U_F_d, F_vec, lambda, F_F_d);
+      Fluxes::ReconstructLimitedFlux(this, ix_d, U_F_d, F_vec,
+                                     sc_kap_a, sc_kap_s, lambda, F_F_d);
     }
   }
 

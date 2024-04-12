@@ -22,6 +22,8 @@ void ReconstructLimitedFlux(M1 * pm1,
                             const int dir,
                             const AT_C_sca & q,
                             const AT_C_sca & F,
+                            const AT_C_sca & kap_a,
+                            const AT_C_sca & kap_s,
                             const AT_C_sca & lambda,
                             AT_C_sca & Flux);
 
@@ -30,6 +32,8 @@ void ReconstructLimitedFlux(M1 * pm1,
                             const int dir,
                             const AT_N_vec & q,
                             const AT_N_vec & F,
+                            const AT_C_sca & kap_a,
+                            const AT_C_sca & kap_s,
                             const AT_C_sca & lambda,
                             AT_N_vec & Flux);
 
@@ -37,42 +41,26 @@ void ReconstructLimitedFlux(M1 * pm1,
 void ReconstructLimitedFluxX1(M1 * pm1,
                               const AT_C_sca & q,
                               const AT_C_sca & F,
+                              const AT_C_sca & kap_a,
+                              const AT_C_sca & kap_s,
                               const AT_C_sca & lambda,
                               AT_C_sca & Flux);
 
 void ReconstructLimitedFluxX2(M1 * pm1,
                               const AT_C_sca & q,
                               const AT_C_sca & F,
+                              const AT_C_sca & kap_a,
+                              const AT_C_sca & kap_s,
                               const AT_C_sca & lambda,
                               AT_C_sca & Flux);
 
 void ReconstructLimitedFluxX3(M1 * pm1,
                               const AT_C_sca & q,
                               const AT_C_sca & F,
+                              const AT_C_sca & kap_a,
+                              const AT_C_sca & kap_s,
                               const AT_C_sca & lambda,
                               AT_C_sca & Flux);
-
-
-
-// Directional vector field reconstruction
-// void ReconstructLimitedFluxX1(M1 * pm1,
-//                               const AT_N_vec & q,
-//                               const AT_N_vec & F,
-//                               const AT_C_sca & lambda,
-//                               AT_N_vec & Flux);
-
-// void ReconstructLimitedFluxX2(M1 * pm1,
-//                               const AT_N_vec & q,
-//                               const AT_N_vec & F,
-//                               const AT_C_sca & lambda,
-//                               AT_N_vec & Flux);
-
-// void ReconstructLimitedFluxX2(M1 * pm1,
-//                               const AT_N_vec & q,
-//                               const AT_N_vec & F,
-//                               const AT_C_sca & lambda,
-//                               AT_N_vec & Flux);
-
 
 // ============================================================================
 } // namespace M1::Fluxes

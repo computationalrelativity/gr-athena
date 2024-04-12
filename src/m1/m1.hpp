@@ -42,7 +42,8 @@ public:
 		              AthenaArray<Real> & u_inh);
   void CalcFluxes(AthenaArray<Real> & u);
   void AddFluxDivergence(AthenaArray<Real> & u_inh);
-  void AddGRSources(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs);
+  void AddGRSources(AthenaArray<Real> & u, AthenaArray<Real> & u_inh);
+  void AddMatterSources(AthenaArray<Real> & u, AthenaArray<Real> & u_inh);
 
   Real NewBlockTimeStep();
 
@@ -87,6 +88,7 @@ public:
   enum class opt_fiducial_velocity { fluid, mixed, zero, none };
   enum class opt_characteristics_variety { approximate, exact };
   enum class opt_closure_variety { thin, thick, Minerbo };
+  enum class opt_opacity_variety { zero, none };
 
   struct
   {
@@ -99,6 +101,8 @@ public:
 
     // Closure settings
     opt_closure_variety closure_variety;
+
+    opt_opacity_variety opacity_variety;
 
     // Various tolerances / ad-hoc fiddle parameters
     Real fl_E;
@@ -141,6 +145,7 @@ public:
     // N.B.
     // These quantities should be viewed as \sqrt(\gamma) densitized
     GroupSpeciesContainer<AT_N_sym> sp_P_dd;
+    GroupSpeciesContainer<AT_C_sca> sc_n;
 
     // Closure weight - not densitized
     GroupSpeciesContainer<AT_C_sca> sc_chi;
@@ -162,6 +167,9 @@ public:
 
   // radiation-matter variables
   struct vars_RadMat {
+    GroupSpeciesContainer<AT_C_sca> sc_eta_0;
+    GroupSpeciesContainer<AT_C_sca> sc_kap_a_0;
+
     GroupSpeciesContainer<AT_C_sca> sc_eta;
     GroupSpeciesContainer<AT_C_sca> sc_kap_a;
     GroupSpeciesContainer<AT_C_sca> sc_kap_s;
@@ -373,10 +381,11 @@ public:
   // Lab frame variables
   struct ixn_Lab_aux
   {
-    enum { P_xx, P_xy, P_xz, P_yy, P_yz, P_zz, chi, N };
+    enum { P_xx, P_xy, P_xz, P_yy, P_yz, P_zz, n, chi, N };
     static constexpr char const * const names[] = {
       "lab_aux.Pxx", "lab_aux.Pxy", "lab_aux.Pxz",
       "lab_aux.Pyy", "lab_aux.Pyz", "lab_aux.Pzz",
+      "lab_aux.n",
       "lab_aux.chi",
     };
   };
@@ -408,6 +417,8 @@ public:
   {
     enum
     {
+      eta_0,
+      kap_a_0,
       eta,
       kap_a,
       kap_s,
@@ -418,6 +429,8 @@ public:
       N
     };
     static constexpr char const * const names[] = {
+      "rmat.eta_0",
+      "rmat.kap_a_0",
       "rmat.eta",
       "rmat.kap_a",
       "rmat.kap_s"

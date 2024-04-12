@@ -353,6 +353,33 @@ inline void VecMetContraction(
   }
 }
 
+template<typename T, int D>
+inline void SymMetContraction(
+  AthenaTensor<T, TensorSymm::SYM2, D, 2> & tar_s_,
+  AthenaTensor<T, TensorSymm::SYM2, D, 2> const & s,
+  AthenaTensor<T, TensorSymm::SYM2, D, 2> const & met,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  for (int a=0; a<D; ++a)
+  for (int b=a; b<D; ++b)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    tar_s_(a,b,i) = 0;
+  }
+
+  for (int a=0; a<D; ++a)
+  for (int b=a; b<D; ++b)
+  for (int c=0; c<D; ++c)
+  for (int d=0; d<D; ++d)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    tar_s_(a,b,i) += met(a,c,k,j,i) * met(b,d,k,j,i) * s(c,d,k,j,i);
+  }
+}
+
 inline void SlicedVecMet3Contraction(
   AthenaTensor<Real, TensorSymm::NONE, 3, 1> & v_dst,
   AthenaTensor<Real, TensorSymm::NONE, 3, 1> const & v_src,

@@ -3,7 +3,6 @@
 
 // Athena++ headers
 #include "m1.hpp"
-#include "m1_containers.hpp"
 #include "m1_macro.hpp"
 #include "m1_utils.hpp"
 
@@ -134,7 +133,7 @@ void ClosureThick(M1 * pm1,
   #pragma omp simd
   for (int i=il; i<=iu; ++i)
   {
-    sp_P_dd_(a,b,i) += weight * (
+    sp_P_dd_(a,b,i) = weight * (
       4.0 * ONE_3RD * W2_(i) * sc_J(k,j,i) *
       sp_v_d(a,k,j,i) * sp_v_d(b,k,j,i) +
       sc_W(k,j,i) * (
@@ -156,7 +155,7 @@ void AddClosureThick(M1 * pm1,
   const int il = 0;
   const int iu = pm1->mbi.nn1-1;
 
-  AT_N_sym & sp_P_dd_ = pm1->scratch.sp_sym_A_;
+  AT_N_sym & sp_P_dd_ = pm1->scratch.sp_sym_B_;
 
   M1_GLOOP2(k,j)
   {
@@ -181,7 +180,7 @@ inline Real chi(const Real xi)
 
 // Required data during rootfinding procedure
 struct DataRootfinder {
-  AT_N_sym & sp_g_dd;
+  AT_N_sym & sp_g_uu;
 
   AT_C_sca & sc_E;
   AT_N_vec & sp_F_d;
@@ -273,20 +272,18 @@ Real R(Real xi, void *par)
   for (int b=0; b<N; ++b)
   {
     sc_H2_st += (
-      drf->sp_g_dd(a,b,k,j,i) *
+      drf->sp_g_uu(a,b,k,j,i) *
       drf->sp_H_d(a,k,j,i) *
       drf->sp_H_d(b,k,j,i)
     );
   }
 
   // assemble R
-  // const Real R_ = (1.0 / drf->sc_E(k,j,i)) * (
-  //   SQR(xi) * SQR(drf->sc_J(k,j,i)) - sc_H2_st
-  // );
+  // const Real R_ = (std::abs(drf->sc_E(k,j,i)) > 0)
+  //   ? (SQR(xi) * SQR(drf->sc_J(k,j,i)) - sc_H2_st) / drf->sc_E(k,j,i)
+  //   : 0.0;
 
-  const Real R_ = (std::abs(drf->sc_E(k,j,i)) > 0)
-    ? (SQR(xi) * SQR(drf->sc_J(k,j,i)) - sc_H2_st) / drf->sc_E(k,j,i)
-    : 0.0;
+  const Real R_ = (SQR(xi * drf->sc_J(k,j,i)) - sc_H2_st);
 
   return R_;
 }
@@ -298,13 +295,14 @@ void AddClosure(M1 * pm1,
                 AT_N_sym & sp_P_dd)
 {
   // Admissible ranges for xi entering Eddington factor chi(xi)
-  const Real xi_min = 0;
+  const Real xi_min = 0.0;
   const Real xi_max = 1.0;
 
   const int il = 0;
   const int iu = pm1->mbi.nn1-1;
 
   AT_N_sym & sp_g_dd = pm1->geom.sp_g_dd;
+  AT_N_sym & sp_g_uu = pm1->geom.sp_g_uu;
 
   // point to scratches
   AT_N_sym & sp_P_tn_dd_ = pm1->scratch.sp_sym_A_;
@@ -312,7 +310,7 @@ void AddClosure(M1 * pm1,
 
   // initialize struct for root-finding
   DataRootfinder drf {
-    sp_g_dd,
+    sp_g_uu,
     pm1->lab.sc_E(  ix_g,ix_s),
     pm1->lab.sp_F_d(ix_g,ix_s),
     sp_P_dd,
@@ -329,7 +327,7 @@ void AddClosure(M1 * pm1,
   };
 
   // setup GSL ----------------------------------------------------------------
-  gsl_error_handler_t * gsl_err = gsl_set_error_handler_off();
+  gsl_set_error_handler_off();
 
   gsl_function R_;
   R_.function = &R;
@@ -344,6 +342,9 @@ void AddClosure(M1 * pm1,
     std::ostringstream msg;
     msg << "M1::Closures::Minerbo::AddClosure unexpected error: ";
     msg << status;
+
+    std::cout << msg.str().c_str() << std::endl;
+
     ATHENA_ERROR(msg);
   };
 
@@ -352,11 +353,13 @@ void AddClosure(M1 * pm1,
     std::ostringstream msg;
     msg << "M1::Closures::Minerbo::AddClosure maxiter=";
     msg << pm1->opt.max_iter_C << " exceeded";
-    ATHENA_ERROR(msg);
+    std::cout << msg.str().c_str() << std::endl;
   };
   // --------------------------------------------------------------------------
 
   // main loop
+  // int iter_tot = 0;
+
   M1_GLOOP2(k,j)
   {
     Closures::ClosureThin( pm1, 1.0, ix_g, ix_s, sp_P_tn_dd_, k, j, il, iu);
@@ -380,17 +383,35 @@ void AddClosure(M1 * pm1,
         case (0):
         {
           // root-finding loop
-          int loc_xi_min = xi_min;
-          int loc_xi_max = xi_max;
-          int iter = 0;
+          Real loc_xi_min = xi_min;
+          Real loc_xi_max = xi_max;
 
-          do
+          status = GSL_CONTINUE;
+          for (int iter=1;
+               iter<=pm1->opt.max_iter_C && status == GSL_CONTINUE;
+               ++iter)
           {
-            ++iter;
             status = gsl_root_fsolver_iterate(gsl_solver);
 
-            if (status)
+            if (status != GSL_SUCCESS)
+            {
+              break;
+            }
+            else if (status)
+            {
+              sp_P_tn_dd_.array().print_all();
+              sp_P_tk_dd_.array().print_all();
+
+              std::cout << "E" << std::endl;;
+              std::cout << drf.sc_E(k,j,i) << std::endl;
+
+              std::cout << "F_d" << std::endl;;
+              std::cout << drf.sp_F_d(0,k,j,i) << std::endl;
+              std::cout << drf.sp_F_d(1,k,j,i) << std::endl;
+              std::cout << drf.sp_F_d(2,k,j,i) << std::endl;
+
               gsl_err_kill(status);
+            }
 
             loc_xi_min = gsl_root_fsolver_x_lower(gsl_solver);
             loc_xi_max = gsl_root_fsolver_x_upper(gsl_solver);
@@ -398,31 +419,73 @@ void AddClosure(M1 * pm1,
             status = gsl_root_test_interval(
               loc_xi_min, loc_xi_max, pm1->opt.eps_C, 0
             );
-          } while ((status == GSL_CONTINUE) &&
-                   (iter < pm1->opt.max_iter_C));
+
+            // if (iter > 0.5 * static_cast<Real>(pm1->opt.max_iter_C))
+            // {
+            //   std::cout << "iter slow w/" << std::endl;
+            //   std::cout << pm1->lab_aux.sc_chi(ix_g,ix_s)(k,j,i) << std::endl;
+
+            //   std::cout << R_.function(xi_min, &drf) << std::endl;
+            //   std::cout << R_.function(gsl_root_fsolver_root(gsl_solver), &drf) << std::endl;
+
+            // }
+
+            // if (status == GSL_SUCCESS)
+            // {
+            //   std::cout << iter << std::endl;
+            // }
+
+            // iter_tot++;
+          }
 
           if (status != GSL_SUCCESS)
           {
             gsl_err_warn();
           }
 
-          // Final call of R to update sp_P with new root
+          // Final call of R to update sp_P_dd with new root info.
           R_.function(gsl_root_fsolver_root(gsl_solver), &drf);
 
           break;
         }
         default:
         {
+            std::cout << "sp_P_tn_dd_" << std::endl;;
+            std::cout << sp_P_tn_dd_(0,0,i) << std::endl;
+            std::cout << sp_P_tn_dd_(0,1,i) << std::endl;
+            std::cout << sp_P_tn_dd_(0,2,i) << std::endl;
+            std::cout << sp_P_tn_dd_(1,1,i) << std::endl;
+            std::cout << sp_P_tn_dd_(1,2,i) << std::endl;
+            std::cout << sp_P_tn_dd_(2,2,i) << std::endl;
+
+            std::cout << "sp_P_tk_dd_" << std::endl;;
+            std::cout << sp_P_tk_dd_(0,0,i) << std::endl;
+            std::cout << sp_P_tk_dd_(0,1,i) << std::endl;
+            std::cout << sp_P_tk_dd_(0,2,i) << std::endl;
+            std::cout << sp_P_tk_dd_(1,1,i) << std::endl;
+            std::cout << sp_P_tk_dd_(1,2,i) << std::endl;
+            std::cout << sp_P_tk_dd_(2,2,i) << std::endl;
+
+            std::cout << "E" << std::endl;;
+            std::cout << drf.sc_E(k,j,i) << std::endl;
+
+            std::cout << "F_d" << std::endl;;
+            std::cout << drf.sp_F_d(0,k,j,i) << std::endl;
+            std::cout << drf.sp_F_d(1,k,j,i) << std::endl;
+            std::cout << drf.sp_F_d(2,k,j,i) << std::endl;
           gsl_err_kill(status);
         }
       }
     }
   }
 
+  // const int nn = pm1->mbi.nn1 * pm1->mbi.nn2 * pm1->mbi.nn3;
+  // std::cout << static_cast<Real>(iter_tot) / nn << std::endl;
+
   // cleanup ------------------------------------------------------------------
   gsl_root_fsolver_free(gsl_solver);
-  gsl_set_error_handler(gsl_err);  // restore handler
-
+  // TODO: bug - this can't be deactivated properly with OMP
+  // gsl_set_error_handler(NULL);  // restore default handler
 }
 
 // ============================================================================

@@ -26,6 +26,27 @@ namespace M1::Assemble {
 // st: (s)pace-time
 // Appended "_" indicates scratch (in i)
 
+inline void sc_dot_sp_(
+  AT_C_sca & sc_dot_sp_,
+  const AT_N_vec & sp_V_A,  // alternative: flip for opposite slice
+  const AT_N_vec & sp_V_B_,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sc_dot_sp_(i) = 0.0;
+  }
+
+  for (int a=0; a<N; ++a)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sc_dot_sp_(i) += sp_V_A(a,k,j,i) * sp_V_B_(a,i);
+  }
+}
+
 inline void sc_dot_st_(
   AT_C_sca & sc_dot_st_,
   const AT_D_vec & st_V_A,  // alternative: flip for opposite slice
@@ -570,6 +591,35 @@ inline void sc_G_(
   }
 }
 
+inline void sc_G_(
+  AT_C_sca & sc_tar_,
+  const AT_C_sca & sc_W,
+  const AT_C_sca & sc_E,
+  const AT_C_sca & sc_J,
+  const AT_C_sca & sc_dotFv_,
+  const Real floor_E,
+  const Real floor_J,
+  const Real eps_E,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  // could be rewritten as branchless.. probably not worth it
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    if ((sc_E(k,j,i) > floor_E) && (sc_J(k,j,i) > floor_J))
+    {
+      sc_tar_(i) = sc_W(k,j,i) * sc_E(k,j,i) / sc_J(k,j,i) * (
+        1 - std::min(sc_dotFv_(i) / sc_E(k,j,i), 1.0-eps_E)
+      );
+    }
+    else
+    {
+      sc_tar_(i) = 1.0;
+    }
+  }
+}
+
 inline void st_norm2_(
   AT_C_sca & st_tar_,
   const AT_D_vec & st_V_d_,  // alternative: _u_ &
@@ -930,6 +980,21 @@ inline void sp_d_to_u_(
   LinearAlgebra::VecMetContraction(
     sp_tar_u_,
     sp_src_d,
+    pm1->geom.sp_g_uu,
+    k, j,
+    il, iu);
+}
+
+inline void sp_dd_to_uu_(
+  M1 * pm1,
+  AT_N_sym & sp_tar_uu_,
+  const AT_N_sym & sp_src_dd,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  LinearAlgebra::SymMetContraction(
+    sp_tar_uu_,
+    sp_src_dd,
     pm1->geom.sp_g_uu,
     k, j,
     il, iu);

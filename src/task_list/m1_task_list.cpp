@@ -37,23 +37,21 @@ M1IntegratorTaskList::M1IntegratorTaskList(ParameterInput *pin, Mesh *pm)
   // Now assemble list of tasks for each stage of time integrator
   { using namespace M1IntegratorTaskNames; // NOLINT (build/namespace)
 
-
-    AddTask(NOP, NONE);
-
-    AddTask(UPDATE_BG, NOP);
+    AddTask(UPDATE_BG, NONE);
     AddTask(CALC_FIDU, UPDATE_BG);
     AddTask(CALC_CLOSURE, CALC_FIDU);
 
     AddTask(CALC_FIDU_FRAME, CALC_CLOSURE);
+    AddTask(CALC_OPAC, CALC_FIDU_FRAME);
 
-    AddTask(CALC_FLUX, CALC_CLOSURE);
+    AddTask(CALC_FLUX, CALC_OPAC);
 
     AddTask(SEND_FLUX, CALC_FLUX);
-    AddTask(RECV_FLUX, CALC_FLUX);
+    AddTask(RECV_FLUX, NONE);
 
-    AddTask(ADD_FLX_DIV, RECV_FLUX);
+    AddTask(ADD_FLX_DIV, CALC_FLUX);
 
-    AddTask(CALC_UPDATE, (CALC_FIDU_FRAME|ADD_FLX_DIV));
+    AddTask(CALC_UPDATE, (CALC_OPAC|ADD_FLX_DIV));
 
     AddTask(SEND, CALC_UPDATE);
     AddTask(RECV, CALC_UPDATE);
@@ -68,48 +66,18 @@ M1IntegratorTaskList::M1IntegratorTaskList(ParameterInput *pin, Mesh *pm)
       AddTask(PHY_BVAL, SETB);
     }
 
-    AddTask(NOP_FINAL, (PHY_BVAL|SEND_FLUX|CALC_UPDATE));
-
-    AddTask(CLEAR_ALLBND, NOP_FINAL);
-
-    /*
-    AddTask(CALC_FIDU, NONE);
-    AddTask(CALC_CLOSURE, CALC_FIDU);
-
-    AddTask(CALC_OPAC, CALC_CLOSURE);
-    AddTask(ADD_GRSRC, CALC_CLOSURE);
-
-    AddTask(CALC_FLUX, CALC_CLOSURE);
-    AddTask(SEND_FLUX, CALC_FLUX);
-    AddTask(RECV_FLUX, CALC_FLUX);
-    AddTask(ADD_FLX_DIV, RECV_FLUX);
-
-    AddTask(CALC_UPDATE, (ADD_FLX_DIV|CALC_OPAC|ADD_GRSRC));
-
-    AddTask(SEND, CALC_UPDATE);
-    AddTask(RECV, CALC_UPDATE);
-
-    AddTask(SETB, (RECV|CALC_UPDATE));
-    if (pm->multilevel) {
-      AddTask(PROLONG, (SEND|SETB));
-      AddTask(PHY_BVAL, PROLONG);
-    }
-    else {
-      AddTask(PHY_BVAL, SETB);
-    }
-
-    AddTask(USERWORK, PHY_BVAL);
-
+    AddTask(USERWORK, (PHY_BVAL|SEND_FLUX|CALC_UPDATE));
     AddTask(NEW_DT, PHY_BVAL);
-    if (pm->adaptive) {
+
+    if (pm->adaptive)
+    {
       AddTask(FLAG_AMR, USERWORK);
       AddTask(CLEAR_ALLBND, FLAG_AMR);
     }
-    else {
+    else
+    {
       AddTask(CLEAR_ALLBND, NEW_DT);
     }
-    */
-
   } // end of using namespace block
 }
 
@@ -363,15 +331,13 @@ TaskStatus M1IntegratorTaskList::CalcFiducialFrame(MeshBlock *pmb, int stage)
 // Function to calculate Opacities
 TaskStatus M1IntegratorTaskList::CalcOpacity(MeshBlock *pmb, int stage)
 {
-  /*
-  if (stage <= nstages) {
+  if (stage <= nstages)
+  {
     Real const dt = pmb->pmy_mesh->dt * dt_fac[stage - 1];
     pmb->pm1->CalcOpacity(dt, pmb->pm1->storage.u);
     return TaskStatus::success;
   }
   return TaskStatus::fail;
-  */
-  return TaskStatus::success;
 }
 
 // ----------------------------------------------------------------------------
@@ -430,14 +396,13 @@ TaskStatus M1IntegratorTaskList::AddFluxDivergence(MeshBlock *pmb, int stage)
 // Function to add GR sources
 TaskStatus M1IntegratorTaskList::AddGRSources(MeshBlock *pmb, int stage)
 {
-  /*
-  if (stage <= nstages) {
-    pmb->pm1->GRSources(pmb->pm1->storage.u, pmb->pm1->storage.u_rhs);
+  if (stage <= nstages)
+  {
+    pmb->pm1->AddGRSources(pmb->pm1->storage.u,
+                           pmb->pm1->storage.u_rhs);
     return TaskStatus::success;
   }
   return TaskStatus::fail;
-  */
-  return TaskStatus::success;
 }
 
 // ----------------------------------------------------------------------------
@@ -546,11 +511,9 @@ TaskStatus M1IntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int stage)
 // ----------------------------------------------------------------------------
 // Function to schedule user work
 TaskStatus M1IntegratorTaskList::UserWork(MeshBlock *pmb, int stage) {
-  /*
   if (stage != nstages) return TaskStatus::success; // only do on last stage
 
   pmb->UserWorkInLoop();
-  */
   return TaskStatus::success;
 }
 

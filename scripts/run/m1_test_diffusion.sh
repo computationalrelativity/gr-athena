@@ -41,7 +41,7 @@ else
 fi
 
 export COMPILE_STR="--prob=m1_tests
-                    -m1
+                    -m1 -omp
                     --cxx g++
                     --nghost=4
                     --ncghost=4

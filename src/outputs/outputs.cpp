@@ -621,6 +621,22 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     }
   }
 
+  if (M1_ENABLED)
+  {
+    for (int v = 0; v < M1::M1::ixn_Lab_aux::N; ++v)
+    {
+      if (output_params.variable.compare("m1_lab_aux") == 0)
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = M1::M1::ixn_Lab_aux::names[v];
+        pod->data.InitWithShallowSlice(pm1->storage.u_lab_aux,v,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
+  }
+
   if (SELF_GRAVITY_ENABLED) {
     if (output_params.variable.compare("phi") == 0 ||
         output_params.variable.compare("prim") == 0 ||
