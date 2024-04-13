@@ -8,7 +8,7 @@ problem_id = diffusion
 # =============================================================================
 
 <time> # ======================================================================
-cfl_number   = 0.1
+cfl_number   = 0.8
 tlim	       = 2
 ncycle_out   = 1      # interval for stdout summary info
 # =============================================================================
@@ -50,7 +50,7 @@ ngroups  = 2
 nspecies = 3
 
 # element of: {thin, thick, Minerbo}
-closure_variety = Minerbo
+closure_variety = thick
 
 # element of: {approximate, exact}
 characteristics_variety = approximate
@@ -58,15 +58,30 @@ characteristics_variety = approximate
 # element of: {fluid, mixed, zero, none}
 fiducial_velocity = fluid
 
+# element of:
+# {full_explicit,               - non-stiff regime
+#  semi_implicit_PicardFrozenP  - only for fixed (P_dd)
+#  semi_implicit_Picard         - updates P_dd (use w/ Minerbo)
+# }
+integration_strategy = semi_implicit_PicardFrozenP
+
 # tolerances / ad-hoc fiddle parameters
 fl_E = 1e-15
 fl_J = 1e-15
-eps_E = 1e-6
+eps_E = 1e-5
 eps_J = 1e-10
 
 # [Minerbo] closure root tolerance & maximum iterations
 eps_C = 1e-4
 max_iter_C = 64
+
+# [Picard] iteration settings
+max_iter_P     = 128    // maximum number of iterations (for each restart)
+max_iter_P_rst = 10     // maximum number of restarts
+w_opt_ini      = 0.5    // initial underrelaxation factor
+eps_P_abs_tol  = 1e-8   // absolute tolerance
+fac_amp_P      = 1.11   // error amplification tolerance between iterates
+verbose_iter_P = true   // signal e.g. failure to achieve tol.
 
 # =============================================================================
 

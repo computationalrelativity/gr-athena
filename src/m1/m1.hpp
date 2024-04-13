@@ -47,6 +47,18 @@ public:
 
   Real NewBlockTimeStep();
 
+// State vector updating strategies ===========================================
+private:
+  void CalcExplicitUpdate(Real const dt,
+                          AthenaArray<Real> & u_pre,
+                          AthenaArray<Real> & u_cur,
+		                      AthenaArray<Real> & u_inh);
+
+  void CalcImplicitUpdatePicardFrozenP(Real const dt,
+                                       AthenaArray<Real> & u_pre,
+                                       AthenaArray<Real> & u_cur,
+		                                   AthenaArray<Real> & u_inh);
+
 // data =======================================================================
 public:
   // Mesh->MeshBlock->M1
@@ -85,6 +97,8 @@ public:
 
 // configuration ==============================================================
 public:
+  enum class opt_integration_strategy { full_explicit,
+                                        semi_implicit_PicardFrozenP };
   enum class opt_fiducial_velocity { fluid, mixed, zero, none };
   enum class opt_characteristics_variety { approximate, exact };
   enum class opt_closure_variety { thin, thick, Minerbo };
@@ -92,6 +106,9 @@ public:
 
   struct
   {
+    // Control integration strategy
+    opt_integration_strategy integration_strategy;
+
     // Control flux calculation
     opt_characteristics_variety characteristics_variety;
 
@@ -110,8 +127,17 @@ public:
     Real eps_E;
     Real eps_J;
 
+    // Closure iteration
     Real eps_C;
     int max_iter_C;
+
+    // semi-implicit iteration
+    int max_iter_P;      // maximum number of iterations (for each restart)
+    int max_iter_P_rst;  // maximum number of restarts
+    Real w_opt_ini;      // initial underrelaxation factor
+    Real eps_P_abs_tol;  // absolute tolerance
+    Real fac_amp_P;      // error amplification tolerance between iterates
+    bool verbose_iter_P; // signal e.g. failure to achieve tol.
   } opt;
 
 

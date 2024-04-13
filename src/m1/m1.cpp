@@ -329,6 +329,24 @@ void M1::PopulateOptions(ParameterInput *pin)
   std::string tmp;
   std::ostringstream msg;
 
+  { // integration strategy
+    tmp = pin->GetOrAddString("M1", "integration_strategy", "full_explicit");
+    if (tmp == "full_explicit")
+    {
+      opt.integration_strategy = opt_integration_strategy::full_explicit;
+    }
+    else if (tmp == "semi_implicit_PicardFrozenP")
+    {
+      opt.integration_strategy = \
+        opt_integration_strategy::semi_implicit_PicardFrozenP;
+    }
+    else
+    {
+      msg << "M1/integration_strategy unknown" << std::endl;
+      ATHENA_ERROR(msg);
+    }
+  }
+
   { // fluxes
     tmp = pin->GetOrAddString("M1", "characteristics_variety", "approximate");
     if (tmp == "approximate")
@@ -420,6 +438,15 @@ void M1::PopulateOptions(ParameterInput *pin)
 
     opt.eps_C      = pin->GetOrAddReal(   "M1", "eps_C",      1e-6);
     opt.max_iter_C = pin->GetOrAddInteger("M1", "max_iter_C", 64);
+  }
+
+  { // semi-implicit iteration settings
+    opt.max_iter_P = pin->GetOrAddInteger("M1", "max_iter_P", 128);
+    opt.max_iter_P_rst = pin->GetOrAddInteger("M1", "max_iter_P_rst", 10);
+    opt.w_opt_ini = pin->GetOrAddReal("M1", "w_opt_ini", 1.0);
+    opt.eps_P_abs_tol = pin->GetOrAddReal("M1", "eps_P_abs_tol", 1e-8);
+    opt.fac_amp_P = pin->GetOrAddReal("M1", "fac_amp_P", 1.11);
+    opt.verbose_iter_P = pin->GetOrAddBoolean("M1", "verbose_iter_P", false);
   }
 
 }

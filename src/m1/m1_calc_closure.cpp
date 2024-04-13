@@ -513,7 +513,7 @@ void M1::CalcClosure(AthenaArray<Real> & u)
         Closures::AddClosureThin(this,
                                  1.0, ix_g, ix_s,
                                  lab_aux.sp_P_dd(ix_g,ix_s));
-
+        lab_aux.sc_chi(ix_g,ix_s).Fill(1.0);
         break;
       }
       case (opt_closure_variety::thick):
@@ -521,6 +521,7 @@ void M1::CalcClosure(AthenaArray<Real> & u)
         Closures::AddClosureThick(this,
                                   1.0, ix_g, ix_s,
                                   lab_aux.sp_P_dd(ix_g,ix_s));
+        lab_aux.sc_chi(ix_g,ix_s).Fill(ONE_3RD);
         break;
       }
       case (opt_closure_variety::Minerbo):

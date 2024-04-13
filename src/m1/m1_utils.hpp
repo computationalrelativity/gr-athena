@@ -620,6 +620,24 @@ inline void sc_G_(
   }
 }
 
+inline Real sc_G_(
+  const Real & W,
+  const Real & E,
+  const Real & J,
+  const Real & dotFv_,
+  const Real floor_E,
+  const Real floor_J,
+  const Real eps_E)
+{
+  if ((E > floor_E) && (J > floor_J))
+  {
+    return W * E / J * (
+      1 - std::min(dotFv_ / E, 1.0-eps_E)
+    );
+  }
+  return 1.0;
+}
+
 inline void st_norm2_(
   AT_C_sca & st_tar_,
   const AT_D_vec & st_V_d_,  // alternative: _u_ &
