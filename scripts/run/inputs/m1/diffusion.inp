@@ -49,8 +49,14 @@ test = diffusion
 ngroups  = 2
 nspecies = 3
 
-# element of: {thin, thick, Minerbo}
-closure_variety = thick
+# element of:
+# {thin,
+#  thick,
+#  Minerbo,    - Brent-Dekker (GSL based)
+#  MinerboP    - Picard
+#  MinerboN    - Newton-Raphson
+# }
+closure_variety = MinerboP
 
 # element of: {approximate, exact}
 characteristics_variety = approximate
@@ -61,9 +67,9 @@ fiducial_velocity = fluid
 # element of:
 # {full_explicit,               - non-stiff regime
 #  semi_implicit_PicardFrozenP  - only for fixed (P_dd)
-#  semi_implicit_Picard         - updates P_dd (use w/ Minerbo)
+#  semi_implicit_PicardMinerboP - updates P_dd based on Minerbo
 # }
-integration_strategy = semi_implicit_PicardFrozenP
+integration_strategy = semi_implicit_PicardMinerboP
 
 # tolerances / ad-hoc fiddle parameters
 fl_E = 1e-15
@@ -72,13 +78,17 @@ eps_E = 1e-5
 eps_J = 1e-10
 
 # [Minerbo] closure root tolerance & maximum iterations
-eps_C = 1e-4
-max_iter_C = 64
+eps_C          = 1e-5
+max_iter_C     = 64
+max_iter_C_rst = 10
+w_opt_ini_C    = 0.5
+reset_thin     = true   // reset on failure to thin limit
+verbose_iter_C = true
 
 # [Picard] iteration settings
 max_iter_P     = 128    // maximum number of iterations (for each restart)
 max_iter_P_rst = 10     // maximum number of restarts
-w_opt_ini      = 0.5    // initial underrelaxation factor
+w_opt_ini_P    = 0.5    // initial underrelaxation factor
 eps_P_abs_tol  = 1e-8   // absolute tolerance
 fac_amp_P      = 1.11   // error amplification tolerance between iterates
 verbose_iter_P = true   // signal e.g. failure to achieve tol.

@@ -83,6 +83,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   lab_aux{
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS}
   },
   rhs{
@@ -160,92 +161,17 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
 
   m1_mask.InitWithShallowSlice(storage.intern, ixn_Internal::mask);
 
-
-  // debug
-  // GroupSpeciesContainer<AT_N_sca> E(1,2);
-  // lab.E(0,0).InitWithShallowSlice(storage.u,I_Lab_E);
-  // lab.E(0,1).InitWithShallowSlice(storage.u,I_Lab_E+1);
-
-  // E(0,0).array().print_all();
-
-  // GroupSpeciesFluxContainer<AT_N_sca> fluxes_E;
-
-  // x1dir = fluxes(ix_g,ix_s)[0](ix_lab::E,k,j,i)
-  // x2dir = fluxes(ix_g,ix_s)[1](ix_lab::E,k,j,i)
-  // x3dir = fluxes(ix_g,ix_s)[2](ix_lab::E,k,j,i)
-  //
-  // x1dir = fluxes(ix_g,ix_s,0)(ix_lab::E,k,j,i)
-  // x2dir = fluxes(ix_g,ix_s,1)(ix_lab::E,k,j,i)
-  // x3dir = fluxes(ix_g,ix_s,2)(ix_lab::E,k,j,i)
-
-  /*
-  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  // --------------------------------------------------------------------------
+  // general setup
+  if (opt.closure_variety == opt_closure_variety::MinerboP)
   {
-    lab.E(ix_g,ix_s).Fill(ix_g+ix_s);
+    for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+    for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+    {
+      lab_aux.sc_xi( ix_g,ix_s).Fill(1.0);  // init. with thin limit
+      lab_aux.sc_chi(ix_g,ix_s).Fill(1.0);
+    }
   }
-
-  const int ix_g = 1;
-  const int ix_s = 2;
-  lab.E(ix_g,ix_s).array().print_all();
-
-  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
-  for (int ix_f=0; ix_f<M1_NDIM; ++ix_f)
-  {
-    fluxes.E(ix_g,ix_s,ix_f).array().print_all();
-  }
-  */
-
-  /*
-  GroupSpeciesFluxContainer<AT_N_sca> fluxes_E(1,1);
-
-  for (int ix_f=0; ix_f<M1_NDIM; ++ix_f)
-    fluxes_E(0,0,ix_f).InitWithShallowSlice(storage.flux[ix_f], I_Lab_E);
-
-  fluxes_E(0,0,0).array().print_all();
-  fluxes.E(0,0,0).array().print_all();
-
-  fluxes_E(0,0,1).array().print_all();
-  // fluxes.E(0,0,1).array().print_all();
-
-  std::exit(0);
-  */
-  /*
-
-  // const int N_gs = (ix_s + N_SPCS * (ix_g + 0)) * N_Lab;
-  // fluxes_E(ix_g,ix_s,0).InitWithShallowSlice(
-  //   storage.flux[0], N_gs+I_Lab_E);
-
-
-  fluxes.E(ix_g,ix_s,1).array().print_all();
-  */
-  // lab.E(ix_g,ix_s).array().print_all();
-
-  // const int ix_g = 1;
-  // const int ix_s = 2;
-  // fluxes.E(ix_g,ix_s,0).array().print_all();
-  // std::exit(0);
-
-  // // debug
-  // for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-  // for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
-  // M1_ILOOP3(k,j,i)
-  // {
-  //   lab.sc_E(ix_g,ix_s)(k,j,i) = mbi.x1(i) + ix_g + ix_s;
-  // }
-
-  // lab.sp_F_d(0, 1).array().print_all();
-  // rad.sp_P_dd(0, 1).array().print_all();
-
-  // std::exit(0);
-  // M1_GLOOP2(k,j)
-  // {
-  //   std::cout << k << "," << j << std::endl;
-  //   Assemble::st_beta_u_(geom.st_beta_u_, geom.sp_beta_u,
-  //                        k, j, 0, mbi.nn1-1);
-  // }
-  // std::exit(0);
 
   // --------------------------------------------------------------------------
   // Advection test init.
@@ -340,6 +266,11 @@ void M1::PopulateOptions(ParameterInput *pin)
       opt.integration_strategy = \
         opt_integration_strategy::semi_implicit_PicardFrozenP;
     }
+    else if (tmp == "semi_implicit_PicardMinerboP")
+    {
+      opt.integration_strategy = \
+        opt_integration_strategy::semi_implicit_PicardMinerboP;
+    }
     else
     {
       msg << "M1/integration_strategy unknown" << std::endl;
@@ -406,6 +337,14 @@ void M1::PopulateOptions(ParameterInput *pin)
     {
       opt.closure_variety = opt_closure_variety::Minerbo;
     }
+    else if (tmp == "MinerboP")
+    {
+      opt.closure_variety = opt_closure_variety::MinerboP;
+    }
+    else if (tmp == "MinerboN")
+    {
+      opt.closure_variety = opt_closure_variety::MinerboN;
+    }
     else
     {
       msg << "M1/closure_variety unknown" << std::endl;
@@ -438,6 +377,11 @@ void M1::PopulateOptions(ParameterInput *pin)
 
     opt.eps_C      = pin->GetOrAddReal(   "M1", "eps_C",      1e-6);
     opt.max_iter_C = pin->GetOrAddInteger("M1", "max_iter_C", 64);
+    opt.max_iter_C_rst = pin->GetOrAddInteger("M1", "max_iter_C_rst", 10);
+    opt.w_opt_ini_C = pin->GetOrAddReal("M1", "w_opt_ini_C", 0.5);
+    opt.reset_thin = pin->GetOrAddBoolean("M1", "reset_thin", true);
+    opt.fac_amp_C = pin->GetOrAddReal("M1", "fac_amp_C", 1.11);
+    opt.verbose_iter_C = pin->GetOrAddBoolean("M1", "verbose_iter_C", false);
   }
 
   { // semi-implicit iteration settings
@@ -489,6 +433,8 @@ void M1::SetVarAliasesLabAux(AthenaArray<Real> & u, vars_LabAux & lab_aux)
                 ixn_Lab_aux::n,    ixn_Lab_aux::N);
     SetVarAlias(lab_aux.sc_chi,  u, ix_g, ix_s,
                 ixn_Lab_aux::chi,  ixn_Lab_aux::N);
+    SetVarAlias(lab_aux.sc_xi,   u, ix_g, ix_s,
+                ixn_Lab_aux::xi,   ixn_Lab_aux::N);
   }
 }
 

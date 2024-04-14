@@ -59,6 +59,11 @@ private:
                                        AthenaArray<Real> & u_cur,
 		                                   AthenaArray<Real> & u_inh);
 
+  void CalcImplicitUpdatePicardMinerboP(Real const dt,
+                                        AthenaArray<Real> & u_pre,
+                                        AthenaArray<Real> & u_cur,
+		                                    AthenaArray<Real> & u_inh);
+
 // data =======================================================================
 public:
   // Mesh->MeshBlock->M1
@@ -98,10 +103,11 @@ public:
 // configuration ==============================================================
 public:
   enum class opt_integration_strategy { full_explicit,
-                                        semi_implicit_PicardFrozenP };
+                                        semi_implicit_PicardFrozenP,
+                                        semi_implicit_PicardMinerboP};
   enum class opt_fiducial_velocity { fluid, mixed, zero, none };
   enum class opt_characteristics_variety { approximate, exact };
-  enum class opt_closure_variety { thin, thick, Minerbo };
+  enum class opt_closure_variety { thin, thick, Minerbo, MinerboP, MinerboN };
   enum class opt_opacity_variety { zero, none };
 
   struct
@@ -130,6 +136,11 @@ public:
     // Closure iteration
     Real eps_C;
     int max_iter_C;
+    int max_iter_C_rst;
+    Real w_opt_ini_C;     // initial underrelaxation factor
+    Real fac_amp_C;       // error amplification tolerance between iterates
+    bool reset_thin;      // outside bracket? reset to thin closure
+    bool verbose_iter_C;  // signal e.g. failure to achieve tol.
 
     // semi-implicit iteration
     int max_iter_P;      // maximum number of iterations (for each restart)
@@ -175,6 +186,7 @@ public:
 
     // Closure weight - not densitized
     GroupSpeciesContainer<AT_C_sca> sc_chi;
+    GroupSpeciesContainer<AT_C_sca> sc_xi;
   };
   vars_LabAux lab_aux;
 
@@ -407,12 +419,13 @@ public:
   // Lab frame variables
   struct ixn_Lab_aux
   {
-    enum { P_xx, P_xy, P_xz, P_yy, P_yz, P_zz, n, chi, N };
+    enum { P_xx, P_xy, P_xz, P_yy, P_yz, P_zz, n, chi, xi, N };
     static constexpr char const * const names[] = {
       "lab_aux.Pxx", "lab_aux.Pxy", "lab_aux.Pxz",
       "lab_aux.Pyy", "lab_aux.Pyz", "lab_aux.Pzz",
       "lab_aux.n",
       "lab_aux.chi",
+      "lab_aux.xi",
     };
   };
 
