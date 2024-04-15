@@ -241,6 +241,9 @@ void M1::CalcImplicitUpdatePicardFrozenP(
   std::array<Real, 1> iI_E;
   std::array<Real, N> iI_F_d;
 
+  // point to scratches -------------------------------------------------------
+  AT_N_vec & sp_H_d_     = scratch.sp_vec_;
+
   // indicial ranges ----------------------------------------------------------
   const int il = pm1->mbi.il;
   const int iu = pm1->mbi.iu;
@@ -313,13 +316,40 @@ void M1::CalcImplicitUpdatePicardFrozenP(
 
         Real S_fac (0);
         S_fac = sc_sqrt_det_g(k,j,i) * sc_eta(k,j,i);
-        S_fac += sc_kap_s(k,j,i) * sc_W(k,j,i) * (
+        S_fac += sc_kap_s(k,j,i) * SQR(sc_W(k,j,i)) * (
           I_E(k,j,i) - 2.0 * dotFv + dotPvv
         );
 
         Real S1 = sc_alpha(k,j,i) * sc_W(k,j,i) * (
           kap_as * (dotFv - I_E(k,j,i)) + S_fac
         );
+
+        // debug ------------------------------------
+        // const Real W  = sc_W(k,j,i);
+        // const Real W2 = SQR(W);
+        // const Real J = W2 * (
+        //   I_E(k,j,i) - 2.0 * dotFv + dotPvv
+        // );
+
+        // const Real H_n = W * (I_E(k,j,i) - J - dotFv);
+
+        // for (int a=0; a<N; ++a)
+        // {
+        //   sp_H_d_(a,i) = W * (
+        //     I_F_d(a,k,j,i) - J * sp_v_d(a,k,j,i)
+        //   );
+        //   for (int b=0; b<N; ++b)
+        //   {
+        //     sp_H_d_(a,i) -= W * sp_v_u(b,k,j,i) * sp_P_dd(a,b,k,j,i);
+        //   }
+        // }
+
+        // S1 = sc_alpha(k,j,i) * (
+        //   (sc_sqrt_det_g(k,j,i) * sc_eta(k,j,i) -
+        //     sc_kap_a(k,j,i) * J) * W -
+        //   (sc_kap_a(k,j,i) + sc_kap_s(k,j,i)) * H_n
+        // );
+        // -------------------------------------------
 
         Real WE = O_E(k,j,i) + dt * R_E(k,j,i);
         Real ZE = I_E(k,j,i) - dt * S1 - WE;
@@ -339,6 +369,14 @@ void M1::CalcImplicitUpdatePicardFrozenP(
             kap_as * (dotPv - I_F_d(a,k,j,i)) + S_fac * sp_v_d(a,k,j,i)
           );
 
+          // debug ------------------------------------
+          // S1pk = sc_alpha(k,j,i) * (
+          //   (sc_sqrt_det_g(k,j,i) * sc_eta(k,j,i) -
+          //   sc_kap_a(k,j,i) * J) * W * sp_v_d(a,k,j,i) -
+          //   (sc_kap_a(k,j,i) + sc_kap_s(k,j,i)) * sp_H_d_(a,i)
+          // );
+          // ------------------------------------------
+
           Real WF_d = O_F_d(a,k,j,i) + dt * R_F_d(a,k,j,i);
           Real ZF_d = I_F_d(a,k,j,i) - dt * S1pk - WF_d;
 
@@ -346,6 +384,8 @@ void M1::CalcImplicitUpdatePicardFrozenP(
 
           e_abs_cur = std::max(std::abs(ZF_d), e_abs_cur);
         }
+
+        e_abs_cur = w_opt * e_abs_cur;
 
         if (e_abs_cur > fac_PA * e_abs_old)
         {
@@ -543,7 +583,7 @@ void M1::CalcImplicitUpdatePicardMinerboP(
         }
         oo_norm2F = (oo_norm2F > 0) ? 1.0 / oo_norm2F : 0.0;
 
-        const Real J_thin = 3.0 * (2.0 * W2 + 1.0) * (
+        const Real J_tk = 3.0 / (2.0 * W2 + 1.0) * (
           (2.0 * W2 - 1.0) * I_E(k,j,i) - 2.0 * W2 * dotFv
         );
 
@@ -563,10 +603,10 @@ void M1::CalcImplicitUpdatePicardMinerboP(
         for (int b=a; b<N; ++b)
         {
           sp_P_tk_dd_(a,b,i) = (
-            4.0 * ONE_3RD * W2 * J_thin * sp_v_d(a,k,j,i) * sp_v_d(b,k,j,i) +
+            4.0 * ONE_3RD * W2 * J_tk * sp_v_d(a,k,j,i) * sp_v_d(b,k,j,i) +
             W * (sp_v_d(a,k,j,i) * sp_H_d_(b,i) +
                  sp_v_d(b,k,j,i) * sp_H_d_(a,i)) +
-            ONE_3RD * J_thin * sp_g_dd(a,b,k,j,i)
+            ONE_3RD * J_tk * sp_g_dd(a,b,k,j,i)
           );
           sp_P_tn_dd_(a,b,i) = oo_norm2F * I_E(k,j,i) *
                                            I_F_d(a,k,j,i) *
@@ -608,7 +648,7 @@ void M1::CalcImplicitUpdatePicardMinerboP(
           Z_xi -= sp_g_uu(a,b,k,j,i) * sp_H_d_(a,i) * sp_H_d_(b,i);
         }
 
-        sc_xi(k,j,i) = sc_xi(k,j,i) - w_opt * Z_xi;
+        sc_xi(k,j,i) = std::abs(sc_xi(k,j,i) - w_opt * Z_xi);
         e_abs_cur_C = std::abs(Z_xi);
 
         if (opt.reset_thin)
@@ -627,11 +667,22 @@ void M1::CalcImplicitUpdatePicardMinerboP(
           e_abs_cur_C = 0.0;
         }
 
+        // if (1)
+        // {
+        //   sc_xi(k,j,i) = 0;
+        //   sc_chi(k,j,i) = f_chi(sc_xi(k,j,i));
+        //   for (int a=0; a<N; ++a)
+        //   for (int b=a; b<N; ++b)
+        //   {
+        //     sp_P_dd(a,b,k,j,i) = sp_P_tk_dd_(a,b,i);
+        //   }
+        // }
+
         // state-vector non-linear subsystem ----------------------------------
 
         Real S_fac (0);
         S_fac = sc_sqrt_det_g(k,j,i) * sc_eta(k,j,i);
-        S_fac += sc_kap_s(k,j,i) * W * J_fac;
+        S_fac += sc_kap_s(k,j,i) * W2 * J_fac;
 
         Real S1 = sc_alpha(k,j,i) * W * (
           kap_as * (dotFv - I_E(k,j,i)) + S_fac
@@ -664,6 +715,8 @@ void M1::CalcImplicitUpdatePicardMinerboP(
           e_abs_cur = std::max(std::abs(ZF_d), e_abs_cur);
         }
 
+        e_abs_cur = w_opt * e_abs_cur;
+
         if (e_abs_cur > fac_PA * e_abs_old)
         {
           // halve underrelaxation and recover old values
@@ -684,7 +737,7 @@ void M1::CalcImplicitUpdatePicardMinerboP(
           if (rit > iter_max_R)
           {
             std::ostringstream msg;
-            msg << "M1::CalcImplicitUpdatePicardFrozenP max restarts exceeded.";
+            msg << "M1::CalcImplicitUpdatePicardMinerboP max restarts exceeded.";
             std::cout << msg.str().c_str() << std::endl;
             std::exit(0);
           }

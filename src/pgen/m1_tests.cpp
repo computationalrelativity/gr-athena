@@ -1,21 +1,7 @@
-//========================================================================================
-// Athena++ astrophysical MHD code
-// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
-// Licensed under the 3-clause BSD License, see LICENSE file for details
-//========================================================================================
-//! \file m1_beam.cpp
-//! \brief Problem generator for M1 beam tests (thin regime) in flat spacetime
-//========================================================================================
-
 // C headers
 
 // C++ headers
-// #include <cmath>      // sqrt()
-// #include <cstdio>     // fopen(), freopen(), fprintf(), fclose()
-// #include <iostream>   // endl
-// #include <sstream>    // stringstream
-// #include <stdexcept>  // runtime_error
-// #include <string>
+// ..
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -25,143 +11,190 @@
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 
+// ============================================================================
 
-// Real threshold;
+namespace {
+// ============================================================================
 
 int RefinementCondition(MeshBlock *pmb);
-// void KerrBeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
-//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
-// void BeamOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
-//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
-// void BeamInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
-//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
-// void BeamOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
-//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
-// void BeamInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
-//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
-// void BeamOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
-//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh);
+
+void InitM1Advection(MeshBlock *pmb, ParameterInput *pin)
+{
+  M1::M1 * pm1 = pmb->pm1;
+
+  const Real b_x_0 = pin->GetReal("problem", "b_x_0");
+  const Real f_x_0 = pin->GetReal("problem", "f_x_0");
+  const Real abs_v = pin->GetReal("problem", "abs_v");
+
+  for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+  {
+    M1::AT_C_sca & sc_E   = pm1->lab.sc_E(  ix_g,ix_s);
+    M1::AT_N_vec & sp_F_d = pm1->lab.sp_F_d(ix_g,ix_s);
+    M1::AT_C_sca & sc_nG  = pm1->lab.sc_nG( ix_g,ix_s);
+
+    sc_E.ZeroClear();
+    sp_F_d.ZeroClear();
+    sc_nG.ZeroClear();
+
+    M1_GLOOP3(k,j,i)
+    {
+      sc_E(k,j,i)     = (pm1->mbi.x1(i) < b_x_0) ? 1.0 : 0.0;
+      sp_F_d(0,k,j,i) = sc_E(k,j,i);
+    }
+  }
+
+  // Initialize fiducial velocity
+  pm1->fidu.sp_v_u.ZeroClear();
+
+  const Real W = 1.0 / std::sqrt(1 - SQR(abs_v));
+
+  M1_GLOOP3(k,j,i)
+  {
+    pm1->hydro.sc_W(k,j,i)          = W;
+    pm1->hydro.sp_w_util_u(0,k,j,i) = W * abs_v;
+  }
+
+  // assemble sp_v_u, sp_v_d etc.
+  pm1->CalcFiducialVelocity();
+}
+
+void InitM1Diffusion(MeshBlock *pmb, ParameterInput *pin)
+{
+  M1::M1 * pm1 = pmb->pm1;
+
+  const Real b_x_a = pin->GetReal("problem", "b_x_a");
+  const Real b_x_b = pin->GetReal("problem", "b_x_b");
+
+  const Real rho   = pin->GetReal("problem", "rho");
+  const Real kap_s = pin->GetReal("problem", "kap_s");
+
+  for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+  {
+    M1::AT_C_sca & sc_E   = pm1->lab.sc_E(  ix_g,ix_s);
+    M1::AT_N_vec & sp_F_d = pm1->lab.sp_F_d(ix_g,ix_s);
+    M1::AT_C_sca & sc_nG  = pm1->lab.sc_nG( ix_g,ix_s);
+
+    M1::AT_C_sca & sc_kap_s = pm1->radmat.sc_kap_s(ix_g,ix_s);
+
+    sc_E.ZeroClear();
+    sp_F_d.ZeroClear();
+    sc_nG.ZeroClear();
+
+    M1_GLOOP3(k,j,i)
+    {
+      const bool nz = (pm1->mbi.x1(i) >= b_x_a) && (pm1->mbi.x1(i) <= b_x_b);
+      sc_E(k,j,i) = nz ? 1.0 : 0.0;
+    }
+
+    sc_kap_s.Fill(kap_s);
+  }
+
+  // Initialize fiducial velocity
+  pm1->fidu.sp_v_u.ZeroClear();
+  pm1->hydro.sc_w_rho.Fill(rho);
+}
+
+void InitM1DiffusionMovingMedium(MeshBlock *pmb, ParameterInput *pin)
+{
+  M1::M1 * pm1 = pmb->pm1;
+
+  const Real abs_v = pin->GetReal("problem", "abs_v");
+
+  const Real rho   = pin->GetReal("problem", "rho");
+  const Real kap_s = pin->GetReal("problem", "kap_s");
+
+  // Initialize fiducial velocity
+  pm1->fidu.sp_v_u.ZeroClear();
+
+  const Real W = 1.0 / std::sqrt(1 - SQR(abs_v));
+
+  M1_GLOOP3(k,j,i)
+  {
+    pm1->hydro.sc_W(k,j,i)          = W;
+    pm1->hydro.sp_w_util_u(0,k,j,i) = W * abs_v;
+  }
+
+  pm1->hydro.sc_w_rho.Fill(rho);
+  // assemble sp_v_u, sp_v_d etc.
+  pm1->CalcFiducialVelocity();
+
+
+  for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+  {
+    M1::AT_C_sca & sc_E   = pm1->lab.sc_E(  ix_g,ix_s);
+    M1::AT_N_vec & sp_F_d = pm1->lab.sp_F_d(ix_g,ix_s);
+    M1::AT_C_sca & sc_nG  = pm1->lab.sc_nG( ix_g,ix_s);
+
+    M1::AT_C_sca & sc_kap_s = pm1->radmat.sc_kap_s(ix_g,ix_s);
+
+    sc_E.ZeroClear();
+    sp_F_d.ZeroClear();
+    sc_nG.ZeroClear();
+
+    M1_GLOOP3(k,j,i)
+    {
+      sc_E(k,j,i) = std::exp(-9.0 * SQR(pm1->mbi.x1(i)));
+      const Real J = 3.0 * sc_E(k,j,i) / (4.0 * SQR(W) - 1.0);
+
+      sp_F_d(0,k,j,i) = 4.0 * ONE_3RD * J * SQR(W) * pm1->fidu.sp_v_d(0,k,j,i);
+    }
+
+    sc_kap_s.Fill(kap_s);
+  }
+
+
+}
+
+
+// ============================================================================
+} // namespace
+// ============================================================================
 
 void Mesh::InitUserMeshData(ParameterInput *pin)
 {
-  std::string m1_test = pin->GetOrAddString("M1", "test", "beam");
-
-  if (m1_test == "kerr_beam") {
-    //EnrollUserBoundaryFunction(BoundaryFace::inner_x1, KerrBeamInnerX1);
-  }
-  // EnrollUserBoundaryFunction(BoundaryFace::inner_x1, BeamInnerX1);
-  // EnrollUserBoundaryFunction(BoundaryFace::outer_x1, BeamOuterX1);
-  // EnrollUserBoundaryFunction(BoundaryFace::inner_x2, BeamInnerX2);
-  // EnrollUserBoundaryFunction(BoundaryFace::outer_x2, BeamOuterX2);
-  // EnrollUserBoundaryFunction(BoundaryFace::inner_x3, BeamInnerX3);
-  // EnrollUserBoundaryFunction(BoundaryFace::outer_x3, BeamOuterX3);
   if (adaptive)
   {
     EnrollUserRefinementCondition(RefinementCondition);
-    //threshold = pin->GetReal("problem", "thr");
   }
   return;
 }
 
-//========================================================================================
-//! \fn void MeshBlock::ProblemGenerator(ParameterInput *pin)
-//! \brief Problem Generator for the beam test
-//========================================================================================
 
 void MeshBlock::ProblemGenerator(ParameterInput *pin)
 {
-  /*
-  pm1->m1_test = pin->GetOrAddString("M1", "test", "beam");
+  std::string m1_test = pin->GetOrAddString("problem", "test", "advection");
 
-  // Read necessary <problem> paramters
-  if (pm1->m1_test == "beam") {
-    pm1->beam_dir[0] = pin->GetOrAddReal("problem", "beam_dir1", 1.0);
-    pm1->beam_dir[1] = pin->GetOrAddReal("problem", "beam_dir2", 0.0);
-    pm1->beam_dir[2] = pin->GetOrAddReal("problem", "beam_dir3", 0.0);
-    pm1->beam_position[0] = pin->GetOrAddReal("problem", "beam_position_x", 0.0);
-    pm1->beam_position[1] = pin->GetOrAddReal("problem", "beam_position_y", 0.0);
-    pm1->beam_position[2] = pin->GetOrAddReal("problem", "beam_position_z", 0.0);
-    pm1->beam_width = pin->GetOrAddReal("problem", "beam_width", 1.0);
-  } else if (pm1->m1_test == "shadow") {
-    pm1->beam_position[2] = pin->GetOrAddReal("problem", "beam_position_z", 0.0);
-    pm1->beam_width = pin->GetOrAddReal("problem", "beam_width", 1.0);
-  } else if (pm1->m1_test == "kerr_beam") {
-    pm1->kerr_mask_radius = pin->GetOrAddReal("problem", "kerr_mask_radius", 2.0);
-    pm1->beam_position[2] = pin->GetOrAddReal("problem", "beam_position_z", 0.0);
-    pm1->beam_width = pin->GetOrAddReal("problem", "beam_width", 1.0);
-  } else if (pm1->m1_test == "diffusion") {
-    pm1->diff_profile = pin->GetOrAddString("problem", "diff_profile", "step");
-    pm1->medium_velocity = pin->GetOrAddReal("problem", "medium_velocity", 0.0);
+  if (m1_test == "advection")
+  {
+    InitM1Advection(this, pin);
+  }
+  else if (m1_test == "diffusion")
+  {
+    InitM1Diffusion(this, pin);
+  }
+  else if (m1_test == "diffusion_moving_medium")
+  {
+    InitM1DiffusionMovingMedium(this, pin);
   }
 
-  // Set metric quantities
-  if (pm1->m1_test == "kerr_beam") {
-    pm1->SetupKerrSchildMask(pm1->storage.u);
-    pz4c->SetKerrSchild(pz4c->storage.adm, pz4c->storage.u);
-  } else {
-    pz4c->ADMMinkowski(pz4c->storage.adm);
-    pz4c->GaugeGeodesic(pz4c->storage.u);
-  }
-  pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
-
-  // Set M1 Lab variables and fiducial velocity
-  if (pm1->m1_test == "beam") {
-    pm1->SetupBeamTest(pm1->storage.u);
-  } else if (pm1->m1_test == "advection") {
-    pm1->SetupAdvectionJumpTest(pm1->storage.u);
-  } else if (pm1->m1_test == "diffusion") {
-    pm1->SetupDiffusionTest(pm1->storage.u);
-  } else {
-    pm1->SetupZeroVars(pm1->storage.u);
-  }
-  */
 }
 
-// refinement condition:
+// ============================================================================
+namespace {  // impl. details
+// ============================================================================
+
 int RefinementCondition(MeshBlock *pmb)
 {
-  /*
-  M1::Lab_vars vec;
-  pmb->pm1->SetLabVarsAliases(pmb->pm1->storage.u, vec);
-  for(int k=pmb->ks; k<=pmb->ke; k++) {
-    for(int j=pmb->js; j<=pmb->je; j++) {
-      for(int i=pmb->is; i<=pmb->ie; i++) {
-        if (vec.E(0,k,j,i) > 0.1)
-          return 1.;
-      }
-    }
-  }
-  return -1.;
-  */
-
   return -1;
 }
 
-// void KerrBeamInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u, FaceField &b,
-//                Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
-//  pmb->pm1->KerrBeamInnerX1(pmb, pco, u, time, dt, ngh);
-// }
+// ============================================================================
+} // namespace
+// ============================================================================
 
-// void BeamOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u, FaceField &b,
-//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
-//   pmb->pm1->BeamOuterX1(pmb, pco, u, time, dt, il, iu, jl, ju, kl, ku, ngh);
-// }
-
-// void BeamInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u, FaceField &b,
-//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
-//   pmb->pm1->BeamInnerX2(pmb, pco, u, time, dt, il, iu, jl, ju, kl, ku, ngh);
-// }
-// void BeamOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u, FaceField &b,
-//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
-//   pmb->pm1->BeamOuterX2(pmb, pco, u, time, dt, il, iu, jl, ju, kl, ku, ngh);
-// }
-
-// void BeamInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u, FaceField &b,
-//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
-//   pmb->pm1->BeamInnerX3(pmb, pco, u, time, dt, il, iu, jl, ju, kl, ku, ngh);
-// }
-
-// void BeamOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &u, FaceField &b,
-//                 Real time, Real dt, int il, int iu, int jl, int ju, int kl, int ku, int ngh) {
-//   pmb->pm1->BeamOuterX3(pmb, pco, u, time, dt, il, iu, jl, ju, kl, ku, ngh);
-// }
+//
+// :D
+//

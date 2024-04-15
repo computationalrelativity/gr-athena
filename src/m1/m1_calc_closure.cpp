@@ -608,7 +608,7 @@ void AddClosureP(M1 * pm1,
         }
 
         sc_xi(k,j,i) = sc_xi(k,j,i) - w_opt * Z_xi;
-        e_abs_cur = std::abs(Z_xi);
+        e_abs_cur = std::abs(w_opt * Z_xi);
 
         if (e_abs_cur > fac_PA * e_abs_old)
         {
@@ -625,6 +625,240 @@ void AddClosureP(M1 * pm1,
           {
             std::ostringstream msg;
             msg << "M1::Closures::Minerbo::AddClosureP max restarts exceeded.";
+            std::cout << msg.str().c_str() << std::endl;
+            std::exit(0);
+          }
+        }
+        else
+        {
+          e_abs_old = e_abs_cur;
+          sc_chi(k,j,i) = chi(sc_xi(k,j,i));
+
+          if (pm1->opt.reset_thin)
+          {
+            if ((sc_xi(k,j,i) < xi_min) || (sc_xi(k,j,i) > xi_max))
+            {
+              sc_xi(k,j,i) = xi_max;
+              sc_chi(k,j,i) = chi(sc_xi(k,j,i));
+
+              for (int a=0; a<N; ++a)
+              for (int b=a; b<N; ++b)
+              {
+                sp_P_dd(a,b,k,j,i) = sp_P_tn_dd_(a,b,i);
+              }
+
+              e_abs_cur = 0.0; // forces iter breakout
+            }
+          }
+
+        }
+
+      } while ((pit < iter_max_C) && (e_abs_cur >= e_C_abs_tol));
+
+      iter_tot += pit;
+    }
+
+
+  }
+
+  // const int nn = pm1->mbi.nn1 * pm1->mbi.nn2 * pm1->mbi.nn3;
+  // std::cout << static_cast<Real>(iter_tot) / nn << std::endl;
+
+}
+
+void AddClosureN(M1 * pm1,
+                 const Real weight,
+                 const int ix_g,
+                 const int ix_s,
+                 AT_N_sym & sp_P_dd)
+{
+  // Admissible ranges for xi entering Eddington factor chi(xi)
+  const Real xi_min = 0.0;
+  const Real xi_max = 1.0;
+
+  const int il = 0;
+  const int iu = pm1->mbi.nn1-1;
+
+  // fiducial quantities
+  AT_C_sca & sc_W   = pm1->fidu.sc_W;
+  AT_N_vec & sp_v_u = pm1->fidu.sp_v_u;
+  AT_N_vec & sp_v_d = pm1->fidu.sp_v_d;
+
+  AT_C_sca & sc_E   = pm1->lab.sc_E(  ix_g,ix_s);
+  AT_N_vec & sp_F_d = pm1->lab.sp_F_d(ix_g,ix_s);
+  AT_C_sca & sc_chi = pm1->lab_aux.sc_chi(ix_g,ix_s);
+  AT_C_sca & sc_xi  = pm1->lab_aux.sc_xi( ix_g,ix_s);
+
+  // required geometric quantities
+  AT_N_sym & sp_g_dd = pm1->geom.sp_g_dd;
+  AT_N_sym & sp_g_uu = pm1->geom.sp_g_uu;
+
+  // point to scratches
+  AT_N_vec & sp_H_d_     = pm1->scratch.sp_vec_;
+  AT_N_sym & sp_P_tn_dd_ = pm1->scratch.sp_sym_A_;
+  AT_N_sym & sp_P_tk_dd_ = pm1->scratch.sp_sym_B_;
+
+  AT_N_vec sp_dH_d_( pm1->mbi.nn1);
+  AT_N_sym sp_dP_dd_(pm1->mbi.nn1);
+
+  std::array<Real, 1> iI_xi;
+
+  // main loop ----------------------------------------------------------------
+  int iter_tot = 0;
+
+  M1_GLOOP2(k,j)
+  {
+    Closures::ClosureThin( pm1, 1.0, ix_g, ix_s, sp_P_tn_dd_, k, j, il, iu);
+    Closures::ClosureThick(pm1, 1.0, ix_g, ix_s, sp_P_tk_dd_, k, j, il, iu);
+
+    M1_GLOOP1(i)
+    {
+      const int iter_max_C = pm1->opt.max_iter_C;
+      int pit = 0;     // iteration counter
+      int rit = 0;     // restart counter
+      const int iter_max_R = pm1->opt.max_iter_C_rst;  // max restarts
+      Real w_opt = pm1->opt.w_opt_ini_C;  // underrelaxation factor
+      Real e_C_abs_tol = pm1->opt.eps_C;
+      // maximum error amplification factor between iters.
+      Real fac_PA = pm1->opt.fac_amp_C;
+
+      // retain values for potential restarts
+      iI_xi[0] = sc_xi(k,j,i);
+
+      Real e_abs_old = std::numeric_limits<Real>::infinity();
+      Real e_abs_cur = 0;
+
+      // solver loop ----------------------------------------------------------
+      const Real W = sc_W(k,j,i);
+      const Real oo_W = 1.0 / W;
+      const Real W2   = SQR(W);
+
+      Real dotFv (0);
+      for (int a=0; a<N; ++a)
+      {
+        dotFv += sp_F_d(a,k,j,i) * sp_v_u(a,k,j,i);
+      }
+
+      do
+      {
+        pit++;
+
+        const Real xi  = sc_xi(k,j,i);
+        const Real chi_ = chi(xi);
+
+        for (int a=0; a<N; ++a)
+        for (int b=a; b<N; ++b)
+        {
+          sp_P_dd(a,b,k,j,i) = (
+            0.5 * (3.0 * chi_ - 1.0) * sp_P_tn_dd_(a,b,i) +
+            0.5 * 3.0 * (1.0 - chi_) * sp_P_tk_dd_(a,b,i)
+          );
+        }
+
+        // assemble zero functional
+        Real dotPvv (0);
+        for (int a=0; a<N; ++a)
+        for (int b=0; b<N; ++b)
+        {
+          dotPvv += sp_P_dd(a,b,k,j,i) * sp_v_u(a,k,j,i) * sp_v_u(b,k,j,i);
+        }
+
+        const Real J_fac = sc_E(k,j,i) - 2.0 * dotFv + dotPvv;
+        const Real J     = W2 * J_fac;
+        const Real Hn    = W * (sc_E(k,j,i) - J - dotFv);
+
+        for (int a=0; a<N; ++a)
+        {
+          Real dotPv (0);
+          for (int b=0; b<N; ++b)
+          {
+            dotPv += sp_P_dd(a,b,k,j,i) * sp_v_u(b,k,j,i);
+          }
+
+          sp_H_d_(a,i) = W * (sp_F_d(a,k,j,i) - J * sp_v_d(a,k,j,i) - dotPv);
+        }
+
+        Real Z_xi = SQR(xi) * SQR(J) + SQR(Hn);
+        for (int a=0; a<N; ++a)
+        for (int b=0; b<N; ++b)
+        {
+          Z_xi -= sp_g_uu(a,b,k,j,i) * sp_H_d_(a,i) * sp_H_d_(b,i);
+        }
+
+        // derivative of Z_xi
+        Real dJ (0);
+        Real dHH (0);
+
+        for (int a=0; a<N; ++a)
+        for (int b=0; b<N; ++b)
+        {
+          sp_dP_dd_(a,b,i) = 3.0 / 5.0 * (
+            sp_P_tn_dd_(a,b,i) - sp_P_tk_dd_(a,b,i)
+          ) * xi * (2.0 - xi + 4.0 * SQR(xi));
+
+          dJ += sp_v_u(a,k,j,i) * sp_v_u(b,k,j,i) * sp_dP_dd_(a,b,i);
+        }
+
+        dJ = W * dJ;
+
+        const Real dHn = -W * dJ;
+
+        for (int a=0; a<N; ++a)
+        {
+          sp_dH_d_(a,i) = sp_v_d(a,k,j,i) * dJ;
+          for (int b=0; b<N; ++b)
+          {
+            sp_dH_d_(a,i) += sp_v_u(b,k,j,i) * sp_dP_dd_(a,b,i);
+          }
+          sp_dH_d_(a,i) = -W * sp_dH_d_(a,i);
+        }
+
+        for (int a=0; a<N; ++a)
+        for (int b=0; b<N; ++b)
+        {
+          dHH += sp_g_uu(a,b,k,j,i) * sp_dH_d_(a,i) * sp_H_d_(b,i);
+        }
+
+        Real dZ_xi = (
+          2 * xi * SQR(J) + 2 * J * SQR(xi) * dJ + 2 * Hn * dHn - dHH
+        );
+
+        // Apply Newton iterate with fallback
+        Real D = 0;
+        Real sc_xi_can = std::numeric_limits<Real>::infinity();
+
+        if ((std::abs(dZ_xi) > pm1->opt.eps_C_N) && (rit == 0))
+        {
+          // Newton
+          D = Z_xi / dZ_xi;
+          sc_xi_can = sc_xi(k,j,i) - D;
+        }
+        else
+        {
+          // Picard
+          D = w_opt * Z_xi;
+          sc_xi_can = sc_xi(k,j,i) - D;
+
+        }
+
+        sc_xi(k,j,i) = sc_xi_can;
+        e_abs_cur = std::abs(D);
+
+        if (e_abs_cur > fac_PA * e_abs_old)
+        {
+          // halve underrelaxation and recover old values
+          w_opt = w_opt / 2;
+          sc_xi(k,j,i) = iI_xi[0];
+
+          // restart iteration
+          e_abs_old = std::numeric_limits<Real>::infinity();
+          pit = 0;
+          rit++;
+
+          if (rit > iter_max_R)
+          {
+            std::ostringstream msg;
+            msg << "M1::Closures::Minerbo::AddClosureN max restarts exceeded.";
             std::cout << msg.str().c_str() << std::endl;
             std::exit(0);
           }
@@ -714,6 +948,13 @@ void M1::CalcClosure(AthenaArray<Real> & u)
       case (opt_closure_variety::MinerboP):
       {
         Closures::Minerbo::AddClosureP(this,
+                                       1.0, ix_g, ix_s,
+                                       lab_aux.sp_P_dd(ix_g,ix_s));
+        break;
+      }
+      case (opt_closure_variety::MinerboN):
+      {
+        Closures::Minerbo::AddClosureN(this,
                                        1.0, ix_g, ix_s,
                                        lab_aux.sp_P_dd(ix_g,ix_s));
         break;

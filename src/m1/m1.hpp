@@ -135,6 +135,7 @@ public:
 
     // Closure iteration
     Real eps_C;
+    Real eps_C_N;
     int max_iter_C;
     int max_iter_C_rst;
     Real w_opt_ini_C;     // initial underrelaxation factor

@@ -163,7 +163,8 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
 
   // --------------------------------------------------------------------------
   // general setup
-  if (opt.closure_variety == opt_closure_variety::MinerboP)
+  if ((opt.closure_variety == opt_closure_variety::MinerboP) ||
+      (opt.closure_variety == opt_closure_variety::MinerboN))
   {
     for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
     for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
@@ -172,81 +173,6 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
       lab_aux.sc_chi(ix_g,ix_s).Fill(1.0);
     }
   }
-
-  // --------------------------------------------------------------------------
-  // Advection test init.
-  if (0)
-  {
-    const Real b_x_0 = -0.5;  // beam step at this location
-    const Real f_x_0 = 0.0;  // fluid propagation discontinuity
-    const Real abs_v = 0.87;
-
-    // Initialize Eulerian frame variables
-    for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-    for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
-    {
-      AT_C_sca & sc_E   = lab.sc_E(  ix_g,ix_s);
-      AT_N_vec & sp_F_d = lab.sp_F_d(ix_g,ix_s);
-      AT_C_sca & sc_nG  = lab.sc_nG( ix_g,ix_s);
-
-      sc_E.ZeroClear();
-      sp_F_d.ZeroClear();
-      sc_nG.ZeroClear();
-
-      M1_GLOOP3(k,j,i)
-      {
-        sc_E(k,j,i)     = (mbi.x1(i) < b_x_0) ? 1.0 : 0.0;
-        sp_F_d(0,k,j,i) = sc_E(k,j,i);
-      }
-
-    }
-
-    // Initialize fiducial velocity
-    fidu.sp_v_u.ZeroClear();
-    M1_GLOOP3(k,j,i)
-    {
-      hydro.sp_w_util_u(0,k,j,i) = (mbi.x1(i) < f_x_0) ? abs_v : -abs_v;
-    }
-  }
-
-
-  // diffusion test init.
-  if (1)
-  {
-    const Real b_x_a = -0.5;  // E = 1 on [a,b]
-    const Real b_x_b = +0.5;
-    const Real rho   = 1.0;
-    const Real kap_s = 1000;
-
-    // Initialize Eulerian frame variables
-    for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-    for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
-    {
-      AT_C_sca & sc_E   = lab.sc_E(  ix_g,ix_s);
-      AT_N_vec & sp_F_d = lab.sp_F_d(ix_g,ix_s);
-      AT_C_sca & sc_nG  = lab.sc_nG( ix_g,ix_s);
-
-      AT_C_sca & sc_kap_s = radmat.sc_kap_s(ix_g,ix_s);
-
-      sc_E.ZeroClear();
-      sp_F_d.ZeroClear();
-      sc_nG.ZeroClear();
-
-      M1_GLOOP3(k,j,i)
-      {
-        const bool nz = (mbi.x1(i) >= b_x_a) && (mbi.x1(i) <= b_x_b);
-        sc_E(k,j,i) = nz ? 1.0 : 0.0;
-      }
-
-      sc_kap_s.Fill(kap_s);
-
-    }
-
-    // Initialize fiducial velocity
-    fidu.sp_v_u.ZeroClear();
-    hydro.sc_w_rho.Fill(rho);
-  }
-
 
 }
 
@@ -376,6 +302,7 @@ void M1::PopulateOptions(ParameterInput *pin)
     opt.eps_J = pin->GetOrAddReal("M1", "eps_J", 1e-10);
 
     opt.eps_C      = pin->GetOrAddReal(   "M1", "eps_C",      1e-6);
+    opt.eps_C_N    = pin->GetOrAddReal(   "M1", "eps_C_N",    1e-10);
     opt.max_iter_C = pin->GetOrAddInteger("M1", "max_iter_C", 64);
     opt.max_iter_C_rst = pin->GetOrAddInteger("M1", "max_iter_C_rst", 10);
     opt.w_opt_ini_C = pin->GetOrAddReal("M1", "w_opt_ini_C", 0.5);
