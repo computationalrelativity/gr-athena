@@ -100,7 +100,9 @@ void BoundaryValues::ProlongateBoundariesM1(const Real time, const Real dt)
     else              sk = pmb->cks-cn, ek = pmb->cks-1;
 
     // Step 2. Re-apply physical boundaries on the coarse boundary:
+    pmb->pm1->enable_user_bc = true;
     ApplyPhysicalBoundariesOnCoarseLevelM1(nb, time, dt, si, ei, sj, ej, sk, ek);
+    pmb->pm1->enable_user_bc = false;
 
     // Step 3. Finally, the ghost-ghost zones are ready for prolongation:
     ProlongateGhostCellsM1(nb, si, ei, sj, ej, sk, ek);

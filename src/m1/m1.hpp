@@ -72,6 +72,9 @@ public:
   MeshBlock *pmy_block;
   Coordinates *pmy_coord;
 
+  // Athena++ imposes BC as a monolith. This requires an awkward work-around:
+  bool enable_user_bc { false };
+
   // M1-indicial information
   MB_info mbi;
 
@@ -132,6 +135,7 @@ public:
     Real fl_J;
     Real eps_E;
     Real eps_J;
+    Real min_flux_A;
 
     // Closure iteration
     Real eps_C;

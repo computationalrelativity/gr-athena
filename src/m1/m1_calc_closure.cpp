@@ -607,6 +607,15 @@ void AddClosureP(M1 * pm1,
           Z_xi -= sp_g_uu(a,b,k,j,i) * sp_H_d_(a,i) * sp_H_d_(b,i);
         }
 
+        if (std::abs(Z_xi) < e_C_abs_tol)
+        {
+          break;
+        }
+
+        // // enforce non-negative values
+        // Real sc_xi_can = sc_xi(k,j,i) - w_opt * Z_xi;
+        // sc_xi(k,j,i) = std::min(std::max(sc_xi_can, xi_min), xi_max);
+
         sc_xi(k,j,i) = sc_xi(k,j,i) - w_opt * Z_xi;
         e_abs_cur = std::abs(w_opt * Z_xi);
 
@@ -785,6 +794,11 @@ void AddClosureN(M1 * pm1,
           Z_xi -= sp_g_uu(a,b,k,j,i) * sp_H_d_(a,i) * sp_H_d_(b,i);
         }
 
+        if (std::abs(Z_xi) < e_C_abs_tol)
+        {
+          break;
+        }
+
         // derivative of Z_xi
         Real dJ (0);
         Real dHH (0);
@@ -832,17 +846,29 @@ void AddClosureN(M1 * pm1,
           // Newton
           D = Z_xi / dZ_xi;
           sc_xi_can = sc_xi(k,j,i) - D;
+
+          // if ((sc_xi_can < xi_min) || (sc_xi_can > xi_max))
+          // {
+          //   // Picard
+          //   D = w_opt * Z_xi;
+          //   sc_xi_can = sc_xi(k,j,i) - D;
+          // }
         }
         else
         {
           // Picard
           D = w_opt * Z_xi;
           sc_xi_can = sc_xi(k,j,i) - D;
-
         }
 
-        sc_xi(k,j,i) = sc_xi_can;
-        e_abs_cur = std::abs(D);
+        // enforce non-negative values
+        sc_xi(k,j,i) = std::min(std::max(sc_xi_can, xi_min), xi_max);
+        // sc_xi(k,j,i) = std::min(std::abs(sc_xi_can), xi_max);
+        // sc_xi(k,j,i) = sc_xi_can;
+
+        // scale error tol by step
+        // e_abs_cur = std::abs(D);
+        e_abs_cur = std::abs(D / w_opt);
 
         if (e_abs_cur > fac_PA * e_abs_old)
         {

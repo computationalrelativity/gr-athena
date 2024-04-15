@@ -148,6 +148,165 @@ void InitM1DiffusionMovingMedium(MeshBlock *pmb, ParameterInput *pin)
 
 }
 
+void BCOutFlowInnerX1(MeshBlock *pmb,
+                      Coordinates *pco,
+                      AthenaArray<Real> &u,
+                      FaceField &b,
+                      Real time, Real dt,
+                      int il, int iu,
+                      int jl, int ju,
+                      int kl, int ku, int ngh)
+{
+  // Warning: u gets called with ph->w.
+  M1::M1 * pm1 = pmb->pm1;
+
+  // Are we being called when required by M1?
+  if (!pm1->enable_user_bc)
+  {
+    return;
+  }
+
+  M1::M1::vars_Lab U {
+    {pm1->N_GRPS,pm1->N_SPCS},
+    {pm1->N_GRPS,pm1->N_SPCS},
+    {pm1->N_GRPS,pm1->N_SPCS}
+  };
+  pm1->SetVarAliasesLab(pm1->storage.u, U);
+
+  for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+  {
+    M1::AT_C_sca & U_nG   = U.sc_nG( ix_g,ix_s);
+    M1::AT_N_vec & U_F_d  = U.sp_F_d(ix_g,ix_s);
+    M1::AT_C_sca & U_E    = U.sc_E(  ix_g,ix_s);
+
+    for (int k=kl; k<=ku; ++k)
+    for (int j=jl; j<=ju; ++j)
+    {
+      for (int i=1; i<=ngh; ++i)
+      {
+        U_nG(k,j,il-i) = U_nG(k,j,il);
+        U_E( k,j,il-i) = U_E(k,j,il);
+      }
+
+      for (int a=0; a<M1::N; ++a)
+      for (int i=1; i<=ngh; ++i)
+      {
+        U_F_d(a,k,j,il-i) = U_F_d(a,k,j,il);
+      }
+    }
+  }
+
+}
+
+void BCShadowInnerX1(MeshBlock *pmb,
+                     Coordinates *pco,
+                     AthenaArray<Real> &u,
+                     FaceField &b,
+                     Real time, Real dt,
+                     int il, int iu,
+                     int jl, int ju,
+                     int kl, int ku, int ngh)
+{
+  // Warning: u gets called with ph->w.
+  M1::M1 * pm1 = pmb->pm1;
+
+  // Are we being called when required by M1?
+  if (!pm1->enable_user_bc)
+  {
+    return;
+  }
+
+  M1::M1::vars_Lab U {
+    {pm1->N_GRPS,pm1->N_SPCS},
+    {pm1->N_GRPS,pm1->N_SPCS},
+    {pm1->N_GRPS,pm1->N_SPCS}
+  };
+  pm1->SetVarAliasesLab(pm1->storage.u, U);
+
+  for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+  {
+    M1::AT_C_sca & U_nG   = U.sc_nG( ix_g,ix_s);
+    M1::AT_N_vec & U_F_d  = U.sp_F_d(ix_g,ix_s);
+    M1::AT_C_sca & U_E    = U.sc_E(  ix_g,ix_s);
+
+    for (int k=kl; k<=ku; ++k)
+    for (int j=jl; j<=ju; ++j)
+    {
+      for (int i=1; i<=ngh; ++i)
+      {
+        U_nG(k,j,il-i) = U_nG(k,j,il);
+        U_E( k,j,il-i) = 1.0;
+
+        U_F_d(0,k,j,il-i) = 1.0;
+      }
+
+      for (int a=1; a<M1::N; ++a)
+      for (int i=1; i<=ngh; ++i)
+      {
+        U_F_d(a,k,j,il-i) = U_F_d(a,k,j,il);
+      }
+    }
+  }
+
+}
+
+void InitM1Shadow(MeshBlock *pmb, ParameterInput *pin)
+{
+  M1::M1 * pm1 = pmb->pm1;
+
+  const Real abs_v = pin->GetReal("problem", "abs_v");
+
+  const Real rho    = pin->GetReal("problem", "rho");
+  const Real kap_a  = pin->GetReal("problem", "kap_a");
+  const Real kap_s  = pin->GetReal("problem", "kap_s");
+
+  const Real R_star = pin->GetReal("problem", "R_star");
+
+  // Initialize fiducial velocity
+  pm1->fidu.sp_v_u.ZeroClear();
+
+  const Real W = 1.0 / std::sqrt(1 - SQR(abs_v));
+
+  M1_GLOOP3(k,j,i)
+  {
+    pm1->hydro.sc_W(k,j,i)          = W;
+    pm1->hydro.sp_w_util_u(0,k,j,i) = W * abs_v;
+  }
+
+  pm1->hydro.sc_w_rho.Fill(rho);
+  // assemble sp_v_u, sp_v_d etc.
+  pm1->CalcFiducialVelocity();
+
+  for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+  {
+    M1::AT_C_sca & sc_E   = pm1->lab.sc_E(  ix_g,ix_s);
+    M1::AT_N_vec & sp_F_d = pm1->lab.sp_F_d(ix_g,ix_s);
+    M1::AT_C_sca & sc_nG  = pm1->lab.sc_nG( ix_g,ix_s);
+
+    M1::AT_C_sca & sc_kap_a = pm1->radmat.sc_kap_a(ix_g,ix_s);
+    M1::AT_C_sca & sc_kap_s = pm1->radmat.sc_kap_s(ix_g,ix_s);
+
+    sc_E.ZeroClear();
+    sp_F_d.ZeroClear();
+    sc_nG.ZeroClear();
+
+    sc_kap_s.Fill(kap_s);
+    sc_kap_a.ZeroClear();
+
+    M1_GLOOP3(k,j,i)
+    {
+      if ((SQR(pm1->mbi.x1(i)) + SQR(pm1->mbi.x2(j))) < R_star)
+      {
+        sc_kap_a(k,j,i) = kap_a;
+      }
+    }
+  }
+
+
+}
 
 // ============================================================================
 } // namespace
@@ -155,6 +314,14 @@ void InitM1DiffusionMovingMedium(MeshBlock *pmb, ParameterInput *pin)
 
 void Mesh::InitUserMeshData(ParameterInput *pin)
 {
+  std::string m1_test = pin->GetOrAddString("problem", "test", "advection");
+
+  if (m1_test == "shadow")
+  {
+    // EnrollUserBoundaryFunction(BoundaryFace::inner_x1, BCOutFlowInnerX1);
+    EnrollUserBoundaryFunction(BoundaryFace::inner_x1, BCShadowInnerX1);
+  }
+
   if (adaptive)
   {
     EnrollUserRefinementCondition(RefinementCondition);
@@ -178,6 +345,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   else if (m1_test == "diffusion_moving_medium")
   {
     InitM1DiffusionMovingMedium(this, pin);
+  }
+  else if (m1_test == "shadow")
+  {
+    InitM1Shadow(this, pin);
   }
 
 }

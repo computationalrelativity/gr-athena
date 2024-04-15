@@ -501,7 +501,9 @@ TaskStatus M1IntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int stage)
     Real const dt = pmb->pmy_mesh->dt * dt_fac[stage - 1];
     Real t_end_stage = pmb->pmy_mesh->time + dt;
 
+    pm1->enable_user_bc = true;
     pbval->ApplyPhysicalBoundariesM1(t_end_stage, dt);
+    pm1->enable_user_bc = false;
     return TaskStatus::success;
   }
 

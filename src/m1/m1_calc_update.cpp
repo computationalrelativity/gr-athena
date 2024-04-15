@@ -385,7 +385,8 @@ void M1::CalcImplicitUpdatePicardFrozenP(
           e_abs_cur = std::max(std::abs(ZF_d), e_abs_cur);
         }
 
-        e_abs_cur = w_opt * e_abs_cur;
+        // scale error tol by step
+        // e_abs_cur = w_opt * e_abs_cur;
 
         if (e_abs_cur > fac_PA * e_abs_old)
         {
@@ -715,7 +716,8 @@ void M1::CalcImplicitUpdatePicardMinerboP(
           e_abs_cur = std::max(std::abs(ZF_d), e_abs_cur);
         }
 
-        e_abs_cur = w_opt * e_abs_cur;
+        // scale error tol by step
+        // e_abs_cur = w_opt * e_abs_cur;
 
         if (e_abs_cur > fac_PA * e_abs_old)
         {

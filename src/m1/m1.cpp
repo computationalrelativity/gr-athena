@@ -300,6 +300,7 @@ void M1::PopulateOptions(ParameterInput *pin)
     opt.fl_J = pin->GetOrAddReal("M1", "fl_J", 1e-15);
     opt.eps_E = pin->GetOrAddReal("M1", "eps_E", 1e-5);
     opt.eps_J = pin->GetOrAddReal("M1", "eps_J", 1e-10);
+    opt.min_flux_A = pin->GetOrAddReal("M1", "min_flux_A", 0);
 
     opt.eps_C      = pin->GetOrAddReal(   "M1", "eps_C",      1e-6);
     opt.eps_C_N    = pin->GetOrAddReal(   "M1", "eps_C_N",    1e-10);

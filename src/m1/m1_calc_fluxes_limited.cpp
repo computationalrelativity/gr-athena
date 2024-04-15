@@ -152,7 +152,10 @@ void ReconstructLimitedFluxX1(M1 * pm1,
 
       const Real A = ((d_qlm < 0) && (d_qmr < 0))
         ? 1.0
-        : std::min(1.0, 1.0 / kap_fac);
+        : std::max(
+            pm1->opt.min_flux_A,
+            std::min(1.0, 1.0 / kap_fac)
+          );
 
       const Real phi = std::max(
         std::min(
@@ -200,7 +203,10 @@ void ReconstructLimitedFluxX2(M1 * pm1,
 
       const Real A = ((d_qlm < 0) && (d_qmr < 0))
         ? 1.0
-        : std::min(1.0, 1.0 / kap_fac);
+        : std::max(
+            pm1->opt.min_flux_A,
+            std::min(1.0, 1.0 / kap_fac)
+          );
 
       const Real phi = std::max(
         std::min(
@@ -248,7 +254,10 @@ void ReconstructLimitedFluxX3(M1 * pm1,
 
       const Real A = ((d_qlm < 0) && (d_qmr < 0))
         ? 1.0
-        : std::min(1.0, 1.0 / kap_fac);
+        : std::max(
+            pm1->opt.min_flux_A,
+            std::min(1.0, 1.0 / kap_fac)
+          );
 
       const Real phi = std::max(
         std::min(
