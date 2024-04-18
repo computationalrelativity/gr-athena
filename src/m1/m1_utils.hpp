@@ -25,6 +25,7 @@ namespace M1::Assemble {
 // sp: (sp)atial
 // st: (s)pace-time
 // Appended "_" indicates scratch (in i)
+// Appended "__" indicates result at a point
 
 inline void sc_dot_sp_(
   AT_C_sca & sc_dot_sp_,
@@ -89,6 +90,33 @@ inline void sc_dot_dense_sp_(
   }
 }
 
+inline Real sc_dot_dense_sp__(
+  const AT_N_vec & sp_V_A,
+  const AT_N_vec & sp_V_B,
+  const int k, const int j, const int i)
+{
+  Real dot (0);
+  for (int a=0; a<N; ++a)
+  {
+    dot += sp_V_A(a,k,j,i) * sp_V_B(a,k,j,i);
+  }
+  return dot;
+}
+
+inline Real sc_ddot_dense_sp__(
+  const AT_N_vec & sp_V_u,
+  const AT_N_sym & sp_S_dd,
+  const int k, const int j, const int i)
+{
+  Real dot (0);
+  for (int a=0; a<N; ++a)
+  for (int b=0; b<N; ++b)
+  {
+    dot += sp_V_u(a,k,j,i) * sp_V_u(b,k,j,i) * sp_S_dd(a,b,k,j,i);
+  }
+  return dot;
+}
+
 // geometric ------------------------------------------------------------------
 inline void sp_beta_d(
   AT_N_vec & sp_tar,
@@ -100,7 +128,7 @@ inline void sp_beta_d(
 {
 
   LinearAlgebra::VecMetContraction(
-    scratch.sp_vec_,
+    scratch.sp_vec_A_,
     sp_beta_u,
     sp_g_dd,
     k, j,
@@ -109,7 +137,7 @@ inline void sp_beta_d(
   for (int b=0; b<N; ++b)  // spatial ranges
   for (int i=il; i<=iu; ++i)
   {
-    sp_tar(b,k,j,i) = scratch.sp_vec_(b,i);
+    sp_tar(b,k,j,i) = scratch.sp_vec_A_(b,i);
   }
 
 }
@@ -638,6 +666,76 @@ inline Real sc_G_(
   return 1.0;
 }
 
+inline Real sc_J__(
+  const Real & W2,
+  const Real & dotFv,  // F_d v^d
+  const AT_C_sca & sc_E,
+  const AT_N_vec & sp_v_u,
+  const AT_N_sym & sp_P_dd,
+  const int k, const int j, const int i)
+{
+  Real J = sc_E(k,j,i) - 2.0 * dotFv;
+  for (int a=0; a<N; ++a)
+  for (int b=0; b<N; ++b)
+  {
+    J += sp_P_dd(a,b,k,j,i) * sp_v_u(a,k,j,i) * sp_v_u(b,k,j,i);
+  }
+
+  return W2 * J;
+}
+
+inline Real sc_H_t__(
+  const Real & W,
+  const Real & dotFv,  // F_d v^d
+  const AT_C_sca & sc_E,
+  const AT_C_sca & sc_J,
+  const int k, const int j, const int i)
+{
+  return W * (sc_E(k,j,i) - sc_J(k,j,i) - dotFv);
+}
+
+inline void sp_H_d__(
+  AT_N_vec & tar_d,
+  const Real & W,
+  const AT_C_sca & sc_J,
+  const AT_N_vec & sp_F_d,
+  const AT_N_vec & sp_v_d,
+  const AT_N_vec & sp_v_u,
+  const AT_N_sym & sp_P_dd,
+  const int k, const int j, const int i)
+{
+  for (int a=0; a<N; ++a)
+  {
+    tar_d(a,k,j,i) = (
+      sp_F_d(a,k,j,i) - sc_J(k,j,i) * sp_v_d(a,k,j,i)
+    );
+
+    for (int b=0; b<N; ++b)
+    {
+      tar_d(a,k,j,i) -= (
+        sp_v_u(b,k,j,i) * sp_P_dd(a,b,k,j,i)
+      );
+    }
+
+    tar_d(a,k,j,i) = W * tar_d(a,k,j,i);
+  }
+}
+
+inline Real sc_H2_st__(
+  const AT_C_sca & sc_H_t,
+  const AT_N_vec & sp_H_d,
+  const AT_N_sym & sp_g_uu,
+  const int k, const int j, const int i)
+{
+  Real sc_H2_st = -SQR(sc_H_t(k,j,i));
+  for (int a=0; a<N; ++a)
+  for (int b=0; b<N; ++b)
+  {
+    sc_H2_st += sp_g_uu(a,b,k,j,i) * sp_H_d(a,k,j,i) * sp_H_d(b,k,j,i);
+  }
+  return sc_H2_st;
+}
+
 inline void st_norm2_(
   AT_C_sca & st_tar_,
   const AT_D_vec & st_V_d_,  // alternative: _u_ &
@@ -668,6 +766,16 @@ inline void sp_norm2_(
       sp_V_d, sp_g_uu, k, j, i
     );
   }
+}
+
+inline Real sp_norm2__(
+  const AT_N_vec & sp_V_d,  // alternative: _u &
+  const AT_N_sym & sp_g_uu, // _dd
+  const int k, const int j, const int i)
+{
+  return LinearAlgebra::InnerProductVecMetric(
+      sp_V_d, sp_g_uu, k, j, i
+  );
 }
 
 inline void st_vec_from_t_sp(

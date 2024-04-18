@@ -20,7 +20,7 @@ void M1::AddGRSources(AthenaArray<Real> & u, AthenaArray<Real> & u_inh)
   vars_Lab I   { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
   SetVarAliasesLab(u_inh, I);
 
-  AT_N_vec & sp_F_u_  = scratch.sp_vec_;
+  AT_N_vec & sp_F_u_  = scratch.sp_vec_A_;
   AT_N_sym & sp_P_uu_ = scratch.sp_sym_A_;
 
   AT_N_D1sca & sp_dalpha_d = geom.sp_dalpha_d;

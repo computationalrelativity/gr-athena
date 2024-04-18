@@ -197,6 +197,11 @@ void M1::PopulateOptions(ParameterInput *pin)
       opt.integration_strategy = \
         opt_integration_strategy::semi_implicit_PicardMinerboP;
     }
+    else if (tmp == "semi_implicit_PicardMinerboPC")
+    {
+      opt.integration_strategy = \
+        opt_integration_strategy::semi_implicit_PicardMinerboPC;
+    }
     else
     {
       msg << "M1/integration_strategy unknown" << std::endl;

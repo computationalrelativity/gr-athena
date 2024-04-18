@@ -237,9 +237,9 @@ void BCShadowInnerX1(MeshBlock *pmb,
       for (int i=1; i<=ngh; ++i)
       {
         U_nG(k,j,il-i) = U_nG(k,j,il);
-        U_E( k,j,il-i) = 1.0;
+        U_E( k,j,il-i) = (std::abs(pm1->mbi.x2(j)) <= 1.1) ? 1.0 : 0;
 
-        U_F_d(0,k,j,il-i) = 1.0;
+        U_F_d(0,k,j,il-i) = (std::abs(pm1->mbi.x2(j)) <= 1.1) ? 1.0 : 0;
       }
 
       for (int a=1; a<M1::N; ++a)
@@ -308,6 +308,89 @@ void InitM1Shadow(MeshBlock *pmb, ParameterInput *pin)
 
 }
 
+void InitM1SphereRadAbs(MeshBlock *pmb, ParameterInput *pin)
+{
+  M1::M1 * pm1 = pmb->pm1;
+
+  const Real abs_v = pin->GetReal("problem", "abs_v");
+
+  const Real rho   = pin->GetReal("problem", "rho");
+  const Real eta   = pin->GetReal("problem", "eta");
+  const Real kap_a = pin->GetReal("problem", "kap_a");
+  const Real kap_s = pin->GetReal("problem", "kap_s");
+
+  const Real R_star = pin->GetReal("problem", "R_star");
+
+  // Initialize fiducial velocity
+  pm1->fidu.sp_v_u.ZeroClear();
+
+  const Real W = 1.0 / std::sqrt(1 - SQR(abs_v));
+
+  M1_GLOOP3(k,j,i)
+  {
+    pm1->hydro.sc_W(k,j,i)          = W;
+    pm1->hydro.sp_w_util_u(0,k,j,i) = W * abs_v;
+  }
+
+  pm1->hydro.sc_w_rho.Fill(rho);
+  // assemble sp_v_u, sp_v_d etc.
+  pm1->CalcFiducialVelocity();
+
+  for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+  {
+    M1::AT_C_sca & sc_E   = pm1->lab.sc_E(  ix_g,ix_s);
+    M1::AT_N_vec & sp_F_d = pm1->lab.sp_F_d(ix_g,ix_s);
+    M1::AT_C_sca & sc_nG  = pm1->lab.sc_nG( ix_g,ix_s);
+
+    M1::AT_C_sca & sc_eta   = pm1->radmat.sc_eta(  ix_g,ix_s);
+    M1::AT_C_sca & sc_kap_a = pm1->radmat.sc_kap_a(ix_g,ix_s);
+    M1::AT_C_sca & sc_kap_s = pm1->radmat.sc_kap_s(ix_g,ix_s);
+
+    sc_E.ZeroClear();
+    sp_F_d.ZeroClear();
+    sc_nG.ZeroClear();
+
+    sc_kap_s.Fill(kap_s);
+    sc_kap_a.ZeroClear();
+
+    M1_GLOOP3(k,j,i)
+    {
+      if ((SQR(pm1->mbi.x1(i)) + SQR(pm1->mbi.x2(j))) < R_star)
+      {
+        sc_E(k,j,i)     = 1.0;
+        sc_eta(k,j,i)   = eta;
+        sc_kap_a(k,j,i) = kap_a;
+      }
+    }
+  }
+
+
+}
+
+void InitM1Zero(MeshBlock *pmb, ParameterInput *pin)
+{
+  M1::M1 * pm1 = pmb->pm1;
+
+  for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+  {
+    M1::AT_C_sca & sc_E   = pm1->lab.sc_E(  ix_g,ix_s);
+    M1::AT_N_vec & sp_F_d = pm1->lab.sp_F_d(ix_g,ix_s);
+    M1::AT_C_sca & sc_nG  = pm1->lab.sc_nG( ix_g,ix_s);
+
+    sc_E.ZeroClear();
+    sp_F_d.ZeroClear();
+    sc_nG.ZeroClear();
+  }
+
+  // Initialize fiducial velocity
+  pm1->fidu.sp_v_u.ZeroClear();
+
+  // assemble sp_v_u, sp_v_d etc.
+  pm1->CalcFiducialVelocity();
+}
+
 // ============================================================================
 } // namespace
 // ============================================================================
@@ -349,6 +432,14 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   else if (m1_test == "shadow")
   {
     InitM1Shadow(this, pin);
+  }
+  else if (m1_test == "sphere_radabs")
+  {
+    InitM1SphereRadAbs(this, pin);
+  }
+  else if (m1_test == "zero")
+  {
+    InitM1Zero(this, pin);
   }
 
 }

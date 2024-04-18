@@ -15,26 +15,36 @@ ncycle_out   = 1      # interval for stdout summary info
 
 <mesh> # ======================================================================
 # no. cell in dir, min/max x, inner/outer BC
-nx1    = 220
+nx1    = 200
 x1min  = -2
 x1max  = 4
 ix1_bc = user
 ox1_bc = outflow
 
-nx2    = 220
+nx2    = 200
 x2min  = -3
 x2max  = 3
 ix2_bc = outflow
 ox2_bc = outflow
 
 nx3    = 4
-x3min  = -1
-x3max  = 1
+x3min  = -2
+x3max  = 2
 ix3_bc = outflow
 ox3_bc = outflow
 
 refinement = none
 num_threads = 12
+# =============================================================================
+
+<refinement1> # ===============================================================
+x1min = -1.0
+x1max =  1.0
+x2min = -1.0
+x2max =  1.0
+x3min = -1.0
+x3max =  1.0
+level = 1
 # =============================================================================
 
 <meshblock> # =================================================================
@@ -54,7 +64,7 @@ nspecies = 1
 #  MinerboP    - Picard
 #  MinerboN    - Newton-Raphson
 # }
-closure_variety = MinerboN
+closure_variety = Minerbo
 
 # element of: {approximate, exact}
 characteristics_variety = approximate
@@ -63,9 +73,11 @@ characteristics_variety = approximate
 fiducial_velocity = fluid
 
 # element of:
-# {full_explicit,               - non-stiff regime
-#  semi_implicit_PicardFrozenP  - only for fixed (P_dd)
-#  semi_implicit_PicardMinerboP - updates P_dd based on Minerbo
+# {full_explicit,                - non-stiff regime
+#  semi_implicit_PicardFrozenP   - only for fixed (P_dd)
+#  semi_implicit_PicardMinerboP  - updates P_dd based on Minerbo;
+#                                  Closure is iterated as part of imp.
+#  semi_implicit_PicardMinerboPC - close explicit iter; iter; close conv.
 # }
 integration_strategy = semi_implicit_PicardMinerboP
 
@@ -77,7 +89,7 @@ eps_J = 1e-10
 min_flux_A = 0
 
 # [Minerbo] closure root tolerance & maximum iterations
-eps_C          = 1e-4
+eps_C          = 1e-10
 eps_C_N        = 1e-10  // switch to Picard if deriv. below this
 max_iter_C     = 32
 max_iter_C_rst = 10
@@ -87,10 +99,10 @@ reset_thin     = true  // reset on failure to thin limit
 verbose_iter_C = true
 
 # [Picard] iteration settings
-max_iter_P     = 256   // maximum number of iterations (for each restart)
+max_iter_P     = 512   // maximum number of iterations (for each restart)
 max_iter_P_rst = 10    // maximum number of restarts
 w_opt_ini_P    = 0.5   // initial underrelaxation factor
-eps_P_abs_tol  = 1e-10  // absolute tolerance
+eps_P_abs_tol  = 1e-8  // absolute tolerance
 fac_amp_P      = 1.10  // error amplification tolerance between iterates
 verbose_iter_P = true  // signal e.g. failure to achieve tol.
 
@@ -109,16 +121,6 @@ kap_a  = 1
 kap_s  = 0
 R_star = 1
 abs_v  = 0
-# =============================================================================
-
-<refinement1> # ===============================================================
-x1min =  -0.2
-x1max =  0.2
-x2min = -1.0
-x2max = -1.0
-x3min = -1.0
-x3max =  1.0
-level = 2
 # =============================================================================
 
 # dumped quantities ===========================================================

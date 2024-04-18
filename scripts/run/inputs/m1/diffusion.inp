@@ -54,7 +54,7 @@ nspecies = 3
 #  MinerboP    - Picard
 #  MinerboN    - Newton-Raphson
 # }
-closure_variety = MinerboN
+closure_variety = Minerbo
 
 # element of: {approximate, exact}
 characteristics_variety = approximate
@@ -78,17 +78,17 @@ eps_J = 1e-10
 # [Minerbo] closure root tolerance & maximum iterations
 eps_C          = 1e-6
 eps_C_N        = 1e-8  // switch to Picard if deriv. below this
-max_iter_C     = 128
+max_iter_C     = 64
 max_iter_C_rst = 10
 w_opt_ini_C    = 0.5
 fac_amp_C      = 1.11   // error amplification tolerance between iterates
-reset_thin     = true   // reset on failure to thin limit
-verbose_iter_C = true
+reset_thin     = false   // reset on failure to thin limit
+verbose_iter_C = false
 
 # [Picard] iteration settings
-max_iter_P     = 256    // maximum number of iterations (for each restart)
+max_iter_P     = 1024    // maximum number of iterations (for each restart)
 max_iter_P_rst = 10     // maximum number of restarts
-w_opt_ini_P    = 0.5    // initial underrelaxation factor
+w_opt_ini_P    = 1.0    // initial underrelaxation factor
 eps_P_abs_tol  = 1e-8   // absolute tolerance
 fac_amp_P      = 1.11   // error amplification tolerance between iterates
 verbose_iter_P = true   // signal e.g. failure to achieve tol.

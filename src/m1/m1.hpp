@@ -64,6 +64,11 @@ private:
                                         AthenaArray<Real> & u_cur,
 		                                    AthenaArray<Real> & u_inh);
 
+  void CalcImplicitUpdatePicardMinerboPC(Real const dt,
+                                         AthenaArray<Real> & u_pre,
+                                         AthenaArray<Real> & u_cur,
+		                                     AthenaArray<Real> & u_inh);
+
 // data =======================================================================
 public:
   // Mesh->MeshBlock->M1
@@ -107,7 +112,8 @@ public:
 public:
   enum class opt_integration_strategy { full_explicit,
                                         semi_implicit_PicardFrozenP,
-                                        semi_implicit_PicardMinerboP};
+                                        semi_implicit_PicardMinerboP,
+                                        semi_implicit_PicardMinerboPC};
   enum class opt_fiducial_velocity { fluid, mixed, zero, none };
   enum class opt_characteristics_variety { approximate, exact };
   enum class opt_closure_variety { thin, thick, Minerbo, MinerboP, MinerboN };
@@ -334,10 +340,11 @@ public:
     // Generic quantities of specific valence
     AT_C_sca sc_A_;
     AT_C_sca sc_B_;
-    AT_N_vec sp_vec_;
+    AT_N_vec sp_vec_A_;
     AT_D_vec st_vec_;
     AT_N_sym sp_sym_A_;
     AT_N_sym sp_sym_B_;
+    AT_N_sym sp_sym_C_;
   };
   vars_Scratch scratch;
 
@@ -358,10 +365,11 @@ private:
 
     scratch.sc_A_.NewAthenaTensor(mbi.nn1);
     scratch.sc_B_.NewAthenaTensor(mbi.nn1);
-    scratch.sp_vec_.NewAthenaTensor(mbi.nn1);
+    scratch.sp_vec_A_.NewAthenaTensor(mbi.nn1);
     scratch.st_vec_.NewAthenaTensor(mbi.nn1);
     scratch.sp_sym_A_.NewAthenaTensor(mbi.nn1);
     scratch.sp_sym_B_.NewAthenaTensor(mbi.nn1);
+    scratch.sp_sym_C_.NewAthenaTensor(mbi.nn1);
 
     // Lab (Eulerian) frame ---------------------------------------------------
     scratch.sp_F_u_.NewAthenaTensor(mbi.nn1);
