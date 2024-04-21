@@ -66,7 +66,7 @@ nspecies = 1
 # }
 closure_variety = Minerbo
 
-# element of: {approximate, exact}
+# element of: {approximate, exact_thin, exact_thick, exact_Minerbo}
 characteristics_variety = approximate
 
 # element of: {fluid, mixed, zero, none}

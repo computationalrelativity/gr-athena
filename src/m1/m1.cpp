@@ -217,9 +217,17 @@ void M1::PopulateOptions(ParameterInput *pin)
     {
       opt.characteristics_variety = opt_characteristics_variety::approximate;
     }
-    else if (tmp == "exact")
+    else if (tmp == "exact_thin")
     {
-      opt.characteristics_variety = opt_characteristics_variety::exact;
+      opt.characteristics_variety = opt_characteristics_variety::exact_thin;
+    }
+    else if (tmp == "exact_thick")
+    {
+      opt.characteristics_variety = opt_characteristics_variety::exact_thick;
+    }
+    else if (tmp == "exact_Minerbo")
+    {
+      opt.characteristics_variety = opt_characteristics_variety::exact_Minerbo;
     }
     else
     {

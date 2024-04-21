@@ -66,8 +66,8 @@ nspecies = 1
 # }
 closure_variety = Minerbo
 
-# element of: {approximate, exact}
-characteristics_variety = approximate
+# element of: {approximate, exact_thin, exact_thick, exact_Minerbo}
+characteristics_variety = exact_Minerbo
 
 # element of: {fluid, mixed, zero, none}
 fiducial_velocity = fluid

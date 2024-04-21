@@ -5,6 +5,11 @@
 //      neutrino-radiation transport code: Methods and first applications to
 //      neutron star mergers." Monthly Notices of the Royal Astronomical
 //      Society 512.1 (2022): 1499-1521.
+//
+// [2]: Izquierdo, Manuel R., et al. "Global high-order numerical schemes for
+//      the time evolution of the general relativistic radiation
+//      magneto-hydrodynamics equations." Classical and Quantum Gravity 40.14
+//      (2023): 145014.
 
 // c++
 #include <iostream>
@@ -115,7 +120,10 @@ public:
                                         semi_implicit_PicardMinerboP,
                                         semi_implicit_PicardMinerboPC};
   enum class opt_fiducial_velocity { fluid, mixed, zero, none };
-  enum class opt_characteristics_variety { approximate, exact };
+  enum class opt_characteristics_variety { approximate,
+                                           exact_thin,
+                                           exact_thick,
+                                           exact_Minerbo };
   enum class opt_closure_variety { thin, thick, Minerbo, MinerboP, MinerboN };
   enum class opt_opacity_variety { zero, none };
 
@@ -572,7 +580,12 @@ public:
                    vars_Geom & geom,
                    vars_Scratch & scratch);
 
+  void CalcCharacteristicSpeedApproximate(const int dir, AT_C_sca & lambda);
+
   void CalcCharacteristicSpeed(const int dir,
+                               const AT_C_sca & sc_E,
+                               const AT_N_vec & sp_F_d,
+                               const AT_C_sca & sc_chi,
                                AT_C_sca & lambda);
 
   inline void MaskSet(const bool is_enabled,
