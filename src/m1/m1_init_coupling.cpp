@@ -97,11 +97,15 @@ void M1::UpdateGeometry(vars_Geom & geom, vars_Scratch & scratch)
     AT_N_D1sym dg_ddd_(mbi.nn1);
 
     // M1: on CC --------------------------------------------------------------
-    int IL, IU, JL, JU, KL, KU;
-    pmy_coord->GetGeometricFieldCCIdxRanges(
-      IL, IU,
-      JL, JU,
-      KL, KU);
+    // int IL, IU, JL, JU, KL, KU;
+    // pmy_coord->GetGeometricFieldCCIdxRanges(
+    //   IL, IU,
+    //   JL, JU,
+    //   KL, KU);
+
+    const int IL = pmy_block->is, IU = pmy_block->ie;
+    const int JL = pmy_block->js, JU = pmy_block->je;
+    const int KL = pmy_block->ks, KU = pmy_block->ke;
 
     for (int k=KL; k<=KU; ++k)
     for (int j=JL; j<=JU; ++j)

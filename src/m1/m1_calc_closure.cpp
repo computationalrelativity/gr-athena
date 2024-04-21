@@ -3,6 +3,7 @@
 
 // Athena++ headers
 #include "m1_calc_closure.hpp"
+#include "m1_utils.hpp"
 
 // External libraries
 #include <gsl/gsl_errno.h>
@@ -69,7 +70,7 @@ void ClosureThin(M1 * pm1,
 
   Assemble::sp_norm2_(sc_norm2_F_,
                       sp_F_d,
-                      pm1->geom.sp_g_dd,
+                      pm1->geom.sp_g_uu,
                       k, j, il, iu);
 
   for (int a=0; a<N; ++a)
@@ -90,7 +91,7 @@ void ClosureThin(M1 * pm1,
                  const AT_N_vec & sp_F_d,
                  const int k, const int j, const int i)
 {
-  const Real nF2 = Assemble::sp_norm2__(sp_F_d, pm1->geom.sp_g_dd, k, j, i);
+  const Real nF2 = Assemble::sp_norm2__(sp_F_d, pm1->geom.sp_g_uu, k, j, i);
 
   for (int a=0; a<N; ++a)
   for (int b=a; b<N; ++b)
@@ -101,7 +102,7 @@ void ClosureThin(M1 * pm1,
   }
 }
 
-void AddClosureThin(M1 * pm1,
+void SetClosureThin(M1 * pm1,
                     const Real weight,
                     const int ix_g,
                     const int ix_s,
@@ -115,7 +116,7 @@ void AddClosureThin(M1 * pm1,
   M1_GLOOP2(k,j)
   {
     ClosureThin(pm1, weight, ix_g, ix_s, sp_P_dd_, k, j, il, iu);
-    Assemble::ScratchAddToDense(sp_P_dd, sp_P_dd_, k, j, il, iu);
+    Assemble::ScratchToDense(sp_P_dd, sp_P_dd_, k, j, il, iu);
   }
 }
 
@@ -243,7 +244,7 @@ void ClosureThick(M1 * pm1,
 
 }
 
-void AddClosureThick(M1 * pm1,
+void SetClosureThick(M1 * pm1,
                      const Real weight,
                      const int ix_g,
                      const int ix_s,
@@ -257,7 +258,7 @@ void AddClosureThick(M1 * pm1,
   M1_GLOOP2(k,j)
   {
     ClosureThick(pm1, weight, ix_g, ix_s, sp_P_dd_, k, j, il, iu);
-    Assemble::ScratchAddToDense(sp_P_dd, sp_P_dd_, k, j, il, iu);
+    Assemble::ScratchToDense(sp_P_dd, sp_P_dd_, k, j, il, iu);
   }
 }
 // ============================================================================
@@ -626,6 +627,12 @@ void AddClosure(M1 * pm1,
 
     M1_GLOOP1(i)
     {
+      // nop if mask has not been set
+      if (!pm1->MaskGet(k,j,i))
+      {
+        continue;
+      }
+
       drf.i = i;
       drf.j = j;
       drf.k = k;
@@ -1289,8 +1296,6 @@ void AddClosureN(M1 * pm1,
 
       Real dotFv = Assemble::sc_dot_dense_sp__(sp_F_d, sp_v_u, k, j, i);
 
-      sc_xi(k,j,i) = 0.5;
-
       do
       {
         pit++;
@@ -1749,7 +1754,7 @@ void M1::CalcClosure(AthenaArray<Real> & u)
     {
       case (opt_closure_variety::thin):
       {
-        Closures::AddClosureThin(this,
+        Closures::SetClosureThin(this,
                                  1.0, ix_g, ix_s,
                                  lab_aux.sp_P_dd(ix_g,ix_s));
         lab_aux.sc_chi(ix_g,ix_s).Fill(1.0);
@@ -1758,7 +1763,7 @@ void M1::CalcClosure(AthenaArray<Real> & u)
       }
       case (opt_closure_variety::thick):
       {
-        Closures::AddClosureThick(this,
+        Closures::SetClosureThick(this,
                                   1.0, ix_g, ix_s,
                                   lab_aux.sp_P_dd(ix_g,ix_s));
         lab_aux.sc_chi(ix_g,ix_s).Fill(ONE_3RD);

@@ -79,6 +79,17 @@ void M1::CalcFiducialVelocity()
   // Fiducial velocity does not necessarily coincide with hydro, recompute
   // Lorentz factor.
 
+
+  M1_GLOOP3(k,j,i)
+  {
+    const Real norm2_util = InnerProductVecMetric(
+      fidu.sp_v_u, geom.sp_g_dd,
+      k,j,i
+    );
+    fidu.sc_W(k,j,i) = std::sqrt(1. + norm2_util);
+  }
+
+  /*
   // Lorentz factor (if fid not fluid derived)
   if (opt.fiducial_velocity == opt_fiducial_velocity::fluid)
   {
@@ -101,6 +112,7 @@ void M1::CalcFiducialVelocity()
       }
     }
   }
+  */
 
   // rescale fluid velocity
   M1_GLOOP3(k,j,i)

@@ -4,32 +4,32 @@
 # =============================================================================
 
 <job> # =======================================================================
-problem_id = shadow
+problem_id = Kerr_fixed_background_beam
 # =============================================================================
 
 <time> # ======================================================================
-cfl_number   = 0.4
-tlim	       = 10
+cfl_number   = 0.2
+tlim	       = 20
 ncycle_out   = 1      # interval for stdout summary info
 # =============================================================================
 
 <mesh> # ======================================================================
 # no. cell in dir, min/max x, inner/outer BC
-nx1    = 200
-x1min  = -2
-x1max  = 4
+nx1    = 100
+x1min  = 0
+x1max  = 5
 ix1_bc = user
 ox1_bc = outflow
 
-nx2    = 200
-x2min  = -3
-x2max  = 3
+nx2    = 100
+x2min  = 0
+x2max  = 5
 ix2_bc = outflow
 ox2_bc = outflow
 
-nx3    = 4
-x3min  = -2
-x3max  = 2
+nx3    = 32
+x3min  = -0.8
+x3max  = 0.8
 ix3_bc = outflow
 ox3_bc = outflow
 
@@ -50,7 +50,7 @@ level = 1
 <meshblock> # =================================================================
 nx1 = 20
 nx2 = 20
-nx3 = 4
+nx3 = 32
 # =============================================================================
 
 <M1> # ========================================================================
@@ -79,7 +79,7 @@ fiducial_velocity = fluid
 #                                  Closure is iterated as part of imp.
 #  semi_implicit_PicardMinerboPC - close explicit iter; iter; close conv.
 # }
-integration_strategy = semi_implicit_PicardMinerboP
+integration_strategy = full_explicit
 
 # tolerances / ad-hoc fiddle parameters
 fl_E = 1e-15
@@ -89,9 +89,9 @@ eps_J = 1e-10
 min_flux_A = 0
 
 # [Minerbo] closure root tolerance & maximum iterations
-eps_C          = 1e-10
+eps_C          = 1e-6
 eps_C_N        = 1e-10  // switch to Picard if deriv. below this
-max_iter_C     = 32
+max_iter_C     = 64
 max_iter_C_rst = 10
 w_opt_ini_C    = 0.5
 fac_amp_C      = 1.10  // error amplification tolerance between iterates
@@ -99,9 +99,9 @@ reset_thin     = true  // reset on failure to thin limit
 verbose_iter_C = false
 
 # [Picard] iteration settings
-max_iter_P     = 512   // maximum number of iterations (for each restart)
+max_iter_P     = 2048   // maximum number of iterations (for each restart)
 max_iter_P_rst = 10    // maximum number of restarts
-w_opt_ini_P    = 0.5   // initial underrelaxation factor
+w_opt_ini_P    = 1.0   // initial underrelaxation factor
 eps_P_abs_tol  = 1e-8  // absolute tolerance
 fac_amp_P      = 1.10  // error amplification tolerance between iterates
 verbose_iter_P = false  // signal e.g. failure to achieve tol.
@@ -114,13 +114,16 @@ variety = none
 # =============================================================================
 
 <problem> # ===================================================================
-test = shadow
+test = Kerr_fixed_background_beam
 
-rho    = 1
-kap_a  = 1
-kap_s  = 0
-R_star = 1
-abs_v  = 0
+R_BH = 2
+
+# rho    = 1
+# eta    = 10
+# kap_a  = 10
+# kap_s  = 0
+# R_star = 1
+# abs_v  = 0
 # =============================================================================
 
 # dumped quantities ===========================================================
@@ -139,7 +142,7 @@ file_type   = hdf5
 variable    = m1_lab
 dt          = 0.1
 ghost_zones = true
-x2_slice    = 0.0
+x2_slice    = 0
 x3_slice    = 0.0
 
 <output3>
@@ -147,7 +150,7 @@ file_type   = hdf5
 variable    = m1_lab_aux
 dt          = 0.1
 ghost_zones = true
-x2_slice    = 0.0
+x2_slice    = 0
 x3_slice    = 0.0
 
 <output4>

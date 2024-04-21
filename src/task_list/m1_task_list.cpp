@@ -263,6 +263,7 @@ void M1IntegratorTaskList::StartupTaskList(MeshBlock *pmb, int stage)
   {
     // u1 stores the solution at the beginning of the timestep
     pmb->pm1->storage.u1 = pmb->pm1->storage.u;
+    // pmb->pm1->storage.u1.DeepCopy(pmb->pm1->storage.u);
   }
 
   // Clear the RHS

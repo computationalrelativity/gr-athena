@@ -15,7 +15,7 @@ ncycle_out   = 1      # interval for stdout summary info
 
 <mesh> # ======================================================================
 # no. cell in dir, min/max x, inner/outer BC
-nx1    = 200
+nx1    = 220
 x1min  = -4
 x1max  = 4
 ix1_bc = outflow
@@ -54,7 +54,7 @@ nspecies = 1
 #  MinerboP    - Picard
 #  MinerboN    - Newton-Raphson
 # }
-closure_variety = MinerboN
+closure_variety = Minerbo
 
 # element of: {approximate, exact}
 characteristics_variety = approximate
@@ -76,11 +76,12 @@ fl_E = 1e-15
 fl_J = 1e-15
 eps_E = 1e-5
 eps_J = 1e-10
+min_flux_A = 0
 
 # [Minerbo] closure root tolerance & maximum iterations
 eps_C          = 1e-8
 eps_C_N        = 1e-10  // switch to Picard if deriv. below this
-max_iter_C     = 64
+max_iter_C     = 128
 max_iter_C_rst = 10
 w_opt_ini_C    = 0.5
 fac_amp_C      = 1.20  // error amplification tolerance between iterates
@@ -88,7 +89,7 @@ reset_thin     = true  // reset on failure to thin limit
 verbose_iter_C = true
 
 # [Picard] iteration settings
-max_iter_P     = 1024  // maximum number of iterations (for each restart)
+max_iter_P     = 4096  // maximum number of iterations (for each restart)
 max_iter_P_rst = 15    // maximum number of restarts
 w_opt_ini_P    = 1.0   // initial underrelaxation factor
 eps_P_abs_tol  = 1e-8  // absolute tolerance

@@ -7,7 +7,7 @@
 //      Society 512.1 (2022): 1499-1521.
 
 // c++
-// ...
+#include <iostream>
 
 // Athena++ classes headers
 #include "../athena_aliases.hpp"
@@ -160,6 +160,9 @@ public:
     Real eps_P_abs_tol;  // absolute tolerance
     Real fac_amp_P;      // error amplification tolerance between iterates
     bool verbose_iter_P; // signal e.g. failure to achieve tol.
+
+    // debugging:
+    bool value_inject;
   } opt;
 
 
@@ -572,8 +575,39 @@ public:
   void CalcCharacteristicSpeed(const int dir,
                                AT_C_sca & lambda);
 
-private:
+  inline void MaskSet(const bool is_enabled,
+                      const int k, const int j, const int i)
+  {
+    m1_mask(k,j,i) = is_enabled;
+
+    if (!is_enabled)
+    for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+    for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+    {
+      lab.sc_E( ix_g,ix_s)(k,j,i) = 0.0;
+      lab.sc_nG(ix_g,ix_s)(k,j,i) = 0.0;
+      for (int a=0; a<N; ++a)
+      {
+        lab.sp_F_d(ix_g,ix_s)(a,k,j,i) = 0.0;
+      }
+    }
+  }
+
+  inline void MaskThreshold(const int k, const int j, const int i)
+  {
+    // m1_mask(k,j,i) = (lab.sc_E(k,j,i) < opt.fl_E) ? false : true;
+  }
+
+  inline bool MaskGet(const int k, const int j, const int i)
+  {
+    return m1_mask(k,j,i);
+  }
+
+
+public:
   // These manipulate internal M1 mem-state; don't call external to class
+  //
+  // Exposed for pgen
   void InitializeGeometry(vars_Geom & geom,
                           vars_Scratch & scratch);
   void DerivedGeometry(vars_Geom & geom,
@@ -631,6 +665,13 @@ private:
 // internal data ==============================================================
 private:
   AA dt1_, dt2_, dt3_;  // scratch arrays used in NewTimeStep
+
+// debug ======================================================================
+public:
+  void StatePrintPoint(
+    const int ix_g, const int ix_s,
+    const int k, const int j, const int i,
+    const bool terminate=true);
 
 
 };

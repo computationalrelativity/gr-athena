@@ -74,15 +74,6 @@ void M1::AddMatterSources(AthenaArray<Real> & u, AthenaArray<Real> & u_inh)
         dotFv_(i) += U_F_d(a,k,j,i) * sp_v_u(a,k,j,i);
       }
 
-      // prepare \tilde{n}
-      Assemble::sc_G_(sc_G_, sc_W, U_E, sc_J, dotFv_,
-                      opt.fl_E, opt.fl_J, opt.eps_E, k, j, il, iu);
-
-      M1_ILOOP1(i)
-      {
-        sc_n(k,j,i) = U_nG(k,j,i) / sc_G_(i);
-      }
-
       // prepare J
       M1_ILOOP1(i)
       {
@@ -99,6 +90,15 @@ void M1::AddMatterSources(AthenaArray<Real> & u, AthenaArray<Real> & u_inh)
       M1_ILOOP1(i)
       {
         sc_J(k,j,i) = SQR(sc_W(k,j,i)) * sc_J(k,j,i);
+      }
+
+      // prepare \tilde{n}
+      Assemble::sc_G_(sc_G_, sc_W, U_E, sc_J, dotFv_,
+                      opt.fl_E, opt.fl_J, opt.eps_E, k, j, il, iu);
+
+      M1_ILOOP1(i)
+      {
+        sc_n(k,j,i) = U_nG(k,j,i) / sc_G_(i);
       }
 
       // prepare H_t
@@ -275,6 +275,12 @@ void M1::CalcImplicitUpdatePicardFrozenP(
 
     M1_ILOOP3(k,j,i)
     {
+      // nop if mask has not been set
+      if (!pm1->MaskGet(k,j,i))
+      {
+        continue;
+      }
+
       // Iterate (S_1, S_{1+k})
       const int iter_max_P = opt.max_iter_P;
       int pit = 0;     // iteration counter
@@ -559,8 +565,36 @@ void M1::CalcImplicitUpdatePicardMinerboP(
       sp_dP_dd_
     };
 
+    // // Shift explicit update onto I_* - this fixes the first guess
+    // M1_ILOOP3(k,j,i)
+    // {
+    //   // nop if mask has not been set
+    //   if (!pm1->MaskGet(k,j,i))
+    //   {
+    //     continue;
+    //   }
+
+    //   I_E(k,j,i) = O_E(k,j,i) + dt * R_E(k,j,i);
+    //   I_E(k,j,i) = std::max(opt.fl_E, I_E(k,j,i));
+
+    //   for (int a=0; a<N; ++a)
+    //   {
+    //     I_F_d(a,k,j,i) = O_F_d(a,k,j,i) + dt * R_F_d(a,k,j,i);
+    //   }
+    // }
+
+    // // Compute closure based on first guess
+    // // This also updates internally stored sc_J, sc_H_t, sp_H_d
+    // CalcClosure(u_cur);
+
     M1_ILOOP3(k,j,i)
     {
+      // nop if mask has not been set
+      if (!pm1->MaskGet(k,j,i))
+      {
+        continue;
+      }
+
       // Iterate (S_1, S_{1+k})
       const int iter_max_P = opt.max_iter_P;
       int pit = 0;     // iteration counter
@@ -874,6 +908,12 @@ void M1::CalcImplicitUpdatePicardMinerboPC(
     // Shift explicit update onto I_* - this fixes the first guess
     M1_ILOOP3(k,j,i)
     {
+      // nop if mask has not been set
+      if (!pm1->MaskGet(k,j,i))
+      {
+        continue;
+      }
+
       I_E(k,j,i) = O_E(k,j,i) + dt * R_E(k,j,i);
       I_E(k,j,i) = std::max(opt.fl_E, I_E(k,j,i));
 
@@ -890,6 +930,12 @@ void M1::CalcImplicitUpdatePicardMinerboPC(
     // Semi-implicit loop -----------------------------------------------------
     M1_ILOOP3(k,j,i)
     {
+      // nop if mask has not been set
+      if (!pm1->MaskGet(k,j,i))
+      {
+        continue;
+      }
+
       // Iterate (S_1, S_{1+k})
       const int iter_max_P = opt.max_iter_P;
       int pit = 0;     // iteration counter
@@ -1065,6 +1111,47 @@ void M1::CalcUpdate(Real const dt,
                     AthenaArray<Real> & u_cur,
 		                AthenaArray<Real> & u_inh)
 {
+
+  if (opt.value_inject)
+  {
+    std::cout << "\n";
+    std::cout << "---------------------------------------------------------\n";
+    std::cout << "No sources-----------------------------------------------\n";
+    std::cout << "---------------------------------------------------------\n";
+    std::cout << "\n";
+
+    pm1->StatePrintPoint(0, 0,
+                         mbi.kl, mbi.ju-1, mbi.iu-1, false);
+    std::cout << "\n";
+    std::cout << "---------------------------------------------------------\n";
+    std::cout << "AddGRSources---------------------------------------------\n";
+    std::cout << "---------------------------------------------------------\n";
+    std::cout << "\n";
+
+    u_inh.ZeroClear();
+    AddGRSources(u_cur, u_inh);
+
+    SetVarAliasesLab(u_inh, lab);
+    pm1->StatePrintPoint(0, 0,
+                         mbi.kl, mbi.ju-1, mbi.iu-1, false);
+
+    std::cout << "\n";
+    std::cout << "---------------------------------------------------------\n";
+    std::cout << "AddMatterSources-----------------------------------------\n";
+    std::cout << "---------------------------------------------------------\n";
+    std::cout << "\n";
+
+    u_inh.ZeroClear();
+    AddMatterSources(u_cur, u_inh);
+
+    SetVarAliasesLab(u_inh, lab);
+    pm1->StatePrintPoint(0, 0,
+                         mbi.kl, mbi.ju-1, mbi.iu-1, true);
+  }
+
+
+  AddGRSources(u_cur, u_inh);
+
   switch (opt.integration_strategy)
   {
     case (opt_integration_strategy::full_explicit):
@@ -1094,6 +1181,7 @@ void M1::CalcUpdate(Real const dt,
       std::exit(0);
     }
   }
+
 }
 
 // ============================================================================

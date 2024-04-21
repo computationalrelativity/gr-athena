@@ -34,7 +34,7 @@ ix3_bc = outflow
 ox3_bc = outflow
 
 refinement = none
-num_threads = 1
+num_threads = 12
 # =============================================================================
 
 <refinement1> # ===============================================================
@@ -86,7 +86,7 @@ fl_E = 1e-15
 fl_J = 1e-15
 eps_E = 1e-5
 eps_J = 1e-10
-min_flux_A = 1e-4
+min_flux_A = 0
 
 # [Minerbo] closure root tolerance & maximum iterations
 eps_C          = 1e-6

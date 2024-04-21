@@ -8,6 +8,7 @@
 
 // c++
 #include <codecvt>
+#include <iomanip>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -160,6 +161,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   // SetVarAliasesNet(storage.intern, net);
 
   m1_mask.InitWithShallowSlice(storage.intern, ixn_Internal::mask);
+  m1_mask.Fill(true);
 
   // --------------------------------------------------------------------------
   // general setup
@@ -326,6 +328,8 @@ void M1::PopulateOptions(ParameterInput *pin)
     opt.verbose_iter_P = pin->GetOrAddBoolean("M1", "verbose_iter_P", false);
   }
 
+  // debugging
+  opt.value_inject = pin->GetOrAddBoolean("problem", "value_inject", false);
 }
 
 // set aliases for variables ==================================================
@@ -425,6 +429,82 @@ void M1::SetVarAliasesNet(AthenaArray<Real> & u, vars_Net & net)
 {
   // net.abs.InitWithShallowSlice(u, I_Intern_netabs);
   // net.heat.InitWithShallowSlice(u, I_Intern_netheat);
+}
+
+
+void M1::StatePrintPoint(
+  const int ix_g, const int ix_s,
+  const int k, const int j, const int i,
+  const bool terminate)
+{
+  #pragma omp critical
+  {
+    std::cout << "M1::DebugState" << std::endl;
+    std::cout << std::setprecision(14) << std::endl;
+    std::cout << "ix_g, ix_s:  " << ix_g << ", " << ix_s << "\n";
+    std::cout << "k, j, i:     " << k << ", " << j << ", " << i << "\n";
+
+    std::cout << "mbi.x3(k):   " << mbi.x3(k) << "\n";
+    std::cout << "mbi.x2(j):   " << mbi.x2(j) << "\n";
+    std::cout << "mbi.x1(i):   " << mbi.x1(i) << "\n";
+
+
+    std::cout << "geometric fields=========================: " << "\n\n";
+    std::cout << "sc=================: " << "\n";
+    geom.sc_alpha.PrintPoint("geom.sc_alpha", k,j,i);
+    geom.sc_sqrt_det_g.PrintPoint("geom.sc_sqrt_det_g", k,j,i);
+
+    std::cout << "vec================: " << "\n";
+    geom.sp_beta_u.PrintPoint("geom.sp_beta_u", k,j,i);
+    geom.sp_beta_d.PrintPoint("geom.sp_beta_d", k,j,i);
+
+    std::cout << "sym2===============: " << "\n";
+    geom.sp_g_dd.PrintPoint("geom.sp_g_dd", k,j,i);
+    geom.sp_K_dd.PrintPoint("geom.sp_K_dd", k,j,i);
+    geom.sp_g_uu.PrintPoint("geom.sp_g_uu", k,j,i);
+
+    std::cout << "dsc================: " << "\n";
+    geom.sp_dalpha_d.PrintPoint("geom.sp_dalpha_d", k,j,i);
+
+
+    std::cout << "dvec===============: " << "\n";
+    geom.sp_dbeta_du.PrintPoint("geom.sp_dbeta_du", k,j,i);
+
+    std::cout << "dsym2==============: " << "\n";
+    geom.sp_dg_ddd.PrintPoint("geom.sp_dg_ddd", k,j,i);
+
+    std::cout << "fiducial fields=========================: " << "\n\n";
+    std::cout << "sc=================: " << "\n";
+    fidu.sc_W.PrintPoint("fidu.sc_W", k,j,i);
+
+    std::cout << "vec================: " << "\n";
+    fidu.sp_v_u.PrintPoint("fidu.sp_v_u", k,j,i);
+    fidu.sp_v_d.PrintPoint("fidu.sp_v_d", k,j,i);
+
+    std::cout << "radiation fields========================: " << "\n\n";
+
+    std::cout << "sc=================: " << "\n";
+    lab.sc_nG(ix_g,ix_s).PrintPoint("lab.sc_nG(ix_s,ix_g)", k,j,i);
+    lab.sc_E(ix_g,ix_s).PrintPoint("lab.sc_E(ix_s,ix_g)", k,j,i);
+
+    std::cout << "vec================: " << "\n";
+    lab.sp_F_d(ix_g,ix_s).PrintPoint("lab.sp_F_d(ix_s,ix_g)", k,j,i);
+
+    std::cout << "sc=================: " << "\n";
+    lab_aux.sc_n(ix_g,ix_s).PrintPoint("lab_aux.sc_n(ix_s,ix_g)", k,j,i);
+    lab_aux.sc_chi(ix_g,ix_s).PrintPoint("lab_aux.sc_chi(ix_s,ix_g)", k,j,i);
+    lab_aux.sc_xi(ix_g,ix_s).PrintPoint("lab_aux.sc_xi(ix_s,ix_g)", k,j,i);
+
+    std::cout << "sym2===============: " << "\n";
+    lab_aux.sp_P_dd(ix_g,ix_s).PrintPoint("lab_aux.sp_P_dd(ix_s,ix_g)", k,j,i);
+
+
+  }
+
+  if (terminate)
+  {
+    std::exit(0);
+  }
 }
 
 // ============================================================================

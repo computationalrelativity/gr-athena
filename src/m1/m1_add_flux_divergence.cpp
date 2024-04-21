@@ -136,6 +136,7 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_inh)
     for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
     {
       M1_FLOOP1(i)
+      if (pm1->MaskGet(k, j, i))
       {
         I.sc_nG(ix_g,ix_s)(k,j,i) -= dflx_(ix_g,ix_s,ixn_Lab::nG,i);
         I.sc_E(ix_g,ix_s)(k,j,i)  -= dflx_(ix_g,ix_s,ixn_Lab::E,i);
@@ -143,6 +144,7 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_inh)
 
       for (int a=0; a<N; ++a)
       M1_FLOOP1(i)
+      if (pm1->MaskGet(k, j, i))
       {
         I.sp_F_d(ix_g,ix_s)(a,k,j,i) -= dflx_(ix_g,ix_s,
                                               ixn_Lab::F_x+a,i);

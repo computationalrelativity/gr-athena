@@ -16,8 +16,8 @@ ncycle_out   = 1      # interval for stdout summary info
 <mesh> # ======================================================================
 # no. cell in dir, min/max x, inner/outer BC
 nx1    = 240
-x1min  = -1
-x1max  = 1
+x1min  = -4
+x1max  = 4
 ix1_bc = outflow
 ox1_bc = outflow
 

@@ -47,6 +47,7 @@ void M1::AddGRSources(AthenaArray<Real> & u, AthenaArray<Real> & u_inh)
       for (int a=0; a<N; ++a)
       for (int b=0; b<N; ++b)
       M1_ILOOP1(i)
+      if (pm1->MaskGet(k, j, i))
       {
         I_E(k,j,i) += geom.sc_alpha(k,j,i) *
                       sp_P_uu_(a,b,i) *
@@ -55,6 +56,7 @@ void M1::AddGRSources(AthenaArray<Real> & u, AthenaArray<Real> & u_inh)
 
       for (int a=0; a<N; ++a)
       M1_ILOOP1(i)
+      if (pm1->MaskGet(k, j, i))
       {
         I_E(k,j,i) -= sp_F_u_(a,i) * sp_dalpha_d(a,k,j,i);
       }
@@ -62,6 +64,7 @@ void M1::AddGRSources(AthenaArray<Real> & u, AthenaArray<Real> & u_inh)
       for (int a=0; a<N; ++a)
       {
         M1_ILOOP1(i)
+        if (pm1->MaskGet(k, j, i))
         {
           I_F_d(a,k,j,i) -= Un_sc_E(k,j,i) * sp_dalpha_d(a,k,j,i);
         }
@@ -69,14 +72,18 @@ void M1::AddGRSources(AthenaArray<Real> & u, AthenaArray<Real> & u_inh)
         for (int b=0; b<N; ++b)
         {
           M1_ILOOP1(i)
+          if (pm1->MaskGet(k, j, i))
           {
             I_F_d(a,k,j,i) += Un_sp_F_d(b,k,j,i) * sp_dbeta_du(a,b,k,j,i);
           }
 
           for (int c=0; c<N; ++c)
           M1_ILOOP1(i)
+          if (pm1->MaskGet(k, j, i))
           {
-            I_F_d(a,k,j,i) += 0.5 * sp_P_uu_(b,c,i) * sp_dg_ddd(a,b,c,k,j,i);
+            I_F_d(a,k,j,i) += 0.5 * geom.sc_alpha(k,j,i) *
+                                    sp_P_uu_(b,c,i) *
+                                    sp_dg_ddd(a,b,c,k,j,i);
           }
         }
       }
