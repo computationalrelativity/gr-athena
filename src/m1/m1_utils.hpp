@@ -1284,6 +1284,29 @@ inline void ScratchAddToDense(
   }
 }
 
+inline void PointToDense(
+  AT_N_sym & sp_tar_aa,
+  AT_N_sym & sp_S_aa_,
+  const int k, const int j, const int i)
+{
+  for (int a=0; a<N; ++a)
+  for (int b=a; b<N; ++b)
+  {
+    sp_tar_aa(a,b,k,j,i) = sp_S_aa_(a,b,i);
+  }
+}
+
+inline void PointAddToDense(
+  AT_N_sym & sp_tar_aa,
+  const AT_N_sym & sp_S_aa_,
+  const int k, const int j, const int i)
+{
+  for (int a=0; a<N; ++a)
+  for (int b=a; b<N; ++b)
+  {
+    sp_tar_aa(a,b,k,j,i) += sp_S_aa_(a,b,i);
+  }
+}
 
 // ============================================================================
 }  // M1::Assemble

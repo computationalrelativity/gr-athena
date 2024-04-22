@@ -164,7 +164,8 @@ public:
     data_.InitWithShallowSlice(src, dim, indx, ndof());
   }
 
-  void PrintPoint(char * name, const int k, const int j, const int i)
+  void PrintPoint(const std::string & name,
+                  const int k, const int j, const int i)
   {
     std::cout << name << "(" << k << "," << j << "," << i << ") = ";
     std::cout << data_(k,j,i) << std::endl;
@@ -309,7 +310,8 @@ public:
     data_.InitWithShallowSlice(src, indx, ndof());
   }
 
-  void PrintPoint(char * name, const int k, const int j, const int i)
+  void PrintPoint(const std::string & name,
+                  const int k, const int j, const int i)
   {
     for (int a=0; a<ndim; ++a)
     {
@@ -466,7 +468,8 @@ public:
     data_.InitWithShallowSlice(src, indx, ndof());
   }
 
-  void PrintPoint(char * name, const int k, const int j, const int i)
+  void PrintPoint(const std::string & name,
+                  const int k, const int j, const int i)
   {
     switch (sym)
     {
@@ -646,7 +649,8 @@ public:
     data_.InitWithShallowSlice(src, indx, ndof());
   }
 
-  void PrintPoint(char * name, const int k, const int j, const int i)
+  void PrintPoint(const std::string & name,
+                  const int k, const int j, const int i)
   {
     switch (sym)
     {

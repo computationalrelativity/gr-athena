@@ -19,30 +19,20 @@ void InfoDump(M1 * pm1, const int ix_g, const int ix_s,
               const int k, const int j, const int i);
 
 void ClosureThin(M1 * pm1,
-                 const Real weight,
-                 const int ix_g,
-                 const int ix_s,
-                 AT_N_sym & sp_P_dd_,
-                 const int k, const int j,
-                 const int il, const int iu);
-
-void ClosureThin(M1 * pm1,
                  AT_N_sym & sp_P_dd_,
                  const AT_C_sca & sc_E,
                  const AT_N_vec & sp_F_d,
                  const int k, const int j, const int i);
 
 void ClosureThick(M1 * pm1,
-                  const Real weight,
-                  const int ix_g,
-                  const int ix_s,
                   AT_N_sym & sp_P_dd_,
-                  const int k, const int j,
-                  const int il, const int iu);
+                  const Real dotFv,
+                  const AT_C_sca & sc_E,
+                  const AT_N_vec & sp_F_d,
+                  const int k, const int j, const int i);
 
 void ClosureThick(M1 * pm1,
                   AT_N_sym & sp_P_dd_,
-                  const Real dotFv,
                   const AT_C_sca & sc_E,
                   const AT_N_vec & sp_F_d,
                   const int k, const int j, const int i);
@@ -112,7 +102,7 @@ inline Real chi(const Real xi)
   return ONE_3RD + xi2 / 15.0 * (6.0 - 2.0 * xi + 6 * xi2);
 }
 
-inline void sp_P_dd(
+inline void sp_P_dd_(
   AT_N_sym & sp_tar_dd,
   const AT_C_sca & sc_chi,
   const AT_N_sym & sp_P_tn_dd_,
@@ -133,7 +123,7 @@ inline void sp_P_dd(
   }
 }
 
-inline void sp_P_dd(
+inline void sp_P_dd__(
   AT_N_sym & sp_tar_dd,
   const AT_C_sca & sc_chi,
   const AT_N_sym & sp_P_tn_dd_,
@@ -150,6 +140,30 @@ inline void sp_P_dd(
     );
   }
 }
+
+void ClosureMinerbo(M1 * pm1,
+                    AT_C_sca & sc_xi,
+                    AT_C_sca & sc_chi,
+                    AT_N_sym & sp_P_dd,
+                    AT_C_sca & sc_E,
+                    AT_N_vec & sp_F_d,
+                    AT_C_sca & sc_J,
+                    AT_C_sca & sc_H_t,
+                    AT_N_vec & sp_H_d,
+                    const int ix_g, const int ix_s,
+                    const int k, const int j, const int i);
+
+void ClosureMinerboN(M1 * pm1,
+                     AT_C_sca & sc_xi,
+                     AT_C_sca & sc_chi,
+                     AT_N_sym & sp_P_dd,
+                     AT_C_sca & sc_E,
+                     AT_N_vec & sp_F_d,
+                     AT_C_sca & sc_J,
+                     AT_C_sca & sc_H_t,
+                     AT_N_vec & sp_H_d,
+                     const int ix_g, const int ix_s,
+                     const int k, const int j, const int i);
 
 // ============================================================================
 } // namespace M1::Closures::Minerbo

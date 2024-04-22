@@ -452,6 +452,14 @@ void InitM1ValueInject(MeshBlock *pmb, ParameterInput *pin)
   }
 
   pm1->DerivedGeometry(pm1->geom, pm1->scratch);
+
+  // opacities --------------------------------------------------------------
+  pm1->radmat.sc_eta_0(0,0)(K,J,I)   = 1.3;
+  pm1->radmat.sc_kap_a_0(0,0)(K,J,I) = 0.7;
+
+  pm1->radmat.sc_eta(0,0)(K,J,I)   = 1.1;
+  pm1->radmat.sc_kap_a(0,0)(K,J,I) = 0.9;
+  pm1->radmat.sc_kap_s(0,0)(K,J,I) = 2.3;
 }
 
 // ============================================================================

@@ -20,6 +20,11 @@
 #include "../bvals/cc/bvals_cc.hpp"
 #include "m1_containers.hpp"
 
+// External libraries
+#include <gsl/gsl_errno.h>
+#include <gsl/gsl_math.h>
+#include <gsl/gsl_roots.h>
+
 // ============================================================================
 namespace M1 {
 // ============================================================================
@@ -32,10 +37,14 @@ namespace M1 {
 class M1
 {
 
+// internal solver data =======================================================
+public:
+  gsl_root_fsolver * gsl_brent_solver;
+
 // methods ====================================================================
 public:
   M1(MeshBlock *pmb, ParameterInput *pin);
-  ~M1() { };
+  ~M1();
 
   void CalcFiducialVelocity();
   void CalcClosure(AthenaArray<Real> & u);
@@ -73,6 +82,11 @@ private:
                                          AthenaArray<Real> & u_pre,
                                          AthenaArray<Real> & u_cur,
 		                                     AthenaArray<Real> & u_inh);
+
+  void CalcImplicitUpdateHybrids(Real const dt,
+                                 AthenaArray<Real> & u_pre,
+                                 AthenaArray<Real> & u_cur,
+		                             AthenaArray<Real> & u_inh);
 
 // data =======================================================================
 public:
@@ -118,7 +132,8 @@ public:
   enum class opt_integration_strategy { full_explicit,
                                         semi_implicit_PicardFrozenP,
                                         semi_implicit_PicardMinerboP,
-                                        semi_implicit_PicardMinerboPC};
+                                        semi_implicit_PicardMinerboPC,
+                                        semi_implicit_Hybrids};
   enum class opt_fiducial_velocity { fluid, mixed, zero, none };
   enum class opt_characteristics_variety { approximate,
                                            exact_thin,
@@ -608,6 +623,17 @@ public:
 
   inline void MaskThreshold(const int k, const int j, const int i)
   {
+    const Real C = 10 * opt.fl_E;
+    Real val (0);
+    for (int K=-1; K<=1; ++K)
+    for (int J=-1; J<=1; ++J)
+    for (int I=-1; I<=1; ++I)
+    {
+      val = std::max(lab.sc_E(0,0)(k+K,j+J,i+I), val);
+    }
+
+    m1_mask(k,j,i) = (val > C);
+    MaskSet(m1_mask(k,j,i), k, j, i);
     // m1_mask(k,j,i) = (lab.sc_E(k,j,i) < opt.fl_E) ? false : true;
   }
 

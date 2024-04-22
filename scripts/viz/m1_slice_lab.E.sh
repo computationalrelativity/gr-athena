@@ -13,8 +13,8 @@ ipython -i ${repos}/numerical_relativity/simtroller/cmd_vis_gra.py -- \
   --dir_out ${dir_out}       \
   --N_B 20                   \
   --sampling x1v             \
-  --plot_range [-0.3, 1.3]   \
-  --range [-4,4]             \
+  --plot_range [-0.3,1.4]   \
+  --range [-1,1]             \
   --parallel_pool 8          \
   --var lab_aux.chi lab.E lab.Fx --plot_show 0
 

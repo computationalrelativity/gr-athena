@@ -7,6 +7,11 @@
 #include "m1_macro.hpp"
 #include "m1_utils.hpp"
 
+// External libraries
+#include <gsl/gsl_errno.h>
+#include <gsl/gsl_math.h>
+#include <gsl/gsl_roots.h>
+
 // ============================================================================
 namespace M1 {
 // ============================================================================
@@ -511,10 +516,6 @@ void M1::CalcImplicitUpdatePicardMinerboP(
   const Real xi_min = 0.0;
   const Real xi_max = 1.0;
 
-  // indicial ranges ----------------------------------------------------------
-  const int il = mbi.il;
-  const int iu = mbi.iu;
-
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
   {
@@ -581,11 +582,18 @@ void M1::CalcImplicitUpdatePicardMinerboP(
     //   {
     //     I_F_d(a,k,j,i) = O_F_d(a,k,j,i) + dt * R_F_d(a,k,j,i);
     //   }
-    // }
 
-    // // Compute closure based on first guess
-    // // This also updates internally stored sc_J, sc_H_t, sp_H_d
-    // CalcClosure(u_cur);
+    //   // Compute closure based on first guess
+    //   Closures::Minerbo::ClosureMinerbo(
+    //     this, sc_xi, sc_chi, sp_P_dd,
+    //     drf.sc_E,
+    //     drf.sp_F_d,
+    //     sc_J,
+    //     sc_H_t,
+    //     sp_H_d,
+    //     ix_g, ix_s,
+    //     k, j, i);
+    // }
 
     M1_ILOOP3(k,j,i)
     {
@@ -651,11 +659,11 @@ void M1::CalcImplicitUpdatePicardMinerboP(
           I_F_d,
           k, j, i);
 
-        Closures::Minerbo::sp_P_dd(sp_P_dd,
-                                   sc_chi,
-                                   sp_P_tn_dd_,
-                                   sp_P_tk_dd_,
-                                   k, j, i);
+        Closures::Minerbo::sp_P_dd__(sp_P_dd,
+                                     sc_chi,
+                                     sp_P_tn_dd_,
+                                     sp_P_tk_dd_,
+                                     k, j, i);
 
         // assemble zero functional
         const Real Z_xi = Closures::Minerbo::R(xi, &drf);
@@ -676,6 +684,9 @@ void M1::CalcImplicitUpdatePicardMinerboP(
             {
               sp_P_dd(a,b,k,j,i) = sp_P_tn_dd_(a,b,i);
             }
+
+            // e_abs_old = std::numeric_limits<Real>::infinity();
+            // e_abs_cur = std::numeric_limits<Real>::infinity();
           }
           e_abs_cur_C = 0.0;
         }
@@ -794,6 +805,43 @@ void M1::CalcImplicitUpdatePicardMinerboP(
           std::cout << "chi: " << sc_chi(k,j,i) << "\n";
         }
       }
+
+      // check causality reln.
+      if (0)
+      {
+        const Real norm2F = Assemble::sp_norm2__(I_F_d, sp_g_uu, k, j, i);
+
+        I_E(k,j,i) = std::max(I_E(k,j,i), opt.fl_E);
+
+        if (norm2F > 0)
+        if (SQR(I_E(k,j,i)) > norm2F)
+        {
+          const Real normF = std::sqrt(norm2F);
+          const Real fac_EF = I_E(k,j,i) / normF;
+
+          for (int a=0; a<N; ++a)
+          {
+            I_F_d(a,k,j,i) = I_F_d(a,k,j,i) / fac_EF;
+          }
+          // StatePrintPoint(ix_g, ix_s, k, j, i, true);
+        }
+
+      }
+
+      /*
+      if ((sc_xi(k,j,i) < xi_min) || (sc_xi(k,j,i) > xi_max))
+      {
+        sc_xi(k,j,i) = std::max(std::min(sc_xi(k,j,i), xi_max), xi_min);
+        sc_chi(k,j,i) = Closures::Minerbo::chi(sc_xi(k,j,i));
+
+        Closures::Minerbo::sp_P_dd__(sp_P_dd,
+                                     sc_chi,
+                                     sp_P_tn_dd_,
+                                     sp_P_tk_dd_,
+                                     k, j, i);
+
+      }
+      */
 
     }
 
@@ -1103,6 +1151,339 @@ void M1::CalcImplicitUpdatePicardMinerboPC(
 
 }
 
+// ----------------------------------------------------------------------------
+// Implicit update strategy for state vector (FD approximation for Jacobian)
+void M1::CalcImplicitUpdateHybrids(
+  Real const dt,
+  AthenaArray<Real> & u_pre,
+  AthenaArray<Real> & u_cur,
+  AthenaArray<Real> & u_inh)
+{
+  // (imp.) iterated state vector
+  vars_Lab U_I { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
+  SetVarAliasesLab(u_cur, U_I);
+
+  vars_Lab R { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
+  SetVarAliasesLab(u_inh, R);
+
+  // u1 / previous
+  vars_Lab U_o { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
+  SetVarAliasesLab(u_pre, U_o);
+
+  // fiducial quantities
+  AT_C_sca & sc_W = fidu.sc_W;
+  AT_N_vec & sp_v_u = fidu.sp_v_u;
+  AT_N_vec & sp_v_d = fidu.sp_v_d;
+
+  // required geometric quantities
+  AT_C_sca & sc_alpha      = geom.sc_alpha;
+  AT_C_sca & sc_sqrt_det_g = geom.sc_sqrt_det_g;
+  AT_N_sym & sp_g_dd       = geom.sp_g_dd;
+  AT_N_sym & sp_g_uu       = geom.sp_g_uu;
+
+  // point to scratches -------------------------------------------------------
+  AT_N_vec & sp_dH_d_    = scratch.sp_vec_A_;
+  AT_N_sym & sp_P_tn_dd_ = scratch.sp_sym_A_;
+  AT_N_sym & sp_P_tk_dd_ = scratch.sp_sym_B_;
+  AT_N_sym & sp_dP_dd_   = scratch.sp_sym_C_;
+
+  std::array<Real, 1> iI_xi;
+  std::array<Real, 1> iI_E;
+  std::array<Real, N> iI_F_d;
+
+  // Admissible ranges for xi entering Eddington factor chi(xi)
+  const Real xi_min = 0.0;
+  const Real xi_max = 1.0;
+
+  // indicial ranges ----------------------------------------------------------
+  const int il = mbi.il;
+  const int iu = mbi.iu;
+
+  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  {
+    AT_C_sca & R_nG   = R.sc_nG( ix_g,ix_s);
+    AT_C_sca & R_E    = R.sc_E(  ix_g,ix_s);
+    AT_N_vec & R_F_d  = R.sp_F_d(ix_g,ix_s);
+
+    AT_C_sca & O_nG   = U_o.sc_nG( ix_g,ix_s);
+    AT_C_sca & O_E    = U_o.sc_E(  ix_g,ix_s);
+    AT_N_vec & O_F_d  = U_o.sp_F_d(ix_g,ix_s);
+
+    AT_C_sca & I_nG   = U_I.sc_nG( ix_g,ix_s);
+    AT_C_sca & I_E    = U_I.sc_E(  ix_g,ix_s);
+    AT_N_vec & I_F_d  = U_I.sp_F_d(ix_g,ix_s);
+
+    AT_N_sym & sp_P_dd = lab_aux.sp_P_dd(ix_g,ix_s);
+    AT_C_sca & sc_chi  = lab_aux.sc_chi( ix_g,ix_s);
+    AT_C_sca & sc_xi   = lab_aux.sc_xi(  ix_g,ix_s);
+
+    AT_C_sca & sc_J    = rad.sc_J(  ix_g,ix_s);
+    AT_C_sca & sc_H_t  = rad.sc_H_t(ix_g,ix_s);
+    AT_N_vec & sp_H_d  = rad.sp_H_d(ix_g,ix_s);
+
+    AT_C_sca & sc_eta_0   = radmat.sc_eta_0(  ix_g,ix_s);
+    AT_C_sca & sc_kap_a_0 = radmat.sc_kap_a_0(ix_g,ix_s);
+
+    AT_C_sca & sc_eta   = radmat.sc_eta(  ix_g,ix_s);
+    AT_C_sca & sc_kap_a = radmat.sc_kap_a(ix_g,ix_s);
+    AT_C_sca & sc_kap_s = radmat.sc_kap_s(ix_g,ix_s);
+
+    // initialize struct for root-finding
+    Closures::Minerbo::DataRootfinder drf {
+      sp_g_uu,
+      I_E,
+      I_F_d,
+      sp_P_dd,
+      sc_chi,
+      sc_xi,
+      sc_J,
+      sc_H_t,
+      sp_H_d,
+      pm1->fidu.sc_W,
+      pm1->fidu.sp_v_u,
+      pm1->fidu.sp_v_d,
+      sp_dH_d_,
+      sp_P_tn_dd_,
+      sp_P_tk_dd_,
+      sp_dP_dd_
+    };
+
+    // Shift explicit update onto I_* - this fixes the first guess
+    M1_ILOOP3(k,j,i)
+    {
+      // nop if mask has not been set
+      if (!pm1->MaskGet(k,j,i))
+      {
+        continue;
+      }
+
+      I_E(k,j,i) = O_E(k,j,i) + dt * R_E(k,j,i);
+      I_E(k,j,i) = std::max(opt.fl_E, I_E(k,j,i));
+
+      for (int a=0; a<N; ++a)
+      {
+        I_F_d(a,k,j,i) = O_F_d(a,k,j,i) + dt * R_F_d(a,k,j,i);
+      }
+    }
+
+    // // Compute closure based on first guess
+    // // This also updates internally stored sc_J, sc_H_t, sp_H_d
+    // CalcClosure(u_cur);
+
+    M1_ILOOP3(k,j,i)
+    {
+      // nop if mask has not been set
+      if (!pm1->MaskGet(k,j,i))
+      {
+        continue;
+      }
+
+      // Iterate (S_1, S_{1+k})
+      const int iter_max_P = opt.max_iter_P;
+      int pit = 0;     // iteration counter
+      int rit = 0;     // restart counter
+      const int iter_max_R = opt.max_iter_P_rst;  // maximum number of restarts
+      Real w_opt = opt.w_opt_ini;  // underrelaxation factor
+      Real e_P_abs_tol = opt.eps_P_abs_tol;
+      Real e_C_abs_tol = opt.eps_C;
+      // maximum error amplification factor between iters.
+      Real fac_PA   = opt.fac_amp_P;
+      Real fac_PA_C = opt.fac_amp_C;
+
+      // retain values for potential restarts
+      iI_xi[0] = sc_xi(k,j,i);
+      iI_E[0]  = I_E(k,j,i);
+      for (int a=0; a<N; ++a)
+      {
+        iI_F_d[a] = I_F_d(a,k,j,i);
+      }
+
+      Real e_abs_old = std::numeric_limits<Real>::infinity();
+      Real e_abs_cur = 0;
+
+      Real e_abs_old_C = std::numeric_limits<Real>::infinity();
+      Real e_abs_cur_C = 0;
+
+      // solver loop ----------------------------------------------------------
+      const Real kap_as = sc_kap_a(k,j,i) + sc_kap_s(k,j,i);
+
+      const Real W    = sc_W(k,j,i);
+      const Real oo_W = 1.0 / W;
+      const Real W2   = SQR(W);
+
+      drf.i = i;
+      drf.j = j;
+      drf.k = k;
+
+      do
+      {
+        pit++;
+
+        // Minerbo assembly ---------------------------------------------------
+        const Real xi = sc_xi(k,j,i);
+        sc_chi(k,j,i) = Closures::Minerbo::chi(sc_xi(k,j,i));
+
+        Real dotFv = Assemble::sc_dot_dense_sp__(I_F_d, sp_v_u, k, j, i);
+
+        Closures::ClosureThin(this, sp_P_tn_dd_, I_E, I_F_d, k, j, i);
+        Closures::ClosureThick(
+          this,
+          sp_P_tk_dd_,
+          dotFv,
+          I_E,
+          I_F_d,
+          k, j, i);
+
+        Closures::Minerbo::sp_P_dd__(sp_P_dd,
+                                     sc_chi,
+                                     sp_P_tn_dd_,
+                                     sp_P_tk_dd_,
+                                     k, j, i);
+
+        // assemble zero functional
+        const Real Z_xi = Closures::Minerbo::R(xi, &drf);
+
+        sc_xi(k,j,i) = std::abs(sc_xi(k,j,i) - w_opt * Z_xi);
+        e_abs_cur_C = std::abs(Z_xi);
+
+        // if iteration pushes outside admissible range reset
+        if (opt.reset_thin)
+        {
+          if ((sc_xi(k,j,i) < xi_min) || (sc_xi(k,j,i) > xi_max))
+          {
+            sc_xi(k,j,i) = xi_max;
+            sc_chi(k,j,i) = Closures::Minerbo::chi(sc_xi(k,j,i));
+
+            for (int a=0; a<N; ++a)
+            for (int b=a; b<N; ++b)
+            {
+              sp_P_dd(a,b,k,j,i) = sp_P_tn_dd_(a,b,i);
+            }
+          }
+          e_abs_cur_C = 0.0;
+        }
+
+        // state-vector non-linear subsystem ----------------------------------
+
+        Real S_fac (0);
+        S_fac = sc_sqrt_det_g(k,j,i) * sc_eta(k,j,i);
+        S_fac += sc_kap_s(k,j,i) * drf.sc_J(k,j,i);
+
+        Real S1 = sc_alpha(k,j,i) * W * (
+          kap_as * (dotFv - I_E(k,j,i)) + S_fac
+        );
+
+        Real WE = O_E(k,j,i) + dt * R_E(k,j,i);
+        Real ZE = I_E(k,j,i) - dt * S1 - WE;
+        // Ensure update preserves energy non-negativity
+        I_E(k,j,i) = I_E(k,j,i) - w_opt * ZE;
+        I_E(k,j,i) = std::max(opt.fl_E, I_E(k,j,i));
+
+        e_abs_cur = std::abs(ZE);
+
+        for (int a=0; a<N; ++a)
+        {
+          Real dotPv (0);
+          for (int b=0; b<N; ++b)
+          {
+            dotPv += sp_P_dd(a,b,k,j,i) * sp_v_u(b,k,j,i);
+          }
+
+          Real S1pk = sc_alpha(k,j,i) * W * (
+            kap_as * (dotPv - I_F_d(a,k,j,i)) + S_fac * sp_v_d(a,k,j,i)
+          );
+
+          Real WF_d = O_F_d(a,k,j,i) + dt * R_F_d(a,k,j,i);
+          Real ZF_d = I_F_d(a,k,j,i) - dt * S1pk - WF_d;
+
+          I_F_d(a,k,j,i) = I_F_d(a,k,j,i) - w_opt * ZF_d;
+
+          e_abs_cur = std::max(std::abs(ZF_d), e_abs_cur);
+        }
+
+        // scale error tol by step
+        // e_abs_cur = w_opt * e_abs_cur;
+
+        if (e_abs_cur > fac_PA * e_abs_old)
+        {
+          // halve underrelaxation and recover old values
+          w_opt = w_opt / 2;
+          sc_xi(k,j,i) = iI_xi[0];
+          I_E(k,j,i) = iI_E[0];
+          for (int a=0; a<N; ++a)
+          {
+            I_F_d(a,k,j,i) = iI_F_d[a];
+          }
+
+          if (rit > iter_max_R)
+          {
+            std::ostringstream msg;
+            msg << "M1::CalcImplicitUpdatePicardMinerboP max restarts exceeded.";
+            std::cout << msg.str().c_str() << std::endl;
+            Closures::InfoDump(this, ix_g, ix_s, k, j, i);
+            std::cout << e_abs_cur << "\n";
+            std::cout << e_abs_old << "\n";
+            std::exit(0);
+          }
+
+          // restart iteration
+          e_abs_old   = std::numeric_limits<Real>::infinity();
+          e_abs_old_C = std::numeric_limits<Real>::infinity();
+          pit = 0;
+          rit++;
+
+        }
+        else
+        {
+          e_abs_old   = e_abs_cur;
+          e_abs_old_C = e_abs_cur_C;
+        }
+
+      } while ((pit < iter_max_P) &&
+               (e_abs_cur >= e_P_abs_tol));
+
+      // Ensure energy is non-negative
+      I_E(k,j,i) = std::max(opt.fl_E, I_E(k,j,i));
+
+      // Neutrino current evolution is linearly implicit; assemble directly
+      // Note: could be moved outside loop but more convenient to put here
+      const Real dotFv = Assemble::sc_dot_dense_sp__(I_F_d, sp_v_u, k, j, i);
+
+      const Real I_J = Assemble::sc_J__(
+        W2, dotFv, I_E, drf.sp_v_u, drf.sp_P_dd,
+        k, j, i
+      );
+
+      const Real WnGam = O_nG(k,j,i) + dt * R_nG(k,j,i);
+      const Real I_Gam = Assemble::sc_G_(
+        W, I_E(k,j,i), I_J, dotFv,
+        opt.fl_E, opt.fl_J, opt.eps_E
+      );
+
+      I_nG(k,j,i) = WnGam / (
+        1.0 - dt * sc_alpha(k,j,i) * sc_kap_a_0(k,j,i) / I_Gam
+      );
+
+
+      // dump some information ------------------------------------------------
+
+      if (opt.verbose_iter_P)
+      {
+        if (e_abs_cur >= e_P_abs_tol)
+        {
+          std::cout << "M1::CalcImplicitUpdatePicardMinerboP:\n";
+          std::cout << "Tol. not achieved: " << e_abs_cur << "\n";
+          std::cout << "(pit,rit): " << pit << "," << rit << "\n";
+          std::cout << "chi: " << sc_chi(k,j,i) << "\n";
+        }
+      }
+
+    }
+
+  }
+
+}
 
 // ----------------------------------------------------------------------------
 // Function to update the state vector
@@ -1173,6 +1554,11 @@ void M1::CalcUpdate(Real const dt,
     case (opt_integration_strategy::semi_implicit_PicardMinerboPC):
     {
       CalcImplicitUpdatePicardMinerboPC(dt, u_pre, u_cur, u_inh);
+      break;
+    }
+    case (opt_integration_strategy::semi_implicit_Hybrids):
+    {
+      CalcImplicitUpdateHybrids(dt, u_pre, u_cur, u_inh);
       break;
     }
     default:

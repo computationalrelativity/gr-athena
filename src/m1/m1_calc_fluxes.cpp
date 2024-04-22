@@ -165,6 +165,7 @@ void M1::CalcCharacteristicSpeedApproximate(const int dir, AT_C_sca & lambda)
   AT_N_sym & g_uu   = geom.sp_g_uu;
 
   M1_FLOOP3(k,j,i)
+  if (pm1->MaskGet(k,j,i))
   {
     const Real A = alpha(k,j,i) * std::sqrt(g_uu(dir,dir,k,j,i));
     const Real B = beta_u(dir,k,j,i);
@@ -253,6 +254,7 @@ void M1::CalcCharacteristicSpeed(const int dir,
     {
       // see e.g. [2].
       M1_FLOOP3(k,j,i)
+      if (pm1->MaskGet(k,j,i))
       {
         lambda(k,j,i) = lam_thin(k,j,i);
       }
@@ -263,6 +265,7 @@ void M1::CalcCharacteristicSpeed(const int dir,
     {
       // see e.g. [2].
       M1_FLOOP3(k,j,i)
+      if (pm1->MaskGet(k,j,i))
       {
         lambda(k,j,i) = lam_thick(k,j,i);
       }
@@ -273,6 +276,7 @@ void M1::CalcCharacteristicSpeed(const int dir,
     {
       // see e.g. [2].
       M1_FLOOP3(k,j,i)
+      if (pm1->MaskGet(k,j,i))
       {
         lambda(k,j,i) = (
           0.5 * (3.0 * sc_chi(k,j,i) - 1.0) * lam_thin(k,j,i) +

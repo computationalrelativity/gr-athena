@@ -15,19 +15,19 @@ ncycle_out   = 1      # interval for stdout summary info
 
 <mesh> # ======================================================================
 # no. cell in dir, min/max x, inner/outer BC
-nx1    = 64
+nx1    = 60
 x1min  = -4
 x1max  = 4
 ix1_bc = outflow
 ox1_bc = outflow
 
-nx2    = 64
+nx2    = 60
 x2min  = -4
 x2max  = 4
 ix2_bc = outflow
 ox2_bc = outflow
 
-nx3    = 64
+nx3    = 60
 x3min  = -4
 x3max  = 4
 ix3_bc = outflow
@@ -48,9 +48,9 @@ level = 1
 # =============================================================================
 
 <meshblock> # =================================================================
-nx1 = 16
-nx2 = 16
-nx3 = 16
+nx1 = 20
+nx2 = 20
+nx3 = 20
 # =============================================================================
 
 <M1> # ========================================================================
@@ -90,7 +90,7 @@ min_flux_A = 0
 
 # [Minerbo] closure root tolerance & maximum iterations
 eps_C          = 1e-6
-eps_C_N        = 1e-10  // switch to Picard if deriv. below this
+eps_C_N        = 1e-6  // switch to Picard if deriv. below this
 max_iter_C     = 64
 max_iter_C_rst = 10
 w_opt_ini_C    = 0.5
@@ -99,12 +99,12 @@ reset_thin     = true  // reset on failure to thin limit
 verbose_iter_C = true
 
 # [Picard] iteration settings
-max_iter_P     = 1024   // maximum number of iterations (for each restart)
+max_iter_P     = 512   // maximum number of iterations (for each restart)
 max_iter_P_rst = 10    // maximum number of restarts
-w_opt_ini_P    = 0.5   // initial underrelaxation factor
+w_opt_ini_P    = 1.0   // initial underrelaxation factor
 eps_P_abs_tol  = 1e-8  // absolute tolerance
 fac_amp_P      = 1.10  // error amplification tolerance between iterates
-verbose_iter_P = true  // signal e.g. failure to achieve tol.
+verbose_iter_P = false  // signal e.g. failure to achieve tol.
 
 # =============================================================================
 

@@ -27,9 +27,9 @@ x2max  = 5
 ix2_bc = outflow
 ox2_bc = outflow
 
-nx3    = 32
-x3min  = -0.8
-x3max  = 0.8
+nx3    = 8
+x3min  = -0.2
+x3max  = 0.2
 ix3_bc = outflow
 ox3_bc = outflow
 
@@ -50,7 +50,7 @@ level = 1
 <meshblock> # =================================================================
 nx1 = 20
 nx2 = 20
-nx3 = 32
+nx3 = 8
 # =============================================================================
 
 <M1> # ========================================================================
@@ -64,10 +64,10 @@ nspecies = 1
 #  MinerboP    - Picard
 #  MinerboN    - Newton-Raphson
 # }
-closure_variety = Minerbo
+closure_variety = MinerboN
 
 # element of: {approximate, exact_thin, exact_thick, exact_Minerbo}
-characteristics_variety = exact_Minerbo
+characteristics_variety = approximate
 
 # element of: {fluid, mixed, zero, none}
 fiducial_velocity = fluid
@@ -89,7 +89,7 @@ eps_J = 1e-10
 min_flux_A = 0
 
 # [Minerbo] closure root tolerance & maximum iterations
-eps_C          = 1e-6
+eps_C          = 1e-8
 eps_C_N        = 1e-10  // switch to Picard if deriv. below this
 max_iter_C     = 64
 max_iter_C_rst = 10

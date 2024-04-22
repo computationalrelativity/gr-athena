@@ -68,12 +68,13 @@ fiducial_velocity = fluid
 #  semi_implicit_PicardMinerboP  - updates P_dd based on Minerbo;
 #                                  Closure is iterated as part of imp.
 #  semi_implicit_PicardMinerboPC - close explicit iter; iter; close conv.
+#  semi_implicit_Hybrids         - GSL: FD approx. of J
 # }
 integration_strategy = semi_implicit_PicardMinerboP
 
 # tolerances / ad-hoc fiddle parameters
-fl_E = 1e-14
-fl_J = 1e-14
+fl_E = 1e-15
+fl_J = 1e-15
 eps_E = 1e-5
 eps_J = 1e-10
 min_flux_A = 0
@@ -89,7 +90,7 @@ reset_thin     = true   // reset on failure to thin limit
 verbose_iter_C = true
 
 # [Picard] iteration settings
-max_iter_P     = 512    // maximum number of iterations (for each restart)
+max_iter_P     = 1024    // maximum number of iterations (for each restart)
 max_iter_P_rst = 5     // maximum number of restarts
 w_opt_ini_P    = 1.0    // initial underrelaxation factor
 eps_P_abs_tol  = 1e-8  // absolute tolerance

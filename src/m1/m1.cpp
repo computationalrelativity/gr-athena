@@ -176,6 +176,20 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     }
   }
 
+  // --------------------------------------------------------------------------
+  // (GSL) solver setup
+  gsl_set_error_handler_off();
+
+  gsl_brent_solver = gsl_root_fsolver_alloc(
+    gsl_root_fsolver_brent
+  );
+}
+
+M1::~M1()
+{
+  gsl_root_fsolver_free(gsl_brent_solver);
+  // TODO: bug - this can't be deactivated properly with OMP
+  // gsl_set_error_handler(NULL);  // restore default handler
 }
 
 void M1::PopulateOptions(ParameterInput *pin)
@@ -203,6 +217,11 @@ void M1::PopulateOptions(ParameterInput *pin)
     {
       opt.integration_strategy = \
         opt_integration_strategy::semi_implicit_PicardMinerboPC;
+    }
+    else if (tmp == "semi_implicit_Hybrids")
+    {
+      opt.integration_strategy = \
+        opt_integration_strategy::semi_implicit_Hybrids;
     }
     else
     {

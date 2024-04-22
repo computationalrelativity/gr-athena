@@ -28,8 +28,8 @@ ix2_bc = outflow
 ox2_bc = outflow
 
 nx3    = 4
-x3min  = -2
-x3max  = 2
+x3min  = -3
+x3max  = 3
 ix3_bc = outflow
 ox3_bc = outflow
 
@@ -64,7 +64,7 @@ nspecies = 1
 #  MinerboP    - Picard
 #  MinerboN    - Newton-Raphson
 # }
-closure_variety = Minerbo
+closure_variety = MinerboN
 
 # element of: {approximate, exact_thin, exact_thick, exact_Minerbo}
 characteristics_variety = approximate
@@ -82,18 +82,18 @@ fiducial_velocity = fluid
 integration_strategy = semi_implicit_PicardMinerboP
 
 # tolerances / ad-hoc fiddle parameters
-fl_E = 1e-15
-fl_J = 1e-15
+fl_E = 1e-14
+fl_J = 1e-14
 eps_E = 1e-5
 eps_J = 1e-10
 min_flux_A = 0
 
 # [Minerbo] closure root tolerance & maximum iterations
-eps_C          = 1e-10
-eps_C_N        = 1e-10  // switch to Picard if deriv. below this
-max_iter_C     = 32
-max_iter_C_rst = 10
-w_opt_ini_C    = 0.5
+eps_C          = 1e-6
+eps_C_N        = 1e-8  // switch to Picard if deriv. below this
+max_iter_C     = 64
+max_iter_C_rst = 2
+w_opt_ini_C    = 1.0
 fac_amp_C      = 1.10  // error amplification tolerance between iterates
 reset_thin     = true  // reset on failure to thin limit
 verbose_iter_C = false
@@ -101,7 +101,7 @@ verbose_iter_C = false
 # [Picard] iteration settings
 max_iter_P     = 512   // maximum number of iterations (for each restart)
 max_iter_P_rst = 10    // maximum number of restarts
-w_opt_ini_P    = 0.5   // initial underrelaxation factor
+w_opt_ini_P    = 1.0   // initial underrelaxation factor
 eps_P_abs_tol  = 1e-8  // absolute tolerance
 fac_amp_P      = 1.10  // error amplification tolerance between iterates
 verbose_iter_P = false  // signal e.g. failure to achieve tol.
