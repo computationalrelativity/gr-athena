@@ -39,6 +39,14 @@ public:
   enum {
     I_detg,
     I_Mdot,
+    I_bernoulli,
+    I_enthalpy,
+    I_entropy,
+    I_lorentz,
+    I_u_t,
+    I_fD_r,
+    I_v_mag,
+    I_poynting,
     NOTHER
   };
   //! Creates the AHF object
@@ -77,11 +85,24 @@ private:
   Real mass_contained;
   Real Mdot_total;
 
+
+  // Unboundedness criteria
+  enum{I_unbound_bernoulli,I_unbound_bernoulli_outflow,I_unbound_geodesic,I_unbound_geodesic_outflow,n_unbound};
+  //integrated quantities
+  enum{I_int_mass,I_int_entr,I_int_rho,I_int_temp,I_int_ye,I_int_vel,I_int_ber,I_int_velinf,n_int};
+  enum{I_hist_entr,I_hist_logrho,I_hist_temp,I_hist_ye,I_hist_vel,I_hist_ber,I_hist_theta,I_hist_velinf,n_hist};
+  AthenaArray<Real> hist[n_hist], hist_grid[n_hist];
+  Real delta_hist[n_hist];
+  int n_bins[n_hist];
+
   //! Flag points 
   AthenaArray<int> havepoint;
+ AthenaArray<Real> integrals_unbound, az_integrals_unbound; 
 
   void Interp(MeshBlock * pmb);
   void Mass(MeshBlock * pmb);
+
+  void SphericalIntegrals();
 
   int tpindex(const int i, const int j);
   Real th_grid(const int i);
@@ -93,8 +114,11 @@ private:
 
   int root;
   int ioproc;
-  std::string ofname_summary;
-  FILE * pofile_summary;
+  std::string ofname_summary, ofname_bernoulli, ofname_bernoulli_outflow, ofname_geodesic, ofname_geodesic_outflow;
+  std::string ofname_unbound[n_unbound], ofname_az_unbound[n_unbound], ofname_hist_unbound[n_unbound][n_hist];
+  FILE * pofile_summary, *pofile_bernoulli, *pofile_bernoulli_outflow, *pofile_geodesic, *pofile_geodesic_outflow;
+  FILE * pofile_unbound[n_unbound], *pofile_az_unbound[n_unbound];
+  FILE *pofile_hist_unbound[n_unbound][n_hist];
 
   // Functions taken from Z4c ...
   // ... compute spatial determinant of a 3x3  matrix

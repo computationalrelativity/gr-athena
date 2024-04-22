@@ -171,7 +171,7 @@ void ParameterInput::LoadFromStream(std::istream &is) {
 
 void ParameterInput::LoadFromFile(IOWrapper &input) {
   std::stringstream par, msg;
-  constexpr int kBufSize = 4096;
+  constexpr int kBufSize = 8192;
   char buf[kBufSize];
   IOWrapperSizeT header = 0, ret, loc;
 

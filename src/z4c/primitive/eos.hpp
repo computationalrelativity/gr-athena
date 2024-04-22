@@ -204,8 +204,14 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \param[in] Y  An array of size n_species of the particle fractions.
     //  \return The entropy per baryon for this EOS.
     inline Real GetEntropy(Real n, Real T, Real *Y) {
-      return Entropy(n, T*code_units->TemperatureConversion(*eos_units), Y)/mb *
+/* Entropy per unit mass
+      	    return Entropy(n, T*code_units->TemperatureConversion(*eos_units), Y)/mb *
              eos_units->EntropyConversion(*code_units)/eos_units->MassConversion(*code_units);
+	     */
+	    //Entropy per baryon
+      	    return Entropy(n, T*code_units->TemperatureConversion(*eos_units), Y) *
+             eos_units->EntropyConversion(*code_units);
+
     }
 
     //! \fn Real GetEnthalpy(Real n, Real T, Real *Y)
