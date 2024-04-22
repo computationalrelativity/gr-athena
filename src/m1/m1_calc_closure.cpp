@@ -1178,6 +1178,8 @@ void ClosureMinerboN(M1 * pm1,
 
   drf.xi_i = std::numeric_limits<Real>::infinity();
 
+  bool revert_brent = false;
+
   do
   {
     pit++;
@@ -1186,19 +1188,10 @@ void ClosureMinerboN(M1 * pm1,
     Real Z_xi = R(xi, &drf);
 
     // break-fast?
-    if (is_valid(xi))
+    if ((std::abs(drf.xi_i-drf.xi_im1) < e_C_abs_tol))
     {
-      if ((std::abs(drf.xi_i-drf.xi_im1) < e_C_abs_tol))
-      {
-        break;
-      }
-    }
-    else
-    {
-      do_newton = false;
       break;
     }
-
 
     Real dZ_xi = dR(xi, &drf);
 
@@ -1214,63 +1207,60 @@ void ClosureMinerboN(M1 * pm1,
     }
     else
     {
-      do_newton = false;
+      revert_brent = true;
       break;
     }
 
-    if (!is_valid(sc_xi_can))
+    if (D > (xi_max - xi_min))
     {
-      do_newton = false;
+      revert_brent = true;
       break;
     }
-    // if ((pit>5) && (sc_xi_can < xi_min) || (sc_xi_can > xi_max))
-    // {
-    //   do_newton = false;
-    // }
 
     e_abs_cur = std::abs(drf.xi_i - sc_xi_can);
 
     if ((e_abs_cur > fac_PA * e_abs_old))
     {
-      // stagnated, revert
-      do_newton = false;
+      // stagnated
+      revert_brent = true;
+      break;
     }
     else
     {
-      if (do_newton)
-      {
-        e_abs_old = e_abs_cur;
-        sc_xi(k,j,i) = sc_xi_can;
-        sc_chi(k,j,i) = chi(sc_xi(k,j,i));
-      }
+      e_abs_old = e_abs_cur;
+      sc_xi(k,j,i) = sc_xi_can;
+      sc_chi(k,j,i) = chi(sc_xi(k,j,i));
     }
 
   } while ((pit < iter_max_C) &&
-           (e_abs_cur >= e_C_abs_tol) &&
-           do_newton);
+           (e_abs_cur >= e_C_abs_tol));
 
-  // if (pit == iter_max_C-1)
-  // {
-  //   do_newton = false;
-  // }
-
-  if (do_newton)
+  if (revert_brent || !is_valid(sc_xi(k,j,i)))
   {
-    // Update P_dd with root
+    Closures::Minerbo::ClosureMinerbo(
+      pm1, sc_xi, sc_chi, sp_P_dd,
+      sc_E,
+      sp_F_d,
+      sc_J,
+      sc_H_t,
+      sp_H_d,
+      ix_g, ix_s,
+      k, j, i);
+  }
+  else
+  {
+    if (!is_valid(sc_xi(k,j,i)))
+    {
+      sc_xi(k,j,i) = std::max(
+        std::min(xi_max, sc_xi(k,j,i)), xi_min
+      );
+      sc_chi(k,j,i) = chi(sc_xi(k,j,i));
+
+    }
     sp_P_dd__(sp_P_dd, sc_chi, sp_P_tn_dd_, sp_P_tk_dd_, k, j, i);
     return;
   }
 
-  // call Brent
-  Closures::Minerbo::ClosureMinerbo(
-    pm1, sc_xi, sc_chi, sp_P_dd,
-    sc_E,
-    sp_F_d,
-    sc_J,
-    sc_H_t,
-    sp_H_d,
-    ix_g, ix_s,
-    k, j, i);
 }
 
 // ============================================================================

@@ -167,14 +167,14 @@ cc_M1.add_node_unparsed(
 
 cc_M1.add_node_unparsed(
   NODE_LABEL='ADD_FLX_DIV',
-  NODE_PARENTS=["RECV_FLUX",],
+  NODE_PARENTS=["RECV_FLUX", "CALC_GRSRC"],
   description=['AddFluxDivergence',
               r'<[...]>'])
 
 # upd
 cc_M1.add_node_unparsed(
   NODE_LABEL='CALC_UPDATE',
-  NODE_PARENTS=["ADD_FLX_DIV","CALC_OPAC", "CALC_GRSRC"],
+  NODE_PARENTS=["ADD_FLX_DIV","CALC_OPAC"],
   description=['CalcUpdate',
               r'<[...]>'])
 

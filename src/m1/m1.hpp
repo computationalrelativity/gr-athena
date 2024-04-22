@@ -56,37 +56,10 @@ public:
 		              AthenaArray<Real> & u_inh);
   void CalcFluxes(AthenaArray<Real> & u);
   void AddFluxDivergence(AthenaArray<Real> & u_inh);
-  void AddGRSources(AthenaArray<Real> & u, AthenaArray<Real> & u_inh);
+  void AddSourceGR(AthenaArray<Real> & u, AthenaArray<Real> & u_inh);
   void AddMatterSources(AthenaArray<Real> & u, AthenaArray<Real> & u_inh);
 
   Real NewBlockTimeStep();
-
-// State vector updating strategies ===========================================
-private:
-  void CalcExplicitUpdate(Real const dt,
-                          AthenaArray<Real> & u_pre,
-                          AthenaArray<Real> & u_cur,
-		                      AthenaArray<Real> & u_inh);
-
-  void CalcImplicitUpdatePicardFrozenP(Real const dt,
-                                       AthenaArray<Real> & u_pre,
-                                       AthenaArray<Real> & u_cur,
-		                                   AthenaArray<Real> & u_inh);
-
-  void CalcImplicitUpdatePicardMinerboP(Real const dt,
-                                        AthenaArray<Real> & u_pre,
-                                        AthenaArray<Real> & u_cur,
-		                                    AthenaArray<Real> & u_inh);
-
-  void CalcImplicitUpdatePicardMinerboPC(Real const dt,
-                                         AthenaArray<Real> & u_pre,
-                                         AthenaArray<Real> & u_cur,
-		                                     AthenaArray<Real> & u_inh);
-
-  void CalcImplicitUpdateHybrids(Real const dt,
-                                 AthenaArray<Real> & u_pre,
-                                 AthenaArray<Real> & u_cur,
-		                             AthenaArray<Real> & u_inh);
 
 // data =======================================================================
 public:
@@ -164,6 +137,7 @@ public:
     Real fl_J;
     Real eps_E;
     Real eps_J;
+    bool enforce_causality;
     Real min_flux_A;
 
     // Closure iteration

@@ -27,9 +27,9 @@ x2max  = 5
 ix2_bc = outflow
 ox2_bc = outflow
 
-nx3    = 8
-x3min  = -0.2
-x3max  = 0.2
+nx3    = 16
+x3min  = -0.4
+x3max  = 0.4
 ix3_bc = outflow
 ox3_bc = outflow
 
@@ -64,10 +64,10 @@ nspecies = 1
 #  MinerboP    - Picard
 #  MinerboN    - Newton-Raphson
 # }
-closure_variety = MinerboN
+closure_variety = Minerbo
 
 # element of: {approximate, exact_thin, exact_thick, exact_Minerbo}
-characteristics_variety = approximate
+characteristics_variety = exact_Minerbo
 
 # element of: {fluid, mixed, zero, none}
 fiducial_velocity = fluid

@@ -41,15 +41,19 @@ M1IntegratorTaskList::M1IntegratorTaskList(ParameterInput *pin, Mesh *pm)
     AddTask(CALC_FIDU, UPDATE_BG);
     AddTask(CALC_CLOSURE, CALC_FIDU);
 
-    AddTask(CALC_FIDU_FRAME, CALC_CLOSURE);
-    AddTask(CALC_OPAC, CALC_FIDU_FRAME);
+    // FIDU_FRAME is computed on-the-fly during the updates
+    // AddTask(CALC_FIDU_FRAME, CALC_CLOSURE);
+    // AddTask(CALC_OPAC, CALC_FIDU_FRAME);
+    AddTask(CALC_OPAC, CALC_CLOSURE);
 
     AddTask(CALC_FLUX, CALC_OPAC);
 
     AddTask(SEND_FLUX, CALC_FLUX);
     AddTask(RECV_FLUX, NONE);
 
-    AddTask(ADD_FLX_DIV, CALC_FLUX);
+    AddTask(ADD_GRSRC, CALC_CLOSURE);
+
+    AddTask(ADD_FLX_DIV, (CALC_FLUX|ADD_GRSRC));
 
     AddTask(CALC_UPDATE, (CALC_OPAC|ADD_FLX_DIV));
 
@@ -399,7 +403,7 @@ TaskStatus M1IntegratorTaskList::AddGRSources(MeshBlock *pmb, int stage)
 {
   if (stage <= nstages)
   {
-    pmb->pm1->AddGRSources(pmb->pm1->storage.u,
+    pmb->pm1->AddSourceGR(pmb->pm1->storage.u,
                            pmb->pm1->storage.u_rhs);
     return TaskStatus::success;
   }

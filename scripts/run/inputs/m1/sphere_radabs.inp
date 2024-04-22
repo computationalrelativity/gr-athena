@@ -90,7 +90,7 @@ min_flux_A = 0
 
 # [Minerbo] closure root tolerance & maximum iterations
 eps_C          = 1e-6
-eps_C_N        = 1e-6  // switch to Picard if deriv. below this
+eps_C_N        = 1e-12  // switch to Picard if deriv. below this
 max_iter_C     = 64
 max_iter_C_rst = 10
 w_opt_ini_C    = 0.5

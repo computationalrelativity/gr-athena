@@ -648,7 +648,7 @@ inline void sc_G_(
   }
 }
 
-inline Real sc_G_(
+inline Real sc_G__(
   const Real & W,
   const Real & E,
   const Real & J,
