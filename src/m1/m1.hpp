@@ -39,7 +39,8 @@ class M1
 
 // internal solver data =======================================================
 public:
-  gsl_root_fsolver * gsl_brent_solver;
+  gsl_root_fsolver   * gsl_brent_solver;
+  gsl_root_fdfsolver * gsl_newton_solver;
 
 // methods ====================================================================
 public:
@@ -57,7 +58,7 @@ public:
   void CalcFluxes(AthenaArray<Real> & u);
   void AddFluxDivergence(AthenaArray<Real> & u_inh);
   void AddSourceGR(AthenaArray<Real> & u, AthenaArray<Real> & u_inh);
-  void AddMatterSources(AthenaArray<Real> & u, AthenaArray<Real> & u_inh);
+  void AddSourceMatter(AthenaArray<Real> & u, AthenaArray<Real> & u_inh);
 
   Real NewBlockTimeStep();
 

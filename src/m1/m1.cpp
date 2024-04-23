@@ -8,6 +8,7 @@
 
 // c++
 #include <codecvt>
+#include <gsl/gsl_roots.h>
 #include <iomanip>
 #include <iostream>
 #include <fstream>
@@ -183,11 +184,16 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   gsl_brent_solver = gsl_root_fsolver_alloc(
     gsl_root_fsolver_brent
   );
+
+  gsl_newton_solver = gsl_root_fdfsolver_alloc(
+    gsl_root_fdfsolver_newton
+  );
 }
 
 M1::~M1()
 {
   gsl_root_fsolver_free(gsl_brent_solver);
+  gsl_root_fdfsolver_free(gsl_newton_solver);
   // TODO: bug - this can't be deactivated properly with OMP
   // gsl_set_error_handler(NULL);  // restore default handler
 }

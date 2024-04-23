@@ -1308,6 +1308,44 @@ inline void PointAddToDense(
   }
 }
 
+inline void PointArrayToAthenaTensor(
+  AT_C_sca & sc_tar,
+  const std::array<Real, 1> & src,
+  const int k, const int j, const int i)
+{
+  sc_tar(k,j,i) = src[0];
+}
+
+inline void PointArrayToAthenaTensor(
+  AT_N_vec & sp_tar,
+  const std::array<Real, N> & src,
+  const int k, const int j, const int i)
+{
+  for (int a=0; a<N; ++a)
+  {
+    sp_tar(a,k,j,i) = src[a];
+  }
+}
+
+inline void PointAthenaTensorToArray(
+  std::array<Real, 1> & src,
+  const AT_C_sca & sc_tar,
+  const int k, const int j, const int i)
+{
+  src[0] = sc_tar(k,j,i);
+}
+
+inline void PointAthenaTensorToArray(
+  std::array<Real, N> & src,
+  const AT_N_vec & sp_tar,
+  const int k, const int j, const int i)
+{
+  for (int a=0; a<N; ++a)
+  {
+    src[a] = sp_tar(a,k,j,i);
+  }
+}
+
 // ============================================================================
 }  // M1::Assemble
 // ============================================================================

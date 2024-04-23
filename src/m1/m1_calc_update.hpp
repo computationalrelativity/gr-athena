@@ -14,7 +14,22 @@
 namespace M1::Update {
 // ============================================================================
 
-// structure that stores state information and can be utilized in GSL
+// TODO: refactor to struct
+struct SystemSolverSettings {
+  M1 & pm1;
+
+  const int iter_max;
+  const Real tol_abs;
+};
+
+inline SystemSolverSettings ConstructSystemSolverSettings(M1 & pm1)
+{
+  return SystemSolverSettings {pm1,
+                               pm1.opt.max_iter_P,
+                               pm1.opt.eps_P_abs_tol};
+};
+
+// structure that stores state information
 struct StateMetaVector {
   M1 & pm1;
   const int ix_g;
@@ -39,9 +54,37 @@ struct StateMetaVector {
   AT_C_sca & sc_eta;
   AT_C_sca & sc_kap_a;
   AT_C_sca & sc_kap_s;
+
+  // Store state prior to iteration (for fallback)
+  std::array<Real, 1> U_0_xi;
+  std::array<Real, 1> U_0_E;
+  std::array<Real, N> U_0_F_d;
+  std::array<Real, 1> U_0_nG;
+
+  // For iteration
+  std::array<Real, 1> Z_xi;
+  std::array<Real, 1> Z_E;
+  std::array<Real, N> Z_F_d;
+
+  void FallbackStore(const int k, const int j, const int i)
+  {
+    Assemble::PointAthenaTensorToArray(U_0_xi,  sc_xi,   k, j, i);
+    Assemble::PointAthenaTensorToArray(U_0_E,   sc_E,   k, j, i);
+    Assemble::PointAthenaTensorToArray(U_0_F_d, sp_F_d, k, j, i);
+    Assemble::PointAthenaTensorToArray(U_0_nG,  sc_nG,  k, j, i);
+  }
+
+  void Fallback(const int k, const int j, const int i)
+  {
+    Assemble::PointArrayToAthenaTensor(sc_xi,  U_0_xi,  k, j, i);
+    Assemble::PointArrayToAthenaTensor(sc_E,   U_0_E,   k, j, i);
+    Assemble::PointArrayToAthenaTensor(sp_F_d, U_0_F_d, k, j, i);
+    Assemble::PointArrayToAthenaTensor(sc_nG,  U_0_nG,  k, j, i);
+  }
+
 };
 
-StateMetaVector PopulateStateMetaVector(
+StateMetaVector ConstructStateMetaVector(
   M1 & pm1, M1::vars_Lab & vlab,
   const int ix_g, const int ix_s);
 
@@ -51,17 +94,23 @@ void AddSourceMatter(
   StateMetaVector & I,        // add source here
   const int k, const int j, const int i);
 
-inline void ApplyFloors(
+
+// If applied, return true, otherwise false
+inline bool ApplyFloors(
   M1 & pm1, StateMetaVector & C,
   const int k, const int j, const int i)
 {
+  const bool floor_applied = C.sc_E(k,j,i) < pm1.opt.fl_E;
   C.sc_E(k,j,i) = std::max(C.sc_E(k,j,i), pm1.opt.fl_E);
+  return floor_applied;
 }
 
 // Require \Vert F \Vert_\gamma \leq E
 //
 // Enforce this by setting: F_i -> F_i / (\Vert F \Vert_\gamma / E)
-inline void EnforceCausality(
+//
+// If enforced, return true, otherwise false
+inline bool EnforceCausality(
   M1 & pm1, StateMetaVector & C,
   const int k, const int j, const int i)
 {
@@ -78,7 +127,10 @@ inline void EnforceCausality(
     {
       C.sp_F_d(a,k,j,i) = C.sp_F_d(a,k,j,i) / fac;
     }
+    return true;
   }
+
+  return false;
 }
 
 // ============================================================================

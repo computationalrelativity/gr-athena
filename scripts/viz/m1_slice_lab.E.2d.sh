@@ -7,7 +7,7 @@ cd ${DIR_SCRIPTS}
 
 export dir_out=/tmp/gra_debug/m1
 
-export dir_data=../../outputs/m1_cx/m1_sphere_radabs_MPI0_HYB1_NI1/
+export dir_data=../../outputs/m1_cx/m1_shadow_MPI0_HYB1_NI1/
 
 ipython -i ${repos}/numerical_relativity/simtroller/cmd_vis_gra.py -- \
   --dir_data ${dir_data}     \
@@ -16,7 +16,7 @@ ipython -i ${repos}/numerical_relativity/simtroller/cmd_vis_gra.py -- \
   --plot_range [-0.1, 1.2]   \
   --sampling x1v x2v         \
   --parallel_pool 16         \
-  --var lab_aux.chi
+  --var lab.E
 
 #  --range [0,5] [0,4]      \
 

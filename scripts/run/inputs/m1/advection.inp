@@ -54,7 +54,7 @@ nspecies = 3
 #  MinerboP    - Picard
 #  MinerboN    - Newton-Raphson
 # }
-closure_variety = Minerbo
+closure_variety = thin
 
 # element of: {approximate, exact_thin, exact_thick, exact_Minerbo}
 characteristics_variety = approximate
@@ -70,7 +70,7 @@ fiducial_velocity = fluid
 #  semi_implicit_PicardMinerboPC - close explicit iter; iter; close conv.
 #  semi_implicit_Hybrids         - GSL: FD approx. of J
 # }
-integration_strategy = semi_implicit_PicardFrozenP
+integration_strategy = semi_implicit_Hybrids
 
 # tolerances / ad-hoc fiddle parameters
 fl_E = 1e-15
@@ -87,7 +87,7 @@ max_iter_C_rst = 5
 w_opt_ini_C    = 1.0
 fac_amp_C      = 1.11   // error amplification tolerance between iterates
 reset_thin     = true   // reset on failure to thin limit
-verbose_iter_C = true
+verbose_iter_C = false
 
 # [Picard] iteration settings
 max_iter_P     = 128   // maximum number of iterations (for each restart)

@@ -30,8 +30,8 @@ void M1::AddSourceGR(AthenaArray<Real> & u, AthenaArray<Real> & u_inh)
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
   {
-    StateMetaVector C = PopulateStateMetaVector(*this, U_C, ix_g, ix_s);
-    StateMetaVector I = PopulateStateMetaVector(*this, U_I, ix_g, ix_s);
+    StateMetaVector C = ConstructStateMetaVector(*this, U_C, ix_g, ix_s);
+    StateMetaVector I = ConstructStateMetaVector(*this, U_I, ix_g, ix_s);
 
     M1_ILOOP3(k,j,i)
     if (MaskGet(k, j, i))
@@ -74,7 +74,7 @@ void M1::AddSourceGR(AthenaArray<Real> & u, AthenaArray<Real> & u_inh)
 
 // ----------------------------------------------------------------------------
 // Calculate matter source contribution based on u, add to u_inh
-void M1::AddMatterSources(AthenaArray<Real> & u, AthenaArray<Real> & u_inh)
+void M1::AddSourceMatter(AthenaArray<Real> & u, AthenaArray<Real> & u_inh)
 {
   using namespace Update;
 
@@ -90,9 +90,9 @@ void M1::AddMatterSources(AthenaArray<Real> & u, AthenaArray<Real> & u_inh)
     M1_ILOOP3(k,j,i)
     if (MaskGet(k, j, i))
     {
-      StateMetaVector C = PopulateStateMetaVector(*this, U_C, ix_g, ix_s);
-      StateMetaVector I = PopulateStateMetaVector(*this, U_I, ix_g, ix_s);
-      AddSourceMatter(*this, C, I, k, j, i);
+      StateMetaVector C = ConstructStateMetaVector(*this, U_C, ix_g, ix_s);
+      StateMetaVector I = ConstructStateMetaVector(*this, U_I, ix_g, ix_s);
+      ::M1::Update::AddSourceMatter(*this, C, I, k, j, i);
     }
   }
 }

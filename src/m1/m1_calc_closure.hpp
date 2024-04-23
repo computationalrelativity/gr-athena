@@ -15,6 +15,11 @@
 namespace M1::Closures {
 // ============================================================================
 
+// TODO: refactor to use..
+struct ClosureMetaVector {
+
+};
+
 void InfoDump(M1 * pm1, const int ix_g, const int ix_s,
               const int k, const int j, const int i);
 
@@ -94,6 +99,8 @@ Real R( Real xi, void *par);
 
 // Assumed to be called immediately after R
 Real dR(Real xi, void *par);
+
+void RdR(Real xi, void *par);
 
 // Eddington factor
 inline Real chi(const Real xi)

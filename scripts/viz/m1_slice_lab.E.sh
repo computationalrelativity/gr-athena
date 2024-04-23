@@ -6,7 +6,7 @@ export FN=$(readlink -f "$0"); export DIR_SCRIPTS=$(dirname "${FN}")
 cd ${DIR_SCRIPTS}
 
 export dir_out=/tmp/gra_debug/m1
-export dir_data=../../outputs/m1_cx/m1_diffusion_mm_MPI0_HYB1_NI1/
+export dir_data=../../outputs/m1_cx/m1_advection_MPI0_HYB1_NI1/
 
 ipython -i ${repos}/numerical_relativity/simtroller/cmd_vis_gra.py -- \
   --dir_data ${dir_data}     \

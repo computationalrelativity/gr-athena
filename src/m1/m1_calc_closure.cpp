@@ -275,6 +275,12 @@ Real dR(Real xi, void *par)
   return dR_;
 }
 
+void RdR(Real xi, void *par, Real *r, Real *dr)
+{
+  *r  = R(xi, par);
+  *dr = dR(xi, par);
+}
+
 void AddClosureP(M1 * pm1,
                  const Real weight,
                  const int ix_g,
@@ -1099,6 +1105,172 @@ void ClosureMinerbo(M1 * pm1,
 }
 
 void ClosureMinerboN(M1 * pm1,
+                     AT_C_sca & sc_xi,
+                     AT_C_sca & sc_chi,
+                     AT_N_sym & sp_P_dd,
+                     AT_C_sca & sc_E,
+                     AT_N_vec & sp_F_d,
+                     AT_C_sca & sc_J,
+                     AT_C_sca & sc_H_t,
+                     AT_N_vec & sp_H_d,
+                     const int ix_g, const int ix_s,
+                     const int k, const int j, const int i)
+{
+  // if (sc_E(k,j,i) < 1e-13)
+  // {
+  //   AT_N_sym & sp_P_tn_dd_ = pm1->scratch.sp_sym_A_;
+
+  //   Closures::ClosureThin( pm1, sp_P_tn_dd_, sc_E, sp_F_d, k, j, i);
+  //   Assemble::PointToDense(sp_P_dd, sp_P_tn_dd_, k, j, i);
+
+  //   sc_xi(k,j,i) = 1;
+  //   sc_chi(k,j,i) = 1;
+  //   return;
+  // }
+
+  // Admissible ranges for xi entering Eddington factor chi(xi)
+  const Real xi_min = 0.0;
+  const Real xi_max = 1.0;
+
+  // required geometric quantities
+  AT_N_sym & sp_g_uu = pm1->geom.sp_g_uu;
+
+  // point to scratches
+  AT_N_vec & sp_dH_d_    = pm1->scratch.sp_vec_A_;
+  AT_N_sym & sp_P_tn_dd_ = pm1->scratch.sp_sym_A_;
+  AT_N_sym & sp_P_tk_dd_ = pm1->scratch.sp_sym_B_;
+  AT_N_sym & sp_dP_dd_   = pm1->scratch.sp_sym_C_;
+
+  // initialize struct for root-finding
+  DataRootfinder drf {
+    sp_g_uu,
+    sc_E,
+    sp_F_d,
+    sp_P_dd,
+    sc_chi,
+    sc_xi,
+    sc_J,
+    sc_H_t,
+    sp_H_d,
+    pm1->fidu.sc_W,
+    pm1->fidu.sp_v_u,
+    pm1->fidu.sp_v_d,
+    sp_dH_d_,
+    sp_P_tn_dd_,
+    sp_P_tk_dd_,
+    sp_dP_dd_
+  };
+
+  // setup GSL ----------------------------------------------------------------
+  gsl_function_fdf R_;
+  R_.f   = &R;
+  R_.df  = &dR;
+  R_.fdf = &RdR;
+  R_.params = &drf;
+
+  auto gsl_err_kill = [&](const int status)
+  {
+    std::ostringstream msg;
+    msg << "M1::Closures::Minerbo::AddClosure unexpected error: ";
+    msg << status;
+
+    std::cout << msg.str().c_str() << std::endl;
+
+    ATHENA_ERROR(msg);
+  };
+
+  auto gsl_err_warn = [&]()
+  {
+    std::ostringstream msg;
+    msg << "M1::Closures::Minerbo::AddClosure maxiter=";
+    msg << pm1->opt.max_iter_C << " exceeded";
+    std::cout << msg.str().c_str() << std::endl;
+  };
+  // --------------------------------------------------------------------------
+
+  drf.i = i;
+  drf.j = j;
+  drf.k = k;
+
+  const Real dotFv = Assemble::sc_dot_dense_sp__(sp_F_d,
+                                                 pm1->fidu.sp_v_u,
+                                                 k, j, i);
+
+  Closures::ClosureThin( pm1, sp_P_tn_dd_, sc_E, sp_F_d, k, j, i);
+  Closures::ClosureThick(pm1, sp_P_tk_dd_, dotFv, sc_E, sp_F_d, k, j, i);
+
+  int status = gsl_root_fdfsolver_set(pm1->gsl_newton_solver,
+                                      &R_, sc_xi(k,j,i));
+
+
+  bool revert_brent = false;
+
+  switch (status)
+  {
+    case (0):
+    {
+      // root-finding loop
+      Real loc_xim1 = sc_xi(k,j,i);
+      Real loc_xi   = sc_xi(k,j,i);
+
+      status = GSL_CONTINUE;
+      int iter = 0;
+      do
+      {
+        iter++;
+        status = gsl_root_fdfsolver_iterate(pm1->gsl_newton_solver);
+
+        if (status != GSL_SUCCESS)
+        {
+          revert_brent = true;
+          break;
+        }
+
+        loc_xim1 = loc_xi;
+        loc_xi = gsl_root_fdfsolver_root(pm1->gsl_newton_solver);
+
+        status = gsl_root_test_delta(
+          loc_xim1, loc_xi, pm1->opt.eps_C, 0
+        );
+
+        if ((loc_xi<xi_min) || (loc_xi>xi_max))
+        {
+          revert_brent = true;
+          break;
+        }
+
+      } while (iter<=pm1->opt.max_iter_C && status == GSL_CONTINUE);
+
+      // Update P_dd with root
+      sc_xi( k,j,i) = pm1->gsl_newton_solver->root;
+      sc_chi(k,j,i) = chi(sc_xi(k,j,i));
+
+      sp_P_dd__(sp_P_dd, sc_chi, sp_P_tn_dd_, sp_P_tk_dd_, k, j, i);
+
+      break;
+    }
+    default:
+    {
+      revert_brent = true;
+    }
+  }
+
+  if (revert_brent)
+  {
+    Closures::Minerbo::ClosureMinerbo(
+      pm1, sc_xi, sc_chi, sp_P_dd,
+      sc_E,
+      sp_F_d,
+      sc_J,
+      sc_H_t,
+      sp_H_d,
+      ix_g, ix_s,
+      k, j, i);
+    return;
+  }
+}
+
+void ClosureMinerboN_(M1 * pm1,
                      AT_C_sca & sc_xi,
                      AT_C_sca & sc_chi,
                      AT_N_sym & sp_P_dd,
