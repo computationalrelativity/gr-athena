@@ -123,29 +123,6 @@ StateMetaVector ConstructStateMetaVector(
   };
 }
 
-Closures::Minerbo::DataRootfinder PopulateDataRootfinder(
-  M1 & pm1, const StateMetaVector & sv)
-{
-  return Closures::Minerbo::DataRootfinder {
-    pm1.geom.sp_g_uu,
-    sv.sc_E,
-    sv.sp_F_d,
-    sv.sp_P_dd,
-    sv.sc_chi,
-    sv.sc_xi,
-    sv.sc_J,
-    sv.sc_H_t,
-    sv.sp_H_d,
-    pm1.fidu.sc_W,
-    pm1.fidu.sp_v_u,
-    pm1.fidu.sp_v_d,
-    pm1.scratch.sp_vec_A_, // sp_dH_d_,
-    pm1.scratch.sp_sym_A_, // sp_P_tn_dd_,
-    pm1.scratch.sp_sym_B_, // sp_P_tk_dd_,
-    pm1.scratch.sp_sym_C_  // sp_dP_dd_
-  };
-}
-
 void AddSourceMatter(
   M1 & pm1,
   const StateMetaVector & C,  // state to utilize
@@ -288,21 +265,14 @@ void StepImplicitPicardFrozenP(
   // retain values for potential restarts
   C.FallbackStore(k, j, i);
 
-  // explicit update ------------------------------------------------------
+  // explicit update ----------------------------------------------------------
   const bool explicit_step_nG = false;
   StepExplicit(pm1, dt, P, C, I, explicit_step_nG, k, j, i);
 
   // loop-lift contraction
-  Real dotPvv (0);
-  for (int a=0; a<N; ++a)
-  for (int b=0; b<N; ++b)
-  {
-    dotPvv += P.sp_P_dd(a,b,k,j,i) *
-              pm1.fidu.sp_v_u(a,k,j,i) *
-              pm1.fidu.sp_v_u(b,k,j,i);
-  }
-
-  // solver loop ----------------------------------------------------------
+  const Real dotPvv = Assemble::sc_ddot_dense_sp__(pm1.fidu.sp_v_u, C.sp_P_dd,
+                                                   k, j, i);
+  // solver loop --------------------------------------------------------------
   do
   {
     pit++;
@@ -377,13 +347,9 @@ void StepImplicitPicardMinerboPC(
   const StateMetaVector & P,  // previous step data
   StateMetaVector & C,        // current step
   const StateMetaVector & I,  // inhomogeneity
-  Closures::Minerbo::DataRootfinder & D,  // for closure
+  Closures::ClosureMetaVector & CL,
   const int k, const int j, const int i)
 {
-  // Admissible ranges for xi entering Eddington factor chi(xi)
-  const Real xi_min = 0.0;
-  const Real xi_max = 1.0;
-
   // Iterate (S_1, S_{1+k})
   const int iter_max_P = pm1.opt.max_iter_P;
   int pit = 0;     // iteration counter
@@ -405,61 +371,27 @@ void StepImplicitPicardMinerboPC(
   // retain values for potential restarts
   C.FallbackStore(k, j, i);
 
-  // explicit update ------------------------------------------------------
+  // explicit update ----------------------------------------------------------
   const bool explicit_step_nG = false;
   StepExplicit(pm1, dt, P, C, I, explicit_step_nG, k, j, i);
 
-  // Minerbo assembly ---------------------------------------------------
-  D.k = k;
-  D.j = j;
-  D.i = i;
+  // Minerbo assembly ---------------------------------------------------------
+  bool compute_limiting_P_dd = true;
+  const Real Z_xi = Closures::Minerbo::Z_xi(
+    C.sc_xi(k,j,i), pm1, CL, k, j, i, compute_limiting_P_dd);
 
-  const Real xi = C.sc_xi(k,j,i);
-  C.sc_chi(k,j,i) = Closures::Minerbo::chi(C.sc_xi(k,j,i));
+  C.sc_xi(k,j,i) = std::abs(C.sc_xi(k,j,i) - w_opt * Z_xi);
+  e_abs_cur_C = std::abs(Z_xi);
 
-  Real dotFv = Assemble::sc_dot_dense_sp__(C.sp_F_d, pm1.fidu.sp_v_u,
-                                            k, j, i);
-
-  Closures::ClosureThin(&pm1, D.sp_P_tn_dd_, C.sc_E, C.sp_F_d, k, j, i);
-  Closures::ClosureThick(
-    &pm1,
-    D.sp_P_tk_dd_,
-    dotFv,
-    C.sc_E,
-    C.sp_F_d,
-    k, j, i);
-
-  Closures::Minerbo::sp_P_dd__(C.sp_P_dd,
-                               C.sc_chi,
-                               D.sp_P_tn_dd_,
-                               D.sp_P_tk_dd_,
-                               k, j, i);
-
-  if ((C.sc_xi(k,j,i) < xi_min) || (C.sc_xi(k,j,i) > xi_max))
-  {
-    C.sc_xi(k,j,i) = std::max(
-      std::min(xi_max, C.sc_xi(k,j,i)), xi_min
-    );
-    D.sc_chi(k,j,i) = Closures::Minerbo::chi(C.sc_xi(k,j,i));
-
-    Closures::Minerbo::sp_P_dd__(C.sp_P_dd,
-                                  C.sc_chi,
-                                  D.sp_P_tn_dd_,
-                                  D.sp_P_tk_dd_,
-                                  k, j, i);
-  }
+  compute_limiting_P_dd = false;
+  Closures::Minerbo::EnforceClosureLimits(pm1, CL, k, j, i,
+                                          compute_limiting_P_dd);
 
   // loop-lift contraction
-  Real dotPvv (0);
-  for (int a=0; a<N; ++a)
-  for (int b=0; b<N; ++b)
-  {
-    dotPvv += C.sp_P_dd(a,b,k,j,i) *
-              pm1.fidu.sp_v_u(a,k,j,i) *
-              pm1.fidu.sp_v_u(b,k,j,i);
-  }
+  const Real dotPvv = Assemble::sc_ddot_dense_sp__(pm1.fidu.sp_v_u, C.sp_P_dd,
+                                                   k, j, i);
 
-  // solver loop ----------------------------------------------------------
+  // solver loop --------------------------------------------------------------
   do
   {
     pit++;
@@ -495,7 +427,7 @@ void StepImplicitPicardMinerboPC(
         std::ostringstream msg;
         msg << "StepImplicitPicardPC max restarts exceeded.";
         std::cout << msg.str().c_str() << std::endl;
-        Closures::InfoDump(&pm1, C.ix_g, C.ix_s, k, j, i);
+        pm1.StatePrintPoint(C.ix_g, C.ix_s, k, j, i, true);
         std::cout << e_abs_cur << "\n";
         std::cout << e_abs_old << "\n";
         std::exit(0);
@@ -506,7 +438,6 @@ void StepImplicitPicardMinerboPC(
       e_abs_old_C = std::numeric_limits<Real>::infinity();
       pit = 0;
       rit++;
-
     }
     else
     {
@@ -541,13 +472,9 @@ void StepImplicitPicardMinerboP(
   const StateMetaVector & P,  // previous step data
   StateMetaVector & C,        // current step
   const StateMetaVector & I,  // inhomogeneity
-  Closures::Minerbo::DataRootfinder & D,  // for closure
+  Closures::ClosureMetaVector & CL,
   const int k, const int j, const int i)
 {
-  // Admissible ranges for xi entering Eddington factor chi(xi)
-  const Real xi_min = 0.0;
-  const Real xi_max = 1.0;
-
   // Iterate (S_1, S_{1+k})
   const int iter_max_P = pm1.opt.max_iter_P;
   int pit = 0;     // iteration counter
@@ -569,82 +496,34 @@ void StepImplicitPicardMinerboP(
   // retain values for potential restarts
   C.FallbackStore(k, j, i);
 
-  // explicit update ------------------------------------------------------
+  // explicit update ----------------------------------------------------------
   const bool explicit_step_nG = false;
   StepExplicit(pm1, dt, P, C, I, explicit_step_nG, k, j, i);
 
   // solver loop --------------------------------------------------------------
-  D.i = i;
-  D.j = j;
-  D.k = k;
-
+  int iter_closure_freeze = 0;
   do
   {
     pit++;
 
     // Minerbo assembly -------------------------------------------------------
-    const Real xi = C.sc_xi(k,j,i);
-    C.sc_chi(k,j,i) = Closures::Minerbo::chi(C.sc_xi(k,j,i));
-
-    Real dotFv = Assemble::sc_dot_dense_sp__(C.sp_F_d, pm1.fidu.sp_v_u,
-                                             k, j, i);
-
-    Closures::ClosureThin(&pm1, D.sp_P_tn_dd_, C.sc_E, C.sp_F_d, k, j, i);
-    Closures::ClosureThick(
-      &pm1,
-      D.sp_P_tk_dd_,
-      dotFv,
-      C.sc_E,
-      C.sp_F_d,
-      k, j, i);
-
-    Closures::Minerbo::sp_P_dd__(C.sp_P_dd,
-                                 C.sc_chi,
-                                 D.sp_P_tn_dd_,
-                                 D.sp_P_tk_dd_,
-                                 k, j, i);
-
-    // assemble zero functional
-    const Real Z_xi = Closures::Minerbo::R(xi, &D);
-
-    C.sc_xi(k,j,i) = std::abs(C.sc_xi(k,j,i) - w_opt * Z_xi);
-    e_abs_cur_C = std::abs(Z_xi);
-
-    if ((C.sc_xi(k,j,i) < xi_min) || (C.sc_xi(k,j,i) > xi_max))
+    if (iter_closure_freeze < iter_max_P)  // TODO: pass this as param
     {
-      C.sc_xi(k,j,i) = std::max(
-        std::min(xi_max, C.sc_xi(k,j,i)), xi_min
+      bool compute_limiting_P_dd = true;
+      const Real Z_xi = Closures::Minerbo::Z_xi(
+        C.sc_xi(k,j,i), pm1, CL, k, j, i, compute_limiting_P_dd);
+
+      C.sc_xi(k,j,i) = std::abs(C.sc_xi(k,j,i) - w_opt * Z_xi);
+      e_abs_cur_C = std::abs(Z_xi);
+
+      compute_limiting_P_dd = false;
+      const bool ecl = Closures::Minerbo::EnforceClosureLimits(
+        pm1, CL, k, j, i, compute_limiting_P_dd
       );
-      D.sc_chi(k,j,i) = Closures::Minerbo::chi(C.sc_xi(k,j,i));
 
-      Closures::Minerbo::sp_P_dd__(C.sp_P_dd,
-                                   C.sc_chi,
-                                   D.sp_P_tn_dd_,
-                                   D.sp_P_tk_dd_,
-                                   k, j, i);
+      if (ecl)
+        ++iter_closure_freeze;
     }
-
-    // if iteration pushes outside admissible range reset
-    /*
-    if (pm1.opt.reset_thin)
-    {
-      if ((C.sc_xi(k,j,i) < xi_min) || (C.sc_xi(k,j,i) > xi_max))
-      {
-        C.sc_xi(k,j,i) = xi_max;
-        D.sc_chi(k,j,i) = Closures::Minerbo::chi(C.sc_xi(k,j,i));
-
-        for (int a=0; a<N; ++a)
-        for (int b=a; b<N; ++b)
-        {
-          C.sp_P_dd(a,b,k,j,i) = D.sp_P_tn_dd_(a,b,i);
-        }
-
-        // e_abs_old = std::numeric_limits<Real>::infinity();
-        // e_abs_cur = std::numeric_limits<Real>::infinity();
-      }
-      e_abs_cur_C = 0.0;
-    }
-    */
 
     // state-vector non-linear subsystem --------------------------------------
     System::Z_E_F_d(pm1, dt, P, C, I, k, j, i);
@@ -677,7 +556,7 @@ void StepImplicitPicardMinerboP(
         std::ostringstream msg;
         msg << "StepImplicitPicardMinerboP max restarts exceeded.";
         std::cout << msg.str().c_str() << std::endl;
-        Closures::InfoDump(&pm1, C.ix_g, C.ix_s, k, j, i);
+        pm1.StatePrintPoint(C.ix_g, C.ix_s, k, j, i, false);
         std::cout << e_abs_cur << "\n";
         std::cout << e_abs_old << "\n";
         std::exit(0);
@@ -725,7 +604,7 @@ void StepImplicitPicardMinerboP(
 namespace M1::Update::gsl {
 // ============================================================================
 
-struct rparams {
+struct gsl_params {
   M1 & pm1;
   Real dt;
   const StateMetaVector & P;
@@ -739,7 +618,7 @@ struct rparams {
 
 int Z_E_F_d(const gsl_vector *U, void * par_, gsl_vector *Z)
 {
-  rparams * par = static_cast<rparams*>(par_);
+  gsl_params * par = static_cast<gsl_params*>(par_);
 
   M1 & pm1 = par->pm1;
   const Real dt = par->dt;
@@ -776,7 +655,7 @@ void StepImplicitMinerboHybrids(
   const StateMetaVector & P,  // previous step data
   StateMetaVector & C,        // current step
   const StateMetaVector & I,  // inhomogeneity
-  Closures::Minerbo::DataRootfinder & D,  // for closure
+  Closures::ClosureMetaVector & CL,
   SystemSolverSettings & slv_set,
   const int k, const int j, const int i)
 {
@@ -790,26 +669,18 @@ void StepImplicitMinerboHybrids(
   // GSL specific -------------------------------------------------------------
   const size_t N_SYS = 1 + N;
 
-  // solver initial guess
-  Real U_0[N_SYS];
-
-  U_0[0] = C.sc_E(k,j,i);
-  for (int a=0; a<N; ++a)
-  {
-    U_0[1+a] = C.sp_F_d(a,k,j,i);
-  }
-
-  // values to iterate
+  // values to iterate (seed with initial guess)
   gsl_vector *U_i = gsl_vector_alloc(N_SYS);
 
-  for (int n=0; n<N_SYS; ++n)
+  U_i->data[0] = C.sc_E(k,j,i);
+  for (int a=0; a<N; ++a)
   {
-    U_i->data[n] = U_0[n];
+    U_i->data[1+a] = C.sp_F_d(a,k,j,i);
   }
 
   // select function & solver -------------------------------------------------
-  struct rparams par = {pm1, dt, P, C, I,
-                        i, j, k};
+  struct gsl_params par = {pm1, dt, P, C, I,
+                           i, j, k};
   gsl_multiroot_function mrf = {&Z_E_F_d, N_SYS, &par};
   gsl_multiroot_fsolver *slv = gsl_multiroot_fsolver_alloc(
     gsl_multiroot_fsolver_hybrids,
@@ -820,21 +691,28 @@ void StepImplicitMinerboHybrids(
   // solver loop --------------------------------------------------------------
   int iter = 0;
   do
-    {
-      iter++;
-      gsl_status = gsl_multiroot_fsolver_iterate(slv);
+  {
+    iter++;
+    gsl_status = gsl_multiroot_fsolver_iterate(slv);
 
-      // break on issue with solver
-      if (gsl_status)
-        break;
+    // break on issue with solver
+    if (gsl_status)
+      break;
 
-      // Ensure update preserves energy non-negativity
-      ApplyFloors(pm1, C, k, j, i);
-      EnforceCausality(pm1, C, k, j, i);
+    // Ensure update preserves energy non-negativity
+    // TODO: needs U->C apply C->U
+    ApplyFloors(pm1, C, k, j, i);
+    EnforceCausality(pm1, C, k, j, i);
 
-      gsl_status = gsl_multiroot_test_residual(slv->f, slv_set.tol_abs);
-    }
+    gsl_status = gsl_multiroot_test_residual(slv->f, slv_set.tol_abs);
+  }
   while (gsl_status == GSL_CONTINUE && iter < slv_set.iter_max);
+
+  if ((gsl_status != GSL_SUCCESS))
+  {
+    // std::cout << "StepImplicitMinerboHybrids failure: " << gsl_status << "\n";
+    // pm1.StatePrintPoint(C.ix_g, C.ix_s, k, j, i, true);
+  }
 
   // Neutrino current evolution
   SolveImplicitNeutrinoCurrent(pm1, dt, P, C, I, k, j, i);
@@ -842,7 +720,6 @@ void StepImplicitMinerboHybrids(
   // cleanup ------------------------------------------------------------------
   gsl_multiroot_fsolver_free(slv);
   gsl_vector_free(U_i);
-
 }
 
 // ============================================================================
@@ -868,6 +745,8 @@ void M1::CalcUpdate(Real const dt,
 {
   using namespace Update;
   using namespace Update::gsl;
+
+  using namespace Closures;
 
   if (opt.value_inject)
   {
@@ -895,6 +774,8 @@ void M1::CalcUpdate(Real const dt,
     StateMetaVector P = ConstructStateMetaVector(*this, U_P, ix_g, ix_s);
     StateMetaVector I = ConstructStateMetaVector(*this, U_I, ix_g, ix_s);
 
+    ClosureMetaVector CL = ConstructClosureMetaVector(*this, U_C, ix_g, ix_s);
+
     switch (opt.integration_strategy)
     {
       case (opt_integration_strategy::full_explicit):
@@ -919,40 +800,28 @@ void M1::CalcUpdate(Real const dt,
       }
       case (opt_integration_strategy::semi_implicit_PicardMinerboP):
       {
-        using Closures::Minerbo::DataRootfinder;
-
-        DataRootfinder D = PopulateDataRootfinder(*this, C);
-
         M1_ILOOP3(k,j,i)
         if (MaskGet(k, j, i))
         {
-          StepImplicitPicardMinerboP(*this, dt, P, C, I, D, k, j, i);
+          StepImplicitPicardMinerboP(*this, dt, P, C, I, CL, k, j, i);
         }
         break;
       }
       case (opt_integration_strategy::semi_implicit_PicardMinerboPC):
       {
-        using Closures::Minerbo::DataRootfinder;
-
-        DataRootfinder D = PopulateDataRootfinder(*this, C);
-
         M1_ILOOP3(k,j,i)
         if (MaskGet(k, j, i))
         {
-          StepImplicitPicardMinerboPC(*this, dt, P, C, I, D, k, j, i);
+          StepImplicitPicardMinerboPC(*this, dt, P, C, I, CL, k, j, i);
         }
         break;
       }
       case (opt_integration_strategy::semi_implicit_Hybrids):
       {
-        using Closures::Minerbo::DataRootfinder;
-
-        DataRootfinder D = PopulateDataRootfinder(*this, C);
-
         M1_ILOOP3(k,j,i)
         if (MaskGet(k, j, i))
         {
-          StepImplicitMinerboHybrids(*this, dt, P, C, I, D, slv_set, k, j, i);
+          StepImplicitMinerboHybrids(*this, dt, P, C, I, CL, slv_set, k, j, i);
         }
         break;
       }

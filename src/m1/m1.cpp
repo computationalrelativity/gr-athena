@@ -431,16 +431,16 @@ void M1::SetVarAliasesRadMat(AthenaArray<Real> & u, vars_RadMat & rmat)
   for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
   {
     SetVarAlias(radmat.sc_eta_0,   u, ix_g, ix_s,
-                ixn_RaM::eta_0,   ixn_RaM::N);
+                ixn_RaM::eta_0,    ixn_RaM::N);
     SetVarAlias(radmat.sc_kap_a_0, u, ix_g, ix_s,
-                ixn_RaM::kap_a_0, ixn_RaM::N);
+                ixn_RaM::kap_a_0,  ixn_RaM::N);
 
     SetVarAlias(radmat.sc_eta,   u, ix_g, ix_s,
-                ixn_RaM::eta,   ixn_RaM::N);
+                ixn_RaM::eta,    ixn_RaM::N);
     SetVarAlias(radmat.sc_kap_a, u, ix_g, ix_s,
-                ixn_RaM::kap_a, ixn_RaM::N);
+                ixn_RaM::kap_a,  ixn_RaM::N);
     SetVarAlias(radmat.sc_kap_s, u, ix_g, ix_s,
-                ixn_RaM::kap_s, ixn_RaM::N);
+                ixn_RaM::kap_s,  ixn_RaM::N);
 
   }
 }
@@ -533,8 +533,6 @@ void M1::StatePrintPoint(
 
     std::cout << "sym2===============: " << "\n";
     lab_aux.sp_P_dd(ix_g,ix_s).PrintPoint("lab_aux.sp_P_dd(ix_s,ix_g)", k,j,i);
-
-
   }
 
   if (terminate)

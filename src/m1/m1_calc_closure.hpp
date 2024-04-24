@@ -15,13 +15,58 @@
 namespace M1::Closures {
 // ============================================================================
 
-// TODO: refactor to use..
 struct ClosureMetaVector {
+  M1 & pm1;
+  const int ix_g;
+  const int ix_s;
+
+  // geometric quantities
+  AT_N_sym & sp_g_dd;
+  AT_N_sym & sp_g_uu;
+
+  // fiducial quantities
+  AT_N_vec & sp_v_d;
+  AT_N_vec & sp_v_u;
+  AT_C_sca & sc_W;
+
+  // state-vector dependent
+  AT_C_sca & sc_E;
+  AT_N_vec & sp_F_d;
+
+  // group-dependent, but common
+  AT_N_sym & sp_P_dd;
+  AT_C_sca & sc_chi;
+  AT_C_sca & sc_xi;
+
+  // Lagrangian frame
+  AT_C_sca & sc_J;
+  AT_C_sca & sc_H_t;
+  AT_N_vec & sp_H_d;
+
+  // scratch
+  AT_N_vec & sp_dH_d_;
+  AT_N_sym & sp_P_tn_dd_;  // ClosureThin with populate_scratch
+  AT_N_sym & sp_P_tk_dd_;  // ClosureThick
+  AT_N_sym & sp_dP_dd_;
+
+  // Store state prior to iteration (for fallback)
+  std::array<Real, 1> U_0_xi;
+
+  void FallbackStore(const int k, const int j, const int i)
+  {
+    U_0_xi[0] = sc_xi(k,j,i);
+  }
+
+  void Fallback(const int k, const int j, const int i)
+  {
+    sc_xi(k,j,i) = U_0_xi[0];
+  }
 
 };
 
-void InfoDump(M1 * pm1, const int ix_g, const int ix_s,
-              const int k, const int j, const int i);
+ClosureMetaVector ConstructClosureMetaVector(
+  M1 & pm1, M1::vars_Lab & vlab,
+  const int ix_g, const int ix_s);
 
 void ClosureThin(M1 * pm1,
                  AT_N_sym & sp_P_dd_,
@@ -42,6 +87,16 @@ void ClosureThick(M1 * pm1,
                   const AT_N_vec & sp_F_d,
                   const int k, const int j, const int i);
 
+void ClosureThin(M1 & pm1,
+                 ClosureMetaVector & C,
+                 const int k, const int j, const int i,
+                 const bool populate_scratch);
+
+void ClosureThick(M1 & pm1,
+                  ClosureMetaVector & C,
+                  const int k, const int j, const int i,
+                  const bool populate_scratch);
+
 // ============================================================================
 }  // M1::Closures
 // ============================================================================
@@ -50,57 +105,31 @@ void ClosureThick(M1 * pm1,
 namespace M1::Closures::Minerbo {
 // ============================================================================
 
-// Required data during rootfinding procedure
-struct DataRootfinder {
-  AT_N_sym & sp_g_uu;
-
-  AT_C_sca & sc_E;
-  AT_N_vec & sp_F_d;
-  AT_N_sym & sp_P_dd;
-  AT_C_sca & sc_chi;
-  AT_C_sca & sc_xi;
-  AT_C_sca & sc_J;
-  AT_C_sca & sc_H_t;
-  AT_N_vec & sp_H_d;
-  AT_C_sca & sc_W;
-  AT_N_vec & sp_v_u;
-  AT_N_vec & sp_v_d;
-
-  // scratch
-  AT_N_vec & sp_dH_d_;
-  AT_N_sym & sp_P_tn_dd_;
-  AT_N_sym & sp_P_tk_dd_;
-  AT_N_sym & sp_dP_dd_;
-
-  // scratch - scalar reductions
-  Real dotFv;
-
-  // grid
-  int i, j, k;
-
-  // retain iterations
-  Real Z_xi_im2;
-  Real Z_xi_im1;
-  Real Z_xi_i;
-
-  Real dZ_xi_im2;
-  Real dZ_xi_im1;
-  Real dZ_xi_i;
-
-  Real xi_im2;
-  Real xi_im1;
-  Real xi_i;
-};
+// Take min(max(xi, xi_min), xi_max).
+//
+// If enforced recompute P_dd and return true, otherwise false
+bool EnforceClosureLimits(
+  M1 & pm1, ClosureMetaVector & C,
+  const int k, const int j, const int i,
+  const bool compute_limiting_P_dd);
 
 // Function to find root of.
 // Warning: P_dd, xi, chi, etc are modified in par struct
-// Note: use with par as DataRootfinder
-Real R( Real xi, void *par);
+Real Z_xi(
+  const Real xi,
+  M1 & pm1,
+  ClosureMetaVector & C,
+  const int k, const int j, const int i,
+  const bool compute_limiting_P_dd);
 
-// Assumed to be called immediately after R
-Real dR(Real xi, void *par);
+Real dZ_xi(
+  const Real xi,
+  M1 & pm1,
+  ClosureMetaVector & C,
+  const int k, const int j, const int i,
+  const bool compute_limiting_P_dd);
 
-void RdR(Real xi, void *par);
+// field definitions ----------------------------------------------------------
 
 // Eddington factor
 inline Real chi(const Real xi)
@@ -123,7 +152,7 @@ inline void sp_P_dd_(
   #pragma omp simd
   for (int i=il; i<=iu; ++i)
   {
-   sp_tar_dd(a,b,k,j,i) = 0.5 * (
+    sp_tar_dd(a,b,k,j,i) = 0.5 * (
       (3.0 * sc_chi(k,j,i) - 1.0) * sp_P_tn_dd_(a,b,i) +
       3.0 * (1.0 - sc_chi(k,j,i)) * sp_P_tk_dd_(a,b,i)
     );
@@ -147,30 +176,6 @@ inline void sp_P_dd__(
     );
   }
 }
-
-void ClosureMinerbo(M1 * pm1,
-                    AT_C_sca & sc_xi,
-                    AT_C_sca & sc_chi,
-                    AT_N_sym & sp_P_dd,
-                    AT_C_sca & sc_E,
-                    AT_N_vec & sp_F_d,
-                    AT_C_sca & sc_J,
-                    AT_C_sca & sc_H_t,
-                    AT_N_vec & sp_H_d,
-                    const int ix_g, const int ix_s,
-                    const int k, const int j, const int i);
-
-void ClosureMinerboN(M1 * pm1,
-                     AT_C_sca & sc_xi,
-                     AT_C_sca & sc_chi,
-                     AT_N_sym & sp_P_dd,
-                     AT_C_sca & sc_E,
-                     AT_N_vec & sp_F_d,
-                     AT_C_sca & sc_J,
-                     AT_C_sca & sc_H_t,
-                     AT_N_vec & sp_H_d,
-                     const int ix_g, const int ix_s,
-                     const int k, const int j, const int i);
 
 // ============================================================================
 } // namespace M1::Closures::Minerbo

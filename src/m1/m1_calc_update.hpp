@@ -109,7 +109,7 @@ inline bool ApplyFloors(
 //
 // Enforce this by setting: F_i -> F_i / (\Vert F \Vert_\gamma / E)
 //
-// If enforced, return true, otherwise false
+// If enforced return true, otherwise false
 inline bool EnforceCausality(
   M1 & pm1, StateMetaVector & C,
   const int k, const int j, const int i)
