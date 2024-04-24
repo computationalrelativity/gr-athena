@@ -93,9 +93,19 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
           ix_d, k, j, il, iu
         );
 
-        Assemble::st_F_d_(this, st_F_d_, U_F_d, k, j, il, iu);
-        // TODO: could reduce the internal contraction to only utilize sp_F_d
-        Assemble::sc_G_(this, sc_G_, U_E, sc_J, st_F_d_, k, j, il, iu);
+        M1_FLOOP1(i)
+        {
+          const Real W  = pm1->fidu.sc_W(k,j,i);
+          const Real W2 = SQR(W);
+
+          const Real dotFv = Assemble::sc_dot_dense_sp__(
+            U_F_d, pm1->fidu.sp_v_u, k, j, i);
+
+          sc_G_(i) = Assemble::sc_G__(
+            this->fidu.sc_W(k,j,i), U_E(k,j,i), sc_J(k,j,i), dotFv,
+            this->opt.fl_E, this->opt.fl_J, this->opt.eps_E
+          );
+        }
 
         M1_FLOOP1(i)
         {

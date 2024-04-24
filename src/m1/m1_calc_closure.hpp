@@ -2,7 +2,7 @@
 #define M1_CALC_CLOSURE_HPP
 
 // c++
-// ...
+#include <functional>
 
 // Athena++ classes headers
 #include "m1.hpp"
@@ -62,30 +62,18 @@ struct ClosureMetaVector {
     sc_xi(k,j,i) = U_0_xi[0];
   }
 
+  // Closure functions
+  typedef std::function<void(const int k, const int j, const int i)> fcn_kji;
+
+  fcn_kji Closure;      // selected
+  fcn_kji ClosureThin;  // fallback
+  fcn_kji ClosureThick;
+
 };
 
 ClosureMetaVector ConstructClosureMetaVector(
   M1 & pm1, M1::vars_Lab & vlab,
   const int ix_g, const int ix_s);
-
-void ClosureThin(M1 * pm1,
-                 AT_N_sym & sp_P_dd_,
-                 const AT_C_sca & sc_E,
-                 const AT_N_vec & sp_F_d,
-                 const int k, const int j, const int i);
-
-void ClosureThick(M1 * pm1,
-                  AT_N_sym & sp_P_dd_,
-                  const Real dotFv,
-                  const AT_C_sca & sc_E,
-                  const AT_N_vec & sp_F_d,
-                  const int k, const int j, const int i);
-
-void ClosureThick(M1 * pm1,
-                  AT_N_sym & sp_P_dd_,
-                  const AT_C_sca & sc_E,
-                  const AT_N_vec & sp_F_d,
-                  const int k, const int j, const int i);
 
 void ClosureThin(M1 & pm1,
                  ClosureMetaVector & C,
@@ -98,11 +86,7 @@ void ClosureThick(M1 & pm1,
                   const bool populate_scratch);
 
 // ============================================================================
-}  // M1::Closures
-// ============================================================================
-
-// ============================================================================
-namespace M1::Closures::Minerbo {
+namespace Minerbo {
 // ============================================================================
 
 // Take min(max(xi, xi_min), xi_max).
@@ -177,10 +161,37 @@ inline void sp_P_dd__(
   }
 }
 
+void ClosureMinerboPicard(M1 & pm1,
+                          ClosureMetaVector & C,
+                          const int k, const int j, const int i);
+
+void ClosureMinerboNewton(M1 & pm1,
+                          ClosureMetaVector & C,
+                          const int k, const int j, const int i);
+
+// ============================================================================
+namespace gsl {
+// ============================================================================
+
+void ClosureMinerboBrent(M1 & pm1,
+                         ClosureMetaVector & C,
+                         const int k, const int j, const int i);
+
+void ClosureMinerboNewton(M1 & pm1,
+                          ClosureMetaVector & C,
+                          const int k, const int j, const int i);
+
+// ============================================================================
+} // namespace M1::Closures::Minerbo::gsl
+// ============================================================================
+
 // ============================================================================
 } // namespace M1::Closures::Minerbo
 // ============================================================================
 
+// ============================================================================
+} // namespace M1::Closures
+// ============================================================================
 
 #endif // M1_CALC_CLOSURE_HPP
 

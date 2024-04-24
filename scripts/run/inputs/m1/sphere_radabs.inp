@@ -78,6 +78,7 @@ fiducial_velocity = fluid
 #  semi_implicit_PicardMinerboP  - updates P_dd based on Minerbo;
 #                                  Closure is iterated as part of imp.
 #  semi_implicit_PicardMinerboPC - close explicit iter; iter; close conv.
+#  semi_implicit_Hybrids         - GSL: FD approx. of J
 # }
 integration_strategy = semi_implicit_PicardMinerboP
 

@@ -1,10 +1,12 @@
 // c++
+#include <functional>
 #include <iostream>
 
 // Athena++ headers
 #include "m1.hpp"
 #include "m1_calc_closure.hpp"
 #include "m1_containers.hpp"
+#include "m1_macro.hpp"
 #include "m1_utils.hpp"
 
 // External libraries
@@ -20,7 +22,9 @@ ClosureMetaVector ConstructClosureMetaVector(
   M1 & pm1, M1::vars_Lab & vlab,
   const int ix_g, const int ix_s)
 {
-  return ClosureMetaVector {
+  using namespace std::placeholders;
+
+  ClosureMetaVector C {
     pm1,
     ix_g,
     ix_s,
@@ -48,6 +52,87 @@ ClosureMetaVector ConstructClosureMetaVector(
     pm1.scratch.sp_sym_B_, // sp_P_tk_dd_
     pm1.scratch.sp_sym_C_, // sp_dP_dd_
   };
+
+  // store limiting cases for fallback --------------------------------------
+  C.ClosureThin = [&](const int k, const int j, const int i)
+  {
+    const bool populate_scratch = false;
+    ClosureThin(pm1, C, k, j, i, populate_scratch);
+    C.sc_xi( k,j,i) = 1.0;
+    C.sc_chi(k,j,i) = 1.0;
+  };
+
+  C.ClosureThick = [&](const int k, const int j, const int i)
+  {
+    const bool populate_scratch = false;
+    ClosureThick(pm1, C, k, j, i, populate_scratch);
+    C.sc_xi( k,j,i) = 0.0;
+    C.sc_chi(k,j,i) = ONE_3RD;
+  };
+
+  // select closure ---------------------------------------------------------
+  switch (pm1.opt.closure_variety)
+  {
+    case (M1::opt_closure_variety::thin):
+    {
+      C.Closure = C.ClosureThin;
+      break;
+    }
+    case (M1::opt_closure_variety::thick):
+    {
+      C.Closure = C.ClosureThick;
+      break;
+    }
+    case (M1::opt_closure_variety::MinerboP):
+    {
+      C.Closure = [&](const int k, const int j, const int i)
+      {
+        Minerbo::ClosureMinerboPicard(pm1, C, k, j, i);
+      };
+      break;
+    }
+    case (M1::opt_closure_variety::Minerbo):
+    {
+      C.Closure = [&](const int k, const int j, const int i)
+      {
+        Minerbo::gsl::ClosureMinerboBrent(pm1, C, k, j, i);
+      };
+      break;
+    }
+    case (M1::opt_closure_variety::MinerboN):
+    {
+      C.Closure = [&](const int k, const int j, const int i)
+      {
+        Minerbo::gsl::ClosureMinerboNewton(pm1, C, k, j, i);
+        // Minerbo::ClosureMinerboNewton(*this, C, k, j, i);
+      };
+      break;
+    }
+    default:
+    {
+      assert(false);
+      std::exit(0);
+    }
+  }
+
+  // store limiting cases for fallback --------------------------------------
+  C.ClosureThin = [&](const int k, const int j, const int i)
+  {
+    const bool populate_scratch = false;
+    ClosureThin(pm1, C, k, j, i, populate_scratch);
+    C.sc_xi( k,j,i) = 1.0;
+    C.sc_chi(k,j,i) = 1.0;
+  };
+
+  C.ClosureThick = [&](const int k, const int j, const int i)
+  {
+    const bool populate_scratch = false;
+    ClosureThick(pm1, C, k, j, i, populate_scratch);
+    C.sc_xi( k,j,i) = 0.0;
+    C.sc_chi(k,j,i) = ONE_3RD;
+  };
+
+  return C;
 }
 
 
@@ -137,87 +222,6 @@ void ClosureThick(M1 & pm1,
       C.sp_P_dd(a,b,k,j,i) = val_P_ab(a,b);
     }
   }
-}
-
-
-// sliced operations ----------------------------------------------------------
-
-// P_{i j} in Eq.(15) of [1] - works with densitized variables
-//
-void ClosureThin(M1 * pm1,
-                 AT_N_sym & sp_P_dd_,
-                 const AT_C_sca & sc_E,
-                 const AT_N_vec & sp_F_d,
-                 const int k, const int j, const int i)
-{
-  const Real nF2 = Assemble::sp_norm2__(sp_F_d, pm1->geom.sp_g_uu, k, j, i);
-
-  for (int a=0; a<N; ++a)
-  for (int b=a; b<N; ++b)
-  {
-    const Real fac = (nF2 > 0) ? sc_E(k,j,i) / nF2
-                               : 0.0;
-    sp_P_dd_(a,b,i) = fac * sp_F_d(a,k,j,i) * sp_F_d(b,k,j,i);
-  }
-}
-
-// Function sets:
-// lab_aux.sp_P_dd += wei * P_dd (thick)
-void ClosureThick(M1 * pm1,
-                  AT_N_sym & sp_P_dd_,
-                  const Real dotFv,
-                  const AT_C_sca & sc_E,
-                  const AT_N_vec & sp_F_d,
-                  const int k, const int j, const int i)
-{
-  AT_N_vec & sp_v_d = pm1->fidu.sp_v_d;
-  AT_C_sca & sc_W   = pm1->fidu.sc_W;
-
-  AT_N_sym & sp_g_dd = pm1->geom.sp_g_dd;
-
-  // --------------------------------------------------------------------------
-
-  const Real W    = sc_W(k,j,i);
-  const Real oo_W = 1.0 / W;
-  const Real W2   = SQR(W);
-
-  const Real J_tk = 3.0 / (2.0 * W2 + 1.0) * (
-    (2.0 * W2 - 1.0) * sc_E(k,j,i) - 2.0 * W2 * dotFv
-  );
-
-  const Real fac_H_tk = W /  (2.0 * W2 + 1.0) * (
-    (4.0 * W2 + 1.0) * dotFv - 4.0 * W2 * sc_E(k,j,i)
-  );
-
-  for (int a=0; a<N; ++a)
-  for (int b=a; b<N; ++b)
-  {
-    const Real H_a_tk = oo_W * sp_F_d(a,k,j,i) +
-                        fac_H_tk * sp_v_d(a,k,j,i);
-    const Real H_b_tk = oo_W * sp_F_d(b,k,j,i) +
-                        fac_H_tk * sp_v_d(b,k,j,i);
-
-    sp_P_dd_(a,b,i) = (
-      4.0 * ONE_3RD * W2 * J_tk * sp_v_d(a,k,j,i) * sp_v_d(b,k,j,i) +
-      W * (sp_v_d(a,k,j,i) * H_b_tk +
-           sp_v_d(b,k,j,i) * H_a_tk) +
-      ONE_3RD * J_tk * sp_g_dd(a,b,k,j,i)
-    );
-  }
-}
-
-void ClosureThick(M1 * pm1,
-                  AT_N_sym & sp_P_dd_,
-                  const AT_C_sca & sc_E,
-                  const AT_N_vec & sp_F_d,
-                  const int k, const int j, const int i)
-{
-  const Real dotFv = Assemble::sc_dot_dense_sp__(
-    sp_F_d,
-    pm1->fidu.sp_v_u,
-    k, j, i
-  );
-  ClosureThick(pm1, sp_P_dd_, dotFv, sc_E, sp_F_d, k, j, i);
 }
 
 // ============================================================================
@@ -890,22 +894,17 @@ void M1::CalcClosure(AthenaArray<Real> & u)
   {
     ClosureMetaVector C = ConstructClosureMetaVector(*this, U, ix_g, ix_s);
 
-    // get current g,s --------------------------------------------------------
-    AT_N_sym & sp_P_dd = lab_aux.sp_P_dd(ix_g,ix_s);
+    for (int k=KL; k<=KU; ++k)
+    for (int j=JL; j<=JU; ++j)
+    for (int i=IL; i<=IU; ++i)
+    if (pm1->MaskGet(k,j,i))
+    {
+      C.Closure(k,j,i);
+    }
 
-    AT_C_sca & sc_E   = U.sc_E(  ix_g,ix_s);
-    AT_N_vec & sp_F_d = U.sp_F_d(ix_g,ix_s);
-
-    AT_C_sca & sc_chi = lab_aux.sc_chi(ix_g,ix_s);
-    AT_C_sca & sc_xi  = lab_aux.sc_xi( ix_g,ix_s);
-
-    AT_C_sca & sc_J   = rad.sc_J(  ix_g,ix_s);
-    AT_C_sca & sc_H_t = rad.sc_H_t(ix_g,ix_s);
-    AT_N_vec & sp_H_d = rad.sp_H_d(ix_g,ix_s);
-
-    sp_P_dd.ZeroClear();
 
     // select closure ---------------------------------------------------------
+    /*
     switch (opt.closure_variety)
     {
       case (opt_closure_variety::thin):
@@ -917,8 +916,8 @@ void M1::CalcClosure(AthenaArray<Real> & u)
         {
           const bool populate_scratch = false;
           ClosureThin(*this, C, k, j, i, populate_scratch);
-          sc_xi( k,j,i) = 1.0;
-          sc_chi(k,j,i) = 1.0;
+          C.sc_xi( k,j,i) = 1.0;
+          C.sc_chi(k,j,i) = 1.0;
         }
 
         break;
@@ -932,8 +931,8 @@ void M1::CalcClosure(AthenaArray<Real> & u)
         {
           const bool populate_scratch = false;
           ClosureThick(*this, C, k, j, i, populate_scratch);
-          sc_xi( k,j,i) = 0.0;
-          sc_chi(k,j,i) = ONE_3RD;
+          C.sc_xi( k,j,i) = 0.0;
+          C.sc_chi(k,j,i) = ONE_3RD;
         }
 
         break;
@@ -979,6 +978,7 @@ void M1::CalcClosure(AthenaArray<Real> & u)
         std::exit(0);
       }
     }
+    */
   }
   return;
 }

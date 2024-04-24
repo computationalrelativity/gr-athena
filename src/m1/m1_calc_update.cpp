@@ -241,6 +241,82 @@ void StepExplicit(
   EnforceCausality(pm1, C, k, j, i);
 }
 
+// Can solve the implicit system approxmately at O(v).
+// This can be used as an initial guess for implicit integration [1].
+void StepApproximateFirstOrder(
+  M1 & pm1,
+  const Real dt,
+  const StateMetaVector & P,  // previous step data
+  StateMetaVector & C,        // current step
+  const StateMetaVector & I,  // inhomogeneity
+  Closures::ClosureMetaVector & CL,
+  const int k, const int j, const int i)
+{
+  // explicit step
+  const bool explicit_step_nG = false;
+  StepExplicit(pm1, dt, P, C, I, explicit_step_nG, k, j, i);
+
+  // apply closure to explicit update
+  CL.Closure(k,j,i);
+
+  // construct fiducial frame quantities (tilde of [1])
+  const Real W  = CL.sc_W(k,j,i);
+  const Real W2 = SQR(W);
+
+  const Real dotFv = Assemble::sc_dot_dense_sp__(
+    C.sp_F_d,
+    C.pm1.fidu.sp_v_u,
+    k, j, i
+  );
+
+  // assemble J
+  C.sc_J(k,j,i) = Assemble::sc_J__(
+    W2, dotFv, C.sc_E, C.pm1.fidu.sp_v_u, C.sp_P_dd,
+    k, j, i
+  );
+
+  // assemble H_d
+  Assemble::sp_H_d__(C.sp_H_d, W, C.sc_J, C.sp_F_d,
+                     C.pm1.fidu.sp_v_d, C.pm1.fidu.sp_v_u, C.sp_P_dd,
+                     k, j, i);
+
+  // propagate fiducial frame quantities (hat of [1])
+  C.sc_J(k,j,i) = (
+    (C.sc_J(k,j,i) * W + dt * C.sc_eta(k,j,i)) /
+    (W + dt * C.sc_kap_a(k,j,i))
+  );
+
+  for (int a=0; a<N; ++a)
+  {
+    C.sp_H_d(a,k,j,i) = W * C.sp_H_d(a,k,j,i) / (
+      W + dt * (C.sc_kap_a(k,j,i) + C.sc_kap_s(k,j,i))
+    );
+  }
+
+  // transform to Eulerian frame assuming _thick_ limit closure
+  const Real dotHv = Assemble::sc_dot_dense_sp__(
+    C.sp_H_d,
+    C.pm1.fidu.sp_v_u,
+    k, j, i
+  );
+
+  // assemble initial guess
+  C.sc_E(k,j,i) = ONE_3RD * (
+    4.0 * W2 - 1.0
+  ) * C.sc_J(k,j,i) + 2.0 * W * dotHv;
+
+  for (int a=0; a<N; ++a)
+  {
+    C.sp_F_d(a,k,j,i) = (
+      4.0 * ONE_3RD * W2 * C.sc_J(k,j,i) * C.pm1.fidu.sp_v_d(a,k,j,i) +
+      W * (C.sp_H_d(a,k,j,i) + dotHv * C.pm1.fidu.sp_v_d(a,k,j,i))
+    );
+  }
+
+  ApplyFloors(pm1, C, k, j, i);
+  EnforceCausality(pm1, C, k, j, i);
+}
+
 void StepImplicitPicardFrozenP(
   M1 & pm1,
   const Real dt,
@@ -616,6 +692,41 @@ struct gsl_params {
   const int k;
 };
 
+// convenience maps
+inline void gsl_V2T_E_F_d(StateMetaVector & T,
+                          const gsl_vector *U,
+                          const int k, const int j, const int i)
+{
+  T.sc_E(k,j,i) = U->data[0];
+  for (int a=0; a<N; ++a)
+  {
+    T.sp_F_d(a,k,j,i) = U->data[1+a];
+  }
+}
+
+inline void gsl_T2V_E_F_d(gsl_vector *U,
+                          const StateMetaVector & T,
+                          const int k, const int j, const int i)
+{
+  U->data[0] = T.sc_E(k,j,i);
+  for (int a=0; a<N; ++a)
+  {
+    U->data[1+a] = T.sp_F_d(a,k,j,i);
+  }
+}
+
+// update from U based on T.Z (std::array)
+inline void gsl_TZ2V_E_F_d(gsl_vector *U,
+                           const StateMetaVector & T)
+{
+  U->data[0] = T.Z_E[0];
+  for (int a=0; a<N; ++a)
+  {
+    U->data[1+a] = T.Z_F_d[a];
+  }
+}
+
+// wrapper for system to solve
 int Z_E_F_d(const gsl_vector *U, void * par_, gsl_vector *Z)
 {
   gsl_params * par = static_cast<gsl_params*>(par_);
@@ -630,19 +741,13 @@ int Z_E_F_d(const gsl_vector *U, void * par_, gsl_vector *Z)
   const int j = par->j;
   const int k = par->k;
 
-  C.sc_E(k,j,i) = U->data[0];
-  for (int a=0; a<N; ++a)
-  {
-    C.sp_F_d(a,k,j,i) = U->data[1+a];
-  }
+  gsl_V2T_E_F_d(C, U, k, j, i);                // U->C
 
-  System::Z_E_F_d(pm1, dt, P, C, I, k, j, i);
+  ApplyFloors(pm1, C, k, j, i);
+  EnforceCausality(pm1, C, k, j, i);
 
-  Z->data[0] = C.Z_E[0];
-  for (int a=0; a<N; ++a)
-  {
-    Z->data[1+a] = C.Z_F_d[a];
-  }
+  System::Z_E_F_d(pm1, dt, P, C, I, k, j, i);  // updates C.Z_E, C.Z_F_d
+  gsl_TZ2V_E_F_d(Z, C);                        // C.Z -> Z
 
   return GSL_SUCCESS;
 }
@@ -662,21 +767,18 @@ void StepImplicitMinerboHybrids(
   // retain values for potential restarts
   C.FallbackStore(k, j, i);
 
-  // explicit update ----------------------------------------------------------
-  const bool explicit_step_nG = false;
-  StepExplicit(pm1, dt, P, C, I, explicit_step_nG, k, j, i);
+  // prepare initial guess for iteration --------------------------------------
+  // See \S3.2.4 of [1]
+  StepApproximateFirstOrder(pm1, dt, P, C, I, CL, k, j, i);
+  C.FallbackStore(k, j, i);
+  // --------------------------------------------------------------------------
 
   // GSL specific -------------------------------------------------------------
   const size_t N_SYS = 1 + N;
 
   // values to iterate (seed with initial guess)
   gsl_vector *U_i = gsl_vector_alloc(N_SYS);
-
-  U_i->data[0] = C.sc_E(k,j,i);
-  for (int a=0; a<N; ++a)
-  {
-    U_i->data[1+a] = C.sp_F_d(a,k,j,i);
-  }
+  gsl_T2V_E_F_d(U_i, C, k, j, i);                  // C->U_i
 
   // select function & solver -------------------------------------------------
   struct gsl_params par = {pm1, dt, P, C, I,
@@ -697,21 +799,47 @@ void StepImplicitMinerboHybrids(
 
     // break on issue with solver
     if (gsl_status)
+    {
       break;
+    }
 
     // Ensure update preserves energy non-negativity
-    // TODO: needs U->C apply C->U
+    gsl_V2T_E_F_d(C, slv->x, k, j, i);  // U_i->C
+
     ApplyFloors(pm1, C, k, j, i);
     EnforceCausality(pm1, C, k, j, i);
 
+    // compute closure with updated state
+    CL.Closure(k,j,i);
+
+    // Updated iterated vector
+    gsl_T2V_E_F_d(slv->x, C, k, j, i);  // C->U_i
     gsl_status = gsl_multiroot_test_residual(slv->f, slv_set.tol_abs);
   }
   while (gsl_status == GSL_CONTINUE && iter < slv_set.iter_max);
 
-  if ((gsl_status != GSL_SUCCESS))
+  if ((gsl_status == GSL_ETOL)     ||
+      (gsl_status == GSL_EMAXITER) ||
+      (iter >= slv_set.iter_max))
   {
-    // std::cout << "StepImplicitMinerboHybrids failure: " << gsl_status << "\n";
-    // pm1.StatePrintPoint(C.ix_g, C.ix_s, k, j, i, true);
+    std::cout << "Warning: StepImplicitMinerboHybrids: ";
+    std::cout << "GSL_ETOL || GSL_EMAXITER\n";
+  }
+  else if ((gsl_status == GSL_ENOPROG) || (gsl_status == GSL_ENOPROGJ))
+  {
+    std::cout << "Warning: StepImplicitMinerboHybrids: ";
+    std::cout << "GSL_ENOPROG || GSL_ENOPROGJ : iter " << iter << " \n";
+
+    C.Fallback(k, j, i);
+  }
+  else if ((gsl_status != GSL_SUCCESS))
+  {
+    #pragma omp critical
+    {
+      std::cout << "StepImplicitMinerboHybrids failure: " << gsl_status << "\n";
+      std::cout << iter << std::endl;
+    }
+    pm1.StatePrintPoint(C.ix_g, C.ix_s, k, j, i, true);
   }
 
   // Neutrino current evolution
