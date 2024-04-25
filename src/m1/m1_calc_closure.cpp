@@ -183,7 +183,7 @@ void ClosureThick(M1 & pm1,
                                                  C.sp_v_u,
                                                  k, j, i);
 
-  const Real J_tk = 3.0 / (2.0 * W2 + 1.0) * (
+  Real J_tk = 3.0 / (2.0 * W2 + 1.0) * (
     (2.0 * W2 - 1.0) * C.sc_E(k,j,i) - 2.0 * W2 * dotFv
   );
 
@@ -899,86 +899,9 @@ void M1::CalcClosure(AthenaArray<Real> & u)
     for (int i=IL; i<=IU; ++i)
     if (pm1->MaskGet(k,j,i))
     {
+      // NonFiniteToZero(*this, C, k, j, i);
       C.Closure(k,j,i);
     }
-
-
-    // select closure ---------------------------------------------------------
-    /*
-    switch (opt.closure_variety)
-    {
-      case (opt_closure_variety::thin):
-      {
-        for (int k=KL; k<=KU; ++k)
-        for (int j=JL; j<=JU; ++j)
-        for (int i=IL; i<=IU; ++i)
-        if (pm1->MaskGet(k,j,i))
-        {
-          const bool populate_scratch = false;
-          ClosureThin(*this, C, k, j, i, populate_scratch);
-          C.sc_xi( k,j,i) = 1.0;
-          C.sc_chi(k,j,i) = 1.0;
-        }
-
-        break;
-      }
-      case (opt_closure_variety::thick):
-      {
-        for (int k=KL; k<=KU; ++k)
-        for (int j=JL; j<=JU; ++j)
-        for (int i=IL; i<=IU; ++i)
-        if (pm1->MaskGet(k,j,i))
-        {
-          const bool populate_scratch = false;
-          ClosureThick(*this, C, k, j, i, populate_scratch);
-          C.sc_xi( k,j,i) = 0.0;
-          C.sc_chi(k,j,i) = ONE_3RD;
-        }
-
-        break;
-      }
-      case (opt_closure_variety::Minerbo):
-      {
-        for (int k=KL; k<=KU; ++k)
-        for (int j=JL; j<=JU; ++j)
-        for (int i=IL; i<=IU; ++i)
-        if (pm1->MaskGet(k,j,i))
-        {
-          Closures::Minerbo::gsl::ClosureMinerboBrent(*this, C, k, j, i);
-        }
-
-        break;
-      }
-      case (opt_closure_variety::MinerboP):
-      {
-        for (int k=KL; k<=KU; ++k)
-        for (int j=JL; j<=JU; ++j)
-        for (int i=IL; i<=IU; ++i)
-        if (pm1->MaskGet(k,j,i))
-        {
-          Closures::Minerbo::ClosureMinerboPicard(*this, C, k, j, i);
-        }
-        break;
-      }
-      case (opt_closure_variety::MinerboN):
-      {
-        for (int k=KL; k<=KU; ++k)
-        for (int j=JL; j<=JU; ++j)
-        for (int i=IL; i<=IU; ++i)
-        if (pm1->MaskGet(k,j,i))
-        {
-          Closures::Minerbo::gsl::ClosureMinerboNewton(*this, C, k, j, i);
-          // Closures::Minerbo::ClosureMinerboNewton(*this, C, k, j, i);
-        }
-        break;
-      }
-      default:
-      {
-        assert(false);
-        std::exit(0);
-      }
-    }
-    */
   }
   return;
 }

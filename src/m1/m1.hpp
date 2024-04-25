@@ -107,7 +107,9 @@ public:
                                         semi_implicit_PicardFrozenP,
                                         semi_implicit_PicardMinerboP,
                                         semi_implicit_PicardMinerboPC,
-                                        semi_implicit_Hybrids};
+                                        semi_implicit_Hybrids,
+                                        semi_implicit_HybridsJFrozenP,
+                                        semi_implicit_HybridsJMinerbo};
   enum class opt_fiducial_velocity { fluid, mixed, zero, none };
   enum class opt_characteristics_variety { approximate,
                                            exact_thin,

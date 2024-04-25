@@ -79,8 +79,10 @@ fiducial_velocity = fluid
 #                                  Closure is iterated as part of imp.
 #  semi_implicit_PicardMinerboPC - close explicit iter; iter; close conv.
 #  semi_implicit_Hybrids         - GSL: FD approx. of J
+#  semi_implicit_HybridsJFrozenP - GSL: Jacobian for fixed (E, F indep.) P_dd
+#  semi_implicit_HybridsJMinerbo - GSL: Jacobian for P_dd based on Minerbo
 # }
-integration_strategy = semi_implicit_Hybrids
+integration_strategy = semi_implicit_HybridsJMinerbo
 
 # tolerances / ad-hoc fiddle parameters
 fl_E = 1e-14
@@ -103,7 +105,7 @@ verbose_iter_C = false
 max_iter_P     = 512   // maximum number of iterations (for each restart)
 max_iter_P_rst = 10    // maximum number of restarts
 w_opt_ini_P    = 1.0   // initial underrelaxation factor
-eps_P_abs_tol  = 1e-8  // absolute tolerance
+eps_P_abs_tol  = 1e-5  // absolute tolerance
 fac_amp_P      = 1.10  // error amplification tolerance between iterates
 verbose_iter_P = false  // signal e.g. failure to achieve tol.
 

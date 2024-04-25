@@ -218,6 +218,16 @@ void M1::PopulateOptions(ParameterInput *pin)
       opt.integration_strategy = \
         opt_integration_strategy::semi_implicit_PicardMinerboPC;
     }
+    else if (tmp == "semi_implicit_HybridsJFrozenP")
+    {
+      opt.integration_strategy = \
+        opt_integration_strategy::semi_implicit_HybridsJFrozenP;
+    }
+    else if (tmp == "semi_implicit_HybridsJMinerbo")
+    {
+      opt.integration_strategy = \
+        opt_integration_strategy::semi_implicit_HybridsJMinerbo;
+    }
     else if (tmp == "semi_implicit_Hybrids")
     {
       opt.integration_strategy = \

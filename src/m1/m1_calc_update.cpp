@@ -83,6 +83,222 @@ inline void Z_E_F_d(
   Z_E_F_d(pm1, dt, dotPvv, P, C, I, k, j, i);
 }
 
+// Source term Jacobian in terms of \sqrt{g} densitized variables.
+// Here P_dd is considered independent of E, F_d
+//
+// See also 3.2 of [1].
+inline void dZ_E_F_d_FrozenP(
+  M1 & pm1,
+  const Real dt,
+  AA & J,                    // Storage for Jacobian
+  const StateMetaVector & C, // current step
+  const int k, const int j, const int i)
+{
+  const Real W = pm1.fidu.sc_W(k,j,i);
+  const Real W2 = SQR(W);
+  const Real W3 = W * W2;
+
+  const Real kap_as = (C.sc_kap_a(k,j,i) + C.sc_kap_s(k,j,i));
+  const Real kap_s = C.sc_kap_s(k,j,i);
+
+  const Real alpha = pm1.geom.sc_alpha(k,j,i);
+
+  // J(I,J) ~ D[S_I,(E,F_d)_J]
+
+  // sc_Stil_1 ----------------------------------------------------------------
+
+  // D_E
+  J(0,0) = alpha * W * (
+    -kap_as + kap_s * W2
+  );
+
+  const Real fac_J_0a = alpha * W * (
+    kap_as - 2.0 * kap_s * W2
+  );
+
+  // D_F_d
+  for (int a=0; a<N; ++a)
+  {
+    J(0,1+a) = fac_J_0a * pm1.fidu.sp_v_u(a,k,j,i);
+  }
+
+  // sc_Stil_1pa --------------------------------------------------------------
+  for (int a=0; a<N; ++a)
+  {
+    // D_E
+    J(1+a,0) = alpha * kap_s * W3 * pm1.fidu.sp_v_d(a,k,j,i);
+
+    // D_F_d
+    for (int b=0; b<N; ++b)
+    {
+      J(1+a,1+b) = -alpha * W * (
+        (a == b) * kap_as +
+        2.0 * kap_s * W2 * pm1.fidu.sp_v_u(b,k,j,i) * pm1.fidu.sp_v_d(a,k,j,i)
+      );
+    }
+  }
+
+  // Actually need Jacobian for Z and not the sources -------------------------
+  const int N_SYS = J.GetDim1();
+  for (int a=0; a<N_SYS; ++a)
+  for (int b=0; b<N_SYS; ++b)
+  {
+    J(a,b) = (a==b) - dt * J(a,b);
+  }
+
+}
+
+// Source term Jacobian in terms of \sqrt{g} densitized variables.
+//
+// See also 3.2 of [1].
+inline void dZ_E_F_d_Minerbo(
+  M1 & pm1,
+  const Real dt,
+  AA & J,                    // Storage for Jacobian
+  const StateMetaVector & C, // current step
+  const int k, const int j, const int i)
+{
+  const Real W = pm1.fidu.sc_W(k,j,i);
+  const Real W2 = SQR(W);
+  const Real W3 = W * W2;
+
+  const Real kap_as = (C.sc_kap_a(k,j,i) + C.sc_kap_s(k,j,i));
+  const Real kap_s = C.sc_kap_s(k,j,i);
+
+  const Real alpha = pm1.geom.sc_alpha(k,j,i);
+
+  // P_dd thin (tn) and thick (tk) factors
+  const Real d_tn = 0.5 * (3.0 * C.sc_chi(k,j,i) - 1.0);
+  const Real d_tk = 3.0 * 0.5 * (1.0 - C.sc_chi(k,j,i));
+
+  const Real dotFv = Assemble::sc_dot_dense_sp__(C.sp_F_d, pm1.fidu.sp_v_u,
+                                                 k, j, i);
+
+  const Real dotvv = Assemble::sc_dot_dense_sp__(pm1.fidu.sp_v_d,
+                                                 pm1.fidu.sp_v_u,
+                                                 k, j, i);
+
+  Assemble::sp_d_to_u_(&pm1, pm1.scratch.sp_F_u_, C.sp_F_d, k, j, i, i);
+  Real dotFF = 0;
+  for (int a=0; a<N; ++a)
+  {
+    dotFF += pm1.scratch.sp_F_u_(a,i) * C.sp_F_d(a,k,j,i);
+  }
+
+  // J(I,J) ~ D[S_I,(E,F_d)_J]
+
+  // sc_Stil_1 ----------------------------------------------------------------
+
+  // D_E
+  J(0,0) = alpha * W * (
+    -kap_as + kap_s * W2
+  );
+
+  const Real fac_J_0a = alpha * W * (
+    kap_as - 2.0 * kap_s * W2
+  );
+
+  // D_F_d
+  for (int a=0; a<N; ++a)
+  {
+    J(0,1+a) = fac_J_0a * pm1.fidu.sp_v_u(a,k,j,i);
+  }
+
+  // sc_Stil_1pa --------------------------------------------------------------
+  for (int a=0; a<N; ++a)
+  {
+    // D_E
+    J(1+a,0) = alpha * kap_s * W3 * pm1.fidu.sp_v_d(a,k,j,i);
+
+    // D_F_d
+    for (int b=0; b<N; ++b)
+    {
+      J(1+a,1+b) = -alpha * W * (
+        (a == b) * kap_as +
+        2.0 * kap_s * W2 * pm1.fidu.sp_v_u(b,k,j,i) * pm1.fidu.sp_v_d(a,k,j,i)
+      );
+    }
+  }
+
+  // thin correction to Jacobian ----------------------------------------------
+
+  if (dotFF > 0)
+  {
+    J(0,0) += d_tn * alpha * W3 * kap_s * SQR(dotFv) / dotFF;
+
+    for (int b=0; b<N; ++b)
+    {
+      J(0,1+b) += d_tn * 2.0 * alpha * dotFv * C.sc_E(k,j,i) * kap_s * W3 * (
+        -dotFv * pm1.scratch.sp_F_u_(b,i) +
+        dotFF * pm1.fidu.sp_v_u(b,k,j,i)
+      ) / SQR(dotFF);
+    }
+
+    for (int a=0; a<N; ++a)
+    {
+      J(1+a,0) += d_tn * alpha * dotFv * W * (
+        C.sp_F_d(a,k,j,i) * kap_as +
+        W2 * dotFv * kap_s * pm1.fidu.sp_v_d(a,k,j,i)
+      ) / dotFF;
+
+      for (int b=0; b<N; ++b)
+      {
+        J(1+a,1+b) += d_tn * alpha * C.sc_E(k,j,i) * W * (
+          -2.0 * dotFv * pm1.scratch.sp_F_u_(b,i) *
+          (C.sp_F_d(a,k,j,i) * kap_as +
+           W2 * dotFv * kap_s * pm1.fidu.sp_v_d(a,k,j,i)) +
+          dotFF * ((a==b) * dotFv * kap_as +
+                   pm1.fidu.sp_v_u(b,k,j,i) * (
+                    C.sp_F_d(a,k,j,i) * kap_as +
+                    2.0 * W2 * dotFv * kap_s * pm1.fidu.sp_v_d(a,k,j,i)
+                   ))
+        ) / SQR(dotFF);
+      }
+    }
+  }
+
+  // thick correction to Jacobian ---------------------------------------------
+  J(0,0) += d_tk * alpha * dotvv * kap_s * W3 * (
+    -1.0 + (2.0 - 4.0 * dotvv) * W2
+  ) / (1.0 + 2.0 * W2);
+
+  for (int b=0; b<N; ++b)
+  {
+    J(0,1+b) += d_tk * 2.0 * alpha * dotvv * kap_s * W3 *
+                pm1.fidu.sp_v_u(b,k,j,i) * (
+                  1.0 + (1.0 + dotvv) * W2
+                ) / (1.0 + 2.0 * W2);
+  }
+
+  for (int a=0; a<N; ++a)
+  {
+    J(1+a,0) += -d_tk * alpha * pm1.fidu.sp_v_d(a,k,j,i) * W * (
+      1.0 + (-2.0 + 4.0 * dotvv) * W2
+    ) * (
+      kap_as + dotvv * kap_s * W2
+    ) / (1.0 + 2.0 * W2);
+
+    for (int b=0; b<N; ++b)
+    {
+      J(1+a,1+b) += d_tk * alpha * W * (
+        (a == b) * dotvv * kap_as +
+        pm1.fidu.sp_v_u(b,k,j,i) * pm1.fidu.sp_v_d(a,k,j,i) * (
+          kap_as + 2.0 * dotvv * kap_as * W2 +
+          2.0 * dotvv * kap_s * W2 * (1.0 + (1.0 + dotvv) * W2)
+        ) / (1.0 + 2.0 * W2)
+      );
+    }
+  }
+
+  // Actually need Jacobian for Z and not the sources -------------------------
+  const int N_SYS = J.GetDim1();
+  for (int a=0; a<N_SYS; ++a)
+  for (int b=0; b<N_SYS; ++b)
+  {
+    J(a,b) = (a==b) - dt * J(a,b);
+  }
+
+}
 
 // ============================================================================
 } // namespace M1::Update::System
@@ -237,6 +453,7 @@ void StepExplicit(
     C.sp_F_d(a,k,j,i) = P.sp_F_d(a,k,j,i) + dt * I.sp_F_d(a,k,j,i);
   }
 
+  // NonFiniteToZero(pm1, C, k, j, i);
   ApplyFloors(pm1, C, k, j, i);
   EnforceCausality(pm1, C, k, j, i);
 }
@@ -256,7 +473,6 @@ void StepApproximateFirstOrder(
   const bool explicit_step_nG = false;
   StepExplicit(pm1, dt, P, C, I, explicit_step_nG, k, j, i);
 
-  // apply closure to explicit update
   CL.Closure(k,j,i);
 
   // construct fiducial frame quantities (tilde of [1])
@@ -687,6 +903,9 @@ struct gsl_params {
   StateMetaVector & C;
   const StateMetaVector & I;
 
+  // For Jacobian-based methods
+  AA & J;
+
   const int i;
   const int j;
   const int k;
@@ -752,6 +971,76 @@ int Z_E_F_d(const gsl_vector *U, void * par_, gsl_vector *Z)
   return GSL_SUCCESS;
 }
 
+int dZ_E_F_d_FrozenP(const gsl_vector *U, void * par_, gsl_matrix *J_)
+{
+  gsl_params * par = static_cast<gsl_params*>(par_);
+
+  M1 & pm1 = par->pm1;
+  const Real dt = par->dt;
+  StateMetaVector & C = par->C;
+
+  AA & J = par->J;
+
+  const int i = par->i;
+  const int j = par->j;
+  const int k = par->k;
+
+  System::dZ_E_F_d_FrozenP(pm1, dt, J, C, k, j, i);
+
+  const int N_SYS = J.GetDim1();
+
+  for (int a=0; a<N_SYS; ++a)
+  for (int b=0; b<N_SYS; ++b)
+  {
+    gsl_matrix_set(J_, a, b, J(a, b));
+  }
+
+  return GSL_SUCCESS;
+}
+
+int ZdZ_E_F_d_FrozenP(const gsl_vector *U, void * par_,
+                      gsl_vector *Z, gsl_matrix *J)
+{
+  Z_E_F_d(U, par_, Z);
+  dZ_E_F_d_FrozenP(U, par_, J);
+  return GSL_SUCCESS;
+}
+
+int dZ_E_F_d_Minerbo(const gsl_vector *U, void * par_, gsl_matrix *J_)
+{
+  gsl_params * par = static_cast<gsl_params*>(par_);
+
+  M1 & pm1 = par->pm1;
+  const Real dt = par->dt;
+  StateMetaVector & C = par->C;
+
+  AA & J = par->J;
+
+  const int i = par->i;
+  const int j = par->j;
+  const int k = par->k;
+
+  System::dZ_E_F_d_Minerbo(pm1, dt, J, C, k, j, i);
+
+  const int N_SYS = J.GetDim1();
+
+  for (int a=0; a<N_SYS; ++a)
+  for (int b=0; b<N_SYS; ++b)
+  {
+    gsl_matrix_set(J_, a, b, J(a, b));
+  }
+
+  return GSL_SUCCESS;
+}
+
+int ZdZ_E_F_d_Minerbo(const gsl_vector *U, void * par_,
+                      gsl_vector *Z, gsl_matrix *J)
+{
+  Z_E_F_d(U, par_, Z);
+  dZ_E_F_d_Minerbo(U, par_, J);
+  return GSL_SUCCESS;
+}
+
 // ----------------------------------------------------------------------------
 // Implicit update strategy for state vector (FD approximation for Jacobian)
 void StepImplicitMinerboHybrids(
@@ -764,12 +1053,11 @@ void StepImplicitMinerboHybrids(
   SystemSolverSettings & slv_set,
   const int k, const int j, const int i)
 {
-  // retain values for potential restarts
-  C.FallbackStore(k, j, i);
-
   // prepare initial guess for iteration --------------------------------------
   // See \S3.2.4 of [1]
   StepApproximateFirstOrder(pm1, dt, P, C, I, CL, k, j, i);
+
+  // retain values for potential restarts
   C.FallbackStore(k, j, i);
   // --------------------------------------------------------------------------
 
@@ -781,8 +1069,9 @@ void StepImplicitMinerboHybrids(
   gsl_T2V_E_F_d(U_i, C, k, j, i);                  // C->U_i
 
   // select function & solver -------------------------------------------------
-  struct gsl_params par = {pm1, dt, P, C, I,
-                           i, j, k};
+  AA J_;  // unused in this method
+
+  struct gsl_params par = {pm1, dt, P, C, I, J_, i, j, k};
   gsl_multiroot_function mrf = {&Z_E_F_d, N_SYS, &par};
   gsl_multiroot_fsolver *slv = gsl_multiroot_fsolver_alloc(
     gsl_multiroot_fsolver_hybrids,
@@ -822,13 +1111,19 @@ void StepImplicitMinerboHybrids(
       (gsl_status == GSL_EMAXITER) ||
       (iter >= slv_set.iter_max))
   {
-    std::cout << "Warning: StepImplicitMinerboHybrids: ";
-    std::cout << "GSL_ETOL || GSL_EMAXITER\n";
+    if (pm1.opt.verbose_iter_P)
+    {
+      std::cout << "Warning: StepImplicitMinerboHybrids: ";
+      std::cout << "GSL_ETOL || GSL_EMAXITER\n";
+    }
   }
   else if ((gsl_status == GSL_ENOPROG) || (gsl_status == GSL_ENOPROGJ))
   {
-    std::cout << "Warning: StepImplicitMinerboHybrids: ";
-    std::cout << "GSL_ENOPROG || GSL_ENOPROGJ : iter " << iter << " \n";
+    if (pm1.opt.verbose_iter_P)
+    {
+      std::cout << "Warning: StepImplicitMinerboHybrids: ";
+      std::cout << "GSL_ENOPROG || GSL_ENOPROGJ : iter " << iter << " \n";
+    }
 
     C.Fallback(k, j, i);
   }
@@ -836,7 +1131,8 @@ void StepImplicitMinerboHybrids(
   {
     #pragma omp critical
     {
-      std::cout << "StepImplicitMinerboHybrids failure: " << gsl_status << "\n";
+      std::cout << "StepImplicitMinerboHybrids failure: ";
+      std::cout << gsl_status << "\n";
       std::cout << iter << std::endl;
     }
     pm1.StatePrintPoint(C.ix_g, C.ix_s, k, j, i, true);
@@ -847,6 +1143,232 @@ void StepImplicitMinerboHybrids(
 
   // cleanup ------------------------------------------------------------------
   gsl_multiroot_fsolver_free(slv);
+  gsl_vector_free(U_i);
+}
+
+// ----------------------------------------------------------------------------
+// Implicit update strategy for state vector (Analytical Jacobian fixed P_dd)
+void StepImplicitHybridsJFrozenP(
+  M1 & pm1,
+  const Real dt,
+  const StateMetaVector & P,  // previous step data
+  StateMetaVector & C,        // current step
+  const StateMetaVector & I,  // inhomogeneity
+  Closures::ClosureMetaVector & CL,
+  SystemSolverSettings & slv_set,
+  const int k, const int j, const int i)
+{
+  // prepare initial guess for iteration --------------------------------------
+  // See \S3.2.4 of [1]
+  StepApproximateFirstOrder(pm1, dt, P, C, I, CL, k, j, i);
+
+  // retain values for potential restarts
+  C.FallbackStore(k, j, i);
+  // --------------------------------------------------------------------------
+
+  // GSL specific -------------------------------------------------------------
+  const size_t N_SYS = 1 + N;
+
+  // values to iterate (seed with initial guess)
+  gsl_vector *U_i = gsl_vector_alloc(N_SYS);
+  gsl_T2V_E_F_d(U_i, C, k, j, i);                  // C->U_i
+
+  // select function & solver -------------------------------------------------
+  AA J(N_SYS,N_SYS);
+
+  struct gsl_params par = {pm1, dt, P, C, I, J, i, j, k};
+  gsl_multiroot_function_fdf mrf = {&Z_E_F_d,
+                                    &dZ_E_F_d_FrozenP,
+                                    &ZdZ_E_F_d_FrozenP,
+                                    N_SYS, &par};
+  gsl_multiroot_fdfsolver *slv = gsl_multiroot_fdfsolver_alloc(
+    gsl_multiroot_fdfsolver_hybridsj,
+    N_SYS);
+
+  int gsl_status = gsl_multiroot_fdfsolver_set(slv, &mrf, U_i);
+
+  // solver loop --------------------------------------------------------------
+  int iter = 0;
+  do
+  {
+    iter++;
+    gsl_status = gsl_multiroot_fdfsolver_iterate(slv);
+
+    // break on issue with solver
+    if (gsl_status)
+    {
+      break;
+    }
+
+    // Ensure update preserves energy non-negativity
+    gsl_V2T_E_F_d(C, slv->x, k, j, i);  // U_i->C
+
+    ApplyFloors(pm1, C, k, j, i);
+    EnforceCausality(pm1, C, k, j, i);
+
+    // Updated iterated vector
+    gsl_T2V_E_F_d(slv->x, C, k, j, i);  // C->U_i
+    gsl_status = gsl_multiroot_test_residual(slv->f, slv_set.tol_abs);
+  }
+  while (gsl_status == GSL_CONTINUE && iter < slv_set.iter_max);
+
+  if ((gsl_status == GSL_ETOL)     ||
+      (gsl_status == GSL_EMAXITER) ||
+      (iter >= slv_set.iter_max))
+  {
+    if (pm1.opt.verbose_iter_P)
+    {
+      std::cout << "Warning: StepImplicitHybridsJFrozenP: ";
+      std::cout << "GSL_ETOL || GSL_EMAXITER\n";
+    }
+  }
+  else if ((gsl_status == GSL_ENOPROG) || (gsl_status == GSL_ENOPROGJ))
+  {
+    if (pm1.opt.verbose_iter_P)
+    {
+      std::cout << "Warning: StepImplicitHybridsJFrozenP: ";
+      std::cout << "GSL_ENOPROG || GSL_ENOPROGJ : iter " << iter << " \n";
+    }
+
+    C.Fallback(k, j, i);
+  }
+  else if ((gsl_status != GSL_SUCCESS))
+  {
+    #pragma omp critical
+    {
+      std::cout << "StepImplicitMinerboHybridsJ failure: ";
+      std::cout << gsl_status << "\n";
+      std::cout << iter << std::endl;
+    }
+    pm1.StatePrintPoint(C.ix_g, C.ix_s, k, j, i, true);
+  }
+
+  // compute closure with updated state
+  CL.Closure(k,j,i);
+
+  // Neutrino current evolution
+  SolveImplicitNeutrinoCurrent(pm1, dt, P, C, I, k, j, i);
+
+  // cleanup ------------------------------------------------------------------
+  gsl_multiroot_fdfsolver_free(slv);
+  gsl_vector_free(U_i);
+}
+
+// ----------------------------------------------------------------------------
+// Implicit update strategy for state vector (Analytical Jacobian fixed P_dd)
+void StepImplicitHybridsJMinerbo(
+  M1 & pm1,
+  const Real dt,
+  const StateMetaVector & P,  // previous step data
+  StateMetaVector & C,        // current step
+  const StateMetaVector & I,  // inhomogeneity
+  Closures::ClosureMetaVector & CL,
+  SystemSolverSettings & slv_set,
+  const int k, const int j, const int i)
+{
+  // prepare initial guess for iteration --------------------------------------
+  // See \S3.2.4 of [1]
+  StepApproximateFirstOrder(pm1, dt, P, C, I, CL, k, j, i);
+  // StepExplicit(pm1, dt, P, C, I, false, k, j, i);
+
+  // retain values for potential restarts
+  C.FallbackStore(k, j, i);
+  // --------------------------------------------------------------------------
+
+  // GSL specific -------------------------------------------------------------
+  const size_t N_SYS = 1 + N;
+
+  // values to iterate (seed with initial guess)
+  gsl_vector *U_i = gsl_vector_alloc(N_SYS);
+  gsl_T2V_E_F_d(U_i, C, k, j, i);                  // C->U_i
+
+  // select function & solver -------------------------------------------------
+  AA J(N_SYS,N_SYS);
+
+  struct gsl_params par = {pm1, dt, P, C, I, J, i, j, k};
+  gsl_multiroot_function_fdf mrf = {&Z_E_F_d,
+                                    &dZ_E_F_d_Minerbo,
+                                    &ZdZ_E_F_d_Minerbo,
+                                    N_SYS, &par};
+  gsl_multiroot_fdfsolver *slv = gsl_multiroot_fdfsolver_alloc(
+    gsl_multiroot_fdfsolver_hybridsj,
+    N_SYS);
+
+  int gsl_status = gsl_multiroot_fdfsolver_set(slv, &mrf, U_i);
+  // solver loop --------------------------------------------------------------
+  int iter = 0;
+  do
+  {
+    iter++;
+    gsl_status = gsl_multiroot_fdfsolver_iterate(slv);
+
+    // break on issue with solver
+    if (gsl_status)
+    {
+      break;
+    }
+
+    // Ensure update preserves energy non-negativity
+    gsl_V2T_E_F_d(C, slv->x, k, j, i);  // U_i->C
+
+    ApplyFloors(pm1, C, k, j, i);
+    EnforceCausality(pm1, C, k, j, i);
+
+    // compute closure with updated state
+    CL.Closure(k,j,i);
+
+    // Updated iterated vector
+    gsl_T2V_E_F_d(slv->x, C, k, j, i);  // C->U_i
+    gsl_status = gsl_multiroot_test_residual(slv->f, slv_set.tol_abs);
+  }
+  while (gsl_status == GSL_CONTINUE && iter < slv_set.iter_max);
+
+  if ((gsl_status == GSL_ETOL)     ||
+      (gsl_status == GSL_EMAXITER) ||
+      (iter >= slv_set.iter_max))
+  {
+    if (pm1.opt.verbose_iter_P)
+    {
+      std::cout << "Warning: StepImplicitHybridsJMinerbo: ";
+      std::cout << "GSL_ETOL || GSL_EMAXITER\n";
+    }
+  }
+  else if (gsl_status == GSL_ENOPROG)
+  {
+    if (pm1.opt.verbose_iter_P)
+    {
+      std::cout << "Warning: StepImplicitHybridsJMinerbo: ";
+      std::cout << "GSL_ENOPROG : iter " << iter << "\n";
+    }
+
+    // C.Fallback(k, j, i);
+  }
+  else if (gsl_status == GSL_ENOPROGJ)
+  {
+    if (pm1.opt.verbose_iter_P)
+    {
+      std::cout << "Warning: StepImplicitHybridsJMinerbo: ";
+      std::cout << "GSL_ENOPROGJ : iter " << iter << "\n";
+    }
+
+    // C.Fallback(k, j, i);
+  }
+  else if ((gsl_status != GSL_SUCCESS))
+  {
+    #pragma omp critical
+    {
+      std::cout << "StepImplicitHybridsJMinerbo failure: ";
+      std::cout << gsl_status << "\n";
+      std::cout << iter << std::endl;
+    }
+    pm1.StatePrintPoint(C.ix_g, C.ix_s, k, j, i, true);
+  }
+
+  // Neutrino current evolution
+  SolveImplicitNeutrinoCurrent(pm1, dt, P, C, I, k, j, i);
+
+  // cleanup ------------------------------------------------------------------
+  gsl_multiroot_fdfsolver_free(slv);
   gsl_vector_free(U_i);
 }
 
@@ -949,7 +1471,45 @@ void M1::CalcUpdate(Real const dt,
         M1_ILOOP3(k,j,i)
         if (MaskGet(k, j, i))
         {
-          StepImplicitMinerboHybrids(*this, dt, P, C, I, CL, slv_set, k, j, i);
+          // non-stiff limit
+          /*
+          if ((dt * C.sc_kap_a(k,j,i) < 1) &&
+              (dt * C.sc_kap_s(k,j,i) < 1))
+          {
+            ::M1::Update::AddSourceMatter(*this, C, I, k, j, i);
+            const bool explicit_step_nG = true;
+            StepExplicit(*this, dt, P, C, I, explicit_step_nG, k, j, i);
+          }
+          else
+          {
+            StepImplicitMinerboHybrids(*this, dt, P, C, I, CL, slv_set,
+                                       k, j, i);
+          }
+          */
+
+          StepImplicitMinerboHybrids(*this, dt, P, C, I, CL, slv_set,
+                                     k, j, i);
+
+        }
+        break;
+      }
+      case (opt_integration_strategy::semi_implicit_HybridsJFrozenP):
+      {
+        M1_ILOOP3(k,j,i)
+        if (MaskGet(k, j, i))
+        {
+          StepImplicitHybridsJFrozenP(
+            *this, dt, P, C, I, CL, slv_set, k, j, i);
+        }
+        break;
+      }
+      case (opt_integration_strategy::semi_implicit_HybridsJMinerbo):
+      {
+        M1_ILOOP3(k,j,i)
+        if (MaskGet(k, j, i))
+        {
+          StepImplicitHybridsJMinerbo(
+            *this, dt, P, C, I, CL, slv_set, k, j, i);
         }
         break;
       }

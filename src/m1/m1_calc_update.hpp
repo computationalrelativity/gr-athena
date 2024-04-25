@@ -95,7 +95,24 @@ void AddSourceMatter(
   const int k, const int j, const int i);
 
 
-// If applied, return true, otherwise false
+// If appled return true, otherwise false
+inline bool NonFiniteToZero(
+  M1 & pm1, StateMetaVector & C,
+  const int k, const int j, const int i)
+{
+  const bool floor_reset = !std::isfinite(C.sc_E(k,j,i));
+  if (floor_reset)
+  {
+    C.sc_E(k,j,i) = 0;
+    for (int a=0; a<N; ++a)
+    {
+      C.sp_F_d(a,k,j,i) = 0;
+    }
+  }
+  return floor_reset;
+}
+
+// If applied return true, otherwise false
 inline bool ApplyFloors(
   M1 & pm1, StateMetaVector & C,
   const int k, const int j, const int i)
