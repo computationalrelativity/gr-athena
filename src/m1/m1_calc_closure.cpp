@@ -645,20 +645,25 @@ void ClosureMinerboBrent(M1 & pm1,
 
   auto gsl_err_kill = [&](const int status)
   {
-    std::ostringstream msg;
-    msg << "ClosureMinerboBrent unexpected error: ";
-    msg << status;
-    std::cout << msg.str().c_str() << std::endl;
-
+    #pragma omp critical
+    {
+      std::ostringstream msg;
+      msg << "ClosureMinerboBrent unexpected error: ";
+      msg << status;
+      std::cout << msg.str().c_str() << std::endl;
+    }
     pm1.StatePrintPoint(C.ix_g, C.ix_s, k, j, i, true);
   };
 
   auto gsl_err_warn = [&]()
   {
-    std::ostringstream msg;
-    msg << "ClosureMinerboBrent maxiter=";
-    msg << pm1.opt.max_iter_C << " exceeded";
-    std::cout << msg.str().c_str() << std::endl;
+    #pragma omp critical
+    {
+      std::ostringstream msg;
+      msg << "ClosureMinerboBrent maxiter=";
+      msg << pm1.opt.max_iter_C << " exceeded";
+      std::cout << msg.str().c_str() << std::endl;
+    }
   };
   // --------------------------------------------------------------------------
 

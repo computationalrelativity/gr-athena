@@ -167,9 +167,9 @@ inline void dZ_E_F_d_Minerbo(
 
   const Real alpha = pm1.geom.sc_alpha(k,j,i);
 
-  // P_dd thin (tn) and thick (tk) factors
-  const Real d_tn = 0.5 * (3.0 * C.sc_chi(k,j,i) - 1.0);
+  // P_dd thick (tk) and thin (tn) factors
   const Real d_tk = 3.0 * 0.5 * (1.0 - C.sc_chi(k,j,i));
+  const Real d_tn = 1.0 - d_tk;
 
   const Real dotFv = Assemble::sc_dot_dense_sp__(C.sp_F_d, pm1.fidu.sp_v_u,
                                                  k, j, i);
@@ -180,6 +180,7 @@ inline void dZ_E_F_d_Minerbo(
 
   Assemble::sp_d_to_u_(&pm1, pm1.scratch.sp_F_u_, C.sp_F_d, k, j, i, i);
   Real dotFF = 0;
+
   for (int a=0; a<N; ++a)
   {
     dotFF += pm1.scratch.sp_F_u_(a,i) * C.sp_F_d(a,k,j,i);
@@ -221,7 +222,6 @@ inline void dZ_E_F_d_Minerbo(
   }
 
   // thin correction to Jacobian ----------------------------------------------
-
   if (dotFF > 0)
   {
     J(0,0) += d_tn * alpha * W3 * kap_s * SQR(dotFv) / dotFF;
@@ -345,7 +345,6 @@ void AddSourceMatter(
   StateMetaVector & I,        // add source here
   const int k, const int j, const int i)
 {
-
   const Real W  = pm1.fidu.sc_W(k,j,i);
   const Real W2 = SQR(W);
 
@@ -961,9 +960,6 @@ int Z_E_F_d(const gsl_vector *U, void * par_, gsl_vector *Z)
   const int k = par->k;
 
   gsl_V2T_E_F_d(C, U, k, j, i);                // U->C
-
-  ApplyFloors(pm1, C, k, j, i);
-  EnforceCausality(pm1, C, k, j, i);
 
   System::Z_E_F_d(pm1, dt, P, C, I, k, j, i);  // updates C.Z_E, C.Z_F_d
   gsl_TZ2V_E_F_d(Z, C);                        // C.Z -> Z

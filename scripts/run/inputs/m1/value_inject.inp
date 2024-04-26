@@ -132,17 +132,9 @@ variable    = m1_lab
 dt          = 0.1
 ghost_zones = true
 
-<output2>
-file_type   = hdf5
-variable    = m1_lab
-dt          = 0.1
-ghost_zones = true
-x2_slice    = 0
-x3_slice    = 0.0
-
 <output3>
 file_type   = hdf5
-variable    = m1_lab_aux
+variable    = m1_lab
 dt          = 0.1
 ghost_zones = true
 x2_slice    = 0
@@ -150,12 +142,20 @@ x3_slice    = 0.0
 
 <output4>
 file_type   = hdf5
+variable    = m1_lab_aux
+dt          = 0.1
+ghost_zones = true
+x2_slice    = 0
+x3_slice    = 0.0
+
+<output5>
+file_type   = hdf5
 variable    = m1_lab
 dt          = 0.1
 ghost_zones = true
 x3_slice    = 0.0
 
-<output5>
+<output6>
 file_type   = hdf5
 variable    = m1_lab_aux
 dt          = 0.1
