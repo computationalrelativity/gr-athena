@@ -468,12 +468,8 @@ void GRDynamical::_AddCoordTermsDivergence(
   AT_N_sca sl_w_p(     const_cast<AthenaArray<Real>&>(prim), IPR);
   AT_N_vec sl_w_util_u(const_cast<AthenaArray<Real>&>(prim), IVX);
 #if NSCALARS > 0
-<<<<<<< HEAD
   AT_N_vec sl_scalars_r;
   // AT_N_vec sl_scalars_r(const_cast<AthenaArray<Real>&>(prim_scalar), 0);
-=======
-  AT_N_vec sl_scalars_r(const_cast<AthenaArray<Real>&>(prim_scalar), 0);
->>>>>>> 74019e3a (Changes for Tabulated EoSs)
 #endif
 
   // Scratch for matter sampling
@@ -609,16 +605,22 @@ void GRDynamical::_AddCoordTermsDivergence(
       // FIXME: Generalize to work with EOSes accepting particle fractions.
       Real Y[MAX_SPECIES] = {0.0};
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> ba414a81 (Missing macro)
 #if NSCALARS > 0
       for (int l=0; l<NSCALARS; l++){
         Y[l] = sl_scalars_r(l,k,j,i);
       }
 #endif
+<<<<<<< HEAD
 =======
       for (int l=0; l<NSCALARS; l++){
         Y[l] = sl_scalars_r(l,k,j,i);
       }
 >>>>>>> 74019e3a (Changes for Tabulated EoSs)
+=======
+>>>>>>> ba414a81 (Missing macro)
       Real T = pmb->peos->GetEOS().GetTemperatureFromP(n,  sl_w_p(k,j,i), Y);
       ms_w_hrho_(i) = sl_w_rho(k,j,i)*pmb->peos->GetEOS().GetEnthalpy(n, T, Y);
 #else
