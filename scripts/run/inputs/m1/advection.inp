@@ -34,7 +34,7 @@ ix3_bc = outflow
 ox3_bc = outflow
 
 refinement = none
-num_threads = 8
+num_threads = 12
 # =============================================================================
 
 <meshblock> # =================================================================
@@ -47,21 +47,52 @@ nx3 = 4
 ngroups  = 2
 nspecies = 3
 
-# element of:
-# {thin,
-#  thick,
-#  Minerbo,    - Brent-Dekker (GSL based)
-#  MinerboP    - Picard
-#  MinerboN    - Newton-Raphson
-# }
-closure_variety = Minerbo
-
 # element of: {approximate, exact_thin, exact_thick, exact_Minerbo}
 characteristics_variety = approximate
 
 # element of: {fluid, mixed, zero, none}
 fiducial_velocity = fluid
 
+# tolerances / ad-hoc fiddle parameters
+fl_E = 1e-15
+fl_J = 1e-15
+eps_E = 1e-5
+eps_J = 1e-10
+min_flux_A = 0
+
+# =============================================================================
+
+<M1_closure> # ================================================================
+# element of:
+# {thin,
+#  thick,
+#  Minerbo, - Brent-Dekker (GSL based)
+#  MinerboP - Picard
+#  MinerboB - Bisection
+#  MinerboN - Newton-Raphson (with QI-bisection fall-back)
+# }
+variety = MinerboN
+verbose = false
+
+eps_tol   = 1e-10
+eps_Z_o_E = 0       // If | Z_xi / E|_xi\in{0,1} | < eps, break-fast
+fac_Z_o_E = 0       // Apply above if |xi-x_min,max| < fac
+iter_max  = 34      // N.B.: 0.5 ^ 34 ~ 6e-11
+
+fallback_thin = false  // on failures (i.e. bracket etc, revert to thin)
+
+# MinerboN specific
+use_Ostrowski = false  // Attempt 4th order Ostrowski?
+use_Neighbor  = true   // take sc_xi(k,j,i-1) where possible as initial guess?
+
+# MinerboP specific
+iter_max_rst = 5     // maximum relaxation restarts allowed
+w_opt_ini    = 1.0   // initial value of relaxation factor
+fac_err_amp  = 1.11  // error amplification tolerance between iterates
+
+# =============================================================================
+
+<M1_solver> # =================================================================
 # element of:
 # {full_explicit,                - non-stiff regime
 #  semi_implicit_PicardFrozenP   - only for fixed (P_dd)
@@ -72,32 +103,17 @@ fiducial_velocity = fluid
 #  semi_implicit_HybridsJFrozenP - GSL: Jacobian for fixed (E, F indep.) P_dd
 #  semi_implicit_HybridsJMinerbo - GSL: Jacobian for P_dd based on Minerbo
 # }
-integration_strategy = semi_implicit_HybridsJMinerbo
+strategy = semi_implicit_HybridsJMinerbo
 
-# tolerances / ad-hoc fiddle parameters
-fl_E = 1e-15
-fl_J = 1e-15
-eps_E = 1e-5
-eps_J = 1e-10
-min_flux_A = 0
+eps_tol   = 1e-8
+iter_max  = 128
 
-# [Minerbo] closure root tolerance & maximum iterations
-eps_C          = 1e-8
-eps_C_N        = 1e-20  // switch to Picard if deriv. below this
-max_iter_C     = 64
-max_iter_C_rst = 5
-w_opt_ini_C    = 1.0
-fac_amp_C      = 1.11   // error amplification tolerance between iterates
-reset_thin     = true   // reset on failure to thin limit
-verbose_iter_C = false
+use_Neighbor = false
 
-# [Picard] iteration settings
-max_iter_P     = 128   // maximum number of iterations (for each restart)
-max_iter_P_rst = 5     // maximum number of restarts
-w_opt_ini_P    = 1.0   // initial underrelaxation factor
-eps_P_abs_tol  = 1e-7  // absolute tolerance
-fac_amp_P      = 1.11  // error amplification tolerance between iterates
-verbose_iter_P = false  // signal e.g. failure to achieve tol.
+# Picard specific
+iter_max_rst = 5     // maximum relaxation restarts allowed
+w_opt_ini    = 1.0   // initial value of relaxation factor
+fac_err_amp  = 1.11  // error amplification tolerance between iterates
 
 # =============================================================================
 

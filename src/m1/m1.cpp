@@ -160,6 +160,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
 
   // --------------------------------------------------------------------------
   // general setup
+  /*
   if ((opt.closure_variety == opt_closure_variety::MinerboP) ||
       (opt.closure_variety == opt_closure_variety::MinerboN))
   {
@@ -170,6 +171,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
       lab_aux.sc_chi(ix_g,ix_s).Fill(1.0);
     }
   }
+  */
 
   // --------------------------------------------------------------------------
   // (GSL) solver setup
@@ -190,186 +192,6 @@ M1::~M1()
   gsl_root_fdfsolver_free(gsl_newton_solver);
   // TODO: bug - this can't be deactivated properly with OMP
   // gsl_set_error_handler(NULL);  // restore default handler
-}
-
-void M1::PopulateOptions(ParameterInput *pin)
-{
-  std::string tmp;
-  std::ostringstream msg;
-
-  { // integration strategy
-    tmp = pin->GetOrAddString("M1", "integration_strategy", "full_explicit");
-    if (tmp == "full_explicit")
-    {
-      opt.integration_strategy = opt_integration_strategy::full_explicit;
-    }
-    else if (tmp == "semi_implicit_PicardFrozenP")
-    {
-      opt.integration_strategy = \
-        opt_integration_strategy::semi_implicit_PicardFrozenP;
-    }
-    else if (tmp == "semi_implicit_PicardMinerboP")
-    {
-      opt.integration_strategy = \
-        opt_integration_strategy::semi_implicit_PicardMinerboP;
-    }
-    else if (tmp == "semi_implicit_PicardMinerboPC")
-    {
-      opt.integration_strategy = \
-        opt_integration_strategy::semi_implicit_PicardMinerboPC;
-    }
-    else if (tmp == "semi_implicit_HybridsJFrozenP")
-    {
-      opt.integration_strategy = \
-        opt_integration_strategy::semi_implicit_HybridsJFrozenP;
-    }
-    else if (tmp == "semi_implicit_HybridsJMinerbo")
-    {
-      opt.integration_strategy = \
-        opt_integration_strategy::semi_implicit_HybridsJMinerbo;
-    }
-    else if (tmp == "semi_implicit_Hybrids")
-    {
-      opt.integration_strategy = \
-        opt_integration_strategy::semi_implicit_Hybrids;
-    }
-    else
-    {
-      msg << "M1/integration_strategy unknown" << std::endl;
-      ATHENA_ERROR(msg);
-    }
-  }
-
-  { // fluxes
-    tmp = pin->GetOrAddString("M1", "characteristics_variety", "approximate");
-    if (tmp == "approximate")
-    {
-      opt.characteristics_variety = opt_characteristics_variety::approximate;
-    }
-    else if (tmp == "exact_thin")
-    {
-      opt.characteristics_variety = opt_characteristics_variety::exact_thin;
-    }
-    else if (tmp == "exact_thick")
-    {
-      opt.characteristics_variety = opt_characteristics_variety::exact_thick;
-    }
-    else if (tmp == "exact_Minerbo")
-    {
-      opt.characteristics_variety = opt_characteristics_variety::exact_Minerbo;
-    }
-    else
-    {
-      msg << "M1/characteristics_variety unknown" << std::endl;
-      ATHENA_ERROR(msg);
-    }
-  }
-
-  { // fiducial
-    tmp = pin->GetOrAddString("M1", "fiducial_velocity", "fluid");
-    if (tmp == "fluid")
-    {
-      opt.fiducial_velocity = opt_fiducial_velocity::fluid;
-    }
-    else if (tmp == "mixed")
-    {
-      opt.fiducial_velocity = opt_fiducial_velocity::mixed;
-    }
-    else if (tmp == "zero")
-    {
-      opt.fiducial_velocity = opt_fiducial_velocity::zero;
-    }
-    else if (tmp == "none")
-    {
-      opt.fiducial_velocity = opt_fiducial_velocity::none;
-    }
-    else
-    {
-      msg << "M1/fiducial_velocity unknown" << std::endl;
-      ATHENA_ERROR(msg);
-    }
-
-    opt.fiducial_velocity_rho_fluid = pin->GetOrAddReal(
-      "M1", "fiducial_velocity_rho_fluid", 0.0) * M1_UNITS_CGS_GCC;
-  }
-
-  { // closure
-    tmp = pin->GetOrAddString("M1", "closure_variety", "thin");
-    if (tmp == "thin")
-    {
-      opt.closure_variety = opt_closure_variety::thin;
-    }
-    else if (tmp == "thick")
-    {
-      opt.closure_variety = opt_closure_variety::thick;
-    }
-    else if (tmp == "Minerbo")
-    {
-      opt.closure_variety = opt_closure_variety::Minerbo;
-    }
-    else if (tmp == "MinerboP")
-    {
-      opt.closure_variety = opt_closure_variety::MinerboP;
-    }
-    else if (tmp == "MinerboN")
-    {
-      opt.closure_variety = opt_closure_variety::MinerboN;
-    }
-    else
-    {
-      msg << "M1/closure_variety unknown" << std::endl;
-      ATHENA_ERROR(msg);
-    }
-  }
-
-  { // opacities
-    tmp = pin->GetOrAddString("M1_opacities", "variety", "none");
-    if (tmp == "none")
-    {
-      opt.opacity_variety = opt_opacity_variety::none;
-    }
-    else if (tmp == "zero")
-    {
-      opt.opacity_variety = opt_opacity_variety::zero;
-    }
-    else
-    {
-      msg << "M1_opacities/variety unknown" << std::endl;
-      ATHENA_ERROR(msg);
-    }
-  }
-
-  { // tol / ad-hoc
-    opt.fl_E = pin->GetOrAddReal("M1", "fl_E", 1e-15);
-    opt.fl_J = pin->GetOrAddReal("M1", "fl_J", 1e-15);
-    opt.eps_E = pin->GetOrAddReal("M1", "eps_E", 1e-5);
-    opt.eps_J = pin->GetOrAddReal("M1", "eps_J", 1e-10);
-    opt.enforce_causality = pin->GetOrAddBoolean(
-      "M1", "enforce_causality", true);
-
-    opt.min_flux_A = pin->GetOrAddReal("M1", "min_flux_A", 0);
-
-    opt.eps_C      = pin->GetOrAddReal(   "M1", "eps_C",      1e-6);
-    opt.eps_C_N    = pin->GetOrAddReal(   "M1", "eps_C_N",    1e-10);
-    opt.max_iter_C = pin->GetOrAddInteger("M1", "max_iter_C", 64);
-    opt.max_iter_C_rst = pin->GetOrAddInteger("M1", "max_iter_C_rst", 10);
-    opt.w_opt_ini_C = pin->GetOrAddReal("M1", "w_opt_ini_C", 0.5);
-    opt.reset_thin = pin->GetOrAddBoolean("M1", "reset_thin", true);
-    opt.fac_amp_C = pin->GetOrAddReal("M1", "fac_amp_C", 1.11);
-    opt.verbose_iter_C = pin->GetOrAddBoolean("M1", "verbose_iter_C", false);
-  }
-
-  { // semi-implicit iteration settings
-    opt.max_iter_P = pin->GetOrAddInteger("M1", "max_iter_P", 128);
-    opt.max_iter_P_rst = pin->GetOrAddInteger("M1", "max_iter_P_rst", 10);
-    opt.w_opt_ini = pin->GetOrAddReal("M1", "w_opt_ini", 1.0);
-    opt.eps_P_abs_tol = pin->GetOrAddReal("M1", "eps_P_abs_tol", 1e-8);
-    opt.fac_amp_P = pin->GetOrAddReal("M1", "fac_amp_P", 1.11);
-    opt.verbose_iter_P = pin->GetOrAddBoolean("M1", "verbose_iter_P", false);
-  }
-
-  // debugging
-  opt.value_inject = pin->GetOrAddBoolean("problem", "value_inject", false);
 }
 
 // set aliases for variables ==================================================

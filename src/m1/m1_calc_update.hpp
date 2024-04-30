@@ -14,21 +14,6 @@
 namespace M1::Update {
 // ============================================================================
 
-// TODO: refactor to struct
-struct SystemSolverSettings {
-  M1 & pm1;
-
-  const int iter_max;
-  const Real tol_abs;
-};
-
-inline SystemSolverSettings ConstructSystemSolverSettings(M1 & pm1)
-{
-  return SystemSolverSettings {pm1,
-                               pm1.opt.max_iter_P,
-                               pm1.opt.eps_P_abs_tol};
-};
-
 // structure that stores state information
 struct StateMetaVector {
   M1 & pm1;
@@ -96,11 +81,17 @@ void AddSourceMatter(
 
 
 // If appled return true, otherwise false
+template <class V>
 inline bool NonFiniteToZero(
-  M1 & pm1, StateMetaVector & C,
+  M1 & pm1, V & C,
   const int k, const int j, const int i)
 {
-  const bool floor_reset = !std::isfinite(C.sc_E(k,j,i));
+  bool floor_reset = !std::isfinite(C.sc_E(k,j,i));
+  for (int a=0; a<N; ++a)
+  {
+    floor_reset = floor_reset or !std::isfinite(C.sp_F_d(a,k,j,i));
+  }
+
   if (floor_reset)
   {
     C.sc_E(k,j,i) = 0;
@@ -113,8 +104,9 @@ inline bool NonFiniteToZero(
 }
 
 // If applied return true, otherwise false
+template <class V>
 inline bool ApplyFloors(
-  M1 & pm1, StateMetaVector & C,
+  M1 & pm1, V & C,
   const int k, const int j, const int i)
 {
   const bool floor_applied = C.sc_E(k,j,i) < pm1.opt.fl_E;
@@ -127,8 +119,9 @@ inline bool ApplyFloors(
 // Enforce this by setting: F_i -> F_i / (\Vert F \Vert_\gamma / E)
 //
 // If enforced return true, otherwise false
+template <class V>
 inline bool EnforceCausality(
-  M1 & pm1, StateMetaVector & C,
+  M1 & pm1, V & C,
   const int k, const int j, const int i)
 {
   const Real norm2F = Assemble::sp_norm2__(C.sp_F_d, pm1.geom.sp_g_uu,

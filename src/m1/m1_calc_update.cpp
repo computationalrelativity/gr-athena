@@ -528,8 +528,11 @@ void StepApproximateFirstOrder(
     );
   }
 
+  // NonFiniteToZero(pm1, C, k, j, i);
   ApplyFloors(pm1, C, k, j, i);
   EnforceCausality(pm1, C, k, j, i);
+
+  // CL.ClosureThick(k,j,i);
 }
 
 void StepImplicitPicardFrozenP(
@@ -541,24 +544,24 @@ void StepImplicitPicardFrozenP(
   const int k, const int j, const int i)
 {
   // Iterate (S_1, S_{1+k})
-  const int iter_max_P = pm1.opt.max_iter_P;
+  const int iter_max = pm1.opt_solver.iter_max;
   int pit = 0;     // iteration counter
   int rit = 0;     // restart counter
-  const int iter_max_R = pm1.opt.max_iter_P_rst;  // maximum number of restarts
-  Real w_opt = pm1.opt.w_opt_ini;  // underrelaxation factor
-  Real e_P_abs_tol = pm1.opt.eps_P_abs_tol;
+  const int iter_max_R = pm1.opt_solver.iter_max_rst;  // maximum restarts
+  Real w_opt = pm1.opt_solver.w_opt_ini;  // underrelaxation factor
+  Real err_tol = pm1.opt_solver.eps_tol;
   // maximum error amplification factor between iters.
-  Real fac_PA = pm1.opt.fac_amp_P;
+  Real fac_PA = pm1.opt_solver.fac_err_amp;
 
-  Real e_abs_old = std::numeric_limits<Real>::infinity();
-  Real e_abs_cur = 0;
-
-  // retain values for potential restarts
-  C.FallbackStore(k, j, i);
+  Real err_old = std::numeric_limits<Real>::infinity();
+  Real err_cur = 0;
 
   // explicit update ----------------------------------------------------------
   const bool explicit_step_nG = false;
   StepExplicit(pm1, dt, P, C, I, explicit_step_nG, k, j, i);
+
+  // retain values for potential restarts
+  C.FallbackStore(k, j, i);
 
   // loop-lift contraction
   const Real dotPvv = Assemble::sc_ddot_dense_sp__(pm1.fidu.sp_v_u, C.sp_P_dd,
@@ -572,12 +575,12 @@ void StepImplicitPicardFrozenP(
     System::Z_E_F_d(pm1, dt, dotPvv, P, C, I, k, j, i);
 
     C.sc_E(k,j,i) = C.sc_E(k,j,i) - w_opt * C.Z_E[0];
-    e_abs_cur = std::abs(C.Z_E[0]);
+    err_cur = std::abs(C.Z_E[0]);
 
     for (int a=0; a<N; ++a)
     {
       C.sp_F_d(a,k,j,i) = C.sp_F_d(a,k,j,i) - w_opt * C.Z_F_d[a];
-      e_abs_cur = std::max(std::abs(C.Z_F_d[a]), e_abs_cur);
+      err_cur = std::max(std::abs(C.Z_F_d[a]), err_cur);
     }
 
     // Ensure update preserves energy non-negativity --------------------------
@@ -585,9 +588,9 @@ void StepImplicitPicardFrozenP(
     EnforceCausality(pm1, C, k, j, i);
 
     // scale error tol by step
-    // e_abs_cur = w_opt * e_abs_cur;
+    // err_cur = w_opt * err_cur;
 
-    if (e_abs_cur > fac_PA * e_abs_old)
+    if (err_cur > fac_PA * err_old)
     {
       // halve underrelaxation and recover old values
       w_opt = w_opt / 2;
@@ -595,7 +598,7 @@ void StepImplicitPicardFrozenP(
       StepExplicit(pm1, dt, P, C, I, explicit_step_nG, k, j, i);
 
       // restart iteration
-      e_abs_old = std::numeric_limits<Real>::infinity();
+      err_old = std::numeric_limits<Real>::infinity();
       pit = 0;
       rit++;
 
@@ -609,21 +612,21 @@ void StepImplicitPicardFrozenP(
     }
     else
     {
-      e_abs_old = e_abs_cur;
+      err_old = err_cur;
     }
 
-  } while ((pit < iter_max_P) && (e_abs_cur >= e_P_abs_tol));
+  } while ((pit < iter_max) && (err_cur >= err_tol));
 
   // Neutrino current evolution
   SolveImplicitNeutrinoCurrent(pm1, dt, P, C, I, k, j, i);
 
   // dump some information ------------------------------------------------
-  if (pm1.opt.verbose_iter_P)
+  if (pm1.opt_solver.verbose)
   {
-    if (e_abs_cur >= e_P_abs_tol)
+    if (err_cur >= err_tol)
     {
       std::cout << "StepImplicitPicardFrozenP:\n";
-      std::cout << "Tol. not achieved: " << e_abs_cur << "\n";
+      std::cout << "Tol. not achieved: " << err_cur << "\n";
       std::cout << "(pit,rit): " << pit << "," << rit << "\n";
       std::cout << "chi: " << C.sc_chi(k,j,i) << "\n";
       std::cout << "(k,j,i): " << k << "," << j << "," << i << "\n";
@@ -642,16 +645,17 @@ void StepImplicitPicardMinerboPC(
   const int k, const int j, const int i)
 {
   // Iterate (S_1, S_{1+k})
-  const int iter_max_P = pm1.opt.max_iter_P;
+  const int iter_max = pm1.opt_solver.iter_max;
   int pit = 0;     // iteration counter
   int rit = 0;     // restart counter
-  const int iter_max_R = pm1.opt.max_iter_P_rst;  // maximum number of restarts
-  Real w_opt = pm1.opt.w_opt_ini;  // underrelaxation factor
-  Real e_P_abs_tol = pm1.opt.eps_P_abs_tol;
-  Real e_C_abs_tol = pm1.opt.eps_C;
+  const int iter_max_R = pm1.opt_solver.iter_max_rst;  // maximum restarts
+
+  Real w_opt = pm1.opt_closure.w_opt_ini;  // underrelaxation factor
+  Real e_P_abs_tol = pm1.opt_solver.eps_tol;
+  Real e_C_abs_tol = pm1.opt_closure.eps_tol;
   // maximum error amplification factor between iters.
-  Real fac_PA   = pm1.opt.fac_amp_P;
-  Real fac_PA_C = pm1.opt.fac_amp_C;
+  Real fac_PA   = pm1.opt_solver.fac_err_amp;
+  Real fac_PA_C = pm1.opt_closure.fac_err_amp;
 
   Real e_abs_old = std::numeric_limits<Real>::infinity();
   Real e_abs_cur = 0;
@@ -736,14 +740,14 @@ void StepImplicitPicardMinerboPC(
       e_abs_old_C = e_abs_cur_C;
     }
 
-  } while ((pit < iter_max_P) &&
+  } while ((pit < iter_max) &&
             (e_abs_cur >= e_P_abs_tol));
 
   // Neutrino current evolution
   SolveImplicitNeutrinoCurrent(pm1, dt, P, C, I, k, j, i);
 
   // dump some information ------------------------------------------------
-  if (pm1.opt.verbose_iter_P)
+  if (pm1.opt_solver.verbose)
   {
     if (e_abs_cur >= e_P_abs_tol)
     {
@@ -767,16 +771,17 @@ void StepImplicitPicardMinerboP(
   const int k, const int j, const int i)
 {
   // Iterate (S_1, S_{1+k})
-  const int iter_max_P = pm1.opt.max_iter_P;
+  const int iter_max = pm1.opt_solver.iter_max;
   int pit = 0;     // iteration counter
   int rit = 0;     // restart counter
-  const int iter_max_R = pm1.opt.max_iter_P_rst;  // maximum number of restarts
-  Real w_opt = pm1.opt.w_opt_ini;  // underrelaxation factor
-  Real e_P_abs_tol = pm1.opt.eps_P_abs_tol;
-  Real e_C_abs_tol = pm1.opt.eps_C;
+  const int iter_max_R = pm1.opt_solver.iter_max_rst;  // maximum restarts
+
+  Real w_opt = pm1.opt_closure.w_opt_ini;  // underrelaxation factor
+  Real e_P_abs_tol = pm1.opt_solver.eps_tol;
+  Real e_C_abs_tol = pm1.opt_closure.eps_tol;
   // maximum error amplification factor between iters.
-  Real fac_PA   = pm1.opt.fac_amp_P;
-  Real fac_PA_C = pm1.opt.fac_amp_C;
+  Real fac_PA   = pm1.opt_solver.fac_err_amp;
+  Real fac_PA_C = pm1.opt_closure.fac_err_amp;
 
   Real e_abs_old = std::numeric_limits<Real>::infinity();
   Real e_abs_cur = 0;
@@ -784,12 +789,12 @@ void StepImplicitPicardMinerboP(
   Real e_abs_old_C = std::numeric_limits<Real>::infinity();
   Real e_abs_cur_C = 0;
 
-  // retain values for potential restarts
-  C.FallbackStore(k, j, i);
-
   // explicit update ----------------------------------------------------------
   const bool explicit_step_nG = false;
   StepExplicit(pm1, dt, P, C, I, explicit_step_nG, k, j, i);
+
+  // retain values for potential restarts
+  C.FallbackStore(k, j, i);
 
   // solver loop --------------------------------------------------------------
   int iter_closure_freeze = 0;
@@ -798,7 +803,7 @@ void StepImplicitPicardMinerboP(
     pit++;
 
     // Minerbo assembly -------------------------------------------------------
-    if (iter_closure_freeze < iter_max_P)  // TODO: pass this as param
+    if (iter_closure_freeze < iter_max)  // TODO: pass this as param
     {
       bool compute_limiting_P_dd = true;
       const Real Z_xi = Closures::Minerbo::Z_xi(
@@ -866,14 +871,14 @@ void StepImplicitPicardMinerboP(
       e_abs_old_C = e_abs_cur_C;
     }
 
-  } while ((pit < iter_max_P) &&
+  } while ((pit < iter_max) &&
             (e_abs_cur >= e_P_abs_tol));
 
   // Neutrino current evolution
   SolveImplicitNeutrinoCurrent(pm1, dt, P, C, I, k, j, i);
 
   // dump some information ----------------------------------------------------
-  if (pm1.opt.verbose_iter_P)
+  if (pm1.opt_solver.verbose)
   {
     if (e_abs_cur >= e_P_abs_tol)
     {
@@ -1046,7 +1051,6 @@ void StepImplicitMinerboHybrids(
   StateMetaVector & C,        // current step
   const StateMetaVector & I,  // inhomogeneity
   Closures::ClosureMetaVector & CL,
-  SystemSolverSettings & slv_set,
   const int k, const int j, const int i)
 {
   // prepare initial guess for iteration --------------------------------------
@@ -1099,29 +1103,33 @@ void StepImplicitMinerboHybrids(
 
     // Updated iterated vector
     gsl_T2V_E_F_d(slv->x, C, k, j, i);  // C->U_i
-    gsl_status = gsl_multiroot_test_residual(slv->f, slv_set.tol_abs);
+    gsl_status = gsl_multiroot_test_residual(slv->f, pm1.opt_solver.eps_tol);
   }
-  while (gsl_status == GSL_CONTINUE && iter < slv_set.iter_max);
+  while (gsl_status == GSL_CONTINUE && iter < pm1.opt_solver.iter_max);
 
   if ((gsl_status == GSL_ETOL)     ||
       (gsl_status == GSL_EMAXITER) ||
-      (iter >= slv_set.iter_max))
+      (iter >= pm1.opt_solver.iter_max))
   {
-    if (pm1.opt.verbose_iter_P)
+    if (pm1.opt_solver.verbose)
+    #pragma omp critical
     {
       std::cout << "Warning: StepImplicitMinerboHybrids: ";
       std::cout << "GSL_ETOL || GSL_EMAXITER\n";
+      std::cout << "sc_chi : " << C.sc_chi(k,j,i) << "\n";
     }
   }
   else if ((gsl_status == GSL_ENOPROG) || (gsl_status == GSL_ENOPROGJ))
   {
-    if (pm1.opt.verbose_iter_P)
+    if (pm1.opt_solver.verbose)
+    #pragma omp critical
     {
       std::cout << "Warning: StepImplicitMinerboHybrids: ";
       std::cout << "GSL_ENOPROG || GSL_ENOPROGJ : iter " << iter << " \n";
+      std::cout << "sc_chi : " << C.sc_chi(k,j,i) << "\n";
     }
 
-    C.Fallback(k, j, i);
+    // C.Fallback(k, j, i);
   }
   else if ((gsl_status != GSL_SUCCESS))
   {
@@ -1151,7 +1159,6 @@ void StepImplicitHybridsJFrozenP(
   StateMetaVector & C,        // current step
   const StateMetaVector & I,  // inhomogeneity
   Closures::ClosureMetaVector & CL,
-  SystemSolverSettings & slv_set,
   const int k, const int j, const int i)
 {
   // prepare initial guess for iteration --------------------------------------
@@ -1204,26 +1211,30 @@ void StepImplicitHybridsJFrozenP(
 
     // Updated iterated vector
     gsl_T2V_E_F_d(slv->x, C, k, j, i);  // C->U_i
-    gsl_status = gsl_multiroot_test_residual(slv->f, slv_set.tol_abs);
+    gsl_status = gsl_multiroot_test_residual(slv->f, pm1.opt_solver.eps_tol);
   }
-  while (gsl_status == GSL_CONTINUE && iter < slv_set.iter_max);
+  while (gsl_status == GSL_CONTINUE && iter < pm1.opt_solver.iter_max);
 
   if ((gsl_status == GSL_ETOL)     ||
       (gsl_status == GSL_EMAXITER) ||
-      (iter >= slv_set.iter_max))
+      (iter >= pm1.opt_solver.iter_max))
   {
-    if (pm1.opt.verbose_iter_P)
+    if (pm1.opt_solver.verbose)
+    #pragma omp critical
     {
       std::cout << "Warning: StepImplicitHybridsJFrozenP: ";
       std::cout << "GSL_ETOL || GSL_EMAXITER\n";
+      std::cout << "sc_chi : " << C.sc_chi(k,j,i) << "\n";
     }
   }
   else if ((gsl_status == GSL_ENOPROG) || (gsl_status == GSL_ENOPROGJ))
   {
-    if (pm1.opt.verbose_iter_P)
+    if (pm1.opt_solver.verbose)
+    #pragma omp critical
     {
       std::cout << "Warning: StepImplicitHybridsJFrozenP: ";
       std::cout << "GSL_ENOPROG || GSL_ENOPROGJ : iter " << iter << " \n";
+      std::cout << "sc_chi : " << C.sc_chi(k,j,i) << "\n";
     }
 
     C.Fallback(k, j, i);
@@ -1259,13 +1270,23 @@ void StepImplicitHybridsJMinerbo(
   StateMetaVector & C,        // current step
   const StateMetaVector & I,  // inhomogeneity
   Closures::ClosureMetaVector & CL,
-  SystemSolverSettings & slv_set,
   const int k, const int j, const int i)
 {
   // prepare initial guess for iteration --------------------------------------
   // See \S3.2.4 of [1]
-  StepApproximateFirstOrder(pm1, dt, P, C, I, CL, k, j, i);
-  // StepExplicit(pm1, dt, P, C, I, false, k, j, i);
+
+  if (pm1.opt_solver.use_Neighbor && (i > pm1.mbi.il))
+  {
+    C.sc_E(k,j,i) = C.sc_E(k,j,i-1);
+    for (int a=0; a<N; ++a)
+      C.sp_F_d(a,k,j,i) = C.sp_F_d(a,k,j,i-1);
+  }
+  else
+  {
+    StepApproximateFirstOrder(pm1, dt, P, C, I, CL, k, j, i);
+    // StepExplicit(pm1, dt, P, C, I, false, k, j, i);
+    // StepImplicitHybridsJFrozenP(pm1, dt, P, C, I, CL, k, j, i);
+  }
 
   // retain values for potential restarts
   C.FallbackStore(k, j, i);
@@ -1291,10 +1312,18 @@ void StepImplicitHybridsJMinerbo(
     N_SYS);
 
   int gsl_status = gsl_multiroot_fdfsolver_set(slv, &mrf, U_i);
+  // do we even need to iterate or is the estimate sufficient?
+  gsl_status = gsl_multiroot_test_residual(slv->f, pm1.opt_solver.eps_tol);
+
   // solver loop --------------------------------------------------------------
   int iter = 0;
   do
   {
+    if (gsl_status != GSL_CONTINUE)
+    {
+      break;
+    }
+
     iter++;
     gsl_status = gsl_multiroot_fdfsolver_iterate(slv);
 
@@ -1307,6 +1336,7 @@ void StepImplicitHybridsJMinerbo(
     // Ensure update preserves energy non-negativity
     gsl_V2T_E_F_d(C, slv->x, k, j, i);  // U_i->C
 
+    NonFiniteToZero(pm1, C, k, j, i);
     ApplyFloors(pm1, C, k, j, i);
     EnforceCausality(pm1, C, k, j, i);
 
@@ -1315,36 +1345,42 @@ void StepImplicitHybridsJMinerbo(
 
     // Updated iterated vector
     gsl_T2V_E_F_d(slv->x, C, k, j, i);  // C->U_i
-    gsl_status = gsl_multiroot_test_residual(slv->f, slv_set.tol_abs);
+    gsl_status = gsl_multiroot_test_residual(slv->f, pm1.opt_solver.eps_tol);
   }
-  while (gsl_status == GSL_CONTINUE && iter < slv_set.iter_max);
+  while (gsl_status == GSL_CONTINUE && iter < pm1.opt_solver.iter_max);
 
   if ((gsl_status == GSL_ETOL)     ||
       (gsl_status == GSL_EMAXITER) ||
-      (iter >= slv_set.iter_max))
+      (iter >= pm1.opt_solver.iter_max))
   {
-    if (pm1.opt.verbose_iter_P)
+    if (pm1.opt_solver.verbose)
+    #pragma omp critical
     {
       std::cout << "Warning: StepImplicitHybridsJMinerbo: ";
       std::cout << "GSL_ETOL || GSL_EMAXITER\n";
+      std::cout << "sc_chi : " << C.sc_chi(k,j,i) << "\n";
     }
   }
   else if (gsl_status == GSL_ENOPROG)
   {
-    if (pm1.opt.verbose_iter_P)
+    if (pm1.opt_solver.verbose)
+    #pragma omp critical
     {
       std::cout << "Warning: StepImplicitHybridsJMinerbo: ";
       std::cout << "GSL_ENOPROG : iter " << iter << "\n";
+      std::cout << "sc_chi : " << C.sc_chi(k,j,i) << "\n";
     }
 
     // C.Fallback(k, j, i);
   }
   else if (gsl_status == GSL_ENOPROGJ)
   {
-    if (pm1.opt.verbose_iter_P)
+    if (pm1.opt_solver.verbose)
+    #pragma omp critical
     {
       std::cout << "Warning: StepImplicitHybridsJMinerbo: ";
       std::cout << "GSL_ENOPROGJ : iter " << iter << "\n";
+      std::cout << "sc_chi : " << C.sc_chi(k,j,i) << "\n";
     }
 
     // C.Fallback(k, j, i);
@@ -1411,8 +1447,6 @@ void M1::CalcUpdate(Real const dt,
   SetVarAliasesLab(u_inh, U_I);
 
   // dispatch integration strategy --------------------------------------------
-  SystemSolverSettings slv_set = ConstructSystemSolverSettings(*this);
-
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
   {
@@ -1422,7 +1456,7 @@ void M1::CalcUpdate(Real const dt,
 
     ClosureMetaVector CL = ConstructClosureMetaVector(*this, U_C, ix_g, ix_s);
 
-    switch (opt.integration_strategy)
+    switch (opt_solver.strategy)
     {
       case (opt_integration_strategy::full_explicit):
       {
@@ -1467,8 +1501,8 @@ void M1::CalcUpdate(Real const dt,
         M1_ILOOP3(k,j,i)
         if (MaskGet(k, j, i))
         {
-          // non-stiff limit
           /*
+          // non-stiff limit
           if ((dt * C.sc_kap_a(k,j,i) < 1) &&
               (dt * C.sc_kap_s(k,j,i) < 1))
           {
@@ -1478,12 +1512,12 @@ void M1::CalcUpdate(Real const dt,
           }
           else
           {
-            StepImplicitMinerboHybrids(*this, dt, P, C, I, CL, slv_set,
+            StepImplicitMinerboHybrids(*this, dt, P, C, I, CL,
                                        k, j, i);
           }
           */
 
-          StepImplicitMinerboHybrids(*this, dt, P, C, I, CL, slv_set,
+          StepImplicitMinerboHybrids(*this, dt, P, C, I, CL,
                                      k, j, i);
 
         }
@@ -1495,7 +1529,7 @@ void M1::CalcUpdate(Real const dt,
         if (MaskGet(k, j, i))
         {
           StepImplicitHybridsJFrozenP(
-            *this, dt, P, C, I, CL, slv_set, k, j, i);
+            *this, dt, P, C, I, CL, k, j, i);
         }
         break;
       }
@@ -1504,8 +1538,22 @@ void M1::CalcUpdate(Real const dt,
         M1_ILOOP3(k,j,i)
         if (MaskGet(k, j, i))
         {
+          // // non-stiff limit
+          // if ((dt * C.sc_kap_a(k,j,i) < 1) &&
+          //     (dt * C.sc_kap_s(k,j,i) < 1))
+          // {
+          //   ::M1::Update::AddSourceMatter(*this, C, I, k, j, i);
+          //   const bool explicit_step_nG = true;
+          //   StepExplicit(*this, dt, P, C, I, explicit_step_nG, k, j, i);
+          // }
+          // else
+          // {
+          //   StepImplicitHybridsJMinerbo(
+          //     *this, dt, P, C, I, CL, k, j, i);
+          // }
+
           StepImplicitHybridsJMinerbo(
-            *this, dt, P, C, I, CL, slv_set, k, j, i);
+            *this, dt, P, C, I, CL, k, j, i);
         }
         break;
       }

@@ -31,7 +31,6 @@ namespace M1 {
 
 // M1 settings ----------------------------------------------------------------
 
-
 // Class ======================================================================
 
 class M1
@@ -115,23 +114,22 @@ public:
                                            exact_thin,
                                            exact_thick,
                                            exact_Minerbo };
-  enum class opt_closure_variety { thin, thick, Minerbo, MinerboP, MinerboN };
+  enum class opt_closure_variety { thin,
+                                   thick,
+                                   Minerbo,
+                                   MinerboP,
+                                   MinerboB,
+                                   MinerboN };
   enum class opt_opacity_variety { zero, none };
 
   struct
   {
-    // Control integration strategy
-    opt_integration_strategy integration_strategy;
-
     // Control flux calculation
     opt_characteristics_variety characteristics_variety;
 
     // Prescription for fiducial velocity; zero if not {"fluid","mixed"}
     opt_fiducial_velocity fiducial_velocity;
     Real fiducial_velocity_rho_fluid;
-
-    // Closure settings
-    opt_closure_variety closure_variety;
 
     opt_opacity_variety opacity_variety;
 
@@ -143,28 +141,45 @@ public:
     bool enforce_causality;
     Real min_flux_A;
 
-    // Closure iteration
-    Real eps_C;
-    Real eps_C_N;
-    int max_iter_C;
-    int max_iter_C_rst;
-    Real w_opt_ini_C;     // initial underrelaxation factor
-    Real fac_amp_C;       // error amplification tolerance between iterates
-    bool reset_thin;      // outside bracket? reset to thin closure
-    bool verbose_iter_C;  // signal e.g. failure to achieve tol.
-
-    // semi-implicit iteration
-    int max_iter_P;      // maximum number of iterations (for each restart)
-    int max_iter_P_rst;  // maximum number of restarts
-    Real w_opt_ini;      // initial underrelaxation factor
-    Real eps_P_abs_tol;  // absolute tolerance
-    Real fac_amp_P;      // error amplification tolerance between iterates
-    bool verbose_iter_P; // signal e.g. failure to achieve tol.
-
     // debugging:
     bool value_inject;
   } opt;
 
+  struct
+  {
+    opt_closure_variety variety;
+
+    Real eps_tol;
+    Real eps_Z_o_E;
+    Real fac_Z_o_E;
+    Real w_opt_ini;
+    Real fac_err_amp;
+
+    int iter_max;
+    int iter_max_rst;
+
+    bool fallback_thin;
+    bool use_Ostrowski;
+    bool use_Neighbor;
+
+    bool verbose;
+  } opt_closure;
+
+  struct
+  {
+    opt_integration_strategy strategy;
+
+    Real eps_tol;
+    Real w_opt_ini;
+    Real fac_err_amp;
+
+    int iter_max;
+    int iter_max_rst;
+
+    bool use_Neighbor;
+
+    bool verbose;
+  } opt_solver;
 
   // variable alias / storage -------------------------------------------------
   // Conventions for fields:
@@ -676,7 +691,10 @@ public:
 
 // internal methods ===========================================================
 private:
-  void PopulateOptions(ParameterInput *pin);
+  void PopulateOptions(         ParameterInput *pin);
+  void PopulateOptionsClosure(  ParameterInput *pin);
+  void PopulateOptionsSolver(   ParameterInput *pin);
+  void PopulateOptionsOpacities(ParameterInput *pin);
 
 // internal data ==============================================================
 private:

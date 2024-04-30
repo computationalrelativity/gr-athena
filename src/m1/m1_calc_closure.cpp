@@ -5,6 +5,7 @@
 // Athena++ headers
 #include "m1.hpp"
 #include "m1_calc_closure.hpp"
+#include "m1_calc_update.hpp"
 #include "m1_containers.hpp"
 #include "m1_macro.hpp"
 #include "m1_utils.hpp"
@@ -13,6 +14,7 @@
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_math.h>
 #include <gsl/gsl_roots.h>
+#include <ostream>
 
 // ============================================================================
 namespace M1::Closures {
@@ -71,7 +73,7 @@ ClosureMetaVector ConstructClosureMetaVector(
   };
 
   // select closure ---------------------------------------------------------
-  switch (pm1.opt.closure_variety)
+  switch (pm1.opt_closure.variety)
   {
     case (M1::opt_closure_variety::thin):
     {
@@ -99,12 +101,20 @@ ClosureMetaVector ConstructClosureMetaVector(
       };
       break;
     }
+    case (M1::opt_closure_variety::MinerboB):
+    {
+      C.Closure = [&](const int k, const int j, const int i)
+      {
+        Minerbo::ClosureMinerboBisection(pm1, C, k, j, i);
+      };
+      break;
+    }
     case (M1::opt_closure_variety::MinerboN):
     {
       C.Closure = [&](const int k, const int j, const int i)
       {
-        Minerbo::gsl::ClosureMinerboNewton(pm1, C, k, j, i);
-        // Minerbo::ClosureMinerboNewton(*this, C, k, j, i);
+        // Minerbo::gsl::ClosureMinerboNewton(pm1, C, k, j, i);
+        Minerbo::ClosureMinerboNewton(pm1, C, k, j, i);
       };
       break;
     }
@@ -363,7 +373,7 @@ Real dZ_xi(
           C.sp_dP_dd_(a,b,i);
   }
 
-  dJ = W * dJ;
+  dJ = W2 * dJ;
 
   const Real dHn = -W * dJ;
 
@@ -385,25 +395,116 @@ Real dZ_xi(
            C.sp_H_d(b,k,j,i);
   }
 
-  return 2 * xi * SQR(J) + 2 * J * SQR(xi) * dJ + 2 * Hn * dHn - dHH;
+  return 2 * xi * SQR(J) + 2 * J * SQR(xi) * dJ + 2 * Hn * dHn - 2 * dHH;
+}
+
+// Check for thin / thick limits where bracket does not change sign.
+//
+// At such a limit fix appropriate P_dd
+bool MinerboFallbackLimits(M1 & pm1,
+                           ClosureMetaVector & C,
+                           const int k, const int j, const int i,
+                           const bool populate_scratch)
+{
+  // Admissible ranges for xi entering Eddington factor chi(xi)
+  Bracket & br_xi = C.br_xi;
+  br_xi.a = 0.0;
+  br_xi.b = 1.0;
+
+  Bracket & br_Z = C.br_Z;
+
+  br_Z.a = Z_xi(br_xi.a, pm1, C, k, j, i, populate_scratch);
+  br_Z.b = Z_xi(br_xi.b, pm1, C, k, j, i, populate_scratch);
+
+  bool limit_fallback = false;
+
+  auto revert_tn = [&]()
+  {
+    C.sc_xi(k,j,i)  = 1;
+    C.sc_chi(k,j,i) = 1;
+    Assemble::PointToDense(C.sp_P_dd, C.sp_P_tn_dd_, k, j, i);
+    limit_fallback = true;
+  };
+
+  auto revert_tk = [&]()
+  {
+    C.sc_xi(k,j,i)  = 0;
+    C.sc_chi(k,j,i) = ONE_3RD;
+    Assemble::PointToDense(C.sp_P_dd, C.sp_P_tk_dd_, k, j, i);
+    limit_fallback = true;
+  };
+
+  if (!(br_Z.sign_change()))
+  {
+    if (pm1.opt_closure.fallback_thin)
+    {
+      // force this if desired
+      revert_tn();
+    }
+    else if (std::abs(br_Z.a) < std::abs(br_Z.b))
+    {
+      // revert thick
+      revert_tk();
+    }
+    else
+    {
+      // revert thin (N.B lands here when Z_a=Z_b=c)
+      revert_tn();
+    }
+  }
+
+  // if (std::abs(br_Z.a) < std::abs(br_Z.b))
+  // {
+  //   if (std::abs(br_Z.a / C.sc_E(k,j,i)) < pm1.opt_closure.eps_Z_o_E)
+  //   {
+  //     revert_tk();
+  //   }
+  // }
+  // else
+  // {
+  //   if (std::abs(br_Z.b / C.sc_E(k,j,i)) < pm1.opt_closure.eps_Z_o_E)
+  //   {
+  //     revert_tn();
+  //   }
+  // }
+
+  if (C.sc_xi(k,j,i) <= pm1.opt_closure.fac_Z_o_E)
+  {
+    if (std::abs(br_Z.a / C.sc_E(k,j,i)) < pm1.opt_closure.eps_Z_o_E)
+    {
+      revert_tk();
+    }
+  }
+  else if (C.sc_xi(k,j,i) >= 1-pm1.opt_closure.fac_Z_o_E)
+  {
+    if (std::abs(br_Z.b / C.sc_E(k,j,i)) < pm1.opt_closure.eps_Z_o_E)
+    {
+      revert_tn();
+    }
+  }
+
+
+  return limit_fallback;
 }
 
 void ClosureMinerboPicard(M1 & pm1,
                           ClosureMetaVector & C,
                           const int k, const int j, const int i)
 {
+  const Real INF = std::numeric_limits<Real>::infinity();
+
   // Admissible ranges for xi entering Eddington factor chi(xi)
   const Real xi_min = 0.0;
   const Real xi_max = 1.0;
 
-  const int iter_max_C = pm1.opt.max_iter_C;
+  const int iter_max = pm1.opt_closure.iter_max;
   int iter     = 0;     // iteration counter
   int iter_rst = 0;     // restart counter
-  const int iter_max_R = pm1.opt.max_iter_C_rst;  // max restarts
-  Real w_opt = pm1.opt.w_opt_ini_C;  // underrelaxation factor
-  Real e_C_abs_tol = pm1.opt.eps_C;
+  const int iter_max_R = pm1.opt_closure.iter_max_rst;  // max restarts
+  Real w_opt = pm1.opt_closure.w_opt_ini;  // underrelaxation factor
+  Real err_max = pm1.opt_closure.eps_tol;
   // maximum error amplification factor between iters.
-  Real fac_PA = pm1.opt.fac_amp_C;
+  Real fac_PA = pm1.opt_closure.fac_err_amp;
 
   C.FallbackStore(k, j, i);
 
@@ -414,8 +515,17 @@ void ClosureMinerboPicard(M1 & pm1,
   ClosureThin( pm1, C, k, j, i, populate_scratch);
   ClosureThick(pm1, C, k, j, i, populate_scratch);
 
-  Real e_abs_old = std::numeric_limits<Real>::infinity();
-  Real e_abs_cur = 0;
+  Real err_old = INF;
+  Real err_cur = 0;
+
+  // attempt to accelerate with neighbor-data?
+  if (pm1.opt_closure.use_Neighbor)
+  {
+    if ((i > pm1.mbi.il) && C.sc_xi(k,j,i-1))
+    {
+      C.sc_xi(k,j,i) = C.sc_xi(k,j,i-1);
+    }
+  }
 
   // solver loop ----------------------------------------------------------
   const Real W    = C.sc_W(k,j,i);
@@ -431,7 +541,7 @@ void ClosureMinerboPicard(M1 & pm1,
 
     Real sc_xi_can = C.sc_xi(k,j,i) - w_opt * Z_;
 
-    e_abs_cur = std::abs(sc_xi_can - C.sc_xi(k,j,i));
+    err_cur = std::abs(sc_xi_can - C.sc_xi(k,j,i));
     C.sc_xi(k,j,i) = sc_xi_can;
 
     bool compute_limiting_P_dd = false;
@@ -439,14 +549,14 @@ void ClosureMinerboPicard(M1 & pm1,
       pm1, C, k, j, i, compute_limiting_P_dd
     );
 
-    if ((e_abs_cur > fac_PA * e_abs_old))
+    if ((err_cur > fac_PA * err_old))
     {
       // halve underrelaxation and recover old values
       w_opt = w_opt / 2;
       C.Fallback(k, j, i);
 
       // restart iteration
-      e_abs_old = std::numeric_limits<Real>::infinity();
+      err_old = INF;
       iter = 0;
       ++iter_rst;
 
@@ -460,39 +570,37 @@ void ClosureMinerboPicard(M1 & pm1,
     }
     else
     {
-      e_abs_old = e_abs_cur;
+      err_old = err_cur;
       C.sc_chi(k,j,i) = chi(C.sc_xi(k,j,i));
     }
 
-  } while ((iter < iter_max_C) && (e_abs_cur >= e_C_abs_tol));
+  } while ((iter < iter_max) && (err_cur >= err_max));
 
-  if ((e_abs_cur > e_C_abs_tol) && pm1.opt.verbose_iter_C)
+  if ((err_cur > err_max) && pm1.opt_closure.verbose)
   {
     std::cout << "ClosureMinerboPicard:\n";
-    std::cout << "Tol. not achieved: (pit,rit,e_abs_cur) ";
-    std::cout << iter << "," << iter_rst << "," << e_abs_cur << "\n";
+    std::cout << "Tol. not achieved: (pit,rit,err_cur) ";
+    std::cout << iter << "," << iter_rst << "," << err_cur << "\n";
     pm1.StatePrintPoint(C.ix_g, C.ix_s, k, j, i, false);
   }
 }
 
-void ClosureMinerboNewton(M1 & pm1,
-                          ClosureMetaVector & C,
-                          const int k, const int j, const int i)
+void ClosureMinerboBisection(M1 & pm1,
+                             ClosureMetaVector & C,
+                             const int k, const int j, const int i)
 {
-  // Admissible ranges for xi entering Eddington factor chi(xi)
-  const Real xi_min = 0.0;
-  const Real xi_max = 1.0;
+  const Real INF = std::numeric_limits<Real>::infinity();
 
-  const int iter_max_C = pm1.opt.max_iter_C;
+  const int iter_max = pm1.opt_closure.iter_max;
   int iter = 0;     // iteration counter
-  Real w_opt = pm1.opt.w_opt_ini_C;  // underrelaxation factor
-  Real e_C_abs_tol = pm1.opt.eps_C;
+  Real w_opt = pm1.opt_closure.w_opt_ini;  // underrelaxation factor
+  Real err_tol = pm1.opt_closure.eps_tol;
   // maximum error amplification factor between iters.
-  Real fac_PA = pm1.opt.fac_amp_C;
+  Real fac_PA = pm1.opt_closure.fac_err_amp;
 
-  auto is_valid = [&](const Real xi)
+  auto sign_change = [](const Real a, const Real b)
   {
-    return (xi >= xi_min) && (xi <= xi_max);
+    return a * b < 0;
   };
 
   C.FallbackStore(k, j, i);
@@ -504,79 +612,400 @@ void ClosureMinerboNewton(M1 & pm1,
   ClosureThin( pm1, C, k, j, i, populate_scratch);
   ClosureThick(pm1, C, k, j, i, populate_scratch);
 
-  Real e_abs_old = std::numeric_limits<Real>::infinity();
-  Real e_abs_cur = 0;
+  Real err_cur = INF;
 
   // solver loop ----------------------------------------------------------
-  const Real W    = C.sc_W(k,j,i);
-  const Real oo_W = 1.0 / W;
-  const Real W2   = SQR(W);
+  populate_scratch = false;
 
-  bool revert_Picard = false;
+  Bracket & br_Z  = C.br_Z;
+  Bracket & br_xi = C.br_xi;
+
+  // admissible limits and check whether at one
+  br_xi.a = 0;
+  br_xi.b = 1.0;
+
+  const bool at_limit = MinerboFallbackLimits(
+    pm1, C, k, j, i, populate_scratch
+  );
+
+  if (at_limit)
+  {
+    return;
+  }
+
+  // not at limit, continue with solver
+  Real xi_i = br_xi.midpoint();
 
   do
   {
     iter++;
 
-    populate_scratch = false;
-    const Real Z_ = Z_xi(C.sc_xi(k,j,i), pm1, C, k, j, i, populate_scratch);
+    Real Z_i = Z_xi(xi_i, pm1, C, k, j, i, populate_scratch);
 
-    Real sc_xi_can = C.sc_xi(k,j,i) - w_opt * Z_;
-
-    // break-fast?
-    if ((std::abs(C.sc_xi(k,j,i) - sc_xi_can) < e_C_abs_tol))
+    if (sign_change(br_Z.a, Z_i))
     {
-      break;
-    }
-
-    const Real dZ_ = dZ_xi(C.sc_xi(k,j,i), pm1, C, k, j, i, populate_scratch);
-
-    // Apply Newton iterate with fallback
-    Real D = 0;
-
-    if ((std::abs(dZ_) > pm1.opt.eps_C_N))
-    {
-      // Newton
-      D = Z_ / dZ_;
-      sc_xi_can = C.sc_xi(k,j,i) - D;
-    }
-
-    bool compute_limiting_P_dd = false;
-    const bool ecl = Closures::Minerbo::EnforceClosureLimits(
-      pm1, C, k, j, i, compute_limiting_P_dd
-    );
-
-    if (ecl)
-    {
-      revert_Picard = true;
-      break;
-    }
-
-    e_abs_cur = std::abs(C.sc_xi(k,j,i) - sc_xi_can);
-
-    if ((e_abs_cur > fac_PA * e_abs_old))
-    {
-      // stagnated
-      revert_Picard = true;
-      break;
+      br_xi.b = xi_i;
+      br_Z.b  = Z_i;
     }
     else
     {
-      e_abs_old = e_abs_cur;
-      C.sc_xi(k,j,i) = sc_xi_can;
-      C.sc_chi(k,j,i) = chi(C.sc_xi(k,j,i));
+      br_xi.a = xi_i;
+      br_Z.a  = Z_i;
     }
 
-  } while ((iter < iter_max_C) &&
-           (e_abs_cur >= e_C_abs_tol) &&
-           !revert_Picard);
+    // new mid-point
+    xi_i = br_xi.midpoint();
 
-  if (revert_Picard || !is_valid(C.sc_xi(k,j,i)))
+    err_cur = std::abs(1 - chi(br_xi.a) / chi(br_xi.b));
+  } while ((iter < iter_max) &&
+           (err_cur >= err_tol));
+
+  C.sc_xi(k,j,i)  = xi_i;
+  C.sc_chi(k,j,i) = chi(C.sc_xi(k,j,i));
+  sp_P_dd__(C.sp_P_dd, C.sc_chi, C.sp_P_tn_dd_, C.sp_P_tk_dd_, k, j, i);
+
+  if (pm1.opt_closure.verbose &&
+      ((err_cur > err_tol) || (iter == iter_max)))
   {
-    C.Fallback(k, j, i);
-    ClosureMinerboPicard(pm1, C, k, j, i);
+    std::cout << "ClosureMinerboBisection:\n";
+    std::cout << "max_iter hit / tol. not achieved: (iter,err_cur) ";
+    std::cout << iter << "," << err_cur << "\n";
   }
 
+}
+
+void ClosureMinerboNewton(M1 & pm1,
+                          ClosureMetaVector & C,
+                          const int k, const int j, const int i)
+{
+  const Real INF = std::numeric_limits<Real>::infinity();
+
+  const int iter_max = pm1.opt_closure.iter_max;
+  int iter = 0;     // iteration counter
+  Real err_tol = pm1.opt_closure.eps_tol;
+
+  auto sign_change = [](const Real a, const Real b)
+  {
+    return a * b < 0;
+  };
+
+  C.FallbackStore(k, j, i);
+
+  // main loop ----------------------------------------------------------------
+  int iter_tot = 0;
+
+  bool populate_scratch = true;
+  ClosureThin( pm1, C, k, j, i, populate_scratch);
+  ClosureThick(pm1, C, k, j, i, populate_scratch);
+
+  Real err_cur = INF;
+
+  // solver loop ----------------------------------------------------------
+  populate_scratch = false;
+
+  Bracket & br_Z  = C.br_Z;
+  Bracket & br_xi = C.br_xi;
+
+  // admissible limits and check whether at one
+  br_xi.a = 0;
+  br_xi.b = 1.0;
+
+  const bool at_limit = MinerboFallbackLimits(
+    pm1, C, k, j, i, populate_scratch
+  );
+
+  if (at_limit)
+  {
+    return;
+  }
+
+  // not at limit, continue with solver
+  Real xi_i = C.sc_xi(k,j,i);
+  // Real xi_i = br_xi.midpoint();
+
+  // attempt to accelerate with neighbor-data?
+  if (pm1.opt_closure.use_Neighbor)
+  {
+    if ((i > pm1.mbi.il) && br_xi.bounds_strict(C.sc_xi(k,j,i-1)))
+    {
+      xi_i = C.sc_xi(k,j,i-1);
+    }
+  }
+
+  Real xi_im1 = INF;
+  Real xi_im2 = INF;
+
+  bool accept_newton = true;
+  Real Z_i   = Z_xi(xi_i, pm1, C, k, j, i, populate_scratch);
+  Real Z_im1 = INF;
+  Real Z_im2 = INF;
+
+  Real dZ_i   = INF;
+  Real dZ_im1 = INF;
+  Real dZ_im2 = INF;
+
+  auto seq3_push = [](const Real push, Real & a_i, Real & a_im1, Real & a_im2)
+  {
+    a_im2 = a_im1;
+    a_im1 = a_i;
+    a_i   = push;
+  };
+
+
+  // TODO:
+  // Use the three initial points with a fit to get a first zero guess?
+
+  // #pragma omp critical
+  // {
+  //   std::cout << xi_i << std::endl;
+  //   std::cout << (Z_i * br_xi.a - xi_i * br_Z.a) / (Z_i - br_Z.a) << std::endl;
+  //   std::cout << (Z_i * br_xi.b - xi_i * br_Z.b) / (Z_i - br_Z.b) << std::endl;
+  //   std::exit(0);
+  // }
+
+  // Real xi_l = (Z_i * br_xi.a - xi_i * br_Z.a) / (Z_i - br_Z.a);
+  // Real xi_r = (Z_i * br_xi.b - xi_i * br_Z.b) / (Z_i - br_Z.b);
+
+  // if ((br_xi.a < xi_l) && (xi_l < xi_i))
+  // {
+  //   seq3_push(
+  //     Z_xi(xi_l, pm1, C, k, j, i, populate_scratch),
+  //     Z_i, Z_im1, Z_im2
+  //   );
+  //   seq3_push(
+  //     xi_l, xi_i, xi_im1, xi_im2
+  //   );
+  // }
+  // else if ((xi_i < xi_r) && (xi_r < br_xi.b))
+  // {
+  //   seq3_push(
+  //     Z_xi(xi_r, pm1, C, k, j, i, populate_scratch),
+  //     Z_i, Z_im1, Z_im2
+  //   );
+  //   seq3_push(
+  //     xi_r, xi_i, xi_im1, xi_im2
+  //   );
+  // }
+
+  int nfail_newton    = 0;
+  int nfail_ostrowski = 0;
+  int lf_newton = -1;
+
+  Real dbg_br_Z_a = br_Z.a;
+  Real dbg_br_Z_b = br_Z.b;
+
+  Real xi_c, dZ_c, Y_i;
+
+  do
+  {
+    iter++;
+
+    if (!accept_newton)
+    {
+      seq3_push(
+        Z_xi(xi_i, pm1, C, k, j, i, populate_scratch),
+        Z_i, Z_im1, Z_im2
+      );
+    }
+
+    if (1) // (accept_newton)
+    {
+      if (!pm1.opt_closure.use_Ostrowski)
+      {
+        if (iter == 1)
+          dZ_c = dZ_xi(xi_i, pm1, C, k, j, i, populate_scratch);
+        else
+          dZ_c = (Z_i - Z_im1) / (xi_i - xi_im1);  // secant
+        xi_c = xi_i - Z_i / dZ_c;
+      }
+      else
+      {
+        // Ostrowski 4th order refinement
+        dZ_c = dZ_xi(xi_i, pm1, C, k, j, i, populate_scratch);
+
+        Real xi_n = xi_i - Z_i / dZ_c;
+
+        Y_i = Z_xi(xi_n, pm1, C, k, j, i, populate_scratch);
+        Real xi_o = xi_i - Z_i / dZ_c * (Y_i - Z_i) / (2.0 * Y_i - Z_i);
+
+        if (br_xi.bounds(xi_o))
+        {
+          xi_c = xi_o;
+        }
+        else if (br_xi.bounds(xi_n))
+        {
+          ++nfail_ostrowski;
+          xi_c = xi_n;
+        }
+        else if (iter > 1)
+        {
+          ++nfail_ostrowski;
+          ++nfail_newton;
+
+          // secant fall-back
+          dZ_c = (Z_i - Z_im1) / (xi_i - xi_im1);
+          const Real xi_s = xi_i - Z_i / dZ_c;
+          if (br_xi.bounds(xi_s))
+          {
+            xi_c = xi_s;
+          }
+        }
+
+
+        // Real xi_e = (Z_i * xi_i - xi_c * Z_im1) / (Z_i - Z_im1);
+
+        // if (br_xi.bounds(xi_e))
+        // {
+        //   xi_c = xi_e;
+        // }
+
+      }
+
+      // accept_newton = br_xi.bounds(xi_c);
+      accept_newton = br_xi.bounds(xi_c) &&  // Numerical recipes slope check
+                      (std::abs(2.0 * Z_i) < std::abs(dZ_c * (xi_i-xi_im1)));
+
+      seq3_push(
+        dZ_c,
+        dZ_i, dZ_im1, dZ_im2
+      );
+    }
+
+    // try to get a better estimate
+    if (0) // (accept_newton && (iter >= 2))
+    {
+      // Real xi_e = (Y_i * xi_i - xi_c * Z_im1) / (Y_i - Z_im1);
+      Real xi_e = (Z_i * xi_i - xi_c * Z_im1) / (Z_i - Z_im1);
+
+      if (br_xi.bounds(xi_e))
+      {
+        xi_c = xi_e;
+      }
+    }
+
+    if (accept_newton)
+    {
+      // avoid a function eval. if possible
+      err_cur = std::abs(1 - chi(xi_i) / chi(xi_c));
+      if (err_cur < err_tol)
+      {
+        break;
+      }
+
+      // need fcn at updated location
+      seq3_push(
+        Z_xi(xi_c, pm1, C, k, j, i, populate_scratch),
+        Z_i, Z_im1, Z_im2
+      );
+
+      seq3_push(
+        xi_c, xi_i, xi_im1, xi_im2
+      );
+    }
+
+    if (sign_change(br_Z.a, Z_i))
+    {
+      br_xi.b = xi_i;
+      br_Z.b  = Z_i;
+    }
+    else
+    {
+      br_xi.a = xi_i;
+      br_Z.a  = Z_i;
+    }
+
+    // fallback to bisection estimate
+    if (!accept_newton)
+    {
+      lf_newton = iter;
+
+      Real xi_e = -1;
+
+      if (iter > 1)
+      {
+        xi_e = (Z_i * xi_im1 - xi_i * Z_im1) / (Z_i - Z_im1);
+      }
+
+      // // xi_e = br_xi.squeeze(xi_e);
+      // // if (xi_e == 1)
+      // //   break;
+
+      // // if (xi_e == 0)
+      // //   break;
+
+      if (br_xi.bounds(xi_e))
+      {
+        xi_c = xi_e;
+      }
+      else
+      {
+        xi_c = br_xi.midpoint();
+      }
+
+      // xi_c = br_xi.midpoint();
+      seq3_push(
+        xi_c,
+        xi_i, xi_im1, xi_im2
+      );
+    }
+
+    err_cur = std::abs(1 - chi(xi_im1) / chi(xi_i));
+    err_cur = std::min(err_cur, std::abs(1 - chi(br_xi.a) / chi(br_xi.b)));
+
+  } while ((iter < iter_max) && (err_cur >= err_tol));
+
+  if (0) //  (pm1.opt_closure.verbose)
+  {
+    if ((iter > 10) || (nfail_newton > 1))
+    #pragma omp critical
+    {
+      std::cout << iter << std::endl;
+      std::cout << "i_c "<< xi_c << "\n";
+      std::cout << "i_0 "<< xi_i << "\n";
+      std::cout << "im1 "<< xi_im1 << "\n";
+      std::cout << "im2 "<< xi_im2 << "\n";
+      std::cout << "chi_i_c "<< chi(xi_c) << "\n";
+      std::cout << "chi_i_0 "<< chi(xi_i) << "\n";
+      std::cout << "chi_im1 "<< chi(xi_im1) << "\n";
+      std::cout << "chi_im2 "<< chi(xi_im2) << "\n";
+      std::cout << "Zi_0 "<< Z_i / C.sc_E(k,j,i) << "\n";
+      std::cout << "Zim1 "<< Z_im1 / C.sc_E(k,j,i) << "\n";
+      std::cout << "Zim2 "<< Z_im2 / C.sc_E(k,j,i) << "\n";
+
+      std::cout << "dbg_br_Z_a "<< dbg_br_Z_a << "\n";
+      std::cout << "dbg_br_Z_b "<< dbg_br_Z_b << "\n";
+
+      std::cout << "br_xi.a "<< br_xi.a << "\n";
+      std::cout << "br_xi.b "<< br_xi.b << "\n";
+
+      std::cout << "br_chi.a "<< chi(br_xi.a) << "\n";
+      std::cout << "br_chi.b "<< chi(br_xi.b) << "\n";
+
+      std::cout << "C.sc_xi(k,j,i) " << C.sc_xi(k,j,i) << "\n";
+      std::cout << "C.sc_E(k,j,i) " << C.sc_E(k,j,i) << "\n";
+      std::cout << "e_abs_cur " << err_cur << "\n";
+
+      std::cout << accept_newton << "\n";
+      std::cout << nfail_newton << std::endl;
+      std::cout << nfail_ostrowski << std::endl;
+      std::cout << lf_newton << std::endl;
+
+      std::exit(0);
+    }
+    // pm1.StatePrintPoint(C.ix_g, C.ix_s, k, j, i, false);
+  }
+
+  C.sc_xi(k,j,i)  = xi_i;
+  C.sc_chi(k,j,i) = chi(C.sc_xi(k,j,i));
+  sp_P_dd__(C.sp_P_dd, C.sc_chi, C.sp_P_tn_dd_, C.sp_P_tk_dd_, k, j, i);
+
+  if (pm1.opt_closure.verbose &&
+      ((err_cur > err_tol) || (iter == iter_max)))
+  {
+    std::cout << "ClosureMinerboNewton:\n";
+    std::cout << "max_iter hit / tol. not achieved: (iter,err_cur) ";
+    std::cout << iter << "," << err_cur << "\n";
+  }
 }
 
 // ============================================================================
@@ -661,7 +1090,7 @@ void ClosureMinerboBrent(M1 & pm1,
     {
       std::ostringstream msg;
       msg << "ClosureMinerboBrent maxiter=";
-      msg << pm1.opt.max_iter_C << " exceeded";
+      msg << pm1.opt_closure.iter_max << " exceeded";
       std::cout << msg.str().c_str() << std::endl;
     }
   };
@@ -687,9 +1116,17 @@ void ClosureMinerboBrent(M1 & pm1,
 
   switch (gsl_status)
   {
-    case (GSL_EINVAL):  // bracketing failed (revert to thin closure)
+    case (GSL_EINVAL):  // bracketing failed
     {
-      Assemble::PointToDense(C.sp_P_dd, C.sp_P_tn_dd_, k, j, i);
+      if (pm1.opt_closure.fallback_thin)
+      {
+        Assemble::PointToDense(C.sp_P_dd, C.sp_P_tn_dd_, k, j, i);
+      }
+      else
+      {
+        const bool populate_scratch = false;
+        MinerboFallbackLimits(pm1, C, k, j, i, populate_scratch);
+      }
       break;
     }
     case (0):
@@ -723,12 +1160,12 @@ void ClosureMinerboBrent(M1 & pm1,
         loc_xi_max = gsl_root_fsolver_x_upper(pm1.gsl_brent_solver);
 
         gsl_status = gsl_root_test_interval(
-          loc_xi_min, loc_xi_max, pm1.opt.eps_C, 0
+          loc_xi_min, loc_xi_max, pm1.opt_closure.eps_tol, 0
         );
 
-      } while (iter<=pm1.opt.max_iter_C && gsl_status == GSL_CONTINUE);
+      } while (iter<=pm1.opt_closure.iter_max && gsl_status == GSL_CONTINUE);
 
-      if ((gsl_status != GSL_SUCCESS) && pm1.opt.verbose_iter_C)
+      if ((gsl_status != GSL_SUCCESS) && pm1.opt_closure.verbose)
       {
         gsl_err_warn();
       }
@@ -783,7 +1220,7 @@ void ClosureMinerboNewton(M1 & pm1,
   {
     std::ostringstream msg;
     msg << "ClosureMinerboNewton maxiter=";
-    msg << pm1.opt.max_iter_C << " exceeded";
+    msg << pm1.opt_closure.iter_max << " exceeded";
     std::cout << msg.str().c_str() << std::endl;
   };
   // --------------------------------------------------------------------------
@@ -826,7 +1263,7 @@ void ClosureMinerboNewton(M1 & pm1,
         loc_xi = gsl_root_fdfsolver_root(pm1.gsl_newton_solver);
 
         gsl_status = gsl_root_test_delta(
-          loc_xim1, loc_xi, pm1.opt.eps_C, 0
+          loc_xim1, loc_xi, pm1.opt_closure.eps_tol, 0
         );
 
         C.sc_xi(k,j,i) = loc_xi;
@@ -836,9 +1273,9 @@ void ClosureMinerboNewton(M1 & pm1,
           pm1, C, k, j, i, compute_limiting_P_dd
         );
 
-      } while (iter<=pm1.opt.max_iter_C && gsl_status == GSL_CONTINUE);
+      } while (iter<=pm1.opt_closure.iter_max && gsl_status == GSL_CONTINUE);
 
-      if ((gsl_status != GSL_SUCCESS) && pm1.opt.verbose_iter_C)
+      if ((gsl_status != GSL_SUCCESS) && pm1.opt_closure.verbose)
       {
         gsl_err_warn();
       }
