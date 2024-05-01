@@ -1228,7 +1228,10 @@ if args['hdf5']:
             or args['cxx'] == 'icpc-debug' or args['cxx'] == 'icpc-phi'
             or args['cxx'] == 'clang++' or args['cxx'] == 'clang++-simd'
             or args['cxx'] == 'clang++-apple'):
-        makefile_options['LIBRARY_FLAGS'] += ' -lhdf5 -lhdf5_hl'
+        if args['eos'] == 'eostaudyn_ps':
+            makefile_options['LIBRARY_FLAGS'] += ' -lhdf5 -lhdf5_hl'
+        else:
+            makefile_options['LIBRARY_FLAGS'] += ' -lhdf5'
     if args['cxx'] == 'bgxlc++':
         makefile_options['PREPROCESSOR_FLAGS'] += (
             ' -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_BSD_SOURCE'

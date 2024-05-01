@@ -74,7 +74,7 @@ update_max_step_factor = 10
 
 <time> # ======================================================================
 cfl_number   = 0.25
-tlim	       = 0.1
+tlim	       = 5
 integrator   = rk3   # time integration algorithm
 
 # spatial reconstruction - element of:
@@ -87,25 +87,25 @@ ncycle_out   = 1      # interval for stdout summary info
 <mesh> # ======================================================================
 # no. cell in dir, min/max x, inner/outer BC
 nx1    = 32
-x1min  = -21
+x1min  = -25
 x1max  = 25
 ix1_bc = extrapolate_outflow
 ox1_bc = extrapolate_outflow
 
 nx2    = 32
-x2min  = -21
+x2min  = -25
 x2max  = 25
 ix2_bc = extrapolate_outflow
 ox2_bc = extrapolate_outflow
 
 nx3    = 32
-x3min  = -21
+x3min  = -25
 x3max  = 25
 ix3_bc = extrapolate_outflow
 ox3_bc = extrapolate_outflow
 
-refinement = none
-numlevel = 10
+refinement = static
+numlevel = 3
 #deref_count = 5
 
 num_threads = 4
@@ -180,6 +180,16 @@ fatm = 1e-18  # set atmosphere rho to rho = fatm
 fthr = 1    # set point to atmosphere if rho < fthr*fatm
 
 max_z = 10
+# =============================================================================
+
+<refinement1> # ===============================================================
+x1min           = -10
+x1max           = 10
+x2min           = -10
+x2max           = 10
+x3min           = -10
+x3max           = 10
+level           = 2
 # =============================================================================
 
 # dumped quantities ===========================================================

@@ -1786,7 +1786,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
                                           ps->s, ps->r,
 #endif
                                           pf->bcc, pmb->pcoord,
-#if Z4C_ENABLED
+#if Z4C_ENABLED || WAVE_ENABLED
                                           il, iu, jl, ju, kl, ku,0);
 #else
                                           il, iu, jl, ju, kl, ku);

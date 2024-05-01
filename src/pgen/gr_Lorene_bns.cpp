@@ -215,6 +215,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   // --------------------------------------------------------------------------
   #pragma omp critical
   {
+    Lorene::Bin_NS * bns;
 
     // prepare geometry grid --------------------------------------------------
     int npoints_gs = 0;
@@ -245,9 +246,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     // ------------------------------------------------------------------------
 
     // prepare Lorene interpolator for geometry -------------------------------
-    pmy_mesh->bns = new Lorene::Bin_NS(npoints_gs,
-                                       xx_gs, yy_gs, zz_gs,
-                                       fn_ini_data.c_str());
+    bns = new Lorene::Bin_NS(npoints_gs,
+                             xx_gs, yy_gs, zz_gs,
+                             fn_ini_data.c_str());
 
     // std::cout << pmy_mesh->bns->gamma_poly1 << std::endl;
     // std::cout << pmy_mesh->bns->kappa_poly1 / 2.6875380639256204e-4 << std::endl;
@@ -257,7 +258,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
     // std::exit(0);
 
-    Lorene::Bin_NS * bns = pmy_mesh->bns;
     assert(bns->np == npoints_gs);
 
     I = 0;      // reset
@@ -342,7 +342,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     delete[] yy_gs;
     delete[] zz_gs;
 
-    delete pmy_mesh->bns;
+    delete bns;
     // ------------------------------------------------------------------------
 
     // prepare matter grid ----------------------------------------------------
@@ -375,10 +375,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
     // ------------------------------------------------------------------------
     // prepare Lorene interpolator for matter ---------------------------------
-    pmy_mesh->bns = new Lorene::Bin_NS(npoints_cc, xx_cc, yy_cc, zz_cc,
-                                       fn_ini_data.c_str());
+    bns = new Lorene::Bin_NS(npoints_cc, xx_cc, yy_cc, zz_cc,
+                             fn_ini_data.c_str());
 
-    bns = pmy_mesh->bns;
     assert(bns->np == npoints_cc);
 
     sep = bns->dist / coord_unit;
@@ -498,7 +497,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     delete[] yy_cc;
     delete[] zz_cc;
 
-    delete pmy_mesh->bns;
+    delete bns;
 
   } // OMP Critical
 
