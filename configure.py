@@ -1561,8 +1561,7 @@ if args['z']:
   src_aux.append(f'{str_gr}')
 
   if args['m1']:
-    # need M1 task-list
-    print("TODO@conf: ADD m1 as -z, -f, -m1")
+    src_aux.append('$(wildcard src/task_list/m1_task_list.cpp)')
 
 
 elif args['w']:
@@ -1601,7 +1600,6 @@ if args['m1']:
   # src_aux.append("$(wildcard src/m1/opacities/weak_rates/*.cpp)")
 
   print("TODO@conf: Add weak_rates")
-  print("TODO@conf: Remove m1 task-list stand-alone")
 
 makefile_options['M1_SRC'] = '\\\n'.join(src_aux)
 

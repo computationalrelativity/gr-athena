@@ -427,7 +427,8 @@ void AssembleAverages(
     C.sc_n(k,j,i) = C.sc_nG(k,j,i) / C_Gam;
   }
 
-  C.sc_avg_nrg(k,j,i) = C.sc_J(k,j,i) / C.sc_n(k,j,i);
+  C.sc_avg_nrg(k,j,i) = (C.sc_n(k,j,i) > 0) ? C.sc_J(k,j,i) / C.sc_n(k,j,i)
+                                            : 0.0;
 }
 
 // time-integration strategies ------------------------------------------------

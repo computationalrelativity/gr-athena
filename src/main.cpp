@@ -307,6 +307,7 @@ int main(int argc, char *argv[])
     //-------------------------------------------------------------------------
 
     // BD: TODO - shift to correct place
+    // BD: Shift to Evolve:: style header as previously
     if (M1_ENABLED)
     {
       for (int stage=1; stage<=pm1list->nstages; ++stage)
