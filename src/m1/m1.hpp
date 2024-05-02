@@ -245,6 +245,8 @@ public:
     GroupSpeciesContainer<AT_C_sca> sc_kap_a;
     GroupSpeciesContainer<AT_C_sca> sc_kap_s;
 
+    GroupSpeciesContainer<AT_C_sca> sc_avg_nrg;
+
     // AT_C_sca abs_0;
     // AT_C_sca abs_1;
     // AT_C_sca eta_0;
@@ -496,6 +498,7 @@ public:
       eta,
       kap_a,
       kap_s,
+      avg_nrg,
       // abs_0, abs_1,
       // eta_0, eta_1,
       // scat_1,
@@ -508,6 +511,7 @@ public:
       "rmat.eta",
       "rmat.kap_a",
       "rmat.kap_s"
+      "rmat.avg_nrg"
       // "rmat.abs_0", "rmat.abs_1",
       // "rmat.eta_0", "rmat.eta_1",
       // "rmat.scat_1",

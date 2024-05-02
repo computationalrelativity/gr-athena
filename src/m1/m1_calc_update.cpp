@@ -335,7 +335,9 @@ StateMetaVector ConstructStateMetaVector(
     pm1.radmat.sc_kap_a_0(ix_g,ix_s),
     pm1.radmat.sc_eta(  ix_g,ix_s),
     pm1.radmat.sc_kap_a(ix_g,ix_s),
-    pm1.radmat.sc_kap_s(ix_g,ix_s)
+    pm1.radmat.sc_kap_s(ix_g,ix_s),
+    // averages
+    pm1.radmat.sc_avg_nrg(ix_g,ix_s)
   };
 }
 
@@ -397,6 +399,37 @@ void AddSourceMatter(
   }
 }
 
+void AssembleAverages(
+  M1 & pm1,
+  const StateMetaVector & C,  // state to utilize
+  const bool recompute_n,
+  const int k, const int j, const int i)
+{
+  if (recompute_n)
+  {
+
+    const Real W  = pm1.fidu.sc_W(k,j,i);
+    const Real W2 = SQR(W);
+
+    const Real dotFv = Assemble::sc_dot_dense_sp__(C.sp_F_d, pm1.fidu.sp_v_u,
+                                                  k, j, i);
+
+    C.sc_J(k,j,i) = Assemble::sc_J__(
+      W2, dotFv, C.sc_E, pm1.fidu.sp_v_u, C.sp_P_dd,
+      k, j, i
+    );
+
+    const Real C_Gam = Assemble::sc_G__(
+      W, C.sc_E(k,j,i), C.sc_J(k,j,i), dotFv,
+      pm1.opt.fl_E, pm1.opt.fl_J, pm1.opt.eps_E
+    );
+
+    C.sc_n(k,j,i) = C.sc_nG(k,j,i) / C_Gam;
+  }
+
+  C.sc_avg_nrg(k,j,i) = C.sc_J(k,j,i) / C.sc_n(k,j,i);
+}
+
 // time-integration strategies ------------------------------------------------
 
 // Neutrino current evolution is linearly implicit; assemble nG directly
@@ -414,20 +447,22 @@ void SolveImplicitNeutrinoCurrent(
   const Real dotFv = Assemble::sc_dot_dense_sp__(C.sp_F_d, pm1.fidu.sp_v_u,
                                                  k, j, i);
 
-  const Real C_J = Assemble::sc_J__(
+  C.sc_J(k,j,i) = Assemble::sc_J__(
     W2, dotFv, C.sc_E, pm1.fidu.sp_v_u, C.sp_P_dd,
     k, j, i
   );
 
   const Real WnGam = P.sc_nG(k,j,i) + dt * I.sc_nG(k,j,i);
   const Real C_Gam = Assemble::sc_G__(
-    W, C.sc_E(k,j,i), C_J, dotFv,
+    W, C.sc_E(k,j,i), C.sc_J(k,j,i), dotFv,
     pm1.opt.fl_E, pm1.opt.fl_J, pm1.opt.eps_E
   );
 
   C.sc_nG(k,j,i) = WnGam / (
     1.0 - dt * pm1.geom.sc_alpha(k,j,i) * C.sc_kap_a_0(k,j,i) / C_Gam
   );
+
+  C.sc_n(k,j,i) = C.sc_nG(k,j,i) / C_Gam;
 }
 
 // Evolve explicit part of system; optionally suppress nG evo.
@@ -1562,6 +1597,16 @@ void M1::CalcUpdate(Real const dt,
         assert(false);
         std::exit(0);
       }
+    }
+
+
+    // deal with averages
+    const bool recompute_n = opt_solver.strategy ==
+                             opt_integration_strategy::full_explicit;
+    M1_ILOOP3(k,j,i)
+    if (MaskGet(k, j, i))
+    {
+      AssembleAverages(*this, C, recompute_n, k, j, i);
     }
   }
 

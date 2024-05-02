@@ -1320,25 +1320,13 @@ void M1::CalcClosure(AthenaArray<Real> & u)
   vars_Lab U { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
   SetVarAliasesLab(u, U);
 
-  // fix ranges ---------------------------------------------------------------
-  const int IL = 0;
-  const int IU = mbi.nn1 - 1;
-
-  const int JL = 0;
-  const int JU = mbi.nn2 - 1;
-
-  const int KL = 0;
-  const int KU = mbi.nn3 - 1;
-
   // dispatch closure strategy ------------------------------------------------
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
   {
     ClosureMetaVector C = ConstructClosureMetaVector(*this, U, ix_g, ix_s);
 
-    for (int k=KL; k<=KU; ++k)
-    for (int j=JL; j<=JU; ++j)
-    for (int i=IL; i<=IU; ++i)
+    M1_FLOOP3(k,j,i)
     if (pm1->MaskGet(k,j,i))
     {
       // NonFiniteToZero(*this, C, k, j, i);

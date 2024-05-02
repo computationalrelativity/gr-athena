@@ -40,6 +40,8 @@ struct StateMetaVector {
   AT_C_sca & sc_kap_a;
   AT_C_sca & sc_kap_s;
 
+  AT_C_sca & sc_avg_nrg;
+
   // Store state prior to iteration (for fallback)
   std::array<Real, 1> U_0_xi;
   std::array<Real, 1> U_0_E;

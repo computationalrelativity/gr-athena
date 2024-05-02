@@ -101,6 +101,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS}
   }
 {
@@ -275,6 +276,8 @@ void M1::SetVarAliasesRadMat(AthenaArray<Real> & u, vars_RadMat & rmat)
     SetVarAlias(radmat.sc_kap_s, u, ix_g, ix_s,
                 ixn_RaM::kap_s,  ixn_RaM::N);
 
+    SetVarAlias(radmat.sc_avg_nrg, u, ix_g, ix_s,
+                ixn_RaM::avg_nrg,  ixn_RaM::N);
   }
 }
 
