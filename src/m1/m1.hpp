@@ -25,6 +25,12 @@
 #include <gsl/gsl_math.h>
 #include <gsl/gsl_roots.h>
 
+// Forward declarations
+namespace M1::Opacities {
+class Opacities;
+}
+
+
 // ============================================================================
 namespace M1 {
 // ============================================================================
@@ -120,7 +126,6 @@ public:
                                    MinerboP,
                                    MinerboB,
                                    MinerboN };
-  enum class opt_opacity_variety { zero, none };
 
   struct
   {
@@ -130,8 +135,6 @@ public:
     // Prescription for fiducial velocity; zero if not {"fluid","mixed"}
     opt_fiducial_velocity fiducial_velocity;
     Real fiducial_velocity_rho_fluid;
-
-    opt_opacity_variety opacity_variety;
 
     // Various tolerances / ad-hoc fiddle parameters
     Real fl_E;
@@ -181,7 +184,8 @@ public:
     bool verbose;
   } opt_solver;
 
-  // variable alias / storage -------------------------------------------------
+// variable alias / storage ===================================================
+public:
   // Conventions for fields:
   // sc: (s)calar-(f)ield
   // sp: (sp)atial
@@ -579,6 +583,10 @@ public:
     };
   };
 
+// opacities ==================================================================
+public:
+  Opacities::Opacities * popac;
+
 // additional methods =========================================================
 public:
   void UpdateGeometry(vars_Geom  & geom,
@@ -615,17 +623,24 @@ public:
 
   inline void MaskThreshold(const int k, const int j, const int i)
   {
-    const Real C = 10 * opt.fl_E;
-    Real val (0);
-    for (int K=-1; K<=1; ++K)
-    for (int J=-1; J<=1; ++J)
-    for (int I=-1; I<=1; ++I)
-    {
-      val = std::max(lab.sc_E(0,0)(k+K,j+J,i+I), val);
-    }
+    // TODO:
+    //
+    // Use nearest-neighbour values & threshold to determine whether
+    // anything needs to avoid M1 calculations pointwise in ~0 regions.
+    std::cout << "MaskThreshold not implemented" << std::endl;
+    std::exit(0);
 
-    m1_mask(k,j,i) = (val > C);
-    MaskSet(m1_mask(k,j,i), k, j, i);
+    // const Real C = 10 * opt.fl_E;
+    // Real val (0);
+    // for (int K=-1; K<=1; ++K)
+    // for (int J=-1; J<=1; ++J)
+    // for (int I=-1; I<=1; ++I)
+    // {
+    //   val = std::max(lab.sc_E(0,0)(k+K,j+J,i+I), val);
+    // }
+
+    // m1_mask(k,j,i) = (val > C);
+    // MaskSet(m1_mask(k,j,i), k, j, i);
     // m1_mask(k,j,i) = (lab.sc_E(k,j,i) < opt.fl_E) ? false : true;
   }
 

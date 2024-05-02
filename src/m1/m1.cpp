@@ -14,6 +14,7 @@
 #include "../coordinates/coordinates.hpp"
 #include "m1_macro.hpp"
 #include "m1_utils.hpp"
+#include "opacities/m1_opacities.hpp"
 
 // ============================================================================
 namespace M1 {
@@ -22,8 +23,8 @@ namespace M1 {
 // ----------------------------------------------------------------------------
 M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   pm1(this),
-  pmy_block(pmb),
   pmy_mesh(pmb->pmy_mesh),
+  pmy_block(pmb),
   pmy_coord(pmy_block->pcoord),
   mbi{
     1, pmy_mesh->f2, pmy_mesh->f3,  // f1, f2, f3
@@ -184,6 +185,10 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   gsl_newton_solver = gsl_root_fdfsolver_alloc(
     gsl_root_fdfsolver_newton
   );
+
+  // --------------------------------------------------------------------------
+  // deal with opacities
+  popac = new Opacities::Opacities(pmb, this, pin);
 }
 
 M1::~M1()
@@ -192,6 +197,8 @@ M1::~M1()
   gsl_root_fdfsolver_free(gsl_newton_solver);
   // TODO: bug - this can't be deactivated properly with OMP
   // gsl_set_error_handler(NULL);  // restore default handler
+
+  delete popac;
 }
 
 // set aliases for variables ==================================================

@@ -1596,7 +1596,11 @@ src_aux = []
 if args['m1']:
   src_aux.append("$(wildcard src/m1/*.cpp)")
   src_aux.append("$(wildcard src/m1/opacities/*.cpp)")
+  src_aux.append("$(wildcard src/m1/opacities/fake/*.cpp)")
+  src_aux.append("$(wildcard src/m1/opacities/photon/*.cpp)")
+  # src_aux.append("$(wildcard src/m1/opacities/weak_rates/*.cpp)")
 
+  print("TODO@conf: Add weak_rates")
   print("TODO@conf: Remove m1 task-list stand-alone")
 
 makefile_options['M1_SRC'] = '\\\n'.join(src_aux)

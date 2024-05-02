@@ -15,7 +15,7 @@ ncycle_out   = 1      # interval for stdout summary info
 
 <mesh> # ======================================================================
 # no. cell in dir, min/max x, inner/outer BC
-nx1    = 320
+nx1    = 160
 x1min  = -4
 x1max  = 4
 ix1_bc = outflow
@@ -34,7 +34,7 @@ ix3_bc = outflow
 ox3_bc = outflow
 
 refinement = none
-num_threads = 12
+num_threads = 8
 # =============================================================================
 
 <meshblock> # =================================================================
@@ -44,8 +44,8 @@ nx3 = 4
 # =============================================================================
 
 <M1> # ========================================================================
-ngroups  = 2
-nspecies = 3
+ngroups  = 1
+nspecies = 1
 
 # element of: {approximate, exact_thin, exact_thick, exact_Minerbo}
 characteristics_variety = approximate
@@ -118,8 +118,23 @@ fac_err_amp  = 1.11  // error amplification tolerance between iterates
 # =============================================================================
 
 <M1_opacities> # ==============================================================
-# element of: {zero, none}
-variety = none
+# element of: {photon, fake, zero, none}
+variety = photon
+
+# fake specific ---------------------------------------------------------------
+fake_avg_atomic_mass = 1.0
+fake_avg_baryon_mass = 1.0
+
+# here indices X_(ix_g,ix_s) can vary based on ngroups & nspecies
+fake_eta_0_0   = 1.0
+fake_kap_a_0_0 = 1.0
+fake_kap_s_0_0 = 1.0
+
+# photon specific -------------------------------------------------------------
+photon_rad_constant = 2.471313401078565e-13 # Msun^-2/MeV^4
+photon_kap_a = 1.0
+photon_kap_s = 1.0
+
 # =============================================================================
 
 <problem> # ===================================================================

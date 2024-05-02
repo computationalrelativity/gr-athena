@@ -151,11 +151,6 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
   opt_solver.verbose = GoA_bool("verbose", false);
 }
 
-void M1::PopulateOptionsOpacities(ParameterInput *pin)
-{
-  
-}
-
 void M1::PopulateOptions(ParameterInput *pin)
 {
   std::string tmp;
@@ -215,23 +210,6 @@ void M1::PopulateOptions(ParameterInput *pin)
 
     opt.fiducial_velocity_rho_fluid = pin->GetOrAddReal(
       "M1", "fiducial_velocity_rho_fluid", 0.0) * M1_UNITS_CGS_GCC;
-  }
-
-  { // opacities
-    tmp = pin->GetOrAddString("M1_opacities", "variety", "none");
-    if (tmp == "none")
-    {
-      opt.opacity_variety = opt_opacity_variety::none;
-    }
-    else if (tmp == "zero")
-    {
-      opt.opacity_variety = opt_opacity_variety::zero;
-    }
-    else
-    {
-      msg << "M1_opacities/variety unknown" << std::endl;
-      ATHENA_ERROR(msg);
-    }
   }
 
   { // tol / ad-hoc
