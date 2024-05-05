@@ -223,6 +223,21 @@ void M1::PopulateOptions(ParameterInput *pin)
     opt.min_flux_A = pin->GetOrAddReal("M1", "min_flux_A", 0);
   }
 
+  { // coupling
+    opt.couple_sources_ADM = pin->GetOrAddBoolean("M1",
+                                                  "couple_sources_ADM",
+                                                  false);
+
+    opt.couple_sources_hydro = pin->GetOrAddBoolean("M1",
+                                                    "couple_sources_hydro",
+                                                    false);
+
+    opt.couple_sources_Y_e = pin->GetOrAddBoolean("M1",
+                                                  "couple_sources_Y_e",
+                                                  false);
+
+  }
+
   // debugging
   opt.value_inject = pin->GetOrAddBoolean("problem", "value_inject", false);
 }

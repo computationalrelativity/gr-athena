@@ -173,6 +173,15 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
       lab_aux.sc_chi(ix_g,ix_s).Fill(1.0);
     }
   }
+
+
+  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  {
+    lab.sc_E(ix_g,ix_s).Fill(opt.fl_E);
+    lab.sp_F_d(ix_g,ix_s).Fill(0);
+    lab_aux.sp_P_dd(ix_g,ix_s).Fill(0);
+  }
   */
 
   // --------------------------------------------------------------------------
@@ -352,6 +361,15 @@ void M1::StatePrintPoint(
     std::cout << "vec================: " << "\n";
     fidu.sp_v_u.PrintPoint("fidu.sp_v_u", k,j,i);
     fidu.sp_v_d.PrintPoint("fidu.sp_v_d", k,j,i);
+
+    std::cout << "hydro fields============================: " << "\n\n";
+    std::cout << "sc=================: " << "\n";
+    hydro.sc_W.PrintPoint("hydro.sc_W", k,j,i);
+
+    std::cout << "vec================: " << "\n";
+    hydro.sc_w_p.PrintPoint("hydro.sc_w_p", k,j,i);
+    hydro.sc_w_rho.PrintPoint("hydro.sc_w_rho", k,j,i);
+    hydro.sp_w_util_u.PrintPoint("hydro.sp_w_util_u", k,j,i);
 
     std::cout << "radiation fields========================: " << "\n\n";
 

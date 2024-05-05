@@ -290,7 +290,7 @@ TaskStatus M1IntegratorTaskList::UpdateBackground(MeshBlock *pmb, int stage)
 {
   // Task-list is not interspersed with external field evolution -
   // only need to do this on the first step.
-  if (stage == 1)
+  if (stage <= 1)
   {
     pmb->pm1->UpdateGeometry(pmb->pm1->geom, pmb->pm1->scratch);
     pmb->pm1->UpdateHydro(pmb->pm1->hydro, pmb->pm1->geom, pmb->pm1->scratch);

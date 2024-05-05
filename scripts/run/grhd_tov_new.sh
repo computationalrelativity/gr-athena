@@ -24,8 +24,8 @@ export RIEMANN_SOLVER=llftaudyn
 
 export BIN_NAME=z4c_tov
 export REL_INPUT=scripts/run/inputs
-export INPUT_NAME=grhd_m1/z4c_tov.inp
-export RUN_NAME=grhd_m1_tov_${DIR_TAG}
+export INPUT_NAME=grhd/z4c_tov.inp
+export RUN_NAME=grhd_tov_${DIR_TAG}
 # pass to executable on cmdline
 export GRA_CMD=""
 
@@ -45,13 +45,12 @@ fi
 export COMPILE_STR="--prob=gr_tov
                     --coord=gr_dynamical
                     --eos=eostaudyn_ps
-                    --eospolicy=eos_compose
+                    --eospolicy=idealgas
                     --errorpolicy=reset_floor
-                    --nscalars=1 -debug
                     --flux=${RIEMANN_SOLVER}
                     -${FIELD_VAR}
-                    -g -f -m1 -omp
-                    --cxx g++
+                    -g -f
+                    --cxx g++ -omp
                     --nghost=4
                     --ncghost=4
                     --ncghost_cx=4
@@ -59,8 +58,8 @@ export COMPILE_STR="--prob=gr_tov
                     --ninterp=${NINTERP}"
 
 # complete COMPILE_STR specification
-export USE_REPRIMAND=0
-# export USE_BOOST=1
+export USE_REPRIMAND=1
+export USE_BOOST=1
 
 source ${DIR_SCRIPTS}/utils/provide_compile_str_libs.sh
 ###############################################################################

@@ -67,6 +67,10 @@ public:
 
   Real NewBlockTimeStep();
 
+  void CoupleSourcesADM(AT_C_sca &A_rho, AT_N_vec &A_S_d, AT_N_sym & A_S_dd);
+  void CoupleSourcesHydro(const Real weight, AA &cons);
+  void CoupleSourcesYe(   const Real weight, const Real mb, AA &ps);
+
 // data =======================================================================
 public:
   // Mesh->MeshBlock->M1
@@ -143,6 +147,11 @@ public:
     Real eps_J;
     bool enforce_causality;
     Real min_flux_A;
+
+    // Control the couplings
+    bool couple_sources_ADM;
+    bool couple_sources_hydro;
+    bool couple_sources_Y_e;
 
     // debugging:
     bool value_inject;
@@ -364,7 +373,9 @@ public:
     // Generic quantities of specific valence
     AT_C_sca sc_A_;
     AT_C_sca sc_B_;
+    AT_C_sca sc_C_;
     AT_N_vec sp_vec_A_;
+    AT_N_vec sp_vec_B_;
     AT_D_vec st_vec_;
     AT_N_sym sp_sym_A_;
     AT_N_sym sp_sym_B_;
@@ -389,7 +400,9 @@ private:
 
     scratch.sc_A_.NewAthenaTensor(mbi.nn1);
     scratch.sc_B_.NewAthenaTensor(mbi.nn1);
+    scratch.sc_C_.NewAthenaTensor(mbi.nn1);
     scratch.sp_vec_A_.NewAthenaTensor(mbi.nn1);
+    scratch.sp_vec_B_.NewAthenaTensor(mbi.nn1);
     scratch.st_vec_.NewAthenaTensor(mbi.nn1);
     scratch.sp_sym_A_.NewAthenaTensor(mbi.nn1);
     scratch.sp_sym_B_.NewAthenaTensor(mbi.nn1);

@@ -10,6 +10,9 @@
 #include "../hydro/hydro.hpp"
 #include "../scalars/scalars.hpp"
 #include "../utils/linear_algebra.hpp"
+#if M1_ENABLED
+#include "../m1/m1.hpp"
+#endif // M1_ENABLED
 
 using namespace gra::aliases;
 
@@ -302,6 +305,24 @@ void Z4c::GetMatter(::AA & u_mat, ::AA & u_adm, ::AA & w, ::AA & bb_cc)
     }
 
   }
+
+#if M1_ENABLED
+
+  if (pmb->pm1->opt.couple_sources_ADM)
+  {
+
+#ifndef Z4C_CX_ENABLED
+    #pragma omp critical
+    {
+      std::cout << "M1 source recoupling requires Z4c with CX sampling \n.";
+      std::exit(0);
+    }
+#endif
+    pmb->pm1->CoupleSourcesADM(mat.rho, mat.S_d, mat.S_dd);
+  }
+
+#endif // M1_ENABLED
+
 
 #endif // Z4C_WITH_HYDRO_ENABLED
 }
