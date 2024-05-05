@@ -195,7 +195,6 @@ int main(int argc, char *argv[])
           // Iterate bnd comm. as required
           pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
         }
-
       } //FLUID_ENABLED
 
       // Auxiliary variable logic
@@ -315,6 +314,64 @@ int main(int argc, char *argv[])
         pm1list->DoTaskListOneStage(pmesh, stage);
       }
     }
+    /*
+    const bool use_split_step = pinput->GetOrAddBoolean("problem",
+                                                        "use_split_step",
+                                                        false);
+    if (use_split_step)
+    {
+      // TODO: check internal triggers don't need modification with this
+
+      Real t  = pmesh->time;
+      Real dt = pmesh->dt;
+
+      // step dt/2 ------------------------------------------------------------
+      pmesh->dt   = 0.5 * dt;
+      pmesh->time = t;
+
+      Evolve::Z4c(pmesh, ptlc);
+
+      pmesh->dt   = dt;
+      pmesh->time = t;
+
+      // step dt --------------------------------------------------------------
+      // weight is 1.0; no need to change dt
+      Evolve::M1(pmesh, ptlc);
+
+      // step dt/2 ------------------------------------------------------------
+      pmesh->dt   = 0.5 * dt;
+      pmesh->time = t + pmesh->dt;
+
+      Evolve::Z4c(pmesh, ptlc);
+
+      // auxiliary quantities (now that we are at t+dt)
+      Evolve::Z4c_DerivedQuantities(pmesh, ptlc);
+      Evolve::TrackerExtrema(pmesh);
+      Evolve::Z4c_UpdateTriggers(pmesh, ptlc);
+
+      // revert time (it is updated below)
+      pmesh->time -= pmesh->dt;
+      pmesh->dt    = dt;
+    }
+    else
+    {
+      // Z4c logic
+      Evolve::Z4c(pmesh, ptlc);
+      Evolve::Z4c_DerivedQuantities(pmesh, ptlc);
+
+      // extrema trackers are registered / computed collectively
+      // non-z4c quantities can be tracked
+      Evolve::TrackerExtrema(pmesh);
+
+      //-----------------------------------------------------------------------
+      // Update NextTime triggers
+      // This needs to be here to share tasklist external (though coupled) ops.
+      Evolve::Z4c_UpdateTriggers(pmesh, ptlc);
+
+      Evolve::M1(pmesh, ptlc);
+      // ----------------------------------------------------------------------
+    */
+
 
     pmesh->UserWorkInLoop();
     pmesh->ncycle++;

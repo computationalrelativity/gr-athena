@@ -233,6 +233,8 @@ photon_kap_s = 1.0
 
 <problem> # ===================================================================
 
+use_split_step = false
+
 # TOV: central density
 rhoc = 0.00128
 
