@@ -50,6 +50,10 @@ public:
     pmy_weakrates = new WeakRatesNeutrinos::WeakRates();
     pmy_weakrates->SetEoS(&pmy_block->peos->GetEOS());
 
+    // These are the defaults in THC, TODO convert to pin parameters
+    opacity_tau_trap = 1.0;
+    opacity_tau_delta = 1.0;
+    opacity_corr_fac_max = 3.0;
   };
 
   ~WeakRates() {
@@ -65,6 +69,7 @@ public:
 
     Hydro * phydro = pmy_block->phydro;
     PassiveScalars * pscalars = pmy_block->pscalars;
+    AT_C_sca & sc_sqrt_det_g = pm1->geom.sc_sqrt_det_g; // TODO is this safe to use?
 
     const int NUM_COEFF = 3;
     int ierr[NUM_COEFF];
@@ -113,31 +118,123 @@ public:
         assert(!ierr[r]);
       }
 
-      // Corrections due to Kirchhoff's will replace this
-      // Number emissivity
-      pm1->radmat.sc_eta_0(0,0)(k,j,i) = eta_n_nue;
-      pm1->radmat.sc_eta_0(0,1)(k,j,i) = eta_n_nua;
-      pm1->radmat.sc_eta_0(0,2)(k,j,i) = eta_n_nux;
+      Real tau = std::min(std::sqrt(kap_a_e_nue*(kap_a_e_nue + kap_s_e_nue)), std::sqrt(kap_a_e_nua*(kap_a_e_nua + kap_s_e_nua)))*dt;
+      
+      // Calculate equilibrium blackbody functions with trapped neutrinos
+      Real dens_n_trap[3];
+      Real dens_e_trap[3];
+      if (opacity_tau_trap >= 0.0 && tau > opacity_tau_trap) {
+        Real T_star;
+        Real Y_e_star;
+        Real dens_n[3];
+        Real dens_e[3];
 
-      // Number absorption
-      pm1->radmat.sc_kap_a_0(0,0)(k,j,i) = kap_a_n_nue;
-      pm1->radmat.sc_kap_a_0(0,1)(k,j,i) = kap_a_n_nua;
-      pm1->radmat.sc_kap_a_0(0,2)(k,j,i) = kap_a_n_nux;
+        // TODO undensitise
+        Real invsdetg = 1.0/sc_sqrt_det_g(k, j, i);
+        // FF number density
+        dens_n[0] = pm1->rad.sc_nnu(0,0)(k, j, i)*invsdetg;
+        dens_n[1] = pm1->rad.sc_nnu(0,1)(k, j, i)*invsdetg;
+        dens_n[2] = pm1->rad.sc_nnu(0,2)(k, j, i)*invsdetg;
+        
+        // FF energy density
+        dens_e[0] = pm1->rad.sc_J(0,0)(k, j, i)*invsdetg;
+        dens_e[1] = pm1->rad.sc_J(0,1)(k, j, i)*invsdetg;
+        dens_e[2] = pm1->rad.sc_J(0,2)(k, j, i)*invsdetg;
+        
+        // Calculate equilibriated state
+        ierr[0] = pmy_weakrates->WeakEquilibrium(rho, T, Y_e, dens_n[0], dens_n[1], dens_n[2], dens_e[0], dens_e[1], dens_e[2], T_star, Y_e_star, dens_n_trap[0], dens_n_trap[1], dens_n_trap[2], dens_e_trap[0], dens_e_trap[1], dens_e_trap[2]);
 
-      // Energy emissivity
-      pm1->radmat.sc_eta(0,0)(k,j,i) = eta_e_nue;
-      pm1->radmat.sc_eta(0,1)(k,j,i) = eta_e_nua;
-      pm1->radmat.sc_eta(0,2)(k,j,i) = eta_e_nux;
+        // If we can't get equilibrium, try again but ignore current neutrino data
+        if (ierr[0]) {
+          ierr[1] = pmy_weakrates->WeakEquilibrium(rho, T, Y_e, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, T_star, Y_e_star, dens_n_trap[0], dens_n_trap[1], dens_n_trap[2], dens_e_trap[0], dens_e_trap[1], dens_e_trap[2]);
 
-      // Energy absorption
-      pm1->radmat.sc_kap_a(0,0)(k,j,i) = kap_a_e_nue;
-      pm1->radmat.sc_kap_a(0,1)(k,j,i) = kap_a_e_nua;
-      pm1->radmat.sc_kap_a(0,2)(k,j,i) = kap_a_e_nux;
+          // TODO THC WeakRates treats this as a warning
+          assert(!ierr[1]);
+        }
+      }
+
+      // Calculate equilibrium blackbody functions with fixed T, Ye
+      Real dens_n_thin[3];
+      Real dens_e_thin[3];
+      ierr[0] = pmy_weakrates->NeutrinoDensity(rho, T, Y_e, dens_n_thin[0], dens_n_thin[1], dens_n_thin[2], dens_e_thin[0], dens_e_thin[1], dens_e_thin[2]);
+      assert(!ierr[0]);
+      
+      // Set the black body function
+      Real dens_n[3];
+      Real dens_e[3];
+      if (opacity_tau_trap < 0 || tau <= opacity_tau_trap) {
+        dens_n[0] = dens_n_thin[0];
+        dens_n[1] = dens_n_thin[1];
+        dens_n[2] = dens_n_thin[2];
+
+        dens_e[0] = dens_e_thin[0];
+        dens_e[1] = dens_e_thin[1];
+        dens_e[2] = dens_e_thin[2];
+      } else if (tau > opacity_tau_trap + opacity_tau_delta) {
+        dens_n[0] = dens_n_trap[0];
+        dens_n[1] = dens_n_trap[1];
+        dens_n[2] = dens_n_trap[2];
+
+        dens_e[0] = dens_e_trap[0];
+        dens_e[1] = dens_e_trap[1];
+        dens_e[2] = dens_e_trap[2];
+      } else {
+        Real lam = (tau - opacity_tau_trap)/opacity_tau_delta;
+
+        dens_n[0] = lam*dens_n_trap[0] + (1-lam)*dens_n_thin[0];
+        dens_n[1] = lam*dens_n_trap[1] + (1-lam)*dens_n_thin[1];
+        dens_n[2] = lam*dens_n_trap[2] + (1-lam)*dens_n_thin[2];
+
+        dens_e[0] = lam*dens_e_trap[0] + (1-lam)*dens_e_thin[0];
+        dens_e[1] = lam*dens_e_trap[1] + (1-lam)*dens_e_thin[1];
+        dens_e[2] = lam*dens_e_trap[2] + (1-lam)*dens_e_thin[2];
+      }
+
+      // Calculate correction factors
+      Real e_ave[3];
+      Real corr_fac[3];
+      for (int s_idx=0; s_idx<N_SPCS; ++s_idx) {
+        pm1->radmat.sc_avg_nrg(0,s_idx)(k, j, i) = dens_e[s_idx]/dens_n[s_idx];
+        corr_fac[s_idx] = pm1->rad.sc_J(0,s_idx)(k, j, i) / (pm1->rad.sc_nnu(0,s_idx)(k, j, i)*pm1->radmat.sc_avg_nrg(0,s_idx)(k, j, i));
+
+        if (!std::isfinite(corr_fac[s_idx])) {
+          corr_fac[s_idx] = 1.0;
+        }
+
+        corr_fac[s_idx] *= corr_fac[s_idx];
+        corr_fac[s_idx] = std::max(1.0/opacity_corr_fac_max, std::min(corr_fac[s_idx], opacity_corr_fac_max));
+      }
 
       // Energy scattering
-      pm1->radmat.sc_kap_s(0,0)(k,j,i) = kap_s_e_nue;
-      pm1->radmat.sc_kap_s(0,1)(k,j,i) = kap_s_e_nua;
-      pm1->radmat.sc_kap_s(0,2)(k,j,i) = kap_s_e_nux;
+      pm1->radmat.sc_kap_s(0,0)(k,j,i) = corr_fac[0]*kap_s_e_nue;
+      pm1->radmat.sc_kap_s(0,1)(k,j,i) = corr_fac[1]*kap_s_e_nua;
+      pm1->radmat.sc_kap_s(0,2)(k,j,i) = corr_fac[2]*kap_s_e_nux;
+
+      // Enforce Kirchhoff's law
+      // For electron lepton neutrinos we change the opacity
+      // For heavy lepton neutrinos we change the emissivity
+      // TODO Floors for dens_n and dens_e?
+
+      // Electron neutrinos
+      pm1->radmat.sc_eta_0(0,0)(k,j,i)   = corr_fac[0]*eta_n_nue;
+      pm1->radmat.sc_eta(0,0)(k,j,i)     = corr_fac[0]*eta_e_nue;
+      
+      pm1->radmat.sc_kap_a_0(0,0)(k,j,i) = (dens_n[0] > 0.0 ? pm1->radmat.sc_eta_0(0,0)(k,j,i)/dens_n[0] : 0.0);
+      pm1->radmat.sc_kap_a(0,0)(k,j,i)   = (dens_e[0] > 0.0 ? pm1->radmat.sc_eta(0,0)(k,j,i)/dens_e[0]   : 0.0);
+      
+      // Electron anti-neutrinos
+      pm1->radmat.sc_eta_0(0,1)(k,j,i)   = corr_fac[1]*eta_n_nua;
+      pm1->radmat.sc_eta(0,1)(k,j,i)     = corr_fac[1]*eta_e_nua;
+      
+      pm1->radmat.sc_kap_a_0(0,1)(k,j,i) = (dens_n[1] > 0.0 ? pm1->radmat.sc_eta_0(0,1)(k,j,i)/dens_n[1] : 0.0);
+      pm1->radmat.sc_kap_a(0,1)(k,j,i)   = (dens_e[1] > 0.0 ? pm1->radmat.sc_eta(0,1)(k,j,i)/dens_e[1]   : 0.0);
+      
+      // Heavy lepton neutrinos
+      pm1->radmat.sc_kap_a_0(0,1)(k,j,i) = corr_fac[2]*kap_a_n_nux;
+      pm1->radmat.sc_kap_a(0,1)(k,j,i)   = corr_fac[2]*kap_a_e_nux;
+      
+      pm1->radmat.sc_eta_0(0,2)(k,j,i)   = pm1->radmat.sc_kap_a_0(0,1)(k,j,i)*dens_n[2];
+      pm1->radmat.sc_eta(0,2)(k,j,i)     = pm1->radmat.sc_kap_a(0,1)(k,j,i)*dens_e[2];
       
     }
 
@@ -153,6 +250,11 @@ private:
 
   const int N_GRPS;
   const int N_SPCS;
+
+  // Options for controlling weakrates opacities
+  Real opacity_tau_trap;
+  Real opacity_tau_delta;
+  Real opacity_corr_fac_max;
 
 };
 
