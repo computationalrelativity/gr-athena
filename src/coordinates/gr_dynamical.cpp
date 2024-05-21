@@ -526,7 +526,7 @@ void GRDynamical::_AddCoordTermsDivergence(
     GetGeometricFieldCC(ms_alpha_,        z4c_alpha,    k, j);
     GetGeometricFieldCC(ms_beta_u_,       z4c_beta_u,   k, j);
 
-#ifndef DBG_FD_CX_COORDDIV
+#if !defined(DBG_FD_CX_COORDDIV) || !defined(Z4C_CX_ENABLED)
     for(int a=0; a<NDIM; ++a)
     {
       GetGeometricFieldDerCC(ms_adm_dgamma_ddd_, adm_gamma_dd, a, k, j);
@@ -860,6 +860,38 @@ void GRDynamical::AddCoordTermsDivergence(
       GetGeometricFieldDerCC(dalpha_d,   z4c_alpha,    a, k, j);
       GetGeometricFieldDerCC(dbeta_du,   z4c_beta_u,   a, k, j);
     }
+
+#if !defined(DBG_FD_CX_COORDDIV) || !defined(Z4C_CX_ENABLED)
+    for(int a=0; a<NDIM; ++a)
+    {
+      GetGeometricFieldDerCC(dgamma_ddd, adm_gamma_dd, a, k, j);
+      GetGeometricFieldDerCC(dalpha_d,   z4c_alpha,    a, k, j);
+      GetGeometricFieldDerCC(dbeta_du,   z4c_beta_u,   a, k, j);
+    }
+#else
+    for (int a=0; a<NDIM; ++a)
+    ILOOP1(i)
+    {
+      dalpha_d(a,i) = fd_cx->Dx(a, z4c_alpha(k,j,i));
+    }
+
+    for (int a=0; a<NDIM; ++a)
+    for (int b=0; b<NDIM; ++b)
+    ILOOP1(i)
+    {
+      dbeta_du(b,a,i) = fd_cx->Dx(b, z4c_beta_u(a,k,j,i));
+    }
+
+    // Tensors
+    for (int a=0; a<NDIM; ++a)
+    for (int b=a; b<NDIM; ++b)
+    for (int c=0; c<NDIM; ++c)
+    ILOOP1(i)
+    {
+      dgamma_ddd(c,a,b,i) = fd_cx->Dx(c, adm_gamma_dd(a,b,k,j,i));
+    }
+#endif // DBG_FD_CX_COORDDIV
+
 
   	CLOOP1(i)
     {

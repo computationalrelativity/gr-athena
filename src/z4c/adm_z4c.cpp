@@ -292,6 +292,8 @@ void Z4c::ADMConstraints(
     // -----------------------------------------------------------------------------------
     // Ricci tensor and Ricci scalar
     //
+
+    /*
     R.ZeroClear();
     R_dd.ZeroClear();
     for(int a = 0; a < NDIM; ++a)
@@ -315,6 +317,43 @@ void Z4c::ADMConstraints(
       ILOOP1(i) {
         R(i) += g_uu(a,b,i) * R_dd(a,b,i);
       }
+    }
+    */
+
+    R_dd.ZeroClear();
+    for (int a=0; a<NDIM; ++a)
+    for (int b=a; b<NDIM; ++b)
+    {
+      for (int c=0; c<NDIM; ++c)
+      for (int d=0; d<NDIM; ++d)
+      for (int f=0; f<NDIM; ++f)
+      ILOOP1(i)
+      {
+        R_dd(a,b,i) += g_uu(d,f,i) * (
+          Gamma_udd(c,a,f,i) * Gamma_ddd(c,b,d,i) -
+          Gamma_udd(c,a,b,i) * Gamma_ddd(c,f,d,i)
+        );
+      }
+
+      for (int c=0; c<NDIM; ++c)
+      for (int d=0; d<NDIM; ++d)
+      ILOOP1(i)
+      {
+        R_dd(a,b,i) += 0.5 * g_uu(c,d,i) * (
+          -ddg_dddd(b,a,c,d,i)
+          +ddg_dddd(d,a,b,c,i)
+          +ddg_dddd(d,b,a,c,i)
+          -ddg_dddd(d,c,a,b,i)
+        );
+      }
+    }
+
+    R.ZeroClear();
+    for (int a=0; a<NDIM; ++a)
+    for (int b=0; b<NDIM; ++b)
+    ILOOP1(i)
+    {
+      R(i) += g_uu(a,b,i) * R_dd(a,b,i);
     }
 
     // -----------------------------------------------------------------------------------
