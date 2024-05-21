@@ -335,16 +335,28 @@ for (int l=0; l<NSCALARS; l++){
   }
 #endif
 
-#pragma omp simd
-  for (int i=il; i<=iu; ++i) {
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
     // Reapply EOS floors to both L/R reconstructed primitive states
     // TODO(felker): check that fused loop with NWAVE redundant application is slower
 #if USETM
-      pmy_block_->peos->ApplyPrimitiveFloors(wl, scalar_l, k, j, i+1);
-      pmy_block_->peos->ApplyPrimitiveFloors(wr, scalar_r, k, j, i);
-#else 
+    pmy_block_->peos->ApplyPrimitiveFloors(wl, scalar_l, k, j, i+1);
+    pmy_block_->peos->ApplyPrimitiveFloors(wr, scalar_r, k, j, i);
+#else
+    if (xorder_fallback)
+    {
+      const bool rpf = (
+        pmy_block_->peos->RequirePrimitiveFloor(wl,k,j,i+1) ||
+        pmy_block_->peos->RequirePrimitiveFloor(wr,k,j,i));
+
+      PiecewiseLinearX1(k, j, i, i, w, bcc, wl, wr);
+    }
+    else
+    {
       pmy_block_->peos->ApplyPrimitiveFloors(wl, k, j, i+1);
       pmy_block_->peos->ApplyPrimitiveFloors(wr, k, j, i);
+    }
 #endif
   }
   return;
@@ -648,14 +660,26 @@ void Reconstruction::PiecewiseParabolicX2(
 #endif
   
 #pragma omp simd
-  for (int i=il; i<=iu; ++i) {
+  for (int i=il; i<=iu; ++i)
+  {
     // Reapply EOS floors to both L/R reconstructed primitive states
 #if USETM
-      pmy_block_->peos->ApplyPrimitiveFloors(wl, scalar_l, k, j, i);
-      pmy_block_->peos->ApplyPrimitiveFloors(wr, scalar_r, k, j, i);
-#else 
+    pmy_block_->peos->ApplyPrimitiveFloors(wl, scalar_l, k, j, i);
+    pmy_block_->peos->ApplyPrimitiveFloors(wr, scalar_r, k, j, i);
+#else
+    if (xorder_fallback)
+    {
+      const bool rpf = (
+        pmy_block_->peos->RequirePrimitiveFloor(wl,k,j,i) ||
+        pmy_block_->peos->RequirePrimitiveFloor(wr,k,j,i));
+
+      PiecewiseLinearX2(k, j, i, i, w, bcc, wl, wr);
+    }
+    else
+    {
       pmy_block_->peos->ApplyPrimitiveFloors(wl, k, j, i);
       pmy_block_->peos->ApplyPrimitiveFloors(wr, k, j, i);
+    }
 #endif
   }
   return;
@@ -949,16 +973,28 @@ void Reconstruction::PiecewiseParabolicX3(
     }
   }
 #endif
-  
-#pragma omp simd
-  for (int i=il; i<=iu; ++i) {
+
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
     // Reapply EOS floors to both L/R reconstructed primitive states
 #if USETM
-      pmy_block_->peos->ApplyPrimitiveFloors(wl, scalar_l, k, j, i);
-      pmy_block_->peos->ApplyPrimitiveFloors(wr, scalar_r, k, j, i);
-#else 
+    pmy_block_->peos->ApplyPrimitiveFloors(wl, scalar_l, k, j, i);
+    pmy_block_->peos->ApplyPrimitiveFloors(wr, scalar_r, k, j, i);
+#else
+    if (xorder_fallback)
+    {
+      const bool rpf = (
+        pmy_block_->peos->RequirePrimitiveFloor(wl,k,j,i) ||
+        pmy_block_->peos->RequirePrimitiveFloor(wr,k,j,i));
+
+      PiecewiseLinearX3(k, j, i, i, w, bcc, wl, wr);
+    }
+    else
+    {
       pmy_block_->peos->ApplyPrimitiveFloors(wl, k, j, i);
       pmy_block_->peos->ApplyPrimitiveFloors(wr, k, j, i);
+    }
 #endif
   }
   return;
