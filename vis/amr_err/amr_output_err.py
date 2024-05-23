@@ -68,6 +68,22 @@ class Params:
     self.output_field = None ## the name of field to be output
 
 
+## given (x,y,z) and mb, find meshblock with xp,yp,zp
+## such that x = xp, y = yp and z = -zp. return none if couldn't find
+def find_reflect_xyz_ind(mbs, mb, x, y, z):
+  for mb in mbs.keys():
+    for j in range(mbs[mb]["jI"], mbs[mb]["jF"]):
+      yp = db["x2v"][mb][j]
+      for k in range(mbs[mb]["kI"], mbs[mb]["kF"]):
+        zp = db["x3v"][mb][k]
+        for i in range(mbs[mb]["iI"], mbs[mb]["iF"]):
+          xp = db["x1v"][mb][i]
+          if x == xp and y == yp and z == -zp:
+            return (mb, i, j, k)
+
+  return (None, None, None, None)
+
+
 ## calc. the L2 norm and add it to the db. note: this is for a slice
 def L2(params, db, mbs, slice, file):
   db[params.output_field +
@@ -649,7 +665,12 @@ class Plot:
     ax.set_title("cycle:" + cycle + ", slice:{}".format(params.cut))
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
-    plt.colorbar(label="h^6 " + fld, cmap=cmap, orientation="horizontal")
+    if params.analysis == "der":
+      lable = "h^6 " + fld
+    else:
+      label = fld
+
+    plt.colorbar(label=label, cmap=cmap, orientation="horizontal")
     plt.savefig(output + "_" + cycle + "." + params.out_format)
     plt.close("all")
 
@@ -933,8 +954,14 @@ class Analysis:
 
     ## plot a quantity
     if params.analysis == "plot":
+      params.output_field = params.field_name + "bitant_diff"
+      self.max_grid_space(params, db, mbs, slice, file)
+
+    ## bitant analysis
+    elif params.analysis == "bitant":
       params.output_field = params.field_name
       self.max_grid_space(params, db, mbs, slice, file)
+      self.bitant_sum(params, db, mbs, slice, file)
 
     ## plot meshblock grid space vs radius
     elif params.analysis == "grid_space":
@@ -949,6 +976,38 @@ class Analysis:
 
     else:
       raise Exception("Unknown analysis '{}'!".format(params.analysis))
+
+  ##  for z >= 0: |chi(x,y,z) - chi(x,y,-z)|
+  def bitant_sum(self, params, db, mbs, slice, file):
+    print("{} ...".format(self.bitant_sum.__name__))
+    sys.stdout.flush()
+
+    db[params.output_field] = np.zeros(shape=db[params.field_name].shape)
+
+    assert slice.slice_dir == 2
+
+    for mb in mbs.keys():
+      ## for each (x,y,z), z>=0 find the correspoing (x,y,-z)
+      for j in range(mbs[mb]["jI"], mbs[mb]["jF"]):
+        y = db["x2v"][mb][j]
+        for k in range(mbs[mb]["kI"], mbs[mb]["kF"]):
+          z = db["x3v"][mb][k]
+          for i in range(mbs[mb]["iI"], mbs[mb]["iF"]):
+            x = db["x1v"][mb][i]
+            (mbp, ip, jp, kp) = find_reflect_xyz_ind(mbs, mb, x, y, z)
+
+            if mbp == None:
+              db[params.output_field][mb][k, j, i] = 0.0
+              continue
+
+            xp = db["x1v"][mbp][ip]
+            yp = db["x2v"][mbp][jp]
+            zp = db["x3v"][mbp][kp]
+            # print(f' found: ({mb},{x},{y},{z}) <--> ({mbp},{xp},{yp},{zp})\n')
+
+            diff = abs(db[params.field_name][mb][k, j, i] -
+                       db[params.field_name][mbp][kp, jp, ip])
+            db[params.output_field][mb][k, j, i] = diff
 
   ## calc. derivative, note: this is for a slice
   def derivative(self, params, db, mbs, slice, file):
@@ -1142,7 +1201,7 @@ if __name__ == "__main__":
       type=str,
       default="plot",
       help=
-      "analysis = {plot,der,grid_space}. 'grid_space' plots grid-space vs radius",
+      "analysis = {plot,der,grid_space,bitant}. 'grid_space' plots grid-space vs radius",
   )
   p.add_argument("-d", type=int, default=2, help="derivative order.")
   p.add_argument(
