@@ -183,7 +183,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
     };
     rescale_metric = lambda;
   }
-  pmy_block_->pfield->CalculateCellCenteredField(bb, bb_cc, pco, il-1, iu+1, jl-1, ju+1, kl-1, ku+1);
+  pmy_block_->pfield->CalculateCellCenteredField(bb, bb_cc, pco, il, iu, jl, ju, kl, ku);
 
   // Go through the cells
   for (int k = kl; k <= ku; ++k) {
@@ -272,7 +272,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
           }
           // FIXME: Add particle fractions
           std::cerr << "  b_u = [" << bb_cc(IB1, k, j, i) << ", " << bb_cc(IB2, k, j, i)
-                                   << bb_cc(IB3, k, j, i) << "]\n";
+                                   << ", " << bb_cc(IB3, k, j, i) << "]\n";
           // Calculate mass loss with compensated summation.
           if (coarse_flag == 0) {
             Real vol = pmy_block_->pcoord->dx1v(i)*pmy_block_->pcoord->dx2v(j)*
