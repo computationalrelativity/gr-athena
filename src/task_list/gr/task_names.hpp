@@ -128,7 +128,7 @@ const TaskID CCE_DUMP(18);
 
 }  // TaskNames::GeneralRelativity::GR_Z4c
 
-namespace TaskNames::GeneralRelativity::PostAMR {
+namespace TaskNames::GeneralRelativity::PostAMR_Z4c {
 
 const TaskID NONE(0);
 const TaskID CLEAR_ALLBND(1);
@@ -140,6 +140,6 @@ const TaskID ADM_CONSTR(8);
 
 const TaskID Z4C_WEYL(9);
 
-}  // namespace TaskNames::GeneralRelativity::PostAMR
+}  // namespace TaskNames::GeneralRelativity::PostAMR_Z4c
 
 #endif  // GR_TASK_NAMES_HPP_

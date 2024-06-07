@@ -124,8 +124,8 @@ void TaskList::DoTaskListOneStage(Mesh *pmesh, int stage) {
       {
         auto time_now = std::chrono::steady_clock::now();
         std::chrono::duration<double> elapsed = time_now - start;
-        if (elapsed.count() > 600.0) {
-          std::cout << "The task list has been stuck for longer than 10 minutes.\n";
+        if (elapsed.count() > 60.0) {
+          std::cout << "The task list has been stuck for longer than 1 minute.\n";
           std::cout << "  MeshBlock: " << i << "\n";
           std::cout << "  " << pmb_array[i]->tasks.num_tasks_left << " tasks remaining.\n";
           std::cout << "  Unfinished tasks: \n";

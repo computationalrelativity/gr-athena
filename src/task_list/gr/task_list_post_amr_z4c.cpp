@@ -19,56 +19,56 @@
 
 // ----------------------------------------------------------------------------
 using namespace TaskLists::GeneralRelativity;
-using namespace TaskNames::GeneralRelativity::PostAMR;
+using namespace TaskNames::GeneralRelativity::PostAMR_Z4c;
 
-PostAMR::PostAMR(ParameterInput *pin, Mesh *pm)
+PostAMR_Z4c::PostAMR_Z4c(ParameterInput *pin, Mesh *pm)
 {
   nstages = 1;
   {
     // Algebraic constraints, prepare ADM
-    Add(ALG_CONSTR, NONE,       &PostAMR::EnforceAlgConstr);
-    Add(Z4C_TO_ADM, ALG_CONSTR, &PostAMR::Z4cToADM);
+    Add(ALG_CONSTR, NONE,       &PostAMR_Z4c::EnforceAlgConstr);
+    Add(Z4C_TO_ADM, ALG_CONSTR, &PostAMR_Z4c::Z4cToADM);
 
     if (FLUID_ENABLED || MAGNETIC_FIELDS_ENABLED)
     {
       // ADM sources need updating (fluid populated via R/P on cons.)
-      Add(UPDATE_SRC, Z4C_TO_ADM, &PostAMR::UpdateSource);
-      Add(ADM_CONSTR, UPDATE_SRC, &PostAMR::ADM_Constraints);
+      Add(UPDATE_SRC, Z4C_TO_ADM, &PostAMR_Z4c::UpdateSource);
+      Add(ADM_CONSTR, UPDATE_SRC, &PostAMR_Z4c::ADM_Constraints);
     }
     else
     {
       // vacuum
-      Add(ADM_CONSTR, Z4C_TO_ADM, &PostAMR::ADM_Constraints);
+      Add(ADM_CONSTR, Z4C_TO_ADM, &PostAMR_Z4c::ADM_Constraints);
     }
 
     // Recompute Weyl (strictly only needed for 3d dump)
-    Add(Z4C_WEYL, Z4C_TO_ADM, &PostAMR::Z4c_Weyl);
+    Add(Z4C_WEYL, Z4C_TO_ADM, &PostAMR_Z4c::Z4c_Weyl);
 
   } // end of using namespace block
 
 }
 
 // ----------------------------------------------------------------------------
-void PostAMR::StartupTaskList(MeshBlock *pmb, int stage)
+void PostAMR_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
 {
   return;
 }
 
-TaskStatus PostAMR::EnforceAlgConstr(MeshBlock *pmb, int stage)
+TaskStatus PostAMR_Z4c::EnforceAlgConstr(MeshBlock *pmb, int stage)
 {
   Z4c *pz4c = pmb->pz4c;
   pz4c->AlgConstr(pz4c->storage.u);
   return TaskStatus::success;
 }
 
-TaskStatus PostAMR::Z4cToADM(MeshBlock *pmb, int stage)
+TaskStatus PostAMR_Z4c::Z4cToADM(MeshBlock *pmb, int stage)
 {
   Z4c *pz4c = pmb->pz4c;
   pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
   return TaskStatus::success;
 }
 
-TaskStatus PostAMR::UpdateSource(MeshBlock *pmb, int stage)
+TaskStatus PostAMR_Z4c::UpdateSource(MeshBlock *pmb, int stage)
 {
   Hydro *ph = pmb->phydro;
   Z4c *pz4c = pmb->pz4c;
@@ -83,7 +83,7 @@ TaskStatus PostAMR::UpdateSource(MeshBlock *pmb, int stage)
   return TaskStatus::success;
 }
 
-TaskStatus PostAMR::ADM_Constraints(MeshBlock *pmb, int stage)
+TaskStatus PostAMR_Z4c::ADM_Constraints(MeshBlock *pmb, int stage)
 {
   Z4c *pz4c = pmb->pz4c;
 
@@ -103,7 +103,7 @@ TaskStatus PostAMR::ADM_Constraints(MeshBlock *pmb, int stage)
   return TaskStatus::success;
 }
 
-TaskStatus PostAMR::Z4c_Weyl(MeshBlock *pmb, int stage)
+TaskStatus PostAMR_Z4c::Z4c_Weyl(MeshBlock *pmb, int stage)
 {
   Z4c *pz4c = pmb->pz4c;
 

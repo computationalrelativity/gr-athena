@@ -23,205 +23,14 @@
 
 // ----------------------------------------------------------------------------
 using namespace TaskLists::GeneralRelativity;
+using namespace TaskLists::Integrators;
 using namespace TaskNames::GeneralRelativity::GR_Z4c;
 
 GR_Z4c::GR_Z4c(ParameterInput *pin, Mesh *pm)
+  : LowStorage(pin, pm)
 {
-  // First, define each time-integrator by setting weights for each step of the algorithm
-  // and the CFL number stability limit when coupled to the single-stage spatial operator.
-  // Currently, the explicit, multistage time-integrators must be expressed as 2S-type
-  // algorithms as in Ketcheson (2010) Algorithm 3, which incudes 2N (Williamson) and 2R
-  // (van der Houwen) popular 2-register low-storage RK methods. The 2S-type integrators
-  // depend on a bidiagonally sparse Shu-Osher representation; at each stage l:
-  //
-  //    U^{l} = a_{l,l-2}*U^{l-2} + a_{l-1}*U^{l-1}
-  //          + b_{l,l-2}*dt*Div(F_{l-2}) + b_{l,l-1}*dt*Div(F_{l-1}),
-  //
-  // where U^{l-1} and U^{l-2} are previous stages and a_{l,l-2}, a_{l,l-1}=(1-a_{l,l-2}),
-  // and b_{l,l-2}, b_{l,l-1} are weights that are different for each stage and
-  // integrator. Previous timestep U^{0} = U^n is given, and the integrator solves
-  // for U^{l} for 1 <= l <= nstages.
-  //
-  // The 2x RHS evaluations of Div(F) and source terms per stage is avoided by adding
-  // another weighted average / caching of these terms each stage. The API and framework
-  // is extensible to three register 3S* methods, although none are currently implemented.
-
-  // Notation: exclusively using "stage", equivalent in lit. to "substage" or "substep"
-  // (infrequently "step"), to refer to the intermediate values of U^{l} between each
-  // "timestep" = "cycle" in explicit, multistage methods. This is to disambiguate the
-  // temporal integration from other iterative sequences; "Step" is often used for generic
-  // sequences in code, e.g. main.cpp: "Step 1: MPI"
-  //
-  // main.cpp invokes the tasklist in a for () loop from stage=1 to stage=ptlist->nstages
-  integrator = pin->GetOrAddString("time", "integrator", "vl2");
-
-  if (integrator == "vl2") {
-    // VL: second-order van Leer integrator (Stone & Gardiner, NewA 14, 139 2009)
-    // Simple predictor-corrector scheme similar to MUSCL-Hancock
-    // Expressed in 2S or 3S* algorithm form
-    nstages = 2;
-    cfl_limit = 1.0;
-    // Modify VL2 stability limit in 2D, 3D
-    if (pm->ndim == 2) cfl_limit = 0.5;
-    if (pm->ndim == 3) cfl_limit = 0.5;
-
-    stage_wghts[0].delta = 1.0; // required for consistency
-    stage_wghts[0].gamma_1 = 0.0;
-    stage_wghts[0].gamma_2 = 1.0;
-    stage_wghts[0].gamma_3 = 0.0;
-    stage_wghts[0].beta = 0.5;
-
-    stage_wghts[1].delta = 0.0;
-    stage_wghts[1].gamma_1 = 0.0;
-    stage_wghts[1].gamma_2 = 1.0;
-    stage_wghts[1].gamma_3 = 0.0;
-    stage_wghts[1].beta = 1.0;
-  } else if (integrator == "rk1") {
-    // RK1: first-order Runge-Kutta / the forward Euler (FE) method
-    nstages = 1;
-    cfl_limit = 1.0;
-    stage_wghts[0].delta = 1.0;
-    stage_wghts[0].gamma_1 = 0.0;
-    stage_wghts[0].gamma_2 = 1.0;
-    stage_wghts[0].gamma_3 = 0.0;
-    stage_wghts[0].beta = 1.0;
-  } else if (integrator == "rk2") {
-    // Heun's method / SSPRK (2,2): Gottlieb (2009) equation 3.1
-    // Optimal (in error bounds) explicit two-stage, second-order SSPRK
-    nstages = 2;
-    cfl_limit = 1.0;  // c_eff = c/nstages = 1/2 (Gottlieb (2009), pg 271)
-    stage_wghts[0].delta = 1.0;
-    stage_wghts[0].gamma_1 = 0.0;
-    stage_wghts[0].gamma_2 = 1.0;
-    stage_wghts[0].gamma_3 = 0.0;
-    stage_wghts[0].beta = 1.0;
-
-    stage_wghts[1].delta = 0.0;
-    stage_wghts[1].gamma_1 = 0.5;
-    stage_wghts[1].gamma_2 = 0.5;
-    stage_wghts[1].gamma_3 = 0.0;
-    stage_wghts[1].beta = 0.5;
-  } else if (integrator == "rk3") {
-    // SSPRK (3,3): Gottlieb (2009) equation 3.2
-    // Optimal (in error bounds) explicit three-stage, third-order SSPRK
-    nstages = 3;
-    cfl_limit = 1.0;  // c_eff = c/nstages = 1/3 (Gottlieb (2009), pg 271)
-    stage_wghts[0].delta = 1.0;
-    stage_wghts[0].gamma_1 = 0.0;
-    stage_wghts[0].gamma_2 = 1.0;
-    stage_wghts[0].gamma_3 = 0.0;
-    stage_wghts[0].beta = 1.0;
-
-    stage_wghts[1].delta = 0.0;
-    stage_wghts[1].gamma_1 = 0.25;
-    stage_wghts[1].gamma_2 = 0.75;
-    stage_wghts[1].gamma_3 = 0.0;
-    stage_wghts[1].beta = 0.25;
-
-    stage_wghts[2].delta = 0.0;
-    stage_wghts[2].gamma_1 = TWO_3RD;
-    stage_wghts[2].gamma_2 = ONE_3RD;
-    stage_wghts[2].gamma_3 = 0.0;
-    stage_wghts[2].beta = TWO_3RD;
-    //} else if (integrator == "ssprk5_3") {
-    //} else if (integrator == "ssprk10_4") {
-  } else if (integrator == "rk4") {
-    // RK4()4[2S] from Table 2 of Ketcheson (2010)
-    // Non-SSP, explicit four-stage, fourth-order RK
-    nstages = 4;
-    // Stability properties are similar to classical (non-SSP) RK4 (but ~2x L2 principal
-    // error norm). Refer to Colella (2011) for linear stability analysis of constant
-    // coeff. advection of classical RK4 + 4th or 1st order (limiter engaged) fluxes
-    cfl_limit = 1.3925; // Colella (2011) eq 101; 1st order flux is most severe constraint
-    stage_wghts[0].delta = 1.0;
-    stage_wghts[0].gamma_1 = 0.0;
-    stage_wghts[0].gamma_2 = 1.0;
-    stage_wghts[0].gamma_3 = 0.0;
-    stage_wghts[0].beta = 1.193743905974738;
-
-    stage_wghts[1].delta = 0.217683334308543;
-    stage_wghts[1].gamma_1 = 0.121098479554482;
-    stage_wghts[1].gamma_2 = 0.721781678111411;
-    stage_wghts[1].gamma_3 = 0.0;
-    stage_wghts[1].beta = 0.099279895495783;
-
-    stage_wghts[2].delta = 1.065841341361089;
-    stage_wghts[2].gamma_1 = -3.843833699660025;
-    stage_wghts[2].gamma_2 = 2.121209265338722;
-    stage_wghts[2].gamma_3 = 0.0;
-    stage_wghts[2].beta = 1.131678018054042;
-
-    stage_wghts[3].delta = 0.0;
-    stage_wghts[3].gamma_1 = 0.546370891121863;
-    stage_wghts[3].gamma_2 = 0.198653035682705;
-    stage_wghts[3].gamma_3 = 0.0;
-    stage_wghts[3].beta = 0.310665766509336;
-  } else if (integrator == "ssprk5_4") {
-    // SSPRK (5,4): Gottlieb (2009) section 3.1; between eq 3.3 and 3.4
-    // Optimal (in error bounds) explicit five-stage, fourth-order SSPRK
-    // 3N method, but there is no 3S* formulation due to irregular sparsity
-    // of Shu-Osher form matrix, alpha.
-    nstages = 5;
-    // Because it is an SSP method, we can use the SSP coefficient c=1.508 to to trivially
-    // relate the CFL constraint to the RK1 CFL=1 (for first-order fluxes). There is no
-    // need to perform stability analysis from scratch (unlike e.g. the linear stability
-    // analysis for classical/non-SSP RK4 in Colella (2011)) However, PLM and PPM w/o the
-    // limiter engaged are unconditionally unstable under RK1 integration, so the SSP
-    // guarantees do not hold for the Athena++ spatial discretizations.
-    cfl_limit = 1.508;         //  (effective SSP coeff = 0.302) Gottlieb (2009) pg 272
-    // u^(1)
-    stage_wghts[0].delta = 1.0; // u1 = u^n
-    stage_wghts[0].gamma_1 = 0.0;
-    stage_wghts[0].gamma_2 = 1.0;
-    stage_wghts[0].gamma_3 = 0.0;
-    stage_wghts[0].beta = 0.391752226571890;
-
-    // u^(2)
-    stage_wghts[1].delta = 0.0; // u1 = u^n
-    stage_wghts[1].gamma_1 = 0.555629506348765;
-    stage_wghts[1].gamma_2 = 0.444370493651235;
-    stage_wghts[1].gamma_3 = 0.0;
-    stage_wghts[1].beta = 0.368410593050371;
-
-    // u^(3)
-    stage_wghts[2].delta = 0.517231671970585; // u1 <- (u^n + d*u^(2))
-    stage_wghts[2].gamma_1 = 0.379898148511597;
-    stage_wghts[2].gamma_2 = 0.0;
-    stage_wghts[2].gamma_3 = 0.620101851488403; // u^(n) coeff =  u2
-    stage_wghts[2].beta = 0.251891774271694;
-
-    // u^(4)
-    stage_wghts[3].delta = 0.096059710526147; // u1 <- (u^n + d*u^(2) + d'*u^(3))
-    stage_wghts[3].gamma_1 = 0.821920045606868;
-    stage_wghts[3].gamma_2 = 0.0;
-    stage_wghts[3].gamma_3 = 0.178079954393132; // u^(n) coeff =  u2
-    stage_wghts[3].beta = 0.544974750228521;
-
-    // u^(n+1) partial expression
-    stage_wghts[4].delta = 0.0;
-    stage_wghts[4].gamma_1 = 0.386708617503268; // 1 ulp lower than Gottlieb u^(4) coeff
-    stage_wghts[4].gamma_2 = 1.0; // u1 <- (u^n + d*u^(2) + d'*u^(3))
-    stage_wghts[4].gamma_3 = 1.0; // partial sum from hardcoded extra stage=4
-    stage_wghts[4].beta = 0.226007483236906; // F(u^(4)) coeff.
-  } else {
-    std::stringstream msg;
-    msg << "### FATAL ERROR in TimeIntegratorTaskList constructor" << std::endl
-        << "integrator=" << integrator << " not valid time integrator" << std::endl;
-    ATHENA_ERROR(msg);
-  }
-
-  // Set cfl_number based on user input and time integrator CFL limit
-  Real cfl_number = pin->GetReal("time", "cfl_number");
-  if (cfl_number > cfl_limit
-      && pm->fluid_setup == FluidFormulation::evolve) {
-    std::cout << "### Warning in TimeIntegratorTaskList constructor" << std::endl
-              << "User CFL number " << cfl_number << " must be smaller than " << cfl_limit
-              << " for integrator=" << integrator << " in " << pm->ndim
-              << "D simulation" << std::endl << "Setting to limit" << std::endl;
-    cfl_number = cfl_limit;
-  }
-  // Save to Mesh class
-  pm->cfl_number = cfl_number;
+  // Take the number of stages from the integrator
+  nstages = LowStorage::nstages;
 
   //---------------------------------------------------------------------------
   // Output frequency control (on task-list)
@@ -336,7 +145,8 @@ GR_Z4c::GR_Z4c(ParameterInput *pin, Mesh *pm)
 }
 
 // ----------------------------------------------------------------------------
-void GR_Z4c::StartupTaskList(MeshBlock *pmb, int stage) {
+void GR_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
+{
   // application of Sommerfeld boundary conditions
   pmb->pz4c->Z4cBoundaryRHS(pmb->pz4c->storage.u,
                           pmb->pz4c->storage.mat,
@@ -364,7 +174,7 @@ void GR_Z4c::StartupTaskList(MeshBlock *pmb, int stage) {
     // Given overall timestep dt, compute the time abscissae for all registers, stages
     for (int l=1; l<=nstages; l++) {
       // Update the dt abscissae of each memory register to values at end of this stage
-      const IntegratorWeight w = stage_wghts[l-1];
+      const IntegratorWeights w = stage_wghts[l-1];
 
       // u1 = u1 + delta*u
       pmb->stage_abscissae[l][1] = pmb->stage_abscissae[l-1][1]
@@ -612,7 +422,7 @@ TaskStatus GR_Z4c::CCEDump(MeshBlock *pmb, int stage) {
 
   Mesh *pm = pmb->pmy_mesh;
 
-  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.cce_dump)) 
+  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.cce_dump))
   {
     for (auto cce : pm->pcce)
     {

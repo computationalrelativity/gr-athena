@@ -391,8 +391,8 @@ int main(int argc, char *argv[]) {
   Z4cRBCTaskList        *pz4crbclist = nullptr;
   Z4cAuxTaskList        *pz4cauxlist = nullptr;
 
-  TaskLists::GeneralRelativity::GR_Z4c  * ptlist_gr_z4c  = nullptr;
-  TaskLists::GeneralRelativity::PostAMR * ptlist_postamr = nullptr;
+  TaskLists::GeneralRelativity::GR_Z4c      * ptlist_gr_z4c      = nullptr;
+  TaskLists::GeneralRelativity::PostAMR_Z4c * ptlist_postamr_z4c = nullptr;
 
 #ifdef ENABLE_EXCEPTIONS
   try {
@@ -461,7 +461,7 @@ int main(int argc, char *argv[]) {
       pz4crbclist = new Z4cRBCTaskList(pinput, pmesh);
       pz4cauxlist = new Z4cAuxTaskList(pinput, pmesh);
 
-      ptlist_postamr = new TaskLists::GeneralRelativity::PostAMR(
+      ptlist_postamr_z4c = new TaskLists::GeneralRelativity::PostAMR_Z4c(
         pinput, pmesh
       );
     }
@@ -767,7 +767,7 @@ int main(int argc, char *argv[]) {
 
     if (mesh_updated && Z4C_ENABLED)
     {
-      ptlist_postamr->DoTaskListOneStage(pmesh, 1);  // only 1 stage
+      ptlist_postamr_z4c->DoTaskListOneStage(pmesh, 1);  // only 1 stage
     }
 
     pmesh->NewTimeStep();
@@ -892,7 +892,7 @@ int main(int argc, char *argv[]) {
   delete ptlist;
 #if Z4C_ENABLED
   delete ptlist_gr_z4c;
-  delete ptlist_postamr;
+  delete ptlist_postamr_z4c;
 #endif
   delete pz4crbclist;
   delete pz4cauxlist;
