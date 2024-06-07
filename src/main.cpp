@@ -39,6 +39,8 @@
 #include "globals.hpp"
 #include "gravity/fft_gravity.hpp"
 #include "task_list/task_list.hpp"
+#include "task_list/gr/task_list.hpp"
+
 #ifdef MULTIGRID
 #include "gravity/mg_gravity.hpp"
 #endif // MULTIGRID
@@ -389,7 +391,8 @@ int main(int argc, char *argv[]) {
   Z4cIntegratorTaskList *pz4clist = nullptr;
   Z4cRBCTaskList        *pz4crbclist = nullptr;
   Z4cAuxTaskList        *pz4cauxlist = nullptr;
-  Z4cPostAMRTaskList    *pz4cpostamrlist = nullptr;
+
+  TaskLists::GeneralRelativity::PostAMR * plistpostamr = nullptr;
 
 #ifdef ENABLE_EXCEPTIONS
   try {
@@ -457,7 +460,10 @@ int main(int argc, char *argv[]) {
     if (Z4C_ENABLED) { // only init. when required
       pz4crbclist = new Z4cRBCTaskList(pinput, pmesh);
       pz4cauxlist = new Z4cAuxTaskList(pinput, pmesh);
-      pz4cpostamrlist = new Z4cPostAMRTaskList(pinput, pmesh);
+
+      plistpostamr = new TaskLists::GeneralRelativity::PostAMR(
+        pinput, pmesh
+      );
     }
 #ifdef ENABLE_EXCEPTIONS
   }
@@ -761,7 +767,7 @@ int main(int argc, char *argv[]) {
 
     if (mesh_updated && Z4C_ENABLED)
     {
-      pz4cpostamrlist->DoTaskListOneStage(pmesh, 1);  // only 1 stage
+      plistpostamr->DoTaskListOneStage(pmesh, 1);  // only 1 stage
     }
 
     pmesh->NewTimeStep();

@@ -102,9 +102,26 @@ protected:
   // TODO(felker): rename to avoid confusion with class name
   Task task_list_[64*TaskID::kNField_];
 
+  // Couple function prototype directly at the point the task is added
+  //
+  // By default all tasks are considered to contribute to load-balance timing
+  void Add(
+    const TaskID& id, const TaskID& dep,
+    TaskStatus (TaskList::*fcn)(MeshBlock*, int),
+    bool lb_time=true)
+  {
+    task_list_[ntasks].task_id = id;
+    task_list_[ntasks].dependency = dep;
+    task_list_[ntasks].TaskFunc = fcn;
+    task_list_[ntasks].lb_time = lb_time;
+
+    ntasks++;
+  }
+
 private:
   virtual void AddTask(const TaskID& id, const TaskID& dep) = 0;
   virtual void StartupTaskList(MeshBlock *pmb, int stage) = 0;
+
 };
 
 //----------------------------------------------------------------------------------------
@@ -557,46 +574,6 @@ namespace Z4cRBCTaskNames {
   const TaskID CLEAR_RBCBND(9);
 
 }  // namespace Z4cRBCTaskNames
-
-
-// post-AMR hooks
-class Z4cPostAMRTaskList : public TaskList {
-public:
-  Z4cPostAMRTaskList(ParameterInput *pin, Mesh *pm);
-
-  // functions
-  TaskStatus ClearAllBoundary(MeshBlock *pmb, int stage);   // CLEAR_ALLBND
-
-  TaskStatus Nop(MeshBlock *pmb, int stage);                // NOP
-  TaskStatus EnforceAlgConstr(MeshBlock *pmb, int stage);   // ALG_CONSTR
-
-  TaskStatus Z4cToADM(MeshBlock *pmb, int stage);           // Z4C_TO_ADM
-  TaskStatus UpdateSource(MeshBlock *pmb, int stage);       // UPDATE_SRC
-  TaskStatus ADM_Constraints(MeshBlock *pmb, int stage);    // ADM_CONSTR
-
-  TaskStatus Z4c_Weyl(MeshBlock *pmb, int stage);           // Z4C_WEYL
-
-private:
-  void AddTask(const TaskID& id, const TaskID& dep) override;
-  void StartupTaskList(MeshBlock *pmb, int stage) override;
-};
-
-// 64-bit integers with "1" in different bit positions used to ID each wave task.
-namespace Z4cPostAMRTaskNames {
-
-  const TaskID NONE(0);
-  const TaskID CLEAR_ALLBND(1);
-
-  const TaskID NOP(2);
-
-  const TaskID ALG_CONSTR(5);
-  const TaskID Z4C_TO_ADM(6);
-  const TaskID UPDATE_SRC(7);
-  const TaskID ADM_CONSTR(8);
-
-  const TaskID Z4C_WEYL(9);
-
-}  // namespace Z4cPostAMRTaskList
 
 // Task list for dynamical spacetimes
 class MatterTaskList : public TaskList {

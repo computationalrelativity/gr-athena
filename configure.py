@@ -1381,6 +1381,10 @@ if args['z']:
     # ^ complement
     src_aux.append(f'$({str_stem}/z4c_matter_task_list.cpp, {str_z4c})')
 
+  # task_list/gr
+  str_gr = '$(wildcard src/task_list/gr/*.cpp)'
+  src_aux.append(f'{str_gr}')
+
 elif args['w']:
   src_aux.append('$(wildcard src/task_list/wave_task_list.cpp)')
 
