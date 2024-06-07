@@ -765,9 +765,14 @@ int main(int argc, char *argv[]) {
     // To rectify, we add a final task-list dealing with such quantities before
     // output.
 
-    if (mesh_updated && Z4C_ENABLED)
+    if (mesh_updated)
     {
-      ptlist_postamr_z4c->DoTaskListOneStage(pmesh, 1);  // only 1 stage
+      if (Z4C_ENABLED)
+      {
+        ptlist_postamr_z4c->DoTaskListOneStage(pmesh, 1);  // only 1 stage
+      }
+
+      pmesh->FinalizePostAMR();
     }
 
     pmesh->NewTimeStep();

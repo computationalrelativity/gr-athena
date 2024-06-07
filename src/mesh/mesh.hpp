@@ -284,8 +284,15 @@ public:
   bool SphereIntersects(Real const Sx0, Real const Sy0, Real const Sz0,
                         Real const radius);
 
+  bool IsNewFromAMR()
+  {
+    return new_from_amr;
+  }
+
 private:
-  // data
+  // if AMR *just* created this block, useful to know.
+  bool new_from_amr = false;
+
   Real new_block_dt_, new_block_dt_hyperbolic_, new_block_dt_parabolic_,
     new_block_dt_user_;
   // TODO(felker): make global TaskList a member of MeshBlock, store TaskStates in list
@@ -456,6 +463,9 @@ class Mesh {
 
   inline int GetRootLevel() { return root_level; }
 
+  // General post-AMR procedures
+  void FinalizePostAMR();
+
  private:
   // data
   int next_phys_id_; // next unused value for encoding final component of MPI tag bitfield
@@ -571,7 +581,6 @@ class Mesh {
   void SetFourPiG(Real fpg) { four_pi_G_=fpg; }
   void SetGravityThreshold(Real eps) { grav_eps_=eps; }
   void SetMeanDensity(Real d0) { grav_mean_rho_=d0; }
-
 };
 
 // collect sampling information into struct

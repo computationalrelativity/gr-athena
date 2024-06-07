@@ -2280,3 +2280,18 @@ void Mesh::OutputCycleDiagnostics() {
   }
   return;
 }
+
+
+void Mesh::FinalizePostAMR()
+{
+  // iterate over rank-local MeshBlock
+  int nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
+  MeshBlock *pmbl = pblock;
+  for (int i=0; i<nmb; ++i)
+  {
+    // main logic here....
+    pmbl->new_from_amr = false;
+
+    pmbl = pmbl->next;
+  }
+}

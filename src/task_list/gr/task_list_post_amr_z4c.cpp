@@ -1,17 +1,11 @@
 // C/C++ headers
-#include <iostream>   // endl
-#include <sstream>    // sstream
-#include <stdexcept>  // runtime_error
-#include <string>     // c_str()
 
 // Athena++ classes headers
 #include "../../athena.hpp"
-#include "../../bvals/bvals.hpp"
 #include "../../field/field.hpp"
 #include "../../hydro/hydro.hpp"
 #include "../../mesh/mesh.hpp"
 #include "../../z4c/z4c.hpp"
-#include "../../z4c/z4c_macro.hpp"
 #include "../../z4c/wave_extract.hpp"
 #include "../../parameter_input.hpp"
 #include "task_list.hpp"
@@ -56,6 +50,11 @@ void PostAMR_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
 
 TaskStatus PostAMR_Z4c::EnforceAlgConstr(MeshBlock *pmb, int stage)
 {
+  if (!pmb->IsNewFromAMR())
+  {
+    TaskStatus::success;
+  }
+
   Z4c *pz4c = pmb->pz4c;
   pz4c->AlgConstr(pz4c->storage.u);
   return TaskStatus::success;
@@ -63,6 +62,11 @@ TaskStatus PostAMR_Z4c::EnforceAlgConstr(MeshBlock *pmb, int stage)
 
 TaskStatus PostAMR_Z4c::Z4cToADM(MeshBlock *pmb, int stage)
 {
+  if (!pmb->IsNewFromAMR())
+  {
+    TaskStatus::success;
+  }
+
   Z4c *pz4c = pmb->pz4c;
   pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
   return TaskStatus::success;
@@ -70,41 +74,58 @@ TaskStatus PostAMR_Z4c::Z4cToADM(MeshBlock *pmb, int stage)
 
 TaskStatus PostAMR_Z4c::UpdateSource(MeshBlock *pmb, int stage)
 {
+  if (!pmb->IsNewFromAMR())
+  {
+    TaskStatus::success;
+  }
+
   Hydro *ph = pmb->phydro;
   Z4c *pz4c = pmb->pz4c;
 
-  // UpdateSource
-  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w,
 #if USETM
+  pz4c->GetMatter(
+    pz4c->storage.mat,
+    pz4c->storage.adm,
+    ph->w,
     pmb->pscalars->r,
-#endif
-    pmb->pfield->bcc);
+    pmb->pfield->bcc
+  );
+#else
+  pz4c->GetMatter(
+    pz4c->storage.mat,
+    pz4c->storage.adm,
+    ph->w,
+    pmb->pfield->bcc
+  );
+#endif  // USETM
 
   return TaskStatus::success;
 }
 
 TaskStatus PostAMR_Z4c::ADM_Constraints(MeshBlock *pmb, int stage)
 {
+  if (!pmb->IsNewFromAMR())
+  {
+    TaskStatus::success;
+  }
+
   Z4c *pz4c = pmb->pz4c;
 
-  pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
-
-  pz4c->GetMatter(pz4c->storage.mat,
-                  pz4c->storage.adm,
-                  pmb->phydro->w,
-#if USETM
-                  pmb->pscalars->r,
-#endif
-                  pmb->pfield->bcc);
-
-  pz4c->ADMConstraints(pz4c->storage.con, pz4c->storage.adm,
-                       pz4c->storage.mat, pz4c->storage.u);
+  pz4c->ADMConstraints(pz4c->storage.con,
+                       pz4c->storage.adm,
+                       pz4c->storage.mat,
+                       pz4c->storage.u);
 
   return TaskStatus::success;
 }
 
 TaskStatus PostAMR_Z4c::Z4c_Weyl(MeshBlock *pmb, int stage)
 {
+  if (!pmb->IsNewFromAMR())
+  {
+    TaskStatus::success;
+  }
+
   Z4c *pz4c = pmb->pz4c;
 
   pz4c->Z4cWeyl(pz4c->storage.adm,
