@@ -388,18 +388,18 @@ int main(int argc, char *argv[]) {
   }
 #endif // ENABLE_EXCEPTIONS
 
-  Z4cIntegratorTaskList *pz4clist = nullptr;
   Z4cRBCTaskList        *pz4crbclist = nullptr;
   Z4cAuxTaskList        *pz4cauxlist = nullptr;
 
-  TaskLists::GeneralRelativity::PostAMR * plistpostamr = nullptr;
+  TaskLists::GeneralRelativity::GR_Z4c  * ptlist_gr_z4c  = nullptr;
+  TaskLists::GeneralRelativity::PostAMR * ptlist_postamr = nullptr;
 
 #ifdef ENABLE_EXCEPTIONS
   try {
 #endif
 // Dynamical spacetime - no matter
     if (Z4C_ENABLED && !FLUID_ENABLED) { // only init. when required
-      pz4clist = new Z4cIntegratorTaskList(pinput, pmesh);
+      ptlist_gr_z4c = new TaskLists::GeneralRelativity::GR_Z4c(pinput, pmesh);
     }
 #ifdef ENABLE_EXCEPTIONS
   }
@@ -461,7 +461,7 @@ int main(int argc, char *argv[]) {
       pz4crbclist = new Z4cRBCTaskList(pinput, pmesh);
       pz4cauxlist = new Z4cAuxTaskList(pinput, pmesh);
 
-      plistpostamr = new TaskLists::GeneralRelativity::PostAMR(
+      ptlist_postamr = new TaskLists::GeneralRelativity::PostAMR(
         pinput, pmesh
       );
     }
@@ -552,7 +552,7 @@ int main(int argc, char *argv[]) {
   if (Z4C_ENABLED) {
     Real dt_con = pouts->GetOutputTimeStep("con");
     if (!FLUID_ENABLED){
-      pz4clist->TaskListTriggers.con.dt = dt_con;
+      ptlist_gr_z4c->TaskListTriggers.con.dt = dt_con;
     } else{
       pmatterlist->TaskListTriggers.con.dt = dt_con;
     }
@@ -614,9 +614,9 @@ int main(int argc, char *argv[]) {
       if (!FLUID_ENABLED)
       {
       // This effectively means hydro takes a time-step and _then_ the given problem takes one
-        for (int stage=1; stage<=pz4clist->nstages; ++stage)
+        for (int stage=1; stage<=ptlist_gr_z4c->nstages; ++stage)
         {
-          pz4clist->DoTaskListOneStage(pmesh, stage);
+          ptlist_gr_z4c->DoTaskListOneStage(pmesh, stage);
 
 #if defined(Z4C_CX_ENABLED)
           // recommunicate BC
@@ -656,7 +656,7 @@ int main(int argc, char *argv[]) {
 
       if (!FLUID_ENABLED)
       {
-        wave_update = pz4clist->TaskListTriggers.wave_extraction.to_update;
+        wave_update = ptlist_gr_z4c->TaskListTriggers.wave_extraction.to_update;
       } else {
         wave_update = pmatterlist->TaskListTriggers.wave_extraction.to_update;
       }
@@ -671,8 +671,8 @@ int main(int argc, char *argv[]) {
 #if CCE_ENABLED
       if (!FLUID_ENABLED)
       {
-        cce_update = pz4clist->TaskListTriggers.cce_dump.to_update;
-        cce_dt = pz4clist->TaskListTriggers.cce_dump.dt;
+        cce_update = ptlist_gr_z4c->TaskListTriggers.cce_dump.to_update;
+        cce_dt = ptlist_gr_z4c->TaskListTriggers.cce_dump.dt;
       } else {
         cce_update = pmatterlist->TaskListTriggers.cce_dump.to_update;
         cce_dt = pmatterlist->TaskListTriggers.cce_dump.dt;
@@ -740,7 +740,7 @@ int main(int argc, char *argv[]) {
       // This needs to be here to share tasklist external (though coupled) ops.
       if (!FLUID_ENABLED)
       {
-        pz4clist->UpdateTaskListTriggers();
+        ptlist_gr_z4c->UpdateTaskListTriggers();
       } else {
         pmatterlist->UpdateTaskListTriggers();
       }
@@ -767,7 +767,7 @@ int main(int argc, char *argv[]) {
 
     if (mesh_updated && Z4C_ENABLED)
     {
-      plistpostamr->DoTaskListOneStage(pmesh, 1);  // only 1 stage
+      ptlist_postamr->DoTaskListOneStage(pmesh, 1);  // only 1 stage
     }
 
     pmesh->NewTimeStep();
@@ -890,7 +890,10 @@ int main(int argc, char *argv[]) {
   delete pinput;
   delete pmesh;
   delete ptlist;
-  delete pz4clist;
+#if Z4C_ENABLED
+  delete ptlist_gr_z4c;
+  delete ptlist_postamr;
+#endif
   delete pz4crbclist;
   delete pz4cauxlist;
   delete pmatterlist;

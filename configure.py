@@ -1374,12 +1374,13 @@ if args['z']:
 
   str_stem = 'filter-out src/task_list'
 
+  # remove this confusing logic
   if args['f']:
-    # need matter task-list, remove hydro
-    src_aux.append(f'$({str_stem}/z4c_vacuum_task_list.cpp, {str_z4c})')
+    # need matter task-list, remove vacuum
+    src_aux.append(f'$({str_stem}/gr/gr_z4c.cpp, {str_z4c})')
   else:
     # ^ complement
-    src_aux.append(f'$({str_stem}/z4c_matter_task_list.cpp, {str_z4c})')
+    src_aux.append(f'$({str_stem}/gr/z4c_matter_task_list.cpp, {str_z4c})')
 
   # task_list/gr
   str_gr = '$(wildcard src/task_list/gr/*.cpp)'

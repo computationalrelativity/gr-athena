@@ -1,11 +1,3 @@
-//========================================================================================
-// Athena++ astrophysical MHD code
-// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
-// Licensed under the 3-clause BSD License, see LICENSE file for details
-//========================================================================================
-//! \file z4c_task_list.cpp
-//  \brief time integrator for the z4c system (based on time_integrator.cpp)
-
 // C/C++ headers
 #include <iostream>   // endl
 #include <sstream>    // sstream
@@ -13,28 +5,28 @@
 #include <string>     // c_str()
 
 // Athena++ classes headers
-#include "../athena.hpp"
-#include "../bvals/bvals.hpp"
-#include "../field/field.hpp"
-#include "../hydro/hydro.hpp"
-#include "../mesh/mesh.hpp"
-#include "../z4c/z4c.hpp"
-#include "../z4c/z4c_macro.hpp"
-#include "../z4c/wave_extract.hpp"
+#include "../../athena.hpp"
+#include "../../bvals/bvals.hpp"
+#include "../../field/field.hpp"
+#include "../../hydro/hydro.hpp"
+#include "../../mesh/mesh.hpp"
+#include "../../z4c/z4c.hpp"
+#include "../../z4c/z4c_macro.hpp"
+#include "../../z4c/wave_extract.hpp"
 #if CCE_ENABLED
-#include "../z4c/cce/cce.hpp"
+#include "../../z4c/cce/cce.hpp"
 #endif
-#include "../z4c/puncture_tracker.hpp"
-#include "../parameter_input.hpp"
+#include "../../z4c/puncture_tracker.hpp"
+#include "../../parameter_input.hpp"
 #include "task_list.hpp"
 
 
-// BD TODO: Significant code duplication with time_integrator, leave decoupled
+// ----------------------------------------------------------------------------
+using namespace TaskLists::GeneralRelativity;
+using namespace TaskNames::GeneralRelativity::GR_Z4c;
 
-//----------------------------------------------------------------------------------------
-//  Z4cIntegratorTaskList constructor
-
-Z4cIntegratorTaskList::Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm){
+GR_Z4c::GR_Z4c(ParameterInput *pin, Mesh *pm)
+{
   // First, define each time-integrator by setting weights for each step of the algorithm
   // and the CFL number stability limit when coupled to the single-stage spatial operator.
   // Currently, the explicit, multistage time-integrators must be expressed as 2S-type
@@ -295,165 +287,56 @@ Z4cIntegratorTaskList::Z4cIntegratorTaskList(ParameterInput *pin, Mesh *pm){
   
   //---------------------------------------------------------------------------
 
-  // Now assemble list of tasks for each stage of z4c integrator
-  {using namespace Z4cIntegratorTaskNames;
-    AddTask(CALC_Z4CRHS, NONE);                // CalculateZ4cRHS
-    AddTask(INT_Z4C, CALC_Z4CRHS);             // IntegrateZ4c
+  // Assemble list of tasks for each stage of z4c integrator
+  {
+    Add(CALC_Z4CRHS, NONE,        &GR_Z4c::CalculateZ4cRHS);
+    Add(INT_Z4C,     CALC_Z4CRHS, &GR_Z4c::IntegrateZ4c);
 
-    AddTask(SEND_Z4C, INT_Z4C);                // SendZ4c
-    AddTask(RECV_Z4C, NONE);                   // ReceiveZ4c
+    Add(SEND_Z4C, INT_Z4C, &GR_Z4c::SendZ4c);
+    Add(RECV_Z4C, NONE,    &GR_Z4c::ReceiveZ4c);
 
-    AddTask(SETB_Z4C, (RECV_Z4C|INT_Z4C));     // SetBoundariesZ4c
-    if (pm->multilevel) { // SMR or AMR
-      AddTask(PROLONG, (SEND_Z4C|SETB_Z4C));   // Prolongation
-      AddTask(PHY_BVAL, PROLONG);              // PhysicalBoundary
-    } else {
-      AddTask(PHY_BVAL, SETB_Z4C);             // PhysicalBoundary
+    Add(SETB_Z4C, (RECV_Z4C|INT_Z4C), &GR_Z4c::SetBoundariesZ4c);
+
+    if (pm->multilevel)
+    {
+      Add(PROLONG, (SEND_Z4C|SETB_Z4C), &GR_Z4c::Prolongation);
+      Add(PHY_BVAL, PROLONG,            &GR_Z4c::PhysicalBoundary);
+    }
+    else
+    {
+      Add(PHY_BVAL, SETB_Z4C, &GR_Z4c::PhysicalBoundary);
     }
 
-    AddTask(ALG_CONSTR, PHY_BVAL);             // EnforceAlgConstr
-    AddTask(Z4C_TO_ADM, ALG_CONSTR);           // Z4cToADM
-    AddTask(ADM_CONSTR, Z4C_TO_ADM);           // ADM_Constraints
-    AddTask(Z4C_WEYL, Z4C_TO_ADM);             // Calc Psi4
-    // BD: do this instead in aux list
-    // AddTask(WAVE_EXTR, Z4C_WEYL);              // Project Psi4 multipoles
+    Add(ALG_CONSTR, PHY_BVAL,   &GR_Z4c::EnforceAlgConstr);
+
+    Add(Z4C_TO_ADM, ALG_CONSTR, &GR_Z4c::Z4cToADM);
+
+    Add(ADM_CONSTR, Z4C_TO_ADM, &GR_Z4c::ADM_Constraints);
+    Add(Z4C_WEYL,   Z4C_TO_ADM, &GR_Z4c::Z4c_Weyl);
+
 #if CCE_ENABLED
-    AddTask(CCE_DUMP, Z4C_TO_ADM);             // CCE dump metric
+    Add(CCE_DUMP, Z4C_TO_ADM, &GR_Z4c::CCEDump);
 #endif
-    
-    AddTask(USERWORK, ADM_CONSTR);             // UserWork
 
-    AddTask(NEW_DT, USERWORK);                 // NewBlockTimeStep
-    if (pm->adaptive) {
-      AddTask(FLAG_AMR, USERWORK);             // CheckRefinement
-      AddTask(CLEAR_ALLBND, FLAG_AMR);         // ClearAllBoundary
-    } else {
-      AddTask(CLEAR_ALLBND, NEW_DT);           // ClearAllBoundary
+    Add(USERWORK, ADM_CONSTR, &GR_Z4c::UserWork);
+    Add(NEW_DT,   USERWORK,   &GR_Z4c::NewBlockTimeStep);
+
+    if (pm->adaptive)
+    {
+      Add(FLAG_AMR,     USERWORK, &GR_Z4c::CheckRefinement);
+      Add(CLEAR_ALLBND, FLAG_AMR, &GR_Z4c::ClearAllBoundary);
+    }
+    else
+    {
+      Add(CLEAR_ALLBND, NEW_DT,   &GR_Z4c::ClearAllBoundary);
     }
 
-    AddTask(ASSERT_FIN, CLEAR_ALLBND);         // AssertFinite
-  } // end of using namespace block
+    Add(ASSERT_FIN, CLEAR_ALLBND, &GR_Z4c::AssertFinite);
+  } // namespace
 }
 
-//---------------------------------------------------------------------------------------
-//  Sets id and dependency for "ntask" member of task_list_ array, then iterates value of
-//  ntask.
-
-void Z4cIntegratorTaskList::AddTask(const TaskID& id, const TaskID& dep) {
-    task_list_[ntasks].task_id = id;
-    task_list_[ntasks].dependency = dep;
-
-    using namespace Z4cIntegratorTaskNames; // NOLINT (build/namespace)
-
-    if (id == CLEAR_ALLBND) {
-      task_list_[ntasks].TaskFunc=
-        static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&Z4cIntegratorTaskList::ClearAllBoundary);
-      task_list_[ntasks].lb_time = false;
-    } else if (id == CALC_Z4CRHS) {
-      task_list_[ntasks].TaskFunc=
-        static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&Z4cIntegratorTaskList::CalculateZ4cRHS);
-      task_list_[ntasks].lb_time = true;
-    } else if (id == INT_Z4C) {
-      task_list_[ntasks].TaskFunc=
-        static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&Z4cIntegratorTaskList::IntegrateZ4c);
-      task_list_[ntasks].lb_time = true;
-    } else if (id == SEND_Z4C) {
-      task_list_[ntasks].TaskFunc=
-        static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&Z4cIntegratorTaskList::SendZ4c);
-      task_list_[ntasks].lb_time = true;
-    } else if (id == RECV_Z4C) {
-      task_list_[ntasks].TaskFunc=
-        static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&Z4cIntegratorTaskList::ReceiveZ4c);
-      task_list_[ntasks].lb_time = false;
-    } else if (id == SETB_Z4C) {
-      task_list_[ntasks].TaskFunc=
-        static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&Z4cIntegratorTaskList::SetBoundariesZ4c);
-      task_list_[ntasks].lb_time = true;
-    } else if (id == PROLONG) {
-      task_list_[ntasks].TaskFunc=
-        static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&Z4cIntegratorTaskList::Prolongation);
-      task_list_[ntasks].lb_time = true;
-    } else if (id == PHY_BVAL) {
-      task_list_[ntasks].TaskFunc=
-        static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&Z4cIntegratorTaskList::PhysicalBoundary);
-      task_list_[ntasks].lb_time = true;
-    } else if (id == ALG_CONSTR) {
-      task_list_[ntasks].TaskFunc=
-        static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&Z4cIntegratorTaskList::EnforceAlgConstr);
-      task_list_[ntasks].lb_time = true;
-    } else if (id == Z4C_TO_ADM) {
-      task_list_[ntasks].TaskFunc=
-        static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&Z4cIntegratorTaskList::Z4cToADM);
-      task_list_[ntasks].lb_time = true;
-    } else if (id == USERWORK) {
-      task_list_[ntasks].TaskFunc=
-        static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&Z4cIntegratorTaskList::UserWork);
-      task_list_[ntasks].lb_time = true;
-    } else if (id == ADM_CONSTR) {
-      task_list_[ntasks].TaskFunc=
-        static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&Z4cIntegratorTaskList::ADM_Constraints);
-      task_list_[ntasks].lb_time = true;
-    }
-    else if (id == Z4C_WEYL) {
-      task_list_[ntasks].TaskFunc=
-        static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&Z4cIntegratorTaskList::Z4c_Weyl);
-      task_list_[ntasks].lb_time = true;
-    } else if (id == WAVE_EXTR) {
-      task_list_[ntasks].TaskFunc=
-        static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&Z4cIntegratorTaskList::WaveExtract);
-      task_list_[ntasks].lb_time = true;
-#if CCE_ENABLED
-    } else if (id == CCE_DUMP) {
-      task_list_[ntasks].TaskFunc=
-        static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&Z4cIntegratorTaskList::CCEDump);
-      task_list_[ntasks].lb_time = true;
-#endif
-    }
-    else if (id == NEW_DT) {
-      task_list_[ntasks].TaskFunc=
-        static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&Z4cIntegratorTaskList::NewBlockTimeStep);
-      task_list_[ntasks].lb_time = true;
-    } else if (id == FLAG_AMR) {
-      task_list_[ntasks].TaskFunc=
-        static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&Z4cIntegratorTaskList::CheckRefinement);
-      task_list_[ntasks].lb_time = true;
-    }
-    else if (id == ASSERT_FIN) {
-      task_list_[ntasks].TaskFunc=
-        static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&Z4cIntegratorTaskList::AssertFinite);
-      task_list_[ntasks].lb_time = false;
-    }
-    else {
-      std::stringstream msg;
-      msg << "### FATAL ERROR in AddTask" << std::endl
-          << "Invalid Task is specified" << std::endl;
-      ATHENA_ERROR(msg);
-    }
-
-    ntasks++;
-    return;
-}
-
-
-void Z4cIntegratorTaskList::StartupTaskList(MeshBlock *pmb, int stage) {
+// ----------------------------------------------------------------------------
+void GR_Z4c::StartupTaskList(MeshBlock *pmb, int stage) {
   // application of Sommerfeld boundary conditions
   pmb->pz4c->Z4cBoundaryRHS(pmb->pz4c->storage.u,
                           pmb->pz4c->storage.mat,
@@ -509,7 +392,7 @@ void Z4cIntegratorTaskList::StartupTaskList(MeshBlock *pmb, int stage) {
 //----------------------------------------------------------------------------------------
 // Functions to end MPI communication
 
-TaskStatus Z4cIntegratorTaskList::ClearAllBoundary(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::ClearAllBoundary(MeshBlock *pmb, int stage) {
   pmb->pbval->ClearBoundary(BoundaryCommSubset::all);
   return TaskStatus::success;
 }
@@ -517,7 +400,7 @@ TaskStatus Z4cIntegratorTaskList::ClearAllBoundary(MeshBlock *pmb, int stage) {
 //----------------------------------------------------------------------------------------
 // Functions to calculate the RHS
 
-TaskStatus Z4cIntegratorTaskList::CalculateZ4cRHS(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::CalculateZ4cRHS(MeshBlock *pmb, int stage) {
   // PunctureTracker: interpolate beta at puncture position before evolution
   if (stage == 1) {
     for (auto ptracker : pmb->pmy_mesh->pz4c_tracker) {
@@ -542,7 +425,7 @@ TaskStatus Z4cIntegratorTaskList::CalculateZ4cRHS(MeshBlock *pmb, int stage) {
 //----------------------------------------------------------------------------------------
 // Functions to integrate variables
 
-TaskStatus Z4cIntegratorTaskList::IntegrateZ4c(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::IntegrateZ4c(MeshBlock *pmb, int stage) {
   Z4c *pz4c = pmb->pz4c;
 
   if (stage <= nstages) {
@@ -591,7 +474,7 @@ TaskStatus Z4cIntegratorTaskList::IntegrateZ4c(MeshBlock *pmb, int stage) {
 //----------------------------------------------------------------------------------------
 // Functions to communicate conserved variables between MeshBlocks
 
-TaskStatus Z4cIntegratorTaskList::SendZ4c(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::SendZ4c(MeshBlock *pmb, int stage) {
   if (stage <= nstages) {
     pmb->pz4c->ubvar.SendBoundaryBuffers();
   } else {
@@ -603,7 +486,7 @@ TaskStatus Z4cIntegratorTaskList::SendZ4c(MeshBlock *pmb, int stage) {
 //----------------------------------------------------------------------------------------
 // Functions to receive conserved variables between MeshBlocks
 
-TaskStatus Z4cIntegratorTaskList::ReceiveZ4c(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::ReceiveZ4c(MeshBlock *pmb, int stage) {
   bool ret;
   if (stage <= nstages) {
     ret = pmb->pz4c->ubvar.ReceiveBoundaryBuffers();
@@ -617,7 +500,7 @@ TaskStatus Z4cIntegratorTaskList::ReceiveZ4c(MeshBlock *pmb, int stage) {
   }
 }
 
-TaskStatus Z4cIntegratorTaskList::SetBoundariesZ4c(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::SetBoundariesZ4c(MeshBlock *pmb, int stage) {
   if (stage <= nstages) {
     pmb->pz4c->ubvar.SetBoundaries();
     return TaskStatus::success;
@@ -628,7 +511,7 @@ TaskStatus Z4cIntegratorTaskList::SetBoundariesZ4c(MeshBlock *pmb, int stage) {
 //--------------------------------------------------------------------------------------
 // Functions for everything else
 
-TaskStatus Z4cIntegratorTaskList::Prolongation(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::Prolongation(MeshBlock *pmb, int stage) {
   BoundaryValues *pbval = pmb->pbval;
 
   if (stage <= nstages) {
@@ -644,7 +527,7 @@ TaskStatus Z4cIntegratorTaskList::Prolongation(MeshBlock *pmb, int stage) {
   return TaskStatus::success;
 }
 
-TaskStatus Z4cIntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::PhysicalBoundary(MeshBlock *pmb, int stage) {
   BoundaryValues *pbval = pmb->pbval;
 
   if (stage <= nstages) {
@@ -666,21 +549,21 @@ TaskStatus Z4cIntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int stage) {
   return TaskStatus::success;
 }
 
-TaskStatus Z4cIntegratorTaskList::UserWork(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::UserWork(MeshBlock *pmb, int stage) {
   if (stage != nstages) return TaskStatus::success; // only do on last stage
 
   pmb->Z4cUserWorkInLoop();
   return TaskStatus::success;
 }
 
-TaskStatus Z4cIntegratorTaskList::EnforceAlgConstr(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::EnforceAlgConstr(MeshBlock *pmb, int stage) {
   if (stage != nstages) return TaskStatus::success; // only do on last stage
 
   pmb->pz4c->AlgConstr(pmb->pz4c->storage.u);
   return TaskStatus::success;
 }
 
-TaskStatus Z4cIntegratorTaskList::Z4cToADM(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::Z4cToADM(MeshBlock *pmb, int stage) {
   // BD: this map is only required on the final stage
   if (stage != nstages) return TaskStatus::success;
 
@@ -688,7 +571,7 @@ TaskStatus Z4cIntegratorTaskList::Z4cToADM(MeshBlock *pmb, int stage) {
   return TaskStatus::success;
 }
 
-TaskStatus Z4cIntegratorTaskList::Z4c_Weyl(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::Z4c_Weyl(MeshBlock *pmb, int stage) {
   // only do on last stage
   if (stage != nstages) return TaskStatus::success;
 
@@ -703,7 +586,7 @@ TaskStatus Z4cIntegratorTaskList::Z4c_Weyl(MeshBlock *pmb, int stage) {
   return TaskStatus::success;
 }
 
-TaskStatus Z4cIntegratorTaskList::WaveExtract(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::WaveExtract(MeshBlock *pmb, int stage) {
   // only do on last stage
   if (stage != nstages) return TaskStatus::success;
 
@@ -723,7 +606,7 @@ TaskStatus Z4cIntegratorTaskList::WaveExtract(MeshBlock *pmb, int stage) {
 }
 
 #if CCE_ENABLED
-TaskStatus Z4cIntegratorTaskList::CCEDump(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::CCEDump(MeshBlock *pmb, int stage) {
   // only do on last stage
   if (stage != nstages) return TaskStatus::success;
 
@@ -741,7 +624,7 @@ TaskStatus Z4cIntegratorTaskList::CCEDump(MeshBlock *pmb, int stage) {
 }
 #endif
 
-TaskStatus Z4cIntegratorTaskList::ADM_Constraints(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::ADM_Constraints(MeshBlock *pmb, int stage) {
   // only do on last stage
   if (stage != nstages) return TaskStatus::success;
 
@@ -758,21 +641,21 @@ TaskStatus Z4cIntegratorTaskList::ADM_Constraints(MeshBlock *pmb, int stage) {
   return TaskStatus::success;
 }
 
-TaskStatus Z4cIntegratorTaskList::NewBlockTimeStep(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::NewBlockTimeStep(MeshBlock *pmb, int stage) {
   if (stage != nstages) return TaskStatus::success; // only do on last stage
 
   pmb->pz4c->NewBlockTimeStep();
   return TaskStatus::success;
 }
 
-TaskStatus Z4cIntegratorTaskList::CheckRefinement(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::CheckRefinement(MeshBlock *pmb, int stage) {
   if (stage != nstages) return TaskStatus::success; // only do on last stage
 
   pmb->pmr->CheckRefinementCondition();
   return TaskStatus::success;
 }
 
-TaskStatus Z4cIntegratorTaskList::AssertFinite(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::AssertFinite(MeshBlock *pmb, int stage) {
   // only do on last stage
   if (stage != nstages) return TaskStatus::success;
 
@@ -791,12 +674,12 @@ TaskStatus Z4cIntegratorTaskList::AssertFinite(MeshBlock *pmb, int stage) {
 
 
 //----------------------------------------------------------------------------------------
-// \!fn bool Z4cIntegratorTaskList::CurrentTimeCalculationThreshold(
+// \!fn bool GR_Z4c::CurrentTimeCalculationThreshold(
 //   MeshBlock *pmb, aux_NextTimeStep *variable)
 // \brief Given current time / ncycles, does a specified 'dt' mean we need
 //        to calculate something?
 //        Secondary effect is to mutate next_time
-bool Z4cIntegratorTaskList::CurrentTimeCalculationThreshold(
+bool GR_Z4c::CurrentTimeCalculationThreshold(
   Mesh *pm, aux_NextTimeStep *variable) {
 
   // this variable is not dumped / computed
@@ -815,9 +698,9 @@ bool Z4cIntegratorTaskList::CurrentTimeCalculationThreshold(
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn void Z4cIntegratorTaskList::UpdateTaskListTriggers()
+// \!fn void GR_Z4c::UpdateTaskListTriggers()
 // \brief Update 'next_time' outside task list to avoid race condition
-void Z4cIntegratorTaskList::UpdateTaskListTriggers() {
+void GR_Z4c::UpdateTaskListTriggers() {
   // note that for global dt > target output dt
   // next_time will 'lag'; this will need to be corrected if an integrator with dense /
   // interpolating output is used.
@@ -855,3 +738,8 @@ void Z4cIntegratorTaskList::UpdateTaskListTriggers() {
   }
   
 }
+
+
+//
+// :D
+//
