@@ -160,7 +160,7 @@ std::string unbound_names[n_unbound] = {
 
 //  I_hist_entr,I_hist_logrho,I_hist_temp,I_hist_ye,I_hist_vel,I_hist_ber,I_hist_theta,I_hist_velinf
   Real  def_max[n_hist] = {200.0,-2.5,10.0,0.55,1.0,1.0,M_PI,1.0};
-  Real  def_min[n_hist] = {0.0,-15.0,0.0,0.035,0.0,1.0,0.0,0.0};
+  Real  def_min[n_hist] = {0.0,-15.0,0.0,0.035,0.0,0.0,0.0,0.0};
   Real max_hist[n_hist], min_hist[n_hist];
   for (int m=0; m<n_hist; ++m) {
     parname = "hist_n_";
@@ -841,7 +841,7 @@ void Ejecta::SphericalIntegrals()
 
       // values for histograms
       histvals[I_hist_entr] = other[I_entropy](i,j);
-      histvals[I_hist_logrho] = std::log(prim[IDN](i,j));
+      histvals[I_hist_logrho] = std::log10(prim[IDN](i,j));
       histvals[I_hist_temp] = T(i,j);
       histvals[I_hist_ye] = Y[0](i,j);
       histvals[I_hist_vel] = other[I_v_mag](i,j);
