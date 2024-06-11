@@ -428,7 +428,7 @@ void Ejecta::Interp(MeshBlock * pmb)
 //  For interp of VC/CX metric vars
   Real origin_cx[NDIM] = {pmb->pz4c->mbi.x1(0),pmb->pz4c->mbi.x2(0),pmb->pz4c->mbi.x3(0)};
   Real delta_cx[NDIM] = {pmb->pz4c->mbi.dx1(0),pmb->pz4c->mbi.dx2(0),pmb->pz4c->mbi.dx3(0)};
-  int size_cx[NDIM] = {pmb->pz4c->mbi.nn1,pmb->pz4c->mbi.nn2,pmb->pz4c->mbi.nn3}
+  int size_cx[NDIM] = {pmb->pz4c->mbi.nn1,pmb->pz4c->mbi.nn2,pmb->pz4c->mbi.nn3};
 
 
   //none of the f stuff is used actually
