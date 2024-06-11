@@ -235,8 +235,12 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
   scr2_ni_.NewAthenaArray(NWAVE, nc1);
   scr3_ni_.NewAthenaArray(NWAVE, nc1);
   scr4_ni_.NewAthenaArray(NWAVE, nc1);
+#if USETM
+  scalar_l.NewAthenaArray(NSCALARS,nc1);
+  scalar_r.NewAthenaArray(NSCALARS,nc1);
+#endif
 
-  if ((xorder == 3) || (xorder == 4)) {
+  if ((xorder == 3) || (xorder == 4) || (xorder == 5)) {
     Coordinates *pco = pmb->pcoord;
     scr03_i_.NewAthenaArray(nc1);
     scr04_i_.NewAthenaArray(nc1);
