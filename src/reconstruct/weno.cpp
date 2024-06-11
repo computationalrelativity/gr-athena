@@ -232,17 +232,6 @@ void Reconstruction::WenoX1(
         {
           ql(n,i+1) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
           qr(n,i  ) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
-
-         const bool rpf = (
-            pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i+1) ||
-            pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
-
-          if (rpf)
-          {
-            ql(n,i+1) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
-            qr(n,i  ) = rec1d_p_ceno3(uipt,uipo,ui,uimo,uimt);
-          }
-
           break;
         }
         case ReconstructionVariant::weno5d_si:
@@ -366,17 +355,6 @@ void Reconstruction::WenoX1(
         {
           ql(IBY,i+1) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
           qr(IBY,i  ) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
-
-         const bool rpf = (
-            pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i+1) ||
-            pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
-
-          if (rpf)
-          {
-            ql(IBY,i+1) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
-            qr(IBY,i  ) = rec1d_p_ceno3(uipt,uipo,ui,uimo,uimt);
-          }
-
           break;
         }
         case ReconstructionVariant::weno5d_si:
@@ -463,17 +441,6 @@ void Reconstruction::WenoX1(
         {
           ql(IBZ,i+1) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
           qr(IBZ,i  ) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
-
-         const bool rpf = (
-            pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i+1) ||
-            pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
-
-          if (rpf)
-          {
-            ql(IBZ,i+1) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
-            qr(IBZ,i  ) = rec1d_p_ceno3(uipt,uipo,ui,uimo,uimt);
-          }
-
           break;
         }
         case ReconstructionVariant::weno5d_si:
@@ -491,6 +458,37 @@ void Reconstruction::WenoX1(
     }
 
   }
+
+  if (xorder_fallback)
+  for (int i=il; i<=iu; ++i)
+  {
+    bool rpf = (
+      pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i+1) ||
+      pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
+
+    if (rpf)
+    {
+      // revert
+      ReconstructionVariant xorder_style_ = xorder_style;
+      xorder_style = ReconstructionVariant::ceno3;
+      xorder_fallback = false;
+      WenoX1(k, j, i, i, q, bcc, ql, qr, false);
+
+      xorder_style = xorder_style_;
+      xorder_fallback = true;
+
+
+      rpf = (
+        pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i+1) ||
+        pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
+
+      if (rpf)
+      {
+        PiecewiseLinearX1(k, j, i, i, q, bcc, ql, qr);
+      }
+    }
+  }
+
 
   if (enforce_floors)
   {
@@ -659,17 +657,6 @@ void Reconstruction::WenoX2(
         {
           ql(n,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
           qr(n,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
-
-         const bool rpf = (
-            pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i) ||
-            pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
-
-          if (rpf)
-          {
-            ql(n,i) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
-            qr(n,i) = rec1d_p_ceno3(uipt,uipo,ui,uimo,uimt);
-          }
-
           break;
         }
         case ReconstructionVariant::weno5d_si:
@@ -789,17 +776,6 @@ void Reconstruction::WenoX2(
         {
           ql(IBY,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
           qr(IBY,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
-
-         const bool rpf = (
-            pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i) ||
-            pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
-
-          if (rpf)
-          {
-            ql(IBY,i) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
-            qr(IBY,i) = rec1d_p_ceno3(uipt,uipo,ui,uimo,uimt);
-          }
-
           break;
         }
         case ReconstructionVariant::weno5d_si:
@@ -885,17 +861,6 @@ void Reconstruction::WenoX2(
         {
           ql(IBZ,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
           qr(IBZ,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
-
-         const bool rpf = (
-            pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i) ||
-            pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
-
-          if (rpf)
-          {
-            ql(IBZ,i) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
-            qr(IBZ,i) = rec1d_p_ceno3(uipt,uipo,ui,uimo,uimt);
-          }
-
           break;
         }
         case ReconstructionVariant::weno5d_si:
@@ -913,16 +878,45 @@ void Reconstruction::WenoX2(
     }
   }
 
+  if (xorder_fallback)
+  for (int i=il; i<=iu; ++i)
+  {
+    bool rpf = (
+      pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i) ||
+      pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
+
+    if (rpf)
+    {
+      // revert
+      ReconstructionVariant xorder_style_ = xorder_style;
+      xorder_style = ReconstructionVariant::ceno3;
+      xorder_fallback = false;
+      WenoX2(k, j, i, i, q, bcc, ql, qr, false);
+
+      xorder_style = xorder_style_;
+      xorder_fallback = true;
+
+      rpf = (
+        pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i) ||
+        pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
+
+      if (rpf)
+      {
+        PiecewiseLinearX2(k, j, i, i, q, bcc, ql, qr);
+      }
+    }
+  }
+
   if (enforce_floors)
   {
 #if USETM
-    for (int l=0; l<NSCALARS; l++){
-#pragma omp simd
-      for (int i=il; i<=iu; ++i) {
-        scalar_l(l,i) = pmy_block_->pscalars->r(l,k,j,i);
-        scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+    for (int l=0; l<NSCALARS; l++)
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      scalar_l(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+      scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
     }
-  }
 #endif
 
     #pragma omp simd
@@ -1063,17 +1057,6 @@ void Reconstruction::WenoX3(
         {
           ql(n,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
           qr(n,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
-
-         const bool rpf = (
-            pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i) ||
-            pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
-
-          if (rpf)
-          {
-            ql(n,i) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
-            qr(n,i) = rec1d_p_ceno3(uipt,uipo,ui,uimo,uimt);
-          }
-
           break;
         }
         case ReconstructionVariant::weno5d_si:
@@ -1194,17 +1177,6 @@ void Reconstruction::WenoX3(
         {
           ql(IBY,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
           qr(IBY,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
-
-         const bool rpf = (
-            pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i) ||
-            pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
-
-          if (rpf)
-          {
-            ql(IBY,i) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
-            qr(IBY,i) = rec1d_p_ceno3(uipt,uipo,ui,uimo,uimt);
-          }
-
           break;
         }
         case ReconstructionVariant::weno5d_si:
@@ -1290,17 +1262,6 @@ void Reconstruction::WenoX3(
         {
           ql(IBZ,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
           qr(IBZ,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
-
-         const bool rpf = (
-            pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i) ||
-            pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
-
-          if (rpf)
-          {
-            ql(IBZ,i) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
-            qr(IBZ,i) = rec1d_p_ceno3(uipt,uipo,ui,uimo,uimt);
-          }
-
           break;
         }
         case ReconstructionVariant::weno5d_si:
@@ -1315,6 +1276,35 @@ void Reconstruction::WenoX3(
         }
       }
 
+    }
+  }
+
+  if (xorder_fallback)
+  for (int i=il; i<=iu; ++i)
+  {
+    bool rpf = (
+      pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i) ||
+      pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
+
+    if (rpf)
+    {
+      // revert
+      ReconstructionVariant xorder_style_ = xorder_style;
+      xorder_style = ReconstructionVariant::ceno3;
+      xorder_fallback = false;
+      WenoX3(k, j, i, i, q, bcc, ql, qr, false);
+
+      xorder_style = xorder_style_;
+      xorder_fallback = true;
+
+      rpf = (
+        pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i) ||
+        pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
+
+      if (rpf)
+      {
+        PiecewiseLinearX3(k, j, i, i, q, bcc, ql, qr);
+      }
     }
   }
 

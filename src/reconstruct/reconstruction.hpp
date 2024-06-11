@@ -30,6 +30,7 @@ class Reconstruction {
   // data
   // switches for reconstruction method variants:
   int xorder;   // roughly the formal order of accuracy of overall reconstruction method
+  bool xorder_fallback;  // allow method fallback?
 
   // for xorder == 5 we can switch between reconstruction styles
   enum class ReconstructionVariant {

@@ -77,7 +77,11 @@ void Hydro::RiemannSolver(
   int a,b;
   const int nn1 = pmy_block->nverts1;  // utilize the verts
   // Extract ratio of specific heats
+#if USETM
+  const Real mb = pmy_block->peos->GetEOS().GetBaryonMass();
+#else
   const Real gamma_adi = pmy_block->peos->GetGamma();
+#endif
   Real dt = pmy_block->pmy_mesh->dt;
   Coordinates *pco = pmy_block->pcoord;
   Real alpha_excision = pmy_block->peos->alpha_excision;
@@ -510,11 +514,45 @@ void Hydro::RiemannSolver(
        #pragma omp simd
       for (int i = il; i <= iu; ++i){
         // Calculate wavespeeds in left state NB EOS specific
+#if USETM
+        // If using the PrimitiveSolver framework, get the number density
+        // and temperature to help calculate enthalpy.
+        Real nl = rho_l(i)/mb;
+        Real nr = rho_r(i)/mb;
+        // FIXME: Generalize to work with EOSes accepting particle fractions.
+        Real Yl[MAX_SPECIES] = {0.0}; // Should we worry about r vs l here?
+        Real Yr[MAX_SPECIES] = {0.0};
+        for (int n=0; n<NSCALARS; n++) Yr[n] = pmy_block->pscalars->r(n,k,j,i);
+        switch (ivx) {
+          case IVX:
+            for (int n=0; n<NSCALARS; n++) Yl[n] = pmy_block->pscalars->r(n,k,j,i-1);
+            break;
+          case IVY:
+            for (int n=0; n<NSCALARS; n++) Yl[n] = pmy_block->pscalars->r(n,k,j-1,i);
+            break;
+          case IVZ:
+            for (int n=0; n<NSCALARS; n++) Yl[n] = pmy_block->pscalars->r(n,k-1,j,i);
+            break;
+        }
+        Real Tl = pmy_block->peos->GetEOS().GetTemperatureFromP(nl, pgas_l(i), Yl);
+        Real Tr = pmy_block->peos->GetEOS().GetTemperatureFromP(nr, pgas_r(i), Yr);
+        wgas_l(i) = rho_l(i)*pmy_block->peos->GetEOS().GetEnthalpy(nl, Tl, Yl);
+        wgas_r(i) = rho_r(i)*pmy_block->peos->GetEOS().GetEnthalpy(nr, Tr, Yr);
+
+        // Calculate the wave speeds
+        pmy_block->peos->FastMagnetosonicSpeedsGR(nl, Tl, bsq_l(i), v_u_l(ivx-1,i), v2_l(i),
+                                                  alpha(i), beta_u(ivx-1,i), gamma_uu(ivx-1,ivx-1,i),
+                                                  &lambda_p_l(i), &lambda_m_l(i), Yl);
+        pmy_block->peos->FastMagnetosonicSpeedsGR(nr, Tr, bsq_r(i), v_u_r(ivx-1,i), v2_r(i),
+                                                  alpha(i), beta_u(ivx-1,i), gamma_uu(ivx-1,ivx-1,i),
+                                                  &lambda_p_r(i), &lambda_m_r(i), Yr);
+#else
         wgas_l(i) = rho_l(i) + gamma_adi/(gamma_adi-1.0) * pgas_l(i);
         wgas_r(i) = rho_r(i) + gamma_adi/(gamma_adi-1.0) * pgas_r(i);
        
      pmy_block->peos->FastMagnetosonicSpeedsGR(wgas_l(i), pgas_l(i), bsq_l(i), v_u_l(ivx-1,i), v2_l(i), alpha(i), beta_u(ivx-1,i), gamma_uu(ivx-1,ivx-1,i),  &lambda_p_l(i), &lambda_m_l(i));
      pmy_block->peos->FastMagnetosonicSpeedsGR(wgas_r(i), pgas_r(i), bsq_r(i), v_u_r(ivx-1,i), v2_r(i), alpha(i), beta_u(ivx-1,i), gamma_uu(ivx-1,ivx-1,i),  &lambda_p_r(i), &lambda_m_r(i));
+#endif
 }
         // Calculate extremal wavespeed
          #pragma omp simd

@@ -40,7 +40,8 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
     curvilinear{false, false},
     // read fourth-order solver switches
     correct_ic{pin->GetOrAddBoolean("time", "correct_ic", false)},
-    correct_err{pin->GetOrAddBoolean("time", "correct_err", false)}, pmy_block_{pmb}
+    correct_err{pin->GetOrAddBoolean("time", "correct_err", false)}, pmy_block_{pmb},
+    xorder_fallback{pin->GetOrAddBoolean("time", "xorder_fallback", false)}
 {
   // Read and set type of spatial reconstruction
   // --------------------------------

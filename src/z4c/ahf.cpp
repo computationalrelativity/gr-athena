@@ -331,15 +331,13 @@ void AHF::MetricDerivatives(MeshBlock * pmy_block)
   fp = fopen(fname.c_str(),"w");
   fpd= fopen(fnamed.c_str(),"w");
 #endif
-  
+  Real oofdz = 1.0 / pz4c->mbi.dx3(0);
+  Real oofdy = 1.0 / pz4c->mbi.dx2(0);
+  Real oofdx = 1.0 / pz4c->mbi.dx1(0);
   GLOOP2(k,j){
-    Real oofdz = 1.0 / pz4c->mbi.dx3(k);
-    Real oofdy = 1.0 / pz4c->mbi.dx2(j);
     for(int a = 0; a < NDIM; ++a){
       for(int b = 0; b < NDIM; ++b){
         GLOOP1(i){
-          Real oofdx = 1.0 / pz4c->mbi.dx1(i);
-          
           if (i==IX_IL-GSIZEI){
             pz4c->aux_g_ddd(0,a,b,k,j,i) =     oofdx * ( adm_g_dd(a,b,k,j,i+1) - adm_g_dd(a,b,k,j, i ) );
           } else if (i==IX_IU+GSIZEI){

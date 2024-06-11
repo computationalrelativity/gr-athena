@@ -257,12 +257,19 @@ void Z4c::GetMatter(
       ILOOP1(i)
       {
         mat.rho(k,j,i) = w_hrho(i)*SQR(W(i)) - w_p(i);
+
+        // Real oo_sqrtdg = 1.0 / std::sqrt(detgamma(i));
+        // Real D   = phydro->u(IDN,k,j,i);
+        // Real tau = phydro->u(IEN,k,j,i);
+        // mat.rho(k,j,i) = oo_sqrtdg * (D + tau);
       }
       for (int a=0; a<NDIM; ++a)
       {
         ILOOP1(i)
         {
           mat.S_d(a,k,j,i) = w_hrho(i)*SQR(W(i))*v_d(a,i);
+          // Real oo_sqrtdg = 1.0 / std::sqrt(detgamma(i));
+          // mat.S_d(a,k,j,i) = phydro->u(IM1+a,k,j,i) *oo_sqrtdg;
         }
         for (int b=a; b<NDIM; ++b)
         {
@@ -270,6 +277,10 @@ void Z4c::GetMatter(
           {
             mat.S_dd(a,b,k,j,i) = (w_hrho(i)*SQR(W(i))*v_d(a,i)*v_d(b,i)+
                                    w_p(i)*adm.g_dd(a,b,k,j,i));
+
+            // mat.S_dd(a,b,k,j,i) = (mat.S_d(a,k,j,i)*v_d(b,i)+
+            //                        w_p(i)*adm.g_dd(a,b,k,j,i));
+
           }
         }
       }

@@ -1628,7 +1628,7 @@ void TOV_populate(MeshBlock *pmb,
     Ymax[l] = linear_interp(LORENE_EoS_Table->Y[l], LORENE_EoS_Table->data[tab_logrho], LORENE_EoS_Table->size, log(rhomax));
   }
 #endif
-  pgasmax = pmb->peos->GetEOS().GetPressure(nmax,T_initial,Ymax);
+  Real pgasmax = pmb->peos->GetEOS().GetPressure(nmax,T_initial,Ymax);
 #else
   Real pgasmax = k_adi*pow(rhomax,gamma_adi);
 #endif

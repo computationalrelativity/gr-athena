@@ -41,10 +41,11 @@
 
 // GRHD: use sources from Alcubierre book
 #define @DBG_MA_SOURCES@
+// #define DBG_MA_SOURCES
 
 // use shared CX FD in AddCoordTermsDivergence if possible?
 // this will make order actually consistent
-#define NO_DBG_FD_CX_COORDDIV
+#define DBG_FD_CX_COORDDIV
 
 // enfore algebraic constraints on all t-evo substeps?
 #define NO_DBG_ALGCONSTR_ALL
