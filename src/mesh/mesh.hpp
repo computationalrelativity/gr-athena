@@ -61,6 +61,7 @@ class Wave;
 class Z4c;
 class WaveExtract;
 class AHF;
+class Ejecta;
 #if CCE_ENABLED
 class CCE;
 #endif
@@ -422,6 +423,7 @@ class Mesh {
 
   std::vector<WaveExtract *> pwave_extr;
   std::vector<AHF *> pah_finder;
+  std::vector<Ejecta *> pej_extract;
 #if CCE_ENABLED
   std::vector<CCE *> pcce;
 #endif

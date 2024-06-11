@@ -63,6 +63,7 @@
 #include "../z4c/cce/cce.hpp"
 #endif
 #include "../trackers/extrema_tracker.hpp"
+#include "../z4c/ejecta.hpp"
 
 #include "../wave/wave.hpp"
 
@@ -355,6 +356,11 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     for (int n = 0; n < nhorizon; ++n) {
       pah_finder.push_back(new AHF(this, pin, n));
     }
+  int nrad = pin->GetOrAddInteger("ejecta", "num_rad", 0);
+  pej_extract.reserve(nrad);
+  for (int n=0; n<nrad; ++n) {
+    pej_extract.push_back(new Ejecta(this, pin, n));
+  }
 
     int npunct = pin->GetOrAddInteger("z4c", "npunct", 0);
     if (npunct > 0) {
@@ -817,6 +823,10 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     for (int n = 0; n < nhorizon; ++n) {
       pah_finder.push_back(new AHF(this, pin, n));
     }
+  int nrad = pin->GetOrAddInteger("ejecta", "num_rad", 0);
+  pej_extract.reserve(nrad);
+  for (int n=0; n<nrad; ++n) {
+    pej_extract.push_back(new Ejecta(this, pin, n));
     int npunct = pin->GetOrAddInteger("z4c", "npunct", 0);
     if (npunct > 0) {
       pz4c_tracker.reserve(npunct);
@@ -1099,6 +1109,10 @@ Mesh::~Mesh() {
       delete pah_f;
     }
     pah_finder.resize(0);
+    for (auto pej : pej_extract) {
+      delete pej;
+    }
+    pej_extract.resize(0);
 
     for (auto tracker : pz4c_tracker) {
       delete tracker;

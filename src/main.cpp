@@ -56,6 +56,7 @@
 #include "z4c/cce/cce.hpp"
 #endif
 
+#include "z4c/ejecta.hpp"
 // MPI/OpenMP headers
 #ifdef MPI_PARALLEL
 #include <mpi.h>
@@ -706,6 +707,9 @@ int main(int argc, char *argv[]) {
       for (auto pah_f : pmesh->pah_finder)
       {
         if (pah_f->DeleteMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
+      }
+      for (auto pej : pmesh->pej_extract) {
+        pej->Calculate(pmesh->ncycle, pmesh->time);
       }
       // TODO: probably we do not want to output tracker data at every timestep
       for (auto ptracker : pmesh->pz4c_tracker)
