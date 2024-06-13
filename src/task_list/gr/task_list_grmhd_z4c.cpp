@@ -301,8 +301,8 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin, Mesh *pm)
 // ----------------------------------------------------------------------------
 void GRMHD_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
 {
-  BoundaryValues *pbval = pmb->pbval;
-  Z4c            *pz4c  = pmb->pz4c;
+  BoundaryValues *pb   = pmb->pbval;
+  Z4c            *pz4c = pmb->pz4c;
 
   // Application of Sommerfeld boundary conditions
   pz4c->Z4cBoundaryRHS(pz4c->storage.u, pz4c->storage.mat, pz4c->storage.rhs);
@@ -311,9 +311,9 @@ void GRMHD_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
   const Real dt_scaled = this->dt_scaled(stage, pmb);
 
   FCN_CC_CX_VC(
-    pbval->ApplyPhysicalBoundaries,
-    pbval->ApplyPhysicalCellCenteredXBoundaries,
-    pbval->ApplyPhysicalVertexCenteredBoundaries
+    pb->ApplyPhysicalBoundaries,
+    pb->ApplyPhysicalCellCenteredXBoundaries,
+    pb->ApplyPhysicalVertexCenteredBoundaries
   )(t_end, dt_scaled);
 
   if (stage == 1)
@@ -352,7 +352,7 @@ void GRMHD_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
     pz4c->storage.u1.ZeroClear();
   }
 
-  pmb->pbval->StartReceiving(BoundaryCommSubset::all);
+  pb->StartReceiving(BoundaryCommSubset::all);
   return;
 }
 
@@ -360,7 +360,8 @@ void GRMHD_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
 // Functions to end MPI communication
 TaskStatus GRMHD_Z4c::ClearAllBoundary(MeshBlock *pmb, int stage)
 {
-  pmb->pbval->ClearBoundary(BoundaryCommSubset::all);
+  BoundaryValues *pb = pmb->pbval;
+  pb->ClearBoundary(BoundaryCommSubset::all);
   return TaskStatus::success;
 }
 

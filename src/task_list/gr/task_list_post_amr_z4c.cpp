@@ -52,7 +52,7 @@ TaskStatus PostAMR_Z4c::EnforceAlgConstr(MeshBlock *pmb, int stage)
 {
   if (!pmb->IsNewFromAMR())
   {
-    TaskStatus::success;
+    return TaskStatus::success;
   }
 
   Z4c *pz4c = pmb->pz4c;
@@ -64,7 +64,7 @@ TaskStatus PostAMR_Z4c::Z4cToADM(MeshBlock *pmb, int stage)
 {
   if (!pmb->IsNewFromAMR())
   {
-    TaskStatus::success;
+    return TaskStatus::success;
   }
 
   Z4c *pz4c = pmb->pz4c;
@@ -76,7 +76,7 @@ TaskStatus PostAMR_Z4c::UpdateSource(MeshBlock *pmb, int stage)
 {
   if (!pmb->IsNewFromAMR())
   {
-    TaskStatus::success;
+    return TaskStatus::success;
   }
 
   Hydro *ph = pmb->phydro;
@@ -106,7 +106,7 @@ TaskStatus PostAMR_Z4c::ADM_Constraints(MeshBlock *pmb, int stage)
 {
   if (!pmb->IsNewFromAMR())
   {
-    TaskStatus::success;
+    return TaskStatus::success;
   }
 
   Z4c *pz4c = pmb->pz4c;
@@ -123,7 +123,7 @@ TaskStatus PostAMR_Z4c::Z4c_Weyl(MeshBlock *pmb, int stage)
 {
   if (!pmb->IsNewFromAMR())
   {
-    TaskStatus::success;
+    return TaskStatus::success;
   }
 
   Z4c *pz4c = pmb->pz4c;

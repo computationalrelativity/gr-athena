@@ -13,7 +13,9 @@
 
 namespace TaskLists::GeneralRelativity {
 
-class GR_Z4c : public TaskList, TaskLists::Integrators::LowStorage {
+// Vacuum system tasklist
+class GR_Z4c : public TaskList, TaskLists::Integrators::LowStorage
+{
 public:
   GR_Z4c(ParameterInput *pin, Mesh *pm);
 
@@ -36,6 +38,7 @@ public:
 #if CCE_ENABLED
   TaskStatus CCEDump(MeshBlock *pmb, int stage);
 #endif
+  // BD: TODO- fix this
   TaskStatus AssertFinite(MeshBlock *pmb, int stage);
 
   //---------------------------------------------------------------------------
@@ -82,7 +85,9 @@ private:
   }
 };
 
-class GRMHD_Z4c : public TaskList, TaskLists::Integrators::LowStorage {
+// Coupled GRMHD system tasklist
+class GRMHD_Z4c : public TaskList, TaskLists::Integrators::LowStorage
+{
 public:
   GRMHD_Z4c(ParameterInput *pin, Mesh *pm);
 
@@ -184,6 +189,67 @@ private:
   }
 };
 
+// Auxiliary functions (post Vac./GRMHD exec.)
+class Aux_Z4c : public TaskList
+{
+public:
+  Aux_Z4c(ParameterInput *pin, Mesh *pm);
+
+  TaskStatus SendAux(MeshBlock *pmb, int stage);
+  TaskStatus ReceiveAux(MeshBlock *pmb, int stage);
+  TaskStatus SetBoundariesAux(MeshBlock *pmb, int stage);
+  TaskStatus ProlongAux(MeshBlock *pmb, int stage);
+  TaskStatus PhysicalBoundary(MeshBlock *pmb, int stage);
+  TaskStatus WeylDecompose(MeshBlock *pmb, int stage);
+  TaskStatus ClearAllAuxBoundary(MeshBlock *pmb, int stage);
+
+  //---------------------------------------------------------------------------
+  // Provide finer-grained control over tasklist
+  // Note: If a parameter is zero related task(s) will be ignored
+  struct aux_NextTimeStep{
+    Real dt{0.};
+    Real next_time{0.};
+    Real to_update{false};
+  };
+
+  struct {
+    aux_NextTimeStep wave_extraction;
+  } TaskListTriggers;
+
+  bool CurrentTimeCalculationThreshold(Mesh *pm,
+                                       aux_NextTimeStep *variable);
+  void UpdateTaskListTriggers();
+  //---------------------------------------------------------------------------
+
+  // Time at end of the stage
+  Real t_end(const int stage, MeshBlock * pmb)
+  {
+    return pmb->pmy_mesh->time;
+  }
+
+public:
+  int nstages;
+
+private:
+  // TODO: remove the AddTask logic in favour of Add
+  void AddTask(const TaskID& id, const TaskID& dep) override { };
+  void StartupTaskList(MeshBlock *pmb, int stage) override;
+
+private:
+  // For slightly cleaner & more flexible, treatment of tasklist graph assembly
+  void Add(
+    const TaskID& id, const TaskID& dep,
+    TaskStatus (Aux_Z4c::*fcn)(MeshBlock*, int),
+    bool lb_time=true)
+  {
+    TaskList::Add(id, dep, static_cast<TaskStatus (TaskList::*)(
+      MeshBlock*, int
+    )>(fcn));
+  }
+
+};
+
+// If using AMR, additional functionality is needed
 class PostAMR_Z4c : public TaskList
 {
 public:
@@ -217,5 +283,9 @@ private:
 };
 
 }  // namespace TaskLists::GeneralRelativity
+
+namespace TaskLists::WaveEquations {
+// ...
+}
 
 #endif  // GR_TASK_LIST_HPP_

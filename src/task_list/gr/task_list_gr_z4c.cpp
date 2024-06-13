@@ -97,6 +97,9 @@ GR_Z4c::GR_Z4c(ParameterInput *pin, Mesh *pm)
 
   //---------------------------------------------------------------------------
 
+  const bool multilevel = pm->multilevel;  // for SMR or AMR logic
+  const bool adaptive   = pm->adaptive;    // AMR
+
   {
     Add(CALC_Z4CRHS, NONE,        &GR_Z4c::CalculateZ4cRHS);
     Add(INT_Z4C,     CALC_Z4CRHS, &GR_Z4c::IntegrateZ4c);
@@ -106,7 +109,7 @@ GR_Z4c::GR_Z4c(ParameterInput *pin, Mesh *pm)
 
     Add(SETB_Z4C, (RECV_Z4C | INT_Z4C), &GR_Z4c::SetBoundariesZ4c);
 
-    if (pm->multilevel)
+    if (multilevel)
     {
       Add(PROLONG, (SEND_Z4C | SETB_Z4C), &GR_Z4c::Prolongation);
       Add(PHY_BVAL, PROLONG,            &GR_Z4c::PhysicalBoundary);
@@ -130,7 +133,7 @@ GR_Z4c::GR_Z4c(ParameterInput *pin, Mesh *pm)
     Add(USERWORK, ADM_CONSTR, &GR_Z4c::UserWork);
     Add(NEW_DT,   USERWORK,   &GR_Z4c::NewBlockTimeStep);
 
-    if (pm->adaptive)
+    if (adaptive)
     {
       Add(FLAG_AMR,     USERWORK, &GR_Z4c::CheckRefinement);
       Add(CLEAR_ALLBND, FLAG_AMR, &GR_Z4c::ClearAllBoundary);
@@ -147,8 +150,8 @@ GR_Z4c::GR_Z4c(ParameterInput *pin, Mesh *pm)
 // ----------------------------------------------------------------------------
 void GR_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
 {
-  BoundaryValues *pbval = pmb->pbval;
-  Z4c            *pz4c  = pmb->pz4c;
+  BoundaryValues *pb   = pmb->pbval;
+  Z4c            *pz4c = pmb->pz4c;
 
   // Application of Sommerfeld boundary conditions
   pz4c->Z4cBoundaryRHS(pz4c->storage.u, pz4c->storage.mat, pz4c->storage.rhs);
@@ -157,9 +160,9 @@ void GR_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
   const Real dt_scaled = this->dt_scaled(stage, pmb);
 
   FCN_CC_CX_VC(
-    pbval->ApplyPhysicalBoundaries,
-    pbval->ApplyPhysicalCellCenteredXBoundaries,
-    pbval->ApplyPhysicalVertexCenteredBoundaries
+    pb->ApplyPhysicalBoundaries,
+    pb->ApplyPhysicalCellCenteredXBoundaries,
+    pb->ApplyPhysicalVertexCenteredBoundaries
   )(t_end, dt_scaled);
 
   if (stage == 1)
@@ -180,7 +183,7 @@ void GR_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
     pz4c->storage.u1.ZeroClear();
   }
 
-  pmb->pbval->StartReceiving(BoundaryCommSubset::all);
+  pb->StartReceiving(BoundaryCommSubset::all);
   return;
 }
 
@@ -188,7 +191,8 @@ void GR_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
 // Functions to end MPI communication
 TaskStatus GR_Z4c::ClearAllBoundary(MeshBlock *pmb, int stage)
 {
-  pmb->pbval->ClearBoundary(BoundaryCommSubset::all);
+  BoundaryValues *pb = pmb->pbval;
+  pb->ClearBoundary(BoundaryCommSubset::all);
   return TaskStatus::success;
 }
 
@@ -297,7 +301,6 @@ TaskStatus GR_Z4c::ReceiveZ4c(MeshBlock *pmb, int stage)
   if (stage <= nstages)
   {
     Z4c *pz4c = pmb->pz4c;
-
     ret = pz4c->ubvar.ReceiveBoundaryBuffers();
   }
   else

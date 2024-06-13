@@ -409,11 +409,14 @@ int main(int argc, char *argv[]) {
 #endif // ENABLE_EXCEPTIONS
 
   Z4cRBCTaskList        *pz4crbclist = nullptr;
-  Z4cAuxTaskList        *pz4cauxlist = nullptr;
 
-  TaskLists::GeneralRelativity::GR_Z4c      * ptlist_gr_z4c      = nullptr;
-  TaskLists::GeneralRelativity::GRMHD_Z4c   * ptlist_grmhd_z4c   = nullptr;
-  TaskLists::GeneralRelativity::PostAMR_Z4c * ptlist_postamr_z4c = nullptr;
+  using namespace TaskLists::GeneralRelativity;
+
+  GR_Z4c      * ptlist_gr_z4c      = nullptr;
+  GRMHD_Z4c   * ptlist_grmhd_z4c   = nullptr;
+
+  Aux_Z4c     * ptlist_aux_z4c     = nullptr;
+  PostAMR_Z4c * ptlist_postamr_z4c = nullptr;
 
   try  // ENABLE_EXCEPTIONS is always assumed
   {
@@ -422,13 +425,16 @@ int main(int argc, char *argv[]) {
       if (FLUID_ENABLED)
       {
         // GR(M)HD
-        ptlist_grmhd_z4c = new TaskLists::GeneralRelativity::GRMHD_Z4c(pinput, pmesh);
+        ptlist_grmhd_z4c = new GRMHD_Z4c(pinput, pmesh);
       }
       else
       {
         // GR: vacuum
-        ptlist_gr_z4c = new TaskLists::GeneralRelativity::GR_Z4c(pinput, pmesh);
+        ptlist_gr_z4c = new GR_Z4c(pinput, pmesh);
       }
+
+      ptlist_aux_z4c     = new Aux_Z4c(pinput, pmesh);
+      ptlist_postamr_z4c = new PostAMR_Z4c(pinput, pmesh);
     }
   }
   catch(std::bad_alloc& ba)
@@ -448,11 +454,6 @@ int main(int argc, char *argv[]) {
 // Auxiliary tasklists for use with z4c and z4c+matter
     if (Z4C_ENABLED) { // only init. when required
       pz4crbclist = new Z4cRBCTaskList(pinput, pmesh);
-      pz4cauxlist = new Z4cAuxTaskList(pinput, pmesh);
-
-      ptlist_postamr_z4c = new TaskLists::GeneralRelativity::PostAMR_Z4c(
-        pinput, pmesh
-      );
     }
 #ifdef ENABLE_EXCEPTIONS
   }
@@ -640,7 +641,7 @@ int main(int argc, char *argv[]) {
 
       } //FLUID_ENABLED
 
-      pz4cauxlist->DoTaskListOneStage(pmesh, 1);  // only 1 stage
+      ptlist_aux_z4c->DoTaskListOneStage(pmesh, 1);  // only 1 stage
 
       // BD: TODO - check that the following are not displaced by \dt ?
       // only do an extraction if NextTime threshold cleared (updated below)
@@ -742,7 +743,7 @@ int main(int argc, char *argv[]) {
         ptlist_gr_z4c->UpdateTaskListTriggers();
       }
 
-      pz4cauxlist->UpdateTaskListTriggers();
+      ptlist_aux_z4c->UpdateTaskListTriggers();
     }
     //-------------------------------------------------------------------------
 
@@ -898,7 +899,7 @@ int main(int argc, char *argv[]) {
   delete ptlist_postamr_z4c;
 #endif
   delete pz4crbclist;
-  delete pz4cauxlist;
+  delete ptlist_aux_z4c;
   delete ptlist_grmhd_z4c;
   delete pouts;
 
