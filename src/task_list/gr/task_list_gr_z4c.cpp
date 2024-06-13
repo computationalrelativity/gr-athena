@@ -93,10 +93,9 @@ GR_Z4c::GR_Z4c(ParameterInput *pin, Mesh *pm)
       (ncycles == 0) ? 0.0: (ncycles+1)*TaskListTriggers.cce_dump.dt;
   }
 #endif
-  
+
   //---------------------------------------------------------------------------
 
-  // Assemble list of tasks for each stage of z4c integrator
   {
     Add(CALC_Z4CRHS, NONE,        &GR_Z4c::CalculateZ4cRHS);
     Add(INT_Z4C,     CALC_Z4CRHS, &GR_Z4c::IntegrateZ4c);

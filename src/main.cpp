@@ -364,6 +364,26 @@ int main(int argc, char *argv[]) {
   }
 #endif // ENABLE_EXCEPTIONS
 
+
+  SuperTimeStepTaskList *pststlist = nullptr;
+  if (STS_ENABLED) {
+#ifdef ENABLE_EXCEPTIONS
+    try {
+#endif
+      pststlist = new SuperTimeStepTaskList(pinput, pmesh, ptlist);
+#ifdef ENABLE_EXCEPTIONS
+    }
+    catch(std::bad_alloc& ba) {
+      std::cout << "### FATAL ERROR in main" << std::endl << "memory allocation failed "
+                << "in creating task list " << ba.what() << std::endl;
+#ifdef MPI_PARALLEL
+      MPI_Finalize();
+#endif
+      return(0);
+    }
+#endif // ENABLE_EXCEPTIONS
+}
+
   // BD: new problem
   WaveIntegratorTaskList *pwlist = nullptr;
   // -BD
@@ -392,18 +412,27 @@ int main(int argc, char *argv[]) {
   Z4cAuxTaskList        *pz4cauxlist = nullptr;
 
   TaskLists::GeneralRelativity::GR_Z4c      * ptlist_gr_z4c      = nullptr;
+  TaskLists::GeneralRelativity::GRMHD_Z4c   * ptlist_grmhd_z4c   = nullptr;
   TaskLists::GeneralRelativity::PostAMR_Z4c * ptlist_postamr_z4c = nullptr;
 
-#ifdef ENABLE_EXCEPTIONS
-  try {
-#endif
-// Dynamical spacetime - no matter
-    if (Z4C_ENABLED && !FLUID_ENABLED) { // only init. when required
-      ptlist_gr_z4c = new TaskLists::GeneralRelativity::GR_Z4c(pinput, pmesh);
+  try  // ENABLE_EXCEPTIONS is always assumed
+  {
+    if (Z4C_ENABLED)
+    {
+      if (FLUID_ENABLED)
+      {
+        // GR(M)HD
+        ptlist_grmhd_z4c = new TaskLists::GeneralRelativity::GRMHD_Z4c(pinput, pmesh);
+      }
+      else
+      {
+        // GR: vacuum
+        ptlist_gr_z4c = new TaskLists::GeneralRelativity::GR_Z4c(pinput, pmesh);
+      }
     }
-#ifdef ENABLE_EXCEPTIONS
   }
-  catch(std::bad_alloc& ba) {
+  catch(std::bad_alloc& ba)
+  {
     std::cout << "### FATAL ERROR in main" << std::endl << "memory allocation failed "
               << "in creating task list " << ba.what() << std::endl;
 #ifdef MPI_PARALLEL
@@ -411,47 +440,7 @@ int main(int argc, char *argv[]) {
 #endif
     return(0);
   }
-#endif // ENABLE_EXCEPTIONS
 
-
-  SuperTimeStepTaskList *pststlist = nullptr;
-  if (STS_ENABLED) {
-#ifdef ENABLE_EXCEPTIONS
-    try {
-#endif
-      pststlist = new SuperTimeStepTaskList(pinput, pmesh, ptlist);
-#ifdef ENABLE_EXCEPTIONS
-    }
-    catch(std::bad_alloc& ba) {
-      std::cout << "### FATAL ERROR in main" << std::endl << "memory allocation failed "
-                << "in creating task list " << ba.what() << std::endl;
-#ifdef MPI_PARALLEL
-      MPI_Finalize();
-#endif
-      return(0);
-    }
-#endif // ENABLE_EXCEPTIONS
-}
-  MatterTaskList *pmatterlist = nullptr;
-
-#ifdef ENABLE_EXCEPTIONS
-  try {
-#endif
-//Matter and dynamical spacetime
-    if (Z4C_ENABLED && FLUID_ENABLED) { // only init. when required
-      pmatterlist = new MatterTaskList(pinput, pmesh);
-    }
-#ifdef ENABLE_EXCEPTIONS
-  }
-  catch(std::bad_alloc& ba) {
-    std::cout << "### FATAL ERROR in main" << std::endl << "memory allocation failed "
-              << "in creating task list " << ba.what() << std::endl;
-#ifdef MPI_PARALLEL
-    MPI_Finalize();
-#endif
-    return(0);
-  }
-#endif // ENABLE_EXCEPTIONS
 
 #ifdef ENABLE_EXCEPTIONS
   try {
@@ -476,7 +465,7 @@ int main(int argc, char *argv[]) {
     return(0);
   }
 #endif // ENABLE_EXCEPTIONS
-  
+
 
   //--- Step 6. --------------------------------------------------------------------------
   // Set initial conditions by calling problem generator, or reading restart file
@@ -549,12 +538,17 @@ int main(int argc, char *argv[]) {
 
   // BD: populate z4c struct carrying output dt for various quantities
   // This controls computation of quantities within the main tasklist
-  if (Z4C_ENABLED) {
+  if (Z4C_ENABLED)
+  {
     Real dt_con = pouts->GetOutputTimeStep("con");
-    if (!FLUID_ENABLED){
+
+    if (FLUID_ENABLED)
+    {
+      ptlist_grmhd_z4c->TaskListTriggers.con.dt = dt_con;
+    }
+    else
+    {
       ptlist_gr_z4c->TaskListTriggers.con.dt = dt_con;
-    } else{
-      pmatterlist->TaskListTriggers.con.dt = dt_con;
     }
   }
 
@@ -631,9 +625,9 @@ int main(int argc, char *argv[]) {
       else
       { //FLUID_ENABLED && Z4C_ENABLED
 
-        for (int stage=1; stage<=pmatterlist->nstages; ++stage)
+        for (int stage=1; stage<=ptlist_grmhd_z4c->nstages; ++stage)
         {
-          pmatterlist->DoTaskListOneStage(pmesh, stage);
+          ptlist_grmhd_z4c->DoTaskListOneStage(pmesh, stage);
 
 #if defined(Z4C_CX_ENABLED)
           // recommunicate boundaries
@@ -658,7 +652,7 @@ int main(int argc, char *argv[]) {
       {
         wave_update = ptlist_gr_z4c->TaskListTriggers.wave_extraction.to_update;
       } else {
-        wave_update = pmatterlist->TaskListTriggers.wave_extraction.to_update;
+        wave_update = ptlist_grmhd_z4c->TaskListTriggers.wave_extraction.to_update;
       }
 
       if (wave_update)
@@ -674,8 +668,8 @@ int main(int argc, char *argv[]) {
         cce_update = ptlist_gr_z4c->TaskListTriggers.cce_dump.to_update;
         cce_dt = ptlist_gr_z4c->TaskListTriggers.cce_dump.dt;
       } else {
-        cce_update = pmatterlist->TaskListTriggers.cce_dump.to_update;
-        cce_dt = pmatterlist->TaskListTriggers.cce_dump.dt;
+        cce_update = ptlist_grmhd_z4c->TaskListTriggers.cce_dump.to_update;
+        cce_dt = ptlist_grmhd_z4c->TaskListTriggers.cce_dump.dt;
       }
       // only do a CCE dump if NextTime threshold cleared (updated below)
       if (cce_update) {
@@ -732,21 +726,25 @@ int main(int argc, char *argv[]) {
                                           pmesh->time+pmesh->dt);
 
 
+
+    //-------------------------------------------------------------------------
     if (Z4C_ENABLED)
     {
-
-      //-------------------------------------------------------------------------
       // Update NextTime triggers
       // This needs to be here to share tasklist external (though coupled) ops.
-      if (!FLUID_ENABLED)
+
+      if (FLUID_ENABLED)
+      {
+        ptlist_grmhd_z4c->UpdateTaskListTriggers();
+      }
+      else
       {
         ptlist_gr_z4c->UpdateTaskListTriggers();
-      } else {
-        pmatterlist->UpdateTaskListTriggers();
       }
+
       pz4cauxlist->UpdateTaskListTriggers();
-      //-------------------------------------------------------------------------
     }
+    //-------------------------------------------------------------------------
 
     pmesh->UserWorkInLoop();
     pmesh->ncycle++;
@@ -901,7 +899,7 @@ int main(int argc, char *argv[]) {
 #endif
   delete pz4crbclist;
   delete pz4cauxlist;
-  delete pmatterlist;
+  delete ptlist_grmhd_z4c;
   delete pouts;
 
 #ifdef MPI_PARALLEL
