@@ -91,8 +91,8 @@ public:
   TaskStatus CalculateHydroFlux(MeshBlock *pmb, int stage);
   TaskStatus CalculateEMF(MeshBlock *pmb, int stage);
 
-  TaskStatus SendHydroFlux(MeshBlock *pmb, int stage);
-  TaskStatus SendEMF(MeshBlock *pmb, int stage);
+  TaskStatus SendFluxCorrectionHydro(MeshBlock *pmb, int stage);
+  TaskStatus SendFluxCorrectionEMF(  MeshBlock *pmb, int stage);
 
   TaskStatus ReceiveAndCorrectHydroFlux(MeshBlock *pmb, int stage);
   TaskStatus ReceiveAndCorrectEMF(MeshBlock *pmb, int stage);
@@ -102,10 +102,6 @@ public:
 
   TaskStatus AddSourceTermsHydro(MeshBlock *pmb, int stage);
 
-  TaskStatus DiffuseHydro(MeshBlock *pmb, int stage);
-  TaskStatus DiffuseField(MeshBlock *pmb, int stage);
-  TaskStatus DiffuseScalars(MeshBlock *pmb, int stage);
-
   TaskStatus SendHydro(MeshBlock *pmb, int stage);
   TaskStatus SendField(MeshBlock *pmb, int stage);
 
@@ -114,14 +110,6 @@ public:
 
   TaskStatus SetBoundariesHydro(MeshBlock *pmb, int stage);
   TaskStatus SetBoundariesField(MeshBlock *pmb, int stage);
-
-  TaskStatus SendHydroShear(MeshBlock *pmb, int stage);
-  TaskStatus ReceiveHydroShear(MeshBlock *pmb, int stage);
-  TaskStatus SendFieldShear(MeshBlock *pmb, int stage);
-  TaskStatus ReceiveFieldShear(MeshBlock *pmb, int stage);
-  TaskStatus SendEMFShear(MeshBlock *pmb, int stage);
-  TaskStatus ReceiveEMFShear(MeshBlock *pmb, int stage);
-  TaskStatus RemapEMFShear(MeshBlock *pmb, int stage);
 
   TaskStatus Prolongation_Hyd(MeshBlock *pmb, int stage);
   TaskStatus Primitives(MeshBlock *pmb, int stage);
