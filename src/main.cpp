@@ -346,10 +346,12 @@ int main(int argc, char *argv[]) {
   TimeIntegratorTaskList *ptlist = nullptr;
 
 #ifdef ENABLE_EXCEPTIONS
-  try {
+  try
+  {
 #endif
-// Fluid but no dynamical spacetime
-    if (FLUID_ENABLED  && !Z4C_ENABLED){
+    if (FLUID_ENABLED  && !Z4C_ENABLED)
+    {
+      // Fluid but no dynamical spacetime
       ptlist = new TimeIntegratorTaskList(pinput, pmesh);
     }
 #ifdef ENABLE_EXCEPTIONS
@@ -366,9 +368,11 @@ int main(int argc, char *argv[]) {
 
 
   SuperTimeStepTaskList *pststlist = nullptr;
-  if (STS_ENABLED) {
+  if (STS_ENABLED)
+  {
 #ifdef ENABLE_EXCEPTIONS
-    try {
+    try
+    {
 #endif
       pststlist = new SuperTimeStepTaskList(pinput, pmesh, ptlist);
 #ifdef ENABLE_EXCEPTIONS
@@ -384,31 +388,7 @@ int main(int argc, char *argv[]) {
 #endif // ENABLE_EXCEPTIONS
 }
 
-  // BD: new problem
   WaveIntegratorTaskList *pwlist = nullptr;
-  // -BD
-
-#ifdef ENABLE_EXCEPTIONS
-  try {
-#endif
-    // BD: new problem
-    if (WAVE_ENABLED) { // only init. when required
-      pwlist = new WaveIntegratorTaskList(pinput, pmesh);
-    }
-    // -BD
-#ifdef ENABLE_EXCEPTIONS
-  }
-  catch(std::bad_alloc& ba) {
-    std::cout << "### FATAL ERROR in main" << std::endl << "memory allocation failed "
-              << "in creating task list " << ba.what() << std::endl;
-#ifdef MPI_PARALLEL
-    MPI_Finalize();
-#endif
-    return(0);
-  }
-#endif // ENABLE_EXCEPTIONS
-
-  Z4cRBCTaskList        *pz4crbclist = nullptr;
 
   using namespace TaskLists::GeneralRelativity;
 
@@ -436,6 +416,11 @@ int main(int argc, char *argv[]) {
       ptlist_aux_z4c     = new Aux_Z4c(pinput, pmesh);
       ptlist_postamr_z4c = new PostAMR_Z4c(pinput, pmesh);
     }
+
+    if (WAVE_ENABLED)
+    {
+      pwlist = new WaveIntegratorTaskList(pinput, pmesh);
+    }
   }
   catch(std::bad_alloc& ba)
   {
@@ -446,26 +431,6 @@ int main(int argc, char *argv[]) {
 #endif
     return(0);
   }
-
-
-#ifdef ENABLE_EXCEPTIONS
-  try {
-#endif
-// Auxiliary tasklists for use with z4c and z4c+matter
-    if (Z4C_ENABLED) { // only init. when required
-      pz4crbclist = new Z4cRBCTaskList(pinput, pmesh);
-    }
-#ifdef ENABLE_EXCEPTIONS
-  }
-  catch(std::bad_alloc& ba) {
-    std::cout << "### FATAL ERROR in main" << std::endl << "memory allocation failed "
-              << "in creating task list " << ba.what() << std::endl;
-#ifdef MPI_PARALLEL
-    MPI_Finalize();
-#endif
-    return(0);
-  }
-#endif // ENABLE_EXCEPTIONS
 
 
   //--- Step 6. --------------------------------------------------------------------------
@@ -571,7 +536,9 @@ int main(int argc, char *argv[]) {
         pststlist->DoTaskListOneStage(pmesh,stage);
     }
 
-    if (FLUID_ENABLED && !Z4C_ENABLED){  //Turbulence, self gravity not enabled for z4c
+    if (FLUID_ENABLED && !Z4C_ENABLED)
+    {
+      //Turbulence, self gravity not enabled for z4c
 
 #ifdef FFT
       if (pmesh->turb_flag > 1) pmesh->ptrbd->Driving(); // driven turbulence
@@ -594,54 +561,46 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    // BD: new problem
-    if (WAVE_ENABLED) {
-      // This effectively means hydro takes a time-step and _then_ the given problem takes one
-      for (int stage=1; stage<=pwlist->nstages; ++stage) {
+    if (WAVE_ENABLED)
+    {
+      // This effectively means hydro takes a time-step and _then_ the given
+      // problem takes one
+      for (int stage=1; stage<=pwlist->nstages; ++stage)
+      {
         pwlist->DoTaskListOneStage(pmesh, stage);
       }
     }
-    // -BD
-
 
     if (Z4C_ENABLED)
     {
       if (!FLUID_ENABLED)
       {
-      // This effectively means hydro takes a time-step and _then_ the given problem takes one
+        // This effectively means hydro takes a time-step and _then_ the given
+        // problem takes one
         for (int stage=1; stage<=ptlist_gr_z4c->nstages; ++stage)
         {
           ptlist_gr_z4c->DoTaskListOneStage(pmesh, stage);
-
-#if defined(Z4C_CX_ENABLED)
-          // recommunicate BC
-          for (int num=1; num<=Z4C_CX_NUM_RBC; num++)
-          {
-            pz4crbclist->DoTaskListOneStage(pmesh, num);
-          }
-#endif // Z4C_CX_ENABLED
-
+          // Iterate bnd comm. as required
+          pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
         }
       }
       else
       { //FLUID_ENABLED && Z4C_ENABLED
-
         for (int stage=1; stage<=ptlist_grmhd_z4c->nstages; ++stage)
         {
           ptlist_grmhd_z4c->DoTaskListOneStage(pmesh, stage);
-
-#if defined(Z4C_CX_ENABLED)
-          // recommunicate boundaries
-          for (int num=1; num<=Z4C_CX_NUM_RBC; num++)
-          {
-            pz4crbclist->DoTaskListOneStage(pmesh, num);
-          }
-#endif // Z4C_CX_ENABLED
+          // Iterate bnd comm. as required
+          pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
         }
 
       } //FLUID_ENABLED
 
-      ptlist_aux_z4c->DoTaskListOneStage(pmesh, 1);  // only 1 stage
+      // BD: TODO -
+      // Should check we actually need the Aux. dump here...
+      {
+        pmesh->CommunicateAuxZ4c();
+        ptlist_aux_z4c->DoTaskListOneStage(pmesh, 1);  // only 1 stage
+      }
 
       // BD: TODO - check that the following are not displaced by \dt ?
       // only do an extraction if NextTime threshold cleared (updated below)
@@ -717,6 +676,7 @@ int main(int argc, char *argv[]) {
 
     }
 
+    // BD: TODO - put this after the post-amr hooks... ?
     // extrema trackers are registered / computed collectively
     // non-z4c quantities can be tracked
     pmesh->ptracker_extrema->ReduceTracker();
@@ -804,7 +764,6 @@ int main(int argc, char *argv[]) {
     if (SignalHandler::CheckSignalFlags() != 0) {
       break;
     }
-
 
   } // END OF MAIN INTEGRATION LOOP ======================================================
   // Make final outputs, print diagnostics, clean up and terminate
@@ -898,7 +857,6 @@ int main(int argc, char *argv[]) {
   delete ptlist_gr_z4c;
   delete ptlist_postamr_z4c;
 #endif
-  delete pz4crbclist;
   delete ptlist_aux_z4c;
   delete ptlist_grmhd_z4c;
   delete pouts;

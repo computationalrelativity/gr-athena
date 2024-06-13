@@ -462,6 +462,10 @@ class Mesh {
 
   inline int GetRootLevel() { return root_level; }
 
+  // Additional, specific, communication of data over MeshBlock objects
+  void CommunicateAuxZ4c();
+  void CommunicateIteratedZ4c(const int iterations);
+
   // General post-AMR procedures
   void FinalizePostAMR();
 

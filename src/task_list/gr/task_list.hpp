@@ -195,13 +195,7 @@ class Aux_Z4c : public TaskList
 public:
   Aux_Z4c(ParameterInput *pin, Mesh *pm);
 
-  TaskStatus SendAux(MeshBlock *pmb, int stage);
-  TaskStatus ReceiveAux(MeshBlock *pmb, int stage);
-  TaskStatus SetBoundariesAux(MeshBlock *pmb, int stage);
-  TaskStatus ProlongAux(MeshBlock *pmb, int stage);
-  TaskStatus PhysicalBoundary(MeshBlock *pmb, int stage);
   TaskStatus WeylDecompose(MeshBlock *pmb, int stage);
-  TaskStatus ClearAllAuxBoundary(MeshBlock *pmb, int stage);
 
   //---------------------------------------------------------------------------
   // Provide finer-grained control over tasklist

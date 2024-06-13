@@ -105,14 +105,7 @@ const TaskID CCE_DUMP(18);
 namespace TaskNames::GeneralRelativity::Aux_Z4c {
 
 const TaskID NONE(0);
-
-const TaskID SEND_AUX(4);
-const TaskID RECV_AUX(5);
-const TaskID SETB_AUX(6);
-const TaskID PROL_AUX(7);
-const TaskID PHY_BVAL(8);
 const TaskID WEYL_DECOMP(9);
-const TaskID CLEAR_AUXBND(10);
 
 }  // namespace TaskNames::GeneralRelativity::Aux_Z4c
 
