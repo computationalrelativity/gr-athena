@@ -29,6 +29,29 @@ public:
     Real beta;
   };
 
+  // Scaled coefficient for RHS time-advance within stage
+  Real dt_scaled(const int stage, MeshBlock * pmb)
+  {
+    return (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
+  }
+
+  // Time at beginning of stage for u()
+  Real t_begin(const int stage, MeshBlock * pmb)
+  {
+    return pmb->pmy_mesh->time + pmb->stage_abscissae[stage-1][0];
+  }
+
+  // Time at end of the stage
+  Real t_end(const int stage, MeshBlock * pmb)
+  {
+    return pmb->pmy_mesh->time + pmb->stage_abscissae[stage][0];
+  }
+
+
+  // Given overall timestep dt, compute the time abscissae for all
+  // registers, stages
+  void PrepareStageAbscissae(const int stage, MeshBlock * pmb);
+
   // data
   std::string integrator;
   // dt stability limit for the particular time integrator + spatial order

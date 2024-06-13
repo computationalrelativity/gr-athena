@@ -139,222 +139,235 @@ GR_Z4c::GR_Z4c(ParameterInput *pin, Mesh *pm)
       Add(CLEAR_ALLBND, NEW_DT,   &GR_Z4c::ClearAllBoundary);
     }
 
-    Add(ASSERT_FIN, CLEAR_ALLBND, &GR_Z4c::AssertFinite);
+    // Add(ASSERT_FIN, CLEAR_ALLBND, &GR_Z4c::AssertFinite);
   } // namespace
 }
 
 // ----------------------------------------------------------------------------
 void GR_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
 {
-  // application of Sommerfeld boundary conditions
-  pmb->pz4c->Z4cBoundaryRHS(pmb->pz4c->storage.u,
-                          pmb->pz4c->storage.mat,
-                          pmb->pz4c->storage.rhs);
-
   BoundaryValues *pbval = pmb->pbval;
+  Z4c            *pz4c  = pmb->pz4c;
 
-  Real t_end_stage = pmb->pmy_mesh->time + pmb->stage_abscissae[stage][0];
-  // Scaled coefficient for RHS time-advance within stage
-  Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
+  // Application of Sommerfeld boundary conditions
+  pz4c->Z4cBoundaryRHS(pz4c->storage.u, pz4c->storage.mat, pz4c->storage.rhs);
+
+  const Real t_end = this->t_end(stage, pmb);
+  const Real dt_scaled = this->dt_scaled(stage, pmb);
 
   FCN_CC_CX_VC(
     pbval->ApplyPhysicalBoundaries,
     pbval->ApplyPhysicalCellCenteredXBoundaries,
     pbval->ApplyPhysicalVertexCenteredBoundaries
-  )(t_end_stage, dt);
+  )(t_end, dt_scaled);
 
-  if (stage == 1) {
-    // For each Meshblock, initialize time abscissae of each memory register pair (u,b)
-    // at stage=0 to correspond to the beginning of the interval [t^n, t^{n+1}]
-    pmb->stage_abscissae[0][0] = 0.0;
-    pmb->stage_abscissae[0][1] = 0.0; // u1 advances to u1 = 0*u1 + 1.0*u in stage=1
-    pmb->stage_abscissae[0][2] = 0.0; // u2 = u cached for all stages in 3S* methods
-
-    // Given overall timestep dt, compute the time abscissae for all registers, stages
-    for (int l=1; l<=nstages; l++) {
-      // Update the dt abscissae of each memory register to values at end of this stage
-      const IntegratorWeights w = stage_wghts[l-1];
-
-      // u1 = u1 + delta*u
-      pmb->stage_abscissae[l][1] = pmb->stage_abscissae[l-1][1]
-        + w.delta*pmb->stage_abscissae[l-1][0];
-      // u = gamma_1*u + gamma_2*u1 + gamma_3*u2 + beta*dt*F(u)
-      pmb->stage_abscissae[l][0] = w.gamma_1*pmb->stage_abscissae[l-1][0]
-        + w.gamma_2*pmb->stage_abscissae[l][1]
-        + w.gamma_3*pmb->stage_abscissae[l-1][2]
-        + w.beta*pmb->pmy_mesh->dt;
-      // u2 = u^n
-      pmb->stage_abscissae[l][2] = 0.0;
+  if (stage == 1)
+  {
+    if (integrator == "ssprk5_4")
+    {
+      std::stringstream msg;
+      msg << "### FATAL ERROR in GR_Z4c::StartupTaskList\n"
+          << "integrator=" << integrator << " is currently incompatible with GR"
+          << std::endl;
+      ATHENA_ERROR(msg);
     }
 
-    // Auxiliar var u1 needs to be initialized to 0 at the beginning of each cycle
-    // Change to emulate PassiveScalars logic
-    pmb->pz4c->storage.u1.ZeroClear();
-    if (integrator == "ssprk5_4")
-      pmb->pz4c->storage.u2 = pmb->pz4c->storage.u;
+    // Initialize time abscissae
+    PrepareStageAbscissae(stage, pmb);
+
+    // Auxiliary var u1 needs 0-init at the beginning of each cycle
+    pz4c->storage.u1.ZeroClear();
   }
 
   pmb->pbval->StartReceiving(BoundaryCommSubset::all);
   return;
 }
 
-//----------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 // Functions to end MPI communication
-
-TaskStatus GR_Z4c::ClearAllBoundary(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::ClearAllBoundary(MeshBlock *pmb, int stage)
+{
   pmb->pbval->ClearBoundary(BoundaryCommSubset::all);
   return TaskStatus::success;
 }
 
-//----------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 // Functions to calculate the RHS
 
-TaskStatus GR_Z4c::CalculateZ4cRHS(MeshBlock *pmb, int stage) {
-  // PunctureTracker: interpolate beta at puncture position before evolution
-  if (stage == 1) {
-    for (auto ptracker : pmb->pmy_mesh->pz4c_tracker) {
-      ptracker->InterpolateShift(pmb, pmb->pz4c->storage.u);
+TaskStatus GR_Z4c::CalculateZ4cRHS(MeshBlock *pmb, int stage)
+{
+  Z4c * pz4c = pmb->pz4c;
+
+ // PunctureTracker: interpolate beta at puncture position before evolution
+  if (stage == 1)
+  {
+    for (auto ptracker : pmb->pmy_mesh->pz4c_tracker)
+    {
+      ptracker->InterpolateShift(pmb, pz4c->storage.u);
     }
   }
 
-  if (stage <= nstages) {
-    pmb->pz4c->Z4cRHS(pmb->pz4c->storage.u,
-                      pmb->pz4c->storage.mat,
-                      pmb->pz4c->storage.rhs);
+  if (stage <= nstages)
+  {
+    pz4c->Z4cRHS(pz4c->storage.u, pz4c->storage.mat, pz4c->storage.rhs);
 
-    // application of Sommerfeld boundary conditions
-    pmb->pz4c->Z4cBoundaryRHS(pmb->pz4c->storage.u,
-                              pmb->pz4c->storage.mat,
-                              pmb->pz4c->storage.rhs);
+    // Sommerfeld boundary conditions
+    pz4c->Z4cBoundaryRHS(pz4c->storage.u,
+                         pz4c->storage.mat,
+                         pz4c->storage.rhs);
+
     return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
 
-//----------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 // Functions to integrate variables
+TaskStatus GR_Z4c::IntegrateZ4c(MeshBlock *pmb, int stage)
+{
+  if (stage <= nstages)
+  {
+    Z4c *pz4c = pmb->pz4c;
+    Hydro *ph = pmb->phydro;
+    Field *pf = pmb->pfield;
 
-TaskStatus GR_Z4c::IntegrateZ4c(MeshBlock *pmb, int stage) {
-  Z4c *pz4c = pmb->pz4c;
-
-  if (stage <= nstages) {
-    // This time-integrator-specific averaging operation logic is identical
-    // to IntegrateField
+    // See IntegrateField
     Real ave_wghts[3];
     ave_wghts[0] = 1.0;
     ave_wghts[1] = stage_wghts[stage-1].delta;
     ave_wghts[2] = 0.0;
-    pz4c->WeightedAve(pz4c->storage.u1, pz4c->storage.u,
-                      pz4c->storage.u2, ave_wghts);
+    pz4c->WeightedAve(pz4c->storage.u1,
+                      pz4c->storage.u,
+                      pz4c->storage.u2,
+                      ave_wghts);
 
     ave_wghts[0] = stage_wghts[stage-1].gamma_1;
     ave_wghts[1] = stage_wghts[stage-1].gamma_2;
     ave_wghts[2] = stage_wghts[stage-1].gamma_3;
 
-    pz4c->WeightedAve(pz4c->storage.u, pz4c->storage.u1,
-                      pz4c->storage.u2, ave_wghts);
-    pz4c->AddZ4cRHS(pz4c->storage.rhs, stage_wghts[stage-1].beta,
+    // if (ave_wghts[0] == 0.0 && ave_wghts[1] == 1.0 && ave_wghts[2] == 0.0)
+    // {
+    //   // pz4c->storage.u.SwapAthenaArray(pz4c->storage.u1);
+    //   std::swap(pz4c->storage.u, pz4c->storage.u1);
+    // }
+    // else
+    // {
+    //   pz4c->WeightedAve(pz4c->storage.u,
+    //                     pz4c->storage.u1,
+    //                     pz4c->storage.u2,
+    //                     ave_wghts);
+    // }
+
+    pz4c->WeightedAve(pz4c->storage.u,
+                      pz4c->storage.u1,
+                      pz4c->storage.u2,
+                      ave_wghts);
+
+    const Real dt_scaled = this->dt_scaled(stage, pmb);
+    pz4c->AddZ4cRHS(pz4c->storage.rhs,
+                    dt_scaled,
                     pz4c->storage.u);
-
-    if (stage == 4 && integrator == "ssprk5_4")
-    {
-      // From Gottlieb (2009), u^(n+1) partial calculation
-      ave_wghts[0] = -1.0; // -u^(n) coeff.
-      ave_wghts[1] = 0.0;
-      ave_wghts[2] = 0.0;
-      const Real beta = 0.063692468666290; // F(u^(3)) coeff.
-      const Real wght_ssp = beta*pmb->pmy_mesh->dt;
-      // writing out to u2 register
-      pz4c->WeightedAve(pz4c->storage.u2,
-                        pz4c->storage.u1,
-                        pz4c->storage.u2,
-                        ave_wghts);
-
-      pz4c->AddZ4cRHS(pz4c->storage.rhs,
-                      wght_ssp,
-                      pz4c->storage.u);
-    }
 
     return TaskStatus::next;
   }
-
   return TaskStatus::fail;
 }
-//----------------------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
 // Functions to communicate conserved variables between MeshBlocks
+TaskStatus GR_Z4c::SendZ4c(MeshBlock *pmb, int stage)
+{
+  if (stage <= nstages)
+  {
+    Z4c *pz4c = pmb->pz4c;
 
-TaskStatus GR_Z4c::SendZ4c(MeshBlock *pmb, int stage) {
-  if (stage <= nstages) {
-    pmb->pz4c->ubvar.SendBoundaryBuffers();
-  } else {
-    return TaskStatus::fail;
-  }
-  return TaskStatus::success;
-}
-
-//----------------------------------------------------------------------------------------
-// Functions to receive conserved variables between MeshBlocks
-
-TaskStatus GR_Z4c::ReceiveZ4c(MeshBlock *pmb, int stage) {
-  bool ret;
-  if (stage <= nstages) {
-    ret = pmb->pz4c->ubvar.ReceiveBoundaryBuffers();
-  } else {
-    return TaskStatus::fail;
-  }
-  if (ret) {
-    return TaskStatus::success;
-  } else {
-    return TaskStatus::fail;
-  }
-}
-
-TaskStatus GR_Z4c::SetBoundariesZ4c(MeshBlock *pmb, int stage) {
-  if (stage <= nstages) {
-    pmb->pz4c->ubvar.SetBoundaries();
+    pz4c->ubvar.SendBoundaryBuffers();
     return TaskStatus::success;
   }
   return TaskStatus::fail;
 }
 
-//--------------------------------------------------------------------------------------
-// Functions for everything else
+//-----------------------------------------------------------------------------
+// Functions to receive conserved variables between MeshBlocks
+TaskStatus GR_Z4c::ReceiveZ4c(MeshBlock *pmb, int stage)
+{
+  bool ret;
 
-TaskStatus GR_Z4c::Prolongation(MeshBlock *pmb, int stage) {
-  BoundaryValues *pbval = pmb->pbval;
+  if (stage <= nstages)
+  {
+    Z4c *pz4c = pmb->pz4c;
 
-  if (stage <= nstages) {
-    // Time at the end of stage for (u, b) register pair
-    Real t_end_stage = pmb->pmy_mesh->time + pmb->stage_abscissae[stage][0];
-    // Scaled coefficient for RHS time-advance within stage
-    Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
-    pbval->ProlongateBoundaries(t_end_stage, dt);
-  } else {
+    ret = pz4c->ubvar.ReceiveBoundaryBuffers();
+  }
+  else
+  {
+    return TaskStatus::fail;
+  }
+
+  if (ret)
+  {
+    return TaskStatus::success;
+  }
+  else
+  {
+    return TaskStatus::fail;
+  }
+}
+
+TaskStatus GR_Z4c::SetBoundariesZ4c(MeshBlock *pmb, int stage)
+{
+  if (stage <= nstages)
+  {
+    Z4c *pz4c = pmb->pz4c;
+
+    pz4c->ubvar.SetBoundaries();
+    return TaskStatus::success;
+  }
+  return TaskStatus::fail;
+}
+
+//-----------------------------------------------------------------------------
+TaskStatus GR_Z4c::Prolongation(MeshBlock *pmb, int stage)
+{
+
+  if (stage <= nstages)
+  {
+    BoundaryValues *pbval = pmb->pbval;
+
+    const Real t_end = this->t_end(stage, pmb);
+    const Real dt_scaled = this->dt_scaled(stage, pmb);
+
+    // Prolongate z4c vars
+    pbval->ProlongateBoundaries(t_end, dt_scaled);
+  }
+  else
+  {
     return TaskStatus::fail;
   }
 
   return TaskStatus::success;
 }
 
-TaskStatus GR_Z4c::PhysicalBoundary(MeshBlock *pmb, int stage) {
-  BoundaryValues *pbval = pmb->pbval;
+TaskStatus GR_Z4c::PhysicalBoundary(MeshBlock *pmb, int stage)
+{
 
-  if (stage <= nstages) {
-    // Time at the end of stage for (u, b) register pair
-    Real t_end_stage = pmb->pmy_mesh->time + pmb->stage_abscissae[stage][0];
-    // Scaled coefficient for RHS time-advance within stage
-    Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
+  if (stage <= nstages)
+  {
+    BoundaryValues *pbval = pmb->pbval;
 
+    const Real t_end = this->t_end(stage, pmb);
+    const Real dt_scaled = this->dt_scaled(stage, pmb);
+
+    // switch based on sampling
     FCN_CC_CX_VC(
-      pbval->ApplyPhysicalBoundaries,
-      pbval->ApplyPhysicalCellCenteredXBoundaries,
-      pbval->ApplyPhysicalVertexCenteredBoundaries
-    )(t_end_stage, dt);
+        pbval->ApplyPhysicalBoundaries,
+        pbval->ApplyPhysicalCellCenteredXBoundaries,
+        pbval->ApplyPhysicalVertexCenteredBoundaries
+    )(t_end, dt_scaled);
 
   } else {
     return TaskStatus::fail;
   }
-
   return TaskStatus::success;
 }
 
@@ -365,26 +378,35 @@ TaskStatus GR_Z4c::UserWork(MeshBlock *pmb, int stage) {
   return TaskStatus::success;
 }
 
-TaskStatus GR_Z4c::EnforceAlgConstr(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::EnforceAlgConstr(MeshBlock *pmb, int stage)
+{
+#ifndef DBG_ALGCONSTR_ALL
   if (stage != nstages) return TaskStatus::success; // only do on last stage
+#endif // DBG_ALGCONSTR_ALL
 
-  pmb->pz4c->AlgConstr(pmb->pz4c->storage.u);
+  Z4c *pz4c = pmb->pz4c;
+  pz4c->AlgConstr(pz4c->storage.u);
+
   return TaskStatus::success;
 }
 
-TaskStatus GR_Z4c::Z4cToADM(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::Z4cToADM(MeshBlock *pmb, int stage)
+{
   // BD: this map is only required on the final stage
   if (stage != nstages) return TaskStatus::success;
 
-  pmb->pz4c->Z4cToADM(pmb->pz4c->storage.u, pmb->pz4c->storage.adm);
+  Z4c *pz4c = pmb->pz4c;
+  pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
   return TaskStatus::success;
 }
 
-TaskStatus GR_Z4c::Z4c_Weyl(MeshBlock *pmb, int stage) {
-  // only do on last stage
+TaskStatus GR_Z4c::Z4c_Weyl(MeshBlock *pmb, int stage)
+{
   if (stage != nstages) return TaskStatus::success;
 
-  Mesh *pm = pmb->pmy_mesh;
+  Mesh *pm   = pmb->pmy_mesh;
+  Z4c  *pz4c = pmb->pz4c;
+
   if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction))
   {
     pmb->pz4c->Z4cWeyl(pmb->pz4c->storage.adm,
@@ -395,18 +417,21 @@ TaskStatus GR_Z4c::Z4c_Weyl(MeshBlock *pmb, int stage) {
   return TaskStatus::success;
 }
 
-TaskStatus GR_Z4c::WaveExtract(MeshBlock *pmb, int stage) {
-  // only do on last stage
+TaskStatus GR_Z4c::WaveExtract(MeshBlock *pmb, int stage)
+{
   if (stage != nstages) return TaskStatus::success;
 
-  Mesh *pm = pmb->pmy_mesh;
+  Mesh *pm   = pmb->pmy_mesh;
+  Z4c  *pz4c = pmb->pz4c;
 
-  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction)) {
+  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction))
+  {
     AthenaArray<Real> u_R;
     AthenaArray<Real> u_I;
-    u_R.InitWithShallowSlice(pmb->pz4c->storage.weyl, Z4c::I_WEY_rpsi4, 1);
-    u_I.InitWithShallowSlice(pmb->pz4c->storage.weyl, Z4c::I_WEY_ipsi4, 1);
-    for (auto pwextr : pmb->pwave_extr_loc) {
+    u_R.InitWithShallowSlice(pz4c->storage.weyl, Z4c::I_WEY_rpsi4, 1);
+    u_I.InitWithShallowSlice(pz4c->storage.weyl, Z4c::I_WEY_ipsi4, 1);
+    for (auto pwextr : pmb->pwave_extr_loc)
+    {
         pwextr->Decompose_multipole(u_R,u_I);
     }
   }
@@ -433,37 +458,42 @@ TaskStatus GR_Z4c::CCEDump(MeshBlock *pmb, int stage) {
 }
 #endif
 
-TaskStatus GR_Z4c::ADM_Constraints(MeshBlock *pmb, int stage) {
-  // only do on last stage
+TaskStatus GR_Z4c::ADM_Constraints(MeshBlock *pmb, int stage)
+{
   if (stage != nstages) return TaskStatus::success;
 
-  Mesh *pm = pmb->pmy_mesh;
+  Mesh *pm   = pmb->pmy_mesh;
+  Z4c  *pz4c = pmb->pz4c;
 
-  // check last stage is actually at a relevant time
   if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.con) ||
       CurrentTimeCalculationThreshold(pm, &TaskListTriggers.con_hst))
-  {
-    pmb->pz4c->ADMConstraints(pmb->pz4c->storage.con, pmb->pz4c->storage.adm,
-                              pmb->pz4c->storage.mat, pmb->pz4c->storage.u);
-  }
+  {      // Time at the end of stage for (u, b) register pair
 
+    pz4c->ADMConstraints(pz4c->storage.con, pz4c->storage.adm,
+                         pz4c->storage.mat, pz4c->storage.u);
+
+  }
   return TaskStatus::success;
 }
 
-TaskStatus GR_Z4c::NewBlockTimeStep(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::NewBlockTimeStep(MeshBlock *pmb, int stage)
+{
   if (stage != nstages) return TaskStatus::success; // only do on last stage
 
-  pmb->pz4c->NewBlockTimeStep();
+  Z4c *pz4c = pmb->pz4c;
+  pz4c->NewBlockTimeStep();
   return TaskStatus::success;
 }
 
-TaskStatus GR_Z4c::CheckRefinement(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::CheckRefinement(MeshBlock *pmb, int stage)
+{
   if (stage != nstages) return TaskStatus::success; // only do on last stage
 
   pmb->pmr->CheckRefinementCondition();
   return TaskStatus::success;
 }
 
+/*
 TaskStatus GR_Z4c::AssertFinite(MeshBlock *pmb, int stage) {
   // only do on last stage
   if (stage != nstages) return TaskStatus::success;
@@ -480,7 +510,7 @@ TaskStatus GR_Z4c::AssertFinite(MeshBlock *pmb, int stage) {
 
   return TaskStatus::success;
 }
-
+*/
 
 //----------------------------------------------------------------------------------------
 // \!fn bool GR_Z4c::CurrentTimeCalculationThreshold(
@@ -545,7 +575,6 @@ void GR_Z4c::UpdateTaskListTriggers() {
     TaskListTriggers.cce_dump.next_time += TaskListTriggers.cce_dump.dt;
     TaskListTriggers.cce_dump.to_update = false;
   }
-  
 }
 
 
