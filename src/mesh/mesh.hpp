@@ -271,7 +271,6 @@ public:
 
   // This is a quick fix to prevent multiple calls to 'UserWorkInLoop' if
   // TimeIntegratorTaskList and Z4cIntegratorTaskList are both running..
-  void Z4cUserWorkInLoop();
   void WaveUserWorkInLoop();
 
   bool PointContained(Real const x, Real const y, Real const z);

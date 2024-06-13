@@ -13,6 +13,7 @@
 #include "../../z4c/z4c.hpp"
 #include "../../z4c/z4c_macro.hpp"
 #include "../../z4c/wave_extract.hpp"
+#include "../../trackers/extrema_tracker.hpp"
 #if CCE_ENABLED
 #include "../../z4c/cce/cce.hpp"
 #endif
@@ -103,11 +104,11 @@ GR_Z4c::GR_Z4c(ParameterInput *pin, Mesh *pm)
     Add(SEND_Z4C, INT_Z4C, &GR_Z4c::SendZ4c);
     Add(RECV_Z4C, NONE,    &GR_Z4c::ReceiveZ4c);
 
-    Add(SETB_Z4C, (RECV_Z4C|INT_Z4C), &GR_Z4c::SetBoundariesZ4c);
+    Add(SETB_Z4C, (RECV_Z4C | INT_Z4C), &GR_Z4c::SetBoundariesZ4c);
 
     if (pm->multilevel)
     {
-      Add(PROLONG, (SEND_Z4C|SETB_Z4C), &GR_Z4c::Prolongation);
+      Add(PROLONG, (SEND_Z4C | SETB_Z4C), &GR_Z4c::Prolongation);
       Add(PHY_BVAL, PROLONG,            &GR_Z4c::PhysicalBoundary);
     }
     else
@@ -337,7 +338,6 @@ TaskStatus GR_Z4c::Prolongation(MeshBlock *pmb, int stage)
     const Real t_end = this->t_end(stage, pmb);
     const Real dt_scaled = this->dt_scaled(stage, pmb);
 
-    // Prolongate z4c vars
     pbval->ProlongateBoundaries(t_end, dt_scaled);
   }
   else
@@ -365,7 +365,9 @@ TaskStatus GR_Z4c::PhysicalBoundary(MeshBlock *pmb, int stage)
         pbval->ApplyPhysicalVertexCenteredBoundaries
     )(t_end, dt_scaled);
 
-  } else {
+  }
+  else
+  {
     return TaskStatus::fail;
   }
   return TaskStatus::success;
@@ -374,7 +376,11 @@ TaskStatus GR_Z4c::PhysicalBoundary(MeshBlock *pmb, int stage)
 TaskStatus GR_Z4c::UserWork(MeshBlock *pmb, int stage) {
   if (stage != nstages) return TaskStatus::success; // only do on last stage
 
-  pmb->Z4cUserWorkInLoop();
+  pmb->UserWorkInLoop();
+
+  // TODO: BD- this should be shifted to its own task
+  pmb->ptracker_extrema_loc->TreatCentreIfLocalMember();
+
   return TaskStatus::success;
 }
 

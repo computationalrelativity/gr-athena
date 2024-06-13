@@ -265,7 +265,7 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin, Mesh *pm)
 
     Add(ALG_CONSTR, PHY_BVAL_Z4C, &GRMHD_Z4c::EnforceAlgConstr);
 
-    if(MAGNETIC_FIELDS_ENABLED)
+    if (MAGNETIC_FIELDS_ENABLED)
     {
       Add(Z4C_TO_ADM, (ALG_CONSTR | INT_HYD | INT_FLD),
           &GRMHD_Z4c::Z4cToADM);
@@ -378,7 +378,9 @@ TaskStatus GRMHD_Z4c::CalculateHydroFlux(MeshBlock *pmb, int stage)
     int xorder = pmb->precon->xorder;
 
     if ((stage == 1) && (integrator == "vl2"))
+    {
       xorder = 1;
+    }
 
     ph->CalculateFluxes(ph->w, pf->b, pf->bcc, xorder);
 
@@ -388,6 +390,7 @@ TaskStatus GRMHD_Z4c::CalculateHydroFlux(MeshBlock *pmb, int stage)
   return TaskStatus::fail;
 }
 
+//-----------------------------------------------------------------------------
 TaskStatus GRMHD_Z4c::CalculateEMF(MeshBlock *pmb, int stage)
 {
   if (stage <= nstages)
