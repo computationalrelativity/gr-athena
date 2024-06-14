@@ -85,7 +85,7 @@ void Mesh::CommunicateIteratedZ4c(const int iterations)
 
 #if defined(Z4C_CX_ENABLED)
 
-  if (multilevel)
+  if (multilevel && (iterations > 0))
   {
     int inb = nbtotal;
     int nthreads = GetNumMeshThreads();

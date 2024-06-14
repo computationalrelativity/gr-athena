@@ -2,6 +2,8 @@
 
 // Athena++ classes headers
 #include "../../athena.hpp"
+#include "../../bvals/bvals.hpp"
+#include "../../eos/eos.hpp"
 #include "../../field/field.hpp"
 #include "../../hydro/hydro.hpp"
 #include "../../mesh/mesh.hpp"
@@ -74,29 +76,44 @@ TaskStatus PostAMR_Z4c::Z4cToADM(MeshBlock *pmb, int stage)
 
 TaskStatus PostAMR_Z4c::UpdateSource(MeshBlock *pmb, int stage)
 {
+  // On new MeshBlock (post AMR) need to update primitives, then update ADM
+  // matter variables
+
   if (!pmb->IsNewFromAMR())
   {
     return TaskStatus::success;
   }
 
+  BoundaryValues *pb = pmb->pbval;
+
+  Field *pf = pmb->pfield;
+  PassiveScalars *ps = pmb->pscalars;
   Hydro *ph = pmb->phydro;
   Z4c *pz4c = pmb->pz4c;
 
+  int il = pmb->is, iu = pmb->ie;
+  int jl = pmb->js, ju = pmb->je;
+  int kl = pmb->ks, ku = pmb->ke;
+
+  if (pb->nblevel[1][1][0] != -1) il -= NGHOST;
+  if (pb->nblevel[1][1][2] != -1) iu += NGHOST;
+  if (pb->nblevel[1][0][1] != -1) jl -= NGHOST;
+  if (pb->nblevel[1][2][1] != -1) ju += NGHOST;
+  if (pb->nblevel[0][1][1] != -1) kl -= NGHOST;
+  if (pb->nblevel[2][1][1] != -1) ku += NGHOST;
+
+  // note w1,w order
+  pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b, ph->w,
 #if USETM
-  pz4c->GetMatter(
-    pz4c->storage.mat,
-    pz4c->storage.adm,
-    ph->w,
-    pmb->pscalars->r,
-    pmb->pfield->bcc
-  );
+                                  ps->s, ps->r,
+#endif
+                                  pf->bcc, pmb->pcoord,
+                                  il, iu, jl, ju, kl, ku, 0);
+
+#if USETM
+  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, ps->r, pf->bcc);
 #else
-  pz4c->GetMatter(
-    pz4c->storage.mat,
-    pz4c->storage.adm,
-    ph->w,
-    pmb->pfield->bcc
-  );
+  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, pf->bcc);
 #endif  // USETM
 
   return TaskStatus::success;

@@ -175,7 +175,6 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin, Mesh *pm)
                Z4C_TO_ADM),
               &GRMHD_Z4c::Prolongation_Hyd);
         }
-//        Add(CONS2PRIM,(PROLONG_HYD|UPDATE_SRC|Z4C_TO_ADM));
         Add(CONS2PRIM, (PROLONG_HYD | Z4C_TO_ADM), &GRMHD_Z4c::Primitives);
       }
       else
@@ -189,7 +188,6 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin, Mesh *pm)
         {
           Add(CONS2PRIM, (SETB_HYD | SETB_FLD | Z4C_TO_ADM),
               &GRMHD_Z4c::Primitives);
-//            Add(CONS2PRIM,(SETB_HYD|SETB_FLD|UPDATE_SRC|Z4C_TO_ADM));
         }
       }
     }
@@ -210,8 +208,7 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin, Mesh *pm)
               (SEND_HYD | SETB_HYD | Z4C_TO_ADM),
               &GRMHD_Z4c::Prolongation_Hyd);
         }
-        Add(CONS2PRIM,(PROLONG_HYD|Z4C_TO_ADM), &GRMHD_Z4c::Primitives);
-//        Add(CONS2PRIM,(PROLONG_HYD|UPDATE_SRC|Z4C_TO_ADM));
+        Add(CONS2PRIM,(PROLONG_HYD | Z4C_TO_ADM), &GRMHD_Z4c::Primitives);
       }
       else
       {
@@ -676,15 +673,18 @@ TaskStatus GRMHD_Z4c::Primitives(MeshBlock *pmb, int stage)
     Hydro *ph = pmb->phydro;
     Field *pf = pmb->pfield;
     PassiveScalars *ps = pmb->pscalars;
-    BoundaryValues *pbval = pmb->pbval;
+    BoundaryValues *pb = pmb->pbval;
 
-    int il = pmb->is, iu = pmb->ie, jl = pmb->js, ju = pmb->je, kl = pmb->ks, ku = pmb->ke;
-    if (pbval->nblevel[1][1][0] != -1) il -= NGHOST;
-    if (pbval->nblevel[1][1][2] != -1) iu += NGHOST;
-    if (pbval->nblevel[1][0][1] != -1) jl -= NGHOST;
-    if (pbval->nblevel[1][2][1] != -1) ju += NGHOST;
-    if (pbval->nblevel[0][1][1] != -1) kl -= NGHOST;
-    if (pbval->nblevel[2][1][1] != -1) ku += NGHOST;
+    int il = pmb->is, iu = pmb->ie;
+    int jl = pmb->js, ju = pmb->je;
+    int kl = pmb->ks, ku = pmb->ke;
+
+    if (pb->nblevel[1][1][0] != -1) il -= NGHOST;
+    if (pb->nblevel[1][1][2] != -1) iu += NGHOST;
+    if (pb->nblevel[1][0][1] != -1) jl -= NGHOST;
+    if (pb->nblevel[1][2][1] != -1) ju += NGHOST;
+    if (pb->nblevel[0][1][1] != -1) kl -= NGHOST;
+    if (pb->nblevel[2][1][1] != -1) ku += NGHOST;
 
     // At beginning of this task, ph->w contains previous stage's W(U) output
     // and ph->w1 is used as a register to store the current stage's output.
