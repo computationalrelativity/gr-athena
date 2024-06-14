@@ -178,7 +178,13 @@ int main(int argc, char *argv[])
 
       // BD: TODO -
       // Should check we actually need the Aux. dump here...
-      {
+
+      // Auxiliary variable logic
+      // Currently this handles Weyl communication & decomposition
+      if (1) {
+        // May be required to prevent task-list overlaps
+        // gra::parallelism::Barrier();
+        // DEBUG_TRIGGER
         pmesh->CommunicateAuxZ4c();
         ptlc.aux_z4c->DoTaskListOneStage(pmesh, 1);  // only 1 stage
       }
@@ -195,6 +201,9 @@ int main(int argc, char *argv[])
       } else {
         wave_update = ptlc.grmhd_z4c->TaskListTriggers.wave_extraction.to_update;
       }
+
+      // DEBUG_TRIGGER
+      wave_update = true;
 
       if (wave_update)
       {
@@ -293,7 +302,7 @@ int main(int argc, char *argv[])
     pmesh->ncycle++;
     pmesh->time += pmesh->dt;
     mbcnt += pmesh->nbtotal;
-    pmesh->step_since_lb++;
+    pmesh->step_since_lb++;   // steps since load-balance
 
     bool mesh_updated = pmesh->LoadBalancingAndAdaptiveMeshRefinement(pinput);
 
@@ -310,6 +319,7 @@ int main(int argc, char *argv[])
     {
       if (Z4C_ENABLED)
       {
+        // DEBUG_TRIGGER
         ptlc.postamr_z4c->DoTaskListOneStage(pmesh, 1);  // only 1 stage
       }
 
@@ -326,7 +336,6 @@ int main(int argc, char *argv[])
     }
 
   } // END OF MAIN INTEGRATION LOOP ===========================================
-  // Make final outputs, print diagnostics, clean up and terminate
 
   if (Globals::my_rank == 0 && Flags.wtlim > 0)
     SignalHandler::CancelWallTimeAlarm();

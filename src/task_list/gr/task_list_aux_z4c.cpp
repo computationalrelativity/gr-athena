@@ -37,13 +37,15 @@ void Aux_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
 TaskStatus Aux_Z4c::WeylDecompose(MeshBlock *pmb, int stage)
 {
   Mesh *pm = pmb->pmy_mesh;
+  Z4c *pz4c = pmb->pz4c;
 
-  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction)) {
-    // std::cout << "exec. Aux_Z4c WeylDecompose" << std::endl;
+  // DEBUG_TRIGGER
+  if (1) // (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction))
+  {
     AthenaArray<Real> u_R;
     AthenaArray<Real> u_I;
-    u_R.InitWithShallowSlice(pmb->pz4c->storage.weyl, Z4c::I_WEY_rpsi4, 1);
-    u_I.InitWithShallowSlice(pmb->pz4c->storage.weyl, Z4c::I_WEY_ipsi4, 1);
+    u_R.InitWithShallowSlice(pz4c->storage.weyl, Z4c::I_WEY_rpsi4, 1);
+    u_I.InitWithShallowSlice(pz4c->storage.weyl, Z4c::I_WEY_ipsi4, 1);
     for (auto pwextr : pmb->pwave_extr_loc) {
         pwextr->Decompose_multipole(u_R,u_I);
     }

@@ -250,6 +250,7 @@ TaskStatus GR_Z4c::IntegrateZ4c(MeshBlock *pmb, int stage)
     ave_wghts[1] = stage_wghts[stage-1].gamma_2;
     ave_wghts[2] = stage_wghts[stage-1].gamma_3;
 
+    // BD: TODO - why does this give a slightly different result?
     // if (ave_wghts[0] == 0.0 && ave_wghts[1] == 1.0 && ave_wghts[2] == 0.0)
     // {
     //   // pz4c->storage.u.SwapAthenaArray(pz4c->storage.u1);
@@ -416,33 +417,13 @@ TaskStatus GR_Z4c::Z4c_Weyl(MeshBlock *pmb, int stage)
   Mesh *pm   = pmb->pmy_mesh;
   Z4c  *pz4c = pmb->pz4c;
 
-  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction))
+  // DEBUG_TRIGGER
+  // if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction))
+  if (1)
   {
     pmb->pz4c->Z4cWeyl(pmb->pz4c->storage.adm,
                        pmb->pz4c->storage.mat,
                        pmb->pz4c->storage.weyl);
-  }
-
-  return TaskStatus::success;
-}
-
-TaskStatus GR_Z4c::WaveExtract(MeshBlock *pmb, int stage)
-{
-  if (stage != nstages) return TaskStatus::success;
-
-  Mesh *pm   = pmb->pmy_mesh;
-  Z4c  *pz4c = pmb->pz4c;
-
-  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction))
-  {
-    AthenaArray<Real> u_R;
-    AthenaArray<Real> u_I;
-    u_R.InitWithShallowSlice(pz4c->storage.weyl, Z4c::I_WEY_rpsi4, 1);
-    u_I.InitWithShallowSlice(pz4c->storage.weyl, Z4c::I_WEY_ipsi4, 1);
-    for (auto pwextr : pmb->pwave_extr_loc)
-    {
-        pwextr->Decompose_multipole(u_R,u_I);
-    }
   }
 
   return TaskStatus::success;
@@ -474,10 +455,12 @@ TaskStatus GR_Z4c::ADM_Constraints(MeshBlock *pmb, int stage)
   Mesh *pm   = pmb->pmy_mesh;
   Z4c  *pz4c = pmb->pz4c;
 
-  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.con) ||
-      CurrentTimeCalculationThreshold(pm, &TaskListTriggers.con_hst))
-  {      // Time at the end of stage for (u, b) register pair
+  // DEBUG_TRIGGER
+  // if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.con) ||
+  //     CurrentTimeCalculationThreshold(pm, &TaskListTriggers.con_hst))
+  // {      // Time at the end of stage for (u, b) register pair
 
+  if (1) {
     pz4c->ADMConstraints(pz4c->storage.con, pz4c->storage.adm,
                          pz4c->storage.mat, pz4c->storage.u);
 

@@ -1,6 +1,7 @@
 // C headers
 
 // C++ headers
+#include <iostream>
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -13,6 +14,12 @@
 
 void Mesh::CommunicateAuxZ4c()
 {
+  // short-circuit if this is called without z4c
+  if (!Z4C_ENABLED)
+  {
+    return;
+  }
+
   int inb = nbtotal;
   int nthreads = GetNumMeshThreads();
   (void)nthreads;
@@ -34,47 +41,39 @@ void Mesh::CommunicateAuxZ4c()
     MeshBlock *pmb;
     BoundaryValues *pbval;
 
-    if (GENERAL_RELATIVITY && multilevel)
+    #pragma omp for private(pmb,pbval)
+    for (int i=0; i<nmb; ++i)
     {
-      #pragma omp for private(pmb,pbval)
-      for (int i=0; i<nmb; ++i)
+      pmb = pmb_array[i]; pbval = pmb->pbval;
+      pbval->StartReceiving(BoundaryCommSubset::aux_z4c);
+    }
+
+    #pragma omp for private(pmb,pbval)
+    for (int i=0; i<nmb; ++i)
+    {
+      pmb = pmb_array[i]; pbval = pmb->pbval;
+      pmb->pz4c->abvar.SendBoundaryBuffers();
+    }
+
+    #pragma omp for private(pmb,pbval)
+    for (int i=0; i<nmb; ++i)
+    {
+      pmb = pmb_array[i]; pbval = pmb->pbval;
+      pmb->pz4c->abvar.ReceiveAndSetBoundariesWithWait();
+      pbval->ClearBoundary(BoundaryCommSubset::aux_z4c);
+    }
+
+    #pragma omp for private(pmb,pbval)
+    for (int i=0; i<nmb; ++i)
+    {
+      pmb = pmb_array[i];
+      pbval = pmb->pbval;
+
+      if (multilevel)
       {
-        pmb = pmb_array[i]; pbval = pmb->pbval;
-        pbval->StartReceiving(BoundaryCommSubset::aux_z4c);
+        pbval->ProlongateBoundariesAux(time, 0);
       }
-
-      if(Z4C_ENABLED)
-      {
-
-        #pragma omp for private(pmb,pbval)
-        for (int i=0; i<nmb; ++i)
-        {
-          pmb = pmb_array[i]; pbval = pmb->pbval;
-          pmb->pz4c->abvar.SendBoundaryBuffers();
-        }
-
-        #pragma omp for private(pmb,pbval)
-        for (int i=0; i<nmb; ++i)
-        {
-          pmb = pmb_array[i]; pbval = pmb->pbval;
-          pmb->pz4c->abvar.ReceiveAndSetBoundariesWithWait();
-          pbval->ClearBoundary(BoundaryCommSubset::aux_z4c);
-        }
-      }
-
-      #pragma omp for private(pmb,pbval)
-      for (int i=0; i<nmb; ++i)
-      {
-        pmb = pmb_array[i];
-        pbval = pmb->pbval;
-
-        if (multilevel)
-        {
-          pbval->ProlongateBoundariesAux(time, 0);
-        }
-        pbval->ApplyPhysicalBoundariesAux(time, 0);
-      }
-
+      pbval->ApplyPhysicalBoundariesAux(time, 0);
     }
 
   }
@@ -85,7 +84,7 @@ void Mesh::CommunicateIteratedZ4c(const int iterations)
 
 #if defined(Z4C_CX_ENABLED)
 
-  if (multilevel && (iterations > 0))
+  if (iterations > 0)
   {
     int inb = nbtotal;
     int nthreads = GetNumMeshThreads();
@@ -137,7 +136,10 @@ void Mesh::CommunicateIteratedZ4c(const int iterations)
           pmb = pmb_array[i];
           pbval = pmb->pbval;
 
-          pbval->ProlongateBoundaries(time, 0);
+          if (multilevel)
+          {
+            pbval->ProlongateBoundaries(time, 0);
+          }
           pbval->ApplyPhysicalCellCenteredXBoundaries(time, 0);
         }
       }

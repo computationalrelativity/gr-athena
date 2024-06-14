@@ -100,6 +100,13 @@ inline void Init(int argc, char *argv[])
   #endif  // MPI_PARALLEL
 }
 
+inline void Barrier()
+{
+#ifdef MPI_PARALLEL
+  MPI_Barrier(MPI_COMM_WORLD);
+#endif // MPI_PARALLEL
+}
+
 }  // namespace gra::parallelism
 
 // Runtime stuff --------------------------------------------------------------

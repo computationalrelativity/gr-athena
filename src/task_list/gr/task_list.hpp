@@ -34,7 +34,6 @@ public:
   TaskStatus ADM_Constraints(MeshBlock *pmb, int stage);
   TaskStatus CheckRefinement(MeshBlock *pmb, int stage);
   TaskStatus Z4c_Weyl(MeshBlock *pmb, int stage);
-  TaskStatus WaveExtract(MeshBlock *pmb, int stage);
 #if CCE_ENABLED
   TaskStatus CCEDump(MeshBlock *pmb, int stage);
 #endif
@@ -142,7 +141,6 @@ public:
   TaskStatus Z4cToADM(MeshBlock *pmb, int stage);
   TaskStatus ADM_Constraints(MeshBlock *pmb, int stage);
   TaskStatus Z4c_Weyl(MeshBlock *pmb, int stage);
-  TaskStatus WaveExtract(MeshBlock *pmb, int stage);
   TaskStatus UpdateSource(MeshBlock *pmb, int stage);
 
   //---------------------------------------------------------------------------

@@ -37,7 +37,6 @@ const TaskID Z4C_WEYL(17);
 
 const TaskID INT_HYD(18);
 const TaskID INT_FLD(19);
-const TaskID WAVE_EXTR(20);
 
 const TaskID SEND_HYD(22);
 const TaskID SEND_FLD(23);
@@ -97,7 +96,6 @@ const TaskID FLAG_AMR(14);
 
 const TaskID ASSERT_FIN(15);
 const TaskID Z4C_WEYL(16);
-const TaskID WAVE_EXTR(17);
 const TaskID CCE_DUMP(18);
 
 }  // TaskNames::GeneralRelativity::GR_Z4c
