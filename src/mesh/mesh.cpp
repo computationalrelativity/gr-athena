@@ -2245,14 +2245,20 @@ void Mesh::OutputCycleDiagnostics() {
       std::cout << "cycle=" << ncycle << std::scientific
                 << std::setprecision(dt_precision)
                 << " time=" << time << " dt=" << dt;
-      
+
       if (adaptive)
+      {
         std::cout << "\nNumber of MeshBlocks=" << nbtotal
-                  << "; created=" << nbnew 
-                  << "; destroyed=" << nbdel
-                  << std::scientific << std::setprecision(dt_precision)
-                  << "; time=" << time;
-                  
+                  << "; created=" << nbnew
+                  << "; destroyed=" << nbdel;
+                  // << std::scientific << std::setprecision(dt_precision)
+                  // << "; time=" << time;
+      }
+      else
+      {
+        std::cout << "\nNumber of MeshBlocks=" << nbtotal;
+      }
+
       if (dt_diagnostics != -1) {
         if (STS_ENABLED) {
           if (UserTimeStep_ == nullptr)
