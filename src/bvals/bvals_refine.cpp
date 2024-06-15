@@ -328,8 +328,10 @@ void BoundaryValues::ProlongateBoundariesAux(const Real time, const Real dt)
 
     pz4c->abvar.var_cx = &(pz4c->storage.weyl);
 
+    // To prolong the correct vars. i.e. Aux
+    pmr->SwapRefinementAux();
     ProlongateCellCenteredXBoundaries(time, dt);
-
+    pmr->SwapRefinementAux();
 #elif defined(Z4C_VC_ENABLED)
     pz4c->abvar.var_vc = &(pz4c->coarse_a_);
 
@@ -339,7 +341,10 @@ void BoundaryValues::ProlongateBoundariesAux(const Real time, const Real dt)
 
     pz4c->abvar.var_vc = &(pz4c->storage.weyl);
 
+    // To prolong the correct vars. i.e. Aux
+    pmr->SwapRefinementAux();
     ProlongateVertexCenteredBoundaries(time, dt);
+    pmr->SwapRefinementAux();
 #else
     // not implemented, shut it all down
     std::cout << "ProlongateBoundariesAux: Z4c_CC not handled" << std::endl;

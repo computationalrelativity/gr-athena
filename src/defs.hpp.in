@@ -37,7 +37,7 @@
 #define NO_DBG_CX_KBN_CS
 
 // BD: TODO - whether to register in LoadBalanceAMR the aux?
-#define NO_DBG_REDUCE_AUX_COMM
+#define DBG_REDUCE_AUX_COMM
 
 // GRHD: use sources from Alcubierre book
 #define @DBG_MA_SOURCES@
