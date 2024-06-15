@@ -140,7 +140,7 @@ class MeshRefinement {
   //--- BD debug: shift back to private, this is for testing wave eqn.
   // TODO Fix L389 in z4c/zec.cpp and then move private
   Coordinates *pcoarsec;
-  
+
  private:
   // data
   MeshBlock *pmy_block_;

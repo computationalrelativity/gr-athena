@@ -719,7 +719,8 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundaries(const Real time, cons
   return;
 }
 
-void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const Real dt) {
+void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const Real dt)
+{
   MeshBlock *pmb = pmy_block_;
   Coordinates *pco = pmb->pcoord;
   int bis = pmb->cx_is - NGHOST, bie = pmb->cx_ie + NGHOST,

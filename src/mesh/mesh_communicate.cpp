@@ -71,8 +71,11 @@ void Mesh::CommunicateAuxZ4c()
 
       if (multilevel)
       {
+        // Handle aux. coarse MeshBlock boundaries
         pbval->ProlongateBoundariesAux(time, 0);
       }
+
+      // Handle aux. fund. MeshBlock boundaries
       pbval->ApplyPhysicalBoundariesAux(time, 0);
     }
 
@@ -136,10 +139,13 @@ void Mesh::CommunicateIteratedZ4c(const int iterations)
           pmb = pmb_array[i];
           pbval = pmb->pbval;
 
+          // RBC uses storage.u & coarse_u_
+          // Therefore can reuse the usual interface
           if (multilevel)
           {
             pbval->ProlongateBoundaries(time, 0);
           }
+
           pbval->ApplyPhysicalCellCenteredXBoundaries(time, 0);
         }
       }

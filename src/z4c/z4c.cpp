@@ -151,14 +151,6 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
     pmb->RegisterMeshBlockDataVC(storage.weyl)
   );
 
-  // if (pm->multilevel) {
-  //   refinement_idx = FCN_CC_CX_VC(
-  //     pmy_block->pmr->AddToRefinementCC,
-  //     pmy_block->pmr->AddToRefinementCX,
-  //     pmy_block->pmr->AddToRefinementVC
-  //   )(&storage.weyl, &coarse_a_);
-  // }
-
 #if defined(DBG_REDUCE_AUX_COMM)
   if (pm->multilevel) {
     refinement_idx = FCN_CC_CX_VC(
@@ -168,6 +160,8 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
     )(&storage.weyl, &coarse_a_);
   }
 #else
+  // BD: TODO - double check
+  // Add here so we refine it during LoadBalance
   if (pm->multilevel) {
     refinement_idx = FCN_CC_CX_VC(
       pmy_block->pmr->AddToRefinementCC,

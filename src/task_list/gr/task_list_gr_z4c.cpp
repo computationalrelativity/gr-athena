@@ -382,7 +382,7 @@ TaskStatus GR_Z4c::UserWork(MeshBlock *pmb, int stage) {
 
   pmb->UserWorkInLoop();
 
-  // TODO: BD- this should be shifted to its own task
+  // BD: TODO - this should be shifted to its own task
   pmb->ptracker_extrema_loc->TreatCentreIfLocalMember();
 
   return TaskStatus::success;

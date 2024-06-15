@@ -36,7 +36,7 @@
 // use compensated summation for CX interior restrict?
 #define NO_DBG_CX_KBN_CS
 
-// reduce auxiliary comms. (removes coarse buffer BC application however)
+// BD: TODO - whether to register in LoadBalanceAMR the aux?
 #define NO_DBG_REDUCE_AUX_COMM
 
 // GRHD: use sources from Alcubierre book
