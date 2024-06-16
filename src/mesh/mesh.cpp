@@ -1283,14 +1283,22 @@ void Mesh::OutputMeshStructure(int ndim) {
 // \brief function that loops over all MeshBlocks and find new timestep
 //        this assumes that phydro->NewBlockTimeStep is already called
 
-void Mesh::NewTimeStep() {
+void Mesh::NewTimeStep(bool limit_dt_growth) {
   MeshBlock *pmb = pblock;
 
+  if (limit_dt_growth)
+  {
   // prevent timestep from growing too fast in between 2x cycles (even if every MeshBlock
-  // has new_block_dt > 2.0*dt_old)
-  dt = static_cast<Real>(2.0)*dt;
-  // consider first MeshBlock on this MPI rank's linked list of blocks:
-  dt = std::min(dt, pmb->new_block_dt_);
+    // has new_block_dt > 2.0*dt_old)
+    dt = static_cast<Real>(2.0)*dt;
+    // consider first MeshBlock on this MPI rank's linked list of blocks:
+    dt = std::min(dt, pmb->new_block_dt_);
+  }
+  else
+  {
+    dt = pmb->new_block_dt_;
+  }
+
   dt_hyperbolic = pmb->new_block_dt_hyperbolic_;
   dt_parabolic = pmb->new_block_dt_parabolic_;
   dt_user = pmb->new_block_dt_user_;
@@ -1318,6 +1326,12 @@ void Mesh::NewTimeStep() {
     dt = tlim - time;
 
   return;
+}
+
+// no arg. limit_dt_growth
+void Mesh::NewTimeStep()
+{
+  Mesh::NewTimeStep(true);
 }
 
 //----------------------------------------------------------------------------------------

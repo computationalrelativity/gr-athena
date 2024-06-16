@@ -195,7 +195,10 @@ class Outputs {
   ~Outputs();
 
   void MakeOutputs(Mesh *pm, ParameterInput *pin, bool wtflag=false);
+  // Returns only first
   Real GetOutputTimeStep(std::string variable);
+  // Full scan; here variable can also be "hst", "rst"
+  Real GetMinOutputTimeStepExhaustive(std::string variable);
 
  private:
   OutputType *pfirst_type_; // ptr to head OutputType node in singly linked list

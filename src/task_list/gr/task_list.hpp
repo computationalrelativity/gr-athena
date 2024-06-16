@@ -7,6 +7,7 @@
 
 // Athena++ headers
 #include "../../athena.hpp"
+#include "../../main_triggers.hpp"
 #include "../task_list.hpp"
 #include "task_names.hpp"
 #include "time_integrators.hpp"
@@ -17,7 +18,7 @@ namespace TaskLists::GeneralRelativity {
 class GR_Z4c : public TaskList, TaskLists::Integrators::LowStorage
 {
 public:
-  GR_Z4c(ParameterInput *pin, Mesh *pm);
+  GR_Z4c(ParameterInput *pin, Mesh *pm, gra::triggers::Triggers &trgs);
 
   TaskStatus ClearAllBoundary(MeshBlock *pmb, int stage);
   TaskStatus UserWork(MeshBlock *pmb, int stage);
@@ -40,29 +41,6 @@ public:
   // BD: TODO- fix this
   TaskStatus AssertFinite(MeshBlock *pmb, int stage);
 
-  //---------------------------------------------------------------------------
-  // Provide finer-grained control over tasklist
-  // Note: If a parameter is zero related task(s) will be ignored
-  struct aux_NextTimeStep{
-    Real dt{0.};
-    Real next_time{0.};
-    Real to_update{false};
-  };
-
-  struct {
-    aux_NextTimeStep adm;
-    aux_NextTimeStep con;
-    aux_NextTimeStep con_hst;
-    aux_NextTimeStep assert_is_finite;
-    aux_NextTimeStep wave_extraction;
-    aux_NextTimeStep cce_dump;
-  } TaskListTriggers;
-
-  bool CurrentTimeCalculationThreshold(Mesh *pm,
-                                       aux_NextTimeStep *variable);
-  void UpdateTaskListTriggers();
-  //---------------------------------------------------------------------------
-
 public:
   using TaskList::nstages;
 
@@ -70,6 +48,9 @@ private:
   // TODO: remove the AddTask logic in favour of Add
   void AddTask(const TaskID& id, const TaskID& dep) override { };
   void StartupTaskList(MeshBlock *pmb, int stage) override;
+
+private:
+  gra::triggers::Triggers & trgs;
 
 private:
   // For slightly cleaner & more flexible, treatment of tasklist graph assembly
@@ -88,7 +69,7 @@ private:
 class GRMHD_Z4c : public TaskList, TaskLists::Integrators::LowStorage
 {
 public:
-  GRMHD_Z4c(ParameterInput *pin, Mesh *pm);
+  GRMHD_Z4c(ParameterInput *pin, Mesh *pm, gra::triggers::Triggers &trgs);
 
   TaskStatus ClearAllBoundary(MeshBlock *pmb, int stage);
 
@@ -143,29 +124,6 @@ public:
   TaskStatus Z4c_Weyl(MeshBlock *pmb, int stage);
   TaskStatus UpdateSource(MeshBlock *pmb, int stage);
 
-  //---------------------------------------------------------------------------
-  // Provide finer-grained control over tasklist
-  // Note: If a parameter is zero related task(s) will be ignored
-  struct aux_NextTimeStep{
-    Real dt{0.};
-    Real next_time{0.};
-    Real to_update{false};
-  };
-
-  struct {
-    aux_NextTimeStep adm;
-    aux_NextTimeStep con;
-    aux_NextTimeStep con_hst;
-    aux_NextTimeStep assert_is_finite;
-    aux_NextTimeStep wave_extraction;
-    aux_NextTimeStep cce_dump;
-  } TaskListTriggers;
-
-  bool CurrentTimeCalculationThreshold(Mesh *pm,
-                                       aux_NextTimeStep *variable);
-  void UpdateTaskListTriggers();
-  //---------------------------------------------------------------------------
-
 public:
   using TaskList::nstages;
 
@@ -173,6 +131,9 @@ private:
   // TODO: remove the AddTask logic in favour of Add
   void AddTask(const TaskID& id, const TaskID& dep) override { };
   void StartupTaskList(MeshBlock *pmb, int stage) override;
+
+private:
+  gra::triggers::Triggers & trgs;
 
 private:
   // For slightly cleaner & more flexible, treatment of tasklist graph assembly
@@ -191,27 +152,9 @@ private:
 class Aux_Z4c : public TaskList
 {
 public:
-  Aux_Z4c(ParameterInput *pin, Mesh *pm);
+  Aux_Z4c(ParameterInput *pin, Mesh *pm, gra::triggers::Triggers &trgs);
 
   TaskStatus WeylDecompose(MeshBlock *pmb, int stage);
-
-  //---------------------------------------------------------------------------
-  // Provide finer-grained control over tasklist
-  // Note: If a parameter is zero related task(s) will be ignored
-  struct aux_NextTimeStep{
-    Real dt{0.};
-    Real next_time{0.};
-    Real to_update{false};
-  };
-
-  struct {
-    aux_NextTimeStep wave_extraction;
-  } TaskListTriggers;
-
-  bool CurrentTimeCalculationThreshold(Mesh *pm,
-                                       aux_NextTimeStep *variable);
-  void UpdateTaskListTriggers();
-  //---------------------------------------------------------------------------
 
   // Time at end of the stage
   Real t_end(const int stage, MeshBlock * pmb)
@@ -226,6 +169,9 @@ private:
   // TODO: remove the AddTask logic in favour of Add
   void AddTask(const TaskID& id, const TaskID& dep) override { };
   void StartupTaskList(MeshBlock *pmb, int stage) override;
+
+private:
+  gra::triggers::Triggers & trgs;
 
 private:
   // For slightly cleaner & more flexible, treatment of tasklist graph assembly
@@ -245,7 +191,7 @@ private:
 class PostAMR_Z4c : public TaskList
 {
 public:
-  PostAMR_Z4c(ParameterInput *pin, Mesh *pm);
+  PostAMR_Z4c(ParameterInput *pin, Mesh *pm, gra::triggers::Triggers &trgs);
 
   TaskStatus ClearAllBoundary(MeshBlock *pmb, int stage);
   TaskStatus EnforceAlgConstr(MeshBlock *pmb, int stage);
@@ -262,6 +208,9 @@ private:
   void StartupTaskList(MeshBlock *pmb, int stage) override;
 
 private:
+  gra::triggers::Triggers & trgs;
+
+private:
   // For slightly cleaner & more flexible, treatment of tasklist graph assembly
   void Add(
     const TaskID& id, const TaskID& dep,
@@ -276,6 +225,7 @@ private:
 
 }  // namespace TaskLists::GeneralRelativity
 
+// BD: TODO - to move elsewhere..
 namespace TaskLists::WaveEquations {
 // ...
 }

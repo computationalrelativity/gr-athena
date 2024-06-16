@@ -15,7 +15,12 @@
 using namespace TaskLists::GeneralRelativity;
 using namespace TaskNames::GeneralRelativity::Aux_Z4c;
 
-Aux_Z4c::Aux_Z4c(ParameterInput *pin, Mesh *pm)
+using namespace gra::triggers;
+typedef Triggers::TriggerVariant TriggerVariant;
+// ----------------------------------------------------------------------------
+
+Aux_Z4c::Aux_Z4c(ParameterInput *pin, Mesh *pm, Triggers &trgs)
+  : trgs(trgs)
 {
   nstages = 1;
 
@@ -39,55 +44,19 @@ TaskStatus Aux_Z4c::WeylDecompose(MeshBlock *pmb, int stage)
   Mesh *pm = pmb->pmy_mesh;
   Z4c *pz4c = pmb->pz4c;
 
-  // DEBUG_TRIGGER
-  if (1) // (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.wave_extraction))
+  if (trgs.IsSatisfied(TriggerVariant::Z4c_Weyl))
   {
     AthenaArray<Real> u_R;
     AthenaArray<Real> u_I;
     u_R.InitWithShallowSlice(pz4c->storage.weyl, Z4c::I_WEY_rpsi4, 1);
     u_I.InitWithShallowSlice(pz4c->storage.weyl, Z4c::I_WEY_ipsi4, 1);
-    for (auto pwextr : pmb->pwave_extr_loc) {
+    for (auto pwextr : pmb->pwave_extr_loc)
+    {
         pwextr->Decompose_multipole(u_R,u_I);
     }
   }
 
   return TaskStatus::success;
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn bool Z4cIntegratorTaskList::CurrentTimeCalculationThreshold(
-//   MeshBlock *pmb, aux_NextTimeStep *variable)
-// \brief Given current time / ncycles, does a specified 'dt' mean we need
-//        to calculate something?
-//        Secondary effect is to mutate next_time
-bool Aux_Z4c::CurrentTimeCalculationThreshold(
-  Mesh *pm, aux_NextTimeStep *variable) {
-
-  // this variable is not dumped / computed
-  if (variable->dt == 0 )
-    return false;
-
-  Real cur_time = pm->time + pm->dt;
-  if ((cur_time - pm->dt >= variable->next_time) ||
-      (cur_time >= pm->tlim)) {
-#pragma omp atomic write
-    variable->to_update = true;
-    return true;
-  }
-
-  return false;
-}
-
-void Aux_Z4c::UpdateTaskListTriggers() {
-  // note that for global dt > target output dt
-  // next_time will 'lag'; this will need to be corrected if an integrator with dense /
-  // interpolating output is used.
-
-  if (TaskListTriggers.wave_extraction.to_update) {
-    TaskListTriggers.wave_extraction.next_time += \
-      TaskListTriggers.wave_extraction.dt;
-    TaskListTriggers.wave_extraction.to_update = false;
-  }
 }
 
 //

@@ -872,6 +872,54 @@ Real Outputs::GetOutputTimeStep(std::string variable) {
   return dt;
 }
 
+Real Outputs::GetMinOutputTimeStepExhaustive(std::string variable)
+{
+  Real dt = 0;
+  OutputType* ptype = pfirst_type_;
+
+  if (variable == "rst")
+  {
+    while (ptype != nullptr)
+    {
+      if (ptype->output_params.file_type == "rst")
+      {
+        const Real dt_out = ptype->output_params.dt;
+        dt = (dt > 0) ? std::min(dt_out, dt) : dt_out;
+      }
+      // move to next OutputType node in signly linked list
+      ptype = ptype->pnext_type;
+    }
+  }
+  else if (variable == "hst")
+  {
+    while (ptype != nullptr)
+    {
+      if (ptype->output_params.file_type == "hst")
+      {
+        const Real dt_out = ptype->output_params.dt;
+        dt = (dt > 0) ? std::min(dt_out, dt) : dt_out;
+      }
+      // move to next OutputType node in signly linked list
+      ptype = ptype->pnext_type;
+    }
+  }
+  else
+  {
+    // have actual variable name
+    while (ptype != nullptr)
+    {
+      if (ptype->output_params.variable == variable)
+      {
+        const Real dt_out = ptype->output_params.dt;
+        dt = (dt > 0) ? std::min(dt_out, dt) : dt_out;
+      }
+      // move to next OutputType node in signly linked list
+      ptype = ptype->pnext_type;
+    }
+  }
+  return dt;
+}
+
 //----------------------------------------------------------------------------------------
 //! \fn void OutputType::TransformOutputData(MeshBlock *pmb)
 //  \brief Calls sum and slice functions on each direction in turn, in order to allow

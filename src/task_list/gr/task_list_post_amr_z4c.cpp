@@ -17,7 +17,12 @@
 using namespace TaskLists::GeneralRelativity;
 using namespace TaskNames::GeneralRelativity::PostAMR_Z4c;
 
-PostAMR_Z4c::PostAMR_Z4c(ParameterInput *pin, Mesh *pm)
+using namespace gra::triggers;
+typedef Triggers::TriggerVariant TriggerVariant;
+// ----------------------------------------------------------------------------
+
+PostAMR_Z4c::PostAMR_Z4c(ParameterInput *pin, Mesh *pm, Triggers &trgs)
+  : trgs(trgs)
 {
   nstages = 1;
   {

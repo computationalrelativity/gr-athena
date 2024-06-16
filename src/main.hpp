@@ -21,6 +21,7 @@
 #include "athena.hpp"
 #include "defs.hpp"
 #include "globals.hpp"
+#include "main_triggers.hpp"
 
 #include "outputs/io_wrapper.hpp"
 #include "outputs/outputs.hpp"
@@ -511,6 +512,7 @@ namespace gra::tasklist {
 
 struct Collection
 {
+  gra::triggers::Triggers & trgs;
   TaskLists::GeneralRelativity::GR_Z4c      * gr_z4c      = nullptr;
   TaskLists::GeneralRelativity::GRMHD_Z4c   * grmhd_z4c   = nullptr;
 
@@ -531,16 +533,16 @@ inline void PopulateCollection(Collection &ptlc,
       if (FLUID_ENABLED)
       {
         // GR(M)HD
-        ptlc.grmhd_z4c = new GRMHD_Z4c(pin, pm);
+        ptlc.grmhd_z4c = new GRMHD_Z4c(pin, pm, ptlc.trgs);
       }
       else
       {
         // GR: vacuum
-        ptlc.gr_z4c = new GR_Z4c(pin, pm);
+        ptlc.gr_z4c = new GR_Z4c(pin, pm, ptlc.trgs);
       }
 
-      ptlc.aux_z4c     = new Aux_Z4c(pin, pm);
-      ptlc.postamr_z4c = new PostAMR_Z4c(pin, pm);
+      ptlc.aux_z4c     = new Aux_Z4c(pin, pm, ptlc.trgs);
+      ptlc.postamr_z4c = new PostAMR_Z4c(pin, pm, ptlc.trgs);
     }
   }
   catch(std::bad_alloc& ba)

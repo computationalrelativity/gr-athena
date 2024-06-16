@@ -34,6 +34,7 @@
 
 // Athena++ headers
 #include "main.hpp"
+#include "main_triggers.hpp"
 
 #include "z4c/wave_extract.hpp"
 #include "z4c/puncture_tracker.hpp"
@@ -42,6 +43,7 @@
 #if CCE_ENABLED
 #include "z4c/cce/cce.hpp"
 #endif
+
 
 //-----------------------------------------------------------------------------
 //! \fn int main(int argc, char *argv[])
@@ -103,41 +105,49 @@ int main(int argc, char *argv[])
   Outputs *pouts = gra::InitOutputs(&Flags, &Pathing, pinput, pmesh);
 
   //--- Step 7. ---------------------------------------------------------------
-  // Construct and initialize TaskLists
-  gra::PrintRankZero("Step 07: Initializing Tasklists...");
+  // Construct and initialize Triggers / TaskLists
+  gra::PrintRankZero("Step 07: Initializing Triggers / Tasklists...");
+
+  // could shift assembly to header, leave here now
+  using namespace gra::triggers;
+  typedef Triggers::TriggerVariant tvar;
+  typedef Triggers::OutputVariant ovar;
+
+  Triggers trgs(pmesh, pinput, pouts);
+  trgs.Add(tvar::tracker_extrema,     ovar::user, true, true);
+
+  trgs.Add(tvar::Z4c_ADM_constraints, ovar::hst,  true, true);
+  trgs.Add(tvar::Z4c_ADM_constraints, ovar::data, true, true);
+
+  trgs.Add(tvar::Z4c_Weyl, ovar::user, true, true);
+  trgs.Add(tvar::Z4c_Weyl, ovar::data, true, true);
 
   // BD: TODO - move to collection etc.
   WaveIntegratorTaskList *pwlist = nullptr;
 
-  gra::tasklist::Collection ptlc;
+  // now populate requisite task-lists
+  gra::tasklist::Collection ptlc { trgs };
   gra::tasklist::PopulateCollection(ptlc, pmesh, pinput);
 
   //=== Step 8. === START OF MAIN INTEGRATION LOOP ============================
   // For performance, there is no error handler protecting this step
   // (except outputs)
   gra::PrintRankZero("Step 08: Entering main integration loop...");
-
   gra::timing::Clocks * pclk = new gra::timing::Clocks();
-
-  // BD: populate z4c struct carrying output dt for various quantities
-  // This controls computation of quantities within the main tasklist
-  if (Z4C_ENABLED)
-  {
-    Real dt_con = pouts->GetOutputTimeStep("con");
-
-    if (FLUID_ENABLED)
-    {
-      ptlc.grmhd_z4c->TaskListTriggers.con.dt = dt_con;
-    }
-    else
-    {
-      ptlc.gr_z4c->TaskListTriggers.con.dt = dt_con;
-    }
-  }
 
   while ((pmesh->time < pmesh->tlim) &&
          (pmesh->nlim < 0 || pmesh->ncycle < pmesh->nlim))
   {
+
+    // Adjust pmesh->dt if allowed by trigger, record if it happens.
+    // This is to allow increase of pmesh->NewTimeStep to be unlimited & avoid
+    // getting stuck
+    bool mesh_dt_adjusted = trgs.AdjustFromAny_mesh_dt();
+
+    // After state vector propagated, derived diagnostics (i.e. GW, trackers)
+    // are at the new time-step ...
+    const Real time_end_stage   = pmesh->time+pmesh->dt;
+    const Real ncycle_end_stage = pmesh->ncycle+1;
 
     if (Globals::my_rank == 0)
     {
@@ -156,8 +166,6 @@ int main(int argc, char *argv[])
     {
       if (!FLUID_ENABLED)
       {
-        // This effectively means hydro takes a time-step and _then_ the given
-        // problem takes one
         for (int stage=1; stage<=ptlc.gr_z4c->nstages; ++stage)
         {
           ptlc.gr_z4c->DoTaskListOneStage(pmesh, stage);
@@ -176,43 +184,30 @@ int main(int argc, char *argv[])
 
       } //FLUID_ENABLED
 
-      // BD: TODO -
-      // Should check we actually need the Aux. dump here...
-
       // Auxiliary variable logic
       // Currently this handles Weyl communication & decomposition
-      if (1) {
+      if (trgs.IsSatisfied(tvar::Z4c_Weyl))
+      {
         // May be required to prevent task-list overlaps
         // gra::parallelism::Barrier();
-        // DEBUG_TRIGGER
         pmesh->CommunicateAuxZ4c();
         ptlc.aux_z4c->DoTaskListOneStage(pmesh, 1);  // only 1 stage
       }
 
-      // BD: TODO - check that the following are not displaced by \dt ?
-      // only do an extraction if NextTime threshold cleared (updated below)
-
-      bool wave_update, cce_update;
-      Real cce_dt;
-
-      if (!FLUID_ENABLED)
+      if (trgs.IsSatisfied(tvar::Z4c_Weyl, ovar::user))
       {
-        wave_update = ptlc.gr_z4c->TaskListTriggers.wave_extraction.to_update;
-      } else {
-        wave_update = ptlc.grmhd_z4c->TaskListTriggers.wave_extraction.to_update;
-      }
-
-      // DEBUG_TRIGGER
-      wave_update = true;
-
-      if (wave_update)
-      {
-        for (auto pwextr : pmesh->pwave_extr) {
+        for (auto pwextr : pmesh->pwave_extr)
+        {
           pwextr->ReduceMultipole();
-          pwextr->Write(pmesh->ncycle, pmesh->time);
+          pwextr->Write(ncycle_end_stage, time_end_stage);
         }
       }
+
+// BD: TODO - CCE needs to be cleaned up & tested
 #if CCE_ENABLED
+      bool cce_update;
+      Real cce_dt;
+
       if (!FLUID_ENABLED)
       {
         cce_update = ptlc.gr_z4c->TaskListTriggers.cce_dump.to_update;
@@ -247,55 +242,45 @@ int main(int argc, char *argv[])
 
       for (auto pah_f : pmesh->pah_finder)
       {
-        if (pah_f->CalculateMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
+        if (pah_f->CalculateMetricDerivatives(ncycle_end_stage,
+                                              time_end_stage))
+        {
+          break;
+        }
       }
       for (auto pah_f : pmesh->pah_finder)
       {
-        pah_f->Find(pmesh->ncycle, pmesh->time);
-        pah_f->Write(pmesh->ncycle, pmesh->time);
+        pah_f->Find(ncycle_end_stage, time_end_stage);
+        pah_f->Write(ncycle_end_stage, time_end_stage);
       }
       for (auto pah_f : pmesh->pah_finder)
       {
-        if (pah_f->DeleteMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
+        if (pah_f->DeleteMetricDerivatives(ncycle_end_stage, time_end_stage))
+        {
+          break;
+        }
       }
-      // TODO: probably we do not want to output tracker data at every timestep
+
       for (auto ptracker : pmesh->pz4c_tracker)
       {
         ptracker->EvolveTracker();
-        ptracker->WriteTracker(pmesh->ncycle, pmesh->time);
+        ptracker->WriteTracker(ncycle_end_stage, time_end_stage);
       }
-
     }
 
-    // BD: TODO - put this after the post-amr hooks... ?
-    // extrema trackers are registered / computed collectively
-    // non-z4c quantities can be tracked
+
+    // Trace AMR state
     pmesh->ptracker_extrema->ReduceTracker();
     pmesh->ptracker_extrema->EvolveTracker();
-    // TODO: output times need to corrected
-    // First step has been taken pmesh->time needs update (done below)
-    pmesh->ptracker_extrema->WriteTracker(pmesh->ncycle+1,
-                                          pmesh->time+pmesh->dt);
 
-
+    if (trgs.IsSatisfied(tvar::tracker_extrema, ovar::user))
+    {
+      pmesh->ptracker_extrema->WriteTracker(ncycle_end_stage, time_end_stage);
+    }
 
     //-------------------------------------------------------------------------
-    if (Z4C_ENABLED)
-    {
-      // Update NextTime triggers
-      // This needs to be here to share tasklist external (though coupled) ops.
-
-      if (FLUID_ENABLED)
-      {
-        ptlc.grmhd_z4c->UpdateTaskListTriggers();
-      }
-      else
-      {
-        ptlc.gr_z4c->UpdateTaskListTriggers();
-      }
-
-      ptlc.aux_z4c->UpdateTaskListTriggers();
-    }
+    // Update triggers as required
+    trgs.Update();
     //-------------------------------------------------------------------------
 
     pmesh->UserWorkInLoop();
@@ -320,15 +305,18 @@ int main(int argc, char *argv[])
       if (Z4C_ENABLED)
       {
         // DEBUG_TRIGGER
+        // BD: TODO - needs dt recalc... ?
         ptlc.postamr_z4c->DoTaskListOneStage(pmesh, 1);  // only 1 stage
       }
 
       pmesh->FinalizePostAMR();
     }
 
-    pmesh->NewTimeStep();
+    // If a trigger adjusted pmesh->dt then do not limit dt rescaling
+    pmesh->NewTimeStep(!mesh_dt_adjusted);
+    mesh_dt_adjusted = false;
 
-
+    // Dump all the outputs ---------------------------------------------------
     if (pmesh->time < pmesh->tlim)
     {
       const bool is_final = false;
