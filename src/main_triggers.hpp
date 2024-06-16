@@ -91,9 +91,46 @@ struct Trigger
 
     const Real t_end_step = pm->time+pm->dt;
 
-    if (t_end_step > t_next)
+    // BD: TODO - better way to handle this?
+    // FP ops can cause miniscule steps to be set if t_next and pm->time
+    // approximately coincide.
+    const bool diff_tol = std::abs(1-t_next / pm->time) > 1e-13;
+    // const bool diff_tol = true;
+
+    if ((t_end_step > t_next) &&
+        (pm->time < t_next)   &&
+        diff_tol)
     {
+      const Real dt_0 = pm->dt;
+      const Real t_next_0 = t_next;
+
       pm->dt = t_next-pm->time;
+      t_next = pm->time + pm->dt;
+      t_last = t_next - dt;
+
+      // debug ----------------------------------------------------------------
+      // pm->dt = pm->dt - (t_end_step - t_next);
+
+      // #pragma omp critical
+      // if (pm->dt < 1e-12)
+      // {
+      //   std::cout << "pm->dt:               " << pm->dt << std::endl;
+      //   std::cout << "dt_0:                 " << dt_0 << std::endl;
+      //   std::cout << "pm->time:             " << pm->time << std::endl;
+      //   std::cout << "t_end_step:           " << t_end_step << std::endl;
+      //   std::cout << "t_next:               " << t_next << std::endl;
+      //   std::cout << "t_next_0:             " << t_next_0 << std::endl;
+      //   std::cout << "t_last:               " << t_last << std::endl;
+      //   std::cout << "dt:                   " << dt << std::endl;
+      //   std::cout << "|1-dt/dt_0|:          "
+      //             << std::abs(1 - dt / dt_0) << std::endl;
+      //   std::cout << "|1-t_next/pm->time|:  "
+      //             << std::abs(1 - t_next / pm->time) << std::endl;
+      //   std::cout << force_first_iter << std::endl;
+      //   std::exit(0);
+      // }
+      // ----------------------------------------------------------------------
+
       return true;
     }
     return false;

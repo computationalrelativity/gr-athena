@@ -135,6 +135,10 @@ int main(int argc, char *argv[])
   gra::PrintRankZero("Step 08: Entering main integration loop...");
   gra::timing::Clocks * pclk = new gra::timing::Clocks();
 
+  const bool trgs_can_adjust_mesh_dt = pinput->GetOrAddBoolean(
+    "task_triggers", "adjust_mesh_dt", true
+  );
+
   while ((pmesh->time < pmesh->tlim) &&
          (pmesh->nlim < 0 || pmesh->ncycle < pmesh->nlim))
   {
@@ -142,7 +146,9 @@ int main(int argc, char *argv[])
     // Adjust pmesh->dt if allowed by trigger, record if it happens.
     // This is to allow increase of pmesh->NewTimeStep to be unlimited & avoid
     // getting stuck
-    bool mesh_dt_adjusted = trgs.AdjustFromAny_mesh_dt();
+    bool mesh_dt_adjusted = (trgs_can_adjust_mesh_dt)
+      ? trgs.AdjustFromAny_mesh_dt()
+      : false;
 
     // After state vector propagated, derived diagnostics (i.e. GW, trackers)
     // are at the new time-step ...
@@ -273,7 +279,6 @@ int main(int argc, char *argv[])
       }
 
     }
-
 
     // Trace AMR state
     pmesh->ptracker_extrema->ReduceTracker();
