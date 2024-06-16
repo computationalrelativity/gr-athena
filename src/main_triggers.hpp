@@ -183,10 +183,6 @@ public:
         triggers[MakeTriggerMeta(tvar, ovar)] = tri;
         break;
       }
-      default:
-      {
-        assert(false);
-      }
       case TriggerVariant::Z4c_ADM_constraints:
       {
         Real dt = 0;
@@ -206,6 +202,28 @@ public:
           case (Triggers::OutputVariant::data):
           {
             dt = pouts->GetMinOutputTimeStepExhaustive("con");
+            break;
+          }
+          default:
+          {
+            assert(false);
+          }
+        }
+
+        PopulateTrigger(tri, force_first_iter, allow_rescale_dt, dt);
+        triggers[MakeTriggerMeta(tvar, ovar)] = tri;
+        break;
+      }
+      case TriggerVariant::Z4c_tracker_punctures:
+      {
+        Real dt = 0;
+        switch (ovar)
+        {
+          case (Triggers::OutputVariant::user):
+          {
+            dt = pin->GetOrAddReal("task_triggers",
+                                   "Z4c_tracker_punctures",
+                                   0.0);
             break;
           }
           default:
@@ -243,6 +261,10 @@ public:
         PopulateTrigger(tri, force_first_iter, allow_rescale_dt, dt);
         triggers[MakeTriggerMeta(tvar, ovar)] = tri;
         break;
+      }
+      default:
+      {
+        assert(false);
       }
     }
   };

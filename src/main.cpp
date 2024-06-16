@@ -264,8 +264,14 @@ int main(int argc, char *argv[])
       for (auto ptracker : pmesh->pz4c_tracker)
       {
         ptracker->EvolveTracker();
+      }
+
+      if (trgs.IsSatisfied(tvar::Z4c_tracker_punctures, ovar::user))
+      for (auto ptracker : pmesh->pz4c_tracker)
+      {
         ptracker->WriteTracker(ncycle_end_stage, time_end_stage);
       }
+
     }
 
 
