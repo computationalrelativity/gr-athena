@@ -334,6 +334,12 @@ int main(int argc, char *argv[])
       gra::MakeOutputs(is_final, pinput, pmesh, pouts);
     }
 
+    // signals (i.e. -t) ------------------------------------------------------
+    if (SignalHandler::CheckSignalFlags() != 0)
+    {
+      break;
+    }
+
   } // END OF MAIN INTEGRATION LOOP ===========================================
 
   if (Globals::my_rank == 0 && Flags.wtlim > 0)
