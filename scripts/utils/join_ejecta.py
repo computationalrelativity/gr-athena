@@ -45,12 +45,16 @@ if os.path.isfile(args.d + '/ejecta.h5') is False:
         shape_new = tuple(np.append((nrad, 0), h5f_old['Bcc'][dsname].shape))
         h5f['Bcc'].create_dataset(dsname, shape_new, maxshape=tuple(np.append(shape0, h5f_old['Bcc'][dsname].shape)),
                 dtype=h5f_old['Bcc'][dsname].dtype)
-
-    h5f.create_group('metric')
-    for dsname in h5f_old['metric'].keys():
-        shape_new = tuple(np.append((nrad, 0), h5f_old['metric'][dsname].shape))
-        h5f['metric'].create_dataset(dsname, shape_new, maxshape=tuple(np.append(shape0, h5f_old['metric'][dsname].shape)),
-                dtype=h5f_old['metric'][dsname].dtype)
+    h5f.create_group('adm')
+    for dsname in h5f_old['adm'].keys():
+        shape_new = tuple(np.append((nrad, 0), h5f_old['adm'][dsname].shape))
+        h5f['adm'].create_dataset(dsname, shape_new, maxshape=tuple(np.append(shape0, h5f_old['adm'][dsname].shape)),
+                dtype=h5f_old['adm'][dsname].dtype)
+    h5f.create_group('z4c')
+    for dsname in h5f_old['z4c'].keys():
+        shape_new = tuple(np.append((nrad, 0), h5f_old['z4c'][dsname].shape))
+        h5f['z4c'].create_dataset(dsname, shape_new, maxshape=tuple(np.append(shape0, h5f_old['z4c'][dsname].shape)),
+                dtype=h5f_old['z4c'][dsname].dtype)
     h5f.create_group('other')
     for dsname in h5f_old['other'].keys():
         shape_new = tuple(np.append((nrad, 0), h5f_old['other'][dsname].shape))
@@ -65,7 +69,7 @@ if os.path.isfile(args.d + '/ejecta.h5') is False:
 dirs = glob.glob(args.d + '/output-????')
 dirs.sort()
 
-h5f = h5py.File(args.d + 'ejecta.h5', 'a')
+h5f = h5py.File(args.d + '/ejecta.h5', 'a')
 nrad = h5f['radius'].shape[0]
 
 print(dirs)
@@ -93,9 +97,12 @@ for d in dirs:
         for dsname in h5f['Bcc'].keys():
             sh0 = h5f['Bcc'][dsname].shape
             h5f['Bcc'][dsname].resize((nrad, nt_old + len(h5files[0]), sh0[2], sh0[3]))
-        for dsname in h5f['metric'].keys():
-            sh0 = h5f['metric'][dsname].shape
-            h5f['metric'][dsname].resize((nrad, nt_old + len(h5files[0]), sh0[2], sh0[3]))
+        for dsname in h5f['adm'].keys():
+            sh0 = h5f['adm'][dsname].shape
+            h5f['adm'][dsname].resize((nrad, nt_old + len(h5files[0]), sh0[2], sh0[3]))
+        for dsname in h5f['z4c'].keys():
+            sh0 = h5f['z4c'][dsname].shape
+            h5f['z4c'][dsname].resize((nrad, nt_old + len(h5files[0]), sh0[2], sh0[3]))
         for dsname in h5f['other'].keys():
             sh0 = h5f['other'][dsname].shape
             h5f['other'][dsname].resize((nrad, nt_old + len(h5files[0]), sh0[2], sh0[3]))
@@ -112,8 +119,10 @@ for d in dirs:
                     h5f['prim'][dsname][irad, nt_old + itime] = h5f_in['prim'][dsname]
                 for dsname in h5f_in['Bcc'].keys():
                     h5f['Bcc'][dsname][irad, nt_old + itime] = h5f_in['Bcc'][dsname]
-                for dsname in h5f_in['metric'].keys():
-                    h5f['metric'][dsname][irad, nt_old + itime] = h5f_in['metric'][dsname]
+                for dsname in h5f_in['adm'].keys():
+                    h5f['adm'][dsname][irad, nt_old + itime] = h5f_in['adm'][dsname]
+                for dsname in h5f_in['z4c'].keys():
+                    h5f['z4c'][dsname][irad, nt_old + itime] = h5f_in['z4c'][dsname]
                 for dsname in h5f_in['other'].keys():
                     h5f['other'][dsname][irad, nt_old + itime] = h5f_in['other'][dsname]
 
