@@ -68,6 +68,16 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
       characteristic_projection = true;
   // additional reconstruction methods
   }
+  else if (input_recon == "donate")
+  {
+    xorder = 5;  // 5 is dummy for WENO interface
+    xorder_style = ReconstructionVariant::donate;
+  }
+  else if (input_recon == "lintvd")
+  {
+    xorder = 5;  // 5 is dummy for WENO interface
+    xorder_style = ReconstructionVariant::lintvd;
+  }
   else if (input_recon == "ceno3")
   {
     xorder = 5;  // 5 is dummy for WENO interface
@@ -101,12 +111,6 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
   {
     xorder = 5;  // 5 is dummy for WENO interface
     xorder_style = ReconstructionVariant::weno5z;
-    xorder_eps = pin->GetOrAddReal("time", "xorder_eps", 0);
-  }
-  else if (input_recon == "weno5z_r")
-  {
-    xorder = 5;  // 5 is dummy for WENO interface
-    xorder_style = ReconstructionVariant::weno5z_r;
     xorder_eps = pin->GetOrAddReal("time", "xorder_eps", 0);
   }
   else if (input_recon == "weno5d_si")
