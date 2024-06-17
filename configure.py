@@ -1597,7 +1597,7 @@ if args['m1']:
   src_aux.append("$(wildcard src/m1/opacities/*.cpp)")
   src_aux.append("$(wildcard src/m1/opacities/fake/*.cpp)")
   src_aux.append("$(wildcard src/m1/opacities/photon/*.cpp)")
-  # src_aux.append("$(wildcard src/m1/opacities/weak_rates/*.cpp)")
+  src_aux.append("$(wildcard src/m1/opacities/weakrates/*.cpp)")
 
   print("TODO@conf: Add weak_rates")
 
