@@ -37,7 +37,7 @@ class Reconstruction {
   };
   ReconstructionVariant xorder_style;
   Real xorder_eps;       // for methods for epsilon control parameters
-  Real xorder_fallback;  // for methods with order reduction
+  bool xorder_fallback;  // for methods with order reduction
 
   bool characteristic_projection; // reconstruct on characteristic or primitive hydro vars
   bool uniform[3], curvilinear[2];
