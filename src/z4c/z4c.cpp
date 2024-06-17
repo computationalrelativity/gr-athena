@@ -152,7 +152,11 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   );
 
 
-// BD: TODO - double check
+  // BD:
+  // Current logic is to not R/P Weyl, but, to R/P the metricial quantities
+  // Then in post-AMR hook, construct based on that.
+  //
+  // Registration here is to still allow for bvals_refine to prolong.
 #if defined(DBG_REDUCE_AUX_COMM)
   // Add here so we refine it only for inter-MB BC?
   if (pm->multilevel) {
