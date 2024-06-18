@@ -1848,7 +1848,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         // --------------------------
         // end fourth-order EOS
 
-        if (FLUID_ENABLED) {
+        if (FLUID_ENABLED)
+        {
           // Swap Hydro and (possibly) passive scalar quantities in BoundaryVariable
           // interface from conserved to primitive formulations:
           ph->hbvar.SwapHydroQuantity(ph->w, HydroBoundaryQuantity::prim);
@@ -1857,9 +1858,10 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         if (NSCALARS > 0)
           ps->sbvar.var_cc = &(ps->r);
 
-        //TODO - WGC separation of physical boundaries VC/CC
-        // pbval->ApplyPhysicalBoundaries(time, 0.0);
+        // Add for [e.g. Hydro]
+        pbval->ApplyPhysicalBoundaries(time, 0.0);
 
+        // Switch based on Z4c sampling
         FCN_CC_CX_VC(
           pbval->ApplyPhysicalBoundaries,
           pbval->ApplyPhysicalCellCenteredXBoundaries,

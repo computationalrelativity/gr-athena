@@ -313,10 +313,10 @@ int main(int argc, char *argv[])
 
     if (mesh_updated)
     {
+      // N.B.
+      // At this stage Mesh::Initialize(2, pinputs) has been called
       if (Z4C_ENABLED)
       {
-        // DEBUG_TRIGGER
-        // BD: TODO - needs dt recalc... ?
         ptlc.postamr_z4c->DoTaskListOneStage(pmesh, 1);  // only 1 stage
       }
 
