@@ -240,9 +240,13 @@ void M1::InitializeHydro(vars_Hydro & hydro,
   if (FLUID_ENABLED)
   {
     Hydro * phydro = pmy_block->phydro;
+    PassiveScalars * pscalars = pmy_block->pscalars;
 
     // slice primitives
     hydro.sc_w_rho.InitWithShallowSlice(   phydro->w, IDN);
+    if (NSCALARS > 0) {
+      hydro.sc_w_Ye.InitWithShallowSlice(   pscalars->r, 0);
+    }
     hydro.sp_w_util_u.InitWithShallowSlice(phydro->w, IVX);
     hydro.sc_w_p.InitWithShallowSlice(     phydro->w, IPR);
   }
@@ -250,6 +254,7 @@ void M1::InitializeHydro(vars_Hydro & hydro,
   {
     // Fixed hydro background
     hydro.sc_w_rho.NewAthenaTensor(   mbi.nn3, mbi.nn2, mbi.nn1);
+    hydro.sc_w_Ye.NewAthenaTensor(     mbi.nn3, mbi.nn2, mbi.nn1);
     hydro.sp_w_util_u.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
     hydro.sc_w_p.NewAthenaTensor(     mbi.nn3, mbi.nn2, mbi.nn1);
 
@@ -260,6 +265,7 @@ void M1::InitializeHydro(vars_Hydro & hydro,
     hydro.sc_w_rho.Fill(1e-10);
     hydro.sp_w_util_u.Fill(0.);
 
+    // DR: we should store the temperature and not the pressure
     M1_GLOOP3(k,j,i)
     {
       hydro.sc_w_p(k,j,i) = K * std::pow(hydro.sc_w_rho(k,j,i), Gamma);

@@ -146,6 +146,48 @@ void InitM1DiffusionMovingMedium(MeshBlock *pmb, ParameterInput *pin)
   }
 }
 
+void InitM1HomogenousMedium(MeshBlock *pmb, ParameterInput *pin)
+{
+  M1::M1 * pm1 = pmb->pm1;
+
+  const Real rho = pin->GetReal("problem", "rho");
+  const Real Ye = pin->GetReal("problem", "Y_e");
+  const Real press = pin->GetReal("problem", "press");
+  const Real velx = pin->GetReal("problem", "velx");
+  const Real vely = pin->GetReal("problem", "vely");
+  const Real velz = pin->GetReal("problem", "velz");
+
+  // Initialize fiducial velocity
+  pm1->fidu.sp_v_u.ZeroClear();
+
+  const Real W = 1.0/std::sqrt(1 - velx*velx - vely*vely - velz*velz);
+  M1_GLOOP3(k,j,i)
+  {
+    pm1->hydro.sc_w_rho(k,j,i) = rho;
+    pm1->hydro.sc_w_Ye(k,j,i) = Ye;
+    pm1->hydro.sc_w_p(k,j,i) = press;
+    pm1->hydro.sc_W(k,j,i) = W;
+    pm1->hydro.sp_w_util_u(0,k,j,i) = W*velx;
+    pm1->hydro.sp_w_util_u(1,k,j,i) = W*vely;
+    pm1->hydro.sp_w_util_u(2,k,j,i) = W*velz;
+  }
+
+  // Start with zero radiation density 
+  for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+  {
+    M1::AT_C_sca & sc_E   = pm1->lab.sc_E(  ix_g,ix_s);
+    M1::AT_N_vec & sp_F_d = pm1->lab.sp_F_d(ix_g,ix_s);
+    M1::AT_C_sca & sc_nG  = pm1->lab.sc_nG( ix_g,ix_s);
+
+    M1::AT_C_sca & sc_kap_s = pm1->radmat.sc_kap_s(ix_g,ix_s);
+
+    sc_E.ZeroClear();
+    sp_F_d.ZeroClear();
+    sc_nG.ZeroClear();
+  }
+}
+
 void BCOutFlowInnerX1(MeshBlock *pmb,
                       Coordinates *pco,
                       Real time, Real dt,
@@ -781,6 +823,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   else if (m1_test == "diffusion")
   {
     InitM1Diffusion(this, pin);
+  }
+  else if (m1_test == "homogeneous_medium")
+  {
+    InitM1HomogenousMedium(this, pin);
   }
   else if (m1_test == "diffusion_moving_medium")
   {

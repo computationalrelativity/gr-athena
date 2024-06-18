@@ -365,10 +365,11 @@ void M1::StatePrintPoint(
     std::cout << "hydro fields============================: " << "\n\n";
     std::cout << "sc=================: " << "\n";
     hydro.sc_W.PrintPoint("hydro.sc_W", k,j,i);
-
-    std::cout << "vec================: " << "\n";
     hydro.sc_w_p.PrintPoint("hydro.sc_w_p", k,j,i);
     hydro.sc_w_rho.PrintPoint("hydro.sc_w_rho", k,j,i);
+    hydro.sc_w_Ye.PrintPoint("hydro.sc_w_Ye", k,j,i);
+
+    std::cout << "vec================: " << "\n";
     hydro.sp_w_util_u.PrintPoint("hydro.sp_w_util_u", k,j,i);
 
     std::cout << "radiation fields========================: " << "\n\n";

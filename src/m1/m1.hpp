@@ -317,6 +317,7 @@ public:
   struct vars_Hydro {
     // (sc)alar fields
     AT_C_sca sc_w_rho;
+    AT_C_sca sc_w_Ye;
     AT_C_sca sc_w_p;
     AT_C_sca sc_W;
 
