@@ -51,9 +51,9 @@ public:
     pmy_weakrates->SetEoS(&pmy_block->peos->GetEOS());
 
     // These are the defaults in THC, TODO convert to pin parameters
-    opacity_tau_trap = 1.0;
-    opacity_tau_delta = 1.0;
-    opacity_corr_fac_max = 3.0;
+    opacity_tau_trap = pin->GetOrAddReal("M1_opacities", "tau_trap", 1.0);
+    opacity_tau_delta = pin->GetOrAddReal("M1_opacities", "tau_delta", 1.0);
+    opacity_corr_fac_max = pin->GetOrAddReal("M1_opacities", "max_correction_factor", 3.0);
   };
 
   ~WeakRates() {
@@ -129,7 +129,6 @@ public:
         Real dens_n[3];
         Real dens_e[3];
 
-        // TODO undensitise
         Real invsdetg = 1.0/sc_sqrt_det_g(k, j, i);
         // FF number density
         dens_n[0] = pm1->rad.sc_nnu(0,0)(k, j, i)*invsdetg;
@@ -213,7 +212,6 @@ public:
       // Enforce Kirchhoff's law
       // For electron lepton neutrinos we change the opacity
       // For heavy lepton neutrinos we change the emissivity
-      // TODO Floors for dens_n and dens_e?
 
       // Electron neutrinos
       pm1->radmat.sc_eta_0(0,0)(k,j,i)   = corr_fac[0]*eta_n_nue;
