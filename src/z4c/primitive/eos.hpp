@@ -1,6 +1,8 @@
 #ifndef EOS_HPP
 #define EOS_HPP
 
+#define EOS_TGUESS
+
 //! \file eos.hpp
 //  \brief Defines an equation of state.
 //
@@ -64,6 +66,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     // EOSPolicy member functions
     using EOSPolicy::TemperatureFromE;
     using EOSPolicy::TemperatureFromEntropy;
+    using EOSPolicy::TemperatureFromEps;
     using EOSPolicy::TemperatureFromP;
     using EOSPolicy::Energy;
     using EOSPolicy::Pressure;
@@ -130,18 +133,20 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     using ErrorPolicy::fail_primitive_floor;
     using ErrorPolicy::adjust_conserved;
     using ErrorPolicy::max_bsq;
+    using ErrorPolicy::fail_tol;
 
   public:
     //! \fn EOS()
     //  \brief Constructor for the EOS. It sets a default value for the floor.
     //
-    //  n_atm gets fixed to 1e-10, and T_atm is set to 1.0. v_max is fixed to 
+    //  n_atm gets fixed to 1e-10, and T_atm is set to 1.0. v_max is fixed to
     //  1.0e - 1e15.
     EOS() {
       n_atm = 1e-10;
       n_threshold = 1.0;
       T_atm = 1e-10;
       v_max = 1.0 - 1e-15;
+      fail_tol = 1e-10;
       max_bsq = std::numeric_limits<Real>::max();
       code_units = eos_units;
       for (int i = 0; i < MAX_SPECIES; i++) {
@@ -156,11 +161,44 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \param[in] n  The number density
     //  \param[in] e  The energy density
     //  \param[in] Y  An array of particle fractions, expected to be of size n_species.
+    //  \param[in] Tguess An optional initial guess for the temperature if EOSPolicy supports it.
     //  \return The temperature according to the EOS.
     inline Real GetTemperatureFromE(Real n, Real e, Real *Y) {
-      return TemperatureFromE(n, e*code_units->PressureConversion(*eos_units), Y) *
+      Real eos_e = e*code_units->EnergyConversion(*eos_units);
+      return TemperatureFromE(n, eos_e, Y) *
              eos_units->TemperatureConversion(*code_units);
     }
+    #ifdef EOS_TGUESS
+    inline Real GetTemperatureFromE(Real n, Real e, Real *Y, Real Tguess) {
+      Real eos_Tguess = Tguess*code_units->TemperatureConversion(*eos_units);
+      Real eos_e = e*code_units->EnergyConversion(*eos_units);
+      return TemperatureFromE(n, eos_e, Y, eos_Tguess) *
+             eos_units->TemperatureConversion(*code_units);
+    }
+    #endif
+
+    //! \fn Real GetTemperatureFromEps(Real n, Real e, Real *Y)
+    //  \brief Calculate the temperature from number density, specific internal energy, and
+    //         particle fractions.
+    //
+    //  \param[in] n  The number density
+    //  \param[in] eps The specific internal energy
+    //  \param[in] Y  An array of particle fractions, expected to be of size n_species.
+    //  \param[in] Tguess An optinal initial guess for the temperature if EOSPolicy supports it.
+    //  \return The temperature according to the EOS.
+    inline Real GetTemperatureFromEps(Real n, Real eps, Real *Y) {
+      Real eos_eps = eps*code_units->SpecificInternalEnergyConversion(*eos_units);
+      return TemperatureFromEps(n, eos_eps, Y) *
+             eos_units->TemperatureConversion(*code_units);
+    }
+    #ifdef EOS_TGUESS
+    inline Real GetTemperatureFromEps(Real n, Real eps, Real *Y, Real Tguess) {
+      Real eos_Tguess = Tguess*code_units->TemperatureConversion(*eos_units);
+      Real eos_eps = eps*code_units->SpecificInternalEnergyConversion(*eos_units);
+      return TemperatureFromEps(n, eos_eps, Y, eos_Tguess) *
+              eos_units->TemperatureConversion(*code_units);
+    }
+    #endif
 
     //! \fn Real GetTemperatureFromP(Real n, Real p, Real *Y)
     //  \brief Calculate the temperature from number density, pressure, and
@@ -168,15 +206,29 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \param[in] n  The number density
     //  \param[in] p  The pressure
     //  \param[in] Y  An array of particle fractions, expected to be of size n_species.
+    //  \param[in] Tguess An optional initial guess for the temperature if EOSPolicy supports it.
     //  \return The temperature according to the EOS.
     inline Real GetTemperatureFromP(Real n, Real p, Real *Y) {
       if (n<GetDensityFloor()){
         return T_atm * eos_units->TemperatureConversion(*code_units);
       } else {
-        return TemperatureFromP(n, p*code_units->PressureConversion(*eos_units), Y) *
+        Real eos_p = p*code_units->PressureConversion(*eos_units);
+        return TemperatureFromP(n, eos_p, Y) *
+          eos_units->TemperatureConversion(*code_units);
+      }
+    }
+    #ifdef EOS_TGUESS
+    inline Real GetTemperatureFromP(Real n, Real p, Real *Y, Real Tguess) {
+      if (n<GetDensityFloor()){
+        return T_atm * eos_units->TemperatureConversion(*code_units);
+      } else {
+        Real eos_Tguess = Tguess*code_units->TemperatureConversion(*eos_units);
+        Real eos_p = p*code_units->PressureConversion(*eos_units);
+        return TemperatureFromP(n, eos_p, Y, eos_Tguess) *
                eos_units->TemperatureConversion(*code_units);
       }
     }
+    #endif
 
     //! \fn Real GetTemperatureFromEntropy(Real n, Real s, Real *Y)
     //  \brief Calculate the temperature from number density, entropy, and
@@ -201,7 +253,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \return The energy density according to the EOS.
     inline Real GetEnergy(Real n, Real T, Real *Y) {
       return Energy(n, T*code_units->TemperatureConversion(*eos_units), Y) *
-             eos_units->PressureConversion(*code_units);
+             eos_units->EnergyConversion(*code_units);
     }
 
     //! \fn Real GetPressure(Real n, Real T, Real *Y)
@@ -224,11 +276,11 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \param[in] n  The number density
     //  \param[in] T  The temperature
     //  \param[in] Y  An array of size n_species of the particle fractions.
-    //  \return The entropy per baryon for this EOS. 
+    //  \return The entropy per baryon for this EOS.
     //  WC: This is entropy per unit mass
     inline Real GetEntropy(Real n, Real T, Real *Y) {
-      return Entropy(n, T*code_units->TemperatureConversion(*eos_units), Y)/mb *
-             eos_units->EntropyConversion(*code_units)/eos_units->MassConversion(*code_units);
+      return Entropy(n, T*code_units->TemperatureConversion(*eos_units), Y) *
+             eos_units->EntropyConversion(*code_units);
     }
 
     //! \fn Real GetEntropyPerBaryon(Real n, Real T, Real *Y)
@@ -340,7 +392,8 @@ class EOS : public EOSPolicy, public ErrorPolicy {
       return BaryonChemicalPotential(n, T*code_units->TemperatureConversion(*eos_units), Y) *
              eos_units->ChemicalPotentialConversion(*code_units);
     }
-     //! \fn Real GetChargeChemicalPotential(Real n, Real T, Real *Y)
+
+    //! \fn Real GetChargeChemicalPotential(Real n, Real T, Real *Y)
     //  \brief Get the charge chemical potential from the number density, temperature,
     //         and particle fractions.
     //
@@ -352,7 +405,8 @@ class EOS : public EOSPolicy, public ErrorPolicy {
       return ChargeChemicalPotential(n, T*code_units->TemperatureConversion(*eos_units), Y) *
              eos_units->ChemicalPotentialConversion(*code_units);
     }
-     //! \fn Real GetElectronLeptonChemicalPotential(Real n, Real T, Real *Y)
+
+    //! \fn Real GetElectronLeptonChemicalPotential(Real n, Real T, Real *Y)
     //  \brief Get the electron-lepton chemical potential from the number density, temperature,
     //         and particle fractions.
     //
@@ -493,7 +547,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //
     //  \param[in] v The maximum velocity
     inline void SetMaxVelocity(Real v) {
-      v_max = (v >= 0) ? ((v <= 1.0-1e-15) ? v : 1.0e-15) : 0.0;
+      v_max = (v >= 0) ? ((v <= 1.0-1e-15) ? v : 1.0-1.0e-15) : 0.0;
     }
 
     // Maximum velocity will be set according to Lorentz factor W
@@ -534,7 +588,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
 
     //! \fn const bool IsConservedFlooringFailure() const
     //  \brief Find out if the EOSPolicy fails flooring the conserved variables.
-    // 
+    //
     // \return true or false
     inline bool IsConservedFlooringFailure() const {
       return fail_conserved_floor;
@@ -551,7 +605,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //! \fn const bool KeepPrimAndConConsistent() const
     //  \brief Find out if the EOSPolicy wants the conserved variables to be
     //         adjusted to match the primitive variables.
-    //  
+    //
     //  \return true or false
     inline bool KeepPrimAndConConsistent() const {
       return adjust_conserved;
@@ -600,9 +654,30 @@ class EOS : public EOSPolicy, public ErrorPolicy {
 
     //! \brief Limit the energy density to a specified range at a given density and composition
     inline void ApplyEnergyLimits(Real& e, Real n, Real* Y) {
-      Real e_eos = e*code_units->PressureConversion(*eos_units);
+      Real e_eos = e*code_units->EnergyConversion(*eos_units);
       EnergyLimits(e_eos, MinimumEnergy(n, Y), MaximumEnergy(n, Y));
-      e = e_eos*eos_units->PressureConversion(*code_units);
+      e = e_eos*eos_units->EnergyConversion(*code_units);
+    }
+
+    //! \brief Limit the specific internal energy to a specified range at a given density and composition
+    inline void ApplySpecificInternalEnergyLimits(Real& eps, Real n, Real* Y) {
+      Real e = (1.0 + eps)*n*mb;
+      Real e_eos = e*code_units->EnergyConversion(*eos_units);
+      EnergyLimits(e_eos, MinimumEnergy(n, Y), MaximumEnergy(n, Y));
+      e = e_eos*eos_units->EnergyConversion(*code_units);
+      eps = e/n/mb - 1.0;
+    }
+
+    //! \brief Set the tolerance for failed points. Anything between the solver
+    //!        tolerance and the error tolerance will be reported as slow convergence
+    //!        rather than complete failure.
+    inline void SetFailureTolerance(Real tol) {
+      fail_tol = std::max(tol, 0.0);
+    }
+
+    //! \brief Get the failure tolerance.
+    inline Real GetFailureTolerance() const {
+      return fail_tol;
     }
 
     //! \brief Respond to a failed solve.

@@ -99,7 +99,7 @@ class PrimitiveSolver {
         // Now we can estimate the velocity.
         //const Real v_max = peos->GetMaxVelocity();
         const Real h_min = peos->GetMinimumEnthalpy();
-        const Real vsq_max = std::min(rsq/(h_min*h_min + rsq), 
+        const Real vsq_max = std::min(rsq/(h_min*h_min + rsq),
                                       peos->GetMaxVelocity()*peos->GetMaxVelocity());
         const Real vhatsq = std::min(musq*rbarsq, vsq_max);
 
@@ -114,15 +114,31 @@ class PrimitiveSolver {
         Real nhat = rhohat/mb;
         peos->ApplyDensityLimits(nhat);
 
-        // Estimate the energy density.
-        Real eoverD = qbar - mu*rbarsq + 1.0;
-        Real ehat = D*eoverD;
-        peos->ApplyEnergyLimits(ehat, nhat, Y);
-        //eoverD = ehat/D;
-
+        // Estimate the specific internal energy.
+        Real What = 1.0/iWhat;
+        Real tauoverD = qbar - mu*rbarsq;
+        Real eoverD = tauoverD + 1.0;
+        Real epshat = tauoverD*What + What - 1.0;
+        peos->ApplySpecificInternalEnergyLimits(epshat, nhat, Y);
         // Now we can get an estimate of the temperature, and from that, the pressure and enthalpy.
-        Real That = peos->GetTemperatureFromE(nhat, ehat, Y);
+        #ifdef EOS_TGUESS
+        // assume that T contains the guess for the temperature
+        Real That = peos->GetTemperatureFromEps(nhat, epshat, Y, *T);
+        #else
+        Real That = peos->GetTemperatureFromEps(nhat, epshat, Y);
+        #endif
         peos->ApplyTemperatureLimits(That);
+
+        // // Estimate the energy density.
+        // Real eoverD = qbar - mu*rbarsq + 1.0;
+        // Real ehat = D*eoverD;
+        // peos->ApplyEnergyLimits(ehat, nhat, Y);
+        // //eoverD = ehat/D;
+
+        // // Now we can get an estimate of the temperature, and from that, the pressure and enthalpy.
+        // Real That = peos->GetTemperatureFromE(nhat, ehat, Y);
+        // peos->ApplyTemperatureLimits(That);
+
         //ehat = peos->GetEnergy(nhat, That, Y);
         Real Phat = peos->GetPressure(nhat, That, Y);
         Real hhat = peos->GetEnthalpy(nhat, That, Y);
@@ -168,14 +184,14 @@ class PrimitiveSolver {
     UpperRootFunctor UpperRoot;
     MuFromWFunctor MuFromW;
     RootFunctor RootFunction;
-    
+
     //! \brief Check and handle the corner case for rho being too small or large.
     //
     //  Using the minimum and maximum values of rho along with some physical
     //  limitations on the velocity using S, we can predict if rho is going
     //  to violate constraints set by the EOS on how big or small it can get.
     //  We can also use these constraints to tighten the bounds on mu.
-    //  
+    //
     //  \param[in,out] mul   The lower bound for mu
     //  \param[in,out] muh   The upper bound for mu
     //  \param[in]     D     The relativistic density
@@ -241,7 +257,7 @@ class PrimitiveSolver {
     //  \param[in]     g3u   The 3x3 inverse spatial metric
     //
     //  \return information about the solve
-    SolverResult ConToPrim(Real prim[NPRIM], Real cons[NCONS], Real b[NMAG], 
+    SolverResult ConToPrim(Real prim[NPRIM], Real cons[NCONS], Real b[NMAG],
                            Real g3d[NSPMETRIC], Real g3u[NSPMETRIC]);
 
     //! \brief Get the conserved variables from the primitive variables.
@@ -252,7 +268,7 @@ class PrimitiveSolver {
     //  \param[in]    g3d   The 3x3 spatial metric
     //
     //  \return an error code
-    Error PrimToCon(Real prim[NPRIM], Real cons[NCONS], Real b[NMAG], 
+    Error PrimToCon(Real prim[NPRIM], Real cons[NCONS], Real b[NMAG],
                    Real g3d[NSPMETRIC]);
 
     /// Get the EOS used by this PrimitiveSolver.
@@ -297,7 +313,7 @@ class PrimitiveSolver {
 
 // CheckDensityValid {{{
 template<typename EOSPolicy, typename ErrorPolicy>
-inline Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::CheckDensityValid(Real& mul, Real& muh, Real D, 
+inline Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::CheckDensityValid(Real& mul, Real& muh, Real D,
       Real bsq, Real rsq, Real rbsq, Real h_min) {
   // There are a few things considered:
   // 1. If D > rho_max, we need to make sure that W isn't too large.
@@ -371,7 +387,7 @@ inline Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::CheckDensityValid(Real& mu
 
 // ConToPrim {{{
 template<typename EOSPolicy, typename ErrorPolicy>
-inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim[NPRIM], 
+inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim[NPRIM],
       Real cons[NCONS], Real b[NMAG], Real g3d[NSPMETRIC], Real g3u[NSPMETRIC]) {
 
   SolverResult solver_result{Error::SUCCESS, 0, false, false, false};
@@ -379,7 +395,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
   // Extract the undensitized conserved variables.
   Real D = cons[IDN];
   Real S_d[3] = {cons[IM1], cons[IM2], cons[IM3]};
-  Real tau = cons[IEN];
+  Real tau = cons[IEN] - cons[IDN]; // LFLM modification tau = E to tau = E-D
   Real B_u[3] = {b[IB1], b[IB2], b[IB3]};
   // Extract the particle fractions.
   const int n_species = peos->GetNSpecies();
@@ -459,7 +475,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
     q = tau/D;
     rsqr = Contract(r_u, r_d);
   }
-  
+
   // If rsqr is identically zero, we have zero velocity and can solve the problem analytically.
   /*if (rsqr == 0.0 || rsqr == -0.0) {
     prim[IDN] = D;
@@ -532,6 +548,13 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
   // TODO: This should be done with something like TOMS748 once it's
   // available.
   Real n, P, T, mu;
+
+
+  #ifdef EOS_TGUESS
+  // assume prim[ITM] contains a guess for the temperature
+  T = prim[ITM];
+  #endif
+
   bool result;
   if (use_toms_748)
   {
@@ -558,14 +581,14 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
   Real W = D/rho;
   Real Wmux = W*mu/(1.0 + mu*bsqr);
   // Before we retrieve the velocity, we need to raise S.
-  //Real S_u[3] = {0.0};
-  //RaiseForm(S_u, S_d, g3u);
+  Real S_u[3] = {0.0};
+  RaiseForm(S_u, S_d, g3u);
   // Now we can get Wv.
   Real Wv_u[3] = {0.0};
   Wv_u[0] = Wmux*(r_u[0] + rbmu*b_u[0]);
   Wv_u[1] = Wmux*(r_u[1] + rbmu*b_u[1]);
   Wv_u[2] = Wmux*(r_u[2] + rbmu*b_u[2]);
-  
+
   // Apply the flooring policy to the primitive variables.
   floored = peos->ApplyPrimitiveFloor(n, Wv_u, P, T, Y);
   solver_result.prim_floor = floored;

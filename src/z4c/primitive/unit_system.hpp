@@ -3,7 +3,7 @@
 
 //! \file eos_units.hpp
 //  \brief contains unit definitions and conversion for the EOS solver.
-//  
+//
 //  Each unit system is defined as its own struct inside the EOSUnits namespace.
 //  TODO: Check that these conversions are correct.
 
@@ -72,8 +72,12 @@ struct UnitSystem {
   }
 
   inline constexpr Real ChemicalPotentialConversion(UnitSystem& b) const {
-  return b.chemicalPotential/chemicalPotential;
-}
+    return b.chemicalPotential/chemicalPotential;
+  }
+
+  inline constexpr Real SpecificInternalEnergyConversion(UnitSystem& b) const {
+    return b.c*b.c/c/c;
+  }
   //! \}
 };
 
@@ -95,12 +99,12 @@ static UnitSystem CGS{
 
   1.0, // length, cm
   1.0, // time, s
-  1.0, // density, g cm^-3
+  1.0, // number density, cm^-3
   1.0, // mass, g
   1.0, // energy, erg
   1.0, // pressure, erg/cm^3
   1.0, // temperature, K
-  1.0,  // chemical potential, erg
+  1.0, // chemical potential, erg
 };
 //! Geometric units with length in kilometers
 static UnitSystem GeometricKilometer{

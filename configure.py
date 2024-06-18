@@ -209,6 +209,7 @@ parser.add_argument(
   "--eospolicy",
   default="idealgas",
   choices=["idealgas", "piecewise_polytrope", "eos_compose", "hybrid_table"],
+  choices=['idealgas', 'piecewise_polytrope', 'eos_compose', 'hybrid_table', 'eos_compose_transition'],
   help="select EOS policy for PrimitiveSolver framework",
 )
 
@@ -878,6 +879,10 @@ elif args["eos"] == "eostaudyn_ps":
     definitions["EOS_POLICY"] = "HybridTable"
     definitions["EOS_POLICY_CODE"] = "3"
     definitions["COLDEOS_POLICY"] = "ColdHybridTable"
+  elif args['eospolicy'] == 'eos_compose_transition':
+    definitions['EOS_POLICY'] = 'EOSCompOSETransition'
+    definitions['EOS_POLICY_CODE'] = '4'
+    makefile_options['LIBRARY_FLAGS'] += '-lgfortran -lhelmholtz -L./lib'
   else:
     definitions["EOS_POLICY"] = ""
 
