@@ -78,7 +78,6 @@ public:
 
 // TODO: check
 #if USETM
-      assert(false);
       const Real rho = 1.0;
       const Real T   = 0.0;
       const Real Y_e = 0.0;

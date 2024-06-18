@@ -516,7 +516,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(
       pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
                                       pmb->is-NGHOST, pmb->is-1, bjs, bje, bks, bke);
 #endif
-    }
+#endif
 
 #if !USETM
     if (NSCALARS > 0) {
@@ -555,7 +555,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(
       pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
                                       pmb->ie+1, pmb->ie+NGHOST, bjs, bje, bks, bke);
 #endif
-    }
+#endif
 
 #if !USETM
     if (NSCALARS > 0) {
@@ -596,7 +596,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(
         pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
                                         bis, bie, pmb->js-NGHOST, pmb->js-1, bks, bke);
 #endif
-      }
+#endif
 
 #if !USETM
       if (NSCALARS > 0) {
@@ -634,7 +634,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(
         pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
                                         bis, bie, pmb->je+1, pmb->je+NGHOST, bks, bke);
 #endif
-      }
+#endif
 
 #if !USETM
       if (NSCALARS > 0) {
@@ -678,7 +678,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(
         pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
                                         bis, bie, bjs, bje, pmb->ks-NGHOST, pmb->ks-1);
 #endif
-      }
+#endif
 
 #if !USETM
       if (NSCALARS > 0) {
@@ -719,7 +719,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(
         pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
                                         bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
 #endif
-      }
+#endif
 
 #if !USETM
       if (NSCALARS > 0)

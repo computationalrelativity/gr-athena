@@ -1,7 +1,7 @@
 // C headers
 
 // C++ headers
-// ..
+#include <array>
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -144,8 +144,6 @@ void InitM1DiffusionMovingMedium(MeshBlock *pmb, ParameterInput *pin)
 
     sc_kap_s.Fill(kap_s);
   }
-
-
 }
 
 void BCOutFlowInnerX1(MeshBlock *pmb,
