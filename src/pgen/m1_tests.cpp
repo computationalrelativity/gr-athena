@@ -7,6 +7,7 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../coordinates/coordinates.hpp"
+#include "../eos/eos.hpp"                  // EquationOfState
 #include "../m1/m1.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
@@ -152,7 +153,11 @@ void InitM1HomogenousMedium(MeshBlock *pmb, ParameterInput *pin)
 
   const Real rho = pin->GetReal("problem", "rho");
   const Real Ye = pin->GetReal("problem", "Y_e");
+#if USETM
+  const Real temp = pin->GetReal("problem", "temperature");
+#else
   const Real press = pin->GetReal("problem", "press");
+#endif
   const Real velx = pin->GetReal("problem", "velx");
   const Real vely = pin->GetReal("problem", "vely");
   const Real velz = pin->GetReal("problem", "velz");
@@ -165,7 +170,13 @@ void InitM1HomogenousMedium(MeshBlock *pmb, ParameterInput *pin)
   {
     pm1->hydro.sc_w_rho(k,j,i) = rho;
     pm1->hydro.sc_w_Ye(k,j,i) = Ye;
+#if USETM
+    Real const nb = rho/(pmb->peos->GetEOS().GetBaryonMass());
+    Real Yvec[MAX_SPECIES] = {Ye};
+    pm1->hydro.sc_w_p(k,j,i) = pmb->peos->GetEOS().GetPressure(nb, temp, Yvec);
+#else
     pm1->hydro.sc_w_p(k,j,i) = press;
+#endif
     pm1->hydro.sc_W(k,j,i) = W;
     pm1->hydro.sp_w_util_u(0,k,j,i) = W*velx;
     pm1->hydro.sp_w_util_u(1,k,j,i) = W*vely;
