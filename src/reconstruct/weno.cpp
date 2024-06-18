@@ -16,7 +16,10 @@
 #include "../athena_arrays.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../eos/eos.hpp"
+#include "../hydro/hydro.hpp"
+#include "../z4c/z4c.hpp"
 #include "reconstruction.hpp"
+#include <iomanip>
 
 #define SGN(a,b) ((b) >= 0.0 ? fabs(a) : -fabs(a))
 #define USE_WEIGHTS_OPTIMAL 0
@@ -412,11 +415,30 @@ void Reconstruction::WenoX1(
 
         // ... further reversion would go here (i.e. donor)
 
+        // if (!is_admissible)
+        // {
+        //   pmy_block_->peos->ForcePrimitiveFloor(ql,k,j,i+1);
+        //   pmy_block_->peos->ForcePrimitiveFloor(qr,k,j,i);
+        // }
+
         if (!is_admissible)
         {
-          pmy_block_->peos->ForcePrimitiveFloor(ql,k,j,i+1);
-          pmy_block_->peos->ForcePrimitiveFloor(qr,k,j,i);
+          #pragma omp critical
+          {
+            std::cout << std::setprecision(16) << std::endl;
+            std::cout << "DEBUG: lintvd_failed?" << std::endl;
+            std::cout << ql(IDN,i+1) << std::endl;
+            std::cout << qr(IDN,i) << std::endl;
+            std::cout << q(IDN,k,j,i-1) << std::endl;
+            std::cout << q(IDN,k,j,i) << std::endl;
+            std::cout << q(IDN,k,j,i+1) << std::endl;
+            std::cout << k << "," << j << "," << i << std::endl;
+            std::cout << "-------" << std::endl;
+
+            std::exit(0);
+          }
         }
+
       }
     }
   }
@@ -736,11 +758,11 @@ void Reconstruction::WenoX2(
 
         // ... further reversion would go here (i.e. donor)
 
-        if (!is_admissible)
-        {
-          pmy_block_->peos->ForcePrimitiveFloor(ql,k,j,i);
-          pmy_block_->peos->ForcePrimitiveFloor(qr,k,j,i);
-        }
+        // if (!is_admissible)
+        // {
+        //   pmy_block_->peos->ForcePrimitiveFloor(ql,k,j,i);
+        //   pmy_block_->peos->ForcePrimitiveFloor(qr,k,j,i);
+        // }
       }
     }
   }
@@ -1057,11 +1079,11 @@ void Reconstruction::WenoX3(
 
         // ... further reversion would go here (i.e. donor)
 
-        if (!is_admissible)
-        {
-          pmy_block_->peos->ForcePrimitiveFloor(ql,k,j,i);
-          pmy_block_->peos->ForcePrimitiveFloor(qr,k,j,i);
-        }
+        // if (!is_admissible)
+        // {
+        //   pmy_block_->peos->ForcePrimitiveFloor(ql,k,j,i);
+        //   pmy_block_->peos->ForcePrimitiveFloor(qr,k,j,i);
+        // }
       }
     }
   }
