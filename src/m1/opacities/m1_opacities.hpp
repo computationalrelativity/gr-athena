@@ -9,7 +9,10 @@
 #include "../m1_macro.hpp"
 #include "fake/m1_opacities_fake.hpp"
 #include "photon/m1_opacities_photon.hpp"
+
+#if !(M1_NO_WEAKRATES)
 #include "weakrates/m1_opacities_weakrates.hpp"
+#endif
 
 // ============================================================================
 namespace M1::Opacities {
@@ -37,8 +40,10 @@ public:
     if (popac_photon != nullptr)
       delete popac_photon;
 
+#if !(M1_NO_WEAKRATES)
     if (popac_weakrates != nullptr)
       delete popac_weakrates;
+#endif
   };
 
   // handler
@@ -65,11 +70,13 @@ public:
         popac_photon->CalculateOpacityPhoton(dt, u);
         break;
       }
+#if !(M1_NO_WEAKRATES)
       case (opt_opacity_variety::weakrates):
       {
         popac_weakrates->CalculateOpacityWeakRates(dt, u);
         break;
       }
+#endif
       default:
       {
         assert(0);
@@ -89,7 +96,9 @@ private:
   // some varieties have their own classes ------------------------------------
   Fake::Fake           * popac_fake   = nullptr;
   Photon::Photon       * popac_photon = nullptr;
+#if !(M1_NO_WEAKRATES)
   WeakRates::WeakRates * popac_weakrates = nullptr;
+#endif
   // --------------------------------------------------------------------------
 
   void PopulateOptionsOpacities(ParameterInput *pin)
@@ -117,11 +126,13 @@ private:
         opt.opacity_variety = opt_opacity_variety::photon;
         popac_photon = new Photon::Photon(pmy_block, pm1, pin);
       }
+#if !(M1_NO_WEAKRATES)
       else if (tmp == "weakrates")
       {
         opt.opacity_variety = opt_opacity_variety::weakrates;
         popac_weakrates = new WeakRates::WeakRates(pmy_block, pm1, pin);
       }
+#endif
       else
       {
         msg << "M1_opacities/variety unknown" << std::endl;
