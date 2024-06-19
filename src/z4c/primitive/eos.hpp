@@ -1,8 +1,6 @@
 #ifndef EOS_HPP
 #define EOS_HPP
 
-#define EOS_TGUESS
-
 //! \file eos.hpp
 //  \brief Defines an equation of state.
 //
@@ -133,7 +131,6 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     using ErrorPolicy::fail_primitive_floor;
     using ErrorPolicy::adjust_conserved;
     using ErrorPolicy::max_bsq;
-    using ErrorPolicy::fail_tol;
 
   public:
     //! \fn EOS()
@@ -146,9 +143,8 @@ class EOS : public EOSPolicy, public ErrorPolicy {
       n_threshold = 1.0;
       T_atm = 1e-10;
       v_max = 1.0 - 1e-15;
-      fail_tol = 1e-10;
       max_bsq = std::numeric_limits<Real>::max();
-      code_units = eos_units;
+      code_units = &Primitive::GeometricSolar;
       for (int i = 0; i < MAX_SPECIES; i++) {
         Y_atm[i] = 0.0;
       }
@@ -168,7 +164,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
       return TemperatureFromE(n, eos_e, Y) *
              eos_units->TemperatureConversion(*code_units);
     }
-    #ifdef EOS_TGUESS
+    #if EOS_TGUESS
     inline Real GetTemperatureFromE(Real n, Real e, Real *Y, Real Tguess) {
       Real eos_Tguess = Tguess*code_units->TemperatureConversion(*eos_units);
       Real eos_e = e*code_units->EnergyConversion(*eos_units);
@@ -191,7 +187,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
       return TemperatureFromEps(n, eos_eps, Y) *
              eos_units->TemperatureConversion(*code_units);
     }
-    #ifdef EOS_TGUESS
+    #if EOS_TGUESS
     inline Real GetTemperatureFromEps(Real n, Real eps, Real *Y, Real Tguess) {
       Real eos_Tguess = Tguess*code_units->TemperatureConversion(*eos_units);
       Real eos_eps = eps*code_units->SpecificInternalEnergyConversion(*eos_units);
@@ -217,7 +213,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
           eos_units->TemperatureConversion(*code_units);
       }
     }
-    #ifdef EOS_TGUESS
+    #if EOS_TGUESS
     inline Real GetTemperatureFromP(Real n, Real p, Real *Y, Real Tguess) {
       if (n<GetDensityFloor()){
         return T_atm * eos_units->TemperatureConversion(*code_units);
@@ -666,18 +662,6 @@ class EOS : public EOSPolicy, public ErrorPolicy {
       EnergyLimits(e_eos, MinimumEnergy(n, Y), MaximumEnergy(n, Y));
       e = e_eos*eos_units->EnergyConversion(*code_units);
       eps = e/n/mb - 1.0;
-    }
-
-    //! \brief Set the tolerance for failed points. Anything between the solver
-    //!        tolerance and the error tolerance will be reported as slow convergence
-    //!        rather than complete failure.
-    inline void SetFailureTolerance(Real tol) {
-      fail_tol = std::max(tol, 0.0);
-    }
-
-    //! \brief Get the failure tolerance.
-    inline Real GetFailureTolerance() const {
-      return fail_tol;
     }
 
     //! \brief Respond to a failed solve.

@@ -882,7 +882,7 @@ elif args["eos"] == "eostaudyn_ps":
   elif args['eospolicy'] == 'eos_compose_transition':
     definitions['EOS_POLICY'] = 'EOSCompOSETransition'
     definitions['EOS_POLICY_CODE'] = '4'
-    makefile_options['LIBRARY_FLAGS'] += '-lgfortran -lhelmholtz -L./lib'
+    definitions['EOS_TGUESS'] = '1'
   else:
     definitions["EOS_POLICY"] = ""
 
@@ -1758,6 +1758,10 @@ if args["lorene"]:
 else:
   definitions["LORENE_OPTION"] = "NO_LORENE"
   definitions["LORENE_HARDCODED_UNITS"] = "NO_LORENE_HARDCODED_UNITS"
+
+if args['eospolicy'] == 'eos_compose_transition':
+    makefile_options['LIBRARY_FLAGS'] += ' -lgfortran -lboost_math_c99 -lhelmholtz -L./lib'
+    makefile_options['LIBRARY_FLAGS'] += ' -lgfortran -lboost_math_c99 -lhelmholtz -L./lib'
 
 if "Lorene" in args["prob"]:
   if not args["f"] or not args["g"] or not args["z"]:

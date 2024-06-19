@@ -121,7 +121,7 @@ class PrimitiveSolver {
         Real epshat = tauoverD*What + What - 1.0;
         peos->ApplySpecificInternalEnergyLimits(epshat, nhat, Y);
         // Now we can get an estimate of the temperature, and from that, the pressure and enthalpy.
-        #ifdef EOS_TGUESS
+        #if EOS_TGUESS
         // assume that T contains the guess for the temperature
         Real That = peos->GetTemperatureFromEps(nhat, epshat, Y, *T);
         #else
@@ -395,7 +395,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
   // Extract the undensitized conserved variables.
   Real D = cons[IDN];
   Real S_d[3] = {cons[IM1], cons[IM2], cons[IM3]};
-  Real tau = cons[IEN] - cons[IDN]; // LFLM modification tau = E to tau = E-D
+  Real tau = cons[IEN];
   Real B_u[3] = {b[IB1], b[IB2], b[IB3]};
   // Extract the particle fractions.
   const int n_species = peos->GetNSpecies();
@@ -549,11 +549,10 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
   // available.
   Real n, P, T, mu;
 
-
-  #ifdef EOS_TGUESS
+#ifdef EOS_TGUESS
   // assume prim[ITM] contains a guess for the temperature
   T = prim[ITM];
-  #endif
+#endif
 
   bool result;
   if (use_toms_748)
@@ -581,8 +580,8 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
   Real W = D/rho;
   Real Wmux = W*mu/(1.0 + mu*bsqr);
   // Before we retrieve the velocity, we need to raise S.
-  Real S_u[3] = {0.0};
-  RaiseForm(S_u, S_d, g3u);
+  //Real S_u[3] = {0.0};
+  //RaiseForm(S_u, S_d, g3u);
   // Now we can get Wv.
   Real Wv_u[3] = {0.0};
   Wv_u[0] = Wmux*(r_u[0] + rbmu*b_u[0]);

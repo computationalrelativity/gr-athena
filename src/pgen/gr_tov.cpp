@@ -1151,7 +1151,7 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
 #if USETM
   Real T_initial = pin->GetReal("hydro","tfloor");
   Real Y_atm[MAX_SPECIES] = {0.0};
-#if EOS_POLICY_CODE == 2
+#if EOS_POLICY_CODE == 2 || EOS_POLICY_CODE == 4
   Y_atm[0] = pin->GetReal("hydro", "y0_atmosphere");
 #endif
 #endif

@@ -15,8 +15,9 @@
 #include <string>
 
 #include <boost/math/tools/roots.hpp>
-#include <ps_types.hpp>
-#include <eos_policy_interface.hpp>
+
+#include "../../athena.hpp"
+#include "eos_policy_interface.hpp"
 
 
 namespace Primitive {
@@ -178,16 +179,16 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     // Minimum enthalpy per baryon
     Real m_min_h;
 
-    // Table storage, care should be made to store these data on the GPU later
-    static Real * m_log_nb;
-    static Real * m_log_t;
-    static Real * m_yq;
-    static Real * m_table;
-
-    static bool m_initialized;
-
     // Transitions width
-    static Real m_trans_T_width, m_trans_ln_width;
+    Real m_trans_T_width, m_trans_ln_width;
+
+    Real * m_log_nb;
+    Real * m_log_t;
+    Real * m_yq;
+    Real * m_table;
+
+    // bool to protect against access of uninitialised table, and prevent repeated reading of table
+    bool m_initialized;
 };
 
 

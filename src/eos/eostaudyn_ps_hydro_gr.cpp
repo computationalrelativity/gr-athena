@@ -120,6 +120,15 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   Real T_max_factor = pin->GetOrAddReal("hydro", "T_max_factor", 1.0);
   eos.SetMaximumTemperature(eos.GetMaximumTemperature() * T_max_factor);
 
+#elif defined(USE_COMPOSE_TRANSITION_EOS)
+  std::string compose_table = pin->GetString("hydro", "compose_table");
+  std::string helmholtz_table = pin->GetString("hydro", "helmholtz_table");
+  eos.InitializeTables(compose_table, helmholtz_table);
+  eos.SetCodeUnitSystem(&Primitive::GeometricSolar);
+  Real mb = eos.GetBaryonMass();
+  Real n_max_factor = pin->GetOrAddReal("hydro", "n_max_factor", 1.0);
+  eos.SetMaximumDensity(eos.GetMaximumDensity() * n_max_factor);
+
 #elif defined(USE_IDEAL_GAS)
   // Baryon mass
   Real mb = pin->GetOrAddReal("hydro", "bmass", 1.0);

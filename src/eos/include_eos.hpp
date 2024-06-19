@@ -30,6 +30,12 @@
   #define USE_HYBRID_EOS
   #include "../z4c/primitive/hybrid_table.hpp"
   #include "../z4c/primitive/cold_hybrid_table.hpp"
+#elif EOS_POLICY_CODE == 4
+  #ifndef HDF5OUTPUT
+    #error "HDF5 must be enabled to use transition eos"
+  #endif
+  #define USE_COMPOSE_TRANSITION_EOS
+  #include "../z4c/primitive/eos_compose_transition.hpp"
 #else
   #error EOS_POLICY_CODE not recognized.
 #endif
