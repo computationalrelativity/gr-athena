@@ -60,6 +60,10 @@
 // Abort tasklist on hang; dump info
 #define DBG_TASKLIST_HANG
 
+// If activated, use only cons R/P on MeshBlock BC; and phys BC
+#define @DBG_USE_CONS_BC@
+#define @DBG_USE_REFERENCE_TASKLISTS@
+
 //----------------------------------------------------------------------------------------
 // macros which define physics and algorithms
 

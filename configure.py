@@ -193,6 +193,16 @@ parser.add_argument('-hybridinterp',
                     default=False,
                     help='use hybrid grid-to-grid interpolation')
 
+parser.add_argument('-cons_bc',
+                    action='store_true',
+                    default=False,
+                    help='utilize cons vars for all BC')
+
+parser.add_argument('-old_taskslists',
+                    action='store_true',
+                    default=False,
+                    help='utilize the reference task-lists (pre-refactor)')
+
 # -f argument
 parser.add_argument('-f',
                     action='store_true',
@@ -909,6 +919,18 @@ if args['hybridinterp']:
     definitions['HYBRID_INTERP'] = 'HYBRID_INTERP'
 else:
     definitions['HYBRID_INTERP'] = 'NO_HYBRID_INTERP'
+
+# -cons_bc argument
+if args['cons_bc']:
+    definitions['DBG_USE_CONS_BC'] = 'DBG_USE_CONS_BC'
+else:
+    definitions['DBG_USE_CONS_BC'] = 'NO_DBG_USE_CONS_BC'
+
+# -old_taskslists argument
+if args['old_taskslists']:
+    definitions['DBG_USE_REFERENCE_TASKLISTS'] = 'DBG_USE_REFERENCE_TASKLISTS'
+else:
+    definitions['DBG_USE_REFERENCE_TASKLISTS'] = 'NO_DBG_USE_REFERENCE_TASKLISTS'
 
 # -shear argument
 if args['shear']:

@@ -1710,6 +1710,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       }
 
       // With AMR/SMR GR send primitives to enable cons->prim before prolongation
+      // DEBUG: This is useless?- (global con2prim below)
+#ifndef DBG_USE_CONS_BC
       if (GENERAL_RELATIVITY && multilevel) {
         // prepare to receive primitives
 #pragma omp for private(pmb,pbval)
@@ -1739,6 +1741,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           }
         }
       } // multilevel
+#endif  // DBG_USE_CONS_BC
 
 #if FLUID_ENABLED
       if (FLUID_ENABLED) {
@@ -1788,12 +1791,54 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         }
 
         pbval->ApplyPhysicalVertexCenteredBoundaries(time, 0.0);
+
+#ifndef DBG_USE_CONS_BC
+        // DEBUG: GENERAL_RELATIVITY && Z4C_ENABLED
         if (GENERAL_RELATIVITY && res_flag == 2)
+#else
+        if (GENERAL_RELATIVITY && Z4C_ENABLED)
+#endif // DBG_USE_CONS_BC
         {
           // Need ADM variables for con2prim when AMR splits MeshBlock
           pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
         }
 
+#ifdef DBG_USE_CONS_BC
+        // Put BC on (Hydro) cons
+        pbval->ApplyPhysicalBoundaries(time, 0.0);
+
+        if (FLUID_ENABLED) {
+          pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b, ph->w,
+#if USETM
+                                          ps->s, ps->r,
+#endif
+                                          pf->bcc, pmb->pcoord,
+#if Z4C_ENABLED || WAVE_ENABLED
+                                          0, pmb->ncells1-1,
+                                          0, pmb->ncells2-1,
+                                          0, pmb->ncells3-1, 0);
+#else
+                                          0, pmb->ncells1-1,
+                                          0, pmb->ncells2-1,
+                                          0, pmb->ncells3-1);
+#endif
+        }
+
+#if !USETM
+        if (NSCALARS > 0) {
+          // r1/r_old for GR is currently unused:
+          pmb->peos->PassiveScalarConservedToPrimitive(ps->s, ph->w, ps->r, ps->r,
+                                                       pmb->pcoord,
+                                                       0, pmb->ncells1-1,
+                                                       0, pmb->ncells2-1,
+                                                       0, pmb->ncells3-1);
+        }
+#endif
+
+#endif // DBG_USE_CONS_BC
+
+
+#ifndef DBG_USE_CONS_BC
         if (FLUID_ENABLED) {
           pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b, ph->w,  
 #if USETM
@@ -1815,6 +1860,9 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
                                                        il, iu, jl, ju, kl, ku);
         }
 #endif
+
+#endif // DBG_USE_CONS_BC
+
         // --------------------------
         if (FLUID_ENABLED) {
           int order = pmb->precon->xorder;
@@ -1848,6 +1896,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         // --------------------------
         // end fourth-order EOS
 
+#ifndef DBG_USE_CONS_BC
         if (FLUID_ENABLED)
         {
           // Swap Hydro and (possibly) passive scalar quantities in BoundaryVariable
@@ -1860,6 +1909,9 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 
         // Add for [e.g. Hydro]
         pbval->ApplyPhysicalBoundaries(time, 0.0);
+
+        ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
+#endif // DBG_USE_CONS_BC
 
         // Switch based on Z4c sampling
         FCN_CC_CX_VC(

@@ -449,6 +449,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
                                               bjs, bje, bks, bke);
     }
 
+#ifndef DBG_USE_CONS_BC
     if (FLUID_ENABLED){
 #if USETM
       pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
@@ -465,6 +466,9 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
         ps->r, ph->w, ps->s, pco, pmb->is-NGHOST, pmb->is-1, bjs, bje, bks, bke);
     }
 #endif
+
+#endif // DBG_USE_CONS_BC
+
   }
 
   // Apply boundary function on outer-x1 and update W,bcc (if not periodic)
@@ -479,6 +483,8 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
                                               pmb->ie+1, pmb->ie+NGHOST,
                                               bjs, bje, bks, bke);
     }
+
+#ifndef DBG_USE_CONS_BC
 
     if (FLUID_ENABLED) {
 #if USETM
@@ -496,6 +502,9 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
         ps->r, ph->w, ps->s, pco, pmb->ie+1, pmb->ie+NGHOST, bjs, bje, bks, bke);
     }
 #endif
+
+#endif // DBG_USE_CONS_BC
+
   }
 
   if (pmb->block_size.nx2 > 1) { // 2D or 3D
@@ -512,6 +521,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
                                                 bks, bke);
       }
 
+#ifndef DBG_USE_CONS_BC
       if (FLUID_ENABLED) {
 #if USETM
         pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
@@ -528,6 +538,9 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
             ps->r, ph->w, ps->s, pco, bis, bie, pmb->js-NGHOST, pmb->js-1, bks, bke);
       }
 #endif
+
+#endif // DBG_USE_CONS_BC
+
     }
 
     // Apply boundary function on outer-x2 and update W,bcc (if not periodic)
@@ -543,6 +556,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
                                                 bks, bke);
       }
 
+#ifndef DBG_USE_CONS_BC
       if (FLUID_ENABLED) {
 #if USETM
         pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
@@ -559,6 +573,9 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
           ps->r, ph->w, ps->s, pco, bis, bie, pmb->je+1, pmb->je+NGHOST, bks, bke);
       }
 #endif
+
+#endif // DBG_USE_CONS_BC
+
     }
   }
 
@@ -579,6 +596,8 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
                                                 pmb->ks-NGHOST, pmb->ks-1);
       }
 
+#ifndef DBG_USE_CONS_BC
+
       if (FLUID_ENABLED) {
 #if USETM
         pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
@@ -595,6 +614,9 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
             ps->r, ph->w, ps->s, pco, bis, bie, bjs, bje, pmb->ks-NGHOST, pmb->ks-1);
       }
 #endif
+
+#endif // DBG_USE_CONS_BC
+
     }
 
     // Apply boundary function on outer-x3 and update W,bcc (if not periodic)
@@ -610,6 +632,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
                                                 pmb->ke+1, pmb->ke+NGHOST);
       }
 
+#ifndef DBG_USE_CONS_BC
       if (FLUID_ENABLED) {
 #if USETM
         pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
@@ -626,6 +649,9 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
             ps->r, ph->w, ps->s, pco, bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
       }
 #endif
+
+#endif // DBG_USE_CONS_BC
+
     }
   }
   return;

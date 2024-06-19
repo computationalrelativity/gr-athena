@@ -196,6 +196,7 @@ void BoundaryValues::ProlongateHydroBoundaries(const Real time, const Real dt) {
 
     // (temp workaround) to automatically call all BoundaryFunction_[] on coarse_prim/b
     // instead of previous targets var_cc=cons, var_fc=b
+#ifndef DBG_USE_CONS_BC
     if (FLUID_ENABLED)
       phbvar->var_cc = &(ph->coarse_prim_);
     if (MAGNETIC_FIELDS_ENABLED)
@@ -204,12 +205,24 @@ void BoundaryValues::ProlongateHydroBoundaries(const Real time, const Real dt) {
       ps = pmb->pscalars;
       ps->sbvar.var_cc = &(ps->coarse_r_);
     }
-
+#else
+    if (FLUID_ENABLED)
+      phbvar->var_cc = &(ph->coarse_cons_);
+    if (MAGNETIC_FIELDS_ENABLED)
+      pfbvar->var_fc = &(pf->coarse_b_);
+    if (NSCALARS > 0) {
+      ps = pmb->pscalars;
+      ps->sbvar.var_cc = &(ps->coarse_s_);
+    }
+#endif // DBG_USE_CONS_BC
     // Step 2. Re-apply physical boundaries on the coarse boundary:
     ApplyPhysicalBoundariesOnCoarseLevel(nb, time, dt, si, ei, sj, ej, sk, ek);
 
     // (temp workaround) swap BoundaryVariable var_cc/fc to standard primitive variable
     // arrays (not coarse) from coarse primitive variables arrays
+
+#ifndef DBG_USE_CONS_BC
+
     if (FLUID_ENABLED)
       phbvar->var_cc = &(ph->w);
     if (MAGNETIC_FIELDS_ENABLED)
@@ -218,6 +231,19 @@ void BoundaryValues::ProlongateHydroBoundaries(const Real time, const Real dt) {
       ps = pmb->pscalars;
       ps->sbvar.var_cc = &(ps->r);
     }
+
+#else
+
+    if (FLUID_ENABLED)
+      phbvar->var_cc = &(ph->u);
+    if (MAGNETIC_FIELDS_ENABLED)
+      pfbvar->var_fc = &(pf->b);
+    if (NSCALARS > 0) {
+      ps = pmb->pscalars;
+      ps->sbvar.var_cc = &(ps->s);
+    }
+
+#endif // DBG_USE_CONS_BC
 
     // Step 3. Finally, the ghost-ghost zones are ready for prolongation:
     ProlongateGhostCells(nb, si, ei, sj, ej, sk, ek);
@@ -418,6 +444,8 @@ void BoundaryValues::RestrictGhostCellsOnSameLevel(const NeighborBlock& nb, int 
     pmb->pmr->RestrictCellCenteredValues(*var_cc, *coarse_cc, 0, nu,
                                          ris, rie, rjs, rje, rks, rke);
   }
+
+#ifndef DBG_USE_CONS_BC
   // (unique to Hydro) also restrict primitive values in ghost zones when GR + multilevel
   if (GENERAL_RELATIVITY) {
     pmr->SetHydroRefinement(HydroBoundaryQuantity::prim);
@@ -429,6 +457,7 @@ void BoundaryValues::RestrictGhostCellsOnSameLevel(const NeighborBlock& nb, int 
                                          ris, rie, rjs, rje, rks, rke);
     pmr->SetHydroRefinement(HydroBoundaryQuantity::cons);
   }
+#endif // DBG_USE_CONS_BC
 
   for (auto fc_pair : pmr->pvars_fc_) {
     FaceField *var_fc = std::get<0>(fc_pair);
@@ -527,6 +556,7 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
     }
   }
 
+#ifndef DBG_USE_CONS_BC
   // TODO(KGF): passing nullptrs (pf) if no MHD. Might no longer be an issue to set
   // pf=pmb->pfield even if no MHD. Originally was a problem when dereferencing in order
   // to bind references to coarse_b_, coarse_bcc, since coarse_* are no longer members of
@@ -560,6 +590,8 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
                                                  sk-f3m, ek+f3p);
   }
 #endif
+
+#endif // DBG_USE_CONS_BC
 
   if (nb.ni.ox1 == 0) {
     if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
@@ -615,6 +647,8 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
   if (NSCALARS>0) {
     ps = pmb->pscalars;
 }
+
+#ifndef DBG_USE_CONS_BC
   // prolongate cell-centered S/AMR-enrolled quantities (hydro, radiation, scalars, ...)
   //(unique to Hydro, PassiveScalars): swap ptrs to (w, coarse_prim) from (u, coarse_cons)
   if (FLUID_ENABLED)
@@ -624,7 +658,7 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
   if (NSCALARS > 0) {
     pmr->pvars_cc_[ps->refinement_idx] = std::make_tuple(&ps->r, &ps->coarse_r_);
   }
-
+#endif // DBG_USE_CONS_BC
   for (auto cc_pair : pmr->pvars_cc_) {
     AthenaArray<Real> *var_cc = std::get<0>(cc_pair);
     AthenaArray<Real> *coarse_cc = std::get<1>(cc_pair);
@@ -634,6 +668,8 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
                                       si, ei, sj, ej, sk, ek);
 
   }
+
+#ifndef DBG_USE_CONS_BC
   // swap back MeshRefinement ptrs to standard/coarse conserved variable arrays:
   if (FLUID_ENABLED)
     pmr->SetHydroRefinement(HydroBoundaryQuantity::cons);
@@ -641,6 +677,7 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
   if (NSCALARS > 0) {
     pmr->pvars_cc_[ps->refinement_idx] = std::make_tuple(&ps->s, &ps->coarse_s_);
   }
+#endif // DBG_USE_CONS_BC
 
   // prolongate face-centered S/AMR-enrolled quantities (magnetic fields)
   int &mylevel = pmb->loc.level;
@@ -716,6 +753,9 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
     pf->CalculateCellCenteredField(pf->b, pf->bcc, pmb->pcoord,
                                    fsi, fei, fsj, fej, fsk, fek);
   }
+
+#ifndef DBG_USE_CONS_BC
+
   // TODO(KGF): passing nullptrs (pf) if no MHD (coarse_* no longer in MeshRefinement)
   // (may be fine to unconditionally directly set to pmb->pfield now. see above comment)
 
@@ -738,6 +778,8 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
                                                  fsi, fei, fsj, fej, fsk, fek);
   }
 #endif
+
+#endif // DBG_USE_CONS_BC
 
   return;
 }

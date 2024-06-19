@@ -16,7 +16,7 @@ export USE_MPI=1
 export USE_CX=1
 export NINTERP=2
 export USE_HYBRIDINTERP=1
-export DIR_TAG="MPI${USE_MPI}_HYB${USE_HYBRIDINTERP}_NI${NINTERP}"
+export DIR_TAG="PS_MPI${USE_MPI}_HYB${USE_HYBRIDINTERP}_NI${NINTERP}"
 
 export RIEMANN_SOLVER=llftaudyn
 # export RIEMANN_SOLVER=hlletaudyn
@@ -30,7 +30,7 @@ export RUN_NAME=grhd_tov_${DIR_TAG}
 export GRA_CMD=""
 
 # uncomment to use this restart segment
-# export USE_RESTART="00001"
+export USE_RESTART="00003"
 
 export FIELD_VAR="z"
 
@@ -44,7 +44,9 @@ fi
 
 export COMPILE_STR="--prob=gr_tov
                     --coord=gr_dynamical
-                    --eos=adiabatictaudyn_rep
+                    --eos=eostaudyn_ps
+                    --eospolicy=idealgas
+                    --errorpolicy=reset_floor
                     --flux=${RIEMANN_SOLVER}
                     -${FIELD_VAR}
                     -g -f
@@ -54,8 +56,6 @@ export COMPILE_STR="--prob=gr_tov
                     --ncghost_cx=4
                     --nextrapolate=4
                     --ninterp=${NINTERP}"
-
-# -cons_bc
 
 # complete COMPILE_STR specification
 export USE_REPRIMAND=1
