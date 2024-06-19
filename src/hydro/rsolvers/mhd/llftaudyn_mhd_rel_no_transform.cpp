@@ -56,6 +56,8 @@ typedef AthenaTensor<Real, TensorSymm::NONE, NHYDRO, 1> AT_F_vec;
 // Here we use the D, S, tau variable choice for conservatives, and assume a dynamically evolving spacetime
 // so a factor of sqrt(detgamma) is included
 
+// BD: TODO - refactor this.
+
 void Hydro::RiemannSolver(
   const int k, const int j,
   const int il, const int iu,
@@ -111,13 +113,13 @@ void Hydro::RiemannSolver(
   // Slice z4c metric quantities  (NDIM=3 in z4c.hpp)
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_gamma_dd;
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_K_dd;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> z4c_alpha;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> z4c_beta_u;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> adm_alpha;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> adm_beta_u;
 
   adm_gamma_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
   adm_K_dd.InitWithShallowSlice(    pz4c->storage.adm, Z4c::I_ADM_Kxx);
-  z4c_alpha.InitWithShallowSlice(   pz4c->storage.u,   Z4c::I_Z4c_alpha);
-  z4c_beta_u.InitWithShallowSlice(  pz4c->storage.u,   Z4c::I_Z4c_betax);
+  adm_alpha.InitWithShallowSlice(   pz4c->storage.adm, Z4c::I_ADM_alpha);
+  adm_beta_u.InitWithShallowSlice(  pz4c->storage.adm, Z4c::I_ADM_betax);
 
 
 
@@ -170,8 +172,8 @@ void Hydro::RiemannSolver(
 
   GRDynamical* pco_gr = static_cast<GRDynamical*>(pmy_block->pcoord);
   pco_gr->GetGeometricFieldFC(gamma_dd, adm_gamma_dd, ivx-1, k, j);
-  pco_gr->GetGeometricFieldFC(alpha,    z4c_alpha,    ivx-1, k, j);
-  pco_gr->GetGeometricFieldFC(beta_u,   z4c_beta_u,   ivx-1, k, j);
+  pco_gr->GetGeometricFieldFC(alpha,    adm_alpha,    ivx-1, k, j);
+  pco_gr->GetGeometricFieldFC(beta_u,   adm_beta_u,   ivx-1, k, j);
 
 
   #pragma omp simd

@@ -1776,6 +1776,26 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           pbval->ProlongateBoundaries(time, 0.0);
         }
 
+        // Switch based on Z4c sampling
+        FCN_CC_CX_VC(
+          pbval->ApplyPhysicalBoundaries,
+          pbval->ApplyPhysicalCellCenteredXBoundaries,
+          pbval->ApplyPhysicalVertexCenteredBoundaries
+        )(time, 0);
+
+#ifndef DBG_USE_CONS_BC
+        // DEBUG: GENERAL_RELATIVITY && Z4C_ENABLED
+        if (GENERAL_RELATIVITY && res_flag == 2)
+#else
+        if (GENERAL_RELATIVITY && Z4C_ENABLED)
+#endif // DBG_USE_CONS_BC
+        {
+          // Enforce the algebraic constraints
+          pz4c->AlgConstr(pz4c->storage.u);
+          // Need ADM variables for con2prim
+          pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
+        }
+
         int il = pmb->is, iu = pmb->ie,
           jl = pmb->js, ju = pmb->je,
           kl = pmb->ks, ku = pmb->ke;
@@ -1788,19 +1808,6 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         if (pmb->block_size.nx3 > 1) {
           if (pbval->nblevel[0][1][1] != -1) kl -= NGHOST;
           if (pbval->nblevel[2][1][1] != -1) ku += NGHOST;
-        }
-
-        pbval->ApplyPhysicalVertexCenteredBoundaries(time, 0.0);
-
-#ifndef DBG_USE_CONS_BC
-        // DEBUG: GENERAL_RELATIVITY && Z4C_ENABLED
-        if (GENERAL_RELATIVITY && res_flag == 2)
-#else
-        if (GENERAL_RELATIVITY && Z4C_ENABLED)
-#endif // DBG_USE_CONS_BC
-        {
-          // Need ADM variables for con2prim when AMR splits MeshBlock
-          pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
         }
 
 #ifdef DBG_USE_CONS_BC
@@ -1912,13 +1919,6 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 
         ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
 #endif // DBG_USE_CONS_BC
-
-        // Switch based on Z4c sampling
-        FCN_CC_CX_VC(
-          pbval->ApplyPhysicalBoundaries,
-          pbval->ApplyPhysicalCellCenteredXBoundaries,
-          pbval->ApplyPhysicalVertexCenteredBoundaries
-        )(time, 0);
 
       }
 

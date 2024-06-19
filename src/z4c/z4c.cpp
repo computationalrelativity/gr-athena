@@ -35,6 +35,8 @@ char const * const Z4c::Z4c_names[Z4c::N_Z4c] = {
 };
 
 char const * const Z4c::ADM_names[Z4c::N_ADM] = {
+  "adm.alpha",
+  "adm.betax", "adm.betay", "adm.betaz",
   "adm.gxx", "adm.gxy", "adm.gxz", "adm.gyy", "adm.gyz", "adm.gzz",
   "adm.Kxx", "adm.Kxy", "adm.Kxz", "adm.Kyy", "adm.Kyz", "adm.Kzz",
   "adm.psi4",
@@ -529,9 +531,11 @@ Z4c::~Z4c()
 
 void Z4c::SetADMAliases(AthenaArray<Real> & u_adm, Z4c::ADM_vars & adm)
 {
-  adm.psi4.InitWithShallowSlice(u_adm, I_ADM_psi4);
-  adm.g_dd.InitWithShallowSlice(u_adm, I_ADM_gxx);
-  adm.K_dd.InitWithShallowSlice(u_adm, I_ADM_Kxx);
+  adm.alpha.InitWithShallowSlice( u_adm, I_ADM_alpha);
+  adm.beta_u.InitWithShallowSlice(u_adm, I_ADM_betax);
+  adm.psi4.InitWithShallowSlice(  u_adm, I_ADM_psi4);
+  adm.g_dd.InitWithShallowSlice(  u_adm, I_ADM_gxx);
+  adm.K_dd.InitWithShallowSlice(  u_adm, I_ADM_Kxx);
 }
 
 //----------------------------------------------------------------------------------------

@@ -34,7 +34,8 @@
 #endif
 
 void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
-                            AthenaArray<Real> &bcc, const int order) {
+                            AthenaArray<Real> &bcc, const int order)
+{
   MeshBlock *pmb = pmy_block;
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;

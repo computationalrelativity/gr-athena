@@ -471,8 +471,8 @@ void GRDynamical::_AddCoordTermsDivergence(
   // Slice z4c metric quantities
   AT_N_sym adm_gamma_dd(pz4c->storage.adm, Z4c::I_ADM_gxx);
   AT_N_sym adm_K_dd(    pz4c->storage.adm, Z4c::I_ADM_Kxx);
-  AT_N_sca z4c_alpha(   pz4c->storage.u,   Z4c::I_Z4c_alpha);
-  AT_N_vec z4c_beta_u(  pz4c->storage.u,   Z4c::I_Z4c_betax);
+  AT_N_sca adm_alpha(   pz4c->storage.adm, Z4c::I_ADM_alpha);
+  AT_N_vec adm_beta_u(  pz4c->storage.adm, Z4c::I_ADM_betax);
 
   // Slice matter
   AT_N_sca sl_w_rho(   const_cast<AthenaArray<Real>&>(prim), IDN);
@@ -523,28 +523,28 @@ void GRDynamical::_AddCoordTermsDivergence(
     // Note: internally maps geometric sampling to matter sampling
     GetGeometricFieldCC(ms_adm_gamma_dd_, adm_gamma_dd, k, j);
     GetGeometricFieldCC(ms_adm_K_dd_,     adm_K_dd,     k, j);
-    GetGeometricFieldCC(ms_alpha_,        z4c_alpha,    k, j);
-    GetGeometricFieldCC(ms_beta_u_,       z4c_beta_u,   k, j);
+    GetGeometricFieldCC(ms_alpha_,        adm_alpha,    k, j);
+    GetGeometricFieldCC(ms_beta_u_,       adm_beta_u,   k, j);
 
 #if !defined(DBG_FD_CX_COORDDIV) || !defined(Z4C_CX_ENABLED)
     for(int a=0; a<NDIM; ++a)
     {
       GetGeometricFieldDerCC(ms_adm_dgamma_ddd_, adm_gamma_dd, a, k, j);
-      GetGeometricFieldDerCC(ms_dalpha_d_,       z4c_alpha,    a, k, j);
-      GetGeometricFieldDerCC(ms_dbeta_du_,       z4c_beta_u,   a, k, j);
+      GetGeometricFieldDerCC(ms_dalpha_d_,       adm_alpha,    a, k, j);
+      GetGeometricFieldDerCC(ms_dbeta_du_,       adm_beta_u,   a, k, j);
     }
 #else
     for (int a=0; a<NDIM; ++a)
     ILOOP1(i)
     {
-      ms_dalpha_d_(a,i) = fd_cx->Dx(a, z4c_alpha(k,j,i));
+      ms_dalpha_d_(a,i) = fd_cx->Dx(a, adm_alpha(k,j,i));
     }
 
     for (int a=0; a<NDIM; ++a)
     for (int b=0; b<NDIM; ++b)
     ILOOP1(i)
     {
-      ms_dbeta_du_(b,a,i) = fd_cx->Dx(b, z4c_beta_u(a,k,j,i));
+      ms_dbeta_du_(b,a,i) = fd_cx->Dx(b, adm_beta_u(a,k,j,i));
     }
 
     // Tensors
@@ -799,13 +799,13 @@ void GRDynamical::AddCoordTermsDivergence(
   // Slice z4c metric quantities  (NDIM=3 in z4c.hpp)
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_gamma_dd;
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_K_dd;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> z4c_alpha;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> z4c_beta_u;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> adm_alpha;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> adm_beta_u;
 
   adm_gamma_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
   adm_K_dd.InitWithShallowSlice(    pz4c->storage.adm, Z4c::I_ADM_Kxx);
-  z4c_alpha.InitWithShallowSlice(   pz4c->storage.u,   Z4c::I_Z4c_alpha);
-  z4c_beta_u.InitWithShallowSlice(  pz4c->storage.u,   Z4c::I_Z4c_betax);
+  adm_alpha.InitWithShallowSlice(   pz4c->storage.adm, Z4c::I_ADM_alpha);
+  adm_beta_u.InitWithShallowSlice(  pz4c->storage.adm, Z4c::I_ADM_betax);
 
   //SB TODO these need cleanup
   AthenaArray<Real> pgas_init, rho_init, w_init;
@@ -855,35 +855,35 @@ void GRDynamical::AddCoordTermsDivergence(
   {
     GetGeometricFieldCC(gamma_dd, adm_gamma_dd, k, j);
     GetGeometricFieldCC(K_dd,     adm_K_dd,     k, j);
-    GetGeometricFieldCC(alpha,    z4c_alpha,    k, j);
-    GetGeometricFieldCC(beta_u,   z4c_beta_u,   k, j);
+    GetGeometricFieldCC(alpha,    adm_alpha,    k, j);
+    GetGeometricFieldCC(beta_u,   adm_beta_u,   k, j);
 
     for(a=0; a<NDIM; ++a)
     {
       GetGeometricFieldDerCC(dgamma_ddd, adm_gamma_dd, a, k, j);
-      GetGeometricFieldDerCC(dalpha_d,   z4c_alpha,    a, k, j);
-      GetGeometricFieldDerCC(dbeta_du,   z4c_beta_u,   a, k, j);
+      GetGeometricFieldDerCC(dalpha_d,   adm_alpha,    a, k, j);
+      GetGeometricFieldDerCC(dbeta_du,   adm_beta_u,   a, k, j);
     }
 
 #if !defined(DBG_FD_CX_COORDDIV) || !defined(Z4C_CX_ENABLED)
     for(int a=0; a<NDIM; ++a)
     {
       GetGeometricFieldDerCC(dgamma_ddd, adm_gamma_dd, a, k, j);
-      GetGeometricFieldDerCC(dalpha_d,   z4c_alpha,    a, k, j);
-      GetGeometricFieldDerCC(dbeta_du,   z4c_beta_u,   a, k, j);
+      GetGeometricFieldDerCC(dalpha_d,   adm_alpha,    a, k, j);
+      GetGeometricFieldDerCC(dbeta_du,   adm_beta_u,   a, k, j);
     }
 #else
     for (int a=0; a<NDIM; ++a)
     ILOOP1(i)
     {
-      dalpha_d(a,i) = fd_cx->Dx(a, z4c_alpha(k,j,i));
+      dalpha_d(a,i) = fd_cx->Dx(a, adm_alpha(k,j,i));
     }
 
     for (int a=0; a<NDIM; ++a)
     for (int b=0; b<NDIM; ++b)
     ILOOP1(i)
     {
-      dbeta_du(b,a,i) = fd_cx->Dx(b, z4c_beta_u(a,k,j,i));
+      dbeta_du(b,a,i) = fd_cx->Dx(b, adm_beta_u(a,k,j,i));
     }
 
     // Tensors
