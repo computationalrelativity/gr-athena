@@ -54,6 +54,15 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u) {
   //
   GLOOP2(k,j) {
 
+    GLOOP1(i) {
+      z4c.alpha(k,j,i) = adm.alpha(k,j,i);
+    }
+
+    for(int a = 0; a < NDIM; ++a)
+    GLOOP1(i) {
+      z4c.beta_u(a,k,j,i) = adm.beta_u(a,k,j,i);
+    }
+
     // Conformal factor
     if (opt.chi_psi_power == -4.)
     {
@@ -586,14 +595,19 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
   using namespace LinearAlgebra;
 
   // Slice 3d z4c metric quantities  (NDIM=3 in z4c.hpp) ----------------------
+  AT_N_sca adm_alpha( u_adm, Z4c::I_ADM_alpha);
+  AT_N_vec adm_beta_u(u_adm, Z4c::I_ADM_betax);
+
   AT_N_sym adm_gamma_dd(u_adm, Z4c::I_ADM_gxx);
   AT_N_sym adm_K_dd(    u_adm, Z4c::I_ADM_Kxx);
 
+  AT_N_sca z4c_alpha(u, Z4c::I_Z4c_alpha);
   AT_N_sca z4c_chi(  u, Z4c::I_Z4c_chi);
   AT_N_sca z4c_Theta(u, Z4c::I_Z4c_Theta);
   AT_N_sca z4c_Khat( u, Z4c::I_Z4c_Khat);
 
   AT_N_vec z4c_Gamtil_u(   u, Z4c::I_Z4c_Gamx);
+  AT_N_vec z4c_beta_u(     u, Z4c::I_Z4c_betax);
 
   AT_N_sym z4c_Atil_dd(    u, Z4c::I_Z4c_Axx);
   AT_N_sym z4c_gammatil_dd(u, Z4c::I_Z4c_gxx);
@@ -624,6 +638,16 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
 
   GLOOP2(k,j)
   {
+
+    GLOOP1(i) {
+      z4c_alpha(k,j,i) = adm_alpha(k,j,i);
+    }
+
+    for(int a = 0; a < NDIM; ++a)
+    GLOOP1(i) {
+      z4c_beta_u(a,k,j,i) = adm_beta_u(a,k,j,i);
+    }
+
     // z4c_chi
     Det3Metric(adm_detgamma_, adm_gamma_dd, k, j, il, iu);
 

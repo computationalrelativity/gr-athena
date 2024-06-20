@@ -278,13 +278,13 @@ void Field::ComputeCornerE_Z4c_3D(
 
   Z4c * pz4c = pmb->pz4c;
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_gamma_dd;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> z4c_alpha;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> z4c_beta_u;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> adm_alpha;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> adm_beta_u;
 
   // Dense slice --------------------------------------------------------------
   adm_gamma_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
-  z4c_alpha.InitWithShallowSlice(   pz4c->storage.u,   Z4c::I_Z4c_alpha);
-  z4c_beta_u.InitWithShallowSlice(  pz4c->storage.u,   Z4c::I_Z4c_betax);
+  adm_alpha.InitWithShallowSlice(   pz4c->storage.adm, Z4c::I_ADM_alpha);
+  adm_beta_u.InitWithShallowSlice(  pz4c->storage.adm, Z4c::I_ADM_betax);
 
   // Various scratches --------------------------------------------------------
   AT_N_sca alpha_(nn1);
@@ -308,8 +308,8 @@ void Field::ComputeCornerE_Z4c_3D(
     // E2=-(v X B)=VxBz-VzBx
     // E3=-(v X B)=VyBx-VxBy
     pco_gr->GetGeometricFieldCC(gamma_dd_, adm_gamma_dd, k, j);
-    pco_gr->GetGeometricFieldCC(alpha_,    z4c_alpha,    k, j);
-    pco_gr->GetGeometricFieldCC(beta_u_,   z4c_beta_u,   k, j);
+    pco_gr->GetGeometricFieldCC(alpha_,    adm_alpha,    k, j);
+    pco_gr->GetGeometricFieldCC(beta_u_,   adm_beta_u,   k, j);
 
     for(int a=0;a<NDIM;++a)
     {

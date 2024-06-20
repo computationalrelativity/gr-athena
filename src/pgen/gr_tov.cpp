@@ -1019,8 +1019,8 @@ void TOV_populate(MeshBlock *pmb,
 
   // slicings -----------------------------------------------------------------
   // geometric
-  AT_N_sca alpha_init( pz4c->storage.u,   Z4c::I_Z4c_alpha);
-  AT_N_vec beta_u_init(pz4c->storage.u,   Z4c::I_Z4c_betax);
+  AT_N_sca alpha_init( pz4c->storage.adm, Z4c::I_ADM_alpha);
+  AT_N_vec beta_u_init(pz4c->storage.adm, Z4c::I_ADM_betax);
   AT_N_sym g_dd_init(  pz4c->storage.adm, Z4c::I_ADM_gxx);
   AT_N_sym K_dd_init(  pz4c->storage.adm, Z4c::I_ADM_Kxx);
   AT_N_sca psi4_init(  pz4c->storage.adm, Z4c::I_ADM_psi4);

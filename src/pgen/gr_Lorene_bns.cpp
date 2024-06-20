@@ -194,8 +194,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   // --------------------------------------------------------------------------
   // Set some aliases for the variables.
-  AT_N_sca alpha( pz4c->storage.u,   Z4c::I_Z4c_alpha);
-  AT_N_vec beta_u(pz4c->storage.u,   Z4c::I_Z4c_betax);
+  AT_N_sca alpha( pz4c->storage.u,   Z4c::I_ADM_alpha);
+  AT_N_vec beta_u(pz4c->storage.u,   Z4c::I_ADM_betax);
   AT_N_sym g_dd(  pz4c->storage.adm, Z4c::I_ADM_gxx);
   AT_N_sym K_dd(  pz4c->storage.adm, Z4c::I_ADM_Kxx);
 
@@ -623,14 +623,14 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   // Initialise conserved variables
 #if USETM
   peos->PrimitiveToConserved(phydro->w, pscalars->r, pfield->bcc, phydro->u, pscalars->s, pcoord,
-                             0, ncells1,
-                             0, ncells2,
-                             0, ncells3);
+                             0, ncells1-1,
+                             0, ncells2-1,
+                             0, ncells3-1);
 #else
   peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord,
-                             0, ncells1,
-                             0, ncells2,
-                             0, ncells3);
+                             0, ncells1-1,
+                             0, ncells2-1,
+                             0, ncells3-1);
 #endif
   //TODO Check if the momentum and velocity are finite.
 

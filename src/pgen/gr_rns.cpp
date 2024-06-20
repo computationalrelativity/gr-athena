@@ -212,10 +212,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     pz4c->storage.adm(Z4c::I_ADM_Kyz,k,j,i) = Kyz[flat_ix];
     pz4c->storage.adm(Z4c::I_ADM_Kzz,k,j,i) = Kzz[flat_ix];
 
-    pz4c->storage.u(Z4c::I_Z4c_alpha,k,j,i) = alp[flat_ix];
-    pz4c->storage.u(Z4c::I_Z4c_betax,k,j,i) = betax[flat_ix];
-    pz4c->storage.u(Z4c::I_Z4c_betay,k,j,i) = betay[flat_ix];
-    pz4c->storage.u(Z4c::I_Z4c_betaz,k,j,i) = betaz[flat_ix];
+    pz4c->storage.adm(Z4c::I_ADM_alpha,k,j,i) = alp[flat_ix];
+    pz4c->storage.adm(Z4c::I_ADM_betax,k,j,i) = betax[flat_ix];
+    pz4c->storage.adm(Z4c::I_ADM_betay,k,j,i) = betay[flat_ix];
+    pz4c->storage.adm(Z4c::I_ADM_betaz,k,j,i) = betaz[flat_ix];
 
     //TODO what to do with psi4 buffer?
     //pz4c->storage.adm(Z4c::I_ADM_psi4,k,j,i) = 0.0;
