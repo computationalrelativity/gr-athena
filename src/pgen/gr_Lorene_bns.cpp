@@ -194,8 +194,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   // --------------------------------------------------------------------------
   // Set some aliases for the variables.
-  AT_N_sca alpha( pz4c->storage.u,   Z4c::I_ADM_alpha);
-  AT_N_vec beta_u(pz4c->storage.u,   Z4c::I_ADM_betax);
+  AT_N_sca alpha( pz4c->storage.adm, Z4c::I_ADM_alpha);
+  AT_N_vec beta_u(pz4c->storage.adm, Z4c::I_ADM_betax);
   AT_N_sym g_dd(  pz4c->storage.adm, Z4c::I_ADM_gxx);
   AT_N_sym K_dd(  pz4c->storage.adm, Z4c::I_ADM_Kxx);
 
