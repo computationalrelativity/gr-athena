@@ -194,12 +194,8 @@ public:
   PostAMR_Z4c(ParameterInput *pin, Mesh *pm, gra::triggers::Triggers &trgs);
 
   TaskStatus ClearAllBoundary(MeshBlock *pmb, int stage);
-  TaskStatus EnforceAlgConstr(MeshBlock *pmb, int stage);
 
-  TaskStatus Z4cToADM(MeshBlock *pmb, int stage);
-  TaskStatus UpdateSource(MeshBlock *pmb, int stage);
   TaskStatus ADM_Constraints(MeshBlock *pmb, int stage);
-
   TaskStatus Z4c_Weyl(MeshBlock *pmb, int stage);
 
 private:

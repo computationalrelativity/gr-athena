@@ -110,13 +110,9 @@ const TaskID WEYL_DECOMP(9);
 namespace TaskNames::GeneralRelativity::PostAMR_Z4c {
 
 const TaskID NONE(0);
-const TaskID CLEAR_ALLBND(1);
+// const TaskID CLEAR_ALLBND(1);
 
-const TaskID ALG_CONSTR(5);
-const TaskID Z4C_TO_ADM(6);
-const TaskID UPDATE_SRC(7);
 const TaskID ADM_CONSTR(8);
-
 const TaskID Z4C_WEYL(9);
 
 }  // namespace TaskNames::GeneralRelativity::PostAMR_Z4c
