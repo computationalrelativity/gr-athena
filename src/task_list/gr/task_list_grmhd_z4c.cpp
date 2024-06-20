@@ -556,12 +556,39 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin,
 
     Add(UPDATE_SRC, PHY_BVAL_HYD, &GRMHD_Z4c::UpdateSource);
 
+    // collect all MHD-scalar communication into blocking task ----------------
+    // In principle this should not be required, there is somewhere MPI issue
+    TaskID MAT_COM = SEND_HYD | RECV_HYD;
+    if (multilevel)
+    {
+      MAT_COM = MAT_COM | SEND_HYDFLX | RECV_HYDFLX;
+    }
+
+    if (NSCALARS > 0)
+    {
+      MAT_COM = MAT_COM | SEND_SCLR | RECV_SCLR;
+      if (multilevel)
+      {
+        MAT_COM = MAT_COM | SEND_SCLRFLX | RECV_SCLRFLX;
+      }
+    }
+
+    if (MAGNETIC_FIELDS_ENABLED)
+    {
+      MAT_COM = MAT_COM | SEND_FLD | RECV_FLD | SEND_FLDFLX | RECV_FLDFLX;
+    }
+
     // Z4c sub-system logic ---------------------------------------------------
     Add(CALC_Z4CRHS, NONE,        &GRMHD_Z4c::CalculateZ4cRHS);
     Add(INT_Z4C,     CALC_Z4CRHS, &GRMHD_Z4c::IntegrateZ4c);
 
-    Add(SEND_Z4C, INT_Z4C, &GRMHD_Z4c::SendZ4c);
-    Add(RECV_Z4C, NONE, &GRMHD_Z4c::ReceiveZ4c);
+    // Should be able to do this
+    // Add(SEND_Z4C, INT_Z4C, &GRMHD_Z4c::SendZ4c);
+    // Add(RECV_Z4C, NONE, &GRMHD_Z4c::ReceiveZ4c);
+
+    // Do instead this
+    Add(SEND_Z4C, (INT_Z4C | MAT_COM), &GRMHD_Z4c::SendZ4c);
+    Add(RECV_Z4C, MAT_COM,             &GRMHD_Z4c::ReceiveZ4c);
 
     Add(SETB_Z4C, (RECV_Z4C | INT_Z4C), &GRMHD_Z4c::SetBoundariesZ4c);
 
@@ -712,6 +739,8 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin,
         }
         else
         {
+          // DEBUG: add back the send dep.
+          // Add(PROLONG_HYD, (SETB_HYD | SEND_HYD), &GRMHD_Z4c::Prolongation_Hyd);
           Add(PROLONG_HYD, SETB_HYD, &GRMHD_Z4c::Prolongation_Hyd);
         }
         Add(PHY_BVAL_HYD, PROLONG_HYD, &GRMHD_Z4c::Primitives);
@@ -726,12 +755,53 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin,
         &GRMHD_Z4c::PhysicalBoundary_Hyd);
     Add(UPDATE_SRC, CONS2PRIM, &GRMHD_Z4c::UpdateSource);
 
+    // collect all MHD-scalar communication into blocking task ----------------
+    // In principle this should not be required, there is somewhere MPI issue
+    TaskID MAT_COM = SEND_HYD | RECV_HYD;
+    if (multilevel)
+    {
+      MAT_COM = MAT_COM | SEND_HYDFLX | RECV_HYDFLX;
+    }
+
+    if (NSCALARS > 0)
+    {
+      MAT_COM = MAT_COM | SEND_SCLR | RECV_SCLR;
+      if (multilevel)
+      {
+        MAT_COM = MAT_COM | SEND_SCLRFLX | RECV_SCLRFLX;
+      }
+    }
+
+    if (MAGNETIC_FIELDS_ENABLED)
+    {
+      MAT_COM = MAT_COM | SEND_FLD | RECV_FLD | SEND_FLDFLX | RECV_FLDFLX;
+    }
+
+    // collect all MHD-scalar sources (that need old state vector) ------------
+    TaskID MAT_SRC = SRCTERM_HYD;
+
+    if (NSCALARS > 0)
+    {
+      // BD: TODO -
+      // not currently needed; would be needed if sourced.
+    }
+
+    if (MAGNETIC_FIELDS_ENABLED)
+    {
+      MAT_SRC = MAT_SRC | CALC_FLDFLX;
+    }
+
     // Z4c sub-system logic ---------------------------------------------------
     Add(CALC_Z4CRHS, NONE,        &GRMHD_Z4c::CalculateZ4cRHS);
     Add(INT_Z4C,     CALC_Z4CRHS, &GRMHD_Z4c::IntegrateZ4c);
 
-    Add(SEND_Z4C, INT_Z4C, &GRMHD_Z4c::SendZ4c);
-    Add(RECV_Z4C, NONE, &GRMHD_Z4c::ReceiveZ4c);
+    // Should be able to do this
+    // Add(SEND_Z4C, INT_Z4C, &GRMHD_Z4c::SendZ4c);
+    // Add(RECV_Z4C, NONE, &GRMHD_Z4c::ReceiveZ4c);
+
+    // Do instead this
+    Add(SEND_Z4C, (INT_Z4C | MAT_COM), &GRMHD_Z4c::SendZ4c);
+    Add(RECV_Z4C, MAT_COM,             &GRMHD_Z4c::ReceiveZ4c);
 
     Add(SETB_Z4C, (RECV_Z4C | INT_Z4C), &GRMHD_Z4c::SetBoundariesZ4c);
 
@@ -746,7 +816,10 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin,
     }
 
     Add(ALG_CONSTR, PHY_BVAL_Z4C, &GRMHD_Z4c::EnforceAlgConstr);
-    Add(Z4C_TO_ADM, ALG_CONSTR, &GRMHD_Z4c::Z4cToADM);
+
+    // Force all matter requiring ADM at old step to complete first
+    Add(Z4C_TO_ADM, (ALG_CONSTR | MAT_SRC), &GRMHD_Z4c::Z4cToADM);
+
     Add(ADM_CONSTR, UPDATE_SRC, &GRMHD_Z4c::ADM_Constraints);
 
     Add(Z4C_WEYL,  Z4C_TO_ADM, &GRMHD_Z4c::Z4c_Weyl);
@@ -859,7 +932,6 @@ TaskStatus GRMHD_Z4c::CalculateHydroFlux(MeshBlock *pmb, int stage)
     ph->CalculateFluxes(ph->w, pf->b, pf->bcc, xorder);
 
     return TaskStatus::next;
-
   }
   return TaskStatus::fail;
 }
