@@ -91,7 +91,7 @@ inline constexpr Real OpacityConversion(UnitSystem& b) const { // number per len
     return (time*WR_CUBE(length))/(b.time*WR_CUBE(b.length));
   }
 
-  inline constexpr Real EnergyRateConversion(UnitSystem& b) const { // ebergy per unit time per unit volume
+  inline constexpr Real EnergyRateConversion(UnitSystem& b) const { // energy per unit time per unit volume
     return (b.energy*time*WR_CUBE(length))/(energy*b.time*WR_CUBE(b.length));
   }
   //! \}

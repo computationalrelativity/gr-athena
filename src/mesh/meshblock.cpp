@@ -186,6 +186,10 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
     #endif
   }
 
+  if (FLUID_ENABLED) {
+    peos = new EquationOfState(this, pin);
+  }
+  
   if (M1_ENABLED)
   {
     pm1 = new M1::M1(this, pin);
@@ -201,9 +205,6 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   // Mesh::next_phys_id_ counter (including non-BoundaryVariable / per-MeshBlock reserved
   // values). Compare both private member variables via BoundaryValues::CheckCounterPhysID
 
-  if (FLUID_ENABLED) {
-    peos = new EquationOfState(this, pin);
-  }
 
     // must come after pvar to register variables
   ptracker_extrema_loc = new ExtremaTrackerLocal(this, pin);
@@ -330,15 +331,16 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     #endif
   }
 
+  if (FLUID_ENABLED) {
+    peos = new EquationOfState(this, pin);
+  }
+  
   if (M1_ENABLED)
   {
     pm1 = new M1::M1(this, pin);
     pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
   }
 
-  if (FLUID_ENABLED) {
-    peos = new EquationOfState(this, pin);
-  }
 
   // must come after var to register variables
   ptracker_extrema_loc = new ExtremaTrackerLocal(this, pin);

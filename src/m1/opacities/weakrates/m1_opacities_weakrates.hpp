@@ -77,12 +77,12 @@ public:
     M1_FLOOP3(k,j,i)
     if (pm1->MaskGet(k,j,i))
     {
-      Real rho = phydro->w(IDN, k, j, i);
-      Real press = phydro->w(IPR, k, j, i);
+      Real rho = pm1->hydro.sc_w_rho(k,j,i);
+      Real press = pm1->hydro.sc_w_p(k,j,i);
+
       Real Y[MAX_SPECIES] = {0.0};
-      for (int n=0; n<NSCALARS; n++) {
-        Y[n] = pscalars->r(n, k, j, i);
-      }
+      Y[0] = pm1->hydro.sc_w_Ye(k,j,i);
+      
       Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(rho, press, Y);
       Real Y_e = Y[0];
 

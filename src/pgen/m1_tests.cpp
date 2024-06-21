@@ -12,6 +12,11 @@
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 
+#include "../z4c/z4c.hpp"
+#include "../hydro/hydro.hpp"              // Hydro
+#include "../field/field.hpp"              // Field
+#include "../scalars/scalars.hpp"
+
 // ============================================================================
 
 namespace {
@@ -63,6 +68,18 @@ void InitM1Advection(MeshBlock *pmb, ParameterInput *pin)
 void InitM1Diffusion(MeshBlock *pmb, ParameterInput *pin)
 {
   M1::M1 * pm1 = pmb->pm1;
+
+#if Z4C_ENABLED
+  Z4c* pz4c {pmb->pz4c};
+  pz4c->storage.u.Fill(  0);
+  pz4c->storage.u1.Fill( 0);
+  pz4c->storage.adm.Fill(0);
+  pz4c->storage.mat.Fill(0);
+
+  pz4c->ADMMinkowski(pz4c->storage.adm);
+  pz4c->GaugeGeodesic(pz4c->storage.u);
+  pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
+#endif
 
   const Real b_x_a = pin->GetReal("problem", "b_x_a");
   const Real b_x_b = pin->GetReal("problem", "b_x_b");
@@ -151,6 +168,26 @@ void InitM1HomogenousMedium(MeshBlock *pmb, ParameterInput *pin)
 {
   M1::M1 * pm1 = pmb->pm1;
 
+#if Z4C_ENABLED
+  Z4c* pz4c {pmb->pz4c};
+  pz4c->storage.u.Fill(  0);
+  pz4c->storage.u1.Fill( 0);
+  pz4c->storage.adm.Fill(0);
+  pz4c->storage.mat.Fill(0);
+
+  pz4c->ADMMinkowski(pz4c->storage.adm);
+  pz4c->GaugeGeodesic(pz4c->storage.u);
+  pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
+#endif
+
+#if FLUID_ENABLED
+  Hydro* phydro            {pmb->phydro};
+#endif
+
+#if NSCALARS>0
+  PassiveScalars* pscalars {pmb->pscalars};
+#endif
+
   const Real rho = pin->GetReal("problem", "rho");
   const Real Ye = pin->GetReal("problem", "Y_e");
 #if USETM
@@ -168,20 +205,21 @@ void InitM1HomogenousMedium(MeshBlock *pmb, ParameterInput *pin)
   const Real W = 1.0/std::sqrt(1 - velx*velx - vely*vely - velz*velz);
   M1_GLOOP3(k,j,i)
   {
-    pm1->hydro.sc_w_rho(k,j,i) = rho;
-    pm1->hydro.sc_w_Ye(k,j,i) = Ye;
+    phydro->w(IDN,k,j,i) = rho;
+    pscalars->r(0,k,j,i) = Ye;
 #if USETM
     Real const nb = rho/(pmb->peos->GetEOS().GetBaryonMass());
     Real Yvec[MAX_SPECIES] = {Ye};
-    pm1->hydro.sc_w_p(k,j,i) = pmb->peos->GetEOS().GetPressure(nb, temp, Yvec);
+    phydro->w(IPR,k,j,i) = pmb->peos->GetEOS().GetPressure(nb, temp, Yvec);
 #else
-    pm1->hydro.sc_w_p(k,j,i) = press;
+    phydro->w(IPR,k,j,i) = press;
 #endif
-    pm1->hydro.sc_W(k,j,i) = W;
-    pm1->hydro.sp_w_util_u(0,k,j,i) = W*velx;
-    pm1->hydro.sp_w_util_u(1,k,j,i) = W*vely;
-    pm1->hydro.sp_w_util_u(2,k,j,i) = W*velz;
+    phydro->w(IVX,k,j,i) = W*velx;
+    phydro->w(IVY,k,j,i) = W*vely;
+    phydro->w(IVZ,k,j,i) = W*velz;
   }
+
+  phydro->w1 = phydro->w;
 
   // Start with zero radiation density 
   for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
@@ -863,6 +901,41 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   {
     InitM1ValueInject(this, pin);
   }
+
+#if M1_ENABLED
+  pm1->UpdateGeometry(pm1->geom, pm1->scratch);
+  pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
+  pm1->CalcFiducialVelocity();
+#endif  // M1_ENABLED
+
+    // Initialise conserved variables
+  peos->PrimitiveToConserved(
+                             phydro->w, 
+#if USETM
+                             pscalars->r,
+#endif
+                             pfield->bcc, 
+                             phydro->u, 
+#if USETM
+                             pscalars->s,
+#endif
+                             pcoord,
+                             0, ncells1-1,
+                             0, ncells2-1,
+                             0, ncells3-1);
+
+  // Initialise matter (also taken care of in task-list)
+  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm,
+                  phydro->w, 
+#if USETM
+                  pscalars->r,
+#endif
+                  pfield->bcc);
+
+  pz4c->ADMConstraints(pz4c->storage.con,
+                       pz4c->storage.adm,
+                       pz4c->storage.mat,
+                       pz4c->storage.u);
 
 }
 

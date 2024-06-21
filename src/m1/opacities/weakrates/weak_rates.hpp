@@ -271,7 +271,6 @@ class WeakRates {
 
       WR_EoS.SetEoS(ptr_to_EoS);
       atomic_mass = WR_EoS.AtomicMassImpl();
-      std::cout<<"Baryon mass in WeakRates (mn in g): "<<atomic_mass<<std::endl;
 
       WR_Emission.SetEos(&WR_EoS);
       WR_Opacity.SetEos(&WR_EoS);
