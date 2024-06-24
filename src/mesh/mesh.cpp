@@ -356,9 +356,9 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     for (int n = 0; n < nhorizon; ++n) {
       pah_finder.push_back(new AHF(this, pin, n));
     }
-  int nrad = pin->GetOrAddInteger("ejecta", "num_rad", 0);
-  pej_extract.reserve(nrad);
-  for (int n=0; n<nrad; ++n) {
+  int nejecta = pin->GetOrAddInteger("ejecta", "num_rad", 0);
+  pej_extract.reserve(nejecta);
+  for (int n=0; n<nejecta; ++n) {
     pej_extract.push_back(new Ejecta(this, pin, n));
   }
 
@@ -823,10 +823,11 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     for (int n = 0; n < nhorizon; ++n) {
       pah_finder.push_back(new AHF(this, pin, n));
     }
-  int nrad = pin->GetOrAddInteger("ejecta", "num_rad", 0);
-  pej_extract.reserve(nrad);
-  for (int n=0; n<nrad; ++n) {
+  int nejecta = pin->GetOrAddInteger("ejecta", "num_rad", 0);
+  pej_extract.reserve(nejecta);
+  for (int n=0; n<nejecta; ++n) {
     pej_extract.push_back(new Ejecta(this, pin, n));
+  }
     int npunct = pin->GetOrAddInteger("z4c", "npunct", 0);
     if (npunct > 0) {
       pz4c_tracker.reserve(npunct);
