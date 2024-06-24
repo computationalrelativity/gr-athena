@@ -229,12 +229,16 @@ void InitM1HomogenousMedium(MeshBlock *pmb, ParameterInput *pin)
     M1::AT_N_vec & sp_F_d = pm1->lab.sp_F_d(ix_g,ix_s);
     M1::AT_C_sca & sc_nG  = pm1->lab.sc_nG( ix_g,ix_s);
 
-    M1::AT_C_sca & sc_kap_s = pm1->radmat.sc_kap_s(ix_g,ix_s);
-
     sc_E.ZeroClear();
     sp_F_d.ZeroClear();
     sc_nG.ZeroClear();
   }
+
+  pm1->InitializeGeometry(pm1->geom, pm1->scratch);
+  pm1->DerivedGeometry(pm1->geom, pm1->scratch);
+  pm1->InitializeHydro(pm1->hydro, pm1->geom, pm1->scratch);
+  pm1->DerivedHydro(pm1->hydro, pm1->geom, pm1->scratch);
+  pm1->CalcOpacity(0.0, pm1->storage.u);
 }
 
 void BCOutFlowInnerX1(MeshBlock *pmb,

@@ -67,8 +67,8 @@ public:
   inline int CalculateOpacityWeakRates(Real const dt, AA & u)
   {
 
-    Hydro * phydro = pmy_block->phydro;
-    PassiveScalars * pscalars = pmy_block->pscalars;
+    // Hydro * phydro = pmy_block->phydro;
+    // PassiveScalars * pscalars = pmy_block->pscalars;
     AT_C_sca & sc_sqrt_det_g = pm1->geom.sc_sqrt_det_g; // TODO is this safe to use?
 
     const int NUM_COEFF = 3;
@@ -189,8 +189,8 @@ public:
         dens_e[2] = lam*dens_e_trap[2] + (1-lam)*dens_e_thin[2];
       }
 
+
       // Calculate correction factors
-      Real e_ave[3];
       Real corr_fac[3];
       for (int s_idx=0; s_idx<N_SPCS; ++s_idx) {
         pm1->radmat.sc_avg_nrg(0,s_idx)(k, j, i) = dens_e[s_idx]/dens_n[s_idx];
@@ -228,14 +228,14 @@ public:
       pm1->radmat.sc_kap_a(0,1)(k,j,i)   = (dens_e[1] > 0.0 ? pm1->radmat.sc_eta(0,1)(k,j,i)/dens_e[1]   : 0.0);
       
       // Heavy lepton neutrinos
-      pm1->radmat.sc_kap_a_0(0,1)(k,j,i) = corr_fac[2]*kap_a_n_nux;
-      pm1->radmat.sc_kap_a(0,1)(k,j,i)   = corr_fac[2]*kap_a_e_nux;
+      pm1->radmat.sc_kap_a_0(0,2)(k,j,i) = corr_fac[2]*kap_a_n_nux;
+      pm1->radmat.sc_kap_a(0,2)(k,j,i)   = corr_fac[2]*kap_a_e_nux;
       
-      pm1->radmat.sc_eta_0(0,2)(k,j,i)   = pm1->radmat.sc_kap_a_0(0,1)(k,j,i)*dens_n[2];
-      pm1->radmat.sc_eta(0,2)(k,j,i)     = pm1->radmat.sc_kap_a(0,1)(k,j,i)*dens_e[2];
-      
-    }
+      pm1->radmat.sc_eta_0(0,2)(k,j,i)   = pm1->radmat.sc_kap_a_0(0,2)(k,j,i)*dens_n[2];
+      pm1->radmat.sc_eta(0,2)(k,j,i)     = pm1->radmat.sc_kap_a(0,2)(k,j,i)*dens_e[2];
 
+    }
+    
     return 0;
   };
 

@@ -237,7 +237,7 @@ void  M1::CoupleSourcesYe(const Real weight, const Real mb, AA &ps)
     ILOOP3(k,j,i)
     if (MaskGet(k, j, i))
     {
-      ps(0,k,j,i) += SQR(geom.sc_alpha(k,j,i)) * mb * (
+      ps(0,k,j,i) += weight*SQR(geom.sc_alpha(k,j,i)) * mb * (
         geom.sc_sqrt_det_g(k,j,i) * sc_eta_0_nub(k,j,i) -
         sc_kap_a_0_nub(k,j,i) * sc_n_nub(k,j,i) -
         geom.sc_sqrt_det_g(k,j,i) * sc_eta_0_nu(k,j,i) +
