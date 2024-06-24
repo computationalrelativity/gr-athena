@@ -11,10 +11,10 @@ export FN=$(readlink -f "$0"); export DIR_SCRIPTS=$(dirname "${FN}")
 
 # 0 - normal, 1 - valgrind, 2 - gdb, ...
 export RUN_MODE=0
-export USE_MPI=0
+export USE_MPI=1
 
 export USE_CX=1
-export NINTERP=1
+export NINTERP=2
 export USE_HYBRIDINTERP=1
 export DIR_TAG="MPI${USE_MPI}_HYB${USE_HYBRIDINTERP}_NI${NINTERP}"
 
@@ -30,7 +30,7 @@ export RUN_NAME=grhd_tov_${DIR_TAG}
 export GRA_CMD=""
 
 # uncomment to use this restart segment
-# export USE_RESTART="00000"
+# export USE_RESTART="00001"
 
 export FIELD_VAR="z"
 
@@ -48,12 +48,14 @@ export COMPILE_STR="--prob=gr_tov
                     --flux=${RIEMANN_SOLVER}
                     -${FIELD_VAR}
                     -g -f
-                    --cxx g++ -omp
+                    --cxx g++ -omp -cons_bc
                     --nghost=4
                     --ncghost=4
                     --ncghost_cx=4
                     --nextrapolate=4
                     --ninterp=${NINTERP}"
+
+# -cons_bc
 
 # complete COMPILE_STR specification
 export USE_REPRIMAND=1

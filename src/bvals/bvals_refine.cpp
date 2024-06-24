@@ -196,6 +196,7 @@ void BoundaryValues::ProlongateHydroBoundaries(const Real time, const Real dt) {
 
     // (temp workaround) to automatically call all BoundaryFunction_[] on coarse_prim/b
     // instead of previous targets var_cc=cons, var_fc=b
+#ifndef DBG_USE_CONS_BC
     if (FLUID_ENABLED)
       phbvar->var_cc = &(ph->coarse_prim_);
     if (MAGNETIC_FIELDS_ENABLED)
@@ -204,12 +205,24 @@ void BoundaryValues::ProlongateHydroBoundaries(const Real time, const Real dt) {
       ps = pmb->pscalars;
       ps->sbvar.var_cc = &(ps->coarse_r_);
     }
-
+#else
+    if (FLUID_ENABLED)
+      phbvar->var_cc = &(ph->coarse_cons_);
+    if (MAGNETIC_FIELDS_ENABLED)
+      pfbvar->var_fc = &(pf->coarse_b_);
+    if (NSCALARS > 0) {
+      ps = pmb->pscalars;
+      ps->sbvar.var_cc = &(ps->coarse_s_);
+    }
+#endif // DBG_USE_CONS_BC
     // Step 2. Re-apply physical boundaries on the coarse boundary:
     ApplyPhysicalBoundariesOnCoarseLevel(nb, time, dt, si, ei, sj, ej, sk, ek);
 
     // (temp workaround) swap BoundaryVariable var_cc/fc to standard primitive variable
     // arrays (not coarse) from coarse primitive variables arrays
+
+#ifndef DBG_USE_CONS_BC
+
     if (FLUID_ENABLED)
       phbvar->var_cc = &(ph->w);
     if (MAGNETIC_FIELDS_ENABLED)
@@ -219,6 +232,19 @@ void BoundaryValues::ProlongateHydroBoundaries(const Real time, const Real dt) {
       ps->sbvar.var_cc = &(ps->r);
     }
 
+#else
+
+    if (FLUID_ENABLED)
+      phbvar->var_cc = &(ph->u);
+    if (MAGNETIC_FIELDS_ENABLED)
+      pfbvar->var_fc = &(pf->b);
+    if (NSCALARS > 0) {
+      ps = pmb->pscalars;
+      ps->sbvar.var_cc = &(ps->s);
+    }
+
+#endif // DBG_USE_CONS_BC
+
     // Step 3. Finally, the ghost-ghost zones are ready for prolongation:
     ProlongateGhostCells(nb, si, ei, sj, ej, sk, ek);
 
@@ -226,13 +252,14 @@ void BoundaryValues::ProlongateHydroBoundaries(const Real time, const Real dt) {
 
   return;
 }
-void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt) {
+
+
+void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt)
+{
 
   // BD: opt- if nn all same level not required
-
   MeshBlock *pmb = pmy_block_;
   int &mylevel = pmb->loc.level;
-
 
   //////////////////////////////////////////////////////////////////////////////
   // Vertex-centered logic
@@ -309,65 +336,47 @@ void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt) {
 
 void BoundaryValues::ProlongateBoundariesAux(const Real time, const Real dt)
 {
-  // BD: currently this only handles the weyl tensor communication in z4c
-
-  MeshBlock *pmb = pmy_block_;
-  MeshRefinement *pmr = pmb->pmr;
-  Z4c *pz4c = nullptr;
-
-  // utilize pvars_aux
-  pmr->SwapRefinementAux();
-
-  // apply BC on coarse level then prol. (VC) ---------------------------------
+  // BD: This is currently only utilized for Z4c variables
+  // BD: TODO - clean such swapping treatment up with polymorphism
   if (Z4C_ENABLED)
   {
-    #if defined(Z4C_VC_ENABLED)
-      pz4c = pmb->pz4c;
-      pz4c->abvar.var_vc = &(pz4c->coarse_a_);
-    #endif
+    MeshBlock *pmb = pmy_block_;
+    MeshRefinement *pmr = pmb->pmr;
+    Z4c *pz4c = pmb->pz4c;
+
+    // Boundaries applied on coarse then prolongated
+#if defined(Z4C_CX_ENABLED)
+    pz4c->abvar.var_cx = &(pz4c->coarse_a_);
+
+    std::swap(bvars_main_int_cx, bvars_aux);
+    ApplyPhysicalCellCenteredXBoundariesOnCoarseLevel(time, dt);
+    std::swap(bvars_main_int_cx, bvars_aux);
+
+    pz4c->abvar.var_cx = &(pz4c->storage.weyl);
+
+    // To prolong the correct vars. i.e. Aux
+    pmr->SwapRefinementAux();
+    ProlongateCellCenteredXBoundaries(time, dt);
+    pmr->SwapRefinementAux();
+#elif defined(Z4C_VC_ENABLED)
+    pz4c->abvar.var_vc = &(pz4c->coarse_a_);
+
+    std::swap(bvars_main_int_vc, bvars_aux);
+    ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(time, dt);
+    std::swap(bvars_main_int_vc, bvars_aux);
+
+    pz4c->abvar.var_vc = &(pz4c->storage.weyl);
+
+    // To prolong the correct vars. i.e. Aux
+    pmr->SwapRefinementAux();
+    ProlongateVertexCenteredBoundaries(time, dt);
+    pmr->SwapRefinementAux();
+#else
+    // not implemented, shut it all down
+    std::cout << "ProlongateBoundariesAux: Z4c_CC not handled" << std::endl;
+    std::exit(0);
+#endif
   }
-
-  std::swap(bvars_main_int_vc, bvars_aux);
-  ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(time, dt);
-  std::swap(bvars_main_int_vc, bvars_aux);
-
-  if (Z4C_ENABLED)
-  {
-    #if defined(Z4C_VC_ENABLED)
-      pz4c->abvar.var_vc = &(pz4c->storage.weyl);
-    #endif
-  }
-
-  // now do the prolongation
-  ProlongateVertexCenteredBoundaries(time, dt);
-
-
-  // apply BC on coarse level then prol. (CX) ---------------------------------
-  if (Z4C_ENABLED)
-  {
-    #if defined(Z4C_CX_ENABLED)
-      pz4c = pmb->pz4c;
-      pz4c->abvar.var_cx = &(pz4c->coarse_a_);
-    #endif
-  }
-
-  std::swap(bvars_main_int_cx, bvars_aux);
-  ApplyPhysicalCellCenteredXBoundariesOnCoarseLevel(time, dt);
-  std::swap(bvars_main_int_cx, bvars_aux);
-
-  if (Z4C_ENABLED)
-  {
-    #if defined(Z4C_CX_ENABLED)
-      pz4c->abvar.var_cx = &(pz4c->storage.weyl);
-    #endif
-  }
-
-  // now do the prolongation
-  ProlongateCellCenteredXBoundaries(time, dt);
-
-
-  // swap back
-  pmr->SwapRefinementAux();
 }
 
 void BoundaryValues::ApplyPhysicalBoundariesAux(const Real time, const Real dt)
@@ -389,7 +398,6 @@ void BoundaryValues::ApplyPhysicalBoundariesAux(const Real time, const Real dt)
     #endif
   }
 }
-
 
 void BoundaryValues::RestrictGhostCellsOnSameLevel(const NeighborBlock& nb, int nk,
                                                    int nj, int ni) {
@@ -436,6 +444,8 @@ void BoundaryValues::RestrictGhostCellsOnSameLevel(const NeighborBlock& nb, int 
     pmb->pmr->RestrictCellCenteredValues(*var_cc, *coarse_cc, 0, nu,
                                          ris, rie, rjs, rje, rks, rke);
   }
+
+#ifndef DBG_USE_CONS_BC
   // (unique to Hydro) also restrict primitive values in ghost zones when GR + multilevel
   if (GENERAL_RELATIVITY) {
     pmr->SetHydroRefinement(HydroBoundaryQuantity::prim);
@@ -447,6 +457,7 @@ void BoundaryValues::RestrictGhostCellsOnSameLevel(const NeighborBlock& nb, int 
                                          ris, rie, rjs, rje, rks, rke);
     pmr->SetHydroRefinement(HydroBoundaryQuantity::cons);
   }
+#endif // DBG_USE_CONS_BC
 
   for (auto fc_pair : pmr->pvars_fc_) {
     FaceField *var_fc = std::get<0>(fc_pair);
@@ -545,6 +556,7 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
     }
   }
 
+#ifndef DBG_USE_CONS_BC
   // TODO(KGF): passing nullptrs (pf) if no MHD. Might no longer be an issue to set
   // pf=pmb->pfield even if no MHD. Originally was a problem when dereferencing in order
   // to bind references to coarse_b_, coarse_bcc, since coarse_* are no longer members of
@@ -578,6 +590,8 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
                                                  sk-f3m, ek+f3p);
   }
 #endif
+
+#endif // DBG_USE_CONS_BC
 
   if (nb.ni.ox1 == 0) {
     if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
@@ -633,6 +647,8 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
   if (NSCALARS>0) {
     ps = pmb->pscalars;
 }
+
+#ifndef DBG_USE_CONS_BC
   // prolongate cell-centered S/AMR-enrolled quantities (hydro, radiation, scalars, ...)
   //(unique to Hydro, PassiveScalars): swap ptrs to (w, coarse_prim) from (u, coarse_cons)
   if (FLUID_ENABLED)
@@ -642,7 +658,7 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
   if (NSCALARS > 0) {
     pmr->pvars_cc_[ps->refinement_idx] = std::make_tuple(&ps->r, &ps->coarse_r_);
   }
-
+#endif // DBG_USE_CONS_BC
   for (auto cc_pair : pmr->pvars_cc_) {
     AthenaArray<Real> *var_cc = std::get<0>(cc_pair);
     AthenaArray<Real> *coarse_cc = std::get<1>(cc_pair);
@@ -652,6 +668,8 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
                                       si, ei, sj, ej, sk, ek);
 
   }
+
+#ifndef DBG_USE_CONS_BC
   // swap back MeshRefinement ptrs to standard/coarse conserved variable arrays:
   if (FLUID_ENABLED)
     pmr->SetHydroRefinement(HydroBoundaryQuantity::cons);
@@ -659,6 +677,7 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
   if (NSCALARS > 0) {
     pmr->pvars_cc_[ps->refinement_idx] = std::make_tuple(&ps->s, &ps->coarse_s_);
   }
+#endif // DBG_USE_CONS_BC
 
   // prolongate face-centered S/AMR-enrolled quantities (magnetic fields)
   int &mylevel = pmb->loc.level;
@@ -734,6 +753,9 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
     pf->CalculateCellCenteredField(pf->b, pf->bcc, pmb->pcoord,
                                    fsi, fei, fsj, fej, fsk, fek);
   }
+
+#ifndef DBG_USE_CONS_BC
+
   // TODO(KGF): passing nullptrs (pf) if no MHD (coarse_* no longer in MeshRefinement)
   // (may be fine to unconditionally directly set to pmb->pfield now. see above comment)
 
@@ -756,6 +778,8 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
                                                  fsi, fei, fsj, fej, fsk, fek);
   }
 #endif
+
+#endif // DBG_USE_CONS_BC
 
   return;
 }

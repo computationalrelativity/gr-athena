@@ -1298,14 +1298,22 @@ void Mesh::OutputMeshStructure(int ndim) {
 // \brief function that loops over all MeshBlocks and find new timestep
 //        this assumes that phydro->NewBlockTimeStep is already called
 
-void Mesh::NewTimeStep() {
+void Mesh::NewTimeStep(bool limit_dt_growth) {
   MeshBlock *pmb = pblock;
 
+  if (limit_dt_growth)
+  {
   // prevent timestep from growing too fast in between 2x cycles (even if every MeshBlock
-  // has new_block_dt > 2.0*dt_old)
-  dt = static_cast<Real>(2.0)*dt;
-  // consider first MeshBlock on this MPI rank's linked list of blocks:
-  dt = std::min(dt, pmb->new_block_dt_);
+    // has new_block_dt > 2.0*dt_old)
+    dt = static_cast<Real>(2.0)*dt;
+    // consider first MeshBlock on this MPI rank's linked list of blocks:
+    dt = std::min(dt, pmb->new_block_dt_);
+  }
+  else
+  {
+    dt = pmb->new_block_dt_;
+  }
+
   dt_hyperbolic = pmb->new_block_dt_hyperbolic_;
   dt_parabolic = pmb->new_block_dt_parabolic_;
   dt_user = pmb->new_block_dt_user_;
@@ -1333,6 +1341,12 @@ void Mesh::NewTimeStep() {
     dt = tlim - time;
 
   return;
+}
+
+// no arg. limit_dt_growth
+void Mesh::NewTimeStep()
+{
+  Mesh::NewTimeStep(true);
 }
 
 //----------------------------------------------------------------------------------------
@@ -1711,6 +1725,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       }
 
       // With AMR/SMR GR send primitives to enable cons->prim before prolongation
+      // DEBUG: This is useless?- (global con2prim below)
+#ifndef DBG_USE_CONS_BC
       if (GENERAL_RELATIVITY && multilevel) {
         // prepare to receive primitives
 #pragma omp for private(pmb,pbval)
@@ -1740,6 +1756,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           }
         }
       } // multilevel
+#endif  // DBG_USE_CONS_BC
 
 #if FLUID_ENABLED
       if (FLUID_ENABLED) {
@@ -1774,6 +1791,26 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           pbval->ProlongateBoundaries(time, 0.0);
         }
 
+        // Switch based on Z4c sampling
+        FCN_CC_CX_VC(
+          pbval->ApplyPhysicalBoundaries,
+          pbval->ApplyPhysicalCellCenteredXBoundaries,
+          pbval->ApplyPhysicalVertexCenteredBoundaries
+        )(time, 0);
+
+#ifndef DBG_USE_CONS_BC
+        // DEBUG: GENERAL_RELATIVITY && Z4C_ENABLED
+        if (GENERAL_RELATIVITY && res_flag == 2)
+#else
+        if (GENERAL_RELATIVITY && Z4C_ENABLED)
+#endif // DBG_USE_CONS_BC
+        {
+          // Enforce the algebraic constraints
+          pz4c->AlgConstr(pz4c->storage.u);
+          // Need ADM variables for con2prim
+          pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
+        }
+
         int il = pmb->is, iu = pmb->ie,
           jl = pmb->js, ju = pmb->je,
           kl = pmb->ks, ku = pmb->ke;
@@ -1788,13 +1825,42 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           if (pbval->nblevel[2][1][1] != -1) ku += NGHOST;
         }
 
-        pbval->ApplyPhysicalVertexCenteredBoundaries(time, 0.0);
-        if (GENERAL_RELATIVITY && res_flag == 2)
-        {
-          // Need ADM variables for con2prim when AMR splits MeshBlock
-          pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
+#ifdef DBG_USE_CONS_BC
+        // Put BC on (Hydro) cons
+        pbval->ApplyPhysicalBoundaries(time, 0.0);
+
+        if (FLUID_ENABLED) {
+          pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b, ph->w,
+#if USETM
+                                          ps->s, ps->r,
+#endif
+                                          pf->bcc, pmb->pcoord,
+#if Z4C_ENABLED || WAVE_ENABLED
+                                          0, pmb->ncells1-1,
+                                          0, pmb->ncells2-1,
+                                          0, pmb->ncells3-1, 0);
+#else
+                                          0, pmb->ncells1-1,
+                                          0, pmb->ncells2-1,
+                                          0, pmb->ncells3-1);
+#endif
         }
 
+#if !USETM
+        if (NSCALARS > 0) {
+          // r1/r_old for GR is currently unused:
+          pmb->peos->PassiveScalarConservedToPrimitive(ps->s, ph->w, ps->r, ps->r,
+                                                       pmb->pcoord,
+                                                       0, pmb->ncells1-1,
+                                                       0, pmb->ncells2-1,
+                                                       0, pmb->ncells3-1);
+        }
+#endif
+
+#endif // DBG_USE_CONS_BC
+
+
+#ifndef DBG_USE_CONS_BC
         if (FLUID_ENABLED) {
           pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b, ph->w,  
 #if USETM
@@ -1816,6 +1882,9 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
                                                        il, iu, jl, ju, kl, ku);
         }
 #endif
+
+#endif // DBG_USE_CONS_BC
+
         // --------------------------
         if (FLUID_ENABLED) {
           int order = pmb->precon->xorder;
@@ -1849,7 +1918,9 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         // --------------------------
         // end fourth-order EOS
 
-        if (FLUID_ENABLED) {
+#ifndef DBG_USE_CONS_BC
+        if (FLUID_ENABLED)
+        {
           // Swap Hydro and (possibly) passive scalar quantities in BoundaryVariable
           // interface from conserved to primitive formulations:
           ph->hbvar.SwapHydroQuantity(ph->w, HydroBoundaryQuantity::prim);
@@ -1858,14 +1929,11 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         if (NSCALARS > 0)
           ps->sbvar.var_cc = &(ps->r);
 
-        //TODO - WGC separation of physical boundaries VC/CC
-        // pbval->ApplyPhysicalBoundaries(time, 0.0);
+        // Add for [e.g. Hydro]
+        pbval->ApplyPhysicalBoundaries(time, 0.0);
 
-        FCN_CC_CX_VC(
-          pbval->ApplyPhysicalBoundaries,
-          pbval->ApplyPhysicalCellCenteredXBoundaries,
-          pbval->ApplyPhysicalVertexCenteredBoundaries
-        )(time, 0);
+        ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
+#endif // DBG_USE_CONS_BC
 
       }
 
@@ -2260,14 +2328,20 @@ void Mesh::OutputCycleDiagnostics() {
       std::cout << "cycle=" << ncycle << std::scientific
                 << std::setprecision(dt_precision)
                 << " time=" << time << " dt=" << dt;
-      
+
       if (adaptive)
+      {
         std::cout << "\nNumber of MeshBlocks=" << nbtotal
-                  << "; created=" << nbnew 
-                  << "; destroyed=" << nbdel
-                  << std::scientific << std::setprecision(dt_precision)
-                  << "; time=" << time;
-                  
+                  << "; created=" << nbnew
+                  << "; destroyed=" << nbdel;
+                  // << std::scientific << std::setprecision(dt_precision)
+                  // << "; time=" << time;
+      }
+      else
+      {
+        std::cout << "\nNumber of MeshBlocks=" << nbtotal;
+      }
+
       if (dt_diagnostics != -1) {
         if (STS_ENABLED) {
           if (UserTimeStep_ == nullptr)
@@ -2294,4 +2368,19 @@ void Mesh::OutputCycleDiagnostics() {
     }
   }
   return;
+}
+
+
+void Mesh::FinalizePostAMR()
+{
+  // iterate over rank-local MeshBlock
+  int nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
+  MeshBlock *pmbl = pblock;
+  for (int i=0; i<nmb; ++i)
+  {
+    // main logic here....
+    pmbl->new_from_amr = false;
+
+    pmbl = pmbl->next;
+  }
 }

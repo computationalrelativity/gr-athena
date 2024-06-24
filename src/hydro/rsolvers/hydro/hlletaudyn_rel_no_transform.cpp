@@ -94,8 +94,8 @@ void Hydro::RiemannSolver(const int k, const int j, const int il, const int iu,
 
   // Slice z4c metric quantities  (NDIM=3 in z4c.hpp)
   AT_N_sym sl_g_dd(  pz4c->storage.adm, Z4c::I_ADM_gxx);
-  AT_N_sca sl_alpha( pz4c->storage.u,   Z4c::I_Z4c_alpha);
-  AT_N_vec sl_beta_u(pz4c->storage.u,   Z4c::I_Z4c_betax);
+  AT_N_sca sl_alpha( pz4c->storage.adm, Z4c::I_ADM_alpha);
+  AT_N_vec sl_beta_u(pz4c->storage.adm, Z4c::I_ADM_betax);
 
   // Scratch
   AT_N_sca rc_alpha_(   nn1);

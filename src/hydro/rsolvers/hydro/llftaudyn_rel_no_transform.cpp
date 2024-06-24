@@ -87,8 +87,8 @@ void Hydro::RiemannSolver(
 
   // Slice 3d z4c metric quantities  (NDIM=3 in z4c.hpp) ----------------------
   AT_N_sym sl_adm_gamma_dd(pz4c->storage.adm, Z4c::I_ADM_gxx);
-  AT_N_sca sl_z4c_alpha(   pz4c->storage.u,   Z4c::I_Z4c_alpha);
-  AT_N_vec sl_z4c_beta_u(  pz4c->storage.u,   Z4c::I_Z4c_betax);
+  AT_N_sca sl_adm_alpha(   pz4c->storage.adm, Z4c::I_ADM_alpha);
+  AT_N_vec sl_adm_beta_u(  pz4c->storage.adm, Z4c::I_ADM_betax);
 
   // various scratches --------------------------------------------------------
   AT_N_sca sqrt_detgamma_(iu+1);
@@ -143,8 +143,8 @@ void Hydro::RiemannSolver(
   // Reconstruction to FC -----------------------------------------------------
   GRDynamical* pco_gr = static_cast<GRDynamical*>(pmy_block->pcoord);
   pco_gr->GetGeometricFieldFC(gamma_dd_, sl_adm_gamma_dd, ivx-1, k, j);
-  pco_gr->GetGeometricFieldFC(alpha_,    sl_z4c_alpha,    ivx-1, k, j);
-  pco_gr->GetGeometricFieldFC(beta_u_,   sl_z4c_beta_u,   ivx-1, k, j);
+  pco_gr->GetGeometricFieldFC(alpha_,    sl_adm_alpha,    ivx-1, k, j);
+  pco_gr->GetGeometricFieldFC(beta_u_,   sl_adm_beta_u,   ivx-1, k, j);
 
   // Prepare determinant-like
   #pragma omp simd

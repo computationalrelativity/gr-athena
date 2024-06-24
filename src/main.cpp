@@ -33,644 +33,194 @@
 #include <string>     // string
 
 // Athena++ headers
-#include "athena.hpp"
-#include "defs.hpp"
-#include "fft/turbulence.hpp"
-#include "globals.hpp"
-#include "gravity/fft_gravity.hpp"
-#include "task_list/task_list.hpp"
-#ifdef MULTIGRID
-#include "gravity/mg_gravity.hpp"
-#endif // MULTIGRID
-#include "mesh/mesh.hpp"
-#include "outputs/io_wrapper.hpp"
-#include "outputs/outputs.hpp"
-#include "parameter_input.hpp"
-#include "utils/utils.hpp"
+#include "main.hpp"
+#include "main_triggers.hpp"
 
 #include "z4c/wave_extract.hpp"
 #include "z4c/puncture_tracker.hpp"
 #include "trackers/extrema_tracker.hpp"
 #include "z4c/ahf.hpp"
+#include "z4c/ejecta.hpp"
 #if CCE_ENABLED
 #include "z4c/cce/cce.hpp"
 #endif
 
-#include "z4c/ejecta.hpp"
-// MPI/OpenMP headers
-#ifdef MPI_PARALLEL
-#include <mpi.h>
-#endif
-
-#ifdef OPENMP_PARALLEL
-#include <omp.h>
-#endif
-
-//----------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 //! \fn int main(int argc, char *argv[])
 //  \brief Athena++ main program
 
-int main(int argc, char *argv[]) {
-  std::string athena_version = "version 19.0 - August 2019";
-  char *input_filename = nullptr, *restart_filename = nullptr;
-  char *prundir = nullptr;
-  int res_flag = 0;   // set to 1 if -r        argument is on cmdline
-  int narg_flag = 0;  // set to 1 if -n        argument is on cmdline
-  int iarg_flag = 0;  // set to 1 if -i <file> argument is on cmdline
-  int mesh_flag = 0;  // set to <nproc> if -m <nproc> argument is on cmdline
-  int wtlim = 0;
+int main(int argc, char *argv[])
+{
+  gra::Pathing Pathing;
+  gra::Flags Flags;
+  Flags.res  = 0;
+  Flags.narg = 0;
+  Flags.iarg = 0;
+  Flags.mesh = 0;
+  Flags.wtlim = 0;
+
   std::uint64_t mbcnt = 0;
 
-  //--- Step 1. --------------------------------------------------------------------------
+  //--- Step 1. ---------------------------------------------------------------
   // Initialize MPI environment, if necessary
+  gra::parallelism::Init(argc, argv);
+  gra::PrintRankZero("Step 01: Parallel environment initialized.");
 
-#ifdef MPI_PARALLEL
-#ifdef OPENMP_PARALLEL
-  int mpiprv;
-  if (MPI_SUCCESS != MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &mpiprv)) {
-    std::cout << "### FATAL ERROR in main" << std::endl
-              << "MPI Initialization failed." << std::endl;
-    return(0);
-  }
-  if (mpiprv != MPI_THREAD_MULTIPLE) {
-    std::cout << "### FATAL ERROR in main" << std::endl
-              << "MPI_THREAD_MULTIPLE must be supported for the hybrid parallelzation. "
-              << MPI_THREAD_MULTIPLE << " : " << mpiprv
-              << std::endl;
-    MPI_Finalize();
-    return(0);
-  }
-#else  // no OpenMP
-  if (MPI_SUCCESS != MPI_Init(&argc, &argv)) {
-    std::cout << "### FATAL ERROR in main" << std::endl
-              << "MPI Initialization failed." << std::endl;
-    return(0);
-  }
-#endif  // OPENMP_PARALLEL
-  // Get process id (rank) in MPI_COMM_WORLD
-  if (MPI_SUCCESS != MPI_Comm_rank(MPI_COMM_WORLD, &(Globals::my_rank))) {
-    std::cout << "### FATAL ERROR in main" << std::endl
-              << "MPI_Comm_rank failed." << std::endl;
-    MPI_Finalize();
-    return(0);
-  }
-
-  // Get total number of MPI processes (ranks)
-  if (MPI_SUCCESS != MPI_Comm_size(MPI_COMM_WORLD, &Globals::nranks)) {
-    std::cout << "### FATAL ERROR in main" << std::endl
-              << "MPI_Comm_size failed." << std::endl;
-    MPI_Finalize();
-    return(0);
-  }
-
-  // Get the maximum MPI tag
-  void * value;
-  int flag;
-  MPI_Comm_get_attr(MPI_COMM_WORLD, MPI_TAG_UB, &value, &flag);
-  Globals::mpi_tag_ub = *(int *)value;
-
-#else  // no MPI
-  Globals::my_rank = 0;
-  Globals::nranks  = 1;
-  Globals::mpi_tag_ub = 0;
-#endif  // MPI_PARALLEL
-
-  //--- Step 2. --------------------------------------------------------------------------
+  //--- Step 2. ---------------------------------------------------------------
   // Check for command line options and respond.
-
-  for (int i=1; i<argc; i++) {
-    // If argv[i] is a 2 character string of the form "-?" then:
-    if (*argv[i] == '-'  && *(argv[i]+1) != '\0' && *(argv[i]+2) == '\0') {
-      // check validity of command line options + arguments:
-      char opt_letter = *(argv[i]+1);
-      switch(opt_letter) {
-        // options that do not take arguments:
-        case 'n':
-        case 'c':
-        case 'h':
-          break;
-          // options that require arguments:
-        default:
-          if ((i+1 >= argc) // flag is at the end of the command line options
-              || (*argv[i+1] == '-') ) { // flag is followed by another flag
-            if (Globals::my_rank == 0) {
-              std::cout << "### FATAL ERROR in main" << std::endl
-                        << "-" << opt_letter << " must be followed by a valid argument\n";
-#ifdef MPI_PARALLEL
-              MPI_Finalize();
-#endif
-              return(0);
-            }
-          }
-      }
-      switch(*(argv[i]+1)) {
-        case 'i':                      // -i <input_filename>
-          input_filename = argv[++i];
-          iarg_flag = 1;
-          break;
-        case 'r':                      // -r <restart_file>
-          res_flag = 1;
-          restart_filename = argv[++i];
-          break;
-        case 'd':                      // -d <run_directory>
-          prundir = argv[++i];
-          break;
-        case 'n':
-          narg_flag = 1;
-          break;
-        case 'm':                      // -m <nproc>
-          mesh_flag = static_cast<int>(std::strtol(argv[++i], nullptr, 10));
-          break;
-        case 't':                      // -t <hh:mm:ss>
-          int wth, wtm, wts;
-          std::sscanf(argv[++i], "%d:%d:%d", &wth, &wtm, &wts);
-          wtlim = wth*3600 + wtm*60 + wts;
-          break;
-        case 'c':
-          if (Globals::my_rank == 0) ShowConfig();
-#ifdef MPI_PARALLEL
-          MPI_Finalize();
-#endif
-          return(0);
-          break;
-        case 'h':
-        default:
-          if (Globals::my_rank == 0) {
-            std::cout << "Athena++ " << athena_version << std::endl;
-            std::cout << "Usage: " << argv[0] << " [options] [block/par=value ...]\n";
-            std::cout << "Options:" << std::endl;
-            std::cout << "  -i <file>       specify input file [athinput]\n";
-            std::cout << "  -r <file>       restart with this file\n";
-            std::cout << "  -d <directory>  specify run dir [current dir]\n";
-            std::cout << "  -n              parse input file and quit\n";
-            std::cout << "  -c              show configuration and quit\n";
-            std::cout << "  -m <nproc>      output mesh structure and quit\n";
-            std::cout << "  -t hh:mm:ss     wall time limit for final output\n";
-            std::cout << "  -h              this help\n";
-            ShowConfig();
-          }
-#ifdef MPI_PARALLEL
-          MPI_Finalize();
-#endif
-          return(0);
-          break;
-      }
-    } // else if argv[i] not of form "-?" ignore it here (tested in ModifyFromCmdline)
-  }
-
-  if (restart_filename == nullptr && input_filename == nullptr) {
-    // no input file is given
-    std::cout << "### FATAL ERROR in main" << std::endl
-              << "No input file or restart file is specified." << std::endl;
-#ifdef MPI_PARALLEL
-    MPI_Finalize();
-#endif
-    return(0);
-  }
+  gra::PrintRankZero("Step 02: Parsing CMD-line...");
+  gra::ParseCommandLine(argc, argv, &Pathing, &Flags);
 
   // Set up the signal handler
   SignalHandler::SignalHandlerInit();
-  if (Globals::my_rank == 0 && wtlim > 0)
-    SignalHandler::SetWallTimeAlarm(wtlim);
+  if (Globals::my_rank == 0 && Flags.wtlim > 0)
+  {
+    SignalHandler::SetWallTimeAlarm(Flags.wtlim);
+  }
 
-  // Note steps 3-6 are protected by a simple error handler
-  //--- Step 3. --------------------------------------------------------------------------
-  // Construct object to store input parameters, then parse input file and command line.
-  // With MPI, the input is read by every process in parallel using MPI-IO.
+  //--- Step 3. ---------------------------------------------------------------
+  // Construct object to store input parameters, then parse input file and
+  // command line. With MPI, the input is read by every process in parallel
+  // using MPI-IO.
+  gra::PrintRankZero("Step 03: Parsing inputs...");
 
-  ParameterInput *pinput;
+  ParameterInput *pinput = new ParameterInput;
   IOWrapper infile, restartfile;
-#ifdef ENABLE_EXCEPTIONS
-  try {
-#endif
-    pinput = new ParameterInput;
-    if (res_flag == 1) {
-      restartfile.Open(restart_filename, IOWrapper::FileMode::read);
-      pinput->LoadFromFile(restartfile);
-      // If both -r and -i are specified, make sure next_time gets corrected.
-      // This needs to be corrected on the restart file because we need the old dt.
-      if (iarg_flag == 1) pinput->RollbackNextTime();
-      // leave the restart file open for later use
-    }
-    if (iarg_flag == 1) {
-      // if both -r and -i are specified, override the parameters using the input file
-      infile.Open(input_filename, IOWrapper::FileMode::read);
-      pinput->LoadFromFile(infile);
-      infile.Close();
-    }
-    pinput->ModifyFromCmdline(argc ,argv);
-#ifdef ENABLE_EXCEPTIONS
-  }
-  catch(std::bad_alloc& ba) {
-    std::cout << "### FATAL ERROR in main" << std::endl
-              << "memory allocation failed initializing class ParameterInput: "
-              << ba.what() << std::endl;
-    if (res_flag == 1) restartfile.Close();
-#ifdef MPI_PARALLEL
-    MPI_Finalize();
-#endif
-    return(0);
-  }
-  catch(std::exception const& ex) {
-    std::cout << ex.what() << std::endl;  // prints diagnostic message
-    if (res_flag == 1) restartfile.Close();
-#ifdef MPI_PARALLEL
-    MPI_Finalize();
-#endif
-    return(0);
-  }
-#endif // ENABLE_EXCEPTIONS
+  gra::ParseInputs(argc, argv, &Pathing, &Flags, pinput, infile, restartfile);
 
-  //--- Step 4. --------------------------------------------------------------------------
+  //--- Step 4. ---------------------------------------------------------------
   // Construct and initialize Mesh
+  gra::PrintRankZero("Step 04: Initializing Mesh...");
+  Mesh *pmesh = gra::InitMesh(&Flags, pinput, restartfile);
 
-  Mesh *pmesh;
-#ifdef ENABLE_EXCEPTIONS
-  try {
-#endif
-    if (res_flag == 0) {
-      pmesh = new Mesh(pinput, mesh_flag);
-    } else {
-      pmesh = new Mesh(pinput, restartfile, mesh_flag);
-    }
-#ifdef ENABLE_EXCEPTIONS
-  }
-  catch(std::bad_alloc& ba) {
-    std::cout << "### FATAL ERROR in main" << std::endl
-              << "memory allocation failed initializing class Mesh: "
-              << ba.what() << std::endl;
-    if (res_flag == 1) restartfile.Close();
-#ifdef MPI_PARALLEL
-    MPI_Finalize();
-#endif
-    return(0);
-  }
-  catch(std::exception const& ex) {
-    std::cout << ex.what() << std::endl;  // prints diagnostic message
-    if (res_flag == 1) restartfile.Close();
-#ifdef MPI_PARALLEL
-    MPI_Finalize();
-#endif
-    return(0);
-  }
-#endif // ENABLE_EXCEPTIONS
+  //--- Step 5. ---------------------------------------------------------------
+  // Set initial conditions by calling problem generator, or reading
+  // restart file
+  gra::PrintRankZero("Step 05: Initializing Mesh data...");
+  gra::InitMeshData(&Flags, pinput, pmesh);
 
-  // With current mesh time possibly read from restart file, correct next_time for outputs
-  if (iarg_flag == 1 && res_flag == 1) {
-    // if both -r and -i are specified, ensure that next_time  >= mesh_time - dt
-    pinput->ForwardNextTime(pmesh->time);
-  }
-
-  // Dump input parameters and quit if code was run with -n option.
-  if (narg_flag) {
-    if (Globals::my_rank == 0) pinput->ParameterDump(std::cout);
-    if (res_flag == 1) restartfile.Close();
-#ifdef MPI_PARALLEL
-    MPI_Finalize();
-#endif
-    return(0);
-  }
-
-  if (res_flag == 1) restartfile.Close(); // close the restart file here
-
-  // Quit if -m was on cmdline.  This option builds and outputs mesh structure.
-  if (mesh_flag > 0) {
-#ifdef MPI_PARALLEL
-    MPI_Finalize();
-#endif
-    return(0);
-  }
-  //--- Step 5. --------------------------------------------------------------------------
-  // Construct and initialize TaskList
-  TimeIntegratorTaskList *ptlist = nullptr;
-
-#ifdef ENABLE_EXCEPTIONS
-  try {
-#endif
-// Fluid but no dynamical spacetime
-    if (FLUID_ENABLED  && !Z4C_ENABLED){
-      ptlist = new TimeIntegratorTaskList(pinput, pmesh);
-    }
-#ifdef ENABLE_EXCEPTIONS
-  }
-  catch(std::bad_alloc& ba) {
-    std::cout << "### FATAL ERROR in main" << std::endl << "memory allocation failed "
-              << "in creating task list " << ba.what() << std::endl;
-#ifdef MPI_PARALLEL
-    MPI_Finalize();
-#endif
-    return(0);
-  }
-#endif // ENABLE_EXCEPTIONS
-
-  // BD: new problem
-  WaveIntegratorTaskList *pwlist = nullptr;
-  // -BD
-
-#ifdef ENABLE_EXCEPTIONS
-  try {
-#endif
-    // BD: new problem
-    if (WAVE_ENABLED) { // only init. when required
-      pwlist = new WaveIntegratorTaskList(pinput, pmesh);
-    }
-    // -BD
-#ifdef ENABLE_EXCEPTIONS
-  }
-  catch(std::bad_alloc& ba) {
-    std::cout << "### FATAL ERROR in main" << std::endl << "memory allocation failed "
-              << "in creating task list " << ba.what() << std::endl;
-#ifdef MPI_PARALLEL
-    MPI_Finalize();
-#endif
-    return(0);
-  }
-#endif // ENABLE_EXCEPTIONS
-
-  Z4cIntegratorTaskList *pz4clist = nullptr;
-  Z4cRBCTaskList        *pz4crbclist = nullptr;
-  Z4cAuxTaskList        *pz4cauxlist = nullptr;
-  Z4cPostAMRTaskList    *pz4cpostamrlist = nullptr;
-
-#ifdef ENABLE_EXCEPTIONS
-  try {
-#endif
-// Dynamical spacetime - no matter
-    if (Z4C_ENABLED && !FLUID_ENABLED) { // only init. when required
-      pz4clist = new Z4cIntegratorTaskList(pinput, pmesh);
-    }
-#ifdef ENABLE_EXCEPTIONS
-  }
-  catch(std::bad_alloc& ba) {
-    std::cout << "### FATAL ERROR in main" << std::endl << "memory allocation failed "
-              << "in creating task list " << ba.what() << std::endl;
-#ifdef MPI_PARALLEL
-    MPI_Finalize();
-#endif
-    return(0);
-  }
-#endif // ENABLE_EXCEPTIONS
-
-
-  SuperTimeStepTaskList *pststlist = nullptr;
-  if (STS_ENABLED) {
-#ifdef ENABLE_EXCEPTIONS
-    try {
-#endif
-      pststlist = new SuperTimeStepTaskList(pinput, pmesh, ptlist);
-#ifdef ENABLE_EXCEPTIONS
-    }
-    catch(std::bad_alloc& ba) {
-      std::cout << "### FATAL ERROR in main" << std::endl << "memory allocation failed "
-                << "in creating task list " << ba.what() << std::endl;
-#ifdef MPI_PARALLEL
-      MPI_Finalize();
-#endif
-      return(0);
-    }
-#endif // ENABLE_EXCEPTIONS
-}
-  MatterTaskList *pmatterlist = nullptr;
-
-#ifdef ENABLE_EXCEPTIONS
-  try {
-#endif
-//Matter and dynamical spacetime
-    if (Z4C_ENABLED && FLUID_ENABLED) { // only init. when required
-      pmatterlist = new MatterTaskList(pinput, pmesh);
-    }
-#ifdef ENABLE_EXCEPTIONS
-  }
-  catch(std::bad_alloc& ba) {
-    std::cout << "### FATAL ERROR in main" << std::endl << "memory allocation failed "
-              << "in creating task list " << ba.what() << std::endl;
-#ifdef MPI_PARALLEL
-    MPI_Finalize();
-#endif
-    return(0);
-  }
-#endif // ENABLE_EXCEPTIONS
-
-#ifdef ENABLE_EXCEPTIONS
-  try {
-#endif
-// Auxiliary tasklists for use with z4c and z4c+matter
-    if (Z4C_ENABLED) { // only init. when required
-      pz4crbclist = new Z4cRBCTaskList(pinput, pmesh);
-      pz4cauxlist = new Z4cAuxTaskList(pinput, pmesh);
-      pz4cpostamrlist = new Z4cPostAMRTaskList(pinput, pmesh);
-    }
-#ifdef ENABLE_EXCEPTIONS
-  }
-  catch(std::bad_alloc& ba) {
-    std::cout << "### FATAL ERROR in main" << std::endl << "memory allocation failed "
-              << "in creating task list " << ba.what() << std::endl;
-#ifdef MPI_PARALLEL
-    MPI_Finalize();
-#endif
-    return(0);
-  }
-#endif // ENABLE_EXCEPTIONS
-  
-
-  //--- Step 6. --------------------------------------------------------------------------
-  // Set initial conditions by calling problem generator, or reading restart file
-
-#ifdef ENABLE_EXCEPTIONS
-  try {
-#endif
-    pmesh->Initialize(res_flag, pinput);
-    pmesh->DeleteTemporaryUserMeshData();
-#ifdef ENABLE_EXCEPTIONS
-  }
-  catch(std::bad_alloc& ba) {
-    std::cout << "### FATAL ERROR in main" << std::endl << "memory allocation failed "
-              << "in problem generator " << ba.what() << std::endl;
-#ifdef MPI_PARALLEL
-    MPI_Finalize();
-#endif
-    return(0);
-  }
-  catch(std::exception const& ex) {
-    std::cout << ex.what() << std::endl;  // prints diagnostic message
-#ifdef MPI_PARALLEL
-    MPI_Finalize();
-#endif
-    return(0);
-  }
-#endif // ENABLE_EXCEPTIONS
-
-  //--- Step 7. --------------------------------------------------------------------------
+  //--- Step 6. ---------------------------------------------------------------
   // Change to run directory, initialize outputs object, and make output of ICs
+  gra::PrintRankZero("Step 06: Initializing Outputs...");
+  Outputs *pouts = gra::InitOutputs(&Flags, &Pathing, pinput, pmesh);
 
-  Outputs *pouts;
-#ifdef ENABLE_EXCEPTIONS
-  try {
-#endif
-    ChangeRunDir(prundir);
-    pouts = new Outputs(pmesh, pinput);
-    if (res_flag == 0) pouts->MakeOutputs(pmesh, pinput);
-#ifdef ENABLE_EXCEPTIONS
-  }
-  catch(std::bad_alloc& ba) {
-    std::cout << "### FATAL ERROR in main" << std::endl
-              << "memory allocation failed setting initial conditions: "
-              << ba.what() << std::endl;
-#ifdef MPI_PARALLEL
-    MPI_Finalize();
-#endif
-    return(0);
-  }
-  catch(std::exception const& ex) {
-    std::cout << ex.what() << std::endl;  // prints diagnostic message
-#ifdef MPI_PARALLEL
-    MPI_Finalize();
-#endif
-    return(0);
-  }
-#endif // ENABLE_EXCEPTIONS
+  //--- Step 7. ---------------------------------------------------------------
+  // Construct and initialize Triggers / TaskLists
+  gra::PrintRankZero("Step 07: Initializing Triggers / Tasklists...");
 
-  //=== Step 8. === START OF MAIN INTEGRATION LOOP =======================================
-  // For performance, there is no error handler protecting this step (except outputs)
+  // could shift assembly to header, leave here now
+  using namespace gra::triggers;
+  typedef Triggers::TriggerVariant tvar;
+  typedef Triggers::OutputVariant ovar;
 
-  if (Globals::my_rank == 0) {
-    std::cout << "\nSetup complete, entering main loop...\n" << std::endl;
-  }
+  Triggers trgs(pmesh, pinput, pouts);
+  trgs.Add(tvar::tracker_extrema,     ovar::user, true, true);
 
-  clock_t tstart = clock();
-#ifdef OPENMP_PARALLEL
-  double omp_start_time = omp_get_wtime();
-#endif
+  trgs.Add(tvar::Z4c_ADM_constraints, ovar::hst,  true, true);
+  trgs.Add(tvar::Z4c_ADM_constraints, ovar::data, true, true);
 
-  // BD: populate z4c struct carrying output dt for various quantities
-  // This controls computation of quantities within the main tasklist
-  if (Z4C_ENABLED) {
-    Real dt_con = pouts->GetOutputTimeStep("con");
-    if (!FLUID_ENABLED){
-      pz4clist->TaskListTriggers.con.dt = dt_con;
-    } else{
-      pmatterlist->TaskListTriggers.con.dt = dt_con;
-    }
-  }
+  trgs.Add(tvar::Z4c_Weyl, ovar::user, true, true);
+  trgs.Add(tvar::Z4c_Weyl, ovar::data, true, true);
+
+  // BD: TODO - move to collection etc.
+  WaveIntegratorTaskList *pwlist = nullptr;
+
+  // now populate requisite task-lists
+  gra::tasklist::Collection ptlc { trgs };
+  gra::tasklist::PopulateCollection(ptlc, pmesh, pinput);
+
+  //=== Step 8. === START OF MAIN INTEGRATION LOOP ============================
+  // For performance, there is no error handler protecting this step
+  // (except outputs)
+  gra::PrintRankZero("Step 08: Entering main integration loop...");
+  gra::timing::Clocks * pclk = new gra::timing::Clocks();
+
+  const bool trgs_can_adjust_mesh_dt = pinput->GetOrAddBoolean(
+    "task_triggers", "adjust_mesh_dt", true
+  );
 
   while ((pmesh->time < pmesh->tlim) &&
-         (pmesh->nlim < 0 || pmesh->ncycle < pmesh->nlim)) {
+         (pmesh->nlim < 0 || pmesh->ncycle < pmesh->nlim))
+  {
+
+    // Adjust pmesh->dt if allowed by trigger, record if it happens.
+    // This is to allow increase of pmesh->NewTimeStep to be unlimited & avoid
+    // getting stuck
+    bool mesh_dt_adjusted = (trgs_can_adjust_mesh_dt)
+      ? trgs.AdjustFromAny_mesh_dt()
+      : false;
+
+    // After state vector propagated, derived diagnostics (i.e. GW, trackers)
+    // are at the new time-step ...
+    const Real time_end_stage   = pmesh->time+pmesh->dt;
+    const Real ncycle_end_stage = pmesh->ncycle+1;
 
     if (Globals::my_rank == 0)
+    {
       pmesh->OutputCycleDiagnostics();
-
-    if (STS_ENABLED) {
-      // compute nstages for this STS
-      Real my_dt = pmesh->dt;
-      Real dt_parabolic  = pmesh->dt_parabolic;
-      pststlist->nstages =
-        static_cast<int>(0.5*(-1. + std::sqrt(1. + 8.*my_dt/dt_parabolic))) + 1;
-
-      // take super-timestep
-      for (int stage=1; stage<=pststlist->nstages; ++stage)
-        pststlist->DoTaskListOneStage(pmesh,stage);
     }
 
-    if (FLUID_ENABLED && !Z4C_ENABLED){  //Turbulence, self gravity not enabled for z4c
-
-#ifdef FFT
-      if (pmesh->turb_flag > 1) pmesh->ptrbd->Driving(); // driven turbulence
-#endif // FFT
-
-      for (int stage=1; stage<=ptlist->nstages; ++stage) {
-        if (SELF_GRAVITY_ENABLED == 1) // fft (flag 0 for discrete kernel, 1 for continuous)
-        {
-#ifdef FFT
-          pmesh->pfgrd->Solve(stage, 0);
-#endif // FFT
-        }
-        else if (SELF_GRAVITY_ENABLED == 2) // multigrid
-        {
-#ifdef MULTIGRID
-          pmesh->pmgrd->Solve(stage);
-#endif // MULTIGRID
-        }
-        ptlist->DoTaskListOneStage(pmesh, stage);
-      }
-    }
-
-    // BD: new problem
-    if (WAVE_ENABLED) {
-      // This effectively means hydro takes a time-step and _then_ the given problem takes one
-      for (int stage=1; stage<=pwlist->nstages; ++stage) {
+    if (WAVE_ENABLED)
+    {
+      for (int stage=1; stage<=pwlist->nstages; ++stage)
+      {
         pwlist->DoTaskListOneStage(pmesh, stage);
       }
     }
-    // -BD
-
 
     if (Z4C_ENABLED)
     {
       if (!FLUID_ENABLED)
       {
-      // This effectively means hydro takes a time-step and _then_ the given problem takes one
-        for (int stage=1; stage<=pz4clist->nstages; ++stage)
+        for (int stage=1; stage<=ptlc.gr_z4c->nstages; ++stage)
         {
-          pz4clist->DoTaskListOneStage(pmesh, stage);
-
-#if defined(Z4C_CX_ENABLED)
-          // recommunicate BC
-          for (int num=1; num<=Z4C_CX_NUM_RBC; num++)
-          {
-            pz4crbclist->DoTaskListOneStage(pmesh, num);
-          }
-#endif // Z4C_CX_ENABLED
-
+          ptlc.gr_z4c->DoTaskListOneStage(pmesh, stage);
+          // Iterate bnd comm. as required
+          pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
         }
       }
       else
       { //FLUID_ENABLED && Z4C_ENABLED
-
-        for (int stage=1; stage<=pmatterlist->nstages; ++stage)
+        for (int stage=1; stage<=ptlc.grmhd_z4c->nstages; ++stage)
         {
-          pmatterlist->DoTaskListOneStage(pmesh, stage);
-
-#if defined(Z4C_CX_ENABLED)
-          // recommunicate boundaries
-          for (int num=1; num<=Z4C_CX_NUM_RBC; num++)
-          {
-            pz4crbclist->DoTaskListOneStage(pmesh, num);
-          }
-#endif // Z4C_CX_ENABLED
+          ptlc.grmhd_z4c->DoTaskListOneStage(pmesh, stage);
+          // Iterate bnd comm. as required
+          pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
         }
 
       } //FLUID_ENABLED
 
-      pz4cauxlist->DoTaskListOneStage(pmesh, 1);  // only 1 stage
+      // Auxiliary variable logic
+      // Currently this handles Weyl communication & decomposition
+      if (trgs.IsSatisfied(tvar::Z4c_Weyl))
+      {
+        // May be required to prevent task-list overlaps
+        // gra::parallelism::Barrier();
+        pmesh->CommunicateAuxZ4c();
+        ptlc.aux_z4c->DoTaskListOneStage(pmesh, 1);  // only 1 stage
+      }
 
-      // BD: TODO - check that the following are not displaced by \dt ?
-      // only do an extraction if NextTime threshold cleared (updated below)
+      if (trgs.IsSatisfied(tvar::Z4c_Weyl, ovar::user))
+      {
+        for (auto pwextr : pmesh->pwave_extr)
+        {
+          pwextr->ReduceMultipole();
+          pwextr->Write(ncycle_end_stage, time_end_stage);
+        }
+      }
 
-      bool wave_update, cce_update;
+// BD: TODO - CCE needs to be cleaned up & tested
+#if CCE_ENABLED
+      bool cce_update;
       Real cce_dt;
 
       if (!FLUID_ENABLED)
       {
-        wave_update = pz4clist->TaskListTriggers.wave_extraction.to_update;
+        cce_update = ptlc.gr_z4c->TaskListTriggers.cce_dump.to_update;
+        cce_dt = ptlc.gr_z4c->TaskListTriggers.cce_dump.dt;
       } else {
-        wave_update = pmatterlist->TaskListTriggers.wave_extraction.to_update;
-      }
-
-      if (wave_update)
-      {
-        for (auto pwextr : pmesh->pwave_extr) {
-          pwextr->ReduceMultipole();
-          pwextr->Write(pmesh->ncycle, pmesh->time);
-        }
-      }
-#if CCE_ENABLED
-      if (!FLUID_ENABLED)
-      {
-        cce_update = pz4clist->TaskListTriggers.cce_dump.to_update;
-        cce_dt = pz4clist->TaskListTriggers.cce_dump.dt;
-      } else {
-        cce_update = pmatterlist->TaskListTriggers.cce_dump.to_update;
-        cce_dt = pmatterlist->TaskListTriggers.cce_dump.dt;
+        cce_update = ptlc.grmhd_z4c->TaskListTriggers.cce_dump.to_update;
+        cce_dt = ptlc.grmhd_z4c->TaskListTriggers.cce_dump.dt;
       }
       // only do a CCE dump if NextTime threshold cleared (updated below)
       if (cce_update) {
@@ -695,62 +245,62 @@ int main(int argc, char *argv[]) {
         }
       }
 #endif
+
       for (auto pah_f : pmesh->pah_finder)
       {
-        if (pah_f->CalculateMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
+        if (pah_f->CalculateMetricDerivatives(ncycle_end_stage,
+                                              time_end_stage))
+        {
+          break;
+        }
       }
       for (auto pah_f : pmesh->pah_finder)
       {
-        pah_f->Find(pmesh->ncycle, pmesh->time);
-        pah_f->Write(pmesh->ncycle, pmesh->time);
+        pah_f->Find(ncycle_end_stage, time_end_stage);
+        pah_f->Write(ncycle_end_stage, time_end_stage);
       }
       for (auto pah_f : pmesh->pah_finder)
       {
-        if (pah_f->DeleteMetricDerivatives(pmesh->ncycle, pmesh->time)) break;
+        if (pah_f->DeleteMetricDerivatives(ncycle_end_stage, time_end_stage))
+        {
+          break;
+        }
       }
       for (auto pej : pmesh->pej_extract) {
         pej->Calculate(pmesh->ncycle, pmesh->time);
       }
-      // TODO: probably we do not want to output tracker data at every timestep
       for (auto ptracker : pmesh->pz4c_tracker)
       {
         ptracker->EvolveTracker();
-        ptracker->WriteTracker(pmesh->ncycle, pmesh->time);
+      }
+
+      if (trgs.IsSatisfied(tvar::Z4c_tracker_punctures, ovar::user))
+      for (auto ptracker : pmesh->pz4c_tracker)
+      {
+        ptracker->WriteTracker(ncycle_end_stage, time_end_stage);
       }
 
     }
 
-    // extrema trackers are registered / computed collectively
-    // non-z4c quantities can be tracked
+    // Trace AMR state
     pmesh->ptracker_extrema->ReduceTracker();
     pmesh->ptracker_extrema->EvolveTracker();
-    // TODO: output times need to corrected
-    // First step has been taken pmesh->time needs update (done below)
-    pmesh->ptracker_extrema->WriteTracker(pmesh->ncycle+1,
-                                          pmesh->time+pmesh->dt);
 
-
-    if (Z4C_ENABLED)
+    if (trgs.IsSatisfied(tvar::tracker_extrema, ovar::user))
     {
-
-      //-------------------------------------------------------------------------
-      // Update NextTime triggers
-      // This needs to be here to share tasklist external (though coupled) ops.
-      if (!FLUID_ENABLED)
-      {
-        pz4clist->UpdateTaskListTriggers();
-      } else {
-        pmatterlist->UpdateTaskListTriggers();
-      }
-      pz4cauxlist->UpdateTaskListTriggers();
-      //-------------------------------------------------------------------------
+      pmesh->ptracker_extrema->WriteTracker(ncycle_end_stage, time_end_stage);
     }
+
+    //-------------------------------------------------------------------------
+    // Update triggers as required
+    trgs.Update();
+    //-------------------------------------------------------------------------
 
     pmesh->UserWorkInLoop();
     pmesh->ncycle++;
     pmesh->time += pmesh->dt;
     mbcnt += pmesh->nbtotal;
-    pmesh->step_since_lb++;
+    pmesh->step_since_lb++;   // steps since load-balance
 
     bool mesh_updated = pmesh->LoadBalancingAndAdaptiveMeshRefinement(pinput);
 
@@ -763,140 +313,74 @@ int main(int argc, char *argv[]) {
     // To rectify, we add a final task-list dealing with such quantities before
     // output.
 
-    if (mesh_updated && Z4C_ENABLED)
+    if (mesh_updated)
     {
-      pz4cpostamrlist->DoTaskListOneStage(pmesh, 1);  // only 1 stage
+      // N.B.
+      // At this stage Mesh::Initialize(2, pinputs) has been called
+      if (Z4C_ENABLED)
+      {
+        ptlc.postamr_z4c->DoTaskListOneStage(pmesh, 1);  // only 1 stage
+      }
+
+      pmesh->FinalizePostAMR();
     }
 
-    pmesh->NewTimeStep();
+    // If a trigger adjusted pmesh->dt then do not limit dt rescaling
+    pmesh->NewTimeStep(!mesh_dt_adjusted);
+    mesh_dt_adjusted = false;
 
-#ifdef ENABLE_EXCEPTIONS
-    try {
-#endif
-      if (pmesh->time < pmesh->tlim) // skip the final output as it happens later
-        pouts->MakeOutputs(pmesh,pinput);
-#ifdef ENABLE_EXCEPTIONS
+    // Dump all the outputs ---------------------------------------------------
+    if (pmesh->time < pmesh->tlim)
+    {
+      const bool is_final = false;
+      gra::MakeOutputs(is_final, pinput, pmesh, pouts);
     }
-    catch(std::bad_alloc& ba) {
-      std::cout << "### FATAL ERROR in main" << std::endl
-                << "memory allocation failed during output: " << ba.what() <<std::endl;
-#ifdef MPI_PARALLEL
-      MPI_Finalize();
-#endif
-      return(0);
-    }
-    catch(std::exception const& ex) {
-      std::cout << ex.what() << std::endl;  // prints diagnostic message
-#ifdef MPI_PARALLEL
-      MPI_Finalize();
-#endif
-      return(0);
-    }
-#endif // ENABLE_EXCEPTIONS
 
-    // check for signals
-    if (SignalHandler::CheckSignalFlags() != 0) {
+    // signals (i.e. -t) ------------------------------------------------------
+    if (SignalHandler::CheckSignalFlags() != 0)
+    {
       break;
     }
 
+  } // END OF MAIN INTEGRATION LOOP ===========================================
 
-  } // END OF MAIN INTEGRATION LOOP ======================================================
-  // Make final outputs, print diagnostics, clean up and terminate
-
-  if (Globals::my_rank == 0 && wtlim > 0)
+  if (Globals::my_rank == 0 && Flags.wtlim > 0)
     SignalHandler::CancelWallTimeAlarm();
 
-  //--- Step 9. --------------------------------------------------------------------------
-  // Make the final outputs
+  //--- Step 9. --------------------------------------------------------------
+  // Make the final outputs; post-loop work.
+  gra::PrintRankZero("Step 09: Preparing final outputs...");
 
-#ifdef ENABLE_EXCEPTIONS
-  try {
-#endif
-    pouts->MakeOutputs(pmesh,pinput,true);
-#ifdef ENABLE_EXCEPTIONS
+  {
+    const bool is_final = true;
+    gra::MakeOutputs(is_final, pinput, pmesh, pouts);
   }
-  catch(std::bad_alloc& ba) {
-    std::cout << "### FATAL ERROR in main" << std::endl
-              << "memory allocation failed during output: " << ba.what() <<std::endl;
-#ifdef MPI_PARALLEL
-    MPI_Finalize();
-#endif
-    return(0);
-  }
-  catch(std::exception const& ex) {
-    std::cout << ex.what() << std::endl;  // prints diagnostic message
-#ifdef MPI_PARALLEL
-    MPI_Finalize();
-#endif
-    return(0);
-  }
-#endif // ENABLE_EXCEPTIONS
 
-#ifdef TWO_PUNCTURES // In case of two punctures this function has to be called only if not restarting simulation
-  if (!res_flag) pmesh->UserWorkAfterLoop(pinput);
+  // BD: TODO - what is even the logic here?
+#ifdef TWO_PUNCTURES
+  // In case of two punctures this function has to be called only if not
+  // restarting simulation
+  if (!Flags.res) pmesh->UserWorkAfterLoop(pinput);
 #else
   pmesh->UserWorkAfterLoop(pinput);
 #endif
 
-  //--- Step 10. -------------------------------------------------------------------------
+  //--- Step 10. --------------------------------------------------------------
   // Print diagnostic messages related to the end of the simulation
+  gra::PrintRankZero("Step 10: Dumping diagnostic info...");
+  gra::PrintDiagnostics(mbcnt, pclk, pmesh);
 
-  if (Globals::my_rank == 0) {
-    pmesh->OutputCycleDiagnostics();
-    if (SignalHandler::GetSignalFlag(SIGTERM) != 0) {
-      std::cout << std::endl << "Terminating on Terminate signal" << std::endl;
-    } else if (SignalHandler::GetSignalFlag(SIGINT) != 0) {
-      std::cout << std::endl << "Terminating on Interrupt signal" << std::endl;
-    } else if (SignalHandler::GetSignalFlag(SIGALRM) != 0) {
-      std::cout << std::endl << "Terminating on wall-time limit" << std::endl;
-    } else if (pmesh->ncycle == pmesh->nlim) {
-      std::cout << std::endl << "Terminating on cycle limit" << std::endl;
-    } else {
-      std::cout << std::endl << "Terminating on time limit" << std::endl;
-    }
+  //--- Step 11. --------------------------------------------------------------
+  // Cleanup
+  gra::PrintRankZero("Step 11: Cleanup...");
 
-    std::cout << "time=" << pmesh->time << " cycle=" << pmesh->ncycle << std::endl;
-    std::cout << "tlim=" << pmesh->tlim << " nlim=" << pmesh->nlim << std::endl;
-
-    if (pmesh->adaptive) {
-      std::cout << std::endl << "Number of MeshBlocks = " << pmesh->nbtotal
-                << "; " << pmesh->nbnew << "  created, " << pmesh->nbdel
-                << " destroyed during this simulation." << std::endl;
-    }
-
-    // Calculate and print the zone-cycles/cpu-second and wall-second
-#ifdef OPENMP_PARALLEL
-    double omp_time = omp_get_wtime() - omp_start_time;
-#endif
-    clock_t tstop = clock();
-    double cpu_time = (tstop>tstart ? static_cast<double> (tstop-tstart) :
-                       1.0)/static_cast<double> (CLOCKS_PER_SEC);
-    std::uint64_t zonecycles =
-        mbcnt*static_cast<std::uint64_t> (pmesh->pblock->GetNumberOfMeshBlockCells());
-    double zc_cpus = static_cast<double> (zonecycles) / cpu_time;
-
-    std::cout << std::endl << "zone-cycles = " << zonecycles << std::endl;
-    std::cout << "cpu time used = " << cpu_time << std::endl;
-    std::cout << "zone-cycles/cpu_second = " << zc_cpus << std::endl;
-#ifdef OPENMP_PARALLEL
-    double zc_omps = static_cast<double> (zonecycles) / omp_time;
-    std::cout << std::endl << "omp wtime used = " << omp_time << std::endl;
-    std::cout << "zone-cycles/omp_wsecond = " << zc_omps << std::endl;
-#endif
-  }
-
+  delete pclk;
   delete pinput;
   delete pmesh;
-  delete ptlist;
-  delete pz4clist;
-  delete pz4crbclist;
-  delete pz4cauxlist;
-  delete pmatterlist;
   delete pouts;
 
-#ifdef MPI_PARALLEL
-  MPI_Finalize();
-#endif
+  gra::tasklist::TearDown(ptlc);
+  gra::parallelism::Teardown();
 
   return(0);
 }

@@ -35,6 +35,8 @@ char const * const Z4c::Z4c_names[Z4c::N_Z4c] = {
 };
 
 char const * const Z4c::ADM_names[Z4c::N_ADM] = {
+  "adm.alpha",
+  "adm.betax", "adm.betay", "adm.betaz",
   "adm.gxx", "adm.gxy", "adm.gxz", "adm.gyy", "adm.gyz", "adm.gzz",
   "adm.Kxx", "adm.Kxy", "adm.Kxz", "adm.Kyy", "adm.Kyz", "adm.Kzz",
   "adm.psi4",
@@ -151,15 +153,14 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
     pmb->RegisterMeshBlockDataVC(storage.weyl)
   );
 
-  // if (pm->multilevel) {
-  //   refinement_idx = FCN_CC_CX_VC(
-  //     pmy_block->pmr->AddToRefinementCC,
-  //     pmy_block->pmr->AddToRefinementCX,
-  //     pmy_block->pmr->AddToRefinementVC
-  //   )(&storage.weyl, &coarse_a_);
-  // }
 
+  // BD:
+  // Current logic is to not R/P Weyl, but, to R/P the metricial quantities
+  // Then in post-AMR hook, construct based on that.
+  //
+  // Registration here is to still allow for bvals_refine to prolong.
 #if defined(DBG_REDUCE_AUX_COMM)
+  // Add here so we refine it only for inter-MB BC?
   if (pm->multilevel) {
     refinement_idx = FCN_CC_CX_VC(
       pmy_block->pmr->AddToRefinementAuxCC,
@@ -168,6 +169,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
     )(&storage.weyl, &coarse_a_);
   }
 #else
+  // Add here so we refine it during LoadBalance?
   if (pm->multilevel) {
     refinement_idx = FCN_CC_CX_VC(
       pmy_block->pmr->AddToRefinementCC,
@@ -529,9 +531,11 @@ Z4c::~Z4c()
 
 void Z4c::SetADMAliases(AthenaArray<Real> & u_adm, Z4c::ADM_vars & adm)
 {
-  adm.psi4.InitWithShallowSlice(u_adm, I_ADM_psi4);
-  adm.g_dd.InitWithShallowSlice(u_adm, I_ADM_gxx);
-  adm.K_dd.InitWithShallowSlice(u_adm, I_ADM_Kxx);
+  adm.alpha.InitWithShallowSlice( u_adm, I_ADM_alpha);
+  adm.beta_u.InitWithShallowSlice(u_adm, I_ADM_betax);
+  adm.psi4.InitWithShallowSlice(  u_adm, I_ADM_psi4);
+  adm.g_dd.InitWithShallowSlice(  u_adm, I_ADM_gxx);
+  adm.K_dd.InitWithShallowSlice(  u_adm, I_ADM_Kxx);
 }
 
 //----------------------------------------------------------------------------------------

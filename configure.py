@@ -193,6 +193,16 @@ parser.add_argument('-hybridinterp',
                     default=False,
                     help='use hybrid grid-to-grid interpolation')
 
+parser.add_argument('-cons_bc',
+                    action='store_true',
+                    default=False,
+                    help='utilize cons vars for all BC')
+
+parser.add_argument('-old_taskslists',
+                    action='store_true',
+                    default=False,
+                    help='utilize the reference task-lists (pre-refactor)')
+
 # -f argument
 parser.add_argument('-f',
                     action='store_true',
@@ -910,6 +920,18 @@ if args['hybridinterp']:
 else:
     definitions['HYBRID_INTERP'] = 'NO_HYBRID_INTERP'
 
+# -cons_bc argument
+if args['cons_bc']:
+    definitions['DBG_USE_CONS_BC'] = 'DBG_USE_CONS_BC'
+else:
+    definitions['DBG_USE_CONS_BC'] = 'NO_DBG_USE_CONS_BC'
+
+# -old_taskslists argument
+if args['old_taskslists']:
+    definitions['DBG_USE_REFERENCE_TASKLISTS'] = 'DBG_USE_REFERENCE_TASKLISTS'
+else:
+    definitions['DBG_USE_REFERENCE_TASKLISTS'] = 'NO_DBG_USE_REFERENCE_TASKLISTS'
+
 # -shear argument
 if args['shear']:
     definitions['SHEARING_BOX'] = '1'
@@ -1374,12 +1396,17 @@ if args['z']:
 
   str_stem = 'filter-out src/task_list'
 
+  # remove this confusing logic
   if args['f']:
-    # need matter task-list, remove hydro
-    src_aux.append(f'$({str_stem}/z4c_vacuum_task_list.cpp, {str_z4c})')
+    # need matter task-list, remove vacuum
+    src_aux.append(f'$({str_stem}/gr/gr_z4c.cpp, {str_z4c})')
   else:
     # ^ complement
-    src_aux.append(f'$({str_stem}/z4c_matter_task_list.cpp, {str_z4c})')
+    src_aux.append(f'$({str_stem}/gr/z4c_matter_task_list.cpp, {str_z4c})')
+
+  # task_list/gr
+  str_gr = '$(wildcard src/task_list/gr/*.cpp)'
+  src_aux.append(f'{str_gr}')
 
 elif args['w']:
   src_aux.append('$(wildcard src/task_list/wave_task_list.cpp)')

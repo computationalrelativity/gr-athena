@@ -58,6 +58,8 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
     new_block_dt_user_{},
     nreal_user_meshblock_data_(), nint_user_meshblock_data_(), cost_(1.0) {
 
+  this->new_from_amr = ref_flag;
+
   // BD:
   // As this needs to be done twice (here and restarts), is verbose and prone
   // to parablepsis we collect logic..

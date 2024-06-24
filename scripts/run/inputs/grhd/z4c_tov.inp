@@ -51,9 +51,33 @@ fixedgauge = 0 # set rhs of gauge = 0
 fix_admsources = 0 # calculate adm sources with initial data
 # =============================================================================
 
+<task_triggers>  # ============================================================
+# control frequency of task execution; certain constraints are augmented
+# further automatically by choices in output block
+
+# missing / zero values do not get activated
+
+tracker_extrema = 0.2
+dt_Z4c_Weyl     = 0.5
+# =============================================================================
+
+<psi4_extraction>  # ==========================================================
+# control psi4 extraction
+
+filename  = wav
+
+nlev = 30  # Controls # of points on spherical grid
+lmax = 8   # Extracted set: {l <= lmax && |m|<=l}
+
+# specify extraction radii
+num_radii = 3
+radius_0  = 8
+radius_1  = 20
+radius_2  = 24
+# =============================================================================
 
 <trackers_extrema>  # =========================================================
-N_tracker = 0
+N_tracker = 1
 filename = tra.ext
 
 control_field = Z4c.chi
@@ -62,19 +86,19 @@ ini_1_x1 = 0               # initial offset
 ini_1_x2 = 0
 ini_1_x3 = 0
 minima_1 = true              # for update_strategy = 1
-ref_level_1 = 2
+ref_level_1 = 1
 ref_type_1 = 1              # 0: to the point, 1: sph. region
-ref_zone_radius_1 = 10
+ref_zone_radius_1 = 15
 
 
 update_strategy = 1         # 0: based on dt, 1: based on quad interp.
 # safety factor avoids taking too large step (multiple of local dx)
 update_max_step_factor = 10
-# =========================================================
+# =============================================================================
 
 <time> # ======================================================================
-cfl_number   = 0.25
-tlim	       = 1
+cfl_number   = 0.2
+tlim	       = 50
 integrator   = rk3   # time integration algorithm
 
 # spatial reconstruction - element of:
@@ -86,29 +110,29 @@ ncycle_out   = 1      # interval for stdout summary info
 
 <mesh> # ======================================================================
 # no. cell in dir, min/max x, inner/outer BC
-nx1    = 32
+nx1    = 64
 x1min  = -25
 x1max  = 25
 ix1_bc = extrapolate_outflow
 ox1_bc = extrapolate_outflow
 
-nx2    = 32
+nx2    = 64
 x2min  = -25
 x2max  = 25
 ix2_bc = extrapolate_outflow
 ox2_bc = extrapolate_outflow
 
-nx3    = 32
+nx3    = 64
 x3min  = -25
 x3max  = 25
 ix3_bc = extrapolate_outflow
 ox3_bc = extrapolate_outflow
 
-refinement = none
+refinement = adaptive
 numlevel = 10
 #deref_count = 5
 
-num_threads = 4
+num_threads = 1
 
 # impose bitant symmetry (use with ix3_bc=reflecting)
 bitant = false
@@ -126,6 +150,7 @@ gamma      = 2     # ratio of specific heats Gamma
 k_adi      = 100.  # adiabat K, p_gas = K rho^Gamma
 c2p_acc    = 1e-12
 rho_strict = 0 # 1e-20
+max_iter   = 100
 
 fix_fluxes=0 #use initial data in flux calculation
 fix_sources=0 #use initial data in hydro source calculation (stationary spacetime only)
@@ -162,16 +187,16 @@ interp_npts = 100000
 surf_dr = 1e-14
 
 # TOV: spatial offset & boost params
-x_0_x1 = 0.0
-x_0_x2 = 0.0
-x_0_x3 = 0.0
+x_0_x1 = 0.1
+x_0_x2 = 0.01
+x_0_x3 = -0.2
 
-v_b_x1 = 0. # 0.2
-v_b_x2 = 0. # 0.1
-v_b_x3 = 0. # -0.1
+v_b_x1 = 0.22 # 0.2
+v_b_x2 = 0.3 # 0.1
+v_b_x3 = 0.31 # -0.1
 
 # Atmosphere settings
-fatm = 1e-18  # set atmosphere rho to rho = fatm
+fatm = 1e-40  # set atmosphere rho to rho = fatm
 fthr = 1    # set point to atmosphere if rho < fthr*fatm
 
 max_z = 10
@@ -184,13 +209,23 @@ x2min           = -10
 x2max           = 10
 x3min           = -10
 x3max           = 10
-level           = 3
+level           = 1
 # =============================================================================
+
+# <refinement2> # ===============================================================
+# x1min           = -5
+# x1max           = 5
+# x2min           = -5
+# x2max           = 5
+# x3min           = -5
+# x3max           = 5
+# level           = 2
+# # =============================================================================
 
 # dumped quantities ===========================================================
 <output1>
 file_type = rst
-dt        = 100
+dt        = 10
 
 <output2>
 file_type   = hst
@@ -201,105 +236,105 @@ data_format = %.18g
 file_type   = hdf5
 variable    = cons
 ghost_zones = true
-dt          = 0.01
+dt          = 0.1
 x3_slice    = 0.0
 
 <output4>
 file_type   = hdf5
 variable    = prim
 ghost_zones = true
-dt          = 0.01
+dt          = 0.1
 x3_slice    = 0.0
 
 <output5>
 file_type	  = hdf5
 variable    = con
 ghost_zones = true
-dt          = 0.01
+dt          = 0.1
 x3_slice    = 0
 
 <output6>
 file_type   = hdf5
 variable    = adm
 ghost_zones = true
-dt          = 0.01
+dt          = 0.1
 x3_slice    = 0.0
 
 <output7>
 file_type   = hdf5
 variable    = z4c
 ghost_zones = true
-dt          = 0.01
+dt          = 0.1
 x3_slice    = 0.0
 
 <output8>
 file_type   = hdf5
 variable    = cons
 ghost_zones = true
-dt          = 0.01
+dt          = 0.1
 x2_slice    = 0.0
 
 <output9>
 file_type   = hdf5
 variable    = prim
 ghost_zones = true
-dt          = 0.01
+dt          = 0.1
 x2_slice    = 0.0
 
 <output10>
 file_type   = hdf5
 variable    = con
 ghost_zones = true
-dt          = 0.01
+dt          = 0.1
 x2_slice    = 0
 
 <output11>
 file_type   = hdf5
 variable    = adm
 ghost_zones = true
-dt          = 0.01
+dt          = 0.1
 x2_slice    = 0.0
 
 <output12>
 file_type   = hdf5
 variable    = z4c
 ghost_zones = true
-dt          = 0.01
+dt          = 0.1
 x2_slice    = 0.0
 
 <output13>
 file_type   = hdf5
 variable    = cons
 ghost_zones = true
-dt          = 0.01
+dt          = 0.1
 x1_slice    = 0.0
 
 <output14>
 file_type   = hdf5
 variable    = prim
 ghost_zones = true
-dt          = 0.01
+dt          = 0.1
 x1_slice    = 0.0
 
 <output15>
 file_type   = hdf5
 variable    = con
 ghost_zones = true
-dt          = 0.01
+dt          = 0.1
 x1_slice    = 0
 
 <output16>
 file_type   = hdf5
 variable    = adm
 ghost_zones = true
-dt          = 0.01
+dt          = 0.1
 x1_slice    = 0.0
 
 <output17>
 file_type   = hdf5
 variable    = z4c
 ghost_zones = true
-dt          = 0.01
+dt          = 0.1
 x1_slice    = 0.0
 
 
@@ -307,7 +342,7 @@ x1_slice    = 0.0
 file_type   = hdf5
 variable    = cons
 ghost_zones = true
-dt          = 0.01
+dt          = 0.1
 x2_slice    = 0.0
 x3_slice    = 0.0
 
@@ -315,7 +350,7 @@ x3_slice    = 0.0
 file_type   = hdf5
 variable    = prim
 ghost_zones = true
-dt          = 0.01
+dt          = 0.1
 x2_slice    = 0.0
 x3_slice    = 0.0
 
@@ -323,7 +358,7 @@ x3_slice    = 0.0
 file_type	  = hdf5
 variable    = con
 ghost_zones = true
-dt          = 0.01
+dt          = 0.1
 x2_slice    = 0.0
 x3_slice    = 0
 
@@ -331,7 +366,7 @@ x3_slice    = 0
 file_type   = hdf5
 variable    = adm
 ghost_zones = true
-dt          = 0.01
+dt          = 0.1
 x2_slice    = 0.0
 x3_slice    = 0.0
 
@@ -339,7 +374,7 @@ x3_slice    = 0.0
 file_type   = hdf5
 variable    = z4c
 ghost_zones = true
-dt          = 0.01
+dt          = 0.1
 x2_slice    = 0.0
 x3_slice    = 0.0
 

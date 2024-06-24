@@ -16,15 +16,18 @@
 #include "../athena_arrays.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../eos/eos.hpp"
+#include "../hydro/hydro.hpp"
+#include "../z4c/z4c.hpp"
 #include "reconstruction.hpp"
+#include <iomanip>
 
 #define SGN(a,b) ((b) >= 0.0 ? fabs(a) : -fabs(a))
 #define USE_WEIGHTS_OPTIMAL 0
 
 double rec1d_m_weno5(double uimt, double uimo, double ui, double uipo, double uipt);
 double rec1d_p_weno5(double uimt, double uimo, double ui, double uipo, double uipt);
-double rec1d_m_wenoz(double uimt, double uimo, double ui, double uipo, double uipt);
-double rec1d_p_wenoz(double uimt, double uimo, double ui, double uipo, double uipt);
+double rec1d_m_weno5z(double uimt, double uimo, double ui, double uipo, double uipt);
+double rec1d_p_weno5z(double uimt, double uimo, double ui, double uipo, double uipt);
 double rec1d_m_mp3(double eps, double uimt, double uimo, double ui, double uipo, double uipt);
 double rec1d_p_mp3(double eps, double uimt, double uimo, double ui, double uipo, double uipt);
 double rec1d_m_mp5(double eps, double uimt, double uimo, double ui, double uipo, double uipt);
@@ -33,8 +36,8 @@ Real rec1d_m_mp7(Real eps, Real uim3, Real uimt, Real uimo, Real ui, Real uipo, 
 Real rec1d_p_mp7(Real eps, Real uim3, Real uimt, Real uimo, Real ui, Real uipo, Real uipt, Real uip3);
 double rec1d_m_ceno3(double uimt, double uimo, double ui, double uipo, double uipt);
 double rec1d_p_ceno3(double uimt, double uimo, double ui, double uipo, double uipt);
-
 double rec1d_p_weno5d_si(double uimt, double uimo, double ui, double uipo, double uipt);
+
 // const double W5D_SI_EPSL = 1e-40;
 const double W5D_SI_EPSL = 1e-12;
 const double W5D_SI_p    = 2;
@@ -52,6 +55,9 @@ double MM2( double x, double y );
 double MC2( double x, double y );
 
 double ceno3lim( double d[3] );
+
+double rec1d_p_lintvd(double uimo, double ui, double uipo);
+double rec1d_p_donate(double uimo, double ui, double uipo);
 
 
 static double cc [32] = { 0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10.,
@@ -91,27 +97,44 @@ static double cl7[7] = {-3./420.,
                         -38./420.,
                          4./420.};
 
+bool CheckPrimitiveReconstructionAdmissible(
+  const AthenaArray<Real> &prim,
+  int k, int j, int i)
+{
+  // bool is_physical = true;
+
+  /*
+  Real p, rho;
+
+  if(prim.GetDim4()==1)
+  {
+    p   = prim(IPR,i);
+    rho = prim(IDN,i);
+  }
+  else if(prim.GetDim4()==5)
+  {
+    p   = prim(IPR,k,j,i);
+    rho = prim(IDN,k,j,i);
+  }
+
+  // want strict positivity
+  return rho > 0;
+  */
+
+  // only called from this cpp where we only have slices
+  return prim(IDN,i) > 0;  // strict density positivity
+}
 
 void Reconstruction::WenoX1(
     const int k, const int j, const int il, const int iu,
     const AthenaArray<Real> &q, const AthenaArray<Real> &bcc,
     AthenaArray<Real> &ql, AthenaArray<Real> &qr,
-    const bool enforce_floors) {
+    const bool enforce_floors)
+{
   Coordinates *pco = pmy_block_->pcoord;
   // set work arrays to shallow copies of scratch arrays
   AthenaArray<Real> &qc = scr1_ni_, &dql = scr2_ni_, &dqr = scr3_ni_,
                    &dqm = scr4_ni_;
-//  const int nu = q.GetDim4() - 1;
-
-  /*
-  int nu;
-  if(eps_rec){
-     nu = NHYDRO-1;
-  }
-  else{
-     nu = NHYDRO;
-  }
-  */
 
   const int nu = q.GetDim4();
 
@@ -122,27 +145,9 @@ void Reconstruction::WenoX1(
     for (int i=il; i<=iu; ++i)
     {
       /*
-      Real luimt = q(n,k,j,i-3);
-      Real luimo = q(n,k,j,i-2);
-      Real lui = q(n,k,j,i-1);
-      Real luipo = q(n,k,j,i);
-      Real luipt = q(n,k,j,i+1);
-
-      Real ruimt = q(n,k,j,i-2);
-      Real ruimo = q(n,k,j,i-1);
-      Real rui = q(n,k,j,i);
-      Real ruipo = q(n,k,j,i+1);
-      Real ruipt = q(n,k,j,i+2);
-
-//      ql(n,i) = rec1d_p_weno5(luimt,luimo,lui,luipo,luipt);
-//      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-//    possible other reconstruction routines for testing - to be separated into separate callable reconstruction routines
-      ql(n,i) = rec1d_p_wenoz(luimt,luimo,lui,luipo,luipt);
-      qr(n,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_mp5(luimt,luimo,lui,luipo,luipt);
-//      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-//      ql(n,i) = rec1d_p_ceno3(luimt,luimo,lui,luipo,luipt);
-//      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
+      // conventions:
+      // ql(n,i) = rec1d_p_weno5(uimt,uimo,ui,uipo,uipt);
+      // qr(n,i) = rec1d_m_weno5(uimt,uimo,ui,uipo,uipt);
       */
 
       const Real uimt = q(n,k,j,i-2);
@@ -154,6 +159,18 @@ void Reconstruction::WenoX1(
       // N.B offset for x-dir rec.
       switch (xorder_style)  // should check if this gets loop-lifted...
       {
+        case ReconstructionVariant::donate:
+        {
+          ql(n,i+1) = rec1d_p_donate(uimo,ui,uipo);
+          qr(n,i  ) = rec1d_p_donate(uipo,ui,uimo);
+          break;
+        }
+        case ReconstructionVariant::lintvd:
+        {
+          ql(n,i+1) = rec1d_p_lintvd(uimo,ui,uipo);
+          qr(n,i  ) = rec1d_p_lintvd(uipo,ui,uimo);
+          break;
+        }
         case ReconstructionVariant::ceno3:
         {
           ql(n,i+1) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
@@ -170,19 +187,6 @@ void Reconstruction::WenoX1(
         {
           ql(n,i+1) = rec1d_p_mp5(xorder_eps,uimt,uimo,ui,uipo,uipt);
           qr(n,i  ) = rec1d_p_mp5(xorder_eps,uipt,uipo,ui,uimo,uimt);
-
-          /*
-          const bool rpf = (
-            pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i+1) ||
-            pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
-
-          if (rpf)
-          {
-            ql(n,i+1) = rec1d_p_mp3(xorder_eps,uimt,uimo,ui,uipo,uipt);
-            qr(n,i  ) = rec1d_p_mp3(xorder_eps,uipt,uipo,ui,uimo,uimt);
-          }
-          */
-
           break;
         }
         case ReconstructionVariant::mp7:
@@ -191,29 +195,6 @@ void Reconstruction::WenoX1(
           const Real uip3 = q(n,k,j,i+3);
           ql(n,i+1) = rec1d_p_mp7(xorder_eps,uim3,uimt,uimo,ui,uipo,uipt,uip3);
           qr(n,i  ) = rec1d_p_mp7(xorder_eps,uip3,uipt,uipo,ui,uimo,uimt,uim3);
-
-          /*
-          const bool rpf_7 = (
-            pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i+1) ||
-            pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
-
-          if (rpf_7)
-          {
-            ql(n,i+1) = rec1d_p_mp5(xorder_eps,uimt,uimo,ui,uipo,uipt);
-            qr(n,i  ) = rec1d_p_mp5(xorder_eps,uipt,uipo,ui,uimo,uimt);
-          }
-
-          const bool rpf_5 = (
-            pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i+1) ||
-            pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
-
-          if (rpf_5)
-          {
-            ql(n,i+1) = rec1d_p_mp3(xorder_eps,uimt,uimo,ui,uipo,uipt);
-            qr(n,i  ) = rec1d_p_mp3(xorder_eps,uipt,uipo,ui,uimo,uimt);
-          }
-          */
-
           break;
         }
         case ReconstructionVariant::weno5:
@@ -224,14 +205,8 @@ void Reconstruction::WenoX1(
         }
         case ReconstructionVariant::weno5z:
         {
-          ql(n,i+1) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
-          qr(n,i)   = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
-          break;
-        }
-        case ReconstructionVariant::weno5z_r:
-        {
-          ql(n,i+1) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
-          qr(n,i  ) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
+          ql(n,i+1) = rec1d_p_weno5z(uimt,uimo,ui,uipo,uipt);
+          qr(n,i)   = rec1d_p_weno5z(uipt,uipo,ui,uimo,uimt);
           break;
         }
         case ReconstructionVariant::weno5d_si:
@@ -249,59 +224,11 @@ void Reconstruction::WenoX1(
     }
   }
 
-  if(eps_rec)
-  {
-    // BD: This should not live here.
-    // If you want to reconstruct mapped variables map first then pass to
-    // The reconstruction procedure.
-    std::cout << "TO FIX: see weno.cpp" << std::endl;
-    std::exit(0);
-
-    /*
-    #pragma omp simd
-        for (int i=il; i<=iu; ++i) {
-          Real luimt = q(IPR,k,j,i-3)/q(IDN,k,j,i-3);
-          Real luimo = q(IPR,k,j,i-2)/q(IDN,k,j,i-2);
-          Real lui = q(IPR,k,j,i-1)/q(IDN,k,j,i-1);
-          Real luipo = q(IPR,k,j,i)/q(IDN,k,j,i);
-          Real luipt = q(IPR,k,j,i+1)/q(IDN,k,j,i+1);
-          Real ruimt = q(IPR,k,j,i-2)/q(IDN,k,j,i-2);
-          Real ruimo = q(IPR,k,j,i-1)/q(IDN,k,j,i-1);
-          Real rui = q(IPR,k,j,i)/q(IDN,k,j,i);
-          Real ruipo = q(IPR,k,j,i+1)/q(IDN,k,j,i+1);
-          Real ruipt = q(IPR,k,j,i+2)/q(IDN,k,j,i+2);
-    //      ql(n,i) = rec1d_p_weno5(luimt,luimo,lui,luipo,luipt);
-    //      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-    //    possible other reconstruction routines for testing - to be separated into separate callable reconstruction routines
-          ql(IPR,i) = rec1d_p_wenoz(luimt,luimo,lui,luipo,luipt)*ql(IDN,i);
-          qr(IPR,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*qr(IDN,i);
-    //      ql(n,i) = rec1d_p_mp5(luimt,luimo,lui,luipo,luipt);
-    //      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-    //      ql(n,i) = rec1d_p_ceno3(luimt,luimo,lui,luipo,luipt);
-    //      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
-        }
-    */
-  }
-
   if(MAGNETIC_FIELDS_ENABLED)
   {
     #pragma omp simd
     for (int i=il; i<=iu; ++i)
     {
-      // Real luimt = bcc(IB2,k,j,i-3);
-      // Real luimo = bcc(IB2,k,j,i-2);
-      // Real lui = bcc(IB2,k,j,i-1);
-      // Real luipo = bcc(IB2,k,j,i);
-      // Real luipt = bcc(IB2,k,j,i+1);
-      // Real ruimt = bcc(IB2,k,j,i-2);
-      // Real ruimo = bcc(IB2,k,j,i-1);
-      // Real rui = bcc(IB2,k,j,i);
-      // Real ruipo = bcc(IB2,k,j,i+1);
-      // Real ruipt = bcc(IB2,k,j,i+2);
-
-      // ql(IBY,i) = rec1d_p_wenoz(luimt,luimo,lui,luipo,luipt);
-      // qr(IBY,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-
       const Real uimt = bcc(IB2,k,j,i-2);
       const Real uimo = bcc(IB2,k,j,i-1);
       const Real ui   = bcc(IB2,k,j,i);
@@ -311,6 +238,18 @@ void Reconstruction::WenoX1(
       // N.B offset for x-dir rec.
       switch (xorder_style)  // should check if this gets loop-lifted...
       {
+        case ReconstructionVariant::donate:
+        {
+          ql(IBY,i+1) = rec1d_p_donate(uimo,ui,uipo);
+          qr(IBY,i  ) = rec1d_p_donate(uipo,ui,uimo);
+          break;
+        }
+        case ReconstructionVariant::lintvd:
+        {
+          ql(IBY,i+1) = rec1d_p_lintvd(uimo,ui,uipo);
+          qr(IBY,i  ) = rec1d_p_lintvd(uipo,ui,uimo);
+          break;
+        }
         case ReconstructionVariant::ceno3:
         {
           ql(IBY,i+1) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
@@ -347,14 +286,8 @@ void Reconstruction::WenoX1(
         }
         case ReconstructionVariant::weno5z:
         {
-          ql(IBY,i+1) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
-          qr(IBY,i)   = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
-          break;
-        }
-        case ReconstructionVariant::weno5z_r:
-        {
-          ql(IBY,i+1) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
-          qr(IBY,i  ) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
+          ql(IBY,i+1) = rec1d_p_weno5z(uimt,uimo,ui,uipo,uipt);
+          qr(IBY,i)   = rec1d_p_weno5z(uipt,uipo,ui,uimo,uimt);
           break;
         }
         case ReconstructionVariant::weno5d_si:
@@ -374,20 +307,6 @@ void Reconstruction::WenoX1(
     #pragma omp simd
     for (int i=il; i<=iu; ++i)
     {
-      // Real luimt = bcc(IB3,k,j,i-3);
-      // Real luimo = bcc(IB3,k,j,i-2);
-      // Real lui = bcc(IB3,k,j,i-1);
-      // Real luipo = bcc(IB3,k,j,i);
-      // Real luipt = bcc(IB3,k,j,i+1);
-      // Real ruimt = bcc(IB3,k,j,i-2);
-      // Real ruimo = bcc(IB3,k,j,i-1);
-      // Real rui = bcc(IB3,k,j,i);
-      // Real ruipo = bcc(IB3,k,j,i+1);
-      // Real ruipt = bcc(IB3,k,j,i+2);
-
-      // ql(IBZ,i) = rec1d_p_wenoz(luimt,luimo,lui,luipo,luipt);
-      // qr(IBZ,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-
       const Real uimt = bcc(IB3,k,j,i-2);
       const Real uimo = bcc(IB3,k,j,i-1);
       const Real ui   = bcc(IB3,k,j,i);
@@ -397,6 +316,18 @@ void Reconstruction::WenoX1(
       // N.B offset for x-dir rec.
       switch (xorder_style)  // should check if this gets loop-lifted...
       {
+        case ReconstructionVariant::donate:
+        {
+          ql(IBZ,i+1) = rec1d_p_donate(uimo,ui,uipo);
+          qr(IBZ,i  ) = rec1d_p_donate(uipo,ui,uimo);
+          break;
+        }
+        case ReconstructionVariant::lintvd:
+        {
+          ql(IBZ,i+1) = rec1d_p_lintvd(uimo,ui,uipo);
+          qr(IBZ,i  ) = rec1d_p_lintvd(uipo,ui,uimo);
+          break;
+        }
         case ReconstructionVariant::ceno3:
         {
           ql(IBZ,i+1) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
@@ -433,14 +364,8 @@ void Reconstruction::WenoX1(
         }
         case ReconstructionVariant::weno5z:
         {
-          ql(IBZ,i+1) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
-          qr(IBZ,i)   = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
-          break;
-        }
-        case ReconstructionVariant::weno5z_r:
-        {
-          ql(IBZ,i+1) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
-          qr(IBZ,i  ) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
+          ql(IBZ,i+1) = rec1d_p_weno5z(uimt,uimo,ui,uipo,uipt);
+          qr(IBZ,i)   = rec1d_p_weno5z(uipt,uipo,ui,uimo,uimt);
           break;
         }
         case ReconstructionVariant::weno5d_si:
@@ -460,35 +385,63 @@ void Reconstruction::WenoX1(
   }
 
   if (xorder_fallback)
-  for (int i=il; i<=iu; ++i)
   {
-    bool rpf = (
-      pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i+1) ||
-      pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
+    bool is_admissible = true;
 
-    if (rpf)
+    auto chk_l = [&](const int i)
     {
-      // revert
-      ReconstructionVariant xorder_style_ = xorder_style;
-      xorder_style = ReconstructionVariant::ceno3;
-      xorder_fallback = false;
-      WenoX1(k, j, i, i, q, bcc, ql, qr, false);
+      return CheckPrimitiveReconstructionAdmissible(ql,k,j,i+1);
+    };
 
-      xorder_style = xorder_style_;
-      xorder_fallback = true;
+    auto chk_r = [&](const int i)
+    {
+      return CheckPrimitiveReconstructionAdmissible(qr,k,j,i);
+    };
 
-
-      rpf = (
-        pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i+1) ||
-        pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
-
-      if (rpf)
+    for (int i=il; i<=iu; ++i)
+    {
+      is_admissible = chk_l(i) && chk_r(i);
+      if (!is_admissible)
       {
-        PiecewiseLinearX1(k, j, i, i, q, bcc, ql, qr);
+        // revert [linear]
+        ReconstructionVariant xorder_style_ = xorder_style;
+        xorder_style = ReconstructionVariant::lintvd;
+        xorder_fallback = false;
+        WenoX1(k, j, i, i, q, bcc, ql, qr, false);
+        xorder_style = xorder_style_;
+        xorder_fallback = true;
+
+        is_admissible = chk_l(i) && chk_r(i);
+
+        // ... further reversion would go here (i.e. donor)
+
+        // if (!is_admissible)
+        // {
+        //   pmy_block_->peos->ForcePrimitiveFloor(ql,k,j,i+1);
+        //   pmy_block_->peos->ForcePrimitiveFloor(qr,k,j,i);
+        // }
+
+        if (!is_admissible)
+        {
+          #pragma omp critical
+          {
+            std::cout << std::setprecision(16) << std::endl;
+            std::cout << "DEBUG: lintvd_failed?" << std::endl;
+            std::cout << ql(IDN,i+1) << std::endl;
+            std::cout << qr(IDN,i) << std::endl;
+            std::cout << q(IDN,k,j,i-1) << std::endl;
+            std::cout << q(IDN,k,j,i) << std::endl;
+            std::cout << q(IDN,k,j,i+1) << std::endl;
+            std::cout << k << "," << j << "," << i << std::endl;
+            std::cout << "-------" << std::endl;
+
+            std::exit(0);
+          }
+        }
+
       }
     }
   }
-
 
   if (enforce_floors)
   {
@@ -502,16 +455,19 @@ for (int l=0; l<NSCALARS; l++){
   }
 #endif
 
-    #pragma omp simd
-    for (int i=il; i<=iu; ++i)
+    if (!xorder_fallback)
     {
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i)
+      {
 #if USETM
-      pmy_block_->peos->ApplyPrimitiveFloors(ql, scalar_l, k ,j, i+1);
-      pmy_block_->peos->ApplyPrimitiveFloors(qr, scalar_r, k ,j, i);
+        pmy_block_->peos->ApplyPrimitiveFloors(ql, scalar_l, k ,j, i+1);
+        pmy_block_->peos->ApplyPrimitiveFloors(qr, scalar_r, k ,j, i);
 #else
-      pmy_block_->peos->ApplyPrimitiveFloors(ql,k,j,i+1);
-      pmy_block_->peos->ApplyPrimitiveFloors(qr,k,j,i);
+        pmy_block_->peos->ApplyPrimitiveFloors(ql,k,j,i+1);
+        pmy_block_->peos->ApplyPrimitiveFloors(qr,k,j,i);
 #endif
+      }
     }
   }
 
@@ -528,48 +484,14 @@ void Reconstruction::WenoX2(
   // set work arrays to shallow copies of scratch arrays
   AthenaArray<Real> &qc = scr1_ni_, &dql = scr2_ni_, &dqr = scr3_ni_,
                    &dqm = scr4_ni_;
-//  const int nu = q.GetDim4() - 1;
-
-  // compute L/R slopes for each variable
-//  for (int n=0; n<NHYDRO-1; ++n) {
 
   const int nu = q.GetDim4();
-
-  /*
-  int nu;
-  if(eps_rec){
-     nu = NHYDRO-1;
-  }
-  else{
-     nu = NHYDRO;
-  }
-  */
 
   for (int n=0; n<nu; ++n)
   {
     #pragma omp simd
     for (int i=il; i<=iu; ++i)
     {
-      /*
-            Real luimt = q(n,k,j-3,i);
-            Real luimo = q(n,k,j-2,i);
-            Real lui = q(n,k,j-1,i);
-            Real luipo = q(n,k,j,i);
-            Real luipt = q(n,k,j+1,i);
-            Real ruimt = q(n,k,j-2,i);
-            Real ruimo = q(n,k,j-1,i);
-            Real rui = q(n,k,j,i);
-            Real ruipo = q(n,k,j+1,i);
-            Real ruipt = q(n,k,j+2,i);
-      //      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-      //      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-            ql(n,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-            qr(n,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-      //      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-      //      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-      //      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
-      //      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
-      */
 
       const Real uimt = q(n,k,j-2,i);
       const Real uimo = q(n,k,j-1,i);
@@ -577,8 +499,20 @@ void Reconstruction::WenoX2(
       const Real uipo = q(n,k,j+1,i);
       const Real uipt = q(n,k,j+2,i);
 
-      switch (xorder_style)  // should check if this gets loop-lifted...
+      switch (xorder_style)
       {
+        case ReconstructionVariant::donate:
+        {
+          ql(n,i) = rec1d_p_donate(uimo,ui,uipo);
+          qr(n,i) = rec1d_p_donate(uipo,ui,uimo);
+          break;
+        }
+        case ReconstructionVariant::lintvd:
+        {
+          ql(n,i) = rec1d_p_lintvd(uimo,ui,uipo);
+          qr(n,i) = rec1d_p_lintvd(uipo,ui,uimo);
+          break;
+        }
         case ReconstructionVariant::ceno3:
         {
           ql(n,i) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
@@ -596,18 +530,6 @@ void Reconstruction::WenoX2(
 
           ql(n,i) = rec1d_p_mp5(xorder_eps,uimt,uimo,ui,uipo,uipt);
           qr(n,i) = rec1d_p_mp5(xorder_eps,uipt,uipo,ui,uimo,uimt);
-
-          /*
-          const bool rpf = (pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i) ||
-                            pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
-
-          if (rpf)
-          {
-            ql(n,i) = rec1d_p_mp3(xorder_eps,uimt,uimo,ui,uipo,uipt);
-            qr(n,i) = rec1d_p_mp3(xorder_eps,uipt,uipo,ui,uimo,uimt);
-          }
-          */
-
           break;
         }
         case ReconstructionVariant::mp7:
@@ -616,29 +538,6 @@ void Reconstruction::WenoX2(
           const Real uip3 = q(n,k,j+3,i);
           ql(n,i) = rec1d_p_mp7(xorder_eps,uim3,uimt,uimo,ui,uipo,uipt,uip3);
           qr(n,i) = rec1d_p_mp7(xorder_eps,uip3,uipt,uipo,ui,uimo,uimt,uim3);
-
-          /*
-          const bool rpf_7 = (
-            pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i) ||
-            pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
-
-          if (rpf_7)
-          {
-            ql(n,i) = rec1d_p_mp5(xorder_eps,uimt,uimo,ui,uipo,uipt);
-            qr(n,i) = rec1d_p_mp5(xorder_eps,uipt,uipo,ui,uimo,uimt);
-          }
-
-          const bool rpf_5 = (
-            pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i) ||
-            pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
-
-          if (rpf_5)
-          {
-            ql(n,i) = rec1d_p_mp3(xorder_eps,uimt,uimo,ui,uipo,uipt);
-            qr(n,i) = rec1d_p_mp3(xorder_eps,uipt,uipo,ui,uimo,uimt);
-          }
-          */
-
           break;
         }
         case ReconstructionVariant::weno5:
@@ -649,14 +548,8 @@ void Reconstruction::WenoX2(
         }
         case ReconstructionVariant::weno5z:
         {
-          ql(n,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
-          qr(n,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
-          break;
-        }
-        case ReconstructionVariant::weno5z_r:
-        {
-          ql(n,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
-          qr(n,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
+          ql(n,i) = rec1d_p_weno5z(uimt,uimo,ui,uipo,uipt);
+          qr(n,i) = rec1d_p_weno5z(uipt,uipo,ui,uimo,uimt);
           break;
         }
         case ReconstructionVariant::weno5d_si:
@@ -674,54 +567,11 @@ void Reconstruction::WenoX2(
     }
   }
 
-  if(eps_rec)
-  {
-    // BD: This should not live here.
-    // If you want to reconstruct mapped variables map first then pass to
-    // The reconstruction procedure.
-    std::cout << "TO FIX: see weno.cpp" << std::endl;
-    std::exit(0);
-
-    /*
-        #pragma omp simd
-        for (int i=il; i<=iu; ++i) {
-          Real ruimt = q(IPR,k,j-2,i)/q(IDN,k,j-2,i);
-          Real ruimo = q(IPR,k,j-1,i)/q(IDN,k,j-1,i);
-          Real rui = q(IPR,k,j,i)/q(IDN,k,j,i);
-          Real ruipo = q(IPR,k,j+1,i)/q(IDN,k,j+1,i);
-          Real ruipt = q(IPR,k,j+2,i)/q(IDN,k,j+2,i);
-    //      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-    //      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-          ql(IPR,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*ql(IDN,i);
-          qr(IPR,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*qr(IDN,i);
-    //      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-    //      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-    //      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
-    //      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
-        }
-    */
-
-  }
-
-
   if(MAGNETIC_FIELDS_ENABLED)
   {
     #pragma omp simd
     for (int i=il; i<=iu; ++i)
     {
-      // Real luimt = bcc(IB3,k,j-3,i);
-      // Real luimo = bcc(IB3,k,j-2,i);
-      // Real lui = bcc(IB3,k,j-1,i);
-      // Real luipo = bcc(IB3,k,j,i);
-      // Real luipt = bcc(IB3,k,j+1,i);
-      // Real ruimt = bcc(IB3,k,j-2,i);
-      // Real ruimo = bcc(IB3,k,j-1,i);
-      // Real rui = bcc(IB3,k,j,i);
-      // Real ruipo = bcc(IB3,k,j+1,i);
-      // Real ruipt = bcc(IB3,k,j+2,i);
-
-      // ql(IBY,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-      // qr(IBY,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
 
       const Real uimt = bcc(IB3,k,j-2,i);
       const Real uimo = bcc(IB3,k,j-1,i);
@@ -729,8 +579,20 @@ void Reconstruction::WenoX2(
       const Real uipo = bcc(IB3,k,j+1,i);
       const Real uipt = bcc(IB3,k,j+2,i);
 
-      switch (xorder_style)  // should check if this gets loop-lifted...
+      switch (xorder_style)
       {
+        case ReconstructionVariant::donate:
+        {
+          ql(IBY,i) = rec1d_p_donate(uimo,ui,uipo);
+          qr(IBY,i) = rec1d_p_donate(uipo,ui,uimo);
+          break;
+        }
+        case ReconstructionVariant::lintvd:
+        {
+          ql(IBY,i) = rec1d_p_lintvd(uimo,ui,uipo);
+          qr(IBY,i) = rec1d_p_lintvd(uipo,ui,uimo);
+          break;
+        }
         case ReconstructionVariant::ceno3:
         {
           ql(IBY,i) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
@@ -768,14 +630,8 @@ void Reconstruction::WenoX2(
         }
         case ReconstructionVariant::weno5z:
         {
-          ql(IBY,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
-          qr(IBY,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
-          break;
-        }
-        case ReconstructionVariant::weno5z_r:
-        {
-          ql(IBY,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
-          qr(IBY,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
+          ql(IBY,i) = rec1d_p_weno5z(uimt,uimo,ui,uipo,uipt);
+          qr(IBY,i) = rec1d_p_weno5z(uipt,uipo,ui,uimo,uimt);
           break;
         }
         case ReconstructionVariant::weno5d_si:
@@ -794,19 +650,6 @@ void Reconstruction::WenoX2(
     #pragma omp simd
     for (int i=il; i<=iu; ++i)
     {
-      // Real luimt = bcc(IB1,k,j-3,i);
-      // Real luimo = bcc(IB1,k,j-2,i);
-      // Real lui = bcc(IB1,k,j-1,i);
-      // Real luipo = bcc(IB1,k,j,i);
-      // Real luipt = bcc(IB1,k,j+1,i);
-      // Real ruimt = bcc(IB1,k,j-2,i);
-      // Real ruimo = bcc(IB1,k,j-1,i);
-      // Real rui = bcc(IB1,k,j,i);
-      // Real ruipo = bcc(IB1,k,j+1,i);
-      // Real ruipt = bcc(IB1,k,j+2,i);
-
-      // ql(IBZ,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-      // qr(IBZ,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
 
       const Real uimt = bcc(IB1,k,j-2,i);
       const Real uimo = bcc(IB1,k,j-1,i);
@@ -814,8 +657,20 @@ void Reconstruction::WenoX2(
       const Real uipo = bcc(IB1,k,j+1,i);
       const Real uipt = bcc(IB1,k,j+2,i);
 
-      switch (xorder_style)  // should check if this gets loop-lifted...
+      switch (xorder_style)
       {
+        case ReconstructionVariant::donate:
+        {
+          ql(IBZ,i) = rec1d_p_donate(uimo,ui,uipo);
+          qr(IBZ,i) = rec1d_p_donate(uipo,ui,uimo);
+          break;
+        }
+        case ReconstructionVariant::lintvd:
+        {
+          ql(IBZ,i) = rec1d_p_lintvd(uimo,ui,uipo);
+          qr(IBZ,i) = rec1d_p_lintvd(uipo,ui,uimo);
+          break;
+        }
         case ReconstructionVariant::ceno3:
         {
           ql(IBZ,i) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
@@ -853,14 +708,8 @@ void Reconstruction::WenoX2(
         }
         case ReconstructionVariant::weno5z:
         {
-          ql(IBZ,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
-          qr(IBZ,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
-          break;
-        }
-        case ReconstructionVariant::weno5z_r:
-        {
-          ql(IBZ,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
-          qr(IBZ,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
+          ql(IBZ,i) = rec1d_p_weno5z(uimt,uimo,ui,uipo,uipt);
+          qr(IBZ,i) = rec1d_p_weno5z(uipt,uipo,ui,uimo,uimt);
           break;
         }
         case ReconstructionVariant::weno5d_si:
@@ -879,30 +728,41 @@ void Reconstruction::WenoX2(
   }
 
   if (xorder_fallback)
-  for (int i=il; i<=iu; ++i)
   {
-    bool rpf = (
-      pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i) ||
-      pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
+    bool is_admissible = true;
 
-    if (rpf)
+    auto chk_l = [&](const int i)
     {
-      // revert
-      ReconstructionVariant xorder_style_ = xorder_style;
-      xorder_style = ReconstructionVariant::ceno3;
-      xorder_fallback = false;
-      WenoX2(k, j, i, i, q, bcc, ql, qr, false);
+      return CheckPrimitiveReconstructionAdmissible(ql,k,j,i);
+    };
 
-      xorder_style = xorder_style_;
-      xorder_fallback = true;
+    auto chk_r = [&](const int i)
+    {
+      return CheckPrimitiveReconstructionAdmissible(qr,k,j,i);
+    };
 
-      rpf = (
-        pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i) ||
-        pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
-
-      if (rpf)
+    for (int i=il; i<=iu; ++i)
+    {
+      is_admissible = chk_l(i) && chk_r(i);
+      if (!is_admissible)
       {
-        PiecewiseLinearX2(k, j, i, i, q, bcc, ql, qr);
+        // revert [linear]
+        ReconstructionVariant xorder_style_ = xorder_style;
+        xorder_style = ReconstructionVariant::lintvd;
+        xorder_fallback = false;
+        WenoX2(k, j, i, i, q, bcc, ql, qr, false);
+        xorder_style = xorder_style_;
+        xorder_fallback = true;
+
+        is_admissible = chk_l(i) && chk_r(i);
+
+        // ... further reversion would go here (i.e. donor)
+
+        // if (!is_admissible)
+        // {
+        //   pmy_block_->peos->ForcePrimitiveFloor(ql,k,j,i);
+        //   pmy_block_->peos->ForcePrimitiveFloor(qr,k,j,i);
+        // }
       }
     }
   }
@@ -919,16 +779,19 @@ void Reconstruction::WenoX2(
     }
 #endif
 
-    #pragma omp simd
-    for (int i=il; i<=iu; ++i)
+    if (!xorder_fallback)
     {
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i)
+      {
 #if USETM
-      pmy_block_->peos->ApplyPrimitiveFloors(ql, scalar_l, k ,j, i);
-      pmy_block_->peos->ApplyPrimitiveFloors(qr, scalar_r, k ,j, i);
+        pmy_block_->peos->ApplyPrimitiveFloors(ql, scalar_l, k ,j, i);
+        pmy_block_->peos->ApplyPrimitiveFloors(qr, scalar_r, k ,j, i);
 #else
-      pmy_block_->peos->ApplyPrimitiveFloors(ql, k ,j, i);
-      pmy_block_->peos->ApplyPrimitiveFloors(qr, k ,j, i);
+        pmy_block_->peos->ApplyPrimitiveFloors(ql, k ,j, i);
+        pmy_block_->peos->ApplyPrimitiveFloors(qr, k ,j, i);
 #endif
+      }
     }
   }
 
@@ -947,23 +810,8 @@ void Reconstruction::WenoX3(
   // set work arrays to shallow copies of scratch arrays
   AthenaArray<Real> &qc = scr1_ni_, &dql = scr2_ni_, &dqr = scr3_ni_,
                    &dqm = scr4_ni_;
-//  const int nu = q.GetDim4() - 1;
-
-  // compute L/R slopes for each variable
-//  for (int n=0; n<NHYDRO-1; ++n) {
-
-  /*
-  int nu;
-  if(eps_rec){
-     nu = NHYDRO-1;
-  }
-  else{
-     nu = NHYDRO;
-  }
-  */
 
   const int nu = q.GetDim4();
-
 
   for (int n=0; n<nu; ++n)
   {
@@ -980,7 +828,18 @@ void Reconstruction::WenoX3(
 
       switch (xorder_style)  // should check if this gets loop-lifted...
       {
-        case ReconstructionVariant::ceno3:
+        case ReconstructionVariant::donate:
+        {
+          ql(n,i) = rec1d_p_donate(uimo,ui,uipo);
+          qr(n,i) = rec1d_p_donate(uipo,ui,uimo);
+          break;
+        }
+        case ReconstructionVariant::lintvd:
+        {
+          ql(n,i) = rec1d_p_lintvd(uimo,ui,uipo);
+          qr(n,i) = rec1d_p_lintvd(uipo,ui,uimo);
+          break;
+        }        case ReconstructionVariant::ceno3:
         {
           ql(n,i) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
           qr(n,i) = rec1d_p_ceno3(uipt,uipo,ui,uimo,uimt);
@@ -996,18 +855,6 @@ void Reconstruction::WenoX3(
         {
           ql(n,i) = rec1d_p_mp5(xorder_eps,uimt,uimo,ui,uipo,uipt);
           qr(n,i) = rec1d_p_mp5(xorder_eps,uipt,uipo,ui,uimo,uimt);
-
-          /*
-          const bool rpf = (pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i) ||
-                            pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
-
-          if (rpf)
-          {
-            ql(n,i) = rec1d_p_mp3(xorder_eps,uimt,uimo,ui,uipo,uipt);
-            qr(n,i) = rec1d_p_mp3(xorder_eps,uipt,uipo,ui,uimo,uimt);
-          }
-          */
-
           break;
         }
         case ReconstructionVariant::mp7:
@@ -1016,29 +863,6 @@ void Reconstruction::WenoX3(
           const Real uip3 = q(n,k+3,j,i);
           ql(n,i) = rec1d_p_mp7(xorder_eps,uim3,uimt,uimo,ui,uipo,uipt,uip3);
           qr(n,i) = rec1d_p_mp7(xorder_eps,uip3,uipt,uipo,ui,uimo,uimt,uim3);
-
-          /*
-          const bool rpf_7 = (
-            pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i) ||
-            pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
-
-          if (rpf_7)
-          {
-            ql(n,i) = rec1d_p_mp5(xorder_eps,uimt,uimo,ui,uipo,uipt);
-            qr(n,i) = rec1d_p_mp5(xorder_eps,uipt,uipo,ui,uimo,uimt);
-          }
-
-          const bool rpf_5 = (
-            pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i) ||
-            pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
-
-          if (rpf_5)
-          {
-            ql(n,i) = rec1d_p_mp3(xorder_eps,uimt,uimo,ui,uipo,uipt);
-            qr(n,i) = rec1d_p_mp3(xorder_eps,uipt,uipo,ui,uimo,uimt);
-          }
-          */
-
           break;
         }
         case ReconstructionVariant::weno5:
@@ -1049,14 +873,8 @@ void Reconstruction::WenoX3(
         }
         case ReconstructionVariant::weno5z:
         {
-          ql(n,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
-          qr(n,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
-          break;
-        }
-        case ReconstructionVariant::weno5z_r:
-        {
-          ql(n,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
-          qr(n,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
+          ql(n,i) = rec1d_p_weno5z(uimt,uimo,ui,uipo,uipt);
+          qr(n,i) = rec1d_p_weno5z(uipt,uipo,ui,uimo,uimt);
           break;
         }
         case ReconstructionVariant::weno5d_si:
@@ -1070,40 +888,7 @@ void Reconstruction::WenoX3(
           break;
         }
       }
-      // ql(n,i) = rec1d_p_mp5(uimt,uimo,ui,uipo,uipt);
-      // qr(n,i) = rec1d_m_mp5(uimt,uimo,ui,uipo,uipt);
-
     }
-  }
-
-  if(eps_rec)
-  {
-    // BD: This should not live here.
-    // If you want to reconstruct mapped variables map first then pass to
-    // The reconstruction procedure.
-    std::cout << "TO FIX: see weno.cpp" << std::endl;
-    std::exit(0);
-
-    /*
-        #pragma omp simd
-        for (int i=il; i<=iu; ++i)
-        {
-          Real ruimt = q(IPR,k-2,j,i)/q(IDN,k-2,j,i);
-          Real ruimo = q(IPR,k-1,j,i)/q(IDN,k-1,j,i);
-          Real rui = q(IPR,k,j,i)/q(IDN,k,j,i);
-          Real ruipo = q(IPR,k+1,j,i)/q(IDN,k+1,j,i);
-          Real ruipt = q(IPR,k+2,j,i)/q(IDN,k+2,j,i);
-    //      ql(n,i) = rec1d_p_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-    //      qr(n,i) = rec1d_m_weno5(ruimt,ruimo,rui,ruipo,ruipt);
-          ql(IPR,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*ql(IDN,i);
-          qr(IPR,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt)*qr(IDN,i);
-    //      ql(n,i) = rec1d_p_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-    //      qr(n,i) = rec1d_m_mp5(ruimt,ruimo,rui,ruipo,ruipt);
-    //      ql(n,i) = rec1d_p_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
-    //      qr(n,i) = rec1d_m_ceno3(ruimt,ruimo,rui,ruipo,ruipt);
-        }
-    */
-
   }
 
   if(MAGNETIC_FIELDS_ENABLED)
@@ -1111,28 +896,26 @@ void Reconstruction::WenoX3(
     #pragma omp simd
     for (int i=il; i<=iu; ++i)
     {
-      // Real luimt = bcc(IB1,k-3,j,i);
-      // Real luimo = bcc(IB1,k-2,j,i);
-      // Real lui = bcc(IB1,k-1,j,i);
-      // Real luipo = bcc(IB1,k,j,i);
-      // Real luipt = bcc(IB1,k+1,j,i);
-      // Real ruimt = bcc(IB1,k-2,j,i);
-      // Real ruimo = bcc(IB1,k-1,j,i);
-      // Real rui = bcc(IB1,k,j,i);
-      // Real ruipo = bcc(IB1,k+1,j,i);
-      // Real ruipt = bcc(IB1,k+2,j,i);
-
-      // ql(IBY,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-      // qr(IBY,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-
       const Real uimt = bcc(IB1,k-2,j,i);
       const Real uimo = bcc(IB1,k-1,j,i);
       const Real ui   = bcc(IB1,k,j,i);
       const Real uipo = bcc(IB1,k+1,j,i);
       const Real uipt = bcc(IB1,k+2,j,i);
 
-      switch (xorder_style)  // should check if this gets loop-lifted...
+      switch (xorder_style)
       {
+        case ReconstructionVariant::donate:
+        {
+          ql(IBY,i) = rec1d_p_donate(uimo,ui,uipo);
+          qr(IBY,i) = rec1d_p_donate(uipo,ui,uimo);
+          break;
+        }
+        case ReconstructionVariant::lintvd:
+        {
+          ql(IBY,i) = rec1d_p_lintvd(uimo,ui,uipo);
+          qr(IBY,i) = rec1d_p_lintvd(uipo,ui,uimo);
+          break;
+        }
         case ReconstructionVariant::ceno3:
         {
           ql(IBY,i) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
@@ -1169,14 +952,8 @@ void Reconstruction::WenoX3(
         }
         case ReconstructionVariant::weno5z:
         {
-          ql(IBY,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
-          qr(IBY,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
-          break;
-        }
-        case ReconstructionVariant::weno5z_r:
-        {
-          ql(IBY,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
-          qr(IBY,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
+          ql(IBY,i) = rec1d_p_weno5z(uimt,uimo,ui,uipo,uipt);
+          qr(IBY,i) = rec1d_p_weno5z(uipt,uipo,ui,uimo,uimt);
           break;
         }
         case ReconstructionVariant::weno5d_si:
@@ -1196,20 +973,6 @@ void Reconstruction::WenoX3(
     #pragma omp simd
     for (int i=il; i<=iu; ++i)
     {
-      // Real luimt = bcc(IB2,k-3,j,i);
-      // Real luimo = bcc(IB2,k-2,j,i);
-      // Real lui = bcc(IB2,k-1,j,i);
-      // Real luipo = bcc(IB2,k,j,i);
-      // Real luipt = bcc(IB2,k+1,j,i);
-      // Real ruimt = bcc(IB2,k-2,j,i);
-      // Real ruimo = bcc(IB2,k-1,j,i);
-      // Real rui = bcc(IB2,k,j,i);
-      // Real ruipo = bcc(IB2,k+1,j,i);
-      // Real ruipt = bcc(IB2,k+2,j,i);
-
-      // ql(IBZ,i) = rec1d_p_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-      // qr(IBZ,i) = rec1d_m_wenoz(ruimt,ruimo,rui,ruipo,ruipt);
-
       const Real uimt = bcc(IB2,k-2,j,i);
       const Real uimo = bcc(IB2,k-1,j,i);
       const Real ui   = bcc(IB2,k,j,i);
@@ -1218,6 +981,18 @@ void Reconstruction::WenoX3(
 
       switch (xorder_style)  // should check if this gets loop-lifted...
       {
+        case ReconstructionVariant::donate:
+        {
+          ql(IBZ,i) = rec1d_p_donate(uimo,ui,uipo);
+          qr(IBZ,i) = rec1d_p_donate(uipo,ui,uimo);
+          break;
+        }
+        case ReconstructionVariant::lintvd:
+        {
+          ql(IBZ,i) = rec1d_p_lintvd(uimo,ui,uipo);
+          qr(IBZ,i) = rec1d_p_lintvd(uipo,ui,uimo);
+          break;
+        }
         case ReconstructionVariant::ceno3:
         {
           ql(IBZ,i) = rec1d_p_ceno3(uimt,uimo,ui,uipo,uipt);
@@ -1254,14 +1029,8 @@ void Reconstruction::WenoX3(
         }
         case ReconstructionVariant::weno5z:
         {
-          ql(IBZ,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
-          qr(IBZ,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
-          break;
-        }
-        case ReconstructionVariant::weno5z_r:
-        {
-          ql(IBZ,i) = rec1d_p_wenoz(uimt,uimo,ui,uipo,uipt);
-          qr(IBZ,i) = rec1d_p_wenoz(uipt,uipo,ui,uimo,uimt);
+          ql(IBZ,i) = rec1d_p_weno5z(uimt,uimo,ui,uipo,uipt);
+          qr(IBZ,i) = rec1d_p_weno5z(uipt,uipo,ui,uimo,uimt);
           break;
         }
         case ReconstructionVariant::weno5d_si:
@@ -1280,34 +1049,44 @@ void Reconstruction::WenoX3(
   }
 
   if (xorder_fallback)
-  for (int i=il; i<=iu; ++i)
   {
-    bool rpf = (
-      pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i) ||
-      pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
+    bool is_admissible = true;
 
-    if (rpf)
+    auto chk_l = [&](const int i)
     {
-      // revert
-      ReconstructionVariant xorder_style_ = xorder_style;
-      xorder_style = ReconstructionVariant::ceno3;
-      xorder_fallback = false;
-      WenoX3(k, j, i, i, q, bcc, ql, qr, false);
+      return CheckPrimitiveReconstructionAdmissible(ql,k,j,i);
+    };
 
-      xorder_style = xorder_style_;
-      xorder_fallback = true;
+    auto chk_r = [&](const int i)
+    {
+      return CheckPrimitiveReconstructionAdmissible(qr,k,j,i);
+    };
 
-      rpf = (
-        pmy_block_->peos->RequirePrimitiveFloor(ql,k,j,i) ||
-        pmy_block_->peos->RequirePrimitiveFloor(qr,k,j,i));
-
-      if (rpf)
+    for (int i=il; i<=iu; ++i)
+    {
+      is_admissible = chk_l(i) && chk_r(i);
+      if (!is_admissible)
       {
-        PiecewiseLinearX3(k, j, i, i, q, bcc, ql, qr);
+        // revert [linear]
+        ReconstructionVariant xorder_style_ = xorder_style;
+        xorder_style = ReconstructionVariant::lintvd;
+        xorder_fallback = false;
+        WenoX3(k, j, i, i, q, bcc, ql, qr, false);
+        xorder_style = xorder_style_;
+        xorder_fallback = true;
+
+        is_admissible = chk_l(i) && chk_r(i);
+
+        // ... further reversion would go here (i.e. donor)
+
+        // if (!is_admissible)
+        // {
+        //   pmy_block_->peos->ForcePrimitiveFloor(ql,k,j,i);
+        //   pmy_block_->peos->ForcePrimitiveFloor(qr,k,j,i);
+        // }
       }
     }
   }
-
 
   if (enforce_floors)
   {
@@ -1321,16 +1100,19 @@ void Reconstruction::WenoX3(
   }
 #endif
 
-    #pragma omp simd
-    for (int i=il; i<=iu; ++i)
+    if (!xorder_fallback)
     {
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i)
+      {
 #if USETM
-      pmy_block_->peos->ApplyPrimitiveFloors(ql, scalar_l, k ,j, i);
-      pmy_block_->peos->ApplyPrimitiveFloors(qr, scalar_r, k ,j, i);
+        pmy_block_->peos->ApplyPrimitiveFloors(ql, scalar_l, k ,j, i);
+        pmy_block_->peos->ApplyPrimitiveFloors(qr, scalar_r, k ,j, i);
 #else
-      pmy_block_->peos->ApplyPrimitiveFloors(ql, k ,j, i);
-      pmy_block_->peos->ApplyPrimitiveFloors(qr, k ,j, i);
+        pmy_block_->peos->ApplyPrimitiveFloors(ql, k ,j, i);
+        pmy_block_->peos->ApplyPrimitiveFloors(qr, k ,j, i);
 #endif
+      }
     }
   }
 
@@ -1338,8 +1120,6 @@ void Reconstruction::WenoX3(
 }
 
 
-
-//double rec1d_p_weno5(double *u, int i)
 double rec1d_p_weno5(double uimt, double uimo, double ui, double uipo, double uipt)
 {
 /*
@@ -1396,14 +1176,14 @@ double rec1d_m_weno5(double uimt, double uimo, double ui, double uipo, double ui
   for( j = 0 ; j<3; j++) w[j] = optimw[j];
 #else
   b[0] = othreeotwo * SQR(( uipt-cc[2]*uipo+ui   )) + oocc[4] * SQR((uipt-cc[4]*uipo+cc[3]*ui)); 
-  b[1] = othreeotwo * SQR(( uipo-cc[2]*ui  +uimo )) + oocc[4] * SQR((uipo-uimo )); 
+  b[1] = othreeotwo * SQR(( uipo-cc[2]*ui  +uimo )) + oocc[4] * SQR((uipo-uimo ));
   b[2] = othreeotwo * SQR(( ui  -cc[2]*uimo+uimt )) + oocc[4] * SQR((cc[3]*ui-cc[4]*uimo+uimt)); 
-  
+
   for( j = 0 ; j<3; j++) a[j] = optimw[j]/( SQR(( EPSL + b[j])) );
   dsa = cc[1]/( a[0] + a[1] + a[2] );
   for( j = 0 ; j<3; j++) w[j] = a[j] * dsa;
-#endif   
-  
+#endif
+
   uk[0] = oocc[6]*( cc[2]*uipt - cc[7]*uipo + cc[11]*ui   );
   uk[1] = oocc[6]*( -     uipo + cc[5]*ui   + cc[2] *uimo );
   uk[2] = oocc[6]*( cc[2]*ui   + cc[5]*uimo -        uimt );
@@ -1414,7 +1194,7 @@ double rec1d_m_weno5(double uimt, double uimo, double ui, double uipo, double ui
 }
 
 #pragma omp declare simd
-double rec1d_p_wenoz(double uimt, double uimo, double ui, double uipo, double uipt)
+double rec1d_p_weno5z(double uimt, double uimo, double ui, double uipo, double uipt)
 {
 /*
   // Computes u[i + 1/2]
@@ -1457,9 +1237,9 @@ double rec1d_p_wenoz(double uimt, double uimo, double ui, double uipo, double ui
 
   return up;
 }
-// WENOZ 
+
 #pragma omp declare simd
-double rec1d_m_wenoz(double uimt, double uimo, double ui, double uipo, double uipt)
+double rec1d_m_weno5z(double uimt, double uimo, double ui, double uipo, double uipt)
 {
 /*
   // Computes u[i - 1/2]
@@ -1893,4 +1673,35 @@ double ceno3lim( double d[3] )
 
 }
 
+double rec1d_p_lintvd(double uimo, double ui, double uipo)
+{
+  /*
+  // MC limiter, possibly too aggressive
+  double up;
 
+  double slope = oocc[2] * MC2( ( ui - uimo ), ( uipo - ui ) );
+  up = ui + slope;
+  return up;
+  */
+
+  // L/R slopes  (note _p & opposite convention to PLM!)
+  double dul = uipo - ui;
+  double dur = ui   - uimo;
+  double uc = ui;
+
+  // van Leer slope limiter
+  double du2 = dul * dur;
+  double dum = (du2 <= 0.0) ? 0.0 : 2.0 * du2 / (dul + dur);
+
+  double ul = uc - 0.5 * dum;
+  double ur = uc + 0.5 * dum;
+  return ur;
+
+}
+
+
+double rec1d_p_donate(double uimo, double ui, double uipo)
+{
+  // center gets put left/right
+  return ui;
+}

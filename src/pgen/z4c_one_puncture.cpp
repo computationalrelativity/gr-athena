@@ -19,8 +19,6 @@
 // #include "../mesh/mesh_refinement.hpp"
 #include "../z4c/z4c.hpp"
 
-using namespace std;
-
 //========================================================================================
 //! \fn void MeshBlock::ProblemGenerator(ParameterInput *pin)
 //  \brief Sets the initial conditions.
@@ -37,12 +35,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   // Constructing Z4c vars from ADM ones
   pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
-
-  return;
-}
-
-
-void MeshBlock::Z4cUserWorkInLoop() {
 
   return;
 }

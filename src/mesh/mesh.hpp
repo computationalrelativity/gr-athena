@@ -272,7 +272,6 @@ public:
 
   // This is a quick fix to prevent multiple calls to 'UserWorkInLoop' if
   // TimeIntegratorTaskList and Z4cIntegratorTaskList are both running..
-  void Z4cUserWorkInLoop();
   void WaveUserWorkInLoop();
 
   bool PointContained(Real const x, Real const y, Real const z);
@@ -285,8 +284,15 @@ public:
   bool SphereIntersects(Real const Sx0, Real const Sy0, Real const Sz0,
                         Real const radius);
 
+  bool IsNewFromAMR()
+  {
+    return new_from_amr;
+  }
+
 private:
-  // data
+  // if AMR *just* created this block, useful to know.
+  bool new_from_amr = false;
+
   Real new_block_dt_, new_block_dt_hyperbolic_, new_block_dt_parabolic_,
     new_block_dt_user_;
   // TODO(felker): make global TaskList a member of MeshBlock, store TaskStates in list
@@ -437,6 +443,8 @@ class Mesh {
   void Initialize(int res_flag, ParameterInput *pin);
   void SetBlockSizeAndBoundaries(LogicalLocation loc, RegionSize &block_size,
                                  BoundaryFlag *block_bcs);
+
+  void NewTimeStep(bool limit_dt_growth);
   void NewTimeStep();
   void OutputCycleDiagnostics();
 
@@ -457,6 +465,13 @@ class Mesh {
   void UserWorkInLoop(); // called in main after each cycle
 
   inline int GetRootLevel() { return root_level; }
+
+  // Additional, specific, communication of data over MeshBlock objects
+  void CommunicateAuxZ4c();
+  void CommunicateIteratedZ4c(const int iterations);
+
+  // General post-AMR procedures
+  void FinalizePostAMR();
 
  private:
   // data
@@ -573,7 +588,6 @@ class Mesh {
   void SetFourPiG(Real fpg) { four_pi_G_=fpg; }
   void SetGravityThreshold(Real eps) { grav_eps_=eps; }
   void SetMeanDensity(Real d0) { grav_mean_rho_=d0; }
-
 };
 
 // collect sampling information into struct

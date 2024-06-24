@@ -108,56 +108,51 @@ class col_con(object):
     }
 
 # -----------------------------------------------------------------------------
-show_old = False
+
+# set it up here
 
 MAGNETIC_FIELDS_ENABLED = True
-NSCALARS = 0
+NSCALARS = 1
+
+adaptive = False
+multilevel = False
+
+# -----------------------------------------------------------------------------
+
+show_old = False
 
 MODE = "GRMHD" if MAGNETIC_FIELDS_ENABLED else "GRHD"
 
 flags_Mat = f'z4c_matter_task_list ({MODE}):'
-flags_Mat +=' (pm->adaptive, pm->multilevel)'
+
+flags_Mat += ' ('
+if adaptive:
+  flags_Mat += "adaptive "
+if multilevel:
+  flags_Mat += "multilevel "
+
+
+flags_Mat += f' NSCALARS={NSCALARS})'
 
 cc_Mat = col_con()
 
 # -----------------------------------------------------------------------------
 cc_Mat.add_node_unparsed(
-  NODE_LABEL='DIFFUSE_HYD',
+  NODE_LABEL='CALC_HYDFLX',
   NODE_PARENTS=None,
-  description=['DiffuseHydro'])
-
-if MAGNETIC_FIELDS_ENABLED:
-  cc_Mat.add_node_unparsed(
-    NODE_LABEL='DIFFUSE_FLD',
-    NODE_PARENTS=None,
-    description=['DiffuseField'])
-
-  cc_Mat.add_node_unparsed(
-    NODE_LABEL='CALC_HYDFLX',
-    NODE_PARENTS=["DIFFUSE_HYD", "DIFFUSE_FLD"],
-    description=['CalculateHydroFlux'])
-else:
-  cc_Mat.add_node_unparsed(
-    NODE_LABEL='CALC_HYDFLX',
-    NODE_PARENTS=["DIFFUSE_HYD"],
-    description=['CalculateHydroFlux'])
+  description=['CalculateHydroFlux'])
 
 if NSCALARS > 0:
   cc_Mat.add_node_unparsed(
-    NODE_LABEL='DIFFUSE_SCLR',
-    NODE_PARENTS=None,
-    description=['DiffuseScalars'])
-
-  cc_Mat.add_node_unparsed(
     NODE_LABEL='CALC_SCLRFLX',
-    NODE_PARENTS=["CALC_HYDFLX", "DIFFUSE_SCLR"],
+    NODE_PARENTS=["CALC_HYDFLX"],
     description=['CalculateScalarFlux'])
 
 if "multilevel" in flags_Mat:
   cc_Mat.add_node_unparsed(
     NODE_LABEL='SEND_HYDFLX',
     NODE_PARENTS=["CALC_HYDFLX"],
-    description=['SendHydroFlux'])
+    description=['SendFluxCorrectionHydro'])
 
   cc_Mat.add_node_unparsed(
     NODE_LABEL='RECV_HYDFLX',
@@ -175,7 +170,6 @@ else:
     NODE_PARENTS=["CALC_HYDFLX"],
     description=['IntegrateHydro'])
 
-# -----------------------------------------------------------------------------
 cc_Mat.add_node_unparsed(
   NODE_LABEL='SRCTERM_HYD',
   NODE_PARENTS=["INT_HYD"],
@@ -188,7 +182,7 @@ cc_Mat.add_node_unparsed(
 
 cc_Mat.add_node_unparsed(
   NODE_LABEL='RECV_HYD',
-  NODE_PARENTS=["INT_HYD"],
+  NODE_PARENTS=None,
   description=['ReceiveHydro'])
 
 cc_Mat.add_node_unparsed(
@@ -196,20 +190,25 @@ cc_Mat.add_node_unparsed(
   NODE_PARENTS=["RECV_HYD", "SRCTERM_HYD"],
   description=['SetBoundariesHydro'])
 
-if (NSCALARS > 0):
+# -----------------------------------------------------------------------------
+
+if NSCALARS > 0:
   if "multilevel" in flags_Mat:
     cc_Mat.add_node_unparsed(
       NODE_LABEL='SEND_SCLRFLX',
       NODE_PARENTS=["CALC_SCLRFLX"],
       description=['SendScalarFlux'])
+
     cc_Mat.add_node_unparsed(
       NODE_LABEL='RECV_SCLRFLX',
       NODE_PARENTS=["CALC_SCLRFLX"],
       description=['ReceiveScalarFlux'])
+
     cc_Mat.add_node_unparsed(
       NODE_LABEL='INT_SCLR',
       NODE_PARENTS=["RECV_SCLRFLX"],
       description=['IntegrateScalars'])
+
   else:
     cc_Mat.add_node_unparsed(
       NODE_LABEL='INT_SCLR',
@@ -231,111 +230,102 @@ if (NSCALARS > 0):
     NODE_PARENTS=["RECV_SCLR", "INT_SCLR"],
     description=['SetBoundariesScalars'])
 
+# -----------------------------------------------------------------------------
 if MAGNETIC_FIELDS_ENABLED:
-  cc_Mat.add_node_unparsed(
-    NODE_LABEL='CALC_FLDFLX',
-    NODE_PARENTS=["CALC_HYDFLX"],
-    description=['CalculateEMF'])
+  cc_Mat.add_node_unparsed(NODE_LABEL='CALC_FLDFLX', NODE_PARENTS=['CALC_HYDFLX'], description=['CalculateEMF'])
+  cc_Mat.add_node_unparsed(NODE_LABEL='SEND_FLDFLX', NODE_PARENTS=['CALC_FLDFLX'], description=['SendFluxCorrectionEMF'])
+  cc_Mat.add_node_unparsed(NODE_LABEL='RECV_FLDFLX', NODE_PARENTS=['CALC_FLDFLX'], description=['ReceiveAndCorrectEMF'])
+  cc_Mat.add_node_unparsed(NODE_LABEL='INT_FLD',     NODE_PARENTS=['RECV_FLDFLX'], description=['IntegrateField'])
 
-  cc_Mat.add_node_unparsed(
-    NODE_LABEL='SEND_FLDFLX',
-    NODE_PARENTS=["CALC_FLDFLX"],
-    description=['SendEMF'])
-
-  cc_Mat.add_node_unparsed(
-    NODE_LABEL='RECV_FLDFLX',
-    NODE_PARENTS=["SEND_FLDFLX"],
-    description=['ReceiveAndCorrectEMF'])
-
-  cc_Mat.add_node_unparsed(
-    NODE_LABEL='INT_FLD',
-    NODE_PARENTS=["RECV_FLDFLX"],
-    description=['IntegrateField'])
-
-  cc_Mat.add_node_unparsed(
-    NODE_LABEL='SEND_FLD',
-    NODE_PARENTS=["INT_FLD"],
-    description=['SendField'])
-
-  cc_Mat.add_node_unparsed(
-    NODE_LABEL='RECV_FLD',
-    NODE_PARENTS=None,
-    description=['ReceiveField'])
-
-  cc_Mat.add_node_unparsed(
-    NODE_LABEL='SETB_FLD',
-    NODE_PARENTS=["RECV_FLD", "INT_FLD"],
-    description=['SetBoundariesField'])
-
+  cc_Mat.add_node_unparsed(NODE_LABEL='SEND_FLD', NODE_PARENTS=['INT_FLD'], description=['SendField'])
+  cc_Mat.add_node_unparsed(NODE_LABEL='RECV_FLD', NODE_PARENTS=None,    description=['ReceiveField'])
+  cc_Mat.add_node_unparsed(NODE_LABEL='SETB_FLD', NODE_PARENTS=['RECV_FLD', 'INT_FLD'], description=['SetBoundariesField'])
 
   if "multilevel" in flags_Mat:
-    if (NSCALARS > 0):
+    if NSCALARS > 0:
       cc_Mat.add_node_unparsed(
         NODE_LABEL='PROLONG_HYD',
-        NODE_PARENTS=["SEND_HYD", "SETB_HYD", "SEND_FLD", "SETB_FLD", "SEND_SCLR", "SETB_SCLR"],
+        NODE_PARENTS=["Z4C_TO_ADM", "SEND_HYD", "SEND_FLD", "SEND_SCLR"],
         description=['Prolongation_Hyd'])
     else:
       cc_Mat.add_node_unparsed(
         NODE_LABEL='PROLONG_HYD',
-        NODE_PARENTS=["SEND_HYD", "SETB_HYD", "SEND_FLD", "SETB_FLD"],
+        NODE_PARENTS=["Z4C_TO_ADM", "SEND_HYD", "SEND_FLD"],
         description=['Prolongation_Hyd'])
 
     cc_Mat.add_node_unparsed(
       NODE_LABEL='CONS2PRIM',
-      NODE_PARENTS=["Z4C_TO_ADM"],
+      NODE_PARENTS=["PROLONG_HYD"],
       description=['Primitives'])
+
   else:
-    if (NSCALARS > 0):
-      cc_Mat.add_node_unparsed(
-        NODE_LABEL='CONS2PRIM',
-        NODE_PARENTS=["SETB_HYD", "SETB_FLD", "SETB_SCLR"],
-        description=['Primitives'])
-    else:
-      cc_Mat.add_node_unparsed(
-        NODE_LABEL='CONS2PRIM',
-        NODE_PARENTS=["SETB_HYD", "SETB_FLD", "Z4C_TO_ADM"],
-        description=['Primitives'])
-
-else: # HYDRO
-  if "multilevel" in flags_Mat:
-    if (NSCALARS > 0):
-      cc_Mat.add_node_unparsed(
-        NODE_LABEL='PROLONG_HYD',
-        NODE_PARENTS=["SEND_HYD", "SETB_HYD", "SETB_SCLR", "SEND_SCLR", "Z4C_TO_ADM"],
-        description=['Prolongation_Hyd'])
-    else:
-      cc_Mat.add_node_unparsed(
-        NODE_LABEL='PROLONG_HYD',
-        NODE_PARENTS=["SEND_HYD", "SETB_HYD"],
-        description=['Prolongation_Hyd'])
-
     cc_Mat.add_node_unparsed(
       NODE_LABEL='CONS2PRIM',
       NODE_PARENTS=["Z4C_TO_ADM"],
       description=['Primitives'])
 
-  else:
-    if (NSCALARS > 0):
+else:  # GRHD
+  if "multilevel" in flags_Mat:
+    if NSCALARS > 0:
       cc_Mat.add_node_unparsed(
-        NODE_LABEL='CONS2PRIM',
-        NODE_PARENTS=["SETB_HYD", "SETB_SCLR"],
-        description=['Primitives'])
+        NODE_LABEL='PROLONG_HYD',
+        NODE_PARENTS=["Z4C_TO_ADM", "SEND_HYD", "SEND_SCLR"],
+        description=['Prolongation_Hyd'])
     else:
       cc_Mat.add_node_unparsed(
-        NODE_LABEL='CONS2PRIM',
-        NODE_PARENTS=["Z4C_TO_ADM"],
-        description=['Primitives'])
+        NODE_LABEL='PROLONG_HYD',
+        NODE_PARENTS=["Z4C_TO_ADM", "SEND_HYD"],
+        description=['Prolongation_Hyd'])
+
+    cc_Mat.add_node_unparsed(
+      NODE_LABEL='CONS2PRIM',
+      NODE_PARENTS=["PROLONG_HYD"],
+      description=['Primitives'])
+
+  else:
+    cc_Mat.add_node_unparsed(
+      NODE_LABEL='CONS2PRIM',
+      NODE_PARENTS=["Z4C_TO_ADM"],
+      description=['Primitives'])
 
 # -----------------------------------------------------------------------------
-cc_Mat.add_node_unparsed(
-  NODE_LABEL='PHY_BVAL_HYD',
-  NODE_PARENTS=["CONS2PRIM"],
-  description=['PhysicalBoundary_Hyd'])
+if "multilevel" not in flags_Mat:
+  if MAGNETIC_FIELDS_ENABLED:
+    if NSCALARS > 0:
+      cc_Mat.add_node_unparsed(
+        NODE_LABEL='PHY_BVAL_HYD',
+        NODE_PARENTS=["CONS2PRIM", "SEND_HYD", "SEND_FLD", "SEND_SCLR"],
+        description=['PhysicalBoundary_Hyd'])
+    else:
+      cc_Mat.add_node_unparsed(
+        NODE_LABEL='PHY_BVAL_HYD',
+        NODE_PARENTS=["CONS2PRIM", "SEND_HYD", "SEND_FLD"],
+        description=['PhysicalBoundary_Hyd'])
+  else:
+    if NSCALARS > 0:
+      cc_Mat.add_node_unparsed(
+        NODE_LABEL='PHY_BVAL_HYD',
+        NODE_PARENTS=["CONS2PRIM", "SEND_HYD", "SEND_SCLR"],
+        description=['PhysicalBoundary_Hyd'])
+    else:
+      cc_Mat.add_node_unparsed(
+        NODE_LABEL='PHY_BVAL_HYD',
+        NODE_PARENTS=["CONS2PRIM", "SEND_HYD"],
+        description=['PhysicalBoundary_Hyd'])
 
+else:
+  cc_Mat.add_node_unparsed(
+    NODE_LABEL='PHY_BVAL_HYD',
+    NODE_PARENTS=["CONS2PRIM"],
+    description=['PhysicalBoundary_Hyd'])
+
+
+# -----------------------------------------------------------------------------
 cc_Mat.add_node_unparsed(
   NODE_LABEL='UPDATE_SRC',
   NODE_PARENTS=["PHY_BVAL_HYD"],
   description=['UpdateSource'])
+# -----------------------------------------------------------------------------
 
 cc_Mat.add_node_unparsed(
   NODE_LABEL='CALC_Z4CRHS',
@@ -352,74 +342,68 @@ cc_Mat.add_node_unparsed(
   NODE_PARENTS=["INT_Z4C"],
   description=['SendZ4c'])
 
-# if MAGNETIC_FIELDS_ENABLED:
-#   cc_Mat.add_node_unparsed(
-#     NODE_LABEL='RECV_Z4C',
-#     NODE_PARENTS=["INT_Z4C", "RECV_HYD", "RECV_FLD", "RECV_FLDFLX"],
-#     description=['ReceiveZ4c'])
-# else:
-#   cc_Mat.add_node_unparsed(
-#     NODE_LABEL='RECV_Z4C',
-#     NODE_PARENTS=["INT_Z4C"],
-#     description=['ReceiveZ4c'])
-
 cc_Mat.add_node_unparsed(
   NODE_LABEL='RECV_Z4C',
-  NODE_PARENTS=["INT_Z4C"],
+  NODE_PARENTS=None,
   description=['ReceiveZ4c'])
 
+# -----------------------------------------------------------------------------
 cc_Mat.add_node_unparsed(
   NODE_LABEL='SETB_Z4C',
-  NODE_PARENTS=["RECV_Z4C"],
+  NODE_PARENTS=["RECV_Z4C", "INT_Z4C"],
   description=['SetBoundariesZ4c'])
+
+# -----------------------------------------------------------------------------
 
 if "multilevel" in flags_Mat:
   cc_Mat.add_node_unparsed(
     NODE_LABEL='PROLONG_Z4C',
-    NODE_PARENTS=["SEND_Z4C", "SETB_Z4C"],
-    description=['Prolongation_Z4c'])
-  cc_Mat.add_node_unparsed(
-    NODE_LABEL='PHY_BVAL_Z4C',
-    NODE_PARENTS=["PROLONG_Z4C"],
-    description=['PhysicalBoundary_Z4c'])
-else:
-  cc_Mat.add_node_unparsed(
-    NODE_LABEL='PHY_BVAL_Z4C',
     NODE_PARENTS=["SETB_Z4C"],
+    description=['Prolongation_Z4c'])
+
+  cc_Mat.add_node_unparsed(
+    NODE_LABEL='PHY_BVAL_Z4C',
+    NODE_PARENTS=["PROLONG_Z4C",],
     description=['PhysicalBoundary_Z4c'])
+
+else:
+
+  cc_Mat.add_node_unparsed(
+    NODE_LABEL='PHY_BVAL_Z4C',
+    NODE_PARENTS=["SETB_Z4C",],
+    description=['PhysicalBoundary_Z4c'])
+
+# -----------------------------------------------------------------------------
 
 cc_Mat.add_node_unparsed(
   NODE_LABEL='ALG_CONSTR',
-  NODE_PARENTS=["PHY_BVAL_Z4C"],
+  NODE_PARENTS=["PHY_BVAL_Z4C",],
   description=['EnforceAlgConstr'])
 
-# if MAGNETIC_FIELDS_ENABLED:
-#   cc_Mat.add_node_unparsed(
-#     NODE_LABEL='Z4C_TO_ADM',
-#     NODE_PARENTS=["ALG_CONSTR", "INT_HYD", "INT_FLD"],
-#     description=['Z4cToADM'])
-# else:
-#   if "multilevel" in flags_Mat:
-#     cc_Mat.add_node_unparsed(
-#       NODE_LABEL='Z4C_TO_ADM',
-#       NODE_PARENTS=["ALG_CONSTR", "PROLONG_HYD"],
-#       description=['Z4cToADM'])
-#   else:
-#     cc_Mat.add_node_unparsed(
-#       NODE_LABEL='Z4C_TO_ADM',
-#       NODE_PARENTS=["ALG_CONSTR", "SETB_HYD"],
-#       description=['Z4cToADM'])
-
-if "multilevel" in flags_Mat:
-  cc_Mat.add_node_unparsed(
-    NODE_LABEL='Z4C_TO_ADM',
-    NODE_PARENTS=["ALG_CONSTR", "PROLONG_HYD"],
-    description=['Z4cToADM'])
+# -----------------------------------------------------------------------------
+if MAGNETIC_FIELDS_ENABLED:
+  if NSCALARS > 0:
+    cc_Mat.add_node_unparsed(
+      NODE_LABEL='Z4C_TO_ADM',
+      NODE_PARENTS=["ALG_CONSTR", "SETB_HYD", "SETB_FLD", "SETB_SCLR"],
+      description=['Z4cToADM'])
+  else:
+    cc_Mat.add_node_unparsed(
+      NODE_LABEL='Z4C_TO_ADM',
+      NODE_PARENTS=["ALG_CONSTR", "SETB_HYD", "SETB_FLD"],
+      description=['Z4cToADM'])
 else:
-  cc_Mat.add_node_unparsed(
-    NODE_LABEL='Z4C_TO_ADM',
-    NODE_PARENTS=["ALG_CONSTR", "SETB_HYD"],
-    description=['Z4cToADM'])
+  if NSCALARS > 0:
+    cc_Mat.add_node_unparsed(
+      NODE_LABEL='Z4C_TO_ADM',
+      NODE_PARENTS=["ALG_CONSTR", "SETB_HYD", "SETB_SCLR"],
+      description=['Z4cToADM'])
+  else:
+    cc_Mat.add_node_unparsed(
+      NODE_LABEL='Z4C_TO_ADM',
+      NODE_PARENTS=["ALG_CONSTR", "SETB_HYD"],
+      description=['Z4cToADM'])
+
 
 # -----------------------------------------------------------------------------
 cc_Mat.add_node_unparsed(
@@ -433,11 +417,6 @@ cc_Mat.add_node_unparsed(
   description=['Z4c_Weyl'])
 
 cc_Mat.add_node_unparsed(
-  NODE_LABEL='WAVE_EXTR',
-  NODE_PARENTS=["Z4C_WEYL"],
-  description=['WaveExtract'])
-
-cc_Mat.add_node_unparsed(
   NODE_LABEL='USERWORK',
   NODE_PARENTS=["ADM_CONSTR"],
   description=['UserWork'])
@@ -447,20 +426,27 @@ cc_Mat.add_node_unparsed(
   NODE_PARENTS=["USERWORK"],
   description=['NewBlockTimeStep'])
 
+# -----------------------------------------------------------------------------
+
 if "adaptive" in flags_Mat:
   cc_Mat.add_node_unparsed(
     NODE_LABEL='FLAG_AMR',
     NODE_PARENTS=["USERWORK"],
     description=['CheckRefinement'])
+
   cc_Mat.add_node_unparsed(
     NODE_LABEL='CLEAR_ALLBND',
     NODE_PARENTS=["FLAG_AMR"],
     description=['ClearAllBoundary'])
+
 else:
+
   cc_Mat.add_node_unparsed(
     NODE_LABEL='CLEAR_ALLBND',
     NODE_PARENTS=["NEW_DT"],
     description=['ClearAllBoundary'])
+
+# =============================================================================
 
 cc_Mat.node_parse_added()
 
@@ -496,7 +482,7 @@ for p, vals in g_Mat_pos.items():
     pass
 
   _plt.text(vals[0]+10, vals[1], p,
-    fontsize=10,
+    fontsize=8,
     horizontalalignment='left',
     verticalalignment='center',
     linespacing=0.7,
@@ -508,7 +494,7 @@ spines = ['top', 'left', 'right', 'bottom']
 for spine in spines:
   gax.spines[spine].set_visible(False)
 
-gax.set_title(flags_Mat, y=0.98, fontsize=10, fontweight='bold')
+gax.set_title(flags_Mat, y=0.98, fontsize=8, fontweight='bold')
 # gax.text(
 #   0.02, 1,
 #   r'Start_state: $(u,\,w;\,{}^A u,\,{}^Z u,\,{}^A\mathcal{S}){}^{n}$',

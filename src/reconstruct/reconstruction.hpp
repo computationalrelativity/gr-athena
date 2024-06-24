@@ -30,22 +30,19 @@ class Reconstruction {
   // data
   // switches for reconstruction method variants:
   int xorder;   // roughly the formal order of accuracy of overall reconstruction method
-  bool xorder_fallback;  // allow method fallback?
 
   // for xorder == 5 we can switch between reconstruction styles
   enum class ReconstructionVariant {
-    none,ceno3,mp3,mp5,mp7,weno5,weno5z,weno5z_r,weno5d_si
+    none,donate,lintvd,ceno3,mp3,mp5,mp7,weno5,weno5z,weno5d_si
   };
   ReconstructionVariant xorder_style;
-  Real xorder_eps;  // for methods for epsilon control parameters
+  Real xorder_eps;       // for methods for epsilon control parameters
+  bool xorder_fallback;  // for methods with order reduction
 
   bool characteristic_projection; // reconstruct on characteristic or primitive hydro vars
   bool uniform[3], curvilinear[2];
   // (Cartesian reconstruction formulas are used for x3 azimuthal coordinate in both
   // cylindrical and spherical-polar coordinates)
-
-  // reconstruction with eps (internal energy) == 1 or pressure == 0 (default)
-  bool eps_rec;
 
   // related fourth-order solver switches
   const bool correct_ic, correct_err; // used in Mesh::Initialize() and ProblemGenerator()

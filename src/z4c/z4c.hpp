@@ -67,6 +67,8 @@ public:
   static char const * const Z4c_names[N_Z4c];
   // Indexes of ADM variables
   enum {
+    I_ADM_alpha,
+    I_ADM_betax, I_ADM_betay, I_ADM_betaz,
     I_ADM_gxx, I_ADM_gxy, I_ADM_gxz, I_ADM_gyy, I_ADM_gyz, I_ADM_gzz,
     I_ADM_Kxx, I_ADM_Kxy, I_ADM_Kxz, I_ADM_Kyy, I_ADM_Kyz, I_ADM_Kzz,
     I_ADM_psi4,
@@ -142,6 +144,8 @@ public:
 
   // aliases for the ADM variables
   struct ADM_vars {
+    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha;     // lapse
+    AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u;    // shift
     AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> psi4;      // conformal factor
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g_dd;      // 3-metric
     AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> K_dd;      // curvature

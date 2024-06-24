@@ -243,7 +243,31 @@ void BoundaryValues::CheckUserBoundaries() {
 //! \fn void BoundaryValues::StartReceiving(BoundaryCommSubset phase)
 //  \brief initiate MPI_Irecv()
 
-void BoundaryValues::StartReceiving(BoundaryCommSubset phase) {
+void BoundaryValues::StartReceiving(BoundaryCommSubset phase)
+{
+  if (phase == BoundaryCommSubset::aux_z4c)
+  {
+    for (auto bvars_it = bvars_aux.begin();
+         bvars_it != bvars_aux.end();
+         ++bvars_it)
+    {
+      (*bvars_it)->StartReceiving(phase);
+    }
+
+    return;
+  }
+
+  if (phase == BoundaryCommSubset::iterated_z4c)
+  {
+    for (auto bvars_it = bvars_rbc.begin();
+         bvars_it != bvars_rbc.end();
+         ++bvars_it)
+    {
+      (*bvars_it)->StartReceiving(phase);
+    }
+    return;
+  }
+
   for (auto bvars_it = bvars_main_int.begin();
        bvars_it != bvars_main_int.end();
        ++bvars_it)
@@ -315,7 +339,31 @@ void BoundaryValues::StartReceivingShear(BoundaryCommSubset phase) {
 //! \fn void BoundaryValues::ClearBoundary(BoundaryCommSubset phase)
 //  \brief clean up the boundary flags after each loop
 
-void BoundaryValues::ClearBoundary(BoundaryCommSubset phase) {
+void BoundaryValues::ClearBoundary(BoundaryCommSubset phase)
+{
+  if (phase == BoundaryCommSubset::aux_z4c)
+  {
+    for (auto bvars_it = bvars_aux.begin();
+         bvars_it != bvars_aux.end();
+         ++bvars_it)
+    {
+      (*bvars_it)->ClearBoundary(phase);
+    }
+
+    return;
+  }
+
+  if (phase == BoundaryCommSubset::iterated_z4c)
+  {
+    for (auto bvars_it = bvars_rbc.begin();
+         bvars_it != bvars_rbc.end();
+         ++bvars_it)
+    {
+      (*bvars_it)->ClearBoundary(phase);
+    }
+    return;
+  }
+
   // Note BoundaryCommSubset::mesh_init corresponds to initial exchange of conserved fluid
   // variables and magentic fields, while BoundaryCommSubset::gr_amr corresponds to fluid
   // primitive variables sent only in the case of GR with refinement
@@ -334,38 +382,6 @@ void BoundaryValues::ClearBoundary(BoundaryCommSubset phase) {
     (*bvars_it)->ClearBoundary(phase);
   }
 
-  return;
-}
-
-void BoundaryValues::StartReceivingAux(BoundaryCommSubset phase) {
-  for (auto bvars_it = bvars_aux.begin(); bvars_it != bvars_aux.end();
-       ++bvars_it) {
-    (*bvars_it)->StartReceiving(phase);
-  }
-  return;
-}
-
-void BoundaryValues::ClearBoundaryAux(BoundaryCommSubset phase) {
-  for (auto bvars_it = bvars_aux.begin(); bvars_it != bvars_aux.end();
-       ++bvars_it) {
-    (*bvars_it)->ClearBoundary(phase);
-  }
-  return;
-}
-
-void BoundaryValues::StartReceivingRBC(BoundaryCommSubset phase) {
-  for (auto bvars_it = bvars_rbc.begin(); bvars_it != bvars_rbc.end();
-       ++bvars_it) {
-    (*bvars_it)->StartReceiving(phase);
-  }
-  return;
-}
-
-void BoundaryValues::ClearBoundaryRBC(BoundaryCommSubset phase) {
-  for (auto bvars_it = bvars_rbc.begin(); bvars_it != bvars_rbc.end();
-       ++bvars_it) {
-    (*bvars_it)->ClearBoundary(phase);
-  }
   return;
 }
 
@@ -433,6 +449,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
                                               bjs, bje, bks, bke);
     }
 
+#ifndef DBG_USE_CONS_BC
     if (FLUID_ENABLED){
 #if USETM
       pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
@@ -449,6 +466,9 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
         ps->r, ph->w, ps->s, pco, pmb->is-NGHOST, pmb->is-1, bjs, bje, bks, bke);
     }
 #endif
+
+#endif // DBG_USE_CONS_BC
+
   }
 
   // Apply boundary function on outer-x1 and update W,bcc (if not periodic)
@@ -463,6 +483,8 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
                                               pmb->ie+1, pmb->ie+NGHOST,
                                               bjs, bje, bks, bke);
     }
+
+#ifndef DBG_USE_CONS_BC
 
     if (FLUID_ENABLED) {
 #if USETM
@@ -480,6 +502,9 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
         ps->r, ph->w, ps->s, pco, pmb->ie+1, pmb->ie+NGHOST, bjs, bje, bks, bke);
     }
 #endif
+
+#endif // DBG_USE_CONS_BC
+
   }
 
   if (pmb->block_size.nx2 > 1) { // 2D or 3D
@@ -496,6 +521,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
                                                 bks, bke);
       }
 
+#ifndef DBG_USE_CONS_BC
       if (FLUID_ENABLED) {
 #if USETM
         pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
@@ -512,6 +538,9 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
             ps->r, ph->w, ps->s, pco, bis, bie, pmb->js-NGHOST, pmb->js-1, bks, bke);
       }
 #endif
+
+#endif // DBG_USE_CONS_BC
+
     }
 
     // Apply boundary function on outer-x2 and update W,bcc (if not periodic)
@@ -527,6 +556,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
                                                 bks, bke);
       }
 
+#ifndef DBG_USE_CONS_BC
       if (FLUID_ENABLED) {
 #if USETM
         pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
@@ -543,6 +573,9 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
           ps->r, ph->w, ps->s, pco, bis, bie, pmb->je+1, pmb->je+NGHOST, bks, bke);
       }
 #endif
+
+#endif // DBG_USE_CONS_BC
+
     }
   }
 
@@ -563,6 +596,8 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
                                                 pmb->ks-NGHOST, pmb->ks-1);
       }
 
+#ifndef DBG_USE_CONS_BC
+
       if (FLUID_ENABLED) {
 #if USETM
         pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
@@ -579,6 +614,9 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
             ps->r, ph->w, ps->s, pco, bis, bie, bjs, bje, pmb->ks-NGHOST, pmb->ks-1);
       }
 #endif
+
+#endif // DBG_USE_CONS_BC
+
     }
 
     // Apply boundary function on outer-x3 and update W,bcc (if not periodic)
@@ -594,6 +632,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
                                                 pmb->ke+1, pmb->ke+NGHOST);
       }
 
+#ifndef DBG_USE_CONS_BC
       if (FLUID_ENABLED) {
 #if USETM
         pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
@@ -610,6 +649,9 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
             ps->r, ph->w, ps->s, pco, bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
       }
 #endif
+
+#endif // DBG_USE_CONS_BC
+
     }
   }
   return;
@@ -703,7 +745,8 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundaries(const Real time, cons
   return;
 }
 
-void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const Real dt) {
+void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const Real dt)
+{
   MeshBlock *pmb = pmy_block_;
   Coordinates *pco = pmb->pcoord;
   int bis = pmb->cx_is - NGHOST, bie = pmb->cx_ie + NGHOST,

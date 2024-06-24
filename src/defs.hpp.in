@@ -36,8 +36,8 @@
 // use compensated summation for CX interior restrict?
 #define NO_DBG_CX_KBN_CS
 
-// reduce auxiliary comms. (removes coarse buffer BC application however)
-#define NO_DBG_REDUCE_AUX_COMM
+// BD: TODO - whether to register in LoadBalanceAMR the aux?
+#define DBG_REDUCE_AUX_COMM
 
 // GRHD: use sources from Alcubierre book
 #define @DBG_MA_SOURCES@
@@ -59,6 +59,10 @@
 
 // Abort tasklist on hang; dump info
 #define DBG_TASKLIST_HANG
+
+// If activated, use only cons R/P on MeshBlock BC; and phys BC
+#define @DBG_USE_CONS_BC@
+#define @DBG_USE_REFERENCE_TASKLISTS@
 
 //----------------------------------------------------------------------------------------
 // macros which define physics and algorithms
