@@ -47,6 +47,7 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
   // --------------------------------
   std::string input_recon = pin->GetOrAddString("time", "xorder", "2");
 
+  /*
   if (input_recon == "1") {
     xorder = 1;
   } else if (input_recon == "2") {
@@ -68,15 +69,26 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
       characteristic_projection = true;
   // additional reconstruction methods
   }
-  else if (input_recon == "donate")
+  */
+  if (input_recon == "donate")
   {
     xorder = 5;  // 5 is dummy for WENO interface
     xorder_style = ReconstructionVariant::donate;
   }
-  else if (input_recon == "lintvd")
+  else if (input_recon == "lin_vl")
   {
     xorder = 5;  // 5 is dummy for WENO interface
-    xorder_style = ReconstructionVariant::lintvd;
+    xorder_style = ReconstructionVariant::lin_vl;
+  }
+  else if (input_recon == "lin_mc2")
+  {
+    xorder = 5;  // 5 is dummy for WENO interface
+    xorder_style = ReconstructionVariant::lin_mc2;
+  }
+  else if (input_recon == "ppm")
+  {
+    xorder = 5;  // 5 is dummy for WENO interface
+    xorder_style = ReconstructionVariant::ppm;
   }
   else if (input_recon == "ceno3")
   {
@@ -284,7 +296,7 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
   scr3_ni_.NewAthenaArray(NWAVE, nc1);
   scr4_ni_.NewAthenaArray(NWAVE, nc1);
 
-  if ((xorder == 3) || (xorder == 4)) {
+  if ((xorder == 3) || (xorder == 4) || (xorder == 5)) {
     Coordinates *pco = pmb->pcoord;
     scr03_i_.NewAthenaArray(nc1);
     scr04_i_.NewAthenaArray(nc1);
@@ -303,11 +315,6 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
     scr6_ni_.NewAthenaArray(NWAVE, nc1);
     scr7_ni_.NewAthenaArray(NWAVE, nc1);
     scr8_ni_.NewAthenaArray(NWAVE, nc1);
-
-#if USETM
-  scalar_l.NewAthenaArray(NSCALARS,nc1);
-  scalar_r.NewAthenaArray(NSCALARS,nc1);
-#endif
 
     // Precompute PPM coefficients in x1-direction ---------------------------------------
     c1i.NewAthenaArray(nc1);
@@ -710,6 +717,148 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
   } // end "if PPM or full 4th order spatial integrator"
 }
 
+// Refactored interface -------------------------------------------------------
+void Reconstruction::ReconstructFieldX1(
+  const ReconstructionVariant rv,
+  AthenaArray<Real> &z,
+  AthenaArray<Real> &zl_,
+  AthenaArray<Real> &zr_,
+  const int n_tar,
+  const int n_src,
+  const int k,
+  const int j,
+  const int il, const int iu)
+{
+  typedef Reconstruction::ReconstructionVariant ReconVar;
+
+  switch (rv)
+  {
+    case (ReconVar::donate):
+    {
+      ReconstructDonateX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::lin_vl):
+    {
+      ReconstructLinearVLX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::lin_mc2):
+    {
+      ReconstructLinearMC2X1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::ppm):
+    {
+      ReconstructPPMX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno5z):
+    {
+      ReconstructWeno5ZX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    default:
+    {
+      assert(false);
+    }
+  }
+}
+
+void Reconstruction::ReconstructFieldX2(
+  const ReconstructionVariant rv,
+  AthenaArray<Real> &z,
+  AthenaArray<Real> &zl_,
+  AthenaArray<Real> &zr_,
+  const int n_tar,
+  const int n_src,
+  const int k,
+  const int j,
+  const int il, const int iu)
+{
+  typedef Reconstruction::ReconstructionVariant ReconVar;
+
+  switch (rv)
+  {
+    case (ReconVar::donate):
+    {
+      ReconstructDonateX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::lin_vl):
+    {
+      ReconstructLinearVLX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::lin_mc2):
+    {
+      ReconstructLinearMC2X2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::ppm):
+    {
+      ReconstructPPMX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno5z):
+    {
+      ReconstructWeno5ZX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    default:
+    {
+      assert(false);
+    }
+  }
+}
+
+void Reconstruction::ReconstructFieldX3(
+  const ReconstructionVariant rv,
+  AthenaArray<Real> &z,
+  AthenaArray<Real> &zl_,
+  AthenaArray<Real> &zr_,
+  const int n_tar,
+  const int n_src,
+  const int k,
+  const int j,
+  const int il, const int iu)
+{
+  typedef Reconstruction::ReconstructionVariant ReconVar;
+
+  switch (rv)
+  {
+    case (ReconVar::donate):
+    {
+      ReconstructDonateX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::lin_vl):
+    {
+      ReconstructLinearVLX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::lin_mc2):
+    {
+      ReconstructLinearMC2X3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::ppm):
+    {
+      ReconstructPPMX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno5z):
+    {
+      ReconstructWeno5ZX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    default:
+    {
+      assert(false);
+    }
+  }
+}
+// ----------------------------------------------------------------------------
 
 namespace {
 

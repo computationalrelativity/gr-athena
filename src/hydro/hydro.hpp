@@ -16,6 +16,9 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../bvals/cc/hydro/bvals_hydro.hpp"
+#include "../mesh/mesh.hpp"
+#include "../eos/eos.hpp"
+#include "../reconstruct/reconstruction.hpp"
 #include "hydro_diffusion/hydro_diffusion.hpp"
 #include "srcterms/hydro_srcterms.hpp"
 
@@ -61,6 +64,9 @@ class Hydro {
   // It is helpful to make a mask to this end
   AthenaArray<bool> q_reset_mask;
 
+  // for reconstruction failure, should both states be floored?
+  bool floor_both_states = false;
+
   // fourth-order intermediate quantities
   AthenaArray<Real> u_cc, w_cc;      // cell-centered approximations
 
@@ -73,6 +79,9 @@ class Hydro {
   void AddFluxDivergence(const Real wght, AthenaArray<Real> &u_out);
   void CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
                        AthenaArray<Real> &bcc, const int order);
+
+  void CalculateFluxesRef(AthenaArray<Real> &w, FaceField &b,
+                          AthenaArray<Real> &bcc, const int order);
 
   void CalculateFluxes_STS();
 #if !MAGNETIC_FIELDS_ENABLED  // Hydro:
@@ -93,6 +102,210 @@ class Hydro {
   void AddGravityFlux();
   void AddGravityFluxWithGflx();
   void CalculateGravityFlux(AthenaArray<Real> &phi_in);
+
+  inline void FallbackInadmissiblePrimitiveX1_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & f_zl_,
+    AthenaArray<Real> & f_zr_,
+    const int il, const int iu)
+  {
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      if ((zl_(IDN,i+1) < 0) || (zr_(IDN,i) < 0))
+      {
+        for (int n=0; n<NWAVE; ++n)
+        {
+          zl_(n,i+1) = f_zl_(n,i+1);
+          zr_(n,i  ) = f_zr_(n,i  );
+        }
+      }
+    }
+  }
+
+  inline void FallbackInadmissiblePrimitiveX2_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & f_zl_,
+    AthenaArray<Real> & f_zr_,
+    const int il, const int iu)
+  {
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      if ((zl_(IDN,i) < 0) || (zr_(IDN,i) < 0))
+      {
+        for (int n=0; n<NWAVE; ++n)
+        {
+          zl_(n,i) = f_zl_(n,i);
+          zr_(n,i) = f_zr_(n,i);
+        }
+      }
+    }
+  }
+
+  inline void FallbackInadmissiblePrimitiveX3_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & f_zl_,
+    AthenaArray<Real> & f_zr_,
+    const int il, const int iu)
+  {
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      if ((zl_(IDN,i) < 0) || (zr_(IDN,i) < 0))
+      {
+        for (int n=0; n<NWAVE; ++n)
+        {
+          zl_(n,i) = f_zl_(n,i);
+          zr_(n,i) = f_zr_(n,i);
+        }
+      }
+    }
+  }
+
+#if USETM
+  inline void FloorPrimitiveX1_(
+    AthenaArray<Real> & wl_,
+    AthenaArray<Real> & wr_,
+    AthenaArray<Real> & sl_,
+    AthenaArray<Real> & sr_,
+    const int k,
+    const int j,
+    const int il, const int iu)
+  {
+    EquationOfState *peos = pmy_block->peos;
+
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      peos->ApplyPrimitiveFloors(wl_,sl_,k,j,i+1);
+      peos->ApplyPrimitiveFloors(wr_,sr_,k,j,i);
+    }
+  }
+#else
+  inline void FloorPrimitiveX1_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    const int k,
+    const int j,
+    const int il, const int iu)
+  {
+    EquationOfState * peos = pmy_block->peos;
+
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      if (floor_both_states)
+      {
+        const int dir = 1;
+        peos->ApplyPrimitiveFloors(dir, zl_, zr_, i);
+      }
+      else
+      {
+        peos->ApplyPrimitiveFloors(zl_,k,j,i+1);
+        peos->ApplyPrimitiveFloors(zr_,k,j,i);
+      }
+    }
+  }
+#endif
+
+#if USETM
+  inline void FloorPrimitiveX2_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & sl_,
+    AthenaArray<Real> & sr_,
+    const int k,
+    const int j,
+    const int il, const int iu)
+  {
+    EquationOfState * peos = pmy_block->peos;
+
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      peos->ApplyPrimitiveFloors(wl_,sl_,k,j,i);
+      peos->ApplyPrimitiveFloors(wr_,sr_,k,j,i);
+    }
+  }
+#else
+  inline void FloorPrimitiveX2_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    const int k,
+    const int j,
+    const int il, const int iu)
+  {
+    EquationOfState * peos = pmy_block->peos;
+
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      if (floor_both_states)
+      {
+        const int dir = 2;
+        peos->ApplyPrimitiveFloors(dir, zl_, zr_, i);
+      }
+      else
+      {
+        peos->ApplyPrimitiveFloors(zl_,k,j,i);
+        peos->ApplyPrimitiveFloors(zr_,k,j,i);
+      }
+    }
+  }
+#endif
+
+
+
+#if USETM
+  inline void FloorPrimitiveX3_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & sl_,
+    AthenaArray<Real> & sr_,
+    const int k,
+    const int j,
+    const int il, const int iu)
+  {
+    EquationOfState * peos = pmy_block->peos;
+
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      peos->ApplyPrimitiveFloors(wl_,sl_,k,j,i);
+      peos->ApplyPrimitiveFloors(wr_,sr_,k,j,i);
+    }
+  }
+#else
+  inline void FloorPrimitiveX3_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    const int k,
+    const int j,
+    const int il, const int iu)
+  {
+    EquationOfState * peos = pmy_block->peos;
+
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      if (floor_both_states)
+      {
+        const int dir = 3;
+        peos->ApplyPrimitiveFloors(dir, zl_, zr_, i);
+      }
+      else
+      {
+        peos->ApplyPrimitiveFloors(zl_,k,j,i);
+        peos->ApplyPrimitiveFloors(zr_,k,j,i);
+      }
+    }
+  }
+#endif
+
 
   // Debug
   void HydroRHS(   AthenaArray<Real> & u_cons, AthenaArray<Real> & u_rhs);
@@ -138,6 +351,9 @@ class Hydro {
   AthenaArray<Real> cell_volume_;
   // 2D
   AthenaArray<Real> wl_, wr_, wlb_;
+  AthenaArray<Real> r_wl_, r_wr_, r_wlb_;
+  AthenaArray<Real> rl_, rr_, rlb_;
+
   AthenaArray<Real> dflx_;
   AthenaArray<Real> bb_normal_;    // normal magnetic field, for (SR/GR)MHD
   AthenaArray<Real> lambdas_p_l_;  // most positive wavespeeds in left state

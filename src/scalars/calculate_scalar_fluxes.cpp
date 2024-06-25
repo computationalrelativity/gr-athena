@@ -25,11 +25,267 @@
 #include <omp.h>
 #endif
 
+// For reduction of reconstruction order
+bool PassiveScalars::SpeciesWithinLimits(AthenaArray<Real> & z_, const int i)
+{
+  bool within_limits = true;
+
+#if USETM
+  EquationOfState *peos = pmy_block->peos;
+
+  for (int n=0; n<NSCALARS; ++n)
+  {
+    const Real fr_max = peos->GetEOS().GetMaximumSpeciesFraction(n);
+    const Real fr_min = peos->GetEOS().GetMinimumSpeciesFraction(n);
+
+    within_limits = (fr_min <= z_(n,i)) &&
+                    (z_(n,i) <= fr_max) &&
+                    within_limits;
+
+    if (!within_limits)
+      return false;
+  }
+#endif
+  // BD: TODO - worth to fix if not USETM?
+  return within_limits;
+}
+
+void PassiveScalars::ApplySpeciesLimits(AthenaArray<Real> & z_,
+                                        const int il,
+                                        const int iu)
+{
+#if USETM
+  EquationOfState *peos = pmy_block->peos;
+
+  Real Y[MAX_SPECIES] = {0.0};
+  for (int i=il; i<=iu; ++i)
+  {
+    for (int n=0; n<NSCALARS; ++n)
+    {
+      Y[n] = z_(n,i);
+    }
+
+    peos->GetEOS().ApplySpeciesLimits(Y);
+
+    for (int n=0; n<NSCALARS; ++n)
+    {
+      z_(n,i) = Y[n];
+    }
+  }
+#endif
+  // BD: TODO - worth to fix if not USETM?
+
+}
+
+void PassiveScalars::FallbackInadmissibleScalarX1_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & f_zl_,
+    AthenaArray<Real> & f_zr_,
+    const int il, const int iu)
+{
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    if (!SpeciesWithinLimits(zl_,i+1) || !SpeciesWithinLimits(zr_,i))
+    for (int n=0; n<NSCALARS; ++n)
+    {
+      zl_(n,i+1) = f_zl_(n,i+1);
+      zr_(n,i  ) = f_zr_(n,i  );
+    }
+  }
+}
+
+void PassiveScalars::FallbackInadmissibleScalarX2_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & f_zl_,
+    AthenaArray<Real> & f_zr_,
+    const int il, const int iu)
+{
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    if (!SpeciesWithinLimits(zl_,i) || !SpeciesWithinLimits(zr_,i))
+    for (int n=0; n<NSCALARS; ++n)
+    {
+      zl_(n,i) = f_zl_(n,i);
+      zr_(n,i) = f_zr_(n,i);
+    }
+  }
+}
+
+void PassiveScalars::FallbackInadmissibleScalarX3_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & f_zl_,
+    AthenaArray<Real> & f_zr_,
+    const int il, const int iu)
+{
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    if (!SpeciesWithinLimits(zl_,i) || !SpeciesWithinLimits(zr_,i))
+    for (int n=0; n<NSCALARS; ++n)
+    {
+      zl_(n,i) = f_zl_(n,i);
+      zr_(n,i) = f_zr_(n,i);
+    }
+  }
+}
+
+void PassiveScalars::CalculateFluxes(AthenaArray<Real> &r, const int order)
+{
+  MeshBlock *pmb = pmy_block;
+  Reconstruction * pr = pmb->precon;
+  typedef Reconstruction::ReconstructionVariant ReconstructionVariant;
+  ReconstructionVariant rv = pr->xorder_style;
+
+  ReconstructionVariant r_rv = ReconstructionVariant::lin_vl;
+
+  Hydro &hyd = *(pmb->phydro);
+  int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
+  int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
+  int il, iu, jl, ju, kl, ku;
+  AthenaArray<Real> mass_flux;
+
+  //--------------------------------------------------------------------------------------
+  // i-direction
+  AthenaArray<Real> &x1flux = s_flux[X1DIR];
+  mass_flux.InitWithShallowSlice(hyd.flux[X1DIR], 4, IDN, 1);
+
+  il = is, iu = ie+1;
+  jl = js, ju = je+(pmb->pmy_mesh->f2 || pmb->pmy_mesh->f3);  // 2d or 3d
+  kl = ks, ku = ke+(pmb->pmy_mesh->f3);                       // if 3d
+
+  for (int k=kl; k<=ku; ++k)
+  for (int j=jl; j<=ju; ++j)
+  {
+    pr->ReconstructPassiveScalarsX1_(rv, r, rl_, rr_, k, j, il-1, iu);
+
+    if (pr->xorder_fallback)
+    {
+      pr->ReconstructPassiveScalarsX1_(r_rv, r, r_rl_, r_rr_, k, j, il-1, iu);
+      FallbackInadmissibleScalarX1_(rl_, rr_, r_rl_, r_rr_, il-1, iu);
+    }
+
+    // Floor here (as needed, always attempted, Cf. CalculateFluxes in Hydro)
+    ApplySpeciesLimits(rl_, il, iu);
+    ApplySpeciesLimits(rr_, il, iu);
+
+    ComputeUpwindFlux(k, j, il, iu, rl_, rr_, mass_flux, x1flux);
+  }
+
+  //--------------------------------------------------------------------------------------
+  // j-direction
+  if (pmb->pmy_mesh->f2)
+  {
+    AthenaArray<Real> &x2flux = s_flux[X2DIR];
+    mass_flux.InitWithShallowSlice(hyd.flux[X2DIR], 4, IDN, 1);
+
+    il = is, iu = ie+1;
+    jl = js, ju = je+1;
+    kl = ks, ku = ke+(pmb->pmy_mesh->f3);  // if 3d
+
+    for (int k=kl; k<=ku; ++k)
+    {
+      pr->ReconstructPassiveScalarsX2_(rv, r, rl_, rr_, k, jl-1, il, iu);
+
+      if (pr->xorder_fallback)
+      {
+        pr->ReconstructPassiveScalarsX2_(r_rv, r, r_rl_, r_rr_, k, jl-1, il, iu);
+        FallbackInadmissibleScalarX2_(rl_, rr_, r_rl_, r_rr_, il, iu);
+      }
+
+      // Floor here (as needed, Cf. CalculateFluxes in Hydro)
+      ApplySpeciesLimits(rl_, il, iu);
+      ApplySpeciesLimits(rr_, il, iu);
+
+      for (int j=jl; j<=ju; ++j)
+      {
+        pr->ReconstructPassiveScalarsX2_(rv, r, rlb_, rr_, k, jl, il, iu);
+
+        if (pr->xorder_fallback)
+        {
+          pr->ReconstructPassiveScalarsX2_(r_rv, r, r_rlb_, r_rr_, k, jl, il, iu);
+          FallbackInadmissibleScalarX2_(rlb_, rr_, r_rlb_, r_rr_, il, iu);
+        }
+
+        // Floor here (as needed, Cf. CalculateFluxes in Hydro)
+        ApplySpeciesLimits(rlb_, il, iu);
+        ApplySpeciesLimits(rr_,  il, iu);
+
+        ComputeUpwindFlux(k, j, il, iu, rl_, rr_, mass_flux, x2flux);
+
+        rl_.SwapAthenaArray(rlb_);
+        if (pr->xorder_fallback)
+        {
+          r_rl_.SwapAthenaArray(r_rlb_);
+        }
+      }
+
+    }
+  }
+
+  //--------------------------------------------------------------------------------------
+  // k-direction
+  if (pmb->pmy_mesh->f3)
+  {
+    AthenaArray<Real> &x3flux = s_flux[X3DIR];
+    mass_flux.InitWithShallowSlice(hyd.flux[X3DIR], 4, IDN, 1);
+
+    il = is, iu = ie+1;
+    jl = js, ju = je+1;
+    kl = ks, ku = ke+1;
+
+    for (int j=jl; j<=ju; ++j)
+    { // this loop ordering is intentional
+      pr->ReconstructPassiveScalarsX3_(rv, r, rl_, rr_, kl-1, j, il, iu);
+
+      if (pr->xorder_fallback)
+      {
+        pr->ReconstructPassiveScalarsX3_(r_rv, r, r_rl_, r_rr_, kl-1, jl, il, iu);
+        FallbackInadmissibleScalarX3_(rl_, rr_, r_rl_, r_rr_, il, iu);
+      }
+
+      // Floor here (as needed, Cf. CalculateFluxes in Hydro)
+      ApplySpeciesLimits(rl_, il, iu);
+      ApplySpeciesLimits(rr_, il, iu);
+
+      for (int k=kl; k<=ku; ++k)
+      {
+        pr->ReconstructPassiveScalarsX3_(rv, r, rlb_, rr_, k, j, il, iu);
+
+        if (pr->xorder_fallback)
+        {
+          pr->ReconstructPassiveScalarsX3_(r_rv, r, r_rlb_, r_rr_, k, jl, il, iu);
+          FallbackInadmissibleScalarX3_(rlb_, rr_, r_rlb_, r_rr_, il, iu);
+        }
+
+        // Floor here (as needed, Cf. CalculateFluxes in Hydro)
+        ApplySpeciesLimits(rlb_, il, iu);
+        ApplySpeciesLimits(rr_,  il, iu);
+
+        ComputeUpwindFlux(k, j, il, iu, rl_, rr_, mass_flux, x3flux);
+
+        rl_.SwapAthenaArray(rlb_);
+        if (pr->xorder_fallback)
+        {
+          r_rl_.SwapAthenaArray(r_rlb_);
+        }
+      }
+
+    }
+  }
+
+  return;
+}
+
 //----------------------------------------------------------------------------------------
 //! \fn  void PassiveScalars::CalculateFluxes
 //  \brief Calculate passive scalar fluxes using reconstruction + weighted upwinding rule
 
-void PassiveScalars::CalculateFluxes(AthenaArray<Real> &r, const int order) {
+void PassiveScalars::CalculateFluxesRef(AthenaArray<Real> &r, const int order) {
   MeshBlock *pmb = pmy_block;
 
   // design decision: do not pass Hydro::flux (for mass flux) via function parameters,

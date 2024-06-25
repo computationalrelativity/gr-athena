@@ -16,8 +16,14 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../bvals/cc/bvals_cc.hpp"
+// #include "../coordinates/coordinates.hpp"
+// #include "../eos/eos.hpp"
+// #include "../mesh/mesh.hpp"
+// #include "../hydro/hydro.hpp"
+// #include "../reconstruct/reconstruction.hpp"
 
-class MeshBlock;
+
+// class MeshBlock;
 class ParameterInput;
 
 //! \class PassiveScalars
@@ -54,6 +60,7 @@ class PassiveScalars {
   // KGF: use inheritance for these functions / overall class?
   void AddFluxDivergence(const Real wght, AthenaArray<Real> &s_out);
   void CalculateFluxes(AthenaArray<Real> &s, const int order);
+  void CalculateFluxesRef(AthenaArray<Real> &s, const int order);
   void CalculateFluxes_STS();
 
   // NOTE: for now, not creating subfolder "scalars_diffusion/", nor class ScalarDiffusion
@@ -73,11 +80,38 @@ class PassiveScalars {
                         AthenaArray<Real> *flx_out);
   Real NewDiffusionDt();
 
- private:
+  bool SpeciesWithinLimits(AthenaArray<Real> & z_, const int i);
+  void ApplySpeciesLimits(AthenaArray<Real> & z_,
+                          const int il, const int iu);
+
+  void FallbackInadmissibleScalarX1_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & f_zl_,
+    AthenaArray<Real> & f_zr_,
+    const int il, const int iu);
+
+  void FallbackInadmissibleScalarX2_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & f_zl_,
+    AthenaArray<Real> & f_zr_,
+    const int il, const int iu);
+
+  void FallbackInadmissibleScalarX3_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & f_zl_,
+    AthenaArray<Real> & f_zr_,
+    const int il, const int iu);
+
+private:
   MeshBlock* pmy_block;
   // scratch space used to compute fluxes
   // 2D scratch arrays
   AthenaArray<Real> rl_, rr_, rlb_;
+  AthenaArray<Real> r_rl_, r_rr_, r_rlb_;
+
   // 1D scratch arrays
   AthenaArray<Real> x1face_area_, x2face_area_, x3face_area_;
   AthenaArray<Real> x2face_area_p1_, x3face_area_p1_;

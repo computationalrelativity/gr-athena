@@ -46,7 +46,8 @@ PassiveScalars::PassiveScalars(MeshBlock *pmb, ParameterInput *pin)  :
     nu_scalar_iso{pin->GetOrAddReal("problem", "nu_scalar_iso", 0.0)},
     //nu_scalar_aniso{pin->GetOrAddReal("problem", "nu_scalar_aniso", 0.0)},
     scalar_diffusion_defined{(nu_scalar_iso > 0.0 ? true : false)},
-    pmy_block(pmb) {
+    pmy_block(pmb)
+{
   int nc1 = pmb->ncells1, nc2 = pmb->ncells2, nc3 = pmb->ncells3;
   Mesh *pm = pmy_block->pmy_mesh;
 
@@ -79,6 +80,14 @@ PassiveScalars::PassiveScalars(MeshBlock *pmb, ParameterInput *pin)  :
   rl_.NewAthenaArray(NSCALARS, nc1);
   rr_.NewAthenaArray(NSCALARS, nc1);
   rlb_.NewAthenaArray(NSCALARS, nc1);
+
+  if (pin->GetOrAddBoolean("time", "xorder_fallback", false))
+  {
+    r_rl_.NewAthenaArray(NSCALARS, nc1);
+    r_rr_.NewAthenaArray(NSCALARS, nc1);
+    r_rlb_.NewAthenaArray(NSCALARS, nc1);
+  }
+
   x1face_area_.NewAthenaArray(nc1+1);
   if (pm->f2) {
     x2face_area_.NewAthenaArray(nc1);

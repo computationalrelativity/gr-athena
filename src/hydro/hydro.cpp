@@ -63,6 +63,8 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   fix_fluxes = pin->GetOrAddInteger("hydro","fix_fluxes",0);
   zero_div = pin->GetOrAddInteger("hydro","zero_div",0);
 
+  floor_both_states = pin->GetOrAddBoolean("time", "floor_both_states", false);
+
   // only needed if fluxes / sources fixed
   if (fix_fluxes || pin->GetOrAddBoolean("z4c","fix_admsource",0))
   {
@@ -101,6 +103,23 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   wl_.NewAthenaArray(NWAVE, nc1);
   wr_.NewAthenaArray(NWAVE, nc1);
   wlb_.NewAthenaArray(NWAVE, nc1);
+
+  if (pin->GetOrAddBoolean("time", "xorder_fallback", false))
+  {
+    r_wl_.NewAthenaArray(NWAVE, nc1);
+    r_wr_.NewAthenaArray(NWAVE, nc1);
+    r_wlb_.NewAthenaArray(NWAVE, nc1);
+  }
+  else
+  {
+#if USETM
+    // Needed for PrimitiveSolver floors
+    rl_.NewAthenaArray(NSCALARS, nc1);
+    rr_.NewAthenaArray(NSCALARS, nc1);
+    rlb_.NewAthenaArray(NSCALARS, nc1);
+#endif
+  }
+
   x1face_area_.NewAthenaArray(nc1+1);
   if (pm->f2) {
     x2face_area_.NewAthenaArray(nc1);

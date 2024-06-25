@@ -122,7 +122,7 @@ bool CheckPrimitiveReconstructionAdmissible(
   */
 
   // only called from this cpp where we only have slices
-  return prim(IDN,i) > 0;  // strict density positivity
+  return prim(IDN,i) >= 0;  // strict density positivity
 }
 
 void Reconstruction::WenoX1(
@@ -165,7 +165,7 @@ void Reconstruction::WenoX1(
           qr(n,i  ) = rec1d_p_donate(uipo,ui,uimo);
           break;
         }
-        case ReconstructionVariant::lintvd:
+        case ReconstructionVariant::lin_vl:
         {
           ql(n,i+1) = rec1d_p_lintvd(uimo,ui,uipo);
           qr(n,i  ) = rec1d_p_lintvd(uipo,ui,uimo);
@@ -244,7 +244,7 @@ void Reconstruction::WenoX1(
           qr(IBY,i  ) = rec1d_p_donate(uipo,ui,uimo);
           break;
         }
-        case ReconstructionVariant::lintvd:
+        case ReconstructionVariant::lin_vl:
         {
           ql(IBY,i+1) = rec1d_p_lintvd(uimo,ui,uipo);
           qr(IBY,i  ) = rec1d_p_lintvd(uipo,ui,uimo);
@@ -322,7 +322,7 @@ void Reconstruction::WenoX1(
           qr(IBZ,i  ) = rec1d_p_donate(uipo,ui,uimo);
           break;
         }
-        case ReconstructionVariant::lintvd:
+        case ReconstructionVariant::lin_vl:
         {
           ql(IBZ,i+1) = rec1d_p_lintvd(uimo,ui,uipo);
           qr(IBZ,i  ) = rec1d_p_lintvd(uipo,ui,uimo);
@@ -405,7 +405,7 @@ void Reconstruction::WenoX1(
       {
         // revert [linear]
         ReconstructionVariant xorder_style_ = xorder_style;
-        xorder_style = ReconstructionVariant::lintvd;
+        xorder_style = ReconstructionVariant::lin_vl;
         xorder_fallback = false;
         WenoX1(k, j, i, i, q, bcc, ql, qr, false);
         xorder_style = xorder_style_;
@@ -415,11 +415,63 @@ void Reconstruction::WenoX1(
 
         // ... further reversion would go here (i.e. donor)
 
+        /*
+        bool cnd_nrg = pmy_block_->peos->CheckPrimitivePhysical(
+          ql, k, j, i+1
+        ) && pmy_block_->peos->CheckPrimitivePhysical(
+          qr, k, j, i
+        );
+
+        if (!cnd_nrg)
+        {
+          std::cout << std::setprecision(16) << std::endl;
+          std::cout << "energy condition violated" << std::endl;
+          std::cout << ql(IDN,i+1) << std::endl;
+          std::cout << qr(IDN,i) << std::endl;
+          std::cout << q(IDN,k,j,i-1) << std::endl;
+          std::cout << q(IDN,k,j,i) << std::endl;
+          std::cout << q(IDN,k,j,i+1) << std::endl;
+          std::cout << k << "," << j << "," << i << std::endl;
+          std::cout << "src_pt nrg: " << pmy_block_->peos->CheckPrimitivePhysical(
+          q, k, j, i
+          ) << std::endl;
+          std::cout << "-------" << std::endl;
+        }
         // if (!is_admissible)
         // {
         //   pmy_block_->peos->ForcePrimitiveFloor(ql,k,j,i+1);
         //   pmy_block_->peos->ForcePrimitiveFloor(qr,k,j,i);
         // }
+
+        const int n3 = pmy_block_->ncells3-1;
+        const int n2 = pmy_block_->ncells2-1;
+        const int n1 = pmy_block_->ncells1-1;
+
+        #pragma omp critical
+        if ((q(IDN,n1,0,0) == 0)   ||
+            (q(IDN,0,n2,0) == 0)  ||
+            (q(IDN,0,0,n3) == 0)  ||
+            (q(IDN,n1,n2,0) == 0)  ||
+            (q(IDN,n1,0,n3) == 0) ||
+            (q(IDN,0,n2,n3) == 0) ||
+            (q(IDN,n1,n2,n3) == 0)  ||
+            (q(IDN,0,0,0) == 0))
+        {
+          std::cout << "zero on a corner?" << std::endl;
+          std::cout << q(IDN,5,5,5) << std::endl;
+        }
+
+        if ((pmy_block_->phydro->u(IDN,n1,0,0) == 0)   ||
+            (pmy_block_->phydro->u(IDN,0,n2,0) == 0)  ||
+            (pmy_block_->phydro->u(IDN,0,0,n3) == 0)  ||
+            (pmy_block_->phydro->u(IDN,n1,n2,0) == 0)  ||
+            (pmy_block_->phydro->u(IDN,n1,0,n3) == 0) ||
+            (pmy_block_->phydro->u(IDN,0,n2,n3) == 0) ||
+            (pmy_block_->phydro->u(IDN,n1,n2,n3) == 0)  ||
+            (pmy_block_->phydro->u(IDN,0,0,0) == 0))
+        {
+          std::cout << "cons zero on a corner?" << std::endl;
+        }
 
         if (!is_admissible)
         {
@@ -438,6 +490,7 @@ void Reconstruction::WenoX1(
             std::exit(0);
           }
         }
+        */
 
       }
     }
@@ -445,15 +498,15 @@ void Reconstruction::WenoX1(
 
   if (enforce_floors)
   {
-#if USETM
-for (int l=0; l<NSCALARS; l++){
-#pragma omp simd
-  for (int i=il; i<=iu; ++i) {
-      scalar_l(l,i+1) = pmy_block_->pscalars->r(l,k,j,i);
-      scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
-    }
-  }
-#endif
+// #if USETM
+// for (int l=0; l<NSCALARS; l++){
+// #pragma omp simd
+//   for (int i=il; i<=iu; ++i) {
+//       scalar_l(l,i+1) = pmy_block_->pscalars->r(l,k,j,i);
+//       scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+//     }
+//   }
+// #endif
 
     if (!xorder_fallback)
     {
@@ -461,8 +514,8 @@ for (int l=0; l<NSCALARS; l++){
       for (int i=il; i<=iu; ++i)
       {
 #if USETM
-        pmy_block_->peos->ApplyPrimitiveFloors(ql, scalar_l, k ,j, i+1);
-        pmy_block_->peos->ApplyPrimitiveFloors(qr, scalar_r, k ,j, i);
+        // pmy_block_->peos->ApplyPrimitiveFloors(ql, scalar_l, k ,j, i+1);
+        // pmy_block_->peos->ApplyPrimitiveFloors(qr, scalar_r, k ,j, i);
 #else
         pmy_block_->peos->ApplyPrimitiveFloors(ql,k,j,i+1);
         pmy_block_->peos->ApplyPrimitiveFloors(qr,k,j,i);
@@ -507,7 +560,7 @@ void Reconstruction::WenoX2(
           qr(n,i) = rec1d_p_donate(uipo,ui,uimo);
           break;
         }
-        case ReconstructionVariant::lintvd:
+        case ReconstructionVariant::lin_vl:
         {
           ql(n,i) = rec1d_p_lintvd(uimo,ui,uipo);
           qr(n,i) = rec1d_p_lintvd(uipo,ui,uimo);
@@ -587,7 +640,7 @@ void Reconstruction::WenoX2(
           qr(IBY,i) = rec1d_p_donate(uipo,ui,uimo);
           break;
         }
-        case ReconstructionVariant::lintvd:
+        case ReconstructionVariant::lin_vl:
         {
           ql(IBY,i) = rec1d_p_lintvd(uimo,ui,uipo);
           qr(IBY,i) = rec1d_p_lintvd(uipo,ui,uimo);
@@ -665,7 +718,7 @@ void Reconstruction::WenoX2(
           qr(IBZ,i) = rec1d_p_donate(uipo,ui,uimo);
           break;
         }
-        case ReconstructionVariant::lintvd:
+        case ReconstructionVariant::lin_vl:
         {
           ql(IBZ,i) = rec1d_p_lintvd(uimo,ui,uipo);
           qr(IBZ,i) = rec1d_p_lintvd(uipo,ui,uimo);
@@ -748,7 +801,7 @@ void Reconstruction::WenoX2(
       {
         // revert [linear]
         ReconstructionVariant xorder_style_ = xorder_style;
-        xorder_style = ReconstructionVariant::lintvd;
+        xorder_style = ReconstructionVariant::lin_vl;
         xorder_fallback = false;
         WenoX2(k, j, i, i, q, bcc, ql, qr, false);
         xorder_style = xorder_style_;
@@ -769,15 +822,15 @@ void Reconstruction::WenoX2(
 
   if (enforce_floors)
   {
-#if USETM
-    for (int l=0; l<NSCALARS; l++)
-    #pragma omp simd
-    for (int i=il; i<=iu; ++i)
-    {
-      scalar_l(l,i) = pmy_block_->pscalars->r(l,k,j,i);
-      scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
-    }
-#endif
+// #if USETM
+//     for (int l=0; l<NSCALARS; l++)
+//     #pragma omp simd
+//     for (int i=il; i<=iu; ++i)
+//     {
+//       scalar_l(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+//       scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+//     }
+// #endif
 
     if (!xorder_fallback)
     {
@@ -785,8 +838,8 @@ void Reconstruction::WenoX2(
       for (int i=il; i<=iu; ++i)
       {
 #if USETM
-        pmy_block_->peos->ApplyPrimitiveFloors(ql, scalar_l, k ,j, i);
-        pmy_block_->peos->ApplyPrimitiveFloors(qr, scalar_r, k ,j, i);
+        // pmy_block_->peos->ApplyPrimitiveFloors(ql, scalar_l, k ,j, i);
+        // pmy_block_->peos->ApplyPrimitiveFloors(qr, scalar_r, k ,j, i);
 #else
         pmy_block_->peos->ApplyPrimitiveFloors(ql, k ,j, i);
         pmy_block_->peos->ApplyPrimitiveFloors(qr, k ,j, i);
@@ -834,7 +887,7 @@ void Reconstruction::WenoX3(
           qr(n,i) = rec1d_p_donate(uipo,ui,uimo);
           break;
         }
-        case ReconstructionVariant::lintvd:
+        case ReconstructionVariant::lin_vl:
         {
           ql(n,i) = rec1d_p_lintvd(uimo,ui,uipo);
           qr(n,i) = rec1d_p_lintvd(uipo,ui,uimo);
@@ -910,7 +963,7 @@ void Reconstruction::WenoX3(
           qr(IBY,i) = rec1d_p_donate(uipo,ui,uimo);
           break;
         }
-        case ReconstructionVariant::lintvd:
+        case ReconstructionVariant::lin_vl:
         {
           ql(IBY,i) = rec1d_p_lintvd(uimo,ui,uipo);
           qr(IBY,i) = rec1d_p_lintvd(uipo,ui,uimo);
@@ -987,7 +1040,7 @@ void Reconstruction::WenoX3(
           qr(IBZ,i) = rec1d_p_donate(uipo,ui,uimo);
           break;
         }
-        case ReconstructionVariant::lintvd:
+        case ReconstructionVariant::lin_vl:
         {
           ql(IBZ,i) = rec1d_p_lintvd(uimo,ui,uipo);
           qr(IBZ,i) = rec1d_p_lintvd(uipo,ui,uimo);
@@ -1069,7 +1122,7 @@ void Reconstruction::WenoX3(
       {
         // revert [linear]
         ReconstructionVariant xorder_style_ = xorder_style;
-        xorder_style = ReconstructionVariant::lintvd;
+        xorder_style = ReconstructionVariant::lin_vl;
         xorder_fallback = false;
         WenoX3(k, j, i, i, q, bcc, ql, qr, false);
         xorder_style = xorder_style_;
@@ -1090,15 +1143,15 @@ void Reconstruction::WenoX3(
 
   if (enforce_floors)
   {
-#if USETM
-  for (int l=0; l<NSCALARS; l++){
-#pragma omp simd
-    for (int i=il; i<=iu; ++i) {
-      scalar_l(l,i) = pmy_block_->pscalars->r(l,k,j,i);
-      scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
-    }
-  }
-#endif
+// #if USETM
+//   for (int l=0; l<NSCALARS; l++){
+// #pragma omp simd
+//     for (int i=il; i<=iu; ++i) {
+//       scalar_l(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+//       scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+//     }
+//   }
+// #endif
 
     if (!xorder_fallback)
     {
@@ -1106,8 +1159,8 @@ void Reconstruction::WenoX3(
       for (int i=il; i<=iu; ++i)
       {
 #if USETM
-        pmy_block_->peos->ApplyPrimitiveFloors(ql, scalar_l, k ,j, i);
-        pmy_block_->peos->ApplyPrimitiveFloors(qr, scalar_r, k ,j, i);
+        // pmy_block_->peos->ApplyPrimitiveFloors(ql, scalar_l, k ,j, i);
+        // pmy_block_->peos->ApplyPrimitiveFloors(qr, scalar_r, k ,j, i);
 #else
         pmy_block_->peos->ApplyPrimitiveFloors(ql, k ,j, i);
         pmy_block_->peos->ApplyPrimitiveFloors(qr, k ,j, i);

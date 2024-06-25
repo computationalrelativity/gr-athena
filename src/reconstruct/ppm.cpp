@@ -325,15 +325,15 @@ void Reconstruction::PiecewiseParabolicX1(
     }
   }
 
-#if USETM
-for (int l=0; l<NSCALARS; l++){
-#pragma omp simd
-  for (int i=il; i<=iu; ++i) {
-      scalar_l(l,i+1) = pmy_block_->pscalars->r(l,k,j,i);
-      scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
-    }
-  }
-#endif
+// #if USETM
+// for (int l=0; l<NSCALARS; l++){
+// #pragma omp simd
+//   for (int i=il; i<=iu; ++i) {
+//       scalar_l(l,i+1) = pmy_block_->pscalars->r(l,k,j,i);
+//       scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+//     }
+//   }
+// #endif
 
   #pragma omp simd
   for (int i=il; i<=iu; ++i)
@@ -341,8 +341,8 @@ for (int l=0; l<NSCALARS; l++){
     // Reapply EOS floors to both L/R reconstructed primitive states
     // TODO(felker): check that fused loop with NWAVE redundant application is slower
 #if USETM
-    pmy_block_->peos->ApplyPrimitiveFloors(wl, scalar_l, k, j, i+1);
-    pmy_block_->peos->ApplyPrimitiveFloors(wr, scalar_r, k, j, i);
+    // pmy_block_->peos->ApplyPrimitiveFloors(wl, scalar_l, k, j, i+1);
+    // pmy_block_->peos->ApplyPrimitiveFloors(wr, scalar_r, k, j, i);
 #else
     if (xorder_fallback)
     {
@@ -649,23 +649,23 @@ void Reconstruction::PiecewiseParabolicX2(
     }
   }
 
-#if USETM
-  for (int l=0; l<NSCALARS; l++){
-#pragma omp simd
-    for (int i=il; i<=iu; ++i) {
-      scalar_l(l,i) = pmy_block_->pscalars->r(l,k,j,i);
-      scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
-    }
-  }
-#endif
+// #if USETM
+//   for (int l=0; l<NSCALARS; l++){
+// #pragma omp simd
+//     for (int i=il; i<=iu; ++i) {
+//       scalar_l(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+//       scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+//     }
+//   }
+// #endif
   
 #pragma omp simd
   for (int i=il; i<=iu; ++i)
   {
     // Reapply EOS floors to both L/R reconstructed primitive states
 #if USETM
-    pmy_block_->peos->ApplyPrimitiveFloors(wl, scalar_l, k, j, i);
-    pmy_block_->peos->ApplyPrimitiveFloors(wr, scalar_r, k, j, i);
+    // pmy_block_->peos->ApplyPrimitiveFloors(wl, scalar_l, k, j, i);
+    // pmy_block_->peos->ApplyPrimitiveFloors(wr, scalar_r, k, j, i);
 #else
     if (xorder_fallback)
     {
@@ -964,23 +964,23 @@ void Reconstruction::PiecewiseParabolicX3(
       wr(n,i) = qr_kmh(n,i);
     }
   }
-#if USETM
-  for (int l=0; l<NSCALARS; l++){
-#pragma omp simd
-    for (int i=il; i<=iu; ++i) {
-      scalar_l(l,i) = pmy_block_->pscalars->r(l,k,j,i);
-      scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
-    }
-  }
-#endif
+// #if USETM
+//   for (int l=0; l<NSCALARS; l++){
+// #pragma omp simd
+//     for (int i=il; i<=iu; ++i) {
+//       scalar_l(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+//       scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+//     }
+//   }
+// #endif
 
   #pragma omp simd
   for (int i=il; i<=iu; ++i)
   {
     // Reapply EOS floors to both L/R reconstructed primitive states
 #if USETM
-    pmy_block_->peos->ApplyPrimitiveFloors(wl, scalar_l, k, j, i);
-    pmy_block_->peos->ApplyPrimitiveFloors(wr, scalar_r, k, j, i);
+    // pmy_block_->peos->ApplyPrimitiveFloors(wl, scalar_l, k, j, i);
+    // pmy_block_->peos->ApplyPrimitiveFloors(wr, scalar_r, k, j, i);
 #else
     if (xorder_fallback)
     {

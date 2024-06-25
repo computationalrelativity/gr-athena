@@ -56,9 +56,10 @@ fix_admsources = 0 # calculate adm sources with initial data
 # further automatically by choices in output block
 
 # missing / zero values do not get activated
+adjust_mesh_dt = true
 
-tracker_extrema = 0.2
-dt_Z4c_Weyl     = 0.5
+tracker_extrema = 0.25
+dt_Z4c_Weyl     = 0.0
 # =============================================================================
 
 <psi4_extraction>  # ==========================================================
@@ -70,7 +71,7 @@ nlev = 30  # Controls # of points on spherical grid
 lmax = 8   # Extracted set: {l <= lmax && |m|<=l}
 
 # specify extraction radii
-num_radii = 3
+num_radii = 0
 radius_0  = 8
 radius_1  = 20
 radius_2  = 24
@@ -88,7 +89,7 @@ ini_1_x3 = 0
 minima_1 = true              # for update_strategy = 1
 ref_level_1 = 1
 ref_type_1 = 1              # 0: to the point, 1: sph. region
-ref_zone_radius_1 = 15
+ref_zone_radius_1 = 10.5
 
 
 update_strategy = 1         # 0: based on dt, 1: based on quad interp.
@@ -102,8 +103,11 @@ tlim	       = 50
 integrator   = rk3   # time integration algorithm
 
 # spatial reconstruction - element of:
-# {1, 2, 2c, 3, 3c, 4, 4c, ceno3, mp3, mp5, mp7, weno5, weno5z, weno5d_si}
-xorder       = weno5z
+# {donate, lin_vl, lin_mc2, ppm, weno5z}
+# To_fix:  {ceno3, mp3, mp5, mp7, weno5, weno5d_si}
+xorder       = ppm
+xorder_fallback = false
+floor_both_states = false  # reset both l/r [Reprimand only]
 
 ncycle_out   = 1      # interval for stdout summary info
 # =============================================================================
@@ -132,7 +136,7 @@ refinement = adaptive
 numlevel = 10
 #deref_count = 5
 
-num_threads = 1
+num_threads = 4
 
 # impose bitant symmetry (use with ix3_bc=reflecting)
 bitant = false
@@ -148,9 +152,9 @@ nx3=16
 <hydro> # =====================================================================
 gamma      = 2     # ratio of specific heats Gamma
 k_adi      = 100.  # adiabat K, p_gas = K rho^Gamma
-c2p_acc    = 1e-12
+c2p_acc    = 1e-15
 rho_strict = 0 # 1e-20
-max_iter   = 100
+max_iter   = 1000
 
 fix_fluxes=0 #use initial data in flux calculation
 fix_sources=0 #use initial data in hydro source calculation (stationary spacetime only)
@@ -225,116 +229,116 @@ level           = 1
 # dumped quantities ===========================================================
 <output1>
 file_type = rst
-dt        = 10
+dt        = 5
 
 <output2>
 file_type   = hst
-dt          = 0.1
+dt          = 0.25
 data_format = %.18g
 
 <output3>
 file_type   = hdf5
 variable    = cons
 ghost_zones = true
-dt          = 0.1
+dt          = 0.5
 x3_slice    = 0.0
 
 <output4>
 file_type   = hdf5
 variable    = prim
 ghost_zones = true
-dt          = 0.1
+dt          = 0.5
 x3_slice    = 0.0
 
 <output5>
 file_type	  = hdf5
 variable    = con
 ghost_zones = true
-dt          = 0.1
+dt          = 0.5
 x3_slice    = 0
 
 <output6>
 file_type   = hdf5
 variable    = adm
 ghost_zones = true
-dt          = 0.1
+dt          = 0.5
 x3_slice    = 0.0
 
 <output7>
 file_type   = hdf5
 variable    = z4c
 ghost_zones = true
-dt          = 0.1
+dt          = 0.5
 x3_slice    = 0.0
 
 <output8>
 file_type   = hdf5
 variable    = cons
 ghost_zones = true
-dt          = 0.1
+dt          = 0.5
 x2_slice    = 0.0
 
 <output9>
 file_type   = hdf5
 variable    = prim
 ghost_zones = true
-dt          = 0.1
+dt          = 0.5
 x2_slice    = 0.0
 
 <output10>
 file_type   = hdf5
 variable    = con
 ghost_zones = true
-dt          = 0.1
+dt          = 0.5
 x2_slice    = 0
 
 <output11>
 file_type   = hdf5
 variable    = adm
 ghost_zones = true
-dt          = 0.1
+dt          = 0.5
 x2_slice    = 0.0
 
 <output12>
 file_type   = hdf5
 variable    = z4c
 ghost_zones = true
-dt          = 0.1
+dt          = 0.5
 x2_slice    = 0.0
 
 <output13>
 file_type   = hdf5
 variable    = cons
 ghost_zones = true
-dt          = 0.1
+dt          = 0.5
 x1_slice    = 0.0
 
 <output14>
 file_type   = hdf5
 variable    = prim
 ghost_zones = true
-dt          = 0.1
+dt          = 0.5
 x1_slice    = 0.0
 
 <output15>
 file_type   = hdf5
 variable    = con
 ghost_zones = true
-dt          = 0.1
+dt          = 0.5
 x1_slice    = 0
 
 <output16>
 file_type   = hdf5
 variable    = adm
 ghost_zones = true
-dt          = 0.1
+dt          = 0.5
 x1_slice    = 0.0
 
 <output17>
 file_type   = hdf5
 variable    = z4c
 ghost_zones = true
-dt          = 0.1
+dt          = 0.5
 x1_slice    = 0.0
 
 
@@ -342,7 +346,7 @@ x1_slice    = 0.0
 file_type   = hdf5
 variable    = cons
 ghost_zones = true
-dt          = 0.1
+dt          = 0.5
 x2_slice    = 0.0
 x3_slice    = 0.0
 
@@ -350,7 +354,7 @@ x3_slice    = 0.0
 file_type   = hdf5
 variable    = prim
 ghost_zones = true
-dt          = 0.1
+dt          = 0.5
 x2_slice    = 0.0
 x3_slice    = 0.0
 
@@ -358,7 +362,7 @@ x3_slice    = 0.0
 file_type	  = hdf5
 variable    = con
 ghost_zones = true
-dt          = 0.1
+dt          = 0.5
 x2_slice    = 0.0
 x3_slice    = 0
 
@@ -366,7 +370,7 @@ x3_slice    = 0
 file_type   = hdf5
 variable    = adm
 ghost_zones = true
-dt          = 0.1
+dt          = 0.5
 x2_slice    = 0.0
 x3_slice    = 0.0
 
@@ -374,7 +378,7 @@ x3_slice    = 0.0
 file_type   = hdf5
 variable    = z4c
 ghost_zones = true
-dt          = 0.1
+dt          = 0.5
 x2_slice    = 0.0
 x3_slice    = 0.0
 
