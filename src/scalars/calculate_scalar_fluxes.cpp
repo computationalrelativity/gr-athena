@@ -161,12 +161,12 @@ void PassiveScalars::CalculateFluxes(AthenaArray<Real> &r, const int order)
   for (int k=kl; k<=ku; ++k)
   for (int j=jl; j<=ju; ++j)
   {
-    pr->ReconstructPassiveScalarsX1_(rv, r, rl_, rr_, k, j, il-1, iu);
+    pr->ReconstructPassiveScalarsX1_(rv, r, rl_, rr_, k, j, il, iu);
 
     if (pr->xorder_fallback)
     {
-      pr->ReconstructPassiveScalarsX1_(r_rv, r, r_rl_, r_rr_, k, j, il-1, iu);
-      FallbackInadmissibleScalarX1_(rl_, rr_, r_rl_, r_rr_, il-1, iu);
+      pr->ReconstructPassiveScalarsX1_(r_rv, r, r_rl_, r_rr_, k, j, il, iu);
+      FallbackInadmissibleScalarX1_(rl_, rr_, r_rl_, r_rr_, il, iu);
     }
 
     // Floor here (as needed, always attempted, Cf. CalculateFluxes in Hydro)

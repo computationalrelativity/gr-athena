@@ -259,8 +259,10 @@ class Hydro {
   {
     EquationOfState *peos = pmy_block->peos;
 
+    // N.B. indicial range is bumped left to account for reconstruction
+    // convention in X1
     #pragma omp simd
-    for (int i=il; i<=iu; ++i)
+    for (int i=il-1; i<=iu; ++i)
     {
       peos->ApplyPrimitiveFloors(wl_,sl_,k,j,i+1);
       peos->ApplyPrimitiveFloors(wr_,sr_,k,j,i);
@@ -276,8 +278,10 @@ class Hydro {
   {
     EquationOfState * peos = pmy_block->peos;
 
+    // N.B. indicial range is bumped left to account for reconstruction
+    // convention in X1
     #pragma omp simd
-    for (int i=il; i<=iu; ++i)
+    for (int i=il-1; i<=iu; ++i)
     {
       if (floor_both_states)
       {
