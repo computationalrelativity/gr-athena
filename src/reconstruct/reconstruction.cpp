@@ -99,19 +99,19 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
   {
     xorder = 5;  // 5 is dummy for WENO interface
     xorder_style = ReconstructionVariant::mp3;
-    xorder_eps = pin->GetOrAddReal("time", "xorder_eps", 0);
+    xorder_eps = pin->GetOrAddReal("time", "xorder_eps", 1e-40);
   }
   else if (input_recon == "mp5")
   {
     xorder = 5;  // 5 is dummy for WENO interface
     xorder_style = ReconstructionVariant::mp5;
-    xorder_eps = pin->GetOrAddReal("time", "xorder_eps", 0);
+    xorder_eps = pin->GetOrAddReal("time", "xorder_eps", 1e-40);
   }
   else if (input_recon == "mp7")
   {
     xorder = 5;  // 5 is dummy for WENO interface
     xorder_style = ReconstructionVariant::mp7;
-    xorder_eps = pin->GetOrAddReal("time", "xorder_eps", 0);
+    xorder_eps = pin->GetOrAddReal("time", "xorder_eps", 1e-40);
   }
   else if (input_recon == "weno5")
   {
@@ -753,9 +753,39 @@ void Reconstruction::ReconstructFieldX1(
       ReconstructPPMX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
+    case (ReconVar::ceno3):
+    {
+      ReconstructCeno3X1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno5):
+    {
+      ReconstructWeno5X1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
     case (ReconVar::weno5z):
     {
       ReconstructWeno5ZX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno5d_si):
+    {
+      ReconstructWeno5dsiX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::mp3):
+    {
+      ReconstructMP3X1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::mp5):
+    {
+      ReconstructMP5X1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::mp7):
+    {
+      ReconstructMP7X1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
     default:
@@ -800,9 +830,39 @@ void Reconstruction::ReconstructFieldX2(
       ReconstructPPMX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
+    case (ReconVar::ceno3):
+    {
+      ReconstructCeno3X2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno5):
+    {
+      ReconstructWeno5X2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
     case (ReconVar::weno5z):
     {
       ReconstructWeno5ZX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno5d_si):
+    {
+      ReconstructWeno5dsiX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::mp3):
+    {
+      ReconstructMP3X2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::mp5):
+    {
+      ReconstructMP5X2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::mp7):
+    {
+      ReconstructMP7X2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
     default:
@@ -847,9 +907,39 @@ void Reconstruction::ReconstructFieldX3(
       ReconstructPPMX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
+    case (ReconVar::ceno3):
+    {
+      ReconstructCeno3X3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno5):
+    {
+      ReconstructWeno5X3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
     case (ReconVar::weno5z):
     {
       ReconstructWeno5ZX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno5d_si):
+    {
+      ReconstructWeno5dsiX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::mp3):
+    {
+      ReconstructMP3X3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::mp5):
+    {
+      ReconstructMP5X3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::mp7):
+    {
+      ReconstructMP7X3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
     default:

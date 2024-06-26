@@ -290,6 +290,7 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
 }
 
 // Reference implementation of Athena++
+/*
 void Hydro::CalculateFluxesRef(AthenaArray<Real> &w, FaceField &b,
                                AthenaArray<Real> &bcc, const int order)
 {
@@ -344,9 +345,10 @@ void Hydro::CalculateFluxesRef(AthenaArray<Real> &w, FaceField &b,
         pmb->precon->PiecewiseLinearX1(k, j, is-1, ie+1, w, bcc, wl_, wr_);
       } else if (order ==3 || order==4) {
         pmb->precon->PiecewiseParabolicX1(k, j, is-1, ie+1, w, bcc, wl_, wr_);
-      } else {
-        pmb->precon->WenoX1(k, j, is-1, ie+1, w, bcc, wl_, wr_);
       }
+      // else {
+      //   pmb->precon->WenoX1(k, j, is-1, ie+1, w, bcc, wl_, wr_);
+      // }
       }
       else if(fix_fluxes==1){
       if (order == 1) {
@@ -731,6 +733,8 @@ void Hydro::CalculateFluxesRef(AthenaArray<Real> &w, FaceField &b,
   }
   return;
 }
+
+*/
 
 //----------------------------------------------------------------------------------------
 //! \fn  void Hydro::CalculateFluxes_STS

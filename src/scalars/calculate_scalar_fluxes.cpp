@@ -285,6 +285,7 @@ void PassiveScalars::CalculateFluxes(AthenaArray<Real> &r, const int order)
 //! \fn  void PassiveScalars::CalculateFluxes
 //  \brief Calculate passive scalar fluxes using reconstruction + weighted upwinding rule
 
+/*
 void PassiveScalars::CalculateFluxesRef(AthenaArray<Real> &r, const int order) {
   MeshBlock *pmb = pmy_block;
 
@@ -606,7 +607,7 @@ void PassiveScalars::CalculateFluxesRef(AthenaArray<Real> &r, const int order) {
   }
   return;
 }
-
+*/
 
 void PassiveScalars::CalculateFluxes_STS() {
   AddDiffusionFluxes();

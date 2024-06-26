@@ -728,7 +728,7 @@ if args['f']:
       "$(wildcard src/hydro/srcterms/*.cpp)",
       "$(wildcard src/hydro/hydro_diffusion/*.cpp)",
       "src/hydro/rsolvers/$(RSOLVER_DIR)$(RSOLVER_FILE)",
-      "$(wildcard src/reconstruct/*.cpp)",
+      "$(wildcard src/reconstruct/recon*.cpp)",
       "$(wildcard src/scalars/*.cpp)"
     ]
     makefile_options['HYDRO_DEPENDENT_SRC'] = '\\\n'.join(aux)
