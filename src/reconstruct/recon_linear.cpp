@@ -190,6 +190,14 @@ Real rec1d_p_lin_vl(const Real uimo, const Real ui, const Real uipo)
   return ur;
 }
 
+// Superbee
+/*
+const Real s1 = minmod(uipo-ui, 2.0 * (ui-uimo));
+const Real s2 = minmod(2.0 * (uipo-ui), ui-uimo);
+return ui + maxmod(s1, s2);
+*/
+
+
 }
 // ----------------------------------------------------------------------------
 

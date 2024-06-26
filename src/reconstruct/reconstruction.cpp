@@ -41,7 +41,9 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
     // read fourth-order solver switches
     correct_ic{pin->GetOrAddBoolean("time", "correct_ic", false)},
     correct_err{pin->GetOrAddBoolean("time", "correct_err", false)}, pmy_block_{pmb},
-    xorder_fallback{pin->GetOrAddBoolean("time", "xorder_fallback", false)}
+    xorder_fallback{pin->GetOrAddBoolean("time", "xorder_fallback", false)},
+    xorder_fallback_unphysical{pin->GetOrAddBoolean(
+      "time", "xorder_fallback_unphysical", false)}
 {
   // Read and set type of spatial reconstruction
   // --------------------------------

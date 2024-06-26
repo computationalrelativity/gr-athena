@@ -144,8 +144,25 @@ class EquationOfState {
 
     // N.B.!
     // to look like standard conditions need to put rho_ = rho h
+
+#if USETM
+    Real mb = GetEOS().GetBaryonMass();
+    Real n = rho / mb;
+    // FIXME: Generalize to work with EOSes accepting particle fractions.
+    Real Y[MAX_SPECIES] = {0.0};
+#if NSCALARS>0
+    for (int l=0; l<NSCALARS; l++)
+    {
+      Y[l] = w_r(l,i);
+    }
+#endif
+
+    Real T = GetEOS().GetTemperatureFromP(n, p, Y);
+    Real rho_ = rho*GetEOS().GetEnthalpy(n, T, Y);
+#else
     Real gamma_adi = GetGamma();
     Real rho_ = rho + gamma_adi/(gamma_adi-1.0) * p;  // EOS dep.
+#endif
 
     // +ve density
     is_physical = is_physical && ((rho_ > 0));

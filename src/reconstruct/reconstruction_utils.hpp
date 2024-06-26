@@ -39,6 +39,11 @@ inline Real max(const Real a, const Real b, const Real c)
   return std::max(std::max(a, b), c);
 }
 
+inline Real max_abs(const Real a, const Real b)
+{
+  return std::max(std::abs(a), std::abs(b));
+}
+
 inline Real min_abs(const Real a, const Real b)
 {
   return std::min(std::abs(a), std::abs(b));
@@ -63,6 +68,12 @@ inline Real min_abs(const Real a, const Real b,
   );
   const Real min_2 = std::min(std::abs(e), std::abs(f));
   return std::min(min_2, min_4);
+}
+
+inline Real maxmod(const Real x, const Real y)
+{
+  const Real oo2 = 0.5;
+  return oo2 * (sign(x) + sign(y)) * max_abs(x, y);
 }
 
 inline Real minmod(const Real x, const Real y)

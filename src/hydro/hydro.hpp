@@ -122,6 +122,49 @@ class Hydro {
         }
       }
     }
+
+    if (pmy_block->precon->xorder_fallback_unphysical)
+    {
+      EquationOfState *peos = pmy_block->peos;
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i)
+      {
+        const bool pl_ = peos->CheckPrimitivePhysical(zl_, -1, -1, i+1);
+        const bool pr_ = peos->CheckPrimitivePhysical(zr_, -1, -1, i);
+        if (!pl_ || !pr_)
+        {
+          for (int n=0; n<NWAVE; ++n)
+          {
+            zl_(n,i+1) = f_zl_(n,i+1);
+            zr_(n,i  ) = f_zr_(n,i  );
+          }
+        }
+      }
+    }
+
+  }
+
+  inline bool CheckInadmissiblePrimitiveX1_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    const int il, const int iu)
+  {
+    for (int i=il; i<=iu; ++i)
+    {
+      if ((zl_(IDN,i+1) < 0) || (zr_(IDN,i) < 0))
+      {
+        return true;
+      }
+
+      const bool pl_ = pmy_block->peos->CheckPrimitivePhysical(zl_, -1, -1, i+1);
+      const bool pr_ = pmy_block->peos->CheckPrimitivePhysical(zr_, -1, -1, i);
+
+      if (!pl_ || !pr_)
+      {
+        return true;
+      }
+    }
+    return false;
   }
 
   inline void FallbackInadmissiblePrimitiveX2_(
@@ -143,6 +186,25 @@ class Hydro {
         }
       }
     }
+
+    if (pmy_block->precon->xorder_fallback_unphysical)
+    {
+      EquationOfState *peos = pmy_block->peos;
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i)
+      {
+        const bool pl_ = peos->CheckPrimitivePhysical(zl_, -1, -1, i);
+        const bool pr_ = peos->CheckPrimitivePhysical(zr_, -1, -1, i);
+        if (!pl_ || !pr_)
+        {
+          for (int n=0; n<NWAVE; ++n)
+          {
+            zl_(n,i) = f_zl_(n,i);
+            zr_(n,i) = f_zr_(n,i);
+          }
+        }
+      }
+    }
   }
 
   inline void FallbackInadmissiblePrimitiveX3_(
@@ -161,6 +223,25 @@ class Hydro {
         {
           zl_(n,i) = f_zl_(n,i);
           zr_(n,i) = f_zr_(n,i);
+        }
+      }
+    }
+
+    if (pmy_block->precon->xorder_fallback_unphysical)
+    {
+      EquationOfState *peos = pmy_block->peos;
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i)
+      {
+        const bool pl_ = peos->CheckPrimitivePhysical(zl_, -1, -1, i);
+        const bool pr_ = peos->CheckPrimitivePhysical(zr_, -1, -1, i);
+        if (!pl_ || !pr_)
+        {
+          for (int n=0; n<NWAVE; ++n)
+          {
+            zl_(n,i) = f_zl_(n,i);
+            zr_(n,i) = f_zr_(n,i);
+          }
         }
       }
     }
