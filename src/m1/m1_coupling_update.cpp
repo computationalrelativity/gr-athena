@@ -190,7 +190,7 @@ void M1::CoupleSourcesHydro(const Real weight, AA & cons)
       ILOOP1(i)
       if (MaskGet(k, j, i))
       {
-        cons(IEN,k,j,i) += weight * S_(i);
+        cons(IEN,k,j,i) += -weight * S_(i);
       }
 
       for (int a=0; a<N; ++a)

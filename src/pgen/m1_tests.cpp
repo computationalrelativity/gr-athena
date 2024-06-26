@@ -238,7 +238,7 @@ void InitM1HomogenousMedium(MeshBlock *pmb, ParameterInput *pin)
   pm1->DerivedGeometry(pm1->geom, pm1->scratch);
   pm1->InitializeHydro(pm1->hydro, pm1->geom, pm1->scratch);
   pm1->DerivedHydro(pm1->hydro, pm1->geom, pm1->scratch);
-  pm1->CalcOpacity(0.0, pm1->storage.u);
+  pm1->CalcOpacity(pmb->pmy_mesh->dt, pm1->storage.u);
 }
 
 void BCOutFlowInnerX1(MeshBlock *pmb,

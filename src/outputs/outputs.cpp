@@ -656,6 +656,33 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
         AppendOutputDataNode(pod);
         num_vars_++;
       }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "eta_e";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_eta(0,0).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "kap_e_a";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_a(0,0).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "kap_e_s";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_s(0,0).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
     }
   }
 
@@ -676,6 +703,83 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
         pod->type = "SCALARS";
         pod->name = "kap_n";
         pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_a_0(0,1).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "eta_e";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_eta(0,1).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "kap_e_a";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_a(0,1).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "kap_e_s";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_s(0,1).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
+  }
+
+
+  if (M1_ENABLED) {
+    if (output_params.variable.compare("m1_radmat_nux") == 0) {
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "eta_n";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_eta_0(0,2).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "kap_n";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_a_0(0,2).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "eta_e";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_eta(0,2).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "kap_e_a";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_a(0,2).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "kap_e_s";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_s(0,2).array(),0,1);
         AppendOutputDataNode(pod);
         num_vars_++;
       }
@@ -720,6 +824,28 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
         pod->type = "SCALARS";
         pod->name = "n_dens";
         pod->data.InitWithShallowSlice(pm1->lab.sc_nG(0,1).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
+  }
+
+  if (M1_ENABLED) {
+    if (output_params.variable.compare("m1_radlab_nux") == 0) {
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "E";
+        pod->data.InitWithShallowSlice(pm1->lab.sc_E(0,2).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "n_dens";
+        pod->data.InitWithShallowSlice(pm1->lab.sc_nG(0,2).array(),0,1);
         AppendOutputDataNode(pod);
         num_vars_++;
       }

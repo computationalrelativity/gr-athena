@@ -93,7 +93,7 @@ public:
       Real eta_e_nua;
       Real eta_e_nux;
 
-      ierr[0] = pmy_weakrates->NeutrinoEmission(rho, T, Y_e, eta_n_nue, eta_n_nua, eta_n_nux, eta_e_nue, eta_e_nua, eta_n_nux);
+      ierr[0] = pmy_weakrates->NeutrinoEmission(rho, T, Y_e, eta_n_nue, eta_n_nua, eta_n_nux, eta_e_nue, eta_e_nua, eta_e_nux);
 
       Real kap_a_n_nue;
       Real kap_a_n_nua;
@@ -214,26 +214,25 @@ public:
       // For heavy lepton neutrinos we change the emissivity
 
       // Electron neutrinos
-      pm1->radmat.sc_eta_0(0,0)(k,j,i)   = corr_fac[0]*eta_n_nue;
-      pm1->radmat.sc_eta(0,0)(k,j,i)     = corr_fac[0]*eta_e_nue;
+      pm1->radmat.sc_kap_a_0(0,0)(k,j,i) = corr_fac[0]*kap_a_n_nue;
+      pm1->radmat.sc_kap_a(0,0)(k,j,i)   = corr_fac[0]*kap_a_e_nue;
       
-      pm1->radmat.sc_kap_a_0(0,0)(k,j,i) = (dens_n[0] > 0.0 ? pm1->radmat.sc_eta_0(0,0)(k,j,i)/dens_n[0] : 0.0);
-      pm1->radmat.sc_kap_a(0,0)(k,j,i)   = (dens_e[0] > 0.0 ? pm1->radmat.sc_eta(0,0)(k,j,i)/dens_e[0]   : 0.0);
-      
-      // Electron anti-neutrinos
-      pm1->radmat.sc_eta_0(0,1)(k,j,i)   = corr_fac[1]*eta_n_nua;
-      pm1->radmat.sc_eta(0,1)(k,j,i)     = corr_fac[1]*eta_e_nua;
-      
-      pm1->radmat.sc_kap_a_0(0,1)(k,j,i) = (dens_n[1] > 0.0 ? pm1->radmat.sc_eta_0(0,1)(k,j,i)/dens_n[1] : 0.0);
-      pm1->radmat.sc_kap_a(0,1)(k,j,i)   = (dens_e[1] > 0.0 ? pm1->radmat.sc_eta(0,1)(k,j,i)/dens_e[1]   : 0.0);
-      
-      // Heavy lepton neutrinos
-      pm1->radmat.sc_kap_a_0(0,2)(k,j,i) = corr_fac[2]*kap_a_n_nux;
-      pm1->radmat.sc_kap_a(0,2)(k,j,i)   = corr_fac[2]*kap_a_e_nux;
-      
-      pm1->radmat.sc_eta_0(0,2)(k,j,i)   = pm1->radmat.sc_kap_a_0(0,2)(k,j,i)*dens_n[2];
-      pm1->radmat.sc_eta(0,2)(k,j,i)     = pm1->radmat.sc_kap_a(0,2)(k,j,i)*dens_e[2];
+      pm1->radmat.sc_eta_0(0,0)(k,j,i)   = pm1->radmat.sc_kap_a_0(0,0)(k,j,i)*dens_n[0];
+      pm1->radmat.sc_eta(0,0)(k,j,i)     = pm1->radmat.sc_kap_a(0,0)(k,j,i)*dens_e[0];
 
+      // Electron anti-neutrinos
+      pm1->radmat.sc_kap_a_0(0,1)(k,j,i) = corr_fac[1]*kap_a_n_nua;
+      pm1->radmat.sc_kap_a(0,1)(k,j,i)   = corr_fac[1]*kap_a_e_nua;
+      
+      pm1->radmat.sc_eta_0(0,1)(k,j,i)   = pm1->radmat.sc_kap_a_0(0,1)(k,j,i)*dens_n[1];
+      pm1->radmat.sc_eta(0,1)(k,j,i)     = pm1->radmat.sc_kap_a(0,1)(k,j,i)*dens_e[1];
+
+      // Heavy lepton neutrinos
+      pm1->radmat.sc_eta_0(0,2)(k,j,i)   = corr_fac[2]*eta_n_nux;
+      pm1->radmat.sc_eta(0,2)(k,j,i)     = corr_fac[2]*eta_e_nux;
+      
+      pm1->radmat.sc_kap_a_0(0,2)(k,j,i) = (dens_n[2] > 0.0 ? pm1->radmat.sc_eta_0(0,2)(k,j,i)/dens_n[2] : 0.0);
+      pm1->radmat.sc_kap_a(0,2)(k,j,i)   = (dens_e[2] > 0.0 ? pm1->radmat.sc_eta(0,2)(k,j,i)/dens_e[2]   : 0.0);
     }
     
     return 0;
