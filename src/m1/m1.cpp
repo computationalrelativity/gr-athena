@@ -268,7 +268,7 @@ void M1::SetVarAliasesRad(AthenaArray<Real> & u, vars_Rad & rad)
   }
 }
 
-void M1::SetVarAliasesRadMat(AthenaArray<Real> & u, vars_RadMat & rmat)
+void M1::SetVarAliasesRadMat(AthenaArray<Real> & u, vars_RadMat & radmat)
 {
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
