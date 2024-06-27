@@ -104,7 +104,7 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   wr_.NewAthenaArray(NWAVE, nc1);
   wlb_.NewAthenaArray(NWAVE, nc1);
 
-  if (pin->GetOrAddBoolean("time", "xorder_fallback", false))
+  if (pmy_block->precon->xorder_use_fb)
   {
     r_wl_.NewAthenaArray(NWAVE, nc1);
     r_wr_.NewAthenaArray(NWAVE, nc1);

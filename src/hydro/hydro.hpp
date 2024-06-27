@@ -111,7 +111,7 @@ class Hydro {
     const int il, const int iu)
   {
     #pragma omp simd
-    for (int i=il; i<=iu; ++i)
+    for (int i=il-1; i<=iu; ++i)
     {
       if ((zl_(IDN,i+1) < 0) || (zr_(IDN,i) < 0))
       {
@@ -123,11 +123,11 @@ class Hydro {
       }
     }
 
-    if (pmy_block->precon->xorder_fallback_unphysical)
+    if (pmy_block->precon->xorder_use_fb_unphysical)
     {
       EquationOfState *peos = pmy_block->peos;
       #pragma omp simd
-      for (int i=il; i<=iu; ++i)
+      for (int i=il-1; i<=iu; ++i)
       {
         const bool pl_ = peos->CheckPrimitivePhysical(zl_, -1, -1, i+1);
         const bool pr_ = peos->CheckPrimitivePhysical(zr_, -1, -1, i);
@@ -187,7 +187,7 @@ class Hydro {
       }
     }
 
-    if (pmy_block->precon->xorder_fallback_unphysical)
+    if (pmy_block->precon->xorder_use_fb_unphysical)
     {
       EquationOfState *peos = pmy_block->peos;
       #pragma omp simd
@@ -227,7 +227,7 @@ class Hydro {
       }
     }
 
-    if (pmy_block->precon->xorder_fallback_unphysical)
+    if (pmy_block->precon->xorder_use_fb_unphysical)
     {
       EquationOfState *peos = pmy_block->peos;
       #pragma omp simd

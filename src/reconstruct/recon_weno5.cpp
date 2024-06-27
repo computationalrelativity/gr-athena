@@ -59,6 +59,9 @@ Real rec1d_p_weno5z(const Real uimt,
 static const Real optimw[3]  = {1./10., 3./5., 3./10.};
 static const Real EPSL       = 1e-40; //1e-6
 
+// See:
+// A novel and robust scale-invariant WENO scheme for hyperbolic conservation
+// laws; 2022, Don et. al.
 #pragma omp declare simd
 Real rec1d_p_weno5d_si(const Real uimt,
                        const Real uimo,

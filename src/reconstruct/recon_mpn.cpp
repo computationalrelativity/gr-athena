@@ -36,6 +36,14 @@ Real rec1d_p_mp5(const Real eps,
                  const Real uipt);
 
 #pragma omp declare simd
+Real rec1d_p_mp5_R(const Real eps,
+                   const Real uimt,
+                   const Real uimo,
+                   const Real ui,
+                   const Real uipo,
+                   const Real uipt);
+
+#pragma omp declare simd
 Real rec1d_p_mp7(const Real eps,
                  const Real uim3,
                  const Real uim2,
@@ -64,6 +72,19 @@ Real mpnlimiter(const Real eps_mpn,
                 const Real uip1,
                 const Real uip2,
                 const Real uip3);
+
+// See:
+// An improved accurate monotonicity-preserving scheme for the Euler equations
+// 2016; He et. al.
+#pragma omp declare simd
+Real mpnlimiter_R(const Real eps_mpn,
+                  const Real u,
+                  const Real uimt,
+                  const Real uimo,
+                  const Real ui,
+                  const Real uipo,
+                  const Real uipt);
+
 }
 // ----------------------------------------------------------------------------
 
@@ -292,6 +313,77 @@ void Reconstruction::ReconstructMP7X3(AthenaArray<Real> &z,
   }
 }
 
+// ----------------------------------------------------------------------------
+
+void Reconstruction::ReconstructMP5RX1(AthenaArray<Real> &z,
+                                       AthenaArray<Real> &zl_,
+                                       AthenaArray<Real> &zr_,
+                                       const int n_tar,
+                                       const int n_src,
+                                       const int k,
+                                       const int j,
+                                       const int il, const int iu)
+{
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    const Real zimt = z(n_src,k,j,i-2);
+    const Real zimo = z(n_src,k,j,i-1);
+    const Real zi   = z(n_src,k,j,i);
+    const Real zipo = z(n_src,k,j,i+1);
+    const Real zipt = z(n_src,k,j,i+2);
+
+    zl_(n_tar,i+1) = rec1d_p_mp5_R(xorder_eps,zimt,zimo,zi,zipo,zipt);
+    zr_(n_tar,i  ) = rec1d_p_mp5_R(xorder_eps,zipt,zipo,zi,zimo,zimt);
+  }
+}
+
+void Reconstruction::ReconstructMP5RX2(AthenaArray<Real> &z,
+                                       AthenaArray<Real> &zl_,
+                                       AthenaArray<Real> &zr_,
+                                       const int n_tar,
+                                       const int n_src,
+                                       const int k,
+                                       const int j,
+                                       const int il, const int iu)
+{
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    const Real zimt = z(n_src,k,j-2,i);
+    const Real zimo = z(n_src,k,j-1,i);
+    const Real zi   = z(n_src,k,j,  i);
+    const Real zipo = z(n_src,k,j+1,i);
+    const Real zipt = z(n_src,k,j+2,i);
+
+    zl_(n_tar,i) = rec1d_p_mp5_R(xorder_eps,zimt,zimo,zi,zipo,zipt);
+    zr_(n_tar,i) = rec1d_p_mp5_R(xorder_eps,zipt,zipo,zi,zimo,zimt);
+  }
+}
+
+void Reconstruction::ReconstructMP5RX3(AthenaArray<Real> &z,
+                                       AthenaArray<Real> &zl_,
+                                       AthenaArray<Real> &zr_,
+                                       const int n_tar,
+                                       const int n_src,
+                                       const int k,
+                                       const int j,
+                                       const int il, const int iu)
+{
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    const Real zimt = z(n_src,k-2,j,i);
+    const Real zimo = z(n_src,k-1,j,i);
+    const Real zi   = z(n_src,k,  j,i);
+    const Real zipo = z(n_src,k+1,j,i);
+    const Real zipt = z(n_src,k+2,j,i);
+
+    zl_(n_tar,i) = rec1d_p_mp5_R(xorder_eps,zimt,zimo,zi,zipo,zipt);
+    zr_(n_tar,i) = rec1d_p_mp5_R(xorder_eps,zipt,zipo,zi,zimo,zimt);
+  }
+}
+
 // impl -----------------------------------------------------------------------
 namespace {
 
@@ -388,8 +480,38 @@ Real rec1d_p_mp7(const Real eps,
                       cl7_6*uip3);
 
   return mpnlimiter(eps,ulim,uim2,uim1,ui,uip1,uip2);
+}
 
-  // return mpnlimiter(eps,ulim,uim3,uim2,uim1,ui,uip1,uip2,uip3);
+#pragma omp declare simd
+Real rec1d_p_mp5_R(const Real eps,
+                   const Real uimt,
+                   const Real uimo,
+                   const Real ui,
+                   const Real uipo,
+                   const Real uipt)
+{
+  /*
+  // Computes u[i + 1/2]
+  Real uimt = u [i-2];
+  Real uimo = u [i-1];
+  Real ui   = u [i];
+  Real uipo = u [i+1];
+  Real uipt = u [i+2];
+  */
+
+  static const Real cl5_0 = 2./60.;
+  static const Real cl5_1 = -13./60.;
+  static const Real cl5_2 = 47./60.;
+  static const Real cl5_3 = 27./60.;
+  static const Real cl5_4 = -3./60.;
+
+  const Real ulim  = (cl5_0*uimt +
+                      cl5_1*uimo +
+                      cl5_2*ui +
+                      cl5_3*uipo +
+                      cl5_4*uipt);
+
+  return mpnlimiter_R(eps,ulim,uimt,uimo,ui,uipo,uipt);
 }
 
 #pragma omp declare simd
@@ -486,6 +608,71 @@ Real mpnlimiter(const Real eps_mpn,
   const Real u_max = std::min(max(ui, uipo, u_md), max(ui, u_ul, u_lc));
 
   return u + minmod(u_min-u, u_max-u);
+}
+
+#pragma omp declare simd
+Real mpnlimiter_R(const Real eps_mpn,
+                  const Real u,
+                  const Real uimt,
+                  const Real uimo,
+                  const Real ui,
+                  const Real uipo,
+                  const Real uipt)
+{
+  using namespace reconstruction::utils;
+
+  static const Real oo2 = 1./2.;
+  static const Real fot = 4./3.;
+  static const Real alphatil = 4.;
+
+  const Real dm = uimt - 2.*uimo + ui;
+  const Real d0 = uimo - 2.*ui   + uipo;
+  const Real dp = ui   - 2.*uipo + uipt;
+
+  const Real dm4p = minmod(4.*d0-dp, 4.*dp-d0, d0, dp);
+  const Real dm4m = minmod(4.*d0-dm, 4.*dm-d0, d0, dm);
+
+  // c.f. code of Suresh '97 (which has uimo)
+  const Real u_ul = ui + alphatil * (ui - uimo);
+  const Real u_av = oo2 * (ui + uipo);
+  const Real u_md = u_av - oo2 * dm4p;
+  const Real u_lc = ui + oo2 * (ui - uimo) + fot * dm4m;
+
+  const Real u_min = std::max(min(ui, uipo, u_md), min(ui, u_ul, u_lc));
+  const Real u_max = std::min(max(ui, uipo, u_md), max(ui, u_ul, u_lc));
+
+
+  // TVD limit
+  const Real du_mh = ui - uimo;
+  const Real du_ph = uipo - ui;
+
+  const Real u_mp = ui + minmod(uipo-ui, alphatil * (ui - uimo));
+
+  if ((u_max-u_min) > (std::max(ui, u_mp)) - std::min(ui, u_mp))
+  if ((u < u_min ) || (u_max < u))
+  {
+    static const Real phi_c = 2.0;
+
+    const Real r_ph = (du_ph > 0) ? du_mh / du_ph : 0;
+    const Real phi_ph = (r_ph + std::abs(r_ph)) / (1.0 + std::abs(r_ph));
+    const Real u_tvd = ui + 1.0 / phi_c * phi_ph * (uipo - ui);
+
+    return u_tvd;
+  }
+
+  // Inside [u_min, u_max], use limiter
+  const Real u_re_ph = (
+    ui + 0.5 * (sign(du_mh) + sign(du_ph)) *
+    std::abs(du_mh * du_ph) / (std::abs(du_mh) + std::abs(du_ph) + eps_mpn)
+  );
+
+  const Real u_ph = (
+    0.5 * (u + u_re_ph) -
+    sign((u - u_min) * (u - u_max)) *
+    0.5 * (u - u_re_ph)
+  );
+
+  return u_ph;
 }
 
 

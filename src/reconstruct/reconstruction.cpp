@@ -33,113 +33,113 @@ int DoolittleLUPDecompose(Real **a, int n, int *pivot);
 void DoolittleLUPSolve(Real **lu, int *pivot, Real *b, int n, Real *x);
 } // namespace
 
-// constructor
+namespace {
 
-Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
-    characteristic_projection{false}, uniform{true, true, true},
-    curvilinear{false, false},
-    // read fourth-order solver switches
-    correct_ic{pin->GetOrAddBoolean("time", "correct_ic", false)},
-    correct_err{pin->GetOrAddBoolean("time", "correct_err", false)}, pmy_block_{pmb},
-    xorder_fallback{pin->GetOrAddBoolean("time", "xorder_fallback", false)},
-    xorder_fallback_unphysical{pin->GetOrAddBoolean(
-      "time", "xorder_fallback_unphysical", false)}
+typedef Reconstruction::ReconstructionVariant ReconVar;
+
+void GetVariant(
+  MeshBlock *pmb, ParameterInput *pin,
+  const std::string &sxorder,
+  const std::string &sxorder_eps,
+  ReconVar &xorder_style,
+  Real &xorder_eps)
 {
-  // Read and set type of spatial reconstruction
-  // --------------------------------
-  std::string input_recon = pin->GetOrAddString("time", "xorder", "2");
 
-  /*
-  if (input_recon == "1") {
-    xorder = 1;
-  } else if (input_recon == "2") {
-    xorder = 2;
-  } else if (input_recon == "2c") {
-    xorder = 2;
-    characteristic_projection = true;
-  } else if (input_recon == "3") {
-    // PPM approximates interfaces with 4th-order accurate stencils, but use xorder=3
-    // to denote that the overall scheme is "between 2nd and 4th" order w/o flux terms
-    xorder = 3;
-  } else if (input_recon == "3c") {
-    xorder = 3;
-    characteristic_projection = true;
-  } else if ((input_recon == "4") || (input_recon == "4c")) {
-    // Full 4th-order scheme for hydro or MHD on uniform Cartesian grids
-    xorder = 4;
-    if (input_recon == "4c")
-      characteristic_projection = true;
-  // additional reconstruction methods
-  }
-  */
-  if (input_recon == "donate")
+  xorder_eps = pin->GetOrAddReal("time", sxorder_eps, 1e-40);
+  std::string str_xorder_style = pin->GetOrAddString(
+    "time", sxorder, "lin_vl");
+
+  if (str_xorder_style == "donate")
   {
-    xorder = 5;  // 5 is dummy for WENO interface
-    xorder_style = ReconstructionVariant::donate;
+    xorder_style = ReconVar::donate;
   }
-  else if (input_recon == "lin_vl")
+  else if (str_xorder_style == "lin_vl")
   {
-    xorder = 5;  // 5 is dummy for WENO interface
-    xorder_style = ReconstructionVariant::lin_vl;
+    xorder_style = ReconVar::lin_vl;
   }
-  else if (input_recon == "lin_mc2")
+  else if (str_xorder_style == "lin_mc2")
   {
-    xorder = 5;  // 5 is dummy for WENO interface
-    xorder_style = ReconstructionVariant::lin_mc2;
+    xorder_style = ReconVar::lin_mc2;
   }
-  else if (input_recon == "ppm")
+  else if (str_xorder_style == "ppm")
   {
-    xorder = 5;  // 5 is dummy for WENO interface
-    xorder_style = ReconstructionVariant::ppm;
+    xorder_style = ReconVar::ppm;
   }
-  else if (input_recon == "ceno3")
+  else if (str_xorder_style == "ceno3")
   {
-    xorder = 5;  // 5 is dummy for WENO interface
-    xorder_style = ReconstructionVariant::ceno3;
+    xorder_style = ReconVar::ceno3;
   }
-  else if (input_recon == "mp3")
+  else if (str_xorder_style == "mp3")
   {
-    xorder = 5;  // 5 is dummy for WENO interface
-    xorder_style = ReconstructionVariant::mp3;
-    xorder_eps = pin->GetOrAddReal("time", "xorder_eps", 1e-40);
+    xorder_style = ReconVar::mp3;
   }
-  else if (input_recon == "mp5")
+  else if (str_xorder_style == "mp5")
   {
-    xorder = 5;  // 5 is dummy for WENO interface
-    xorder_style = ReconstructionVariant::mp5;
-    xorder_eps = pin->GetOrAddReal("time", "xorder_eps", 1e-40);
+    xorder_style = ReconVar::mp5;
   }
-  else if (input_recon == "mp7")
+  else if (str_xorder_style == "mp7")
   {
-    xorder = 5;  // 5 is dummy for WENO interface
-    xorder_style = ReconstructionVariant::mp7;
-    xorder_eps = pin->GetOrAddReal("time", "xorder_eps", 1e-40);
+    xorder_style = ReconVar::mp7;
   }
-  else if (input_recon == "weno5")
+  else if (str_xorder_style == "mp5_R")
   {
-    xorder = 5;  // 5 is dummy for WENO interface
-    xorder_style = ReconstructionVariant::weno5;
-    xorder_eps = pin->GetOrAddReal("time", "xorder_eps", 0);
+    xorder_style = ReconVar::mp5_R;
   }
-  else if (input_recon == "weno5z")
+  else if (str_xorder_style == "weno5")
   {
-    xorder = 5;  // 5 is dummy for WENO interface
-    xorder_style = ReconstructionVariant::weno5z;
-    xorder_eps = pin->GetOrAddReal("time", "xorder_eps", 0);
+    xorder_style = ReconVar::weno5;
   }
-  else if (input_recon == "weno5d_si")
+  else if (str_xorder_style == "weno5z")
   {
-    xorder = 5;  // 5 is dummy for WENO interface
-    xorder_style = ReconstructionVariant::weno5d_si;
-    xorder_eps = pin->GetOrAddReal("time", "xorder_eps", 0);
+    xorder_style = ReconVar::weno5z;
+  }
+  else if (str_xorder_style == "weno5d_si")
+  {
+    xorder_style = ReconVar::weno5d_si;
   }
   else
   {
     std::stringstream msg;
     msg << "### FATAL ERROR in Reconstruction constructor" << std::endl
-        << "xorder=" << input_recon << " not valid choice for reconstruction"<< std::endl;
+        << "xorder=" << str_xorder_style
+        << " not valid choice for reconstruction"<< std::endl;
     ATHENA_ERROR(msg);
   }
+
+}
+
+}
+
+
+Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin)
+  : characteristic_projection{false},
+    uniform{true, true, true},
+    curvilinear{false, false},
+    // read fourth-order solver switches
+    correct_ic{pin->GetOrAddBoolean("time", "correct_ic", false)},
+    correct_err{pin->GetOrAddBoolean("time", "correct_err", false)},
+    pmy_block_{pmb}
+{
+
+  // Read and set type of spatial reconstruction
+  xorder = 5; // BD: TODO - remove as the "xorder" is essentially dead code
+
+  GetVariant(pmb, pin, "xorder", "xorder_eps", xorder_style, xorder_eps);
+
+  xorder_use_fb = pin->GetOrAddBoolean("time", "xorder_use_fb", false);
+
+  if (xorder_use_fb)
+  {
+    GetVariant(pmb, pin,
+               "xorder_fb",
+               "xorder_eps",
+               xorder_style_fb,
+               xorder_eps);
+
+    xorder_use_fb_unphysical = pin->GetOrAddBoolean(
+      "time", "xorder_use_fb_unphysical", false);
+  }
+
 
   // Check for incompatible choices with broader solver configuration
   // --------------------------------
@@ -155,6 +155,7 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
               << " in some cases." << std::endl;
   }
 
+  /*
   // check for necessary number of ghost zones for PPM w/o fourth-order flux corrections
   if (xorder == 3) {
     int req_nghost = 3;
@@ -263,6 +264,8 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
       ATHENA_ERROR(msg);
     }
   }
+  */
+
 
   // switch to secondary PLM and PPM variants for nonuniform and/or curvilinear meshes
   if (std::strcmp(COORDINATE_SYSTEM, "cylindrical") == 0) {
@@ -790,6 +793,11 @@ void Reconstruction::ReconstructFieldX1(
       ReconstructMP7X1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
+    case (ReconVar::mp5_R):
+    {
+      ReconstructMP5RX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
     default:
     {
       assert(false);
@@ -867,6 +875,11 @@ void Reconstruction::ReconstructFieldX2(
       ReconstructMP7X2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
+    case (ReconVar::mp5_R):
+    {
+      ReconstructMP5RX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
     default:
     {
       assert(false);
@@ -942,6 +955,11 @@ void Reconstruction::ReconstructFieldX3(
     case (ReconVar::mp7):
     {
       ReconstructMP7X3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::mp5_R):
+    {
+      ReconstructMP5RX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
     default:

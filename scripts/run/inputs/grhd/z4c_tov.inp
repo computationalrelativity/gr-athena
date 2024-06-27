@@ -103,10 +103,16 @@ tlim	       = 50
 integrator   = rk3   # time integration algorithm
 
 # spatial reconstruction - element of:
-# {donate, lin_vl, lin_mc2, ppm, weno5z}
-# To_fix:  {ceno3, mp3, mp5, mp7, weno5, weno5d_si}
-xorder       = ppm
-xorder_fallback = false
+# {donate, lin_vl, lin_mc2, ppm, ceno3, weno5, weno5z, weno5d_si,
+#  mp3, mp5, mp7, mp5_R}
+
+xorder = weno5d_si
+xorder_eps = 1e-40
+
+xorder_use_fb = true              # control if fallback is used
+xorder_use_fb_unphysical = false  # optinally verify (fluid) energy cond.
+xorder_fb = lin_vl
+
 floor_both_states = false  # reset both l/r [Reprimand only]
 
 ncycle_out   = 1      # interval for stdout summary info
@@ -161,6 +167,9 @@ fix_sources=0 #use initial data in hydro source calculation (stationary spacetim
 zero_sources=0 # set hydro sources to 0
 zero_div=0 # set div F = 0 i.e. don't update conservatives with fluxes
 
+# control whether to split fluxes and reconstruct those [GRHD only]
+flux_reconstruction = false
+
 # =============================================================================
 
 
@@ -168,6 +177,8 @@ zero_div=0 # set div F = 0 i.e. don't update conservatives with fluxes
 
 # TOV: central density
 rhoc = 0.00128
+
+id_floor_primitives = false
 
 # TOV: starting integration radius
 rmin = 0

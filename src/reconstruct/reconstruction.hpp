@@ -33,12 +33,15 @@ class Reconstruction {
 
   // for xorder == 5 we can switch between reconstruction styles
   enum class ReconstructionVariant {
-    none,donate,lin_vl,lin_mc2,ppm,ceno3,mp3,mp5,mp7,weno5,weno5z,weno5d_si
+    none,donate,lin_vl,lin_mc2,ppm,ceno3,mp3,mp5,mp7,mp5_R,
+    weno5,weno5z,weno5d_si
   };
   ReconstructionVariant xorder_style;
-  Real xorder_eps;       // for methods for epsilon control parameters
-  bool xorder_fallback;  // for methods with order reduction
-  bool xorder_fallback_unphysical;
+  ReconstructionVariant xorder_style_fb;
+
+  Real xorder_eps;                        // epsilon control parameters
+  bool xorder_use_fb;                     // try order reduction
+  bool xorder_use_fb_unphysical = false;  // try energy conditions
 
   bool characteristic_projection; // reconstruct on characteristic or primitive hydro vars
   bool uniform[3], curvilinear[2];
@@ -176,7 +179,6 @@ class Reconstruction {
     AthenaArray<Real> & zr_,
     const int k, const int j, const int il, const int iu)
   {
-    // wl_ populated at i+1 on Recon. call
     for (int n=0; n<NSCALARS; ++n)
     {
       ReconstructFieldX2(rv, z, zl_, zr_, n, n, k, j, il, iu);
@@ -216,7 +218,6 @@ class Reconstruction {
     AthenaArray<Real> & zr_,
     const int k, const int j, const int il, const int iu)
   {
-    // wl_ populated at i+1 on Recon. call
     for (int n=0; n<NSCALARS; ++n)
     {
       ReconstructFieldX3(rv, z, zl_, zr_, n, n, k, j, il, iu);
@@ -521,6 +522,33 @@ private:
                         const int k,
                         const int j,
                         const int il, const int iu);
+
+  void ReconstructMP5RX1(AthenaArray<Real> &z,
+                         AthenaArray<Real> &zl_,
+                         AthenaArray<Real> &zr_,
+                         const int n_tar,
+                         const int n_src,
+                         const int k,
+                         const int j,
+                         const int il, const int iu);
+
+  void ReconstructMP5RX2(AthenaArray<Real> &z,
+                         AthenaArray<Real> &zl_,
+                         AthenaArray<Real> &zr_,
+                         const int n_tar,
+                         const int n_src,
+                         const int k,
+                         const int j,
+                         const int il, const int iu);
+
+  void ReconstructMP5RX3(AthenaArray<Real> &z,
+                         AthenaArray<Real> &zl_,
+                         AthenaArray<Real> &zr_,
+                         const int n_tar,
+                         const int n_src,
+                         const int k,
+                         const int j,
+                         const int il, const int iu);
 
 private:
   MeshBlock* pmy_block_;  // ptr to MeshBlock containing this Reconstruction

@@ -81,7 +81,7 @@ PassiveScalars::PassiveScalars(MeshBlock *pmb, ParameterInput *pin)  :
   rr_.NewAthenaArray(NSCALARS, nc1);
   rlb_.NewAthenaArray(NSCALARS, nc1);
 
-  if (pin->GetOrAddBoolean("time", "xorder_fallback", false))
+  if (pmy_block->precon->xorder_use_fb)
   {
     r_rl_.NewAthenaArray(NSCALARS, nc1);
     r_rr_.NewAthenaArray(NSCALARS, nc1);

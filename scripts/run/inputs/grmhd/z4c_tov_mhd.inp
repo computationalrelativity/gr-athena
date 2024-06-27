@@ -51,6 +51,16 @@ fixedgauge = 0 # set rhs of gauge = 0
 fix_admsources = 0 # calculate adm sources with initial data
 # =============================================================================
 
+<task_triggers>  # ============================================================
+# control frequency of task execution; certain constraints are augmented
+# further automatically by choices in output block
+
+# missing / zero values do not get activated
+adjust_mesh_dt = true
+
+tracker_extrema = 0.25
+dt_Z4c_Weyl     = 0.0
+# =============================================================================
 
 <trackers_extrema>  # =========================================================
 N_tracker = 0
@@ -73,32 +83,41 @@ update_max_step_factor = 10
 # =========================================================
 
 <time> # ======================================================================
-cfl_number   = 0.25
+cfl_number   = 0.2
 tlim	       = 5
 integrator   = rk3   # time integration algorithm
 
 # spatial reconstruction - element of:
-# {1, 2, 2c, 3, 3c, 4, 4c, ceno3, mp3, mp5, mp7, weno5, weno5z, weno5d_si}
-xorder       = weno5z
+# {donate, lin_vl, lin_mc2, ppm, ceno3, weno5, weno5z, weno5d_si,
+#  mp3, mp5, mp7, mp5_R}
+
+xorder = weno5d_si
+xorder_eps = 1e-40
+
+xorder_use_fb = false              # control if fallback is used
+xorder_use_fb_unphysical = false  # optinally verify (fluid) energy cond.
+xorder_fb = lin_vl
+
+floor_both_states = false  # reset both l/r [Reprimand only]
 
 ncycle_out   = 1      # interval for stdout summary info
 # =============================================================================
 
 <mesh> # ======================================================================
 # no. cell in dir, min/max x, inner/outer BC
-nx1    = 32
+nx1    = 64
 x1min  = -25
 x1max  = 25
 ix1_bc = extrapolate_outflow
 ox1_bc = extrapolate_outflow
 
-nx2    = 32
+nx2    = 64
 x2min  = -25
 x2max  = 25
 ix2_bc = extrapolate_outflow
 ox2_bc = extrapolate_outflow
 
-nx3    = 32
+nx3    = 64
 x3min  = -25
 x3max  = 25
 ix3_bc = extrapolate_outflow
@@ -176,7 +195,7 @@ pcut     = 0.04
 magindex = 0
 
 # Atmosphere settings
-fatm = 1e-18  # set atmosphere rho to rho = fatm
+fatm = 1e-40  # set atmosphere rho to rho = fatm
 fthr = 1    # set point to atmosphere if rho < fthr*fatm
 
 max_z = 10
@@ -189,7 +208,7 @@ x2min           = -10
 x2max           = 10
 x3min           = -10
 x3max           = 10
-level           = 2
+level           = 1
 # =============================================================================
 
 # dumped quantities ===========================================================

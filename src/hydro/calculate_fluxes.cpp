@@ -40,8 +40,7 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
   Reconstruction * pr = pmb->precon;
   typedef Reconstruction::ReconstructionVariant ReconstructionVariant;
   ReconstructionVariant rv = pr->xorder_style;
-
-  ReconstructionVariant r_rv = ReconstructionVariant::lin_vl;
+  ReconstructionVariant r_rv = pr->xorder_style_fb;
 
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
@@ -73,7 +72,7 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
     pr->ReconstructPrimitivesX1_(rv, w, wl_, wr_, k, j, il, iu);
     pr->ReconstructMagneticFieldX1_(rv, bcc, wl_, wr_, k, j, il, iu);
 
-    if (pr->xorder_fallback)
+    if (pr->xorder_use_fb)
     {
       pr->ReconstructPrimitivesX1_(r_rv, w, r_wl_, r_wr_, k, j, il, iu);
       pr->ReconstructMagneticFieldX1_(r_rv, bcc, r_wl_, r_wr_, k, j, il, iu);
@@ -106,7 +105,6 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
   }
   //---------------------------------------------------------------------------
 
-
   //---------------------------------------------------------------------------
   // j-direction
   if (pmb->pmy_mesh->f2)
@@ -121,7 +119,7 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
       pr->ReconstructPrimitivesX2_(rv, w, wl_, wr_, k, jl-1, il, iu);
       pr->ReconstructMagneticFieldX2_(rv, bcc, wl_, wr_, k, jl-1, il, iu);
 
-      if (pr->xorder_fallback)
+      if (pr->xorder_use_fb)
       {
         pr->ReconstructPrimitivesX2_(r_rv, w, r_wl_, r_wr_, k, jl-1, il, iu);
         pr->ReconstructMagneticFieldX2_(r_rv, bcc, r_wl_, r_wr_,
@@ -149,7 +147,7 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
         pr->ReconstructPrimitivesX2_(rv, w, wlb_, wr_, k, j, il, iu);
         pr->ReconstructMagneticFieldX2_(rv, bcc, wlb_, wr_, k, j, il, iu);
 
-        if (pr->xorder_fallback)
+        if (pr->xorder_use_fb)
         {
           pr->ReconstructPrimitivesX2_(r_rv, w, r_wlb_, r_wr_, k, j, il, iu);
           pr->ReconstructMagneticFieldX2_(r_rv, bcc, r_wlb_, r_wr_,
@@ -183,7 +181,7 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
 
         // swap the arrays for the next step
         wl_.SwapAthenaArray(wlb_);
-        if (pr->xorder_fallback)
+        if (pr->xorder_use_fb)
         {
           r_wl_.SwapAthenaArray(r_wlb_);
         }
@@ -211,7 +209,7 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
       pr->ReconstructPrimitivesX3_(rv, w, wl_, wr_, kl-1, j, il, iu);
       pr->ReconstructMagneticFieldX3_(rv, bcc, wl_, wr_, kl-1, j, il, iu);
 
-      if (pr->xorder_fallback)
+      if (pr->xorder_use_fb)
       {
         pr->ReconstructPrimitivesX3_(r_rv, w, r_wl_, r_wr_, kl-1, j, il, iu);
         pr->ReconstructMagneticFieldX3_(r_rv, bcc, r_wl_, r_wr_,
@@ -238,7 +236,7 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
         pr->ReconstructPrimitivesX3_(rv, w, wlb_, wr_, k, j, il, iu);
         pr->ReconstructMagneticFieldX3_(rv, bcc, wlb_, wr_, k, j, il, iu);
 
-        if (pr->xorder_fallback)
+        if (pr->xorder_use_fb)
         {
           pr->ReconstructPrimitivesX3_(r_rv, w, r_wlb_, r_wr_, k, j, il, iu);
           pr->ReconstructMagneticFieldX3_(r_rv, bcc, r_wlb_, r_wr_,
@@ -272,16 +270,16 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
 #endif
         // swap the arrays for the next step
         wl_.SwapAthenaArray(wlb_);
-        if (pr->xorder_fallback)
+        if (pr->xorder_use_fb)
         {
           r_wl_.SwapAthenaArray(r_wlb_);
         }
-#if USETM
-        if (!pr->xorder_fallback)
+        else
         {
+#if USETM
           rl_.SwapAthenaArray(rlb_);
-        }
 #endif
+        }
       }
     }
   }
