@@ -64,6 +64,8 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   zero_div = pin->GetOrAddInteger("hydro","zero_div",0);
 
   floor_both_states = pin->GetOrAddBoolean("time", "floor_both_states", false);
+  flux_reconstruction = pin->GetOrAddBoolean(
+    "hydro", "flux_reconstruction", false);
 
   // only needed if fluxes / sources fixed
   if (fix_fluxes || pin->GetOrAddBoolean("z4c","fix_admsource",0))

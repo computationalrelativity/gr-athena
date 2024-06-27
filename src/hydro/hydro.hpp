@@ -66,6 +66,7 @@ class Hydro {
 
   // for reconstruction failure, should both states be floored?
   bool floor_both_states = false;
+  bool flux_reconstruction = false;
 
   // fourth-order intermediate quantities
   AthenaArray<Real> u_cc, w_cc;      // cell-centered approximations
@@ -79,6 +80,11 @@ class Hydro {
   void AddFluxDivergence(const Real wght, AthenaArray<Real> &u_out);
   void CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
                        AthenaArray<Real> &bcc, const int order);
+
+  void CalculateFluxes_FluxReconstruction(
+    AthenaArray<Real> &w, FaceField &b,
+   AthenaArray<Real> &bcc, const int order);
+
 
   void CalculateFluxesRef(AthenaArray<Real> &w, FaceField &b,
                           AthenaArray<Real> &bcc, const int order);
@@ -464,4 +470,49 @@ class Hydro {
   void AddDiffusionFluxes();
   Real GetWeightForCT(Real dflx, Real rhol, Real rhor, Real dx, Real dt);
 };
+
+namespace fluxes {
+
+// Split flux based on local eigenvalues
+//
+// Takes max over all lambda cpts & directional (ivx-aligned) faces
+void SplitFluxLLFMax(MeshBlock * pmb,
+                     const int k, const int j,
+                     const int il, const int iu,
+                     const int ivx,
+                     AthenaArray<Real> &u,
+                     AthenaArray<Real> &flux,
+                     AthenaArray<Real> &lambda,
+                     AthenaArray<Real> &flux_m,
+                     AthenaArray<Real> &flux_p);
+
+}  // namespace fluxes
+
+namespace fluxes::grhd {
+
+// Dense assembly of fluxes
+void AssembleFluxes(MeshBlock * pmb,
+                    const int k, const int j,
+                    const int il, const int iu,
+                    const int ivx,
+                    AthenaArray<Real> &f,
+                    AthenaArray<Real> &w,
+                    AthenaArray<Real> &u);
+
+}  // namespace fluxes::grhd
+
+namespace characteristic::grhd {
+
+// Dense assembly of lambda
+void AssembleEigenvalues(MeshBlock * pmb,
+                         const int k, const int j,
+                         const int il, const int iu,
+                         const int ivx,
+                         AthenaArray<Real> &lambda,
+                         AthenaArray<Real> &w,
+                         AthenaArray<Real> &u);
+
+}  // namespace characteristic::grhd
+
+
 #endif // HYDRO_HYDRO_HPP_
