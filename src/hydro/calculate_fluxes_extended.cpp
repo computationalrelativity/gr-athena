@@ -23,7 +23,6 @@ typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
 
 // For fluid-variable vector
 typedef AthenaTensor<Real, TensorSymm::NONE, NHYDRO, 1> AT_F_vec;
-
 }
 
 namespace fluxes {
@@ -119,67 +118,36 @@ void AssembleFluxes(MeshBlock * pmb,
 
   // Slice 3d z4c metric quantities  (NDIM=3 in z4c.hpp) ----------------------
   AT_N_sym gamma_dd(pz4c->storage.adm, Z4c::I_ADM_gxx);
-  AT_N_sca alpha(   pz4c->storage.u,   Z4c::I_Z4c_alpha);
-  AT_N_vec beta_u(  pz4c->storage.u,   Z4c::I_Z4c_betax);
+  AT_N_sca alpha(   pz4c->storage.adm, Z4c::I_ADM_alpha);
+  AT_N_vec beta_u(  pz4c->storage.adm, Z4c::I_ADM_betax);
 
   AT_N_sca w_p(  w, IPR);
   AT_N_vec w_util_u(w, IVX);
-
 
   AT_N_sca sqrt_detgamma_(nn1);
   AT_N_sca detgamma_(     nn1);  // spatial met det
   AT_N_sca oo_detgamma_(  nn1);  // 1 / spatial met det
   AT_N_sym gamma_uu_(     nn1);
 
-  AT_N_vec w_util_u_(nn1);
   AT_N_vec w_v_u_(nn1);
-
-  // primitive vel. (covar.)
-  AT_N_vec w_util_d_(nn1);
 
   // Lorentz factor
   AT_N_sca W_(nn1);
-
-
-  // Prepare util slice
-  for (int a=0; a<NDIM; ++a)
-  #pragma omp simd
-  for (int i = il; i <= iu; ++i)
-  {
-    w_util_u_(a,i) = w_util_u(a,k,j,i);
-  }
-
 
   // Prepare determinant-like
   #pragma omp simd
   for (int i = il; i <= iu; ++i)
   {
     detgamma_(i)      = Det3Metric(gamma_dd, k,j,i);
-
     sqrt_detgamma_(i) = std::sqrt(detgamma_(i));
-    oo_detgamma_(i)   = 1. / detgamma_(i);
-  }
-
-  Inv3Metric(oo_detgamma_, gamma_dd, gamma_uu_, k, j, il, iu);
-
-  // lower idx
-  #pragma omp simd
-  for (int i = il; i <= iu; ++i)
-  {
-    LinearAlgebra::SlicedVecMet3Contraction(
-      w_util_d_, w_util_u_, gamma_dd,
-      k, j, i
-    );
   }
 
   // Lorentz factors
   for (int i=il; i<=iu; ++i)
   {
-    const Real norm2_utilde = InnerProductSlicedVec3Metric(
-      w_util_d_, gamma_uu_, i
+    W_(i) = std::sqrt(
+      1. + InnerProductVec3Metric(w_util_u, gamma_dd, k, j, i)
     );
-
-    W_(i) = std::sqrt(1. + norm2_utilde);
   }
 
   // Eulerian vel.
@@ -188,7 +156,7 @@ void AssembleFluxes(MeshBlock * pmb,
     #pragma omp simd
     for (int i=il; i<=iu; ++i)
     {
-      w_v_u_(a,i) = w_util_u_(a,i) / W_(i);
+      w_v_u_(a,i) = w_util_u(a,k,j,i) / W_(i);
     }
   }
 
