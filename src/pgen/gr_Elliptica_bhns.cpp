@@ -128,8 +128,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   
   // --------------------------------------------------------------------------
-  #pragma omp critical
-  {
+//  #pragma omp critical
+//  {
 
     // prepare geometry grid --------------------------------------------------
     int npoints_gs = 0;
@@ -301,7 +301,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
     //delete pmy_mesh->bns;
 
-  } // OMP Critical
+  //} // OMP Critical
 
   //elliptica_id_reader_free(idr);
   // --------------------------------------------------------------------------
@@ -440,6 +440,17 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                        pz4c->storage.u);
 
   // --------------------------------------------------------------------------
+  return;
+}
+
+//========================================================================================
+//! \fn void Mesh::UserWorkAfterLoop(ParameterInput *pin, int res_flag)
+//  \brief Free Elliptica memory 
+//========================================================================================
+void Mesh::UserWorkAfterLoop(ParameterInput *pin)
+{
+  elliptica_id_reader_free(idr);
+  idr = 0;
   return;
 }
 
