@@ -573,6 +573,32 @@ void EquationOfState::FastMagnetosonicSpeedsGR(
   return;
 }
 
+void EquationOfState::ApplyPrimitiveFloors(const int dir,
+                                           AthenaArray<Real> &prim_l,
+                                           AthenaArray<Real> &prim_r, int i)
+{
+  const int ix_o = dir == 1;
+  if ((prim_l(IDN,i+ix_o) < atmo_cut)   ||
+      (prim_l(IPR,i+ix_o) < atmo_cut_p) ||
+      (prim_r(IDN,i) < atmo_cut)   ||
+      (prim_r(IPR,i) < atmo_cut_p))
+  {
+    prim_l(IDN,i+ix_o) = atmo_rho;
+    prim_l(IVX,i+ix_o) = 0.0;
+    prim_l(IVY,i+ix_o) = 0.0;
+    prim_l(IVZ,i+ix_o) = 0.0;
+    prim_l(IPR,i+ix_o) = atmo_p;
+
+    prim_r(IDN,i) = atmo_rho;
+    prim_r(IVX,i) = 0.0;
+    prim_r(IVY,i) = 0.0;
+    prim_r(IVZ,i) = 0.0;
+    prim_r(IPR,i) = atmo_p;
+  }
+
+  return;
+}
+
 void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j, int i)
 {
 

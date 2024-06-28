@@ -116,23 +116,24 @@ void Reconstruction::PiecewiseLinearX1(
   }
 
   if (characteristic_projection) {
-#if USETM
-for (int l=0; l<NSCALARS; l++){
-#pragma omp simd
-  for (int i=il; i<=iu; ++i) {
-      scalar_l(l,i+1) = pmy_block_->pscalars->r(l,k,j,i);
-      scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
-    }
-  }
-#endif
+// BD: TODO - remove as now refactored
+// #if USETM
+// for (int l=0; l<NSCALARS; l++){
+// #pragma omp simd
+//   for (int i=il; i<=iu; ++i) {
+//       scalar_l(l,i+1) = pmy_block_->pscalars->r(l,k,j,i);
+//       scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+//     }
+//   }
+// #endif
 
 #pragma omp simd
     for (int i=il; i<=iu; ++i) {
       // Reapply EOS floors to both L/R reconstructed primitive states
       // TODO(felker): check if fused loop with NWAVE redundant application is slower
 #if USETM
-      pmy_block_->peos->ApplyPrimitiveFloors(wl, scalar_l, k, j, i+1);
-      pmy_block_->peos->ApplyPrimitiveFloors(wr, scalar_r, k, j, i);
+      // pmy_block_->peos->ApplyPrimitiveFloors(wl, scalar_l, k, j, i+1);
+      // pmy_block_->peos->ApplyPrimitiveFloors(wr, scalar_r, k, j, i);
 #else 
       pmy_block_->peos->ApplyPrimitiveFloors(wl, k, j, i+1);
       pmy_block_->peos->ApplyPrimitiveFloors(wr, k, j, i);
@@ -243,22 +244,22 @@ void Reconstruction::PiecewiseLinearX2(
   }
 
   if (characteristic_projection) {
-#if USETM
-for (int l=0; l<NSCALARS; l++){
-#pragma omp simd
-  for (int i=il; i<=iu; ++i) {
-      scalar_l(l,i) = pmy_block_->pscalars->r(l,k,j,i);
-      scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
-    }
-  }
-#endif
+// #if USETM
+// for (int l=0; l<NSCALARS; l++){
+// #pragma omp simd
+//   for (int i=il; i<=iu; ++i) {
+//       scalar_l(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+//       scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+//     }
+//   }
+// #endif
 
 #pragma omp simd
     for (int i=il; i<=iu; ++i) {
       // Reapply EOS floors to both L/R reconstructed primitive states
 #if USETM
-      pmy_block_->peos->ApplyPrimitiveFloors(wl, scalar_l, k, j, i);
-      pmy_block_->peos->ApplyPrimitiveFloors(wr, scalar_r, k, j, i);
+      // pmy_block_->peos->ApplyPrimitiveFloors(wl, scalar_l, k, j, i);
+      // pmy_block_->peos->ApplyPrimitiveFloors(wr, scalar_r, k, j, i);
 #else 
       pmy_block_->peos->ApplyPrimitiveFloors(wl, k, j, i);
       pmy_block_->peos->ApplyPrimitiveFloors(wr, k, j, i);
@@ -361,23 +362,23 @@ void Reconstruction::PiecewiseLinearX3(
   }
 
   if (characteristic_projection) {
-#if USETM
-for (int l=0; l<NSCALARS; l++){
-#pragma omp simd
-  for (int i=il; i<=iu; ++i) {
-      scalar_l(l,i) = pmy_block_->pscalars->r(l,k,j,i);
-      scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
-    }
-  }
-#endif
+// #if USETM
+// for (int l=0; l<NSCALARS; l++){
+// #pragma omp simd
+//   for (int i=il; i<=iu; ++i) {
+//       scalar_l(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+//       scalar_r(l,i) = pmy_block_->pscalars->r(l,k,j,i);
+//     }
+//   }
+// #endif
 
 
 #pragma omp simd
     for (int i=il; i<=iu; ++i) {
       // Reapply EOS floors to both L/R reconstructed primitive states
 #if USETM
-      pmy_block_->peos->ApplyPrimitiveFloors(wl, scalar_l, k, j, i);
-      pmy_block_->peos->ApplyPrimitiveFloors(wr, scalar_r, k, j, i);
+      // pmy_block_->peos->ApplyPrimitiveFloors(wl, scalar_l, k, j, i);
+      // pmy_block_->peos->ApplyPrimitiveFloors(wr, scalar_r, k, j, i);
 #else 
       pmy_block_->peos->ApplyPrimitiveFloors(wl, k, j, i);
       pmy_block_->peos->ApplyPrimitiveFloors(wr, k, j, i);

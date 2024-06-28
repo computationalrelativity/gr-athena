@@ -40,11 +40,14 @@ bh_1_x = -3.257
 # =============================================================================
 
 <task_triggers>  # ============================================================
-# control frequency of task execution
+# control frequency of task execution; certain constraints are augmented
+# further automatically by choices in output block
 
-# whatever values, if zero / missing these tasks are not triggered
-dt_psi4_extraction  = 0.1
-dt_assert_is_finite = 0.0
+# missing / zero values do not get activated
+adjust_mesh_dt = true
+
+tracker_extrema = 0.25
+dt_Z4c_Weyl     = 0.0
 # =============================================================================
 
 <psi4_extraction>  # ==========================================================

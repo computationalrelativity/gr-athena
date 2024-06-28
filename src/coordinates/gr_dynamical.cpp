@@ -24,6 +24,30 @@
 #include "coordinates.hpp"
 #include "../utils/linear_algebra.hpp"
 
+//----------------------------------------------------------------------------------------
+namespace {
+// for readability
+const int D = NDIM + 1;
+const int N = NDIM;
+
+typedef AthenaArray< Real>                         AA;
+typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
+typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
+typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
+
+// scalar field derivatives
+typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_D1sca;
+
+// vector field derivatives
+typedef AthenaTensor<Real, TensorSymm::NONE, N, 2> AT_N_D1vec;
+
+// symmetric tensor derivatives
+typedef AthenaTensor<Real, TensorSymm::SYM2, N, 3> AT_N_D1sym;
+
+// For fluid-variable vector
+typedef AthenaTensor<Real, TensorSymm::NONE, NHYDRO, 1> AT_F_vec;
+}
+
 //SB TODO this needs a cleanup
 #define CLOOP1(i)				\
   _Pragma("omp simd")				\
@@ -755,101 +779,70 @@ void GRDynamical::AddCoordTermsDivergence(
 
   using namespace LinearAlgebra;
 
-  // Extract indices
-  int is = pmy_block->is;
-  int ie = pmy_block->ie;
-  int js = pmy_block->js;
-  int je = pmy_block->je;
-  int ks = pmy_block->ks;
-  int ke = pmy_block->ke;
-  int nn1 = pmy_block->ncells1;
-  int a,b,c,d,e;
+  MeshBlock * pmb = pmy_block;
 
-  // Extract ratio of specific heats
-  Real gamma_adi = pmy_block->peos->GetGamma();
+  const int is = pmb->is, ie = pmb->ie;
+  const int js = pmb->js, je = pmb->je;
+  const int ks = pmb->ks, ke = pmb->ke;
+  const int nn1 = pmb->ncells1;
 
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha; //lapse
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> detg; //lapse
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Wlor;  // lorentz factor
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> wtot;  // rho*h
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> pgas;  // pressure
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> rho;   // density
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Stau;  // source term tau eq
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dalpha_d;  // pd_i alpha
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u;  // beta^i
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_d;  // beta_j
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> utilde_u;  // primitive gamma^i_a u^a
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> v_u;  // 3 velocity v^i
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> v_d;  // 3 vel v_i
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> SS_d;  // Source term for S_i eq
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> dbeta_du;  // pd_i beta^j
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;  //gamma_{ij}
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_uu;  // gamma^{ij}
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> dgamma_ddd;  // pd_i gamma_{jk}
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> K_dd;  // K_{ij}
+  AT_N_sca alpha(nn1);              // lapse
+  AT_N_sca detgamma(nn1);           // 3-metric determinant
+  AT_N_sca sqrt_detgamma(nn1);
+  AT_N_sca Wlor(nn1);               // lorentz factor
+  AT_N_sca wtot(nn1);               // rho*h
+  AT_N_sca pgas(nn1);               // pressure
+  AT_N_sca rho(nn1);                // density
+  AT_N_sca Stau(nn1);               // source term tau eq
 
-  // bfield
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> b0_u, bsq, u0, T00 ; //lapse
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> bb_u, bi_u, bi_d, T0i_u, T0i_d;  // 3 vel v_i
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> Tij_uu;  // K_{ij}
+  AT_N_vec dalpha_d(nn1);  // pd_i alpha
+  AT_N_vec beta_u(nn1);
+  AT_N_vec beta_d(nn1);
+  AT_N_vec utilde_u(nn1);  // primitive gamma^i_a u^a
+  AT_N_vec v_u(nn1);       // 3 velocity v^i
+  AT_N_vec v_d(nn1);       // 3 vel v_i
+  AT_N_vec SS_d(nn1);      // Source term for S_i eq
+
+  AT_N_sym gamma_dd(nn1);
+  AT_N_sym gamma_uu(nn1);
+  AT_N_sym K_dd(nn1);
+
+  AT_N_D1vec dbeta_du(nn1);    // pd_i beta^j
+
+  AT_N_D1sym dgamma_ddd(nn1);  // pd_i gamma_{jk}
+
+  // ----------------------------------------------------------------------------
+  AT_N_sca b0_u, bsq, u0, T00;
+  AT_N_vec bb_u, bi_u, bi_d, T0i_u, T0i_d;
+  AT_N_sym Tij_uu;
+  // ----------------------------------------------------------------------------
 
   // perform variable resampling when required
   Z4c * pz4c = pmy_block->pz4c;
 
-  // Slice z4c metric quantities  (NDIM=3 in z4c.hpp)
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_gamma_dd;
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_K_dd;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> adm_alpha;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> adm_beta_u;
+  AT_N_sca adm_alpha(   pz4c->storage.adm, Z4c::I_ADM_alpha);
+  AT_N_vec adm_beta_u(  pz4c->storage.adm, Z4c::I_ADM_betax);
+  AT_N_sym adm_gamma_dd(pz4c->storage.adm, Z4c::I_ADM_gxx);
+  AT_N_sym adm_K_dd(    pz4c->storage.adm, Z4c::I_ADM_Kxx);
 
-  adm_gamma_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
-  adm_K_dd.InitWithShallowSlice(    pz4c->storage.adm, Z4c::I_ADM_Kxx);
-  adm_alpha.InitWithShallowSlice(   pz4c->storage.adm, Z4c::I_ADM_alpha);
-  adm_beta_u.InitWithShallowSlice(  pz4c->storage.adm, Z4c::I_ADM_betax);
+  AA pgas_init(nn1), rho_init(nn1), w_init(nn1);
 
-  //SB TODO these need cleanup
-  AthenaArray<Real> pgas_init, rho_init, w_init;
-
-
-  // allocation
-  pgas_init.NewAthenaArray(nn1);
-  rho_init.NewAthenaArray(nn1);
-  w_init.NewAthenaArray(nn1);
-  alpha.NewAthenaTensor(nn1);
-  detg.NewAthenaTensor(nn1);
-  Wlor.NewAthenaTensor(nn1);
-  wtot.NewAthenaTensor(nn1);
-  pgas.NewAthenaTensor(nn1);
-  rho.NewAthenaTensor(nn1);
-  Stau.NewAthenaTensor(nn1);
-  dalpha_d.NewAthenaTensor(nn1);
-  beta_u.NewAthenaTensor(nn1);
-  beta_d.NewAthenaTensor(nn1);
-  utilde_u.NewAthenaTensor(nn1);
-  v_u.NewAthenaTensor(nn1);
-  v_d.NewAthenaTensor(nn1);
-  SS_d.NewAthenaTensor(nn1);
-  dbeta_du.NewAthenaTensor(nn1);
-  gamma_dd.NewAthenaTensor(nn1);
-  gamma_uu.NewAthenaTensor(nn1);
-  dgamma_ddd.NewAthenaTensor(nn1);
-  K_dd.NewAthenaTensor(nn1);
-
-  //bfield
-  b0_u.NewAthenaTensor(nn1);
-  bb_u.NewAthenaTensor(nn1);
-  bi_u.NewAthenaTensor(nn1);
-  bi_d.NewAthenaTensor(nn1);
-  bsq.NewAthenaTensor(nn1);
-  u0.NewAthenaTensor(nn1);
-  T00.NewAthenaTensor(nn1);
-  T0i_u.NewAthenaTensor(nn1);
-  T0i_d.NewAthenaTensor(nn1);
-  Tij_uu.NewAthenaTensor(nn1);
+  // ----------------------------------------------------------------------------
+  if (MAGNETIC_FIELDS_ENABLED)
+  {
+    b0_u.NewAthenaTensor(nn1);
+    bb_u.NewAthenaTensor(nn1);
+    bi_u.NewAthenaTensor(nn1);
+    bi_d.NewAthenaTensor(nn1);
+    bsq.NewAthenaTensor(nn1);
+    u0.NewAthenaTensor(nn1);
+    T00.NewAthenaTensor(nn1);
+    T0i_u.NewAthenaTensor(nn1);
+    T0i_d.NewAthenaTensor(nn1);
+    Tij_uu.NewAthenaTensor(nn1);
+  }
   // ----------------------------------------------------------------------------
 
-  // cell iteration
-  //SB TODO remove CLOOPS when new VC-CC logic is in place
   for (int k=ks; k<=ke; ++k)
   for (int j=js; j<=je; ++j)
   {
@@ -858,7 +851,7 @@ void GRDynamical::AddCoordTermsDivergence(
     GetGeometricFieldCC(alpha,    adm_alpha,    k, j);
     GetGeometricFieldCC(beta_u,   adm_beta_u,   k, j);
 
-    for(a=0; a<NDIM; ++a)
+    for (int a=0; a<NDIM; ++a)
     {
       GetGeometricFieldDerCC(dgamma_ddd, adm_gamma_dd, a, k, j);
       GetGeometricFieldDerCC(dalpha_d,   adm_alpha,    a, k, j);
@@ -866,7 +859,7 @@ void GRDynamical::AddCoordTermsDivergence(
     }
 
 #if !defined(DBG_FD_CX_COORDDIV) || !defined(Z4C_CX_ENABLED)
-    for(int a=0; a<NDIM; ++a)
+    for (int a=0; a<NDIM; ++a)
     {
       GetGeometricFieldDerCC(dgamma_ddd, adm_gamma_dd, a, k, j);
       GetGeometricFieldDerCC(dalpha_d,   adm_alpha,    a, k, j);
@@ -899,9 +892,11 @@ void GRDynamical::AddCoordTermsDivergence(
 
   	CLOOP1(i)
     {
-      detg(i) = Det3Metric(gamma_dd, i);
+      detgamma(i) = Det3Metric(gamma_dd, i);
+      sqrt_detgamma(i) = std::sqrt(detgamma(i));
+
       Inv3Metric(
-        1.0/detg(i),
+        1.0/detgamma(i),
         gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
         gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i),
         &gamma_uu(0,0,i), &gamma_uu(0,1,i), &gamma_uu(0,2,i),
@@ -909,7 +904,7 @@ void GRDynamical::AddCoordTermsDivergence(
     }
 
     // Read in primitives
-    for(a=0;a<NDIM;++a)
+    for (int a=0;a<NDIM;++a)
   	CLOOP1(i)
     {
 	    utilde_u(a,i) = prim(a+IVX,k,j,i);
@@ -928,7 +923,7 @@ void GRDynamical::AddCoordTermsDivergence(
       Real n = rho(i)/pmy_block->peos->GetEOS().GetBaryonMass();
       Real Y[MAX_SPECIES] = {0.0};
 #if NSCALARS > 0
-      for(int l=0; l<NSCALARS; ++l)
+      for (int l=0; l<NSCALARS; ++l)
       {
         Y[l] = prim_scalar(l,k,j,i);
       }
@@ -936,6 +931,7 @@ void GRDynamical::AddCoordTermsDivergence(
       Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgas(i), Y);
       wtot(i) = rho(i)*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
 #else
+      const Real gamma_adi = pmy_block->peos->GetGamma();
     	wtot(i) = rho(i) + gamma_adi/(gamma_adi-1.0) * pgas(i);
 #endif
     }
@@ -943,8 +939,8 @@ void GRDynamical::AddCoordTermsDivergence(
     // Calculate Lorentz factor
     Wlor.ZeroClear();
 
-    for(a=0;a<NDIM;++a)
-    for(b=0;b<NDIM;++b)
+    for (int a=0; a<NDIM;++a)
+    for (int b=0; b<NDIM;++b)
 	  CLOOP1(i)
     {
 	    Wlor(i) += utilde_u(a,i)*utilde_u(b,i)*gamma_dd(a,b,i);
@@ -957,15 +953,15 @@ void GRDynamical::AddCoordTermsDivergence(
 
     // Calculate shift beta_i
     beta_d.ZeroClear();
-    for(a=0;a<NDIM;++a)
-  	for(b=0;b<NDIM;++b)
+    for (int a=0; a<NDIM; ++a)
+  	for (int b=0; b<NDIM; ++b)
     CLOOP1(i)
     {
 	    beta_d(a,i) += gamma_dd(a,b,i)*beta_u(b,i);
     }
 
     // Calculate 3 velocity v^i
-    for(a=0;a<NDIM;++a)
+    for (int a=0; a<NDIM; ++a)
   	CLOOP1(i)
     {
 	    v_u(a,i) = utilde_u(a,i)/Wlor(i);
@@ -973,70 +969,24 @@ void GRDynamical::AddCoordTermsDivergence(
 
     // Calculate 3 velocity index down v_i
     v_d.ZeroClear();
-    for(a=0;a<NDIM;++a)
-  	for(b=0;b<NDIM;++b)
+    for (int a=0; a<NDIM; ++a)
+  	for (int b=0; b<NDIM; ++b)
 	  CLOOP1(i)
-  {
+    {
 	    v_d(a,i) += v_u(b,i)*gamma_dd(a,b,i);
 	  }
-
-    // tau source term of hydro sources
-    Stau.ZeroClear();
-    for(a=0;a<NDIM; ++a)
-    {
-      CLOOP1(i)
-      {
-        Stau(i) -= wtot(i)*SQR(Wlor(i))*( v_u(a,i)*dalpha_d(a,i))/alpha(i);
-      }
-
-      for(b=0; b<NDIM; ++b)
-      {
-        CLOOP1(i)
-        {
-          Stau(i) += (wtot(i)*SQR(Wlor(i)) * v_u(a,i)*v_u(b,i) +
-                      pgas(i)*gamma_uu(a,b,i))*K_dd(a,b,i);
-        }
-      }
-    }
-
-    // momentum source term of hydro sources
-    SS_d.ZeroClear();
-    for(a=0; a<NDIM; ++a)
-    {
-      CLOOP1(i)
-      {
-        SS_d(a,i) = -(wtot(i)*SQR(Wlor(i)) - pgas(i)) * dalpha_d(a,i)/alpha(i);
-      }
-
-      for(b=0; b<NDIM; ++b)
-      {
-        CLOOP1(i)
-        {
-          SS_d(a,i) += wtot(i) *SQR(Wlor(i))*v_d(b,i)*dbeta_du(a,b,i)/alpha(i);
-        }
-
-        for(c=0; c<NDIM; ++c)
-        {
-          CLOOP1(i)
-          {
-            SS_d(a,i) += (0.5*(wtot(i)*SQR(Wlor(i))*v_u(b,i)*v_u(c,i) +
-                               pgas(i)*gamma_uu(b,c,i))*dgamma_ddd(a,b,c,i));
-          }
-        }
-      }
-    }
 
     if(MAGNETIC_FIELDS_ENABLED)
     {
       CLOOP1(i)
       {
-        bb_u(0,i) = bb_cc(IB1,k,j,i)/std::sqrt(detg(i));
-        bb_u(1,i) = bb_cc(IB2,k,j,i)/std::sqrt(detg(i));
-        bb_u(2,i) = bb_cc(IB3,k,j,i)/std::sqrt(detg(i));
+        bb_u(0,i) = bb_cc(IB1,k,j,i) / sqrt_detgamma(i);
+        bb_u(1,i) = bb_cc(IB2,k,j,i) / sqrt_detgamma(i);
+        bb_u(2,i) = bb_cc(IB3,k,j,i) / sqrt_detgamma(i);
       }
 
       b0_u.ZeroClear();
-      for(a=0; a<NDIM; ++a)
+      for (int a=0; a<NDIM; ++a)
       {
         CLOOP1(i)
         {
@@ -1044,7 +994,7 @@ void GRDynamical::AddCoordTermsDivergence(
         }
       }
 
-      for(a=0; a<NDIM; ++a)
+      for (int a=0; a<NDIM; ++a)
       {
         CLOOP1(i)
         {
@@ -1054,7 +1004,7 @@ void GRDynamical::AddCoordTermsDivergence(
       }
 
       //  bi_d.ZeroClear();
-      for(a=0; a<NDIM; ++a)
+      for (int a=0; a<NDIM; ++a)
       {
 
         CLOOP1(i)
@@ -1063,7 +1013,7 @@ void GRDynamical::AddCoordTermsDivergence(
           //bi_d(a,i) += bi_u(b,i)*gamma_dd(a,b,i);
         }
 
-        for(b=0; b<NDIM; ++b)
+        for (int b=0; b<NDIM; ++b)
         {
           CLOOP1(i)
           {
@@ -1077,8 +1027,8 @@ void GRDynamical::AddCoordTermsDivergence(
         bsq(i) = alpha(i)*alpha(i)*b0_u(i)*b0_u(i)/(Wlor(i)*Wlor(i));
       }
 
-      for(a=0; a<NDIM; ++a)
-      for(b=0; b<NDIM; ++b)
+      for (int a=0; a<NDIM; ++a)
+      for (int b=0; b<NDIM; ++b)
       {
         CLOOP1(i)
         {
@@ -1099,7 +1049,7 @@ void GRDynamical::AddCoordTermsDivergence(
                   b0_u(i)*b0_u(i));
       }
 
-      for(a=0; a<NDIM; ++a)
+      for (int a=0; a<NDIM; ++a)
       {
         CLOOP1(i)
         {
@@ -1112,8 +1062,9 @@ void GRDynamical::AddCoordTermsDivergence(
 
       T0i_d.ZeroClear();
 
-      for(a=0; a<NDIM; ++a)
-      for(b=0; b<NDIM; ++b)
+      // BD: TODO - why is this loop written like this?
+      for (int a=0; a<NDIM; ++a)
+      for (int b=0; b<NDIM; ++b)
       {
         CLOOP1(i)
         {
@@ -1122,8 +1073,8 @@ void GRDynamical::AddCoordTermsDivergence(
         }
       }
 
-      for(a=0; a<NDIM; ++a)
-      for(b=0; b<NDIM; ++b)
+      for (int a=0; a<NDIM; ++a)
+      for (int b=0; b<NDIM; ++b)
       {
         CLOOP1(i)
         {
@@ -1138,7 +1089,7 @@ void GRDynamical::AddCoordTermsDivergence(
       }
 
       // momentum source term
-      for(a=0; a<NDIM; ++a)
+      for (int a=0; a<NDIM; ++a)
       {
         CLOOP1(i)
         {
@@ -1146,8 +1097,8 @@ void GRDynamical::AddCoordTermsDivergence(
         }
       }
 
-      for(a=0; a<NDIM; ++a)
-      for(b=0; b<NDIM; ++b)
+      for (int a=0; a<NDIM; ++a)
+      for (int b=0; b<NDIM; ++b)
       {
         CLOOP1(i)
         {
@@ -1155,9 +1106,9 @@ void GRDynamical::AddCoordTermsDivergence(
         }
       }
 
-      for(a=0; a<NDIM; ++a)
-      for(b=0; b<NDIM; ++b)
-      for(c = 0; c<NDIM; ++c)
+      for (int a=0; a<NDIM; ++a)
+      for (int b=0; b<NDIM; ++b)
+      for (int c=0; c<NDIM; ++c)
       {
         CLOOP1(i)
         {
@@ -1170,7 +1121,7 @@ void GRDynamical::AddCoordTermsDivergence(
 
       // tau-source term
       Stau.ZeroClear();
-      for(a=0; a<NDIM; ++a)
+      for (int a=0; a<NDIM; ++a)
       {
         CLOOP1(i)
         {
@@ -1179,8 +1130,8 @@ void GRDynamical::AddCoordTermsDivergence(
         }
       }
 
-      for(a=0; a<NDIM; ++a)
-      for(b=0; b<NDIM; ++b)
+      for (int a=0; a<NDIM; ++a)
+      for (int b=0; b<NDIM; ++b)
       {
         CLOOP1(i)
         {
@@ -1190,6 +1141,54 @@ void GRDynamical::AddCoordTermsDivergence(
         }
       }
 
+    }
+    else  // GRHD
+    {
+      // tau source term of hydro sources
+      Stau.ZeroClear();
+      for (int a=0; a<NDIM; ++a)
+      {
+        CLOOP1(i)
+        {
+          Stau(i) -= wtot(i)*SQR(Wlor(i))*( v_u(a,i)*dalpha_d(a,i))/alpha(i);
+        }
+
+        for (int b=0; b<NDIM; ++b)
+        {
+          CLOOP1(i)
+          {
+            Stau(i) += (wtot(i)*SQR(Wlor(i)) * v_u(a,i)*v_u(b,i) +
+                        pgas(i)*gamma_uu(a,b,i))*K_dd(a,b,i);
+          }
+        }
+      }
+
+      // momentum source term of hydro sources
+      SS_d.ZeroClear();
+      for (int a=0; a<NDIM; ++a)
+      {
+        CLOOP1(i)
+        {
+          SS_d(a,i) = -(wtot(i)*SQR(Wlor(i)) - pgas(i)) * dalpha_d(a,i)/alpha(i);
+        }
+
+        for (int b=0; b<NDIM; ++b)
+        {
+          CLOOP1(i)
+          {
+            SS_d(a,i) += wtot(i) *SQR(Wlor(i))*v_d(b,i)*dbeta_du(a,b,i)/alpha(i);
+          }
+
+          for (int c=0; c<NDIM; ++c)
+          {
+            CLOOP1(i)
+            {
+              SS_d(a,i) += (0.5*(wtot(i)*SQR(Wlor(i))*v_u(b,i)*v_u(c,i) +
+                                pgas(i)*gamma_uu(b,c,i))*dgamma_ddd(a,b,c,i));
+            }
+          }
+        }
+      }
     } // MAGNETIC_FIELDS_ENABLED
 
     if(fix_sources==1)
@@ -1202,25 +1201,27 @@ void GRDynamical::AddCoordTermsDivergence(
         Real n = rho_init(i)/pmy_block->peos->GetEOS().GetBaryonMass();
         // FIXME: Generalize to work with EOSes accepting particle fractions.
         Real Y[MAX_SPECIES] = {0.0};
-        for(int l=0; l<NSCALARS; ++l) {
+        for (int l=0; l<NSCALARS; ++l)
+        {
           Y[l] = prim_scalar(l,k,j,i);
         }
         Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgas_init(i), Y);
         w_init(i) = rho_init(i)*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
 #else
+        Real gamma_adi = pmy_block->peos->GetGamma();
     	  w_init(i) = rho_init(i) + gamma_adi/(gamma_adi-1.0) * pgas_init(i);
 #endif
 	      Stau(i) = 0.0;
       }
 
-      for(a=0;a<NDIM;++a)
+      for (int a=0; a<NDIM; ++a)
       {
         CLOOP1(i)
         {
           SS_d(a,i) = - (w_init(i) - pgas_init(i))*dalpha_d(a,i)/alpha(i);
         }
-        for(b=0;b<NDIM;++b)
-        for(c=0;c<NDIM;++c)
+        for (int b=0; b<NDIM; ++b)
+        for (int c=0; c<NDIM; ++c)
         {
           CLOOP1(i)
           {
@@ -1233,7 +1234,7 @@ void GRDynamical::AddCoordTermsDivergence(
 
     if(zero_sources == 1)
     {
-      for(a=0;a<NDIM;++a)
+      for (int a=0; a<NDIM;++a)
       {
         CLOOP1(i)
         {
@@ -1249,10 +1250,11 @@ void GRDynamical::AddCoordTermsDivergence(
     // Add sources
     CLOOP1(i)
     {
-      cons(IEN,k,j,i) += dt * Stau(i)  *alpha(i)*std::sqrt(detg(i));
-      cons(IM1,k,j,i) += dt * SS_d(0,i)*alpha(i)*std::sqrt(detg(i));
-      cons(IM2,k,j,i) += dt * SS_d(1,i)*alpha(i)*std::sqrt(detg(i));
-      cons(IM3,k,j,i) += dt * SS_d(2,i)*alpha(i)*std::sqrt(detg(i));
+      const Real w_vol = dt * alpha(i) * sqrt_detgamma(i);
+      cons(IEN,k,j,i) += w_vol * Stau(i);
+      cons(IM1,k,j,i) += w_vol * SS_d(0,i);
+      cons(IM2,k,j,i) += w_vol * SS_d(1,i);
+      cons(IM3,k,j,i) += w_vol * SS_d(2,i);
     }
   } // j, k
 

@@ -5,9 +5,14 @@
 # execute
 cd ${DIR_OUTPUT}
 
-export TOTAL_TASKS=8
+export TOTAL_TASKS=5
 export TASKS_PER_NODE=1
-export OMP_NUM_THREADS=1
+export OMP_NUM_THREADS=2
+
+# export TOTAL_TASKS=1
+# export TASKS_PER_NODE=1
+# export OMP_NUM_THREADS=1
+
 
 if [ $RUN_MODE == 1 ]
 then

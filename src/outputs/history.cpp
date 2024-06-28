@@ -141,6 +141,9 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
             hst_data[isum++] = abs_ma;
           }
 
+          // BD: TODO - compute the norm properly;
+          // The numerical quadratures on a spatial hypersurface should be
+          // det(\gamma) weighted - using conformal factor this is cheap to do
           if (Z4C_ENABLED) {
             Real const H_err  = std::abs(pz4c->con.H(k,j,i));
             Real const M2_err = std::abs(pz4c->con.M(k,j,i));

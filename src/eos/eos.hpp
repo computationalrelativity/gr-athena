@@ -105,7 +105,11 @@ class EquationOfState {
   void ApplyPrimitiveFloors(AthenaArray<Real> &prim, AthenaArray<Real> &prim_scalar, int k, int j, int i);
 #else
   void ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j, int i);
+  void ApplyPrimitiveFloors(const int dir,
+                            AthenaArray<Real> &prim_l,
+                            AthenaArray<Real> &prim_r, int i);
 #endif
+
 #pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this,s,n,k,j) linear(i)
   void ApplyPassiveScalarFloors(AthenaArray<Real> &s, int n, int k, int j, int i);
 
@@ -119,6 +123,62 @@ class EquationOfState {
 
 #pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this,prim,k,j) linear(i)
   bool RequirePrimitiveFloor(const AthenaArray<Real> &prim, int k, int j, int i);
+
+#pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this,prim,k,j) linear(i)
+  bool CheckPrimitivePhysical(const AthenaArray<Real> &prim, int k, int j, int i)
+  {
+    bool is_physical = true;
+
+    Real p, rho;
+
+    if(prim.GetDim4()==1)
+    {
+      p   = prim(IPR,i);
+      rho = prim(IDN,i);
+    }
+    else if(prim.GetDim4()==5)
+    {
+      p   = prim(IPR,k,j,i);
+      rho = prim(IDN,k,j,i);
+    }
+
+    // N.B.!
+    // to look like standard conditions need to put rho_ = rho h
+
+#if USETM
+    Real mb = GetEOS().GetBaryonMass();
+    Real n = rho / mb;
+    // FIXME: Generalize to work with EOSes accepting particle fractions.
+    Real Y[MAX_SPECIES] = {0.0};
+#if NSCALARS>0
+    for (int l=0; l<NSCALARS; l++)
+    {
+      Y[l] = w_r(l,i);
+    }
+#endif
+
+    Real T = GetEOS().GetTemperatureFromP(n, p, Y);
+    Real rho_ = rho*GetEOS().GetEnthalpy(n, T, Y);
+#else
+    Real gamma_adi = GetGamma();
+    Real rho_ = rho + gamma_adi/(gamma_adi-1.0) * p;  // EOS dep.
+#endif
+
+    // +ve density
+    is_physical = is_physical && ((rho_ > 0));
+
+    // null energy condition (EC)
+    is_physical = is_physical && (rho_ + p >= 0);
+    // weak EC
+    is_physical = is_physical && ((rho_ >= 0) && (rho_ + p >= 0));
+    // dominant EC
+    is_physical = is_physical && (rho_ >= std::abs(p));
+    // strong EC
+    is_physical = is_physical && ((rho_ + p >= 0) && (rho_ + 3.0 * p >= 0));
+
+    return is_physical;
+  }
+
 
   // Sound speed functions in different regimes
 #if !RELATIVISTIC_DYNAMICS  // Newtonian: SR, GR defined as no-op
