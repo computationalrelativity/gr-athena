@@ -1334,7 +1334,7 @@ if 'Lorene' in args['prob']:
 
 if args['elliptica']:
 
-    makefile_options['LIBRARY_FLAGS'] += ' -lelliptica_id_reader -llapack -lblas'
+    makefile_options['LIBRARY_FLAGS'] += ' -lelliptica_id_reader'# -llapack -lblas'
 
     # this can be specified as lorene_path _or_ directly
     if args['elliptica_path'] != '':
