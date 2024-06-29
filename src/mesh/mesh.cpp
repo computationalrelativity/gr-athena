@@ -1904,20 +1904,26 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         // end fourth-order EOS
 
 #ifndef DBG_USE_CONS_BC
+#if FLUID_ENABLED
         if (FLUID_ENABLED)
         {
           // Swap Hydro and (possibly) passive scalar quantities in BoundaryVariable
           // interface from conserved to primitive formulations:
           ph->hbvar.SwapHydroQuantity(ph->w, HydroBoundaryQuantity::prim);
         }
-
+#endif // FLUID_ENABLED
         if (NSCALARS > 0)
           ps->sbvar.var_cc = &(ps->r);
 
         // Add for [e.g. Hydro]
         pbval->ApplyPhysicalBoundaries(time, 0.0);
 
-        ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
+#if FLUID_ENABLED
+        if (FLUID_ENABLED)
+        {
+          ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
+        }
+#endif // FLUID_ENABLED
 #endif // DBG_USE_CONS_BC
 
       }
