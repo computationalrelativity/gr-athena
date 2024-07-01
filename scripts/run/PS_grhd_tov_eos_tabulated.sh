@@ -15,8 +15,8 @@ export USE_MPI=1
 
 export USE_CX=1
 export NINTERP=2
-export USE_HYBRIDINTERP=1
-export DIR_TAG="PS_MPI${USE_MPI}_HYB${USE_HYBRIDINTERP}_NI${NINTERP}"
+export USE_HYBRIDINTERP=0
+export DIR_TAG="PS_tab_MPI${USE_MPI}_HYB${USE_HYBRIDINTERP}_NI${NINTERP}"
 
 export RIEMANN_SOLVER=llftaudyn
 # export RIEMANN_SOLVER=hlletaudyn
@@ -24,13 +24,13 @@ export RIEMANN_SOLVER=llftaudyn
 
 export BIN_NAME=z4c_tov
 export REL_INPUT=scripts/run/inputs
-export INPUT_NAME=grhd/z4c_tov.inp
+export INPUT_NAME=grhd/z4c_tov_tabulated.inp
 export RUN_NAME=grhd_tov_${DIR_TAG}
 # pass to executable on cmdline
 export GRA_CMD=""
 
 # uncomment to use this restart segment
-export USE_RESTART="00003"
+# export USE_RESTART="00003"
 
 export FIELD_VAR="z"
 
@@ -45,12 +45,13 @@ fi
 export COMPILE_STR="--prob=gr_tov
                     --coord=gr_dynamical
                     --eos=eostaudyn_ps
-                    --eospolicy=idealgas
+                    --eospolicy=eos_compose
                     --errorpolicy=reset_floor
+                    --nscalars=1
                     --flux=${RIEMANN_SOLVER}
                     -${FIELD_VAR}
                     -g -f
-                    --cxx g++ -omp -cons_bc
+                    --cxx g++ -omp
                     --nghost=4
                     --ncghost=4
                     --ncghost_cx=4
@@ -58,8 +59,8 @@ export COMPILE_STR="--prob=gr_tov
                     --ninterp=${NINTERP}"
 
 # complete COMPILE_STR specification
-export USE_REPRIMAND=1
-export USE_BOOST=1
+export USE_REPRIMAND=0
+export USE_BOOST=0
 
 source ${DIR_SCRIPTS}/utils/provide_compile_str_libs.sh
 ###############################################################################

@@ -1713,14 +1713,14 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       // DEBUG: This is useless?- (global con2prim below)
 #ifndef DBG_USE_CONS_BC
       if (GENERAL_RELATIVITY && multilevel) {
-        // prepare to receive primitives
-#pragma omp for private(pmb,pbval)
-        for (int i=0; i<nmb; ++i) {
-          pmb = pmb_array[i]; pbval = pmb->pbval;
-          pbval->StartReceiving(BoundaryCommSubset::gr_amr);
-        }
-
         if(FLUID_ENABLED) {
+          // prepare to receive primitives
+#pragma omp for private(pmb,pbval)
+          for (int i=0; i<nmb; ++i) {
+            pmb = pmb_array[i]; pbval = pmb->pbval;
+            pbval->StartReceiving(BoundaryCommSubset::gr_amr);
+          }
+
           // send primitives
 #pragma omp for private(pmb,pbval)
           for (int i=0; i<nmb; ++i) {
@@ -1728,6 +1728,12 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
             pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->w,
                                                  HydroBoundaryQuantity::prim);
             pmb->phydro->hbvar.SendBoundaryBuffers();
+
+            if (NSCALARS > 0)
+            {
+              pmb->pscalars->sbvar.var_cc = &(pmb->pscalars->r);
+              pmb->pscalars->sbvar.SendBoundaryBuffers();
+            }
           }
 
           // wait to receive AMR/SMR GR primitives
@@ -1735,9 +1741,17 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           for (int i=0; i<nmb; ++i) {
             pmb = pmb_array[i]; pbval = pmb->pbval;
             pmb->phydro->hbvar.ReceiveAndSetBoundariesWithWait();
+
+            if (NSCALARS > 0)
+              pmb->pscalars->sbvar.ReceiveAndSetBoundariesWithWait();
+
             pbval->ClearBoundary(BoundaryCommSubset::gr_amr);
+
             pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->u,
                                                  HydroBoundaryQuantity::cons);
+
+            if (NSCALARS > 0)
+              pmb->pscalars->sbvar.var_cc = &(pmb->pscalars->s);
           }
         }
       } // multilevel
@@ -1847,7 +1861,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 
 #ifndef DBG_USE_CONS_BC
         if (FLUID_ENABLED) {
-          pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b, ph->w,  
+          pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b, ph->w,
 #if USETM
                                           ps->s, ps->r,
 #endif

@@ -49,6 +49,35 @@
 #include <mpi.h>
 #endif
 
+// ----------------------------------------------------------------------------
+namespace {
+
+// In order to utilize slightly fewer lines
+void AllClearBoundary_(BoundaryCommSubset phase,
+                       std::vector<BoundaryVariable *> & bvar)
+{
+  for (auto bvars_it = bvar.begin();
+      bvars_it != bvar.end();
+      ++bvars_it)
+  {
+    (*bvars_it)->ClearBoundary(phase);
+  }
+}
+
+void AllStartReceiving_(BoundaryCommSubset phase,
+                        std::vector<BoundaryVariable *> & bvar)
+{
+  for (auto bvars_it = bvar.begin();
+      bvars_it != bvar.end();
+      ++bvars_it)
+  {
+    (*bvars_it)->StartReceiving(phase);
+  }
+}
+
+}
+
+
 // BoundaryValues constructor (the first object constructed inside the MeshBlock()
 // constructor): sets functions for the appropriate boundary conditions at each of the 6
 // dirs of a MeshBlock
@@ -245,51 +274,41 @@ void BoundaryValues::CheckUserBoundaries() {
 
 void BoundaryValues::StartReceiving(BoundaryCommSubset phase)
 {
-  if (phase == BoundaryCommSubset::aux_z4c)
+  // explicitly fill out the details for the different types of communication
+  switch (phase)
   {
-    for (auto bvars_it = bvars_aux.begin();
-         bvars_it != bvars_aux.end();
-         ++bvars_it)
+    case BoundaryCommSubset::aux_z4c:
     {
-      (*bvars_it)->StartReceiving(phase);
+      AllStartReceiving_(phase, bvars_aux);
+      break;
     }
-
-    return;
-  }
-
-  if (phase == BoundaryCommSubset::iterated_z4c)
-  {
-    for (auto bvars_it = bvars_rbc.begin();
-         bvars_it != bvars_rbc.end();
-         ++bvars_it)
+    case BoundaryCommSubset::iterated_z4c:
     {
-      (*bvars_it)->StartReceiving(phase);
+      AllStartReceiving_(phase, bvars_rbc);
+      break;
     }
-    return;
-  }
-
-  for (auto bvars_it = bvars_main_int.begin();
-       bvars_it != bvars_main_int.end();
-       ++bvars_it)
-  {
-    (*bvars_it)->StartReceiving(phase);
-  }
-
-  // Additional comm. for gr_amr in Mesh::Initialize
-  if (phase != BoundaryCommSubset::gr_amr)
-  {
-    for (auto bvars_it = bvars_main_int_vc.begin();
-         bvars_it != bvars_main_int_vc.end();
-         ++bvars_it)
+    case BoundaryCommSubset::mesh_init:
     {
-      (*bvars_it)->StartReceiving(phase);
+      AllStartReceiving_(phase, bvars_main_int);
+      AllStartReceiving_(phase, bvars_main_int_vc);
+      AllStartReceiving_(phase, bvars_main_int_cx);
+      break;
     }
-
-    for (auto bvars_it = bvars_main_int_cx.begin();
-         bvars_it != bvars_main_int_cx.end();
-         ++bvars_it)
+    case BoundaryCommSubset::gr_amr:
     {
-      (*bvars_it)->StartReceiving(phase);
+      AllStartReceiving_(phase, bvars_main_int);
+      break;
+    }
+    case BoundaryCommSubset::all:
+    {
+      AllStartReceiving_(phase, bvars_main_int);
+      AllStartReceiving_(phase, bvars_main_int_vc);
+      AllStartReceiving_(phase, bvars_main_int_cx);
+      break;
+    }
+    default:
+    {
+      assert(false);
     }
   }
 
@@ -341,47 +360,43 @@ void BoundaryValues::StartReceivingShear(BoundaryCommSubset phase) {
 
 void BoundaryValues::ClearBoundary(BoundaryCommSubset phase)
 {
-  if (phase == BoundaryCommSubset::aux_z4c)
+  // Cf. StartReceiving
+  switch (phase)
   {
-    for (auto bvars_it = bvars_aux.begin();
-         bvars_it != bvars_aux.end();
-         ++bvars_it)
+    case BoundaryCommSubset::aux_z4c:
     {
-      (*bvars_it)->ClearBoundary(phase);
+      AllClearBoundary_(phase, bvars_aux);
+      break;
     }
-
-    return;
-  }
-
-  if (phase == BoundaryCommSubset::iterated_z4c)
-  {
-    for (auto bvars_it = bvars_rbc.begin();
-         bvars_it != bvars_rbc.end();
-         ++bvars_it)
+    case BoundaryCommSubset::iterated_z4c:
     {
-      (*bvars_it)->ClearBoundary(phase);
+      AllClearBoundary_(phase, bvars_rbc);
+      break;
     }
-    return;
+    case BoundaryCommSubset::mesh_init:
+    {
+      AllClearBoundary_(phase, bvars_main_int);
+      AllClearBoundary_(phase, bvars_main_int_vc);
+      AllClearBoundary_(phase, bvars_main_int_cx);
+      break;
+    }
+    case BoundaryCommSubset::gr_amr:
+    {
+      AllClearBoundary_(phase, bvars_main_int);
+      break;
+    }
+    case BoundaryCommSubset::all:
+    {
+      AllClearBoundary_(phase, bvars_main_int);
+      AllClearBoundary_(phase, bvars_main_int_vc);
+      AllClearBoundary_(phase, bvars_main_int_cx);
+      break;
+    }
+    default:
+    {
+      assert(false);
+    }
   }
-
-  // Note BoundaryCommSubset::mesh_init corresponds to initial exchange of conserved fluid
-  // variables and magentic fields, while BoundaryCommSubset::gr_amr corresponds to fluid
-  // primitive variables sent only in the case of GR with refinement
-  for (auto bvars_it = bvars_main_int.begin(); bvars_it != bvars_main_int.end();
-       ++bvars_it) {
-    (*bvars_it)->ClearBoundary(phase);
-  }
-
-  for (auto bvars_it = bvars_main_int_vc.begin(); bvars_it != bvars_main_int_vc.end();
-       ++bvars_it) {
-    (*bvars_it)->ClearBoundary(phase);
-  }
-
-  for (auto bvars_it = bvars_main_int_cx.begin(); bvars_it != bvars_main_int_cx.end();
-       ++bvars_it) {
-    (*bvars_it)->ClearBoundary(phase);
-  }
-
   return;
 }
 
