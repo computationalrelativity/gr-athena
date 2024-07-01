@@ -488,7 +488,7 @@ private:
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> w_p;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> w_utilde_u;
 #if USETM
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> w_r;
+  AthenaTensor<Real, TensorSymm::NONE, NSCALARS, 1> w_r;
 #endif
 
 #if MAGNETIC_FIELDS_ENABLED
