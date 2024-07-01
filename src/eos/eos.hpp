@@ -153,7 +153,8 @@ class EquationOfState {
 #if NSCALARS>0
     for (int l=0; l<NSCALARS; l++)
     {
-      Y[l] = w_r(l,i);
+      // Y[l] = w_r(l,i);
+      Y[l] = pmy_block_->pscalars->r(l,k,j,i);
     }
 #endif
 
