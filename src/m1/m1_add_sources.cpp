@@ -74,7 +74,7 @@ void M1::AddSourceGR(AthenaArray<Real> & u, AthenaArray<Real> & u_inh)
 
 // ----------------------------------------------------------------------------
 // Calculate matter source contribution based on u, add to u_inh
-void M1::AddSourceMatter(AthenaArray<Real> & u, AthenaArray<Real> & u_inh)
+void M1::AddSourceMatter(AthenaArray<Real> & u, AthenaArray<Real> & u_inh, AthenaArray<Real> & u_src)
 {
   using namespace Update;
 
@@ -84,6 +84,9 @@ void M1::AddSourceMatter(AthenaArray<Real> & u, AthenaArray<Real> & u_inh)
   vars_Lab U_I { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
   SetVarAliasesLab(u_inh, U_I);
 
+  vars_Source U_S { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
+  SetVarAliasesSource(u_src, U_S);
+
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
   {
@@ -92,7 +95,8 @@ void M1::AddSourceMatter(AthenaArray<Real> & u, AthenaArray<Real> & u_inh)
     {
       StateMetaVector C = ConstructStateMetaVector(*this, U_C, ix_g, ix_s);
       StateMetaVector I = ConstructStateMetaVector(*this, U_I, ix_g, ix_s);
-      ::M1::Update::AddSourceMatter(*this, C, I, k, j, i);
+      SourceMetaVector S = ConstructSourceMetaVector(*this, U_S, ix_g, ix_s);
+      ::M1::Update::AddSourceMatter(*this, C, I, S, k, j, i);
     }
   }
 }

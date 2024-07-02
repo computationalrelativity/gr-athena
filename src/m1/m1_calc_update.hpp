@@ -71,14 +71,29 @@ struct StateMetaVector {
 
 };
 
+struct SourceMetaVector {
+  M1 & pm1;
+  const int ix_g;
+  const int ix_s;
+
+  AT_C_sca & sc_S0;
+  AT_C_sca & sc_S1;
+  AT_N_vec & sp_S1_d;
+};
+
 StateMetaVector ConstructStateMetaVector(
   M1 & pm1, M1::vars_Lab & vlab,
+  const int ix_g, const int ix_s);
+
+SourceMetaVector ConstructSourceMetaVector(
+  M1 & pm1, M1::vars_Source & vsrc,
   const int ix_g, const int ix_s);
 
 void AddSourceMatter(
   M1 & pm1,
   const StateMetaVector & C,  // state to utilize
   StateMetaVector & I,        // add source here
+  SourceMetaVector & S,
   const int k, const int j, const int i);
 
 

@@ -341,14 +341,32 @@ StateMetaVector ConstructStateMetaVector(
   };
 }
 
+SourceMetaVector ConstructSourceMetaVector(
+  M1 & pm1, M1::vars_Source & vsrc,
+  const int ix_g, const int ix_s)
+{
+  return SourceMetaVector {
+    pm1,
+    ix_g,
+    ix_s,
+    
+    vsrc.sc_S0(  ix_g,ix_s),
+    vsrc.sc_S1(  ix_g,ix_s),
+    vsrc.sp_S1_d(ix_g,ix_s),
+  };
+}
+
 void AddSourceMatter(
   M1 & pm1,
   const StateMetaVector & C,  // state to utilize
   StateMetaVector & I,        // add source here
+  SourceMetaVector & S,       // add matter coupling terms here
   const int k, const int j, const int i)
 {
   const Real W  = pm1.fidu.sc_W(k,j,i);
   const Real W2 = SQR(W);
+
+  const Real kap_as = C.sc_kap_a(k,j,i) + C.sc_kap_s(k,j,i);
 
   const Real dotFv = Assemble::sc_dot_dense_sp__(C.sp_F_d,
                                                  pm1.fidu.sp_v_u,
@@ -377,25 +395,97 @@ void AddSourceMatter(
     k, j, i
   );
 
+  AT_C_sca & dotFv_  = pm1.scratch.sc_A_;
+  AT_C_sca & dotPvv_ = pm1.scratch.sc_B_;
+  AT_N_vec & dotPv_d_  = pm1.scratch.sp_vec_A_;
+
+  dotFv_(i) = Assemble::sc_dot_dense_sp__(C.sp_F_d, pm1.fidu.sp_v_u, k, j, i);
+
+  for (int a=0; a<N; ++a)
+  for (int b=0; b<N; ++b)
+  {
+    dotPv_d_(a,i) += C.sp_P_dd(a,b,k,j,i) * pm1.fidu.sp_v_u(b,k,j,i);
+  }
+
+  for (int a=0; a<N; ++a)
+  {
+    dotPvv_(i) += dotPv_d_(a,i) * pm1.fidu.sp_v_u(a,k,j,i);
+  }
+
   // add to inhomogeneity
+  Real S0 = pm1.geom.sc_alpha(k,j,i) * (
+    pm1.geom.sc_sqrt_det_g(k,j,i) * C.sc_eta_0(k,j,i) -
+    C.sc_kap_a_0(k,j,i) * I.sc_n(k,j,i)
+  );
+
+  I.sc_nG(k,j,i) += S0;
+  S.sc_S0(k,j,i) = S0;
+
+/*
   I.sc_nG(k,j,i) += pm1.geom.sc_alpha(k,j,i) * (
     pm1.geom.sc_sqrt_det_g(k,j,i) * C.sc_eta_0(k,j,i) -
     C.sc_kap_a_0(k,j,i) * I.sc_n(k,j,i)
   );
 
+  S.sc_S0(k,j,i) = pm1.geom.sc_alpha(k,j,i) * (
+    pm1.geom.sc_sqrt_det_g(k,j,i) * C.sc_eta_0(k,j,i) -
+    C.sc_kap_a_0(k,j,i) * I.sc_n(k,j,i)
+  );
+*/
+
+  Real S1 = pm1.geom.sc_alpha(k,j,i) * (
+    (pm1.geom.sc_sqrt_det_g(k,j,i) * C.sc_eta(k,j,i) -
+     C.sc_kap_a(k,j,i) * I.sc_J(k,j,i)) * W -
+    (C.sc_kap_a(k,j,i) + C.sc_kap_s(k,j,i)) * I.sc_H_t(k,j,i)
+  );
+  I.sc_E(k,j,i) += S1;
+  S.sc_S1(k,j,i) = S1;
+
+/*
   I.sc_E(k,j,i) += pm1.geom.sc_alpha(k,j,i) * (
     (pm1.geom.sc_sqrt_det_g(k,j,i) * C.sc_eta(k,j,i) -
      C.sc_kap_a(k,j,i) * I.sc_J(k,j,i)) * W -
     (C.sc_kap_a(k,j,i) + C.sc_kap_s(k,j,i)) * I.sc_H_t(k,j,i)
   );
 
+  S.sc_S1(k,j,i) = W * pm1.geom.sc_alpha(k,j,i) * (
+    -kap_as * C.sc_E(k,j,i) + kap_as * dotFv_(i) +
+    (
+      pm1.geom.sc_sqrt_det_g(k,j,i) * C.sc_eta(k,j,i) +
+      C.sc_kap_s(k,j,i) * W2 * (
+        C.sc_E(k,j,i) - 2 * dotFv_(i) + dotPvv_(i)
+      )
+    )
+  );
+*/
+
   for (int a=0; a<N; ++a)
   {
+    Real S1_d = pm1.geom.sc_alpha(k,j,i) * (
+      (pm1.geom.sc_sqrt_det_g(k,j,i) * C.sc_eta(k,j,i) -
+       C.sc_kap_a(k,j,i) * I.sc_J(k,j,i)) * W * pm1.fidu.sp_v_d(a,k,j,i) -
+      (C.sc_kap_a(k,j,i) + C.sc_kap_s(k,j,i)) * I.sp_H_d(a,k,j,i)
+    );
+    I.sp_F_d(a,k,j,i) += S1_d;
+    S.sp_S1_d(a,k,j,i) = S1_d;
+
+/*
     I.sp_F_d(a,k,j,i) += pm1.geom.sc_alpha(k,j,i) * (
       (pm1.geom.sc_sqrt_det_g(k,j,i) * C.sc_eta(k,j,i) -
        C.sc_kap_a(k,j,i) * I.sc_J(k,j,i)) * W * pm1.fidu.sp_v_d(a,k,j,i) -
       (C.sc_kap_a(k,j,i) + C.sc_kap_s(k,j,i)) * I.sp_H_d(a,k,j,i)
     );
+
+    S.sp_S1_d(a,k,j,i) = W * pm1.geom.sc_alpha(k,j,i) * (
+      -kap_as * dotPv_d_(a,i) - kap_as * C.sp_F_d(a,k,j,i) +
+      (
+        pm1.geom.sc_sqrt_det_g(k,j,i) * C.sc_eta(k,j,i) +
+        C.sc_kap_s(k,j,i) * W2 * (
+          C.sc_E(k,j,i) - 2 * dotFv_ (i)+ dotPvv_(i)
+        )
+      ) * pm1.fidu.sp_v_d(a,k,j,i)
+    );
+*/
   }
 }
 
@@ -473,19 +563,23 @@ void StepExplicit(
   const StateMetaVector & P,   // previous step data
   StateMetaVector & C,         // current step
   const StateMetaVector & I,   // inhomogeneity
+  SourceMetaVector & S,
   const bool explicit_step_nG, // evolve nG?
   const int k, const int j, const int i)
 {
   if (explicit_step_nG)
   {
     C.sc_nG(k,j,i) = P.sc_nG(k,j,i) + dt * I.sc_nG(k,j,i);
+    S.sc_S0(k,j,i) *= dt;
   }
 
   C.sc_E( k,j,i) = P.sc_E( k,j,i) + dt * I.sc_E(k,j,i);
+  S.sc_S1(k,j,i) *= dt;
 
   for (int a=0; a<N; ++a)
   {
     C.sp_F_d(a,k,j,i) = P.sp_F_d(a,k,j,i) + dt * I.sp_F_d(a,k,j,i);
+    S.sp_S1_d(a,k,j,i) *= dt;
   }
 
   // NonFiniteToZero(pm1, C, k, j, i);
@@ -501,12 +595,13 @@ void StepApproximateFirstOrder(
   const StateMetaVector & P,  // previous step data
   StateMetaVector & C,        // current step
   const StateMetaVector & I,  // inhomogeneity
+  SourceMetaVector & S,
   Closures::ClosureMetaVector & CL,
   const int k, const int j, const int i)
 {
   // explicit step
   const bool explicit_step_nG = false;
-  StepExplicit(pm1, dt, P, C, I, explicit_step_nG, k, j, i);
+  StepExplicit(pm1, dt, P, C, I, S, explicit_step_nG, k, j, i);
 
   CL.Closure(k,j,i);
 
@@ -577,6 +672,7 @@ void StepImplicitPicardFrozenP(
   const StateMetaVector & P,  // previous step data
   StateMetaVector & C,        // current step
   const StateMetaVector & I,  // inhomogeneity
+  SourceMetaVector & S,
   const int k, const int j, const int i)
 {
   // Iterate (S_1, S_{1+k})
@@ -594,7 +690,7 @@ void StepImplicitPicardFrozenP(
 
   // explicit update ----------------------------------------------------------
   const bool explicit_step_nG = false;
-  StepExplicit(pm1, dt, P, C, I, explicit_step_nG, k, j, i);
+  StepExplicit(pm1, dt, P, C, I, S, explicit_step_nG, k, j, i);
 
   // retain values for potential restarts
   C.FallbackStore(k, j, i);
@@ -631,7 +727,7 @@ void StepImplicitPicardFrozenP(
       // halve underrelaxation and recover old values
       w_opt = w_opt / 2;
       C.Fallback(k, j, i);
-      StepExplicit(pm1, dt, P, C, I, explicit_step_nG, k, j, i);
+      StepExplicit(pm1, dt, P, C, I, S, explicit_step_nG, k, j, i);
 
       // restart iteration
       err_old = std::numeric_limits<Real>::infinity();
@@ -677,6 +773,7 @@ void StepImplicitPicardMinerboPC(
   const StateMetaVector & P,  // previous step data
   StateMetaVector & C,        // current step
   const StateMetaVector & I,  // inhomogeneity
+  SourceMetaVector & S,
   Closures::ClosureMetaVector & CL,
   const int k, const int j, const int i)
 {
@@ -704,7 +801,7 @@ void StepImplicitPicardMinerboPC(
 
   // explicit update ----------------------------------------------------------
   const bool explicit_step_nG = false;
-  StepExplicit(pm1, dt, P, C, I, explicit_step_nG, k, j, i);
+  StepExplicit(pm1, dt, P, C, I, S, explicit_step_nG, k, j, i);
 
   // Minerbo assembly ---------------------------------------------------------
   bool compute_limiting_P_dd = true;
@@ -751,7 +848,7 @@ void StepImplicitPicardMinerboPC(
       // halve underrelaxation and recover old values
       w_opt = w_opt / 2;
       C.Fallback(k, j, i);
-      StepExplicit(pm1, dt, P, C, I, explicit_step_nG, k, j, i);
+      StepExplicit(pm1, dt, P, C, I, S, explicit_step_nG, k, j, i);
 
       if (rit > iter_max_R)
       {
@@ -803,6 +900,7 @@ void StepImplicitPicardMinerboP(
   const StateMetaVector & P,  // previous step data
   StateMetaVector & C,        // current step
   const StateMetaVector & I,  // inhomogeneity
+  SourceMetaVector & S,
   Closures::ClosureMetaVector & CL,
   const int k, const int j, const int i)
 {
@@ -827,7 +925,7 @@ void StepImplicitPicardMinerboP(
 
   // explicit update ----------------------------------------------------------
   const bool explicit_step_nG = false;
-  StepExplicit(pm1, dt, P, C, I, explicit_step_nG, k, j, i);
+  StepExplicit(pm1, dt, P, C, I, S, explicit_step_nG, k, j, i);
 
   // retain values for potential restarts
   C.FallbackStore(k, j, i);
@@ -881,7 +979,7 @@ void StepImplicitPicardMinerboP(
       // halve underrelaxation and recover old values
       w_opt = w_opt / 2;
       C.Fallback(k, j, i);
-      StepExplicit(pm1, dt, P, C, I, explicit_step_nG, k, j, i);
+      StepExplicit(pm1, dt, P, C, I, S, explicit_step_nG, k, j, i);
 
       if (rit > iter_max_R)
       {
@@ -1086,12 +1184,13 @@ void StepImplicitMinerboHybrids(
   const StateMetaVector & P,  // previous step data
   StateMetaVector & C,        // current step
   const StateMetaVector & I,  // inhomogeneity
+  SourceMetaVector & S,
   Closures::ClosureMetaVector & CL,
   const int k, const int j, const int i)
 {
   // prepare initial guess for iteration --------------------------------------
   // See \S3.2.4 of [1]
-  StepApproximateFirstOrder(pm1, dt, P, C, I, CL, k, j, i);
+  StepApproximateFirstOrder(pm1, dt, P, C, I, S, CL, k, j, i);
 
   // retain values for potential restarts
   C.FallbackStore(k, j, i);
@@ -1194,12 +1293,13 @@ void StepImplicitHybridsJFrozenP(
   const StateMetaVector & P,  // previous step data
   StateMetaVector & C,        // current step
   const StateMetaVector & I,  // inhomogeneity
+  SourceMetaVector & S, 
   Closures::ClosureMetaVector & CL,
   const int k, const int j, const int i)
 {
   // prepare initial guess for iteration --------------------------------------
   // See \S3.2.4 of [1]
-  StepApproximateFirstOrder(pm1, dt, P, C, I, CL, k, j, i);
+  StepApproximateFirstOrder(pm1, dt, P, C, I, S, CL, k, j, i);
 
   // retain values for potential restarts
   C.FallbackStore(k, j, i);
@@ -1305,6 +1405,7 @@ void StepImplicitHybridsJMinerbo(
   const StateMetaVector & P,  // previous step data
   StateMetaVector & C,        // current step
   const StateMetaVector & I,  // inhomogeneity
+  SourceMetaVector & S,
   Closures::ClosureMetaVector & CL,
   const int k, const int j, const int i)
 {
@@ -1319,7 +1420,7 @@ void StepImplicitHybridsJMinerbo(
   }
   else
   {
-    StepApproximateFirstOrder(pm1, dt, P, C, I, CL, k, j, i);
+    StepApproximateFirstOrder(pm1, dt, P, C, I, S, CL, k, j, i);
     // StepExplicit(pm1, dt, P, C, I, false, k, j, i);
     // StepImplicitHybridsJFrozenP(pm1, dt, P, C, I, CL, k, j, i);
   }
@@ -1452,14 +1553,16 @@ namespace M1 {
 void DebugValueInject(M1 & pm1,
                       AthenaArray<Real> & u_pre,
                       AthenaArray<Real> & u_cur,
-		                  AthenaArray<Real> & u_inh);
+		                  AthenaArray<Real> & u_inh,
+                      AthenaArray<Real> & u_src);
 
 // ----------------------------------------------------------------------------
 // Function to update the state vector
 void M1::CalcUpdate(Real const dt,
                     AthenaArray<Real> & u_pre,
                     AthenaArray<Real> & u_cur,
-		                AthenaArray<Real> & u_inh)
+		                AthenaArray<Real> & u_inh,
+                    AthenaArray<Real> & u_src)
 {
   using namespace Update;
   using namespace Update::gsl;
@@ -1468,7 +1571,7 @@ void M1::CalcUpdate(Real const dt,
 
   if (opt.value_inject)
   {
-    DebugValueInject(*this, u_pre, u_cur, u_inh);
+    DebugValueInject(*this, u_pre, u_cur, u_inh, u_src);
   }
 
   // setup aliases ------------------------------------------------------------
@@ -1482,6 +1585,10 @@ void M1::CalcUpdate(Real const dt,
   vars_Lab U_I { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
   SetVarAliasesLab(u_inh, U_I);
 
+  vars_Source U_S { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
+  SetVarAliasesSource(u_src, U_S);
+
+
   // dispatch integration strategy --------------------------------------------
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
@@ -1489,6 +1596,8 @@ void M1::CalcUpdate(Real const dt,
     StateMetaVector C = ConstructStateMetaVector(*this, U_C, ix_g, ix_s);
     StateMetaVector P = ConstructStateMetaVector(*this, U_P, ix_g, ix_s);
     StateMetaVector I = ConstructStateMetaVector(*this, U_I, ix_g, ix_s);
+    
+    SourceMetaVector S = ConstructSourceMetaVector(*this, U_S, ix_g, ix_s);
 
     ClosureMetaVector CL = ConstructClosureMetaVector(*this, U_C, ix_g, ix_s);
 
@@ -1499,9 +1608,9 @@ void M1::CalcUpdate(Real const dt,
         M1_ILOOP3(k,j,i)
         if (MaskGet(k, j, i))
         {
-          ::M1::Update::AddSourceMatter(*this, C, I, k, j, i);
+          ::M1::Update::AddSourceMatter(*this, C, I, S, k, j, i);
           const bool explicit_step_nG = true;
-          StepExplicit(*this, dt, P, C, I, explicit_step_nG, k, j, i);
+          StepExplicit(*this, dt, P, C, I, S, explicit_step_nG, k, j, i);
         }
         break;
       }
@@ -1510,7 +1619,7 @@ void M1::CalcUpdate(Real const dt,
         M1_ILOOP3(k,j,i)
         if (MaskGet(k, j, i))
         {
-          StepImplicitPicardFrozenP(*this, dt, P, C, I, k, j, i);
+          StepImplicitPicardFrozenP(*this, dt, P, C, I, S, k, j, i);
         }
         break;
       }
@@ -1519,7 +1628,7 @@ void M1::CalcUpdate(Real const dt,
         M1_ILOOP3(k,j,i)
         if (MaskGet(k, j, i))
         {
-          StepImplicitPicardMinerboP(*this, dt, P, C, I, CL, k, j, i);
+          StepImplicitPicardMinerboP(*this, dt, P, C, I, S, CL, k, j, i);
         }
         break;
       }
@@ -1528,7 +1637,7 @@ void M1::CalcUpdate(Real const dt,
         M1_ILOOP3(k,j,i)
         if (MaskGet(k, j, i))
         {
-          StepImplicitPicardMinerboPC(*this, dt, P, C, I, CL, k, j, i);
+          StepImplicitPicardMinerboPC(*this, dt, P, C, I, S, CL, k, j, i);
         }
         break;
       }
@@ -1553,7 +1662,7 @@ void M1::CalcUpdate(Real const dt,
           }
           */
 
-          StepImplicitMinerboHybrids(*this, dt, P, C, I, CL,
+          StepImplicitMinerboHybrids(*this, dt, P, C, I, S, CL,
                                      k, j, i);
 
         }
@@ -1565,7 +1674,7 @@ void M1::CalcUpdate(Real const dt,
         if (MaskGet(k, j, i))
         {
           StepImplicitHybridsJFrozenP(
-            *this, dt, P, C, I, CL, k, j, i);
+            *this, dt, P, C, I, S, CL, k, j, i);
         }
         break;
       }
@@ -1589,7 +1698,7 @@ void M1::CalcUpdate(Real const dt,
           // }
 
           StepImplicitHybridsJMinerbo(
-            *this, dt, P, C, I, CL, k, j, i);
+            *this, dt, P, C, I, S, CL, k, j, i);
         }
         break;
       }
@@ -1616,7 +1725,8 @@ void M1::CalcUpdate(Real const dt,
 void DebugValueInject(M1 & pm1,
                       AthenaArray<Real> & u_pre,
                       AthenaArray<Real> & u_cur,
-		                  AthenaArray<Real> & u_inh)
+		                  AthenaArray<Real> & u_inh,
+                      AthenaArray<Real> & u_src)
 {
   std::cout << "\n";
   std::cout << "---------------------------------------------------------\n";
@@ -1646,7 +1756,7 @@ void DebugValueInject(M1 & pm1,
   std::cout << "\n";
 
   u_inh.ZeroClear();
-  pm1.AddSourceMatter(u_cur, u_inh);
+  pm1.AddSourceMatter(u_cur, u_inh, u_src);
 
   pm1.SetVarAliasesLab(u_inh, pm1.lab);
   pm1.StatePrintPoint(0, 0,

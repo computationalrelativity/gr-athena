@@ -59,17 +59,18 @@ public:
   void CalcUpdate(Real const dt,
                   AthenaArray<Real> & u_pre,
                   AthenaArray<Real> & u_cur,
-		              AthenaArray<Real> & u_inh);
+		              AthenaArray<Real> & u_inh,
+                  AthenaArray<Real> & sources);
   void CalcFluxes(AthenaArray<Real> & u);
   void AddFluxDivergence(AthenaArray<Real> & u_inh);
   void AddSourceGR(AthenaArray<Real> & u, AthenaArray<Real> & u_inh);
-  void AddSourceMatter(AthenaArray<Real> & u, AthenaArray<Real> & u_inh);
+  void AddSourceMatter(AthenaArray<Real> & u, AthenaArray<Real> & u_inh, AthenaArray<Real> & u_src);
 
   Real NewBlockTimeStep();
 
   void CoupleSourcesADM(AT_C_sca &A_rho, AT_N_vec &A_S_d, AT_N_sym & A_S_dd);
-  void CoupleSourcesHydro(const Real weight, AA &cons);
-  void CoupleSourcesYe(   const Real weight, const Real mb, AA &ps);
+  void CoupleSourcesHydro(AA &cons);
+  void CoupleSourcesYe(const Real mb, AA &ps);
 
 // data =======================================================================
 public:
@@ -98,6 +99,7 @@ public:
     AA u_rhs;     // M1 rhs
     AA u_lab_aux; // lab frame auxiliaries
     AA u_rad;     // fluid frame variables
+    AA u_sources;
     AA radmat;    // radiation-matter fields
     AA diagno;    // analysis buffers
     // "internals": fiducial velocity, netabs, ..
@@ -264,6 +266,13 @@ public:
     // AT_C_sca nueave;
   };
   vars_RadMat radmat;
+
+  struct vars_Source {
+    GroupSpeciesContainer<AT_C_sca> sc_S0;
+    GroupSpeciesContainer<AT_C_sca> sc_S1;
+    GroupSpeciesContainer<AT_N_vec> sp_S1_d;
+  };
+  vars_Source sources;
 
   // diagnostic variables
   struct vars_Diag {
@@ -502,6 +511,24 @@ public:
     };
   };
 
+  // Radiation matter coupling source terms.
+  struct ixn_Src
+  {
+    enum
+    {
+      S0,
+      S1,
+      S1_x, S1_y, S1_z,
+      N
+    };
+    static constexpr char const * const names[] = {
+      "src.S0",
+      "src.S1",
+      "src.S1x", "src.S1y", "src.S1z"
+    };
+  };
+
+
   // Radiation-matter variables
   struct ixn_RaM
   {
@@ -714,6 +741,7 @@ public:
 
   void SetVarAliasesFluxes(AA (&u_fluxes)[M1_NDIM], vars_Flux   & fluxes);
   void SetVarAliasesLab(   AA  &u,                  vars_Lab    & lab);
+  void SetVarAliasesSource(AA  &sources,            vars_Source & src);
   void SetVarAliasesLabAux(AA  &u,                  vars_LabAux & lab_aux);
   void SetVarAliasesRad(   AA  &r,                  vars_Rad    & rad);
   void SetVarAliasesRadMat(AA  &radmat,             vars_RadMat & rmat);

@@ -58,6 +58,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     { ixn_Lab::N*N_GS,     mbi.nn3, mbi.nn2, mbi.nn1 },     // u_rhs
     { ixn_Lab_aux::N*N_GS, mbi.nn3, mbi.nn2, mbi.nn1 },     // u_lab_aux
     { ixn_Rad::N*N_GS,     mbi.nn3, mbi.nn2, mbi.nn1 },     // u_rad
+    { ixn_Src::N*N_GS,     mbi.nn3, mbi.nn2, mbi.nn1 },     // u_sources
     { ixn_RaM::N*N_GS,     mbi.nn3, mbi.nn2, mbi.nn1 },     // radmat
     { ixn_Diag::N*N_GS,    mbi.nn3, mbi.nn2, mbi.nn1 },     // diagno
 	  { ixn_Internal::N,     mbi.nn3, mbi.nn2, mbi.nn1 },     // internal
@@ -100,6 +101,11 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS}
+  },
+  sources{
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS}
@@ -149,6 +155,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   SetVarAliasesFluxes(storage.flux,      fluxes);
   SetVarAliasesLab(   storage.u,         lab);
   SetVarAliasesLab(   storage.u_rhs,     rhs);
+  SetVarAliasesSource(storage.u_sources, sources);
   SetVarAliasesLabAux(storage.u_lab_aux, lab_aux);
   SetVarAliasesRad(   storage.u_rad,     rad);
 
@@ -235,6 +242,17 @@ void M1::SetVarAliasesLab(AthenaArray<Real> & u, vars_Lab & lab)
     SetVarAlias(lab.sc_E,   u, ix_g, ix_s, ixn_Lab::E,   ixn_Lab::N);
     SetVarAlias(lab.sp_F_d, u, ix_g, ix_s, ixn_Lab::F_x, ixn_Lab::N);
     SetVarAlias(lab.sc_nG,  u, ix_g, ix_s, ixn_Lab::nG,  ixn_Lab::N);
+  }
+}
+
+void M1::SetVarAliasesSource(AthenaArray<Real> & sources, vars_Source & src)
+{
+  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  {
+    SetVarAlias(src.sc_S0,   sources, ix_g, ix_s, ixn_Src::S0,   ixn_Src::N);
+    SetVarAlias(src.sc_S1,   sources, ix_g, ix_s, ixn_Src::S1,   ixn_Src::N);
+    SetVarAlias(src.sp_S1_d, sources, ix_g, ix_s, ixn_Src::S1_x, ixn_Src::N);
   }
 }
 

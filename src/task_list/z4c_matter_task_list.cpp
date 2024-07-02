@@ -31,9 +31,9 @@
 #include "../z4c/puncture_tracker.hpp"
 #include "../trackers/extrema_tracker.hpp"
 
-#if M1_ENABLED
-#include "../m1/m1.hpp"
-#endif
+// #if M1_ENABLED
+// #include "../m1/m1.hpp"
+// #endif
 
 // #include "../parameter_input.hpp"
 
@@ -1400,12 +1400,12 @@ TaskStatus MatterTaskList::IntegrateHydro(MeshBlock *pmb, int stage) {
     pmb->pcoord->AddCoordTermsDivergence(wght, ph->flux, ph->w, pf->bcc, ph->u);
 #endif
 
-#if M1_ENABLED
-    if (pmb->pm1->opt.couple_sources_hydro)
-    {
-      pmb->pm1->CoupleSourcesHydro(wght, ph->u);
-    }
-#endif
+// #if M1_ENABLED
+//     if (pmb->pm1->opt.couple_sources_hydro)
+//     {
+//       pmb->pm1->CoupleSourcesHydro(wght, ph->u);
+//     }
+// #endif
 
 
     // Hardcode an additional flux divergence weighted average for the penultimate
@@ -1428,12 +1428,12 @@ TaskStatus MatterTaskList::IntegrateHydro(MeshBlock *pmb, int stage) {
       pmb->pcoord->AddCoordTermsDivergence(wght_ssp, ph->flux, ph->w, pf->bcc, ph->u2);
 #endif
 
-#if M1_ENABLED
-      if (pmb->pm1->opt.couple_sources_hydro)
-      {
-        pmb->pm1->CoupleSourcesHydro(wght_ssp, ph->u2);
-      }
-#endif
+// #if M1_ENABLED
+//       if (pmb->pm1->opt.couple_sources_hydro)
+//       {
+//         pmb->pm1->CoupleSourcesHydro(wght_ssp, ph->u2);
+//       }
+// #endif
 
     }
     return TaskStatus::next;
@@ -1891,20 +1891,20 @@ TaskStatus MatterTaskList::IntegrateScalars(MeshBlock *pmb, int stage) {
     ps->AddFluxDivergence(wght, ps->s);
 
 
-#if M1_ENABLED & USETM
-    if (pmb->pm1->opt.couple_sources_Y_e)
-    {
-      if (pmb->pm1->N_SPCS != 3)
-      #pragma omp critical
-      {
-        std::cout << "M1: couple_sources_Y_e supported for 3 species \n";
-        std::exit(0);
-      }
-
-      const Real mb = pmb->peos->GetEOS().GetRawBaryonMass();
-      pmb->pm1->CoupleSourcesYe(wght, mb, ps->s);
-    }
-#endif
+// #if M1_ENABLED & USETM
+//     if (pmb->pm1->opt.couple_sources_Y_e)
+//     {
+//       if (pmb->pm1->N_SPCS != 3)
+//       #pragma omp critical
+//       {
+//         std::cout << "M1: couple_sources_Y_e supported for 3 species \n";
+//         std::exit(0);
+//       }
+// 
+//       const Real mb = pmb->peos->GetEOS().GetRawBaryonMass();
+//       pmb->pm1->CoupleSourcesYe(wght, mb, ps->s);
+//     }
+// #endif
 
     // Hardcode an additional flux divergence weighted average for the penultimate
     // stage of SSPRK(5,4) since it cannot be expressed in a 3S* framework
@@ -1919,13 +1919,13 @@ TaskStatus MatterTaskList::IntegrateScalars(MeshBlock *pmb, int stage) {
       pmb->WeightedAveCC(ps->s2, ps->s1, ps->s2, ave_wghts);
       ps->AddFluxDivergence(wght_ssp, ps->s2);
 
-#if M1_ENABLED & USETM
-      if (pmb->pm1->opt.couple_sources_Y_e)
-      {
-        const Real mb = pmb->peos->GetEOS().GetRawBaryonMass();
-        pmb->pm1->CoupleSourcesYe(wght, mb, ps->s2);
-      }
-#endif
+// #if M1_ENABLED & USETM
+//       if (pmb->pm1->opt.couple_sources_Y_e)
+//       {
+//         const Real mb = pmb->peos->GetEOS().GetRawBaryonMass();
+//         pmb->pm1->CoupleSourcesYe(wght, mb, ps->s2);
+//       }
+// #endif
 
     }
     return TaskStatus::next;

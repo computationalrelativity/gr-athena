@@ -412,6 +412,7 @@ class M1IntegratorTaskList: public TaskList {
     TaskStatus AddGRSources(MeshBlock *pmb, int stage);
     TaskStatus AddFluxDivergence(MeshBlock *pmb, int stage);
     TaskStatus CalcUpdate(MeshBlock *pmb, int stage);
+    TaskStatus UpdateCoupling(MeshBlock *pmb, int stage);
 
     TaskStatus Send(MeshBlock *pmb, int stage);
     TaskStatus Receive(MeshBlock *pmb, int stage);
@@ -464,6 +465,8 @@ namespace M1IntegratorTaskNames {
 
   const TaskID NEW_DT(19);
   const TaskID FLAG_AMR(20);
+
+  const TaskID UPDATE_COUPLING(21);
 
 
   const TaskID NOP(60);

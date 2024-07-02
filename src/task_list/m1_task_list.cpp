@@ -14,18 +14,18 @@
 // Athena++ headers
 #include "../athena.hpp"
 #include "../bvals/bvals.hpp"
-// #include "../eos/eos.hpp"
-// #include "../field/field.hpp"
+#include "../eos/eos.hpp"
+#include "../field/field.hpp"
 // #include "../field/field_diffusion/field_diffusion.hpp"
 // #include "../gravity/gravity.hpp"
-// #include "../hydro/hydro.hpp"
+#include "../hydro/hydro.hpp"
 // #include "../hydro/hydro_diffusion/hydro_diffusion.hpp"
 // #include "../hydro/srcterms/hydro_srcterms.hpp"
 // #include "../mesh/mesh.hpp"
 // #include "../orbital_advection/orbital_advection.hpp"
 // #include "../parameter_input.hpp"
 // #include "../reconstruct/reconstruction.hpp"
-// #include "../scalars/scalars.hpp"
+#include "../scalars/scalars.hpp"
 #include "../m1/m1.hpp"
 #include "task_list.hpp"
 
@@ -59,6 +59,8 @@ M1IntegratorTaskList::M1IntegratorTaskList(ParameterInput *pin, Mesh *pm)
 
     AddTask(SEND, CALC_UPDATE);
     AddTask(RECV, CALC_UPDATE);
+
+    AddTask(UPDATE_COUPLING, RECV);
 
     AddTask(SETB, RECV);
 
@@ -190,6 +192,13 @@ void M1IntegratorTaskList::AddTask(const TaskID& id, const TaskID& dep)
     task_list_[ntasks].TaskFunc=
       static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
       (&M1IntegratorTaskList::Receive);
+    task_list_[ntasks].lb_time = false;
+  }
+  else if (id==UPDATE_COUPLING)
+  {
+    task_list_[ntasks].TaskFunc=
+      static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
+      (&M1IntegratorTaskList::UpdateCoupling);
     task_list_[ntasks].lb_time = false;
   }
   else if (id == SETB)
@@ -420,8 +429,49 @@ TaskStatus M1IntegratorTaskList::CalcUpdate(MeshBlock *pmb, int stage)
     pmb->pm1->CalcUpdate(dt,
                          pmb->pm1->storage.u1,
                          pmb->pm1->storage.u,
-                         pmb->pm1->storage.u_rhs);
+                         pmb->pm1->storage.u_rhs,
+                         pmb->pm1->storage.u_sources);
 
+    return TaskStatus::next;
+  }
+  return TaskStatus::fail;
+}
+
+// ----------------------------------------------------------------------------
+// Function to update the coupling to z4c_matter
+TaskStatus M1IntegratorTaskList::UpdateCoupling(MeshBlock *pmb, int stage)
+{
+  if (stage == nstages)
+  {
+    if (pmb->pm1->opt.couple_sources_hydro)
+    {
+      pmb->pm1->CoupleSourcesHydro(pmb->phydro->u);
+    }
+    
+    if (pmb->pm1->opt.couple_sources_Y_e)
+    {
+      if (pmb->pm1->N_SPCS != 3)
+      #pragma omp critical
+      {
+        std::cout << "M1: couple_sources_Y_e supported for 3 species \n";
+        std::exit(0);
+      }
+      const Real mb = pmb->peos->GetEOS().GetRawBaryonMass();
+      pmb->pm1->CoupleSourcesYe(mb, pmb->pscalars->s);
+    }
+
+    // We have changed the conserveds, so we must run c2p again
+    int il = pmb->is, iu = pmb->ie, jl = pmb->js, ju = pmb->je, kl = pmb->ks, ku = pmb->ke;
+    pmb->peos->ConservedToPrimitive(pmb->phydro->u, pmb->phydro->w, pmb->pfield->b, pmb->phydro->w1, 
+#if USETM
+                                    pmb->pscalars->s, pmb->pscalars->r,
+#endif
+                                    pmb->pfield->bcc, pmb->pcoord,
+                                    il, iu, jl, ju, kl, ku, 0);
+
+
+    return TaskStatus::next;
+  } else {
     return TaskStatus::next;
   }
   return TaskStatus::fail;
