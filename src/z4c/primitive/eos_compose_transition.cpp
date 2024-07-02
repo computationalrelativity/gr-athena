@@ -82,6 +82,10 @@ Real EOSCompOSETransition::TemperatureFromE(Real n, Real e, Real *Y, Real Tguess
 
 Real EOSCompOSETransition::TemperatureFromP(Real n, Real p, Real *Y) {
   assert (m_initialized);
+  if (p <= 0.0) {
+    printf("Pressure is %e\n", p);
+    return 0.0;
+  }
   return temperature_from_var(ECLOGP, log(p), n, Y[0], Y[1]);
 }
 
@@ -507,7 +511,7 @@ void EOSCompOSETransition::InitializeTables(std::string fname, std::string helm_
   assert(temp_max >= temp_trans);
 
   min_n = rho_min / (eos_units->DensityConversion(CGS)*mb*eos_units->MassConversion(CGS));
-  min_T = temp_min / (eos_units->TemperatureConversion(CGS));
+  min_T = temp_min / (eos_units->TemperatureConversion(CGS)) * (1 + 1e-5);
   // printf("min_n, min_T = %e, %e\n", min_n, min_T);
   Real min_ln = log(min_n)+1e-9;
   Real min_lT = log(min_T)+1e-9;
@@ -546,8 +550,26 @@ void EOSCompOSETransition::InitializeTables(std::string fname, std::string helm_
 Real EOSCompOSETransition::temperature_from_var(int iv, Real var, Real n, Real Yq, Real Abar) const {
   Real ln = log(n);
 
+  if (std::isnan(var)) {
+    printf("EOSCompOSETransition::temperature_from_var: var is NaN\n");
+    printf("  iv = %d\n", iv);
+  }
+
   auto func = [=](Real lT){
-    return eval_at_lnty(iv, ln, lT, Yq, Abar) - var;
+    Real res =  eval_at_lnty(iv, ln, lT, Yq, Abar);
+    // check nans
+    if (std::isnan(res)) {
+      printf("EOSCompOSETransition: temperature_from_var: res is nan\n");
+      printf("  iv = %d\n", iv);
+      printf("  var = %e\n", var);
+      printf("  n = %e\n", n);
+      printf("  Yq = %e\n", Yq);
+      printf("  Abar = %e\n", Abar);
+      printf("  lT = %e\n", lT);
+      printf("  ln = %e\n", ln);
+      printf("  res = %e\n", res);
+    }
+    return res - var;
   };
 
   auto tol = [=] (Real lTa, Real lTb) {
@@ -568,9 +590,19 @@ Real EOSCompOSETransition::temperature_from_var(int iv, Real var, Real n, Real Y
 
   boost::uintmax_t n_iter = max_iter;  // Maximum iterations
 
-  std::pair<Real, Real> res = boost::math::tools::toms748_solve(func, lower, upper, tol, n_iter);
+  try  {
+    std::pair<Real, Real> res = boost::math::tools::toms748_solve(func, lower, upper, tol, n_iter);
+    return exp((res.first + res.second)/2);
+  }
+  catch (boost::wrapexcept<std::domain_error>) {
+    printf("Caught domain error\n");
+    printf("lower = %e\n", lower);
+    printf("upper = %e\n", upper);
+    printf("func(lower) = %e\n", func(lower));
+    printf("func(uppper) = %e\n", func(upper));
+    throw;
+  }
   // printf("%4d ", n_iter);
-  return exp((res.first + res.second)/2);
 }
 
 Real EOSCompOSETransition::temperature_from_var_with_guess(int iv, Real var, Real n, Real Yq, Real Abar, Real Tguess) const {
@@ -668,6 +700,10 @@ Real EOSCompOSETransition::eval_helm_at_lnty(int iv, Real ln, Real lT, Real Yq, 
 
 
   if (!success_flag) {
+    printf("Failed to evaluate helmholtz EOS\n");
+    printf("ln = %e, lT = %e, Yq = %e\n", ln, lT, Yq);
+    printf("rho = %e, temp = %e, Abar = %e, Zbar = %e\n", rho, temp, Abar, Zbar);
+    printf("etot = %e, ptot = %e, stot = %e\n", etot, ptot, stot);
     return NAN;
   }
 
@@ -691,6 +727,8 @@ Real EOSCompOSETransition::eval_helm_at_lnty(int iv, Real ln, Real lT, Real Yq, 
     case ECMUL:
       return etaele*exp(lT);
   }
+
+  printf("Invalid variable index %d\n", iv);
   return NAN;
 }
 

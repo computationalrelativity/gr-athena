@@ -276,7 +276,7 @@ contains
            + fi(15) *w1d*w1mt  +  fi(16) *w1md*w1mt
 
 ! popular format statements
-01    format(1x,5(a,1pe11.3))
+01    format(1x,5(a,1pe18.10))
 02    format(1x,a,1p4e16.8)
 03    format(1x,4(a,1pe11.3))
 04    format(1x,4(a,i4))
@@ -371,33 +371,33 @@ contains
 
 ! bomb proof the input
         if (temp .gt. t(jmax)) then
-         ! write(6,01) 'temp=',temp,' t(jmax)=',t(jmax)
-         ! write(6,*) 'temp too hot, off grid'
-         ! write(6,*) 'setting eosfail to true and returning'
+         write(6,01) 'temp=',temp,' t(jmax)=',t(jmax)
+         write(6,*) 'temp too hot, off grid'
+         write(6,*) 'setting eosfail to true and returning'
          eosfail = .true.
          ! return
          temp = t(jmax)
         end if
         if (temp .lt. t(1)) then
-         ! write(6,01) 'temp=',temp,' t(1)=',t(1)
-         ! write(6,*) 'temp too cold, off grid'
-         ! write(6,*) 'setting eosfail to true and returning'
+         write(6,01) 'temp=',temp,' t(1)=',t(1)
+         write(6,*) 'temp too cold, off grid'
+         write(6,*) 'setting eosfail to true and returning'
          eosfail = .true.
          ! return
           temp = t(1)
         end if
         if (din  .gt. d(imax)) then
-         ! write(6,01) 'den*ye=',din,' d(imax)=',d(imax)
-         ! write(6,*) 'ye*den too big, off grid'
-         ! write(6,*) 'setting eosfail to true and returning'
+         write(6,01) 'den*ye=',din,' d(imax)=',d(imax)
+         write(6,*) 'ye*den too big, off grid'
+         write(6,*) 'setting eosfail to true and returning'
          eosfail = .true.
          ! return
          den = d(imax)/ye
         end if
         if (din  .lt. d(1)) then
-         ! write(6,01) 'ye*den=',din,' d(1)=',d(1)
-         ! write(6,*) 'ye*den too small, off grid'
-         ! write(6,*) 'setting eosfail to true and returning'
+         write(6,01) 'ye*den=',din,' d(1)=',d(1)
+         write(6,*) 'ye*den too small, off grid'
+         write(6,*) 'setting eosfail to true and returning'
          eosfail = .true.
          ! return
           den = d(1)/ye
@@ -1086,7 +1086,7 @@ contains
       call helmeos
 
       if (eosfail) then
-         ! write (6, *) 'eosfail is true'
+         write (6, *) 'eosfail is true'
          return
       end if
 

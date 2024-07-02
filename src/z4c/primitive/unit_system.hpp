@@ -78,7 +78,6 @@ struct UnitSystem {
   inline constexpr Real SpecificInternalEnergyConversion(UnitSystem& b) const {
     return b.c*b.c/c/c;
   }
-  //! \}
 };
 
 // Global static objects for a particular unit system.

@@ -769,6 +769,105 @@ void EquationOfState::PrimitiveToConserved(
 }
 
 //----------------------------------------------------------------------------------------
+// Function for converting primitives to conserved variables in a single cell
+// Inputs:
+//   prim: 3D array of primitives
+//   gamma_adi: ratio of specific heats
+//   g,gi: 1D arrays of metric covariant and contravariant coefficients
+//   k,j,i: indices of cell
+//   pco: pointer to Coordinates
+// Outputs:
+//   cons: conserved variables set in desired cell
+
+static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real> &prim_scalar,
+    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const &gamma_dd, int k, int j, int i,
+    AthenaArray<Real> &cons, AthenaArray<Real> &cons_scalar,
+    Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& ps) {
+
+  // Extract the primitive variables
+  Real prim_pt[NPRIM] = {0.0};
+  Real Y[MAX_SPECIES] = {0.0};
+  Real bu[NMAG] = {0.0};
+  Real mb = ps.GetEOS()->GetBaryonMass();
+  prim_pt[IDN] = prim(IDN, k, j, i)/mb;
+  prim_pt[IVX] = prim(IVX, k, j, i);
+  prim_pt[IVY] = prim(IVY, k, j, i);
+  prim_pt[IVZ] = prim(IVZ, k, j, i);
+  prim_pt[IPR] = prim(IPR, k, j, i);
+
+  for (int n=0; n<NSCALARS; n++) {
+    Y[n] = prim_scalar(n,k,j,i);
+  }
+
+  // Get temperature and apply floor
+  ps.GetEOS()->ApplyDensityLimits(prim_pt[IDN]);
+  ps.GetEOS()->ApplySpeciesLimits(Y);
+
+  prim_pt[ITM] = ps.GetEOS()->GetTemperatureFromP(prim_pt[IDN], prim_pt[IPR], Y);
+  bool result = ps.GetEOS()->ApplyPrimitiveFloor(prim_pt[IDN], &prim_pt[IVX], prim_pt[IPR], prim_pt[ITM], Y);
+
+  for (int n=0; n<NSCALARS; n++) {
+    prim_pt[IYF + n] = Y[n];
+  }
+
+  // Extract the metric and calculate the determinant.
+  Real g3d[NSPMETRIC] = {gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
+                        gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i)};
+  Real detg = Primitive::GetDeterminant(g3d);
+  Real sdetg = std::sqrt(detg);
+
+  // Perform the primitive solve.
+  Real cons_pt[NCONS];
+
+  ps.PrimToCon(prim_pt, cons_pt, bu, g3d);
+
+  // DEBUG ONLY
+  if (!std::isfinite(cons_pt[IEN])) {
+    std::cerr << "Tau is not finite!\n";
+    std::cerr << "  Error occurred at (" << i << ", " << j << ", " << k << ")\n";
+    std::cerr << "  Primitive variables:\n";
+    std::cerr << "    rho = " << prim(IDN, k, j, i) << "\n";
+    std::cerr << "    ux  = " << prim(IVX, k, j, i) << "\n";
+    std::cerr << "    uy  = " << prim(IVY, k, j, i) << "\n";
+    std::cerr << "    uz  = " << prim(IVZ, k, j, i) << "\n";
+    std::cerr << "    P   = " << prim(IPR, k, j, i) << "\n";
+    std::cerr << "  Conserved variables:\n";
+    std::cerr << "    D   = " << cons_pt[IDN] << "\n";
+    std::cerr << "    Sx  = " << cons_pt[IM1] << "\n";
+    std::cerr << "    Sy  = " << cons_pt[IM2] << "\n";
+    std::cerr << "    Sz  = " << cons_pt[IM3] << "\n";
+    std::cerr << "    tau = " << cons_pt[IEN] << "\n";
+    std::cerr << "  Metric:\n";
+    std::cerr << "    g3d = {" << g3d[S11] << ", " << g3d[S12] << ", " << g3d[S13] << ", "
+                               << g3d[S22] << ", " << g3d[S23] << ", " << g3d[S33] << "}\n";
+    std::cerr << "    detg  = " << detg << "\n";
+    std::cerr << "    sdetg = " << sdetg << "\n";
+  }
+
+  // Push the densitized conserved variables to Athena.
+  cons(IDN, k, j, i) = cons_pt[IDN]*sdetg;
+  cons(IM1, k, j, i) = cons_pt[IM1]*sdetg;
+  cons(IM2, k, j, i) = cons_pt[IM2]*sdetg;
+  cons(IM3, k, j, i) = cons_pt[IM3]*sdetg;
+  cons(IEN, k, j, i) = cons_pt[IEN]*sdetg;
+  for (int n = 0; n < NSCALARS; n++) {
+      cons_scalar(n, k, j, i)= cons_pt[IYD + n]*sdetg;
+    }
+
+  // If we floored things, we'll need to readjust the primitives.
+  if (result) {
+    prim(IDN, k, j, i) = prim_pt[IDN]*mb;
+    prim(IVX, k, j, i) = prim_pt[IVX];
+    prim(IVY, k, j, i) = prim_pt[IVY];
+    prim(IVZ, k, j, i) = prim_pt[IVZ];
+    prim(IPR, k, j, i) = prim_pt[IPR];
+    for (int n=0; n<NSCALARS; n++) {
+      prim_scalar(n,k,j,i) = prim_pt[IYF + n];
+    }
+  }
+}
+
+//----------------------------------------------------------------------------------------
 // Function for calculating relativistic sound speeds
 // Inputs:
 //   rho_h: enthalpy per unit volume
