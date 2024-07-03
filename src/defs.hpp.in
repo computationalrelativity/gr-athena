@@ -48,7 +48,7 @@
 #define DBG_FD_CX_COORDDIV
 
 // enfore algebraic constraints on all t-evo substeps?
-#define NO_DBG_ALGCONSTR_ALL
+#define DBG_ALGCONSTR_ALL
 
 // Debug EOM (H&R 2018)
 #define NO_DBG_EOM
