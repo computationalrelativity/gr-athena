@@ -8,6 +8,7 @@
 //         Requires the library:
 //         https://lorene.obspm.fr/
 
+#include <algorithm>
 #include <cassert>
 #include <iostream>
 
@@ -439,29 +440,42 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
 // If scalars are on we should initialise to zero
       Real Y[MAX_SPECIES];
+      std::fill(std::begin(Y), std::end(Y), 0.0);  // or Y_atm?
 #if NSCALARS > 0
       for (int r=0;r<NSCALARS;r++) {
         pscalars->r(r,k,j,i) = 0.;
         pscalars->s(r,k,j,i) = 0.;
-        Y[r] = 0.0;
       }
 #endif
 
 #if USETM
-      const Real w_rho = (bns->nbar[I] / rho_unit > rho_atm ? bns->nbar[I] / rho_unit : 0.0);
+      Real w_rho = (bns->nbar[I] / rho_unit > rho_atm ? bns->nbar[I] / rho_unit : 0.0);
       Real nb = w_rho/mb;
 #if NSCALARS > 0
       for (int l=0; l<NSCALARS; ++l) {
         Y[l] = (w_rho > rho_atm ? linear_interp(LORENE_EoS_Table->Y[l], LORENE_EoS_Table->data[tab_logrho], LORENE_EoS_Table->size, log(w_rho)) : Y_atm[l]);
       }
 #endif
-      const Real w_p = (w_rho > rho_atm ? peos->GetEOS().GetPressure(nb, T_atm, Y) : 0.0);
+      Real w_p = (w_rho > rho_atm ? peos->GetEOS().GetPressure(nb, T_atm, Y) : 0.0);
       phydro->temperature(k,j,i) = T_atm;
 #else
-      const Real w_rho = bns->nbar[I] / rho_unit;
-      const Real w_p = k_adi*pow(w_rho,gamma_adi);
+      Real w_rho = bns->nbar[I] / rho_unit;
+      Real w_p = k_adi*pow(w_rho,gamma_adi);
 #endif
-      
+
+#ifdef USE_IDEAL_GAS
+      // BD: TODO - stupid work-around to get barotropic init. with
+      //            PrimitiveSolver-
+      //            w_p = K w_rho ^ gamma_adi & fake T
+      {
+        const Real gamma_adi = pin->GetReal("hydro", "gamma");
+        const Real k_adi     = pin->GetReal("hydro", "k_adi");
+        w_rho = bns->nbar[I] / rho_unit;
+        w_p = k_adi*pow(w_rho,gamma_adi);
+        phydro->temperature(k,j,i) = peos->GetEOS().GetTemperatureFromP(nb, w_p, Y);
+      }
+#endif
+
       const Real v_u_x = bns->u_euler_x[I] / vel_unit;
       const Real v_u_y = bns->u_euler_y[I] / vel_unit;
       const Real v_u_z = bns->u_euler_z[I] / vel_unit;
