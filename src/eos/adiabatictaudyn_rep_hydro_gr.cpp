@@ -220,8 +220,9 @@ void EquationOfState::ConservedToPrimitive(
   if (!coarse_flag)
   {
     adm_gamma_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
-    z4c_alpha.InitWithShallowSlice(   pz4c->storage.u,   Z4c::I_Z4c_alpha);
-    z4c_beta_u.InitWithShallowSlice(  pz4c->storage.u,   Z4c::I_Z4c_betax);
+    // Not great with the notation...
+    z4c_alpha.InitWithShallowSlice(   pz4c->storage.adm, Z4c::I_ADM_alpha);
+    z4c_beta_u.InitWithShallowSlice(  pz4c->storage.adm, Z4c::I_ADM_betax);
   }
   else
   {
