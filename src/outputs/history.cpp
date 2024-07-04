@@ -257,25 +257,26 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
 
       int iout = 1;
       std::fprintf(pfile,"# Athena++ history data\n"); // descriptor is first line
-      std::fprintf(pfile,"# [%d]=time     ", iout++);
-      std::fprintf(pfile,"[%d]=dt       ", iout++);
+      std::fprintf(pfile,"# [%d]=time ", iout++);
+      std::fprintf(pfile,"[%d]=dt ", iout++);
+      std::fprintf(pfile,"[%d]=N_MeshBlock ", iout++);
       if (FLUID_ENABLED) {
-        std::fprintf(pfile,"[%d]=mass     ", iout++);
-        std::fprintf(pfile,"[%d]=1-mom    ", iout++);
-        std::fprintf(pfile,"[%d]=2-mom    ", iout++);
-        std::fprintf(pfile,"[%d]=3-mom    ", iout++);
-        std::fprintf(pfile,"[%d]=1-KE     ", iout++);
-        std::fprintf(pfile,"[%d]=2-KE     ", iout++);
-        std::fprintf(pfile,"[%d]=3-KE     ", iout++);
-        if (NON_BAROTROPIC_EOS) std::fprintf(pfile,"[%d]=tot-E   ", iout++);
-        if (SELF_GRAVITY_ENABLED) std::fprintf(pfile,"[%d]=grav-E   ", iout++);
+        std::fprintf(pfile,"[%d]=mass ", iout++);
+        std::fprintf(pfile,"[%d]=1-mom ", iout++);
+        std::fprintf(pfile,"[%d]=2-mom ", iout++);
+        std::fprintf(pfile,"[%d]=3-mom ", iout++);
+        std::fprintf(pfile,"[%d]=1-KE ", iout++);
+        std::fprintf(pfile,"[%d]=2-KE ", iout++);
+        std::fprintf(pfile,"[%d]=3-KE ", iout++);
+        if (NON_BAROTROPIC_EOS) std::fprintf(pfile,"[%d]=tot-E ", iout++);
+        if (SELF_GRAVITY_ENABLED) std::fprintf(pfile,"[%d]=grav-E ", iout++);
         if (MAGNETIC_FIELDS_ENABLED) {
-          std::fprintf(pfile,"[%d]=1-ME    ", iout++);
-          std::fprintf(pfile,"[%d]=2-ME    ", iout++);
-          std::fprintf(pfile,"[%d]=3-ME    ", iout++);
+          std::fprintf(pfile,"[%d]=1-ME ", iout++);
+          std::fprintf(pfile,"[%d]=2-ME ", iout++);
+          std::fprintf(pfile,"[%d]=3-ME ", iout++);
         }
         for (int n=0; n<NSCALARS; n++) {
-          std::fprintf(pfile,"[%d]=%d-scalar    ", iout++, n);
+          std::fprintf(pfile,"[%d]=%d-scalar ", iout++, n);
         }
       }
 
@@ -305,6 +306,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     // write history variables
     std::fprintf(pfile, output_params.data_format.c_str(), pm->time);
     std::fprintf(pfile, output_params.data_format.c_str(), pm->dt);
+    std::fprintf(pfile, " %d", pm->nbtotal);
     for (int n=0; n<nhistory_output; ++n)
       std::fprintf(pfile, output_params.data_format.c_str(), hst_data[n]);
     std::fprintf(pfile,"\n"); // terminate line
