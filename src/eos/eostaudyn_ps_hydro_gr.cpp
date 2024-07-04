@@ -248,6 +248,10 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
           std::cerr << "  Error: " << Primitive::ErrorString[(int)result.error] << "\n";
           //printf("i=%d, j=%d, k=%d\n",i,j,k);
           std::cerr << "  i=" << i << ", j=" << j << ", k=" << k << "\n";
+          const Real x1 = pmy_block_->pcoord->x1v(i);
+          const Real x2 = pmy_block_->pcoord->x2v(j);
+          const Real x3 = pmy_block_->pcoord->x3v(k);
+          std::cerr << "  (x1,x2,x3) " << x1 << "," << x2 << "," << x3 << "\n";
           std::cerr << "  g3d = [" << g3d[S11] << ", " << g3d[S12] << ", " << g3d[S13] << ", "
                     << g3d[S22] << ", " << g3d[S23] << ", " << g3d[S33] << "\n";
           std::cerr << "  g3u = [" << g3u[S11] << ", " << g3u[S12] << ", " << g3u[S13] << ", "

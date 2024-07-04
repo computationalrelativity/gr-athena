@@ -791,7 +791,8 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const
   if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
     DispatchBoundaryFunctions(pmb, pco, time, dt,
                               pmb->cx_is, pmb->cx_ie, bjs, bje, bks, bke, NGHOST,
-                              ph->w, pf->b, BoundaryFace::inner_x1,
+                              ph->w, pf->b,
+                              BoundaryFace::inner_x1,
                               bvars_main_int_cx);
   }
 
@@ -799,7 +800,8 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const
   if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
     DispatchBoundaryFunctions(pmb, pco, time, dt,
                               pmb->cx_is, pmb->cx_ie, bjs, bje, bks, bke, NGHOST,
-                              ph->w, pf->b, BoundaryFace::outer_x1,
+                              ph->w, pf->b,
+                              BoundaryFace::outer_x1,
                               bvars_main_int_cx);
   }
 
@@ -808,7 +810,8 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const
     if (apply_bndry_fn_[BoundaryFace::inner_x2]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie, pmb->cx_js, pmb->cx_je, bks, bke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::inner_x2,
+                                ph->w, pf->b,
+                                BoundaryFace::inner_x2,
                                 bvars_main_int_cx);
     }
 
@@ -816,7 +819,8 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const
     if (apply_bndry_fn_[BoundaryFace::outer_x2]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie, pmb->cx_js, pmb->cx_je, bks, bke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::outer_x2,
+                                ph->w, pf->b,
+                                BoundaryFace::outer_x2,
                                 bvars_main_int_cx);
     }
   }
@@ -829,7 +833,8 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const
     if (apply_bndry_fn_[BoundaryFace::inner_x3]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie, bjs, bje, pmb->cx_ks, pmb->cx_ke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::inner_x3,
+                                ph->w, pf->b,
+                                BoundaryFace::inner_x3,
                                 bvars_main_int_cx);
     }
 
@@ -837,7 +842,8 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const
     if (apply_bndry_fn_[BoundaryFace::outer_x3]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie, bjs, bje, pmb->cx_ks, pmb->cx_ke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::outer_x3,
+                                ph->w, pf->b,
+                                BoundaryFace::outer_x3,
                                 bvars_main_int_cx);
     }
   }

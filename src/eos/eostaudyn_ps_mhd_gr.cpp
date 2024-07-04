@@ -237,12 +237,16 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         // Find the primitive variables.
         Real prim_pt[NPRIM] = {0.0};
         Primitive::SolverResult result = ps.ConToPrim(prim_pt, cons_pt, b3u, g3d, g3u);
-        
+
         if (result.error != Primitive::Error::SUCCESS) {
           std::cerr << "There was an error during the primitive solve!\n";
           std::cerr << "  Iteration: " << pmy_block_->pmy_mesh->ncycle << "\n";
           std::cerr << "  Error: " << Primitive::ErrorString[(int)result.error] << "\n";
           std::cerr << "  i=" << i << ", j=" << j << ", k=" << k << "\n";
+          const Real x1 = pmy_block_->pcoord->x1v(i);
+          const Real x2 = pmy_block_->pcoord->x2v(j);
+          const Real x3 = pmy_block_->pcoord->x3v(k);
+          std::cerr << "  (x1,x2,x3) " << x1 << "," << x2 << "," << x3 << "\n";
           std::cerr << "  g3d = [" << g3d[S11] << ", " << g3d[S12] << ", " << g3d[S13] << ", "
                     << g3d[S22] << ", " << g3d[S23] << ", " << g3d[S33] << "]\n";
           std::cerr << "  g3u = [" << g3u[S11] << ", " << g3u[S12] << ", " << g3u[S13] << ", "
@@ -268,7 +272,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         for(int n=0; n<NSCALARS; n++){
           prim_scalar(n, k, j, i) = prim_pt[IYF + n];
         }
-        
+
         // Because the conserved variables may have changed, we update those, too.
         cons(IDN, k, j, i) = cons_pt[IDN]*sdetg;
         cons(IM1, k, j, i) = cons_pt[IM1]*sdetg;

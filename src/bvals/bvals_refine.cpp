@@ -79,7 +79,8 @@
 // --- change to standard and coarse PRIMITIVE
 // (automatically switches back to conserved variables at the end of fn)
 
-void BoundaryValues::ProlongateHydroBoundaries(const Real time, const Real dt) {
+void BoundaryValues::ProlongateHydroBoundaries(const Real time, const Real dt)
+{
 
   //////////////////////////////////////////////////////////////////////////////
 
@@ -98,32 +99,20 @@ void BoundaryValues::ProlongateHydroBoundaries(const Real time, const Real dt) {
 
   // downcast BoundaryVariable pointers to known derived class pointer types:
   // RTTI via dynamic_case
-  
+
   MeshBlock *pmb = pmy_block_;
+
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+  if (pmb->NeighborBlocksSameLevel())
+    return;
+#endif // DBG_NO_REF_NN_SAME_LEVEL
+
   int &mylevel = pmb->loc.level;
 
-  HydroBoundaryVariable *phbvar = nullptr;
-  Hydro *ph = nullptr;
 
-  if (FLUID_ENABLED) {
-    phbvar = dynamic_cast<HydroBoundaryVariable *>(bvars_main_int[0]);
-    ph = pmb->phydro;
-  }
-
-  //CellCenteredBoundaryVariable *psbvar = nullptr;
-  PassiveScalars *ps = nullptr;
-  if (NSCALARS > 0) {
-    ps = pmb->pscalars;
-    // cannot assume the vector index:
-    //psbvar = dynamic_cast<CellCenteredBoundaryVariable *>(bvars_main_int[???]);
-  }
-
-  FaceCenteredBoundaryVariable *pfbvar = nullptr;
-  Field *pf = nullptr;
-  if (MAGNETIC_FIELDS_ENABLED) {
-    pf = pmb->pfield;
-    pfbvar = dynamic_cast<FaceCenteredBoundaryVariable *>(bvars_main_int[1]);
-  }
+  Hydro *ph =          (FLUID_ENABLED)           ? pmb->phydro   : nullptr;
+  PassiveScalars *ps = (NSCALARS > 0)            ? pmb->pscalars : nullptr;
+  Field *pf =          (MAGNETIC_FIELDS_ENABLED) ? pmb->pfield   : nullptr;
 
   // For each finer neighbor, to prolongate a boundary we need to fill one more cell
   // surrounding the boundary zone to calculate the slopes ("ghost-ghost zone"). 3x steps:
@@ -198,20 +187,20 @@ void BoundaryValues::ProlongateHydroBoundaries(const Real time, const Real dt) {
     // instead of previous targets var_cc=cons, var_fc=b
 #ifndef DBG_USE_CONS_BC
     if (FLUID_ENABLED)
-      phbvar->var_cc = &(ph->coarse_prim_);
+      ph->hbvar.var_cc = &(ph->coarse_prim_);
     if (MAGNETIC_FIELDS_ENABLED)
-      pfbvar->var_fc = &(pf->coarse_b_);
-    if (NSCALARS > 0) {
-      ps = pmb->pscalars;
+      pf->fbvar.var_fc = &(pf->coarse_b_);
+    if (NSCALARS > 0)
+    {
       ps->sbvar.var_cc = &(ps->coarse_r_);
     }
 #else
     if (FLUID_ENABLED)
-      phbvar->var_cc = &(ph->coarse_cons_);
+      ph->hbvar.var_cc = &(ph->coarse_cons_);
     if (MAGNETIC_FIELDS_ENABLED)
-      pfbvar->var_fc = &(pf->coarse_b_);
-    if (NSCALARS > 0) {
-      ps = pmb->pscalars;
+      pf->fbvar.var_fc = &(pf->coarse_b_);
+    if (NSCALARS > 0)
+    {
       ps->sbvar.var_cc = &(ps->coarse_s_);
     }
 #endif // DBG_USE_CONS_BC
@@ -224,22 +213,22 @@ void BoundaryValues::ProlongateHydroBoundaries(const Real time, const Real dt) {
 #ifndef DBG_USE_CONS_BC
 
     if (FLUID_ENABLED)
-      phbvar->var_cc = &(ph->w);
+      ph->hbvar.var_cc = &(ph->w);
     if (MAGNETIC_FIELDS_ENABLED)
-      pfbvar->var_fc = &(pf->b);
-    if (NSCALARS > 0) {
-      ps = pmb->pscalars;
+      pf->fbvar.var_fc = &(pf->b);
+    if (NSCALARS > 0)
+    {
       ps->sbvar.var_cc = &(ps->r);
     }
 
 #else
 
     if (FLUID_ENABLED)
-      phbvar->var_cc = &(ph->u);
+      ph->hbvar.var_cc = &(ph->u);
     if (MAGNETIC_FIELDS_ENABLED)
-      pfbvar->var_fc = &(pf->b);
-    if (NSCALARS > 0) {
-      ps = pmb->pscalars;
+      pf->fbvar.var_fc = &(pf->b);
+    if (NSCALARS > 0)
+    {
       ps->sbvar.var_cc = &(ps->s);
     }
 
@@ -562,7 +551,10 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
   // to bind references to coarse_b_, coarse_bcc, since coarse_* are no longer members of
   // MeshRefinement that always exist (even if not allocated).
 
-  if (FLUID_ENABLED) {
+  // BD: The logic doesn't make sense unless we only do this when when GR is
+  // deactivated...
+  if (FLUID_ENABLED && !GENERAL_RELATIVITY)
+  {
     // KGF: COUPLING OF QUANTITIES (must be manually specified)
 #ifdef Z4C_ENABLED
     pmb->peos->ConservedToPrimitive(ph->coarse_cons_, ph->coarse_prim_,
@@ -593,48 +585,68 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
 
 #endif // DBG_USE_CONS_BC
 
+  const int ngh = NGHOST;
+#ifdef DBG_USE_CONS_BC
+  AthenaArray<Real> &coarse_fluid_ = ph->coarse_cons_;
+#else
+  AthenaArray<Real> &coarse_fluid_ = ph->coarse_prim_;
+#endif // DBG_USE_CONS_BC
+
   if (nb.ni.ox1 == 0) {
     if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
-                                pmb->cis, pmb->cie, sj, ej, sk, ek, 1,
-                                ph->coarse_prim_, pf->coarse_b_, BoundaryFace::inner_x1,
+                                pmb->cis, pmb->cie, sj, ej, sk, ek, ngh,
+                                coarse_fluid_,
+                                pf->coarse_b_,
+                                BoundaryFace::inner_x1,
                                 bvars_main_int);
     }
     if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
-                                pmb->cis, pmb->cie, sj, ej, sk, ek, 1,
-                                ph->coarse_prim_, pf->coarse_b_, BoundaryFace::outer_x1,
+                                pmb->cis, pmb->cie, sj, ej, sk, ek, ngh,
+                                coarse_fluid_,
+                                pf->coarse_b_,
+                                BoundaryFace::outer_x1,
                                 bvars_main_int);
     }
   }
   if (nb.ni.ox2 == 0 && pmb->block_size.nx2 > 1) {
     if (apply_bndry_fn_[BoundaryFace::inner_x2]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
-                                si, ei, pmb->cjs, pmb->cje, sk, ek, 1,
-                                ph->coarse_prim_, pf->coarse_b_, BoundaryFace::inner_x2,
+                                si, ei, pmb->cjs, pmb->cje, sk, ek, ngh,
+                                coarse_fluid_,
+                                pf->coarse_b_,
+                                BoundaryFace::inner_x2,
                                 bvars_main_int);
     }
     if (apply_bndry_fn_[BoundaryFace::outer_x2]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
-                                si, ei, pmb->cjs, pmb->cje, sk, ek, 1,
-                                ph->coarse_prim_, pf->coarse_b_, BoundaryFace::outer_x2,
+                                si, ei, pmb->cjs, pmb->cje, sk, ek, ngh,
+                                coarse_fluid_,
+                                pf->coarse_b_,
+                                BoundaryFace::outer_x2,
                                 bvars_main_int);
     }
   }
   if (nb.ni.ox3 == 0 && pmb->block_size.nx3 > 1) {
     if (apply_bndry_fn_[BoundaryFace::inner_x3]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
-                                si, ei, sj, ej, pmb->cks, pmb->cke, 1,
-                                ph->coarse_prim_, pf->coarse_b_, BoundaryFace::inner_x3,
+                                si, ei, sj, ej, pmb->cks, pmb->cke, ngh,
+                                coarse_fluid_,
+                                pf->coarse_b_,
+                                BoundaryFace::inner_x3,
                                 bvars_main_int);
     }
     if (apply_bndry_fn_[BoundaryFace::outer_x3]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
-                                si, ei, sj, ej, pmb->cks, pmb->cke, 1,
-                                ph->coarse_prim_, pf->coarse_b_, BoundaryFace::outer_x3,
+                                si, ei, sj, ej, pmb->cks, pmb->cke, ngh,
+                                coarse_fluid_,
+                                pf->coarse_b_,
+                                BoundaryFace::outer_x3,
                                 bvars_main_int);
     }
   }
+
   return;
 }
 
