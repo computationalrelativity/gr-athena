@@ -44,7 +44,6 @@
 #include "z4c/cce/cce.hpp"
 #endif
 
-
 //-----------------------------------------------------------------------------
 //! \fn int main(int argc, char *argv[])
 //  \brief Athena++ main program
@@ -64,6 +63,7 @@ int main(int argc, char *argv[])
   //--- Step 1. ---------------------------------------------------------------
   // Initialize MPI environment, if necessary
   gra::parallelism::Init(argc, argv);
+  gra::PrintRankZero("Running GR-Athena++ @ " + std::string(GIT_HASH));
   gra::PrintRankZero("Step 01: Parallel environment initialized.");
 
   //--- Step 2. ---------------------------------------------------------------

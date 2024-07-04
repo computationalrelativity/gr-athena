@@ -22,6 +22,7 @@
 #include <unistd.h>
 
 // Athena++ headers
+#include "../defs.hpp"
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../coordinates/coordinates.hpp"
@@ -46,7 +47,6 @@
 //----------------------------------------------------------------------------------------
 //! \fn void OutputType::HistoryFile()
 //  \brief Writes a history file
-
 void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   MeshBlock *pmb = pm->pblock;
   Real real_max = std::numeric_limits<Real>::max();
@@ -256,7 +256,13 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
       // NEW_OUTPUT_TYPES:
 
       int iout = 1;
-      std::fprintf(pfile,"# Athena++ history data\n"); // descriptor is first line
+      // descriptor + hash is first line ---
+      std::string ver("# Athena++ (");
+      ver.append(GIT_HASH);
+      ver.append(") history data\n");
+      std::fprintf(pfile,"%s", ver.c_str());
+      // -----------------------------------
+
       std::fprintf(pfile,"# [%d]=time ", iout++);
       std::fprintf(pfile,"[%d]=dt ", iout++);
       std::fprintf(pfile,"[%d]=N_MeshBlock ", iout++);

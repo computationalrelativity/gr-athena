@@ -647,23 +647,6 @@ int CellCenteredXBoundaryVariable::NeighborVariableBufferSize(const NeighborInde
 }
 
 //----------------------------------------------------------------------------------------
-bool CellCenteredXBoundaryVariable::NeighborBlocksSameLevel()
-{
-  MeshBlock *pmb = pmy_block_;
-  bool nn_level_different = false;
-
-  for (int n=0; n<pbval_->nneighbor; n++) {
-    NeighborBlock& nb = pbval_->neighbor[n];
-    if (nb.snb.level != pmb->loc.level)
-    {
-      nn_level_different = true;
-      break;
-    }
-  }
-  return !nn_level_different;
-}
-
-//----------------------------------------------------------------------------------------
 // MPI buffer sizes
 #ifdef MPI_PARALLEL
 

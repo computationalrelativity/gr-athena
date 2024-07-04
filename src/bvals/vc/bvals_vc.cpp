@@ -337,15 +337,16 @@ void VertexCenteredBoundaryVariable::SetBoundaryFromFiner(Real *buf,
 //! \fn void VertexCenteredBoundaryVariable::RestrictNonGhost()
 //  \brief populate coarser buffer with restricted data
 
-void VertexCenteredBoundaryVariable::RestrictNonGhost() {
-  // don't need to fill coarse buffer if nn all on the same level
-#if defined(DBG_NO_REF_NN_SAME_LEVEL)
-  if (NeighborBlocksSameLevel())
-    return;
-#endif // DBG_NO_REF_NN_SAME_LEVEL
-
+void VertexCenteredBoundaryVariable::RestrictNonGhost()
+{
   MeshBlock *pmb = pmy_block_;
   MeshRefinement *pmr = pmb->pmr;
+
+  // don't need to fill coarse buffer if nn all on the same level
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+  if (pmb->NeighborBlocksSameLevel())
+    return;
+#endif // DBG_NO_REF_NN_SAME_LEVEL
   int si, sj, sk, ei, ej, ek;
 
   AthenaArray<Real> &var = *var_vc;

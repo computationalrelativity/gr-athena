@@ -84,6 +84,25 @@ import re
 import os
 import subprocess
 
+def get_git_revision_hash() -> str:
+  path = os.path.dirname(os.path.realpath(__file__))
+  return subprocess.check_output(['git', 'rev-parse', 'HEAD'],
+                                 cwd=path).decode('ascii').strip()
+
+def get_git_revision_short_hash() -> str:
+  path = os.path.dirname(os.path.realpath(__file__))
+  return subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'],
+                                 cwd=path).decode('ascii').strip()
+
+def get_git_status() -> str:
+  # should return "" if no changes
+  path = os.path.dirname(os.path.realpath(__file__))
+  result = subprocess.check_output(['git', 'diff', '--stat'],
+                                   cwd=path).decode('ascii').strip()
+  if result == "":
+    return "c"
+  return "m"
+
 # Set template and output filenames
 makefile_input = 'Makefile.in'
 makefile_output = 'Makefile'
@@ -600,6 +619,9 @@ if args['z']:
 definitions = {}
 makefile_options = {}
 makefile_options['LOADER_FLAGS'] = ''
+
+# retain hash, check diffs - not fool-proof, but better than nothing
+definitions['GIT_HASH'] = get_git_revision_short_hash() + " " + get_git_status()
 
 # --prob=[name] argument
 definitions['PROBLEM'] = makefile_options['PROBLEM_FILE'] = args['prob']

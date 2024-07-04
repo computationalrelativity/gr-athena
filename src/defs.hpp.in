@@ -10,6 +10,8 @@
 //  defs.hpp file will be created (overwriting the last) from this template.  This new
 //  file contains Athena++ specific cpp macros and definitions set by configure.
 
+#define GIT_HASH "@GIT_HASH@"
+
 //----------------------------------------------------------------------------------------
 // symmetrization of VC prol.
 #define DBG_SYMMETRIZE_P_OP
