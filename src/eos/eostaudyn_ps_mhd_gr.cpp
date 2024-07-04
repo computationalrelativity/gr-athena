@@ -496,6 +496,8 @@ void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, AthenaArray<
   if (prim.GetDim4()==1)
   {
     n = prim(IDN,i)/mb;
+    P = prim(IPR,i);
+
     for (int a=0; a<3; ++a)
     {
       Wvu[a] = prim(IVX+a,i);
@@ -508,6 +510,8 @@ void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, AthenaArray<
   else
   {
     n = prim(IDN,k,j,i)/mb;
+    P = prim(IPR,k,j,i);
+
     for (int a=0; a<3; ++a)
     {
       Wvu[a] = prim(IVX+a,k,j,i);
