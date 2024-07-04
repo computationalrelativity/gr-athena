@@ -109,6 +109,7 @@ void AssembleFluxes(MeshBlock * pmb,
                     AthenaArray<Real> &w,
                     AthenaArray<Real> &u)
 {
+#if not MAGNETIC_FIELDS_ENABLED
   using namespace LinearAlgebra;
 
   const int nn1 = pmb->ncells1;  // utilize the cells
@@ -192,6 +193,7 @@ void AssembleFluxes(MeshBlock * pmb,
     f(ivx,k,j,i) += w_p(k,j,i) * alpha(k,j,i) * sqrt_detgamma_(i);
   }
 
+#endif // MAGNETIC_FIELDS_ENABLED
 }
 
 }  // namespace fluxes::grhd
@@ -206,6 +208,7 @@ void AssembleEigenvalues(MeshBlock * pmb,
                          AthenaArray<Real> &w,
                          AthenaArray<Real> &u)
 {
+#if not MAGNETIC_FIELDS_ENABLED
   using namespace LinearAlgebra;
 
   const int nn1 = pmb->ncells1;  // utilize the cells
@@ -356,6 +359,9 @@ void AssembleEigenvalues(MeshBlock * pmb,
 
     lambda(4,k,j,i) = lambda_p_(i);
   }
+
+
+#endif // MAGNETIC_FIELDS_ENABLED
 
 }
 
