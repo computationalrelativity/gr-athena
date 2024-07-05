@@ -74,7 +74,8 @@ enum BoundaryFace {undef=-1, inner_x1=0, outer_x1=1, inner_x2=2, outer_x2=3,
 
 // identifiers for boundary conditions
 enum class BoundaryFlag {block=-1, undef, reflect, outflow, extrapolate_outflow,
-                         user, periodic, polar, polar_wedge, shear_periodic};
+                         user, periodic, polar, polar_wedge, shear_periodic,
+                         gr_sommerfeld};
 
 // identifiers for types of neighbor blocks (connectivity with current MeshBlock)
 enum class NeighborConnect {none, face, edge, corner}; // degenerate/shared part of block
@@ -289,6 +290,25 @@ class BoundaryPhysics {
   virtual void ExtrapolateOutflowOuterX3(Real time, Real dt,
                                          int il, int iu, int jl,
                                          int ju, int ku, int ngh) = 0;
+
+  virtual void GRSommerfeldInnerX1(Real time, Real dt,
+                                   int il, int jl, int ju, int kl, int ku,
+                                   int ngh) = 0;
+  virtual void GRSommerfeldOuterX1(Real time, Real dt,
+                                   int iu, int jl, int ju, int kl, int ku,
+                                   int ngh) = 0;
+  virtual void GRSommerfeldInnerX2(Real time, Real dt,
+                                   int il, int iu, int jl, int kl, int ku,
+                                   int ngh) = 0;
+  virtual void GRSommerfeldOuterX2(Real time, Real dt,
+                                   int il, int iu, int ju, int kl, int ku,
+                                   int ngh) = 0;
+  virtual void GRSommerfeldInnerX3(Real time, Real dt,
+                                   int il, int iu, int jl, int ju, int kl,
+                                   int ngh) = 0;
+  virtual void GRSommerfeldOuterX3(Real time, Real dt,
+                                   int il, int iu, int jl, int ju, int ku,
+                                   int ngh) = 0;
 
   virtual void PolarWedgeInnerX2(Real time, Real dt,
                                  int il, int iu, int jl, int kl, int ku, int ngh) = 0;

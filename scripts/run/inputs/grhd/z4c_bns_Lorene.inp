@@ -130,29 +130,40 @@ ncycle_out   = 1      # interval for stdout summary info
 <hydro> # =====================================================================
 gamma      = 2                    # ratio of specific heats Gamma
 k_adi      = 123.63657447688378   # adiabat K, p_gas = K rho^Gamma
+
+# particular to Reprimand
 c2p_acc    = 1e-12
 rho_strict = 1e-20
+
+# particular to PrimitiveSolver
+dfloor = 3.469446950740132e-18  # sqrt(1024 * FLT_MIN)
+dthreshold = 1
+tfloor = 3.469446950740132e-18
+sfloor = 3.469446950740132e-18
+
+bmass = 1     # [mb] - Baryon mass
+
 # =============================================================================
 
 <mesh> # ======================================================================
 # no. cell in dir, min/max x, inner/outer BC
-nx1    = 128
+nx1    = 64
 x1min  = -40
 x1max  = 40
-ix1_bc = periodic
-ox1_bc = periodic
+ix1_bc = gr_sommerfeld
+ox1_bc = gr_sommerfeld
 
-nx2    = 128
+nx2    = 64
 x2min  = -40
 x2max  = 40
-ix2_bc = periodic
-ox2_bc = periodic
+ix2_bc = gr_sommerfeld
+ox2_bc = gr_sommerfeld
 
-nx3    = 128
+nx3    = 64
 x3min  = -40
 x3max  = 40
-ix3_bc = periodic
-ox3_bc = periodic
+ix3_bc = gr_sommerfeld
+ox3_bc = gr_sommerfeld
 
 refinement = none
 numlevel = 10
@@ -175,11 +186,10 @@ filename = OVERWRITE_ME # can be done on cmd line..
 
 fix_gauge_precollapsed = 1
 
-# Atmosphere settings
+# Atmosphere settings: Reprimand
 fatm = 1e-18  # set atmosphere rho to rho = fatm
 fthr = 1  # set point to atmosphere if rho < fthr*fatm
 
-max_z = 10
 # =============================================================================
 
 <refinement1> # ===============================================================

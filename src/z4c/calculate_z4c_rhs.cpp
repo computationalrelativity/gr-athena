@@ -646,43 +646,43 @@ void Z4c::Z4cBoundaryRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, Athen
   MeshBlock * pmb = pmy_block;
   BoundaryValues * pbval = pmy_block->pbval;
 
-  if(pbval->block_bcs[BoundaryFace::inner_x1] == BoundaryFlag::extrapolate_outflow ||
-     pbval->block_bcs[BoundaryFace::inner_x1] == BoundaryFlag::outflow) {
+  if(pbval->block_bcs[BoundaryFace::inner_x1] == BoundaryFlag::gr_sommerfeld)
+  {
     Z4cSommerfeld_(u, u_rhs,
                    mbi.il, mbi.il,
                    mbi.jl, mbi.ju,
                    mbi.kl, mbi.ku);
   }
-  if(pbval->block_bcs[BoundaryFace::outer_x1] == BoundaryFlag::extrapolate_outflow ||
-     pbval->block_bcs[BoundaryFace::outer_x1] == BoundaryFlag::outflow) {
+  if(pbval->block_bcs[BoundaryFace::outer_x1] == BoundaryFlag::gr_sommerfeld)
+  {
     Z4cSommerfeld_(u, u_rhs,
                    mbi.iu, mbi.iu,
                    mbi.jl, mbi.ju,
                    mbi.kl, mbi.ku);
   }
-  if(pbval->block_bcs[BoundaryFace::inner_x2] == BoundaryFlag::extrapolate_outflow ||
-     pbval->block_bcs[BoundaryFace::inner_x2] == BoundaryFlag::outflow) {
+  if(pbval->block_bcs[BoundaryFace::inner_x2] == BoundaryFlag::gr_sommerfeld)
+  {
     Z4cSommerfeld_(u, u_rhs,
                    mbi.il, mbi.iu,
                    mbi.jl, mbi.jl,
                    mbi.kl, mbi.ku);
   }
-  if(pbval->block_bcs[BoundaryFace::outer_x2] == BoundaryFlag::extrapolate_outflow ||
-     pbval->block_bcs[BoundaryFace::outer_x2] == BoundaryFlag::outflow) {
+  if(pbval->block_bcs[BoundaryFace::outer_x2] == BoundaryFlag::gr_sommerfeld)
+  {
     Z4cSommerfeld_(u, u_rhs,
                    mbi.il, mbi.iu,
                    mbi.ju, mbi.ju,
                    mbi.kl, mbi.ku);
   }
-  if(pbval->block_bcs[BoundaryFace::inner_x3] == BoundaryFlag::extrapolate_outflow ||
-     pbval->block_bcs[BoundaryFace::inner_x3] == BoundaryFlag::outflow) {
+  if(pbval->block_bcs[BoundaryFace::inner_x3] == BoundaryFlag::gr_sommerfeld)
+  {
     Z4cSommerfeld_(u, u_rhs,
                    mbi.il, mbi.iu,
                    mbi.jl, mbi.ju,
                    mbi.kl, mbi.kl);
   }
-  if(pbval->block_bcs[BoundaryFace::outer_x3] == BoundaryFlag::extrapolate_outflow ||
-     pbval->block_bcs[BoundaryFace::outer_x3] == BoundaryFlag::outflow) {
+  if(pbval->block_bcs[BoundaryFace::outer_x3] == BoundaryFlag::gr_sommerfeld)
+  {
     Z4cSommerfeld_(u, u_rhs,
                    mbi.il, mbi.iu,
                    mbi.jl, mbi.ju,

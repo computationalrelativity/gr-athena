@@ -91,6 +91,13 @@ ref_level_1 = 1
 ref_type_1 = 1              # 0: to the point, 1: sph. region
 ref_zone_radius_1 = 10.5
 
+ini_2_x1 = 0               # initial offset
+ini_2_x2 = 0
+ini_2_x3 = 0
+minima_2 = true              # for update_strategy = 1
+ref_level_2 = 2
+ref_type_2 = 1              # 0: to the point, 1: sph. region
+ref_zone_radius_2 = 0.1
 
 update_strategy = 1         # 0: based on dt, 1: based on quad interp.
 # safety factor avoids taking too large step (multiple of local dx)
@@ -106,11 +113,11 @@ integrator   = rk3   # time integration algorithm
 # {donate, lin_vl, lin_mc2, ppm, ceno3, weno5, weno5z, weno5d_si,
 #  mp3, mp5, mp7, mp5_R}
 
-xorder = weno5d_si
+xorder = weno5z
 xorder_eps = 1e-40
 
-xorder_use_fb = true              # control if fallback is used
-xorder_use_fb_unphysical = false  # optinally verify (fluid) energy cond.
+xorder_use_fb = false             # control if fallback is used
+xorder_use_fb_unphysical = false  # optionally verify (fluid) energy cond.
 xorder_fb = lin_vl
 
 floor_both_states = false  # reset both l/r [Reprimand only]
@@ -123,20 +130,20 @@ ncycle_out   = 1      # interval for stdout summary info
 nx1    = 64
 x1min  = -25
 x1max  = 25
-ix1_bc = extrapolate_outflow
-ox1_bc = extrapolate_outflow
+ix1_bc = gr_sommerfeld
+ox1_bc = gr_sommerfeld
 
 nx2    = 64
 x2min  = -25
 x2max  = 25
-ix2_bc = extrapolate_outflow
-ox2_bc = extrapolate_outflow
+ix2_bc = gr_sommerfeld
+ox2_bc = gr_sommerfeld
 
 nx3    = 64
 x3min  = -25
 x3max  = 25
-ix3_bc = extrapolate_outflow
-ox3_bc = extrapolate_outflow
+ix3_bc = gr_sommerfeld
+ox3_bc = gr_sommerfeld
 
 refinement = adaptive
 numlevel = 10
@@ -169,6 +176,7 @@ zero_div=0 # set div F = 0 i.e. don't update conservatives with fluxes
 
 # control whether to split fluxes and reconstruct those [GRHD only]
 flux_reconstruction = false
+
 
 # =============================================================================
 

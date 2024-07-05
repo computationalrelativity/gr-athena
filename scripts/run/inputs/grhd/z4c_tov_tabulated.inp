@@ -95,20 +95,20 @@ ncycle_out   = 1      # interval for stdout summary info
 nx1    = 64
 x1min  = -25
 x1max  = 25
-ix1_bc = extrapolate_outflow
-ox1_bc = extrapolate_outflow
+ix1_bc = gr_sommerfeld
+ox1_bc = gr_sommerfeld
 
 nx2    = 64
 x2min  = -25
 x2max  = 25
-ix2_bc = extrapolate_outflow
-ox2_bc = extrapolate_outflow
+ix2_bc = gr_sommerfeld
+ox2_bc = gr_sommerfeld
 
 nx3    = 64
 x3min  = -25
 x3max  = 25
-ix3_bc = extrapolate_outflow
-ox3_bc = extrapolate_outflow
+ix3_bc = gr_sommerfeld
+ox3_bc = gr_sommerfeld
 
 refinement = adaptive
 numlevel = 10

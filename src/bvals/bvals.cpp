@@ -92,6 +92,7 @@ BoundaryValues::BoundaryValues(MeshBlock *pmb, BoundaryFlag *input_bcs,
     case BoundaryFlag::reflect:
     case BoundaryFlag::outflow:
     case BoundaryFlag::extrapolate_outflow:
+    case BoundaryFlag::gr_sommerfeld:
     case BoundaryFlag::user:
     case BoundaryFlag::polar_wedge:
       apply_bndry_fn_[i] = true;
@@ -948,7 +949,30 @@ void BoundaryValues::DispatchBoundaryFunctions(
         break;
       }
       break;
-
+    case BoundaryFlag::gr_sommerfeld:
+      switch (face) {
+      case BoundaryFace::undef:
+        ATHENA_ERROR(msg);
+      case BoundaryFace::inner_x1:
+        (*bvars_it)->GRSommerfeldInnerX1(time, dt, il, jl, ju, kl, ku, ngh);
+        break;
+      case BoundaryFace::outer_x1:
+        (*bvars_it)->GRSommerfeldOuterX1(time, dt, iu, jl, ju, kl, ku, ngh);
+        break;
+      case BoundaryFace::inner_x2:
+        (*bvars_it)->GRSommerfeldInnerX2(time, dt, il, iu, jl, kl, ku, ngh);
+        break;
+      case BoundaryFace::outer_x2:
+        (*bvars_it)->GRSommerfeldOuterX2(time, dt, il, iu, ju, kl, ku, ngh);
+        break;
+      case BoundaryFace::inner_x3:
+        (*bvars_it)->GRSommerfeldInnerX3(time, dt, il, iu, jl, ju, kl, ngh);
+        break;
+      case BoundaryFace::outer_x3:
+        (*bvars_it)->GRSommerfeldOuterX3(time, dt, il, iu, jl, ju, ku, ngh);
+        break;
+      }
+      break;
     case BoundaryFlag::polar_wedge:
       switch (face) {
       case BoundaryFace::undef:
