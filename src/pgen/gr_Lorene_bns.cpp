@@ -524,12 +524,13 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
     Real pgasmax = pin->GetReal("problem","pmax");
     Real pcut = pin->GetReal("problem","pcut") * pgasmax;
-    Real b_amp = pin->GetReal("problem","b_amp");
-    int magindex = pin->GetInteger("problem","magindex");
 
-    int nx1 = (ie-is)+1 + 2*(NGHOST); //TODO Shouldn't this be ncell[123]?
-    int nx2 = (je-js)+1 + 2*(NGHOST);
-    int nx3 = (ke-ks)+1 + 2*(NGHOST);
+    // Real b_amp = pin->GetReal("problem","b_amp");
+    // Scaling taken from project_bnsmhd
+    Real ns = pin->GetReal("problem","ns");
+    Real b_amp = pin->GetReal("problem","b_amp") *
+                 0.5/std::pow(pgasmax-pcut, ns)/8.351416e19;
+    int magindex = pin->GetInteger("problem","magindex");
 
     pfield->b.x1f.ZeroClear();
     pfield->b.x2f.ZeroClear();
@@ -537,12 +538,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     pfield->bcc.ZeroClear();
 
     AthenaArray<Real> bxcc,bycc,bzcc;
-    bxcc.NewAthenaArray(nx3,nx2,nx1);
-    bycc.NewAthenaArray(nx3,nx2,nx1);
-    bzcc.NewAthenaArray(nx3,nx2,nx1);
+    bxcc.NewAthenaArray(ncells3,ncells2,ncells1);
+    bycc.NewAthenaArray(ncells3,ncells2,ncells1);
+    bzcc.NewAthenaArray(ncells3,ncells2,ncells1);
 
     AthenaArray<Real> Atot;
-    Atot.NewAthenaArray(3,nx3,nx2,nx1);
+    Atot.NewAthenaArray(3,ncells3,ncells2,ncells1);
 
     for (int k = kl; k <= ku; ++k)
     for (int j = jl; j <= ju; ++j)
