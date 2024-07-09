@@ -405,7 +405,9 @@ void BoundaryValues::ClearBoundary(BoundaryCommSubset phase)
 //! \fn void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt)
 //  \brief Apply all the physical boundary conditions for both hydro and field
 
-void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
+void BoundaryValues::ApplyPhysicalBoundaries(
+  const Real time, const Real dt)
+{
   MeshBlock *pmb = pmy_block_;
   Coordinates *pco = pmb->pcoord;
   int bis = pmb->is - NGHOST, bie = pmb->ie + NGHOST,
@@ -455,8 +457,11 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
   // Apply boundary function on inner-x1 and update W,bcc (if not periodic)
   if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
     DispatchBoundaryFunctions(pmb, pco, time, dt,
-                              pmb->is, pmb->ie, bjs, bje, bks, bke, NGHOST,
-                              ph->w, pf->b, BoundaryFace::inner_x1,
+                              pmb->is, pmb->ie,
+                              bjs, bje,
+                              bks, bke,
+                              NGHOST,
+                              BoundaryFace::inner_x1,
                               bvars_main_int);
     // KGF: COUPLING OF QUANTITIES (must be manually specified)
     if (MAGNETIC_FIELDS_ENABLED) {
@@ -490,8 +495,11 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
   // Apply boundary function on outer-x1 and update W,bcc (if not periodic)
   if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
     DispatchBoundaryFunctions(pmb, pco, time, dt,
-                              pmb->is, pmb->ie, bjs, bje, bks, bke, NGHOST,
-                              ph->w, pf->b, BoundaryFace::outer_x1,
+                              pmb->is, pmb->ie,
+                              bjs, bje,
+                              bks, bke,
+                              NGHOST,
+                              BoundaryFace::outer_x1,
                               bvars_main_int);
     // KGF: COUPLING OF QUANTITIES (must be manually specified)
     if (MAGNETIC_FIELDS_ENABLED) {
@@ -527,8 +535,11 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
     // Apply boundary function on inner-x2 and update W,bcc (if not periodic)
     if (apply_bndry_fn_[BoundaryFace::inner_x2]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
-                                bis, bie, pmb->js, pmb->je, bks, bke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::inner_x2,
+                                bis, bie,
+                                pmb->js, pmb->je,
+                                bks, bke,
+                                NGHOST,
+                                BoundaryFace::inner_x2,
                                 bvars_main_int);
       // KGF: COUPLING OF QUANTITIES (must be manually specified)
       if (MAGNETIC_FIELDS_ENABLED) {
@@ -562,8 +573,11 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
     // Apply boundary function on outer-x2 and update W,bcc (if not periodic)
     if (apply_bndry_fn_[BoundaryFace::outer_x2]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
-                                bis, bie, pmb->js, pmb->je, bks, bke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::outer_x2,
+                                bis, bie,
+                                pmb->js, pmb->je,
+                                bks, bke,
+                                NGHOST,
+                                BoundaryFace::outer_x2,
                                 bvars_main_int);
       // KGF: COUPLING OF QUANTITIES (must be manually specified)
       if (MAGNETIC_FIELDS_ENABLED) {
@@ -602,8 +616,11 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
     // Apply boundary function on inner-x3 and update W,bcc (if not periodic)
     if (apply_bndry_fn_[BoundaryFace::inner_x3]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
-                                bis, bie, bjs, bje, pmb->ks, pmb->ke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::inner_x3,
+                                bis, bie,
+                                bjs, bje,
+                                pmb->ks, pmb->ke,
+                                NGHOST,
+                                BoundaryFace::inner_x3,
                                 bvars_main_int);
       // KGF: COUPLING OF QUANTITIES (must be manually specified)
       if (MAGNETIC_FIELDS_ENABLED) {
@@ -638,8 +655,11 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
     // Apply boundary function on outer-x3 and update W,bcc (if not periodic)
     if (apply_bndry_fn_[BoundaryFace::outer_x3]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
-                                bis, bie, bjs, bje, pmb->ks, pmb->ke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::outer_x3,
+                                bis, bie,
+                                bjs, bje,
+                                pmb->ks, pmb->ke,
+                                NGHOST,
+                                BoundaryFace::outer_x3,
                                 bvars_main_int);
       // KGF: COUPLING OF QUANTITIES (must be manually specified)
       if (MAGNETIC_FIELDS_ENABLED) {
@@ -678,7 +698,9 @@ void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt) {
 //! \fn void BoundaryValues::ApplyPhysicalVertexCenteredBoundaries(const Real time, const Real dt)
 //  \brief Apply all the physical boundary conditions vertex centered fields
 
-void BoundaryValues::ApplyPhysicalVertexCenteredBoundaries(const Real time, const Real dt) {
+void BoundaryValues::ApplyPhysicalVertexCenteredBoundaries(
+  const Real time, const Real dt)
+{
   MeshBlock *pmb = pmy_block_;
   Coordinates *pco = pmb->pcoord;
   int bis = pmb->ivs - NGHOST, bie = pmb->ive + NGHOST,
@@ -696,65 +718,77 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundaries(const Real time, cons
   if (!apply_bndry_fn_[BoundaryFace::outer_x3] && pmb->block_size.nx3 > 1)
     bke = pmb->kve + NGHOST;
 
-  // KGF: temporarily hardcode Hydro and Field access for coupling in EOS U(W) + calc bcc
-  // and when passed to user-defined boundary function stored in function pointer array
-
-  // KGF: COUPLING OF QUANTITIES (must be manually specified)
-  // downcast BoundaryVariable ptrs to known derived class types: RTTI via dynamic_cast
-  Hydro *ph = nullptr;
-  Field *pf = nullptr;
-
   // Apply boundary function on inner-x1 and update W,bcc (if not periodic)
   if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
     DispatchBoundaryFunctions(pmb, pco, time, dt,
-                              pmb->ivs, pmb->ive, bjs, bje, bks, bke, NGHOST,
-                              ph->w, pf->b, BoundaryFace::inner_x1,
+                              pmb->ivs, pmb->ive,
+                              bjs, bje,
+                              bks, bke,
+                              NGHOST,
+                              BoundaryFace::inner_x1,
                               bvars_main_int_vc);
   }
 
   // Apply boundary function on outer-x1 and update W,bcc (if not periodic)
   if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
     DispatchBoundaryFunctions(pmb, pco, time, dt,
-                              pmb->ivs, pmb->ive, bjs, bje, bks, bke, NGHOST,
-                              ph->w, pf->b, BoundaryFace::outer_x1,
+                              pmb->ivs, pmb->ive,
+                              bjs, bje,
+                              bks, bke,
+                              NGHOST,
+                              BoundaryFace::outer_x1,
                               bvars_main_int_vc);
   }
 
-  if (pmb->block_size.nx2 > 1) { // 2D or 3D
+  if (pmb->block_size.nx2 > 1)
+  { // 2D or 3D
     // Apply boundary function on inner-x2 and update W,bcc (if not periodic)
     if (apply_bndry_fn_[BoundaryFace::inner_x2]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
-                                bis, bie, pmb->jvs, pmb->jve, bks, bke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::inner_x2,
+                                bis, bie,
+                                pmb->jvs, pmb->jve,
+                                bks, bke,
+                                NGHOST,
+                                BoundaryFace::inner_x2,
                                 bvars_main_int_vc);
     }
 
     // Apply boundary function on outer-x2 and update W,bcc (if not periodic)
     if (apply_bndry_fn_[BoundaryFace::outer_x2]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
-                                bis, bie, pmb->jvs, pmb->jve, bks, bke, NGHOST,
-                                ph->w, pf->b, BoundaryFace::outer_x2,
+                                bis, bie,
+                                pmb->jvs, pmb->jve,
+                                bks, bke,
+                                NGHOST,
+                                BoundaryFace::outer_x2,
                                 bvars_main_int_vc);
     }
   }
 
-  if (pmb->block_size.nx3 > 1) { // 3D
+  if (pmb->block_size.nx3 > 1)
+  { // 3D
     bjs = pmb->jvs - NGHOST;
     bje = pmb->jve + NGHOST;
 
     // Apply boundary function on inner-x3 and update W,bcc (if not periodic)
     if (apply_bndry_fn_[BoundaryFace::inner_x3]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
-                                bis, bie, bjs, bje, pmb->kvs, pmb->kve, NGHOST,
-                                ph->w, pf->b, BoundaryFace::inner_x3,
+                                bis, bie,
+                                bjs, bje,
+                                pmb->kvs, pmb->kve,
+                                NGHOST,
+                                BoundaryFace::inner_x3,
                                 bvars_main_int_vc);
     }
 
     // Apply boundary function on outer-x3 and update W,bcc (if not periodic)
     if (apply_bndry_fn_[BoundaryFace::outer_x3]) {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
-                                bis, bie, bjs, bje, pmb->kvs, pmb->kve, NGHOST,
-                                ph->w, pf->b, BoundaryFace::outer_x3,
+                                bis, bie,
+                                bjs, bje,
+                                pmb->kvs, pmb->kve,
+                                NGHOST,
+                                BoundaryFace::outer_x3,
                                 bvars_main_int_vc);
     }
   }
@@ -780,19 +814,14 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const
   if (!apply_bndry_fn_[BoundaryFace::outer_x3] && pmb->block_size.nx3 > 1)
     bke = pmb->cx_ke + NGHOST;
 
-  // KGF: temporarily hardcode Hydro and Field access for coupling in EOS U(W) + calc bcc
-  // and when passed to user-defined boundary function stored in function pointer array
-
-  // KGF: COUPLING OF QUANTITIES (must be manually specified)
-  // downcast BoundaryVariable ptrs to known derived class types: RTTI via dynamic_cast
-  Hydro *ph = nullptr;
-  Field *pf = nullptr;
-
   // Apply boundary function on inner-x1 and update W,bcc (if not periodic)
-  if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
+  if (apply_bndry_fn_[BoundaryFace::inner_x1])
+  {
     DispatchBoundaryFunctions(pmb, pco, time, dt,
-                              pmb->cx_is, pmb->cx_ie, bjs, bje, bks, bke, NGHOST,
-                              ph->w, pf->b,
+                              pmb->cx_is, pmb->cx_ie,
+                              bjs, bje,
+                              bks, bke,
+                              NGHOST,
                               BoundaryFace::inner_x1,
                               bvars_main_int_cx);
   }
@@ -800,50 +829,65 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const
   // Apply boundary function on outer-x1 and update W,bcc (if not periodic)
   if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
     DispatchBoundaryFunctions(pmb, pco, time, dt,
-                              pmb->cx_is, pmb->cx_ie, bjs, bje, bks, bke, NGHOST,
-                              ph->w, pf->b,
+                              pmb->cx_is, pmb->cx_ie,
+                              bjs, bje,
+                              bks, bke,
+                              NGHOST,
                               BoundaryFace::outer_x1,
                               bvars_main_int_cx);
   }
 
   if (pmb->block_size.nx2 > 1) { // 2D or 3D
     // Apply boundary function on inner-x2 and update W,bcc (if not periodic)
-    if (apply_bndry_fn_[BoundaryFace::inner_x2]) {
+    if (apply_bndry_fn_[BoundaryFace::inner_x2])
+    {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
-                                bis, bie, pmb->cx_js, pmb->cx_je, bks, bke, NGHOST,
-                                ph->w, pf->b,
+                                bis, bie,
+                                pmb->cx_js, pmb->cx_je,
+                                bks, bke,
+                                NGHOST,
                                 BoundaryFace::inner_x2,
                                 bvars_main_int_cx);
     }
 
     // Apply boundary function on outer-x2 and update W,bcc (if not periodic)
-    if (apply_bndry_fn_[BoundaryFace::outer_x2]) {
+    if (apply_bndry_fn_[BoundaryFace::outer_x2])
+    {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
-                                bis, bie, pmb->cx_js, pmb->cx_je, bks, bke, NGHOST,
-                                ph->w, pf->b,
+                                bis, bie,
+                                pmb->cx_js, pmb->cx_je,
+                                bks, bke,
+                                NGHOST,
                                 BoundaryFace::outer_x2,
                                 bvars_main_int_cx);
     }
   }
 
-  if (pmb->block_size.nx3 > 1) { // 3D
+  if (pmb->block_size.nx3 > 1)
+  { // 3D
     bjs = pmb->cx_js - NGHOST;
     bje = pmb->cx_je + NGHOST;
 
     // Apply boundary function on inner-x3 and update W,bcc (if not periodic)
-    if (apply_bndry_fn_[BoundaryFace::inner_x3]) {
+    if (apply_bndry_fn_[BoundaryFace::inner_x3])
+    {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
-                                bis, bie, bjs, bje, pmb->cx_ks, pmb->cx_ke, NGHOST,
-                                ph->w, pf->b,
+                                bis, bie,
+                                bjs, bje,
+                                pmb->cx_ks, pmb->cx_ke,
+                                NGHOST,
                                 BoundaryFace::inner_x3,
                                 bvars_main_int_cx);
     }
 
     // Apply boundary function on outer-x3 and update W,bcc (if not periodic)
-    if (apply_bndry_fn_[BoundaryFace::outer_x3]) {
+    if (apply_bndry_fn_[BoundaryFace::outer_x3])
+    {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
-                                bis, bie, bjs, bje, pmb->cx_ks, pmb->cx_ke, NGHOST,
-                                ph->w, pf->b,
+                                bis, bie,
+                                bjs, bje,
+                                pmb->cx_ks, pmb->cx_ke,
+                                NGHOST,
                                 BoundaryFace::outer_x3,
                                 bvars_main_int_cx);
     }
@@ -855,12 +899,18 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const
 // BD: Yes, yes it should
 void BoundaryValues::DispatchBoundaryFunctions(
     MeshBlock *pmb, Coordinates *pco, Real time, Real dt,
-    int il, int iu, int jl, int ju, int kl, int ku, int ngh,
-    AthenaArray<Real> &prim, FaceField &b, BoundaryFace face,
+    int il, int iu,
+    int jl, int ju,
+    int kl, int ku,
+    int ngh,
+    BoundaryFace face,
     std::vector<BoundaryVariable *> &bvars_main) {
-  if (block_bcs[face] ==  BoundaryFlag::user) {  // user-enrolled BCs
-    pmy_mesh_->BoundaryFunction_[face](pmb, pco, prim, b, time, dt,
-                                       il, iu, jl, ju, kl, ku, ngh);
+  if (block_bcs[face] ==  BoundaryFlag::user)
+  {  // user-enrolled BCs
+    pmy_mesh_->BoundaryFunction_[face](pmb, pco, time, dt,
+                                       il, iu,
+                                       jl, ju,
+                                       kl, ku, ngh);
   }
   // KGF: this is only to silence the compiler -Wswitch warnings about not handling the
   // "undef" case when considering all possible BoundaryFace enumerator values. If "undef"

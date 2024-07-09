@@ -586,26 +586,23 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
 #endif // DBG_USE_CONS_BC
 
   const int ngh = NGHOST;
-#ifdef DBG_USE_CONS_BC
-  AthenaArray<Real> &coarse_fluid_ = ph->coarse_cons_;
-#else
-  AthenaArray<Real> &coarse_fluid_ = ph->coarse_prim_;
-#endif // DBG_USE_CONS_BC
 
   if (nb.ni.ox1 == 0) {
     if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
-                                pmb->cis, pmb->cie, sj, ej, sk, ek, ngh,
-                                coarse_fluid_,
-                                pf->coarse_b_,
+                                pmb->cis, pmb->cie,
+                                sj, ej,
+                                sk, ek,
+                                ngh,
                                 BoundaryFace::inner_x1,
                                 bvars_main_int);
     }
     if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
-                                pmb->cis, pmb->cie, sj, ej, sk, ek, ngh,
-                                coarse_fluid_,
-                                pf->coarse_b_,
+                                pmb->cis, pmb->cie,
+                                sj, ej,
+                                sk, ek,
+                                ngh,
                                 BoundaryFace::outer_x1,
                                 bvars_main_int);
     }
@@ -613,17 +610,19 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
   if (nb.ni.ox2 == 0 && pmb->block_size.nx2 > 1) {
     if (apply_bndry_fn_[BoundaryFace::inner_x2]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
-                                si, ei, pmb->cjs, pmb->cje, sk, ek, ngh,
-                                coarse_fluid_,
-                                pf->coarse_b_,
+                                si, ei,
+                                pmb->cjs, pmb->cje,
+                                sk, ek,
+                                ngh,
                                 BoundaryFace::inner_x2,
                                 bvars_main_int);
     }
     if (apply_bndry_fn_[BoundaryFace::outer_x2]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
-                                si, ei, pmb->cjs, pmb->cje, sk, ek, ngh,
-                                coarse_fluid_,
-                                pf->coarse_b_,
+                                si, ei,
+                                pmb->cjs, pmb->cje,
+                                sk, ek,
+                                ngh,
                                 BoundaryFace::outer_x2,
                                 bvars_main_int);
     }
@@ -631,17 +630,19 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
   if (nb.ni.ox3 == 0 && pmb->block_size.nx3 > 1) {
     if (apply_bndry_fn_[BoundaryFace::inner_x3]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
-                                si, ei, sj, ej, pmb->cks, pmb->cke, ngh,
-                                coarse_fluid_,
-                                pf->coarse_b_,
+                                si, ei,
+                                sj, ej,
+                                pmb->cks, pmb->cke,
+                                ngh,
                                 BoundaryFace::inner_x3,
                                 bvars_main_int);
     }
     if (apply_bndry_fn_[BoundaryFace::outer_x3]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
-                                si, ei, sj, ej, pmb->cks, pmb->cke, ngh,
-                                coarse_fluid_,
-                                pf->coarse_b_,
+                                si, ei,
+                                sj, ej,
+                                pmb->cks, pmb->cke,
+                                ngh,
                                 BoundaryFace::outer_x3,
                                 bvars_main_int);
     }
@@ -656,9 +657,10 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
   MeshBlock *pmb = pmy_block_;
   MeshRefinement *pmr = pmb->pmr;
   PassiveScalars *ps = nullptr;
-  if (NSCALARS>0) {
+  if (NSCALARS>0)
+  {
     ps = pmb->pscalars;
-}
+  }
 
 #ifndef DBG_USE_CONS_BC
   // prolongate cell-centered S/AMR-enrolled quantities (hydro, radiation, scalars, ...)
@@ -819,23 +821,25 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(const Re
   if (!apply_bndry_fn_[BoundaryFace::outer_x3] && pmb->block_size.nx3 > 1)
     bke = pmb->ckve + NCGHOST;
 
-  // prevent modification of dispatch
-  Hydro *ph = nullptr;
-  Field *pf = nullptr;
-
   // Apply boundary function on inner-x1 and update W,bcc (if not periodic)
   if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
     DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
-                              pmb->civs, pmb->cive, bjs, bje, bks, bke, NCGHOST,
-                              ph->w, pf->b, BoundaryFace::inner_x1,
+                              pmb->civs, pmb->cive,
+                              bjs, bje,
+                              bks, bke,
+                              NCGHOST,
+                              BoundaryFace::inner_x1,
                               bvars_main_int_vc);
   }
 
   // Apply boundary function on outer-x1 and update W,bcc (if not periodic)
   if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
     DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
-                              pmb->civs, pmb->cive, bjs, bje, bks, bke, NCGHOST,
-                              ph->w, pf->b, BoundaryFace::outer_x1,
+                              pmb->civs, pmb->cive,
+                              bjs, bje,
+                              bks, bke,
+                              NCGHOST,
+                              BoundaryFace::outer_x1,
                               bvars_main_int_vc);
   }
 
@@ -843,16 +847,22 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(const Re
     // Apply boundary function on inner-x2 and update W,bcc (if not periodic)
     if (apply_bndry_fn_[BoundaryFace::inner_x2]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
-                                bis, bie, pmb->cjvs, pmb->cjve, bks, bke, NCGHOST,
-                                ph->w, pf->b, BoundaryFace::inner_x2,
+                                bis, bie,
+                                pmb->cjvs, pmb->cjve,
+                                bks, bke,
+                                NCGHOST,
+                                BoundaryFace::inner_x2,
                                 bvars_main_int_vc);
     }
 
     // Apply boundary function on outer-x2 and update W,bcc (if not periodic)
     if (apply_bndry_fn_[BoundaryFace::outer_x2]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
-                                bis, bie, pmb->cjvs, pmb->cjve, bks, bke, NCGHOST,
-                                ph->w, pf->b, BoundaryFace::outer_x2,
+                                bis, bie,
+                                pmb->cjvs, pmb->cjve,
+                                bks, bke,
+                                NCGHOST,
+                                BoundaryFace::outer_x2,
                                 bvars_main_int_vc);
     }
   }
@@ -864,16 +874,22 @@ void BoundaryValues::ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(const Re
     // Apply boundary function on inner-x3 and update W,bcc (if not periodic)
     if (apply_bndry_fn_[BoundaryFace::inner_x3]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
-                                bis, bie, bjs, bje, pmb->ckvs, pmb->ckve, NCGHOST,
-                                ph->w, pf->b, BoundaryFace::inner_x3,
+                                bis, bie,
+                                bjs, bje,
+                                pmb->ckvs, pmb->ckve,
+                                NCGHOST,
+                                BoundaryFace::inner_x3,
                                 bvars_main_int_vc);
     }
 
     // Apply boundary function on outer-x3 and update W,bcc (if not periodic)
     if (apply_bndry_fn_[BoundaryFace::outer_x3]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
-                                bis, bie, bjs, bje, pmb->ckvs, pmb->ckve, NCGHOST,
-                                ph->w, pf->b, BoundaryFace::outer_x3,
+                                bis, bie,
+                                bjs, bje,
+                                pmb->ckvs, pmb->ckve,
+                                NCGHOST,
+                                BoundaryFace::outer_x3,
                                 bvars_main_int_vc);
     }
   }
@@ -901,23 +917,25 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundariesOnCoarseLevel(
   if (!apply_bndry_fn_[BoundaryFace::outer_x3] && pmb->block_size.nx3 > 1)
     bke = pmb->cx_cke + NCGHOST_CX;
 
-  // prevent modification of dispatch
-  Hydro *ph = nullptr;
-  Field *pf = nullptr;
-
   // Apply boundary function on inner-x1 and update W,bcc (if not periodic)
   if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
     DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
-                              pmb->cx_cis, pmb->cx_cie, bjs, bje, bks, bke, NCGHOST_CX,
-                              ph->w, pf->b, BoundaryFace::inner_x1,
+                              pmb->cx_cis, pmb->cx_cie,
+                              bjs, bje,
+                              bks, bke,
+                              NCGHOST_CX,
+                              BoundaryFace::inner_x1,
                               bvars_main_int_cx);
   }
 
   // Apply boundary function on outer-x1 and update W,bcc (if not periodic)
   if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
     DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
-                              pmb->cx_cis, pmb->cx_cie, bjs, bje, bks, bke, NCGHOST_CX,
-                              ph->w, pf->b, BoundaryFace::outer_x1,
+                              pmb->cx_cis, pmb->cx_cie,
+                              bjs, bje,
+                              bks, bke,
+                              NCGHOST_CX,
+                              BoundaryFace::outer_x1,
                               bvars_main_int_cx);
   }
 
@@ -925,16 +943,22 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundariesOnCoarseLevel(
     // Apply boundary function on inner-x2 and update W,bcc (if not periodic)
     if (apply_bndry_fn_[BoundaryFace::inner_x2]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
-                                bis, bie, pmb->cx_cjs, pmb->cx_cje, bks, bke, NCGHOST_CX,
-                                ph->w, pf->b, BoundaryFace::inner_x2,
+                                bis, bie,
+                                pmb->cx_cjs, pmb->cx_cje,
+                                bks, bke,
+                                NCGHOST_CX,
+                                BoundaryFace::inner_x2,
                                 bvars_main_int_cx);
     }
 
     // Apply boundary function on outer-x2 and update W,bcc (if not periodic)
     if (apply_bndry_fn_[BoundaryFace::outer_x2]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
-                                bis, bie, pmb->cx_cjs, pmb->cx_cje, bks, bke, NCGHOST_CX,
-                                ph->w, pf->b, BoundaryFace::outer_x2,
+                                bis, bie,
+                                pmb->cx_cjs, pmb->cx_cje,
+                                bks, bke,
+                                NCGHOST_CX,
+                                BoundaryFace::outer_x2,
                                 bvars_main_int_cx);
     }
   }
@@ -946,16 +970,22 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundariesOnCoarseLevel(
     // Apply boundary function on inner-x3 and update W,bcc (if not periodic)
     if (apply_bndry_fn_[BoundaryFace::inner_x3]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
-                                bis, bie, bjs, bje, pmb->cx_cks, pmb->cx_cke, NCGHOST_CX,
-                                ph->w, pf->b, BoundaryFace::inner_x3,
+                                bis, bie,
+                                bjs, bje,
+                                pmb->cx_cks, pmb->cx_cke,
+                                NCGHOST_CX,
+                                BoundaryFace::inner_x3,
                                 bvars_main_int_cx);
     }
 
     // Apply boundary function on outer-x3 and update W,bcc (if not periodic)
     if (apply_bndry_fn_[BoundaryFace::outer_x3]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
-                                bis, bie, bjs, bje, pmb->cx_cks, pmb->cx_cke, NCGHOST_CX,
-                                ph->w, pf->b, BoundaryFace::outer_x3,
+                                bis, bie,
+                                bjs, bje,
+                                pmb->cx_cks, pmb->cx_cke,
+                                NCGHOST_CX,
+                                BoundaryFace::outer_x3,
                                 bvars_main_int_cx);
     }
   }
