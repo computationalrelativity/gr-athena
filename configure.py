@@ -75,6 +75,12 @@
 #   -w_cc               use cell-centered            sampling
 #   -w_cx               use cell-centered (extended) sampling
 #   -w_vc               use vertex-centered          sampling
+#
+# development stuff:
+#
+#    -compiler_sanitize_address  sanitizers
+#    -compiler_sanitize_thread   ""
+#    -compiler_warnings          all the warnings
 # ----------------------------------------------------------------------------------------
 
 # Modules
@@ -357,6 +363,22 @@ parser.add_argument('-debug',
                     action='store_true',
                     default=False,
                     help='enable debug flags; override other compiler options')
+
+# -compiler_sanitize_address argument
+parser.add_argument('-compiler_sanitize_address',
+                    action='store_true',
+                    default=False,
+                    help='enable fsanitize')
+
+parser.add_argument('-compiler_sanitize_thread',
+                    action='store_true',
+                    default=False,
+                    help='enable fsanitize')
+
+parser.add_argument('-compiler_warnings',
+                    action='store_true',
+                    default=False,
+                    help='enable all warnings')
 
 # -coverage argument
 parser.add_argument('-coverage',
@@ -1388,6 +1410,33 @@ for library_name in args['lib']:
 definitions['COMPILER_FLAGS'] = ' '.join(
     [makefile_options[opt+'_FLAGS'] for opt in
      ['PREPROCESSOR', 'COMPILER', 'LINKER', 'LIBRARY']])
+
+if args['compiler_sanitize_address']:
+  sa_args = [
+    "-fsanitize=address",
+    "-fsanitize=bounds",
+    "-fsanitize=undefined",
+    "-fsanitize=leak",
+    "-fsanitize-address-use-after-scope",
+    "-fsanitize=null",
+    "-fno-omit-frame-pointer",
+    "-g3"
+  ]
+  makefile_options['COMPILER_FLAGS'] += " " + " ".join(sa_args)
+
+if args['compiler_sanitize_thread']:
+  st_args = [
+    "-fsanitize=thread",
+    "-fno-omit-frame-pointer",
+    "-g3"
+  ]
+  makefile_options['COMPILER_FLAGS'] += " " + " ".join(st_args)
+
+if args['compiler_warnings']:
+  st_args = [
+    "-Wall", "-Wextra", "-Wpedantic"
+  ]
+  makefile_options['COMPILER_FLAGS'] += " " + " ".join(st_args)
 
 # incorporate ccache via prepend
 if args['ccache']:
