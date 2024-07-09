@@ -40,8 +40,7 @@ class Coordinates {
  public:
   friend class HydroSourceTerms;
   Coordinates(MeshBlock *pmb, ParameterInput *pin, bool flag = false);
-//   virtual ~Coordinates() = default;
-  ~Coordinates()
+  virtual ~Coordinates()
   {
     if (fd_is_defined)
     {
