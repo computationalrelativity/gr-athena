@@ -41,6 +41,8 @@
 #   --gsl_path=path     path to gsl libraries (requires the gsl library)
 #   -lorene             enable LORENE
 #   --lorene_path=path  path to LORENE (requires the LORENE library)
+#   -elliptica          enable Elliptica
+#   --elliptica_path=path  path to Elliptica (requires the Elliptica_ID_Reader)
 #   --grav=xxx          use xxx as the self-gravity solver
 #   --cxx=xxx           use xxx as the C++ compiler
 #   --ccmd=name         use name as the command to call the (non-MPI) C++ compiler
@@ -464,6 +466,17 @@ parser.add_argument('-lorene',
 parser.add_argument('--lorene_path',
                     default='',
                     help='path to LORENE libraries')
+
+# -elliptica argument
+parser.add_argument('-elliptica',
+                    action='store_true',
+                    default=False,
+                    help='elliptica initial data')
+
+# --elliptica_path argument
+parser.add_argument('--elliptica_path',
+                    default='',
+                    help='path to Elliptica libraries')
 
 # -ccache argument
 parser.add_argument('-ccache',
@@ -1384,6 +1397,33 @@ if 'Lorene' in args['prob']:
         raise SystemExit(
             '### CONFIGURE ERROR: The pgen "{name}" requires flags '
             '-lorene.'.format(
+                name=args['prob']
+            )
+        )
+
+if args['elliptica']:
+
+    makefile_options['LIBRARY_FLAGS'] += ' -lelliptica_id_reader'# -llapack -lblas'
+
+    # this can be specified as lorene_path _or_ directly
+    if args['elliptica_path'] != '':
+
+        makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/include'.format(args['elliptica_path'])
+        makefile_options['LINKER_FLAGS'] += ' -L{0}/lib'.format(args['elliptica_path'])
+
+if 'Elliptica' in args['prob']:
+    if not args['f'] or not args['g'] or not args['z']:
+        raise SystemExit(
+            '### CONFIGURE ERROR: The pgen "{name}" requires flags '
+            '-f -g -z.'.format(
+                name=args['prob']
+            )
+        )
+
+    if not args['elliptica']:
+        raise SystemExit(
+            '### CONFIGURE ERROR: The pgen "{name}" requires flags '
+            '-elliptica.'.format(
                 name=args['prob']
             )
         )
