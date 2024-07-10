@@ -129,7 +129,8 @@ class EquationOfState {
   {
     bool is_physical = true;
 
-    Real p, rho;
+    Real p = NAN;
+    Real rho = NAN;
 
     if(prim.GetDim4()==1)
     {
@@ -180,6 +181,27 @@ class EquationOfState {
     return is_physical;
   }
 
+// BD: TODO - many functions don't do what their names suggest.
+//            Sound speed != eigenvalue..
+// Should clean this up at some point, for now, just add actual sound speed
+#if GENERAL_RELATIVITY && Z4C_ENABLED && FLUID_ENABLED
+
+
+  #if USETM
+    // ...
+  #else
+    #if MAGNETIC_FIELDS_ENABLED
+      // ...
+    #else
+      Real GRHD_SoundSpeed(const Real w_rho, const Real w_p);
+      // \Kappa := PD[p, epsilon]
+      Real GRHD_Kappa(const Real w_rho);
+      Real GRHD_Enthalpy(const Real w_rho, const Real w_p);
+      // void GRHD_Eigenvalues();
+    #endif  // MAGNETIC_FIELDS_ENABLED
+  #endif
+
+#endif
 
   // Sound speed functions in different regimes
 #if !RELATIVISTIC_DYNAMICS  // Newtonian: SR, GR defined as no-op

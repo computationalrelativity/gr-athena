@@ -464,7 +464,8 @@ void BoundaryValues::ApplyPhysicalBoundaries(
                               BoundaryFace::inner_x1,
                               bvars_main_int);
     // KGF: COUPLING OF QUANTITIES (must be manually specified)
-    if (MAGNETIC_FIELDS_ENABLED) {
+    if (MAGNETIC_FIELDS_ENABLED)
+    {
       pmb->pfield->CalculateCellCenteredField(pf->b, pf->bcc, pco,
                                               pmb->is-NGHOST, pmb->is-1,
                                               bjs, bje, bks, bke);
@@ -542,14 +543,16 @@ void BoundaryValues::ApplyPhysicalBoundaries(
                                 BoundaryFace::inner_x2,
                                 bvars_main_int);
       // KGF: COUPLING OF QUANTITIES (must be manually specified)
-      if (MAGNETIC_FIELDS_ENABLED) {
+      if (MAGNETIC_FIELDS_ENABLED)
+      {
         pmb->pfield->CalculateCellCenteredField(pf->b, pf->bcc, pco,
                                                 bis, bie, pmb->js-NGHOST, pmb->js-1,
                                                 bks, bke);
       }
 
 #ifndef DBG_USE_CONS_BC
-      if (FLUID_ENABLED) {
+      if (FLUID_ENABLED)
+      {
 #if USETM
         pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
                                         bis, bie, pmb->js-NGHOST, pmb->js-1, bks, bke);
@@ -653,7 +656,8 @@ void BoundaryValues::ApplyPhysicalBoundaries(
     }
 
     // Apply boundary function on outer-x3 and update W,bcc (if not periodic)
-    if (apply_bndry_fn_[BoundaryFace::outer_x3]) {
+    if (apply_bndry_fn_[BoundaryFace::outer_x3])
+    {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie,
                                 bjs, bje,
@@ -662,14 +666,16 @@ void BoundaryValues::ApplyPhysicalBoundaries(
                                 BoundaryFace::outer_x3,
                                 bvars_main_int);
       // KGF: COUPLING OF QUANTITIES (must be manually specified)
-      if (MAGNETIC_FIELDS_ENABLED) {
+      if (MAGNETIC_FIELDS_ENABLED)
+      {
         pmb->pfield->CalculateCellCenteredField(pf->b, pf->bcc, pco,
                                                 bis, bie, bjs, bje,
                                                 pmb->ke+1, pmb->ke+NGHOST);
       }
 
 #ifndef DBG_USE_CONS_BC
-      if (FLUID_ENABLED) {
+      if (FLUID_ENABLED)
+      {
 #if USETM
         pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
                                         bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
@@ -680,7 +686,8 @@ void BoundaryValues::ApplyPhysicalBoundaries(
       }
 
 #if !USETM
-      if (NSCALARS > 0) {
+      if (NSCALARS > 0)
+      {
         pmb->peos->PassiveScalarPrimitiveToConserved(
             ps->r, ph->w, ps->s, pco, bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
       }

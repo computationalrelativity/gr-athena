@@ -372,7 +372,9 @@ private:
     // use "time" as this gets "start_time" if specified
     // Further, it is retained on restarts
 
-    const int ndumps = (static_cast<int>(pm->time / dt));
+    const int ndumps = (dt > 0)
+      ? (static_cast<int>(pm->time / dt))
+      : 0;
     tri.t_last = ndumps * dt;
     tri.t_next = (ndumps + 1) * dt;
 
