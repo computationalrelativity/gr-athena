@@ -245,6 +245,12 @@ public:
     Real r_max_con;
   } opt;
 
+  AthenaArray<Real> empty_flux[3];
+
+  // storage for SMR/AMR
+  AthenaArray<Real> coarse_u_;
+  AthenaArray<Real> coarse_a_;  // for auxiliary data (split task-list)
+
   // boundary and grid data (associated to state-vector)
   FCN_CC_CX_VC(
     CellCenteredBoundaryVariable   ubvar,
@@ -262,13 +268,6 @@ public:
 #if defined(Z4C_CX_ENABLED)
   CellCenteredXBoundaryVariable  rbvar;
 #endif
-
-  AthenaArray<Real> empty_flux[3];
-
-  // storage for SMR/AMR
-  // BD: this should perhaps be combined with the above stuct.
-  AthenaArray<Real> coarse_u_;
-  AthenaArray<Real> coarse_a_;  // for auxiliary data (split task-list)
 
   int refinement_idx{-1};
 
