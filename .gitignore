@@ -3,6 +3,8 @@ Runs/
 myconfig.sh
 src/tags
 
+simulations
+
 # Configured outputs
 Makefile
 src/defs.hpp
