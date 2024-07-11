@@ -200,8 +200,8 @@ void EquationOfState::ConservedToPrimitive(
   if (!coarse_flag)
   {
     adm_gamma_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
-    z4c_alpha.InitWithShallowSlice(   pz4c->storage.u,   Z4c::I_Z4c_alpha);
-    z4c_beta_u.InitWithShallowSlice(  pz4c->storage.u,   Z4c::I_Z4c_betax);
+    z4c_alpha.InitWithShallowSlice(   pz4c->storage.adm, Z4c::I_ADM_alpha);
+    z4c_beta_u.InitWithShallowSlice(  pz4c->storage.adm, Z4c::I_ADM_betax);
   }
   else
   {
@@ -477,8 +477,8 @@ void EquationOfState::PrimitiveToConserved(
   Real detg_ceil = pow((pz4c->opt.chi_div_floor),-1.5);
 
   AT_N_sym adm_gamma_dd;
-  AT_N_sca z4c_alpha;
-  AT_N_vec z4c_beta_u;
+  AT_N_sca adm_alpha;
+  AT_N_vec adm_beta_u;
   AT_N_sym gamma_dd;
   AT_N_sca alpha;
   AT_N_vec beta_u;
@@ -486,8 +486,8 @@ void EquationOfState::PrimitiveToConserved(
   const int nn1 = pmb->nverts1;
 
   adm_gamma_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
-  z4c_alpha.InitWithShallowSlice(   pz4c->storage.u,   Z4c::I_Z4c_alpha);
-  z4c_beta_u.InitWithShallowSlice(  pz4c->storage.u,   Z4c::I_Z4c_betax);
+  adm_alpha.InitWithShallowSlice(   pz4c->storage.adm, Z4c::I_ADM_alpha);
+  adm_beta_u.InitWithShallowSlice(  pz4c->storage.adm, Z4c::I_ADM_betax);
   gamma_dd.NewAthenaTensor(nn1);
   alpha.NewAthenaTensor(   nn1);
   beta_u.NewAthenaTensor(  nn1);
@@ -513,8 +513,8 @@ void EquationOfState::PrimitiveToConserved(
   for (int j=JL; j<=JU; ++j)
   {
     pco_gr->GetGeometricFieldCC(gamma_dd, adm_gamma_dd, k, j);
-    pco_gr->GetGeometricFieldCC(alpha,    z4c_alpha,    k, j);
-    pco_gr->GetGeometricFieldCC(beta_u,   z4c_beta_u,   k, j);
+    pco_gr->GetGeometricFieldCC(alpha,    adm_alpha,    k, j);
+    pco_gr->GetGeometricFieldCC(beta_u,   adm_beta_u,   k, j);
 
     for (int i=IL; i<=IU; ++i)
     {
@@ -534,6 +534,7 @@ void EquationOfState::PrimitiveToConserved(
 }
 
 
+// BD: TODO - eigenvalues, _not_ the speed; should be refactored / renamed
 void EquationOfState::FastMagnetosonicSpeedsGR(
   Real rho_h, Real pgas, Real b_sq, Real vi, Real v2, Real alpha,
   Real betai, Real gammaii, Real *plambda_plus, Real *plambda_minus)

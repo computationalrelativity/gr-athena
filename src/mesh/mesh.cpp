@@ -1728,14 +1728,14 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       // DEBUG: This is useless?- (global con2prim below)
 #ifndef DBG_USE_CONS_BC
       if (GENERAL_RELATIVITY && multilevel) {
-        // prepare to receive primitives
-#pragma omp for private(pmb,pbval)
-        for (int i=0; i<nmb; ++i) {
-          pmb = pmb_array[i]; pbval = pmb->pbval;
-          pbval->StartReceiving(BoundaryCommSubset::gr_amr);
-        }
-
         if(FLUID_ENABLED) {
+          // prepare to receive primitives
+#pragma omp for private(pmb,pbval)
+          for (int i=0; i<nmb; ++i) {
+            pmb = pmb_array[i]; pbval = pmb->pbval;
+            pbval->StartReceiving(BoundaryCommSubset::gr_amr);
+          }
+
           // send primitives
 #pragma omp for private(pmb,pbval)
           for (int i=0; i<nmb; ++i) {
@@ -1743,6 +1743,12 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
             pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->w,
                                                  HydroBoundaryQuantity::prim);
             pmb->phydro->hbvar.SendBoundaryBuffers();
+
+            if (NSCALARS > 0)
+            {
+              pmb->pscalars->sbvar.var_cc = &(pmb->pscalars->r);
+              pmb->pscalars->sbvar.SendBoundaryBuffers();
+            }
           }
 
           // wait to receive AMR/SMR GR primitives
@@ -1750,9 +1756,17 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           for (int i=0; i<nmb; ++i) {
             pmb = pmb_array[i]; pbval = pmb->pbval;
             pmb->phydro->hbvar.ReceiveAndSetBoundariesWithWait();
+
+            if (NSCALARS > 0)
+              pmb->pscalars->sbvar.ReceiveAndSetBoundariesWithWait();
+
             pbval->ClearBoundary(BoundaryCommSubset::gr_amr);
+
             pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->u,
                                                  HydroBoundaryQuantity::cons);
+
+            if (NSCALARS > 0)
+              pmb->pscalars->sbvar.var_cc = &(pmb->pscalars->s);
           }
         }
       } // multilevel
@@ -1775,10 +1789,14 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       PassiveScalars *ps = nullptr;
       Z4c *pz4c = nullptr;
 
-#pragma omp for private(pmb,pbval,ph,pf,ps)
-      for (int i=0; i<nmb; ++i) {
+#pragma omp for private(pmb,pbval,ph,pf,ps,pz4c)
+      for (int i=0; i<nmb; ++i)
+      {
         pmb = pmb_array[i];
-        pbval = pmb->pbval, ph = pmb->phydro, pf = pmb->pfield, ps = pmb->pscalars;
+        pbval = pmb->pbval;
+        ph = pmb->phydro;
+        pf = pmb->pfield;
+        ps = pmb->pscalars;
         pz4c = pmb->pz4c;
 
         if (multilevel)
@@ -1812,8 +1830,9 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         }
 
         int il = pmb->is, iu = pmb->ie,
-          jl = pmb->js, ju = pmb->je,
-          kl = pmb->ks, ku = pmb->ke;
+            jl = pmb->js, ju = pmb->je,
+            kl = pmb->ks, ku = pmb->ke;
+
         if (pbval->nblevel[1][1][0] != -1) il -= NGHOST;
         if (pbval->nblevel[1][1][2] != -1) iu += NGHOST;
         if (pmb->block_size.nx2 > 1) {
@@ -1829,10 +1848,18 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         // Put BC on (Hydro) cons
         pbval->ApplyPhysicalBoundaries(time, 0.0);
 
-        if (FLUID_ENABLED) {
-          pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b, ph->w,
+        if (FLUID_ENABLED)
+        {
+          // FaceField dummy_FF_;
+          // FaceField & pf_b = (MAGNETIC_FIELDS_ENABLED) ? pf->b : dummy_FF_;
+
+          pmb->peos->ConservedToPrimitive(ph->u,
+                                          ph->w1,
+                                          pf->b,
+                                          ph->w,
 #if USETM
-                                          ps->s, ps->r,
+                                          ps->s,
+                                          ps->r,
 #endif
                                           pf->bcc, pmb->pcoord,
 #if Z4C_ENABLED || WAVE_ENABLED
@@ -1847,7 +1874,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         }
 
 #if !USETM
-        if (NSCALARS > 0) {
+        if (NSCALARS > 0)
+        {
           // r1/r_old for GR is currently unused:
           pmb->peos->PassiveScalarConservedToPrimitive(ps->s, ph->w, ps->r, ps->r,
                                                        pmb->pcoord,
@@ -1861,17 +1889,24 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 
 
 #ifndef DBG_USE_CONS_BC
-        if (FLUID_ENABLED) {
-          pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b, ph->w,  
+        if (FLUID_ENABLED)
+        {
+          pmb->peos->ConservedToPrimitive(ph->u,
+                                          ph->w1,
+                                          pf->b,
+                                          ph->w,
 #if USETM
-                                          ps->s, ps->r,
+                                          ps->s,
+                                          ps->r,
 #endif
-                                          pf->bcc, pmb->pcoord,
+                                          pf->bcc,
+                                          pmb->pcoord,
 #if Z4C_ENABLED || WAVE_ENABLED
                                           il, iu, jl, ju, kl, ku,0);
 #else
                                           il, iu, jl, ju, kl, ku);
 #endif
+
         }
 
 #if !USETM
@@ -1886,7 +1921,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 #endif // DBG_USE_CONS_BC
 
         // --------------------------
-        if (FLUID_ENABLED) {
+        if (FLUID_ENABLED)
+        {
           int order = pmb->precon->xorder;
           if (order == 4) {
             // fourth-order EOS:
@@ -1914,7 +1950,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
             }
 #endif
           }
-          }
+        }
         // --------------------------
         // end fourth-order EOS
 
@@ -1964,9 +2000,16 @@ if(Z4C_ENABLED && FLUID_ENABLED)
         pmb = pmb_array[i]; ph = pmb->phydro, pf = pmb->pfield, pz4c = pmb->pz4c;
 #if USETM
         ps = pmb->pscalars;
-        pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, ps->r, pf->bcc);
+        pz4c->GetMatter(pz4c->storage.mat,
+                        pz4c->storage.adm,
+                        ph->w,
+                        ps->r,
+                        pf->bcc);
 #else
-        pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, pf->bcc);
+        pz4c->GetMatter(pz4c->storage.mat,
+                        pz4c->storage.adm,
+                        ph->w,
+                        pf->bcc);
 #endif
       }
 }

@@ -194,7 +194,9 @@ bool CellCenteredBoundaryVariable::ReceiveFluxCorrection() {
         for (int nn=nl_; nn<=nu_; nn++) {
           for (int k=kl; k<=ku; k++) {
             for (int j=jl; j<=ju; j++)
+            {
               x1flux(nn,k,j,il) = rbuf[p++];
+            }
           }
         }
       } else if (nb.fid == BoundaryFace::inner_x2 || nb.fid == BoundaryFace::outer_x2) {
@@ -207,7 +209,9 @@ bool CellCenteredBoundaryVariable::ReceiveFluxCorrection() {
         for (int nn=nl_; nn<=nu_; nn++) {
           for (int k=kl; k<=ku; k++) {
             for (int i=il; i<=iu; i++)
+            {
               x2flux(nn,k,jl,i) = rbuf[p++];
+            }
           }
         }
       } else if (nb.fid == BoundaryFace::inner_x3 || nb.fid == BoundaryFace::outer_x3) {
@@ -220,7 +224,9 @@ bool CellCenteredBoundaryVariable::ReceiveFluxCorrection() {
         for (int nn=nl_; nn<=nu_; nn++) {
           for (int j=jl; j<=ju; j++) {
             for (int i=il; i<=iu; i++)
+            {
               x3flux(nn,kl,j,i) = rbuf[p++];
+            }
           }
         }
       }

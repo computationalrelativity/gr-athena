@@ -8,13 +8,8 @@
 //         Requires the library:
 //         https://lorene.obspm.fr/
 
-#include <algorithm>
 #include <cassert>
 #include <iostream>
-
-// https://lorene.obspm.fr/
-#include <bin_ns.h>
-// #include <unites.h>
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -32,18 +27,10 @@
 #include "../trackers/extrema_tracker.hpp"
 #include "../utils/linear_algebra.hpp"
 #include "../utils/utils.hpp"
-
-// For reading composition tables
-#if EOS_POLICY_CODE == 2 || EOS_POLICY_CODE == 3
-#include "../utils/lorene_table.hpp"
-#define LORENE_EOS (1)
-#endif
+#include "elliptica_id_reader_lib.h"
 
 namespace {
   int RefinementCondition(MeshBlock *pmb);
-
-  Real linear_interp(Real *f, Real *x, int n, Real xv);
-  int interp_locate(Real *x, int Nx, Real xval);
 
 #if MAGNETIC_FIELDS_ENABLED
   Real DivBface(MeshBlock *pmb, int iout);
@@ -53,14 +40,9 @@ namespace {
   Real min_alpha(    MeshBlock *pmb, int iout);
   Real max_abs_con_H(MeshBlock *pmb, int iout);
 
-  // Global variables
-#ifdef LORENE_EOS
-  LoreneTable * LORENE_EoS_Table = NULL; // Lorene table object
-  std::string LORENE_EoS_fname; // Barotropic table
-#if EOS_POLICY_CODE == 2
-  std::string LORENE_EoS_fname_Y; // Conposition table
-#endif
-#endif
+std::string checkpoint_file;
+Elliptica_ID_Reader_T *idr;
+
 }
 
 
@@ -90,19 +72,16 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   EnrollUserHistoryOutput(3, DivBface, "divBface");
 #endif
 
-#ifdef LORENE_EOS
-  LORENE_EoS_fname   = pin->GetString("hydro", "lorene");
-#if EOS_POLICY_CODE == 2
-  LORENE_EoS_fname_Y = pin->GetString("hydro", "lorene_Y");
-#endif
-  LORENE_EoS_Table = new LoreneTable;
-  ReadLoreneTable(LORENE_EoS_fname, LORENE_EoS_Table);
-#if EOS_POLICY_CODE == 2
-  ReadLoreneFractions(LORENE_EoS_fname_Y, LORENE_EoS_Table);
-#endif
-  ConvertLoreneTable(LORENE_EoS_Table);
-  LORENE_EoS_Table->rho_atm = pin->GetReal("hydro", "dfloor"); 
-#endif
+  checkpoint_file = pin->GetOrAddString("problem", "filename", "checkpoint.dat");
+  idr = elliptica_id_reader_init(checkpoint_file.c_str(),"generic_MT_safe");
+  // this is needed only for BHNS system
+  idr->set_param("BH_filler_method","ChebTn_Ylm_perfect_s2",idr);
+
+  // this is needed for both BHNS and BNS systems
+  idr->set_param("ADM_B1I_form","zero",idr);
+
+  // preparation and setting some interpolation settings (not thread safe)
+  elliptica_id_reader_interpolate(idr);
 
   return;
 }
@@ -115,71 +94,18 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 {
   using namespace LinearAlgebra;
 
-  // Interpolate Lorene data onto the grid.
-
-  // constants ----------------------------------------------------------------
-#if (1)
-  // Some conversion factors to go between Lorene data and Athena data.
-  // Shamelessly stolen from the Einstein Toolkit's Mag_NS.cc.
-  //
-  //SB Constants should be taken from Lorene's "unites" so to ensure consistency.
-  //   Note the Lorene library has chandged some constants recently (2022),
-  //   This is temporarily kept here for testing purposes.
-  Real const c_light = 299792458.0;              // Speed of light [m/s]
-  Real const mu0 = 4.0 * M_PI * 1.0e-7;          // Vacuum permeability [N/A^2]
-  Real const eps0 = 1.0 / (mu0 * std::pow(c_light, 2));
-
-  // Constants of nature (IAU, CODATA):
-  Real const G_grav = 6.67428e-11;       // Gravitational constant [m^3/kg/s^2]
-  Real const M_sun = 1.98892e+30;        // Solar mass [kg]
-
-  // Athena units in SI
-  // Athena code units: c = G = 1, M = M_sun
-  Real const athenaM = M_sun;
-  Real const athenaL = athenaM * G_grav / (c_light * c_light);
-  Real const athenaT = athenaL / c_light;
-  // This is just a guess based on what Cactus uses.
-  Real const athenaB = (1.0 / athenaL /
-			std::sqrt(eps0 * G_grav / (c_light * c_light)));
-#else
-  Real const c_light  = Unites::c_si;      // speed of light [m/s]
-  Real const nuc_dens = Unites::rhonuc_si; // Nuclear density as used in Lorene units [kg/m^3]
-  Real const G_grav   = Unites::g_si;      // gravitational constant [m^3/kg/s^2]
-  Real const M_sun    = Unites::msol_si;   // solar mass [kg]
-
-  // Units in terms of SI units:
-  // (These are derived from M = M_sun, c = G = 1,
-  //  and using 1/M_sun for the magnetic field)
-  Real const athenaM = M_sun;
-  Real const athenaL = athenaM * G_grav / pow(c_light,2);
-  Real const athenaT = athenaL / c_light;
-  // This is just a guess based on what Cactus uses:
-  Real const athenaB = (1.0 / athenaL /
-			std::sqrt(eps0 * G_grav / (c_light * c_light)));
-
-  // Other quantities in terms of Athena units
-  Real const coord_unit = athenaL / 1.0e+3;         // from km (~1.477)
-  Real const rho_unit   = athenaM / pow(athenaL,3); // from kg/m^3
-#endif
-
-  // Athena units for conversion.
-  Real const coord_unit = athenaL/1.0e3; // Convert to km for Lorene.
-  Real const rho_unit = athenaM/(athenaL*athenaL*athenaL); // kg/m^3.
-  Real const ener_unit = 1.0; // c^2
-  Real const vel_unit = athenaL / athenaT / c_light; // c
-  Real const B_unit = athenaB / 1.0e+9; // 10^9 T
-  // --------------------------------------------------------------------------
-
+  // Interpolate data onto the grid.
+  
   // settings -----------------------------------------------------------------
-  std::string fn_ini_data = pin->GetOrAddString("problem", "filename", "resu.d");
+  //std::string checkpoint_file = pin->GetOrAddString("problem", "filename", "checkpoint.dat");
   Real const tol_det_zero =  pin->GetOrAddReal("problem","tolerance_det_zero",1e-10);
   bool verbose = pin->GetOrAddBoolean("problem", "verbose", 0);
 
   // check ID is accessible
-  if (!file_exists(fn_ini_data.c_str()))
+  if (!file_exists(checkpoint_file.c_str()))
   {
     std::stringstream msg;
-    msg << "### FATAL ERROR problem/filename: " << fn_ini_data << " "
+    msg << "### FATAL ERROR problem/filename: " << checkpoint_file << " "
         << " could not be accessed.";
     ATHENA_ERROR(msg);
   }
@@ -195,28 +121,15 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   // --------------------------------------------------------------------------
   // Set some aliases for the variables.
-  AT_N_sca alpha( pz4c->storage.adm, Z4c::I_ADM_alpha);
-  AT_N_vec beta_u(pz4c->storage.adm, Z4c::I_ADM_betax);
+  AT_N_sca alpha( pz4c->storage.u,   Z4c::I_Z4c_alpha);
+  AT_N_vec beta_u(pz4c->storage.u,   Z4c::I_Z4c_betax);
   AT_N_sym g_dd(  pz4c->storage.adm, Z4c::I_ADM_gxx);
   AT_N_sym K_dd(  pz4c->storage.adm, Z4c::I_ADM_Kxx);
 
-
-  // prepare matter grid ----------------------------------------------------
-  const int il = 0;
-  const int iu = ncells1-1;
-
-  const int jl = 0;
-  const int ju = ncells2-1;
-
-  const int kl = 0;
-  const int ku = ncells3-1;
-
-  Real sep;
-
+  
   // --------------------------------------------------------------------------
-  #pragma omp critical
-  {
-    Lorene::Bin_NS * bns;
+//  #pragma omp critical
+//  {
 
     // prepare geometry grid --------------------------------------------------
     int npoints_gs = 0;
@@ -238,28 +151,17 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int j=0; j<mbi->nn2; ++j)
     for (int i=0; i<mbi->nn1; ++i)
     {
-      zz_gs[I] = coord_unit * mbi->x3(k);
-      yy_gs[I] = coord_unit * mbi->x2(j);
-      xx_gs[I] = coord_unit * mbi->x1(i);
+      zz_gs[I] = mbi->x3(k);
+      yy_gs[I] = mbi->x2(j);
+      xx_gs[I] = mbi->x1(i);
 
       ++I;
     }
     // ------------------------------------------------------------------------
 
-    // prepare Lorene interpolator for geometry -------------------------------
-    bns = new Lorene::Bin_NS(npoints_gs,
-                             xx_gs, yy_gs, zz_gs,
-                             fn_ini_data.c_str());
-
-    // std::cout << pmy_mesh->bns->gamma_poly1 << std::endl;
-    // std::cout << pmy_mesh->bns->kappa_poly1 / 2.6875380639256204e-4 << std::endl;
-
-    // std::cout << pmy_mesh->bns->gamma_poly2 << std::endl;
-    // std::cout << pmy_mesh->bns->kappa_poly2 / 2.6875380639256204e-4 << std::endl;
-
-    // std::exit(0);
-
-    assert(bns->np == npoints_gs);
+    // prepare Elliptica interpolator for geometry -------------------------------
+        
+    // assert(idr->np == npoints_gs);
 
     I = 0;      // reset
 
@@ -267,30 +169,33 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int j=0; j<mbi->nn2; ++j)
     for (int i=0; i<mbi->nn1; ++i)
     {
-      // Gauge from Lorene
-      //TODO Option to reset?
-      alpha(k, j, i)     =  bns->nnn[I];
-      beta_u(0, k, j, i) = -bns->beta_x[I];
-      beta_u(1, k, j, i) = -bns->beta_y[I];
-      beta_u(2, k, j, i) = -bns->beta_z[I];
 
-      g_dd(0, 0, k, j, i) = bns->g_xx[I];
-      K_dd(0, 0, k, j, i) = coord_unit * bns->k_xx[I];
+      double x = xx_gs[I];
+      double y = yy_gs[I];
+      double z = zz_gs[I];
+      
+      alpha(k, j, i)     =  idr->fieldx(idr,"alpha",x,y,z);
+      beta_u(0, k, j, i) =  -idr->fieldx(idr,"betax",x,y,z);
+      beta_u(1, k, j, i) =  -idr->fieldx(idr,"betay",x,y,z);
+      beta_u(2, k, j, i) =  -idr->fieldx(idr,"betaz",x,y,z);
 
-      g_dd(0, 1, k, j, i) = bns->g_xy[I];
-      K_dd(0, 1, k, j, i) = coord_unit * bns->k_xy[I];
+      g_dd(0, 0, k, j, i) = idr->fieldx(idr,"adm_gxx",x,y,z);
+      K_dd(0, 0, k, j, i) = idr->fieldx(idr,"adm_Kxx",x,y,z);
 
-      g_dd(0, 2, k, j, i) = bns->g_xz[I];
-      K_dd(0, 2, k, j, i) = coord_unit * bns->k_xz[I];
+      g_dd(0, 1, k, j, i) = idr->fieldx(idr,"adm_gxy",x,y,z);
+      K_dd(0, 1, k, j, i) = idr->fieldx(idr,"adm_Kxy",x,y,z);
 
-      g_dd(1, 1, k, j, i) = bns->g_yy[I];
-      K_dd(1, 1, k, j, i) = coord_unit * bns->k_yy[I];
+      g_dd(0, 2, k, j, i) = idr->fieldx(idr,"adm_gxz",x,y,z);
+      K_dd(0, 2, k, j, i) = idr->fieldx(idr,"adm_Kxz",x,y,z);
 
-      g_dd(1, 2, k, j, i) = bns->g_yz[I];
-      K_dd(1, 2, k, j, i) = coord_unit * bns->k_yz[I];
+      g_dd(1, 1, k, j, i) = idr->fieldx(idr,"adm_gyy",x,y,z);
+      K_dd(1, 1, k, j, i) = idr->fieldx(idr,"adm_Kyy",x,y,z);
 
-      g_dd(2, 2, k, j, i) = bns->g_zz[I];
-      K_dd(2, 2, k, j, i) = coord_unit * bns->k_zz[I];
+      g_dd(1, 2, k, j, i) = idr->fieldx(idr,"adm_gyz",x,y,z);
+      K_dd(1, 2, k, j, i) = idr->fieldx(idr,"adm_Kyz",x,y,z);
+
+      g_dd(2, 2, k, j, i) = idr->fieldx(idr,"adm_gzz",x,y,z);
+      K_dd(2, 2, k, j, i) = idr->fieldx(idr,"adm_Kzz",x,y,z);
 
       const Real det = Det3Metric(g_dd, k, j, i);
       assert(std::fabs(det) > tol_det_zero);
@@ -299,56 +204,24 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     }
     // ------------------------------------------------------------------------
 
-    // show some info ---------------------------------------------------------
-    if(verbose)
-    {
-      std::cout << "Lorene data on current MeshBlock." << std::endl;
-      std::cout <<" omega [rad/s]:       " << bns->omega << std::endl;
-      std::cout <<" dist [km]:           " << bns->dist<< std::endl;
-      std::cout <<" dist_mass [km]:      " << bns->dist_mass << std::endl;
-      std::cout <<" mass1_b [M_sun]:     " << bns->mass1_b << std::endl;
-      std::cout <<" mass2_b [M_sun]:     " << bns->mass2_b << std::endl;
-      std::cout <<" mass_ADM [M_sun]:    " << bns->mass_adm << std::endl;
-      std::cout <<" L_tot [G M_sun^2/c]: " << bns->angu_mom << std::endl;
-      std::cout <<" rad1_x_comp [km]:    " << bns->rad1_x_comp << std::endl;
-      std::cout <<" rad1_y [km]:         " << bns->rad1_y << std::endl;
-      std::cout <<" rad1_z [km]:         " << bns->rad1_z << std::endl;
-      std::cout <<" rad1_x_opp [km]:     " << bns->rad1_x_opp << std::endl;
-      std::cout <<" rad2_x_comp [km]:    " << bns->rad2_x_comp << std::endl;
-      std::cout <<" rad2_y [km]:         " << bns->rad2_y << std::endl;
-      std::cout <<" rad2_z [km]:         " << bns->rad2_z << std::endl;
-      std::cout <<" rad2_x_opp [km]:     " << bns->rad2_x_opp << std::endl;
-      // LORENE's EOS is in terms on number density n = rho/m_nucleon:
-      // P = K n^Gamma
-      // to convert to SI units:
-      // K_SI(n) = K_LORENE rho_nuc c^2 / n_nuc^gamma
-      // Converting this to be in terms of the mass density rho = n m_nucleon gets
-      // changes n_nuc to rho_nuc:
-      // K_SI(rho) = K_LORENE c^2 / rho_nuc^(gamma-1)
-      // In SI units P has units of M / (L T^2) and rho has units of M/L^3 thus
-      // K_SI has units of (L^3/M)^Gamma M/(L T^2).
-      // In Cactus units P and rho have the same units thus K_Cactus is unitless.
-      // Conversion between K_SI and K_Cactus thus amounts to dividing out the
-      // units of the SI quantity.
-      // Real K = bns->kappa_poly1 * pow((pow(c_light, 6.0) /
-			// 		 ( pow(G_grav, 3.0) * M_sun * M_sun *
-			// 		   nuc_dens )),bns->gamma_poly1-1.);
-      // std::cout << "EOS K ]:              " << K<< std::endl;
-
-      std::cout << "EOS K ]: (fix units for this)" << std::endl;
-    }
-
     // clean up
     delete[] xx_gs;
     delete[] yy_gs;
     delete[] zz_gs;
 
-    delete bns;
     // ------------------------------------------------------------------------
 
     // prepare matter grid ----------------------------------------------------
     int npoints_cc = 0;
 
+    const int il = 0;
+    const int iu = ncells1-1;
+
+    const int jl = 0;
+    const int ju = ncells2-1;
+
+    const int kl = 0;
+    const int ku = ncells3-1;
 
     for (int k = kl; k <= ku; ++k)
     for (int j = jl; j <= ju; ++j)
@@ -367,126 +240,45 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int j = jl; j <= ju; ++j)
     for (int i = il; i <= iu; ++i)
     {
-      zz_cc[I] = coord_unit * pcoord->x3v(k);
-      yy_cc[I] = coord_unit * pcoord->x2v(j);
-      xx_cc[I] = coord_unit * pcoord->x1v(i);
+      zz_cc[I] = pcoord->x3v(k);
+      yy_cc[I] = pcoord->x2v(j);
+      xx_cc[I] = pcoord->x1v(i);
 
       ++I;
     }
 
     // ------------------------------------------------------------------------
-    // prepare Lorene interpolator for matter ---------------------------------
-    bns = new Lorene::Bin_NS(npoints_cc, xx_cc, yy_cc, zz_cc,
-                             fn_ini_data.c_str());
-
-    assert(bns->np == npoints_cc);
-
-    sep = bns->dist / coord_unit;
-    // Real w_p_max = 0.0; //0.00013; ?? // compute below
-
+    // prepare interpolator for matter ---------------------------------
+    
     I = 0;      // reset
 
-// Set up EoS.
-#if USETM
-    Real rho_atm = pin->GetReal("hydro", "dfloor");
-    Real T_atm = pin->GetReal("hydro", "tfloor");
-    Real mb = peos->GetEOS().GetBaryonMass();
-    Real Y_atm[MAX_SPECIES] = {0.0};
-#if EOS_POLICY_CODE == 2
-    Y_atm[0] = pin->GetReal("hydro", "y0_atmosphere");
-#endif
-#else
     Real k_adi = pin->GetReal("hydro", "k_adi");
     Real gamma_adi = pin->GetReal("hydro","gamma");
-#endif
+
 
     for (int k = kl; k <= ku; ++k)
     for (int j = jl; j <= ju; ++j)
     for (int i = il; i <= iu; ++i)
     {
-      /*
-      const Real w_rho = bns->nbar[I] / rho_unit;
-      const Real eps = bns->ener_spec[I] / ener_unit;
 
-      // Real egas = rho * (1.0 + eps);  <-------- ?
-      Real egas = w_rho * eps;
-      Real w_p = peos->PresFromRhoEg(w_rho, egas);
+      double xc = xx_cc[I];
+      double yc = yy_cc[I];
+      double zc = zz_cc[I];
+      
+      const Real w_rho = idr->fieldx(idr,"grhd_rho",xc,yc,zc);
+      const Real w_p = k_adi*pow(w_rho,gamma_adi);
 
-      // Real w_p = k_adi*pow(w_rho,gamma_adi);
-
-      // Kludge to make the pressure work with the EOS framework.
-      if (!std::isfinite(w_p) && (egas == 0. || w_rho == 0.)) {
-        w_p = 0.;
-      }
-
-      // w_p_max = std::max(w_p_max, w_p);
-
-      const Real u_E_x = bns->u_euler_x[I] / vel_unit;
-      const Real u_E_y = bns->u_euler_y[I] / vel_unit;
-      const Real u_E_z = bns->u_euler_z[I] / vel_unit;
+      const Real v_u_x = idr->fieldx(idr,"grhd_vx",xc,yc,zc);
+      const Real v_u_y = idr->fieldx(idr,"grhd_vy",xc,yc,zc);
+      const Real v_u_z = idr->fieldx(idr,"grhd_vz",xc,yc,zc);
 
       const Real vsq = (
-        2.0*(u_E_x * u_E_y * bns->g_xy[I] +
-             u_E_x * u_E_z * bns->g_xz[I] +
-             u_E_y * u_E_z * bns->g_yz[I]) +
-        u_E_x * u_E_x * bns->g_xx[I] +
-        u_E_y * u_E_y * bns->g_yy[I] +
-        u_E_z * u_E_z * bns->g_zz[I]
-      );
-
-      const Real W = 1.0 / std::sqrt(1.0 - vsq);
-
-      */
-
-// If scalars are on we should initialise to zero
-      Real Y[MAX_SPECIES];
-      std::fill(std::begin(Y), std::end(Y), 0.0);  // or Y_atm?
-#if NSCALARS > 0
-      for (int r=0;r<NSCALARS;r++) {
-        pscalars->r(r,k,j,i) = 0.;
-        pscalars->s(r,k,j,i) = 0.;
-      }
-#endif
-
-#if USETM
-      Real w_rho = (bns->nbar[I] / rho_unit > rho_atm ? bns->nbar[I] / rho_unit : 0.0);
-      Real nb = w_rho/mb;
-#if NSCALARS > 0
-      for (int l=0; l<NSCALARS; ++l) {
-        Y[l] = (w_rho > rho_atm ? linear_interp(LORENE_EoS_Table->Y[l], LORENE_EoS_Table->data[tab_logrho], LORENE_EoS_Table->size, log(w_rho)) : Y_atm[l]);
-      }
-#endif
-      Real w_p = (w_rho > rho_atm ? peos->GetEOS().GetPressure(nb, T_atm, Y) : 0.0);
-      phydro->temperature(k,j,i) = T_atm;
-#else
-      Real w_rho = bns->nbar[I] / rho_unit;
-      Real w_p = k_adi*pow(w_rho,gamma_adi);
-#endif
-
-#ifdef USE_IDEAL_GAS
-      // BD: TODO - stupid work-around to get barotropic init. with
-      //            PrimitiveSolver-
-      //            w_p = K w_rho ^ gamma_adi & fake T
-      {
-        const Real gamma_adi = pin->GetReal("hydro", "gamma");
-        const Real k_adi     = pin->GetReal("hydro", "k_adi");
-        w_rho = bns->nbar[I] / rho_unit;
-        w_p = k_adi*pow(w_rho,gamma_adi);
-        phydro->temperature(k,j,i) = peos->GetEOS().GetTemperatureFromP(nb, w_p, Y);
-      }
-#endif
-
-      const Real v_u_x = bns->u_euler_x[I] / vel_unit;
-      const Real v_u_y = bns->u_euler_y[I] / vel_unit;
-      const Real v_u_z = bns->u_euler_z[I] / vel_unit;
-
-      const Real vsq = (
-        2.0*(v_u_x * v_u_y * bns->g_xy[I] +
-             v_u_x * v_u_z * bns->g_xz[I] +
-             v_u_y * v_u_z * bns->g_yz[I]) +
-        v_u_x * v_u_x * bns->g_xx[I] +
-        v_u_y * v_u_y * bns->g_yy[I] +
-        v_u_z * v_u_z * bns->g_zz[I]
+        2.0*(v_u_x * v_u_y * idr->fieldx(idr,"adm_gxy",xc,yc,zc) +
+             v_u_x * v_u_z * idr->fieldx(idr,"adm_gxz",xc,yc,zc) +
+             v_u_y * v_u_z * idr->fieldx(idr,"adm_gyz",xc,yc,zc))+
+        v_u_x * v_u_x * idr->fieldx(idr,"adm_gxx",xc,yc,zc) +
+        v_u_y * v_u_y * idr->fieldx(idr,"adm_gyy",xc,yc,zc) +
+        v_u_z * v_u_z * idr->fieldx(idr,"adm_gzz",xc,yc,zc) 
       );
 
       const Real W = 1.0 / std::sqrt(1.0 - vsq);
@@ -496,11 +288,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       phydro->w(IVY, k, j, i) = W * v_u_y;
       phydro->w(IVZ, k, j, i) = W * v_u_z;
       phydro->w(IPR, k, j, i) = w_p;
-#if NSCALARS > 0
-      for (int r=0;r<NSCALARS;r++) {
-        pscalars->r(r,k,j,i) = Y[r];
-      }
-#endif
+
       ++I;
     }
 
@@ -511,26 +299,26 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     delete[] yy_cc;
     delete[] zz_cc;
 
-    delete bns;
+    //delete pmy_mesh->bns;
 
-  } // OMP Critical
+  //} // OMP Critical
 
+  //elliptica_id_reader_free(idr);
   // --------------------------------------------------------------------------
 
+  /*
   if (MAGNETIC_FIELDS_ENABLED)
   {
     // B field ------------------------------------------------------------------
     // Assume stars are located on x axis
 
-    Real pgasmax = pin->GetReal("problem","pmax");
     Real pcut = pin->GetReal("problem","pcut") * pgasmax;
-
-    // Real b_amp = pin->GetReal("problem","b_amp");
-    // Scaling taken from project_bnsmhd
-    Real ns = pin->GetReal("problem","ns");
-    Real b_amp = pin->GetReal("problem","b_amp") *
-                 0.5/std::pow(pgasmax-pcut, ns)/8.351416e19;
+    Real b_amp = pin->GetReal("problem","b_amp");
     int magindex = pin->GetInteger("problem","magindex");
+
+    int nx1 = (ie-is)+1 + 2*(NGHOST); //TODO Shouldn't this be ncell[123]?
+    int nx2 = (je-js)+1 + 2*(NGHOST);
+    int nx3 = (ke-ks)+1 + 2*(NGHOST);
 
     pfield->b.x1f.ZeroClear();
     pfield->b.x2f.ZeroClear();
@@ -538,12 +326,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     pfield->bcc.ZeroClear();
 
     AthenaArray<Real> bxcc,bycc,bzcc;
-    bxcc.NewAthenaArray(ncells3,ncells2,ncells1);
-    bycc.NewAthenaArray(ncells3,ncells2,ncells1);
-    bzcc.NewAthenaArray(ncells3,ncells2,ncells1);
+    bxcc.NewAthenaArray(nx3,nx2,nx1);
+    bycc.NewAthenaArray(nx3,nx2,nx1);
+    bzcc.NewAthenaArray(nx3,nx2,nx1);
 
     AthenaArray<Real> Atot;
-    Atot.NewAthenaArray(3,ncells3,ncells2,ncells1);
+    Atot.NewAthenaArray(3,nx3,nx2,nx1);
 
     for (int k = kl; k <= ku; ++k)
     for (int j = jl; j <= ju; ++j)
@@ -595,6 +383,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
     pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord, il,iu,jl,ju,kl,ku);
   } // MAGNETIC_FIELDS_ENABLED
+  */
   //  -------------------------------------------------------------------------
 
   // Construct Z4c vars from ADM vars ------------------------------------------
@@ -624,11 +413,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int j = 0; j <= ncells2-1; ++j)
     for (int i = 0; i <= ncells1-1; ++i)
     {
-#if USETM
-      peos->ApplyPrimitiveFloors(phydro->w, pscalars->r, k, j, i);
-#else
       peos->ApplyPrimitiveFloors(phydro->w, k, j, i);
-#endif
     }
 
   }
@@ -636,28 +421,18 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
 
   // Initialise conserved variables
-#if USETM
-  peos->PrimitiveToConserved(phydro->w, pscalars->r, pfield->bcc, phydro->u, pscalars->s, pcoord,
-                             0, ncells1-1,
-                             0, ncells2-1,
-                             0, ncells3-1);
-#else
   peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord,
-                             0, ncells1-1,
-                             0, ncells2-1,
-                             0, ncells3-1);
-#endif
+                             0, ncells1,
+                             0, ncells2,
+                             0, ncells3);
+
   //TODO Check if the momentum and velocity are finite.
 
   // Set up the matter tensor in the Z4c variables.
   // TODO: BD - this needs to be fixed properly
   // No magnetic field, pass dummy or fix with overload
   //  AthenaArray<Real> null_bb_cc;
-#if USETM
-  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pscalars->r, pfield->bcc);
-#else
   pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pfield->bcc);
-#endif
 
   pz4c->ADMConstraints(pz4c->storage.con,
                        pz4c->storage.adm,
@@ -665,6 +440,17 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                        pz4c->storage.u);
 
   // --------------------------------------------------------------------------
+  return;
+}
+
+//========================================================================================
+//! \fn void Mesh::UserWorkAfterLoop(ParameterInput *pin, int res_flag)
+//  \brief Free Elliptica memory 
+//========================================================================================
+void Mesh::UserWorkAfterLoop(ParameterInput *pin)
+{
+  elliptica_id_reader_free(idr);
+  idr = 0;
   return;
 }
 
@@ -843,50 +629,5 @@ Real max_abs_con_H(MeshBlock *pmb, int iout)
 
   return m_abs_con_H;
 }
-
-#ifdef LORENE_EOS
-  //--------------------------------------------------------------------------------------
-  //! \fn double linear_interp(double *f, double *x, int n, double xv)
-  // \brief linearly interpolate f(x), compute f(xv)
-  Real linear_interp(Real *f, Real *x, int n, Real xv)
-  {
-    int i = interp_locate(x,n,xv);
-    if (i < 0)  i=1;
-    if (i == n) i=n-1;
-    int j;
-    if(xv < x[i]) j = i-1;
-    else j = i+1;
-    Real xj = x[j]; Real xi = x[i];
-    Real fj = f[j]; Real fi = f[i];
-    Real m = (fj-fi)/(xj-xi);
-    Real df = m*(xv-xj)+fj;
-    return df;
-  }
-
-  //-----------------------------------------------------------------------------------------
-  //! \fn int interp_locate(Real *x, int Nx, Real xval)
-  // \brief Bisection to find closest point in interpolating table
-  // 
-  int interp_locate(Real *x, int Nx, Real xval) {
-    int ju,jm,jl;
-    int ascnd;
-    jl=-1;
-    ju=Nx;
-    if (xval <= x[0]) {
-      return 0;
-    } else if (xval >= x[Nx-1]) {
-      return Nx-1;
-    }
-    ascnd = (x[Nx-1] >= x[0]);
-    while (ju-jl > 1) {
-      jm = (ju+jl) >> 1;
-      if (xval >= x[jm] == ascnd)
-  jl=jm;
-      else
-  ju=jm;
-    }
-    return jl;
-  }
-  #endif
 
 }

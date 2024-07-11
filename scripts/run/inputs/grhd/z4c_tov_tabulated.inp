@@ -14,24 +14,11 @@ lapse_oplog     = 2.0
 lapse_advect    = 1.0
 lapse_K         = 0.0
 
-# lapse_harmonic  = 0.0
-# lapse_harmonicf = 0.0
-# lapse_oplog     = 0.0
-# lapse_advect    = 0.0
-# lapse_K         = 0.0
-
-
 shift_Gamma       = 1     # T 2011: BNS takes 0.75
 shift_eta         = 0.3   # T 2011
 shift_alpha2Gamma = 0.0
 shift_H           = 0.0
 shift_advect      = 1.0
-
-# shift_Gamma       = 0     # T 2011: BNS takes 0.75
-# shift_eta         = 0.   # T 2011
-# shift_alpha2Gamma = 0.
-# shift_H           = 0.
-# shift_advect      = 0.
 
 # Kreiss-Oliger dissipation parameter.
 diss = 0.1
@@ -62,21 +49,6 @@ tracker_extrema = 0.25
 dt_Z4c_Weyl     = 0.0
 # =============================================================================
 
-<psi4_extraction>  # ==========================================================
-# control psi4 extraction
-
-filename  = wav
-
-nlev = 30  # Controls # of points on spherical grid
-lmax = 8   # Extracted set: {l <= lmax && |m|<=l}
-
-# specify extraction radii
-num_radii = 0
-radius_0  = 8
-radius_1  = 20
-radius_2  = 24
-# =============================================================================
-
 <trackers_extrema>  # =========================================================
 N_tracker = 1
 filename = tra.ext
@@ -91,13 +63,6 @@ ref_level_1 = 1
 ref_type_1 = 1              # 0: to the point, 1: sph. region
 ref_zone_radius_1 = 10.5
 
-ini_2_x1 = 0               # initial offset
-ini_2_x2 = 0
-ini_2_x3 = 0
-minima_2 = true              # for update_strategy = 1
-ref_level_2 = 2
-ref_type_2 = 1              # 0: to the point, 1: sph. region
-ref_zone_radius_2 = 0.1
 
 update_strategy = 1         # 0: based on dt, 1: based on quad interp.
 # safety factor avoids taking too large step (multiple of local dx)
@@ -106,7 +71,7 @@ update_max_step_factor = 10
 
 <time> # ======================================================================
 cfl_number   = 0.2
-tlim	       = 50
+tlim	       = 0.1
 integrator   = rk3   # time integration algorithm
 
 # spatial reconstruction - element of:
@@ -117,7 +82,7 @@ xorder = weno5z
 xorder_eps = 1e-40
 
 xorder_use_fb = false             # control if fallback is used
-xorder_use_fb_unphysical = false  # optionally verify (fluid) energy cond.
+xorder_use_fb_unphysical = false  # optinally verify (fluid) energy cond.
 xorder_fb = lin_vl
 
 floor_both_states = false  # reset both l/r [Reprimand only]
@@ -163,20 +128,28 @@ nx3=16
 
 
 <hydro> # =====================================================================
-gamma      = 2     # ratio of specific heats Gamma
-k_adi      = 100.  # adiabat K, p_gas = K rho^Gamma
-c2p_acc    = 1e-15
-rho_strict = 0 # 1e-20
-max_iter   = 1000
+# gamma      = 2     # ratio of specific heats Gamma
+# k_adi      = 100.  # adiabat K, p_gas = K rho^Gamma
+# c2p_acc    = 1e-12
+# rho_strict = 0 # 1e-20
 
 fix_fluxes=0 #use initial data in flux calculation
 fix_sources=0 #use initial data in hydro source calculation (stationary spacetime only)
 zero_sources=0 # set hydro sources to 0
 zero_div=0 # set div F = 0 i.e. don't update conservatives with fluxes
 
+table = /mnt/hyperion/_Data/GR-Athena++/tabulated/SFHo/CX_Tabul_TOV/SFHo.h5
+lorene = /mnt/hyperion/_Data/GR-Athena++/tabulated/SFHo/CX_Tabul_TOV/SFHo_T2_beta.lorene
+lorene_Y = /mnt/hyperion/_Data/GR-Athena++/tabulated/SFHo/CX_Tabul_TOV/SFHo_T2_beta_Y.out
+
+dfloor = 4.3391894561306809e-12
+pfloor = 2.2367497199912880e-13
+tfloor = 0.12022644
+y0_atmosphere = 0.456464
+dthreshold = 1.000001 # if rho<dfloor*dthreshold -> rho=rho_atm
+
 # control whether to split fluxes and reconstruct those [GRHD only]
 flux_reconstruction = false
-
 
 # =============================================================================
 
@@ -185,8 +158,6 @@ flux_reconstruction = false
 
 # TOV: central density
 rhoc = 0.00128
-
-id_floor_primitives = false
 
 # TOV: starting integration radius
 rmin = 0
@@ -210,16 +181,16 @@ interp_npts = 100000
 surf_dr = 1e-14
 
 # TOV: spatial offset & boost params
-x_0_x1 = 0.1
-x_0_x2 = 0.01
-x_0_x3 = -0.2
+x_0_x1 = 0.0
+x_0_x2 = 0.0
+x_0_x3 = 0.0
 
-v_b_x1 = 0.22 # 0.2
-v_b_x2 = 0.3 # 0.1
-v_b_x3 = 0.31 # -0.1
+v_b_x1 = 0. # 0.2
+v_b_x2 = 0. # 0.1
+v_b_x3 = 0. # -0.1
 
 # Atmosphere settings
-fatm = 1e-40  # set atmosphere rho to rho = fatm
+fatm = 1e-18  # set atmosphere rho to rho = fatm
 fthr = 1    # set point to atmosphere if rho < fthr*fatm
 
 max_z = 10
@@ -245,161 +216,6 @@ level           = 1
 # level           = 2
 # # =============================================================================
 
-# dumped quantities ===========================================================
-<output1>
-file_type = rst
-dt        = 5
-
-<output2>
-file_type   = hst
-dt          = 0.25
-data_format = %.18g
-
-<output3>
-file_type   = hdf5
-variable    = cons
-ghost_zones = true
-dt          = 0.5
-x3_slice    = 0.0
-
-<output4>
-file_type   = hdf5
-variable    = prim
-ghost_zones = true
-dt          = 0.5
-x3_slice    = 0.0
-
-<output5>
-file_type	  = hdf5
-variable    = con
-ghost_zones = true
-dt          = 0.5
-x3_slice    = 0
-
-<output6>
-file_type   = hdf5
-variable    = adm
-ghost_zones = true
-dt          = 0.5
-x3_slice    = 0.0
-
-<output7>
-file_type   = hdf5
-variable    = z4c
-ghost_zones = true
-dt          = 0.5
-x3_slice    = 0.0
-
-<output8>
-file_type   = hdf5
-variable    = cons
-ghost_zones = true
-dt          = 0.5
-x2_slice    = 0.0
-
-<output9>
-file_type   = hdf5
-variable    = prim
-ghost_zones = true
-dt          = 0.5
-x2_slice    = 0.0
-
-<output10>
-file_type   = hdf5
-variable    = con
-ghost_zones = true
-dt          = 0.5
-x2_slice    = 0
-
-<output11>
-file_type   = hdf5
-variable    = adm
-ghost_zones = true
-dt          = 0.5
-x2_slice    = 0.0
-
-<output12>
-file_type   = hdf5
-variable    = z4c
-ghost_zones = true
-dt          = 0.5
-x2_slice    = 0.0
-
-<output13>
-file_type   = hdf5
-variable    = cons
-ghost_zones = true
-dt          = 0.5
-x1_slice    = 0.0
-
-<output14>
-file_type   = hdf5
-variable    = prim
-ghost_zones = true
-dt          = 0.5
-x1_slice    = 0.0
-
-<output15>
-file_type   = hdf5
-variable    = con
-ghost_zones = true
-dt          = 0.5
-x1_slice    = 0
-
-<output16>
-file_type   = hdf5
-variable    = adm
-ghost_zones = true
-dt          = 0.5
-x1_slice    = 0.0
-
-<output17>
-file_type   = hdf5
-variable    = z4c
-ghost_zones = true
-dt          = 0.5
-x1_slice    = 0.0
-
-
-<output18>
-file_type   = hdf5
-variable    = cons
-ghost_zones = true
-dt          = 0.5
-x2_slice    = 0.0
-x3_slice    = 0.0
-
-<output19>
-file_type   = hdf5
-variable    = prim
-ghost_zones = true
-dt          = 0.5
-x2_slice    = 0.0
-x3_slice    = 0.0
-
-<output20>
-file_type	  = hdf5
-variable    = con
-ghost_zones = true
-dt          = 0.5
-x2_slice    = 0.0
-x3_slice    = 0
-
-<output21>
-file_type   = hdf5
-variable    = adm
-ghost_zones = true
-dt          = 0.5
-x2_slice    = 0.0
-x3_slice    = 0.0
-
-<output22>
-file_type   = hdf5
-variable    = z4c
-ghost_zones = true
-dt          = 0.5
-x2_slice    = 0.0
-x3_slice    = 0.0
 
 #
 # :D

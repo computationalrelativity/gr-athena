@@ -159,7 +159,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
 
   if (!coarse_flag) {
     full_gamma_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
-    full_alpha.InitWithShallowSlice(pz4c->storage.u, Z4c::I_Z4c_alpha);
+    full_alpha.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_alpha);
   }
   else {
     rchi.NewAthenaTensor(nn1);
@@ -248,6 +248,10 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
           std::cerr << "  Error: " << Primitive::ErrorString[(int)result.error] << "\n";
           //printf("i=%d, j=%d, k=%d\n",i,j,k);
           std::cerr << "  i=" << i << ", j=" << j << ", k=" << k << "\n";
+          const Real x1 = pmy_block_->pcoord->x1v(i);
+          const Real x2 = pmy_block_->pcoord->x2v(j);
+          const Real x3 = pmy_block_->pcoord->x3v(k);
+          std::cerr << "  (x1,x2,x3) " << x1 << "," << x2 << "," << x3 << "\n";
           std::cerr << "  g3d = [" << g3d[S11] << ", " << g3d[S12] << ", " << g3d[S13] << ", "
                     << g3d[S22] << ", " << g3d[S23] << ", " << g3d[S33] << "\n";
           std::cerr << "  g3u = [" << g3u[S11] << ", " << g3u[S12] << ", " << g3u[S13] << ", "
@@ -504,6 +508,7 @@ void EquationOfState::SoundSpeedsSR(Real n, Real T, Real vx, Real gamma_lorentz_
 //   follows same general procedure as vchar() in phys.c in Harm
 //   variables are named as though 1 is normal direction
 
+// BD: TODO - eigenvalues, _not_ the speed; should be refactored
 void EquationOfState::SoundSpeedsGR(Real n, Real T, Real vi, Real v2, Real alpha,
     Real betai, Real gammaii, Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]) {
   // Calculate comoving sound speed
@@ -544,17 +549,41 @@ void EquationOfState::SoundSpeedsGR(Real n, Real T, Real vi, Real v2, Real alpha
 
 void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, AthenaArray<Real> &prim_scalar, int k, int j, int i) {
   // Extract the primitive variables and floor them using PrimitiveSolver.
-  Real mb = ps.GetEOS()->GetBaryonMass();
-  //Real n = prim(IDN, k, j, i)/mb;
-  Real n = prim(IDN, i)/mb;
-  //Real Wvu[3] = {prim(IVX, k, j, i), prim(IVY, k, j, i), prim(IVZ, k, j, i)};
-  Real Wvu[3] = {prim(IVX, i), prim(IVY, i), prim(IVZ, i)};
-  //Real P = prim(IPR, k, j, i);
-  Real P = prim(IPR, i);
-  // FIXME: Update to work with particle species.
   Real Y[MAX_SPECIES] = {0.0};
-  for (int l=0; l<NSCALARS; l++) {
-    Y[l] = prim_scalar(l,i);
+  Real Wvu[3] = {};
+  Real P;
+  Real n;
+
+  Real mb = ps.GetEOS()->GetBaryonMass();
+
+  // BD: TODO - this kind of switching... just use polymorphism for 1d slices?
+  if (prim.GetDim4()==1)
+  {
+    n = prim(IDN,i)/mb;
+    P = prim(IPR,i);
+
+    for (int a=0; a<3; ++a)
+    {
+      Wvu[a] = prim(IVX+a,i);
+    }
+
+    for (int l=0; l<NSCALARS; l++) {
+      Y[l] = prim_scalar(l,i);
+    }
+  }
+  else
+  {
+    n = prim(IDN,k,j,i)/mb;
+    P = prim(IPR,k,j,i);
+
+    for (int a=0; a<3; ++a)
+    {
+      Wvu[a] = prim(IVX+a,k,j,i);
+    }
+
+    for (int l=0; l<NSCALARS; l++) {
+      Y[l] = prim_scalar(l,k,j,i);
+    }
   }
 
   ps.GetEOS()->ApplyDensityLimits(n);
@@ -563,18 +592,27 @@ void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, AthenaArray<
   ps.GetEOS()->ApplyPrimitiveFloor(n, Wvu, P, T, Y);
 
   // Now push the updated quantities back to Athena.
-  //prim(IDN, k, j, i) = n*mb;
-  //prim(IVX, k, j, i) = Wvu[0];
-  //prim(IVY, k, j, i) = Wvu[1];
-  //prim(IVZ, k, j, i) = Wvu[2];
-  //prim(IPR, k, j, i) = P;
-  prim(IDN, i) = n*mb;
-  prim(IVX, i) = Wvu[0];
-  prim(IVY, i) = Wvu[1];
-  prim(IVZ, i) = Wvu[2];
-  prim(IPR, i) = P;
-  for (int l=0; l<NSCALARS; l++) {
-    prim_scalar(l,i) = Y[l];
+  if (prim.GetDim4()==1)
+  {
+    prim(IDN,i) = n*mb;
+    prim(IVX,i) = Wvu[0];
+    prim(IVY,i) = Wvu[1];
+    prim(IVZ,i) = Wvu[2];
+    prim(IPR,i) = P;
+    for (int l=0; l<NSCALARS; l++) {
+      prim_scalar(l,i) = Y[l];
+    }
+  }
+  else
+  {
+    prim(IDN,k,j,i) = n*mb;
+    prim(IVX,k,j,i) = Wvu[0];
+    prim(IVY,k,j,i) = Wvu[1];
+    prim(IVZ,k,j,i) = Wvu[2];
+    prim(IPR,k,j,i) = P;
+    for (int l=0; l<NSCALARS; l++) {
+      prim_scalar(l,k,j,i) = Y[l];
+    }
   }
   return;
 }

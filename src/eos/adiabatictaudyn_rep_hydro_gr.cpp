@@ -220,8 +220,9 @@ void EquationOfState::ConservedToPrimitive(
   if (!coarse_flag)
   {
     adm_gamma_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
-    z4c_alpha.InitWithShallowSlice(   pz4c->storage.u,   Z4c::I_Z4c_alpha);
-    z4c_beta_u.InitWithShallowSlice(  pz4c->storage.u,   Z4c::I_Z4c_betax);
+    // Not great with the notation...
+    z4c_alpha.InitWithShallowSlice(   pz4c->storage.adm, Z4c::I_ADM_alpha);
+    z4c_beta_u.InitWithShallowSlice(  pz4c->storage.adm, Z4c::I_ADM_betax);
   }
   else
   {
@@ -490,6 +491,26 @@ void EquationOfState::PrimitiveToConserved(
   }
 }
 
+Real EquationOfState::GRHD_SoundSpeed(const Real w_rho, const Real w_p)
+{
+  const Real w_h = GRHD_Enthalpy(w_rho, w_p);
+  const Real cs_sq = (w_rho > 0) ? gamma_adi * w_p / (w_rho * w_h) : 0;
+  const Real cs = std::sqrt(cs_sq);
+  return cs;
+}
+Real EquationOfState::GRHD_Kappa(const Real w_rho)
+{
+  return w_rho * (gamma_adi - 1.0);
+}
+Real EquationOfState::GRHD_Enthalpy(const Real w_rho, const Real w_p)
+{
+  const Real w_h = (w_rho != 0)
+    ? (1.0 + w_p * gamma_adi) / (w_rho * (gamma_adi - 1.0))
+    : 1.0;
+  return w_h;
+}
+
+// BD: TODO - eigenvalues, _not_ the speed; should be refactored / renamed
 void EquationOfState::SoundSpeedsGR(
   Real rho_h, Real pgas,
   Real vi, Real v2, Real alpha,

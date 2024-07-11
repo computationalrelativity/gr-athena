@@ -300,15 +300,16 @@ void CellCenteredXBoundaryVariable::SetBoundaryFromFiner(Real *buf,
 //! \fn void CellCenteredXBoundaryVariable::RestrictNonGhost()
 //  \brief populate coarser buffer with restricted data
 
-void CellCenteredXBoundaryVariable::RestrictNonGhost() {
-  // don't need to fill coarse buffer if nn all on the same level
-#if defined(DBG_NO_REF_NN_SAME_LEVEL)
-  if (NeighborBlocksSameLevel())
-    return;
-#endif // DBG_NO_REF_NN_SAME_LEVEL
-
+void CellCenteredXBoundaryVariable::RestrictNonGhost()
+{
   MeshBlock *pmb = pmy_block_;
   MeshRefinement *pmr = pmb->pmr;
+
+  // don't need to fill coarse buffer if nn all on the same level
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+  if (pmb->NeighborBlocksSameLevel())
+    return;
+#endif // DBG_NO_REF_NN_SAME_LEVEL
 
   AthenaArray<Real> &var = *var_cx;
   AthenaArray<Real> &coarse_var = *coarse_buf;

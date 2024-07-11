@@ -15,6 +15,7 @@
 #include <iomanip>
 #include <iostream>   // endl, ostream
 #include <limits>
+#include <ostream>
 #include <sstream>    // stringstream
 #include <stdexcept>  // runtime_error
 #include <string>     // string
@@ -100,7 +101,7 @@ namespace {
 
   Real Maxrho(MeshBlock *pmb, int iout);
 #if MAGNETIC_FIELDS_ENABLED
-  Real DivB(MeshBlock *pmb, int iout);
+  Real DivBface(MeshBlock *pmb, int iout);
 #endif
 } // namespace
 
@@ -180,10 +181,10 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   if(adaptive==true)
     EnrollUserRefinementCondition(RefinementCondition);
 
-  AllocateUserHistoryOutput(2);
+  AllocateUserHistoryOutput(1+MAGNETIC_FIELDS_ENABLED);
   EnrollUserHistoryOutput(0, Maxrho, "max-rho", UserHistoryOperation::max);
 #if MAGNETIC_FIELDS_ENABLED
-  EnrollUserHistoryOutput(1, DivB, "divB");
+  EnrollUserHistoryOutput(1, DivBface, "divB");
 #endif
 }
 
@@ -337,12 +338,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   // Initialise conserved variables
   peos->PrimitiveToConserved(
-                             phydro->w, 
+                             phydro->w,
 #if USETM
                              pscalars->r,
 #endif
-                             pfield->bcc, 
-                             phydro->u, 
+                             pfield->bcc,
+                             phydro->u,
 #if USETM
                              pscalars->s,
 #endif
@@ -352,8 +353,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                              0, ncells3-1);
 
   // Initialise matter (also taken care of in task-list)
-  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm,
-                  phydro->w, 
+  pz4c->GetMatter(pz4c->storage.mat,
+                  pz4c->storage.adm,
+                  phydro->w,
 #if USETM
                   pscalars->r,
 #endif
@@ -1612,9 +1614,14 @@ void TOV_populate(MeshBlock *pmb,
 
   Field * pfield = pmb->pfield;
 
-  int ilcc = 0, iucc = pmb->ncells1-1;
-  int jlcc = 0, jucc = pmb->ncells1-1;
-  int klcc = 0, kucc = pmb->ncells1-1;
+  const int il = 0;
+  const int iu = (pmb->ncells1>1)? pmb->ncells1-1: 0;
+
+  const int jl = 0;
+  const int ju = (pmb->ncells2>1)? pmb->ncells2-1: 0;
+
+  const int kl = 0;
+  const int ku = (pmb->ncells3>1)? pmb->ncells3-1: 0;
 
   // Initialize magnetic field
   // No metric weighting here
@@ -1632,76 +1639,89 @@ void TOV_populate(MeshBlock *pmb,
 #else
   Real pgasmax = k_adi*pow(rhomax,gamma_adi);
 #endif
+
+  // BD: TODO - what are the units?
+  pgasmax = pin->GetReal("problem","pmax");
+
   Real pcut = pin->GetReal("problem","pcut") * pgasmax;
-  Real amp = pin->GetOrAddReal("problem","b_amp", 0.0);
   int magindex=pin->GetInteger("problem","magindex");
 
-  int nx1 = (pmb->ie-pmb->is)+1 + 2*(NGHOST);
-  int nx2 = (pmb->je-pmb->js)+1 + 2*(NGHOST);
-  int nx3 = (pmb->ke-pmb->ks)+1 + 2*(NGHOST);
+  // Real ns = pin->GetReal("problem","ns");
+  // Real b_amp = pin->GetReal("problem","b_amp") *
+  //               0.5/std::pow(pgasmax-pcut, ns)/8.351416e19;
+
+  Real b_amp = pin->GetReal("problem","b_amp");
 
   pfield->b.x1f.ZeroClear();
   pfield->b.x2f.ZeroClear();
   pfield->b.x3f.ZeroClear();
   pfield->bcc.ZeroClear();
 
-  AthenaArray<Real> ax,ay,az,bxcc,bycc,bzcc;
-  // should be athena tensors if we merge w/ dynamical metric
-  ax.NewAthenaArray(nx3,nx2,nx1);
-  ay.NewAthenaArray(nx3,nx2,nx1);
-  // Don't use az for poloidal field
-  //az.NewAthenaArray(nx3,nx2,nx1);
-  bxcc.NewAthenaArray(nx3,nx2,nx1);
-  bycc.NewAthenaArray(nx3,nx2,nx1);
-  bzcc.NewAthenaArray(nx3,nx2,nx1);
+  AthenaArray<Real> Acc(NFIELD,pmb->ncells3,pmb->ncells2,pmb->ncells1);
 
-  // Initialize construct cell centred potential
-  for (int k=klcc; k<=kucc; k++)
-  for (int j=jlcc; j<=jucc; j++)
-  for (int i=ilcc; i<=iucc; i++)
+  // Initialize cell centred potential
+  for (int k=0; k<pmb->ncells3; k++)
+  for (int j=0; j<pmb->ncells2; j++)
+  for (int i=0; i<pmb->ncells1; i++)
   {
-    ax(k,j,i) = -pcoord->x2v(j)*amp*std::max(phydro->w(IPR,k,j,i)-pcut,0.0) *
-                 std::pow((1.0 - phydro->w(IDN,k,j,i)/rhomax),magindex);
-    ay(k,j,i) = pcoord->x1v(i)*amp*std::max(phydro->w(IPR,k,j,i)-pcut,0.0) *
-                std::pow((1.0 - phydro->w(IDN,k,j,i)/rhomax),magindex);
+    const Real x1 = pcoord->x1v(i);
+    const Real x2 = pcoord->x2v(j);
+
+    const Real w_p   = phydro->w(IPR,k,j,i);
+    const Real w_rho = phydro->w(IDN,k,j,i);
+
+    Acc(0,k,j,i) = -x2 * b_amp * std::max(w_p-pcut, 0.0) *
+                    std::pow((1.0 - w_rho/rhomax), magindex);
+    Acc(1,k,j,i) =  x1 * b_amp * std::max(w_p-pcut, 0.0) *
+                    std::pow((1.0 - w_rho/rhomax), magindex);
+    Acc(2,k,j,i) =  0.0;
   }
 
   // Construct cell centred B field from cell centred potential
-  //TODO should use pfield->bcc storage here.
-  for(int k = klcc+1; k<=kucc-1; k++)
-  for(int j = jlcc+1; j<=jucc-1; j++)
-  for(int i = ilcc+1; i<=iucc-1; i++)
+  for(int k=pmb->ks-1; k<=pmb->ke+1; k++)
+  for(int j=pmb->js-1; j<=pmb->je+1; j++)
+  for(int i=pmb->is-1; i<=pmb->ie+1; i++)
   {
-    bxcc(k,j,i) = - ((ay(k+1,j,i) - ay(k-1,j,i))/(2.0*pcoord->dx3v(k)));
-    bycc(k,j,i) =  ((ax(k+1,j,i) - ax(k-1,j,i))/(2.0*pcoord->dx3v(k)));
-    bzcc(k,j,i) = ( (ay(k,j,i+1) - ay(k,j,i-1))/(2.0*pcoord->dx1v(i))
-        - (ax(k,j+1,i) - ax(k,j-1,i))/(2.0*pcoord->dx2v(j)));
+    const Real dx1 = pcoord->dx1v(i);
+    const Real dx2 = pcoord->dx2v(j);
+    const Real dx3 = pcoord->dx3v(k);
+
+    pfield->bcc(0,k,j,i) = -((Acc(1,k+1,j,i) - Acc(1,k-1,j,i))/(2.0*dx3));
+    pfield->bcc(1,k,j,i) =  ((Acc(0,k+1,j,i) - Acc(0,k-1,j,i))/(2.0*dx3));
+    pfield->bcc(2,k,j,i) =  ((Acc(1,k,j,i+1) - Acc(1,k,j,i-1))/(2.0*dx1) -
+                             (Acc(0,k,j+1,i) - Acc(0,k,j-1,i))/(2.0*dx2));
+
   }
 
   // Initialise face centred field by averaging cc field
-  for(int k = klcc+1; k<=kucc-1; k++)
-  for(int j = jlcc+1; j<=jucc-1; j++)
-  for(int i = ilcc+2; i<=iucc-1; i++)
+  for(int k=pmb->ks; k<=pmb->ke;   k++)
+  for(int j=pmb->js; j<=pmb->je;   j++)
+  for(int i=pmb->is; i<=pmb->ie+1; i++)
   {
-  	pfield->b.x1f(k,j,i) = 0.5*(bxcc(k,j,i-1) + bxcc(k,j,i));
+  	pfield->b.x1f(k,j,i) = 0.5*(pfield->bcc(0,k,j,i-1) +
+                                pfield->bcc(0,k,j,i));
   }
 
-  for(int k = klcc+1; k<=kucc-1; k++)
-  for(int j = jlcc+2; j<=jucc-1; j++)
-  for(int i = ilcc+1; i<=iucc-1; i++)
+  for(int k=pmb->ks; k<=pmb->ke;   k++)
+  for(int j=pmb->js; j<=pmb->je+1; j++)
+  for(int i=pmb->is; i<=pmb->ie;   i++)
   {
-  	pfield->b.x2f(k,j,i) = 0.5*(bycc(k,j-1,i) + bycc(k,j,i));
+  	pfield->b.x2f(k,j,i) = 0.5*(pfield->bcc(1,k,j-1,i) +
+                                pfield->bcc(1,k,j,i));
   }
 
-  for(int k = klcc+2; k<=kucc-1; k++)
-  for(int j = jlcc+1; j<=jucc-1; j++)
-  for(int i = ilcc+1; i<=iucc-1; i++)
+  for(int k=pmb->ks; k<=pmb->ke+1; k++)
+  for(int j=pmb->js; j<=pmb->je;   j++)
+  for(int i=pmb->is; i<=pmb->ie;   i++)
   {
-	  pfield->b.x3f(k,j,i) = 0.5*(bzcc(k-1,j,i) + bzcc(k,j,i));
+	  pfield->b.x3f(k,j,i) = 0.5*(pfield->bcc(2,k-1,j,i) +
+                                pfield->bcc(2,k,j,i));
   }
 
   pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord,
-                                     ilcc,iucc,jlcc,jucc,klcc,kucc);
+                                     0,(pmb->ncells1>1)? pmb->ncells1-1 : 0,
+                                     0,(pmb->ncells2>1)? pmb->ncells2-1 : 0,
+                                     0,(pmb->ncells3>1)? pmb->ncells3-1 : 0);
 
 #endif
 
@@ -1814,30 +1834,24 @@ Real Maxrho(MeshBlock *pmb, int iout)
 }
 
 #if MAGNETIC_FIELDS_ENABLED
-//TODO make consistent with CT divB
-Real DivB(MeshBlock *pmb, int iout)
-{
+Real DivBface(MeshBlock *pmb, int iout) {
   Real divB = 0.0;
   Real vol,dx,dy,dz;
-  int is = pmb->is, ie = pmb->ie;
-  int js = pmb->js, je = pmb->je;
-  int ks = pmb->ks, ke = pmb->ke;
+  int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
 
-  AthenaArray<Real> bcc1, bcc2,bcc3;
-  bcc1.InitWithShallowSlice(pmb->pfield->bcc,IB1,1);
-  bcc2.InitWithShallowSlice(pmb->pfield->bcc,IB2,1);
-  bcc3.InitWithShallowSlice(pmb->pfield->bcc,IB3,1);
-  for (int k=ks; k<=ke; k++)
-  for (int j=js; j<=je; j++)
-  for (int i=is; i<=ie; i++)
-  {
-    dx = pmb->pcoord->dx1v(i);
-    dy = pmb->pcoord->dx2v(j);
-    dz = pmb->pcoord->dx3v(k);
-    vol = dx*dy*dz;
-    divB += ((bcc1(k,j,i+1) - bcc1(k,j,i-1))/(2.*dx) + (bcc2(k,j+1,i) - bcc2(k,j-1,i))/(2.* dy) + (bcc3(k+1,j,i) - bcc3(k-1,j,i))/(2. *dz))*vol;
+  for (int k=ks; k<=ke; k++) {
+    for (int j=js; j<=je; j++) {
+      for (int i=is; i<=ie; i++) {
+        dx = pmb->pcoord->dx1v(i);
+        dy = pmb->pcoord->dx2v(j);
+        dz = pmb->pcoord->dx3v(k);
+        vol = dx*dy*dz;
+        divB += ((pmb->pfield->b.x1f(k,j,i+1) - pmb->pfield->b.x1f(k,j,i))/ dx +
+                 (pmb->pfield->b.x2f(k,j+1,i) - pmb->pfield->b.x2f(k,j,i))/ dy +
+                 (pmb->pfield->b.x3f(k+1,j,i) - pmb->pfield->b.x3f(k,j,i))/ dz) * vol;
+      }
+    }
   }
-
   return divB;
 }
 #endif

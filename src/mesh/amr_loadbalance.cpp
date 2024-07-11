@@ -1106,7 +1106,8 @@ void Mesh::FillSameRankFineToCoarseAMR(MeshBlock* pob, MeshBlock* pmb,
   // MeshBlock in lock-step with pob
   auto pmb_cc_it = pmb->pmr->pvars_cc_.begin();
   // iterate MeshRefinement std::vectors on pob
-  for (auto cc_pair : pmr->pvars_cc_) {
+  for (auto cc_pair : pmr->pvars_cc_)
+  {
     AthenaArray<Real> *var_cc = std::get<0>(cc_pair);
     AthenaArray<Real> *coarse_cc = std::get<1>(cc_pair);
     int nu = var_cc->GetDim4() - 1;
@@ -1118,13 +1119,12 @@ void Mesh::FillSameRankFineToCoarseAMR(MeshBlock* pob, MeshBlock* pmb,
     // copy from old/original/other MeshBlock (pob) to newly created block (pmb)
     AthenaArray<Real> &src = *coarse_cc;
     AthenaArray<Real> &dst = *std::get<0>(*pmb_cc_it); // pmb->phydro->u;
-    for (int nv=0; nv<=nu; nv++) {
-      for (int k=kl, fk=pob->cks; fk<=pob->cke; k++, fk++) {
-        for (int j=jl, fj=pob->cjs; fj<=pob->cje; j++, fj++) {
-          for (int i=il, fi=pob->cis; fi<=pob->cie; i++, fi++)
-            dst(nv, k, j, i) = src(nv, fk, fj, fi);
-        }
-      }
+    for (int nv=0; nv<=nu; nv++)
+    for (int k=kl, fk=pob->cks; fk<=pob->cke; k++, fk++)
+    for (int j=jl, fj=pob->cjs; fj<=pob->cje; j++, fj++)
+    for (int i=il, fi=pob->cis; fi<=pob->cie; i++, fi++)
+    {
+      dst(nv, k, j, i) = src(nv, fk, fj, fi);
     }
     pmb_cc_it++;
   }
@@ -1276,7 +1276,8 @@ void Mesh::FillSameRankCoarseToFineAMR(MeshBlock* pob, MeshBlock* pmb,
 
   auto pob_cc_it = pob->pmr->pvars_cc_.begin();
   // iterate MeshRefinement std::vectors on new pmb
-  for (auto cc_pair : pmr->pvars_cc_) {
+  for (auto cc_pair : pmr->pvars_cc_)
+  {
     AthenaArray<Real> *var_cc = std::get<0>(cc_pair);
     AthenaArray<Real> *coarse_cc = std::get<1>(cc_pair);
     int nu = var_cc->GetDim4() - 1;
@@ -1284,13 +1285,12 @@ void Mesh::FillSameRankCoarseToFineAMR(MeshBlock* pob, MeshBlock* pmb,
     AthenaArray<Real> &src = *std::get<0>(*pob_cc_it);
     AthenaArray<Real> &dst = *coarse_cc;
     // fill the coarse buffer
-    for (int nv=0; nv<=nu; nv++) {
-      for (int k=kl, ck=cks; k<=ku; k++, ck++) {
-        for (int j=jl, cj=cjs; j<=ju; j++, cj++) {
-          for (int i=il, ci=cis; i<=iu; i++, ci++)
-            dst(nv, k, j, i) = src(nv, ck, cj, ci);
-        }
-      }
+    for (int nv=0; nv<=nu; nv++)
+    for (int k=kl, ck=cks; k<=ku; k++, ck++)
+    for (int j=jl, cj=cjs; j<=ju; j++, cj++)
+    for (int i=il, ci=cis; i<=iu; i++, ci++)
+    {
+      dst(nv, k, j, i) = src(nv, ck, cj, ci);
     }
     pmr->ProlongateCellCenteredValues(
         dst, *var_cc, 0, nu,

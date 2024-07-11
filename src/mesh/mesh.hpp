@@ -289,6 +289,22 @@ public:
     return new_from_amr;
   }
 
+  // if multilevel, useful to know if nearest-neighbour blocks on same level
+  inline bool NeighborBlocksSameLevel()
+  {
+    bool nn_level_different = false;
+
+    for (int n=0; n<pbval->nneighbor; n++) {
+      NeighborBlock& nb = pbval->neighbor[n];
+      if (nb.snb.level != loc.level)
+      {
+        nn_level_different = true;
+        break;
+      }
+    }
+    return !nn_level_different;
+  }
+
 private:
   // if AMR *just* created this block, useful to know.
   bool new_from_amr = false;

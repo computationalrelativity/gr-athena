@@ -851,13 +851,6 @@ void GRDynamical::AddCoordTermsDivergence(
     GetGeometricFieldCC(alpha,    adm_alpha,    k, j);
     GetGeometricFieldCC(beta_u,   adm_beta_u,   k, j);
 
-    for (int a=0; a<NDIM; ++a)
-    {
-      GetGeometricFieldDerCC(dgamma_ddd, adm_gamma_dd, a, k, j);
-      GetGeometricFieldDerCC(dalpha_d,   adm_alpha,    a, k, j);
-      GetGeometricFieldDerCC(dbeta_du,   adm_beta_u,   a, k, j);
-    }
-
 #if !defined(DBG_FD_CX_COORDDIV) || !defined(Z4C_CX_ENABLED)
     for (int a=0; a<NDIM; ++a)
     {

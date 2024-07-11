@@ -28,7 +28,8 @@
 // constructor, initializes data structures and parameters
 
 Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
-    pmy_block(pmb), u(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
+    pmy_block(pmb),
+    u(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
     w(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
     // w_init(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
     u1(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),

@@ -96,10 +96,12 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) :
   // init interpolation op based on underlying dimensionality
   Coordinates* pco = pmb->pcoord;
 
+  /*
   int si, sj, sk, ei, ej, ek;
   si = pmb->cx_cis; ei = pmb->cx_cie;
   sj = pmb->cx_cjs; ej = pmb->cx_cje;
   sk = pmb->cx_cks; ek = pmb->cx_cke;
+  */
 
   const int Ns_x3 = pmb->block_size.nx3 - 1;  // # phys. nodes - 1
   const int Ns_x2 = pmb->block_size.nx2 - 1;  // # phys. nodes - 1

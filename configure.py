@@ -41,6 +41,8 @@
 #   --gsl_path=path     path to gsl libraries (requires the gsl library)
 #   -lorene             enable LORENE
 #   --lorene_path=path  path to LORENE (requires the LORENE library)
+#   -elliptica          enable Elliptica
+#   --elliptica_path=path  path to Elliptica (requires the Elliptica_ID_Reader)
 #   --grav=xxx          use xxx as the self-gravity solver
 #   --cxx=xxx           use xxx as the C++ compiler
 #   --ccmd=name         use name as the command to call the (non-MPI) C++ compiler
@@ -75,6 +77,12 @@
 #   -w_cc               use cell-centered            sampling
 #   -w_cx               use cell-centered (extended) sampling
 #   -w_vc               use vertex-centered          sampling
+#
+# development stuff:
+#
+#    -compiler_sanitize_address  sanitizers
+#    -compiler_sanitize_thread   ""
+#    -compiler_warnings          all the warnings
 # ----------------------------------------------------------------------------------------
 
 # Modules
@@ -83,6 +91,25 @@ import glob
 import re
 import os
 import subprocess
+
+def get_git_revision_hash() -> str:
+  path = os.path.dirname(os.path.realpath(__file__))
+  return subprocess.check_output(['git', 'rev-parse', 'HEAD'],
+                                 cwd=path).decode('ascii').strip()
+
+def get_git_revision_short_hash() -> str:
+  path = os.path.dirname(os.path.realpath(__file__))
+  return subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'],
+                                 cwd=path).decode('ascii').strip()
+
+def get_git_status() -> str:
+  # should return "" if no changes
+  path = os.path.dirname(os.path.realpath(__file__))
+  result = subprocess.check_output(['git', 'diff', '--stat'],
+                                   cwd=path).decode('ascii').strip()
+  if result == "":
+    return "c"
+  return "m"
 
 # Set template and output filenames
 makefile_input = 'Makefile.in'
@@ -339,6 +366,22 @@ parser.add_argument('-debug',
                     default=False,
                     help='enable debug flags; override other compiler options')
 
+# -compiler_sanitize_address argument
+parser.add_argument('-compiler_sanitize_address',
+                    action='store_true',
+                    default=False,
+                    help='enable fsanitize')
+
+parser.add_argument('-compiler_sanitize_thread',
+                    action='store_true',
+                    default=False,
+                    help='enable fsanitize')
+
+parser.add_argument('-compiler_warnings',
+                    action='store_true',
+                    default=False,
+                    help='enable all warnings')
+
 # -coverage argument
 parser.add_argument('-coverage',
                     action='store_true',
@@ -423,6 +466,17 @@ parser.add_argument('-lorene',
 parser.add_argument('--lorene_path',
                     default='',
                     help='path to LORENE libraries')
+
+# -elliptica argument
+parser.add_argument('-elliptica',
+                    action='store_true',
+                    default=False,
+                    help='elliptica initial data')
+
+# --elliptica_path argument
+parser.add_argument('--elliptica_path',
+                    default='',
+                    help='path to Elliptica libraries')
 
 # -ccache argument
 parser.add_argument('-ccache',
@@ -600,6 +654,9 @@ if args['z']:
 definitions = {}
 makefile_options = {}
 makefile_options['LOADER_FLAGS'] = ''
+
+# retain hash, check diffs - not fool-proof, but better than nothing
+definitions['GIT_HASH'] = get_git_revision_short_hash() + " " + get_git_status()
 
 # --prob=[name] argument
 definitions['PROBLEM'] = makefile_options['PROBLEM_FILE'] = args['prob']
@@ -1344,6 +1401,33 @@ if 'Lorene' in args['prob']:
             )
         )
 
+if args['elliptica']:
+
+    makefile_options['LIBRARY_FLAGS'] += ' -lelliptica_id_reader'# -llapack -lblas'
+
+    # this can be specified as lorene_path _or_ directly
+    if args['elliptica_path'] != '':
+
+        makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/include'.format(args['elliptica_path'])
+        makefile_options['LINKER_FLAGS'] += ' -L{0}/lib'.format(args['elliptica_path'])
+
+if 'Elliptica' in args['prob']:
+    if not args['f'] or not args['g'] or not args['z']:
+        raise SystemExit(
+            '### CONFIGURE ERROR: The pgen "{name}" requires flags '
+            '-f -g -z.'.format(
+                name=args['prob']
+            )
+        )
+
+    if not args['elliptica']:
+        raise SystemExit(
+            '### CONFIGURE ERROR: The pgen "{name}" requires flags '
+            '-elliptica.'.format(
+                name=args['prob']
+            )
+        )
+
 # --cflag=[string] argument
 if args['cflag'] is not None:
     makefile_options['COMPILER_FLAGS'] += ' '+args['cflag']
@@ -1366,6 +1450,33 @@ for library_name in args['lib']:
 definitions['COMPILER_FLAGS'] = ' '.join(
     [makefile_options[opt+'_FLAGS'] for opt in
      ['PREPROCESSOR', 'COMPILER', 'LINKER', 'LIBRARY']])
+
+if args['compiler_sanitize_address']:
+  sa_args = [
+    "-fsanitize=address",
+    "-fsanitize=bounds",
+    "-fsanitize=undefined",
+    "-fsanitize=leak",
+    "-fsanitize-address-use-after-scope",
+    "-fsanitize=null",
+    "-fno-omit-frame-pointer",
+    "-g3"
+  ]
+  makefile_options['COMPILER_FLAGS'] += " " + " ".join(sa_args)
+
+if args['compiler_sanitize_thread']:
+  st_args = [
+    "-fsanitize=thread",
+    "-fno-omit-frame-pointer",
+    "-g3"
+  ]
+  makefile_options['COMPILER_FLAGS'] += " " + " ".join(st_args)
+
+if args['compiler_warnings']:
+  st_args = [
+    "-Wall", "-Wextra", "-Wpedantic"
+  ]
+  makefile_options['COMPILER_FLAGS'] += " " + " ".join(st_args)
 
 # incorporate ccache via prepend
 if args['ccache']:

@@ -10,6 +10,8 @@
 //  defs.hpp file will be created (overwriting the last) from this template.  This new
 //  file contains Athena++ specific cpp macros and definitions set by configure.
 
+#define GIT_HASH "@GIT_HASH@"
+
 //----------------------------------------------------------------------------------------
 // symmetrization of VC prol.
 #define DBG_SYMMETRIZE_P_OP
@@ -48,7 +50,7 @@
 #define DBG_FD_CX_COORDDIV
 
 // enfore algebraic constraints on all t-evo substeps?
-#define NO_DBG_ALGCONSTR_ALL
+#define DBG_ALGCONSTR_ALL
 
 // Debug EOM (H&R 2018)
 #define NO_DBG_EOM

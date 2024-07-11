@@ -83,10 +83,6 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
     SW_CC_CX_VC(NCGHOST, NCGHOST_CX, NCGHOST),             // cng
     (pmy_mesh->f3) ? 3 : (pmy_mesh->f2) ? 2 : 1            // ndim
   },
-  coarse_u_(N_Z4c, mbi.cnn3, mbi.cnn2, mbi.cnn1,
-            (pmb->pmy_mesh->multilevel ?
-             AthenaArray<Real>::DataStatus::allocated :
-             AthenaArray<Real>::DataStatus::empty)),
   storage{{N_Z4c, mbi.nn3, mbi.nn2, mbi.nn1},              // u
           {N_Z4c, mbi.nn3, mbi.nn2, mbi.nn1},              // u1
           {},                                              // u2
@@ -97,11 +93,15 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
           {N_WEY, mbi.nn3, mbi.nn2, mbi.nn1}               // weyl
   },
   empty_flux{AthenaArray<Real>(), AthenaArray<Real>(), AthenaArray<Real>()},
-  ubvar(pmb, &storage.u, &coarse_u_, empty_flux),
+  coarse_u_(N_Z4c, mbi.cnn3, mbi.cnn2, mbi.cnn1,
+            (pmb->pmy_mesh->multilevel ?
+             AthenaArray<Real>::DataStatus::allocated :
+             AthenaArray<Real>::DataStatus::empty)),
   coarse_a_(N_WEY, mbi.cnn3, mbi.cnn2, mbi.cnn1,
             (pmb->pmy_mesh->multilevel ?
              AthenaArray<Real>::DataStatus::allocated :
              AthenaArray<Real>::DataStatus::empty)),
+  ubvar(pmb, &storage.u, &coarse_u_, empty_flux),
   abvar(pmb, &storage.weyl, &coarse_a_, empty_flux)
 #if defined(Z4C_CX_ENABLED)
   ,rbvar(pmb, &storage.u, &coarse_u_, empty_flux)

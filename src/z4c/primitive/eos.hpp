@@ -284,7 +284,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
       return BaryonChemicalPotential(n, T*code_units->TemperatureConversion(*eos_units), Y) *
              eos_units->ChemicalPotentialConversion(*code_units);
     }
-    
+
      //! \fn Real GetChargeChemicalPotential(Real n, Real T, Real *Y)
     //  \brief Get the charge chemical potential from the number density, temperature,
     //         and particle fractions.
@@ -297,7 +297,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
       return ChargeChemicalPotential(n, T*code_units->TemperatureConversion(*eos_units), Y) *
              eos_units->ChemicalPotentialConversion(*code_units);
     }
-    
+
      //! \fn Real GetElectronLeptonChemicalPotential(Real n, Real T, Real *Y)
     //  \brief Get the electron-lepton chemical potential from the number density, temperature,
     //         and particle fractions.
@@ -476,7 +476,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \brief Find out if the EOSPolicy fails flooring the conserved variables.
     // 
     // \return true or false
-    inline const bool IsConservedFlooringFailure() const {
+    inline bool IsConservedFlooringFailure() const {
       return fail_conserved_floor;
     }
 
@@ -484,7 +484,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \brief Find out if the EOSPolicy fails flooring the primitive variables.
     //
     //  \return true or false
-    inline const bool IsPrimitiveFlooringFailure() const {
+    inline bool IsPrimitiveFlooringFailure() const {
       return fail_primitive_floor;
     }
 
@@ -493,7 +493,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //         adjusted to match the primitive variables.
     //  
     //  \return true or false
-    inline const bool KeepPrimAndConConsistent() const {
+    inline bool KeepPrimAndConConsistent() const {
       return adjust_conserved;
     }
 

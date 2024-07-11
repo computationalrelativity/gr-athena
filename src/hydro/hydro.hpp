@@ -83,8 +83,7 @@ class Hydro {
 
   void CalculateFluxes_FluxReconstruction(
     AthenaArray<Real> &w, FaceField &b,
-   AthenaArray<Real> &bcc, const int order);
-
+    AthenaArray<Real> &bcc, const int order);
 
   void CalculateFluxesRef(AthenaArray<Real> &w, FaceField &b,
                           AthenaArray<Real> &bcc, const int order);
