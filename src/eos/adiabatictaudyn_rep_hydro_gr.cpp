@@ -159,17 +159,6 @@ void EquationOfState::ConservedToPrimitive(
 
   int nn1;
 
-  // Debug:
-  if (false) {
-    pmb->pz4c->Z4cToADM(pmb->pz4c->storage.u, pmb->pz4c->storage.adm);
-    pmb->phydro->Hydro_IdealEoS_Cons2Prim(gamma_adi, cons, prim,
-                                          const_cast<AthenaArray<Real> &>(prim_old),
-                                          il, iu, jl, ju, kl, ku);
-    // const_cast<AthenaArray<Real> &>(prim_old) = prim;
-    return;
-  }
-
-
   if (coarse_flag)
   {
     pco_gr = static_cast<GRDynamical*>(pmb->pmr->pcoarsec);
@@ -449,14 +438,6 @@ void EquationOfState::PrimitiveToConserved(
   MeshBlock* pmb = pmy_block_;
   GRDynamical* pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
   Z4c * pz4c = pmb->pz4c;
-
-  // Debug:
-  if (false)
-  {
-    pmb->phydro->Hydro_IdealEoS_Prim2Cons(gamma_adi, prim, cons,
-                                          il, iu, jl, ju, kl, ku);
-    return;
-  }
 
   // Require only ADM 3-metric and no gauge.
   AT_N_sym sl_g_dd( pz4c->storage.adm, Z4c::I_ADM_gxx);

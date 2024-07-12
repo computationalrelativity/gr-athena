@@ -319,7 +319,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   chi_guarded.NewAthenaTensor(mbi.nn1);
   oopsi4.NewAthenaTensor(mbi.nn1);
   A.NewAthenaTensor(mbi.nn1);
-  AA.NewAthenaTensor(mbi.nn1);
+  trAA.NewAthenaTensor(mbi.nn1);
   R.NewAthenaTensor(mbi.nn1);
   Ht.NewAthenaTensor(mbi.nn1);
   K.NewAthenaTensor(mbi.nn1);
@@ -411,117 +411,8 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
 
 }
 
-// destructor
 Z4c::~Z4c()
 {
-  storage.u.DeleteAthenaArray();
-  storage.u1.DeleteAthenaArray();
-  storage.u2.DeleteAthenaArray();
-  storage.rhs.DeleteAthenaArray();
-  storage.adm.DeleteAthenaArray();
-  storage.con.DeleteAthenaArray();
-  storage.mat.DeleteAthenaArray();
-  storage.weyl.DeleteAthenaArray();
-  dt1_.DeleteAthenaArray();
-  dt2_.DeleteAthenaArray();
-  dt3_.DeleteAthenaArray();
-
-  r.DeleteAthenaTensor();
-  detg.DeleteAthenaTensor();
-  chi_guarded.DeleteAthenaTensor();
-  oopsi4.DeleteAthenaTensor();
-  A.DeleteAthenaTensor();
-  AA.DeleteAthenaTensor();
-  R.DeleteAthenaTensor();
-  Ht.DeleteAthenaTensor();
-  K.DeleteAthenaTensor();
-  KK.DeleteAthenaTensor();
-  Ddalpha.DeleteAthenaTensor();
-  S.DeleteAthenaTensor();
-  M_u.DeleteAthenaTensor();
-  Gamma_u.DeleteAthenaTensor();
-  DA_u.DeleteAthenaTensor();
-  s_u.DeleteAthenaTensor();
-  g_uu.DeleteAthenaTensor();
-  A_uu.DeleteAthenaTensor();
-  AA_dd.DeleteAthenaTensor();
-  R_dd.DeleteAthenaTensor();
-  Rphi_dd.DeleteAthenaTensor();
-  Kt_dd.DeleteAthenaTensor();
-  K_ud.DeleteAthenaTensor();
-  Ddalpha_dd.DeleteAthenaTensor();
-  Ddphi_dd.DeleteAthenaTensor();
-  Gamma_ddd.DeleteAthenaTensor();
-  Gamma_udd.DeleteAthenaTensor();
-  DK_ddd.DeleteAthenaTensor();
-  DK_udd.DeleteAthenaTensor();
-
-#if defined(Z4C_ETA_CONF) || defined(Z4C_ETA_TRACK_TP)
-  eta_damp.DeleteAthenaTensor();
-#endif // Z4C_ETA_CONF, Z4C_ETA_TRACK_TP
-
-  dbeta.DeleteAthenaTensor();
-  dalpha_d.DeleteAthenaTensor();
-  ddbeta_d.DeleteAthenaTensor();
-  dchi_d.DeleteAthenaTensor();
-  dphi_d.DeleteAthenaTensor();
-  dK_d.DeleteAthenaTensor();
-  dKhat_d.DeleteAthenaTensor();
-  dTheta_d.DeleteAthenaTensor();
-  ddalpha_dd.DeleteAthenaTensor();
-  dbeta_du.DeleteAthenaTensor();
-  ddchi_dd.DeleteAthenaTensor();
-  dGam_du.DeleteAthenaTensor();
-  dg_ddd.DeleteAthenaTensor();
-  dK_ddd.DeleteAthenaTensor();
-  dA_ddd.DeleteAthenaTensor();
-  ddbeta_ddu.DeleteAthenaTensor();
-  ddg_dddd.DeleteAthenaTensor();
-
-  Lchi.DeleteAthenaTensor();
-  LKhat.DeleteAthenaTensor();
-  LTheta.DeleteAthenaTensor();
-  Lalpha.DeleteAthenaTensor();
-  LGam_u.DeleteAthenaTensor();
-  Lbeta_u.DeleteAthenaTensor();
-  Lg_dd.DeleteAthenaTensor();
-  LA_dd.DeleteAthenaTensor();
-  uvec.DeleteAthenaTensor();
-  vvec.DeleteAthenaTensor();
-  wvec.DeleteAthenaTensor();
-  dotp1.DeleteAthenaTensor();
-  dotp2.DeleteAthenaTensor();
-  Riem3_dddd.DeleteAthenaTensor();
-  Riemm4_dddd.DeleteAthenaTensor();
-  Riemm4_ddd.DeleteAthenaTensor();
-  Riemm4_dd.DeleteAthenaTensor();
-
-  if (opt.sphere_zone_number > 0) {
-    opt.sphere_zone_levels.DeleteAthenaArray();
-    opt.sphere_zone_radii.DeleteAthenaArray();
-    opt.sphere_zone_puncture.DeleteAthenaArray();
-    opt.sphere_zone_center1.DeleteAthenaArray();
-    opt.sphere_zone_center2.DeleteAthenaArray();
-    opt.sphere_zone_center3.DeleteAthenaArray();
-  }
-
-  // To handle inter-grid interpolation ---------------------------------------
-  if (Z4C_ENABLED && FLUID_ENABLED)
-  {
-    w_rho.DeleteAthenaTensor();
-    w_p.DeleteAthenaTensor();
-    w_utilde_u.DeleteAthenaTensor();
-
-#if USETM
-    w_r.DeleteAthenaTensor();
-#endif
-
-#if MAGNETIC_FIELDS_ENABLED
-    bb.DeleteAthenaTensor();
-#endif
-
-  }
-
   delete pz4c_amr;
 }
 

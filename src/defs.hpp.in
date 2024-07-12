@@ -66,6 +66,8 @@
 #define @DBG_USE_CONS_BC@
 #define @DBG_USE_REFERENCE_TASKLISTS@
 
+// For N+1 NR problems, fix N
+#define NDIM 3
 //----------------------------------------------------------------------------------------
 // macros which define physics and algorithms
 

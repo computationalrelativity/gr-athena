@@ -593,7 +593,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
         pfield->b.x3f(k,j,i) = 0.5*(bzcc(k-1,j,i) + bzcc(k,j,i));
       }
 
-    pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord, il,iu,jl,ju,kl,ku);
+    pfield->CalculateCellCenteredField(pfield->b,
+                                       pfield->bcc,
+                                       pcoord,
+                                       il,iu,jl,ju,kl,ku);
+
+
   } // MAGNETIC_FIELDS_ENABLED
   //  -------------------------------------------------------------------------
 
@@ -637,7 +642,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   // Initialise conserved variables
 #if USETM
-  peos->PrimitiveToConserved(phydro->w, pscalars->r, pfield->bcc, phydro->u, pscalars->s, pcoord,
+  peos->PrimitiveToConserved(phydro->w,
+                             pscalars->r,
+                             pfield->bcc,
+                             phydro->u,
+                             pscalars->s,
+                             pcoord,
                              0, ncells1-1,
                              0, ncells2-1,
                              0, ncells3-1);
@@ -654,9 +664,16 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   // No magnetic field, pass dummy or fix with overload
   //  AthenaArray<Real> null_bb_cc;
 #if USETM
-  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pscalars->r, pfield->bcc);
+  pz4c->GetMatter(pz4c->storage.mat,
+                  pz4c->storage.adm,
+                  phydro->w,
+                  pscalars->r,
+                  pfield->bcc);
 #else
-  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pfield->bcc);
+  pz4c->GetMatter(pz4c->storage.mat,
+                  pz4c->storage.adm,
+                  phydro->w,
+                  pfield->bcc);
 #endif
 
   pz4c->ADMConstraints(pz4c->storage.con,

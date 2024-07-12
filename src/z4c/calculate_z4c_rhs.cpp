@@ -357,11 +357,11 @@ void Z4c::Z4cRHS(
         AA_dd(a,b,i) += g_uu(c,d,i) * z4c.A_dd(a,c,k,j,i) * z4c.A_dd(d,b,k,j,i);
       }
     }
-    AA.ZeroClear();
+    trAA.ZeroClear();
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
       ILOOP1(i) {
-        AA(i) += g_uu(a,b,i) * AA_dd(a,b,i);
+        trAA(i) += g_uu(a,b,i) * AA_dd(a,b,i);
       }
     }
     A_uu.ZeroClear();
@@ -404,7 +404,7 @@ void Z4c::Z4cRHS(
     // Hamiltonian constraint
     //
     ILOOP1(i) {
-      Ht(i) = R(i) + (2./3.)*SQR(K(i)) - AA(i);
+      Ht(i) = R(i) + (2./3.)*SQR(K(i)) - trAA(i);
     }
 
     // -----------------------------------------------------------------------------------
@@ -467,7 +467,7 @@ void Z4c::Z4cRHS(
 
     // Khat, chi, and Theta
     ILOOP1(i) {
-      rhs.Khat(k,j,i) = - Ddalpha(i) + z4c.alpha(k,j,i) * (AA(i) + (1./3.)*SQR(K(i))) +
+      rhs.Khat(k,j,i) = - Ddalpha(i) + z4c.alpha(k,j,i) * (trAA(i) + (1./3.)*SQR(K(i))) +
         LKhat(i) + opt.damp_kappa1*(1 - opt.damp_kappa2) * z4c.alpha(k,j,i) * z4c.Theta(k,j,i);
       rhs.Khat(k,j,i) += 4*M_PI * z4c.alpha(k,j,i) * (S(i) + mat.rho(k,j,i));
       rhs.chi(k,j,i) = Lchi(i) - (1./6.) * opt.chi_psi_power *
@@ -802,20 +802,6 @@ void Z4c::Z4cSommerfeld_(AthenaArray<Real> & u, AthenaArray<Real> & u_rhs,
 // Debug EOM ------------------------------------------------------------------
 // H&R 2018
 #ifdef DBG_EOM
-// For readability
-typedef AthenaArray< Real>                            AA;
-typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> AT_N_sca;
-typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> AT_N_vec;
-typedef AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> AT_N_sym;
-
-// derivatives
-typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> AT_N_D1sca;
-typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> AT_N_D1vec;
-typedef AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> AT_N_D1sym;
-
-typedef AthenaTensor<Real, TensorSymm::SYM2,  NDIM, 2> AT_N_d2sca;
-typedef AthenaTensor<Real, TensorSymm::ISYM2, NDIM, 3> AT_N_d2vec;
-typedef AthenaTensor<Real, TensorSymm::SYM22, NDIM, 4> AT_N_d2sym;
 
 void Z4c::Z4cRHS(AthenaArray<Real> & u,
                  AthenaArray<Real> & u_mat,
@@ -889,8 +875,8 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u,
   // contracted
   AT_N_sca z4c_dbeta_(mbi.nn1);
 
-  AT_N_D1vec z4c_dbeta_du_(    mbi.nn1);
-  AT_N_D1vec z4c_dGammatil_du_(mbi.nn1);
+  AT_N_T2 z4c_dbeta_du_(    mbi.nn1);
+  AT_N_T2 z4c_dGammatil_du_(mbi.nn1);
 
   AT_N_D1sym z4c_dgammatil_ddd_(mbi.nn1);
   AT_N_D1sym z4c_dAtil_ddd_(    mbi.nn1);

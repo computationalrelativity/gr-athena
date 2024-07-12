@@ -4,7 +4,6 @@
 // Athena++ headers
 #include "z4c.hpp"
 #include "z4c_macro.hpp"
-#include "../athena.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
 #include "../eos/eos.hpp"
@@ -12,27 +11,25 @@
 #include "../scalars/scalars.hpp"
 #include "../utils/linear_algebra.hpp"
 
-#include "../utils/interp_intergrid.hpp" //SB FIXME imported from matter_tracker_extrema
+using namespace gra::aliases;
 
 // ----------------------------------------------------------------------------
 // Prepare mat.rho, mat.S_d, and mat.S_dd
-void Z4c::GetMatter(
-  AthenaArray<Real> & u_mat,
-  AthenaArray<Real> & u_adm,
-  AthenaArray<Real> & w,
 #if USETM
-  AthenaArray<Real> & r,
+void Z4c::GetMatter(
+  ::AA & u_mat,
+  ::AA & u_adm,
+  ::AA & w,
+  ::AA & r,
+  ::AA & bb_cc)
+#else
+void Z4c::GetMatter(::AA & u_mat, ::AA & u_adm, ::AA & w, ::AA & bb_cc)
 #endif
-  AthenaArray<Real> & bb_cc)
 {
+
 #if defined(Z4C_WITH_HYDRO_ENABLED)
 
   using namespace LinearAlgebra;
-  typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> AT_N_sca;
-  typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> AT_N_vec;
-#if USETM
-  typedef AthenaTensor<Real, TensorSymm::NONE, NSCALARS, 1> AT_S_vec;
-#endif
 
   MeshBlock * pmb = pmy_block;
   Hydro * phydro = pmb->phydro;

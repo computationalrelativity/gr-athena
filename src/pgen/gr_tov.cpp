@@ -352,6 +352,68 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                              0, ncells2-1,
                              0, ncells3-1);
 
+
+  // --------------------------------------------------------------------------
+  // If matter fields are correctly prepared then c2p & p2c should be
+  // idempotent within some error tolerance.
+  bool check_c2p_idempotent = pin->GetOrAddBoolean(
+    "problem", "check_c2p_idempotent", true);
+  if (check_c2p_idempotent)
+  {
+    AthenaArray<Real> id_w(NHYDRO,   ncells3, ncells2, ncells1);
+    AthenaArray<Real> id_r(NSCALARS, ncells3, ncells2, ncells1);
+
+    peos->ConservedToPrimitive(phydro->u,
+                               id_w,
+                               pfield->b,
+                               id_w,
+#if USETM
+                               pscalars->s,
+                               id_r,
+#endif
+                               pfield->bcc,
+                               pcoord,
+                               0, ncells1-1,
+                               0, ncells2-1,
+                               0, ncells3-1, 0);
+
+    Real w_err = -std::numeric_limits<Real>::infinity();
+    Real r_err = -std::numeric_limits<Real>::infinity();
+
+    for (int n=0; n<NHYDRO;  ++n)
+    for (int k=0; k<ncells3; ++k)
+    for (int j=0; j<ncells2; ++j)
+    for (int i=0; i<ncells1; ++i)
+    {
+      w_err = std::max(w_err, std::abs(id_w(n,k,j,i) -
+                                       phydro->w(n,k,j,i)));
+    }
+
+    for (int n=0; n<NSCALARS;  ++n)
+    for (int k=0; k<ncells3; ++k)
+    for (int j=0; j<ncells2; ++j)
+    for (int i=0; i<ncells1; ++i)
+    {
+      r_err = std::max(r_err, std::abs(id_r(n,k,j,i) -
+                                       pscalars->r(n,k,j,i)));
+    }
+
+    #pragma omp critical
+    {
+      std::cout << std::setprecision(8);
+      if (NSCALARS > 0)
+      {
+        std::cout << "w,r_err: " << w_err << "," << r_err << "\n";
+      }
+      else
+      {
+        std::cout << "w_err: " << w_err << "\n";
+      }
+    }
+  }
+  // --------------------------------------------------------------------------
+
+
   // Initialise matter (also taken care of in task-list)
   pz4c->GetMatter(pz4c->storage.mat,
                   pz4c->storage.adm,
