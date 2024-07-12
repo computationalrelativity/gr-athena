@@ -6,24 +6,13 @@
 // C++ headers
 
 // Athena++ headers
-#include "../athena.hpp"
-#include "../athena_tensor.hpp"
+#include "../athena_aliases.hpp"
 #include "../utils/linear_algebra.hpp"
 #include "hydro.hpp"
 
-namespace {
-// for readability
-const int D = NDIM + 1;
-const int N = NDIM;
-
-typedef AthenaArray< Real>                         AA;
-typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
-typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
-typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
-
-// For fluid-variable vector
-typedef AthenaTensor<Real, TensorSymm::NONE, NHYDRO, 1> AT_F_vec;
-}
+//----------------------------------------------------------------------------------------
+using namespace gra::aliases;
+//----------------------------------------------------------------------------------------
 
 namespace fluxes {
 

@@ -38,7 +38,9 @@
 #include "../utils/floating_point.hpp"
 #endif // DBG_SYMMETRIZE_FD
 
+//----------------------------------------------------------------------------------------
 using namespace gra::aliases;
+//----------------------------------------------------------------------------------------
 
 class MeshBlock;
 class ParameterInput;

@@ -17,27 +17,14 @@
 #include "../../../z4c/z4c.hpp"
 #include "../../../utils/linear_algebra.hpp"
 #include "../../../utils/interp_intergrid.hpp"
-#include "../../../athena.hpp"                   // enums, macros
-#include "../../../athena_arrays.hpp"            // AthenaArray
+#include "../../../athena_aliases.hpp"
 #include "../../../coordinates/coordinates.hpp"  // Coordinates
 #include "../../../eos/eos.hpp"                  // EquationOfState
 #include "../../../mesh/mesh.hpp"                // MeshBlock
 
-
-namespace {
-// for readability
-const int D = NDIM + 1;
-const int N = NDIM;
-
-typedef AthenaArray< Real>                         AA;
-typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
-typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
-typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
-
-// For fluid-variable vector
-typedef AthenaTensor<Real, TensorSymm::NONE, NHYDRO, 1> AT_F_vec;
-
-}
+//----------------------------------------------------------------------------------------
+using namespace gra::aliases;
+//----------------------------------------------------------------------------------------
 
 //----------------------------------------------------------------------------------------
 // Riemann solver
@@ -125,11 +112,11 @@ void Hydro::RiemannSolver(
   AT_N_sca w_hrho_r_(iu+1);
 
   // prim / cons shaped scratches
-  AT_F_vec cons_l_(iu+1);
-  AT_F_vec cons_r_(iu+1);
+  AT_H_vec cons_l_(iu+1);
+  AT_H_vec cons_r_(iu+1);
 
-  AT_F_vec flux_l_(iu+1);
-  AT_F_vec flux_r_(iu+1);
+  AT_H_vec flux_l_(iu+1);
+  AT_H_vec flux_r_(iu+1);
 
   // 1d slices ----------------------------------------------------------------
   AT_N_sca w_rho_l_(prim_l, IDN);

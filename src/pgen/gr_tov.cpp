@@ -21,8 +21,7 @@
 #include <string>     // string
 
 // Athena++ headers
-#include "../athena.hpp"                   // macros, enums, FaceField
-#include "../athena_arrays.hpp"            // AthenaArray
+#include "../athena_aliases.hpp"
 #include "../bvals/bvals.hpp"              // BoundaryValues
 #include "../coordinates/coordinates.hpp"  // Coordinates
 #include "../eos/eos.hpp"                  // EquationOfState
@@ -35,6 +34,10 @@
 #include "../parameter_input.hpp"          // ParameterInput
 #include "../utils/linear_algebra.hpp"
 #include "../scalars/scalars.hpp"
+
+//----------------------------------------------------------------------------------------
+using namespace gra::aliases;
+//----------------------------------------------------------------------------------------
 
 // If we are using a tabulated EoS then we need to set this flag, 
 // otherwise we use a polytrope
@@ -981,20 +984,6 @@ void TOV_populate(MeshBlock *pmb,
   // container with idx / grids pertaining z4c
   MB_info* mbi = &(pz4c->mbi);
 
-  // for readability
-  const int D = NDIM + 1;
-  const int N = NDIM;
-
-  typedef AthenaArray< Real>                         AA;
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
-  typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
-  typedef AthenaTensor<Real, TensorSymm::SYM2, D, 2> AT_D_sym;
-  typedef AthenaTensor<Real, TensorSymm::NONE, D, 1> AT_D_vec;
-
-  // ambient metric derivative
-  typedef AthenaTensor<Real, TensorSymm::SYM2, D, 3> AT_D_Dsym;
-
   // set up center / boost
   AA x_0(3), v_b(3);
 
@@ -1050,9 +1039,9 @@ void TOV_populate(MeshBlock *pmb,
   AT_N_sca drpsi4_(Nx1);    // radial cpt.
   AT_N_vec d1psi4_(Nx1);    // Cart. cpts.
 
-  AT_D_Dsym st_dg_ddd_(   Nx1);  // metric deriv.
-  AT_D_Dsym st_Gamma_ddd_(Nx1);  // Christoffel
-  AT_D_Dsym st_Gamma_udd_(Nx1);
+  AT_D_VS2 st_dg_ddd_(   Nx1);  // metric deriv.
+  AT_D_VS2 st_Gamma_ddd_(Nx1);  // Christoffel
+  AT_D_VS2 st_Gamma_udd_(Nx1);
 
   // geometric: transformed to (p)rimed
   // AT_N_sca alphap_(    Nx1);
@@ -1064,7 +1053,7 @@ void TOV_populate(MeshBlock *pmb,
   AT_N_vec sp_betap_u_(Nx1);
   AT_N_vec sp_betap_d_(Nx1);
 
-  AT_D_Dsym st_Gammap_udd_(Nx1);  // transformed Christoffel
+  AT_D_VS2 st_Gammap_udd_(Nx1);  // transformed Christoffel
 
   // matter
   AT_N_sca w_rho_(   Nx1);

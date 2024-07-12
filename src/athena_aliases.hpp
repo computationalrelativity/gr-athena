@@ -32,20 +32,19 @@ typedef AthenaTensor<Real, TensorSymm::NONE,  N, 2> AT_N_T2;
 typedef AthenaTensor<Real, TensorSymm::SYM2,  N, 3> AT_N_VS2;
 typedef AthenaTensor<Real, TensorSymm::ISYM2, N, 3> AT_N_S2V;
 
-
-// scalar field derivatives
-//typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_D1sca;
-
-// vector field derivatives
-//typedef AthenaTensor<Real, TensorSymm::NONE, N, 2> AT_N_D1vec;
-
-// symmetric tensor derivatives
-//typedef AthenaTensor<Real, TensorSymm::SYM2, N, 3> AT_N_D1sym;
+typedef AthenaTensor<Real, TensorSymm::SYM2,  N, 4> AT_N_T2S2;
+typedef AthenaTensor<Real, TensorSymm::SYM22, N, 4> AT_N_S2S2;
 
 // For hydro-variable vector
 typedef AthenaTensor<Real, TensorSymm::NONE, NHYDRO,   1> AT_H_vec;
 // For passive scalars
 typedef AthenaTensor<Real, TensorSymm::NONE, NSCALARS, 1> AT_S_vec;
+
+// Ambient quantities
+typedef AthenaTensor<Real, TensorSymm::NONE, D, 1> AT_D_vec;
+typedef AthenaTensor<Real, TensorSymm::SYM2, D, 2> AT_D_sym;
+typedef AthenaTensor<Real, TensorSymm::SYM2, D, 3> AT_D_VS2;
+
 
 // Looping constructs ---------------------------------------------------------
 // BD: TODO - put here

@@ -16,29 +16,16 @@
 #include "../../../z4c/z4c.hpp"
 #include "../../../utils/linear_algebra.hpp"
 #include "../../../utils/interp_intergrid.hpp"
-#include "../../../athena.hpp"                   // enums, macros
-#include "../../../athena_arrays.hpp"            // AthenaArray
+#include "../../../athena_aliases.hpp"
 #include "../../../coordinates/coordinates.hpp"  // Coordinates
 #include "../../../eos/eos.hpp"                  // EquationOfState
 #include "../../../mesh/mesh.hpp"                // MeshBlock
 
-
 #include "../../../z4c/ahf.hpp"
 
-namespace {
-// for readability
-const int D = NDIM + 1;
-const int N = NDIM;
-
-typedef AthenaArray< Real>                         AA;
-typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
-typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
-typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
-
-// For fluid-variable vector
-typedef AthenaTensor<Real, TensorSymm::NONE, NHYDRO, 1> AT_F_vec;
-
-}
+//----------------------------------------------------------------------------------------
+using namespace gra::aliases;
+//----------------------------------------------------------------------------------------
 
 //----------------------------------------------------------------------------------------
 // Riemann solver

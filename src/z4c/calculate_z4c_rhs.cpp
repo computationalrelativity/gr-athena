@@ -52,14 +52,9 @@ void Z4c::Z4cRHS(
 #if defined(Z4C_ETA_CONF)
   int nn1 = pz4c->mbi.nn1;
   // 1/psi^2 (guarded); derivative and shift eta scratch
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> oopsi2;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> doopsi2_d;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> shift_eta_spa;
-
-  oopsi2.NewAthenaTensor(nn1);
-  doopsi2_d.NewAthenaTensor(nn1);
-  shift_eta_spa.NewAthenaTensor(nn1);
-
+  AT_N_sca oopsi2(nn1);
+  AT_N_vec doopsi2_d(nn1);
+  AT_N_sca shift_eta_spa(nn1);
 #elif defined(Z4C_ETA_TRACK_TP)
 
 #endif // Z4C_ETA_CONF, Z4C_ETA_TRACK_TP
@@ -867,10 +862,10 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u,
   AT_N_sym adm_gamma_uu_(mbi.nn1);
 
   // derivatives
-  AT_N_D1sca z4c_dalpha_d_(mbi.nn1);
-  AT_N_D1sca z4c_dchi_d_(  mbi.nn1);
-  AT_N_D1sca z4c_dKhat_d_( mbi.nn1);
-  AT_N_D1sca z4c_dTheta_d_(mbi.nn1);
+  AT_N_vec z4c_dalpha_d_(mbi.nn1);
+  AT_N_vec z4c_dchi_d_(  mbi.nn1);
+  AT_N_vec z4c_dKhat_d_( mbi.nn1);
+  AT_N_vec z4c_dTheta_d_(mbi.nn1);
 
   // contracted
   AT_N_sca z4c_dbeta_(mbi.nn1);
@@ -878,15 +873,15 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u,
   AT_N_T2 z4c_dbeta_du_(    mbi.nn1);
   AT_N_T2 z4c_dGammatil_du_(mbi.nn1);
 
-  AT_N_D1sym z4c_dgammatil_ddd_(mbi.nn1);
-  AT_N_D1sym z4c_dAtil_ddd_(    mbi.nn1);
+  AT_N_VS2 z4c_dgammatil_ddd_(mbi.nn1);
+  AT_N_VS2 z4c_dAtil_ddd_(    mbi.nn1);
 
-  AT_N_d2sca z4c_ddalpha_dd_( mbi.nn1);
-  AT_N_d2sca z4c_ddchi_dd_(   mbi.nn1);
+  AT_N_sym z4c_ddalpha_dd_( mbi.nn1);
+  AT_N_sym z4c_ddchi_dd_(   mbi.nn1);
 
-  AT_N_d2vec z4c_ddbeta_ddu_(mbi.nn1);
+  AT_N_S2V z4c_ddbeta_ddu_(mbi.nn1);
 
-  AT_N_d2sym z4c_ddgammatil_dddd_(mbi.nn1);
+  AT_N_S2S2 z4c_ddgammatil_dddd_(mbi.nn1);
 
   // derivatives (advective)
   AT_N_sca z4c_Lalpha_(mbi.nn1);
@@ -901,11 +896,11 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u,
   AT_N_sym z4c_LAtil_dd_(    mbi.nn1);
 
   // Christoffels
-  AT_N_D1sym z4c_Gammatil_ddd_(mbi.nn1);
-  AT_N_D1sym z4c_Gammatil_udd_(mbi.nn1);
+  AT_N_VS2 z4c_Gammatil_ddd_(mbi.nn1);
+  AT_N_VS2 z4c_Gammatil_udd_(mbi.nn1);
 
   // Difference between connections
-  AT_N_D1sym z4c_GammaDDtil_udd_(mbi.nn1);
+  AT_N_VS2 z4c_GammaDDtil_udd_(mbi.nn1);
 
   // 1st covariants contracted
   AT_N_sca z4c_Dbeta_(mbi.nn1);
@@ -916,7 +911,7 @@ void Z4c::Z4cRHS(AthenaArray<Real> & u,
   AT_N_sym z4c_DtilDtilchi_dd_(mbi.nn1);
 
   // debug
-  AT_N_D1sca dphi_d(    mbi.nn1);
+  AT_N_vec dphi_d(    mbi.nn1);
 
 
   const int il = mbi.il;

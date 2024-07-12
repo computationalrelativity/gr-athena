@@ -310,15 +310,22 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
 //   single-cell function exists for other purposes; call made to that function rather
 //       than having duplicate code
 
-void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim, AthenaArray<Real> &prim_scalar,
-     AthenaArray<Real> &bb_cc, AthenaArray<Real> &cons, AthenaArray<Real> &cons_scalar, Coordinates *pco, int il,
-     int iu, int jl, int ju, int kl, int ku) {
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> full_gamma_dd;
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
+void EquationOfState::PrimitiveToConserved(
+  AthenaArray<Real> &prim,
+  AthenaArray<Real> &prim_scalar,
+  AthenaArray<Real> &bb_cc,
+  AthenaArray<Real> &cons,
+  AthenaArray<Real> &cons_scalar,
+  Coordinates *pco,
+  int il, int iu,
+  int jl, int ju,
+  int kl, int ku)
+{
+
   GRDynamical* pco_gr = static_cast<GRDynamical*>(pmy_block_->pcoord);
 
-  full_gamma_dd.InitWithShallowSlice(pmy_block_->pz4c->storage.adm, Z4c::I_ADM_gxx);
-  gamma_dd.NewAthenaTensor(pmy_block_->nverts1);
+  AT_N_sym gamma_dd(pmy_block_->nverts1);
+  AT_N_sym full_gamma_dd(pmy_block_->pz4c->storage.adm, Z4c::I_ADM_gxx);
 
   // sanitize loop limits
   int IL, IU, JL, JU, KL, KU;
@@ -341,13 +348,18 @@ void EquationOfState::PrimitiveToConserved(AthenaArray<Real> &prim, AthenaArray<
     for (int j=JL; j<=JU; ++j) {
       pco_gr->GetGeometricFieldCC(gamma_dd, full_gamma_dd, k, j);
       // Calculate the conserved variables at every point.
-      for (int i=IL; i<=IU; ++i) {
-        PrimitiveToConservedSingle(prim, prim_scalar, gamma_dd, k, j, i, cons, cons_scalar, ps);
+      for (int i=IL; i<=IU; ++i)
+      {
+        PrimitiveToConservedSingle(prim,
+                                   prim_scalar,
+                                   gamma_dd,
+                                   k, j, i,
+                                   cons,
+                                   cons_scalar,
+                                   ps);
       }
     }
   }
-
-  gamma_dd.DeleteAthenaTensor();
 }
 
 //----------------------------------------------------------------------------------------
@@ -446,20 +458,6 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real
       prim_scalar(n,k,j,i) = prim_pt[IYF + n];
     }
   }
-}
-
-void EquationOfState::ForcePrimitiveFloor(AthenaArray<Real> &prim, int k, int j, int i)
-{
-  // Not implemented!
-  abort();
-
-  return;
-}
-
-bool EquationOfState::RequirePrimitiveFloor(
-  const AthenaArray<Real> &prim, int k, int j, int i)
-{
-  return false;
 }
 
 //----------------------------------------------------------------------------------------

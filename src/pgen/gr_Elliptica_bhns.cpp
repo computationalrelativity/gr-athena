@@ -12,9 +12,7 @@
 #include <iostream>
 
 // Athena++ headers
-#include "../athena.hpp"
-#include "../athena_arrays.hpp"
-#include "../athena_tensor.hpp"
+#include "../athena_aliases.hpp"
 #include "../parameter_input.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../z4c/z4c.hpp"
@@ -28,6 +26,10 @@
 #include "../utils/linear_algebra.hpp"
 #include "../utils/utils.hpp"
 #include "elliptica_id_reader_lib.h"
+
+//----------------------------------------------------------------------------------------
+using namespace gra::aliases;
+//----------------------------------------------------------------------------------------
 
 namespace {
   int RefinementCondition(MeshBlock *pmb);
@@ -112,12 +114,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   // container with idx / grids pertaining z4c
   MB_info* mbi = &(pz4c->mbi);
-
-  const int N = NDIM;
-
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
-  typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
 
   // --------------------------------------------------------------------------
   // Set some aliases for the variables.
@@ -576,13 +572,6 @@ Real max_rho(MeshBlock *pmb, int iout)
 
 Real min_alpha(MeshBlock *pmb, int iout)
 {
-
-  const int N = NDIM;
-
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
-  typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
-
   // --------------------------------------------------------------------------
   // Set some aliases for the variables.
   AT_N_sca alpha(pmb->pz4c->storage.u, Z4c::I_Z4c_alpha);
@@ -604,13 +593,6 @@ Real min_alpha(MeshBlock *pmb, int iout)
 
 Real max_abs_con_H(MeshBlock *pmb, int iout)
 {
-
-  const int N = NDIM;
-
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
-  typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
-
   // --------------------------------------------------------------------------
   // Set some aliases for the variables.
   AT_N_sca con_H(pmb->pz4c->storage.con, Z4c::I_CON_H);

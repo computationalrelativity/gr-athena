@@ -586,7 +586,7 @@ typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> AT_N_vec;
 typedef AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> AT_N_sym;
 
 // symmetric tensor derivatives
-typedef AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> AT_N_D1sym;
+typedef AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> AT_N_VS2;
 
 // Need to populate
 // Z4c: chi, g_dd, Khat, A_dd, Gam_u (i.e. Gamtil_U), Theta (take as 0)
@@ -623,7 +623,7 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
   AT_N_sym z4c_gammatil_uu_(mbi.nn1);
 
   // derivatives
-  AT_N_D1sym z4c_dgammatil_ddd_(mbi.nn1);
+  AT_N_VS2 z4c_dgammatil_ddd_(mbi.nn1);
 
   const int il = 0;
   const int iu = mbi.nn1-1;
