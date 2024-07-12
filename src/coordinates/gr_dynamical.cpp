@@ -503,7 +503,8 @@ void GRDynamical::_AddCoordTermsDivergence(
   AT_N_sca sl_w_p(     const_cast<AthenaArray<Real>&>(prim), IPR);
   AT_N_vec sl_w_util_u(const_cast<AthenaArray<Real>&>(prim), IVX);
 #if NSCALARS > 0
-  AT_N_vec sl_scalars_r(const_cast<AthenaArray<Real>&>(prim_scalar), 0);
+  AT_N_vec sl_scalars_r;
+  // AT_N_vec sl_scalars_r(const_cast<AthenaArray<Real>&>(prim_scalar), 0);
 #endif
 
   // Scratch for matter sampling
