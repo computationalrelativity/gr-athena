@@ -13,10 +13,13 @@
 // C++ headers
 #include <csignal>   // sigset_t POSIX C extension
 #include <cstdint>   // std::int64_t
+#include <iostream>
 
 // Athena++ headers
 
 void ChangeRunDir(const char *pdir);
+void GetRunDir(std::string &scwd);
+
 double ran2(std::int64_t *idum);
 void ShowConfig();
 
