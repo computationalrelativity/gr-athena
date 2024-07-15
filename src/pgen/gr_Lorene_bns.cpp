@@ -103,8 +103,35 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   ReadLoreneFractions(LORENE_EoS_fname_Y, LORENE_EoS_Table);
 #endif
   ConvertLoreneTable(LORENE_EoS_Table);
-  LORENE_EoS_Table->rho_atm = pin->GetReal("hydro", "dfloor"); 
+  LORENE_EoS_Table->rho_atm = pin->GetReal("hydro", "dfloor");
 #endif
+
+  // BD: TODO - remove once "GRAND INTERFACE" is complete.
+  const bool have_fn_eos = pin->DoesParameterExist("problem", "filename_eos");
+  if (have_fn_eos)
+  {
+
+    if (Globals::my_rank == 0)
+    {
+      std::string filename_eos = pin->GetString("problem", "filename_eos");
+      std::string run_dir;
+
+      if (file_exists(filename_eos.c_str()))
+      {
+        GetRunDir(run_dir);
+        file_copy(filename_eos, run_dir);
+      }
+      else
+      {
+        std::stringstream msg;
+        msg << "### FATAL ERROR problem/filename_eos: "
+            << filename_eos << " "
+            << " could not be accessed.";
+        ATHENA_ERROR(msg);
+        std::exit(0);
+      }
+    }
+  }
 
   return;
 }

@@ -26,6 +26,7 @@ void ShowConfig();
 // Check if file exists
 bool file_exists(const char *fname);
 
+void file_copy(const std::string &from, const std::string &to);
 //----------------------------------------------------------------------------------------
 //! SignalHandler
 //  \brief static data and functions that implement a simple signal handling system
