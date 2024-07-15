@@ -11,6 +11,7 @@
 #include <unistd.h>    // access()
 
 // C++ headers
+#include <filesystem>
 
 // Athena++ headers
 // #include "../defs.hpp"
@@ -41,4 +42,11 @@ bool file_exists(const char *fname)
   return 1;
 #endif
 
+}
+
+void file_copy(const std::string &from, const std::string &to)
+{
+  const auto copyOptions = std::filesystem::copy_options::update_existing;
+
+  std::filesystem::copy(from, to, copyOptions);
 }

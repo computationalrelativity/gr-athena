@@ -14,11 +14,14 @@
 #include "../../hydro.hpp"
 #include "../../../z4c/z4c.hpp"
 #include "../../../utils/interp_intergrid.hpp"
-#include "../../../athena.hpp"                   // enums, macros
-#include "../../../athena_arrays.hpp"            // AthenaArray
+#include "../../../athena_aliases.hpp"
 #include "../../../coordinates/coordinates.hpp"  // Coordinates
 #include "../../../eos/eos.hpp"                  // EquationOfState
 #include "../../../mesh/mesh.hpp"                // MeshBlock
+
+//----------------------------------------------------------------------------------------
+using namespace gra::aliases;
+//----------------------------------------------------------------------------------------
 
 //----------------------------------------------------------------------------------------
 // Riemann solver
@@ -82,15 +85,6 @@ void Hydro::RiemannSolver(const int k, const int j, const int il, const int iu,
 
   // perform variable resampling when required
   Z4c * pz4c = pmy_block->pz4c;
-
-  const int D = NDIM + 1;
-  const int N = NDIM;
-
-  typedef AthenaArray< Real>                         AA;
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
-  typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 2> AT_N_mat;
 
   // Slice z4c metric quantities  (NDIM=3 in z4c.hpp)
   AT_N_sym sl_g_dd(  pz4c->storage.adm, Z4c::I_ADM_gxx);

@@ -13,8 +13,7 @@
 #include <cmath>  // sqrt()
 
 // Athena++ headers
-#include "../athena.hpp"
-#include "../athena_arrays.hpp"
+#include "../athena_aliases.hpp"
 #include "../eos/eos.hpp"
 #include "../mesh/mesh.hpp"
 #include "../hydro/hydro.hpp"
@@ -25,28 +24,8 @@
 #include "../utils/linear_algebra.hpp"
 
 //----------------------------------------------------------------------------------------
-namespace {
-// for readability
-const int D = NDIM + 1;
-const int N = NDIM;
-
-typedef AthenaArray< Real>                         AA;
-typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
-typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
-typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
-
-// scalar field derivatives
-typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_D1sca;
-
-// vector field derivatives
-typedef AthenaTensor<Real, TensorSymm::NONE, N, 2> AT_N_D1vec;
-
-// symmetric tensor derivatives
-typedef AthenaTensor<Real, TensorSymm::SYM2, N, 3> AT_N_D1sym;
-
-// For fluid-variable vector
-typedef AthenaTensor<Real, TensorSymm::NONE, NHYDRO, 1> AT_F_vec;
-}
+using namespace gra::aliases;
+//----------------------------------------------------------------------------------------
 
 //SB TODO this needs a cleanup
 #define CLOOP1(i)				\
@@ -467,20 +446,6 @@ void GRDynamical::_AddCoordTermsDivergence(
 
   MeshBlock * pmb = pmy_block;
 
-  // NDIM=3 in z4c.hpp
-  typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> AT_N_sca;
-  typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> AT_N_vec;
-  typedef AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> AT_N_sym;
-
-  // scalar derivs.
-  typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> AT_N_D1sca;
-
-  // vector derivs.
-  typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> AT_N_D1vec;
-
-  // symmetric tensor derivatives
-  typedef AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> AT_N_D1sym;
-
   const int il = pmb->is, iu = pmb->ie;
   const int jl = pmb->js, ju = pmb->je;
   const int kl = pmb->ks, ku = pmb->ke;
@@ -503,7 +468,8 @@ void GRDynamical::_AddCoordTermsDivergence(
   AT_N_sca sl_w_p(     const_cast<AthenaArray<Real>&>(prim), IPR);
   AT_N_vec sl_w_util_u(const_cast<AthenaArray<Real>&>(prim), IVX);
 #if NSCALARS > 0
-  AT_N_vec sl_scalars_r(const_cast<AthenaArray<Real>&>(prim_scalar), 0);
+  AT_N_vec sl_scalars_r;
+  // AT_N_vec sl_scalars_r(const_cast<AthenaArray<Real>&>(prim_scalar), 0);
 #endif
 
   // Scratch for matter sampling
@@ -525,15 +491,15 @@ void GRDynamical::_AddCoordTermsDivergence(
   AT_N_sym ms_adm_gamma_uu_(ms_nn1); // gamma^{ij}
   AT_N_sym ms_adm_K_dd_(    ms_nn1); // K_{ij}
 
-  AT_N_D1sym ms_Gamma_ddd_(ms_nn1);  // Christoffel symbols of 1st kind
-  AT_N_D1sym ms_Gamma_udd_(ms_nn1);  // Christoffel symbols of 2nd kind
-  AT_N_vec   ms_Gamma_d_(  ms_nn1);    // contracted Christoffel
+  AT_N_VS2 ms_Gamma_ddd_(ms_nn1);  // Christoffel symbols of 1st kind
+  AT_N_VS2 ms_Gamma_udd_(ms_nn1);  // Christoffel symbols of 2nd kind
+  AT_N_vec ms_Gamma_d_(  ms_nn1);    // contracted Christoffel
 
 
   // Derivative scratch
-  AT_N_D1sca ms_dalpha_d_(      ms_nn1); // pd_i alpha
-  AT_N_D1vec ms_dbeta_du_(      ms_nn1); // pd_i beta^j
-  AT_N_D1sym ms_adm_dgamma_ddd_(ms_nn1); // pd_i gamma_{jk}
+  AT_N_vec ms_dalpha_d_(      ms_nn1); // pd_i alpha
+  AT_N_T2  ms_dbeta_du_(      ms_nn1); // pd_i beta^j
+  AT_N_VS2 ms_adm_dgamma_ddd_(ms_nn1); // pd_i gamma_{jk}
 
   // Source terms
   AT_N_sca ms_S_tau_(ms_nn1);
@@ -807,9 +773,9 @@ void GRDynamical::AddCoordTermsDivergence(
   AT_N_sym gamma_uu(nn1);
   AT_N_sym K_dd(nn1);
 
-  AT_N_D1vec dbeta_du(nn1);    // pd_i beta^j
+  AT_N_T2  dbeta_du(nn1);    // pd_i beta^j
 
-  AT_N_D1sym dgamma_ddd(nn1);  // pd_i gamma_{jk}
+  AT_N_VS2 dgamma_ddd(nn1);  // pd_i gamma_{jk}
 
   // ----------------------------------------------------------------------------
   AT_N_sca b0_u, bsq, u0, T00;

@@ -14,8 +14,7 @@
 
 // Athena++ headers
 #include "eos.hpp"
-#include "../athena.hpp"                   // enums, macros
-#include "../athena_arrays.hpp"            // AthenaArray
+#include "../athena_aliases.hpp"
 #include "../parameter_input.hpp"          // ParameterInput
 #include "../coordinates/coordinates.hpp"  // Coordinates
 #include "../field/field.hpp"              // FaceField
@@ -37,17 +36,11 @@
 #include "reprimand/smtensor.h"
 #include "reprimand/unitconv.h"
 
-
+//----------------------------------------------------------------------------------------
+using namespace gra::aliases;
+//----------------------------------------------------------------------------------------
 
 namespace {
-
-// for readability
-const int D = NDIM + 1;
-const int N = NDIM;
-
-typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
-typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
-typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
 
 // Declarations
 inline static void PrimitiveToConservedSingle(
@@ -158,17 +151,6 @@ void EquationOfState::ConservedToPrimitive(
   Hydro* phydro = pmb->phydro;
 
   int nn1;
-
-  // Debug:
-  if (false) {
-    pmb->pz4c->Z4cToADM(pmb->pz4c->storage.u, pmb->pz4c->storage.adm);
-    pmb->phydro->Hydro_IdealEoS_Cons2Prim(gamma_adi, cons, prim,
-                                          const_cast<AthenaArray<Real> &>(prim_old),
-                                          il, iu, jl, ju, kl, ku);
-    // const_cast<AthenaArray<Real> &>(prim_old) = prim;
-    return;
-  }
-
 
   if (coarse_flag)
   {
@@ -450,14 +432,6 @@ void EquationOfState::PrimitiveToConserved(
   GRDynamical* pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
   Z4c * pz4c = pmb->pz4c;
 
-  // Debug:
-  if (false)
-  {
-    pmb->phydro->Hydro_IdealEoS_Prim2Cons(gamma_adi, prim, cons,
-                                          il, iu, jl, ju, kl, ku);
-    return;
-  }
-
   // Require only ADM 3-metric and no gauge.
   AT_N_sym sl_g_dd( pz4c->storage.adm, Z4c::I_ADM_gxx);
   AT_N_sym gamma_dd(pmb->nverts1);
@@ -611,50 +585,6 @@ void EquationOfState::ApplyPrimitiveFloors(const int dir,
   }
 
   return;
-}
-
-void EquationOfState::ForcePrimitiveFloor(AthenaArray<Real> &prim, int k, int j, int i)
-{
-
-
-  if(prim.GetDim4()==1)
-  {
-    prim(IDN,i) = atmo_rho;
-    prim(IVX,i) = 0.0;
-    prim(IVY,i) = 0.0;
-    prim(IVZ,i) = 0.0;
-    prim(IPR,i) = atmo_p;
-  }
-  else if(prim.GetDim4()==5)
-  {
-    prim(IDN,k,j,i) = atmo_rho;
-    prim(IVX,k,j,i) = 0.0;
-    prim(IVY,k,j,i) = 0.0;
-    prim(IVZ,k,j,i) = 0.0;
-    prim(IPR,k,j,i) = atmo_p;
-  }
-
-  return;
-}
-
-bool EquationOfState::RequirePrimitiveFloor(
-  const AthenaArray<Real> &prim, int k, int j, int i)
-{
-
-  bool rpf = false;
-
-  if(prim.GetDim4()==1)
-  {
-    rpf = ((prim(IDN,i) < atmo_cut) ||
-           (prim(IPR,i) < atmo_cut_p));
-  }
-  else if(prim.GetDim4()==5)
-  {
-    rpf = ((prim(IDN,k,j,i) < atmo_cut) ||
-           (prim(IPR,k,j,i) < atmo_cut_p));
-  }
-
-  return rpf;
 }
 
 namespace {

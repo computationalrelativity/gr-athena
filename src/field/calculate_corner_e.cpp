@@ -13,28 +13,16 @@
 #include <cmath>      // sqrt()
 
 // Athena++ headers
-#include "../athena.hpp"
-#include "../athena_arrays.hpp"
+#include "../athena_aliases.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
 #include "field.hpp"
 #include "field_diffusion/field_diffusion.hpp"
 
-namespace {
-// for readability
-const int D = NDIM + 1;
-const int N = NDIM;
-
-typedef AthenaArray< Real>                         AA;
-typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
-typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
-typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
-
-// For fluid-variable vector
-typedef AthenaTensor<Real, TensorSymm::NONE, NHYDRO, 1> AT_F_vec;
-
-}
+//----------------------------------------------------------------------------------------
+using namespace gra::aliases;
+//----------------------------------------------------------------------------------------
 
 //----------------------------------------------------------------------------------------
 //! \fn  void Field::ComputeCornerE

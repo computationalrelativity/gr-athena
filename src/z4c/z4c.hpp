@@ -17,9 +17,7 @@
 // #include <string>
 
 // Athena++ classes headers
-#include "../athena.hpp"
-#include "../athena_arrays.hpp"
-#include "../athena_tensor.hpp"
+#include "../athena_aliases.hpp"
 #include "../mesh/mesh.hpp"
 #include "../utils/finite_differencing.hpp"
 #include "../utils/lagrange_interp.hpp"
@@ -39,6 +37,10 @@
 #ifdef DBG_SYMMETRIZE_FD
 #include "../utils/floating_point.hpp"
 #endif // DBG_SYMMETRIZE_FD
+
+//----------------------------------------------------------------------------------------
+using namespace gra::aliases;
+//----------------------------------------------------------------------------------------
 
 class MeshBlock;
 class ParameterInput;
@@ -118,14 +120,14 @@ public:
 
   // public data storage
   struct {
-    AthenaArray<Real> u;     // solution of Z4c evolution system
-    AthenaArray<Real> u1;    // solution at intermediate steps
-    AthenaArray<Real> u2;    // solution at intermediate steps
-    AthenaArray<Real> rhs;   // Z4c rhs
-    AthenaArray<Real> adm;   // ADM variables
-    AthenaArray<Real> con;   // constraints
-    AthenaArray<Real> mat;   // matter variables
-    AthenaArray<Real> weyl;  // weyl scalars
+    AA u;     // solution of Z4c evolution system
+    AA u1;    // solution at intermediate steps
+    AA u2;    // solution at intermediate steps
+    AA rhs;   // Z4c rhs
+    AA adm;   // ADM variables
+    AA con;   // constraints
+    AA mat;   // matter variables
+    AA weyl;  // weyl scalars
   } storage;
 
   // aliases for variables and RHS
@@ -406,31 +408,34 @@ private:
   AthenaArray<Real> dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep
 
   // auxiliary tensors
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> r;           // radial coordinate
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> detg;        // det(g)
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> chi_guarded; // bounded version of chi
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> oopsi4;      // 1/psi4
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> A;           // trace of A
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> AA;          // trace of AA
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> R;           // Ricci scalar
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Ht;          // tilde H
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> K;           // trace of extrinsic curvature
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> KK;          // K^a_b K^b_a
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Ddalpha;     // Trace of Ddalpha_dd
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> S;           // Trace of S_ik
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> M_u;         // momentum constraint
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> Gamma_u;     // Gamma computed from the metric
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> DA_u;        // Covariant derivative of A
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> s_u;         // x^i/r where r is the coord. radius
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g_uu;        // inverse of conf. metric
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> A_uu;        // inverse of A
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> AA_dd;       // g^cd A_ac A_db
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> R_dd;        // Ricci tensor
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> Rphi_dd;     // Ricci tensor, conformal contribution
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> Kt_dd;       // conformal extrinsic curvature
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> K_ud;        // extrinsic curvature
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> Ddalpha_dd;  // 2nd differential of the lapse
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> Ddphi_dd;    // 2nd differential of phi
+  AT_N_sca r;           // radial coordinate
+  AT_N_sca detg;        // det(g)
+  AT_N_sca chi_guarded; // bounded version of chi
+  AT_N_sca oopsi4;      // 1/psi4
+  AT_N_sca A;           // trace of A
+  AT_N_sca trAA;        // trace of AA
+  AT_N_sca R;           // Ricci scalar
+  AT_N_sca Ht;          // tilde H
+  AT_N_sca K;           // trace of extrinsic curvature
+  AT_N_sca KK;          // K^a_b K^b_a
+  AT_N_sca Ddalpha;     // Trace of Ddalpha_dd
+  AT_N_sca S;           // Trace of S_ik
+
+  AT_N_vec M_u;         // momentum constraint
+  AT_N_vec Gamma_u;     // Gamma computed from the metric
+  AT_N_vec DA_u;        // Covariant derivative of A
+  AT_N_vec s_u;         // x^i/r where r is the coord. radius
+
+  AT_N_sym g_uu;        // inverse of conf. metric
+  AT_N_sym A_uu;        // inverse of A
+  AT_N_sym AA_dd;       // g^cd A_ac A_db
+  AT_N_sym R_dd;        // Ricci tensor
+  AT_N_sym Rphi_dd;     // Ricci tensor, conformal contribution
+  AT_N_sym Kt_dd;       // conformal extrinsic curvature
+  AT_N_sym K_ud;        // extrinsic curvature
+  AT_N_sym Ddalpha_dd;  // 2nd differential of the lapse
+  AT_N_sym Ddphi_dd;    // 2nd differential of phi
+
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> Gamma_ddd;   // Christoffel symbols of 1st kind
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> Gamma_udd;   // Christoffel symbols of 2nd kind
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> DK_ddd;      // differential of K

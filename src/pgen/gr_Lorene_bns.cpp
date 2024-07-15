@@ -17,9 +17,7 @@
 // #include <unites.h>
 
 // Athena++ headers
-#include "../athena.hpp"
-#include "../athena_arrays.hpp"
-#include "../athena_tensor.hpp"
+#include "../athena_aliases.hpp"
 #include "../parameter_input.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../z4c/z4c.hpp"
@@ -32,6 +30,10 @@
 #include "../trackers/extrema_tracker.hpp"
 #include "../utils/linear_algebra.hpp"
 #include "../utils/utils.hpp"
+
+//----------------------------------------------------------------------------------------
+using namespace gra::aliases;
+//----------------------------------------------------------------------------------------
 
 // For reading composition tables
 #if EOS_POLICY_CODE == 2 || EOS_POLICY_CODE == 3
@@ -101,8 +103,35 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   ReadLoreneFractions(LORENE_EoS_fname_Y, LORENE_EoS_Table);
 #endif
   ConvertLoreneTable(LORENE_EoS_Table);
-  LORENE_EoS_Table->rho_atm = pin->GetReal("hydro", "dfloor"); 
+  LORENE_EoS_Table->rho_atm = pin->GetReal("hydro", "dfloor");
 #endif
+
+  // BD: TODO - remove once "GRAND INTERFACE" is complete.
+  const bool have_fn_eos = pin->DoesParameterExist("problem", "filename_eos");
+  if (have_fn_eos)
+  {
+
+    if (Globals::my_rank == 0)
+    {
+      std::string filename_eos = pin->GetString("problem", "filename_eos");
+      std::string run_dir;
+
+      if (file_exists(filename_eos.c_str()))
+      {
+        GetRunDir(run_dir);
+        file_copy(filename_eos, run_dir);
+      }
+      else
+      {
+        std::stringstream msg;
+        msg << "### FATAL ERROR problem/filename_eos: "
+            << filename_eos << " "
+            << " could not be accessed.";
+        ATHENA_ERROR(msg);
+        std::exit(0);
+      }
+    }
+  }
 
   return;
 }
@@ -186,12 +215,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   // container with idx / grids pertaining z4c
   MB_info* mbi = &(pz4c->mbi);
-
-  const int N = NDIM;
-
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
-  typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
 
   // --------------------------------------------------------------------------
   // Set some aliases for the variables.
@@ -593,7 +616,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
         pfield->b.x3f(k,j,i) = 0.5*(bzcc(k-1,j,i) + bzcc(k,j,i));
       }
 
-    pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord, il,iu,jl,ju,kl,ku);
+    pfield->CalculateCellCenteredField(pfield->b,
+                                       pfield->bcc,
+                                       pcoord,
+                                       il,iu,jl,ju,kl,ku);
+
+
   } // MAGNETIC_FIELDS_ENABLED
   //  -------------------------------------------------------------------------
 
@@ -637,7 +665,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   // Initialise conserved variables
 #if USETM
-  peos->PrimitiveToConserved(phydro->w, pscalars->r, pfield->bcc, phydro->u, pscalars->s, pcoord,
+  peos->PrimitiveToConserved(phydro->w,
+                             pscalars->r,
+                             pfield->bcc,
+                             phydro->u,
+                             pscalars->s,
+                             pcoord,
                              0, ncells1-1,
                              0, ncells2-1,
                              0, ncells3-1);
@@ -654,9 +687,16 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   // No magnetic field, pass dummy or fix with overload
   //  AthenaArray<Real> null_bb_cc;
 #if USETM
-  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pscalars->r, pfield->bcc);
+  pz4c->GetMatter(pz4c->storage.mat,
+                  pz4c->storage.adm,
+                  phydro->w,
+                  pscalars->r,
+                  pfield->bcc);
 #else
-  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pfield->bcc);
+  pz4c->GetMatter(pz4c->storage.mat,
+                  pz4c->storage.adm,
+                  phydro->w,
+                  pfield->bcc);
 #endif
 
   pz4c->ADMConstraints(pz4c->storage.con,
@@ -791,12 +831,6 @@ Real max_rho(MeshBlock *pmb, int iout)
 Real min_alpha(MeshBlock *pmb, int iout)
 {
 
-  const int N = NDIM;
-
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
-  typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
-
   // --------------------------------------------------------------------------
   // Set some aliases for the variables.
   AT_N_sca alpha(pmb->pz4c->storage.u, Z4c::I_Z4c_alpha);
@@ -818,13 +852,6 @@ Real min_alpha(MeshBlock *pmb, int iout)
 
 Real max_abs_con_H(MeshBlock *pmb, int iout)
 {
-
-  const int N = NDIM;
-
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
-  typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
-
   // --------------------------------------------------------------------------
   // Set some aliases for the variables.
   AT_N_sca con_H(pmb->pz4c->storage.con, Z4c::I_CON_H);

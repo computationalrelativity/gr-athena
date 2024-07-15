@@ -4,6 +4,7 @@ myconfig.sh
 src/tags
 
 simulations
+scripts
 
 # Configured outputs
 Makefile

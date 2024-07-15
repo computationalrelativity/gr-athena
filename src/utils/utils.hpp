@@ -13,16 +13,20 @@
 // C++ headers
 #include <csignal>   // sigset_t POSIX C extension
 #include <cstdint>   // std::int64_t
+#include <iostream>
 
 // Athena++ headers
 
 void ChangeRunDir(const char *pdir);
+void GetRunDir(std::string &scwd);
+
 double ran2(std::int64_t *idum);
 void ShowConfig();
 
 // Check if file exists
 bool file_exists(const char *fname);
 
+void file_copy(const std::string &from, const std::string &to);
 //----------------------------------------------------------------------------------------
 //! SignalHandler
 //  \brief static data and functions that implement a simple signal handling system

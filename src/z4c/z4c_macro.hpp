@@ -8,8 +8,8 @@
 //! \file z4c_macro.hpp
 //  \brief common macros for the Z4c class
 
-// BD: refactor scope - as this is useful elsewhere?
-// BD: usage needs cleanup elsewhere
+// BD: TODO - refactor scope - as this is useful elsewhere?
+// BD: TODO - usage needs cleanup elsewhere
 
 #if defined(Z4C_CC_ENABLED)
   #define SW_CC_CX_VC(a, b, c)                                                 \
@@ -41,10 +41,6 @@
   #define FCN_CC_CX_VC(A, B, C) \
     C
 #endif
-
-// BD: derive from mbi (f1,f2,f3) _or_ fix as 3 (Manifold dimension) ?
-// #define NDIM    (mbi.ndim)
-#define NDIM    (3)
 
 #define IX_IL                                                                 \
   pz4c->mbi.il
