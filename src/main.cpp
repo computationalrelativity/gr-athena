@@ -267,9 +267,11 @@ int main(int argc, char *argv[])
           break;
         }
       }
+/* WC: Temporarily remove ejecta - to be tested/reincluded
       for (auto pej : pmesh->pej_extract) {
         pej->Calculate(pmesh->ncycle, pmesh->time);
       }
+*/
       for (auto ptracker : pmesh->pz4c_tracker)
       {
         ptracker->EvolveTracker();
