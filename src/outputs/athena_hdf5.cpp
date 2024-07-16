@@ -467,16 +467,22 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   code_time = static_cast<H5Real>(time); // output time for xdmf
 
   // Write coordinate system
+  /*
   if (std::strlen(COORDINATE_SYSTEM) > max_name_length) {
     std::stringstream msg;
     msg << "### FATAL ERROR in athdf5 initialization\n"
         << "Coordinate name too long\n";
     ATHENA_ERROR(msg);
   }
+  */
   attribute = H5Acreate2(file, "Coordinates", string_type, dataspace_scalar,
                          H5P_DEFAULT, H5P_DEFAULT);
+
+  // BD: issue here but not with char** (i.e. DatasetNames) write later?
+  H5Tset_size(string_type, strlen(COORDINATE_SYSTEM));
   H5Awrite(attribute, string_type, COORDINATE_SYSTEM);
   H5Aclose(attribute);
+  H5Tset_size(string_type, max_name_length+1);
 
   // Write extent of grid in x1-direction
   double coord_range[3];
