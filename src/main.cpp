@@ -40,7 +40,7 @@
 #include "z4c/puncture_tracker.hpp"
 #include "trackers/extrema_tracker.hpp"
 #include "z4c/ahf.hpp"
-#include "z4c/ejecta.hpp"
+// #include "z4c/ejecta.hpp"
 #if CCE_ENABLED
 #include "z4c/cce/cce.hpp"
 #endif

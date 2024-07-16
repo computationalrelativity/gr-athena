@@ -63,7 +63,7 @@
 #include "../z4c/cce/cce.hpp"
 #endif
 #include "../trackers/extrema_tracker.hpp"
-#include "../z4c/ejecta.hpp"
+// #include "../z4c/ejecta.hpp"
 
 #include "../wave/wave.hpp"
 
