@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <iomanip>
 #include <iostream>
 
 // https://lorene.obspm.fr/
@@ -202,7 +203,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   // settings -----------------------------------------------------------------
   std::string fn_ini_data = pin->GetOrAddString("problem", "filename", "resu.d");
   Real const tol_det_zero =  pin->GetOrAddReal("problem","tolerance_det_zero",1e-10);
-  bool verbose = pin->GetOrAddBoolean("problem", "verbose", 0);
+  bool verbose = pin->GetOrAddBoolean("problem", "verbose", false);
 
   // check ID is accessible
   if (!file_exists(fn_ini_data.c_str()))
@@ -224,7 +225,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   AT_N_sym K_dd(  pz4c->storage.adm, Z4c::I_ADM_Kxx);
 
 
-  // prepare matter grid ----------------------------------------------------
+  // matter grid idx limits ---------------------------------------------------
   const int il = 0;
   const int iu = ncells1-1;
 
@@ -273,14 +274,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     bns = new Lorene::Bin_NS(npoints_gs,
                              xx_gs, yy_gs, zz_gs,
                              fn_ini_data.c_str());
+    sep = bns->dist / coord_unit;
 
-    // std::cout << pmy_mesh->bns->gamma_poly1 << std::endl;
-    // std::cout << pmy_mesh->bns->kappa_poly1 / 2.6875380639256204e-4 << std::endl;
-
-    // std::cout << pmy_mesh->bns->gamma_poly2 << std::endl;
-    // std::cout << pmy_mesh->bns->kappa_poly2 / 2.6875380639256204e-4 << std::endl;
-
-    // std::exit(0);
 
     assert(bns->np == npoints_gs);
 
@@ -291,31 +286,30 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int i=0; i<mbi->nn1; ++i)
     {
       // Gauge from Lorene
-      //TODO Option to reset?
-      alpha(k, j, i)     =  bns->nnn[I];
-      beta_u(0, k, j, i) = -bns->beta_x[I];
-      beta_u(1, k, j, i) = -bns->beta_y[I];
-      beta_u(2, k, j, i) = -bns->beta_z[I];
+      alpha(k,j,i)     =  bns->nnn[I];
+      beta_u(0,k,j,i) = -bns->beta_x[I];
+      beta_u(1,k,j,i) = -bns->beta_y[I];
+      beta_u(2,k,j,i) = -bns->beta_z[I];
 
-      g_dd(0, 0, k, j, i) = bns->g_xx[I];
-      K_dd(0, 0, k, j, i) = coord_unit * bns->k_xx[I];
+      g_dd(0,0,k,j,i) = bns->g_xx[I];
+      K_dd(0,0,k,j,i) = coord_unit * bns->k_xx[I];
 
-      g_dd(0, 1, k, j, i) = bns->g_xy[I];
-      K_dd(0, 1, k, j, i) = coord_unit * bns->k_xy[I];
+      g_dd(0,1,k,j,i) = bns->g_xy[I];
+      K_dd(0,1,k,j,i) = coord_unit * bns->k_xy[I];
 
-      g_dd(0, 2, k, j, i) = bns->g_xz[I];
-      K_dd(0, 2, k, j, i) = coord_unit * bns->k_xz[I];
+      g_dd(0,2,k,j,i) = bns->g_xz[I];
+      K_dd(0,2,k,j,i) = coord_unit * bns->k_xz[I];
 
-      g_dd(1, 1, k, j, i) = bns->g_yy[I];
-      K_dd(1, 1, k, j, i) = coord_unit * bns->k_yy[I];
+      g_dd(1,1,k,j,i) = bns->g_yy[I];
+      K_dd(1,1,k,j,i) = coord_unit * bns->k_yy[I];
 
-      g_dd(1, 2, k, j, i) = bns->g_yz[I];
-      K_dd(1, 2, k, j, i) = coord_unit * bns->k_yz[I];
+      g_dd(1,2,k,j,i) = bns->g_yz[I];
+      K_dd(1,2,k,j,i) = coord_unit * bns->k_yz[I];
 
-      g_dd(2, 2, k, j, i) = bns->g_zz[I];
-      K_dd(2, 2, k, j, i) = coord_unit * bns->k_zz[I];
+      g_dd(2,2,k,j,i) = bns->g_zz[I];
+      K_dd(2,2,k,j,i) = coord_unit * bns->k_zz[I];
 
-      const Real det = Det3Metric(g_dd, k, j, i);
+      const Real det = Det3Metric(g_dd,k,j,i);
       assert(std::fabs(det) > tol_det_zero);
 
       ++I;
@@ -372,10 +366,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     // prepare matter grid ----------------------------------------------------
     int npoints_cc = 0;
 
-
-    for (int k = kl; k <= ku; ++k)
-    for (int j = jl; j <= ju; ++j)
-    for (int i = il; i <= iu; ++i)
+    for (int k=kl; k<=ku; ++k)
+    for (int j=jl; j<=ju; ++j)
+    for (int i=il; i<=iu; ++i)
     {
       ++npoints_cc;
     }
@@ -404,106 +397,40 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
     assert(bns->np == npoints_cc);
 
-    sep = bns->dist / coord_unit;
-    // Real w_p_max = 0.0; //0.00013; ?? // compute below
-
     I = 0;      // reset
 
-// Set up EoS.
-#if USETM
-    Real rho_atm = pin->GetReal("hydro", "dfloor");
-    Real T_atm = pin->GetReal("hydro", "tfloor");
-    Real mb = peos->GetEOS().GetBaryonMass();
-    Real Y_atm[MAX_SPECIES] = {0.0};
-#if EOS_POLICY_CODE == 2
-    Y_atm[0] = pin->GetReal("hydro", "y0_atmosphere");
-#endif
-#else
-    Real k_adi = pin->GetReal("hydro", "k_adi");
-    Real gamma_adi = pin->GetReal("hydro","gamma");
+    AthenaArray<Real> & w = phydro->w;
+#if NSCALARS > 0
+    AthenaArray<Real> & r = pscalars->r;
+    AthenaArray<Real> & s = pscalars->s;
+    r.Fill(0.0);
+    s.Fill(0.0);
 #endif
 
-    for (int k = kl; k <= ku; ++k)
-    for (int j = jl; j <= ju; ++j)
-    for (int i = il; i <= iu; ++i)
+    for (int k=kl; k<=ku; ++k)
+    for (int j=jl; j<=ju; ++j)
+    for (int i=il; i<=iu; ++i)
     {
-      /*
-      const Real w_rho = bns->nbar[I] / rho_unit;
-      const Real eps = bns->ener_spec[I] / ener_unit;
-
-      // Real egas = rho * (1.0 + eps);  <-------- ?
-      Real egas = w_rho * eps;
-      Real w_p = peos->PresFromRhoEg(w_rho, egas);
-
-      // Real w_p = k_adi*pow(w_rho,gamma_adi);
-
-      // Kludge to make the pressure work with the EOS framework.
-      if (!std::isfinite(w_p) && (egas == 0. || w_rho == 0.)) {
-        w_p = 0.;
-      }
-
-      // w_p_max = std::max(w_p_max, w_p);
-
-      const Real u_E_x = bns->u_euler_x[I] / vel_unit;
-      const Real u_E_y = bns->u_euler_y[I] / vel_unit;
-      const Real u_E_z = bns->u_euler_z[I] / vel_unit;
-
-      const Real vsq = (
-        2.0*(u_E_x * u_E_y * bns->g_xy[I] +
-             u_E_x * u_E_z * bns->g_xz[I] +
-             u_E_y * u_E_z * bns->g_yz[I]) +
-        u_E_x * u_E_x * bns->g_xx[I] +
-        u_E_y * u_E_y * bns->g_yy[I] +
-        u_E_z * u_E_z * bns->g_zz[I]
-      );
-
-      const Real W = 1.0 / std::sqrt(1.0 - vsq);
-
-      */
-
-// If scalars are on we should initialise to zero
-      Real Y[MAX_SPECIES];
-      std::fill(std::begin(Y), std::end(Y), 0.0);  // or Y_atm?
-#if NSCALARS > 0
-      for (int r=0;r<NSCALARS;r++) {
-        pscalars->r(r,k,j,i) = 0.;
-        pscalars->s(r,k,j,i) = 0.;
-      }
-#endif
-
-#if USETM
-      Real w_rho = (bns->nbar[I] / rho_unit > rho_atm ? bns->nbar[I] / rho_unit : 0.0);
-      Real nb = w_rho/mb;
-#if NSCALARS > 0
-      for (int l=0; l<NSCALARS; ++l) {
-        Y[l] = (w_rho > rho_atm ? linear_interp(LORENE_EoS_Table->Y[l], LORENE_EoS_Table->data[tab_logrho], LORENE_EoS_Table->size, log(w_rho)) : Y_atm[l]);
-      }
-#endif
-      Real w_p = (w_rho > rho_atm ? peos->GetEOS().GetPressure(nb, T_atm, Y) : 0.0);
-      phydro->temperature(k,j,i) = T_atm;
-#else
+      // Extract quantities from Lorene first, map units ----------------------
       Real w_rho = bns->nbar[I] / rho_unit;
-      Real w_p = k_adi*pow(w_rho,gamma_adi);
-#endif
+      Real eps = bns->ener_spec[I] / ener_unit;
 
-#ifdef USE_IDEAL_GAS
-      // BD: TODO - stupid work-around to get barotropic init. with
-      //            PrimitiveSolver-
-      //            w_p = K w_rho ^ gamma_adi & fake T
-      {
-        const Real gamma_adi = pin->GetReal("hydro", "gamma");
-        const Real k_adi     = pin->GetReal("hydro", "k_adi");
-        w_rho = bns->nbar[I] / rho_unit;
-        w_p = k_adi*pow(w_rho,gamma_adi);
-        phydro->temperature(k,j,i) = peos->GetEOS().GetTemperatureFromP(nb, w_p, Y);
-      }
-#endif
+      // Unused, retain for reference:
+      //
+      // Real w_e = w_rho * eps;
+      // Real w_p = peos->PresFromRhoEg(w_rho, w_e);
+      //
+      // // Kludge to make the pressure work with the EOS framework.
+      // if (!std::isfinite(w_p) && (egas == 0. || w_rho == 0.))
+      // {
+      //   w_p = 0.;
+      // }
 
-      const Real v_u_x = bns->u_euler_x[I] / vel_unit;
-      const Real v_u_y = bns->u_euler_y[I] / vel_unit;
-      const Real v_u_z = bns->u_euler_z[I] / vel_unit;
+      Real v_u_x = bns->u_euler_x[I] / vel_unit;
+      Real v_u_y = bns->u_euler_y[I] / vel_unit;
+      Real v_u_z = bns->u_euler_z[I] / vel_unit;
 
-      const Real vsq = (
+      Real vsq = (
         2.0*(v_u_x * v_u_y * bns->g_xy[I] +
              v_u_x * v_u_z * bns->g_xz[I] +
              v_u_y * v_u_z * bns->g_yz[I]) +
@@ -512,22 +439,17 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
         v_u_z * v_u_z * bns->g_zz[I]
       );
 
-      const Real W = 1.0 / std::sqrt(1.0 - vsq);
+      Real W = 1.0 / std::sqrt(1.0 - vsq);
 
-      phydro->w(IDN, k, j, i) = w_rho;
-      phydro->w(IVX, k, j, i) = W * v_u_x;
-      phydro->w(IVY, k, j, i) = W * v_u_y;
-      phydro->w(IVZ, k, j, i) = W * v_u_z;
-      phydro->w(IPR, k, j, i) = w_p;
-#if NSCALARS > 0
-      for (int r=0;r<NSCALARS;r++) {
-        pscalars->r(r,k,j,i) = Y[r];
-      }
-#endif
+      w(IDN,k,j,i) = w_rho;
+      w(IVX,k,j,i) = W * v_u_x;
+      w(IVY,k,j,i) = W * v_u_y;
+      w(IVZ,k,j,i) = W * v_u_z;
+      w(IPR,k,j,i) = 0.0;
+
+      // ----------------------------------------------------------------------
       ++I;
     }
-
-    phydro->w1 = phydro->w;
 
     // clean up
     delete[] xx_cc;
@@ -537,9 +459,132 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     delete bns;
 
   } // OMP Critical
-
   // --------------------------------------------------------------------------
 
+  // Treat EOS derived quantities ---------------------------------------------
+  {
+    // Split into two blocks:
+    // PrimitiveSolver (useful for physics) & Reprimand (useful for debug)
+
+    AthenaArray<Real> & w  = phydro->w;
+    AthenaArray<Real> & w1 = phydro->w1;
+#if NSCALARS > 0
+    AthenaArray<Real> & r = pscalars->r;
+    r.Fill(0.0);
+#endif
+
+#if !USETM
+    // Reprimand --------------------------------------------------------------
+    const Real k_adi     = pin->GetReal("hydro", "k_adi");
+    const Real gamma_adi = pin->GetReal("hydro", "gamma");
+
+    // Reprimand fill
+    for (int k=kl; k<=ku; ++k)
+    for (int j=jl; j<=ju; ++j)
+    for (int i=il; i<=iu; ++i)
+    {
+      w(IPR,k,j,i) = k_adi*std::pow(w(IDN,k,j,i),gamma_adi);
+
+      for (int n=0; n<NHYDRO; ++n)
+      {
+        w1(n,k,j,i) = w(n,k,j,i);
+      }
+    }
+
+#else
+    // PrimitiveSolver --------------------------------------------------------
+    AthenaArray<Real> & T  = phydro->temperature;
+
+    Real w_rho_atm = pin->GetReal("hydro", "dfloor");
+    Real T_atm     = pin->GetReal("hydro", "tfloor");
+    Real mb        = peos->GetEOS().GetBaryonMass();
+
+    Real Y_atm[MAX_SPECIES] = {0.0};
+#if EOS_POLICY_CODE == 2
+    Y_atm[0] = pin->GetReal("hydro", "y0_atmosphere");
+#endif
+    Real Y[MAX_SPECIES];
+
+#ifdef USE_IDEAL_GAS
+    const Real k_adi     = pin->GetReal("hydro", "k_adi");
+    const Real gamma_adi = pin->GetReal("hydro", "gamma");
+#endif // USE_IDEAL_GAS
+
+    // USETM fill
+    for (int k=kl; k<=ku; ++k)
+    for (int j=jl; j<=ju; ++j)
+    for (int i=il; i<=iu; ++i)
+    {
+      // Check if density admissible first -
+      // This controls velocity reset & Y interpolation (if applicable)
+      const bool state_admissible = w(IDN,k,j,i) > w_rho_atm;
+      w(IDN,k,j,i) = std::max(w(IDN,k,j,i), w_rho_atm);
+      const Real w_nb = w(IDN,k,j,i) / mb;
+
+      // BD: TODO - stupid work-around to get barotropic init. with
+      //            PrimitiveSolver-
+      //            w_p = K w_rho ^ gamma_adi & fake T
+#ifdef USE_IDEAL_GAS
+      std::fill(std::begin(Y), std::end(Y), 0.0);
+
+      w(IPR,k,j,i) = k_adi*std::pow(w(IDN,k,j,i),gamma_adi);
+      T(k,j,i) = peos->GetEOS().GetTemperatureFromP(w_nb, w(IPR,k,j,i), Y);
+#else
+      // Tabulated ------------------------------------------------------------
+      if (state_admissible)
+      {
+#if NSCALARS > 0
+        for (int n=0; n<NSCALARS; ++n)
+        {
+          Y[n] = linear_interp(LORENE_EoS_Table->Y[n],
+                               LORENE_EoS_Table->data[tab_logrho],
+                               LORENE_EoS_Table->size,
+                               log(w(IDN,k,j,i)));
+        }
+#endif
+        w(IPR,k,j,i) = peos->GetEOS().GetPressure(w_nb, T_atm, Y);
+        T(k,j,i) = T_atm;
+      }
+      else
+      {
+        // Reset primitives
+        T(k,j,i) = T_atm;
+        w(IPR,k,j,i) = 0;
+#if NSCALARS > 0
+        for (int n=0; n<NSCALARS; ++n)
+        {
+          Y[n] = Y_atm[n];
+        }
+#endif
+        // Assume that we always have (IVX, IVY, IVZ)
+        for (int ix=0; ix<3; ++ix)
+        {
+          w(IVX+ix,k,j,i) = 0;
+        }
+      }
+
+#endif // USE_IDEAL_GAS
+
+  #if NSCALARS > 0
+      for (int n=0; n<NSCALARS; ++n)
+      {
+        r(n,k,j,i) = Y[n];
+      }
+  #endif
+
+      // This is useless with USETM (w1 is old state for e.g. rootfinder)
+      for (int n=0; n<NHYDRO; ++n)
+      {
+        w1(n,k,j,i) = w(n,k,j,i);
+      }
+    }
+
+    // ------------------------------------------------------------------------
+#endif
+  }
+  // --------------------------------------------------------------------------
+
+  // --------------------------------------------------------------------------
   if (MAGNETIC_FIELDS_ENABLED)
   {
     // B field ------------------------------------------------------------------
@@ -572,55 +617,56 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int j = jl; j <= ju; ++j)
     for (int i = il; i <= iu; ++i)
       {
-        if(pcoord->x1v(i) > 0){
-    Atot(0,k,j,i) = -pcoord->x2v(j) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
-    Atot(1,k,j,i) = (pcoord->x1v(i) - 0.5*sep) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
-    Atot(2,k,j,i) = 0.0;
-        } else {
-    Atot(0,k,j,i) = -pcoord->x2v(j) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
-    Atot(1,k,j,i) = (pcoord->x1v(i) + 0.5*sep) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
-    Atot(2,k,j,i) = 0.0;
+        if(pcoord->x1v(i) > 0)
+        {
+          Atot(0,k,j,i) = -pcoord->x2v(j) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
+          Atot(1,k,j,i) = (pcoord->x1v(i) - 0.5*sep) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
+          Atot(2,k,j,i) = 0.0;
+        }
+        else
+        {
+          Atot(0,k,j,i) = -pcoord->x2v(j) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
+          Atot(1,k,j,i) = (pcoord->x1v(i) + 0.5*sep) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
+          Atot(2,k,j,i) = 0.0;
         }
       }
 
     for(int k = ks-1; k<=ke+1; k++)
     for(int j = js-1; j<=je+1; j++)
     for(int i = is-1; i<=ie+1; i++)
-      {
-
+    {
       bxcc(k,j,i) = - ((Atot(1,k+1,j,i) - Atot(1,k-1,j,i))/(2.0*pcoord->dx3v(k)));
       bycc(k,j,i) =  ((Atot(0,k+1,j,i) - Atot(0,k-1,j,i))/(2.0*pcoord->dx3v(k)));
       bzcc(k,j,i) = ( (Atot(1,k,j,i+1) - Atot(1,k,j,i-1))/(2.0*pcoord->dx1v(i))
                     - (Atot(0,k,j+1,i) - Atot(0,k,j-1,i))/(2.0*pcoord->dx2v(j)));
-      }
+    }
 
     for(int k = ks; k<=ke; k++)
     for(int j = js; j<=je; j++)
     for(int i = is; i<=ie+1; i++)
-      {
+    {
 
-      pfield->b.x1f(k,j,i) = 0.5*(bxcc(k,j,i-1) + bxcc(k,j,i));
-      }
+    pfield->b.x1f(k,j,i) = 0.5*(bxcc(k,j,i-1) + bxcc(k,j,i));
+    }
 
     for(int k = ks; k<=ke; k++)
     for(int j = js; j<=je+1; j++)
     for(int i = is; i<=ie; i++)
-      {
-      pfield->b.x2f(k,j,i) = 0.5*(bycc(k,j-1,i) + bycc(k,j,i));
-      }
+    {
+    pfield->b.x2f(k,j,i) = 0.5*(bycc(k,j-1,i) + bycc(k,j,i));
+    }
 
     for(int k = ks; k<=ke+1; k++)
     for(int j = js; j<=je; j++)
     for(int i = is; i<=ie; i++)
-      {
-        pfield->b.x3f(k,j,i) = 0.5*(bzcc(k-1,j,i) + bzcc(k,j,i));
-      }
+    {
+      pfield->b.x3f(k,j,i) = 0.5*(bzcc(k-1,j,i) + bzcc(k,j,i));
+    }
 
     pfield->CalculateCellCenteredField(pfield->b,
                                        pfield->bcc,
                                        pcoord,
                                        il,iu,jl,ju,kl,ku);
-
 
   } // MAGNETIC_FIELDS_ENABLED
   //  -------------------------------------------------------------------------
@@ -648,9 +694,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   if (id_floor_primitives)
   {
 
-    for (int k = 0; k <= ncells3-1; ++k)
-    for (int j = 0; j <= ncells2-1; ++j)
-    for (int i = 0; i <= ncells1-1; ++i)
+    for (int k=0; k<=ncells3-1; ++k)
+    for (int j=0; j<=ncells2-1; ++j)
+    for (int i=0; i<=ncells1-1; ++i)
     {
 #if USETM
       peos->ApplyPrimitiveFloors(phydro->w, pscalars->r, k, j, i);
@@ -680,9 +726,70 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                              0, ncells2-1,
                              0, ncells3-1);
 #endif
-  //TODO Check if the momentum and velocity are finite.
 
-  // Set up the matter tensor in the Z4c variables.
+  // --------------------------------------------------------------------------
+  // If matter fields are correctly prepared then c2p & p2c should be
+  // idempotent within some error tolerance.
+  bool check_c2p_idempotent = pin->GetOrAddBoolean(
+    "problem", "check_c2p_idempotent", true);
+  if (check_c2p_idempotent)
+  {
+    AthenaArray<Real> id_w(NHYDRO,   ncells3, ncells2, ncells1);
+    AthenaArray<Real> id_r(NSCALARS, ncells3, ncells2, ncells1);
+
+    peos->ConservedToPrimitive(phydro->u,
+                               id_w,
+                               pfield->b,
+                               id_w,
+#if USETM
+                               pscalars->s,
+                               id_r,
+#endif
+                               pfield->bcc,
+                               pcoord,
+                               0, ncells1-1,
+                               0, ncells2-1,
+                               0, ncells3-1, 0);
+
+    Real w_err = -std::numeric_limits<Real>::infinity();
+    Real r_err = -std::numeric_limits<Real>::infinity();
+
+    for (int n=0; n<NHYDRO;  ++n)
+    for (int k=1; k<ncells3-1; ++k)
+    for (int j=1; j<ncells2-1; ++j)
+    for (int i=1; i<ncells1-1; ++i)
+    {
+      w_err = std::max(w_err, std::abs(id_w(n,k,j,i) -
+                                       phydro->w(n,k,j,i)));
+    }
+
+    for (int n=0; n<NSCALARS;  ++n)
+    for (int k=1; k<ncells3-1; ++k)
+    for (int j=1; j<ncells2-1; ++j)
+    for (int i=1; i<ncells1-1; ++i)
+    {
+      r_err = std::max(r_err, std::abs(id_r(n,k,j,i) -
+                                       pscalars->r(n,k,j,i)));
+    }
+
+    #pragma omp critical
+    {
+      std::cout << std::setprecision(8);
+      if (NSCALARS > 0)
+      {
+        std::cout << "w,r_err: " << w_err << "," << r_err << "\n";
+      }
+      else
+      {
+        std::cout << "w_err: " << w_err << "\n";
+      }
+    }
+  }
+  // --------------------------------------------------------------------------
+
+
+
+  // Set up ADM matter variables
   // TODO: BD - this needs to be fixed properly
   // No magnetic field, pass dummy or fix with overload
   //  AthenaArray<Real> null_bb_cc;

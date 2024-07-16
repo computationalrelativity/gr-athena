@@ -37,6 +37,8 @@ void Z4c::GetMatter(::AA & u_mat, ::AA & u_adm, ::AA & w, ::AA & bb_cc)
   PassiveScalars * pscalars = pmb->pscalars;
 #endif
 
+  EquationOfState * peos = pmb->peos;
+
   GRDynamical* pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
 
   Matter_vars mat;
@@ -50,9 +52,9 @@ void Z4c::GetMatter(::AA & u_mat, ::AA & u_adm, ::AA & w, ::AA & bb_cc)
 
   // set up some parameters ---------------------------------------------------
 #if USETM
-  Real mb = pmb->peos->GetEOS().GetBaryonMass();
+  Real mb = peos->GetEOS().GetBaryonMass();
 #else
-  Real gamma_adi = pmb->peos->GetGamma(); //NB specific to EOS
+  Real gamma_adi = peos->GetGamma();
 #endif
   // --------------------------------------------------------------------------
 
@@ -116,16 +118,26 @@ void Z4c::GetMatter(::AA & u_mat, ::AA & u_adm, ::AA & w, ::AA & bb_cc)
       {
         // NB specific to EOS
 #if USETM
-        Real n = w_rho(i)/mb;
+        Real n = w_rho(i) / mb;
         // FIXME: Generalize to work with EOSes accepting particle fractions.
         Real Y[MAX_SPECIES] = {0.0};
 #if NSCALARS>0
-        for (int l=0; l<NSCALARS; l++) {
+        for (int l=0; l<NSCALARS; l++)
+        {
           Y[l] = w_r(l,i);
         }
 #endif
-        Real T = pmb->peos->GetEOS().GetTemperatureFromP(n, w_p(i), Y);
-        w_hrho(i) = w_rho(i)*pmb->peos->GetEOS().GetEnthalpy(n, T, Y);
+        Real T = peos->GetEOS().GetTemperatureFromP(n, w_p(i), Y);
+
+        Real Wvu[3] = { };
+        for (int ix=0; ix<3; ++ix)
+        {
+          Wvu[ix] = w_utilde_u(ix,i);
+        }
+
+        peos->GetEOS().ApplyPrimitiveFloor(n, Wvu, w_p(i), T, Y);
+
+        w_hrho(i) = w_rho(i)*peos->GetEOS().GetEnthalpy(n, T, Y);
 #else
         w_hrho(i) = w_rho(i) + gamma_adi/(gamma_adi-1.0) * w_p(i);
 #endif
