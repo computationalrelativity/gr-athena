@@ -54,6 +54,8 @@ void PassiveScalars::ApplySpeciesLimits(AthenaArray<Real> & z_,
                                         const int il,
                                         const int iu)
 {
+  // BD: TODO - debug removing passive scalar limits during recon...
+  return;
 #if USETM
   EquationOfState *peos = pmy_block->peos;
 
@@ -160,12 +162,15 @@ void PassiveScalars::CalculateFluxes(AthenaArray<Real> &r, const int order)
   for (int k=kl; k<=ku; ++k)
   for (int j=jl; j<=ju; ++j)
   {
-    pr->ReconstructPassiveScalarsX1_(rv, r, rl_, rr_, k, j, il, iu);
+    pr->ReconstructPassiveScalarsX1_(rv, r, rl_, rr_,
+                                     k, j, il, iu);
 
     if (pr->xorder_use_fb)
     {
-      pr->ReconstructPassiveScalarsX1_(r_rv, r, r_rl_, r_rr_, k, j, il, iu);
-      FallbackInadmissibleScalarX1_(rl_, rr_, r_rl_, r_rr_, il, iu);
+      pr->ReconstructPassiveScalarsX1_(r_rv, r, r_rl_, r_rr_,
+                                       k, j, il, iu);
+      FallbackInadmissibleScalarX1_(rl_, rr_, r_rl_, r_rr_,
+                                    il, iu);
     }
 
     // Floor here (as needed, always attempted, Cf. CalculateFluxes in Hydro)
@@ -188,12 +193,15 @@ void PassiveScalars::CalculateFluxes(AthenaArray<Real> &r, const int order)
 
     for (int k=kl; k<=ku; ++k)
     {
-      pr->ReconstructPassiveScalarsX2_(rv, r, rl_, rr_, k, jl-1, il, iu);
+      pr->ReconstructPassiveScalarsX2_(rv, r, rl_, rr_,
+                                       k, jl-1, il, iu);
 
       if (pr->xorder_use_fb)
       {
-        pr->ReconstructPassiveScalarsX2_(r_rv, r, r_rl_, r_rr_, k, jl-1, il, iu);
-        FallbackInadmissibleScalarX2_(rl_, rr_, r_rl_, r_rr_, il, iu);
+        pr->ReconstructPassiveScalarsX2_(r_rv, r, r_rl_, r_rr_,
+                                         k, jl-1, il, iu);
+        FallbackInadmissibleScalarX2_(rl_, rr_, r_rl_, r_rr_,
+                                      il, iu);
       }
 
       // Floor here (as needed, Cf. CalculateFluxes in Hydro)
@@ -202,12 +210,15 @@ void PassiveScalars::CalculateFluxes(AthenaArray<Real> &r, const int order)
 
       for (int j=jl; j<=ju; ++j)
       {
-        pr->ReconstructPassiveScalarsX2_(rv, r, rlb_, rr_, k, jl, il, iu);
+        pr->ReconstructPassiveScalarsX2_(rv, r, rlb_, rr_,
+                                         k, j, il, iu);
 
         if (pr->xorder_use_fb)
         {
-          pr->ReconstructPassiveScalarsX2_(r_rv, r, r_rlb_, r_rr_, k, jl, il, iu);
-          FallbackInadmissibleScalarX2_(rlb_, rr_, r_rlb_, r_rr_, il, iu);
+          pr->ReconstructPassiveScalarsX2_(r_rv, r, r_rlb_, r_rr_,
+                                           k, j, il, iu);
+          FallbackInadmissibleScalarX2_(rlb_, rr_, r_rlb_, r_rr_,
+                                        il, iu);
         }
 
         // Floor here (as needed, Cf. CalculateFluxes in Hydro)
@@ -239,12 +250,15 @@ void PassiveScalars::CalculateFluxes(AthenaArray<Real> &r, const int order)
 
     for (int j=jl; j<=ju; ++j)
     { // this loop ordering is intentional
-      pr->ReconstructPassiveScalarsX3_(rv, r, rl_, rr_, kl-1, j, il, iu);
+      pr->ReconstructPassiveScalarsX3_(rv, r, rl_, rr_,
+                                       kl-1, j, il, iu);
 
       if (pr->xorder_use_fb)
       {
-        pr->ReconstructPassiveScalarsX3_(r_rv, r, r_rl_, r_rr_, kl-1, jl, il, iu);
-        FallbackInadmissibleScalarX3_(rl_, rr_, r_rl_, r_rr_, il, iu);
+        pr->ReconstructPassiveScalarsX3_(r_rv, r, r_rl_, r_rr_,
+                                         kl-1, j, il, iu);
+        FallbackInadmissibleScalarX3_(rl_, rr_, r_rl_, r_rr_,
+                                      il, iu);
       }
 
       // Floor here (as needed, Cf. CalculateFluxes in Hydro)
@@ -253,12 +267,15 @@ void PassiveScalars::CalculateFluxes(AthenaArray<Real> &r, const int order)
 
       for (int k=kl; k<=ku; ++k)
       {
-        pr->ReconstructPassiveScalarsX3_(rv, r, rlb_, rr_, k, j, il, iu);
+        pr->ReconstructPassiveScalarsX3_(rv, r, rlb_, rr_,
+                                         k, j, il, iu);
 
         if (pr->xorder_use_fb)
         {
-          pr->ReconstructPassiveScalarsX3_(r_rv, r, r_rlb_, r_rr_, k, jl, il, iu);
-          FallbackInadmissibleScalarX3_(rlb_, rr_, r_rlb_, r_rr_, il, iu);
+          pr->ReconstructPassiveScalarsX3_(r_rv, r, r_rlb_, r_rr_,
+                                           k, j, il, iu);
+          FallbackInadmissibleScalarX3_(rlb_, rr_, r_rlb_, r_rr_,
+                                        il, iu);
         }
 
         // Floor here (as needed, Cf. CalculateFluxes in Hydro)

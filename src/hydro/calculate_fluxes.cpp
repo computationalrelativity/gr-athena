@@ -75,15 +75,20 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
   for (int k=kl; k<=ku; ++k)
   for (int j=jl; j<=ju; ++j)
   {
-    pr->ReconstructPrimitivesX1_(rv, w, wl_, wr_, k, j, il, iu);
-    pr->ReconstructMagneticFieldX1_(rv, bcc, wl_, wr_, k, j, il, iu);
+    pr->ReconstructPrimitivesX1_(rv, w, wl_, wr_,
+                                 k, j, il, iu);
+    pr->ReconstructMagneticFieldX1_(rv, bcc, wl_, wr_,
+                                    k, j, il, iu);
 
     if (pr->xorder_use_fb)
     {
-      pr->ReconstructPrimitivesX1_(r_rv, w, r_wl_, r_wr_, k, j, il, iu);
-      pr->ReconstructMagneticFieldX1_(r_rv, bcc, r_wl_, r_wr_, k, j, il, iu);
+      pr->ReconstructPrimitivesX1_(r_rv, w, r_wl_, r_wr_,
+                                   k, j, il, iu);
+      pr->ReconstructMagneticFieldX1_(r_rv, bcc, r_wl_, r_wr_,
+                                      k, j, il, iu);
 
-      FallbackInadmissiblePrimitiveX1_(wl_, wr_, r_wl_, r_wr_, il, iu);
+      FallbackInadmissiblePrimitiveX1_(wl_, wr_, r_wl_, r_wr_,
+                                       il, iu);
     }
     else
     {
@@ -92,9 +97,11 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
       pr->ReconstructPassiveScalarsX1_(ReconstructionVariant::donate,
                                        ps->r, rl_, rr_,
                                        k, j, il, iu);
-      FloorPrimitiveX1_(wl_, wr_, rl_, rr_, k, j, il, iu);
+      FloorPrimitiveX1_(wl_, wr_, rl_, rr_,
+                        k, j, il, iu);
 #else
-      FloorPrimitiveX1_(wl_, wr_, k, j, il, iu);
+      FloorPrimitiveX1_(wl_, wr_,
+                        k, j, il, iu);
 #endif
     }
 
@@ -122,16 +129,20 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
 
     for (int k=kl; k<=ku; ++k)
     {
-      pr->ReconstructPrimitivesX2_(rv, w, wl_, wr_, k, jl-1, il, iu);
-      pr->ReconstructMagneticFieldX2_(rv, bcc, wl_, wr_, k, jl-1, il, iu);
+      pr->ReconstructPrimitivesX2_(rv, w, wl_, wr_,
+                                   k, jl-1, il, iu);
+      pr->ReconstructMagneticFieldX2_(rv, bcc, wl_, wr_,
+                                      k, jl-1, il, iu);
 
       if (pr->xorder_use_fb)
       {
-        pr->ReconstructPrimitivesX2_(r_rv, w, r_wl_, r_wr_, k, jl-1, il, iu);
+        pr->ReconstructPrimitivesX2_(r_rv, w, r_wl_, r_wr_,
+                                     k, jl-1, il, iu);
         pr->ReconstructMagneticFieldX2_(r_rv, bcc, r_wl_, r_wr_,
                                         k, jl-1, il, iu);
 
-        FallbackInadmissiblePrimitiveX2_(wl_, wr_, r_wl_, r_wr_, il, iu);
+        FallbackInadmissiblePrimitiveX2_(wl_, wr_, r_wl_, r_wr_,
+                                         il, iu);
       }
       else
       {
@@ -140,9 +151,11 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
         pr->ReconstructPassiveScalarsX2_(ReconstructionVariant::donate,
                                          ps->r, rl_, rr_,
                                          k, jl-1, il, iu);
-        FloorPrimitiveX2_(wl_, wr_, rl_, rr_, k, jl-1, il, iu);
+        FloorPrimitiveX2_(wl_, wr_, rl_, rr_,
+                          k, jl-1, il, iu);
 #else
-        FloorPrimitiveX2_(wl_, wr_, k, jl-1, il, iu);
+        FloorPrimitiveX2_(wl_, wr_,
+                          k, jl-1, il, iu);
 #endif
       }
 
@@ -150,16 +163,20 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
       for (int j=jl; j<=ju; ++j)
       {
 
-        pr->ReconstructPrimitivesX2_(rv, w, wlb_, wr_, k, j, il, iu);
-        pr->ReconstructMagneticFieldX2_(rv, bcc, wlb_, wr_, k, j, il, iu);
+        pr->ReconstructPrimitivesX2_(rv, w, wlb_, wr_,
+                                     k, j, il, iu);
+        pr->ReconstructMagneticFieldX2_(rv, bcc, wlb_, wr_,
+                                        k, j, il, iu);
 
         if (pr->xorder_use_fb)
         {
-          pr->ReconstructPrimitivesX2_(r_rv, w, r_wlb_, r_wr_, k, j, il, iu);
+          pr->ReconstructPrimitivesX2_(r_rv, w, r_wlb_, r_wr_,
+                                       k, j, il, iu);
           pr->ReconstructMagneticFieldX2_(r_rv, bcc, r_wlb_, r_wr_,
                                           k, j, il, iu);
 
-          FallbackInadmissiblePrimitiveX2_(wlb_, wr_, r_wlb_, r_wr_, il, iu);
+          FallbackInadmissiblePrimitiveX2_(wlb_, wr_, r_wlb_, r_wr_,
+                                           il, iu);
         }
         else
         {
@@ -212,16 +229,20 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
 
     for (int j=jl; j<=ju; ++j)
     { // this loop ordering is intentional
-      pr->ReconstructPrimitivesX3_(rv, w, wl_, wr_, kl-1, j, il, iu);
-      pr->ReconstructMagneticFieldX3_(rv, bcc, wl_, wr_, kl-1, j, il, iu);
+      pr->ReconstructPrimitivesX3_(rv, w, wl_, wr_,
+                                   kl-1, j, il, iu);
+      pr->ReconstructMagneticFieldX3_(rv, bcc, wl_, wr_,
+                                      kl-1, j, il, iu);
 
       if (pr->xorder_use_fb)
       {
-        pr->ReconstructPrimitivesX3_(r_rv, w, r_wl_, r_wr_, kl-1, j, il, iu);
+        pr->ReconstructPrimitivesX3_(r_rv, w, r_wl_, r_wr_,
+                                     kl-1, j, il, iu);
         pr->ReconstructMagneticFieldX3_(r_rv, bcc, r_wl_, r_wr_,
                                         kl-1, j, il, iu);
 
-        FallbackInadmissiblePrimitiveX3_(wl_, wr_, r_wl_, r_wr_, il, iu);
+        FallbackInadmissiblePrimitiveX3_(wl_, wr_, r_wl_, r_wr_,
+                                         il, iu);
       }
       else
       {
@@ -230,7 +251,8 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
         pr->ReconstructPassiveScalarsX3_(ReconstructionVariant::donate,
                                          ps->r, rl_, rr_,
                                          kl-1, j, il, iu);
-        FloorPrimitiveX3_(wl_, wr_, rl_, rr_, kl-1, j, il, iu);
+        FloorPrimitiveX3_(wl_, wr_, rl_, rr_,
+                          kl-1, j, il, iu);
 #else
         FloorPrimitiveX3_(wl_, wr_, kl-1, j, il, iu);
 #endif
@@ -239,16 +261,20 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
 
       for (int k=kl; k<=ku; ++k)
       {
-        pr->ReconstructPrimitivesX3_(rv, w, wlb_, wr_, k, j, il, iu);
-        pr->ReconstructMagneticFieldX3_(rv, bcc, wlb_, wr_, k, j, il, iu);
+        pr->ReconstructPrimitivesX3_(rv, w, wlb_, wr_,
+                                     k, j, il, iu);
+        pr->ReconstructMagneticFieldX3_(rv, bcc, wlb_, wr_,
+                                        k, j, il, iu);
 
         if (pr->xorder_use_fb)
         {
-          pr->ReconstructPrimitivesX3_(r_rv, w, r_wlb_, r_wr_, k, j, il, iu);
+          pr->ReconstructPrimitivesX3_(r_rv, w, r_wlb_, r_wr_,
+                                       k, j, il, iu);
           pr->ReconstructMagneticFieldX3_(r_rv, bcc, r_wlb_, r_wr_,
                                           k, j, il, iu);
 
-          FallbackInadmissiblePrimitiveX3_(wlb_, wr_, r_wlb_, r_wr_, il, iu);
+          FallbackInadmissiblePrimitiveX3_(wlb_, wr_, r_wlb_, r_wr_,
+                                           il, iu);
         }
         else
         {
@@ -257,9 +283,11 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
           pr->ReconstructPassiveScalarsX3_(ReconstructionVariant::donate,
                                            ps->r, rlb_, rr_,
                                            k, j, il, iu);
-          FloorPrimitiveX3_(wlb_, wr_, rlb_, rr_, k, j, il, iu);
+          FloorPrimitiveX3_(wlb_, wr_, rlb_, rr_,
+                            k, j, il, iu);
 #else
-          FloorPrimitiveX3_(wlb_, wr_, k, j, il, iu);
+          FloorPrimitiveX3_(wlb_, wr_,
+                            k, j, il, iu);
 #endif
         }
 
