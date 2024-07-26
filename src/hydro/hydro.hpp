@@ -256,8 +256,8 @@ class Hydro {
   inline void FloorPrimitiveX1_(
     AthenaArray<Real> & wl_,
     AthenaArray<Real> & wr_,
-    AthenaArray<Real> & sl_,
-    AthenaArray<Real> & sr_,
+    AthenaArray<Real> & rl_,
+    AthenaArray<Real> & rr_,
     const int k,
     const int j,
     const int il, const int iu)
@@ -269,8 +269,8 @@ class Hydro {
     #pragma omp simd
     for (int i=il-1; i<=iu; ++i)
     {
-      peos->ApplyPrimitiveFloors(wl_,sl_,k,j,i+1);
-      peos->ApplyPrimitiveFloors(wr_,sr_,k,j,i);
+      peos->ApplyPrimitiveFloors(wl_,rl_,k,j,i+1);
+      peos->ApplyPrimitiveFloors(wr_,rr_,k,j,i);
     }
   }
 #else
@@ -304,10 +304,10 @@ class Hydro {
 
 #if USETM
   inline void FloorPrimitiveX2_(
-    AthenaArray<Real> & zl_,
-    AthenaArray<Real> & zr_,
-    AthenaArray<Real> & sl_,
-    AthenaArray<Real> & sr_,
+    AthenaArray<Real> & wl_,
+    AthenaArray<Real> & wr_,
+    AthenaArray<Real> & rl_,
+    AthenaArray<Real> & rr_,
     const int k,
     const int j,
     const int il, const int iu)
@@ -317,8 +317,8 @@ class Hydro {
     #pragma omp simd
     for (int i=il; i<=iu; ++i)
     {
-      peos->ApplyPrimitiveFloors(wl_,sl_,k,j,i);
-      peos->ApplyPrimitiveFloors(wr_,sr_,k,j,i);
+      peos->ApplyPrimitiveFloors(wl_,rl_,k,j,i);
+      peos->ApplyPrimitiveFloors(wr_,rr_,k,j,i);
     }
   }
 #else
@@ -352,10 +352,10 @@ class Hydro {
 
 #if USETM
   inline void FloorPrimitiveX3_(
-    AthenaArray<Real> & zl_,
-    AthenaArray<Real> & zr_,
-    AthenaArray<Real> & sl_,
-    AthenaArray<Real> & sr_,
+    AthenaArray<Real> & wl_,
+    AthenaArray<Real> & wr_,
+    AthenaArray<Real> & rl_,
+    AthenaArray<Real> & rr_,
     const int k,
     const int j,
     const int il, const int iu)
@@ -365,8 +365,8 @@ class Hydro {
     #pragma omp simd
     for (int i=il; i<=iu; ++i)
     {
-      peos->ApplyPrimitiveFloors(wl_,sl_,k,j,i);
-      peos->ApplyPrimitiveFloors(wr_,sr_,k,j,i);
+      peos->ApplyPrimitiveFloors(wl_,rl_,k,j,i);
+      peos->ApplyPrimitiveFloors(wr_,rr_,k,j,i);
     }
   }
 #else
