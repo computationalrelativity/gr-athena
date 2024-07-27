@@ -164,22 +164,27 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
 #endif
   v_amp = pin->GetOrAddReal("problem", "v_amp", 0.0);
 
-  // Alloc 1D buffer
-  tov = new TOVData;
-  tov->npts = npts;
+  if (!resume_flag)
+  {
+    // Alloc 1D buffer
+    tov = new TOVData;
+    tov->npts = npts;
 
-  // spacing & number of points to retain for interpolation
-  tov->interp_npts = pin->GetOrAddInteger("problem", "interp_npts", npts);
-  tov->interp_dr   = pin->GetOrAddReal(   "problem", "interp_dr",   dr);
+    // spacing & number of points to retain for interpolation
+    tov->interp_npts = pin->GetOrAddInteger("problem", "interp_npts", npts);
+    tov->interp_dr   = pin->GetOrAddReal(   "problem", "interp_dr",   dr);
 
-  // surface identification
-  tov->surf_dr   = pin->GetOrAddReal(     "problem", "surf_dr",   dr / 1.0e3);
+    // surface identification
+    tov->surf_dr = pin->GetOrAddReal("problem", "surf_dr",   dr / 1.0e3);
 
-  for (int v = 0; v < itov_nv; v++)
-    tov->data[v] = (Real*) malloc((tov->interp_npts)*sizeof(Real));
+    for (int v = 0; v < itov_nv; v++)
+    {
+      tov->data[v] = (Real*) malloc((tov->interp_npts)*sizeof(Real));
+    }
 
-  // Solve TOV equations, setting 1D inital data in tov->data
-  TOV_solve(rhoc, rmin, dr, &npts);
+    // Solve TOV equations, setting 1D inital data in tov->data
+    TOV_solve(rhoc, rmin, dr, &npts);
+  }
 
   if(adaptive==true)
     EnrollUserRefinementCondition(RefinementCondition);
@@ -250,22 +255,24 @@ void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin) {
 
 void Mesh::UserWorkAfterLoop(ParameterInput *pin)
 {
-  // Free TOV data
-  if (NULL != tov )
+  if (!resume_flag)
   {
-    for (int v = 0; v < itov_nv; v++)
+    // Free TOV data
+    if (NULL != tov )
     {
-      if (NULL != tov->data[v])
+      for (int v = 0; v < itov_nv; v++)
       {
-        free(tov->data[v]);
-        tov->data[v] = NULL;
+        if (NULL != tov->data[v])
+        {
+          free(tov->data[v]);
+          tov->data[v] = NULL;
+        }
       }
-    }
 
-    delete tov;
-    tov = NULL;
+      delete tov;
+      tov = NULL;
+    }
   }
-  return;
 }
 
 
@@ -384,18 +391,18 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     Real r_err = -std::numeric_limits<Real>::infinity();
 
     for (int n=0; n<NHYDRO;  ++n)
-    for (int k=0; k<ncells3; ++k)
-    for (int j=0; j<ncells2; ++j)
-    for (int i=0; i<ncells1; ++i)
+    for (int k=1; k<ncells3-1; ++k)
+    for (int j=1; j<ncells2-1; ++j)
+    for (int i=1; i<ncells1-1; ++i)
     {
       w_err = std::max(w_err, std::abs(id_w(n,k,j,i) -
                                        phydro->w(n,k,j,i)));
     }
 
     for (int n=0; n<NSCALARS;  ++n)
-    for (int k=0; k<ncells3; ++k)
-    for (int j=0; j<ncells2; ++j)
-    for (int i=0; i<ncells1; ++i)
+    for (int k=1; k<ncells3-1; ++k)
+    for (int j=1; j<ncells2-1; ++j)
+    for (int i=1; i<ncells1-1; ++i)
     {
       r_err = std::max(r_err, std::abs(id_r(n,k,j,i) -
                                        pscalars->r(n,k,j,i)));
