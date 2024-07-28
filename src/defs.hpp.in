@@ -62,6 +62,9 @@
 // Abort tasklist on hang; dump info
 #define DBG_TASKLIST_HANG
 
+// Combined Hydro/Passive scalar recon
+#define @DBG_COMBINED_HYDPA@
+
 // If activated, use only cons R/P on MeshBlock BC; and phys BC
 #define @DBG_USE_CONS_BC@
 #define @DBG_USE_REFERENCE_TASKLISTS@

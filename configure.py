@@ -56,6 +56,12 @@
 #   -rpath              encode the path to the shared libraries into the executable
 #   -link_gold          use gold linker
 #
+# S/AMR:
+#   -cons_bc            use _only_ conserved vars at distinct levels
+#
+# Hydro/passive scalars:
+#   -recon_cmb_hydpa    reconstruct hydro & passive sca. at same time
+#
 # z4c settings:
 #
 #   -z                  enable z4c system
@@ -224,6 +230,11 @@ parser.add_argument('-cons_bc',
                     action='store_true',
                     default=False,
                     help='utilize cons vars for all BC')
+
+parser.add_argument('-recon_cmb_hydpa',
+                    action='store_true',
+                    default=False,
+                    help='reconstruct hydro & passive scalars simult.')
 
 parser.add_argument('-old_taskslists',
                     action='store_true',
@@ -982,6 +993,12 @@ if args['cons_bc']:
     definitions['DBG_USE_CONS_BC'] = 'DBG_USE_CONS_BC'
 else:
     definitions['DBG_USE_CONS_BC'] = 'NO_DBG_USE_CONS_BC'
+
+# -recon_cmb_hydpa argument
+if args['recon_cmb_hydpa']:
+    definitions['DBG_COMBINED_HYDPA'] = 'DBG_COMBINED_HYDPA'
+else:
+    definitions['DBG_COMBINED_HYDPA'] = 'NO_DBG_COMBINED_HYDPA'
 
 # -old_taskslists argument
 if args['old_taskslists']:

@@ -78,6 +78,7 @@ void Hydro::RiemannSolver(
   AT_N_vec sl_adm_beta_u(  pz4c->storage.adm, Z4c::I_ADM_betax);
 
   // various scratches --------------------------------------------------------
+  // BD: TODO - faster to pre-alloc in Hydro class, probably
   AT_N_sca sqrt_detgamma_(iu+1);
   AT_N_sca detgamma_(     iu+1);  // spatial met det
   AT_N_sca oo_detgamma_(  iu+1);  // 1 / spatial met det
@@ -198,6 +199,13 @@ void Hydro::RiemannSolver(
     Real Yl[MAX_SPECIES] = {0.0};
     Real Yr[MAX_SPECIES] = {0.0};
     // PH TODO scalars should be passed in?
+#ifdef DBG_COMBINED_HYDPA
+    for (int n=0; n<NSCALARS; n++)
+    {
+      Yl[n] = pmy_block->pscalars->rl_(n,i);
+      Yr[n] = pmy_block->pscalars->rr_(n,i);
+    }
+#else
     for (int n=0; n<NSCALARS; n++) {
       Yr[n] = pmy_block->pscalars->r(n,k,j,i);
     }
@@ -218,6 +226,8 @@ void Hydro::RiemannSolver(
         }
         break;
     }
+#endif
+
     Real Tl = pmy_block->peos->GetEOS().GetTemperatureFromP(nl, w_p_l_(i), Yl);
     Real Tr = pmy_block->peos->GetEOS().GetTemperatureFromP(nr, w_p_r_(i), Yr);
     w_hrho_l_(i) = w_rho_l_(i)*pmy_block->peos->GetEOS().GetEnthalpy(nl, Tl, Yl);

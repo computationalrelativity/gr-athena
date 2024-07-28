@@ -511,18 +511,37 @@ void Hydro::RiemannSolver(
         // FIXME: Generalize to work with EOSes accepting particle fractions.
         Real Yl[MAX_SPECIES] = {0.0}; // Should we worry about r vs l here?
         Real Yr[MAX_SPECIES] = {0.0};
-        for (int n=0; n<NSCALARS; n++) Yr[n] = pmy_block->pscalars->r(n,k,j,i);
-        switch (ivx) {
-          case IVX:
-            for (int n=0; n<NSCALARS; n++) Yl[n] = pmy_block->pscalars->r(n,k,j,i-1);
-            break;
-          case IVY:
-            for (int n=0; n<NSCALARS; n++) Yl[n] = pmy_block->pscalars->r(n,k,j-1,i);
-            break;
-          case IVZ:
-            for (int n=0; n<NSCALARS; n++) Yl[n] = pmy_block->pscalars->r(n,k-1,j,i);
-            break;
+
+    // PH TODO scalars should be passed in?
+#ifdef DBG_COMBINED_HYDPA
+    for (int n=0; n<NSCALARS; n++)
+    {
+      Yl[n] = pmy_block->pscalars->rl_(n,i);
+      Yr[n] = pmy_block->pscalars->rr_(n,i);
+    }
+#else
+    for (int n=0; n<NSCALARS; n++) {
+      Yr[n] = pmy_block->pscalars->r(n,k,j,i);
+    }
+    switch (ivx) {
+      case IVX:
+        for (int n=0; n<NSCALARS; n++) {
+          Yl[n] = pmy_block->pscalars->r(n,k,j,i-1);
         }
+        break;
+      case IVY:
+        for (int n=0; n<NSCALARS; n++) {
+          Yl[n] = pmy_block->pscalars->r(n,k,j-1,i);
+        }
+        break;
+      case IVZ:
+        for (int n=0; n<NSCALARS; n++) {
+          Yl[n] = pmy_block->pscalars->r(n,k-1,j,i);
+        }
+        break;
+    }
+#endif
+
         Real Tl = pmy_block->peos->GetEOS().GetTemperatureFromP(nl, pgas_l(i), Yl);
         Real Tr = pmy_block->peos->GetEOS().GetTemperatureFromP(nr, pgas_r(i), Yr);
         wgas_l(i) = rho_l(i)*pmy_block->peos->GetEOS().GetEnthalpy(nl, Tl, Yl);

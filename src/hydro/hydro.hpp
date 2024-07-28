@@ -85,8 +85,10 @@ class Hydro {
     AthenaArray<Real> &w, FaceField &b,
     AthenaArray<Real> &bcc, const int order);
 
-  void CalculateFluxesRef(AthenaArray<Real> &w, FaceField &b,
-                          AthenaArray<Real> &bcc, const int order);
+
+  // debug join hydro+passive scalar recon.
+  void CalculateFluxesCombined(AthenaArray<Real> &w, FaceField &b,
+                               AthenaArray<Real> &bcc, const int order);
 
   void CalculateFluxes_STS();
 #if !MAGNETIC_FIELDS_ENABLED  // Hydro:

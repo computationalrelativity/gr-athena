@@ -105,7 +105,7 @@ class PassiveScalars {
     AthenaArray<Real> & f_zr_,
     const int il, const int iu);
 
-private:
+public:  // debug for combined hydro-scalar recon
   MeshBlock* pmy_block;
   // scratch space used to compute fluxes
   // 2D scratch arrays

@@ -138,6 +138,11 @@ void PassiveScalars::FallbackInadmissibleScalarX3_(
 
 void PassiveScalars::CalculateFluxes(AthenaArray<Real> &r, const int order)
 {
+#ifdef DBG_COMBINED_HYDPA
+  // Taken care of in Hydro:: currently
+  return;
+#endif
+
   MeshBlock *pmb = pmy_block;
   Reconstruction * pr = pmb->precon;
   typedef Reconstruction::ReconstructionVariant ReconstructionVariant;
