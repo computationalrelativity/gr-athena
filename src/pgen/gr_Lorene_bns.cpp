@@ -36,19 +36,11 @@
 
 //----------------------------------------------------------------------------------------
 using namespace gra::aliases;
+using namespace Primitive;
 //----------------------------------------------------------------------------------------
-
-// For reading composition tables
-#if EOS_POLICY_CODE == 2 || EOS_POLICY_CODE == 3
-#include "../utils/lorene_table.hpp"
-#define LORENE_EOS (1)
-#endif
 
 namespace {
   int RefinementCondition(MeshBlock *pmb);
-
-  Real linear_interp(Real *f, Real *x, int n, Real xv);
-  int interp_locate(Real *x, int Nx, Real xval);
 
 #if MAGNETIC_FIELDS_ENABLED
   Real DivBface(MeshBlock *pmb, int iout);
@@ -59,13 +51,13 @@ namespace {
   Real max_abs_con_H(MeshBlock *pmb, int iout);
 
   // Global variables
-#ifdef LORENE_EOS
-  LoreneTable * LORENE_EoS_Table = NULL; // Lorene table object
-  std::string LORENE_EoS_fname; // Barotropic table
-#if EOS_POLICY_CODE == 2
-  std::string LORENE_EoS_fname_Y; // Conposition table
-#endif
-#endif
+  ColdEOS<COLDEOS_POLICY> * ceos = NULL;
+
+  // Coppied from Lorene
+  const Real c_si = 2.99792458E+8 ;	 ///< Velocity of light [m/s]
+  const Real m_u_si = 1.6605390666E-27 ;  ///< atomic mass unit [kg]
+  const Real mev_si = 1.602176634E-13 ;   ///< One MeV [J]
+  const Real m_u_mev = m_u_si * c_si * c_si / mev_si;
 }
 
 
@@ -95,46 +87,19 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   EnrollUserHistoryOutput(3, DivBface, "divBface");
 #endif
 
-#ifdef LORENE_EOS
-  LORENE_EoS_fname   = pin->GetString("hydro", "lorene");
-#if EOS_POLICY_CODE == 2
-  LORENE_EoS_fname_Y = pin->GetString("hydro", "lorene_Y");
-#endif
-  LORENE_EoS_Table = new LoreneTable;
-  ReadLoreneTable(LORENE_EoS_fname, LORENE_EoS_Table);
-#if EOS_POLICY_CODE == 2
-  ReadLoreneFractions(LORENE_EoS_fname_Y, LORENE_EoS_Table);
-#endif
-  ConvertLoreneTable(LORENE_EoS_Table);
-  LORENE_EoS_Table->rho_atm = pin->GetReal("hydro", "dfloor");
+#if USETM
+  // initialize the cold EOS
+  ceos = new ColdEOS<COLDEOS_POLICY>();
+  InitColdEOS(ceos, pin);
+
+#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
+  // Dump Lorene eos file
+  std::string run_dir;
+  GetRunDir(run_dir);
+  ceos->DumpLoreneEOSFile(run_dir + "/eos_akmalpr.d");
 #endif
 
-  // BD: TODO - remove once "GRAND INTERFACE" is complete.
-  const bool have_fn_eos = pin->DoesParameterExist("problem", "filename_eos");
-  if (have_fn_eos)
-  {
-
-    if (Globals::my_rank == 0)
-    {
-      std::string filename_eos = pin->GetString("problem", "filename_eos");
-      std::string run_dir;
-
-      if (file_exists(filename_eos.c_str()))
-      {
-        GetRunDir(run_dir);
-        file_copy(filename_eos, run_dir);
-      }
-      else
-      {
-        std::stringstream msg;
-        msg << "### FATAL ERROR problem/filename_eos: "
-            << filename_eos << " "
-            << " could not be accessed.";
-        ATHENA_ERROR(msg);
-        std::exit(0);
-      }
-    }
-  }
+#endif
 
   return;
 }
@@ -436,16 +401,40 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     s.Fill(0.0);
 #endif
 
+    Real max_eps_err = 0.0;
+    Real rho_max = 0.0;
+    Real eps_max = 0.0;
+
     for (int k=kl; k<=ku; ++k)
     for (int j=jl; j<=ju; ++j)
     for (int i=il; i<=iu; ++i)
     {
       // Extract quantities from Lorene first, map units ----------------------
-      Real w_rho = bns->nbar[I] / rho_unit;
-      Real eps = bns->ener_spec[I] / ener_unit;
+      // Real w_rho = bns->nbar[I] / rho_unit;
+      
+      // Lorene is using the atomic mass unit as reference mass 
+      Real nb = bns->nbar[I] / m_u_si * 1e-45; // kg/m^3 -> fm^-3
+      Real w_rho = nb * ceos->GetBaryonMass(); // fm^-3 -> code units
+
+      // Sanity check if eps matches EOS
+      if (w_rho > 1e-5) 
+      {
+        Real eps = bns->ener_spec[I];
+        eps = m_u_mev/ceos->mb * (eps + 1) - 1; // convert eos baryon mass 
+        Real eps_ceos = ceos->GetSpecificInternalEnergy(w_rho);
+        Real eps_err = std::abs(eps_ceos/eps - 1);
+        
+        if (eps_err > max_eps_err)
+        {
+          max_eps_err = eps_err;
+          rho_max = w_rho;
+          eps_max = eps;
+	}
+      }
 
       // Unused, retain for reference:
       //
+      // Real eps = bns->ener_spec[I] / ener_unit;
       // Real w_e = w_rho * eps;
       // Real w_p = peos->PresFromRhoEg(w_rho, w_e);
       //
@@ -480,6 +469,13 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       ++I;
     }
 
+    if (max_eps_err > 1.0e-4)
+    {
+      printf("Warning: Internal energy in Lorene data and eos do not match!\n");
+      printf("rho=%.16e, eps_lorene=%.16e, rel. err.=%.16e\n",
+             rho_max, eps_max, max_eps_err);
+    }
+
     // clean up
     delete[] xx_cc;
     delete[] yy_cc;
@@ -488,6 +484,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     delete bns;
 
   } // OMP Critical
+
   // --------------------------------------------------------------------------
 
   // Treat EOS derived quantities ---------------------------------------------
@@ -522,22 +519,15 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
 #else
     // PrimitiveSolver --------------------------------------------------------
-    AthenaArray<Real> & T  = phydro->temperature;
-
     Real w_rho_atm = pin->GetReal("hydro", "dfloor");
-    Real T_atm     = pin->GetReal("hydro", "tfloor");
-    Real mb        = peos->GetEOS().GetBaryonMass();
 
-    Real Y_atm[MAX_SPECIES] = {0.0};
-#if EOS_POLICY_CODE == 2
-    Y_atm[0] = pin->GetReal("hydro", "y0_atmosphere");
+#if NSCALARS > 0
+    Real Y_atm[NSCALARS] = {0.0};
+    for (int iy=0; iy<NSCALARS; ++iy)
+    {
+      Y_atm[iy] = pin->GetReal("hydro", "y" + std::to_string(iy) + "_atmosphere");
+    }
 #endif
-    Real Y[MAX_SPECIES];
-
-#ifdef USE_IDEAL_GAS
-    const Real k_adi     = pin->GetReal("hydro", "k_adi");
-    const Real gamma_adi = pin->GetReal("hydro", "gamma");
-#endif // USE_IDEAL_GAS
 
     // USETM fill
     for (int k=kl; k<=ku; ++k)
@@ -546,60 +536,33 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     {
       // Check if density admissible first -
       // This controls velocity reset & Y interpolation (if applicable)
-      const bool state_admissible = w(IDN,k,j,i) > w_rho_atm;
-      w(IDN,k,j,i) = std::max(w(IDN,k,j,i), w_rho_atm);
-      const Real w_nb = w(IDN,k,j,i) / mb;
-
-      // BD: TODO - stupid work-around to get barotropic init. with
-      //            PrimitiveSolver-
-      //            w_p = K w_rho ^ gamma_adi & fake T
-#ifdef USE_IDEAL_GAS
-      std::fill(std::begin(Y), std::end(Y), 0.0);
-
-      w(IPR,k,j,i) = k_adi*std::pow(w(IDN,k,j,i),gamma_adi);
-      T(k,j,i) = peos->GetEOS().GetTemperatureFromP(w_nb, w(IPR,k,j,i), Y);
-#else
-      // Tabulated ------------------------------------------------------------
-      if (state_admissible)
+      if (w(IDN,k,j,i) > w_rho_atm)
       {
+        w(IPR,k,j,i) = ceos->GetPressure(w(IDN,k,j,i));
 #if NSCALARS > 0
-        for (int n=0; n<NSCALARS; ++n)
+        for (int iy=0; iy<NSCALARS; ++iy)
         {
-          Y[n] = linear_interp(LORENE_EoS_Table->Y[n],
-                               LORENE_EoS_Table->data[tab_logrho],
-                               LORENE_EoS_Table->size,
-                               log(w(IDN,k,j,i)));
+          r(iy,k,j,i) = ceos->GetY(w(IDN,k,j,i), iy);
         }
 #endif
-        w(IPR,k,j,i) = peos->GetEOS().GetPressure(w_nb, T_atm, Y);
-        T(k,j,i) = T_atm;
       }
       else
       {
         // Reset primitives
-        T(k,j,i) = T_atm;
         w(IPR,k,j,i) = 0;
 #if NSCALARS > 0
-        for (int n=0; n<NSCALARS; ++n)
+        for (int iy=0; iy<NSCALARS; ++iy)
         {
-          Y[n] = Y_atm[n];
+          r(iy,k,j,i) = Y_atm[iy];
         }
 #endif
+
         // Assume that we always have (IVX, IVY, IVZ)
         for (int ix=0; ix<3; ++ix)
         {
           w(IVX+ix,k,j,i) = 0;
         }
       }
-
-#endif // USE_IDEAL_GAS
-
-  #if NSCALARS > 0
-      for (int n=0; n<NSCALARS; ++n)
-      {
-        r(n,k,j,i) = Y[n];
-      }
-  #endif
 
       // This is useless with USETM (w1 is old state for e.g. rootfinder)
       for (int n=0; n<NHYDRO; ++n)
@@ -609,7 +572,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     }
 
     // ------------------------------------------------------------------------
-#endif
+#endif // !USETM
   }
   // --------------------------------------------------------------------------
 
@@ -844,6 +807,15 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   return;
 }
 
+
+void Mesh::DeleteTemporaryUserMeshData()
+{
+  // Free cold EOS data
+  delete ceos;
+
+  return;
+}
+
 namespace {
 
 //----------------------------------------------------------------------------------------
@@ -1006,50 +978,5 @@ Real max_abs_con_H(MeshBlock *pmb, int iout)
 
   return m_abs_con_H;
 }
-
-#ifdef LORENE_EOS
-  //--------------------------------------------------------------------------------------
-  //! \fn double linear_interp(double *f, double *x, int n, double xv)
-  // \brief linearly interpolate f(x), compute f(xv)
-  Real linear_interp(Real *f, Real *x, int n, Real xv)
-  {
-    int i = interp_locate(x,n,xv);
-    if (i < 0)  i=1;
-    if (i == n) i=n-1;
-    int j;
-    if(xv < x[i]) j = i-1;
-    else j = i+1;
-    Real xj = x[j]; Real xi = x[i];
-    Real fj = f[j]; Real fi = f[i];
-    Real m = (fj-fi)/(xj-xi);
-    Real df = m*(xv-xj)+fj;
-    return df;
-  }
-
-  //-----------------------------------------------------------------------------------------
-  //! \fn int interp_locate(Real *x, int Nx, Real xval)
-  // \brief Bisection to find closest point in interpolating table
-  // 
-  int interp_locate(Real *x, int Nx, Real xval) {
-    int ju,jm,jl;
-    int ascnd;
-    jl=-1;
-    ju=Nx;
-    if (xval <= x[0]) {
-      return 0;
-    } else if (xval >= x[Nx-1]) {
-      return Nx-1;
-    }
-    ascnd = (x[Nx-1] >= x[0]);
-    while (ju-jl > 1) {
-      jm = (ju+jl) >> 1;
-      if (xval >= x[jm] == ascnd)
-  jl=jm;
-      else
-  ju=jm;
-    }
-    return jl;
-  }
-  #endif
 
 }

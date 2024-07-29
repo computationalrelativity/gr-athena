@@ -39,13 +39,6 @@
 using namespace gra::aliases;
 //----------------------------------------------------------------------------------------
 
-// If we are using a tabulated EoS then we need to set this flag, 
-// otherwise we use a polytrope
-#if EOS_POLICY_CODE == 2 || EOS_POLICY_CODE == 3
-#include "../utils/lorene_table.hpp"
-#define LORENE_EOS (1)
-#endif
-
 // Configuration checking
 #if not GENERAL_RELATIVITY
 #error "This problem generator must be used with general relativity"
@@ -72,15 +65,6 @@ namespace {
   int RefinementCondition(MeshBlock *pmb);
 
   // Global variables
-#ifdef LORENE_EOS
-  LoreneTable * LORENE_EoS_Table = NULL; // Lorene table object
-  std::string LORENE_EoS_fname; // Barotropic table
-#if EOS_POLICY_CODE == 2
-  std::string LORENE_EoS_fname_Y; // Conposition table
-#endif
-#else
-  Real gamma_adi, k_adi;  // hydro EOS parameters
-#endif
   Real v_amp; // velocity amplitude for linear perturbations
 
   // TOV var indexes for ODE integration
@@ -101,6 +85,8 @@ namespace {
     Real R, Riso, M;
   };
   TOVData * tov = NULL;
+
+  Primitive::ColdEOS<Primitive::COLDEOS_POLICY> * ceos = NULL;
 
   Real Maxrho(MeshBlock *pmb, int iout);
 #if MAGNETIC_FIELDS_ENABLED
@@ -128,7 +114,7 @@ inline bool Lorentz4Boost(
 }
 
 //----------------------------------------------------------------------------------------
-//! \fn 
+//! \fn
 // \brief  Function for initializing global mesh properties
 // Inputs:
 //   pin: input parameters (unused)
@@ -146,45 +132,26 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   // number of max radial pts for TOV solver
   int npts = pin->GetInteger("problem", "npts");
 
-#ifdef LORENE_EOS
-  LORENE_EoS_fname   = pin->GetString("hydro", "lorene");
-#if EOS_POLICY_CODE == 2
-  LORENE_EoS_fname_Y = pin->GetString("hydro", "lorene_Y");
-#endif
-  LORENE_EoS_Table = new LoreneTable;
-  ReadLoreneTable(LORENE_EoS_fname, LORENE_EoS_Table);
-#if EOS_POLICY_CODE == 2
-  ReadLoreneFractions(LORENE_EoS_fname_Y, LORENE_EoS_Table);
-#endif
-  ConvertLoreneTable(LORENE_EoS_Table);
-  LORENE_EoS_Table->rho_atm = pin->GetReal("hydro", "dfloor"); 
-#else
-  k_adi = pin->GetReal("hydro", "k_adi");
-  gamma_adi = pin->GetReal("hydro","gamma");
-#endif
-  v_amp = pin->GetOrAddReal("problem", "v_amp", 0.0);
+  // Alloc 1D buffer
+  tov = new TOVData;
+  tov->npts = npts;
 
-  if (!resume_flag)
-  {
-    // Alloc 1D buffer
-    tov = new TOVData;
-    tov->npts = npts;
+  // spacing & number of points to retain for interpolation
+  tov->interp_npts = pin->GetOrAddInteger("problem", "interp_npts", npts);
+  tov->interp_dr   = pin->GetOrAddReal(   "problem", "interp_dr",   dr);
 
-    // spacing & number of points to retain for interpolation
-    tov->interp_npts = pin->GetOrAddInteger("problem", "interp_npts", npts);
-    tov->interp_dr   = pin->GetOrAddReal(   "problem", "interp_dr",   dr);
+  // surface identification
+  tov->surf_dr   = pin->GetOrAddReal(     "problem", "surf_dr",   dr / 1.0e3);
 
-    // surface identification
-    tov->surf_dr = pin->GetOrAddReal("problem", "surf_dr",   dr / 1.0e3);
+  // Initialize cold EOS
+  ceos = new Primitive::ColdEOS<Primitive::COLDEOS_POLICY>;
+  InitColdEOS(ceos, pin);
 
-    for (int v = 0; v < itov_nv; v++)
-    {
-      tov->data[v] = (Real*) malloc((tov->interp_npts)*sizeof(Real));
-    }
+  for (int v = 0; v < itov_nv; v++)
+    tov->data[v] = (Real*) malloc((tov->interp_npts)*sizeof(Real));
 
-    // Solve TOV equations, setting 1D inital data in tov->data
-    TOV_solve(rhoc, rmin, dr, &npts);
-  }
+  // Solve TOV equations, setting 1D inital data in tov->data
+  TOV_solve(rhoc, rmin, dr, &npts);
 
   if(adaptive==true)
     EnrollUserRefinementCondition(RefinementCondition);
@@ -198,7 +165,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
 
 
 //----------------------------------------------------------------------------------------
-//! \fn 
+//! \fn
 // \brief Setup User work
 
 void MeshBlock::InitUserMeshBlockData(ParameterInput *pin) {
@@ -253,26 +220,28 @@ void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin) {
   return;
 }
 
-void Mesh::UserWorkAfterLoop(ParameterInput *pin)
+void Mesh::DeleteTemporaryUserMeshData()
 {
-  if (!resume_flag)
+  // Free TOV data
+  if (NULL != tov )
   {
-    // Free TOV data
-    if (NULL != tov )
+    for (int v = 0; v < itov_nv; v++)
     {
-      for (int v = 0; v < itov_nv; v++)
+      if (NULL != tov->data[v])
       {
-        if (NULL != tov->data[v])
-        {
-          free(tov->data[v]);
-          tov->data[v] = NULL;
-        }
+        free(tov->data[v]);
+        tov->data[v] = NULL;
       }
-
-      delete tov;
-      tov = NULL;
     }
+
+    delete tov;
+    tov = NULL;
   }
+
+  // Free cold EOS data
+  delete ceos;
+
+  return;
 }
 
 
@@ -391,18 +360,18 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     Real r_err = -std::numeric_limits<Real>::infinity();
 
     for (int n=0; n<NHYDRO;  ++n)
-    for (int k=1; k<ncells3-1; ++k)
-    for (int j=1; j<ncells2-1; ++j)
-    for (int i=1; i<ncells1-1; ++i)
+    for (int k=0; k<ncells3; ++k)
+    for (int j=0; j<ncells2; ++j)
+    for (int i=0; i<ncells1; ++i)
     {
       w_err = std::max(w_err, std::abs(id_w(n,k,j,i) -
                                        phydro->w(n,k,j,i)));
     }
 
     for (int n=0; n<NSCALARS;  ++n)
-    for (int k=1; k<ncells3-1; ++k)
-    for (int j=1; j<ncells2-1; ++j)
-    for (int i=1; i<ncells1-1; ++i)
+    for (int k=0; k<ncells3; ++k)
+    for (int j=0; j<ncells2; ++j)
+    for (int i=0; i<ncells1; ++i)
     {
       r_err = std::max(r_err, std::abs(id_r(n,k,j,i) -
                                        pscalars->r(n,k,j,i)));
@@ -471,27 +440,12 @@ int TOV_rhs(Real r, Real *u, Real *k)
   Real phi = u[TOV_IPHI];
   Real I   = u[TOV_IINT]; // Integral for the isotropic radius
 
-  //  Set pressure and internal energy using equation of state
-  //TODO(SB) general EOS call
-#ifdef LORENE_EOS
-  Real logrho, logp, eps, p, dpdrho;
-  if (rho <= LORENE_EoS_Table->rho_atm) {
-    logrho = log(LORENE_EoS_Table->rho_atm);
-  } else {
-  logrho = log(rho);
-  }
-  logp   = linear_interp(LORENE_EoS_Table->data[tab_logp],   LORENE_EoS_Table->data[tab_logrho], LORENE_EoS_Table->size, logrho);
-  eps    = linear_interp(LORENE_EoS_Table->data[tab_eps],    LORENE_EoS_Table->data[tab_logrho], LORENE_EoS_Table->size, logrho);
-  dpdrho = linear_interp(LORENE_EoS_Table->data[tab_dpdrho], LORENE_EoS_Table->data[tab_logrho], LORENE_EoS_Table->size, logrho);
-  p      = std::exp(logp);
-#else
-  Real p = k_adi * std::pow(rho,gamma_adi);
-  Real eps = p / (rho*(gamma_adi-1.));
-  Real dpdrho = gamma_adi*k_adi*std::pow(rho,gamma_adi-1.0);
-#endif
+  if (rho < 0.0) rho = ceos->GetDensityFloor();
 
-  // Total energy density
-  Real e = rho*(1. + eps);
+  //  Set pressure and energy using equation of state
+  Real p = ceos->GetPressure(rho);
+  Real e= ceos->GetEnergy(rho);
+  Real dpdrho = ceos->GetdPdrho(rho);
 
   Real num   = m + 4.*PI*r*r*r*p;
   Real den   = r*(r-2.*m);
@@ -515,6 +469,7 @@ int TOV_rhs(Real r, Real *u, Real *k)
   for (int v = 0; v < TOV_NVAR; v++) {
     if (!std::isfinite(k[v])) knotfinite++;
   }
+
   return knotfinite;
 }
 
@@ -534,17 +489,10 @@ int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts)
   Real u[TOV_NVAR];
 
   // Set central values of pressure internal energy using EOS
-  //TODO(SB) general EOS call
-#ifdef LORENE_EOS
-  Real logrhoc = log(rhoc);
-  Real logpc   = linear_interp(LORENE_EoS_Table->data[tab_logp],   LORENE_EoS_Table->data[tab_logrho], LORENE_EoS_Table->size, logrhoc);
-  Real epslc   = linear_interp(LORENE_EoS_Table->data[tab_eps],    LORENE_EoS_Table->data[tab_logrho], LORENE_EoS_Table->size, logrhoc);
-  Real pc      = std::exp(logpc);
-#else
-  const Real pc = k_adi*std::pow(rhoc,gamma_adi);
-  const Real epslc = pc/(rhoc*(gamma_adi-1.));
-#endif
-  const Real ec = rhoc*(1.+epslc);
+  const Real logrhoc = log(rhoc);
+  const Real pc = ceos->GetPressure(rhoc);
+  const Real logpc = log(pc);
+  const Real ec = ceos->GetEnergy(rhoc);
 
   // Data at r = 0^+
   Real r = rmin;
@@ -576,68 +524,8 @@ int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts)
   // Mul. by C later
   tov->data[itov_riso][0] = (r) * std::exp(u[TOV_IINT]);
 
-//TODO(SB) use atmosphere level
-#if LORENE_EOS
-  const Real rho_zero = LORENE_EoS_Table->rho_atm; 
-#else
-  const Real rho_zero = 0.;
-#endif
 
-
-  if (0)
-  {
-    // To use: needs tov->interp_npts = interp_n = n; added after integ below
-
-    Real u1[TOV_NVAR],u2[TOV_NVAR],u3[TOV_NVAR],k[TOV_NVAR];
-    const Real oosix = 1./6.;
-    while (n < maxsize)
-    {
-
-      // u_1 = u + dt/2 rhs(u)
-      stop += TOV_rhs(r, u, k);
-      for (int v = 0; v < TOV_NVAR; v++)
-        u1[v] = u[v] + 0.5*dr*k[v];
-      // u_2 = u + dt/2 rhs(u_1)
-      stop += TOV_rhs(r, u1, k);
-      for (int v = 0; v < TOV_NVAR; v++)
-        u2[v] = u[v] + 0.5*dr*k[v];
-      // u_3 = u + dt rhs(u_2)
-      stop += TOV_rhs(r, u2, k);
-      for (int v = 0; v < TOV_NVAR; v++)
-        u3[v] = u[v] + dr*k[v];
-      // u = 1/6 ( -2 u + 2 u_1 + 4 u_2 + 2 u_3 + dt rhs(u_3) )
-      stop += TOV_rhs(r, u3, k);
-      for (int v = 0; v < TOV_NVAR; v++)
-      {
-        u[v] = oosix*( 2.*( - u[v] + u1[v] + u3[v] ) + 4.*u2[v] + dr*k[v] );
-      }
-
-      if (stop)
-      {
-        msg << "### FATAL ERROR in function [TOV_solve]"
-            << std::endl << "TOV r.h.s. not finite";
-        ATHENA_ERROR(msg);
-      }
-
-      // Stop if radius reached
-      rhoo = u[TOV_IRHO];
-      if (rhoo < rho_zero)
-      {
-        break;
-      }
-
-      // Store data
-      tov->data[itov_rsch][n] = r;
-      tov->data[itov_rho][n] =  u[TOV_IRHO];
-      tov->data[itov_mass][n] = u[TOV_IMASS];
-      tov->data[itov_phi][n] =  u[TOV_IPHI];
-      tov->data[itov_riso][n] = r * std::exp(u[TOV_IINT]); // Multiply by C later
-
-      // Prepare next step
-      n++;
-      r = n * dr;
-    }
-  }
+  const Real rho_zero = ceos->GetDensityFloor();
 
   int n_halving = 0;
   bool tol_surf_achieved = false;
@@ -824,15 +712,8 @@ int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts)
   tov->Riso = tov->data[itov_riso][tov->interp_npts-1];
 
   // Pressure
-  //TODO(SB) general EOS call
   for (int n = 0; n < tov->interp_npts; n++) {
-#ifdef LORENE_EOS
-    Real rho_n = tov->data[itov_rho][n];
-    Real logp_n = linear_interp(LORENE_EoS_Table->data[tab_logp], LORENE_EoS_Table->data[tab_logrho], LORENE_EoS_Table->size, log(rho_n));
-    tov->data[itov_pre][n] = std::exp(logp_n);
-#else
-    tov->data[itov_pre][n] = std::pow(tov->data[itov_rho][n],gamma_adi) * k_adi;
-#endif
+    tov->data[itov_pre][n] = ceos->GetPressure(tov->data[itov_rho][n]);
   }
 
   // Other metric fields
@@ -1239,19 +1120,11 @@ void TOV_populate(MeshBlock *pmb,
             &dummy);
 
           // Pressure from EOS
-          // TODO (SB) general EOS call
-#ifdef LORENE_EOS
-          Real n_kji = w_rho_(i)/(pmb->peos->GetEOS().GetBaryonMass());
-          Real Y_kji[MAX_SPECIES] = {0.0};
+          w_p_(i) = ceos->GetPressure(w_rho_(i));
 #if NSCALARS > 0
           for (int l=0; l<NSCALARS; ++l) {
-            Y_kji[l] = linear_interp(LORENE_EoS_Table->Y[l], LORENE_EoS_Table->data[tab_logrho], LORENE_EoS_Table->size, log(w_rho_(i)));
-            prim_scalar(l,i) = Y_kji[l];
+            prim_scalar(l,i) = ceos->GetY(w_rho_(i), l);
           }
-#endif
-          w_p_(i) = pmb->peos->GetEOS().GetPressure(n_kji,T_initial,Y_kji);
-#else
-          w_p_(i) = k_adi*pow(w_rho_(i),gamma_adi);
 #endif
 
           // Add perturbation
@@ -1268,7 +1141,7 @@ void TOV_populate(MeshBlock *pmb,
           for (int l=0; l<NSCALARS; ++l) {
             prim_scalar(l,i) = Y_atm[l];
           }
-#endif          
+#endif
         }
 
         w_util_u_(0,i) = up_r*sinth*cosphi;
@@ -1684,19 +1557,7 @@ void TOV_populate(MeshBlock *pmb,
   // Initialize magnetic field
   // No metric weighting here
   Real rhomax = tov->data[itov_rho][0];
-#ifdef LORENE_EOS
-  // LORENE Table interp goes here
-  Real nmax = rhomax/(pmb->peos->GetEOS().GetBaryonMass());
-  Real Ymax[MAX_SPECIES] = {0.0};
-#if NSCALARS > 0
-  for (int l=0;l<NSCALARS;++l) {
-    Ymax[l] = linear_interp(LORENE_EoS_Table->Y[l], LORENE_EoS_Table->data[tab_logrho], LORENE_EoS_Table->size, log(rhomax));
-  }
-#endif
-  Real pgasmax = pmb->peos->GetEOS().GetPressure(nmax,T_initial,Ymax);
-#else
-  Real pgasmax = k_adi*pow(rhomax,gamma_adi);
-#endif
+  Real pgasmax = ceos->GetPressure(rhomax);
 
   // BD: TODO - what are the units?
   pgasmax = pin->GetReal("problem","pmax");
@@ -1975,5 +1836,3 @@ inline bool Lorentz4Boost(
 }
 
 }
-
-#undef LORENE_EOS
