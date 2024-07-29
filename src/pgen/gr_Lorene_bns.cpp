@@ -15,6 +15,8 @@
 
 // https://lorene.obspm.fr/
 #include <bin_ns.h>
+#include <sstream>
+#include <streambuf>
 // #include <unites.h>
 
 // Athena++ headers
@@ -271,9 +273,25 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     // ------------------------------------------------------------------------
 
     // prepare Lorene interpolator for geometry -------------------------------
+    std::streambuf *cur_buf;
+    std::ostringstream dmp_buf;
+
+    if (!verbose)
+    {
+      cur_buf = std::cout.rdbuf();
+      std::cout.rdbuf(dmp_buf.rdbuf());
+    }
+
+
     bns = new Lorene::Bin_NS(npoints_gs,
                              xx_gs, yy_gs, zz_gs,
                              fn_ini_data.c_str());
+
+    if (!verbose)
+    {
+      std::cout.rdbuf(cur_buf);
+    }
+
     sep = bns->dist / coord_unit;
 
 
@@ -392,8 +410,19 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
     // ------------------------------------------------------------------------
     // prepare Lorene interpolator for matter ---------------------------------
+
+    if (!verbose)
+    {
+      std::cout.rdbuf(dmp_buf.rdbuf());
+    }
+
     bns = new Lorene::Bin_NS(npoints_cc, xx_cc, yy_cc, zz_cc,
                              fn_ini_data.c_str());
+
+    if (!verbose)
+    {
+      std::cout.rdbuf(cur_buf);
+    }
 
     assert(bns->np == npoints_cc);
 
