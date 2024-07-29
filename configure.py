@@ -707,15 +707,19 @@ elif args['eos'] == 'eostaudyn_ps':
     if args['eospolicy'] == 'idealgas':
         definitions['EOS_POLICY'] = 'IdealGas'
         definitions['EOS_POLICY_CODE'] = '0'
+        definitions['COLDEOS_POLICY'] = 'Polytrope'
     elif args['eospolicy'] == 'piecewise_polytrope':
         definitions['EOS_POLICY'] = 'PiecewisePolytrope'
         definitions['EOS_POLICY_CODE'] = '1'
+        definitions['COLDEOS_POLICY'] = 'ColdPiecewisePolytrope'
     elif args['eospolicy'] == 'eos_compose':
         definitions['EOS_POLICY'] = 'EOSCompOSE'
         definitions['EOS_POLICY_CODE'] = '2'
+        definitions['COLDEOS_POLICY'] = 'ColdEOSCompOSE'
     elif args['eospolicy'] == 'hybrid_table':
         definitions['EOS_POLICY'] = 'HybridTable'
         definitions['EOS_POLICY_CODE'] = '3'
+        definitions['COLDEOS_POLICY'] = 'ColdHybridTable'
     else:
         definitions['EOS_POLICY'] = ''
     if args['errorpolicy'] == 'do_nothing':
@@ -1595,7 +1599,7 @@ with open(makefile_input, 'r') as current_file:
     makefile_template = current_file.read()
 
 # Add PrimitiveSolver EOS files
-files = [args['eospolicy'], args['errorpolicy'], 'ps_error']
+files = [args['eospolicy'], args['errorpolicy'], 'ps_error', f'cold_{args["eospolicy"]}']
 makefile_options['EOS_FILES'] = ''
 if args['eos'] == 'eostaudyn_ps':
     aux = ["        src/z4c/primitive/{}.cpp \\".format(f) for f in files]

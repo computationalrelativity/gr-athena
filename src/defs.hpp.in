@@ -108,6 +108,9 @@
 // EOS Policy used by the PrimitiveSolver framework
 #define EOS_POLICY @EOS_POLICY@
 
+// ColdEOS Policy used by the PrimitiveSolver framework
+#define COLDEOS_POLICY @COLDEOS_POLICY@
+
 // EOS Policy code used for preprocessor checking
 #define EOS_POLICY_CODE @EOS_POLICY_CODE@
 

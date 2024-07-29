@@ -23,6 +23,7 @@
 #if USETM
 // PrimitiveSolver headers
 #include "../z4c/primitive/eos.hpp"
+#include "../z4c/primitive/coldeos.hpp"
 #include "../z4c/primitive/primitive_solver.hpp"
 #include "include_eos.hpp"
 #endif
@@ -43,8 +44,8 @@ class EquationOfState {
   #if USETM
   void ConservedToPrimitive(
       AthenaArray<Real> &cons, const AthenaArray<Real> &prim_old, const FaceField &b,
-      AthenaArray<Real> &prim, 
-      AthenaArray<Real> &cons_scalar, AthenaArray<Real> &prim_scalar, AthenaArray<Real> &bcc, 
+      AthenaArray<Real> &prim,
+      AthenaArray<Real> &cons_scalar, AthenaArray<Real> &prim_scalar, AthenaArray<Real> &bcc,
       Coordinates *pco, int il, int iu, int jl, int ju, int kl, int ku, int coarseflag);
   #else
   void ConservedToPrimitive(
@@ -353,5 +354,10 @@ class EquationOfState {
   Real temperature_floor_;
 #endif
 };
+
+#if USETM
+void InitColdEOS(Primitive::ColdEOS<Primitive::COLDEOS_POLICY> *eos,
+                 ParameterInput *pin);
+#endif
 
 #endif // EOS_EOS_HPP_

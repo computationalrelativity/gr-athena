@@ -57,20 +57,37 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   fixed_.NewAthenaArray(ncells3, ncells2, ncells1);
 
   // Set up the EOS
-  // If we're using a tabulated EOS, load the table.
-  #if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
+#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
   std::string table = pin->GetString("hydro", "table");
   eos.SetCodeUnitSystem(&Primitive::GeometricSolar);
   eos.ReadTableFromFile(table);
-  #endif
+  Real mb = eos.GetBaryonMass();
 
-  #ifdef USE_IDEAL_GAS
+#elif defined(USE_IDEAL_GAS)
   // Baryon mass
   Real mb = pin->GetOrAddReal("hydro", "bmass", 1.0);
   eos.SetBaryonMass(mb);
-  #else
-  Real mb = eos.GetBaryonMass();
-  #endif
+
+#elif defined(USE_PIECEWISE_POLY)
+  int n = pin->GetOrAddInteger("hydro", "n", 4);
+  Real gammas[n];
+  Real rhos[n];
+  for (int i = 0; i < n; i++) {
+    std::stringstream ss;
+    ss << "gamma" << i;
+    gammas[i] = pin->GetReal("hydro", ss.str());
+  }
+  for (int i = 0; i < n; i++) {
+    std::stringstream ss;
+    ss << "rho" << i;
+    rhos[i] = pin->GetReal("hydro", ss.str());
+  }
+  Real P0 = pin->GetReal("hydro", "P0");
+  Real mb = pin->GetOrAddReal("hydro", "bmass", 1.0);
+  eos.InitializeFromData(rhos, gammas, P0, mb, n);
+  Real gamma_th = pin->GetOrAddReal("hydro", "gamma_th", 5.0/3.0);
+  eos.SetThermalGamma(gamma_th);
+#endif
 
   eos.SetDensityFloor(density_floor_/mb);
   Real threshold = pin->GetOrAddReal("hydro", "dthreshold", 1.0);
@@ -86,19 +103,63 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   eos.SetMaximumMagnetization(bsq_max);
 
   // If we're working with an ideal gas, we need to fix the adiabatic constant.
-  #ifdef USE_IDEAL_GAS
+#ifdef USE_IDEAL_GAS
   gamma_ = pin->GetOrAddReal("hydro", "gamma", 2.0);
   eos.SetGamma(gamma_);
-  #elif defined(USE_HYBRID_EOS)
+#elif defined(USE_HYBRID_EOS)
   gamma_ = pin->GetOrAddReal("hydro", "gamma_th", 2.0);
   eos.SetThermalGamma(gamma_);
-  #else
+#else
   // If we're not using a gamma-law EOS, we should not ever reference gamma.
   // Make sure that's the case by setting it to NaN.
   gamma_ = std::numeric_limits<double>::quiet_NaN();
-  #endif
+#endif
 
   // FIXME: Set some parameters here for MHD.
+}
+
+// Initialize cold eos object based on parameters
+void InitColdEOS(Primitive::ColdEOS<Primitive::COLDEOS_POLICY> *eos,
+                 ParameterInput *pin) {
+
+#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
+  std::string table = pin->GetString("hydro", "table");
+
+  // read in species names
+  std::string species_names[NSCALARS];
+  for (int i = 0; i < NSCALARS; i++) {
+    species_names[i] = pin->GetOrAddString("hydro", "species" + std::to_string(i), "e");
+  }
+
+  eos->ReadColdSliceFromFile(table, species_names);
+  eos->SetCodeUnitSystem(&Primitive::GeometricSolar);
+
+#elif defined(USE_IDEAL_GAS)
+  Real k_adi = pin->GetReal("hydro", "k_adi");
+  eos->SetK(k_adi);
+  Real gamma_adi = pin->GetReal("hydro","gamma");
+  eos->SetGamma(gamma_adi);
+
+#elif defined(USE_PIECEWISE_POLY)
+  int n = pin->GetOrAddInteger("hydro", "n", 4);
+  Real gammas[n];
+  Real rhos[n];
+  for (int i = 0; i < n; i++) {
+    gammas[i] = pin->GetReal("hydro", "gamma" + std::to_string(i));
+    rhos[i] = pin->GetReal("hydro", "rho" + std::to_string(i));
+  }
+  Real P0 = pin->GetReal("hydro", "P0");
+  Real mb = pin->GetOrAddReal("hydro", "bmass", 1.0);
+  eos->InitializeFromData(rhos, gammas, P0, mb, n);
+  Real gamma_th = pin->GetOrAddReal("hydro", "gamma_th", 5.0/3.0);
+  eos->SetThermalGamma(gamma_th);
+
+  Real temperature_floor_ = pin->GetOrAddReal("hydro", "tfloor", std::sqrt(1024*(FLT_MIN)));
+  eos->SetTemperature(temperature_floor_);
+#endif
+
+  Real density_floor = pin->GetOrAddReal("hydro", "dfloor", std::sqrt(1024*(FLT_MIN)));
+  eos->SetDensityFloor(density_floor);
 }
 
 //----------------------------------------------------------------------------------------
@@ -124,7 +185,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
 
 void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
      const AthenaArray<Real> &prim_old, const FaceField &bb, AthenaArray<Real> &prim,
-     AthenaArray<Real> &cons_scalar, AthenaArray<Real> &prim_scalar, 
+     AthenaArray<Real> &cons_scalar, AthenaArray<Real> &prim_scalar,
      AthenaArray<Real> &bb_cc, Coordinates *pco, int il, int iu, int jl, int ju, int kl,
      int ku, int coarse_flag) {
   int nn1;
@@ -152,7 +213,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha;
   gamma_dd.NewAthenaTensor(nn1);
   alpha.NewAthenaTensor(nn1);
-  
+
   if (!coarse_flag) {
     full_gamma_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
     full_alpha.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_alpha);
@@ -399,7 +460,7 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real
   ps.GetEOS()->ApplySpeciesLimits(Y);
   prim_pt[ITM] = ps.GetEOS()->GetTemperatureFromP(prim_pt[IDN], prim_pt[IPR], Y);
   bool result = ps.GetEOS()->ApplyPrimitiveFloor(prim_pt[IDN], &prim_pt[IVX], prim_pt[IPR], prim_pt[ITM], Y);
-  
+
   for (int n=0; n<NSCALARS; n++) {
     prim_pt[IYF + n] = Y[n];
   }
@@ -443,7 +504,7 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real
 }
 
 // BD: TODO - eigenvalues, _not_ the speed; should be refactored / renamed
-void EquationOfState::FastMagnetosonicSpeedsGR(Real n, Real T, Real bsq, Real vi, Real v2, 
+void EquationOfState::FastMagnetosonicSpeedsGR(Real n, Real T, Real bsq, Real vi, Real v2,
     Real alpha, Real betai, Real gammaii, Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]) {
   // Constants and stuff
   Real Wlor = std::sqrt(1.0 - v2);
