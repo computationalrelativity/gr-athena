@@ -18,21 +18,20 @@
 namespace Primitive {
 
 class PiecewisePolytrope : public EOSPolicyInterface {
-  private:
+  protected:
     /// Number of polytropes in the EOS
     int n_pieces;
-    
+
     /// Parameters for the EOS
     Real *density_pieces;
-    Real *a_pieces;
     Real *gamma_pieces;
     Real *pressure_pieces;
+    Real *eps_pieces;
     Real gamma_thermal;
     bool initialized;
 
     /// Allocate memory for the different EOS pieces.
     void AllocateMemory();
-  protected:
     /// Constructor
     PiecewisePolytrope();
 
@@ -79,6 +78,7 @@ class PiecewisePolytrope : public EOSPolicyInterface {
     [[ noreturn ]]
     Real ElectronLeptonChemicalPotential(Real n, Real T, Real *Y);
 
+
     /// Calculate the minimum pressure at a given density and composition
     Real MinimumPressure(Real n, Real *Y);
 
@@ -96,15 +96,14 @@ class PiecewisePolytrope : public EOSPolicyInterface {
     bool ReadParametersFromFile(std::string fname);
 
     //! \brief Initialize PiecewisePolytrope from data.
-    //  
+    //
     //  \param[in] densities The dividing densities
     //  \param[in] gammas    The adiabatic index for each polytrope
-    //  \param[in] rho_min   The minimum density for the EOS
     //  \param[in] P0        The pressure at the first polytrope division
     //  \param[in] m         The baryon mass
     //  \param[in] n         The number of pieces in the EOS
-    bool InitializeFromData(Real *densities, Real *gammas, 
-                            Real rho_min, Real P0, Real m, int n);
+    bool InitializeFromData(Real *densities, Real *gammas,
+                            Real P0, Real m, int n);
 
     /// Check if the EOS has been initialized properly.
     inline bool IsInitialized() const {
@@ -123,7 +122,8 @@ class PiecewisePolytrope : public EOSPolicyInterface {
 
     /// Set the adiabatic constant for the thermal part.
     inline void SetThermalGamma(Real g) {
-      gamma_thermal = (g <= 1.0) ? 1.00001 : ((g >= 2.0) ? 2.00001 : g);
+      assert(g > 1.0);
+      gamma_thermal = g;
     }
 
     /// Get the adiabatic constant for the thermal part.
