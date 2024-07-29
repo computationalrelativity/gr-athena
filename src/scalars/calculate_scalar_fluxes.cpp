@@ -54,8 +54,6 @@ void PassiveScalars::ApplySpeciesLimits(AthenaArray<Real> & z_,
                                         const int il,
                                         const int iu)
 {
-  // BD: TODO - debug removing passive scalar limits during recon...
-  return;
 #if USETM
   EquationOfState *peos = pmy_block->peos;
 
@@ -86,13 +84,14 @@ void PassiveScalars::FallbackInadmissibleScalarX1_(
     AthenaArray<Real> & f_zr_,
     const int il, const int iu)
 {
+  static const int I = DGB_RECON_X1_OFFSET;
   #pragma omp simd
   for (int i=il; i<=iu; ++i)
   {
-    if (!SpeciesWithinLimits(zl_,i+1) || !SpeciesWithinLimits(zr_,i))
+    if (!SpeciesWithinLimits(zl_,i+I) || !SpeciesWithinLimits(zr_,i))
     for (int n=0; n<NSCALARS; ++n)
     {
-      zl_(n,i+1) = f_zl_(n,i+1);
+      zl_(n,i+I) = f_zl_(n,i+I);
       zr_(n,i  ) = f_zr_(n,i  );
     }
   }
@@ -177,10 +176,12 @@ void PassiveScalars::CalculateFluxes(AthenaArray<Real> &r, const int order)
       FallbackInadmissibleScalarX1_(rl_, rr_, r_rl_, r_rr_,
                                     il, iu);
     }
-
-    // Floor here (as needed, always attempted, Cf. CalculateFluxes in Hydro)
-    ApplySpeciesLimits(rl_, il, iu);
-    ApplySpeciesLimits(rr_, il, iu);
+    else
+    {
+      // Floor here (as needed, always attempted, Cf. CalculateFluxes in Hydro)
+      ApplySpeciesLimits(rl_, il, iu);
+      ApplySpeciesLimits(rr_, il, iu);
+    }
 
     ComputeUpwindFlux(k, j, il, iu, rl_, rr_, mass_flux, x1flux);
   }
@@ -208,10 +209,13 @@ void PassiveScalars::CalculateFluxes(AthenaArray<Real> &r, const int order)
         FallbackInadmissibleScalarX2_(rl_, rr_, r_rl_, r_rr_,
                                       il, iu);
       }
+      else
+      {
+        // Floor here (as needed, Cf. CalculateFluxes in Hydro)
+        ApplySpeciesLimits(rl_, il, iu);
+        ApplySpeciesLimits(rr_, il, iu);
+      }
 
-      // Floor here (as needed, Cf. CalculateFluxes in Hydro)
-      ApplySpeciesLimits(rl_, il, iu);
-      ApplySpeciesLimits(rr_, il, iu);
 
       for (int j=jl; j<=ju; ++j)
       {
@@ -225,10 +229,12 @@ void PassiveScalars::CalculateFluxes(AthenaArray<Real> &r, const int order)
           FallbackInadmissibleScalarX2_(rlb_, rr_, r_rlb_, r_rr_,
                                         il, iu);
         }
-
-        // Floor here (as needed, Cf. CalculateFluxes in Hydro)
-        ApplySpeciesLimits(rlb_, il, iu);
-        ApplySpeciesLimits(rr_,  il, iu);
+        else
+        {
+          // Floor here (as needed, Cf. CalculateFluxes in Hydro)
+          ApplySpeciesLimits(rlb_, il, iu);
+          ApplySpeciesLimits(rr_,  il, iu);
+        }
 
         ComputeUpwindFlux(k, j, il, iu, rl_, rr_, mass_flux, x2flux);
 
@@ -265,10 +271,13 @@ void PassiveScalars::CalculateFluxes(AthenaArray<Real> &r, const int order)
         FallbackInadmissibleScalarX3_(rl_, rr_, r_rl_, r_rr_,
                                       il, iu);
       }
+      else
+      {
+        // Floor here (as needed, Cf. CalculateFluxes in Hydro)
+        ApplySpeciesLimits(rl_, il, iu);
+        ApplySpeciesLimits(rr_, il, iu);
+      }
 
-      // Floor here (as needed, Cf. CalculateFluxes in Hydro)
-      ApplySpeciesLimits(rl_, il, iu);
-      ApplySpeciesLimits(rr_, il, iu);
 
       for (int k=kl; k<=ku; ++k)
       {
@@ -282,10 +291,12 @@ void PassiveScalars::CalculateFluxes(AthenaArray<Real> &r, const int order)
           FallbackInadmissibleScalarX3_(rlb_, rr_, r_rlb_, r_rr_,
                                         il, iu);
         }
-
-        // Floor here (as needed, Cf. CalculateFluxes in Hydro)
-        ApplySpeciesLimits(rlb_, il, iu);
-        ApplySpeciesLimits(rr_,  il, iu);
+        else
+        {
+          // Floor here (as needed, Cf. CalculateFluxes in Hydro)
+          ApplySpeciesLimits(rlb_, il, iu);
+          ApplySpeciesLimits(rr_,  il, iu);
+        }
 
         ComputeUpwindFlux(k, j, il, iu, rl_, rr_, mass_flux, x3flux);
 

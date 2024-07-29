@@ -69,6 +69,10 @@
 #define @DBG_USE_CONS_BC@
 #define @DBG_USE_REFERENCE_TASKLISTS@
 
+// BD: TODO - check carefully... again...
+// Reconstruction X1 convention may require 0 or 1 offset for l/r
+#define DGB_RECON_X1_OFFSET 0
+
 // For N+1 NR problems, fix N
 #define NDIM 3
 //----------------------------------------------------------------------------------------

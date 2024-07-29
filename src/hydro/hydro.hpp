@@ -117,14 +117,17 @@ class Hydro {
     AthenaArray<Real> & f_zr_,
     const int il, const int iu)
   {
+    // Either 0 or 1, depending on l/r convention
+    static const int I = DGB_RECON_X1_OFFSET;
+
     #pragma omp simd
     for (int i=il-1; i<=iu; ++i)
     {
-      if ((zl_(IDN,i+1) < 0) || (zr_(IDN,i) < 0))
+      if ((zl_(IDN,i+I) < 0) || (zr_(IDN,i) < 0))
       {
         for (int n=0; n<NWAVE; ++n)
         {
-          zl_(n,i+1) = f_zl_(n,i+1);
+          zl_(n,i+I) = f_zl_(n,i+I);
           zr_(n,i  ) = f_zr_(n,i  );
         }
       }
@@ -136,13 +139,13 @@ class Hydro {
       #pragma omp simd
       for (int i=il-1; i<=iu; ++i)
       {
-        const bool pl_ = peos->CheckPrimitivePhysical(zl_, -1, -1, i+1);
+        const bool pl_ = peos->CheckPrimitivePhysical(zl_, -1, -1, i+I);
         const bool pr_ = peos->CheckPrimitivePhysical(zr_, -1, -1, i);
         if (!pl_ || !pr_)
         {
           for (int n=0; n<NWAVE; ++n)
           {
-            zl_(n,i+1) = f_zl_(n,i+1);
+            zl_(n,i+I) = f_zl_(n,i+I);
             zr_(n,i  ) = f_zr_(n,i  );
           }
         }
@@ -156,14 +159,17 @@ class Hydro {
     AthenaArray<Real> & zr_,
     const int il, const int iu)
   {
+    // Either 0 or 1, depending on l/r convention
+    static const int I = DGB_RECON_X1_OFFSET;
+
     for (int i=il; i<=iu; ++i)
     {
-      if ((zl_(IDN,i+1) < 0) || (zr_(IDN,i) < 0))
+      if ((zl_(IDN,i+I) < 0) || (zr_(IDN,i) < 0))
       {
         return true;
       }
 
-      const bool pl_ = pmy_block->peos->CheckPrimitivePhysical(zl_, -1, -1, i+1);
+      const bool pl_ = pmy_block->peos->CheckPrimitivePhysical(zl_, -1, -1, i+I);
       const bool pr_ = pmy_block->peos->CheckPrimitivePhysical(zr_, -1, -1, i);
 
       if (!pl_ || !pr_)
