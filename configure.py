@@ -41,6 +41,7 @@
 #   --gsl_path=path     path to gsl libraries (requires the gsl library)
 #   -lorene             enable LORENE
 #   --lorene_path=path  path to LORENE (requires the LORENE library)
+#   -mkl                enable mkl
 #   -elliptica          enable Elliptica
 #   --elliptica_path=path  path to Elliptica (requires the Elliptica_ID_Reader)
 #   --grav=xxx          use xxx as the self-gravity solver
@@ -173,7 +174,7 @@ parser.add_argument('--eos',
 # --eospolicy=[name] argument
 parser.add_argument('--eospolicy',
                     default='idealgas',
-                    choices=['idealgas', 'piecewise_polytrope', 'eos_compose', 'hybrid_table'], 
+                    choices=['idealgas', 'piecewise_polytrope', 'eos_compose', 'hybrid_table'],
                     help='select EOS policy for PrimitiveSolver framework')
 
 # --errorpolicy=[name] argument
@@ -477,6 +478,12 @@ parser.add_argument('-lorene',
 parser.add_argument('--lorene_path',
                     default='',
                     help='path to LORENE libraries')
+
+# -mkl argument
+parser.add_argument('-mkl',
+                    action='store_true',
+                    default=False,
+                    help='use mkl libraries')
 
 # -elliptica argument
 parser.add_argument('-elliptica',
@@ -1396,7 +1403,12 @@ if args['gsl']:
 if args['lorene']:
     definitions['LORENE_OPTION'] = 'LORENE'
 
-    makefile_options['LIBRARY_FLAGS'] += ' -llorene_export -llorene -llorenef77 -lgfortran -llapack -lblas'
+
+    makefile_options['LIBRARY_FLAGS'] += ' -llorene_export -llorene -llorenef77 -lgfortran'
+    if args['mkl']:
+        makefile_options['LIBRARY_FLAGS'] += ' -lmkl_intel_lp64 -lmkl_gnu_thread -lmkl_core'
+    else:
+        makefile_options['LIBRARY_FLAGS'] += ' -llapack -lblas'
 
     # this can be specified as lorene_path _or_ directly
     if args['lorene_path'] != '':
