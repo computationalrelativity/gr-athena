@@ -885,10 +885,14 @@ if args['z']:
   except:
       raise SystemExit("### CONFIGURE ERROR: Z4c requires 2 or more ghost zones")
 
-  # default is VC
-  definitions['Z4C_CX_ENABLED'] = 'NO_Z4C_CX_ENABLED'
-  definitions['Z4C_CC_ENABLED'] = 'NO_Z4C_CC_ENABLED'
-  definitions['Z4C_VC_ENABLED'] = 'Z4C_VC_ENABLED'
+  z_sampling_keys = {'z_vc', 'z_cx', 'z_cc'}
+
+  try:
+    if not any(args[zk] for zk in z_sampling_keys):
+      raise Exception
+  except:
+    raise SystemExit("### CONFIGURE ERROR: Z4c sampling must be specified " +
+                     f"based on {z_sampling_keys}")
 
   if args['z_cc']:
     definitions['Z4C_CX_ENABLED'] = 'NO_Z4C_CX_ENABLED'
@@ -900,6 +904,10 @@ if args['z']:
     definitions['Z4C_CC_ENABLED'] = 'NO_Z4C_CC_ENABLED'
     definitions['Z4C_VC_ENABLED'] = 'NO_Z4C_VC_ENABLED'
 
+  if args['z_vc']:
+    definitions['Z4C_CX_ENABLED'] = 'NO_Z4C_CX_ENABLED'
+    definitions['Z4C_CC_ENABLED'] = 'NO_Z4C_CC_ENABLED'
+    definitions['Z4C_VC_ENABLED'] = 'Z4C_VC_ENABLED'
 
 else:
   definitions['Z4C_ENABLED'] = '0'
