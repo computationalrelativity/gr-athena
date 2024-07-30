@@ -195,6 +195,16 @@ class PrimitiveSolver {
       root.iterations = 30;
     }
 
+    inline void SetRootfinderTol(const Real tol)
+    {
+      this->tol = tol;
+    }
+
+    inline void SetRootfinderMaxIter(const int max_iter)
+    {
+      root.iterations = max_iter;
+    }
+
     /// Destructor
     ~PrimitiveSolver() = default;
 

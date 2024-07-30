@@ -270,6 +270,9 @@ class Hydro {
     const int j,
     const int il, const int iu)
   {
+    // Either 0 or 1, depending on l/r convention
+    static const int I = DGB_RECON_X1_OFFSET;
+
     EquationOfState *peos = pmy_block->peos;
 
     // N.B. indicial range is bumped left to account for reconstruction
@@ -277,7 +280,7 @@ class Hydro {
     #pragma omp simd
     for (int i=il-1; i<=iu; ++i)
     {
-      peos->ApplyPrimitiveFloors(wl_,rl_,k,j,i+1);
+      peos->ApplyPrimitiveFloors(wl_,rl_,k,j,i+I);
       peos->ApplyPrimitiveFloors(wr_,rr_,k,j,i);
     }
   }
@@ -289,6 +292,9 @@ class Hydro {
     const int j,
     const int il, const int iu)
   {
+    // Either 0 or 1, depending on l/r convention
+    static const int I = DGB_RECON_X1_OFFSET;
+
     EquationOfState * peos = pmy_block->peos;
 
     // N.B. indicial range is bumped left to account for reconstruction
@@ -303,7 +309,7 @@ class Hydro {
       }
       else
       {
-        peos->ApplyPrimitiveFloors(zl_,k,j,i+1);
+        peos->ApplyPrimitiveFloors(zl_,k,j,i+I);
         peos->ApplyPrimitiveFloors(zr_,k,j,i);
       }
     }

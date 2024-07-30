@@ -53,6 +53,10 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   temperature_floor_ = pin->GetOrAddReal("hydro", "tfloor", std::sqrt(1024*(FLT_MIN)));
   scalar_floor_ = pin->GetOrAddReal("hydro", "sfloor", std::sqrt(1024*FLT_MIN));
 
+  // control PrimitiveSolver tolerances / iterates
+  ps.SetRootfinderTol(pin->GetOrAddReal("hydro", "c2p_acc", 1e-15));
+  ps.SetRootfinderMaxIter(pin->GetOrAddInteger("hydro", "max_iter", 30));
+
   int ncells1 = pmb->block_size.nx1 + 2*NGHOST;
   g_.NewAthenaArray(NMETRIC, ncells1);
   g_inv_.NewAthenaArray(NMETRIC, ncells1);
