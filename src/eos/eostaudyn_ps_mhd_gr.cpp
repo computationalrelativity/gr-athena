@@ -415,6 +415,7 @@ void EquationOfState::PrimitiveToConserved(
       {
         PrimitiveToConservedSingle(prim,
                                    prim_scalar,
+                                   bb_cc,
                                    gamma_dd,
                                    k, j, i,
                                    cons,
