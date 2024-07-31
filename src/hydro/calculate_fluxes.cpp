@@ -401,6 +401,10 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
       ps->FallbackInadmissibleScalarX1_(ps->rl_, ps->rr_,
                                         ps->r_rl_, ps->r_rr_,
                                         il, iu);
+
+      ps->ApplySpeciesLimits(ps->rl_, il, iu);
+      ps->ApplySpeciesLimits(ps->rr_, il, iu);
+
     }
     else
     {
@@ -476,6 +480,10 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
         ps->FallbackInadmissibleScalarX2_(ps->rl_, ps->rr_,
                                           ps->r_rl_, ps->r_rr_,
                                           il, iu);
+
+        ps->ApplySpeciesLimits(ps->rl_, il, iu);
+        ps->ApplySpeciesLimits(ps->rr_, il, iu);
+
       }
       else
       {
@@ -524,6 +532,10 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
           ps->FallbackInadmissibleScalarX2_(ps->rlb_, ps->rr_,
                                             ps->r_rlb_, ps->r_rr_,
                                             il, iu);
+
+          ps->ApplySpeciesLimits(ps->rlb_, il, iu);
+          ps->ApplySpeciesLimits(ps->rr_,  il, iu);
+
         }
         else
         {
@@ -609,6 +621,10 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
         ps->FallbackInadmissibleScalarX3_(ps->rl_, ps->rr_,
                                           ps->r_rl_, ps->r_rr_,
                                           il, iu);
+
+        ps->ApplySpeciesLimits(ps->rl_, il, iu);
+        ps->ApplySpeciesLimits(ps->rr_, il, iu);
+
       }
       else
       {
@@ -655,6 +671,10 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
           ps->FallbackInadmissibleScalarX3_(ps->rlb_, ps->rr_,
                                             ps->r_rlb_, ps->r_rr_,
                                             il, iu);
+
+          ps->ApplySpeciesLimits(ps->rlb_, il, iu);
+          ps->ApplySpeciesLimits(ps->rr_,  il, iu);
+
         }
         else
         {

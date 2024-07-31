@@ -71,7 +71,7 @@
 
 // BD: TODO - check carefully... again...
 // Reconstruction X1 convention may require 0 or 1 offset for l/r
-#define DGB_RECON_X1_OFFSET 0
+#define DGB_RECON_X1_OFFSET 1
 
 // For N+1 NR problems, fix N
 #define NDIM 3
