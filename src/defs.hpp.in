@@ -169,8 +169,12 @@
 #define Z4C_CX_NUM_RBC @Z4C_CX_NUM_RBC@
 #define @Z4C_CX_NUM_RBC_INIT_LO@
 
-
 #define @Z4C_WITH_HYDRO_ENABLED@
+
+// M1 neutrino transport
+#define M1_ENABLED @M1_ENABLED@
+
+#define M1_NO_WEAKRATES @M1_NO_WEAKRATES@
 
 // enable GR frame transformations? default=0 (false)
 #define FRAME_TRANSFORMATIONS @FRAME_TRANSFORMATIONS@

@@ -96,6 +96,7 @@
 #include "../hydro/hydro.hpp"
 #include "../z4c/z4c.hpp"
 #include "../wave/wave.hpp"
+#include "../m1/m1.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "../scalars/scalars.hpp"
@@ -338,6 +339,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   Gravity *pgrav = pmb->pgrav;
   Wave *pwave = pmb->pwave;
   Z4c *pz4c = pmb->pz4c;
+  M1::M1 *pm1 = pmb->pm1;
 
   num_vars_ = 0;
   OutputData *pod;
@@ -602,6 +604,254 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       }
     }
   }
+
+  if (M1_ENABLED)
+  {
+    for (int v = 0; v < M1::M1::ixn_Lab::N; ++v)
+    {
+      if (output_params.variable.compare("m1_lab") == 0)
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = M1::M1::ixn_Lab::names[v];
+        pod->data.InitWithShallowSlice(pm1->storage.u,v,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
+  }
+
+  if (M1_ENABLED)
+  {
+    for (int v = 0; v < M1::M1::ixn_Lab_aux::N; ++v)
+    {
+      if (output_params.variable.compare("m1_lab_aux") == 0)
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = M1::M1::ixn_Lab_aux::names[v];
+        pod->data.InitWithShallowSlice(pm1->storage.u_lab_aux,v,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
+  }
+
+  if (M1_ENABLED) {
+    if (output_params.variable.compare("m1_radmat_nue") == 0) {
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "eta_n";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_eta_0(0,0).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "kap_n";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_a_0(0,0).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "eta_e";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_eta(0,0).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "kap_e_a";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_a(0,0).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "kap_e_s";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_s(0,0).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
+  }
+
+
+  if (M1_ENABLED) {
+    if (output_params.variable.compare("m1_radmat_nua") == 0) {
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "eta_n";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_eta_0(0,1).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "kap_n";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_a_0(0,1).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "eta_e";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_eta(0,1).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "kap_e_a";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_a(0,1).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "kap_e_s";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_s(0,1).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
+  }
+
+
+  if (M1_ENABLED) {
+    if (output_params.variable.compare("m1_radmat_nux") == 0) {
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "eta_n";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_eta_0(0,2).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "kap_n";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_a_0(0,2).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "eta_e";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_eta(0,2).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "kap_e_a";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_a(0,2).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "kap_e_s";
+        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_s(0,2).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
+  }
+
+  if (M1_ENABLED) {
+    if (output_params.variable.compare("m1_radlab_nue") == 0) {
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "E";
+        pod->data.InitWithShallowSlice(pm1->lab.sc_E(0,0).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "n_dens";
+        pod->data.InitWithShallowSlice(pm1->lab.sc_nG(0,0).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
+  }
+
+  if (M1_ENABLED) {
+    if (output_params.variable.compare("m1_radlab_nua") == 0) {
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "E";
+        pod->data.InitWithShallowSlice(pm1->lab.sc_E(0,1).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "n_dens";
+        pod->data.InitWithShallowSlice(pm1->lab.sc_nG(0,1).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
+  }
+
+  if (M1_ENABLED) {
+    if (output_params.variable.compare("m1_radlab_nux") == 0) {
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "E";
+        pod->data.InitWithShallowSlice(pm1->lab.sc_E(0,2).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "n_dens";
+        pod->data.InitWithShallowSlice(pm1->lab.sc_nG(0,2).array(),0,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
+  }
+
 
   if (SELF_GRAVITY_ENABLED) {
     if (output_params.variable.compare("phi") == 0 ||

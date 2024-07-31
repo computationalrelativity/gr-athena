@@ -92,6 +92,8 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) :
   pvars_aux_vc_.reserve(3);
   pvars_aux_cx_.reserve(3);
 
+  pvars_m1_cc_.reserve(3);
+
   // --------------------------------------------------------------------------
   // init interpolation op based on underlying dimensionality
   Coordinates* pco = pmb->pcoord;
@@ -3964,6 +3966,18 @@ void MeshRefinement::SwapRefinementAux()
   std::swap(pvars_fc_, pvars_aux_fc_);
   std::swap(pvars_cx_, pvars_aux_cx_);
   std::swap(pvars_vc_, pvars_aux_vc_);
+}
+
+int MeshRefinement::AddToRefinementM1CC(AthenaArray<Real> *pvar_in,
+                                        AthenaArray<Real> *pcoarse_in)
+{
+  pvars_m1_cc_.push_back(std::make_tuple(pvar_in, pcoarse_in));
+  return static_cast<int>(pvars_m1_cc_.size() - 1);
+}
+
+void MeshRefinement::SwapRefinementM1()
+{
+  std::swap(pvars_cc_, pvars_m1_cc_);
 }
 
 // Currently, only called in 2x functions in bvals_refine.cpp:

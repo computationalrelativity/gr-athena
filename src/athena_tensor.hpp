@@ -11,6 +11,8 @@
 //  Convention: indices a,b,c,d are tensor indices. Indices n,i,j,k are grid indices.
 
 #include <cassert>
+#include <iostream>
+#include <math.h>
 
 #include "athena_arrays.hpp"
 #include "athena.hpp"
@@ -157,6 +159,18 @@ public:
   {
     data_.InitWithShallowSlice(src, indx, ndof());
   }
+  void InitWithShallowSlice(AthenaArray<T> &src, const int dim, const int indx)
+  {
+    data_.InitWithShallowSlice(src, dim, indx, ndof());
+  }
+
+  void PrintPoint(const std::string & name,
+                  const int k, const int j, const int i)
+  {
+    std::cout << name << "(" << k << "," << j << "," << i << ") = ";
+    std::cout << data_(k,j,i) << std::endl;
+  }
+
 private:
   AthenaArray<T> data_;
 };
@@ -239,6 +253,15 @@ public:
   bool is_nan() { return data_.is_nan(); }
   bool is_inf() { return data_.is_inf(); }
 
+  // slice vector index:
+  // - leaves only grid sampling behind
+  // - non-singleton
+  void slice(const int a,
+             AthenaTensor<T, TensorSymm::NONE, ndim, 0> & tar)
+  {
+    tar.InitWithShallowSlice(data_, ndim+1, a);
+  }
+
   // operators to access the data
   AthenaArray<Real> const & operator()(int const a) {
     slice_.InitWithShallowSlice(data_, a, 1);
@@ -278,12 +301,26 @@ public:
   }
 
   // functions that initialize a tensor with shallow copy or slice from an array
-  void InitWithShallowCopy(AthenaArray<T> &src) {
+  void InitWithShallowCopy(AthenaArray<T> &src)
+  {
     data_.InitWithShallowCopy(src);
   }
-  void InitWithShallowSlice(AthenaArray<T> &src, const int indx) {
+  void InitWithShallowSlice(AthenaArray<T> &src, const int indx)
+  {
     data_.InitWithShallowSlice(src, indx, ndof());
   }
+
+  void PrintPoint(const std::string & name,
+                  const int k, const int j, const int i)
+  {
+    for (int a=0; a<ndim; ++a)
+    {
+      std::cout << name << "(" << a << ";";
+      std::cout << k << "," << j << "," << i << ") = ";
+      std::cout << data_(a,k,j,i) << std::endl;
+    }
+  }
+
 private:
   AthenaArray<T> data_;
   AthenaArray<T> slice_;
@@ -422,12 +459,49 @@ public:
   }
 
   // functions that initialize a tensor with shallow copy or slice from an array
-  void InitWithShallowCopy(AthenaArray<T> &src) {
+  void InitWithShallowCopy(AthenaArray<T> &src)
+  {
     data_.InitWithShallowCopy(src);
   }
-  void InitWithShallowSlice(AthenaArray<T> &src, const int indx) {
+  void InitWithShallowSlice(AthenaArray<T> &src, const int indx)
+  {
     data_.InitWithShallowSlice(src, indx, ndof());
   }
+
+  void PrintPoint(const std::string & name,
+                  const int k, const int j, const int i)
+  {
+    switch (sym)
+    {
+      case TensorSymm::SYM2:
+      {
+        for (int a=0; a<ndim; ++a)
+        for (int b=a; b<ndim; ++b)
+        {
+          std::cout << name << "(" << a << "," << b << ";";
+          std::cout << k << "," << j << "," << i << ") = ";
+          std::cout << data_(idxmap(a,b),k,j,i) << std::endl;
+        }
+        break;
+      }
+      case TensorSymm::NONE:
+      {
+        for (int a=0; a<ndim; ++a)
+        for (int b=0; b<ndim; ++b)
+        {
+          std::cout << name << "(" << a << "," << b << ";";
+          std::cout << k << "," << j << "," << i << ") = ";
+          std::cout << data_(idxmap(a,b),k,j,i) << std::endl;
+        }
+        break;
+      }
+      default:
+      {
+        assert(0);
+      }
+    }
+  }
+
 private:
   AthenaArray<T> data_;
   AthenaArray<T> slice_;
@@ -574,6 +648,44 @@ public:
   void InitWithShallowSlice(AthenaArray<T> &src, const int indx) {
     data_.InitWithShallowSlice(src, indx, ndof());
   }
+
+  void PrintPoint(const std::string & name,
+                  const int k, const int j, const int i)
+  {
+    switch (sym)
+    {
+      case TensorSymm::SYM2:
+      {
+        for (int a=0; a<ndim; ++a)
+        for (int b=0; b<ndim; ++b)
+        for (int c=b; c<ndim; ++c)
+        {
+          std::cout << name << "(" << a << "," << b << "," << c << ";";
+          std::cout << k << "," << j << "," << i << ") = ";
+          std::cout << data_(idxmap(a,b,c),k,j,i) << std::endl;
+        }
+        break;
+      }
+      case TensorSymm::NONE:
+      {
+        for (int a=0; a<ndim; ++a)
+        for (int b=0; b<ndim; ++b)
+        for (int c=0; c<ndim; ++c)
+        {
+          std::cout << name << "(" << a << "," << b << "," << c << ";";
+          std::cout << k << "," << j << "," << i << ") = ";
+          std::cout << data_(idxmap(a,b,c),k,j,i) << std::endl;
+        }
+        break;
+      }
+      default:
+      {
+        assert(0);
+      }
+    }
+  }
+
+
 private:
   AthenaArray<T> data_;
   AthenaArray<T> slice_;

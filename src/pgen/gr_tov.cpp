@@ -34,6 +34,9 @@
 #include "../parameter_input.hpp"          // ParameterInput
 #include "../utils/linear_algebra.hpp"
 #include "../scalars/scalars.hpp"
+#if M1_ENABLED
+#include "../m1/m1.hpp"
+#endif  // M1_ENABLED
 
 //----------------------------------------------------------------------------------------
 using namespace gra::aliases;
@@ -317,12 +320,17 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
   // pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u1);
 
+  // Have geom & primitive hydro
+#if M1_ENABLED
+  pm1->UpdateGeometry(pm1->geom, pm1->scratch);
+  pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
+  pm1->CalcFiducialVelocity();
+#endif  // M1_ENABLED
+
   // // Impose algebraic constraints
   // pz4c->AlgConstr(pz4c->storage.u);
   // pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
 
-  AthenaTensor<Real, TensorSymm::SYM2, 4, 2> g_dd;
-  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> h_dd;
 
   // consistent pressure atmosphere -------------------------------------------
   bool id_floor_primitives = pin->GetOrAddBoolean(

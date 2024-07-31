@@ -1072,7 +1072,6 @@ TaskStatus TimeIntegratorTaskList::Primitives(MeshBlock *pmb, int stage) {
     // Newton-Raphson solver in GR EOS uses the following abscissae:
     // stage=1: W at t^n and
     // stage=2: W at t^{n+1/2} (VL2) or t^{n+1} (RK2)
-#ifdef Z4C_ENABLED
     pmb->peos->ConservedToPrimitive(ph->u, ph->w, pf->b, ph->w1, 
 #if USETM
                                     ps->s, ps->r,

@@ -86,6 +86,9 @@ class AthenaArray {
                                                int nx2, int nx1);
   void DeleteAthenaArray();
 
+  // deep copy of another Array **of the same size**
+  void DeepCopy(AthenaArray<T> const & array2);
+
   // public function to swap underlying data pointers of two equally-sized arrays
   void SwapAthenaArray(AthenaArray<T>& array2);
   void ZeroClear();
@@ -690,7 +693,6 @@ void AthenaArray<T>::InitWithShallowSlice(AthenaArray<T> &src, const int dim,
   return;
 }
 
-
 template<typename T>
 void AthenaArray<T>::InitWithShallowSlice(AthenaArray<T> &src,
                                           const int indx, const int nvar) {
@@ -866,6 +868,18 @@ template<typename T>
       state_ = DataStatus::empty;
       break;
     }
+  }
+
+  //----------------------------------------------------------------------------------------
+  //! \fn void AthenaArray::DeepCopy()
+  //! \brief Copies the content of another array
+  //!
+  //! **THIS REQUIRES THAT THE DESTINATION AND SOURCE ARRAYS BE ALREADY ALLOCATED (state_ !=
+  //! empty) AND HAVE THE SAME SIZES (does not explicitly check either condition)**
+
+  template<typename T>
+  void AthenaArray<T>::DeepCopy(AthenaArray<T> const & array2) {
+    std::memcpy(pdata_, array2.pdata_, array2.GetSizeInBytes());
   }
 
   //----------------------------------------------------------------------------------------

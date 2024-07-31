@@ -276,7 +276,6 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         for(int n=0; n<NSCALARS; n++){
           prim_scalar(n, k, j, i) = prim_pt[IYF + n];
         }
-
         // Because the conserved variables may have changed, we update those, too.
         cons(IDN, k, j, i) = cons_pt[IDN]*sdetg;
         cons(IM1, k, j, i) = cons_pt[IM1]*sdetg;

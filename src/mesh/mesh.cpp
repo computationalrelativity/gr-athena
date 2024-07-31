@@ -66,6 +66,7 @@
 // #include "../z4c/ejecta.hpp"
 
 #include "../wave/wave.hpp"
+#include "../m1/m1.hpp"
 
 // MPI/OpenMP header
 #ifdef MPI_PARALLEL
@@ -1690,6 +1691,9 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 
         if (Z4C_ENABLED)
           pmb->pz4c->ubvar.SendBoundaryBuffers();
+
+        if (M1_ENABLED)
+          pmb->pm1->ubvar.SendBoundaryBuffers();
       }
 
       // wait to receive conserved variables
@@ -1723,6 +1727,9 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 
         if (Z4C_ENABLED)
           pmb->pz4c->ubvar.ReceiveAndSetBoundariesWithWait();
+
+        if (M1_ENABLED)
+          pmb->pm1->ubvar.ReceiveAndSetBoundariesWithWait();
 
         pbval->ClearBoundary(BoundaryCommSubset::mesh_init);
       }
@@ -1865,7 +1872,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
                                           ps->r,
 #endif
                                           pf->bcc, pmb->pcoord,
-#if Z4C_ENABLED || WAVE_ENABLED
+#if Z4C_ENABLED || WAVE_ENABLED || M1_ENABLED
                                           0, pmb->ncells1-1,
                                           0, pmb->ncells2-1,
                                           0, pmb->ncells3-1, 0);
@@ -1904,12 +1911,11 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 #endif
                                           pf->bcc,
                                           pmb->pcoord,
-#if Z4C_ENABLED || WAVE_ENABLED
+#if Z4C_ENABLED || WAVE_ENABLED || M1_ENABLED
                                           il, iu, jl, ju, kl, ku,0);
 #else
                                           il, iu, jl, ju, kl, ku);
 #endif
-
         }
 
 #if !USETM
@@ -2058,6 +2064,10 @@ if(Z4C_ENABLED && FLUID_ENABLED)
 
     if (Z4C_ENABLED)
       pmb_array[i]->pz4c->NewBlockTimeStep();
+
+    if (M1_ENABLED)
+      pmb_array[i]->pm1->NewBlockTimeStep();
+
   }
 
   NewTimeStep();
@@ -2345,6 +2355,11 @@ void Mesh::ReserveMeshBlockPhysIDs() {
     #else // VC
       ReserveTagPhysIDs(VertexCenteredBoundaryVariable::max_phys_id);
     #endif
+  }
+
+  if (M1_ENABLED)
+  {
+    ReserveTagPhysIDs(CellCenteredBoundaryVariable::max_phys_id);
   }
 
 #endif

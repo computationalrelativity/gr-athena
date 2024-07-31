@@ -133,6 +133,11 @@ class MeshRefinement {
   // switch internal pvars_X_ <-> pvars_aux_X_
   void SwapRefinementAux();
 
+  // as above but for use with auxiliary task list
+  int AddToRefinementM1CC(AthenaArray<Real> *pvar_in, AthenaArray<Real> *pcoarse_in);
+  void SwapRefinementM1();
+
+
   // for switching first entry in pvars_cc_ to/from: (w, coarse_prim); (u, coarse_cons_)
   void SetHydroRefinement(HydroBoundaryQuantity hydro_type);
 
@@ -178,6 +183,10 @@ class MeshRefinement {
                          AthenaArray<Real> *>> pvars_aux_vc_;
   std::vector<std::tuple<AthenaArray<Real> *,
                          AthenaArray<Real> *>> pvars_aux_cx_;
+
+  // for M1
+  std::vector<std::tuple<AthenaArray<Real> *,
+                         AthenaArray<Real> *>> pvars_m1_cc_;
 
   // --------------------------------------------------------------------------
   // BD: cx coarse ghosts can exceed NCGHOST so grid regen needed

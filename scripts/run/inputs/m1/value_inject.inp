@@ -1,0 +1,181 @@
+<comment> # ===================================================================
+# additional comments (such as e.g. compilation parameters go here)
+# ...
+# =============================================================================
+
+<job> # =======================================================================
+problem_id = value_inject
+# =============================================================================
+
+<time> # ======================================================================
+cfl_number   = 0.2
+tlim	       = 10
+ncycle_out   = 1      # interval for stdout summary info
+# =============================================================================
+
+<mesh> # ======================================================================
+# no. cell in dir, min/max x, inner/outer BC
+nx1    = 128
+x1min  = 0
+x1max  = 5
+ix1_bc = outflow
+ox1_bc = outflow
+
+nx2    = 128
+x2min  = 0
+x2max  = 5
+ix2_bc = outflow
+ox2_bc = outflow
+
+nx3    = 4
+x3min  = -0.1
+x3max  = 0.1
+ix3_bc = outflow
+ox3_bc = outflow
+
+refinement = none
+num_threads = 1
+# =============================================================================
+
+<refinement1> # ===============================================================
+x1min = -1.0
+x1max =  1.0
+x2min = -1.0
+x2max =  1.0
+x3min = -1.0
+x3max =  1.0
+level = 1
+# =============================================================================
+
+<meshblock> # =================================================================
+nx1 = 128
+nx2 = 128
+nx3 = 4
+# =============================================================================
+
+<M1> # ========================================================================
+ngroups  = 1
+nspecies = 1
+
+# element of: {approximate, exact_thin, exact_thick, exact_Minerbo}
+characteristics_variety = approximate
+
+# element of: {fluid, mixed, zero, none}
+fiducial_velocity = fluid
+
+# tolerances / ad-hoc fiddle parameters
+fl_E = 1e-15
+fl_J = 1e-15
+eps_E = 1e-5
+eps_J = 1e-10
+min_flux_A = 0
+
+# =============================================================================
+
+<M1_closure> # ================================================================
+# element of:
+# {thin,
+#  thick,
+#  Minerbo, - Brent-Dekker (GSL based)
+#  MinerboP - Picard
+#  MinerboB - Bisection
+#  MinerboN - Newton-Raphson (with QI-bisection fall-back)
+# }
+variety = thick
+verbose = false
+
+eps_tol  = 1e-10
+iter_max = 34          // N.B.: 0.5 ^ 34 ~ 6e-11
+
+fallback_thin = false  // on failures (i.e. bracket etc, revert to thin)
+
+# MinerboN specific
+use_Ostrowski = false  // Attempt 4th order Ostrowski?
+use_Neighbor  = true   // take sc_xi(k,j,i-1) where possible as initial guess?
+
+# MinerboP specific
+iter_max_rst = 5     // maximum relaxation restarts allowed
+w_opt_ini    = 1.0   // initial value of relaxation factor
+fac_err_amp  = 1.11  // error amplification tolerance between iterates
+
+# =============================================================================
+
+<M1_solver> # =================================================================
+# element of:
+# {full_explicit,                - non-stiff regime
+#  semi_implicit_PicardFrozenP   - only for fixed (P_dd)
+#  semi_implicit_PicardMinerboP  - updates P_dd based on Minerbo;
+#                                  Closure is iterated as part of imp.
+#  semi_implicit_PicardMinerboPC - close explicit iter; iter; close conv.
+#  semi_implicit_Hybrids         - GSL: FD approx. of J
+#  semi_implicit_HybridsJFrozenP - GSL: Jacobian for fixed (E, F indep.) P_dd
+#  semi_implicit_HybridsJMinerbo - GSL: Jacobian for P_dd based on Minerbo
+# }
+strategy = semi_implicit_HybridsJMinerbo
+
+eps_tol   = 1e-8
+iter_max  = 128
+
+use_Neighbor = false
+
+# Picard specific
+iter_max_rst = 5     // maximum relaxation restarts allowed
+w_opt_ini    = 1.0   // initial value of relaxation factor
+fac_err_amp  = 1.11  // error amplification tolerance between iterates
+
+# =============================================================================
+
+<M1_opacities> # ==============================================================
+# element of: {zero, none}
+variety = none
+# =============================================================================
+
+<problem> # ===================================================================
+test = value_inject
+value_inject = true
+# =============================================================================
+
+# dumped quantities ===========================================================
+# <output1>
+# file_type = rst
+# dt        = 1
+
+<output2>
+file_type   = hdf5
+variable    = m1_lab
+dt          = 0.1
+ghost_zones = true
+
+<output3>
+file_type   = hdf5
+variable    = m1_lab
+dt          = 0.1
+ghost_zones = true
+x2_slice    = 0
+x3_slice    = 0.0
+
+<output4>
+file_type   = hdf5
+variable    = m1_lab_aux
+dt          = 0.1
+ghost_zones = true
+x2_slice    = 0
+x3_slice    = 0.0
+
+<output5>
+file_type   = hdf5
+variable    = m1_lab
+dt          = 0.1
+ghost_zones = true
+x3_slice    = 0.0
+
+<output6>
+file_type   = hdf5
+variable    = m1_lab_aux
+dt          = 0.1
+ghost_zones = true
+x3_slice    = 0.0
+
+#
+# :D
+#

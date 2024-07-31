@@ -1,5 +1,5 @@
-#ifndef Z4c_MACRO_HPP
-#define Z4c_MACRO_HPP
+#ifndef Z4C_MACRO_HPP
+#define Z4C_MACRO_HPP
 //========================================================================================
 // Athena++ astrophysical MHD code
 // Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
