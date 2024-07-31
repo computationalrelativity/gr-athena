@@ -54,6 +54,10 @@ namespace {
   // Global variables
   ColdEOS<COLDEOS_POLICY> * ceos = NULL;
 
+  Real sep;
+  Real pgasmax_1;
+  Real pgasmax_2;
+
   // constants ----------------------------------------------------------------
 #if (0)
   // Some conversion factors to go between Lorene data and Athena data.
@@ -100,9 +104,7 @@ namespace {
   Real const athenaM = M_sun;
   Real const athenaL = athenaM * G_grav / pow(c_light,2);
   Real const athenaT = athenaL / c_light;
-  // This is just a guess based on what Cactus uses:
-  Real const athenaB = (1.0 / athenaL /
-			std::sqrt(eps0 * G_grav / (c_light * c_light)));
+  Real const athenaB = (1.0 / athenaL / std::sqrt(eps0 * G_grav / (c_light * c_light))); // 1 Tesla
 #endif
 
   // Athena units for conversion.
@@ -110,10 +112,11 @@ namespace {
   Real const rho_unit = athenaM/(athenaL*athenaL*athenaL); // kg/m^3.
   Real const ener_unit = 1.0; // c^2
   Real const vel_unit = athenaL / athenaT / c_light; // c
-  Real const B_unit = athenaB / 1.0e+9; // 10^9 T
+  // Real const B_unit = athenaB * 1.0e4; // 1e4 Gauss = 1 Tesla
+  // Keep previous value for consistency with older runs
+  Real const B_unit = 8.351416e19; // almost the same as athenaB * 1.0e4;
   // --------------------------------------------------------------------------
 }
-
 
 //========================================================================================
 //! \fn void Mesh::InitUserMeshData(ParameterInput *pin)
@@ -154,6 +157,32 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 #endif
 
 #endif
+
+  Lorene::Bin_NS * bns;
+
+  // read in dummy bns to get separation
+  std::string fn_ini_data = pin->GetOrAddString("problem", "filename", "resu.d");
+
+  Real * crd = new Real[1]{0.0};
+
+  bns = new Lorene::Bin_NS(1, crd, crd, crd,
+                           fn_ini_data.c_str());
+  sep = bns->dist / coord_unit;
+
+  delete bns;
+  delete crd;
+
+  // read it in again to get the central densities
+  Real* x_crd = new Real[2]{0.5 * sep * coord_unit, -0.5 * sep * coord_unit};
+  Real* yz_crd = new Real[2]{0.0, 0.0};
+
+  bns = new Lorene::Bin_NS(2, x_crd, yz_crd, yz_crd,
+                           fn_ini_data.c_str());
+
+  Real rho_1 = bns->nbar[0] / m_u_si * 1e-45 * ceos->GetBaryonMass();
+  Real rho_2 = bns->nbar[1] / m_u_si * 1e-45 * ceos->GetBaryonMass();
+  pgasmax_1 = ceos->GetPressure(rho_1);
+  pgasmax_2 = ceos->GetPressure(rho_2);
 
   return;
 }
@@ -203,7 +232,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   const int kl = 0;
   const int ku = ncells3-1;
 
-  Real sep;
 
   // --------------------------------------------------------------------------
   #pragma omp critical
@@ -252,14 +280,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     bns = new Lorene::Bin_NS(npoints_gs,
                              xx_gs, yy_gs, zz_gs,
                              fn_ini_data.c_str());
-
     if (!verbose)
     {
       std::cout.rdbuf(cur_buf);
     }
 
     sep = bns->dist / coord_unit;
-
 
     assert(bns->np == npoints_gs);
 
@@ -430,7 +456,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
           max_eps_err = eps_err;
           rho_max = w_rho;
           eps_max = eps;
-	}
+        }
       }
 
       // Unused, retain for reference:
@@ -583,15 +609,19 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     // B field ------------------------------------------------------------------
     // Assume stars are located on x axis
 
-    Real pgasmax = pin->GetReal("problem","pmax");
-    Real pcut = pin->GetReal("problem","pcut") * pgasmax;
+    Real pcut_1 = pin->GetReal("problem","pcut_1") * pgasmax_1;
+    Real pcut_2 = pin->GetReal("problem","pcut_2") * pgasmax_2;
 
     // Real b_amp = pin->GetReal("problem","b_amp");
     // Scaling taken from project_bnsmhd
-    Real ns = pin->GetReal("problem","ns");
-    Real b_amp = pin->GetReal("problem","b_amp") *
-                 0.5/std::pow(pgasmax-pcut, ns)/8.351416e19;
-    int magindex = pin->GetInteger("problem","magindex");
+    Real ns_1 = pin->GetReal("problem","ns_1");
+    Real ns_2 = pin->GetReal("problem","ns_2");
+
+    // Read b_amp and rescale it from gaus to code units
+    Real A_amp_1 = pin->GetReal("problem","b_amp_1") *
+      0.5/std::pow(pgasmax_1-pcut_1, ns_1)/B_unit;
+    Real A_amp_2 = pin->GetReal("problem","b_amp_2") *
+      0.5/std::pow(pgasmax_2-pcut_2, ns_2)/B_unit;
 
     pfield->b.x1f.ZeroClear();
     pfield->b.x2f.ZeroClear();
@@ -609,20 +639,22 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int k = kl; k <= ku; ++k)
     for (int j = jl; j <= ju; ++j)
     for (int i = il; i <= iu; ++i)
+    {
+      if(pcoord->x1v(i) > 0)
       {
-        if(pcoord->x1v(i) > 0)
-        {
-          Atot(0,k,j,i) = -pcoord->x2v(j) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
-          Atot(1,k,j,i) = (pcoord->x1v(i) - 0.5*sep) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
-          Atot(2,k,j,i) = 0.0;
-        }
-        else
-        {
-          Atot(0,k,j,i) = -pcoord->x2v(j) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
-          Atot(1,k,j,i) = (pcoord->x1v(i) + 0.5*sep) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
-          Atot(2,k,j,i) = 0.0;
-        }
+        Real A_amp = A_amp_2 * std::max(std::pow(phydro->w(IPR,k,j,i) - pcut_2, ns_2), 0.0);
+        Atot(0,k,j,i) = -pcoord->x2v(j) * A_amp;
+        Atot(1,k,j,i) = (pcoord->x1v(i) - 0.5*sep) * A_amp;
+        Atot(2,k,j,i) = 0.0;
       }
+      else
+      {
+        Real A_amp = A_amp_1 * std::max(std::pow(phydro->w(IPR,k,j,i) - pcut_1, ns_1), 0.0);
+        Atot(0,k,j,i) = -pcoord->x2v(j) * A_amp;
+        Atot(1,k,j,i) = (pcoord->x1v(i) + 0.5*sep) * A_amp;
+        Atot(2,k,j,i) = 0.0;
+      }
+    }
 
     for(int k = ks-1; k<=ke+1; k++)
     for(int j = js-1; j<=je+1; j++)
