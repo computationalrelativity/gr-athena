@@ -203,10 +203,14 @@ void InitM1HomogenousMedium(MeshBlock *pmb, ParameterInput *pin)
   pm1->fidu.sp_v_u.ZeroClear();
 
   const Real W = 1.0/std::sqrt(1 - velx*velx - vely*vely - velz*velz);
+
+#if FLUID_ENABLED
   M1_GLOOP3(k,j,i)
   {
     phydro->w(IDN,k,j,i) = rho;
+#if NSCALARS>0
     pscalars->r(0,k,j,i) = Ye;
+#endif
 #if USETM
     Real const nb = rho/(pmb->peos->GetEOS().GetBaryonMass());
     Real Yvec[MAX_SPECIES] = {Ye};
@@ -220,8 +224,9 @@ void InitM1HomogenousMedium(MeshBlock *pmb, ParameterInput *pin)
   }
 
   phydro->w1 = phydro->w;
+#endif // FLUID_ENABLED
 
-  // Start with zero radiation density 
+  // Start with zero radiation density
   for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
   {
@@ -912,14 +917,15 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   pm1->CalcFiducialVelocity();
 #endif  // M1_ENABLED
 
+#if FLUID_ENABLED
     // Initialise conserved variables
   peos->PrimitiveToConserved(
-                             phydro->w, 
+                             phydro->w,
 #if USETM
                              pscalars->r,
 #endif
-                             pfield->bcc, 
-                             phydro->u, 
+                             pfield->bcc,
+                             phydro->u,
 #if USETM
                              pscalars->s,
 #endif
@@ -928,9 +934,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                              0, ncells2-1,
                              0, ncells3-1);
 
+#endif // FLUID_ENABLED
+
+#if Z4C_ENABLED
   // Initialise matter (also taken care of in task-list)
   pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm,
-                  phydro->w, 
+                  phydro->w,
 #if USETM
                   pscalars->r,
 #endif
@@ -940,6 +949,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                        pz4c->storage.adm,
                        pz4c->storage.mat,
                        pz4c->storage.u);
+#endif // Z4C_ENABLED
 
 }
 

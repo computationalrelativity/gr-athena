@@ -447,7 +447,8 @@ TaskStatus M1IntegratorTaskList::UpdateCoupling(MeshBlock *pmb, int stage)
     {
       pmb->pm1->CoupleSourcesHydro(pmb->phydro->u);
     }
-    
+
+#if NSCALARS > 0
     if (pmb->pm1->opt.couple_sources_Y_e)
     {
       if (pmb->pm1->N_SPCS != 3)
@@ -459,16 +460,25 @@ TaskStatus M1IntegratorTaskList::UpdateCoupling(MeshBlock *pmb, int stage)
       const Real mb = pmb->peos->GetEOS().GetRawBaryonMass();
       pmb->pm1->CoupleSourcesYe(mb, pmb->pscalars->s);
     }
+#endif
 
+#if FLUID_ENABLED
     // We have changed the conserveds, so we must run c2p again
-    int il = pmb->is, iu = pmb->ie, jl = pmb->js, ju = pmb->je, kl = pmb->ks, ku = pmb->ke;
-    pmb->peos->ConservedToPrimitive(pmb->phydro->u, pmb->phydro->w, pmb->pfield->b, pmb->phydro->w1, 
+    int il = pmb->is, iu = pmb->ie;
+    int jl = pmb->js, ju = pmb->je;
+    int kl = pmb->ks, ku = pmb->ke;
+
+    pmb->peos->ConservedToPrimitive(pmb->phydro->u,
+                                    pmb->phydro->w,
+                                    pmb->pfield->b,
+                                    pmb->phydro->w1,
 #if USETM
-                                    pmb->pscalars->s, pmb->pscalars->r,
+                                    pmb->pscalars->s,
+                                    pmb->pscalars->r,
 #endif
                                     pmb->pfield->bcc, pmb->pcoord,
                                     il, iu, jl, ju, kl, ku, 0);
-
+#endif
 
     return TaskStatus::next;
   } else {
