@@ -324,7 +324,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
           std::cerr << "  S_3 = " << cons_old_pt[IM3] << "\n";
           std::cerr << "  tau = " << cons_old_pt[IEN] << "\n";
           // FIXME: Add particle fractions
-          std::cerr << "  b_u = [" << bb_cc(IB1, k, j, i) << ", " << bb_cc(IB2, k, j, i)
+          std::cerr << "  b_u = [" << bb_cc(IB1, k, j, i) << ", " << bb_cc(IB2, k, j, i) << ", "
                                    << bb_cc(IB3, k, j, i) << "]\n";
         }
         // Update the primitive variables.
