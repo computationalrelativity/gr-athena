@@ -111,7 +111,7 @@ void AssembleFluxes(MeshBlock * pmb,
   AT_N_sca alpha(   pz4c->storage.adm, Z4c::I_ADM_alpha);
   AT_N_vec beta_u(  pz4c->storage.adm, Z4c::I_ADM_betax);
 
-  AT_N_sca w_p(  w, IPR);
+  AT_N_sca w_p(     w, IPR);
   AT_N_vec w_util_u(w, IVX);
 
   AT_N_sca sqrt_detgamma_(nn1);
@@ -136,7 +136,7 @@ void AssembleFluxes(MeshBlock * pmb,
   for (int i=il; i<=iu; ++i)
   {
     W_(i) = std::sqrt(
-      1. + InnerProductVec3Metric(w_util_u, gamma_dd, k, j, i)
+      1. + InnerProductVecMetric(w_util_u, gamma_dd, k, j, i)
     );
   }
 
