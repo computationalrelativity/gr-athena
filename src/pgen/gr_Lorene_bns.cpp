@@ -12,12 +12,13 @@
 #include <cassert>
 #include <iomanip>
 #include <iostream>
+#include <sstream>
+#include <streambuf>
+#include <cmath>
 
 // https://lorene.obspm.fr/
 #include <bin_ns.h>
-#include <sstream>
-#include <streambuf>
-// #include <unites.h>
+#include <unites.h>
 
 // Athena++ headers
 #include "../athena_aliases.hpp"
@@ -53,11 +54,64 @@ namespace {
   // Global variables
   ColdEOS<COLDEOS_POLICY> * ceos = NULL;
 
-  // Coppied from Lorene
-  const Real c_si = 2.99792458E+8 ;	 ///< Velocity of light [m/s]
-  const Real m_u_si = 1.6605390666E-27 ;  ///< atomic mass unit [kg]
+  // constants ----------------------------------------------------------------
+#if (0)
+  // Some conversion factors to go between Lorene data and Athena data.
+  // Shamelessly stolen from the Einstein Toolkit's Mag_NS.cc.
+  //
+  //SB Constants should be taken from Lorene's "unites" so to ensure consistency.
+  //   Note the Lorene library has chandged some constants recently (2022),
+  //   This is temporarily kept here for testing purposes.
+  Real const c_light = 299792458.0;              // Speed of light [m/s]
+  Real const mu0 = 4.0 * M_PI * 1.0e-7;          // Vacuum permeability [N/A^2]
+  Real const eps0 = 1.0 / (mu0 * std::pow(c_light, 2));
+
+  // Constants of nature (IAU, CODATA):
+  Real const G_grav = 6.67428e-11;       // Gravitational constant [m^3/kg/s^2]
+  Real const M_sun = 1.98892e+30;        // Solar mass [kg]
+
+  // Athena units in SI
+  // Athena code units: c = G = 1, M = M_sun
+  Real const athenaM = M_sun;
+  Real const athenaL = athenaM * G_grav / (c_light * c_light);
+  Real const athenaT = athenaL / c_light;
+  // This is just a guess based on what Cactus uses.
+  Real const athenaB = (1.0 / athenaL /
+			std::sqrt(eps0 * G_grav / (c_light * c_light)));
   const Real mev_si = 1.602176634E-13 ;   ///< One MeV [J]
-  const Real m_u_mev = m_u_si * c_si * c_si / mev_si;
+  const Real m_u_si = 1.6605390666E-27 ;  ///< atomic mass unit [kg]
+  const Real m_u_mev = m_u_si * pow(c_light, 2) / mev_si;
+
+#else
+  Real const c_light  = Lorene::Unites::c_si; // 2.99792458E+8 ;	 ///< Velocity of light [m/s]
+  Real const nuc_dens = Lorene::Unites::rhonuc_si; // Nuclear density as used in Lorene units [kg/m^3]
+  Real const G_grav   = Lorene::Unites::g_si;      // gravitational constant [m^3/kg/s^2]
+  Real const M_sun    = Lorene::Unites::msol_si;   // solar mass [kg]
+  // const Real mev_si = Lorene::Unites::mev_si // 1.602176634E-13 ;   ///< One MeV [J]
+  const Real m_u_si = Lorene::Unites::m_u_si; // 1.6605390666E-27 ;  ///< atomic mass unit [kg]
+  const Real m_u_mev = m_u_si * pow(c_light, 2) / Lorene::Unites::mev_si;
+
+  Real const mu0 = 4.0 * M_PI * 1.0e-7;          // Vacuum permeability [N/A^2]
+  Real const eps0 = 1.0 / (mu0 * std::pow(c_light, 2));
+
+  // Units in terms of SI units:
+  // (These are derived from M = M_sun, c = G = 1,
+  //  and using 1/M_sun for the magnetic field)
+  Real const athenaM = M_sun;
+  Real const athenaL = athenaM * G_grav / pow(c_light,2);
+  Real const athenaT = athenaL / c_light;
+  // This is just a guess based on what Cactus uses:
+  Real const athenaB = (1.0 / athenaL /
+			std::sqrt(eps0 * G_grav / (c_light * c_light)));
+#endif
+
+  // Athena units for conversion.
+  Real const coord_unit = athenaL/1.0e3; // Convert to km for Lorene.
+  Real const rho_unit = athenaM/(athenaL*athenaL*athenaL); // kg/m^3.
+  Real const ener_unit = 1.0; // c^2
+  Real const vel_unit = athenaL / athenaT / c_light; // c
+  Real const B_unit = athenaB / 1.0e+9; // 10^9 T
+  // --------------------------------------------------------------------------
 }
 
 
@@ -113,59 +167,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   using namespace LinearAlgebra;
 
   // Interpolate Lorene data onto the grid.
-
-  // constants ----------------------------------------------------------------
-#if (1)
-  // Some conversion factors to go between Lorene data and Athena data.
-  // Shamelessly stolen from the Einstein Toolkit's Mag_NS.cc.
-  //
-  //SB Constants should be taken from Lorene's "unites" so to ensure consistency.
-  //   Note the Lorene library has chandged some constants recently (2022),
-  //   This is temporarily kept here for testing purposes.
-  Real const c_light = 299792458.0;              // Speed of light [m/s]
-  Real const mu0 = 4.0 * M_PI * 1.0e-7;          // Vacuum permeability [N/A^2]
-  Real const eps0 = 1.0 / (mu0 * std::pow(c_light, 2));
-
-  // Constants of nature (IAU, CODATA):
-  Real const G_grav = 6.67428e-11;       // Gravitational constant [m^3/kg/s^2]
-  Real const M_sun = 1.98892e+30;        // Solar mass [kg]
-
-  // Athena units in SI
-  // Athena code units: c = G = 1, M = M_sun
-  Real const athenaM = M_sun;
-  Real const athenaL = athenaM * G_grav / (c_light * c_light);
-  Real const athenaT = athenaL / c_light;
-  // This is just a guess based on what Cactus uses.
-  Real const athenaB = (1.0 / athenaL /
-			std::sqrt(eps0 * G_grav / (c_light * c_light)));
-#else
-  Real const c_light  = Unites::c_si;      // speed of light [m/s]
-  Real const nuc_dens = Unites::rhonuc_si; // Nuclear density as used in Lorene units [kg/m^3]
-  Real const G_grav   = Unites::g_si;      // gravitational constant [m^3/kg/s^2]
-  Real const M_sun    = Unites::msol_si;   // solar mass [kg]
-
-  // Units in terms of SI units:
-  // (These are derived from M = M_sun, c = G = 1,
-  //  and using 1/M_sun for the magnetic field)
-  Real const athenaM = M_sun;
-  Real const athenaL = athenaM * G_grav / pow(c_light,2);
-  Real const athenaT = athenaL / c_light;
-  // This is just a guess based on what Cactus uses:
-  Real const athenaB = (1.0 / athenaL /
-			std::sqrt(eps0 * G_grav / (c_light * c_light)));
-
-  // Other quantities in terms of Athena units
-  Real const coord_unit = athenaL / 1.0e+3;         // from km (~1.477)
-  Real const rho_unit   = athenaM / pow(athenaL,3); // from kg/m^3
-#endif
-
-  // Athena units for conversion.
-  Real const coord_unit = athenaL/1.0e3; // Convert to km for Lorene.
-  Real const rho_unit = athenaM/(athenaL*athenaL*athenaL); // kg/m^3.
-  Real const ener_unit = 1.0; // c^2
-  Real const vel_unit = athenaL / athenaT / c_light; // c
-  Real const B_unit = athenaB / 1.0e+9; // 10^9 T
-  // --------------------------------------------------------------------------
 
   // settings -----------------------------------------------------------------
   std::string fn_ini_data = pin->GetOrAddString("problem", "filename", "resu.d");
@@ -411,19 +412,19 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     {
       // Extract quantities from Lorene first, map units ----------------------
       // Real w_rho = bns->nbar[I] / rho_unit;
-      
-      // Lorene is using the atomic mass unit as reference mass 
+
+      // Lorene is using the atomic mass unit as reference mass
       Real nb = bns->nbar[I] / m_u_si * 1e-45; // kg/m^3 -> fm^-3
       Real w_rho = nb * ceos->GetBaryonMass(); // fm^-3 -> code units
 
       // Sanity check if eps matches EOS
-      if (w_rho > 1e-5) 
+      if (w_rho > 1e-5)
       {
         Real eps = bns->ener_spec[I];
-        eps = m_u_mev/ceos->mb * (eps + 1) - 1; // convert eos baryon mass 
+        eps = m_u_mev/ceos->mb * (eps + 1) - 1; // convert eos baryon mass
         Real eps_ceos = ceos->GetSpecificInternalEnergy(w_rho);
         Real eps_err = std::abs(eps_ceos/eps - 1);
-        
+
         if (eps_err > max_eps_err)
         {
           max_eps_err = eps_err;
