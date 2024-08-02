@@ -10,10 +10,11 @@
 
 #include <cassert>
 #include <iostream>
+#include <cstring>
 
 // libsgrid
 // Functions protoypes are "SGRID_*"
-#include "DNSdataReader.h"
+// #include "DNSdataReader.h"
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -31,18 +32,52 @@
 #include "../trackers/extrema_tracker.hpp"
 #include "../utils/linear_algebra.hpp"
 #include "../utils/utils.hpp"
+#include "../globals.hpp"
+
+extern "C" {
+  int libsgrid_main(int argc, char **argv);
+  extern int SGRID_memory_persists;
+  int SGRID_grid_exists(void);
+
+  void SGRID_errorexits(char *file, int line, char *s, char *t);
+  #define SGRID_errorexits(s,t) SGRID_errorexits(__FILE__, __LINE__, (s), (t))
+
+  int SGRID_system2(char *s1, char *s2);
+  int SGRID_lock_curr_til_EOF(FILE *out);
+  int SGRID_construct_argv(char *str, char ***argv);
+
+  int SGRID_fgotonext(FILE *in, const char *label);
+  int SGRID_fgetparameter(FILE *in, const char *par, char *str);
+  int SGRID_extract_after_EQ(char *str);
+  int SGRID_extrstr_before_after_EQ(const char *str, char *before, char *after);
+  int SGRID_fscanline(FILE *in,char *str);
+  int SGRID_extrstr_before_after(const char *str, char *before, char *after, char z);
+  int SGRID_find_before_after(const char *str, char *before, char *after, const char *z);
+  int SGRID_pfind_before_after(const char *str,int p,char *before,char *after,const char *z);
+  int SGRID_sscan_word_at_p(const char *str, int p, char *word);
+  int SGRID_fscan_str_using_getc(FILE *in, char *str);
+  int SGRID_fscanf1(FILE *in, char *fmt, char *str);
+  void SGRID_free_everything();
+
+  void SGRID_EoS_T0_rho0_P_rhoE_from_hm1(double hm1,
+                                         double *rho0, double *P, double *rhoE);
+  double SGRID_epsl_of_rho0_rhoE(double rho0, double rhoE);
+
+  int SGRID_DNSdata_Interpolate_ADMvars_to_xyz(double xyz[3], double *vars,
+                                               int init);
+}
 
 #define STRLEN (16384)
 
 // Indexes for Initial data variables (IDVars) 
 enum{idvar_alpha,
-  idvar_DNSdata_Bx,idvar_DNSdata_By, idvar_DNSdata_Bz,
+  idvar_Bx,idvar_By, idvar_Bz,
   idvar_gxx, idvar_gxy, idvar_gxz, idvar_gyy, idvar_gyz, idvar_gzz,
   idvar_Kxx, idvar_Kxy, idvar_Kxz, idvar_Kyy, idvar_Kyz, idvar_Kzz,
   idvar_q,
   idvar_VRx, idvar_VRy, idvar_VRz, 
   idvar_NDATAMAX, //TODO in NMESH this is 23, but they are 20, and only 20 used...
-}
+};
 
 namespace {
   int RefinementCondition(MeshBlock *pmb);
@@ -67,6 +102,8 @@ namespace {
   int DNS_parameters(ParameterInput *pin);
   int DNS_call_sgrid(const char *command);
 }
+
+// void SGRIDHistory(HistoryData *pdata, Mesh *pm);
 
 //========================================================================================
 //! \fn void Mesh::InitUserMeshData(ParameterInput *pin)
@@ -111,7 +148,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   if (!resume_flag) {
     // Check on some input parameters
     std::string datadir = pin->GetOrAddString("problem", "datadir", "");
-    if (datadir.empy()) {
+    if (datadir.empty()) {
           std::stringstream msg;
 	  msg << "### FATAL ERROR parameter datadir: " << datadir << " "
 	      << " not found. This is needed.";
@@ -133,10 +170,14 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 //========================================================================================
 void MeshBlock::ProblemGenerator(ParameterInput *pin)
 {
-  if (resume_flag) 
-    return;
+  //if (resume_flag) 
+    //return;
 
   bool verbose = pin->GetOrAddBoolean("problem", "verbose", 0);
+//
+  // Initialize the data reader
+  DNS_init_sgrid(pin);
+  DNS_parameters(pin);
 
   //
   // Get settings for SGRID lib
@@ -151,7 +192,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   const Real rdot  = pin->GetReal("problem","rdot");
   const Real rdotor = rdot/(xmax1-xmax2);
 
-  const int rotation180 = pin->GetOrAddIntegerReal("problem","180rotation",0);
+  const int rotation180 = pin->GetOrAddInteger("problem","180rotation",0);
   const Real s180 = (1 - 2*rotation180);
 
   //TODO these setting are in the NMESH example,
@@ -242,13 +283,13 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       IDvars[idvar_Bx]  *= s180;
       IDvars[idvar_By]  *= s180;
       IDvars[idvar_gxz] *= s180;
-      IDvars[idvar_Byz] *= s180;
+      IDvars[idvar_gyz] *= s180;
       IDvars[idvar_Kxz] *= s180;
       IDvars[idvar_Kyz] *= s180;
-      //IDvars[idvar_VRx] *= s180;
-      //IDvars[idvar_VRy] *= s180;
+      IDvars[idvar_VRx] *= s180;
+      IDvars[idvar_VRy] *= s180;
 
-      alpha(k, j, i)     = IDvars[idvar_alpha]
+      alpha(k, j, i)     = IDvars[idvar_alpha];
       beta_u(0, k, j, i) = IDvars[idvar_Bx];
       beta_u(1, k, j, i) = IDvars[idvar_By];
       beta_u(2, k, j, i) = IDvars[idvar_Bz];
@@ -267,7 +308,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       K_dd(1, 2, k, j, i) = IDvars[idvar_Kyz];
       K_dd(2, 2, k, j, i) = IDvars[idvar_Kzz];
 
-      const Real det = Det3Metric(g_dd, k, j, i);
+      const Real det = LinearAlgebra::Det3Metric(g_dd, k, j, i);
       assert(std::fabs(det) > tol_det_zero);
 
     }
@@ -294,7 +335,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       IDvars[idvar_Bx]  *= s180;
       IDvars[idvar_By]  *= s180;
       IDvars[idvar_gxz] *= s180;
-      IDvars[idvar_Byz] *= s180;
+      IDvars[idvar_gyz] *= s180;
       IDvars[idvar_Kxz] *= s180;
       IDvars[idvar_Kyz] *= s180;
       IDvars[idvar_VRx] *= s180;
@@ -307,7 +348,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       Real v_u_x = 0.0, v_u_y = 0.0, v_u_z = 0.0;
       
       // if we are in matter region, convert q, VR to rho, press, eps, v^i :
-      if (q>0.0) {
+      if (IDvars[idvar_q]>0.0) {
 	
 	//TODO EOS call q = h-1 --> rho, press, eps 	  
 	//double rho0, P, rhoE;
@@ -323,9 +364,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 	Real xiz =  zb*rdotor;
 
 	// vI^i = VR^i + xi^i 
-	Real vIx = VRx + xix;
-	Real vIy = VRy + xiy;
-	Real vIz = VRz + xiz;
+	Real vIx = IDvars[idvar_VRx] + xix;
+	Real vIy = IDvars[idvar_VRy] + xiy;
+	Real vIz = IDvars[idvar_VRz] + xiz;
 
 	// Note: vI^i = u^i/u^0 in DNSdata,
 	//       while matter_v^i = u^i/(alpha u^0) + beta^i / alpha
@@ -364,12 +405,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
       // Lorentz factor
       const Real vsq = (
-        2.0*(v_u_x * v_u_y * bns->g_xy[I] +
-             v_u_x * v_u_z * bns->g_xz[I] +
-             v_u_y * v_u_z * bns->g_yz[I]) +
-        v_u_x * v_u_x * bns->g_xx[I] +
-        v_u_y * v_u_y * bns->g_yy[I] +
-        v_u_z * v_u_z * bns->g_zz[I]
+        2.0*(v_u_x * v_u_y * IDvars[idvar_gxy]  +
+             v_u_x * v_u_z * IDvars[idvar_gxz]  +
+             v_u_y * v_u_z * IDvars[idvar_gyz]  +
+        v_u_x * v_u_x * IDvars[idvar_gxx]  +
+        v_u_y * v_u_y * IDvars[idvar_gyy]  +
+        v_u_z * v_u_z * IDvars[idvar_gzz]) 
       );
 
       const Real W = 1.0 / std::sqrt(1.0 - vsq);
@@ -400,14 +441,15 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     {
       // Assume stars are located on x axis
       
-      Real pgasmax = pin->GetReal("problem","pmax");
-      Real pcut = pin->GetReal("problem","pcut") * pgasmax;
-      Real b_amp = pin->GetReal("problem","b_amp");
-      int magindex = pin->GetInteger("problem","magindex");
+      const Real pgasmax = pin->GetReal("problem","pmax");
+      const Real pcut = pin->GetReal("problem","pcut") * pgasmax;
+      const Real b_amp = pin->GetReal("problem","b_amp");
+      const int magindex = pin->GetInteger("problem","magindex");
+      const Real sep = pin->GetReal("problem","DNSdata_b");
       
-      int nx1 = (ie-is)+1 + 2*(NGHOST); //TODO Shouldn't this be ncell[123]?
-      int nx2 = (je-js)+1 + 2*(NGHOST);
-      int nx3 = (ke-ks)+1 + 2*(NGHOST);
+      const int nx1 = (ie-is)+1 + 2*(NGHOST); //TODO Shouldn't this be ncell[123]?
+      const int nx2 = (je-js)+1 + 2*(NGHOST);
+      const int nx3 = (ke-ks)+1 + 2*(NGHOST);
       
       pfield->b.x1f.ZeroClear();
       pfield->b.x2f.ZeroClear();
@@ -556,9 +598,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 //! \fn void Mesh::UserWorkAfterLoop(ParameterInput *pin, int res_flag)
 //  \brief Free SGRID memory as soon as possible
 //========================================================================================
-void Mesh::UserWorkAfterLoop(ParameterInput *pin, int res_flag)
+void Mesh::DeleteTemporaryUserMeshData()
 {
-  if (!res_flag && SGRID_grid_exists()) {
+  if (!resume_flag && SGRID_grid_exists()) {
     SGRID_free_everything();
   }
   return;
@@ -578,12 +620,15 @@ void DNS_init_sgrid(ParameterInput *pin)
   const int myrank = Globals::my_rank;
 
   const bool verbose = pin->GetOrAddBoolean("problem", "verbose", 0);
-  char *sgrid_datadir = pin->GetString("problem", "datadir");
+  std::string const sgrid_datadir_const = pin->GetString("problem", "datadir");
   const bool keep_sgrid_output = pin->GetOrAddBoolean("problem", "keep_sgrid_output", 0);
   const bool Interpolate_verbose = pin->GetOrAddBoolean("problem", "Interpolate_verbose", 0);
-  const bool Interpolate_make_finer_grid2 = pin->GetOrAddBoolean("problem", "Interpolate_make_finer_grid2"), 0);
-  const Real Interpolate_max_xyz_diff = pin->GetOrAddReal("problem", "Interpolate_max_xyz_diff");
-  char *outdir = pin->GetOrAddString("problem", "outdir","SGRID");
+  const bool Interpolate_make_finer_grid2 = pin->GetOrAddBoolean("problem", "Interpolate_make_finer_grid2", 0);
+  const Real Interpolate_max_xyz_diff = pin->GetOrAddReal("problem", "Interpolate_max_xyz_diff",0.);
+  std::string outdir = pin->GetOrAddString("problem", "outdir","SGRID");
+  
+  char * sgrid_datadir = (char *)malloc(sgrid_datadir_const.length() + 1);
+  std::strcpy(sgrid_datadir, sgrid_datadir_const.c_str());
 
   char command[STRLEN+65676];
   char sgrid_exe[] = "sgrid"; // name is not important 
@@ -599,7 +644,7 @@ void DNS_init_sgrid(ParameterInput *pin)
   std::sprintf(sgridoutdir_previous, "%s/sgrid_level_%d_proc_%d_previous",
           outdir, level_l, myrank);
   std::snprintf(sgridcheckpoint_indir, STRLEN-1, "%s", sgrid_datadir);
-  stringptr = strrchr(sgrid_datadir, '/'); // find last / 
+  stringptr = std::strrchr(sgrid_datadir, '/'); // find last / 
   if(stringptr==NULL) { // no / found in DNSdataReader_sgrid_datadir 
     std::snprintf(sgridparfile, STRLEN-1, "%s.par", sgrid_datadir);
   } else {
@@ -662,7 +707,7 @@ int DNS_call_sgrid(const char *command)
   char *com = strdup(command); /* duplicate since construct_argv modifies its args */
   char **argv;
   int argc, status=-911;
-  int size = nMPI_size();
+  int size = Globals::nranks;
   int rkop;
 
   // cleanup in case we have called this already before 
@@ -875,6 +920,9 @@ int DNS_parameters(ParameterInput *pin)
   Real xout2 = atof(str)-sgrid_x_CM;
   SGRID_fgetparameter(fp1, "qmax2", str);
   Real qmax2 = atof(str);
+  SGRID_fgetparameter(fp1, "DNSdata_b", str);
+  Real sep = atof(str);
+
 
   //
   // Set Athena++ parameters for later
@@ -894,6 +942,7 @@ int DNS_parameters(ParameterInput *pin)
   pin->SetReal("problem", "xmax2", xmax2);
   pin->SetReal("problem", "xout2", xout2);
   pin->SetReal("problem", "qmax2", qmax2);
+  pin->SetReal("problem", "DNSdata_b", sep);
 
   pin->SetReal("problem", "center1_mass", m01);
   pin->SetReal("problem", "center2_mass", m02);
@@ -1104,7 +1153,7 @@ Real max_abs_con_H(MeshBlock *pmb, int iout)
 }
 
 //TODO ... following is LORENE_EOS block in gr_Lorene_bns.cpp, might need something similar
-#ifdef (0) 
+#if (0) 
   //--------------------------------------------------------------------------------------
   //! \fn Real linear_interp(Real *f, Real *x, int n, Real xv)
   // \brief linearly interpolate f(x), compute f(xv)
