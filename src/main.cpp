@@ -33,17 +33,9 @@
 #include <string>     // string
 
 // Athena++ headers
+#include "defs.hpp"
 #include "main.hpp"
 #include "main_triggers.hpp"
-
-#include "z4c/wave_extract.hpp"
-#include "z4c/puncture_tracker.hpp"
-#include "trackers/extrema_tracker.hpp"
-#include "z4c/ahf.hpp"
-// #include "z4c/ejecta.hpp"
-#if CCE_ENABLED
-#include "z4c/cce/cce.hpp"
-#endif
 
 //-----------------------------------------------------------------------------
 //! \fn int main(int argc, char *argv[])
@@ -123,19 +115,9 @@ int main(int argc, char *argv[])
   trgs.Add(tvar::Z4c_Weyl, ovar::user, true, true);
   trgs.Add(tvar::Z4c_Weyl, ovar::data, true, true);
 
-  // BD: TODO - move to collection etc.
-  WaveIntegratorTaskList *pwlist = nullptr;
-  M1IntegratorTaskList *pm1list = nullptr;
-
   // now populate requisite task-lists
   gra::tasklist::Collection ptlc { trgs };
   gra::tasklist::PopulateCollection(ptlc, pmesh, pinput);
-
-  // BD: TODO - move to collection
-  if (M1_ENABLED)
-  {
-    pm1list = new M1IntegratorTaskList(pinput, pmesh);
-  }
 
   //=== Step 8. === START OF MAIN INTEGRATION LOOP ============================
   // For performance, there is no error handler protecting this step
@@ -158,10 +140,10 @@ int main(int argc, char *argv[])
       ? trgs.AdjustFromAny_mesh_dt()
       : false;
 
-    // After state vector propagated, derived diagnostics (i.e. GW, trackers)
-    // are at the new time-step ...
-    const Real time_end_stage   = pmesh->time+pmesh->dt;
-    const Real ncycle_end_stage = pmesh->ncycle+1;
+    // // After state vector propagated, derived diagnostics (i.e. GW, trackers)
+    // // are at the new time-step ...
+    // const Real time_end_stage   = pmesh->time+pmesh->dt;
+    // const Real ncycle_end_stage = pmesh->ncycle+1;
 
     if (Globals::my_rank == 0)
     {
@@ -170,135 +152,29 @@ int main(int argc, char *argv[])
 
     if (WAVE_ENABLED)
     {
-      for (int stage=1; stage<=pwlist->nstages; ++stage)
-      {
-        pwlist->DoTaskListOneStage(pmesh, stage);
-      }
+      gra::evolve::Wave_2O(ptlc, pmesh);
     }
 
     if (Z4C_ENABLED)
     {
-      if (!FLUID_ENABLED)
+      if (FLUID_ENABLED)
       {
-        for (int stage=1; stage<=ptlc.gr_z4c->nstages; ++stage)
-        {
-          ptlc.gr_z4c->DoTaskListOneStage(pmesh, stage);
-          // Iterate bnd comm. as required
-          pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
-        }
+        gra::evolve::Z4c_GRMHD(ptlc, pmesh);
       }
       else
-      { //FLUID_ENABLED && Z4C_ENABLED
-        for (int stage=1; stage<=ptlc.grmhd_z4c->nstages; ++stage)
-        {
-          ptlc.grmhd_z4c->DoTaskListOneStage(pmesh, stage);
-          // Iterate bnd comm. as required
-          pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
-        }
-      } //FLUID_ENABLED
-
-      // Auxiliary variable logic
-      // Currently this handles Weyl communication & decomposition
-      if (trgs.IsSatisfied(tvar::Z4c_Weyl))
       {
-        // May be required to prevent task-list overlaps
-        // gra::parallelism::Barrier();
-        pmesh->CommunicateAuxZ4c();
-        ptlc.aux_z4c->DoTaskListOneStage(pmesh, 1);  // only 1 stage
+        gra::evolve::Z4c_Vacuum(ptlc, pmesh);
       }
 
-      if (trgs.IsSatisfied(tvar::Z4c_Weyl, ovar::user))
-      {
-        for (auto pwextr : pmesh->pwave_extr)
-        {
-          pwextr->ReduceMultipole();
-          pwextr->Write(ncycle_end_stage, time_end_stage);
-        }
-      }
-
-// BD: TODO - CCE needs to be cleaned up & tested
-#if CCE_ENABLED
-      bool cce_update;
-      Real cce_dt;
-
-      if (!FLUID_ENABLED)
-      {
-        cce_update = ptlc.gr_z4c->TaskListTriggers.cce_dump.to_update;
-        cce_dt = ptlc.gr_z4c->TaskListTriggers.cce_dump.dt;
-      } else {
-        cce_update = ptlc.grmhd_z4c->TaskListTriggers.cce_dump.to_update;
-        cce_dt = ptlc.grmhd_z4c->TaskListTriggers.cce_dump.dt;
-      }
-      // only do a CCE dump if NextTime threshold cleared (updated below)
-      if (cce_update) {
-        // gather all interpolation values from all processors to the root proc.
-        for (auto cce : pmesh->pcce)
-        {
-          cce->ReduceInterpolation();
-        }
-        // number of cce iteration(dump)
-        int cce_iter = static_cast<int>(pmesh->time / 
-                                       cce_dt);
-        int w_iter = 0; // write iter
-
-        // update the bookkeeping file to ensure resuming from the correct iter number 
-        // after a restart. note: for a duplicated iter, hdf5 writer gives an error!
-        if (CCE::BookKeeping(pinput,cce_iter,w_iter))
-        {
-          for (auto cce : pmesh->pcce)
-          {
-            cce->DecomposeAndWrite(w_iter);
-          }
-        }
-      }
-#endif
-
-      for (auto pah_f : pmesh->pah_finder)
-      {
-        if (pah_f->CalculateMetricDerivatives(ncycle_end_stage,
-                                              time_end_stage))
-        {
-          break;
-        }
-      }
-      for (auto pah_f : pmesh->pah_finder)
-      {
-        pah_f->Find(ncycle_end_stage, time_end_stage);
-        pah_f->Write(ncycle_end_stage, time_end_stage);
-      }
-      for (auto pah_f : pmesh->pah_finder)
-      {
-        if (pah_f->DeleteMetricDerivatives(ncycle_end_stage, time_end_stage))
-        {
-          break;
-        }
-      }
-/* WC: Temporarily remove ejecta - to be tested/reincluded
-      for (auto pej : pmesh->pej_extract) {
-        pej->Calculate(pmesh->ncycle, pmesh->time);
-      }
-*/
-      for (auto ptracker : pmesh->pz4c_tracker)
-      {
-        ptracker->EvolveTracker();
-      }
-
-      if (trgs.IsSatisfied(tvar::Z4c_tracker_punctures, ovar::user))
-      for (auto ptracker : pmesh->pz4c_tracker)
-      {
-        ptracker->WriteTracker(ncycle_end_stage, time_end_stage);
-      }
-
+      gra::evolve::Z4c_DerivedQuantities(ptlc, trgs, pmesh);
     }
 
-    // Trace AMR state
-    pmesh->ptracker_extrema->ReduceTracker();
-    pmesh->ptracker_extrema->EvolveTracker();
-
-    if (trgs.IsSatisfied(tvar::tracker_extrema, ovar::user))
+    if (M1_ENABLED)
     {
-      pmesh->ptracker_extrema->WriteTracker(ncycle_end_stage, time_end_stage);
+      gra::evolve::M1N0(ptlc, pmesh);
     }
+
+    gra::evolve::TrackerExtrema(ptlc, trgs, pmesh);
 
     //-------------------------------------------------------------------------
     // Update triggers as required
@@ -307,13 +183,13 @@ int main(int argc, char *argv[])
 
     // BD: TODO - shift to correct place
     // BD: Shift to Evolve:: style header as previously
-    if (M1_ENABLED)
-    {
-      for (int stage=1; stage<=pm1list->nstages; ++stage)
-      {
-        pm1list->DoTaskListOneStage(pmesh, stage);
-      }
-    }
+    // if (M1_ENABLED)
+    // {
+    //   for (int stage=1; stage<=pm1list->nstages; ++stage)
+    //   {
+    //     pm1list->DoTaskListOneStage(pmesh, stage);
+    //   }
+    // }
     /*
     const bool use_split_step = pinput->GetOrAddBoolean("problem",
                                                         "use_split_step",
@@ -455,12 +331,6 @@ int main(int argc, char *argv[])
   delete pinput;
   delete pmesh;
   delete pouts;
-
-  // BD: TODO - move to TearDown
-  if (M1_ENABLED)
-  {
-    delete pm1list;
-  }
 
   gra::tasklist::TearDown(ptlc);
   gra::parallelism::Teardown();

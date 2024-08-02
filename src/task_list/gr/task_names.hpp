@@ -9,6 +9,33 @@
 #include "../../athena.hpp"
 #include "../task_list.hpp"
 
+namespace TaskNames::GeneralRelativity::GR_Z4c {
+
+const TaskID NONE(0);
+const TaskID CLEAR_ALLBND(1);
+const TaskID CALC_Z4CRHS(2);
+const TaskID INT_Z4C(3);
+const TaskID SEND_Z4C(4);
+const TaskID RECV_Z4C(5);
+const TaskID SETB_Z4C(6);
+
+const TaskID PROLONG(7);
+const TaskID PHY_BVAL(8);
+
+const TaskID ALG_CONSTR(9);
+const TaskID Z4C_TO_ADM(10);
+const TaskID USERWORK(11);
+const TaskID NEW_DT(12);
+
+const TaskID ADM_CONSTR(13);
+const TaskID FLAG_AMR(14);
+
+const TaskID ASSERT_FIN(15);
+const TaskID Z4C_WEYL(16);
+const TaskID CCE_DUMP(18);
+
+}  // TaskNames::GeneralRelativity::GR_Z4c
+
 namespace TaskNames::GeneralRelativity::GRMHD_Z4c {
 
 const TaskID NONE(0);
@@ -72,33 +99,6 @@ const TaskID PROLONG_Z4C(62);
 const TaskID PHY_BVAL_Z4C(63);
 
 }  // namespace TaskNames::GeneralRelativity::GRMHD_Z4c
-
-namespace TaskNames::GeneralRelativity::GR_Z4c {
-
-const TaskID NONE(0);
-const TaskID CLEAR_ALLBND(1);
-const TaskID CALC_Z4CRHS(2);
-const TaskID INT_Z4C(3);
-const TaskID SEND_Z4C(4);
-const TaskID RECV_Z4C(5);
-const TaskID SETB_Z4C(6);
-
-const TaskID PROLONG(7);
-const TaskID PHY_BVAL(8);
-
-const TaskID ALG_CONSTR(9);
-const TaskID Z4C_TO_ADM(10);
-const TaskID USERWORK(11);
-const TaskID NEW_DT(12);
-
-const TaskID ADM_CONSTR(13);
-const TaskID FLAG_AMR(14);
-
-const TaskID ASSERT_FIN(15);
-const TaskID Z4C_WEYL(16);
-const TaskID CCE_DUMP(18);
-
-}  // TaskNames::GeneralRelativity::GR_Z4c
 
 namespace TaskNames::GeneralRelativity::Aux_Z4c {
 

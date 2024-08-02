@@ -1561,26 +1561,26 @@ if args['z']:
   str_stem = 'filter-out src/task_list'
 
   # remove this confusing logic
-  if args['f']:
-    # need matter task-list, remove vacuum
-    src_aux.append(f'$({str_stem}/gr/gr_z4c.cpp, {str_z4c})')
-  else:
-    # ^ complement
-    src_aux.append(f'$({str_stem}/gr/z4c_matter_task_list.cpp, {str_z4c})')
+  # if args['f']:
+  #   # need matter task-list, remove vacuum
+  #   src_aux.append(f'$({str_stem}/gr/gr_z4c.cpp, {str_z4c})')
+  # else:
+  #   # ^ complement
+  #   src_aux.append(f'$({str_stem}/gr/z4c_matter_task_list.cpp, {str_z4c})')
 
   # task_list/gr
   str_gr = '$(wildcard src/task_list/gr/*.cpp)'
   src_aux.append(f'{str_gr}')
 
   if args['m1']:
-    src_aux.append('$(wildcard src/task_list/m1_task_list.cpp)')
+    src_aux.append('$(wildcard src/task_list/m1/task_list_m1n0.cpp)')
 
 
 elif args['w']:
-  src_aux.append('$(wildcard src/task_list/wave_task_list.cpp)')
+  src_aux.append('$(wildcard src/task_list/wave_equations/task_list_wave_2o.cpp)')
 
 elif args['m1']:
-  src_aux.append('$(wildcard src/task_list/m1_task_list.cpp)')
+  src_aux.append('$(wildcard src/task_list/m1/task_list_m1n0.cpp)')
 
 else:
   src_aux.append('$(wildcard src/task_list/time_integrator.cpp)')

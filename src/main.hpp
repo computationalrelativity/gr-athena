@@ -27,7 +27,19 @@
 #include "outputs/outputs.hpp"
 #include "mesh/mesh.hpp"
 #include "task_list/gr/task_list.hpp"
+#include "task_list/m1/task_list.hpp"
+#include "task_list/wave_equations/task_list.hpp"
 #include "utils/utils.hpp"
+
+#include "z4c/wave_extract.hpp"
+#include "z4c/puncture_tracker.hpp"
+#include "z4c/ahf.hpp"
+// #include "z4c/ejecta.hpp"
+#if CCE_ENABLED
+#include "z4c/cce/cce.hpp"
+#endif
+
+#include "trackers/extrema_tracker.hpp"
 
 // Note:
 // ENABLE_EXCEPTIONS is _always_ assumed
@@ -518,6 +530,10 @@ struct Collection
 
   TaskLists::GeneralRelativity::Aux_Z4c     * aux_z4c     = nullptr;
   TaskLists::GeneralRelativity::PostAMR_Z4c * postamr_z4c = nullptr;
+
+  TaskLists::M1::M1N0                       * m1n0        = nullptr;
+
+  TaskLists::WaveEquations::Wave_2O         * wave_2o     = nullptr;
 };
 
 inline void PopulateCollection(Collection &ptlc,
@@ -543,6 +559,18 @@ inline void PopulateCollection(Collection &ptlc,
 
       ptlc.aux_z4c     = new Aux_Z4c(pin, pm, ptlc.trgs);
       ptlc.postamr_z4c = new PostAMR_Z4c(pin, pm, ptlc.trgs);
+    }
+
+    if (M1_ENABLED)
+    {
+      using namespace TaskLists::M1;
+      ptlc.m1n0 = new M1N0(pin, pm, ptlc.trgs);
+    }
+
+    if (WAVE_ENABLED)
+    {
+      using namespace TaskLists::WaveEquations;
+      ptlc.wave_2o = new Wave_2O(pin, pm, ptlc.trgs);
     }
   }
   catch(std::bad_alloc& ba)
@@ -574,14 +602,192 @@ inline void TearDown(Collection &ptlc)
     delete ptlc.aux_z4c;
     delete ptlc.postamr_z4c;
   }
+
+  if (M1_ENABLED)
+  {
+    delete ptlc.m1n0;
+  }
+
+  if (WAVE_ENABLED)
+  {
+    delete ptlc.wave_2o;
+  }
+
 }
 
 }  // namespace gra::tasklist
 
 // Integration loop handling / triggers, etc ----------------------------------
-namespace gra::integration_loop {
+namespace gra::evolve {
 
-}  // namespace gra::integration_loop
+using namespace gra::triggers;
+typedef Triggers::TriggerVariant tvar;
+typedef Triggers::OutputVariant ovar;
+
+inline void Z4c_Vacuum(gra::tasklist::Collection &ptlc,
+                       Mesh *pmesh)
+{
+  for (int stage=1; stage<=ptlc.gr_z4c->nstages; ++stage)
+  {
+    ptlc.gr_z4c->DoTaskListOneStage(pmesh, stage);
+    // Iterate bnd comm. as required
+    pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
+  }
+}
+
+inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
+                      Mesh *pmesh)
+{
+  for (int stage=1; stage<=ptlc.grmhd_z4c->nstages; ++stage)
+  {
+    ptlc.grmhd_z4c->DoTaskListOneStage(pmesh, stage);
+    // Iterate bnd comm. as required
+    pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
+  }
+}
+
+inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
+                                  gra::triggers::Triggers &trgs,
+                                  Mesh *pmesh)
+{
+  // After state vector propagated, derived diagnostics (i.e. GW, trackers)
+  // are at the new time-step ...
+  const Real time_end_stage   = pmesh->time+pmesh->dt;
+  const Real ncycle_end_stage = pmesh->ncycle+1;
+
+  // Auxiliary variable logic
+  // Currently this handles Weyl communication & decomposition
+  if (trgs.IsSatisfied(tvar::Z4c_Weyl))
+  {
+    // May be required to prevent task-list overlaps
+    // gra::parallelism::Barrier();
+    pmesh->CommunicateAuxZ4c();
+    ptlc.aux_z4c->DoTaskListOneStage(pmesh, 1);  // only 1 stage
+  }
+
+  if (trgs.IsSatisfied(tvar::Z4c_Weyl, ovar::user))
+  {
+    for (auto pwextr : pmesh->pwave_extr)
+    {
+      pwextr->ReduceMultipole();
+      pwextr->Write(ncycle_end_stage, time_end_stage);
+    }
+  }
+
+// BD: TODO - CCE needs to be cleaned up & tested
+#if CCE_ENABLED
+      bool cce_update;
+      Real cce_dt;
+
+      if (!FLUID_ENABLED)
+      {
+        cce_update = ptlc.gr_z4c->TaskListTriggers.cce_dump.to_update;
+        cce_dt = ptlc.gr_z4c->TaskListTriggers.cce_dump.dt;
+      } else {
+        cce_update = ptlc.grmhd_z4c->TaskListTriggers.cce_dump.to_update;
+        cce_dt = ptlc.grmhd_z4c->TaskListTriggers.cce_dump.dt;
+      }
+      // only do a CCE dump if NextTime threshold cleared (updated below)
+      if (cce_update) {
+        // gather all interpolation values from all processors to the root proc.
+        for (auto cce : pmesh->pcce)
+        {
+          cce->ReduceInterpolation();
+        }
+        // number of cce iteration(dump)
+        int cce_iter = static_cast<int>(pmesh->time / 
+                                       cce_dt);
+        int w_iter = 0; // write iter
+
+        // update the bookkeeping file to ensure resuming from the correct iter number 
+        // after a restart. note: for a duplicated iter, hdf5 writer gives an error!
+        if (CCE::BookKeeping(pinput,cce_iter,w_iter))
+        {
+          for (auto cce : pmesh->pcce)
+          {
+            cce->DecomposeAndWrite(w_iter);
+          }
+        }
+      }
+#endif
+
+  for (auto pah_f : pmesh->pah_finder)
+  {
+    if (pah_f->CalculateMetricDerivatives(ncycle_end_stage,
+                                          time_end_stage))
+    {
+      break;
+    }
+  }
+  for (auto pah_f : pmesh->pah_finder)
+  {
+    pah_f->Find(ncycle_end_stage, time_end_stage);
+    pah_f->Write(ncycle_end_stage, time_end_stage);
+  }
+  for (auto pah_f : pmesh->pah_finder)
+  {
+    if (pah_f->DeleteMetricDerivatives(ncycle_end_stage, time_end_stage))
+    {
+      break;
+    }
+  }
+
+  /* WC: Temporarily remove ejecta - to be tested/reincluded
+  for (auto pej : pmesh->pej_extract) {
+    pej->Calculate(pmesh->ncycle, pmesh->time);
+  }
+  */
+
+  for (auto ptracker : pmesh->pz4c_tracker)
+  {
+    ptracker->EvolveTracker();
+  }
+
+  if (trgs.IsSatisfied(tvar::Z4c_tracker_punctures, ovar::user))
+  for (auto ptracker : pmesh->pz4c_tracker)
+  {
+    ptracker->WriteTracker(ncycle_end_stage, time_end_stage);
+  }
+
+}
+
+inline void M1N0(gra::tasklist::Collection &ptlc,
+                 Mesh *pmesh)
+{
+  for (int stage=1; stage<=ptlc.m1n0->nstages; ++stage)
+  {
+    ptlc.m1n0->DoTaskListOneStage(pmesh, stage);
+  }
+}
+
+inline void Wave_2O(gra::tasklist::Collection &ptlc,
+                    Mesh *pmesh)
+{
+  for (int stage=1; stage<=ptlc.wave_2o->nstages; ++stage)
+  {
+    ptlc.wave_2o->DoTaskListOneStage(pmesh, stage);
+  }
+}
+
+inline void TrackerExtrema(gra::tasklist::Collection &ptlc,
+                           gra::triggers::Triggers &trgs,
+                           Mesh *pmesh)
+{
+  // Extrema tracker is based on propagated state vector
+  const Real time_end_stage   = pmesh->time+pmesh->dt;
+  const Real ncycle_end_stage = pmesh->ncycle+1;
+
+  // Trace AMR state
+  pmesh->ptracker_extrema->ReduceTracker();
+  pmesh->ptracker_extrema->EvolveTracker();
+
+  if (trgs.IsSatisfied(tvar::tracker_extrema, ovar::user))
+  {
+    pmesh->ptracker_extrema->WriteTracker(ncycle_end_stage, time_end_stage);
+  }
+}
+
+}  // namespace gra::evolve
 
 #endif // MAIN_HPP
 //

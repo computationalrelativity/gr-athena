@@ -4,9 +4,9 @@
 #include <string>     // c_str()
 
 // Athena++ classes headers
-#include "../../athena.hpp"
-#include "../../mesh/mesh.hpp"
-#include "../../parameter_input.hpp"
+#include "../athena.hpp"
+#include "../mesh/mesh.hpp"
+#include "../parameter_input.hpp"
 #include "task_list.hpp"
 #include "time_integrators.hpp"
 

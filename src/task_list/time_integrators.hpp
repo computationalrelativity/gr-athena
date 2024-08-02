@@ -4,8 +4,8 @@
 // C/C++ headers
 
 // Athena++ classes headers
-#include "../../athena.hpp"
-#include "../../mesh/mesh.hpp"
+#include "../athena.hpp"
+#include "../mesh/mesh.hpp"
 #include "task_list.hpp"
 
 
