@@ -41,6 +41,8 @@
 #   --gsl_path=path     path to gsl libraries (requires the gsl library)
 #   -lorene             enable LORENE
 #   --lorene_path=path  path to LORENE (requires the LORENE library)
+#   -sgrid             enable SGRID
+#   --sgrid_path=path  path to SGRID (requires SGRID library)
 #   --grav=xxx          use xxx as the self-gravity solver
 #   --cxx=xxx           use xxx as the C++ compiler
 #   --ccmd=name         use name as the command to call the (non-MPI) C++ compiler
@@ -423,6 +425,17 @@ parser.add_argument('-lorene',
 parser.add_argument('--lorene_path',
                     default='',
                     help='path to LORENE libraries')
+
+# -sgrid argument
+parser.add_argument('-sgrid',
+                    action='store_true',
+                    default=False,
+                    help='enable GNU scientific library')
+
+# --sgrid_path argument
+parser.add_argument('--sgrid_path',
+                    default='',
+                    help='path to SGRID libraries')
 
 # -ccache argument
 parser.add_argument('-ccache',
@@ -1343,6 +1356,40 @@ if 'Lorene' in args['prob']:
                 name=args['prob']
             )
         )
+
+if args['sgrid']:
+    definitions['SGRID_OPTION'] = 'SGRID'
+
+    makefile_options['LIBRARY_FLAGS'] += ' -lsgrid -llapack -lblas'
+
+    # this can be specified as sgrid_path _or_ directly
+    if args['sgrid_path'] != '':
+        definitions['SGRID_OPTION'] = 'SGRID'
+
+        ##makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/Export/C++/Include'.format(args['sgrid_path'])
+        ##makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/C++/Include'.format(args['sgrid_path'])
+        makefile_options['LINKER_FLAGS'] += ' -L{0}/lib'.format(args['sgrid_path'])
+
+else:
+    definitions['SGRID_OPTION'] = 'NO_SGRID'
+
+if 'Sgrid' in args['prob']:
+    if not args['f'] or not args['g'] or not args['z']:
+        raise SystemExit(
+            '### CONFIGURE ERROR: The pgen "{name}" requires flags '
+            '-f -g -z.'.format(
+                name=args['prob']
+            )
+        )
+
+    if not args['sgrid']:
+        raise SystemExit(
+            '### CONFIGURE ERROR: The pgen "{name}" requires flags '
+            '-sgrid.'.format(
+                name=args['prob']
+            )
+        )
+
 
 # --cflag=[string] argument
 if args['cflag'] is not None:
