@@ -767,6 +767,8 @@ inline void M1N0(gra::tasklist::Collection &ptlc,
 inline void Z4c_GRMHD_M1N0(gra::tasklist::Collection &ptlc,
                            Mesh *pmesh)
 {
+#if M1_ENABLED
+
   if (pmesh->pblock->pm1->opt.use_split_step)
   {
     const Real t  = pmesh->time;
@@ -800,6 +802,8 @@ inline void Z4c_GRMHD_M1N0(gra::tasklist::Collection &ptlc,
     Z4c_GRMHD(ptlc, pmesh);
     M1N0(ptlc, pmesh);
   }
+
+#endif // M1_ENABLED
 }
 
 inline void Wave_2O(gra::tasklist::Collection &ptlc,
