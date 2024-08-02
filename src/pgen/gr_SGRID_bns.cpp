@@ -350,10 +350,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       // if we are in matter region, convert q, VR to rho, press, eps, v^i :
       if (IDvars[idvar_q]>0.0) {
 	
-	//TODO EOS call q = h-1 --> rho, press, eps 	  
-	//double rho0, P, rhoE;
-	//SGRID_EoS_T0_rho0_P_rhoE_from_hm1(q, &rho0, &P, &rhoE);
-	//...
+	SGRID_EoS_T0_rho0_P_rhoE_from_hm1(IDvars[idvar_q], &rho, &pre, &eps);
 	
 	// 3-velocity  v^i
 	Real xmax = (xb>0)?xmax1:xmax2;
