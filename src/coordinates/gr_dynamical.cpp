@@ -604,23 +604,14 @@ void GRDynamical::_AddCoordTermsDivergence(
       Real n = sl_w_rho(k,j,i)/pmy_block->peos->GetEOS().GetBaryonMass();
       // FIXME: Generalize to work with EOSes accepting particle fractions.
       Real Y[MAX_SPECIES] = {0.0};
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> ba414a81 (Missing macro)
+
 #if NSCALARS > 0
-      for (int l=0; l<NSCALARS; l++){
+      for (int l=0; l<NSCALARS; l++)
+      {
         Y[l] = sl_scalars_r(l,k,j,i);
       }
 #endif
-<<<<<<< HEAD
-=======
-      for (int l=0; l<NSCALARS; l++){
-        Y[l] = sl_scalars_r(l,k,j,i);
-      }
->>>>>>> 74019e3a (Changes for Tabulated EoSs)
-=======
->>>>>>> ba414a81 (Missing macro)
+
       Real T = pmb->peos->GetEOS().GetTemperatureFromP(n,  sl_w_p(k,j,i), Y);
       ms_w_hrho_(i) = sl_w_rho(k,j,i)*pmb->peos->GetEOS().GetEnthalpy(n, T, Y);
 #else
@@ -893,18 +884,14 @@ void GRDynamical::AddCoordTermsDivergence(
 #if USETM
       Real n = rho(i)/pmy_block->peos->GetEOS().GetBaryonMass();
       Real Y[MAX_SPECIES] = {0.0};
-<<<<<<< HEAD
+
 #if NSCALARS > 0
       for (int l=0; l<NSCALARS; ++l)
       {
         Y[l] = prim_scalar(l,k,j,i);
       }
 #endif
-=======
-      for(int l=0; l<NSCALARS; ++l) {
-        Y[l] = prim_scalar(l,k,j,i);
-      }
->>>>>>> 74019e3a (Changes for Tabulated EoSs)
+
       Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgas(i), Y);
       wtot(i) = rho(i)*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
 #else
@@ -1178,12 +1165,8 @@ void GRDynamical::AddCoordTermsDivergence(
         Real n = rho_init(i)/pmy_block->peos->GetEOS().GetBaryonMass();
         // FIXME: Generalize to work with EOSes accepting particle fractions.
         Real Y[MAX_SPECIES] = {0.0};
-<<<<<<< HEAD
         for (int l=0; l<NSCALARS; ++l)
         {
-=======
-        for(int l=0; l<NSCALARS; ++l) {
->>>>>>> 74019e3a (Changes for Tabulated EoSs)
           Y[l] = prim_scalar(l,k,j,i);
         }
         Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgas_init(i), Y);

@@ -464,20 +464,6 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real
   }
 }
 
-void EquationOfState::ForcePrimitiveFloor(AthenaArray<Real> &prim, int k, int j, int i)
-{
-  // Not implemented!
-  abort();
-
-  return;
-}
-
-bool EquationOfState::RequirePrimitiveFloor(
-  const AthenaArray<Real> &prim, int k, int j, int i)
-{
-  return false;
-}
-
 //----------------------------------------------------------------------------------------
 // Function for calculating relativistic sound speeds
 // Inputs:
