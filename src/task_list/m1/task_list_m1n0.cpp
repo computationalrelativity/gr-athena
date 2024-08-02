@@ -252,6 +252,9 @@ TaskStatus M1N0::CalcUpdate(MeshBlock *pmb, int stage)
 // Coupling to z4c_matter
 TaskStatus M1N0::UpdateCoupling(MeshBlock *pmb, int stage)
 {
+  return TaskStatus::next;
+
+  /*
   if (stage == nstages)
   {
     if (pmb->pm1->opt.couple_sources_hydro)
@@ -296,6 +299,7 @@ TaskStatus M1N0::UpdateCoupling(MeshBlock *pmb, int stage)
     return TaskStatus::next;
   }
   return TaskStatus::fail;
+  */
 }
 
 // ----------------------------------------------------------------------------

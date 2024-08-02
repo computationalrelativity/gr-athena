@@ -69,8 +69,12 @@ public:
   Real NewBlockTimeStep();
 
   void CoupleSourcesADM(AT_C_sca &A_rho, AT_N_vec &A_S_d, AT_N_sym & A_S_dd);
+  /*
   void CoupleSourcesHydro(AA &cons);
   void CoupleSourcesYe(const Real mb, AA &ps);
+  */
+  void CoupleSourcesHydro(const Real weight, AA &cons);
+  void CoupleSourcesYe(   const Real weight, const Real mb, AA &ps);
 
 // data =======================================================================
 public:

@@ -22,6 +22,9 @@
 #include "task_list.hpp"
 #include "task_names.hpp"
 
+#if M1_ENABLED
+#include "../../m1/m1.hpp"
+#endif
 
 // ----------------------------------------------------------------------------
 using namespace TaskLists::GeneralRelativity;
@@ -1091,6 +1094,14 @@ TaskStatus GRMHD_Z4c::AddSourceTermsHydro(MeshBlock *pmb, int stage)
     pc->AddCoordTermsDivergence(dt_scaled, ph->flux, ph->w, pf->bcc, ph->u);
 #endif
 
+#if M1_ENABLED
+    ::M1::M1 * pm1 = pmb->pm1;
+    if (pm1->opt.couple_sources_hydro)
+    {
+      pm1->CoupleSourcesHydro(dt_scaled, ph->u);
+    }
+#endif
+
     return TaskStatus::next;
   }
 
@@ -1408,6 +1419,23 @@ TaskStatus GRMHD_Z4c::IntegrateScalars(MeshBlock *pmb, int stage)
 
     const Real dt_scaled = this->dt_scaled(stage, pmb);
     ps->AddFluxDivergence(dt_scaled, ps->s);
+
+#if M1_ENABLED & USETM
+    ::M1::M1 * pm1 = pmb->pm1;
+
+    if (pm1->opt.couple_sources_Y_e)
+    {
+      if (pm1->N_SPCS != 3)
+      #pragma omp critical
+      {
+        std::cout << "M1: couple_sources_Y_e supported for 3 species \n";
+        std::exit(0);
+      }
+
+      const Real mb = pmb->peos->GetEOS().GetBaryonMass();
+      pm1->CoupleSourcesYe(dt_scaled, mb, ps->s);
+    }
+#endif
 
     return TaskStatus::next;
   }
