@@ -135,6 +135,8 @@ public:
 
   struct
   {
+    bool use_split_step;
+
     // Control flux calculation
     opt_characteristics_variety characteristics_variety;
 

@@ -140,11 +140,6 @@ int main(int argc, char *argv[])
       ? trgs.AdjustFromAny_mesh_dt()
       : false;
 
-    // // After state vector propagated, derived diagnostics (i.e. GW, trackers)
-    // // are at the new time-step ...
-    // const Real time_end_stage   = pmesh->time+pmesh->dt;
-    // const Real ncycle_end_stage = pmesh->ncycle+1;
-
     if (Globals::my_rank == 0)
     {
       pmesh->OutputCycleDiagnostics();
@@ -159,7 +154,14 @@ int main(int argc, char *argv[])
     {
       if (FLUID_ENABLED)
       {
-        gra::evolve::Z4c_GRMHD(ptlc, pmesh);
+        if (M1_ENABLED)
+        {
+            gra::evolve::Z4c_GRMHD_M1N0(ptlc, pmesh);
+        }
+        else
+        {
+          gra::evolve::Z4c_GRMHD(ptlc, pmesh);
+        }
       }
       else
       {
@@ -168,8 +170,7 @@ int main(int argc, char *argv[])
 
       gra::evolve::Z4c_DerivedQuantities(ptlc, trgs, pmesh);
     }
-
-    if (M1_ENABLED)
+    else if (M1_ENABLED)
     {
       gra::evolve::M1N0(ptlc, pmesh);
     }
@@ -180,74 +181,6 @@ int main(int argc, char *argv[])
     // Update triggers as required
     trgs.Update();
     //-------------------------------------------------------------------------
-
-    // BD: TODO - shift to correct place
-    // BD: Shift to Evolve:: style header as previously
-    // if (M1_ENABLED)
-    // {
-    //   for (int stage=1; stage<=pm1list->nstages; ++stage)
-    //   {
-    //     pm1list->DoTaskListOneStage(pmesh, stage);
-    //   }
-    // }
-    /*
-    const bool use_split_step = pinput->GetOrAddBoolean("problem",
-                                                        "use_split_step",
-                                                        false);
-    if (use_split_step)
-    {
-      // TODO: check internal triggers don't need modification with this
-
-      Real t  = pmesh->time;
-      Real dt = pmesh->dt;
-
-      // step dt/2 ------------------------------------------------------------
-      pmesh->dt   = 0.5 * dt;
-      pmesh->time = t;
-
-      Evolve::Z4c(pmesh, ptlc);
-
-      pmesh->dt   = dt;
-      pmesh->time = t;
-
-      // step dt --------------------------------------------------------------
-      // weight is 1.0; no need to change dt
-      Evolve::M1(pmesh, ptlc);
-
-      // step dt/2 ------------------------------------------------------------
-      pmesh->dt   = 0.5 * dt;
-      pmesh->time = t + pmesh->dt;
-
-      Evolve::Z4c(pmesh, ptlc);
-
-      // auxiliary quantities (now that we are at t+dt)
-      Evolve::Z4c_DerivedQuantities(pmesh, ptlc);
-      Evolve::TrackerExtrema(pmesh);
-      Evolve::Z4c_UpdateTriggers(pmesh, ptlc);
-
-      // revert time (it is updated below)
-      pmesh->time -= pmesh->dt;
-      pmesh->dt    = dt;
-    }
-    else
-    {
-      // Z4c logic
-      Evolve::Z4c(pmesh, ptlc);
-      Evolve::Z4c_DerivedQuantities(pmesh, ptlc);
-
-      // extrema trackers are registered / computed collectively
-      // non-z4c quantities can be tracked
-      Evolve::TrackerExtrema(pmesh);
-
-      //-----------------------------------------------------------------------
-      // Update NextTime triggers
-      // This needs to be here to share tasklist external (though coupled) ops.
-      Evolve::Z4c_UpdateTriggers(pmesh, ptlc);
-
-      Evolve::M1(pmesh, ptlc);
-      // ----------------------------------------------------------------------
-    */
-
 
     pmesh->UserWorkInLoop();
     pmesh->ncycle++;

@@ -156,6 +156,10 @@ void M1::PopulateOptions(ParameterInput *pin)
   std::string tmp;
   std::ostringstream msg;
 
+  opt.use_split_step = pin->GetOrAddBoolean("problem",
+                                            "use_split_step",
+                                            false);
+
   PopulateOptionsClosure(pin);
   PopulateOptionsSolver( pin);
 

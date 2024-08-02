@@ -39,6 +39,10 @@
 #include "z4c/cce/cce.hpp"
 #endif
 
+#if M1_ENABLED
+#include "m1/m1.hpp"
+#endif
+
 #include "trackers/extrema_tracker.hpp"
 
 // Note:
@@ -760,6 +764,44 @@ inline void M1N0(gra::tasklist::Collection &ptlc,
   }
 }
 
+inline void Z4c_GRMHD_M1N0(gra::tasklist::Collection &ptlc,
+                           Mesh *pmesh)
+{
+  if (pmesh->pblock->pm1->opt.use_split_step)
+  {
+    const Real t  = pmesh->time;
+    const Real dt = pmesh->dt;
+
+    // step dt/2 ------------------------------------------------------------
+    pmesh->dt   = 0.5 * dt;
+    pmesh->time = t;
+
+    Z4c_GRMHD(ptlc, pmesh);
+
+    pmesh->dt   = dt;
+    pmesh->time = t;
+
+    // step dt --------------------------------------------------------------
+    // weight is 1.0; no need to change dt
+    M1N0(ptlc, pmesh);
+
+    // step dt/2 ------------------------------------------------------------
+    pmesh->dt   = 0.5 * dt;
+    pmesh->time = t + pmesh->dt;
+
+    Z4c_GRMHD(ptlc, pmesh);
+
+    // revert time
+    pmesh->time -= pmesh->dt;
+    pmesh->dt    = dt;
+  }
+  else
+  {
+    Z4c_GRMHD(ptlc, pmesh);
+    M1N0(ptlc, pmesh);
+  }
+}
+
 inline void Wave_2O(gra::tasklist::Collection &ptlc,
                     Mesh *pmesh)
 {
@@ -790,6 +832,7 @@ inline void TrackerExtrema(gra::tasklist::Collection &ptlc,
 }  // namespace gra::evolve
 
 #endif // MAIN_HPP
+
 //
 // :D
 //
