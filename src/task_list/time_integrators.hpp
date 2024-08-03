@@ -79,22 +79,19 @@ public:
   // Scaled coefficient for RHS time-advance within stage
   Real dt_scaled(const int stage, MeshBlock * pmb)
   {
-    // return (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
-    return pmb->pmy_mesh->dt;
+    return pmb->pmy_mesh->dt*bt_c[stage-1]*pmb->pmy_mesh->dt;
   }
 
   // Time at beginning of stage for u()
   Real t_begin(const int stage, MeshBlock * pmb)
   {
-    // return pmb->pmy_mesh->time + pmb->stage_abscissae[stage-1][0];
     return pmb->pmy_mesh->time;
   }
 
   // Time at end of the stage
   Real t_end(const int stage, MeshBlock * pmb)
   {
-    // return pmb->pmy_mesh->time + pmb->stage_abscissae[stage][0];
-    return pmb->pmy_mesh->time+pmb->pmy_mesh->dt;
+    return pmb->pmy_mesh->time+bt_c[stage-1]*pmb->pmy_mesh->dt;
   }
 
   void PrepareStageScratch(const int stage,

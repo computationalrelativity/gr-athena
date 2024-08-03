@@ -15,7 +15,8 @@
 namespace TaskLists::GeneralRelativity {
 
 // Vacuum system tasklist
-class GR_Z4c : public TaskList, TaskLists::Integrators::LowStorage
+class GR_Z4c : public TaskList,
+                      TaskLists::Integrators::integrators
 {
 public:
   GR_Z4c(ParameterInput *pin, Mesh *pm, gra::triggers::Triggers &trgs);

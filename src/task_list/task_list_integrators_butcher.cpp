@@ -19,7 +19,7 @@ Butcher::Butcher(ParameterInput *pin, Mesh *pm)
 {
 
   std::string integrator;
-  integrator = pin->GetOrAddString("time", "integrator", "vl2");
+  integrator = pin->GetOrAddString("time", "integrator", "bt_rk4");
 
   cfl_limit = std::numeric_limits<Real>::infinity();
 
