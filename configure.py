@@ -1556,7 +1556,7 @@ else:
 src_aux = ['$(wildcard src/task_list/task_*.cpp)', ]
 
 if args['z']:
-  str_z4c = '$(wildcard src/task_list/z4c_*.cpp)'
+  # str_z4c = '$(wildcard src/task_list/z4c_*.cpp)'
 
   str_stem = 'filter-out src/task_list'
 
