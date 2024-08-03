@@ -7,8 +7,6 @@
 // Athena++ classes headers
 #include "../../athena.hpp"
 #include "../../bvals/bvals.hpp"
-#include "../../field/field.hpp"
-#include "../../hydro/hydro.hpp"
 #include "../../mesh/mesh.hpp"
 #include "../../wave/wave.hpp"
 #include "../../parameter_input.hpp"
@@ -25,13 +23,12 @@ using namespace gra::triggers;
 typedef Triggers::TriggerVariant TriggerVariant;
 // ----------------------------------------------------------------------------
 
-
 Wave_2O::Wave_2O(ParameterInput *pin, Mesh *pm, Triggers &trgs)
-  : LowStorage(pin, pm),
+  : integrators(pin, pm),
     trgs(trgs)
 {
   // Take the number of stages from the integrator
-  nstages = LowStorage::nstages;
+  nstages = integrators::nstages;
 
   //---------------------------------------------------------------------------
 
@@ -44,24 +41,30 @@ Wave_2O::Wave_2O(ParameterInput *pin, Mesh *pm, Triggers &trgs)
     Add(INT_WAVE, CALC_WAVERHS, &Wave_2O::IntegrateWave);
 
     Add(SEND_WAVE, INT_WAVE, &Wave_2O::SendWave);
-    Add(RECV_WAVE, NONE, &Wave_2O::ReceiveWave);
+    Add(RECV_WAVE, NONE,     &Wave_2O::ReceiveWave);
 
     Add(SETB_WAVE, (RECV_WAVE|INT_WAVE), &Wave_2O::SetBoundariesWave);
 
-    if (pm->multilevel) { // SMR or AMR
+    if (pm->multilevel)
+    { // SMR or AMR
       Add(PROLONG, (SEND_WAVE|SETB_WAVE), &Wave_2O::Prolongation);
       Add(PHY_BVAL, PROLONG, &Wave_2O::PhysicalBoundary);
-    } else {
+    }
+    else
+    {
       Add(PHY_BVAL, SETB_WAVE, &Wave_2O::PhysicalBoundary);
     }
 
     Add(USERWORK, PHY_BVAL, &Wave_2O::UserWork);
+    Add(NEW_DT, USERWORK,   &Wave_2O::NewBlockTimeStep);
 
-    Add(NEW_DT, USERWORK, &Wave_2O::NewBlockTimeStep);
-    if (pm->adaptive) {
-      Add(FLAG_AMR, USERWORK, &Wave_2O::CheckRefinement);
+    if (pm->adaptive)
+    {
+      Add(FLAG_AMR,     USERWORK, &Wave_2O::CheckRefinement);
       Add(CLEAR_ALLBND, FLAG_AMR, &Wave_2O::ClearAllBoundary);
-    } else {
+    }
+    else
+    {
       Add(CLEAR_ALLBND, NEW_DT, &Wave_2O::ClearAllBoundary);
     }
   } // namespace
@@ -76,26 +79,24 @@ void Wave_2O::StartupTaskList(MeshBlock *pmb, int stage)
   // Application of Sommerfeld boundary conditions
   pwave->WaveBoundaryRHS(pwave->u);
 
-  Real t_end_stage = pmb->pmy_mesh->time + pmb->stage_abscissae[stage][0];
-  // Scaled coefficient for RHS time-advance within stage
-  Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
-
   const Real t_end = this->t_end(stage, pmb);
   const Real dt_scaled = this->dt_scaled(stage, pmb);
 
   if (WAVE_VC_ENABLED)
   {
-    pbval->ApplyPhysicalVertexCenteredBoundaries(t_end_stage, dt);
+    pbval->ApplyPhysicalVertexCenteredBoundaries(t_end, dt_scaled);
   }
   else if (WAVE_CC_ENABLED)
   {
-    pbval->ApplyPhysicalBoundaries(t_end_stage, dt);
+    pbval->ApplyPhysicalBoundaries(t_end, dt_scaled);
   }
   else if (WAVE_CX_ENABLED)
   {
-    pbval->ApplyPhysicalCellCenteredXBoundaries(t_end_stage, dt);
+    pbval->ApplyPhysicalCellCenteredXBoundaries(t_end, dt_scaled);
   }
   //-----------------------
+
+  integrators::Initialize(stage, pmb, pwave->bt_k, pwave->u, pwave->rhs);
 
   if (stage == 1)
   {
@@ -109,11 +110,11 @@ void Wave_2O::StartupTaskList(MeshBlock *pmb, int stage)
       ATHENA_ERROR(msg);
     }
 
-    // Initialize time abscissae
-    PrepareStageAbscissae(stage, pmb);
-
-    // Auxiliary var u1 needs 0-init at the beginning of each cycle
-    pwave->u1.ZeroClear();
+    if (is_lowstorage)
+    {
+      // Auxiliary var u1 needs 0-init at the beginning of each cycle
+      pwave->u1.ZeroClear();
+    }
   }
 
   pmb->pbval->StartReceiving(BoundaryCommSubset::all);
@@ -133,11 +134,14 @@ TaskStatus Wave_2O::ClearAllBoundary(MeshBlock *pmb, int stage)
 TaskStatus Wave_2O::CalculateWaveRHS(MeshBlock *pmb, int stage)
 {
   BoundaryValues *pbval = pmb->pbval;
-  if (stage <= nstages) {
-    pmb->pwave->WaveRHS(pmb->pwave->u);
+  Wave *pwave = pmb->pwave;
+
+  if (stage <= nstages)
+  {
+    pwave->WaveRHS(pwave->u);
 
     // application of Sommerfeld boundary conditions
-    pmb->pwave->WaveBoundaryRHS(pmb->pwave->u);
+    pwave->WaveBoundaryRHS(pwave->u);
 
     return TaskStatus::next;
   }
@@ -152,50 +156,66 @@ TaskStatus Wave_2O::IntegrateWave(MeshBlock *pmb, int stage)
 
   if (stage <= nstages)
   {
-    if (WAVE_CC_ENABLED)
+    if (is_lowstorage)
     {
-      Real ave_wghts[3];
-      ave_wghts[0] = 1.0;
-      ave_wghts[1] = stage_wghts[stage-1].delta;
-      ave_wghts[2] = 0.0;
-      pmb->WeightedAveCC(pwave->u1, pwave->u, pwave->u2, ave_wghts);
+      if (WAVE_CC_ENABLED)
+      {
+        Real ave_wghts[3];
+        ave_wghts[0] = 1.0;
+        ave_wghts[1] = ls->stage_wghts[stage-1].delta;
+        ave_wghts[2] = 0.0;
+        pmb->WeightedAveCC(pwave->u1, pwave->u, pwave->u2, ave_wghts);
 
-      ave_wghts[0] = stage_wghts[stage-1].gamma_1;
-      ave_wghts[1] = stage_wghts[stage-1].gamma_2;
-      ave_wghts[2] = stage_wghts[stage-1].gamma_3;
+        ave_wghts[0] = ls->stage_wghts[stage-1].gamma_1;
+        ave_wghts[1] = ls->stage_wghts[stage-1].gamma_2;
+        ave_wghts[2] = ls->stage_wghts[stage-1].gamma_3;
 
-      pmb->WeightedAveCC(pwave->u, pwave->u1, pwave->u2, ave_wghts);
+        pmb->WeightedAveCC(pwave->u, pwave->u1, pwave->u2, ave_wghts);
+      }
+      else if (WAVE_VC_ENABLED)
+      {
+        Real ave_wghts[3];
+        ave_wghts[0] = 1.0;
+        ave_wghts[1] = ls->stage_wghts[stage-1].delta;
+        ave_wghts[2] = 0.0;
+        pmb->WeightedAveVC(pwave->u1, pwave->u, pwave->u2, ave_wghts);
+
+        ave_wghts[0] = ls->stage_wghts[stage-1].gamma_1;
+        ave_wghts[1] = ls->stage_wghts[stage-1].gamma_2;
+        ave_wghts[2] = ls->stage_wghts[stage-1].gamma_3;
+
+        pmb->WeightedAveVC(pwave->u, pwave->u1, pwave->u2, ave_wghts);
+      }
+      else if (WAVE_CX_ENABLED)
+      {
+        Real ave_wghts[3];
+        ave_wghts[0] = 1.0;
+        ave_wghts[1] = ls->stage_wghts[stage-1].delta;
+        ave_wghts[2] = 0.0;
+        pmb->WeightedAveCX(pwave->u1, pwave->u, pwave->u2, ave_wghts);
+
+        ave_wghts[0] = ls->stage_wghts[stage-1].gamma_1;
+        ave_wghts[1] = ls->stage_wghts[stage-1].gamma_2;
+        ave_wghts[2] = ls->stage_wghts[stage-1].gamma_3;
+
+        pmb->WeightedAveCX(pwave->u, pwave->u1, pwave->u2, ave_wghts);
+      }
+
+      pwave->AddWaveRHS(ls->stage_wghts[stage-1].beta, pwave->u);
     }
-    else if (WAVE_VC_ENABLED)
+    else
     {
-      Real ave_wghts[3];
-      ave_wghts[0] = 1.0;
-      ave_wghts[1] = stage_wghts[stage-1].delta;
-      ave_wghts[2] = 0.0;
-      pmb->WeightedAveVC(pwave->u1, pwave->u, pwave->u2, ave_wghts);
+      if (stage < nstages)
+      {
+        bt->SumBT_ak(pmb, stage+1, pmb->pmy_mesh->dt, pwave->bt_k, pwave->u);
+      }
 
-      ave_wghts[0] = stage_wghts[stage-1].gamma_1;
-      ave_wghts[1] = stage_wghts[stage-1].gamma_2;
-      ave_wghts[2] = stage_wghts[stage-1].gamma_3;
 
-      pmb->WeightedAveVC(pwave->u, pwave->u1, pwave->u2, ave_wghts);
+      if (stage == nstages)
+      {
+        bt->SumBT_bk(pmb, pmb->pmy_mesh->dt, pwave->bt_k, pwave->u);
+      }
     }
-    else if (WAVE_CX_ENABLED)
-    {
-      Real ave_wghts[3];
-      ave_wghts[0] = 1.0;
-      ave_wghts[1] = stage_wghts[stage-1].delta;
-      ave_wghts[2] = 0.0;
-      pmb->WeightedAveCX(pwave->u1, pwave->u, pwave->u2, ave_wghts);
-
-      ave_wghts[0] = stage_wghts[stage-1].gamma_1;
-      ave_wghts[1] = stage_wghts[stage-1].gamma_2;
-      ave_wghts[2] = stage_wghts[stage-1].gamma_3;
-
-      pmb->WeightedAveCX(pwave->u, pwave->u1, pwave->u2, ave_wghts);
-    }
-
-    pwave->AddWaveRHS(stage_wghts[stage-1].beta, pwave->u);
 
     return TaskStatus::next;
   }
@@ -298,7 +318,9 @@ TaskStatus Wave_2O::Prolongation(MeshBlock *pmb, int stage)
     const Real dt_scaled = this->dt_scaled(stage, pmb);
 
     pbval->ProlongateBoundaries(t_end, dt_scaled);
-  } else {
+  }
+  else
+  {
     return TaskStatus::fail;
   }
 
@@ -329,7 +351,9 @@ TaskStatus Wave_2O::PhysicalBoundary(MeshBlock *pmb, int stage)
       pbval->ApplyPhysicalCellCenteredXBoundaries(t_end, dt_scaled);
     }
 
-  } else {
+  }
+  else
+  {
     return TaskStatus::fail;
   }
 
