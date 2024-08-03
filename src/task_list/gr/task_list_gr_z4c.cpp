@@ -32,11 +32,11 @@ typedef Triggers::TriggerVariant TriggerVariant;
 // ----------------------------------------------------------------------------
 
 GR_Z4c::GR_Z4c(ParameterInput *pin, Mesh *pm, Triggers &trgs)
-  : LowStorage(pin, pm),
+  : integrators(pin, pm),
     trgs(trgs)
 {
   // Take the number of stages from the integrator
-  nstages = LowStorage::nstages;
+  nstages = integrators::nstages;
 
   //---------------------------------------------------------------------------
 
@@ -108,6 +108,12 @@ void GR_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
     pb->ApplyPhysicalVertexCenteredBoundaries
   )(t_end, dt_scaled);
 
+  integrators::Initialize(stage,
+                          pmb,
+                          pz4c->bt_k,
+                          pz4c->storage.u,
+                          pz4c->storage.rhs);
+
   if (stage == 1)
   {
     if (integrator == "ssprk5_4")
@@ -119,11 +125,11 @@ void GR_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
       ATHENA_ERROR(msg);
     }
 
-    // Initialize time abscissae
-    PrepareStageAbscissae(stage, pmb);
-
-    // Auxiliary var u1 needs 0-init at the beginning of each cycle
-    pz4c->storage.u1.ZeroClear();
+    if (is_lowstorage)
+    {
+      // Auxiliary var u1 needs 0-init at the beginning of each cycle
+      pz4c->storage.u1.ZeroClear();
+    }
   }
 
   pb->StartReceiving(BoundaryCommSubset::all);
@@ -175,46 +181,61 @@ TaskStatus GR_Z4c::IntegrateZ4c(MeshBlock *pmb, int stage)
   if (stage <= nstages)
   {
     Z4c *pz4c = pmb->pz4c;
-    Hydro *ph = pmb->phydro;
-    Field *pf = pmb->pfield;
 
-    // See IntegrateField
-    Real ave_wghts[3];
-    ave_wghts[0] = 1.0;
-    ave_wghts[1] = stage_wghts[stage-1].delta;
-    ave_wghts[2] = 0.0;
-    pz4c->WeightedAve(pz4c->storage.u1,
-                      pz4c->storage.u,
-                      pz4c->storage.u2,
-                      ave_wghts);
+    if (is_lowstorage)
+    {
+      Real ave_wghts[3];
+      ave_wghts[0] = 1.0;
+      ave_wghts[1] = ls->stage_wghts[stage-1].delta;
+      ave_wghts[2] = 0.0;
+      pz4c->WeightedAve(pz4c->storage.u1,
+                        pz4c->storage.u,
+                        pz4c->storage.u2,
+                        ave_wghts);
 
-    ave_wghts[0] = stage_wghts[stage-1].gamma_1;
-    ave_wghts[1] = stage_wghts[stage-1].gamma_2;
-    ave_wghts[2] = stage_wghts[stage-1].gamma_3;
+      ave_wghts[0] = ls->stage_wghts[stage-1].gamma_1;
+      ave_wghts[1] = ls->stage_wghts[stage-1].gamma_2;
+      ave_wghts[2] = ls->stage_wghts[stage-1].gamma_3;
 
-    // BD: TODO - why does this give a slightly different result?
-    // if (ave_wghts[0] == 0.0 && ave_wghts[1] == 1.0 && ave_wghts[2] == 0.0)
-    // {
-    //   // pz4c->storage.u.SwapAthenaArray(pz4c->storage.u1);
-    //   std::swap(pz4c->storage.u, pz4c->storage.u1);
-    // }
-    // else
-    // {
-    //   pz4c->WeightedAve(pz4c->storage.u,
-    //                     pz4c->storage.u1,
-    //                     pz4c->storage.u2,
-    //                     ave_wghts);
-    // }
+      // BD: TODO - why does this give a slightly different result?
+      // if (ave_wghts[0] == 0.0 && ave_wghts[1] == 1.0 && ave_wghts[2] == 0.0)
+      // {
+      //   // pz4c->storage.u.SwapAthenaArray(pz4c->storage.u1);
+      //   std::swap(pz4c->storage.u, pz4c->storage.u1);
+      // }
+      // else
+      // {
+      //   pz4c->WeightedAve(pz4c->storage.u,
+      //                     pz4c->storage.u1,
+      //                     pz4c->storage.u2,
+      //                     ave_wghts);
+      // }
 
-    pz4c->WeightedAve(pz4c->storage.u,
-                      pz4c->storage.u1,
-                      pz4c->storage.u2,
-                      ave_wghts);
+      pz4c->WeightedAve(pz4c->storage.u,
+                        pz4c->storage.u1,
+                        pz4c->storage.u2,
+                        ave_wghts);
 
-    const Real dt_scaled = this->dt_scaled(stage, pmb);
-    pz4c->AddZ4cRHS(pz4c->storage.rhs,
-                    dt_scaled,
-                    pz4c->storage.u);
+      const Real dt_scaled = this->dt_scaled(stage, pmb);
+      pz4c->AddZ4cRHS(pz4c->storage.rhs,
+                      dt_scaled,
+                      pz4c->storage.u);
+    }
+    else
+    {
+      const Real dt = pmb->pmy_mesh->dt;
+
+      if (stage < nstages)
+      {
+        bt->SumBT_ak(pmb, stage+1, dt, pz4c->bt_k, pz4c->storage.u);
+      }
+
+
+      if (stage == nstages)
+      {
+        bt->SumBT_bk(pmb, dt, pz4c->bt_k, pz4c->storage.u);
+      }
+    }
 
     return TaskStatus::next;
   }

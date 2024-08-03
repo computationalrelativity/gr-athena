@@ -205,15 +205,17 @@ TaskStatus Wave_2O::IntegrateWave(MeshBlock *pmb, int stage)
     }
     else
     {
+      const Real dt = pmb->pmy_mesh->dt;
+
       if (stage < nstages)
       {
-        bt->SumBT_ak(pmb, stage+1, pmb->pmy_mesh->dt, pwave->bt_k, pwave->u);
+        bt->SumBT_ak(pmb, stage+1, dt, pwave->bt_k, pwave->u);
       }
 
 
       if (stage == nstages)
       {
-        bt->SumBT_bk(pmb, pmb->pmy_mesh->dt, pwave->bt_k, pwave->u);
+        bt->SumBT_bk(pmb, dt, pwave->bt_k, pwave->u);
       }
     }
 
