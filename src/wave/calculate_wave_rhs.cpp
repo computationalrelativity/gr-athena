@@ -19,7 +19,8 @@
 
 //! \fn void Wave::WaveRHS
 //  \brief Calculate RHS for the wave equation using finite-differencing
-void Wave::WaveRHS(AthenaArray<Real> & u){
+void Wave::WaveRHS(AthenaArray<Real> & u)
+{
   MeshBlock *pmb = pmy_block;
 
   AthenaArray<Real> wu, wpi;
@@ -29,21 +30,100 @@ void Wave::WaveRHS(AthenaArray<Real> & u){
 
   Real c_2 = SQR(c);
 
-  for(int k = mbi.kl; k <= mbi.ku; ++k) {
-    for(int j = mbi.jl; j <= mbi.ju; ++j) {
-#pragma omp simd
-      for(int i = mbi.il; i <= mbi.iu; ++i) {
-        rhs(0,k,j,i) = wpi(k,j,i);
-        rhs(1,k,j,i) = 0.0;
-      }
+  static const bool is_spherical_polar = std::strcmp(COORDINATE_SYSTEM,
+                                                     "spherical_polar") == 0;
 
-      for(int a = 0; a < 3; ++a) {
-#pragma omp simd
-        for(int i = mbi.il; i <= mbi.iu; ++i) {
-          rhs(1,k,j,i) += c_2 * fd->Dxx(a, wu(k,j,i));
+  const bool contains_origin = pmb->PointContained(0,0,0);
+
+  // mbi.x1.print_all("%.3f");
+  // mbi.x2.print_all("%.3f");
+  // mbi.x3.print_all("%.3f");
+  // std::exit(0);
+
+  for(int k = mbi.kl; k <= mbi.ku; ++k)
+  for(int j = mbi.jl; j <= mbi.ju; ++j)
+  {
+    #pragma omp simd
+    for(int i = mbi.il; i <= mbi.iu; ++i)
+    {
+      rhs(0,k,j,i) = wpi(k,j,i);
+      rhs(1,k,j,i) = 0.0;
+    }
+
+    if (is_spherical_polar)
+    {
+      // Laplacian in spherical coordinates:
+      const Real sin_th = std::sin(mbi.x2(j));
+      // const Real csc_th = 1.0 / sin_th;
+
+      const Real cot_th = sin_th / std::cos(mbi.x2(j));
+
+      switch (mbi.ndim)
+      {
+        case 3:
+        {
+          // phi
+          #pragma omp simd
+          for(int i = mbi.il; i <= mbi.iu; ++i)
+          {
+            const Real oo_r = 1.0 / mbi.x1(i);
+            rhs(1,k,j,i) += POW2(oo_r) * fd->Dxx(2, wu(k,j,i));
+          }
+        }
+        case 2:
+        {
+          // theta
+          #pragma omp simd
+          for(int i = mbi.il; i <= mbi.iu; ++i)
+          {
+            const Real oo_r = 1.0 / mbi.x1(i);
+
+            rhs(1,k,j,i) += POW2(oo_r) * (
+              fd->Dxx(1, wu(k,j,i)) +
+              fd->Dx( 1, wu(k,j,i)) * cot_th
+            );
+          }
+
+        }
+        case 1:
+        {
+          // radial part
+          #pragma omp simd
+          for(int i = mbi.il; i <= mbi.iu; ++i)
+          {
+            const Real oo_r = 1.0 / mbi.x1(i);
+            rhs(1,k,j,i) += (fd->Dxx(0, wu(k,j,i)) +
+                              2.0 * oo_r * fd->Dx(0, wu(k,j,i)));
+          }
+
+          break;
+        }
+        default:
+        {
+          assert(false);
         }
       }
 
+
+      for(int a = 0; a < 3; ++a)
+      {
+        #pragma omp simd
+        for(int i = mbi.il; i <= mbi.iu; ++i)
+        {
+          rhs(1,k,j,i) = c_2 * rhs(1,k,j,i);
+        }
+      }
+    }
+    else
+    {
+      for(int a = 0; a < 3; ++a)
+      {
+        #pragma omp simd
+        for(int i = mbi.il; i <= mbi.iu; ++i)
+        {
+          rhs(1,k,j,i) += c_2 * fd->Dxx(a, wu(k,j,i));
+        }
+      }
     }
   }
 
@@ -102,9 +182,11 @@ void Wave::WaveRHS(AthenaArray<Real> & u){
 
 //! \fn void Wave:WaveBoundaryRHS
 //   \brief Calculate the boundary RHS
-void Wave::WaveBoundaryRHS(AthenaArray<Real> & u){
+void Wave::WaveBoundaryRHS(AthenaArray<Real> & u)
+{
   MeshBlock * pmb = pmy_block;
-  if (use_Dirichlet) {
+  if (use_Dirichlet)
+  {
 
     if(pmb->pbval->block_bcs[BoundaryFace::inner_x1] == BoundaryFlag::extrapolate_outflow ||
        pmb->pbval->block_bcs[BoundaryFace::inner_x1] == BoundaryFlag::outflow)
