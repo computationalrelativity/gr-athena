@@ -133,10 +133,6 @@ Wave::Wave(MeshBlock *pmb, ParameterInput *pin) :
       u2.NewAthenaArray(NWAVE_CPT, nn3, nn2, nn1);
   }
 
-  // If user-requested time integrator is type 3S* allocate additional memory
-  if (integrator == "ssprk5_4")
-    u2.NewAthenaArray(NWAVE_CPT, nn3, nn2, nn1);
-
   // Error monitoring
   exact.NewAthenaArray(nn3, nn2, nn1);
   error.NewAthenaArray(nn3, nn2, nn1);

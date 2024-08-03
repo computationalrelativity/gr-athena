@@ -84,9 +84,9 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
     (pmy_mesh->f3) ? 3 : (pmy_mesh->f2) ? 2 : 1            // ndim
   },
   storage{{N_Z4c, mbi.nn3, mbi.nn2, mbi.nn1},              // u
-          {N_Z4c, mbi.nn3, mbi.nn2, mbi.nn1},              // u1
+          {},                                              // u1
           {},                                              // u2
-          {N_Z4c, mbi.nn3, mbi.nn2, mbi.nn1},              // rhs
+          {},                                              // rhs
           {N_ADM, mbi.nn3, mbi.nn2, mbi.nn1},              // adm
           {N_CON, mbi.nn3, mbi.nn2, mbi.nn1},              // con
           {N_MAT, mbi.nn3, mbi.nn2, mbi.nn1},              // mat
@@ -179,10 +179,25 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   }
 #endif // DBG_REDUCE_AUX_COMM
 
-  // If user-requested time integrator is type 3S* allocate additional memory
+  // Allocate memory for the solution and its time derivative
   std::string integrator = pin->GetOrAddString("time", "integrator", "vl2");
-  if (integrator == "ssprk5_4")
-    storage.u2.NewAthenaArray(N_Z4c, mbi.nn3, mbi.nn2, mbi.nn1);
+  if (integrator.find("bt_") != std::string::npos)
+  {
+    // Butcher-Tableaux style...
+    // .. deal with coefficients and allocation of stage scratches in task-list
+  }
+  else
+  {
+    // Allocate memory for the solution and its time derivative
+    storage.rhs.NewAthenaArray(N_Z4c, mbi.nn3, mbi.nn2, mbi.nn1);
+
+    // Low storage style...
+    storage.u1.NewAthenaArray(N_Z4c, mbi.nn3, mbi.nn2, mbi.nn1);
+
+    // If user-requested time integrator is type 3S* allocate additional memory
+    if (integrator == "ssprk5_4")
+      storage.u2.NewAthenaArray(N_Z4c, mbi.nn3, mbi.nn2, mbi.nn1);
+  }
 
   // enroll BoundaryVariable object
   ubvar.bvar_index = pmb->pbval->bvars.size();
