@@ -143,9 +143,9 @@ class Coordinates {
   virtual Real GetCellVolume(const int k, const int j, const int i);
 
   // ...to compute geometrical source terms
-  virtual void AddCoordTermsDivergence(const Real dt, 
+  virtual void AddCoordTermsDivergence(const Real dt,
                                        const AthenaArray<Real> *flux,
-                                       const AthenaArray<Real> &prim, 
+                                       const AthenaArray<Real> &prim,
 #if USETM
                                        const AthenaArray<Real> &prim_scalar,
 #endif
@@ -1193,6 +1193,14 @@ class GRDynamical : public Coordinates {
   // --------------------------------------------------------------------------
 
 
+};
+
+//-----------------------------------------------------------------------------
+class SphericalPolarUniform : public Coordinates {
+  friend class HydroSourceTerms;
+
+ public:
+  SphericalPolarUniform(MeshBlock *pmb, ParameterInput *pin, bool flag);
 };
 
 #endif // COORDINATES_COORDINATES_HPP_

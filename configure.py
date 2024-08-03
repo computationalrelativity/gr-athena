@@ -156,6 +156,7 @@ parser.add_argument(
         'cartesian',
         'cylindrical',
         'spherical_polar',
+        'spherical_polar_uniform',
         'minkowski',
         'sinusoidal',
         'tilted',
@@ -649,9 +650,13 @@ if args['g'] and not args['t'] and args['flux'] not in ('llf','llftaudyn', 'hlle
 if args['g'] and args['coord'] in ('cartesian', 'cylindrical', 'spherical_polar'):
     raise SystemExit('### CONFIGURE ERROR: GR cannot be used with {0} coordinates'
                      .format(args['coord']))
-if not args['g'] and args['coord'] not in ('cartesian', 'cylindrical', 'spherical_polar'):
+if not args['g'] and args['coord'] not in ('cartesian',
+                                           'cylindrical',
+                                           'spherical_polar',
+                                           'spherical_polar_uniform'):
     raise SystemExit('### CONFIGURE ERROR: '
                      + args['coord'] + ' coordinates only apply to GR')
+
 if args['eos'] == 'isothermal':
     if args['s'] or args['g']:
         raise SystemExit('### CONFIGURE ERROR: '
