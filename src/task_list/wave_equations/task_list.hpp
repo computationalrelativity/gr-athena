@@ -15,7 +15,8 @@
 namespace TaskLists::WaveEquations {
 
 // homogeneous wave equation, second order
-class Wave_2O : public TaskList, TaskLists::Integrators::LowStorage
+class Wave_2O : public TaskList,
+                       TaskLists::Integrators::integrators
 {
 public:
   Wave_2O(ParameterInput *pin, Mesh *pm, gra::triggers::Triggers &trgs);

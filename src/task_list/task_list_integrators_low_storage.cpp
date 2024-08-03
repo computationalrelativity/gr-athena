@@ -187,9 +187,11 @@ LowStorage::LowStorage(ParameterInput *pin, Mesh *pm)
     stage_wghts[4].gamma_2 = 1.0; // u1 <- (u^n + d*u^(2) + d'*u^(3))
     stage_wghts[4].gamma_3 = 1.0; // partial sum from hardcoded extra stage=4
     stage_wghts[4].beta = 0.226007483236906; // F(u^(4)) coeff.
-  } else {
+  }
+  else
+  {
     std::stringstream msg;
-    msg << "### FATAL ERROR in TimeIntegratorTaskList constructor" << std::endl
+    msg << "### FATAL ERROR in LowStorage constructor" << std::endl
         << "integrator=" << integrator << " not valid time integrator" << std::endl;
     ATHENA_ERROR(msg);
   }

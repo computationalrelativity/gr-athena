@@ -66,7 +66,10 @@ public:
   AthenaArray<Real> coarse_u_;
   int refinement_idx{-1};
 
-  // functions
+  // BT style integrators -----------------------------------------------------
+  std::vector<AthenaArray<Real>> bt_k;
+
+  // functions ----------------------------------------------------------------
   Real NewBlockTimeStep(void);  // compute new timestep on a MeshBlock
   void WaveRHS(AthenaArray<Real> &u);
   void WaveBoundaryRHS(AthenaArray<Real> &u);
