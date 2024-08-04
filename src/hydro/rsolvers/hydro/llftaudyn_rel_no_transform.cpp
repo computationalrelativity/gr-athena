@@ -77,48 +77,6 @@ void Hydro::RiemannSolver(
   AT_N_sca sl_adm_alpha(   pz4c->storage.adm, Z4c::I_ADM_alpha);
   AT_N_vec sl_adm_beta_u(  pz4c->storage.adm, Z4c::I_ADM_betax);
 
-  // various scratches --------------------------------------------------------
-  // BD: TODO - faster to pre-alloc in Hydro class, probably
-  AT_N_sca sqrt_detgamma_(iu+1);
-  AT_N_sca detgamma_(     iu+1);  // spatial met det
-  AT_N_sca oo_detgamma_(  iu+1);  // 1 / spatial met det
-
-  AT_N_sca alpha_(   nn1);   // reconstruction performed on all possible i
-  AT_N_vec beta_u_(  nn1);   // so need nn1
-  AT_N_sym gamma_dd_(nn1);
-  AT_N_sym gamma_uu_(iu+1);
-
-  AT_N_vec w_v_u_l_(iu+1);
-  AT_N_vec w_v_u_r_(iu+1);
-
-  AT_N_sca w_norm2_v_l(iu+1);
-  AT_N_sca w_norm2_v_r(iu+1);
-
-  AT_N_sca lambda_p_l(iu+1);
-  AT_N_sca lambda_m_l(iu+1);
-  AT_N_sca lambda_p_r(iu+1);
-  AT_N_sca lambda_m_r(iu+1);
-  AT_N_sca lambda(iu+1);
-
-  // primitive vel. (covar.)
-  AT_N_vec w_util_d_l_(iu+1);
-  AT_N_vec w_util_d_r_(iu+1);
-
-  // Lorentz factor
-  AT_N_sca W_l_(iu+1);
-  AT_N_sca W_r_(iu+1);
-
-  // h * rho
-  AT_N_sca w_hrho_l_(iu+1);
-  AT_N_sca w_hrho_r_(iu+1);
-
-  // prim / cons shaped scratches
-  AT_H_vec cons_l_(iu+1);
-  AT_H_vec cons_r_(iu+1);
-
-  AT_H_vec flux_l_(iu+1);
-  AT_H_vec flux_r_(iu+1);
-
   // 1d slices ----------------------------------------------------------------
   AT_N_sca w_rho_l_(prim_l, IDN);
   AT_N_sca w_rho_r_(prim_r, IDN);

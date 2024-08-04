@@ -14,7 +14,7 @@
 
 // Athena++ headers
 #include "../athena.hpp"
-#include "../athena_arrays.hpp"
+#include "../athena_aliases.hpp"
 #include "../bvals/cc/hydro/bvals_hydro.hpp"
 #include "../mesh/mesh.hpp"
 #include "../eos/eos.hpp"
@@ -73,7 +73,50 @@ class Hydro {
   HydroSourceTerms hsrc;
   HydroDiffusion hdif;
 
-  // functions
+  // scratches ----------------------------------------------------------------
+public:
+  AT_N_sca sqrt_detgamma_;
+  AT_N_sca detgamma_;     // spatial met det
+  AT_N_sca oo_detgamma_;  // 1 / spatial met det
+
+  AT_N_sca alpha_;
+  AT_N_vec beta_u_;
+  AT_N_sym gamma_dd_;
+  AT_N_sym gamma_uu_;
+
+  AT_N_vec w_v_u_l_;
+  AT_N_vec w_v_u_r_;
+
+  AT_N_sca w_norm2_v_l;
+  AT_N_sca w_norm2_v_r;
+
+  AT_N_sca lambda_p_l;
+  AT_N_sca lambda_m_l;
+  AT_N_sca lambda_p_r;
+  AT_N_sca lambda_m_r;
+  AT_N_sca lambda;
+
+  // primitive vel. (covar.)
+  AT_N_vec w_util_d_l_;
+  AT_N_vec w_util_d_r_;
+
+  // Lorentz factor
+  AT_N_sca W_l_;
+  AT_N_sca W_r_;
+
+  // h * rho
+  AT_N_sca w_hrho_l_;
+  AT_N_sca w_hrho_r_;
+
+  // prim / cons shaped scratches
+  AT_H_vec cons_l_;
+  AT_H_vec cons_r_;
+
+  AT_H_vec flux_l_;
+  AT_H_vec flux_r_;
+
+public:
+  // functions ----------------------------------------------------------------
   void NewBlockTimeStep();    // computes new timestep on a MeshBlock
   void AddFluxDivergence(const Real wght, AthenaArray<Real> &u_out);
   void CalculateFluxes(AthenaArray<Real> &w, FaceField &b,

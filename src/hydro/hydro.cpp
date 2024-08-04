@@ -14,8 +14,6 @@
 #include <vector>
 
 // Athena++ headers
-#include "../athena.hpp"
-#include "../athena_arrays.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../eos/eos.hpp"
 #include "../field/field.hpp"
@@ -113,6 +111,48 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
 #endif
 
   UserTimeStep_ = pmb->pmy_mesh->UserTimeStep_;
+
+  // scratches for rsolver ----------------------------------------------------
+#if Z4C_ENABLED
+  const int nn1 = pmy_block->nverts1;
+
+  sqrt_detgamma_.NewAthenaTensor(nn1);
+  detgamma_.NewAthenaTensor(     nn1);
+  oo_detgamma_.NewAthenaTensor(  nn1);
+
+  alpha_.NewAthenaTensor(   nn1);
+  beta_u_.NewAthenaTensor(  nn1);
+  gamma_dd_.NewAthenaTensor(nn1);
+  gamma_uu_.NewAthenaTensor(nn1);
+
+  w_v_u_l_.NewAthenaTensor(nn1);
+  w_v_u_r_.NewAthenaTensor(nn1);
+
+  w_norm2_v_l.NewAthenaTensor(nn1);
+  w_norm2_v_r.NewAthenaTensor(nn1);
+
+  lambda_p_l.NewAthenaTensor(nn1);
+  lambda_m_l.NewAthenaTensor(nn1);
+  lambda_p_r.NewAthenaTensor(nn1);
+  lambda_m_r.NewAthenaTensor(nn1);
+  lambda.NewAthenaTensor(nn1);
+
+  w_util_d_l_.NewAthenaTensor(nn1);
+  w_util_d_r_.NewAthenaTensor(nn1);
+
+  W_l_.NewAthenaTensor(nn1);
+  W_r_.NewAthenaTensor(nn1);
+
+  w_hrho_l_.NewAthenaTensor(nn1);
+  w_hrho_r_.NewAthenaTensor(nn1);
+
+  cons_l_.NewAthenaTensor(nn1);
+  cons_r_.NewAthenaTensor(nn1);
+
+  flux_l_.NewAthenaTensor(nn1);
+  flux_r_.NewAthenaTensor(nn1);
+#endif
+
 }
 
 //----------------------------------------------------------------------------------------
