@@ -37,10 +37,8 @@ SRC_FILES := \
 		@HYDRO_DEPENDENT_SRC@ \
 		@EOS_BASE_SRC@ \
 		@FFT_SRC@ \
-		@GRAVITY_SRC@ \
 		$(wildcard src/inputs/*.cpp) \
 		$(wildcard src/mesh/*.cpp) \
-		@MULTIGRID_SRC@ \
 		$(wildcard src/outputs/*.cpp) \
 		src/pgen/default_pgen.cpp \
 		src/pgen/$(PROBLEM_FILE) \

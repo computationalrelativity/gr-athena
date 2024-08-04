@@ -69,23 +69,6 @@ class EquationOfState {
                             int il, int iu, int jl, int ju, int kl, int ku);
   #endif
 
-  #if USETM
-  void ConservedToPrimitiveCellAverage(
-      AthenaArray<Real> &cons, const AthenaArray<Real> &prim_old, const FaceField &b,
-      AthenaArray<Real> &prim,
-      AthenaArray<Real> &cons_scalar, AthenaArray<Real> &prim_scalar, AthenaArray<Real> &bcc,
-      Coordinates *pco, int il, int iu, int jl, int ju, int kl, int ku);
-  #else
-  void ConservedToPrimitiveCellAverage(
-      AthenaArray<Real> &cons, const AthenaArray<Real> &prim_old, const FaceField &b,
-      AthenaArray<Real> &prim, AthenaArray<Real> &bcc,
-      Coordinates *pco, int il, int iu, int jl, int ju, int kl, int ku);
-  #endif
-
-  // void PrimitiveToConservedCellAverage(const AthenaArray<Real> &prim,
-  //   const AthenaArray<Real> &bc, AthenaArray<Real> &cons, Coordinates *pco, int il,
-  //   int iu, int jl, int ju, int kl, int ku);
-
   void PassiveScalarConservedToPrimitive(
       AthenaArray<Real> &s, const AthenaArray<Real> &w, const AthenaArray<Real> &r_old,
       AthenaArray<Real> &r,
@@ -94,9 +77,6 @@ class EquationOfState {
     const AthenaArray<Real> &r, const AthenaArray<Real> &w,
     AthenaArray<Real> &s, Coordinates *pco,
     int il, int iu, int jl, int ju, int kl, int ku);
-  void PassiveScalarConservedToPrimitiveCellAverage(
-    AthenaArray<Real> &s, const AthenaArray<Real> &r_old, AthenaArray<Real> &r,
-    Coordinates *pco, int il, int iu, int jl, int ju, int kl, int ku);
 
   // pass k, j, i to following 2x functions even though x1-sliced input array is expected
   // in order to accomodate position-dependent floors

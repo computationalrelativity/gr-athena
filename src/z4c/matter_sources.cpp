@@ -62,9 +62,7 @@ void Z4c::GetMatter(::AA & u_mat, ::AA & u_adm, ::AA & w, ::AA & bb_cc)
   // --------------------------------------------------------------------------
 
   // quantities we have (sliced below)
-  AthenaArray<Real> & sl_w = (
-    (opt.fix_admsource == 0) ? w : phydro->w_init
-  );
+  AthenaArray<Real> & sl_w = w;
 #if USETM
   AthenaArray<Real> & sl_scalars = r;
 #endif
@@ -78,16 +76,9 @@ void Z4c::GetMatter(::AA & u_mat, ::AA & u_adm, ::AA & w, ::AA & bb_cc)
 #endif
 
 #if MAGNETIC_FIELDS_ENABLED
-  AT_N_vec sl_bb;  // BD: TODO this is not properly populated?
-  if(opt.fix_admsource==0)
-  {
-    sl_bb.InitWithShallowSlice(bb_cc, IB1);
-    // BD: TODO check this (? what to do for fixed source)
-  }
+  AT_N_vec sl_bb;
+  sl_bb.InitWithShallowSlice(bb_cc, IB1);
 #endif
-
-  // AT_N_sca alpha( pz4c->storage.u, Z4c::I_Z4c_alpha);
-  // AT_N_vec beta_u(pz4c->storage.u, Z4c::I_Z4c_betax);
 
   if(opt.Tmunuinterp==0)
   {

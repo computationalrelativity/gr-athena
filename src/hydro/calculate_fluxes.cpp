@@ -19,7 +19,6 @@
 #include "../eos/eos.hpp"   // reapply floors to face-centered reconstructed states
 #include "../field/field.hpp"
 #include "../field/field_diffusion/field_diffusion.hpp"
-#include "../gravity/gravity.hpp"
 #include "../reconstruct/reconstruction.hpp"
 #include "../scalars/scalars.hpp"
 #include "hydro.hpp"

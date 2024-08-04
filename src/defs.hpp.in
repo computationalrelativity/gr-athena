@@ -92,8 +92,6 @@
 // evolve hydrodynamics? default=0 (false)
 #define FLUID_ENABLED @FLUID_ENABLED@
 
-#define @MULTIGRID@
-
 // hybrid grid-to-grid interp default=0 (false)
 #define @HYBRID_INTERP@
 // enable shearing box? default=0 (false)
@@ -135,9 +133,6 @@
 
 // include super-time-stepping? default=0 (false)
 #define STS_ENABLED @STS_ENABLED@
-
-// include self gravity? default=0 (false)
-#define SELF_GRAVITY_ENABLED @SELF_GRAVITY_ENABLED@
 
 // include radiative transfer? default=0 (false)
 #define RADIATION_ENABLED 0

@@ -192,12 +192,6 @@ using MetricFunc = void (*)(
     Real x1, Real x2, Real x3, ParameterInput *pin,
     AthenaArray<Real> &g, AthenaArray<Real> &g_inv,
     AthenaArray<Real> &dg_dx1, AthenaArray<Real> &dg_dx2, AthenaArray<Real> &dg_dx3);
-#ifdef MULTIGRID
-using MGBoundaryFunc = void (*)(
-    AthenaArray<Real> &dst,Real time, int nvar,
-    int is, int ie, int js, int je, int ks, int ke, int ngh,
-    Real x0, Real y0, Real z0, Real dx, Real dy, Real dz);
-#endif // MULTIGRID
 using ViscosityCoeffFunc = void (*)(
     HydroDiffusion *phdif, MeshBlock *pmb,
     const  AthenaArray<Real> &w, const AthenaArray<Real> &bc,

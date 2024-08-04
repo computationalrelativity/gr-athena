@@ -28,7 +28,6 @@
 #include "../coordinates/coordinates.hpp"
 #include "../field/field.hpp"
 #include "../globals.hpp"
-#include "../gravity/gravity.hpp"
 #include "../hydro/hydro.hpp"
 #include "../z4c/z4c.hpp"
 #include "../wave/wave.hpp"
@@ -39,7 +38,7 @@
 // NEW_OUTPUT_TYPES:
 
 // "3" for 1-KE, 2-KE, 3-KE additional columns (come before tot-E)
-#define NHISTORY_VARS (((NHYDRO) + 3) * (FLUID_ENABLED) + (SELF_GRAVITY_ENABLED) + \
+#define NHISTORY_VARS (((NHYDRO) + 3) * (FLUID_ENABLED) + \
                        (NFIELD) + (NSCALARS) + \
                        3 * (WAVE_ENABLED) + \
                        8 * (Z4C_ENABLED))
@@ -76,7 +75,6 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     Hydro *phyd = pmb->phydro;
     Field *pfld = pmb->pfield;
     PassiveScalars *psclr = pmb->pscalars;
-    Gravity *pgrav = pmb->pgrav;
     Wave *pwave = pmb->pwave;
     Z4c *pz4c = pmb->pz4c;
 
@@ -110,17 +108,12 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
               Real& u_e = phyd->u(IEN,k,j,i);;
               hst_data[isum++] += vol(i)*u_e;
             }
-            // Graviatational potential energy:
-            if (SELF_GRAVITY_ENABLED) {
-              Real& phi = pgrav->phi(k,j,i);
-              hst_data[isum++] += vol(i)*0.5*u_d*phi;
-            }
             // Cell-centered magnetic energy, partitioned by coordinate direction:
             if (MAGNETIC_FIELDS_ENABLED) {
               Real& bcc1 = pfld->bcc(IB1,k,j,i);
               Real& bcc2 = pfld->bcc(IB2,k,j,i);
               Real& bcc3 = pfld->bcc(IB3,k,j,i);
-              // constexpr int prev_out = NHYDRO + 3 + SELF_GRAVITY_ENABLED;
+              // constexpr int prev_out = NHYDRO + 3;
               hst_data[isum++] += vol(i)*0.5*bcc1*bcc1;
               hst_data[isum++] += vol(i)*0.5*bcc2*bcc2;
               hst_data[isum++] += vol(i)*0.5*bcc3*bcc3;
@@ -128,7 +121,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
             // (conserved variable) Passive scalars:
             for (int n=0; n<NSCALARS; n++) {
               Real& s = psclr->s(n,k,j,i);
-              // constexpr int prev_out = NHYDRO + 3 + SELF_GRAVITY_ENABLED + NFIELD;
+              // constexpr int prev_out = NHYDRO + 3 + NFIELD;
               hst_data[isum++] += vol(i)*s;
             }
           }
@@ -275,7 +268,6 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         std::fprintf(pfile,"[%d]=2-KE ", iout++);
         std::fprintf(pfile,"[%d]=3-KE ", iout++);
         if (NON_BAROTROPIC_EOS) std::fprintf(pfile,"[%d]=tot-E ", iout++);
-        if (SELF_GRAVITY_ENABLED) std::fprintf(pfile,"[%d]=grav-E ", iout++);
         if (MAGNETIC_FIELDS_ENABLED) {
           std::fprintf(pfile,"[%d]=1-ME ", iout++);
           std::fprintf(pfile,"[%d]=2-ME ", iout++);

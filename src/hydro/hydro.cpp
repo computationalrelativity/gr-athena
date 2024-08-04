@@ -31,7 +31,6 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
     pmy_block(pmb),
     u(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
     w(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
-    // w_init(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
     u1(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
     w1(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
     // C++11: nested brace-init-list in Hydro member initializer list = aggregate init. of
@@ -60,26 +59,10 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   Mesh *pm = pmy_block->pmy_mesh;
 
   pmb->RegisterMeshBlockDataCC(u);
-  // debug fix flux
-  fix_fluxes = pin->GetOrAddInteger("hydro","fix_fluxes",0);
-  zero_div = pin->GetOrAddInteger("hydro","zero_div",0);
 
   floor_both_states = pin->GetOrAddBoolean("time", "floor_both_states", false);
   flux_reconstruction = pin->GetOrAddBoolean(
     "hydro", "flux_reconstruction", false);
-
-  // only needed if fluxes / sources fixed
-  if (fix_fluxes || pin->GetOrAddBoolean("z4c","fix_admsource",0))
-  {
-    w_init.NewAthenaArray(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1);
-  }
-
-  // Allocate optional memory primitive/conserved variable registers for time-integrator
-  if (pmb->precon->xorder == 4) {
-    // fourth-order hydro cell-centered approximations
-    u_cc.NewAthenaArray(NHYDRO, nc3, nc2, nc1);
-    w_cc.NewAthenaArray(NHYDRO, nc3, nc2, nc1);
-  }
 
   // If user-requested time integrator is type 3S*, allocate additional memory registers
   std::string integrator = pin->GetOrAddString("time", "integrator", "vl2");
@@ -123,55 +106,7 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
 #endif
   }
 
-  x1face_area_.NewAthenaArray(nc1+1);
-  if (pm->f2) {
-    x2face_area_.NewAthenaArray(nc1);
-    x2face_area_p1_.NewAthenaArray(nc1);
-  }
-  if (pm->f3) {
-    x3face_area_.NewAthenaArray(nc1);
-    x3face_area_p1_.NewAthenaArray(nc1);
-  }
-  cell_volume_.NewAthenaArray(nc1);
   dflx_.NewAthenaArray(NHYDRO, nc1);
-  if (MAGNETIC_FIELDS_ENABLED && RELATIVISTIC_DYNAMICS) { // only used in (SR/GR)MHD
-    bb_normal_.NewAthenaArray(nc1);
-    lambdas_p_l_.NewAthenaArray(nc1);
-    lambdas_m_l_.NewAthenaArray(nc1);
-    lambdas_p_r_.NewAthenaArray(nc1);
-    lambdas_m_r_.NewAthenaArray(nc1);
-  }
-  if (GENERAL_RELATIVITY) { // only used in GR
-    g_.NewAthenaArray(NMETRIC, nc1);
-    gi_.NewAthenaArray(NMETRIC, nc1);
-    cons_.NewAthenaArray(NWAVE, nc1);
-  }
-  // for one-time potential calcuation and correction (old Athena)
-  if (SELF_GRAVITY_ENABLED == 3) {
-    gflx[X1DIR].NewAthenaArray(NHYDRO, nc3, nc2, nc1+1);
-    if (pm->f2)
-      gflx[X2DIR].NewAthenaArray(NHYDRO, nc3, nc2+1, nc1);
-    if (pm->f3)
-      gflx[X3DIR].NewAthenaArray(NHYDRO, nc3+1, nc2, nc1);
-
-    gflx_old[X1DIR].NewAthenaArray(NHYDRO, nc3, nc2, nc1+1);
-    if (pm->f2)
-      gflx_old[X2DIR].NewAthenaArray(NHYDRO, nc3, nc2+1, nc1);
-    if (pm->f3)
-      gflx_old[X3DIR].NewAthenaArray(NHYDRO, nc3+1, nc2, nc1);
-  }
-
-  // fourth-order hydro integration scheme
-  if (pmb->precon->xorder == 4) {
-    // 4D scratch arrays
-    wl3d_.NewAthenaArray(NWAVE, nc3, nc2, nc1);
-    wr3d_.NewAthenaArray(NWAVE, nc3, nc2, nc1);
-    scr1_nkji_.NewAthenaArray(NHYDRO, nc3, nc2, nc1);
-    scr2_nkji_.NewAthenaArray(NHYDRO, nc3, nc2, nc1);
-    // 1D scratch arrays
-    laplacian_l_fc_.NewAthenaArray(nc1);
-    laplacian_r_fc_.NewAthenaArray(nc1);
-  }
 
 #if USETM
     temperature.NewAthenaArray(nc3, nc2, nc1);

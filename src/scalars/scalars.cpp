@@ -53,13 +53,6 @@ PassiveScalars::PassiveScalars(MeshBlock *pmb, ParameterInput *pin)  :
 
   pmb->RegisterMeshBlockDataCC(s);
 
-  // Allocate optional passive scalar variable memory registers for time-integrator
-  if (pmb->precon->xorder == 4) {
-    // fourth-order cell-centered approximations
-    s_cc.NewAthenaArray(NSCALARS, nc3, nc2, nc1);
-    r_cc.NewAthenaArray(NSCALARS, nc3, nc2, nc1);
-  }
-
   // If user-requested time integrator is type 3S*, allocate additional memory registers
   std::string integrator = pin->GetOrAddString("time", "integrator", "vl2");
   if (integrator == "ssprk5_4" || STS_ENABLED)
@@ -88,38 +81,10 @@ PassiveScalars::PassiveScalars(MeshBlock *pmb, ParameterInput *pin)  :
     r_rlb_.NewAthenaArray(NSCALARS, nc1);
   }
 
-  x1face_area_.NewAthenaArray(nc1+1);
-  if (pm->f2) {
-    x2face_area_.NewAthenaArray(nc1);
-    x2face_area_p1_.NewAthenaArray(nc1);
-  }
-  if (pm->f3) {
-    x3face_area_.NewAthenaArray(nc1);
-    x3face_area_p1_.NewAthenaArray(nc1);
-  }
-  cell_volume_.NewAthenaArray(nc1);
   dflx_.NewAthenaArray(NSCALARS, nc1);
 
-  // fourth-order integration scheme
-  if (pmb->precon->xorder == 4) {
-    // 4D scratch arrays
-    rl3d_.NewAthenaArray(NSCALARS, nc3, nc2, nc1);
-    rr3d_.NewAthenaArray(NSCALARS, nc3, nc2, nc1);
-    scr1_nkji_.NewAthenaArray(NSCALARS, nc3, nc2, nc1);
-    scr2_nkji_.NewAthenaArray(NSCALARS, nc3, nc2, nc1);
-    // store all face-centered mass fluxes (all 3x coordinate directions) from Hydro:
-    mass_flux_fc[X1DIR].NewAthenaArray(nc3, nc2, nc1+1);
-    if (pmb->pmy_mesh->f2)
-      mass_flux_fc[X2DIR].NewAthenaArray(nc3, nc2+1, nc1);
-    if (pmb->pmy_mesh->f3)
-      mass_flux_fc[X3DIR].NewAthenaArray(nc3+3, nc2, nc1);
-
-    // 1D scratch arrays
-    laplacian_l_fc_.NewAthenaArray(nc1);
-    laplacian_r_fc_.NewAthenaArray(nc1);
-  }
-
-  if (scalar_diffusion_defined) {
+  if (scalar_diffusion_defined)
+  {
     diffusion_flx[X1DIR].NewAthenaArray(NSCALARS, nc3, nc2, nc1+1);
     diffusion_flx[X2DIR].NewAthenaArray(NSCALARS, nc3, nc2+1, nc1);
     diffusion_flx[X3DIR].NewAthenaArray(NSCALARS, nc3+1, nc2, nc1);

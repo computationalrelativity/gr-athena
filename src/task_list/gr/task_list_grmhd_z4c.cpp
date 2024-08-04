@@ -9,7 +9,6 @@
 #include "../../bvals/bvals.hpp"
 #include "../../eos/eos.hpp"
 #include "../../field/field.hpp"
-#include "../../gravity/gravity.hpp"
 #include "../../hydro/hydro.hpp"
 #include "../../hydro/srcterms/hydro_srcterms.hpp"
 #include "../../mesh/mesh.hpp"

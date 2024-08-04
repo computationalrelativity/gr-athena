@@ -30,15 +30,9 @@
 #include "../eos/eos.hpp"
 #include "../field/field.hpp"
 #include "../globals.hpp"
-#ifdef MULTIGRID
-#include "../gravity/mg_gravity.hpp"
-#endif // MULTIGRID
 #include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
 #include "../mesh/mesh_refinement.hpp"
-#ifdef MULTIGRID
-#include "../multigrid/multigrid.hpp"
-#endif // MULTIGRID
 #include "../parameter_input.hpp"
 #include "../scalars/scalars.hpp"
 #include "../utils/buffer_utils.hpp"
