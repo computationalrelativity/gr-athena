@@ -76,9 +76,6 @@ void Wave_2O::StartupTaskList(MeshBlock *pmb, int stage)
   Wave *pwave = pmb->pwave;
   BoundaryValues *pbval = pmb->pbval;
 
-  // Application of Sommerfeld boundary conditions
-  pwave->WaveBoundaryRHS(pwave->u);
-
   const Real t_end = this->t_end(stage, pmb);
   const Real dt_scaled = this->dt_scaled(stage, pmb);
 

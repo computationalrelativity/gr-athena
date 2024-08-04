@@ -854,18 +854,6 @@ void GRMHD_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
   BoundaryValues *pb   = pmb->pbval;
   Z4c            *pz4c = pmb->pz4c;
 
-  // Application of Sommerfeld boundary conditions
-  pz4c->Z4cBoundaryRHS(pz4c->storage.u, pz4c->storage.mat, pz4c->storage.rhs);
-
-  const Real t_end = this->t_end(stage, pmb);
-  const Real dt_scaled = this->dt_scaled(stage, pmb);
-
-  FCN_CC_CX_VC(
-    pb->ApplyPhysicalBoundaries,
-    pb->ApplyPhysicalCellCenteredXBoundaries,
-    pb->ApplyPhysicalVertexCenteredBoundaries
-  )(t_end, dt_scaled);
-
   if (stage == 1)
   {
     if (integrator == "ssprk5_4")
