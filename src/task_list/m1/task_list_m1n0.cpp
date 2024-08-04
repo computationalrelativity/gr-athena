@@ -31,7 +31,7 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
     trgs(trgs)
 {
   // Fix the number of stages based on internal M1+N0 method
-  nstages = 1;
+  nstages = 2;
 
   // Now assemble list of tasks for each stage of time integrator
   {
