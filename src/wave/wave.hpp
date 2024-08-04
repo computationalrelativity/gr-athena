@@ -10,7 +10,7 @@
 
 // Athena++ classes headers
 #include "../athena.hpp"
-#include "../athena_arrays.hpp"
+#include "../athena_aliases.hpp"
 #include "../mesh/mesh.hpp"
 
 // #include "../utils/finite_differencing.hpp"
@@ -19,6 +19,10 @@
 #include "../bvals/cx/bvals_cx.hpp"
 
 #include "../utils/finite_differencing.hpp"
+
+//-----------------------------------------------------------------------------
+using namespace gra::aliases;
+//-----------------------------------------------------------------------------
 
 class MeshBlock;
 class ParameterInput;
