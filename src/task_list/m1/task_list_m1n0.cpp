@@ -30,6 +30,9 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
   : LowStorage(pin, pm),
     trgs(trgs)
 {
+  // Fix the number of stages based on internal M1+N0 method
+  nstages = 1;
+
   // Now assemble list of tasks for each stage of time integrator
   {
     Add(UPDATE_BG, NONE, &M1N0::UpdateBackground);
