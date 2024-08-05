@@ -12,14 +12,16 @@
 #include <cassert>
 #include <iomanip>
 #include <iostream>
+#include <sstream>
+#include <streambuf>
+#include <cmath>
 
 // https://lorene.obspm.fr/
 #include <bin_ns.h>
-#include <sstream>
-#include <streambuf>
-// #include <unites.h>
+#include <unites.h>
 
 // Athena++ headers
+#include "../globals.hpp"
 #include "../athena_aliases.hpp"
 #include "../parameter_input.hpp"
 #include "../coordinates/coordinates.hpp"
@@ -36,19 +38,11 @@
 
 //----------------------------------------------------------------------------------------
 using namespace gra::aliases;
+using namespace Primitive;
 //----------------------------------------------------------------------------------------
-
-// For reading composition tables
-#if EOS_POLICY_CODE == 2 || EOS_POLICY_CODE == 3
-#include "../utils/lorene_table.hpp"
-#define LORENE_EOS (1)
-#endif
 
 namespace {
   int RefinementCondition(MeshBlock *pmb);
-
-  Real linear_interp(Real *f, Real *x, int n, Real xv);
-  int interp_locate(Real *x, int Nx, Real xval);
 
 #if MAGNETIC_FIELDS_ENABLED
   Real DivBface(MeshBlock *pmb, int iout);
@@ -59,15 +53,71 @@ namespace {
   Real max_abs_con_H(MeshBlock *pmb, int iout);
 
   // Global variables
-#ifdef LORENE_EOS
-  LoreneTable * LORENE_EoS_Table = NULL; // Lorene table object
-  std::string LORENE_EoS_fname; // Barotropic table
-#if EOS_POLICY_CODE == 2
-  std::string LORENE_EoS_fname_Y; // Conposition table
-#endif
-#endif
-}
+  ColdEOS<COLDEOS_POLICY> * ceos = NULL;
 
+  Real sep;
+  Real pgasmax_1;
+  Real pgasmax_2;
+
+  // constants ----------------------------------------------------------------
+#if (0)
+  // Some conversion factors to go between Lorene data and Athena data.
+  // Shamelessly stolen from the Einstein Toolkit's Mag_NS.cc.
+  //
+  //SB Constants should be taken from Lorene's "unites" so to ensure consistency.
+  //   Note the Lorene library has chandged some constants recently (2022),
+  //   This is temporarily kept here for testing purposes.
+  Real const c_light = 299792458.0;              // Speed of light [m/s]
+  Real const mu0 = 4.0 * M_PI * 1.0e-7;          // Vacuum permeability [N/A^2]
+  Real const eps0 = 1.0 / (mu0 * std::pow(c_light, 2));
+
+  // Constants of nature (IAU, CODATA):
+  Real const G_grav = 6.67428e-11;       // Gravitational constant [m^3/kg/s^2]
+  Real const M_sun = 1.98892e+30;        // Solar mass [kg]
+
+  // Athena units in SI
+  // Athena code units: c = G = 1, M = M_sun
+  Real const athenaM = M_sun;
+  Real const athenaL = athenaM * G_grav / (c_light * c_light);
+  Real const athenaT = athenaL / c_light;
+  // This is just a guess based on what Cactus uses.
+  Real const athenaB = (1.0 / athenaL /
+			std::sqrt(eps0 * G_grav / (c_light * c_light)));
+  const Real mev_si = 1.602176634E-13 ;   ///< One MeV [J]
+  const Real m_u_si = 1.6605390666E-27 ;  ///< atomic mass unit [kg]
+  const Real m_u_mev = m_u_si * pow(c_light, 2) / mev_si;
+
+#else
+  Real const c_light  = Lorene::Unites::c_si; // 2.99792458E+8 ;	 ///< Velocity of light [m/s]
+  Real const nuc_dens = Lorene::Unites::rhonuc_si; // Nuclear density as used in Lorene units [kg/m^3]
+  Real const G_grav   = Lorene::Unites::g_si;      // gravitational constant [m^3/kg/s^2]
+  Real const M_sun    = Lorene::Unites::msol_si;   // solar mass [kg]
+  // const Real mev_si = Lorene::Unites::mev_si // 1.602176634E-13 ;   ///< One MeV [J]
+  const Real m_u_si = Lorene::Unites::m_u_si; // 1.6605390666E-27 ;  ///< atomic mass unit [kg]
+  const Real m_u_mev = m_u_si * pow(c_light, 2) / Lorene::Unites::mev_si;
+
+  Real const mu0 = 4.0 * M_PI * 1.0e-7;          // Vacuum permeability [N/A^2]
+  Real const eps0 = 1.0 / (mu0 * std::pow(c_light, 2));
+
+  // Units in terms of SI units:
+  // (These are derived from M = M_sun, c = G = 1,
+  //  and using 1/M_sun for the magnetic field)
+  Real const athenaM = M_sun;
+  Real const athenaL = athenaM * G_grav / pow(c_light,2);
+  Real const athenaT = athenaL / c_light;
+  Real const athenaB = (1.0 / athenaL / std::sqrt(eps0 * G_grav / (c_light * c_light))); // 1 Tesla
+#endif
+
+  // Athena units for conversion.
+  Real const coord_unit = athenaL/1.0e3; // Convert to km for Lorene.
+  Real const rho_unit = athenaM/(athenaL*athenaL*athenaL); // kg/m^3.
+  Real const ener_unit = 1.0; // c^2
+  Real const vel_unit = athenaL / athenaT / c_light; // c
+  // Real const B_unit = athenaB * 1.0e4; // 1e4 Gauss = 1 Tesla
+  // Keep previous value for consistency with older runs
+  Real const B_unit = 8.351416e19; // almost the same as athenaB * 1.0e4;
+  // --------------------------------------------------------------------------
+}
 
 //========================================================================================
 //! \fn void Mesh::InitUserMeshData(ParameterInput *pin)
@@ -95,46 +145,74 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   EnrollUserHistoryOutput(3, DivBface, "divBface");
 #endif
 
-#ifdef LORENE_EOS
-  LORENE_EoS_fname   = pin->GetString("hydro", "lorene");
-#if EOS_POLICY_CODE == 2
-  LORENE_EoS_fname_Y = pin->GetString("hydro", "lorene_Y");
-#endif
-  LORENE_EoS_Table = new LoreneTable;
-  ReadLoreneTable(LORENE_EoS_fname, LORENE_EoS_Table);
-#if EOS_POLICY_CODE == 2
-  ReadLoreneFractions(LORENE_EoS_fname_Y, LORENE_EoS_Table);
-#endif
-  ConvertLoreneTable(LORENE_EoS_Table);
-  LORENE_EoS_Table->rho_atm = pin->GetReal("hydro", "dfloor");
-#endif
+  if (!resume_flag)
+    return;
 
-  // BD: TODO - remove once "GRAND INTERFACE" is complete.
-  const bool have_fn_eos = pin->DoesParameterExist("problem", "filename_eos");
-  if (have_fn_eos)
-  {
+#if USETM
+  // initialize the cold EOS
+  ceos = new ColdEOS<COLDEOS_POLICY>();
+  InitColdEOS(ceos, pin);
 
-    if (Globals::my_rank == 0)
-    {
-      std::string filename_eos = pin->GetString("problem", "filename_eos");
-      std::string run_dir;
-
-      if (file_exists(filename_eos.c_str()))
-      {
-        GetRunDir(run_dir);
-        file_copy(filename_eos, run_dir);
-      }
-      else
-      {
-        std::stringstream msg;
-        msg << "### FATAL ERROR problem/filename_eos: "
-            << filename_eos << " "
-            << " could not be accessed.";
-        ATHENA_ERROR(msg);
-        std::exit(0);
-      }
-    }
+#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
+  // Dump Lorene eos file
+  if (Globals::my_rank == 0) {
+    std::string run_dir;
+    GetRunDir(run_dir);
+    ceos->DumpLoreneEOSFile(run_dir + "/eos_akmalpr.d");
   }
+#endif
+
+#endif
+
+  Lorene::Bin_NS * bns;
+
+  // read in dummy bns to get separation
+  std::string fn_ini_data = pin->GetOrAddString("problem", "filename", "resu.d");
+
+  Real * crd = new Real[1]{0.0};
+  std::streambuf *cur_buf;
+  std::ostringstream dmp_buf;
+  bool verbose = pin->GetOrAddBoolean("problem", "verbose", false);
+
+  if (!verbose)
+  {
+    cur_buf = std::cout.rdbuf();
+    std::cout.rdbuf(dmp_buf.rdbuf());
+  }
+
+  // Get the separation
+  bns = new Lorene::Bin_NS(1, crd, crd, crd,
+                           fn_ini_data.c_str());
+  sep = bns->dist / coord_unit;
+
+  delete bns;
+  delete crd;
+
+  // read it in again to get the central densities
+  Real* x_crd = new Real[2]{0.5 * sep * coord_unit, -0.5 * sep * coord_unit};
+  Real* yz_crd = new Real[2]{0.0, 0.0};
+
+  if (!verbose)
+  {
+    std::cout.rdbuf(cur_buf);
+  }
+
+  // Get the central densities
+  // Print Lorene output once (for nostalgia)
+  bns = new Lorene::Bin_NS(2, x_crd, yz_crd, yz_crd,
+                           fn_ini_data.c_str());
+
+  // forr tabulated EOS need to convert baryon mass
+#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
+  Real rho_1 = bns->nbar[0] / m_u_si * 1e-45 * ceos->GetBaryonMass();
+  Real rho_2 = bns->nbar[1] / m_u_si * 1e-45 * ceos->GetBaryonMass();
+#else
+  Real rho_1 = bns->nbar[0];
+  Real rho_2 = bns->nbar[1];
+#endif
+
+  pgasmax_1 = ceos->GetPressure(rho_1);
+  pgasmax_2 = ceos->GetPressure(rho_2);
 
   return;
 }
@@ -148,59 +226,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   using namespace LinearAlgebra;
 
   // Interpolate Lorene data onto the grid.
-
-  // constants ----------------------------------------------------------------
-#if (1)
-  // Some conversion factors to go between Lorene data and Athena data.
-  // Shamelessly stolen from the Einstein Toolkit's Mag_NS.cc.
-  //
-  //SB Constants should be taken from Lorene's "unites" so to ensure consistency.
-  //   Note the Lorene library has chandged some constants recently (2022),
-  //   This is temporarily kept here for testing purposes.
-  Real const c_light = 299792458.0;              // Speed of light [m/s]
-  Real const mu0 = 4.0 * M_PI * 1.0e-7;          // Vacuum permeability [N/A^2]
-  Real const eps0 = 1.0 / (mu0 * std::pow(c_light, 2));
-
-  // Constants of nature (IAU, CODATA):
-  Real const G_grav = 6.67428e-11;       // Gravitational constant [m^3/kg/s^2]
-  Real const M_sun = 1.98892e+30;        // Solar mass [kg]
-
-  // Athena units in SI
-  // Athena code units: c = G = 1, M = M_sun
-  Real const athenaM = M_sun;
-  Real const athenaL = athenaM * G_grav / (c_light * c_light);
-  Real const athenaT = athenaL / c_light;
-  // This is just a guess based on what Cactus uses.
-  Real const athenaB = (1.0 / athenaL /
-			std::sqrt(eps0 * G_grav / (c_light * c_light)));
-#else
-  Real const c_light  = Unites::c_si;      // speed of light [m/s]
-  Real const nuc_dens = Unites::rhonuc_si; // Nuclear density as used in Lorene units [kg/m^3]
-  Real const G_grav   = Unites::g_si;      // gravitational constant [m^3/kg/s^2]
-  Real const M_sun    = Unites::msol_si;   // solar mass [kg]
-
-  // Units in terms of SI units:
-  // (These are derived from M = M_sun, c = G = 1,
-  //  and using 1/M_sun for the magnetic field)
-  Real const athenaM = M_sun;
-  Real const athenaL = athenaM * G_grav / pow(c_light,2);
-  Real const athenaT = athenaL / c_light;
-  // This is just a guess based on what Cactus uses:
-  Real const athenaB = (1.0 / athenaL /
-			std::sqrt(eps0 * G_grav / (c_light * c_light)));
-
-  // Other quantities in terms of Athena units
-  Real const coord_unit = athenaL / 1.0e+3;         // from km (~1.477)
-  Real const rho_unit   = athenaM / pow(athenaL,3); // from kg/m^3
-#endif
-
-  // Athena units for conversion.
-  Real const coord_unit = athenaL/1.0e3; // Convert to km for Lorene.
-  Real const rho_unit = athenaM/(athenaL*athenaL*athenaL); // kg/m^3.
-  Real const ener_unit = 1.0; // c^2
-  Real const vel_unit = athenaL / athenaT / c_light; // c
-  Real const B_unit = athenaB / 1.0e+9; // 10^9 T
-  // --------------------------------------------------------------------------
 
   // settings -----------------------------------------------------------------
   std::string fn_ini_data = pin->GetOrAddString("problem", "filename", "resu.d");
@@ -237,7 +262,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   const int kl = 0;
   const int ku = ncells3-1;
 
-  Real sep;
 
   // --------------------------------------------------------------------------
   #pragma omp critical
@@ -286,14 +310,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     bns = new Lorene::Bin_NS(npoints_gs,
                              xx_gs, yy_gs, zz_gs,
                              fn_ini_data.c_str());
-
     if (!verbose)
     {
       std::cout.rdbuf(cur_buf);
     }
 
     sep = bns->dist / coord_unit;
-
 
     assert(bns->np == npoints_gs);
 
@@ -436,16 +458,43 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     s.Fill(0.0);
 #endif
 
+    Real max_eps_err = 0.0;
+    Real rho_max = 0.0;
+    Real eps_max = 0.0;
+
     for (int k=kl; k<=ku; ++k)
     for (int j=jl; j<=ju; ++j)
     for (int i=il; i<=iu; ++i)
     {
-      // Extract quantities from Lorene first, map units ----------------------
+#ifdef defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS)
+      // Lorene is using the atomic mass unit as reference mass so the density has to be converted
+      Real nb = bns->nbar[I] / m_u_si * 1e-45; // kg/m^3 -> fm^-3
+      Real w_rho = nb * ceos->GetBaryonMass(); // fm^-3 -> code units
+#else
       Real w_rho = bns->nbar[I] / rho_unit;
-      Real eps = bns->ener_spec[I] / ener_unit;
+#endif
+
+      // Sanity check if eps matches EOS
+      if (w_rho > 1e-5)
+      {
+        Real eps = bns->ener_spec[I];
+#ifdef defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS)
+        eps = m_u_mev/ceos->mb * (eps + 1) - 1; // convert eos baryon mass
+#endif
+        Real eps_ceos = ceos->GetSpecificInternalEnergy(w_rho);
+        Real eps_err = std::abs(eps_ceos/eps - 1);
+
+        if (eps_err > max_eps_err)
+        {
+          max_eps_err = eps_err;
+          rho_max = w_rho;
+          eps_max = eps;
+        }
+      }
 
       // Unused, retain for reference:
       //
+      // Real eps = bns->ener_spec[I] / ener_unit;
       // Real w_e = w_rho * eps;
       // Real w_p = peos->PresFromRhoEg(w_rho, w_e);
       //
@@ -480,6 +529,13 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       ++I;
     }
 
+    if (max_eps_err > 1.0e-4)
+    {
+      printf("Warning: Internal energy in Lorene data and eos do not match!\n");
+      printf("rho=%.16e, eps_lorene=%.16e, rel. err.=%.16e\n",
+             rho_max, eps_max, max_eps_err);
+    }
+
     // clean up
     delete[] xx_cc;
     delete[] yy_cc;
@@ -488,6 +544,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     delete bns;
 
   } // OMP Critical
+
   // --------------------------------------------------------------------------
 
   // Treat EOS derived quantities ---------------------------------------------
@@ -522,22 +579,17 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
 #else
     // PrimitiveSolver --------------------------------------------------------
-    AthenaArray<Real> & T  = phydro->temperature;
-
     Real w_rho_atm = pin->GetReal("hydro", "dfloor");
-    Real T_atm     = pin->GetReal("hydro", "tfloor");
-    Real mb        = peos->GetEOS().GetBaryonMass();
+    Real rho_cut = std::max(pin->GetOrAddReal("problem", "rho_cut", w_rho_atm),
+                            w_rho_atm);
 
-    Real Y_atm[MAX_SPECIES] = {0.0};
-#if EOS_POLICY_CODE == 2
-    Y_atm[0] = pin->GetReal("hydro", "y0_atmosphere");
+#if NSCALARS > 0
+    Real Y_atm[NSCALARS] = {0.0};
+    for (int iy=0; iy<NSCALARS; ++iy)
+    {
+      Y_atm[iy] = pin->GetReal("hydro", "y" + std::to_string(iy) + "_atmosphere");
+    }
 #endif
-    Real Y[MAX_SPECIES];
-
-#ifdef USE_IDEAL_GAS
-    const Real k_adi     = pin->GetReal("hydro", "k_adi");
-    const Real gamma_adi = pin->GetReal("hydro", "gamma");
-#endif // USE_IDEAL_GAS
 
     // USETM fill
     for (int k=kl; k<=ku; ++k)
@@ -546,60 +598,29 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     {
       // Check if density admissible first -
       // This controls velocity reset & Y interpolation (if applicable)
-      const bool state_admissible = w(IDN,k,j,i) > w_rho_atm;
-      w(IDN,k,j,i) = std::max(w(IDN,k,j,i), w_rho_atm);
-      const Real w_nb = w(IDN,k,j,i) / mb;
-
-      // BD: TODO - stupid work-around to get barotropic init. with
-      //            PrimitiveSolver-
-      //            w_p = K w_rho ^ gamma_adi & fake T
-#ifdef USE_IDEAL_GAS
-      std::fill(std::begin(Y), std::end(Y), 0.0);
-
-      w(IPR,k,j,i) = k_adi*std::pow(w(IDN,k,j,i),gamma_adi);
-      T(k,j,i) = peos->GetEOS().GetTemperatureFromP(w_nb, w(IPR,k,j,i), Y);
-#else
-      // Tabulated ------------------------------------------------------------
-      if (state_admissible)
+      if (w(IDN,k,j,i) > rho_cut)
       {
+        w(IPR,k,j,i) = ceos->GetPressure(w(IDN,k,j,i));
+
 #if NSCALARS > 0
-        for (int n=0; n<NSCALARS; ++n)
-        {
-          Y[n] = linear_interp(LORENE_EoS_Table->Y[n],
-                               LORENE_EoS_Table->data[tab_logrho],
-                               LORENE_EoS_Table->size,
-                               log(w(IDN,k,j,i)));
-        }
+        for (int iy=0; iy<NSCALARS; ++iy)
+          r(iy,k,j,i) = ceos->GetY(w(IDN,k,j,i), iy);
 #endif
-        w(IPR,k,j,i) = peos->GetEOS().GetPressure(w_nb, T_atm, Y);
-        T(k,j,i) = T_atm;
       }
       else
       {
         // Reset primitives
-        T(k,j,i) = T_atm;
         w(IPR,k,j,i) = 0;
+
 #if NSCALARS > 0
-        for (int n=0; n<NSCALARS; ++n)
-        {
-          Y[n] = Y_atm[n];
-        }
+        for (int iy=0; iy<NSCALARS; ++iy)
+          r(iy,k,j,i) = Y_atm[iy];
 #endif
+
         // Assume that we always have (IVX, IVY, IVZ)
         for (int ix=0; ix<3; ++ix)
-        {
           w(IVX+ix,k,j,i) = 0;
-        }
       }
-
-#endif // USE_IDEAL_GAS
-
-  #if NSCALARS > 0
-      for (int n=0; n<NSCALARS; ++n)
-      {
-        r(n,k,j,i) = Y[n];
-      }
-  #endif
 
       // This is useless with USETM (w1 is old state for e.g. rootfinder)
       for (int n=0; n<NHYDRO; ++n)
@@ -609,7 +630,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     }
 
     // ------------------------------------------------------------------------
-#endif
+#endif // !USETM
   }
   // --------------------------------------------------------------------------
 
@@ -619,15 +640,19 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     // B field ------------------------------------------------------------------
     // Assume stars are located on x axis
 
-    Real pgasmax = pin->GetReal("problem","pmax");
-    Real pcut = pin->GetReal("problem","pcut") * pgasmax;
+    Real pcut_1 = pin->GetReal("problem","pcut_1") * pgasmax_1;
+    Real pcut_2 = pin->GetReal("problem","pcut_2") * pgasmax_2;
 
     // Real b_amp = pin->GetReal("problem","b_amp");
     // Scaling taken from project_bnsmhd
-    Real ns = pin->GetReal("problem","ns");
-    Real b_amp = pin->GetReal("problem","b_amp") *
-                 0.5/std::pow(pgasmax-pcut, ns)/8.351416e19;
-    int magindex = pin->GetInteger("problem","magindex");
+    Real ns_1 = pin->GetReal("problem","ns_1");
+    Real ns_2 = pin->GetReal("problem","ns_2");
+
+    // Read b_amp and rescale it from gaus to code units
+    Real A_amp_1 = pin->GetReal("problem","b_amp_1") *
+      0.5/std::pow(pgasmax_1-pcut_1, ns_1)/B_unit;
+    Real A_amp_2 = pin->GetReal("problem","b_amp_2") *
+      0.5/std::pow(pgasmax_2-pcut_2, ns_2)/B_unit;
 
     pfield->b.x1f.ZeroClear();
     pfield->b.x2f.ZeroClear();
@@ -645,20 +670,22 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int k = kl; k <= ku; ++k)
     for (int j = jl; j <= ju; ++j)
     for (int i = il; i <= iu; ++i)
+    {
+      if(pcoord->x1v(i) > 0)
       {
-        if(pcoord->x1v(i) > 0)
-        {
-          Atot(0,k,j,i) = -pcoord->x2v(j) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
-          Atot(1,k,j,i) = (pcoord->x1v(i) - 0.5*sep) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
-          Atot(2,k,j,i) = 0.0;
-        }
-        else
-        {
-          Atot(0,k,j,i) = -pcoord->x2v(j) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
-          Atot(1,k,j,i) = (pcoord->x1v(i) + 0.5*sep) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
-          Atot(2,k,j,i) = 0.0;
-        }
+        Real A_amp = A_amp_2 * std::max(std::pow(phydro->w(IPR,k,j,i) - pcut_2, ns_2), 0.0);
+        Atot(0,k,j,i) = -pcoord->x2v(j) * A_amp;
+        Atot(1,k,j,i) = (pcoord->x1v(i) - 0.5*sep) * A_amp;
+        Atot(2,k,j,i) = 0.0;
       }
+      else
+      {
+        Real A_amp = A_amp_1 * std::max(std::pow(phydro->w(IPR,k,j,i) - pcut_1, ns_1), 0.0);
+        Atot(0,k,j,i) = -pcoord->x2v(j) * A_amp;
+        Atot(1,k,j,i) = (pcoord->x1v(i) + 0.5*sep) * A_amp;
+        Atot(2,k,j,i) = 0.0;
+      }
+    }
 
     for(int k = ks-1; k<=ke+1; k++)
     for(int j = js-1; j<=je+1; j++)
@@ -844,6 +871,15 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   return;
 }
 
+
+void Mesh::DeleteTemporaryUserMeshData()
+{
+  // Free cold EOS data
+  delete ceos;
+
+  return;
+}
+
 namespace {
 
 //----------------------------------------------------------------------------------------
@@ -1006,50 +1042,5 @@ Real max_abs_con_H(MeshBlock *pmb, int iout)
 
   return m_abs_con_H;
 }
-
-#ifdef LORENE_EOS
-  //--------------------------------------------------------------------------------------
-  //! \fn double linear_interp(double *f, double *x, int n, double xv)
-  // \brief linearly interpolate f(x), compute f(xv)
-  Real linear_interp(Real *f, Real *x, int n, Real xv)
-  {
-    int i = interp_locate(x,n,xv);
-    if (i < 0)  i=1;
-    if (i == n) i=n-1;
-    int j;
-    if(xv < x[i]) j = i-1;
-    else j = i+1;
-    Real xj = x[j]; Real xi = x[i];
-    Real fj = f[j]; Real fi = f[i];
-    Real m = (fj-fi)/(xj-xi);
-    Real df = m*(xv-xj)+fj;
-    return df;
-  }
-
-  //-----------------------------------------------------------------------------------------
-  //! \fn int interp_locate(Real *x, int Nx, Real xval)
-  // \brief Bisection to find closest point in interpolating table
-  // 
-  int interp_locate(Real *x, int Nx, Real xval) {
-    int ju,jm,jl;
-    int ascnd;
-    jl=-1;
-    ju=Nx;
-    if (xval <= x[0]) {
-      return 0;
-    } else if (xval >= x[Nx-1]) {
-      return Nx-1;
-    }
-    ascnd = (x[Nx-1] >= x[0]);
-    while (ju-jl > 1) {
-      jm = (ju+jl) >> 1;
-      if (xval >= x[jm] == ascnd)
-  jl=jm;
-      else
-  ju=jm;
-    }
-    return jl;
-  }
-  #endif
 
 }

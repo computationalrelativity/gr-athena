@@ -10,22 +10,26 @@
   #define USE_IDEAL_GAS
   //#pragma message("EOS_POLICY is IdealGas")
   #include "../z4c/primitive/idealgas.hpp"
+  #include "../z4c/primitive/cold_idealgas.hpp"
 #elif EOS_POLICY_CODE == 1
   #define USE_PIECEWISE_POLY
   //#pragma message("EOS_POLICY is PiecewisePolytrope")
   #include "../z4c/primitive/piecewise_polytrope.hpp"
+  #include "../z4c/primitive/cold_piecewise_polytrope.hpp"
 #elif EOS_POLICY_CODE == 2
   #ifndef HDF5OUTPUT
     #error "HDF5 must be enabled to use EOSCompOSE."
   #endif
   #define USE_COMPOSE_EOS
   #include "../z4c/primitive/eos_compose.hpp"
+  #include "../z4c/primitive/cold_eos_compose.hpp"
 #elif EOS_POLICY_CODE == 3
   #ifndef HDF5OUTPUT
     #error "HDF5 must be enabled to use HybridTable."
   #endif
   #define USE_HYBRID_EOS
   #include "../z4c/primitive/hybrid_table.hpp"
+  #include "../z4c/primitive/cold_hybrid_table.hpp"
 #else
   #error EOS_POLICY_CODE not recognized.
 #endif
