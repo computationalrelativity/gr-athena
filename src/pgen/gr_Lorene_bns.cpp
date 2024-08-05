@@ -192,11 +192,25 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   Real* x_crd = new Real[2]{0.5 * sep * coord_unit, -0.5 * sep * coord_unit};
   Real* yz_crd = new Real[2]{0.0, 0.0};
 
+  if (!verbose)
+  {
+    std::cout.rdbuf(cur_buf);
+  }
+
+  // Get the central densities
+  // Print Lorene output once (for nostalgia)
   bns = new Lorene::Bin_NS(2, x_crd, yz_crd, yz_crd,
                            fn_ini_data.c_str());
 
+  // forr tabulated EOS need to convert baryon mass
+#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
   Real rho_1 = bns->nbar[0] / m_u_si * 1e-45 * ceos->GetBaryonMass();
   Real rho_2 = bns->nbar[1] / m_u_si * 1e-45 * ceos->GetBaryonMass();
+#else
+  Real rho_1 = bns->nbar[0];
+  Real rho_2 = bns->nbar[1];
+#endif
+
   pgasmax_1 = ceos->GetPressure(rho_1);
   pgasmax_2 = ceos->GetPressure(rho_2);
 
@@ -452,18 +466,21 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int j=jl; j<=ju; ++j)
     for (int i=il; i<=iu; ++i)
     {
-      // Extract quantities from Lorene first, map units ----------------------
-      // Real w_rho = bns->nbar[I] / rho_unit;
-
-      // Lorene is using the atomic mass unit as reference mass
+#ifdef defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS)
+      // Lorene is using the atomic mass unit as reference mass so the density has to be converted
       Real nb = bns->nbar[I] / m_u_si * 1e-45; // kg/m^3 -> fm^-3
       Real w_rho = nb * ceos->GetBaryonMass(); // fm^-3 -> code units
+#else
+      Real w_rho = bns->nbar[I] / rho_unit;
+#endif
 
       // Sanity check if eps matches EOS
       if (w_rho > 1e-5)
       {
         Real eps = bns->ener_spec[I];
+#ifdef defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS)
         eps = m_u_mev/ceos->mb * (eps + 1) - 1; // convert eos baryon mass
+#endif
         Real eps_ceos = ceos->GetSpecificInternalEnergy(w_rho);
         Real eps_err = std::abs(eps_ceos/eps - 1);
 
