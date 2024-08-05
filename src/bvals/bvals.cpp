@@ -30,15 +30,9 @@
 #include "../eos/eos.hpp"
 #include "../field/field.hpp"
 #include "../globals.hpp"
-#ifdef MULTIGRID
-#include "../gravity/mg_gravity.hpp"
-#endif // MULTIGRID
 #include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
 #include "../mesh/mesh_refinement.hpp"
-#ifdef MULTIGRID
-#include "../multigrid/multigrid.hpp"
-#endif // MULTIGRID
 #include "../parameter_input.hpp"
 #include "../scalars/scalars.hpp"
 #include "../utils/buffer_utils.hpp"
@@ -144,6 +138,8 @@ BoundaryValues::BoundaryValues(MeshBlock *pmb, BoundaryFlag *input_bcs,
   bvars_aux.reserve(2);
   bvars_rbc.reserve(2);
 
+  bvars_m1.reserve(1);
+
   // Matches initial value of Mesh::next_phys_id_
   // reserve phys=0 for former TAG_AMR=8; now hard-coded in Mesh::CreateAMRMPITag()
   bvars_next_phys_id_ = 1;
@@ -217,6 +213,11 @@ void BoundaryValues::SetupPersistentMPI() {
   }
 
   for (auto bvars_it = bvars_rbc.begin(); bvars_it != bvars_rbc.end();
+       ++bvars_it) {
+    (*bvars_it)->SetupPersistentMPI();
+  }
+
+  for (auto bvars_it = bvars_m1.begin(); bvars_it != bvars_m1.end();
        ++bvars_it) {
     (*bvars_it)->SetupPersistentMPI();
   }
@@ -318,6 +319,11 @@ void BoundaryValues::StartReceiving(BoundaryCommSubset phase)
   if (SHEARING_BOX) {
     StartReceivingShear(phase);
   }
+
+  if (M1_ENABLED)
+  {
+    StartReceivingM1(phase);
+  }
   return;
 }
 
@@ -359,8 +365,10 @@ void BoundaryValues::StartReceivingShear(BoundaryCommSubset phase) {
 //! \fn void BoundaryValues::ClearBoundary(BoundaryCommSubset phase)
 //  \brief clean up the boundary flags after each loop
 
-void BoundaryValues::ClearBoundary(BoundaryCommSubset phase)
-{
+void BoundaryValues::ClearBoundary(BoundaryCommSubset phase) {
+  // Note BoundaryCommSubset::mesh_init corresponds to initial exchange of conserved fluid
+  // variables and magentic fields, while BoundaryCommSubset::gr_amr corresponds to fluid
+  // primitive variables sent only in the case of GR with refinement
   // Cf. StartReceiving
   switch (phase)
   {
@@ -397,6 +405,28 @@ void BoundaryValues::ClearBoundary(BoundaryCommSubset phase)
     {
       assert(false);
     }
+  }
+
+  if (M1_ENABLED)
+  {
+    ClearBoundaryM1(phase);
+  }
+
+  return;
+}
+
+void BoundaryValues::StartReceivingM1(BoundaryCommSubset phase) {
+  for (auto bvars_it = bvars_m1.begin(); bvars_it != bvars_m1.end();
+       ++bvars_it) {
+    (*bvars_it)->StartReceiving(phase);
+  }
+  return;
+}
+
+void BoundaryValues::ClearBoundaryM1(BoundaryCommSubset phase) {
+  for (auto bvars_it = bvars_m1.begin(); bvars_it != bvars_m1.end();
+       ++bvars_it) {
+    (*bvars_it)->ClearBoundary(phase);
   }
   return;
 }
@@ -699,7 +729,6 @@ void BoundaryValues::ApplyPhysicalBoundaries(
   }
   return;
 }
-
 
 //----------------------------------------------------------------------------------------
 //! \fn void BoundaryValues::ApplyPhysicalVertexCenteredBoundaries(const Real time, const Real dt)

@@ -10,6 +10,9 @@
 #include "../hydro/hydro.hpp"
 #include "../scalars/scalars.hpp"
 #include "../utils/linear_algebra.hpp"
+#if M1_ENABLED
+#include "../m1/m1.hpp"
+#endif // M1_ENABLED
 
 using namespace gra::aliases;
 
@@ -59,9 +62,10 @@ void Z4c::GetMatter(::AA & u_mat, ::AA & u_adm, ::AA & w, ::AA & bb_cc)
   // --------------------------------------------------------------------------
 
   // quantities we have (sliced below)
-  AthenaArray<Real> & sl_w = (
-    (opt.fix_admsource == 0) ? w : phydro->w_init
-  );
+  AthenaArray<Real> & sl_w = w;
+#if USETM
+  AthenaArray<Real> & sl_scalars = r;
+#endif
 
   AT_N_sca sl_w_rho(   sl_w, IDN);
   AT_N_sca sl_w_p(     sl_w, IPR);
@@ -72,16 +76,9 @@ void Z4c::GetMatter(::AA & u_mat, ::AA & u_adm, ::AA & w, ::AA & bb_cc)
 #endif
 
 #if MAGNETIC_FIELDS_ENABLED
-  AT_N_vec sl_bb;  // BD: TODO this is not properly populated?
-  if(opt.fix_admsource==0)
-  {
-    sl_bb.InitWithShallowSlice(bb_cc, IB1);
-    // BD: TODO check this (? what to do for fixed source)
-  }
+  AT_N_vec sl_bb;
+  sl_bb.InitWithShallowSlice(bb_cc, IB1);
 #endif
-
-  // AT_N_sca alpha( pz4c->storage.u, Z4c::I_Z4c_alpha);
-  // AT_N_vec beta_u(pz4c->storage.u, Z4c::I_Z4c_betax);
 
   if(opt.Tmunuinterp==0)
   {
@@ -299,6 +296,24 @@ void Z4c::GetMatter(::AA & u_mat, ::AA & u_adm, ::AA & w, ::AA & bb_cc)
     }
 
   }
+
+#if M1_ENABLED
+
+  if (pmb->pm1->opt.couple_sources_ADM)
+  {
+
+#ifndef Z4C_CX_ENABLED
+    #pragma omp critical
+    {
+      std::cout << "M1 source recoupling requires Z4c with CX sampling \n.";
+      std::exit(0);
+    }
+#endif
+    pmb->pm1->CoupleSourcesADM(mat.rho, mat.S_d, mat.S_dd);
+  }
+
+#endif // M1_ENABLED
+
 
 #endif // Z4C_WITH_HYDRO_ENABLED
 }

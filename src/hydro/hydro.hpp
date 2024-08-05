@@ -14,7 +14,7 @@
 
 // Athena++ headers
 #include "../athena.hpp"
-#include "../athena_arrays.hpp"
+#include "../athena_aliases.hpp"
 #include "../bvals/cc/hydro/bvals_hydro.hpp"
 #include "../mesh/mesh.hpp"
 #include "../eos/eos.hpp"
@@ -42,7 +42,7 @@ class Hydro {
   MeshBlock* pmy_block;    // ptr to MeshBlock containing this Hydro
 
   // conserved and primitive variables
-  AthenaArray<Real> u, w, w_init; // time-integrator memory register #1
+  AthenaArray<Real> u, w; // time-integrator memory register #1
   AthenaArray<Real> u1, w1;       // time-integrator memory register #2
   AthenaArray<Real> u2;           // time-integrator memory register #3
   // (no more than MAX_NREGISTER allowed)
@@ -59,6 +59,7 @@ class Hydro {
   AthenaArray<Real> coarse_cons_, coarse_prim_;
   int refinement_idx{-1};
 
+  // BD: TODO - make the mask more useful
   // prim: w, cons: q
   // q<->w can fail; in this situation values need to be reset
   // It is helpful to make a mask to this end
@@ -68,14 +69,57 @@ class Hydro {
   bool floor_both_states = false;
   bool flux_reconstruction = false;
 
-  // fourth-order intermediate quantities
-  AthenaArray<Real> u_cc, w_cc;      // cell-centered approximations
-
   HydroBoundaryVariable hbvar;
   HydroSourceTerms hsrc;
   HydroDiffusion hdif;
 
-  // functions
+  // scratches ----------------------------------------------------------------
+public:
+  AT_N_sca sqrt_detgamma_;
+  AT_N_sca detgamma_;     // spatial met det
+  AT_N_sca oo_detgamma_;  // 1 / spatial met det
+
+  AT_N_sca alpha_;
+  AT_N_vec beta_u_;
+  AT_N_sym gamma_dd_;
+  AT_N_sym gamma_uu_;
+
+  AT_N_vec w_v_u_l_;
+  AT_N_vec w_v_u_r_;
+
+  AT_N_sca w_norm2_v_l;
+  AT_N_sca w_norm2_v_r;
+
+  AT_N_sca lambda_p_l;
+  AT_N_sca lambda_m_l;
+  AT_N_sca lambda_p_r;
+  AT_N_sca lambda_m_r;
+  AT_N_sca lambda;
+
+  // primitive vel. (covar.)
+  AT_N_vec w_util_d_l_;
+  AT_N_vec w_util_d_r_;
+
+  // Lorentz factor
+  AT_N_sca W_l_;
+  AT_N_sca W_r_;
+
+  // h * rho
+  AT_N_sca w_hrho_l_;
+  AT_N_sca w_hrho_r_;
+
+  // prim / cons shaped scratches
+  AT_H_vec cons_l_;
+  AT_H_vec cons_r_;
+
+  AT_H_vec flux_l_;
+  AT_H_vec flux_r_;
+
+  // Particular to magnetic fields
+  AT_N_vec beta_d_;
+
+public:
+  // functions ----------------------------------------------------------------
   void NewBlockTimeStep();    // computes new timestep on a MeshBlock
   void AddFluxDivergence(const Real wght, AthenaArray<Real> &u_out);
   void CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
@@ -91,6 +135,7 @@ class Hydro {
                                AthenaArray<Real> &bcc, const int order);
 
   void CalculateFluxes_STS();
+
 #if !MAGNETIC_FIELDS_ENABLED  // Hydro:
   void RiemannSolver(
       const int k, const int j, const int il, const int iu,
@@ -105,10 +150,6 @@ class Hydro {
       AthenaArray<Real> &ey, AthenaArray<Real> &ez,
       AthenaArray<Real> &wct, const AthenaArray<Real> &dxw);
 #endif
-
-  void AddGravityFlux();
-  void AddGravityFluxWithGflx();
-  void CalculateGravityFlux(AthenaArray<Real> &phi_in);
 
   inline void FallbackInadmissiblePrimitiveX1_(
     AthenaArray<Real> & zl_,
@@ -411,39 +452,15 @@ class Hydro {
 #endif
 
  private:
-
-  int fix_fluxes;
-  int zero_div;
   AthenaArray<Real> dt1_, dt2_, dt3_;  // scratch arrays used in NewTimeStep
   // scratch space used to compute fluxes
   AthenaArray<Real> dxw_;
-  AthenaArray<Real> x1face_area_, x2face_area_, x3face_area_;
-  AthenaArray<Real> x2face_area_p1_, x3face_area_p1_;
-  AthenaArray<Real> cell_volume_;
   // 2D
   AthenaArray<Real> wl_, wr_, wlb_;
   AthenaArray<Real> r_wl_, r_wr_, r_wlb_;
   AthenaArray<Real> rl_, rr_, rlb_;
 
   AthenaArray<Real> dflx_;
-  AthenaArray<Real> bb_normal_;    // normal magnetic field, for (SR/GR)MHD
-  AthenaArray<Real> lambdas_p_l_;  // most positive wavespeeds in left state
-  AthenaArray<Real> lambdas_m_l_;  // most negative wavespeeds in left state
-  AthenaArray<Real> lambdas_p_r_;  // most positive wavespeeds in right state
-  AthenaArray<Real> lambdas_m_r_;  // most negative wavespeeds in right state
-  // 2D GR
-  AthenaArray<Real> g_, gi_;       // metric and inverse, for some GR Riemann solvers
-  AthenaArray<Real> cons_;         // conserved state, for some GR Riemann solvers
-
-  // self-gravity
-  AthenaArray<Real> gflx[3], gflx_old[3]; // gravity tensor (old Athena style)
-
-  // fourth-order hydro
-  // 4D scratch arrays
-  AthenaArray<Real> scr1_nkji_, scr2_nkji_;
-  AthenaArray<Real> wl3d_, wr3d_;
-  // 1D scratch arrays
-  AthenaArray<Real> laplacian_l_fc_, laplacian_r_fc_;
 
   TimeStepFunc UserTimeStep_;
 

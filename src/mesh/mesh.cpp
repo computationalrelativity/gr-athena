@@ -36,16 +36,8 @@
 #include "../field/field.hpp"
 #include "../field/field_diffusion/field_diffusion.hpp"
 #include "../globals.hpp"
-#include "../gravity/fft_gravity.hpp"
-#include "../gravity/gravity.hpp"
-#ifdef MULTIGRID
-#include "../gravity/mg_gravity.hpp"
-#endif // MULTIGRID
 #include "../hydro/hydro.hpp"
 #include "../hydro/hydro_diffusion/hydro_diffusion.hpp"
-#ifdef MULTIGRID
-#include "../multigrid/multigrid.hpp"
-#endif // MULTIGRID
 #include "../outputs/io_wrapper.hpp"
 #include "../parameter_input.hpp"
 #include "../reconstruct/reconstruction.hpp"
@@ -66,6 +58,7 @@
 // #include "../z4c/ejecta.hpp"
 
 #include "../wave/wave.hpp"
+#include "../m1/m1.hpp"
 
 // MPI/OpenMP header
 #ifdef MPI_PARALLEL
@@ -121,10 +114,6 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     BoundaryFunction_{nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
     AMRFlag_{}, UserSourceTerm_{}, UserTimeStep_{}, ViscosityCoeff_{},
     ConductionCoeff_{}, FieldDiffusivity_{}
-#ifdef MULTIGRID
-    ,MGGravityBoundaryFunction_{MGPeriodicInnerX1, MGPeriodicOuterX1, MGPeriodicInnerX2,
-                                MGPeriodicOuterX2, MGPeriodicInnerX3, MGPeriodicOuterX3}
-#endif // MULTIGRID
   {
 
   std::stringstream msg;
@@ -574,20 +563,6 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     return;
   }
 
-  if (SELF_GRAVITY_ENABLED == 1) {
-    gflag = 1; // set gravity flag
-#ifdef FFT
-    pfgrd = new FFTGravityDriver(this, pin);
-#endif // FFT
-  } else if (SELF_GRAVITY_ENABLED == 2) {
-    // MGDriver must be initialzied before MeshBlocks
-#ifdef MULTIGRID
-    pmgrd = new MGGravityDriver(this, pin);
-#endif // MULTIGRID
-  }
-  //  if (SELF_GRAVITY_ENABLED == 2 && ...) // independent allocation
-  //    gflag = 2;
-
   // create MeshBlock list for this process
   int nbs = nslist[Globals::my_rank];
   int nbe = nbs + nblist[Globals::my_rank] - 1;
@@ -670,10 +645,6 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     BoundaryFunction_{nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
     AMRFlag_{}, UserSourceTerm_{}, UserTimeStep_{}, ViscosityCoeff_{},
     ConductionCoeff_{}, FieldDiffusivity_{}
-#ifdef MULTIGRID
-    ,MGGravityBoundaryFunction_{MGPeriodicInnerX1, MGPeriodicOuterX1, MGPeriodicInnerX2,
-                                MGPeriodicOuterX2, MGPeriodicInnerX3, MGPeriodicOuterX3}
-#endif // MULTIGRID
 {
 
   std::stringstream msg;
@@ -991,20 +962,6 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     return;
   }
 
-  if (SELF_GRAVITY_ENABLED == 1) {
-    gflag = 1; // set gravity flag
-#ifdef FFT
-    pfgrd = new FFTGravityDriver(this, pin);
-#endif // FFT
-  } else if (SELF_GRAVITY_ENABLED == 2) {
-    // MGDriver must be initialzied before MeshBlocks
-#ifdef MULTIGRID
-    pmgrd = new MGGravityDriver(this, pin);
-#endif // MULTIGRID
-  }
-  //  if (SELF_GRAVITY_ENABLED == 2 && ...) // independent allocation
-  //    gflag=2;
-
   // allocate data buffer
   int nb = nblist[Globals::my_rank];
   int nbs = nslist[Globals::my_rank];
@@ -1079,18 +1036,6 @@ Mesh::~Mesh() {
   delete [] ranklist;
   delete [] costlist;
   delete [] loclist;
-  if (SELF_GRAVITY_ENABLED == 1)
-  {
-#ifdef FFT
-    delete pfgrd;
-#endif // FFT
-  }
-  else if (SELF_GRAVITY_ENABLED == 2)
-  {
-#ifdef MULTIGRID
-    delete pmgrd;
-#endif // MULTIGRID
-  }
 
 #ifdef FFT
   if (turb_flag > 0) delete ptrbd;
@@ -1374,36 +1319,6 @@ void Mesh::EnrollUserBoundaryFunction(BoundaryFace dir, BValFunc my_bc) {
 }
 
 //----------------------------------------------------------------------------------------
-//! \fn void Mesh::EnrollUserMGGravityBoundaryFunction(BoundaryFace dir
-//                                                     MGBoundaryFunc my_bc)
-//  \brief Enroll a user-defined Multigrid boundary function
-#ifdef MULTIGRID
-void Mesh::EnrollUserMGGravityBoundaryFunction(BoundaryFace dir, MGBoundaryFunc my_bc) {
-  std::stringstream msg;
-  if (dir < 0 || dir > 5) {
-    msg << "### FATAL ERROR in EnrollBoundaryCondition function" << std::endl
-        << "dirName = " << dir << " not valid" << std::endl;
-    ATHENA_ERROR(msg);
-  }
-  MGGravityBoundaryFunction_[static_cast<int>(dir)] = my_bc;
-  return;
-}
-#endif // MULTIGRID
-
-// DEPRECATED(felker): provide trivial overloads for old-style BoundaryFace enum argument
-void Mesh::EnrollUserBoundaryFunction(int dir, BValFunc my_bc) {
-  EnrollUserBoundaryFunction(static_cast<BoundaryFace>(dir), my_bc);
-  return;
-}
-
-#ifdef MULTIGRID
-void Mesh::EnrollUserMGGravityBoundaryFunction(int dir, MGBoundaryFunc my_bc) {
-  EnrollUserMGGravityBoundaryFunction(static_cast<BoundaryFace>(dir), my_bc);
-  return;
-}
-#endif // MULTIGRID
-
-//----------------------------------------------------------------------------------------
 //! \fn void Mesh::EnrollUserRefinementCondition(AMRFlagFunc amrflag)
 //  \brief Enroll a user-defined function for checking refinement criteria
 
@@ -1621,23 +1536,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       MeshBlock *pmb = pmb_array[i];
       // BoundaryVariable objects evolved in main TimeIntegratorTaskList:
       pmb->pbval->SetupPersistentMPI();
-      // other BoundaryVariable objects:
-      if (SELF_GRAVITY_ENABLED == 1)
-        pmb->pgrav->gbvar.SetupPersistentMPI();
-    }
 
-    // solve gravity for the first time
-    if (SELF_GRAVITY_ENABLED == 1)
-    {
-#ifdef FFT
-      pfgrd->Solve(1, 0);
-#endif // FFT
-    }
-    else if (SELF_GRAVITY_ENABLED == 2)
-    {
-#ifdef MULTIGRID
-      pmgrd->Solve(1);
-#endif // MULTIGRID
     }
 
 #pragma omp parallel num_threads(nthreads)
@@ -1690,6 +1589,9 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 
         if (Z4C_ENABLED)
           pmb->pz4c->ubvar.SendBoundaryBuffers();
+
+        if (M1_ENABLED)
+          pmb->pm1->ubvar.SendBoundaryBuffers();
       }
 
       // wait to receive conserved variables
@@ -1723,6 +1625,9 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 
         if (Z4C_ENABLED)
           pmb->pz4c->ubvar.ReceiveAndSetBoundariesWithWait();
+
+        if (M1_ENABLED)
+          pmb->pm1->ubvar.ReceiveAndSetBoundariesWithWait();
 
         pbval->ClearBoundary(BoundaryCommSubset::mesh_init);
       }
@@ -1774,17 +1679,6 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
         }
       } // multilevel
 #endif  // DBG_USE_CONS_BC
-
-#if FLUID_ENABLED
-      if (FLUID_ENABLED) {
-        // perform fourth-order correction of midpoint initial condition:
-        // (correct IC on all MeshBlocks or none; switch cannot be toggled independently)
-        bool correct_ic = pmb_array[0]->precon->correct_ic;
-        if (correct_ic){
-          CorrectMidpointInitialCondition(pmb_array, nmb);
-        }
-      }
-#endif // FLUID_ENABLED
 
       // Now do prolongation, compute primitives, apply BCs
       Hydro *ph = nullptr;
@@ -1865,7 +1759,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
                                           ps->r,
 #endif
                                           pf->bcc, pmb->pcoord,
-#if Z4C_ENABLED || WAVE_ENABLED
+#if Z4C_ENABLED || WAVE_ENABLED || M1_ENABLED
                                           0, pmb->ncells1-1,
                                           0, pmb->ncells2-1,
                                           0, pmb->ncells3-1, 0);
@@ -1904,12 +1798,11 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 #endif
                                           pf->bcc,
                                           pmb->pcoord,
-#if Z4C_ENABLED || WAVE_ENABLED
+#if Z4C_ENABLED || WAVE_ENABLED || M1_ENABLED
                                           il, iu, jl, ju, kl, ku,0);
 #else
                                           il, iu, jl, ju, kl, ku);
 #endif
-
         }
 
 #if !USETM
@@ -1922,40 +1815,6 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 #endif
 
 #endif // DBG_USE_CONS_BC
-
-        // --------------------------
-        if (FLUID_ENABLED)
-        {
-          int order = pmb->precon->xorder;
-          if (order == 4) {
-            // fourth-order EOS:
-            // for hydro, shrink buffer by 1 on all sides
-            if (pbval->nblevel[1][1][0] != -1) il += 1;
-            if (pbval->nblevel[1][1][2] != -1) iu -= 1;
-            if (pbval->nblevel[1][0][1] != -1) jl += 1;
-            if (pbval->nblevel[1][2][1] != -1) ju -= 1;
-            if (pbval->nblevel[0][1][1] != -1) kl += 1;
-            if (pbval->nblevel[2][1][1] != -1) ku -= 1;
-            // for MHD, shrink buffer by 3
-            // TODO(felker): add MHD loop limit calculation for 4th order W(U)
-            pmb->peos->ConservedToPrimitiveCellAverage(ph->u, ph->w1, pf->b,
-                                                        ph->w, 
-#if USETM
-                                                        ps->s, ps->r,
-#endif
-                                                        pf->bcc, pmb->pcoord,
-                                                        il, iu, jl, ju, kl, ku);
-
-#if !USETM
-            if (NSCALARS > 0) {
-              pmb->peos->PassiveScalarConservedToPrimitiveCellAverage(
-                ps->s, ps->r, ps->r, pmb->pcoord, il, iu, jl, ju, kl, ku);
-            }
-#endif
-          }
-        }
-        // --------------------------
-        // end fourth-order EOS
 
 #ifndef DBG_USE_CONS_BC
 #if FLUID_ENABLED
@@ -2058,6 +1917,10 @@ if(Z4C_ENABLED && FLUID_ENABLED)
 
     if (Z4C_ENABLED)
       pmb_array[i]->pz4c->NewBlockTimeStep();
+
+    if (M1_ENABLED)
+      pmb_array[i]->pm1->NewBlockTimeStep();
+
   }
 
   NewTimeStep();
@@ -2169,121 +2032,6 @@ void Mesh::SetBlockSizeAndBoundaries(LogicalLocation loc, RegionSize &block_size
   return;
 }
 
-
-#if FLUID_ENABLED
-void Mesh::CorrectMidpointInitialCondition(std::vector<MeshBlock*> &pmb_array, int nmb) {
-  MeshBlock *pmb;
-  Hydro *ph;
-  PassiveScalars *ps;
-#pragma omp for private(pmb, ph, ps)
-  for (int nb=0; nb<nmb; ++nb) {
-    pmb = pmb_array[nb];
-    ph = pmb->phydro;
-    ps = pmb->pscalars;
-
-    // Assume cell-centered analytic value is computed at all real cells, and ghost
-    // cells with the cell-centered U have been exchanged
-    int il = pmb->is, iu = pmb->ie, jl = pmb->js, ju = pmb->je,
-        kl = pmb->ks, ku = pmb->ke;
-
-    // Laplacian of cell-averaged conserved variables, scalar concentrations
-    AthenaArray<Real> delta_cons_, delta_s_;
-
-    // Allocate memory for 4D Laplacian
-    int ncells4 = NHYDRO;
-    int nl = 0;
-    int nu = ncells4 - 1;
-    delta_cons_.NewAthenaArray(ncells4, pmb->ncells3, pmb->ncells2, pmb->ncells1);
-
-    // Compute and store Laplacian of cell-averaged conserved variables
-    pmb->pcoord->Laplacian(ph->u, delta_cons_, il, iu, jl, ju, kl, ku, nl, nu);
-
-    // TODO(felker): assuming uniform mesh with dx1f=dx2f=dx3f, so this factors out
-    // TODO(felker): also, this may need to be dx1v, since Laplacian is cell-center
-    Real h = pmb->pcoord->dx1f(il);  // pco->dx1f(i); inside loop
-    Real C = (h*h)/24.0;
-
-    // Compute fourth-order approximation to cell-centered conserved variables
-    for (int n=nl; n<=nu; ++n) {
-      for (int k=kl; k<=ku; ++k) {
-        for (int j=jl; j<=ju; ++j) {
-          for (int i=il; i<=iu; ++i) {
-            // We do not actually need to store all cell-centered cons. variables,
-            // but the ConservedToPrimitivePointwise() implementation operates on 4D
-            ph->u(n,k,j,i) = ph->u(n,k,j,i) + C*delta_cons_(n,k,j,i);
-          }
-        }
-      }
-    }
-
-    // If NSCALARS < NHYDRO, could reuse delta_cons_ allocated memory...
-    int ncells4_s = NSCALARS;
-    int nl_s = 0;
-    int nu_s = ncells4_s -1;
-    if (NSCALARS > 0) {
-      delta_s_.NewAthenaArray(ncells4_s, pmb->ncells3, pmb->ncells2, pmb->ncells1);
-      pmb->pcoord->Laplacian(ps->s, delta_s_, il, iu, jl, ju, kl, ku, nl_s, nu_s);
-    }
-
-    // Compute fourth-order approximation to cell-centered conserved variables
-    for (int n=nl_s; n<=nu_s; ++n) {
-      for (int k=kl; k<=ku; ++k) {
-        for (int j=jl; j<=ju; ++j) {
-          for (int i=il; i<=iu; ++i) {
-            ps->s(n,k,j,i) = ps->s(n,k,j,i) + C*delta_s_(n,k,j,i);
-          }
-        }
-      }
-    }
-  } // end loop over MeshBlocks
-
-  // begin second exchange of ghost cells with corrected cell-averaged <U>
-  // -----------------  (mostly copied from above section in Mesh::Initialize())
-  BoundaryValues *pbval;
-  // prepare to receive conserved variables
-#pragma omp for private(pmb,pbval)
-  for (int i=0; i<nmb; ++i) {
-    pmb = pmb_array[i]; pbval = pmb->pbval;
-    if (SHEARING_BOX) {
-      pbval->ComputeShear(time);
-    }
-    // no need to re-SetupPersistentMPI() the MPI requests for boundary values
-    pbval->StartReceiving(BoundaryCommSubset::mesh_init);
-  }
-
-#pragma omp for private(pmb,pbval)
-  for (int i=0; i<nmb; ++i) {
-    pmb = pmb_array[i];
-    pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->u,
-                                           HydroBoundaryQuantity::cons);
-    pmb->phydro->hbvar.SendBoundaryBuffers();
-    if (MAGNETIC_FIELDS_ENABLED)
-      pmb->pfield->fbvar.SendBoundaryBuffers();
-    // and (conserved variable) passive scalar masses:
-    if (NSCALARS > 0)
-      pmb->pscalars->sbvar.SendBoundaryBuffers();
-  }
-
-  // wait to receive conserved variables
-#pragma omp for private(pmb,pbval)
-  for (int i=0; i<nmb; ++i) {
-    pmb = pmb_array[i]; pbval = pmb->pbval;
-    pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->u,
-                                           HydroBoundaryQuantity::cons);
-    pmb->phydro->hbvar.ReceiveAndSetBoundariesWithWait();
-    if (MAGNETIC_FIELDS_ENABLED)
-      pmb->pfield->fbvar.ReceiveAndSetBoundariesWithWait();
-    if (NSCALARS > 0)
-      pmb->pscalars->sbvar.ReceiveAndSetBoundariesWithWait();
-    if (SHEARING_BOX) {
-      pmb->phydro->hbvar.AddHydroShearForInit();
-    }
-    pbval->ClearBoundary(BoundaryCommSubset::mesh_init);
-  } // end second exchange of ghost cells
-  return;
-}
-#endif // FLUID_ENABLED
-
 // Public function for advancing next_phys_id_ counter
 // E.g. if chemistry or radiation elects to communicate additional information with MPI
 // outside the framework of the BoundaryVariable classes
@@ -2318,9 +2066,6 @@ void Mesh::ReserveMeshBlockPhysIDs() {
   if (MAGNETIC_FIELDS_ENABLED) {
     ReserveTagPhysIDs(FaceCenteredBoundaryVariable::max_phys_id);
   }
-  if (SELF_GRAVITY_ENABLED) {
-    ReserveTagPhysIDs(CellCenteredBoundaryVariable::max_phys_id);
-  }
   if (NSCALARS > 0) {
     ReserveTagPhysIDs(CellCenteredBoundaryVariable::max_phys_id);
   }
@@ -2345,6 +2090,11 @@ void Mesh::ReserveMeshBlockPhysIDs() {
     #else // VC
       ReserveTagPhysIDs(VertexCenteredBoundaryVariable::max_phys_id);
     #endif
+  }
+
+  if (M1_ENABLED)
+  {
+    ReserveTagPhysIDs(CellCenteredBoundaryVariable::max_phys_id);
   }
 
 #endif

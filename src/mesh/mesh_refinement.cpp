@@ -41,21 +41,40 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) :
     AMRFlag_(pmb->pmy_mesh->AMRFlag_) {
 
   // Create coarse mesh object for parent grid
-  if (std::strcmp(COORDINATE_SYSTEM, "cartesian") == 0) {
+  if (std::strcmp(COORDINATE_SYSTEM, "cartesian") == 0)
+  {
     pcoarsec = new Cartesian(pmb, pin, true);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "cylindrical") == 0) {
+  }
+  else if (std::strcmp(COORDINATE_SYSTEM, "cylindrical") == 0)
+  {
     pcoarsec = new Cylindrical(pmb, pin, true);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "spherical_polar") == 0) {
+  }
+  else if (std::strcmp(COORDINATE_SYSTEM, "spherical_polar") == 0)
+  {
     pcoarsec = new SphericalPolar(pmb, pin, true);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "minkowski") == 0) {
+  }
+  else if (std::strcmp(COORDINATE_SYSTEM, "spherical_polar_uniform") == 0)
+  {
+    pcoarsec = new SphericalPolarUniform(pmb, pin, true);
+  }
+  else if (std::strcmp(COORDINATE_SYSTEM, "minkowski") == 0)
+  {
     pcoarsec = new Minkowski(pmb, pin, true);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "schwarzschild") == 0) {
+  }
+  else if (std::strcmp(COORDINATE_SYSTEM, "schwarzschild") == 0)
+  {
     pcoarsec = new Schwarzschild(pmb, pin, true);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "kerr-schild") == 0) {
+  }
+  else if (std::strcmp(COORDINATE_SYSTEM, "kerr-schild") == 0)
+  {
     pcoarsec = new KerrSchild(pmb, pin, true);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "gr_user") == 0) {
+  }
+  else if (std::strcmp(COORDINATE_SYSTEM, "gr_user") == 0)
+  {
     pcoarsec = new GRUser(pmb, pin, true);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "gr_dynamical") == 0) {
+  }
+  else if (std::strcmp(COORDINATE_SYSTEM, "gr_dynamical") == 0)
+  {
     pcoarsec = new GRDynamical(pmb, pin, true);
   }
 
@@ -91,6 +110,8 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) :
   pvars_aux_fc_.reserve(3);
   pvars_aux_vc_.reserve(3);
   pvars_aux_cx_.reserve(3);
+
+  pvars_m1_cc_.reserve(3);
 
   // --------------------------------------------------------------------------
   // init interpolation op based on underlying dimensionality
@@ -3964,6 +3985,18 @@ void MeshRefinement::SwapRefinementAux()
   std::swap(pvars_fc_, pvars_aux_fc_);
   std::swap(pvars_cx_, pvars_aux_cx_);
   std::swap(pvars_vc_, pvars_aux_vc_);
+}
+
+int MeshRefinement::AddToRefinementM1CC(AthenaArray<Real> *pvar_in,
+                                        AthenaArray<Real> *pcoarse_in)
+{
+  pvars_m1_cc_.push_back(std::make_tuple(pvar_in, pcoarse_in));
+  return static_cast<int>(pvars_m1_cc_.size() - 1);
+}
+
+void MeshRefinement::SwapRefinementM1()
+{
+  std::swap(pvars_cc_, pvars_m1_cc_);
 }
 
 // Currently, only called in 2x functions in bvals_refine.cpp:

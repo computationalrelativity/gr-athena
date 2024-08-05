@@ -115,6 +115,8 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   // recycle boundary data through iterated comm.
   std::vector<BoundaryVariable *> bvars_rbc;
 
+  // communication for m1
+  std::vector<BoundaryVariable *> bvars_m1;
 
   // inherited functions (interface shared with BoundaryVariable objects):
   // ------
@@ -131,11 +133,15 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   // non-inhertied / unique functions (do not exist in BoundaryVariable objects):
   // (these typically involve a coupled interaction of boundary variable/quantities)
   // ------
+  void StartReceivingM1(BoundaryCommSubset phase);
+  void ClearBoundaryM1(BoundaryCommSubset phase);
+
 
   void ApplyPhysicalBoundaries(const Real time, const Real dt);
   void ProlongateHydroBoundaries(const Real time, const Real dt);
   void ProlongateBoundaries(const Real time, const Real dt);
   void ProlongateBoundariesAux(const Real time, const Real dt);
+  void ProlongateBoundariesM1(const Real time, const Real dt);
 
   //--New logic for vertex-centering
   void ApplyPhysicalVertexCenteredBoundaries(const Real time, const Real dt);
@@ -147,6 +153,7 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
 
   // Interface to deal with garbage interface...
   void ApplyPhysicalBoundariesAux(const Real time, const Real dt);
+  void ApplyPhysicalBoundariesM1(const Real time, const Real dt);
 
   // compute the shear at each integrator stage
   // TODO(felker): consider making this fn private again if calling within StartRecv()
@@ -238,6 +245,21 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
       std::vector<BoundaryVariable *> &bvars_main);
 
   void CheckPolarBoundaries();  // called in BoundaryValues() ctor
+
+  // M1 specific --------------------------------------------------------------
+  void RestrictGhostCellsOnSameLevelM1(
+    const NeighborBlock& nb, int nk,
+    int nj, int ni);
+
+  void ApplyPhysicalBoundariesOnCoarseLevelM1(
+    const NeighborBlock& nb, const Real time, const Real dt,
+    int si, int ei, int sj, int ej, int sk, int ek);
+
+  void ProlongateGhostCellsM1(
+    const NeighborBlock& nb,
+    int si, int ei, int sj, int ej,
+    int sk, int ek);
+  // --------------------------------------------------------------------------
 
 
   // temporary--- Added by @tomidakn on 2015-11-27 in f0f989f85f

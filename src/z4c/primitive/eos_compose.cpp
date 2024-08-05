@@ -96,10 +96,8 @@ Real EOSCompOSE::TemperatureFromP(Real n, Real p, Real *Y) {
   Real p_min = MinimumPressure(n, Y);
   Real p_max = MaximumPressure(n,Y);
 
-  
-  return (p <= p_min) ? min_T : (p >= p_max) ? max_T : 
+  return (p <= p_min) ? min_T : (p >= p_max) ? max_T :
 	       temperature_from_var(ECLOGP, log(p), n, Y[0]);
-	 	  
 }
 
 Real EOSCompOSE::Energy(Real n, Real T, Real *Y) {

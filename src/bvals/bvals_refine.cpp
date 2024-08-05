@@ -775,7 +775,7 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
 
   // KGF: COUPLING OF QUANTITIES (must be manually specified)
   // calculate conservative variables
-  if (FLUID_ENABLED) {
+#if FLUID_ENABLED
     ph = pmb->phydro;
 #if USETM
     pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pmb->pcoord,
@@ -784,7 +784,7 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
     pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pmb->pcoord,
                                     fsi, fei, fsj, fej, fsk, fek);
 #endif
-  }
+#endif
 
 #if !USETM
   if (NSCALARS > 0) {

@@ -10,7 +10,7 @@
 
 // Athena++ classes headers
 #include "../athena.hpp"
-#include "../athena_arrays.hpp"
+#include "../athena_aliases.hpp"
 #include "../mesh/mesh.hpp"
 
 // #include "../utils/finite_differencing.hpp"
@@ -19,6 +19,10 @@
 #include "../bvals/cx/bvals_cx.hpp"
 
 #include "../utils/finite_differencing.hpp"
+
+//-----------------------------------------------------------------------------
+using namespace gra::aliases;
+//-----------------------------------------------------------------------------
 
 class MeshBlock;
 class ParameterInput;
@@ -66,7 +70,10 @@ public:
   AthenaArray<Real> coarse_u_;
   int refinement_idx{-1};
 
-  // functions
+  // BT style integrators -----------------------------------------------------
+  std::vector<AthenaArray<Real>> bt_k;
+
+  // functions ----------------------------------------------------------------
   Real NewBlockTimeStep(void);  // compute new timestep on a MeshBlock
   void WaveRHS(AthenaArray<Real> &u);
   void WaveBoundaryRHS(AthenaArray<Real> &u);
@@ -101,34 +108,6 @@ private:
 
 
   FiniteDifference::Uniform *fd;
-// private:
-
-//   struct {
-//     typedef FDCenteredStencil<2, 4-1> stencil;
-
-//     int stride[3];
-//     Real idx[3];
-
-//     inline Real Ds(int dir, Real & u) {
-//       Real * pu = &u;
-//       return 0.5 * idx[dir] * (pu[stride[dir]] - pu[-stride[dir]]);
-//     }
-
-//     inline Real Dxx(int dir, Real & u) {
-//       Real * pu = &u - stencil::offset*stride[dir];
-
-//       Real out(0.);
-//       for(int n1 = 0; n1 < stencil::nghost; ++n1) {
-//         int const n2  = stencil::width - n1 - 1;
-//         Real const c1 = stencil::coeff[n1] * pu[n1*stride[dir]];
-//         Real const c2 = stencil::coeff[n2] * pu[n2*stride[dir]];
-//         out += (c1 + c2);
-//       }
-//       out += stencil::coeff[stencil::nghost] * pu[stencil::nghost*stride[dir]];
-
-//       return out*SQR(idx[dir]);
-//     }
-//   } FD;
 
 };
 #endif // WAVE_HPP

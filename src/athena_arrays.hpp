@@ -86,6 +86,9 @@ class AthenaArray {
                                                int nx2, int nx1);
   void DeleteAthenaArray();
 
+  // deep copy of another Array **of the same size**
+  void DeepCopy(AthenaArray<T> const & array2);
+
   // public function to swap underlying data pointers of two equally-sized arrays
   void SwapAthenaArray(AthenaArray<T>& array2);
   void ZeroClear();
@@ -179,6 +182,8 @@ class AthenaArray {
 
   // make use of internal dim if not provided
   void InitWithShallowSlice(AthenaArray<T> &src, const int indx, const int nvar);
+
+  void InitWithShallowSlice(AthenaArray<T> &src);
 
   // --------------------------------------------------------------------------
   // dump to file for debug
@@ -690,11 +695,26 @@ void AthenaArray<T>::InitWithShallowSlice(AthenaArray<T> &src, const int dim,
   return;
 }
 
-
 template<typename T>
 void AthenaArray<T>::InitWithShallowSlice(AthenaArray<T> &src,
                                           const int indx, const int nvar) {
   InitWithShallowSlice(src, src.dim_, indx, nvar);
+}
+
+template<typename T>
+void AthenaArray<T>::InitWithShallowSlice(AthenaArray<T> &src) {
+  dim_ = src.dim_;
+  pdata_ = src.pdata_;
+
+  nx6_ = src.nx6_;
+  nx5_ = src.nx5_;
+  nx4_ = src.nx4_;
+  nx3_ = src.nx3_;
+  nx2_ = src.nx2_;
+  nx1_ = src.nx1_;
+
+  state_ = DataStatus::shallow_slice;
+  return;
 }
 
 //----------------------------------------------------------------------------------------
@@ -866,6 +886,18 @@ template<typename T>
       state_ = DataStatus::empty;
       break;
     }
+  }
+
+  //----------------------------------------------------------------------------------------
+  //! \fn void AthenaArray::DeepCopy()
+  //! \brief Copies the content of another array
+  //!
+  //! **THIS REQUIRES THAT THE DESTINATION AND SOURCE ARRAYS BE ALREADY ALLOCATED (state_ !=
+  //! empty) AND HAVE THE SAME SIZES (does not explicitly check either condition)**
+
+  template<typename T>
+  void AthenaArray<T>::DeepCopy(AthenaArray<T> const & array2) {
+    std::memcpy(pdata_, array2.pdata_, array2.GetSizeInBytes());
   }
 
   //----------------------------------------------------------------------------------------

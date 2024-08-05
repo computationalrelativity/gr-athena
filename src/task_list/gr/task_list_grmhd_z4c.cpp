@@ -9,7 +9,6 @@
 #include "../../bvals/bvals.hpp"
 #include "../../eos/eos.hpp"
 #include "../../field/field.hpp"
-#include "../../gravity/gravity.hpp"
 #include "../../hydro/hydro.hpp"
 #include "../../hydro/srcterms/hydro_srcterms.hpp"
 #include "../../mesh/mesh.hpp"
@@ -22,6 +21,9 @@
 #include "task_list.hpp"
 #include "task_names.hpp"
 
+#if M1_ENABLED
+#include "../../m1/m1.hpp"
+#endif
 
 // ----------------------------------------------------------------------------
 using namespace TaskLists::GeneralRelativity;
@@ -851,18 +853,6 @@ void GRMHD_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
   BoundaryValues *pb   = pmb->pbval;
   Z4c            *pz4c = pmb->pz4c;
 
-  // Application of Sommerfeld boundary conditions
-  pz4c->Z4cBoundaryRHS(pz4c->storage.u, pz4c->storage.mat, pz4c->storage.rhs);
-
-  const Real t_end = this->t_end(stage, pmb);
-  const Real dt_scaled = this->dt_scaled(stage, pmb);
-
-  FCN_CC_CX_VC(
-    pb->ApplyPhysicalBoundaries,
-    pb->ApplyPhysicalCellCenteredXBoundaries,
-    pb->ApplyPhysicalVertexCenteredBoundaries
-  )(t_end, dt_scaled);
-
   if (stage == 1)
   {
     if (integrator == "ssprk5_4")
@@ -1089,6 +1079,14 @@ TaskStatus GRMHD_Z4c::AddSourceTermsHydro(MeshBlock *pmb, int stage)
                                 ps->r, pf->bcc, ph->u);
 #else
     pc->AddCoordTermsDivergence(dt_scaled, ph->flux, ph->w, pf->bcc, ph->u);
+#endif
+
+#if M1_ENABLED
+    ::M1::M1 * pm1 = pmb->pm1;
+    if (pm1->opt.couple_sources_hydro)
+    {
+      pm1->CoupleSourcesHydro(dt_scaled, ph->u);
+    }
 #endif
 
     return TaskStatus::next;
@@ -1408,6 +1406,23 @@ TaskStatus GRMHD_Z4c::IntegrateScalars(MeshBlock *pmb, int stage)
 
     const Real dt_scaled = this->dt_scaled(stage, pmb);
     ps->AddFluxDivergence(dt_scaled, ps->s);
+
+#if M1_ENABLED & USETM
+    ::M1::M1 * pm1 = pmb->pm1;
+
+    if (pm1->opt.couple_sources_Y_e)
+    {
+      if (pm1->N_SPCS != 3)
+      #pragma omp critical
+      {
+        std::cout << "M1: couple_sources_Y_e supported for 3 species \n";
+        std::exit(0);
+      }
+
+      const Real mb = pmb->peos->GetEOS().GetBaryonMass();
+      pm1->CoupleSourcesYe(dt_scaled, mb, ps->s);
+    }
+#endif
 
     return TaskStatus::next;
   }

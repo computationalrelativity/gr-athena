@@ -28,10 +28,6 @@
 #include "../fft/athena_fft.hpp"
 #include "../field/field.hpp"
 #include "../globals.hpp"
-#include "../gravity/gravity.hpp"
-#ifdef MULTIGRID
-#include "../gravity/mg_gravity.hpp"
-#endif // MULTIGRID
 #include "../hydro/hydro.hpp"
 #include "../parameter_input.hpp"
 #include "../reconstruct/reconstruction.hpp"
@@ -44,6 +40,7 @@
 #include "../z4c/wave_extract.hpp"
 #include "../wave/wave.hpp"
 #include "../trackers/extrema_tracker.hpp"
+#include "../m1/m1.hpp"
 
 //----------------------------------------------------------------------------------------
 // MeshBlock constructor: constructs coordinate, boundary condition, hydro, field
@@ -80,21 +77,40 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   pbval  = new BoundaryValues(this, input_bcs, pin);
 
   // Coordinates
-  if (std::strcmp(COORDINATE_SYSTEM, "cartesian") == 0) {
+  if (std::strcmp(COORDINATE_SYSTEM, "cartesian") == 0)
+  {
     pcoord = new Cartesian(this, pin, false);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "cylindrical") == 0) {
+  }
+  else if (std::strcmp(COORDINATE_SYSTEM, "cylindrical") == 0)
+  {
     pcoord = new Cylindrical(this, pin, false);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "spherical_polar") == 0) {
+  }
+  else if (std::strcmp(COORDINATE_SYSTEM, "spherical_polar") == 0)
+  {
     pcoord = new SphericalPolar(this, pin, false);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "minkowski") == 0) {
+  }
+  else if (std::strcmp(COORDINATE_SYSTEM, "spherical_polar_uniform") == 0)
+  {
+    pcoord = new SphericalPolarUniform(this, pin, false);
+  }
+  else if (std::strcmp(COORDINATE_SYSTEM, "minkowski") == 0)
+  {
     pcoord = new Minkowski(this, pin, false);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "schwarzschild") == 0) {
+  }
+  else if (std::strcmp(COORDINATE_SYSTEM, "schwarzschild") == 0)
+  {
     pcoord = new Schwarzschild(this, pin, false);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "kerr-schild") == 0) {
+  }
+  else if (std::strcmp(COORDINATE_SYSTEM, "kerr-schild") == 0)
+  {
     pcoord = new KerrSchild(this, pin, false);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "gr_user") == 0) {
+  }
+  else if (std::strcmp(COORDINATE_SYSTEM, "gr_user") == 0)
+  {
     pcoord = new GRUser(this, pin, false);
-  } else if (std::strcmp(COORDINATE_SYSTEM, "gr_dynamical") == 0) {
+  }
+  else if (std::strcmp(COORDINATE_SYSTEM, "gr_dynamical") == 0)
+  {
     pcoord = new GRDynamical(this, pin, false);
   }
 
@@ -115,7 +131,7 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   // background fluid that is not dynamically evolved)
   // 2) MPI ranks containing MeshBlocks that solve a subset of the physics, e.g. Gravity
   // but not Hydro.
-  // 3) MAGNETIC_FIELDS_ENABLED, SELF_GRAVITY_ENABLED, NSCALARS, (future) FLUID_ENABLED,
+  // 3) MAGNETIC_FIELDS_ENABLED, NSCALARS, (future) FLUID_ENABLED,
   // etc. become runtime switches
 
   if (FLUID_ENABLED) {
@@ -132,18 +148,6 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
     // if (this->field_block)
     pfield = new Field(this, pin);
     pbval->AdvanceCounterPhysID(FaceCenteredBoundaryVariable::max_phys_id);
-  }
-
-  if (SELF_GRAVITY_ENABLED) {
-    // if (this->grav_block)
-    pgrav = new Gravity(this, pin);
-    pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
-    if (SELF_GRAVITY_ENABLED == 2)
-    {
-#ifdef MULTIGRID
-      pmg = new MGGravity(pmy_mesh->pmgrd, this);
-#endif // MULTIGRID
-    }
   }
 
   if (NSCALARS > 0) {
@@ -185,6 +189,17 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
     #endif
   }
 
+  if (FLUID_ENABLED) {
+    peos = new EquationOfState(this, pin);
+  }
+  
+  if (M1_ENABLED)
+  {
+    pm1 = new M1::M1(this, pin);
+    pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
+  }
+
+
   // KGF: suboptimal solution, since developer must copy/paste BoundaryVariable derived
   // class type that is used in each PassiveScalars, Gravity, Field, Hydro, ... etc. class
   // in order to correctly advance the BoundaryValues::bvars_next_phys_id_ local counter.
@@ -193,9 +208,6 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   // Mesh::next_phys_id_ counter (including non-BoundaryVariable / per-MeshBlock reserved
   // values). Compare both private member variables via BoundaryValues::CheckCounterPhysID
 
-  if (FLUID_ENABLED) {
-    peos = new EquationOfState(this, pin);
-  }
 
     // must come after pvar to register variables
   ptracker_extrema_loc = new ExtremaTrackerLocal(this, pin);
@@ -272,18 +284,6 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     pbval->AdvanceCounterPhysID(FaceCenteredBoundaryVariable::max_phys_id);
   }
 
-  if (SELF_GRAVITY_ENABLED) {
-    // if (this->grav_block)
-    pgrav = new Gravity(this, pin);
-    pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
-    if (SELF_GRAVITY_ENABLED == 2)
-    {
-#ifdef MULTIGRID
-      pmg = new MGGravity(pmy_mesh->pmgrd, this);
-#endif // MULTIGRID
-    }
-  }
-
   if (NSCALARS > 0) {
     // if (this->scalars_block)
     pscalars = new PassiveScalars(this, pin);
@@ -325,6 +325,13 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   if (FLUID_ENABLED) {
     peos = new EquationOfState(this, pin);
   }
+  
+  if (M1_ENABLED)
+  {
+    pm1 = new M1::M1(this, pin);
+    pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
+  }
+
 
   // must come after var to register variables
   ptracker_extrema_loc = new ExtremaTrackerLocal(this, pin);
@@ -382,6 +389,16 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     os += pz4c->storage.mat.GetSizeInBytes();
   }
 
+  if (M1_ENABLED)
+  {
+    std::memcpy(pm1->storage.u.data(), &(mbdata[os]), pm1->storage.u.GetSizeInBytes());
+    os += pm1->storage.u.GetSizeInBytes();
+
+    std::memcpy(pm1->storage.radmat.data(), &(mbdata[os]), pm1->storage.radmat.GetSizeInBytes());
+    os += pm1->storage.radmat.GetSizeInBytes();
+  }
+
+
   // load user MeshBlock data
   for (int n=0; n<nint_user_meshblock_data_; n++) {
     std::memcpy(iuser_meshblock_data[n].data(), &(mbdata[os]),
@@ -411,7 +428,6 @@ MeshBlock::~MeshBlock() {
   if (FLUID_ENABLED) delete phydro;
   if (MAGNETIC_FIELDS_ENABLED) delete pfield;
   if (FLUID_ENABLED) delete peos;
-  if (SELF_GRAVITY_ENABLED) delete pgrav;
   if (NSCALARS > 0) delete pscalars;
   if (WAVE_ENABLED) delete pwave;
 
@@ -424,6 +440,8 @@ MeshBlock::~MeshBlock() {
   }
 
   delete ptracker_extrema_loc;
+
+  if (M1_ENABLED) delete pm1;
 
   // BoundaryValues should be destructed AFTER all BoundaryVariable objects are destroyed
   delete pbval;
@@ -845,8 +863,6 @@ std::size_t MeshBlock::GetBlockSizeInBytes() {
   if (MAGNETIC_FIELDS_ENABLED)
     size += (pfield->b.x1f.GetSizeInBytes() + pfield->b.x2f.GetSizeInBytes()
              + pfield->b.x3f.GetSizeInBytes());
-  if (SELF_GRAVITY_ENABLED)
-    size += pgrav->phi.GetSizeInBytes();
   if (NSCALARS > 0)
     size += pscalars->s.GetSizeInBytes();
 
@@ -858,6 +874,12 @@ std::size_t MeshBlock::GetBlockSizeInBytes() {
     // BD: TODO: extend as new data structures added
     size+=pz4c->storage.u.GetSizeInBytes();
     size+=pz4c->storage.mat.GetSizeInBytes();
+  }
+
+  if (M1_ENABLED)
+  {
+    size += pm1->storage.u.GetSizeInBytes();
+    size += pm1->storage.radmat.GetSizeInBytes();
   }
 
   // calculate user MeshBlock data size

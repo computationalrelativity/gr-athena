@@ -37,10 +37,8 @@ SRC_FILES := \
 		@HYDRO_DEPENDENT_SRC@ \
 		@EOS_BASE_SRC@ \
 		@FFT_SRC@ \
-		@GRAVITY_SRC@ \
 		$(wildcard src/inputs/*.cpp) \
 		$(wildcard src/mesh/*.cpp) \
-		@MULTIGRID_SRC@ \
 		$(wildcard src/outputs/*.cpp) \
 		src/pgen/default_pgen.cpp \
 		src/pgen/$(PROBLEM_FILE) \
@@ -51,6 +49,7 @@ SRC_FILES := \
 		@EOS_FILES@ \
 		$(CCE_FILE) \
 		@WAVE_SRC@ \
+		@M1_SRC@ \
 		$(MPIFFT_FILE)
 OBJ_DIR := obj/
 OBJ_FILES := $(addprefix $(OBJ_DIR),$(notdir $(SRC_FILES:.cpp=.o)))

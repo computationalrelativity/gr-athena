@@ -22,7 +22,6 @@
 #   --ninterp=xxx       set NGRCV_HSZ=xxx (number of ghosts for intergrid interpolation)
 #   -eos_table          enable EOS table
 #   -f                  enable fluid
-#   -mg                 enable multigrid
 #   -b                  enable magnetic fields
 #   -s                  enable special relativity
 #   -g                  enable general relativity
@@ -84,6 +83,10 @@
 #   -w_cc               use cell-centered            sampling
 #   -w_cx               use cell-centered (extended) sampling
 #   -w_vc               use vertex-centered          sampling
+#
+# M1 neutrino transport:
+#
+#   -m1                 enable M1 neutrino transport
 #
 # development stuff:
 #
@@ -153,6 +156,7 @@ parser.add_argument(
         'cartesian',
         'cylindrical',
         'spherical_polar',
+        'spherical_polar_uniform',
         'minkowski',
         'sinusoidal',
         'tilted',
@@ -248,12 +252,6 @@ parser.add_argument('-f',
                     default=False,
                     help='enable fluid')
 
-# -mg argument
-parser.add_argument('-mg',
-                    action='store_true',
-                    default=False,
-                    help='enable multigrid')
-
 # -b argument
 parser.add_argument('-b',
                     action='store_true',
@@ -348,6 +346,18 @@ parser.add_argument("-w_vc",
                     default=False,
                     help='enable wave equation: vc sampling')
 
+# -m1 argument
+parser.add_argument("-m1",
+                    action='store_true',
+                    default=False,
+                    help='enable M1 neutrino transport')
+
+# -m1_no_weakrates argument
+parser.add_argument("-m1_no_weakrates",
+                    action='store_true',
+                    default=False,
+                    help='disable compilation of M1 weakrates opacities')
+
 # -t argument
 parser.add_argument('-t',
                     action='store_true',
@@ -421,7 +431,7 @@ parser.add_argument('-omp',
 # --grav=[name] argument
 parser.add_argument('--grav',
                     default='none',
-                    choices=['none', 'fft', 'mg'],
+                    choices=['none', 'fft'],
                     help='select self-gravity solver')
 
 # -fft argument
@@ -640,9 +650,13 @@ if args['g'] and not args['t'] and args['flux'] not in ('llf','llftaudyn', 'hlle
 if args['g'] and args['coord'] in ('cartesian', 'cylindrical', 'spherical_polar'):
     raise SystemExit('### CONFIGURE ERROR: GR cannot be used with {0} coordinates'
                      .format(args['coord']))
-if not args['g'] and args['coord'] not in ('cartesian', 'cylindrical', 'spherical_polar'):
+if not args['g'] and args['coord'] not in ('cartesian',
+                                           'cylindrical',
+                                           'spherical_polar',
+                                           'spherical_polar_uniform'):
     raise SystemExit('### CONFIGURE ERROR: '
                      + args['coord'] + ' coordinates only apply to GR')
+
 if args['eos'] == 'isothermal':
     if args['s'] or args['g']:
         raise SystemExit('### CONFIGURE ERROR: '
@@ -794,8 +808,8 @@ if args['f']:
     aux = [
       "src/eos/general/$(GENERAL_EOS_FILE)",
       "src/eos/$(EOS_FILE)",
-      "src/eos/eos_high_order.cpp",
-      "src/eos/eos_scalars.cpp"
+    #   "src/eos/eos_high_order.cpp",
+    #   "src/eos/eos_scalars.cpp"
     ]
     makefile_options['EOS_BASE_SRC'] = '\\\n'.join(aux)
 
@@ -816,17 +830,6 @@ else:
     definitions['FLUID_ENABLED'] = '0'
     makefile_options['EOS_BASE_SRC'] = ''
     makefile_options['HYDRO_DEPENDENT_SRC'] = ''
-
-# -mg argument
-if args['mg']:
-    definitions['MULTIGRID'] = 'MULTIGRID'
-
-    aux = ["$(wildcard src/multigrid/*.cpp)",
-           "$(wildcard src/bvals/cc/mg/*.cpp)", ]
-    makefile_options['MULTIGRID_SRC'] = '\\\n'.join(aux)
-else:
-    definitions['MULTIGRID'] = 'NO_MULTIGRID'
-    makefile_options['MULTIGRID_SRC'] = ''
 
 # -b argument
 # set variety of macros based on whether MHD/hydro or adi/iso are defined
@@ -1000,6 +1003,18 @@ else:
     definitions['WAVE_CX_ENABLED'] = '0'
     definitions['WAVE_CC_ENABLED'] = '0'
     definitions['WAVE_VC_ENABLED'] = '0'
+
+# -m1 - neutrino transport
+if args['m1']:
+  definitions['M1_ENABLED'] = '1'
+else:
+  definitions['M1_ENABLED'] = '0'
+
+# -m1 - neutrino transport
+if args['m1_no_weakrates']:
+  definitions['M1_NO_WEAKRATES'] = '1'
+else:
+  definitions['M1_NO_WEAKRATES'] = '0'
 
 # -hybridinterp argument
 if args['hybridinterp']:
@@ -1284,27 +1299,6 @@ else:
         #   3180: pragma omp not recognized
         makefile_options['COMPILER_FLAGS'] += ' -diag-disable 3180'
 
-# --grav argument
-if args['grav'] == 'none':
-    definitions['SELF_GRAVITY_ENABLED'] = '0'
-    makefile_options['GRAVITY_SRC'] = ''
-else:
-    aux = ['src/gravity/gravity.cpp', ]
-
-    if args['grav'] == 'fft':
-        definitions['SELF_GRAVITY_ENABLED'] = '1'
-        aux.append('src/gravity/fft_gravity.cpp')
-        if not args['fft']:
-            raise SystemExit(
-                '### CONFIGURE ERROR: FFT Poisson solver only be used with FFT')
-
-    if args['grav'] == 'mg':
-        definitions['SELF_GRAVITY_ENABLED'] = '2'
-        aux.append('src/gravity/mg_gravity.cpp')
-
-    makefile_options['GRAVITY_SRC'] = '\\\n'.join(aux)
-
-
 # -fft argument
 makefile_options['MPIFFT_FILE'] = ' '
 definitions['FFT_OPTION'] = 'NO_FFT'
@@ -1322,8 +1316,7 @@ if args['fft']:
         makefile_options['MPIFFT_FILE'] = ' $(wildcard src/fft/plimpton/*.cpp)'
     makefile_options['LIBRARY_FLAGS'] += ' -lfftw3'
 
-    aux = ['$(wildcard src/bvals/cc/fft_grav/*.cpp)',
-           '$(wildcard src/fft/*.cpp)']
+    aux = ['$(wildcard src/fft/*.cpp)']
     makefile_options['FFT_SRC'] = '\\\n'.join(aux)
 else:
     makefile_options['FFT_SRC'] = ''
@@ -1544,30 +1537,34 @@ else:
 src_aux = ['$(wildcard src/task_list/task_*.cpp)', ]
 
 if args['z']:
-  str_z4c = '$(wildcard src/task_list/z4c_*.cpp)'
+  # str_z4c = '$(wildcard src/task_list/z4c_*.cpp)'
 
   str_stem = 'filter-out src/task_list'
 
   # remove this confusing logic
-  if args['f']:
-    # need matter task-list, remove vacuum
-    src_aux.append(f'$({str_stem}/gr/gr_z4c.cpp, {str_z4c})')
-  else:
-    # ^ complement
-    src_aux.append(f'$({str_stem}/gr/z4c_matter_task_list.cpp, {str_z4c})')
+  # if args['f']:
+  #   # need matter task-list, remove vacuum
+  #   src_aux.append(f'$({str_stem}/gr/gr_z4c.cpp, {str_z4c})')
+  # else:
+  #   # ^ complement
+  #   src_aux.append(f'$({str_stem}/gr/z4c_matter_task_list.cpp, {str_z4c})')
 
   # task_list/gr
   str_gr = '$(wildcard src/task_list/gr/*.cpp)'
   src_aux.append(f'{str_gr}')
 
+  if args['m1']:
+    src_aux.append('$(wildcard src/task_list/m1/task_list_m1n0.cpp)')
+
+
 elif args['w']:
-  src_aux.append('$(wildcard src/task_list/wave_task_list.cpp)')
+  src_aux.append('$(wildcard src/task_list/wave_equations/task_list_wave_2o.cpp)')
+
+elif args['m1']:
+  src_aux.append('$(wildcard src/task_list/m1/task_list_m1n0.cpp)')
 
 else:
   src_aux.append('$(wildcard src/task_list/time_integrator.cpp)')
-
-if args['mg']:
-  src_aux.append('$(wildcard src/task_list/mg_*.cpp)')
 
 if args['sts']:
   src_aux.append('$(wildcard src/task_list/sts_task_list.cpp)')
@@ -1581,6 +1578,20 @@ if args['w']:
   src_aux.append("$(wildcard src/wave/*.cpp)")
 
 makefile_options['WAVE_SRC'] = '\\\n'.join(src_aux)
+
+# M1: -------------------------------------------------------------------------
+src_aux = []
+
+if args['m1']:
+  src_aux.append("$(wildcard src/m1/*.cpp)")
+  src_aux.append("$(wildcard src/m1/opacities/*.cpp)")
+  src_aux.append("$(wildcard src/m1/opacities/fake/*.cpp)")
+  src_aux.append("$(wildcard src/m1/opacities/photon/*.cpp)")
+  if not args['m1_no_weakrates']:
+    src_aux.append("$(wildcard src/m1/opacities/weakrates/*.cpp)")
+
+makefile_options['M1_SRC'] = '\\\n'.join(src_aux)
+
 
 
 # --- Step 4. Create new files, finish up --------------------------------
@@ -1623,8 +1634,6 @@ with open(makefile_output, 'w') as current_file:
 self_grav_string = 'OFF'
 if args['grav'] == 'fft':
     self_grav_string = 'FFT'
-elif args['grav'] == 'mg':
-    self_grav_string = 'Multigrid'
 
 self_eta_damp_string = 'Constant'
 if args['z_eta_track_tp']:
@@ -1654,6 +1663,8 @@ if args['z']:
                                                 else 'spheres'))
     print('  CCE:                          ' + ('ON' if args['cce'] else 'OFF'))
 
+print('  M1 neutrino transport:        ' + ('ON' if args['m1'] else 'OFF'))
+
 print('  Wave equation:                ' + ('ON' if args['w'] else 'OFF'))
 if args['w']:
     print('  w_cc:                         ' + ('ON' if args['w_cc'] else 'OFF'))
@@ -1661,10 +1672,8 @@ if args['w']:
     print('  w_vc:                         ' + ('ON' if args['w_vc'] else 'OFF'))
 
 print('  Frame transformations:        ' + ('ON' if args['t'] else 'OFF'))
-print('  Self-Gravity:                 ' + self_grav_string)
 print('  Super-Time-Stepping:          ' + ('ON' if args['sts'] else 'OFF'))
 print('  Shearing Box BCs:             ' + ('ON' if args['shear'] else 'OFF'))
-print('  Multigrid:                    ' + ('ON' if args['mg'] else 'OFF'))
 print('  Debug flags:                  ' + ('ON' if args['debug'] else 'OFF'))
 print('  Code coverage flags:          ' + ('ON' if args['coverage'] else 'OFF'))
 print('  Linker flags:                 ' + makefile_options['LINKER_FLAGS'] + ' '

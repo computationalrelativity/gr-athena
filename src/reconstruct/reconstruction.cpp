@@ -115,9 +115,6 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin)
   : characteristic_projection{false},
     uniform{true, true, true},
     curvilinear{false, false},
-    // read fourth-order solver switches
-    correct_ic{pin->GetOrAddBoolean("time", "correct_ic", false)},
-    correct_err{pin->GetOrAddBoolean("time", "correct_err", false)},
     pmy_block_{pmb}
 {
 

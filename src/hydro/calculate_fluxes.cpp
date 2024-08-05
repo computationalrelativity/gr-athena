@@ -19,7 +19,6 @@
 #include "../eos/eos.hpp"   // reapply floors to face-centered reconstructed states
 #include "../field/field.hpp"
 #include "../field/field_diffusion/field_diffusion.hpp"
-#include "../gravity/gravity.hpp"
 #include "../reconstruct/reconstruction.hpp"
 #include "../scalars/scalars.hpp"
 #include "hydro.hpp"
@@ -568,12 +567,15 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
 
         // swap the arrays for the next step
         wl_.SwapAthenaArray(wlb_);
+#if NSCALARS > 0
         ps->rl_.SwapAthenaArray(ps->rlb_);
-
+#endif
         if (pr->xorder_use_fb)
         {
           r_wl_.SwapAthenaArray(r_wlb_);
+#if NSCALARS > 0
           ps->r_rl_.SwapAthenaArray(ps->r_rlb_);
+#endif
         }
       }
     }
@@ -708,12 +710,15 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
                               mass_flux, s_x3flux);
         // swap the arrays for the next step
         wl_.SwapAthenaArray(wlb_);
+#if NSCALARS > 0
         ps->rl_.SwapAthenaArray(ps->rlb_);
-
+#endif
         if (pr->xorder_use_fb)
         {
           r_wl_.SwapAthenaArray(r_wlb_);
+#if NSCALARS > 0
           ps->r_rl_.SwapAthenaArray(ps->r_rlb_);
+#endif
         }
       }
     }

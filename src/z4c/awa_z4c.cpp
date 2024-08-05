@@ -99,6 +99,8 @@ void Z4c::GaugeRobStab(AthenaArray<Real> & u) {
       z4c.beta_u(2,k,j,i) += RANDOMNUMBER * amp;
     }
   }
+
+  Z4cGaugeToADM(storage.adm, u);
 }
 
 //----------------------------------------------------------------------------------------
@@ -249,6 +251,8 @@ void Z4c::GaugeSimpleGaugeWave(AthenaArray<Real> & u) {
                                   pow(sin(2. * M_PI * mbi.x3(k)) , 6);
       }
   }
+
+  Z4cGaugeToADM(storage.adm, u);
 }
 
 
@@ -302,6 +306,8 @@ void Z4c::GaugeGaugeWave1(AthenaArray<Real> & u) {
                                                   mbi.x1(i), 0.));
      }
   }
+
+  Z4cGaugeToADM(storage.adm, u);
 }
 
 
@@ -373,6 +379,8 @@ void Z4c::GaugeGaugeWave1_shifted(AthenaArray<Real> & u) {
         //                   (1. + SINWAVE(amp, d_x, d_y, mbi.x1(i),0.));
     }
   }
+
+  Z4cGaugeToADM(storage.adm, u);
 }
 
 
@@ -448,6 +456,8 @@ void Z4c::GaugeGaugeWave2(AthenaArray<Real> & u) {
                                                    mbi.x1(i), mbi.x2(j)));
       }
   }
+
+  Z4cGaugeToADM(storage.adm, u);
 }
 
 #ifdef GSL
@@ -499,6 +509,7 @@ void Z4c::GaugePolarisedGowdy(AthenaArray<Real> & u) {
     z4c.alpha(k,j,i) = pow_t_m_1_4 * std::exp(L / 4.);
   }
 
+  Z4cGaugeToADM(storage.adm, u);
 }
 
 //----------------------------------------------------------------------------------------

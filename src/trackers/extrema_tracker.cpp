@@ -308,6 +308,17 @@ void ExtremaTracker::EvolveTracker()
             rank_root, MPI_COMM_WORLD);
 #endif // MPI_PARALLEL
 
+  // Enforce that trackers remain within the Mesh bounds
+  for (int n=1; n<=N_tracker; ++n)
+  {
+    c_x1(n-1) = std::max(pmesh->mesh_size.x1min,
+                          std::min(c_x1(n-1), pmesh->mesh_size.x1max));
+    c_x2(n-1) = std::max(pmesh->mesh_size.x2min,
+                          std::min(c_x2(n-1), pmesh->mesh_size.x2max));
+    c_x3(n-1) = std::max(pmesh->mesh_size.x3min,
+                          std::min(c_x3(n-1), pmesh->mesh_size.x3max));
+  }
+
 }
 
 void ExtremaTracker::WriteTracker(int iter, Real time) const
@@ -401,9 +412,7 @@ ExtremaTrackerLocal::ExtremaTrackerLocal(
         // need to slice and point
         mbi = &pmb->pwave->mbi;
 
-        control_field_slicer.InitWithShallowSlice(
-          pmb->pwave->ref_tra, 0, 1
-        );
+        control_field_slicer.InitWithShallowSlice(pmb->pwave->ref_tra);
 
         control_field = &(control_field_slicer);
         // control_field = &(pmb->pwave->aux_ref.auxiliary_ref_field);

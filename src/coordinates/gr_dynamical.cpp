@@ -604,11 +604,14 @@ void GRDynamical::_AddCoordTermsDivergence(
       Real n = sl_w_rho(k,j,i)/pmy_block->peos->GetEOS().GetBaryonMass();
       // FIXME: Generalize to work with EOSes accepting particle fractions.
       Real Y[MAX_SPECIES] = {0.0};
+
 #if NSCALARS > 0
-      for (int l=0; l<NSCALARS; l++){
+      for (int l=0; l<NSCALARS; l++)
+      {
         Y[l] = sl_scalars_r(l,k,j,i);
       }
 #endif
+
       Real T = pmb->peos->GetEOS().GetTemperatureFromP(n,  sl_w_p(k,j,i), Y);
       ms_w_hrho_(i) = sl_w_rho(k,j,i)*pmb->peos->GetEOS().GetEnthalpy(n, T, Y);
 #else
@@ -791,8 +794,6 @@ void GRDynamical::AddCoordTermsDivergence(
   AT_N_sym adm_gamma_dd(pz4c->storage.adm, Z4c::I_ADM_gxx);
   AT_N_sym adm_K_dd(    pz4c->storage.adm, Z4c::I_ADM_Kxx);
 
-  AA pgas_init(nn1), rho_init(nn1), w_init(nn1);
-
   // ----------------------------------------------------------------------------
   if (MAGNETIC_FIELDS_ENABLED)
   {
@@ -881,12 +882,14 @@ void GRDynamical::AddCoordTermsDivergence(
 #if USETM
       Real n = rho(i)/pmy_block->peos->GetEOS().GetBaryonMass();
       Real Y[MAX_SPECIES] = {0.0};
+
 #if NSCALARS > 0
       for (int l=0; l<NSCALARS; ++l)
       {
         Y[l] = prim_scalar(l,k,j,i);
       }
 #endif
+
       Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgas(i), Y);
       wtot(i) = rho(i)*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
 #else
@@ -1149,62 +1152,6 @@ void GRDynamical::AddCoordTermsDivergence(
         }
       }
     } // MAGNETIC_FIELDS_ENABLED
-
-    if(fix_sources==1)
-    {
-      CLOOP1(i)
-      {
-        pgas_init(i) = pmy_block->phydro->w_init(IPR,k,j,i);
-        rho_init(i) = pmy_block->phydro->w_init(IDN,k,j,i);
-#if USETM
-        Real n = rho_init(i)/pmy_block->peos->GetEOS().GetBaryonMass();
-        // FIXME: Generalize to work with EOSes accepting particle fractions.
-        Real Y[MAX_SPECIES] = {0.0};
-        for (int l=0; l<NSCALARS; ++l)
-        {
-          Y[l] = prim_scalar(l,k,j,i);
-        }
-        Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(n, pgas_init(i), Y);
-        w_init(i) = rho_init(i)*pmy_block->peos->GetEOS().GetEnthalpy(n, T, Y);
-#else
-        Real gamma_adi = pmy_block->peos->GetGamma();
-    	  w_init(i) = rho_init(i) + gamma_adi/(gamma_adi-1.0) * pgas_init(i);
-#endif
-	      Stau(i) = 0.0;
-      }
-
-      for (int a=0; a<NDIM; ++a)
-      {
-        CLOOP1(i)
-        {
-          SS_d(a,i) = - (w_init(i) - pgas_init(i))*dalpha_d(a,i)/alpha(i);
-        }
-        for (int b=0; b<NDIM; ++b)
-        for (int c=0; c<NDIM; ++c)
-        {
-          CLOOP1(i)
-          {
-            SS_d(a,i) += 0.5*pgas_init(i)*gamma_uu(b,c,i)*dgamma_ddd(a,b,c,i);
-          }
-        }
-
-      }
-    } // fix_sources
-
-    if(zero_sources == 1)
-    {
-      for (int a=0; a<NDIM;++a)
-      {
-        CLOOP1(i)
-        {
-          SS_d(a,i) = 0.0 ;
-        }
-      }
-      CLOOP1(i)
-      {
-        Stau(i) = 0.0;
-      }
-    } // zero_sources
 
     // Add sources
     CLOOP1(i)

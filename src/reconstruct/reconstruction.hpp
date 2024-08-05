@@ -48,9 +48,6 @@ class Reconstruction {
   // (Cartesian reconstruction formulas are used for x3 azimuthal coordinate in both
   // cylindrical and spherical-polar coordinates)
 
-  // related fourth-order solver switches
-  const bool correct_ic, correct_err; // used in Mesh::Initialize() and ProblemGenerator()
-
   // x1-sliced arrays of interpolation coefficients and limiter parameters:
   AthenaArray<Real> c1i, c2i, c3i, c4i, c5i, c6i;  // coefficients for PPM in x1
   AthenaArray<Real> hplus_ratio_i, hminus_ratio_i; // for curvilinear PPMx1

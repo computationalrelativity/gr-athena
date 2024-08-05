@@ -25,12 +25,19 @@
 #include "../mesh/mesh.hpp"
 #include "../z4c/z4c.hpp"
 
-static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real> &prim_scalar, AthenaArray<Real>& bb_cc,
-    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd, int k, int j, int i,
-    AthenaArray<Real> &cons, AthenaArray<Real> &cons_scalar,
-    Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& ps);
+namespace {
 
-static Real VCInterpolation(AthenaArray<Real> &in, int k, int j, int i);
+inline static void PrimitiveToConservedSingle(
+  AthenaArray<Real> &prim,
+  AthenaArray<Real> &prim_scalar,
+  AthenaArray<Real>& bb_cc,
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd,
+  int k, int j, int i,
+  AthenaArray<Real> &cons,
+  AthenaArray<Real> &cons_scalar,
+  Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& ps);
+
+} // namespace
 
 //----------------------------------------------------------------------------------------
 // Constructor
@@ -337,7 +344,6 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         for(int n=0; n<NSCALARS; n++){
           prim_scalar(n, k, j, i) = prim_pt[IYF + n];
         }
-
         // Because the conserved variables may have changed, we update those, too.
         cons(IDN, k, j, i) = cons_pt[IDN]*sdetg;
         cons(IM1, k, j, i) = cons_pt[IM1]*sdetg;
@@ -351,13 +357,6 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
     }
   }
 
-  // clean-up
-  alpha.DeleteAthenaTensor();
-  gamma_dd.DeleteAthenaTensor();
-
-  if (coarse_flag) {
-    rchi.DeleteAthenaTensor();
-  }
 }
 
 //----------------------------------------------------------------------------------------
@@ -436,11 +435,18 @@ void EquationOfState::PrimitiveToConserved(
 //   pco: pointer to Coordinates
 // Outputs:
 //   cons: conserved variables set in desired cell
+namespace {
 
-static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real> &prim_scalar, AthenaArray<Real>& bb_cc,
-    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const &gamma_dd, int k, int j, int i,
-    AthenaArray<Real> &cons, AthenaArray<Real> &cons_scalar,
-    Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& ps) {
+inline static void PrimitiveToConservedSingle(
+  AthenaArray<Real> &prim,
+  AthenaArray<Real> &prim_scalar,
+  AthenaArray<Real>& bb_cc,
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const &gamma_dd,
+  int k, int j, int i,
+  AthenaArray<Real> &cons,
+  AthenaArray<Real> &cons_scalar,
+  Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& ps)
+{
   // Extract the primitive variables
   Real prim_pt[NPRIM] = {0.0};
   Real Y[MAX_SPECIES] = {0.0};
@@ -503,6 +509,8 @@ static void PrimitiveToConservedSingle(AthenaArray<Real> &prim, AthenaArray<Real
     }
   }
 }
+
+} // namespace
 
 // BD: TODO - eigenvalues, _not_ the speed; should be refactored / renamed
 void EquationOfState::FastMagnetosonicSpeedsGR(Real n, Real T, Real bsq, Real vi, Real v2,
@@ -619,15 +627,4 @@ void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, AthenaArray<
     }
   }
   return;
-}
-
-//---------------------------------------------------------------------------------------
-// \!fn static Real VCInterpolation(AthenaArray<Real> &in, int k, int j, int i)
-// \brief Perform linear interpolation to the desired cell-centered grid index.
-
-static Real VCInterpolation(AthenaArray<Real> &in, int k, int j, int i) {
-  return 0.125*(((in(k, j, i) + in(k + 1, j + 1, i + 1)) // lower-left-front to upper-right-back
-               + (in(k+1, j+1, i) + in(k, j, i+1))) // upper-left-back to lower-right-front
-               +((in(k, j+1, i) + in(k + 1, j, i+1)) // lower-left-back to upper-right-front
-               + (in(k+1, j, i) + in(k, j+1, i+1)))); // upper-left-front to lower-right-back
 }

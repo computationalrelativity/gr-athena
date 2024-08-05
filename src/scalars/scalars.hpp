@@ -43,12 +43,6 @@ class PassiveScalars {
   AthenaArray<Real> r;  // , r1;
   AthenaArray<Real> s_flux[3];  // face-averaged flux vector
 
-  // fourth-order intermediate quantities
-  AthenaArray<Real> mass_flux_fc[3];  // deep copy of Hydro intermediate flux quantities
-  AthenaArray<Real> s_cc, r_cc;       // cell-centered approximations
-  // (only needed for 4th order EOS evaluations that have explicit dependence on species
-  // concentration)
-
   // storage for SMR/AMR
   // TODO(KGF): remove trailing underscore or revert to private:
   AthenaArray<Real> coarse_s_, coarse_r_;
@@ -113,17 +107,7 @@ public:  // debug for combined hydro-scalar recon
   AthenaArray<Real> r_rl_, r_rr_, r_rlb_;
 
   // 1D scratch arrays
-  AthenaArray<Real> x1face_area_, x2face_area_, x3face_area_;
-  AthenaArray<Real> x2face_area_p1_, x3face_area_p1_;
-  AthenaArray<Real> cell_volume_;
   AthenaArray<Real> dflx_;
-
-  // fourth-order
-  // 4D scratch arrays
-  AthenaArray<Real> scr1_nkji_, scr2_nkji_;
-  AthenaArray<Real> rl3d_, rr3d_;
-  // 1D scratch arrays
-  AthenaArray<Real> laplacian_l_fc_, laplacian_r_fc_;
 
   void ComputeUpwindFlux(const int k, const int j, const int il,
                          const int iu, // CoordinateDirection dir,

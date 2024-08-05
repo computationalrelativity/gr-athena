@@ -10,12 +10,13 @@
 #include "../../main_triggers.hpp"
 #include "../task_list.hpp"
 #include "task_names.hpp"
-#include "time_integrators.hpp"
+#include "../time_integrators.hpp"
 
 namespace TaskLists::GeneralRelativity {
 
 // Vacuum system tasklist
-class GR_Z4c : public TaskList, TaskLists::Integrators::LowStorage
+class GR_Z4c : public TaskList,
+                      TaskLists::Integrators::integrators
 {
 public:
   GR_Z4c(ParameterInput *pin, Mesh *pm, gra::triggers::Triggers &trgs);
@@ -128,7 +129,7 @@ public:
   using TaskList::nstages;
 
 private:
-  // TODO: remove the AddTask logic in favour of Add
+  // BD - TODO: remove the AddTask logic in favour of Add
   void AddTask(const TaskID& id, const TaskID& dep) override { };
   void StartupTaskList(MeshBlock *pmb, int stage) override;
 
@@ -166,7 +167,7 @@ public:
   int nstages;
 
 private:
-  // TODO: remove the AddTask logic in favour of Add
+  // BD - TODO: remove the AddTask logic in favour of Add
   void AddTask(const TaskID& id, const TaskID& dep) override { };
   void StartupTaskList(MeshBlock *pmb, int stage) override;
 
@@ -199,7 +200,7 @@ public:
   TaskStatus Z4c_Weyl(MeshBlock *pmb, int stage);
 
 private:
-  // TODO: remove the AddTask logic in favour of Add
+  // BD - TODO: remove the AddTask logic in favour of Add
   void AddTask(const TaskID& id, const TaskID& dep) override { };
   void StartupTaskList(MeshBlock *pmb, int stage) override;
 
@@ -220,10 +221,5 @@ private:
 };
 
 }  // namespace TaskLists::GeneralRelativity
-
-// BD: TODO - to move elsewhere..
-namespace TaskLists::WaveEquations {
-// ...
-}
 
 #endif  // GR_TASK_LIST_HPP_

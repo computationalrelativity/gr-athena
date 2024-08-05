@@ -114,17 +114,28 @@ Wave::Wave(MeshBlock *pmb, ParameterInput *pin) :
     pmb->RegisterMeshBlockDataCX(u);
 
   // Allocate memory for the solution and its time derivative
-  // u.NewAthenaArray(NWAVE_CPT, nn3, nn2, nn1);
-  u1.NewAthenaArray(NWAVE_CPT, nn3, nn2, nn1);
-  rhs.NewAthenaArray(NWAVE_CPT, nn3, nn2, nn1);
+  std::string integrator = pin->GetOrAddString("time", "integrator", "vl2");
+  if (integrator.find("bt_") != std::string::npos)
+  {
+    // Butcher-Tableaux style...
+    // .. deal with coefficients and allocation of stage scratches in task-list
+  }
+  else
+  {
+    // Allocate memory for the solution and its time derivative
+    rhs.NewAthenaArray(NWAVE_CPT, nn3, nn2, nn1);
 
+    // Low storage style...
+    u1.NewAthenaArray(NWAVE_CPT, nn3, nn2, nn1);
+
+    // If user-requested time integrator is type 3S* allocate additional memory
+    if (integrator == "ssprk5_4")
+      u2.NewAthenaArray(NWAVE_CPT, nn3, nn2, nn1);
+  }
+
+  // Error monitoring
   exact.NewAthenaArray(nn3, nn2, nn1);
   error.NewAthenaArray(nn3, nn2, nn1);
-
-  // If user-requested time integrator is type 3S* allocate additional memory
-  std::string integrator = pin->GetOrAddString("time", "integrator", "vl2");
-  if (integrator == "ssprk5_4")
-    u2.NewAthenaArray(NWAVE_CPT, nn3, nn2, nn1);
 
   c = pin->GetOrAddReal("wave", "c", 1.0);
 

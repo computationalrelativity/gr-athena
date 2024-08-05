@@ -133,6 +133,7 @@ static UnitSystem GeometricSolar{
   1.0 / CGS.Msun, // mass, Msun
   1.0 / (CGS.Msun * CGS.c*CGS.c), // energy, Msun
   PS_CUBE( CGS.Gnewt/(CGS.c*CGS.c) ) * PS_SQR( CGS.Msun/(CGS.c) ), // pressure, Msun^-2
+  // BD: TODO - check?
   CGS.kb/CGS.MeV, // temperature, MeV
   CGS.kb/CGS.MeV, // chemical potential, MeV
 };

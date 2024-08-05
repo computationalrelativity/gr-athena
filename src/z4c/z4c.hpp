@@ -273,6 +273,9 @@ public:
 
   int refinement_idx{-1};
 
+  // BT style integrators -----------------------------------------------------
+  std::vector<AthenaArray<Real>> bt_k;
+
   // metric derivatives used by AHF
   // it is allocated there as needed
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> aux_g_ddd;
@@ -383,6 +386,8 @@ public:
   void ADMPolarisedGowdy(AthenaArray<Real> & u_adm);
   void GaugePolarisedGowdy(AthenaArray<Real> & u);
 #endif
+
+  void Z4cGaugeToADM(AA & u_adm, AA & u);
 
   // initial data for a single BH
   void ADMOnePuncture(ParameterInput *pin, AthenaArray<Real> & u_adm);

@@ -164,10 +164,14 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   assert(NULL != data);
 
   // as a sanity check (these should be over-written)
+  pz4c->adm.alpha.Fill(NAN);
+  pz4c->adm.beta_u.Fill(NAN);
   pz4c->adm.psi4.Fill(NAN);
   pz4c->adm.g_dd.Fill(NAN);
   pz4c->adm.K_dd.Fill(NAN);
 
+  pz4c->z4c.alpha.Fill(NAN);
+  pz4c->z4c.beta_u.Fill(NAN);
   pz4c->z4c.chi.Fill(NAN);
   pz4c->z4c.Khat.Fill(NAN);
   pz4c->z4c.Theta.Fill(NAN);

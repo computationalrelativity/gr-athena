@@ -92,8 +92,6 @@
 // evolve hydrodynamics? default=0 (false)
 #define FLUID_ENABLED @FLUID_ENABLED@
 
-#define @MULTIGRID@
-
 // hybrid grid-to-grid interp default=0 (false)
 #define @HYBRID_INTERP@
 // enable shearing box? default=0 (false)
@@ -139,9 +137,6 @@
 // include super-time-stepping? default=0 (false)
 #define STS_ENABLED @STS_ENABLED@
 
-// include self gravity? default=0 (false)
-#define SELF_GRAVITY_ENABLED @SELF_GRAVITY_ENABLED@
-
 // include radiative transfer? default=0 (false)
 #define RADIATION_ENABLED 0
 
@@ -172,8 +167,12 @@
 #define Z4C_CX_NUM_RBC @Z4C_CX_NUM_RBC@
 #define @Z4C_CX_NUM_RBC_INIT_LO@
 
-
 #define @Z4C_WITH_HYDRO_ENABLED@
+
+// M1 neutrino transport
+#define M1_ENABLED @M1_ENABLED@
+
+#define M1_NO_WEAKRATES @M1_NO_WEAKRATES@
 
 // enable GR frame transformations? default=0 (false)
 #define FRAME_TRANSFORMATIONS @FRAME_TRANSFORMATIONS@
