@@ -128,8 +128,8 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   w_v_u_l_.NewAthenaTensor(nn1);
   w_v_u_r_.NewAthenaTensor(nn1);
 
-  w_norm2_v_l.NewAthenaTensor(nn1);
-  w_norm2_v_r.NewAthenaTensor(nn1);
+  w_norm2_v_l_.NewAthenaTensor(nn1);
+  w_norm2_v_r_.NewAthenaTensor(nn1);
 
   lambda_p_l.NewAthenaTensor(nn1);
   lambda_m_l.NewAthenaTensor(nn1);
@@ -153,7 +153,31 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   flux_r_.NewAthenaTensor(nn1);
 
 #if MAGNETIC_FIELDS_ENABLED
+  oo_W_l_.NewAthenaTensor(nn1);
+  oo_W_r_.NewAthenaTensor(nn1);
+
+  w_v_d_l_.NewAthenaTensor(nn1);
+  w_v_d_r_.NewAthenaTensor(nn1);
+
+  alpha_w_vtil_u_l_.NewAthenaTensor(nn1);
+  alpha_w_vtil_u_r_.NewAthenaTensor(nn1);
+
   beta_d_.NewAthenaTensor(nn1);
+
+  q_scB_u_l_.NewAthenaTensor(nn1);
+  q_scB_u_r_.NewAthenaTensor(nn1);
+
+  b0_l_.NewAthenaTensor(nn1);
+  b0_r_.NewAthenaTensor(nn1);
+
+  b2_l_.NewAthenaTensor(nn1);
+  b2_r_.NewAthenaTensor(nn1);
+
+  bi_u_l_.NewAthenaTensor(nn1);
+  bi_u_r_.NewAthenaTensor(nn1);
+
+  bi_d_l_.NewAthenaTensor(nn1);
+  bi_d_r_.NewAthenaTensor(nn1);
 #endif // MAGNETIC_FIELDS_ENABLED
 
 #endif
