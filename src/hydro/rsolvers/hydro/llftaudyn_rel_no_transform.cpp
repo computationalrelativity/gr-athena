@@ -55,22 +55,24 @@ void Hydro::RiemannSolver(
   using namespace LinearAlgebra;
 
   MeshBlock * pmb = pmy_block;
+  EquationOfState * peos = pmb->peos;
 
   // Calculate cyclic permutations of indices
   int ivy = IVX + ((ivx-IVX)+1)%3;
   int ivz = IVX + ((ivx-IVX)+2)%3;
 
-  const int nn1 = pmy_block->nverts1;  // utilize the verts
+  const int nn1 = pmb->nverts1;  // utilize the verts
+
   // Extract ratio of specific heats
 #if USETM
-  const Real mb = pmy_block->peos->GetEOS().GetBaryonMass();
+  const Real mb = pmb->peos->GetEOS().GetBaryonMass();
 #else
-  const Real Gamma = pmy_block->peos->GetGamma();
+  const Real Gamma = pmb->peos->GetGamma();
   const Real Eos_Gamma_ratio = Gamma / (Gamma - 1.0);
 #endif
 
   // perform variable resampling when required
-  Z4c * pz4c = pmy_block->pz4c;
+  Z4c * pz4c = pmb->pz4c;
 
   // Slice 3d z4c metric quantities  (NDIM=3 in z4c.hpp) ----------------------
   AT_N_sym sl_adm_gamma_dd(pz4c->storage.adm, Z4c::I_ADM_gxx);
@@ -87,7 +89,7 @@ void Hydro::RiemannSolver(
   AT_N_vec w_util_u_r_(prim_r, IVX);
 
   // Reconstruction to FC -----------------------------------------------------
-  GRDynamical* pco_gr = static_cast<GRDynamical*>(pmy_block->pcoord);
+  GRDynamical* pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
   pco_gr->GetGeometricFieldFC(gamma_dd_, sl_adm_gamma_dd, ivx-1, k, j);
   pco_gr->GetGeometricFieldFC(alpha_,    sl_adm_alpha,    ivx-1, k, j);
   pco_gr->GetGeometricFieldFC(beta_u_,   sl_adm_beta_u,   ivx-1, k, j);
@@ -184,7 +186,7 @@ void Hydro::RiemannSolver(
         }
         break;
     }
-#endif
+#endif // DBG_COMBINED_HYDPA
 
     Real Tl = pmy_block->peos->GetEOS().GetTemperatureFromP(nl, w_p_l_(i), Yl);
     Real Tr = pmy_block->peos->GetEOS().GetTemperatureFromP(nr, w_p_r_(i), Yr);

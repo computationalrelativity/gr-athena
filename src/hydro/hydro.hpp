@@ -115,6 +115,9 @@ public:
   AT_H_vec flux_l_;
   AT_H_vec flux_r_;
 
+  // Particular to magnetic fields
+  AT_N_vec beta_d_;
+
 public:
   // functions ----------------------------------------------------------------
   void NewBlockTimeStep();    // computes new timestep on a MeshBlock

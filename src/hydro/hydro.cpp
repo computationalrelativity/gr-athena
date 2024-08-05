@@ -151,6 +151,11 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
 
   flux_l_.NewAthenaTensor(nn1);
   flux_r_.NewAthenaTensor(nn1);
+
+#if MAGNETIC_FIELDS_ENABLED
+  beta_d_.NewAthenaTensor(nn1);
+#endif // MAGNETIC_FIELDS_ENABLED
+
 #endif
 
 }

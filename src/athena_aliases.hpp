@@ -40,8 +40,8 @@ typedef AthenaTensor<Real, TensorSymm::ISYM2, N, 3> AT_N_S2V;
 typedef AthenaTensor<Real, TensorSymm::SYM2,  N, 4> AT_N_T2S2;
 typedef AthenaTensor<Real, TensorSymm::SYM22, N, 4> AT_N_S2S2;
 
-// For hydro-variable vector
-typedef AthenaTensor<Real, TensorSymm::NONE, NHYDRO,   1> AT_H_vec;
+// For hydro(NHYDRO)-(magnetic field NWAVE)-variable vector
+typedef AthenaTensor<Real, TensorSymm::NONE, NWAVE,    1> AT_H_vec;
 // For passive scalars
 typedef AthenaTensor<Real, TensorSymm::NONE, NSCALARS, 1> AT_S_vec;
 

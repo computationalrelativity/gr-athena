@@ -58,93 +58,77 @@ void Hydro::RiemannSolver(
   AthenaArray<Real> &wct,
   const AthenaArray<Real> &dxw)
 {
-
   using namespace LinearAlgebra;
+
+  MeshBlock * pmb = pmy_block;
+  EquationOfState * peos = pmb->peos;
+
   // Calculate cyclic permutations of indices
   int ivy = IVX + ((ivx-IVX)+1)%3;
   int ivz = IVX + ((ivx-IVX)+2)%3;
   int a,b;
   const int nn1 = pmy_block->nverts1;  // utilize the verts
+
   // Extract ratio of specific heats
 #if USETM
-  const Real mb = pmy_block->peos->GetEOS().GetBaryonMass();
+  const Real mb = pmb->peos->GetEOS().GetBaryonMass();
 #else
-  const Real gamma_adi = pmy_block->peos->GetGamma();
+  const Real Gamma = pmb->peos->GetGamma();
+  const Real Eos_Gamma_ratio = Gamma / (Gamma - 1.0);
 #endif
-  Real dt = pmy_block->pmy_mesh->dt;
-  Coordinates *pco = pmy_block->pcoord;
-  Real alpha_excision = pmy_block->peos->alpha_excision;
-  bool horizon_excision = pmy_block->peos->horizon_excision;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha, rho_l, rho_r, pgas_l, pgas_r, wgas_l, wgas_r,detgamma,detg;
+
+  // perform variable resampling when required
+  Z4c * pz4c = pmb->pz4c;
+
+  // Slice 3d z4c metric quantities  (NDIM=3 in z4c.hpp) ----------------------
+  AT_N_sym sl_adm_gamma_dd(pz4c->storage.adm, Z4c::I_ADM_gxx);
+  AT_N_sca sl_adm_alpha(   pz4c->storage.adm, Z4c::I_ADM_alpha);
+  AT_N_vec sl_adm_beta_u(  pz4c->storage.adm, Z4c::I_ADM_betax);
+
+  // 1d slices ----------------------------------------------------------------
+  AT_N_sca w_rho_l_(prim_l, IDN);
+  AT_N_sca w_rho_r_(prim_r, IDN);
+  AT_N_sca w_p_l_(  prim_l, IPR);
+  AT_N_sca w_p_r_(  prim_r, IPR);
+
+  AT_N_vec w_util_u_l_(prim_l, IVX);
+  AT_N_vec w_util_u_r_(prim_r, IVX);
+
+  // Reconstruction to FC -----------------------------------------------------
+  GRDynamical* pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
+  pco_gr->GetGeometricFieldFC(gamma_dd_, sl_adm_gamma_dd, ivx-1, k, j);
+  pco_gr->GetGeometricFieldFC(alpha_,    sl_adm_alpha,    ivx-1, k, j);
+  pco_gr->GetGeometricFieldFC(beta_u_,   sl_adm_beta_u,   ivx-1, k, j);
+
+  // ==========================================================================
+
+  Real dt = pmb->pmy_mesh->dt;
+  Real alpha_excision = peos->alpha_excision;
+  bool horizon_excision = peos->horizon_excision;
+
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Wlor_l, Wlor_r;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> u0_l, u0_r;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> v2_l, v2_r;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> b0_u_l, b0_u_r, bsq_l, bsq_r;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> lambda_p_l, lambda_m_l;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> lambda_p_r, lambda_m_r;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> lambda;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u, beta_d;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> utilde_u_l, utilde_u_r;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> utilde_d_l, utilde_d_r;
+
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> v_u_l, v_u_r;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> v_d_l, v_d_r;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> ucon_l, ucon_r;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> bb_l, bb_r, bi_u_l, bi_u_r, bi_d_l, bi_d_r;
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_uu;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> bb_l, bb_r, bi_u_l, bi_u_r,
+    bi_d_l, bi_d_r;
 
-
-  // perform variable resampling when required
-  Z4c * pz4c = pmy_block->pz4c;
-
-  // Slice z4c metric quantities  (NDIM=3 in z4c.hpp)
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_gamma_dd;
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_K_dd;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> adm_alpha;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> adm_beta_u;
-
-  adm_gamma_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
-  adm_K_dd.InitWithShallowSlice(    pz4c->storage.adm, Z4c::I_ADM_Kxx);
-  adm_alpha.InitWithShallowSlice(   pz4c->storage.adm, Z4c::I_ADM_alpha);
-  adm_beta_u.InitWithShallowSlice(  pz4c->storage.adm, Z4c::I_ADM_betax);
-
-
-
-
-  alpha.NewAthenaTensor(nn1);
-  detg.NewAthenaTensor(nn1);
-  detgamma.NewAthenaTensor(nn1);
-  rho_l.NewAthenaTensor(nn1);
-  rho_r.NewAthenaTensor(nn1);
-  pgas_l.NewAthenaTensor(nn1);
-  pgas_r.NewAthenaTensor(nn1);
-  wgas_l.NewAthenaTensor(nn1);
-  wgas_r.NewAthenaTensor(nn1);
   Wlor_l.NewAthenaTensor(nn1);
   Wlor_r.NewAthenaTensor(nn1);
   u0_l.NewAthenaTensor(nn1);
   u0_r.NewAthenaTensor(nn1);
   v2_l.NewAthenaTensor(nn1);
   v2_r.NewAthenaTensor(nn1);
-  lambda.NewAthenaTensor(nn1);
-  lambda_p_l.NewAthenaTensor(nn1);
-  lambda_m_l.NewAthenaTensor(nn1);
-  lambda_p_r.NewAthenaTensor(nn1);
-  lambda_m_r.NewAthenaTensor(nn1);
-  beta_u.NewAthenaTensor(nn1);
-  beta_d.NewAthenaTensor(nn1);
-  utilde_u_l.NewAthenaTensor(nn1);
-  utilde_u_r.NewAthenaTensor(nn1);
   v_u_l.NewAthenaTensor(nn1);
   v_u_r.NewAthenaTensor(nn1);
   v_d_l.NewAthenaTensor(nn1);
   v_d_r.NewAthenaTensor(nn1);
-  utilde_d_l.NewAthenaTensor(nn1);
-  utilde_d_r.NewAthenaTensor(nn1);
   ucon_l.NewAthenaTensor(nn1);
   ucon_r.NewAthenaTensor(nn1);
-  gamma_dd.NewAthenaTensor(nn1);
-  gamma_uu.NewAthenaTensor(nn1);
   b0_u_l.NewAthenaTensor(nn1);
   b0_u_r.NewAthenaTensor(nn1);
   bsq_l.NewAthenaTensor(nn1);
@@ -157,94 +141,126 @@ void Hydro::RiemannSolver(
   bi_d_r.NewAthenaTensor(nn1);
 
 
-  GRDynamical* pco_gr = static_cast<GRDynamical*>(pmy_block->pcoord);
-  pco_gr->GetGeometricFieldFC(gamma_dd, adm_gamma_dd, ivx-1, k, j);
-  pco_gr->GetGeometricFieldFC(alpha,    adm_alpha,    ivx-1, k, j);
-  pco_gr->GetGeometricFieldFC(beta_u,   adm_beta_u,   ivx-1, k, j);
-
-
+  // =============================================================
+  // Prepare determinant-like
   #pragma omp simd
   for (int i = il; i <= iu; ++i)
   {
-    detgamma(i) = Det3Metric(
-      gamma_dd, i
-    );
+    detgamma_(i)      = Det3Metric(gamma_dd_, i);
 
-    detg(i) = SQR(alpha(i)) * detgamma(i);
-
-    Inv3Metric(
-      1.0/detgamma(i),
-      gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
-      gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i),
-      &gamma_uu(0,0,i), &gamma_uu(0,1,i), &gamma_uu(0,2,i),
-      &gamma_uu(1,1,i), &gamma_uu(1,2,i), &gamma_uu(2,2,i));
+    sqrt_detgamma_(i) = std::sqrt(detgamma_(i));
+    oo_detgamma_(i)   = 1. / detgamma_(i);
   }
 
-  #pragma omp simd
-  for (int i = il; i <= iu; ++i)
+  Inv3Metric(oo_detgamma_, gamma_dd_, gamma_uu_, il, iu);
+  // =============================================================
+
+
+  // deal with excision -------------------------------------------------------
+  auto excise = [&](const int i)
   {
-    bool in_horizon = false;
-    if(horizon_excision)
+    // set flat space if the interpolated det is negative and inside
+    // horizon (either in ahf or lapse below excision value)
+    std::cout << "Set flat space" << "\n";
+    gamma_dd_(0, 0, i) = 1.0;
+    gamma_dd_(1, 1, i) = 1.0;
+    gamma_dd_(2, 2, i) = 1.0;
+    gamma_dd_(0, 1, i) = 0.0;
+    gamma_dd_(0, 2, i) = 0.0;
+    gamma_dd_(1, 2, i) = 0.0;
+    gamma_uu_(0, 0, i) = 1.0;
+    gamma_uu_(1, 1, i) = 1.0;
+    gamma_uu_(2, 2, i) = 1.0;
+    gamma_uu_(0, 1, i) = 0.0;
+    gamma_uu_(0, 2, i) = 0.0;
+    gamma_uu_(1, 2, i) = 0.0;
+    detgamma_(i) = 1.0;
+  };
+
+  if (horizon_excision)
+  {
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
     {
-  // if ahf enabled set flat space if in horizon
-  // TODO: read in centre of each horizon and shift origin - not needed for now if collapse is at origin
-    Real horizon_radius;
-      for (auto pah_f : pmy_block->pmy_mesh->pah_finder) 
+      // if ahf enabled set flat space if in horizon
+      // TODO: read in centre of each horizon and shift origin - not needed for
+      // now if collapse is at origin
+      Real horizon_radius;
+      for (auto pah_f : pmy_block->pmy_mesh->pah_finder)
       {
-      horizon_radius = pah_f->GetHorizonRadius();
-        switch (ivx) 
+        horizon_radius = pah_f->GetHorizonRadius();
+        const Real R2 = (
+          SQR(pco_gr->x1f(i)) + SQR(pco_gr->x2v(j)) + SQR(pco_gr->x3v(k))
+        );
+
+        if ((R2 < SQR(horizon_radius)) || (alpha_(i) < alpha_excision))
         {
-          case(IVX): 
-             if(((SQR(pco->x1f(i)) + SQR(pco->x2v(j)) + SQR(pco->x3v(k))) < 
-                  SQR(horizon_radius)) || (alpha(i) < alpha_excision)) 
-             {
-               in_horizon = true;
-             }
-          case(IVY): 
-             if(((SQR(pco->x1v(i)) + SQR(pco->x2f(j)) + SQR(pco->x3v(k))) < 
-                  SQR(horizon_radius)) || (alpha(i) < alpha_excision)) 
-             {
-               in_horizon = true;
-             }
-          case(IVZ): 
-             if(((SQR(pco->x1v(i)) + SQR(pco->x2v(j)) + SQR(pco->x3f(k))) < 
-                  SQR(horizon_radius)) || (alpha(i) < alpha_excision)) 
-             {
-               in_horizon = true;
-             }
+          excise(i);
         }
       }
     }
-    else
+  }
+  else if (alpha_excision > 0)  // by default disabled (i.e. 0)
+  {
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
     {
-  // if no ahf check if lapse below alpha_excision parameter - if you don't want excision this is by default 0
-      if(alpha(i) < alpha_excision)
+      if (alpha_(i) < alpha_excision)
       {
-        in_horizon = true;
+        excise(i);
       }
     }
-  //      set flat space if the interpolated det is negative and inside horizon (either in ahf or lapse below excision value)
-    if(detgamma(i) < 0.0 && in_horizon)
-    {
-      printf("set flat space\n");
-      gamma_dd(0,0,i) = 1.0;
-      gamma_dd(1,1,i) = 1.0;
-      gamma_dd(2,2,i) = 1.0;
-      gamma_dd(0,1,i) = 0.0;
-      gamma_dd(0,2,i) = 0.0;
-      gamma_dd(1,2,i) = 0.0;
-      gamma_uu(0,0,i) = 1.0;
-      gamma_uu(1,1,i) = 1.0;
-      gamma_uu(2,2,i) = 1.0;
-      gamma_uu(0,1,i) = 0.0;
-      gamma_uu(0,2,i) = 0.0;
-      gamma_uu(1,2,i) = 0.0;
-      detgamma(i) = 1.0;
-      detg(i) = SQR(alpha(i));
-    }
   }
+  // --------------------------------------------------------------------------
 
-    beta_d.ZeroClear();
+
+
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      switch (ivx)
+      {
+        case IVX:
+        {
+          bb_l(0,i) = bb(k,j,i) * oo_detgamma_(i);
+          bb_l(1,i) = prim_l(IBY,i) * oo_detgamma_(i);
+          bb_l(2,i) = prim_l(IBZ,i) * oo_detgamma_(i);
+          bb_r(0,i) = bb(k,j,i) * oo_detgamma_(i);
+          bb_r(1,i) = prim_r(IBY,i) * oo_detgamma_(i);
+          bb_r(2,i) = prim_r(IBZ,i) * oo_detgamma_(i);
+          break;
+        }
+        case IVY:
+        {
+          bb_l(1,i) = bb(k,j,i) * oo_detgamma_(i);
+          bb_l(2,i) = prim_l(IBY,i) * oo_detgamma_(i);
+          bb_l(0,i) = prim_l(IBZ,i) * oo_detgamma_(i);
+          bb_r(1,i) = bb(k,j,i) * oo_detgamma_(i);
+          bb_r(2,i) = prim_r(IBY,i) * oo_detgamma_(i);
+          bb_r(0,i) = prim_r(IBZ,i) * oo_detgamma_(i);
+          break;
+        }
+        case IVZ:
+        {
+            bb_l(2,i) = bb(k,j,i) * oo_detgamma_(i);
+            bb_l(0,i) = prim_l(IBY,i) * oo_detgamma_(i);
+            bb_l(1,i) = prim_l(IBZ,i) * oo_detgamma_(i);
+            bb_r(2,i) = bb(k,j,i) * oo_detgamma_(i);
+            bb_r(0,i) = prim_r(IBY,i) * oo_detgamma_(i);
+            bb_r(1,i) = prim_r(IBZ,i) * oo_detgamma_(i);
+            break;
+
+        }
+        default:
+        {
+          assert(false);
+        }
+      }
+    }
+
+  // --------------------------------------------------------------------------
+
+    beta_d_.ZeroClear();
     for(a=0;a<NDIM;++a)
     {
       for(b=0;b<NDIM;++b)
@@ -252,65 +268,14 @@ void Hydro::RiemannSolver(
         #pragma omp simd
         for(int i = il; i <= iu; ++i) 
         {
-          beta_d(a,i) += gamma_dd(a,b,i)*beta_u(b,i);
+          beta_d_(a,i) += gamma_dd_(a,b,i)*beta_u_(b,i);
         }
       }
     }
 
 
-    #pragma omp simd
-    for (int i = il; i <= iu; ++i)
-    {
-      rho_l(i) = prim_l(IDN,i);
-      pgas_l(i) = prim_l(IPR,i);
-      rho_r(i) = prim_r(IDN,i);
-      pgas_r(i) = prim_r(IPR,i);
-      switch (ivx) 
-      {
-        case IVX:
-          bb_l(0,i) = bb(k,j,i)/std::sqrt(detgamma(i));
-          bb_l(1,i) = prim_l(IBY,i)/std::sqrt(detgamma(i));
-          bb_l(2,i) = prim_l(IBZ,i)/std::sqrt(detgamma(i));
-          bb_r(0,i) = bb(k,j,i)/std::sqrt(detgamma(i));
-          bb_r(1,i) = prim_r(IBY,i)/std::sqrt(detgamma(i));
-          bb_r(2,i) = prim_r(IBZ,i)/std::sqrt(detgamma(i));
-          break;
-        case IVY:
-          bb_l(1,i) = bb(k,j,i)/std::sqrt(detgamma(i));
-          bb_l(2,i) = prim_l(IBY,i)/std::sqrt(detgamma(i));
-          bb_l(0,i) = prim_l(IBZ,i)/std::sqrt(detgamma(i));
-          bb_r(1,i) = bb(k,j,i)/std::sqrt(detgamma(i));
-          bb_r(2,i) = prim_r(IBY,i)/std::sqrt(detgamma(i));
-          bb_r(0,i) = prim_r(IBZ,i)/std::sqrt(detgamma(i));
-          break;
-      case IVZ:
-          bb_l(2,i) = bb(k,j,i)/std::sqrt(detgamma(i));
-          bb_l(0,i) = prim_l(IBY,i)/std::sqrt(detgamma(i));
-          bb_l(1,i) = prim_l(IBZ,i)/std::sqrt(detgamma(i));
-          bb_r(2,i) = bb(k,j,i)/std::sqrt(detgamma(i));
-          bb_r(0,i) = prim_r(IBY,i)/std::sqrt(detgamma(i));
-          bb_r(1,i) = prim_r(IBZ,i)/std::sqrt(detgamma(i));
-          break;
-      }
-    }
-
 // Everything here is undensitised.
-    for(a=0;a<NDIM;++a)
-    {
-      #pragma omp simd
-      for (int i = il; i <= iu; ++i)
-      {
-        utilde_u_l(a,i) = prim_l(a+IVX,i);
-      }
-    }
-    for(a=0;a<NDIM;++a)
-    {
-      #pragma omp simd
-      for (int i = il; i <= iu; ++i)
-      {
-        utilde_u_r(a,i) = prim_r(a+IVX,i);
-      }
-    }
+
     Wlor_l.ZeroClear();
     for(a=0;a<NDIM;++a)
     {
@@ -319,7 +284,7 @@ void Hydro::RiemannSolver(
         #pragma omp simd
         for (int i = il; i <= iu; ++i)
         {
-          Wlor_l(i) += utilde_u_l(a,i)*utilde_u_l(b,i)*gamma_dd(a,b,i);
+          Wlor_l(i) += w_util_u_l_(a,i)*w_util_u_l_(b,i)*gamma_dd_(a,b,i);
         }
       }
      }
@@ -333,7 +298,7 @@ void Hydro::RiemannSolver(
           for(b=0;b<NDIM;++b){
                #pragma omp simd
       for (int i = il; i <= iu; ++i){
-                  Wlor_r(i) += utilde_u_r(a,i)*utilde_u_r(b,i)*gamma_dd(a,b,i);
+                  Wlor_r(i) += w_util_u_r_(a,i)*w_util_u_r_(b,i)*gamma_dd_(a,b,i);
               }
            }
        }
@@ -344,13 +309,13 @@ void Hydro::RiemannSolver(
       for(a=0;a<NDIM;++a){
            #pragma omp simd
       for (int i = il; i <= iu; ++i){
-             v_u_l(a,i) = utilde_u_l(a,i)/Wlor_l(i);
+             v_u_l(a,i) = w_util_u_l_(a,i)/Wlor_l(i);
           }
       }
       for(a=0;a<NDIM;++a){
            #pragma omp simd
       for (int i = il; i <= iu; ++i){
-             v_u_r(a,i) = utilde_u_r(a,i)/Wlor_r(i);
+             v_u_r(a,i) = w_util_u_r_(a,i)/Wlor_r(i);
           }
       }
 
@@ -359,7 +324,7 @@ void Hydro::RiemannSolver(
             for(b=0;b<NDIM;++b){
                #pragma omp simd
                    for (int i = il; i <= iu; ++i){
-                       v2_l(i) += gamma_dd(a,b,i)*v_u_l(a,i)*v_u_l(b,i);
+                       v2_l(i) += gamma_dd_(a,b,i)*v_u_l(a,i)*v_u_l(b,i);
                    }
              }
        }
@@ -368,7 +333,7 @@ void Hydro::RiemannSolver(
             for(b=0;b<NDIM;++b){
                #pragma omp simd
                    for (int i = il; i <= iu; ++i){
-                       v2_r(i) += gamma_dd(a,b,i)*v_u_r(a,i)*v_u_r(b,i);
+                       v2_r(i) += gamma_dd_(a,b,i)*v_u_r(a,i)*v_u_r(b,i);
                    }
              }
        }
@@ -378,7 +343,7 @@ void Hydro::RiemannSolver(
           for(b=0;b<NDIM;++b){
       #pragma omp simd
       for (int i = il; i <= iu; ++i){
-                  v_d_l(a,i) += v_u_l(b,i)*gamma_dd(a,b,i);
+                  v_d_l(a,i) += v_u_l(b,i)*gamma_dd_(a,b,i);
               }
           }
       }
@@ -387,7 +352,7 @@ void Hydro::RiemannSolver(
           for(b=0;b<NDIM;++b){
                #pragma omp simd
       for (int i = il; i <= iu; ++i){
-                  v_d_r(a,i) += v_u_r(b,i)*gamma_dd(a,b,i);
+                  v_d_r(a,i) += v_u_r(b,i)*gamma_dd_(a,b,i);
               }
           }
       }
@@ -396,184 +361,199 @@ void Hydro::RiemannSolver(
     for(a=0;a<NDIM;++a){
        #pragma omp simd
        for (int i = il; i <= iu; ++i){
-          b0_u_l(i) += Wlor_l(i)*bb_l(a,i)*v_d_l(a,i)/alpha(i);  
+          b0_u_l(i) += Wlor_l(i)*bb_l(a,i)*v_d_l(a,i)/alpha_(i);  
        } 
      }
     b0_u_r.ZeroClear();
     for(a=0;a<NDIM;++a){
        #pragma omp simd
        for (int i = il; i <= iu; ++i){
-          b0_u_r(i) += Wlor_r(i)*bb_r(a,i)*v_d_r(a,i)/alpha(i);  
+          b0_u_r(i) += Wlor_r(i)*bb_r(a,i)*v_d_r(a,i)/alpha_(i);  
        } 
      }
     for(a=0;a<NDIM;++a){
        #pragma omp simd
        for (int i = il; i <= iu; ++i){
-          bi_u_l(a,i) = (bb_l(a,i) + alpha(i)*b0_u_l(i)*Wlor_l(i)*(v_u_l(a,i) - beta_u(a,i)/alpha(i)))/Wlor_l(i);
+          bi_u_l(a,i) = (bb_l(a,i) + alpha_(i)*b0_u_l(i)*Wlor_l(i)*(v_u_l(a,i) - beta_u_(a,i)/alpha_(i)))/Wlor_l(i);
        }
      }
     for(a=0;a<NDIM;++a){
        #pragma omp simd
        for (int i = il; i <= iu; ++i){
-          bi_u_r(a,i) = (bb_r(a,i) + alpha(i)*b0_u_r(i)*Wlor_r(i)*(v_u_r(a,i) - beta_u(a,i)/alpha(i)))/Wlor_r(i);
+          bi_u_r(a,i) = (bb_r(a,i) + alpha_(i)*b0_u_r(i)*Wlor_r(i)*(v_u_r(a,i) - beta_u_(a,i)/alpha_(i)))/Wlor_r(i);
        }
      }
      #pragma omp simd
      for (int i = il; i <= iu; ++i){
-       bsq_l(i) = alpha(i)*alpha(i)*b0_u_l(i)*b0_u_l(i)/(Wlor_l(i)*Wlor_l(i));
+       bsq_l(i) = alpha_(i)*alpha_(i)*b0_u_l(i)*b0_u_l(i)/(Wlor_l(i)*Wlor_l(i));
      }
       for(a=0;a<NDIM;++a){
           for(b=0;b<NDIM;++b){
                #pragma omp simd
       for (int i = il; i <= iu; ++i){
-         bsq_l(i) += bb_l(a,i)*bb_l(b,i)*gamma_dd(a,b,i)/(Wlor_l(i)*Wlor_l(i));
+         bsq_l(i) += bb_l(a,i)*bb_l(b,i)*gamma_dd_(a,b,i)/(Wlor_l(i)*Wlor_l(i));
       }
       }
       } 
      #pragma omp simd
      for (int i = il; i <= iu; ++i){
-       bsq_r(i) = alpha(i)*alpha(i)*b0_u_r(i)*b0_u_r(i)/(Wlor_r(i)*Wlor_r(i));
+       bsq_r(i) = alpha_(i)*alpha_(i)*b0_u_r(i)*b0_u_r(i)/(Wlor_r(i)*Wlor_r(i));
      }
       for(a=0;a<NDIM;++a){
           for(b=0;b<NDIM;++b){
                #pragma omp simd
       for (int i = il; i <= iu; ++i){
-         bsq_r(i) += bb_r(a,i)*bb_r(b,i)*gamma_dd(a,b,i)/(Wlor_r(i)*Wlor_r(i));
+         bsq_r(i) += bb_r(a,i)*bb_r(b,i)*gamma_dd_(a,b,i)/(Wlor_r(i)*Wlor_r(i));
       }
       }
       }
        for(a=0;a<NDIM;++a){
 #pragma omp simd
         for (int i = il; i <= iu; ++i){
-         bi_d_l(a,i) = beta_d(a,i) * b0_u_l(i);
+         bi_d_l(a,i) = beta_d_(a,i) * b0_u_l(i);
         }
         for(b=0;b<NDIM;++b){
 #pragma omp simd
          for (int i = il; i <= iu; ++i){
-          bi_d_l(a,i) += gamma_dd(a,b,i)*bi_u_l(b,i);
+          bi_d_l(a,i) += gamma_dd_(a,b,i)*bi_u_l(b,i);
          }
         }
        }
        for(a=0;a<NDIM;++a){
 #pragma omp simd
         for (int i = il; i <= iu; ++i){
-         bi_d_r(a,i) = beta_d(a,i) * b0_u_r(i);
+         bi_d_r(a,i) = beta_d_(a,i) * b0_u_r(i);
         }
         for(b=0;b<NDIM;++b){
 #pragma omp simd
          for (int i = il; i <= iu; ++i){
-          bi_d_r(a,i) += gamma_dd(a,b,i)*bi_u_r(b,i);
+          bi_d_r(a,i) += gamma_dd_(a,b,i)*bi_u_r(b,i);
          }
         }
        }
                      
-     utilde_d_l.ZeroClear();
+     w_util_d_l_.ZeroClear();
       for(a=0;a<NDIM;++a){
           for(b=0;b<NDIM;++b){
                #pragma omp simd
       for (int i = il; i <= iu; ++i){
-                  utilde_d_l(a,i) += utilde_u_l(b,i)*gamma_dd(a,b,i);
+                  w_util_d_l_(a,i) += w_util_u_l_(b,i)*gamma_dd_(a,b,i);
               }
           }
       }
-     utilde_d_r.ZeroClear();
+     w_util_d_r_.ZeroClear();
       for(a=0;a<NDIM;++a){
           for(b=0;b<NDIM;++b){
                #pragma omp simd
       for (int i = il; i <= iu; ++i){
-                  utilde_d_r(a,i) += utilde_u_r(b,i)*gamma_dd(a,b,i);
+                  w_util_d_r_(a,i) += w_util_u_r_(b,i)*gamma_dd_(a,b,i);
               }
           }
       }
        #pragma omp simd
       for (int i = il; i <= iu; ++i){
-      u0_l(i) = Wlor_l(i)/alpha(i);
-      u0_r(i) = Wlor_r(i)/alpha(i);
+      u0_l(i) = Wlor_l(i)/alpha_(i);
+      u0_r(i) = Wlor_r(i)/alpha_(i);
       }
 /*      for(a=0;a<NDIM;++a){
            #pragma omp simd
       for (int i = il; i <= iu; ++i){
-            ucon_u_l(a,i) = utilde_u_l(a,i) + Wlor_l(i) * beta_u(a,i)/alpha(i);
-            ucon_u_r(a,i) = utilde_u_r(a,i) + Wlor_r(i) * beta_u(a,i)/alpha(i);
+            ucon_u_l(a,i) = w_util_u_l_(a,i) + Wlor_l(i) * beta_u_(a,i)/alpha_(i);
+            ucon_u_r(a,i) = w_util_u_r_(a,i) + Wlor_r(i) * beta_u_(a,i)/alpha_(i);
           }
        }
 */
-      
-//copy from below!
-       #pragma omp simd
-      for (int i = il; i <= iu; ++i){
-        // Calculate wavespeeds in left state NB EOS specific
+
+      // copy from below!
+      #pragma omp simd
+      for (int i = il; i <= iu; ++i)
+      {
+      // Calculate wavespeeds in left state NB EOS specific
 #if USETM
-        // If using the PrimitiveSolver framework, get the number density
-        // and temperature to help calculate enthalpy.
-        Real nl = rho_l(i)/mb;
-        Real nr = rho_r(i)/mb;
-        // FIXME: Generalize to work with EOSes accepting particle fractions.
-        Real Yl[MAX_SPECIES] = {0.0}; // Should we worry about r vs l here?
-        Real Yr[MAX_SPECIES] = {0.0};
+      // If using the PrimitiveSolver framework, get the number density
+      // and temperature to help calculate enthalpy.
+      Real nl = w_rho_l_(i) / mb;
+      Real nr = w_rho_r_(i) / mb;
+      // FIXME: Generalize to work with EOSes accepting particle fractions.
+      Real Yl[MAX_SPECIES] = { 0.0 };  // Should we worry about r vs l here?
+      Real Yr[MAX_SPECIES] = { 0.0 };
 
-    // PH TODO scalars should be passed in?
+      // PH TODO scalars should be passed in?
 #ifdef DBG_COMBINED_HYDPA
-    for (int n=0; n<NSCALARS; n++)
-    {
-      Yl[n] = pmy_block->pscalars->rl_(n,i);
-      Yr[n] = pmy_block->pscalars->rr_(n,i);
-    }
+      for (int n = 0; n < NSCALARS; n++)
+      {
+        Yl[n] = pmy_block->pscalars->rl_(n, i);
+        Yr[n] = pmy_block->pscalars->rr_(n, i);
+      }
 #else
-    for (int n=0; n<NSCALARS; n++) {
-      Yr[n] = pmy_block->pscalars->r(n,k,j,i);
-    }
-    switch (ivx) {
+      for (int n = 0; n < NSCALARS; n++)
+      {
+        Yr[n] = pmy_block->pscalars->r(n, k, j, i);
+      }
+      switch (ivx)
+      {
       case IVX:
-        for (int n=0; n<NSCALARS; n++) {
-          Yl[n] = pmy_block->pscalars->r(n,k,j,i-1);
-        }
-        break;
+              for (int n = 0; n < NSCALARS; n++)
+              {
+                  Yl[n] = pmy_block->pscalars->r(n, k, j, i - 1);
+              }
+              break;
       case IVY:
-        for (int n=0; n<NSCALARS; n++) {
-          Yl[n] = pmy_block->pscalars->r(n,k,j-1,i);
-        }
-        break;
+              for (int n = 0; n < NSCALARS; n++)
+              {
+                  Yl[n] = pmy_block->pscalars->r(n, k, j - 1, i);
+              }
+              break;
       case IVZ:
-        for (int n=0; n<NSCALARS; n++) {
-          Yl[n] = pmy_block->pscalars->r(n,k-1,j,i);
-        }
-        break;
-    }
-#endif
+              for (int n = 0; n < NSCALARS; n++)
+              {
+                  Yl[n] = pmy_block->pscalars->r(n, k - 1, j, i);
+              }
+              break;
+      }
+#endif // DBG_COMBINED_HYDPA
 
-        Real Tl = pmy_block->peos->GetEOS().GetTemperatureFromP(nl, pgas_l(i), Yl);
-        Real Tr = pmy_block->peos->GetEOS().GetTemperatureFromP(nr, pgas_r(i), Yr);
-        wgas_l(i) = rho_l(i)*pmy_block->peos->GetEOS().GetEnthalpy(nl, Tl, Yl);
-        wgas_r(i) = rho_r(i)*pmy_block->peos->GetEOS().GetEnthalpy(nr, Tr, Yr);
+      Real Tl =
+        pmy_block->peos->GetEOS().GetTemperatureFromP(nl, w_p_l_(i), Yl);
+      Real Tr =
+        pmy_block->peos->GetEOS().GetTemperatureFromP(nr, w_p_r_(i), Yr);
+      w_hrho_l_(i) =
+        w_rho_l_(i) * pmy_block->peos->GetEOS().GetEnthalpy(nl, Tl, Yl);
+      w_hrho_r_(i) =
+        w_rho_r_(i) * pmy_block->peos->GetEOS().GetEnthalpy(nr, Tr, Yr);
 
-        // Calculate the wave speeds
-        pmy_block->peos->FastMagnetosonicSpeedsGR(nl, Tl, bsq_l(i), v_u_l(ivx-1,i), v2_l(i),
-                                                  alpha(i), beta_u(ivx-1,i), gamma_uu(ivx-1,ivx-1,i),
-                                                  &lambda_p_l(i), &lambda_m_l(i), Yl);
-        pmy_block->peos->FastMagnetosonicSpeedsGR(nr, Tr, bsq_r(i), v_u_r(ivx-1,i), v2_r(i),
-                                                  alpha(i), beta_u(ivx-1,i), gamma_uu(ivx-1,ivx-1,i),
-                                                  &lambda_p_r(i), &lambda_m_r(i), Yr);
+      // Calculate the wave speeds
+      pmy_block->peos->FastMagnetosonicSpeedsGR(
+        nl, Tl, bsq_l(i), v_u_l(ivx - 1, i), v2_l(i), alpha_(i),
+        beta_u_(ivx - 1, i), gamma_uu_(ivx - 1, ivx - 1, i), &lambda_p_l(i),
+        &lambda_m_l(i), Yl);
+      pmy_block->peos->FastMagnetosonicSpeedsGR(
+        nr, Tr, bsq_r(i), v_u_r(ivx - 1, i), v2_r(i), alpha_(i),
+        beta_u_(ivx - 1, i), gamma_uu_(ivx - 1, ivx - 1, i), &lambda_p_r(i),
+        &lambda_m_r(i), Yr);
 #else
-        wgas_l(i) = rho_l(i) + gamma_adi/(gamma_adi-1.0) * pgas_l(i);
-        wgas_r(i) = rho_r(i) + gamma_adi/(gamma_adi-1.0) * pgas_r(i);
-       
-     pmy_block->peos->FastMagnetosonicSpeedsGR(wgas_l(i), pgas_l(i), bsq_l(i), v_u_l(ivx-1,i), v2_l(i), alpha(i), beta_u(ivx-1,i), gamma_uu(ivx-1,ivx-1,i),  &lambda_p_l(i), &lambda_m_l(i));
-     pmy_block->peos->FastMagnetosonicSpeedsGR(wgas_r(i), pgas_r(i), bsq_r(i), v_u_r(ivx-1,i), v2_r(i), alpha(i), beta_u(ivx-1,i), gamma_uu(ivx-1,ivx-1,i),  &lambda_p_r(i), &lambda_m_r(i));
+      w_hrho_l_(i) = w_rho_l_(i) + Eos_Gamma_ratio * w_p_l_(i);
+      w_hrho_r_(i) = w_rho_r_(i) + Eos_Gamma_ratio * w_p_r_(i);
+
+      pmy_block->peos->FastMagnetosonicSpeedsGR(
+        w_hrho_l_(i), w_p_l_(i), bsq_l(i), v_u_l(ivx - 1, i), v2_l(i),
+        alpha_(i), beta_u_(ivx - 1, i), gamma_uu_(ivx - 1, ivx - 1, i),
+        &lambda_p_l(i), &lambda_m_l(i));
+      pmy_block->peos->FastMagnetosonicSpeedsGR(
+        w_hrho_r_(i), w_p_r_(i), bsq_r(i), v_u_r(ivx - 1, i), v2_r(i),
+        alpha_(i), beta_u_(ivx - 1, i), gamma_uu_(ivx - 1, ivx - 1, i),
+        &lambda_p_r(i), &lambda_m_r(i));
 #endif
-}
-        // Calculate extremal wavespeed
-         #pragma omp simd
+      }
+
+      // Calculate extremal wavespeed
+#pragma omp simd
       for (int i = il; i <= iu; ++i){
         Real lambda_l = std::min(lambda_m_l(i), lambda_m_r(i));
         Real lambda_r = std::max(lambda_p_l(i), lambda_p_r(i));
         lambda(i) = std::max(lambda_r, -lambda_l);
         }
-        AthenaArray<Real> cons_l, cons_r, flux_l, flux_r;
-        cons_l.NewAthenaArray(NWAVE,nn1);
-        cons_r.NewAthenaArray(NWAVE,nn1);
-        flux_l.NewAthenaArray(NWAVE,nn1);
-        flux_r.NewAthenaArray(NWAVE,nn1);
+
         // Calculate conserved quantities in L region including factor of sqrt(detgamma)
          #pragma omp simd
       for (int i = il; i <= iu; ++i){
@@ -581,131 +561,82 @@ void Hydro::RiemannSolver(
 //TODO cons definitions change for Magfield
 //TODO add in cons B field (for flux calc at end)
         // D = rho * gamma_lorentz
-        cons_l(IDN,i) = rho_l(i)*Wlor_l(i)*std::sqrt(detgamma(i));
+        cons_l_(IDN,i) = w_rho_l_(i)*Wlor_l(i)*sqrt_detgamma_(i);
         // tau = (rho * h = ) wgas * gamma_lorentz**2 - rho * gamma_lorentz - p
-        cons_l(IEN,i) = ((wgas_l(i)+bsq_l(i)) * SQR(Wlor_l(i)) - rho_l(i)*Wlor_l(i) - pgas_l(i) - bsq_l(i)/2.0 - alpha(i)*alpha(i)*b0_u_l(i)*b0_u_l(i))*std::sqrt(detgamma(i));
+        cons_l_(IEN,i) = ((w_hrho_l_(i)+bsq_l(i)) * SQR(Wlor_l(i)) - w_rho_l_(i)*Wlor_l(i) - w_p_l_(i) - bsq_l(i)/2.0 - alpha_(i)*alpha_(i)*b0_u_l(i)*b0_u_l(i))*sqrt_detgamma_(i);
         // S_i = wgas * gamma_lorentz**2 * v_i = wgas * gamma_lorentz * u_i
-//        cons_l(IVX,i) = wgas_l * gamma_l * ucov_l[1]*std::sqrt(detgamma);
-//        cons_l(IVY,i) = wgas_l * gamma_l * ucov_l[2]*std::sqrt(detgamma);
-//        cons_l(IVZ,i) = wgas_l * gamma_l * ucov_l[3]*std::sqrt(detgamma);
+//        cons_l_(IVX,i) = w_hrho_l_ * gamma_l * ucov_l[1]*std::sqrt(detgamma);
+//        cons_l_(IVY,i) = w_hrho_l_ * gamma_l * ucov_l[2]*std::sqrt(detgamma);
+//        cons_l_(IVZ,i) = w_hrho_l_ * gamma_l * ucov_l[3]*std::sqrt(detgamma);
 //NB TODO double check velocity has chenged here (also in right state)
-        cons_l(IVX,i) = ((wgas_l(i)+bsq_l(i)) * Wlor_l(i) * utilde_d_l(0,i) - alpha(i)*b0_u_l(i)*bi_d_l(0,i)  )*std::sqrt(detgamma(i));
-        cons_l(IVY,i) = ((wgas_l(i)+bsq_l(i)) * Wlor_l(i) * utilde_d_l(1,i) - alpha(i)*b0_u_l(i)*bi_d_l(1,i)  )*std::sqrt(detgamma(i));
-        cons_l(IVZ,i) = ((wgas_l(i)+bsq_l(i)) * Wlor_l(i) * utilde_d_l(2,i) - alpha(i)*b0_u_l(i)*bi_d_l(2,i)  )*std::sqrt(detgamma(i));
-        cons_l(IBY,i) = std::sqrt(detgamma(i))*bb_l(ivy-1,i);
-        cons_l(IBZ,i) = std::sqrt(detgamma(i))*bb_l(ivz-1,i);
+        cons_l_(IVX,i) = ((w_hrho_l_(i)+bsq_l(i)) * Wlor_l(i) * w_util_d_l_(0,i) - alpha_(i)*b0_u_l(i)*bi_d_l(0,i)  )*sqrt_detgamma_(i);
+        cons_l_(IVY,i) = ((w_hrho_l_(i)+bsq_l(i)) * Wlor_l(i) * w_util_d_l_(1,i) - alpha_(i)*b0_u_l(i)*bi_d_l(1,i)  )*sqrt_detgamma_(i);
+        cons_l_(IVZ,i) = ((w_hrho_l_(i)+bsq_l(i)) * Wlor_l(i) * w_util_d_l_(2,i) - alpha_(i)*b0_u_l(i)*bi_d_l(2,i)  )*sqrt_detgamma_(i);
+        cons_l_(IBY,i) = sqrt_detgamma_(i)*bb_l(ivy-1,i);
+        cons_l_(IBZ,i) = sqrt_detgamma_(i)*bb_l(ivz-1,i);
         // Calculate fluxes in L region (rho u^i and T^i_\mu, where i = ivx)
         // D flux: D(v^i - beta^i/alpha)
         //
-         flux_l(IDN,i) = cons_l(IDN,i)*alpha(i)*(v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i));
+         flux_l_(IDN,i) = cons_l_(IDN,i)*alpha_(i)*(v_u_l(ivx-1,i) - beta_u_(ivx-1,i)/alpha_(i));
 
-        // tau flux: alpha(S^i - Dv^i) - beta^i tau
-          flux_l(IEN,i) = cons_l(IEN,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) + std::sqrt(detg(i))*((pgas_l(i)+ bsq_l(i)/2.0)*v_u_l(ivx-1,i) - alpha(i)*b0_u_l(i)*bb_l(ivx-1,i)/Wlor_l(i));
+        // tau flux: alpha_(S^i - Dv^i) - beta^i tau
+          flux_l_(IEN,i) = cons_l_(IEN,i) * alpha_(i) * (v_u_l(ivx-1,i) - beta_u_(ivx-1,i)/alpha_(i)) + alpha_(i)*sqrt_detgamma_(i)*((w_p_l_(i)+ bsq_l(i)/2.0)*v_u_l(ivx-1,i) - alpha_(i)*b0_u_l(i)*bb_l(ivx-1,i)/Wlor_l(i));
  
         //S_i flux alpha S^j_i - beta^j S_i
-        flux_l(IVX,i) = cons_l(IVX,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - std::sqrt(detg(i))*bi_d_l(0,i)*bb_l(ivx-1,i)/Wlor_l(i);      
-        flux_l(IVY,i) = cons_l(IVY,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - std::sqrt(detg(i))*bi_d_l(1,i)*bb_l(ivx-1,i)/Wlor_l(i);      
-        flux_l(IVZ,i) = cons_l(IVZ,i) * alpha(i) * (v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - std::sqrt(detg(i))*bi_d_l(2,i)*bb_l(ivx-1,i)/Wlor_l(i);      
-        flux_l(ivx,i) += (pgas_l(i)+bsq_l(i)/2.0)*std::sqrt(detg(i));
-        flux_l(IBY,i) = alpha(i)*(cons_l(IBY,i)*(v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - bb_l(ivx-1,i)*std::sqrt(detgamma(i))*(v_u_l(ivy-1,i) - beta_u(ivy-1,i)/alpha(i))  );
-        flux_l(IBZ,i) = alpha(i)*(cons_l(IBZ,i)*(v_u_l(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - bb_l(ivx-1,i)*std::sqrt(detgamma(i))*(v_u_l(ivz-1,i) - beta_u(ivz-1,i)/alpha(i))  ); //check these indices
+        flux_l_(IVX,i) = cons_l_(IVX,i) * alpha_(i) * (v_u_l(ivx-1,i) - beta_u_(ivx-1,i)/alpha_(i)) - alpha_(i)*sqrt_detgamma_(i)*bi_d_l(0,i)*bb_l(ivx-1,i)/Wlor_l(i);      
+        flux_l_(IVY,i) = cons_l_(IVY,i) * alpha_(i) * (v_u_l(ivx-1,i) - beta_u_(ivx-1,i)/alpha_(i)) - alpha_(i)*sqrt_detgamma_(i)*bi_d_l(1,i)*bb_l(ivx-1,i)/Wlor_l(i);      
+        flux_l_(IVZ,i) = cons_l_(IVZ,i) * alpha_(i) * (v_u_l(ivx-1,i) - beta_u_(ivx-1,i)/alpha_(i)) - alpha_(i)*sqrt_detgamma_(i)*bi_d_l(2,i)*bb_l(ivx-1,i)/Wlor_l(i);      
+        flux_l_(ivx,i) += (w_p_l_(i)+bsq_l(i)/2.0)*alpha_(i)*sqrt_detgamma_(i);
+        flux_l_(IBY,i) = alpha_(i)*(cons_l_(IBY,i)*(v_u_l(ivx-1,i) - beta_u_(ivx-1,i)/alpha_(i)) - bb_l(ivx-1,i)*sqrt_detgamma_(i)*(v_u_l(ivy-1,i) - beta_u_(ivy-1,i)/alpha_(i))  );
+        flux_l_(IBZ,i) = alpha_(i)*(cons_l_(IBZ,i)*(v_u_l(ivx-1,i) - beta_u_(ivx-1,i)/alpha_(i)) - bb_l(ivx-1,i)*sqrt_detgamma_(i)*(v_u_l(ivz-1,i) - beta_u_(ivz-1,i)/alpha_(i))  ); //check these indices
 
-        cons_r(IDN,i) = rho_r(i)*Wlor_r(i)*std::sqrt(detgamma(i));
+        cons_r_(IDN,i) = w_rho_r_(i)*Wlor_r(i)*sqrt_detgamma_(i);
         // tau = (rho * h = ) wgas * gamma_lorentz**2 - rho * gamma_lorentz - p
-        cons_r(IEN,i) = ((wgas_r(i)+bsq_r(i)) * SQR(Wlor_r(i)) - rho_r(i)*Wlor_r(i) - pgas_r(i) - bsq_r(i)/2.0 - alpha(i)*alpha(i)*b0_u_r(i)*b0_u_r(i))*std::sqrt(detgamma(i));
+        cons_r_(IEN,i) = ((w_hrho_r_(i)+bsq_r(i)) * SQR(Wlor_r(i)) - w_rho_r_(i)*Wlor_r(i) - w_p_r_(i) - bsq_r(i)/2.0 - alpha_(i)*alpha_(i)*b0_u_r(i)*b0_u_r(i))*sqrt_detgamma_(i);
         // S_i = wgas * gamma_lorentz**2 * v_i = wgas * gamma_lorentz * u_i
-//        cons_l(IVX,i) = wgas_l * gamma_l * ucov_l[1]*std::sqrt(detgamma);
-//        cons_l(IVY,i) = wgas_l * gamma_l * ucov_l[2]*std::sqrt(detgamma);
-//        cons_l(IVZ,i) = wgas_l * gamma_l * ucov_l[3]*std::sqrt(detgamma);
-        cons_r(IVX,i) = ((wgas_r(i)+bsq_r(i)) * Wlor_r(i) * utilde_d_r(0,i) - alpha(i)*b0_u_r(i)*bi_d_r(0,i)  )*std::sqrt(detgamma(i));
-        cons_r(IVY,i) = ((wgas_r(i)+bsq_r(i)) * Wlor_r(i) * utilde_d_r(1,i) - alpha(i)*b0_u_r(i)*bi_d_r(1,i)  )*std::sqrt(detgamma(i));
-        cons_r(IVZ,i) = ((wgas_r(i)+bsq_r(i)) * Wlor_r(i) * utilde_d_r(2,i) - alpha(i)*b0_u_r(i)*bi_d_r(2,i)  )*std::sqrt(detgamma(i));
-        cons_r(IBY,i) = std::sqrt(detgamma(i))*bb_r(ivy-1,i);
-        cons_r(IBZ,i) = std::sqrt(detgamma(i))*bb_r(ivz-1,i);
+//        cons_l_(IVX,i) = w_hrho_l_ * gamma_l * ucov_l[1]*std::sqrt(detgamma);
+//        cons_l_(IVY,i) = w_hrho_l_ * gamma_l * ucov_l[2]*std::sqrt(detgamma);
+//        cons_l_(IVZ,i) = w_hrho_l_ * gamma_l * ucov_l[3]*std::sqrt(detgamma);
+        cons_r_(IVX,i) = ((w_hrho_r_(i)+bsq_r(i)) * Wlor_r(i) * w_util_d_r_(0,i) - alpha_(i)*b0_u_r(i)*bi_d_r(0,i)  )*sqrt_detgamma_(i);
+        cons_r_(IVY,i) = ((w_hrho_r_(i)+bsq_r(i)) * Wlor_r(i) * w_util_d_r_(1,i) - alpha_(i)*b0_u_r(i)*bi_d_r(1,i)  )*sqrt_detgamma_(i);
+        cons_r_(IVZ,i) = ((w_hrho_r_(i)+bsq_r(i)) * Wlor_r(i) * w_util_d_r_(2,i) - alpha_(i)*b0_u_r(i)*bi_d_r(2,i)  )*sqrt_detgamma_(i);
+        cons_r_(IBY,i) = sqrt_detgamma_(i)*bb_r(ivy-1,i);
+        cons_r_(IBZ,i) = sqrt_detgamma_(i)*bb_r(ivz-1,i);
         // Calculate fluxes in L region (rho u^i and T^i_\mu, where i = ivx)
         // D flux: D(v^i - beta^i/alpha)
         //
-         flux_r(IDN,i) = cons_r(IDN,i)*alpha(i)*(v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i));
+         flux_r_(IDN,i) = cons_r_(IDN,i)*alpha_(i)*(v_u_r(ivx-1,i) - beta_u_(ivx-1,i)/alpha_(i));
 
-        // tau flux: alpha(S^i - Dv^i) - beta^i tau
-          flux_r(IEN,i) = cons_r(IEN,i) * alpha(i) * (v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) + std::sqrt(detg(i))*((pgas_r(i)+ bsq_r(i)/2.0)*v_u_r(ivx-1,i) - alpha(i)*b0_u_r(i)*bb_r(ivx-1,i)/Wlor_r(i));
+        // tau flux: alpha_(S^i - Dv^i) - beta^i tau
+          flux_r_(IEN,i) = cons_r_(IEN,i) * alpha_(i) * (v_u_r(ivx-1,i) - beta_u_(ivx-1,i)/alpha_(i)) + alpha_(i)*sqrt_detgamma_(i)*((w_p_r_(i)+ bsq_r(i)/2.0)*v_u_r(ivx-1,i) - alpha_(i)*b0_u_r(i)*bb_r(ivx-1,i)/Wlor_r(i));
  
         //S_i flux alpha S^j_i - beta^j S_i
-        flux_r(IVX,i) = cons_r(IVX,i) * alpha(i) * (v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - std::sqrt(detg(i))*bi_d_r(0,i)*bb_r(ivx-1,i)/Wlor_r(i);      
-        flux_r(IVY,i) = cons_r(IVY,i) * alpha(i) * (v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - std::sqrt(detg(i))*bi_d_r(1,i)*bb_r(ivx-1,i)/Wlor_r(i);      
-        flux_r(IVZ,i) = cons_r(IVZ,i) * alpha(i) * (v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - std::sqrt(detg(i))*bi_d_r(2,i)*bb_r(ivx-1,i)/Wlor_r(i);      
-        flux_r(ivx,i) += (pgas_r(i)+bsq_r(i)/2.0)*std::sqrt(detg(i));
-        flux_r(IBY,i) = alpha(i)*(cons_r(IBY,i)*(v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - bb_r(ivx-1,i)*std::sqrt(detgamma(i))*(v_u_r(ivy-1,i) - beta_u(ivy-1,i)/alpha(i))  ); //check indices
-        flux_r(IBZ,i) = alpha(i)*(cons_r(IBZ,i)*(v_u_r(ivx-1,i) - beta_u(ivx-1,i)/alpha(i)) - bb_r(ivx-1, i)*std::sqrt(detgamma(i))*(v_u_r(ivz-1,i) - beta_u(ivz-1,i)/alpha(i))  );
+        flux_r_(IVX,i) = cons_r_(IVX,i) * alpha_(i) * (v_u_r(ivx-1,i) - beta_u_(ivx-1,i)/alpha_(i)) - alpha_(i)*sqrt_detgamma_(i)*bi_d_r(0,i)*bb_r(ivx-1,i)/Wlor_r(i);      
+        flux_r_(IVY,i) = cons_r_(IVY,i) * alpha_(i) * (v_u_r(ivx-1,i) - beta_u_(ivx-1,i)/alpha_(i)) - alpha_(i)*sqrt_detgamma_(i)*bi_d_r(1,i)*bb_r(ivx-1,i)/Wlor_r(i);      
+        flux_r_(IVZ,i) = cons_r_(IVZ,i) * alpha_(i) * (v_u_r(ivx-1,i) - beta_u_(ivx-1,i)/alpha_(i)) - alpha_(i)*sqrt_detgamma_(i)*bi_d_r(2,i)*bb_r(ivx-1,i)/Wlor_r(i);      
+        flux_r_(ivx,i) += (w_p_r_(i)+bsq_r(i)/2.0)*alpha_(i)*sqrt_detgamma_(i);
+        flux_r_(IBY,i) = alpha_(i)*(cons_r_(IBY,i)*(v_u_r(ivx-1,i) - beta_u_(ivx-1,i)/alpha_(i)) - bb_r(ivx-1,i)*sqrt_detgamma_(i)*(v_u_r(ivy-1,i) - beta_u_(ivy-1,i)/alpha_(i))  ); //check indices
+        flux_r_(IBZ,i) = alpha_(i)*(cons_r_(IBZ,i)*(v_u_r(ivx-1,i) - beta_u_(ivx-1,i)/alpha_(i)) - bb_r(ivx-1, i)*sqrt_detgamma_(i)*(v_u_r(ivz-1,i) - beta_u_(ivz-1,i)/alpha_(i))  );
        } 
       // Set fluxes
         for (int n = 0; n < NHYDRO; ++n) {
            #pragma omp simd
       for (int i = il; i <= iu; ++i){
           flux(n,k,j,i) =
-              0.5 * (flux_l(n,i) + flux_r(n,i) - lambda(i) * (cons_r(n,i) - cons_l(n,i)));
+              0.5 * (flux_l_(n,i) + flux_r_(n,i) - lambda(i) * (cons_r_(n,i) - cons_l_(n,i)));
           }
         }
         
            #pragma omp simd
       for (int i = il; i <= iu; ++i){
     ey(k,j,i) =
-            -0.5 * (flux_l(IBY,i) + flux_r(IBY,i) - lambda(i) * (cons_r(IBY,i) - cons_l(IBY,i)));
+            -0.5 * (flux_l_(IBY,i) + flux_r_(IBY,i) - lambda(i) * (cons_r_(IBY,i) - cons_l_(IBY,i)));
      ez(k,j,i) =
-            0.5 * (flux_l(IBZ,i) + flux_r(IBZ,i) - lambda(i) * (cons_r(IBZ,i) - cons_l(IBZ,i)));
+            0.5 * (flux_l_(IBZ,i) + flux_r_(IBZ,i) - lambda(i) * (cons_r_(IBZ,i) - cons_l_(IBZ,i)));
 
     wct(k,j,i) =
         GetWeightForCT(flux(IDN,k,j,i), prim_l(IDN,i), prim_r(IDN,i), dxw(i), dt);
 }
-    
-      alpha.DeleteAthenaTensor();
-      detg.DeleteAthenaTensor();
-      detgamma.DeleteAthenaTensor();
-      rho_l.DeleteAthenaTensor();
-      rho_r.DeleteAthenaTensor();
-      pgas_l.DeleteAthenaTensor();
-      pgas_r.DeleteAthenaTensor();
-      wgas_l.DeleteAthenaTensor();
-      wgas_r.DeleteAthenaTensor();
-      Wlor_l.DeleteAthenaTensor();
-      Wlor_r.DeleteAthenaTensor();
-      u0_l.DeleteAthenaTensor();
-      u0_r.DeleteAthenaTensor();
-      v2_l.DeleteAthenaTensor();
-      v2_r.DeleteAthenaTensor();
-      lambda.DeleteAthenaTensor();
-      lambda_p_l.DeleteAthenaTensor();
-      lambda_m_l.DeleteAthenaTensor();
-      lambda_p_r.DeleteAthenaTensor();
-      lambda_m_r.DeleteAthenaTensor();
-      beta_u.DeleteAthenaTensor();
-      beta_d.DeleteAthenaTensor();
-      utilde_u_l.DeleteAthenaTensor();
-      utilde_u_r.DeleteAthenaTensor();
-      v_u_l.DeleteAthenaTensor();
-      v_u_r.DeleteAthenaTensor();
-      v_d_l.DeleteAthenaTensor();
-      v_d_r.DeleteAthenaTensor();
-      utilde_d_l.DeleteAthenaTensor();
-      utilde_d_r.DeleteAthenaTensor();
-      ucon_l.DeleteAthenaTensor();
-      ucon_r.DeleteAthenaTensor();
-      gamma_dd.DeleteAthenaTensor();
-      gamma_uu.DeleteAthenaTensor();
-      b0_u_l.DeleteAthenaTensor();
-      b0_u_r.DeleteAthenaTensor();
-      bsq_l.DeleteAthenaTensor();
-      bsq_r.DeleteAthenaTensor();
-      bb_l.DeleteAthenaTensor();
-      bb_r.DeleteAthenaTensor(); 
-      bi_u_l.DeleteAthenaTensor();
-      bi_u_r.DeleteAthenaTensor(); 
-      bi_d_l.DeleteAthenaTensor();
-      bi_d_r.DeleteAthenaTensor();
-      cons_l.DeleteAthenaArray();
-      cons_r.DeleteAthenaArray();
-      flux_l.DeleteAthenaArray();
-      flux_r.DeleteAthenaArray();
-  
+
   return;
 }
