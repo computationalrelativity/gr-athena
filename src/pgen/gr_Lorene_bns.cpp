@@ -580,6 +580,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 #else
     // PrimitiveSolver --------------------------------------------------------
     Real w_rho_atm = pin->GetReal("hydro", "dfloor");
+    Real rho_cut = std::max(pin->GetOrAddReal("problem", "rho_cut", w_rho_atm),
+                            w_rho_atm);
 
 #if NSCALARS > 0
     Real Y_atm[NSCALARS] = {0.0};
@@ -596,7 +598,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     {
       // Check if density admissible first -
       // This controls velocity reset & Y interpolation (if applicable)
-      if (w(IDN,k,j,i) > w_rho_atm)
+      if (w(IDN,k,j,i) > rho_cut)
       {
         w(IPR,k,j,i) = ceos->GetPressure(w(IDN,k,j,i));
 
