@@ -21,6 +21,7 @@
 #include <unites.h>
 
 // Athena++ headers
+#include "../globals.hpp"
 #include "../athena_aliases.hpp"
 #include "../parameter_input.hpp"
 #include "../coordinates/coordinates.hpp"
@@ -144,6 +145,9 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   EnrollUserHistoryOutput(3, DivBface, "divBface");
 #endif
 
+  if (!resume_flag)
+    return;
+
 #if USETM
   // initialize the cold EOS
   ceos = new ColdEOS<COLDEOS_POLICY>();
@@ -151,9 +155,11 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 
 #if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
   // Dump Lorene eos file
-  std::string run_dir;
-  GetRunDir(run_dir);
-  ceos->DumpLoreneEOSFile(run_dir + "/eos_akmalpr.d");
+  if (Globals::my_rank == 0) {
+    std::string run_dir;
+    GetRunDir(run_dir);
+    ceos->DumpLoreneEOSFile(run_dir + "/eos_akmalpr.d");
+  }
 #endif
 
 #endif
@@ -164,7 +170,17 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   std::string fn_ini_data = pin->GetOrAddString("problem", "filename", "resu.d");
 
   Real * crd = new Real[1]{0.0};
+  std::streambuf *cur_buf;
+  std::ostringstream dmp_buf;
+  bool verbose = pin->GetOrAddBoolean("problem", "verbose", false);
 
+  if (!verbose)
+  {
+    cur_buf = std::cout.rdbuf();
+    std::cout.rdbuf(dmp_buf.rdbuf());
+  }
+
+  // Get the separation
   bns = new Lorene::Bin_NS(1, crd, crd, crd,
                            fn_ini_data.c_str());
   sep = bns->dist / coord_unit;
@@ -566,29 +582,25 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       if (w(IDN,k,j,i) > w_rho_atm)
       {
         w(IPR,k,j,i) = ceos->GetPressure(w(IDN,k,j,i));
+
 #if NSCALARS > 0
         for (int iy=0; iy<NSCALARS; ++iy)
-        {
           r(iy,k,j,i) = ceos->GetY(w(IDN,k,j,i), iy);
-        }
 #endif
       }
       else
       {
         // Reset primitives
         w(IPR,k,j,i) = 0;
+
 #if NSCALARS > 0
         for (int iy=0; iy<NSCALARS; ++iy)
-        {
           r(iy,k,j,i) = Y_atm[iy];
-        }
 #endif
 
         // Assume that we always have (IVX, IVY, IVZ)
         for (int ix=0; ix<3; ++ix)
-        {
           w(IVX+ix,k,j,i) = 0;
-        }
       }
 
       // This is useless with USETM (w1 is old state for e.g. rootfinder)
