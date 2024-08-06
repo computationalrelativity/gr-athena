@@ -1597,10 +1597,11 @@ void TOV_populate(MeshBlock *pmb,
   // Initialize magnetic field
   // No metric weighting here
   Real rhomax = tov->data[itov_rho][0];
+#if USETM
   Real pgasmax = ceos->GetPressure(rhomax);
-
-  // BD: TODO - what are the units?
-  pgasmax = pin->GetReal("problem","pmax");
+#else
+  Real pgasmax = k_adi * pow(rhomax, gamma_adi);
+#endif
 
   Real pcut = pin->GetReal("problem","pcut") * pgasmax;
   int magindex=pin->GetInteger("problem","magindex");
