@@ -19,6 +19,7 @@
 #include <sstream>    // stringstream
 #include <stdexcept>  // runtime_error
 #include <string>     // string
+#include <cfloat>
 
 // Athena++ headers
 #include "../athena_aliases.hpp"
@@ -89,7 +90,14 @@ namespace {
   };
   TOVData * tov = NULL;
 
+#if USETM
   Primitive::ColdEOS<Primitive::COLDEOS_POLICY> * ceos = NULL;
+#else
+  Real gamma_adi;
+  Real k_adi;
+#endif
+  Real rho_zero; // TOV surface density
+
 
   Real Maxrho(MeshBlock *pmb, int iout);
 #if MAGNETIC_FIELDS_ENABLED
@@ -146,9 +154,16 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   // surface identification
   tov->surf_dr   = pin->GetOrAddReal(     "problem", "surf_dr",   dr / 1.0e3);
 
+#if USETM
   // Initialize cold EOS
   ceos = new Primitive::ColdEOS<Primitive::COLDEOS_POLICY>;
   InitColdEOS(ceos, pin);
+  rho_zero = ceos->GetDensityFloor();
+#else
+   gamma_adi = pin->GetOrAddReal("problem", "gamma", 2.0);
+   k_adi = pin->GetOrAddReal("problem", "k_adi", 100.0);
+   rho_zero = pin->GetOrAddReal("hydro", "dfloor", std::sqrt(1024*(FLT_MIN)));
+#endif
 
   for (int v = 0; v < itov_nv; v++)
     tov->data[v] = (Real*) malloc((tov->interp_npts)*sizeof(Real));
@@ -241,8 +256,10 @@ void Mesh::DeleteTemporaryUserMeshData()
     tov = NULL;
   }
 
+#if USETM
   // Free cold EOS data
   delete ceos;
+#endif
 
   return;
 }
@@ -448,12 +465,17 @@ int TOV_rhs(Real r, Real *u, Real *k)
   Real phi = u[TOV_IPHI];
   Real I   = u[TOV_IINT]; // Integral for the isotropic radius
 
-  if (rho < 0.0) rho = ceos->GetDensityFloor();
-
   //  Set pressure and energy using equation of state
+#if USETM
+  if (rho < 0.0) rho = ceos->GetDensityFloor();
   Real p = ceos->GetPressure(rho);
   Real e= ceos->GetEnergy(rho);
   Real dpdrho = ceos->GetdPdrho(rho);
+#else
+  Real p = k_adi * pow(rho, gamma_adi);
+  Real e = rho + p / (gamma_adi - 1.0);
+  Real dpdrho = gamma_adi * p / rho;
+#endif
 
   Real num   = m + 4.*PI*r*r*r*p;
   Real den   = r*(r-2.*m);
@@ -497,10 +519,15 @@ int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts)
   Real u[TOV_NVAR];
 
   // Set central values of pressure internal energy using EOS
+#if USETM
   const Real logrhoc = log(rhoc);
   const Real pc = ceos->GetPressure(rhoc);
   const Real logpc = log(pc);
   const Real ec = ceos->GetEnergy(rhoc);
+#else
+  const Real pc = k_adi * pow(rhoc, gamma_adi);
+  const Real ec = rhoc + pc / (gamma_adi - 1.0);
+#endif
 
   // Data at r = 0^+
   Real r = rmin;
@@ -531,9 +558,6 @@ int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts)
   tov->data[itov_phi][0]  = u[TOV_IPHI];
   // Mul. by C later
   tov->data[itov_riso][0] = (r) * std::exp(u[TOV_IINT]);
-
-
-  const Real rho_zero = ceos->GetDensityFloor();
 
   int n_halving = 0;
   bool tol_surf_achieved = false;
@@ -721,7 +745,11 @@ int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts)
 
   // Pressure
   for (int n = 0; n < tov->interp_npts; n++) {
+#if USETM
     tov->data[itov_pre][n] = ceos->GetPressure(tov->data[itov_rho][n]);
+#else
+    tov->data[itov_pre][n] = k_adi * pow(tov->data[itov_rho][n], gamma_adi);
+#endif
   }
 
   // Other metric fields
@@ -1128,12 +1156,16 @@ void TOV_populate(MeshBlock *pmb,
             &dummy);
 
           // Pressure from EOS
+#if USETM
           w_p_(i) = ceos->GetPressure(w_rho_(i));
 #if NSCALARS > 0
-          for (int l=0; l<NSCALARS; ++l) {
+          for (int l=0; l<NSCALARS; ++l)
             prim_scalar(l,i) = ceos->GetY(w_rho_(i), l);
-          }
 #endif
+#else
+          w_p_(i) = k_adi*pow(w_rho_(i),gamma_adi);
+#endif
+
 
           // Add perturbation
           const Real x_kji = r_(i) / R;
