@@ -134,7 +134,7 @@ void InitColdEOS(Primitive::ColdEOS<Primitive::COLDEOS_POLICY> *eos,
 
   // read in species names
   std::string species_names[NSCALARS];
-  for (int i = 0; i < NSCALARS; i++) {
+  for (int i = 1; i < NSCALARS+1; i++) {
     species_names[i] = pin->GetOrAddString("hydro", "species" + std::to_string(i), "e");
   }
 
@@ -148,13 +148,15 @@ void InitColdEOS(Primitive::ColdEOS<Primitive::COLDEOS_POLICY> *eos,
   eos->SetGamma(gamma_adi);
 
 #elif defined(USE_PIECEWISE_POLY)
-  int n = pin->GetOrAddInteger("hydro", "n", 4);
+  int n = pin->GetInteger("hydro", "n");
   Real gammas[n];
-  Real rhos[n];
   for (int i = 0; i < n; i++) {
     gammas[i] = pin->GetReal("hydro", "gamma" + std::to_string(i));
-    rhos[i] = pin->GetReal("hydro", "rho" + std::to_string(i));
   }
+  Real rhos[n];
+  Real rhos[0] = 0; // needed in initialization but ignored in the function
+  for (int i = 1; i < n; i++)
+    rhos[i] = pin->GetReal("hydro", "rho" + std::to_string(i));
   Real P0 = pin->GetReal("hydro", "P0");
   Real mb = pin->GetOrAddReal("hydro", "bmass", 1.0);
   eos->InitializeFromData(rhos, gammas, P0, mb, n);
