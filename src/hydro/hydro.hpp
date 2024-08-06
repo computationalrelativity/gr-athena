@@ -87,26 +87,26 @@ public:
   AT_N_vec w_v_u_l_;
   AT_N_vec w_v_u_r_;
 
-  AT_N_sca w_norm2_v_l;
-  AT_N_sca w_norm2_v_r;
+  AT_C_sca w_norm2_v_l_;
+  AT_C_sca w_norm2_v_r_;
 
-  AT_N_sca lambda_p_l;
-  AT_N_sca lambda_m_l;
-  AT_N_sca lambda_p_r;
-  AT_N_sca lambda_m_r;
-  AT_N_sca lambda;
+  AT_C_sca lambda_p_l;
+  AT_C_sca lambda_m_l;
+  AT_C_sca lambda_p_r;
+  AT_C_sca lambda_m_r;
+  AT_C_sca lambda;
 
   // primitive vel. (covar.)
   AT_N_vec w_util_d_l_;
   AT_N_vec w_util_d_r_;
 
   // Lorentz factor
-  AT_N_sca W_l_;
-  AT_N_sca W_r_;
+  AT_C_sca W_l_;
+  AT_C_sca W_r_;
 
   // h * rho
-  AT_N_sca w_hrho_l_;
-  AT_N_sca w_hrho_r_;
+  AT_C_sca w_hrho_l_;
+  AT_C_sca w_hrho_r_;
 
   // prim / cons shaped scratches
   AT_H_vec cons_l_;
@@ -115,8 +115,32 @@ public:
   AT_H_vec flux_l_;
   AT_H_vec flux_r_;
 
-  // Particular to magnetic fields
+  // Particular to magnetic fields --------------------------------------------
+  AT_C_sca oo_W_l_;
+  AT_C_sca oo_W_r_;
+
+  AT_N_vec w_v_d_l_;
+  AT_N_vec w_v_d_r_;
+
+  AT_N_vec alpha_w_vtil_u_l_;
+  AT_N_vec alpha_w_vtil_u_r_;
+
   AT_N_vec beta_d_;
+
+  AT_N_vec q_scB_u_l_;  // \mathcal{B}^k:= B^k / \sqrt{\gamma}
+  AT_N_vec q_scB_u_r_;
+
+  AT_C_sca b0_l_;
+  AT_C_sca b0_r_;
+
+  AT_C_sca b2_l_;
+  AT_C_sca b2_r_;
+
+  AT_N_vec bi_u_l_;
+  AT_N_vec bi_u_r_;
+
+  AT_N_vec bi_d_l_;
+  AT_N_vec bi_d_r_;
 
 public:
   // functions ----------------------------------------------------------------

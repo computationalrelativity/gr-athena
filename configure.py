@@ -674,377 +674,386 @@ if args['eos'][:8] == 'general/':
                          + 'General EOS is incompatible with flux ' + args['flux'])
 
 # Check Z4c
-if args['z']:
-    if args['coord'] not in ("cartesian","gr_dynamical") :
-        raise SystemExit("### CONFIGURE ERROR: Z4c requires Cartesian coordinates")
-#    if args["f"] or args["b"] or args["s"] or args["g"]:
-#        raise SystemExit("### CONFIGURE ERROR: Z4c only supports vacuum spacetimes for now")
+if args["z"] and args["coord"] not in ("cartesian", "gr_dynamical"):
+  msg = "### CONFIGURE ERROR: Z4c requires Cartesian coordinates"
+  raise SystemExit(msg)
 
 # --- Step 3. Set definitions and Makefile options based on above argument
 
 # Prepare dictionaries of substitutions to be made
 definitions = {}
 makefile_options = {}
-makefile_options['LOADER_FLAGS'] = ''
+makefile_options["LOADER_FLAGS"] = ""
 
 # retain hash, check diffs - not fool-proof, but better than nothing
-definitions['GIT_HASH'] = get_git_revision_short_hash() + " " + get_git_status()
+definitions["GIT_HASH"] = get_git_revision_short_hash() + " " + get_git_status()
 
 # --prob=[name] argument
-definitions['PROBLEM'] = makefile_options['PROBLEM_FILE'] = args['prob']
+definitions["PROBLEM"] = makefile_options["PROBLEM_FILE"] = args["prob"]
 
 # --coord=[name] argument
-definitions['COORDINATE_SYSTEM'] = makefile_options['COORDINATES_FILE'] = args['coord']
+definitions["COORDINATE_SYSTEM"] = makefile_options["COORDINATES_FILE"] = args[
+  "coord"
+]
 
 # --eos=[name] argument
-definitions['NON_BAROTROPIC_EOS'] = '0' if args['eos'] == 'isothermal' else '1'
-makefile_options['EOS_FILE'] = args['eos']
-definitions['EQUATION_OF_STATE'] = args['eos']
+definitions["NON_BAROTROPIC_EOS"] = "0" if args["eos"] == "isothermal" else "1"
+makefile_options["EOS_FILE"] = args["eos"]
+definitions["EQUATION_OF_STATE"] = args["eos"]
 # set number of hydro variables for adiabatic/isothermal
-definitions['GENERAL_EOS'] = '0'
-makefile_options['GENERAL_EOS_FILE'] = 'noop'
-definitions['EOS_TABLE_ENABLED'] = '0'
+definitions["GENERAL_EOS"] = "0"
+makefile_options["GENERAL_EOS_FILE"] = "noop"
+definitions["EOS_TABLE_ENABLED"] = "0"
 # defaults for PrimitiveSolver definitions
-definitions['USE_TM'] = '0'
-definitions['EOS_POLICY'] = ''
-definitions['ERROR_POLICY'] = ''
-definitions['EOS_POLICY_CODE'] = '0'
-definitions['ERROR_POLICY_CODE'] = '0'
-if args['eos'] == 'isothermal':
-    definitions['NHYDRO_VARIABLES'] = '4'
-elif args['eos'] == 'adiabatic' or args['eos'] == 'adiabatictaudyn_rep':
-    definitions['NHYDRO_VARIABLES'] = '5'
-    makefile_options['GENERAL_EOS_FILE'] = 'ideal'
-elif args['eos'] == 'eostaudyn_ps':
-    definitions['NHYDRO_VARIABLES'] = '5'
-    definitions['USE_TM'] = '1'
-    if args['eospolicy'] == 'idealgas':
-        definitions['EOS_POLICY'] = 'IdealGas'
-        definitions['EOS_POLICY_CODE'] = '0'
-        definitions['COLDEOS_POLICY'] = 'Polytrope'
-    elif args['eospolicy'] == 'piecewise_polytrope':
-        definitions['EOS_POLICY'] = 'PiecewisePolytrope'
-        definitions['EOS_POLICY_CODE'] = '1'
-        definitions['COLDEOS_POLICY'] = 'ColdPiecewisePolytrope'
-    elif args['eospolicy'] == 'eos_compose':
-        definitions['EOS_POLICY'] = 'EOSCompOSE'
-        definitions['EOS_POLICY_CODE'] = '2'
-        definitions['COLDEOS_POLICY'] = 'ColdEOSCompOSE'
-    elif args['eospolicy'] == 'hybrid_table':
-        definitions['EOS_POLICY'] = 'HybridTable'
-        definitions['EOS_POLICY_CODE'] = '3'
-        definitions['COLDEOS_POLICY'] = 'ColdHybridTable'
-    else:
-        definitions['EOS_POLICY'] = ''
-    if args['errorpolicy'] == 'do_nothing':
-        definitions['ERROR_POLICY'] = 'DoNothing'
-        definitions['ERROR_POLICY_CODE'] = '0'
-    if args['errorpolicy'] == 'reset_floor':
-        definitions['ERROR_POLICY'] = 'ResetFloor'
-        definitions['ERROR_POLICY_CODE'] = '1'
-    else:
-        definitions['ERROR_POLICY'] = ''
+definitions["USE_TM"] = "0"
+definitions["EOS_POLICY"] = ""
+definitions["ERROR_POLICY"] = ""
+definitions["EOS_POLICY_CODE"] = "0"
+definitions["ERROR_POLICY_CODE"] = "0"
+if args["eos"] == "isothermal":
+  definitions["NHYDRO_VARIABLES"] = "4"
+elif args["eos"] == "adiabatic" or args["eos"] == "adiabatictaudyn_rep":
+  definitions["NHYDRO_VARIABLES"] = "5"
+  makefile_options["GENERAL_EOS_FILE"] = "ideal"
+  definitions["COLDEOS_POLICY"] = "None"
+elif args["eos"] == "eostaudyn_ps":
+  definitions["NHYDRO_VARIABLES"] = "5"
+  definitions["USE_TM"] = "1"
+  if args["eospolicy"] == "idealgas":
+    definitions["EOS_POLICY"] = "IdealGas"
+    definitions["EOS_POLICY_CODE"] = "0"
+    definitions["COLDEOS_POLICY"] = "Polytrope"
+  elif args["eospolicy"] == "piecewise_polytrope":
+    definitions["EOS_POLICY"] = "PiecewisePolytrope"
+    definitions["EOS_POLICY_CODE"] = "1"
+    definitions["COLDEOS_POLICY"] = "ColdPiecewisePolytrope"
+  elif args["eospolicy"] == "eos_compose":
+    definitions["EOS_POLICY"] = "EOSCompOSE"
+    definitions["EOS_POLICY_CODE"] = "2"
+    definitions["COLDEOS_POLICY"] = "ColdEOSCompOSE"
+  elif args["eospolicy"] == "hybrid_table":
+    definitions["EOS_POLICY"] = "HybridTable"
+    definitions["EOS_POLICY_CODE"] = "3"
+    definitions["COLDEOS_POLICY"] = "ColdHybridTable"
+  else:
+    definitions["EOS_POLICY"] = ""
+  if args["errorpolicy"] == "do_nothing":
+    definitions["ERROR_POLICY"] = "DoNothing"
+    definitions["ERROR_POLICY_CODE"] = "0"
+  if args["errorpolicy"] == "reset_floor":
+    definitions["ERROR_POLICY"] = "ResetFloor"
+    definitions["ERROR_POLICY_CODE"] = "1"
+  else:
+    definitions["ERROR_POLICY"] = ""
 
-    #TODO(JF): Check if this is still needed
-    #makefile_options['GENERAL_EOS_FILE'] = 'general_gr'
 else:
-    definitions['GENERAL_EOS'] = '1'
-    makefile_options['GENERAL_EOS_FILE'] = 'general'
-    definitions['NHYDRO_VARIABLES'] = '5'
-    if args['eos'] == 'general/eos_table':
-        definitions['EOS_TABLE_ENABLED'] = '1'
+  definitions["GENERAL_EOS"] = "1"
+  makefile_options["GENERAL_EOS_FILE"] = "general"
+  definitions["NHYDRO_VARIABLES"] = "5"
+  if args["eos"] == "general/eos_table":
+    definitions["EOS_TABLE_ENABLED"] = "1"
 
 # --flux=[name] argument
-definitions['RSOLVER'] = makefile_options['RSOLVER_FILE'] = args['flux']
+definitions["RSOLVER"] = makefile_options["RSOLVER_FILE"] = args["flux"]
 
 # --nghost=[value] argument
-definitions['NUMBER_GHOST_CELLS'] = args['nghost']
+definitions["NUMBER_GHOST_CELLS"] = args["nghost"]
 
 # --cnghost=[value] argument
-if args['ncghost'].isnumeric():
-    definitions['NUMBER_COARSE_GHOSTS'] = args['ncghost']
+if args["ncghost"].isnumeric():
+  definitions["NUMBER_COARSE_GHOSTS"] = args["ncghost"]
 else:
-    # Default values for the number of coarse ghost zones
-    cnghosts = {'2': '2', '3': '3', '4': '4', '5': '5', '6': '7', '7': '8'}
-    definitions['NUMBER_COARSE_GHOSTS'] = cnghosts[args['nghost']]
+  # Default values for the number of coarse ghost zones
+  cnghosts = {"2": "2", "3": "3", "4": "4", "5": "5", "6": "7", "7": "8"}
+  definitions["NUMBER_COARSE_GHOSTS"] = cnghosts[args["nghost"]]
 
 # --ncghost_cx=[value] argument
-if args['ncghost_cx'].isnumeric():
-    definitions['NUMBER_COARSE_GHOSTS_CX'] = args['ncghost_cx']
+if args["ncghost_cx"].isnumeric():
+  definitions["NUMBER_COARSE_GHOSTS_CX"] = args["ncghost_cx"]
 else:
-    # Default values for the number of coarse ghost zones
-    ncghosts_cx = {'2': '2', '3': '3', '4': '4', '5': '5', '6': '7', '7': '8'}
-    definitions['NUMBER_COARSE_GHOSTS_CX'] = ncghosts_cx[args['nghost']]
+  # Default values for the number of coarse ghost zones
+  ncghosts_cx = {"2": "2", "3": "3", "4": "4", "5": "5", "6": "7", "7": "8"}
+  definitions["NUMBER_COARSE_GHOSTS_CX"] = ncghosts_cx[args["nghost"]]
 
 # --nextrapolate=[value] argument
-if args['nextrapolate'].isnumeric():
-    definitions['NUMBER_EXTRAPOLATION_POINTS'] = args['nextrapolate']
+if args["nextrapolate"].isnumeric():
+  definitions["NUMBER_EXTRAPOLATION_POINTS"] = args["nextrapolate"]
 else:
-    definitions['NUMBER_EXTRAPOLATION_POINTS'] = str(int(args['nghost']) + 1)
+  definitions["NUMBER_EXTRAPOLATION_POINTS"] = str(int(args["nghost"]) + 1)
 
 # --nscalars=[value] argument
-definitions['NUMBER_PASSIVE_SCALARS'] = args['nscalars']
+definitions["NUMBER_PASSIVE_SCALARS"] = args["nscalars"]
 
 # --ninterp=[value] argument
-definitions['NUMBER_INTERP_GHOSTS'] = args['ninterp']
+definitions["NUMBER_INTERP_GHOSTS"] = args["ninterp"]
 
 # --ninterp=[value] argument
-definitions['Z4C_CX_NUM_RBC'] = args['cx_rbc']
+definitions["Z4C_CX_NUM_RBC"] = args["cx_rbc"]
 
 # -cx_rbc_nlo
-if args['cx_rbc_nlo']:
-    definitions['Z4C_CX_NUM_RBC_INIT_LO'] = 'NO_Z4C_CX_NUM_RBC_INIT_LO'
+if args["cx_rbc_nlo"]:
+  definitions["Z4C_CX_NUM_RBC_INIT_LO"] = "NO_Z4C_CX_NUM_RBC_INIT_LO"
 else:
-    definitions['Z4C_CX_NUM_RBC_INIT_LO'] = 'Z4C_CX_NUM_RBC_INIT_LO'
+  definitions["Z4C_CX_NUM_RBC_INIT_LO"] = "Z4C_CX_NUM_RBC_INIT_LO"
 
 # -f argument
-if args['f']:
-    definitions['FLUID_ENABLED'] = '1'
+if args["f"]:
+  definitions["FLUID_ENABLED"] = "1"
 else:
-    definitions['FLUID_ENABLED'] = '0'
+  definitions["FLUID_ENABLED"] = "0"
 
-if args['f']:
-    definitions['FLUID_ENABLED'] = '1'
-    aux = [
-      "src/eos/general/$(GENERAL_EOS_FILE)",
-      "src/eos/$(EOS_FILE)",
+if args["f"]:
+  definitions["FLUID_ENABLED"] = "1"
+  aux = [
+    "src/eos/general/$(GENERAL_EOS_FILE)",
+    "src/eos/$(EOS_FILE)",
     #   "src/eos/eos_high_order.cpp",
     #   "src/eos/eos_scalars.cpp"
-    ]
-    makefile_options['EOS_BASE_SRC'] = '\\\n'.join(aux)
+  ]
+  makefile_options["EOS_BASE_SRC"] = "\\\n".join(aux)
 
-    aux = [
-      "$(wildcard src/bvals/cc/hydro/*.cpp)",
-      "$(wildcard src/field/*.cpp)",
-      "$(wildcard src/field/field_diffusion/*.cpp)",
-      "$(wildcard src/hydro/*.cpp)",
-      "$(wildcard src/hydro/srcterms/*.cpp)",
-      "$(wildcard src/hydro/hydro_diffusion/*.cpp)",
-      "src/hydro/rsolvers/$(RSOLVER_DIR)$(RSOLVER_FILE)",
-      "$(wildcard src/reconstruct/recon*.cpp)",
-      "$(wildcard src/scalars/*.cpp)"
-    ]
-    makefile_options['HYDRO_DEPENDENT_SRC'] = '\\\n'.join(aux)
+  aux = [
+    "$(wildcard src/bvals/cc/hydro/*.cpp)",
+    "$(wildcard src/field/*.cpp)",
+    "$(wildcard src/field/field_diffusion/*.cpp)",
+    "$(wildcard src/hydro/*.cpp)",
+    "$(wildcard src/hydro/srcterms/*.cpp)",
+    "$(wildcard src/hydro/hydro_diffusion/*.cpp)",
+    "src/hydro/rsolvers/$(RSOLVER_DIR)$(RSOLVER_FILE)",
+    "$(wildcard src/reconstruct/recon*.cpp)",
+    "$(wildcard src/scalars/*.cpp)",
+  ]
+  makefile_options["HYDRO_DEPENDENT_SRC"] = "\\\n".join(aux)
 
 else:
-    definitions['FLUID_ENABLED'] = '0'
-    makefile_options['EOS_BASE_SRC'] = ''
-    makefile_options['HYDRO_DEPENDENT_SRC'] = ''
+  definitions["FLUID_ENABLED"] = "0"
+  makefile_options["EOS_BASE_SRC"] = ""
+  makefile_options["HYDRO_DEPENDENT_SRC"] = ""
 
 # -b argument
 # set variety of macros based on whether MHD/hydro or adi/iso are defined
-if args['b']:
-    definitions['MAGNETIC_FIELDS_ENABLED'] = '1'
-    if definitions['GENERAL_EOS'] != '0':
-        makefile_options['GENERAL_EOS_FILE'] += '_mhd'
-    else:
-        makefile_options['EOS_FILE'] += '_mhd'
-    definitions['NFIELD_VARIABLES'] = '3'
-    makefile_options['RSOLVER_DIR'] = 'mhd/'
-    if args['flux'] == 'hlle' or args['flux'] == 'llf' or args['flux'] == 'roe' or args['flux'] == 'llftaudyn':
-        makefile_options['RSOLVER_FILE'] += '_mhd'
-    if args['eos'] == 'isothermal':
-        definitions['NWAVE_VALUE'] = '6'
-        if args['flux'] == 'hlld':
-            makefile_options['RSOLVER_FILE'] += '_iso'
-    else:
-        definitions['NWAVE_VALUE'] = '7'
+if args["b"]:
+  definitions["MAGNETIC_FIELDS_ENABLED"] = "1"
+  if definitions["GENERAL_EOS"] != "0":
+    makefile_options["GENERAL_EOS_FILE"] += "_mhd"
+  else:
+    makefile_options["EOS_FILE"] += "_mhd"
+  definitions["NFIELD_VARIABLES"] = "3"
+  makefile_options["RSOLVER_DIR"] = "mhd/"
+  if (
+    args["flux"] == "hlle"
+    or args["flux"] == "llf"
+    or args["flux"] == "roe"
+    or args["flux"] == "llftaudyn"
+  ):
+    makefile_options["RSOLVER_FILE"] += "_mhd"
+  if args["eos"] == "isothermal":
+    definitions["NWAVE_VALUE"] = "6"
+    if args["flux"] == "hlld":
+      makefile_options["RSOLVER_FILE"] += "_iso"
+  else:
+    definitions["NWAVE_VALUE"] = "7"
 else:
-    definitions['MAGNETIC_FIELDS_ENABLED'] = '0'
-    if definitions['GENERAL_EOS'] != '0':
-        makefile_options['GENERAL_EOS_FILE'] += '_hydro'
-    else:
-        makefile_options['EOS_FILE'] += '_hydro'
-    definitions['NFIELD_VARIABLES'] = '0'
-    makefile_options['RSOLVER_DIR'] = 'hydro/'
-    if args['eos'] == 'isothermal':
-        definitions['NWAVE_VALUE'] = '4'
-    else:
-        definitions['NWAVE_VALUE'] = '5'
+  definitions["MAGNETIC_FIELDS_ENABLED"] = "0"
+  if definitions["GENERAL_EOS"] != "0":
+    makefile_options["GENERAL_EOS_FILE"] += "_hydro"
+  else:
+    makefile_options["EOS_FILE"] += "_hydro"
+  definitions["NFIELD_VARIABLES"] = "0"
+  makefile_options["RSOLVER_DIR"] = "hydro/"
+  if args["eos"] == "isothermal":
+    definitions["NWAVE_VALUE"] = "4"
+  else:
+    definitions["NWAVE_VALUE"] = "5"
 
 # -sts argument
-if args['sts']:
-    definitions['STS_ENABLED'] = '1'
+if args["sts"]:
+  definitions["STS_ENABLED"] = "1"
 else:
-    definitions['STS_ENABLED'] = '0'
+  definitions["STS_ENABLED"] = "0"
 
 # -s, -g, and -t arguments
-definitions['RELATIVISTIC_DYNAMICS'] = '1' if args['s'] or args['g'] else '0'
-definitions['GENERAL_RELATIVITY'] = '1' if args['g'] else '0'
-definitions['FRAME_TRANSFORMATIONS'] = '1' if args['t'] else '0'
-if args['s']:
-    makefile_options['EOS_FILE'] += '_sr'
-    if definitions['GENERAL_EOS'] != '0':
-        makefile_options['GENERAL_EOS_FILE'] += '_sr'
-    makefile_options['RSOLVER_FILE'] += '_rel'
-if args['g']:
-    makefile_options['EOS_FILE'] += '_gr'
-    if definitions['GENERAL_EOS'] != '0':
-        makefile_options['GENERAL_EOS_FILE'] += '_gr'
-    makefile_options['RSOLVER_FILE'] += '_rel'
-    if not args['t']:
-        makefile_options['RSOLVER_FILE'] += '_no_transform'
+definitions["RELATIVISTIC_DYNAMICS"] = "1" if args["s"] or args["g"] else "0"
+definitions["GENERAL_RELATIVITY"] = "1" if args["g"] else "0"
+definitions["FRAME_TRANSFORMATIONS"] = "1" if args["t"] else "0"
+if args["s"]:
+  makefile_options["EOS_FILE"] += "_sr"
+  if definitions["GENERAL_EOS"] != "0":
+    makefile_options["GENERAL_EOS_FILE"] += "_sr"
+  makefile_options["RSOLVER_FILE"] += "_rel"
+if args["g"]:
+  makefile_options["EOS_FILE"] += "_gr"
+  if definitions["GENERAL_EOS"] != "0":
+    makefile_options["GENERAL_EOS_FILE"] += "_gr"
+  makefile_options["RSOLVER_FILE"] += "_rel"
+  if not args["t"]:
+    makefile_options["RSOLVER_FILE"] += "_no_transform"
 
 # -z argument
-if args['z']:
-  definitions['Z4C_ENABLED'] = '1'
-  if args['f']:
-    definitions['Z4C_WITH_HYDRO_ENABLED'] = 'Z4C_WITH_HYDRO_ENABLED'
+if args["z"]:
+  definitions["Z4C_ENABLED"] = "1"
+  if args["f"]:
+    definitions["Z4C_WITH_HYDRO_ENABLED"] = "Z4C_WITH_HYDRO_ENABLED"
   else:
-    definitions['Z4C_WITH_HYDRO_ENABLED'] = 'NO_Z4C_WITH_HYDRO_ENABLED'
+    definitions["Z4C_WITH_HYDRO_ENABLED"] = "NO_Z4C_WITH_HYDRO_ENABLED"
 
   try:
-      if not int(args['nghost']) >= 2:
-          raise Exception
+    if not int(args["nghost"]) >= 2:
+      raise Exception
   except:
-      raise SystemExit("### CONFIGURE ERROR: Z4c requires 2 or more ghost zones")
+    msg = "### CONFIGURE ERROR: Z4c requires 2 or more ghost zones"
+    raise SystemExit(msg)
 
-  z_sampling_keys = {'z_vc', 'z_cx', 'z_cc'}
+  z_sampling_keys = {"z_vc", "z_cx", "z_cc"}
 
   try:
     if not any(args[zk] for zk in z_sampling_keys):
       raise Exception
   except:
-    raise SystemExit("### CONFIGURE ERROR: Z4c sampling must be specified " +
-                     f"based on {z_sampling_keys}")
+    raise SystemExit(
+      "### CONFIGURE ERROR: Z4c sampling must be specified "
+      + f"based on {z_sampling_keys}"
+    )
 
-  if args['z_cc']:
-    definitions['Z4C_CX_ENABLED'] = 'NO_Z4C_CX_ENABLED'
-    definitions['Z4C_CC_ENABLED'] = 'Z4C_CC_ENABLED'
-    definitions['Z4C_VC_ENABLED'] = 'NO_Z4C_VC_ENABLED'
+  if args["z_cc"]:
+    definitions["Z4C_CX_ENABLED"] = "NO_Z4C_CX_ENABLED"
+    definitions["Z4C_CC_ENABLED"] = "Z4C_CC_ENABLED"
+    definitions["Z4C_VC_ENABLED"] = "NO_Z4C_VC_ENABLED"
 
-  if args['z_cx']:
-    definitions['Z4C_CX_ENABLED'] = 'Z4C_CX_ENABLED'
-    definitions['Z4C_CC_ENABLED'] = 'NO_Z4C_CC_ENABLED'
-    definitions['Z4C_VC_ENABLED'] = 'NO_Z4C_VC_ENABLED'
+  if args["z_cx"]:
+    definitions["Z4C_CX_ENABLED"] = "Z4C_CX_ENABLED"
+    definitions["Z4C_CC_ENABLED"] = "NO_Z4C_CC_ENABLED"
+    definitions["Z4C_VC_ENABLED"] = "NO_Z4C_VC_ENABLED"
 
-  if args['z_vc']:
-    definitions['Z4C_CX_ENABLED'] = 'NO_Z4C_CX_ENABLED'
-    definitions['Z4C_CC_ENABLED'] = 'NO_Z4C_CC_ENABLED'
-    definitions['Z4C_VC_ENABLED'] = 'Z4C_VC_ENABLED'
+  if args["z_vc"]:
+    definitions["Z4C_CX_ENABLED"] = "NO_Z4C_CX_ENABLED"
+    definitions["Z4C_CC_ENABLED"] = "NO_Z4C_CC_ENABLED"
+    definitions["Z4C_VC_ENABLED"] = "Z4C_VC_ENABLED"
 
 else:
-  definitions['Z4C_ENABLED'] = '0'
-  definitions['Z4C_CX_ENABLED'] = 'NO_Z4C_CX_ENABLED'
-  definitions['Z4C_CC_ENABLED'] = 'NO_Z4C_CC_ENABLED'
-  definitions['Z4C_VC_ENABLED'] = 'NO_Z4C_VC_ENABLED'
-  definitions['Z4C_WITH_HYDRO_ENABLED'] = 'NO_Z4C_WITH_HYDRO_ENABLED'
+  definitions["Z4C_ENABLED"] = "0"
+  definitions["Z4C_CX_ENABLED"] = "NO_Z4C_CX_ENABLED"
+  definitions["Z4C_CC_ENABLED"] = "NO_Z4C_CC_ENABLED"
+  definitions["Z4C_VC_ENABLED"] = "NO_Z4C_VC_ENABLED"
+  definitions["Z4C_WITH_HYDRO_ENABLED"] = "NO_Z4C_WITH_HYDRO_ENABLED"
 
 # -z_eta_track_tp argument
-ERR_MUL_ETA_STR = "### CONFIGURE ERROR: select at most ONE of {z_eta_track_tp, z_eta_conf}"
-if args['z_eta_track_tp']:
-    if not args['z']:
-        raise SystemExit("### CONFIGURE ERROR: z_eta_track_tp requires z flag")
-    if args['z_eta_conf']:
-        raise SystemExit(ERR_MUL_ETA_STR)
-    definitions['Z4C_ETA_TRACK_TP'] = 'Z4C_ETA_TRACK_TP'
+ERR_MUL_ETA_STR = (
+  "### CONFIGURE ERROR: select at most ONE of {z_eta_track_tp, z_eta_conf}"
+)
+if args["z_eta_track_tp"]:
+  if not args["z"]:
+    raise SystemExit("### CONFIGURE ERROR: z_eta_track_tp requires z flag")
+  if args["z_eta_conf"]:
+    raise SystemExit(ERR_MUL_ETA_STR)
+  definitions["Z4C_ETA_TRACK_TP"] = "Z4C_ETA_TRACK_TP"
 else:
-  definitions['Z4C_ETA_TRACK_TP'] = 'NO_Z4C_ETA_TRACK_TP'
+  definitions["Z4C_ETA_TRACK_TP"] = "NO_Z4C_ETA_TRACK_TP"
 
 # -z_eta_conf argument
-if args['z_eta_conf']:
-    if not args['z']:
-        raise SystemExit("### CONFIGURE ERROR: z_eta_conf requires z flag")
-    if args['z_eta_track_tp']:
-        raise SystemExit(ERR_MUL_ETA_STR)
-    definitions['Z4C_ETA_CONF'] = 'Z4C_ETA_CONF'
+if args["z_eta_conf"]:
+  if not args["z"]:
+    raise SystemExit("### CONFIGURE ERROR: z_eta_conf requires z flag")
+  if args["z_eta_track_tp"]:
+    raise SystemExit(ERR_MUL_ETA_STR)
+  definitions["Z4C_ETA_CONF"] = "Z4C_ETA_CONF"
 else:
-  definitions['Z4C_ETA_CONF'] = 'NO_Z4C_ETA_CONF'
+  definitions["Z4C_ETA_CONF"] = "NO_Z4C_ETA_CONF"
 
 # -cce argument
-makefile_options['CCE_FILE'] = ""
-if args['cce']:
-  definitions['CCE_ENABLED'] = '1'
-  makefile_options['CCE_FILE'] = "$(wildcard src/z4c/cce/*.cpp)"
+makefile_options["CCE_FILE"] = ""
+if args["cce"]:
+  definitions["CCE_ENABLED"] = "1"
+  makefile_options["CCE_FILE"] = "$(wildcard src/z4c/cce/*.cpp)"
   try:
-      if not args['z']:
-          raise Exception
+    if not args["z"]:
+      raise Exception
   except:
-      raise SystemExit("### CONFIGURE ERROR: cce requires that z4c is enabled")
+    raise SystemExit("### CONFIGURE ERROR: cce requires that z4c is enabled")
   try:
-      if not args['hdf5']:
-          raise Exception
+    if not args["hdf5"]:
+      raise Exception
   except:
-      raise SystemExit("### CONFIGURE ERROR: cce requires hdf5 library")
+    raise SystemExit("### CONFIGURE ERROR: cce requires hdf5 library")
 else:
-  definitions['CCE_ENABLED'] = '0'
+  definitions["CCE_ENABLED"] = "0"
 
 # -ref_box_in_box / ref_spheres arguments
-if args['ref_spheres']:
-    args['ref_box_in_box'] = False
-    definitions['Z4C_REF_BOX_IN_BOX'] = 'NO_Z4C_REF_BOX_IN_BOX'
-    definitions['Z4C_REF_SPHERES'] = 'Z4C_REF_SPHERES'
+if args["ref_spheres"]:
+  args["ref_box_in_box"] = False
+  definitions["Z4C_REF_BOX_IN_BOX"] = "NO_Z4C_REF_BOX_IN_BOX"
+  definitions["Z4C_REF_SPHERES"] = "Z4C_REF_SPHERES"
 
-if args['ref_box_in_box']:
-    definitions['Z4C_REF_BOX_IN_BOX'] = 'Z4C_REF_BOX_IN_BOX'
-    definitions['Z4C_REF_SPHERES'] = 'NO_Z4C_REF_SPHERES'
+if args["ref_box_in_box"]:
+  definitions["Z4C_REF_BOX_IN_BOX"] = "Z4C_REF_BOX_IN_BOX"
+  definitions["Z4C_REF_SPHERES"] = "NO_Z4C_REF_SPHERES"
 
 # -w - wave equation
-if args['w']:
-    definitions['WAVE_ENABLED'] = '1'
+if args["w"]:
+  definitions["WAVE_ENABLED"] = "1"
 
-    # default is VC
-    definitions['WAVE_CX_ENABLED'] = '0'
-    definitions['WAVE_CC_ENABLED'] = '0'
-    definitions['WAVE_VC_ENABLED'] = '1'
+  # default is VC
+  definitions["WAVE_CX_ENABLED"] = "0"
+  definitions["WAVE_CC_ENABLED"] = "0"
+  definitions["WAVE_VC_ENABLED"] = "1"
 
-    if args['w_cc']:
-        definitions['WAVE_CX_ENABLED'] = '0'
-        definitions['WAVE_CC_ENABLED'] = '1'
-        definitions['WAVE_VC_ENABLED'] = '0'
+  if args["w_cc"]:
+    definitions["WAVE_CX_ENABLED"] = "0"
+    definitions["WAVE_CC_ENABLED"] = "1"
+    definitions["WAVE_VC_ENABLED"] = "0"
 
-    if args['w_cx']:
-        definitions['WAVE_CX_ENABLED'] = '1'
-        definitions['WAVE_CC_ENABLED'] = '0'
-        definitions['WAVE_VC_ENABLED'] = '0'
+  if args["w_cx"]:
+    definitions["WAVE_CX_ENABLED"] = "1"
+    definitions["WAVE_CC_ENABLED"] = "0"
+    definitions["WAVE_VC_ENABLED"] = "0"
 
 else:
-    definitions['WAVE_ENABLED'] = '0'
-    definitions['WAVE_CX_ENABLED'] = '0'
-    definitions['WAVE_CC_ENABLED'] = '0'
-    definitions['WAVE_VC_ENABLED'] = '0'
+  definitions["WAVE_ENABLED"] = "0"
+  definitions["WAVE_CX_ENABLED"] = "0"
+  definitions["WAVE_CC_ENABLED"] = "0"
+  definitions["WAVE_VC_ENABLED"] = "0"
 
 # -m1 - neutrino transport
-if args['m1']:
-  definitions['M1_ENABLED'] = '1'
+if args["m1"]:
+  definitions["M1_ENABLED"] = "1"
 else:
-  definitions['M1_ENABLED'] = '0'
+  definitions["M1_ENABLED"] = "0"
 
 # -m1 - neutrino transport
-if args['m1_no_weakrates']:
-  definitions['M1_NO_WEAKRATES'] = '1'
+if args["m1_no_weakrates"]:
+  definitions["M1_NO_WEAKRATES"] = "1"
 else:
-  definitions['M1_NO_WEAKRATES'] = '0'
+  definitions["M1_NO_WEAKRATES"] = "0"
 
 # -hybridinterp argument
-if args['hybridinterp']:
-    definitions['HYBRID_INTERP'] = 'HYBRID_INTERP'
+if args["hybridinterp"]:
+  definitions["HYBRID_INTERP"] = "HYBRID_INTERP"
 else:
-    definitions['HYBRID_INTERP'] = 'NO_HYBRID_INTERP'
+  definitions["HYBRID_INTERP"] = "NO_HYBRID_INTERP"
 
 # -cons_bc argument
-if args['cons_bc']:
-    definitions['DBG_USE_CONS_BC'] = 'DBG_USE_CONS_BC'
+if args["cons_bc"]:
+  definitions["DBG_USE_CONS_BC"] = "DBG_USE_CONS_BC"
 else:
-    definitions['DBG_USE_CONS_BC'] = 'NO_DBG_USE_CONS_BC'
+  definitions["DBG_USE_CONS_BC"] = "NO_DBG_USE_CONS_BC"
 
 # -recon_cmb_hydpa argument
-if args['recon_cmb_hydpa']:
-    definitions['DBG_COMBINED_HYDPA'] = 'DBG_COMBINED_HYDPA'
+if args["recon_cmb_hydpa"]:
+  definitions["DBG_COMBINED_HYDPA"] = "DBG_COMBINED_HYDPA"
 else:
-    definitions['DBG_COMBINED_HYDPA'] = 'NO_DBG_COMBINED_HYDPA'
+  definitions["DBG_COMBINED_HYDPA"] = "NO_DBG_COMBINED_HYDPA"
 
 # -old_taskslists argument
-if args['old_taskslists']:
-    definitions['DBG_USE_REFERENCE_TASKLISTS'] = 'DBG_USE_REFERENCE_TASKLISTS'
+if args["old_taskslists"]:
+  definitions["DBG_USE_REFERENCE_TASKLISTS"] = "DBG_USE_REFERENCE_TASKLISTS"
 else:
-    definitions['DBG_USE_REFERENCE_TASKLISTS'] = 'NO_DBG_USE_REFERENCE_TASKLISTS'
+  definitions["DBG_USE_REFERENCE_TASKLISTS"] = "NO_DBG_USE_REFERENCE_TASKLISTS"
 
 # -shear argument
-if args['shear']:
-    definitions['SHEARING_BOX'] = '1'
+if args["shear"]:
+  definitions["SHEARING_BOX"] = "1"
 else:
-    definitions['SHEARING_BOX'] = '0'
+  definitions["SHEARING_BOX"] = "0"
 
 # --cxx=[name] argument
 if args['cxx'] == 'g++':

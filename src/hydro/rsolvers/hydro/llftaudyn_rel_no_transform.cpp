@@ -141,11 +141,10 @@ void Hydro::RiemannSolver(
       w_v_u_l_(a,i) = w_util_u_l_(a,i) / W_l_(i);
       w_v_u_r_(a,i) = w_util_u_r_(a,i) / W_r_(i);
     }
-
   }
 
-  InnerProductSlicedVec3Metric(w_norm2_v_l, w_v_u_l_, gamma_dd_, il, iu);
-  InnerProductSlicedVec3Metric(w_norm2_v_r, w_v_u_r_, gamma_dd_, il, iu);
+  InnerProductSlicedVec3Metric(w_norm2_v_l_, w_v_u_l_, gamma_dd_, il, iu);
+  InnerProductSlicedVec3Metric(w_norm2_v_r_, w_v_u_r_, gamma_dd_, il, iu);
 
   #pragma omp simd
   for (int i = il; i <= iu; ++i)
@@ -166,25 +165,40 @@ void Hydro::RiemannSolver(
       Yr[n] = pmy_block->pscalars->rr_(n,i);
     }
 #else
-    for (int n=0; n<NSCALARS; n++) {
+    for (int n=0; n<NSCALARS; n++)
+    {
       Yr[n] = pmy_block->pscalars->r(n,k,j,i);
     }
-    switch (ivx) {
+    switch (ivx)
+    {
       case IVX:
-        for (int n=0; n<NSCALARS; n++) {
+      {
+        for (int n=0; n<NSCALARS; n++)
+        {
           Yl[n] = pmy_block->pscalars->r(n,k,j,i-1);
         }
         break;
+      }
       case IVY:
-        for (int n=0; n<NSCALARS; n++) {
+      {
+        for (int n=0; n<NSCALARS; n++)
+        {
           Yl[n] = pmy_block->pscalars->r(n,k,j-1,i);
         }
         break;
+      }
       case IVZ:
-        for (int n=0; n<NSCALARS; n++) {
+      {
+        for (int n=0; n<NSCALARS; n++)
+        {
           Yl[n] = pmy_block->pscalars->r(n,k-1,j,i);
         }
         break;
+      }
+      default:
+      {
+        assert(false);
+      }
     }
 #endif // DBG_COMBINED_HYDPA
 
@@ -194,11 +208,11 @@ void Hydro::RiemannSolver(
     w_hrho_r_(i) = w_rho_r_(i)*pmy_block->peos->GetEOS().GetEnthalpy(nr, Tr, Yr);
 
     // Calculate the sound speeds
-    pmy_block->peos->SoundSpeedsGR(nl, Tl, w_v_u_l_(ivx-1,i), w_norm2_v_l(i),
+    pmy_block->peos->SoundSpeedsGR(nl, Tl, w_v_u_l_(ivx-1,i), w_norm2_v_l_(i),
                                    alpha_(i), beta_u_(ivx-1,i),
                                    gamma_uu_(ivx-1,ivx-1,i),
                                    &lambda_p_l(i), &lambda_m_l(i), Yl);
-    pmy_block->peos->SoundSpeedsGR(nr, Tr, w_v_u_r_(ivx-1,i), w_norm2_v_r(i),
+    pmy_block->peos->SoundSpeedsGR(nr, Tr, w_v_u_r_(ivx-1,i), w_norm2_v_r_(i),
                                    alpha_(i), beta_u_(ivx-1,i),
                                    gamma_uu_(ivx-1,ivx-1,i),
                                    &lambda_p_r(i), &lambda_m_r(i), Yr);
@@ -207,12 +221,12 @@ void Hydro::RiemannSolver(
     w_hrho_r_(i) = w_rho_r_(i) + Eos_Gamma_ratio * w_p_r_(i);
 
     pmy_block->peos->SoundSpeedsGR(w_hrho_l_(i), w_p_l_(i), w_v_u_l_(ivx-1,i),
-                                   w_norm2_v_l(i),
+                                   w_norm2_v_l_(i),
                                    alpha_(i), beta_u_(ivx-1,i),
                                    gamma_uu_(ivx-1,ivx-1,i),
                                    &lambda_p_l(i), &lambda_m_l(i));
     pmy_block->peos->SoundSpeedsGR(w_hrho_r_(i), w_p_r_(i), w_v_u_r_(ivx-1,i),
-                                   w_norm2_v_r(i),
+                                   w_norm2_v_r_(i),
                                    alpha_(i), beta_u_(ivx-1,i),
                                    gamma_uu_(ivx-1,ivx-1,i),
                                    &lambda_p_r(i), &lambda_m_r(i));
