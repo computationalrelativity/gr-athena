@@ -38,7 +38,9 @@
 
 //----------------------------------------------------------------------------------------
 using namespace gra::aliases;
+#if USETM
 using namespace Primitive;
+#endif
 //----------------------------------------------------------------------------------------
 
 namespace {
@@ -52,8 +54,13 @@ namespace {
   Real min_alpha(    MeshBlock *pmb, int iout);
   Real max_abs_con_H(MeshBlock *pmb, int iout);
 
+#if USETM
   // Global variables
   ColdEOS<COLDEOS_POLICY> * ceos = NULL;
+#else
+  Real k_adi;
+  Real gamma_adi;
+#endif
 
   Real sep;
   Real pgasmax_1;
@@ -145,7 +152,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   EnrollUserHistoryOutput(3, DivBface, "divBface");
 #endif
 
-  if (!resume_flag)
+  if (resume_flag)
     return;
 
 #if USETM
@@ -162,6 +169,9 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   }
 #endif
 
+#else
+  k_adi = pin->GetReal("hydro", "k_adi");
+  gamma_adi = pin->GetReal("hydro", "gamma");
 #endif
 
   Lorene::Bin_NS * bns;
@@ -186,21 +196,20 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   sep = bns->dist / coord_unit;
 
   delete bns;
-  delete crd;
+  delete[] crd;
 
   // read it in again to get the central densities
   Real* x_crd = new Real[2]{0.5 * sep * coord_unit, -0.5 * sep * coord_unit};
   Real* yz_crd = new Real[2]{0.0, 0.0};
 
+  // Get the central densities
+  bns = new Lorene::Bin_NS(2, x_crd, yz_crd, yz_crd,
+                           fn_ini_data.c_str());
+
   if (!verbose)
   {
     std::cout.rdbuf(cur_buf);
   }
-
-  // Get the central densities
-  // Print Lorene output once (for nostalgia)
-  bns = new Lorene::Bin_NS(2, x_crd, yz_crd, yz_crd,
-                           fn_ini_data.c_str());
 
   // forr tabulated EOS need to convert baryon mass
 #if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
@@ -211,8 +220,13 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   Real rho_2 = bns->nbar[1];
 #endif
 
+#if USETM
   pgasmax_1 = ceos->GetPressure(rho_1);
   pgasmax_2 = ceos->GetPressure(rho_2);
+#else
+  pgasmax_1 = k_adi * pow(rho_1, gamma_adi);
+  pgasmax_2 = k_adi * pow(rho_2, gamma_adi);
+#endif
 
   return;
 }
@@ -461,12 +475,13 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     Real max_eps_err = 0.0;
     Real rho_max = 0.0;
     Real eps_max = 0.0;
+    Real eps_eos_max = 0.0;
 
     for (int k=kl; k<=ku; ++k)
     for (int j=jl; j<=ju; ++j)
     for (int i=il; i<=iu; ++i)
     {
-#ifdef defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS)
+#if defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS)
       // Lorene is using the atomic mass unit as reference mass so the density has to be converted
       Real nb = bns->nbar[I] / m_u_si * 1e-45; // kg/m^3 -> fm^-3
       Real w_rho = nb * ceos->GetBaryonMass(); // fm^-3 -> code units
@@ -478,10 +493,15 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       if (w_rho > 1e-5)
       {
         Real eps = bns->ener_spec[I];
-#ifdef defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS)
+#if defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS)
         eps = m_u_mev/ceos->mb * (eps + 1) - 1; // convert eos baryon mass
 #endif
+
+#if USETM
         Real eps_ceos = ceos->GetSpecificInternalEnergy(w_rho);
+#else
+        Real eps_ceos = k_adi * pow(w_rho, gamma_adi -1 )/(gamma_adi - 1);
+#endif
         Real eps_err = std::abs(eps_ceos/eps - 1);
 
         if (eps_err > max_eps_err)
@@ -489,6 +509,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
           max_eps_err = eps_err;
           rho_max = w_rho;
           eps_max = eps;
+          eps_eos_max = eps_ceos;
         }
       }
 
@@ -532,8 +553,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     if (max_eps_err > 1.0e-4)
     {
       printf("Warning: Internal energy in Lorene data and eos do not match!\n");
-      printf("rho=%.16e, eps_lorene=%.16e, rel. err.=%.16e\n",
-             rho_max, eps_max, max_eps_err);
+      printf("rho=%.16e, eps_lorene=%.16e, eps_eos=%.16e, rel. err.=%.16e\n",
+             rho_max, eps_max, eps_eos_max, max_eps_err);
     }
 
     // clean up
@@ -561,9 +582,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
 #if !USETM
     // Reprimand --------------------------------------------------------------
-    const Real k_adi     = pin->GetReal("hydro", "k_adi");
-    const Real gamma_adi = pin->GetReal("hydro", "gamma");
-
     // Reprimand fill
     for (int k=kl; k<=ku; ++k)
     for (int j=jl; j<=ju; ++j)
@@ -872,6 +890,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 }
 
 
+#if USETM
 void Mesh::DeleteTemporaryUserMeshData()
 {
   // Free cold EOS data
@@ -879,6 +898,7 @@ void Mesh::DeleteTemporaryUserMeshData()
 
   return;
 }
+#endif
 
 namespace {
 
