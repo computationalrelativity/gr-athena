@@ -95,66 +95,6 @@ void M1::CoupleSourcesADM(AT_C_sca &A_rho, AT_N_vec &A_S_d, AT_N_sym & A_S_dd)
   }
 };
 
-/*
-void M1::CoupleSourcesHydro(AA & cons)
-{
-  Z4c * pz4c = pmy_block->pz4c;
-
-  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
-  {
-    AT_C_sca & sc_S1   = sources.sc_S1(ix_g,ix_s);
-    AT_N_vec & sp_S1_d = sources.sp_S1_d(ix_g,ix_s);
-
-    ILOOP2(k,j)
-    {
-      // tau source -----------------------------------------------------------
-      ILOOP1(i)
-      if (MaskGet(k, j, i))
-      {
-        cons(IEN,k,j,i) -= sc_S1(k,j,i);
-      }
-
-      for (int a=0; a<N; ++a)
-      ILOOP1(i)
-      if (MaskGet(k, j, i))
-      {
-        cons(IEN,k,j,i) += geom.sp_beta_u(a,k,j,i) * sp_S1_d(a,k,j,i); // Sign here is correct
-      }
-
-      // S_j source -----------------------------------------------------------
-      for (int a=0; a<N; ++a)
-      ILOOP1(i)
-      if (MaskGet(k, j, i))
-      {
-        cons(IM1+a,k,j,i) -= geom.sc_alpha(k,j,i) * sp_S1_d(a,k,j,i);
-      }
-    }
-  }
-
-}
-
-// This is specific to 3 species (nu, nu_bar, nu_x); note ordering!
-void  M1::CoupleSourcesYe(const Real mb, AA &ps)
-{
-  Z4c * pz4c = pmy_block->pz4c;
-
-  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-  {
-    AT_C_sca & sc_S0_nue = sources.sc_S0(ix_g,0);
-    AT_C_sca & sc_S0_nua = sources.sc_S0(ix_g,1);
-
-    ILOOP3(k,j,i)
-    if (MaskGet(k, j, i))
-    {
-      ps(0,k,j,i) += geom.sc_alpha(k,j,i) * mb * (
-        sc_S0_nua(k,j,i) - sc_S0_nue(k,j,i)
-      );
-    }
-  }
-}
-*/
-
 void M1::CoupleSourcesHydro(const Real weight, AA & cons)
 {
   Z4c * pz4c = pmy_block->pz4c;
@@ -302,6 +242,68 @@ void M1::CoupleSourcesYe(const Real weight, const Real mb, AA &ps)
         sc_kap_a_0_nub(k,j,i) * sc_n_nub(k,j,i) -
         geom.sc_sqrt_det_g(k,j,i) * sc_eta_0_nu(k,j,i) +
         sc_kap_a_0_nu(k,j,i) * sc_n_nu(k,j,i)
+      );
+    }
+  }
+}
+
+
+// `master_m1` style ----------------------------------------------------------
+
+void M1::CoupleSourcesHydro(AA & cons)
+{
+  Z4c * pz4c = pmy_block->pz4c;
+
+  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  {
+    AT_C_sca & sc_S1   = sources.sc_S1(ix_g,ix_s);
+    AT_N_vec & sp_S1_d = sources.sp_S1_d(ix_g,ix_s);
+
+    ILOOP2(k,j)
+    {
+      // tau source -----------------------------------------------------------
+      ILOOP1(i)
+      if (MaskGet(k, j, i))
+      {
+        cons(IEN,k,j,i) -= sc_S1(k,j,i);
+      }
+
+      for (int a=0; a<N; ++a)
+      ILOOP1(i)
+      if (MaskGet(k, j, i))
+      {
+        // Sign here is correct
+        cons(IEN,k,j,i) += geom.sp_beta_u(a,k,j,i) * sp_S1_d(a,k,j,i);
+      }
+
+      // S_j source -----------------------------------------------------------
+      for (int a=0; a<N; ++a)
+      ILOOP1(i)
+      if (MaskGet(k, j, i))
+      {
+        cons(IM1+a,k,j,i) -= geom.sc_alpha(k,j,i) * sp_S1_d(a,k,j,i);
+      }
+    }
+  }
+
+}
+
+// This is specific to 3 species (nu, nu_bar, nu_x); note ordering!
+void  M1::CoupleSourcesYe(const Real mb, AA &ps)
+{
+  Z4c * pz4c = pmy_block->pz4c;
+
+  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  {
+    AT_C_sca & sc_S0_nue = sources.sc_S0(ix_g,0);
+    AT_C_sca & sc_S0_nua = sources.sc_S0(ix_g,1);
+
+    ILOOP3(k,j,i)
+    if (MaskGet(k, j, i))
+    {
+      ps(0,k,j,i) += geom.sc_alpha(k,j,i) * mb * (
+        sc_S0_nua(k,j,i) - sc_S0_nue(k,j,i)
       );
     }
   }

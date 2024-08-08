@@ -227,7 +227,7 @@ TaskStatus M1N0::AddGRSources(MeshBlock *pmb, int stage)
   if (stage <= nstages)
   {
     pmb->pm1->AddSourceGR(pmb->pm1->storage.u,
-                           pmb->pm1->storage.u_rhs);
+                          pmb->pm1->storage.u_rhs);
     return TaskStatus::success;
   }
   return TaskStatus::fail;
@@ -255,9 +255,6 @@ TaskStatus M1N0::CalcUpdate(MeshBlock *pmb, int stage)
 // Coupling to z4c_matter
 TaskStatus M1N0::UpdateCoupling(MeshBlock *pmb, int stage)
 {
-  return TaskStatus::next;
-
-  /*
   if (stage == nstages)
   {
     if (pmb->pm1->opt.couple_sources_hydro)
@@ -296,13 +293,14 @@ TaskStatus M1N0::UpdateCoupling(MeshBlock *pmb, int stage)
                                     pmb->pfield->bcc, pmb->pcoord,
                                     il, iu, jl, ju, kl, ku, 0);
 #endif
+    // Ensure both primitive vectors contain updated state
+    pmb->phydro->w = pmb->phydro->w1;
 
     return TaskStatus::next;
   } else {
     return TaskStatus::next;
   }
   return TaskStatus::fail;
-  */
 }
 
 // ----------------------------------------------------------------------------

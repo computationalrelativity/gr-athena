@@ -1081,13 +1081,13 @@ TaskStatus GRMHD_Z4c::AddSourceTermsHydro(MeshBlock *pmb, int stage)
     pc->AddCoordTermsDivergence(dt_scaled, ph->flux, ph->w, pf->bcc, ph->u);
 #endif
 
-#if M1_ENABLED
-    ::M1::M1 * pm1 = pmb->pm1;
-    if (pm1->opt.couple_sources_hydro)
-    {
-      pm1->CoupleSourcesHydro(dt_scaled, ph->u);
-    }
-#endif
+// #if M1_ENABLED
+//     ::M1::M1 * pm1 = pmb->pm1;
+//     if (pm1->opt.couple_sources_hydro)
+//     {
+//       pm1->CoupleSourcesHydro(dt_scaled, ph->u);
+//     }
+// #endif
 
     return TaskStatus::next;
   }
@@ -1269,9 +1269,15 @@ TaskStatus GRMHD_Z4c::Primitives(MeshBlock *pmb, int stage)
 #endif
 
     // swap AthenaArray data pointers so that w now contains the updated w_out
-    ph->w.SwapAthenaArray(ph->w1);
+    // ph->w.SwapAthenaArray(ph->w1);
     // r1/r_old for GR is currently unused:
     // ps->r.SwapAthenaArray(ps->r1);
+
+    // Fill old prim with NAN as a precaution (solver does not use it)
+    // ph->w1.Fill(NAN);
+
+    // Ensure both primitive vectors contain updated state
+    ph->w = ph->w1;
 
     return TaskStatus::success;
   }
@@ -1407,22 +1413,22 @@ TaskStatus GRMHD_Z4c::IntegrateScalars(MeshBlock *pmb, int stage)
     const Real dt_scaled = this->dt_scaled(stage, pmb);
     ps->AddFluxDivergence(dt_scaled, ps->s);
 
-#if M1_ENABLED & USETM
-    ::M1::M1 * pm1 = pmb->pm1;
+// #if M1_ENABLED & USETM
+//     ::M1::M1 * pm1 = pmb->pm1;
 
-    if (pm1->opt.couple_sources_Y_e)
-    {
-      if (pm1->N_SPCS != 3)
-      #pragma omp critical
-      {
-        std::cout << "M1: couple_sources_Y_e supported for 3 species \n";
-        std::exit(0);
-      }
+//     if (pm1->opt.couple_sources_Y_e)
+//     {
+//       if (pm1->N_SPCS != 3)
+//       #pragma omp critical
+//       {
+//         std::cout << "M1: couple_sources_Y_e supported for 3 species \n";
+//         std::exit(0);
+//       }
 
-      const Real mb = pmb->peos->GetEOS().GetBaryonMass();
-      pm1->CoupleSourcesYe(dt_scaled, mb, ps->s);
-    }
-#endif
+//       const Real mb = pmb->peos->GetEOS().GetBaryonMass();
+//       pm1->CoupleSourcesYe(dt_scaled, mb, ps->s);
+//     }
+// #endif
 
     return TaskStatus::next;
   }
@@ -1761,8 +1767,6 @@ TaskStatus GRMHD_Z4c::UpdateSource(MeshBlock *pmb, int stage)
 #else
     pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, pf->bcc);
 #endif
-
-    ph->w1.Fill(NAN);
     return TaskStatus::success;
   }
   return TaskStatus::fail;
