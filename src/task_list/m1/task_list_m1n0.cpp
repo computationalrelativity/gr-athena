@@ -296,6 +296,18 @@ TaskStatus M1N0::UpdateCoupling(MeshBlock *pmb, int stage)
     // Ensure both primitive vectors contain updated state
     pmb->phydro->w = pmb->phydro->w1;
 
+#if USETM
+    PassiveScalars * ps = pmb->pscalars;
+
+    pmb->pz4c->GetMatter(pmb->pz4c->storage.mat,
+                    pmb->pz4c->storage.adm,
+                    pmb->phydro->w,
+                    pmb->pscalars->r,
+                    pmb->pfield->bcc);
+#else
+    pmb->pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, pf->bcc);
+#endif
+
     return TaskStatus::next;
   } else {
     return TaskStatus::next;

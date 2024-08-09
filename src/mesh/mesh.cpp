@@ -2139,7 +2139,7 @@ void Mesh::OutputCycleDiagnostics() {
                   // << std::scientific << std::setprecision(dt_precision)
                   // << "; time=" << time;
       }
-      else
+      else if (ncycle==0)
       {
         std::cout << "\nNumber of MeshBlocks=" << nbtotal;
       }
