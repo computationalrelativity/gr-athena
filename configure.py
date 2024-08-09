@@ -737,10 +737,11 @@ elif args["eos"] == "eostaudyn_ps":
     definitions["COLDEOS_POLICY"] = "ColdHybridTable"
   else:
     definitions["EOS_POLICY"] = ""
+
   if args["errorpolicy"] == "do_nothing":
     definitions["ERROR_POLICY"] = "DoNothing"
     definitions["ERROR_POLICY_CODE"] = "0"
-  if args["errorpolicy"] == "reset_floor":
+  elif args["errorpolicy"] == "reset_floor":
     definitions["ERROR_POLICY"] = "ResetFloor"
     definitions["ERROR_POLICY_CODE"] = "1"
   else:
