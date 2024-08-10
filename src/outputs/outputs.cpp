@@ -1097,13 +1097,16 @@ void Outputs::MakeOutputs(Mesh *pm, ParameterInput *pin, bool wtflag) {
       }
 
       ptype->WriteOutputFile(pm, pin, wtflag);
+
+      // all outputs processed, post-hook
+      if (ptype->pnext_type == nullptr)
+      {
+        pm->ApplyUserWorkAfterOutput(pin);
+      }
     }
+
     ptype = ptype->pnext_type; // move to next OutputType node in signly linked list
 
-    if (ptype == nullptr)
-    {
-      pm->ApplyUserWorkAfterOutput(pin);
-    }
   }
 }
 
