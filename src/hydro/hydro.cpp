@@ -49,12 +49,15 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
                  (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
                   AthenaArray<Real>::DataStatus::empty)),
     q_reset_mask(pmb->ncells3, pmb->ncells2, pmb->ncells1),
+    c2p_status(pmb->ncells3, pmb->ncells2, pmb->ncells1),
     hbvar(pmb, &u, &coarse_cons_, flux, HydroBoundaryQuantity::cons),
     hsrc(this, pin),
     hdif(this, pin)
 {
   int nc1 = pmb->ncells1, nc2 = pmb->ncells2, nc3 = pmb->ncells3;
   Mesh *pm = pmy_block->pmy_mesh;
+
+  c2p_status.Fill(0);
 
   pmb->RegisterMeshBlockDataCC(u);
 

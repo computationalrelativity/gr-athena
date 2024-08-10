@@ -1492,6 +1492,18 @@ void Mesh::ApplyUserWorkBeforeOutput(ParameterInput *pin) {
 }
 
 //----------------------------------------------------------------------------------------
+// \!fn void Mesh::ApplyUserWorkAfterOutput(ParameterInput *pin)
+// \brief Apply MeshBlock::UserWorkAfterOutput
+
+void Mesh::ApplyUserWorkAfterOutput(ParameterInput *pin) {
+  MeshBlock *pmb = pblock;
+  while (pmb != nullptr)  {
+    pmb->UserWorkAfterOutput(pin);
+    pmb = pmb->next;
+  }
+}
+
+//----------------------------------------------------------------------------------------
 // \!fn void Mesh::Initialize(int res_flag, ParameterInput *pin)
 // \brief  initialization before the main loop
 

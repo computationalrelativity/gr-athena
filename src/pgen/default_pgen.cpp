@@ -120,6 +120,16 @@ void __attribute__((weak)) MeshBlock::UserWorkBeforeOutput(ParameterInput *pin) 
 }
 
 //========================================================================================
+//! \fn void MeshBlock::UserWorkAfterOutput(ParameterInput *pin)
+//  \brief Function called before generating output files
+//========================================================================================
+
+void __attribute__((weak)) MeshBlock::UserWorkAfterOutput(ParameterInput *pin) {
+  // do nothing
+  return;
+}
+
+//========================================================================================
 //! \fn void MeshBlock::WaveUserWorkInLoop()
 //  \brief Function called once every time step for (wave) user-defined work.
 //========================================================================================

@@ -398,6 +398,10 @@ void EquationOfState::ConservedToPrimitive(
                                 w_rho  * W_ -
                                 w_p);
         */
+
+        pmb->phydro->c2p_status(k,j,i) =
+          static_cast<int>(phydro->q_reset_mask(k,j,i));
+
       }
 
     }

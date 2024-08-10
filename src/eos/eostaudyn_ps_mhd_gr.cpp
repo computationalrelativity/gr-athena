@@ -312,6 +312,12 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         Real prim_pt[NPRIM] = {0.0};
         Primitive::SolverResult result = ps.ConToPrim(prim_pt, cons_pt, b3u, g3d, g3u);
 
+        // retain result of c2p
+        if (pmb->phydro->c2p_status(k,j,i) == 0)
+        {
+          pmb->phydro->c2p_status(k,j,i) = static_cast<int>(result.error);
+        }
+
         if (result.error != Primitive::Error::SUCCESS) {
           std::cerr << "There was an error during the primitive solve!\n";
           std::cerr << "  Iteration: " << pmy_block_->pmy_mesh->ncycle << "\n";

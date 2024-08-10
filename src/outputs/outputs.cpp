@@ -355,6 +355,16 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     num_vars_++;
   }
 
+  // latest recorded status (error) in ConservedToPrimitive
+  if (output_params.variable.compare("c2p_status") == 0) {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = "c2p_status";
+    pod->data.InitWithShallowSlice(phyd->c2p_status, 0, 1);
+    AppendOutputDataNode(pod);
+    num_vars_++;
+  }
+
   // (rest-frame) density
   if (output_params.variable.compare("d") == 0 ||
       output_params.variable.compare("prim") == 0) {

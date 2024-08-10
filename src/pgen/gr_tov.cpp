@@ -238,6 +238,12 @@ void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin) {
   return;
 }
 
+void MeshBlock::UserWorkAfterOutput(ParameterInput *pin) {
+  // Reset the status
+  phydro->c2p_status.Fill(0);
+  return;
+}
+
 void Mesh::DeleteTemporaryUserMeshData()
 {
   // Free TOV data

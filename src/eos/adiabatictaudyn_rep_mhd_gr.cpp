@@ -346,6 +346,11 @@ void EquationOfState::ConservedToPrimitive(
                                       cons,
                                       pco,
                                       detg_ceil);
+
+          if (pmb->phydro->c2p_status(k,j,i) == 0)
+          {
+            pmb->phydro->c2p_status(k,j,i) = 1;
+          }
         }
         else
         {
@@ -378,6 +383,11 @@ void EquationOfState::ConservedToPrimitive(
                                       pco,
                                       detg_ceil);
             printf("NAN after success");
+
+            if (pmb->phydro->c2p_status(k,j,i) == 0)
+            {
+              pmb->phydro->c2p_status(k,j,i) = 2;
+            }
           }
 
           if(rho < fthr*atmo_rho )
@@ -402,6 +412,11 @@ void EquationOfState::ConservedToPrimitive(
                                       cons,
                                       pco,
                                       detg_ceil);
+
+            if (pmb->phydro->c2p_status(k,j,i) == 0)
+            {
+              pmb->phydro->c2p_status(k,j,i) = 3;
+            }
 
           }
         }
@@ -436,6 +451,11 @@ void EquationOfState::ConservedToPrimitive(
                                    cons,
                                    pco,
                                    detg_ceil);
+
+        if (pmb->phydro->c2p_status(k,j,i) == 0)
+        {
+          pmb->phydro->c2p_status(k,j,i) = 4;
+        }
 
       }
     }

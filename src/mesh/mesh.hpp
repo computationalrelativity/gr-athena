@@ -266,6 +266,7 @@ public:
   // defined in either the prob file or default_pgen.cpp in ../pgen/
   void UserWorkBeforeOutput(ParameterInput *pin); // called in Mesh fn (friend class)
   void UserWorkInLoop();                          // called in TimeIntegratorTaskList
+  void UserWorkAfterOutput(ParameterInput *pin);  // called in Mesh fn (friend class)
 
   // This is a quick fix to prevent multiple calls to 'UserWorkInLoop' if
   // TimeIntegratorTaskList and Z4cIntegratorTaskList are both running..
@@ -453,6 +454,7 @@ class Mesh {
   int CreateAMRMPITag(int lid, int ox1, int ox2, int ox3);
   MeshBlock* FindMeshBlock(int tgid);
   void ApplyUserWorkBeforeOutput(ParameterInput *pin);
+  void ApplyUserWorkAfterOutput(ParameterInput *pin);
 
   // function for distributing unique "phys" bitfield IDs to BoundaryVariable objects and
   // other categories of MPI communication for generating unique MPI_TAGs

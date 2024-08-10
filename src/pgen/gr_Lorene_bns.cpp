@@ -231,6 +231,12 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   return;
 }
 
+void MeshBlock::UserWorkAfterOutput(ParameterInput *pin) {
+  // Reset the status
+  phydro->c2p_status.Fill(0);
+  return;
+}
+
 //========================================================================================
 //! \fn void MeshBlock::ProblemGenerator(ParameterInput *pin)
 //  \brief Sets the initial conditions.

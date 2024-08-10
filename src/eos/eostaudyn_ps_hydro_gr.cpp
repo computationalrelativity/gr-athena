@@ -307,6 +307,12 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
         Real b3u[NMAG] = {0.0}; // Assume no magnetic field.
         Primitive::SolverResult result = ps.ConToPrim(prim_pt, cons_pt, b3u, g3d, g3u);
 
+        // retain result of c2p
+        if (pmb->phydro->c2p_status(k,j,i) == 0)
+        {
+          pmb->phydro->c2p_status(k,j,i) = static_cast<int>(result.error);
+        }
+
         // If the lapse or metric determinant fall below zero, we're probably in an
         // unphysical regime for a fluid, like a black hole or something. Primitive
         // failure is expected and will just result in a floor being applied.

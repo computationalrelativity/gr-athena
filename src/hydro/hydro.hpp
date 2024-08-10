@@ -64,6 +64,8 @@ class Hydro {
   // q<->w can fail; in this situation values need to be reset
   // It is helpful to make a mask to this end
   AthenaArray<bool> q_reset_mask;
+  AthenaArray<Real> c2p_status;
+
 
   // for reconstruction failure, should both states be floored?
   bool floor_both_states = false;
