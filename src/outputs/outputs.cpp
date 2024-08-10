@@ -1089,13 +1089,21 @@ void Outputs::MakeOutputs(Mesh *pm, ParameterInput *pin, bool wtflag) {
         (pm->time >= ptype->output_params.next_time) ||
         (pm->time >= pm->tlim) ||
         (wtflag && ptype->output_params.file_type == "rst")) {
-      if (first && ptype->output_params.file_type != "hst") {
+
+      if (first && ptype->output_params.file_type != "hst")
+      {
         pm->ApplyUserWorkBeforeOutput(pin);
         first = false;
       }
+
       ptype->WriteOutputFile(pm, pin, wtflag);
     }
     ptype = ptype->pnext_type; // move to next OutputType node in signly linked list
+
+    if (ptype == nullptr)
+    {
+      pm->ApplyUserWorkAfterOutput(pin);
+    }
   }
 }
 
