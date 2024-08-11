@@ -1507,7 +1507,8 @@ void Mesh::ApplyUserWorkAfterOutput(ParameterInput *pin) {
 // \!fn void Mesh::Initialize(int res_flag, ParameterInput *pin)
 // \brief  initialization before the main loop
 
-void Mesh::Initialize(int res_flag, ParameterInput *pin) {
+void Mesh::Initialize(int res_flag, ParameterInput *pin)
+{
   bool iflag = true;
   int inb = nbtotal;
   int nthreads = GetNumMeshThreads();
@@ -1515,388 +1516,119 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
   int nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
   std::vector<MeshBlock*> pmb_array(nmb);
 
-  do {
+  do
+  {
     // initialize a vector of MeshBlock pointers
     nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
-    if (static_cast<unsigned int>(nmb) != pmb_array.size()) pmb_array.resize(nmb);
+    if (static_cast<unsigned int>(nmb) != pmb_array.size())
+      pmb_array.resize(nmb);
+
     MeshBlock *pmbl = pblock;
-    for (int i=0; i<nmb; ++i) {
+
+    for (int i = 0; i < nmb; ++i)
+    {
       pmb_array[i] = pmbl;
       pmbl = pmbl->next;
     }
 
     if (res_flag == 0) {
-#pragma omp parallel for num_threads(nthreads)
-      for (int i=0; i<nmb; ++i) {
+      #pragma omp parallel for num_threads(nthreads)
+      for (int i = 0; i < nmb; ++i) {
         MeshBlock *pmb = pmb_array[i];
         pmb->ProblemGenerator(pin);
         pmb->pbval->CheckUserBoundaries();
       }
     }
 
-    // add initial perturbation for decaying or impulsive turbulence
-    if (((turb_flag == 1) || (turb_flag == 2)) && (res_flag == 0))
-    {
-#ifdef FFT
-      ptrbd->Driving();
-#endif // FFT
-    }
-
     // Create send/recv MPI_Requests for all BoundaryData objects
-#pragma omp parallel for num_threads(nthreads)
-    for (int i=0; i<nmb; ++i) {
+    #pragma omp parallel for num_threads(nthreads)
+    for (int i = 0; i < nmb; ++i) {
       MeshBlock *pmb = pmb_array[i];
       // BoundaryVariable objects evolved in main TimeIntegratorTaskList:
       pmb->pbval->SetupPersistentMPI();
-
     }
 
-#pragma omp parallel num_threads(nthreads)
+    #pragma omp parallel num_threads(nthreads)
     {
       MeshBlock *pmb;
       BoundaryValues *pbval;
 
-      // prepare to receive conserved variables
-#pragma omp for private(pmb,pbval)
-      for (int i=0; i<nmb; ++i) {
-        pmb = pmb_array[i]; pbval = pmb->pbval;
-        if (SHEARING_BOX) {
-          pbval->ComputeShear(time);
-        }
-        pbval->StartReceiving(BoundaryCommSubset::mesh_init);
-      }
+      CommunicateConserved(pmb_array);
 
-      // send conserved variables
-#pragma omp for private(pmb,pbval)
-      for (int i=0; i<nmb; ++i) {
-        pmb = pmb_array[i]; pbval = pmb->pbval;
-        if (FLUID_ENABLED) {
-          pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->u,
-                                               HydroBoundaryQuantity::cons);
-          pmb->phydro->hbvar.SendBoundaryBuffers();
-        }
+      // Finalize sub-systems that only need conserved vars -------------------
+#if Z4C_ENABLED
+      // To finalize Z4c/ADM
+      // Prolongate z4c
+      // Apply BC [CC,CX,VC]
+      // Enforce alg. constraints
+      // Prepare ADM variables
+      FinalizeZ4cADM(pmb_array);
+#endif
 
-        if (MAGNETIC_FIELDS_ENABLED)
-          pmb->pfield->fbvar.SendBoundaryBuffers();
-        // and (conserved variable) passive scalar masses:
+#if WAVE_ENABLED
+      // Prolongate wave
+      // Apply BC
+      FinalizeWave(pmb_array);
+#endif
 
-        if (NSCALARS > 0)
-          pmb->pscalars->sbvar.SendBoundaryBuffers();
+#if M1_ENABLED
+      // Prolongate m1
+      // Apply BC
+      FinalizeM1(pmb_array);
+#endif
+      // ----------------------------------------------------------------------
 
-        if (WAVE_ENABLED)
-        {
-          if (WAVE_CC_ENABLED)
-          {
-            pmb->pwave->ubvar_cc.SendBoundaryBuffers();
-          }
-          else if (WAVE_VC_ENABLED)
-          {
-            pmb->pwave->ubvar_vc.SendBoundaryBuffers();
-          }
-          else if (WAVE_CX_ENABLED)
-          {
-            pmb->pwave->ubvar_cx.SendBoundaryBuffers();
-          }
-        }
-
-        if (Z4C_ENABLED)
-          pmb->pz4c->ubvar.SendBoundaryBuffers();
-
-        if (M1_ENABLED)
-          pmb->pm1->ubvar.SendBoundaryBuffers();
-      }
-
-      // wait to receive conserved variables
-#pragma omp for private(pmb,pbval)
-      for (int i=0; i<nmb; ++i) {
-        pmb = pmb_array[i]; pbval = pmb->pbval;
-        if (FLUID_ENABLED)
-          pmb->phydro->hbvar.ReceiveAndSetBoundariesWithWait();
-        if (MAGNETIC_FIELDS_ENABLED)
-          pmb->pfield->fbvar.ReceiveAndSetBoundariesWithWait();
-        if (NSCALARS > 0)
-          pmb->pscalars->sbvar.ReceiveAndSetBoundariesWithWait();
-        if (SHEARING_BOX) {
-          pmb->phydro->hbvar.AddHydroShearForInit();
-        }
-
-        if (WAVE_ENABLED) {
-          if (WAVE_CC_ENABLED)
-          {
-            pmb->pwave->ubvar_cc.ReceiveAndSetBoundariesWithWait();
-          }
-          else if (WAVE_VC_ENABLED)
-          {
-            pmb->pwave->ubvar_vc.ReceiveAndSetBoundariesWithWait();
-          }
-          else if (WAVE_CX_ENABLED)
-          {
-            pmb->pwave->ubvar_cx.ReceiveAndSetBoundariesWithWait();
-          }
-        }
-
-        if (Z4C_ENABLED)
-          pmb->pz4c->ubvar.ReceiveAndSetBoundariesWithWait();
-
-        if (M1_ENABLED)
-          pmb->pm1->ubvar.ReceiveAndSetBoundariesWithWait();
-
-        pbval->ClearBoundary(BoundaryCommSubset::mesh_init);
-      }
-
-      // With AMR/SMR GR send primitives to enable cons->prim before prolongation
-      // DEBUG: This is useless?- (global con2prim below)
-#ifndef DBG_USE_CONS_BC
-      if (GENERAL_RELATIVITY && multilevel) {
-        if(FLUID_ENABLED) {
-          // prepare to receive primitives
-#pragma omp for private(pmb,pbval)
-          for (int i=0; i<nmb; ++i) {
-            pmb = pmb_array[i]; pbval = pmb->pbval;
-            pbval->StartReceiving(BoundaryCommSubset::gr_amr);
-          }
-
-          // send primitives
-#pragma omp for private(pmb,pbval)
-          for (int i=0; i<nmb; ++i) {
-            pmb = pmb_array[i]; pbval = pmb->pbval;
-            pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->w,
-                                                 HydroBoundaryQuantity::prim);
-            pmb->phydro->hbvar.SendBoundaryBuffers();
-
-            if (NSCALARS > 0)
-            {
-              pmb->pscalars->sbvar.var_cc = &(pmb->pscalars->r);
-              pmb->pscalars->sbvar.SendBoundaryBuffers();
-            }
-          }
-
-          // wait to receive AMR/SMR GR primitives
-#pragma omp for private(pmb,pbval)
-          for (int i=0; i<nmb; ++i) {
-            pmb = pmb_array[i]; pbval = pmb->pbval;
-            pmb->phydro->hbvar.ReceiveAndSetBoundariesWithWait();
-
-            if (NSCALARS > 0)
-              pmb->pscalars->sbvar.ReceiveAndSetBoundariesWithWait();
-
-            pbval->ClearBoundary(BoundaryCommSubset::gr_amr);
-
-            pmb->phydro->hbvar.SwapHydroQuantity(pmb->phydro->u,
-                                                 HydroBoundaryQuantity::cons);
-
-            if (NSCALARS > 0)
-              pmb->pscalars->sbvar.var_cc = &(pmb->pscalars->s);
-          }
-        }
-      } // multilevel
-#endif  // DBG_USE_CONS_BC
-
-      // Now do prolongation, compute primitives, apply BCs
-      Hydro *ph = nullptr;
-      Field *pf = nullptr;
-      PassiveScalars *ps = nullptr;
-      Z4c *pz4c = nullptr;
-
-#pragma omp for private(pmb,pbval,ph,pf,ps,pz4c)
-      for (int i=0; i<nmb; ++i)
+      // Treat R/P with prim_rp in the case of fluid + gr + z4c ---------------
+      //
+      // This requires:
+      // - ConservedToPrimitive on interior (physical) grid points
+      // - communication of primitives
+#if FLUID_ENABLED && GENERAL_RELATIVITY && !defined(DBG_USE_CONS_BC)
+      if (multilevel)
       {
-        pmb = pmb_array[i];
-        pbval = pmb->pbval;
-        ph = pmb->phydro;
-        pf = pmb->pfield;
-        ps = pmb->pscalars;
-        pz4c = pmb->pz4c;
-
-        if (multilevel)
-        {
-          if (FLUID_ENABLED)
-          {
-            pbval->ProlongateHydroBoundaries(time, 0.0);
-          }
-          //WGC separate prol functions
-          pbval->ProlongateBoundaries(time, 0.0);
-        }
-
-        // Switch based on Z4c sampling
-        FCN_CC_CX_VC(
-          pbval->ApplyPhysicalBoundaries,
-          pbval->ApplyPhysicalCellCenteredXBoundaries,
-          pbval->ApplyPhysicalVertexCenteredBoundaries
-        )(time, 0);
-
-#ifndef DBG_USE_CONS_BC
-        // DEBUG: GENERAL_RELATIVITY && Z4C_ENABLED
-        if (GENERAL_RELATIVITY && res_flag == 2)
-#else
-        if (GENERAL_RELATIVITY && Z4C_ENABLED)
-#endif // DBG_USE_CONS_BC
-        {
-          // Enforce the algebraic constraints
-          pz4c->AlgConstr(pz4c->storage.u);
-          // Need ADM variables for con2prim
-          pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
-        }
-
-        int il = pmb->is, iu = pmb->ie,
-            jl = pmb->js, ju = pmb->je,
-            kl = pmb->ks, ku = pmb->ke;
-
-        if (pbval->nblevel[1][1][0] != -1) il -= NGHOST;
-        if (pbval->nblevel[1][1][2] != -1) iu += NGHOST;
-        if (pmb->block_size.nx2 > 1) {
-          if (pbval->nblevel[1][0][1] != -1) jl -= NGHOST;
-          if (pbval->nblevel[1][2][1] != -1) ju += NGHOST;
-        }
-        if (pmb->block_size.nx3 > 1) {
-          if (pbval->nblevel[0][1][1] != -1) kl -= NGHOST;
-          if (pbval->nblevel[2][1][1] != -1) ku += NGHOST;
-        }
-
-#ifdef DBG_USE_CONS_BC
-        // Put BC on (Hydro) cons
-        pbval->ApplyPhysicalBoundaries(time, 0.0);
-
-        if (FLUID_ENABLED)
-        {
-          // FaceField dummy_FF_;
-          // FaceField & pf_b = (MAGNETIC_FIELDS_ENABLED) ? pf->b : dummy_FF_;
-
-          pmb->peos->ConservedToPrimitive(ph->u,
-                                          ph->w1,
-                                          pf->b,
-                                          ph->w,
-#if USETM
-                                          ps->s,
-                                          ps->r,
+        const bool interior_only = true;
+        PreparePrimitives(pmb_array, interior_only);
+        CommunicatePrimitives(pmb_array);
+      }
 #endif
-                                          pf->bcc, pmb->pcoord,
-#if Z4C_ENABLED || WAVE_ENABLED || M1_ENABLED
-                                          0, pmb->ncells1-1,
-                                          0, pmb->ncells2-1,
-                                          0, pmb->ncells3-1, 0);
-#else
-                                          0, pmb->ncells1-1,
-                                          0, pmb->ncells2-1,
-                                          0, pmb->ncells3-1);
+      // ----------------------------------------------------------------------
+
+      // Deal with matter prol. & BC ------------------------------------------
+#if FLUID_ENABLED && !defined(DBG_USE_CONS_BC)
+      FinalizeHydroPrimRP(pmb_array);
+#elif FLUID_ENABLED && defined(DBG_USE_CONS_BC)
+      FinalizeHydroConsRP(pmb_array);
+
+      const bool interior_only = false;
+      PreparePrimitives(pmb_array, interior_only);
 #endif
-        }
+      // ----------------------------------------------------------------------
 
-#if !USETM
-        if (NSCALARS > 0)
-        {
-          // r1/r_old for GR is currently unused:
-          pmb->peos->PassiveScalarConservedToPrimitive(ps->s, ph->w, ps->r, ps->r,
-                                                       pmb->pcoord,
-                                                       0, pmb->ncells1-1,
-                                                       0, pmb->ncells2-1,
-                                                       0, pmb->ncells3-1);
-        }
-#endif
-
-#endif // DBG_USE_CONS_BC
-
-
-#ifndef DBG_USE_CONS_BC
-        if (FLUID_ENABLED)
-        {
-          pmb->peos->ConservedToPrimitive(ph->u,
-                                          ph->w1,
-                                          pf->b,
-                                          ph->w,
-#if USETM
-                                          ps->s,
-                                          ps->r,
-#endif
-                                          pf->bcc,
-                                          pmb->pcoord,
-#if Z4C_ENABLED || WAVE_ENABLED || M1_ENABLED
-                                          il, iu, jl, ju, kl, ku,0);
-#else
-                                          il, iu, jl, ju, kl, ku);
-#endif
-        }
-
-#if !USETM
-        if (NSCALARS > 0) {
-          // r1/r_old for GR is currently unused:
-          pmb->peos->PassiveScalarConservedToPrimitive(ps->s, ph->w, ps->r, ps->r,
-                                                       pmb->pcoord,
-                                                       il, iu, jl, ju, kl, ku);
-        }
-#endif
-
-#endif // DBG_USE_CONS_BC
-
-#ifndef DBG_USE_CONS_BC
+      // Initial diffusion coefficients ---------------------------------------
 #if FLUID_ENABLED
-        if (FLUID_ENABLED)
-        {
-          // Swap Hydro and (possibly) passive scalar quantities in BoundaryVariable
-          // interface from conserved to primitive formulations:
-          ph->hbvar.SwapHydroQuantity(ph->w, HydroBoundaryQuantity::prim);
-        }
-#endif // FLUID_ENABLED
-        if (NSCALARS > 0)
-          ps->sbvar.var_cc = &(ps->r);
-
-        // Add for [e.g. Hydro]
-        pbval->ApplyPhysicalBoundaries(time, 0.0);
-
-#if FLUID_ENABLED
-        if (FLUID_ENABLED)
-        {
-          ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
-        }
-#endif // FLUID_ENABLED
-#endif // DBG_USE_CONS_BC
-
-      }
-
-      // Calc initial diffusion coefficients
-#pragma omp for private(pmb,ph,pf)
-      for (int i=0; i<nmb; ++i) {
-        pmb = pmb_array[i]; ph = pmb->phydro, pf = pmb->pfield;
-        if (FLUID_ENABLED && ph->hdif.hydro_diffusion_defined)
-          ph->hdif.SetDiffusivity(ph->w, pf->bcc);
-        if (MAGNETIC_FIELDS_ENABLED) {
-          if (pf->fdif.field_diffusion_defined)
-            pf->fdif.SetDiffusivity(ph->w, pf->bcc);
-        }
-      }
-
-if(Z4C_ENABLED && FLUID_ENABLED)
-{
-// Initialise ADM Sources, after CC Bfield has been set in all ghost zones
-// during the C2P above
-#pragma omp for private(pmb,ph,ps,pf,pz4c)
-      for (int i=0; i<nmb; ++i) {
-        pmb = pmb_array[i]; ph = pmb->phydro, pf = pmb->pfield, pz4c = pmb->pz4c;
-#if USETM
-        ps = pmb->pscalars;
-        pz4c->GetMatter(pz4c->storage.mat,
-                        pz4c->storage.adm,
-                        ph->w,
-                        ps->r,
-                        pf->bcc);
-#else
-        pz4c->GetMatter(pz4c->storage.mat,
-                        pz4c->storage.adm,
-                        ph->w,
-                        pf->bcc);
+      FinalizeDiffusion(pmb_array);
 #endif
-      }
-}
+      // ----------------------------------------------------------------------
 
-      if (!res_flag && adaptive) {
-#pragma omp for
-        for (int i=0; i<nmb; ++i) {
+#if FLUID_ENABLED && Z4C_ENABLED
+      // Prepare ADM sources
+      // Requires B-field in ghost-zones
+      FinalizeZ4cADM_Matter(pmb_array);
+#endif
+
+      if (!res_flag && adaptive)
+      {
+        #pragma omp for
+        for (int i = 0; i < nmb; ++i) {
           pmb_array[i]->pmr->CheckRefinementCondition();
         }
       }
     } // omp parallel
 
-    if (!res_flag && adaptive) {
+
+    // Further re-gridding as required ----------------------------------------
+    if (!res_flag && adaptive)
+    {
       iflag = false;
       int onb = nbtotal;
       LoadBalancingAndAdaptiveMeshRefinement(pin);
@@ -1904,22 +1636,27 @@ if(Z4C_ENABLED && FLUID_ENABLED)
         iflag = true;
       } else if (nbtotal < onb && Globals::my_rank == 0) {
         std::cout << "### Warning in Mesh::Initialize" << std::endl
-                  << "The number of MeshBlocks decreased during AMR grid initialization."
+                  << "The number of MeshBlocks decreased during AMR grid "
+                     "initialization."
                   << std::endl
-                  << "Possibly the refinement criteria have a problem." << std::endl;
+                  << "Possibly the refinement criteria have a problem."
+                  << std::endl;
       }
-      if (nbtotal > 2*inb && Globals::my_rank == 0) {
-        std::cout
-          << "### Warning in Mesh::Initialize" << std::endl
-          << "The number of MeshBlocks increased more than twice during initialization."
-          << std::endl
-          << "More computing power than you expected may be required." << std::endl;
+      if (nbtotal > 2 * inb && Globals::my_rank == 0) {
+        std::cout << "### Warning in Mesh::Initialize" << std::endl
+                  << "The number of MeshBlocks increased more than twice "
+                     "during initialization."
+                  << std::endl
+                  << "More computing power than you expected may be required."
+                  << std::endl;
       }
     }
+    // ------------------------------------------------------------------------
   } while (!iflag);
 
-  // calculate the first time step
-#pragma omp parallel for num_threads(nthreads)
+
+  // calculate the first time step --------------------------------------------
+  #pragma omp parallel for num_threads(nthreads)
   for (int i=0; i<nmb; ++i) {
     if (FLUID_ENABLED)
       pmb_array[i]->phydro->NewBlockTimeStep();
@@ -1932,8 +1669,8 @@ if(Z4C_ENABLED && FLUID_ENABLED)
 
     if (M1_ENABLED)
       pmb_array[i]->pm1->NewBlockTimeStep();
-
   }
+  // --------------------------------------------------------------------------
 
   NewTimeStep();
 

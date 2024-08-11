@@ -467,6 +467,25 @@ class Mesh {
 
   inline int GetRootLevel() { return root_level; }
 
+  void CommunicateConserved(std::vector<MeshBlock*> & pmb_array);
+  void CommunicatePrimitives(std::vector<MeshBlock*> & pmb_array);
+
+  void FinalizeWave(std::vector<MeshBlock*> & pmb_array);
+
+  void FinalizeZ4cADM(std::vector<MeshBlock*> & pmb_array);
+  void FinalizeZ4cADM_Matter(std::vector<MeshBlock*> & pmb_array);
+
+  void FinalizeM1(std::vector<MeshBlock*> & pmb_array);
+
+  void FinalizeHydroPrimRP(std::vector<MeshBlock*> & pmb_array);
+  void FinalizeHydroConsRP(std::vector<MeshBlock*> & pmb_array);
+
+  void FinalizeDiffusion(std::vector<MeshBlock*> & pmb_array);
+
+
+  void PreparePrimitives(std::vector<MeshBlock*> & pmb_array,
+                         const bool interior_only);
+
   // Additional, specific, communication of data over MeshBlock objects
   void CommunicateAuxZ4c();
   void CommunicateIteratedZ4c(const int iterations);

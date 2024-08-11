@@ -138,8 +138,10 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
 
 
   void ApplyPhysicalBoundaries(const Real time, const Real dt);
-  void ProlongateHydroBoundaries(const Real time, const Real dt);
-  void ProlongateBoundaries(const Real time, const Real dt);
+
+  void ProlongateBoundariesHydro(const Real time, const Real dt);
+  void ProlongateBoundariesZ4c(const Real time, const Real dt);
+  void ProlongateBoundariesWave(const Real time, const Real dt);
   void ProlongateBoundariesAux(const Real time, const Real dt);
   void ProlongateBoundariesM1(const Real time, const Real dt);
 

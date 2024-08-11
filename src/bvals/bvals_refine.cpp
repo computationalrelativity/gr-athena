@@ -79,7 +79,7 @@
 // --- change to standard and coarse PRIMITIVE
 // (automatically switches back to conserved variables at the end of fn)
 
-void BoundaryValues::ProlongateHydroBoundaries(const Real time, const Real dt)
+void BoundaryValues::ProlongateBoundariesHydro(const Real time, const Real dt)
 {
 
   //////////////////////////////////////////////////////////////////////////////
@@ -242,8 +242,7 @@ void BoundaryValues::ProlongateHydroBoundaries(const Real time, const Real dt)
   return;
 }
 
-
-void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt)
+void BoundaryValues::ProlongateBoundariesZ4c(const Real time, const Real dt)
 {
 
   // BD: opt- if nn all same level not required
@@ -255,13 +254,7 @@ void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt)
   //
   // Ensure coarse buffer has physical boundaries applied
   // (temp workaround) to automatically call all BoundaryFunction_[] on coarse var
-  Wave *pw = nullptr;
   Z4c *pz4c = nullptr;
-
-  if (WAVE_ENABLED && WAVE_VC_ENABLED) {
-    pw = pmb->pwave;
-    pw->ubvar_vc.var_vc = &(pw->coarse_u_);
-  }
 
   if (Z4C_ENABLED) {
     #if defined(Z4C_VC_ENABLED)
@@ -271,11 +264,6 @@ void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt)
   }
 
   ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(time, dt);
-
-  // switch back
-  if (WAVE_ENABLED && WAVE_VC_ENABLED) {
-    pw->ubvar_vc.var_vc = &(pw->u);
-  }
 
   if (Z4C_ENABLED) {
     #if defined(Z4C_VC_ENABLED)
@@ -290,11 +278,6 @@ void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt)
 
   //////////////////////////////////////////////////////////////////////////////
   // cell-centered extended logic
-  if (WAVE_ENABLED && WAVE_CX_ENABLED) {
-    pw = pmb->pwave;
-    pw->ubvar_cx.var_cx = &(pw->coarse_u_);
-  }
-
   if (Z4C_ENABLED) {
     #if defined(Z4C_CX_ENABLED)
       pz4c = pmb->pz4c;
@@ -303,11 +286,6 @@ void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt)
   }
 
   ApplyPhysicalCellCenteredXBoundariesOnCoarseLevel(time, dt);
-
-  // switch back
-  if (WAVE_ENABLED && WAVE_CX_ENABLED) {
-    pw->ubvar_cx.var_cx = &(pw->u);
-  }
 
   if (Z4C_ENABLED) {
     #if defined(Z4C_CX_ENABLED)
@@ -322,6 +300,54 @@ void BoundaryValues::ProlongateBoundaries(const Real time, const Real dt)
   return;
 }
 
+void BoundaryValues::ProlongateBoundariesWave(const Real time, const Real dt)
+{
+  // BD: opt- if nn all same level not required
+  MeshBlock *pmb = pmy_block_;
+  int &mylevel = pmb->loc.level;
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Vertex-centered logic
+  //
+  // Ensure coarse buffer has physical boundaries applied
+  // (temp workaround) to automatically call all BoundaryFunction_[] on coarse var
+  Wave *pw = nullptr;
+
+  if (WAVE_ENABLED && WAVE_VC_ENABLED) {
+    pw = pmb->pwave;
+    pw->ubvar_vc.var_vc = &(pw->coarse_u_);
+  }
+
+  ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(time, dt);
+
+  // switch back
+  if (WAVE_ENABLED && WAVE_VC_ENABLED) {
+    pw->ubvar_vc.var_vc = &(pw->u);
+  }
+
+  // Prolongate
+  ProlongateVertexCenteredBoundaries(time, dt);
+  //--
+  //////////////////////////////////////////////////////////////////////////////
+
+  //////////////////////////////////////////////////////////////////////////////
+  // cell-centered extended logic
+  if (WAVE_ENABLED && WAVE_CX_ENABLED) {
+    pw = pmb->pwave;
+    pw->ubvar_cx.var_cx = &(pw->coarse_u_);
+  }
+
+  ApplyPhysicalCellCenteredXBoundariesOnCoarseLevel(time, dt);
+
+  // switch back
+  if (WAVE_ENABLED && WAVE_CX_ENABLED) {
+    pw->ubvar_cx.var_cx = &(pw->u);
+  }
+
+  // Prolongate
+  ProlongateCellCenteredXBoundaries(time, dt);
+  //--
+}
 
 void BoundaryValues::ProlongateBoundariesAux(const Real time, const Real dt)
 {

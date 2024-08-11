@@ -1208,7 +1208,7 @@ TaskStatus GRMHD_Z4c::Prolongation_Hyd(MeshBlock *pmb, int stage)
     const Real t_end = this->t_end(stage, pmb);
     const Real dt_scaled = this->dt_scaled(stage, pmb);
 
-    pb->ProlongateHydroBoundaries(t_end, dt_scaled);
+    pb->ProlongateBoundariesHydro(t_end, dt_scaled);
 
     return TaskStatus::success;
   }
@@ -1645,7 +1645,7 @@ TaskStatus GRMHD_Z4c::Prolongation_Z4c(MeshBlock *pmb, int stage)
     const Real dt_scaled = this->dt_scaled(stage, pmb);
 
     // Prolongate z4c vars
-    pbval->ProlongateBoundaries(t_end, dt_scaled);
+    pbval->ProlongateBoundariesZ4c(t_end, dt_scaled);
   }
   else
   {
