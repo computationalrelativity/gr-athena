@@ -179,6 +179,15 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   // read in dummy bns to get separation
   std::string fn_ini_data = pin->GetOrAddString("problem", "filename", "resu.d");
 
+  // check ID is accessible
+  if (!file_exists(fn_ini_data.c_str()))
+  {
+    std::stringstream msg;
+    msg << "### FATAL ERROR problem/filename: " << fn_ini_data << " "
+        << " could not be accessed.";
+    ATHENA_ERROR(msg);
+  }
+
   Real * crd = new Real[1]{0.0};
   std::streambuf *cur_buf;
   std::ostringstream dmp_buf;
