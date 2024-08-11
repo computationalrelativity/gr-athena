@@ -62,7 +62,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         hst_data[NHISTORY_VARS+n] = 0.0;
         break;
       case UserHistoryOperation::max:
-        hst_data[NHISTORY_VARS+n] = real_min;
+        hst_data[NHISTORY_VARS+n] = 0;
         break;
       case UserHistoryOperation::min:
         hst_data[NHISTORY_VARS+n] = real_max;

@@ -103,6 +103,9 @@ namespace {
 #if MAGNETIC_FIELDS_ENABLED
   Real DivBface(MeshBlock *pmb, int iout);
 #endif
+
+  Real num_c2p_fail(MeshBlock *pmb, int iout);
+
 } // namespace
 
 namespace TOV_geom {
@@ -174,13 +177,14 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   if(adaptive==true)
     EnrollUserRefinementCondition(RefinementCondition);
 
-  AllocateUserHistoryOutput(1+MAGNETIC_FIELDS_ENABLED);
+  AllocateUserHistoryOutput(2+MAGNETIC_FIELDS_ENABLED);
   EnrollUserHistoryOutput(0, Maxrho, "max-rho", UserHistoryOperation::max);
 #if MAGNETIC_FIELDS_ENABLED
-  EnrollUserHistoryOutput(1, DivBface, "divB");
+  EnrollUserHistoryOutput(1, DivBface, "divB", UserHistoryOperation::max);
 #endif
+  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED, num_c2p_fail,
+                          "num_c2p_fail", UserHistoryOperation::sum);
 }
-
 
 //----------------------------------------------------------------------------------------
 //! \fn
@@ -686,7 +690,7 @@ int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts)
         if (interp_n > interp_maxsize-1)
         {
           msg << "### FATAL ERROR in function [TOV_solve]"
-              << std::endl << "interp_n - increase";
+              << std::endl << "interp_n - increase. r = " << r;
           ATHENA_ERROR(msg);
         }
       }
@@ -1797,6 +1801,26 @@ Real Maxrho(MeshBlock *pmb, int iout)
   }
 
   return max_rho;
+}
+
+Real num_c2p_fail(MeshBlock *pmb, int iout)
+{
+  Real sum_ = 0;
+  int is = pmb->is, ie = pmb->ie;
+  int js = pmb->js, je = pmb->je;
+  int ks = pmb->ks, ke = pmb->ke;
+
+  AthenaArray<Real> &cstat = pmb->phydro->c2p_status;
+
+  for (int k=ks; k<=ke; k++)
+  for (int j=js; j<=je; j++)
+  for (int i=is; i<=ie; i++)
+  {
+    if (pmb->phydro->c2p_status(k,j,i) > 0)
+      sum_++;
+  }
+
+  return sum_;
 }
 
 #if MAGNETIC_FIELDS_ENABLED

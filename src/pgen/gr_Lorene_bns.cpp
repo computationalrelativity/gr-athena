@@ -53,6 +53,7 @@ namespace {
   Real max_rho(      MeshBlock *pmb, int iout);
   Real min_alpha(    MeshBlock *pmb, int iout);
   Real max_abs_con_H(MeshBlock *pmb, int iout);
+  Real num_c2p_fail(MeshBlock *pmb, int iout);
 
 #if USETM
   // Global variables
@@ -139,7 +140,8 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
     EnrollUserRefinementCondition(RefinementCondition);
 
 
-  AllocateUserHistoryOutput(4);
+  AllocateUserHistoryOutput(4+MAGNETIC_FIELDS_ENABLED);
+
   EnrollUserHistoryOutput(0, max_rho,   "max-rho",
     UserHistoryOperation::max);
   EnrollUserHistoryOutput(1, min_alpha, "min-alpha",
@@ -148,9 +150,11 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
     UserHistoryOperation::max);
 
 #if MAGNETIC_FIELDS_ENABLED
-  // AllocateUserHistoryOutput(1);
-  EnrollUserHistoryOutput(3, DivBface, "divBface");
+  EnrollUserHistoryOutput(3, DivBface, "divBface", UserHistoryOperation::max);
 #endif
+
+  EnrollUserHistoryOutput(3 + MAGNETIC_FIELDS_ENABLED, num_c2p_fail,
+                          "num_c2p_fail", UserHistoryOperation::sum);
 
   if (resume_flag)
     return;
@@ -1076,6 +1080,26 @@ Real max_abs_con_H(MeshBlock *pmb, int iout)
   }
 
   return m_abs_con_H;
+}
+
+Real num_c2p_fail(MeshBlock *pmb, int iout)
+{
+  Real sum_ = 0;
+  int is = pmb->is, ie = pmb->ie;
+  int js = pmb->js, je = pmb->je;
+  int ks = pmb->ks, ke = pmb->ke;
+
+  AthenaArray<Real> &cstat = pmb->phydro->c2p_status;
+
+  for (int k=ks; k<=ke; k++)
+  for (int j=js; j<=je; j++)
+  for (int i=is; i<=ie; i++)
+  {
+    if (pmb->phydro->c2p_status(k,j,i) > 0)
+      sum_++;
+  }
+
+  return sum_;
 }
 
 }
