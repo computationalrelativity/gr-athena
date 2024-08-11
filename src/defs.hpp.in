@@ -189,6 +189,8 @@
 // use Lorene initial data library? (LORENE or NO_LORENE)
 #define @LORENE_OPTION@
 
+#define @LORENE_HARDCODED_UNITS@
+
 // allow for spatially varying shift-damping based on conformal factor
 #define @Z4C_ETA_CONF@
 

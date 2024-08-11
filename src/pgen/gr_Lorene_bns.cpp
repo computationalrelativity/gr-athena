@@ -16,10 +16,6 @@
 #include <streambuf>
 #include <cmath>
 
-// https://lorene.obspm.fr/
-#include <bin_ns.h>
-#include <unites.h>
-
 // Athena++ headers
 #include "../globals.hpp"
 #include "../athena_aliases.hpp"
@@ -35,6 +31,13 @@
 #include "../trackers/extrema_tracker.hpp"
 #include "../utils/linear_algebra.hpp"
 #include "../utils/utils.hpp"
+
+// https://lorene.obspm.fr/
+#include <bin_ns.h>
+#ifndef LORENE_HARDCODED_UNITS
+#include <unites.h>
+#endif
+
 
 //----------------------------------------------------------------------------------------
 using namespace gra::aliases;
@@ -68,7 +71,7 @@ namespace {
   Real pgasmax_2;
 
   // constants ----------------------------------------------------------------
-#if (0)
+#if defined(LORENE_HARDCODED_UNITS)
   // Some conversion factors to go between Lorene data and Athena data.
   // Shamelessly stolen from the Einstein Toolkit's Mag_NS.cc.
   //

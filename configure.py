@@ -59,6 +59,9 @@
 # S/AMR:
 #   -cons_bc            use _only_ conserved vars at distinct levels
 #
+# Lorene:
+#   -lorene_hardcoded_units
+#
 # Hydro/passive scalars:
 #   -recon_cmb_hydpa    reconstruct hydro & passive sca. at same time
 #
@@ -482,12 +485,18 @@ parser.add_argument('--gsl_path',
 parser.add_argument('-lorene',
                     action='store_true',
                     default=False,
-                    help='enable GNU scientific library')
+                    help='enable Lorene library')
 
 # --lorene_path argument
 parser.add_argument('--lorene_path',
                     default='',
                     help='path to LORENE libraries')
+
+# -lorene_hardcoded_units argument
+parser.add_argument('-lorene_hardcoded_units',
+                    action='store_true',
+                    default=False,
+                    help='use hard-coded lorene units')
 
 # -mkl argument
 parser.add_argument('-mkl',
@@ -1424,6 +1433,11 @@ if args['lorene']:
         makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/Export/C++/Include'.format(args['lorene_path'])
         makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/C++/Include'.format(args['lorene_path'])
         makefile_options['LINKER_FLAGS'] += ' -L{0}/Lib'.format(args['lorene_path'])
+
+    if args['lorene_hardcoded_units']:
+      definitions['LORENE_HARDCODED_UNITS'] = 'LORENE_HARDCODED_UNITS'
+    else:
+      definitions['LORENE_HARDCODED_UNITS'] = 'NO_LORENE_HARDCODED_UNITS'
 
 else:
     definitions['LORENE_OPTION'] = 'NO_LORENE'
