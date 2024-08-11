@@ -134,8 +134,8 @@ void InitColdEOS(Primitive::ColdEOS<Primitive::COLDEOS_POLICY> *eos,
 
   // read in species names
   std::string species_names[NSCALARS];
-  for (int i = 1; i < NSCALARS+1; i++) {
-    species_names[i] = pin->GetOrAddString("hydro", "species" + std::to_string(i), "e");
+  for (int i = 0; i < NSCALARS; i++) {
+    species_names[i] = pin->GetOrAddString("hydro", "species" + std::to_string(i+1), "e");
   }
 
   eos->ReadColdSliceFromFile(table, species_names);
