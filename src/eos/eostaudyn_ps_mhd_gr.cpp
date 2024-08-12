@@ -522,37 +522,41 @@ inline static void PrimitiveToConservedSingle(
 } // namespace
 
 // BD: TODO - eigenvalues, _not_ the speed; should be refactored / renamed
-void EquationOfState::FastMagnetosonicSpeedsGR(Real n, Real T, Real bsq, Real vi, Real v2,
-    Real alpha, Real betai, Real gammaii, Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]) {
+void EquationOfState::FastMagnetosonicSpeedsGR(Real n, Real T, Real bsq,
+                                               Real vi, Real v2, Real alpha,
+                                               Real betai, Real gammaii,
+                                               Real *plambda_plus,
+                                               Real *plambda_minus,
+                                               Real prim_scalar[NSCALARS])
+{
   // Constants and stuff
   Real Wlor = std::sqrt(1.0 - v2);
-  Wlor = 1.0/Wlor;
-  Real u0 = Wlor/alpha;
-  Real g00 = -1.0/(alpha*alpha);
-  Real g01 = betai/(alpha*alpha);
-  Real u1 = vi*Wlor;
-  Real g11 = gammaii - betai*betai/(alpha*alpha);
+  Wlor = 1.0 / Wlor;
+  Real u0 = Wlor / alpha;
+  Real g00 = -1.0 / (alpha * alpha);
+  Real g01 = betai / (alpha * alpha);
+  Real u1 = (vi - betai / alpha) * Wlor;
+  Real g11 = gammaii - betai * betai / (alpha * alpha);
   // Calculate comoving fast magnetosonic speed
   // FIXME: Need to update to work with particle fractions.
   Real Y[MAX_SPECIES] = {0.0};
-  for (int l=0; l<NSCALARS; l++) {
+  for (int l = 0; l < NSCALARS; l++)
     Y[l] = prim_scalar[l];
-  }
 
   Real cs = ps.GetEOS()->GetSoundSpeed(n, T, Y);
-  Real cs_sq = cs*cs;
+  Real cs_sq = cs * cs;
   Real mb = ps.GetEOS()->GetBaryonMass();
-  Real va_sq = bsq/(bsq + n*mb*ps.GetEOS()->GetEnthalpy(n, T, Y));
+  Real va_sq = bsq / (bsq + n * mb * ps.GetEOS()->GetEnthalpy(n, T, Y));
   Real cms_sq = cs_sq + va_sq - cs_sq * va_sq;
 
   // Set fast magnetosonic speeds in appropriate coordinates
   Real a = SQR(u0) - (g00 + SQR(u0)) * cms_sq;
-  Real b = -2.0 * (u0*u1 - (g01 + u0*u1) * cms_sq);
+  Real b = -2.0 * (u0 * u1 - (g01 + u0 * u1) * cms_sq);
   Real c = SQR(u1) - (g11 + SQR(u1)) * cms_sq;
-  Real d = std::max(SQR(b) - 4.0*a*c, 0.0);
+  Real d = std::max(SQR(b) - 4.0 * a * c, 0.0);
   Real d_sqrt = std::sqrt(d);
-  Real root_1 = (-b + d_sqrt) / (2.0*a);
-  Real root_2 = (-b - d_sqrt) / (2.0*a);
+  Real root_1 = (-b + d_sqrt) / (2.0 * a);
+  Real root_2 = (-b - d_sqrt) / (2.0 * a);
   if (root_1 > root_2) {
     *plambda_plus = root_1;
     *plambda_minus = root_2;
