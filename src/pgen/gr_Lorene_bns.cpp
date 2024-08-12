@@ -174,6 +174,11 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
     GetRunDir(run_dir);
     ceos->DumpLoreneEOSFile(run_dir + "/eos_akmalpr.d");
   }
+#ifdef MPI_PARALLEL
+  // wait for rank_0 to finish writing the eos file
+  MPI_Barrier(MPI_COMM_WORLD);
+#endif // MPI_PARALLEL
+
 #endif
 
 #else
