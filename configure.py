@@ -1441,6 +1441,7 @@ if args['lorene']:
 
 else:
     definitions['LORENE_OPTION'] = 'NO_LORENE'
+    definitions['LORENE_HARDCODED_UNITS'] = 'NO_LORENE_HARDCODED_UNITS'
 
 if 'Lorene' in args['prob']:
     if not args['f'] or not args['g'] or not args['z']:
