@@ -15,15 +15,16 @@
 // Athena++ headers
 #include "eos.hpp"
 #include "../athena_aliases.hpp"
-#include "../parameter_input.hpp"          // ParameterInput
-#include "../coordinates/coordinates.hpp"  // Coordinates
-#include "../field/field.hpp"              // FaceField
-#include "../mesh/mesh.hpp"                // MeshBlock
-#include "../z4c/z4c.hpp"                // MeshBlock
-#include "../utils/linear_algebra.hpp"     // Det. & friends
+#include "../parameter_input.hpp"
+#include "../coordinates/coordinates.hpp"
+#include "../field/field.hpp"
+#include "../hydro/hydro.hpp"
+#include "../mesh/mesh.hpp"
+#include "../z4c/z4c.hpp"
+#include "../utils/linear_algebra.hpp"
 
 //#ifdef Z4C_AHF
-#include "../z4c/ahf.hpp"                // MeshBlock
+#include "../z4c/ahf.hpp"
 //#endif
 
 
@@ -150,6 +151,7 @@ void EquationOfState::ConservedToPrimitive(
   int coarse_flag)
 {
   MeshBlock* pmb = pmy_block_;
+  Field* pf = pmb->pfield;
   GRDynamical* pco_gr;
   int nn1;
 
@@ -172,9 +174,10 @@ void EquationOfState::ConservedToPrimitive(
   con2prim_mhd cv2pv(eos, rho_strict, ye_lenient, max_z, max_b,
                      atmo, c2p_acc, max_iter);
 
-  Real detg_ceil = pow((pmy_block_->pz4c->opt.chi_div_floor),-1.5);
   // Prepare variables for conversion -----------------------------------------
   Z4c * pz4c = pmy_block_->pz4c;
+
+  Real detg_ceil = pow((pz4c->opt.chi_div_floor),-1.5);
 
   // quantities we have (sliced below)
   AT_N_sym adm_gamma_dd;
@@ -225,6 +228,8 @@ void EquationOfState::ConservedToPrimitive(
   KL = std::max(kl, KL);
   KU = std::min(ku, KU);
 
+  pf->CalculateCellCenteredField(bb, bb_cc, pco, IL, IU, JL, JU, KL, KU);
+
   // iterate over cells
   for (int k=KL; k<=KU; ++k)
   for (int j=JL; j<=JU; ++j)
@@ -260,8 +265,6 @@ void EquationOfState::ConservedToPrimitive(
       }
 
     }
-    pmy_block_->pfield->CalculateCellCenteredField(bb, bb_cc, pco, il, iu, jl, ju, kl, ku);
-
 
     #pragma omp simd
     for (int i=IL; i<=IU; ++i)

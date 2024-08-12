@@ -200,6 +200,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
   int nn1;
   GRDynamical* pco_gr;
   MeshBlock* pmb = pmy_block_;
+  Field* pf = pmb->pfield;
   Z4c* pz4c = pmb->pz4c;
 
   if (coarse_flag) {
@@ -252,7 +253,7 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
   KL = std::max(kl, KL);
   KU = std::min(ku, KU);
 
-  pmy_block_->pfield->CalculateCellCenteredField(bb, bb_cc, pco, il, iu, jl, ju, kl, ku);
+  pf->CalculateCellCenteredField(bb, bb_cc, pco, IL, IU, JL, JU, KL, KU);
 
   // Go through the cells
   for (int k = KL; k <= KU; ++k) {
