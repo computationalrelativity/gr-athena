@@ -75,6 +75,12 @@ class Hydro {
   HydroSourceTerms hsrc;
   HydroDiffusion hdif;
 
+  struct {
+    Real alpha_threshold;  // excise hydro if alpha < alpha_excision
+    bool horizon_based;    // use horizon for excise
+  } opt_excision;
+
+
   // scratches ----------------------------------------------------------------
 public:
   AT_N_sca sqrt_detgamma_;

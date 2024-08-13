@@ -92,8 +92,6 @@ void Hydro::RiemannSolver(
   // ==========================================================================
 
   Real dt = pmb->pmy_mesh->dt;
-  Real alpha_excision = peos->alpha_excision;
-  bool horizon_excision = peos->horizon_excision;
 
   // =============================================================
   // Prepare determinant-like
@@ -178,6 +176,8 @@ void Hydro::RiemannSolver(
   {
     // set flat space if the interpolated det is negative and inside
     // horizon (either in ahf or lapse below excision value)
+
+    // BD: TODO - This dump to output is stupid and use be addressed otherwise
     std::cout << "Set flat space" << "\n";
     for (int a=0; a<3; ++a)
     for (int b=a; b<3; ++b)
@@ -188,7 +188,7 @@ void Hydro::RiemannSolver(
     detgamma_(i) = 1.0;
   };
 
-  if (horizon_excision)
+  if (opt_excision.horizon_based)
   {
     #pragma omp simd
     for (int i = il; i <= iu; ++i)
@@ -204,19 +204,20 @@ void Hydro::RiemannSolver(
           SQR(pco_gr->x1f(i)) + SQR(pco_gr->x2v(j)) + SQR(pco_gr->x3v(k))
         );
 
-        if ((R2 < SQR(horizon_radius)) || (alpha_(i) < alpha_excision))
+        if ((R2 < SQR(horizon_radius)) ||
+            (alpha_(i) < opt_excision.alpha_threshold))
         {
           excise(i);
         }
       }
     }
   }
-  else if (alpha_excision > 0)  // by default disabled (i.e. 0)
+  else if (opt_excision.alpha_threshold > 0)  // by default disabled (i.e. 0)
   {
     #pragma omp simd
     for (int i = il; i <= iu; ++i)
     {
-      if (alpha_(i) < alpha_excision)
+      if (alpha_(i) < opt_excision.alpha_threshold)
       {
         excise(i);
       }
