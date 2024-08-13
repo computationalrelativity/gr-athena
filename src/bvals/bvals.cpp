@@ -294,11 +294,17 @@ void BoundaryValues::StartReceiving(BoundaryCommSubset phase)
       AllStartReceiving_(phase, bvars_main_int);
       AllStartReceiving_(phase, bvars_main_int_vc);
       AllStartReceiving_(phase, bvars_main_int_cx);
+      AllStartReceiving_(phase, bvars_m1);
       break;
     }
     case BoundaryCommSubset::gr_amr:
     {
       AllStartReceiving_(phase, bvars_main_int);
+      break;
+    }
+    case BoundaryCommSubset::m1:
+    {
+      AllStartReceiving_(phase, bvars_m1);
       break;
     }
     case BoundaryCommSubset::all:
@@ -320,10 +326,6 @@ void BoundaryValues::StartReceiving(BoundaryCommSubset phase)
     StartReceivingShear(phase);
   }
 
-  if (M1_ENABLED)
-  {
-    StartReceivingM1(phase);
-  }
   return;
 }
 
@@ -387,11 +389,17 @@ void BoundaryValues::ClearBoundary(BoundaryCommSubset phase) {
       AllClearBoundary_(phase, bvars_main_int);
       AllClearBoundary_(phase, bvars_main_int_vc);
       AllClearBoundary_(phase, bvars_main_int_cx);
+      AllClearBoundary_(phase, bvars_m1);
       break;
     }
     case BoundaryCommSubset::gr_amr:
     {
       AllClearBoundary_(phase, bvars_main_int);
+      break;
+    }
+    case BoundaryCommSubset::m1:
+    {
+      AllClearBoundary_(phase, bvars_m1);
       break;
     }
     case BoundaryCommSubset::all:
@@ -407,28 +415,6 @@ void BoundaryValues::ClearBoundary(BoundaryCommSubset phase) {
     }
   }
 
-  if (M1_ENABLED)
-  {
-    ClearBoundaryM1(phase);
-  }
-
-  return;
-}
-
-void BoundaryValues::StartReceivingM1(BoundaryCommSubset phase) {
-  for (auto bvars_it = bvars_m1.begin(); bvars_it != bvars_m1.end();
-       ++bvars_it) {
-    (*bvars_it)->StartReceiving(phase);
-  }
-  return;
-}
-
-void BoundaryValues::ClearBoundaryM1(BoundaryCommSubset phase) {
-  for (auto bvars_it = bvars_m1.begin(); bvars_it != bvars_m1.end();
-       ++bvars_it) {
-    (*bvars_it)->ClearBoundary(phase);
-  }
-  return;
 }
 
 //----------------------------------------------------------------------------------------

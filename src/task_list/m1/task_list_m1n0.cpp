@@ -98,7 +98,7 @@ void M1N0::StartupTaskList(MeshBlock *pmb, int stage)
 
   // Clear the RHS
   pmb->pm1->storage.u_rhs.ZeroClear();
-  pmb->pbval->StartReceivingM1(BoundaryCommSubset::all);
+  pmb->pbval->StartReceiving(BoundaryCommSubset::m1);
   return;
 }
 
@@ -106,7 +106,7 @@ void M1N0::StartupTaskList(MeshBlock *pmb, int stage)
 //! Functions to end MPI communication
 TaskStatus M1N0::ClearAllBoundary(MeshBlock *pmb, int stage)
 {
-  pmb->pbval->ClearBoundaryM1(BoundaryCommSubset::all);
+  pmb->pbval->ClearBoundary(BoundaryCommSubset::m1);
   return TaskStatus::success;
 }
 

@@ -133,9 +133,6 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   // non-inhertied / unique functions (do not exist in BoundaryVariable objects):
   // (these typically involve a coupled interaction of boundary variable/quantities)
   // ------
-  void StartReceivingM1(BoundaryCommSubset phase);
-  void ClearBoundaryM1(BoundaryCommSubset phase);
-
 
   void ApplyPhysicalBoundaries(const Real time, const Real dt);
 

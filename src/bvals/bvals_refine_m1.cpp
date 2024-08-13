@@ -181,13 +181,13 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevelM1(
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
                                 pmb->cis, pmb->cie, sj, ej, sk, ek, 1,
                                 BoundaryFace::inner_x1,
-                                bvars_main_int);
+                                bvars_m1);
     }
     if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
                                 pmb->cis, pmb->cie, sj, ej, sk, ek, 1,
                                 BoundaryFace::outer_x1,
-                                bvars_main_int);
+                                bvars_m1);
     }
   }
   if (nb.ni.ox2 == 0 && pmb->block_size.nx2 > 1) {
@@ -195,13 +195,13 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevelM1(
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
                                 si, ei, pmb->cjs, pmb->cje, sk, ek, 1,
                                 BoundaryFace::inner_x2,
-                                bvars_main_int);
+                                bvars_m1);
     }
     if (apply_bndry_fn_[BoundaryFace::outer_x2]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
                                 si, ei, pmb->cjs, pmb->cje, sk, ek, 1,
                                 BoundaryFace::outer_x2,
-                                bvars_main_int);
+                                bvars_m1);
     }
   }
   if (nb.ni.ox3 == 0 && pmb->block_size.nx3 > 1) {
@@ -209,18 +209,15 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevelM1(
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
                                 si, ei, sj, ej, pmb->cks, pmb->cke, 1,
                                 BoundaryFace::inner_x3,
-                                bvars_main_int);
+                                bvars_m1);
     }
     if (apply_bndry_fn_[BoundaryFace::outer_x3]) {
       DispatchBoundaryFunctions(pmb, pmr->pcoarsec, time, dt,
                                 si, ei, sj, ej, pmb->cks, pmb->cke, 1,
                                 BoundaryFace::outer_x3,
-                                bvars_main_int);
+                                bvars_m1);
     }
   }
-  return;
-
-  return;
 }
 
 void BoundaryValues::ProlongateGhostCellsM1(
@@ -242,17 +239,112 @@ void BoundaryValues::ProlongateGhostCellsM1(
     pmr->ProlongateCellCenteredValues(*coarse_cc, *var_cc, 0, nu,
                                       si, ei, sj, ej, sk, ek);
   }
-
-  return;
 }
 
 
-void BoundaryValues::ApplyPhysicalBoundariesM1(const Real time, const Real dt)
+// void BoundaryValues::ApplyPhysicalBoundariesM1(const Real time, const Real dt)
+// {
+//   if (0) // (M1_ENABLED)
+//   {
+//     std::swap(bvars_main_int, bvars_m1);
+//     ApplyPhysicalBoundaries(time, dt);
+//     std::swap(bvars_m1, bvars_main_int);
+//   }
+// }
+
+
+void BoundaryValues::ApplyPhysicalBoundariesM1(
+  const Real time, const Real dt)
 {
-  if (M1_ENABLED)
-  {
-    std::swap(bvars_main_int, bvars_m1);
-    ApplyPhysicalBoundaries(time, dt);
-    std::swap(bvars_m1, bvars_main_int);
+  MeshBlock *pmb = pmy_block_;
+  Coordinates *pco = pmb->pcoord;
+  int bis = pmb->is - NGHOST, bie = pmb->ie + NGHOST,
+      bjs = pmb->js, bje = pmb->je,
+      bks = pmb->ks, bke = pmb->ke;
+
+  // Extend the transverse limits that correspond to periodic boundaries as they are
+  // updated: x1, then x2, then x3
+  if (!apply_bndry_fn_[BoundaryFace::inner_x2] && pmb->block_size.nx2 > 1)
+    bjs = pmb->js - NGHOST;
+  if (!apply_bndry_fn_[BoundaryFace::outer_x2] && pmb->block_size.nx2 > 1)
+    bje = pmb->je + NGHOST;
+  if (!apply_bndry_fn_[BoundaryFace::inner_x3] && pmb->block_size.nx3 > 1)
+    bks = pmb->ks - NGHOST;
+  if (!apply_bndry_fn_[BoundaryFace::outer_x3] && pmb->block_size.nx3 > 1)
+    bke = pmb->ke + NGHOST;
+
+  // Apply boundary function on inner-x1 and update W,bcc (if not periodic)
+  if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
+    DispatchBoundaryFunctions(pmb, pco, time, dt,
+                              pmb->is, pmb->ie,
+                              bjs, bje,
+                              bks, bke,
+                              NGHOST,
+                              BoundaryFace::inner_x1,
+                              bvars_m1);
   }
+
+  // Apply boundary function on outer-x1 and update W,bcc (if not periodic)
+  if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
+    DispatchBoundaryFunctions(pmb, pco, time, dt,
+                              pmb->is, pmb->ie,
+                              bjs, bje,
+                              bks, bke,
+                              NGHOST,
+                              BoundaryFace::outer_x1,
+                              bvars_m1);
+  }
+
+  if (pmb->block_size.nx2 > 1) { // 2D or 3D
+    // Apply boundary function on inner-x2 and update W,bcc (if not periodic)
+    if (apply_bndry_fn_[BoundaryFace::inner_x2]) {
+      DispatchBoundaryFunctions(pmb, pco, time, dt,
+                                bis, bie,
+                                pmb->js, pmb->je,
+                                bks, bke,
+                                NGHOST,
+                                BoundaryFace::inner_x2,
+                                bvars_m1);
+    }
+
+    // Apply boundary function on outer-x2 and update W,bcc (if not periodic)
+    if (apply_bndry_fn_[BoundaryFace::outer_x2]) {
+      DispatchBoundaryFunctions(pmb, pco, time, dt,
+                                bis, bie,
+                                pmb->js, pmb->je,
+                                bks, bke,
+                                NGHOST,
+                                BoundaryFace::outer_x2,
+                                bvars_m1);
+    }
+  }
+
+  if (pmb->block_size.nx3 > 1) { // 3D
+    bjs = pmb->js - NGHOST;
+    bje = pmb->je + NGHOST;
+
+    // Apply boundary function on inner-x3 and update W,bcc (if not periodic)
+    if (apply_bndry_fn_[BoundaryFace::inner_x3]) {
+      DispatchBoundaryFunctions(pmb, pco, time, dt,
+                                bis, bie,
+                                bjs, bje,
+                                pmb->ks, pmb->ke,
+                                NGHOST,
+                                BoundaryFace::inner_x3,
+                                bvars_m1);
+    }
+
+    // Apply boundary function on outer-x3 and update W,bcc (if not periodic)
+    if (apply_bndry_fn_[BoundaryFace::outer_x3])
+    {
+      DispatchBoundaryFunctions(pmb, pco, time, dt,
+                                bis, bie,
+                                bjs, bje,
+                                pmb->ks, pmb->ke,
+                                NGHOST,
+                                BoundaryFace::outer_x3,
+                                bvars_m1);
+    }
+  }
+  return;
 }
