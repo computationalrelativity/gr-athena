@@ -31,6 +31,8 @@ static int sgn(T val)
   return (T(0) < val) - (val < T(0));
 }
 
+// BD: TODO - refactor
+
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaArray<Real> & u_weyl)
 // \brief compute the weyl scalars given the adm variables and matter state

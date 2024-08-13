@@ -40,7 +40,6 @@
 // The Z4c variables will be set on the whole MeshBlock with the exception of
 // the Gamma's that can only be set in the interior of the MeshBlock.
 
-#ifndef DBG_EOM
 void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u) {
   using namespace LinearAlgebra;
 
@@ -153,7 +152,6 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u) {
   //
   AlgConstr(u);
 }
-#endif // DBG_EOM
 
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
@@ -161,7 +159,6 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u) {
 //
 // This sets the ADM variables everywhere in the MeshBlock
 
-#ifndef DBG_EOM
 void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm) {
   ADM_vars adm;
   SetADMAliases(u_adm, adm);
@@ -200,7 +197,6 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm) {
     }
   }
 }
-#endif // DBG_EOM
 
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat)
@@ -573,210 +569,3 @@ void Z4c::ADMMinkowski(AthenaArray<Real> & u_adm) {
 void Z4c::MatterVacuum(AthenaArray<Real> & u_mat) {
   u_mat.ZeroClear();
 }
-
-
-// Debug EOM ------------------------------------------------------------------
-// H&R '2018
-#ifdef DBG_EOM
-
-// For readability
-typedef AthenaArray< Real>                            AA;
-typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> AT_N_sca;
-typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> AT_N_vec;
-typedef AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> AT_N_sym;
-
-// symmetric tensor derivatives
-typedef AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> AT_N_VS2;
-
-// Need to populate
-// Z4c: chi, g_dd, Khat, A_dd, Gam_u (i.e. Gamtil_U), Theta (take as 0)
-void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u)
-{
-  using namespace LinearAlgebra;
-
-  // Slice 3d z4c metric quantities  (NDIM=3 in z4c.hpp) ----------------------
-  AT_N_sca adm_alpha( u_adm, Z4c::I_ADM_alpha);
-  AT_N_vec adm_beta_u(u_adm, Z4c::I_ADM_betax);
-
-  AT_N_sym adm_gamma_dd(u_adm, Z4c::I_ADM_gxx);
-  AT_N_sym adm_K_dd(    u_adm, Z4c::I_ADM_Kxx);
-
-  AT_N_sca z4c_alpha(u, Z4c::I_Z4c_alpha);
-  AT_N_sca z4c_chi(  u, Z4c::I_Z4c_chi);
-  AT_N_sca z4c_Theta(u, Z4c::I_Z4c_Theta);
-  AT_N_sca z4c_Khat( u, Z4c::I_Z4c_Khat);
-
-  AT_N_vec z4c_Gamtil_u(   u, Z4c::I_Z4c_Gamx);
-  AT_N_vec z4c_beta_u(     u, Z4c::I_Z4c_betax);
-
-  AT_N_sym z4c_Atil_dd(    u, Z4c::I_Z4c_Axx);
-  AT_N_sym z4c_gammatil_dd(u, Z4c::I_Z4c_gxx);
-
-  // Scratch & parameters -----------------------------------------------------
-  AT_N_sca adm_detgamma_(mbi.nn1);
-  AT_N_sca adm_oopsi4_(  mbi.nn1);
-  AT_N_sca adm_K_(       mbi.nn1);
-
-  AT_N_sca z4c_detgamma_(   mbi.nn1);
-  AT_N_sca z4c_oodetgamma_( mbi.nn1);
-
-  AT_N_sym z4c_gammatil_uu_(mbi.nn1);
-
-  // derivatives
-  AT_N_VS2 z4c_dgammatil_ddd_(mbi.nn1);
-
-  const int il = 0;
-  const int iu = mbi.nn1-1;
-
-  const Real oo12 = 1.0 / 12.;
-  const Real chi_detgamma_pow = oo12 * opt.chi_psi_power;
-
-  // Map quantities -----------------------------------------------------------
-
-  // Theta
-  z4c_Theta.ZeroClear();
-
-  GLOOP2(k,j)
-  {
-
-    GLOOP1(i) {
-      z4c_alpha(k,j,i) = adm_alpha(k,j,i);
-    }
-
-    for(int a = 0; a < NDIM; ++a)
-    GLOOP1(i) {
-      z4c_beta_u(a,k,j,i) = adm_beta_u(a,k,j,i);
-    }
-
-    // z4c_chi
-    Det3Metric(adm_detgamma_, adm_gamma_dd, k, j, il, iu);
-
-    GLOOP1(i)
-    {
-      z4c_chi(k,j,i) = std::pow(adm_detgamma_(i), chi_detgamma_pow);
-    }
-
-    // z4c_Khat, adm_K_
-    TraceRank2(adm_K_, adm_detgamma_, adm_gamma_dd, adm_K_dd, k, j, il, iu);
-    GLOOP1(i)
-    {
-      z4c_Khat(k,j,i) = adm_K_(i) - 2.0*z4c_Theta(k,j,i);
-    }
-
-    // z4c_gammatil_dd
-    for (int a=0; a<NDIM; ++a)
-    for (int b=a; b<NDIM; ++b)
-    GLOOP1(i)
-    {
-      z4c_gammatil_dd(a,b,k,j,i) = z4c_chi(k,j,i) * adm_gamma_dd(a,b,k,j,i);
-    }
-
-    // z4c_Atil_dd
-    for (int a=0; a<NDIM; ++a)
-    for (int b=a; b<NDIM; ++b)
-    GLOOP1(i)
-    {
-      z4c_Atil_dd(a,b,k,j,i) = z4c_chi(k,j,i) * (
-        adm_K_dd(a,b,k,j,i) - ONE_3RD * adm_gamma_dd(a,b,k,j,i) * adm_K_(i)
-      );
-    }
-  }
-
-  z4c_Gamtil_u.ZeroClear();
-  ILOOP2(k,j)
-  {
-    // z4c_detgamma_, z4c_gamma_dd
-    Det3Metric(z4c_detgamma_, z4c_gammatil_dd, k, j, mbi.il, mbi.iu);
-
-    ILOOP1(i)
-    {
-      z4c_oodetgamma_(i) = 1.0 / z4c_detgamma_(i);
-    }
-
-    Inv3Metric(z4c_oodetgamma_, z4c_gammatil_dd, z4c_gammatil_uu_,
-               k, j, mbi.il, mbi.iu);
-
-    for (int a=0; a<NDIM; ++a)
-    for (int b=a; b<NDIM; ++b)
-    for (int c=0; c<NDIM; ++c)
-    ILOOP1(i)
-    {
-      z4c_dgammatil_ddd_(c,a,b,i) = fd->Dx(c, z4c_gammatil_dd(a,b,k,j,i));
-    }
-
-    for (int a=0; a<NDIM; a++)
-    for (int b=0; b<NDIM; b++)
-    for (int c=0; c<NDIM; c++)
-    for (int d=0; d<NDIM; d++)
-    ILOOP1(i)
-    {
-      z4c_Gamtil_u(a,k,j,i) += (
-        z4c_gammatil_uu_(a,b,i) * z4c_gammatil_uu_(c,d,i)
-      ) * z4c_dgammatil_ddd_(d,b,c,i);
-    }
-
-  }
-
-  //---------------------------------------------------------------------------
-  // Enforce algebraic constraints
-  AlgConstr(u);
-}
-
-void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm)
-{
-
-  // Slice 3d z4c metric quantities  (NDIM=3 in z4c.hpp) ----------------------
-  AT_N_sym adm_gamma_dd(u_adm, Z4c::I_ADM_gxx);
-  AT_N_sym adm_K_dd(    u_adm, Z4c::I_ADM_Kxx);
-  AT_N_sca adm_psi4(    u_adm, Z4c::I_ADM_psi4);
-
-  AT_N_sca adm_alpha( u_adm, Z4c::I_ADM_alpha);
-  AT_N_vec adm_beta_u(u_adm, Z4c::I_ADM_betax);
-
-  AT_N_sca z4c_chi(  u, Z4c::I_Z4c_chi);
-  AT_N_sca z4c_Theta(u, Z4c::I_Z4c_Theta);
-  AT_N_sca z4c_Khat( u, Z4c::I_Z4c_Khat);
-
-  AT_N_sca z4c_alpha( u, Z4c::I_Z4c_alpha);
-  AT_N_vec z4c_beta_u(u, Z4c::I_Z4c_betax);
-
-  AT_N_sym z4c_Atil_dd(    u, Z4c::I_Z4c_Axx);
-  AT_N_sym z4c_gammatil_dd(u, Z4c::I_Z4c_gxx);
-
-  // Map quantities -----------------------------------------------------------
-  GLOOP2(k,j)
-  {
-
-    GLOOP1(i)
-    {
-      adm_alpha(k,j,i) = z4c_alpha(k,j,i);
-    }
-
-    for (int a=0; a<NDIM; ++a)
-    GLOOP1(i)
-    {
-      adm_beta_u(a,k,j,i) = z4c_beta_u(a,k,j,i);
-    }
-
-    GLOOP1(i)
-    {
-      adm_psi4(k,j,i) = std::pow(z4c_chi(k,j,i), 4.0 / opt.chi_psi_power);
-    }
-
-    for (int a=0; a<NDIM; ++a)
-    for (int b=a; b<NDIM; ++b)
-    GLOOP1(i)
-    {
-      adm_gamma_dd(a,b,k,j,i) = z4c_gammatil_dd(a,b,k,j,i) / z4c_chi(k,j,i);
-      adm_K_dd(    a,b,k,j,i) = (
-        z4c_Atil_dd(a,b,k,j,i) / z4c_chi(k,j,i) +
-        ONE_3RD * adm_gamma_dd(a,b,k,j,i) * (
-          z4c_Khat(k,j,i) + 2.0 * z4c_Theta(k,j,i)
-        )
-      );
-    }
-  }
-
-}
-
-#endif // DBG_EOM

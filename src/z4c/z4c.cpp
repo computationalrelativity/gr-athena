@@ -20,7 +20,6 @@
 #include "../eos/eos.hpp"
 #include "../hydro/hydro.hpp"
 #include "../utils/linear_algebra.hpp"
-#include "../utils/interp_intergrid.hpp" //SB FIXME imported from matter_tracker_extrema
 
 // constructor, initializes data structures and parameters
 char const * const Z4c::Z4c_names[Z4c::N_Z4c] = {
@@ -500,8 +499,6 @@ void Z4c::SetWeylAliases(AthenaArray<Real> & u, Z4c::Weyl_vars & weyl)
 //
 // This function operates on all grid points of the MeshBlock
 
-#ifndef DBG_EOM
-
 void Z4c::AlgConstr(AthenaArray<Real> & u)
 {
   using namespace LinearAlgebra;
@@ -545,86 +542,3 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
     }
   }
 }
-#endif // DBG_EOM
-
-
-// H&R '2018
-#ifdef DBG_EOM
-// For readability
-typedef AthenaArray< Real>                            AA;
-typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> AT_N_sca;
-typedef AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> AT_N_vec;
-typedef AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> AT_N_sym;
-
-void Z4c::AlgConstr(AthenaArray<Real> & u)
-{
-  using namespace LinearAlgebra;
-
-  // Slice 3d z4c metric quantities  (NDIM=3 in z4c.hpp) ----------------------
-  AT_N_sym z4c_Atil_dd(    u, Z4c::I_Z4c_Axx);
-  AT_N_sym z4c_gammatil_dd(u, Z4c::I_Z4c_gxx);
-
-  // Scratch & parameters -----------------------------------------------------
-  AT_N_sca z4c_detgamma_(      mbi.nn1);
-  AT_N_sca z4c_oodetgamma_(    mbi.nn1);
-  AT_N_sca z4c_oodetgammanorm_(mbi.nn1);
-
-  // for trace-free piece
-  AT_N_sca z4c_AtilTr_(   mbi.nn1);
-
-  const int il = 0;
-  const int iu = mbi.nn1-1;
-
-  const Real epsf = opt.eps_floor;
-  const Real pow_det = -1.0 / NDIM;
-
-  GLOOP2(k,j)
-  {
-    // Compute current value of determinant
-    Det3Metric(z4c_detgamma_, z4c_gammatil_dd, k, j, il, iu);
-
-    GLOOP1(i)
-    {
-      // compute normalized reciprocal (with near-one correction)
-      // z4c_oodetgammanorm_(i) = (
-      //   ((z4c_detgamma_(i) - 1.0) < epsf) ?
-      //     (1.0 + epsf * pow_det) :
-      //     std::pow(z4c_detgamma_(i), pow_det)
-      // );
-
-      // compute normalized reciprocal
-      z4c_oodetgammanorm_(i) = std::pow(z4c_detgamma_(i), pow_det);
-
-    }
-
-    // Enforce unitary determinant for conformal metric
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b)
-    GLOOP1(i)
-    {
-      z4c_gammatil_dd(a,b,k,j,i) *= z4c_oodetgammanorm_(i);
-    }
-
-    // Determinant update has been enforced
-    GLOOP1(i)
-    {
-      z4c_oodetgamma_(i) = 1.0;
-    }
-
-    TraceRank2(z4c_AtilTr_, z4c_oodetgamma_, z4c_gammatil_dd, z4c_Atil_dd,
-               k, j, il, iu);
-
-    for (int a=0; a<NDIM; ++a)
-    for (int b=a; b<NDIM; ++b)
-    GLOOP1(i)
-    {
-      z4c_Atil_dd(a,b,k,j,i) -= ONE_3RD * z4c_AtilTr_(i) *
-                                z4c_gammatil_dd(a,b,k,j,i);
-    }
-
-  }
-
-
-}
-
-#endif // DBG_EOM

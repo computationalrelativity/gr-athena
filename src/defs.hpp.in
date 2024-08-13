@@ -48,10 +48,6 @@
 // enfore algebraic constraints on all t-evo substeps?
 #define DBG_ALGCONSTR_ALL
 
-// Debug EOM (H&R 2018)
-#define NO_DBG_EOM
-#define NO_DBG_EOM_Z4C_ENFORCE  // add back theta term in Gammatil evo?
-
 // Checks on MB/UNI in tasklist
 #define DBG_TASKLIST_ORDER
 

@@ -20,8 +20,6 @@
 #include "../athena_aliases.hpp"
 #include "../mesh/mesh.hpp"
 #include "../utils/finite_differencing.hpp"
-#include "../utils/lagrange_interp.hpp"
-#include "../utils/interp_intergrid.hpp" //SB FIXME imported from matter_tracker_extrema
 
 #include "../bvals/cc/bvals_cc.hpp"
 #include "../bvals/cx/bvals_cx.hpp"
@@ -132,50 +130,50 @@ public:
 
   // aliases for variables and RHS
   struct Z4c_vars {
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> chi;       // conf. factor
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Khat;      // trace extr. curvature
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Theta;     // Theta var in Z4c
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha;     // lapse
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> Gam_u;     // Gamma functions (BSSN)
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u;    // shift
-    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g_dd;      // conf. 3-metric
-    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> A_dd;      // conf. traceless extr. curvature
+    AT_N_sca chi;       // conf. factor
+    AT_N_sca Khat;      // trace extr. curvature
+    AT_N_sca Theta;     // Theta var in Z4c
+    AT_N_sca alpha;     // lapse
+    AT_N_vec Gam_u;     // Gamma functions (BSSN)
+    AT_N_vec beta_u;    // shift
+    AT_N_sym g_dd;      // conf. 3-metric
+    AT_N_sym A_dd;      // conf. traceless extr. curvature
   };
   Z4c_vars z4c;
   Z4c_vars rhs;
 
   // aliases for the ADM variables
   struct ADM_vars {
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha;     // lapse
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u;    // shift
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> psi4;      // conformal factor
-    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g_dd;      // 3-metric
-    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> K_dd;      // curvature
+    AT_N_sca alpha;     // lapse
+    AT_N_vec beta_u;    // shift
+    AT_N_sca psi4;      // conformal factor
+    AT_N_sym g_dd;      // 3-metric
+    AT_N_sym K_dd;      // curvature
   };
   ADM_vars adm;
 
   // aliases for the constraints
   struct Constraint_vars {
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> C;         // Z constraint monitor
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> H;         // hamiltonian constraint
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> M;         // norm squared of M_d
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Z;         // Z constraint violation
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> M_d;       // momentum constraint
+    AT_N_sca C;         // Z constraint monitor
+    AT_N_sca H;         // hamiltonian constraint
+    AT_N_sca M;         // norm squared of M_d
+    AT_N_sca Z;         // Z constraint violation
+    AT_N_vec M_d;       // momentum constraint
   };
   Constraint_vars con;
 
   // aliases for the matter variables
   struct Matter_vars {
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> rho;       // matter energy density
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> S_d;       // matter momentum density
-    AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> S_dd;      // matter stress tensor
+    AT_N_sca rho;       // matter energy density
+    AT_N_vec S_d;       // matter momentum density
+    AT_N_sym S_dd;      // matter stress tensor
   };
   Matter_vars mat;
 
   // aliases for the Weyl scalars
   struct Weyl_vars {
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> rpsi4;       // Real part of Psi_4
-    AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> ipsi4;       // Imaginary part of Psi_4
+    AT_N_sca rpsi4;       // Real part of Psi_4
+    AT_N_sca ipsi4;       // Imaginary part of Psi_4
   };
   Weyl_vars weyl;
 
@@ -232,11 +230,11 @@ public:
     // Sphere-zone refinement
     int sphere_zone_number;
     AthenaArray<int> sphere_zone_levels;
-    AthenaArray<Real> sphere_zone_radii;
+    AA sphere_zone_radii;
     AthenaArray<int> sphere_zone_puncture;
-    AthenaArray<Real> sphere_zone_center1;
-    AthenaArray<Real> sphere_zone_center2;
-    AthenaArray<Real> sphere_zone_center3;
+    AA sphere_zone_center1;
+    AA sphere_zone_center2;
+    AA sphere_zone_center3;
 
     // for twopuncturesc
 #ifdef TWO_PUNCTURES
@@ -247,11 +245,11 @@ public:
     Real r_max_con;
   } opt;
 
-  AthenaArray<Real> empty_flux[3];
+  AA empty_flux[3];
 
   // storage for SMR/AMR
-  AthenaArray<Real> coarse_u_;
-  AthenaArray<Real> coarse_a_;  // for auxiliary data (split task-list)
+  AA coarse_u_;
+  AA coarse_a_;  // for auxiliary data (split task-list)
 
   // boundary and grid data (associated to state-vector)
   FCN_CC_CX_VC(
@@ -274,11 +272,11 @@ public:
   int refinement_idx{-1};
 
   // BT style integrators -----------------------------------------------------
-  std::vector<AthenaArray<Real>> bt_k;
+  std::vector<AA> bt_k;
 
   // metric derivatives used by AHF
   // it is allocated there as needed
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> aux_g_ddd;
+  AT_N_VS2 aux_g_ddd;
 
 public:
   // scheduled functions
@@ -286,20 +284,20 @@ public:
   // compute new timestep on a MeshBlock
   Real NewBlockTimeStep(void);
   // compute the RHS given the Z4c and matter variables
-  void Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & mat, AthenaArray<Real> & rhs);
-  void Z4cRHS_(AthenaArray<Real> & u, AthenaArray<Real> & mat, AthenaArray<Real> & rhs);
+  void Z4cRHS(AA & u, AA & mat, AA & rhs);
+  void Z4cRHS_(AA & u, AA & mat, AA & rhs);
 
   // compute the boundary RHS given the Z4c and matter variables
-  void Z4cBoundaryRHS(AthenaArray<Real> & u, AthenaArray<Real> & mat, AthenaArray<Real> & rhs);
+  void Z4cBoundaryRHS(AA & u, AA & mat, AA & rhs);
   // compute linear combination of states
-  void WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
-                   AthenaArray<Real> &u_in2, const Real wght[3]);
+  void WeightedAve(AA &u_out, AA &u_in1,
+                   AA &u_in2, const Real wght[3]);
   // add RHS to state
-  void AddZ4cRHS(AthenaArray<Real> & rhs, Real const wght, AthenaArray<Real> &u_out);
+  void AddZ4cRHS(AA & rhs, Real const wght, AA &u_out);
   // compute Z4c variables from ADM variables
-  void ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u);
+  void ADMToZ4c(AA & u_adm, AA & u);
   // compute ADM variables from Z4c variables
-  void Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm);
+  void Z4cToADM(AA & u, AA & u_adm);
 
   // Conformal factor conversions
   // Floor applied: std::max(chi, opt.chi_div_floor)
@@ -330,72 +328,73 @@ public:
 
 
   // enforce algebraic constraints on the solution
-  void AlgConstr(AthenaArray<Real> & u);
+  void AlgConstr(AA & u);
+
   // compute ADM constraints
-  void ADMConstraints(AthenaArray<Real> & u_con, AthenaArray<Real> & u_adm,
-                      AthenaArray<Real> & u_mat, AthenaArray<Real> & u_z4c);
+  void ADMConstraints(AA & u_con, AA & u_adm, AA & u_mat, AA & u_z4c);
+
   // calculate weyl scalars
-  void Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat,
-               AthenaArray<Real> & u_weyl);
+  void Z4cWeyl(AA & u_adm, AA & u_mat, AA & u_weyl);
+
   // Update matter variables from hydro
-  void GetMatter(AthenaArray<Real> & u_mat,
-                 AthenaArray<Real> & u_adm,
-                 AthenaArray<Real> & w,
+  void GetMatter(AA & u_mat,
+                 AA & u_adm,
+                 AA & w,
 #if USETM
-                 AthenaArray<Real> & r,
+                 AA & r,
 #endif
-                 AthenaArray<Real> & bb_cc);
+                 AA & bb_cc);
 
   // utility functions
   //
   // set ADM aliases given u_adm
-  static void SetADMAliases(AthenaArray<Real> & u_adm, ADM_vars & adm);
+  static void SetADMAliases(AA & u_adm, ADM_vars & adm);
   // set constraint aliases for a given u_con
-  static void SetConstraintAliases(AthenaArray<Real> & u_con, Constraint_vars & con);
+  static void SetConstraintAliases(AA & u_con, Constraint_vars & con);
   // set matter aliases given a state
-  static void SetMatterAliases(AthenaArray<Real> & u_mat, Matter_vars & mat);
+  static void SetMatterAliases(AA & u_mat, Matter_vars & mat);
   // set Z4c aliases given a state
-  static void SetZ4cAliases(AthenaArray<Real> & u, Z4c_vars & z4c);
+  static void SetZ4cAliases(AA & u, Z4c_vars & z4c);
   // set weyl aliases
-  static void SetWeylAliases(AthenaArray<Real> & u_weyl, Weyl_vars & weyl);
+  static void SetWeylAliases(AA & u_weyl, Weyl_vars & weyl);
 
   // additional global functions
 
   // setup a Minkowski spacetime
-  void ADMMinkowski(AthenaArray<Real> & u_adm);
+  void ADMMinkowski(AA & u_adm);
   // set the gauge condition to geodesic slicing
-  void GaugeGeodesic(AthenaArray<Real> & u);
+  void GaugeGeodesic(AA & u);
   // set the matter variables to zero
-  void MatterVacuum(AthenaArray<Real> & u_adm);
+  void MatterVacuum(AA & u_adm);
 
   // initial data for the AwA tests
-  void ADMRobustStability(AthenaArray<Real> & u_adm);
-  void GaugeRobStab(AthenaArray<Real> & u);
-  void ADMLinearWave1(AthenaArray<Real> & u_adm);
-  void ADMLinearWave1Gaussian(AthenaArray<Real> & u_adm);
-  void ADMLinearWave2(AthenaArray<Real> & u_adm);
-  void ADMGaugeWave1(AthenaArray<Real> & u_adm);
-  void ADMGaugeWave1_shifted(AthenaArray<Real> & u_adm);
-  void ADMGaugeWave2(AthenaArray<Real> & u_adm);
-  void GaugeGaugeWave1(AthenaArray<Real> & u);
-  void GaugeGaugeWave1_shifted(AthenaArray<Real> & u);
-  void GaugeGaugeWave2(AthenaArray<Real> & u);
-  void GaugeSimpleGaugeWave(AthenaArray<Real> & u);
+  void ADMRobustStability(AA & u_adm);
+  void GaugeRobStab(AA & u);
+  void ADMLinearWave1(AA & u_adm);
+  void ADMLinearWave1Gaussian(AA & u_adm);
+  void ADMLinearWave2(AA & u_adm);
+  void ADMGaugeWave1(AA & u_adm);
+  void ADMGaugeWave1_shifted(AA & u_adm);
+  void ADMGaugeWave2(AA & u_adm);
+  void GaugeGaugeWave1(AA & u);
+  void GaugeGaugeWave1_shifted(AA & u);
+  void GaugeGaugeWave2(AA & u);
+  void GaugeSimpleGaugeWave(AA & u);
 
 #ifdef GSL
-  void ADMPolarisedGowdy(AthenaArray<Real> & u_adm);
-  void GaugePolarisedGowdy(AthenaArray<Real> & u);
+  void ADMPolarisedGowdy(AA & u_adm);
+  void GaugePolarisedGowdy(AA & u);
 #endif
 
   void Z4cGaugeToADM(AA & u_adm, AA & u);
 
   // initial data for a single BH
-  void ADMOnePuncture(ParameterInput *pin, AthenaArray<Real> & u_adm);
-  void GaugePreCollapsedLapse(AthenaArray<Real> & u_adm, AthenaArray<Real> & u);
+  void ADMOnePuncture(ParameterInput *pin, AA & u_adm);
+  void GaugePreCollapsedLapse(AA & u_adm, AA & u);
 
   // initial data for binary BHs
 #ifdef TWO_PUNCTURES
-  void ADMTwoPunctures(ParameterInput *pin, AthenaArray<Real> & u_adm, ini_data * data);
+  void ADMTwoPunctures(ParameterInput *pin, AA & u_adm, ini_data * data);
 #endif
 
   // functions for debugging and monitoring
@@ -410,7 +409,7 @@ public:
   void assert_is_finite_z4c();
 
 private:
-  AthenaArray<Real> dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep
+  AA dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep
 
   // auxiliary tensors
   AT_N_sca r;           // radial coordinate
@@ -441,72 +440,81 @@ private:
   AT_N_sym Ddalpha_dd;  // 2nd differential of the lapse
   AT_N_sym Ddphi_dd;    // 2nd differential of phi
 
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> Gamma_ddd;   // Christoffel symbols of 1st kind
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> Gamma_udd;   // Christoffel symbols of 2nd kind
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> DK_ddd;      // differential of K
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> DK_udd;      // differential of K
+  AT_N_VS2 Gamma_ddd;   // Christoffel symbols of 1st kind
+  AT_N_VS2 Gamma_udd;   // Christoffel symbols of 2nd kind
+  AT_N_VS2 DK_ddd;      // differential of K
+  AT_N_VS2 DK_udd;      // differential of K
 
   // Spatially dependent shift damping
 #if defined(Z4C_ETA_CONF) || defined(Z4C_ETA_TRACK_TP)
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> eta_damp;
+  AT_N_sca eta_damp;
 #endif // Z4C_ETA_CONF, Z4C_ETA_TRACK_TP
 
   // auxiliary derivatives
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> dbeta;       // d_a beta^a
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dalpha_d;    // lapse 1st drvts
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> ddbeta_d;    // 2nd "divergence" of beta
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dchi_d;      // chi 1st drvts
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dphi_d;      // phi 1st drvts
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dK_d;        // K 1st drvts
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dKhat_d;     // Khat 1st drvts
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dTheta_d;    // Theta 1st drvts
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> ddalpha_dd;  // lapse 2nd drvts
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> dbeta_du;    // shift 1st drvts
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> ddchi_dd;    // chi 2nd drvts
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> dGam_du;     // Gamma 1st drvts
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> dg_ddd;      // metric 1st drvts
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> dK_ddd;      // K 1st drvts
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> dA_ddd;      // A 1st drvts
-  AthenaTensor<Real, TensorSymm::ISYM2, NDIM, 3> ddbeta_ddu; // shift 2nd drvts
-  AthenaTensor<Real, TensorSymm::SYM22, NDIM, 4> ddg_dddd;   // metric 2nd drvts
+  AT_N_sca dbeta;       // d_a beta^a
+
+  AT_N_vec dalpha_d;    // lapse 1st drvts
+  AT_N_vec ddbeta_d;    // 2nd "divergence" of beta
+  AT_N_vec dchi_d;      // chi 1st drvts
+  AT_N_vec dphi_d;      // phi 1st drvts
+  AT_N_vec dK_d;        // K 1st drvts
+  AT_N_vec dKhat_d;     // Khat 1st drvts
+  AT_N_vec dTheta_d;    // Theta 1st drvts
+
+  AT_N_sym ddalpha_dd;  // lapse 2nd drvts
+  AT_N_T2  dbeta_du;    // shift 1st drvts
+  AT_N_sym ddchi_dd;    // chi 2nd drvts
+  AT_N_T2  dGam_du;     // Gamma 1st drvts
+
+  AT_N_VS2 dg_ddd;      // metric 1st drvts
+  AT_N_VS2 dK_ddd;      // K 1st drvts
+  AT_N_VS2 dA_ddd;      // A 1st drvts
+
+  AT_N_S2V ddbeta_ddu; // shift 2nd drvts
+
+  AT_N_S2S2 ddg_dddd;   // metric 2nd drvts
 
   // auxiliary Lie derivatives along the shift vector
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Lchi;        // Lie derivative of chi
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> LKhat;       // Lie derivative of Khat
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> LTheta;      // Lie derivative of Theta
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> Lalpha;      // Lie derivative of the lapse
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> LGam_u;      // Lie derivative of Gamma
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> Lbeta_u;     // Lie derivative of the shift
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> Lg_dd;       // Lie derivative of conf. 3-metric
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> LA_dd;       // Lie derivative of A
+  AT_N_sca Lchi;        // Lie derivative of chi
+  AT_N_sca LKhat;       // Lie derivative of Khat
+  AT_N_sca LTheta;      // Lie derivative of Theta
+  AT_N_sca Lalpha;      // Lie derivative of the lapse
+  AT_N_vec LGam_u;      // Lie derivative of Gamma
+  AT_N_vec Lbeta_u;     // Lie derivative of the shift
+  AT_N_sym Lg_dd;       // Lie derivative of conf. 3-metric
+  AT_N_sym LA_dd;       // Lie derivative of A
 
   //WGC wext - TODO fix tensor index symmetries
   //auxiliary wave extraction tensors
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> uvec;        // radial vector in tetrad
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> vvec;        // theta vector in tetrad
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> wvec;        // phi vector in tetrad
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> dotp1;       // dot product in Gram-Schmidt orthonormalisation
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> dotp2;       // second dot product in G-S orthonormalisation
+  AT_N_vec uvec;        // radial vector in tetrad
+  AT_N_vec vvec;        // theta vector in tetrad
+  AT_N_vec wvec;        // phi vector in tetrad
+  AT_N_sca dotp1;       // dot product in Gram-Schmidt orthonormalisation
+  AT_N_sca dotp2;       // second dot product in G-S orthonormalisation
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 4> Riem3_dddd;  // 3D Riemann tensor
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 4> Riemm4_dddd; // 4D Riemann tensor
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 3> Riemm4_ddd;  // 4D Riemann * n^a
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> Riemm4_dd;   // 4D Riemann *n^a*n^c
+  AT_N_T2  Riemm4_dd;   // 4D Riemann *n^a*n^c
 
   // Aux vars handling cx/vc matter interpolation
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> w_rho;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> w_p;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> w_utilde_u;
+  AT_N_sca w_rho;
+  AT_N_sca w_p;
+  AT_N_vec w_utilde_u;
 #if USETM
-  AthenaTensor<Real, TensorSymm::NONE, NSCALARS, 1> w_r;
+  AT_S_vec w_r;
 #endif
 
 #if MAGNETIC_FIELDS_ENABLED
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> bb;
+  AT_N_vec bb;
 #endif
 
 private:
-  void Z4cSommerfeld_(AthenaArray<Real> & u, AthenaArray<Real> & rhs,
-      int const is, int const ie, int const js, int const je, int const ks, int const ke);
+  void Z4cSommerfeld_(
+    AA & u, AA & rhs,
+    const int is, const int ie,
+    const int js, const int je,
+    const int ks, const int ke
+  );
 
 private:
   FiniteDifference::Uniform *fd;

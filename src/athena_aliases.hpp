@@ -59,9 +59,10 @@ typedef AthenaTensor<Real, TensorSymm::SYM2, D, 3> AT_D_VS2;
   _Pragma("omp simd")		  		             \
   for (int i=il; i<=iu; ++i)
 
-// #define CC_ILOOP1(i)				           \
-//   _Pragma("omp simd")				           \
-//   for (int i=pmb->is; i<=pmb->ie; ++i)
+
+#define CC_ILOOP1(i)				               \
+  _Pragma("omp simd")				               \
+  for (int i=pmb->is; i<=pmb->ie; ++i)
 
 
 #endif // ATHENA_ALIASES_HPP
