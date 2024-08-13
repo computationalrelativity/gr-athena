@@ -118,6 +118,8 @@ public:
   AT_H_vec flux_r_;
 
   // Particular to magnetic fields --------------------------------------------
+  AT_N_sca oo_sqrt_detgamma_;
+
   AT_C_sca oo_W_l_;
   AT_C_sca oo_W_r_;
 

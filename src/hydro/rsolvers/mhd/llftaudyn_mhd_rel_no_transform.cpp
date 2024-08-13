@@ -101,9 +101,10 @@ void Hydro::RiemannSolver(
   for (int i = il; i <= iu; ++i)
   {
     detgamma_(i)      = Det3Metric(gamma_dd_, i);
-
     sqrt_detgamma_(i) = std::sqrt(detgamma_(i));
-    oo_detgamma_(i)   = 1. / detgamma_(i);
+
+    oo_detgamma_(i)      = OO(detgamma_(i));
+    oo_sqrt_detgamma_(i) = OO(sqrt_detgamma_(i));
   }
 
   Inv3Metric(oo_detgamma_, gamma_dd_, gamma_uu_, il, iu);
@@ -232,32 +233,32 @@ void Hydro::RiemannSolver(
     {
       case IVX:
       {
-        q_scB_u_l_(0,i) = oo_detgamma_(i) * B(k,j,i);
-        q_scB_u_l_(1,i) = oo_detgamma_(i) * prim_l(IBY,i);
-        q_scB_u_l_(2,i) = oo_detgamma_(i) * prim_l(IBZ,i);
-        q_scB_u_r_(0,i) = oo_detgamma_(i) * B(k,j,i);
-        q_scB_u_r_(1,i) = oo_detgamma_(i) * prim_r(IBY,i);
-        q_scB_u_r_(2,i) = oo_detgamma_(i) * prim_r(IBZ,i);
+        q_scB_u_l_(0,i) = oo_sqrt_detgamma_(i) * B(k,j,i);
+        q_scB_u_l_(1,i) = oo_sqrt_detgamma_(i) * prim_l(IBY,i);
+        q_scB_u_l_(2,i) = oo_sqrt_detgamma_(i) * prim_l(IBZ,i);
+        q_scB_u_r_(0,i) = oo_sqrt_detgamma_(i) * B(k,j,i);
+        q_scB_u_r_(1,i) = oo_sqrt_detgamma_(i) * prim_r(IBY,i);
+        q_scB_u_r_(2,i) = oo_sqrt_detgamma_(i) * prim_r(IBZ,i);
         break;
       }
       case IVY:
       {
-        q_scB_u_l_(1,i) = oo_detgamma_(i) * B(k,j,i);
-        q_scB_u_l_(2,i) = oo_detgamma_(i) * prim_l(IBY,i);
-        q_scB_u_l_(0,i) = oo_detgamma_(i) * prim_l(IBZ,i);
-        q_scB_u_r_(1,i) = oo_detgamma_(i) * B(k,j,i);
-        q_scB_u_r_(2,i) = oo_detgamma_(i) * prim_r(IBY,i);
-        q_scB_u_r_(0,i) = oo_detgamma_(i) * prim_r(IBZ,i);
+        q_scB_u_l_(1,i) = oo_sqrt_detgamma_(i) * B(k,j,i);
+        q_scB_u_l_(2,i) = oo_sqrt_detgamma_(i) * prim_l(IBY,i);
+        q_scB_u_l_(0,i) = oo_sqrt_detgamma_(i) * prim_l(IBZ,i);
+        q_scB_u_r_(1,i) = oo_sqrt_detgamma_(i) * B(k,j,i);
+        q_scB_u_r_(2,i) = oo_sqrt_detgamma_(i) * prim_r(IBY,i);
+        q_scB_u_r_(0,i) = oo_sqrt_detgamma_(i) * prim_r(IBZ,i);
         break;
       }
       case IVZ:
       {
-        q_scB_u_l_(2,i) = oo_detgamma_(i) * B(k,j,i);
-        q_scB_u_l_(0,i) = oo_detgamma_(i) * prim_l(IBY,i);
-        q_scB_u_l_(1,i) = oo_detgamma_(i) * prim_l(IBZ,i);
-        q_scB_u_r_(2,i) = oo_detgamma_(i) * B(k,j,i);
-        q_scB_u_r_(0,i) = oo_detgamma_(i) * prim_r(IBY,i);
-        q_scB_u_r_(1,i) = oo_detgamma_(i) * prim_r(IBZ,i);
+        q_scB_u_l_(2,i) = oo_sqrt_detgamma_(i) * B(k,j,i);
+        q_scB_u_l_(0,i) = oo_sqrt_detgamma_(i) * prim_l(IBY,i);
+        q_scB_u_l_(1,i) = oo_sqrt_detgamma_(i) * prim_l(IBZ,i);
+        q_scB_u_r_(2,i) = oo_sqrt_detgamma_(i) * B(k,j,i);
+        q_scB_u_r_(0,i) = oo_sqrt_detgamma_(i) * prim_r(IBY,i);
+        q_scB_u_r_(1,i) = oo_sqrt_detgamma_(i) * prim_r(IBZ,i);
         break;
       }
       default:
