@@ -78,9 +78,8 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
 #elif defined(USE_PIECEWISE_POLY)
   int n = pin->GetInteger("hydro", "n");
   Real gammas[n];
-  for (int i = 0; i < n; i++) {
+  for (int i = 0; i < n; i++)
     gammas[i] = pin->GetReal("hydro", "gamma" + std::to_string(i));
-  }
   Real rhos[n];
   rhos[0] = 0; // needed in initialization but ignored in the function
   for (int i = 1; i < n; i++)
@@ -146,9 +145,8 @@ void InitColdEOS(Primitive::ColdEOS<Primitive::COLDEOS_POLICY> *eos,
 #elif defined(USE_PIECEWISE_POLY)
   int n = pin->GetInteger("hydro", "n");
   Real gammas[n];
-  for (int i = 0; i < n; i++) {
+  for (int i = 0; i < n; i++)
     gammas[i] = pin->GetReal("hydro", "gamma" + std::to_string(i));
-  }
   Real rhos[n];
   rhos[0] = 0; // needed in initialization but ignored in the function
   for (int i = 1; i < n; i++)
