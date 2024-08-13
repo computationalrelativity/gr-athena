@@ -15,6 +15,7 @@
 // Athena++ headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
+#include "../mesh/mesh.hpp"
 
 // Forward declarations
 class MeshBlock;
@@ -58,6 +59,74 @@ class Reconstruction {
 
   // Refactored interface -----------------------------------------------------
   // More general, cleaner, switches variant case for a slice, not point-wise
+
+  // Convenience function to fix ranges for indices during reconstruction
+  inline void SetIndicialLimitsCalculateFluxes(
+    const int dir,
+    int & il, int & iu,
+    int & jl, int & ju,
+    int & kl, int & ku
+  )
+  {
+    MeshBlock * pmb = pmy_block_;
+    Mesh * pm = pmb->pmy_mesh;
+
+    const int is = pmb->is;
+    const int ie = pmb->ie;
+
+    const int js = pmb->js;
+    const int je = pmb->je;
+
+    const int ks = pmb->ks;
+    const int ke = pmb->ke;
+
+    switch (dir)
+    {
+      case 3:
+      {
+        il = is-1;
+        iu = ie+1;
+
+        jl = js-1;
+        ju = je+1;
+
+        kl = ks;
+        ku = ke+1;
+
+        break;
+      }
+      case 2:
+      {
+        il = is-1;
+        iu = ie+1;
+
+        jl = js;
+        ju = je+1;
+
+        kl = ks-(pm->f3); // if 3d
+        ku = ke+(pm->f3);
+
+        break;
+      }
+      case 1:
+      {
+        il = is;
+        iu = ie+1;
+
+        jl = js-(pm->f2 || pm->f3);  // 2d or 3d
+        ju = je+(pm->f2 || pm->f3);
+
+        kl = ks-(pm->f3); // if 3d
+        ku = ke+(pm->f3);
+
+        break;
+      }
+      default:
+      {
+        assert(false);
+      }
+    }
+  }
 
   // Convention (map to Shu):
   // zl_(i+1) <- z_{i+1/2}; zl_(i) = z_{i+1/2}^-

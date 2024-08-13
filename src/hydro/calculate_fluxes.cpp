@@ -53,8 +53,6 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
   ReconstructionVariant rv = pr->xorder_style;
   ReconstructionVariant r_rv = pr->xorder_style_fb;
 
-  int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
-  int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
   int il, iu, jl, ju, kl, ku;
 
 #if MAGNETIC_FIELDS_ENABLED
@@ -73,14 +71,7 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
   //---------------------------------------------------------------------------
   // i-direction
   AthenaArray<Real> &x1flux = flux[X1DIR];
-  il = is;
-  iu = ie+1;
-
-  jl = js-(pmb->pmy_mesh->f2 || pmb->pmy_mesh->f3);  // 2d or 3d
-  ju = je+(pmb->pmy_mesh->f2 || pmb->pmy_mesh->f3);
-
-  kl = ks-(pmb->pmy_mesh->f3);                       // if 3d
-  ku = ke+(pmb->pmy_mesh->f3);
+  pr->SetIndicialLimitsCalculateFluxes(IVX, il, iu, jl, ju, kl, ku);
 
   for (int k=kl; k<=ku; ++k)
   for (int j=jl; j<=ju; ++j)
@@ -133,14 +124,7 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
   if (pmb->pmy_mesh->f2)
   {
     AthenaArray<Real> &x2flux = flux[X2DIR];
-    il = is-1;
-    iu = ie+1;
-
-    jl = js;
-    ju = je+1;
-
-    kl = ks-(pmb->pmy_mesh->f3);  // if 3d
-    ku = ke+(pmb->pmy_mesh->f3);
+    pr->SetIndicialLimitsCalculateFluxes(IVY, il, iu, jl, ju, kl, ku);
 
     for (int k=kl; k<=ku; ++k)
     {
@@ -238,14 +222,7 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
   if (pmb->pmy_mesh->f3)
   {
     AthenaArray<Real> &x3flux = flux[X3DIR];
-    il = is-1;
-    iu = ie+1;
-
-    jl = js-1;
-    ju = je+1;
-
-    kl = ks;
-    ku = ke+1;
+    pr->SetIndicialLimitsCalculateFluxes(IVZ, il, iu, jl, ju, kl, ku);
 
     for (int j=jl; j<=ju; ++j)
     { // this loop ordering is intentional
@@ -359,8 +336,6 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
   AthenaArray<Real> mass_flux;
   AthenaArray<Real> &r = pmb->pscalars->r;
 
-  int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
-  int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
   int il, iu, jl, ju, kl, ku;
 
 #if MAGNETIC_FIELDS_ENABLED
@@ -382,14 +357,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
   AthenaArray<Real> &s_x1flux = pmb->pscalars->s_flux[X1DIR];
   mass_flux.InitWithShallowSlice(flux[X1DIR], 4, IDN, 1);
 
-  il = is;
-  iu = ie+1;
-
-  jl = js-(pmb->pmy_mesh->f2 || pmb->pmy_mesh->f3);  // 2d or 3d
-  ju = je+(pmb->pmy_mesh->f2 || pmb->pmy_mesh->f3);
-
-  kl = ks-(pmb->pmy_mesh->f3);                       // if 3d
-  ku = ke+(pmb->pmy_mesh->f3);
+  pr->SetIndicialLimitsCalculateFluxes(IVX, il, iu, jl, ju, kl, ku);
 
   for (int k=kl; k<=ku; ++k)
   for (int j=jl; j<=ju; ++j)
@@ -465,14 +433,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
     AthenaArray<Real> &s_x2flux = pmb->pscalars->s_flux[X2DIR];
     mass_flux.InitWithShallowSlice(flux[X2DIR], 4, IDN, 1);
 
-    il = is-1;
-    iu = ie+1;
-
-    jl = js;
-    ju = je+1;
-
-    kl = ks-(pmb->pmy_mesh->f3);  // if 3d
-    ku = ke+(pmb->pmy_mesh->f3);
+    pr->SetIndicialLimitsCalculateFluxes(IVY, il, iu, jl, ju, kl, ku);
 
     for (int k=kl; k<=ku; ++k)
     {
@@ -614,14 +575,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
     AthenaArray<Real> &s_x3flux = pmb->pscalars->s_flux[X3DIR];
     mass_flux.InitWithShallowSlice(flux[X3DIR], 4, IDN, 1);
 
-    il = is-1;
-    iu = ie+1;
-
-    jl = js-1;
-    ju = je+1;
-
-    kl = ks;
-    ku = ke+1;
+    pr->SetIndicialLimitsCalculateFluxes(IVZ, il, iu, jl, ju, kl, ku);
 
     for (int j=jl; j<=ju; ++j)
     { // this loop ordering is intentional
@@ -773,8 +727,6 @@ void Hydro::CalculateFluxes_FluxReconstruction(
 
   ReconstructionVariant r_rv = ReconstructionVariant::lin_vl;
 
-  int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
-  int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
   int il, iu, jl, ju, kl, ku;
 
   AthenaArray<Real> f(    NHYDRO,pmb->ncells3,pmb->ncells2,pmb->ncells1);
@@ -812,14 +764,7 @@ void Hydro::CalculateFluxes_FluxReconstruction(
     }
 
     AthenaArray<Real> &x1flux = flux[X1DIR];
-    il = is;
-    iu = ie+1;
-
-    jl = js-(pmb->pmy_mesh->f2 || pmb->pmy_mesh->f3);  // 2d or 3d
-    ju = je+(pmb->pmy_mesh->f2 || pmb->pmy_mesh->f3);
-
-    kl = ks-(pmb->pmy_mesh->f3);                       // if 3d
-    ku = ke+(pmb->pmy_mesh->f3);
+    pr->SetIndicialLimitsCalculateFluxes(ivx, il, iu, jl, ju, kl, ku);
 
     for (int k=kl; k<=ku; ++k)
     for (int j=jl; j<=ju; ++j)
@@ -864,14 +809,7 @@ void Hydro::CalculateFluxes_FluxReconstruction(
     }
 
     AthenaArray<Real> &x2flux = flux[X2DIR];
-    il = is-1;
-    iu = ie+1;
-
-    jl = js;
-    ju = je+1;
-
-    kl = ks-(pmb->pmy_mesh->f3);  // if 3d
-    ku = ke+(pmb->pmy_mesh->f3);
+    pr->SetIndicialLimitsCalculateFluxes(ivx, il, iu, jl, ju, kl, ku);
 
     for (int k=kl; k<=ku; ++k)
     {
@@ -942,14 +880,7 @@ void Hydro::CalculateFluxes_FluxReconstruction(
     }
 
     AthenaArray<Real> &x3flux = flux[X3DIR];
-    il = is-1;
-    iu = ie+1;
-
-    jl = js-1;
-    ju = je+1;
-
-    kl = ks;
-    ku = ke+1;
+    pr->SetIndicialLimitsCalculateFluxes(ivx, il, iu, jl, ju, kl, ku);
 
     for (int j=jl; j<=ju; ++j)
     { // this loop ordering is intentional

@@ -149,8 +149,6 @@ void PassiveScalars::CalculateFluxes(AthenaArray<Real> &r, const int order)
   ReconstructionVariant r_rv = pr->xorder_style_fb;
 
   Hydro &hyd = *(pmb->phydro);
-  int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
-  int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
   int il, iu, jl, ju, kl, ku;
   AthenaArray<Real> mass_flux;
 
@@ -159,9 +157,7 @@ void PassiveScalars::CalculateFluxes(AthenaArray<Real> &r, const int order)
   AthenaArray<Real> &x1flux = s_flux[X1DIR];
   mass_flux.InitWithShallowSlice(hyd.flux[X1DIR], 4, IDN, 1);
 
-  il = is, iu = ie+1;
-  jl = js, ju = je+(pmb->pmy_mesh->f2 || pmb->pmy_mesh->f3);  // 2d or 3d
-  kl = ks, ku = ke+(pmb->pmy_mesh->f3);                       // if 3d
+  pr->SetIndicialLimitsCalculateFluxes(IVX, il, iu, jl, ju, kl, ku);
 
   for (int k=kl; k<=ku; ++k)
   for (int j=jl; j<=ju; ++j)
@@ -193,9 +189,7 @@ void PassiveScalars::CalculateFluxes(AthenaArray<Real> &r, const int order)
     AthenaArray<Real> &x2flux = s_flux[X2DIR];
     mass_flux.InitWithShallowSlice(hyd.flux[X2DIR], 4, IDN, 1);
 
-    il = is, iu = ie+1;
-    jl = js, ju = je+1;
-    kl = ks, ku = ke+(pmb->pmy_mesh->f3);  // if 3d
+    pr->SetIndicialLimitsCalculateFluxes(IVY, il, iu, jl, ju, kl, ku);
 
     for (int k=kl; k<=ku; ++k)
     {
@@ -255,9 +249,7 @@ void PassiveScalars::CalculateFluxes(AthenaArray<Real> &r, const int order)
     AthenaArray<Real> &x3flux = s_flux[X3DIR];
     mass_flux.InitWithShallowSlice(hyd.flux[X3DIR], 4, IDN, 1);
 
-    il = is, iu = ie+1;
-    jl = js, ju = je+1;
-    kl = ks, ku = ke+1;
+    pr->SetIndicialLimitsCalculateFluxes(IVZ, il, iu, jl, ju, kl, ku);
 
     for (int j=jl; j<=ju; ++j)
     { // this loop ordering is intentional
