@@ -102,7 +102,6 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin)
   fatm = pin -> GetReal("problem","fatm");
   k_adi = pin -> GetReal("hydro","k_adi");
   gamma_adi = pin -> GetReal("hydro","gamma");
-  alpha_excision = pin->GetOrAddReal("hydro", "alpha_excision", 0.0);
 
   // Reprimand
   using namespace EOS_Toolkit;
@@ -146,10 +145,11 @@ void EquationOfState::ConservedToPrimitive(
   int kl, int ku,
   int coarse_flag)
 {
-  MeshBlock* pmb = pmy_block_;
-  GRDynamical* pco_gr;
-  Hydro* phydro = pmb->phydro;
+  MeshBlock * pmb = pmy_block_;
+  Field * pf      = pmb->pfield;
+  Hydro * ph      = pmb->phydro;
 
+  GRDynamical* pco_gr;
   int nn1;
 
   if (coarse_flag)
@@ -301,7 +301,7 @@ void EquationOfState::ConservedToPrimitive(
 
       // cons->prim requires atmosphere reset
       phydro->q_reset_mask(k,j,i) = (
-        (alpha(i) <= alpha_excision) ||
+        (alpha(i) <= ph->opt_excision.alpha_threshold) ||
         std::isnan(Dg)   ||
         std::isnan(taug) ||
         std::isnan(S_1g) ||

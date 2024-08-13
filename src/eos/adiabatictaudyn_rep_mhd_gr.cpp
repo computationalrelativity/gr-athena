@@ -75,8 +75,6 @@ EOS_Toolkit::eos_thermal eos;
 
 }
 
-
-
 //----------------------------------------------------------------------------------------
 // Constructor
 // Inputs:
@@ -105,9 +103,6 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin)
   fatm = pin -> GetReal("problem","fatm");
   k_adi = pin -> GetReal("hydro","k_adi");
   gamma_adi = pin -> GetReal("hydro","gamma");
-  alpha_excision   = pin->GetOrAddReal(   "hydro", "alpha_excision",   0.0);
-  b_excision       = pin->GetOrAddBoolean("hydro", "b_excision",       false);
-  horizon_excision = pin->GetOrAddBoolean("hydro", "horizon_excision", false);
 
   // Reprimand
   using namespace EOS_Toolkit;
@@ -150,9 +145,11 @@ void EquationOfState::ConservedToPrimitive(
   int kl, int ku,
   int coarse_flag)
 {
-  MeshBlock* pmb = pmy_block_;
-  Field* pf = pmb->pfield;
-  GRDynamical* pco_gr;
+  MeshBlock * pmb = pmy_block_;
+  Field * pf      = pmb->pfield;
+  Hydro * ph      = pmb->phydro;
+
+  GRDynamical * pco_gr;
   int nn1;
 
   if (coarse_flag)
@@ -291,7 +288,8 @@ void EquationOfState::ConservedToPrimitive(
 
       //AHF hydro excision --------------------------------------------------
       bool in_horizon = false;
-      if(horizon_excision)
+
+      if(ph->opt_excision.horizon_based)
       {
         Real horizon_radius;
         for (auto pah_f : pmy_block_->pmy_mesh->pah_finder)
@@ -300,7 +298,8 @@ void EquationOfState::ConservedToPrimitive(
           const Real r_2 = SQR(pco->x1v(i)) +
                             SQR(pco->x2v(j)) +
                             SQR(pco->x3v(k));
-          if((r_2 < SQR(horizon_radius)) || (alpha_(i) < alpha_excision))
+          if((r_2 < SQR(horizon_radius)) ||
+             (alpha_(i) < ph->opt_excision.alpha_threshold))
           {
             in_horizon = true;
           }
@@ -308,7 +307,7 @@ void EquationOfState::ConservedToPrimitive(
       }
       else
       {
-        if(alpha_(i) < alpha_excision)
+        if(alpha_(i) < ph->opt_excision.alpha_threshold)
         {
           in_horizon = true;
         }
