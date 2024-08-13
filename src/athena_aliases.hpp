@@ -50,11 +50,19 @@ typedef AthenaTensor<Real, TensorSymm::NONE, D, 1> AT_D_vec;
 typedef AthenaTensor<Real, TensorSymm::SYM2, D, 2> AT_D_sym;
 typedef AthenaTensor<Real, TensorSymm::SYM2, D, 3> AT_D_VS2;
 
-
-// Looping constructs ---------------------------------------------------------
-// BD: TODO - put here
-
 }  // namespace gra::aliases
+
+// Looping constructs through macros ------------------------------------------
+
+// Coordinate class internal loops for e.g. AddCoordTermsDivergence
+#define CC_PCO_ILOOP1(i)				           \
+  _Pragma("omp simd")		  		             \
+  for (int i=il; i<=iu; ++i)
+
+// #define CC_ILOOP1(i)				           \
+//   _Pragma("omp simd")				           \
+//   for (int i=pmb->is; i<=pmb->ie; ++i)
+
 
 #endif // ATHENA_ALIASES_HPP
 

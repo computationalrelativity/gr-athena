@@ -533,12 +533,6 @@ parser.add_argument('-link_gold',
                     default=False,
                     help='use gold linker')
 
-# GRA debug commands switches:
-parser.add_argument('-DBG_MA_SOURCES',
-                    action='store_true',
-                    default=False,
-                    help="GRHD: use sources based on Alcubierre book?")
-
 # The main choices for --cxx flag, using "ctype[-suffix]" formatting, where "ctype" is the
 # major family/suite/group of compilers and "suffix" may represent variants of the
 # compiler version and/or predefined sets of compiler options. The C++ compiler front ends
@@ -1549,12 +1543,6 @@ if args['ccache']:
 # use gold linker
 if args['link_gold']:
     makefile_options['LIBRARY_FLAGS'] += ' -fuse-ld=gold'
-
-# GRA debug commands switches:
-if args['DBG_MA_SOURCES']:
-    definitions['DBG_MA_SOURCES'] = "DBG_MA_SOURCES"
-else:
-    definitions['DBG_MA_SOURCES'] = "NO_DBG_MA_SOURCES"
 
 # === Trimmed-down SRC_FILES needs treatment here =============================
 

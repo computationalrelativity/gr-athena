@@ -371,7 +371,7 @@ class Coordinates {
   IIG_2N * ig_2N;
   IIG_NN * ig_NN;
 
- protected:
+ public:
   bool coarse_flag;  // true if this coordinate object is parent (coarse) mesh in AMR
   Mesh *pm;
   int il, iu, jl, ju, kl, ku, ng;  // limits of indices of arrays (normal or coarse)
@@ -467,7 +467,6 @@ class Coordinates {
   // GR-specific variables
   Real bh_mass_;
   Real bh_spin_;
-  Real chi_psi_power;
 };
 
 //----------------------------------------------------------------------------------------
@@ -962,89 +961,16 @@ class GRDynamical : public Coordinates {
  public:
   GRDynamical(MeshBlock *pmb, ParameterInput *pin, bool flag);
 
-  // fix sources to Initial data values
-  int fix_sources;
-  int zero_sources;
-
-  // functions...
-  // ...to compute length of edges
-  void Edge1Length(const int k, const int j, const int il, const int iu,
-                   AthenaArray<Real> &len) final;
-  void Edge2Length(const int k, const int j, const int il, const int iu,
-                   AthenaArray<Real> &len) final;
-  void Edge3Length(const int k, const int j, const int il, const int iu,
-                   AthenaArray<Real> &len) final;
-  Real GetEdge1Length(const int k, const int j, const int i) final;
-  Real GetEdge2Length(const int k, const int j, const int i) final;
-  Real GetEdge3Length(const int k, const int j, const int i) final;
-
-  // ...to compute physical width at cell center
-  void CenterWidth1(const int k, const int j, const int il, const int iu,
-                    AthenaArray<Real> &dx1) final;
-  void CenterWidth2(const int k, const int j, const int il, const int iu,
-                    AthenaArray<Real> &dx2) final;
-  void CenterWidth3(const int k, const int j, const int il, const int iu,
-                    AthenaArray<Real> &dx3) final;
-
-  // ...to compute area of faces
-  void Face1Area(const int k, const int j, const int il, const int iu,
-                 AthenaArray<Real> &area) final;
-  void Face2Area(const int k, const int j, const int il, const int iu,
-                 AthenaArray<Real> &area) final;
-  void Face3Area(const int k, const int j, const int il, const int iu,
-                 AthenaArray<Real> &area) final;
-  Real GetFace1Area(const int k, const int j, const int i) final;
-  Real GetFace2Area(const int k, const int j, const int i) final;
-  Real GetFace3Area(const int k, const int j, const int i) final;
-
-  // ...to compute volumes of cells
-  void CellVolume(const int k, const int j, const int il, const int iu,
-                  AthenaArray<Real> &vol) final;
-  Real GetCellVolume(const int k, const int j, const int i) final;
-
-  // In GR, functions...
-  // ...to compute geometrical source terms
-  void _AddCoordTermsDivergence(const Real dt, 
+  // Geometrical source terms
+  void AddCoordTermsDivergence(const Real dt,
                                const AthenaArray<Real> *flux,
-                               const AthenaArray<Real> &prim, 
-#if USETM
-                               const AthenaArray<Real> &prim_scalar,
-#endif
-                               const AthenaArray<Real> &bcc,
-                               AthenaArray<Real> &u);
-
-  void AddCoordTermsDivergence(const Real dt, 
-                               const AthenaArray<Real> *flux,
-                               const AthenaArray<Real> &prim, 
+                               const AthenaArray<Real> &prim,
 #if USETM
                                const AthenaArray<Real> &prim_scalar,
 #endif
                                const AthenaArray<Real> &bcc,
                                AthenaArray<Real> &u) final;
 
-  // ...to transform primitives to locally flat space
-  void PrimToLocal1(const int k, const int j, const int il, const int iu,
-                    const AthenaArray<Real> &b1_vals, AthenaArray<Real> &prim_left,
-                    AthenaArray<Real> &prim_right, AthenaArray<Real> &bx) final;
-  void PrimToLocal2(const int k, const int j, const int il, const int iu,
-                    const AthenaArray<Real> &b2_vals, AthenaArray<Real> &prim_left,
-                    AthenaArray<Real> &prim_right, AthenaArray<Real> &bx) final;
-  void PrimToLocal3(const int k, const int j, const int il, const int iu,
-                    const AthenaArray<Real> &b3_vals, AthenaArray<Real> &prim_left,
-                    AthenaArray<Real> &prim_right, AthenaArray<Real> &bx) final;
-  // ...to transform fluxes in locally flat space to global frame
-  void FluxToGlobal1(
-      const int k, const int j, const int il, const int iu,
-      const AthenaArray<Real> &cons, const AthenaArray<Real> &bbx,
-      AthenaArray<Real> &flux, AthenaArray<Real> &ey, AthenaArray<Real> &ez) final;
-  void FluxToGlobal2(
-      const int k, const int j, const int il, const int iu,
-      const AthenaArray<Real> &cons, const AthenaArray<Real> &bbx,
-      AthenaArray<Real> &flux, AthenaArray<Real> &ey, AthenaArray<Real> &ez) final;
-  void FluxToGlobal3(
-      const int k, const int j, const int il, const int iu,
-      const AthenaArray<Real> &cons, const AthenaArray<Real> &bbx,
-      AthenaArray<Real> &flux, AthenaArray<Real> &ey, AthenaArray<Real> &ez) final;
 
   // logic to handle field component mapping between samplings ----------------
   //
@@ -1192,7 +1118,54 @@ class GRDynamical : public Coordinates {
   }
   // --------------------------------------------------------------------------
 
+  // scratch storage ----------------------------------------------------------
+private:
+  // geometry
+  AT_N_sca sqrt_detgamma_;
+  AT_N_sca detgamma_;     // spatial met det
+  AT_N_sca oo_detgamma_;  // 1 / spatial met det
 
+  AT_N_sca alpha_;
+  AT_N_vec beta_u_;
+  AT_N_sym gamma_dd_;
+  AT_N_sym gamma_uu_;
+
+  AT_N_sym K_dd_;
+
+  AT_N_vec dalpha_d_;   // pd_i alpha
+  AT_N_T2  dbeta_du_;   // pd_i beta^j
+  AT_N_VS2 dgamma_ddd_; // pd_i gamma_{jk}
+
+  // matter
+  AT_N_vec w_util_u_;
+  AT_N_vec w_util_d_;
+
+  AT_N_sca W_;      // Lorentz factor
+  AT_N_sca w_hrho_; // h * rho
+
+  // sources
+  AT_N_sca Stau_; // tau eq
+  AT_N_vec SS_d_; // S_i eq
+
+  // Particular to magnetic fields --------------------------------------------
+  AT_N_sca oo_sqrt_detgamma_;
+
+  // geometry
+  AT_N_vec beta_d_;
+
+  // matter
+  AT_N_vec q_scB_u_;
+
+  AT_N_sca b0_;
+  AT_N_sca b2_;
+
+  AT_N_vec bi_u_;
+  AT_N_vec bi_d_;
+
+  AT_N_sca T00;
+  AT_N_vec T0i_u;
+  AT_N_vec T0i_d;
+  AT_N_sym Tij_uu;
 };
 
 //-----------------------------------------------------------------------------

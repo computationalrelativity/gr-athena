@@ -41,10 +41,6 @@
 // BD: TODO - whether to register in LoadBalanceAMR the aux?
 #define DBG_REDUCE_AUX_COMM
 
-// GRHD: use sources from Alcubierre book
-#define @DBG_MA_SOURCES@
-// #define DBG_MA_SOURCES
-
 // use shared CX FD in AddCoordTermsDivergence if possible?
 // this will make order actually consistent
 #define DBG_FD_CX_COORDDIV
