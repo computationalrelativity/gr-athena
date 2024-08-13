@@ -104,7 +104,6 @@ import glob
 import os
 import re
 import subprocess
-from pathlib import Path
 
 
 def get_git_revision_hash() -> str:
@@ -1798,9 +1797,9 @@ makefile_options["GENERAL_EOS_FILE"] += ".cpp"
 makefile_options["RSOLVER_FILE"] += ".cpp"
 
 # Read templates
-with Path.open(defsfile_input) as current_file:
+with open(defsfile_input, "r") as current_file:
   defsfile_template = current_file.read()
-with Path.open(makefile_input) as current_file:
+with open(makefile_input, "r") as current_file:
   makefile_template = current_file.read()
 
 # Add PrimitiveSolver EOS files
@@ -1822,9 +1821,9 @@ for key, val in makefile_options.items():
   makefile_template = re.sub(rf"@{key}@", val, makefile_template)
 
 # Write output files
-with Path.open(defsfile_output, "w") as current_file:
+with open(defsfile_output, "w") as current_file:
   current_file.write(defsfile_template)
-with Path.open(makefile_output, "w") as current_file:
+with open(makefile_output, "w") as current_file:
   current_file.write(makefile_template)
 
 # Finish with diagnostic output
