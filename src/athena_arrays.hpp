@@ -176,6 +176,9 @@ class AthenaArray {
                 const int i) const {
     return pdata_[i + nx1_*(j + nx2_*(k + nx3_*(n + nx4_*(m + nx5_*p))))]; }
 
+  // Directly set dimensionality: dangerous, but useful
+  void SetDim(const int dim);
+
   // (deferred) initialize an array with slice from another array
   void InitWithShallowSlice(AthenaArray<T> &src, const int dim, const int indx,
                             const int nvar);
@@ -628,6 +631,12 @@ AthenaArray<T> &AthenaArray<T>::operator= (AthenaArray<T> &&src) {
   return *this;
 }
 
+// Be careful with this...
+template<typename T>
+void AthenaArray<T>::SetDim(const int dim)
+{
+  dim_ = dim;
+}
 
 //----------------------------------------------------------------------------------------
 //! \fn AthenaArray::InitWithShallowSlice()
@@ -640,7 +649,10 @@ AthenaArray<T> &AthenaArray<T>::operator= (AthenaArray<T> &&src) {
 template<typename T>
 void AthenaArray<T>::InitWithShallowSlice(AthenaArray<T> &src, const int dim,
                                           const int indx, const int nvar) {
-  dim_ = dim - (dim > 0);  // case 1 is distinct
+  // BD: TODO - Best choice here?
+  // Preserving dim can be useful, on the other hand reducing for nvar can also be
+  dim_ = (nvar > 1) ? dim : dim - (dim > 0);
+
   pdata_ = src.pdata_;
   if (dim == 6) {
     nx6_ = nvar;
