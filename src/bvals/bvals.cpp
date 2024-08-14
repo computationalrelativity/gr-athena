@@ -297,7 +297,12 @@ void BoundaryValues::StartReceiving(BoundaryCommSubset phase)
       AllStartReceiving_(phase, bvars_m1);
       break;
     }
-    case BoundaryCommSubset::gr_amr:
+    case BoundaryCommSubset::matter:
+    {
+      AllStartReceiving_(phase, bvars_main_int);
+      break;
+    }
+    case BoundaryCommSubset::matter_primitives:
     {
       AllStartReceiving_(phase, bvars_main_int);
       break;
@@ -331,6 +336,12 @@ void BoundaryValues::StartReceiving(BoundaryCommSubset phase)
 
 
 void BoundaryValues::StartReceivingShear(BoundaryCommSubset phase) {
+  // BD: TODO - Dead, warn
+  std::stringstream msg;
+  msg << "StartReceivingShear called" << std::endl;
+  ATHENA_ERROR(msg);
+
+  /*
   switch (phase) {
     case BoundaryCommSubset::mesh_init:
       //FindShearBlock(pmy_mesh_->time);
@@ -349,16 +360,17 @@ void BoundaryValues::StartReceivingShear(BoundaryCommSubset phase) {
         bvar->StartReceivingShear(phase);
       }
       break;
-    case BoundaryCommSubset::gr_amr:
+    case BoundaryCommSubset::matter_primitives:
       // shearing box is currently incompatible with both GR and AMR
       std::stringstream msg;
       msg << "### FATAL ERROR in BoundaryValues::StartReceiving" << std::endl
-          << "BoundaryCommSubset::gr_amr was passed as the 'phase' argument while\n"
+          << "BoundaryCommSubset::matter_primitives was passed as the 'phase' argument while\n"
           << "SHEARING_BOX=1 is enabled. Shearing box calculations are currently\n"
           << "incompatible with both AMR and GR" << std::endl;
       ATHENA_ERROR(msg);
       break;
   }
+  */
   return;
 }
 
@@ -369,7 +381,7 @@ void BoundaryValues::StartReceivingShear(BoundaryCommSubset phase) {
 
 void BoundaryValues::ClearBoundary(BoundaryCommSubset phase) {
   // Note BoundaryCommSubset::mesh_init corresponds to initial exchange of conserved fluid
-  // variables and magentic fields, while BoundaryCommSubset::gr_amr corresponds to fluid
+  // variables and magentic fields, while BoundaryCommSubset::matter_primitives corresponds to fluid
   // primitive variables sent only in the case of GR with refinement
   // Cf. StartReceiving
   switch (phase)
@@ -392,7 +404,12 @@ void BoundaryValues::ClearBoundary(BoundaryCommSubset phase) {
       AllClearBoundary_(phase, bvars_m1);
       break;
     }
-    case BoundaryCommSubset::gr_amr:
+    case BoundaryCommSubset::matter:
+    {
+      AllClearBoundary_(phase, bvars_main_int);
+      break;
+    }
+    case BoundaryCommSubset::matter_primitives:
     {
       AllClearBoundary_(phase, bvars_main_int);
       break;

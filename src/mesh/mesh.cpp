@@ -114,7 +114,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     BoundaryFunction_{nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
     AMRFlag_{}, UserSourceTerm_{}, UserTimeStep_{}, ViscosityCoeff_{},
     ConductionCoeff_{}, FieldDiffusivity_{}
-  {
+{
 
   std::stringstream msg;
   RegionSize block_size;
@@ -1092,6 +1092,24 @@ Mesh::~Mesh() {
   if (EOS_TABLE_ENABLED) delete peos_table;
 }
 
+//-----------------------------------------------------------------------------
+// Fill vector with pointers to all MeshBlock objects on current rank
+void Mesh::GetMeshBlocksMyRank(std::vector<MeshBlock*> & pmb_array)
+{
+  const int nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
+
+  if (static_cast<unsigned int>(nmb) != pmb_array.size())
+    pmb_array.resize(nmb);
+
+  MeshBlock *pmbl = pblock;
+
+  for (int i = 0; i < nmb; ++i)
+  {
+    pmb_array[i] = pmbl;
+    pmbl = pmbl->next;
+  }
+}
+
 //----------------------------------------------------------------------------------------
 //! \fn void Mesh::OutputMeshStructure(int ndim)
 //  \brief print the mesh structure information
@@ -1519,17 +1537,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
   do
   {
     // initialize a vector of MeshBlock pointers
-    nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
-    if (static_cast<unsigned int>(nmb) != pmb_array.size())
-      pmb_array.resize(nmb);
-
-    MeshBlock *pmbl = pblock;
-
-    for (int i = 0; i < nmb; ++i)
-    {
-      pmb_array[i] = pmbl;
-      pmbl = pmbl->next;
-    }
+    GetMeshBlocksMyRank(pmb_array);
 
     if (res_flag == 0) {
       #pragma omp parallel for num_threads(nthreads)
@@ -1624,7 +1632,6 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
         }
       }
     } // omp parallel
-
 
     // Further re-gridding as required ----------------------------------------
     if (!res_flag && adaptive)

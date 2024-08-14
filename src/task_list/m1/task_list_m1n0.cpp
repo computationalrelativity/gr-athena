@@ -276,38 +276,12 @@ TaskStatus M1N0::UpdateCoupling(MeshBlock *pmb, int stage)
     }
 #endif
 
-#if FLUID_ENABLED
-    // We have changed the conserveds, so we must run c2p again
-    int il = pmb->is, iu = pmb->ie;
-    int jl = pmb->js, ju = pmb->je;
-    int kl = pmb->ks, ku = pmb->ke;
-
-    pmb->peos->ConservedToPrimitive(pmb->phydro->u,
-                                    pmb->phydro->w,
-                                    pmb->pfield->b,
-                                    pmb->phydro->w1,
-#if USETM
-                                    pmb->pscalars->s,
-                                    pmb->pscalars->r,
-#endif
-                                    pmb->pfield->bcc, pmb->pcoord,
-                                    il, iu, jl, ju, kl, ku, 0);
-#endif
-    // Ensure both primitive vectors contain updated state
-    pmb->phydro->w = pmb->phydro->w1;
-
-#if USETM
-    PassiveScalars * ps = pmb->pscalars;
-
-    pmb->pz4c->GetMatter(pmb->pz4c->storage.mat,
-                    pmb->pz4c->storage.adm,
-                    pmb->phydro->w,
-                    pmb->pscalars->r,
-                    pmb->pfield->bcc);
-#else
-    pmb->pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, pf->bcc);
-#endif
-
+    // N.B.
+    // Conserved variables and ADM matter fields updated in
+    // `Mesh::ScatterMatter`
+    //
+    // Source coupling in e.g. `CoupleSourcesHydro` acts on physical nodes
+    // therefore further communication is required for consistency.
     return TaskStatus::next;
   } else {
     return TaskStatus::next;

@@ -169,7 +169,15 @@ enum CoordinateDirection {X1DIR=0, X2DIR=1, X3DIR=2};
 // Now, only passed to BoundaryVariable::InitBoundaryData(); could replace w/ bool switch
 enum class BoundaryQuantity {cc, cx, fc, vc, cc_flcor, fc_flcor, mggrav, mggrav_f};
 enum class HydroBoundaryQuantity {cons, prim};
-enum class BoundaryCommSubset {mesh_init, gr_amr, all, aux_z4c, iterated_z4c, m1};
+enum class BoundaryCommSubset {
+  mesh_init,
+  all,
+  aux_z4c,
+  iterated_z4c,
+  m1,
+  matter,
+  matter_primitives,
+};
 // TODO(felker): consider generalizing/renaming to QuantityFormulation
 enum class FluidFormulation {evolve, background, disabled}; // rename background -> fixed?
 enum class UserHistoryOperation {sum, max, min};

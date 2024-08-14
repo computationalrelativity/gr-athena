@@ -79,8 +79,8 @@ void Mesh::FinalizeZ4cADM(std::vector<MeshBlock*> & pmb_array)
 
 void Mesh::FinalizeZ4cADM_Matter(std::vector<MeshBlock*> & pmb_array)
 {
-  MeshBlock *pmb;
-  BoundaryValues *pbval;
+  MeshBlock *pmb = nullptr;
+  BoundaryValues *pbval = nullptr;
 
   const int nmb = pmb_array.size();
 
@@ -378,6 +378,71 @@ void Mesh::CommunicateConserved(std::vector<MeshBlock*> & pmb_array)
   }
 }
 
+void Mesh::CommunicateConservedMatter(std::vector<MeshBlock*> & pmb_array)
+{
+  MeshBlock *pmb;
+  BoundaryValues *pbval;
+
+  const int nmb = pmb_array.size();
+
+  Hydro *ph = nullptr;
+  Field *pf = nullptr;
+  PassiveScalars *ps = nullptr;
+
+  // prepare to receive conserved variables
+  #pragma omp for private(pmb, pbval)
+  for (int i = 0; i < nmb; ++i) {
+    pmb = pmb_array[i];
+    pbval = pmb->pbval;
+    pbval->StartReceiving(BoundaryCommSubset::matter);
+  }
+
+  // send conserved variables
+  #pragma omp for private(pmb, pbval, ph, pf, ps)
+  for (int i = 0; i < nmb; ++i) {
+    pmb = pmb_array[i];
+    pbval = pmb->pbval;
+
+    ph = pmb->phydro;
+    pf = pmb->pfield;
+    ps = pmb->pscalars;
+
+    if (FLUID_ENABLED) {
+      ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
+      ph->hbvar.SendBoundaryBuffers();
+    }
+
+    if (MAGNETIC_FIELDS_ENABLED)
+      pf->fbvar.SendBoundaryBuffers();
+
+    // and (conserved variable) passive scalar:
+    if (NSCALARS > 0)
+      ps->sbvar.SendBoundaryBuffers();
+  }
+
+  // wait to receive conserved variables
+  #pragma omp for private(pmb, pbval, ph, pf, ps)
+  for (int i = 0; i < nmb; ++i) {
+    pmb = pmb_array[i];
+    pbval = pmb->pbval;
+
+    ph = pmb->phydro;
+    pf = pmb->pfield;
+    ps = pmb->pscalars;
+
+    if (FLUID_ENABLED)
+      ph->hbvar.ReceiveAndSetBoundariesWithWait();
+
+    if (MAGNETIC_FIELDS_ENABLED)
+      pf->fbvar.ReceiveAndSetBoundariesWithWait();
+
+    if (NSCALARS > 0)
+      ps->sbvar.ReceiveAndSetBoundariesWithWait();
+
+    pbval->ClearBoundary(BoundaryCommSubset::matter);
+  }
+}
+
 void Mesh::CommunicatePrimitives(std::vector<MeshBlock*> & pmb_array)
 {
   MeshBlock *pmb;
@@ -394,7 +459,7 @@ void Mesh::CommunicatePrimitives(std::vector<MeshBlock*> & pmb_array)
   for (int i = 0; i < nmb; ++i) {
     pmb = pmb_array[i];
     pbval = pmb->pbval;
-    pbval->StartReceiving(BoundaryCommSubset::gr_amr);
+    pbval->StartReceiving(BoundaryCommSubset::matter_primitives);
   }
 
   // send primitives
@@ -429,7 +494,7 @@ void Mesh::CommunicatePrimitives(std::vector<MeshBlock*> & pmb_array)
     if (NSCALARS > 0)
       ps->sbvar.ReceiveAndSetBoundariesWithWait();
 
-    pbval->ClearBoundary(BoundaryCommSubset::gr_amr);
+    pbval->ClearBoundary(BoundaryCommSubset::matter_primitives);
 
     ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
 
@@ -579,6 +644,56 @@ void Mesh::CommunicateIteratedZ4c(const int iterations)
     }
   }
 #endif // Z4C_CX_ENABLED
+}
+
+// Communicate only matter fields
+void Mesh::ScatterMatter(std::vector<MeshBlock*> & pmb_array)
+{
+  int nthreads = GetNumMeshThreads();
+  (void)nthreads;
+
+  #pragma omp parallel num_threads(nthreads)
+  {
+    MeshBlock *pmb;
+    BoundaryValues *pbval;
+
+    CommunicateConservedMatter(pmb_array);
+
+    // Treat R/P with prim_rp in the case of fluid + gr + z4c -----------------
+    //
+    // This requires:
+    // - ConservedToPrimitive on interior (physical) grid points
+    // - communication of primitives
+#if FLUID_ENABLED && GENERAL_RELATIVITY && !defined(DBG_USE_CONS_BC)
+    if (multilevel)
+    {
+      const bool interior_only = true;
+      PreparePrimitives(pmb_array, interior_only);
+      CommunicatePrimitives(pmb_array);
+    }
+#endif
+    // ------------------------------------------------------------------------
+
+    // Deal with matter prol. & BC --------------------------------------------
+#if FLUID_ENABLED && !defined(DBG_USE_CONS_BC)
+    FinalizeHydroPrimRP(pmb_array);
+#elif FLUID_ENABLED && defined(DBG_USE_CONS_BC)
+    FinalizeHydroConsRP(pmb_array);
+
+    const bool interior_only = false;
+    PreparePrimitives(pmb_array, interior_only);
+#endif
+    // ------------------------------------------------------------------------
+
+#if FLUID_ENABLED && Z4C_ENABLED
+    // Prepare ADM sources
+    // Requires B-field in ghost-zones
+    FinalizeZ4cADM_Matter(pmb_array);
+#endif
+
+  } // omp parallel
+
+
 }
 
 //

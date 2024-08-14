@@ -287,6 +287,20 @@ public:
     return new_from_amr;
   }
 
+  inline bool IsPhysicalIndex_cc(const int k, const int j, const int i)
+  {
+    return (is <= i) && (i <= ie) &&
+           (js <= j) && (j <= je) &&
+           (ks <= k) && (k <= ke);
+  }
+
+  inline bool IsPhysicalIndex_vc(const int k, const int j, const int i)
+  {
+    return (ivs <= i) && (i <= ive) &&
+           (jvs <= j) && (j <= jve) &&
+           (kvs <= k) && (k <= kve);
+  }
+
   // if multilevel, useful to know if nearest-neighbour blocks on same level
   inline bool NeighborBlocksSameLevel()
   {
@@ -439,7 +453,10 @@ class Mesh {
   AthenaArray<Real> *ruser_mesh_data;
   AthenaArray<int> *iuser_mesh_data;
 
-  // functions
+  // functions ----------------------------------------------------------------
+
+  void GetMeshBlocksMyRank(std::vector<MeshBlock*> & pmb_array);
+
   void Initialize(int res_flag, ParameterInput *pin);
   void SetBlockSizeAndBoundaries(LogicalLocation loc, RegionSize &block_size,
                                  BoundaryFlag *block_bcs);
@@ -470,6 +487,8 @@ class Mesh {
   void CommunicateConserved(std::vector<MeshBlock*> & pmb_array);
   void CommunicatePrimitives(std::vector<MeshBlock*> & pmb_array);
 
+  void CommunicateConservedMatter(std::vector<MeshBlock*> & pmb_array);
+
   void FinalizeWave(std::vector<MeshBlock*> & pmb_array);
 
   void FinalizeZ4cADM(std::vector<MeshBlock*> & pmb_array);
@@ -485,6 +504,9 @@ class Mesh {
 
   void PreparePrimitives(std::vector<MeshBlock*> & pmb_array,
                          const bool interior_only);
+
+  // Dedicated function to communicate matter-fields
+  void ScatterMatter(std::vector<MeshBlock*> & pmb_array);
 
   // Additional, specific, communication of data over MeshBlock objects
   void CommunicateAuxZ4c();

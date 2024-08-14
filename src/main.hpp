@@ -642,11 +642,21 @@ inline void Z4c_Vacuum(gra::tasklist::Collection &ptlc,
 inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
                       Mesh *pmesh)
 {
+#ifdef DBG_SCATTER_MATTER_GRMHD
+  std::vector<MeshBlock*> pmb_array;
+  pmesh->GetMeshBlocksMyRank(pmb_array);
+#endif
+
   for (int stage=1; stage<=ptlc.grmhd_z4c->nstages; ++stage)
   {
     ptlc.grmhd_z4c->DoTaskListOneStage(pmesh, stage);
     // Iterate bnd comm. as required
     pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
+
+#ifdef DBG_SCATTER_MATTER_GRMHD
+    pmesh->ScatterMatter(pmb_array);
+#endif
+
   }
 }
 
@@ -758,9 +768,18 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
 inline void M1N0(gra::tasklist::Collection &ptlc,
                  Mesh *pmesh)
 {
+  std::vector<MeshBlock*> pmb_array;
+  pmesh->GetMeshBlocksMyRank(pmb_array);
+
   for (int stage=1; stage<=ptlc.m1n0->nstages; ++stage)
   {
     ptlc.m1n0->DoTaskListOneStage(pmesh, stage);
+
+    // Last stage performs Con2Prim, scatter this, call GetMatter
+    if (stage == ptlc.m1n0->nstages)
+    {
+      pmesh->ScatterMatter(pmb_array);
+    }
   }
 }
 

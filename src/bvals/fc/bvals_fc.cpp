@@ -1409,7 +1409,7 @@ void FaceCenteredBoundaryVariable::StartReceiving(BoundaryCommSubset phase) {
   int mylevel = pmb->loc.level;
   for (int n=0; n<pbval_->nneighbor; n++) {
     NeighborBlock& nb = pbval_->neighbor[n];
-    if (nb.snb.rank != Globals::my_rank && phase != BoundaryCommSubset::gr_amr) {
+    if (nb.snb.rank != Globals::my_rank && phase != BoundaryCommSubset::matter_primitives) {
       MPI_Start(&(bd_var_.req_recv[nb.bufid]));
       if (phase == BoundaryCommSubset::all &&
           (nb.ni.type == NeighborConnect::face || nb.ni.type == NeighborConnect::edge)) {
@@ -1455,7 +1455,7 @@ void FaceCenteredBoundaryVariable::ClearBoundary(BoundaryCommSubset phase) {
 #ifdef MPI_PARALLEL
     MeshBlock *pmb = pmy_block_;
     int mylevel = pmb->loc.level;
-    if (nb.snb.rank != Globals::my_rank && phase != BoundaryCommSubset::gr_amr) {
+    if (nb.snb.rank != Globals::my_rank && phase != BoundaryCommSubset::matter_primitives) {
       // Wait for Isend
       MPI_Wait(&(bd_var_.req_send[nb.bufid]), MPI_STATUS_IGNORE);
 
