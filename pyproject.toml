@@ -1,0 +1,21 @@
+# settings for ruff linter / formatter
+# https://docs.astral.sh/ruff/settings/#exclude
+
+[tool.ruff.lint]
+select = ["ALL"]
+
+[tool.ruff]
+indent-width = 2
+line-length = 80
+respect-gitignore = true
+fix = true
+
+[tool.ruff.format]
+# Enable reformatting of code snippets in docstrings.
+docstring-code-format = true
+# Format all docstring code snippets with a line length
+docstring-code-line-length = 80
+# Prefer double quotes.
+quote-style = "double"
+# Use `\n` line endings for all files
+line-ending = "lf"
