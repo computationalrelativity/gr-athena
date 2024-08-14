@@ -860,6 +860,234 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     }
   }
 
+  // M1 dumps based on data-structure name ------------------------------------
+  // Output as scalars for convenience in parsing
+  if (M1_ENABLED)
+  {
+    std::string idx_GS;
+
+    // logic for GroupSpeciesContainer<...> -----------------------------------
+    auto dump_GSC_AT_C_sca = [&](
+      M1::GroupSpeciesContainer<AT_C_sca> & sca_,
+      const int ix_g, const int ix_s,
+      const std::string & name)
+    {
+      idx_GS = std::to_string(ix_g) + std::to_string(ix_s);
+
+      AA & data_ = sca_(ix_g, ix_s).array();
+
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = name + "_" + idx_GS;
+      pod->data.InitWithShallowSlice(data_, 0, 1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    };
+
+    auto dump_GSC_AT_N_vec = [&](
+      M1::GroupSpeciesContainer<AT_N_vec> & vec_,
+      const int ix_g, const int ix_s,
+      const std::string & name)
+    {
+      idx_GS = std::to_string(ix_g) + std::to_string(ix_s);
+
+      AA & data_ = vec_(ix_g, ix_s).array();
+
+      for (int a = 0; a < N; ++a)
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = name + "_" + idx_GS + "_" + std::to_string(a);
+        pod->data.InitWithShallowSlice(data_, a, 1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    };
+
+    auto dump_GSC_AT_N_sym = [&](
+      M1::GroupSpeciesContainer<AT_N_sym> & sym_,
+      const int ix_g, const int ix_s,
+      const std::string & name)
+    {
+      idx_GS = std::to_string(ix_g) + std::to_string(ix_s);
+
+      AA & data_ = sym_(ix_g, ix_s).array();
+
+      for (int a = 0; a < N; ++a)
+      for (int b = a; b < N; ++b)
+      {
+        // Tensor-index to AA super-index reduction
+        const int I = sym_(ix_g, ix_s).idxmap(a,b);
+
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = name + "_" + idx_GS + "_" + std::to_string(a) +
+                    std::to_string(b);
+        pod->data.InitWithShallowSlice(data_, I, 1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    };
+
+    // logic for AT_N_X -------------------------------------------------------
+    auto dump_AT_C_sca = [&](AT_C_sca & sca_, const std::string & name)
+    {
+      AA & data_ = sca_.array();
+
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = name;
+      pod->data.InitWithShallowSlice(data_, 0, 1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    };
+
+    auto dump_AT_N_vec = [&](AT_N_vec & vec_, const std::string & name)
+    {
+      AA & data_ = vec_.array();
+
+      for (int a = 0; a < N; ++a)
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = name + "_" + std::to_string(a);
+        pod->data.InitWithShallowSlice(data_, a, 1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    };
+
+    auto dump_AT_N_sym = [&](AT_N_sym & sym_, const std::string & name)
+    {
+      AA & data_ = sym_.array();
+
+      for (int a = 0; a < N; ++a)
+      for (int b = a; b < N; ++b)
+      {
+        // Tensor-index to AA super-index reduction
+        const int I = sym_.idxmap(a,b);
+
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = name + "_" + std::to_string(a) + std::to_string(b);
+        pod->data.InitWithShallowSlice(data_, I, 1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    };
+
+    auto dump_AT_D_vec = [&](AT_D_vec & vec_, const std::string & name)
+    {
+      AA & data_ = vec_.array();
+
+      for (int a = 0; a < D; ++a)
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = name + "_" + std::to_string(a);
+        pod->data.InitWithShallowSlice(data_, a, 1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    };
+
+    // dump as desired --------------------------------------------------------
+    if (output_params.variable.compare("M1.lab") == 0)
+    {
+      for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+      for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+      {
+        dump_GSC_AT_C_sca(pm1->lab.sc_E,   ix_g, ix_s, "M1.lab.sc_E");
+        dump_GSC_AT_N_vec(pm1->lab.sp_F_d, ix_g, ix_s, "M1.lab.sp_F_d");
+        dump_GSC_AT_C_sca(pm1->lab.sc_nG,  ix_g, ix_s, "M1.lab.sc_nG");
+      }
+    }
+
+    if (output_params.variable.compare("M1.lab_aux") == 0)
+    {
+      for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+      for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+      {
+        dump_GSC_AT_N_sym(pm1->lab_aux.sp_P_dd, ix_g, ix_s,
+                          "M1.lab_aux.sp_P_dd");
+        dump_GSC_AT_C_sca(pm1->lab_aux.sc_n,    ix_g, ix_s, "M1.lab_aux.sc_n");
+        dump_GSC_AT_C_sca(pm1->lab_aux.sc_chi,  ix_g, ix_s,
+                          "M1.lab_aux.sc_chi");
+        dump_GSC_AT_C_sca(pm1->lab_aux.sc_xi,   ix_g, ix_s, "M1.lab_aux.sc_xi");
+      }
+    }
+
+    if (output_params.variable.compare("M1.rad") == 0)
+    {
+      for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+      for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+      {
+        dump_GSC_AT_C_sca(pm1->rad.sc_nnu, ix_g, ix_s, "M1.rad.sc_nnu");
+        dump_GSC_AT_C_sca(pm1->rad.sc_J,   ix_g, ix_s, "M1.rad.sc_J");
+        dump_GSC_AT_C_sca(pm1->rad.sc_H_t, ix_g, ix_s, "M1.rad.sc_H_t");
+        dump_GSC_AT_N_vec(pm1->rad.sp_H_d, ix_g, ix_s, "M1.rad.sp_H_d");
+        dump_GSC_AT_C_sca(pm1->rad.sc_ynu, ix_g, ix_s, "M1.rad.sc_ynu");
+        dump_GSC_AT_C_sca(pm1->rad.sc_znu, ix_g, ix_s, "M1.rad.sc_znu");
+      }
+    }
+
+    if (output_params.variable.compare("M1.radmat") == 0)
+    {
+      for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+      for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+      {
+        dump_GSC_AT_C_sca(pm1->radmat.sc_eta_0,   ix_g, ix_s,
+                          "M1.radmat.sc_eta_0");
+        dump_GSC_AT_C_sca(pm1->radmat.sc_kap_a_0, ix_g, ix_s,
+                          "M1.radmat.sc_kap_a_0");
+
+        dump_GSC_AT_C_sca(pm1->radmat.sc_eta,   ix_g, ix_s, "M1.radmat.sc_eta");
+        dump_GSC_AT_C_sca(pm1->radmat.sc_kap_a, ix_g, ix_s, "M1.radmat.sc_kap_a");
+        dump_GSC_AT_C_sca(pm1->radmat.sc_kap_s, ix_g, ix_s, "M1.radmat.sc_kap_s");
+
+        dump_GSC_AT_C_sca(pm1->radmat.sc_avg_nrg, ix_g, ix_s,
+                          "M1.radmat.sc_avg_nrg");
+      }
+    }
+
+    if (output_params.variable.compare("M1.sources") == 0)
+    {
+      for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+      for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+      {
+        dump_GSC_AT_C_sca(pm1->sources.sc_S0, ix_g, ix_s, "M1.sources.sc_S0");
+        dump_GSC_AT_C_sca(pm1->sources.sc_S1, ix_g, ix_s, "M1.sources.sc_S1");
+        dump_GSC_AT_N_vec(pm1->sources.sp_S1_d, ix_g, ix_s,
+                          "M1.sources.sp_S1_d");
+      }
+    }
+
+    if (output_params.variable.compare("M1.rdia") == 0)
+    {
+      dump_AT_C_sca(pm1->rdia.radflux_0, "M1.rdia.radflux_0");
+      dump_AT_C_sca(pm1->rdia.radflux_1, "M1.rdia.radflux_1");
+      dump_AT_C_sca(pm1->rdia.ynu,       "M1.rdia.ynu");
+      dump_AT_C_sca(pm1->rdia.znu,       "M1.rdia.znu");
+    }
+
+    if (output_params.variable.compare("M1.fidu") == 0)
+    {
+      dump_AT_N_vec(pm1->fidu.sp_v_u, "M1.fidu.sp_v_u");
+      dump_AT_N_vec(pm1->fidu.sp_v_d, "M1.fidu.sp_v_d");
+
+      dump_AT_D_vec(pm1->fidu.st_v_u, "M1.fidu.st_v_d");
+
+      dump_AT_C_sca(pm1->fidu.sc_W,   "M1.fidu.sc_W");
+    }
+
+    if (output_params.variable.compare("M1.net") == 0)
+    {
+      dump_AT_C_sca(pm1->net.abs,  "M1.net.abs");
+      dump_AT_C_sca(pm1->net.heat, "M1.net.heat");
+    }
+  }
+  // --------------------------------------------------------------------------
+
   if (NSCALARS > 0) {
     std::string root_name_cons = "s";
     std::string root_name_prim = "r";
