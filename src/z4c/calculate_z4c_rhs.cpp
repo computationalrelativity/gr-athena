@@ -28,13 +28,6 @@
 void Z4c::Z4cRHS(
   AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<Real> & u_rhs)
 {
-  // Break-fast on cowling
-  if(opt.cowling)
-  {
-    u_rhs.ZeroClear();
-    return;
-  }
-
   using namespace LinearAlgebra;
 
   Z4c_vars z4c, rhs;
@@ -43,6 +36,13 @@ void Z4c::Z4cRHS(
 
   Matter_vars mat;
   SetMatterAliases(u_mat, mat);
+
+  // Break-fast on cowling
+  if(opt.cowling)
+  {
+    u_rhs.ZeroClear();
+    return;
+  }
 
   //---------------------------------------------------------------------------
   // Scratch arrays for spatially dependent eta shift damping
