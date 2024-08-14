@@ -184,8 +184,9 @@ parser.add_argument(
 # --eos=[name] argument
 parser.add_argument(
   "--eos",
-  default="eostaudyn_ps",
+  default="none",
   choices=[
+    "none",
     "adiabatictaudyn_rep",
     "eostaudyn_ps",
   ],
