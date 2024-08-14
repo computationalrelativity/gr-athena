@@ -44,4 +44,17 @@ const TaskID UPDATE_COUPLING(21);
 
 }  // TaskNames::M1::M1N0
 
+namespace TaskNames::M1::PostAMR_M1N0 {
+
+const TaskID NONE(0);
+
+const TaskID UPDATE_BG(2);
+
+const TaskID CALC_FIDU(3);
+
+const TaskID CALC_CLOSURE(4);
+const TaskID CALC_OPAC(6);
+
+}  // namespace TaskNames::M1::PostAMR_M1N0
+
 #endif  // M1_TASK_NAMES_HPP_

@@ -77,6 +77,40 @@ private:
   }
 };
 
+// If using AMR, additional functionality is needed
+class PostAMR_M1N0 : public TaskList
+{
+public:
+  PostAMR_M1N0(ParameterInput *pin, Mesh *pm, gra::triggers::Triggers &trgs);
+
+  TaskStatus UpdateBackground(MeshBlock *pmb, int stage);
+
+  TaskStatus CalcFiducialVelocity(MeshBlock *pmb, int stage);
+
+  TaskStatus CalcClosure(MeshBlock *pmb, int stage);
+  TaskStatus CalcOpacity(MeshBlock *pmb, int stage);
+
+private:
+  // BD - TODO: remove the AddTask logic in favour of Add
+  void AddTask(const TaskID& id, const TaskID& dep) override { };
+  void StartupTaskList(MeshBlock *pmb, int stage) override;
+
+private:
+  gra::triggers::Triggers & trgs;
+
+private:
+  // For slightly cleaner & more flexible, treatment of tasklist graph assembly
+  void Add(
+    const TaskID& id, const TaskID& dep,
+    TaskStatus (PostAMR_M1N0::*fcn)(MeshBlock*, int),
+    bool lb_time=true)
+  {
+    TaskList::Add(id, dep, static_cast<TaskStatus (TaskList::*)(
+      MeshBlock*, int
+    )>(fcn));
+  }
+};
+
 }  // namespace TaskLists::M1N0
 
 #endif  // M1_TASK_LIST_HPP_

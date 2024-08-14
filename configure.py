@@ -1761,6 +1761,7 @@ elif args["w"]:
 
 elif args["m1"]:
   src_aux.append("$(wildcard src/task_list/m1/task_list_m1n0.cpp)")
+  src_aux.append("$(wildcard src/task_list/m1/task_list_post_amr_m1n0.cpp)")
 
 else:
   src_aux.append("$(wildcard src/task_list/time_integrator.cpp)")

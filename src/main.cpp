@@ -205,7 +205,14 @@ int main(int argc, char *argv[])
       // At this stage Mesh::Initialize(2, pinputs) has been called
       if (Z4C_ENABLED)
       {
-        ptlc.postamr_z4c->DoTaskListOneStage(pmesh, 1);  // only 1 stage
+        // 1 stage
+        ptlc.postamr_z4c->DoTaskListOneStage(pmesh, 1);
+      }
+
+      if (M1_ENABLED)
+      {
+        // 1 stage
+        ptlc.postamr_m1n0->DoTaskListOneStage(pmesh, 1);
       }
 
       pmesh->FinalizePostAMR();

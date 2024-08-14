@@ -529,15 +529,16 @@ namespace gra::tasklist {
 struct Collection
 {
   gra::triggers::Triggers & trgs;
-  TaskLists::GeneralRelativity::GR_Z4c      * gr_z4c      = nullptr;
-  TaskLists::GeneralRelativity::GRMHD_Z4c   * grmhd_z4c   = nullptr;
+  TaskLists::GeneralRelativity::GR_Z4c      * gr_z4c       = nullptr;
+  TaskLists::GeneralRelativity::GRMHD_Z4c   * grmhd_z4c    = nullptr;
 
-  TaskLists::GeneralRelativity::Aux_Z4c     * aux_z4c     = nullptr;
-  TaskLists::GeneralRelativity::PostAMR_Z4c * postamr_z4c = nullptr;
+  TaskLists::GeneralRelativity::Aux_Z4c     * aux_z4c      = nullptr;
+  TaskLists::GeneralRelativity::PostAMR_Z4c * postamr_z4c  = nullptr;
 
-  TaskLists::M1::M1N0                       * m1n0        = nullptr;
+  TaskLists::M1::M1N0                       * m1n0         = nullptr;
+  TaskLists::M1::PostAMR_M1N0               * postamr_m1n0 = nullptr;
 
-  TaskLists::WaveEquations::Wave_2O         * wave_2o     = nullptr;
+  TaskLists::WaveEquations::Wave_2O         * wave_2o      = nullptr;
 };
 
 inline void PopulateCollection(Collection &ptlc,
@@ -569,6 +570,7 @@ inline void PopulateCollection(Collection &ptlc,
     {
       using namespace TaskLists::M1;
       ptlc.m1n0 = new M1N0(pin, pm, ptlc.trgs);
+      ptlc.postamr_m1n0 = new PostAMR_M1N0(pin, pm, ptlc.trgs);
     }
 
     if (WAVE_ENABLED)

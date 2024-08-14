@@ -115,6 +115,9 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   pmb->RegisterMeshBlockDataCC(storage.u);
   if (pmy_mesh->multilevel)
   {
+    // For internal points (LoadBalancingAndAdaptiveMeshRefinement)
+    pmb->pmr->AddToRefinementCC(&storage.u, &coarse_u_);
+    // For inter-MeshBlock boundaries
     pmb->pmr->AddToRefinementM1CC(&storage.u, &coarse_u_);
   }
 
@@ -206,6 +209,36 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   // --------------------------------------------------------------------------
   // deal with opacities
   popac = new Opacities::Opacities(pmb, this, pin);
+
+
+  // debug: -------------------------------------------------------------------
+  /*
+  const Real abs_v = pin->GetReal("problem", "abs_v");
+
+  const Real rho   = pin->GetReal("problem", "rho");
+  const Real kap_s = pin->GetReal("problem", "kap_s");
+
+  const Real W = 1.0 / std::sqrt(1 - SQR(abs_v));
+
+  M1_GLOOP3(k,j,i)
+  {
+    pm1->hydro.sc_W(k,j,i)          = W;
+    pm1->hydro.sp_w_util_u(0,k,j,i) = W * abs_v;
+  }
+
+  pm1->hydro.sc_w_rho.Fill(rho);
+  // assemble sp_v_u, sp_v_d etc.
+  pm1->CalcFiducialVelocity();
+
+  for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+  {
+    AT_C_sca & sc_kap_s = pm1->radmat.sc_kap_s(ix_g,ix_s);
+
+    sc_kap_s.Fill(kap_s);
+  }
+  */
+
 }
 
 M1::~M1()
