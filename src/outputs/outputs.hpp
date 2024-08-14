@@ -169,7 +169,8 @@ class ATHDF5Output : public OutputType {
 
  private:
   // Parameters
-  static const int max_name_length = 20;  // maximum length of names excluding \0
+  // BD: TODO - why is this hard-coded like this?
+  static const int max_name_length = 50;  // maximum length of names excluding \0
 
   // Metadata
   std::string filename;                       // name of athdf file
