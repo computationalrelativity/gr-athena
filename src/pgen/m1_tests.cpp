@@ -23,6 +23,9 @@ namespace {
 // ============================================================================
 
 int RefinementCondition(MeshBlock *pmb);
+#if FLUID_ENABLED
+Real num_c2p_fail(MeshBlock *pmb, int iout);
+#endif
 
 void InitM1Advection(MeshBlock *pmb, ParameterInput *pin)
 {
@@ -866,6 +869,14 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   {
     EnrollUserRefinementCondition(RefinementCondition);
   }
+
+
+#if FLUID_ENABLED
+  AllocateUserHistoryOutput(1);
+  EnrollUserHistoryOutput(0, num_c2p_fail, "num_c2p_fail",
+                          UserHistoryOperation::sum);
+#endif
+
   return;
 }
 
@@ -961,6 +972,28 @@ int RefinementCondition(MeshBlock *pmb)
 {
   return -1;
 }
+
+#if FLUID_ENABLED
+Real num_c2p_fail(MeshBlock *pmb, int iout)
+{
+  Real sum_ = 0;
+  int is = pmb->is, ie = pmb->ie;
+  int js = pmb->js, je = pmb->je;
+  int ks = pmb->ks, ke = pmb->ke;
+
+  AthenaArray<Real> &cstat = pmb->phydro->c2p_status;
+
+  for (int k=ks; k<=ke; k++)
+  for (int j=js; j<=je; j++)
+  for (int i=is; i<=ie; i++)
+  {
+    if (pmb->phydro->c2p_status(k,j,i) > 0)
+      sum_++;
+  }
+
+  return sum_;
+}
+#endif
 
 // ============================================================================
 } // namespace

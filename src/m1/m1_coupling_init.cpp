@@ -68,15 +68,17 @@ void M1::InitializeGeometry(vars_Geom & geom, vars_Scratch & scratch)
 // Update coupled (background) geometry (only _after_ M1 ctor)
 void M1::UpdateGeometry(vars_Geom & geom, vars_Scratch & scratch)
 {
+  GRDynamical* pco_gr = static_cast<GRDynamical*>(pmy_coord);
+
   // Populate storage ---------------------------------------------------------
   if (Z4C_ENABLED)
   {
     Z4c * pz4c = pmy_block->pz4c;
 
     // sliced quantities
-    AT_C_sca sl_alpha(pz4c->storage.u, Z4c::I_Z4c_alpha);
+    AT_C_sca sl_alpha(pz4c->storage.adm, Z4c::I_ADM_alpha);
 
-    AT_N_vec sl_beta_u(pz4c->storage.u, Z4c::I_Z4c_betax);
+    AT_N_vec sl_beta_u(pz4c->storage.adm, Z4c::I_ADM_betax);
 
     AT_N_sym sl_g_dd(pz4c->storage.adm, Z4c::I_ADM_gxx);
     AT_N_sym sl_K_dd(pz4c->storage.adm, Z4c::I_ADM_Kxx);
@@ -97,31 +99,20 @@ void M1::UpdateGeometry(vars_Geom & geom, vars_Scratch & scratch)
 
     // M1: on CC --------------------------------------------------------------
     int IL, IU, JL, JU, KL, KU;
-    pmy_coord->GetGeometricFieldCCIdxRanges(
+    pco_gr->GetGeometricFieldCCIdxRanges(
       IL, IU,
       JL, JU,
       KL, KU);
 
-    // const int IL = pmy_block->is, IU = pmy_block->ie;
-    // const int JL = pmy_block->js, JU = pmy_block->je;
-    // const int KL = pmy_block->ks, KU = pmy_block->ke;
-
     for (int k=KL; k<=KU; ++k)
     for (int j=JL; j<=JU; ++j)
     {
-      pmy_coord->GetGeometricFieldCC(alpha_, sl_alpha, k, j);
+      pco_gr->GetGeometricFieldCC(alpha_, sl_alpha, k, j);
 
-      pmy_coord->GetGeometricFieldCC(beta_u_, sl_beta_u, k, j);
+      pco_gr->GetGeometricFieldCC(beta_u_, sl_beta_u, k, j);
 
-      pmy_coord->GetGeometricFieldCC(g_dd_, sl_g_dd, k, j);
-      pmy_coord->GetGeometricFieldCC(K_dd_, sl_K_dd, k, j);
-
-      for(int a=0; a<NDIM; ++a)
-      {
-        pmy_coord->GetGeometricFieldDerCC(dalpha_d_, sl_alpha,  a, k, j);
-        pmy_coord->GetGeometricFieldDerCC(dbeta_du_, sl_beta_u, a, k, j);
-        pmy_coord->GetGeometricFieldDerCC(dg_ddd_,   sl_g_dd,   a, k, j);
-      }
+      pco_gr->GetGeometricFieldCC(g_dd_, sl_g_dd, k, j);
+      pco_gr->GetGeometricFieldCC(K_dd_, sl_K_dd, k, j);
 
       // Copy to dense storage ------------------------------------------------
       #pragma omp simd
@@ -145,10 +136,52 @@ void M1::UpdateGeometry(vars_Geom & geom, vars_Scratch & scratch)
         geom.sp_g_dd(a,b,k,j,i) = g_dd_(a,b,i);
         geom.sp_K_dd(a,b,k,j,i) = K_dd_(a,b,i);
       }
+    }
 
+    // Derivatives for geometric sources needed on interior -------------------
+    for (int k=mbi.kl; k<=mbi.ku; ++k)
+    for (int j=mbi.jl; j<=mbi.ju; ++j)
+    {
+
+#if !defined(DBG_FD_CX_COORDDIV) || !defined(Z4C_CX_ENABLED)
+      for(int a=0; a<NDIM; ++a)
+      {
+        pco_gr->GetGeometricFieldDerCC(dalpha_d_, sl_alpha,  a, k, j);
+        pco_gr->GetGeometricFieldDerCC(dbeta_du_, sl_beta_u, a, k, j);
+        pco_gr->GetGeometricFieldDerCC(dg_ddd_,   sl_g_dd,   a, k, j);
+      }
+#else
+    FiniteDifference::Uniform * fd_cx = pco_gr->fd_cx;
+
+    for (int a=0; a<NDIM; ++a)
+    #pragma omp simd
+    for (int i=mbi.il; i<=mbi.iu; ++i)
+    {
+      dalpha_d_(a,i) = fd_cx->Dx(a, sl_alpha(k,j,i));
+    }
+
+    for (int a=0; a<NDIM; ++a)
+    for (int b=0; b<NDIM; ++b)
+    #pragma omp simd
+    for (int i=mbi.il; i<=mbi.iu; ++i)
+    {
+      dbeta_du_(b,a,i) = fd_cx->Dx(b, sl_beta_u(a,k,j,i));
+    }
+
+    for (int a=0; a<NDIM; ++a)
+    for (int b=a; b<NDIM; ++b)
+    for (int c=0; c<NDIM; ++c)
+    #pragma omp simd
+    for (int i=mbi.il; i<=mbi.iu; ++i)
+    {
+      dg_ddd_(c,a,b,i) = fd_cx->Dx(c, sl_g_dd(a,b,k,j,i));
+    }
+#endif // DBG_FD_CX_COORDDIV
+
+      // Copy to dense storage ------------------------------------------------
       for(int c = 0; c < NDIM; ++c)
       #pragma omp simd
-      for (int i=IL; i<=IU; ++i)
+      for (int i=mbi.il; i<=mbi.iu; ++i)
       {
         geom.sp_dalpha_d(c,k,j,i) = dalpha_d_(c,i);
       }
@@ -156,17 +189,16 @@ void M1::UpdateGeometry(vars_Geom & geom, vars_Scratch & scratch)
       for(int c = 0; c < NDIM; ++c)
       for(int a = 0; a < NDIM; ++a)
       #pragma omp simd
-      for (int i=IL; i<=IU; ++i)
+      for (int i=mbi.il; i<=mbi.iu; ++i)
       {
         geom.sp_dbeta_du(c,a,k,j,i) = dbeta_du_(c,a,i);
       }
-
 
       for(int c = 0; c < NDIM; ++c)
       for(int a = 0; a < NDIM; ++a)
       for(int b = a; b < NDIM; ++b)
       #pragma omp simd
-      for (int i=IL; i<=IU; ++i)
+      for (int i=mbi.il; i<=mbi.iu; ++i)
       {
         geom.sp_dg_ddd(c,a,b,k,j,i) = dg_ddd_(c,a,b,i);
       }
@@ -184,6 +216,8 @@ void M1::DerivedGeometry(vars_Geom & geom, vars_Scratch & scratch)
 {
   using namespace LinearAlgebra;
 
+  GRDynamical* pco_gr = static_cast<GRDynamical*>(pmy_coord);
+
   AT_C_sca detgamma_(   mbi.nn1);  // spatial met det
   AT_C_sca oo_detgamma_(mbi.nn1);  // 1 / spatial met det
 
@@ -191,7 +225,7 @@ void M1::DerivedGeometry(vars_Geom & geom, vars_Scratch & scratch)
 
   // M1: on CC ----------------------------------------------------------------
   int IL, IU, JL, JU, KL, KU;
-  pmy_coord->GetGeometricFieldCCIdxRanges(
+  pco_gr->GetGeometricFieldCCIdxRanges(
     IL, IU,
     JL, JU,
     KL, KU);

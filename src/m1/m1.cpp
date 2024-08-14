@@ -78,13 +78,13 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS}
   },
-  lab_aux{
-    {N_GRPS,N_SPCS},
+  rhs{
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS}
   },
-  rhs{
+  lab_aux{
+    {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS}

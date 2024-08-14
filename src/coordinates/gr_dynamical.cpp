@@ -295,7 +295,6 @@ void GRDynamical::AddCoordTermsDivergence(
       dbeta_du_(b,a,i) = fd_cx->Dx(b, adm_beta_u(a,k,j,i));
     }
 
-    // Tensors
     for (int a=0; a<NDIM; ++a)
     for (int b=a; b<NDIM; ++b)
     for (int c=0; c<NDIM; ++c)
