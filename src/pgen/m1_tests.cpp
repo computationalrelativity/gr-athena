@@ -195,6 +195,7 @@ void InitM1HomogenousMedium(MeshBlock *pmb, ParameterInput *pin)
   const Real Ye = pin->GetReal("problem", "Y_e");
 #if USETM
   const Real temp = pin->GetReal("problem", "temperature");
+  phydro->temperature.Fill(temp);
 #else
   const Real press = pin->GetReal("problem", "press");
 #endif
