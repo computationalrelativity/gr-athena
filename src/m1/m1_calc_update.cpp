@@ -1711,6 +1711,9 @@ void M1::CalcUpdate(Real const dt,
 
 
     // deal with averages
+
+    // BD: TODO - should always br needed due to internal lab_aux.sc_n
+    //            calculation?
     const bool recompute_n = opt_solver.strategy ==
                              opt_integration_strategy::full_explicit;
     M1_ILOOP3(k,j,i)
