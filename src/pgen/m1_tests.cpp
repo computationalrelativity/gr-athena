@@ -7,15 +7,16 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../coordinates/coordinates.hpp"
-#include "../eos/eos.hpp"                  // EquationOfState
+#include "../eos/eos.hpp"
 #include "../m1/m1.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 
 #include "../z4c/z4c.hpp"
-#include "../hydro/hydro.hpp"              // Hydro
-#include "../field/field.hpp"              // Field
+#include "../hydro/hydro.hpp"
+#include "../field/field.hpp"
 #include "../scalars/scalars.hpp"
+#include "../trackers/extrema_tracker.hpp"
 
 // ============================================================================
 
@@ -971,6 +972,60 @@ namespace {  // impl. details
 
 int RefinementCondition(MeshBlock *pmb)
 {
+  Mesh * pmesh = pmb->pmy_mesh;
+  ExtremaTracker * ptracker_extrema = pmesh->ptracker_extrema;
+
+  int root_level = ptracker_extrema->root_level;
+  int mb_physical_level = pmb->loc.level - root_level;
+
+
+  // Iterate over refinement levels offered by trackers.
+  //
+  // By default if a point is not in any sphere, completely de-refine.
+  int req_level = 0;
+
+  for (int n=1; n<=ptracker_extrema->N_tracker; ++n)
+  {
+    bool is_contained = false;
+    int cur_req_level = ptracker_extrema->ref_level(n-1);
+
+    {
+      if (ptracker_extrema->ref_type(n-1) == 0)
+      {
+        is_contained = pmb->PointContained(
+          ptracker_extrema->c_x1(n-1),
+          ptracker_extrema->c_x2(n-1),
+          ptracker_extrema->c_x3(n-1)
+        );
+      }
+      else if (ptracker_extrema->ref_type(n-1) == 1)
+      {
+        is_contained = pmb->SphereIntersects(
+          ptracker_extrema->c_x1(n-1),
+          ptracker_extrema->c_x2(n-1),
+          ptracker_extrema->c_x3(n-1),
+          ptracker_extrema->ref_zone_radius(n-1)
+        );
+      }
+    }
+
+    if (is_contained)
+    {
+      req_level = std::max(cur_req_level, req_level);
+    }
+
+  }
+
+  if (req_level > mb_physical_level)
+  {
+    return 1;  // currently too coarse, refine
+  }
+  else if (req_level == mb_physical_level)
+  {
+    return 0;  // level satisfied, do nothing
+  }
+
+  // otherwise de-refine
   return -1;
 }
 

@@ -56,7 +56,11 @@ class ExtremaTracker
       wave_auxiliary_ref,
       // Z4c.
       Z4c_alpha,
-      Z4c_chi
+      Z4c_chi,
+      // M1.
+#if M1_ENABLED
+      M1_lab_sc_E_00
+#endif
     };
 
     control_fields control_field;

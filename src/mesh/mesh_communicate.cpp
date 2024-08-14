@@ -162,6 +162,7 @@ void Mesh::FinalizeDiffusion(std::vector<MeshBlock*> & pmb_array)
 
 void Mesh::FinalizeHydroPrimRP(std::vector<MeshBlock*> & pmb_array)
 {
+#if FLUID_ENABLED
   MeshBlock *pmb;
   BoundaryValues *pbval;
 
@@ -194,6 +195,7 @@ void Mesh::FinalizeHydroPrimRP(std::vector<MeshBlock*> & pmb_array)
 
     ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
   }
+#endif // FLUID_ENABLED
 }
 
 void Mesh::FinalizeHydroConsRP(std::vector<MeshBlock*> & pmb_array)
@@ -407,10 +409,10 @@ void Mesh::CommunicateConservedMatter(std::vector<MeshBlock*> & pmb_array)
     pf = pmb->pfield;
     ps = pmb->pscalars;
 
-    if (FLUID_ENABLED) {
+#if FLUID_ENABLED
       ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
       ph->hbvar.SendBoundaryBuffers();
-    }
+#endif // FLUID_ENABLED
 
     if (MAGNETIC_FIELDS_ENABLED)
       pf->fbvar.SendBoundaryBuffers();
@@ -445,6 +447,7 @@ void Mesh::CommunicateConservedMatter(std::vector<MeshBlock*> & pmb_array)
 
 void Mesh::CommunicatePrimitives(std::vector<MeshBlock*> & pmb_array)
 {
+#if FLUID_ENABLED
   MeshBlock *pmb;
   BoundaryValues *pbval;
 
@@ -501,7 +504,7 @@ void Mesh::CommunicatePrimitives(std::vector<MeshBlock*> & pmb_array)
     if (NSCALARS > 0)
       ps->sbvar.var_cc = &(ps->s);
   }
-
+#endif // FLUID_ENABLED
 }
 
 void Mesh::CommunicateAuxZ4c()

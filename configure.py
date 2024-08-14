@@ -786,16 +786,20 @@ definitions["COORDINATE_SYSTEM"] = makefile_options["COORDINATES_FILE"] = args[
 definitions["NON_BAROTROPIC_EOS"] = "0" if args["eos"] == "isothermal" else "1"
 makefile_options["EOS_FILE"] = args["eos"]
 definitions["EQUATION_OF_STATE"] = args["eos"]
+
 # set number of hydro variables for adiabatic/isothermal
 definitions["GENERAL_EOS"] = "0"
 makefile_options["GENERAL_EOS_FILE"] = "noop"
 definitions["EOS_TABLE_ENABLED"] = "0"
+
 # defaults for PrimitiveSolver definitions
 definitions["USE_TM"] = "0"
 definitions["EOS_POLICY"] = ""
 definitions["ERROR_POLICY"] = ""
 definitions["EOS_POLICY_CODE"] = "0"
 definitions["ERROR_POLICY_CODE"] = "0"
+if args["eos"] == "none":
+  definitions["NHYDRO_VARIABLES"] = "0"
 if args["eos"] == "isothermal":
   definitions["NHYDRO_VARIABLES"] = "4"
 elif args["eos"] == "adiabatic" or args["eos"] == "adiabatictaudyn_rep":
@@ -1803,6 +1807,15 @@ with open(defsfile_input, "r") as current_file:
 with open(makefile_input, "r") as current_file:
   makefile_template = current_file.read()
 
+# Deal with EOS
+makefile_options["EOS_FILES"] = ""
+
+# Absence of EOS
+if args["eos"] == "none":
+  print(args["eos"])
+  aux = [ "        src/eos/none.cpp \\" ]
+  makefile_options["EOS_FILES"] = "\n".join(aux) + "\n"
+
 # Add PrimitiveSolver EOS files
 files = [
   args["eospolicy"],
@@ -1810,7 +1823,6 @@ files = [
   "ps_error",
   f'cold_{args["eospolicy"]}',
 ]
-makefile_options["EOS_FILES"] = ""
 if args["eos"] == "eostaudyn_ps":
   aux = [f"        src/z4c/primitive/{f}.cpp \\" for f in files]
   makefile_options["EOS_FILES"] = "\n".join(aux) + "\n"

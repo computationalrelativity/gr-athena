@@ -14,6 +14,7 @@
 #include "../../hydro/hydro.hpp"
 #include "../../scalars/scalars.hpp"
 #include "../../m1/m1.hpp"
+#include "../../trackers/extrema_tracker.hpp"
 #include "../task_list.hpp"
 #include "task_list.hpp"
 
@@ -378,6 +379,12 @@ TaskStatus M1N0::UserWork(MeshBlock *pmb, int stage) {
   if (stage != nstages) return TaskStatus::success; // only do on last stage
 
   pmb->UserWorkInLoop();
+
+#if !Z4C_ENABLED
+  // TODO: BD- this should be shifted to its own task
+  pmb->ptracker_extrema_loc->TreatCentreIfLocalMember();
+#endif
+
   return TaskStatus::success;
 }
 

@@ -21,6 +21,9 @@
 #include "../utils/utils.hpp"
 
 // for registration of control field..
+#if M1_ENABLED
+#include "../m1/m1.hpp"
+#endif
 #include "../wave/wave.hpp"
 #include "../z4c/z4c.hpp"
 
@@ -58,6 +61,12 @@ ExtremaTracker::ExtremaTracker(Mesh * pmesh, ParameterInput * pin,
     {
       control_field = control_fields::Z4c_chi;
     }
+#if M1_ENABLED
+    else if (control_field_name == "M1.lab.sc_E_00")
+    {
+      control_field = control_fields::M1_lab_sc_E_00;
+    }
+#endif // M1_ENABLED
     else
     {
       std::cout << "tracker_extrema unknown control_field" << std::endl;
@@ -409,6 +418,7 @@ ExtremaTrackerLocal::ExtremaTrackerLocal(
     switch (ptracker_extrema->control_field)
     {
       case ExtremaTracker::control_fields::wave_auxiliary_ref:
+      {
         // need to slice and point
         mbi = &pmb->pwave->mbi;
 
@@ -417,8 +427,9 @@ ExtremaTrackerLocal::ExtremaTrackerLocal(
         control_field = &(control_field_slicer);
         // control_field = &(pmb->pwave->aux_ref.auxiliary_ref_field);
         break;
-
+      }
       case ExtremaTracker::control_fields::Z4c_alpha:
+      {
         mbi = &pmb->pz4c->mbi;
         control_field_slicer.InitWithShallowSlice(
           pmb->pz4c->storage.u, Z4c::I_Z4c_alpha, 1
@@ -427,8 +438,9 @@ ExtremaTrackerLocal::ExtremaTrackerLocal(
         control_field = &(control_field_slicer);
 
         break;
-
+      }
       case ExtremaTracker::control_fields::Z4c_chi:
+      {
         mbi = &pmb->pz4c->mbi;
         control_field_slicer.InitWithShallowSlice(
           pmb->pz4c->storage.u, Z4c::I_Z4c_chi, 1
@@ -437,6 +449,26 @@ ExtremaTrackerLocal::ExtremaTrackerLocal(
         control_field = &(control_field_slicer);
 
         break;
+      }
+      case ExtremaTracker::control_fields::M1_lab_sc_E_00:
+      {
+        mbi = &pmb->pm1->mbi;
+
+        const int ix_g = 0;
+        const int ix_s = 0;
+
+        control_field_slicer.InitWithShallowSlice(
+          pmb->pm1->lab.sc_E(ix_g, ix_s).array(), 0, 1
+        );
+
+        control_field = &(control_field_slicer);
+
+        break;
+      }
+      default:
+      {
+        assert(false);
+      }
     }
 
   }
