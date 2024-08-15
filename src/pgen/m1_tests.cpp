@@ -243,9 +243,9 @@ void InitM1HomogenousMedium(MeshBlock *pmb, ParameterInput *pin)
     sp_F_d.ZeroClear();
     sc_nG.ZeroClear();
   }
-
   pm1->InitializeGeometry(pm1->geom, pm1->scratch);
-  pm1->DerivedGeometry(pm1->geom, pm1->scratch);
+  // The following is called in `InitializeGeometry`
+  // pm1->DerivedGeometry(pm1->geom, pm1->scratch);
   pm1->InitializeHydro(pm1->hydro, pm1->geom, pm1->scratch);
   pm1->DerivedHydro(pm1->hydro, pm1->geom, pm1->scratch);
   pm1->CalcOpacity(0.0, pm1->storage.u);
@@ -964,6 +964,40 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                        pz4c->storage.u);
 #endif // Z4C_ENABLED
 
+}
+
+// When Fluid / GR is not sliced & AMR is run, then we need to populate
+// internal e.g. fluid / metric variables; do this prior to PostAMR
+// tasklists
+void MeshBlock::UserWorkMeshUpdatedPrePostAMRHooks(ParameterInput *pin)
+{
+  std::string m1_test = pin->GetOrAddString("problem", "test", "advection");
+
+  if (m1_test == "diffusion_moving_medium")
+  {
+    // fix fluid velocity & opacities for this test
+
+    const Real abs_v = pin->GetReal("problem", "abs_v");
+
+    const Real rho   = pin->GetReal("problem", "rho");
+    const Real kap_s = pin->GetReal("problem", "kap_s");
+
+    const Real W = 1.0 / std::sqrt(1 - SQR(abs_v));
+
+    M1_GLOOP3(k,j,i)
+    {
+      pm1->hydro.sc_W(k,j,i)          = W;
+      pm1->hydro.sp_w_util_u(0,k,j,i) = W * abs_v;
+    }
+
+    for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+    for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+    {
+      AT_C_sca & sc_kap_s = pm1->radmat.sc_kap_s(ix_g,ix_s);
+
+      sc_kap_s.Fill(kap_s);
+    }
+  }
 }
 
 // ============================================================================

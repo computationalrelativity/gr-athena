@@ -139,3 +139,11 @@ void __attribute__((weak)) MeshBlock::WaveUserWorkInLoop() {
   return;
 }
 // -BD
+
+
+// Apply work before calling PostAMRHooks
+void __attribute__((weak))
+MeshBlock::UserWorkMeshUpdatedPrePostAMRHooks(ParameterInput *pin) {
+  // do nothing
+  return;
+}

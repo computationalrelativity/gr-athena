@@ -1521,6 +1521,16 @@ void Mesh::ApplyUserWorkAfterOutput(ParameterInput *pin) {
   }
 }
 
+// ----------------------------------------------------------------------------
+// Apply MeshBlock::UserWorkMeshUpdatedPrePostAMRHooks
+void Mesh::ApplyUserWorkMeshUpdatedPrePostAMRHooks(ParameterInput *pin) {
+  MeshBlock *pmb = pblock;
+  while (pmb != nullptr)  {
+    pmb->UserWorkMeshUpdatedPrePostAMRHooks(pin);
+    pmb = pmb->next;
+  }
+}
+
 //----------------------------------------------------------------------------------------
 // \!fn void Mesh::Initialize(int res_flag, ParameterInput *pin)
 // \brief  initialization before the main loop

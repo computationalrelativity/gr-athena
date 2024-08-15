@@ -201,6 +201,8 @@ int main(int argc, char *argv[])
 
     if (mesh_updated)
     {
+      pmesh->ApplyUserWorkMeshUpdatedPrePostAMRHooks(pinput);
+
       // N.B.
       // At this stage Mesh::Initialize(2, pinputs) has been called
       if (Z4C_ENABLED)

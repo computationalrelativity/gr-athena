@@ -272,6 +272,8 @@ public:
   // TimeIntegratorTaskList and Z4cIntegratorTaskList are both running..
   void WaveUserWorkInLoop();
 
+  // Introduce work that can be registered to execute before postamr hooks
+  void UserWorkMeshUpdatedPrePostAMRHooks(ParameterInput *pin);
   bool PointContained(Real const x, Real const y, Real const z);
   bool PointContainedExclusive(Real const x, Real const y, Real const z);
 
@@ -479,8 +481,13 @@ class Mesh {
 
   // defined in either the prob file or default_pgen.cpp in ../pgen/
   void DeleteTemporaryUserMeshData(); // called in main after ICs
-  void UserWorkAfterLoop(ParameterInput *pin);   // called in main loop
-  void UserWorkInLoop(); // called in main after each cycle
+
+  // called in main loop
+  void UserWorkAfterLoop(ParameterInput *pin);
+  // called in main after each cycle
+  void UserWorkInLoop();
+  // Apply at level of MeshBlock
+  void ApplyUserWorkMeshUpdatedPrePostAMRHooks(ParameterInput *pin);
 
   inline int GetRootLevel() { return root_level; }
 
