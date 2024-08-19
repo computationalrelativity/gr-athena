@@ -450,6 +450,7 @@ ExtremaTrackerLocal::ExtremaTrackerLocal(
 
         break;
       }
+#if M1_ENABLED
       case ExtremaTracker::control_fields::M1_lab_sc_E_00:
       {
         mbi = &pmb->pm1->mbi;
@@ -465,6 +466,7 @@ ExtremaTrackerLocal::ExtremaTrackerLocal(
 
         break;
       }
+#endif 
       default:
       {
         assert(false);
