@@ -612,6 +612,7 @@ inline void TearDown(Collection &ptlc)
   if (M1_ENABLED)
   {
     delete ptlc.m1n0;
+    delete ptlc.postamr_m1n0;
   }
 
   if (WAVE_ENABLED)
