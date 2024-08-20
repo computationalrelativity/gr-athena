@@ -300,7 +300,7 @@ void EquationOfState::ConservedToPrimitive(
       Real dummy  = 0.0;
 
       // cons->prim requires atmosphere reset
-      phydro->q_reset_mask(k,j,i) = (
+      ph->q_reset_mask(k,j,i) = (
         (alpha(i) <= ph->opt_excision.alpha_threshold) ||
         std::isnan(Dg)   ||
         std::isnan(taug) ||
@@ -311,7 +311,7 @@ void EquationOfState::ConservedToPrimitive(
         (Dg < 0.)
       );
 
-      if (~phydro->q_reset_mask(k,j,i))
+      if (~ph->q_reset_mask(k,j,i))
       {
         sm_tensor1<real_t, 3, false>  S_dg(S_1g,
                                            S_2g,
@@ -334,11 +334,11 @@ void EquationOfState::ConservedToPrimitive(
         //recover
         cv2pv(primitives, evolved, g_eos, rep);
 
-        phydro->q_reset_mask(k,j,i) = (
-          phydro->q_reset_mask(k,j,i)  || rep.failed()
+        ph->q_reset_mask(k,j,i) = (
+          ph->q_reset_mask(k,j,i)  || rep.failed()
         );
 
-        if (~phydro->q_reset_mask(k,j,i))
+        if (~ph->q_reset_mask(k,j,i))
         {
           primitives.scatter(w_rho, eps, dummy, w_p,
                              uu1, uu2, uu3, W,
@@ -361,8 +361,8 @@ void EquationOfState::ConservedToPrimitive(
           uu3 *= W;
 
           // check recovered do not need cut
-          phydro->q_reset_mask(k,j,i) = (
-            phydro->q_reset_mask(k,j,i)  ||
+          ph->q_reset_mask(k,j,i) = (
+            ph->q_reset_mask(k,j,i)  ||
             (w_rho < atmo_cut) ||
             // // Below are additional checks (Use with PTCS disabled below)
             (w_p < atmo_cut_p)   ||
@@ -372,7 +372,7 @@ void EquationOfState::ConservedToPrimitive(
       }
 
       // check if atmo. reset required
-      if (phydro->q_reset_mask(k,j,i))
+      if (ph->q_reset_mask(k,j,i))
       {
         w_p   = atmo_p;
         w_rho = atmo_rho;
@@ -399,8 +399,7 @@ void EquationOfState::ConservedToPrimitive(
                                 w_p);
         */
 
-        pmb->phydro->c2p_status(k,j,i) =
-          static_cast<int>(phydro->q_reset_mask(k,j,i));
+        ph->c2p_status(k,j,i) = static_cast<int>(ph->q_reset_mask(k,j,i));
 
       }
 
