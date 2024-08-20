@@ -34,10 +34,15 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
   // Fix the number of stages based on internal M1+N0 method
   nstages = 2;
 
+  //---------------------------------------------------------------------------
+
+  const bool multilevel = pm->multilevel;  // for SMR or AMR logic
+  const bool adaptive   = pm->adaptive;    // AMR
+
   // Now assemble list of tasks for each stage of time integrator
   {
-    Add(UPDATE_BG, NONE, &M1N0::UpdateBackground);
-    Add(CALC_FIDU, UPDATE_BG, &M1N0::CalcFiducialVelocity);
+    Add(UPDATE_BG,    NONE,      &M1N0::UpdateBackground);
+    Add(CALC_FIDU,    UPDATE_BG, &M1N0::CalcFiducialVelocity);
     Add(CALC_CLOSURE, CALC_FIDU, &M1N0::CalcClosure);
 
     // FIDU_FRAME is computed on-the-fly during the updates
@@ -47,36 +52,46 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
 
     Add(CALC_FLUX, CALC_OPAC, &M1N0::CalcFlux);
 
-    Add(SEND_FLUX, CALC_FLUX, &M1N0::SendFlux);
-    Add(RECV_FLUX, NONE, &M1N0::ReceiveAndCorrectFlux);
+    Add(ADD_GRSRC,   CALC_CLOSURE, &M1N0::AddGRSources);
+    Add(ADD_FLX_DIV, (CALC_FLUX|ADD_GRSRC),
+                     &M1N0::AddFluxDivergence);
 
-    Add(ADD_GRSRC, CALC_CLOSURE, &M1N0::AddGRSources);
+    if (multilevel)
+    {
+      Add(SEND_FLUX, CALC_FLUX, &M1N0::SendFluxCorrection);
+      Add(RECV_FLUX, CALC_FLUX, &M1N0::ReceiveAndCorrectFlux);
+      Add(CALC_UPDATE, (RECV_FLUX|ADD_FLX_DIV),
+                       &M1N0::CalcUpdate);
 
-    Add(ADD_FLX_DIV, (CALC_FLUX|ADD_GRSRC), &M1N0::AddFluxDivergence);
+    }
+    else
+    {
+      Add(CALC_UPDATE, ADD_FLX_DIV, &M1N0::CalcUpdate);
+    }
 
-    Add(CALC_UPDATE, (CALC_OPAC|ADD_FLX_DIV), &M1N0::CalcUpdate);
-
-    Add(SEND, CALC_UPDATE, &M1N0::Send);
-    Add(RECV, CALC_UPDATE, &M1N0::Receive);
-
-    Add(UPDATE_COUPLING, RECV, &M1N0::UpdateCoupling);
+    Add(SEND, CALC_UPDATE, &M1N0::SendM1);
+    Add(RECV, CALC_UPDATE, &M1N0::ReceiveM1);
 
     Add(SETB, RECV, &M1N0::SetBoundaries);
 
-    if (pm->multilevel) {
-      Add(PROLONG, (SEND|SETB), &M1N0::Prolongation);
+    Add(UPDATE_COUPLING, SETB, &M1N0::UpdateCoupling);
+
+    if (multilevel)
+    {
+      Add(PROLONG,  SETB,    &M1N0::Prolongation);
       Add(PHY_BVAL, PROLONG, &M1N0::PhysicalBoundary);
     }
-    else {
+    else
+    {
       Add(PHY_BVAL, SETB, &M1N0::PhysicalBoundary);
     }
 
-    Add(USERWORK, (PHY_BVAL|SEND_FLUX|CALC_UPDATE), &M1N0::UserWork);
-    Add(NEW_DT, PHY_BVAL, &M1N0::NewBlockTimeStep);
+    Add(USERWORK, (PHY_BVAL|CALC_UPDATE), &M1N0::UserWork);
+    Add(NEW_DT,   USERWORK,               &M1N0::NewBlockTimeStep);
 
-    if (pm->adaptive)
+    if (adaptive)
     {
-      Add(FLAG_AMR, USERWORK, &M1N0::CheckRefinement);
+      Add(FLAG_AMR,     USERWORK, &M1N0::CheckRefinement);
       Add(CLEAR_ALLBND, FLAG_AMR, &M1N0::ClearAllBoundary);
     }
     else
@@ -90,15 +105,17 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
 //! Initialize the task list
 void M1N0::StartupTaskList(MeshBlock *pmb, int stage)
 {
+  ::M1::M1 * pm1 = pmb->pm1;
+
   if (stage == 1)
   {
     // u1 stores the solution at the beginning of the timestep
-    pmb->pm1->storage.u1 = pmb->pm1->storage.u;
-    // pmb->pm1->storage.u1.DeepCopy(pmb->pm1->storage.u);
+    pm1->storage.u1 = pm1->storage.u;
+    // pm1->storage.u1.DeepCopy(pm1->storage.u);
   }
 
   // Clear the RHS
-  pmb->pm1->storage.u_rhs.ZeroClear();
+  pm1->storage.u_rhs.ZeroClear();
   pmb->pbval->StartReceiving(BoundaryCommSubset::m1);
   return;
 }
@@ -115,12 +132,14 @@ TaskStatus M1N0::ClearAllBoundary(MeshBlock *pmb, int stage)
 // Update external background / dynamical field states
 TaskStatus M1N0::UpdateBackground(MeshBlock *pmb, int stage)
 {
+  ::M1::M1 * pm1 = pmb->pm1;
+
   // Task-list is not interspersed with external field evolution -
   // only need to do this on the first step.
   if (stage <= 1)
   {
-    pmb->pm1->UpdateGeometry(pmb->pm1->geom, pmb->pm1->scratch);
-    pmb->pm1->UpdateHydro(pmb->pm1->hydro, pmb->pm1->geom, pmb->pm1->scratch);
+    pm1->UpdateGeometry(pm1->geom, pm1->scratch);
+    pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
   }
   return TaskStatus::success;
 }
@@ -141,8 +160,11 @@ TaskStatus M1N0::CalcFiducialVelocity(MeshBlock *pmb, int stage)
 // Function to calculate Closure
 TaskStatus M1N0::CalcClosure(MeshBlock *pmb, int stage)
 {
-  if (stage <= nstages) {
-    pmb->pm1->CalcClosure(pmb->pm1->storage.u);
+  ::M1::M1 * pm1 = pmb->pm1;
+
+  if (stage <= nstages)
+  {
+    pm1->CalcClosure(pm1->storage.u);
     return TaskStatus::success;
   }
   return TaskStatus::fail;
@@ -152,8 +174,11 @@ TaskStatus M1N0::CalcClosure(MeshBlock *pmb, int stage)
 // Map (closed) Eulerian fields (E, F_d, P_dd) to (J, H_d)
 TaskStatus M1N0::CalcFiducialFrame(MeshBlock *pmb, int stage)
 {
-  if (stage <= nstages) {
-    pmb->pm1->CalcFiducialFrame(pmb->pm1->storage.u);
+  ::M1::M1 * pm1 = pmb->pm1;
+
+  if (stage <= nstages)
+  {
+    pm1->CalcFiducialFrame(pm1->storage.u);
     return TaskStatus::success;
   }
   return TaskStatus::fail;
@@ -163,10 +188,13 @@ TaskStatus M1N0::CalcFiducialFrame(MeshBlock *pmb, int stage)
 // Function to calculate Opacities
 TaskStatus M1N0::CalcOpacity(MeshBlock *pmb, int stage)
 {
+  Mesh * pm = pmb->pmy_mesh;
+  ::M1::M1 * pm1 = pmb->pm1;
+
   if (stage <= nstages)
   {
-    Real const dt = pmb->pmy_mesh->dt * dt_fac[stage - 1];
-    pmb->pm1->CalcOpacity(dt, pmb->pm1->storage.u);
+    Real const dt = pm->dt * dt_fac[stage - 1];
+    pm1->CalcOpacity(dt, pm1->storage.u);
     return TaskStatus::success;
   }
   return TaskStatus::fail;
@@ -175,9 +203,11 @@ TaskStatus M1N0::CalcOpacity(MeshBlock *pmb, int stage)
 // ----------------------------------------------------------------------------
 TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
 {
+  ::M1::M1 * pm1 = pmb->pm1;
+
   if (stage <= nstages)
   {
-    pmb->pm1->CalcFluxes(pmb->pm1->storage.u);
+    pm1->CalcFluxes(pm1->storage.u);
     return TaskStatus::next;
   }
   return TaskStatus::fail;
@@ -185,11 +215,13 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
 
 // ----------------------------------------------------------------------------
 // Communicate fluxes between MeshBlocks for flux correction with AMR
-TaskStatus M1N0::SendFlux(MeshBlock *pmb, int stage)
+TaskStatus M1N0::SendFluxCorrection(MeshBlock *pmb, int stage)
 {
+  ::M1::M1 * pm1 = pmb->pm1;
+
   if (stage <= nstages)
   {
-    pmb->pm1->ubvar.SendFluxCorrection();
+    pm1->ubvar.SendFluxCorrection();
     return TaskStatus::next;
   }
   return TaskStatus::fail;
@@ -199,9 +231,11 @@ TaskStatus M1N0::SendFlux(MeshBlock *pmb, int stage)
 // Receive fluxes between MeshBlocks
 TaskStatus M1N0::ReceiveAndCorrectFlux(MeshBlock *pmb, int stage)
 {
+  ::M1::M1 * pm1 = pmb->pm1;
+
   if (stage <= nstages)
   {
-    if (pmb->pm1->ubvar.ReceiveFluxCorrection())
+    if (pm1->ubvar.ReceiveFluxCorrection())
     {
       return TaskStatus::next;
     }
@@ -215,8 +249,11 @@ TaskStatus M1N0::ReceiveAndCorrectFlux(MeshBlock *pmb, int stage)
 // ----------------------------------------------------------------------------
 TaskStatus M1N0::AddFluxDivergence(MeshBlock *pmb, int stage)
 {
-  if (stage <= nstages) {
-    pmb->pm1->AddFluxDivergence(pmb->pm1->storage.u_rhs);
+  ::M1::M1 * pm1 = pmb->pm1;
+
+  if (stage <= nstages)
+  {
+    pm1->AddFluxDivergence(pm1->storage.u_rhs);
     return TaskStatus::success;
   }
   return TaskStatus::fail;
@@ -225,10 +262,11 @@ TaskStatus M1N0::AddFluxDivergence(MeshBlock *pmb, int stage)
 // ----------------------------------------------------------------------------
 TaskStatus M1N0::AddGRSources(MeshBlock *pmb, int stage)
 {
+  ::M1::M1 * pm1 = pmb->pm1;
+
   if (stage <= nstages)
   {
-    pmb->pm1->AddSourceGR(pmb->pm1->storage.u,
-                          pmb->pm1->storage.u_rhs);
+    pm1->AddSourceGR(pm1->storage.u, pm1->storage.u_rhs);
     return TaskStatus::success;
   }
   return TaskStatus::fail;
@@ -238,14 +276,15 @@ TaskStatus M1N0::AddGRSources(MeshBlock *pmb, int stage)
 // Update the state vector
 TaskStatus M1N0::CalcUpdate(MeshBlock *pmb, int stage)
 {
+  Mesh * pm = pmb->pmy_mesh;
+  ::M1::M1 * pm1 = pmb->pm1;
+
   if (stage <= nstages)
   {
-    Real const dt = pmb->pmy_mesh->dt * dt_fac[stage - 1];
-    pmb->pm1->CalcUpdate(dt,
-                         pmb->pm1->storage.u1,
-                         pmb->pm1->storage.u,
-                         pmb->pm1->storage.u_rhs,
-                         pmb->pm1->storage.u_sources);
+    Real const dt = pm->dt * dt_fac[stage - 1];
+    pm1->CalcUpdate(dt,
+                    pm1->storage.u1, pm1->storage.u,
+                    pm1->storage.u_rhs, pm1->storage.u_sources);
 
     return TaskStatus::next;
   }
@@ -256,24 +295,26 @@ TaskStatus M1N0::CalcUpdate(MeshBlock *pmb, int stage)
 // Coupling to z4c_matter
 TaskStatus M1N0::UpdateCoupling(MeshBlock *pmb, int stage)
 {
+  ::M1::M1 * pm1 = pmb->pm1;
+
   if (stage == nstages)
   {
-    if (pmb->pm1->opt.couple_sources_hydro)
+    if (pm1->opt.couple_sources_hydro)
     {
-      pmb->pm1->CoupleSourcesHydro(pmb->phydro->u);
+      pm1->CoupleSourcesHydro(pmb->phydro->u);
     }
 
 #if NSCALARS > 0
-    if (pmb->pm1->opt.couple_sources_Y_e)
+    if (pm1->opt.couple_sources_Y_e)
     {
-      if (pmb->pm1->N_SPCS != 3)
+      if (pm1->N_SPCS != 3)
       #pragma omp critical
       {
         std::cout << "M1: couple_sources_Y_e supported for 3 species \n";
         std::exit(0);
       }
       const Real mb = pmb->peos->GetEOS().GetRawBaryonMass();
-      pmb->pm1->CoupleSourcesYe(mb, pmb->pscalars->s);
+      pm1->CoupleSourcesYe(mb, pmb->pscalars->s);
     }
 #endif
 
@@ -291,11 +332,12 @@ TaskStatus M1N0::UpdateCoupling(MeshBlock *pmb, int stage)
 }
 
 // ----------------------------------------------------------------------------
-TaskStatus M1N0::Send(MeshBlock *pmb, int stage)
+TaskStatus M1N0::SendM1(MeshBlock *pmb, int stage)
 {
+  ::M1::M1 * pm1 = pmb->pm1;
   if (stage <= nstages)
   {
-    pmb->pm1->ubvar.SendBoundaryBuffers();
+    pm1->ubvar.SendBoundaryBuffers();
   }
   else
   {
@@ -306,12 +348,14 @@ TaskStatus M1N0::Send(MeshBlock *pmb, int stage)
 
 
 // ----------------------------------------------------------------------------
-TaskStatus M1N0::Receive(MeshBlock *pmb, int stage)
+TaskStatus M1N0::ReceiveM1(MeshBlock *pmb, int stage)
 {
+  ::M1::M1 * pm1 = pmb->pm1;
+
   bool ret;
   if (stage <= nstages)
   {
-    ret = pmb->pm1->ubvar.ReceiveBoundaryBuffers();
+    ret = pm1->ubvar.ReceiveBoundaryBuffers();
   }
   else
   {
@@ -331,9 +375,11 @@ TaskStatus M1N0::Receive(MeshBlock *pmb, int stage)
 // ----------------------------------------------------------------------------
 TaskStatus M1N0::SetBoundaries(MeshBlock *pmb, int stage)
 {
+  ::M1::M1 * pm1 = pmb->pm1;
+
   if (stage <= nstages)
   {
-    pmb->pm1->ubvar.SetBoundaries();
+    pm1->ubvar.SetBoundaries();
     return TaskStatus::success;
   }
   return TaskStatus::fail;
@@ -343,9 +389,11 @@ TaskStatus M1N0::SetBoundaries(MeshBlock *pmb, int stage)
 TaskStatus M1N0::Prolongation(MeshBlock *pmb, int stage)
 {
   BoundaryValues *pbval = pmb->pbval;
+  Mesh * pm = pmb->pmy_mesh;
+
   if (stage <= nstages) {
-    Real const dt = pmb->pmy_mesh->dt * dt_fac[stage - 1];
-    Real t_end_stage = pmb->pmy_mesh->time + dt;
+    Real const dt = pm->dt * dt_fac[stage - 1];
+    Real t_end_stage = pm->time + dt;
     pbval->ProlongateBoundariesM1(t_end_stage, dt);
     return TaskStatus::success;
   }
@@ -375,7 +423,8 @@ TaskStatus M1N0::PhysicalBoundary(MeshBlock *pmb, int stage)
 }
 
 // ----------------------------------------------------------------------------
-TaskStatus M1N0::UserWork(MeshBlock *pmb, int stage) {
+TaskStatus M1N0::UserWork(MeshBlock *pmb, int stage)
+{
   if (stage != nstages) return TaskStatus::success; // only do on last stage
 
   pmb->UserWorkInLoop();
@@ -392,9 +441,11 @@ TaskStatus M1N0::UserWork(MeshBlock *pmb, int stage) {
 // Determine the new timestep (used for the time adaptivity)
 TaskStatus M1N0::NewBlockTimeStep(MeshBlock *pmb, int stage)
 {
+  ::M1::M1 * pm1 = pmb->pm1;
+
   if (stage != nstages) return TaskStatus::success; // only do on last stage
 
-  pmb->pm1->NewBlockTimeStep();
+  pm1->NewBlockTimeStep();
   return TaskStatus::success;
 }
 

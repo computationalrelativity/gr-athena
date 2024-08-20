@@ -621,10 +621,19 @@ void CellCenteredBoundaryVariable::StartReceiving(BoundaryCommSubset phase) {
     NeighborBlock& nb = pbval_->neighbor[n];
     if (nb.snb.rank != Globals::my_rank) {
       MPI_Start(&(bd_var_.req_recv[nb.bufid]));
-      if(FLUID_ENABLED || M1_ENABLED) {
-        if (phase == BoundaryCommSubset::all && nb.ni.type == NeighborConnect::face
-            && nb.snb.level > mylevel) // opposite condition in ClearBoundary()
+      if(FLUID_ENABLED || M1_ENABLED)
+      {
+        const bool phase_comm_fc = (
+          (phase == BoundaryCommSubset::all) ||
+          (phase == BoundaryCommSubset::m1)
+        );
+
+        if (phase_comm_fc &&
+            nb.ni.type == NeighborConnect::face &&
+            nb.snb.level > mylevel) // opposite condition in ClearBoundary()
+        {
           MPI_Start(&(bd_var_flcor_.req_recv[nb.bufid]));
+        }
       }
     }
 
@@ -654,10 +663,18 @@ void CellCenteredBoundaryVariable::ClearBoundary(BoundaryCommSubset phase) {
       // Wait for Isend
       MPI_Wait(&(bd_var_.req_send[nb.bufid]), MPI_STATUS_IGNORE);
 
-      if (FLUID_ENABLED || M1_ENABLED) {
-        if (phase == BoundaryCommSubset::all && nb.ni.type == NeighborConnect::face
-            && nb.snb.level < mylevel)
+      if (FLUID_ENABLED || M1_ENABLED)
+      {
+        const bool phase_comm_fc = (
+          (phase == BoundaryCommSubset::all) ||
+          (phase == BoundaryCommSubset::m1)
+        );
+        if (phase_comm_fc &&
+            nb.ni.type == NeighborConnect::face &&
+            nb.snb.level < mylevel)
+        {
           MPI_Wait(&(bd_var_flcor_.req_send[nb.bufid]), MPI_STATUS_IGNORE);
+        }
       }
 
     }

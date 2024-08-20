@@ -30,7 +30,7 @@ public:
   TaskStatus CalcOpacity(MeshBlock *pmb, int stage);
 
   TaskStatus CalcFlux(MeshBlock *pmb, int stage);
-  TaskStatus SendFlux(MeshBlock *pmb, int stage);
+  TaskStatus SendFluxCorrection(MeshBlock *pmb, int stage);
   TaskStatus ReceiveAndCorrectFlux(MeshBlock *pmb, int stage);
 
   TaskStatus AddGRSources(MeshBlock *pmb, int stage);
@@ -38,8 +38,8 @@ public:
   TaskStatus CalcUpdate(MeshBlock *pmb, int stage);
   TaskStatus UpdateCoupling(MeshBlock *pmb, int stage);
 
-  TaskStatus Send(MeshBlock *pmb, int stage);
-  TaskStatus Receive(MeshBlock *pmb, int stage);
+  TaskStatus SendM1(MeshBlock *pmb, int stage);
+  TaskStatus ReceiveM1(MeshBlock *pmb, int stage);
 
   TaskStatus SetBoundaries(MeshBlock *pmb, int stage);
 

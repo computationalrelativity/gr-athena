@@ -72,13 +72,15 @@ TaskStatus PostAMR_M1N0::CalcClosure(MeshBlock *pmb, int stage)
 // Function to calculate Opacities
 TaskStatus PostAMR_M1N0::CalcOpacity(MeshBlock *pmb, int stage)
 {
+  ::M1::M1 * pm1 = pmb->pm1;
+
   if (!pmb->IsNewFromAMR())
   {
     return TaskStatus::success;
   }
 
   const Real dt = 0;
-  pmb->pm1->CalcOpacity(0, pmb->pm1->storage.u);
+  pm1->CalcOpacity(0, pm1->storage.u);
 
   return TaskStatus::success;
 }
