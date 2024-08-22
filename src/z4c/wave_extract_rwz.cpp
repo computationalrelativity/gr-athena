@@ -189,6 +189,8 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh * pmesh, ParameterInput * pin, int n):
   ioproc = true;
 #endif
 
+  outprec = pin->GetOrAddInteger("rwz_extraction", "output_digits", 6);
+  
   if (ioproc) {
       // Baseline names
       ofbname[Iof_hlm] = pin->GetOrAddString("rwz_extraction", "filename_hlm", "wave_rwz");
@@ -199,6 +201,8 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh * pmesh, ParameterInput * pin, int n):
       ofbname[Iof_Psie_dyn] += "_dyn";
       ofbname[Iof_Psio_dyn] = ofname[Iof_Psio];
       ofbname[Iof_Psio_dyn] += "_dyn";
+      ofbname[Iof_Qplus] = pin->GetOrAddString("rwz_extraction", "filename_Qplus", "wave_Qplus");
+      ofbname[Iof_Qstar] = pin->GetOrAddString("rwz_extraction", "filename_Qstar", "wave_Qstar");      
   }// if (ioproc)
 
 }
@@ -328,13 +332,13 @@ void WaveExtractRWZ::Write(int iter, Real time) {
       msg << "Could not open file '" << ofname << "' for writing!";
       throw std::runtime_error(msg.str().c_str());
     }
-    //TODO DATA FORMATTING ...
     outfile << iter << " "
-	    << time << " "
-	    << Schwarzschild_radius << " "
-	    << Schwarzschild_mass << " "
-	    << dt_rsch << " "
-	    << norm_Delta_Gamma << " "
+	    << std::setprecision(outprec) << std::scientific << time << " "
+	    << std::setprecision(outprec) << std::scientific << Schwarzschild_radius << " "
+	    << std::setprecision(outprec) << std::scientific << Schwarzschild_mass << " "
+	    << std::setprecision(outprec) << std::scientific << dt_rsch << " "
+	    << std::setprecision(outprec) << std::scientific << norm_Delta_Gamma << " "
+	    << std::setprecision(outprec) << std::scientific << norm_Tr_kappa_dd << " "
 	    << std::endl;
     outfile.close();	 
   }
@@ -348,10 +352,14 @@ void WaveExtractRWZ::Write(int iter, Real time) {
       msg << "Could not open file '" << ofname << "' for writing!";
       throw std::runtime_error(msg.str().c_str());
     }	  
-    //TODO add HEADER
-    //     mass, dotr, constraints, etc
-    //    fprintf(pofile, " %d:mass %d:dotr ", idx++, mass,   idx++, radius);
-    outfile << "# 1:iter 2:time" << std::endl;
+    outfile << "# 1:iter " 
+	    << "2:time "
+	    << "3:SchwarzschildRradius "
+      	    << "4:SchwarzschildMass "
+	    << "5:SchwarzschildRadius_dot "
+      	    << "6:NormDeltaGamma "
+	    << "7:NormTracekappaAB "
+	    << std::endl;
     outfile.close();       
   }
   
@@ -362,6 +370,8 @@ void WaveExtractRWZ::Write(int iter, Real time) {
   data.push_back(Psio);
   data.push_back(Psie_dyn);
   data.push_back(Psio_dyn);
+  data.push_back(Qplus);
+  data.push_back(Qstar);
   
   for (int i = Iof_monitor+1; i < Iof_idx_Num; ++i) {
     
@@ -378,29 +388,27 @@ void WaveExtractRWZ::Write(int iter, Real time) {
 
       if (i==Iof_hlm) {
 	// This should be the last output since there is no storage for hlm:
-	// they are computed normalizing the Psi
+	// they are computed normalizing the Psi. We also multiply by the coord. radius
 	for (int l = 2; l <= lmax; ++l) {
-	  const Real NRWZ = RWZnorm(l)
+	  const Real NRWZ = Radius * RWZnorm(l);
 	  for (int m = -l; m <= l; ++m) {
 	    const Real hlm_R = NRWZ *(Psie(lm,Re) + Psio(lm,Re));
 	    const Real hlm_I = NRWZ *(Psie(lm,Im) + Psio(lm,Im));
-	    //TODO DATA FORMATTING ...
-	    outfile << iter << " " << time <<  " "
-	    << hlm_R << " "
-	    << hlm_I << " "; 
+	    outfile << iter << " "
+		    << std::setprecision(outprec) << std::scientific << time <<  " "
+		    << std::setprecision(outprec) << std::scientific << hlm_R << " "
+		    << std::setprecision(outprec) << std::scientific << hlm_I << " "; 
 	  }
 	}
 	outfile << std::endl;
-      }
-      
+      }      
       else {      
 	for (int l = 2; l <= lmax; ++l) {
 	  for (int m = -l; m <= l; ++m) {
-	    //TODO DATA FORMATTING ...
 	    outfile << iter << " "
-		    << time <<  " "
-		    << data(i-1)(lm,Re) << " "
-		    << data(i-1)(lm,Im) << " "; 
+		    << std::setprecision(outprec) << std::scientific << time <<  " "
+		    << std::setprecision(outprec) << std::scientific << data(i-1)(lm,Re) << " "
+		    << std::setprecision(outprec) << std::scientific << data(i-1)(lm,Im) << " "; 
 	  }
 	}
 	outfile << std::endl;
@@ -418,8 +426,7 @@ void WaveExtractRWZ::Write(int iter, Real time) {
 	msg << "Could not open file '" << ofname << "' for writing!";
 	throw std::runtime_error(msg.str().c_str());
       }	  
-      outfile << "# 1:iter"
-	      << "2:time";
+      outfile << "# 1:iter 2:time";
       int idx = 3;
       for (int l = 2; l <= lmax; ++l) {
 	for (int m = -l; m <= l; ++m) {
@@ -433,7 +440,8 @@ void WaveExtractRWZ::Write(int iter, Real time) {
     
   }// for i in Iof_*
 
-  data.clear();  
+  data.resize(0);  
+  //data.clear();  
 }
 
 //----------------------------------------------------------------------------------------
@@ -479,7 +487,7 @@ int WaveExtractRWZ::TPIndex(const int i, const int j) {
 //        uses PointContained(x,y,z)) which works on physical points (not ghosts)
 void WaveExtractRWZ::FlagSpherePointsContained(MeshBlock * pmb) {
 
-  havepoint.ZeroClear();
+  havepoint.ZeroClear(); // no points on this rank by default.
   
   // Center of the sphere
   const Real xc = center[0];
@@ -510,7 +518,7 @@ void WaveExtractRWZ::FlagSpherePointsContained(MeshBlock * pmb) {
       if (bitant) z = std::abs(z);
       
       if (pmb->PointContained(x,y,z)) {
-	// This sphere point is in this rank
+	// This sphere point is in this rank!
 	havepoint(i,j) += 1; 
       } 
       
@@ -690,7 +698,6 @@ void WaveExtractRWZ::SphHarm_Ylm(const int l, const int m, const Real theta, con
 //             				    Real * XR, Real * XI, Real * WR, Real * WI)
 // \brief compute vector spherical harmonics basis and functions Xlm and Wlm
 //
-
 
 // NB Follow closely the cactus implementation
 // https://bitbucket.org/einsteintoolkit/einsteinanalysis/src/b7d79de8b744005b5513ee6d76822ad7db33a4a8/Extract/src/D2_extract.F#lines-871
@@ -1104,7 +1111,11 @@ void WaveExtractRWZ::BackgroundReduce() {
     ATHENA_ERROR(msg);
   }
     
-  // All the data is here, time to finalize the background computation 
+  // All the data is here, time to finalize the background computation
+  // -----------------------------------------------------------------
+  // Update all quantities using the transformation of the metric components
+  // from the isotropic radius R to the Schwarzschild radius r
+  // Note variables are overwritten here, order matters!
   // -----------------------------------------------------------------
 
   rsch = std::sqrt(rsch2);
@@ -1129,12 +1140,8 @@ void WaveExtractRWZ::BackgroundReduce() {
   Real dt_g00 = integrals_background[Idt_g00];
   Real dt_got = integrals_background[Idt_g0r];
   Real dt_grr = integrals_background[Idt_grr];
-  
-  // Update all quantities using the 
-  // transformation of the metric components from the 
-  // isotropic radius R to the Schwarzschild radius r
-  // Note variables are overwritten here, order matters!
-  // ---------------------------------------------------
+
+  //TODO this is taken from cactus: needs a check based on what finally ended in integrals_background
   
   // Time derivatives of Schwarzschild radius
   dt_rsch      = 1.0/(8.0t*PI*rsch)*dt_rsch;
@@ -1228,7 +1235,6 @@ void WaveExtractRWZ::BackgroundReduce() {
   g_dt_dd(0,0) = dt_g00; 
   g_dt_dd(0,1) = dt_g0r;
   g_dt_dd(1,1) = dt_grr; 
-
   
   g_uu(0,0) = g00_uu;
   g_uu(0,1) = g0r_uu;
@@ -1375,8 +1381,10 @@ void WaveExtractRWZ::MultipoleReduce() {
     }// for m
   }// for l
   
-  // Compute the various gauge-invariant master functions
-  MasterFuns();  
+  // Compute the various gauge-invariant functions
+  MultipolesGaugeInvariant();
+  MasterFuns();
+  
 }
 
 //----------------------------------------------------------------------------------------
@@ -1394,13 +1402,15 @@ void WaveExtractRWZ::MasterFuns() {
 
   const Real S = -(1.0-2.0*M*div_r);
   const Real abs_detg = std::fabs(g_dd(0,0) * g_dd(1,1) - SQR(g_dd(0,1)));
-  const Real div_abs_detg = 1.0/(std:sqrt(abs_detg));
+  const Real div_sqrtdetg = 1.0/(std:sqrt(abs_detg));
   
   for(int l=2; l<=lmax; ++l) {
     const Real lambda = l*(l+1);
     const Real div_lambda_2 = 1.0/(lambda-2.0);
     const Real fac_Psie = (2.0*r)/((lambda-2)*r + 6.0*M);
     const Real r_div_lambda = r/lambda;
+    const Real Lam  = (l-1)*(l-2) + 6*M*div_r;
+    const Real Qpnorm = std::sqrt(2*(l-1)*(l-2)/lambda)/Lam;
     
     for(int m=-l; m<=l; ++m) {
       const int lm = MIndex(l,m);
@@ -1408,11 +1418,9 @@ void WaveExtractRWZ::MasterFuns() {
 	  
 	// Even parity in Schwarschild coordinates
 	
-	const Real Lam  = (l-1)*(l-2) + 6*M*div_r;
-	const Real norm = std::sqrt(2*(l-1)*(l-2)/lambda)/Lam;
-	const Real Qplus_ = norm*( lambda*S*( r2*G_dr(lm,c) -2*h1(lm,c) )
-				   + 2.0*r*S*( S*h11(lm,c) - r*K_dr(lm,c) )
-				   + r*Lam*K(lm,c) );
+	const Real Qplus_ = Qpnorm*( lambda*S*( r2*G_dr(lm,c) -2*h1(lm,c) )
+				     + 2.0*r*S*( S*h11(lm,c) - r*K_dr(lm,c) )
+				     + r*Lam*K(lm,c) );
 	
 	Psie_sch(lm,c) = Qplus_/(std::sqrt(2.0*lambda(lambda-2.0)));
 	Qplus(lm,c) = Qplus_;
@@ -1475,7 +1483,7 @@ void WaveExtractRWZ::MasterFuns() {
 	
 	// Odd parity in general coordinates (static)
 	
-	Psio(lm,c) = Psio_sch_ * div_abs_detg;
+	Psio(lm,c) = Psio_sch_ * div_sqrtdetg;
 	
 	// Even parity in general coordinates (dynamic)
 	
@@ -1499,7 +1507,7 @@ void WaveExtractRWZ::MasterFuns() {
 	coef_G_dr_t *= r*g_uu(0,1);
 	
 	Real coef_G_dt_t = -2.0*r*std::pow(g_uu(0,1),3)*g_dt_dd(0,1)
-	  - 2.0*g_uu(0,1)*g_dt_uu(0,1) //CHECK g_dt_uu(0,1) in the notes
+	  - 2.0*g_uu(0,1)*g_dt_uu(0,1) //CHECK in the notes
 	  - SQR(g_uu(0,1))*g_uu(0,0)*g_dt_dd(0,0)
 	  + g_uu(1,1)*(g_uu(1,1)*g_uu(0,0)-2.0*SQR(g_uu(0,1)))*g_dt_dd(1,1);
 	
@@ -1524,7 +1532,7 @@ void WaveExtractRWZ::MasterFuns() {
 	// Odd parity in general coordinates (dynamic)
 
 	Psio_dyn(lm,c) = ( r*(H1_dt(lm,c) - H0_dr(lm,c)) + 2.0*(H0(lm,c) - H1(lm,c)*rdot) );
-	Psio_dyn(lm,c) *= div_lambda_2*div_abs_detg;	
+	Psio_dyn(lm,c) *= div_lambda_2*div_sqrtdetg;	
 	
       }// real& imag
     }// for m
@@ -1551,11 +1559,12 @@ void WaveExtractRWZ::MultipolesGaugeInvariant() {
   const Real G_dt2 = 0.0;
   const Real G_dtdr = 0.0;
   const Real G_dr2 = 0.0; 
+
+  norm_Tr_kappa_dd = 0.0;
   
   for(int l=2; l<=lmax; ++l) {
     for(int m=-l; m<=l; ++m) {
       const int lm = MIndex(l,m);
-
       for(int c=0; c<RealImag; ++c) {
 
 	// even-parity
@@ -1578,11 +1587,9 @@ void WaveExtractRWZ::MultipolesGaugeInvariant() {
 	  + r2*(G_dr2 - Gamma_dyn(0,1,1)*G_dt(lm,c) - Gamma_dyn(1,1,1)*G_dr(lm,c));
 	
 	kappa(lm,c) = K(lm,c);
-	kappa(lm,c) -= (
-			g_uu(0,0) *rdot*( 2.0*h0(lm,c) - r2*G_dt(lm,c) ) +
+	kappa(lm,c) -= (g_uu(0,0) *rdot*( 2.0*h0(lm,c) - r2*G_dt(lm,c) ) +
 			g_uu(0,1) *( rdot*(2.0*h1(lm,c)-r2*G_dr(lm,c)) + 2.0*h0(lm,c) -r2G_dt(lm,c) ) +
-			g_uu(1,1) *(2.0*h1(lm,c)-r2*G_dr(lm,c)) 
-			)*div_r;
+			g_uu(1,1) *(2.0*h1(lm,c)-r2*G_dr(lm,c)) )*div_r;
 	  
 	// odd-parity
 	kappa_d(0,lm,c) = H0(lm,c) - H0_dt(lm,c) + H(lm,c)*2.0*rdot*div_r; 
@@ -1594,20 +1601,15 @@ void WaveExtractRWZ::MultipolesGaugeInvariant() {
 	  for (int B=0; B<2; ++B) {
 	    Tr_kappa_dd(lm,c) += g_uu(A,B)*kappa_dd(A,B,lm,c);
 	  }
+
+	norm_Tr_kappa_dd += SQ(Tr_kappa_dd(lm,c))
 	
       }// real&imag
       
     }// for m
   }// for l
 
+  norm_Tr_kappa_dd = std::sqrt(norm_Tr_kappa_dd);
+  
 }
-
-
-
-
-
- 
-
-
-
 

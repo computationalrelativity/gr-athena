@@ -87,6 +87,7 @@ private:
   void InterpMetricToSphere(MeshBlock * pmb);
   void TransformMetricCarToSph();
   void MasterFuns();
+  void MultipolesGaugeInvariant();
   
   //! Functions for output
   std::string OutputFileName(std::string base);
@@ -100,7 +101,7 @@ private:
   //! Grid points in theta and phi
   AthenaArray<Real> th_grid, ph_grid;
   
-  //! Flag points
+  //! Flag sphere points on this rank
   AthenaArray<int> havepoint;
   
   //! Arrays for the various fields on the sphere
@@ -141,8 +142,9 @@ private:
   AthenaTensor<Real, TensorSymm::SYM2, 0, 2> kappa_dd;
   AthenaTensor<Real, TensorSymm::NONE, 0, 1> kappa_d;
   AthenaArray<Real> kappa, Tr_kappa_dd;
-
-  //! enum for real/imag (0/1) part of complex fields
+  Real norm_Tr_kappa_dd;
+  
+  //! Indexes for real/imag (0/1) part of complex fields
   enum{Re, Im, RealImag};
   
   //! Arrays for sphere integrals
@@ -184,7 +186,8 @@ private:
   bool bitant;
   int root;
   int ioproc;
-
+  int outprec;
+  
   // Indexes for basenames of various output files
   enum {
     Iof_diagnostic,// This should be first!
@@ -192,6 +195,8 @@ private:
     Iof_Psio, 
     Iof_Psie_dyn, 
     Iof_Psio_dyn,
+    Iof_Qplus,
+    Iof_Qstar,
     Iof_hlm, // This should be last!
     Iof_Num, 
   };
