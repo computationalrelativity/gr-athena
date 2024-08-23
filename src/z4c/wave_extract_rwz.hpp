@@ -69,7 +69,7 @@ private:
   Real dph_grid();
   int TPIndex(const int i, const int j);
   void FlagSpherePointsContained(MeshBlock * pmb);
-  void SetWeightsIntegral();
+  void SetWeightsIntegral(int method);
   
   //! Functions for spherical harmonics
   int MPoints(const int l);
@@ -109,17 +109,19 @@ private:
   //! Arrays for the various fields on the sphere
   
   // 3+1 metric
-  AthenaTensor<Real, TensorSymm::SYM2, 2, 2> gamma_dd;
-  AthenaTensor<Real, TensorSymm::SYM2, 2, 2> dr_gamma_dd;
-  AthenaTensor<Real, TensorSymm::SYM2, 2, 2> dr2_gamma_dd;
-  AthenaTensor<Real, TensorSymm::SYM2, 2, 2> dot_gamma_dd;  
-  AthenaTensor<Real, TensorSymm::NONE, 2, 1> beta_u;
-  AthenaTensor<Real, TensorSymm::NONE, 2, 1> dr_beta_u;  
-  AthenaTensor<Real, TensorSymm::NONE, 2, 1> dot_beta_u;
-  AthenaTensor<Real, TensorSymm::NONE, 2, 1> beta_d;
-  AthenaTensor<Real, TensorSymm::NONE, 2, 0> alpha;
-  AthenaTensor<Real, TensorSymm::NONE, 2, 0> dr_alpha;
-  AthenaTensor<Real, TensorSymm::NONE, 2, 0> dot_alpha;
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> gamma_dd;
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> dr_gamma_dd;
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> dr2_gamma_dd;
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> dot_gamma_dd;  
+  AthenaTensor<Real, TensorSymm::NONE, 3, 1> beta_u;
+  AthenaTensor<Real, TensorSymm::NONE, 3, 1> dr_beta_u;  
+  AthenaTensor<Real, TensorSymm::NONE, 3, 1> dot_beta_u;
+  AthenaTensor<Real, TensorSymm::NONE, 3, 1> beta_d;
+  AthenaTensor<Real, TensorSymm::NONE, 3, 1> dr_beta_d;
+  AthenaTensor<Real, TensorSymm::NONE, 3, 1> dot_beta_d;
+  AthenaTensor<Real, TensorSymm::NONE, 3, 0> alpha;
+  AthenaTensor<Real, TensorSymm::NONE, 3, 0> dr_alpha;
+  AthenaTensor<Real, TensorSymm::NONE, 3, 0> dot_alpha;
 
   //! Spherical harmonics on the sphere (complex -> 2 components)
   AthenaArray<Real> Y, Yth, Yph, X, W;
