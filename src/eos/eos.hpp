@@ -41,32 +41,11 @@ class EquationOfState {
  public:
   EquationOfState(MeshBlock *pmb, ParameterInput *pin);
 
-  #if USETM
-  void ConservedToPrimitive(
-      AthenaArray<Real> &cons, const AthenaArray<Real> &prim_old, const FaceField &b,
-      AthenaArray<Real> &prim,
-      AthenaArray<Real> &cons_scalar, AthenaArray<Real> &prim_scalar, AthenaArray<Real> &bcc,
-      Coordinates *pco, int il, int iu, int jl, int ju, int kl, int ku, int coarseflag);
-  #else
-  void ConservedToPrimitive(
-      AthenaArray<Real> &cons, const AthenaArray<Real> &prim_old, const FaceField &b,
-      AthenaArray<Real> &prim, AthenaArray<Real> &bcc,
-      Coordinates *pco, int il, int iu, int jl, int ju, int kl, int ku, int coarseflag);
-  #endif
-
-
   // BD: Avoid messy macro pollution with some polymorphism & interfaces ------
   void PassiveScalarConservedToPrimitive(AthenaArray<Real> &s,
                                          const AthenaArray<Real> &w,
                                          const AthenaArray<Real> &r_old,
                                          AthenaArray<Real> &r,
-                                         Coordinates *pco,
-                                         int il, int iu,
-                                         int jl, int ju,
-                                         int kl, int ku);
-  void PassiveScalarPrimitiveToConserved(const AthenaArray<Real> &r,
-                                         const AthenaArray<Real> &w,
-                                         AthenaArray<Real> &s,
                                          Coordinates *pco,
                                          int il, int iu,
                                          int jl, int ju,
@@ -84,6 +63,17 @@ class EquationOfState {
                             int kl, int ku,
                             int coarseflag);
 #else
+  void ConservedToPrimitive(AthenaArray<Real> &cons,
+                            const AthenaArray<Real> &prim_old,
+                            const FaceField &b,
+                            AthenaArray<Real> &prim,
+                            AthenaArray<Real> &bcc,
+                            Coordinates *pco,
+                            int il, int iu,
+                            int jl, int ju,
+                            int kl, int ku,
+                            int coarseflag);
+
   inline void ConservedToPrimitive(AthenaArray<Real> &cons,
                                    const AthenaArray<Real> &prim_old,
                                    const FaceField &b,
@@ -111,6 +101,16 @@ class EquationOfState {
     }
   }
 #endif // USETM
+
+  // Similarly for PrimitiveToConserved ---------------------------------------
+
+  void PassiveScalarPrimitiveToConserved(const AthenaArray<Real> &r,
+                                         const AthenaArray<Real> &w,
+                                         AthenaArray<Real> &s,
+                                         Coordinates *pco,
+                                         int il, int iu,
+                                         int jl, int ju,
+                                         int kl, int ku);
 
 #if Z4C_ENABLED & FLUID_ENABLED
   #if USETM
