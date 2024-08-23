@@ -69,7 +69,8 @@ private:
   Real dph_grid();
   int TPIndex(const int i, const int j);
   void FlagSpherePointsContained(MeshBlock * pmb);
-
+  void SetWeightsIntegral();
+  
   //! Functions for spherical harmonics
   int MPoints(const int l);
   int MIndex(const int l, const int m);
@@ -94,12 +95,13 @@ private:
 
   //! Schwarzschild radius, its time drvt, 
   //  the (dr_schwarzschild/dr_isotropic) Jacobians and its time drvt
-  Real rsch, dt_rsch;
+  Real rsch, dot_rsch, dot2_rsch;
   Real drsch_dri, d2rsch_dri2, drsch_dri_dot;
   Real dri_drsch, d2ri_drsch2, dri_drsch_dot;
     
   //! Grid points in theta and phi
   AthenaArray<Real> th_grid, ph_grid;
+  AthenaArray<Real> weights;
   
   //! Flag sphere points on this rank
   AthenaArray<int> havepoint;
@@ -108,12 +110,15 @@ private:
   
   // 3+1 metric
   AthenaTensor<Real, TensorSymm::SYM2, 2, 2> gamma_dd;
-  AthenaTensor<Real, TensorSymm::SYM2, 2, 3> dgamma_ddd;
+  AthenaTensor<Real, TensorSymm::SYM2, 2, 2> dr_gamma_dd;
+  AthenaTensor<Real, TensorSymm::SYM2, 2, 2> dr2_gamma_dd;
   AthenaTensor<Real, TensorSymm::SYM2, 2, 2> dot_gamma_dd;  
-  AthenaTensor<Real, TensorSymm::NONE, 2, 1> beta_u;  
+  AthenaTensor<Real, TensorSymm::NONE, 2, 1> beta_u;
+  AthenaTensor<Real, TensorSymm::NONE, 2, 1> dr_beta_u;  
   AthenaTensor<Real, TensorSymm::NONE, 2, 1> dot_beta_u;
   AthenaTensor<Real, TensorSymm::NONE, 2, 1> beta_d;
   AthenaTensor<Real, TensorSymm::NONE, 2, 0> alpha;
+  AthenaTensor<Real, TensorSymm::NONE, 2, 0> dr_alpha;
   AthenaTensor<Real, TensorSymm::NONE, 2, 0> dot_alpha;
 
   //! Spherical harmonics on the sphere (complex -> 2 components)
@@ -123,9 +128,9 @@ private:
   AthenaTensor<Real, TensorSymm::SYM2, 0, 2> g_dd;
   AthenaTensor<Real, TensorSymm::SYM2, 0, 2> g_uu;
   AthenaTensor<Real, TensorSymm::SYM2, 0, 2> g_dr_dd; //d/dr g_AB
-  AthenaTensor<Real, TensorSymm::SYM2, 0, 2> g_dt_dd; //d/dt g_AB
+  AthenaTensor<Real, TensorSymm::SYM2, 0, 2> g_dot_dd; //d/dt g_AB
   AthenaTensor<Real, TensorSymm::SYM2, 0, 2> g_dr_uu; //d/dr g^AB
-  AthenaTensor<Real, TensorSymm::SYM2, 0, 2> g_dt_uu; //d/dt g^AB
+  AthenaTensor<Real, TensorSymm::SYM2, 0, 2> g_dot_uu; //d/dt g^AB
   AthenaTensor<Real, TensorSymm::SYM2, 0, 3> Gamma_udd; // Christoffels (time-independent)
   AthenaTensor<Real, TensorSymm::SYM2, 0, 3> Gamma_dyn_udd; // Christoffels (time-dep)
   Real norm_Delta_Gamma;
@@ -133,10 +138,10 @@ private:
   //! Multipoles (complex)
   AthenaArray<Real> h00, h01, h11, h0, h1, G, K; // even
   AthenaArray<Real> h00_dr, h01_dr, h11_dr, h0_dr, h1_dr, G_dr, K_dr; // d/dr drvts
-  AthenaArray<Real> h00_dt, h01_dt, h11_dt, h0_dt, h1_dt, G_dt, K_dt; // d/dt drvts
+  AthenaArray<Real> h00_dot, h01_dot, h11_dot, h0_dot, h1_dot, G_dot, K_dot; // d/dt drvts
   AthenaArray<Real> H0, H01, H; // odd
   AthenaArray<Real> H0_dr, H01_dr, H_dr; // d/dr drvts
-  AthenaArray<Real> H0_dt, H01_dt, H_dt; // d/dt drvts
+  AthenaArray<Real> H0_dot, H01_dot, H_dot; // d/dt drvts
 
   //! Gauge-invariant multipoles
   AthenaTensor<Real, TensorSymm::SYM2, 0, 2> kappa_dd;
@@ -151,12 +156,12 @@ private:
   Real integrals_background[NVBackground];
   enum {
     Irsch2, Idrsch_dri, Id2rsch_dri2, // Areal radius and drvts wrt R
-    Idt_rsch,  Idrsch_dri_dot,
+    Idot_rsch,  Idrsch_dri_dot,
     Ig00, Ig0r, Igrr, // g_AB on M^2
     Igrt, Igtt, Igpp,
     Idr_g00,  Idr_g0r, Idr_grr, // dg_AB/dr 
     Idr_gtt,
-    Idt_g00, Idt_g0r, Idt_grr, // dg_AB/dt
+    Idot_g00, Idot_g0r, Idot_grr, // dg_AB/dt
     NVBackground,
   };
 
@@ -168,17 +173,29 @@ private:
     Ih00_dr, Ih01_dr, Ih11_dr, // even d/dr drvts
     Ih0_dr, Ih1_dr,
     IG_dr, IK_dr,
-    Ih00_dt, Ih01_dt, Ig11_dt, // even d/dt drvts
-    Ih0_dt, Ih1_dt,
-    IG_dt, IK_dt,
+    Ih00_dot, Ih01_dot, Ig11_dot, // even d/dt drvts
+    Ih0_dot, Ih1_dot,
+    IG_dot, IK_dot,
     IH0, IH1, // odd
     IH,
     IH0_dr, IH1_dr, // odd d/dr drvts
     IH_dr,
-    IH0_dt, IH1_dt, // odd d/dt drvts
-    IH_dt,    
+    IH0_dot, IH1_dot, // odd d/dt drvts
+    IH_dot,    
     NVMultipoles,
   };
+
+  //! Options for areal radius
+  char const * const ArealRadiusMethod[NOptRadius];
+  enum{
+    areal,
+    areal_simple,
+    average_schw,
+    schw_gthth,
+    schw_gphph,
+    NOptRadius,
+  };
+  int method_areal_radius;
 
   //! msc
   Mesh const * pmesh;

@@ -26,6 +26,10 @@
 
 //using namespace utils::tensor;
 
+char const * const WaveExtractRWZ::ArealRadiusMethod[WaveExtractRWZ::NOptRadius] = {
+  "areal", "areal_simple", "average_schw","schw_g00", "schw_gphph",
+};
+
 //----------------------------------------------------------------------------------------
 //! \fn 
 //  \brief class for RWZ waveform extraction
@@ -46,10 +50,25 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh * pmesh, ParameterInput * pin, int n):
     ATHENA_ERROR(msg);
   }
 
+  // Set method to compute areal radius
+  string radius_method = pin->GetOrAddString("rwz_extraction", "method_areal_radius", "areal");
+  int i;
+  for (int i=0; i<NOptRadius; ++i) {
+    if (radius_method==ArealRadiusMethod[i]) {
+      method_areal_radius = i;
+    }
+  }
+  if (i==NOptRadius) {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in WaveExtractRWZ setup" << std::endl
+        << "unknown method_areal_radius " << radius_method << std::endl;
+    ATHENA_ERROR(msg);
+  }
+  
   // Get extraction radii
   std::string parname = "radius_" + n_str;
   Radius = pin->GetOrAddReal("rwz_extraction", parname, 10.0);
-  
+
   // Center of the sphere
   parname = "center_x_";
   parname += n_str;
@@ -79,6 +98,11 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh * pmesh, ParameterInput * pin, int n):
   for (int j = 0; j < Nphi; ++j)
     ph_grid(i) = coord_phi(j);
 
+  //TODO add more accurate integration schemes? 
+  // Currently only Riemann sums, weights is not used.
+  //weights.NewAthenaArray(Ntheta,Nphi);
+  //SetWeightsIntegral();
+  
   // Flag sphere points belonging to this rank
   havepoint.NewAthenaArray(Ntheta,Nphi);
  
@@ -105,8 +129,8 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh * pmesh, ParameterInput * pin, int n):
   g_uu.NewAthenaTensor();
   g_dr_dd.NewAthenaTensor();
   g_dr_uu.NewAthenaTensor();
-  g_dt_dd.NewAthenaTensor();
-  g_dt_uu.NewAthenaTensor();
+  g_dot_dd.NewAthenaTensor();
+  g_dot_uu.NewAthenaTensor();
   Gamma_udd.NewAthenaTensor();
   Gamma_dyn_uddd.NewAthenaTensor();  
   
@@ -143,13 +167,13 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh * pmesh, ParameterInput * pin, int n):
   G_dr.NewAthenaArray(lmpoints,2);
   K_dr.NewAthenaArray(lmpoints,2);
 
-  h00_dt.NewAthenaArray(lmpoints,2);
-  h01_dt.NewAthenaArray(lmpoints,2);
-  h11_dt.NewAthenaArray(lmpoints,2);
-  h0_dt.NewAthenaArray(lmpoints,2);
-  h1_dt.NewAthenaArray(lmpoints,2);
-  G_dt.NewAthenaArray(lmpoints,2);
-  K_dt.NewAthenaArray(lmpoints,2);
+  h00_dot.NewAthenaArray(lmpoints,2);
+  h01_dot.NewAthenaArray(lmpoints,2);
+  h11_dot.NewAthenaArray(lmpoints,2);
+  h0_dot.NewAthenaArray(lmpoints,2);
+  h1_dot.NewAthenaArray(lmpoints,2);
+  G_dot.NewAthenaArray(lmpoints,2);
+  K_dot.NewAthenaArray(lmpoints,2);
   
   // Odd-parity Multipoles & dvrts
   H0.NewAthenaArray(lmpoints,2);
@@ -160,9 +184,9 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh * pmesh, ParameterInput * pin, int n):
   H1_dr.NewAthenaArray(lmpoints,2);
   H_dr.NewAthenaArray(lmpoints,2);
 
-  H0_dt.NewAthenaArray(lmpoints,2);
-  H1_dt.NewAthenaArray(lmpoints,2);
-  H_dt.NewAthenaArray(lmpoints,2);
+  H0_dot.NewAthenaArray(lmpoints,2);
+  H1_dot.NewAthenaArray(lmpoints,2);
+  H_dot.NewAthenaArray(lmpoints,2);
 
   // Gauge-invariant
   // NB two of these are stored as Tensors
@@ -213,7 +237,8 @@ WaveExtractRWZ::~WaveExtractRWZ() {
 
   th_grid.DeleteAthenaArray();
   ph_grid.DeleteAthenaArray();
-
+  //weights.DeleteAthenaArray();
+  
   havepoint.DeleteAthenaArray();
 
   // Arrays on the sphere with tensor indexes 
@@ -233,8 +258,8 @@ WaveExtractRWZ::~WaveExtractRWZ() {
   g_uu.DeleteAthenaTensor();
   g_dr_dd.DeleteAthenaTensor();
   g_dr_uu.DeleteAthenaTensor();
-  g_dt_dd.DeleteAthenaTensor();
-  g_dt_uu.DeleteAthenaTensor();
+  g_dot_dd.DeleteAthenaTensor();
+  g_dot_uu.DeleteAthenaTensor();
   Gamma_udd.DeleteAthenaTensor();
   Gamma_dyn_udd.DeleteAthenaTensor(); 
   
@@ -264,13 +289,13 @@ WaveExtractRWZ::~WaveExtractRWZ() {
   G_dr.DeleteAthenaArray();
   K_dr.DeleteAthenaArray();
 
-  h00_dt.DeleteAthenaArray();
-  h01_dt.DeleteAthenaArray();
-  h11_dt.DeleteAthenaArray();
-  h0_dt.DeleteAthenaArray();
-  h1_dt.DeleteAthenaArray();
-  G_dt.DeleteAthenaArray();
-  K_dt.DeleteAthenaArray();
+  h00_dot.DeleteAthenaArray();
+  h01_dot.DeleteAthenaArray();
+  h11_dot.DeleteAthenaArray();
+  h0_dot.DeleteAthenaArray();
+  h1_dot.DeleteAthenaArray();
+  G_dot.DeleteAthenaArray();
+  K_dot.DeleteAthenaArray();
   
   // Odd-parity Multipoles & dvrts
   H0.DeleteAthenaArray();
@@ -281,9 +306,9 @@ WaveExtractRWZ::~WaveExtractRWZ() {
   H1_dr.DeleteAthenaArray();
   H_dr.DeleteAthenaArray();
 
-  H0_dt.DeleteAthenaArray();
-  H1_dt.DeleteAthenaArray();
-  H_dt.DeleteAthenaArray();
+  H0_dot.DeleteAthenaArray();
+  H1_dot.DeleteAthenaArray();
+  H_dot.DeleteAthenaArray();
 
   // Gauge-invariant
   kappa_dd.DeleteAthenaTensor();
@@ -479,6 +504,15 @@ Real WaveExtractRWZ::dph_grid() {
 // \brief spherical grid single index (i,j) -> index
 int WaveExtractRWZ::TPIndex(const int i, const int j) {
   return ((i)*Nphi + (j)); 
+}
+
+//----------------------------------------------------------------------------------------
+// \!fn int WaveExtractRWZ::SetWeightsIntegral()
+// \brief set the weights for the 2D integrals - UNFINISHED
+void WaveExtractRWZ::SetWeightsIntegral() {
+  weights.Fill(1.0); 
+  //int scheme = pin->GetOrAddBoolean("rwz_extraction", "use_simpson", false);
+  //TODO
 }
 
 //----------------------------------------------------------------------------------------
@@ -1061,7 +1095,7 @@ void WaveExtractRWZ::TransformMetricCarToSph() {
 //         performs local sums and then MPI reduce
 void WaveExtractRWZ::BackgroundReduce() {
 
-  const Real dthdph = dth_grid() * dph_grid();
+  const Real dthdph = dth_grid() * dph_grid();  
   
   // Zeros the integrals
   for (int i=0; i<NVBackground; i++) 
@@ -1074,7 +1108,9 @@ void WaveExtractRWZ::BackgroundReduce() {
     const Real costh = std::cos(theta);
     const Real sinth2 = SQR(sinth);
     const Real costh2 = SQR(costh);
-
+    const Real div_sinth = 1.0/sinth;
+    const Real div_sinth2 = 1.0/sinth2;
+    
     const Real vol = dthdph * sinth;
     
     for(int j=0; j<Nphi; j++){
@@ -1087,21 +1123,158 @@ void WaveExtractRWZ::BackgroundReduce() {
       const Real sinph2 = SQR(sinph);
       const Real cosph2 = SQR(cosph);
 
-      //TODO define various integrands
-	  
+      Real beta2 = 0.0;
+      for (int a=0; a<3; ++a)
+	beta2 += beta_u(a,i,j)*beta_d(a,i,j);
+      Real dr_beta2 = 0.0;
+      for (int a=0; a<3; ++a)
+	for (int b=0; b<3; ++b) {
+	  dr_beta2 +=
+	    dr_gamma(a,b,i,j) * beta_u(a,i,j) * beta_u(b,i,j)
+	    gamma(a,b,i,j) * dr_beta_u(a,i,j) * beta_u(b,i,j)
+	    gamma(a,b,i,j) * beta_u(a,i,j) * dr_beta_u(b,i,j);
+	}
+      Real dot_beta2 = 0.0;
+      for (int a=0; a<3; ++a)
+	for (int b=0; b<3; ++b) {
+	  dot_beta2 +=
+	    dot_gamma(a,b,i,j) * beta_u(a,i,j) * beta_u(b,i,j)
+	    gamma(a,b,i,j) * dot_beta_u(a,i,j) * beta_u(b,i,j)
+	    gamma(a,b,i,j) * beta_u(a,i,j) * dot_beta_u(b,i,j);
+	}
+      Real dot_beta_r = 0.0; // = d(beta_r)/dt
+      for (int a=0; a<3; ++a) 
+	dot_beta_r +=
+	  dot_gamma(a,0,i,j) * beta_u(a,i,j)
+	  gamma(a,0,i,j) * dot_beta_u(a,i,j);
+
+
+      Real int_r2 = 0.0;
+      Real int_drsch_dri = 0.0;
+      Real int_d2rsch_dri2 = 0.0;
+      Real int_r2dot = 0.0;
+      Real int_drsch_dri_dot = 0.0; //TODO
+      
+      // These integrals will be all normalized with 1/(4 Pi)
+      if (method_areal_radius==areal) {
+	
+	const Real aux_r2 = std::sqrt(gamma_dd(1,1,i,j)*gamma_dd(2,2,i,j) - SQR(gamma_dd(1,0,i,j)));
+	const Real div_ aux_r2 = 1.0/ aux_r2;
+	const Real aux_r2_d =
+	  dr_gamma(1,1,i,j) * gamma_dd(2,2,i,j) 
+	  + gamma_dd(1,1,i,j) * dr_gamma_dd(2,2,i,j)
+	  - 2.0*gamma_dd(1,0,i,j)*dr_gamma_dd(1,0,i,j);
+	const Real aux_r2_d2 =
+	  dr2_gamma(1,1,i,j) * gamma_dd(2,2,i,j) 
+	  + 2.0*dr_gamma_dd(1,1,i,j) * dr_gamma_dd(2,2,i,j)
+	  + gamma(1,1,i,j) * dr2_gamma_dd(2,2,i,j) 
+	  - 2.0*SQR(dr_gamma_dd(1,0,i,j))
+	  - 2.0*gamma_dd(1,0,i,j)*dr2_gamma_dd(1,0,i,j);
+	const Real aux_r2_dot =
+	  dot_gamma(1,1,i,j) * gamma_dd(2,2,i,j) 
+	  + gamma_dd(1,1,i,j) * dot_gamma_dd(2,2,i,j)
+	  - 2.0*gamma_dd(1,0,i,j)*dot_gamma_dd(1,0,i,j);
+	
+	int_r2 = aux_r2 * dthpdh;
+	int_drsch_dri = 0.5*aux_r2_d * div_aux_r2 * dthpdh;
+	int_d2rsch_dri2 = ( 0.5*aux_r2_d2 * div_aux_r2
+			    - 0.25*SQR(aux_r2_d) * std::pow(div_aux_r2,3) ) * dthpdh;	
+
+	int_r2dot = 0.5*aux_r2_dot * div_aux_r2 * dthpdh;
+	
+      } else if (method_areal_radius==areal_simple) {
+
+	const Real aux_r2 = std::sqrt(gamma_dd(1,1,i,j)*gamma_dd(2,2,i,j));
+	const Real div_ aux_r2 = 1.0/ aux_r2;
+	const Real aux_r2_d =
+	  dr_gamma(1,1,i,j)*gamma_dd(2,2,i,j) 
+	  + gamma_dd(1,1,i,j)*dr_gamma_dd(2,2,i,j)
+	  const Real aux_r2_d2 =
+	  dr2_gamma(1,1,i,j) * gamma_dd(2,2,i,j) 
+	  + 2.0*dr_gamma_dd(1,1,i,j) * dr_gamma_dd(2,2,i,j)
+	  + gamma(1,1,i,j) * dr2_gamma_dd(2,2,i,j);
+	const Real aux_r2_dot =
+	  dot_gamma(1,1,i,j) * gamma_dd(2,2,i,j) 
+	  + gamma_dd(1,1,i,j) * dot_gamma_dd(2,2,i,j);
+	
+	int_r2 = aux_r2 * dthpdh;
+	int_drsch_dri = 0.5*aux_r2_d * div_aux_r2 * dthpdh;
+	int_d2rsch_dri2 = ( 0.5*aux_r2_d2 * div_aux_r2
+			    - 0.25*SQR(aux_r2_d) * std::pow(div_aux_r2,3) ) * dthpdh;	
+
+	int_r2dot = 0.5*aux_r2_dot * div_aux_r2 * dthpdh;
+	
+      } else if (method_areal_radius==average_schw) {
+
+	int_r2 = 0.5*( gamma_dd(1,1,i,j) + gamma_dd(2,2,i,j)*div_sinth2 ) * vol;
+	int_drsch_dri = 0.5*( dr_gamma_dd(1,1,i,j) + dr_gamma_dd(2,2,i,j)*div_sinth2 ) * vol;
+	int_d2rsch_dri2 = 0.5*( dr2_gamma_dd(1,1,i,j) + dr2_gamma_dd(2,2,i,j)*div_sinth2 ) * vol;
+
+	int_r2dot = 0.5*( dot_gamma_dd(1,1,i,j) + dot_gamma_dd(2,2,i,j)*div_sinth2 ) * vol; 	
+	
+      } else if (method_areal_radius==schw_gthth) {
+
+	int_r2 = gamma_dd(1,1,i,j) * vol;
+	int_drsch_dri = dr_gamma_dd(1,1,i,j) * vol;
+	int_d2rsch_dri2 = dr2_gamma_dd(1,1,i,j) * vol;
+
+	int_r2dot = dot_gamma_dd(1,1,i,j) * vol;
+	
+      } else if (method_areal_radius==schw_gphph) {
+
+	int_r2 = gamma_dd(2,2,i,j) * div_sinth2 * vol;
+	int_drsch_dri = dr_gamma_dd(2,2,i,j) * div_sinth2 * vol;
+	int_d2rsch_dri2 = dr2_gamma_dd(2,2,i,j) * div_sinth2 * vol;
+
+	int_r2dot =  dot_gamma_dd(2,2,i,j) * div_sinth2 * vol;
+	
+      }
+	           
       // Local sums
       // ----------
-      integrals_background[Iradius] = 0.0 * vol;
-      //TODO ....
-            
+
+      // Schwarzschild radius & Jacobians
+      integrals_background[Irsch2] += int_r2;
+      integrals_background[Idrsch_dri] += int_drsch_dri;
+      integrals_background[Id2rsch_dri2] += int_d2rsch_dri2;
+      
+      integrals_background[Idot_rsch] += int_r2dot;      
+      integrals_background[Idrsch_dri_dot] += int_drsch_dri_dot;
+
+      // 2-metric & drvts
+      integrals_background[Ig00] -= vol * (SQR(alpha(i,j)) - beta2);
+      integrals_background[Ig0r] += vol * beta_d(0,i,j);
+      integrals_background[Igrr] += vol * gamma_dd(0,0,i,j);
+
+      integrals_background[Idr_g00] -= vol * (2.0*alpha(i,j)*dr_alpha(i,j) - dr_beta2);
+      integrals_background[Idr_g0r] += vol * dr_beta_d(0,i,j);
+      integrals_background[Idr_grr] += vol * dr_gamma_dd(0,0,i,j);
+      
+      integrals_background[Idot_g00] -= vol * (2.0*alpha(i,j)*dot_alpha(i,j) - dot_beta2);
+      integrals_background[Idot_g0r] += vol * dot_beta_r;
+      integrals_background[Idot_grr] += vol * dot_gamma_dd(0,0,i,j);
+
+      //TODO check if the following components are needed...
+      // sphere metric
+      integrals_background[Igrt] += vol * gamma_dd(1,2,i,j);
+      integrals_background[Igtt] += vol * gamma_dd(1,1,i,j);
+      integrals_background[Igpp] += vol * gamma_dd(2,2,i,j);
+      
+      integrals_background[Idr_gtt] += vol * dr_gamma_dd(1,1,i,j);
+      
     }// j
   }// i
-
+  
 #ifdef MPI_PARALLEL
   MPI_Allreduce(MPI_IN_PLACE, integrals_background, NVBackground,
 		MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
 #endif
 
+  // Normalization
+  const Real div_4PI = 1.0/(4.0*PI);
+  for (int i=0; i<NVBackground; i++) 
+    integrals_background[i] *= div_4PI;
+  
   // Check
   const Real rsch2 = integrals_background[Irsch2];
   if (!(std::isfinite(r2)) || (rsch2<=1e-20)) {
@@ -1113,16 +1286,12 @@ void WaveExtractRWZ::BackgroundReduce() {
     
   // All the data is here, time to finalize the background computation
   // -----------------------------------------------------------------
-  // Update all quantities using the transformation of the metric components
-  // from the isotropic radius R to the Schwarzschild radius r
-  // Note variables are overwritten here, order matters!
-  // -----------------------------------------------------------------
 
   rsch = std::sqrt(rsch2);
   drsch_dri = integrals_background[Idrsch_dri];
   d2rsch_dri2 = integrals_background[Id2rsch_dri2];
   
-  dt_rsch = integrals_background[Idt_rsch];
+  dot_rsch = integrals_background[Idot_rsch];
   drsch_dri_dot = integrals_background[Idrsch_dri_dot];
 
   Real g00 = integrals_background[Ig00];
@@ -1137,36 +1306,40 @@ void WaveExtractRWZ::BackgroundReduce() {
   Real dr_grr = integrals_background[Idr_grr];
   Real dr_gtt = integrals_background[Idr_gtt];
   
-  Real dt_g00 = integrals_background[Idt_g00];
-  Real dt_got = integrals_background[Idt_g0r];
-  Real dt_grr = integrals_background[Idt_grr];
+  Real dot_g00 = integrals_background[Idot_g00];
+  Real dot_got = integrals_background[Idot_g0r];
+  Real dot_grr = integrals_background[Idot_grr];
 
-  //TODO this is taken from cactus: needs a check based on what finally ended in integrals_background
-  
+  // Update all quantities using the transformation of the metric components
+  // from the isotropic radius R to the Schwarzschild radius r
+  // Note variables are overwritten here, order matters!
+
+  //TODO following taken from cactus: needs a check for normalization!
+    
   // Time derivatives of Schwarzschild radius
-  dt_rsch      = 1.0/(8.0t*PI*rsch)*dt_rsch;
-  d2t_rsch     = 0.0;
+  dot_rsch *= 1.0/(8.0t*PI*rsch);
+  dot2_rsch = 0.0;
 
   // dr_schwarzschild/dr_isotropic
-  drsch_dri     =  1.0/(8.0*PI*rsch)*drsch_dri;
-  dri_drsch     =  1.0/drsch_dri;
-  d2rsch_dri2   = -1.0/rsch*SQR(drsch_dri) + 1.0/(8.0*PI*rsch)*d2rsch_dri2;
-  d2ri_drsch2   = -std::pow(dri_drsch,3)*d2rsch_dri2;
+  drsch_dri   *=  1.0/(8.0*PI*rsch);
+  dri_drsch   =  1.0/drsch_dri;
+  d2rsch_dri2 = -1.0/rsch*SQR(drsch_dri) + 1.0/(8.0*PI*rsch)*d2rsch_dri2;
+  d2ri_drsch2 = -std::pow(dri_drsch,3)*d2rsch_dri2;
 
   // cross derivative of the radius
-  drsch_dri_dot =  -dt_rsch/rsch*drsch_dri + 1.0/(8.0*PI*rsch)*drsch_dri_dot;
-  dri_drsch_dot =  -SQR(dri_drsch)*drsch_dri_dot;
+  drsch_dri_dot = -dot_rsch/rsch*drsch_dri + 1.0/(8.0*PI*rsch)*drsch_dri_dot;
+  dri_drsch_dot = -SQR(dri_drsch)*drsch_dri_dot;
 
   // time derivatives of g0r and grr 
-  dt_g0r =  dri_drsch_dot*g0r + dri_drsch * dt_g0r;
-  dt_grr =  2.0*dri_drsch*dri_drsch_dot*grr + SQR(dri_drsch) * dt_grr;
+  dot_g0r = dri_drsch_dot*g0r + dri_drsch * dot_g0r;
+  dot_grr = 2.0*dri_drsch*dri_drsch_dot*grr + SQR(dri_drsch) * dot_grr;
     
-  // Metric components 
-  dr_g00    = dri_drsch       * dr_g00;
-  dr_g0r    = d2ri_drsch2     * g0r + SQR(dri_drsch) * dr_g0r;
-  dr_grr    = 2.0 * dri_drsch * d2ri_drsch2 * grr  + std::pow(dri_drsch,3) * dr_grr;
-  grr       = SQR(dri_drsch)  * grr;
-  g0r       = dri_drsch       * g0r;
+  // Metric components, first drvt
+  dr_g00  *= dri_drsch;
+  dr_g0r   = d2ri_drsch2     * g0r + SQR(dri_drsch) * dr_g0r;
+  dr_grr   = 2.0 * dri_drsch * d2ri_drsch2 * grr  + std::pow(dri_drsch,3) * dr_grr;
+  g0r *= dri_drsch ;
+  grr *= SQR(dri_drsch);
   
   // Inverse metric & Christoffel's symbols of the background metric 
   
@@ -1186,7 +1359,7 @@ void WaveExtractRWZ::BackgroundReduce() {
   const Real dr_g0r_uu = -dr_g0r*div_detg + g0r*dr_detg;
   const Real dr_grr_uu =  dr_g00*div_detg - g00*dr_detg;
 
-  const Real dt_g0r_uu = -dt_g0r*div_detg + g0r*div_detg2*(dt_g00*grr + g00*dt_grr - 2.0*g0r*dt_g0r);
+  const Real dot_g0r_uu = -dot_g0r*div_detg + g0r*div_detg2*(dot_g00*grr + g00*dot_grr - 2.0*g0r*dot_g0r);
   
   // G stands for Gamma, these are the Christoffel symbols. 
   // Assuming time independence: 
@@ -1199,12 +1372,12 @@ void WaveExtractRWZ::BackgroundReduce() {
 
   // Generic (time-dependent)
   // *_dyn stands for "dynamic": it uses time derivatives of the bakgrund metric 
-  const Real G000_dyn =  0.5*g00_uu*dt_g00 + g0r_uu*dt_g0r - 0.5*g0r_uu*dr_g00;
-  const Real Gr00_dyn =  grr_uu*dt_g0r - 0.5*grr_uu*dr_g00 + 0.5*g0r_uu*dt_g00;
-  const Real G00r_dyn =  0.5*g00_uu*dr_g00  + 0.5*g0r_uu*dt_grr;
-  const Real Gr0r_dyn =  0.5*g0r_uu*dr_g00  + 0.5*grr_uu*dt_grr;
-  const Real G0rr_dyn =  g00_uu*dr_g0r - 0.5*g00_uu*dt_grr + 0.5*g0r_uu*dr_grr;
-  const Real Grrr_dyn =  g0r_uu*dr_g0r - 0.5*g0r_uu*dt_grr + 0.5*grr_uu*dr_grr;
+  const Real G000_dyn =  0.5*g00_uu*dot_g00 + g0r_uu*dot_g0r - 0.5*g0r_uu*dr_g00;
+  const Real Gr00_dyn =  grr_uu*dot_g0r - 0.5*grr_uu*dr_g00 + 0.5*g0r_uu*dot_g00;
+  const Real G00r_dyn =  0.5*g00_uu*dr_g00  + 0.5*g0r_uu*dot_grr;
+  const Real Gr0r_dyn =  0.5*g0r_uu*dr_g00  + 0.5*grr_uu*dot_grr;
+  const Real G0rr_dyn =  g00_uu*dr_g0r - 0.5*g00_uu*dot_grr + 0.5*g0r_uu*dr_grr;
+  const Real Grrr_dyn =  g0r_uu*dr_g0r - 0.5*g0r_uu*dot_grr + 0.5*grr_uu*dr_grr;
 
   // Compute differences
   const Real Delta_G000 = G000 - G000_dyn;
@@ -1232,9 +1405,9 @@ void WaveExtractRWZ::BackgroundReduce() {
   g_dr_dd(0,1) = dr_g0r;
   g_dr_dd(1,1) = dr_grr;
 
-  g_dt_dd(0,0) = dt_g00; 
-  g_dt_dd(0,1) = dt_g0r;
-  g_dt_dd(1,1) = dt_grr; 
+  g_dot_dd(0,0) = dot_g00; 
+  g_dot_dd(0,1) = dot_g0r;
+  g_dot_dd(1,1) = dot_grr; 
   
   g_uu(0,0) = g00_uu;
   g_uu(0,1) = g0r_uu;
@@ -1244,9 +1417,9 @@ void WaveExtractRWZ::BackgroundReduce() {
   g_dr_uu(0,1) = dr_g0r_uu;
   g_dr_uu(1,1) = dr_grr_uu;
 
-  g_dt_uu(0,0) = 0.0; //dt_g00_uu; //TODO not needed but should be computed
-  g_dt_uu(0,1) = dt_g0r_uu; 
-  g_dt_uu(1,1) = 0.0; //dt_grr_uu; //TODO not needed but should be computed
+  g_dot_uu(0,0) = 0.0; //dot_g00_uu; //TODO needed ? should be computed ?
+  g_dot_uu(0,1) = dot_g0r_uu; 
+  g_dot_uu(1,1) = 0.0; //dot_grr_uu; //TODO needed ? should be computed ?
   
   Gamma_udd(0,0,0) = G000;
   Gamma_udd(0,0,1) = G00r;
@@ -1335,9 +1508,9 @@ void WaveExtractRWZ::MultipoleReduce() {
 	h01_dr(lm,c) = integrals_multipoles[Ih01_dr + lm + c];
 	h11_dr(lm,c) = integrals_multipoles[Ih11_dr + lm + c];
 
-	h00_dt(lm,c) = integrals_multipoles[Ih00_dt + lm + c];
-	h01_dt(lm,c) = integrals_multipoles[Ih01_dt + lm + c];
-	h11_dt(lm,c) = integrals_multipoles[Ih11_dt + lm + c];
+	h00_dot(lm,c) = integrals_multipoles[Ih00_dot + lm + c];
+	h01_dot(lm,c) = integrals_multipoles[Ih01_dot + lm + c];
+	h11_dot(lm,c) = integrals_multipoles[Ih11_dot + lm + c];
 
 	
 	h0(lm,c) = integrals_multipoles[Ih0 + lm + c];
@@ -1346,8 +1519,8 @@ void WaveExtractRWZ::MultipoleReduce() {
 	h0_dr(lm,c) = integrals_multipoles[Ih0_dr + lm + c];
 	h1_dr(lm,c) = integrals_multipoles[Ih1_dr + lm + c];
 
-	h0_dt(lm,c) = integrals_multipoles[Ih0_dt + lm + c];
-	h1_dt(lm,c) = integrals_multipoles[Ih1_dt + lm + c];
+	h0_dot(lm,c) = integrals_multipoles[Ih0_dot + lm + c];
+	h1_dot(lm,c) = integrals_multipoles[Ih1_dot + lm + c];
 
 	
 	G(lm,c) = integrals_multipoles[IG + lm + c];
@@ -1356,8 +1529,8 @@ void WaveExtractRWZ::MultipoleReduce() {
 	G_dr(lm,c) = integrals_multipoles[IG_dr + lm + c];
 	K_dr(lm,c) = integrals_multipoles[IK_dr + lm + c];
 
-	G_dt(lm,c) = integrals_multipoles[IG_dt + lm + c];
-	K_dt(lm,c) = integrals_multipoles[IK_dt + lm + c];
+	G_dot(lm,c) = integrals_multipoles[IG_dot + lm + c];
+	K_dot(lm,c) = integrals_multipoles[IK_dot + lm + c];
 
 	
 	// odd
@@ -1367,15 +1540,15 @@ void WaveExtractRWZ::MultipoleReduce() {
 	H0_dr(lm,c) = integrals_multipoles[IH0_dr + lm + c];
 	H1_dr(lm,c) = integrals_multipoles[IH1_dr + lm + c];
 
-	H0_dt(lm,c) = integrals_multipoles[IH0_dt + lm + c];
-	H1_dt(lm,c) = integrals_multipoles[IH1_dt + lm + c];
+	H0_dot(lm,c) = integrals_multipoles[IH0_dot + lm + c];
+	H1_dot(lm,c) = integrals_multipoles[IH1_dot + lm + c];
 
 
 	H(lm,c) = integrals_multipoles[IH + lm + c];
 
 	H_dr(lm,c) = integrals_multipoles[IH_dr + lm + c];
 
-	H_dt(lm,c) = integrals_multipoles[IH_dt + lm + c];
+	H_dot(lm,c) = integrals_multipoles[IH_dot + lm + c];
 	
       }// real&imag      
     }// for m
@@ -1427,7 +1600,7 @@ void WaveExtractRWZ::MasterFuns() {
 	
 	// Odd parity in Schwarzschild coordinates
 	
-	const Real Psio_sch_ = ( r*(H1_dt(lm,c) - H0_dr(lm,c)) + 2.0*H0(lm,c) )*div_lambda_2;
+	const Real Psio_sch_ = ( r*(H1_dot(lm,c) - H0_dr(lm,c)) + 2.0*H0(lm,c) )*div_lambda_2;
 	Psio_sch(lm,c) = Psio_sch_;	
 	
 	const Real Qstar_ = - div_r*S*( H1(lm,c) - H_dr(lm,c)*div_r + 2.0*H(lm,c)*SQR(div_r) );
@@ -1437,12 +1610,12 @@ void WaveExtractRWZ::MasterFuns() {
 	
 	const Real term1_K = K(lm,c); 
 	const Real term1_hG = (- 2.0*div_r)*( g_uu(1,1)*( h1(lm,c) - 0.5*r2*G_dr(lm,c) )
-					      + g_uu(0,1)*( h0(lm,c) - 0.5*r2*G_dt(lm,c) ) );	
+					      + g_uu(0,1)*( h0(lm,c) - 0.5*r2*G_dot(lm,c) ) );	
 	
 	const Real term_hAB = SQR(g_uu(0,1))*h00(lm,c)
 	  + 2.0*g_uu(0,1)*g_uu(1,1)*h01(lm,c)
 	  + SQR(g_uu(1,1))*h11(lm,c);
-	const Real term2_K = - r*( g_uu(1,1)*K_dr(lm,c) + g_uu(0,1)*K_dt(lm,c) );	
+	const Real term2_K = - r*( g_uu(1,1)*K_dr(lm,c) + g_uu(0,1)*K_dot(lm,c) );	
 	
 	Real coef_h0 = - r*std::pow(g_uu(0,1),3)*g_dr_dd(0,0)
 	  + 2.0*r*g_uu(1,1)*( g_uu(0,0)*g_uu(1,1)*g_dr(0,1) )
@@ -1465,11 +1638,11 @@ void WaveExtractRWZ::MasterFuns() {
 
 	coef_G_dr *= -0.5*r*g_uu(1,1);
 	
-	Real coef_G_dt = r*std::pow(g_uu(0,1),3)*g_dr_dd(0,0)
+	Real coef_G_dot = r*std::pow(g_uu(0,1),3)*g_dr_dd(0,0)
 	  - 2*r*g_uu(1,1)*( g_uu(0,0)*g_uu(1,1)*g_dr_dd(0,1) + g_dr_uu(0,1) )
 	  - g_uu(0,1)*g_uu(1,1)*(-2.0 + 2.0*r*g_uu(0,0)*g_dr_dd(0,0) + r*g_uu(1,1)*g_dr_dd(1,1) );
 
-	coef_G_dt *= 0.5*r;
+	coef_G_dot *= 0.5*r;
 	
 	Psie(lm,c) = term1_K;
 	Psie(lm,c) += term1_hG;
@@ -1477,7 +1650,7 @@ void WaveExtractRWZ::MasterFuns() {
 				 coef_h0 * h0(lm,c) +
 				 coef_h1 * h1(lm,c) +
 				 coef_G_dr * G_dr(lm,c) +
-				 coef_G_dt * G_dt(lm,c) +
+				 coef_G_dot * G_dot(lm,c) +
 				 term2_K );
 	Psie(lm,c) *= r_div_lambda;
 	
@@ -1487,51 +1660,45 @@ void WaveExtractRWZ::MasterFuns() {
 	
 	// Even parity in general coordinates (dynamic)
 	
-	Real coef_h0_t = 2.0*r*std::pow(g_uu(0,1),3)*g_dt_dd(0,1)
-	  + 2.0*r*g_uu(0,1)*g_dt_uu(0,1) //CHECK g_dt_uu(0,1) in the notes, but eq full of typos
-	  + ( -r*g_uu(0,0)*SQR(g_uu(1,1)) + 2.0*r*g_uu(1,1)*SQR(g_uu(0,1)) )*g_dt_dd(1,1)
-	  + r*SQR(g_uu(0,1))*g_uu(0,0)*g_dt_dd(0,0);
+	Real coef_h0_t = 2.0*r*std::pow(g_uu(0,1),3)*g_dot_dd(0,1)
+	  + 2.0*r*g_uu(0,1)*g_dot_uu(0,1) //CHECK g_dot_uu(0,1) in the notes, but eq full of typos
+	  + ( -r*g_uu(0,0)*SQR(g_uu(1,1)) + 2.0*r*g_uu(1,1)*SQR(g_uu(0,1)) )*g_dot_dd(1,1)
+	  + r*SQR(g_uu(0,1))*g_uu(0,0)*g_dot_dd(0,0);
 	
 	coef_h0_t *= div_r;
 	
-	Real coef_h1_t = SQR(g_uu(0,1))*g_dt_dd(0,0)
-	  + 2.0*g_uu(0,1)*g_uu(1,1)*g_dt_dd(0,1)
-	  + SQR(g_uu(1,1))*g_dt_dd(1,1);
+	Real coef_h1_t = SQR(g_uu(0,1))*g_dot_dd(0,0)
+	  + 2.0*g_uu(0,1)*g_uu(1,1)*g_dot_dd(0,1)
+	  + SQR(g_uu(1,1))*g_dot_dd(1,1);
 	
 	coef_h1_t *= g_uu(0,1); //CHECK notes for factor *div_r
 
-	Real coef_G_dr_t = 2.0*g_uu(0,1)*g_uu(1,1)*g_dt_dd(0,1)
-	  + SQR(g_uu(0,1))*g_dt_dd(0,0)
-	  + SQR(g_uu(1,1))*g_dt_dd(1,1);
+	Real coef_G_dr_t = 2.0*g_uu(0,1)*g_uu(1,1)*g_dot_dd(0,1)
+	  + SQR(g_uu(0,1))*g_dot_dd(0,0)
+	  + SQR(g_uu(1,1))*g_dot_dd(1,1);
 	  
 	coef_G_dr_t *= r*g_uu(0,1);
 	
-	Real coef_G_dt_t = -2.0*r*std::pow(g_uu(0,1),3)*g_dt_dd(0,1)
-	  - 2.0*g_uu(0,1)*g_dt_uu(0,1) //CHECK in the notes
-	  - SQR(g_uu(0,1))*g_uu(0,0)*g_dt_dd(0,0)
-	  + g_uu(1,1)*(g_uu(1,1)*g_uu(0,0)-2.0*SQR(g_uu(0,1)))*g_dt_dd(1,1);
+	Real coef_G_dot_t = -2.0*r*std::pow(g_uu(0,1),3)*g_dot_tdd(0,1)
+	  - 2.0*g_uu(0,1)*g_dot_uu(0,1) //CHECK in the notes
+	  - SQR(g_uu(0,1))*g_uu(0,0)*g_dot_dd(0,0)
+	  + g_uu(1,1)*(g_uu(1,1)*g_uu(0,0)-2.0*SQR(g_uu(0,1)))*g_dot_dd(1,1);
 	
-	coef_G_dt_t *= -0.5*r2; //CHECK again, notes 
-	
-	// add the time dep. contributions
-	coef_h0 += coef_h0_t;
-	coef_h1 += coef_h1_t;
-	coef_G_dr += coef_G_dr_t;
-	coef_G_dt += coef_G_dt_t;
-	  
+	coef_G_dot_t *= -0.5*r2; //CHECK again, notes 
+		  
 	Psie_dyn(lm,c) = term1_K;
 	Psie_dyn(lm,c) += term1_hG;
 	Psie_dyn(lm,c) += fac_Psie*( term_hAB +
-				 coef_h0 * h0(lm,c) +
-				 coef_h1 * h1(lm,c) +
-				 coef_G_dr * G_dr(lm,c) +
-				 coef_G_dt * G_dt(lm,c) +
-				 term2_K );
+				     (coef_h0 + coef_h0_t) * h0(lm,c) +
+				     (coef_h1 + coef_h1_t) * h1(lm,c) +
+				     (coef_G_dr + coef_G_dr_t) * G_dr(lm,c) +
+				     (coef_G_dot + coef_G_dot_t) * G_dot(lm,c) +
+				     term2_K );
 	Psie_dyn(lm,c) *= r_div_lambda;
 	
 	// Odd parity in general coordinates (dynamic)
 
-	Psio_dyn(lm,c) = ( r*(H1_dt(lm,c) - H0_dr(lm,c)) + 2.0*(H0(lm,c) - H1(lm,c)*rdot) );
+	Psio_dyn(lm,c) = ( r*(H1_dot(lm,c) - H0_dr(lm,c)) + 2.0*(H0(lm,c) - H1(lm,c)*rdot) );
 	Psio_dyn(lm,c) *= div_lambda_2*div_sqrtdetg;	
 	
       }// real& imag
@@ -1552,7 +1719,7 @@ void WaveExtractRWZ::MultipolesGaugeInvariant() {
   
   const Real r = rsch;
   const Real r2 = SQR(rsch);
-  const Real rdot = dt_rsch;
+  const Real rdot = dot_rsch;
   const Real div_r = 1.0/rsch;
 
   //NB Placeholder, these second drvt of the G multipole are not computed!
@@ -1569,30 +1736,30 @@ void WaveExtractRWZ::MultipolesGaugeInvariant() {
 
 	// even-parity
 	kappa_dd(0,0,lm,c) = h00(lm,c);
-	kappa_dd(0,0,lm,c) += - 2.0*h0_dt(lm,c)
+	kappa_dd(0,0,lm,c) += - 2.0*h0_dot(lm,c)
 	  + 2.0*(Gamma_dyn(0,0,0)*h0(lm,c) + Gamma_dyn(1,0,0)*h1(lm,c));
-	kappa_dd(0,0,lm,c) += - 2.0*r*rdot*G_dt(lm,c)
-	  + r2*(G_dt2 - Gamma_dyn(0,0,0)*G_dt(lm,c) - Gamma_dyn(1,0,0)*G_dr(lm,c));
+	kappa_dd(0,0,lm,c) += - 2.0*r*rdot*G_dot(lm,c)
+	  + r2*(G_dt2 - Gamma_dyn(0,0,0)*G_dot(lm,c) - Gamma_dyn(1,0,0)*G_dr(lm,c));
 	
 	kappa_dd(0,1,lm,c) = h01(lm,c);
-	kappa_dd(0,1,lm,c) += - h1_dt(lm,c) - h0_dr(lm,c)
+	kappa_dd(0,1,lm,c) += - h1_dot(lm,c) - h0_dr(lm,c)
 	  + 2.0*(Gamma_dyn(0,0,1)*h0(lm,c) + Gamma_dyn(1,0,1)*h1(lm,c));
-	kappa_dd(0,1,lm,c) += r*rdot*G_dr(lm,c) + r*G_dt(lm,c)
-	  + r2*(G_dtdr - Gamma_dyn(0,0,1)*G_dt(lm,c) - Gamma_dyn(1,0,1)*G_dr(lm,c));
+	kappa_dd(0,1,lm,c) += r*rdot*G_dr(lm,c) + r*G_dot(lm,c)
+	  + r2*(G_dtdr - Gamma_dyn(0,0,1)*G_dot(lm,c) - Gamma_dyn(1,0,1)*G_dr(lm,c));
 	
 	kappa_dd(1,1,lm,c) = h11(lm,c);
 	kappa_dd(1,1,lm,c) += - 2.0*h1_dr(lm,c)
 	  + 2.0*(Gamma_dyn(0,1,1)*h0(lm,c) + Gamma_dyn(1,1,1)*h1(lm,c));
 	kappa_dd(1,1,lm,c) += 2.0*r*G_dr(lm,c)
-	  + r2*(G_dr2 - Gamma_dyn(0,1,1)*G_dt(lm,c) - Gamma_dyn(1,1,1)*G_dr(lm,c));
+	  + r2*(G_dr2 - Gamma_dyn(0,1,1)*G_dot(lm,c) - Gamma_dyn(1,1,1)*G_dr(lm,c));
 	
 	kappa(lm,c) = K(lm,c);
-	kappa(lm,c) -= (g_uu(0,0) *rdot*( 2.0*h0(lm,c) - r2*G_dt(lm,c) ) +
-			g_uu(0,1) *( rdot*(2.0*h1(lm,c)-r2*G_dr(lm,c)) + 2.0*h0(lm,c) -r2G_dt(lm,c) ) +
+	kappa(lm,c) -= (g_uu(0,0) *rdot*( 2.0*h0(lm,c) - r2*G_dot(lm,c) ) +
+			g_uu(0,1) *( rdot*(2.0*h1(lm,c)-r2*G_dr(lm,c)) + 2.0*h0(lm,c) -r2G_dot(lm,c) ) +
 			g_uu(1,1) *(2.0*h1(lm,c)-r2*G_dr(lm,c)) )*div_r;
 	  
 	// odd-parity
-	kappa_d(0,lm,c) = H0(lm,c) - H0_dt(lm,c) + H(lm,c)*2.0*rdot*div_r; 
+	kappa_d(0,lm,c) = H0(lm,c) - H0_dot(lm,c) + H(lm,c)*2.0*rdot*div_r; 
 	kappa_d(1,lm,c) = H1(lm,c) - H0_dr(lm,c) + H(lm,c)*2.0*div_r; 
 
 	// Trace constraint
