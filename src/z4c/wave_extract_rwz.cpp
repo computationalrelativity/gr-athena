@@ -1627,8 +1627,6 @@ void WaveExtractRWZ::MultipoleReduce() {
 	  Real beta2 = 0.0;
 	  for (int a=0; a<3; ++a)
 	    beta2 += beta_u(a,i,j)*beta_d(a,i,j);
-
-	  //TODO define various integrands
 	  
 	  // Local sums
 	  // ----------
