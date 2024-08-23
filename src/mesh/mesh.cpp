@@ -1541,13 +1541,15 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
   int inb = nbtotal;
   int nthreads = GetNumMeshThreads();
   (void)nthreads;
-  int nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
-  std::vector<MeshBlock*> pmb_array(nmb);
+
+  int nmb = -1;
+  std::vector<MeshBlock*> pmb_array;
 
   do
   {
     // initialize a vector of MeshBlock pointers
     GetMeshBlocksMyRank(pmb_array);
+    nmb = pmb_array.size();
 
     if (res_flag == 0) {
       #pragma omp parallel for num_threads(nthreads)
