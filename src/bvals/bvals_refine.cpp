@@ -521,26 +521,19 @@ void BoundaryValues::RestrictGhostCellsOnSameLevel(const NeighborBlock& nb, int 
 //  \brief
 
 void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
-    const NeighborBlock& nb, const Real time, const Real dt,
-    int si, int ei, int sj, int ej, int sk, int ek) {
+    const NeighborBlock& nb,
+    const Real time, const Real dt,
+    int si, int ei,
+    int sj, int ej,
+    int sk, int ek)
+{
   MeshBlock *pmb = pmy_block_;
   MeshRefinement *pmr = pmb->pmr;
 
   // temporarily hardcode Hydro and Field array access:
-  Hydro *ph = nullptr;
-  if (FLUID_ENABLED) {
-    ph = pmb->phydro;
-  }
-
-  Field *pf = nullptr;
-  if (MAGNETIC_FIELDS_ENABLED) {
-    pf = pmb->pfield;
-  }
-
-  PassiveScalars *ps = nullptr;
-  if (NSCALARS>0) {
-    ps = pmb->pscalars;
-}
+  Hydro *ph = (FLUID_ENABLED) ? pmb->phydro : nullptr;
+  Field *pf = (MAGNETIC_FIELDS_ENABLED) ? pmb->pfield : nullptr;
+  PassiveScalars *ps = (NSCALARS > 0) ? pmb->pscalars : nullptr;
 
   // convert the ghost zone and ghost-ghost zones into primitive variables
   // this includes cell-centered field calculation
@@ -579,12 +572,29 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
   // BD: TODO - this logic should be double-checked... is it really intended
   //            to overwrite these prims like this?
 #if FLUID_ENABLED & !defined(DBG_USE_CONS_BC)
+  if (MAGNETIC_FIELDS_ENABLED)
+  {
+    pf = pmb->pfield;
+    pf->CalculateCellCenteredField(pf->coarse_b_,
+                                   pf->coarse_bcc_,
+                                   pmr->pcoarsec,
+                                   si-f1m, ei+f1p,
+                                   sj-f2m, ej+f2p,
+                                   sk-f3m, ek+f3p);
+  }
+
   static const int coarseflag = 1;
-  pmb->peos->ConservedToPrimitive(ph->coarse_cons_, ph->coarse_prim_,
-                                  pf->coarse_b_, ph->coarse_prim_,
-                                  ps->coarse_s_, ps->coarse_r_,
-                                  pf->coarse_bcc_, pmr->pcoarsec,
-                                  si-f1m, ei+f1p, sj-f2m, ej+f2p, sk-f3m, ek+f3p,
+  pmb->peos->ConservedToPrimitive(ph->coarse_cons_,
+                                  ph->coarse_prim_,
+                                  pf->coarse_b_,
+                                  ph->coarse_prim_,
+                                  ps->coarse_s_,
+                                  ps->coarse_r_,
+                                  pf->coarse_bcc_,
+                                  pmr->pcoarsec,
+                                  si-f1m, ei+f1p,
+                                  sj-f2m, ej+f2p,
+                                  sk-f3m, ek+f3p,
                                   coarseflag);
 #endif
 
@@ -765,7 +775,8 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
 
   // KGF: COUPLING OF QUANTITIES (must be manually specified)
   // Field prolongation completed, calculate cell centered fields
-  if (MAGNETIC_FIELDS_ENABLED) {
+  if (MAGNETIC_FIELDS_ENABLED)
+  {
     pf = pmb->pfield;
     pf->CalculateCellCenteredField(pf->b, pf->bcc, pmb->pcoord,
                                    fsi, fei, fsj, fej, fsk, fek);
@@ -775,9 +786,9 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
   EquationOfState *peos = pmb->peos;
   ph = pmb->phydro;
 
-  pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s,
-                                  pmb->pcoord,
-                                  fsi, fei, fsj, fej, fsk, fek);
+  peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s,
+                             pmb->pcoord,
+                             fsi, fei, fsj, fej, fsk, fek);
 #endif // DBG_USE_CONS_BC
 
   return;
