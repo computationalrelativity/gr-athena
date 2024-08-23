@@ -99,12 +99,7 @@ void Mesh::FinalizeZ4cADM_Matter(std::vector<MeshBlock*> & pmb_array)
     ps = pmb->pscalars;
     pz = pmb->pz4c;
 
-#if USETM
     pz->GetMatter(pz->storage.mat, pz->storage.adm, ph->w, ps->r, pf->bcc);
-#else
-    pz->GetMatter(pz->storage.mat, pz->storage.adm, ph->w, pf->bcc);
-#endif // USETM
-
   }
 }
 
@@ -262,13 +257,12 @@ void Mesh::PreparePrimitives(std::vector<MeshBlock*> & pmb_array,
       ku = pmb->ncells3;
     }
 
-    static const int coarse_flag = 0;
+    static const int coarseflag = 0;
     pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b, ph->w,
-#if USETM
                                     ps->s, ps->r,
-#endif
                                     pf->bcc, pmb->pcoord,
-                                    il, iu, jl, ju, kl, ku, coarse_flag);
+                                    il, iu, jl, ju, kl, ku,
+                                    coarseflag);
   }
 
 #endif // FLUID_ENABLED

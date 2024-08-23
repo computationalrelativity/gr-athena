@@ -349,23 +349,16 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   }
   // --------------------------------------------------------------------------
 
-
   // Initialise conserved variables
-  peos->PrimitiveToConserved(
-                             phydro->w,
-#if USETM
+  peos->PrimitiveToConserved(phydro->w,
                              pscalars->r,
-#endif
                              pfield->bcc,
                              phydro->u,
-#if USETM
                              pscalars->s,
-#endif
                              pcoord,
                              0, ncells1-1,
                              0, ncells2-1,
                              0, ncells3-1);
-
 
   // --------------------------------------------------------------------------
   // If matter fields are correctly prepared then c2p & p2c should be
@@ -377,19 +370,19 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     AthenaArray<Real> id_w(NHYDRO,   ncells3, ncells2, ncells1);
     AthenaArray<Real> id_r(NSCALARS, ncells3, ncells2, ncells1);
 
+    static const int coarseflag = 0;
     peos->ConservedToPrimitive(phydro->u,
                                id_w,
                                pfield->b,
                                id_w,
-#if USETM
                                pscalars->s,
                                id_r,
-#endif
                                pfield->bcc,
                                pcoord,
                                0, ncells1-1,
                                0, ncells2-1,
-                               0, ncells3-1, 0);
+                               0, ncells3-1,
+                               coarseflag);
 
     Real w_err = -std::numeric_limits<Real>::infinity();
     Real r_err = -std::numeric_limits<Real>::infinity();
@@ -432,9 +425,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   pz4c->GetMatter(pz4c->storage.mat,
                   pz4c->storage.adm,
                   phydro->w,
-#if USETM
                   pscalars->r,
-#endif
                   pfield->bcc);
 
   pz4c->ADMConstraints(pz4c->storage.con,

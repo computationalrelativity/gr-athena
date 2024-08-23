@@ -504,30 +504,19 @@ void BoundaryValues::ApplyPhysicalBoundaries(
                                               bjs, bje, bks, bke);
     }
 
-#ifndef DBG_USE_CONS_BC
-    if (FLUID_ENABLED){
-#if USETM
-      pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
-                                      pmb->is-NGHOST, pmb->is-1, bjs, bje, bks, bke);
-#else
-      pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                      pmb->is-NGHOST, pmb->is-1, bjs, bje, bks, bke);
+#if FLUID_ENABLED & !defined(DBG_USE_CONS_BC)
+    pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s,
+                                    pco,
+                                    pmb->is - NGHOST, pmb->is - 1,
+                                    bjs, bje,
+                                    bks, bke);
 #endif
-    }
-
-#if !USETM
-    if (NSCALARS > 0) {
-      pmb->peos->PassiveScalarPrimitiveToConserved(
-        ps->r, ph->w, ps->s, pco, pmb->is-NGHOST, pmb->is-1, bjs, bje, bks, bke);
-    }
-#endif
-
-#endif // DBG_USE_CONS_BC
 
   }
 
   // Apply boundary function on outer-x1 and update W,bcc (if not periodic)
-  if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
+  if (apply_bndry_fn_[BoundaryFace::outer_x1])
+  {
     DispatchBoundaryFunctions(pmb, pco, time, dt,
                               pmb->is, pmb->ie,
                               bjs, bje,
@@ -542,32 +531,20 @@ void BoundaryValues::ApplyPhysicalBoundaries(
                                               bjs, bje, bks, bke);
     }
 
-#ifndef DBG_USE_CONS_BC
-
-    if (FLUID_ENABLED) {
-#if USETM
-      pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
-                                      pmb->ie+1, pmb->ie+NGHOST, bjs, bje, bks, bke);
-#else
-      pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                      pmb->ie+1, pmb->ie+NGHOST, bjs, bje, bks, bke);
+#if FLUID_ENABLED & !defined(DBG_USE_CONS_BC)
+    pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s,
+                                    pco,
+                                    pmb->ie + 1, pmb->ie + NGHOST,
+                                    bjs, bje,
+                                    bks, bke);
 #endif
-    }
-
-#if !USETM
-    if (NSCALARS > 0) {
-      pmb->peos->PassiveScalarPrimitiveToConserved(
-        ps->r, ph->w, ps->s, pco, pmb->ie+1, pmb->ie+NGHOST, bjs, bje, bks, bke);
-    }
-#endif
-
-#endif // DBG_USE_CONS_BC
-
   }
 
-  if (pmb->block_size.nx2 > 1) { // 2D or 3D
+  if (pmb->block_size.nx2 > 1)
+  { // 2D or 3D
     // Apply boundary function on inner-x2 and update W,bcc (if not periodic)
-    if (apply_bndry_fn_[BoundaryFace::inner_x2]) {
+    if (apply_bndry_fn_[BoundaryFace::inner_x2])
+    {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie,
                                 pmb->js, pmb->je,
@@ -583,31 +560,18 @@ void BoundaryValues::ApplyPhysicalBoundaries(
                                                 bks, bke);
       }
 
-#ifndef DBG_USE_CONS_BC
-      if (FLUID_ENABLED)
-      {
-#if USETM
-        pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
-                                        bis, bie, pmb->js-NGHOST, pmb->js-1, bks, bke);
-#else
-        pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                        bis, bie, pmb->js-NGHOST, pmb->js-1, bks, bke);
+#if FLUID_ENABLED & !defined(DBG_USE_CONS_BC)
+      pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s,
+                                      pco,
+                                      bis, bie,
+                                      pmb->js - NGHOST, pmb->js - 1,
+                                      bks, bke);
 #endif
-      }
-
-#if !USETM
-      if (NSCALARS > 0) {
-        pmb->peos->PassiveScalarPrimitiveToConserved(
-            ps->r, ph->w, ps->s, pco, bis, bie, pmb->js-NGHOST, pmb->js-1, bks, bke);
-      }
-#endif
-
-#endif // DBG_USE_CONS_BC
-
     }
 
     // Apply boundary function on outer-x2 and update W,bcc (if not periodic)
-    if (apply_bndry_fn_[BoundaryFace::outer_x2]) {
+    if (apply_bndry_fn_[BoundaryFace::outer_x2])
+    {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie,
                                 pmb->js, pmb->je,
@@ -622,35 +586,24 @@ void BoundaryValues::ApplyPhysicalBoundaries(
                                                 bks, bke);
       }
 
-#ifndef DBG_USE_CONS_BC
-      if (FLUID_ENABLED) {
-#if USETM
-        pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
-                                        bis, bie, pmb->je+1, pmb->je+NGHOST, bks, bke);
-#else
-        pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                        bis, bie, pmb->je+1, pmb->je+NGHOST, bks, bke);
+#if FLUID_ENABLED & !defined(DBG_USE_CONS_BC)
+      pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s,
+                                      pco,
+                                      bis, bie,
+                                      pmb->je + 1, pmb->je + NGHOST,
+                                      bks, bke);
 #endif
-      }
-
-#if !USETM
-      if (NSCALARS > 0) {
-        pmb->peos->PassiveScalarPrimitiveToConserved(
-          ps->r, ph->w, ps->s, pco, bis, bie, pmb->je+1, pmb->je+NGHOST, bks, bke);
-      }
-#endif
-
-#endif // DBG_USE_CONS_BC
-
     }
   }
 
-  if (pmb->block_size.nx3 > 1) { // 3D
+  if (pmb->block_size.nx3 > 1)
+  { // 3D
     bjs = pmb->js - NGHOST;
     bje = pmb->je + NGHOST;
 
     // Apply boundary function on inner-x3 and update W,bcc (if not periodic)
-    if (apply_bndry_fn_[BoundaryFace::inner_x3]) {
+    if (apply_bndry_fn_[BoundaryFace::inner_x3])
+    {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie,
                                 bjs, bje,
@@ -662,30 +615,16 @@ void BoundaryValues::ApplyPhysicalBoundaries(
       if (MAGNETIC_FIELDS_ENABLED) {
         pmb->pfield->CalculateCellCenteredField(pf->b, pf->bcc, pco,
                                                 bis, bie, bjs, bje,
-                                                pmb->ks-NGHOST, pmb->ks-1);
+                                                pmb->ks - NGHOST, pmb->ks - 1);
       }
 
-#ifndef DBG_USE_CONS_BC
-
-      if (FLUID_ENABLED) {
-#if USETM
-        pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
-                                        bis, bie, bjs, bje, pmb->ks-NGHOST, pmb->ks-1);
-#else
-        pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                        bis, bie, bjs, bje, pmb->ks-NGHOST, pmb->ks-1);
+#if FLUID_ENABLED & !defined(DBG_USE_CONS_BC)
+      pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s,
+                                      pco,
+                                      bis, bie,
+                                      bjs, bje,
+                                      pmb->ks - NGHOST, pmb->ks - 1);
 #endif
-      }
-
-#if !USETM
-      if (NSCALARS > 0) {
-        pmb->peos->PassiveScalarPrimitiveToConserved(
-            ps->r, ph->w, ps->s, pco, bis, bie, bjs, bje, pmb->ks-NGHOST, pmb->ks-1);
-      }
-#endif
-
-#endif // DBG_USE_CONS_BC
-
     }
 
     // Apply boundary function on outer-x3 and update W,bcc (if not periodic)
@@ -703,34 +642,19 @@ void BoundaryValues::ApplyPhysicalBoundaries(
       {
         pmb->pfield->CalculateCellCenteredField(pf->b, pf->bcc, pco,
                                                 bis, bie, bjs, bje,
-                                                pmb->ke+1, pmb->ke+NGHOST);
+                                                pmb->ke + 1, pmb->ke + NGHOST);
       }
 
-#ifndef DBG_USE_CONS_BC
-      if (FLUID_ENABLED)
-      {
-#if USETM
-        pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
-                                        bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
-#else
-        pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                        bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
+#if FLUID_ENABLED & !defined(DBG_USE_CONS_BC)
+      pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s,
+                                      pco,
+                                      bis, bie,
+                                      bjs, bje,
+                                      pmb->ke + 1, pmb->ke + NGHOST);
 #endif
-      }
-
-#if !USETM
-      if (NSCALARS > 0)
-      {
-        pmb->peos->PassiveScalarPrimitiveToConserved(
-            ps->r, ph->w, ps->s, pco, bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
-      }
-#endif
-
-#endif // DBG_USE_CONS_BC
-
     }
   }
-  return;
+
 }
 
 //----------------------------------------------------------------------------------------

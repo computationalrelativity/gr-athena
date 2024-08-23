@@ -340,9 +340,7 @@ public:
   void GetMatter(AA & u_mat,
                  AA & u_adm,
                  AA & w,
-#if USETM
                  AA & r,
-#endif
                  AA & bb_cc);
 
   // utility functions

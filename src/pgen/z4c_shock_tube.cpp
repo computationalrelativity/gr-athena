@@ -178,15 +178,15 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   }
 
 
-  peos->PrimitiveToConserved(phydro->w, 
-#if USETM
-  pscalars->r, 
-#endif
-  bb, phydro->u,
-#if USETM
-  pscalars->s, 
-#endif
-  pcoord, is, ie, js, je, ks, ke);
+  peos->PrimitiveToConserved(
+    phydro->w,
+    pscalars->r,
+    bb,
+    phydro->u,
+    pscalars->s,
+    pcoord,
+    is, ie, js, je, ks, ke
+  );
 
   // Initialize magnetic field - untested
   if (MAGNETIC_FIELDS_ENABLED) {

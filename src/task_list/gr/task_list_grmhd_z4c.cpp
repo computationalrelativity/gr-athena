@@ -1252,21 +1252,13 @@ TaskStatus GRMHD_Z4c::Primitives(MeshBlock *pmb, int stage)
     // Newton-Raphson solver in GR EOS uses the following abscissae:
     // stage=1: W at t^n and
     // stage=2: W at t^{n+1/2} (VL2) or t^{n+1} (RK2)
+
+    static const int coarseflag = 0;
     pmb->peos->ConservedToPrimitive(ph->u, ph->w, pf->b, ph->w1,
-#if USETM
                                     ps->s, ps->r,
-#endif
                                     pf->bcc, pmb->pcoord,
-                                    il, iu, jl, ju, kl, ku,0);
-#if !USETM
-    if (NSCALARS > 0)
-    {
-      // r1/r_old for GR is currently unused:
-      pmb->peos->PassiveScalarConservedToPrimitive(ps->s, ph->w1, // ph->u, (updated rho)
-                                                   ps->r, ps->r,
-                                                   pmb->pcoord, il, iu, jl, ju, kl, ku);
-    }
-#endif
+                                    il, iu, jl, ju, kl, ku,
+                                    coarseflag);
 
     // swap AthenaArray data pointers so that w now contains the updated w_out
     // ph->w.SwapAthenaArray(ph->w1);
@@ -1756,7 +1748,6 @@ TaskStatus GRMHD_Z4c::UpdateSource(MeshBlock *pmb, int stage)
     Hydro *ph   = pmb->phydro;
     Field *pf   = pmb->pfield;
 
-#if USETM
     PassiveScalars * ps = pmb->pscalars;
 
     pz4c->GetMatter(pz4c->storage.mat,
@@ -1764,9 +1755,7 @@ TaskStatus GRMHD_Z4c::UpdateSource(MeshBlock *pmb, int stage)
                     ph->w,
                     ps->r,
                     pf->bcc);
-#else
-    pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, pf->bcc);
-#endif
+
     return TaskStatus::success;
   }
   return TaskStatus::fail;

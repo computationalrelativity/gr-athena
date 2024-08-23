@@ -931,31 +931,24 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 #endif  // M1_ENABLED
 
 #if FLUID_ENABLED
-    // Initialise conserved variables
-  peos->PrimitiveToConserved(
-                             phydro->w,
-#if USETM
+  // Initialise conserved variables
+  peos->PrimitiveToConserved(phydro->w,
                              pscalars->r,
-#endif
                              pfield->bcc,
                              phydro->u,
-#if USETM
                              pscalars->s,
-#endif
                              pcoord,
                              0, ncells1-1,
                              0, ncells2-1,
                              0, ncells3-1);
-
 #endif // FLUID_ENABLED
 
 #if Z4C_ENABLED
   // Initialise matter (also taken care of in task-list)
-  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm,
+  pz4c->GetMatter(pz4c->storage.mat,
+                  pz4c->storage.adm,
                   phydro->w,
-#if USETM
                   pscalars->r,
-#endif
                   pfield->bcc);
 
   pz4c->ADMConstraints(pz4c->storage.con,

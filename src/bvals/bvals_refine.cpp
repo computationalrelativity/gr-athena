@@ -571,45 +571,22 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
     }
   }
 
-#ifndef DBG_USE_CONS_BC
   // TODO(KGF): passing nullptrs (pf) if no MHD. Might no longer be an issue to set
   // pf=pmb->pfield even if no MHD. Originally was a problem when dereferencing in order
   // to bind references to coarse_b_, coarse_bcc, since coarse_* are no longer members of
   // MeshRefinement that always exist (even if not allocated).
 
-  // BD: The logic doesn't make sense unless we only do this when when GR is
-  // deactivated...
-  if (FLUID_ENABLED && !GENERAL_RELATIVITY)
-  {
-    // KGF: COUPLING OF QUANTITIES (must be manually specified)
-#ifdef Z4C_ENABLED
-    pmb->peos->ConservedToPrimitive(ph->coarse_cons_, ph->coarse_prim_,
-                                    pf->coarse_b_, ph->coarse_prim_,
-#if USETM
-                                    ps->coarse_s_, ps->coarse_r_,
+  // BD: TODO - this logic should be double-checked... is it really intended
+  //            to overwrite these prims like this?
+#if FLUID_ENABLED & !defined(DBG_USE_CONS_BC)
+  static const int coarseflag = 1;
+  pmb->peos->ConservedToPrimitive(ph->coarse_cons_, ph->coarse_prim_,
+                                  pf->coarse_b_, ph->coarse_prim_,
+                                  ps->coarse_s_, ps->coarse_r_,
+                                  pf->coarse_bcc_, pmr->pcoarsec,
+                                  si-f1m, ei+f1p, sj-f2m, ej+f2p, sk-f3m, ek+f3p,
+                                  coarseflag);
 #endif
-                                    pf->coarse_bcc_, pmr->pcoarsec,
-                                    si-f1m, ei+f1p, sj-f2m, ej+f2p, sk-f3m, ek+f3p,1);
-#else
-    pmb->peos->ConservedToPrimitive(ph->coarse_cons_, ph->coarse_prim_,
-                                    pf->coarse_b_, ph->coarse_prim_,
-                                    pf->coarse_bcc_, pmr->pcoarsec,
-                                    si-f1m, ei+f1p, sj-f2m, ej+f2p, sk-f3m, ek+f3p);
-#endif
-  }
-
-#if !USETM
-  if (NSCALARS > 0) {
-    PassiveScalars *ps = pmb->pscalars;
-    pmb->peos->PassiveScalarConservedToPrimitive(ps->coarse_s_, ph->coarse_prim_,
-                                                 ps->coarse_r_, ps->coarse_r_,
-                                                 pmr->pcoarsec,
-                                                 si-f1m, ei+f1p, sj-f2m, ej+f2p,
-                                                 sk-f3m, ek+f3p);
-  }
-#endif
-
-#endif // DBG_USE_CONS_BC
 
   const int ngh = NGHOST;
 
@@ -794,31 +771,13 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
                                    fsi, fei, fsj, fej, fsk, fek);
   }
 
-#ifndef DBG_USE_CONS_BC
+#if FLUID_ENABLED & !defined(DBG_USE_CONS_BC)
+  EquationOfState *peos = pmb->peos;
+  ph = pmb->phydro;
 
-  // TODO(KGF): passing nullptrs (pf) if no MHD (coarse_* no longer in MeshRefinement)
-  // (may be fine to unconditionally directly set to pmb->pfield now. see above comment)
-
-  // KGF: COUPLING OF QUANTITIES (must be manually specified)
-  // calculate conservative variables
-#if FLUID_ENABLED
-    ph = pmb->phydro;
-#if USETM
-    pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pmb->pcoord,
-                                    fsi, fei, fsj, fej, fsk, fek);
-#else
-    pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pmb->pcoord,
-                                    fsi, fei, fsj, fej, fsk, fek);
-#endif
-#endif
-
-#if !USETM
-  if (NSCALARS > 0) {
-    pmb->peos->PassiveScalarPrimitiveToConserved(ps->r, ph->w, ps->s, pmb->pcoord,
-                                                 fsi, fei, fsj, fej, fsk, fek);
-  }
-#endif
-
+  pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s,
+                                  pmb->pcoord,
+                                  fsi, fei, fsj, fej, fsk, fek);
 #endif // DBG_USE_CONS_BC
 
   return;
