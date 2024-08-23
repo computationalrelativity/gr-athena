@@ -865,6 +865,9 @@ void WaveExtractRWZ::MetricToSphere() {
 // These derivatives are computed elsewhere, e.g. during the Riemann computation
 // (we need a parameter option "store_metric_derivatives")
 
+//TODO 1st Time drvts can be taken from K and rhs
+//     How about 2nd time drvts?
+
 void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 {
   Z4c *pz4c = pmb->pz4c;
@@ -1582,7 +1585,10 @@ void WaveExtractRWZ::BackgroundReduce() {
 void WaveExtractRWZ::MultipoleReduce() {
 
   const Real dthdph = dth_grid() * dph_grid();
-  
+  const Real r = Schwarzschild_radius;
+  const Real div_r = 1.0/r;
+  const Real div_r2 = 1.0/(SQR(r));
+    
   // Zeros the integrals
   for (int i=0; i<NVBackground*2*lmpoints; i++)    
     integrals_multipoles[i] = 0.0;
@@ -1594,8 +1600,15 @@ void WaveExtractRWZ::MultipoleReduce() {
     const Real costh = std::cos(theta);
     const Real sinth2 = SQR(sinth);
     const Real costh2 = SQR(costh);
+    const Real div_sinth = 1.0/sinth;
+    const Real div_sinth2 = 1.0/sinth2;
 
     const Real vol = dthdph * sinth;
+
+    const Real lambda = l*(l+1);
+    const Real div_lambda = 1.0/(lambda);
+    const Real div_lambda_lambda_2 = 1.0/(lambda*(lambda-2.0));
+
     
     for(int j=0; j<Nphi; j++){
 
@@ -1606,19 +1619,75 @@ void WaveExtractRWZ::MultipoleReduce() {
       const Real cosph = std::cos(phi);
       const Real sinph2 = SQR(sinph);
       const Real cosph2 = SQR(cosph);
-
+      
       for(int l=2; l<=lmax; ++l) {
 	for(int m=-l; m<=l; ++m) {
 	  const int lm = MIndex(l,m);
 	  
+	  Real beta2 = 0.0;
+	  for (int a=0; a<3; ++a)
+	    beta2 += beta_u(a,i,j)*beta_d(a,i,j);
+
 	  //TODO define various integrands
 	  
 	  // Local sums
 	  // ----------
-	  
-	  //TODO
-	  integrals_multipoles[NVMultipoles * Ih00 + lm] = 0.0;
-	  integrals_multipoles[NVMultipoles * Ih00 + lm + 1] = 0.0;
+
+	  for(int c=0; c<RealImag; ++c) {
+	    const int s = (c==0)? 1.0 : -1.0; // conjugate
+	    const Real sY   = s * Y(lm,c);
+	    const Real sYth = s * Yth(lm,c);
+	    const Real sYph = s * Yph(lm,c);
+	    const Real sX   = s * X(lm,c);
+	    const Real sW   = s * W(lm,c);
+
+	    // even parity
+	    integrals_multipoles[NVMultipoles * Ih00 + lm + c] -=
+	      vol * (SQR(alpha(i,j)) - beta2) * sYlm ;
+	    
+	    integrals_multipoles[NVMultipoles * Ih01 + lm + c] += 
+	      vol * beta_d(0,i,j) * sY;
+
+	    integrals_multipoles[NVMultipoles * Ih11 + lm + c] += 
+	      vol * gamma_dd(1,1,i,j) * sY;
+
+	    
+	    integrals_multipoles[NVMultipoles * Ih0 + lm + c] += 
+	      vol * div_lambda * (beta_d(1,i,j) * sYth + beta_d(2,i,j) * div_sinth2 * sYph );
+
+	    integrals_multipoles[NVMultipoles * Ih1 + lm + c] += 
+	      vol * div_lambda * (gamma_dd(0,1,i,j) * sYth + gamma_dd(0,2,i,j) * div_sinth2 * sYph );
+	    
+	    
+	    integrals_multipoles[NVMultipoles * IK + lm + c] += 
+	      vol * 0.5 * div_r2 * (gamma_dd(1,1,i,j) + gamma_dd(2,2,i,j) * div_sinth2) * sY;
+
+	    integrals_multipoles[NVMultipoles * IG + lm + c] += 
+	      vol * 0.5 * div_r2 * div_lambda_lambda_2
+	      * ( (gamma_dd(1,1,i,j) + gamma_dd(2,2,i,j) * div_sinth2) * W
+		  + 2.0*gamma_dd(1,2,i,j)*X );
+
+	    // even parity drvts
+	    //TODO
+	    
+	    // odd parity
+
+	    integrals_multipoles[NVMultipoles * IH0 + lm + c] += 
+	      vol * div_lambda * div_sinth * ( - beta_d(1,i,j)*sYph + beta_d(2,i,j)*sYth );
+
+	    integrals_multipoles[NVMultipoles * IH1 + lm + c] += 
+	      vol * div_lambda * div_sinth * ( - gamma_dd(0,1,i,j)*sYph + gamma_dd(0,2,i,j)*sYth );
+
+	    
+	    integrals_multipoles[NVMultipoles * IH1 + lm + c] += 
+	      vol * div_lambda_lambda_2 
+	      * ( div_sinth * ( - gamma_dd(1,1,i,j) + gamma_dd(2,2,i,j) * div_sinth2 ) *X
+		  + 2.0* gamma_dd(1,2,i,j) * div_sinth2 * div_sinth * W ); //CHECK 1/sin^3 or 1/sin ?
+	    
+	    // odd parity drvts
+	    //TODO
+	    
+	  }
 	  
 	}// for m
       }// for l
