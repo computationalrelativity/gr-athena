@@ -876,27 +876,42 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_g_dd;      
   adm_g_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
 
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> z4c_beta_u;    
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> adm_beta_u;    
   adm_g_dd.InitWithShallowSlice(pz4c->storage.Z4c, Z4c::I_Z4c_betax);
   
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> z4c_alpha;    
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> adm_alpha;    
   adm_g_dd.InitWithShallowSlice(pz4c->storage.Z4c, Z4c::I_Z4c_alpha);
 
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> adm_dg_ddd;      
   adm_dg_dd.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_gxx); //TODO we need this new storage
 
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> z4c_dbeta_dd;      
-  z4c_dbeta_dd.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_betax); 
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> adm_dbeta_dd;      
+  adm_dbeta_dd.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_betax); 
 
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> z4c_dalpha_d;      
-  z4c_dbeta_dd.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_alpha); 
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> adm_dalpha_d;      
+  adm_dbeta_dd.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_alpha); 
   
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_K_dd;      
-  adm_g_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_Kxx);
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_g_dot_dd;      
+  adm_g_dot_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_Kxx);
+  // adm_g_dot_dd stores here Kab, it will be modified below
 
-  //TODO we can take the ADM 1st drvts from Kab, lapse and shift
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> adm_beta_dot_u;      
+  adm_alpha_dot.InitWithShallowSlice(pz4c->storage.rhs, Z4c::I_Z4c_betax);
+  
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> adm_alpha_dot;      
+  adm_alpha_dot.InitWithShallowSlice(pz4c->storage.rhs, Z4c::I_Z4c_alpha);
 
-
+  // Time drvt of ADM metric from Kab, lapse and shift
+  //CHECK/FIXME
+  ILOOP3(k,j,i) {
+    for(int a = 0; a < NDIM; ++a)
+      for(int b = a; b < NDIM; ++b) {
+	const Real Kab = adm_g_dot_dd(a,b,k,j,i);
+	adm_g_dot_dd(a,b,k,j,i) = -2.0*z4c_alpha(k,j,i)*Kab
+	  + z4c_dbeta_dd(a,b,k,j,i) + z4c_dbeta_dd(b,a,k,j,i);
+      }
+  }
+  
   // Center of the sphere
   const Real xc = center[0];
   const Real yc = center[1];
@@ -930,7 +945,11 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   AthenaTensor<Real, TensorSymm::SYM2, 2, 3> Cgamma_der_ddd;
   AthenaTensor<Real, TensorSymm::SYM2, 2, 2> Cbeta_der_ud;
   AthenaTensor<Real, TensorSymm::SYM2, 2, 1> Calpha_der_d;
-  
+
+  AthenaTensor<Real, TensorSymm::SYM2, 2, 2> Cgamma_dot_dd;
+  AthenaTensor<Real, TensorSymm::SYM2, 2, 2> Cbeta_dot_ud;
+  AthenaTensor<Real, TensorSymm::SYM2, 2, 1> Calpha_dot_d;
+ 
   Cgamma_dd.NewAthenaTensor();
   Cbeta_u.NewAthenaTensor();
   Cbeta_d.NewAthenaTensor();
@@ -940,14 +959,22 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   Cbeta_der_ud.NewAthenaTensor();
   Calpha_der_d.NewAthenaTensor(); 
 
+  Cgamma_dot_ddd.NewAthenaTensor();
+  Cbeta_dot_ud.NewAthenaTensor();
+  Calpha_dot_d.NewAthenaTensor(); 
+  
   // Pointwise tensors - spherical coords 
   AthenaTensor<Real, TensorSymm::SYM2, 2, 2> Sgamma_dd;
   AthenaTensor<Real, TensorSymm::NONE, 2, 1> Sbeta_u;
   AthenaTensor<Real, TensorSymm::NONE, 2, 1> Sbeta_d;
   
-  AthenaTensor<Real, TensorSymm::SYM2, 2, 3> Sgamma_ddd;
+  AthenaTensor<Real, TensorSymm::SYM2, 2, 3> Sgamma_der_ddd;
   AthenaTensor<Real, TensorSymm::NONE, 2, 2> Sbeta_der_dd;
   AthenaTensor<Real, TensorSymm::NONE, 2, 1> Salpha_der_d;
+
+  AthenaTensor<Real, TensorSymm::SYM2, 2, 2> Sgamma_dot_dd;
+  AthenaTensor<Real, TensorSymm::NONE, 2, 2> Sbeta_dot_dd;
+  AthenaTensor<Real, TensorSymm::NONE, 2, 1> Salpha_dot_d;
 
   Sgamma_dd.NewAthenaTensor();
   Sbeta_u.NewAthenaTensor();
@@ -956,6 +983,11 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   Sgamma_der_ddd.NewAthenaTensor();
   Sbeta_der_dd.NewAthenaTensor();
   Salpha_der_d.NewAthenaTensor(); 
+
+  Sgamma_dot_ddd.NewAthenaTensor();
+  Sbeta_dot_dd.NewAthenaTensor();
+  Salpha_dot_d.NewAthenaTensor(); 
+
   
   
   for (int i=0; i<Ntheta; i++) {
@@ -1002,13 +1034,15 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
           if (b == 2) bitant_z_fac *= -1;
         }
         Cgamma_dd(a,b) = pinterp3->eval(&(adm_g_dd(a,b,0,0,0)))*bitant_z_fac;
+	Cgamma_dot_dd(a,b) = pinterp3->eval(&(adm_g_dot_dd(a,b,0,0,0)))*bitant_z_fac;
       }
 
       // Shift (up)
       for(int a = 0; a < NDIM; ++a) {
         int bitant_z_fac = 1;
         if ((bitant_sym) && (a == 2)) bitant_z_fac *= -1;
-        Cbeta_u(a) = pinterp3->eval(&(z4c_beta_u(a,0,0,0)))*bitant_z_fac;
+        Cbeta_u(a) = pinterp3->eval(&(adm_beta_u(a,0,0,0)))*bitant_z_fac;
+	Cbeta_dot_u(a) = pinterp3->eval(&(adm_beta_dot_u(a,0,0,0)))*bitant_z_fac;
       }
 
       // shift (down)
@@ -1019,7 +1053,8 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
       }      
       
       // lapse 
-      Calpha() = pinterp3->eval(&(z4c_alpha(0,0,0)));
+      Calpha() = pinterp3->eval(&(adm_alpha(0,0,0)));
+      Calpha_dot() = pinterp3->eval(&(adm_alpha_dot(0,0,0)));
 
       // 3-metric spatial drvts
       for(int a = 0; a < NDIM; ++a)
@@ -1031,7 +1066,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 	      if (b == 2) bitant_z_fac *= -1;
 	      if (c == 2) bitant_z_fac *= -1;
 	    }
-	    Cgamma_der_ddd(a,b,c) = pinterp3->eval(&(aux_dg_ddd(a,b,c,0,0,0)))*bitant_z_fac;
+	    Cgamma_der_ddd(a,b,c) = pinterp3->eval(&(adm_dg_ddd(a,b,c,0,0,0)))*bitant_z_fac;
 	  }
       
       // shift (down) drvts
@@ -1042,18 +1077,16 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 	    if (a == 2) bitant_z_fac *= -1;
 	    if (b == 2) bitant_z_fac *= -1;
 	  }
-	  Cbeta_der_dd(a) = pinterp3->eval(&(aux_dbeta_dd(a,b,0,0,0)))*bitant_z_fac;
+	  Cbeta_der_dd(a) = pinterp3->eval(&(adm_dbeta_dd(a,b,0,0,0)))*bitant_z_fac;
 	}      
       
       // lapse
       for(int a = 0; a < NDIM; ++a) {
         int bitant_z_fac = 1;
         if ((bitant_sym) && (a == 2)) bitant_z_fac *= -1;
-	Calpha_der_d(a) = pinterp3->eval(&(aux_alpha_d(a,0,0,0)));
+	Calpha_der_d(a) = pinterp3->eval(&(adm_alpha_d(a,0,0,0)));
       }
-      
-      //TODO time drvts
-      
+            
       delete pinterp3;
 
       
@@ -1061,34 +1094,42 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
       // ----------------------------------------
 
       TransformMetricCarToSph(theta, phi,
-			      Cgamma_dd, Cbeta_d,
-			      Cgamma_der_ddd, Cbeta_der_dd,
-			      Sgamma, Sbeta_d, Sbeta_u,
-			      Sgamma_der_d, Sbeta_der_d);
+			      Cgamma_dd, Cgamma_der_ddd, Cgamma_dot_dd,
+			      Cbeta_d, Cbeta_der_dd, Cbeta_dot_u,
+			      Sgamma, Sgamma_der_d, Sgamma_dot_dd,
+			      Sbeta_d, Sbeta_u, Sbeta_der_d);
       
       // copy stuff
       alpha(i,j) = Calpha();
       dr_alpha(i,j) = Calpha_der_d(0);
-      //dot_alpha(i,j) = ...
+      dot_alpha(i,j) = Calpha_dot();
       
       for(int a = 0; a < 3; ++a) 
 	beta_d(a,i,j) = Sbeta_d(a);
 	beta_u(a,i,j) = Sbeta_u(a);
+	//beta_dot_u(a,i,j) = Sbeta_dot_u(a);
 	dr_beta_d(a,i,j) = Sbeta_der_d(0);
-	//dot_beta_d(i,j) = ...
 	for(int b = 0; b < a; ++b) {
 	  gamma_dd(a,b,i,j) = Sgamma_dd(a,b);
 	  gamma_uu(a,b,i,j) = Sgamma_uu(a,b);
 	  dr_gamma_dd(a,b,i,j) = Sgamma_der_ddd(a,b,0);
 	  //dr2_gamma_uu(a,b,i,j) = ...
-	  //dot_gamma_dd(i,j) = ...
+	  dot_gamma_dd(a,b,i,j) = Sgamma_dot_dd(a,b);
 	}
       
     } // phi loop
   } // theta loop
   
   adm_g_dd.DeleteAthenaTensor();
-
+  adm_beta_u.DeleteAthenaTensor();
+  adm_alpha.DeleteAthenaTensor();  
+  adm_dg_ddd.DeleteAthenaTensor();
+  adm_dbeta_dd.DeleteAthenaTensor();
+  adm_dalpha_d.DeleteAthenaTensor();
+  adm_g_dot_dd.DeleteAthenaTensor();
+  adm_beta_dot_u.DeleteAthenaTensor();
+  adm_alpha_dot.DeleteAthenaTensor();
+    
   // Free pointwise tensors
   Cgamma_dd.DeleteAthenaTensor();
   Cbeta_u.DeleteAthenaTensor();
@@ -1113,14 +1154,19 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 // \brief transform metric on the sphere from (x,y,z) to (R,theta,phi) at a (theta,phi) point
 void WaveExtractRWZ::TransformMetricCarToSph(theta,phi,
 					     AthenaTensor<Real, TensorSymm::SYM2, 0, 2> Cgamma_dd,
-					     AthenaTensor<Real, TensorSymm::NONE, 0, 1> Cbeta_d,
 					     AthenaTensor<Real, TensorSymm::SYM2, 0, 3> Cgamma_der_ddd,
-					     AthenaTensor<Real, TensorSymm::NONE, 0, 2> Cbeta_dd,
+					     AthenaTensor<Real, TensorSymm::SYM2, 0, 2> Cgamma_dot_dd,
+					     AthenaTensor<Real, TensorSymm::NONE, 0, 1> Cbeta_d,
+					     AthenaTensor<Real, TensorSymm::NONE, 0, 2> Cbeta_der_dd,
+					     AthenaTensor<Real, TensorSymm::NONE, 0, 2> Cbeta_dot_u,
 					     AthenaTensor<Real, TensorSymm::SYM2, 0, 2> gamma_dd,
+					     AthenaTensor<Real, TensorSymm::SYM2, 0, 3> gamma_der_ddd,
+					     AthenaTensor<Real, TensorSymm::SYM2, 0, 2> gamma_dot_dd,
 					     AthenaTensor<Real, TensorSymm::NONE, 0, 1> beta_d,
 					     AthenaTensor<Real, TensorSymm::NONE, 0, 1> beta_u,
-					     AthenaTensor<Real, TensorSymm::SYM2, 0, 3> gamma_der_ddd,
-					     AthenaTensor<Real, TensorSymm::NONE, 0, 2> beta_dd) {
+					     AthenaTensor<Real, TensorSymm::NONE, 0, 2> beta_der_dd
+					     AthenaTensor<Real, TensorSymm::NONE, 0, 1> beta_dot_d,
+					     ) {
 
   AthenaTensor<Real, TensorSymm::NONE, 0, 2> Jac;
   Jac.NewAthenaTensor();
@@ -1147,22 +1193,31 @@ void WaveExtractRWZ::TransformMetricCarToSph(theta,phi,
 
   for (int a = 0; a < 3; ++a)
     for (int b = 0; b < 3; ++b) {
-      gamma_dd(a,b) = 0.0;      
+      gamma_dd(a,b) = 0.0;
+      gamma_dot_dd(a,b) = 0.0;
       for (int c = 0; c < 3; ++c)
-	for (int d = 0; d < 3; ++d) 
-	  gamma_dd(a,b) += Jac(a,c) * Cgamma_dd(c,d) *  Jac(d,b); 
+	for (int d = 0; d < 3; ++d) {
+	  gamma_dd(a,b) += Jac(a,c) * Cgamma_dd(c,d) *  Jac(d,b);
+	  gamma_dot_dd(a,b) += Jac(a,c) * Cgamma_dot_dd(c,d) *  Jac(d,b);
+	}
     }
   
   for (int a = 0; a < 3; ++a) {
     beta_d(a) = 0.0;
-    for (int c = 0; c < 3; ++c) 
+    beta_dot_u(a) = 0.0;
+    for (int c = 0; c < 3; ++c) {
       beta_d(a) += Jac(a,c) * Cbeta_d(c);
+      beta_dot_u(a) += Jac(a,c) * Cbeta_dot_u(c);
+    }
   }
 
   for (int a = 0; a < 3; ++a) {
-    beta_u(a) = 0.0;    
-    for (int c = 0; c < 3; ++c) 
+    beta_u(a) = 0.0;
+    beta_dot_u(a) = 0.0;
+    for (int c = 0; c < 3; ++c) {
       beta_u(a) += gamma_uu(a,c) * beta_d(c);
+      beta_dot_u(a) += gamma_uu(a,c) * beta_dot_d(c);
+    }
   }
 
   //TODO: drvts, note we only need the radial = 0 component
@@ -1663,7 +1718,7 @@ void WaveExtractRWZ::MultipoleReduce() {
 	    integrals_multipoles[NVMultipoles * IG + lm + c] += 
 	      vol * 0.5 * div_r2 * div_lambda_lambda_2
 	      * ( (gamma_dd(1,1,i,j) + gamma_dd(2,2,i,j) * div_sinth2) * W
-		  + 2.0*gamma_dd(1,2,i,j)*X );
+		  + 2.0*gamma_dd(1,2,i,j) * X );
 
 	    // even parity drvts
 	    //TODO
