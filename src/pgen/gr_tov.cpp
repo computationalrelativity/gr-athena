@@ -334,7 +334,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   if (id_floor_primitives)
   {
-
     for (int k = 0; k < ncells3; ++k)
     for (int j = 0; j < ncells2; ++j)
     for (int i = 0; i < ncells1; ++i)
@@ -365,6 +364,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   // idempotent within some error tolerance.
   bool check_c2p_idempotent = pin->GetOrAddBoolean(
     "problem", "check_c2p_idempotent", true);
+  /*
   if (check_c2p_idempotent)
   {
     AthenaArray<Real> id_w(NHYDRO,   ncells3, ncells2, ncells1);
@@ -411,6 +411,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       if (NSCALARS > 0)
       {
         std::cout << "w,r_err: " << w_err << "," << r_err << "\n";
+        if (w_err > 1e-12)
+        {
+          pcoord->x1v.print_all("%.3f");
+          pcoord->x2v.print_all("%.3f");
+          pcoord->x3v.print_all("%.3f");
+        }
       }
       else
       {
@@ -418,6 +424,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       }
     }
   }
+  */
   // --------------------------------------------------------------------------
 
 
@@ -428,6 +435,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                   pscalars->r,
                   pfield->bcc);
 
+  /*
   pz4c->ADMConstraints(pz4c->storage.con,
                        pz4c->storage.adm,
                        pz4c->storage.mat,
@@ -447,7 +455,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   std::cout << "TOV_solve (ProblemGenerator,MB): ||H||_2=";
   std::cout << s_H << std::endl;
-
+  */
   return;
 }
 

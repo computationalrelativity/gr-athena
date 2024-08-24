@@ -410,6 +410,11 @@ class EquationOfState {
   Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> eos;
   Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> ps;
   Real temperature_floor_;
+
+  // Debugging parameters
+  Real dbg_err_tol_abs;
+  Real dbg_err_tol_rel;
+  bool dbg_report_all;
 #endif
 };
 
