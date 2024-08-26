@@ -939,12 +939,15 @@ TaskStatus GRMHD_Z4c::PhysicalBoundary_Hyd(MeshBlock *pmb, int stage)
       NGHOST);
 
     // Compute bcc globally
-    pf->CalculateCellCenteredField(pf->b,
-                                   pf->bcc,
-                                   pmb->pcoord,
-                                   0, pmb->ncells1-1,
-                                   0, pmb->ncells2-1,
-                                   0, pmb->ncells3-1);
+    if (MAGNETIC_FIELDS_ENABLED)
+    {
+      pf->CalculateCellCenteredField(pf->b,
+                                    pf->bcc,
+                                    pmb->pcoord,
+                                    0, pmb->ncells1-1,
+                                    0, pmb->ncells2-1,
+                                    0, pmb->ncells3-1);
+    }
 
     // Compute conserved fields in the boundary if required
 #ifndef DBG_USE_CONS_BC
@@ -1405,18 +1408,6 @@ TaskStatus GRMHD_Z4c::UpdateSource(MeshBlock *pmb, int stage)
     Field *pf   = pmb->pfield;
 
     PassiveScalars * ps = pmb->pscalars;
-
-    /*
-    if (MAGNETIC_FIELDS_ENABLED)
-    {
-      pf->CalculateCellCenteredField(pf->b,
-                                     pf->bcc,
-                                     pmb->pcoord,
-                                     0, pmb->ncells1-1,
-                                     0, pmb->ncells2-1,
-                                     0, pmb->ncells3-1);
-    }
-    */
 
     pz4c->GetMatter(pz4c->storage.mat,
                     pz4c->storage.adm,
