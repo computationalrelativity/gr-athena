@@ -19,6 +19,10 @@
 #include "../athena_arrays.hpp"
 #include "bvals_interfaces.hpp"
 
+// TODO shift the macros
+#include "../wave/wave_macro.hpp"
+#include "../z4c/z4c_macro.hpp"
+
 // MPI headers
 #ifdef MPI_PARALLEL
 #include <mpi.h>
@@ -145,12 +149,31 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
 
 
   // BD: TODO - condense this mess into unified interface below
-  void ApplyPhysicalBoundariesAux(const Real time, const Real dt);
   void ApplyPhysicalBoundariesM1(const Real time, const Real dt);
   void ApplyPhysicalVertexCenteredBoundaries(const Real time, const Real dt);
   void ApplyPhysicalBoundaries(const Real time, const Real dt);
   void ApplyPhysicalCellCenteredXBoundaries(const Real time, const Real dt);
 
+  inline std::vector<BoundaryVariable *> & GetBvarsWave()
+  {
+    return WAVE_SW_CC_CX_VC(
+      bvars_main_int, bvars_main_int_cx, bvars_main_int
+    );
+  };
+  inline std::vector<BoundaryVariable *> & GetBvarsZ4c()
+  {
+    return SW_CC_CX_VC(
+      bvars_main_int, bvars_main_int_cx, bvars_main_int
+    );
+  };
+  inline std::vector<BoundaryVariable *> & GetBvarsMatter()
+  {
+    return bvars_main_int;
+  };
+  inline std::vector<BoundaryVariable *> & GetBvarsM1()
+  {
+    return bvars_m1;
+  };
 
   void ApplyPhysicalBoundaries(const Real time, const Real dt,
                                std::vector<BoundaryVariable *> & bvars,
@@ -158,6 +181,12 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
                                const int var_js, const int var_je,
                                const int var_ks, const int var_ke,
                                const int ng);
+
+  void PrimitiveToConservedOnPhysicalBoundaries(
+    const int var_is, const int var_ie,
+    const int var_js, const int var_je,
+    const int var_ks, const int var_ke,
+    const int ng);
 
   //---------------------------------------------------------------------------
 

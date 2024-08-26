@@ -965,6 +965,100 @@ void BoundaryValues::ApplyPhysicalBoundaries(
   return;
 }
 
+void BoundaryValues::PrimitiveToConservedOnPhysicalBoundaries(
+  const int var_is, const int var_ie,
+  const int var_js, const int var_je,
+  const int var_ks, const int var_ke,
+  const int ng)
+{
+  MeshBlock *pmb = pmy_block_;
+  Coordinates *pco = pmb->pcoord;
+  EquationOfState *peos = pmb->peos;
+
+  Hydro *ph = (FLUID_ENABLED) ? pmb->phydro : nullptr;
+  Field *pf = (MAGNETIC_FIELDS_ENABLED) ? pmb->pfield : nullptr;
+  PassiveScalars *ps = (NSCALARS > 0) ? pmb->pscalars : nullptr;
+
+  int bis = var_is - ng, bie = var_ie + ng,
+      bjs = var_js, bje = var_je,
+      bks = var_ks, bke = var_ke;
+
+  // Extend the transverse limits that correspond to periodic boundaries as they are
+  // updated: x1, then x2, then x3
+  if (!apply_bndry_fn_[BoundaryFace::inner_x2] && pmb->block_size.nx2 > 1)
+    bjs = var_js - ng;
+  if (!apply_bndry_fn_[BoundaryFace::outer_x2] && pmb->block_size.nx2 > 1)
+    bje = var_je + ng;
+  if (!apply_bndry_fn_[BoundaryFace::inner_x3] && pmb->block_size.nx3 > 1)
+    bks = var_ks - ng;
+  if (!apply_bndry_fn_[BoundaryFace::outer_x3] && pmb->block_size.nx3 > 1)
+    bke = var_ke + ng;
+
+  if (apply_bndry_fn_[BoundaryFace::inner_x1])
+  {
+    peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s,
+                               pco,
+                               var_is - ng, var_is - 1,
+                               bjs, bje,
+                               bks, bke);
+  }
+
+  if (apply_bndry_fn_[BoundaryFace::outer_x1])
+  {
+    peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s,
+                               pco,
+                               var_ie + 1, var_ie + ng,
+                               bjs, bje,
+                               bks, bke);
+  }
+
+  if (pmb->block_size.nx2 > 1)
+  { // 2D or 3D
+    if (apply_bndry_fn_[BoundaryFace::inner_x2])
+    {
+      peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s,
+                                 pco,
+                                 bis, bie,
+                                 var_js - ng, var_js - 1,
+                                 bks, bke);
+    }
+
+    if (apply_bndry_fn_[BoundaryFace::outer_x2])
+    {
+      peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s,
+                                 pco,
+                                 bis, bie,
+                                 var_je + 1, var_je + ng,
+                                 bks, bke);
+    }
+  }
+
+  if (pmb->block_size.nx3 > 1)
+  { // 3D
+    bjs = var_js - ng;
+    bje = var_je + ng;
+
+    if (apply_bndry_fn_[BoundaryFace::inner_x3])
+    {
+      peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s,
+                                 pco,
+                                 bis, bie,
+                                 bjs, bje,
+                                 var_ks - ng, var_ks - 1);
+    }
+
+    if (apply_bndry_fn_[BoundaryFace::outer_x3])
+    {
+      peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s,
+                                 pco,
+                                 bis, bie,
+                                 bjs, bje,
+                                 var_ke + 1, var_ke + ng);
+    }
+  }
+
+}
+
 void BoundaryValues::DispatchBoundaryFunctions(
   MeshBlock *pmb, Coordinates *pco, Real time, Real dt,
   int il, int iu,

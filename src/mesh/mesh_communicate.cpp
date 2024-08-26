@@ -38,7 +38,13 @@ void Mesh::FinalizeWave(std::vector<MeshBlock*> & pmb_array)
       pbval->ProlongateBoundariesWave(time, 0.0);
     }
 
-    pbval->ApplyPhysicalBoundaries(time, 0.0);
+    pbval->ApplyPhysicalBoundaries(
+      time, 0.0,
+      pbval->GetBvarsWave(),
+      pw->mbi.il, pw->mbi.iu,
+      pw->mbi.jl, pw->mbi.ju,
+      pw->mbi.kl, pw->mbi.ku,
+      pw->mbi.ng);
   }
 }
 
@@ -63,12 +69,13 @@ void Mesh::FinalizeZ4cADM(std::vector<MeshBlock*> & pmb_array)
       pbval->ProlongateBoundariesZ4c(time, 0.0);
     }
 
-    // Switch based on Z4c sampling
-    FCN_CC_CX_VC(
-      pbval->ApplyPhysicalBoundaries,
-      pbval->ApplyPhysicalCellCenteredXBoundaries,
-      pbval->ApplyPhysicalVertexCenteredBoundaries
-    )(time, 0);
+    pbval->ApplyPhysicalBoundaries(
+      time, 0.0,
+      pbval->GetBvarsZ4c(),
+      pz->mbi.il, pz->mbi.iu,
+      pz->mbi.jl, pz->mbi.ju,
+      pz->mbi.kl, pz->mbi.ku,
+      pz->mbi.ng);
 
     // Enforce the algebraic constraints
     pz->AlgConstr(pz->storage.u);
@@ -535,36 +542,43 @@ void Mesh::CommunicateAuxZ4c()
 
   #pragma omp parallel num_threads(nthreads)
   {
-    MeshBlock *pmb;
-    BoundaryValues *pbval;
-
-    #pragma omp for private(pmb,pbval)
-    for (int i=0; i<nmb; ++i)
-    {
-      pmb = pmb_array[i]; pbval = pmb->pbval;
-      pbval->StartReceiving(BoundaryCommSubset::aux_z4c);
-    }
-
-    #pragma omp for private(pmb,pbval)
-    for (int i=0; i<nmb; ++i)
-    {
-      pmb = pmb_array[i]; pbval = pmb->pbval;
-      pmb->pz4c->abvar.SendBoundaryBuffers();
-    }
-
-    #pragma omp for private(pmb,pbval)
-    for (int i=0; i<nmb; ++i)
-    {
-      pmb = pmb_array[i]; pbval = pmb->pbval;
-      pmb->pz4c->abvar.ReceiveAndSetBoundariesWithWait();
-      pbval->ClearBoundary(BoundaryCommSubset::aux_z4c);
-    }
+    MeshBlock *pmb = nullptr;
+    BoundaryValues *pbval = nullptr;
+    Z4c *pz = nullptr;
 
     #pragma omp for private(pmb,pbval)
     for (int i=0; i<nmb; ++i)
     {
       pmb = pmb_array[i];
       pbval = pmb->pbval;
+      pbval->StartReceiving(BoundaryCommSubset::aux_z4c);
+    }
+
+    #pragma omp for private(pmb,pbval,pz)
+    for (int i=0; i<nmb; ++i)
+    {
+      pmb = pmb_array[i];
+      pbval = pmb->pbval;
+      pz = pmb->pz4c;
+      pz->abvar.SendBoundaryBuffers();
+    }
+
+    #pragma omp for private(pmb,pbval,pz)
+    for (int i=0; i<nmb; ++i)
+    {
+      pmb = pmb_array[i];
+      pbval = pmb->pbval;
+      pz = pmb->pz4c;
+      pz->abvar.ReceiveAndSetBoundariesWithWait();
+      pbval->ClearBoundary(BoundaryCommSubset::aux_z4c);
+    }
+
+    #pragma omp for private(pmb,pbval,pz)
+    for (int i=0; i<nmb; ++i)
+    {
+      pmb = pmb_array[i];
+      pbval = pmb->pbval;
+      pz = pmb->pz4c;
 
       if (multilevel)
       {
@@ -573,7 +587,13 @@ void Mesh::CommunicateAuxZ4c()
       }
 
       // Handle aux. fund. MeshBlock boundaries
-      pbval->ApplyPhysicalBoundariesAux(time, 0);
+      pbval->ApplyPhysicalBoundaries(
+        time, 0.0,
+        pbval->bvars_aux,
+        pz->mbi.il, pz->mbi.iu,
+        pz->mbi.jl, pz->mbi.ju,
+        pz->mbi.kl, pz->mbi.ku,
+        pz->mbi.ng);
     }
 
   }

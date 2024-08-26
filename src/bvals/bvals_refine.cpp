@@ -394,26 +394,6 @@ void BoundaryValues::ProlongateBoundariesAux(const Real time, const Real dt)
   }
 }
 
-void BoundaryValues::ApplyPhysicalBoundariesAux(const Real time, const Real dt)
-{
-  if (Z4C_ENABLED)
-  {
-    #if defined(Z4C_VC_ENABLED)
-      std::swap(bvars_main_int_vc, bvars_aux);
-      ApplyPhysicalVertexCenteredBoundaries(time, dt);
-      std::swap(bvars_main_int_vc, bvars_aux);
-    #elif defined(Z4C_CX_ENABLED)
-      std::swap(bvars_main_int_cx, bvars_aux);
-      ApplyPhysicalCellCenteredXBoundaries(time, dt);
-      std::swap(bvars_main_int_cx, bvars_aux);
-    #elif defined(Z4C_CC_ENABLED)
-      std::swap(bvars_main_int, bvars_aux);
-      ApplyPhysicalBoundaries(time, dt);
-      std::swap(bvars_main_int, bvars_aux);
-    #endif
-  }
-}
-
 void BoundaryValues::RestrictGhostCellsOnSameLevel(const NeighborBlock& nb, int nk,
                                                    int nj, int ni) {
   MeshBlock *pmb = pmy_block_;

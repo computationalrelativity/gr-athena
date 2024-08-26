@@ -822,24 +822,6 @@ TaskStatus GRMHD_Z4c::SetBoundariesField(MeshBlock *pmb, int stage)
   return TaskStatus::fail;
 }
 
-TaskStatus GRMHD_Z4c::CalculateCellCenteredField(MeshBlock *pmb, int stage)
-{
-  if (stage <= nstages)
-  {
-    Field *pf = pmb->pfield;
-
-    pf->CalculateCellCenteredField(pf->b,
-                                   pf->bcc,
-                                   pmb->pcoord,
-                                   0, pmb->ncells1-1,
-                                   0, pmb->ncells2-1,
-                                   0, pmb->ncells3-1);
-
-    return TaskStatus::next;
-  }
-  return TaskStatus::fail;
-}
-
 //-----------------------------------------------------------------------------
 // Functions for everything else
 TaskStatus GRMHD_Z4c::Prolongation_Hyd(MeshBlock *pmb, int stage)
@@ -929,6 +911,7 @@ TaskStatus GRMHD_Z4c::PhysicalBoundary_Hyd(MeshBlock *pmb, int stage)
 {
   if (stage <= nstages)
   {
+    Field *pf = pmb->pfield;
     Hydro *ph = pmb->phydro;
     PassiveScalars *ps = pmb->pscalars;
     BoundaryValues *pbval = pmb->pbval;
@@ -946,7 +929,31 @@ TaskStatus GRMHD_Z4c::PhysicalBoundary_Hyd(MeshBlock *pmb, int stage)
     }
 #endif // DBG_USE_CONS_BC
 
-    pbval->ApplyPhysicalBoundaries(t_end, dt_scaled);
+    // Apply boundary conditions on either prim or con
+    pbval->ApplyPhysicalBoundaries(
+      t_end, dt_scaled,
+      pbval->GetBvarsMatter(),
+      pmb->is, pmb->ie,
+      pmb->js, pmb->je,
+      pmb->ks, pmb->ke,
+      NGHOST);
+
+    // Compute bcc globally
+    pf->CalculateCellCenteredField(pf->b,
+                                   pf->bcc,
+                                   pmb->pcoord,
+                                   0, pmb->ncells1-1,
+                                   0, pmb->ncells2-1,
+                                   0, pmb->ncells3-1);
+
+    // Compute conserved fields in the boundary if required
+#ifndef DBG_USE_CONS_BC
+    pbval->PrimitiveToConservedOnPhysicalBoundaries(
+      pmb->is, pmb->ie,
+      pmb->js, pmb->je,
+      pmb->ks, pmb->ke,
+      NGHOST);
+#endif // DBG_USE_CONS_BC
 
     return TaskStatus::success;
   }
@@ -1300,16 +1307,18 @@ TaskStatus GRMHD_Z4c::PhysicalBoundary_Z4c(MeshBlock *pmb, int stage)
   if (stage <= nstages)
   {
     BoundaryValues *pbval = pmb->pbval;
+    Z4c *pz4c = pmb->pz4c;
 
     const Real t_end = this->t_end(stage, pmb);
     const Real dt_scaled = this->dt_scaled(stage, pmb);
 
-    // switch based on sampling
-    FCN_CC_CX_VC(
-        pbval->ApplyPhysicalBoundaries,
-        pbval->ApplyPhysicalCellCenteredXBoundaries,
-        pbval->ApplyPhysicalVertexCenteredBoundaries
-    )(t_end, dt_scaled);
+    pbval->ApplyPhysicalBoundaries(
+      t_end, dt_scaled,
+      pbval->GetBvarsZ4c(),
+      pz4c->mbi.il, pz4c->mbi.iu,
+      pz4c->mbi.jl, pz4c->mbi.ju,
+      pz4c->mbi.kl, pz4c->mbi.ku,
+      pz4c->mbi.ng);
 
   } else {
     return TaskStatus::fail;
