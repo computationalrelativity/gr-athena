@@ -96,10 +96,14 @@ class ColdEOSCompOSE {
 
   private:
     /// Internal evaluation functions
+    template<int LIX_EXTRAPOLATE>
     void weight_idx_ln(Real *w0, Real *w1, int *in, Real log_n) const;
 
+    template<int LIX_EXTRAPOLATE>
     Real eval_at_n(int iv, Real n) const;
+    template<int LIX_EXTRAPOLATE>
     Real eval_at_ln(int iv, Real log_n) const;
+
     Real eval_at_general(int ii, int iv, Real h) const;
     int D0_x_2(double *f, double *x, int n, double *df);
 
