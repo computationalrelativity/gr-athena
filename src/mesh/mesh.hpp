@@ -629,7 +629,8 @@ struct MB_info {
   bool f1, f2, f3;                      // dimensionality flags
   int il, iu, jl, ju, kl, ku;           // local block iter.
   int nn1, nn2, nn3;                    // total number of nodes (w. ghosts)
-  int cnn1, cnn2, cnn3;                 // coarse analogue ^
+  int cil, ciu, cjl, cju, ckl, cku;     // coarse analogue ^
+  int cnn1, cnn2, cnn3;
   int ng, cng;                          // number of ghosts
   int ndim;
 

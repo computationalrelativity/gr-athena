@@ -75,6 +75,12 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
     SW_CCX_VC(pmb->ncells1, pmb->nverts1),                 // nn1
     SW_CCX_VC(pmb->ncells2, pmb->nverts2),                 // nn2
     SW_CCX_VC(pmb->ncells3, pmb->nverts3),                 // nn3
+    SW_CC_CX_VC(pmb->cis, pmb->cx_cis, pmb->civs),         // cil
+    SW_CC_CX_VC(pmb->cie, pmb->cx_cie, pmb->cive),         // ciu
+    SW_CC_CX_VC(pmb->cjs, pmb->cx_cjs, pmb->cjvs),         // cjl
+    SW_CC_CX_VC(pmb->cje, pmb->cx_cje, pmb->cjve),         // cju
+    SW_CC_CX_VC(pmb->cks, pmb->cx_cks, pmb->ckvs),         // ckl
+    SW_CC_CX_VC(pmb->cke, pmb->cx_cke, pmb->ckve),         // cku
     SW_CC_CX_VC(pmb->ncc1, pmb->cx_ncc1, pmb->ncv1),       // cnn1
     SW_CC_CX_VC(pmb->ncc2, pmb->cx_ncc2, pmb->ncv2),       // cnn2
     SW_CC_CX_VC(pmb->ncc3, pmb->cx_ncc3, pmb->ncv3),       // cnn3

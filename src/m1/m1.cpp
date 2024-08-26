@@ -37,6 +37,12 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     pmb->ncells1,                   // nn1
     pmb->ncells2,                   // nn2
     pmb->ncells3,                   // nn3
+    pmb->cis,                       // cil
+    pmb->cie,                       // ciu
+    pmb->cjs,                       // cjl
+    pmb->cje,                       // cju
+    pmb->cks,                       // ckl
+    pmb->cke,                       // cku
     pmb->ncc1,                      // cnn1
     pmb->ncc2,                      // cnn2
     pmb->ncc3,                      // cnn3
