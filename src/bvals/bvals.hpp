@@ -134,25 +134,32 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   // (these typically involve a coupled interaction of boundary variable/quantities)
   // ------
 
-  void ApplyPhysicalBoundaries(const Real time, const Real dt);
-
   void ProlongateBoundariesHydro(const Real time, const Real dt);
   void ProlongateBoundariesZ4c(const Real time, const Real dt);
   void ProlongateBoundariesWave(const Real time, const Real dt);
   void ProlongateBoundariesAux(const Real time, const Real dt);
   void ProlongateBoundariesM1(const Real time, const Real dt);
 
-  //--New logic for vertex-centering
-  void ApplyPhysicalVertexCenteredBoundaries(const Real time, const Real dt);
   void ProlongateVertexCenteredBoundaries(const Real time, const Real dt);
-
-  void ApplyPhysicalCellCenteredXBoundaries(const Real time, const Real dt);
   void ProlongateCellCenteredXBoundaries(const Real time, const Real dt);
-  //---------------------------------------------------------------------------
 
-  // Interface to deal with garbage interface...
+
+  // BD: TODO - condense this mess into unified interface below
   void ApplyPhysicalBoundariesAux(const Real time, const Real dt);
   void ApplyPhysicalBoundariesM1(const Real time, const Real dt);
+  void ApplyPhysicalVertexCenteredBoundaries(const Real time, const Real dt);
+  void ApplyPhysicalBoundaries(const Real time, const Real dt);
+  void ApplyPhysicalCellCenteredXBoundaries(const Real time, const Real dt);
+
+
+  void ApplyPhysicalBoundaries(const Real time, const Real dt,
+                               std::vector<BoundaryVariable *> & bvars,
+                               const int var_is, const int var_ie,
+                               const int var_js, const int var_je,
+                               const int var_ks, const int var_ke,
+                               const int ng);
+
+  //---------------------------------------------------------------------------
 
   // compute the shear at each integrator stage
   // TODO(felker): consider making this fn private again if calling within StartRecv()
@@ -241,7 +248,7 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
       int kl, int ku,
       int ngh,
       BoundaryFace face,
-      std::vector<BoundaryVariable *> &bvars_main);
+      std::vector<BoundaryVariable *> &bvars);
 
   void CheckPolarBoundaries();  // called in BoundaryValues() ctor
 

@@ -858,16 +858,122 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const
   return;
 }
 
-// KGF: should "bvars_it" be fixed in this class member function? Or passed as argument?
-// BD: Yes, yes it should
+// Handler for application of physical boundaries for all variable types
+void BoundaryValues::ApplyPhysicalBoundaries(
+  const Real time, const Real dt,
+  std::vector<BoundaryVariable *> & bvars,
+  const int var_is, const int var_ie,
+  const int var_js, const int var_je,
+  const int var_ks, const int var_ke,
+  const int ng)
+{
+  MeshBlock *pmb = pmy_block_;
+  Coordinates *pco = pmb->pcoord;
+  int bis = var_is - ng, bie = var_ie + ng,
+      bjs = var_js, bje = var_je,
+      bks = var_ks, bke = var_ke;
+
+  // Extend the transverse limits that correspond to periodic boundaries as they are
+  // updated: x1, then x2, then x3
+  if (!apply_bndry_fn_[BoundaryFace::inner_x2] && pmb->block_size.nx2 > 1)
+    bjs = var_js - ng;
+  if (!apply_bndry_fn_[BoundaryFace::outer_x2] && pmb->block_size.nx2 > 1)
+    bje = var_je + ng;
+  if (!apply_bndry_fn_[BoundaryFace::inner_x3] && pmb->block_size.nx3 > 1)
+    bks = var_ks - ng;
+  if (!apply_bndry_fn_[BoundaryFace::outer_x3] && pmb->block_size.nx3 > 1)
+    bke = var_ke + ng;
+
+  // Apply boundary function on inner-x1 and update W,bcc (if not periodic)
+  if (apply_bndry_fn_[BoundaryFace::inner_x1])
+  {
+    DispatchBoundaryFunctions(pmb, pco, time, dt,
+                              var_is, var_ie,
+                              bjs, bje,
+                              bks, bke,
+                              ng,
+                              BoundaryFace::inner_x1,
+                              bvars);
+  }
+
+  // Apply boundary function on outer-x1 and update W,bcc (if not periodic)
+  if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
+    DispatchBoundaryFunctions(pmb, pco, time, dt,
+                              var_is, var_ie,
+                              bjs, bje,
+                              bks, bke,
+                              ng,
+                              BoundaryFace::outer_x1,
+                              bvars);
+  }
+
+  if (pmb->block_size.nx2 > 1) { // 2D or 3D
+    // Apply boundary function on inner-x2 and update W,bcc (if not periodic)
+    if (apply_bndry_fn_[BoundaryFace::inner_x2])
+    {
+      DispatchBoundaryFunctions(pmb, pco, time, dt,
+                                bis, bie,
+                                var_js, var_je,
+                                bks, bke,
+                                ng,
+                                BoundaryFace::inner_x2,
+                                bvars);
+    }
+
+    // Apply boundary function on outer-x2 and update W,bcc (if not periodic)
+    if (apply_bndry_fn_[BoundaryFace::outer_x2])
+    {
+      DispatchBoundaryFunctions(pmb, pco, time, dt,
+                                bis, bie,
+                                var_js, var_je,
+                                bks, bke,
+                                ng,
+                                BoundaryFace::outer_x2,
+                                bvars);
+    }
+  }
+
+  if (pmb->block_size.nx3 > 1)
+  { // 3D
+    bjs = var_js - ng;
+    bje = var_je + ng;
+
+    // Apply boundary function on inner-x3 and update W,bcc (if not periodic)
+    if (apply_bndry_fn_[BoundaryFace::inner_x3])
+    {
+      DispatchBoundaryFunctions(pmb, pco, time, dt,
+                                bis, bie,
+                                bjs, bje,
+                                var_ks, var_ke,
+                                ng,
+                                BoundaryFace::inner_x3,
+                                bvars);
+    }
+
+    // Apply boundary function on outer-x3 and update W,bcc (if not periodic)
+    if (apply_bndry_fn_[BoundaryFace::outer_x3])
+    {
+      DispatchBoundaryFunctions(pmb, pco, time, dt,
+                                bis, bie,
+                                bjs, bje,
+                                var_ks, var_ke,
+                                ng,
+                                BoundaryFace::outer_x3,
+                                bvars);
+    }
+  }
+  return;
+}
+
 void BoundaryValues::DispatchBoundaryFunctions(
-    MeshBlock *pmb, Coordinates *pco, Real time, Real dt,
-    int il, int iu,
-    int jl, int ju,
-    int kl, int ku,
-    int ngh,
-    BoundaryFace face,
-    std::vector<BoundaryVariable *> &bvars_main) {
+  MeshBlock *pmb, Coordinates *pco, Real time, Real dt,
+  int il, int iu,
+  int jl, int ju,
+  int kl, int ku,
+  int ngh,
+  BoundaryFace face,
+  std::vector<BoundaryVariable *> &bvars)
+{
   if (block_bcs[face] ==  BoundaryFlag::user)
   {  // user-enrolled BCs
     pmy_mesh_->BoundaryFunction_[face](pmb, pco, time, dt,
@@ -885,7 +991,7 @@ void BoundaryValues::DispatchBoundaryFunctions(
 
   // For any function in the BoundaryPhysics interface class, iterate over
   // BoundaryVariable pointers "enrolled"
-  for (auto bvars_it = bvars_main.begin(); bvars_it != bvars_main.end();
+  for (auto bvars_it = bvars.begin(); bvars_it != bvars.end();
        ++bvars_it) {
     switch (block_bcs[face]) {
     case BoundaryFlag::user: // handled above, outside loop over BoundaryVariable objs
