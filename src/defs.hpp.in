@@ -110,6 +110,9 @@
 // Error Policy code used for preprocessor checking
 #define ERROR_POLICY_CODE @ERROR_POLICY_CODE@
 
+// Switch off adjust_conserved in `reset_floor` for less aggressive flooring
+#define @PRIMITIVE_SOLVER_ADJUST_CONSERVED@
+
 // Maximum supported species by PrimitiveSolver
 // FIXME: Should be added as an argument later.
 #define MAX_SPECIES 1

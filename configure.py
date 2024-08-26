@@ -205,7 +205,7 @@ parser.add_argument(
 parser.add_argument(
   "--errorpolicy",
   default="do_nothing",
-  choices=["do_nothing", "reset_floor"],
+  choices=["do_nothing", "reset_floor", "reset_floor_no_adjust_conserved"],
   help="select error policy for PrimitiveSolver framework",
 )
 
@@ -834,6 +834,21 @@ elif args["eos"] == "eostaudyn_ps":
   elif args["errorpolicy"] == "reset_floor":
     definitions["ERROR_POLICY"] = "ResetFloor"
     definitions["ERROR_POLICY_CODE"] = "1"
+    definitions["PRIMITIVE_SOLVER_ADJUST_CONSERVED"] = (
+      "PRIMITIVE_SOLVER_ADJUST_CONSERVED"
+    )
+  elif args["errorpolicy"] == "reset_floor_no_adjust_conserved":
+    # this is just to set a macro in defs.hpp which controls
+    # `adjust_conserved` in reset_floor.cpp.
+    #
+    # Rename to get the correct file to compile later
+    args["errorpolicy"] = "reset_floor"
+
+    definitions["ERROR_POLICY"] = "ResetFloor"
+    definitions["ERROR_POLICY_CODE"] = "1"
+    definitions["PRIMITIVE_SOLVER_ADJUST_CONSERVED"] = (
+      "NO_PRIMITIVE_SOLVER_ADJUST_CONSERVED"
+    )
   else:
     definitions["ERROR_POLICY"] = ""
 
