@@ -349,7 +349,15 @@ void Mesh::CommunicateConserved(std::vector<MeshBlock*> & pmb_array)
       ph->hbvar.ReceiveAndSetBoundariesWithWait();
 
     if (MAGNETIC_FIELDS_ENABLED)
+    {
+      const int il = 0, iu = (pmb->ncells1 > 1)? pmb->ncells1 - 1 : 0;
+      const int jl = 0, ju = (pmb->ncells2 > 1)? pmb->ncells2 - 1 : 0;
+      const int kl = 0, ku = (pmb->ncells3 > 1)? pmb->ncells3 - 1 : 0;
+
       pf->fbvar.ReceiveAndSetBoundariesWithWait();
+      pf->CalculateCellCenteredField(pf->b, pf->bcc, pmb->pcoord,
+                                     il, iu, jl, ju, kl, ku);
+    }
 
     if (NSCALARS > 0)
       ps->sbvar.ReceiveAndSetBoundariesWithWait();

@@ -383,7 +383,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
         pfield->b.x3f(k,j,i) = 0.5*(bzcc(k-1,j,i) + bzcc(k,j,i));
       }
 
-    pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord, il,iu,jl,ju,kl,ku);
   } // MAGNETIC_FIELDS_ENABLED
   */
   //  -------------------------------------------------------------------------

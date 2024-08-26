@@ -1617,12 +1617,6 @@ void TOV_populate(MeshBlock *pmb,
 	  pfield->b.x3f(k,j,i) = 0.5*(pfield->bcc(2,k-1,j,i) +
                                 pfield->bcc(2,k,j,i));
   }
-
-  pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord,
-                                     0,(pmb->ncells1>1)? pmb->ncells1-1 : 0,
-                                     0,(pmb->ncells2>1)? pmb->ncells2-1 : 0,
-                                     0,(pmb->ncells3>1)? pmb->ncells3-1 : 0);
-
 #endif
 
 }
