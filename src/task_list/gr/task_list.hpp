@@ -97,6 +97,8 @@ public:
   TaskStatus SetBoundariesHydro(MeshBlock *pmb, int stage);
   TaskStatus SetBoundariesField(MeshBlock *pmb, int stage);
 
+  TaskStatus CalculateCellCenteredField(MeshBlock *pmb, int stage);
+
   TaskStatus Prolongation_Hyd(MeshBlock *pmb, int stage);
   TaskStatus Primitives(MeshBlock *pmb, int stage);
   TaskStatus PhysicalBoundary_Hyd(MeshBlock *pmb, int stage);

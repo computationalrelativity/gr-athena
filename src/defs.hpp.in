@@ -59,7 +59,6 @@
 
 // If activated, use only cons R/P on MeshBlock BC; and phys BC
 #define @DBG_USE_CONS_BC@
-#define @DBG_USE_REFERENCE_TASKLISTS@
 
 // BD: TODO - check carefully... again...
 // Reconstruction X1 convention may require 0 or 1 offset for l/r

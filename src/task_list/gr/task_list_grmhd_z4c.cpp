@@ -48,378 +48,6 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin,
   const bool multilevel = pm->multilevel;  // for SMR or AMR logic
   const bool adaptive   = pm->adaptive;    // AMR
 
-  // reference task-list (from older branches)
-#ifdef DBG_USE_REFERENCE_TASKLISTS
-  {
-    // (M)HD sub-system logic -------------------------------------------------
-    Add(CALC_HYDFLX, NONE, &GRMHD_Z4c::CalculateHydroFlux);
-
-    if (NSCALARS > 0)
-    {
-      Add(CALC_SCLRFLX, CALC_HYDFLX, &GRMHD_Z4c::CalculateScalarFlux);
-    }
-
-    if (multilevel)
-    {
-      Add(SEND_HYDFLX, CALC_HYDFLX, &GRMHD_Z4c::SendFluxCorrectionHydro);
-      Add(RECV_HYDFLX, CALC_HYDFLX, &GRMHD_Z4c::ReceiveAndCorrectHydroFlux);
-      Add(INT_HYD,     RECV_HYDFLX, &GRMHD_Z4c::IntegrateHydro);
-    }
-    else
-    {
-      Add(INT_HYD, CALC_HYDFLX, &GRMHD_Z4c::IntegrateHydro);
-    }
-
-    Add(SRCTERM_HYD, INT_HYD,     &GRMHD_Z4c::AddSourceTermsHydro);
-    Add(SEND_HYD,    SRCTERM_HYD, &GRMHD_Z4c::SendHydro);
-    Add(RECV_HYD,    INT_HYD,     &GRMHD_Z4c::ReceiveHydro);
-
-    Add(SETB_HYD, (RECV_HYD | SRCTERM_HYD), &GRMHD_Z4c::SetBoundariesHydro);
-
-    if (NSCALARS > 0)
-    {
-      if (multilevel)
-      {
-        Add(SEND_SCLRFLX, CALC_SCLRFLX, &GRMHD_Z4c::SendScalarFlux);
-        Add(RECV_SCLRFLX, CALC_SCLRFLX, &GRMHD_Z4c::ReceiveScalarFlux);
-        Add(INT_SCLR,     RECV_SCLRFLX, &GRMHD_Z4c::IntegrateScalars);
-      }
-      else
-      {
-        Add(INT_SCLR, CALC_SCLRFLX, &GRMHD_Z4c::IntegrateScalars);
-      }
-
-      Add(SEND_SCLR, INT_SCLR, &GRMHD_Z4c::SendScalars);
-      Add(RECV_SCLR, NONE,     &GRMHD_Z4c::ReceiveScalars);
-
-      Add(SETB_SCLR, (RECV_SCLR | INT_SCLR), &GRMHD_Z4c::SetBoundariesScalars);
-    }
-
-    if (MAGNETIC_FIELDS_ENABLED)
-    {
-      // compute MHD fluxes, integrate field
-      Add(CALC_FLDFLX, CALC_HYDFLX, &GRMHD_Z4c::CalculateEMF);
-      Add(SEND_FLDFLX, CALC_FLDFLX, &GRMHD_Z4c::SendFluxCorrectionEMF);
-      Add(RECV_FLDFLX, SEND_FLDFLX, &GRMHD_Z4c::ReceiveAndCorrectEMF);
-      Add(INT_FLD,     RECV_FLDFLX, &GRMHD_Z4c::IntegrateField);
-
-      Add(SEND_FLD, INT_FLD, &GRMHD_Z4c::SendField);
-      Add(RECV_FLD, NONE,    &GRMHD_Z4c::ReceiveField);
-      Add(SETB_FLD, (RECV_FLD | INT_FLD), &GRMHD_Z4c::SetBoundariesField);
-
-      // prolongate, compute new primitives
-      if (multilevel)
-      {
-        if (NSCALARS > 0)
-        {
-          Add(PROLONG_HYD,
-              (SEND_HYD  | SETB_HYD  | SEND_FLD | SETB_FLD |
-               SEND_SCLR | SETB_SCLR | Z4C_TO_ADM),
-              &GRMHD_Z4c::Prolongation_Hyd);
-        }
-        else
-        {
-          Add(PROLONG_HYD,
-              (SEND_HYD | SETB_HYD | SEND_FLD | SETB_FLD |
-               Z4C_TO_ADM),
-              &GRMHD_Z4c::Prolongation_Hyd);
-        }
-        Add(CONS2PRIM, (PROLONG_HYD | Z4C_TO_ADM), &GRMHD_Z4c::Primitives);
-      }
-      else
-      {
-        if (NSCALARS > 0)
-        {
-          Add(CONS2PRIM, (SETB_HYD | SETB_FLD | SETB_SCLR),
-              &GRMHD_Z4c::Primitives);
-        }
-        else
-        {
-          Add(CONS2PRIM, (SETB_HYD | SETB_FLD | Z4C_TO_ADM),
-              &GRMHD_Z4c::Primitives);
-        }
-      }
-    }
-    else  // otherwise GRHD
-    {
-      // prolongate, compute new primitives
-      if (multilevel)
-      {
-        if (NSCALARS > 0)
-        {
-          Add(PROLONG_HYD,
-              (SEND_HYD | SETB_HYD | SETB_SCLR | SEND_SCLR | Z4C_TO_ADM),
-              &GRMHD_Z4c::Prolongation_Hyd);
-        }
-        else
-        {
-          Add(PROLONG_HYD,
-              (SEND_HYD | SETB_HYD | Z4C_TO_ADM),
-              &GRMHD_Z4c::Prolongation_Hyd);
-        }
-        Add(CONS2PRIM,(PROLONG_HYD | Z4C_TO_ADM), &GRMHD_Z4c::Primitives);
-      }
-      else
-      {
-
-        if (NSCALARS > 0)
-        {
-          Add(CONS2PRIM, (SETB_HYD | SETB_SCLR), &GRMHD_Z4c::Primitives);
-        }
-        else
-        {
-          Add(CONS2PRIM,
-              (SETB_HYD | Z4C_TO_ADM),
-              &GRMHD_Z4c::Primitives);
-        }
-
-      }
-    }
-
-    Add(UPDATE_SRC,   (CONS2PRIM | CALC_Z4CRHS),
-        &GRMHD_Z4c::UpdateSource);
-    Add(PHY_BVAL_HYD, CONS2PRIM, &GRMHD_Z4c::PhysicalBoundary_Hyd);
-
-    // Z4c sub-system logic ---------------------------------------------------
-    Add(CALC_Z4CRHS, NONE,        &GRMHD_Z4c::CalculateZ4cRHS);
-    Add(INT_Z4C,     CALC_Z4CRHS, &GRMHD_Z4c::IntegrateZ4c);
-
-    Add(SEND_Z4C, INT_Z4C, &GRMHD_Z4c::SendZ4c);
-
-    if(MAGNETIC_FIELDS_ENABLED)
-    {
-      Add(RECV_Z4C, (INT_Z4C | RECV_HYD | RECV_FLD | RECV_FLDFLX),
-          &GRMHD_Z4c::ReceiveZ4c);
-    }
-    else
-    {
-      Add(RECV_Z4C, (INT_Z4C | RECV_HYD), &GRMHD_Z4c::ReceiveZ4c);
-    }
-
-    Add(SETB_Z4C, (RECV_Z4C | INT_Z4C), &GRMHD_Z4c::SetBoundariesZ4c);
-
-    if (multilevel)
-    {
-      Add(PROLONG_Z4C,  (SEND_Z4C | SETB_Z4C), &GRMHD_Z4c::Prolongation_Z4c);
-      Add(PHY_BVAL_Z4C, PROLONG_Z4C,
-          &GRMHD_Z4c::PhysicalBoundary_Z4c);
-    }
-    else
-    {
-      Add(PHY_BVAL_Z4C, SETB_Z4C, &GRMHD_Z4c::PhysicalBoundary_Z4c);
-    }
-
-    Add(ALG_CONSTR, PHY_BVAL_Z4C, &GRMHD_Z4c::EnforceAlgConstr);
-
-    if (MAGNETIC_FIELDS_ENABLED)
-    {
-      Add(Z4C_TO_ADM, (ALG_CONSTR | INT_HYD | INT_FLD),
-          &GRMHD_Z4c::Z4cToADM);
-    }
-    else
-    {
-      Add(Z4C_TO_ADM, (ALG_CONSTR | INT_HYD), &GRMHD_Z4c::Z4cToADM);
-    }
-
-    Add(ADM_CONSTR, (Z4C_TO_ADM | UPDATE_SRC), &GRMHD_Z4c::ADM_Constraints);
-
-    Add(Z4C_WEYL,  Z4C_TO_ADM, &GRMHD_Z4c::Z4c_Weyl);
-
-    Add(USERWORK, (ADM_CONSTR | PHY_BVAL_HYD), &GRMHD_Z4c::UserWork);
-    Add(NEW_DT,   USERWORK,                    &GRMHD_Z4c::NewBlockTimeStep);
-
-    if (adaptive)
-    {
-      Add(FLAG_AMR,     USERWORK, &GRMHD_Z4c::CheckRefinement);
-      Add(CLEAR_ALLBND, FLAG_AMR, &GRMHD_Z4c::ClearAllBoundary);
-    }
-    else
-    {
-      Add(CLEAR_ALLBND, NEW_DT, &GRMHD_Z4c::ClearAllBoundary);
-    }
-
-  }
-#endif // DBG_USE_REFERENCE_TASKLISTS
-
-  // basic GRHD AMR
-  if (0) {
-    // (M)HD sub-system logic -------------------------------------------------
-    Add(CALC_HYDFLX, NONE, &GRMHD_Z4c::CalculateHydroFlux);
-
-    Add(SEND_HYDFLX, CALC_HYDFLX, &GRMHD_Z4c::SendFluxCorrectionHydro);
-    Add(RECV_HYDFLX, CALC_HYDFLX, &GRMHD_Z4c::ReceiveAndCorrectHydroFlux);
-    Add(INT_HYD,     RECV_HYDFLX, &GRMHD_Z4c::IntegrateHydro);
-
-    Add(SRCTERM_HYD, INT_HYD,     &GRMHD_Z4c::AddSourceTermsHydro);
-
-    Add(SEND_HYD,    SRCTERM_HYD, &GRMHD_Z4c::SendHydro);
-    Add(RECV_HYD,    INT_HYD,     &GRMHD_Z4c::ReceiveHydro);
-
-    Add(SETB_HYD, RECV_HYD, &GRMHD_Z4c::SetBoundariesHydro);
-
-    {
-      // prolongate, compute new primitives
-      if (multilevel)
-      {
-        Add(PROLONG_HYD,
-            (SEND_HYD | SETB_HYD | Z4C_TO_ADM),
-            &GRMHD_Z4c::Prolongation_Hyd);
-        Add(CONS2PRIM,(PROLONG_HYD | Z4C_TO_ADM), &GRMHD_Z4c::Primitives);
-      }
-      else
-      {
-
-        Add(CONS2PRIM,
-            (SETB_HYD | Z4C_TO_ADM),
-            &GRMHD_Z4c::Primitives);
-
-      }
-    }
-
-    Add(PHY_BVAL_HYD, CONS2PRIM, &GRMHD_Z4c::PhysicalBoundary_Hyd);
-    Add(UPDATE_SRC, PHY_BVAL_HYD, &GRMHD_Z4c::UpdateSource);
-
-    // Z4c sub-system logic ---------------------------------------------------
-    Add(CALC_Z4CRHS, NONE,        &GRMHD_Z4c::CalculateZ4cRHS);
-    Add(INT_Z4C,     CALC_Z4CRHS, &GRMHD_Z4c::IntegrateZ4c);
-
-    Add(SEND_Z4C, INT_Z4C, &GRMHD_Z4c::SendZ4c);
-    Add(RECV_Z4C, NONE,    &GRMHD_Z4c::ReceiveZ4c);
-    Add(SETB_Z4C, RECV_Z4C, &GRMHD_Z4c::SetBoundariesZ4c);
-
-    Add(PROLONG_Z4C,  (SEND_Z4C | SETB_Z4C), &GRMHD_Z4c::Prolongation_Z4c);
-    Add(PHY_BVAL_Z4C, PROLONG_Z4C, &GRMHD_Z4c::PhysicalBoundary_Z4c);
-    Add(ALG_CONSTR, PHY_BVAL_Z4C, &GRMHD_Z4c::EnforceAlgConstr);
-
-    Add(Z4C_TO_ADM, ALG_CONSTR, &GRMHD_Z4c::Z4cToADM);
-
-    Add(ADM_CONSTR, UPDATE_SRC, &GRMHD_Z4c::ADM_Constraints);
-    Add(Z4C_WEYL,  Z4C_TO_ADM, &GRMHD_Z4c::Z4c_Weyl);
-
-    Add(USERWORK, ADM_CONSTR, &GRMHD_Z4c::UserWork);
-    Add(NEW_DT,   USERWORK,   &GRMHD_Z4c::NewBlockTimeStep);
-
-    Add(FLAG_AMR,     USERWORK, &GRMHD_Z4c::CheckRefinement);
-    Add(CLEAR_ALLBND, FLAG_AMR, &GRMHD_Z4c::ClearAllBoundary);
-
-  }
-
-  // change ordering of tasks to better reflect state-vector time
-  if (0) {
-    // (M)HD sub-system logic -------------------------------------------------
-    Add(CALC_HYDFLX, NONE, &GRMHD_Z4c::CalculateHydroFlux);
-
-    Add(SEND_HYDFLX, CALC_HYDFLX, &GRMHD_Z4c::SendFluxCorrectionHydro);
-    Add(RECV_HYDFLX, CALC_HYDFLX, &GRMHD_Z4c::ReceiveAndCorrectHydroFlux);
-    Add(INT_HYD,     RECV_HYDFLX, &GRMHD_Z4c::IntegrateHydro);
-
-    Add(SRCTERM_HYD, INT_HYD,     &GRMHD_Z4c::AddSourceTermsHydro);
-
-    // now need advanced z4c(ADM) state
-    Add(CALC_Z4CRHS, SRCTERM_HYD,        &GRMHD_Z4c::CalculateZ4cRHS);
-    Add(INT_Z4C,     CALC_Z4CRHS, &GRMHD_Z4c::IntegrateZ4c);
-
-    Add(SEND_Z4C, INT_Z4C, &GRMHD_Z4c::SendZ4c);
-    Add(RECV_Z4C, NONE,    &GRMHD_Z4c::ReceiveZ4c);
-    Add(SETB_Z4C, RECV_Z4C, &GRMHD_Z4c::SetBoundariesZ4c);
-
-    Add(PROLONG_Z4C,  (SEND_Z4C | SETB_Z4C), &GRMHD_Z4c::Prolongation_Z4c);
-    Add(PHY_BVAL_Z4C, PROLONG_Z4C, &GRMHD_Z4c::PhysicalBoundary_Z4c);
-    Add(ALG_CONSTR, PHY_BVAL_Z4C, &GRMHD_Z4c::EnforceAlgConstr);
-    Add(Z4C_TO_ADM, ALG_CONSTR, &GRMHD_Z4c::Z4cToADM);
-
-    // now can send hydro
-
-
-    Add(SEND_HYD,    Z4C_TO_ADM, &GRMHD_Z4c::SendHydro);
-    Add(RECV_HYD,    Z4C_TO_ADM,     &GRMHD_Z4c::ReceiveHydro);
-
-    Add(SETB_HYD, RECV_HYD, &GRMHD_Z4c::SetBoundariesHydro);
-
-    {
-      // prolongate, compute new primitives
-      Add(PROLONG_HYD,
-          (SEND_HYD | SETB_HYD),
-          &GRMHD_Z4c::Prolongation_Hyd);
-      Add(CONS2PRIM,(PROLONG_HYD), &GRMHD_Z4c::Primitives);
-    }
-
-    Add(PHY_BVAL_HYD, CONS2PRIM, &GRMHD_Z4c::PhysicalBoundary_Hyd);
-    Add(UPDATE_SRC, PHY_BVAL_HYD, &GRMHD_Z4c::UpdateSource);
-
-    // Z4c sub-system logic ---------------------------------------------------
-
-
-
-    Add(ADM_CONSTR, UPDATE_SRC, &GRMHD_Z4c::ADM_Constraints);
-    Add(Z4C_WEYL,  Z4C_TO_ADM, &GRMHD_Z4c::Z4c_Weyl);
-
-    Add(USERWORK, ADM_CONSTR, &GRMHD_Z4c::UserWork);
-    Add(NEW_DT,   USERWORK,   &GRMHD_Z4c::NewBlockTimeStep);
-
-    Add(FLAG_AMR,     USERWORK, &GRMHD_Z4c::CheckRefinement);
-    Add(CLEAR_ALLBND, FLAG_AMR, &GRMHD_Z4c::ClearAllBoundary);
-
-  }
-
-  // metricial data is advanced in hydro sources
-  if (0) {
-    // (M)HD sub-system logic -------------------------------------------------
-    Add(CALC_HYDFLX, NONE, &GRMHD_Z4c::CalculateHydroFlux);
-
-    Add(SEND_HYDFLX, CALC_HYDFLX, &GRMHD_Z4c::SendFluxCorrectionHydro);
-    Add(RECV_HYDFLX, CALC_HYDFLX, &GRMHD_Z4c::ReceiveAndCorrectHydroFlux);
-    Add(INT_HYD,     RECV_HYDFLX, &GRMHD_Z4c::IntegrateHydro);
-
-    // now need advanced z4c(ADM) state
-    Add(CALC_Z4CRHS, INT_HYD,        &GRMHD_Z4c::CalculateZ4cRHS);
-    Add(INT_Z4C,     CALC_Z4CRHS, &GRMHD_Z4c::IntegrateZ4c);
-
-    Add(SEND_Z4C, INT_Z4C, &GRMHD_Z4c::SendZ4c);
-    Add(RECV_Z4C, NONE,    &GRMHD_Z4c::ReceiveZ4c);
-    Add(SETB_Z4C, RECV_Z4C, &GRMHD_Z4c::SetBoundariesZ4c);
-
-    Add(PROLONG_Z4C,  (SEND_Z4C | SETB_Z4C), &GRMHD_Z4c::Prolongation_Z4c);
-    Add(PHY_BVAL_Z4C, PROLONG_Z4C, &GRMHD_Z4c::PhysicalBoundary_Z4c);
-    Add(ALG_CONSTR, PHY_BVAL_Z4C, &GRMHD_Z4c::EnforceAlgConstr);
-    Add(Z4C_TO_ADM, ALG_CONSTR, &GRMHD_Z4c::Z4cToADM);
-
-    // compute hydro source terms
-    Add(SRCTERM_HYD, Z4C_TO_ADM,     &GRMHD_Z4c::AddSourceTermsHydro);
-
-    // now can send hydro
-    Add(SEND_HYD, SRCTERM_HYD, &GRMHD_Z4c::SendHydro);
-    Add(RECV_HYD, SRCTERM_HYD,     &GRMHD_Z4c::ReceiveHydro);
-
-    Add(SETB_HYD, RECV_HYD, &GRMHD_Z4c::SetBoundariesHydro);
-
-    {
-      // prolongate, compute new primitives
-      Add(PROLONG_HYD,
-          (SEND_HYD | SETB_HYD),
-          &GRMHD_Z4c::Prolongation_Hyd);
-      Add(CONS2PRIM,(PROLONG_HYD), &GRMHD_Z4c::Primitives);
-    }
-
-    Add(PHY_BVAL_HYD, CONS2PRIM, &GRMHD_Z4c::PhysicalBoundary_Hyd);
-    Add(UPDATE_SRC, PHY_BVAL_HYD, &GRMHD_Z4c::UpdateSource);
-
-    // Z4c sub-system logic ---------------------------------------------------
-
-
-
-    Add(ADM_CONSTR, UPDATE_SRC, &GRMHD_Z4c::ADM_Constraints);
-    Add(Z4C_WEYL,  Z4C_TO_ADM, &GRMHD_Z4c::Z4c_Weyl);
-
-    Add(USERWORK, ADM_CONSTR, &GRMHD_Z4c::UserWork);
-    Add(NEW_DT,   USERWORK,   &GRMHD_Z4c::NewBlockTimeStep);
-
-    Add(FLAG_AMR,     USERWORK, &GRMHD_Z4c::CheckRefinement);
-    Add(CLEAR_ALLBND, FLAG_AMR, &GRMHD_Z4c::ClearAllBoundary);
-
-  }
-
-#ifndef DBG_USE_REFERENCE_TASKLISTS
   #ifndef DBG_USE_CONS_BC
   // refactored task-list
   {
@@ -842,8 +470,6 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin,
 
   }
   #endif // DBG_USE_CONS_BC
-#endif  // DBG_USE_REFERENCE_TASKLISTS
-
 
 }
 
@@ -1188,7 +814,7 @@ TaskStatus GRMHD_Z4c::SetBoundariesField(MeshBlock *pmb, int stage)
 {
   if (stage <= nstages)
   {
-    Field * pf = pmb->pfield;
+    Field *pf = pmb->pfield;
 
     pf->fbvar.SetBoundaries();
     return TaskStatus::success;
@@ -1196,6 +822,23 @@ TaskStatus GRMHD_Z4c::SetBoundariesField(MeshBlock *pmb, int stage)
   return TaskStatus::fail;
 }
 
+TaskStatus GRMHD_Z4c::CalculateCellCenteredField(MeshBlock *pmb, int stage)
+{
+  if (stage <= nstages)
+  {
+    Field *pf = pmb->pfield;
+
+    pf->CalculateCellCenteredField(pf->b,
+                                   pf->bcc,
+                                   pmb->pcoord,
+                                   0, pmb->ncells1-1,
+                                   0, pmb->ncells2-1,
+                                   0, pmb->ncells3-1);
+
+    return TaskStatus::next;
+  }
+  return TaskStatus::fail;
+}
 
 //-----------------------------------------------------------------------------
 // Functions for everything else
@@ -1219,6 +862,10 @@ TaskStatus GRMHD_Z4c::Prolongation_Hyd(MeshBlock *pmb, int stage)
 
 TaskStatus GRMHD_Z4c::Primitives(MeshBlock *pmb, int stage)
 {
+  // Construct primitives from conserved.
+  // In the case of `cons_bc` the whole MeshBlock is populated
+  // otherwise only points on the interior of the computational domain are
+  // populated
   if (stage <= nstages)
   {
     Hydro *ph = pmb->phydro;
@@ -1749,6 +1396,18 @@ TaskStatus GRMHD_Z4c::UpdateSource(MeshBlock *pmb, int stage)
     Field *pf   = pmb->pfield;
 
     PassiveScalars * ps = pmb->pscalars;
+
+    /*
+    if (MAGNETIC_FIELDS_ENABLED)
+    {
+      pf->CalculateCellCenteredField(pf->b,
+                                     pf->bcc,
+                                     pmb->pcoord,
+                                     0, pmb->ncells1-1,
+                                     0, pmb->ncells2-1,
+                                     0, pmb->ncells3-1);
+    }
+    */
 
     pz4c->GetMatter(pz4c->storage.mat,
                     pz4c->storage.adm,

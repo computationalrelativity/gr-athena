@@ -282,13 +282,6 @@ parser.add_argument(
   help="reconstruct hydro & passive scalars simult.",
 )
 
-parser.add_argument(
-  "-old_tasklists",
-  action="store_true",
-  default=False,
-  help="utilize the reference task-lists (pre-refactor)",
-)
-
 # -f argument
 parser.add_argument(
   "-f", action="store_true", default=False, help="enable fluid"
@@ -1153,12 +1146,6 @@ if args["recon_cmb_hydpa"]:
   definitions["DBG_COMBINED_HYDPA"] = "DBG_COMBINED_HYDPA"
 else:
   definitions["DBG_COMBINED_HYDPA"] = "NO_DBG_COMBINED_HYDPA"
-
-# -old_tasklists argument
-if args["old_tasklists"]:
-  definitions["DBG_USE_REFERENCE_TASKLISTS"] = "DBG_USE_REFERENCE_TASKLISTS"
-else:
-  definitions["DBG_USE_REFERENCE_TASKLISTS"] = "NO_DBG_USE_REFERENCE_TASKLISTS"
 
 # -shear argument
 if args["shear"]:
