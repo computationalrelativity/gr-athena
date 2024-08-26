@@ -798,6 +798,10 @@ definitions["EOS_POLICY"] = ""
 definitions["ERROR_POLICY"] = ""
 definitions["EOS_POLICY_CODE"] = "0"
 definitions["ERROR_POLICY_CODE"] = "0"
+definitions["PRIMITIVE_SOLVER_ADJUST_CONSERVED"] = (
+  "PRIMITIVE_SOLVER_ADJUST_CONSERVED"
+)
+
 if args["eos"] == "none":
   definitions["NHYDRO_VARIABLES"] = "0"
 if args["eos"] == "isothermal":
@@ -834,9 +838,6 @@ elif args["eos"] == "eostaudyn_ps":
   elif args["errorpolicy"] == "reset_floor":
     definitions["ERROR_POLICY"] = "ResetFloor"
     definitions["ERROR_POLICY_CODE"] = "1"
-    definitions["PRIMITIVE_SOLVER_ADJUST_CONSERVED"] = (
-      "PRIMITIVE_SOLVER_ADJUST_CONSERVED"
-    )
   elif args["errorpolicy"] == "reset_floor_no_adjust_conserved":
     # this is just to set a macro in defs.hpp which controls
     # `adjust_conserved` in reset_floor.cpp.
