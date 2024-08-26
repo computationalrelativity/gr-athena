@@ -131,7 +131,14 @@ void Mesh::FinalizeM1(std::vector<MeshBlock*> & pmb_array)
       pbval->ProlongateBoundariesM1(time, 0.0);
     }
 
-    pbval->ApplyPhysicalBoundariesM1(time, 0.0);
+    pbval->ApplyPhysicalBoundaries(
+      time, 0.0,
+      pbval->GetBvarsM1(),
+      pm1->mbi.il, pm1->mbi.iu,
+      pm1->mbi.jl, pm1->mbi.ju,
+      pm1->mbi.kl, pm1->mbi.ku,
+      pm1->mbi.ng);
+
   }
 }
 
@@ -193,7 +200,22 @@ void Mesh::FinalizeHydroPrimRP(std::vector<MeshBlock*> & pmb_array)
     if (NSCALARS > 0)
       ps->sbvar.var_cc = &(ps->r);
 
-    pbval->ApplyPhysicalBoundaries(time, 0.0);
+    // N.B.
+    // Results in two-fold application of BC to magnetic fields;
+    // but that is harmless
+    pbval->ApplyPhysicalBoundaries(
+      time, 0.0,
+      pbval->GetBvarsMatter(),
+      pmb->is, pmb->ie,
+      pmb->js, pmb->je,
+      pmb->ks, pmb->ke,
+      NGHOST);
+
+    pbval->PrimitiveToConservedOnPhysicalBoundaries(
+      pmb->is, pmb->ie,
+      pmb->js, pmb->je,
+      pmb->ks, pmb->ke,
+      NGHOST);
 
     ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
   }
@@ -222,7 +244,17 @@ void Mesh::FinalizeHydroConsRP(std::vector<MeshBlock*> & pmb_array)
     {
       pbval->ProlongateBoundariesHydro(time, 0.0);
     }
-    pbval->ApplyPhysicalBoundaries(time, 0.0);
+
+    // N.B.
+    // Results in two-fold application of BC to magnetic fields;
+    // but that is harmless
+    pbval->ApplyPhysicalBoundaries(
+      time, 0.0,
+      pbval->GetBvarsMatter(),
+      pmb->is, pmb->ie,
+      pmb->js, pmb->je,
+      pmb->ks, pmb->ke,
+      NGHOST);
   }
 }
 
@@ -625,36 +657,43 @@ void Mesh::CommunicateIteratedZ4c(const int iterations)
     {
       #pragma omp parallel num_threads(nthreads)
       {
-        MeshBlock *pmb;
-        BoundaryValues *pbval;
-
-        #pragma omp for private(pmb,pbval)
-        for (int i=0; i<nmb; ++i)
-        {
-          pmb = pmb_array[i]; pbval = pmb->pbval;
-          pbval->StartReceiving(BoundaryCommSubset::iterated_z4c);
-        }
-
-        #pragma omp for private(pmb,pbval)
-        for (int i=0; i<nmb; ++i)
-        {
-          pmb = pmb_array[i]; pbval = pmb->pbval;
-          pmb->pz4c->rbvar.SendBoundaryBuffersFullRestriction();
-        }
-
-        #pragma omp for private(pmb,pbval)
-        for (int i=0; i<nmb; ++i)
-        {
-          pmb = pmb_array[i]; pbval = pmb->pbval;
-          pmb->pz4c->rbvar.ReceiveAndSetBoundariesWithWait();
-          pbval->ClearBoundary(BoundaryCommSubset::iterated_z4c);
-        }
+        MeshBlock *pmb = nullptr;
+        BoundaryValues *pbval = nullptr;
+        Z4c *pz = nullptr;
 
         #pragma omp for private(pmb,pbval)
         for (int i=0; i<nmb; ++i)
         {
           pmb = pmb_array[i];
           pbval = pmb->pbval;
+          pbval->StartReceiving(BoundaryCommSubset::iterated_z4c);
+        }
+
+        #pragma omp for private(pmb,pbval,pz)
+        for (int i=0; i<nmb; ++i)
+        {
+          pmb = pmb_array[i];
+          pbval = pmb->pbval;
+          pz = pmb->pz4c;
+          pz->rbvar.SendBoundaryBuffersFullRestriction();
+        }
+
+        #pragma omp for private(pmb,pbval,pz)
+        for (int i=0; i<nmb; ++i)
+        {
+          pmb = pmb_array[i];
+          pbval = pmb->pbval;
+          pz = pmb->pz4c;
+          pz->rbvar.ReceiveAndSetBoundariesWithWait();
+          pbval->ClearBoundary(BoundaryCommSubset::iterated_z4c);
+        }
+
+        #pragma omp for private(pmb,pbval,pz)
+        for (int i=0; i<nmb; ++i)
+        {
+          pmb = pmb_array[i];
+          pbval = pmb->pbval;
+          pz = pmb->pz4c;
 
           // RBC uses storage.u & coarse_u_
           // Therefore can reuse the usual interface
@@ -663,7 +702,14 @@ void Mesh::CommunicateIteratedZ4c(const int iterations)
             pbval->ProlongateBoundariesZ4c(time, 0);
           }
 
-          pbval->ApplyPhysicalCellCenteredXBoundaries(time, 0);
+          pbval->ApplyPhysicalBoundaries(
+            time, 0.0,
+            pbval->GetBvarsZ4c(),
+            pz->mbi.il, pz->mbi.iu,
+            pz->mbi.jl, pz->mbi.ju,
+            pz->mbi.kl, pz->mbi.ku,
+            pz->mbi.ng);
+
         }
       }
     }

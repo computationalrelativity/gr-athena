@@ -148,12 +148,7 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   void ProlongateCellCenteredXBoundaries(const Real time, const Real dt);
 
 
-  // BD: TODO - condense this mess into unified interface below
-  void ApplyPhysicalBoundariesM1(const Real time, const Real dt);
-  void ApplyPhysicalVertexCenteredBoundaries(const Real time, const Real dt);
-  void ApplyPhysicalBoundaries(const Real time, const Real dt);
-  void ApplyPhysicalCellCenteredXBoundaries(const Real time, const Real dt);
-
+  // Deal with application of physical boundaries on domain
   inline std::vector<BoundaryVariable *> & GetBvarsWave()
   {
     return WAVE_SW_CC_CX_VC(
