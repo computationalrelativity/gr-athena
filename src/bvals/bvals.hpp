@@ -170,6 +170,10 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   {
     return bvars_m1;
   };
+  inline std::vector<BoundaryVariable *> & GetBvarsAux()
+  {
+    return bvars_m1;
+  };
 
   void ApplyPhysicalBoundaries(const Real time, const Real dt,
                                std::vector<BoundaryVariable *> & bvars,
@@ -250,12 +254,6 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
       int si, int ei, int sj, int ej, int sk, int ek);
   void ProlongateGhostCells(const NeighborBlock& nb,
                             int si, int ei, int sj, int ej, int sk, int ek);
-
-  void ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(
-      const Real time, const Real dt);
-
-  void ApplyPhysicalCellCenteredXBoundariesOnCoarseLevel(
-      const Real time, const Real dt);
 
   void CalculateVertexProlongationIndices(std::int64_t &lx, int ox, int pcng,
                                          int cix_vs, int cix_ve,
