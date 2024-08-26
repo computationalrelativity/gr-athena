@@ -901,7 +901,7 @@ TaskStatus GRMHD_Z4c::Primitives(MeshBlock *pmb, int stage)
     // stage=2: W at t^{n+1/2} (VL2) or t^{n+1} (RK2)
 
     static const int coarseflag = 0;
-    pmb->peos->ConservedToPrimitive(ph->u, ph->w, pf->b, ph->w1,
+    pmb->peos->ConservedToPrimitive(ph->u, ph->w, ph->w1,
                                     ps->s, ps->r,
                                     pf->bcc, pmb->pcoord,
                                     il, iu, jl, ju, kl, ku,

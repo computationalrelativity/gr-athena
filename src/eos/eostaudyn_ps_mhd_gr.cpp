@@ -186,11 +186,12 @@ void InitColdEOS(Primitive::ColdEOS<Primitive::COLDEOS_POLICY> *eos,
 //       writing vv for v
 //   implements formulas assuming no magnetic field
 
-void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
-     const AthenaArray<Real> &prim_old, const FaceField &bb, AthenaArray<Real> &prim,
-     AthenaArray<Real> &cons_scalar, AthenaArray<Real> &prim_scalar,
-     AthenaArray<Real> &bb_cc, Coordinates *pco, int il, int iu, int jl, int ju, int kl,
-     int ku, int coarse_flag) {
+void EquationOfState::ConservedToPrimitive(
+  AthenaArray<Real> &cons, const AthenaArray<Real> &prim_old,
+  AthenaArray<Real> &prim, AthenaArray<Real> &cons_scalar,
+  AthenaArray<Real> &prim_scalar, AthenaArray<Real> &bb_cc, Coordinates *pco,
+  int il, int iu, int jl, int ju, int kl, int ku, int coarse_flag)
+{
   int nn1;
   GRDynamical* pco_gr;
   MeshBlock* pmb = pmy_block_;
@@ -246,8 +247,6 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
 
   KL = std::max(kl, KL);
   KU = std::min(ku, KU);
-
-  pf->CalculateCellCenteredField(bb, bb_cc, pco, IL, IU, JL, JU, KL, KU);
 
   // Go through the cells
   for (int k = KL; k <= KU; ++k) {
@@ -359,7 +358,6 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
       }
     }
   }
-
 }
 
 //----------------------------------------------------------------------------------------

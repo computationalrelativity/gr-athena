@@ -586,7 +586,6 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
   static const int coarseflag = 1;
   pmb->peos->ConservedToPrimitive(ph->coarse_cons_,
                                   ph->coarse_prim_,
-                                  pf->coarse_b_,
                                   ph->coarse_prim_,
                                   ps->coarse_s_,
                                   ps->coarse_r_,

@@ -54,7 +54,7 @@ class EquationOfState {
 #if USETM
   void ConservedToPrimitive(AthenaArray<Real> &cons,
                             const AthenaArray<Real> &prim_old,
-                            const FaceField &b, AthenaArray<Real> &prim,
+                            AthenaArray<Real> &prim,
                             AthenaArray<Real> &cons_scalar,
                             AthenaArray<Real> &prim_scalar,
                             AthenaArray<Real> &bcc, Coordinates *pco,
@@ -65,7 +65,6 @@ class EquationOfState {
 #else
   void ConservedToPrimitive(AthenaArray<Real> &cons,
                             const AthenaArray<Real> &prim_old,
-                            const FaceField &b,
                             AthenaArray<Real> &prim,
                             AthenaArray<Real> &bcc,
                             Coordinates *pco,
@@ -76,7 +75,6 @@ class EquationOfState {
 
   inline void ConservedToPrimitive(AthenaArray<Real> &cons,
                                    const AthenaArray<Real> &prim_old,
-                                   const FaceField &b,
                                    AthenaArray<Real> &prim,
                                    AthenaArray<Real> &cons_scalar,
                                    AthenaArray<Real> &prim_scalar,
@@ -87,7 +85,7 @@ class EquationOfState {
                                    int kl, int ku,
                                    int coarseflag)
   {
-    ConservedToPrimitive(cons, prim_old, b, prim, bcc, pco,
+    ConservedToPrimitive(cons, prim_old, prim, bcc, pco,
                          il, iu, jl, ju, kl, ku, coarseflag);
 
     if (NSCALARS > 0)

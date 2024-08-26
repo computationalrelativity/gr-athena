@@ -136,7 +136,6 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin)
 void EquationOfState::ConservedToPrimitive(
   AthenaArray<Real> &cons,
   const AthenaArray<Real> &prim_old,
-  const FaceField &bb,
   AthenaArray<Real> &prim,
   AthenaArray<Real> &bb_cc,
   Coordinates *pco,
@@ -224,8 +223,6 @@ void EquationOfState::ConservedToPrimitive(
 
   KL = std::max(kl, KL);
   KU = std::min(ku, KU);
-
-  pf->CalculateCellCenteredField(bb, bb_cc, pco, IL, IU, JL, JU, KL, KU);
 
   // iterate over cells
   for (int k=KL; k<=KU; ++k)

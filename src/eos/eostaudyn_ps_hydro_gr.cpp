@@ -195,11 +195,12 @@ void InitColdEOS(Primitive::ColdEOS<Primitive::COLDEOS_POLICY> *eos,
 //       writing vv for v
 //   implements formulas assuming no magnetic field
 
-void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
-    const AthenaArray<Real> &prim_old, const FaceField &bb, AthenaArray<Real> &prim,
-    AthenaArray<Real> &cons_scalar, AthenaArray<Real> &prim_scalar,
-    AthenaArray<Real> &bb_cc, Coordinates *pco, int il, int iu, int jl, int ju, int kl,
-    int ku, int coarse_flag) {
+void EquationOfState::ConservedToPrimitive(
+  AthenaArray<Real> &cons, const AthenaArray<Real> &prim_old,
+  AthenaArray<Real> &prim, AthenaArray<Real> &cons_scalar,
+  AthenaArray<Real> &prim_scalar, AthenaArray<Real> &bb_cc, Coordinates *pco,
+  int il, int iu, int jl, int ju, int kl, int ku, int coarse_flag)
+{
   int nn1;
   GRDynamical* pco_gr;
   MeshBlock* pmb = pmy_block_;
@@ -468,8 +469,6 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
       dump_cons(s_err, id_s, cons_scalar, n, k, j, i, tag);
     }
   }
-
-
 }
 
 //----------------------------------------------------------------------------------------
@@ -552,7 +551,6 @@ void EquationOfState::PrimitiveToConserved(
 
   ConservedToPrimitive(cons,
                        id_w,
-                       pmb->pfield->b,
                        id_w,
                        cons_scalar,
                        id_r,

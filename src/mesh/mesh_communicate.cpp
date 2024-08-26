@@ -258,7 +258,7 @@ void Mesh::PreparePrimitives(std::vector<MeshBlock*> & pmb_array,
     }
 
     static const int coarseflag = 0;
-    pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b, ph->w,
+    pmb->peos->ConservedToPrimitive(ph->u, ph->w1, ph->w,
                                     ps->s, ps->r,
                                     pf->bcc, pmb->pcoord,
                                     il, iu, jl, ju, kl, ku,
