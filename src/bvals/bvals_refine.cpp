@@ -244,58 +244,27 @@ void BoundaryValues::ProlongateBoundariesHydro(const Real time, const Real dt)
 
 void BoundaryValues::ProlongateBoundariesZ4c(const Real time, const Real dt)
 {
-
-  // BD: opt- if nn all same level not required
   MeshBlock *pmb = pmy_block_;
-  int &mylevel = pmb->loc.level;
-
-  //////////////////////////////////////////////////////////////////////////////
-  // Vertex-centered logic
-  //
-  // Ensure coarse buffer has physical boundaries applied
-  // (temp workaround) to automatically call all BoundaryFunction_[] on coarse var
+  BoundaryValues *pbval = pmb->pbval;
   Z4c *pz4c = nullptr;
 
-  if (Z4C_ENABLED) {
-    #if defined(Z4C_VC_ENABLED)
-      pz4c = pmb->pz4c;
-      pz4c->ubvar.var_vc = &(pz4c->coarse_u_);
-    #endif
+  // BD: TODO - opt- if nn all same level not required?
+
+  if (Z4C_ENABLED)
+  {
+    pz4c = pmb->pz4c;
+
+    ApplyPhysicalBoundariesOnCoarseLevel(
+      time, dt,
+      pbval->GetBvarsZ4c(),
+      pz4c->mbi.cil, pz4c->mbi.ciu,
+      pz4c->mbi.cjl, pz4c->mbi.cju,
+      pz4c->mbi.ckl, pz4c->mbi.cku,
+      pz4c->mbi.cng);
   }
 
-  ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(time, dt);
-
-  if (Z4C_ENABLED) {
-    #if defined(Z4C_VC_ENABLED)
-      pz4c->ubvar.var_vc = &(pz4c->storage.u);
-    #endif
-  }
-
-  // Prolongate
   ProlongateVertexCenteredBoundaries(time, dt);
-  //--
-  //////////////////////////////////////////////////////////////////////////////
-
-  //////////////////////////////////////////////////////////////////////////////
-  // cell-centered extended logic
-  if (Z4C_ENABLED) {
-    #if defined(Z4C_CX_ENABLED)
-      pz4c = pmb->pz4c;
-      pz4c->ubvar.var_cx = &(pz4c->coarse_u_);
-    #endif
-  }
-
-  ApplyPhysicalCellCenteredXBoundariesOnCoarseLevel(time, dt);
-
-  if (Z4C_ENABLED) {
-    #if defined(Z4C_CX_ENABLED)
-      pz4c->ubvar.var_cx = &(pz4c->storage.u);
-    #endif
-  }
-
-  // Prolongate
   ProlongateCellCenteredXBoundaries(time, dt);
-  //--
 
   return;
 }
@@ -965,6 +934,127 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundariesOnCoarseLevel(
     }
   }
   return;
+}
+
+// Handler for application of physical boundaries for all variable types
+void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
+  const Real time, const Real dt,
+  std::vector<BoundaryVariable *> & bvars,
+  const int var_cis, const int var_cie,
+  const int var_cjs, const int var_cje,
+  const int var_cks, const int var_cke,
+  const int cng)
+{
+  MeshBlock *pmb = pmy_block_;
+  MeshRefinement *pmr = pmb->pmr;
+  Coordinates *pco = pmr->pcoarsec;
+
+  // Automatic application of BC on coarse representation
+  for (auto bvar : bvars)
+  {
+    bvar->InterchangeFundamentalCoarse();
+  }
+
+  int bis = var_cis - cng, bie = var_cie + cng,
+      bjs = var_cjs, bje = var_cje,
+      bks = var_cks, bke = var_cke;
+
+  // Extend the transverse limits that correspond to periodic boundaries as they are
+  // updated: x1, then x2, then x3
+  if (!apply_bndry_fn_[BoundaryFace::inner_x2] && pmb->block_size.nx2 > 1)
+    bjs = var_cjs - cng;
+  if (!apply_bndry_fn_[BoundaryFace::outer_x2] && pmb->block_size.nx2 > 1)
+    bje = var_cje + cng;
+  if (!apply_bndry_fn_[BoundaryFace::inner_x3] && pmb->block_size.nx3 > 1)
+    bks = var_cks - cng;
+  if (!apply_bndry_fn_[BoundaryFace::outer_x3] && pmb->block_size.nx3 > 1)
+    bke = var_cke + cng;
+
+  // Apply boundary function on inner-x1 and update W,bcc (if not periodic)
+  if (apply_bndry_fn_[BoundaryFace::inner_x1])
+  {
+    DispatchBoundaryFunctions(pmb, pco, time, dt,
+                              var_cis, var_cie,
+                              bjs, bje,
+                              bks, bke,
+                              cng,
+                              BoundaryFace::inner_x1,
+                              bvars);
+  }
+
+  // Apply boundary function on outer-x1 and update W,bcc (if not periodic)
+  if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
+    DispatchBoundaryFunctions(pmb, pco, time, dt,
+                              var_cis, var_cie,
+                              bjs, bje,
+                              bks, bke,
+                              cng,
+                              BoundaryFace::outer_x1,
+                              bvars);
+  }
+
+  if (pmb->block_size.nx2 > 1) { // 2D or 3D
+    // Apply boundary function on inner-x2 and update W,bcc (if not periodic)
+    if (apply_bndry_fn_[BoundaryFace::inner_x2])
+    {
+      DispatchBoundaryFunctions(pmb, pco, time, dt,
+                                bis, bie,
+                                var_cjs, var_cje,
+                                bks, bke,
+                                cng,
+                                BoundaryFace::inner_x2,
+                                bvars);
+    }
+
+    // Apply boundary function on outer-x2 and update W,bcc (if not periodic)
+    if (apply_bndry_fn_[BoundaryFace::outer_x2])
+    {
+      DispatchBoundaryFunctions(pmb, pco, time, dt,
+                                bis, bie,
+                                var_cjs, var_cje,
+                                bks, bke,
+                                cng,
+                                BoundaryFace::outer_x2,
+                                bvars);
+    }
+  }
+
+  if (pmb->block_size.nx3 > 1)
+  { // 3D
+    bjs = var_cjs - cng;
+    bje = var_cje + cng;
+
+    // Apply boundary function on inner-x3 and update W,bcc (if not periodic)
+    if (apply_bndry_fn_[BoundaryFace::inner_x3])
+    {
+      DispatchBoundaryFunctions(pmb, pco, time, dt,
+                                bis, bie,
+                                bjs, bje,
+                                var_cks, var_cke,
+                                cng,
+                                BoundaryFace::inner_x3,
+                                bvars);
+    }
+
+    // Apply boundary function on outer-x3 and update W,bcc (if not periodic)
+    if (apply_bndry_fn_[BoundaryFace::outer_x3])
+    {
+      DispatchBoundaryFunctions(pmb, pco, time, dt,
+                                bis, bie,
+                                bjs, bje,
+                                var_cks, var_cke,
+                                cng,
+                                BoundaryFace::outer_x3,
+                                bvars);
+    }
+  }
+
+  // Revert internal representation of variables
+  for (auto bvar : bvars)
+  {
+    bvar->InterchangeFundamentalCoarse();
+  }
+
 }
 
 //-----------------------------------------------------------------------------

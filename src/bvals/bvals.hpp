@@ -148,6 +148,7 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   void ProlongateCellCenteredXBoundaries(const Real time, const Real dt);
 
 
+  //---------------------------------------------------------------------------
   // Deal with application of physical boundaries on domain
   inline std::vector<BoundaryVariable *> & GetBvarsWave()
   {
@@ -182,6 +183,15 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
     const int var_js, const int var_je,
     const int var_ks, const int var_ke,
     const int ng);
+
+  // Treat complementary coarse representations -------------------------------
+  void ApplyPhysicalBoundariesOnCoarseLevel(
+    const Real time, const Real dt,
+    std::vector<BoundaryVariable *> & bvars,
+    const int var_cis, const int var_cie,
+    const int var_cjs, const int var_cje,
+    const int var_cks, const int var_cke,
+    const int cng);
 
   //---------------------------------------------------------------------------
 

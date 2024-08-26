@@ -41,6 +41,10 @@ class VertexCenteredBoundaryVariable : public BoundaryVariable {
   AthenaArray<Real> *var_vc;
   AthenaArray<Real> *coarse_buf;  // may pass nullptr if mesh refinement is unsupported
 
+  inline void InterchangeFundamentalCoarse() override
+  {
+    std::swap(var_vc, coarse_buf);
+  };
   // currently, no need to ever switch flux[] ---> keep as reference members (not ptrs)
   // flux[3] w/ 3x empty AthenaArrays may be passed if mesh refinement is unsupported, but
   // nullptr is not allowed

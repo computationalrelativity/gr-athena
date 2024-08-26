@@ -18,6 +18,7 @@
 #include "../../athena_arrays.hpp"
 #include "../bvals.hpp"
 #include "../bvals_interfaces.hpp"
+#include <iostream>
 
 // MPI headers
 #ifdef MPI_PARALLEL
@@ -41,6 +42,10 @@ class CellCenteredXBoundaryVariable : public BoundaryVariable {
   AthenaArray<Real> *var_cx;
   AthenaArray<Real> *coarse_buf;  // may pass nullptr if mesh refinement is unsupported
 
+  void InterchangeFundamentalCoarse() override
+  {
+    std::swap(var_cx, coarse_buf);
+  };
   // currently, no need to ever switch flux[] ---> keep as reference members (not ptrs)
   // flux[3] w/ 3x empty AthenaArrays may be passed if mesh refinement is unsupported, but
   // nullptr is not allowed
@@ -60,11 +65,10 @@ class CellCenteredXBoundaryVariable : public BoundaryVariable {
   void SetupPersistentMPI() override;
   void StartReceiving(BoundaryCommSubset phase) override;
   void ClearBoundary(BoundaryCommSubset phase) override;
-  // VC
+
   void StartReceivingShear(BoundaryCommSubset phase) override {return;};
   void ComputeShear(const Real time) override {return;};
 
-  // VC
   // BoundaryBuffer:
   void SendBoundaryBuffers() override;
   void SendBoundaryBuffersFullRestriction();

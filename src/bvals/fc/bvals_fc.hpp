@@ -30,17 +30,22 @@
 
 class FaceCenteredBoundaryVariable : public BoundaryVariable {
  public:
-  FaceCenteredBoundaryVariable(MeshBlock *pmb, FaceField *var, FaceField &coarse_buf,
+  FaceCenteredBoundaryVariable(MeshBlock *pmb,
+                               FaceField *var,
+                               FaceField *coarse_buf,
                                EdgeField &var_flux);
   ~FaceCenteredBoundaryVariable();
 
   // may want to rebind var_fc to b, b1, b2, etc. Hence ptr member, not reference
   FaceField *var_fc;
+  FaceField *coarse_buf;
 
-  // unlke Hydro cons vs. prim, never need to rebind FaceCentered coarse_buf, so it can be
-  // a reference member: ---> must be initialized in initializer list; cannot pass nullptr
-  FaceField &coarse_buf;
   AthenaArray<Real> &e1, &e2, &e3;  // same for EdgeField
+
+  inline void InterchangeFundamentalCoarse() override
+  {
+    std::swap(var_fc, coarse_buf);
+  };
 
   // maximum number of reserved unique "physics ID" component of MPI tag bitfield
   // must correspond to the # of "int *phys_id_" private members, below. Convert to array?

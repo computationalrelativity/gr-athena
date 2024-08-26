@@ -41,7 +41,7 @@
 // constructor
 
 FaceCenteredBoundaryVariable::FaceCenteredBoundaryVariable(
-    MeshBlock *pmb, FaceField *var, FaceField &coarse_buf, EdgeField &var_flux)
+    MeshBlock *pmb, FaceField *var, FaceField *coarse_buf, EdgeField &var_flux)
     : BoundaryVariable(pmb), var_fc(var), coarse_buf(coarse_buf), e1(var_flux.x1e),
       e2(var_flux.x2e), e3(var_flux.x3e), flip_across_pole_(flip_across_pole_field) {
   // assuming Field, not generic FaceCenteredBoundaryVariable:
@@ -431,8 +431,8 @@ int FaceCenteredBoundaryVariable::LoadBoundaryBufferToCoarser(Real *buf,
     if (nb.ni.ox1 > 0) ei++;
     else if (nb.ni.ox1 < 0) si--;
   }
-  pmr->RestrictFieldX1((*var_fc).x1f, coarse_buf.x1f, si, ei, sj, ej, sk, ek);
-  BufferUtility::PackData(coarse_buf.x1f, buf, si, ei, sj, ej, sk, ek, p);
+  pmr->RestrictFieldX1((*var_fc).x1f, coarse_buf->x1f, si, ei, sj, ej, sk, ek);
+  BufferUtility::PackData(coarse_buf->x1f, buf, si, ei, sj, ej, sk, ek, p);
 
   // bx2
   if (nb.ni.ox1 == 0)      si = pmb->cis,       ei = pmb->cie;
@@ -446,12 +446,12 @@ int FaceCenteredBoundaryVariable::LoadBoundaryBufferToCoarser(Real *buf,
     if (nb.ni.ox2 > 0) ej++;
     else if (nb.ni.ox2 < 0) sj--;
   }
-  pmr->RestrictFieldX2((*var_fc).x2f, coarse_buf.x2f, si, ei, sj, ej, sk, ek);
+  pmr->RestrictFieldX2((*var_fc).x2f, coarse_buf->x2f, si, ei, sj, ej, sk, ek);
   if (pmb->block_size.nx2 == 1) { // 1D
     for (int i=si; i<=ei; i++)
-      coarse_buf.x2f(sk,sj+1,i)=coarse_buf.x2f(sk,sj,i);
+      coarse_buf->x2f(sk,sj+1,i)=coarse_buf->x2f(sk,sj,i);
   }
-  BufferUtility::PackData(coarse_buf.x2f, buf, si, ei, sj, ej, sk, ek, p);
+  BufferUtility::PackData(coarse_buf->x2f, buf, si, ei, sj, ej, sk, ek, p);
 
   // bx3
   if (nb.ni.ox2 == 0)      sj = pmb->cjs,       ej = pmb->cje;
@@ -465,14 +465,14 @@ int FaceCenteredBoundaryVariable::LoadBoundaryBufferToCoarser(Real *buf,
     if (nb.ni.ox3 > 0) ek++;
     else if (nb.ni.ox3 < 0) sk--;
   }
-  pmr->RestrictFieldX3((*var_fc).x3f, coarse_buf.x3f, si, ei, sj, ej, sk, ek);
+  pmr->RestrictFieldX3((*var_fc).x3f, coarse_buf->x3f, si, ei, sj, ej, sk, ek);
   if (pmb->block_size.nx3 == 1) { // 1D or 2D
     for (int j=sj; j<=ej; j++) {
       for (int i=si; i<=ei; i++)
-        coarse_buf.x3f(sk+1,j,i)=coarse_buf.x3f(sk,j,i);
+        coarse_buf->x3f(sk+1,j,i)=coarse_buf->x3f(sk,j,i);
     }
   }
-  BufferUtility::PackData(coarse_buf.x3f, buf, si, ei, sj, ej, sk, ek, p);
+  BufferUtility::PackData(coarse_buf->x3f, buf, si, ei, sj, ej, sk, ek, p);
 
   return p;
 }
@@ -734,11 +734,11 @@ void FaceCenteredBoundaryVariable::SetBoundaryFromCoarser(Real *buf,
       for (int j=ej; j>=sj; --j) {
 #pragma omp simd linear(p)
         for (int i=si; i<=ei; ++i)
-          coarse_buf.x1f(k,j,i) = sign*buf[p++];
+          coarse_buf->x1f(k,j,i) = sign*buf[p++];
       }
     }
   } else {
-    BufferUtility::UnpackData(buf, coarse_buf.x1f, si, ei, sj, ej, sk, ek, p);
+    BufferUtility::UnpackData(buf, coarse_buf->x1f, si, ei, sj, ej, sk, ek, p);
   }
 
   // bx2
@@ -764,15 +764,15 @@ void FaceCenteredBoundaryVariable::SetBoundaryFromCoarser(Real *buf,
       for (int j=ej; j>=sj; --j) {
 #pragma omp simd linear(p)
         for (int i=si; i<=ei; ++i)
-          coarse_buf.x2f(k,j,i) = sign*buf[p++];
+          coarse_buf->x2f(k,j,i) = sign*buf[p++];
       }
     }
   } else {
-    BufferUtility::UnpackData(buf, coarse_buf.x2f, si, ei, sj, ej, sk, ek, p);
+    BufferUtility::UnpackData(buf, coarse_buf->x2f, si, ei, sj, ej, sk, ek, p);
     if (pmb->block_size.nx2  ==  1) { // 1D
 #pragma omp simd
       for (int i=si; i<=ei; ++i)
-        coarse_buf.x2f(sk,sj+1,i) = coarse_buf.x2f(sk,sj,i);
+        coarse_buf->x2f(sk,sj+1,i) = coarse_buf->x2f(sk,sj,i);
     }
   }
 
@@ -801,15 +801,15 @@ void FaceCenteredBoundaryVariable::SetBoundaryFromCoarser(Real *buf,
       for (int j=ej; j>=sj; --j) {
 #pragma omp simd linear(p)
         for (int i=si; i<=ei; ++i)
-          coarse_buf.x3f(k,j,i) = sign*buf[p++];
+          coarse_buf->x3f(k,j,i) = sign*buf[p++];
       }
     }
   } else {
-    BufferUtility::UnpackData(buf, coarse_buf.x3f, si, ei, sj, ej, sk, ek, p);
+    BufferUtility::UnpackData(buf, coarse_buf->x3f, si, ei, sj, ej, sk, ek, p);
     if (pmb->block_size.nx3 == 1) { // 2D
       for (int j=sj; j<=ej; ++j) {
         for (int i=si; i<=ei; ++i)
-          coarse_buf.x3f(sk+1,j,i) = coarse_buf.x3f(sk,j,i);
+          coarse_buf->x3f(sk+1,j,i) = coarse_buf->x3f(sk,j,i);
       }
     }
   }
