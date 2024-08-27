@@ -177,16 +177,19 @@ void Mesh::FinalizeHydroPrimRP(std::vector<MeshBlock*> & pmb_array)
 
   const int nmb = pmb_array.size();
 
+  Field *pf = nullptr;
   Hydro *ph = nullptr;
   PassiveScalars *ps = nullptr;
 
-  #pragma omp for private(pmb, pbval, ph, ps)
-  for (int i = 0; i < nmb; ++i) {
+  #pragma omp for private(pmb, pbval, ph, ps, pf)
+  for (int i = 0; i < nmb; ++i)
+  {
     pmb = pmb_array[i];
     pbval = pmb->pbval;
 
-    Hydro *ph = pmb->phydro;
-    PassiveScalars *ps = pmb->pscalars;
+    pf = pmb->pfield;
+    ph = pmb->phydro;
+    ps = pmb->pscalars;
 
     if (multilevel)
     {
@@ -211,6 +214,16 @@ void Mesh::FinalizeHydroPrimRP(std::vector<MeshBlock*> & pmb_array)
       pmb->ks, pmb->ke,
       NGHOST);
 
+    if (MAGNETIC_FIELDS_ENABLED)
+    {
+      const int il = 0, iu = (pmb->ncells1 > 1)? pmb->ncells1 - 1 : 0;
+      const int jl = 0, ju = (pmb->ncells2 > 1)? pmb->ncells2 - 1 : 0;
+      const int kl = 0, ku = (pmb->ncells3 > 1)? pmb->ncells3 - 1 : 0;
+
+      pf->CalculateCellCenteredField(pf->b, pf->bcc, pmb->pcoord,
+                                     il, iu, jl, ju, kl, ku);
+    }
+
     pbval->PrimitiveToConservedOnPhysicalBoundaries(
       pmb->is, pmb->ie,
       pmb->js, pmb->je,
@@ -229,16 +242,19 @@ void Mesh::FinalizeHydroConsRP(std::vector<MeshBlock*> & pmb_array)
 
   const int nmb = pmb_array.size();
 
+  Field *pf = nullptr;
   Hydro *ph = nullptr;
   PassiveScalars *ps = nullptr;
 
-  #pragma omp for private(pmb, pbval, ph, ps)
-  for (int i = 0; i < nmb; ++i) {
+  #pragma omp for private(pmb, pbval, ph, ps,pf)
+  for (int i = 0; i < nmb; ++i)
+  {
     pmb = pmb_array[i];
     pbval = pmb->pbval;
 
-    Hydro *ph = pmb->phydro;
-    PassiveScalars *ps = pmb->pscalars;
+    pf = pmb->pfield;
+    ph = pmb->phydro;
+    ps = pmb->pscalars;
 
     if (multilevel)
     {
@@ -255,6 +271,16 @@ void Mesh::FinalizeHydroConsRP(std::vector<MeshBlock*> & pmb_array)
       pmb->js, pmb->je,
       pmb->ks, pmb->ke,
       NGHOST);
+
+    if (MAGNETIC_FIELDS_ENABLED)
+    {
+      const int il = 0, iu = (pmb->ncells1 > 1)? pmb->ncells1 - 1 : 0;
+      const int jl = 0, ju = (pmb->ncells2 > 1)? pmb->ncells2 - 1 : 0;
+      const int kl = 0, ku = (pmb->ncells3 > 1)? pmb->ncells3 - 1 : 0;
+
+      pf->CalculateCellCenteredField(pf->b, pf->bcc, pmb->pcoord,
+                                     il, iu, jl, ju, kl, ku);
+    }
   }
 }
 
@@ -389,13 +415,7 @@ void Mesh::CommunicateConserved(std::vector<MeshBlock*> & pmb_array)
 
     if (MAGNETIC_FIELDS_ENABLED)
     {
-      const int il = 0, iu = (pmb->ncells1 > 1)? pmb->ncells1 - 1 : 0;
-      const int jl = 0, ju = (pmb->ncells2 > 1)? pmb->ncells2 - 1 : 0;
-      const int kl = 0, ku = (pmb->ncells3 > 1)? pmb->ncells3 - 1 : 0;
-
       pf->fbvar.ReceiveAndSetBoundariesWithWait();
-      pf->CalculateCellCenteredField(pf->b, pf->bcc, pmb->pcoord,
-                                     il, iu, jl, ju, kl, ku);
     }
 
     if (NSCALARS > 0)
