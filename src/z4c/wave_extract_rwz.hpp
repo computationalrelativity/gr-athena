@@ -129,15 +129,15 @@ private:
   //! Spherical harmonics on the sphere (complex -> 2 components)
   AthenaArray<Real> Y, Yth, Yph, X, W;
   
-  //! Spherical metric on M^2 (pointwise)
-  AthenaTensor<Real, TensorSymm::SYM2, 0, 2> g_dd;
-  AthenaTensor<Real, TensorSymm::SYM2, 0, 2> g_uu;
-  AthenaTensor<Real, TensorSymm::SYM2, 0, 2> g_dr_dd; //d/dr g_AB
-  AthenaTensor<Real, TensorSymm::SYM2, 0, 2> g_dot_dd; //d/dt g_AB
-  AthenaTensor<Real, TensorSymm::SYM2, 0, 2> g_dr_uu; //d/dr g^AB
-  AthenaTensor<Real, TensorSymm::SYM2, 0, 2> g_dot_uu; //d/dt g^AB
-  AthenaTensor<Real, TensorSymm::SYM2, 0, 3> Gamma_udd; // Christoffels (time-independent)
-  AthenaTensor<Real, TensorSymm::SYM2, 0, 3> Gamma_dyn_udd; // Christoffels (time-dep)
+  //! Spherical metric on M^2
+  TensorPointwise<Real, TensorSymm::SYM2, 0, 2> g_dd;
+  TensorPointwise<Real, TensorSymm::SYM2, 0, 2> g_uu;
+  TensorPointwise<Real, TensorSymm::SYM2, 0, 2> g_dr_dd; //d/dr g_AB
+  TensorPointwise<Real, TensorSymm::SYM2, 0, 2> g_dot_dd; //d/dt g_AB
+  TensorPointwise<Real, TensorSymm::SYM2, 0, 2> g_dr_uu; //d/dr g^AB
+  TensorPointwise<Real, TensorSymm::SYM2, 0, 2> g_dot_uu; //d/dt g^AB
+  TensorPointwise<Real, TensorSymm::SYM2, 0, 3> Gamma_udd; // Christoffels (time-independent)
+  TensorPointwise<Real, TensorSymm::SYM2, 0, 3> Gamma_dyn_udd; // Christoffels (time-dep)
   Real norm_Delta_Gamma;
   
   //! Multipoles (complex)
@@ -149,8 +149,8 @@ private:
   AthenaArray<Real> H0_dot, H01_dot, H_dot; // d/dt drvts
 
   //! Gauge-invariant multipoles
-  AthenaTensor<Real, TensorSymm::SYM2, 0, 2> kappa_dd;
-  AthenaTensor<Real, TensorSymm::NONE, 0, 1> kappa_d;
+  TensorPointwise<Real, TensorSymm::SYM2, 0, 2> kappa_dd;
+  TensorPointwise<Real, TensorSymm::NONE, 0, 1> kappa_d;
   AthenaArray<Real> kappa, Tr_kappa_dd;
   Real norm_Tr_kappa_dd;
   
