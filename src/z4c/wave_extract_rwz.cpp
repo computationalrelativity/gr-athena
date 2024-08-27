@@ -7,6 +7,10 @@
 //  \brief Implementation of metric-based extraction of Regge-Wheeler-Zerilli functions
 //         There is support for bitant symmetry
 
+//TODO requires auxiliary storage for ADM metric drvts
+//TODO get second drvts from interpolation (?)
+//TODO add ADM integrals
+
 #include <cstdio>
 #include <stdexcept>
 #include <sstream>
@@ -98,8 +102,8 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh * pmesh, ParameterInput * pin, int n):
   for (int j = 0; j < Nphi; ++j)
     ph_grid(i) = coord_phi(j);
 
-  //TODO add more accurate integration schemes? 
-  //     Currently only Riemann sums, weights is not used.
+  // Add more accurate integration schemes? 
+  // Currently only Riemann sums, weights is not used.
   //string integral_method = pin->GetOrAddString("rwz_extraction", "method_integrals", "sum");
   //weights.NewAthenaArray(Ntheta,Nphi);
   //SetWeightsIntegral(integral_method);
@@ -114,26 +118,32 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh * pmesh, ParameterInput * pin, int n):
   }
   
   // 3+1 metric on the sphere
-  gamma_dd.NewAthenaTensor(Ntheta,Nphi); //FIXME alloc/dealloc
+  gamma_dd.NewAthenaTensor(Ntheta,Nphi);
   dr_gamma_dd.NewAthenaTensor(Ntheta,Nphi);
   dot_gamma_dd.NewAthenaTensor(Ntheta,Nphi);
-  beta_u.NewAthenaTensor(Ntheta,Nphi);
-  dr_beta_u.NewAthenaTensor(Ntheta,Nphi);
-  dot_beta_u.NewAthenaTensor(Ntheta,Nphi);
+
   beta_d.NewAthenaTensor(Ntheta,Nphi);
+  dr_beta_d.NewAthenaTensor(Ntheta,Nphi);
+  dot_beta_d.NewAthenaTensor(Ntheta,Nphi);
+
+  beta2.NewAthenaTensor(Ntheta,Nphi);
+  dr_beta2.NewAthenaTensor(Ntheta,Nphi);
+  dot_beta2.NewAthenaTensor(Ntheta,Nphi);
+
   alpha.NewAthenaTensor(Ntheta,Nphi);
   dr_alpha.NewAthenaTensor(Ntheta,Nphi);
   dot_alpha.NewAthenaTensor(Ntheta,Nphi);
 
   // Background 2-metric (pointwise)
-  //TODO these are pointwise, TensorPoint is disappeared or placed elsewhere
-  // -> Boris please fix.
+  //TODO these are pointwise, TensorPoint is disappeared or placed elsewhere -> Boris please fix.
   g_dd.NewAthenaTensor();
-  g_uu.NewAthenaTensor();
   g_dr_dd.NewAthenaTensor();
-  g_dr_uu.NewAthenaTensor();
   g_dot_dd.NewAthenaTensor();
+  
+  g_uu.NewAthenaTensor();
+  g_dr_uu.NewAthenaTensor();
   g_dot_uu.NewAthenaTensor();
+  
   Gamma_udd.NewAthenaTensor();
   Gamma_dyn_uddd.NewAthenaTensor();  
   
@@ -247,14 +257,18 @@ WaveExtractRWZ::~WaveExtractRWZ() {
   // Arrays on the sphere with tensor indexes 
 
   // 3+1 metric
-  gamma_dd.DeleteAthenaTensor(); //FIXME alloc/dealloc
-  dgamma_ddd.DeleteAthenaTensor();
+  gamma_dd.DeleteAthenaTensor(); 
   dr_gamma_dd.DeleteAthenaTensor();
   dot_gamma_dd.DeleteAthenaTensor();
-  beta_u.DeleteAthenaTensor();
-  dr_beta_u.DeleteAthenaTensor();
-  dot_beta_u.DeleteAthenaTensor();
+
   beta_d.DeleteAthenaTensor();
+  dr_beta_d.DeleteAthenaTensor();
+  dot_beta_d.DeleteAthenaTensor();
+
+  beta2.DeleteAthenaTensor();
+  dr_beta2.DeleteAthenaTensor();
+  dot_beta2.DeleteAthenaTensor();
+  
   alpha.DeleteAthenaTensor();
   dr_alpha.DeleteAthenaTensor();
   dot_alpha.DeleteAthenaTensor();
@@ -719,7 +733,7 @@ void WaveExtractRWZ::SphHarm_Ylm(const int l, const int m, const Real theta, con
   //fac = 1.0/fac //divide once below
 
   const Real a = std::sqrt((Real)(2*l+1)/(4.0*PI*fact_norm));
-  const int mfac = (m>0)? std::pow(-1.0,m) : 1.0; //FIXME: this is the original, but should be:
+  const int mfac = (m>0)? std::pow(-1.0,m) : 1.0; //FIXME: this is the original, but it should be:
   //const int mfac = (m==0)? 1.0 : std::pow(-1.0,abs_m); 
   const Real Plm = mfac * a * SphHarm_Plm(l,abs_m,std::cos(theta));
 
@@ -845,7 +859,6 @@ void WaveExtractRWZ::ComputeSphericalHarmonics() {
 // \brief run over MBs of this rank and get the ADM metric in spherical coordinates on the sphere
 void WaveExtractRWZ::MetricToSphere() {
  
-  // Interpolate ADM metric and drvts on sphere
   MeshBlock * pmb = pmesh->pblock;
   while (pmb != nullptr) {
     InterpMetricToSphere(pmb);
@@ -865,14 +878,13 @@ void WaveExtractRWZ::MetricToSphere() {
 // These derivatives are computed elsewhere, e.g. during the Riemann computation
 // (we need a parameter option "store_metric_derivatives")
 
-//TODO 1st Time drvts can be taken from K and rhs
-//     How about 2nd time drvts?
+//TODO 2nd drvts are missing, but they can be taken from the interpolation.
 
 void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 {
   Z4c *pz4c = pmb->pz4c;
 
-  // Access the 3+1 metric 
+  // 3+1 metric 
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_g_dd;      
   adm_g_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
 
@@ -885,29 +897,29 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> adm_dg_ddd;      
   adm_dg_dd.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_gxx); //TODO we need this new storage
 
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> adm_dbeta_dd;      
-  adm_dbeta_dd.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_betax); 
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> adm_dbeta_ud; // beta^j,i = d/dx^i beta^j
+  adm_dbeta_ud.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_betax); 
 
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> adm_dalpha_d;      
-  adm_dbeta_dd.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_alpha); 
+  adm_dalpha_d.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_alpha); 
   
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_g_dot_dd;      
-  adm_g_dot_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_Kxx);
-  // adm_g_dot_dd stores here Kab, it will be modified below
-
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> adm_beta_dot_u;      
-  adm_alpha_dot.InitWithShallowSlice(pz4c->storage.rhs, Z4c::I_Z4c_betax);
+  adm_beta_dot.InitWithShallowSlice(pz4c->storage.rhs, Z4c::I_Z4c_betax);
   
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> adm_alpha_dot;      
   adm_alpha_dot.InitWithShallowSlice(pz4c->storage.rhs, Z4c::I_Z4c_alpha);
 
-  // Time drvt of ADM metric from Kab, lapse and shift
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_g_dot_dd;      
+  adm_g_dot_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_Kxx);
+
+  // adm_g_dot_dd stores Kab, get the time drvt
+  // of the ADM metric from Kab, lapse and shift
   //CHECK/FIXME
   ILOOP3(k,j,i) {
     for(int a = 0; a < NDIM; ++a)
       for(int b = a; b < NDIM; ++b) {
 	const Real Kab = adm_g_dot_dd(a,b,k,j,i);
-	adm_g_dot_dd(a,b,k,j,i) = -2.0*z4c_alpha(k,j,i)*Kab
+	adm_g_dot_dd(a,b,k,j,i) = - 2.0*z4c_alpha(k,j,i)*Kab
 	  + z4c_dbeta_dd(a,b,k,j,i) + z4c_dbeta_dd(b,a,k,j,i);
       }
   }
@@ -916,6 +928,13 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   const Real xc = center[0];
   const Real yc = center[1];
   const Real zc = center[2];
+
+  const Real r = Radius;
+  const Real div_r = 1.0/(Radius);     
+  Real n[3];
+  n[0] = (x-center[0])*div_r;
+  n[1] = (y-center[1])*div_r;
+  n[2] = (z-center[2])*div_r;
   
   // For interp
   LagrangeInterpND<metric_interp_order, 3> * pinterp3 = nullptr;
@@ -936,20 +955,24 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   size[2]   = pz4c->mbi.nn3;
   delta[2]  = pz4c->mbi.dx3(0);
   
-  // Pointwise tensors - Cartesian coords
-  AthenaTensor<Real, TensorSymm::SYM2, 2, 2> Cgamma_dd;
-  AthenaTensor<Real, TensorSymm::SYM2, 2, 1> Cbeta_u;
-  AthenaTensor<Real, TensorSymm::SYM2, 2, 1> Cbeta_d;
-  AthenaTensor<Real, TensorSymm::SYM2, 2, 0> Calpha;
-  
-  AthenaTensor<Real, TensorSymm::SYM2, 2, 3> Cgamma_der_ddd;
-  AthenaTensor<Real, TensorSymm::SYM2, 2, 2> Cbeta_der_ud;
-  AthenaTensor<Real, TensorSymm::SYM2, 2, 1> Calpha_der_d;
+  // Pointwise tensors: Cartesian components
+  AthenaTensor<Real, TensorSymm::SYM2, 0, 2> Cgamma_dd;
+  AthenaTensor<Real, TensorSymm::NONE, 0, 1> Cbeta_u;
+  AthenaTensor<Real, TensorSymm::NONE, 0, 1> Cbeta_d;
+  AthenaTensor<Real, TensorSymm::NONE, 0, 0> Calpha;
 
-  AthenaTensor<Real, TensorSymm::SYM2, 2, 2> Cgamma_dot_dd;
-  AthenaTensor<Real, TensorSymm::SYM2, 2, 2> Cbeta_dot_ud;
-  AthenaTensor<Real, TensorSymm::SYM2, 2, 1> Calpha_dot_d;
- 
+  AthenaTensor<Real, TensorSymm::SYM2, 0, 3> Cgamma_der_ddd;
+  AthenaTensor<Real, TensorSymm::NONE, 0, 2> Cbeta_der_ud;
+  AthenaTensor<Real, TensorSymm::NONE, 0, 1> Calpha_der_d;
+
+  AthenaTensor<Real, TensorSymm::SYM2, 0, 2> Cgamma_dot_dd;
+  AthenaTensor<Real, TensorSymm::NONE, 0, 2> Cbeta_dot_u;
+  AthenaTensor<Real, TensorSymm::NONE, 0, 1> Calpha_dot_d;
+
+  AthenaTensor<Real, TensorSymm::SYM2, 0, 2> dr_Cgamma_dd; // Radial drvts of Cartesian comp.
+  AthenaTensor<Real, TensorSymm::NONE, 0, 1> dr_Cbeta_u;
+  AthenaTensor<Real, TensorSymm::NONE, 0, 1> dr_Cbeta_d;  
+  
   Cgamma_dd.NewAthenaTensor();
   Cbeta_u.NewAthenaTensor();
   Cbeta_d.NewAthenaTensor();
@@ -962,32 +985,15 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   Cgamma_dot_ddd.NewAthenaTensor();
   Cbeta_dot_ud.NewAthenaTensor();
   Calpha_dot_d.NewAthenaTensor(); 
+
+  dr_Cgamma_dd.NewAthenaTensor();
+  dr_Cbeta_u.NewAthenaTensor();
+  dr_Cbeta_d.NewAthenaTensor();
+    
+  // Cartesian-to-Spherical Jacobian
+  AthenaTensor<Real, TensorSymm::NONE, 0, 2> Jac;
+  Jac.NewAthenaTensor();
   
-  // Pointwise tensors - spherical coords 
-  AthenaTensor<Real, TensorSymm::SYM2, 2, 2> Sgamma_dd;
-  AthenaTensor<Real, TensorSymm::NONE, 2, 1> Sbeta_u;
-  AthenaTensor<Real, TensorSymm::NONE, 2, 1> Sbeta_d;
-  
-  AthenaTensor<Real, TensorSymm::SYM2, 2, 3> Sgamma_der_ddd;
-  AthenaTensor<Real, TensorSymm::NONE, 2, 2> Sbeta_der_dd;
-  AthenaTensor<Real, TensorSymm::NONE, 2, 1> Salpha_der_d;
-
-  AthenaTensor<Real, TensorSymm::SYM2, 2, 2> Sgamma_dot_dd;
-  AthenaTensor<Real, TensorSymm::NONE, 2, 2> Sbeta_dot_dd;
-  AthenaTensor<Real, TensorSymm::NONE, 2, 1> Salpha_dot_d;
-
-  Sgamma_dd.NewAthenaTensor();
-  Sbeta_u.NewAthenaTensor();
-  Sbeta_d.NewAthenaTensor();
-
-  Sgamma_der_ddd.NewAthenaTensor();
-  Sbeta_der_dd.NewAthenaTensor();
-  Salpha_der_d.NewAthenaTensor(); 
-
-  Sgamma_dot_ddd.NewAthenaTensor();
-  Sbeta_dot_dd.NewAthenaTensor();
-  Salpha_dot_d.NewAthenaTensor(); 
-
   
   
   for (int i=0; i<Ntheta; i++) {
@@ -995,7 +1001,9 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
     const Real theta = th_grid(i);
     const Real sinth = std::sin(theta);
     const Real costh = std::cos(theta);
-    
+    const Real sinth2 = SQR(sinth);
+    const Real costh2 = SQR(costh);
+	  
     for(int j=0; j<Nphi; j++){
 
       if (!havepoint(i,j)) continue;
@@ -1003,6 +1011,8 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
       const Real phi   = ph_grid(j);
       const Real sinph = std::sin(phi);
       const Real cosph = std::cos(phi);
+      const Real sinph2 = SQR(sinph);
+      const Real cosph2 = SQR(costh);
       
       // Global coordinates of the surface
       const Real x = xc + Radius * sinth * cosph;
@@ -1018,8 +1028,9 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
       // Associate z -> -z if bitant
       if (bitant) z = std::abs(z);
 
+
       
-      // Interpolate
+      // Interpolate Cartesian components at point (theta_i,phi_j)
       // ----------------------------------------
 
       pinterp3 = new LagrangeInterpND<metric_interp_order, 3>(origin, delta, size, coord);
@@ -1045,17 +1056,10 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 	Cbeta_dot_u(a) = pinterp3->eval(&(adm_beta_dot_u(a,0,0,0)))*bitant_z_fac;
       }
 
-      // shift (down)
-      for(int a = 0; a < NDIM; ++a) {
-	Cbeta_d(a) = 0.0;
-	for(int b = 0; b < NDIM; ++b) 
-	  Cbeta_d(a) += Cgamma_dd(a,b) * Cbeta_d(b);
-      }      
-      
       // lapse 
       Calpha() = pinterp3->eval(&(adm_alpha(0,0,0)));
       Calpha_dot() = pinterp3->eval(&(adm_alpha_dot(0,0,0)));
-
+      
       // 3-metric spatial drvts
       for(int a = 0; a < NDIM; ++a)
 	for(int b = a; b < NDIM; ++b)
@@ -1069,7 +1073,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 	    Cgamma_der_ddd(a,b,c) = pinterp3->eval(&(adm_dg_ddd(a,b,c,0,0,0)))*bitant_z_fac;
 	  }
       
-      // shift (down) drvts
+      // shift (up) spatial drvts
       for(int a = 0; a < NDIM; ++a) 
 	for(int b = 0; b < NDIM; ++b) {
 	  int bitant_z_fac = 1;
@@ -1077,10 +1081,10 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 	    if (a == 2) bitant_z_fac *= -1;
 	    if (b == 2) bitant_z_fac *= -1;
 	  }
-	  Cbeta_der_dd(a) = pinterp3->eval(&(adm_dbeta_dd(a,b,0,0,0)))*bitant_z_fac;
+	  Cbeta_der_ud(a,b) = pinterp3->eval(&(adm_dbeta_ud(a,b,0,0,0)))*bitant_z_fac;
 	}      
       
-      // lapse
+      // lapse spatial drvts
       for(int a = 0; a < NDIM; ++a) {
         int bitant_z_fac = 1;
         if ((bitant_sym) && (a == 2)) bitant_z_fac *= -1;
@@ -1089,199 +1093,288 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
             
       delete pinterp3;
 
-      
-      // Transform to spherical coordinates 
-      // ----------------------------------------
 
-      TransformMetricCarToSph(theta, phi,
-			      Cgamma_dd, Cgamma_der_ddd, Cgamma_dot_dd,
-			      Cbeta_d, Cbeta_der_dd, Cbeta_dot_u,
-			      Sgamma, Sgamma_der_d, Sgamma_dot_dd,
-			      Sbeta_d, Sbeta_u, Sbeta_der_d);
+
+      // Auxiliary Cartesian tensors 
+      // ----------------------------------------
       
-      // copy stuff
-      alpha(i,j) = Calpha();
-      dr_alpha(i,j) = Calpha_der_d(0);
-      dot_alpha(i,j) = Calpha_dot();
-      
-      for(int a = 0; a < 3; ++a) 
-	beta_d(a,i,j) = Sbeta_d(a);
-	beta_u(a,i,j) = Sbeta_u(a);
-	//beta_dot_u(a,i,j) = Sbeta_dot_u(a);
-	dr_beta_d(a,i,j) = Sbeta_der_d(0);
-	for(int b = 0; b < a; ++b) {
-	  gamma_dd(a,b,i,j) = Sgamma_dd(a,b);
-	  gamma_uu(a,b,i,j) = Sgamma_uu(a,b);
-	  dr_gamma_dd(a,b,i,j) = Sgamma_der_ddd(a,b,0);
-	  //dr2_gamma_uu(a,b,i,j) = ...
-	  dot_gamma_dd(a,b,i,j) = Sgamma_dot_dd(a,b);
+      // Shift (down) 
+      for(int a = 0; a < NDIM; ++a) {
+	Cbeta_d(a) = 0.0;
+	for(int b = 0; b < NDIM; ++b)  {
+	  Cbeta_d(a) += Cgamma_dd(a,b) * Cbeta_u(b);
 	}
+      }      
+
+      // Shift (down) spatial drvts
+      for(int a = 0; a < NDIM; ++a) 
+	for(int b = 0; b < NDIM; ++b)  {
+	  Cbeta_dd(a,b) = 0.0;
+	  for(int c = 0; c < NDIM; ++c)  {
+	    Cbeta_dd(a,b) += Cgamma_ddd(a,c,b) * Cbeta_ud(c,b) + Cgamma_dd(a,c) * Cbeta_ud(c,b);
+	  }
+	}      
+
+      // Radial drvts of Cartesian gamma_{ij} 
+      for (int a = 0; a < NDIM; ++a) 
+	for (int b = 0; b < NDIM; ++b) {
+	  dr_Cgamma_dd(a,b) = 0.0;
+	  for (int c = 0; c < NDIM; ++c)
+	    dr_Cgamma_dd(a,b) += n[b] * Cgamma_der_ddd(a,b,c);
+	}
+
+      // Radial drvts of beta^i 
+      for (int a = 0; a < NDIM; ++a) {
+	dr_Cbeta_u(a) = 0.0;    
+	for (int b = 0; b < 3; ++b) 
+	  dr_Cbeta_u(a) += n[b] * Cbeta_der_ud(a,b); 
+      }
+      
+      // Radial drvts of beta_i
+      for (int a = 0; a < NDIM; ++a) {
+	dr_Cbeta_d(a) = 0.0;    
+	for (int b = 0; b < NDIM; ++b) {
+	  dr_Cbeta_d(a) += dr_Cgamma_dd(a,b) * Cbeta_u(b) + Cgamma(a,b) * dr_Cbeta_u(b);
+	}
+      }
+
+
+      
+      // Lapse & drvts
+      // ----------------------------------------      
+      
+      // lapse & time drvts
+      alpha(i,j) = Calpha();
+      dot_alpha(i,j) = Calpha_dot();
+
+      // Radial drvts of lapse
+      dr_alpha(i,j) = 0.0;
+      for (int a = 0; a < NDIM; ++a) {
+	dr_alpha(i,j) += n[a] * Calpha_der_d[a];
+      }
+
+
+      
+      // beta^2 & drvts
+      // ----------------------------------------      
+      
+      beta2(i,j) = 0.0;
+      for (int a=0; a<NDIM; ++a)
+	beta2(i,j) += Cbeta_u(a)*Cbeta_d(a);
+      
+      dot_beta2(i,j) = 0.0;
+      for (int a=0; a<3; ++a)
+	for (int b=0; b<3; ++b) {
+	  dot_beta2(i,j) +=
+	    Cgamma_dot_dd(a,b) * Cbeta_u(a) * Cbeta_u(b)
+	    Cgamma_dd(a,b) * Cbeta_dot_u(a) * Cbeta_u(b)
+	    Cgamma_dd(a,b) * Cbeta_u(a,i,j) * Cbeta_dot_u(b);
+	}
+      
+      dr_beta2(i,j) = 0.0;
+      for (int a=0; a<NDIM; ++a)
+	for (int b=0; b<NDIM; ++b) {
+	  dr_beta2(i,j) +=
+	    dr_Cgamma_dd(a,b) * Cbeta_u(a) * Cbeta_u(b)
+	    Cgamma_dd(a,b) * dr_beta_u(a) * beta_u(b,)
+	    Cgamma_dd(a,b) * beta_u(a) * dr_beta_u(b);
+	}
+      
+
+      
+            
+      // Transform tensors to spherical coordinates 
+      // ----------------------------------------
+      
+      // Jacobian
+      Jac(0,0) = sinth * cosph;
+      Jac(0,1) = r * costh * cosph;
+      Jac(0,2) = - r * sinth * sinph;
+      Jac(1,0) = sinth * sinph;
+      Jac(1,1) = r * costh * sinph;
+      Jac(1,2) = r * sinth * cosph;
+      Jac(2,0) = costh;
+      Jac(2,1) = - r* sinth;
+      Jac(2,2) = 0.0;
+
+      // 3-metric & time drvts  
+      for (int a = 0; a < NDIM; ++a)
+	for (int b = 0; b < NDIM; ++b) {
+	  gamma_dd(a,b, i,j) = 0.0;
+	  dot_gamma_dd(a,b, i,j) = 0.0;
+	  for (int c = 0; c < NDIM; ++c)
+	    for (int d = 0; d < NDIM; ++d) {
+	      //TODO check indexes	  
+	      gamma_dd(a,b, i,j) += Jac(a,c) * Cgamma_dd(c,d) *  Jac(d,b);
+	      dot_gamma_dd(a,b) += Jac(a,c) * Cgamma_dot_dd(c,d) *  Jac(d,b);
+	    }
+	}
+
+      // shift down (beta_i) & time drvts
+      for (int a = 0; a < NDIM; ++a) {
+	beta_d(a, i,j) = 0.0;
+	beta_dot_u(a, i.j) = 0.0;
+	for (int c = 0; c < NDIM; ++c) {
+	  //TODO check indexes
+	  beta_d(a, i,j) += Jac(a,c) * Cbeta_d(c);
+	  beta_dot_u(a, i,j) += Jac(a,c) * Cbeta_dot_u(c);
+	}
+      }
+      
+      // Spherical components of radial drvts of gamma_{ij}
+      //FIXME: code the following cleanly (with appropriate Jacobians)
+      dr_gamma_dd_dd(0,0, i,j) =
+	sinth2 * ( cosph2 * dr_Cgamma_dd(0,0)
+		   + sinph2 * dr_Cgamma_dd(1,1) )
+	+ costh2 * dr_Cgamma_dd(2,2)
+	+ 2.0 * sinth * ( sinth * cosph * sinph * dr_Cgamma_dd(0,1)
+			  + costh * cosph * dr_Cgamma_dd(0,2)
+			  + costh * sinph * dr_Cgamma_dd(1,2) );
+      
+      dr_gamma_dd_dd(0,1, i,j) = div_r * gamma_dd(0,1, i,j)
+	+ r * ( sinth * cosph2 * costh * dr_Cgamma_dd(0,0)
+		+ 2.0 * sinth * costh * sinph * cosph * dr_Cgamma_dd(0,1)
+		+ cosph * (costh2-sinth2) * dr_Cgamma_dd(0,2)
+		+ sinth * sinph2 * costh * dr_Cgamma_dd(1,1)
+		+ sinph * (costh2-sinth2) * dr_Cgamma_dd(1,2)
+		- costh * sinth * dr_Cgamma_dd(2,2) );
+      
+      dr_gamma_dd_dd(0,2, i,j) = div_r * gamma_dd(0,2, i,j)
+	+ r * sinth * ( - sinth * sinph * cosph * dr_Cgamma_dd(0,0)
+			- sinth * (sinph2-cosph2) * dr_Cgamma_dd(0,1) 
+			- sinph * costh * dr_Cgamma_dd(0,2) 
+			+ sinth * sinph * cosph * dr_Cgamma_dd(1,1)
+			+ costh * cosph * * dr_Cgamma_dd(1,2) );
+      
+      dr_gamma_dd_dd(1,1, i,j) = 2.0 * div_r * gamma_dd(1,1, i,j)
+	+ r2 * ( costh2 * ( cosph2 * dr_Cgamma_dd(0,0)
+			    + sinph2 * dr_Cgamma_dd(1,1) )
+		 + sinth2 * dr_Cgamma_dd(2,2)
+		 + 2.0 * costh * ( costh * sinph * cosph * dr_Cgamma_dd(0,1)
+				   sinth * cosph * dr_Cgamma_dd(0,2)
+				   sinth * sinph * dr_Cgamma_dd(1,2) ) );
+      
+      dr_gamma_dd_dd(1,2, i,j) = 2.0 * div_r *  gamma_dd(1,2, i,j)
+	+ r2 * sinth * ( - cosph * sinph * costh * dr_Cgamma_dd(0,0)
+			 - costh * (sinph2-cosph2) * dr_Cgamma_dd(0,1)
+			 + sinth * sinph * dr_Cgamma_dd(0,2)
+			 + cosph * sinph * costh * dr_Cgamma_dd(1,1)
+			 - sinth * cosph * dr_Cgamma_dd(1,2) );
+      
+      dr_gamma_dd_dd(2,2, i,j) = 2.0 * div_r *  gamma_dd(1,2, i,j)
+	+ r2 * sinth2 * ( sinph2 * dr_Cgamma_dd(0,0)
+			  - 2.0 * cosph * sinph * dr_Cgamma_dd(0,1)
+			  + cosph2 * dr_Cgamma_dd(1,1) );
+      
+      // Spherical components of radial drvts of beta_i
+      //FIXME: code this cleanly
+      dr_beta_d(0,i,j) = sinth * ( cosph * dr_Cbeta_d(0) + sinph * dr_Cbeta_d(1) )
+	+ costh * dr_Cbeta_d(2);
+      dr_beta_d(1,i,j) = div_r * beta_d(1,i,j) + r*( costh * ( dr_Cbeta_d(0) + sinph * dr_Cbeta_d(1) )
+						     - sinth * dr_Cbeta_d(2) );
+      dr_beta_d(2,i,j) = div_r * beta_d(2,i,j) + r * sinth * ( cosph * dr_Cbeta_d(1)
+							       - sinth * dr_Cbeta_d(0) );
+
+      
+      
+      // OLD STUFF TO DEL --------------------------------
+      
+      // TransformMetricCarToSph(x,y,z, theta, phi,
+      // 			      // 
+      // 			      Cgamma_dd, Cgamma_der_ddd, Cgamma_dot_dd,
+      // 			      Cbeta_u, Cbeta_der_ud, Cbeta_dot_u,
+      // 			      Cbeta_d, Cbeta_der_dd, Cbeta_dot_d,
+      // 			      Calpha, Calpha_der_d, Calpha_dot,
+      // 			      //
+      // 			      Sgamma, Sgamma_der_d, Sgamma_dot_dd,
+      // 			      Sbeta_d, Sbeta_u, Sbeta_der_d);
+
+
+      // Real adm_g_00 = - SQR(Calpha());
+      // Real dr_adm_g00 = - 2.0 * Calpha() * Calpha_der_d(0);
+      // Real dot_adm_g00 = - 2.0 * Calpha() * Calpha_dot_d(0);
+      // for(int a = 0; a < 3; ++a) 
+      //   adm_g_00 += Cbeta_u(a)*Cbeta_d(a);      
+      //   for(int b = 0; b < 3; ++b) {
+      //     dr_adm_g00 += Cgamma_der_dd(a,b)*beta_u(a)*beta_u(b)
+      // 	+ Cgamma_dd(a,b)*beta_der_u(a)*beta_u(b)
+      // 	+ Cgamma_dd(a,b)*beta_u(a)*beta_der_u(b);
+      //     dot_adm_g00 += Cgamma_dot_dd(a,b)*beta_u(a)*beta_u(b)
+      // 	+ Cgamma_dd(a,b)*beta_dot_u(a)*beta_u(b)
+      // 	+ Cgamma_dd(a,b)*beta_u(a)*beta_dot_u(b);
+      //   }
+      
+      // adm_g_00(i,j) = - SQR(Calpha());
+      // dr_adm_g00(i,j) = - 2.0 * Calpha() * Calpha_der_d(0);
+      // dot_adm_g00(i,j) = - 2.0 * Calpha() * Calpha_dot_d(0);
+      // for(int a = 0; a < 3; ++a) 
+      // 	for(int b = 0; b < 3; ++b) {
+      // 	  adm_g_00(i,j) += Sgamma_dd(a,b)*Sbeta_u(a)*Sbeta_u(b);	  
+      // 	  dr_adm_g00(i,j) += Sgamma_der_dd(a,b)*Sbeta_u(a)*Sbeta_u(b)
+      // 	    + Sgamma_dd(a,b)*Sbeta_der_u(a)*Sbeta_u(b)
+      // 	    + Sgamma_dd(a,b)*Sbeta_u(a)*Sbeta_der_u(b);
+      // 	  dot_adm_g00(i,j) += Sgamma_dot_dd(a,b)*Sbeta_u(a)*Sbeta_u(b)
+      // 	    + Sgamma_dd(a,b)*Sbeta_dot_u(a)*Sbeta_u(b)
+      // 	    + Sgamma_dd(a,b)*Sbeta_u(a)*Sbeta_dot_u(b);
+      // 	}
+	    
+      // for(int a = 0; a < 3; ++a) 
+      // 	beta_d(a,i,j) = Sbeta_d(a);
+      // 	beta_u(a,i,j) = Sbeta_u(a);
+      // 	//beta_dot_u(a,i,j) = Sbeta_dot_u(a);
+      // 	dr_beta_d(a,i,j) = Sbeta_der_d(0);
+      // 	for(int b = 0; b < a; ++b) {
+      // 	  gamma_dd(a,b,i,j) = Sgamma_dd(a,b);
+      // 	  gamma_uu(a,b,i,j) = Sgamma_uu(a,b);
+      // 	  dr_gamma_dd(a,b,i,j) = Sgamma_der_ddd(a,b,0);
+      // 	  //dr2_gamma_uu(a,b,i,j) = ...
+      // 	  dot_gamma_dd(a,b,i,j) = Sgamma_dot_dd(a,b);
+      // 	}
+
+      // --------------------------------
       
     } // phi loop
   } // theta loop
   
   adm_g_dd.DeleteAthenaTensor();
   adm_beta_u.DeleteAthenaTensor();
-  adm_alpha.DeleteAthenaTensor();  
+  adm_alpha.DeleteAthenaTensor();
+  
   adm_dg_ddd.DeleteAthenaTensor();
-  adm_dbeta_dd.DeleteAthenaTensor();
+  adm_dbeta_ud.DeleteAthenaTensor();
   adm_dalpha_d.DeleteAthenaTensor();
+
   adm_g_dot_dd.DeleteAthenaTensor();
   adm_beta_dot_u.DeleteAthenaTensor();
   adm_alpha_dot.DeleteAthenaTensor();
     
-  // Free pointwise tensors
+  Jac.DeleteAthenaTensor();
+
   Cgamma_dd.DeleteAthenaTensor();
   Cbeta_u.DeleteAthenaTensor();
   Cbeta_d.DeleteAthenaTensor();
-  Calpha.DeleteAthenaTensor();  
-
+  Calpha.DeleteAthenaTensor();
+  
   Cgamma_der_ddd.DeleteAthenaTensor();
-  Cbeta_der_dd.DeleteAthenaTensor();
-  Calpha_der_d.DeleteAthenaTensor();
+  Cbeta_der_ud.DeleteAthenaTensor();
+  Calpha_der_d.DeleteAthenaTensor(); 
+
+  Cgamma_dot_ddd.DeleteAthenaTensor();
+  Cbeta_dot_u.DeleteAthenaTensor();
+  Calpha_dot_d.DeleteAthenaTensor(); 
+
+  dr_Cgamma_dd.DeleteAthenaTensor();
+  dr_Cbeta_u.DeleteAthenaTensor();
+  dr_Cbeta_d.DeleteAthenaTensor();
   
-  Sgamma_dd.DeleteAthenaTensor();
-  Sbeta_u.DeleteAthenaTensor();
-  Sbeta_d.DeleteAthenaTensor();
-  
-  Sgamma_der_ddd.DeleteAthenaTensor();
-  Sbeta_der_dd.DeleteAthenaTensor();
-  Salpha_der_d.DeleteAthenaTensor();
 }
 
 //----------------------------------------------------------------------------------------
 // \!fn void WaveExtractRWZ::TransformMetricCarToSph(...)
 // \brief transform metric on the sphere from (x,y,z) to (R,theta,phi) at a (theta,phi) point
-void WaveExtractRWZ::TransformMetricCarToSph(theta,phi,
-					     AthenaTensor<Real, TensorSymm::SYM2, 0, 2> Cgamma_dd,
-					     AthenaTensor<Real, TensorSymm::SYM2, 0, 3> Cgamma_der_ddd,
-					     AthenaTensor<Real, TensorSymm::SYM2, 0, 2> Cgamma_dot_dd,
-					     AthenaTensor<Real, TensorSymm::NONE, 0, 1> Cbeta_d,
-					     AthenaTensor<Real, TensorSymm::NONE, 0, 2> Cbeta_der_dd,
-					     AthenaTensor<Real, TensorSymm::NONE, 0, 2> Cbeta_dot_u,
-					     AthenaTensor<Real, TensorSymm::SYM2, 0, 2> gamma_dd,
-					     AthenaTensor<Real, TensorSymm::SYM2, 0, 3> gamma_der_ddd,
-					     AthenaTensor<Real, TensorSymm::SYM2, 0, 2> gamma_dot_dd,
-					     AthenaTensor<Real, TensorSymm::NONE, 0, 1> beta_d,
-					     AthenaTensor<Real, TensorSymm::NONE, 0, 1> beta_u,
-					     AthenaTensor<Real, TensorSymm::NONE, 0, 2> beta_der_dd
-					     AthenaTensor<Real, TensorSymm::NONE, 0, 1> beta_dot_d,
-					     ) {
-
-  AthenaTensor<Real, TensorSymm::NONE, 0, 2> Jac;
-  Jac.NewAthenaTensor();
-  
-  const Real r = Radius; 
-    
-  const Real sinth = std::sin(theta);
-  const Real costh = std::cos(theta);
-
-  const Real sinph = std::sin(phi);
-  const Real cosph = std::cos(phi);
-
-  Jac(0,0) = sinth * cosph;
-  Jac(0,1) = r * costh * cosph;
-  Jac(0,2) = - r * sinth * sinph;
-  Jac(1,0) = sinth * sinph;
-  Jac(1,1) = r * costh * sinph;
-  Jac(1,2) = r * sinth * cosph;
-  Jac(2,0) = costh;
-  Jac(2,1) = - r* sinth;
-  Jac(2,2) = 0.0;
-
-  //TODO check indexes
-
-  for (int a = 0; a < 3; ++a)
-    for (int b = 0; b < 3; ++b) {
-      gamma_dd(a,b) = 0.0;
-      gamma_dot_dd(a,b) = 0.0;
-      for (int c = 0; c < 3; ++c)
-	for (int d = 0; d < 3; ++d) {
-	  gamma_dd(a,b) += Jac(a,c) * Cgamma_dd(c,d) *  Jac(d,b);
-	  gamma_dot_dd(a,b) += Jac(a,c) * Cgamma_dot_dd(c,d) *  Jac(d,b);
-	}
-    }
-  
-  for (int a = 0; a < 3; ++a) {
-    beta_d(a) = 0.0;
-    beta_dot_u(a) = 0.0;
-    for (int c = 0; c < 3; ++c) {
-      beta_d(a) += Jac(a,c) * Cbeta_d(c);
-      beta_dot_u(a) += Jac(a,c) * Cbeta_dot_u(c);
-    }
-  }
-
-  for (int a = 0; a < 3; ++a) {
-    beta_u(a) = 0.0;
-    beta_dot_u(a) = 0.0;
-    for (int c = 0; c < 3; ++c) {
-      beta_u(a) += gamma_uu(a,c) * beta_d(c);
-      beta_dot_u(a) += gamma_uu(a,c) * beta_dot_d(c);
-    }
-  }
-
-  //TODO: drvts, note we only need the radial = 0 component
-
-  
-  
-  Jac.DeleteAthenaTensor();
-  
-  // Cartesian components
-  // const Real gxx = gamma_dd(0,0,i,j);
-  // const Real gxy = gamma_dd(0,1,i,j);
-  // const Real gxz = gamma_dd(0,2,i,j);
-  // const Real gyy = gamma_dd(1,1,i,j);
-  // const Real gyz = gamma_dd(1,2,i,j);
-  // const Real gzz = gamma_dd(2,2,i,j);
-  
-  // const Real bxx = beta_dd(0,i,j);
-  // const Real bxy = beta_dd(1,i,j);
-  // const Real bxz = beta_dd(2,i,j);
-    
-  //TODO Radial derivatives
-  // const Real dgxx =  dgxxs(it,ip)
-  //  dgxz = dgxzs(it,ip)
-  //  dgyy = dgyys(it,ip)
-  //  dgyz = dgyzs(it,ip)
-  //  dgzz = dgzzs(it,ip)
-  
-  
-  // Spherical components
-  // const Real grr = sinth2*cosph2*gxx+sinth2*sinph2*gyy+costh2*gzz
-  //   +2.0*sinth2*cosph*sinph*gxy+2.0*sinth*cosph*costh*gxz+2.0*sinth*costh*sinph*gyz;
-  
-  // const Real grt = r*(sinth*cosph2*costh*gxx+2.0*sinth*costh*sinph*cosph*gxy
-  // 		      +cosph*(costh2-sinth2)*gxz+sinth*sinph2*costh*gyy
-  // 		      +sinph*(costh2-sinth2)*gyz-costh*sinth*gzz);
-  
-  // const Real grp = r*sinth*(-sinth*sinph*cosph*gxx-sinth*(sinph2-cosph2)*gxy-sinph*costh*gxz
-  // 			    +sinth*sinph*cosph*gyy+costh*cosph*gyz);
-  
-  // const Real gtt = r2*(costh2*cosph2*gxx+2.0*costh2*sinph*cosph*gxy
-  // 		       -2.0*sinth*costh*cosph*gxz+costh2*sinph2*gyy
-  // 		       -2.0*sinth*sinph*costh*gyz+sinth2*gzz);
-  
-  // const Real gtp = r2*sinth*(-cosph*sinph*costh*gxx-costh*(sinph2-cosph2)*gxy
-  // 			     +sinth*sinph*gxz+cosph*sinph*costh*gyy-sinth*cosph*gyz);
-  
-  // const Real gpp = r2*sinth2*(sinph2*gxx-2.0*cosph*sinph*gxy+cosph2*gyy);
-  
-  
-  // const Real dgtt = 2.0/r*gtt + r2*(costh2*cosph2*dgxx
-  // 					+2.0*costh2*sinph*cosph*dgxy
-  // 					-2.0*sinth*costh*cosph*dgxz +costh2*sinph2*dgyy
-  // 					-2.0*sinth*sinph*costh*dgyz +sinth2*dgzz);
-  
-  // const Real dgtp = 2.0/r*gtp + r2*sinth*(-cosph*sinph*costh*dgxx
-  // 					      -costh*(sinph2-cosph2)*dgxy
-  // 					      +sinth*sinph*dgxz
-  // 					      +cosph*sinph*costh*dgyy
-  // 					      -sinth*cosph*dgyz);
-  
-  // const Real dgpps = 2.0/r*gpp + r2*sinth2*(sinph2*dgxx
-  // 						-2.0*cosph*sinph*dgxy+cosph2*dgyy);
-    
-}
+//void WaveExtractRWZ::TransformMetricCarToSph(x,y,z, theta,phi) {
+//
+//}
 
 //----------------------------------------------------------------------------------------
 // \!fn void WaveExtractRWZ::BackgroundReduce()
@@ -1317,41 +1410,13 @@ void WaveExtractRWZ::BackgroundReduce() {
       const Real sinph2 = SQR(sinph);
       const Real cosph2 = SQR(cosph);
 
-      Real beta2 = 0.0;
-      for (int a=0; a<3; ++a)
-	beta2 += beta_u(a,i,j)*beta_d(a,i,j);
-      
-      //FIXME what we store exactly? Fix this:
-      Real dr_beta2 = 0.0;
-      for (int a=0; a<3; ++a)
-	for (int b=0; b<3; ++b) {
-	  dr_beta2 +=
-	    dr_gamma_dd(a,b,i,j) * beta_u(a,i,j) * beta_u(b,i,j)
-	    gamma_dd(a,b,i,j) * dr_beta_u(a,i,j) * beta_u(b,i,j)
-	    gamma_dd(a,b,i,j) * beta_u(a,i,j) * dr_beta_u(b,i,j);
-	}
-      Real dot_beta2 = 0.0;
-      for (int a=0; a<3; ++a)
-	for (int b=0; b<3; ++b) {
-	  dot_beta2 +=
-	    dot_gamma_dd(a,b,i,j) * beta_u(a,i,j) * beta_u(b,i,j)
-	    gamma_dd(a,b,i,j) * dot_beta_u(a,i,j) * beta_u(b,i,j)
-	    gamma_dd(a,b,i,j) * beta_u(a,i,j) * dot_beta_u(b,i,j);
-	}
-      // Real dot_beta_r = 0.0; // = d(beta_r)/dt
-      // for (int a=0; a<3; ++a) 
-      // 	dot_beta_r +=
-      // 	  dot_gamma_dd(a,0,i,j) * beta_u(a,i,j)
-      // 	  gamma_dd(a,0,i,j) * dot_beta_u(a,i,j);
-
-
       Real int_r2 = 0.0;
       Real int_drsch_dri = 0.0;
       Real int_d2rsch_dri2 = 0.0;
       Real int_r2dot = 0.0;
       Real int_drsch_dri_dot = 0.0; //TODO
       
-      // These integrals will be all normalized with 1/(4 Pi)
+      // NB These integrals will be all normalized with 1/(4 Pi)
       if (method_areal_radius==areal) {
 	
 	const Real aux_r2 = std::sqrt(gamma_dd(1,1,i,j)*gamma_dd(2,2,i,j) - SQR(gamma_dd(1,0,i,j)));
@@ -1438,20 +1503,19 @@ void WaveExtractRWZ::BackgroundReduce() {
       integrals_background[Idrsch_dri_dot] += int_drsch_dri_dot;
 
       // 2-metric & drvts
-      integrals_background[Ig00] -= vol * (SQR(alpha(i,j)) - beta2);
+      integrals_background[Ig00] -= vol * (SQR(alpha(i,j)) - beta2(i,j));
       integrals_background[Ig0r] += vol * beta_d(0,i,j);
       integrals_background[Igrr] += vol * gamma_dd(0,0,i,j);
 
-      integrals_background[Idr_g00] -= vol * (2.0*alpha(i,j)*dr_alpha(i,j) - dr_beta2);
+      integrals_background[Idr_g00] -= vol * (2.0*alpha(i,j)*dr_alpha(i,j) - dr_beta2(i,j));
       integrals_background[Idr_g0r] += vol * dr_beta_d(0,i,j);
       integrals_background[Idr_grr] += vol * dr_gamma_dd(0,0,i,j);
       
-      integrals_background[Idot_g00] -= vol * (2.0*alpha(i,j)*dot_alpha(i,j) - dot_beta2);
+      integrals_background[Idot_g00] -= vol * (2.0*alpha(i,j)*dot_alpha(i,j) - dot_beta2(i,j));
       integrals_background[Idot_g0r] += vol * dot_beta_d(0,i,j);
       integrals_background[Idot_grr] += vol * dot_gamma_dd(0,0,i,j);
 
       //TODO check if the following components are needed...
-      // sphere metric
       integrals_background[Igrt] += vol * gamma_dd(1,2,i,j);
       integrals_background[Igtt] += vol * gamma_dd(1,1,i,j);
       integrals_background[Igpp] += vol * gamma_dd(2,2,i,j);
@@ -1470,6 +1534,9 @@ void WaveExtractRWZ::BackgroundReduce() {
   const Real div_4PI = 1.0/(4.0*PI);
   for (int i=0; i<NVBackground; i++) 
     integrals_background[i] *= div_4PI;
+
+  // Some integrals require extra normalization
+  //TODO
   
   // Check
   const Real rsch2 = integrals_background[Irsch2];
@@ -1510,7 +1577,7 @@ void WaveExtractRWZ::BackgroundReduce() {
   // from the isotropic radius R to the Schwarzschild radius r
   // Note variables are overwritten here, order matters!
 
-  //TODO following taken from cactus: needs a check for normalization!
+  //TODO following taken from cactus: needs a check and cleanup!
     
   // Time derivatives of Schwarzschild radius
   dot_rsch *= 1.0/(8.0t*PI*rsch);
@@ -2039,4 +2106,3 @@ void WaveExtractRWZ::MultipolesGaugeInvariant() {
   norm_Tr_kappa_dd = std::sqrt(norm_Tr_kappa_dd);
   
 }
-
