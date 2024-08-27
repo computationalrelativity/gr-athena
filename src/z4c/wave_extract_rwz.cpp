@@ -1094,6 +1094,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
       delete pinterp3;
 
 
+<<<<<<< HEAD
 
       // Auxiliary Cartesian tensors 
       // ----------------------------------------
@@ -1289,7 +1290,6 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
       // 			      Sgamma, Sgamma_der_d, Sgamma_dot_dd,
       // 			      Sbeta_d, Sbeta_u, Sbeta_der_d);
 
-
       // Real adm_g_00 = - SQR(Calpha());
       // Real dr_adm_g00 = - 2.0 * Calpha() * Calpha_der_d(0);
       // Real dot_adm_g00 = - 2.0 * Calpha() * Calpha_dot_d(0);
@@ -1396,7 +1396,7 @@ void WaveExtractRWZ::BackgroundReduce() {
     const Real sinth2 = SQR(sinth);
     const Real costh2 = SQR(costh);
     const Real div_sinth = 1.0/sinth;
-    const Real div_sinth2 = 1.0/sinth2;
+    const Real div_sinth2 = SQR(div_sinth);
     
     const Real vol = dthdph * sinth;
     
@@ -1709,7 +1709,8 @@ void WaveExtractRWZ::MultipoleReduce() {
   const Real dthdph = dth_grid() * dph_grid();
   const Real r = Schwarzschild_radius;
   const Real div_r = 1.0/r;
-  const Real div_r2 = 1.0/(SQR(r));
+  const Real div_r2 = SQR(div_r);
+  const Real div_r3 = div_r2 * div_r;
     
   // Zeros the integrals
   for (int i=0; i<NVBackground*2*lmpoints; i++)    
@@ -1723,7 +1724,7 @@ void WaveExtractRWZ::MultipoleReduce() {
     const Real sinth2 = SQR(sinth);
     const Real costh2 = SQR(costh);
     const Real div_sinth = 1.0/sinth;
-    const Real div_sinth2 = 1.0/sinth2;
+    const Real div_sinth2 = SQR(div_sinth);
 
     const Real vol = dthdph * sinth;
 
@@ -1746,10 +1747,6 @@ void WaveExtractRWZ::MultipoleReduce() {
 	for(int m=-l; m<=l; ++m) {
 	  const int lm = MIndex(l,m);
 	  
-	  Real beta2 = 0.0;
-	  for (int a=0; a<3; ++a)
-	    beta2 += beta_u(a,i,j)*beta_d(a,i,j);
-	  
 	  // Local sums
 	  // ----------
 
@@ -1761,9 +1758,11 @@ void WaveExtractRWZ::MultipoleReduce() {
 	    const Real sX   = s * X(lm,c);
 	    const Real sW   = s * W(lm,c);
 
+	    
 	    // even parity
+	    
 	    integrals_multipoles[NVMultipoles * Ih00 + lm + c] -=
-	      vol * (SQR(alpha(i,j)) - beta2) * sYlm ;
+	      vol * (SQR(alpha(i,j)) - beta2(i,j)) * sYlm ;
 	    
 	    integrals_multipoles[NVMultipoles * Ih01 + lm + c] += 
 	      vol * beta_d(0,i,j) * sY;
@@ -1787,8 +1786,71 @@ void WaveExtractRWZ::MultipoleReduce() {
 	      * ( (gamma_dd(1,1,i,j) + gamma_dd(2,2,i,j) * div_sinth2) * W
 		  + 2.0*gamma_dd(1,2,i,j) * X );
 
-	    // even parity drvts
-	    //TODO
+	    
+	    // even parity radial drvts
+
+	    integrals_multipoles[NVMultipoles * Ih00_dr + lm + c] -=
+	      vol * (2.0*alpha(i,j)*dr_alpha(i,j) - dr_beta2(i,j)) * sYlm ;
+	    
+	    integrals_multipoles[NVMultipoles * Ih01_dr + lm + c] += 
+	      vol * beta_dr_d(0,i,j) * sY;
+
+	    integrals_multipoles[NVMultipoles * Ih11_dr + lm + c] += 
+	      vol * dr_gammadd(1,1,i,j) * sY;
+
+	    
+	    integrals_multipoles[NVMultipoles * Ih0_dr + lm + c] += 
+	      vol * div_lambda * (dr_beta_d(1,i,j) * sYth
+				  + dr_beta_d(2,i,j) * div_sinth2 * sYph );
+
+	    integrals_multipoles[NVMultipoles * Ih1_dr + lm + c] += 
+	      vol * div_lambda * (dr_gamma_dd(0,1,i,j) * sYth
+				  + dr_gamma_dd(0,2,i,j) * div_sinth2 * sYph );
+	    
+	    
+	    integrals_multipoles[NVMultipoles * IK_dr + lm + c] += 
+	      vol * 0.5 * ( div_r2 * (dr_gamma_dd(1,1,i,j) + dr_gamma_dd(2,2,i,j) * div_sinth2) * sY
+			    -2.0*div_r3 * (gamma_dd(1,1,i,j) + gamma_dd(2,2,i,j) * div_sinth2) * sY );
+	    
+	    integrals_multipoles[NVMultipoles * IG_dr + lm + c] += 
+	      vol * 0.5 * div_lambda_lambda_2 *
+	      ( div_r2 * ( (dr_gamma_dd(1,1,i,j) + dr_gamma_dd(2,2,i,j) * div_sinth2) * W
+			   + 2.0*dr_gamma_dd(1,2,i,j) * X )
+		-2.0*div_r3 * ( ( (gamma_dd(1,1,i,j) + gamma_dd(2,2,i,j) * div_sinth2) * W
+				  + 2.0*gamma_dd(1,2,i,j) * X ) ) );
+
+
+	    // even parity time derivatives
+	    // NB assumes rdot=0
+	    
+	    integrals_multipoles[NVMultipoles * Ih00_dt + lm + c] -=
+	      vol * (2.0*alpha(i,j)*dot_alpha(i,j) - dot_beta2(i,j)) * sYlm ;
+	    
+	    integrals_multipoles[NVMultipoles * Ih01_dt + lm + c] += 
+	      vol * dot_beta_d(0,i,j) * sY;
+
+	    integrals_multipoles[NVMultipoles * Ih11_dt + lm + c] += 
+	      vol * dot_gamma_dd(1,1,i,j) * sY;
+
+	    
+	    integrals_multipoles[NVMultipoles * Ih0_dt + lm + c] += 
+	      vol * div_lambda * (dot_beta_d(1,i,j) * sYth
+				  + dot_beta_d(2,i,j) * div_sinth2 * sYph );
+
+	    integrals_multipoles[NVMultipoles * Ih1_dt + lm + c] += 
+	      vol * div_lambda * (dot_gamma_dd(0,1,i,j) * sYth
+				  + dot_gamma_dd(0,2,i,j) * div_sinth2 * sYph );
+	    
+	    
+	    integrals_multipoles[NVMultipoles * IK_dt + lm + c] += 
+	      vol * 0.5 * div_r2 * (dot_gamma_dd(1,1,i,j)
+				    + dot_gamma_dd(2,2,i,j) * div_sinth2) * sY;
+
+	    integrals_multipoles[NVMultipoles * IG_dt + lm + c] += 
+	      vol * 0.5 * div_r2 * div_lambda_lambda_2
+	      * ( (dot_gamma_dd(1,1,i,j) + dot_gamma_dd(2,2,i,j) * div_sinth2) * W
+		  + 2.0*dot_gamma_dd(1,2,i,j) * X );
+
 	    
 	    // odd parity
 
@@ -1803,11 +1865,42 @@ void WaveExtractRWZ::MultipoleReduce() {
 	      vol * div_lambda_lambda_2 
 	      * ( div_sinth * ( - gamma_dd(1,1,i,j) + gamma_dd(2,2,i,j) * div_sinth2 ) *X
 		  + 2.0* gamma_dd(1,2,i,j) * div_sinth2 * div_sinth * W ); //CHECK 1/sin^3 or 1/sin ?
+
 	    
-	    // odd parity drvts
-	    //TODO
+	    // odd parity radial drvts
 	    
-	  }
+	    integrals_multipoles[NVMultipoles * IH0_dr + lm + c] += 
+	      vol * div_lambda * div_sinth * ( - dr_beta_d(1,i,j)*sYph
+					       + dr_beta_d(2,i,j)*sYth );
+
+	    integrals_multipoles[NVMultipoles * IH1_dr + lm + c] += 
+	      vol * div_lambda * div_sinth * ( - dr_gamma_dd(0,1,i,j)*sYph
+					       + dr_gamma_dd(0,2,i,j)*sYth );
+
+	    
+	    integrals_multipoles[NVMultipoles * IH1_dr + lm + c] += 
+	      vol * div_lambda_lambda_2 
+	      * ( div_sinth * ( - dr_gamma_dd(1,1,i,j) + dr_gamma_dd(2,2,i,j) * div_sinth2 ) *X
+		  + 2.0* dr_gamma_dd(1,2,i,j) * div_sinth2 * div_sinth * W ); //CHECK 1/sin^3 or 1/sin ?
+
+	    
+	    // odd parity time drvts
+
+	    integrals_multipoles[NVMultipoles * IH0_dt + lm + c] += 
+	      vol * div_lambda * div_sinth * ( - dot_beta_d(1,i,j)*sYph
+					       + dot_beta_d(2,i,j)*sYth );
+
+	    integrals_multipoles[NVMultipoles * IH1_dt + lm + c] += 
+	      vol * div_lambda * div_sinth * ( - dot_gamma_dd(0,1,i,j)*sYph
+					       + dot_gamma_dd(0,2,i,j)*sYth );
+
+	    
+	    integrals_multipoles[NVMultipoles * IH1_dt + lm + c] += 
+	      vol * div_lambda_lambda_2 
+	      * ( div_sinth * ( - dot_gamma_dd(1,1,i,j) + dot_gamma_dd(2,2,i,j) * div_sinth2 ) *X
+		  + 2.0* dot_gamma_dd(1,2,i,j) * div_sinth2 * div_sinth * W ); //CHECK 1/sin^3 or 1/sin ?
+	    
+	  }// for c Real/Img
 	  
 	}// for m
       }// for l
@@ -1890,9 +1983,6 @@ void WaveExtractRWZ::MultipoleReduce() {
 //----------------------------------------------------------------------------------------
 // \!fn void WaveExtractRWZ::MasterFuns()
 // \brief compute even and odd parity master functions
-
-// TODO combine multipoles and g^AB, G^C_{AB} to obtain Psi, ...
-
 void WaveExtractRWZ::MasterFuns() {
 
   const Real M = Schwarzschild_mass;
