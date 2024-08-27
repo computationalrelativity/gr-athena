@@ -297,6 +297,20 @@ void EquationOfState::ConservedToPrimitive(
           cons_pt[IYD + n] = cons_old_pt[IYD + n] = cons_scalar(n,k,j,i)/sdetg;
         }
 
+        if (!bb_cc.is_finite())
+        {
+          pmb->pfield->b.x1f.print_all("%.1e");
+          pmb->pfield->b.x2f.print_all("%.1e");
+          pmb->pfield->b.x3f.print_all("%.1e");
+          bb_cc.print_all("%.1e");
+
+          std::cout << bb_cc.is_finite() << std::endl;
+          std::cout << pmb->pfield->b.x1f.is_finite() << std::endl;
+          std::cout << pmb->pfield->b.x2f.is_finite() << std::endl;
+          std::cout << pmb->pfield->b.x3f.is_finite() << std::endl;
+          assert(false);
+        }
+
         // Extract the magnetic field.
         Real b3u[NMAG] = {bb_cc(IB1, k, j, i)/sdetg,
                           bb_cc(IB2, k, j, i)/sdetg,
@@ -483,6 +497,12 @@ inline static void PrimitiveToConservedSingle(
   Real bu[NMAG] = {bb_cc(IB1, k, j, i)/sdetg, bb_cc(IB2, k, j, i)/sdetg,
                    bb_cc(IB3, k, j, i)/sdetg};
 
+  if (!bb_cc.is_finite())
+  {
+    std::cout << bb_cc.is_finite() << std::endl;
+    std::exit(0);
+  }
+
   // Perform the primitive solve.
   Real cons_pt[NCONS];
 
@@ -549,6 +569,14 @@ void EquationOfState::FastMagnetosonicSpeedsGR(Real n, Real T, Real bsq,
   Real d_sqrt = std::sqrt(d);
   Real root_1 = (-b + d_sqrt) / (2.0 * a);
   Real root_2 = (-b - d_sqrt) / (2.0 * a);
+
+  // BD: TODO - should we use this or enforce zero?
+  if (std::isnan(root_1) || std::isnan(root_2))
+  {
+    root_1 = 1.0;
+    root_2 = 1.0;
+  }
+
   if (root_1 > root_2) {
     *plambda_plus = root_1;
     *plambda_minus = root_2;

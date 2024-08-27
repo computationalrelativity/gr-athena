@@ -574,6 +574,14 @@ void EquationOfState::FastMagnetosonicSpeedsGR(
   Real d_sqrt = std::sqrt(d);
   Real root_1 = (-b + d_sqrt) / (2.0*a);
   Real root_2 = (-b - d_sqrt) / (2.0*a);
+
+  // BD: TODO - should we use this or enforce zero?
+  if (std::isnan(root_1) || std::isnan(root_2))
+  {
+    root_1 = 1.0;
+    root_2 = 1.0;
+  }
+
   if (root_1 > root_2)
   {
     *plambda_plus = root_1;
