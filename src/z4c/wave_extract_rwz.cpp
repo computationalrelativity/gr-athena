@@ -726,14 +726,15 @@ void WaveExtractRWZ::SphHarm_Ylm(const int l, const int m, const Real theta, con
   const int abs_m = std::abs(m);
   const Real fact_norm = Factorial(l+abs_m)/Factorial(l-abs_m);
     
-  //TODO Old code, test and remove
+  //TODO Old code, test and remove -----
   Real fac = 1.0;  
   for (int i=(l-abs_m+1); i<=(l+abs_m); ++i) {
     fac *= (Real)(i);
   }  
-  assert(std::fabs(fac - fact_norm)>1e-12);
+  assert(std::fabs(fac - fact_norm)>1e-10);
   //fac = 1.0/fac //divide once below
-
+  // -------------
+  
   const Real a = std::sqrt((Real)(2*l+1)/(4.0*PI*fact_norm));
   const int mfac = (m>0)? std::pow(-1.0,m) : 1.0; //FIXME: this is the original, but it should be:
   //const int mfac = (m==0)? 1.0 : std::pow(-1.0,abs_m); 
@@ -1072,7 +1073,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 	      if (b == 2) bitant_z_fac *= -1;
 	      if (c == 2) bitant_z_fac *= -1;
 	    }
-	    //CHECK (here and below) _ddd() indexes conventions: where is the drvt index?
+	    //CHECK (here and below) _ddd() indexes conventions: which one is the drvt index?
 	    Cgamma_der_ddd(a,b,c) = pinterp3->eval(&(adm_dg_ddd(a,b,c,0,0,0)))*bitant_z_fac;
 	  }
       
@@ -1279,62 +1280,6 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 							       - sinth * dr_Cbeta_d(0) );
 
       
-      
-      // OLD STUFF TO DEL --------------------------------
-      
-      // TransformMetricCarToSph(x,y,z, theta, phi,
-      // 			      // 
-      // 			      Cgamma_dd, Cgamma_der_ddd, Cgamma_dot_dd,
-      // 			      Cbeta_u, Cbeta_der_ud, Cbeta_dot_u,
-      // 			      Cbeta_d, Cbeta_der_dd, Cbeta_dot_d,
-      // 			      Calpha, Calpha_der_d, Calpha_dot,
-      // 			      //
-      // 			      Sgamma, Sgamma_der_d, Sgamma_dot_dd,
-      // 			      Sbeta_d, Sbeta_u, Sbeta_der_d);
-
-      // Real adm_g_00 = - SQR(Calpha());
-      // Real dr_adm_g00 = - 2.0 * Calpha() * Calpha_der_d(0);
-      // Real dot_adm_g00 = - 2.0 * Calpha() * Calpha_dot_d(0);
-      // for(int a = 0; a < 3; ++a) 
-      //   adm_g_00 += Cbeta_u(a)*Cbeta_d(a);      
-      //   for(int b = 0; b < 3; ++b) {
-      //     dr_adm_g00 += Cgamma_der_dd(a,b)*beta_u(a)*beta_u(b)
-      // 	+ Cgamma_dd(a,b)*beta_der_u(a)*beta_u(b)
-      // 	+ Cgamma_dd(a,b)*beta_u(a)*beta_der_u(b);
-      //     dot_adm_g00 += Cgamma_dot_dd(a,b)*beta_u(a)*beta_u(b)
-      // 	+ Cgamma_dd(a,b)*beta_dot_u(a)*beta_u(b)
-      // 	+ Cgamma_dd(a,b)*beta_u(a)*beta_dot_u(b);
-      //   }
-      
-      // adm_g_00(i,j) = - SQR(Calpha());
-      // dr_adm_g00(i,j) = - 2.0 * Calpha() * Calpha_der_d(0);
-      // dot_adm_g00(i,j) = - 2.0 * Calpha() * Calpha_dot_d(0);
-      // for(int a = 0; a < 3; ++a) 
-      // 	for(int b = 0; b < 3; ++b) {
-      // 	  adm_g_00(i,j) += Sgamma_dd(a,b)*Sbeta_u(a)*Sbeta_u(b);	  
-      // 	  dr_adm_g00(i,j) += Sgamma_der_dd(a,b)*Sbeta_u(a)*Sbeta_u(b)
-      // 	    + Sgamma_dd(a,b)*Sbeta_der_u(a)*Sbeta_u(b)
-      // 	    + Sgamma_dd(a,b)*Sbeta_u(a)*Sbeta_der_u(b);
-      // 	  dot_adm_g00(i,j) += Sgamma_dot_dd(a,b)*Sbeta_u(a)*Sbeta_u(b)
-      // 	    + Sgamma_dd(a,b)*Sbeta_dot_u(a)*Sbeta_u(b)
-      // 	    + Sgamma_dd(a,b)*Sbeta_u(a)*Sbeta_dot_u(b);
-      // 	}
-	    
-      // for(int a = 0; a < 3; ++a) 
-      // 	beta_d(a,i,j) = Sbeta_d(a);
-      // 	beta_u(a,i,j) = Sbeta_u(a);
-      // 	//beta_dot_u(a,i,j) = Sbeta_dot_u(a);
-      // 	dr_beta_d(a,i,j) = Sbeta_der_d(0);
-      // 	for(int b = 0; b < a; ++b) {
-      // 	  gamma_dd(a,b,i,j) = Sgamma_dd(a,b);
-      // 	  gamma_uu(a,b,i,j) = Sgamma_uu(a,b);
-      // 	  dr_gamma_dd(a,b,i,j) = Sgamma_der_ddd(a,b,0);
-      // 	  //dr2_gamma_uu(a,b,i,j) = ...
-      // 	  dot_gamma_dd(a,b,i,j) = Sgamma_dot_dd(a,b);
-      // 	}
-
-      // --------------------------------
-      
     } // phi loop
   } // theta loop
   
@@ -1381,7 +1326,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 //----------------------------------------------------------------------------------------
 // \!fn void WaveExtractRWZ::BackgroundReduce()
 // \brief compute the background spherical metric, areal radius, mass, etc
-//         performs local sums and then MPI reduce
+//        performs local sums and then MPI reduce
 void WaveExtractRWZ::BackgroundReduce() {
 
   const Real dthdph = dth_grid() * dph_grid();  
@@ -1419,6 +1364,7 @@ void WaveExtractRWZ::BackgroundReduce() {
       Real int_drsch_dri_dot = 0.0; //TODO
       
       // NB These integrals will be all normalized with 1/(4 Pi)
+      
       if (method_areal_radius==areal) {
 	
 	const Real aux_r2 = std::sqrt(gamma_dd(1,1,i,j)*gamma_dd(2,2,i,j) - SQR(gamma_dd(1,0,i,j)));
@@ -1443,7 +1389,7 @@ void WaveExtractRWZ::BackgroundReduce() {
 	int_d2rsch_dri2 = ( 0.5*aux_r2_d2 * div_aux_r2
 			    - 0.25*SQR(aux_r2_d) * std::pow(div_aux_r2,3) ) * dthpdh;	
 
-	int_r2dot = 0.5*aux_r2_dot * div_aux_r2 * dthpdh;
+	int_r2dot = aux_r2_dot * div_aux_r2 * dthpdh;
 	
       } else if (method_areal_radius==areal_simple) {
 
@@ -1465,15 +1411,15 @@ void WaveExtractRWZ::BackgroundReduce() {
 	int_d2rsch_dri2 = ( 0.5*aux_r2_d2 * div_aux_r2
 			    - 0.25*SQR(aux_r2_d) * std::pow(div_aux_r2,3) ) * dthpdh;	
 
-	int_r2dot = 0.5*aux_r2_dot * div_aux_r2 * dthpdh;
+	int_r2dot = aux_r2_dot * div_aux_r2 * dthpdh;
 	
       } else if (method_areal_radius==average_schw) {
 
 	int_r2 = 0.5*( gamma_dd(1,1,i,j) + gamma_dd(2,2,i,j)*div_sinth2 ) * vol;
-	int_drsch_dri = 0.5*( dr_gamma_dd(1,1,i,j) + dr_gamma_dd(2,2,i,j)*div_sinth2 ) * vol;
-	int_d2rsch_dri2 = 0.5*( dr2_gamma_dd(1,1,i,j) + dr2_gamma_dd(2,2,i,j)*div_sinth2 ) * vol;
+	int_drsch_dri = 0.25*( dr_gamma_dd(1,1,i,j) + dr_gamma_dd(2,2,i,j)*div_sinth2 ) * vol;
+	int_d2rsch_dri2 = 0.25*( dr2_gamma_dd(1,1,i,j) + dr2_gamma_dd(2,2,i,j)*div_sinth2 ) * vol;
 
-	int_r2dot = 0.5*( dot_gamma_dd(1,1,i,j) + dot_gamma_dd(2,2,i,j)*div_sinth2 ) * vol; 	
+	int_r2dot = 0.25*( dot_gamma_dd(1,1,i,j) + dot_gamma_dd(2,2,i,j)*div_sinth2 ) * vol; 	
 	
       } else if (method_areal_radius==schw_gthth) {
 
@@ -1489,7 +1435,7 @@ void WaveExtractRWZ::BackgroundReduce() {
 	int_drsch_dri = dr_gamma_dd(2,2,i,j) * div_sinth2 * vol;
 	int_d2rsch_dri2 = dr2_gamma_dd(2,2,i,j) * div_sinth2 * vol;
 
-	int_r2dot =  dot_gamma_dd(2,2,i,j) * div_sinth2 * vol;
+	int_r2dot = dot_gamma_dd(2,2,i,j) * div_sinth2 * vol;
 	
       }
 	           
@@ -1501,7 +1447,7 @@ void WaveExtractRWZ::BackgroundReduce() {
       integrals_background[Idrsch_dri] += int_drsch_dri;
       integrals_background[Id2rsch_dri2] += int_d2rsch_dri2;
       
-      integrals_background[Idot_rsch] += int_r2dot;      
+      integrals_background[Idot_rsch2] += int_r2dot;      
       integrals_background[Idrsch_dri_dot] += int_drsch_dri_dot;
 
       // 2-metric & drvts
@@ -1537,9 +1483,6 @@ void WaveExtractRWZ::BackgroundReduce() {
   for (int i=0; i<NVBackground; i++) 
     integrals_background[i] *= div_4PI;
 
-  // Some integrals require extra normalization
-  //TODO
-  
   // Check
   const Real rsch2 = integrals_background[Irsch2];
   if (!(std::isfinite(r2)) || (rsch2<=1e-20)) {
@@ -1548,15 +1491,22 @@ void WaveExtractRWZ::BackgroundReduce() {
         << "Squared Schwarzschild radius is not finite or negative " << r2 << std::endl;
     ATHENA_ERROR(msg);
   }
-    
+  
   // All the data is here, time to finalize the background computation
   // -----------------------------------------------------------------
 
   rsch = std::sqrt(rsch2);
+  const Real div_rsch = 1.0/rsch;
+  
+  // Idot_rsch2 is always d/dt(r^2) = d/dt(Integral)
+  //  -> rdot = 1/(2r) d/dt(Integral)
+  dot_rsch = 0.5 * div_rsch * integrals_background[Idot_rsch2];
+  dot2_rsch = 0.0; //TODO we do not have 2nd drvts ATM
+    
   drsch_dri = integrals_background[Idrsch_dri];
   d2rsch_dri2 = integrals_background[Id2rsch_dri2];
   
-  dot_rsch = integrals_background[Idot_rsch];
+  dot_rsch = integrals_background[Idot_rsch2];
   drsch_dri_dot = integrals_background[Idrsch_dri_dot];
 
   Real g00 = integrals_background[Ig00];
@@ -1572,45 +1522,58 @@ void WaveExtractRWZ::BackgroundReduce() {
   Real dr_gtt = integrals_background[Idr_gtt];
   
   Real dot_g00 = integrals_background[Idot_g00];
-  Real dot_got = integrals_background[Idot_g0r];
+  Real dot_g0r = integrals_background[Idot_g0r];
   Real dot_grr = integrals_background[Idot_grr];
 
   // Update all quantities using the transformation of the metric components
   // from the isotropic radius R to the Schwarzschild radius r
   // Note variables are overwritten here, order matters!
 
-  //TODO following taken from cactus: needs a check and cleanup!
+  // dr_schwarzschild/dr_isotropic & Time derivatives of Schwarzschild radius  
+  // Some integrals must be corrected for extra terms
+
+  //if (method_areal_radius==areal) { }
+  // else if (method_areal_radius==areal_simple) {}
+  // else if (method_areal_radius==schw_gthth) {}
+  //else if (method_areal_radius==schw_gphph) {}
+  if (method_areal_radius==average_schw) {
+
+    drsch_dri *= div_rsch;
+    dri_drsch = 1.0/drsch_dri;
     
-  // Time derivatives of Schwarzschild radius
-  dot_rsch *= 1.0/(8.0t*PI*rsch);
-  dot2_rsch = 0.0;
+    d2rsch_dri2 = - div_rsch * ( SQR(drsch_dri) + d2rsch_dri2 );
+    d2ri_drsch2 = - std::pow(dri_drsch,3)*d2rsch_dri2;
 
-  // dr_schwarzschild/dr_isotropic
-  drsch_dri   *=  1.0/(8.0*PI*rsch);
-  dri_drsch   =  1.0/drsch_dri;
-  d2rsch_dri2 = -1.0/rsch*SQR(drsch_dri) + 1.0/(8.0*PI*rsch)*d2rsch_dri2;
-  d2ri_drsch2 = -std::pow(dri_drsch,3)*d2rsch_dri2;
+    drsch_dri_dot = div_rsch * ( - dot_rsch * drsch_dri + drsch_dri_dot );
+    dri_drsch_dot = - SQR(dri_drsch) * drsch_dri_dot;
+    
+  } else {
 
-  // cross derivative of the radius
-  drsch_dri_dot = -dot_rsch/rsch*drsch_dri + 1.0/(8.0*PI*rsch)*drsch_dri_dot;
-  dri_drsch_dot = -SQR(dri_drsch)*drsch_dri_dot;
-
+    //TODO check other cases, implement general formulas or specify case-by-case
+    
+    dri_drsch = 1.0/drsch_dri;
+    
+    d2ri_drsch2 = - std::pow(dri_drsch,3) * d2rsch_dri2; // ?
+    
+  }
+  
   // time derivatives of g0r and grr 
-  dot_g0r = dri_drsch_dot*g0r + dri_drsch * dot_g0r;
-  dot_grr = 2.0*dri_drsch*dri_drsch_dot*grr + SQR(dri_drsch) * dot_grr;
+  dot_g0r = dri_drsch_dot * g0r + dri_drsch * dot_g0r;
+  dot_grr = 2.0 * dri_drsch * dri_drsch_dot*grr + SQR(dri_drsch) * dot_grr;
     
   // Metric components, first drvt
   dr_g00  *= dri_drsch;
-  dr_g0r   = d2ri_drsch2     * g0r + SQR(dri_drsch) * dr_g0r;
+  dr_g0r   = d2ri_drsch2 * g0r + SQR(dri_drsch) * dr_g0r;
   dr_grr   = 2.0 * dri_drsch * d2ri_drsch2 * grr  + std::pow(dri_drsch,3) * dr_grr;
-  g0r *= dri_drsch ;
-  grr *= SQR(dri_drsch);
+
+  g0r     *= dri_drsch ;
+  grr     *= SQR(dri_drsch);
   
   // Inverse metric & Christoffel's symbols of the background metric 
   
   // Determinant
   const Real detg  = g00 * grr - SQR(g0r);
-  const Real div_detg = (std::fabs(detg)<1e-12) ? 42. : 1.0/detg;
+  const Real div_detg = (std::fabs(detg)<1e-12) ? 1.0 : 1.0/detg;
   const Real div_detg2 = SQR(div_detg);
 
   // Inverse matrix

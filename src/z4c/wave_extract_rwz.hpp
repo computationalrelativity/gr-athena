@@ -161,7 +161,7 @@ private:
   Real integrals_background[NVBackground];
   enum {
     Irsch2, Idrsch_dri, Id2rsch_dri2, // Areal radius and drvts wrt R
-    Idot_rsch,  Idrsch_dri_dot,
+    Idot_rsch2,  Idrsch_dri_dot,
     Ig00, Ig0r, Igrr, // g_AB on M^2
     Igrt, Igtt, Igpp,
     Idr_g00,  Idr_g0r, Idr_grr, // dg_AB/dr 
