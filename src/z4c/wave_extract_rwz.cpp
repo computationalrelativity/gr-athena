@@ -5,10 +5,12 @@
 //========================================================================================
 //! \file wave_extract_rwz.cpp
 //  \brief Implementation of metric-based extraction of Regge-Wheeler-Zerilli functions
-//         There is support for bitant symmetry
+//         Supports bitant symmetry
 
-//TODO requires auxiliary storage for ADM metric drvts
-//TODO get second drvts from interpolation (?)
+//TODO requires auxiliary storage for ADM metric drvts in the Z4c class
+//TODO several tensor variables defined pointwise, I could not find anymore 'TensorPoint', so currently they are AthenaTensor allocated with no argument (not sure if correct)
+//TODO needs to be interfaced to the rest of GRA, in a way similarly to wave extract, AHF, ejecta, etc.
+//TODO 2nd derivatives are not implemented, but they can be probably taken from interpolation (?)
 //TODO add ADM integrals
 
 #include <cstdio>
@@ -102,8 +104,8 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh * pmesh, ParameterInput * pin, int n):
   for (int j = 0; j < Nphi; ++j)
     ph_grid(i) = coord_phi(j);
 
-  // Add more accurate integration schemes? 
-  // Currently only Riemann sums, weights is not used.
+  //TODO Add more accurate integration schemes? 
+  // Currently only Riemann sums: weights is not used.
   //string integral_method = pin->GetOrAddString("rwz_extraction", "method_integrals", "sum");
   //weights.NewAthenaArray(Ntheta,Nphi);
   //SetWeightsIntegral(integral_method);
@@ -914,7 +916,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 
   // adm_g_dot_dd stores Kab, get the time drvt
   // of the ADM metric from Kab, lapse and shift
-  //CHECK/FIXME
+  //FIXME Lie drvt
   ILOOP3(k,j,i) {
     for(int a = 0; a < NDIM; ++a)
       for(int b = a; b < NDIM; ++b) {
@@ -1070,6 +1072,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 	      if (b == 2) bitant_z_fac *= -1;
 	      if (c == 2) bitant_z_fac *= -1;
 	    }
+	    //CHECK (here and below) _ddd() indexes conventions: where is the drvt index?
 	    Cgamma_der_ddd(a,b,c) = pinterp3->eval(&(adm_dg_ddd(a,b,c,0,0,0)))*bitant_z_fac;
 	  }
       
@@ -1092,11 +1095,10 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
       }
             
       delete pinterp3;
+      
 
-
-<<<<<<< HEAD
-
-      // Auxiliary Cartesian tensors 
+      
+      // Auxiliary Cartesian tensor components
       // ----------------------------------------
       
       // Shift (down) 
@@ -1515,7 +1517,7 @@ void WaveExtractRWZ::BackgroundReduce() {
       integrals_background[Idot_g0r] += vol * dot_beta_d(0,i,j);
       integrals_background[Idot_grr] += vol * dot_gamma_dd(0,0,i,j);
 
-      //TODO check if the following components are needed...
+      //TODO check if the following components are needed at all!
       integrals_background[Igrt] += vol * gamma_dd(1,2,i,j);
       integrals_background[Igtt] += vol * gamma_dd(1,1,i,j);
       integrals_background[Igpp] += vol * gamma_dd(2,2,i,j);
@@ -2139,7 +2141,7 @@ void WaveExtractRWZ::MultipolesGaugeInvariant() {
   const Real rdot = dot_rsch;
   const Real div_r = 1.0/rsch;
 
-  //NB Placeholder, these second drvt of the G multipole are not computed!
+  //TODO This is a placeholder, these second drvt of the G multipole are not computed ATM!
   const Real G_dt2 = 0.0;
   const Real G_dtdr = 0.0;
   const Real G_dr2 = 0.0; 
