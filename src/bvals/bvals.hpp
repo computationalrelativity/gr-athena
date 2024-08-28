@@ -138,7 +138,18 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   // (these typically involve a coupled interaction of boundary variable/quantities)
   // ------
 
-  void ProlongateBoundariesHydro(const Real time, const Real dt);
+  inline void ProlongateBoundariesHydro(const Real time, const Real dt)
+  {
+#if defined(DBG_USE_CONS_BC)
+    ProlongateBoundariesHydroCons(time, dt);
+#else
+    ProlongateBoundariesHydroPrim(time, dt);
+#endif
+  }
+
+  void ProlongateBoundariesHydroCons(const Real time, const Real dt);
+  void ProlongateBoundariesHydroPrim(const Real time, const Real dt);
+
   void ProlongateBoundariesZ4c(const Real time, const Real dt);
   void ProlongateBoundariesWave(const Real time, const Real dt);
   void ProlongateBoundariesAux(const Real time, const Real dt);
@@ -178,13 +189,15 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
                                const int var_ks, const int var_ke,
                                const int ng);
 
-  void PrimitiveToConservedOnPhysicalBoundaries(
-    const int var_is, const int var_ie,
-    const int var_js, const int var_je,
-    const int var_ks, const int var_ke,
-    const int ng);
+  void PrimitiveToConservedOnPhysicalBoundaries();
+
+  void CalculateCellCenteredFieldOnProlongedBoundaries();
+  void PrimitiveToConservedOnProlongedBoundaries();
 
   // Treat complementary coarse representations -------------------------------
+  void CalculateCellCenteredFieldOnCoarseLevel();
+  void PrimitiveToConservedOnCoarseLevelBoundaries();
+
   void ApplyPhysicalBoundariesOnCoarseLevel(
     const Real time, const Real dt,
     std::vector<BoundaryVariable *> & bvars,
@@ -242,33 +255,6 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   SimpleNeighborBlock shear_send_neighbor_[2][4], shear_recv_neighbor_[2][4];
   int shear_send_count_[2][4], shear_recv_count_[2][4];
 
-  // ProlongateBoundaries() wraps the following S/AMR-operations (within nneighbor loop):
-  // (the next function is also called within 3x nested loops over nk,nj,ni)
-  void RestrictGhostCellsOnSameLevel(const NeighborBlock& nb, int nk, int nj, int ni);
-  void ApplyPhysicalBoundariesOnCoarseLevel(
-      const NeighborBlock& nb, const Real time, const Real dt,
-      int si, int ei, int sj, int ej, int sk, int ek);
-  void ProlongateGhostCells(const NeighborBlock& nb,
-                            int si, int ei, int sj, int ej, int sk, int ek);
-
-  void CalculateVertexProlongationIndices(std::int64_t &lx, int ox, int pcng,
-                                         int cix_vs, int cix_ve,
-                                         int &set_ix_vs, int &set_ix_ve,
-                                         bool is_dim_nontrivial);
-
-  void CalculateCellCenteredXProlongationIndices(std::int64_t &lx, int ox, int pcng,
-                                                 int cix_vs, int cix_ve,
-                                                 int &set_ix_vs, int &set_ix_ve,
-                                                 bool is_dim_nontrivial);
-
-  void ProlongateVertexCenteredGhosts(
-      const NeighborBlock& nb,
-      int si, int ei, int sj, int ej, int sk, int ek);
-
-  void ProlongateCellCenteredXGhosts(
-      const NeighborBlock& nb,
-      int si, int ei, int sj, int ej, int sk, int ek);
-
   void DispatchBoundaryFunctions(
       MeshBlock *pmb, Coordinates *pco, Real time, Real dt,
       int il, int iu,
@@ -279,22 +265,6 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
       std::vector<BoundaryVariable *> &bvars);
 
   void CheckPolarBoundaries();  // called in BoundaryValues() ctor
-
-  // M1 specific --------------------------------------------------------------
-  void RestrictGhostCellsOnSameLevelM1(
-    const NeighborBlock& nb, int nk,
-    int nj, int ni);
-
-  void ApplyPhysicalBoundariesOnCoarseLevelM1(
-    const NeighborBlock& nb, const Real time, const Real dt,
-    int si, int ei, int sj, int ej, int sk, int ek);
-
-  void ProlongateGhostCellsM1(
-    const NeighborBlock& nb,
-    int si, int ei, int sj, int ej,
-    int sk, int ek);
-  // --------------------------------------------------------------------------
-
 
   // temporary--- Added by @tomidakn on 2015-11-27 in f0f989f85f
   // TODO(KGF): consider removing this friendship designation

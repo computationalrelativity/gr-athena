@@ -527,6 +527,122 @@ void CellCenteredBoundaryVariable::PolarBoundarySingleAzimuthalBlock() {
   return;
 }
 
+void CellCenteredBoundaryVariable::ProlongateBoundaries(
+  const Real time, const Real dt)
+{
+  MeshBlock * pmb = pmy_block_;
+  MeshRefinement *pmr = pmb->pmr;
+
+  const int mylevel = pbval_->loc.level;
+  const int nneighbor = pbval_->nneighbor;
+
+  // dimensionality of variable common
+  static const int nu = var_cc->GetDim4() - 1;
+
+  for (int n=0; n<nneighbor; ++n)
+  {
+    NeighborBlock& nb = pbval_->neighbor[n];
+    if (nb.snb.level >= mylevel) continue;
+
+    int si, ei, sj, ej, sk, ek;
+
+    CalculateProlongationIndices(nb, si, ei, sj, ej, sk, ek);
+    pmr->ProlongateCellCenteredValues(*coarse_buf, *var_cc, 0, nu,
+                                      si, ei, sj, ej, sk, ek);
+  }
+}
+
+void CellCenteredBoundaryVariable::RestrictInterior(
+  const Real time, const Real dt)
+{
+  MeshBlock * pmb = pmy_block_;
+  MeshRefinement *pmr = pmb->pmr;
+  BoundaryValues *pbval = pmb->pbval;
+
+  const int mylevel = pbval_->loc.level;
+  const int nneighbor = pbval_->nneighbor;
+
+  // dimensionality of variable common
+  static const int nu = var_cc->GetDim4() - 1;
+
+  for (int n=0; n<nneighbor; ++n)
+  {
+    NeighborBlock& nb = pbval_->neighbor[n];
+    if (nb.snb.level >= mylevel) continue;
+
+    // fill the required ghost-ghost zone
+    int nis, nie, njs, nje, nks, nke;
+    nis = std::max(nb.ni.ox1-1, -1);
+    nie = std::min(nb.ni.ox1+1, 1);
+    if (pmb->block_size.nx2 == 1) {
+      njs = 0;
+      nje = 0;
+    } else {
+      njs = std::max(nb.ni.ox2-1, -1);
+      nje = std::min(nb.ni.ox2+1, 1);
+    }
+
+    if (pmb->block_size.nx3 == 1) {
+      nks = 0;
+      nke = 0;
+    } else {
+      nks = std::max(nb.ni.ox3-1, -1);
+      nke = std::min(nb.ni.ox3+1, 1);
+    }
+
+    // Apply variable restrictions when ghost-ghost zone is on same lvl
+    for (int nk=nks; nk<=nke; nk++)
+    for (int nj=njs; nj<=nje; nj++)
+    for (int ni=nis; ni<=nie; ni++)
+    {
+      int ntype = std::abs(ni) + std::abs(nj) + std::abs(nk);
+      // skip myself or coarse levels; only the same level must be restricted
+      if (ntype == 0 || pbval->nblevel[nk+1][nj+1][ni+1] != mylevel) continue;
+
+      // this neighbor block is on the same level and needs to be restricted
+      // for prolongation
+
+      // indices
+      int ris, rie, rjs, rje, rks, rke;
+      if (ni == 0) {
+        ris = pmb->cis;
+        rie = pmb->cie;
+        if (nb.ni.ox1 == 1) {
+          ris = pmb->cie;
+        } else if (nb.ni.ox1 == -1) {
+          rie = pmb->cis;
+        }
+      } else if (ni == 1) {
+        ris = pmb->cie + 1, rie = pmb->cie + 1;
+      } else { //(ni ==  - 1)
+        ris = pmb->cis - 1, rie = pmb->cis - 1;
+      }
+      if (nj == 0) {
+        rjs = pmb->cjs, rje = pmb->cje;
+        if (nb.ni.ox2 == 1) rjs = pmb->cje;
+        else if (nb.ni.ox2 == -1) rje = pmb->cjs;
+      } else if (nj == 1) {
+        rjs = pmb->cje + 1, rje = pmb->cje + 1;
+      } else { //(nj == -1)
+        rjs = pmb->cjs - 1, rje = pmb->cjs - 1;
+      }
+      if (nk == 0) {
+        rks = pmb->cks, rke = pmb->cke;
+        if (nb.ni.ox3 == 1) rks = pmb->cke;
+        else if (nb.ni.ox3 == -1) rke = pmb->cks;
+      } else if (nk == 1) {
+        rks = pmb->cke + 1, rke = pmb->cke + 1;
+      } else { //(nk == -1)
+        rks = pmb->cks - 1, rke = pmb->cks - 1;
+      }
+
+      pmr->RestrictCellCenteredValues(*var_cc, *coarse_buf, 0, nu,
+                                      ris, rie, rjs, rje, rks, rke);
+    }
+
+  }
+}
+
 void CellCenteredBoundaryVariable::SetupPersistentMPI() {
 #ifdef MPI_PARALLEL
   MeshBlock* pmb = pmy_block_;

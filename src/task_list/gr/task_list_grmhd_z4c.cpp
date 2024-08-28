@@ -734,8 +734,8 @@ TaskStatus GRMHD_Z4c::SendHydro(MeshBlock *pmb, int stage)
     // formulation (also needed in SetBoundariesHydro(), since the tasks are
     // independent)
 #ifndef DBG_USE_CONS_BC
-    ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
-#endif  // DBG_USE_CONS_BC
+    pmb->SetBoundaryVariablesConserved();
+#endif
     ph->hbvar.SendBoundaryBuffers();
 
     return TaskStatus::success;
@@ -801,7 +801,7 @@ TaskStatus GRMHD_Z4c::SetBoundariesHydro(MeshBlock *pmb, int stage)
     Hydro * ph = pmb->phydro;
 
 #ifndef DBG_USE_CONS_BC
-    ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
+    pmb->SetBoundaryVariablesConserved();
 #endif  // DBG_USE_CONS_BC
     ph->hbvar.SetBoundaries();
     return TaskStatus::success;
@@ -922,11 +922,7 @@ TaskStatus GRMHD_Z4c::PhysicalBoundary_Hyd(MeshBlock *pmb, int stage)
     // Swap Hydro and (possibly) passive scalar quantities in BoundaryVariable
     // interface from conserved to primitive formulations:
 #ifndef DBG_USE_CONS_BC
-    ph->hbvar.SwapHydroQuantity(ph->w, HydroBoundaryQuantity::prim);
-    if (NSCALARS > 0)
-    {
-      ps->sbvar.var_cc = &(ps->r);
-    }
+    pmb->SetBoundaryVariablesPrimitive();
 #endif // DBG_USE_CONS_BC
 
     // Apply boundary conditions on either prim or con
@@ -942,20 +938,17 @@ TaskStatus GRMHD_Z4c::PhysicalBoundary_Hyd(MeshBlock *pmb, int stage)
     if (MAGNETIC_FIELDS_ENABLED)
     {
       pf->CalculateCellCenteredField(pf->b,
-                                    pf->bcc,
-                                    pmb->pcoord,
-                                    0, pmb->ncells1-1,
-                                    0, pmb->ncells2-1,
-                                    0, pmb->ncells3-1);
+                                     pf->bcc,
+                                     pmb->pcoord,
+                                     0, pmb->ncells1-1,
+                                     0, pmb->ncells2-1,
+                                     0, pmb->ncells3-1);
     }
 
     // Compute conserved fields in the boundary if required
 #ifndef DBG_USE_CONS_BC
-    pbval->PrimitiveToConservedOnPhysicalBoundaries(
-      pmb->is, pmb->ie,
-      pmb->js, pmb->je,
-      pmb->ks, pmb->ke,
-      NGHOST);
+    pbval->PrimitiveToConservedOnPhysicalBoundaries();
+    pmb->SetBoundaryVariablesConserved();
 #endif // DBG_USE_CONS_BC
 
     return TaskStatus::success;
@@ -1095,7 +1088,7 @@ TaskStatus GRMHD_Z4c::SendScalars(MeshBlock *pmb, int stage)
     // conserved var formulation (also needed in SetBoundariesScalars() since
     // the tasks are independent)
 #ifndef DBG_USE_CONS_BC
-    ps->sbvar.var_cc = &(ps->s);
+    pmb->SetBoundaryVariablesConserved();
 #endif // DBG_USE_CONS_BC
     ps->sbvar.SendBoundaryBuffers();
   }
@@ -1141,7 +1134,7 @@ TaskStatus GRMHD_Z4c::SetBoundariesScalars(MeshBlock *pmb, int stage)
     // Set PassiveScalars quantity in BoundaryVariable interface to cons var
     // formulation
 #ifndef DBG_USE_CONS_BC
-    ps->sbvar.var_cc = &(ps->s);
+    pmb->SetBoundaryVariablesConserved();
 #endif // DBG_USE_CONS_BC
     ps->sbvar.SetBoundaries();
     return TaskStatus::success;

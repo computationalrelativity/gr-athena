@@ -541,11 +541,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(
   return;
 }
 
-void BoundaryValues::PrimitiveToConservedOnPhysicalBoundaries(
-  const int var_is, const int var_ie,
-  const int var_js, const int var_je,
-  const int var_ks, const int var_ke,
-  const int ng)
+void BoundaryValues::PrimitiveToConservedOnPhysicalBoundaries()
 {
   MeshBlock *pmb = pmy_block_;
   Coordinates *pco = pmb->pcoord;
@@ -554,6 +550,14 @@ void BoundaryValues::PrimitiveToConservedOnPhysicalBoundaries(
   Hydro *ph = (FLUID_ENABLED) ? pmb->phydro : nullptr;
   Field *pf = (MAGNETIC_FIELDS_ENABLED) ? pmb->pfield : nullptr;
   PassiveScalars *ps = (NSCALARS > 0) ? pmb->pscalars : nullptr;
+
+  static const int ng = NGHOST;
+  const int var_is = pmb->is;
+  const int var_ie = pmb->ie;
+  const int var_js = pmb->js;
+  const int var_je = pmb->js;
+  const int var_ks = pmb->ks;
+  const int var_ke = pmb->ks;
 
   int bis = var_is - ng, bie = var_ie + ng,
       bjs = var_js, bje = var_je,

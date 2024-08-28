@@ -110,49 +110,42 @@ class EquationOfState {
                                          int jl, int ju,
                                          int kl, int ku);
 
-#if Z4C_ENABLED & FLUID_ENABLED
-  #if USETM
-    void PrimitiveToConserved(AthenaArray<Real> &prim,
-                              AthenaArray<Real> &prim_scalar,
-                              AthenaArray<Real> &bc,
-                              AthenaArray<Real> &cons,
-                              AthenaArray<Real> &cons_scalar,
-                              Coordinates *pco,
-                              int il, int iu, int jl, int ju, int kl, int ku);
-  #else
-    // Define prototype without scalars
-    void PrimitiveToConserved(AthenaArray<Real> &prim,
-                              AthenaArray<Real> &bc,
-                              AthenaArray<Real> &cons,
-                              Coordinates *pco,
-                              int il, int iu, int jl, int ju, int kl, int ku);
-
-    // Handle split-passive scalar reconstruction
-    inline void PrimitiveToConserved(AthenaArray<Real> &prim,
-                                     AthenaArray<Real> &prim_scalar,
-                                     AthenaArray<Real> &bc,
-                                     AthenaArray<Real> &cons,
-                                     AthenaArray<Real> &cons_scalar,
-                                     Coordinates *pco,
-                                     int il, int iu,
-                                     int jl, int ju,
-                                     int kl, int ku)
-    {
-      PrimitiveToConserved(prim, bc, cons, pco, il, iu, jl, ju, kl, ku);
-
-      if (NSCALARS > 0)
-      {
-        PassiveScalarPrimitiveToConserved(prim_scalar, prim, cons_scalar, pco,
-                                          il, iu, jl, ju, kl, ku);
-      }
-    }
-
-  #endif
-
-#else
-  void PrimitiveToConserved(const AthenaArray<Real> &prim, const AthenaArray<Real> &bc,
-                            AthenaArray<Real> &cons, Coordinates *pco,
+#if USETM
+  void PrimitiveToConserved(AthenaArray<Real> &prim,
+                            AthenaArray<Real> &prim_scalar,
+                            AthenaArray<Real> &bc,
+                            AthenaArray<Real> &cons,
+                            AthenaArray<Real> &cons_scalar,
+                            Coordinates *pco,
                             int il, int iu, int jl, int ju, int kl, int ku);
+#else
+  // Define prototype without scalars
+  void PrimitiveToConserved(AthenaArray<Real> &prim,
+                            AthenaArray<Real> &bc,
+                            AthenaArray<Real> &cons,
+                            Coordinates *pco,
+                            int il, int iu, int jl, int ju, int kl, int ku);
+
+  // Handle split-passive scalar reconstruction
+  inline void PrimitiveToConserved(AthenaArray<Real> &prim,
+                                   AthenaArray<Real> &prim_scalar,
+                                   AthenaArray<Real> &bc,
+                                   AthenaArray<Real> &cons,
+                                   AthenaArray<Real> &cons_scalar,
+                                   Coordinates *pco,
+                                   int il, int iu,
+                                   int jl, int ju,
+                                   int kl, int ku)
+  {
+    PrimitiveToConserved(prim, bc, cons, pco, il, iu, jl, ju, kl, ku);
+
+    if (NSCALARS > 0)
+    {
+      PassiveScalarPrimitiveToConserved(prim_scalar, prim, cons_scalar, pco,
+                                        il, iu, jl, ju, kl, ku);
+    }
+  }
+
 #endif
 
   // --------------------------------------------------------------------------

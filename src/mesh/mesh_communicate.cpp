@@ -196,12 +196,9 @@ void Mesh::FinalizeHydroPrimRP(std::vector<MeshBlock*> & pmb_array)
       pbval->ProlongateBoundariesHydro(time, 0.0);
     }
 
-    // Swap Hydro and passive scalar quantities in
     // BoundaryVariable interface from conserved to primitive
     // formulations:
-    ph->hbvar.SwapHydroQuantity(ph->w, HydroBoundaryQuantity::prim);
-    if (NSCALARS > 0)
-      ps->sbvar.var_cc = &(ps->r);
+    pmb->SetBoundaryVariablesPrimitive();
 
     // N.B.
     // Results in two-fold application of BC to magnetic fields;
@@ -224,13 +221,8 @@ void Mesh::FinalizeHydroPrimRP(std::vector<MeshBlock*> & pmb_array)
                                      il, iu, jl, ju, kl, ku);
     }
 
-    pbval->PrimitiveToConservedOnPhysicalBoundaries(
-      pmb->is, pmb->ie,
-      pmb->js, pmb->je,
-      pmb->ks, pmb->ke,
-      NGHOST);
-
-    ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
+    pbval->PrimitiveToConservedOnPhysicalBoundaries();
+    pmb->SetBoundaryVariablesConserved();
   }
 #endif // FLUID_ENABLED
 }
@@ -368,8 +360,10 @@ void Mesh::CommunicateConserved(std::vector<MeshBlock*> & pmb_array)
     pw = pmb->pwave;
     pz = pmb->pz4c;
 
-    if (FLUID_ENABLED) {
-      ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
+    pmb->SetBoundaryVariablesConserved();
+
+    if (FLUID_ENABLED)
+    {
       ph->hbvar.SendBoundaryBuffers();
     }
 
@@ -470,8 +464,9 @@ void Mesh::CommunicateConservedMatter(std::vector<MeshBlock*> & pmb_array)
     pf = pmb->pfield;
     ps = pmb->pscalars;
 
+    pmb->SetBoundaryVariablesConserved();
+
 #if FLUID_ENABLED
-      ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
       ph->hbvar.SendBoundaryBuffers();
 #endif // FLUID_ENABLED
 
@@ -535,11 +530,11 @@ void Mesh::CommunicatePrimitives(std::vector<MeshBlock*> & pmb_array)
     ph = pmb->phydro;
     ps = pmb->pscalars;
 
-    ph->hbvar.SwapHydroQuantity(ph->w, HydroBoundaryQuantity::prim);
+    pmb->SetBoundaryVariablesPrimitive();
+
     ph->hbvar.SendBoundaryBuffers();
 
     if (NSCALARS > 0) {
-      ps->sbvar.var_cc = &(ps->r);
       ps->sbvar.SendBoundaryBuffers();
     }
   }
@@ -560,10 +555,8 @@ void Mesh::CommunicatePrimitives(std::vector<MeshBlock*> & pmb_array)
 
     pbval->ClearBoundary(BoundaryCommSubset::matter_primitives);
 
-    ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
-
-    if (NSCALARS > 0)
-      ps->sbvar.var_cc = &(ps->s);
+    // Revert to conserved representation
+    pmb->SetBoundaryVariablesConserved();
   }
 #endif // FLUID_ENABLED
 }

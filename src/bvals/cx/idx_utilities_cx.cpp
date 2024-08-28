@@ -1,11 +1,3 @@
-//========================================================================================
-// Athena++ astrophysical MHD code
-// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
-// Licensed under the 3-clause BSD License, see LICENSE file for details
-//========================================================================================
-//! \file idx_utilities_vc.cpp
-//  \brief Various utitilies for indicies and buffers
-
 // C headers
 
 // C++ headers
@@ -646,7 +638,7 @@ int CellCenteredXBoundaryVariable::NeighborVariableBufferSize(const NeighborInde
   return size;
 }
 
-//----------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 // MPI buffer sizes
 #ifdef MPI_PARALLEL
 
@@ -733,3 +725,35 @@ int CellCenteredXBoundaryVariable::MPI_BufferSizeFromFiner(
 }
 
 #endif
+
+//-----------------------------------------------------------------------------
+
+void CellCenteredXBoundaryVariable::CalculateProlongationIndices(
+  NeighborBlock &nb,
+  int &si, int &ei,
+  int &sj, int &ej,
+  int &sk, int &ek)
+{
+  MeshBlock * pmb = pmy_block_;
+
+  // Here we care about the _target_ ghosts.
+  // It is assumed we have sufficient coarse ghosts
+  static const int pcng = pmb->ng / 2 + (pmb->ng % 2 != 0); // odd/even ghosts
+
+  CalculateProlongationIndices(pmb->loc.lx1, nb.ni.ox1, pcng,
+                               pmb->cx_cis, pmb->cx_cie,
+                               si, ei,
+                               true);
+  CalculateProlongationIndices(pmb->loc.lx2, nb.ni.ox2, pcng,
+                               pmb->cx_cjs, pmb->cx_cje,
+                               sj, ej,
+                               pmb->block_size.nx2 > 1);
+  CalculateProlongationIndices(pmb->loc.lx3, nb.ni.ox3, pcng,
+                               pmb->cx_cks, pmb->cx_cke,
+                               sk, ek,
+                               pmb->block_size.nx3 > 1);
+}
+
+//
+// :D
+//

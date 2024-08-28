@@ -1196,6 +1196,175 @@ void FaceCenteredBoundaryVariable::CountFineEdges() {
   }
 }
 
+void FaceCenteredBoundaryVariable::ProlongateBoundaries(
+  const Real time, const Real dt)
+{
+  MeshBlock * pmb = pmy_block_;
+  MeshRefinement *pmr = pmb->pmr;
+
+  const int mylevel = pbval_->loc.level;
+  const int nneighbor = pbval_->nneighbor;
+
+  for (int n=0; n<nneighbor; ++n)
+  {
+    NeighborBlock& nb = pbval_->neighbor[n];
+    if (nb.snb.level >= mylevel) continue;
+
+    int si, ei, sj, ej, sk, ek;
+    int il, iu, jl, ju, kl, ku;
+
+    CalculateProlongationIndices(nb, si, ei, sj, ej, sk, ek);
+    CalculateProlongationSharedIndices(nb,
+                                       si, ei, sj, ej, sk, ek,
+                                       il, iu, jl, ju, kl, ku);
+
+    // step 1. calculate x1 outer surface fields and slopes
+    pmr->ProlongateSharedFieldX1((*coarse_buf).x1f, (*var_fc).x1f,
+                                 il, iu, sj, ej, sk, ek);
+    // step 2. calculate x2 outer surface fields and slopes
+    pmr->ProlongateSharedFieldX2((*coarse_buf).x2f, (*var_fc).x2f,
+                                 si, ei, jl, ju, sk, ek);
+    // step 3. calculate x3 outer surface fields and slopes
+    pmr->ProlongateSharedFieldX3((*coarse_buf).x3f, (*var_fc).x3f,
+                                 si, ei, sj, ej, kl, ku);
+
+    // step 4. calculate the internal finer fields using the Toth & Roe method
+    pmr->ProlongateInternalField((*var_fc), si, ei, sj, ej, sk, ek);
+
+  }
+}
+
+void FaceCenteredBoundaryVariable::RestrictInterior(
+  const Real time, const Real dt)
+{
+  MeshBlock * pmb = pmy_block_;
+  MeshRefinement *pmr = pmb->pmr;
+  BoundaryValues *pbval = pmb->pbval;
+
+  const int mylevel = pbval_->loc.level;
+  const int nneighbor = pbval_->nneighbor;
+
+  for (int n=0; n<nneighbor; ++n)
+  {
+    NeighborBlock& nb = pbval_->neighbor[n];
+    if (nb.snb.level >= mylevel) continue;
+
+    // fill the required ghost-ghost zone
+    int nis, nie, njs, nje, nks, nke;
+    nis = std::max(nb.ni.ox1-1, -1);
+    nie = std::min(nb.ni.ox1+1, 1);
+    if (pmb->block_size.nx2 == 1) {
+      njs = 0;
+      nje = 0;
+    } else {
+      njs = std::max(nb.ni.ox2-1, -1);
+      nje = std::min(nb.ni.ox2+1, 1);
+    }
+
+    if (pmb->block_size.nx3 == 1) {
+      nks = 0;
+      nke = 0;
+    } else {
+      nks = std::max(nb.ni.ox3-1, -1);
+      nke = std::min(nb.ni.ox3+1, 1);
+    }
+
+    // Apply variable restrictions when ghost-ghost zone is on same lvl
+    for (int nk=nks; nk<=nke; nk++)
+    for (int nj=njs; nj<=nje; nj++)
+    for (int ni=nis; ni<=nie; ni++)
+    {
+      int ntype = std::abs(ni) + std::abs(nj) + std::abs(nk);
+      // skip myself or coarse levels; only the same level must be restricted
+      if (ntype == 0 || pbval->nblevel[nk+1][nj+1][ni+1] != mylevel) continue;
+
+      // this neighbor block is on the same level and needs to be restricted
+      // for prolongation
+
+      // indices
+      int ris, rie, rjs, rje, rks, rke;
+      if (ni == 0) {
+        ris = pmb->cis;
+        rie = pmb->cie;
+        if (nb.ni.ox1 == 1) {
+          ris = pmb->cie;
+        } else if (nb.ni.ox1 == -1) {
+          rie = pmb->cis;
+        }
+      } else if (ni == 1) {
+        ris = pmb->cie + 1, rie = pmb->cie + 1;
+      } else { //(ni ==  - 1)
+        ris = pmb->cis - 1, rie = pmb->cis - 1;
+      }
+      if (nj == 0) {
+        rjs = pmb->cjs, rje = pmb->cje;
+        if (nb.ni.ox2 == 1) rjs = pmb->cje;
+        else if (nb.ni.ox2 == -1) rje = pmb->cjs;
+      } else if (nj == 1) {
+        rjs = pmb->cje + 1, rje = pmb->cje + 1;
+      } else { //(nj == -1)
+        rjs = pmb->cjs - 1, rje = pmb->cjs - 1;
+      }
+      if (nk == 0) {
+        rks = pmb->cks, rke = pmb->cke;
+        if (nb.ni.ox3 == 1) rks = pmb->cke;
+        else if (nb.ni.ox3 == -1) rke = pmb->cks;
+      } else if (nk == 1) {
+        rks = pmb->cke + 1, rke = pmb->cke + 1;
+      } else { //(nk == -1)
+        rks = pmb->cks - 1, rke = pmb->cks - 1;
+      }
+
+
+      int rs = ris, re = rie + 1;
+
+      if (rs == pmb->cis   && pbval->nblevel[nk+1][nj+1][ni  ] < mylevel)
+        rs++;
+      if (re == pmb->cie+1 && pbval->nblevel[nk+1][nj+1][ni+2] < mylevel)
+        re--;
+
+      pmr->RestrictFieldX1((*var_fc).x1f, (*coarse_buf).x1f,
+                           rs, re, rjs, rje, rks, rke);
+
+      if (pmb->block_size.nx2 > 1) {
+        rs = rjs, re = rje + 1;
+
+        if (rs == pmb->cjs   && pbval->nblevel[nk+1][nj  ][ni+1] < mylevel)
+          rs++;
+        if (re == pmb->cje+1 && pbval->nblevel[nk+1][nj+2][ni+1] < mylevel)
+          re--;
+
+        pmr->RestrictFieldX2((*var_fc).x2f, (*coarse_buf).x2f,
+                             ris, rie, rs, re, rks, rke);
+      } else { // 1D
+        pmr->RestrictFieldX2((*var_fc).x2f, (*coarse_buf).x2f,
+                             ris, rie, rjs, rje, rks, rke);
+        for (int i=ris; i<=rie; i++)
+          (*coarse_buf).x2f(rks,rjs+1,i) = (*coarse_buf).x2f(rks,rjs,i);
+      }
+      if (pmb->block_size.nx3 > 1) {
+        rs = rks, re =  rke + 1;
+
+        if (rs == pmb->cks   && pbval->nblevel[nk  ][nj+1][ni+1] < mylevel)
+          rs++;
+        if (re == pmb->cke+1 && pbval->nblevel[nk+2][nj+1][ni+1] < mylevel)
+          re--;
+
+        pmr->RestrictFieldX3((*var_fc).x3f, (*coarse_buf).x3f,
+                             ris, rie, rjs, rje, rs, re);
+      } else { // 1D or 2D
+        pmr->RestrictFieldX3((*var_fc).x3f, (*coarse_buf).x3f,
+                             ris, rie, rjs, rje, rks, rke);
+        for (int j=rjs; j<=rje; j++) {
+          for (int i=ris; i<=rie; i++)
+            (*coarse_buf).x3f(rks+1,j,i) = (*coarse_buf).x3f(rks,j,i);
+        }
+      }
+
+    }
+
+  }
+}
 
 void FaceCenteredBoundaryVariable::SetupPersistentMPI() {
   CountFineEdges();

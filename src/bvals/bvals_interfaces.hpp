@@ -337,7 +337,10 @@ public:
   std::vector<BoundaryVariable *>::size_type bvar_index;
 
   inline virtual void InterchangeFundamentalCoarse() = 0;
-  inline virtual void ProlongateBoundaries(
+  virtual void ProlongateBoundaries(
+    const Real time, const Real dt
+  ) = 0;
+  virtual void RestrictInterior(
     const Real time, const Real dt
   ) = 0;
 

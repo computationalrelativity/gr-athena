@@ -47,9 +47,8 @@ class FaceCenteredBoundaryVariable : public BoundaryVariable {
     std::swap(var_fc, coarse_buf);
   };
 
-  inline void ProlongateBoundaries(
-    const Real time, const Real dt
-  ) final { };
+  void ProlongateBoundaries(const Real time, const Real dt) final;
+  void RestrictInterior(const Real time, const Real dt) final;
 
   // maximum number of reserved unique "physics ID" component of MPI tag bitfield
   // must correspond to the # of "int *phys_id_" private members, below. Convert to array?
@@ -152,7 +151,56 @@ class FaceCenteredBoundaryVariable : public BoundaryVariable {
                          int il, int iu, int ju, int kl, int ku, int ngh) override;
   //protected:
 
- private:
+  // --------------------------------------------------------------------------
+  // buffer / index calculators
+private:
+
+  inline void CalculateProlongationIndices(
+    std::int64_t &lx, const int ox, const int pcng,
+    const int cix_vs, const int cix_ve,
+    int &set_ix_vs, int &set_ix_ve,
+    bool is_dim_nontrivial)
+  {
+    if (ox > 0) {
+      set_ix_vs = cix_ve+1;
+      set_ix_ve = cix_ve+pcng;
+    } else if (ox < 0) {
+      set_ix_vs = cix_vs-pcng;
+      set_ix_ve = cix_vs-1;
+    } else {  // ox == 0
+      set_ix_vs = cix_vs;
+      set_ix_ve = cix_ve;
+      if (is_dim_nontrivial) {
+        std::int64_t &lx_ = lx;
+        if ((lx_ & 1LL) == 0LL) {
+          set_ix_ve += pcng;
+        } else {
+          set_ix_vs -= pcng;
+        }
+      }
+    }
+  }
+
+public:
+  void CalculateProlongationIndices(NeighborBlock &nb,
+                                    int &si, int &ei,
+                                    int &sj, int &ej,
+                                    int &sk, int &ek);
+
+  void CalculateProlongationSharedIndices(
+    NeighborBlock &nb,
+    const int si, const int ei,
+    const int sj, const int ej,
+    const int sk, const int ek,
+    int &il, int &iu, int &jl, int &ju, int &kl, int &ku);
+
+  void CalculateProlongationIndicesFine(NeighborBlock &nb,
+                                        int &fsi, int &fei,
+                                        int &fsj, int &fej,
+                                        int &fsk, int &fek);
+  // --------------------------------------------------------------------------
+
+private:
   BoundaryStatus *flux_north_flag_;
   BoundaryStatus *flux_south_flag_;
   Real **flux_north_send_, **flux_north_recv_;

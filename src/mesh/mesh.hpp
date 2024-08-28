@@ -319,6 +319,10 @@ public:
     return !nn_level_different;
   }
 
+  // Change boundary variable representations
+  void SetBoundaryVariablesConserved();
+  void SetBoundaryVariablesPrimitive();
+
 private:
   // if AMR *just* created this block, useful to know.
   bool new_from_amr = false;

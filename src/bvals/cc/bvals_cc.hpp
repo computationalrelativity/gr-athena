@@ -47,9 +47,8 @@ class CellCenteredBoundaryVariable : public BoundaryVariable {
     std::swap(var_cc, coarse_buf);
   };
 
-  inline void ProlongateBoundaries(
-    const Real time, const Real dt
-  ) final { };
+  void ProlongateBoundaries(const Real time, const Real dt) final;
+  void RestrictInterior(const Real time, const Real dt) final;
 
   // maximum number of reserved unique "physics ID" component of MPI tag
   // bitfield (CellCenteredXBoundaryVariable only actually uses 1x if
@@ -154,7 +153,49 @@ class CellCenteredBoundaryVariable : public BoundaryVariable {
   // working arrays of remapped quantities
   AthenaArray<Real>  shear_cc_[2];
 
- private:
+  // --------------------------------------------------------------------------
+  // buffer / index calculators
+private:
+
+  inline void CalculateProlongationIndices(
+    std::int64_t &lx, int ox, int pcng, int cix_vs, int cix_ve,
+    int &set_ix_vs, int &set_ix_ve,
+    bool is_dim_nontrivial)
+  {
+    if (ox > 0) {
+      set_ix_vs = cix_ve+1;
+      set_ix_ve = cix_ve+pcng;
+    } else if (ox < 0) {
+      set_ix_vs = cix_vs-pcng;
+      set_ix_ve = cix_vs-1;
+    } else {  // ox == 0
+      set_ix_vs = cix_vs;
+      set_ix_ve = cix_ve;
+      if (is_dim_nontrivial) {
+        std::int64_t &lx_ = lx;
+        if ((lx_ & 1LL) == 0LL) {
+          set_ix_ve += pcng;
+        } else {
+          set_ix_vs -= pcng;
+        }
+      }
+    }
+  }
+
+public:
+
+  void CalculateProlongationIndices(NeighborBlock &nb,
+                                    int &si, int &ei,
+                                    int &sj, int &ej,
+                                    int &sk, int &ek);
+
+  void CalculateProlongationIndicesFine(NeighborBlock &nb,
+                                        int &fsi, int &fei,
+                                        int &fsj, int &fej,
+                                        int &fsk, int &fek);
+  // --------------------------------------------------------------------------
+
+private:
   // BoundaryBuffer:
   int LoadBoundaryBufferSameLevel(Real *buf, const NeighborBlock& nb) override;
   void SetBoundarySameLevel(Real *buf, const NeighborBlock& nb) override;

@@ -371,10 +371,6 @@ void VertexCenteredBoundaryVariable::ProlongateBoundaries(
   const int mylevel = pbval_->loc.level;
   const int nneighbor = pbval_->nneighbor;
 
-  // Here we care about the _target_ ghosts.
-  // It is assumed we have sufficient coarse ghosts
-  static const int pcng = pmb->ng / 2 + (pmb->ng % 2 != 0); // odd/even ghosts
-
   // dimensionality of variable common
   static const int nu = var_vc->GetDim4() - 1;
 
@@ -385,16 +381,7 @@ void VertexCenteredBoundaryVariable::ProlongateBoundaries(
 
     int si, ei, sj, ej, sk, ek;
 
-    CalculateProlongationIndices(pmb->loc.lx1, nb.ni.ox1, pcng,
-                                 pmb->civs, pmb->cive, si, ei,
-                                 true);
-    CalculateProlongationIndices(pmb->loc.lx2, nb.ni.ox2, pcng,
-                                 pmb->cjvs, pmb->cjve, sj, ej,
-                                 pmb->block_size.nx2 > 1);
-    CalculateProlongationIndices(pmb->loc.lx3, nb.ni.ox3, pcng,
-                                 pmb->ckvs, pmb->ckve, sk, ek,
-                                 pmb->block_size.nx3 > 1);
-
+    CalculateProlongationIndices(nb, si, ei, sj, ej, sk, ek);
     pmr->ProlongateVertexCenteredValues(*coarse_buf, *var_vc, 0, nu,
                                         si, ei, sj, ej, sk, ek);
   }

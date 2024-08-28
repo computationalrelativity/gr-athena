@@ -48,6 +48,10 @@ class CellCenteredXBoundaryVariable : public BoundaryVariable
   };
 
   void ProlongateBoundaries(const Real time, const Real dt) final;
+  void RestrictInterior(const Real time, const Real dt) final
+  {
+    RestrictNonGhost();
+  };
 
   // maximum number of reserved unique "physics ID" component of MPI tag
   // bitfield (CellCenteredXBoundaryVariable only actually uses 1x if
@@ -81,8 +85,6 @@ class CellCenteredXBoundaryVariable : public BoundaryVariable
   bool ReceiveFluxCorrection() override {return false;};
 
   void RestrictNonGhost();
-  void ZeroVertexGhosts();
-  void FinalizeVertexConsistency();
 
   // BoundaryPhysics:
   void ReflectInnerX1(Real time, Real dt,
@@ -202,8 +204,11 @@ private:
   int MPI_BufferSizeFromFiner(const NeighborIndexes& ni);
 #endif
 
+private:
+
   inline void CalculateProlongationIndices(
-    std::int64_t &lx, int ox, int pcng, int cix_vs, int cix_ve,
+    std::int64_t &lx, const int ox, const int pcng,
+    const int cix_vs, const int cix_ve,
     int &set_ix_vs, int &set_ix_ve,
     bool is_dim_nontrivial)
   {
@@ -226,8 +231,17 @@ private:
       }
     }
   }
+
+public:
+
+  void CalculateProlongationIndices(
+    NeighborBlock &nb,
+    int &si, int &ei,
+    int &sj, int &ej,
+    int &sk, int &ek);
   // --------------------------------------------------------------------------
 
+private:
   // BoundaryBuffer:
   int LoadBoundaryBufferSameLevel(Real *buf, const NeighborBlock& nb) override;
   void SetBoundarySameLevel(Real *buf, const NeighborBlock& nb) override;
