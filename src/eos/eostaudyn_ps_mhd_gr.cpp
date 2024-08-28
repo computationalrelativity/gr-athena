@@ -297,20 +297,6 @@ void EquationOfState::ConservedToPrimitive(
           cons_pt[IYD + n] = cons_old_pt[IYD + n] = cons_scalar(n,k,j,i)/sdetg;
         }
 
-        if (!bb_cc.is_finite())
-        {
-          pmb->pfield->b.x1f.print_all("%.1e");
-          pmb->pfield->b.x2f.print_all("%.1e");
-          pmb->pfield->b.x3f.print_all("%.1e");
-          bb_cc.print_all("%.1e");
-
-          std::cout << bb_cc.is_finite() << std::endl;
-          std::cout << pmb->pfield->b.x1f.is_finite() << std::endl;
-          std::cout << pmb->pfield->b.x2f.is_finite() << std::endl;
-          std::cout << pmb->pfield->b.x3f.is_finite() << std::endl;
-          assert(false);
-        }
-
         // Extract the magnetic field.
         Real b3u[NMAG] = {bb_cc(IB1, k, j, i)/sdetg,
                           bb_cc(IB2, k, j, i)/sdetg,
@@ -496,12 +482,6 @@ inline static void PrimitiveToConservedSingle(
   // Extract and undensitize the magnetic field.
   Real bu[NMAG] = {bb_cc(IB1, k, j, i)/sdetg, bb_cc(IB2, k, j, i)/sdetg,
                    bb_cc(IB3, k, j, i)/sdetg};
-
-  if (!bb_cc.is_finite())
-  {
-    std::cout << bb_cc.is_finite() << std::endl;
-    std::exit(0);
-  }
 
   // Perform the primitive solve.
   Real cons_pt[NCONS];
