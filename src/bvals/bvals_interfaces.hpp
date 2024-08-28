@@ -336,7 +336,11 @@ public:
   // (usuallly the std::size_t unsigned integer type)
   std::vector<BoundaryVariable *>::size_type bvar_index;
 
-  virtual void InterchangeFundamentalCoarse() {};
+  inline virtual void InterchangeFundamentalCoarse() = 0;
+  inline virtual void ProlongateBoundaries(
+    const Real time, const Real dt
+  ) = 0;
+
 
   virtual int ComputeVariableBufferSize(const NeighborIndexes& ni, int cng) = 0;
   virtual int ComputeFluxCorrectionBufferSize(const NeighborIndexes& ni, int cng) = 0;

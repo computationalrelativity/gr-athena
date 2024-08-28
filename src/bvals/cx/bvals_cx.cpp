@@ -539,6 +539,46 @@ void CellCenteredXBoundaryVariable::RestrictNonGhost()
 
 }
 
+void CellCenteredXBoundaryVariable::ProlongateBoundaries(
+  const Real time, const Real dt)
+{
+  MeshBlock * pmb = pmy_block_;
+  MeshRefinement *pmr = pmb->pmr;
+
+  const int mylevel = pbval_->loc.level;
+  const int nneighbor = pbval_->nneighbor;
+
+  // Here we care about the _target_ ghosts.
+  // It is assumed we have sufficient coarse ghosts
+  static const int pcng = pmb->ng / 2 + (pmb->ng % 2 != 0); // odd/even ghosts
+
+  // dimensionality of variable common
+  static const int nu = var_cx->GetDim4() - 1;
+
+  for (int n=0; n<nneighbor; ++n)
+  {
+    NeighborBlock& nb = pbval_->neighbor[n];
+    if (nb.snb.level >= mylevel) continue;
+
+    int si, ei, sj, ej, sk, ek;
+
+    CalculateProlongationIndices(pmb->loc.lx1, nb.ni.ox1, pcng,
+                                 pmb->cx_cis, pmb->cx_cie,
+                                 si, ei,
+                                 true);
+    CalculateProlongationIndices(pmb->loc.lx2, nb.ni.ox2, pcng,
+                                 pmb->cx_cjs, pmb->cx_cje,
+                                 sj, ej,
+                                 pmb->block_size.nx2 > 1);
+    CalculateProlongationIndices(pmb->loc.lx3, nb.ni.ox3, pcng,
+                                 pmb->cx_cks, pmb->cx_cke,
+                                 sk, ek,
+                                 pmb->block_size.nx3 > 1);
+
+    pmr->ProlongateCellCenteredXBCValues(*coarse_buf, *var_cx, 0, nu,
+                                         si, ei, sj, ej, sk, ek);
+  }
+}
 
 void CellCenteredXBoundaryVariable::SendBoundaryBuffers() {
   // restrict all data (except ghosts) to coarse buffer

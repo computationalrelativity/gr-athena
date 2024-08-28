@@ -42,10 +42,14 @@ class FaceCenteredBoundaryVariable : public BoundaryVariable {
 
   AthenaArray<Real> &e1, &e2, &e3;  // same for EdgeField
 
-  inline void InterchangeFundamentalCoarse() override
+  inline void InterchangeFundamentalCoarse() final
   {
     std::swap(var_fc, coarse_buf);
   };
+
+  inline void ProlongateBoundaries(
+    const Real time, const Real dt
+  ) final { };
 
   // maximum number of reserved unique "physics ID" component of MPI tag bitfield
   // must correspond to the # of "int *phys_id_" private members, below. Convert to array?

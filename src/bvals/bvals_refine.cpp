@@ -262,8 +262,10 @@ void BoundaryValues::ProlongateBoundariesZ4c(const Real time, const Real dt)
       pz4c->mbi.cng);
   }
 
-  ProlongateVertexCenteredBoundaries(time, dt);
-  ProlongateCellCenteredXBoundaries(time, dt);
+  for (auto bvar : pbval->GetBvarsZ4c())
+  {
+    bvar->ProlongateBoundaries(time, dt);
+  }
 }
 
 void BoundaryValues::ProlongateBoundariesWave(const Real time, const Real dt)
@@ -286,8 +288,10 @@ void BoundaryValues::ProlongateBoundariesWave(const Real time, const Real dt)
       pwave->mbi.cng);
   }
 
-  ProlongateVertexCenteredBoundaries(time, dt);
-  ProlongateCellCenteredXBoundaries(time, dt);
+  for (auto bvar : pbval->GetBvarsWave())
+  {
+    bvar->ProlongateBoundaries(time, dt);
+  }
 }
 
 void BoundaryValues::ProlongateBoundariesAux(const Real time, const Real dt)
@@ -311,22 +315,10 @@ void BoundaryValues::ProlongateBoundariesAux(const Real time, const Real dt)
       pz4c->mbi.ckl, pz4c->mbi.cku,
       pz4c->mbi.cng);
 
-    // Boundaries applied on coarse then prolongated
-#if defined(Z4C_CX_ENABLED)
-    // To prolong the correct vars. i.e. Aux
-    pmr->SwapRefinementAux();
-    ProlongateCellCenteredXBoundaries(time, dt);
-    pmr->SwapRefinementAux();
-#elif defined(Z4C_VC_ENABLED)
-    // To prolong the correct vars. i.e. Aux
-    pmr->SwapRefinementAux();
-    ProlongateVertexCenteredBoundaries(time, dt);
-    pmr->SwapRefinementAux();
-#else
-    // not implemented, shut it all down
-    std::cout << "ProlongateBoundariesAux: Z4c_CC not handled" << std::endl;
-    std::exit(0);
-#endif
+    for (auto bvar : pbval->GetBvarsAux())
+    {
+      bvar->ProlongateBoundaries(time, dt);
+    }
   }
 }
 
@@ -830,170 +822,6 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
 
 }
 
-//-----------------------------------------------------------------------------
 //
-// Logic for calculation of (coarse) indicial ranges for boundary prolongation
-inline void BoundaryValues::CalculateVertexProlongationIndices(
-  std::int64_t &lx, int ox, int pcng, int cix_vs, int cix_ve,
-  int &set_ix_vs, int &set_ix_ve,
-  bool is_dim_nontrivial) {
-
-    if (ox > 0) {
-      set_ix_vs = cix_ve+1;
-      set_ix_ve = cix_ve+pcng;
-    } else if (ox < 0) {
-      set_ix_vs = cix_vs-pcng;
-      set_ix_ve = cix_vs-1;
-    } else {  // ox == 0
-      set_ix_vs = cix_vs;
-      set_ix_ve = cix_ve;
-      if (is_dim_nontrivial) {
-        std::int64_t &lx_ = lx;
-        if ((lx_ & 1LL) == 0LL) {
-          set_ix_ve += pcng;
-        } else {
-          set_ix_vs -= pcng;
-        }
-      }
-    }
-}
-
-//-----------------------------------------------------------------------------
+// :D
 //
-// Partition out logic for vertex-centered nodes
-void BoundaryValues::ProlongateVertexCenteredBoundaries(
-  const Real time, const Real dt) {
-
-  MeshBlock *pmb = pmy_block_;
-  int &mylevel = pmb->loc.level;
-
-  for (int n=0; n<nneighbor; n++) {
-    NeighborBlock& nb = neighbor[n];
-    if (nb.snb.level >= mylevel) continue;
-
-    // calculate the loop limits for the ghost zones
-    int const pcng = pmb->ng / 2 + (pmb->ng % 2 != 0);  // for odd/even ghosts
-    int si, ei, sj, ej, sk, ek;
-
-    CalculateVertexProlongationIndices(pmb->loc.lx1, nb.ni.ox1, pcng,
-                                       pmb->civs, pmb->cive, si, ei,
-                                       true);
-    CalculateVertexProlongationIndices(pmb->loc.lx2, nb.ni.ox2, pcng,
-                                       pmb->cjvs, pmb->cjve, sj, ej,
-                                       pmb->block_size.nx2 > 1);
-    CalculateVertexProlongationIndices(pmb->loc.lx3, nb.ni.ox3, pcng,
-                                       pmb->ckvs, pmb->ckve, sk, ek,
-                                       pmb->block_size.nx3 > 1);
-
-    ProlongateVertexCenteredGhosts(nb, si, ei, sj, ej, sk, ek);
-  }
-}
-
-void BoundaryValues::ProlongateVertexCenteredGhosts(
-    const NeighborBlock& nb,
-    int si, int ei, int sj, int ej,
-    int sk, int ek) {
-  MeshBlock *pmb = pmy_block_;
-  MeshRefinement *pmr = pmb->pmr;
-
-  for (auto vc_pair : pmr->pvars_vc_) {
-    AthenaArray<Real> *var_vc = std::get<0>(vc_pair);
-    AthenaArray<Real> *coarse_vc = std::get<1>(vc_pair);
-    int nu = var_vc->GetDim4() - 1;
-    pmr->ProlongateVertexCenteredValues(*coarse_vc, *var_vc, 0, nu,
-                                        si, ei, sj, ej, sk, ek);
-  }
-
-  return;
-}
-
-
-inline void BoundaryValues::CalculateCellCenteredXProlongationIndices(
-  std::int64_t &lx, int ox, int pcng, int cix_vs, int cix_ve,
-  int &set_ix_vs, int &set_ix_ve,
-  bool is_dim_nontrivial) {
-
-    if (ox > 0) {
-      set_ix_vs = cix_ve+1;
-      set_ix_ve = cix_ve+pcng;
-    } else if (ox < 0) {
-      set_ix_vs = cix_vs-pcng;
-      set_ix_ve = cix_vs-1;
-    } else {  // ox == 0
-      set_ix_vs = cix_vs;
-      set_ix_ve = cix_ve;
-      if (is_dim_nontrivial) {
-        std::int64_t &lx_ = lx;
-        if ((lx_ & 1LL) == 0LL) {
-          set_ix_ve += pcng;
-        } else {
-          set_ix_vs -= pcng;
-        }
-      }
-    }
-}
-
-void BoundaryValues::ProlongateCellCenteredXBoundaries(
-  const Real time, const Real dt) {
-
-  MeshBlock *pmb = pmy_block_;
-  int &mylevel = pmb->loc.level;
-
-  for (int n=0; n<nneighbor; n++) {
-    NeighborBlock& nb = neighbor[n];
-    if (nb.snb.level >= mylevel) continue;
-
-    // calculate the loop limits for the ghost zones
-    //
-    // Here we care about the _target_ ghosts
-    // The coarse ghosts are assumed to be of sufficient number
-    int const pcng = pmb->ng / 2 + (pmb->ng % 2 != 0);  // for odd/even ghosts
-    int si, ei, sj, ej, sk, ek;
-
-    CalculateCellCenteredXProlongationIndices(pmb->loc.lx1, nb.ni.ox1, pcng,
-                                              pmb->cx_cis, pmb->cx_cie,
-                                              si, ei,
-                                              true);
-    CalculateCellCenteredXProlongationIndices(pmb->loc.lx2, nb.ni.ox2, pcng,
-                                              pmb->cx_cjs, pmb->cx_cje,
-                                              sj, ej,
-                                              pmb->block_size.nx2 > 1);
-    CalculateCellCenteredXProlongationIndices(pmb->loc.lx3, nb.ni.ox3, pcng,
-                                              pmb->cx_cks, pmb->cx_cke,
-                                              sk, ek,
-                                              pmb->block_size.nx3 > 1);
-
-    // CalculateCellCenteredXProlongationIndices(pmb->loc.lx1, nb.ni.ox1, pcng,
-    //                                           pmb->civs, pmb->cive,
-    //                                           si, ei,
-    //                                           true);
-    // CalculateCellCenteredXProlongationIndices(pmb->loc.lx2, nb.ni.ox2, pcng,
-    //                                           pmb->cjvs, pmb->cjve,
-    //                                           sj, ej,
-    //                                           pmb->block_size.nx2 > 1);
-    // CalculateCellCenteredXProlongationIndices(pmb->loc.lx3, nb.ni.ox3, pcng,
-    //                                           pmb->ckvs, pmb->ckve,
-    //                                           sk, ek,
-    //                                           pmb->block_size.nx3 > 1);
-
-    ProlongateCellCenteredXGhosts(nb, si, ei, sj, ej, sk, ek);
-  }
-}
-
-void BoundaryValues::ProlongateCellCenteredXGhosts(
-    const NeighborBlock& nb,
-    int si, int ei, int sj, int ej,
-    int sk, int ek) {
-  MeshBlock *pmb = pmy_block_;
-  MeshRefinement *pmr = pmb->pmr;
-
-  for (auto cx_pair : pmr->pvars_cx_) {
-    AthenaArray<Real> *var_cx = std::get<0>(cx_pair);
-    AthenaArray<Real> *coarse_cx = std::get<1>(cx_pair);
-    int nu = var_cx->GetDim4() - 1;
-    pmr->ProlongateCellCenteredXBCValues(*coarse_cx, *var_cx, 0, nu,
-                                         si, ei, sj, ej, sk, ek);
-  }
-
-  return;
-}

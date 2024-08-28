@@ -29,37 +29,40 @@
 //! \class CellCenteredXBoundaryVariable
 //  \brief
 
-class CellCenteredXBoundaryVariable : public BoundaryVariable {
+class CellCenteredXBoundaryVariable : public BoundaryVariable
+{
  public:
   CellCenteredXBoundaryVariable(MeshBlock *pmb,
                                  AthenaArray<Real> *var, AthenaArray<Real> *coarse_var,
                                  AthenaArray<Real> *var_flux);
   ~CellCenteredXBoundaryVariable();
 
-  // may want to rebind var_cx to u,u1,u2,w,w1, etc. registers for time integrator logic.
-  // Also, derived class HydroBoundaryVariable needs to keep switching var and coarse_var
-  // arrays between primitive and conserved variables ---> ptr members, not references
   AthenaArray<Real> *var_cx;
-  AthenaArray<Real> *coarse_buf;  // may pass nullptr if mesh refinement is unsupported
+  AthenaArray<Real> *coarse_buf;
+  AthenaArray<Real> &x1flux, &x2flux, &x3flux;
 
-  void InterchangeFundamentalCoarse() override
+  // BoundaryInterface:
+  inline void InterchangeFundamentalCoarse() final
   {
     std::swap(var_cx, coarse_buf);
   };
-  // currently, no need to ever switch flux[] ---> keep as reference members (not ptrs)
-  // flux[3] w/ 3x empty AthenaArrays may be passed if mesh refinement is unsupported, but
-  // nullptr is not allowed
-  AthenaArray<Real> &x1flux, &x2flux, &x3flux;
 
-  // maximum number of reserved unique "physics ID" component of MPI tag bitfield
-  // (CellCenteredXBoundaryVariable only actually uses 1x if multilevel==false, no shear)
-  // must correspond to the # of "int *phys_id_" private members, below. Convert to array?
+  void ProlongateBoundaries(const Real time, const Real dt) final;
+
+  // maximum number of reserved unique "physics ID" component of MPI tag
+  // bitfield (CellCenteredXBoundaryVariable only actually uses 1x if
+  // multilevel==false, no shear) must correspond to the # of "int *phys_id_"
+  // private members, below. Convert to array?
   static constexpr int max_phys_id = 3;
 
   // BoundaryVariable:
-  int ComputeVariableBufferSize(const NeighborIndexes& ni, int cng) override;
-  // VC
-  int ComputeFluxCorrectionBufferSize(const NeighborIndexes& ni, int cng) override {return 0;};
+  int ComputeVariableBufferSize(const NeighborIndexes &ni, int cng) override;
+
+  int ComputeFluxCorrectionBufferSize(const NeighborIndexes &ni,
+                                      int cng) override
+  {
+    return 0;
+  };
 
   // BoundaryCommunication:
   void SetupPersistentMPI() override;
@@ -155,8 +158,8 @@ protected:
   int nl_, nu_;
   const bool *flip_across_pole_;
 
-
 private:
+  // --------------------------------------------------------------------------
   // buffer / index calculators
   void AccumulateBufferSize(int sn, int en,
                             int si, int ei, int sj, int ej, int sk, int ek,
@@ -185,6 +188,7 @@ private:
     int &si, int &ei, int &sj, int &ej, int &sk, int &ek,
     int type);
 
+
   int NeighborVariableBufferSize(const NeighborIndexes& ni);
 
 #ifdef MPI_PARALLEL
@@ -197,6 +201,32 @@ private:
   int MPI_BufferSizeToFiner(const NeighborIndexes& ni);
   int MPI_BufferSizeFromFiner(const NeighborIndexes& ni);
 #endif
+
+  inline void CalculateProlongationIndices(
+    std::int64_t &lx, int ox, int pcng, int cix_vs, int cix_ve,
+    int &set_ix_vs, int &set_ix_ve,
+    bool is_dim_nontrivial)
+  {
+    if (ox > 0) {
+      set_ix_vs = cix_ve+1;
+      set_ix_ve = cix_ve+pcng;
+    } else if (ox < 0) {
+      set_ix_vs = cix_vs-pcng;
+      set_ix_ve = cix_vs-1;
+    } else {  // ox == 0
+      set_ix_vs = cix_vs;
+      set_ix_ve = cix_ve;
+      if (is_dim_nontrivial) {
+        std::int64_t &lx_ = lx;
+        if ((lx_ & 1LL) == 0LL) {
+          set_ix_ve += pcng;
+        } else {
+          set_ix_vs -= pcng;
+        }
+      }
+    }
+  }
+  // --------------------------------------------------------------------------
 
   // BoundaryBuffer:
   int LoadBoundaryBufferSameLevel(Real *buf, const NeighborBlock& nb) override;

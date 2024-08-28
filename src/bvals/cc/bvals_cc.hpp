@@ -40,20 +40,21 @@ class CellCenteredBoundaryVariable : public BoundaryVariable {
   // arrays between primitive and conserved variables ---> ptr members, not references
   AthenaArray<Real> *var_cc;
   AthenaArray<Real> *coarse_buf;  // may pass nullptr if mesh refinement is unsupported
+  AthenaArray<Real> &x1flux, &x2flux, &x3flux;
 
-  void InterchangeFundamentalCoarse() override
+  inline void InterchangeFundamentalCoarse() final
   {
     std::swap(var_cc, coarse_buf);
   };
 
-  // currently, no need to ever switch flux[] ---> keep as reference members (not ptrs)
-  // flux[3] w/ 3x empty AthenaArrays may be passed if mesh refinement is unsupported, but
-  // nullptr is not allowed
-  AthenaArray<Real> &x1flux, &x2flux, &x3flux;
+  inline void ProlongateBoundaries(
+    const Real time, const Real dt
+  ) final { };
 
-  // maximum number of reserved unique "physics ID" component of MPI tag bitfield
-  // (CellCenteredBoundaryVariable only actually uses 1x if multilevel==false, no shear)
-  // must correspond to the # of "int *phys_id_" private members, below. Convert to array?
+  // maximum number of reserved unique "physics ID" component of MPI tag
+  // bitfield (CellCenteredXBoundaryVariable only actually uses 1x if
+  // multilevel==false, no shear) must correspond to the # of "int *phys_id_"
+  // private members, below. Convert to array?
   static constexpr int max_phys_id = 3;
 
   // BoundaryVariable:

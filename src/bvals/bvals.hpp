@@ -144,10 +144,6 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   void ProlongateBoundariesAux(const Real time, const Real dt);
   void ProlongateBoundariesM1(const Real time, const Real dt);
 
-  void ProlongateVertexCenteredBoundaries(const Real time, const Real dt);
-  void ProlongateCellCenteredXBoundaries(const Real time, const Real dt);
-
-
   //---------------------------------------------------------------------------
   // Deal with application of physical boundaries on domain
   inline std::vector<BoundaryVariable *> & GetBvarsWave()
