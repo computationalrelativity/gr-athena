@@ -74,8 +74,6 @@ const TaskID RECV_FLD(27);
 const TaskID SETB_HYD(30);
 const TaskID SETB_FLD(31);
 
-const TaskID CALC_CCFLD(32);
-
 const TaskID PROLONG_HYD(34);
 const TaskID CONS2PRIM(35);
 const TaskID PHY_BVAL_HYD(36);

@@ -112,19 +112,16 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin,
       {
         if (NSCALARS > 0)
         {
-          Add(PROLONG_HYD, (Z4C_TO_ADM | SEND_HYD | SEND_FLD | SEND_SCLR),
+          Add(PROLONG_HYD, (Z4C_TO_ADM | SEND_HYD | SEND_FLD | SEND_SCLR |
+                            SETB_HYD   | SETB_FLD | SETB_SCLR),
               &GRMHD_Z4c::Prolongation_Hyd);
         }
         else
         {
-          Add(PROLONG_HYD, (Z4C_TO_ADM | SEND_HYD | SEND_FLD),
+          Add(PROLONG_HYD, (Z4C_TO_ADM | SEND_HYD | SEND_FLD |
+                            SETB_HYD   | SETB_FLD),
               &GRMHD_Z4c::Prolongation_Hyd);
         }
-        Add(CONS2PRIM, PROLONG_HYD, &GRMHD_Z4c::Primitives);
-      }
-      else
-      {
-        Add(CONS2PRIM, Z4C_TO_ADM, &GRMHD_Z4c::Primitives);
       }
     }
     else  // otherwise GRHD
@@ -134,19 +131,15 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin,
       {
         if (NSCALARS > 0)
         {
-          Add(PROLONG_HYD, (Z4C_TO_ADM | SEND_HYD| SEND_SCLR),
+          Add(PROLONG_HYD, (Z4C_TO_ADM | SEND_HYD| SEND_SCLR |
+                            SETB_HYD   | SETB_SCLR),
               &GRMHD_Z4c::Prolongation_Hyd);
         }
         else
         {
-          Add(PROLONG_HYD, (Z4C_TO_ADM | SEND_HYD),
+          Add(PROLONG_HYD, (Z4C_TO_ADM | SEND_HYD | SETB_HYD),
               &GRMHD_Z4c::Prolongation_Hyd);
         }
-        Add(CONS2PRIM, PROLONG_HYD, &GRMHD_Z4c::Primitives);
-      }
-      else
-      {
-        Add(CONS2PRIM, Z4C_TO_ADM, &GRMHD_Z4c::Primitives);
       }
     }
 
@@ -156,12 +149,14 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin,
       {
         if (NSCALARS > 0)
         {
-          Add(PHY_BVAL_HYD, (CONS2PRIM | SEND_HYD | SEND_FLD | SEND_SCLR),
+          Add(PHY_BVAL_HYD, (Z4C_TO_ADM | SEND_HYD | SEND_FLD | SEND_SCLR |
+                             SETB_HYD  | SETB_FLD | SETB_SCLR),
               &GRMHD_Z4c::PhysicalBoundary_Hyd);
         }
         else
         {
-          Add(PHY_BVAL_HYD, (CONS2PRIM | SEND_HYD | SEND_FLD),
+          Add(PHY_BVAL_HYD, (Z4C_TO_ADM | SEND_HYD | SEND_FLD |
+                             SETB_HYD  | SETB_FLD),
               &GRMHD_Z4c::PhysicalBoundary_Hyd);
         }
       }
@@ -169,22 +164,24 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin,
       {
         if (NSCALARS > 0)
         {
-          Add(PHY_BVAL_HYD, (CONS2PRIM | SEND_HYD | SEND_SCLR),
+          Add(PHY_BVAL_HYD, (Z4C_TO_ADM | SEND_HYD | SEND_SCLR |
+                             SETB_HYD  | SETB_SCLR),
               &GRMHD_Z4c::PhysicalBoundary_Hyd);
         }
         else
         {
-          Add(PHY_BVAL_HYD, (CONS2PRIM | SEND_HYD),
+          Add(PHY_BVAL_HYD, (Z4C_TO_ADM | SEND_HYD | SETB_HYD),
               &GRMHD_Z4c::PhysicalBoundary_Hyd);
         }
       }
     }
     else
     {
-      Add(PHY_BVAL_HYD, CONS2PRIM, &GRMHD_Z4c::PhysicalBoundary_Hyd);
+      Add(PHY_BVAL_HYD, PROLONG_HYD, &GRMHD_Z4c::PhysicalBoundary_Hyd);
     }
 
-    Add(UPDATE_SRC, PHY_BVAL_HYD, &GRMHD_Z4c::UpdateSource);
+    Add(CONS2PRIM, PHY_BVAL_HYD, &GRMHD_Z4c::Primitives);
+    Add(UPDATE_SRC, CONS2PRIM, &GRMHD_Z4c::UpdateSource);
 
     // collect all MHD-scalar communication into blocking task ----------------
     // In principle this should not be required, there is somewhere MPI issue
