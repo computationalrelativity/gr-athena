@@ -807,6 +807,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       continue;
     }
   }
+
+  SeedMagneticFields(this, pin);
 #endif
   //  -------------------------------------------------------------------------
 
