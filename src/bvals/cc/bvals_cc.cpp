@@ -537,7 +537,7 @@ void CellCenteredBoundaryVariable::ProlongateBoundaries(
   const int nneighbor = pbval_->nneighbor;
 
   // dimensionality of variable common
-  static const int nu = var_cc->GetDim4() - 1;
+  const int nu = var_cc->GetDim4() - 1;
 
   for (int n=0; n<nneighbor; ++n)
   {
@@ -563,7 +563,7 @@ void CellCenteredBoundaryVariable::RestrictInterior(
   const int nneighbor = pbval_->nneighbor;
 
   // dimensionality of variable common
-  static const int nu = var_cc->GetDim4() - 1;
+  const int nu = var_cc->GetDim4() - 1;
 
   for (int n=0; n<nneighbor; ++n)
   {

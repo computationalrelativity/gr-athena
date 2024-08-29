@@ -372,7 +372,7 @@ void VertexCenteredBoundaryVariable::ProlongateBoundaries(
   const int nneighbor = pbval_->nneighbor;
 
   // dimensionality of variable common
-  static const int nu = var_vc->GetDim4() - 1;
+  const int nu = var_vc->GetDim4() - 1;
 
   for (int n=0; n<nneighbor; ++n)
   {
