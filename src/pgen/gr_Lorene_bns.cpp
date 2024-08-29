@@ -130,6 +130,116 @@ namespace {
   // --------------------------------------------------------------------------
 }
 
+namespace {
+
+void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin)
+{
+  Field * pf { pmb->pfield };
+  Hydro * ph { pmb->phydro };
+
+  GRDynamical * pco { static_cast<GRDynamical*>(pmb->pcoord) };
+
+  const int ncells1 = pmb->ncells1;
+  const int ncells2 = pmb->ncells2;
+  const int ncells3 = pmb->ncells3;
+
+  const int il = 0;
+  const int iu = ncells1-1;
+
+  const int jl = 0;
+  const int ju = ncells2-1;
+
+  const int kl = 0;
+  const int ku = ncells3-1;
+
+
+  // B field ------------------------------------------------------------------
+  // Assume stars are located on x axis
+
+  Real pcut_1 = pin->GetReal("problem","pcut_1") * pgasmax_1;
+  Real pcut_2 = pin->GetReal("problem","pcut_2") * pgasmax_2;
+
+  // Real b_amp = pin->GetReal("problem","b_amp");
+  // Scaling taken from project_bnsmhd
+  Real ns_1 = pin->GetReal("problem","ns_1");
+  Real ns_2 = pin->GetReal("problem","ns_2");
+
+  // Read b_amp and rescale it from gaus to code units
+  Real A_amp_1 = pin->GetReal("problem","b_amp_1") *
+    0.5/std::pow(pgasmax_1-pcut_1, ns_1)/B_unit;
+  Real A_amp_2 = pin->GetReal("problem","b_amp_2") *
+    0.5/std::pow(pgasmax_2-pcut_2, ns_2)/B_unit;
+
+  pf->b.x1f.ZeroClear();
+  pf->b.x2f.ZeroClear();
+  pf->b.x3f.ZeroClear();
+  pf->bcc.ZeroClear();
+
+  AthenaArray<Real> bxcc,bycc,bzcc;
+  bxcc.NewAthenaArray(ncells3,ncells2,ncells1);
+  bycc.NewAthenaArray(ncells3,ncells2,ncells1);
+  bzcc.NewAthenaArray(ncells3,ncells2,ncells1);
+
+  AthenaArray<Real> Atot;
+  Atot.NewAthenaArray(3,ncells3,ncells2,ncells1);
+
+  for (int k = kl; k <= ku; ++k)
+  for (int j = jl; j <= ju; ++j)
+  for (int i = il; i <= iu; ++i)
+  {
+    if(pco->x1v(i) > 0)
+    {
+      Real A_amp =
+          A_amp_2 * std::max(std::pow(ph->w(IPR, k, j, i) - pcut_2, ns_2), 0.0);
+      Atot(0,k,j,i) = -pco->x2v(j) * A_amp;
+      Atot(1,k,j,i) = (pco->x1v(i) - 0.5*sep) * A_amp;
+      Atot(2,k,j,i) = 0.0;
+    }
+    else
+    {
+      Real A_amp =
+          A_amp_1 * std::max(std::pow(ph->w(IPR, k, j, i) - pcut_1, ns_1), 0.0);
+      Atot(0,k,j,i) = -pco->x2v(j) * A_amp;
+      Atot(1,k,j,i) = (pco->x1v(i) + 0.5*sep) * A_amp;
+      Atot(2,k,j,i) = 0.0;
+    }
+  }
+
+  for (int k = kl-1; k<=ku+1; k++)
+  for (int j = jl-1; j<=ju+1; j++)
+  for (int i = il-1; i<=iu+1; i++)
+  {
+    bxcc(k,j,i) = - ((Atot(1,k+1,j,i) - Atot(1,k-1,j,i))/(2.0*pco->dx3v(k)));
+    bycc(k,j,i) =  ((Atot(0,k+1,j,i) - Atot(0,k-1,j,i))/(2.0*pco->dx3v(k)));
+    bzcc(k,j,i) = ( (Atot(1,k,j,i+1) - Atot(1,k,j,i-1))/(2.0*pco->dx1v(i))
+                  - (Atot(0,k,j+1,i) - Atot(0,k,j-1,i))/(2.0*pco->dx2v(j)));
+  }
+
+  for (int k = kl; k<=ku; k++)
+  for (int j = jl; j<=ju; j++)
+  for (int i = il; i<=iu+1; i++)
+  {
+    pf->b.x1f(k,j,i) = 0.5*(bxcc(k,j,i-1) + bxcc(k,j,i));
+  }
+
+  for (int k = kl; k<=ku; k++)
+  for (int j = jl; j<=ju+1; j++)
+  for (int i = il; i<=iu; i++)
+  {
+    pf->b.x2f(k,j,i) = 0.5*(bycc(k,j-1,i) + bycc(k,j,i));
+  }
+
+  for (int k = kl; k<=ku+1; k++)
+  for (int j = jl; j<=ju; j++)
+  for (int i = il; i<=iu; i++)
+  {
+    pf->b.x3f(k,j,i) = 0.5*(bzcc(k-1,j,i) + bzcc(k,j,i));
+  }
+
+}
+
+} // namespace
+
 //========================================================================================
 //! \fn void Mesh::InitUserMeshData(ParameterInput *pin)
 //  \brief Function to initialize problem-specific data in mesh class.  Can also be used
@@ -680,90 +790,24 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   // --------------------------------------------------------------------------
 
   // --------------------------------------------------------------------------
-  if (MAGNETIC_FIELDS_ENABLED)
+#if MAGNETIC_FIELDS_ENABLED
+  // Regularize prims
+  for (int k=0; k<ncells3; k++)
+  for (int j=0; j<ncells2; j++)
+  for (int i=0; i<ncells1; i++)
   {
-    // B field ------------------------------------------------------------------
-    // Assume stars are located on x axis
-
-    Real pcut_1 = pin->GetReal("problem","pcut_1") * pgasmax_1;
-    Real pcut_2 = pin->GetReal("problem","pcut_2") * pgasmax_2;
-
-    // Real b_amp = pin->GetReal("problem","b_amp");
-    // Scaling taken from project_bnsmhd
-    Real ns_1 = pin->GetReal("problem","ns_1");
-    Real ns_2 = pin->GetReal("problem","ns_2");
-
-    // Read b_amp and rescale it from gaus to code units
-    Real A_amp_1 = pin->GetReal("problem","b_amp_1") *
-      0.5/std::pow(pgasmax_1-pcut_1, ns_1)/B_unit;
-    Real A_amp_2 = pin->GetReal("problem","b_amp_2") *
-      0.5/std::pow(pgasmax_2-pcut_2, ns_2)/B_unit;
-
-    pfield->b.x1f.ZeroClear();
-    pfield->b.x2f.ZeroClear();
-    pfield->b.x3f.ZeroClear();
-    pfield->bcc.ZeroClear();
-
-    AthenaArray<Real> bxcc,bycc,bzcc;
-    bxcc.NewAthenaArray(ncells3,ncells2,ncells1);
-    bycc.NewAthenaArray(ncells3,ncells2,ncells1);
-    bzcc.NewAthenaArray(ncells3,ncells2,ncells1);
-
-    AthenaArray<Real> Atot;
-    Atot.NewAthenaArray(3,ncells3,ncells2,ncells1);
-
-    for (int k = kl; k <= ku; ++k)
-    for (int j = jl; j <= ju; ++j)
-    for (int i = il; i <= iu; ++i)
+    for (int n=0; n<NHYDRO; ++n)
+    if (!std::isfinite(phydro->w(n,k,j,i)))
     {
-      if(pcoord->x1v(i) > 0)
-      {
-        Real A_amp = A_amp_2 * std::max(std::pow(phydro->w(IPR,k,j,i) - pcut_2, ns_2), 0.0);
-        Atot(0,k,j,i) = -pcoord->x2v(j) * A_amp;
-        Atot(1,k,j,i) = (pcoord->x1v(i) - 0.5*sep) * A_amp;
-        Atot(2,k,j,i) = 0.0;
-      }
-      else
-      {
-        Real A_amp = A_amp_1 * std::max(std::pow(phydro->w(IPR,k,j,i) - pcut_1, ns_1), 0.0);
-        Atot(0,k,j,i) = -pcoord->x2v(j) * A_amp;
-        Atot(1,k,j,i) = (pcoord->x1v(i) + 0.5*sep) * A_amp;
-        Atot(2,k,j,i) = 0.0;
-      }
+#if USETM
+      peos->ApplyPrimitiveFloors(phydro->w, pscalars->r, k, j, i);
+#else
+      peos->ApplyPrimitiveFloors(phydro->w, k, j, i);
+#endif
+      continue;
     }
-
-    for(int k = ks-1; k<=ke+1; k++)
-    for(int j = js-1; j<=je+1; j++)
-    for(int i = is-1; i<=ie+1; i++)
-    {
-      bxcc(k,j,i) = - ((Atot(1,k+1,j,i) - Atot(1,k-1,j,i))/(2.0*pcoord->dx3v(k)));
-      bycc(k,j,i) =  ((Atot(0,k+1,j,i) - Atot(0,k-1,j,i))/(2.0*pcoord->dx3v(k)));
-      bzcc(k,j,i) = ( (Atot(1,k,j,i+1) - Atot(1,k,j,i-1))/(2.0*pcoord->dx1v(i))
-                    - (Atot(0,k,j+1,i) - Atot(0,k,j-1,i))/(2.0*pcoord->dx2v(j)));
-    }
-
-    for(int k = ks; k<=ke; k++)
-    for(int j = js; j<=je; j++)
-    for(int i = is; i<=ie+1; i++)
-    {
-
-    pfield->b.x1f(k,j,i) = 0.5*(bxcc(k,j,i-1) + bxcc(k,j,i));
-    }
-
-    for(int k = ks; k<=ke; k++)
-    for(int j = js; j<=je+1; j++)
-    for(int i = is; i<=ie; i++)
-    {
-    pfield->b.x2f(k,j,i) = 0.5*(bycc(k,j-1,i) + bycc(k,j,i));
-    }
-
-    for(int k = ks; k<=ke+1; k++)
-    for(int j = js; j<=je; j++)
-    for(int i = is; i<=ie; i++)
-    {
-      pfield->b.x3f(k,j,i) = 0.5*(bzcc(k-1,j,i) + bzcc(k,j,i));
-    }
-  } // MAGNETIC_FIELDS_ENABLED
+  }
+#endif
   //  -------------------------------------------------------------------------
 
   // Construct Z4c vars from ADM vars ------------------------------------------
