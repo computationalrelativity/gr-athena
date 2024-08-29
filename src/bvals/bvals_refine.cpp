@@ -98,7 +98,8 @@ void BoundaryValues::ProlongateBoundariesHydroPrim(const Real time,
     pmb->SetBoundaryVariablesConserved();
   }
 
-  CalculateCellCenteredFieldOnCoarseLevel();
+  if (MAGNETIC_FIELDS_ENABLED)
+    CalculateCellCenteredFieldOnCoarseLevel();
   PrimitiveToConservedOnCoarseLevelBoundaries();
 
   pmb->SetBoundaryVariablesPrimitive();
