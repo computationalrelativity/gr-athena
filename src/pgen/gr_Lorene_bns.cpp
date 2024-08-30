@@ -180,12 +180,12 @@ void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin)
   bycc.NewAthenaArray(ncells3,ncells2,ncells1);
   bzcc.NewAthenaArray(ncells3,ncells2,ncells1);
 
-  AthenaArray<Real> Atot;
-  Atot.NewAthenaArray(3,ncells3,ncells2,ncells1);
+  AthenaArray<Real> Atot(3,ncells3,ncells2,ncells1);
 
-  for (int k = kl; k <= ku; ++k)
-  for (int j = jl; j <= ju; ++j)
-  for (int i = il; i <= iu; ++i)
+  // Initialize cell centred potential
+  for (int k=0; k<pmb->ncells3; k++)
+  for (int j=0; j<pmb->ncells2; j++)
+  for (int i=0; i<pmb->ncells1; i++)
   {
     if(pco->x1v(i) > 0)
     {
@@ -205,9 +205,10 @@ void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin)
     }
   }
 
-  for (int k = kl-1; k<=ku+1; k++)
-  for (int j = jl-1; j<=ju+1; j++)
-  for (int i = il-1; i<=iu+1; i++)
+  // Construct cell centred B field from cell centred potential
+  for (int k=pmb->ks-1; k<=pmb->ke+1; k++)
+  for (int j=pmb->js-1; j<=pmb->je+1; j++)
+  for (int i=pmb->is-1; i<=pmb->ie+1; i++)
   {
     bxcc(k,j,i) = - ((Atot(1,k+1,j,i) - Atot(1,k-1,j,i))/(2.0*pco->dx3v(k)));
     bycc(k,j,i) =  ((Atot(0,k+1,j,i) - Atot(0,k-1,j,i))/(2.0*pco->dx3v(k)));
@@ -215,23 +216,24 @@ void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin)
                   - (Atot(0,k,j+1,i) - Atot(0,k,j-1,i))/(2.0*pco->dx2v(j)));
   }
 
-  for (int k = kl; k<=ku; k++)
-  for (int j = jl; j<=ju; j++)
-  for (int i = il; i<=iu+1; i++)
+  // Initialise face centred field by averaging cc field
+  for (int k=pmb->ks; k<=pmb->ke;   k++)
+  for (int j=pmb->js; j<=pmb->je;   j++)
+  for (int i=pmb->is; i<=pmb->ie+1; i++)
   {
     pf->b.x1f(k,j,i) = 0.5*(bxcc(k,j,i-1) + bxcc(k,j,i));
   }
 
-  for (int k = kl; k<=ku; k++)
-  for (int j = jl; j<=ju+1; j++)
-  for (int i = il; i<=iu; i++)
+  for (int k=pmb->ks; k<=pmb->ke;   k++)
+  for (int j=pmb->js; j<=pmb->je+1; j++)
+  for (int i=pmb->is; i<=pmb->ie;   i++)
   {
     pf->b.x2f(k,j,i) = 0.5*(bycc(k,j-1,i) + bycc(k,j,i));
   }
 
-  for (int k = kl; k<=ku+1; k++)
-  for (int j = jl; j<=ju; j++)
-  for (int i = il; i<=iu; i++)
+  for (int k=pmb->ks; k<=pmb->ke+1; k++)
+  for (int j=pmb->js; j<=pmb->je;   j++)
+  for (int i=pmb->is; i<=pmb->ie;   i++)
   {
     pf->b.x3f(k,j,i) = 0.5*(bzcc(k-1,j,i) + bzcc(k,j,i));
   }
