@@ -56,7 +56,17 @@ char const * const Z4c::Matter_names[Z4c::N_MAT] = {
 };
 
 char const * const Z4c::Weyl_names[Z4c::N_WEY] = {
-  "weyl.rpsi4","weyl.ipsi4",
+  "weyl.rpsi4", "weyl.ipsi4",
+};
+
+char const * const Z4c::Aux_names[Z4c::N_AUX] = {
+  "aux.dalpha_x", "aux.dalpha_y", "aux.dalpha_z",
+  "aux.dbetax_x", "aux.dbetay_x", "aux.dbetaz_x",
+  "aux.dbetax_y", "aux.dbetay_y", "aux.dbetaz_y",
+  "aux.dbetax_z", "aux.dbetay_z", "aux.dbetaz_z",
+  "aux.dgxx_x", "aux.dgxy_x", "aux.dgxz_x", "aux.dgyy_x", "aux.dgyz_x", "aux.dgzz_x",
+  "aux.dgxx_y", "aux.dgxy_y", "aux.dgxz_y", "aux.dgyy_y", "aux.dgyz_y", "aux.dgzz_y",
+  "aux.dgxx_z", "aux.dgxy_z", "aux.dgxz_z", "aux.dgyy_z", "aux.dgyz_z", "aux.dgzz_z",
 };
 
 Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
@@ -96,6 +106,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
           {N_CON, mbi.nn3, mbi.nn2, mbi.nn1},              // con
           {N_MAT, mbi.nn3, mbi.nn2, mbi.nn1},              // mat
           {N_WEY, mbi.nn3, mbi.nn2, mbi.nn1}               // weyl
+	  {N_AUX, mbi.nn3, mbi.nn2, mbi.nn1}               // aux	  
   },
   empty_flux{AthenaArray<Real>(), AthenaArray<Real>(), AthenaArray<Real>()},
   coarse_u_(N_Z4c, mbi.cnn3, mbi.cnn2, mbi.cnn1,
@@ -266,6 +277,8 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   opt.shift_eta_TP_ix = pin->GetOrAddInteger("z4c", "shift_eta_TP_ix", 0);
 #endif // Z4C_ETA_CONF, Z4C_ETA_TRACK_TP
 
+  opt.store_metric_drvts = pin->GetOrAddBoolean("problem", "store_metric_drvts", false);
+  
   // Matter parameters
   opt.cowling = pin->GetOrAddInteger("z4c", "cowling_true", 0);
   opt.bssn = pin->GetOrAddInteger("z4c", "bssn", 0);
@@ -324,7 +337,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
 
   opt.r_max_con = pin->GetOrAddReal("z4c", "r_max_con",
                                     std::numeric_limits<Real>::infinity());
-
+  
   //---------------------------------------------------------------------------
   // Set aliases
   SetADMAliases(storage.adm, adm);
@@ -333,6 +346,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   SetZ4cAliases(storage.rhs, rhs);
   SetZ4cAliases(storage.u, z4c);
   SetWeylAliases(storage.weyl, weyl);
+  SetAuxAliases(storage.aux, aux);
   // Allocate memory for aux 1D vars
   r.NewAthenaTensor(mbi.nn1);
   detg.NewAthenaTensor(mbi.nn1);
@@ -497,6 +511,17 @@ void Z4c::SetWeylAliases(AthenaArray<Real> & u, Z4c::Weyl_vars & weyl)
 {
   weyl.rpsi4.InitWithShallowSlice(u, I_WEY_rpsi4);
   weyl.ipsi4.InitWithShallowSlice(u, I_WEY_ipsi4);
+}
+
+//----------------------------------------------------------------------------------------
+// \!fn void Z4c::SetAuxlAliases(AthenaArray<Real> & u, Aux_vars & aux)
+// \brief Set aliases for auxiliary variables
+
+void Z4c::SetAuxAliases(AthenaArray<Real> & u, Z4c::Aux_vars & aux)
+{
+  aux.dalpha_d.InitWithShallowSlice(u, I_AUX_dalpha_x);
+  aux.dbeta_du.InitWithShallowSlice(u, I_AUX_dbetax_x);
+  aux.dg_ddd.InitWithShallowSlice(u, I_AUX_dgxx_x);
 }
 
 //----------------------------------------------------------------------------------------

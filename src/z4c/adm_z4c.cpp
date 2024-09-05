@@ -569,3 +569,50 @@ void Z4c::ADMMinkowski(AthenaArray<Real> & u_adm) {
 void Z4c::MatterVacuum(AthenaArray<Real> & u_mat) {
   u_mat.ZeroClear();
 }
+
+
+//----------------------------------------------------------------------------------------
+// \!fn void Z4c::ADMDerivatives(AthenaArray<Real> & uAthenaArray<Real> & u_adm, AthenaArray<Real> & u_aux)
+// \brief compute and store ADM metric derivatives 
+
+void Z4c::ADMDerivatives(AthenaArray<Real> & uAthenaArray<Real> & u_adm, AthenaArray<Real> & u_aux) {
+
+  Z4c_vars z4c;
+  SetZ4cAliases(u, z4c);
+
+  ADM_vars adm;
+  SetADMAliases(u_adm, adm);
+
+  Aux_vars aux;
+  SetWeylAliases(u_aux, aux);
+  aux.dalpha_d.Fill(NAN);
+  aux.dbeta_du.Fill(NAN);
+  aux.dg_ddd.Fill(NAN);
+
+  ILOOP3(k,j,i)
+  {
+
+    // first derivatives of g 
+    for(int c = 0; c < NDIM; ++c)
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = 0; b < NDIM; ++b) {
+      aux.dg_ddd(c,a,b,k,j,i) = fd->Dx(c, adm.g_dd(a,b,k,j,i));
+    }
+
+    // first derivatives of shift 
+    for(int c = 0; c < NDIM; ++c)
+    for(int a = 0; a < NDIM; ++a) {
+      aux.dbeta_d(c,a,k,j,i) = fd->Dx(c, z4c.beta_u(a,k,j,i));
+    }
+
+    // first derivatives of shift 
+    for(int c = 0; c < NDIM; ++c) {
+      aux.dalpha_d(c,k,j,i) = fd->Dx(c, z4c.alpha(k,j,i));
+    }
+
+    //TODO need more?    
+    
+  }
+
+
+}

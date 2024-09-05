@@ -103,6 +103,19 @@ public:
   };
   // Names of Weyl scalars
   static char const * const Weyl_names[N_WEY];
+  // Indexes of auxiliary variables for 3D ADM metric drvts
+  enum {
+    I_AUX_dalpha_x, I_AUX_dalpha_y, I_AUX_dalpha_z,
+    I_AUX_dbetax_x, I_AUX_dbetay_x, I_AUX_dbetaz_x,
+    I_AUX_dbetax_y, I_AUX_dbetay_y, I_AUX_dbetaz_y,
+    I_AUX_dbetax_z, I_AUX_dbetay_z, I_AUX_dbetaz_z,
+    I_AUX_dgxx_x, I_AUX_dgxy_x, I_AUX_dgxz_x, I_AUX_dgyy_x, I_AUX_dgyz_x, I_AUX_dgzz_x,
+    I_AUX_dgxx_y, I_AUX_dgxy_y, I_AUX_dgxz_y, I_AUX_dgyy_y, I_AUX_dgyz_y, I_AUX_dgzz_y,
+    I_AUX_dgxx_z, I_AUX_dgxy_z, I_AUX_dgxz_z, I_AUX_dgyy_z, I_AUX_dgyz_z, I_AUX_dgzz_z,
+    N_AUX
+  };
+  // Names of auxiliary variables
+  static char const * const Aux_names[N_AUX];
 
 public:
   Z4c(MeshBlock *pmb, ParameterInput *pin);
@@ -177,6 +190,14 @@ public:
   };
   Weyl_vars weyl;
 
+  // aliases for auxiliary variables for metric derivatives
+  struct Aux_vars {
+    AT_N_vec dalpha_d; // lapse 1st derivatives
+    AT_N_T2 dbeta_du; // shift 1st derivatives
+    AT_N_VS2 dg_ddd; // ADM 3-metric 1st derivatives
+  };
+  Aux_vars aux;
+  
   // BD: this should be refactored
   // user settings and options
   struct {
@@ -243,6 +264,10 @@ public:
 
     // Compute constraints up to a maximum radius
     Real r_max_con;
+
+    // Compute & store 3D ADM metric derivatives for post-step analyses
+    bool store_metric_drvts;
+    
   } opt;
 
   AA empty_flux[3];
@@ -276,8 +301,10 @@ public:
 
   // metric derivatives used by AHF
   // it is allocated there as needed
+  //SB: this is deprecated and should be removed,
+  //    use the aux. storage and the 'store_metric_drvts' option instead
   AT_N_VS2 aux_g_ddd;
-
+  
 public:
   // scheduled functions
   //
@@ -298,7 +325,9 @@ public:
   void ADMToZ4c(AA & u_adm, AA & u);
   // compute ADM variables from Z4c variables
   void Z4cToADM(AA & u, AA & u_adm);
-
+  // compute and store ADM metric derivatives in 3D auxiliary storage
+  void Z4c::ADMDerivatives(AthenaArray<Real> & uAthenaArray<Real> & u_adm, AthenaArray<Real> & u_aux);
+  
   // Conformal factor conversions
   // Floor applied: std::max(chi, opt.chi_div_floor)
   //
@@ -355,6 +384,8 @@ public:
   static void SetZ4cAliases(AA & u, Z4c_vars & z4c);
   // set weyl aliases
   static void SetWeylAliases(AA & u_weyl, Weyl_vars & weyl);
+  // set auxiliary variable aliases
+  static void SetAuxAliases(AA & u, Aux_vars & aux);
 
   // additional global functions
 

@@ -81,6 +81,7 @@ private:
   int nh;
   bool wait_until_punc_are_close;
   bool bitant;
+  bool store_metric_drvts;
   //! Number of horizons
   int nstart, nhorizon;
   //static const int metric_interp_order = 2;
