@@ -14,13 +14,16 @@
 #include "../athena_arrays.hpp"
 #include "../athena_tensor.hpp"
 //#include "../utils/lagrange_interp.hpp"
-//#include "z4c.hpp"
+//#include "z4c.hpp" 
 //#include "z4c_macro.hpp"
 
 // Forward declaration
 class Mesh;
 class MeshBlock;
 class ParameterInput;
+
+#define NDIM (3)
+#define MDIM (2)
 
 //! \class WaveExtractRWZ
 //! \brief RWZ waveform extraction 
@@ -109,35 +112,35 @@ private:
   //! Arrays for the various fields on the sphere
   
   //! 3+1 metric on the sphere
-  AthenaTensor<Real, TensorSymm::SYM2, 2, 2> gamma_dd;
-  AthenaTensor<Real, TensorSymm::SYM2, 2, 2> dr_gamma_dd;
-  //AthenaTensor<Real, TensorSymm::SYM2, 2, 2> dr2_gamma_dd; //TODO 2nd dvtrs not yet implemented
-  AthenaTensor<Real, TensorSymm::SYM2, 2, 2> dot_gamma_dd;
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> dr_gamma_dd;
+  //AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> dr2_gamma_dd; //TODO 2nd dvtrs not yet implemented
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> dot_gamma_dd;
   
-  AthenaTensor<Real, TensorSymm::NONE, 2, 1> beta_d;
-  AthenaTensor<Real, TensorSymm::NONE, 2, 1> dr_beta_d;
-  AthenaTensor<Real, TensorSymm::NONE, 2, 1> dot_beta_d;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_d;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dr_beta_d;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dot_beta_d;
 
-  AthenaTensor<Real, TensorSymm::NONE, 2, 0> beta2;
-  AthenaTensor<Real, TensorSymm::NONE, 2, 0> dr_beta2;
-  AthenaTensor<Real, TensorSymm::NONE, 2, 0> dot_beta2;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> beta2;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> dr_beta2;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> dot_beta2;
   
-  AthenaTensor<Real, TensorSymm::NONE, 2, 0> alpha;
-  AthenaTensor<Real, TensorSymm::NONE, 2, 0> dr_alpha;
-  AthenaTensor<Real, TensorSymm::NONE, 2, 0> dot_alpha;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> dr_alpha;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> dot_alpha;
   
   //! Spherical harmonics on the sphere (complex -> 2 components)
   AthenaArray<Real> Y, Yth, Yph, X, W;
   
   //! Spherical metric on M^2
-  TensorPointwise<Real, TensorSymm::SYM2, 0, 2> g_dd;
-  TensorPointwise<Real, TensorSymm::SYM2, 0, 2> g_uu;
-  TensorPointwise<Real, TensorSymm::SYM2, 0, 2> g_dr_dd; //d/dr g_AB
-  TensorPointwise<Real, TensorSymm::SYM2, 0, 2> g_dot_dd; //d/dt g_AB
-  TensorPointwise<Real, TensorSymm::SYM2, 0, 2> g_dr_uu; //d/dr g^AB
-  TensorPointwise<Real, TensorSymm::SYM2, 0, 2> g_dot_uu; //d/dt g^AB
-  TensorPointwise<Real, TensorSymm::SYM2, 0, 3> Gamma_udd; // Christoffels (time-independent)
-  TensorPointwise<Real, TensorSymm::SYM2, 0, 3> Gamma_dyn_udd; // Christoffels (time-dep)
+  TensorPointwise<Real, TensorSymm::SYM2, MDIM, 2> g_dd;
+  TensorPointwise<Real, TensorSymm::SYM2, MDIM, 2> g_uu;
+  TensorPointwise<Real, TensorSymm::SYM2, MDIM, 2> g_dr_dd; //d/dr g_AB
+  TensorPointwise<Real, TensorSymm::SYM2, MDIM, 2> g_dot_dd; //d/dt g_AB
+  TensorPointwise<Real, TensorSymm::SYM2, MDIM, 2> g_dr_uu; //d/dr g^AB
+  TensorPointwise<Real, TensorSymm::SYM2, MDIM, 2> g_dot_uu; //d/dt g^AB
+  TensorPointwise<Real, TensorSymm::SYM2, MDIM, 3> Gamma_udd; // Christoffels (time-independent)
+  TensorPointwise<Real, TensorSymm::SYM2, MDIM, 3> Gamma_dyn_udd; // Christoffels (time-dep)
   Real norm_Delta_Gamma;
   
   //! Multipoles (complex)
@@ -149,8 +152,8 @@ private:
   AthenaArray<Real> H0_dot, H01_dot, H_dot; // d/dt drvts
 
   //! Gauge-invariant multipoles
-  TensorPointwise<Real, TensorSymm::SYM2, 0, 2> kappa_dd;
-  TensorPointwise<Real, TensorSymm::NONE, 0, 1> kappa_d;
+  TensorPointwise<Real, TensorSymm::SYM2, MDIM, 2> kappa_dd;
+  TensorPointwise<Real, TensorSymm::NONE, MDIM, 1> kappa_d;
   AthenaArray<Real> kappa, Tr_kappa_dd;
   Real norm_Tr_kappa_dd;
   
