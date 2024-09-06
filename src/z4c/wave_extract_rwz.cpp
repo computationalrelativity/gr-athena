@@ -154,7 +154,7 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh * pmesh, ParameterInput * pin, int n):
   Gamma_dyn_uddd.NewTensorPointwise();  
   
   // Number of spherical harmonics (with l = 2 ... lmax)
-  lmpoints = MPoints(lmax); // lmax*(lmax + 2) - 3;
+  lmpoints = MPoints(lmax); // = lmax*(lmax + 2) - 3;
   
   // Spherical harmonics 
   Y.NewAthenaArray(Ntheta,Nphi,lmpoints,2);
@@ -865,13 +865,11 @@ void WaveExtractRWZ::ComputeSphericalHarmonics() {
 // \!fn void WaveExtractRWZ::MetricToSphere()
 // \brief run over MBs of this rank and get the ADM metric in spherical coordinates on the sphere
 void WaveExtractRWZ::MetricToSphere() {
- 
   MeshBlock * pmb = pmesh->pblock;
   while (pmb != nullptr) {
     InterpMetricToSphere(pmb);
     pmb = pmb->next; 
-  }
-  
+  }  
 }
 
 //----------------------------------------------------------------------------------------
@@ -895,13 +893,13 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   adm_g_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
 
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> adm_beta_u;    
-  adm_g_dd.InitWithShallowSlice(pz4c->storage.Z4c, Z4c::I_Z4c_betax);
+  adm_beta_u.InitWithShallowSlice(pz4c->storage.Z4c, Z4c::I_Z4c_betax);
   
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> adm_alpha;    
-  adm_g_dd.InitWithShallowSlice(pz4c->storage.Z4c, Z4c::I_Z4c_alpha);
+  adm_alpha_dd.InitWithShallowSlice(pz4c->storage.Z4c, Z4c::I_Z4c_alpha);
 
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> adm_dg_ddd;      
-  adm_dg_dd.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_dgxx_x); 
+  adm_dg_ddd.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_dgxx_x); 
 
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> adm_dbeta_du; // beta^j,i = d/dx^i beta^j
   adm_dbeta_du.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_dbetax_x); 
@@ -910,23 +908,28 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   adm_dalpha_d.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_dalpha_x); 
   
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> adm_beta_dot_u;      
-  adm_beta_dot.InitWithShallowSlice(pz4c->storage.rhs, Z4c::I_Z4c_betax);
+  adm_beta_dot_u.InitWithShallowSlice(pz4c->storage.rhs, Z4c::I_Z4c_betax);
   
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> adm_alpha_dot;      
   adm_alpha_dot.InitWithShallowSlice(pz4c->storage.rhs, Z4c::I_Z4c_alpha);
 
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_g_dot_dd;      
   adm_g_dot_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_Kxx);
-
-  // adm_g_dot_dd stores Kab, get the time drvt
+  
+  // adm_g_dot_dd stores Kab: compue the time drvt of 
   // of the ADM metric from Kab, lapse and shift
-  //FIXME Lie drvt
   ILOOP3(k,j,i) {
     for(int a = 0; a < NDIM; ++a)
       for(int b = a; b < NDIM; ++b) {
 	const Real Kab = adm_g_dot_dd(a,b,k,j,i);
-	adm_g_dot_dd(a,b,k,j,i) = - 2.0*z4c_alpha(k,j,i)*Kab
-	  + z4c_dbeta_dd(a,b,k,j,i) + z4c_dbeta_dd(b,a,k,j,i);
+	Real Lie_beta_ab = 0.0;
+	for(int c = 0; c < NDIM; ++c) {
+	  Lie_beta_ab +=
+	    adm_g_dd(a,c,k,j,i) * adm_dbeta_du(b,c,k,j,i) +
+	    adm_g_dd(b,c,k,j,i) * adm_dbeta_du(a,c,k,j,i) + 
+	    adm_beta_u(c,k,j,i) * adm_dg_ddd(c,a,b);
+	}	
+	adm_g_dot_dd(a,b,k,j,i) = - 2.0 * adm_alpha(k,j,i) * Kab + Lie_beta_ab;
       }
   }
   
@@ -999,8 +1002,6 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   // Cartesian-to-Spherical Jacobian
   TensorPointwise<Real, TensorSymm::NONE, 0, 2> Jac;
   Jac.NewTensorPointwise();
-  
-  
   
   for (int i=0; i<Ntheta; i++) {
     
