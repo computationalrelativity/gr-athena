@@ -927,7 +927,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 	  Lie_beta_ab +=
 	    adm_g_dd(a,c,k,j,i) * adm_dbeta_du(b,c,k,j,i) +
 	    adm_g_dd(b,c,k,j,i) * adm_dbeta_du(a,c,k,j,i) + 
-	    adm_beta_u(c,k,j,i) * adm_dg_ddd(c,a,b);
+	    adm_beta_u(c,k,j,i) * adm_dg_ddd(c,a,b,k,j,i);
 	}	
 	adm_g_dot_dd(a,b,k,j,i) = - 2.0 * adm_alpha(k,j,i) * Kab + Lie_beta_ab;
       }
