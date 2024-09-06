@@ -139,6 +139,7 @@ public:
     AA con;   // constraints
     AA mat;   // matter variables
     AA weyl;  // weyl scalars
+    AA aux;   // aux quantities such as derivatives
   } storage;
 
   // aliases for variables and RHS
@@ -326,8 +327,9 @@ public:
   // compute ADM variables from Z4c variables
   void Z4cToADM(AA & u, AA & u_adm);
   // compute and store ADM metric derivatives in 3D auxiliary storage
-  void Z4c::ADMDerivatives(AthenaArray<Real> & uAthenaArray<Real> & u_adm, AthenaArray<Real> & u_aux);
-  
+  void ADMDerivatives(AthenaArray<Real> &u, AthenaArray<Real> &u_adm,
+                      AthenaArray<Real> &u_aux);
+
   // Conformal factor conversions
   // Floor applied: std::max(chi, opt.chi_div_floor)
   //

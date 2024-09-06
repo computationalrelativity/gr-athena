@@ -89,9 +89,12 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   parname += n_str;
   use_puncture = pin->GetOrAddInteger("ahf", parname, -1);
 
-  parname = "compute_every_iter_";
-  parname += n_str;
-  compute_every_iter = pin->GetOrAddInteger("ahf", parname, 1);
+  // parname = "compute_every_iter_";
+  // parname += n_str;
+  // compute_every_iter = pin->GetOrAddInteger("ahf", parname, 1);
+
+  // BD: N.B. this is now covered by the task triggers
+  compute_every_iter = 1;
 
   if (use_puncture>=0) {
     // Center is determined on the fly during the initial guess

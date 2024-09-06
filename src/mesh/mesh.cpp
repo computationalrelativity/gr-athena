@@ -55,7 +55,10 @@
 #include "../z4c/cce/cce.hpp"
 #endif
 #include "../trackers/extrema_tracker.hpp"
-// #include "../z4c/ejecta.hpp"
+
+#ifdef EJECTA_ENABLED
+#include "../z4c/ejecta.hpp"
+#endif
 
 #include "../wave/wave.hpp"
 #include "../m1/m1.hpp"
@@ -346,12 +349,14 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
       pah_finder.push_back(new AHF(this, pin, n));
     }
 
+#ifdef EJECTA_ENABLED
     // Ejecta analysis
     int nejecta = pin->GetOrAddInteger("ejecta", "num_rad", 0);
     pej_extract.reserve(nejecta);
     for (int n=0; n<nejecta; ++n) {
       pej_extract.push_back(new Ejecta(this, pin, n));
     }
+#endif
 
     // Puncture Trackers
     int npunct = pin->GetOrAddInteger("z4c", "npunct", 0);
@@ -797,13 +802,15 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     for (int n = 0; n < nhorizon; ++n) {
       pah_finder.push_back(new AHF(this, pin, n));
     }
-    /* WC: Temporarily remove ejecta
-  int nejecta = pin->GetOrAddInteger("ejecta", "num_rad", 0);
-  pej_extract.reserve(nejecta);
-  for (int n=0; n<nejecta; ++n) {
-    pej_extract.push_back(new Ejecta(this, pin, n));
-  }
-  */
+
+#ifdef EJECTA_ENABLED
+    int nejecta = pin->GetOrAddInteger("ejecta", "num_rad", 0);
+    pej_extract.reserve(nejecta);
+    for (int n=0; n<nejecta; ++n) {
+      pej_extract.push_back(new Ejecta(this, pin, n));
+    }
+#endif
+
     int npunct = pin->GetOrAddInteger("z4c", "npunct", 0);
     if (npunct > 0) {
       pz4c_tracker.reserve(npunct);
@@ -1060,10 +1067,13 @@ Mesh::~Mesh() {
       delete pah_f;
     }
     pah_finder.resize(0);
+
+#ifdef EJECTA_ENABLED
     for (auto pej : pej_extract) {
       delete pej;
     }
     pej_extract.resize(0);
+#endif
 
     for (auto tracker : pz4c_tracker) {
       delete tracker;
@@ -1956,3 +1966,21 @@ void Mesh::FinalizePostAMR()
     pmbl = pmbl->next;
   }
 }
+
+  void Mesh::CalculateStoreMetricDerivatives()
+  {
+    if (!(pblock->pz4c->opt.store_metric_drvts)) return;
+
+    // Compute and store ADM metric drvts at this iteration
+    MeshBlock * pmb = pblock;
+
+    while (pmb != nullptr)
+    {
+      Z4c *pz4c = pmb->pz4c;
+
+      pz4c->ADMDerivatives(pz4c->storage.u, pz4c->storage.adm,
+                           pz4c->storage.aux);
+      pmb = pmb->next;
+    }
+
+  }

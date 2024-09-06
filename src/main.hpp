@@ -34,7 +34,9 @@
 #include "z4c/wave_extract.hpp"
 #include "z4c/puncture_tracker.hpp"
 #include "z4c/ahf.hpp"
-// #include "z4c/ejecta.hpp"
+#ifdef EJECTA_ENABLED
+#include "z4c/ejecta.hpp"
+#endif
 #if CCE_ENABLED
 #include "z4c/cce/cce.hpp"
 #endif
@@ -673,7 +675,10 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
   const Real ncycle_end_stage = pmesh->ncycle+1;
 
   // Derivatives of ADM metric and other auxiliary computations needed below
-  //TODO pz4c->CalculateStoreMetricDerivatives(ncycle_end_stage, time_end_stage);
+  if (trgs.IsSatisfied(tvar::Z4c_AHF))
+  {
+    pmesh->CalculateStoreMetricDerivatives();
+  }
 
   // Auxiliary variable logic
   // Currently this handles Weyl communication & decomposition
@@ -735,31 +740,38 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
   //TODO
       
   // AHF
-  for (auto pah_f : pmesh->pah_finder)
+  if (trgs.IsSatisfied(tvar::Z4c_AHF))
   {
-    if (pah_f->CalculateMetricDerivatives(ncycle_end_stage,
-                                          time_end_stage))
+
+    for (auto pah_f : pmesh->pah_finder)
     {
-      break;
+      if (pah_f->CalculateMetricDerivatives(ncycle_end_stage,
+                                            time_end_stage))
+      {
+        break;
+      }
     }
-  }
-  for (auto pah_f : pmesh->pah_finder)
-  {
-    pah_f->Find(ncycle_end_stage, time_end_stage);
-    pah_f->Write(ncycle_end_stage, time_end_stage);
-  }
-  for (auto pah_f : pmesh->pah_finder)
-  {
-    if (pah_f->DeleteMetricDerivatives(ncycle_end_stage, time_end_stage))
+    for (auto pah_f : pmesh->pah_finder)
     {
-      break;
+      pah_f->Find(ncycle_end_stage, time_end_stage);
+      pah_f->Write(ncycle_end_stage, time_end_stage);
     }
+    for (auto pah_f : pmesh->pah_finder)
+    {
+      if (pah_f->DeleteMetricDerivatives(ncycle_end_stage, time_end_stage))
+      {
+        break;
+      }
+    }
+
   }
 
+#ifdef EJECTA_ENABLED
   // Ejecta analysis
   for (auto pej : pmesh->pej_extract) {
     pej->Calculate(pmesh->ncycle, pmesh->time);
   }
+#endif
 
   // Puncture trackers
   for (auto ptracker : pmesh->pz4c_tracker)

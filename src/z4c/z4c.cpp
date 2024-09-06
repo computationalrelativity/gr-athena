@@ -105,8 +105,8 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
           {N_ADM, mbi.nn3, mbi.nn2, mbi.nn1},              // adm
           {N_CON, mbi.nn3, mbi.nn2, mbi.nn1},              // con
           {N_MAT, mbi.nn3, mbi.nn2, mbi.nn1},              // mat
-          {N_WEY, mbi.nn3, mbi.nn2, mbi.nn1}               // weyl
-	  {N_AUX, mbi.nn3, mbi.nn2, mbi.nn1}               // aux	  
+          {N_WEY, mbi.nn3, mbi.nn2, mbi.nn1},              // weyl
+	        {}                                               // aux
   },
   empty_flux{AthenaArray<Real>(), AthenaArray<Real>(), AthenaArray<Real>()},
   coarse_u_(N_Z4c, mbi.cnn3, mbi.cnn2, mbi.cnn1,
@@ -337,7 +337,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
 
   opt.r_max_con = pin->GetOrAddReal("z4c", "r_max_con",
                                     std::numeric_limits<Real>::infinity());
-  
+
   //---------------------------------------------------------------------------
   // Set aliases
   SetADMAliases(storage.adm, adm);
@@ -346,7 +346,14 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   SetZ4cAliases(storage.rhs, rhs);
   SetZ4cAliases(storage.u, z4c);
   SetWeylAliases(storage.weyl, weyl);
-  SetAuxAliases(storage.aux, aux);
+
+  if (opt.store_metric_drvts)
+  {
+    SetAuxAliases(storage.aux, aux);
+    storage.aux.NewAthenaArray(N_AUX, mbi.nn3, mbi.nn2, mbi.nn1);
+  }
+
+
   // Allocate memory for aux 1D vars
   r.NewAthenaTensor(mbi.nn1);
   detg.NewAthenaTensor(mbi.nn1);

@@ -55,7 +55,9 @@ class Wave;
 class Z4c;
 class WaveExtract;
 class AHF;
+#ifdef EJECTA_ENABLED
 class Ejecta;
+#endif
 #if CCE_ENABLED
 class CCE;
 #endif
@@ -450,7 +452,9 @@ class Mesh {
 
   std::vector<WaveExtract *> pwave_extr;
   std::vector<AHF *> pah_finder;
+#ifdef EJECTA_ENABLED
   std::vector<Ejecta *> pej_extract;
+#endif
 #if CCE_ENABLED
   std::vector<CCE *> pcce;
 #endif
@@ -519,6 +523,8 @@ class Mesh {
 
   // Dedicated function to communicate matter-fields
   void ScatterMatter(std::vector<MeshBlock*> & pmb_array);
+
+  void CalculateStoreMetricDerivatives();
 
   // Additional, specific, communication of data over MeshBlock objects
   void CommunicateAuxZ4c();

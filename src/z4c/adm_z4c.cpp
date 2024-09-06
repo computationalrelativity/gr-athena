@@ -583,7 +583,7 @@ void Z4c::ADMDerivatives(AthenaArray<Real> & u, AthenaArray<Real> & u_adm, Athen
   SetADMAliases(u_adm, adm);
 
   Aux_vars aux;
-  SetWeylAliases(u_aux, aux);
+  SetAuxAliases(u_aux, aux);
   aux.dalpha_d.Fill(NAN);
   aux.dbeta_du.Fill(NAN);
   aux.dg_ddd.Fill(NAN);
@@ -601,7 +601,7 @@ void Z4c::ADMDerivatives(AthenaArray<Real> & u, AthenaArray<Real> & u_adm, Athen
     // first derivatives of shift 
     for(int c = 0; c < NDIM; ++c)
     for(int a = 0; a < NDIM; ++a) {
-      aux.dbeta_d(c,a,k,j,i) = fd->Dx(c, z4c.beta_u(a,k,j,i));
+      aux.dbeta_du(c,a,k,j,i) = fd->Dx(c, z4c.beta_u(a,k,j,i));
     }
 
     // first derivatives of shift 
@@ -613,22 +613,4 @@ void Z4c::ADMDerivatives(AthenaArray<Real> & u, AthenaArray<Real> & u_adm, Athen
     
   }
 
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn bool AHF::CalculateStoreMetricDerivatives(int iter, Real time)
-// \brief calculate metric derivatives on all MBs and store them in the auxiliary storage
-bool Z4c::CalculateStoreMetricDerivatives(int iter, Real time)
-{
-  if (!(store_metric_drvts)) return false;
-  //TODO not needed everytime ... only when AHF, RWZ metric, etc are to be computed and output
-  
-  // Compute and store ADM metric drvts at this iteration
-  MeshBlock * pmb = pmesh->pblock;
-  while (pmb != nullptr) {
-    Z4c *pz4c = pmb->pz4c;
-    ADMDerivatives(pz4c->storage.u, pz4c->storage.adm, pz4c->storage.aux); 
-    pmb = pmb->next;
-  }  
-  return true;
 }

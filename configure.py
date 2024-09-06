@@ -92,6 +92,10 @@
 #
 #   -m1                 enable M1 neutrino transport
 #
+# Ejecta:
+#
+#   -ejecta             enable ejecta (requires PrimitiveSolver)
+#
 # development stuff:
 #
 #    -compiler_sanitize_address  sanitizers
@@ -413,6 +417,14 @@ parser.add_argument(
   action="store_true",
   default=False,
   help="disable compilation of M1 weakrates opacities",
+)
+
+# -ejecta argument
+parser.add_argument(
+  "-ejecta",
+  action="store_true",
+  default=False,
+  help="enable ejecta (requires PrimitiveSolver)",
 )
 
 # -t argument
@@ -1137,6 +1149,12 @@ if args["m1_no_weakrates"]:
 else:
   definitions["M1_NO_WEAKRATES"] = "0"
 
+# -ejecta
+if args["ejecta"]:
+  definitions["EJECTA_ENABLED"] = "EJECTA_ENABLED"
+else:
+  definitions["EJECTA_ENABLED"] = "NO_EJECTA_ENABLED"
+
 # -hybridinterp argument
 if args["hybridinterp"]:
   definitions["HYBRID_INTERP"] = "HYBRID_INTERP"
@@ -1810,6 +1828,15 @@ if args["m1"]:
     src_aux.append("$(wildcard src/m1/opacities/weakrates/*.cpp)")
 
 makefile_options["M1_SRC"] = "\\\n".join(src_aux)
+
+# ejecta: ---------------------------------------------------------------------
+if args["ejecta"]:
+  src_aux = []
+  src_aux.append("src/z4c/ejecta.cpp")
+  makefile_options["EJECTA_SRC"] = "\\\n".join(src_aux)
+else:
+  src_aux = []
+  makefile_options["EJECTA_SRC"] = "\\\n".join(src_aux)
 
 
 # --- Step 4. Create new files, finish up --------------------------------

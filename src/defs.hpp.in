@@ -171,6 +171,9 @@
 
 #define M1_NO_WEAKRATES @M1_NO_WEAKRATES@
 
+// ejecta
+#define @EJECTA_ENABLED@
+
 // enable GR frame transformations? default=0 (false)
 #define FRAME_TRANSFORMATIONS @FRAME_TRANSFORMATIONS@
 

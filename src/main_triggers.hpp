@@ -145,6 +145,8 @@ public:
     Z4c_ADM_constraints,
     Z4c_tracker_punctures,
     Z4c_Weyl,
+    Z4c_AHF,
+    Z4c_RWZ
   };
 
   enum class OutputVariant {
@@ -294,6 +296,22 @@ public:
             assert(false);
           }
         }
+
+        PopulateTrigger(tri, force_first_iter, allow_rescale_dt, dt);
+        triggers[MakeTriggerMeta(tvar, ovar)] = tri;
+        break;
+      }
+      case TriggerVariant::Z4c_AHF:
+      {
+        Real dt = pin->GetOrAddReal("task_triggers", "dt_Z4c_AHF", 0.0);
+
+        PopulateTrigger(tri, force_first_iter, allow_rescale_dt, dt);
+        triggers[MakeTriggerMeta(tvar, ovar)] = tri;
+        break;
+      }
+      case TriggerVariant::Z4c_RWZ:
+      {
+        Real dt = pin->GetOrAddReal("task_triggers", "dt_Z4c_RWZ", 0.0);
 
         PopulateTrigger(tri, force_first_iter, allow_rescale_dt, dt);
         triggers[MakeTriggerMeta(tvar, ovar)] = tri;
