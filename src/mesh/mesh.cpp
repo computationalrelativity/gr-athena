@@ -339,19 +339,21 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     }
 #endif
 
-    // 0 is restart flag for restart
+    // AHF (0 is restart flag for restart)
     int nhorizon = pin->GetOrAddInteger("ahf", "num_horizons",0);
     pah_finder.reserve(nhorizon);
     for (int n = 0; n < nhorizon; ++n) {
       pah_finder.push_back(new AHF(this, pin, n));
     }
-    /*WC: Temporarily remove ejecta - to be included
-  int nejecta = pin->GetOrAddInteger("ejecta", "num_rad", 0);
-  pej_extract.reserve(nejecta);
-  for (int n=0; n<nejecta; ++n) {
-    pej_extract.push_back(new Ejecta(this, pin, n));
-  }
-*/
+
+    // Ejecta analysis
+    int nejecta = pin->GetOrAddInteger("ejecta", "num_rad", 0);
+    pej_extract.reserve(nejecta);
+    for (int n=0; n<nejecta; ++n) {
+      pej_extract.push_back(new Ejecta(this, pin, n));
+    }
+
+    // Puncture Trackers
     int npunct = pin->GetOrAddInteger("z4c", "npunct", 0);
     if (npunct > 0) {
       pz4c_tracker.reserve(npunct);

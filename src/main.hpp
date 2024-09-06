@@ -672,6 +672,9 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
   const Real time_end_stage   = pmesh->time+pmesh->dt;
   const Real ncycle_end_stage = pmesh->ncycle+1;
 
+  // Derivatives of ADM metric and other auxiliary computations needed below
+  //TODO pz4c->CalculateStoreMetricDerivatives(ncycle_end_stage, time_end_stage);
+
   // Auxiliary variable logic
   // Currently this handles Weyl communication & decomposition
   if (trgs.IsSatisfied(tvar::Z4c_Weyl))
@@ -728,6 +731,10 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
       }
 #endif
 
+  // RWZ wave extraction 
+  //TODO
+      
+  // AHF
   for (auto pah_f : pmesh->pah_finder)
   {
     if (pah_f->CalculateMetricDerivatives(ncycle_end_stage,
@@ -749,12 +756,12 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
     }
   }
 
-  /* WC: Temporarily remove ejecta - to be tested/reincluded
+  // Ejecta analysis
   for (auto pej : pmesh->pej_extract) {
     pej->Calculate(pmesh->ncycle, pmesh->time);
   }
-  */
 
+  // Puncture trackers
   for (auto ptracker : pmesh->pz4c_tracker)
   {
     ptracker->EvolveTracker();

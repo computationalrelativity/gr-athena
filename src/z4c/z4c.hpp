@@ -197,6 +197,12 @@ public:
     AT_N_VS2 dg_ddd; // ADM 3-metric 1st derivatives
   };
   Aux_vars aux;
+
+  // metric derivatives used by AHF
+  // it is allocated there as needed
+  // this is alternative to the aux. storage, 
+  // used when 'store_metric_drvts' if off
+  AT_N_VS2 aux_g_ddd;
   
   // BD: this should be refactored
   // user settings and options
@@ -299,12 +305,6 @@ public:
   // BT style integrators -----------------------------------------------------
   std::vector<AA> bt_k;
 
-  // metric derivatives used by AHF
-  // it is allocated there as needed
-  //SB: this is deprecated and should be removed,
-  //    use the aux. storage and the 'store_metric_drvts' option instead
-  AT_N_VS2 aux_g_ddd;
-  
 public:
   // scheduled functions
   //

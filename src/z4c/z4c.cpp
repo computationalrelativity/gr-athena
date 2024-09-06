@@ -277,7 +277,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   opt.shift_eta_TP_ix = pin->GetOrAddInteger("z4c", "shift_eta_TP_ix", 0);
 #endif // Z4C_ETA_CONF, Z4C_ETA_TRACK_TP
 
-  opt.store_metric_drvts = pin->GetOrAddBoolean("problem", "store_metric_drvts", false);
+  opt.store_metric_drvts = pin->GetOrAddBoolean("z4c", "store_metric_drvts", false);
   
   // Matter parameters
   opt.cowling = pin->GetOrAddInteger("z4c", "cowling_true", 0);

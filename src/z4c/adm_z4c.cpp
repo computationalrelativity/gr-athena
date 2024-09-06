@@ -570,12 +570,11 @@ void Z4c::MatterVacuum(AthenaArray<Real> & u_mat) {
   u_mat.ZeroClear();
 }
 
-
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::ADMDerivatives(AthenaArray<Real> & uAthenaArray<Real> & u_adm, AthenaArray<Real> & u_aux)
 // \brief compute and store ADM metric derivatives 
 
-void Z4c::ADMDerivatives(AthenaArray<Real> & uAthenaArray<Real> & u_adm, AthenaArray<Real> & u_aux) {
+void Z4c::ADMDerivatives(AthenaArray<Real> & u, AthenaArray<Real> & u_adm, AthenaArray<Real> & u_aux) {
 
   Z4c_vars z4c;
   SetZ4cAliases(u, z4c);
@@ -614,5 +613,22 @@ void Z4c::ADMDerivatives(AthenaArray<Real> & uAthenaArray<Real> & u_adm, AthenaA
     
   }
 
+}
 
+//----------------------------------------------------------------------------------------
+// \!fn bool AHF::CalculateStoreMetricDerivatives(int iter, Real time)
+// \brief calculate metric derivatives on all MBs and store them in the auxiliary storage
+bool Z4c::CalculateStoreMetricDerivatives(int iter, Real time)
+{
+  if (!(store_metric_drvts)) return false;
+  //TODO not needed everytime ... only when AHF, RWZ metric, etc are to be computed and output
+  
+  // Compute and store ADM metric drvts at this iteration
+  MeshBlock * pmb = pmesh->pblock;
+  while (pmb != nullptr) {
+    Z4c *pz4c = pmb->pz4c;
+    ADMDerivatives(pz4c->storage.u, pz4c->storage.adm, pz4c->storage.aux); 
+    pmb = pmb->next;
+  }  
+  return true;
 }
