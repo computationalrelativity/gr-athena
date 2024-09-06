@@ -77,6 +77,30 @@ void PassiveScalars::ApplySpeciesLimits(AthenaArray<Real> & z_,
 
 }
 
+void PassiveScalars::ApplySpeciesLimits(AA & z,
+                                        const int i,
+                                        const int j,
+                                        const int k)
+{
+#if USETM
+  EquationOfState *peos = pmy_block->peos;
+
+  Real Y[MAX_SPECIES] = {0.0};
+  for (int n=0; n<NSCALARS; ++n)
+  {
+    Y[n] = z(n,k,j,i);
+  }
+
+  peos->GetEOS().ApplySpeciesLimits(Y);
+
+  for (int n=0; n<NSCALARS; ++n)
+  {
+    z(n,k,j,i) = Y[n];
+  }
+#endif
+  // BD: TODO - worth to fix if not USETM?
+}
+
 void PassiveScalars::FallbackInadmissibleScalarX1_(
     AthenaArray<Real> & zl_,
     AthenaArray<Real> & zr_,

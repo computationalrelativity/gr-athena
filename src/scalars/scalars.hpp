@@ -75,8 +75,11 @@ class PassiveScalars {
   Real NewDiffusionDt();
 
   bool SpeciesWithinLimits(AthenaArray<Real> & z_, const int i);
+  void ApplySpeciesLimits(AthenaArray<Real> & z_, const int il, const int iu);
   void ApplySpeciesLimits(AthenaArray<Real> & z_,
-                          const int il, const int iu);
+                          const int i,
+                          const int j,
+                          const int k);
 
   void FallbackInadmissibleScalarX1_(
     AthenaArray<Real> & zl_,
