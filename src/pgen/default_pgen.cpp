@@ -140,6 +140,11 @@ void __attribute__((weak)) MeshBlock::WaveUserWorkInLoop() {
 }
 // -BD
 
+void __attribute__((weak)) MeshBlock::M1UserWorkInLoop() {
+  // do nothing
+  return;
+}
+
 
 // Apply work before calling PostAMRHooks
 void __attribute__((weak))
