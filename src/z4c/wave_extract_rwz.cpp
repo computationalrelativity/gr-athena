@@ -7,7 +7,6 @@
 //  \brief Implementation of metric-based extraction of Regge-Wheeler-Zerilli functions
 //         Supports bitant symmetry
 
-//TODO requires auxiliary storage for ADM metric drvts in the Z4c class
 //TODO needs to be interfaced to the rest of GRA, in a way similarly to wave extract, AHF, ejecta, etc.
 //TODO 2nd derivatives are not implemented, but they can be probably taken from interpolation (?)
 //TODO add ADM integrals
@@ -43,6 +42,13 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh * pmesh, ParameterInput * pin, int n):
   
   bitant = pin->GetOrAddBoolean("mesh", "bitant", false);
   verbose = pin->GetOrAddBoolan("rwz_extraction", "verbose", false);
+  
+  if (!(pin->GetBoolan("z4c", "store_metric_drvts"))) {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in WaveExtractRWZ setup" << std::endl
+	<< "Z4c 'store_metric_drvts' needs to be activated " << std::endl;
+    ATHENA_ERROR(msg);
+  }
   
   Nrad = n; 
   std::string n_str = std::to_string(n);
@@ -358,14 +364,14 @@ std::string WaveExtractRWZ::OutputFileName(std::string base) {
 }
  
 //----------------------------------------------------------------------------------------
-// \!fn 
+// \!fn WaveExtractRWZ::Write(int iter, Real time)
 // \brief write output at given time and for given radius
+//        output frequency is controlled by the RWZ trigger (see main.hpp)
 void WaveExtractRWZ::Write(int iter, Real time) {  
   
   if (!ioproc) return;
   
-  // The diagnostic file is special ... 
-  
+  // The diagnostic file is special ...   
   ofname = OutputFileName(ofbname[Iof_diagnostic]);
   
   if (access(ofname.c_str(), F_OK) == 0) {
@@ -735,7 +741,7 @@ void WaveExtractRWZ::SphHarm_Ylm(const int l, const int m, const Real theta, con
   
   const Real a = std::sqrt((Real)(2*l+1)/(4.0*PI*fact_norm));
   const int mfac = (m>0)? std::pow(-1.0,m) : 1.0; //FIXME: this is the original, but it should be:
-  //const int mfac = (m==0)? 1.0 : std::pow(-1.0,abs_m); 
+  //const int mfac = (m==0)? 1.0 : std::pow(-1.0,m); 
   const Real Plm = mfac * a * SphHarm_Plm(l,abs_m,std::cos(theta));
 
   *YlmR = Plm * std::cos((Real)(m)*phi);
@@ -873,11 +879,10 @@ void WaveExtractRWZ::MetricToSphere() {
 // \brief interpolate the ADM metric and its drvts on the sphere
 //        transform Cartesian to spherical coordinates
 //
-
-//TODO This assumes there is a special storage with
-// the spatial drvts of ADM metric and lapse and shift
-// These derivatives are computed elsewhere, e.g. during the Riemann computation
-// (we need a parameter option "store_metric_derivatives")
+// This assumes there is a special storage with the spatial drvts of
+// ADM metric and lapse and shift
+// These derivatives are computed elsewhere, when the z4c parameter
+// "store_metric_drvts" is turned on
 
 //TODO 2nd drvts are missing, but they can be taken from the interpolation.
 
@@ -896,13 +901,13 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   adm_g_dd.InitWithShallowSlice(pz4c->storage.Z4c, Z4c::I_Z4c_alpha);
 
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> adm_dg_ddd;      
-  adm_dg_dd.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_gxx); //TODO we need this new storage
+  adm_dg_dd.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_dgxx_x); 
 
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> adm_dbeta_du; // beta^j,i = d/dx^i beta^j
-  adm_dbeta_du.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_betax); 
+  adm_dbeta_du.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_dbetax_x); 
 
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> adm_dalpha_d;      
-  adm_dalpha_d.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_alpha); 
+  adm_dalpha_d.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_dalpha_x); 
   
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> adm_beta_dot_u;      
   adm_beta_dot.InitWithShallowSlice(pz4c->storage.rhs, Z4c::I_Z4c_betax);
