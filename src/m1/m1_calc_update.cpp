@@ -1596,8 +1596,21 @@ void M1::CalcUpdate(Real const dt,
     StateMetaVector C = ConstructStateMetaVector(*this, U_C, ix_g, ix_s);
     StateMetaVector P = ConstructStateMetaVector(*this, U_P, ix_g, ix_s);
     StateMetaVector I = ConstructStateMetaVector(*this, U_I, ix_g, ix_s);
-    
+
     SourceMetaVector S = ConstructSourceMetaVector(*this, U_S, ix_g, ix_s);
+
+    // Apply limits to current state vector enforcing causality
+    // warning: without this there are issues for E>|F|_\gamma in e.g.
+    // thin-closure
+
+    if (opt.enforce_causality)
+    {
+      M1_GLOOP3(k,j,i)
+      if (MaskGet(k, j, i))
+      {
+        EnforceCausality(*this, C, k, j, i);
+      }
+    }
 
     ClosureMetaVector CL = ConstructClosureMetaVector(*this, U_C, ix_g, ix_s);
 

@@ -145,14 +145,15 @@ inline bool EnforceCausality(
                                            k, j, i);
 
   if (norm2F > 0)
-  if (SQR(C.sc_E(k,j,i)) < norm2F)
+  if (SQR(C.sc_E(k,j,i)) > norm2F)
   {
     const Real normF = std::sqrt(norm2F);
-    const Real fac = normF / C.sc_E(k,j,i);
+    const Real fac = normF / C.sc_E(k,j,i);  // BD: TODO - add eps to this in case |F|=E
 
+    const Real rfac = 1.0 / (fac + pm1.opt.eps_ec_fac);
     for (int a=0; a<N; ++a)
     {
-      C.sp_F_d(a,k,j,i) = C.sp_F_d(a,k,j,i) / fac;
+      C.sp_F_d(a,k,j,i) = C.sp_F_d(a,k,j,i) * rfac;
     }
     return true;
   }
