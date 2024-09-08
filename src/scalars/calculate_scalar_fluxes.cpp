@@ -101,7 +101,87 @@ void PassiveScalars::ApplySpeciesLimits(AA & z,
   // BD: TODO - worth to fix if not USETM?
 }
 
+#ifdef DBG_FALLBACK_NO_TABLE_LIMITS
 void PassiveScalars::FallbackInadmissibleScalarX1_(
+#else
+void PassiveScalars::FallbackInadmissibleScalarTableLimitsX1_(
+#endif
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & f_zl_,
+    AthenaArray<Real> & f_zr_,
+    const int il, const int iu)
+{
+  static const int I = DGB_RECON_X1_OFFSET;
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    for (int n=0; n<NSCALARS; ++n)
+    {
+      if ((zl_(n,i+I) < 0) || (zr_(n,i) < 0))
+      {
+        zl_(n,i+I) = f_zl_(n,i+I);
+        zr_(n,i  ) = f_zr_(n,i  );
+      }
+    }
+  }
+}
+
+#ifdef DBG_FALLBACK_NO_TABLE_LIMITS
+void PassiveScalars::FallbackInadmissibleScalarX2_(
+#else
+void PassiveScalars::FallbackInadmissibleScalarTableLimitsX2_(
+#endif
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & f_zl_,
+    AthenaArray<Real> & f_zr_,
+    const int il, const int iu)
+{
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    for (int n=0; n<NSCALARS; ++n)
+    {
+      if ((zl_(n,i) < 0) || (zr_(n,i) < 0))
+      {
+        zl_(n,i) = f_zl_(n,i);
+        zr_(n,i) = f_zr_(n,i);
+      }
+    }
+  }
+}
+
+#ifdef DBG_FALLBACK_NO_TABLE_LIMITS
+void PassiveScalars::FallbackInadmissibleScalarX3_(
+#else
+void PassiveScalars::FallbackInadmissibleScalarTableLimitsX3_(
+#endif
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & f_zl_,
+    AthenaArray<Real> & f_zr_,
+    const int il, const int iu)
+{
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    for (int n=0; n<NSCALARS; ++n)
+    {
+      if ((zl_(n,i) < 0) || (zr_(n,i) < 0))
+      {
+        zl_(n,i) = f_zl_(n,i);
+        zr_(n,i) = f_zr_(n,i);
+      }
+    }
+  }
+}
+
+#ifndef DBG_FALLBACK_NO_TABLE_LIMITS
+void PassiveScalars::FallbackInadmissibleScalarX1_(
+#else
+void PassiveScalars::FallbackInadmissibleScalarTableLimitsX1_(
+#endif
     AthenaArray<Real> & zl_,
     AthenaArray<Real> & zr_,
     AthenaArray<Real> & f_zl_,
@@ -121,7 +201,11 @@ void PassiveScalars::FallbackInadmissibleScalarX1_(
   }
 }
 
+#ifndef DBG_FALLBACK_NO_TABLE_LIMITS
 void PassiveScalars::FallbackInadmissibleScalarX2_(
+#else
+void PassiveScalars::FallbackInadmissibleScalarTableLimitsX2_(
+#endif
     AthenaArray<Real> & zl_,
     AthenaArray<Real> & zr_,
     AthenaArray<Real> & f_zl_,
@@ -140,7 +224,11 @@ void PassiveScalars::FallbackInadmissibleScalarX2_(
   }
 }
 
+#ifndef DBG_FALLBACK_NO_TABLE_LIMITS
 void PassiveScalars::FallbackInadmissibleScalarX3_(
+#else
+void PassiveScalars::FallbackInadmissibleScalarTableLimitsX3_(
+#endif
     AthenaArray<Real> & zl_,
     AthenaArray<Real> & zr_,
     AthenaArray<Real> & f_zl_,

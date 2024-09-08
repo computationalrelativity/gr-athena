@@ -64,6 +64,7 @@
 #
 # Hydro/passive scalars:
 #   -recon_cmb_hydpa    reconstruct hydro & passive sca. at same time
+#   -DBG_FALLBACK_NO_TABLE_LIMITS: employ fallback with Y<0 check instead
 #
 # z4c settings:
 #
@@ -280,6 +281,13 @@ parser.add_argument(
   action="store_true",
   default=False,
   help="reconstruct hydro & passive scalars simult.",
+)
+
+parser.add_argument(
+  "-DBG_FALLBACK_NO_TABLE_LIMITS",
+  action="store_true",
+  default=False,
+  help="DBG_FALLBACK_NO_TABLE_LIMITS",
 )
 
 # -f argument
@@ -1146,6 +1154,14 @@ if args["recon_cmb_hydpa"]:
   definitions["DBG_COMBINED_HYDPA"] = "DBG_COMBINED_HYDPA"
 else:
   definitions["DBG_COMBINED_HYDPA"] = "NO_DBG_COMBINED_HYDPA"
+
+# -DBG_FALLBACK_NO_TABLE_LIMITS argument
+if args["DBG_FALLBACK_NO_TABLE_LIMITS"]:
+  definitions["DBG_FALLBACK_NO_TABLE_LIMITS"] = "DBG_FALLBACK_NO_TABLE_LIMITS"
+else:
+  definitions["DBG_FALLBACK_NO_TABLE_LIMITS"] = (
+    "NO_DBG_FALLBACK_NO_TABLE_LIMITS"
+  )
 
 # -shear argument
 if args["shear"]:

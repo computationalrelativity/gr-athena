@@ -102,6 +102,27 @@ class PassiveScalars {
     AthenaArray<Real> & f_zr_,
     const int il, const int iu);
 
+  void FallbackInadmissibleScalarTableLimitsX1_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & f_zl_,
+    AthenaArray<Real> & f_zr_,
+    const int il, const int iu);
+
+  void FallbackInadmissibleScalarTableLimitsX2_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & f_zl_,
+    AthenaArray<Real> & f_zr_,
+    const int il, const int iu);
+
+  void FallbackInadmissibleScalarTableLimitsX3_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & f_zl_,
+    AthenaArray<Real> & f_zr_,
+    const int il, const int iu);
+
 public:  // debug for combined hydro-scalar recon
   MeshBlock* pmy_block;
   // scratch space used to compute fluxes
