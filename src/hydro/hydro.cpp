@@ -64,6 +64,8 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   floor_both_states = pin->GetOrAddBoolean("time", "floor_both_states", false);
   flux_reconstruction = pin->GetOrAddBoolean(
     "hydro", "flux_reconstruction", false);
+  split_lr_fallback = pin->GetOrAddBoolean(
+    "hydro", "split_lr_fallback", false);
 
   opt_excision.alpha_threshold =
       pin->GetOrAddReal("excision", "alpha_threshold", 0.0);

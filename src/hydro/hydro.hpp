@@ -70,6 +70,7 @@ class Hydro {
   // for reconstruction failure, should both states be floored?
   bool floor_both_states = false;
   bool flux_reconstruction = false;
+  bool split_lr_fallback = false;
 
   HydroBoundaryVariable hbvar;
   HydroSourceTerms hsrc;
@@ -185,38 +186,19 @@ public:
       AthenaArray<Real> &wct, const AthenaArray<Real> &dxw);
 #endif
 
-  inline void FallbackInadmissiblePrimitiveX1_(
+  inline void FallbackInadmissiblePrimitiveX_(
     AthenaArray<Real> & zl_,
     AthenaArray<Real> & zr_,
     AthenaArray<Real> & f_zl_,
     AthenaArray<Real> & f_zr_,
-    const int il, const int iu)
+    const int il, const int iu, const int I)
   {
-    // Either 0 or 1, depending on l/r convention
-    static const int I = DGB_RECON_X1_OFFSET;
-
-    #pragma omp simd
-    for (int i=il-1; i<=iu; ++i)
+    if (!split_lr_fallback)
     {
-      if ((zl_(IDN,i+I) < 0) || (zr_(IDN,i) < 0))
-      {
-        for (int n=0; n<NWAVE; ++n)
-        {
-          zl_(n,i+I) = f_zl_(n,i+I);
-          zr_(n,i  ) = f_zr_(n,i  );
-        }
-      }
-    }
-
-    if (pmy_block->precon->xorder_use_fb_unphysical)
-    {
-      EquationOfState *peos = pmy_block->peos;
       #pragma omp simd
       for (int i=il-1; i<=iu; ++i)
       {
-        const bool pl_ = peos->CheckPrimitivePhysical(zl_, -1, -1, i+I);
-        const bool pr_ = peos->CheckPrimitivePhysical(zr_, -1, -1, i);
-        if (!pl_ || !pr_)
+        if ((zl_(IDN,i+I) < 0) || (zr_(IDN,i) < 0))
         {
           for (int n=0; n<NWAVE; ++n)
           {
@@ -226,7 +208,94 @@ public:
         }
       }
     }
+    else
+    {
+      #pragma omp simd
+      for (int i=il-1; i<=iu; ++i)
+      {
+        if (zl_(IDN,i+I) < 0)
+        {
+          for (int n=0; n<NWAVE; ++n)
+          {
+            zl_(n,i+I) = f_zl_(n,i+I);
+          }
+        }
+      }
 
+      #pragma omp simd
+      for (int i=il-1; i<=iu; ++i)
+      {
+        if (zr_(IDN,i) < 0)
+        {
+          for (int n=0; n<NWAVE; ++n)
+          {
+            zr_(n,i  ) = f_zr_(n,i  );
+          }
+        }
+      }
+    }
+
+    if (pmy_block->precon->xorder_use_fb_unphysical)
+    {
+      EquationOfState *peos = pmy_block->peos;
+      if (!split_lr_fallback)
+      {
+        #pragma omp simd
+        for (int i=il-1; i<=iu; ++i)
+        {
+          const bool pl_ = peos->CheckPrimitivePhysical(zl_, -1, -1, i+I);
+          const bool pr_ = peos->CheckPrimitivePhysical(zr_, -1, -1, i);
+          if (!pl_ || !pr_)
+          {
+            for (int n=0; n<NWAVE; ++n)
+            {
+              zl_(n,i+I) = f_zl_(n,i+I);
+              zr_(n,i  ) = f_zr_(n,i  );
+            }
+          }
+        }
+      }
+      else
+      {
+        #pragma omp simd
+        for (int i=il-1; i<=iu; ++i)
+        {
+          const bool pl_ = peos->CheckPrimitivePhysical(zl_, -1, -1, i+I);
+          if (!pl_)
+          {
+            for (int n=0; n<NWAVE; ++n)
+            {
+              zl_(n,i+I) = f_zl_(n,i+I);
+            }
+          }
+        }
+
+        #pragma omp simd
+        for (int i=il-1; i<=iu; ++i)
+        {
+          const bool pr_ = peos->CheckPrimitivePhysical(zr_, -1, -1, i);
+          if (!pr_)
+          {
+            for (int n=0; n<NWAVE; ++n)
+            {
+              zr_(n,i  ) = f_zr_(n,i  );
+            }
+          }
+        }
+      }
+    }
+  }
+
+  inline void FallbackInadmissiblePrimitiveX1_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & f_zl_,
+    AthenaArray<Real> & f_zr_,
+    const int il, const int iu)
+  {
+    // Either 0 or 1, depending on l/r convention
+    static const int I = DGB_RECON_X1_OFFSET;
+    FallbackInadmissiblePrimitiveX_(zl_, zr_, f_zl_, f_zr_, il, iu, I);
   }
 
   inline bool CheckInadmissiblePrimitiveX1_(
@@ -262,37 +331,8 @@ public:
     AthenaArray<Real> & f_zr_,
     const int il, const int iu)
   {
-    #pragma omp simd
-    for (int i=il; i<=iu; ++i)
-    {
-      if ((zl_(IDN,i) < 0) || (zr_(IDN,i) < 0))
-      {
-        for (int n=0; n<NWAVE; ++n)
-        {
-          zl_(n,i) = f_zl_(n,i);
-          zr_(n,i) = f_zr_(n,i);
-        }
-      }
-    }
-
-    if (pmy_block->precon->xorder_use_fb_unphysical)
-    {
-      EquationOfState *peos = pmy_block->peos;
-      #pragma omp simd
-      for (int i=il; i<=iu; ++i)
-      {
-        const bool pl_ = peos->CheckPrimitivePhysical(zl_, -1, -1, i);
-        const bool pr_ = peos->CheckPrimitivePhysical(zr_, -1, -1, i);
-        if (!pl_ || !pr_)
-        {
-          for (int n=0; n<NWAVE; ++n)
-          {
-            zl_(n,i) = f_zl_(n,i);
-            zr_(n,i) = f_zr_(n,i);
-          }
-        }
-      }
-    }
+    static const int I = 0;
+    FallbackInadmissiblePrimitiveX_(zl_, zr_, f_zl_, f_zr_, il, iu, I);
   }
 
   inline void FallbackInadmissiblePrimitiveX3_(
@@ -302,37 +342,8 @@ public:
     AthenaArray<Real> & f_zr_,
     const int il, const int iu)
   {
-    #pragma omp simd
-    for (int i=il; i<=iu; ++i)
-    {
-      if ((zl_(IDN,i) < 0) || (zr_(IDN,i) < 0))
-      {
-        for (int n=0; n<NWAVE; ++n)
-        {
-          zl_(n,i) = f_zl_(n,i);
-          zr_(n,i) = f_zr_(n,i);
-        }
-      }
-    }
-
-    if (pmy_block->precon->xorder_use_fb_unphysical)
-    {
-      EquationOfState *peos = pmy_block->peos;
-      #pragma omp simd
-      for (int i=il; i<=iu; ++i)
-      {
-        const bool pl_ = peos->CheckPrimitivePhysical(zl_, -1, -1, i);
-        const bool pr_ = peos->CheckPrimitivePhysical(zr_, -1, -1, i);
-        if (!pl_ || !pr_)
-        {
-          for (int n=0; n<NWAVE; ++n)
-          {
-            zl_(n,i) = f_zl_(n,i);
-            zr_(n,i) = f_zr_(n,i);
-          }
-        }
-      }
-    }
+    static const int I = 0;
+    FallbackInadmissiblePrimitiveX_(zl_, zr_, f_zl_, f_zr_, il, iu, I);
   }
 
 #if USETM

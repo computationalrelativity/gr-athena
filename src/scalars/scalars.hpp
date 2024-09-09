@@ -81,6 +81,13 @@ class PassiveScalars {
                           const int j,
                           const int k);
 
+  void FallbackInadmissibleScalarX_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & f_zl_,
+    AthenaArray<Real> & f_zr_,
+    const int il, const int iu, const int I);
+
   void FallbackInadmissibleScalarX1_(
     AthenaArray<Real> & zl_,
     AthenaArray<Real> & zr_,
@@ -101,6 +108,13 @@ class PassiveScalars {
     AthenaArray<Real> & f_zl_,
     AthenaArray<Real> & f_zr_,
     const int il, const int iu);
+
+  void FallbackInadmissibleScalarTableLimitsX_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & f_zl_,
+    AthenaArray<Real> & f_zr_,
+    const int il, const int iu, const int I);
 
   void FallbackInadmissibleScalarTableLimitsX1_(
     AthenaArray<Real> & zl_,

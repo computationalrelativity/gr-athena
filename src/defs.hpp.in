@@ -62,7 +62,7 @@
 
 // BD: TODO - check carefully... again...
 // Reconstruction X1 convention may require 0 or 1 offset for l/r
-#define DGB_RECON_X1_OFFSET 1
+#define DGB_RECON_X1_OFFSET 0
 
 // BD: If DBG enabled, do not use SpeciesWithinLimits during fallback
 #define @DBG_FALLBACK_NO_TABLE_LIMITS@
