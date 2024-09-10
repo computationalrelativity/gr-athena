@@ -72,7 +72,7 @@ private:
   Real dph_grid();
   int TPIndex(const int i, const int j);
   void FlagSpherePointsContained(MeshBlock * pmb);
-  void SetWeightsIntegral(int method);
+  //void SetWeightsIntegral(int method);
   
   //! Functions for spherical harmonics
   int MPoints(const int l);
@@ -114,7 +114,7 @@ private:
   //! 3+1 metric on the sphere
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> dr_gamma_dd;
-  //AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> dr2_gamma_dd; //TODO 2nd dvtrs not yet implemented
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> dr2_gamma_dd; //TODO 2nd dvtrs not yet implemented
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> dot_gamma_dd;
   
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_d;
@@ -139,6 +139,7 @@ private:
   TensorPointwise<Real, TensorSymm::SYM2, MDIM, 2> g_dot_dd; //d/dt g_AB
   TensorPointwise<Real, TensorSymm::SYM2, MDIM, 2> g_dr_uu; //d/dr g^AB
   TensorPointwise<Real, TensorSymm::SYM2, MDIM, 2> g_dot_uu; //d/dt g^AB
+  //TODO 2nd drvts
   TensorPointwise<Real, TensorSymm::SYM2, MDIM, 3> Gamma_udd; // Christoffels (time-independent)
   TensorPointwise<Real, TensorSymm::SYM2, MDIM, 3> Gamma_dyn_udd; // Christoffels (time-dep)
   Real norm_Delta_Gamma;
@@ -170,6 +171,7 @@ private:
     Idr_g00,  Idr_g0r, Idr_grr, // dg_AB/dr 
     Idr_gtt,
     Idot_g00, Idot_g0r, Idot_grr, // dg_AB/dt
+    //TODO 2nd drvts
     NVBackground,
   };
 
