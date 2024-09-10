@@ -382,6 +382,7 @@ void Ejecta::Interp(MeshBlock * pmb)
 
   int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
   LagrangeInterpND<2*NGHOST-1, 3> * pinterp3 = nullptr;
+  LagrangeInterpND<2*NGHOST-1, 3> * pinterpvc3 = nullptr;
 //  LagrangeInterpND<2*NGHOST-1, 3> * pinterp3_fx = nullptr;
 //  LagrangeInterpND<2*NGHOST-1, 3> * pinterp3_fy = nullptr;
 //  LagrangeInterpND<2*NGHOST-1, 3> * pinterp3_fz = nullptr;
@@ -438,6 +439,9 @@ void Ejecta::Interp(MeshBlock * pmb)
   Real origin[NDIM] = {pmb->pcoord->x1v(0), pmb->pcoord->x2v(0), pmb->pcoord->x3v(0)};
   Real delta[NDIM] = {pmb->pcoord->dx1v(0), pmb->pcoord->dx2v(0), pmb->pcoord->dx3v(0)};
   int size[NDIM] = {pmb->ncells1, pmb->ncells2, pmb->ncells3};
+  Real originvc[NDIM] = {pmb->pcoord->x1f(0), pmb->pcoord->x2f(0), pmb->pcoord->x3f(0)};
+  Real deltavc[NDIM] = {pmb->pcoord->dx1f(0), pmb->pcoord->dx2f(0), pmb->pcoord->dx3f(0)};
+  int sizevc[NDIM] = {pmb->nverts1, pmb->nverts2, pmb->nverts3};
 
   Real origin_f[NDIM] = {pmb->pcoord->x1f(0), pmb->pcoord->x2f(0), pmb->pcoord->x3f(0)};
   Real delta_f[NDIM] = {pmb->pcoord->dx1f(0), pmb->pcoord->dx2f(0), pmb->pcoord->dx3f(0)};
@@ -468,6 +472,7 @@ void Ejecta::Interp(MeshBlock * pmb)
       
       // Interpolate
       pinterp3 = new LagrangeInterpND<2*NGHOST-1, 3>(origin, delta, size, coord);
+      pinterpvc3 = new LagrangeInterpND<2*NGHOST-1, 3>(originvc, deltavc, sizevc, coord);
 
       for (int n=0; n<NHYDRO; ++n) {
         prim[n](i,j) = pinterp3->eval(&(prim_[n](0,0,0)));
@@ -496,10 +501,12 @@ void Ejecta::Interp(MeshBlock * pmb)
       }
 
       for (int n=0; n<Z4c::N_ADM; ++n) {
-        adm[n](i,j) = pinterp3->eval(&(adm_[n](0,0,0)));
+        adm[n](i,j) = pinterpvc3->eval(&(vc_adm_[n](0,0,0)));
+//        adm[n](i,j) = pinterp3->eval(&(adm_[n](0,0,0)));
       }
       for (int n=0; n<Z4c::N_Z4c; ++n) {
-        z4c[n](i,j) = pinterp3->eval(&(z4c_[n](0,0,0)));
+        z4c[n](i,j) = pinterpvc3->eval(&(vc_z4c_[n](0,0,0)));
+//        z4c[n](i,j) = pinterp3->eval(&(z4c_[n](0,0,0)));
       }
       other[I_detg](i,j) = SpatialDet(adm[0](i,j), adm[1](i,j), adm[2](i,j),
                                  adm[3](i,j), adm[4](i,j), adm[5](i,j));
@@ -1060,7 +1067,7 @@ void Ejecta::Write(int iter, Real time)
       for (int m=0; m<n_hist; ++m){
         fprintf(pofile_hist_unbound[n][m], "### Time = %g \n", time);
         for(int l = 0; l < n_bins[m]; ++l){
-          fprintf(pofile_hist_unbound[n][m], "%.15e %.15e \n",hist_grid[m](l)+delta_hist[m]/2.0,hist[m](n,l)); //bin value is centre of bin
+            fprintf(pofile_hist_unbound[n][m], "%.15e %.15e \n",hist_grid[m](l)+delta_hist[m]/2.0,hist[m](n,l)); //bin value is centre of bin
 	}
 	fprintf(pofile_hist_unbound[n][m], "\n");
         fflush(pofile_hist_unbound[n][m]);
