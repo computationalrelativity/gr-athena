@@ -72,7 +72,7 @@ private:
   Real dph_grid();
   int TPIndex(const int i, const int j);
   void FlagSpherePointsContained(MeshBlock * pmb);
-  //void SetWeightsIntegral(int method);
+  void SetWeightsIntegral(int method);
   
   //! Functions for spherical harmonics
   int MPoints(const int l);
@@ -88,8 +88,8 @@ private:
   void ComputeSphericalHarmonics();
 
   //! Helper functions
+  Real LeviCivitaSymbol(const int a, const int b, const int c);
   void InterpMetricToSphere(MeshBlock * pmb);
-  //void TransformMetricCarToSph();
   void MasterFuns();
   void MultipolesGaugeInvariant();
   
@@ -162,10 +162,24 @@ private:
   enum{Re, Im, RealImag};
   
   //! Arrays for sphere integrals
+  Real integrals_adm[NVADM];
+  enum {
+    I_ADM_M,
+    I_ADM_Px, I_ADM_Py, I_ADM_Pz,
+    I_ADM_Jx, I_ADM_Jy, I_ADM_Jz, 
+    NVADM,
+  };
+
   Real integrals_background[NVBackground];
   enum {
+    // ADM 
+    I_adm_M,
+    I_adm_Px, I_adm_Py, I_adm_Pz,
+    I_adm_Jx, I_adm_Jy, I_adm_Jz, 
+    // Schw. radius & co
     Irsch2, Idrsch_dri, Id2rsch_dri2, // Areal radius and drvts wrt R
     Idot_rsch2,  Idrsch_dri_dot,
+    // Background 2-metric
     Ig00, Ig0r, Igrr, // g_AB on M^2
     Igrt, Igtt, Igpp,
     Idr_g00,  Idr_g0r, Idr_grr, // dg_AB/dr 
@@ -218,6 +232,7 @@ private:
   // Indexes for basenames of various output files
   enum {
     Iof_diagnostic,// This should be first!
+    Iof_adm, // This should be second!
     Iof_Psie, 
     Iof_Psio, 
     Iof_Psie_dyn, 
