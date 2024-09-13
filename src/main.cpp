@@ -115,6 +115,8 @@ int main(int argc, char *argv[])
   trgs.Add(tvar::Z4c_Weyl, ovar::user, true, true);
   trgs.Add(tvar::Z4c_Weyl, ovar::data, true, true);
 
+  trgs.Add(tvar::Z4c_AHF, ovar::user, true, true);
+
   // now populate requisite task-lists
   gra::tasklist::Collection ptlc { trgs };
   gra::tasklist::PopulateCollection(ptlc, pmesh, pinput);
