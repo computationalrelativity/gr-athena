@@ -54,6 +54,7 @@
 #   -ccache             use caching-compiler (prepend command to chosen compiler)
 #   -rpath              encode the path to the shared libraries into the executable
 #   -link_gold          use gold linker
+#   -efl                enable efl
 #
 # S/AMR:
 #   -cons_bc            use _only_ conserved vars at distinct levels
