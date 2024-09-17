@@ -146,7 +146,8 @@ public:
     Z4c_tracker_punctures,
     Z4c_Weyl,
     Z4c_AHF,
-    Z4c_RWZ
+    Z4c_RWZ,
+    Z4c_CCE
   };
 
   enum class OutputVariant {
@@ -317,6 +318,27 @@ public:
         triggers[MakeTriggerMeta(tvar, ovar)] = tri;
         break;
       }
+      case TriggerVariant::Z4c_CCE:
+      {
+        Real dt = 0;
+        switch (ovar)
+        {
+          case (Triggers::OutputVariant::user):
+          {
+            dt = pin->GetOrAddReal("task_triggers",
+                                   "dt_Z4c_CCE", 0.0);
+            break;
+          }
+          default:
+          {
+            assert(false);
+          }
+        }
+
+        PopulateTrigger(tri, force_first_iter, allow_rescale_dt, dt);
+        triggers[MakeTriggerMeta(tvar, ovar)] = tri;
+        break;
+      }
       default:
       {
         assert(false);
@@ -347,6 +369,11 @@ public:
       }
     }
     return satisfied;
+  }
+
+  Real GetTrigger_dt(TriggerVariant tvar, OutputVariant ovar)
+  {
+    return triggers[MakeTriggerMeta(tvar, ovar)].dt;
   }
 
   // Iterate over triggers, if any registered is allowed to reduce pm->dt then

@@ -379,13 +379,14 @@ TaskStatus GR_Z4c::Z4c_Weyl(MeshBlock *pmb, int stage)
 }
 
 #if CCE_ENABLED
-TaskStatus GR_Z4c::CCEDump(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::CCEDump(MeshBlock *pmb, int stage)
+{
   // only do on last stage
   if (stage != nstages) return TaskStatus::success;
 
   Mesh *pm = pmb->pmy_mesh;
 
-  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.cce_dump))
+  if (trgs.IsSatisfied(TriggerVariant::Z4c_CCE))
   {
     for (auto cce : pm->pcce)
     {

@@ -701,44 +701,36 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
 
 // BD: TODO - CCE needs to be cleaned up & tested
 #if CCE_ENABLED
-      bool cce_update;
-      Real cce_dt;
+  // only do a CCE dump if NextTime threshold cleared (updated below)
+  if (trgs.IsSatisfied(tvar::Z4c_CCE, ovar::user))
+  {
+    Real cce_dt = trgs.GetTrigger_dt(tvar::Z4c_CCE, ovar::user);
 
-      if (!FLUID_ENABLED)
+    // gather all interpolation values from all processors to the root proc.
+    for (auto cce : pmesh->pcce)
+    {
+      cce->ReduceInterpolation();
+    }
+    // number of cce iteration(dump)
+    int cce_iter = static_cast<int>(pmesh->time / cce_dt);
+    int w_iter = 0; // write iter
+
+    // update the bookkeeping file to ensure resuming from the correct iter number
+    // after a restart. note: for a duplicated iter, hdf5 writer gives an error!
+    if ((pmesh->pcce.size() > 0) &&
+        CCE::BookKeeping(pmesh->pcce.front()->output_dir, cce_iter,w_iter))
+    {
+      for (auto cce : pmesh->pcce)
       {
-        cce_update = ptlc.gr_z4c->TaskListTriggers.cce_dump.to_update;
-        cce_dt = ptlc.gr_z4c->TaskListTriggers.cce_dump.dt;
-      } else {
-        cce_update = ptlc.grmhd_z4c->TaskListTriggers.cce_dump.to_update;
-        cce_dt = ptlc.grmhd_z4c->TaskListTriggers.cce_dump.dt;
+        cce->DecomposeAndWrite(w_iter);
       }
-      // only do a CCE dump if NextTime threshold cleared (updated below)
-      if (cce_update) {
-        // gather all interpolation values from all processors to the root proc.
-        for (auto cce : pmesh->pcce)
-        {
-          cce->ReduceInterpolation();
-        }
-        // number of cce iteration(dump)
-        int cce_iter = static_cast<int>(pmesh->time / 
-                                       cce_dt);
-        int w_iter = 0; // write iter
-
-        // update the bookkeeping file to ensure resuming from the correct iter number 
-        // after a restart. note: for a duplicated iter, hdf5 writer gives an error!
-        if (CCE::BookKeeping(pinput,cce_iter,w_iter))
-        {
-          for (auto cce : pmesh->pcce)
-          {
-            cce->DecomposeAndWrite(w_iter);
-          }
-        }
-      }
+    }
+  }
 #endif
 
-  // RWZ wave extraction 
+  // RWZ wave extraction
   //TODO
-      
+
   // AHF
   if (trgs.IsSatisfied(tvar::Z4c_AHF))
   {

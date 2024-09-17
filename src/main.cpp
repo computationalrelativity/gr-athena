@@ -117,6 +117,10 @@ int main(int argc, char *argv[])
 
   trgs.Add(tvar::Z4c_AHF, ovar::user, true, true);
 
+#if CCE_ENABLED
+  trgs.Add(tvar::Z4c_CCE, ovar::user, true, true);
+#endif
+
   // now populate requisite task-lists
   gra::tasklist::Collection ptlc { trgs };
   gra::tasklist::PopulateCollection(ptlc, pmesh, pinput);

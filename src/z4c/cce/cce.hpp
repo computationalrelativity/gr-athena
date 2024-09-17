@@ -22,7 +22,6 @@ class CCE
     Real *ifield; // interpolated values of the given field
     Real *re_f; // the resultant interpolated field after MPI reduction
     std::string fieldname; // field name that used for pittnull code
-    std::string output_dir; // write h5 file in this directory
     std::string bfname; // bookkeeping file name
     bool bitant;          // if bitant symmetry is on, true; otherwise, false.
     Mesh *pm;             // mesh
@@ -42,14 +41,18 @@ class CCE
     Real *xb; // Cart. x coords. for spherical coords.
     Real *yb; // Cart. y coords. for spherical coords.
     Real *zb; // Cart. z coords. for spherical coords.
-    
+
+  public:
+    std::string output_dir; // write h5 file in this directory
+
   public:
     CCE(Mesh *const pm, ParameterInput *const pin, std::string fname, int rn);
     ~CCE();
     void Interpolate(MeshBlock *const pmb);
     void ReduceInterpolation();
     void DecomposeAndWrite(int iter);
-    static bool BookKeeping(ParameterInput *const pin, int cce_iter, int &w_iter);
+    static bool BookKeeping(const std::string &output_dir, int cce_iter,
+                            int &w_iter);
 };
 
 #endif
