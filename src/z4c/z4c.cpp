@@ -349,8 +349,8 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
 
   if (opt.store_metric_drvts)
   {
-    SetAuxAliases(storage.aux, aux);
     storage.aux.NewAthenaArray(N_AUX, mbi.nn3, mbi.nn2, mbi.nn1);
+    SetAuxAliases(storage.aux, aux);
   }
 
 
