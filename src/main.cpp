@@ -107,18 +107,25 @@ int main(int argc, char *argv[])
   typedef Triggers::OutputVariant ovar;
 
   Triggers trgs(pmesh, pinput, pouts);
-  trgs.Add(tvar::tracker_extrema,     ovar::user, true, true);
+  const bool allow_rescale_dt =
+      pinput->GetOrAddBoolean("task_triggers", "adjust_mesh_dt", true);
 
-  trgs.Add(tvar::Z4c_ADM_constraints, ovar::hst,  true, true);
-  trgs.Add(tvar::Z4c_ADM_constraints, ovar::data, true, true);
+  trgs.Add(tvar::tracker_extrema, ovar::user, true, allow_rescale_dt);
 
-  trgs.Add(tvar::Z4c_Weyl, ovar::user, true, true);
-  trgs.Add(tvar::Z4c_Weyl, ovar::data, true, true);
+#if defined(TWO_PUNCTURES)
+  trgs.Add(tvar::Z4c_tracker_punctures, ovar::user, true, allow_rescale_dt);
+#endif
 
-  trgs.Add(tvar::Z4c_AHF, ovar::user, true, true);
+  trgs.Add(tvar::Z4c_ADM_constraints, ovar::hst,  true, allow_rescale_dt);
+  trgs.Add(tvar::Z4c_ADM_constraints, ovar::data, true, allow_rescale_dt);
+
+  trgs.Add(tvar::Z4c_Weyl, ovar::user, true, allow_rescale_dt);
+  trgs.Add(tvar::Z4c_Weyl, ovar::data, true, allow_rescale_dt);
+
+  trgs.Add(tvar::Z4c_AHF, ovar::user, true, allow_rescale_dt);
 
 #if CCE_ENABLED
-  trgs.Add(tvar::Z4c_CCE, ovar::user, true, true);
+  trgs.Add(tvar::Z4c_CCE, ovar::user, true, allow_rescale_dt);
 #endif
 
   // now populate requisite task-lists
