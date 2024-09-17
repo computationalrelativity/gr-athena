@@ -20,7 +20,6 @@
 #   --nextrapolate=xxx  set NEXTRAPOLATE=xxx  [for ouflow conditions]
 #   --nscalars=xxx      set NSCALARS=xxx
 #   --ninterp=xxx       set NGRCV_HSZ=xxx (number of ghosts for intergrid interpolation)
-#   -eos_table          enable EOS table
 #   -f                  enable fluid
 #   -b                  enable magnetic fields
 #   -s                  enable special relativity
