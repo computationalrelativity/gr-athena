@@ -796,7 +796,7 @@ definitions["COORDINATE_SYSTEM"] = makefile_options["COORDINATES_FILE"] = args[
 ]
 
 # --eos=[name] argument
-definitions["NON_BAROTROPIC_EOS"] = "0" if args["eos"] == "isothermal" else "1"
+definitions["NON_BAROTROPIC_EOS"] = "1"
 makefile_options["EOS_FILE"] = args["eos"]
 definitions["EQUATION_OF_STATE"] = args["eos"]
 
@@ -815,11 +815,7 @@ definitions["PRIMITIVE_SOLVER_ADJUST_CONSERVED"] = (
   "PRIMITIVE_SOLVER_ADJUST_CONSERVED"
 )
 
-if args["eos"] == "none":
-  definitions["NHYDRO_VARIABLES"] = "0"
-if args["eos"] == "isothermal":
-  definitions["NHYDRO_VARIABLES"] = "4"
-elif args["eos"] == "adiabatic" or args["eos"] == "adiabatictaudyn_rep":
+if args["eos"] == "adiabatictaudyn_rep":
   definitions["NHYDRO_VARIABLES"] = "5"
   makefile_options["GENERAL_EOS_FILE"] = "ideal"
   definitions["COLDEOS_POLICY"] = "None"
@@ -867,11 +863,7 @@ elif args["eos"] == "eostaudyn_ps":
     definitions["ERROR_POLICY"] = ""
 
 else:
-  definitions["GENERAL_EOS"] = "1"
-  makefile_options["GENERAL_EOS_FILE"] = "general"
-  definitions["NHYDRO_VARIABLES"] = "5"
-  if args["eos"] == "general/eos_table":
-    definitions["EOS_TABLE_ENABLED"] = "1"
+  definitions["NHYDRO_VARIABLES"] = "0"
 
 # --flux=[name] argument
 definitions["RSOLVER"] = makefile_options["RSOLVER_FILE"] = args["flux"]
