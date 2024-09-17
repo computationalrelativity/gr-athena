@@ -492,6 +492,11 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
   // available.
   Real n, P, T, mu;
   bool result = root.FalsePosition(RootFunction, mul, muh, mu, tol, D, q, bsqr, rsqr, rbsqr, Y, peos, &n, &T, &P);
+
+  // debug with toms748
+  // mu = root.toms748_solve(RootFunction, mul, muh, tol, D, q, bsqr, rsqr, rbsqr, Y, peos, &n, &T, &P);
+  // bool result = true;
+
   // WARNING: the reported number of iterations is not thread-safe and should only be trusted
   // on single-thread benchmarks.
   solver_result.iterations = root.iterations;
