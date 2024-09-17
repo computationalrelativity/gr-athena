@@ -11,6 +11,7 @@
 #include <cassert>
 #include <iostream>
 #include <cstring>
+#include <filesystem>
 
 // libsgrid
 // Functions protoypes are "SGRID_*"
@@ -103,6 +104,8 @@ namespace {
   int DNS_call_sgrid(const char *command);
 }
 
+namespace fs = std::filesystem;
+
 // void SGRIDHistory(HistoryData *pdata, Mesh *pm);
 
 //========================================================================================
@@ -154,7 +157,15 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 	      << " not found. This is needed.";
 	  ATHENA_ERROR(msg);
     }
-    // Alloc memory and read data
+    std::string outdir  = pin->GetOrAddString("problem", "outdir", "SGRID");
+    // Check if the directory exists and create it if it doesn't
+    if (!fs::exists(outdir)) {
+        if (!fs::create_directory(outdir)) {
+            std::cerr << "Failed to create directory!" << std::endl;
+        }
+    }
+
+     // Alloc memory and read data
     DNS_init_sgrid(pin);
     // Read SGRID parameters from BNSdata_properties.txt file
     DNS_parameters(pin);
@@ -637,9 +648,9 @@ void DNS_init_sgrid(ParameterInput *pin)
 
   // initialize file names 
   //std::sprintf(gridfile, "%s/grid_level_%d_proc_%d.dat", outdir, level_l, MPIrank);
-  std::sprintf(sgridoutdir, "%s/sgrid_level_%d_proc_%d", outdir, level_l, myrank);
+  std::sprintf(sgridoutdir, "%s/sgrid_level_%d_proc_%d", outdir.c_str(), level_l, myrank);
   std::sprintf(sgridoutdir_previous, "%s/sgrid_level_%d_proc_%d_previous",
-          outdir, level_l, myrank);
+          outdir.c_str(), level_l, myrank);
   std::snprintf(sgridcheckpoint_indir, STRLEN-1, "%s", sgrid_datadir);
   stringptr = std::strrchr(sgrid_datadir, '/'); // find last / 
   if(stringptr==NULL) { // no / found in DNSdataReader_sgrid_datadir 
@@ -746,7 +757,7 @@ int DNS_parameters(ParameterInput *pin)
 
   // Get datadir and remove any trailing "/"
   std::snprintf(datadir, STRLEN-1, "%s",
-	   pin->GetString("problem", "datadir"));
+	   pin->GetString("problem", "datadir").c_str());
   int j = strlen(datadir);
   if(datadir[j-1]=='/')
   {
