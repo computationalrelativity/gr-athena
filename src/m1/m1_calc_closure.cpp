@@ -156,10 +156,12 @@ void ClosureThin(M1 & pm1,
 
   auto val_P_ab = [&](const int a, const int b)
   {
-    const Real fac = (nF2 > 0) ? C.sc_E(k,j,i) / nF2
-                               : 0.0;
-    return fac * C.sp_F_d(a,k,j,i) * C.sp_F_d(b,k,j,i);
+    // const Real fac = (nF2 > 0) ? C.sc_E(k,j,i) / nF2
+    //                            : 0.0;
+    // return fac * C.sp_F_d(a,k,j,i) * C.sp_F_d(b,k,j,i);
 
+    // Re-bracket to avoid underflow issue
+    return (nF2 > 0) ? C.sc_E(k,j,i) * (C.sp_F_d(a,k,j,i) * C.sp_F_d(b,k,j,i) / nF2) : 0.0;
   };
 
   if (populate_scratch)

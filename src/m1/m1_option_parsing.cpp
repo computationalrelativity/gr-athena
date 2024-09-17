@@ -124,7 +124,9 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
       { "semi_implicit_HybridsJMinerbo",
         opt_integration_strategy::semi_implicit_HybridsJMinerbo},
       { "semi_implicit_Hybrids",
-        opt_integration_strategy::semi_implicit_Hybrids}
+        opt_integration_strategy::semi_implicit_Hybrids},
+      { "auto_esi_HybridsJMinerbo",
+        opt_integration_strategy::auto_esi_HybridsJMinerbo},
     };
 
     auto itr = opt_strat.find(GoA_str("strategy", "full_explicit"));

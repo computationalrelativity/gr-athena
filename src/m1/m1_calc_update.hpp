@@ -131,7 +131,7 @@ inline bool ApplyFloors(
   return floor_applied;
 }
 
-// Require \Vert F \Vert_\gamma \leq E
+// Require | F | / E <= 1
 //
 // Enforce this by setting: F_i -> F_i / (\Vert F \Vert_\gamma / E)
 //
@@ -141,6 +141,7 @@ inline bool EnforceCausality(
   M1 & pm1, V & C,
   const int k, const int j, const int i)
 {
+  /*
   const Real norm2F = Assemble::sp_norm2__(C.sp_F_d, pm1.geom.sp_g_uu,
                                            k, j, i);
 
@@ -159,6 +160,32 @@ inline bool EnforceCausality(
   }
 
   return false;
+  */
+
+  bool rescale = false;
+  for (int a=0; a<N; ++a)
+  {
+    if (1 < std::abs(C.sp_F_d(a,k,j,i)) / C.sc_E(k,j,i))
+    {
+      rescale = true;
+    }
+  }
+
+  if (rescale)
+  {
+    const Real norm2F = Assemble::sp_norm2__(C.sp_F_d, pm1.geom.sp_g_uu,
+                                             k, j, i);
+    const Real normF = std::sqrt(norm2F);
+    const Real fac = normF / C.sc_E(k,j,i);
+
+    const Real rfac = 1.0 / (fac + pm1.opt.eps_ec_fac);
+    for (int a=0; a<N; ++a)
+    {
+      C.sp_F_d(a,k,j,i) = C.sp_F_d(a,k,j,i) * rfac;
+    }
+  }
+
+  return rescale;
 }
 
 // ============================================================================
