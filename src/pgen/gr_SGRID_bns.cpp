@@ -166,6 +166,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
     }
 
      // Alloc memory and read data
+    // Alloc memory and read data
     DNS_init_sgrid(pin);
     // Read SGRID parameters from BNSdata_properties.txt file
     DNS_parameters(pin);
