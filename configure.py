@@ -1784,8 +1784,16 @@ if args["z"]:
   str_stem = "filter-out src/task_list"
 
   # task_list/gr
-  str_gr = "$(wildcard src/task_list/gr/*.cpp)"
-  src_aux.append(f"{str_gr}")
+  src_aux.append("src/task_list/gr/task_list_aux_z4c.cpp")
+  src_aux.append("src/task_list/gr/task_list_post_amr_z4c.cpp")
+
+  if args["f"]:
+    src_aux.append("src/task_list/gr/task_list_grmhd_z4c.cpp")
+  else:
+    src_aux.append("src/task_list/gr/task_list_gr_z4c.cpp")
+
+  # str_gr = "$(wildcard src/task_list/gr/*.cpp)"
+  # src_aux.append(f"{str_gr}")
 
   if args["m1"]:
     src_aux.append("$(wildcard src/task_list/m1/task_list_m1n0.cpp)")

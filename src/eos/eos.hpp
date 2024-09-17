@@ -137,6 +137,7 @@ class EquationOfState {
                                    int jl, int ju,
                                    int kl, int ku)
   {
+#if FLUID_ENABLED
     PrimitiveToConserved(prim, bc, cons, pco, il, iu, jl, ju, kl, ku);
 
     if (NSCALARS > 0)
@@ -144,6 +145,7 @@ class EquationOfState {
       PassiveScalarPrimitiveToConserved(prim_scalar, prim, cons_scalar, pco,
                                         il, iu, jl, ju, kl, ku);
     }
+#endif
   }
 
 #endif
