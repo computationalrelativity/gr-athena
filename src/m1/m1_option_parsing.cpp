@@ -223,6 +223,7 @@ void M1::PopulateOptions(ParameterInput *pin)
     opt.eps_J = pin->GetOrAddReal("M1", "eps_J", 1e-10);
     opt.enforce_causality = pin->GetOrAddBoolean(
       "M1", "enforce_causality", true);
+    opt.eps_ec_fac = pin->GetOrAddReal("M1", "eps_ec_fac", 1e-15);
 
     opt.min_flux_A = pin->GetOrAddReal("M1", "min_flux_A", 0);
   }

@@ -155,6 +155,7 @@ public:
     Real eps_E;
     Real eps_J;
     bool enforce_causality;
+    Real eps_ec_fac;
     Real min_flux_A;
 
     // Control the couplings

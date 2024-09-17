@@ -271,6 +271,7 @@ public:
   // This is a quick fix to prevent multiple calls to 'UserWorkInLoop' if
   // TimeIntegratorTaskList and Z4cIntegratorTaskList are both running..
   void WaveUserWorkInLoop();
+  void M1UserWorkInLoop();
 
   // Introduce work that can be registered to execute before postamr hooks
   void UserWorkMeshUpdatedPrePostAMRHooks(ParameterInput *pin);

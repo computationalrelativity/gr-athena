@@ -435,7 +435,7 @@ TaskStatus M1N0::UserWork(MeshBlock *pmb, int stage)
 {
   if (stage != nstages) return TaskStatus::success; // only do on last stage
 
-  pmb->UserWorkInLoop();
+  pmb->M1UserWorkInLoop();
 
 #if !Z4C_ENABLED
   // TODO: BD- this should be shifted to its own task

@@ -993,6 +993,11 @@ void MeshBlock::UserWorkMeshUpdatedPrePostAMRHooks(ParameterInput *pin)
   }
 }
 
+void MeshBlock::M1UserWorkInLoop() {
+  // Placeholder
+  return;
+}
+
 // ============================================================================
 namespace {  // impl. details
 // ============================================================================

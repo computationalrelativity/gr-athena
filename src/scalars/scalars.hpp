@@ -75,8 +75,18 @@ class PassiveScalars {
   Real NewDiffusionDt();
 
   bool SpeciesWithinLimits(AthenaArray<Real> & z_, const int i);
+  void ApplySpeciesLimits(AthenaArray<Real> & z_, const int il, const int iu);
   void ApplySpeciesLimits(AthenaArray<Real> & z_,
-                          const int il, const int iu);
+                          const int i,
+                          const int j,
+                          const int k);
+
+  void FallbackInadmissibleScalarX_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & f_zl_,
+    AthenaArray<Real> & f_zr_,
+    const int il, const int iu, const int I);
 
   void FallbackInadmissibleScalarX1_(
     AthenaArray<Real> & zl_,
@@ -93,6 +103,34 @@ class PassiveScalars {
     const int il, const int iu);
 
   void FallbackInadmissibleScalarX3_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & f_zl_,
+    AthenaArray<Real> & f_zr_,
+    const int il, const int iu);
+
+  void FallbackInadmissibleScalarTableLimitsX_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & f_zl_,
+    AthenaArray<Real> & f_zr_,
+    const int il, const int iu, const int I);
+
+  void FallbackInadmissibleScalarTableLimitsX1_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & f_zl_,
+    AthenaArray<Real> & f_zr_,
+    const int il, const int iu);
+
+  void FallbackInadmissibleScalarTableLimitsX2_(
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    AthenaArray<Real> & f_zl_,
+    AthenaArray<Real> & f_zr_,
+    const int il, const int iu);
+
+  void FallbackInadmissibleScalarTableLimitsX3_(
     AthenaArray<Real> & zl_,
     AthenaArray<Real> & zr_,
     AthenaArray<Real> & f_zl_,

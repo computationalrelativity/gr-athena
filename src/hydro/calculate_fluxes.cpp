@@ -42,7 +42,7 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
     return;
   }
 
-#ifdef DBG_COMBINED_HYDPA
+#if (NSCALARS > 0) & defined(DBG_COMBINED_HYDPA)
   CalculateFluxesCombined(w,b,bcc,order);
   return;
 #endif
@@ -389,8 +389,8 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
                                         ps->r_rl_, ps->r_rr_,
                                         il, iu);
 
-      ps->ApplySpeciesLimits(ps->rl_, il, iu);
-      ps->ApplySpeciesLimits(ps->rr_, il, iu);
+      // ps->ApplySpeciesLimits(ps->rl_, il, iu);
+      // ps->ApplySpeciesLimits(ps->rr_, il, iu);
 
     }
     else
@@ -466,8 +466,8 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
                                           ps->r_rl_, ps->r_rr_,
                                           il, iu);
 
-        ps->ApplySpeciesLimits(ps->rl_, il, iu);
-        ps->ApplySpeciesLimits(ps->rr_, il, iu);
+        // ps->ApplySpeciesLimits(ps->rl_, il, iu);
+        // ps->ApplySpeciesLimits(ps->rr_, il, iu);
 
       }
       else
@@ -518,8 +518,8 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
                                             ps->r_rlb_, ps->r_rr_,
                                             il, iu);
 
-          ps->ApplySpeciesLimits(ps->rlb_, il, iu);
-          ps->ApplySpeciesLimits(ps->rr_,  il, iu);
+          // ps->ApplySpeciesLimits(ps->rlb_, il, iu);
+          // ps->ApplySpeciesLimits(ps->rr_,  il, iu);
 
         }
         else
@@ -608,8 +608,8 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
                                           ps->r_rl_, ps->r_rr_,
                                           il, iu);
 
-        ps->ApplySpeciesLimits(ps->rl_, il, iu);
-        ps->ApplySpeciesLimits(ps->rr_, il, iu);
+        // ps->ApplySpeciesLimits(ps->rl_, il, iu);
+        // ps->ApplySpeciesLimits(ps->rr_, il, iu);
 
       }
       else
@@ -658,8 +658,8 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
                                             ps->r_rlb_, ps->r_rr_,
                                             il, iu);
 
-          ps->ApplySpeciesLimits(ps->rlb_, il, iu);
-          ps->ApplySpeciesLimits(ps->rr_,  il, iu);
+          // ps->ApplySpeciesLimits(ps->rlb_, il, iu);
+          // ps->ApplySpeciesLimits(ps->rr_,  il, iu);
 
         }
         else

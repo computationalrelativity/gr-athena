@@ -179,7 +179,7 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   };
   inline std::vector<BoundaryVariable *> & GetBvarsAux()
   {
-    return bvars_m1;
+    return bvars_aux;
   };
 
   void ApplyPhysicalBoundaries(const Real time, const Real dt,
