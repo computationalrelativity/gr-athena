@@ -126,7 +126,8 @@ public:
                                         semi_implicit_Hybrids,
                                         semi_implicit_HybridsJFrozenP,
                                         semi_implicit_HybridsJMinerbo,
-                                        auto_esi_HybridsJMinerbo};
+                                        auto_esi_HybridsJMinerbo,
+                                        auto_esi_PicardMinerboP};
   enum class opt_fiducial_velocity { fluid, mixed, zero, none };
   enum class opt_characteristics_variety { approximate,
                                            exact_thin,
