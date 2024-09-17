@@ -1917,6 +1917,7 @@ if args["z"]:
     print("  Z4c refinement strategy:      " + ("box-in-box" if args["ref_box_in_box"]
                                                 else "spheres"))
     print("  CCE:                          " + ("ON" if args["cce"] else "OFF"))
+    print("  Ejecta:                       " + ("ON" if args["ejecta"] else "OFF"))
 
 print("  M1 neutrino transport:        " + ("ON" if args["m1"] else "OFF"))
 
