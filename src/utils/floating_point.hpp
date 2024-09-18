@@ -11,6 +11,7 @@
 
 // Athena++ headers
 #include "../defs.hpp"
+#include "../athena_aliases.hpp"
 
 namespace FloatingPoint {
 
@@ -34,6 +35,58 @@ namespace FloatingPoint {
       sum_associative(v111, v112, v121, v211) +
       sum_associative(v122, v221, v212, v222)
     );
+  }
+
+  template<typename T>
+  inline T KB_compensated(
+    AthenaArray<T> & array,
+    const int nl, const int nu,
+    const int kl, const int ku,
+    const int jl, const int ju,
+    const int il, const int iu
+  )
+  {
+    T sum = 0.0;  // accumulator
+    T c = 0.0;    // lost low-order bit compensation
+
+    for (int n=nl; n<=nu; ++n)
+    for (int k=kl; k<=ku; ++k)
+    for (int j=jl; j<=ju; ++j)
+    for (int i=il; i<=iu; ++i)
+    {
+      const T y = array(n,k,j,i) - c;
+      const T t = sum + y;
+
+      // t-sum cancels high-order part of y
+      // subtracting y recovers negative (low part of y)
+      c = (t - sum) - y;
+      sum = t;
+    }
+
+    return sum;
+  }
+
+  template<typename T>
+  inline T KB_compensated(
+    AthenaArray<T> & array,
+    const int il, const int iu
+  )
+  {
+    T sum = 0.0;  // accumulator
+    T c = 0.0;    // lost low-order bit compensation
+
+    for (int i=il; i<=iu; ++i)
+    {
+      const T y = array(i) - c;
+      const T t = sum + y;
+
+      // t-sum cancels high-order part of y
+      // subtracting y recovers negative (low part of y)
+      c = (t - sum) - y;
+      sum = t;
+    }
+
+    return sum;
   }
 
 } // namespace FloatingPoint
