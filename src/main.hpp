@@ -3,7 +3,9 @@
 
 
 // C++ headers
+#include "athena_aliases.hpp"
 #include <ctime>      // clock(), CLOCKS_PER_SEC, clock_t
+#include <iomanip>
 #include <iostream>   // cout, endl
 
 // External libraries
@@ -383,6 +385,8 @@ inline void InitMeshData(Flags *pfl, ParameterInput *pin, Mesh *pm)
   {
     pm->Initialize(pfl->res, pin);
     pm->DeleteTemporaryUserMeshData();
+    // Initial variables for rescaling computed, do not recompute later
+    pm->opt_rescaling.initialized = true;
   }
   catch(std::bad_alloc& ba)
   {
@@ -658,11 +662,17 @@ inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
     // Iterate bnd comm. as required
     pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
 
+    if (stage == ptlc.grmhd_z4c->nstages)
+    {
+      // Rescale as required
+      pmesh->Rescale_Conserved();
+    }
+
 #ifdef DBG_SCATTER_MATTER_GRMHD
     pmesh->ScatterMatter(pmb_array);
 #endif
-
   }
+
 }
 
 inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,

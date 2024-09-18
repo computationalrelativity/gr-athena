@@ -70,6 +70,8 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     }
   }
 
+  int ix_cons_dens, ix_cons_scalar;
+
   // Loop over MeshBlocks
   while (pmb != nullptr) {
     Hydro *phyd = pmb->phydro;
@@ -94,6 +96,8 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
             Real& u_mx = phyd->u(IM1,k,j,i);
             Real& u_my = phyd->u(IM2,k,j,i);
             Real& u_mz = phyd->u(IM3,k,j,i);
+
+            if (pm->opt_rescaling.conserved_hydro) { ix_cons_dens = isum; }
 
             hst_data[isum++] += vol(i)*u_d;
             hst_data[isum++] += vol(i)*u_mx;
@@ -122,6 +126,8 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
             for (int n=0; n<NSCALARS; n++) {
               Real& s = psclr->s(n,k,j,i);
               // constexpr int prev_out = NHYDRO + 3 + NFIELD;
+
+              if (pm->opt_rescaling.conserved_scalars) { ix_cons_scalar = isum; }
               hst_data[isum++] += vol(i)*s;
             }
           }
@@ -217,6 +223,23 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     }
   }
 #endif
+
+  // use also compensated summation when computing hst and adjusting cons. ----
+  if (pm->opt_rescaling.conserved_hydro)
+  {
+    pm->CS_ConservedDensity(hst_data[ix_cons_dens]);
+  }
+
+  if (pm->opt_rescaling.conserved_scalars)
+  {
+    AA s(NSCALARS);
+    pm->CS_ConservedScalars(s);
+    for (int n=0; n<NSCALARS; ++n)
+    {
+      hst_data[ix_cons_scalar+n] = s(n);
+    }
+  }
+  // --------------------------------------------------------------------------
 
   // only the master rank writes the file
   // create filename: "file_basename" + ".hst".  There is no file number.
