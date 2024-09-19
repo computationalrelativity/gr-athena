@@ -35,6 +35,7 @@
 // Athena++ headers
 #include "defs.hpp"
 #include "main.hpp"
+#include "globals.hpp"
 #include "main_triggers.hpp"
 
 //-----------------------------------------------------------------------------

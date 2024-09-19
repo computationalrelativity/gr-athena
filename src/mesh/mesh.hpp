@@ -500,6 +500,11 @@ class Mesh {
 
   inline int GetRootLevel() { return root_level; }
 
+  bool GetGlobalGridGeometry(AthenaArray<Real> & x_min,
+                             AthenaArray<Real> & x_max,
+                             AthenaArray<Real> & dx_min,
+                             AthenaArray<Real> & dx_max);
+
   void CommunicateConserved(std::vector<MeshBlock*> & pmb_array);
   void CommunicatePrimitives(std::vector<MeshBlock*> & pmb_array);
 
@@ -564,6 +569,15 @@ class Mesh {
     Real err_rel_hydro;
     Real err_rel_scalars;
   } opt_rescaling;
+
+  // for convenience store some global geometric quantities
+  struct {
+    AthenaArray<Real> x_min;
+    AthenaArray<Real> x_max;
+    AthenaArray<Real> dx_min;
+    AthenaArray<Real> dx_max;
+  } M_info;
+  bool diagnostic_grid_updated; // set to false in  OutputCycleDiagnostics
 
  private:
   // data

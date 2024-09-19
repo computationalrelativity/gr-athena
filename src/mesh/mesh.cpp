@@ -613,6 +613,12 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     rs_ini_s.NewAthenaArray(NSCALARS);
     rs_fin_s.NewAthenaArray(NSCALARS);
   }
+
+  // storage for Mesh info struct
+  M_info.x_min.NewAthenaArray(ndim);
+  M_info.x_max.NewAthenaArray(ndim);
+  M_info.dx_min.NewAthenaArray(ndim);
+  M_info.dx_max.NewAthenaArray(ndim);
 }
 
 //----------------------------------------------------------------------------------------
@@ -1056,6 +1062,12 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     rs_ini_s.NewAthenaArray(NSCALARS);
     rs_fin_s.NewAthenaArray(NSCALARS);
   }
+
+  // storage for Mesh info struct
+  M_info.x_min.NewAthenaArray(ndim);
+  M_info.x_max.NewAthenaArray(ndim);
+  M_info.dx_min.NewAthenaArray(ndim);
+  M_info.dx_max.NewAthenaArray(ndim);
 }
 
 //----------------------------------------------------------------------------------------
@@ -1746,6 +1758,11 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
     }
   }
 
+  // Whenever we initialize the Mesh, we record global properties
+  const bool res = GetGlobalGridGeometry(M_info.x_min, M_info.x_max,
+                                         M_info.dx_min, M_info.dx_max);
+
+  diagnostic_grid_updated = res || diagnostic_grid_updated;
   return;
 }
 
@@ -1944,7 +1961,8 @@ FluidFormulation GetFluidFormulation(const std::string& input_string) {
 }
 
 void Mesh::OutputCycleDiagnostics() {
-  const int dt_precision = std::numeric_limits<Real>::max_digits10 - 1;
+  const int Real_prec = std::numeric_limits<Real>::max_digits10 - 1;
+  const int dt_precision = Real_prec;
   const int ratio_precision = 3;
   if (ncycle_out != 0) {
     if (ncycle % ncycle_out == 0) {
@@ -1952,17 +1970,36 @@ void Mesh::OutputCycleDiagnostics() {
                 << std::setprecision(dt_precision)
                 << " time=" << time << " dt=" << dt;
 
-      if (adaptive)
+      if (step_since_lb == 0)
       {
-        std::cout << "\nNumber of MeshBlocks=" << nbtotal
-                  << "; created=" << nbnew
-                  << "; destroyed=" << nbdel;
-                  // << std::scientific << std::setprecision(dt_precision)
-                  // << "; time=" << time;
-      }
-      else if (ncycle==0)
-      {
-        std::cout << "\nNumber of MeshBlocks=" << nbtotal;
+        std::cout << "\nTree changed: MeshBlocks=" << nbtotal;
+        if (adaptive)
+        {
+          std::cout << "; created=" << nbnew << "; destroyed=" << nbdel;
+        }
+
+        if (diagnostic_grid_updated)
+        {
+          std::cout << "\nGrid global properties changed:";
+
+          std::cout << std::setprecision(Real_prec);
+          for (int n=0; n<ndim; ++n)
+          {
+            std::cout << "\nx_min(" << n << "); " << M_info.x_min(n);
+            std::cout << "\nx_max(" << n << "); " << M_info.x_max(n);
+          }
+
+          for (int n=0; n<ndim; ++n)
+          {
+            std::cout << "\ndx_min(" << n << "); " << M_info.dx_min(n);
+            std::cout << "\ndx_max(" << n << "); " << M_info.dx_max(n);
+          }
+          diagnostic_grid_updated = false;
+        }
+        // else
+        // {
+        //   std::cout << "; GridGlobals unchanged.";
+        // }
       }
 
       if (dt_diagnostics != -1) {
@@ -1991,6 +2028,17 @@ void Mesh::OutputCycleDiagnostics() {
     }
   }
   return;
+
+
+  // if (Globals::my_rank == 0)
+  // {
+  //   pmesh->M_info.x_min.print_all();
+  //   pmesh->M_info.x_max.print_all();
+  //   pmesh->M_info.dx_min.print_all();
+  //   pmesh->M_info.dx_max.print_all();
+  //   std::exit(0);
+  // }
+
 }
 
 
@@ -2235,4 +2283,121 @@ void Mesh::Rescale_Conserved()
     }
   }
 
+}
+
+bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
+                                 AthenaArray<Real> & x_max,
+                                 AthenaArray<Real> & dx_min,
+                                 AthenaArray<Real> & dx_max)
+{
+  int nmb = -1;
+  std::vector<MeshBlock*> pmb_array;
+  // initialize a vector of MeshBlock pointers
+  GetMeshBlocksMyRank(pmb_array);
+  nmb = pmb_array.size();
+
+  bool grid_updated = false;
+
+  AthenaArray<Real> dx_min_old(ndim);
+  AthenaArray<Real> dx_max_old(ndim);
+
+  for (int n=0; n<ndim; ++n)
+  {
+    dx_min_old(n) = dx_min(n);
+    dx_max_old(n) = dx_max(n);
+  }
+
+  for (int n=0; n<ndim; ++n)
+  {
+    dx_min(n) = std::numeric_limits<Real>::infinity();
+    dx_max(n) = -dx_min(n);
+  }
+
+  switch (ndim)
+  {
+    case 3:
+    {
+      x_min(2) = mesh_size.x3min;
+      x_max(2) = mesh_size.x3max;
+
+      for (int i = 0; i < nmb; ++i)
+      {
+        MeshBlock *pmb = pmb_array[i];
+
+        for (int ix=0; ix<pmb->ncells3-1; ++ix)
+        {
+          dx_min(2) = std::min(dx_min(2), pmb->pcoord->dx3v(ix));
+          dx_max(2) = std::max(dx_max(2), pmb->pcoord->dx3v(ix));
+        }
+      }
+    }
+    case 2:
+    {
+      x_min(1) = mesh_size.x2min;
+      x_max(1) = mesh_size.x2max;
+
+      for (int i = 0; i < nmb; ++i)
+      {
+        MeshBlock *pmb = pmb_array[i];
+
+        for (int ix=0; ix<pmb->ncells2-1; ++ix)
+        {
+          dx_min(1) = std::min(dx_min(1), pmb->pcoord->dx2v(ix));
+          dx_max(1) = std::max(dx_max(1), pmb->pcoord->dx2v(ix));
+        }
+      }
+
+    }
+    case 1:
+    {
+      x_min(0) = mesh_size.x1min;
+      x_max(0) = mesh_size.x1max;
+
+      for (int i = 0; i < nmb; ++i)
+      {
+        MeshBlock *pmb = pmb_array[i];
+
+        for (int ix=0; ix<pmb->ncells1-1; ++ix)
+        {
+          dx_min(0) = std::min(dx_min(0), pmb->pcoord->dx1v(ix));
+          dx_max(0) = std::max(dx_max(0), pmb->pcoord->dx1v(ix));
+        }
+      }
+
+      break;
+    }
+    default:
+    {
+      assert(false);
+    }
+  }
+
+#ifdef MPI_PARALLEL
+  int rank;
+
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  if (Globals::my_rank == 0)
+  {
+    MPI_Reduce(MPI_IN_PLACE, dx_min.data(), ndim, MPI_ATHENA_REAL, MPI_MIN, 0,
+               MPI_COMM_WORLD);
+    MPI_Reduce(MPI_IN_PLACE, dx_max.data(), ndim, MPI_ATHENA_REAL, MPI_MAX, 0,
+               MPI_COMM_WORLD);
+  }
+  else
+  {
+    MPI_Reduce(dx_min.data(), dx_min.data(), ndim, MPI_ATHENA_REAL, MPI_MIN, 0,
+               MPI_COMM_WORLD);
+    MPI_Reduce(dx_max.data(), dx_max.data(), ndim, MPI_ATHENA_REAL, MPI_MAX, 0,
+               MPI_COMM_WORLD);
+  }
+#endif
+
+  for (int n=0; n<ndim; ++n)
+  {
+    grid_updated = grid_updated || (dx_min(n) != dx_min_old(n));
+    grid_updated = grid_updated || (dx_max(n) != dx_max_old(n));
+  }
+
+  return grid_updated;
 }

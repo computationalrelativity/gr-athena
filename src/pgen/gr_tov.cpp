@@ -1503,6 +1503,7 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
                              sp_K_dd_.is_finite());
       if (!geom_fin)
       {
+        std::cout << "TOV geometry not finite!" << std::endl;
         alpha_.array().print_all("%.1e");
         psi4_.array().print_all("%.1e");
         sp_beta_u_.array().print_all("%.1e");
