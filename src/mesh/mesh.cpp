@@ -1588,6 +1588,9 @@ void Mesh::ApplyUserWorkMeshUpdatedPrePostAMRHooks(ParameterInput *pin) {
 
 void Mesh::Initialize(int res_flag, ParameterInput *pin)
 {
+  std::cout << "Initialize:" << opt_rescaling.conserved_hydro << std::endl;
+
+
   bool iflag = true;
   int inb = nbtotal;
   int nthreads = GetNumMeshThreads();
@@ -1701,7 +1704,14 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
     {
       iflag = false;
       int onb = nbtotal;
-      LoadBalancingAndAdaptiveMeshRefinement(pin);
+      bool mesh_updated = LoadBalancingAndAdaptiveMeshRefinement(pin);
+
+      if (mesh_updated)
+      {
+        GetMeshBlocksMyRank(pmb_array);
+        nmb = pmb_array.size();
+      }
+
       if (nbtotal == onb) {
         iflag = true;
       } else if (nbtotal < onb && Globals::my_rank == 0) {
@@ -1996,10 +2006,6 @@ void Mesh::OutputCycleDiagnostics() {
           }
           diagnostic_grid_updated = false;
         }
-        // else
-        // {
-        //   std::cout << "; GridGlobals unchanged.";
-        // }
       }
 
       if (dt_diagnostics != -1) {
@@ -2028,17 +2034,6 @@ void Mesh::OutputCycleDiagnostics() {
     }
   }
   return;
-
-
-  // if (Globals::my_rank == 0)
-  // {
-  //   pmesh->M_info.x_min.print_all();
-  //   pmesh->M_info.x_max.print_all();
-  //   pmesh->M_info.dx_min.print_all();
-  //   pmesh->M_info.dx_max.print_all();
-  //   std::exit(0);
-  // }
-
 }
 
 
@@ -2234,7 +2229,6 @@ void Mesh::Rescale_Conserved()
       CC_GLOOP1(i)
       {
         pmb->phydro->u(n,k,j,i) *= rsc_D;
-        pmb->phydro->w(n,k,j,i) *= rsc_D;
       }
     }
   }
@@ -2255,7 +2249,6 @@ void Mesh::Rescale_Conserved()
         CC_GLOOP3(k, j, i)
         {
           pmb->pscalars->s(n,k,j,i) *= rsc_s;
-          pmb->pscalars->r(n,k,j,i) *= rsc_s;
         }
 
       }
@@ -2266,10 +2259,12 @@ void Mesh::Rescale_Conserved()
   if (opt_rescaling.verbose)
   if (Globals::my_rank == 0)
   {
-    std::cout << std::setprecision(2);
+    std::cout << std::setprecision(5);
     if (opt_rescaling.conserved_hydro)
     {
       const Real rsc_D = rs_ini_D / rs_fin_D;
+      std::cout << GetNumMeshBlocksThisRank(Globals::my_rank) << std::endl;
+      std::cout << rs_ini_D << ", " << rs_fin_D << std::endl;
       std::cout << (1 - rsc_D) << std::endl;
     }
 
