@@ -1788,11 +1788,11 @@ if args["z"]:
 
   if args["m1"]:
     src_aux.append("$(wildcard src/task_list/m1/task_list_m1n0.cpp)")
-
+    src_aux.append("$(wildcard src/task_list/m1/task_list_post_amr_m1n0.cpp)")
 
 elif args["w"]:
   src_aux.append(
-    "$(wildcard src/task_list/wave_equations/task_list_wave_2o.cpp)"
+    "$(wildcard src/task_list/wave_equations/task_list_wave_2o.cpp)",
   )
 
 elif args["m1"]:
