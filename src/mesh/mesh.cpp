@@ -1588,9 +1588,6 @@ void Mesh::ApplyUserWorkMeshUpdatedPrePostAMRHooks(ParameterInput *pin) {
 
 void Mesh::Initialize(int res_flag, ParameterInput *pin)
 {
-  std::cout << "Initialize:" << opt_rescaling.conserved_hydro << std::endl;
-
-
   bool iflag = true;
   int inb = nbtotal;
   int nthreads = GetNumMeshThreads();
@@ -1706,14 +1703,14 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
       int onb = nbtotal;
       bool mesh_updated = LoadBalancingAndAdaptiveMeshRefinement(pin);
 
-      if (mesh_updated)
+      if (nbtotal == onb)
       {
-        GetMeshBlocksMyRank(pmb_array);
-        nmb = pmb_array.size();
-      }
-
-      if (nbtotal == onb) {
         iflag = true;
+        if (mesh_updated)
+        {
+          GetMeshBlocksMyRank(pmb_array);
+          nmb = pmb_array.size();
+        }
       } else if (nbtotal < onb && Globals::my_rank == 0) {
         std::cout << "### Warning in Mesh::Initialize" << std::endl
                   << "The number of MeshBlocks decreased during AMR grid "
@@ -1753,7 +1750,11 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
   // --------------------------------------------------------------------------
 
   NewTimeStep();
+  return;
+}
 
+void Mesh::InitializePostFirstInitialize(ParameterInput *pin)
+{
   // Initial variables for rescaling computed if not yet initialized
   if (!opt_rescaling.initialized)
   {
@@ -1768,12 +1769,26 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
     }
   }
 
+  // Initial variables for rescaling computed, do not recompute later
+  opt_rescaling.initialized = true;
+
   // Whenever we initialize the Mesh, we record global properties
   const bool res = GetGlobalGridGeometry(M_info.x_min, M_info.x_max,
                                          M_info.dx_min, M_info.dx_max);
 
   diagnostic_grid_updated = res || diagnostic_grid_updated;
-  return;
+}
+
+void Mesh::InitializePostMainUpdatedMesh(ParameterInput *pin)
+{
+  // Rescale as required
+  Rescale_Conserved();
+
+  // Whenever we initialize the Mesh, we record global properties
+  const bool res = GetGlobalGridGeometry(M_info.x_min, M_info.x_max,
+                                         M_info.dx_min, M_info.dx_max);
+
+  diagnostic_grid_updated = res || diagnostic_grid_updated;
 }
 
 //----------------------------------------------------------------------------------------
@@ -2077,20 +2092,29 @@ Real Mesh::CompensatedSummation(
   const int il, const int iu,
   const bool volume_weighted)
 {
-  MeshBlock const * pmb = pblock;
-  const int nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
+  int nthreads = GetNumMeshThreads();
+  (void)nthreads;
+
+  int nmb = -1;
+  std::vector<MeshBlock*> pmb_array;
+
+  GetMeshBlocksMyRank(pmb_array);
+  nmb = pmb_array.size();
+
   AA partial_KBN(nmb);
 
-  AA arr;
-  AA warr;
-  if (volume_weighted)
+  #pragma omp parallel for num_threads(nthreads)
+  for (int ix = 0; ix < nmb; ++ix)
   {
-    warr.NewAthenaArray(ku+1, ju+1, iu+1);
-  }
+    MeshBlock *pmb = pmb_array[ix];
 
-  int i = 0;
-  while (pmb != NULL)
-  {
+    AA arr;
+    AA warr;
+    if (volume_weighted)
+    {
+      warr.NewAthenaArray(ku+1, ju+1, iu+1);
+    }
+
     switch (v_cs)
     {
       case variety_cs::conserved_density:
@@ -2115,7 +2139,7 @@ Real Mesh::CompensatedSummation(
       for (int j=jl; j<=ju; ++j)
       for (int i=il; i<=iu; ++i)
       {
-        warr(k,j,i) = pmb->pcoord->GetCellVolume(k,j,i) * arr(k,j,i);
+        warr(k,j,i) = pmb->pcoord->GetCellVolume(k,j,i) * arr(0,k,j,i);
       }
     }
     else
@@ -2123,26 +2147,24 @@ Real Mesh::CompensatedSummation(
       warr.InitWithShallowSlice(arr, 4, 0, 1);
     }
 
-    partial_KBN(i) = FloatingPoint::KB_compensated(
+    partial_KBN(ix) = FloatingPoint::KB_compensated(
       warr, 0, 0,
       kl, ku, jl, ju, il, iu
     );
 
-    ++i;
     pmb = pmb->next;
   }
 
-  return FloatingPoint::KB_compensated(partial_KBN, 0, nmb);
+  return FloatingPoint::KB_compensated(partial_KBN, 0, nmb-1);
 }
 
 void Mesh::CS_ConservedDensity(Real & mass)
 {
-  MeshBlock const *pmb = pblock;
+  MeshBlock *pmb = pblock;
   const bool volume_weighted = true;
   mass = CompensatedSummation(Mesh::variety_cs::conserved_density, 0, pmb->ks,
                               pmb->ke, pmb->js, pmb->je, pmb->is, pmb->ie,
                               volume_weighted);
-
 
 #ifdef MPI_PARALLEL
   const int rank_root = 0;
@@ -2263,8 +2285,6 @@ void Mesh::Rescale_Conserved()
     if (opt_rescaling.conserved_hydro)
     {
       const Real rsc_D = rs_ini_D / rs_fin_D;
-      std::cout << GetNumMeshBlocksThisRank(Globals::my_rank) << std::endl;
-      std::cout << rs_ini_D << ", " << rs_fin_D << std::endl;
       std::cout << (1 - rsc_D) << std::endl;
     }
 

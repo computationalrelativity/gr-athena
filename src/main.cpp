@@ -203,6 +203,10 @@ int main(int argc, char *argv[])
     pmesh->step_since_lb++;   // steps since load-balance
 
     bool mesh_updated = pmesh->LoadBalancingAndAdaptiveMeshRefinement(pinput);
+    if (mesh_updated)
+    {
+      pmesh->InitializePostMainUpdatedMesh(pinput);
+    }
 
     // Post AMR hook;
     // While state vectors are suitably populated on the blocks, other derived

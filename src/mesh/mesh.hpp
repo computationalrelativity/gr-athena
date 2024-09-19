@@ -469,6 +469,14 @@ class Mesh {
   void GetMeshBlocksMyRank(std::vector<MeshBlock*> & pmb_array);
 
   void Initialize(int res_flag, ParameterInput *pin);
+
+  // Additional initialization logic:
+  // This is called after "Initialize" in the InitMeshData call
+  void InitializePostFirstInitialize(ParameterInput *pin);
+  // This is called after LoadBalancingAndAdaptiveMeshRefinement returns true
+  // in main integration loop
+  void InitializePostMainUpdatedMesh(ParameterInput *pin);
+
   void SetBlockSizeAndBoundaries(LogicalLocation loc, RegionSize &block_size,
                                  BoundaryFlag *block_bcs);
 

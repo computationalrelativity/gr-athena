@@ -384,9 +384,8 @@ inline void InitMeshData(Flags *pfl, ParameterInput *pin, Mesh *pm)
   try
   {
     pm->Initialize(pfl->res, pin);
+    pm->InitializePostFirstInitialize(pin);
     pm->DeleteTemporaryUserMeshData();
-    // Initial variables for rescaling computed, do not recompute later
-    pm->opt_rescaling.initialized = true;
   }
   catch(std::bad_alloc& ba)
   {
