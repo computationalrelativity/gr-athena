@@ -119,7 +119,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
                    UniformMeshGeneratorX3},
     BoundaryFunction_{nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
     AMRFlag_{}, UserSourceTerm_{}, UserTimeStep_{}, ViscosityCoeff_{},
-    ConductionCoeff_{}, FieldDiffusivity_{}
+    ConductionCoeff_{}, FieldDiffusivity_{},efl_it_count(0)
 {
 
   std::stringstream msg;

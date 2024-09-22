@@ -34,6 +34,7 @@
 #include "task_list/gr/task_list.hpp"
 #include "task_list/m1/task_list.hpp"
 #include "task_list/wave_equations/task_list.hpp"
+#include "task_list/gr/efl_task_list.hpp"
 #include "utils/utils.hpp"
 
 #include "z4c/wave_extract.hpp"
@@ -670,6 +671,9 @@ struct Collection
   TaskLists::M1::PostAMR_M1N0               * postamr_m1n0 = nullptr;
 
   TaskLists::WaveEquations::Wave_2O         * wave_2o      = nullptr;
+#if EFL_ENABLED
+  EFLTaskList                               * pefltasklist = nullptr;
+#endif
 };
 
 inline void PopulateCollection(Collection &ptlc,
@@ -692,6 +696,9 @@ inline void PopulateCollection(Collection &ptlc,
         ptlc.grmhd_z4c_MHD_com = new GRMHD_Z4c_Phase_MHD_com(pin, pm, ptlc.trgs);
         ptlc.grmhd_z4c_Z4c = new GRMHD_Z4c_Phase_Z4c(pin, pm, ptlc.trgs);
         ptlc.grmhd_z4c_Fin = new GRMHD_Z4c_Phase_Finalize(pin, pm, ptlc.trgs);
+#if EFL_ENABLED
+        ptlc.pefltasklist = new EFLTaskList(pin, pm);
+#endif
       }
       else
       {
@@ -741,6 +748,9 @@ inline void TearDown(Collection &ptlc)
       delete ptlc.grmhd_z4c_MHD_com;
       delete ptlc.grmhd_z4c_Z4c;
       delete ptlc.grmhd_z4c_Fin;
+#if EFL_ENABLED
+      delete ptlc.pefltasklist;
+#endif
     }
     else
     {
@@ -786,11 +796,17 @@ inline void Z4c_Vacuum(gra::tasklist::Collection &ptlc,
 }
 
 inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
-                      Mesh *pmesh)
+                      Mesh *pmesh,const bool &efl_in)
 {
 #ifdef DBG_SCATTER_MATTER_GRMHD
   std::vector<MeshBlock*> pmb_array;
   pmesh->GetMeshBlocksMyRank(pmb_array);
+#endif
+#if EFL_ENABLED
+  if(EFL_ENABLED && !efl_in){
+    ptlc.pefltasklist->DoTaskListOneStage(pmesh,1);
+    pmesh->efl_it_count+=1;
+  } 
 #endif
 
   for (int stage=1; stage<=ptlc.grmhd_z4c->nstages; ++stage)
@@ -827,6 +843,15 @@ inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
                                 stage);
     }
 #endif
+#if EFL_ENABLED
+    if(EFL_ENABLED && efl_in ){
+      ptlc.pefltasklist->DoTaskListOneStage(pmesh,stage);
+      pmesh->efl_it_count+=1;
+    }
+#endif
+    ptlc.grmhd_z4c->DoTaskListOneStage(pmesh, stage);
+    // Iterate bnd comm. as required
+    pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
 
 #ifdef DBG_SCATTER_MATTER_GRMHD
     pmesh->ScatterMatter(pmb_array);

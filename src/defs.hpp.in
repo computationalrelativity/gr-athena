@@ -147,6 +147,9 @@
 // include magnetic fields? default=0 (false)
 #define MAGNETIC_FIELDS_ENABLED @MAGNETIC_FIELDS_ENABLED@
 
+// include Entropy flux limiter? default=0 (false)
+#define EFL_ENABLED @EFL_ENABLED@
+
 // include super-time-stepping? default=0 (false)
 #define STS_ENABLED @STS_ENABLED@
 

@@ -20,6 +20,8 @@
 #   --nextrapolate=xxx  set NEXTRAPOLATE=xxx  [for ouflow conditions]
 #   --nscalars=xxx      set NSCALARS=xxx
 #   --ninterp=xxx       set NGRCV_HSZ=xxx (number of ghosts for intergrid interpolation)
+#   -eos_table          enable EOS table
+#   -efl                enable Entropy Flux Limiter
 #   -f                  enable fluid
 #   -b                  enable magnetic fields
 #   -s                  enable special relativity
@@ -264,6 +266,12 @@ parser.add_argument(
   default="2",
   help="set number of ghost zones for intergrid interpolation",
 )
+
+# -efl argument
+parser.add_argument('-efl',
+                    action ='store_true',
+                    default=False,
+                    help ='enable entropy flux limiter')
 
 # -hybridinterp argument
 parser.add_argument(
@@ -735,6 +743,11 @@ if args['flux'] == 'default':
     else:
         args['flux'] = 'hllc'
 
+# Check EFL compatibility
+if args['efl']:
+    if not args['f'] :
+        raise SystemExit('### CONFIGURE ERROR: EFL cannot be used without Hydrodynamics')
+
 # Check Riemann solver compatibility
 if args['flux'] == 'hllc' and args['eos'] == 'isothermal':
     raise SystemExit('### CONFIGURE ERROR: HLLC flux cannot be used with isothermal EOS')
@@ -917,6 +930,17 @@ else:
 # -f argument
 if args["f"]:
   definitions["FLUID_ENABLED"] = "1"
+#-efl argument
+  if args['efl']:
+      definitions['EFL_ENABLED'] = '1'
+      makefile_options['HO_FlUX'] = 'Rusanov'
+      if args['b']:
+          makefile_options['HO_FlUX'] += '_mhd'
+      if args['s'] or args['g'] :
+          makefile_options['HO_FlUX'] += '_rel'
+  else:
+      definitions['EFL_ENABLED'] = '0'
+      makefile_options['HO_FlUX']=''
 else:
   definitions["FLUID_ENABLED"] = "0"
 
@@ -941,6 +965,8 @@ if args["f"]:
     "$(wildcard src/reconstruct/recon*.cpp)",
     "$(wildcard src/scalars/*.cpp)",
   ]
+  if args['efl']:
+    aux.append("src/hydro/rsolvers/$(RSOLVER_DIR)$(HO_FlUX)")
   makefile_options["HYDRO_DEPENDENT_SRC"] = "\\\n".join(aux)
 
 else:
@@ -1962,6 +1988,9 @@ makefile_options["COORDINATES_FILE"] += ".cpp"
 makefile_options["EOS_FILE"] += ".cpp"
 makefile_options["GENERAL_EOS_FILE"] += ".cpp"
 makefile_options["RSOLVER_FILE"] += ".cpp"
+if args['f'] and args['efl']:
+    makefile_options['HO_FlUX'] += '.cpp'
+
 
 # Read templates
 with open(defsfile_input, "r") as current_file:
@@ -2017,6 +2046,7 @@ print("  Coordinate system:            " + args["coord"])
 print("  Equation of state:            " + args["eos"])
 print("  Riemann solver:               " + args["flux"])
 print("  Hydrodynamics:                " + ("ON" if args["f"] else "OFF"))
+print("  Entropy Flux Limiter:         " + ('ON' if args['efl'] else 'OFF'))
 print("  Magnetic fields:              " + ("ON" if args["b"] else "OFF"))
 print("  Number of scalars:            " + args["nscalars"])
 print("  Special relativity:           " + ("ON" if args["s"] else "OFF"))

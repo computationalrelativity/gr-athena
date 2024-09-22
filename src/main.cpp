@@ -154,6 +154,10 @@ int main(int argc, char *argv[])
     "task_triggers", "adjust_mesh_dt", true
   );
 
+  //EFL
+  const bool get_efl_in = pinput->GetOrAddBoolean("hydro", 
+  "efl_in", false);
+
   while ((pmesh->time < pmesh->tlim) &&
          (pmesh->nlim < 0 || pmesh->ncycle < pmesh->nlim))
   {
@@ -194,7 +198,7 @@ int main(int argc, char *argv[])
         }
         else
         {
-          gra::evolve::Z4c_GRMHD(ptlc, pmesh);
+          gra::evolve::Z4c_GRMHD(ptlc, pmesh,get_efl_in);
         }
       }
       else

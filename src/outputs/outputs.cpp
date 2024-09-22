@@ -867,6 +867,15 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     LoadOutputDataMagneticFields(pmb, this, pod, num_vars_);
   }
 
+  if (output_params.variable.compare("prim") == 0) {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = "ef_limiter";
+    pod->data.InitWithShallowSlice(phyd->ef_limiter[X1DIR], 4, 0, 1);
+    AppendOutputDataNode(pod);
+    num_vars_++;
+    }
+
   // (lab-frame) density
   if (output_params.variable.compare("D") == 0 ||
       output_params.variable.compare("cons") == 0) {

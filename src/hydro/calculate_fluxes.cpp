@@ -43,6 +43,14 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
   }
 
 #if (NSCALARS > 0) & defined(DBG_COMBINED_HYDPA)
+#if EFL_ENABLED
+  AthenaArray<Real> &x1flux_HO = flux_HO[X1DIR];
+  AthenaArray<Real> &x2flux_HO = flux_HO[X2DIR];
+  AthenaArray<Real> &x3flux_HO = flux_HO[X3DIR];
+  RusanovFlux(w,u,x1flux_HO,x2flux_HO,x3flux_HO);
+#endif
+
+#ifdef DBG_COMBINED_HYDPA
   CalculateFluxesCombined(w,b,bcc,order);
   return;
 #endif
@@ -72,6 +80,10 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
   // i-direction
   AthenaArray<Real> &x1flux = flux[X1DIR];
   pr->SetIndicialLimitsCalculateFluxes(IVX, il, iu, jl, ju, kl, ku);
+#if EFL_ENABLED
+  AthenaArray<Real> &x1flux_LO = flux_LO[X1DIR];
+  AthenaArray<Real> &x1efl = ef_limiter[X1DIR];
+#endif //EFL_ENABLED
 
   for (int k=kl; k<=ku; ++k)
   for (int j=jl; j<=ju; ++j)
@@ -109,7 +121,18 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
     pmb->pcoord->CenterWidth1(k, j, il, iu, dxw_);
 
 #if !MAGNETIC_FIELDS_ENABLED
+
+#if EFL_ENABLED //EFL_ENABLED
+
+    RiemannSolver(k, j, il, iu, IVX, wl_, wr_, x1flux_LO, dxw_);
+    CombineFluxes(k, j, il, iu,IVX,x1efl,x1flux_HO,x1flux_LO,x1flux );
+
+#else //EFL not ENABLED
+
     RiemannSolver(k, j, il, iu, IVX, wl_, wr_, x1flux, dxw_);
+
+#endif// EFL (HYDRO)
+
 #else
     // x1flux(IBY) = (v1*b2 - v2*b1) = -EMFZ
     // x1flux(IBZ) = (v1*b3 - v3*b1) =  EMFY
@@ -125,7 +148,10 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
   {
     AthenaArray<Real> &x2flux = flux[X2DIR];
     pr->SetIndicialLimitsCalculateFluxes(IVY, il, iu, jl, ju, kl, ku);
-
+#if EFL_ENABLED
+    AthenaArray<Real> &x2flux_LO = flux_LO[X2DIR];
+    AthenaArray<Real> &x2efl = ef_limiter[X2DIR];
+#endif //EFL_ENABLED
     for (int k=kl; k<=ku; ++k)
     {
       pr->ReconstructPrimitivesX2_(rv, w, wl_, wr_,
@@ -192,8 +218,19 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
 
         pmb->pcoord->CenterWidth2(k, j, il, iu, dxw_);
 #if !MAGNETIC_FIELDS_ENABLED
+
+#if EFL_ENABLED //EFL_ENABLED
+
+        RiemannSolver(k, j, il, iu, IVY, wl_, wr_, x2flux_LO, dxw_);
+        CombineFluxes(k, j, il, iu,IVY,x2efl,x2flux_HO,x2flux_LO,x2flux );
+
+#else //EFL not ENABLED
+
         RiemannSolver(k, j, il, iu, IVY, wl_, wr_,
                       x2flux, dxw_);
+
+#endif
+
 #else
         // flx(IBY) = (v2*b3 - v3*b2) = -EMFX
         // flx(IBZ) = (v2*b1 - v1*b2) =  EMFZ
@@ -223,7 +260,10 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
   {
     AthenaArray<Real> &x3flux = flux[X3DIR];
     pr->SetIndicialLimitsCalculateFluxes(IVZ, il, iu, jl, ju, kl, ku);
-
+#if EFL_ENABLED
+    AthenaArray<Real> &x3flux_LO = flux_LO[X3DIR];
+    AthenaArray<Real> &x3efl = ef_limiter[X3DIR];
+#endif //EFL_ENABLED
     for (int j=jl; j<=ju; ++j)
     { // this loop ordering is intentional
       pr->ReconstructPrimitivesX3_(rv, w, wl_, wr_,
@@ -291,8 +331,18 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
         pmb->pcoord->CenterWidth3(k, j, il, iu, dxw_);
 
 #if !MAGNETIC_FIELDS_ENABLED  // Hydro:
+
+#if EFL_ENABLED //EFL_ENABLED
+
+        RiemannSolver(k, j, il, iu, IVZ, wl_, wr_, x3flux_LO, dxw_);
+        CombineFluxes(k, j, il, iu,IVZ,x3efl,x3flux_HO,x3flux_LO,x3flux );
+
+#else //EFL not ENABLED
+
         RiemannSolver(k, j, il, iu, IVZ, wl_, wr_,
                       x3flux, dxw_);
+#endif //EFL ENABLED
+
 #else
         // flx(IBY) = (v3*b1 - v1*b3) = -EMFY
         // flx(IBZ) = (v3*b2 - v2*b3) =  EMFX
@@ -1301,3 +1351,41 @@ void Hydro::AddDiffusionFluxes() {
   }
   return;
 }
+
+//----------------------------------------------------------------------------------------
+//! \fn  void Hydro::CombineFluxes(k,j,il,iu,efl,flux_HO,flux_LO,flux)
+//  \brief Hybridization of Low and High order flux, weighted by entropy flux limiter
+
+void Hydro::CombineFluxes(const int k,const int j,const int il, const int iu,const int dir,
+                          AthenaArray<Real> const &efl,
+                          AthenaArray<Real> const &f_HO,
+                          AthenaArray<Real> const &f_LO,
+                          AthenaArray<Real> &f)
+{
+#if 1
+  if(pmy_block->pmy_mesh->efl_it_count<6){
+    for(int i =il; i<= iu ;++i){
+      for (int n=0; n<NHYDRO;++n){
+        f(n,k,j,i)=f_LO(n,k,j,i);
+      }
+    }
+  }
+  else{  
+    for(int i =il; i<= iu ;++i){
+      for (int n=0; n<NHYDRO;++n){
+        f(n,k,j,i)= efl(k,j,i)*f_HO(n,k,j,i) + (1.0-efl(k,j,i))*f_LO(n,k,j,i);
+      }
+    }
+  }
+#endif
+#if 0
+  if (dir ==1)
+  for(int i =il; i<= iu ;++i){
+      for (int n=0; n<NHYDRO;++n){
+        f(n,k,j,i)=f_LO(n,k,j,i);
+      }
+    }
+#endif
+  return;
+}
+   

@@ -453,6 +453,8 @@ class Mesh {
   int gflag;
   int turb_flag; // turbulence flag
   EosTable *peos_table;
+  int efl_it_count; // ieration counter for efl
+
 
   // ptr to first MeshBlock (node) in linked list of blocks belonging to this MPI rank:
   MeshBlock *pblock;

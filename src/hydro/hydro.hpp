@@ -55,6 +55,11 @@ class Hydro {
   AA derived_int;
 
   AA flux[3];  // face-averaged flux vector
+  AthenaArray<Real> flux[3];  // face-averaged flux vector
+  AthenaArray<Real> flux_LO[3]; // Low order flux storage For EFL Scheme
+  AthenaArray<Real> flux_HO[3]; // High order flux storage For EFL Scheme
+  AthenaArray<Real> ef_limiter[3]; // flux limiter
+  AthenaArray<Real> ent,ent1,ent2,ent3,entropy_R; // Arrays for storing entropy at different time steps and entropy Residual
 
   // storage for SMR/AMR
   // TODO(KGF): remove trailing underscore or revert to private:
@@ -244,14 +249,32 @@ public:
     AA &w, FaceField &b,
     AA &bcc, const int order);
 
+  // Calculate Entropy and Flux limiter if EFL 
+  void CalculateEntropy(AthenaArray<Real> &w, AthenaArray<Real> &entropy);
+  void CalculateEFL(AthenaArray<Real> &w, AthenaArray<Real> &ent,
+  AthenaArray<Real> &ent1, AthenaArray<Real> &ent2,
+  AthenaArray<Real> &ent3 ) ;
 
   // debug join hydro+passive scalar recon.
   void CalculateFluxesCombined(AA &w, FaceField &b,
                                AA &bcc, const int order);
 
   void CalculateFluxes_STS();
+  void CombineFluxes(const int k,const int j,const int il, const int iu,const int dir,
+                          AthenaArray<Real> const &efl,
+                          AthenaArray<Real> const &f_HO,
+                          AthenaArray<Real> const &f_LO,
+                          AthenaArray<Real> &f);
 
 #if !MAGNETIC_FIELDS_ENABLED  // Hydro:
+#if EFL_ENABLED // function for higher order flux calculation if EFL Enabled
+  void RusanovFlux(AthenaArray<Real> &prim,
+    AthenaArray<Real> &cons,
+    AthenaArray<Real> &x1flux,
+    AthenaArray<Real> &x2flux,
+    AthenaArray<Real> &x3flux);
+#endif //
+
   void RiemannSolver(
       const int k, const int j, const int il, const int iu,
       const int ivx,
@@ -635,6 +658,14 @@ public:
   {
     // Either 0 or 1, depending on l/r convention
     static const int I = DGB_RECON_X1_OFFSET;
+ private:
+  AthenaArray<Real> dt1_, dt2_, dt3_;  // scratch arrays used in NewTimeStep
+  // scratch space used to compute fluxes
+  AthenaArray<Real> dxw_,dyw_,dzw_;
+  // 2D
+  AthenaArray<Real> wl_, wr_, wlb_;
+  AthenaArray<Real> r_wl_, r_wr_, r_wlb_;
+  AthenaArray<Real> rl_, rr_, rlb_;
 
     EquationOfState *peos = pmy_block->peos;
     Reconstruction  *precon = pmy_block->precon;

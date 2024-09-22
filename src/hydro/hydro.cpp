@@ -22,6 +22,8 @@
 #include "hydro.hpp"
 #include "hydro_diffusion/hydro_diffusion.hpp"
 #include "srcterms/hydro_srcterms.hpp"
+#include "../utils/linear_algebra.hpp"
+
 
 // constructor, initializes data structures and parameters
 
@@ -44,6 +46,29 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
            (pmb->pmy_mesh->f3 ? AthenaArray<Real>::DataStatus::allocated :
             AthenaArray<Real>::DataStatus::empty)}
     },
+#if EFL_ENABLED // EFL
+    flux_LO{ {NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1+1},
+          {NHYDRO, pmb->ncells3, pmb->ncells2+1, pmb->ncells1,
+           (pmb->pmy_mesh->f2 ? AthenaArray<Real>::DataStatus::allocated :
+            AthenaArray<Real>::DataStatus::empty)},
+          {NHYDRO, pmb->ncells3+1, pmb->ncells2, pmb->ncells1,
+           (pmb->pmy_mesh->f3 ? AthenaArray<Real>::DataStatus::allocated :
+            AthenaArray<Real>::DataStatus::empty)}},
+    flux_HO{ {NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1+1},
+          {NHYDRO, pmb->ncells3, pmb->ncells2+1, pmb->ncells1,
+           (pmb->pmy_mesh->f2 ? AthenaArray<Real>::DataStatus::allocated :
+            AthenaArray<Real>::DataStatus::empty)},
+          {NHYDRO, pmb->ncells3+1, pmb->ncells2, pmb->ncells1,
+           (pmb->pmy_mesh->f3 ? AthenaArray<Real>::DataStatus::allocated :
+            AthenaArray<Real>::DataStatus::empty)}},
+    ef_limiter{ {pmb->ncells3, pmb->ncells2, pmb->ncells1+1},
+          {pmb->ncells3, pmb->ncells2+1, pmb->ncells1,
+           (pmb->pmy_mesh->f2 ? AthenaArray<Real>::DataStatus::allocated :
+            AthenaArray<Real>::DataStatus::empty)},
+          {pmb->ncells3+1, pmb->ncells2, pmb->ncells1,
+           (pmb->pmy_mesh->f3 ? AthenaArray<Real>::DataStatus::allocated :
+            AthenaArray<Real>::DataStatus::empty)}},
+#endif // End EFL
     coarse_cons_(NHYDRO, pmb->ncc3, pmb->ncc2, pmb->ncc1,
                  (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
                   AthenaArray<Real>::DataStatus::empty)),
@@ -134,6 +159,10 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   dt2_.NewAthenaArray(nc1);
   dt3_.NewAthenaArray(nc1);
   dxw_.NewAthenaArray(nc1);
+#if EFL_ENABLED
+  dyw_.NewAthenaArray(nc1);
+  dzw_.NewAthenaArray(nc1);
+#endif
   wl_.NewAthenaArray(NWAVE, nc1);
   wr_.NewAthenaArray(NWAVE, nc1);
   wlb_.NewAthenaArray(NWAVE, nc1);
@@ -178,6 +207,15 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   dflx_.NewAthenaArray(NHYDRO, nc1);
 
   UserTimeStep_ = pmb->pmy_mesh->UserTimeStep_;
+
+// EFL ARRAYS
+#if EFL_ENABLED
+    entropy_R.NewAthenaArray(nc3 , nc2, nc1);
+    ent.NewAthenaArray(nc3 , nc2, nc1);
+    ent1.NewAthenaArray(nc3 , nc2, nc1);
+    ent2.NewAthenaArray(nc3 , nc2, nc1);
+    ent3.NewAthenaArray(nc3 , nc2, nc1);
+#endif// EFL ARRAYS
 
   // scratches for rsolver ----------------------------------------------------
 #if Z4C_ENABLED
@@ -264,4 +302,197 @@ Real Hydro::GetWeightForCT(Real dflx, Real rhol, Real rhor, Real dx, Real dt) {
   Real v_over_c = (1024.0)* dt * dflx / (dx * (rhol + rhor));
   Real tmp_min = std::min(static_cast<Real>(0.5), v_over_c);
   return 0.5 + std::max(static_cast<Real>(-0.5), tmp_min);
+}
+
+
+//----------------------------------------------------------------------------------------
+//! \fn void Hydro::CalculateEntropy(w,entropy)
+//  \brief Calculate the Entropy per cell in a meshblock
+
+void Hydro::CalculateEntropy(AthenaArray<Real> &w, AthenaArray<Real> &entropy)
+{
+  MeshBlock *pmb = pmy_block;
+  int il, iu, jl, ju, kl, ku;
+  // setting loop limits
+  il = 0  ;
+  iu = pmb->ncells1;
+  // 2D
+  jl = 0  ; 
+  ju = pmb->ncells2 ;
+  // 3D
+  kl = 0  ; 
+  ku = pmb->ncells3 ;
+  
+  Real g=pmb->peos->GetGamma();
+  Real g_ = g - 1.;
+
+#if USETM
+  const Real mb = pmb->peos->GetEOS().GetBaryonMass();
+  Real Y[MAX_SPECIES] = {0.0};
+#endif
+
+  for (int k=kl; k<ku ;++k){
+    for(int j=jl ; j<ju ; ++j){
+      for (int i=il; i<iu ; ++i){
+#if USETM
+        for(int n=0; n<NSCALARS;n++){
+          Y[n] = pmb->pscalars->r(n,k,j,i);
+        }
+        const Real n = w(IDN,k,j,i)/mb ;
+        const Real T = pmb->peos->GetEOS().GetTemperatureFromP(
+          n,w(IPR,k,j,i),Y);
+        //Real epsl = pmb->peos->GetEOS().GetSpecificInternalEnergy(n,T,Y);
+        //Real p = pmb->peos->GetEOS().GetPressure(n,T,Y);
+        //entropy(k,j,i)=std::log( w(IPR,k,j,i)/std::pow(w(IDN,k,j,i),g) );
+        Real epsl=w(IPR,k,j,i)/(g_*w(IDN,k,j,i)) ;
+        entropy(k,j,i) = std::log(std::abs(epsl/std::pow(w(IDN,k,j,i),g_)) );
+#else
+        entropy(k,j,i)=std::log( w(IPR,k,j,i)/std::pow(w(IDN,k,j,i),g) );
+#endif
+      }
+    }
+  }
+  return;
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn void Hydro::CalculateEFL(w,ent,ent1,ent2,ent3 )
+//  \brief Calculate the Entropy Flux Limiter in §-dimensions
+
+void Hydro::CalculateEFL(AthenaArray<Real> &w, AthenaArray<Real> &ent,
+  AthenaArray<Real> &ent1, AthenaArray<Real> &ent2,
+  AthenaArray<Real> &ent3 ){
+  using namespace gra::aliases;
+  using namespace LinearAlgebra;
+  MeshBlock *pmb = pmy_block; // pointer to MeshBlock containg this Calculate EFL
+  Mesh * pm = pmb->pmy_mesh;
+  Z4c * pz4c = pmy_block->pz4c;
+  // Slice 3d z4c metric quantities  (NDIM=3 in z4c.hpp) ----------------------
+  AT_N_sym gamma_dd(pz4c->storage.adm, Z4c::I_ADM_gxx);
+  AT_N_sca alpha(   pz4c->storage.adm, Z4c::I_ADM_alpha);
+  AT_N_vec beta_u(  pz4c->storage.adm, Z4c::I_ADM_betax);
+  AT_N_vec w_util_u(w, IVX); // fluid 3-velocity(contavariant)
+
+  Real lim;
+  Real dt =pmb->pmy_mesh->dt;// time step
+  Real tc1=11.0/6.0, tc2=3.0,tc3=3.0/2.0, tc4=1.0/3.0;
+  Real cons = 1.0;
+  Real sc1=3.0/4.0, sc2=3.0/20.0, sc3=1.0/60.0;
+  int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
+  int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
+  int il, iu, jl, ju, kl, ku;
+
+  il=is-1;
+  iu=ie+1;
+  jl = js - (pm->f2 || pm->f3); 
+  ju = je + (pm->f2 || pm->f3);
+  kl = ks - (pm->f3);
+  ku = ke + (pm->f3);
+
+  int ndim=1 + pm->f2 + pm->f3;
+  
+  // First Calculate Entropy residual
+  for (int k=kl ; k<=ku ;++k){
+    for (int j=jl ; j<= ju ; ++j){
+      pmb->pcoord->CenterWidth1(k, j, il, iu, dxw_);
+      if(pmb->pmy_mesh->f2){
+        pmb->pcoord->CenterWidth2(k, j, il, iu, dyw_);
+      }
+      if(pmb->pmy_mesh->f3){
+        pmb->pcoord->CenterWidth3(k, j, il, iu, dzw_);
+      }
+      AT_N_sca W_(iu+1);
+      AT_N_vec w_v_u(iu+1);
+      // Lorentz factors
+      for (int i=il; i<=iu; ++i)
+      {
+        W_(i) = std::sqrt(1. + InnerProductVecMetric(
+          w_util_u, gamma_dd, k,j,i));
+      }
+      // Eulerian velocity centred contravariant componenets
+      for (int a=0; a<ndim; ++a)
+      {
+        #pragma omp simd
+        for (int i=il; i<= iu; ++i)
+        {
+          w_v_u(a,i) = w_util_u(a,k,j,i) / W_(i);
+        }
+      }
+
+      for (int i=il; i<=iu; ++i){
+        Real R; // entropy residual
+        //3d 
+        if (pmb->pmy_mesh->f3 && pmb->pmy_mesh->f2){
+          R=( tc1*ent(k,j,i) -tc2*ent1(k,j,i) + tc3*ent2(k,j,i) - tc4*ent3(k,j,i ) )/dt 
+          + (alpha(k,j,i)*w_v_u(IVX-1,i)-beta_u(IVX-1,k,j,i))*( (sc1*( ent(k,j,i+1) -ent(k,j,i-1) ) - sc2*( ent(k,j,i+2)-ent(k,j,i-2) ) + sc3*( ent(k,j,i+3)-ent(k,j,i-3) ) ) / dxw_(i) )
+          + (alpha(k,j,i)*w_v_u(IVY-1,i)-beta_u(IVY-1,k,j,i))*( (sc1*( ent(k,j+1,i) -ent(k,j-1,i) ) - sc2*( ent(k,j+2,i)-ent(k,j-2,i) ) + sc3*( ent(k,j+3,i)-ent(k,j-3,i) ) ) / dyw_(i) )
+          + (alpha(k,j,i)*w_v_u(IVZ-1,i)-beta_u(IVZ-1,k,j,i))*((sc1*( ent(k+1,j,i) -ent(k-1,j,i) ) - sc2*( ent(k+2,j,i)-ent(k-2,j,i) ) + sc3*( ent(k+3,j,i)-ent(k-3,j,i) ) ) / dzw_(i) ) ;
+        }
+        // 2D
+        else if (pmb->pmy_mesh->f2 && !pmb->pmy_mesh->f3 ){
+          R=( tc1*ent(k,j,i) -tc2*ent1(k,j,i) + tc3*ent2(k,j,i) - tc4*ent3(k,j,i ) )/dt 
+          + (alpha(k,j,i)*w_v_u(IVX-1,i)-beta_u(IVX-1,k,j,i))*( (sc1*( ent(k,j,i+1) -ent(k,j,i-1) ) - sc2*( ent(k,j,i+2)-ent(k,j,i-2) ) + sc3*( ent(k,j,i+3)-ent(k,j,i-3) ) ) / dxw_(i) )
+          + (alpha(k,j,i)*w_v_u(IVY-1,i)-beta_u(IVY-1,k,j,i))*( (sc1*( ent(k,j+1,i) -ent(k,j-1,i) ) - sc2*( ent(k,j+2,i)-ent(k,j-2,i) ) + sc3*( ent(k,j+3,i)-ent(k,j-3,i) ) ) / dyw_(i) ) ;
+        }
+        // 1D
+        else {
+          R=( tc1*ent(k,j,i) -tc2*ent1(k,j,i) + tc3*ent2(k,j,i) - tc4*ent3(k,j,i ) )/dt 
+          + (alpha(k,j,i)*w_v_u(IVX-1,i) - beta_u(IVX-1,k,j,i))*( (sc1*( ent(k,j,i+1) -ent(k,j,i-1) ) - sc2*( ent(k,j,i+2)-ent(k,j,i-2) ) + sc3*( ent(k,j,i+3)-ent(k,j,i-3) ) ) / dxw_(i) ) ;
+        }
+        R=std::abs(R);
+        entropy_R(k,j,i) = std::min(cons,R);
+      }
+    }
+  }
+
+  // Calculate Flux Limiter
+  //--------------------------------------------------------------------------------------
+  // i-direction
+  AthenaArray<Real> &x1ef_limiter = ef_limiter[X1DIR];
+  // setting the loop limits
+  pmb->precon->SetIndicialLimitsCalculateFluxes(1,il,iu,jl,ju,kl,ku);
+
+  for (int k=kl ; k<=ku ;++k)
+  {
+    for (int j=jl ; j<= ju ; ++j)
+    {
+      for (int i=il; i<=iu; ++i)
+      {
+       x1ef_limiter(k,j,i)= 1.0 -0.5*(entropy_R(k,j,i-1) + entropy_R(k,j,i));
+      }
+    }
+  }
+
+  //--------------------------------------------------------------------------------------
+  // j-direction
+  if (pmb->pmy_mesh->f2){
+    // set the loop limits
+    pmb->precon->SetIndicialLimitsCalculateFluxes(2,il,iu,jl,ju,kl,ku);
+    AthenaArray<Real> &x2ef_limiter = ef_limiter[X2DIR];
+    for (int k=kl ; k<=ku ;++k){
+      for (int j=jl ; j<= ju ; ++j){
+        for (int i=il; i<=iu; ++i){
+          x2ef_limiter(k,j,i) = 1.0 -0.5*(entropy_R(k,j-1,i) + entropy_R(k,j,i));
+        }
+      }
+    }
+  }
+
+  //--------------------------------------------------------------------------------------
+  // k-direction
+  if (pmb->pmy_mesh->f3){
+    // set the loop limits
+    pmb->precon->SetIndicialLimitsCalculateFluxes(3,il,iu,jl,ju,kl,ku);
+    AthenaArray<Real> &x2ef_limiter = ef_limiter[X2DIR];
+    for (int j=jl; j<= ju; ++j){
+      for (int k=kl ; k<=ku ;++k){
+        for (int i=il; i<=iu; ++i){
+          x2ef_limiter(k,j,i) = 1.0 -0.5*(entropy_R(k-1,j,i) + entropy_R(k,j,i));
+        }
+      }
+    }
+  }
+
+  
+  return;
 }
