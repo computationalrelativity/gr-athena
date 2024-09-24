@@ -57,6 +57,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   // control PrimitiveSolver tolerances / iterates
   ps.SetRootfinderTol(pin->GetOrAddReal("hydro", "c2p_acc", 1e-15));
   ps.SetRootfinderMaxIter(pin->GetOrAddInteger("hydro", "max_iter", 30));
+  ps.SetValidateDensity(pin->GetOrAddBoolean("hydro", "c2p_validate_density", true));
 
   int ncells1 = pmb->block_size.nx1 + 2*NGHOST;
   g_.NewAthenaArray(NMETRIC, ncells1);

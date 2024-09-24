@@ -188,6 +188,8 @@ class PrimitiveSolver {
     Error CheckDensityValid(Real& mul, Real& muh, Real D, Real bsq, Real rsq, Real rbsq, Real h_min);
   public:
     Real tol;
+    bool validate_density;
+
     /// Constructor
     PrimitiveSolver(EOS<EOSPolicy, ErrorPolicy> *eos) : peos(eos) {
       //root = NumTools::Root();
@@ -203,6 +205,11 @@ class PrimitiveSolver {
     inline void SetRootfinderMaxIter(const int max_iter)
     {
       root.iterations = max_iter;
+    }
+
+    inline void SetValidateDensity(const bool validate_density)
+    {
+      this->validate_density = validate_density;
     }
 
     /// Destructor
@@ -476,17 +483,19 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
     }
   }
 
-  // Check the corner case where the density is outside the permitted
-  // bounds according to the ErrorPolicy.
-  error = CheckDensityValid(mul, muh, D, bsqr, rsqr, rbsqr, min_h);
-  // TODO: This is probably something that should be handled by the ErrorPolicy.
-  if (error != Error::SUCCESS) {
-    HandleFailure(prim, cons, b, g3d);
-    solver_result.error = error;
-    return solver_result;
+  if (validate_density)
+  {
+    // Check the corner case where the density is outside the permitted
+    // bounds according to the ErrorPolicy.
+    error = CheckDensityValid(mul, muh, D, bsqr, rsqr, rbsqr, min_h);
+    // TODO: This is probably something that should be handled by the ErrorPolicy.
+    if (error != Error::SUCCESS) {
+      HandleFailure(prim, cons, b, g3d);
+      solver_result.error = error;
+      return solver_result;
+    }
   }
 
-  
   // Do the root solve.
   // TODO: This should be done with something like TOMS748 once it's
   // available.
