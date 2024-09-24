@@ -2264,9 +2264,9 @@ void WaveExtractRWZ::MasterFuns() {
 	const Real term2_K = - r*( g_uu(1,1)*K_dr(lm,c) + g_uu(0,1)*K_dot(lm,c) );	
 	
 	Real coef_h0 = - r*std::pow(g_uu(0,1),3)*g_dr_dd(0,0)
-	  + 2.0*r*g_uu(1,1)*( g_uu(0,0)*g_uu(1,1)*g_dr(0,1) )
+	  + 2.0*r*g_uu(1,1)*( g_uu(0,0)*g_uu(1,1)*g_dr(0,1) + g_dr_uu(0,1))
 	  + g_uu(0,1)*g_uu(1,1)*( - 2.0 + 2.0*r*g_uu(0,0)*g_dr_dd(0,0)
-				  + r*g_uu(1,10*g_dr_dd(1,1) ) );
+				  + r*g_uu(1,1)*g_dr_dd(1,1) );
 	
 	coef_h0 *= div_r;
 	
