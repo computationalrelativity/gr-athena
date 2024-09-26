@@ -71,11 +71,14 @@ class Root {
         // Calculate the new root position.
         x = (fub*lb - flb*ub)/(fub - flb);
         count++;
-        // Calculate f at the prospective root.
-        ftest = f(x,args...);
+
         if (std::fabs((x-xold)/x) <= tol) {
           return true;
         }
+
+        // Calculate f at the prospective root.
+        ftest = f(x,args...);
+
         // Check the sign of f. If f is on the same side as the lower bound, then we adjust
         // the lower bound. Similarly, if f is on the same side as the upper bound, we 
         // adjust the upper bound. If ftest falls on the same side twice, we weight one of
