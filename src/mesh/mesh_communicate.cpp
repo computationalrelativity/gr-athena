@@ -304,14 +304,9 @@ void Mesh::PreparePrimitives(std::vector<MeshBlock*> & pmb_array,
 
     if (!interior_only)
     {
-      il = 0;
-      iu = pmb->ncells1;
-
-      jl = 0;
-      ju = pmb->ncells2;
-
-      kl = 0;
-      ku = pmb->ncells3;
+      il = 0, iu = (pmb->ncells1 > 1)? pmb->ncells1 - 1 : 0;
+      jl = 0, ju = (pmb->ncells2 > 1)? pmb->ncells2 - 1 : 0;
+      kl = 0, ku = (pmb->ncells3 > 1)? pmb->ncells3 - 1 : 0;
     }
 
     static const int coarseflag = 0;
