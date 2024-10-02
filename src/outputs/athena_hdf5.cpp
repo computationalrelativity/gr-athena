@@ -775,7 +775,7 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   H5Fclose(file);
 
   // Write .athdf.xdmf file
-  int write_xdmf = pin->GetOrAddBoolean(output_params.block_name, "xdmf", false);
+  int write_xdmf = pin->GetOrAddBoolean(output_params.block_name, "xdmf", true);
   if (Globals::my_rank == 0 && write_xdmf != 0)
     MakeXDMF();
 
