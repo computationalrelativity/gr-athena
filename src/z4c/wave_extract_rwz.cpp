@@ -2332,7 +2332,7 @@ void WaveExtractRWZ::MasterFuns() {
 	  - SQR(g_uu(0,1))*g_uu(0,0)*g_dot_dd(0,0)
 	  + g_uu(1,1)*(g_uu(1,1)*g_uu(0,0)-2.0*SQR(g_uu(0,1)))*g_dot_dd(1,1);
 	
-	coef_G_dot_t *= -0.5*r2; //CHECK again, notes 
+	coef_G_dot_t *= 0.5*r2; //CHECK again, notes 
 		  
 	Psie_dyn(lm,c) = term1_K;
 	Psie_dyn(lm,c) += term1_hG;
