@@ -1911,7 +1911,7 @@ void WaveExtractRWZ::BackgroundReduce() {
   Gamma_dyn_udd(0,0,1) = Gamma_dyn_udd(0,1,0) = G00r_dyn; //CHECK is this fine/necessary with SYM2?
   Gamma_dyn_udd(0,1,1) = G0rr_dyn;
   Gamma_dyn_udd(1,0,0) = Gr00_dyn;
-  Gamma_dyn_udd(1,0,1) = Gamma_dyn_udd(1,0,1) = Gr0r_dyn;
+  Gamma_dyn_udd(1,0,1) = Gamma_dyn_udd(1,1,0) = Gr0r_dyn;
   Gamma_dyn_udd(1,1,1) = Grrr_dyn;
     
 }
@@ -2214,6 +2214,7 @@ void WaveExtractRWZ::MasterFuns() {
   const Real M = Schwarzschild_mass;
   const Real r = Schwarzschild_radius;
   const Real r2 = SQR(r);
+  const Real rdot = dot_rsch;
   const Real div_r = 1.0/r;
 
   const Real S = -(1.0-2.0*M*div_r);
@@ -2406,14 +2407,14 @@ void WaveExtractRWZ::MultipolesGaugeInvariant() {
 	
 	kappa(lm,c) = K(lm,c);
 	kappa(lm,c) -= (g_uu(0,0) *rdot*( 2.0*h0(lm,c) - r2*G_dot(lm,c) ) +
-			g_uu(0,1) *( rdot*(2.0*h1(lm,c)-r2*G_dr(lm,c)) + 2.0*h0(lm,c) -r2G_dot(lm,c) ) +
+			g_uu(0,1) *( rdot*(2.0*h1(lm,c)-r2*G_dr(lm,c)) + 2.0*h0(lm,c) -r2*G_dot(lm,c) ) +
 			g_uu(1,1) *(2.0*h1(lm,c)-r2*G_dr(lm,c)) )*div_r;
 	  
 	// odd-parity
 	// -----------------------------------------
 	
-	kappa_d(0,lm,c) = H0(lm,c) - H0_dot(lm,c) + H(lm,c)*2.0*rdot*div_r; 
-	kappa_d(1,lm,c) = H1(lm,c) - H0_dr(lm,c) + H(lm,c)*2.0*div_r; 
+	kappa_d(0,lm,c) = H0(lm,c) - H_dot(lm,c) + H(lm,c)*2.0*rdot*div_r; 
+	kappa_d(1,lm,c) = H1(lm,c) - H_dr(lm,c) + H(lm,c)*2.0*div_r; 
 
 	// Trace constraint
 	// -----------------------------------------
@@ -2424,7 +2425,7 @@ void WaveExtractRWZ::MultipolesGaugeInvariant() {
 	    Tr_kappa_dd(lm,c) += g_uu(A,B)*kappa_dd(A,B,lm,c);
 	  }
 
-	norm_Tr_kappa_dd += SQ(Tr_kappa_dd(lm,c))
+	norm_Tr_kappa_dd += SQR(Tr_kappa_dd(lm,c));
 	
       }// real&imag
       
