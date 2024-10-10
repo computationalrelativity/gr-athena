@@ -13,6 +13,7 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../athena_tensor.hpp"
+#include "../utils/tensor.hpp"
 //#include "../utils/lagrange_interp.hpp"
 //#include "z4c.hpp" 
 //#include "z4c_macro.hpp"
@@ -58,9 +59,9 @@ public:
   int lmpoints;
   
   //! Master functions & multipoles
-  AthenaArray<Real> Psie,Psie;
-  AthenaArray<Real> Psie_dyn,Psie_dyn;
-  AthenaArray<Real> Psio_sch,Psio_sch;
+  AthenaArray<Real> Psie,Psio;
+  AthenaArray<Real> Psie_dyn,Psio_dyn;
+  AthenaArray<Real> Psie_sch,Psio_sch;
   AthenaArray<Real> Qplus, Qstar;
 
 private:
@@ -133,15 +134,15 @@ private:
   AthenaArray<Real> Y, Yth, Yph, X, W;
   
   //! Spherical metric on M^2
-  TensorPointwise<Real, TensorSymm::SYM2, MDIM, 2> g_dd;
-  TensorPointwise<Real, TensorSymm::SYM2, MDIM, 2> g_uu;
-  TensorPointwise<Real, TensorSymm::SYM2, MDIM, 2> g_dr_dd; //d/dr g_AB
-  TensorPointwise<Real, TensorSymm::SYM2, MDIM, 2> g_dot_dd; //d/dt g_AB
-  TensorPointwise<Real, TensorSymm::SYM2, MDIM, 2> g_dr_uu; //d/dr g^AB
-  TensorPointwise<Real, TensorSymm::SYM2, MDIM, 2> g_dot_uu; //d/dt g^AB
+  utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, MDIM, 2> g_dd;
+  utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, MDIM, 2> g_uu;
+  utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, MDIM, 2> g_dr_dd; //d/dr g_AB
+  utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, MDIM, 2> g_dot_dd; //d/dt g_AB
+  utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, MDIM, 2> g_dr_uu; //d/dr g^AB
+  utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, MDIM, 2> g_dot_uu; //d/dt g^AB
   //TODO 2nd drvts
-  TensorPointwise<Real, TensorSymm::SYM2, MDIM, 3> Gamma_udd; // Christoffels (time-independent)
-  TensorPointwise<Real, TensorSymm::SYM2, MDIM, 3> Gamma_dyn_udd; // Christoffels (time-dep)
+  utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, MDIM, 3> Gamma_udd; // Christoffels (time-independent)
+  utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, MDIM, 3> Gamma_dyn_udd; // Christoffels (time-dep)
   Real norm_Delta_Gamma;
   
   //! Multipoles (complex)
@@ -153,8 +154,8 @@ private:
   AthenaArray<Real> H0_dot, H01_dot, H_dot; // d/dt drvts
 
   //! Gauge-invariant multipoles
-  TensorPointwise<Real, TensorSymm::SYM2, MDIM, 2> kappa_dd;
-  TensorPointwise<Real, TensorSymm::NONE, MDIM, 1> kappa_d;
+  utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, MDIM, 2> kappa_dd;
+  utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::NONE, MDIM, 1> kappa_d;
   AthenaArray<Real> kappa, Tr_kappa_dd;
   Real norm_Tr_kappa_dd;
   
