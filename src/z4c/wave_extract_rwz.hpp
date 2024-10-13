@@ -23,7 +23,7 @@ class Mesh;
 class MeshBlock;
 class ParameterInput;
 
-#define NDIM (3)
+//#define NDIM (3) // already defined
 #define MDIM (2)
 
 //! \class WaveExtractRWZ
@@ -50,7 +50,7 @@ public:
   
   //! Grid points
   int Ntheta, Nphi;
-  
+
   //! Id of this extraction radius
   int Nrad;
 
@@ -63,8 +63,10 @@ public:
   AthenaArray<Real> Psie_dyn,Psio_dyn;
   AthenaArray<Real> Psie_sch,Psio_sch;
   AthenaArray<Real> Qplus, Qstar;
-
+  
 private:
+  
+  static const int metric_interp_order = 2*NGHOST-1;
 
   //! Functions for grid on spheres
   Real coord_theta(const int i);
@@ -73,7 +75,8 @@ private:
   Real dph_grid();
   int TPIndex(const int i, const int j);
   void FlagSpherePointsContained(MeshBlock * pmb);
-  void SetWeightsIntegral(int method);
+  //void SetWeightsIntegral(int method);
+  void SetWeightsIntegral(std::string method);
   
   //! Functions for spherical harmonics
   int MPoints(const int l);
@@ -149,13 +152,14 @@ private:
   AthenaArray<Real> h00, h01, h11, h0, h1, G, K; // even
   AthenaArray<Real> h00_dr, h01_dr, h11_dr, h0_dr, h1_dr, G_dr, K_dr; // d/dr drvts
   AthenaArray<Real> h00_dot, h01_dot, h11_dot, h0_dot, h1_dot, G_dot, K_dot; // d/dt drvts
-  AthenaArray<Real> H0, H01, H; // odd
-  AthenaArray<Real> H0_dr, H01_dr, H_dr; // d/dr drvts
-  AthenaArray<Real> H0_dot, H01_dot, H_dot; // d/dt drvts
+  AthenaArray<Real> H0, H01, H, H1; // odd
+  AthenaArray<Real> H0_dr, H01_dr, H_dr, H1_dr; // d/dr drvts
+  AthenaArray<Real> H0_dot, H01_dot, H_dot, H1_dot; // d/dt drvts
 
   //! Gauge-invariant multipoles
-  utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, MDIM, 2> kappa_dd;
-  utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::NONE, MDIM, 1> kappa_d;
+  //utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, MDIM, 2> kappa_dd;
+  //utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::NONE, MDIM, 1> kappa_d;
+  AthenaArray<Real> kappa_00, kappa_01, kappa_11, kappa_0, kappa_1; // even
   AthenaArray<Real> kappa, Tr_kappa_dd;
   Real norm_Tr_kappa_dd;
   
@@ -163,15 +167,14 @@ private:
   enum{Re, Im, RealImag};
   
   //! Arrays for sphere integrals
-  Real integrals_adm[NVADM];
   enum {
     I_ADM_M,
     I_ADM_Px, I_ADM_Py, I_ADM_Pz,
     I_ADM_Jx, I_ADM_Jy, I_ADM_Jz, 
     NVADM,
   };
+  Real integrals_adm[NVADM];
 
-  Real integrals_background[NVBackground];
   enum {
     // ADM 
     I_adm_M,
@@ -189,6 +192,7 @@ private:
     //TODO 2nd drvts
     NVBackground,
   };
+  Real integrals_background[NVBackground];
 
   Real * integrals_multipoles;
   enum {
@@ -198,7 +202,7 @@ private:
     Ih00_dr, Ih01_dr, Ih11_dr, // even d/dr drvts
     Ih0_dr, Ih1_dr,
     IG_dr, IK_dr,
-    Ih00_dot, Ih01_dot, Ig11_dot, // even d/dt drvts
+    Ih00_dot, Ih01_dot, Ih11_dot, // even d/dt drvts
     Ih0_dot, Ih1_dot,
     IG_dot, IK_dot,
     IH0, IH1, // odd
@@ -211,7 +215,6 @@ private:
   };
 
   //! Options for areal radius
-  char const * const ArealRadiusMethod[NOptRadius];
   enum{
     areal,
     areal_simple,
@@ -220,6 +223,7 @@ private:
     schw_gphph,
     NOptRadius,
   };
+  static char const * const ArealRadiusMethod[NOptRadius];
   int method_areal_radius;
 
   //! msc

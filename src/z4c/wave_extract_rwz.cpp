@@ -33,7 +33,7 @@
 //using namespace utils::tensor;
 
 char const * const WaveExtractRWZ::ArealRadiusMethod[WaveExtractRWZ::NOptRadius] = {
-  "areal", "areal_simple", "average_schw","schw_g00", "schw_gphph",
+  "areal", "areal_simple", "average_schw","schw_gthth", "schw_gphph",
 };
 
 //----------------------------------------------------------------------------------------
@@ -522,8 +522,8 @@ void WaveExtractRWZ::Write(int iter, Real time) {
             const int lm = MIndex(l,m);
 	    outfile << iter << " "
 		    << std::setprecision(outprec) << std::scientific << time <<  " "
-		    << std::setprecision(outprec) << std::scientific << data[i-1](lm,Re) << " "
-		    << std::setprecision(outprec) << std::scientific << data[i-1](lm,Im) << " "; 
+		    << std::setprecision(outprec) << std::scientific << (*data[i-1])(lm,Re) << " "
+		    << std::setprecision(outprec) << std::scientific << (*data[i-1])(lm,Im) << " "; 
 	  }
 	}
 	outfile << std::endl;
@@ -599,7 +599,7 @@ int WaveExtractRWZ::TPIndex(const int i, const int j) {
 //----------------------------------------------------------------------------------------
 // \!fn int WaveExtractRWZ::SetWeightsIntegral()
 // \brief set the weights for the 2D integrals - UNFINISHED
-void SetWeightsIntegral(std::string method) {
+void WaveExtractRWZ::SetWeightsIntegral(std::string method) {
   if (method == "sum") {
     
     weights.Fill(1.0); 
@@ -627,23 +627,23 @@ void SetWeightsIntegral(std::string method) {
       coeff_theta[i] = 2;
       coeff_theta[i+1] = 1;
     }
-    coeff_theta[ntheta] = 2;
-    coeff_theta[ntheta+1] = 0.5;
+    coeff_theta[Ntheta] = 2;
+    coeff_theta[Ntheta+1] = 0.5;
 
     // Phi coefficients 
     coeff_phi[1] = 0.5;
-    for (int i=2; i<=nphi; i=i+2) {
+    for (int i=2; i<=Nphi; i=i+2) {
       coeff_phi[i] = 2;
       coeff_phi[i+1] = 1;
     }
-    coeff_phi[nphi+1] = 0.5;
+    coeff_phi[Nphi+1] = 0.5;
 
     for (int i = 1; i <= Ntheta+1; i++) {
       const Real theta = i * dth;
       const Real sinth = sin(theta);
       const Real costh = cos(theta);
-      for (int j = 1; j <= nphi+1; j++) {
-	const Real phi = (j-1)*dphi;
+      for (int j = 1; j <= Nphi+1; j++) {
+	const Real phi = (j-1)*dph;
 	//weight(i,j) = 4.0/9.0 * coeff_theta[i] * coeff_phi[j];
       }
     }
@@ -907,10 +907,12 @@ void WaveExtractRWZ::SphHarm_Ylm_a(const int l_, const int m_, const Real theta,
   const Real b = std::sqrt((SQR(l+1.0)-SQR(m))*(l+0.5)/(l+1.5)) * div_sin_theta;
 
   Real YR,YI; // l,m
-  SphHarm_Ylm_a(l,m,theta,phi,&YR,&YI);
+  //SphHarm_Ylm_a(l,m,theta,phi,&YR,&YI);
+  SphHarm_Ylm(l,m,theta,phi,&YR,&YI);
   
   Real YplusR,YplusI; // l+1,m
-  SphHarm_Ylm_a(l+1,m,theta,phi,&YplusR,&YplusI);
+  //SphHarm_Ylm_a(l+1,m,theta,phi,&YplusR,&YplusI);
+  SphHarm_Ylm(l+1,m,theta,phi,&YplusR,&YplusI);
 
   const Real _YthR = a * YR + b * YplusR;
   const Real _YthI = a * YI + b * YplusI;
@@ -1028,10 +1030,12 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   adm_g_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
 
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> adm_beta_u;    
-  adm_beta_u.InitWithShallowSlice(pz4c->storage.Z4c, Z4c::I_Z4c_betax);
+  //adm_beta_u.InitWithShallowSlice(pz4c->storage.Z4c, Z4c::I_Z4c_betax);
+  adm_beta_u.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_Z4c_betax);
   
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> adm_alpha;    
-  adm_alpha.InitWithShallowSlice(pz4c->storage.Z4c, Z4c::I_Z4c_alpha);
+  //adm_alpha.InitWithShallowSlice(pz4c->storage.Z4c, Z4c::I_Z4c_alpha);
+  adm_alpha.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_Z4c_alpha);
 
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> adm_dg_ddd;      
   adm_dg_ddd.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_dgxx_x); 
@@ -1398,7 +1402,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 	  iMadm += Cgamma_uu(a,b) * deltag_n_ab;
 	}
       
-      integrals_ADM[I_ADM_M] += 0.25 * iMadm * sqrt_det * vol;
+      integrals_adm[I_ADM_M] += 0.25 * iMadm * sqrt_det * vol;
       
       Real iPadm[NDIM];
       for (int a = 0; a < NDIM; ++a) {
@@ -1412,9 +1416,9 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 	    }
       }
       
-      integrals_ADM[I_ADM_Px] += 0.5 * iPadm[0] * sqrt_det * vol;
-      integrals_ADM[I_ADM_Py] += 0.5 * iPadm[1] * sqrt_det * vol;
-      integrals_ADM[I_ADM_Pz] += 0.5 * iPadm[2] * sqrt_det * vol;
+      integrals_adm[I_ADM_Px] += 0.5 * iPadm[0] * sqrt_det * vol;
+      integrals_adm[I_ADM_Py] += 0.5 * iPadm[1] * sqrt_det * vol;
+      integrals_adm[I_ADM_Pz] += 0.5 * iPadm[2] * sqrt_det * vol;
       
       Real iJadm[NDIM];
       for (int a = 0; a < NDIM; ++a) {
@@ -1434,9 +1438,9 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 	}
       }
       
-      integrals_ADM[I_ADM_Jx] += 0.5 * iJadm[0] * sqrt_det * vol;
-      integrals_ADM[I_ADM_Jy] += 0.5 * iJadm[1] * sqrt_det * vol;
-      integrals_ADM[I_ADM_Jz] += 0.5 * iJadm[2] * sqrt_det * vol;
+      integrals_adm[I_ADM_Jx] += 0.5 * iJadm[0] * sqrt_det * vol;
+      integrals_adm[I_ADM_Jy] += 0.5 * iJadm[1] * sqrt_det * vol;
+      integrals_adm[I_ADM_Jz] += 0.5 * iJadm[2] * sqrt_det * vol;
       
       // Transform tensors to spherical coordinates 
       // -------------------------------------------
