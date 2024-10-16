@@ -467,7 +467,7 @@ private:
   AT_N_sym R_dd;        // Ricci tensor
   AT_N_sym Rphi_dd;     // Ricci tensor, conformal contribution
   AT_N_sym Kt_dd;       // conformal extrinsic curvature
-  AT_N_sym K_ud;        // extrinsic curvature
+  AT_N_T2 K_ud;         // extrinsic curvature
   AT_N_sym Ddalpha_dd;  // 2nd differential of the lapse
   AT_N_sym Ddphi_dd;    // 2nd differential of phi
 
