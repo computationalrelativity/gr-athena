@@ -124,6 +124,10 @@ private:
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_d;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dr_beta_d;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dot_beta_d;
+  
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dr_beta_u;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dot_beta_u;
 
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> beta2;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> dr_beta2;
