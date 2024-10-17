@@ -13,6 +13,8 @@
 #include "../athena_aliases.hpp"
 #include "../mesh/mesh.hpp"
 
+#include "wave_macro.hpp"
+
 // #include "../utils/finite_differencing.hpp"
 #include "../bvals/vc/bvals_vc.hpp"
 #include "../bvals/cc/bvals_cc.hpp"

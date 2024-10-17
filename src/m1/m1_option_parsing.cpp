@@ -124,7 +124,11 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
       { "semi_implicit_HybridsJMinerbo",
         opt_integration_strategy::semi_implicit_HybridsJMinerbo},
       { "semi_implicit_Hybrids",
-        opt_integration_strategy::semi_implicit_Hybrids}
+        opt_integration_strategy::semi_implicit_Hybrids},
+      { "auto_esi_HybridsJMinerbo",
+        opt_integration_strategy::auto_esi_HybridsJMinerbo},
+      { "auto_esi_PicardMinerboP",
+        opt_integration_strategy::auto_esi_PicardMinerboP}
     };
 
     auto itr = opt_strat.find(GoA_str("strategy", "full_explicit"));
@@ -223,6 +227,7 @@ void M1::PopulateOptions(ParameterInput *pin)
     opt.eps_J = pin->GetOrAddReal("M1", "eps_J", 1e-10);
     opt.enforce_causality = pin->GetOrAddBoolean(
       "M1", "enforce_causality", true);
+    opt.eps_ec_fac = pin->GetOrAddReal("M1", "eps_ec_fac", 1e-15);
 
     opt.min_flux_A = pin->GetOrAddReal("M1", "min_flux_A", 0);
   }

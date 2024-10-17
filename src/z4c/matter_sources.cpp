@@ -18,16 +18,12 @@ using namespace gra::aliases;
 
 // ----------------------------------------------------------------------------
 // Prepare mat.rho, mat.S_d, and mat.S_dd
-#if USETM
 void Z4c::GetMatter(
   ::AA & u_mat,
   ::AA & u_adm,
   ::AA & w,
   ::AA & r,
   ::AA & bb_cc)
-#else
-void Z4c::GetMatter(::AA & u_mat, ::AA & u_adm, ::AA & w, ::AA & bb_cc)
-#endif
 {
 
 #if defined(Z4C_WITH_HYDRO_ENABLED)

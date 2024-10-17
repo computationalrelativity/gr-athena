@@ -55,6 +55,12 @@ Wave::Wave(MeshBlock *pmb, ParameterInput *pin) :
     WAVE_SW_CCX_VC(pmb->ncells1, pmb->nverts1),            // nn1
     WAVE_SW_CCX_VC(pmb->ncells2, pmb->nverts2),            // nn2
     WAVE_SW_CCX_VC(pmb->ncells3, pmb->nverts3),            // nn3
+    WAVE_SW_CC_CX_VC(pmb->cis, pmb->cx_cis, pmb->civs),    // cil
+    WAVE_SW_CC_CX_VC(pmb->cie, pmb->cx_cie, pmb->cive),    // ciu
+    WAVE_SW_CC_CX_VC(pmb->cjs, pmb->cx_cjs, pmb->cjvs),    // cjl
+    WAVE_SW_CC_CX_VC(pmb->cje, pmb->cx_cje, pmb->cjve),    // cju
+    WAVE_SW_CC_CX_VC(pmb->cks, pmb->cx_cks, pmb->ckvs),    // ckl
+    WAVE_SW_CC_CX_VC(pmb->cke, pmb->cx_cke, pmb->ckve),    // cku
     WAVE_SW_CC_CX_VC(pmb->ncc1, pmb->cx_ncc1, pmb->ncv1),  // cnn1
     WAVE_SW_CC_CX_VC(pmb->ncc2, pmb->cx_ncc2, pmb->ncv2),  // cnn2
     WAVE_SW_CC_CX_VC(pmb->ncc3, pmb->cx_ncc3, pmb->ncv3),  // cnn3

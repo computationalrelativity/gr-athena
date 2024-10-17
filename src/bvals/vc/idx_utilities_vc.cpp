@@ -566,3 +566,33 @@ int VertexCenteredBoundaryVariable::MPI_BufferSizeFromFiner(
 }
 
 #endif
+
+// ----------------------------------------------------------------------------
+
+void VertexCenteredBoundaryVariable::CalculateProlongationIndices(
+  NeighborBlock &nb,
+  int &si, int &ei,
+  int &sj, int &ej,
+  int &sk, int &ek)
+{
+  MeshBlock * pmb = pmy_block_;
+
+  // Here we care about the _target_ ghosts.
+  // It is assumed we have sufficient coarse ghosts
+  static const int pcng = pmb->ng / 2 + (pmb->ng % 2 != 0); // odd/even ghosts
+
+  CalculateProlongationIndices(pmb->loc.lx1, nb.ni.ox1, pcng,
+                               pmb->civs, pmb->cive, si, ei,
+                               true);
+  CalculateProlongationIndices(pmb->loc.lx2, nb.ni.ox2, pcng,
+                               pmb->cjvs, pmb->cjve, sj, ej,
+                               pmb->block_size.nx2 > 1);
+  CalculateProlongationIndices(pmb->loc.lx3, nb.ni.ox3, pcng,
+                               pmb->ckvs, pmb->ckve, sk, ek,
+                               pmb->block_size.nx3 > 1);
+
+}
+
+//
+// :D
+//

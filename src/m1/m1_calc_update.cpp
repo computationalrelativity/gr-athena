@@ -1596,8 +1596,21 @@ void M1::CalcUpdate(Real const dt,
     StateMetaVector C = ConstructStateMetaVector(*this, U_C, ix_g, ix_s);
     StateMetaVector P = ConstructStateMetaVector(*this, U_P, ix_g, ix_s);
     StateMetaVector I = ConstructStateMetaVector(*this, U_I, ix_g, ix_s);
-    
+
     SourceMetaVector S = ConstructSourceMetaVector(*this, U_S, ix_g, ix_s);
+
+    // Apply limits to current state vector enforcing causality
+    // warning: without this there are issues for E>|F|_\gamma in e.g.
+    // thin-closure
+
+    if (opt.enforce_causality)
+    {
+      M1_GLOOP3(k,j,i)
+      if (MaskGet(k, j, i))
+      {
+        EnforceCausality(*this, C, k, j, i);
+      }
+    }
 
     ClosureMetaVector CL = ConstructClosureMetaVector(*this, U_C, ix_g, ix_s);
 
@@ -1699,6 +1712,48 @@ void M1::CalcUpdate(Real const dt,
 
           StepImplicitHybridsJMinerbo(
             *this, dt, P, C, I, S, CL, k, j, i);
+        }
+        break;
+      }
+      // switching between regimes
+      case (opt_integration_strategy::auto_esi_HybridsJMinerbo):
+      {
+        M1_ILOOP3(k,j,i)
+        if (MaskGet(k, j, i))
+        {
+          // non-stiff limit
+          if ((dt * C.sc_kap_a(k,j,i) < 1) &&
+              (dt * C.sc_kap_s(k,j,i) < 1))
+          {
+            ::M1::Update::AddSourceMatter(*this, C, I, S, k, j, i);
+            const bool explicit_step_nG = true;
+            StepExplicit(*this, dt, P, C, I, S, explicit_step_nG, k, j, i);
+          }
+          else
+          {
+            StepImplicitHybridsJMinerbo(
+              *this, dt, P, C, I, S, CL, k, j, i);
+          }
+        }
+        break;
+      }
+      case (opt_integration_strategy::auto_esi_PicardMinerboP):
+      {
+        M1_ILOOP3(k,j,i)
+        if (MaskGet(k, j, i))
+        {
+          // non-stiff limit
+          if ((dt * C.sc_kap_a(k,j,i) < 1) &&
+              (dt * C.sc_kap_s(k,j,i) < 1))
+          {
+            ::M1::Update::AddSourceMatter(*this, C, I, S, k, j, i);
+            const bool explicit_step_nG = true;
+            StepExplicit(*this, dt, P, C, I, S, explicit_step_nG, k, j, i);
+          }
+          else
+          {
+            StepImplicitPicardMinerboP(*this, dt, P, C, I, S, CL, k, j, i);
+          }
         }
         break;
       }

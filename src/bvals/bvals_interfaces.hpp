@@ -326,13 +326,24 @@ class BoundaryPhysics {
 //  \brief
 
 class BoundaryVariable : public BoundaryCommunication, public BoundaryBuffer,
-                         public BoundaryPhysics {
- public:
+                         public BoundaryPhysics
+{
+
+public:
   explicit BoundaryVariable(MeshBlock *pmb);
   virtual ~BoundaryVariable() = default;
 
   // (usuallly the std::size_t unsigned integer type)
   std::vector<BoundaryVariable *>::size_type bvar_index;
+
+  inline virtual void InterchangeFundamentalCoarse() = 0;
+  virtual void ProlongateBoundaries(
+    const Real time, const Real dt
+  ) = 0;
+  virtual void RestrictInterior(
+    const Real time, const Real dt
+  ) = 0;
+
 
   virtual int ComputeVariableBufferSize(const NeighborIndexes& ni, int cng) = 0;
   virtual int ComputeFluxCorrectionBufferSize(const NeighborIndexes& ni, int cng) = 0;
@@ -343,7 +354,7 @@ class BoundaryVariable : public BoundaryCommunication, public BoundaryBuffer,
   void ReceiveAndSetBoundariesWithWait() override;
   void SetBoundaries() override;
 
- protected:
+protected:
   // deferred initialization of BoundaryData objects in derived class constructors
   BoundaryData<> bd_var_, bd_var_flcor_;
   // derived class dtors are also responsible for calling DestroyBoundaryData(bd_var_)

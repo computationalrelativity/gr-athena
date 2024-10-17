@@ -47,7 +47,8 @@ static Real VCInterpolation(AthenaArray<Real> &in, int k, int j, int i);
 //   pmb: pointer to MeshBlock
 //   pin: pointer to runtime inputs
 
-EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos} {
+EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
+{
   pmy_block_ = pmb;
   density_floor_ = pin->GetOrAddReal("hydro", "dfloor", std::sqrt(1024*(FLT_MIN)));
   temperature_floor_ = pin->GetOrAddReal("hydro", "tfloor", std::sqrt(1024*(FLT_MIN)));
@@ -56,6 +57,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   // control PrimitiveSolver tolerances / iterates
   ps.SetRootfinderTol(pin->GetOrAddReal("hydro", "c2p_acc", 1e-15));
   ps.SetRootfinderMaxIter(pin->GetOrAddInteger("hydro", "max_iter", 30));
+  ps.SetValidateDensity(pin->GetOrAddBoolean("hydro", "c2p_validate_density", true));
 
   int ncells1 = pmb->block_size.nx1 + 2*NGHOST;
   g_.NewAthenaArray(NMETRIC, ncells1);
@@ -119,6 +121,10 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   // Make sure that's the case by setting it to NaN.
   gamma_ = std::numeric_limits<double>::quiet_NaN();
 #endif
+
+  dbg_err_tol_abs = pin->GetOrAddReal("hydro", "dbg_err_tol_abs", 0);
+  dbg_err_tol_rel = pin->GetOrAddReal("hydro", "dbg_err_tol_rel", 0);
+  dbg_report_all  = pin->GetOrAddBoolean("hydro", "dbg_report_all", false);
 
 }
 
@@ -190,11 +196,12 @@ void InitColdEOS(Primitive::ColdEOS<Primitive::COLDEOS_POLICY> *eos,
 //       writing vv for v
 //   implements formulas assuming no magnetic field
 
-void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
-    const AthenaArray<Real> &prim_old, const FaceField &bb, AthenaArray<Real> &prim,
-    AthenaArray<Real> &cons_scalar, AthenaArray<Real> &prim_scalar,
-    AthenaArray<Real> &bb_cc, Coordinates *pco, int il, int iu, int jl, int ju, int kl,
-    int ku, int coarse_flag) {
+void EquationOfState::ConservedToPrimitive(
+  AthenaArray<Real> &cons, const AthenaArray<Real> &prim_old,
+  AthenaArray<Real> &prim, AthenaArray<Real> &cons_scalar,
+  AthenaArray<Real> &prim_scalar, AthenaArray<Real> &bb_cc, Coordinates *pco,
+  int il, int iu, int jl, int ju, int kl, int ku, int coarse_flag)
+{
   int nn1;
   GRDynamical* pco_gr;
   MeshBlock* pmb = pmy_block_;
@@ -365,6 +372,104 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
   if (coarse_flag) {
     rchi.DeleteAthenaTensor();
   }
+
+  // Debug whether: Id_x = c2p o p2c ------------------------------------------
+  if (dbg_err_tol_abs == 0)
+  {
+    return;
+  }
+
+  AthenaArray<Real> id_u(NHYDRO,   pmb->ncells3, pmb->ncells2, pmb->ncells1);
+  AthenaArray<Real> id_s(NSCALARS, pmb->ncells3, pmb->ncells2, pmb->ncells1);
+
+  Real dbg_err_tol_abs_ = this->dbg_err_tol_abs;
+  this->dbg_err_tol_abs = 0;
+
+  PrimitiveToConserved(prim,
+                       prim_scalar,
+                       pmb->pfield->bcc,
+                       id_u,
+                       id_s,
+                       pmb->pcoord,
+                       IL, IU,
+                       JL, JU,
+                       KL, KU);
+
+  this->dbg_err_tol_abs = dbg_err_tol_abs_;
+
+  auto err_abs = [&](AA & F_a, AA & F_b,
+                     const int n, const int k, const int j, const int i)
+  {
+    // return std::abs(F_a(n,k,j,i)-F_b(n,k,j,i));
+    Real F_a_ = F_a(n,k,j,i);
+    Real F_b_ = F_b(n,k,j,i);
+
+    Real mag_ab = std::max(std::abs(F_a_), std::abs(F_b_));
+    if (mag_ab > 1e-10)
+      return std::abs((F_a(n,k,j,i)-F_b(n,k,j,i)) / mag_ab);
+
+    return 0.0;
+  };
+
+  auto err_rel = [&](AA & F_a, AA & F_b,
+                     const int n, const int k, const int j, const int i)
+  {
+    return std::abs(1 - F_b(n,k,j,i) / F_a(n,k,j,i));
+  };
+
+  auto dump_cons = [&](const Real err, AA & F_a, AA & F_b,
+                       const int n, const int k, const int j, const int i,
+                       char * tag)
+  {
+    #pragma omp critical
+    {
+      const bool is_physical_idx = pmb->IsPhysicalIndex_cc(k, j, i);
+
+      std::printf("=== C2P o P2C [%s] err_tol_abs not met: \n", tag);
+      std::printf("field_idx=%d is_physical_idx=%d \n", n, is_physical_idx);
+      std::printf("(i=%d,j=%d,k=%d) ~ (%f,%f,%f)\n",
+                  i, j, k,
+                  pmb->pcoord->x1v(i), pmb->pcoord->x2v(j), pmb->pcoord->x3v(k));
+      std::printf("(err,id:F_a,F_b) ~ (%.2e,%.5e,%.5e)\n",
+                  err,
+                  F_a(n,k,j,i), F_b(n,k,j,i));
+
+    }
+  };
+
+
+  for (int n=0;  n<NHYDRO;  ++n)
+  for (int k=KL; k<=KU;     ++k)
+  for (int j=JL; j<=JU;     ++j)
+  for (int i=IL; i<=IU;     ++i)
+  {
+    const bool report = (dbg_report_all) ? true
+                                         : pmb->IsPhysicalIndex_cc(k, j, i);
+    const Real u_err = err_abs(id_u, cons, n, k, j, i);
+
+    if ((u_err > dbg_err_tol_abs) && report)
+    {
+      char tag[] = "u";
+      dump_cons(u_err, id_u, cons, n, k, j, i, tag);
+    }
+  }
+
+  for (int n=0;  n<NSCALARS;  ++n)
+  for (int k=KL; k<=KU;     ++k)
+  for (int j=JL; j<=JU;     ++j)
+  for (int i=IL; i<=IU;     ++i)
+  {
+    const bool report = (dbg_report_all) ? true
+                                         : pmb->IsPhysicalIndex_cc(k, j, i);
+
+    const Real s_err = err_abs(id_s, cons_scalar, n, k, j, i);
+
+    if ((s_err > dbg_err_tol_abs) && report)
+    {
+      char tag[] = "s";
+      dump_cons(s_err, id_s, cons_scalar, n, k, j, i, tag);
+    }
+  }
 }
 
 //----------------------------------------------------------------------------------------
@@ -393,9 +498,10 @@ void EquationOfState::PrimitiveToConserved(
 {
 
   GRDynamical* pco_gr = static_cast<GRDynamical*>(pmy_block_->pcoord);
+  MeshBlock * pmb = pmy_block_;
 
-  AT_N_sym gamma_dd(pmy_block_->nverts1);
-  AT_N_sym full_gamma_dd(pmy_block_->pz4c->storage.adm, Z4c::I_ADM_gxx);
+  AT_N_sym gamma_dd_(pmb->nverts1);
+  AT_N_sym sl_adm_gamma_dd(pmb->pz4c->storage.adm, Z4c::I_ADM_gxx);
 
   // sanitize loop limits
   int IL, IU, JL, JU, KL, KU;
@@ -416,13 +522,13 @@ void EquationOfState::PrimitiveToConserved(
 
   for (int k=KL; k<=KU; ++k) {
     for (int j=JL; j<=JU; ++j) {
-      pco_gr->GetGeometricFieldCC(gamma_dd, full_gamma_dd, k, j);
+      pco_gr->GetGeometricFieldCC(gamma_dd_, sl_adm_gamma_dd, k, j);
       // Calculate the conserved variables at every point.
       for (int i=IL; i<=IU; ++i)
       {
         PrimitiveToConservedSingle(prim,
                                    prim_scalar,
-                                   gamma_dd,
+                                   gamma_dd_,
                                    k, j, i,
                                    cons,
                                    cons_scalar,
@@ -430,6 +536,102 @@ void EquationOfState::PrimitiveToConserved(
       }
     }
   }
+
+  // Debug whether: Id_x = p2c o c2p ------------------------------------------
+  if (dbg_err_tol_abs == 0)
+  {
+    return;
+  }
+
+  AthenaArray<Real> id_w(NHYDRO,   pmb->ncells3, pmb->ncells2, pmb->ncells1);
+  AthenaArray<Real> id_r(NSCALARS, pmb->ncells3, pmb->ncells2, pmb->ncells1);
+
+  static const int coarseflag = 0;
+  Real dbg_err_tol_abs_ = this->dbg_err_tol_abs;
+  this->dbg_err_tol_abs = 0;
+
+  ConservedToPrimitive(cons,
+                       id_w,
+                       id_w,
+                       cons_scalar,
+                       id_r,
+                       pmb->pfield->bcc,
+                       pmb->pcoord,
+                       IL, IU,
+                       JL, JU,
+                       KL, KU,
+                       coarseflag);
+
+  this->dbg_err_tol_abs = dbg_err_tol_abs_;
+
+  auto err_abs = [&](AA & F_a, AA & F_b,
+                     const int n, const int k, const int j, const int i)
+  {
+    // return std::abs(F_a(n,k,j,i)-F_b(n,k,j,i));
+
+    Real F_a_ = F_a(n,k,j,i);
+    Real F_b_ = F_b(n,k,j,i);
+
+    Real mag_ab = std::max(std::abs(F_a_), std::abs(F_b_));
+    if (mag_ab > 1e-10)
+      return std::abs((F_a(n,k,j,i)-F_b(n,k,j,i)) / mag_ab);
+
+    return 0.0;
+  };
+
+  auto dump_prim = [&](const Real err, AA & F_a, AA & F_b,
+                       const int n, const int k, const int j, const int i,
+                       char * tag)
+  {
+    #pragma omp critical
+    {
+      const bool is_physical_idx = pmb->IsPhysicalIndex_cc(k, j, i);
+
+      std::printf("=== P2C o C2P [%s] err_tol_abs not met: \n", tag);
+      std::printf("field_idx=%d is_physical_idx=%d \n", n, is_physical_idx);
+      std::printf("(i=%d,j=%d,k=%d) ~ (%f,%f,%f)\n",
+                  i, j, k,
+                  pmb->pcoord->x1v(i), pmb->pcoord->x2v(j), pmb->pcoord->x3v(k));
+      std::printf("(err,id:F_a,F_b) ~ (%.2e,%.5e,%.5e)\n",
+                  err,
+                  F_a(n,k,j,i), F_b(n,k,j,i));
+
+    }
+  };
+
+
+  for (int n=0;  n<NHYDRO;  ++n)
+  for (int k=KL; k<=KU;     ++k)
+  for (int j=JL; j<=JU;     ++j)
+  for (int i=IL; i<=IU;     ++i)
+  {
+    const bool report = (dbg_report_all) ? true
+                                         : pmb->IsPhysicalIndex_cc(k, j, i);
+    const Real w_err = err_abs(id_w, prim, n, k, j, i);
+
+    if ((w_err > dbg_err_tol_abs) && report)
+    {
+      char tag[] = "w";
+      dump_prim(w_err, id_w, prim, n, k, j, i, tag);
+    }
+  }
+
+  for (int n=0;  n<NSCALARS;  ++n)
+  for (int k=KL; k<=KU;     ++k)
+  for (int j=JL; j<=JU;     ++j)
+  for (int i=IL; i<=IU;     ++i)
+  {
+    const bool report = (dbg_report_all) ? true
+                                         : pmb->IsPhysicalIndex_cc(k, j, i);
+    const Real r_err = err_abs(id_r, prim_scalar, n, k, j, i);
+
+    if ((r_err > dbg_err_tol_abs) && report)
+    {
+      char tag[] = "r";
+      dump_prim(r_err, id_r, prim_scalar, n, k, j, i, tag);
+    }
+  }
+
 }
 
 //----------------------------------------------------------------------------------------

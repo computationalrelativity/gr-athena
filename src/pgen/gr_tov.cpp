@@ -63,8 +63,8 @@ namespace {
   */
 
   // Insert interpolated TOV soln. to extant variables
-  void TOV_populate(MeshBlock *pmb,
-                    ParameterInput *pin);
+  void TOV_populate(MeshBlock *pmb, ParameterInput *pin);
+  void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin);
 
   int RefinementCondition(MeshBlock *pmb);
 
@@ -312,6 +312,27 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   // Populate hydro/gauge/ADM fields based on TOV soln.
   TOV_populate(this, pin);
 
+#if MAGNETIC_FIELDS_ENABLED
+  // Regularize prims (needed for some boosted data)
+  for (int k=0; k<ncells3; k++)
+  for (int j=0; j<ncells2; j++)
+  for (int i=0; i<ncells1; i++)
+  {
+    for (int n=0; n<NHYDRO; ++n)
+    if (!std::isfinite(phydro->w(n,k,j,i)))
+    {
+#if USETM
+      peos->ApplyPrimitiveFloors(phydro->w, pscalars->r, k, j, i);
+#else
+      peos->ApplyPrimitiveFloors(phydro->w, k, j, i);
+#endif
+      continue;
+    }
+  }
+
+  SeedMagneticFields(this, pin);
+#endif
+
   // Initialize remaining z4c variables
   pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
   // pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u1);
@@ -334,13 +355,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   if (id_floor_primitives)
   {
-
     for (int k = 0; k < ncells3; ++k)
     for (int j = 0; j < ncells2; ++j)
     for (int i = 0; i < ncells1; ++i)
     {
 #if USETM
-      // peos->ApplyPrimitiveFloors(phydro->w, pscalars->r, k, j, i);
+      peos->ApplyPrimitiveFloors(phydro->w, pscalars->r, k, j, i);
 #else
       peos->ApplyPrimitiveFloors(phydro->w, k, j, i);
 #endif
@@ -349,94 +369,25 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   }
   // --------------------------------------------------------------------------
 
-
   // Initialise conserved variables
-  peos->PrimitiveToConserved(
-                             phydro->w,
-#if USETM
+  peos->PrimitiveToConserved(phydro->w,
                              pscalars->r,
-#endif
                              pfield->bcc,
                              phydro->u,
-#if USETM
                              pscalars->s,
-#endif
                              pcoord,
                              0, ncells1-1,
                              0, ncells2-1,
                              0, ncells3-1);
 
-
-  // --------------------------------------------------------------------------
-  // If matter fields are correctly prepared then c2p & p2c should be
-  // idempotent within some error tolerance.
-  bool check_c2p_idempotent = pin->GetOrAddBoolean(
-    "problem", "check_c2p_idempotent", true);
-  if (check_c2p_idempotent)
-  {
-    AthenaArray<Real> id_w(NHYDRO,   ncells3, ncells2, ncells1);
-    AthenaArray<Real> id_r(NSCALARS, ncells3, ncells2, ncells1);
-
-    peos->ConservedToPrimitive(phydro->u,
-                               id_w,
-                               pfield->b,
-                               id_w,
-#if USETM
-                               pscalars->s,
-                               id_r,
-#endif
-                               pfield->bcc,
-                               pcoord,
-                               0, ncells1-1,
-                               0, ncells2-1,
-                               0, ncells3-1, 0);
-
-    Real w_err = -std::numeric_limits<Real>::infinity();
-    Real r_err = -std::numeric_limits<Real>::infinity();
-
-    for (int n=0; n<NHYDRO;  ++n)
-    for (int k=0; k<ncells3; ++k)
-    for (int j=0; j<ncells2; ++j)
-    for (int i=0; i<ncells1; ++i)
-    {
-      w_err = std::max(w_err, std::abs(id_w(n,k,j,i) -
-                                       phydro->w(n,k,j,i)));
-    }
-
-    for (int n=0; n<NSCALARS;  ++n)
-    for (int k=0; k<ncells3; ++k)
-    for (int j=0; j<ncells2; ++j)
-    for (int i=0; i<ncells1; ++i)
-    {
-      r_err = std::max(r_err, std::abs(id_r(n,k,j,i) -
-                                       pscalars->r(n,k,j,i)));
-    }
-
-    #pragma omp critical
-    {
-      std::cout << std::setprecision(8);
-      if (NSCALARS > 0)
-      {
-        std::cout << "w,r_err: " << w_err << "," << r_err << "\n";
-      }
-      else
-      {
-        std::cout << "w_err: " << w_err << "\n";
-      }
-    }
-  }
-  // --------------------------------------------------------------------------
-
-
   // Initialise matter (also taken care of in task-list)
   pz4c->GetMatter(pz4c->storage.mat,
                   pz4c->storage.adm,
                   phydro->w,
-#if USETM
                   pscalars->r,
-#endif
                   pfield->bcc);
 
+  /*
   pz4c->ADMConstraints(pz4c->storage.con,
                        pz4c->storage.adm,
                        pz4c->storage.mat,
@@ -456,7 +407,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   std::cout << "TOV_solve (ProblemGenerator,MB): ||H||_2=";
   std::cout << s_H << std::endl;
-
+  */
   return;
 }
 
@@ -905,8 +856,7 @@ Real df = m*(xv-xj)+fj;
 return df;
 }
 
-void TOV_populate(MeshBlock *pmb,
-                  ParameterInput *pin)
+void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
 {
   using namespace LinearAlgebra;
 
@@ -1553,6 +1503,7 @@ void TOV_populate(MeshBlock *pmb,
                              sp_K_dd_.is_finite());
       if (!geom_fin)
       {
+        std::cout << "TOV geometry not finite!" << std::endl;
         alpha_.array().print_all("%.1e");
         psi4_.array().print_all("%.1e");
         sp_beta_u_.array().print_all("%.1e");
@@ -1589,12 +1540,15 @@ void TOV_populate(MeshBlock *pmb,
 
 
   // register u has been populated directly, u1 does not need to be populated
+}
 
-#if MAGNETIC_FIELDS_ENABLED
-  // Prepare CC index bounds (BD: TODO why not just use [0, ncellsN] ?)
+void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin)
+{
+  GRDynamical * pcoord { static_cast<GRDynamical*>(pmb->pcoord) };
+  Field * pfield { pmb->pfield };
+  Hydro * phydro { pmb->phydro };
 
-  Field * pfield = pmb->pfield;
-
+  // Prepare CC index bounds
   const int il = 0;
   const int iu = (pmb->ncells1>1)? pmb->ncells1-1: 0;
 
@@ -1687,14 +1641,6 @@ void TOV_populate(MeshBlock *pmb,
 	  pfield->b.x3f(k,j,i) = 0.5*(pfield->bcc(2,k-1,j,i) +
                                 pfield->bcc(2,k,j,i));
   }
-
-  pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord,
-                                     0,(pmb->ncells1>1)? pmb->ncells1-1 : 0,
-                                     0,(pmb->ncells2>1)? pmb->ncells2-1 : 0,
-                                     0,(pmb->ncells3>1)? pmb->ncells3-1 : 0);
-
-#endif
-
 }
 
 //----------------------------------------------------------------------------------------

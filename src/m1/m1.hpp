@@ -125,7 +125,9 @@ public:
                                         semi_implicit_PicardMinerboPC,
                                         semi_implicit_Hybrids,
                                         semi_implicit_HybridsJFrozenP,
-                                        semi_implicit_HybridsJMinerbo};
+                                        semi_implicit_HybridsJMinerbo,
+                                        auto_esi_HybridsJMinerbo,
+                                        auto_esi_PicardMinerboP};
   enum class opt_fiducial_velocity { fluid, mixed, zero, none };
   enum class opt_characteristics_variety { approximate,
                                            exact_thin,
@@ -155,6 +157,7 @@ public:
     Real eps_E;
     Real eps_J;
     bool enforce_causality;
+    Real eps_ec_fac;
     Real min_flux_A;
 
     // Control the couplings

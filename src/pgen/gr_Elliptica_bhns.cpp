@@ -383,7 +383,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
         pfield->b.x3f(k,j,i) = 0.5*(bzcc(k-1,j,i) + bzcc(k,j,i));
       }
 
-    pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord, il,iu,jl,ju,kl,ku);
   } // MAGNETIC_FIELDS_ENABLED
   */
   //  -------------------------------------------------------------------------
@@ -434,7 +433,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   // TODO: BD - this needs to be fixed properly
   // No magnetic field, pass dummy or fix with overload
   //  AthenaArray<Real> null_bb_cc;
-  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pfield->bcc);
+  pz4c->GetMatter(pz4c->storage.mat,
+                  pz4c->storage.adm,
+                  phydro->w,
+                  pscalars->r,
+                  pfield->bcc);
 
   pz4c->ADMConstraints(pz4c->storage.con,
                        pz4c->storage.adm,

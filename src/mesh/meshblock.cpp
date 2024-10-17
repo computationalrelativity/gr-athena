@@ -1126,3 +1126,39 @@ bool MeshBlock::SphereIntersects(
   return false;
 
 }
+
+void MeshBlock::SetBoundaryVariablesConserved()
+{
+
+#if FLUID_ENABLED
+  Hydro *ph = phydro;
+  ph->hbvar.var_cc     = &(ph->u);
+  ph->hbvar.coarse_buf = &(ph->coarse_cons_);
+#endif
+
+#if NSCALARS > 0
+  pscalars->sbvar.var_cc     = &(pscalars->s);
+  pscalars->sbvar.coarse_buf = &(pscalars->coarse_s_);
+#endif
+
+}
+
+void MeshBlock::SetBoundaryVariablesPrimitive()
+{
+
+#if FLUID_ENABLED
+  Hydro *ph = phydro;
+  ph->hbvar.var_cc     = &(ph->w);
+  ph->hbvar.coarse_buf = &(ph->coarse_prim_);
+#endif
+
+#if NSCALARS > 0
+  pscalars->sbvar.var_cc     = &(pscalars->r);
+  pscalars->sbvar.coarse_buf = &(pscalars->coarse_r_);
+#endif
+
+}
+
+//
+// :D
+//

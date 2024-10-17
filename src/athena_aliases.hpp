@@ -60,9 +60,29 @@ typedef AthenaTensor<Real, TensorSymm::SYM2, D, 3> AT_D_VS2;
   for (int i=il; i<=iu; ++i)
 
 
-#define CC_ILOOP1(i)				               \
-  _Pragma("omp simd")				               \
+#define CC_ILOOP2(k,j)				               \
+  for (int k=pmb->ks; k<=pmb->ke; ++k)       \
+  for (int j=pmb->js; j<=pmb->je; ++j)
+
+#define CC_ILOOP1(i)				                 \
+  _Pragma("omp simd")				                 \
   for (int i=pmb->is; i<=pmb->ie; ++i)
+
+#define CC_ILOOP3(k,j,i)				             \
+  CC_ILOOP2(k,j)                             \
+  CC_ILOOP1(i)
+
+#define CC_GLOOP2(k,j)				               \
+  for (int k=0; k<pmb->ncells3; ++k)       \
+  for (int j=0; j<pmb->ncells2; ++j)
+
+#define CC_GLOOP1(i)				                 \
+  _Pragma("omp simd")				                 \
+  for (int i=0; i<pmb->ncells1; ++i)
+
+#define CC_GLOOP3(k,j,i)				             \
+  CC_GLOOP2(k,j)                             \
+  CC_GLOOP1(i)
 
 
 #endif // ATHENA_ALIASES_HPP

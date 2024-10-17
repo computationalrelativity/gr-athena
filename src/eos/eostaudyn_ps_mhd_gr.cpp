@@ -55,6 +55,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   // control PrimitiveSolver tolerances / iterates
   ps.SetRootfinderTol(pin->GetOrAddReal("hydro", "c2p_acc", 1e-15));
   ps.SetRootfinderMaxIter(pin->GetOrAddInteger("hydro", "max_iter", 30));
+  ps.SetValidateDensity(pin->GetOrAddBoolean("hydro", "c2p_validate_density", true));
 
   int ncells1 = pmb->block_size.nx1 + 2*NGHOST;
   g_.NewAthenaArray(NMETRIC, ncells1);
@@ -186,11 +187,12 @@ void InitColdEOS(Primitive::ColdEOS<Primitive::COLDEOS_POLICY> *eos,
 //       writing vv for v
 //   implements formulas assuming no magnetic field
 
-void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
-     const AthenaArray<Real> &prim_old, const FaceField &bb, AthenaArray<Real> &prim,
-     AthenaArray<Real> &cons_scalar, AthenaArray<Real> &prim_scalar,
-     AthenaArray<Real> &bb_cc, Coordinates *pco, int il, int iu, int jl, int ju, int kl,
-     int ku, int coarse_flag) {
+void EquationOfState::ConservedToPrimitive(
+  AthenaArray<Real> &cons, const AthenaArray<Real> &prim_old,
+  AthenaArray<Real> &prim, AthenaArray<Real> &cons_scalar,
+  AthenaArray<Real> &prim_scalar, AthenaArray<Real> &bb_cc, Coordinates *pco,
+  int il, int iu, int jl, int ju, int kl, int ku, int coarse_flag)
+{
   int nn1;
   GRDynamical* pco_gr;
   MeshBlock* pmb = pmy_block_;
@@ -246,8 +248,6 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
 
   KL = std::max(kl, KL);
   KU = std::min(ku, KU);
-
-  pf->CalculateCellCenteredField(bb, bb_cc, pco, IL, IU, JL, JU, KL, KU);
 
   // Go through the cells
   for (int k = KL; k <= KU; ++k) {
@@ -359,7 +359,6 @@ void EquationOfState::ConservedToPrimitive(AthenaArray<Real> &cons,
       }
     }
   }
-
 }
 
 //----------------------------------------------------------------------------------------
@@ -551,6 +550,14 @@ void EquationOfState::FastMagnetosonicSpeedsGR(Real n, Real T, Real bsq,
   Real d_sqrt = std::sqrt(d);
   Real root_1 = (-b + d_sqrt) / (2.0 * a);
   Real root_2 = (-b - d_sqrt) / (2.0 * a);
+
+  // BD: TODO - should we use this or enforce zero?
+  if (std::isnan(root_1) || std::isnan(root_2))
+  {
+    root_1 = 1.0;
+    root_2 = 1.0;
+  }
+
   if (root_1 > root_2) {
     *plambda_plus = root_1;
     *plambda_minus = root_2;

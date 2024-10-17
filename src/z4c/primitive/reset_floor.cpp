@@ -6,13 +6,19 @@
 #include "reset_floor.hpp"
 #include "ps_error.hpp"
 
+#include "../../defs.hpp"
+
 using namespace Primitive;
 
 /// Constructor
 ResetFloor::ResetFloor() {
   fail_conserved_floor = false;
   fail_primitive_floor = false;
+#ifdef PRIMITIVE_SOLVER_ADJUST_CONSERVED
   adjust_conserved = true;
+#else
+  adjust_conserved = false;
+#endif
 }
 
 /// Floor for the primitive variables

@@ -38,7 +38,13 @@ void Mesh::FinalizeWave(std::vector<MeshBlock*> & pmb_array)
       pbval->ProlongateBoundariesWave(time, 0.0);
     }
 
-    pbval->ApplyPhysicalBoundaries(time, 0.0);
+    pbval->ApplyPhysicalBoundaries(
+      time, 0.0,
+      pbval->GetBvarsWave(),
+      pw->mbi.il, pw->mbi.iu,
+      pw->mbi.jl, pw->mbi.ju,
+      pw->mbi.kl, pw->mbi.ku,
+      pw->mbi.ng);
   }
 }
 
@@ -63,12 +69,13 @@ void Mesh::FinalizeZ4cADM(std::vector<MeshBlock*> & pmb_array)
       pbval->ProlongateBoundariesZ4c(time, 0.0);
     }
 
-    // Switch based on Z4c sampling
-    FCN_CC_CX_VC(
-      pbval->ApplyPhysicalBoundaries,
-      pbval->ApplyPhysicalCellCenteredXBoundaries,
-      pbval->ApplyPhysicalVertexCenteredBoundaries
-    )(time, 0);
+    pbval->ApplyPhysicalBoundaries(
+      time, 0.0,
+      pbval->GetBvarsZ4c(),
+      pz->mbi.il, pz->mbi.iu,
+      pz->mbi.jl, pz->mbi.ju,
+      pz->mbi.kl, pz->mbi.ku,
+      pz->mbi.ng);
 
     // Enforce the algebraic constraints
     pz->AlgConstr(pz->storage.u);
@@ -99,12 +106,7 @@ void Mesh::FinalizeZ4cADM_Matter(std::vector<MeshBlock*> & pmb_array)
     ps = pmb->pscalars;
     pz = pmb->pz4c;
 
-#if USETM
     pz->GetMatter(pz->storage.mat, pz->storage.adm, ph->w, ps->r, pf->bcc);
-#else
-    pz->GetMatter(pz->storage.mat, pz->storage.adm, ph->w, pf->bcc);
-#endif // USETM
-
   }
 }
 
@@ -129,7 +131,14 @@ void Mesh::FinalizeM1(std::vector<MeshBlock*> & pmb_array)
       pbval->ProlongateBoundariesM1(time, 0.0);
     }
 
-    pbval->ApplyPhysicalBoundariesM1(time, 0.0);
+    pbval->ApplyPhysicalBoundaries(
+      time, 0.0,
+      pbval->GetBvarsM1(),
+      pm1->mbi.il, pm1->mbi.iu,
+      pm1->mbi.jl, pm1->mbi.ju,
+      pm1->mbi.kl, pm1->mbi.ku,
+      pm1->mbi.ng);
+
   }
 }
 
@@ -168,32 +177,52 @@ void Mesh::FinalizeHydroPrimRP(std::vector<MeshBlock*> & pmb_array)
 
   const int nmb = pmb_array.size();
 
+  Field *pf = nullptr;
   Hydro *ph = nullptr;
   PassiveScalars *ps = nullptr;
 
-  #pragma omp for private(pmb, pbval, ph, ps)
-  for (int i = 0; i < nmb; ++i) {
+  #pragma omp for private(pmb, pbval, ph, ps, pf)
+  for (int i = 0; i < nmb; ++i)
+  {
     pmb = pmb_array[i];
     pbval = pmb->pbval;
 
-    Hydro *ph = pmb->phydro;
-    PassiveScalars *ps = pmb->pscalars;
+    pf = pmb->pfield;
+    ph = pmb->phydro;
+    ps = pmb->pscalars;
 
     if (multilevel)
     {
       pbval->ProlongateBoundariesHydro(time, 0.0);
     }
 
-    // Swap Hydro and passive scalar quantities in
     // BoundaryVariable interface from conserved to primitive
     // formulations:
-    ph->hbvar.SwapHydroQuantity(ph->w, HydroBoundaryQuantity::prim);
-    if (NSCALARS > 0)
-      ps->sbvar.var_cc = &(ps->r);
+    pmb->SetBoundaryVariablesPrimitive();
 
-    pbval->ApplyPhysicalBoundaries(time, 0.0);
+    // N.B.
+    // Results in two-fold application of BC to magnetic fields;
+    // but that is harmless
+    pbval->ApplyPhysicalBoundaries(
+      time, 0.0,
+      pbval->GetBvarsMatter(),
+      pmb->is, pmb->ie,
+      pmb->js, pmb->je,
+      pmb->ks, pmb->ke,
+      NGHOST);
 
-    ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
+    if (MAGNETIC_FIELDS_ENABLED)
+    {
+      const int il = 0, iu = (pmb->ncells1 > 1)? pmb->ncells1 - 1 : 0;
+      const int jl = 0, ju = (pmb->ncells2 > 1)? pmb->ncells2 - 1 : 0;
+      const int kl = 0, ku = (pmb->ncells3 > 1)? pmb->ncells3 - 1 : 0;
+
+      pf->CalculateCellCenteredField(pf->b, pf->bcc, pmb->pcoord,
+                                     il, iu, jl, ju, kl, ku);
+    }
+
+    pbval->PrimitiveToConservedOnPhysicalBoundaries();
+    pmb->SetBoundaryVariablesConserved();
   }
 #endif // FLUID_ENABLED
 }
@@ -205,22 +234,45 @@ void Mesh::FinalizeHydroConsRP(std::vector<MeshBlock*> & pmb_array)
 
   const int nmb = pmb_array.size();
 
+  Field *pf = nullptr;
   Hydro *ph = nullptr;
   PassiveScalars *ps = nullptr;
 
-  #pragma omp for private(pmb, pbval, ph, ps)
-  for (int i = 0; i < nmb; ++i) {
+  #pragma omp for private(pmb, pbval, ph, ps,pf)
+  for (int i = 0; i < nmb; ++i)
+  {
     pmb = pmb_array[i];
     pbval = pmb->pbval;
 
-    Hydro *ph = pmb->phydro;
-    PassiveScalars *ps = pmb->pscalars;
+    pf = pmb->pfield;
+    ph = pmb->phydro;
+    ps = pmb->pscalars;
 
     if (multilevel)
     {
       pbval->ProlongateBoundariesHydro(time, 0.0);
     }
-    pbval->ApplyPhysicalBoundaries(time, 0.0);
+
+    // N.B.
+    // Results in two-fold application of BC to magnetic fields;
+    // but that is harmless
+    pbval->ApplyPhysicalBoundaries(
+      time, 0.0,
+      pbval->GetBvarsMatter(),
+      pmb->is, pmb->ie,
+      pmb->js, pmb->je,
+      pmb->ks, pmb->ke,
+      NGHOST);
+
+    if (MAGNETIC_FIELDS_ENABLED)
+    {
+      const int il = 0, iu = (pmb->ncells1 > 1)? pmb->ncells1 - 1 : 0;
+      const int jl = 0, ju = (pmb->ncells2 > 1)? pmb->ncells2 - 1 : 0;
+      const int kl = 0, ku = (pmb->ncells3 > 1)? pmb->ncells3 - 1 : 0;
+
+      pf->CalculateCellCenteredField(pf->b, pf->bcc, pmb->pcoord,
+                                     il, iu, jl, ju, kl, ku);
+    }
   }
 }
 
@@ -252,23 +304,17 @@ void Mesh::PreparePrimitives(std::vector<MeshBlock*> & pmb_array,
 
     if (!interior_only)
     {
-      il = 0;
-      iu = pmb->ncells1;
-
-      jl = 0;
-      ju = pmb->ncells2;
-
-      kl = 0;
-      ku = pmb->ncells3;
+      il = 0, iu = (pmb->ncells1 > 1)? pmb->ncells1 - 1 : 0;
+      jl = 0, ju = (pmb->ncells2 > 1)? pmb->ncells2 - 1 : 0;
+      kl = 0, ku = (pmb->ncells3 > 1)? pmb->ncells3 - 1 : 0;
     }
 
-    static const int coarse_flag = 0;
-    pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b, ph->w,
-#if USETM
+    static const int coarseflag = 0;
+    pmb->peos->ConservedToPrimitive(ph->u, ph->w1, ph->w,
                                     ps->s, ps->r,
-#endif
                                     pf->bcc, pmb->pcoord,
-                                    il, iu, jl, ju, kl, ku, coarse_flag);
+                                    il, iu, jl, ju, kl, ku,
+                                    coarseflag);
   }
 
 #endif // FLUID_ENABLED
@@ -309,8 +355,10 @@ void Mesh::CommunicateConserved(std::vector<MeshBlock*> & pmb_array)
     pw = pmb->pwave;
     pz = pmb->pz4c;
 
-    if (FLUID_ENABLED) {
-      ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
+    pmb->SetBoundaryVariablesConserved();
+
+    if (FLUID_ENABLED)
+    {
       ph->hbvar.SendBoundaryBuffers();
     }
 
@@ -355,7 +403,9 @@ void Mesh::CommunicateConserved(std::vector<MeshBlock*> & pmb_array)
       ph->hbvar.ReceiveAndSetBoundariesWithWait();
 
     if (MAGNETIC_FIELDS_ENABLED)
+    {
       pf->fbvar.ReceiveAndSetBoundariesWithWait();
+    }
 
     if (NSCALARS > 0)
       ps->sbvar.ReceiveAndSetBoundariesWithWait();
@@ -409,8 +459,9 @@ void Mesh::CommunicateConservedMatter(std::vector<MeshBlock*> & pmb_array)
     pf = pmb->pfield;
     ps = pmb->pscalars;
 
+    pmb->SetBoundaryVariablesConserved();
+
 #if FLUID_ENABLED
-      ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
       ph->hbvar.SendBoundaryBuffers();
 #endif // FLUID_ENABLED
 
@@ -474,11 +525,11 @@ void Mesh::CommunicatePrimitives(std::vector<MeshBlock*> & pmb_array)
     ph = pmb->phydro;
     ps = pmb->pscalars;
 
-    ph->hbvar.SwapHydroQuantity(ph->w, HydroBoundaryQuantity::prim);
+    pmb->SetBoundaryVariablesPrimitive();
+
     ph->hbvar.SendBoundaryBuffers();
 
     if (NSCALARS > 0) {
-      ps->sbvar.var_cc = &(ps->r);
       ps->sbvar.SendBoundaryBuffers();
     }
   }
@@ -499,10 +550,8 @@ void Mesh::CommunicatePrimitives(std::vector<MeshBlock*> & pmb_array)
 
     pbval->ClearBoundary(BoundaryCommSubset::matter_primitives);
 
-    ph->hbvar.SwapHydroQuantity(ph->u, HydroBoundaryQuantity::cons);
-
-    if (NSCALARS > 0)
-      ps->sbvar.var_cc = &(ps->s);
+    // Revert to conserved representation
+    pmb->SetBoundaryVariablesConserved();
   }
 #endif // FLUID_ENABLED
 }
@@ -533,36 +582,43 @@ void Mesh::CommunicateAuxZ4c()
 
   #pragma omp parallel num_threads(nthreads)
   {
-    MeshBlock *pmb;
-    BoundaryValues *pbval;
-
-    #pragma omp for private(pmb,pbval)
-    for (int i=0; i<nmb; ++i)
-    {
-      pmb = pmb_array[i]; pbval = pmb->pbval;
-      pbval->StartReceiving(BoundaryCommSubset::aux_z4c);
-    }
-
-    #pragma omp for private(pmb,pbval)
-    for (int i=0; i<nmb; ++i)
-    {
-      pmb = pmb_array[i]; pbval = pmb->pbval;
-      pmb->pz4c->abvar.SendBoundaryBuffers();
-    }
-
-    #pragma omp for private(pmb,pbval)
-    for (int i=0; i<nmb; ++i)
-    {
-      pmb = pmb_array[i]; pbval = pmb->pbval;
-      pmb->pz4c->abvar.ReceiveAndSetBoundariesWithWait();
-      pbval->ClearBoundary(BoundaryCommSubset::aux_z4c);
-    }
+    MeshBlock *pmb = nullptr;
+    BoundaryValues *pbval = nullptr;
+    Z4c *pz = nullptr;
 
     #pragma omp for private(pmb,pbval)
     for (int i=0; i<nmb; ++i)
     {
       pmb = pmb_array[i];
       pbval = pmb->pbval;
+      pbval->StartReceiving(BoundaryCommSubset::aux_z4c);
+    }
+
+    #pragma omp for private(pmb,pbval,pz)
+    for (int i=0; i<nmb; ++i)
+    {
+      pmb = pmb_array[i];
+      pbval = pmb->pbval;
+      pz = pmb->pz4c;
+      pz->abvar.SendBoundaryBuffers();
+    }
+
+    #pragma omp for private(pmb,pbval,pz)
+    for (int i=0; i<nmb; ++i)
+    {
+      pmb = pmb_array[i];
+      pbval = pmb->pbval;
+      pz = pmb->pz4c;
+      pz->abvar.ReceiveAndSetBoundariesWithWait();
+      pbval->ClearBoundary(BoundaryCommSubset::aux_z4c);
+    }
+
+    #pragma omp for private(pmb,pbval,pz)
+    for (int i=0; i<nmb; ++i)
+    {
+      pmb = pmb_array[i];
+      pbval = pmb->pbval;
+      pz = pmb->pz4c;
 
       if (multilevel)
       {
@@ -571,7 +627,13 @@ void Mesh::CommunicateAuxZ4c()
       }
 
       // Handle aux. fund. MeshBlock boundaries
-      pbval->ApplyPhysicalBoundariesAux(time, 0);
+      pbval->ApplyPhysicalBoundaries(
+        time, 0.0,
+        pbval->bvars_aux,
+        pz->mbi.il, pz->mbi.iu,
+        pz->mbi.jl, pz->mbi.ju,
+        pz->mbi.kl, pz->mbi.ku,
+        pz->mbi.ng);
     }
 
   }
@@ -603,36 +665,43 @@ void Mesh::CommunicateIteratedZ4c(const int iterations)
     {
       #pragma omp parallel num_threads(nthreads)
       {
-        MeshBlock *pmb;
-        BoundaryValues *pbval;
-
-        #pragma omp for private(pmb,pbval)
-        for (int i=0; i<nmb; ++i)
-        {
-          pmb = pmb_array[i]; pbval = pmb->pbval;
-          pbval->StartReceiving(BoundaryCommSubset::iterated_z4c);
-        }
-
-        #pragma omp for private(pmb,pbval)
-        for (int i=0; i<nmb; ++i)
-        {
-          pmb = pmb_array[i]; pbval = pmb->pbval;
-          pmb->pz4c->rbvar.SendBoundaryBuffersFullRestriction();
-        }
-
-        #pragma omp for private(pmb,pbval)
-        for (int i=0; i<nmb; ++i)
-        {
-          pmb = pmb_array[i]; pbval = pmb->pbval;
-          pmb->pz4c->rbvar.ReceiveAndSetBoundariesWithWait();
-          pbval->ClearBoundary(BoundaryCommSubset::iterated_z4c);
-        }
+        MeshBlock *pmb = nullptr;
+        BoundaryValues *pbval = nullptr;
+        Z4c *pz = nullptr;
 
         #pragma omp for private(pmb,pbval)
         for (int i=0; i<nmb; ++i)
         {
           pmb = pmb_array[i];
           pbval = pmb->pbval;
+          pbval->StartReceiving(BoundaryCommSubset::iterated_z4c);
+        }
+
+        #pragma omp for private(pmb,pbval,pz)
+        for (int i=0; i<nmb; ++i)
+        {
+          pmb = pmb_array[i];
+          pbval = pmb->pbval;
+          pz = pmb->pz4c;
+          pz->rbvar.SendBoundaryBuffersFullRestriction();
+        }
+
+        #pragma omp for private(pmb,pbval,pz)
+        for (int i=0; i<nmb; ++i)
+        {
+          pmb = pmb_array[i];
+          pbval = pmb->pbval;
+          pz = pmb->pz4c;
+          pz->rbvar.ReceiveAndSetBoundariesWithWait();
+          pbval->ClearBoundary(BoundaryCommSubset::iterated_z4c);
+        }
+
+        #pragma omp for private(pmb,pbval,pz)
+        for (int i=0; i<nmb; ++i)
+        {
+          pmb = pmb_array[i];
+          pbval = pmb->pbval;
+          pz = pmb->pz4c;
 
           // RBC uses storage.u & coarse_u_
           // Therefore can reuse the usual interface
@@ -641,7 +710,14 @@ void Mesh::CommunicateIteratedZ4c(const int iterations)
             pbval->ProlongateBoundariesZ4c(time, 0);
           }
 
-          pbval->ApplyPhysicalCellCenteredXBoundaries(time, 0);
+          pbval->ApplyPhysicalBoundaries(
+            time, 0.0,
+            pbval->GetBvarsZ4c(),
+            pz->mbi.il, pz->mbi.iu,
+            pz->mbi.jl, pz->mbi.ju,
+            pz->mbi.kl, pz->mbi.ku,
+            pz->mbi.ng);
+
         }
       }
     }

@@ -50,6 +50,7 @@ SRC_FILES := \
 		$(CCE_FILE) \
 		@WAVE_SRC@ \
 		@M1_SRC@ \
+		@EJECTA_SRC@ \
 		$(MPIFFT_FILE)
 OBJ_DIR := obj/
 OBJ_FILES := $(addprefix $(OBJ_DIR),$(notdir $(SRC_FILES:.cpp=.o)))

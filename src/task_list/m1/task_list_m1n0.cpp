@@ -414,7 +414,15 @@ TaskStatus M1N0::PhysicalBoundary(MeshBlock *pmb, int stage)
     Real t_end_stage = pmb->pmy_mesh->time + dt;
 
     pm1->enable_user_bc = true;
-    pbval->ApplyPhysicalBoundariesM1(t_end_stage, dt);
+
+    pbval->ApplyPhysicalBoundaries(
+      t_end_stage, dt,
+      pbval->GetBvarsM1(),
+      pm1->mbi.il, pm1->mbi.iu,
+      pm1->mbi.jl, pm1->mbi.ju,
+      pm1->mbi.kl, pm1->mbi.ku,
+      pm1->mbi.ng);
+
     pm1->enable_user_bc = false;
     return TaskStatus::success;
   }
@@ -427,7 +435,7 @@ TaskStatus M1N0::UserWork(MeshBlock *pmb, int stage)
 {
   if (stage != nstages) return TaskStatus::success; // only do on last stage
 
-  pmb->UserWorkInLoop();
+  pmb->M1UserWorkInLoop();
 
 #if !Z4C_ENABLED
   // TODO: BD- this should be shifted to its own task

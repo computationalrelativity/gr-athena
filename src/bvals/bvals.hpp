@@ -19,6 +19,10 @@
 #include "../athena_arrays.hpp"
 #include "bvals_interfaces.hpp"
 
+// TODO shift the macros
+#include "../wave/wave_macro.hpp"
+#include "../z4c/z4c_macro.hpp"
+
 // MPI headers
 #ifdef MPI_PARALLEL
 #include <mpi.h>
@@ -134,25 +138,75 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   // (these typically involve a coupled interaction of boundary variable/quantities)
   // ------
 
-  void ApplyPhysicalBoundaries(const Real time, const Real dt);
+  inline void ProlongateBoundariesHydro(const Real time, const Real dt)
+  {
+#if defined(DBG_USE_CONS_BC)
+    ProlongateBoundariesHydroCons(time, dt);
+#else
+    ProlongateBoundariesHydroPrim(time, dt);
+#endif
+  }
 
-  void ProlongateBoundariesHydro(const Real time, const Real dt);
+  void ProlongateBoundariesHydroCons(const Real time, const Real dt);
+  void ProlongateBoundariesHydroPrim(const Real time, const Real dt);
+
   void ProlongateBoundariesZ4c(const Real time, const Real dt);
   void ProlongateBoundariesWave(const Real time, const Real dt);
   void ProlongateBoundariesAux(const Real time, const Real dt);
   void ProlongateBoundariesM1(const Real time, const Real dt);
 
-  //--New logic for vertex-centering
-  void ApplyPhysicalVertexCenteredBoundaries(const Real time, const Real dt);
-  void ProlongateVertexCenteredBoundaries(const Real time, const Real dt);
-
-  void ApplyPhysicalCellCenteredXBoundaries(const Real time, const Real dt);
-  void ProlongateCellCenteredXBoundaries(const Real time, const Real dt);
   //---------------------------------------------------------------------------
+  // Deal with application of physical boundaries on domain
+  inline std::vector<BoundaryVariable *> & GetBvarsWave()
+  {
+    return WAVE_SW_CC_CX_VC(
+      bvars_main_int, bvars_main_int_cx, bvars_main_int
+    );
+  };
+  inline std::vector<BoundaryVariable *> & GetBvarsZ4c()
+  {
+    return SW_CC_CX_VC(
+      bvars_main_int, bvars_main_int_cx, bvars_main_int
+    );
+  };
+  inline std::vector<BoundaryVariable *> & GetBvarsMatter()
+  {
+    return bvars_main_int;
+  };
+  inline std::vector<BoundaryVariable *> & GetBvarsM1()
+  {
+    return bvars_m1;
+  };
+  inline std::vector<BoundaryVariable *> & GetBvarsAux()
+  {
+    return bvars_aux;
+  };
 
-  // Interface to deal with garbage interface...
-  void ApplyPhysicalBoundariesAux(const Real time, const Real dt);
-  void ApplyPhysicalBoundariesM1(const Real time, const Real dt);
+  void ApplyPhysicalBoundaries(const Real time, const Real dt,
+                               std::vector<BoundaryVariable *> & bvars,
+                               const int var_is, const int var_ie,
+                               const int var_js, const int var_je,
+                               const int var_ks, const int var_ke,
+                               const int ng);
+
+  void PrimitiveToConservedOnPhysicalBoundaries();
+
+  void CalculateCellCenteredFieldOnProlongedBoundaries();
+  void PrimitiveToConservedOnProlongedBoundaries();
+
+  // Treat complementary coarse representations -------------------------------
+  void CalculateCellCenteredFieldOnCoarseLevel();
+  void PrimitiveToConservedOnCoarseLevelBoundaries();
+
+  void ApplyPhysicalBoundariesOnCoarseLevel(
+    const Real time, const Real dt,
+    std::vector<BoundaryVariable *> & bvars,
+    const int var_cis, const int var_cie,
+    const int var_cjs, const int var_cje,
+    const int var_cks, const int var_cke,
+    const int cng);
+
+  //---------------------------------------------------------------------------
 
   // compute the shear at each integrator stage
   // TODO(felker): consider making this fn private again if calling within StartRecv()
@@ -201,39 +255,6 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   SimpleNeighborBlock shear_send_neighbor_[2][4], shear_recv_neighbor_[2][4];
   int shear_send_count_[2][4], shear_recv_count_[2][4];
 
-  // ProlongateBoundaries() wraps the following S/AMR-operations (within nneighbor loop):
-  // (the next function is also called within 3x nested loops over nk,nj,ni)
-  void RestrictGhostCellsOnSameLevel(const NeighborBlock& nb, int nk, int nj, int ni);
-  void ApplyPhysicalBoundariesOnCoarseLevel(
-      const NeighborBlock& nb, const Real time, const Real dt,
-      int si, int ei, int sj, int ej, int sk, int ek);
-  void ProlongateGhostCells(const NeighborBlock& nb,
-                            int si, int ei, int sj, int ej, int sk, int ek);
-
-  void ApplyPhysicalVertexCenteredBoundariesOnCoarseLevel(
-      const Real time, const Real dt);
-
-  void ApplyPhysicalCellCenteredXBoundariesOnCoarseLevel(
-      const Real time, const Real dt);
-
-  void CalculateVertexProlongationIndices(std::int64_t &lx, int ox, int pcng,
-                                         int cix_vs, int cix_ve,
-                                         int &set_ix_vs, int &set_ix_ve,
-                                         bool is_dim_nontrivial);
-
-  void CalculateCellCenteredXProlongationIndices(std::int64_t &lx, int ox, int pcng,
-                                                 int cix_vs, int cix_ve,
-                                                 int &set_ix_vs, int &set_ix_ve,
-                                                 bool is_dim_nontrivial);
-
-  void ProlongateVertexCenteredGhosts(
-      const NeighborBlock& nb,
-      int si, int ei, int sj, int ej, int sk, int ek);
-
-  void ProlongateCellCenteredXGhosts(
-      const NeighborBlock& nb,
-      int si, int ei, int sj, int ej, int sk, int ek);
-
   void DispatchBoundaryFunctions(
       MeshBlock *pmb, Coordinates *pco, Real time, Real dt,
       int il, int iu,
@@ -241,25 +262,9 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
       int kl, int ku,
       int ngh,
       BoundaryFace face,
-      std::vector<BoundaryVariable *> &bvars_main);
+      std::vector<BoundaryVariable *> &bvars);
 
   void CheckPolarBoundaries();  // called in BoundaryValues() ctor
-
-  // M1 specific --------------------------------------------------------------
-  void RestrictGhostCellsOnSameLevelM1(
-    const NeighborBlock& nb, int nk,
-    int nj, int ni);
-
-  void ApplyPhysicalBoundariesOnCoarseLevelM1(
-    const NeighborBlock& nb, const Real time, const Real dt,
-    int si, int ei, int sj, int ej, int sk, int ek);
-
-  void ProlongateGhostCellsM1(
-    const NeighborBlock& nb,
-    int si, int ei, int sj, int ej,
-    int sk, int ek);
-  // --------------------------------------------------------------------------
-
 
   // temporary--- Added by @tomidakn on 2015-11-27 in f0f989f85f
   // TODO(KGF): consider removing this friendship designation

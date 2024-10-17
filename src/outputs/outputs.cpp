@@ -86,6 +86,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>   // std::string, to_string()
+#include <vector>
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -343,6 +344,197 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   OutputData *pod;
 
   // NEW_OUTPUT_TYPES:
+
+  if (output_params.variable.compare("all") == 0)
+  {
+
+    if (FLUID_ENABLED)
+    {
+      // conserved variables --------------------------------------------------
+      std::vector<std::string> names_con = {
+        "hydro.D", "hydro.S1", "hydro.S2", "hydro.S3", "hydro.tau"
+      };
+
+      std::vector<unsigned int> idx_con = {
+        IDN, IM1, IM2, IM3, IEN
+      };
+
+      for (int ix=0; ix<names_con.size(); ++ix)
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = names_con[ix];
+        pod->data.InitWithShallowSlice(phyd->u, 4, idx_con[ix], 1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      // `PrimitiveSolver` temp -----------------------------------------------
+      if (USETM)
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "hydro.T";
+        pod->data.InitWithShallowSlice(phyd->temperature, 0, 1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      // primitive variables --------------------------------------------------
+      std::vector<std::string> names_prim = {
+        "hydro.rho", "hydro.util1", "hydro.util2", "hydro.util3",
+        "hydro.p"};
+
+      std::vector<unsigned int> idx_prim = {
+        IDN, IVX, IVY, IVZ, IPR
+      };
+
+      for (int ix=0; ix<names_prim.size(); ++ix)
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = names_prim[ix];
+        pod->data.InitWithShallowSlice(phyd->w, 4, idx_prim[ix], 1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      // c2p ------------------------------------------------------------------
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = "hydro.c2p_status";
+        pod->data.InitWithShallowSlice(phyd->c2p_status, 0, 1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+    }
+
+    if (NSCALARS > 0)
+    {
+      std::string root_name_cons = "passive_scalar.s_";
+      std::string root_name_prim = "passive_scalar.r_";
+      for (int n=0; n<NSCALARS; n++)
+      {
+        std::string scalar_name_cons = root_name_cons + std::to_string(n);
+        std::string scalar_name_prim = root_name_prim + std::to_string(n);
+
+        {
+          pod = new OutputData;
+          pod->type = "SCALARS";
+          pod->name = scalar_name_cons;
+          pod->data.InitWithShallowSlice(psclr->s, 4, n, 1);
+          AppendOutputDataNode(pod);
+          num_vars_++;
+        }
+
+        {
+          pod = new OutputData;
+          pod->type = "SCALARS";
+          pod->name = scalar_name_prim;
+          pod->data.InitWithShallowSlice(psclr->r, 4, n, 1);
+          AppendOutputDataNode(pod);
+          num_vars_++;
+        }
+      }
+    }
+
+    if (MAGNETIC_FIELDS_ENABLED)
+    {
+      std::vector<std::string> names_B_cc = {
+        "B.Bcc1", "B.Bcc2", "B.Bcc3"
+      };
+
+      std::vector<unsigned int> idx_B_cc = {
+        IB1, IB2, IB3
+      };
+
+      for (int ix=0; ix<names_B_cc.size(); ++ix)
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = names_B_cc[ix];
+        pod->data.InitWithShallowSlice(pfld->bcc, 4, idx_B_cc[ix], 1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      std::vector<std::string> names_B_fc = {
+        "B.B1", "B.B2", "B.B3"
+      };
+
+      std::vector<AthenaArray<Real> *> b_fc = {
+        &(pfld->b.x1f), &(pfld->b.x2f), &(pfld->b.x3f)
+      };
+
+      for (int ix=0; ix<names_B_fc.size(); ++ix)
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = names_B_fc[ix];
+        pod->data.InitWithShallowSlice(*b_fc[ix], 4, 0, 1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+    }
+
+    if (Z4C_ENABLED)
+    {
+      for (int v = 0; v < Z4c::N_Z4c; ++v)
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = Z4c::Z4c_names[v];
+        pod->data.InitWithShallowSlice(pz4c->storage.u,v,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      for (int v = 0; v < Z4c::N_ADM; ++v)
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = Z4c::ADM_names[v];
+        pod->data.InitWithShallowSlice(pz4c->storage.adm,v,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      for (int v = 0; v < Z4c::N_CON; ++v)
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = Z4c::Constraint_names[v];
+        pod->data.InitWithShallowSlice(pz4c->storage.con,v,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      for (int v = 0; v < Z4c::N_MAT; ++v)
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = Z4c::Matter_names[v];
+        pod->data.InitWithShallowSlice(pz4c->storage.mat,v,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+
+      for (int v = 0; v < Z4c::N_WEY; ++v)
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = Z4c::Weyl_names[v];
+        pod->data.InitWithShallowSlice(pz4c->storage.weyl,v,1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    }
+
+  }
+
 
   // (lab-frame) density
   if (output_params.variable.compare("D") == 0 ||

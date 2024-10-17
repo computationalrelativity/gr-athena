@@ -362,6 +362,30 @@ void VertexCenteredBoundaryVariable::RestrictNonGhost()
   return;
 }
 
+void VertexCenteredBoundaryVariable::ProlongateBoundaries(
+  const Real time, const Real dt)
+{
+  MeshBlock * pmb = pmy_block_;
+  MeshRefinement *pmr = pmb->pmr;
+
+  const int mylevel = pbval_->loc.level;
+  const int nneighbor = pbval_->nneighbor;
+
+  // dimensionality of variable common
+  const int nu = var_vc->GetDim4() - 1;
+
+  for (int n=0; n<nneighbor; ++n)
+  {
+    NeighborBlock& nb = pbval_->neighbor[n];
+    if (nb.snb.level >= mylevel) continue;
+
+    int si, ei, sj, ej, sk, ek;
+
+    CalculateProlongationIndices(nb, si, ei, sj, ej, sk, ek);
+    pmr->ProlongateVertexCenteredValues(*coarse_buf, *var_vc, 0, nu,
+                                        si, ei, sj, ej, sk, ek);
+  }
+}
 
 void VertexCenteredBoundaryVariable::SendBoundaryBuffers() {
   if (!node_mult_assembled)

@@ -12,7 +12,4 @@
 using namespace gra::aliases;
 //-----------------------------------------------------------------------------
 
-Real EquationOfState::GetGamma()
-{
-  return 0;
-}
+// dummy file

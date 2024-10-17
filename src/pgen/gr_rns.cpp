@@ -380,7 +380,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   if(verbose)
     std::cout << "Initializing matter and constraints on current MeshBlock." << std::endl;
 
-  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w,pfield->bcc);
+  pz4c->GetMatter(pz4c->storage.mat,
+                  pz4c->storage.adm,
+                  phydro->w,
+                  pscalars->r,
+                  pfield->bcc);
   pz4c->ADMConstraints(pz4c->storage.con,pz4c->storage.adm,pz4c->storage.mat,pz4c->storage.u);
   
 #ifdef Z4C_ASSERT_FINITE

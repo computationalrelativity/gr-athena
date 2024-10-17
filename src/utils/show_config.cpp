@@ -13,6 +13,7 @@
 
 // Athena++ headers
 #include "../athena.hpp"
+#include "../defs.hpp"
 
 //----------------------------------------------------------------------------------------
 //! \fn void ShowConfig()
@@ -21,7 +22,7 @@
 void ShowConfig() {
   // To match configure.py output: use 2 space indent for option, value output starts on
   // column 30
-  std::cout<<"This Athena++ executable is configured with:" << std::endl;
+  std::cout<<"GR-Athena++ executable is configured with:" << std::endl;
   std::cout<<"  Problem generator:          " << PROBLEM_GENERATOR << std::endl;
   std::cout<<"  Coordinate system:          " << COORDINATE_SYSTEM << std::endl;
   std::cout<<"  Equation of state:          " << EQUATION_OF_STATE << std::endl;
@@ -55,11 +56,16 @@ void ShowConfig() {
 #else
       std::cout<<"  Z4c shift damping:          Constant" << std::endl;
 #endif
-    if (CCE_ENABLED) { 
+    if (CCE_ENABLED) {
       std::cout<<"  CCE waveform extraction:    ON" << std::endl;
     } else {
       std::cout<<"  CCE waveform extraction:    OFF" << std::endl;
     }
+#if defined (EJECTA_ENABLED)
+    std::cout<<"  Ejecta:                     ON" << std::endl;
+#else
+    std::cout<<"  Ejecta:                     OFF" << std::endl;
+#endif
   } else {
     std::cout<<"  Z4c equations:              OFF" << std::endl;
   }

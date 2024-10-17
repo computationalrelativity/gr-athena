@@ -64,6 +64,7 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   root = pin->GetOrAddInteger("ahf", "mpi_root", 0);
   merger_distance = pin->GetOrAddReal("ahf", "merger_distance", 0.1);
   bitant = pin->GetOrAddBoolean("mesh", "bitant", false);
+  use_stored_metric_drvts = pin->GetBoolean("z4c", "store_metric_drvts");  
   
   // Initial guess
   parname = "initial_radius_";
@@ -88,9 +89,12 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   parname += n_str;
   use_puncture = pin->GetOrAddInteger("ahf", parname, -1);
 
-  parname = "compute_every_iter_";
-  parname += n_str;
-  compute_every_iter = pin->GetOrAddInteger("ahf", parname, 1);
+  // parname = "compute_every_iter_";
+  // parname += n_str;
+  // compute_every_iter = pin->GetOrAddInteger("ahf", parname, 1);
+
+  // BD: N.B. this is now covered by the task triggers
+  compute_every_iter = 1;
 
   if (use_puncture>=0) {
     // Center is determined on the fly during the initial guess
@@ -331,6 +335,7 @@ void AHF::MetricDerivatives(MeshBlock * pmy_block)
   fp = fopen(fname.c_str(),"w");
   fpd= fopen(fnamed.c_str(),"w");
 #endif
+
   Real oofdz = 1.0 / pz4c->mbi.dx3(0);
   Real oofdy = 1.0 / pz4c->mbi.dx2(0);
   Real oofdx = 1.0 / pz4c->mbi.dx1(0);
@@ -377,6 +382,7 @@ void AHF::MetricDerivatives(MeshBlock * pmy_block)
   }
   
   adm_g_dd.DeleteAthenaTensor();
+
 #if DEBUG_OUTPUT
   fclose(fp);
   fclose(fpd);
@@ -490,7 +496,11 @@ void AHF::MetricInterp(MeshBlock * pmb)
           if (bitant_sym)  {
             if (c == 2) bitant_z_fac *= -1;
           }
-          dg(c,a,b,i,j) = pinterp3->eval(&(pz4c->aux_g_ddd(c,a,b,0,0,0)))*bitant_z_fac;
+	  if (use_stored_metric_drvts) {
+	    dg(c,a,b,i,j) = pinterp3->eval(&(pz4c->aux.dg_ddd(c,a,b,0,0,0)))*bitant_z_fac;
+	  } else {
+	    dg(c,a,b,i,j) = pinterp3->eval(&(pz4c->aux_g_ddd(c,a,b,0,0,0)))*bitant_z_fac;
+	  }
         }
       }
 
@@ -985,21 +995,23 @@ void AHF::SurfaceIntegrals()
 
 //----------------------------------------------------------------------------------------
 // \!fn bool AHF::CalculateMetricDerivatives(int iter, Real time)
-// \brief CalculateMetricDerivatives
+// \brief calculate metric derivatives (if not stored)
 bool AHF::CalculateMetricDerivatives(int iter, Real time)
 {
+  if (use_stored_metric_drvts) return false;
   if((time < start_time) || (time > stop_time)) return false;
   if (wait_until_punc_are_close && !(PuncAreClose())) return false;
   if (iter % compute_every_iter != 0) return false;
-
+  
   // Compute and store ADM metric drvts at this iteration
   MeshBlock * pmb = pmesh->pblock;
   while (pmb != nullptr) {
     Z4c *pz4c = pmb->pz4c;
     pz4c->aux_g_ddd.NewAthenaTensor(pz4c->mbi.nn3, pz4c->mbi.nn2, pz4c->mbi.nn1);
-    MetricDerivatives(pmb);
+    MetricDerivatives(pmb); 
     pmb = pmb->next;
   }
+  
   return true;
 }
 
@@ -1020,6 +1032,7 @@ void AHF::Find(int iter, Real time)
 // \brief DeleteMetricDerivatives
 bool AHF::DeleteMetricDerivatives(int iter, Real time)
 {
+  if (use_stored_metric_drvts) return false;
   if((time < start_time) || (time > stop_time)) return false;
   if (wait_until_punc_are_close && !(PuncAreClose())) return false;
   if (iter % compute_every_iter != 0) return false;

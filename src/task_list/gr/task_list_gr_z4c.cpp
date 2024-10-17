@@ -309,16 +309,18 @@ TaskStatus GR_Z4c::PhysicalBoundary(MeshBlock *pmb, int stage)
   if (stage <= nstages)
   {
     BoundaryValues *pbval = pmb->pbval;
+    Z4c *pz4c = pmb->pz4c;
 
     const Real t_end = this->t_end(stage, pmb);
     const Real dt_scaled = this->dt_scaled(stage, pmb);
 
-    // switch based on sampling
-    FCN_CC_CX_VC(
-        pbval->ApplyPhysicalBoundaries,
-        pbval->ApplyPhysicalCellCenteredXBoundaries,
-        pbval->ApplyPhysicalVertexCenteredBoundaries
-    )(t_end, dt_scaled);
+    pbval->ApplyPhysicalBoundaries(
+      t_end, dt_scaled,
+      pbval->GetBvarsZ4c(),
+      pz4c->mbi.il, pz4c->mbi.iu,
+      pz4c->mbi.jl, pz4c->mbi.ju,
+      pz4c->mbi.kl, pz4c->mbi.ku,
+      pz4c->mbi.ng);
 
   }
   else
@@ -377,13 +379,14 @@ TaskStatus GR_Z4c::Z4c_Weyl(MeshBlock *pmb, int stage)
 }
 
 #if CCE_ENABLED
-TaskStatus GR_Z4c::CCEDump(MeshBlock *pmb, int stage) {
+TaskStatus GR_Z4c::CCEDump(MeshBlock *pmb, int stage)
+{
   // only do on last stage
   if (stage != nstages) return TaskStatus::success;
 
   Mesh *pm = pmb->pmy_mesh;
 
-  if (CurrentTimeCalculationThreshold(pm, &TaskListTriggers.cce_dump))
+  if (trgs.IsSatisfied(TriggerVariant::Z4c_CCE))
   {
     for (auto cce : pm->pcce)
     {

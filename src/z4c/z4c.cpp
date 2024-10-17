@@ -56,7 +56,17 @@ char const * const Z4c::Matter_names[Z4c::N_MAT] = {
 };
 
 char const * const Z4c::Weyl_names[Z4c::N_WEY] = {
-  "weyl.rpsi4","weyl.ipsi4",
+  "weyl.rpsi4", "weyl.ipsi4",
+};
+
+char const * const Z4c::Aux_names[Z4c::N_AUX] = {
+  "aux.dalpha_x", "aux.dalpha_y", "aux.dalpha_z",
+  "aux.dbetax_x", "aux.dbetay_x", "aux.dbetaz_x",
+  "aux.dbetax_y", "aux.dbetay_y", "aux.dbetaz_y",
+  "aux.dbetax_z", "aux.dbetay_z", "aux.dbetaz_z",
+  "aux.dgxx_x", "aux.dgxy_x", "aux.dgxz_x", "aux.dgyy_x", "aux.dgyz_x", "aux.dgzz_x",
+  "aux.dgxx_y", "aux.dgxy_y", "aux.dgxz_y", "aux.dgyy_y", "aux.dgyz_y", "aux.dgzz_y",
+  "aux.dgxx_z", "aux.dgxy_z", "aux.dgxz_z", "aux.dgyy_z", "aux.dgyz_z", "aux.dgzz_z",
 };
 
 Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
@@ -75,6 +85,12 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
     SW_CCX_VC(pmb->ncells1, pmb->nverts1),                 // nn1
     SW_CCX_VC(pmb->ncells2, pmb->nverts2),                 // nn2
     SW_CCX_VC(pmb->ncells3, pmb->nverts3),                 // nn3
+    SW_CC_CX_VC(pmb->cis, pmb->cx_cis, pmb->civs),         // cil
+    SW_CC_CX_VC(pmb->cie, pmb->cx_cie, pmb->cive),         // ciu
+    SW_CC_CX_VC(pmb->cjs, pmb->cx_cjs, pmb->cjvs),         // cjl
+    SW_CC_CX_VC(pmb->cje, pmb->cx_cje, pmb->cjve),         // cju
+    SW_CC_CX_VC(pmb->cks, pmb->cx_cks, pmb->ckvs),         // ckl
+    SW_CC_CX_VC(pmb->cke, pmb->cx_cke, pmb->ckve),         // cku
     SW_CC_CX_VC(pmb->ncc1, pmb->cx_ncc1, pmb->ncv1),       // cnn1
     SW_CC_CX_VC(pmb->ncc2, pmb->cx_ncc2, pmb->ncv2),       // cnn2
     SW_CC_CX_VC(pmb->ncc3, pmb->cx_ncc3, pmb->ncv3),       // cnn3
@@ -89,7 +105,8 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
           {N_ADM, mbi.nn3, mbi.nn2, mbi.nn1},              // adm
           {N_CON, mbi.nn3, mbi.nn2, mbi.nn1},              // con
           {N_MAT, mbi.nn3, mbi.nn2, mbi.nn1},              // mat
-          {N_WEY, mbi.nn3, mbi.nn2, mbi.nn1}               // weyl
+          {N_WEY, mbi.nn3, mbi.nn2, mbi.nn1},              // weyl
+	        {}                                               // aux
   },
   empty_flux{AthenaArray<Real>(), AthenaArray<Real>(), AthenaArray<Real>()},
   coarse_u_(N_Z4c, mbi.cnn3, mbi.cnn2, mbi.cnn1,
@@ -260,6 +277,8 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   opt.shift_eta_TP_ix = pin->GetOrAddInteger("z4c", "shift_eta_TP_ix", 0);
 #endif // Z4C_ETA_CONF, Z4C_ETA_TRACK_TP
 
+  opt.store_metric_drvts = pin->GetOrAddBoolean("z4c", "store_metric_drvts", false);
+  
   // Matter parameters
   opt.cowling = pin->GetOrAddInteger("z4c", "cowling_true", 0);
   opt.bssn = pin->GetOrAddInteger("z4c", "bssn", 0);
@@ -327,6 +346,14 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   SetZ4cAliases(storage.rhs, rhs);
   SetZ4cAliases(storage.u, z4c);
   SetWeylAliases(storage.weyl, weyl);
+
+  if (opt.store_metric_drvts)
+  {
+    storage.aux.NewAthenaArray(N_AUX, mbi.nn3, mbi.nn2, mbi.nn1);
+    SetAuxAliases(storage.aux, aux);
+  }
+
+
   // Allocate memory for aux 1D vars
   r.NewAthenaTensor(mbi.nn1);
   detg.NewAthenaTensor(mbi.nn1);
@@ -491,6 +518,17 @@ void Z4c::SetWeylAliases(AthenaArray<Real> & u, Z4c::Weyl_vars & weyl)
 {
   weyl.rpsi4.InitWithShallowSlice(u, I_WEY_rpsi4);
   weyl.ipsi4.InitWithShallowSlice(u, I_WEY_ipsi4);
+}
+
+//----------------------------------------------------------------------------------------
+// \!fn void Z4c::SetAuxlAliases(AthenaArray<Real> & u, Aux_vars & aux)
+// \brief Set aliases for auxiliary variables
+
+void Z4c::SetAuxAliases(AthenaArray<Real> & u, Z4c::Aux_vars & aux)
+{
+  aux.dalpha_d.InitWithShallowSlice(u, I_AUX_dalpha_x);
+  aux.dbeta_du.InitWithShallowSlice(u, I_AUX_dbetax_x);
+  aux.dg_ddd.InitWithShallowSlice(u, I_AUX_dgxx_x);
 }
 
 //----------------------------------------------------------------------------------------

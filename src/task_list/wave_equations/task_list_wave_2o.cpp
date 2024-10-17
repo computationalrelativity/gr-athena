@@ -76,23 +76,6 @@ void Wave_2O::StartupTaskList(MeshBlock *pmb, int stage)
   Wave *pwave = pmb->pwave;
   BoundaryValues *pbval = pmb->pbval;
 
-  const Real t_end = this->t_end(stage, pmb);
-  const Real dt_scaled = this->dt_scaled(stage, pmb);
-
-  if (WAVE_VC_ENABLED)
-  {
-    pbval->ApplyPhysicalVertexCenteredBoundaries(t_end, dt_scaled);
-  }
-  else if (WAVE_CC_ENABLED)
-  {
-    pbval->ApplyPhysicalBoundaries(t_end, dt_scaled);
-  }
-  else if (WAVE_CX_ENABLED)
-  {
-    pbval->ApplyPhysicalCellCenteredXBoundaries(t_end, dt_scaled);
-  }
-  //-----------------------
-
   integrators::Initialize(stage, pmb, pwave->bt_k, pwave->u, pwave->rhs);
 
   if (stage == 1)
@@ -333,23 +316,18 @@ TaskStatus Wave_2O::PhysicalBoundary(MeshBlock *pmb, int stage)
   if (stage <= nstages)
   {
     BoundaryValues *pbval = pmb->pbval;
+    Wave * pwave = pmb->pwave;
 
     const Real t_end = this->t_end(stage, pmb);
     const Real dt_scaled = this->dt_scaled(stage, pmb);
 
-    if (WAVE_VC_ENABLED)
-    {
-      pbval->ApplyPhysicalVertexCenteredBoundaries(t_end, dt_scaled);
-    }
-    else if (WAVE_CC_ENABLED)
-    {
-      pbval->ApplyPhysicalBoundaries(t_end, dt_scaled);
-    }
-    else if (WAVE_CX_ENABLED)
-    {
-      pbval->ApplyPhysicalCellCenteredXBoundaries(t_end, dt_scaled);
-    }
-
+    pbval->ApplyPhysicalBoundaries(
+      t_end, dt_scaled,
+      pbval->GetBvarsWave(),
+      pwave->mbi.il, pwave->mbi.iu,
+      pwave->mbi.jl, pwave->mbi.ju,
+      pwave->mbi.kl, pwave->mbi.ku,
+      pwave->mbi.ng);
   }
   else
   {

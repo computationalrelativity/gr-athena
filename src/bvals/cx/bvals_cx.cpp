@@ -539,6 +539,30 @@ void CellCenteredXBoundaryVariable::RestrictNonGhost()
 
 }
 
+void CellCenteredXBoundaryVariable::ProlongateBoundaries(
+  const Real time, const Real dt)
+{
+  MeshBlock * pmb = pmy_block_;
+  MeshRefinement *pmr = pmb->pmr;
+
+  const int mylevel = pbval_->loc.level;
+  const int nneighbor = pbval_->nneighbor;
+
+
+  // dimensionality of variable common
+  const int nu = var_cx->GetDim4() - 1;
+
+  for (int n=0; n<nneighbor; ++n)
+  {
+    NeighborBlock& nb = pbval_->neighbor[n];
+    if (nb.snb.level >= mylevel) continue;
+
+    int si, ei, sj, ej, sk, ek;
+    CalculateProlongationIndices(nb, si, ei, sj, ej, sk, ek);
+    pmr->ProlongateCellCenteredXBCValues(*coarse_buf, *var_cx, 0, nu,
+                                         si, ei, sj, ej, sk, ek);
+  }
+}
 
 void CellCenteredXBoundaryVariable::SendBoundaryBuffers() {
   // restrict all data (except ghosts) to coarse buffer

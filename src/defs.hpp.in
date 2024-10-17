@@ -59,11 +59,13 @@
 
 // If activated, use only cons R/P on MeshBlock BC; and phys BC
 #define @DBG_USE_CONS_BC@
-#define @DBG_USE_REFERENCE_TASKLISTS@
 
 // BD: TODO - check carefully... again...
 // Reconstruction X1 convention may require 0 or 1 offset for l/r
-#define DGB_RECON_X1_OFFSET 1
+#define DGB_RECON_X1_OFFSET 0
+
+// BD: If DBG enabled, do not use SpeciesWithinLimits during fallback
+#define @DBG_FALLBACK_NO_TABLE_LIMITS@
 
 // For N+1 NR problems, fix N
 #define NDIM 3
@@ -109,6 +111,9 @@
 
 // Error Policy code used for preprocessor checking
 #define ERROR_POLICY_CODE @ERROR_POLICY_CODE@
+
+// Switch off adjust_conserved in `reset_floor` for less aggressive flooring
+#define @PRIMITIVE_SOLVER_ADJUST_CONSERVED@
 
 // Maximum supported species by PrimitiveSolver
 // FIXME: Should be added as an argument later.
@@ -165,6 +170,9 @@
 #define M1_ENABLED @M1_ENABLED@
 
 #define M1_NO_WEAKRATES @M1_NO_WEAKRATES@
+
+// ejecta
+#define @EJECTA_ENABLED@
 
 // enable GR frame transformations? default=0 (false)
 #define FRAME_TRANSFORMATIONS @FRAME_TRANSFORMATIONS@

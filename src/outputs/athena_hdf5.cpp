@@ -447,6 +447,8 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   hid_t dataspace_dataset_list = H5Screate_simple(1, dims_count, NULL);
   dims_count[0] = num_vars_;
   hid_t dataspace_variable_list = H5Screate_simple(1, dims_count, NULL);
+  dims_count[0] = 1;
+  hid_t dataspace_hash_info_list = H5Screate_simple(1, dims_count, NULL);
 
   // Write cycle number
   int num_cycles = pm->ncycle;
@@ -558,6 +560,13 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   attribute = H5Acreate2(file, "VariableNames", string_type, dataspace_variable_list,
                          H5P_DEFAULT, H5P_DEFAULT);
   H5Awrite(attribute, string_type, variable_names);
+  H5Aclose(attribute);
+
+  // Write git hash
+  char hash_string[1][max_name_length + 1] = {GIT_HASH};
+  attribute = H5Acreate2(file, "GitHash", string_type, dataspace_hash_info_list,
+                         H5P_DEFAULT, H5P_DEFAULT);
+  H5Awrite(attribute, string_type, hash_string);
   H5Aclose(attribute);
 
   // Close attribute dataspaces
@@ -766,7 +775,7 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   H5Fclose(file);
 
   // Write .athdf.xdmf file
-  int write_xdmf = pin->GetOrAddInteger(output_params.block_name, "xdmf", 1);
+  int write_xdmf = pin->GetOrAddBoolean(output_params.block_name, "xdmf", true);
   if (Globals::my_rank == 0 && write_xdmf != 0)
     MakeXDMF();
 

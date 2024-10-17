@@ -40,17 +40,17 @@ ColdEOSCompOSE::~ColdEOSCompOSE() {
 
 Real ColdEOSCompOSE::Pressure(Real n) {
   assert (m_initialized);
-  return exp(eval_at_n(ECLOGP, n));
+  return exp(eval_at_n<0>(ECLOGP, n));
 }
 
 Real ColdEOSCompOSE::Energy(Real n) {
   assert (m_initialized);
-  return exp(eval_at_n(ECLOGE, n));
+  return exp(eval_at_n<0>(ECLOGE, n));
 }
 
 Real ColdEOSCompOSE::dPdn(Real n) {
   assert (m_initialized);
-  return eval_at_n(ECDPDN, n);
+  return eval_at_n<2>(ECDPDN, n);
 }
 
 Real ColdEOSCompOSE::SpecificInternalEnergy(Real n) {
@@ -59,7 +59,7 @@ Real ColdEOSCompOSE::SpecificInternalEnergy(Real n) {
 
 Real ColdEOSCompOSE::Y(Real n, int iy) {
   assert (m_initialized);
-  return eval_at_n(ECY+iy, n);
+  return eval_at_n<0>(ECY+iy, n);
 }
 
 Real ColdEOSCompOSE::Enthalpy(Real n) {
@@ -176,21 +176,42 @@ void ColdEOSCompOSE::DumpLoreneEOSFile(std::string fname) {
   }
 }
 
+template<int LIX_EXTRAPOLATE>
 void ColdEOSCompOSE::weight_idx_ln(Real *w0, Real *w1, int *in, Real log_n) const {
+
   *in = (log_n - m_table[index(ECLOGN, 0)])*m_id_log_nb;
+
+  // if outside table limits, linearly extrapolate
+  if (*in > m_np-2)
+  {
+    *in = m_np-2;
+  }
+  else if (*in < LIX_EXTRAPOLATE )
+  {
+    *in = LIX_EXTRAPOLATE;
+  }
+
   *w1 = (log_n - m_table[index(ECLOGN, *in)])*m_id_log_nb;
   *w0 = 1.0 - (*w1);
 }
 
+template<int LIX_EXTRAPOLATE>
 Real ColdEOSCompOSE::eval_at_ln(int iv, Real log_n) const {
   int in;
   Real wn0, wn1;
-  weight_idx_ln(&wn0, &wn1, &in, log_n);
-  return wn0 * m_table[index(iv, in+0)] + wn1 * m_table[index(iv, in+1)];
+
+  weight_idx_ln<LIX_EXTRAPOLATE>(&wn0, &wn1, &in, log_n);
+
+  const int ix1 = index(iv, in+0);
+  const int ix2 = index(iv, in+1);
+  const Real m1 = m_table[ix1];
+  const Real m2 = m_table[ix2];
+  return wn0 * m1 + wn1 * m2;
 }
 
+template<int LIX_EXTRAPOLATE>
 Real ColdEOSCompOSE::eval_at_n(int iv, Real n) const {
-  return eval_at_ln(iv, log(n));
+  return eval_at_ln<LIX_EXTRAPOLATE>(iv, log(n));
 }
 
 Real ColdEOSCompOSE::eval_at_general(int ii, int iv, Real h) const {

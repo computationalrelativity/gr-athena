@@ -136,7 +136,6 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin)
 void EquationOfState::ConservedToPrimitive(
   AthenaArray<Real> &cons,
   const AthenaArray<Real> &prim_old,
-  const FaceField &bb,
   AthenaArray<Real> &prim,
   AthenaArray<Real> &bb_cc,
   Coordinates *pco,
@@ -224,8 +223,6 @@ void EquationOfState::ConservedToPrimitive(
 
   KL = std::max(kl, KL);
   KU = std::min(ku, KU);
-
-  pf->CalculateCellCenteredField(bb, bb_cc, pco, IL, IU, JL, JU, KL, KU);
 
   // iterate over cells
   for (int k=KL; k<=KU; ++k)
@@ -577,6 +574,14 @@ void EquationOfState::FastMagnetosonicSpeedsGR(
   Real d_sqrt = std::sqrt(d);
   Real root_1 = (-b + d_sqrt) / (2.0*a);
   Real root_2 = (-b - d_sqrt) / (2.0*a);
+
+  // BD: TODO - should we use this or enforce zero?
+  if (std::isnan(root_1) || std::isnan(root_2))
+  {
+    root_1 = 1.0;
+    root_2 = 1.0;
+  }
+
   if (root_1 > root_2)
   {
     *plambda_plus = root_1;

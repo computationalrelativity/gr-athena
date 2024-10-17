@@ -434,446 +434,53 @@ void BoundaryValues::ClearBoundary(BoundaryCommSubset phase) {
 
 }
 
-//----------------------------------------------------------------------------------------
-//! \fn void BoundaryValues::ApplyPhysicalBoundaries(const Real time, const Real dt)
-//  \brief Apply all the physical boundary conditions for both hydro and field
-
+// Handler for application of physical boundaries for all variable types
 void BoundaryValues::ApplyPhysicalBoundaries(
-  const Real time, const Real dt)
+  const Real time, const Real dt,
+  std::vector<BoundaryVariable *> & bvars,
+  const int var_is, const int var_ie,
+  const int var_js, const int var_je,
+  const int var_ks, const int var_ke,
+  const int ng)
 {
   MeshBlock *pmb = pmy_block_;
   Coordinates *pco = pmb->pcoord;
-  int bis = pmb->is - NGHOST, bie = pmb->ie + NGHOST,
-      bjs = pmb->js, bje = pmb->je,
-      bks = pmb->ks, bke = pmb->ke;
+  int bis = var_is - ng, bie = var_ie + ng,
+      bjs = var_js, bje = var_je,
+      bks = var_ks, bke = var_ke;
 
   // Extend the transverse limits that correspond to periodic boundaries as they are
   // updated: x1, then x2, then x3
   if (!apply_bndry_fn_[BoundaryFace::inner_x2] && pmb->block_size.nx2 > 1)
-    bjs = pmb->js - NGHOST;
+    bjs = var_js - ng;
   if (!apply_bndry_fn_[BoundaryFace::outer_x2] && pmb->block_size.nx2 > 1)
-    bje = pmb->je + NGHOST;
+    bje = var_je + ng;
   if (!apply_bndry_fn_[BoundaryFace::inner_x3] && pmb->block_size.nx3 > 1)
-    bks = pmb->ks - NGHOST;
+    bks = var_ks - ng;
   if (!apply_bndry_fn_[BoundaryFace::outer_x3] && pmb->block_size.nx3 > 1)
-    bke = pmb->ke + NGHOST;
-
-  // KGF: temporarily hardcode Hydro and Field access for coupling in EOS U(W) + calc bcc
-  // and when passed to user-defined boundary function stored in function pointer array
-
-  // KGF: COUPLING OF QUANTITIES (must be manually specified)
-  // downcast BoundaryVariable ptrs to known derived class types: RTTI via dynamic_cast
-  HydroBoundaryVariable *phbvar = nullptr;
-  (void)phbvar;
-  Hydro *ph = nullptr;
-
-  if (FLUID_ENABLED) {
-    ph = pmb->phydro;
-    phbvar = dynamic_cast<HydroBoundaryVariable *>(bvars_main_int[0]);
-  }
-
-  // TODO(KGF): passing nullptrs (pf) if no MHD (coarse_* no longer in MeshRefinement)
-  // (may be fine to unconditionally directly set to pmb->pfield. See bvals_refine.cpp)
-
-  FaceCenteredBoundaryVariable *pfbvar = nullptr;
-  (void)pfbvar;
-  Field *pf = nullptr;
-  if (MAGNETIC_FIELDS_ENABLED) {
-    pf = pmb->pfield;
-    pfbvar = dynamic_cast<FaceCenteredBoundaryVariable *>(bvars_main_int[1]);
-  }
-  PassiveScalars *ps = nullptr;
-  if (NSCALARS > 0) {
-    ps = pmb->pscalars;
-  }
-
-  // Apply boundary function on inner-x1 and update W,bcc (if not periodic)
-  if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
-    DispatchBoundaryFunctions(pmb, pco, time, dt,
-                              pmb->is, pmb->ie,
-                              bjs, bje,
-                              bks, bke,
-                              NGHOST,
-                              BoundaryFace::inner_x1,
-                              bvars_main_int);
-    // KGF: COUPLING OF QUANTITIES (must be manually specified)
-    if (MAGNETIC_FIELDS_ENABLED)
-    {
-      pmb->pfield->CalculateCellCenteredField(pf->b, pf->bcc, pco,
-                                              pmb->is-NGHOST, pmb->is-1,
-                                              bjs, bje, bks, bke);
-    }
-
-#ifndef DBG_USE_CONS_BC
-    if (FLUID_ENABLED){
-#if USETM
-      pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
-                                      pmb->is-NGHOST, pmb->is-1, bjs, bje, bks, bke);
-#else
-      pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                      pmb->is-NGHOST, pmb->is-1, bjs, bje, bks, bke);
-#endif
-    }
-
-#if !USETM
-    if (NSCALARS > 0) {
-      pmb->peos->PassiveScalarPrimitiveToConserved(
-        ps->r, ph->w, ps->s, pco, pmb->is-NGHOST, pmb->is-1, bjs, bje, bks, bke);
-    }
-#endif
-
-#endif // DBG_USE_CONS_BC
-
-  }
-
-  // Apply boundary function on outer-x1 and update W,bcc (if not periodic)
-  if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
-    DispatchBoundaryFunctions(pmb, pco, time, dt,
-                              pmb->is, pmb->ie,
-                              bjs, bje,
-                              bks, bke,
-                              NGHOST,
-                              BoundaryFace::outer_x1,
-                              bvars_main_int);
-    // KGF: COUPLING OF QUANTITIES (must be manually specified)
-    if (MAGNETIC_FIELDS_ENABLED) {
-      pmb->pfield->CalculateCellCenteredField(pf->b, pf->bcc, pco,
-                                              pmb->ie+1, pmb->ie+NGHOST,
-                                              bjs, bje, bks, bke);
-    }
-
-#ifndef DBG_USE_CONS_BC
-
-    if (FLUID_ENABLED) {
-#if USETM
-      pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
-                                      pmb->ie+1, pmb->ie+NGHOST, bjs, bje, bks, bke);
-#else
-      pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                      pmb->ie+1, pmb->ie+NGHOST, bjs, bje, bks, bke);
-#endif
-    }
-
-#if !USETM
-    if (NSCALARS > 0) {
-      pmb->peos->PassiveScalarPrimitiveToConserved(
-        ps->r, ph->w, ps->s, pco, pmb->ie+1, pmb->ie+NGHOST, bjs, bje, bks, bke);
-    }
-#endif
-
-#endif // DBG_USE_CONS_BC
-
-  }
-
-  if (pmb->block_size.nx2 > 1) { // 2D or 3D
-    // Apply boundary function on inner-x2 and update W,bcc (if not periodic)
-    if (apply_bndry_fn_[BoundaryFace::inner_x2]) {
-      DispatchBoundaryFunctions(pmb, pco, time, dt,
-                                bis, bie,
-                                pmb->js, pmb->je,
-                                bks, bke,
-                                NGHOST,
-                                BoundaryFace::inner_x2,
-                                bvars_main_int);
-      // KGF: COUPLING OF QUANTITIES (must be manually specified)
-      if (MAGNETIC_FIELDS_ENABLED)
-      {
-        pmb->pfield->CalculateCellCenteredField(pf->b, pf->bcc, pco,
-                                                bis, bie, pmb->js-NGHOST, pmb->js-1,
-                                                bks, bke);
-      }
-
-#ifndef DBG_USE_CONS_BC
-      if (FLUID_ENABLED)
-      {
-#if USETM
-        pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
-                                        bis, bie, pmb->js-NGHOST, pmb->js-1, bks, bke);
-#else
-        pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                        bis, bie, pmb->js-NGHOST, pmb->js-1, bks, bke);
-#endif
-      }
-
-#if !USETM
-      if (NSCALARS > 0) {
-        pmb->peos->PassiveScalarPrimitiveToConserved(
-            ps->r, ph->w, ps->s, pco, bis, bie, pmb->js-NGHOST, pmb->js-1, bks, bke);
-      }
-#endif
-
-#endif // DBG_USE_CONS_BC
-
-    }
-
-    // Apply boundary function on outer-x2 and update W,bcc (if not periodic)
-    if (apply_bndry_fn_[BoundaryFace::outer_x2]) {
-      DispatchBoundaryFunctions(pmb, pco, time, dt,
-                                bis, bie,
-                                pmb->js, pmb->je,
-                                bks, bke,
-                                NGHOST,
-                                BoundaryFace::outer_x2,
-                                bvars_main_int);
-      // KGF: COUPLING OF QUANTITIES (must be manually specified)
-      if (MAGNETIC_FIELDS_ENABLED) {
-        pmb->pfield->CalculateCellCenteredField(pf->b, pf->bcc, pco,
-                                                bis, bie, pmb->je+1, pmb->je+NGHOST,
-                                                bks, bke);
-      }
-
-#ifndef DBG_USE_CONS_BC
-      if (FLUID_ENABLED) {
-#if USETM
-        pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
-                                        bis, bie, pmb->je+1, pmb->je+NGHOST, bks, bke);
-#else
-        pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                        bis, bie, pmb->je+1, pmb->je+NGHOST, bks, bke);
-#endif
-      }
-
-#if !USETM
-      if (NSCALARS > 0) {
-        pmb->peos->PassiveScalarPrimitiveToConserved(
-          ps->r, ph->w, ps->s, pco, bis, bie, pmb->je+1, pmb->je+NGHOST, bks, bke);
-      }
-#endif
-
-#endif // DBG_USE_CONS_BC
-
-    }
-  }
-
-  if (pmb->block_size.nx3 > 1) { // 3D
-    bjs = pmb->js - NGHOST;
-    bje = pmb->je + NGHOST;
-
-    // Apply boundary function on inner-x3 and update W,bcc (if not periodic)
-    if (apply_bndry_fn_[BoundaryFace::inner_x3]) {
-      DispatchBoundaryFunctions(pmb, pco, time, dt,
-                                bis, bie,
-                                bjs, bje,
-                                pmb->ks, pmb->ke,
-                                NGHOST,
-                                BoundaryFace::inner_x3,
-                                bvars_main_int);
-      // KGF: COUPLING OF QUANTITIES (must be manually specified)
-      if (MAGNETIC_FIELDS_ENABLED) {
-        pmb->pfield->CalculateCellCenteredField(pf->b, pf->bcc, pco,
-                                                bis, bie, bjs, bje,
-                                                pmb->ks-NGHOST, pmb->ks-1);
-      }
-
-#ifndef DBG_USE_CONS_BC
-
-      if (FLUID_ENABLED) {
-#if USETM
-        pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
-                                        bis, bie, bjs, bje, pmb->ks-NGHOST, pmb->ks-1);
-#else
-        pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                        bis, bie, bjs, bje, pmb->ks-NGHOST, pmb->ks-1);
-#endif
-      }
-
-#if !USETM
-      if (NSCALARS > 0) {
-        pmb->peos->PassiveScalarPrimitiveToConserved(
-            ps->r, ph->w, ps->s, pco, bis, bie, bjs, bje, pmb->ks-NGHOST, pmb->ks-1);
-      }
-#endif
-
-#endif // DBG_USE_CONS_BC
-
-    }
-
-    // Apply boundary function on outer-x3 and update W,bcc (if not periodic)
-    if (apply_bndry_fn_[BoundaryFace::outer_x3])
-    {
-      DispatchBoundaryFunctions(pmb, pco, time, dt,
-                                bis, bie,
-                                bjs, bje,
-                                pmb->ks, pmb->ke,
-                                NGHOST,
-                                BoundaryFace::outer_x3,
-                                bvars_main_int);
-      // KGF: COUPLING OF QUANTITIES (must be manually specified)
-      if (MAGNETIC_FIELDS_ENABLED)
-      {
-        pmb->pfield->CalculateCellCenteredField(pf->b, pf->bcc, pco,
-                                                bis, bie, bjs, bje,
-                                                pmb->ke+1, pmb->ke+NGHOST);
-      }
-
-#ifndef DBG_USE_CONS_BC
-      if (FLUID_ENABLED)
-      {
-#if USETM
-        pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s, pco,
-                                        bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
-#else
-        pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pco,
-                                        bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
-#endif
-      }
-
-#if !USETM
-      if (NSCALARS > 0)
-      {
-        pmb->peos->PassiveScalarPrimitiveToConserved(
-            ps->r, ph->w, ps->s, pco, bis, bie, bjs, bje, pmb->ke+1, pmb->ke+NGHOST);
-      }
-#endif
-
-#endif // DBG_USE_CONS_BC
-
-    }
-  }
-  return;
-}
-
-//----------------------------------------------------------------------------------------
-//! \fn void BoundaryValues::ApplyPhysicalVertexCenteredBoundaries(const Real time, const Real dt)
-//  \brief Apply all the physical boundary conditions vertex centered fields
-
-void BoundaryValues::ApplyPhysicalVertexCenteredBoundaries(
-  const Real time, const Real dt)
-{
-  MeshBlock *pmb = pmy_block_;
-  Coordinates *pco = pmb->pcoord;
-  int bis = pmb->ivs - NGHOST, bie = pmb->ive + NGHOST,
-      bjs = pmb->jvs, bje = pmb->jve,
-      bks = pmb->kvs, bke = pmb->kve;
-
-  // Extend the transverse limits that correspond to periodic boundaries as they are
-  // updated: x1, then x2, then x3
-  if (!apply_bndry_fn_[BoundaryFace::inner_x2] && pmb->block_size.nx2 > 1)
-    bjs = pmb->jvs - NGHOST;
-  if (!apply_bndry_fn_[BoundaryFace::outer_x2] && pmb->block_size.nx2 > 1)
-    bje = pmb->jve + NGHOST;
-  if (!apply_bndry_fn_[BoundaryFace::inner_x3] && pmb->block_size.nx3 > 1)
-    bks = pmb->kvs - NGHOST;
-  if (!apply_bndry_fn_[BoundaryFace::outer_x3] && pmb->block_size.nx3 > 1)
-    bke = pmb->kve + NGHOST;
-
-  // Apply boundary function on inner-x1 and update W,bcc (if not periodic)
-  if (apply_bndry_fn_[BoundaryFace::inner_x1]) {
-    DispatchBoundaryFunctions(pmb, pco, time, dt,
-                              pmb->ivs, pmb->ive,
-                              bjs, bje,
-                              bks, bke,
-                              NGHOST,
-                              BoundaryFace::inner_x1,
-                              bvars_main_int_vc);
-  }
-
-  // Apply boundary function on outer-x1 and update W,bcc (if not periodic)
-  if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
-    DispatchBoundaryFunctions(pmb, pco, time, dt,
-                              pmb->ivs, pmb->ive,
-                              bjs, bje,
-                              bks, bke,
-                              NGHOST,
-                              BoundaryFace::outer_x1,
-                              bvars_main_int_vc);
-  }
-
-  if (pmb->block_size.nx2 > 1)
-  { // 2D or 3D
-    // Apply boundary function on inner-x2 and update W,bcc (if not periodic)
-    if (apply_bndry_fn_[BoundaryFace::inner_x2]) {
-      DispatchBoundaryFunctions(pmb, pco, time, dt,
-                                bis, bie,
-                                pmb->jvs, pmb->jve,
-                                bks, bke,
-                                NGHOST,
-                                BoundaryFace::inner_x2,
-                                bvars_main_int_vc);
-    }
-
-    // Apply boundary function on outer-x2 and update W,bcc (if not periodic)
-    if (apply_bndry_fn_[BoundaryFace::outer_x2]) {
-      DispatchBoundaryFunctions(pmb, pco, time, dt,
-                                bis, bie,
-                                pmb->jvs, pmb->jve,
-                                bks, bke,
-                                NGHOST,
-                                BoundaryFace::outer_x2,
-                                bvars_main_int_vc);
-    }
-  }
-
-  if (pmb->block_size.nx3 > 1)
-  { // 3D
-    bjs = pmb->jvs - NGHOST;
-    bje = pmb->jve + NGHOST;
-
-    // Apply boundary function on inner-x3 and update W,bcc (if not periodic)
-    if (apply_bndry_fn_[BoundaryFace::inner_x3]) {
-      DispatchBoundaryFunctions(pmb, pco, time, dt,
-                                bis, bie,
-                                bjs, bje,
-                                pmb->kvs, pmb->kve,
-                                NGHOST,
-                                BoundaryFace::inner_x3,
-                                bvars_main_int_vc);
-    }
-
-    // Apply boundary function on outer-x3 and update W,bcc (if not periodic)
-    if (apply_bndry_fn_[BoundaryFace::outer_x3]) {
-      DispatchBoundaryFunctions(pmb, pco, time, dt,
-                                bis, bie,
-                                bjs, bje,
-                                pmb->kvs, pmb->kve,
-                                NGHOST,
-                                BoundaryFace::outer_x3,
-                                bvars_main_int_vc);
-    }
-  }
-  return;
-}
-
-void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const Real dt)
-{
-  MeshBlock *pmb = pmy_block_;
-  Coordinates *pco = pmb->pcoord;
-  int bis = pmb->cx_is - NGHOST, bie = pmb->cx_ie + NGHOST,
-      bjs = pmb->cx_js, bje = pmb->cx_je,
-      bks = pmb->cx_ks, bke = pmb->cx_ke;
-
-  // Extend the transverse limits that correspond to periodic boundaries as they are
-  // updated: x1, then x2, then x3
-  if (!apply_bndry_fn_[BoundaryFace::inner_x2] && pmb->block_size.nx2 > 1)
-    bjs = pmb->cx_js - NGHOST;
-  if (!apply_bndry_fn_[BoundaryFace::outer_x2] && pmb->block_size.nx2 > 1)
-    bje = pmb->cx_je + NGHOST;
-  if (!apply_bndry_fn_[BoundaryFace::inner_x3] && pmb->block_size.nx3 > 1)
-    bks = pmb->cx_ks - NGHOST;
-  if (!apply_bndry_fn_[BoundaryFace::outer_x3] && pmb->block_size.nx3 > 1)
-    bke = pmb->cx_ke + NGHOST;
+    bke = var_ke + ng;
 
   // Apply boundary function on inner-x1 and update W,bcc (if not periodic)
   if (apply_bndry_fn_[BoundaryFace::inner_x1])
   {
     DispatchBoundaryFunctions(pmb, pco, time, dt,
-                              pmb->cx_is, pmb->cx_ie,
+                              var_is, var_ie,
                               bjs, bje,
                               bks, bke,
-                              NGHOST,
+                              ng,
                               BoundaryFace::inner_x1,
-                              bvars_main_int_cx);
+                              bvars);
   }
 
   // Apply boundary function on outer-x1 and update W,bcc (if not periodic)
   if (apply_bndry_fn_[BoundaryFace::outer_x1]) {
     DispatchBoundaryFunctions(pmb, pco, time, dt,
-                              pmb->cx_is, pmb->cx_ie,
+                              var_is, var_ie,
                               bjs, bje,
                               bks, bke,
-                              NGHOST,
+                              ng,
                               BoundaryFace::outer_x1,
-                              bvars_main_int_cx);
+                              bvars);
   }
 
   if (pmb->block_size.nx2 > 1) { // 2D or 3D
@@ -882,11 +489,11 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const
     {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie,
-                                pmb->cx_js, pmb->cx_je,
+                                var_js, var_je,
                                 bks, bke,
-                                NGHOST,
+                                ng,
                                 BoundaryFace::inner_x2,
-                                bvars_main_int_cx);
+                                bvars);
     }
 
     // Apply boundary function on outer-x2 and update W,bcc (if not periodic)
@@ -894,18 +501,18 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const
     {
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie,
-                                pmb->cx_js, pmb->cx_je,
+                                var_js, var_je,
                                 bks, bke,
-                                NGHOST,
+                                ng,
                                 BoundaryFace::outer_x2,
-                                bvars_main_int_cx);
+                                bvars);
     }
   }
 
   if (pmb->block_size.nx3 > 1)
   { // 3D
-    bjs = pmb->cx_js - NGHOST;
-    bje = pmb->cx_je + NGHOST;
+    bjs = var_js - ng;
+    bje = var_je + ng;
 
     // Apply boundary function on inner-x3 and update W,bcc (if not periodic)
     if (apply_bndry_fn_[BoundaryFace::inner_x3])
@@ -913,10 +520,10 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie,
                                 bjs, bje,
-                                pmb->cx_ks, pmb->cx_ke,
-                                NGHOST,
+                                var_ks, var_ke,
+                                ng,
                                 BoundaryFace::inner_x3,
-                                bvars_main_int_cx);
+                                bvars);
     }
 
     // Apply boundary function on outer-x3 and update W,bcc (if not periodic)
@@ -925,25 +532,122 @@ void BoundaryValues::ApplyPhysicalCellCenteredXBoundaries(const Real time, const
       DispatchBoundaryFunctions(pmb, pco, time, dt,
                                 bis, bie,
                                 bjs, bje,
-                                pmb->cx_ks, pmb->cx_ke,
-                                NGHOST,
+                                var_ks, var_ke,
+                                ng,
                                 BoundaryFace::outer_x3,
-                                bvars_main_int_cx);
+                                bvars);
     }
   }
   return;
 }
 
-// KGF: should "bvars_it" be fixed in this class member function? Or passed as argument?
-// BD: Yes, yes it should
+void BoundaryValues::PrimitiveToConservedOnPhysicalBoundaries()
+{
+  MeshBlock *pmb = pmy_block_;
+  Coordinates *pco = pmb->pcoord;
+  EquationOfState *peos = pmb->peos;
+
+  Hydro *ph = (FLUID_ENABLED) ? pmb->phydro : nullptr;
+  Field *pf = (MAGNETIC_FIELDS_ENABLED) ? pmb->pfield : nullptr;
+  PassiveScalars *ps = (NSCALARS > 0) ? pmb->pscalars : nullptr;
+
+  static const int ng = NGHOST;
+  const int var_is = pmb->is;
+  const int var_ie = pmb->ie;
+  const int var_js = pmb->js;
+  const int var_je = pmb->js;
+  const int var_ks = pmb->ks;
+  const int var_ke = pmb->ks;
+
+  int bis = var_is - ng, bie = var_ie + ng,
+      bjs = var_js, bje = var_je,
+      bks = var_ks, bke = var_ke;
+
+  // Extend the transverse limits that correspond to periodic boundaries as they are
+  // updated: x1, then x2, then x3
+  if (!apply_bndry_fn_[BoundaryFace::inner_x2] && pmb->block_size.nx2 > 1)
+    bjs = var_js - ng;
+  if (!apply_bndry_fn_[BoundaryFace::outer_x2] && pmb->block_size.nx2 > 1)
+    bje = var_je + ng;
+  if (!apply_bndry_fn_[BoundaryFace::inner_x3] && pmb->block_size.nx3 > 1)
+    bks = var_ks - ng;
+  if (!apply_bndry_fn_[BoundaryFace::outer_x3] && pmb->block_size.nx3 > 1)
+    bke = var_ke + ng;
+
+  if (apply_bndry_fn_[BoundaryFace::inner_x1])
+  {
+    peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s,
+                               pco,
+                               var_is - ng, var_is - 1,
+                               bjs, bje,
+                               bks, bke);
+  }
+
+  if (apply_bndry_fn_[BoundaryFace::outer_x1])
+  {
+    peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s,
+                               pco,
+                               var_ie + 1, var_ie + ng,
+                               bjs, bje,
+                               bks, bke);
+  }
+
+  if (pmb->block_size.nx2 > 1)
+  { // 2D or 3D
+    if (apply_bndry_fn_[BoundaryFace::inner_x2])
+    {
+      peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s,
+                                 pco,
+                                 bis, bie,
+                                 var_js - ng, var_js - 1,
+                                 bks, bke);
+    }
+
+    if (apply_bndry_fn_[BoundaryFace::outer_x2])
+    {
+      peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s,
+                                 pco,
+                                 bis, bie,
+                                 var_je + 1, var_je + ng,
+                                 bks, bke);
+    }
+  }
+
+  if (pmb->block_size.nx3 > 1)
+  { // 3D
+    bjs = var_js - ng;
+    bje = var_je + ng;
+
+    if (apply_bndry_fn_[BoundaryFace::inner_x3])
+    {
+      peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s,
+                                 pco,
+                                 bis, bie,
+                                 bjs, bje,
+                                 var_ks - ng, var_ks - 1);
+    }
+
+    if (apply_bndry_fn_[BoundaryFace::outer_x3])
+    {
+      peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, ps->s,
+                                 pco,
+                                 bis, bie,
+                                 bjs, bje,
+                                 var_ke + 1, var_ke + ng);
+    }
+  }
+
+}
+
 void BoundaryValues::DispatchBoundaryFunctions(
-    MeshBlock *pmb, Coordinates *pco, Real time, Real dt,
-    int il, int iu,
-    int jl, int ju,
-    int kl, int ku,
-    int ngh,
-    BoundaryFace face,
-    std::vector<BoundaryVariable *> &bvars_main) {
+  MeshBlock *pmb, Coordinates *pco, Real time, Real dt,
+  int il, int iu,
+  int jl, int ju,
+  int kl, int ku,
+  int ngh,
+  BoundaryFace face,
+  std::vector<BoundaryVariable *> &bvars)
+{
   if (block_bcs[face] ==  BoundaryFlag::user)
   {  // user-enrolled BCs
     pmy_mesh_->BoundaryFunction_[face](pmb, pco, time, dt,
@@ -961,7 +665,7 @@ void BoundaryValues::DispatchBoundaryFunctions(
 
   // For any function in the BoundaryPhysics interface class, iterate over
   // BoundaryVariable pointers "enrolled"
-  for (auto bvars_it = bvars_main.begin(); bvars_it != bvars_main.end();
+  for (auto bvars_it = bvars.begin(); bvars_it != bvars.end();
        ++bvars_it) {
     switch (block_bcs[face]) {
     case BoundaryFlag::user: // handled above, outside loop over BoundaryVariable objs

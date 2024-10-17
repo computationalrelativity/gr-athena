@@ -55,7 +55,10 @@
 #include "../z4c/cce/cce.hpp"
 #endif
 #include "../trackers/extrema_tracker.hpp"
-// #include "../z4c/ejecta.hpp"
+
+#ifdef EJECTA_ENABLED
+#include "../z4c/ejecta.hpp"
+#endif
 
 #include "../wave/wave.hpp"
 #include "../m1/m1.hpp"
@@ -113,7 +116,15 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
                    UniformMeshGeneratorX3},
     BoundaryFunction_{nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
     AMRFlag_{}, UserSourceTerm_{}, UserTimeStep_{}, ViscosityCoeff_{},
-    ConductionCoeff_{}, FieldDiffusivity_{}
+    ConductionCoeff_{}, FieldDiffusivity_{},
+    opt_rescaling{
+      pin->GetOrAddBoolean("rescaling", "verbose", false),
+      false,
+      pin->GetOrAddBoolean("rescaling", "conserved_hydro", false),
+      pin->GetOrAddBoolean("rescaling", "conserved_scalars", false),
+      pin->GetOrAddReal("rescaling", "rel_hydro", 1e-8),
+      pin->GetOrAddReal("rescaling", "rel_scalars", 1e-3),
+    }
 {
 
   std::stringstream msg;
@@ -339,19 +350,23 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     }
 #endif
 
-    // 0 is restart flag for restart
+    // AHF (0 is restart flag for restart)
     int nhorizon = pin->GetOrAddInteger("ahf", "num_horizons",0);
     pah_finder.reserve(nhorizon);
     for (int n = 0; n < nhorizon; ++n) {
       pah_finder.push_back(new AHF(this, pin, n));
     }
-    /*WC: Temporarily remove ejecta - to be included
-  int nejecta = pin->GetOrAddInteger("ejecta", "num_rad", 0);
-  pej_extract.reserve(nejecta);
-  for (int n=0; n<nejecta; ++n) {
-    pej_extract.push_back(new Ejecta(this, pin, n));
-  }
-*/
+
+#ifdef EJECTA_ENABLED
+    // Ejecta analysis
+    int nejecta = pin->GetOrAddInteger("ejecta", "num_rad", 0);
+    pej_extract.reserve(nejecta);
+    for (int n=0; n<nejecta; ++n) {
+      pej_extract.push_back(new Ejecta(this, pin, n));
+    }
+#endif
+
+    // Puncture Trackers
     int npunct = pin->GetOrAddInteger("z4c", "npunct", 0);
     if (npunct > 0) {
       pz4c_tracker.reserve(npunct);
@@ -593,6 +608,17 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
 #endif // FFT
   }
 
+  if (opt_rescaling.conserved_scalars)
+  {
+    rs_ini_s.NewAthenaArray(NSCALARS);
+    rs_fin_s.NewAthenaArray(NSCALARS);
+  }
+
+  // storage for Mesh info struct
+  M_info.x_min.NewAthenaArray(ndim);
+  M_info.x_max.NewAthenaArray(ndim);
+  M_info.dx_min.NewAthenaArray(ndim);
+  M_info.dx_max.NewAthenaArray(ndim);
 }
 
 //----------------------------------------------------------------------------------------
@@ -644,7 +670,15 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
                    UniformMeshGeneratorX3},
     BoundaryFunction_{nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
     AMRFlag_{}, UserSourceTerm_{}, UserTimeStep_{}, ViscosityCoeff_{},
-    ConductionCoeff_{}, FieldDiffusivity_{}
+    ConductionCoeff_{}, FieldDiffusivity_{},
+    opt_rescaling{
+      pin->GetOrAddBoolean("rescaling", "verbose", false),
+      false,
+      pin->GetOrAddBoolean("rescaling", "conserved_hydro", false),
+      pin->GetOrAddBoolean("rescaling", "conserved_scalars", false),
+      pin->GetOrAddReal("rescaling", "rel_hydro", 1e-8),
+      pin->GetOrAddReal("rescaling", "rel_scalars", 1e-3),
+    }
 {
 
   std::stringstream msg;
@@ -795,13 +829,15 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     for (int n = 0; n < nhorizon; ++n) {
       pah_finder.push_back(new AHF(this, pin, n));
     }
-    /* WC: Temporarily remove ejecta
-  int nejecta = pin->GetOrAddInteger("ejecta", "num_rad", 0);
-  pej_extract.reserve(nejecta);
-  for (int n=0; n<nejecta; ++n) {
-    pej_extract.push_back(new Ejecta(this, pin, n));
-  }
-  */
+
+#ifdef EJECTA_ENABLED
+    int nejecta = pin->GetOrAddInteger("ejecta", "num_rad", 0);
+    pej_extract.reserve(nejecta);
+    for (int n=0; n<nejecta; ++n) {
+      pej_extract.push_back(new Ejecta(this, pin, n));
+    }
+#endif
+
     int npunct = pin->GetOrAddInteger("z4c", "npunct", 0);
     if (npunct > 0) {
       pz4c_tracker.reserve(npunct);
@@ -1020,6 +1056,18 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     ptrbd = new TurbulenceDriver(this, pin);
 #endif // FFT
   }
+
+  if (opt_rescaling.conserved_scalars)
+  {
+    rs_ini_s.NewAthenaArray(NSCALARS);
+    rs_fin_s.NewAthenaArray(NSCALARS);
+  }
+
+  // storage for Mesh info struct
+  M_info.x_min.NewAthenaArray(ndim);
+  M_info.x_max.NewAthenaArray(ndim);
+  M_info.dx_min.NewAthenaArray(ndim);
+  M_info.dx_max.NewAthenaArray(ndim);
 }
 
 //----------------------------------------------------------------------------------------
@@ -1058,10 +1106,13 @@ Mesh::~Mesh() {
       delete pah_f;
     }
     pah_finder.resize(0);
+
+#ifdef EJECTA_ENABLED
     for (auto pej : pej_extract) {
       delete pej;
     }
     pej_extract.resize(0);
+#endif
 
     for (auto tracker : pz4c_tracker) {
       delete tracker;
@@ -1541,13 +1592,15 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
   int inb = nbtotal;
   int nthreads = GetNumMeshThreads();
   (void)nthreads;
-  int nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
-  std::vector<MeshBlock*> pmb_array(nmb);
+
+  int nmb = -1;
+  std::vector<MeshBlock*> pmb_array;
 
   do
   {
     // initialize a vector of MeshBlock pointers
     GetMeshBlocksMyRank(pmb_array);
+    nmb = pmb_array.size();
 
     if (res_flag == 0) {
       #pragma omp parallel for num_threads(nthreads)
@@ -1648,9 +1701,16 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
     {
       iflag = false;
       int onb = nbtotal;
-      LoadBalancingAndAdaptiveMeshRefinement(pin);
-      if (nbtotal == onb) {
+      bool mesh_updated = LoadBalancingAndAdaptiveMeshRefinement(pin);
+
+      if (nbtotal == onb)
+      {
         iflag = true;
+        if (mesh_updated)
+        {
+          GetMeshBlocksMyRank(pmb_array);
+          nmb = pmb_array.size();
+        }
       } else if (nbtotal < onb && Globals::my_rank == 0) {
         std::cout << "### Warning in Mesh::Initialize" << std::endl
                   << "The number of MeshBlocks decreased during AMR grid "
@@ -1690,8 +1750,45 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
   // --------------------------------------------------------------------------
 
   NewTimeStep();
-
   return;
+}
+
+void Mesh::InitializePostFirstInitialize(ParameterInput *pin)
+{
+  // Initial variables for rescaling computed if not yet initialized
+  if (!opt_rescaling.initialized)
+  {
+    if (opt_rescaling.conserved_hydro)
+    {
+      CS_ConservedDensity(rs_ini_D);
+    }
+
+    if ((NSCALARS > 0) && opt_rescaling.conserved_scalars)
+    {
+      CS_ConservedScalars(rs_ini_s);
+    }
+  }
+
+  // Initial variables for rescaling computed, do not recompute later
+  opt_rescaling.initialized = true;
+
+  // Whenever we initialize the Mesh, we record global properties
+  const bool res = GetGlobalGridGeometry(M_info.x_min, M_info.x_max,
+                                         M_info.dx_min, M_info.dx_max);
+
+  diagnostic_grid_updated = res || diagnostic_grid_updated;
+}
+
+void Mesh::InitializePostMainUpdatedMesh(ParameterInput *pin)
+{
+  // Rescale as required
+  Rescale_Conserved();
+
+  // Whenever we initialize the Mesh, we record global properties
+  const bool res = GetGlobalGridGeometry(M_info.x_min, M_info.x_max,
+                                         M_info.dx_min, M_info.dx_max);
+
+  diagnostic_grid_updated = res || diagnostic_grid_updated;
 }
 
 //----------------------------------------------------------------------------------------
@@ -1889,7 +1986,8 @@ FluidFormulation GetFluidFormulation(const std::string& input_string) {
 }
 
 void Mesh::OutputCycleDiagnostics() {
-  const int dt_precision = std::numeric_limits<Real>::max_digits10 - 1;
+  const int Real_prec = std::numeric_limits<Real>::max_digits10 - 1;
+  const int dt_precision = Real_prec;
   const int ratio_precision = 3;
   if (ncycle_out != 0) {
     if (ncycle % ncycle_out == 0) {
@@ -1897,17 +1995,32 @@ void Mesh::OutputCycleDiagnostics() {
                 << std::setprecision(dt_precision)
                 << " time=" << time << " dt=" << dt;
 
-      if (adaptive)
+      if (step_since_lb == 0)
       {
-        std::cout << "\nNumber of MeshBlocks=" << nbtotal
-                  << "; created=" << nbnew
-                  << "; destroyed=" << nbdel;
-                  // << std::scientific << std::setprecision(dt_precision)
-                  // << "; time=" << time;
-      }
-      else if (ncycle==0)
-      {
-        std::cout << "\nNumber of MeshBlocks=" << nbtotal;
+        std::cout << "\nTree changed: MeshBlocks=" << nbtotal;
+        if (adaptive)
+        {
+          std::cout << "; created=" << nbnew << "; destroyed=" << nbdel;
+        }
+
+        if (diagnostic_grid_updated)
+        {
+          std::cout << "\nGrid global properties changed:";
+
+          std::cout << std::setprecision(Real_prec);
+          for (int n=0; n<ndim; ++n)
+          {
+            std::cout << "\nx_min(" << n << "); " << M_info.x_min(n);
+            std::cout << "\nx_max(" << n << "); " << M_info.x_max(n);
+          }
+
+          for (int n=0; n<ndim; ++n)
+          {
+            std::cout << "\ndx_min(" << n << "); " << M_info.dx_min(n);
+            std::cout << "\ndx_max(" << n << "); " << M_info.dx_max(n);
+          }
+          diagnostic_grid_updated = false;
+        }
       }
 
       if (dt_diagnostics != -1) {
@@ -1951,4 +2064,355 @@ void Mesh::FinalizePostAMR()
 
     pmbl = pmbl->next;
   }
+}
+
+void Mesh::CalculateStoreMetricDerivatives()
+{
+  if (!(pblock->pz4c->opt.store_metric_drvts)) return;
+
+  // Compute and store ADM metric drvts at this iteration
+  MeshBlock * pmb = pblock;
+
+  while (pmb != nullptr)
+  {
+    Z4c *pz4c = pmb->pz4c;
+
+    pz4c->ADMDerivatives(pz4c->storage.u, pz4c->storage.adm,
+                          pz4c->storage.aux);
+    pmb = pmb->next;
+  }
+
+}
+
+Real Mesh::CompensatedSummation(
+  variety_cs v_cs,
+  const int n,
+  const int kl, const int ku,
+  const int jl, const int ju,
+  const int il, const int iu,
+  const bool volume_weighted)
+{
+  int nthreads = GetNumMeshThreads();
+  (void)nthreads;
+
+  int nmb = -1;
+  std::vector<MeshBlock*> pmb_array;
+
+  GetMeshBlocksMyRank(pmb_array);
+  nmb = pmb_array.size();
+
+  AA partial_KBN(nmb);
+
+  #pragma omp parallel for num_threads(nthreads)
+  for (int ix = 0; ix < nmb; ++ix)
+  {
+    MeshBlock *pmb = pmb_array[ix];
+
+    AA arr;
+    AA warr;
+    if (volume_weighted)
+    {
+      warr.NewAthenaArray(ku+1, ju+1, iu+1);
+    }
+
+    switch (v_cs)
+    {
+      case variety_cs::conserved_density:
+      {
+        arr.InitWithShallowSlice(pmb->phydro->u, 4, n, 1);
+        break;
+      }
+      case variety_cs::conserved_scalar:
+      {
+        arr.InitWithShallowSlice(pmb->pscalars->s, 4, n, 1);
+        break;
+      }
+      default:
+      {
+        assert(false);
+      }
+    }
+
+    if (volume_weighted)
+    {
+      for (int k=kl; k<=ku; ++k)
+      for (int j=jl; j<=ju; ++j)
+      for (int i=il; i<=iu; ++i)
+      {
+        warr(k,j,i) = pmb->pcoord->GetCellVolume(k,j,i) * arr(0,k,j,i);
+      }
+    }
+    else
+    {
+      warr.InitWithShallowSlice(arr, 4, 0, 1);
+    }
+
+    partial_KBN(ix) = FloatingPoint::KB_compensated(
+      warr, 0, 0,
+      kl, ku, jl, ju, il, iu
+    );
+
+    pmb = pmb->next;
+  }
+
+  return FloatingPoint::KB_compensated(partial_KBN, 0, nmb-1);
+}
+
+void Mesh::CS_ConservedDensity(Real & mass)
+{
+  MeshBlock *pmb = pblock;
+  const bool volume_weighted = true;
+  mass = CompensatedSummation(Mesh::variety_cs::conserved_density, 0, pmb->ks,
+                              pmb->ke, pmb->js, pmb->je, pmb->is, pmb->ie,
+                              volume_weighted);
+
+#ifdef MPI_PARALLEL
+  const int rank_root = 0;
+  int rank;
+
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  AthenaArray<Real> buf(Globals::nranks);
+
+  MPI_Allgather(&mass, 1, MPI_ATHENA_REAL, buf.data(), 1, MPI_ATHENA_REAL,
+                MPI_COMM_WORLD);
+
+  mass = FloatingPoint::KB_compensated(buf, 0, Globals::nranks);
+#endif // MPI_PARALLEL
+
+}
+
+void Mesh::CS_ConservedScalars(AthenaArray<Real> & S)
+{
+  MeshBlock const *pmb = pblock;
+  const bool volume_weighted = true;
+  for (int n=0; n<NSCALARS; ++n)
+  {
+    S(n) = CompensatedSummation(Mesh::variety_cs::conserved_scalar, n, pmb->ks,
+                                pmb->ke, pmb->js, pmb->je, pmb->is, pmb->ie,
+                                volume_weighted);
+  }
+
+#ifdef MPI_PARALLEL
+  const int rank_root = 0;
+  int rank;
+
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  AthenaArray<Real> buf(Globals::nranks, NSCALARS);
+
+  MPI_Allgather(S.data(), NSCALARS, MPI_ATHENA_REAL, buf.data(), NSCALARS, MPI_ATHENA_REAL,
+                MPI_COMM_WORLD);
+
+  // note transposed data requires sum in 2nd ix
+  for (int n=0; n<NSCALARS; ++n)
+  {
+    S(n) = FloatingPoint::KB_compensated(
+      buf, 0, 0,
+      0, 0, 0, Globals::nranks, n, n
+    );
+  }
+#endif // MPI_PARALLEL
+
+}
+
+void Mesh::Rescale_Conserved()
+{
+  int nthreads = GetNumMeshThreads();
+  (void)nthreads;
+
+  int nmb = -1;
+  std::vector<MeshBlock*> pmb_array;
+
+  if (opt_rescaling.conserved_hydro ||
+      ((NSCALARS > 0) && opt_rescaling.conserved_scalars))
+  {
+    // initialize a vector of MeshBlock pointers
+    GetMeshBlocksMyRank(pmb_array);
+    nmb = pmb_array.size();
+  }
+  else
+  {
+    return;
+  }
+
+  if (opt_rescaling.conserved_hydro)
+  {
+    CS_ConservedDensity(rs_fin_D);
+    const Real rsc_D = rs_ini_D / rs_fin_D;
+
+    if (opt_rescaling.err_rel_hydro > std::abs(1-rsc_D))
+    #pragma omp parallel for num_threads(nthreads)
+    for (int i = 0; i < nmb; ++i)
+    {
+      MeshBlock *pmb = pmb_array[i];
+      CC_GLOOP2(k, j)
+      for (int n=0; n<NHYDRO; ++n)
+      CC_GLOOP1(i)
+      {
+        pmb->phydro->u(n,k,j,i) *= rsc_D;
+      }
+    }
+  }
+
+  if ((NSCALARS > 0) && opt_rescaling.conserved_scalars)
+  {
+    CS_ConservedScalars(rs_fin_s);
+
+    #pragma omp parallel for num_threads(nthreads)
+    for (int i = 0; i < nmb; ++i)
+    {
+      MeshBlock *pmb = pmb_array[i];
+
+      for (int n=0; n<NSCALARS; ++n)
+      {
+        const Real rsc_s = rs_ini_s(n) / rs_fin_s(n);
+        if (opt_rescaling.err_rel_scalars > std::abs(1-rsc_s))
+        CC_GLOOP3(k, j, i)
+        {
+          pmb->pscalars->s(n,k,j,i) *= rsc_s;
+        }
+
+      }
+    }
+  }
+
+  // info dump ----------------------------------------------------------------
+  if (opt_rescaling.verbose)
+  if (Globals::my_rank == 0)
+  {
+    std::cout << std::setprecision(5);
+    if (opt_rescaling.conserved_hydro)
+    {
+      const Real rsc_D = rs_ini_D / rs_fin_D;
+      std::cout << (1 - rsc_D) << std::endl;
+    }
+
+    if (opt_rescaling.conserved_scalars)
+    {
+      for (int n=0; n<NSCALARS; ++n)
+      {
+        const Real rsc_s = rs_ini_s(n) / rs_fin_s(n);
+        std::cout << (1 - rsc_s) << std::endl;
+      }
+    }
+  }
+
+}
+
+bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
+                                 AthenaArray<Real> & x_max,
+                                 AthenaArray<Real> & dx_min,
+                                 AthenaArray<Real> & dx_max)
+{
+  int nmb = -1;
+  std::vector<MeshBlock*> pmb_array;
+  // initialize a vector of MeshBlock pointers
+  GetMeshBlocksMyRank(pmb_array);
+  nmb = pmb_array.size();
+
+  bool grid_updated = false;
+
+  AthenaArray<Real> dx_min_old(ndim);
+  AthenaArray<Real> dx_max_old(ndim);
+
+  for (int n=0; n<ndim; ++n)
+  {
+    dx_min_old(n) = dx_min(n);
+    dx_max_old(n) = dx_max(n);
+  }
+
+  for (int n=0; n<ndim; ++n)
+  {
+    dx_min(n) = std::numeric_limits<Real>::infinity();
+    dx_max(n) = -dx_min(n);
+  }
+
+  switch (ndim)
+  {
+    case 3:
+    {
+      x_min(2) = mesh_size.x3min;
+      x_max(2) = mesh_size.x3max;
+
+      for (int i = 0; i < nmb; ++i)
+      {
+        MeshBlock *pmb = pmb_array[i];
+
+        for (int ix=0; ix<pmb->ncells3-1; ++ix)
+        {
+          dx_min(2) = std::min(dx_min(2), pmb->pcoord->dx3v(ix));
+          dx_max(2) = std::max(dx_max(2), pmb->pcoord->dx3v(ix));
+        }
+      }
+    }
+    case 2:
+    {
+      x_min(1) = mesh_size.x2min;
+      x_max(1) = mesh_size.x2max;
+
+      for (int i = 0; i < nmb; ++i)
+      {
+        MeshBlock *pmb = pmb_array[i];
+
+        for (int ix=0; ix<pmb->ncells2-1; ++ix)
+        {
+          dx_min(1) = std::min(dx_min(1), pmb->pcoord->dx2v(ix));
+          dx_max(1) = std::max(dx_max(1), pmb->pcoord->dx2v(ix));
+        }
+      }
+
+    }
+    case 1:
+    {
+      x_min(0) = mesh_size.x1min;
+      x_max(0) = mesh_size.x1max;
+
+      for (int i = 0; i < nmb; ++i)
+      {
+        MeshBlock *pmb = pmb_array[i];
+
+        for (int ix=0; ix<pmb->ncells1-1; ++ix)
+        {
+          dx_min(0) = std::min(dx_min(0), pmb->pcoord->dx1v(ix));
+          dx_max(0) = std::max(dx_max(0), pmb->pcoord->dx1v(ix));
+        }
+      }
+
+      break;
+    }
+    default:
+    {
+      assert(false);
+    }
+  }
+
+#ifdef MPI_PARALLEL
+  int rank;
+
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  if (Globals::my_rank == 0)
+  {
+    MPI_Reduce(MPI_IN_PLACE, dx_min.data(), ndim, MPI_ATHENA_REAL, MPI_MIN, 0,
+               MPI_COMM_WORLD);
+    MPI_Reduce(MPI_IN_PLACE, dx_max.data(), ndim, MPI_ATHENA_REAL, MPI_MAX, 0,
+               MPI_COMM_WORLD);
+  }
+  else
+  {
+    MPI_Reduce(dx_min.data(), dx_min.data(), ndim, MPI_ATHENA_REAL, MPI_MIN, 0,
+               MPI_COMM_WORLD);
+    MPI_Reduce(dx_max.data(), dx_max.data(), ndim, MPI_ATHENA_REAL, MPI_MAX, 0,
+               MPI_COMM_WORLD);
+  }
+#endif
+
+  for (int n=0; n<ndim; ++n)
+  {
+    grid_updated = grid_updated || (dx_min(n) != dx_min_old(n));
+    grid_updated = grid_updated || (dx_max(n) != dx_max_old(n));
+  }
+
+  return grid_updated;
 }

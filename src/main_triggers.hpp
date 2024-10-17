@@ -145,6 +145,9 @@ public:
     Z4c_ADM_constraints,
     Z4c_tracker_punctures,
     Z4c_Weyl,
+    Z4c_AHF,
+    Z4c_RWZ,
+    Z4c_CCE
   };
 
   enum class OutputVariant {
@@ -207,7 +210,7 @@ public:
         {
           case (Triggers::OutputVariant::user):
           {
-            dt = pin->GetOrAddReal("task_triggers", "tracker_extrema", 0.0);
+            dt = pin->GetOrAddReal("task_triggers", "dt_tracker_extrema", 0.0);
             break;
           }
           default:
@@ -218,6 +221,17 @@ public:
 
         PopulateTrigger(tri, force_first_iter, allow_rescale_dt, dt);
         triggers[MakeTriggerMeta(tvar, ovar)] = tri;
+
+        // Issue a warning to stdout ------------------------------------------
+        if ((Globals::my_rank == 0) &&
+            (pin->GetOrAddInteger("trackers_extrema", "N_tracker", 0) > 0) &&
+            pin->GetOrAddReal("task_triggers", "dt_tracker_extrema", 0.0) == 0)
+        {
+          std::cout << "Warning: trackers_extrema/N_tracker > 0 & ";
+          std::cout << "task_triggers/dt_tracker_extrema = 0 \n";
+        }
+        // --------------------------------------------------------------------
+
         break;
       }
       case TriggerVariant::Z4c_ADM_constraints:
@@ -259,7 +273,7 @@ public:
           case (Triggers::OutputVariant::user):
           {
             dt = pin->GetOrAddReal("task_triggers",
-                                   "Z4c_tracker_punctures",
+                                   "dt_Z4c_tracker_punctures",
                                    0.0);
             break;
           }
@@ -271,6 +285,17 @@ public:
 
         PopulateTrigger(tri, force_first_iter, allow_rescale_dt, dt);
         triggers[MakeTriggerMeta(tvar, ovar)] = tri;
+
+        // Issue a warning to stdout ------------------------------------------
+        if ((Globals::my_rank == 0) &&
+            (pin->GetOrAddInteger("z4c", "npunct", 0) > 0) &&
+            dt == 0)
+        {
+          std::cout << "Warning: z4c/npunct > 0 & ";
+          std::cout << "task_triggers/dt_Z4c_tracker_punctures = 0 \n";
+        }
+        // --------------------------------------------------------------------
+
         break;
       }
       case TriggerVariant::Z4c_Weyl:
@@ -282,11 +307,69 @@ public:
           {
             dt = pin->GetOrAddReal("task_triggers",
                                    "dt_Z4c_Weyl", 0.0);
+            // Issue a warning to stdout --------------------------------------
+            if ((Globals::my_rank == 0) &&
+                (pin->GetOrAddInteger("psi4_extraction",
+                                      "num_radii", 0) > 0) &&
+                dt == 0) {
+              std::cout << "Warning: psi4_extraction/num_radii > 0 & ";
+              std::cout << "task_triggers/dt_Z4c_Weyl = 0 \n";
+            }
+            // ----------------------------------------------------------------
+
             break;
           }
           case (Triggers::OutputVariant::data):
           {
             dt = pouts->GetMinOutputTimeStepExhaustive("Weyl");
+            break;
+          }
+          default:
+          {
+            assert(false);
+          }
+        }
+
+        PopulateTrigger(tri, force_first_iter, allow_rescale_dt, dt);
+        triggers[MakeTriggerMeta(tvar, ovar)] = tri;
+
+        break;
+      }
+      case TriggerVariant::Z4c_AHF:
+      {
+        Real dt = pin->GetOrAddReal("task_triggers", "dt_Z4c_AHF", 0.0);
+
+        PopulateTrigger(tri, force_first_iter, allow_rescale_dt, dt);
+        triggers[MakeTriggerMeta(tvar, ovar)] = tri;
+
+        // Issue a warning to stdout ------------------------------------------
+        if ((Globals::my_rank == 0) &&
+            (pin->GetOrAddInteger("ahf", "num_horizons", 0) > 0) &&
+            dt == 0)
+        {
+          std::cout << "Warning: ahf/num_horizons > 0 & ";
+          std::cout << "task_triggers/dt_Z4c_AHF = 0 \n";
+        }
+        // --------------------------------------------------------------------
+        break;
+      }
+      case TriggerVariant::Z4c_RWZ:
+      {
+        Real dt = pin->GetOrAddReal("task_triggers", "dt_Z4c_RWZ", 0.0);
+
+        PopulateTrigger(tri, force_first_iter, allow_rescale_dt, dt);
+        triggers[MakeTriggerMeta(tvar, ovar)] = tri;
+        break;
+      }
+      case TriggerVariant::Z4c_CCE:
+      {
+        Real dt = 0;
+        switch (ovar)
+        {
+          case (Triggers::OutputVariant::user):
+          {
+            dt = pin->GetOrAddReal("task_triggers",
+                                   "dt_Z4c_CCE", 0.0);
             break;
           }
           default:
@@ -329,6 +412,11 @@ public:
       }
     }
     return satisfied;
+  }
+
+  Real GetTrigger_dt(TriggerVariant tvar, OutputVariant ovar)
+  {
+    return triggers[MakeTriggerMeta(tvar, ovar)].dt;
   }
 
   // Iterate over triggers, if any registered is allowed to reduce pm->dt then

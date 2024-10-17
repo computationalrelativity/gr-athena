@@ -492,20 +492,18 @@ static int output_3Dmodes(const int iter/* output iteration */, const char *dir,
 // function calls in the main loop such as ReduceInterpolation
 // going. all othere calls that need root processor won't be executed like 
 // DecomposeAndWrite because they are fenced with if (0 != Globals::my_rank).
-bool CCE::BookKeeping(ParameterInput *const pin, int cce_iter, int &w_iter)
-{
-  if (0 != Globals::my_rank) return false;
-    
-  std::string fname = pin->GetString("cce","output_dir") + "/" + BOOKKEEPING_NAME;
+bool CCE::BookKeeping(const std::string &output_dir, int cce_iter, int &w_iter) {
+  if (0 != Globals::my_rank)
+    return false;
+
+  std::string fname = output_dir + "/" + BOOKKEEPING_NAME;
   std::fstream file;
   int iter = 0;
 
   // if this is the first time, create a bookkeeping file with 0 as the iter
-  if (access(fname.c_str(), F_OK) != 0) 
-  {
+  if (access(fname.c_str(), F_OK) != 0) {
     file.open(fname, std::ios::out);
-    if (!file) 
-    {
+    if (!file) {
       std::stringstream msg;
       msg << "### FATAL ERROR in CCE " << std::endl;
       msg << "Could not open file '" << fname << "' for writing!";
@@ -517,29 +515,27 @@ bool CCE::BookKeeping(ParameterInput *const pin, int cce_iter, int &w_iter)
     file.close();
   }
   // update the iter
-  else
-  {
+  else {
     // first read the iter value
     file.open(fname, std::ios::in);
-    if (!file) 
-    {
+    if (!file) {
       std::stringstream msg;
       msg << "### FATAL ERROR in CCE " << std::endl;
       msg << "Could not open file '" << fname << "' for reading!";
       throw std::runtime_error(msg.str().c_str());
     }
-    
+
     file >> w_iter >> iter /* == previous cce_iter */;
     file.close();
-    
+
     // check if the iters match
-    if (cce_iter <= iter) return false;
-    
+    if (cce_iter <= iter)
+      return false;
+
     // now open a fresh file and update iter
     // first read the iter value
     file.open(fname, std::ios::out);
-    if (!file) 
-    {
+    if (!file) {
       std::stringstream msg;
       msg << "### FATAL ERROR in CCE " << std::endl;
       msg << "Could not open file '" << fname << "' for writing!";
@@ -549,7 +545,6 @@ bool CCE::BookKeeping(ParameterInput *const pin, int cce_iter, int &w_iter)
     file << w_iter << " " << cce_iter << std::endl;
     file.close();
   }
-  
+
   return true;
 }
-

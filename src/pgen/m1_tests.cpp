@@ -2,6 +2,7 @@
 
 // C++ headers
 #include <array>
+#include <limits>
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -22,6 +23,12 @@
 
 namespace {
 // ============================================================================
+
+enum class variety_ref_cond { tracker, magnitude };
+static variety_ref_cond vrf = variety_ref_cond::tracker;
+
+static Real Kerr_AMR_sc_E_threshold { 0 };
+static int Kerr_AMR_target_level { 0 };
 
 int RefinementCondition(MeshBlock *pmb);
 #if FLUID_ENABLED
@@ -865,6 +872,9 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   {
     EnrollUserBoundaryFunction(BoundaryFace::inner_x1,
                                Kerr::BCInnerX1);
+
+    Kerr_AMR_sc_E_threshold = pin->GetOrAddReal("problem", "AMR_sc_E_threshold", 0);
+    Kerr_AMR_target_level = pin->GetOrAddInteger("problem", "AMR_target_level", 0);
   }
 
   if (adaptive)
@@ -902,6 +912,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   else if (m1_test == "diffusion_moving_medium")
   {
     InitM1DiffusionMovingMedium(this, pin);
+    vrf = variety_ref_cond::tracker;
   }
   else if (m1_test == "shadow")
   {
@@ -918,6 +929,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   else if (m1_test == "Kerr_fixed_background_beam")
   {
     Kerr::InitM1FixedBackgroundBeam(this, pin);
+    vrf = variety_ref_cond::magnitude;
   }
   else if (m1_test == "value_inject")
   {
@@ -931,31 +943,24 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 #endif  // M1_ENABLED
 
 #if FLUID_ENABLED
-    // Initialise conserved variables
-  peos->PrimitiveToConserved(
-                             phydro->w,
-#if USETM
+  // Initialise conserved variables
+  peos->PrimitiveToConserved(phydro->w,
                              pscalars->r,
-#endif
                              pfield->bcc,
                              phydro->u,
-#if USETM
                              pscalars->s,
-#endif
                              pcoord,
                              0, ncells1-1,
                              0, ncells2-1,
                              0, ncells3-1);
-
 #endif // FLUID_ENABLED
 
 #if Z4C_ENABLED
   // Initialise matter (also taken care of in task-list)
-  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm,
+  pz4c->GetMatter(pz4c->storage.mat,
+                  pz4c->storage.adm,
                   phydro->w,
-#if USETM
                   pscalars->r,
-#endif
                   pfield->bcc);
 
   pz4c->ADMConstraints(pz4c->storage.con,
@@ -998,6 +1003,15 @@ void MeshBlock::UserWorkMeshUpdatedPrePostAMRHooks(ParameterInput *pin)
       sc_kap_s.Fill(kap_s);
     }
   }
+  else if (m1_test == "Kerr_fixed_background_beam")
+  {
+    Kerr::InitM1FixedBackgroundBeam(this, pin);
+  }
+}
+
+void MeshBlock::M1UserWorkInLoop() {
+  // Placeholder
+  return;
 }
 
 // ============================================================================
@@ -1007,60 +1021,99 @@ namespace {  // impl. details
 int RefinementCondition(MeshBlock *pmb)
 {
   Mesh * pmesh = pmb->pmy_mesh;
-  ExtremaTracker * ptracker_extrema = pmesh->ptracker_extrema;
 
-  int root_level = ptracker_extrema->root_level;
-  int mb_physical_level = pmb->loc.level - root_level;
-
-
-  // Iterate over refinement levels offered by trackers.
-  //
-  // By default if a point is not in any sphere, completely de-refine.
-  int req_level = 0;
-
-  for (int n=1; n<=ptracker_extrema->N_tracker; ++n)
+  if (vrf == variety_ref_cond::tracker)
   {
-    bool is_contained = false;
-    int cur_req_level = ptracker_extrema->ref_level(n-1);
+    ExtremaTracker * ptracker_extrema = pmesh->ptracker_extrema;
 
+    int root_level = ptracker_extrema->root_level;
+    int mb_physical_level = pmb->loc.level - root_level;
+
+    // Iterate over refinement levels offered by trackers.
+    //
+    // By default if a point is not in any sphere, completely de-refine.
+    int req_level = 0;
+
+    for (int n=1; n<=ptracker_extrema->N_tracker; ++n)
     {
-      if (ptracker_extrema->ref_type(n-1) == 0)
+      bool is_contained = false;
+      int cur_req_level = ptracker_extrema->ref_level(n-1);
+
       {
-        is_contained = pmb->PointContained(
-          ptracker_extrema->c_x1(n-1),
-          ptracker_extrema->c_x2(n-1),
-          ptracker_extrema->c_x3(n-1)
-        );
+        if (ptracker_extrema->ref_type(n-1) == 0)
+        {
+          is_contained = pmb->PointContained(
+            ptracker_extrema->c_x1(n-1),
+            ptracker_extrema->c_x2(n-1),
+            ptracker_extrema->c_x3(n-1)
+          );
+        }
+        else if (ptracker_extrema->ref_type(n-1) == 1)
+        {
+          is_contained = pmb->SphereIntersects(
+            ptracker_extrema->c_x1(n-1),
+            ptracker_extrema->c_x2(n-1),
+            ptracker_extrema->c_x3(n-1),
+            ptracker_extrema->ref_zone_radius(n-1)
+          );
+        }
       }
-      else if (ptracker_extrema->ref_type(n-1) == 1)
+
+      if (is_contained)
       {
-        is_contained = pmb->SphereIntersects(
-          ptracker_extrema->c_x1(n-1),
-          ptracker_extrema->c_x2(n-1),
-          ptracker_extrema->c_x3(n-1),
-          ptracker_extrema->ref_zone_radius(n-1)
-        );
+        req_level = std::max(cur_req_level, req_level);
+      }
+
+    }
+
+    if (req_level > mb_physical_level)
+    {
+      return 1;  // currently too coarse, refine
+    }
+    else if (req_level == mb_physical_level)
+    {
+      return 0;  // level satisfied, do nothing
+    }
+
+    // otherwise de-refine
+    return -1;
+  }
+  else if (vrf == variety_ref_cond::magnitude)
+  {
+    int root_level = pmb->pmy_mesh->GetRootLevel();
+    int mb_physical_level = pmb->loc.level - root_level;
+
+    M1::M1 * pm1 = pmb->pm1;
+    Real max_sc_E = -std::numeric_limits<Real>::infinity();
+
+    for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+    for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+    {
+      M1::AT_C_sca & sc_E = pm1->lab.sc_E(ix_g,ix_s);
+
+      M1_ILOOP3(k,j,i)
+      {
+        max_sc_E = std::max(max_sc_E, sc_E(k,j,i));
       }
     }
 
-    if (is_contained)
+    if (max_sc_E > Kerr_AMR_sc_E_threshold)
     {
-      req_level = std::max(cur_req_level, req_level);
+      if (Kerr_AMR_target_level > mb_physical_level)
+      {
+        return 1;  // currently too coarse, refine
+      }
+      else if (Kerr_AMR_target_level == mb_physical_level)
+      {
+        return 0;  // level satisfied, do nothing
+      }
+
+      // otherwise de-refine
+      return -1;
     }
-
   }
 
-  if (req_level > mb_physical_level)
-  {
-    return 1;  // currently too coarse, refine
-  }
-  else if (req_level == mb_physical_level)
-  {
-    return 0;  // level satisfied, do nothing
-  }
-
-  // otherwise de-refine
-  return -1;
+  return 0;  // do nothing
 }
 
 #if FLUID_ENABLED

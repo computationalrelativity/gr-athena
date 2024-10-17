@@ -20,7 +20,6 @@
 #   --nextrapolate=xxx  set NEXTRAPOLATE=xxx  [for ouflow conditions]
 #   --nscalars=xxx      set NSCALARS=xxx
 #   --ninterp=xxx       set NGRCV_HSZ=xxx (number of ghosts for intergrid interpolation)
-#   -eos_table          enable EOS table
 #   -f                  enable fluid
 #   -b                  enable magnetic fields
 #   -s                  enable special relativity
@@ -64,6 +63,7 @@
 #
 # Hydro/passive scalars:
 #   -recon_cmb_hydpa    reconstruct hydro & passive sca. at same time
+#   -DBG_FALLBACK_NO_TABLE_LIMITS: employ fallback with Y<0 check instead
 #
 # z4c settings:
 #
@@ -90,6 +90,10 @@
 # M1 neutrino transport:
 #
 #   -m1                 enable M1 neutrino transport
+#
+# Ejecta:
+#
+#   -ejecta             enable ejecta (requires PrimitiveSolver)
 #
 # development stuff:
 #
@@ -205,7 +209,7 @@ parser.add_argument(
 parser.add_argument(
   "--errorpolicy",
   default="do_nothing",
-  choices=["do_nothing", "reset_floor"],
+  choices=["do_nothing", "reset_floor", "reset_floor_no_adjust_conserved"],
   help="select error policy for PrimitiveSolver framework",
 )
 
@@ -283,10 +287,10 @@ parser.add_argument(
 )
 
 parser.add_argument(
-  "-old_tasklists",
+  "-DBG_FALLBACK_NO_TABLE_LIMITS",
   action="store_true",
   default=False,
-  help="utilize the reference task-lists (pre-refactor)",
+  help="DBG_FALLBACK_NO_TABLE_LIMITS",
 )
 
 # -f argument
@@ -412,6 +416,14 @@ parser.add_argument(
   action="store_true",
   default=False,
   help="disable compilation of M1 weakrates opacities",
+)
+
+# -ejecta argument
+parser.add_argument(
+  "-ejecta",
+  action="store_true",
+  default=False,
+  help="enable ejecta (requires PrimitiveSolver)",
 )
 
 # -t argument
@@ -783,7 +795,7 @@ definitions["COORDINATE_SYSTEM"] = makefile_options["COORDINATES_FILE"] = args[
 ]
 
 # --eos=[name] argument
-definitions["NON_BAROTROPIC_EOS"] = "0" if args["eos"] == "isothermal" else "1"
+definitions["NON_BAROTROPIC_EOS"] = "1"
 makefile_options["EOS_FILE"] = args["eos"]
 definitions["EQUATION_OF_STATE"] = args["eos"]
 
@@ -798,11 +810,11 @@ definitions["EOS_POLICY"] = ""
 definitions["ERROR_POLICY"] = ""
 definitions["EOS_POLICY_CODE"] = "0"
 definitions["ERROR_POLICY_CODE"] = "0"
-if args["eos"] == "none":
-  definitions["NHYDRO_VARIABLES"] = "0"
-if args["eos"] == "isothermal":
-  definitions["NHYDRO_VARIABLES"] = "4"
-elif args["eos"] == "adiabatic" or args["eos"] == "adiabatictaudyn_rep":
+definitions["PRIMITIVE_SOLVER_ADJUST_CONSERVED"] = (
+  "PRIMITIVE_SOLVER_ADJUST_CONSERVED"
+)
+
+if args["eos"] == "adiabatictaudyn_rep":
   definitions["NHYDRO_VARIABLES"] = "5"
   makefile_options["GENERAL_EOS_FILE"] = "ideal"
   definitions["COLDEOS_POLICY"] = "None"
@@ -834,15 +846,23 @@ elif args["eos"] == "eostaudyn_ps":
   elif args["errorpolicy"] == "reset_floor":
     definitions["ERROR_POLICY"] = "ResetFloor"
     definitions["ERROR_POLICY_CODE"] = "1"
+  elif args["errorpolicy"] == "reset_floor_no_adjust_conserved":
+    # this is just to set a macro in defs.hpp which controls
+    # `adjust_conserved` in reset_floor.cpp.
+    #
+    # Rename to get the correct file to compile later
+    args["errorpolicy"] = "reset_floor"
+
+    definitions["ERROR_POLICY"] = "ResetFloor"
+    definitions["ERROR_POLICY_CODE"] = "1"
+    definitions["PRIMITIVE_SOLVER_ADJUST_CONSERVED"] = (
+      "NO_PRIMITIVE_SOLVER_ADJUST_CONSERVED"
+    )
   else:
     definitions["ERROR_POLICY"] = ""
 
 else:
-  definitions["GENERAL_EOS"] = "1"
-  makefile_options["GENERAL_EOS_FILE"] = "general"
-  definitions["NHYDRO_VARIABLES"] = "5"
-  if args["eos"] == "general/eos_table":
-    definitions["EOS_TABLE_ENABLED"] = "1"
+  definitions["NHYDRO_VARIABLES"] = "0"
 
 # --flux=[name] argument
 definitions["RSOLVER"] = makefile_options["RSOLVER_FILE"] = args["flux"]
@@ -1120,6 +1140,12 @@ if args["m1_no_weakrates"]:
 else:
   definitions["M1_NO_WEAKRATES"] = "0"
 
+# -ejecta
+if args["ejecta"]:
+  definitions["EJECTA_ENABLED"] = "EJECTA_ENABLED"
+else:
+  definitions["EJECTA_ENABLED"] = "NO_EJECTA_ENABLED"
+
 # -hybridinterp argument
 if args["hybridinterp"]:
   definitions["HYBRID_INTERP"] = "HYBRID_INTERP"
@@ -1138,11 +1164,13 @@ if args["recon_cmb_hydpa"]:
 else:
   definitions["DBG_COMBINED_HYDPA"] = "NO_DBG_COMBINED_HYDPA"
 
-# -old_tasklists argument
-if args["old_tasklists"]:
-  definitions["DBG_USE_REFERENCE_TASKLISTS"] = "DBG_USE_REFERENCE_TASKLISTS"
+# -DBG_FALLBACK_NO_TABLE_LIMITS argument
+if args["DBG_FALLBACK_NO_TABLE_LIMITS"]:
+  definitions["DBG_FALLBACK_NO_TABLE_LIMITS"] = "DBG_FALLBACK_NO_TABLE_LIMITS"
 else:
-  definitions["DBG_USE_REFERENCE_TASKLISTS"] = "NO_DBG_USE_REFERENCE_TASKLISTS"
+  definitions["DBG_FALLBACK_NO_TABLE_LIMITS"] = (
+    "NO_DBG_FALLBACK_NO_TABLE_LIMITS"
+  )
 
 # -shear argument
 if args["shear"]:
@@ -1747,16 +1775,24 @@ if args["z"]:
   str_stem = "filter-out src/task_list"
 
   # task_list/gr
-  str_gr = "$(wildcard src/task_list/gr/*.cpp)"
-  src_aux.append(f"{str_gr}")
+  src_aux.append("src/task_list/gr/task_list_aux_z4c.cpp")
+  src_aux.append("src/task_list/gr/task_list_post_amr_z4c.cpp")
+
+  if args["f"]:
+    src_aux.append("src/task_list/gr/task_list_grmhd_z4c.cpp")
+  else:
+    src_aux.append("src/task_list/gr/task_list_gr_z4c.cpp")
+
+  # str_gr = "$(wildcard src/task_list/gr/*.cpp)"
+  # src_aux.append(f"{str_gr}")
 
   if args["m1"]:
     src_aux.append("$(wildcard src/task_list/m1/task_list_m1n0.cpp)")
-
+    src_aux.append("$(wildcard src/task_list/m1/task_list_post_amr_m1n0.cpp)")
 
 elif args["w"]:
   src_aux.append(
-    "$(wildcard src/task_list/wave_equations/task_list_wave_2o.cpp)"
+    "$(wildcard src/task_list/wave_equations/task_list_wave_2o.cpp)",
   )
 
 elif args["m1"]:
@@ -1791,6 +1827,15 @@ if args["m1"]:
     src_aux.append("$(wildcard src/m1/opacities/weakrates/*.cpp)")
 
 makefile_options["M1_SRC"] = "\\\n".join(src_aux)
+
+# ejecta: ---------------------------------------------------------------------
+if args["ejecta"]:
+  src_aux = []
+  src_aux.append("src/z4c/ejecta.cpp")
+  makefile_options["EJECTA_SRC"] = "\\\n".join(src_aux)
+else:
+  src_aux = []
+  makefile_options["EJECTA_SRC"] = "\\\n".join(src_aux)
 
 
 # --- Step 4. Create new files, finish up --------------------------------
@@ -1871,6 +1916,7 @@ if args["z"]:
     print("  Z4c refinement strategy:      " + ("box-in-box" if args["ref_box_in_box"]
                                                 else "spheres"))
     print("  CCE:                          " + ("ON" if args["cce"] else "OFF"))
+    print("  Ejecta:                       " + ("ON" if args["ejecta"] else "OFF"))
 
 print("  M1 neutrino transport:        " + ("ON" if args["m1"] else "OFF"))
 

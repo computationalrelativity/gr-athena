@@ -3,7 +3,9 @@
 
 
 // C++ headers
+#include "athena_aliases.hpp"
 #include <ctime>      // clock(), CLOCKS_PER_SEC, clock_t
+#include <iomanip>
 #include <iostream>   // cout, endl
 
 // External libraries
@@ -34,7 +36,9 @@
 #include "z4c/wave_extract.hpp"
 #include "z4c/puncture_tracker.hpp"
 #include "z4c/ahf.hpp"
-// #include "z4c/ejecta.hpp"
+#ifdef EJECTA_ENABLED
+#include "z4c/ejecta.hpp"
+#endif
 #if CCE_ENABLED
 #include "z4c/cce/cce.hpp"
 #endif
@@ -380,6 +384,7 @@ inline void InitMeshData(Flags *pfl, ParameterInput *pin, Mesh *pm)
   try
   {
     pm->Initialize(pfl->res, pin);
+    pm->InitializePostFirstInitialize(pin);
     pm->DeleteTemporaryUserMeshData();
   }
   catch(std::bad_alloc& ba)
@@ -656,11 +661,17 @@ inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
     // Iterate bnd comm. as required
     pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
 
+    if (stage == ptlc.grmhd_z4c->nstages)
+    {
+      // Rescale as required
+      pmesh->Rescale_Conserved();
+    }
+
 #ifdef DBG_SCATTER_MATTER_GRMHD
     pmesh->ScatterMatter(pmb_array);
 #endif
-
   }
+
 }
 
 inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
@@ -671,6 +682,12 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
   // are at the new time-step ...
   const Real time_end_stage   = pmesh->time+pmesh->dt;
   const Real ncycle_end_stage = pmesh->ncycle+1;
+
+  // Derivatives of ADM metric and other auxiliary computations needed below
+  if (trgs.IsSatisfied(tvar::Z4c_AHF))
+  {
+    pmesh->CalculateStoreMetricDerivatives();
+  }
 
   // Auxiliary variable logic
   // Currently this handles Weyl communication & decomposition
@@ -693,68 +710,71 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
 
 // BD: TODO - CCE needs to be cleaned up & tested
 #if CCE_ENABLED
-      bool cce_update;
-      Real cce_dt;
+  // only do a CCE dump if NextTime threshold cleared (updated below)
+  if (trgs.IsSatisfied(tvar::Z4c_CCE, ovar::user))
+  {
+    Real cce_dt = trgs.GetTrigger_dt(tvar::Z4c_CCE, ovar::user);
 
-      if (!FLUID_ENABLED)
+    // gather all interpolation values from all processors to the root proc.
+    for (auto cce : pmesh->pcce)
+    {
+      cce->ReduceInterpolation();
+    }
+    // number of cce iteration(dump)
+    int cce_iter = static_cast<int>(pmesh->time / cce_dt);
+    int w_iter = 0; // write iter
+
+    // update the bookkeeping file to ensure resuming from the correct iter number
+    // after a restart. note: for a duplicated iter, hdf5 writer gives an error!
+    if ((pmesh->pcce.size() > 0) &&
+        CCE::BookKeeping(pmesh->pcce.front()->output_dir, cce_iter,w_iter))
+    {
+      for (auto cce : pmesh->pcce)
       {
-        cce_update = ptlc.gr_z4c->TaskListTriggers.cce_dump.to_update;
-        cce_dt = ptlc.gr_z4c->TaskListTriggers.cce_dump.dt;
-      } else {
-        cce_update = ptlc.grmhd_z4c->TaskListTriggers.cce_dump.to_update;
-        cce_dt = ptlc.grmhd_z4c->TaskListTriggers.cce_dump.dt;
+        cce->DecomposeAndWrite(w_iter);
       }
-      // only do a CCE dump if NextTime threshold cleared (updated below)
-      if (cce_update) {
-        // gather all interpolation values from all processors to the root proc.
-        for (auto cce : pmesh->pcce)
-        {
-          cce->ReduceInterpolation();
-        }
-        // number of cce iteration(dump)
-        int cce_iter = static_cast<int>(pmesh->time / 
-                                       cce_dt);
-        int w_iter = 0; // write iter
-
-        // update the bookkeeping file to ensure resuming from the correct iter number 
-        // after a restart. note: for a duplicated iter, hdf5 writer gives an error!
-        if (CCE::BookKeeping(pinput,cce_iter,w_iter))
-        {
-          for (auto cce : pmesh->pcce)
-          {
-            cce->DecomposeAndWrite(w_iter);
-          }
-        }
-      }
+    }
+  }
 #endif
 
-  for (auto pah_f : pmesh->pah_finder)
+  // RWZ wave extraction
+  //TODO
+
+  // AHF
+  if (trgs.IsSatisfied(tvar::Z4c_AHF))
   {
-    if (pah_f->CalculateMetricDerivatives(ncycle_end_stage,
-                                          time_end_stage))
+
+    for (auto pah_f : pmesh->pah_finder)
     {
-      break;
+      if (pah_f->CalculateMetricDerivatives(ncycle_end_stage,
+                                            time_end_stage))
+      {
+        break;
+      }
     }
-  }
-  for (auto pah_f : pmesh->pah_finder)
-  {
-    pah_f->Find(ncycle_end_stage, time_end_stage);
-    pah_f->Write(ncycle_end_stage, time_end_stage);
-  }
-  for (auto pah_f : pmesh->pah_finder)
-  {
-    if (pah_f->DeleteMetricDerivatives(ncycle_end_stage, time_end_stage))
+    for (auto pah_f : pmesh->pah_finder)
     {
-      break;
+      pah_f->Find(ncycle_end_stage, time_end_stage);
+      pah_f->Write(ncycle_end_stage, time_end_stage);
     }
+    for (auto pah_f : pmesh->pah_finder)
+    {
+      if (pah_f->DeleteMetricDerivatives(ncycle_end_stage, time_end_stage))
+      {
+        break;
+      }
+    }
+
   }
 
-  /* WC: Temporarily remove ejecta - to be tested/reincluded
+#ifdef EJECTA_ENABLED
+  // Ejecta analysis
   for (auto pej : pmesh->pej_extract) {
     pej->Calculate(pmesh->ncycle, pmesh->time);
   }
-  */
+#endif
 
+  // Puncture trackers
   for (auto ptracker : pmesh->pz4c_tracker)
   {
     ptracker->EvolveTracker();

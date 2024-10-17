@@ -23,8 +23,10 @@
 
 #include <cassert>
 #include <cmath>
+#include <iostream>
 
 #include "../../athena.hpp"
+#include "../../globals.hpp"
 #include "unit_system.hpp"
 
 namespace Primitive {
@@ -168,9 +170,17 @@ class ColdEOS : public ColdEOSPolicy {
 
   inline void SetDensityFloor(Real d) {
     density_floor = d;
-    if (density_floor < min_n*GetBaryonMass()) {
-      throw std::invalid_argument("Density floor is below the minimum density.");
+    const Real min_tab_density = min_n*GetBaryonMass();
+
+    #pragma omp critical
+    if (density_floor < min_tab_density)
+    if (Globals::my_rank == 0)
+    {
+      std::cout << "Warning:  Density floor ";
+      std::cout << density_floor << " below table minimum of ";
+      std::cout << min_tab_density << "; values will be extrapolated\n";
     }
+
   }
 
   inline Real GetDensityFloor() const {

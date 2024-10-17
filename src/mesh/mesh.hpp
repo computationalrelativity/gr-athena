@@ -55,7 +55,9 @@ class Wave;
 class Z4c;
 class WaveExtract;
 class AHF;
+#ifdef EJECTA_ENABLED
 class Ejecta;
+#endif
 #if CCE_ENABLED
 class CCE;
 #endif
@@ -271,6 +273,7 @@ public:
   // This is a quick fix to prevent multiple calls to 'UserWorkInLoop' if
   // TimeIntegratorTaskList and Z4cIntegratorTaskList are both running..
   void WaveUserWorkInLoop();
+  void M1UserWorkInLoop();
 
   // Introduce work that can be registered to execute before postamr hooks
   void UserWorkMeshUpdatedPrePostAMRHooks(ParameterInput *pin);
@@ -318,6 +321,10 @@ public:
     }
     return !nn_level_different;
   }
+
+  // Change boundary variable representations
+  void SetBoundaryVariablesConserved();
+  void SetBoundaryVariablesPrimitive();
 
 private:
   // if AMR *just* created this block, useful to know.
@@ -445,7 +452,9 @@ class Mesh {
 
   std::vector<WaveExtract *> pwave_extr;
   std::vector<AHF *> pah_finder;
+#ifdef EJECTA_ENABLED
   std::vector<Ejecta *> pej_extract;
+#endif
 #if CCE_ENABLED
   std::vector<CCE *> pcce;
 #endif
@@ -460,6 +469,14 @@ class Mesh {
   void GetMeshBlocksMyRank(std::vector<MeshBlock*> & pmb_array);
 
   void Initialize(int res_flag, ParameterInput *pin);
+
+  // Additional initialization logic:
+  // This is called after "Initialize" in the InitMeshData call
+  void InitializePostFirstInitialize(ParameterInput *pin);
+  // This is called after LoadBalancingAndAdaptiveMeshRefinement returns true
+  // in main integration loop
+  void InitializePostMainUpdatedMesh(ParameterInput *pin);
+
   void SetBlockSizeAndBoundaries(LogicalLocation loc, RegionSize &block_size,
                                  BoundaryFlag *block_bcs);
 
@@ -491,6 +508,11 @@ class Mesh {
 
   inline int GetRootLevel() { return root_level; }
 
+  bool GetGlobalGridGeometry(AthenaArray<Real> & x_min,
+                             AthenaArray<Real> & x_max,
+                             AthenaArray<Real> & dx_min,
+                             AthenaArray<Real> & dx_max);
+
   void CommunicateConserved(std::vector<MeshBlock*> & pmb_array);
   void CommunicatePrimitives(std::vector<MeshBlock*> & pmb_array);
 
@@ -515,12 +537,55 @@ class Mesh {
   // Dedicated function to communicate matter-fields
   void ScatterMatter(std::vector<MeshBlock*> & pmb_array);
 
+  void CalculateStoreMetricDerivatives();
+
   // Additional, specific, communication of data over MeshBlock objects
   void CommunicateAuxZ4c();
   void CommunicateIteratedZ4c(const int iterations);
 
   // General post-AMR procedures
   void FinalizePostAMR();
+
+  // Compensated summation of quantities over owned Meshblock
+  enum class variety_cs { conserved_density, conserved_scalar };
+
+  Real CompensatedSummation(
+    variety_cs v_cs,
+    const int n,
+    const int kl, const int ku,
+    const int jl, const int ju,
+    const int il, const int iu,
+    const bool volume_weighted
+  );
+
+  // convenience functions for compensated summation
+  void CS_ConservedDensity(Real & Mass);
+  void CS_ConservedScalars(AthenaArray<Real> & S);
+
+  // rescaling of evolved variables
+  void Rescale_Conserved();
+
+  // associated data
+  Real rs_ini_D, rs_fin_D;
+  AthenaArray<Real> rs_ini_s, rs_fin_s;
+
+  struct {
+    bool verbose;
+    bool initialized;
+    bool conserved_hydro;
+    bool conserved_scalars;
+    Real err_rel_hydro;
+    Real err_rel_scalars;
+  } opt_rescaling;
+
+  // for convenience store some global geometric quantities
+  struct {
+    AthenaArray<Real> x_min;
+    AthenaArray<Real> x_max;
+    AthenaArray<Real> dx_min;
+    AthenaArray<Real> dx_max;
+  } M_info;
+  bool diagnostic_grid_updated; // set to false in  OutputCycleDiagnostics
 
  private:
   // data
@@ -629,7 +694,8 @@ struct MB_info {
   bool f1, f2, f3;                      // dimensionality flags
   int il, iu, jl, ju, kl, ku;           // local block iter.
   int nn1, nn2, nn3;                    // total number of nodes (w. ghosts)
-  int cnn1, cnn2, cnn3;                 // coarse analogue ^
+  int cil, ciu, cjl, cju, ckl, cku;     // coarse analogue ^
+  int cnn1, cnn2, cnn3;
   int ng, cng;                          // number of ghosts
   int ndim;
 

@@ -15,9 +15,7 @@
 #include <string>
 #include <hdf5.h>
 
-#include "../athena.hpp"
-#include "../athena_arrays.hpp"
-#include "../athena_tensor.hpp"
+#include "../athena_aliases.hpp"
 #include "../utils/lagrange_interp.hpp"
 #include "z4c.hpp"
 
@@ -27,8 +25,6 @@ class MeshBlock;
 class ParameterInput;
 
 #define SQ(X) ((X)*(X))
-#define NDIM (3)
-
 
 //! \class Ejecta
 //! \brief Ejecta extraction
