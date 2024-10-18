@@ -21,28 +21,26 @@
 EFLTaskList::EFLTaskList(ParameterInput *pin, Mesh *pm){
 
     std::string integrator;
-#if 0
-    //if (efl_choice)
-    //{
-    //  integrator = pin->GetOrAddString("time", "integrator", "vl2");
-    //  if      (integrator == "vl2") {nstages = 2};
-    //  else if (integrator == "rk1") {nstages = 1};
-      else if (integrator == "rk2") {nstages = 2};
-      else if (integrator == "rk3") {nstages = 3};
-      else if (integrator == "rk4") {nstages = 4};
-      else if (integrator == "ssprk5_4") {nstages = 5};
+    if  ( pin->GetOrAddBoolean("hydro", "efl_in", false) )
+    {
+        integrator = pin->GetOrAddString("time", "integrator", "vl2");
+        if      (integrator == "vl2") {nstages = 2;}
+        else if (integrator == "rk1") {nstages = 1;}
+        else if (integrator == "rk2") {nstages = 2;}
+        else if (integrator == "rk3") {nstages = 3;}
+        else if (integrator == "rk4") {nstages = 4;}
+        else if (integrator == "ssprk5_4") {nstages = 5;}
     }
-#endif
-    nstages = 1;
-    
-    //initialize boundary conditions
-    {using namespace EFLTaskNames;
-        AddTask(Get_Entropy,NONE);
-        AddTask(Get_EFL,Get_Entropy);
-        AddTask(Set_Entropy,Get_EFL);
+    else
+    {
+        nstages = 1;
+    }
+    {using namespace EFLTaskNames;  
+        Add(Get_Entropy,NONE, &EFLTaskList::GetEntropy);
+        Add(Get_EFL,Get_Entropy,&EFLTaskList::GetEFL);
+        Add(Set_Entropy, (Get_Entropy | Get_EFL),&EFLTaskList::SetEntropy);
 
     }// end of using namespace block
- 
 }
 
 //----------------------------------------------------------------------------------------
@@ -50,58 +48,40 @@ EFLTaskList::EFLTaskList(ParameterInput *pin, Mesh *pm){
 //! \brief Sets id and dependency for "ntask" member of task_list_ array, then iterates
 //! value of ntask.
 
-void EFLTaskList:: AddTask(const TaskID& id, const TaskID& dep){
-    task_list_[ntasks].task_id =id;
-    task_list_[ntasks].dependency=dep;
-    using namespace EFLTaskNames;
-    if (id == Get_Entropy){
-        task_list_[ntasks].TaskFunc=
-        static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&EFLTaskList::GetEntropy);
-    }
-    else if(id == Get_EFL){
-        task_list_[ntasks].TaskFunc=
-        static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&EFLTaskList::GetEFL);
-    }
-    else if (id == Set_Entropy){
-        task_list_[ntasks].TaskFunc=
-        static_cast<TaskStatus (TaskList::*)(MeshBlock*,int)>
-        (&EFLTaskList::SetEntropy);
-    }
-
-    else{
-    std::stringstream msg;
-    msg << "### FATAL ERROR in EFLTaskList::AddTask" << std::endl
-        << "Invalid Task is specified" << std::endl;
-    ATHENA_ERROR(msg);
-    }
-    ntasks++;
-    return;
-}
-
 void EFLTaskList::StartupTaskList(MeshBlock *pmb, int stage) {
   return;
 }
 
 
 TaskStatus EFLTaskList::GetEntropy(MeshBlock *pmb, int stage){
-    Hydro *phydro = pmb->phydro;
-    phydro->CalculateEntropy(phydro->w , phydro->ent );
-    return TaskStatus::success;
+    if (stage <= nstages)
+    {
+        Hydro *ph = pmb->phydro;
+        ph->CalculateEntropy(ph->w , ph->entropy_0 );
+        return TaskStatus::next;
+    }
+    return TaskStatus::fail;
 }
 
 TaskStatus EFLTaskList::GetEFL(MeshBlock *pmb, int stage){
-    Hydro *phydro = pmb->phydro;
-    phydro->CalculateEFL(phydro->w,phydro->ent,
-    phydro->ent1,phydro->ent2,phydro->ent3);
-    return TaskStatus::success;
+
+    if (stage <= nstages)
+    {
+        Hydro *ph = pmb->phydro;
+        ph->CalculateEFL(ph->w,ph->entropy_0,
+        ph->entropy_1,ph->entropy_2,ph->entropy_3);
+        return TaskStatus::next;
+    }
+    return TaskStatus::fail;
 }
 
 TaskStatus EFLTaskList::SetEntropy(MeshBlock *pmb, int stage){
-    Hydro *phydro = pmb->phydro;
-    phydro->ent3=phydro->ent2;
-    phydro->ent2=phydro->ent1;
-    phydro->ent1=phydro->ent;
-    return TaskStatus::next;
+    if (stage <= nstages)
+    {
+        Hydro *ph = pmb->phydro;
+        ph->SetEntropy(ph->entropy_0,
+        ph->entropy_1,ph->entropy_2,ph->entropy_3);
+        return TaskStatus::success;
+    }
+    return TaskStatus::fail;
 }

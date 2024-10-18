@@ -43,6 +43,8 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
   }
 
 #if (NSCALARS > 0) & defined(DBG_COMBINED_HYDPA)
+  SetAtmMask(pmy_block->peos->GetEOS().GetDensityFloor(),
+            w, atm_mask);
 #if EFL_ENABLED
   AthenaArray<Real> &x1flux_HO = flux_HO[X1DIR];
   AthenaArray<Real> &x2flux_HO = flux_HO[X2DIR];
@@ -1362,29 +1364,56 @@ void Hydro::CombineFluxes(const int k,const int j,const int il, const int iu,con
                           AthenaArray<Real> const &f_LO,
                           AthenaArray<Real> &f)
 {
+  
 #if 1
-  if(pmy_block->pmy_mesh->efl_it_count<6){
-    for(int i =il; i<= iu ;++i){
+  for(int i =il; i<= iu ;++i){
+    if ((dir == 1) && ((atm_mask(k,j,i-1) > 0.9) || (atm_mask(k,j,i) > 0.9))){
+      for (int n=0; n<NHYDRO;++n) f(n,k,j,i)=0.0;
+      continue;
+    }
+    if ((dir == 2) && ((atm_mask(k,j-1,i) > 0.9) || (atm_mask(k,j,i) > 0.9)) ){
+      for (int n=0; n<NHYDRO;++n) f(n,k,j,i)=0.0;
+      continue;
+    }
+    if ((dir == 3) && ((atm_mask(k-1,j,i) > 0.9) || (atm_mask(k,j,i) > 0.9)) ){
+      for (int n=0; n<NHYDRO;++n) f(n,k,j,i)=0.0;
+      continue;
+    }
+
+    if(pmy_block->pmy_mesh->efl_it_count <= buffer_it){
       for (int n=0; n<NHYDRO;++n){
         f(n,k,j,i)=f_LO(n,k,j,i);
       }
     }
-  }
-  else{  
-    for(int i =il; i<= iu ;++i){
+
+    else{  
       for (int n=0; n<NHYDRO;++n){
         f(n,k,j,i)= efl(k,j,i)*f_HO(n,k,j,i) + (1.0-efl(k,j,i))*f_LO(n,k,j,i);
       }
     }
   }
 #endif
+
 #if 0
-  if (dir ==1)
   for(int i =il; i<= iu ;++i){
+    if ((dir == 1) && ((atm_mask(k,j,i-1) > 0.9) || (atm_mask(k,j,i) > 0.9))){
+      for (int n=0; n<NHYDRO;++n) f(n,k,j,i)=0.0;
+      continue;
+    }
+    if ((dir == 2) && ((atm_mask(k,j-1,i) > 0.9) || (atm_mask(k,j,i) > 0.9)) ){
+      for (int n=0; n<NHYDRO;++n) f(n,k,j,i)=0.0;
+      continue;
+    }
+    if ((dir == 3) && ((atm_mask(k-1,j,i) > 0.9) || (atm_mask(k,j,i) > 0.9)) ){
+      for (int n=0; n<NHYDRO;++n) f(n,k,j,i)=0.0;
+      continue;
+    }
+    else{
       for (int n=0; n<NHYDRO;++n){
-        f(n,k,j,i)=f_LO(n,k,j,i);
+        f(n,k,j,i)=f_HO(n,k,j,i);
       }
     }
+  }
 #endif
   return;
 }

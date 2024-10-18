@@ -30,13 +30,13 @@ static Real oocc[32] = { 1e99, 1., 1./2., 1./3., 1./4., 1./5., 1./6., 1./7., 1./
 			   1./11., 1./12., 1./13., 1./14., 1./15., 1./16., 1./17., 1./18., 1./19., 1./20., 
 			   1./21., 1./22., 1./23., 1./24., 1./25., 1./26., 1./27., 1./28., 1./29., 1./30., 
 			   1./31};
-static Real EPSL = 1e-40; //1e-6
+static Real EPSL = 1e-42; //1e-6
 static Real optimw[3] = {1./10., 3./5., 3./10.};// WENO optimal weights
 static Real othreeotwo  = 13./12.;
 
 using namespace gra::aliases;
 using namespace LinearAlgebra;
-Real Reconstruct(Real char_flx[5])
+Real Reconstruct(Real char_flx[5],const std::string rec)
 {
   static Real othreeotwo  = 13./12.;
   Real a[3], b[3], w[3], fk[3], dsa;
@@ -48,10 +48,15 @@ Real Reconstruct(Real char_flx[5])
   fi   = char_flx[2];
   fimo = char_flx[1];
   fimt = char_flx[0];
-#if 1
-  for( j = 0 ; j<3; j++) w[j] = optimw[j];
-#endif
-#if 0
+
+if (rec == "cs5")
+{
+  //for( j = 0 ; j<3; j++) w[j] = optimw[j];
+  fLipoh = 1.0/60.0*(2.0 * fimt - 13.0*fimo + 47*fi + 27*fipo - 3*fipt);
+  return fLipoh;
+}
+if (rec =="weno5")
+{
 // smoothness coefs, Jiag & Shu '96
   b[0] = othreeotwo * SQR(( fimt - cc[2]*fimo + fi   )) + oocc[4] * SQR((       fimt - cc[4]*fimo + cc[3]*fi   ) ); 
   b[1] = othreeotwo * SQR(( fimo - cc[2]*fi   + fipo )) + oocc[4] * SQR((       fimo -       fipo              ) ); 
@@ -59,8 +64,9 @@ Real Reconstruct(Real char_flx[5])
   for( j = 0 ; j<3; j++) a[j] = optimw[j]/(SQR(( EPSL + b[j])));
   dsa = 1./( a[0] + a[1] + a[2] );
   for( j = 0 ; j<3; j++) w[j] = a[j] * dsa;
-#endif
-#if 0
+}
+if (rec == "weno5z")
+{
   // smoothness coefs, Borges '08 (wenoZ)
   b[0] = othreeotwo * SQR(( fimt - cc[2]*fimo + fi   )) + oocc[4] * SQR((       fimt - cc[4]*fimo + cc[3]*fi   ) ); 
   b[1] = othreeotwo * SQR(( fimo - cc[2]*fi   + fipo )) + oocc[4] * SQR((       fimo -       fipo              ) ); 
@@ -68,7 +74,7 @@ Real Reconstruct(Real char_flx[5])
   for( j = 0 ; j<3; j++) a[j] = optimw[j]*( 1.+ std::abs(b[0]-b[2])/(b[j]+EPSL) );
   dsa = 1./( a[0] + a[1] + a[2] );
   for( j = 0 ; j<3; j++) w[j] = a[j] * dsa;
-#endif  
+} 
   fk[0] = oocc[6]*(   cc[2]*fimt - cc[7]*fimo + cc[11]*fi   );
   fk[1] = oocc[6]*( - cc[1]*fimo + cc[5]*fi   + cc[2] *fipo );
   fk[2] = oocc[6]*(   cc[2]*fi   + cc[5]*fipo -        fipt );
@@ -90,8 +96,10 @@ void GetEulerianVelocity(const int il, const int iu,
   // Lorentz factors
   for (int i=il; i<=iu; ++i)
   {
-    W(k,j,i) = std::sqrt(1. + InnerProductVecMetric(
-      w_util_u, met, k,j,i));
+    const Real norm2_utilde = InnerProductVecMetric(
+      w_util_u, met, k,j,i);
+      
+    W(k,j,i) = std::sqrt(1. + norm2_utilde) ;
   }
 
   // Eulerian velocity centred contravariant componenets
@@ -113,7 +121,7 @@ void GetFluxesGRHD(
                    AthenaTensor<Real, TensorSymm::NONE, 3, 1> const &beta_u,
                    AthenaTensor<Real, TensorSymm::NONE, 3, 0> const &pgas,
                    AthenaTensor<Real, TensorSymm::NONE, 3, 1> const &v_u,
-                   AthenaArray<Real> const &cons,
+                   AthenaArray<Real> &cons,
                    AthenaTensor<Real, TensorSymm::NONE, 5,   1> &f
                    )
 {
@@ -227,7 +235,7 @@ case 3:
 #if USETM
   const Real Gamma = pmb->peos->GetEOS().GetGamma();
 #else
-  const Real Gamma = pmb->peos.GetGamma();
+  const Real Gamma = pmb->peos->GetGamma();
 #endif
 
   h=avg_hq[hi::h];
@@ -364,7 +372,7 @@ void GetEigenVectorGRHD(MeshBlock * pmb,
 #if USETM
   const Real Gamma = pmb->peos->GetEOS().GetGamma();
 #else 
-  const Real Gamma=pmb->peos.GetGamma()
+  const Real Gamma=pmb->peos->GetGamma();
 #endif
 
   gxx=avg_field[fi::gxx+ivx];
@@ -516,46 +524,284 @@ void GetEigenVectorGRHD(MeshBlock * pmb,
   L[4][ivx+1] = - h2odelta * ( cxx * omKAm + Vm * tmpx );
   L[4][ivy+1] = - h2odelta * ( cxy * omKAm + Vm * tmpy );
   L[4][ivz+1] = - h2odelta * ( cxz * omKAm + Vm * tmpz );
-  L[4][IEN]  = - h2odelta * ( tmpL5p );
+  L[4][IEN]   = - h2odelta * ( tmpL5p );
 
    return;
 }
 
 void GetEigenVectorGRHD1(MeshBlock * pmb,
-                    const int k, const int j,
-                    const int i,
                     const int dir, const Real avg_field[12],
                     const Real avg_hq[13], const Real avg_eig[6],
-                    AthenaTensor<Real, TensorSymm::NONE, 5,2> &L, 
-                    AthenaTensor<Real, TensorSymm::NONE, 5,2> &R)
+                    Real (&L)[NHYDRO][NHYDRO], 
+                    Real (&R)[NHYDRO][NHYDRO])
 {
-Real e, K,kk,L_p,L_m, A_p,A_m,A_p_,A_m_ ,V_p,V_m, N_p, N_m,C_p,C_m,
-det, E, G_xx, G_xy, G_xz ;
-Real gxx,gxy,gxz,gyy,gyz,gzz,gxxup,detg,h,W,W2,hW,rho,cs2,
-    kappa,vx,vy,vz,vlowx,vlowy,vlowz,lamm,lamp,alpha,betax;
+  Real W2, tW2, h2, hW, oohW;
+  Real tmpLm, tmpLp;
+  Real gxxup_vxtmpLm, gxxup_vxtmpLp;
+  Real Vm, Vp;
+  Real Cp, Cm;
+  Real Am, Ap;
+  Real kk, K;  
+  Real tKmo, omKAp, omKAm, omK;
+  Real WoKmo; 
+  Real W2oKmo;
+  Real cxx, cxy, cxz;
+  Real xsi, W2xsi, hxsi;
+  Real oohxsi;
+  Real delta, h2odelta;
+  Real tmpL5m, tmpL5p;
+  Real tmpx, tmpy, tmpz;
+  Real vx2mo;
 
-Real  m_fac1,m_fac2,m_fac3;
+  Real gxx,gxy,gxz,gyy,gyz,gzz,gxxup,detg,h,W,rho,cs2,
+      kappa,vx,vy,vz,vlowx,vlowy,vlowz,lamm,lamp,alpha,betax;
+      
 
-int ivx,ivy,ivz;
+  int ivx,ivy,ivz;
 
-switch(dir)
-{
-case 1:
-    ivx = 0;
-    ivy = 1;
-    ivz = 2;
-    break;
-case 2:
-    ivx = 1; 
-    ivy = 0;
-    ivz = 2;
-    break;
-case 3:
-    ivx = 2;
-    ivy = 1;
-    ivz = 0;
-    break;
+  switch(dir)
+  {
+  case 1:
+      ivx = 0;
+      ivy = 1;
+      ivz = 2;
+      break;
+  case 2:
+      ivx = 1; 
+      ivy = 2;
+      ivz = 0;
+      break;
+  case 3:
+      ivx = 2;
+      ivy = 0;
+      ivz = 1;
+      break;
+  }
+
+#if USETM
+  const Real Gamma = pmb->peos->GetEOS().GetGamma();
+#else 
+  const Real Gamma=pmb->peos->GetGamma();
+#endif
+
+  gxx=avg_field[fi::gxx+ivx];
+  gyy=avg_field[fi::gxx+ivy];
+  gzz=avg_field[fi::gxx+ivz];
+  if (dir ==1) gxy=avg_field[fi::gxy ] ;
+  if (dir ==2) gxy=avg_field[fi::gyz ] ;
+  if (dir ==3) gxy=avg_field[fi::gxz ] ;
+  
+  if (dir ==1) gxz=avg_field[fi::gxz ] ;
+  if (dir ==2) gxz=avg_field[fi::gxy ] ;
+  if (dir ==3) gxz=avg_field[fi::gyz ] ;
+
+  if (dir ==1) gyz=avg_field[fi::gyz ] ;
+  if (dir ==2) gyz=avg_field[fi::gxz ] ;
+  if (dir ==3) gyz=avg_field[fi::gxy ] ;
+
+
+  gxxup=avg_field[fi::gxx_u + ivx];
+  detg= avg_field[fi::det_g];
+  betax=avg_field[fi::bx];
+  alpha=avg_field[fi::a];
+  rho=avg_hq[hi::rho];
+  vx=avg_hq[ivx];
+  vy=avg_hq[ivy];
+  vz=avg_hq[ivz];
+  vlowx=avg_hq[hi::vx_d+ivx];
+  vlowy=avg_hq[hi::vx_d+ivy];
+  vlowz=avg_hq[hi::vx_d+ivz];
+  h=avg_hq[hi::h];
+  W=avg_hq[hi::W];
+  cs2=avg_eig[eig::cs2];
+  lamp=avg_eig[eig::Lp];
+  lamm=avg_eig[eig::Lm];
+
+  W2  = W*W;
+  tW2 = TWO*W2;
+  h2  = h*h;
+  hW = h*W;
+  if(hW!=0.0)  oohW = 1.0/hW;
+  else         oohW = BIG;
+  tmpLm = (alpha<=ZERO) ? BIG : (lamm+betax)/alpha;
+  tmpLp = (alpha<=ZERO) ? BIG : (lamp+betax)/alpha;
+  gxxup_vxtmpLm = gxxup-vx*tmpLm;
+  gxxup_vxtmpLp = gxxup-vx*tmpLp;
+
+  if(gxxup_vxtmpLm==0.0)  gxxup_vxtmpLm = TINY;
+  if(gxxup_vxtmpLp==0.0)  gxxup_vxtmpLp = TINY;
+
+  Vm = (vx-tmpLm)/(gxxup_vxtmpLm);
+  Vp = (vx-tmpLp)/(gxxup_vxtmpLp);
+
+  Cp = vlowx-Vp;
+  Cm = vlowx-Vm;
+
+  Am = (gxxup-vx*vx)/(gxxup_vxtmpLm);
+  Ap = (gxxup-vx*vx)/(gxxup_vxtmpLp);
+
+  kappa = avg_eig[eig::kappa];
+  if(rho!=0.0)  kk = kappa/rho;
+  else          kk = BIG;
+  if(kk!=cs2)   K  = kk/(kk-cs2);
+  else          K  = BIG;
+
+  tKmo  = (TWO * K - ONE);
+  omKAp = (ONE - K * Ap);
+  omKAm = (ONE - K * Am);
+  omK   = (ONE - K);
+
+  /* WoKmo = -W/omK; */
+  if(omK!=0.0)  WoKmo = -W/omK;
+  else          WoKmo = BIG;
+
+  W2oKmo = WoKmo*W;
+
+  cxx = gyy * gzz - gyz * gyz;
+  cxy = gxz * gyz - gxy * gzz;
+  cxz = gxy * gyz - gxz * gyy;
+
+  xsi    = cxx - detg * vx * vx;
+  W2xsi  = W2 * xsi;
+  hxsi   = h*xsi;
+  //oohxsi = ONE/hxsi; 
+  oohxsi = (hxsi==ZERO) ? BIG : ONE/hxsi;
+
+  delta    = h2 * hW * omK * (Cm - Cp) * xsi; 
+  //h2odelta = h2 / delta; 
+  h2odelta = (delta==ZERO) ? BIG : h2/delta;
+
+  // note:    m <---------> p
+  tmpL5m = ( omK * (Vp * (W2xsi - cxx) - detg * vx) - K * W2xsi * Vp );
+  tmpL5p = ( omK * (Vm * (W2xsi - cxx) - detg * vx) - K * W2xsi * Vm );
+
+  tmpx = tKmo * (W2xsi * vx - cxx * vx);
+  tmpy = tKmo * (W2xsi * vy - cxy * vx);
+  tmpz = tKmo * (W2xsi * vz - cxz * vx);
+
+  vx2mo = (vx * vlowx - ONE);
+
+  // RIGHT EIGEN VECTORS
+
+  R[IDN][0] = K*oohW;
+  R[IVX][0] = vlowx;
+  R[IVY][0] = vlowy;
+  R[IVZ][0] = vlowz;
+  R[IEN][0]  = ONE-K*oohW;
+
+  R[IDN][1]  =  W * vlowy;
+  R[IVX][1]  =  h * (gxy + tW2 * vlowy * vlowx);
+  R[IVY][1]  =  h * (gyy + tW2 * vlowy * vlowy);
+  R[IVZ][1]  =  h * (gyz + tW2 * vlowy * vlowz);
+  R[IEN][1]  =  W * vlowy * (TWO * hW - ONE);
+
+  R[IDN][2] = W * vlowz;
+  R[IVX][2] = h * (gxz + tW2 * vlowz * vlowx);
+  R[IVY][2] = h * (gyz + tW2 * vlowz * vlowy);
+  R[IVZ][2] = h * (gzz + tW2 * vlowz * vlowz);
+  R[IEN][2] = W * vlowz * (TWO * hW - ONE);
+
+  R[IDN][3]   = ONE;
+  R[IVX][3] = hW * Cm;
+  R[IVY][3] = hW * vlowy;
+  R[IVZ][3] = hW * vlowz;
+  R[IEN][3]   = hW * Am - ONE;
+
+  R[IDN][4] = ONE;
+  R[IVX][4] = hW * Cp;
+  R[IVY][4] = hW * vlowy;
+  R[IVZ][4] = hW * vlowz;
+  R[IEN][4] = hW * Ap - ONE;
+
+  // LEFT EIGEN VECTORS
+
+  L[0][IDN]  = WoKmo * (h - W);
+  L[0][IVX]  = W2oKmo * vx;
+  L[0][IVY]  = W2oKmo * vy;
+  L[0][IVZ]  = W2oKmo * vz;
+  L[0][IEN]  = -W2oKmo;
+
+  L[1][IDN]  = oohxsi * (gyz *   vlowz  - gzz * vlowy     );
+  L[1][IVX]  = oohxsi * (gzz *   vlowy  - gyz * vlowz     ) * vx;
+  L[1][IVY]  = oohxsi * (gzz * (-vx2mo) + gxz * vlowz * vx);
+  L[1][IVZ]  = oohxsi * (gyz *   vx2mo  - gxz * vlowy * vx);
+  L[1][IEN]  = oohxsi * (gyz *   vlowz  - gzz * vlowy     );
+
+  L[2][IDN]  = oohxsi * (gyz *   vlowy  - gyy * vlowz     );
+  L[2][IVX]  = oohxsi * (gyy *   vlowz  - gyz * vlowy     ) * vx;
+  L[2][IVY]  = oohxsi * (gyz *   vx2mo  - gxy * vlowz * vx);
+  L[2][IVZ]  = oohxsi * (gyy * (-vx2mo) + gxy * vlowy * vx);
+  L[2][IEN]  = oohxsi * (gyz *   vlowy  - gyy * vlowz     );
+
+  L[3][IDN]  = h2odelta * ( hW  * Vp * xsi + tmpL5m );
+  L[3][IVX]  = h2odelta * ( cxx * omKAp + Vp * tmpx );
+  L[3][IVY]  = h2odelta * ( cxy * omKAp + Vp * tmpy );
+  L[3][IVZ]  = h2odelta * ( cxz * omKAp + Vp * tmpz );
+  L[3][IEN]  = h2odelta * ( tmpL5m );
+
+  L[4][IDN]  = - h2odelta * ( hW  * Vm * xsi + tmpL5p );
+  L[4][IVX]  = - h2odelta * ( cxx * omKAm + Vm * tmpx );
+  L[4][IVY]  = - h2odelta * ( cxy * omKAm + Vm * tmpy );
+  L[4][IVZ]  = - h2odelta * ( cxz * omKAm + Vm * tmpz );
+  L[4][IEN]  = - h2odelta * ( tmpL5p );
+   return;
+
 }
+
+void GetEigenVectorGRHD2(MeshBlock * pmb,
+                    const int dir, const Real avg_field[12],
+                    const Real avg_hq[13], const Real avg_eig[6],
+                    Real (&L)[NHYDRO][NHYDRO], 
+                    Real (&R)[NHYDRO][NHYDRO])
+{
+  Real W2, tW2, h2, hW, oohW;
+  Real tmpLm, tmpLp;
+  Real gxxup_vxtmpLm, gxxup_vxtmpLp;
+  Real Vm, Vp;
+  Real Cp, Cm;
+  Real Am, Ap;
+  Real kk, K;  
+  Real tKmo, omKAp, omKAm, omK;
+  Real WoKmo; 
+  Real W2oKmo;
+  Real cxx, cxy, cxz;
+  Real xsi, W2xsi, hxsi;
+  Real oohxsi;
+  Real delta, h2odelta;
+  Real tmpL5m, tmpL5p;
+  Real tmpx, tmpy, tmpz;
+  Real vx2mo;
+
+  Real gxx,gxy,gxz,gyy,gyz,gzz,gxxup,detg,h,W,rho,cs2,
+      kappa,vx,vy,vz,vlowx,vlowy,vlowz,lamm,lamp,alpha,betax;
+      
+
+  int ivx,ivy,ivz;
+
+  switch(dir)
+  {
+  case 1:
+      ivx = 0;
+      ivy = 1;
+      ivz = 2;
+      break;
+  case 2:
+      ivx = 1; 
+      ivy = 0;
+      ivz = 2;
+      break;
+  case 3:
+      ivx = 2;
+      ivy = 1;
+      ivz = 0;
+      break;
+  }
+
+#if USETM
+  const Real Gamma = pmb->peos->GetEOS().GetGamma();
+#else 
+  const Real Gamma=pmb->peos->GetGamma();
+#endif
 
   gxx=avg_field[fi::gxx+ivx];
   gyy=avg_field[fi::gxx+ivy];
@@ -577,109 +823,129 @@ case 3:
   h=avg_hq[hi::h];
   W=avg_hq[hi::W];
   cs2=avg_eig[eig::cs2];
-  L_p=avg_eig[eig::Lp];
-  L_m=avg_eig[eig::Lm];
+  lamp=avg_eig[eig::Lp];
+  lamm=avg_eig[eig::Lm];
 
   W2  = W*W;
-  Real tW2 = TWO*W2;
-  Real h2  = h*h;
+  tW2 = TWO*W2;
+  h2  = h*h;
   hW = h*W;
+  
+  tmpLm = (alpha<=ZERO) ? BIG : (lamm+betax)/alpha;
+  tmpLp = (alpha<=ZERO) ? BIG : (lamp+betax)/alpha;
+
+  Vm = (vx-tmpLm)/(gxxup-vx*tmpLm);
+  Vp = (vx-tmpLp)/(gxxup-vx*tmpLp);
+
+  Cp = vlowx-Vp;
+  Cm = vlowx-Vm;
+
+  Am = (gxxup-vx*vx)/(gxxup-vx*tmpLm);
+  Ap = (gxxup-vx*vx)/(gxxup-vx*tmpLp);
 
   kappa = avg_eig[eig::kappa];
-  if(rho!=0.0)  kk = kappa/rho;
-  else          kk = BIG;
-  if(kk!=cs2)   K  = kk/(kk-cs2);
-  else          K  = BIG;
+  kk = kappa/rho;
+  K  = kk/(kk-cs2);
 
-  A_p = (L_p + betax) / alpha;
-  A_m = (L_m + betax) / alpha;
-  A_p_= (gxxup - vx*vx) / (gxxup - vx*A_p);
-  A_m_= (gxxup - vx*vx) / (gxxup - vx*A_m);
-  V_p = (vx - A_p) / (gxxup - vx*A_p);
-  V_m = (vx - A_m) / (gxxup - vx*A_m);
+  tKmo  = (TWO * K - ONE);
+  omKAp = (ONE - K * Ap);
+  omKAm = (ONE - K * Am);
+  omK   = (ONE - K);
 
-    // Right Eigen Vectors
+  /* WoKmo = -W/omK; */
+  WoKmo = -W/omK;
 
-    R(IDN,IDN,i)   =   1.;
-    R(ivx+1,IDN,i) = h* W * ( vlowx - V_m);
-    R(ivy+1,IDN,i) = h * W * vlowy;
-    R(ivz+1,IDN,i) = h * W * vlowz;
-    R(IEN,IDN,i)   = h * W * A_m_  - 1. ;
+  W2oKmo = WoKmo*W;
 
-    R(IDN, IVX, i) = K/(h* W);
-    R(ivx+1,IVX,i) = vlowx;
-    R(ivy+1,IVX,i) = vlowy;
-    R(ivz+1,IVX,i) = vlowz;
-    R(IEN,IVX,i)   = 1. - K/(h*W);
+  cxx = gyy * gzz - gyz * gyz;
+  cxy = gxz * gyz - gxy * gzz;
+  cxz = gxy * gyz - gxz * gyy;
 
-    R(IDN,IVY,i)   = W* vlowy;
-    R(ivx+1,IVY,i) = h*(gxy + 2. * W*W * vlowx*vlowy);
-    R(ivy+1,IVY,i) = h*(gyy + 2. * W*W* vlowy*vlowy);
-    R(ivz+1,IVY,i) = h*(gyz + 2. * W*W* vlowz*vlowy);
-    R(IEN,IVY,i)   = W*vlowy*(2. * h *W - 1.);
+  xsi    = cxx - detg * vx * vx;
+  W2xsi  = W2 * xsi;
+  hxsi   = h*xsi;
+  //oohxsi = ONE/hxsi; 
+  oohxsi = (hxsi==ZERO) ? BIG : ONE/hxsi;
 
-    R(IDN,IVZ,i)   = W*vlowz;
-    R(ivx+1,IVZ,i) = h*(gxz + 2. * W*W * vlowx*vlowz);
-    R(ivy+1,IVZ,i) = h*(gyz + 2. * W*W * vlowy*vlowz);
-    R(ivz+1,IVZ,i) = h*(gzz+ 2. * W*W * vlowz*vlowz);
-    R(IEN, IVZ,i)  = W*vlowz*(2. * h *W - 1.);
+  delta    = h2 * hW * omK * (Cm - Cp) * xsi; 
+  //h2odelta = h2 / delta; 
+  h2odelta = (delta==ZERO) ? BIG : h2/delta;
 
-    R(IDN,IEN,i)   = 1.;
-    R(ivx+1,IEN,i) =  h* W * ( vlowx - V_p);
-    R(ivy+1,IEN,i) =  h * W * vlowy;
-    R(ivz+1,IEN,i) =   h * W * vlowz;
-    R(IEN,IEN,i)   =  h * W * A_p_  - 1.;
+  // note:    m <---------> p
+  tmpL5m = ( omK * (Vp * (W2xsi - cxx) - detg * vx) - K * W2xsi * Vp );
+  tmpL5p = ( omK * (Vm * (W2xsi - cxx) - detg * vx) - K * W2xsi * Vm );
 
-    // LEFT Eigen Vectors
-    G_xx = gyy*gzz -gyz*gyz;
-    G_xy = -(gxy*gzz - gxz*gyz);
-    G_xz = gxy*gyz -gyy*gxz;
-    E    = G_xx - detg* vx*vx;
-    C_p  = vlowx - V_p;
-    C_m  = vlowx - V_m;
-    N_p  = (1. -K)*(-detg*vx + V_m*(W*W*E -G_xx )) - K*W*W*V_m*E;
-    N_m  = (1. -K)*(-detg*vx + V_p*(W*W*E -G_xx)) - K*W*W*V_p*E;
-    
-    // Determinant of eigen vector matrix
-    det  = h*h*h *W*(K-1.)*(C_p -C_m)*E;
+  tmpx = tKmo * (W2xsi * vx - cxx * vx);
+  tmpy = tKmo * (W2xsi * vy - cxy * vx);
+  tmpz = tKmo * (W2xsi * vz - cxz * vx);
 
-    m_fac1 = (h*h)/det;
-    m_fac2 = W/(K-1.);
-    m_fac3 = 1./(h*E);
-    
-    
-    L(IDN,IDN,i)   = m_fac1 * ( h*W*V_p*E - N_m);
-    L(IDN,ivx+1,i) = m_fac1 * (G_xx*(1. - K*A_p_) + (2.*K - 1.)* V_p * (W*W * vx * E - G_xx * vx) );
-    L(IDN,ivy+1,i) = m_fac1 * (G_xy*(1. - K*A_p_) + (2.*K - 1.)* V_p * (W*W * vy * E - G_xy * vx) );
-    L(IDN,ivz+1,i) = m_fac1 * (G_xz*(1. - K*A_p_) + (2.*K - 1.)* V_p * (W*W * vz * E - G_xz * vx) );
-    L(IDN,IEN,i)   = m_fac1*N_m;
+  vx2mo = (vx * vlowx - ONE);
 
-    L(IVX,IDN,i)   = m_fac2 *(h-W);
-    L(IVX,ivx+1,i) = m_fac2 *(W*vx);
-    L(IVX,ivy+1,i) = m_fac2 *(W*vy);
-    L(IVX,ivz+1,i) = m_fac2 *(W*vz);
-    L(IVX,IEN,i)   = m_fac2 *(-W);
+  // RIGHT EIGEN VECTORS
 
-    L(IVY,IDN,i)   = m_fac3 *(-gzz*vlowy + gyz*vlowz);
-    L(IVY,ivx+1,i) = m_fac3 *vx*(gzz*vlowy - gyz*vlowz);
-    L(IVY,ivy+1,i) = m_fac3 *(gzz * (1. - vlowx*vx) + gxz*vlowz*vx);
-    L(IVY,ivz+1,i) = m_fac3 *(-gyz * (1. - vlowx*vx) - gxz*vlowy*vx);
-    L(IVY,IEN,i)   = m_fac3 *(-gzz*vlowy + gyz*vlowz);
+  R[IDN][0] =  K/(hW);
+  R[ivx+1][0] = vlowx;
+  R[ivy+1][0] = vlowy;
+  R[ivz+1][0] = vlowz;
+  R[IEN][0]  = ONE-K/(hW);
 
-    L(IVZ,IDN,i)   = m_fac3 *(-gyy*vlowz + gyz*vlowy);
-    L(IVZ,ivx+1,i) = m_fac3 *vx*(gyy*vlowz - gyz*vlowy);
-    L(IVZ,ivy+1,i) = m_fac3 *(-gyz * (1. - vlowx*vx) - gxy*vlowz*vx);
-    L(IVZ,ivz+1,i) = m_fac3 *(gyy * (1. - vlowx*vx) + gxy*vlowy*vx);
-    L(IVZ,IEN,i)   = m_fac3 *(-gyy*vlowz + gyz*vlowy);
+  R[IDN][1]  =  W * vlowy;
+  R[ivx+1][1] =  h * (gxy + tW2 * vlowy * vlowx);
+  R[ivy+1][1] =  h * (gyy + tW2 * vlowy * vlowy);
+  R[ivz+1][1]=  h * (gyz + tW2 * vlowy * vlowz);
+  R[IEN][1]   =  W * vlowy * (TWO * hW - ONE);
 
-    L(IEN,IDN,i)   = -m_fac1 * ( h*W*V_m*E - N_p);
-    L(IEN,ivx+1,i) = -m_fac1 * (G_xx*(1. - K*A_m_) + (2.*K - 1.)* V_m * (W*W * vx * E - G_xx * vx) );
-    L(IEN,ivy+1,i) = -m_fac1 * (G_xy*(1. - K*A_m_) + (2.*K - 1.)* V_m * (W*W * vy * E - G_xy * vx) );
-    L(IEN,ivz+1,i) = -m_fac1 * (G_xz*(1. - K*A_m_) + (2.*K - 1.)* V_m * (W*W * vz * E - G_xz * vx) );
-    L(IEN,IEN,i)   = -m_fac1*N_p;
+  R[IDN][2]   = W * vlowz;
+  R[ivx+1][2] = h * (gxz + tW2 * vlowz * vlowx);
+  R[ivy+1][2] = h * (gyz + tW2 * vlowz * vlowy);
+  R[ivz+1][2] = h * (gzz + tW2 * vlowz * vlowz);
+  R[IEN][2]  = W * vlowz * (TWO * hW - ONE);
+
+  R[IDN][3]   = ONE;
+  R[ivx+1][3] = hW * Cm;
+  R[ivy+1][3] = hW * vlowy;
+  R[ivz+1][3] = hW * vlowz;
+  R[IEN][3]   = hW * Am - ONE;
+
+  R[IDN][4]   = ONE;
+  R[ivx+1][4] = hW * Cp;
+  R[ivy+1][4] = hW * vlowy;
+  R[ivz+1][4] = hW * vlowz;
+  R[IEN][4]   = hW * Ap - ONE;
+
+  // LEFT EIGEN VECTORS
+
+  L[0][IDN]   = WoKmo * (h - W);
+  L[0][ivx+1] = W2oKmo * vx;
+  L[0][ivy+1] = W2oKmo * vy;
+  L[0][ivz+1] = W2oKmo * vz;
+  L[0][IEN]  = -W2oKmo;
+
+  L[1][IDN]  = oohxsi * (gyz *   vlowz  - gzz * vlowy     );
+  L[1][ivx+1] = oohxsi * (gzz *   vlowy  - gyz * vlowz     ) * vx;
+  L[1][ivy+1] = oohxsi * (gzz * (-vx2mo) + gxz * vlowz * vx);
+  L[1][ivz+1] = oohxsi * (gyz *   vx2mo  - gxz * vlowy * vx);
+  L[1][IEN]   = oohxsi * (gyz *   vlowz  - gzz * vlowy     );
+
+  L[2][IDN]   = oohxsi * (gyz *   vlowy  - gyy * vlowz     );
+  L[2][ivx+1] = oohxsi * (gyy *   vlowz  - gyz * vlowy     ) * vx;
+  L[2][ivy+1] = oohxsi * (gyz *   vx2mo  - gxy * vlowz * vx);
+  L[2][ivz+1] = oohxsi * (gyy * (-vx2mo) + gxy * vlowy * vx);
+  L[2][IEN]   = oohxsi * (gyz *   vlowy  - gyy * vlowz     );
+
+  L[3][IDN]   = h2odelta * ( hW  * Vp * xsi + tmpL5m );
+  L[3][ivx+1] = h2odelta * ( cxx * omKAp + Vp * tmpx );
+  L[3][ivy+1] = h2odelta * ( cxy * omKAp + Vp * tmpy );
+  L[3][ivz+1] = h2odelta * ( cxz * omKAp + Vp * tmpz );
+  L[3][IEN]   = h2odelta * ( tmpL5m );
+
+  L[4][IDN]   = - h2odelta * ( hW  * Vm * xsi + tmpL5p );
+  L[4][ivx+1] = - h2odelta * ( cxx * omKAm + Vm * tmpx );
+  L[4][ivy+1] = - h2odelta * ( cxy * omKAm + Vm * tmpy );
+  L[4][ivz+1] = - h2odelta * ( cxz * omKAm + Vm * tmpz );
+  L[4][IEN]  = - h2odelta * ( tmpL5p );
 
    return;
-
 }
 
 
@@ -694,7 +960,7 @@ void GetEigenValues(MeshBlock * pmb,
           AthenaTensor<Real, TensorSymm::NONE, 3, 0> const &pgas,
           AthenaTensor<Real, TensorSymm::NONE, 3, 1> const &beta,
           AthenaTensor<Real, TensorSymm::NONE, 3, 1> const &v_u,
-          AthenaTensor<Real, TensorSymm::NONE, 3, 0> const &w_norm2_v_,
+          AthenaTensor<Real, TensorSymm::NONE, 3, 0> const &w_norm2_v,
           AthenaTensor<Real, TensorSymm::NONE, 5,   1> &lambda
         )
 {
@@ -710,15 +976,27 @@ void GetEigenValues(MeshBlock * pmb,
   for (int i = il; i <= iu; ++i)
   { 
 #if 0  
-    Real Csqrt,epsl,cs2,h;
-    epsl = pgas(k,j,i)/((Gamma-1)*rho(k,j,i));
-    h=1.0 + epsl + pgas(k,j,i)/rho(k,j,i);
-    Real kappa = (Gamma-1.0)*rho(k,j,i);
+    Real cs,epsl,cs2,h,p, r, a, beta_x, vx, g_xx,v2;
+    beta_x = beta(ivx-1,k,j,i);
+    a = alpha(k,j,i);
+    g_xx = met_inv(ivx-1,ivx-1,k,j,i);
+    vx =v_u(ivx-1,k,j,i);
+    v2 = w_norm2_v(k,j,i);
+    p = pgas(k,j,i);
+    r = rho(k,j,i);
+    epsl = p/((Gamma-1)*r);
+    h=1.0 + epsl + p/r;
+    Real kappa = (Gamma-1.0)*r;
     Real chi   = (Gamma -1.0)*epsl;
-    cs2 = ( chi + (pgas(k,j,i)*kappa)/SQR(rho(k,j,i)) )/h;
-    Csqrt  = sqrt(std::abs(cs2));
-    lambda_m(i)  = (v_u(ivx-1,k,j,i) - Csqrt)/(ONE - v_u(ivx-1,k,j,i)*Csqrt); // lam-
-    lambda_p(i)  = (v_u(ivx-1,k,j,i) + Csqrt)/(ONE + v_u(ivx-1,k,j,i)*Csqrt); // lam+
+    cs2 = ( chi + (p*kappa)/SQR(r) )/h;
+    cs  = sqrt(std::abs(cs2));
+    //lambda_m(i)  = (v_u(ivx-1,k,j,i) - cs)/(ONE - v_u(ivx-1,k,j,i)*cs); // lam-
+    //lambda_p(i)  = (v_u(ivx-1,k,j,i) + cs)/(ONE + v_u(ivx-1,k,j,i)*cs); // lam+
+    Real L_term = vx *(1.0 - cs2);
+    Real sqrt_term = std::sqrt( (1.0 -v2) * ( g_xx*(1.0 -v2*cs2) - vx*vx*(1.0 -cs2)) );
+    lambda_m(i) = a/(1.0 -v2*cs2) * (L_term - cs*sqrt_term) - beta_x;
+    lambda_p(i) = a/(1.0 -v2*cs2) * (L_term + cs*sqrt_term) - beta_x;
+
 #endif
 #if 1
     const Real n = rho(k,j,i) / mb;
@@ -731,7 +1009,7 @@ void GetEigenValues(MeshBlock * pmb,
       n, pgas(k,j,i), Y);
     pmb->peos->SoundSpeedsGR(n, T,
                              v_u(ivx-1,k,j,i),
-                             w_norm2_v_(k,j,i),
+                             w_norm2_v(k,j,i),
                              alpha(k,j,i),
                              beta(ivx-1,k,j,i),
                              met_inv(ivx-1,ivx-1,k,j,i),
@@ -743,16 +1021,18 @@ void GetEigenValues(MeshBlock * pmb,
 
 #else
   const Real Gamma = pmb->peos->GetGamma();
-  
+  const Real Eos_Gamma_ratio = Gamma / (Gamma - 1.0);
+
   #pragma omp simd
   for (int i = il; i <= iu; ++i)
   {
-    w_hrho = rho(k,j,i)`;
+    w_hrho = rho(k,j,i) + Eos_Gamma_ratio * pgas(k,j,i);
+
 
     pmb->peos->SoundSpeedsGR(w_hrho,
                              pgas(k,j,i),
                              v_u(ivx-1,k,j,i),
-                             w_norm2_v_(k,j,i),
+                             w_norm2_v(k,j,i),
                              alpha(k,j,i),
                              beta(ivx-1,k,j,i),
                              met_inv(ivx-1,ivx-1,i),
@@ -790,7 +1070,7 @@ void GetMaximalWaveSpeed(const int k, const int j,const int i,
     {
       Real amax[3]={};
       for (int n = 0; n<3;++n) amax[n]=0.;
-      for(int s = i-stensil; s<=i+stensil ; ++s)
+      for(int s = i-stensil; s<=i+stensil-1 ; ++s)
       {
         amax[0]=std::max(amax[0], std::abs(lambda(0,k,j,s)));
         amax[1]=std::max(amax[1], std::abs(lambda(4,k,j,s)));
@@ -808,7 +1088,7 @@ void GetMaximalWaveSpeed(const int k, const int j,const int i,
     {
       Real amax[3]={};
       for (int n = 0; n<3;++n) amax[n]=0.;
-      for(int s = j-stensil; s<=j+stensil ; ++s)
+      for(int s = j-stensil; s<=j+stensil -1; ++s)
       {
         amax[0]=std::max(amax[0], std::abs(lambda(0,k,s,i)));
         amax[1]=std::max(amax[1], std::abs(lambda(4,k,s,i)));
@@ -826,7 +1106,7 @@ void GetMaximalWaveSpeed(const int k, const int j,const int i,
     {
       Real amax[3]={};
       for (int n = 0; n<3;++n) amax[n]=0.;
-      for(int s = k-stensil; s<=k+stensil ; ++s)
+      for(int s = k-stensil; s<=k+stensil-1 ; ++s)
       {
         amax[0]=std::max(amax[0], std::abs(lambda(0,s,j,i)));
         amax[1]=std::max(amax[1], std::abs(lambda(4,s,j,i)));
@@ -846,13 +1126,16 @@ void GetMaximalWaveSpeed(const int k, const int j,const int i,
 
 void ReconCharFields(const int k, const int j,
                     const int i,const int stensil,const int ivx,
-                    AthenaTensor<Real, TensorSymm::NONE, NHYDRO,1> const &flx,
+                    AthenaTensor<Real, TensorSymm::NONE, 5,1> const &flx,
                     Real lambda_max[NHYDRO],
-                    AthenaArray<Real> const &cons,
+                    AthenaArray<Real> &cons,
                     const Real (&L_eig)[NHYDRO][NHYDRO],
-                    Real char_flx[NHYDRO]
+                    Real char_flx[NHYDRO],
+                    const std::string HO_recon
                     )
 {
+  Real cons_p[NHYDRO];
+  Real cons_m[NHYDRO];
   Real fac = 0.5;
   Real flux_stensil_p[5]={};
   Real flux_stensil_m[5]={};
@@ -864,21 +1147,27 @@ void ReconCharFields(const int k, const int j,
       {
         int i_p = i-stensil;
         int i_m = i+stensil-1;
-
+        Real amax = lambda_max[m];
         for(int s = 0; s<5;++s)
         {
           flux_stensil_p[s]=0.;
           flux_stensil_m[s]=0.;
           for( int l = 0; l<NHYDRO ;++l)
           {
-            flux_stensil_p[s] += fac * L_eig[m][l]*(flx(l,k,j,i_p) + lambda_max[m]*cons(l,k,j,i_p));
-            flux_stensil_m[s] += fac * L_eig[m][l]*(flx(l,k,j,i_m) - lambda_max[m]*cons(l,k,j,i_m));
+            flux_stensil_p[s] += fac * L_eig[m][l]*(flx(l,k,j,i_p) + amax*cons(l,k,j,i_p));
+            flux_stensil_m[s] += fac * L_eig[m][l]*(flx(l,k,j,i_m) - amax*cons(l,k,j,i_m));
           }
-          i_p+=1;
-          i_m-=1;
+          i_p++;
+          i_m--;
         }
-
-        char_flx[m] = Reconstruct(flux_stensil_p) + Reconstruct(flux_stensil_m);
+        char_flx[m] = Reconstruct(flux_stensil_p,HO_recon) + Reconstruct(flux_stensil_m,HO_recon);
+#if 0
+        if ( k==35 && j == 35){
+        std::cout<<" left_rec "<<Reconstruct(flux_stensil_p,0)<<std::endl;
+        std::cout<<" right_rec "<<Reconstruct(flux_stensil_m,0)<<std::endl;
+        std::cout<<" char "<<char_flx[m]<<std::endl;
+        }
+#endif
       }
       break;
     }
@@ -889,21 +1178,33 @@ void ReconCharFields(const int k, const int j,
       {
         int j_p = j-stensil;
         int j_m = j+stensil-1;
-
+        Real amax = lambda_max[m];
         for(int s = 0; s<5;++s)
         {
           flux_stensil_p[s]=0.;
           flux_stensil_m[s]=0.;
+          
+          cons_p[0] = cons(0,k,j_p,i);
+          cons_p[1] = cons(2,k,j_p,i);
+          cons_p[2] = cons(3,k,j_p,i);
+          cons_p[3] = cons(1,k,j_p,i);
+          cons_p[4] = cons(4,k,j_p,i);
+
+          cons_m[0] = cons(0,k,j_m,i);
+          cons_m[1] = cons(2,k,j_m,i);
+          cons_m[2] = cons(3,k,j_m,i);
+          cons_m[3] = cons(1,k,j_m,i);
+          cons_m[4] = cons(4,k,j_m,i);
           for( int l = 0; l<NHYDRO ;++l)
           {
-            flux_stensil_p[s] += fac * L_eig[m][l]*(flx(l,k,j_p,i) + lambda_max[m]*cons(l,k,j_p,i));
-            flux_stensil_m[s] += fac * L_eig[m][l]*(flx(l,k,j_m,i) - lambda_max[m]*cons(l,k,j_m,i));
+            flux_stensil_p[s] += fac * L_eig[m][l]*(flx(l,k,j_p,i) + amax*cons_p[l]);
+            flux_stensil_m[s] += fac * L_eig[m][l]*(flx(l,k,j_m,i) - amax*cons_m[l]);
           }
           j_p+=1;
           j_m-=1;
         }
 
-        char_flx[m] = Reconstruct(flux_stensil_p) + Reconstruct(flux_stensil_m);
+        char_flx[m] = Reconstruct(flux_stensil_p,HO_recon) + Reconstruct(flux_stensil_m,HO_recon);
       }
       break;
     }
@@ -914,21 +1215,33 @@ void ReconCharFields(const int k, const int j,
       {
         int k_p = k-stensil;
         int k_m = k+stensil-1;
-
+        Real amax = lambda_max[m];
         for(int s = 0; s<5;++s)
         {
           flux_stensil_p[s]=0.;
           flux_stensil_m[s]=0.;
+
+          cons_p[0] = cons(0,k_p,j,i);
+          cons_p[1] = cons(3,k_p,j,i);
+          cons_p[2] = cons(1,k_p,j,i);
+          cons_p[3] = cons(2,k_p,j,i);
+          cons_p[4] = cons(4,k_p,j,i);
+
+          cons_m[0] = cons(0,k_m,j,i);
+          cons_m[1] = cons(3,k_m,j,i);
+          cons_m[2] = cons(1,k_m,j,i);
+          cons_m[3] = cons(2,k_m,j,i);
+          cons_m[4] = cons(4,k_m,j,i);
           for( int l = 0; l<NHYDRO ;++l)
           {
-            flux_stensil_p[s] += fac * L_eig[m][l]*(flx(l,k_p,j,i) + lambda_max[m]*cons(l,k_p,j,i));
-            flux_stensil_m[s] += fac * L_eig[m][l]*(flx(l,k_m,j,i) - lambda_max[m]*cons(l,k_m,j,i));
+            flux_stensil_p[s] += fac * L_eig[m][l]*(flx(l,k_p,j,i) + amax*cons_p[l]);
+            flux_stensil_m[s] += fac * L_eig[m][l]*(flx(l,k_m,j,i) - amax*cons_m[l]);
           }
           k_p+=1;
           k_m-=1;
         }
 
-        char_flx[m] = Reconstruct(flux_stensil_p) + Reconstruct(flux_stensil_m);
+        char_flx[m] = Reconstruct(flux_stensil_p,HO_recon) + Reconstruct(flux_stensil_m,HO_recon);
       }
       break;
     }
@@ -943,15 +1256,39 @@ void ReconFlux(const int k, const int j,const int i,const int ivx,
               AthenaArray<Real> &flx
               )
 {
-  Real rflx;
+  Real rflx[5];
   for (int m=0 ; m<NHYDRO ;++m)
   {
-    rflx=0.;
+    rflx[m]=0.;
     for (int n=0 ; n<NHYDRO ;++n)
     {
-      rflx += R_eig[m][n] *char_flx[n];
+      rflx[m] += R_eig[m][n] *char_flx[n];
     }
-    flx(m,k,j,i)=rflx;
+  }
+  if (ivx == 1){
+    
+    flx(0,k,j,i)=rflx[0];
+    flx(1,k,j,i)=rflx[1];
+    flx(2,k,j,i)=rflx[2];
+    flx(3,k,j,i)=rflx[3];
+    flx(4,k,j,i)=rflx[4];
+  }
+  if (ivx == 2){
+    
+    flx(0,k,j,i)=rflx[0];
+    flx(1,k,j,i)=rflx[3];
+    flx(2,k,j,i)=rflx[1];
+    flx(3,k,j,i)=rflx[2];
+    flx(4,k,j,i)=rflx[4];
+  }
+
+   if (ivx == 3){
+    
+    flx(0,k,j,i)=rflx[0];
+    flx(1,k,j,i)=rflx[2];
+    flx(2,k,j,i)=rflx[3];
+    flx(3,k,j,i)=rflx[1];
+    flx(4,k,j,i)=rflx[4];
   }
 
   return;
@@ -989,12 +1326,19 @@ void GetAvgs(MeshBlock * pmb,int k, int j,int i, const int ivx,
         AthenaTensor<Real, TensorSymm::NONE, 3, 1> const &vd,
         AthenaTensor<Real, TensorSymm::NONE, 3, 0> const &vnorm,
         AthenaTensor<Real, TensorSymm::NONE, 3, 0> const &Wcc,
-        Real avg_field[12], Real avg_hq[13], Real avg_eig[6])
+        Real avg_field[12], Real avg_hq[13], Real avg_eig[6],
+        const int avg_option)
 {
 
   int i1,i2,k1,k2,j1,j2;
+#if USETM
   const Real Gamma = pmb->peos->GetEOS().GetGamma();
   const Real mb = pmb->peos->GetEOS().GetBaryonMass();
+#else
+  const Real Gamma = pmb->peos->GetGamma();
+  const Real Eos_Gamma_ratio = Gamma / (Gamma - 1.0);
+#endif
+
   Real Gammamo=Gamma - 1.0;
   Real tmp1,tmp2,tmp3;
   const Real vmax = 0.999;
@@ -1005,10 +1349,9 @@ void GetAvgs(MeshBlock * pmb,int k, int j,int i, const int ivx,
   Real h1,h2, epsl1,epsl2;
   Real kappa,chi,cs,cs2,L0,Lp,Lm;
   Real Y[MAX_SPECIES] = {0.0};
-  int choice=1;
   switch(ivx)
   {
-  case  (1):
+  case (1):
     {
       i1=i-1;i2=i;j1=j;j2=j;k1=k;k2=k;
       break;
@@ -1028,7 +1371,7 @@ void GetAvgs(MeshBlock * pmb,int k, int j,int i, const int ivx,
   // Field Averages
   gxx  = 0.5*(met(0,0,k1,j1,i1) +met(0,0,k2,j2,i2));
   gxy  = 0.5*(met(0,1,k1,j1,i1) +met(0,1,k2,j2,i2));
-  gxz  = 0.5*(met(0,2,k1,j1,i1)  +met(0,2,k2,j2,i2));
+  gxz  = 0.5*(met(0,2,k1,j1,i1) +met(0,2,k2,j2,i2));
   gyy  = 0.5*(met(1,1,k1,j1,i1) +met(1,1,k2,j2,i2));
   gyz  = 0.5*(met(1,2,k1,j1,i1) +met(1,2,k2,j2,i2));
   gzz  = 0.5*(met(2,2,k1,j1,i1) +met(2,2,k2,j2,i2));
@@ -1046,7 +1389,7 @@ void GetAvgs(MeshBlock * pmb,int k, int j,int i, const int ivx,
 
   //Calculate other quantities from these averages
 
-  if (choice == 1 )
+  if (avg_option == 1 )
   {
     // inverse metric and detg
     det_g = Det3Metric(gxx, gxy, gxz, gyy, gyz, gzz);
@@ -1058,22 +1401,27 @@ void GetAvgs(MeshBlock * pmb,int k, int j,int i, const int ivx,
                    &vx_d, &vy_d, &vz_d,&v2);
 
     p  = Gammamo * rho * epsl;
-    h  = 1.0 + epsl +  p/rho;
+    chi    = Gammamo*epsl;
+    kappa  = Gammamo*rho;
+#if USETM
+    n = rho / mb;
+    T = pmb->peos->GetEOS().GetTemperatureFromP(n, p, Y);
+    //h= pmb->peos->GetEOS().GetEnthalpy(n, p, Y);
+    h= 1 + epsl + p /rho;
+    cs = pmb->peos->GetEOS().GetSoundSpeed(n,T,Y);
+    cs2 = SQR(cs);
+#else 
+    h  = pmb->peos->GRHD_Enthalpy(rho,p);
+    cs  = pmb->peos->GRHD_SoundSpeed(rho,p);
+    cs2 = SQR(cs);
+#endif
     v2 = std::min(v2, vmax);
     if (v2 == vmax) W = Wmax;
     else W = ONE/std::sqrt(ONE - v2 );
-    n = rho / mb;
-    T = pmb->peos->GetEOS().GetTemperatureFromP(n, p, Y);
 
-    chi    = Gammamo*epsl;
-    kappa  = Gammamo*rho;
-    //cs2    = (chi + (p*kappa/SQR(rho)) ) / h;
-    //Real cs = std::sqrt(std::abs(cs2));
-    cs = pmb->peos->GetEOS().GetSoundSpeed(n,T,Y);
-    cs2 = SQR(cs);
   }
 
-  if (choice == 2)
+  if (avg_option == 2)
   {
     gxx_u = 0.5 * (met_inv(0,0,k1,j1,i1) + met_inv(0,0,k2,j2,i2));
     gyy_u = 0.5 * (met_inv(1,1,k1,j1,i1) + met_inv(1,1,k2,j2,i2));
@@ -1084,51 +1432,56 @@ void GetAvgs(MeshBlock * pmb,int k, int j,int i, const int ivx,
                    &vx_d, &vy_d, &vz_d,&v2);
     
     p  = Gammamo * rho * epsl;
-    h  = 1.0 + epsl +  p/rho;
+#if USETM
+    n = rho / mb;
+    T = pmb->peos->GetEOS().GetTemperatureFromP(n, p, Y);
+    h= pmb->peos->GetEOS().GetEnthalpy(n, p, Y);
+    cs = pmb->peos->GetEOS().GetSoundSpeed(n,T,Y);
+    cs2 = SQR(cs);
+#else 
+    h  = pmb->peos->GRHD_Enthalpy(rho,p);
+    cs  = pmb->peos->GRHD_SoundSpeed(rho,p);
+    cs2 = SQR(cs);
+#endif
     v2 = std::min(v2, vmax);
     if (v2 == vmax) W = Wmax;
     else W = ONE/std::sqrt(ONE - v2 );
-    n = rho / mb;
-    T = pmb->peos->GetEOS().GetTemperatureFromP(n, p, Y);
 
     chi    = Gammamo*epsl;
     kappa  = Gammamo*rho;
-    //cs2    = (chi + (p*kappa/SQR(rho)) ) / h;
-    //Real cs = std::sqrt(std::abs(cs2));
-    cs = pmb->peos->GetEOS().GetSoundSpeed(n,T,Y);
-    cs2 = SQR(cs);
   }
 
-  if (choice == 3)
+  if (avg_option == 3)
   {
     gxx_u = 0.5 * (met_inv(0,0,k1,j1,i1) + met_inv(0,0,k2,j2,i2));
     gyy_u = 0.5 * (met_inv(1,1,k1,j1,i1) + met_inv(1,1,k2,j2,i2));
     gyy_u = 0.5 * (met_inv(2,2,k1,j1,i1) + met_inv(2,2,k2,j2,i2));
     det_g = 0.5 *(det_met(k1,j1,i1)  + det_met(k2,j2,i2));
 
-    v2 = 0.5 * (vnorm(k1,j1,i1) + vnorm(k2,j2,i1));
+    v2 = 0.5 * (vnorm(k1,j1,i1) + vnorm(k2,j2,i2));
     vx_d = 0.5 * (vd(0,k1,j1,i1) + vd(0,k2,j2,i2));
     vy_d = 0.5 * (vd(1,k1,j1,i1) + vd(1,k2,j2,i2));
     vz_d = 0.5 * (vd(2,k1,j1,i1) + vd(2,k2,j2,i2));
     W = 0.5 *(Wcc(k1,j1,i1) + Wcc(k2,j2,i2));
 
+    p  = Gammamo * rho * epsl;
+#if USETM
+    n = rho / mb;
+    T = pmb->peos->GetEOS().GetTemperatureFromP(n, p, Y);
+    h= pmb->peos->GetEOS().GetEnthalpy(n, p, Y);
+    cs = pmb->peos->GetEOS().GetSoundSpeed(n,T,Y);
+    cs2 = SQR(cs);
+#else 
+    h  = pmb->peos->GRHD_Enthalpy(rho,p);
+    cs  = pmb->peos->GRHD_SoundSpeed(rho,p);
+    cs2 = SQR(cs);
+#endif
     v2 = std::min(v2, vmax);
     if (v2 == vmax) W = Wmax;
     else W = ONE/std::sqrt(ONE - v2 );
 
-    p = 0.5 *(pcc(k1,j1,i1) + pcc(k2,j2,i2));
-    h1 = 1.0 + epsl1 + pcc(k1,j1,i1)/ rhocc(k1,j1,i1);
-    h2 = 1.0 + epsl2 + pcc(k2,j2,i2)/ rhocc(k2,j2,i2);
-    h = 0.5 *(h1 + h2);
-    n = rho / mb;
-    T = pmb->peos->GetEOS().GetTemperatureFromP(n, p, Y);
-
     chi    = Gammamo*epsl;
     kappa  = Gammamo*rho;
-    //cs2    = (chi + (p*kappa/SQR(rho)) ) / h;
-    //Real cs = std::sqrt(std::abs(cs2));
-    cs = pmb->peos->GetEOS().GetSoundSpeed(n,T,Y);
-    cs2 = SQR(cs);
   }
 
   // Set Field values
@@ -1161,6 +1514,7 @@ void GetAvgs(MeshBlock * pmb,int k, int j,int i, const int ivx,
   avg_hq[hi::T]      = T;
 
   // sound speed and Eigen values at interaface
+#if USETM
   for (int m=0; m<NSCALARS; m++)
   {
     Y[m] = pmb->pscalars->r(m,k,j,i);
@@ -1168,6 +1522,12 @@ void GetAvgs(MeshBlock * pmb,int k, int j,int i, const int ivx,
   pmb->peos->SoundSpeedsGR(n, T,avg_hq[hi::vx +ivx-1],
                            v2,alpha,betax,avg_field[fi::gxx_u +ivx -1], &Lp,&Lm,Y);
   //pmb->peos->SoundSpeedsSR(n,T,vx,SQR(W),&Lp,&Lm,Y);
+#else
+  const Real w_hrho = rho + Eos_Gamma_ratio * p;
+
+  pmb->peos->SoundSpeedsGR(w_hrho,p,avg_hq[hi::vx +ivx-1],v2,alpha,
+                          betax,avg_field[fi::gxx_u +ivx -1],&Lp,&Lm);
+#endif
   L0 = alpha*avg_hq[hi::vx +ivx-1] - betax;
   //L0=vx;
   avg_eig[eig::chi]   = chi;

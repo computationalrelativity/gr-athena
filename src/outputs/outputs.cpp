@@ -866,16 +866,175 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   {
     LoadOutputDataMagneticFields(pmb, this, pod, num_vars_);
   }
+  // NEW_OUTPUT_TYPES:
+#if EFL_ENABLED
+  if (output_params.variable.compare("ent") == 0 ) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "entropy3";
+      pod->data.InitWithShallowSlice(phyd->entropy_3, 0, 1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+  
+  if (output_params.variable.compare("ent") == 0 ) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "entropy2";
+      pod->data.InitWithShallowSlice(phyd->entropy_2, 0, 1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+  
+  if (output_params.variable.compare("ent") == 0 ) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "entropy1";
+      pod->data.InitWithShallowSlice(phyd->entropy_1, 0, 1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+  if (output_params.variable.compare("ent") == 0 ) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "entropy0";
+      pod->data.InitWithShallowSlice(phyd->entropy_0, 0, 1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+  
+  if (output_params.variable.compare("ent") == 0) {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = "dtent";
+    pod->data.InitWithShallowSlice(phyd->dtentropy, 0, 1);
+    AppendOutputDataNode(pod);
+    num_vars_++;
+    }
+  
+  if (output_params.variable.compare("ent") == 0) {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = "dxent";
+    pod->data.InitWithShallowSlice(phyd->dxentropy, 0, 1);
+    AppendOutputDataNode(pod);
+    num_vars_++;
+    }
+  if (output_params.variable.compare("ent") == 0) {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = "dyent";
+    pod->data.InitWithShallowSlice(phyd->dyentropy, 0, 1);
+    AppendOutputDataNode(pod);
+    num_vars_++;
+    }
+  if (output_params.variable.compare("ent") == 0) {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = "dzent";
+    pod->data.InitWithShallowSlice(phyd->dzentropy, 0, 1);
+    AppendOutputDataNode(pod);
+    num_vars_++;
+    }
+  
 
-  if (output_params.variable.compare("prim") == 0) {
+  if (output_params.variable.compare("ent") == 0 ) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "reidual";
+      pod->data.InitWithShallowSlice(phyd->entropy_R, 0, 1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+
+  if (output_params.variable.compare("efl") == 0
+  || output_params.variable.compare("ent") == 0) {
     pod = new OutputData;
     pod->type = "SCALARS";
     pod->name = "ef_limiter";
-    pod->data.InitWithShallowSlice(phyd->ef_limiter[X1DIR], 4, 0, 1);
+    pod->data.InitWithShallowSlice(phyd->ef_limiter[X1DIR], 0, 1);
     AppendOutputDataNode(pod);
     num_vars_++;
     }
 
+  if (output_params.variable.compare("efl") == 0) {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = "HO_flux_x1_d";
+    pod->data.InitWithShallowSlice(phyd->flux_HO[X1DIR], 4, IDN, 1);
+    AppendOutputDataNode(pod);
+    num_vars_++;
+    }
+
+  if (output_params.variable.compare("efl") == 0) {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = "LO_flux_x1_d";
+    pod->data.InitWithShallowSlice(phyd->flux_LO[X1DIR], 4, IDN, 1);
+    AppendOutputDataNode(pod);
+    num_vars_++;
+    }
+
+  if (output_params.variable.compare("efl") == 0) {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = "flux_x1_d";
+    pod->data.InitWithShallowSlice(phyd->flux[X1DIR], 4, IDN, 1);
+    AppendOutputDataNode(pod);
+    num_vars_++;
+    }
+  
+  if (output_params.variable.compare("efl") == 0) {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = "HO_flux_p";
+    pod->data.InitWithShallowSlice(phyd->flux_HO[X1DIR], 4, IPR, 1);
+    AppendOutputDataNode(pod);
+    num_vars_++;
+    }
+  if (output_params.variable.compare("efl") == 0) {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = "LO_flux_p";
+    pod->data.InitWithShallowSlice(phyd->flux_LO[X1DIR], 4, IPR, 1);
+    AppendOutputDataNode(pod);
+    num_vars_++;
+    }
+
+  if (output_params.variable.compare("efl") == 0) {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = "flux_p";
+    pod->data.InitWithShallowSlice(phyd->flux[X1DIR], 4, IPR, 1);
+    AppendOutputDataNode(pod);
+    num_vars_++;
+    }
+  if (output_params.variable.compare("efl") == 0) {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = "HO_flux_vx";
+    pod->data.InitWithShallowSlice(phyd->flux_HO[X1DIR], 4, IVX, 1);
+    AppendOutputDataNode(pod);
+    num_vars_++;
+    }
+  if (output_params.variable.compare("efl") == 0) {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = "LO_flux_vx";
+    pod->data.InitWithShallowSlice(phyd->flux_LO[X1DIR], 4, IVX, 1);
+    AppendOutputDataNode(pod);
+    num_vars_++;
+    }
+
+  if (output_params.variable.compare("efl") == 0) {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = "flux_vx";
+    pod->data.InitWithShallowSlice(phyd->flux[X1DIR], 4, IVX, 1);
+    AppendOutputDataNode(pod);
+    num_vars_++;
+    }
+#endif
   // (lab-frame) density
   if (output_params.variable.compare("D") == 0 ||
       output_params.variable.compare("cons") == 0) {
@@ -887,6 +1046,25 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     num_vars_++;
   }
 
+  // latest recorded status (error) in ConservedToPrimitive
+  if (output_params.variable.compare("c2p_status") == 0) {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = "c2p_status";
+    pod->data.InitWithShallowSlice(phyd->c2p_status, 0, 1);
+    AppendOutputDataNode(pod);
+    num_vars_++;
+  }
+#if EFL_ENABLED
+  if (output_params.variable.compare("atm_mask") == 0) {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = "atm_mask";
+    pod->data.InitWithShallowSlice(phyd->atm_mask,4, IDN, 1);
+    AppendOutputDataNode(pod);
+    num_vars_++;
+    }
+#endif
   // (rest-frame) density
   if (output_params.variable.compare("d") == 0 ||
       output_params.variable.compare("prim") == 0) {

@@ -43,7 +43,6 @@ void Hydro::RusanovFlux(
   const int nc2 = pmy_block->ncells2;
   const int nc3 = pmy_block->ncells3;
   int il,iu,jl,ju,kl,ku;
-  int ivx;
 // perform variable resampling when required
   Z4c * pz4c = pmy_block->pz4c;
   // Slice 3d z4c metric quantities  (NDIM=3 in z4c.hpp) ----------------------
@@ -60,7 +59,7 @@ void Hydro::RusanovFlux(
   // BD: TODO - faster to pre-alloc in Hydro class, probably
   AT_N_sca sqrt_detgamma(nc3,nc2,nc1);
   AT_N_sca detgamma(nc3,nc2, nc1);  // spatial met det
-  AT_N_sca oo_detgamma(nc1);  // spatial met det
+  Real oo_detgamma;  // spatial met det
 
   AT_N_sym gamma_uu(nc3,nc2,nc1); //inverse spatial slice metric
 
@@ -78,45 +77,33 @@ void Hydro::RusanovFlux(
 
   //...............................................................
   
-  // Left/ Right eigen vectors
-  //AT_H_eig L_eig(nc1);
-  //AT_H_eig R_eig(nc1);
-  Real L_eig[NHYDRO][NHYDRO];
-  Real R_eig[NHYDRO][NHYDRO];
-  // Max Wave speeds in stencil
-  //AT_H_vec lambda_max(nc1);
-  Real lambda_max[NHYDRO];
-  // Characteristic flux
-  //AT_H_vec char_flx(nc1);
-  Real char_flx[NHYDRO];
-  for (int k=0; k<nc3; ++k)
-  for (int j=0; j<nc2; ++j)
-  {
-    // Determinant of 3 metric
-    for (int i = 0; i < nc1; ++i)
+  for (int k=0; k<nc3; ++k){
+    for (int j=0; j<nc2; ++j)
     {
-      detgamma(k,j,i)      = Det3Metric(gamma_dd, k,j,i);
-      sqrt_detgamma(k,j,i) = std::sqrt(detgamma(k,j,i));
-      oo_detgamma(i)   = 1. / detgamma(k,j,i);
-    }
+      // Determinant of 3 metric
+      for (int i = 0; i < nc1; ++i)
+      {
+        detgamma(k,j,i)      = Det3Metric(gamma_dd, k,j,i);
+        sqrt_detgamma(k,j,i) = std::sqrt(detgamma(k,j,i));
+        oo_detgamma   = 1. / detgamma(k,j,i);
 
-    // Inverse of the 3 metric at cell centre
-    for (int i=0; i<nc1; ++i)
-    {
-      Inv3Metric(
-        oo_detgamma(i),
-        gamma_dd(0,0,k,j,i), gamma_dd(0,1,k,j,i), gamma_dd(0,2,k,j,i),
-        gamma_dd(1,1,k,j,i), gamma_dd(1,2,k,j,i), gamma_dd(2,2,k,j,i),
-        &gamma_uu(0,0,k,j,i), &gamma_uu(0,1,k,j,i), &gamma_uu(0,2,k,j,i),
-        &gamma_uu(1,1,k,j,i), &gamma_uu(1,2,k,j,i), &gamma_uu(2,2,k,j,i));
-    }
+      // Inverse of the 3 metric at cell centre
+        Inv3Metric(
+          oo_detgamma,
+          gamma_dd(0,0,k,j,i), gamma_dd(0,1,k,j,i), gamma_dd(0,2,k,j,i),
+          gamma_dd(1,1,k,j,i), gamma_dd(1,2,k,j,i), gamma_dd(2,2,k,j,i),
+          &gamma_uu(0,0,k,j,i), &gamma_uu(0,1,k,j,i), &gamma_uu(0,2,k,j,i),
+          &gamma_uu(1,1,k,j,i), &gamma_uu(1,2,k,j,i), &gamma_uu(2,2,k,j,i));
+      }
 
-    // Get Euleiran Velocity
-    GetEulerianVelocity(0,nc1-1,k,j, gamma_dd, w_util_u,Wcc, w_v_u );
+      // Get Euleiran Velocity
+      
+      GetEulerianVelocity(0,nc1-1,k,j, gamma_dd, w_util_u,Wcc, w_v_u );
 
-    // Get Normed Eulerian Velocity
-    for (int i=0; i<nc1; ++i){
-      w_norm2_v(k,j,i)=InnerProductVecMetric(w_v_u,gamma_dd,k,j,i);
+      // Get Normed Eulerian Velocity
+      for (int i=0; i<nc1; ++i){
+        w_norm2_v(k,j,i)=InnerProductVecMetric(w_v_u,gamma_dd,k,j,i);
+      }
     }
   }
 
@@ -124,42 +111,73 @@ void Hydro::RusanovFlux(
 //---------------------------------------------------------------------------
 // i-direction
   { 
-    ivx=1;
     AT_H_vec fcc(nc3,nc2,nc1);
     for (int k=0; k<nc3; ++k)
-    for (int j=0; j<nc2; ++j)
     {
-    // Get fluxes And Eigen values at cell centres
-      GetFluxesGRHD(k,j,ivx,0,nc1-1, sqrt_detgamma,alpha,beta_u,
-      w_p,w_v_u,cons,fcc );
-
-      GetEigenValues(pmb,k,j,0, nc1-1, ivx, gamma_dd, gamma_uu,
-        alpha,w_rho,w_p,beta_u,w_v_u,w_norm2_v,lambda);
-    }
-
-    // NOW GET AVERAGE QUANTITIES
-    pmb->precon->SetIndicialLimitsCalculateFluxes(ivx, il, iu, jl, ju, kl, ku);
-    for (int k=kl; k<=ku; ++k)
-    for (int j=jl; j<=ju; ++j)
-    {
-      for(int i =il;i<=iu;++i)
+      for (int j=0; j<nc2; ++j)
       {
-        Real avg_field[12]={}; 
-        Real avg_hq[13]={};
-        Real avg_eig[6]={};
-        GetAvgs(pmb,k,j,i,ivx,gamma_dd,gamma_uu,detgamma,beta_u,alpha,
-                w_rho,w_p,w_v_u,w_v_d,w_norm2_v,Wcc,avg_field,avg_hq,avg_eig );
-        GetEigenVectorGRHD(pmb,ivx,avg_field,avg_hq,avg_eig,
-                          L_eig,R_eig );      
-      // Maximum wave speed on interface depending on stensil
-        GetMaximalWaveSpeed(k,j,i,2,ivx,lambda, lambda_max);
-      // Get Characteristic fields
-        ReconCharFields(k,j,i,3,ivx,fcc, lambda_max,cons,L_eig,
-                    char_flx);
-        ReconFlux(k,j,i,ivx, char_flx, R_eig, x1flux);
-#if 1
-        for(int a = 0;a<NHYDRO;++a){
-          if (!std::isfinite(char_flx[a])){
+      // Get fluxes And Eigen values at cell centres
+        GetFluxesGRHD(k,j,IVX,0,nc1-1, sqrt_detgamma,alpha,beta_u,
+        w_p,w_v_u,cons,fcc );
+
+        GetEigenValues(pmb,k,j,0, nc1-1, IVX, gamma_dd, gamma_uu,
+          alpha,w_rho,w_p,beta_u,w_v_u,w_norm2_v,lambda);
+      }
+    }
+    // NOW GET AVERAGE QUANTITIES
+    pmb->precon->SetIndicialLimitsCalculateFluxes(IVX, il, iu, jl, ju, kl, ku);
+    for (int k=kl; k<=ku; ++k)
+    {
+      for (int j=jl; j<=ju; ++j)
+      {
+        for(int i =il;i<=iu;++i)
+        {
+          Real L_eig[NHYDRO][NHYDRO] = {};
+          Real R_eig[NHYDRO][NHYDRO] = {};
+          Real lambda_max[NHYDRO]    = {};
+          Real char_flx[NHYDRO]      = {};
+
+          Real avg_field[12]={};
+          Real avg_hq[13]={}; 
+          Real avg_eig[6]={};
+          GetAvgs(pmb,k,j,i,IVX,gamma_dd,gamma_uu,detgamma,beta_u,alpha,
+                  w_rho,w_p,w_v_u,w_v_d,w_norm2_v,Wcc,avg_field,avg_hq,avg_eig,avg_method);
+
+          GetEigenVectorGRHD1(pmb,IVX,avg_field,avg_hq,avg_eig,
+                            L_eig,R_eig ); 
+#if 0
+          Real mat_mul[5][5]={};
+          for ( int m = 0 ;  m<5;++m)
+          {
+            for(int l = 0; l<5;++l){
+              mat_mul[m][l]=0.0;
+              for (int n = 0; n<5;++n){
+                mat_mul[m][l]+= L_eig[m][n] * R_eig[n][l];
+              }
+            }
+          }
+          std::cout<<i<<","<<j<<","<<k<<std::endl;
+          for (int m =0;m<5;++m){
+            for (int n=0;n<5;++n){
+              std::cout<<m<<","<<n<<"="<<mat_mul[m][n]<<std::endl;
+            }
+          }
+#endif 
+        // Maximum wave speed on interface depending on stensil
+          GetMaximalWaveSpeed(k,j,i,3,IVX,lambda, lambda_max);
+        // Get Characteristic fields
+          ReconCharFields(k,j,i,3,IVX,fcc, lambda_max,cons,L_eig,
+                      char_flx,HO_recon);
+          ReconFlux(k,j,i,IVX, char_flx, R_eig, x1flux);
+          
+#if 0     
+          if (pmb->pmy_mesh->efl_it_count == 1 || pmb->pmy_mesh->efl_it_count == 4){
+          if(k == 35 && j == 35 ){
+            std::cout<<i<<std::endl;
+            for (int m =0; m<5;++m){
+              std::cout<<x1flux(m,k,j,i)<<std::endl;
+            }
+
             std::cout<<i<<","<<j<<","<<k<<std::endl;
             for(int a =0;a<12;++a){
               std::cout<<"Field="<<avg_field[a]<<std::endl;
@@ -186,106 +204,151 @@ void Hydro::RusanovFlux(
               std::cout<<"R_EIG="<<b<<","<<a<<"="<<R_eig[b][a]<<std::endl;
             }
             for(int a=0; a<NHYDRO;++a){
-              std::cout<<"char_flux"<<char_flx[a]<<std::endl;
+              std::cout<<"cons =  "<<cons(a,k,j,i)<<std::endl;
             }
             for(int a=0; a<NHYDRO;++a){
-              std::cout<<"flux"<<x1flux(a,k,j,i)<<std::endl;
+              std::cout<<"char_flux "<<char_flx[a]<<std::endl;
+            }
+            for(int a=0; a<NHYDRO;++a){
+              std::cout<<"flux_inter "<<x1flux(a,k,j,i)<<std::endl;
             }
 
             for(int a=0; a<NHYDRO;++a){
-              std::cout<<"flux"<<fcc(a,k,j,i)<<std::endl;
+              std::cout<<"flux_cc "<<fcc(a,k,j,i)<<std::endl;
             }
-
-            exit(1);
-
-          }
+        }
         }
 #endif
+
+        }
       }
     }
+
+
   }
+
+
 //---------------------------------------------------------------------------
 // j-direction
   if (pmb->pmy_mesh->f2)
   {
     AT_H_vec fcc(nc3,nc2,nc1);
-    ivx=2;
     for (int k=0; k<nc3; ++k)
     for (int j=0; j<nc2; ++j)
     {
     // Get fluxes And Eigen values at cell centres
-      GetFluxesGRHD(k,j,ivx,0,nc1-1, sqrt_detgamma,alpha,beta_u,
+      GetFluxesGRHD(k,j,IVY,0,nc1-1, sqrt_detgamma,alpha,beta_u,
       w_p,w_v_u,cons,fcc );
 
-      GetEigenValues(pmb,k,j,0, nc1-1, ivx, gamma_dd, gamma_uu,
+      GetEigenValues(pmb,k,j,0, nc1-1,IVY, gamma_dd, gamma_uu,
         alpha,w_rho,w_p,beta_u,w_v_u,w_norm2_v,lambda);
     }
 
   // NOW GET AVERAGE QUANTITIES
-    pmb->precon->SetIndicialLimitsCalculateFluxes(ivx, il, iu, jl, ju, kl, ku);
+    pmb->precon->SetIndicialLimitsCalculateFluxes(IVY, il, iu, jl, ju, kl, ku);
     for (int k=kl; k<=ku; ++k)
     for (int j=jl; j<=ju; ++j)
     {
       for(int i =il;i<=iu;++i)
       {
+        Real L_eig[NHYDRO][NHYDRO] = {};
+        Real R_eig[NHYDRO][NHYDRO] = {};
+        Real lambda_max[NHYDRO]    = {};
+        Real char_flx[NHYDRO]      = {};
         Real avg_field[12]={}; 
         Real avg_hq[13]={};
         Real avg_eig[6]={};
-        GetAvgs(pmb,k,j,i,ivx,gamma_dd,gamma_uu,detgamma,beta_u,alpha,
-                w_rho,w_p,w_v_u,w_v_d,w_norm2_v,Wcc, avg_field,avg_hq,avg_eig );
-        GetEigenVectorGRHD(pmb,ivx,avg_field,avg_hq,avg_eig,
+        GetAvgs(pmb,k,j,i,IVY,gamma_dd,gamma_uu,detgamma,beta_u,alpha,
+                w_rho,w_p,w_v_u,w_v_d,w_norm2_v,Wcc, avg_field,avg_hq,avg_eig,avg_method);
+        GetEigenVectorGRHD1(pmb,IVY,avg_field,avg_hq,avg_eig,
                           L_eig,R_eig );
-
+#if 0
+        Real mat_mul[5][5]={};
+        for ( int m = 0 ;  m<5;++m)
+        {
+          for(int l = 0; l<5;++l){
+            mat_mul[m][l]=0.0;
+            for (int n = 0; n<5;++n){
+              mat_mul[m][l]+= L_eig[m][n] * R_eig[n][l];
+            }
+          }
+        }
+        std::cout<<i<<","<<j<<","<<k<<std::endl;
+        for (int m =0;m<5;++m){
+          for (int n=0;n<5;++n){
+            std::cout<<m<<","<<n<<"="<<mat_mul[m][n]<<std::endl;
+          }
+        }
+#endif
         // Maximum wave speed on interface depending on stensil
-        GetMaximalWaveSpeed(k,j,i,2,ivx,lambda, lambda_max); 
+        GetMaximalWaveSpeed(k,j,i,3,IVY,lambda, lambda_max); 
         // Get Characteristic fields
-        ReconCharFields(k,j,i,3,ivx,fcc, lambda_max,cons,L_eig, 
-                      char_flx);
-        ReconFlux(k,j,i,ivx, char_flx, R_eig, x2flux); //TODO
+        ReconCharFields(k,j,i,3,IVY,fcc, lambda_max,cons,L_eig, 
+                      char_flx,HO_recon);
+        ReconFlux(k,j,i,IVY, char_flx, R_eig, x2flux); //TODO
 
       }
     }
   }
-
 
 //---------------------------------------------------------------------------
 // k-direction
   if (pmb->pmy_mesh->f3)
   {
     AT_H_vec fcc(nc3,nc2,nc1);
-    ivx=3;
     for (int k=0; k<nc3; ++k)
     for (int j=0; j<nc2; ++j)
     {
     // Get fluxes And Eigen values at cell centres
-      GetFluxesGRHD(k,j,ivx,0,nc1-1, sqrt_detgamma,alpha,beta_u,
+      GetFluxesGRHD(k,j,IVZ,0,nc1-1, sqrt_detgamma,alpha,beta_u,
       w_p,w_v_u,cons,fcc );
 
-      GetEigenValues(pmb,k,j,0, nc1-1, ivx, gamma_dd, gamma_uu,
+      GetEigenValues(pmb,k,j,0, nc1-1, IVZ, gamma_dd, gamma_uu,
         alpha,w_rho,w_p,beta_u,w_v_u,w_norm2_v,lambda);
     }
 
     // NOW GET AVERAGE QUANTITIES
-    pmb->precon->SetIndicialLimitsCalculateFluxes(ivx, il, iu, jl, ju, kl, ku);
+    pmb->precon->SetIndicialLimitsCalculateFluxes(IVZ, il, iu, jl, ju, kl, ku);
     for (int j=jl; j<=ju; ++j)
     for (int k=kl; k<=ku; ++k)
     {
       for(int i =il;i<=iu;++i)
       {
+        Real L_eig[NHYDRO][NHYDRO] = {};
+        Real R_eig[NHYDRO][NHYDRO] = {};
+        Real lambda_max[NHYDRO]    = {};
+        Real char_flx[NHYDRO]      = {};
         Real avg_field[12]={}; 
         Real avg_hq[13]={};
         Real avg_eig[6]={};
-        GetAvgs(pmb,k,j,i,ivx,gamma_dd,gamma_uu,detgamma,beta_u,alpha,
-                w_rho,w_p,w_v_u,w_v_d,w_norm2_v,Wcc, avg_field,avg_hq,avg_eig );
-        GetEigenVectorGRHD(pmb,ivx,avg_field,avg_hq,avg_eig,
+        GetAvgs(pmb,k,j,i,IVZ,gamma_dd,gamma_uu,detgamma,beta_u,alpha,
+                w_rho,w_p,w_v_u,w_v_d,w_norm2_v,Wcc, avg_field,avg_hq,avg_eig, avg_method);
+        GetEigenVectorGRHD1(pmb,IVZ,avg_field,avg_hq,avg_eig,
                           L_eig,R_eig );
-
+#if 0
+        Real mat_mul[5][5]={};
+        for ( int m = 0 ;  m<5;++m)
+        {
+          for(int l = 0; l<5;++l){
+            mat_mul[m][l]=0.0;
+            for (int n = 0; n<5;++n){
+              mat_mul[m][l]+= L_eig[m][n] * R_eig[n][l];
+            }
+          }
+        }
+        std::cout<<i<<","<<j<<","<<k<<std::endl;
+        for (int m =0;m<5;++m){
+          for (int n=0;n<5;++n){
+            std::cout<<m<<","<<n<<"="<<mat_mul[m][n]<<std::endl;
+          }
+        }
+#endif
         // Maximum wave speed on interface depending on stensil
-        GetMaximalWaveSpeed(k,j,i,2,ivx,lambda, lambda_max);
+        GetMaximalWaveSpeed(k,j,i,3,IVZ,lambda, lambda_max);
         // Get Characteristic fields
-        ReconCharFields(k,j,i,3,ivx,fcc, lambda_max,cons,L_eig,
-                      char_flx);
-        ReconFlux(k,j,i,ivx, char_flx, R_eig,x3flux);
+        ReconCharFields(k,j,i,3,IVZ,fcc, lambda_max,cons,L_eig,
+                      char_flx,HO_recon);
+        ReconFlux(k,j,i,IVZ, char_flx, R_eig,x3flux);
       }
     }
   }

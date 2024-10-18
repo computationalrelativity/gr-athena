@@ -28,9 +28,20 @@ public:
 public:
   using TaskList::nstages;
 private:
-  void AddTask(const TaskID& id, const TaskID& dep) override;
+  void AddTask(const TaskID& id, const TaskID& dep) override { };
   void StartupTaskList(MeshBlock *pmb, int stage) override;
 
+private:
+  // For slightly cleaner & more flexible, treatment of tasklist graph assembly
+  void Add(
+    const TaskID& id, const TaskID& dep,
+    TaskStatus (EFLTaskList::*fcn)(MeshBlock*, int),
+    bool lb_time=true)
+  {
+    TaskList::Add(id, dep, static_cast<TaskStatus (TaskList::*)(
+      MeshBlock*, int
+    )>(fcn));
+  }
 };
 
 namespace EFLTaskNames {

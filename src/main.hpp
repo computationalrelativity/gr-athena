@@ -806,7 +806,7 @@ inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
   if(EFL_ENABLED && !efl_in){
     ptlc.pefltasklist->DoTaskListOneStage(pmesh,1);
     pmesh->efl_it_count+=1;
-  } 
+  }
 #endif
 
   for (int stage=1; stage<=ptlc.grmhd_z4c->nstages; ++stage)

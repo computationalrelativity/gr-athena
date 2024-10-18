@@ -229,6 +229,7 @@ int main(int argc, char *argv[])
 
     pclk->Elapsed_pause(); // ignore regrid time in evo/hr estimate
 
+  
     bool mesh_updated = pmesh->LoadBalancingAndAdaptiveMeshRefinement(pinput);
     if (mesh_updated)
     {

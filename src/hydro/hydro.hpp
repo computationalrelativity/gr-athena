@@ -59,7 +59,15 @@ class Hydro {
   AthenaArray<Real> flux_LO[3]; // Low order flux storage For EFL Scheme
   AthenaArray<Real> flux_HO[3]; // High order flux storage For EFL Scheme
   AthenaArray<Real> ef_limiter[3]; // flux limiter
-  AthenaArray<Real> ent,ent1,ent2,ent3,entropy_R; // Arrays for storing entropy at different time steps and entropy Residual
+  AthenaArray<Real> entropy_0,entropy_1,entropy_2,entropy_3,entropy_R, dtentropy, dxentropy,
+  dyentropy,dzentropy; // Arrays for storing entropy at different time steps and entropy Residual
+  Real cmax, cE;
+  std::string HO_recon;
+  int avg_method;
+  int buffer_it;
+
+  AthenaArray<Real> atm_mask; //ATmospheric Mask
+  Real rho_th; // threshold for atmospheric mask
 
   // storage for SMR/AMR
   // TODO(KGF): remove trailing underscore or revert to private:
@@ -250,10 +258,13 @@ public:
     AA &bcc, const int order);
 
   // Calculate Entropy and Flux limiter if EFL 
-  void CalculateEntropy(AthenaArray<Real> &w, AthenaArray<Real> &entropy);
-  void CalculateEFL(AthenaArray<Real> &w, AthenaArray<Real> &ent,
-  AthenaArray<Real> &ent1, AthenaArray<Real> &ent2,
-  AthenaArray<Real> &ent3 ) ;
+  void CalculateEntropy(AthenaArray<Real> &w, AthenaArray<Real> &ent);
+  void CalculateEFL(AthenaArray<Real> &w,const AthenaArray<Real> &ent,
+                    const AthenaArray<Real> &ent1,const AthenaArray<Real> &ent2,
+                    const AthenaArray<Real> &ent3 ) ;
+  void SetEntropy(AthenaArray<Real> &ent,AthenaArray<Real> &ent1,
+                  AthenaArray<Real> &ent2, AthenaArray<Real> &ent3 ) ;
+  void SetAtmMask(Real d_floor,AthenaArray<Real> &prim,AthenaArray<Real> &mask );
 
   // debug join hydro+passive scalar recon.
   void CalculateFluxesCombined(AA &w, FaceField &b,

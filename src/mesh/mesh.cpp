@@ -1956,6 +1956,7 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
     if (M1_ENABLED)
       pmb_array[i]->pm1->NewBlockTimeStep();
   }
+
   // --------------------------------------------------------------------------
 
   NewTimeStep();
