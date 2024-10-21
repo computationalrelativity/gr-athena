@@ -45,6 +45,8 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
 #if (NSCALARS > 0) & defined(DBG_COMBINED_HYDPA)
   SetAtmMask(pmy_block->peos->GetEOS().GetDensityFloor(),
             w, atm_mask);
+  //SetAtmMask(pmy_block->peos->GetEOS().GetDensityFloor(),
+           // w, atm_mask);
 #if EFL_ENABLED
   AthenaArray<Real> &x1flux_HO = flux_HO[X1DIR];
   AthenaArray<Real> &x2flux_HO = flux_HO[X2DIR];
@@ -1410,7 +1412,7 @@ void Hydro::CombineFluxes(const int k,const int j,const int il, const int iu,con
     }
     else{
       for (int n=0; n<NHYDRO;++n){
-        f(n,k,j,i)=f_HO(n,k,j,i);
+        f(n,k,j,i)=f_LO(n,k,j,i);
       }
     }
   }

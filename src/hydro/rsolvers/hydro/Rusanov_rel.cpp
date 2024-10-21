@@ -143,7 +143,7 @@ void Hydro::RusanovFlux(
           GetAvgs(pmb,k,j,i,IVX,gamma_dd,gamma_uu,detgamma,beta_u,alpha,
                   w_rho,w_p,w_v_u,w_v_d,w_norm2_v,Wcc,avg_field,avg_hq,avg_eig,avg_method);
 
-          GetEigenVectorGRHD1(pmb,IVX,avg_field,avg_hq,avg_eig,
+          GetEigenVectorGRHD(pmb,IVX,avg_field,avg_hq,avg_eig,
                             L_eig,R_eig ); 
 #if 0
           Real mat_mul[5][5]={};
@@ -260,7 +260,7 @@ void Hydro::RusanovFlux(
         Real avg_eig[6]={};
         GetAvgs(pmb,k,j,i,IVY,gamma_dd,gamma_uu,detgamma,beta_u,alpha,
                 w_rho,w_p,w_v_u,w_v_d,w_norm2_v,Wcc, avg_field,avg_hq,avg_eig,avg_method);
-        GetEigenVectorGRHD1(pmb,IVY,avg_field,avg_hq,avg_eig,
+        GetEigenVectorGRHD(pmb,IVY,avg_field,avg_hq,avg_eig,
                           L_eig,R_eig );
 #if 0
         Real mat_mul[5][5]={};
@@ -323,7 +323,7 @@ void Hydro::RusanovFlux(
         Real avg_eig[6]={};
         GetAvgs(pmb,k,j,i,IVZ,gamma_dd,gamma_uu,detgamma,beta_u,alpha,
                 w_rho,w_p,w_v_u,w_v_d,w_norm2_v,Wcc, avg_field,avg_hq,avg_eig, avg_method);
-        GetEigenVectorGRHD1(pmb,IVZ,avg_field,avg_hq,avg_eig,
+        GetEigenVectorGRHD(pmb,IVZ,avg_field,avg_hq,avg_eig,
                           L_eig,R_eig );
 #if 0
         Real mat_mul[5][5]={};

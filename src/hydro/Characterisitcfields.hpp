@@ -1185,15 +1185,15 @@ void ReconCharFields(const int k, const int j,
           flux_stensil_m[s]=0.;
           
           cons_p[0] = cons(0,k,j_p,i);
-          cons_p[1] = cons(2,k,j_p,i);
-          cons_p[2] = cons(3,k,j_p,i);
-          cons_p[3] = cons(1,k,j_p,i);
+          cons_p[1] = cons(1,k,j_p,i);
+          cons_p[2] = cons(2,k,j_p,i);
+          cons_p[3] = cons(3,k,j_p,i);
           cons_p[4] = cons(4,k,j_p,i);
 
           cons_m[0] = cons(0,k,j_m,i);
-          cons_m[1] = cons(2,k,j_m,i);
-          cons_m[2] = cons(3,k,j_m,i);
-          cons_m[3] = cons(1,k,j_m,i);
+          cons_m[1] = cons(1,k,j_m,i);
+          cons_m[2] = cons(2,k,j_m,i);
+          cons_m[3] = cons(3,k,j_m,i);
           cons_m[4] = cons(4,k,j_m,i);
           for( int l = 0; l<NHYDRO ;++l)
           {
@@ -1222,15 +1222,15 @@ void ReconCharFields(const int k, const int j,
           flux_stensil_m[s]=0.;
 
           cons_p[0] = cons(0,k_p,j,i);
-          cons_p[1] = cons(3,k_p,j,i);
-          cons_p[2] = cons(1,k_p,j,i);
-          cons_p[3] = cons(2,k_p,j,i);
+          cons_p[1] = cons(1,k_p,j,i);
+          cons_p[2] = cons(2,k_p,j,i);
+          cons_p[3] = cons(3,k_p,j,i);
           cons_p[4] = cons(4,k_p,j,i);
 
           cons_m[0] = cons(0,k_m,j,i);
-          cons_m[1] = cons(3,k_m,j,i);
-          cons_m[2] = cons(1,k_m,j,i);
-          cons_m[3] = cons(2,k_m,j,i);
+          cons_m[1] = cons(1,k_m,j,i);
+          cons_m[2] = cons(2,k_m,j,i);
+          cons_m[3] = cons(3,k_m,j,i);
           cons_m[4] = cons(4,k_m,j,i);
           for( int l = 0; l<NHYDRO ;++l)
           {
@@ -1276,18 +1276,18 @@ void ReconFlux(const int k, const int j,const int i,const int ivx,
   if (ivx == 2){
     
     flx(0,k,j,i)=rflx[0];
-    flx(1,k,j,i)=rflx[3];
-    flx(2,k,j,i)=rflx[1];
-    flx(3,k,j,i)=rflx[2];
+    flx(1,k,j,i)=rflx[1];
+    flx(2,k,j,i)=rflx[2];
+    flx(3,k,j,i)=rflx[3];
     flx(4,k,j,i)=rflx[4];
   }
 
    if (ivx == 3){
     
     flx(0,k,j,i)=rflx[0];
-    flx(1,k,j,i)=rflx[2];
-    flx(2,k,j,i)=rflx[3];
-    flx(3,k,j,i)=rflx[1];
+    flx(1,k,j,i)=rflx[1];
+    flx(2,k,j,i)=rflx[2];
+    flx(3,k,j,i)=rflx[3];
     flx(4,k,j,i)=rflx[4];
   }
 

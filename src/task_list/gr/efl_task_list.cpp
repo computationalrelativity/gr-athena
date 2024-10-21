@@ -79,6 +79,8 @@ TaskStatus EFLTaskList::SetEntropy(MeshBlock *pmb, int stage){
     if (stage <= nstages)
     {
         Hydro *ph = pmb->phydro;
+        ph->SetAtmMask(pmb->peos->GetEOS().GetDensityFloor(),
+            ph->w, ph->atm_mask);
         ph->SetEntropy(ph->entropy_0,
         ph->entropy_1,ph->entropy_2,ph->entropy_3);
         return TaskStatus::success;

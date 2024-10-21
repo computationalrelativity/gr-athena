@@ -506,7 +506,7 @@ void Hydro::CalculateEFL(AthenaArray<Real> &w,const AthenaArray<Real> &ent,
       for (int i=il; i<=iu; ++i)
       {
         Real lim =1.0 -0.5*(entropy_R(k,j,i-1) + entropy_R(k,j,i));
-        if (lim <= 0.9){
+        if (lim <= 0.5){
           x1ef_limiter(k,j,i)=0.0;
         }
         else{
@@ -526,7 +526,7 @@ void Hydro::CalculateEFL(AthenaArray<Real> &w,const AthenaArray<Real> &ent,
       for (int j=jl ; j<= ju ; ++j){
         for (int i=il; i<=iu; ++i){
           Real lim =1.0 -0.5*(entropy_R(k,j-1,i) + entropy_R(k,j,i));
-          if (lim<=0.9){
+          if (lim<=0.5){
             x2ef_limiter(k,j,i) = 0.0;
           }
           else{
@@ -547,7 +547,7 @@ void Hydro::CalculateEFL(AthenaArray<Real> &w,const AthenaArray<Real> &ent,
       for (int k=kl ; k<=ku ;++k){
         for (int i=il; i<=iu; ++i){
           Real lim =1.0 -0.5*(entropy_R(k-1,j,i) + entropy_R(k,j,i));
-          if (lim <= 0.9){
+          if (lim <= 0.5){
             x3ef_limiter(k,j,i) = 0.0;
           }
           else{
