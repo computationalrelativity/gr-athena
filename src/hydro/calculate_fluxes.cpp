@@ -1392,6 +1392,15 @@ void Hydro::CombineFluxes(const int k,const int j,const int il, const int iu,con
       for (int n=0; n<NHYDRO;++n){
         f(n,k,j,i)= efl(k,j,i)*f_HO(n,k,j,i) + (1.0-efl(k,j,i))*f_LO(n,k,j,i);
       }
+      if (!std::isfinite(f(0,k,j,i)) ||
+          !std::isfinite(f(1,k,j,i)) ||
+          !std::isfinite(f(2,k,j,i)) ||
+          !std::isfinite(f(3,k,j,i)) ||
+          !std::isfinite(f(4,k,j,i)) ){
+          for (int n =0; n<NHYDRO; ++n){
+            f(n,k,j,i) = 0.0;
+          }
+        }
     }
   }
 #endif

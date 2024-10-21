@@ -132,6 +132,11 @@ void Hydro::RusanovFlux(
       {
         for(int i =il;i<=iu;++i)
         {
+          if ( (atm_mask(k,j,i-1) > 0.9) || (atm_mask(k,j,i) > 0.9) ) {
+            for (int n=0; n<NHYDRO;++n) x1flux(n,k,j,i)=0.0;
+            continue;
+          }
+
           Real L_eig[NHYDRO][NHYDRO] = {};
           Real R_eig[NHYDRO][NHYDRO] = {};
           Real lambda_max[NHYDRO]    = {};
@@ -169,6 +174,17 @@ void Hydro::RusanovFlux(
           ReconCharFields(k,j,i,3,IVX,fcc, lambda_max,cons,L_eig,
                       char_flx,HO_recon);
           ReconFlux(k,j,i,IVX, char_flx, R_eig, x1flux);
+          
+        // Cure Fluxes
+        if (!std::isfinite(x1flux(0,k,j,i)) ||
+            !std::isfinite(x1flux(1,k,j,i)) ||
+            !std::isfinite(x1flux(2,k,j,i)) ||
+            !std::isfinite(x1flux(3,k,j,i)) ||
+            !std::isfinite(x1flux(4,k,j,i)) ){
+              for (int n =0; n<NHYDRO; ++n){
+                x1flux(n,k,j,i) = 0.0;
+              }
+        }
           
 #if 0     
           if (pmb->pmy_mesh->efl_it_count == 1 || pmb->pmy_mesh->efl_it_count == 4){
@@ -251,6 +267,12 @@ void Hydro::RusanovFlux(
     {
       for(int i =il;i<=iu;++i)
       {
+
+        if ( (atm_mask(k,j-1,i) > 0.9) || (atm_mask(k,j,i) > 0.9) ) {
+            for (int n=0; n<NHYDRO;++n) x2flux(n,k,j,i)=0.0;
+            continue;
+          }
+
         Real L_eig[NHYDRO][NHYDRO] = {};
         Real R_eig[NHYDRO][NHYDRO] = {};
         Real lambda_max[NHYDRO]    = {};
@@ -287,6 +309,17 @@ void Hydro::RusanovFlux(
                       char_flx,HO_recon);
         ReconFlux(k,j,i,IVY, char_flx, R_eig, x2flux); //TODO
 
+        // Cure Fluxes
+        if (!std::isfinite(x2flux(0,k,j,i)) ||
+            !std::isfinite(x2flux(1,k,j,i)) ||
+            !std::isfinite(x2flux(2,k,j,i)) ||
+            !std::isfinite(x2flux(3,k,j,i)) ||
+            !std::isfinite(x2flux(4,k,j,i)) ){
+              for (int n =0; n<NHYDRO; ++n){
+                x2flux(n,k,j,i) = 0.0;
+              }
+        }
+
       }
     }
   }
@@ -314,6 +347,12 @@ void Hydro::RusanovFlux(
     {
       for(int i =il;i<=iu;++i)
       {
+
+        if ( (atm_mask(k-1,j,i) > 0.9) || (atm_mask(k,j,i) > 0.9) ) {
+            for (int n=0; n<NHYDRO;++n) x3flux(n,k,j,i)=0.0;
+            continue;
+          }
+
         Real L_eig[NHYDRO][NHYDRO] = {};
         Real R_eig[NHYDRO][NHYDRO] = {};
         Real lambda_max[NHYDRO]    = {};
@@ -349,6 +388,18 @@ void Hydro::RusanovFlux(
         ReconCharFields(k,j,i,3,IVZ,fcc, lambda_max,cons,L_eig,
                       char_flx,HO_recon);
         ReconFlux(k,j,i,IVZ, char_flx, R_eig,x3flux);
+
+        // Cure Fluxes
+        if (!std::isfinite(x3flux(0,k,j,i)) ||
+            !std::isfinite(x3flux(1,k,j,i)) ||
+            !std::isfinite(x3flux(2,k,j,i)) ||
+            !std::isfinite(x3flux(3,k,j,i)) ||
+            !std::isfinite(x3flux(4,k,j,i)) ){
+              for (int n =0; n<NHYDRO; ++n){
+                x3flux(n,k,j,i) = 0.0;
+              }
+        }
+          
       }
     }
   }

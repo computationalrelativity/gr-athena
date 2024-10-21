@@ -1161,13 +1161,6 @@ void ReconCharFields(const int k, const int j,
           i_m--;
         }
         char_flx[m] = Reconstruct(flux_stensil_p,HO_recon) + Reconstruct(flux_stensil_m,HO_recon);
-#if 0
-        if ( k==35 && j == 35){
-        std::cout<<" left_rec "<<Reconstruct(flux_stensil_p,0)<<std::endl;
-        std::cout<<" right_rec "<<Reconstruct(flux_stensil_m,0)<<std::endl;
-        std::cout<<" char "<<char_flx[m]<<std::endl;
-        }
-#endif
       }
       break;
     }
