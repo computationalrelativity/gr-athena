@@ -1849,22 +1849,22 @@ void WaveExtractRWZ::BackgroundReduce() {
 
       // 2-metric & drvts
       integrals_background[Ig00] -= vol * (SQR(alpha(i,j)) - beta2(i,j));
-      integrals_background[Ig0r] += vol * beta_d(0,i,j);
-      integrals_background[Igrr] += vol * gamma_dd(0,0,i,j);
+      integrals_background[Ig0R] += vol * beta_d(0,i,j);
+      integrals_background[IgRR] += vol * gamma_dd(0,0,i,j);
 
-      integrals_background[Idr_g00] -= vol * (2.0*alpha(i,j)*dr_alpha(i,j) - dr_beta2(i,j));
-      integrals_background[Idr_g0r] += vol * dr_beta_d(0,i,j);
-      integrals_background[Idr_grr] += vol * dr_gamma_dd(0,0,i,j);
+      integrals_background[IdR_g00] -= vol * (2.0*alpha(i,j)*dr_alpha(i,j) - dr_beta2(i,j));
+      integrals_background[IdR_g0R] += vol * dr_beta_d(0,i,j);
+      integrals_background[IdR_gRR] += vol * dr_gamma_dd(0,0,i,j);
       
       integrals_background[Idot_g00] -= vol * (2.0*alpha(i,j)*dot_alpha(i,j) - dot_beta2(i,j));
-      integrals_background[Idot_g0r] += vol * dot_beta_d(0,i,j);
-      integrals_background[Idot_grr] += vol * dot_gamma_dd(0,0,i,j);
+      integrals_background[Idot_g0R] += vol * dot_beta_d(0,i,j);
+      integrals_background[Idot_gRR] += vol * dot_gamma_dd(0,0,i,j);
 
-      integrals_background[Igrt] += vol * gamma_dd(0,1,i,j);
+      integrals_background[IgRt] += vol * gamma_dd(0,1,i,j);
       integrals_background[Igtt] += vol * gamma_dd(1,1,i,j);
       integrals_background[Igpp] += vol * gamma_dd(2,2,i,j);
       
-      integrals_background[Idr_gtt] += vol * dr_gamma_dd(1,1,i,j);
+      integrals_background[IdR_gtt] += vol * dr_gamma_dd(1,1,i,j);
       
     }// for j
   }// for i
@@ -1914,21 +1914,21 @@ void WaveExtractRWZ::BackgroundReduce() {
   dot_rsch = integrals_background[Idot_rsch2];
   drsch_dri_dot = integrals_background[Idrsch_dri_dot];
 
-  Real g00 = integrals_background[Ig00];
-  Real g0r = integrals_background[Ig0r];
-  Real grr = integrals_background[Igrr];
-  Real grt = integrals_background[Igrt];
-  Real gtt = integrals_background[Igtt];
-  Real gpp = integrals_background[Igpp];
+  const Real g00 = integrals_background[Ig00];
+  const Real g0R = integrals_background[Ig0R];
+  const Real gRR = integrals_background[IgRR];
+  const Real gRt = integrals_background[IgRt];
+  const Real gtt = integrals_background[Igtt];
+  const Real gpp = integrals_background[Igpp];
   
-  Real dr_g00 = integrals_background[Idr_g00];
-  Real dr_g0r = integrals_background[Idr_g0r];
-  Real dr_grr = integrals_background[Idr_grr];
-  Real dr_gtt = integrals_background[Idr_gtt];
+  const Real dR_g00 = integrals_background[IdR_g00];
+  const Real dR_g0R = integrals_background[IdR_g0R];
+  const Real dR_gRR = integrals_background[IdR_gRR];
+  const Real dR_gtt = integrals_background[IdR_gtt];
   
-  Real dot_g00 = integrals_background[Idot_g00];
-  Real dot_g0r = integrals_background[Idot_g0r];
-  Real dot_grr = integrals_background[Idot_grr];
+  const Real dot_g00 = integrals_background[Idot_g00];
+  const Real dot_g0R = integrals_background[Idot_g0R];
+  const Real dot_gRR = integrals_background[Idot_gRR];
 
   // Update all quantities using the transformation of the metric components
   // from the isotropic radius R to the Schwarzschild radius r
@@ -1959,19 +1959,19 @@ void WaveExtractRWZ::BackgroundReduce() {
     
     d2ri_drsch2 = - std::pow(dri_drsch,3) * d2rsch_dri2; //TODO ?
     
-  }
+  } 
   
   // time derivatives of g0r and grr 
-  dot_g0r = dri_drsch_dot * g0r + dri_drsch * dot_g0r;
-  dot_grr = 2.0 * dri_drsch * dri_drsch_dot*grr + SQR(dri_drsch) * dot_grr;
+  const Real dot_g0r = dri_drsch_dot * g0R + dri_drsch * dot_g0R;
+  const Real dot_grr = 2.0 * dri_drsch * dri_drsch_dot*gRR + SQR(dri_drsch) * dot_gRR;
     
   // Metric components, first drvt
-  dr_g00  *= dri_drsch;
-  dr_g0r   = d2ri_drsch2 * g0r + SQR(dri_drsch) * dr_g0r;
-  dr_grr   = 2.0 * dri_drsch * d2ri_drsch2 * grr  + std::pow(dri_drsch,3) * dr_grr;
+  const Real dr_g00   = dri_drsch * dR_g00;
+  const Real dr_g0r   = d2ri_drsch2 * g0R + SQR(dri_drsch) * dR_g0R;
+  const Real dr_grr   = 2.0 * dri_drsch * d2ri_drsch2 * gRR  + std::pow(dri_drsch,3) * dR_gRR;
 
-  g0r     *= dri_drsch ;
-  grr     *= SQR(dri_drsch);
+  const Real g0r      = dri_drsch * g0R;
+  const Real grr      = SQR(dri_drsch) * gRR;
   
   // Inverse metric & Christoffel's symbols of the background metric 
   
@@ -1991,7 +1991,9 @@ void WaveExtractRWZ::BackgroundReduce() {
   const Real dr_g0r_uu = -dr_g0r*div_detg + g0r*dr_detg;
   const Real dr_grr_uu =  dr_g00*div_detg - g00*dr_detg;
 
+  const Real dot_g00_uu = dot_grr*div_detg + grr*div_detg2*(dot_g00*grr + g00*dot_grr - 2.0*g0r*dot_g0r);
   const Real dot_g0r_uu = -dot_g0r*div_detg + g0r*div_detg2*(dot_g00*grr + g00*dot_grr - 2.0*g0r*dot_g0r);
+  const Real dot_grr_uu = dot_g00*div_detg + g00*div_detg2*(dot_g00*grr + g00*dot_grr - 2.0*g0r*dot_g0r);
   
   // G stands for Gamma, these are the Christoffel symbols. 
   // Assuming time independence: 
@@ -2049,9 +2051,9 @@ void WaveExtractRWZ::BackgroundReduce() {
   g_dr_uu(0,1) = dr_g0r_uu;
   g_dr_uu(1,1) = dr_grr_uu;
 
-  g_dot_uu(0,0) = 0.0; //dot_g00_uu; //TODO 
+  g_dot_uu(0,0) = dot_g00_uu; //TODO 
   g_dot_uu(0,1) = dot_g0r_uu; 
-  g_dot_uu(1,1) = 0.0; //dot_grr_uu; //TODO 
+  g_dot_uu(1,1) = dot_grr_uu; //TODO 
   
   Gamma_udd(0,0,0) = G000;
   Gamma_udd(0,0,1) = G00r;
@@ -2067,6 +2069,53 @@ void WaveExtractRWZ::BackgroundReduce() {
   Gamma_dyn_udd(1,0,1) = Gamma_dyn_udd(1,1,0) = Gr0r_dyn;
   Gamma_dyn_udd(1,1,1) = Grrr_dyn;
     
+
+  // We also need to make the transformation of these quantities that are used in the multipoles:
+  
+  for (int i=0; i<Ntheta; i++) {
+    for(int j=0; j<Nphi; j++){
+      if (!havepoint(i,j)) continue;
+
+      // dr_beta_i
+      dr_beta_d(0,i,j) = d2ri_drsch2 * beta_d(0,i,j) + SQR(dri_drsch) * dr_beta_d(0,i,j);
+      for (int a=1; a<3; a++)
+        dr_beta_d(a,i,j) *= dri_drsch;
+
+      // dot_beta_r
+      dot_beta_d(0,i,j) = dri_drsch_dot * beta_d(0,i,j) + dri_drsch * dot_beta_d(0,i,j);
+  
+      // beta_r
+      beta_d(0,i,j) *= dri_drsch;
+
+
+      // dr_gamma_ij
+      dr_gamma_dd(0,0,i,j) = 2.0 * dri_drsch * d2ri_drsch2 * gamma_dd(0,0,i,j) 
+                             + std::pow(dri_drsch,3) * dr_gamma_dd(0,0,i,j);
+      for (int a=1; a<3; a++)
+        dr_gamma_dd(0,a,i,j) = d2ri_drsch2 * gamma_dd(0,a,j,j) 
+                               + SQR(dri_drsch) * dr_gamma_dd(0,a,i,j);
+      for (int a=1; a<3; a++)
+        for (int b=1; b<3; b++){
+          dr_gamma_dd(a,b,i,j) *= dri_drsch; 
+        }
+
+      // dot_gamma_ri
+      dot_gamma_dd(0,0,i,j) = 2.0 * dri_drsch * dri_drsch_dot * gamma_dd(0,0,i,j)
+                              + SQR(dri_drsch) * dot_gamma_dd(0,0,i,j);
+      
+      for (int a=1; a<3; a++)
+        dot_gamma_dd(0,a,i,j) = dri_drsch_dot * gamma_dd(0,a,j,j) 
+                                + dri_drsch * dot_gamma_dd(0,a,i,j);
+
+      // gamma_ri
+      gamma_dd(0,0,i,j) *= SQR(dri_drsch);
+      for (int a=1; a<3; a++)
+        gamma_dd(0,a,i,j) *= dri_drsch;
+
+
+    } // for j
+  } // for i
+
 }
 
 //----------------------------------------------------------------------------------------

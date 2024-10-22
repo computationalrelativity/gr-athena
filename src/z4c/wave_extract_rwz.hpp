@@ -188,11 +188,11 @@ private:
     Irsch2, Idrsch_dri, Id2rsch_dri2, // Areal radius and drvts wrt R
     Idot_rsch2,  Idrsch_dri_dot,
     // Background 2-metric
-    Ig00, Ig0r, Igrr, // g_AB on M^2
-    Igrt, Igtt, Igpp,
-    Idr_g00,  Idr_g0r, Idr_grr, // dg_AB/dr 
-    Idr_gtt,
-    Idot_g00, Idot_g0r, Idot_grr, // dg_AB/dt
+    Ig00, Ig0R, IgRR, // g_AB on M^2
+    IgRt, Igtt, Igpp,
+    IdR_g00,  IdR_g0R, IdR_gRR, // dg_AB/dr 
+    IdR_gtt,
+    Idot_g00, Idot_g0R, Idot_gRR, // dg_AB/dt
     //TODO 2nd drvts
     NVBackground,
   };
