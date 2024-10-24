@@ -53,18 +53,18 @@ public:
   ~M1();
 
   void CalcFiducialVelocity();
-  void CalcClosure(AthenaArray<Real> & u);
-  void CalcFiducialFrame(AthenaArray<Real> & u);
-  void CalcOpacity(Real const dt, AthenaArray<Real> & u);
+  void CalcClosure(AA & u);
+  void CalcFiducialFrame(AA & u);
+  void CalcOpacity(Real const dt, AA & u);
   void CalcUpdate(Real const dt,
-                  AthenaArray<Real> & u_pre,
-                  AthenaArray<Real> & u_cur,
-		              AthenaArray<Real> & u_inh,
-                  AthenaArray<Real> & sources);
-  void CalcFluxes(AthenaArray<Real> & u);
-  void AddFluxDivergence(AthenaArray<Real> & u_inh);
-  void AddSourceGR(AthenaArray<Real> & u, AthenaArray<Real> & u_inh);
-  void AddSourceMatter(AthenaArray<Real> & u, AthenaArray<Real> & u_inh, AthenaArray<Real> & u_src);
+                  AA & u_pre,
+                  AA & u_cur,
+		              AA & u_inh,
+                  AA & sources);
+  void CalcFluxes(AA & u);
+  void AddFluxDivergence(AA & u_inh);
+  void AddSourceGR(AA & u, AA & u_inh);
+  void AddSourceMatter(AA & u, AA & u_inh, AA & u_src);
 
   Real NewBlockTimeStep();
 
@@ -164,6 +164,8 @@ public:
     bool couple_sources_ADM;
     bool couple_sources_hydro;
     bool couple_sources_Y_e;
+
+    Real source_limiter;
 
     // debugging:
     bool value_inject;
@@ -278,9 +280,9 @@ public:
   vars_RadMat radmat;
 
   struct vars_Source {
-    GroupSpeciesContainer<AT_C_sca> sc_S0;
-    GroupSpeciesContainer<AT_C_sca> sc_S1;
-    GroupSpeciesContainer<AT_N_vec> sp_S1_d;
+    GroupSpeciesContainer<AT_C_sca> sc_S0;   // src: sc_NG
+    GroupSpeciesContainer<AT_C_sca> sc_S1;   // src: sc_E
+    GroupSpeciesContainer<AT_N_vec> sp_S1_d; // src: sp_F_d
   };
   vars_Source sources;
 

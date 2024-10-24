@@ -349,7 +349,6 @@ SourceMetaVector ConstructSourceMetaVector(
     pm1,
     ix_g,
     ix_s,
-    
     vsrc.sc_S0(  ix_g,ix_s),
     vsrc.sc_S1(  ix_g,ix_s),
     vsrc.sp_S1_d(ix_g,ix_s),
@@ -421,18 +420,6 @@ void AddSourceMatter(
   I.sc_nG(k,j,i) += S0;
   S.sc_S0(k,j,i) = S0;
 
-/*
-  I.sc_nG(k,j,i) += pm1.geom.sc_alpha(k,j,i) * (
-    pm1.geom.sc_sqrt_det_g(k,j,i) * C.sc_eta_0(k,j,i) -
-    C.sc_kap_a_0(k,j,i) * I.sc_n(k,j,i)
-  );
-
-  S.sc_S0(k,j,i) = pm1.geom.sc_alpha(k,j,i) * (
-    pm1.geom.sc_sqrt_det_g(k,j,i) * C.sc_eta_0(k,j,i) -
-    C.sc_kap_a_0(k,j,i) * I.sc_n(k,j,i)
-  );
-*/
-
   Real S1 = pm1.geom.sc_alpha(k,j,i) * (
     (pm1.geom.sc_sqrt_det_g(k,j,i) * C.sc_eta(k,j,i) -
      C.sc_kap_a(k,j,i) * I.sc_J(k,j,i)) * W -
@@ -440,24 +427,6 @@ void AddSourceMatter(
   );
   I.sc_E(k,j,i) += S1;
   S.sc_S1(k,j,i) = S1;
-
-/*
-  I.sc_E(k,j,i) += pm1.geom.sc_alpha(k,j,i) * (
-    (pm1.geom.sc_sqrt_det_g(k,j,i) * C.sc_eta(k,j,i) -
-     C.sc_kap_a(k,j,i) * I.sc_J(k,j,i)) * W -
-    (C.sc_kap_a(k,j,i) + C.sc_kap_s(k,j,i)) * I.sc_H_t(k,j,i)
-  );
-
-  S.sc_S1(k,j,i) = W * pm1.geom.sc_alpha(k,j,i) * (
-    -kap_as * C.sc_E(k,j,i) + kap_as * dotFv_(i) +
-    (
-      pm1.geom.sc_sqrt_det_g(k,j,i) * C.sc_eta(k,j,i) +
-      C.sc_kap_s(k,j,i) * W2 * (
-        C.sc_E(k,j,i) - 2 * dotFv_(i) + dotPvv_(i)
-      )
-    )
-  );
-*/
 
   for (int a=0; a<N; ++a)
   {
@@ -469,23 +438,6 @@ void AddSourceMatter(
     I.sp_F_d(a,k,j,i) += S1_d;
     S.sp_S1_d(a,k,j,i) = S1_d;
 
-/*
-    I.sp_F_d(a,k,j,i) += pm1.geom.sc_alpha(k,j,i) * (
-      (pm1.geom.sc_sqrt_det_g(k,j,i) * C.sc_eta(k,j,i) -
-       C.sc_kap_a(k,j,i) * I.sc_J(k,j,i)) * W * pm1.fidu.sp_v_d(a,k,j,i) -
-      (C.sc_kap_a(k,j,i) + C.sc_kap_s(k,j,i)) * I.sp_H_d(a,k,j,i)
-    );
-
-    S.sp_S1_d(a,k,j,i) = W * pm1.geom.sc_alpha(k,j,i) * (
-      -kap_as * dotPv_d_(a,i) - kap_as * C.sp_F_d(a,k,j,i) +
-      (
-        pm1.geom.sc_sqrt_det_g(k,j,i) * C.sc_eta(k,j,i) +
-        C.sc_kap_s(k,j,i) * W2 * (
-          C.sc_E(k,j,i) - 2 * dotFv_ (i)+ dotPvv_(i)
-        )
-      ) * pm1.fidu.sp_v_d(a,k,j,i)
-    );
-*/
   }
 }
 
@@ -543,14 +495,23 @@ void SolveImplicitNeutrinoCurrent(
     k, j, i
   );
 
-  const Real WnGam = P.sc_nG(k,j,i) + dt * I.sc_nG(k,j,i);
+
+  // BD: I.sc_nG contains flux div, but not \alpha \sqrt \eta^0
+
+  // const Real WnGam = P.sc_nG(k,j,i) + dt * I.sc_nG(k,j,i);
+
+  const Real S_0 = pm1.geom.sc_alpha(k,j,i) *
+    pm1.geom.sc_sqrt_det_g(k,j,i) * C.sc_eta_0(k,j,i);
+
+  const Real WnGam = P.sc_nG(k,j,i) + dt * (S_0 + I.sc_nG(k,j,i));
+
   const Real C_Gam = Assemble::sc_G__(
     W, C.sc_E(k,j,i), C.sc_J(k,j,i), dotFv,
     pm1.opt.fl_E, pm1.opt.fl_J, pm1.opt.eps_E
   );
 
   C.sc_nG(k,j,i) = WnGam / (
-    1.0 - dt * pm1.geom.sc_alpha(k,j,i) * C.sc_kap_a_0(k,j,i) / C_Gam
+    1.0 + dt * pm1.geom.sc_alpha(k,j,i) * C.sc_kap_a_0(k,j,i) / C_Gam
   );
 
   C.sc_n(k,j,i) = C.sc_nG(k,j,i) / C_Gam;
@@ -1026,6 +987,42 @@ void StepImplicitPicardMinerboP(
 
 }
 
+void SourceLimitPropagated(
+  M1 * pm1,
+  const Real dt,
+  const StateMetaVector & P,  // previous step data
+  StateMetaVector & C,        // current step
+  const StateMetaVector & I,  // inhomogeneity
+  SourceMetaVector & S,
+  Closures::ClosureMetaVector & CL)
+{
+  /*
+  // C is new, P is previous, I is inh / src
+  const Real source_limiter = pm1->opt.source_limiter;
+
+  // C.sc_E( k,j,i) = P.sc_E( k,j,i) + dt * I.sc_E(k,j,i);
+
+
+  for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+  M1_ILOOP3(k,j,i)
+  if (pm1->MaskGet(k, j, i))
+  {
+    // Real Estar = P.sc_E( k,j,i) + dt * I.sc_E(k,j,i);
+    // Real Enew = C.sc_E(k,j,i);
+    // Real Estar = P.sc_E( k,j,i);
+
+    Real DrE = dt * I.sc_E(k,j,i);
+    Real DrFx = dt * I.sp_F_d(0,k,j,i);
+    Real DrFy = dt * I.sp_F_d(1,k,j,i);
+    Real DrFz = dt * I.sp_F_d(2,k,j,i);
+
+
+  }
+  */
+}
+
+
 // ============================================================================
 } // namespace M1::Update
 // ============================================================================
@@ -1293,7 +1290,7 @@ void StepImplicitHybridsJFrozenP(
   const StateMetaVector & P,  // previous step data
   StateMetaVector & C,        // current step
   const StateMetaVector & I,  // inhomogeneity
-  SourceMetaVector & S, 
+  SourceMetaVector & S,
   Closures::ClosureMetaVector & CL,
   const int k, const int j, const int i)
 {
@@ -1725,9 +1722,11 @@ void M1::CalcUpdate(Real const dt,
           if ((dt * C.sc_kap_a(k,j,i) < 1) &&
               (dt * C.sc_kap_s(k,j,i) < 1))
           {
-            ::M1::Update::AddSourceMatter(*this, C, I, S, k, j, i);
-            const bool explicit_step_nG = true;
-            StepExplicit(*this, dt, P, C, I, S, explicit_step_nG, k, j, i);
+            // ::M1::Update::AddSourceMatter(*this, C, I, S, k, j, i);
+            // const bool explicit_step_nG = true;
+            // StepExplicit(*this, dt, P, C, I, S, explicit_step_nG, k, j, i);
+            StepImplicitHybridsJMinerbo(
+              *this, dt, P, C, I, S, CL, k, j, i);
           }
           else
           {
@@ -1764,13 +1763,18 @@ void M1::CalcUpdate(Real const dt,
       }
     }
 
+    // apply limiter to sources -----------------------------------------------
+    // ::M1::Update::SourceLimitPropagated(this, dt, P, C, I, S, CL);
+    // ------------------------------------------------------------------------
 
     // deal with averages
 
     // BD: TODO - should always br needed due to internal lab_aux.sc_n
     //            calculation?
+
     const bool recompute_n = opt_solver.strategy ==
                              opt_integration_strategy::full_explicit;
+
     M1_ILOOP3(k,j,i)
     if (MaskGet(k, j, i))
     {
