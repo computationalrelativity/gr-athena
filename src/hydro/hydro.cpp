@@ -449,6 +449,11 @@ void Hydro::CalculateEFL(AthenaArray<Real> &w,const AthenaArray<Real> &ent,
       }
       for (int i=il; i<=iu; ++i){
 
+        if (pm->efl_it_count <= buffer_it-1){
+          entropy_R(k,j,i) = 1.0;
+          continue;
+        }
+
         Real W = std::sqrt(1. + InnerProductVecMetric(
                   w_util_u, gamma_dd, k,j,i));
         Real vx = w_util_u(0,k,j,i) / W;

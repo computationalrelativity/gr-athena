@@ -103,11 +103,11 @@ void GetEulerianVelocity(const int il, const int iu,
   }
 
   // Eulerian velocity centred contravariant componenets
-  for (int a=0; a<NDIM; ++a)
+  for (int n=0; n<3; ++n)
   {
     for (int i=il; i<= iu; ++i)
     {
-      w_v_u(a,k,j,i) = w_util_u(a,k,j,i) / W(k,j,i);
+      w_v_u(n,k,j,i) = w_util_u(n,k,j,i) / W(k,j,i);
     }
   }
   return;
@@ -1045,14 +1045,14 @@ void GetEigenValues(MeshBlock * pmb,
   for (int i = il; i <= iu; ++i)
   {
 
-    lambda(0,k,j,i) = lambda_m(i);
+    lambda(IDN,k,j,i) = lambda_m(i);
 
     // lambda_0 (three-fold degeneracy)
-    lambda(1,k,j,i) = alpha(k,j,i) * v_u(ivx-1,k,j,i) - beta(ivx-1,k,j,i);
-    lambda(2,k,j,i) = lambda(1,k,j,i);
-    lambda(3,k,j,i) = lambda(1,k,j,i);
+    lambda(IVX,k,j,i) = (alpha(k,j,i) * v_u(ivx-1,k,j,i) - beta(ivx-1,k,j,i));
+    lambda(IVY,k,j,i) = lambda(IVX,k,j,i);
+    lambda(IVZ,k,j,i) = lambda(IVX,k,j,i);
 
-    lambda(4,k,j,i) = lambda_p(i);
+    lambda(IPR,k,j,i) = lambda_p(i);
   }
 
   return;
@@ -1088,7 +1088,7 @@ void GetMaximalWaveSpeed(const int k, const int j,const int i,
     {
       Real amax[3]={};
       for (int n = 0; n<3;++n) amax[n]=0.;
-      for(int s = j-stensil; s<=j+stensil -1; ++s)
+      for(int s = j-stensil; s<=j+stensil-1; ++s)
       {
         amax[0]=std::max(amax[0], std::abs(lambda(0,k,s,i)));
         amax[1]=std::max(amax[1], std::abs(lambda(4,k,s,i)));
@@ -1335,7 +1335,7 @@ void GetAvgs(MeshBlock * pmb,int k, int j,int i, const int ivx,
   Real Gammamo=Gamma - 1.0;
   Real tmp1,tmp2,tmp3;
   const Real vmax = 0.999;
-  const Real Wmax = 1e8;
+  const Real Wmax = 1.e8;
 
   Real gxx,gxy,gxz,gyy,gyz,gzz,gxx_u,gyy_u,gzz_u,det_g,betax,alpha;
   Real vx,vy,vz,vx_d,vy_d,vz_d,v2,rho,p,epsl,W,h,T,n;
@@ -1400,7 +1400,7 @@ void GetAvgs(MeshBlock * pmb,int k, int j,int i, const int ivx,
     n = rho / mb;
     T = pmb->peos->GetEOS().GetTemperatureFromP(n, p, Y);
     //h= pmb->peos->GetEOS().GetEnthalpy(n, p, Y);
-    h= 1 + epsl + p /rho;
+    h= 1.0 + epsl + p /rho;
     cs = pmb->peos->GetEOS().GetSoundSpeed(n,T,Y);
     cs2 = SQR(cs);
 #else 

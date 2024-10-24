@@ -132,10 +132,6 @@ void Hydro::RusanovFlux(
       {
         for(int i =il;i<=iu;++i)
         {
-          if ( (atm_mask(k,j,i-1) > 0.9) || (atm_mask(k,j,i) > 0.9) ) {
-            for (int n=0; n<NHYDRO;++n) x1flux(n,k,j,i)=0.0;
-            continue;
-          }
 
           Real L_eig[NHYDRO][NHYDRO] = {};
           Real R_eig[NHYDRO][NHYDRO] = {};
@@ -268,11 +264,6 @@ void Hydro::RusanovFlux(
       for(int i =il;i<=iu;++i)
       {
 
-        if ( (atm_mask(k,j-1,i) > 0.9) || (atm_mask(k,j,i) > 0.9) ) {
-            for (int n=0; n<NHYDRO;++n) x2flux(n,k,j,i)=0.0;
-            continue;
-          }
-
         Real L_eig[NHYDRO][NHYDRO] = {};
         Real R_eig[NHYDRO][NHYDRO] = {};
         Real lambda_max[NHYDRO]    = {};
@@ -347,11 +338,6 @@ void Hydro::RusanovFlux(
     {
       for(int i =il;i<=iu;++i)
       {
-
-        if ( (atm_mask(k-1,j,i) > 0.9) || (atm_mask(k,j,i) > 0.9) ) {
-            for (int n=0; n<NHYDRO;++n) x3flux(n,k,j,i)=0.0;
-            continue;
-          }
 
         Real L_eig[NHYDRO][NHYDRO] = {};
         Real R_eig[NHYDRO][NHYDRO] = {};
