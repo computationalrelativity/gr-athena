@@ -34,6 +34,7 @@
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"          // ParameterInput
 #include "../utils/linear_algebra.hpp"
+#include "../utils/spherical_harmonics.hpp"
 #include "../scalars/scalars.hpp"
 #if M1_ENABLED
 #include "../m1/m1.hpp"
@@ -70,6 +71,8 @@ namespace {
 
   // Global variables
   Real v_amp; // velocity amplitude for linear perturbations
+  Real lambda; // amplitude for pressure perturbations
+  Real n_nodes; // number of nodes for the sinusoidal preassure perturbations
 
   // TOV var indexes for ODE integration
   enum{TOV_IRHO,TOV_IMASS,TOV_IPHI,TOV_IINT,TOV_NVAR};
@@ -157,6 +160,13 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   // surface identification
   tov->surf_dr   = pin->GetOrAddReal(     "problem", "surf_dr",   dr / 1.0e3);
 
+  // velocity perturbation
+  v_amp = pin->GetOrAddReal("problem", "v_amp", 0.0);
+  
+  // pressure perturbation
+  lambda = pin->GetOrAddReal("problem", "lambda", 0.0);
+  n_nodes = pin->GetOrAddInteger("problem", "n_nodes", 1);
+  
 #if USETM
   // Initialize cold EOS
   ceos = new Primitive::ColdEOS<Primitive::COLDEOS_POLICY>;
@@ -1102,6 +1112,8 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
         const Real sinth = rho_pol/r_(i);
         const Real cosphi = x_(i)/rho_pol;
         const Real sinphi = y_(i)/rho_pol;
+        const Real phi = std::asin(sinphi);
+        const Real theta = std::asin(sinth);
 
         if (r_(i)<R)
         {
@@ -1127,9 +1139,30 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
 #endif
 
 
-          // Add perturbation
+          // Add velocity perturbation
           const Real x_kji = r_(i) / R;
           up_r = (v_amp>0) ? (0.5*v_amp*(3.0*x_kji - x_kji*x_kji*x_kji)) : 0.0;
+         
+          // Add pressure perturbation
+          if (lambda > 0){
+            Real Yr, Yi;
+            Real eps = ceos->GetSpecificInternalEnergy(w_rho_(i));
+            SphHarm_Ylm(2, 0, theta, phi, &Yr, &Yi);
+            Real Ylm = Yr;
+            Real H0l = lambda * std::sin((n_nodes+1.)*PI*x_kji/2.);
+            Real dp  = (w_p_(i) + w_rho_(i) * (1 + eps)) * H0l * Ylm;
+            w_p_(i)  += dp;
+
+#if USETM
+            w_rho_(i) = ceos->GetDensityFromPressure(w_p_(i));
+#if NSCALARS > 0
+            for (int l=0; l<NSCALARS; ++l)
+              prim_scalar(l,i) = ceos->GetY(w_rho_(i), l);
+#endif
+#else
+            w_rho_(i) = pow(w_p_(i)/k_adi,1./gamma_adi);
+#endif
+          }
         }
         else
         {
