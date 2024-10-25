@@ -59,3 +59,28 @@ Real ColdPiecewisePolytrope::Enthalpy(Real n) {
   int p = FindPiece(n);
   return (GetColdEnergy(n, p) + GetColdPressure(n, p))/n + gamma_thermal/(gamma_thermal - 1.0)*T;
 }
+
+int ColdPiecewisePolytrope::FindPieceFromP(Real P) const {
+  // Throw an error if the polytrope hasn't been initialized yet.
+  if (!initialized) {
+    throw std::runtime_error("ColdPiecewisePolytrope::FindPieceFromP - EOS not initialized.");
+  }
+
+  for (int i = 0; i < n_pieces-1; ++i) {
+    if (P < pressure_pieces[i+1]) {
+      return i;
+    }
+  }
+
+  return n_pieces - 1;
+}
+
+Real ColdPiecewisePolytrope::DensityFromPressure(Real P) {
+  assert (IsInitialized());
+  if (T > 1e-10) {
+    throw std::runtime_error("ColdPiecewisePolytrope::DensityFromPressure only implemented for T=0");
+  }
+
+  int p = FindPieceFromP(P);
+  return density_pieces[p] * std::pow(P/pressure_pieces[p], 1.0/gamma_pieces[p]);
+}

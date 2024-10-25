@@ -1135,6 +1135,15 @@ void AHF::FastFlowLoop()
       break;
     }
 
+    // Check to prevent horizon radius blow up and mass = 0
+    if (mass < 1.0e-10) {
+      if (verbose && ioproc) {
+       std::cout << "Failed mass < 1e-10" << std::endl;
+      }
+      failed = true;
+      break;
+    }
+
     // End flow when mass difference is small
     if (std::fabs(mass_prev-mass) < mass_tol) {
       ah_found = true;

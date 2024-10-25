@@ -39,6 +39,9 @@ class Polytrope {
     /// Calculate the specific enthalpy from the number density
     Real Enthalpy(Real n);
 
+    /// Calculate the number density from the pressure
+    Real DensityFromPressure(Real P);
+
     /// Number of particle species
     int n_species;
     /// Baryon mass
