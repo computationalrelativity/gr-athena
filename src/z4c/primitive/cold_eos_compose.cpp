@@ -66,8 +66,8 @@ Real ColdEOSCompOSE::Enthalpy(Real n) {
   return (Pressure(n) + Energy(n))/n;
 }
 
-Real DensityFromPressue(Real P) {
-  return 1.0;
+Real ColdEOSCompOSE::DensityFromPressue(Real P) {
+  return eval_at_general(ECLOGP, ECLOGN, P);
 }
 
 
