@@ -56,6 +56,9 @@ class ColdEOSCompOSE {
     /// Calculate the specific enthalpy from the number density
     Real Enthalpy(Real n);
 
+    /// Calculate the number density from the pressure
+    Real DensityFromPressure(Real P);
+
     /// Number of particle species
     int n_species;
     /// Baryon mass
@@ -104,8 +107,10 @@ class ColdEOSCompOSE {
     template<int LIX_EXTRAPOLATE>
     Real eval_at_ln(int iv, Real log_n) const;
 
-    Real eval_at_general(int ii, int iv, Real h) const;
+    Real eval_at_general(int iv_in, int iv_out, Real v) const;
     int D0_x_2(double *f, double *x, int n, double *df);
+
+    Real linterp1d(Real x, Real * xp, Real *fp) const;
 
   private:
     // number of points in the table

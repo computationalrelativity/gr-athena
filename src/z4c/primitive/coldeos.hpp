@@ -58,6 +58,7 @@ class ColdEOS : public ColdEOSPolicy {
     using ColdEOSPolicy::SpecificInternalEnergy;
     using ColdEOSPolicy::Y;
     using ColdEOSPolicy::Enthalpy;
+    using ColdEOSPolicy::DensityFromPressure;
 
     // density floor
     Real density_floor;
@@ -131,6 +132,15 @@ class ColdEOS : public ColdEOSPolicy {
       return Enthalpy(n)/mb
         * eos_units->EnergyConversion(*code_units)
         / eos_units->MassConversion(*code_units);
+    }
+
+    //! \fn Real GetDensityFromPressure(Real P)
+    //
+    //  \param[in] P  The pressure
+    //  \return The density according to the cold EOS slice.
+    Real GetDensityFromPressure(Real P) {
+      Real n = DensityFromPressure(P * code_units->PressureConversion(*eos_units));
+      return n * GetBaryonMass();
     }
 
     //! \fn Real GetTemperature() const

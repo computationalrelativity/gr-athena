@@ -66,6 +66,11 @@ Real ColdEOSCompOSE::Enthalpy(Real n) {
   return (Pressure(n) + Energy(n))/n;
 }
 
+Real DensityFromPressue(Real P) {
+  return 1.0;
+}
+
+
 void ColdEOSCompOSE::ReadColdSliceFromFile(std::string fname, std::string species_names[NSCALARS]) {
   herr_t ierr;
   hid_t file_id;
@@ -214,8 +219,8 @@ Real ColdEOSCompOSE::eval_at_n(int iv, Real n) const {
   return eval_at_ln<LIX_EXTRAPOLATE>(iv, log(n));
 }
 
-Real ColdEOSCompOSE::eval_at_general(int ii, int iv, Real h) const {
-  throw std::logic_error("ColdEOSCompOSE::eval_at_general not implemented");
+Real ColdEOSCompOSE::eval_at_general(int iv_in, int iv_out, Real v) const {
+  return linterp1d(v, &m_table[index(iv_in, 0)], &m_table[index(iv_out, 0)]);
 }
 
 
@@ -233,4 +238,19 @@ int ColdEOSCompOSE::D0_x_2(double *f, double *x, int n, double *df)
   i = n-1;
   df[i] = (f[i]-f[i-1])/(x[i]-x[i-1]);
   return 0;
+}
+
+Real ColdEOSCompOSE::linterp1d(Real x, Real *xp, Real *fp) const {
+  int i;
+  for(i=1; i<m_np; i++) {
+    if (x < xp[i]) {
+      break;
+    }
+  }
+  if (i == m_np) {
+    i = m_np-1;
+  }
+  Real w1 = (x - xp[i-1])/(xp[i] - xp[i-1]);
+  Real w0 = 1.0 - w1;
+  return w0*fp[i-1] + w1*fp[i];
 }
