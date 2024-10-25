@@ -356,7 +356,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   Real *rho = new Real[sz], *pres = new Real[sz], *ye = new Real[sz];
   Real *ux = new Real[sz], *uy = new Real[sz], *uz = new Real[sz];
-
   x = new Real[n[0]];
   y = new Real[n[1]];
   z = new Real[n[2]];

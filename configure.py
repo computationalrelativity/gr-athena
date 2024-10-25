@@ -1787,6 +1787,7 @@ if "Elliptica" in args["prob"]:
 
 # -rns argument
 if args['prob'] == "gr_rns":
+if args['prob'] == "gr_rns" or args['prob'] == "gr_mhd_rns_tov":
 #    if not args['gsl']:
 #        raise SystemExit('### CONFIGURE ERROR: To compile with two punctures -gsl is required.')
 
@@ -1812,6 +1813,10 @@ if args['prob'] == "gr_rns":
         or args['cxx'] == 'icc-debug' or args['cxx'] == 'icc-phi'
         or args['cxx'] == 'clang++' or args['cxx'] == 'clang++-simd'
         or args['cxx'] == 'bgxl'):
+    if (args['cxx'] == 'g++' or args['cxx'] == 'icc' or args['cxx'] == 'cray'
+            or args['cxx'] == 'icc-debug' or args['cxx'] == 'icc-phi'
+            or args['cxx'] == 'clang++' or args['cxx'] == 'clang++-simd'
+            or args['cxx'] == 'bgxl'):
 
         obj_dir = args['rns_path'] + '/obj/'
         so_names = ['RNS_equil_util.o', 'RNS_nrutil.o', 'RNS_rnsid_util.o',
