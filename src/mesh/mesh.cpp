@@ -2177,7 +2177,7 @@ void Mesh::CS_ConservedDensity(Real & mass)
   MPI_Allgather(&mass, 1, MPI_ATHENA_REAL, buf.data(), 1, MPI_ATHENA_REAL,
                 MPI_COMM_WORLD);
 
-  mass = FloatingPoint::KB_compensated(buf, 0, Globals::nranks);
+  mass = FloatingPoint::KB_compensated(buf, 0, Globals::nranks-1);
 #endif // MPI_PARALLEL
 
 }
@@ -2209,7 +2209,7 @@ void Mesh::CS_ConservedScalars(AthenaArray<Real> & S)
   {
     S(n) = FloatingPoint::KB_compensated(
       buf, 0, 0,
-      0, 0, 0, Globals::nranks, n, n
+      0, 0, 0, Globals::nranks-1, n, n
     );
   }
 #endif // MPI_PARALLEL
