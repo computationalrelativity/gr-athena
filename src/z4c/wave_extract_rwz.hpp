@@ -37,6 +37,7 @@ public:
   ~WaveExtractRWZ();
     
   //! Step 1 ... 4 of the extraction:
+  void FlagSpherePointsContainedMesh();
   void MetricToSphere();
   void BackgroundReduce();
   void MultipoleReduce();
