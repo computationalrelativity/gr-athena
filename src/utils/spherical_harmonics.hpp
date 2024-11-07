@@ -62,7 +62,7 @@ Real SphHarm_Plm(const int l, const int m, const Real x) {
 
   Real pmm = 1.0;
     
-  if (m>0) {
+  if (m>=0) {
     Real somx2 = std::sqrt((1.0-x)*(1.0+x));
     Real fact = 1.0;
     for (int i=1; i<=m; ++i) {
@@ -106,14 +106,18 @@ void SphHarm_Ylm(const int l, const int m, const Real theta, const Real phi,
   Real fac = 1.0;  
   for (int i=(l-abs_m+1); i<=(l+abs_m); ++i) {
     fac *= (Real)(i);
-  }  
-  assert(std::fabs(fac - fact_norm)>1e-10);
+  } 
+  if (std::fabs(fac - fact_norm) > 1e-10){
+     printf("l = %s, m = %s, theta = %s, phi = %s \n", l, m, theta, phi);
+     printf("fac = %s, fact_norm = %s, diff = %s \n", fac, fact_norm, fac - fact_norm); 
+  } 
+  //assert(std::fabs(fac - fact_norm)>1e-10);
   //fac = 1.0/fac //divide once below
   // -------------
   
   const Real a = std::sqrt((Real)(2*l+1)/(4.0*PI*fact_norm));
-  const int mfac = (m>0)? std::pow(-1.0,abs_m) : 1.0; //FIXME: this is the original, but it should be:
-  //const int mfac = (m==0)? 1.0 : std::pow(-1.0,m); 
+  //const int mfac = (m>0)? std::pow(-1.0,abs_m) : 1.0; //FIXME: this is the original, but it should be:
+  const int mfac = (m==0)? 1.0 : std::pow(-1.0,m); 
   const Real Plm = mfac * a * SphHarm_Plm(l,abs_m,std::cos(theta));
 
   *YlmR = Plm * std::cos((Real)(m)*phi);
