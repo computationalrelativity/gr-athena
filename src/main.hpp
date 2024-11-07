@@ -713,11 +713,11 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
   // only do a CCE dump if NextTime threshold cleared (updated below)
   if (trgs.IsSatisfied(tvar::Z4c_CCE, ovar::user))
   {
-    // only do a CCE dump if NextTime threshold cleared (updated below)
-    // gather all interpolation values from all processors to the root proc.
-    int cce_iter = 0;
     for (auto cce : pmesh->pcce)
     {
+      int freq = static_cast<int>((float)cce->dt/(float)pmesh->dt);
+      assert(freq!=0);
+      int cce_iter = pmesh->ncycle / freq;
       cce->ReduceInterpolation();
       cce->DecomposeAndWrite(cce_iter, pmesh->time);
     }
