@@ -54,6 +54,7 @@ class TurbulenceDriver;
 class Wave;
 class Z4c;
 class WaveExtract;
+class WaveExtractRWZ;
 class AHF;
 #ifdef EJECTA_ENABLED
 class Ejecta;
@@ -451,6 +452,7 @@ class Mesh {
 #endif // FFT
 
   std::vector<WaveExtract *> pwave_extr;
+  std::vector<WaveExtractRWZ *> pwave_extr_rwz;
   std::vector<AHF *> pah_finder;
 #ifdef EJECTA_ENABLED
   std::vector<Ejecta *> pej_extract;

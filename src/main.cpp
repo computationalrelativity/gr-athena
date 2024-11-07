@@ -124,6 +124,8 @@ int main(int argc, char *argv[])
   trgs.Add(tvar::Z4c_Weyl, ovar::data, true, allow_rescale_dt);
 
   trgs.Add(tvar::Z4c_AHF, ovar::user, true, allow_rescale_dt);
+  
+  trgs.Add(tvar::Z4c_RWZ, ovar::user, true, allow_rescale_dt);
 
 #if CCE_ENABLED
   trgs.Add(tvar::Z4c_CCE, ovar::user, true, allow_rescale_dt);
