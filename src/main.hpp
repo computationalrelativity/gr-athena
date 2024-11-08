@@ -687,6 +687,10 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
   if (trgs.IsSatisfied(tvar::Z4c_AHF))
   {
     pmesh->CalculateStoreMetricDerivatives();
+
+    // May be required to prevent task-list overlaps
+    // gra::parallelism::Barrier();
+    pmesh->CommunicateAuxADM();
   }
 
   // Auxiliary variable logic

@@ -136,6 +136,7 @@ BoundaryValues::BoundaryValues(MeshBlock *pmb, BoundaryFlag *input_bcs,
   bvars_main_int_cx.reserve(2);
 
   bvars_aux.reserve(2);
+  bvars_aux_adm.reserve(2);
   bvars_rbc.reserve(2);
 
   bvars_m1.reserve(1);
@@ -208,6 +209,11 @@ void BoundaryValues::SetupPersistentMPI() {
   }
 
   for (auto bvars_it = bvars_aux.begin(); bvars_it != bvars_aux.end();
+       ++bvars_it) {
+    (*bvars_it)->SetupPersistentMPI();
+  }
+
+  for (auto bvars_it = bvars_aux_adm.begin(); bvars_it != bvars_aux_adm.end();
        ++bvars_it) {
     (*bvars_it)->SetupPersistentMPI();
   }
@@ -287,6 +293,11 @@ void BoundaryValues::StartReceiving(BoundaryCommSubset phase)
     case BoundaryCommSubset::iterated_z4c:
     {
       AllStartReceiving_(phase, bvars_rbc);
+      break;
+    }
+    case BoundaryCommSubset::aux_adm:
+    {
+      AllStartReceiving_(phase, bvars_aux_adm);
       break;
     }
     case BoundaryCommSubset::mesh_init:
@@ -394,6 +405,11 @@ void BoundaryValues::ClearBoundary(BoundaryCommSubset phase) {
     case BoundaryCommSubset::iterated_z4c:
     {
       AllClearBoundary_(phase, bvars_rbc);
+      break;
+    }
+    case BoundaryCommSubset::aux_adm:
+    {
+      AllClearBoundary_(phase, bvars_aux_adm);
       break;
     }
     case BoundaryCommSubset::mesh_init:

@@ -542,6 +542,7 @@ class Mesh {
   // Additional, specific, communication of data over MeshBlock objects
   void CommunicateAuxZ4c();
   void CommunicateIteratedZ4c(const int iterations);
+  void CommunicateAuxADM();
 
   // General post-AMR procedures
   void FinalizePostAMR();

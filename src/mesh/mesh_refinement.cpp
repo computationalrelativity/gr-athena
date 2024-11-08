@@ -3999,6 +3999,50 @@ void MeshRefinement::SwapRefinementM1()
   std::swap(pvars_cc_, pvars_m1_cc_);
 }
 
+// BD: TODO - check if required
+/*
+// as above but for use with auxiliary task list
+int MeshRefinement::AddToRefinementAuxADMVC(
+  AthenaArray<Real> *pvar_in,
+  AthenaArray<Real> *pcoarse_in)
+{
+  pvars_aux_adm_vc_.push_back(std::make_tuple(pvar_in, pcoarse_in));
+  return static_cast<int>(pvars_aux_adm_vc_.size() - 1);
+}
+
+int MeshRefinement::AddToRefinementAuxADMCC(
+  AthenaArray<Real> *pvar_in,
+  AthenaArray<Real> *pcoarse_in)
+{
+  pvars_aux_adm_cc_.push_back(std::make_tuple(pvar_in, pcoarse_in));
+  return static_cast<int>(pvars_aux_adm_cc_.size() - 1);
+}
+
+int MeshRefinement::AddToRefinementAuxADMFC(
+  FaceField *pvar_fc,
+  FaceField *pcoarse_fc)
+{
+  pvars_aux_adm_fc_.push_back(std::make_tuple(pvar_fc, pcoarse_fc));
+  return static_cast<int>(pvars_aux_adm_fc_.size() - 1);
+}
+
+int MeshRefinement::AddToRefinementAuxADMCX(
+  AthenaArray<Real> *pvar_in,
+  AthenaArray<Real> *pcoarse_in)
+{
+  pvars_aux_adm_cx_.push_back(std::make_tuple(pvar_in, pcoarse_in));
+  return static_cast<int>(pvars_aux_adm_cx_.size() - 1);
+}
+
+void MeshRefinement::SwapRefinementAuxADM()
+{
+  std::swap(pvars_cc_, pvars_aux_adm_cc_);
+  std::swap(pvars_fc_, pvars_aux_adm_fc_);
+  std::swap(pvars_cx_, pvars_aux_adm_cx_);
+  std::swap(pvars_vc_, pvars_aux_adm_vc_);
+}
+*/
+
 // Currently, only called in 2x functions in bvals_refine.cpp:
 // ----------
 // - BoundaryValues::RestrictGhostCellsOnSameLevel()--- to perform additional

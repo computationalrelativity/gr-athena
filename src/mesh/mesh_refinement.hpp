@@ -133,6 +133,21 @@ class MeshRefinement {
   // switch internal pvars_X_ <-> pvars_aux_X_
   void SwapRefinementAux();
 
+  // BD: TODO - check if required
+  /*
+  // as above but for use with auxiliary task list
+  int AddToRefinementAuxADMCC(AthenaArray<Real> *pvar_in,
+                              AthenaArray<Real> *pcoarse_in);
+  int AddToRefinementAuxADMVC(AthenaArray<Real> *pvar_in,
+                              AthenaArray<Real> *pcoarse_in);
+  int AddToRefinementAuxADMCX(AthenaArray<Real> *pvar_in,
+                              AthenaArray<Real> *pcoarse_in);
+  int AddToRefinementAuxADMFC(FaceField *pvar_fc, FaceField *pcoarse_fc);
+
+  // switch internal pvars_X_ <-> pvars_aux_X_
+  void SwapRefinementAuxADM();
+  */
+
   // as above but for use with auxiliary task list
   int AddToRefinementM1CC(AthenaArray<Real> *pvar_in, AthenaArray<Real> *pcoarse_in);
   void SwapRefinementM1();
@@ -183,6 +198,15 @@ class MeshRefinement {
                          AthenaArray<Real> *>> pvars_aux_vc_;
   std::vector<std::tuple<AthenaArray<Real> *,
                          AthenaArray<Real> *>> pvars_aux_cx_;
+
+  // for aux. adm lists
+  std::vector<std::tuple<AthenaArray<Real> *,
+                         AthenaArray<Real> *>> pvars_aux_adm_cc_;
+  std::vector<std::tuple<FaceField *, FaceField *>> pvars_aux_adm_fc_;
+  std::vector<std::tuple<AthenaArray<Real> *,
+                         AthenaArray<Real> *>> pvars_aux_adm_vc_;
+  std::vector<std::tuple<AthenaArray<Real> *,
+                         AthenaArray<Real> *>> pvars_aux_adm_cx_;
 
   // for M1
   std::vector<std::tuple<AthenaArray<Real> *,

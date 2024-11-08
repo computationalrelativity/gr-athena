@@ -116,6 +116,9 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   // communication of auxiliary quantities
   std::vector<BoundaryVariable *> bvars_aux;
 
+  // communication of auxiliary quantities (adm specific)
+  std::vector<BoundaryVariable *> bvars_aux_adm;
+
   // recycle boundary data through iterated comm.
   std::vector<BoundaryVariable *> bvars_rbc;
 
@@ -153,6 +156,7 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   void ProlongateBoundariesZ4c(const Real time, const Real dt);
   void ProlongateBoundariesWave(const Real time, const Real dt);
   void ProlongateBoundariesAux(const Real time, const Real dt);
+  void ProlongateBoundariesAuxADM(const Real time, const Real dt);
   void ProlongateBoundariesM1(const Real time, const Real dt);
 
   //---------------------------------------------------------------------------
@@ -180,6 +184,10 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   inline std::vector<BoundaryVariable *> & GetBvarsAux()
   {
     return bvars_aux;
+  };
+  inline std::vector<BoundaryVariable *> & GetBvarsAuxADM()
+  {
+    return bvars_aux_adm;
   };
 
   void ApplyPhysicalBoundaries(const Real time, const Real dt,
