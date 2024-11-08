@@ -60,9 +60,9 @@ public:
   //! Grid points
   int ntheta, nphi;
 
-  //! n surface follows the puncture tracker if use_puncture[n] > 0 
+  //! n surface follows the puncture tracker if use_puncture[n] > 0
   int use_puncture;
-  //! n surface uses the punctures' mass-weighted center 
+  //! n surface uses the punctures' mass-weighted center
   //bool use_puncture_massweighted_center[NHORIZON];
   bool use_puncture_massweighted_center;
   //! Distance in M at which BHs are considered as merged
@@ -73,7 +73,7 @@ public:
   Real stop_time;
   //! compute every n iterations
   int compute_every_iter;
-  
+
 private:
   int npunct;
   int lmax1;
@@ -85,7 +85,7 @@ private:
   //! Number of horizons
   int nstart, nhorizon;
   //static const int metric_interp_order = 2;
-  static const int metric_interp_order = 2*NGHOST-1;  
+  static const int metric_interp_order = 2*NGHOST-1;
   int fastflow_iter=0;
   //! Arrays of Legendre polys and drvts
   AthenaArray<Real> P, dPdth, dPdth2;
@@ -93,15 +93,15 @@ private:
   AthenaArray<Real> Y0, Yc, Ys;
   AthenaArray<Real> dY0dth, dYcdth, dYsdth, dYcdph, dYsdph;
   AthenaArray<Real> dY0dth2, dYcdth2, dYcdthdph, dYsdth2, dYsdthdph, dYcdph2, dYsdph2;
-  //! Arrays for spectral coefs 
-  AthenaArray<Real> a0; 
-  AthenaArray<Real> ac; 
-  AthenaArray<Real> as; 
+  //! Arrays for spectral coefs
+  AthenaArray<Real> a0;
+  AthenaArray<Real> ac;
+  AthenaArray<Real> as;
   Real last_a0;
   //! Arrays for the various fields on the sphere
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g;
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> K;
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> dg; 
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> dg;
   AthenaArray<Real> rr;
   // Array computed in SurfaceIntegrals
   AthenaArray<Real> rho;
@@ -148,7 +148,7 @@ private:
   Real ph_grid(const int j);
   Real dth_grid();
   Real dph_grid();
-  void factorial_list(Real * fac, const int maxn); 
+  void factorial_list(Real * fac, const int maxn);
 
   Mesh const * pmesh;
 
@@ -156,8 +156,10 @@ private:
   int ioproc;
   std::string ofname_summary;
   std::string ofname_shape;
+  std::string ofname_verbose;
   FILE * pofile_summary;
   FILE * pofile_shape;
+  FILE * pofile_verbose;
 
   // Functions to interface with puncture tracker
   Real PuncMaxDistance();
