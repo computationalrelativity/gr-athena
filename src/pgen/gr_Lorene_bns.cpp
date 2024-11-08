@@ -361,6 +361,36 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   pgasmax_2 = k_adi * pow(rho_2, gamma_adi);
 #endif
 
+  // sanity check if the internal energy matches the eos
+  Real eps_1 = bns->ener_spec[0];
+#if defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS)
+  eps_1 = m_u_mev/ceos->mb * (eps_1 + 1) - 1; // convert eos baryon mass
+#endif
+
+#if USETM
+  Real eps_ceos = ceos->GetSpecificInternalEnergy(rho_1);
+#else
+  Real eps_ceos = k_adi * pow(w_rho, gamma_adi -1 )/(gamma_adi - 1);
+#endif
+  Real eps_err = std::abs(eps_ceos/eps_1 - 1);
+
+#ifdef MPI_PARALLEL
+  int rank;
+  int root = pin->GetOrAddInteger("problem", "mpi_root", 0);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  bool ioproc = (root == rank);
+#else
+  bool ioproc = true;
+#endif
+
+  if (ioproc && (eps_err > 1.0e-5))
+  {
+    printf("Warning: Internal energy in Lorene data and eos do not match "
+           "in the center of star 1!\n");
+    printf("rho=%.16e, eps_lorene=%.16e, eps_eos=%.16e, rel. err.=%.16e\n",
+           rho_1, eps_1, eps_ceos, eps_err);
+  }
+
   return;
 }
 
@@ -611,11 +641,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     s.Fill(0.0);
 #endif
 
-    Real max_eps_err = 0.0;
-    Real rho_max = 0.0;
-    Real eps_max = 0.0;
-    Real eps_eos_max = 0.0;
-
     for (int k=kl; k<=ku; ++k)
     for (int j=jl; j<=ju; ++j)
     for (int i=il; i<=iu; ++i)
@@ -627,30 +652,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 #else
       Real w_rho = bns->nbar[I] / rho_unit;
 #endif
-
-      // Sanity check if eps matches EOS
-      if (w_rho > 1e-5)
-      {
-        Real eps = bns->ener_spec[I];
-#if defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS)
-        eps = m_u_mev/ceos->mb * (eps + 1) - 1; // convert eos baryon mass
-#endif
-
-#if USETM
-        Real eps_ceos = ceos->GetSpecificInternalEnergy(w_rho);
-#else
-        Real eps_ceos = k_adi * pow(w_rho, gamma_adi -1 )/(gamma_adi - 1);
-#endif
-        Real eps_err = std::abs(eps_ceos/eps - 1);
-
-        if (eps_err > max_eps_err)
-        {
-          max_eps_err = eps_err;
-          rho_max = w_rho;
-          eps_max = eps;
-          eps_eos_max = eps_ceos;
-        }
-      }
 
       // Unused, retain for reference:
       //
@@ -687,13 +688,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
       // ----------------------------------------------------------------------
       ++I;
-    }
-
-    if (max_eps_err > 1.0e-4)
-    {
-      printf("Warning: Internal energy in Lorene data and eos do not match!\n");
-      printf("rho=%.16e, eps_lorene=%.16e, eps_eos=%.16e, rel. err.=%.16e\n",
-             rho_max, eps_max, eps_eos_max, max_eps_err);
     }
 
     // clean up
