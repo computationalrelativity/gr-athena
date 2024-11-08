@@ -175,6 +175,8 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   // Then in post-AMR hook, construct based on that.
   //
   // Registration here is to still allow for bvals_refine to prolong.
+  //
+  // BD: TODO - still required?
 #if defined(DBG_REDUCE_AUX_COMM)
   // Add here so we refine it only for inter-MB BC?
   if (pm->multilevel) {
@@ -277,16 +279,24 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   opt.shift_eta_TP_ix = pin->GetOrAddInteger("z4c", "shift_eta_TP_ix", 0);
 #endif // Z4C_ETA_CONF, Z4C_ETA_TRACK_TP
 
-  opt.store_metric_drvts = pin->GetOrAddBoolean("z4c", "store_metric_drvts", false);
-  
+  opt.store_metric_drvts =
+      pin->GetOrAddBoolean("z4c", "store_metric_drvts", false);
+
+  opt.communicate_aux_adm =
+      pin->GetOrAddBoolean("z4c", "communicate_aux_adm", false);
+
   // Matter parameters
   opt.cowling = pin->GetOrAddInteger("z4c", "cowling_true", 0);
   opt.bssn = pin->GetOrAddInteger("z4c", "bssn", 0);
   opt.rhstheta0 = pin->GetOrAddInteger("z4c", "rhstheta0", 0);
   opt.fixedgauge = pin->GetOrAddInteger("z4c", "fixedgauge", 0);
   opt.fix_admsource = pin->GetOrAddInteger("z4c", "fix_admsource", 0);
-  opt.Tmunuinterp = pin->GetOrAddInteger("z4c", "Tmunuinterp", 0); // interpolate components of Tmunu if 1 (if 0 interpolate primitives)
-  opt.epsinterp = pin->GetOrAddInteger("z4c", "epsinterp", 0); // interpolate internal energy eps instead of pressure p.
+  opt.Tmunuinterp = pin->GetOrAddInteger(
+      "z4c", "Tmunuinterp",
+      0); // interpolate components of Tmunu if 1 (if 0 interpolate primitives)
+  opt.epsinterp = pin->GetOrAddInteger(
+      "z4c", "epsinterp",
+      0); // interpolate internal energy eps instead of pressure p.
 
   if (opt.epsinterp == 1)
   {
@@ -350,9 +360,27 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   if (opt.store_metric_drvts)
   {
     storage.aux.NewAthenaArray(N_AUX, mbi.nn3, mbi.nn2, mbi.nn1);
-    SetAuxAliases(storage.aux, aux);
-  }
 
+    // immediately set aliases for later convenience
+    SetAuxAliases(storage.aux, aux);
+
+    if (opt.communicate_aux_adm)
+    {
+      if (pmb->pmy_mesh->multilevel)
+        coarse_adm_.NewAthenaArray(N_AUX, mbi.cnn3, mbi.cnn2, mbi.cnn1);
+
+      adm_abvar = new FCN_CC_CX_VC(
+        CellCenteredBoundaryVariable,
+        CellCenteredXBoundaryVariable,
+        VertexCenteredBoundaryVariable
+      )(pmb, &storage.aux, &coarse_adm_, empty_flux);
+
+      // register for boundary prolongation
+      adm_abvar->bvar_index = pmb->pbval->bvars.size();
+      pmb->pbval->bvars.push_back(adm_abvar);
+      pmb->pbval->bvars_aux_adm.push_back(adm_abvar);
+    }
+  }
 
   // Allocate memory for aux 1D vars
   r.NewAthenaTensor(mbi.nn1);
@@ -455,6 +483,11 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
 Z4c::~Z4c()
 {
   delete pz4c_amr;
+
+  if (opt.store_metric_drvts && opt.communicate_aux_adm)
+  {
+    delete adm_abvar;
+  }
 }
 
 //----------------------------------------------------------------------------------------

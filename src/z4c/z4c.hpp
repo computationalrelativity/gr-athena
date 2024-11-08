@@ -194,17 +194,17 @@ public:
   // aliases for auxiliary variables for metric derivatives
   struct Aux_vars {
     AT_N_vec dalpha_d; // lapse 1st derivatives
-    AT_N_T2 dbeta_du; // shift 1st derivatives
-    AT_N_VS2 dg_ddd; // ADM 3-metric 1st derivatives
+    AT_N_T2 dbeta_du;  // shift 1st derivatives
+    AT_N_VS2 dg_ddd;   // ADM 3-metric 1st derivatives
   };
   Aux_vars aux;
 
   // metric derivatives used by AHF
   // it is allocated there as needed
-  // this is alternative to the aux. storage, 
+  // this is alternative to the aux. storage,
   // used when 'store_metric_drvts' if off
   AT_N_VS2 aux_g_ddd;
-  
+
   // BD: this should be refactored
   // user settings and options
   struct {
@@ -274,7 +274,8 @@ public:
 
     // Compute & store 3D ADM metric derivatives for post-step analyses
     bool store_metric_drvts;
-    
+    // control whether ^ is communicated
+    bool communicate_aux_adm;
   } opt;
 
   AA empty_flux[3];
@@ -300,6 +301,16 @@ public:
 #if defined(Z4C_CX_ENABLED)
   CellCenteredXBoundaryVariable  rbvar;
 #endif
+
+
+  AA coarse_adm_;  // for auxiliary data (split task-list)
+
+  // auxiliary data (split task-list)
+  FCN_CC_CX_VC(
+    CellCenteredBoundaryVariable   * adm_abvar,
+    CellCenteredXBoundaryVariable  * adm_abvar,
+    VertexCenteredBoundaryVariable * adm_abvar
+  );
 
   int refinement_idx{-1};
 
@@ -467,7 +478,7 @@ private:
   AT_N_sym R_dd;        // Ricci tensor
   AT_N_sym Rphi_dd;     // Ricci tensor, conformal contribution
   AT_N_sym Kt_dd;       // conformal extrinsic curvature
-  AT_N_sym K_ud;        // extrinsic curvature
+  AT_N_T2 K_ud;         // extrinsic curvature
   AT_N_sym Ddalpha_dd;  // 2nd differential of the lapse
   AT_N_sym Ddphi_dd;    // 2nd differential of phi
 

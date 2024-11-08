@@ -215,6 +215,34 @@ void BoundaryValues::ProlongateBoundariesAux(const Real time, const Real dt)
   }
 }
 
+void BoundaryValues::ProlongateBoundariesAuxADM(const Real time, const Real dt)
+{
+  // BD: This is currently only utilized for Z4c variables
+  // BD: TODO - opt- if nn all same level not required?
+  if (Z4C_ENABLED)
+  {
+    MeshBlock *pmb = pmy_block_;
+    BoundaryValues *pbval = pmb->pbval;
+    MeshRefinement *pmr = pmb->pmr;
+    Z4c *pz4c = nullptr;
+
+    pz4c = pmb->pz4c;
+
+    ApplyPhysicalBoundariesOnCoarseLevel(
+      time, dt,
+      pbval->GetBvarsAuxADM(),
+      pz4c->mbi.cil, pz4c->mbi.ciu,
+      pz4c->mbi.cjl, pz4c->mbi.cju,
+      pz4c->mbi.ckl, pz4c->mbi.cku,
+      pz4c->mbi.cng);
+
+    for (auto bvar : pbval->GetBvarsAuxADM())
+    {
+      bvar->ProlongateBoundaries(time, dt);
+    }
+  }
+}
+
 void BoundaryValues::ProlongateBoundariesM1(const Real time, const Real dt)
 {
   MeshBlock *pmb = pmy_block_;

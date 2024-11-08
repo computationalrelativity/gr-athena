@@ -370,7 +370,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       }
 
       // `PrimitiveSolver` temp -----------------------------------------------
-      if (USETM)
+#if USETM
       {
         pod = new OutputData;
         pod->type = "SCALARS";
@@ -379,6 +379,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
         AppendOutputDataNode(pod);
         num_vars_++;
       }
+#endif
 
       // primitive variables --------------------------------------------------
       std::vector<std::string> names_prim = {

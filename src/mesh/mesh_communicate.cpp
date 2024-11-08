@@ -629,7 +629,90 @@ void Mesh::CommunicateAuxZ4c()
       // Handle aux. fund. MeshBlock boundaries
       pbval->ApplyPhysicalBoundaries(
         time, 0.0,
-        pbval->bvars_aux,
+        pbval->GetBvarsAux(),
+        pz->mbi.il, pz->mbi.iu,
+        pz->mbi.jl, pz->mbi.ju,
+        pz->mbi.kl, pz->mbi.ku,
+        pz->mbi.ng);
+    }
+
+  }
+}
+
+void Mesh::CommunicateAuxADM()
+{
+  // short-circuit if this is called without z4c or no com. is required
+  if (!Z4C_ENABLED || !pblock->pz4c->opt.communicate_aux_adm)
+  {
+    return;
+  }
+
+  int inb = nbtotal;
+  int nthreads = GetNumMeshThreads();
+  (void)nthreads;
+  int nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
+  std::vector<MeshBlock*> pmb_array(nmb);
+
+
+  // initialize a vector of MeshBlock pointers
+  nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
+  if (static_cast<unsigned int>(nmb) != pmb_array.size()) pmb_array.resize(nmb);
+  MeshBlock *pmbl = pblock;
+  for (int i=0; i<nmb; ++i) {
+    pmb_array[i] = pmbl;
+    pmbl = pmbl->next;
+  }
+
+  #pragma omp parallel num_threads(nthreads)
+  {
+    MeshBlock *pmb = nullptr;
+    BoundaryValues *pbval = nullptr;
+    Z4c *pz = nullptr;
+
+    #pragma omp for private(pmb,pbval)
+    for (int i=0; i<nmb; ++i)
+    {
+      pmb = pmb_array[i];
+      pbval = pmb->pbval;
+      pbval->StartReceiving(BoundaryCommSubset::aux_adm);
+    }
+
+    #pragma omp for private(pmb,pbval,pz)
+    for (int i=0; i<nmb; ++i)
+    {
+      pmb = pmb_array[i];
+      pbval = pmb->pbval;
+      pz = pmb->pz4c;
+      pz->adm_abvar->SendBoundaryBuffers();
+    }
+
+    #pragma omp for private(pmb,pbval,pz)
+    for (int i=0; i<nmb; ++i)
+    {
+      pmb = pmb_array[i];
+      pbval = pmb->pbval;
+      pz = pmb->pz4c;
+      pz->adm_abvar->ReceiveAndSetBoundariesWithWait();
+      pbval->ClearBoundary(BoundaryCommSubset::aux_adm);
+    }
+
+    #pragma omp for private(pmb,pbval,pz)
+    for (int i=0; i<nmb; ++i)
+    {
+      pmb = pmb_array[i];
+      pbval = pmb->pbval;
+      pz = pmb->pz4c;
+
+      if (multilevel)
+      {
+        // Handle aux. coarse MeshBlock boundaries
+        pbval->ProlongateBoundariesAuxADM(time, 0);
+      }
+
+      // Handle aux. fund. MeshBlock boundaries
+      pbval->ApplyPhysicalBoundaries(
+        time, 0.0,
+        pbval->GetBvarsAuxADM(),
         pz->mbi.il, pz->mbi.iu,
         pz->mbi.jl, pz->mbi.ju,
         pz->mbi.kl, pz->mbi.ku,

@@ -376,7 +376,7 @@ void Z4c::ADMConstraints(
     K.ZeroClear();
     K_ud.ZeroClear();
     for(int a = 0; a < NDIM; ++a) {
-      for(int b = a; b < NDIM; ++b) {
+      for(int b = 0; b < NDIM; ++b) {
         for(int c = 0; c < NDIM; ++c) {
           ILOOP1(i) {
             K_ud(a,b,i) += g_uu(a,c,i) * adm.K_dd(c,b,k,j,i);

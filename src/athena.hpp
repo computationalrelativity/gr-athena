@@ -174,6 +174,7 @@ enum class BoundaryCommSubset {
   all,
   aux_z4c,
   iterated_z4c,
+  aux_adm,
   m1,
   matter,
   matter_primitives,
