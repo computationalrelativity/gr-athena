@@ -216,22 +216,12 @@ void EquationOfState::ConservedToPrimitive(
     z4c_chi.InitWithShallowSlice(     pz4c->coarse_u_, Z4c::I_Z4c_chi);
   }
 
-  // sanitize loop-limits (coarse / fine auto-switched)
-  int IL, IU, JL, JU, KL, KU;
-  pco_gr->GetGeometricFieldCCIdxRanges(
-    IL, IU,
-    JL, JU,
-    KL, KU);
-
-  // Restrict further the ranges to the input argument
-  IL = std::max(il, IL);
-  IU = std::min(iu, IU);
-
-  JL = std::max(jl, JL);
-  JU = std::min(ju, JU);
-
-  KL = std::max(kl, KL);
-  KU = std::min(ku, KU);
+  // sanitize loop limits (coarse / fine auto-switched)
+  const bool coarse_flag = false;
+  int IL = il; int IU = iu;
+  int JL = jl; int JU = ju;
+  int KL = kl; int KU = ku;
+  SanitizeLoopLimits(IL, IU, JL, JU, KL, KU, coarse_flag, pco);
 
   // iterate over cells
   for (int k=KL; k<=KU; ++k)
@@ -299,7 +289,7 @@ void EquationOfState::ConservedToPrimitive(
       Real dummy  = 0.0;
 
       // cons->prim requires atmosphere reset
-      ph->q_reset_mask(k,j,i) = (
+      ph->mask_reset_u(k,j,i) = (
         (alpha(i) <= ph->opt_excision.alpha_threshold) ||
         std::isnan(Dg)   ||
         std::isnan(taug) ||
@@ -310,7 +300,7 @@ void EquationOfState::ConservedToPrimitive(
         (Dg < 0.)
       );
 
-      if (~ph->q_reset_mask(k,j,i))
+      if (~ph->mask_reset_u(k,j,i))
       {
         sm_tensor1<real_t, 3, false>  S_dg(S_1g,
                                            S_2g,
@@ -333,11 +323,11 @@ void EquationOfState::ConservedToPrimitive(
         //recover
         cv2pv(primitives, evolved, g_eos, rep);
 
-        ph->q_reset_mask(k,j,i) = (
-          ph->q_reset_mask(k,j,i)  || rep.failed()
+        ph->mask_reset_u(k,j,i) = (
+          ph->mask_reset_u(k,j,i)  || rep.failed()
         );
 
-        if (~ph->q_reset_mask(k,j,i))
+        if (~ph->mask_reset_u(k,j,i))
         {
           primitives.scatter(w_rho, eps, dummy, w_p,
                              uu1, uu2, uu3, W,
@@ -360,8 +350,8 @@ void EquationOfState::ConservedToPrimitive(
           uu3 *= W;
 
           // check recovered do not need cut
-          ph->q_reset_mask(k,j,i) = (
-            ph->q_reset_mask(k,j,i)  ||
+          ph->mask_reset_u(k,j,i) = (
+            ph->mask_reset_u(k,j,i)  ||
             (w_rho < atmo_cut) ||
             // // Below are additional checks (Use with PTCS disabled below)
             (w_p < atmo_cut_p)   ||
@@ -371,7 +361,7 @@ void EquationOfState::ConservedToPrimitive(
       }
 
       // check if atmo. reset required
-      if (ph->q_reset_mask(k,j,i))
+      if (ph->mask_reset_u(k,j,i))
       {
         w_p   = atmo_p;
         w_rho = atmo_rho;
@@ -398,7 +388,7 @@ void EquationOfState::ConservedToPrimitive(
                                 w_p);
         */
 
-        ph->c2p_status(k,j,i) = static_cast<int>(ph->q_reset_mask(k,j,i));
+        ph->c2p_status(k,j,i) = static_cast<int>(ph->mask_reset_u(k,j,i));
 
       }
 
@@ -438,22 +428,12 @@ void EquationOfState::PrimitiveToConserved(
   AT_N_sym sl_g_dd( pz4c->storage.adm, Z4c::I_ADM_gxx);
   AT_N_sym gamma_dd(pmb->nverts1);
 
-  // sanitize loop-limits
-  int IL, IU, JL, JU, KL, KU;
-  pco_gr->GetGeometricFieldCCIdxRanges(
-    IL, IU,
-    JL, JU,
-    KL, KU);
-
-  // Restrict further the ranges to the input argument
-  IL = std::max(il, IL);
-  IU = std::min(iu, IU);
-
-  JL = std::max(jl, JL);
-  JU = std::min(ju, JU);
-
-  KL = std::max(kl, KL);
-  KU = std::min(ku, KU);
+  // sanitize loop limits (coarse / fine auto-switched)
+  const bool coarse_flag = false;
+  int IL = il; int IU = iu;
+  int JL = jl; int JU = ju;
+  int KL = kl; int KU = ku;
+  SanitizeLoopLimits(IL, IU, JL, JU, KL, KU, coarse_flag, pco);
 
   for (int k=KL; k<=KU; ++k)
   for (int j=JL; j<=JU; ++j)

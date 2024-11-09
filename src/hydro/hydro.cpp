@@ -48,7 +48,7 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
     coarse_prim_(NHYDRO, pmb->ncc3, pmb->ncc2, pmb->ncc1,
                  (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
                   AthenaArray<Real>::DataStatus::empty)),
-    q_reset_mask(pmb->ncells3, pmb->ncells2, pmb->ncells1),
+    mask_reset_u(pmb->ncells3, pmb->ncells2, pmb->ncells1),
     c2p_status(pmb->ncells3, pmb->ncells2, pmb->ncells1),
     hbvar(pmb, &u, &coarse_cons_, flux, HydroBoundaryQuantity::cons),
     hsrc(this, pin),

@@ -207,22 +207,12 @@ void EquationOfState::ConservedToPrimitive(
     z4c_chi.InitWithShallowSlice(     pz4c->coarse_u_, Z4c::I_Z4c_chi);
   }
 
-  // sanitize loop-limits (coarse / fine auto-switched)
-  int IL, IU, JL, JU, KL, KU;
-  pco_gr->GetGeometricFieldCCIdxRanges(
-    IL, IU,
-    JL, JU,
-    KL, KU);
-
-  // Restrict further the ranges to the input argument
-  IL = std::max(il, IL);
-  IU = std::min(iu, IU);
-
-  JL = std::max(jl, JL);
-  JU = std::min(ju, JU);
-
-  KL = std::max(kl, KL);
-  KU = std::min(ku, KU);
+  // sanitize loop limits (coarse / fine auto-switched)
+  const bool coarse_flag = false;
+  int IL = il; int IU = iu;
+  int JL = jl; int JU = ju;
+  int KL = kl; int KU = ku;
+  SanitizeLoopLimits(IL, IU, JL, JU, KL, KU, coarse_flag, pco);
 
   // iterate over cells
   for (int k=KL; k<=KU; ++k)
@@ -505,22 +495,12 @@ void EquationOfState::PrimitiveToConserved(
   alpha.NewAthenaTensor(   nn1);
   beta_u.NewAthenaTensor(  nn1);
 
-  // sanitize loop-limits
-  int IL, IU, JL, JU, KL, KU;
-  pco_gr->GetGeometricFieldCCIdxRanges(
-    IL, IU,
-    JL, JU,
-    KL, KU);
-
-  // Restrict further the ranges to the input argument
-  IL = std::max(il, IL);
-  IU = std::min(iu, IU);
-
-  JL = std::max(jl, JL);
-  JU = std::min(ju, JU);
-
-  KL = std::max(kl, KL);
-  KU = std::min(ku, KU);
+  // sanitize loop limits (coarse / fine auto-switched)
+  const bool coarse_flag = false;
+  int IL = il; int IU = iu;
+  int JL = jl; int JU = ju;
+  int KL = kl; int KU = ku;
+  SanitizeLoopLimits(IL, IU, JL, JU, KL, KU, coarse_flag, pco);
 
   for (int k=KL; k<=KU; ++k)
   for (int j=JL; j<=JU; ++j)

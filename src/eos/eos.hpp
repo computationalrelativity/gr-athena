@@ -151,7 +151,46 @@ class EquationOfState {
 #endif
 
   // --------------------------------------------------------------------------
+  // Check state vector at a point makes sense & we are not
+  bool IsAdmissiblePoint(
+    const AA & cons,
+    const AA & prim,
+    const AT_N_sca & adm_detgamma_,
+    const int k, const int j, const int i);
 
+  void SanitizeLoopLimits(
+    int & il, int & iu,
+    int & jl, int & ju,
+    int & kl, int & ku,
+    const bool coarse_flag,
+    Coordinates *pco);
+
+  // Use the same logic for slicing geometric entities to CC.
+  struct geom_sliced_cc {
+    // sliced
+    AT_N_sym sl_adm_gamma_dd;
+    AT_N_sca sl_alpha;
+    AT_N_sca sl_chi;
+    // interpolated to CC
+    AT_N_sca alpha_;
+    AT_N_sca rchi_;
+    AT_N_sym gamma_dd_;
+    // derived on CC
+    AT_N_sym gamma_uu_;
+    AT_N_sca det_gamma_;
+    AT_N_sca oo_det_gamma_;
+    // start false to get first alloc. then it prevents later realloc
+    bool is_scratch_allocated = false;
+  };
+
+  void GeometryToSlicedCC(
+    geom_sliced_cc & gsc,
+    const int k, const int j, const int il, const int iu,
+    const bool coarse_flag,
+    Coordinates *pco
+  );
+
+  // BD: TODO - clean up this mess ---v
 
   // pass k, j, i to following 2x functions even though x1-sliced input array is expected
   // in order to accomodate position-dependent floors

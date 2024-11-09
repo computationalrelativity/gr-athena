@@ -24,20 +24,37 @@
 #include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
 #include "../z4c/z4c.hpp"
+#include "../utils/linear_algebra.hpp"     // Det. & friends
+
+// BD: TODO - a lot of the det / inv calculations could be stream-lined
+//            and refactored for speed...
 
 namespace {
 
-inline static void PrimitiveToConservedSingle(
-  AthenaArray<Real> &prim,
-  AthenaArray<Real> &prim_scalar,
-  AthenaArray<Real>& bb_cc,
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const & gamma_dd,
-  int k, int j, int i,
-  AthenaArray<Real> &cons,
-  AthenaArray<Real> &cons_scalar,
-  Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& ps);
+// Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> eos;
+// Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> ps{&eos};
 
-} // namespace
+typedef Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> PS;
+
+// Declarations
+static void PrimitiveToConservedSingle(
+  AA &prim,
+  AA &prim_scalar,
+  AA &bb_cc,
+  AA &cons,
+  AA &cons_scalar,
+  const AT_N_sym & gamma_dd,
+  int k, int j, int i,
+  PS& ps);
+
+static void SetPrimAtmo(
+  AA &temperature,
+  AA &prim,
+  AA &prim_scalar,
+  const int k, const int j, const int i,
+  PS & ps);
+
+}
 
 //----------------------------------------------------------------------------------------
 // Constructor
@@ -57,6 +74,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   ps.SetRootfinderMaxIter(pin->GetOrAddInteger("hydro", "max_iter", 30));
   ps.SetValidateDensity(pin->GetOrAddBoolean("hydro", "c2p_validate_density", true));
 
+  // BD: TODO - clean up
   int ncells1 = pmb->block_size.nx1 + 2*NGHOST;
   g_.NewAthenaArray(NMETRIC, ncells1);
   g_inv_.NewAthenaArray(NMETRIC, ncells1);
@@ -188,174 +206,153 @@ void InitColdEOS(Primitive::ColdEOS<Primitive::COLDEOS_POLICY> *eos,
 //   implements formulas assuming no magnetic field
 
 void EquationOfState::ConservedToPrimitive(
-  AthenaArray<Real> &cons, const AthenaArray<Real> &prim_old,
-  AthenaArray<Real> &prim, AthenaArray<Real> &cons_scalar,
-  AthenaArray<Real> &prim_scalar, AthenaArray<Real> &bb_cc, Coordinates *pco,
+  AA &cons, const AA &prim_old,
+  AA &prim, AA &cons_scalar,
+  AA &prim_scalar, AA &bb_cc, Coordinates *pco,
   int il, int iu, int jl, int ju, int kl, int ku, int coarse_flag)
 {
-  int nn1;
-  GRDynamical* pco_gr;
   MeshBlock* pmb = pmy_block_;
-  Field* pf = pmb->pfield;
-  Z4c* pz4c = pmb->pz4c;
+  Hydro * ph     = pmb->phydro;
 
-  if (coarse_flag) {
-    pco_gr = static_cast<GRDynamical*>(pmb->pmr->pcoarsec);
-    nn1 = pmb->ncv1;
-  }
-  else {
-    pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
-    nn1 = pmb->nverts1;
-  }
+  geom_sliced_cc gsc;
 
-  // Full 3D metric quantities
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> full_gamma_dd;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> full_alpha;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> full_chi;
-
-  // Sliced quantities
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> gamma_dd;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> rchi;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha;
-  gamma_dd.NewAthenaTensor(nn1);
-  alpha.NewAthenaTensor(nn1);
-
-  if (!coarse_flag) {
-    full_gamma_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
-    full_alpha.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_alpha);
-  }
-  else {
-    rchi.NewAthenaTensor(nn1);
-
-    full_gamma_dd.InitWithShallowSlice(pz4c->coarse_u_, Z4c::I_Z4c_gxx);
-    full_alpha.InitWithShallowSlice(pz4c->coarse_u_, Z4c::I_Z4c_alpha);
-    full_chi.InitWithShallowSlice(pz4c->coarse_u_, Z4c::I_Z4c_chi);
-  }
+  AT_N_sca & alpha_    = gsc.alpha_;
+  AT_N_sym & gamma_dd_ = gsc.gamma_dd_;
+  AT_N_sym & gamma_uu_    = gsc.gamma_uu_;
+  AT_N_sca & det_gamma_   = gsc.det_gamma_;
 
   // sanitize loop limits (coarse / fine auto-switched)
-  int IL, IU, JL, JU, KL, KU;
-  pco_gr->GetGeometricFieldCCIdxRanges(
-    IL, IU,
-    JL, JU,
-    KL, KU);
-
-  // Restrict further the ranges to the input argument
-  IL = std::max(il, IL);
-  IU = std::min(iu, IU);
-
-  JL = std::max(jl, JL);
-  JU = std::min(ju, JU);
-
-  KL = std::max(kl, KL);
-  KU = std::min(ku, KU);
+  int IL = il; int IU = iu;
+  int JL = jl; int JU = ju;
+  int KL = kl; int KU = ku;
+  SanitizeLoopLimits(IL, IU, JL, JU, KL, KU, coarse_flag, pco);
 
   // Go through the cells
-  for (int k = KL; k <= KU; ++k) {
-    for (int j = JL; j <= JU; ++j) {
-      pco_gr->GetGeometricFieldCC(gamma_dd, full_gamma_dd, k, j);
-      pco_gr->GetGeometricFieldCC(alpha, full_alpha, k, j);
-      if (coarse_flag) {
-        pco_gr->GetGeometricFieldCC(rchi, full_chi, k, j);
+  for (int k = KL; k <= KU; ++k)
+  for (int j = JL; j <= JU; ++j)
+  {
+    GeometryToSlicedCC(gsc, k, j, IL, IU, coarse_flag, pco);
 
-        #pragma omp simd
-        for (int i = IL; i <= IU; ++i) {
-          rchi(i) = 1./rchi(i);
-        }
+    // do actual variable conversion ------------------------------------------
+    #pragma omp simd
+    for (int i = IL; i <= IU; ++i)
+    {
+      // Check if the state is admissible; if not we reset to atmo.
+      bool is_admissible = IsAdmissiblePoint(cons, prim, det_gamma_, k, j, i);
 
-        for (int a = 0; a < NDIM; ++a) {
-          for (int b = 0; b < NDIM; ++b) {
-            #pragma omp simd
-            for (int i = IL; i <= IU; ++i) {
-              gamma_dd(a, b, i) = gamma_dd(a, b, i) * rchi(i);
-            }
-          }
-        }
+      // Deal with alpha based excision (if relevant)
+      is_admissible = is_admissible && (alpha_(i) >
+                                        ph->opt_excision.alpha_threshold);
+
+      ph->mask_reset_u(k,j,i) = !is_admissible;
+
+      if (ph->mask_reset_u(k,j,i))
+      {
+        SetPrimAtmo(ph->temperature, prim, prim_scalar, k, j, i, ps);
+        PrimitiveToConservedSingle(prim,
+                                    prim_scalar,
+                                    cons,
+                                    cons_scalar,
+                                    bb_cc,
+                                    gamma_dd_,
+                                    k, j, i,
+                                    ps);
+        continue;
       }
 
-      // Extract the primitive variables
-      #pragma omp simd
-      for (int i = IL; i <= IU; ++i) {
-        // Extract the local metric and stuff it into a smaller array for PrimitiveSolver.
-        Real g3d[NSPMETRIC] = {gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
-                               gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i)};
-        // Calculate the determinant and the inverse metric
-        Real detg = Primitive::GetDeterminant(g3d);
-        Real sdetg = std::sqrt(detg);
-        Real g3u[NSPMETRIC];
-        Primitive::InvertMatrix(g3u, g3d, detg);
+      // Deal with PrimitiveSolver interface
+      Real g3d[NSPMETRIC] = {gamma_dd_(0,0,i),
+                             gamma_dd_(0,1,i),
+                             gamma_dd_(0,2,i),
+                             gamma_dd_(1,1,i),
+                             gamma_dd_(1,2,i),
+                             gamma_dd_(2,2,i)};
+      const Real detgamma = det_gamma_(i);
+      const Real sqrt_detgamma = std::sqrt(detgamma);
+      const Real oo_sqrt_detgamma = OO(sqrt_detgamma);
+      Real g3u[NSPMETRIC] = {gamma_uu_(0,0,i),
+                             gamma_uu_(0,1,i),
+                             gamma_uu_(0,2,i),
+                             gamma_uu_(1,1,i),
+                             gamma_uu_(1,2,i),
+                             gamma_uu_(2,2,i)};
 
-        // Extract and undensitize the conserved variables.
-        Real cons_pt[NCONS] = {0.0};
-        Real cons_old_pt[NCONS] = {0.0}; // Redundancy in case things go bad.
-        cons_pt[IDN] = cons_old_pt[IDN] = cons(IDN, k, j, i)/sdetg;
-        cons_pt[IM1] = cons_old_pt[IM1] = cons(IM1, k, j, i)/sdetg;
-        cons_pt[IM2] = cons_old_pt[IM2] = cons(IM2, k, j, i)/sdetg;
-        cons_pt[IM3] = cons_old_pt[IM3] = cons(IM3, k, j, i)/sdetg;
-        cons_pt[IEN] = cons_old_pt[IEN] = cons(IEN, k, j, i)/sdetg;
+      // Extract and undensitize the conserved variables.
+      Real cons_pt[NCONS] = {0.0};
+      Real cons_old_pt[NCONS] = {0.0}; // Redundancy in case things go bad.
+      cons_pt[IDN] = cons_old_pt[IDN] = cons(IDN, k, j, i) * oo_sqrt_detgamma;
+      cons_pt[IM1] = cons_old_pt[IM1] = cons(IM1, k, j, i) * oo_sqrt_detgamma;
+      cons_pt[IM2] = cons_old_pt[IM2] = cons(IM2, k, j, i) * oo_sqrt_detgamma;
+      cons_pt[IM3] = cons_old_pt[IM3] = cons(IM3, k, j, i) * oo_sqrt_detgamma;
+      cons_pt[IEN] = cons_old_pt[IEN] = cons(IEN, k, j, i) * oo_sqrt_detgamma;
 
-        // Extract the scalars
-        for(int n=0; n<NSCALARS; n++){
-          cons_pt[IYD + n] = cons_old_pt[IYD + n] = cons_scalar(n,k,j,i)/sdetg;
-        }
+      // Extract the scalars
+      for(int n=0; n<NSCALARS; n++)
+      {
+        cons_pt[IYD + n] = cons_old_pt[IYD + n] =
+            cons_scalar(n, k, j, i) * oo_sqrt_detgamma;
+      }
 
-        // Extract the magnetic field.
-        Real b3u[NMAG] = {bb_cc(IB1, k, j, i)/sdetg,
-                          bb_cc(IB2, k, j, i)/sdetg,
-                          bb_cc(IB3, k, j, i)/sdetg};
+      // Extract the magnetic field.
+      Real b3u[NMAG] = {bb_cc(IB1, k, j, i) * oo_sqrt_detgamma,
+                        bb_cc(IB2, k, j, i) * oo_sqrt_detgamma,
+                        bb_cc(IB3, k, j, i) * oo_sqrt_detgamma};
 
-        // Find the primitive variables.
-        Real prim_pt[NPRIM] = {0.0};
-        Primitive::SolverResult result = ps.ConToPrim(prim_pt, cons_pt, b3u, g3d, g3u);
+      // Find the primitive variables.
+      Real prim_pt[NPRIM] = {0.0};
+      Primitive::SolverResult result =
+          ps.ConToPrim(prim_pt, cons_pt, b3u, g3d, g3u);
 
-        // retain result of c2p
-        if (pmb->phydro->c2p_status(k,j,i) == 0)
-        {
-          pmb->phydro->c2p_status(k,j,i) = static_cast<int>(result.error);
-        }
+      // retain result of c2p
+      if (pmb->phydro->c2p_status(k,j,i) == 0)
+      {
+        pmb->phydro->c2p_status(k,j,i) = static_cast<int>(result.error);
+      }
 
-        if (result.error != Primitive::Error::SUCCESS) {
-          std::cerr << "There was an error during the primitive solve!\n";
-          std::cerr << "  Iteration: " << pmy_block_->pmy_mesh->ncycle << "\n";
-          std::cerr << "  Error: " << Primitive::ErrorString[(int)result.error] << "\n";
-          std::cerr << "  i=" << i << ", j=" << j << ", k=" << k << "\n";
-          const Real x1 = pmy_block_->pcoord->x1v(i);
-          const Real x2 = pmy_block_->pcoord->x2v(j);
-          const Real x3 = pmy_block_->pcoord->x3v(k);
-          std::cerr << "  (x1,x2,x3) " << x1 << "," << x2 << "," << x3 << "\n";
-          std::cerr << "  g3d = [" << g3d[S11] << ", " << g3d[S12] << ", " << g3d[S13] << ", "
-                    << g3d[S22] << ", " << g3d[S23] << ", " << g3d[S33] << "]\n";
-          std::cerr << "  g3u = [" << g3u[S11] << ", " << g3u[S12] << ", " << g3u[S13] << ", "
-                    << g3u[S22] << ", " << g3u[S23] << ", " << g3u[S33] << "]\n";
-          std::cerr << "  detg = " << detg << "\n";
-          std::cerr << "  sdetg = " << sdetg << "\n";
-          std::cerr << "  D = " << cons_old_pt[IDN] << "\n";
-          std::cerr << "  S_1 = " << cons_old_pt[IM1] << "\n";
-          std::cerr << "  S_2 = " << cons_old_pt[IM2] << "\n";
-          std::cerr << "  S_3 = " << cons_old_pt[IM3] << "\n";
-          std::cerr << "  tau = " << cons_old_pt[IEN] << "\n";
-          // FIXME: Add particle fractions
-          std::cerr << "  b_u = [" << bb_cc(IB1, k, j, i) << ", " << bb_cc(IB2, k, j, i) << ", "
-                                   << bb_cc(IB3, k, j, i) << "]\n";
-        }
-        // Update the primitive variables.
-        prim(IDN, k, j, i) = prim_pt[IDN]*ps.GetEOS()->GetBaryonMass();
-        prim(IVX, k, j, i) = prim_pt[IVX];
-        prim(IVY, k, j, i) = prim_pt[IVY];
-        prim(IVZ, k, j, i) = prim_pt[IVZ];
-        prim(IPR, k, j, i) = prim_pt[IPR];
-        pmy_block_->phydro->temperature(k,j,i) = prim_pt[ITM];
-        for(int n=0; n<NSCALARS; n++){
-          prim_scalar(n, k, j, i) = prim_pt[IYF + n];
-        }
-        // Because the conserved variables may have changed, we update those, too.
-        cons(IDN, k, j, i) = cons_pt[IDN]*sdetg;
-        cons(IM1, k, j, i) = cons_pt[IM1]*sdetg;
-        cons(IM2, k, j, i) = cons_pt[IM2]*sdetg;
-        cons(IM3, k, j, i) = cons_pt[IM3]*sdetg;
-        cons(IEN, k, j, i) = cons_pt[IEN]*sdetg;
-        for(int n=0; n<NSCALARS; n++){
-          cons_scalar(n, k, j, i) = cons_pt[IYD + n]*sdetg;
-        }
+      if (result.error != Primitive::Error::SUCCESS) {
+        std::cerr << "There was an error during the primitive solve!\n";
+        std::cerr << "  Iteration: " << pmy_block_->pmy_mesh->ncycle << "\n";
+        std::cerr << "  Error: " << Primitive::ErrorString[(int)result.error] << "\n";
+        std::cerr << "  i=" << i << ", j=" << j << ", k=" << k << "\n";
+        const Real x1 = pmy_block_->pcoord->x1v(i);
+        const Real x2 = pmy_block_->pcoord->x2v(j);
+        const Real x3 = pmy_block_->pcoord->x3v(k);
+        std::cerr << "  (x1,x2,x3) " << x1 << "," << x2 << "," << x3 << "\n";
+        std::cerr << "  g3d = [" << g3d[S11] << ", " << g3d[S12] << ", " << g3d[S13] << ", "
+                  << g3d[S22] << ", " << g3d[S23] << ", " << g3d[S33] << "]\n";
+        std::cerr << "  g3u = [" << g3u[S11] << ", " << g3u[S12] << ", " << g3u[S13] << ", "
+                  << g3u[S22] << ", " << g3u[S23] << ", " << g3u[S33] << "]\n";
+        std::cerr << "  detgamma = " << detgamma << "\n";
+        std::cerr << "  sqrt_detgamma = " << sqrt_detgamma << "\n";
+        std::cerr << "  D = " << cons_old_pt[IDN] << "\n";
+        std::cerr << "  S_1 = " << cons_old_pt[IM1] << "\n";
+        std::cerr << "  S_2 = " << cons_old_pt[IM2] << "\n";
+        std::cerr << "  S_3 = " << cons_old_pt[IM3] << "\n";
+        std::cerr << "  tau = " << cons_old_pt[IEN] << "\n";
+        // FIXME: Add particle fractions
+        std::cerr << "  b_u = [" << bb_cc(IB1, k, j, i) << ", " << bb_cc(IB2, k, j, i) << ", "
+                                  << bb_cc(IB3, k, j, i) << "]\n";
+      }
+      // Update the primitive variables.
+      prim(IDN, k, j, i) = prim_pt[IDN]*ps.GetEOS()->GetBaryonMass();
+      prim(IVX, k, j, i) = prim_pt[IVX];
+      prim(IVY, k, j, i) = prim_pt[IVY];
+      prim(IVZ, k, j, i) = prim_pt[IVZ];
+      prim(IPR, k, j, i) = prim_pt[IPR];
+      pmy_block_->phydro->temperature(k,j,i) = prim_pt[ITM];
+      for(int n=0; n<NSCALARS; n++)
+      {
+        prim_scalar(n, k, j, i) = prim_pt[IYF + n];
+      }
+      // Because the conserved variables may have changed, we update those, too.
+      cons(IDN, k, j, i) = cons_pt[IDN]*sqrt_detgamma;
+      cons(IM1, k, j, i) = cons_pt[IM1]*sqrt_detgamma;
+      cons(IM2, k, j, i) = cons_pt[IM2]*sqrt_detgamma;
+      cons(IM3, k, j, i) = cons_pt[IM3]*sqrt_detgamma;
+      cons(IEN, k, j, i) = cons_pt[IEN]*sqrt_detgamma;
+      for(int n=0; n<NSCALARS; n++)
+      {
+        cons_scalar(n, k, j, i) = cons_pt[IYD + n]*sqrt_detgamma;
       }
     }
   }
@@ -375,11 +372,11 @@ void EquationOfState::ConservedToPrimitive(
 //       than having duplicate code
 
 void EquationOfState::PrimitiveToConserved(
-  AthenaArray<Real> &prim,
-  AthenaArray<Real> &prim_scalar,
-  AthenaArray<Real> &bb_cc,
-  AthenaArray<Real> &cons,
-  AthenaArray<Real> &cons_scalar,
+  AA &prim,
+  AA &prim_scalar,
+  AA &bb_cc,
+  AA &cons,
+  AA &cons_scalar,
   Coordinates *pco,
   int il, int iu,
   int jl, int ju,
@@ -388,131 +385,35 @@ void EquationOfState::PrimitiveToConserved(
 
   GRDynamical* pco_gr = static_cast<GRDynamical*>(pmy_block_->pcoord);
 
-  AT_N_sym gamma_dd(pmy_block_->nverts1);
-  AT_N_sym full_gamma_dd(pmy_block_->pz4c->storage.adm, Z4c::I_ADM_gxx);
+  AT_N_sym sl_adm_gamma(pmy_block_->pz4c->storage.adm, Z4c::I_ADM_gxx);
+  AT_N_sym adm_gamma_dd_(pmy_block_->nverts1);
 
-  // sanitize loop limits
-  int IL, IU, JL, JU, KL, KU;
-  pco_gr->GetGeometricFieldCCIdxRanges(
-    IL, IU,
-    JL, JU,
-    KL, KU);
+  // sanitize loop limits (coarse / fine auto-switched)
+  const bool coarse_flag = false;
+  int IL = il; int IU = iu;
+  int JL = jl; int JU = ju;
+  int KL = kl; int KU = ku;
+  SanitizeLoopLimits(IL, IU, JL, JU, KL, KU, coarse_flag, pco);
 
-  // Restrict further the ranges to the input argument
-  IL = std::max(il, IL);
-  IU = std::min(iu, IU);
-
-  JL = std::max(jl, JL);
-  JU = std::min(ju, JU);
-
-  KL = std::max(kl, KL);
-  KU = std::min(ku, KU);
-
-  for (int k=KL; k<=KU; ++k) {
-    for (int j=JL; j<=JU; ++j) {
-      pco_gr->GetGeometricFieldCC(gamma_dd, full_gamma_dd, k, j);
-      // Calculate the conserved variables at every point.
-      for (int i=IL; i<=IU; ++i)
-      {
-        PrimitiveToConservedSingle(prim,
-                                   prim_scalar,
-                                   bb_cc,
-                                   gamma_dd,
-                                   k, j, i,
-                                   cons,
-                                   cons_scalar,
-                                   ps);
-      }
+  for (int k=KL; k<=KU; ++k)
+  for (int j=JL; j<=JU; ++j)
+  {
+    pco_gr->GetGeometricFieldCC(adm_gamma_dd_, sl_adm_gamma, k, j);
+    // Calculate the conserved variables at every point.
+    for (int i=IL; i<=IU; ++i)
+    {
+      PrimitiveToConservedSingle(prim,
+                                  prim_scalar,
+                                  bb_cc,
+                                  cons,
+                                  cons_scalar,
+                                  adm_gamma_dd_,
+                                  k, j, i,
+                                  ps);
     }
   }
+
 }
-
-//----------------------------------------------------------------------------------------
-// Function for converting primitives to conserved variables in a single cell
-// Inputs:
-//   prim: 3D array of primitives
-//   gamma_adi: ratio of specific heats
-//   g,gi: 1D arrays of metric covariant and contravariant coefficients
-//   k,j,i: indices of cell
-//   pco: pointer to Coordinates
-// Outputs:
-//   cons: conserved variables set in desired cell
-namespace {
-
-inline static void PrimitiveToConservedSingle(
-  AthenaArray<Real> &prim,
-  AthenaArray<Real> &prim_scalar,
-  AthenaArray<Real>& bb_cc,
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> const &gamma_dd,
-  int k, int j, int i,
-  AthenaArray<Real> &cons,
-  AthenaArray<Real> &cons_scalar,
-  Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& ps)
-{
-  // Extract the primitive variables
-  Real prim_pt[NPRIM] = {0.0};
-  Real Y[MAX_SPECIES] = {0.0};
-
-  Real mb = ps.GetEOS()->GetBaryonMass();
-  prim_pt[IDN] = prim(IDN, k, j, i)/mb;
-  prim_pt[IVX] = prim(IVX, k, j, i);
-  prim_pt[IVY] = prim(IVY, k, j, i);
-  prim_pt[IVZ] = prim(IVZ, k, j, i);
-  prim_pt[IPR] = prim(IPR, k, j, i);
-
-  for (int n=0; n<NSCALARS; n++) {
-    Y[n] = prim_scalar(n,k,j,i);
-  }
-
-  // Get temperature and apply floor
-  ps.GetEOS()->ApplyDensityLimits(prim_pt[IDN]);
-  ps.GetEOS()->ApplySpeciesLimits(Y);
-  prim_pt[ITM] = ps.GetEOS()->GetTemperatureFromP(prim_pt[IDN], prim_pt[IPR], Y);
-  bool result = ps.GetEOS()->ApplyPrimitiveFloor(prim_pt[IDN], &prim_pt[IVX], prim_pt[IPR], prim_pt[ITM], Y);
-
-  for (int n=0; n<NSCALARS; n++) {
-    prim_pt[IYF + n] = Y[n];
-  }
-
-  // Extract the metric and calculate the determinant..
-  Real g3d[NSPMETRIC] = {gamma_dd(0,0,i), gamma_dd(0,1,i), gamma_dd(0,2,i),
-                         gamma_dd(1,1,i), gamma_dd(1,2,i), gamma_dd(2,2,i)};
-  Real detg = Primitive::GetDeterminant(g3d);
-  Real sdetg = std::sqrt(detg);
-
-  // Extract and undensitize the magnetic field.
-  Real bu[NMAG] = {bb_cc(IB1, k, j, i)/sdetg, bb_cc(IB2, k, j, i)/sdetg,
-                   bb_cc(IB3, k, j, i)/sdetg};
-
-  // Perform the primitive solve.
-  Real cons_pt[NCONS];
-
-  ps.PrimToCon(prim_pt, cons_pt, bu, g3d);
-
-  // Push the densitized conserved variables to Athena.
-  cons(IDN, k, j, i) = cons_pt[IDN]*sdetg;
-  cons(IM1, k, j, i) = cons_pt[IM1]*sdetg;
-  cons(IM2, k, j, i) = cons_pt[IM2]*sdetg;
-  cons(IM3, k, j, i) = cons_pt[IM3]*sdetg;
-  cons(IEN, k, j, i) = cons_pt[IEN]*sdetg;
-  for (int n = 0; n < NSCALARS; n++) {
-    cons_scalar(n, k, j, i) = cons_pt[IYD + n]*sdetg;
-  }
-
-  // If we floored things, we'll need to readjust the primitives.
-  if (result) {
-    prim(IDN, k, j, i) = prim_pt[IDN]*mb;
-    prim(IVX, k, j, i) = prim_pt[IVX];
-    prim(IVY, k, j, i) = prim_pt[IVY];
-    prim(IVZ, k, j, i) = prim_pt[IVZ];
-    prim(IPR, k, j, i) = prim_pt[IPR];
-    for (int n=0; n<NSCALARS; n++) {
-      prim_scalar(n,k,j,i) = prim_pt[IYF + n];
-    }
-  }
-}
-
-} // namespace
 
 // BD: TODO - eigenvalues, _not_ the speed; should be refactored / renamed
 void EquationOfState::FastMagnetosonicSpeedsGR(Real n, Real T, Real bsq,
@@ -568,12 +469,14 @@ void EquationOfState::FastMagnetosonicSpeedsGR(Real n, Real T, Real bsq,
   return;
 }
 
-//---------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 // \!fn void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim,
 //           int k, int j, int i)
-// \brief Apply density and pressure floors to reconstructed L/R cell interface states
+// Apply density and pressure floors to reconstructed L/R cell interface states
 
-void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, AthenaArray<Real> &prim_scalar, int k, int j, int i) {
+void EquationOfState::ApplyPrimitiveFloors(AA &prim, AA &prim_scalar,
+                                           int k, int j, int i)
+{
   // Extract the primitive variables and floor them using PrimitiveSolver.
   Real Y[MAX_SPECIES] = {0.0};
   Real Wvu[3] = {};
@@ -642,3 +545,110 @@ void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim, AthenaArray<
   }
   return;
 }
+
+//----------------------------------------------------------------------------------------
+namespace {
+
+static void PrimitiveToConservedSingle(
+  AA &prim,
+  AA &prim_scalar,
+  AA &bb_cc,
+  AA &cons,
+  AA &cons_scalar,
+  const AT_N_sym & adm_gamma_dd_,
+  int k, int j, int i,
+  PS& ps)
+{
+  // Extract the primitive variables
+  Real prim_pt[NPRIM] = {0.0};
+  Real Y[MAX_SPECIES] = {0.0};
+
+  Real mb = ps.GetEOS()->GetBaryonMass();
+  prim_pt[IDN] = prim(IDN, k, j, i)/mb;
+  prim_pt[IVX] = prim(IVX, k, j, i);
+  prim_pt[IVY] = prim(IVY, k, j, i);
+  prim_pt[IVZ] = prim(IVZ, k, j, i);
+  prim_pt[IPR] = prim(IPR, k, j, i);
+
+  for (int n=0; n<NSCALARS; n++) {
+    Y[n] = prim_scalar(n,k,j,i);
+  }
+
+  // Get temperature and apply floor
+  ps.GetEOS()->ApplyDensityLimits(prim_pt[IDN]);
+  ps.GetEOS()->ApplySpeciesLimits(Y);
+  prim_pt[ITM] =
+      ps.GetEOS()->GetTemperatureFromP(prim_pt[IDN], prim_pt[IPR], Y);
+  bool result = ps.GetEOS()->ApplyPrimitiveFloor(prim_pt[IDN], &prim_pt[IVX],
+                                                 prim_pt[IPR], prim_pt[ITM],
+                                                 Y);
+
+  for (int n=0; n<NSCALARS; n++) {
+    prim_pt[IYF + n] = Y[n];
+  }
+
+  // Extract the metric and calculate the determinant..
+  Real g3d[NSPMETRIC] = {adm_gamma_dd_(0,0,i),
+                         adm_gamma_dd_(0,1,i),
+                         adm_gamma_dd_(0,2,i),
+                         adm_gamma_dd_(1,1,i),
+                         adm_gamma_dd_(1,2,i),
+                         adm_gamma_dd_(2,2,i)};
+  Real detg = Primitive::GetDeterminant(g3d);
+  Real sdetg = std::sqrt(detg);
+
+  // Extract and undensitize the magnetic field.
+  Real bu[NMAG] = {bb_cc(IB1, k, j, i)/sdetg, bb_cc(IB2, k, j, i)/sdetg,
+                   bb_cc(IB3, k, j, i)/sdetg};
+
+  // Perform the primitive solve.
+  Real cons_pt[NCONS];
+
+  ps.PrimToCon(prim_pt, cons_pt, bu, g3d);
+
+  // Push the densitized conserved variables to Athena.
+  cons(IDN, k, j, i) = cons_pt[IDN]*sdetg;
+  cons(IM1, k, j, i) = cons_pt[IM1]*sdetg;
+  cons(IM2, k, j, i) = cons_pt[IM2]*sdetg;
+  cons(IM3, k, j, i) = cons_pt[IM3]*sdetg;
+  cons(IEN, k, j, i) = cons_pt[IEN]*sdetg;
+  for (int n = 0; n < NSCALARS; n++) {
+    cons_scalar(n, k, j, i) = cons_pt[IYD + n]*sdetg;
+  }
+
+  // If we floored things, we'll need to readjust the primitives.
+  if (result) {
+    prim(IDN, k, j, i) = prim_pt[IDN]*mb;
+    prim(IVX, k, j, i) = prim_pt[IVX];
+    prim(IVY, k, j, i) = prim_pt[IVY];
+    prim(IVZ, k, j, i) = prim_pt[IVZ];
+    prim(IPR, k, j, i) = prim_pt[IPR];
+    for (int n=0; n<NSCALARS; n++) {
+      prim_scalar(n,k,j,i) = prim_pt[IYF + n];
+    }
+  }
+}
+
+static void SetPrimAtmo(
+  AA &temperature,
+  AA &prim,
+  AA &prim_scalar,
+  const int k, const int j, const int i,
+  PS & ps)
+{
+  Real prim_pt[NPRIM] = {0.0};
+  ps.GetEOS()->DoFailureResponse(prim_pt);
+
+  // Update the primitive variables.
+  prim(IDN, k, j, i) = prim_pt[IDN]*ps.GetEOS()->GetBaryonMass();
+  prim(IVX, k, j, i) = prim_pt[IVX];
+  prim(IVY, k, j, i) = prim_pt[IVY];
+  prim(IVZ, k, j, i) = prim_pt[IVZ];
+  prim(IPR, k, j, i) = prim_pt[IPR];
+  temperature(k,j,i) = prim_pt[ITM];
+  for(int n=0; n<NSCALARS; n++){
+    prim_scalar(n, k, j, i) = prim_pt[IYF + n];
+  }
+}
+
+} // namespace

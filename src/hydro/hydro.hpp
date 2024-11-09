@@ -60,10 +60,10 @@ class Hydro {
   int refinement_idx{-1};
 
   // BD: TODO - make the mask more useful
-  // prim: w, cons: q
-  // q<->w can fail; in this situation values need to be reset
+  // prim: w, cons: u
+  // u<->w can fail; in this situation values need to be reset
   // It is helpful to make a mask to this end
-  AthenaArray<bool> q_reset_mask;
+  AthenaArray<bool> mask_reset_u;
   AthenaArray<Real> c2p_status;
 
 
