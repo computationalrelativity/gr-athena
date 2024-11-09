@@ -256,13 +256,14 @@ void EquationOfState::ConservedToPrimitive(
       if (ph->mask_reset_u(k,j,i))
       {
         SetPrimAtmo(ph->temperature, prim, prim_scalar, k, j, i, ps);
+        SetEuclideanCC(gamma_dd_, i);
         PrimitiveToConservedSingle(prim,
-                                    prim_scalar,
-                                    cons,
-                                    cons_scalar,
-                                    gamma_dd_,
-                                    k, j, i,
-                                    ps);
+                                   prim_scalar,
+                                   cons,
+                                   cons_scalar,
+                                   gamma_dd_,
+                                   k, j, i,
+                                   ps);
         continue;
       }
 
@@ -504,12 +505,12 @@ void EquationOfState::PrimitiveToConserved(
     for (int i=IL; i<=IU; ++i)
     {
       PrimitiveToConservedSingle(prim,
-                                  prim_scalar,
-                                  cons,
-                                  cons_scalar,
-                                  gamma_dd_,
-                                  k, j, i,
-                                  ps);
+                                 prim_scalar,
+                                 cons,
+                                 cons_scalar,
+                                 gamma_dd_,
+                                 k, j, i,
+                                 ps);
     }
   }
 

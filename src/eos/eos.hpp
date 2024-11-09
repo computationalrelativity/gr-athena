@@ -190,6 +190,9 @@ class EquationOfState {
     Coordinates *pco
   );
 
+  // To handle excision / collapse
+  void SetEuclideanCC(AT_N_sym & gamma_dd_, const int i);
+
   // BD: TODO - clean up this mess ---v
 
   // pass k, j, i to following 2x functions even though x1-sliced input array is expected

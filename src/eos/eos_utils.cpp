@@ -189,6 +189,15 @@ void EquationOfState::GeometryToSlicedCC(
   gsc.is_scratch_allocated = true;
 }
 
+void EquationOfState::SetEuclideanCC(AT_N_sym & gamma_dd_, const int i)
+{
+  for (int a=0; a<N; ++a)
+  for (int b=a; b<N; ++b)
+  {
+    gamma_dd_(a,b,i) = (a==b);
+  }
+}
+
 //
 // :D
 //
