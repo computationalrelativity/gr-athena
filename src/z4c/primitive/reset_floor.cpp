@@ -99,10 +99,18 @@ void ResetFloor::EnergyLimits(Real& e, Real e_min, Real e_max) {
 }
 
 /// Apply species limits
-void ResetFloor::SpeciesLimits(Real* Y, Real* Y_min, Real* Y_max, int n_species) {
+bool ResetFloor::SpeciesLimits(Real* Y, Real* Y_min, Real* Y_max, int n_species) {
+  bool adjusted = false;
   for (int i = 0; i < n_species; i++) {
-    Y[i] = std::fmax(Y_min[i], std::fmin(Y_max[i], Y[i]));
+    if (Y[i] < Y_min[i]) {
+      adjusted = true;
+      Y[i] = Y_min[i];
+    } else if (Y[i] > Y_max[i]) {
+      adjusted = true;
+      Y[i] = Y_max[i];
+    }
   }
+  return adjusted;
 }
 
 /// Perform failure response.

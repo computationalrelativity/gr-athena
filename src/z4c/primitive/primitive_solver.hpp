@@ -371,7 +371,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
     Y[s] = cons[IYD + s]/cons[IDN];
   }
   // Apply limits to Y to ensure a physical state
-  peos->ApplySpeciesLimits(Y);
+  bool Y_adjusted = peos->ApplySpeciesLimits(Y);
 
   // Check the conserved variables for consistency and do whatever
   // the EOSPolicy wants us to.
@@ -381,6 +381,15 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
     HandleFailure(prim, cons, b, g3d);
     solver_result.error = Error::CONS_FLOOR;
     return solver_result;
+  }
+  // If a floor is applied or Y is adjusted, we need to propagate the changes back to
+  // DYe.
+  if (floored || Y_adjusted)
+  if (peos->KeepPrimAndConConsistent())
+  {
+    for (int s = 0; s < n_species; s++) {
+      cons[IYD + s] = D*Y[s];
+    }
   }
 
   // Calculate some utility quantities.
