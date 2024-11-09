@@ -22,6 +22,8 @@
 #include "../../../eos/eos.hpp"                  // EquationOfState
 #include "../../../mesh/mesh.hpp"                // MeshBlock
 
+#include "../../../z4c/ahf.hpp"
+
 //----------------------------------------------------------------------------------------
 using namespace gra::aliases;
 //----------------------------------------------------------------------------------------
@@ -145,6 +147,60 @@ void Hydro::RiemannSolver(
 
   InnerProductSlicedVec3Metric(w_norm2_v_l_, w_v_u_l_, gamma_dd_, il, iu);
   InnerProductSlicedVec3Metric(w_norm2_v_r_, w_v_u_r_, gamma_dd_, il, iu);
+
+  // deal with excision -------------------------------------------------------
+  auto excise = [&](const int i)
+  {
+    // set flat space if the interpolated det is negative and inside
+    // horizon (either in ahf or lapse below excision value)
+
+    // BD: TODO - add to excision mask?
+    // std::cout << "Set flat space" << "\n";
+    for (int a=0; a<3; ++a)
+    for (int b=a; b<3; ++b)
+    {
+      gamma_dd_(a,b,i) = (a==b);
+      gamma_uu_(a,b,i) = (a==b);
+    }
+    detgamma_(i) = 1.0;
+  };
+
+  if (opt_excision.horizon_based)
+  {
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      // if ahf enabled set flat space if in horizon
+      // TODO: read in centre of each horizon and shift origin - not needed for
+      // now if collapse is at origin
+      Real horizon_radius;
+      for (auto pah_f : pmy_block->pmy_mesh->pah_finder)
+      {
+        horizon_radius = pah_f->GetHorizonRadius();
+        const Real R2 = (
+          SQR(pco_gr->x1f(i)) + SQR(pco_gr->x2v(j)) + SQR(pco_gr->x3v(k))
+        );
+
+        if ((R2 < SQR(horizon_radius)) ||
+            (alpha_(i) < opt_excision.alpha_threshold))
+        {
+          excise(i);
+        }
+      }
+    }
+  }
+  else if (opt_excision.alpha_threshold > 0)  // by default disabled (i.e. 0)
+  {
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (alpha_(i) < opt_excision.alpha_threshold)
+      {
+        excise(i);
+      }
+    }
+  }
+  // --------------------------------------------------------------------------
 
   #pragma omp simd
   for (int i = il; i <= iu; ++i)
