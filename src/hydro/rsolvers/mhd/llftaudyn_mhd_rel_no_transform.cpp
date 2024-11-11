@@ -200,6 +200,7 @@ void Hydro::RiemannSolver(
       for (auto pah_f : pmy_block->pmy_mesh->pah_finder)
       {
         horizon_radius = pah_f->GetHorizonRadius();
+        horizon_radius *= pmb->phydro->opt_excision.horizon_factor;
         Real R2;
         switch (ivx)
         {

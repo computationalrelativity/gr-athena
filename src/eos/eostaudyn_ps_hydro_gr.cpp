@@ -36,6 +36,10 @@ namespace {
 
 typedef Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> PS;
 
+//#ifdef Z4C_AHF
+#include "../z4c/ahf.hpp"
+//#endif
+
 // Declarations
 static void PrimitiveToConservedSingle(
   AA &prim,
@@ -251,6 +255,20 @@ void EquationOfState::ConservedToPrimitive(
       is_admissible = is_admissible && (alpha_(i) >
                                         ph->opt_excision.alpha_threshold);
 
+      if(pmb->phydro->opt_excision.horizon_based)
+      {
+        Real horizon_radius;
+        for (auto pah_f : pmy_block_->pmy_mesh->pah_finder)
+        {
+          horizon_radius = pah_f->GetHorizonRadius();
+          horizon_radius *= pmb->phydro->opt_excision.horizon_factor;
+          const Real r_2 = SQR(pco->x1v(i)) +
+                            SQR(pco->x2v(j)) +
+                            SQR(pco->x3v(k));
+          is_admissible = is_admissible && (r_2 < SQR(horizon_radius));
+        }
+      }
+
       ph->mask_reset_u(k,j,i) = !is_admissible;
 
       if (ph->mask_reset_u(k,j,i))
@@ -264,6 +282,9 @@ void EquationOfState::ConservedToPrimitive(
                                    gamma_dd_,
                                    k, j, i,
                                    ps);
+
+        if (pmb->phydro->c2p_status(k,j,i) == 0)
+          pmb->phydro->c2p_status(k,j,i) = static_cast<int>(Primitive::Error::EXCISED);
         continue;
       }
 

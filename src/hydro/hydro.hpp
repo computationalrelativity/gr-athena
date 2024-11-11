@@ -79,6 +79,7 @@ class Hydro {
   struct {
     Real alpha_threshold;  // excise hydro if alpha < alpha_excision
     bool horizon_based;    // use horizon for excise
+    Real horizon_factor;   // factor to multiply horizon radius
   } opt_excision;
 
 

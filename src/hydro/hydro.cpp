@@ -71,6 +71,8 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
       pin->GetOrAddReal("excision", "alpha_threshold", 0.0);
   opt_excision.horizon_based =
       pin->GetOrAddBoolean("excision", "horizon_based", 0.0);
+  opt_excision.horizon_factor =
+      pin->GetOrAddBoolean("excision", "horizon_factor", 1.0);
 
   // If user-requested time integrator is type 3S*, allocate additional memory registers
   std::string integrator = pin->GetOrAddString("time", "integrator", "vl2");
