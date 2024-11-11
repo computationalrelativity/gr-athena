@@ -95,6 +95,10 @@ Real EOSCompOSE::TemperatureFromE(Real n, Real e, Real *Y) {
 	   temperature_from_var(ECLOGE, log(e), n, Y[0]);
 }
 
+Real EOSCompOSE::TemperatureFromEps(Real n, Real eps, Real *Y) {
+  return TemperatureFromE(n, (eps + 1.0)*mb*n, Y);
+}
+
 Real EOSCompOSE::TemperatureFromP(Real n, Real p, Real *Y) {
   assert (m_initialized);
   Real p_min = MinimumPressure(n, Y);

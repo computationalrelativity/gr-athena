@@ -36,6 +36,7 @@
   #endif
   #define USE_COMPOSE_TRANSITION_EOS
   #include "../z4c/primitive/eos_compose_transition.hpp"
+  #include "../z4c/primitive/cold_eos_compose.hpp"
 #else
   #error EOS_POLICY_CODE not recognized.
 #endif

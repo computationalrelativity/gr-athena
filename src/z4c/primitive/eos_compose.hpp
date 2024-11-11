@@ -49,6 +49,9 @@ class EOSCompOSE : public EOSPolicyInterface {
 
     /// Calculate the temperature from the pressure
     Real TemperatureFromP(Real n, Real p, Real *Y);
+    //
+    /// Temperature from specific internal energy
+    Real TemperatureFromEps(Real n, Real e, Real *Y);
 
     /// Calculate the temperature from the entropy
     Real TemperatureFromEntropy(Real n, Real s, Real *Y);

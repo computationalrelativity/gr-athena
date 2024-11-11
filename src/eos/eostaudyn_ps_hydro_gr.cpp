@@ -189,7 +189,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
 void InitColdEOS(Primitive::ColdEOS<Primitive::COLDEOS_POLICY> *eos,
                  ParameterInput *pin) {
 
-#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
+#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS) || defined(USE_COMPOSE_TRANSITION_EOS)
   std::string table = pin->GetString("hydro", "table");
 
   // read in species names

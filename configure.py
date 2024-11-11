@@ -208,7 +208,6 @@ parser.add_argument(
 parser.add_argument(
   "--eospolicy",
   default="idealgas",
-  choices=["idealgas", "piecewise_polytrope", "eos_compose", "hybrid_table"],
   choices=['idealgas', 'piecewise_polytrope', 'eos_compose', 'hybrid_table', 'eos_compose_transition'],
   help="select EOS policy for PrimitiveSolver framework",
 )
@@ -856,6 +855,7 @@ definitions["PRIMITIVE_SOLVER_ADJUST_CONSERVED"] = (
   "PRIMITIVE_SOLVER_ADJUST_CONSERVED"
 )
 
+definitions['EOS_TGUESS'] = '0'
 if args["eos"] == "adiabatictaudyn_rep":
   definitions["NHYDRO_VARIABLES"] = "5"
   makefile_options["GENERAL_EOS_FILE"] = "ideal"
@@ -883,6 +883,7 @@ elif args["eos"] == "eostaudyn_ps":
     definitions['EOS_POLICY'] = 'EOSCompOSETransition'
     definitions['EOS_POLICY_CODE'] = '4'
     definitions['EOS_TGUESS'] = '1'
+    definitions["COLDEOS_POLICY"] = "ColdEOSCompOSE"
   else:
     definitions["EOS_POLICY"] = ""
 
@@ -2078,15 +2079,22 @@ if args["eos"] == "none":
   makefile_options["EOS_FILES"] = "\n".join(aux) + "\n"
 
 # Add PrimitiveSolver EOS files
+# TODO: implement cold transition eos 
+if args["eospolicy"] == "eos_compose_transition":
+    cold_policy = "cold_eos_compose"
+else:
+    cold_policy = f'cold_{args["eospolicy"]}'
+
 files = [
   args["eospolicy"],
   args["errorpolicy"],
   "ps_error",
-  f'cold_{args["eospolicy"]}',
+  cold_policy,
 ]
 if args["eos"] == "eostaudyn_ps":
   aux = [f"        src/z4c/primitive/{f}.cpp \\" for f in files]
   makefile_options["EOS_FILES"] = "\n".join(aux) + "\n"
+print(makefile_options["EOS_FILES"])
 
 # Make substitutions
 for key, val in definitions.items():
