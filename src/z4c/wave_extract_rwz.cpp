@@ -1063,7 +1063,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> adm_dg_ddd;      
   adm_dg_ddd.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_dgxx_x); 
-  printf("dx_gxx = %.12e, dy_gxx = %.12e, dz_gxx = %.12e \n", adm_dg_ddd(0,0,0,0,0,0), adm_dg_ddd(1,0,0,0,0,0), adm_dg_ddd(2,0,0,0,0,0));
+  //printf("dx_gxx = %.12e, dy_gxx = %.12e, dz_gxx = %.12e \n", adm_dg_ddd(0,0,0,0,0,0), adm_dg_ddd(1,0,0,0,0,0), adm_dg_ddd(2,0,0,0,0,0));
 
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> adm_dbeta_du; // beta^j,i = d/dx^i beta^j
   adm_dbeta_du.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_dbetax_x); 
@@ -1417,7 +1417,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 	dr_alpha(i,j) += n[a] * Calpha_der_d(a);
       }
       
-      //printf("Interp:  alpha = %.12e, dr_alpha = %.12e, dot_alpha = %.12e \n", Calpha(), Calpha_der_d(0), Calpha_dot_d());
+      printf("Interp:  alpha = %.12e, dr_alpha = %.12e, dot_alpha = %.12e \n", alpha(i,j), dr_alpha(i,j), dot_alpha(i,j));
       // beta^2 & drvts      
       beta2(i,j) = 0.0;
       for (int a=0; a<NDIM; ++a)
@@ -1440,6 +1440,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 	    Cgamma_dd(a,b) * dr_Cbeta_u(a) * Cbeta_u(b)+
 	    Cgamma_dd(a,b) * Cbeta_u(a) * dr_Cbeta_u(b);
 	}
+      //printf("Interp:  beta2 = %.12e, dr_beta2 = %.12e, dot_beta2 = %.12e \n", beta2(i,j), dr_beta2(i,j), dot_beta2(i,j));
                   
       // ADM integrals (based on Cartesian expressions)
       // These integrals will be reduced together with the background integrals
@@ -1894,10 +1895,7 @@ void WaveExtractRWZ::BackgroundReduce() {
   const Real gRR = integrals_background[IgRR];
   const Real gRt = integrals_background[IgRt];
   const Real gtt = integrals_background[Igtt];
-  const Real gpp = integrals_background[Igpp];
-  
- 
-  printf("Ig_00 = %.12e, Ig_0R = %.12e, Ig_RR = %.12e \n", g00, g0R, gRR);
+  const Real gpp = integrals_background[Igpp]; 
 
   const Real dR_g00 = integrals_background[IdR_g00];
   const Real dR_g0R = integrals_background[IdR_g0R];
@@ -1919,7 +1917,7 @@ void WaveExtractRWZ::BackgroundReduce() {
 
     drsch_dri *= div_rsch;
     dri_drsch = 1.0/drsch_dri;
-    printf("R = %.6f, r = %.6f, dr/dR = %.6f dR/dr = %.6f \n", Radius, rsch, drsch_dri, dri_drsch);
+    //printf("R = %.6f, r = %.6f, dr/dR = %.6f dR/dr = %.6f \n", Radius, rsch, drsch_dri, dri_drsch);
     
     d2rsch_dri2 = - div_rsch * ( SQR(drsch_dri) + d2rsch_dri2 );
     d2ri_drsch2 = - std::pow(dri_drsch,3)*d2rsch_dri2;
@@ -2014,9 +2012,10 @@ void WaveExtractRWZ::BackgroundReduce() {
   g_dd(0,1) = g0r;
   g_dd(1,1) = grr;
   
-  printf("M_schw = %.6f \n", Schwarzschild_mass);
-  printf("detg = %.6f, 1/detg = %.6f \n" , detg, div_detg);
-  printf("g_00 = %.12e, g_01 = %.12e, g_11 = %.12e \n", g_dd(0,0), g_dd(0,1), g_dd(1,1));
+  //printf("M_schw = %.6f \n", Schwarzschild_mass);
+  //printf("detg = %.6f, 1/detg = %.6f \n" , detg, div_detg);
+  //printf("Ig_00 = %.12e, Ig_0R = %.12e, Ig_RR = %.12e \n", g00, g0R, gRR);
+  //printf("g_00 = %.12e, g_01 = %.12e, g_11 = %.12e \n", g_dd(0,0), g_dd(0,1), g_dd(1,1));
 
   g_dr_dd(0,0) = dr_g00;
   g_dr_dd(0,1) = dr_g0r;
@@ -2029,7 +2028,8 @@ void WaveExtractRWZ::BackgroundReduce() {
   g_uu(0,0) = g00_uu;
   g_uu(0,1) = g0r_uu;
   g_uu(1,1) = grr_uu;
-  printf("g^00 = %.12e, g^01 = %.12e, g^11 = %.12e \n", g_uu(0,0), g_uu(0,1), g_uu(1,1));
+  //printf("g^00 = %.12e, g^01 = %.12e, g^11 = %.12e \n", g_uu(0,0), g_uu(0,1), g_uu(1,1));
+  //printf(" \n");
  
   g_dr_uu(0,0) = dr_g00_uu;
   g_dr_uu(0,1) = dr_g0r_uu;
@@ -2076,7 +2076,7 @@ void WaveExtractRWZ::BackgroundReduce() {
       dr_gamma_dd(0,0,i,j) = 2.0 * dri_drsch * d2ri_drsch2 * gamma_dd(0,0,i,j) 
                              + std::pow(dri_drsch,3) * dr_gamma_dd(0,0,i,j);
       for (int a=1; a<3; a++)
-        dr_gamma_dd(0,a,i,j) = d2ri_drsch2 * gamma_dd(0,a,j,j) 
+        dr_gamma_dd(0,a,i,j) = d2ri_drsch2 * gamma_dd(0,a,i,j) 
                                + SQR(dri_drsch) * dr_gamma_dd(0,a,i,j);
       for (int a=1; a<3; a++)
         for (int b=1; b<3; b++){
@@ -2088,7 +2088,7 @@ void WaveExtractRWZ::BackgroundReduce() {
                               + SQR(dri_drsch) * dot_gamma_dd(0,0,i,j);
       
       for (int a=1; a<3; a++)
-        dot_gamma_dd(0,a,i,j) = dri_drsch_dot * gamma_dd(0,a,j,j) 
+        dot_gamma_dd(0,a,i,j) = dri_drsch_dot * gamma_dd(0,a,i,j) 
                                 + dri_drsch * dot_gamma_dd(0,a,i,j);
 
       // gamma_ri
@@ -2140,27 +2140,27 @@ void WaveExtractRWZ::MultipoleReduce() {
       const Real sinph2 = SQR(sinph);
       const Real cosph2 = SQR(cosph);
 
-      //beta2(i,j) = 0.0;
-      //for (int a=0; a<3; ++a)
-        //beta2(i,j) += beta_u(a,i,j)*beta_d(a,i,j);
+      beta2(i,j) = 0.0;
+      for (int a=0; a<3; ++a)
+        beta2(i,j) += beta_u(a,i,j)*beta_d(a,i,j);
           
-      //dr_beta2(i,j) = 0.0;
-      //for (int a=0; a<3; ++a)
-        //for (int b=0; b<3; ++b) {
-          //dr_beta2(i,j) +=
-            //dr_gamma_dd(a,b,i,j) * beta_u(a,i,j) * beta_u(b,i,j)
-            //+ gamma_dd(a,b,i,j) * dr_beta_u(a,i,j) * beta_u(b,i,j)
-            //+ gamma_dd(a,b,i,j) * beta_u(a,i,j) * dr_beta_u(b,i,j);
-         //}
+      dr_beta2(i,j) = 0.0;
+      for (int a=0; a<3; ++a)
+        for (int b=0; b<3; ++b) {
+          dr_beta2(i,j) +=
+            dr_gamma_dd(a,b,i,j) * beta_u(a,i,j) * beta_u(b,i,j)
+            + gamma_dd(a,b,i,j) * dr_beta_u(a,i,j) * beta_u(b,i,j)
+            + gamma_dd(a,b,i,j) * beta_u(a,i,j) * dr_beta_u(b,i,j);
+         }
           
-        //dot_beta2(i,j) = 0.0;
-        //for (int a=0; a<3; ++a)
-          //for (int b=0; b<3; ++b) {
-            //dot_beta2(i,j) +=
-              //dot_gamma_dd(a,b,i,j) * beta_u(a,i,j) * beta_u(b,i,j)
-              //+ gamma_dd(a,b,i,j) * dot_beta_u(a,i,j) * beta_u(b,i,j)
-              //+ gamma_dd(a,b,i,j) * beta_u(a,i,j) * dot_beta_u(b,i,j);
-          // }
+      dot_beta2(i,j) = 0.0;
+      for (int a=0; a<3; ++a)
+        for (int b=0; b<3; ++b) {
+          dot_beta2(i,j) +=
+            dot_gamma_dd(a,b,i,j) * beta_u(a,i,j) * beta_u(b,i,j)
+            + gamma_dd(a,b,i,j) * dot_beta_u(a,i,j) * beta_u(b,i,j)
+            + gamma_dd(a,b,i,j) * beta_u(a,i,j) * dot_beta_u(b,i,j);
+         }
 
       
       for(int l=2; l<=lmax; ++l) {
@@ -2175,11 +2175,11 @@ void WaveExtractRWZ::MultipoleReduce() {
 
 	  for(int c=0; c<RealImag; ++c) {
 	    const int s = (c==0)? 1.0 : -1.0; // conjugate
-	    const Real sY   = s * Y(lm,c);
-	    const Real sYth = s * Yth(lm,c);
-	    const Real sYph = s * Yph(lm,c);
-	    const Real sX   = s * X(lm,c);
-	    const Real sW   = s * W(lm,c);
+	    const Real sY   = s * Y(i,j,lm,c);
+	    const Real sYth = s * Yth(i,j,lm,c);
+	    const Real sYph = s * Yph(i,j,lm,c);
+	    const Real sX   = s * X(i,j,lm,c);
+	    const Real sW   = s * W(i,j,lm,c);
 
 	    
 	    // even parity
@@ -2192,7 +2192,7 @@ void WaveExtractRWZ::MultipoleReduce() {
 	      vol * beta_d(0,i,j) * sY;
 
 	    integrals_multipoles[lmpoints_x2 * Ih11 + 2*lm + c] += 
-	      vol * gamma_dd(1,1,i,j) * sY;
+	      vol * gamma_dd(0,0,i,j) * sY;
 
 	    
 	    integrals_multipoles[lmpoints_x2 * Ih0 + 2*lm + c] += 
@@ -2207,9 +2207,11 @@ void WaveExtractRWZ::MultipoleReduce() {
 
 	    integrals_multipoles[lmpoints_x2 * IG + 2*lm + c] += 
 	      vol * div_r2 * div_lambda_lambda_2
-	      * ( (gamma_dd(1,1,i,j) + gamma_dd(2,2,i,j) * div_sinth2) * sW
+	      * ( (gamma_dd(1,1,i,j) - gamma_dd(2,2,i,j) * div_sinth2) * sW
 		  + 2.0*gamma_dd(1,2,i,j) * sX );
-
+            
+            printf("alpha2 = %.6f, beta2 = %.6f \n", SQR(alpha(i,j)), beta2(i,j));
+            printf("gamma_rr = %.6f, gamma_tt = %.6f gamma_pp = %.6f \n", gamma_dd(0,0,i,j), gamma_dd(1,1,i,j), gamma_dd(2,2,i,j));
 	    
 	    // even parity radial drvts
 	    // -----------------------------
@@ -2221,7 +2223,7 @@ void WaveExtractRWZ::MultipoleReduce() {
 	      vol * dr_beta_d(0,i,j) * sY;
 
 	    integrals_multipoles[lmpoints_x2 * Ih11_dr + 2*lm + c] += 
-	      vol * dr_gamma_dd(1,1,i,j) * sY;
+	      vol * dr_gamma_dd(0,0,i,j) * sY;
 
 	    
 	    integrals_multipoles[lmpoints_x2 * Ih0_dr + 2*lm + c] += 
@@ -2239,9 +2241,9 @@ void WaveExtractRWZ::MultipoleReduce() {
 	    
 	    integrals_multipoles[lmpoints_x2 * IG_dr + 2*lm + c] += 
 	      vol * div_lambda_lambda_2 *
-	      ( div_r2 * ( (dr_gamma_dd(1,1,i,j) + dr_gamma_dd(2,2,i,j) * div_sinth2) * sW
+	      ( div_r2 * ( (dr_gamma_dd(1,1,i,j) - dr_gamma_dd(2,2,i,j) * div_sinth2) * sW
 			   + 2.0*dr_gamma_dd(1,2,i,j) * sX )
-		-2.0*div_r3 * ( ( (gamma_dd(1,1,i,j) + gamma_dd(2,2,i,j) * div_sinth2) * sW
+		-2.0*div_r3 * ( ( (gamma_dd(1,1,i,j) - gamma_dd(2,2,i,j) * div_sinth2) * sW
 				  + 2.0*gamma_dd(1,2,i,j) * sX ) ) );
 
 	    
@@ -2256,7 +2258,7 @@ void WaveExtractRWZ::MultipoleReduce() {
 	      vol * dot_beta_d(0,i,j) * sY;
 
 	    integrals_multipoles[lmpoints_x2 * Ih11_dot + 2*lm + c] += 
-	      vol * dot_gamma_dd(1,1,i,j) * sY;
+	      vol * dot_gamma_dd(0,0,i,j) * sY;
 
 	    
 	    integrals_multipoles[lmpoints_x2 * Ih0_dot + 2*lm + c] += 
@@ -2274,7 +2276,7 @@ void WaveExtractRWZ::MultipoleReduce() {
 
 	    integrals_multipoles[lmpoints_x2 * IG_dot + 2*lm + c] += 
 	      vol * div_r2 * div_lambda_lambda_2
-	      * ( (dot_gamma_dd(1,1,i,j) + dot_gamma_dd(2,2,i,j) * div_sinth2) * sW
+	      * ( (dot_gamma_dd(1,1,i,j) - dot_gamma_dd(2,2,i,j) * div_sinth2) * sW
 		  + 2.0*dot_gamma_dd(1,2,i,j) * sX );
 
 	    
@@ -2407,6 +2409,17 @@ void WaveExtractRWZ::MultipoleReduce() {
     }// for m
   }// for l
   
+  printf("Extraction radius: %.2f \n", Radius);
+  printf("Even multipoles for (l,m)=(2,0): \n");
+  printf("h00 = %.16e \n", h00(2,0));
+  printf("h01 = %.16e \n", h01(2,0));
+  printf("h11 = %.16e \n", h11(2,0));
+  printf("h0 = %.16e \n", h0(2,0));
+  printf("h1 = %.16e \n", h1(2,0));
+  printf("K = %.16e \n", K(2,0));
+  printf("G = %.16e \n", G(2,0));
+  printf(" \n");
+  
   // Compute the various gauge-invariant functions
   MultipolesGaugeInvariant();
   MasterFuns();
@@ -2427,7 +2440,7 @@ void WaveExtractRWZ::MasterFuns() {
   const Real rdot = dot_rsch;
   const Real div_r = 1.0/r;
 
-  const Real S = -(1.0-2.0*M*div_r);
+  const Real S = (1.0-2.0*M*div_r);
   const Real abs_detg = std::fabs(g_dd(0,0) * g_dd(1,1) - SQR(g_dd(0,1)));
   const Real div_sqrtdetg = 1.0/(std::sqrt(abs_detg));
   
@@ -2437,7 +2450,7 @@ void WaveExtractRWZ::MasterFuns() {
     const Real fac_Psie = (2.0*r)/((lambda-2)*r + 6.0*M);
     const Real r_div_lambda = r/lambda;
     const Real Lam  = (l-1)*(l-2) + 6*M*div_r;
-    const Real Qpnorm = std::sqrt(2*(l-1)*(l-2)/lambda)/Lam;
+    const Real Qpnorm = std::sqrt(2*(l-1)*(l+2)/lambda)/Lam;
     
     for(int m=-l; m<=l; ++m) {
       const int lm = MIndex(l,m);
@@ -2459,7 +2472,7 @@ void WaveExtractRWZ::MasterFuns() {
 	const Real Psio_sch_ = ( r*(H1_dot(lm,c) - H0_dr(lm,c)) + 2.0*div_r*H0(lm,c) )*div_lambda_2;
 	Psio_sch(lm,c) = Psio_sch_;	
 	
-	const Real Qstar_ = - div_r*S*( H1(lm,c) - H_dr(lm,c)*div_r + 2.0*H(lm,c)*SQR(div_r) );
+	const Real Qstar_ = div_r*S*( H1(lm,c) - H_dr(lm,c)*div_r + 2.0*H(lm,c)*SQR(div_r) );
 	Qstar(lm,c) = Qstar_;
 	
 	// Even parity in general coordinates (static)
