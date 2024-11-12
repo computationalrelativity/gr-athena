@@ -112,6 +112,9 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     void SetMaxIteration(int iter_max);
     void SetTemperatureTolerance(Real tol);
 
+    /// Get the transition parameters
+    void PrintParameters();
+
     /// Get the raw number density
     Real const * GetRawLogNumberDensity() const {
       return m_log_nb;
@@ -149,6 +152,7 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     void read_helmholtz_table(std::string fname);
     /// Lowers the reference baryon mass to ensure eps > 0.
     void update_baryon_mass();
+    void update_bounds();
 
 
     /// Low level inversion function, not intended for outside use
