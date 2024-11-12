@@ -7,6 +7,8 @@
 //  \brief Implements functions for going between primitive and conserved variables in
 //  general-relativistic hydrodynamics, as well as for computing wavespeeds.
 
+// includes -------------------------------------------------------------------
+
 // C++ headers
 #include <algorithm>
 #include <cfloat>
@@ -26,8 +28,14 @@
 #include "../z4c/z4c.hpp"
 #include "../utils/linear_algebra.hpp"     // Det. & friends
 
+//#ifdef Z4C_AHF
+#include "../z4c/ahf.hpp"
+//#endif
+
 // BD: TODO - a lot of the det / inv calculations could be stream-lined
 //            and refactored for speed...
+
+// ----------------------------------------------------------------------------
 
 namespace {
 
@@ -35,10 +43,6 @@ namespace {
 // Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> ps{&eos};
 
 typedef Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> PS;
-
-//#ifdef Z4C_AHF
-#include "../z4c/ahf.hpp"
-//#endif
 
 // Declarations
 static void PrimitiveToConservedSingle(

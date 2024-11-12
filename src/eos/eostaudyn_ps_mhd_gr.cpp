@@ -7,6 +7,8 @@
 //  \brief Implements functions for going between primitive and conserved variables in
 //  general-relativistic magnetohydrodynamics, as well as for computing wavespeeds.
 
+// includes -------------------------------------------------------------------
+
 // C++ headers
 #include <algorithm>
 #include <cfloat>
@@ -26,12 +28,15 @@
 #include "../z4c/z4c.hpp"
 #include "../utils/linear_algebra.hpp"     // Det. & friends
 
-// BD: TODO - a lot of the det / inv calculations could be stream-lined
-//            and refactored for speed...
-
 //#ifdef Z4C_AHF
 #include "../z4c/ahf.hpp"
 //#endif
+
+
+// BD: TODO - a lot of the det / inv calculations could be stream-lined
+//            and refactored for speed...
+
+// ----------------------------------------------------------------------------
 
 namespace {
 
