@@ -47,24 +47,7 @@ void Hydro::RiemannSolver(
   AthenaArray<Real> &wct,
   const AthenaArray<Real> &dxw)
 {
-  using namespace LinearAlgebra;
-
   MeshBlock * pmb = pmy_block;
-  EquationOfState * peos = pmb->peos;
-
-  // Calculate cyclic permutations of indices
-  int ivy = IVX + ((ivx-IVX)+1)%3;
-  int ivz = IVX + ((ivx-IVX)+2)%3;
-  int a,b;
-  const int nn1 = pmy_block->nverts1;  // utilize the verts
-
-  // Extract ratio of specific heats
-#if USETM
-  const Real mb = pmb->peos->GetEOS().GetBaryonMass();
-#else
-  const Real Gamma = pmb->peos->GetGamma();
-  const Real Eos_Gamma_ratio = Gamma / (Gamma - 1.0);
-#endif
 
   // perform variable resampling when required
   Z4c * pz4c = pmb->pz4c;
@@ -74,6 +57,68 @@ void Hydro::RiemannSolver(
   AT_N_sca sl_adm_alpha(   pz4c->storage.adm, Z4c::I_ADM_alpha);
   AT_N_vec sl_adm_beta_u(  pz4c->storage.adm, Z4c::I_ADM_betax);
 
+  // Reconstruction to FC -----------------------------------------------------
+  GRDynamical* pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
+  pco_gr->GetGeometricFieldFC(gamma_dd_, sl_adm_gamma_dd, ivx-1, k, j);
+  pco_gr->GetGeometricFieldFC(alpha_,    sl_adm_alpha,    ivx-1, k, j);
+  pco_gr->GetGeometricFieldFC(beta_u_,   sl_adm_beta_u,   ivx-1, k, j);
+
+#ifdef DBG_COMBINED_HYDPA
+  AA & pscalars_l = pmy_block->pscalars->rl_;
+  AA & pscalars_r = pmy_block->pscalars->rr_;
+
+#else
+  AA pscalars_l;
+  AA pscalars_r;
+#endif
+
+  RiemannSolver(k, j, il, iu, ivx, B, prim_l, prim_r,
+                pscalars_l, pscalars_r,
+                alpha_, beta_u_, gamma_dd_,
+                flux, ey, ez, wct, dxw);
+}
+
+void Hydro::RiemannSolver(
+  const int k, const int j,
+  const int il, const int iu,
+  const int ivx,
+  const AthenaArray<Real> &B,
+  AthenaArray<Real> &prim_l,
+  AthenaArray<Real> &prim_r,
+  AthenaArray<Real> &pscalars_l,
+  AthenaArray<Real> &pscalars_r,
+  AT_N_sca & alpha_,
+  AT_N_vec & beta_u_,
+  AT_N_sym & gamma_dd_,
+  AthenaArray<Real> &flux,
+  AthenaArray<Real> &ey,
+  AthenaArray<Real> &ez,
+  AthenaArray<Real> &wct,
+  const AthenaArray<Real> &dxw)
+{
+  using namespace LinearAlgebra;
+
+  MeshBlock * pmb = pmy_block;
+  EquationOfState * peos = pmb->peos;
+  GRDynamical* pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
+
+  // Calculate cyclic permutations of indices
+  int ivy = IVX + ((ivx-IVX)+1)%3;
+  int ivz = IVX + ((ivx-IVX)+2)%3;
+
+  const int nn1 = pmy_block->nverts1;  // utilize the verts
+
+  // time-step (needed for CT weight)
+  const Real dt = pmb->pmy_mesh->dt;
+
+  // Extract ratio of specific heats
+#if USETM
+  const Real mb = pmb->peos->GetEOS().GetBaryonMass();
+#else
+  const Real Gamma = pmb->peos->GetGamma();
+  const Real Eos_Gamma_ratio = Gamma / (Gamma - 1.0);
+#endif
+
   // 1d slices ----------------------------------------------------------------
   AT_N_sca w_rho_l_(prim_l, IDN);
   AT_N_sca w_rho_r_(prim_r, IDN);
@@ -82,16 +127,6 @@ void Hydro::RiemannSolver(
 
   AT_N_vec w_util_u_l_(prim_l, IVX);
   AT_N_vec w_util_u_r_(prim_r, IVX);
-
-  // Reconstruction to FC -----------------------------------------------------
-  GRDynamical* pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
-  pco_gr->GetGeometricFieldFC(gamma_dd_, sl_adm_gamma_dd, ivx-1, k, j);
-  pco_gr->GetGeometricFieldFC(alpha_,    sl_adm_alpha,    ivx-1, k, j);
-  pco_gr->GetGeometricFieldFC(beta_u_,   sl_adm_beta_u,   ivx-1, k, j);
-
-  // ==========================================================================
-
-  Real dt = pmb->pmy_mesh->dt;
 
   // =============================================================
   // Prepare determinant-like
@@ -290,7 +325,7 @@ void Hydro::RiemannSolver(
   }
 
 
-  for (a = 0; a < NDIM; ++a)
+  for (int a = 0; a < NDIM; ++a)
   {
     #pragma omp simd
     for (int i = il; i <= iu; ++i)
@@ -301,7 +336,7 @@ void Hydro::RiemannSolver(
     }
   }
 
-  for (a = 0; a < NDIM; ++a)
+  for (int a = 0; a < NDIM; ++a)
   {
     #pragma omp simd
     for (int i = il; i <= iu; ++i)
@@ -321,9 +356,9 @@ void Hydro::RiemannSolver(
     b2_r_(i) = SQR(alpha_(i) * b0_r_(i) * oo_W_r_(i));
   }
 
-  for (a = 0; a < NDIM; ++a)
+  for (int a = 0; a < NDIM; ++a)
   {
-    for (b = 0; b < NDIM; ++b)
+    for (int b = 0; b < NDIM; ++b)
     {
       #pragma omp simd
       for (int i = il; i <= iu; ++i)
@@ -336,7 +371,7 @@ void Hydro::RiemannSolver(
     }
   }
 
-  for (a = 0; a < NDIM; ++a)
+  for (int a = 0; a < NDIM; ++a)
   {
     #pragma omp simd
     for (int i = il; i <= iu; ++i)
@@ -344,7 +379,7 @@ void Hydro::RiemannSolver(
       bi_d_l_(a, i) = beta_d_(a, i) * b0_l_(i);
       bi_d_r_(a, i) = beta_d_(a, i) * b0_r_(i);
     }
-    for (b = 0; b < NDIM; ++b)
+    for (int b = 0; b < NDIM; ++b)
     {
       #pragma omp simd
       for (int i = il; i <= iu; ++i)
@@ -370,12 +405,12 @@ void Hydro::RiemannSolver(
     Real Yl[MAX_SPECIES] = { 0.0 };  // Should we worry about r vs l here?
     Real Yr[MAX_SPECIES] = { 0.0 };
 
-    // PH TODO scalars should be passed in?
+    // BD: TODO - handle this better in the non-combined case
 #ifdef DBG_COMBINED_HYDPA
     for (int n = 0; n < NSCALARS; n++)
     {
-      Yl[n] = pmy_block->pscalars->rl_(n, i);
-      Yr[n] = pmy_block->pscalars->rr_(n, i);
+      Yl[n] = pscalars_l(n, i);
+      Yr[n] = pscalars_r(n, i);
     }
 #else
     for (int n = 0; n < NSCALARS; n++)

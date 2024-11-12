@@ -45,6 +45,7 @@ using namespace gra::aliases;
 // so a factor of sqrt(detgamma) is included
 // compare with modification to add_flux_divergence_dyn, where factors of face area, cell volume etc are missing
 // since they are included here.
+
 void Hydro::RiemannSolver(
   const int k, const int j,
   const int il, const int iu,
@@ -54,10 +55,57 @@ void Hydro::RiemannSolver(
   AthenaArray<Real> &flux,
   const AthenaArray<Real> &dxw)
 {
+  MeshBlock * pmb = pmy_block;
+
+  // perform variable resampling when required
+  Z4c * pz4c = pmb->pz4c;
+
+  // Slice 3d z4c metric quantities  (NDIM=3 in z4c.hpp) ----------------------
+  AT_N_sym sl_adm_gamma_dd(pz4c->storage.adm, Z4c::I_ADM_gxx);
+  AT_N_sca sl_adm_alpha(   pz4c->storage.adm, Z4c::I_ADM_alpha);
+  AT_N_vec sl_adm_beta_u(  pz4c->storage.adm, Z4c::I_ADM_betax);
+
+  // Reconstruction to FC -----------------------------------------------------
+  GRDynamical* pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
+  pco_gr->GetGeometricFieldFC(gamma_dd_, sl_adm_gamma_dd, ivx-1, k, j);
+  pco_gr->GetGeometricFieldFC(alpha_,    sl_adm_alpha,    ivx-1, k, j);
+  pco_gr->GetGeometricFieldFC(beta_u_,   sl_adm_beta_u,   ivx-1, k, j);
+
+#ifdef DBG_COMBINED_HYDPA
+  AA & pscalars_l = pmy_block->pscalars->rl_;
+  AA & pscalars_r = pmy_block->pscalars->rr_;
+
+#else
+  AA pscalars_l;
+  AA pscalars_r;
+#endif
+
+  RiemannSolver(k, j, il, iu, ivx, prim_l, prim_r,
+                pscalars_l, pscalars_r,
+                alpha_, beta_u_, gamma_dd_,
+                flux, dxw, 1.0);
+}
+
+void Hydro::RiemannSolver(
+  const int k, const int j,
+  const int il, const int iu,
+  const int ivx,
+  AthenaArray<Real> &prim_l,
+  AthenaArray<Real> &prim_r,
+  AthenaArray<Real> &pscalars_l,
+  AthenaArray<Real> &pscalars_r,
+  AT_N_sca & alpha_,
+  AT_N_vec & beta_u_,
+  AT_N_sym & gamma_dd_,
+  AthenaArray<Real> &flux,
+  const AthenaArray<Real> &dxw,
+  const Real lambda_rescaling)
+{
   using namespace LinearAlgebra;
 
   MeshBlock * pmb = pmy_block;
   EquationOfState * peos = pmb->peos;
+  GRDynamical* pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
 
   // Calculate cyclic permutations of indices
   int ivy = IVX + ((ivx-IVX)+1)%3;
@@ -73,14 +121,6 @@ void Hydro::RiemannSolver(
   const Real Eos_Gamma_ratio = Gamma / (Gamma - 1.0);
 #endif
 
-  // perform variable resampling when required
-  Z4c * pz4c = pmb->pz4c;
-
-  // Slice 3d z4c metric quantities  (NDIM=3 in z4c.hpp) ----------------------
-  AT_N_sym sl_adm_gamma_dd(pz4c->storage.adm, Z4c::I_ADM_gxx);
-  AT_N_sca sl_adm_alpha(   pz4c->storage.adm, Z4c::I_ADM_alpha);
-  AT_N_vec sl_adm_beta_u(  pz4c->storage.adm, Z4c::I_ADM_betax);
-
   // 1d slices ----------------------------------------------------------------
   AT_N_sca w_rho_l_(prim_l, IDN);
   AT_N_sca w_rho_r_(prim_r, IDN);
@@ -89,12 +129,6 @@ void Hydro::RiemannSolver(
 
   AT_N_vec w_util_u_l_(prim_l, IVX);
   AT_N_vec w_util_u_r_(prim_r, IVX);
-
-  // Reconstruction to FC -----------------------------------------------------
-  GRDynamical* pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
-  pco_gr->GetGeometricFieldFC(gamma_dd_, sl_adm_gamma_dd, ivx-1, k, j);
-  pco_gr->GetGeometricFieldFC(alpha_,    sl_adm_alpha,    ivx-1, k, j);
-  pco_gr->GetGeometricFieldFC(beta_u_,   sl_adm_beta_u,   ivx-1, k, j);
 
   // Prepare determinant-like
   #pragma omp simd
@@ -213,12 +247,13 @@ void Hydro::RiemannSolver(
     Real nr = w_rho_r_(i)/mb;
     Real Yl[MAX_SPECIES] = {0.0};
     Real Yr[MAX_SPECIES] = {0.0};
-    // PH TODO scalars should be passed in?
+
+    // BD: TODO - handle this better in the non-combined case
 #ifdef DBG_COMBINED_HYDPA
     for (int n=0; n<NSCALARS; n++)
     {
-      Yl[n] = pmy_block->pscalars->rl_(n,i);
-      Yr[n] = pmy_block->pscalars->rr_(n,i);
+      Yl[n] = pscalars_l(n,i);
+      Yr[n] = pscalars_r(n,i);
     }
 #else
     for (int n=0; n<NSCALARS; n++)
