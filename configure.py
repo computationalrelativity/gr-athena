@@ -882,7 +882,7 @@ elif args["eos"] == "eostaudyn_ps":
   elif args['eospolicy'] == 'eos_compose_transition':
     definitions['EOS_POLICY'] = 'EOSCompOSETransition'
     definitions['EOS_POLICY_CODE'] = '4'
-    definitions['EOS_TGUESS'] = '1'
+    #definitions['EOS_TGUESS'] = '1'
     definitions["COLDEOS_POLICY"] = "ColdEOSCompOSE"
   else:
     definitions["EOS_POLICY"] = ""

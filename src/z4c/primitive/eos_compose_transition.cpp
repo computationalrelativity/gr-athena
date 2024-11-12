@@ -84,8 +84,8 @@ Real EOSCompOSETransition::TemperatureFromP(Real n, Real p, Real *Y) {
   assert (m_initialized);
   if (p <= 0.0) {
     printf("Pressure is %e\n", p);
-    return 0.0;
   }
+  assert (p > 0.);
   return temperature_from_var(ECLOGP, log(p), n, Y[0], Y[1]);
 }
 

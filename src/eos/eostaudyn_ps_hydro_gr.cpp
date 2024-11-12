@@ -123,6 +123,17 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
 #elif defined(USE_COMPOSE_TRANSITION_EOS)
   std::string compose_table = pin->GetString("hydro", "compose_table");
   std::string helmholtz_table = pin->GetString("hydro", "helmholtz_table");
+
+  Real mb = eos.GetBaryonMass();
+
+  Real trans_T_start = pin->GetOrAddReal("hydro", "trans_t_start", 0.0);
+  Real trans_T_end = pin->GetOrAddReal("hydro", "trans_t_end", 0.0);
+  eos.SetTemperatureTransition(trans_T_start, trans_T_end);
+
+  Real trans_d_start = pin->GetOrAddReal("hydro", "trans_d_start", 0.0);
+  Real trans_d_end = pin->GetOrAddReal("hydro", "trans_d_end", 0.0);
+  eos.SetDensityTransition(trans_d_start/mb, trans_d_end/mb);
+
   eos.InitializeTables(compose_table, helmholtz_table);
   eos.SetCodeUnitSystem(&Primitive::GeometricSolar);
   Real mb = eos.GetBaryonMass();
