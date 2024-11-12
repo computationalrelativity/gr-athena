@@ -95,6 +95,15 @@ class AthenaArray {
   // BD: cf. lower template of ZeroClear
   void Fill(T const val) { std::fill(pdata_, pdata_ + GetSize(), T(val)); }
 
+  // Mask array by a multiplicative constant
+  void MulConst(T const val)
+  {
+    for (int ix=0; ix<GetSize(); ++ix)
+    {
+      pdata_[ix] *= val;
+    }
+  }
+
   // functions to get array dimensions
   int GetDim1() const { return nx1_; }
   int GetDim2() const { return nx2_; }

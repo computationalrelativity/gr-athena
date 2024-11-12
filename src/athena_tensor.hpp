@@ -109,6 +109,8 @@ public:
   // fill a tensor field with a constant value
   void Fill(T const val) { data_.Fill(val); }
   void ZeroClear() { data_.ZeroClear(); }
+  // mask by multiplicative constant
+  void MulConst(T const val) { data_.MulConst(val); }
 
   // check values
   bool is_finite() { return data_.is_finite(); }
