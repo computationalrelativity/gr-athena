@@ -96,6 +96,40 @@ class ParameterInput {
   std::string GetOrAddString(std::string block, std::string name, std::string value);
   std::string SetString(std::string block, std::string name, std::string value);
 
+  // Overwrite a parameter; useful if some state is achieve and a toggle in
+  // behaviour needs to be set thereafter (including with restarts)
+  template<class T>
+  void OverwriteParameter(
+    const std::string & block,
+    const std::string & name,
+    T value)
+  {
+    InputBlock* pb;
+    InputLine *pl;
+
+    pb = GetPtrToBlock(block);
+    pl = pb->GetPtrToLine(name);
+
+    Lock();
+
+    if (DoesParameterExist(block, name))
+    {
+      pb = GetPtrToBlock(block);
+      pl = pb->GetPtrToLine(name);
+      pl->param_value = std::to_string(value);
+    }
+    else
+    {
+      pb = FindOrAddBlock(block);
+      AddParameter(pb,
+                   name,
+                   std::to_string(value),
+                   "# Value inject during run time");
+    }
+
+    Unlock();
+  }
+
   // Convenience functions for dealing with array-like parameters -------------
   typedef std::vector<std::string> t_vec_str;
   typedef std::vector<Real> t_vec_Real;
