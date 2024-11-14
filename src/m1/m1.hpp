@@ -84,6 +84,7 @@ public:
   void CoupleSourcesHydro(AA &cons);
   void CoupleSourcesYe(const Real mb, AA &ps);
 
+  void PerformAnalysis();
 
 // data =======================================================================
 public:

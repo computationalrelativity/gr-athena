@@ -440,7 +440,7 @@ TaskStatus M1N0::Analysis(MeshBlock *pmb, int stage)
 {
   if (stage != nstages) return TaskStatus::success; // only do on last stage
 
-  // ...
+  pmb->pm1->PerformAnalysis();
 
   return TaskStatus::success;
 }

@@ -103,7 +103,12 @@ TaskStatus PostAMR_M1N0::Analysis(MeshBlock *pmb, int stage)
 {
   ::M1::M1 * pm1 = pmb->pm1;
 
-  // ...
+  if (!pmb->IsNewFromAMR())
+  {
+    return TaskStatus::success;
+  }
+
+  pm1->PerformAnalysis();
 
   return TaskStatus::success;
 }
