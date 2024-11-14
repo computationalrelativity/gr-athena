@@ -44,7 +44,7 @@ bool EquationOfState::IsAdmissiblePoint(
   {
     sum += cons(n,k,j,i) + prim(n,k,j,i);
   }
-  is_admissible = is_admissible && (!std::isnan(sum));
+  is_admissible = is_admissible && std::isfinite(sum);
 
   // Now check for positivity
   is_admissible = is_admissible && (adm_detgamma__ >= 0);
