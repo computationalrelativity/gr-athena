@@ -112,6 +112,12 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS}
+  },
+  rdiag{
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS}
   }
 {
   // Registration of boundary variables for refinement etc. -------------------
@@ -326,10 +332,19 @@ void M1::SetVarAliasesRadMat(AthenaArray<Real> & u, vars_RadMat & radmat)
 
 void M1::SetVarAliasesDiag(AthenaArray<Real> & u, vars_Diag & rdiag)
 {
-  rdiag.sc_radflux_0.InitWithShallowSlice(u, ixn_Diag::radflux_0);
-  rdiag.sc_radflux_1.InitWithShallowSlice(u, ixn_Diag::radflux_1);
-  rdiag.sc_ynu.InitWithShallowSlice(u,       ixn_Diag::ynu);
-  rdiag.sc_znu.InitWithShallowSlice(u,       ixn_Diag::znu);
+  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  {
+    SetVarAlias(rdiag.sc_radflux_0,  u, ix_g, ix_s,
+                ixn_Diag::radflux_0, ixn_Diag::N);
+    SetVarAlias(rdiag.sc_radflux_1,  u, ix_g, ix_s,
+                ixn_Diag::radflux_1, ixn_Diag::N);
+
+    SetVarAlias(rdiag.sc_y, u, ix_g, ix_s,
+                ixn_Diag::y, ixn_Diag::N);
+    SetVarAlias(rdiag.sc_z, u, ix_g, ix_s,
+                ixn_Diag::z, ixn_Diag::N);
+  }
 }
 
 void M1::SetVarAliasesFidu(AthenaArray<Real> & u, vars_Fidu & fidu)

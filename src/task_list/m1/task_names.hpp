@@ -35,12 +35,14 @@ const TaskID SETB(15);
 const TaskID PROLONG(16);
 const TaskID PHY_BVAL(17);
 
-const TaskID USERWORK(18);
+const TaskID ANALYSIS(18);
 
-const TaskID NEW_DT(19);
-const TaskID FLAG_AMR(20);
+const TaskID USERWORK(19);
 
-const TaskID UPDATE_COUPLING(21);
+const TaskID NEW_DT(20);
+const TaskID FLAG_AMR(21);
+
+const TaskID UPDATE_COUPLING(22);
 
 }  // TaskNames::M1::M1N0
 
@@ -51,9 +53,13 @@ const TaskID NONE(0);
 const TaskID UPDATE_BG(2);
 
 const TaskID CALC_FIDU(3);
-
 const TaskID CALC_CLOSURE(4);
+
+const TaskID CALC_FIDU_FRAME(5);
+
 const TaskID CALC_OPAC(6);
+
+const TaskID ANALYSIS(7);
 
 }  // namespace TaskNames::M1::PostAMR_M1N0
 

@@ -87,7 +87,9 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
       Add(PHY_BVAL, SETB, &M1N0::PhysicalBoundary);
     }
 
-    Add(USERWORK, (PHY_BVAL|CALC_UPDATE), &M1N0::UserWork);
+    Add(ANALYSIS, (PHY_BVAL|CALC_UPDATE), &M1N0::Analysis);
+
+    Add(USERWORK, ANALYSIS, &M1N0::UserWork);
     Add(NEW_DT,   USERWORK,               &M1N0::NewBlockTimeStep);
 
     if (adaptive)
@@ -431,6 +433,16 @@ TaskStatus M1N0::PhysicalBoundary(MeshBlock *pmb, int stage)
   }
 
   return TaskStatus::fail;
+}
+
+// ----------------------------------------------------------------------------
+TaskStatus M1N0::Analysis(MeshBlock *pmb, int stage)
+{
+  if (stage != nstages) return TaskStatus::success; // only do on last stage
+
+  // ...
+
+  return TaskStatus::success;
 }
 
 // ----------------------------------------------------------------------------

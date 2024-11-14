@@ -46,6 +46,8 @@ public:
   TaskStatus Prolongation(MeshBlock *pmb, int stage);
   TaskStatus PhysicalBoundary(MeshBlock *pmb, int stage);
 
+  TaskStatus Analysis(MeshBlock *pmb, int stage);
+
   TaskStatus UserWork(MeshBlock *pmb, int stage);
 
   TaskStatus NewBlockTimeStep(MeshBlock *pmb, int stage);
@@ -88,7 +90,11 @@ public:
   TaskStatus CalcFiducialVelocity(MeshBlock *pmb, int stage);
 
   TaskStatus CalcClosure(MeshBlock *pmb, int stage);
+
+  TaskStatus CalcFiducialFrame(MeshBlock *pmb, int stage);
   TaskStatus CalcOpacity(MeshBlock *pmb, int stage);
+
+  TaskStatus Analysis(MeshBlock *pmb, int stage);
 
 private:
   // BD - TODO: remove the AddTask logic in favour of Add

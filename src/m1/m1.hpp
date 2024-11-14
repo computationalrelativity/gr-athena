@@ -290,8 +290,6 @@ public:
     GroupSpeciesContainer<AT_C_sca> sc_J;
     GroupSpeciesContainer<AT_C_sca> sc_H_t;
     GroupSpeciesContainer<AT_N_vec> sp_H_d;
-    // GroupSpeciesContainer<AT_C_sca> sc_ynu;
-    // GroupSpeciesContainer<AT_C_sca> sc_znu;
   };
   vars_Rad rad;
 
@@ -330,11 +328,10 @@ public:
   // diagnostic variables
   struct vars_Diag
   {
-    // BD: TODO - these should have ix_g, ix_s
-    AT_C_sca sc_radflux_0;
-    AT_C_sca sc_radflux_1;
-    AT_C_sca sc_ynu;        // neutrino fractions
-    AT_C_sca sc_znu;        // neutrino energies
+    GroupSpeciesContainer<AT_C_sca> sc_radflux_0;
+    GroupSpeciesContainer<AT_C_sca> sc_radflux_1;
+    GroupSpeciesContainer<AT_C_sca> sc_y;        // neutrino fractions
+    GroupSpeciesContainer<AT_C_sca> sc_z;        // neutrino energies
   };
   vars_Diag rdiag;
 
@@ -560,16 +557,16 @@ public:
       J,
       H_t,
       H_x, H_y, H_z,
-      ynu,
-      znu,
+      y,
+      z,
       N
     };
     static constexpr char const * const names[] = {
       "rad.n",
       "rad.J",
       "rad.Ht", "rad.Hx", "rad.Hy", "rad.Hz",
-      "rad.ynu",
-      "rad.znu"
+      "rad.y",
+      "rad.z"
     };
   };
 
@@ -630,15 +627,15 @@ public:
     {
       radflux_0,
       radflux_1,
-      ynu,
-      znu,
+      y,
+      z,
       N
     };
     static constexpr char const * const names[] = {
       "rdia.radial_flux_0",
       "rdia.radial_flux_1",
-      "rdia.ynu",
-      "rdia.znu",
+      "rdia.y",
+      "rdia.z",
     };
   };
 
