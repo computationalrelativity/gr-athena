@@ -240,7 +240,7 @@ void M1::CalcFiducialFrame(AthenaArray<Real> & u)
       // assemble sc_n
       M1_GLOOP1(i)
       {
-        const Real Gamma =  Assemble::sc_G__(
+        const Real Gamma = Assemble::sc_G__(
           fidu.sc_W(k,j,i), sc_E(k,j,i), sc_J(k,j,i), dotFv_(i),
           opt.fl_E, opt.fl_J, opt.eps_E
         );
