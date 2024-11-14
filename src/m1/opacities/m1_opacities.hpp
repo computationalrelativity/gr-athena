@@ -20,7 +20,6 @@ namespace M1::Opacities {
 
 class Opacities
 {
-
 // methods ====================================================================
 public:
   Opacities(MeshBlock *pmb, M1 * pm1, ParameterInput *pin) :
@@ -83,7 +82,64 @@ public:
         std::exit(0);
       }
     }
-  };
+  }
+
+  // Photon:
+  // [[n_nue, n_nua, n_nux, n_nux]
+  //  [e_nue, e_nua, e_nux, e_nux]]
+  //
+  // WeakRates:
+  // [[n_nue, n_nua, n_nux, n_nux]
+  //  [e_nue, e_nua, e_nux, e_nux]]
+  void CalculateEquilbriumDensity(
+    const Real w_rho,
+    const Real w_T,
+    const Real w_Y_e,
+    AA & nudens)
+  {
+    switch (opt.opacity_variety)
+    {
+      case opt_opacity_variety::photon:
+      {
+        nudens(1, 0) = popac_photon->black_body(w_T);
+        break;
+      }
+#if !(M1_NO_WEAKRATES)
+      case opt_opacity_variety::weakrates:
+      {
+        // For 4 species neutrino transport we need to divide the nux luminosity
+        // by 2
+        const Real nux_weight = (pm1->N_SPCS == 3 ? 1.0 : 0.5);
+
+        const int ierr = popac_weakrates->pmy_weakrates->NeutrinoDensity(
+          w_rho,        // Real rho,
+          w_T,          // Real temp,
+          w_Y_e,        // Real ye,
+          nudens(0, 0), // Real &n_nue,
+          nudens(0, 1), // Real &n_nua,
+          nudens(0, 2), // Real &n_nux,
+          nudens(1, 0), // Real &e_nue,
+          nudens(1, 1), // Real &e_nua,
+          nudens(1, 2)  // Real &e_nux
+        );
+
+        assert(!ierr);
+
+        nudens(0,2) *= nux_weight;
+        nudens(1,2) *= nux_weight;
+
+        nudens(0,3) = nudens(0,2);
+        nudens(1,3) = nudens(1,2);
+
+        break;
+      }
+#endif  // !(M1_NO_WEAKRATES)
+      default:
+      {
+        assert(false);
+      }
+    }
+  }
 
 // internal methods / data ====================================================
 private:
@@ -158,7 +214,7 @@ private:
   }
 
 // configuration ==============================================================
-private:
+public:
   enum class opt_opacity_variety { none, zero, fake, photon, weakrates };
 
   struct

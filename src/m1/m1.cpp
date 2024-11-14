@@ -176,6 +176,20 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   m1_mask.InitWithShallowSlice(storage.intern, ixn_Internal::mask);
   m1_mask.Fill(true);
 
+  // storage for misc. quantities ---------------------------------------------
+  if (opt_solver.src_lim >= 0)
+  {
+    sources.theta.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
+  }
+
+  ev_strat.masks.solution_regime.NewAthenaArray(
+    N_GRPS, N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1);
+  ev_strat.masks.solution_regime.Fill(t_sln_r::noop);
+
+  ev_strat.masks.source_treatment.NewAthenaArray(
+    N_GRPS, N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1);
+  ev_strat.masks.source_treatment.Fill(t_src_t::noop);
+
   // --------------------------------------------------------------------------
   // general setup
   /*
@@ -259,9 +273,9 @@ void M1::SetVarAliasesSource(AthenaArray<Real> & sources, vars_Source & src)
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
   {
-    SetVarAlias(src.sc_S0,   sources, ix_g, ix_s, ixn_Src::S0,   ixn_Src::N);
-    SetVarAlias(src.sc_S1,   sources, ix_g, ix_s, ixn_Src::S1,   ixn_Src::N);
-    SetVarAlias(src.sp_S1_d, sources, ix_g, ix_s, ixn_Src::S1_x, ixn_Src::N);
+    SetVarAlias(src.sc_nG,  sources, ix_g, ix_s, ixn_Src::sc_nG,  ixn_Src::N);
+    SetVarAlias(src.sc_E,   sources, ix_g, ix_s, ixn_Src::sc_E,   ixn_Src::N);
+    SetVarAlias(src.sp_F_d, sources, ix_g, ix_s, ixn_Src::sp_F_0, ixn_Src::N);
   }
 }
 

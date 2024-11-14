@@ -45,6 +45,13 @@ struct Bracket {
   }
 };
 
+enum class status_closure {
+  success,
+  fail_tolerance_not_met,
+  fail_fallback,
+  fail_unknown
+};
+
 struct ClosureMetaVector {
   M1 & pm1;
   const int ix_g;

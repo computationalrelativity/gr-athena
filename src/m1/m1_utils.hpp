@@ -5,10 +5,6 @@
 // ...
 
 // Athena++ classes headers
-// #include "../athena.hpp"
-// #include "../athena_arrays.hpp"
-// #include "../athena_tensor.hpp"
-// #include "../mesh/mesh.hpp"
 #include "../utils/linear_algebra.hpp"
 #include "m1.hpp"
 #include "m1_containers.hpp"
@@ -1057,3 +1053,6 @@ inline void PointAthenaTensorToArray(
 
 #endif // M1_UTILS_HPP
 
+//
+// :D
+//

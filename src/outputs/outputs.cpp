@@ -1248,10 +1248,15 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
       for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
       {
-        dump_GSC_AT_C_sca(pm1->sources.sc_S0, ix_g, ix_s, "M1.sources.sc_S0");
-        dump_GSC_AT_C_sca(pm1->sources.sc_S1, ix_g, ix_s, "M1.sources.sc_S1");
-        dump_GSC_AT_N_vec(pm1->sources.sp_S1_d, ix_g, ix_s,
-                          "M1.sources.sp_S1_d");
+        dump_GSC_AT_C_sca(pm1->sources.sc_nG, ix_g, ix_s, "M1.sources.sc_nG");
+        dump_GSC_AT_C_sca(pm1->sources.sc_E,  ix_g, ix_s, "M1.sources.sc_E");
+        dump_GSC_AT_N_vec(pm1->sources.sp_F_d, ix_g, ix_s,
+                          "M1.sources.sp_F_d");
+
+        if (pm1->opt_solver.src_lim >= 0)
+        {
+          dump_AT_C_sca(pm1->sources.theta, "M1.sources.theta");
+        }
       }
     }
 

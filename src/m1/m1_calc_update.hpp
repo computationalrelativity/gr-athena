@@ -76,9 +76,9 @@ struct SourceMetaVector {
   const int ix_g;
   const int ix_s;
 
-  AT_C_sca & sc_S0;
-  AT_C_sca & sc_S1;
-  AT_N_vec & sp_S1_d;
+  AT_C_sca & sc_nG;
+  AT_C_sca & sc_E;
+  AT_N_vec & sp_F_d;
 };
 
 StateMetaVector ConstructStateMetaVector(
@@ -88,6 +88,123 @@ StateMetaVector ConstructStateMetaVector(
 SourceMetaVector ConstructSourceMetaVector(
   M1 & pm1, M1::vars_Source & vsrc,
   const int ix_g, const int ix_s);
+
+// For components (E, F_d) perform tar <- src
+inline void Copy_E_F_d(StateMetaVector &dst,
+                       const StateMetaVector &src,
+                       const int k, const int j, const int i)
+{
+  dst.sc_E(k,j,i) = src.sc_E(k,j,i);
+  for (int a=0; a<N; ++a)
+  {
+    dst.sp_F_d(a,k,j,i) = src.sp_F_d(a,k,j,i);
+  }
+}
+
+// For components (nG, ) perform tar <- src
+inline void Copy_nG(StateMetaVector &dst,
+                    const StateMetaVector &src,
+                    const int k, const int j, const int i)
+{
+  dst.sc_nG(k,j,i) = src.sc_nG(k,j,i);
+}
+
+// For components (nG, E, F_d) perform tar <- src
+inline void Copy_nG_E_F_d(StateMetaVector &dst,
+                          const StateMetaVector &src,
+                          const int k, const int j, const int i)
+{
+  Copy_nG(dst, src, k, j, i);
+  Copy_E_F_d(dst, src, k, j, i);
+}
+
+// For components (E, F_d) perform V <- V + sca * S
+template <class T>
+inline void InPlaceScalarMulAdd_E_F_d(const Real sca,
+                                      StateMetaVector &V,
+                                      const T &S,
+                                      const int k, const int j, const int i)
+{
+  V.sc_E(k,j,i) += sca * S.sc_E(k,j,i);
+  for (int a=0; a<N; ++a)
+  {
+    V.sp_F_d(a,k,j,i) += sca * S.sp_F_d(a,k,j,i);
+  }
+}
+
+// For components (nG, ) perform V <- V + sca * S
+template <class T>
+inline void InPlaceScalarMulAdd_nG(const Real sca,
+                                   StateMetaVector &V,
+                                   const T &S,
+                                   const int k, const int j, const int i)
+{
+  V.sc_nG(k,j,i) += sca * S.sc_nG(k,j,i);
+}
+
+// For components (nG, E, F_d) perform V <- V + sca * S
+template <class T>
+inline void InPlaceScalarMulAdd_nG_E_F_d(const Real sca,
+                                         StateMetaVector &V,
+                                         const T &S,
+                                         const int k, const int j, const int i)
+{
+  InPlaceScalarMulAdd_nG(sca, V, S, k, j, i);
+  InPlaceScalarMulAdd_E_F_d(sca, V, S, k, j, i);
+}
+
+// For components (nG, E, F_d) perform V <- V + sca * (X + Y)
+template <class T, class U>
+inline void InPlaceScalarMulAdd_nG_E_F_d(const Real sca,
+                                         StateMetaVector &V,
+                                         const T &X,
+                                         const U &Y,
+                                         const int k, const int j, const int i)
+{
+  V.sc_nG(k,j,i) += sca * (X.sc_nG(k,j,i) + Y.sc_nG(k,j,i));
+  V.sc_E(k,j,i) += sca * (X.sc_E(k,j,i) + Y.sc_E(k,j,i));
+
+  for (int a=0; a<N; ++a)
+  {
+    V.sp_F_d(a,k,j,i) += sca * (X.sp_F_d(a,k,j,i) + Y.sp_F_d(a,k,j,i));
+  }
+}
+
+// For components (E, F_d) perform S <- sca * S
+template <class T>
+inline void InPlaceScalarMul_E_F_d(const Real sca,
+                                   T &S,
+                                   const int k, const int j, const int i)
+{
+  S.sc_E(k,j,i) *= sca;
+  for (int a=0; a<N; ++a)
+  {
+    S.sp_F_d(a,k,j,i) *= sca;
+  }
+}
+
+// For components (nG, ) perform S <- sca * S
+template <class T>
+inline void InPlaceScalarMul_nG(const Real sca,
+                                T &S,
+                                const int k, const int j, const int i)
+{
+  S.sc_nG(k,j,i) *= sca;
+}
+
+// For components (nG, E, F_d) perform S <- sca * S
+template <class T>
+inline void InPlaceScalarMul_nG_E_F_d(const Real sca,
+                                      T &S,
+                                      const int k, const int j, const int i)
+{
+  S.sc_nG(k,j,i) *= sca;
+  S.sc_E(k,j,i) *= sca;
+  for (int a=0; a<N; ++a)
+  {
+    S.sp_F_d(a,k,j,i) *= sca;
+  }
+}
 
 void AddSourceMatter(
   M1 & pm1,
@@ -103,11 +220,14 @@ inline bool NonFiniteToZero(
   M1 & pm1, V & C,
   const int k, const int j, const int i)
 {
-  bool floor_reset = !std::isfinite(C.sc_E(k,j,i));
+  // Check if finite, faster to sum all values and then check if result
+  Real val = C.sc_E(k,j,i);
   for (int a=0; a<N; ++a)
   {
-    floor_reset = floor_reset or !std::isfinite(C.sp_F_d(a,k,j,i));
+    val += C.sp_F_d(a,k,j,i);
   }
+
+  const bool floor_reset = !std::isfinite(val);
 
   if (floor_reset)
   {
@@ -128,6 +248,7 @@ inline bool ApplyFloors(
 {
   const bool floor_applied = C.sc_E(k,j,i) < pm1.opt.fl_E;
   C.sc_E(k,j,i) = std::max(C.sc_E(k,j,i), pm1.opt.fl_E);
+
   return floor_applied;
 }
 
@@ -186,6 +307,17 @@ inline bool EnforceCausality(
   }
 
   return rescale;
+}
+
+// Enforce physicality on (E, F_d) components of V
+inline void EnforcePhysical_E_F_d(
+  M1 & pm1,
+  Update::StateMetaVector & V,
+  const int k, const int j, const int i)
+{
+  NonFiniteToZero(pm1, V, k, j, i);
+  ApplyFloors(pm1, V, k, j, i);
+  EnforceCausality(pm1, V, k, j, i);
 }
 
 // ============================================================================

@@ -55,7 +55,7 @@ void M1::CoupleSourcesADM(AT_C_sca &A_rho, AT_N_vec &A_S_d, AT_N_sym & A_S_dd)
 {
   Z4c * pz4c = pmy_block->pz4c;
 
-  // TODO: best place to put this?
+  // BD: TODO - best place to put this?
   //
   // When Z4c is coupled this uses updated geom but lagging M1 data
 
@@ -257,8 +257,8 @@ void M1::CoupleSourcesHydro(AA & cons)
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
   {
-    AT_C_sca & sc_S1   = sources.sc_S1(ix_g,ix_s);
-    AT_N_vec & sp_S1_d = sources.sp_S1_d(ix_g,ix_s);
+    AT_C_sca & S_sc_E   = sources.sc_E(ix_g,ix_s);
+    AT_N_vec & S_sp_F_d = sources.sp_F_d(ix_g,ix_s);
 
     ILOOP2(k,j)
     {
@@ -266,7 +266,7 @@ void M1::CoupleSourcesHydro(AA & cons)
       ILOOP1(i)
       if (MaskGet(k, j, i))
       {
-        cons(IEN,k,j,i) -= sc_S1(k,j,i);
+        cons(IEN,k,j,i) -= S_sc_E(k,j,i);
       }
 
       for (int a=0; a<N; ++a)
@@ -274,7 +274,7 @@ void M1::CoupleSourcesHydro(AA & cons)
       if (MaskGet(k, j, i))
       {
         // Sign here is correct
-        cons(IEN,k,j,i) += geom.sp_beta_u(a,k,j,i) * sp_S1_d(a,k,j,i);
+        cons(IEN,k,j,i) += geom.sp_beta_u(a,k,j,i) * S_sp_F_d(a,k,j,i);
       }
 
       // S_j source -----------------------------------------------------------
@@ -282,7 +282,7 @@ void M1::CoupleSourcesHydro(AA & cons)
       ILOOP1(i)
       if (MaskGet(k, j, i))
       {
-        cons(IM1+a,k,j,i) -= geom.sc_alpha(k,j,i) * sp_S1_d(a,k,j,i);
+        cons(IM1+a,k,j,i) -= geom.sc_alpha(k,j,i) * S_sp_F_d(a,k,j,i);
       }
     }
   }
@@ -296,14 +296,14 @@ void  M1::CoupleSourcesYe(const Real mb, AA &ps)
 
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
   {
-    AT_C_sca & sc_S0_nue = sources.sc_S0(ix_g,0);
-    AT_C_sca & sc_S0_nua = sources.sc_S0(ix_g,1);
+    AT_C_sca & S_sc_nG_nue = sources.sc_nG(ix_g,0);
+    AT_C_sca & S_sc_nG_nua = sources.sc_nG(ix_g,1);
 
     ILOOP3(k,j,i)
     if (MaskGet(k, j, i))
     {
       ps(0,k,j,i) += geom.sc_alpha(k,j,i) * mb * (
-        sc_S0_nua(k,j,i) - sc_S0_nue(k,j,i)
+        S_sc_nG_nua(k,j,i) - S_sc_nG_nue(k,j,i)
       );
     }
   }

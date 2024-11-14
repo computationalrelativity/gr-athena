@@ -282,9 +282,11 @@ TaskStatus M1N0::CalcUpdate(MeshBlock *pmb, int stage)
   if (stage <= nstages)
   {
     Real const dt = pm->dt * dt_fac[stage - 1];
-    pm1->CalcUpdate(dt,
-                    pm1->storage.u1, pm1->storage.u,
-                    pm1->storage.u_rhs, pm1->storage.u_sources);
+    pm1->CalcUpdateNew(dt,
+                       pm1->storage.u1,
+                       pm1->storage.u,
+                       pm1->storage.u_rhs,
+                       pm1->storage.u_sources);
 
     return TaskStatus::next;
   }

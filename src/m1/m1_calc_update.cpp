@@ -59,7 +59,7 @@ inline void Z_E_F_d(
     const int ix_g = C.ix_g;
     const int ix_s = C.ix_s;
 
-    pm1.sources.sc_S1(ix_g,ix_s)(k,j,i) = dt * S1;
+    pm1.sources.sc_E(ix_g,ix_s)(k,j,i) = dt * S1;
   }
 #endif // DBG_IMPLICIT_SOURCE_INJECT
 
@@ -85,7 +85,7 @@ inline void Z_E_F_d(
       const int ix_g = C.ix_g;
       const int ix_s = C.ix_s;
 
-      pm1.sources.sp_S1_d(ix_g,ix_s)(a,k,j,i) = dt * S1pk;
+      pm1.sources.sp_F_d(ix_g,ix_s)(a,k,j,i) = dt * S1pk;
     }
 #endif // DBG_IMPLICIT_SOURCE_INJECT
   }
@@ -371,9 +371,9 @@ SourceMetaVector ConstructSourceMetaVector(
     pm1,
     ix_g,
     ix_s,
-    vsrc.sc_S0(  ix_g,ix_s),
-    vsrc.sc_S1(  ix_g,ix_s),
-    vsrc.sp_S1_d(ix_g,ix_s),
+    vsrc.sc_nG( ix_g,ix_s),
+    vsrc.sc_E(  ix_g,ix_s),
+    vsrc.sp_F_d(ix_g,ix_s),
   };
 }
 
@@ -440,7 +440,7 @@ void AddSourceMatter(
   );
 
   I.sc_nG(k,j,i) += S0;
-  S.sc_S0(k,j,i) = S0;
+  S.sc_nG(k,j,i) = S0;
 
   Real S1 = pm1.geom.sc_alpha(k,j,i) * (
     (pm1.geom.sc_sqrt_det_g(k,j,i) * C.sc_eta(k,j,i) -
@@ -448,7 +448,7 @@ void AddSourceMatter(
     (C.sc_kap_a(k,j,i) + C.sc_kap_s(k,j,i)) * I.sc_H_t(k,j,i)
   );
   I.sc_E(k,j,i) += S1;
-  S.sc_S1(k,j,i) = S1;
+  S.sc_E(k,j,i) = S1;
 
   for (int a=0; a<N; ++a)
   {
@@ -458,7 +458,7 @@ void AddSourceMatter(
       (C.sc_kap_a(k,j,i) + C.sc_kap_s(k,j,i)) * I.sp_H_d(a,k,j,i)
     );
     I.sp_F_d(a,k,j,i) += S1_d;
-    S.sp_S1_d(a,k,j,i) = S1_d;
+    S.sp_F_d(a,k,j,i) = S1_d;
 
   }
 }
@@ -476,7 +476,7 @@ void AssembleAverages(
     const Real W2 = SQR(W);
 
     const Real dotFv = Assemble::sc_dot_dense_sp__(C.sp_F_d, pm1.fidu.sp_v_u,
-                                                  k, j, i);
+                                                   k, j, i);
 
     C.sc_J(k,j,i) = Assemble::sc_J__(
       W2, dotFv, C.sc_E, pm1.fidu.sp_v_u, C.sp_P_dd,
@@ -547,7 +547,7 @@ void SolveImplicitNeutrinoCurrent(
     const Real src_term_2 = pm1.geom.sc_alpha(k,j,i) *
       C.sc_kap_a_0(k,j,i) * C.sc_n(k,j,i);
 
-    pm1.sources.sc_S0(ix_g,ix_s)(k,j,i) = dt * (src_term - src_term_2);
+    pm1.sources.sc_nG(ix_g,ix_s)(k,j,i) = dt * (src_term - src_term_2);
   }
 #endif // DBG_IMPLICIT_SOURCE_INJECT
 
@@ -567,16 +567,16 @@ void StepExplicit(
   if (explicit_step_nG)
   {
     C.sc_nG(k,j,i) = P.sc_nG(k,j,i) + dt * I.sc_nG(k,j,i);
-    S.sc_S0(k,j,i) *= dt;
+    S.sc_nG(k,j,i) *= dt;
   }
 
   C.sc_E( k,j,i) = P.sc_E( k,j,i) + dt * I.sc_E(k,j,i);
-  S.sc_S1(k,j,i) *= dt;
+  S.sc_E(k,j,i) *= dt;
 
   for (int a=0; a<N; ++a)
   {
     C.sp_F_d(a,k,j,i) = P.sp_F_d(a,k,j,i) + dt * I.sp_F_d(a,k,j,i);
-    S.sp_S1_d(a,k,j,i) *= dt;
+    S.sp_F_d(a,k,j,i) *= dt;
   }
 
   // NonFiniteToZero(pm1, C, k, j, i);
@@ -1023,42 +1023,6 @@ void StepImplicitPicardMinerboP(
 
 }
 
-void SourceLimitPropagated(
-  M1 * pm1,
-  const Real dt,
-  const StateMetaVector & P,  // previous step data
-  StateMetaVector & C,        // current step
-  const StateMetaVector & I,  // inhomogeneity
-  SourceMetaVector & S,       // carries source contribution
-  Closures::ClosureMetaVector & CL)
-{
-  /*
-  // C is new, P is previous, I is inh / src
-  const Real source_limiter = pm1->opt.source_limiter;
-
-  // C.sc_E( k,j,i) = P.sc_E( k,j,i) + dt * I.sc_E(k,j,i);
-
-
-  for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
-  for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
-  M1_ILOOP3(k,j,i)
-  if (pm1->MaskGet(k, j, i))
-  {
-    // Real Estar = P.sc_E( k,j,i) + dt * I.sc_E(k,j,i);
-    // Real Enew = C.sc_E(k,j,i);
-    // Real Estar = P.sc_E( k,j,i);
-
-    Real DrE = dt * I.sc_E(k,j,i);
-    Real DrFx = dt * I.sp_F_d(0,k,j,i);
-    Real DrFy = dt * I.sp_F_d(1,k,j,i);
-    Real DrFz = dt * I.sp_F_d(2,k,j,i);
-
-
-  }
-  */
-}
-
-
 // ============================================================================
 } // namespace M1::Update
 // ============================================================================
@@ -1223,7 +1187,20 @@ void StepImplicitMinerboHybrids(
 {
   // prepare initial guess for iteration --------------------------------------
   // See \S3.2.4 of [1]
+  // StepApproximateFirstOrder(pm1, dt, P, C, I, S, CL, k, j, i);
+
+  // DEBUG: ---------------------------------------------------
+  S.sc_E(k,j,i) = 0;
+  for (int a=0; a<N; ++a)
+  {
+    S.sp_F_d(a,k,j,i) = 0;
+  }
+  // StepExplicit(pm1, dt, P, C, I, S, explicit_step_nG, k, j, i);
   StepApproximateFirstOrder(pm1, dt, P, C, I, S, CL, k, j, i);
+  // END DEBUG: -----------------------------------------------
+
+  // CL.Closure(k,j,i);
+
 
   // retain values for potential restarts
   C.FallbackStore(k, j, i);
@@ -1310,8 +1287,8 @@ void StepImplicitMinerboHybrids(
     pm1.StatePrintPoint(C.ix_g, C.ix_s, k, j, i, true);
   }
 
-  // Neutrino current evolution
-  SolveImplicitNeutrinoCurrent(pm1, dt, P, C, I, k, j, i);
+  // // Neutrino current evolution
+  // SolveImplicitNeutrinoCurrent(pm1, dt, P, C, I, k, j, i);
 
   // cleanup ------------------------------------------------------------------
   gsl_multiroot_fsolver_free(slv);
@@ -1765,10 +1742,6 @@ void M1::CalcUpdate(Real const dt,
         std::exit(0);
       }
     }
-
-    // apply limiter to sources -----------------------------------------------
-    // ::M1::Update::SourceLimitPropagated(this, dt, P, C, I, S, CL);
-    // ------------------------------------------------------------------------
 
     // deal with averages
 

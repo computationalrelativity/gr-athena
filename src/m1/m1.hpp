@@ -56,11 +56,19 @@ public:
   void CalcClosure(AA & u);
   void CalcFiducialFrame(AA & u);
   void CalcOpacity(Real const dt, AA & u);
+  // BD: TODO - Deprecated.. retain for testing..
   void CalcUpdate(Real const dt,
                   AA & u_pre,
                   AA & u_cur,
 		              AA & u_inh,
                   AA & sources);
+
+  void CalcUpdateNew(Real const dt,
+                     AA & u_pre,
+                     AA & u_cur,
+		                 AA & u_inh,
+                     AA & sources);
+
   void CalcFluxes(AA & u);
   void AddFluxDivergence(AA & u_inh);
   void AddSourceGR(AA & u, AA & u_inh);
@@ -119,13 +127,17 @@ public:
 
 // configuration ==============================================================
 public:
+  // BD: TODO - after refactor remove extraneous named..
   enum class opt_integration_strategy { full_explicit,
+                                        explicit_approximate_semi_implicit,
                                         semi_implicit_PicardFrozenP,
                                         semi_implicit_PicardMinerboP,
                                         semi_implicit_PicardMinerboPC,
                                         semi_implicit_Hybrids,
+                                        semi_implicit_HybridsJ,
                                         semi_implicit_HybridsJFrozenP,
                                         semi_implicit_HybridsJMinerbo,
+                                        auto_esi_Hybrids,
                                         auto_esi_HybridsJMinerbo,
                                         auto_esi_PicardMinerboP};
   enum class opt_fiducial_velocity { fluid, mixed, zero, none };
@@ -139,6 +151,10 @@ public:
                                    MinerboP,
                                    MinerboB,
                                    MinerboN };
+
+  enum class opt_closure_method {
+    gsl_Brent, Newton, Picard
+  };
 
   struct
   {
@@ -165,8 +181,6 @@ public:
     bool couple_sources_hydro;
     bool couple_sources_Y_e;
 
-    Real source_limiter;
-
     // debugging:
     bool value_inject;
   } opt;
@@ -174,6 +188,7 @@ public:
   struct
   {
     opt_closure_variety variety;
+    opt_closure_method method;
 
     Real eps_tol;
     Real eps_Z_o_E;
@@ -193,7 +208,17 @@ public:
 
   struct
   {
+    // BD: TODO - remove the following var. after refactor
     opt_integration_strategy strategy;
+
+    struct {
+      opt_integration_strategy non_stiff;
+      opt_integration_strategy stiff;
+      opt_integration_strategy scattering;
+      opt_integration_strategy equilibrium;
+    } solvers;
+
+    bool solver_reduce_to_common;
 
     Real eps_tol;
     Real w_opt_ini;
@@ -203,6 +228,16 @@ public:
     int iter_max_rst;
 
     bool use_Neighbor;
+
+    // source settings
+    Real src_lim;
+    Real src_lim_Ye_min;
+    Real src_lim_Ye_max;
+    Real src_lim_thick;
+    Real src_lim_scattering;
+
+    // equilibrium parameters
+    Real eql_rho_min;
 
     bool verbose;
   } opt_solver;
@@ -280,12 +315,17 @@ public:
   vars_RadMat radmat;
 
   struct vars_Source {
-    GroupSpeciesContainer<AT_C_sca> sc_S0;   // src: sc_NG
-    GroupSpeciesContainer<AT_C_sca> sc_S1;   // src: sc_E
-    GroupSpeciesContainer<AT_N_vec> sp_S1_d; // src: sp_F_d
+    GroupSpeciesContainer<AT_C_sca> sc_nG;
+    GroupSpeciesContainer<AT_C_sca> sc_E;
+    GroupSpeciesContainer<AT_N_vec> sp_F_d;
+
+    // For source limiting
+    AT_C_sca theta;
   };
   vars_Source sources;
 
+  // BD: TODO - radial fluxes etc
+  // see `thc_M1_analysis.cc`, `thc_M1_calc_radial_fluxes.cc`
   // diagnostic variables
   struct vars_Diag {
     AT_C_sca radflux_0;
@@ -402,6 +442,10 @@ public:
     AT_N_sym sp_sym_A_;
     AT_N_sym sp_sym_B_;
     AT_N_sym sp_sym_C_;
+
+    // Generic dense (dim = N) quantities of specific valence
+    AT_C_sca sc_A;
+    AT_C_sca sc_B;
   };
   vars_Scratch scratch;
 
@@ -472,6 +516,10 @@ private:
 
     // fiducial ---------------------------------------------------------------
     scratch.st_Pfid_ud_.NewAthenaTensor(mbi.nn1);
+
+    // generic quantities (dense) ---------------------------------------------
+    scratch.sc_A.NewAthenaTensor(mbi.nn3,mbi.nn2,mbi.nn1);
+    scratch.sc_B.NewAthenaTensor(mbi.nn3,mbi.nn2,mbi.nn1);
   }
 
 // idx & constants ============================================================
@@ -528,15 +576,15 @@ public:
   {
     enum
     {
-      S0,
-      S1,
-      S1_x, S1_y, S1_z,
+      sc_nG,
+      sc_E,
+      sp_F_0, sp_F_1, sp_F_2,
       N
     };
     static constexpr char const * const names[] = {
-      "src.S0",
-      "src.S1",
-      "src.S1x", "src.S1y", "src.S1z"
+      "src.sc_nG",
+      "src.sc_E",
+      "src.sp_F_0", "src.sp_F_1", "src.sp_F_2"
     };
   };
 
@@ -643,6 +691,38 @@ public:
 // opacities ==================================================================
 public:
   Opacities::Opacities * popac;
+
+// solver / source treatment dispatch =========================================
+public:
+  struct evolution_strategy {
+    enum class opt_solution_regime {noop,
+                                    non_stiff,
+                                    stiff,
+                                    scattering,
+                                    equilibrium,
+                                    N};
+    enum class opt_source_treatment {noop,
+                                     full,
+                                     set_zero,
+                                     N};
+    struct {
+      AthenaArray<opt_solution_regime>  solution_regime;
+      AthenaArray<opt_source_treatment> source_treatment;
+    } masks;
+  } ev_strat;
+
+  typedef evolution_strategy::opt_solution_regime  t_sln_r;
+  typedef evolution_strategy::opt_source_treatment t_src_t;
+
+  // Different solution techniques are employed point-wise according to the
+  // current structure of the fields etc. This function sets internal masks
+  // that account for that.
+  void PrepareEvolutionStrategy(const Real dt,
+                                const Real kap_a,
+                                const Real kap_s,
+                                t_sln_r & mask_sln_r,
+                                t_src_t & mask_src_t);
+  void PrepareEvolutionStrategy(const Real dt);
 
 // additional methods =========================================================
 public:

@@ -13,6 +13,8 @@ namespace M1::Opacities::WeakRates {
 
 class WeakRates {
 
+friend class ::M1::Opacities::Opacities;
+
 public:
   WeakRates(MeshBlock *pmb, M1 * pm1, ParameterInput *pin) :
     pm1(pm1),

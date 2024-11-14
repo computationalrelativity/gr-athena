@@ -31,6 +31,9 @@
 #include "../trackers/extrema_tracker.hpp"
 #include "../utils/linear_algebra.hpp"
 #include "../utils/utils.hpp"
+#if M1_ENABLED
+#include "../m1/m1.hpp"
+#endif  // M1_ENABLED
 
 // https://lorene.obspm.fr/
 #include <bin_ns.h>
@@ -823,6 +826,13 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     pz4c->GaugePreCollapsedLapse(pz4c->storage.adm, pz4c->storage.u);
   }
   // --------------------------------------------------------------------------
+
+  // Have geom & primitive hydro
+#if M1_ENABLED
+  pm1->UpdateGeometry(pm1->geom, pm1->scratch);
+  pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
+  pm1->CalcFiducialVelocity();
+#endif  // M1_ENABLED
 
   // consistent pressure atmosphere -------------------------------------------
   bool id_floor_primitives = pin->GetOrAddBoolean(

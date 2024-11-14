@@ -33,7 +33,7 @@ void M1::PopulateOptionsClosure(ParameterInput *pin)
 
   auto GoA_bool = [&](const std::string & name, const int default_value)
   {
-    return pin->GetOrAddInteger(option_block, name, default_value);
+    return pin->GetOrAddBoolean(option_block, name, default_value);
   };
 
   auto GoA_str = [&](const std::string & name,
@@ -100,7 +100,7 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
 
   auto GoA_bool = [&](const std::string & name, const int default_value)
   {
-    return pin->GetOrAddInteger(option_block, name, default_value);
+    return pin->GetOrAddBoolean(option_block, name, default_value);
   };
 
   auto GoA_str = [&](const std::string & name,
@@ -113,6 +113,8 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
   {
     static const std::map<std::string, opt_integration_strategy> opt_strat {
       { "full_explicit", opt_integration_strategy::full_explicit},
+      { "explicit_approximate_semi_implicit",
+        opt_integration_strategy::explicit_approximate_semi_implicit},
       { "semi_implicit_PicardFrozenP",
         opt_integration_strategy::semi_implicit_PicardFrozenP},
       { "semi_implicit_PicardMinerboP",
@@ -125,12 +127,18 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
         opt_integration_strategy::semi_implicit_HybridsJMinerbo},
       { "semi_implicit_Hybrids",
         opt_integration_strategy::semi_implicit_Hybrids},
+      { "semi_implicit_HybridsJ",
+        opt_integration_strategy::semi_implicit_HybridsJ},
+      { "auto_esi_Hybrids",
+        opt_integration_strategy::auto_esi_Hybrids},
       { "auto_esi_HybridsJMinerbo",
         opt_integration_strategy::auto_esi_HybridsJMinerbo},
       { "auto_esi_PicardMinerboP",
         opt_integration_strategy::auto_esi_PicardMinerboP}
     };
 
+    /*
+    // BD: TODO - remove me after refactor
     auto itr = opt_strat.find(GoA_str("strategy", "full_explicit"));
     if (itr != opt_strat.end())
     {
@@ -141,6 +149,41 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
       msg << "M1_solver/strategy unknown" << std::endl;
       ATHENA_ERROR(msg);
     }
+    */
+
+    auto get_solver = [&](std::string name, std::string default_method)
+    {
+      opt_integration_strategy ret;
+
+      auto itr = opt_strat.find(GoA_str(name, default_method));
+      if (itr != opt_strat.end())
+      {
+        ret = itr->second;
+      }
+      else
+      {
+        msg << "M1_solver/" << name << " unknown" << std::endl;
+        ATHENA_ERROR(msg);
+      }
+
+      return ret;
+    };
+
+    std::string default_method = "full_explicit";
+
+    // BD: TODO - remove me after refactor
+    opt_solver.strategy = get_solver("strategy", default_method);
+
+    opt_solver.solvers.non_stiff   = get_solver("solver_non_stiff",   default_method);
+    opt_solver.solvers.stiff       = get_solver("solver_stiff",       default_method);
+    opt_solver.solvers.scattering  = get_solver("solver_scattering",  default_method);
+    opt_solver.solvers.equilibrium = get_solver("solver_equilibrium", default_method);
+
+    opt_solver.solver_reduce_to_common = pin->GetOrAddBoolean(
+      "M1_solver",
+      "solver_reduce_to_common",
+      false);
+
   }
 
   opt_solver.eps_tol     = GoA_Real("eps_tol",     1e-10);
@@ -151,6 +194,16 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
   opt_solver.iter_max_rst = GoA_int("iter_max_rst", 10);
 
   opt_solver.use_Neighbor = GoA_bool("use_Neighbor",  false);
+
+  opt_solver.src_lim = GoA_Real("src_lim", -1.0);
+
+  opt_solver.src_lim_Ye_min = GoA_Real("src_lim_Ye_min", -1.0);
+  opt_solver.src_lim_Ye_max = GoA_Real("src_lim_Ye_max", -1.0);
+
+  opt_solver.src_lim_thick      = GoA_Real("src_lim_thick",      -1.0);
+  opt_solver.src_lim_scattering = GoA_Real("src_lim_scattering", -1.0);
+
+  opt_solver.eql_rho_min = GoA_Real("eql_rho_min", 0.0);
 
   opt_solver.verbose = GoA_bool("verbose", false);
 }
