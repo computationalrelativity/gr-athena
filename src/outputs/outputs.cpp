@@ -1266,13 +1266,13 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
       {
         dump_GSC_AT_C_sca(pm1->rdiag.sc_radflux_0, ix_g, ix_s,
-                          "M1.rdia.sc_radflux_0");
+                          "M1.rdiag.sc_radflux_0");
         dump_GSC_AT_C_sca(pm1->rdiag.sc_radflux_1, ix_g, ix_s,
-                          "M1.rdia.sc_radflux_1");
+                          "M1.rdiag.sc_radflux_1");
         dump_GSC_AT_C_sca(pm1->rdiag.sc_y, ix_g, ix_s,
-                          "M1.rdia.sc_y");
+                          "M1.rdiag.sc_y");
         dump_GSC_AT_C_sca(pm1->rdiag.sc_z, ix_g, ix_s,
-                          "M1.rdia.sc_z");
+                          "M1.rdiag.sc_z");
       }
     }
 

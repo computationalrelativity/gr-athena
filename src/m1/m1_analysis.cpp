@@ -15,9 +15,6 @@
 namespace M1 {
 // ============================================================================
 
-// void CalcRadFlux(M1 &pm1);
-// void CalcNeutrinoDiagnostics(M1 &pm1);
-
 void M1::PerformAnalysis()
 {
   MeshBlock * pmb = pmy_block;
@@ -36,6 +33,7 @@ void CalcRadFlux(MeshBlock *pmb)
 
 void CalcNeutrinoDiagnostics(MeshBlock *pmb)
 {
+#if FLUID_ENABLED
   M1 * pm1 = pmb->pm1;
   EquationOfState * peos = pmb->peos;
   Hydro * ph = pmb->phydro;
@@ -102,7 +100,7 @@ void CalcNeutrinoDiagnostics(MeshBlock *pmb)
     }
 
   }
-
+#endif // FLUID_ENABLED
 }
 
 // ============================================================================
