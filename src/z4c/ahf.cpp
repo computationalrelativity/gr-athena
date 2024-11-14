@@ -56,16 +56,32 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   lmax = pin->GetOrAddInteger("ahf", "lmax",10);
   lmax1 = lmax+1;
 
-  flow_iterations = pin->GetOrAddInteger("ahf", "flow_iterations",100);
-  flow_alpha_beta_const = pin->GetOrAddReal("ahf", "flow_alpha_beta_const",1.0);
-  hmean_tol = pin->GetOrAddReal("ahf", "hmean_tol",100.);
-  mass_tol = pin->GetOrAddReal("ahf", "mass_tol",1e-2);
+  //flow_iterations = pin->GetOrAddInteger("ahf", "flow_iterations",100);
+  parname = "flow_iterations_";
+  parname += n_str;
+  flow_iterations = pin->GetOrAddInteger("ahf", parname, 100);
+  
+  //flow_alpha_beta_const = pin->GetOrAddReal("ahf", "flow_alpha_beta_const",1.0);
+  parname = "flow_alpha_beta_const_";
+  parname += n_str;
+  flow_alpha_beta_const = pin->GetOrAddReal("ahf", parname, 1.0);
+  
+  //hmean_tol = pin->GetOrAddReal("ahf", "hmean_tol",100.);
+  parname = "hmean_tol_";
+  parname += n_str;
+  hmean_tol = pin->GetOrAddReal("ahf", parname, 100.);
+  
+  //mass_tol = pin->GetOrAddReal("ahf", "mass_tol",1e-2);
+  parname = "mass_tol_";
+  parname += n_str;
+  mass_tol = pin->GetOrAddReal("ahf", parname, 1e-2);
+  
   verbose = pin->GetOrAddBoolean("ahf", "verbose", 0);
   root = pin->GetOrAddInteger("ahf", "mpi_root", 0);
   merger_distance = pin->GetOrAddReal("ahf", "merger_distance", 0.1);
   bitant = pin->GetOrAddBoolean("mesh", "bitant", false);
   use_stored_metric_drvts = pin->GetBoolean("z4c", "store_metric_drvts");
-
+    
   // Initial guess
   parname = "initial_radius_";
   parname += n_str;
