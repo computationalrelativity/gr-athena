@@ -45,10 +45,11 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
     Add(CALC_FIDU,    UPDATE_BG, &M1N0::CalcFiducialVelocity);
     Add(CALC_CLOSURE, CALC_FIDU, &M1N0::CalcClosure);
 
-    // FIDU_FRAME is computed on-the-fly during the updates
-    // Add(CALC_FIDU_FRAME, CALC_CLOSURE, &M1N0::CalcClosure);
-    // Add(CALC_OPAC, CALC_FIDU_FRAME, &M1N0::CalcFiducialFrame);
-    Add(CALC_OPAC, CALC_CLOSURE, &M1N0::CalcOpacity);
+    // Closure is not guaranteed to compute fiducial frame quantities;
+    // these are required for e.g. rad.sc_n from lab.sc_nG after closure.
+    // This example enters weak-rates in opacities.
+    Add(CALC_FIDU_FRAME, CALC_CLOSURE, &M1N0::CalcClosure);
+    Add(CALC_OPAC, CALC_FIDU_FRAME, &M1N0::CalcFiducialFrame);
 
     Add(CALC_FLUX, CALC_OPAC, &M1N0::CalcFlux);
 

@@ -167,7 +167,6 @@ void M1::CalcUpdateNew(Real const dt,
     if (MaskGet(k, j, i))
     {
       // BD: TODO - avg_nrg, net.abs, net.heat
-      // also need to update sc_n (based on new sc_nG)
     }
   }
 

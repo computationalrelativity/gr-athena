@@ -671,12 +671,8 @@ inline Real sc_J__(
   const int k, const int j, const int i)
 {
   Real J = sc_E(k,j,i) - 2.0 * dotFv;
-  for (int a=0; a<N; ++a)
-  for (int b=0; b<N; ++b)
-  {
-    J += sp_P_dd(a,b,k,j,i) * sp_v_u(a,k,j,i) * sp_v_u(b,k,j,i);
-  }
-
+  J += LinearAlgebra::InnerProductVecSym2(
+        sp_v_u, sp_P_dd, k, j, i);
   return W2 * J;
 }
 

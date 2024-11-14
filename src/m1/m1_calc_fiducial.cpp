@@ -171,6 +171,86 @@ void M1::CalcFiducialVelocity()
 
 }
 
+// ----------------------------------------------------------------------------
+// Map (closed) Eulerian fields (E, F_d, P_dd) to (J, H_d)
+//
+// This isn't needed for the core algorithm but may be for data-dumping
+void M1::CalcFiducialFrame(AthenaArray<Real> & u)
+{
+  vars_Lab U_n { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
+  SetVarAliasesLab(u, U_n);
+
+  AT_C_sca & sc_W = fidu.sc_W;
+  AT_N_vec & sp_v_u = fidu.sp_v_u;
+  AT_N_vec & sp_v_d = fidu.sp_v_d;
+
+  // point to scratches
+  AT_C_sca & dotFv_ = scratch.sc_A_;
+  AT_C_sca & sc_W2_ = scratch.sc_B_;
+
+  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  {
+    AT_C_sca & sc_E    = U_n.sc_E(  ix_g,ix_s);
+    AT_N_vec & sp_F_d  = U_n.sp_F_d(ix_g,ix_s);
+    AT_N_sym & sp_P_dd = lab_aux.sp_P_dd(ix_g,ix_s);
+
+    AT_C_sca & sc_nG   = U_n.sc_nG(ix_g,ix_s);
+
+    AT_C_sca & sc_H_t = rad.sc_H_t(ix_g,ix_s);
+    AT_N_vec & sp_H_d = rad.sp_H_d(ix_g,ix_s);
+    AT_C_sca & sc_J   = rad.sc_J(  ix_g,ix_s);
+    AT_C_sca & sc_n   = rad.sc_n(  ix_g,ix_s);
+
+    M1_GLOOP2(k,j)
+    {
+      dotFv_.ZeroClear();
+
+      for (int a=0; a<N; ++a)
+      M1_GLOOP1(i)
+      {
+        dotFv_(i) += sp_F_d(a,k,j,i) * sp_v_u(a,k,j,i);
+      }
+
+      M1_GLOOP1(i)
+      {
+        sc_W2_(i) = SQR(sc_W(k,j,i));
+      }
+
+      // assemble J
+      M1_GLOOP1(i)
+      {
+        sc_J(k,j,i) = Assemble::sc_J__(sc_W2_(i),
+                                       dotFv_(i),
+                                       sc_E,
+                                       sp_v_u,
+                                       sp_P_dd,
+                                       k, j, i);
+      }
+
+      // assemble (H_t, H_d)
+      M1_GLOOP1(i)
+      {
+        const Real W = sc_W(k, j, i);
+        sc_H_t(k,j,i) = Assemble::sc_H_t__(W, dotFv_(i), sc_E, sc_J, k, j, i);
+        Assemble::sp_H_d__(sp_H_d, W, sc_J, sp_F_d, sp_v_d, sp_v_u, sp_P_dd,
+                           k, j, i);
+      }
+
+      // assemble sc_n
+      M1_GLOOP1(i)
+      {
+        const Real Gamma =  Assemble::sc_G__(
+          fidu.sc_W(k,j,i), sc_E(k,j,i), sc_J(k,j,i), dotFv_(i),
+          opt.fl_E, opt.fl_J, opt.eps_E
+        );
+
+        sc_n(k,j,i) = sc_nG(k,j,i) / Gamma;
+      }
+    }
+  }
+}
+
 // ============================================================================
 } // namespace M1
 // ============================================================================

@@ -252,6 +252,15 @@ inline Real InnerProductVecMetric(
   );
 }
 
+// inner product of dense vec, SYM2
+inline Real InnerProductVecSym2(
+  AthenaTensor<Real, TensorSymm::NONE, 3, 1> const & u,
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & S,
+  int const k, int const j, int const i)
+{
+  return InnerProductVecMetric(u, S, k, j, i);
+}
+
 inline Real InnerProductSlicedVecMetric(
   AthenaTensor<Real, TensorSymm::NONE, 3, 1> const & u_,
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & g_,
