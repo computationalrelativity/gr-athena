@@ -285,12 +285,12 @@ public:
   struct vars_Rad {
     // N.B.
     // These quantities should be viewed as \sqrt(\gamma) densitized
-    GroupSpeciesContainer<AT_C_sca> sc_nnu;
+    GroupSpeciesContainer<AT_C_sca> sc_nnu;  // Cf. lab_aux.sc_n
     GroupSpeciesContainer<AT_C_sca> sc_J;
     GroupSpeciesContainer<AT_C_sca> sc_H_t;
     GroupSpeciesContainer<AT_N_vec> sp_H_d;
-    GroupSpeciesContainer<AT_C_sca> sc_ynu;
-    GroupSpeciesContainer<AT_C_sca> sc_znu;
+    // GroupSpeciesContainer<AT_C_sca> sc_ynu;
+    // GroupSpeciesContainer<AT_C_sca> sc_znu;
   };
   vars_Rad rad;
 
@@ -324,16 +324,14 @@ public:
   };
   vars_Source sources;
 
-  // BD: TODO - radial fluxes etc
-  // see `thc_M1_analysis.cc`, `thc_M1_calc_radial_fluxes.cc`
   // diagnostic variables
   struct vars_Diag {
-    AT_C_sca radflux_0;
-    AT_C_sca radflux_1;
-    AT_C_sca ynu;
-    AT_C_sca znu;
+    AT_C_sca sc_radflux_0;
+    AT_C_sca sc_radflux_1;
+    AT_C_sca sc_ynu;        // neutrino fractions
+    AT_C_sca sc_znu;        // neutrino energies
   };
-  vars_Diag rdia;
+  vars_Diag rdiag;
 
   // fiducial vel. variables (no group dependency)
   struct vars_Fidu {
@@ -611,7 +609,7 @@ public:
       "rmat.kap_a_0",
       "rmat.eta",
       "rmat.kap_a",
-      "rmat.kap_s"
+      "rmat.kap_s",
       "rmat.avg_nrg"
       // "rmat.abs_0", "rmat.abs_1",
       // "rmat.eta_0", "rmat.eta_1",
@@ -665,7 +663,9 @@ public:
     };
   };
 
+  // BD: TODO - have solvers (including closures) return status codes
   // Source update results
+  /*
   struct ixn_Status
   {
     enum
@@ -687,6 +687,7 @@ public:
       "failed",
     };
   };
+  */
 
 // opacities ==================================================================
 public:
@@ -760,7 +761,7 @@ public:
 
   inline void MaskThreshold(const int k, const int j, const int i)
   {
-    // TODO:
+    // BD: TODO - add threshold
     //
     // Use nearest-neighbour values & threshold to determine whether
     // anything needs to avoid M1 calculations pointwise in ~0 regions.
@@ -837,7 +838,7 @@ public:
   void SetVarAliasesLabAux(AA  &u,                  vars_LabAux & lab_aux);
   void SetVarAliasesRad(   AA  &r,                  vars_Rad    & rad);
   void SetVarAliasesRadMat(AA  &radmat,             vars_RadMat & rmat);
-  void SetVarAliasesDiagno(AA  &diagno,             vars_Diag   & rdia);
+  void SetVarAliasesDiag(  AA  &diagno,             vars_Diag   & rdia);
   void SetVarAliasesFidu(  AA  &intern,             vars_Fidu   & fid);
   void SetVarAliasesNet(   AA  &intern,             vars_Net    & net);
 
@@ -859,7 +860,6 @@ public:
     const int ix_g, const int ix_s,
     const int k, const int j, const int i,
     const bool terminate=true);
-
 
 };
 

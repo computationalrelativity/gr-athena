@@ -99,8 +99,6 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
-    {N_GRPS,N_SPCS},
-    {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS}
   },
   radmat{
@@ -169,9 +167,9 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   SetVarAliasesRad(   storage.u_rad,     rad);
 
   SetVarAliasesRadMat(storage.radmat, radmat);
-  // SetVarAliasesDiagno(storage.diagno, rdia);
-  SetVarAliasesFidu(storage.intern, fidu);
-  // SetVarAliasesNet(storage.intern, net);
+  SetVarAliasesDiag(  storage.diagno, rdiag);
+  SetVarAliasesFidu(  storage.intern, fidu);
+  SetVarAliasesNet(   storage.intern, net);
 
   m1_mask.InitWithShallowSlice(storage.intern, ixn_Internal::mask);
   m1_mask.Fill(true);
@@ -304,8 +302,6 @@ void M1::SetVarAliasesRad(AthenaArray<Real> & u, vars_Rad & rad)
     SetVarAlias(rad.sc_J,    u, ix_g, ix_s, ixn_Rad::J,    ixn_Rad::N);
     SetVarAlias(rad.sc_H_t,  u, ix_g, ix_s, ixn_Rad::H_t,  ixn_Rad::N);
     SetVarAlias(rad.sp_H_d,  u, ix_g, ix_s, ixn_Rad::H_x,  ixn_Rad::N);
-    SetVarAlias(rad.sc_ynu,  u, ix_g, ix_s, ixn_Rad::ynu,  ixn_Rad::N);
-    SetVarAlias(rad.sc_znu,  u, ix_g, ix_s, ixn_Rad::znu,  ixn_Rad::N);
   }
 }
 
@@ -331,12 +327,12 @@ void M1::SetVarAliasesRadMat(AthenaArray<Real> & u, vars_RadMat & radmat)
   }
 }
 
-void M1::SetVarAliasesDiagno(AthenaArray<Real> & u, vars_Diag & rdia)
+void M1::SetVarAliasesDiag(AthenaArray<Real> & u, vars_Diag & rdiag)
 {
-  // rdia.radflux_0.InitWithShallowSlice(u, I_Diagno_radflux_0);
-  // rdia.radflux_1.InitWithShallowSlice(u, I_Diagno_radflux_1);
-  // rdia.ynu.InitWithShallowSlice(u, I_Diagno_ynu);
-  // rdia.znu.InitWithShallowSlice(u, I_Diagno_znu);
+  rdiag.sc_radflux_0.InitWithShallowSlice(u, ixn_Diag::radflux_0);
+  rdiag.sc_radflux_1.InitWithShallowSlice(u, ixn_Diag::radflux_1);
+  rdiag.sc_ynu.InitWithShallowSlice(u,       ixn_Diag::ynu);
+  rdiag.sc_znu.InitWithShallowSlice(u,       ixn_Diag::znu);
 }
 
 void M1::SetVarAliasesFidu(AthenaArray<Real> & u, vars_Fidu & fidu)
