@@ -344,7 +344,7 @@ StateMetaVector ConstructStateMetaVector(
     vlab.sc_E(  ix_g,ix_s),
     vlab.sp_F_d(ix_g,ix_s),
     // group-dependent, but common
-    pm1.lab_aux.sc_n(   ix_g,ix_s),
+    pm1.rad.sc_n(       ix_g,ix_s),
     pm1.lab_aux.sc_chi( ix_g,ix_s),
     pm1.lab_aux.sc_xi(  ix_g,ix_s),
     pm1.lab_aux.sp_P_dd(ix_g,ix_s),
@@ -1745,7 +1745,7 @@ void M1::CalcUpdate(Real const dt,
 
     // deal with averages
 
-    // BD: TODO - should always br needed due to internal lab_aux.sc_n
+    // BD: TODO - should always br needed due to internal rad.sc_n
     //            calculation?
 
     const bool recompute_n = opt_solver.strategy ==

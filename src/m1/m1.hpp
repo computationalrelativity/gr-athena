@@ -273,7 +273,7 @@ public:
     // N.B.
     // These quantities should be viewed as \sqrt(\gamma) densitized
     GroupSpeciesContainer<AT_N_sym> sp_P_dd;
-    GroupSpeciesContainer<AT_C_sca> sc_n;
+    // GroupSpeciesContainer<AT_C_sca> sc_n;
 
     // Closure weight - not densitized
     GroupSpeciesContainer<AT_C_sca> sc_chi;
@@ -282,10 +282,11 @@ public:
   vars_LabAux lab_aux;
 
   // Lagrangian (Rad) fiducial frame
-  struct vars_Rad {
+  struct vars_Rad
+  {
     // N.B.
     // These quantities should be viewed as \sqrt(\gamma) densitized
-    GroupSpeciesContainer<AT_C_sca> sc_nnu;  // Cf. lab_aux.sc_n
+    GroupSpeciesContainer<AT_C_sca> sc_n;
     GroupSpeciesContainer<AT_C_sca> sc_J;
     GroupSpeciesContainer<AT_C_sca> sc_H_t;
     GroupSpeciesContainer<AT_N_vec> sp_H_d;
@@ -295,7 +296,8 @@ public:
   vars_Rad rad;
 
   // radiation-matter variables
-  struct vars_RadMat {
+  struct vars_RadMat
+  {
     GroupSpeciesContainer<AT_C_sca> sc_eta_0;
     GroupSpeciesContainer<AT_C_sca> sc_kap_a_0;
 
@@ -314,7 +316,8 @@ public:
   };
   vars_RadMat radmat;
 
-  struct vars_Source {
+  struct vars_Source
+  {
     GroupSpeciesContainer<AT_C_sca> sc_nG;
     GroupSpeciesContainer<AT_C_sca> sc_E;
     GroupSpeciesContainer<AT_N_vec> sp_F_d;
@@ -325,7 +328,9 @@ public:
   vars_Source sources;
 
   // diagnostic variables
-  struct vars_Diag {
+  struct vars_Diag
+  {
+    // BD: TODO - these should have ix_g, ix_s
     AT_C_sca sc_radflux_0;
     AT_C_sca sc_radflux_1;
     AT_C_sca sc_ynu;        // neutrino fractions
@@ -537,11 +542,10 @@ public:
   // Lab frame variables
   struct ixn_Lab_aux
   {
-    enum { P_xx, P_xy, P_xz, P_yy, P_yz, P_zz, n, chi, xi, N };
+    enum { P_xx, P_xy, P_xz, P_yy, P_yz, P_zz, chi, xi, N };
     static constexpr char const * const names[] = {
       "lab_aux.Pxx", "lab_aux.Pxy", "lab_aux.Pxz",
       "lab_aux.Pyy", "lab_aux.Pyz", "lab_aux.Pzz",
-      "lab_aux.n",
       "lab_aux.chi",
       "lab_aux.xi",
     };
@@ -552,7 +556,7 @@ public:
   {
     enum
     {
-      nnu,
+      n,
       J,
       H_t,
       H_x, H_y, H_z,
@@ -561,7 +565,7 @@ public:
       N
     };
     static constexpr char const * const names[] = {
-      "rad.nnu",
+      "rad.n",
       "rad.J",
       "rad.Ht", "rad.Hx", "rad.Hy", "rad.Hz",
       "rad.ynu",

@@ -92,7 +92,6 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   lab_aux{
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
-    {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS}
   },
   rad{
@@ -284,8 +283,6 @@ void M1::SetVarAliasesLabAux(AthenaArray<Real> & u, vars_LabAux & lab_aux)
   {
     SetVarAlias(lab_aux.sp_P_dd, u, ix_g, ix_s,
                 ixn_Lab_aux::P_xx, ixn_Lab_aux::N);
-    SetVarAlias(lab_aux.sc_n,    u, ix_g, ix_s,
-                ixn_Lab_aux::n,    ixn_Lab_aux::N);
     SetVarAlias(lab_aux.sc_chi,  u, ix_g, ix_s,
                 ixn_Lab_aux::chi,  ixn_Lab_aux::N);
     SetVarAlias(lab_aux.sc_xi,   u, ix_g, ix_s,
@@ -298,10 +295,10 @@ void M1::SetVarAliasesRad(AthenaArray<Real> & u, vars_Rad & rad)
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
   {
-    SetVarAlias(rad.sc_nnu,  u, ix_g, ix_s, ixn_Rad::nnu,  ixn_Rad::N);
-    SetVarAlias(rad.sc_J,    u, ix_g, ix_s, ixn_Rad::J,    ixn_Rad::N);
-    SetVarAlias(rad.sc_H_t,  u, ix_g, ix_s, ixn_Rad::H_t,  ixn_Rad::N);
-    SetVarAlias(rad.sp_H_d,  u, ix_g, ix_s, ixn_Rad::H_x,  ixn_Rad::N);
+    SetVarAlias(rad.sc_n,   u, ix_g, ix_s, ixn_Rad::n,   ixn_Rad::N);
+    SetVarAlias(rad.sc_J,   u, ix_g, ix_s, ixn_Rad::J,   ixn_Rad::N);
+    SetVarAlias(rad.sc_H_t, u, ix_g, ix_s, ixn_Rad::H_t, ixn_Rad::N);
+    SetVarAlias(rad.sp_H_d, u, ix_g, ix_s, ixn_Rad::H_x, ixn_Rad::N);
   }
 }
 
@@ -419,7 +416,7 @@ void M1::StatePrintPoint(
     lab.sp_F_d(ix_g,ix_s).PrintPoint("lab.sp_F_d(ix_s,ix_g)", k,j,i);
 
     std::cout << "sc=================: " << "\n";
-    lab_aux.sc_n(ix_g,ix_s).PrintPoint("lab_aux.sc_n(ix_s,ix_g)", k,j,i);
+    rad.sc_n(ix_g,ix_s).PrintPoint("rad.sc_n(ix_s,ix_g)", k,j,i);
     lab_aux.sc_chi(ix_g,ix_s).PrintPoint("lab_aux.sc_chi(ix_s,ix_g)", k,j,i);
     lab_aux.sc_xi(ix_g,ix_s).PrintPoint("lab_aux.sc_xi(ix_s,ix_g)", k,j,i);
 

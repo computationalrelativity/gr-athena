@@ -106,10 +106,10 @@ void SetEquilibrium(
     // Prepare neutrino number density
     if (pm1.N_SPCS > 1)
     {
-      const Real sc_nnu = 1;
-      rad.sc_nnu(ix_g, ix_s)(k,j,i) = nudens(0, ix_s) * sc_sqrt_det_g;
+      const Real sc_n = 1;
+      rad.sc_n(ix_g, ix_s)(k,j,i) = nudens(0, ix_s) * sc_sqrt_det_g;
       // BD: TODO - add rad_N_floor as opt
-      // C.sc_nG(k,j,i) = std::max(W * sc_nnu, rad_N_floor);
+      // C.sc_nG(k,j,i) = std::max(W * sc_n, rad_N_floor);
       // BD: TODO - compute G and consequently n := nG / G
     }
   }

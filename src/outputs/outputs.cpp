@@ -1203,7 +1203,6 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       {
         dump_GSC_AT_N_sym(pm1->lab_aux.sp_P_dd, ix_g, ix_s,
                           "M1.lab_aux.sp_P_dd");
-        dump_GSC_AT_C_sca(pm1->lab_aux.sc_n,    ix_g, ix_s, "M1.lab_aux.sc_n");
         dump_GSC_AT_C_sca(pm1->lab_aux.sc_chi,  ix_g, ix_s,
                           "M1.lab_aux.sc_chi");
         dump_GSC_AT_C_sca(pm1->lab_aux.sc_xi,   ix_g, ix_s, "M1.lab_aux.sc_xi");
@@ -1215,7 +1214,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
       for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
       {
-        dump_GSC_AT_C_sca(pm1->rad.sc_nnu, ix_g, ix_s, "M1.rad.sc_nnu");
+        dump_GSC_AT_C_sca(pm1->rad.sc_n,   ix_g, ix_s, "M1.rad.sc_n");
         dump_GSC_AT_C_sca(pm1->rad.sc_J,   ix_g, ix_s, "M1.rad.sc_J");
         dump_GSC_AT_C_sca(pm1->rad.sc_H_t, ix_g, ix_s, "M1.rad.sc_H_t");
         dump_GSC_AT_N_vec(pm1->rad.sp_H_d, ix_g, ix_s, "M1.rad.sp_H_d");

@@ -65,8 +65,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
       AT_C_sca & U_E    = U.sc_E(  ix_g,ix_s);
 
       AT_N_sym & sp_P_dd = lab_aux.sp_P_dd(ix_g,ix_s);
-      AT_C_sca & sc_n    = lab_aux.sc_n(   ix_g,ix_s);
 
+      AT_C_sca & sc_n   = rad.sc_n(ix_g,ix_s);
       AT_C_sca & sc_J   = rad.sc_J(ix_g,ix_s);
       AT_N_vec & sp_H_d = rad.sp_H_d(ix_g,ix_s);
 

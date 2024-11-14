@@ -231,8 +231,8 @@ void M1::CoupleSourcesYe(const Real weight, const Real mb, AA &ps)
     AT_C_sca & sc_eta_0_nub = radmat.sc_eta_0(ix_g,1);
     // AT_C_sca & sc_eta_0_nux = radmat.sc_eta_0(ix_g,2);
 
-    AT_C_sca & sc_n_nu  = lab_aux.sc_n(ix_g,0);
-    AT_C_sca & sc_n_nub = lab_aux.sc_n(ix_g,1);
+    AT_C_sca & sc_n_nu  = rad.sc_n(ix_g,0);
+    AT_C_sca & sc_n_nub = rad.sc_n(ix_g,1);
 
     ILOOP3(k,j,i)
     if (MaskGet(k, j, i))

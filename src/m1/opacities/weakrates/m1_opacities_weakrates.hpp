@@ -134,9 +134,9 @@ public:
 
         Real invsdetg = 1.0/sc_sqrt_det_g(k, j, i);
         // FF number density
-        dens_n[0] = pm1->rad.sc_nnu(0,0)(k, j, i)*invsdetg;
-        dens_n[1] = pm1->rad.sc_nnu(0,1)(k, j, i)*invsdetg;
-        dens_n[2] = pm1->rad.sc_nnu(0,2)(k, j, i)*invsdetg;
+        dens_n[0] = pm1->rad.sc_n(0,0)(k, j, i)*invsdetg;
+        dens_n[1] = pm1->rad.sc_n(0,1)(k, j, i)*invsdetg;
+        dens_n[2] = pm1->rad.sc_n(0,2)(k, j, i)*invsdetg;
         
         // FF energy density
         dens_e[0] = pm1->rad.sc_J(0,0)(k, j, i)*invsdetg;
@@ -197,7 +197,7 @@ public:
       Real corr_fac[3];
       for (int s_idx=0; s_idx<N_SPCS; ++s_idx) {
         pm1->radmat.sc_avg_nrg(0,s_idx)(k, j, i) = dens_e[s_idx]/dens_n[s_idx];
-        corr_fac[s_idx] = pm1->rad.sc_J(0,s_idx)(k, j, i) / (pm1->rad.sc_nnu(0,s_idx)(k, j, i)*pm1->radmat.sc_avg_nrg(0,s_idx)(k, j, i));
+        corr_fac[s_idx] = pm1->rad.sc_J(0,s_idx)(k, j, i) / (pm1->rad.sc_n(0,s_idx)(k, j, i)*pm1->radmat.sc_avg_nrg(0,s_idx)(k, j, i));
 
         if (!std::isfinite(corr_fac[s_idx])) {
           corr_fac[s_idx] = 1.0;
