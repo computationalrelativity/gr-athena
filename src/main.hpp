@@ -773,8 +773,12 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
 
 #ifdef EJECTA_ENABLED
   // Ejecta analysis
-  for (auto pej : pmesh->pej_extract) {
-    pej->Calculate(pmesh->ncycle, pmesh->time);
+  if (trgs.IsSatisfied(tvar::ejecta))
+  {
+    for (auto pej : pmesh->pej_extract)
+    {
+      pej->Calculate(pmesh->ncycle, pmesh->time);
+    }
   }
 #endif
 

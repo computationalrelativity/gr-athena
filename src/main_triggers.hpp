@@ -20,7 +20,6 @@
 
 #include "outputs/outputs.hpp"
 #include "mesh/mesh.hpp"
-#include "parameter_input.hpp"
 #include "utils/utils.hpp"
 
 // triggers external to task-lists used in main -------------------------------
@@ -147,7 +146,8 @@ public:
     Z4c_Weyl,
     Z4c_AHF,
     Z4c_RWZ,
-    Z4c_CCE
+    Z4c_CCE,
+    ejecta
   };
 
   enum class OutputVariant {
@@ -380,6 +380,37 @@ public:
 
         PopulateTrigger(tri, force_first_iter, allow_rescale_dt, dt);
         triggers[MakeTriggerMeta(tvar, ovar)] = tri;
+        break;
+      }
+      case TriggerVariant::ejecta:
+      {
+        Real dt = 0;
+        switch (ovar)
+        {
+          case (Triggers::OutputVariant::user):
+          {
+            dt = pin->GetOrAddReal("task_triggers", "dt_ejecta", 0.0);
+            break;
+          }
+          default:
+          {
+            assert(false);
+          }
+        }
+
+        PopulateTrigger(tri, force_first_iter, allow_rescale_dt, dt);
+        triggers[MakeTriggerMeta(tvar, ovar)] = tri;
+
+        // Issue a warning to stdout ------------------------------------------
+        if ((Globals::my_rank == 0) &&
+            (pin->GetOrAddInteger("ejecta", "num_rad", 0) > 0) &&
+            pin->GetOrAddReal("task_triggers", "dt_ejecta", 0.0) == 0)
+        {
+          std::cout << "Warning: ejecta/num_rad > 0 & ";
+          std::cout << "task_triggers/dt_ejecta = 0 \n";
+        }
+        // --------------------------------------------------------------------
+
         break;
       }
       default:

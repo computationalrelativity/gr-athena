@@ -129,6 +129,10 @@ int main(int argc, char *argv[])
   trgs.Add(tvar::Z4c_CCE, ovar::user, true, allow_rescale_dt);
 #endif
 
+#if defined(EJECTA_ENABLED)
+  trgs.Add(tvar::ejecta, ovar::user, true, allow_rescale_dt);
+#endif
+
   // now populate requisite task-lists
   gra::tasklist::Collection ptlc { trgs };
   gra::tasklist::PopulateCollection(ptlc, pmesh, pinput);
