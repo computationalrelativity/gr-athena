@@ -131,7 +131,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
             {
               if (pm->presc->opt.rescale_conserved_scalars)
               {
-                ix_cons_scalar = isum + 1;
+                ix_cons_scalar = isum;
               }
             }
 
