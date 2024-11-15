@@ -106,7 +106,8 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
           {N_CON, mbi.nn3, mbi.nn2, mbi.nn1},              // con
           {N_MAT, mbi.nn3, mbi.nn2, mbi.nn1},              // mat
           {N_WEY, mbi.nn3, mbi.nn2, mbi.nn1},              // weyl
-	        {}                                               // aux
+	        {},                                              // aux
+	        {},                                              // aux_extended
   },
   empty_flux{AthenaArray<Real>(), AthenaArray<Real>(), AthenaArray<Real>()},
   coarse_u_(N_Z4c, mbi.cnn3, mbi.cnn2, mbi.cnn1,
@@ -285,6 +286,9 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   opt.communicate_aux_adm =
       pin->GetOrAddBoolean("z4c", "communicate_aux_adm", false);
 
+  opt.extended_aux_adm =
+      pin->GetOrAddBoolean("z4c", "extended_aux_adm", false);
+
   // Matter parameters
   opt.cowling = pin->GetOrAddInteger("z4c", "cowling_true", 0);
   opt.bssn = pin->GetOrAddInteger("z4c", "bssn", 0);
@@ -380,6 +384,13 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
       pmb->pbval->bvars.push_back(adm_abvar);
       pmb->pbval->bvars_aux_adm.push_back(adm_abvar);
     }
+  }
+
+  if (opt.extended_aux_adm)
+  {
+    storage.aux_extended.NewAthenaArray(N_AUX_EXTENDED,
+                                        mbi.nn3, mbi.nn2, mbi.nn1);
+    SetAuxExtendedAliases(storage.aux_extended, aux_extended);
   }
 
   // Allocate memory for aux 1D vars
@@ -564,6 +575,13 @@ void Z4c::SetAuxAliases(AthenaArray<Real> & u, Z4c::Aux_vars & aux)
   aux.dg_ddd.InitWithShallowSlice(u, I_AUX_dgxx_x);
 }
 
+void Z4c::SetAuxExtendedAliases(AthenaArray<Real> & u_adm,
+                                Z4c::Aux_extended_vars & aux_extended)
+{
+  aux_extended.cc_sqrt_detgamma.InitWithShallowSlice(
+    u_adm, I_AUX_EXTENDED_cc_sqrt_detgamma
+  );
+}
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::AlgConstr(AthenaArray<Real> & u)
 // \brief algebraic constraints projection

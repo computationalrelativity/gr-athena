@@ -661,10 +661,11 @@ inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
     // Iterate bnd comm. as required
     pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
 
-    if (stage == ptlc.grmhd_z4c->nstages)
+    // Rescale as required
+    if (pmesh->presc->opt.apply_on_substeps ||
+        (stage == ptlc.grmhd_z4c->nstages))
     {
-      // Rescale as required
-      pmesh->Rescale_Conserved();
+      pmesh->presc->Apply();
     }
 
 #ifdef DBG_SCATTER_MATTER_GRMHD

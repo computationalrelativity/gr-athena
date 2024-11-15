@@ -116,15 +116,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
                    UniformMeshGeneratorX3},
     BoundaryFunction_{nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
     AMRFlag_{}, UserSourceTerm_{}, UserTimeStep_{}, ViscosityCoeff_{},
-    ConductionCoeff_{}, FieldDiffusivity_{},
-    opt_rescaling{
-      pin->GetOrAddBoolean("rescaling", "verbose", false),
-      false,
-      pin->GetOrAddBoolean("rescaling", "conserved_hydro", false),
-      pin->GetOrAddBoolean("rescaling", "conserved_scalars", false),
-      pin->GetOrAddReal("rescaling", "rel_hydro", 1e-8),
-      pin->GetOrAddReal("rescaling", "rel_scalars", 1e-3),
-    }
+    ConductionCoeff_{}, FieldDiffusivity_{}
 {
 
   std::stringstream msg;
@@ -608,11 +600,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
 #endif // FFT
   }
 
-  if (opt_rescaling.conserved_scalars)
-  {
-    rs_ini_s.NewAthenaArray(NSCALARS);
-    rs_fin_s.NewAthenaArray(NSCALARS);
-  }
+  presc = new gra::hydro::rescaling::Rescaling(this, pin);
 
   // storage for Mesh info struct
   M_info.x_min.NewAthenaArray(ndim);
@@ -670,15 +658,7 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
                    UniformMeshGeneratorX3},
     BoundaryFunction_{nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
     AMRFlag_{}, UserSourceTerm_{}, UserTimeStep_{}, ViscosityCoeff_{},
-    ConductionCoeff_{}, FieldDiffusivity_{},
-    opt_rescaling{
-      pin->GetOrAddBoolean("rescaling", "verbose", false),
-      false,
-      pin->GetOrAddBoolean("rescaling", "conserved_hydro", false),
-      pin->GetOrAddBoolean("rescaling", "conserved_scalars", false),
-      pin->GetOrAddReal("rescaling", "rel_hydro", 1e-8),
-      pin->GetOrAddReal("rescaling", "rel_scalars", 1e-3),
-    }
+    ConductionCoeff_{}, FieldDiffusivity_{}
 {
 
   std::stringstream msg;
@@ -1057,11 +1037,7 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
 #endif // FFT
   }
 
-  if (opt_rescaling.conserved_scalars)
-  {
-    rs_ini_s.NewAthenaArray(NSCALARS);
-    rs_fin_s.NewAthenaArray(NSCALARS);
-  }
+  presc = new gra::hydro::rescaling::Rescaling(this, pin);
 
   // storage for Mesh info struct
   M_info.x_min.NewAthenaArray(ndim);
@@ -1141,6 +1117,8 @@ Mesh::~Mesh() {
   }
   if (nint_user_mesh_data_>0) delete [] iuser_mesh_data;
   if (EOS_TABLE_ENABLED) delete peos_table;
+
+  delete presc;
 }
 
 //-----------------------------------------------------------------------------
@@ -1755,22 +1733,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
 
 void Mesh::InitializePostFirstInitialize(ParameterInput *pin)
 {
-  // Initial variables for rescaling computed if not yet initialized
-  if (!opt_rescaling.initialized)
-  {
-    if (opt_rescaling.conserved_hydro)
-    {
-      CS_ConservedDensity(rs_ini_D);
-    }
-
-    if ((NSCALARS > 0) && opt_rescaling.conserved_scalars)
-    {
-      CS_ConservedScalars(rs_ini_s);
-    }
-  }
-
-  // Initial variables for rescaling computed, do not recompute later
-  opt_rescaling.initialized = true;
+  // Initialized any required rescalings
+  presc->Initialize();
 
   // Whenever we initialize the Mesh, we record global properties
   const bool res = GetGlobalGridGeometry(M_info.x_min, M_info.x_max,
@@ -1782,7 +1746,7 @@ void Mesh::InitializePostFirstInitialize(ParameterInput *pin)
 void Mesh::InitializePostMainUpdatedMesh(ParameterInput *pin)
 {
   // Rescale as required
-  Rescale_Conserved();
+  presc->Apply();
 
   // Whenever we initialize the Mesh, we record global properties
   const bool res = GetGlobalGridGeometry(M_info.x_min, M_info.x_max,
@@ -2080,222 +2044,6 @@ void Mesh::CalculateStoreMetricDerivatives()
     pz4c->ADMDerivatives(pz4c->storage.u, pz4c->storage.adm,
                           pz4c->storage.aux);
     pmb = pmb->next;
-  }
-
-}
-
-Real Mesh::CompensatedSummation(
-  variety_cs v_cs,
-  const int n,
-  const int kl, const int ku,
-  const int jl, const int ju,
-  const int il, const int iu,
-  const bool volume_weighted)
-{
-  int nthreads = GetNumMeshThreads();
-  (void)nthreads;
-
-  int nmb = -1;
-  std::vector<MeshBlock*> pmb_array;
-
-  GetMeshBlocksMyRank(pmb_array);
-  nmb = pmb_array.size();
-
-  AA partial_KBN(nmb);
-
-  #pragma omp parallel for num_threads(nthreads)
-  for (int ix = 0; ix < nmb; ++ix)
-  {
-    MeshBlock *pmb = pmb_array[ix];
-
-    AA arr;
-    AA warr;
-    if (volume_weighted)
-    {
-      warr.NewAthenaArray(ku+1, ju+1, iu+1);
-    }
-
-    switch (v_cs)
-    {
-      case variety_cs::conserved_density:
-      {
-        arr.InitWithShallowSlice(pmb->phydro->u, 4, n, 1);
-        break;
-      }
-      case variety_cs::conserved_scalar:
-      {
-        arr.InitWithShallowSlice(pmb->pscalars->s, 4, n, 1);
-        break;
-      }
-      default:
-      {
-        assert(false);
-      }
-    }
-
-    if (volume_weighted)
-    {
-      for (int k=kl; k<=ku; ++k)
-      for (int j=jl; j<=ju; ++j)
-      for (int i=il; i<=iu; ++i)
-      {
-        warr(k,j,i) = pmb->pcoord->GetCellVolume(k,j,i) * arr(0,k,j,i);
-      }
-    }
-    else
-    {
-      warr.InitWithShallowSlice(arr, 4, 0, 1);
-    }
-
-    partial_KBN(ix) = FloatingPoint::KB_compensated(
-      warr, 0, 0,
-      kl, ku, jl, ju, il, iu
-    );
-
-    pmb = pmb->next;
-  }
-
-  return FloatingPoint::KB_compensated(partial_KBN, 0, nmb-1);
-}
-
-void Mesh::CS_ConservedDensity(Real & mass)
-{
-  MeshBlock *pmb = pblock;
-  const bool volume_weighted = true;
-  mass = CompensatedSummation(Mesh::variety_cs::conserved_density, 0, pmb->ks,
-                              pmb->ke, pmb->js, pmb->je, pmb->is, pmb->ie,
-                              volume_weighted);
-
-#ifdef MPI_PARALLEL
-  const int rank_root = 0;
-  int rank;
-
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-  AthenaArray<Real> buf(Globals::nranks);
-
-  MPI_Allgather(&mass, 1, MPI_ATHENA_REAL, buf.data(), 1, MPI_ATHENA_REAL,
-                MPI_COMM_WORLD);
-
-  mass = FloatingPoint::KB_compensated(buf, 0, Globals::nranks-1);
-#endif // MPI_PARALLEL
-
-}
-
-void Mesh::CS_ConservedScalars(AthenaArray<Real> & S)
-{
-  MeshBlock const *pmb = pblock;
-  const bool volume_weighted = true;
-  for (int n=0; n<NSCALARS; ++n)
-  {
-    S(n) = CompensatedSummation(Mesh::variety_cs::conserved_scalar, n, pmb->ks,
-                                pmb->ke, pmb->js, pmb->je, pmb->is, pmb->ie,
-                                volume_weighted);
-  }
-
-#ifdef MPI_PARALLEL
-  const int rank_root = 0;
-  int rank;
-
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-  AthenaArray<Real> buf(Globals::nranks, NSCALARS);
-
-  MPI_Allgather(S.data(), NSCALARS, MPI_ATHENA_REAL, buf.data(), NSCALARS, MPI_ATHENA_REAL,
-                MPI_COMM_WORLD);
-
-  // note transposed data requires sum in 2nd ix
-  for (int n=0; n<NSCALARS; ++n)
-  {
-    S(n) = FloatingPoint::KB_compensated(
-      buf, 0, 0,
-      0, 0, 0, Globals::nranks-1, n, n
-    );
-  }
-#endif // MPI_PARALLEL
-
-}
-
-void Mesh::Rescale_Conserved()
-{
-  int nthreads = GetNumMeshThreads();
-  (void)nthreads;
-
-  int nmb = -1;
-  std::vector<MeshBlock*> pmb_array;
-
-  if (opt_rescaling.conserved_hydro ||
-      ((NSCALARS > 0) && opt_rescaling.conserved_scalars))
-  {
-    // initialize a vector of MeshBlock pointers
-    GetMeshBlocksMyRank(pmb_array);
-    nmb = pmb_array.size();
-  }
-  else
-  {
-    return;
-  }
-
-  if (opt_rescaling.conserved_hydro)
-  {
-    CS_ConservedDensity(rs_fin_D);
-    const Real rsc_D = rs_ini_D / rs_fin_D;
-
-    if (opt_rescaling.err_rel_hydro > std::abs(1-rsc_D))
-    #pragma omp parallel for num_threads(nthreads)
-    for (int i = 0; i < nmb; ++i)
-    {
-      MeshBlock *pmb = pmb_array[i];
-      CC_GLOOP2(k, j)
-      for (int n=0; n<NHYDRO; ++n)
-      CC_GLOOP1(i)
-      {
-        pmb->phydro->u(n,k,j,i) *= rsc_D;
-      }
-    }
-  }
-
-  if ((NSCALARS > 0) && opt_rescaling.conserved_scalars)
-  {
-    CS_ConservedScalars(rs_fin_s);
-
-    #pragma omp parallel for num_threads(nthreads)
-    for (int i = 0; i < nmb; ++i)
-    {
-      MeshBlock *pmb = pmb_array[i];
-
-      for (int n=0; n<NSCALARS; ++n)
-      {
-        const Real rsc_s = rs_ini_s(n) / rs_fin_s(n);
-        if (opt_rescaling.err_rel_scalars > std::abs(1-rsc_s))
-        CC_GLOOP3(k, j, i)
-        {
-          pmb->pscalars->s(n,k,j,i) *= rsc_s;
-        }
-
-      }
-    }
-  }
-
-  // info dump ----------------------------------------------------------------
-  if (opt_rescaling.verbose)
-  if (Globals::my_rank == 0)
-  {
-    std::cout << std::setprecision(5);
-    if (opt_rescaling.conserved_hydro)
-    {
-      const Real rsc_D = rs_ini_D / rs_fin_D;
-      std::cout << (1 - rsc_D) << std::endl;
-    }
-
-    if (opt_rescaling.conserved_scalars)
-    {
-      for (int n=0; n<NSCALARS; ++n)
-      {
-        const Real rsc_s = rs_ini_s(n) / rs_fin_s(n);
-        std::cout << (1 - rsc_s) << std::endl;
-      }
-    }
   }
 
 }

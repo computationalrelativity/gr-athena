@@ -117,6 +117,13 @@ public:
   // Names of auxiliary variables
   static char const * const Aux_names[N_AUX];
 
+  enum {
+    I_AUX_EXTENDED_cc_sqrt_detgamma,
+    N_AUX_EXTENDED
+  };
+  // Names of auxiliary variables
+  static char const * const Aux_Extended_names[N_AUX_EXTENDED];
+
 public:
   Z4c(MeshBlock *pmb, ParameterInput *pin);
   ~Z4c();
@@ -140,6 +147,7 @@ public:
     AA mat;   // matter variables
     AA weyl;  // weyl scalars
     AA aux;   // aux quantities such as derivatives
+    AA aux_extended;  // further aux quantities (non-communicated)
   } storage;
 
   // aliases for variables and RHS
@@ -204,6 +212,12 @@ public:
   // this is alternative to the aux. storage,
   // used when 'store_metric_drvts' if off
   AT_N_VS2 aux_g_ddd;
+
+  // aliases for auxiliary variables for metric derivatives
+  struct Aux_extended_vars {
+    AT_N_sca cc_sqrt_detgamma;  // adm gamma on cc
+  };
+  Aux_extended_vars aux_extended;
 
   // BD: this should be refactored
   // user settings and options
@@ -276,6 +290,9 @@ public:
     bool store_metric_drvts;
     // control whether ^ is communicated
     bool communicate_aux_adm;
+
+    // Compute aux_extended variables?
+    bool extended_aux_adm;
   } opt;
 
   AA empty_flux[3];
@@ -341,6 +358,8 @@ public:
   void ADMDerivatives(AthenaArray<Real> &u, AthenaArray<Real> &u_adm,
                       AthenaArray<Real> &u_aux);
 
+  void PrepareAuxExtended(AA &u_aux_extended, AA &u_adm);
+
   // Conformal factor conversions
   // Floor applied: std::max(chi, opt.chi_div_floor)
   //
@@ -399,6 +418,9 @@ public:
   static void SetWeylAliases(AA & u_weyl, Weyl_vars & weyl);
   // set auxiliary variable aliases
   static void SetAuxAliases(AA & u, Aux_vars & aux);
+  // set auxiliary (extended) variable aliases
+  static void SetAuxExtendedAliases(AA & u_adm,
+                                    Aux_extended_vars & aux_extended);
 
   // additional global functions
 

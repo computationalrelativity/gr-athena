@@ -97,7 +97,10 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
             Real& u_my = phyd->u(IM2,k,j,i);
             Real& u_mz = phyd->u(IM3,k,j,i);
 
-            if (pm->opt_rescaling.conserved_hydro) { ix_cons_dens = isum; }
+            if (pm->presc->opt.rescale_conserved_density)
+            {
+              ix_cons_dens = isum;
+            }
 
             hst_data[isum++] += vol(i)*u_d;
             hst_data[isum++] += vol(i)*u_mx;
@@ -122,17 +125,26 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
               hst_data[isum++] += vol(i)*0.5*bcc2*bcc2;
               hst_data[isum++] += vol(i)*0.5*bcc3*bcc3;
             }
+
             // (conserved variable) Passive scalars:
-            for (int n=0; n<NSCALARS; n++) {
+            if (NSCALARS > 0)
+            {
+              if (pm->presc->opt.rescale_conserved_scalars)
+              {
+                ix_cons_scalar = isum + 1;
+              }
+            }
+
+            for (int n=0; n<NSCALARS; n++)
+            {
               Real& s = psclr->s(n,k,j,i);
               // constexpr int prev_out = NHYDRO + 3 + NFIELD;
-
-              if (pm->opt_rescaling.conserved_scalars) { ix_cons_scalar = isum; }
               hst_data[isum++] += vol(i)*s;
             }
           }
 
-          if (WAVE_ENABLED) {
+          if (WAVE_ENABLED)
+          {
             Real& wave_error = pwave->error(k,j,i);
             abs_ma = (abs_ma < std::abs(wave_error)) ? std::abs(wave_error) : abs_ma;
             hst_data[isum++] += vol(i)*std::abs(wave_error);
@@ -143,7 +155,8 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
           // BD: TODO - compute the norm properly;
           // The numerical quadratures on a spatial hypersurface should be
           // det(\gamma) weighted - using conformal factor this is cheap to do
-          if (Z4C_ENABLED) {
+          if (Z4C_ENABLED)
+          {
             Real const H_err  = std::abs(pz4c->con.H(k,j,i));
             Real const M2_err = std::abs(pz4c->con.M(k,j,i));
             Real const Mx_err = std::abs(pz4c->con.M_d(0,k,j,i));
@@ -225,18 +238,21 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
 #endif
 
   // use also compensated summation when computing hst and adjusting cons. ----
-  if (pm->opt_rescaling.conserved_hydro)
+  if (pm->presc->opt.rescale_conserved_density)
   {
-    pm->CS_ConservedDensity(hst_data[ix_cons_dens]);
+    hst_data[ix_cons_dens] = pm->presc->IntegrateField(
+      gra::hydro::rescaling::variety_cs::conserved_hydro, IDN, 0
+    );
   }
 
-  if (pm->opt_rescaling.conserved_scalars)
+  if (pm->presc->opt.rescale_conserved_scalars)
   {
-    AA s(NSCALARS);
-    pm->CS_ConservedScalars(s);
     for (int n=0; n<NSCALARS; ++n)
     {
-      hst_data[ix_cons_scalar+n] = s(n);
+
+      hst_data[ix_cons_scalar+n] = pm->presc->IntegrateField(
+        gra::hydro::rescaling::variety_cs::conserved_scalar, n, 0
+      );
     }
   }
   // --------------------------------------------------------------------------
