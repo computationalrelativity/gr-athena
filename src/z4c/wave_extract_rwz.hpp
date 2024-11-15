@@ -97,6 +97,7 @@ private:
   void InterpMetricToSphere(MeshBlock * pmb);
   void MasterFuns();
   void MultipolesGaugeInvariant();
+  void SphOrthogonality();
   
   //! Functions for output
   std::string OutputFileName(std::string base);
@@ -235,6 +236,7 @@ private:
   Mesh const * pmesh;
   bool verbose;    
   bool bitant;
+  bool subtract_background;
   int root;
   int ioproc;
   int outprec;

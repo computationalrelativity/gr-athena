@@ -72,7 +72,7 @@ Real SphHarm_Plm(const int l, const int m, const Real x) {
   }
   else {
     std::stringstream msg;
-    msg << "### FATAL ERROR in WaveExtractRWZ::SphHarm_Plm" << std::endl
+    msg << "### FATAL ERROR in Utils::SphHarm_Plm" << std::endl
         << "SphHarm_Plm requires nonnegeative m argument " << m << std::endl;
     ATHENA_ERROR(msg);
   }
@@ -116,8 +116,8 @@ void SphHarm_Ylm(const int l, const int m, const Real theta, const Real phi,
   // -------------
   
   const Real a = std::sqrt((Real)(2*l+1)/(4.0*PI*fact_norm));
-  //const int mfac = (m>0)? std::pow(-1.0,abs_m) : 1.0; //FIXME: this is the original, but it should be:
-  const int mfac = (m==0)? 1.0 : std::pow(-1.0,m); 
+  const int mfac = (m>0)? std::pow(-1.0,abs_m) : 1.0; //FIXME: this is the original, but it should be:
+  //const int mfac = (m==0)? 1.0 : std::pow(-1.0,m); 
   const Real Plm = mfac * a * SphHarm_Plm(l,abs_m,std::cos(theta));
 
   *YlmR = Plm * std::cos((Real)(m)*phi);
