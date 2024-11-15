@@ -18,7 +18,12 @@ class Rescaling
 {
   public:
     Rescaling(Mesh *pm, ParameterInput *pin);
-    ~Rescaling() { };
+    ~Rescaling() {
+      if (opt.dump_status)
+      {
+        OutputFinalize();
+      }
+    };
 
   // storage ------------------------------------------------------------------
   public:
@@ -62,6 +67,8 @@ class Rescaling
       bool apply_on_substeps;
       bool disable_on_first_failure;
 
+      bool dump_status;
+
       Real start_time;
       Real end_time;
 
@@ -97,6 +104,18 @@ class Rescaling
     Real GlobalMinimum(const variety_cs v_cs,
                        const int n,
                        const bool require_positive);
+
+  // I/O methods --------------------------------------------------------------
+  private:
+    std::string filename;
+    FILE * pofile;
+
+    void OutputPrepare();
+    void OutputFinalize();
+
+  public:
+    void OutputWrite(const int iter, const Real time, const int nstage);
+
 };
 
 // ============================================================================

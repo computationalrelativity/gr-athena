@@ -665,7 +665,13 @@ inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
     if (pmesh->presc->opt.apply_on_substeps ||
         (stage == ptlc.grmhd_z4c->nstages))
     {
+      const Real time_end_stage   = pmesh->time+pmesh->dt;
+      const Real ncycle_end_stage = pmesh->ncycle+1;
+
       pmesh->presc->Apply();
+      pmesh->presc->OutputWrite(ncycle_end_stage,
+                                time_end_stage,
+                                stage);
     }
 
 #ifdef DBG_SCATTER_MATTER_GRMHD

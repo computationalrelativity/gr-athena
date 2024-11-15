@@ -2,6 +2,8 @@
 #include <cmath>
 #include <iostream>
 #include <limits>
+#include <sstream>
+#include <unistd.h>
 
 // Athena++ headers
 #include "../mesh/mesh.hpp"
@@ -47,6 +49,13 @@ Rescaling::Rescaling(Mesh *pm, ParameterInput *pin) :
         pin->GetOrAddReal("rescaling", "start_time", -1.0);
     opt.end_time =
         pin->GetOrAddReal("rescaling", "end_time", -1.0);
+
+    opt.dump_status =
+        pin->GetOrAddBoolean("rescaling", "dump_status", false);
+
+
+    filename = pin->GetOrAddString("rescaling", "filename", "resc");
+    filename += ".txt";
   }
 
   if (opt.rescale_conserved_density)
@@ -115,6 +124,7 @@ void Rescaling::Initialize()
   }
 
   ini.initialized = true;
+  OutputPrepare();
 }
 
 void Rescaling::Apply()
@@ -598,7 +608,125 @@ Real Rescaling::GlobalMinimum(const variety_cs v_cs,
 
   return min_V;
 }
-// ----------------------------------------------------------------------------
+
+// I/O ------------------------------------------------------------------------
+void Rescaling::OutputPrepare()
+{
+  if (!opt.dump_status)
+    return;
+
+  if (0 == Globals::my_rank)
+  {
+
+    // check if output file already exists
+    if (access(filename.c_str(), F_OK) == 0) {
+      pofile = fopen(filename.c_str(), "a");
+    }
+    else
+    {
+      pofile = fopen(filename.c_str(), "w");
+      if (NULL == pofile)
+      {
+        std::stringstream msg;
+        msg << "### FATAL ERROR in Rescaling" << std::endl;
+        msg << "Could not open file '" << filename << "' for writing!";
+        throw std::runtime_error(msg.str().c_str());
+      }
+    }
+
+    int ix = 0;
+    fprintf(pofile, "# ");
+    fprintf(pofile, "[%d]=iter ", ix++);
+    fprintf(pofile, "[%d]=time ", ix++);
+    fprintf(pofile, "[%d]=stage ", ix++);
+
+    if (opt.rescale_conserved_density)
+    {
+      // fprintf(pofile, "[%d]=cur.m ", ix++);
+      fprintf(pofile, "[%d]=cur.err_rel_D ", ix++);
+      fprintf(pofile, "[%d]=cur.rsc_D ", ix++);
+      if (opt.use_cutoff)
+      {
+        fprintf(pofile, "[%d]=cur.min_D ", ix++);
+        fprintf(pofile, "[%d]=cur.cut_D ", ix++);
+      }
+    }
+
+    if (opt.rescale_conserved_scalars)
+    {
+      for (int n=0; n<NSCALARS; ++n)
+      {
+        // fprintf(pofile, "[%d]=cur.S_%d ", ix++, n);
+        fprintf(pofile, "[%d]=cur.err_rel_S_%d ", ix++, n);
+        fprintf(pofile, "[%d]=cur.rsc_s_%d ", ix++, n);
+        if (opt.use_cutoff)
+        {
+          fprintf(pofile, "[%d]=cur.min_s_%d ", ix++, n);
+          fprintf(pofile, "[%d]=cur.cut_s_%d ", ix++, n);
+        }
+      }
+    }
+
+    fprintf(pofile, "\n");
+    fflush(pofile);
+  }
+}
+
+void Rescaling::OutputWrite(const int iter, const Real time, const int nstage)
+{
+  if (!opt.dump_status)
+    return;
+
+  if (Globals::my_rank == 0)
+  {
+    fprintf(pofile, "%d ", iter);
+    fprintf(pofile, "%.*g ", FPRINTF_PREC, time);
+    fprintf(pofile, "%d ", nstage);
+
+    if (opt.rescale_conserved_density)
+    {
+      // fprintf(pofile, "%.*g ", FPRINTF_PREC, cur.m);
+      fprintf(pofile, "%.*g ", FPRINTF_PREC, cur.err_rel_D);
+      fprintf(pofile, "%.*g ", FPRINTF_PREC, cur.rsc_D);
+
+      if (opt.use_cutoff)
+      {
+        fprintf(pofile, "%.*g ", FPRINTF_PREC, cur.min_D);
+        fprintf(pofile, "%.*g ", FPRINTF_PREC, cur.cut_D);
+      }
+    }
+
+    if (opt.rescale_conserved_scalars)
+    {
+      for (int n=0; n<NSCALARS; ++n)
+      {
+        // fprintf(pofile, "%.*g ", FPRINTF_PREC, cur.S(n));
+        fprintf(pofile, "%.*g ", FPRINTF_PREC, cur.err_rel_S(n));
+        fprintf(pofile, "%.*g ", FPRINTF_PREC, cur.rsc_s(n));
+
+        if (opt.use_cutoff)
+        {
+          fprintf(pofile, "%.*g ", FPRINTF_PREC, cur.min_s(n));
+          fprintf(pofile, "%.*g ", FPRINTF_PREC, cur.cut_s(n));
+        }
+      }
+    }
+
+    fprintf(pofile, "\n");
+    fflush(pofile);
+  }
+}
+
+void Rescaling::OutputFinalize()
+{
+  if (!opt.dump_status)
+    return;
+
+  if (Globals::my_rank == 0)
+  {
+    fclose(pofile);
+  }
+}
 
 // ============================================================================
 } // namespace gra::hydro::rescaling
