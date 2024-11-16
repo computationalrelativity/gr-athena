@@ -76,9 +76,9 @@ private:
   Real dph_grid();
   int TPIndex(const int i, const int j);
   void FlagSpherePointsContained(MeshBlock * pmb);
-  //void SetWeightsIntegral(int method);
   void SetWeightsIntegral(std::string method);
-  
+  void GLQuad_Nodes_Weights(const Real a, const Real b, Real * x, Real * w, const int n);
+
   //! Functions for spherical harmonics
   int MPoints(const int l);
   int MIndex(const int l, const int m);
@@ -163,9 +163,12 @@ private:
   AthenaArray<Real> H0_dot, H01_dot, H_dot, H1_dot; // d/dt drvts
 
   //! Gauge-invariant multipoles
+  AthenaArray<Real> kappa_00, kappa_01, kappa_11, kappa_0, kappa_1; // SB lets not use this!
   //utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, MDIM, 2> kappa_dd;
   //utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::NONE, MDIM, 1> kappa_d;
-  AthenaArray<Real> kappa_00, kappa_01, kappa_11, kappa_0, kappa_1; // even
+  // SB The above variables are defined at a points, but the kappa's have a multipolar index. These var type was incorrect. They require 1 dimension for the multipolar index and 1 for the Re/Im part, the following should work:
+  AthenaTensor<Real, TensorSymm::SYM2, 2, 2> kappa_dd;
+  AthenaTensor<Real, TensorSymm::SYM2, 2, 1> kappa_d;
   AthenaArray<Real> kappa, Tr_kappa_dd;
   Real norm_Tr_kappa_dd;
   

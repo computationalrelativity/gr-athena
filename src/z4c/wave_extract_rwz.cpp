@@ -7,7 +7,6 @@
 //  \brief Implementation of metric-based extraction of Regge-Wheeler-Zerilli functions
 //         Supports bitant symmetry
 
-//TODO needs to be interfaced to the rest of GRA, in a way similarly to wave extract, AHF, ejecta, etc.
 //TODO 2nd derivatives are not implemented, take them from interpolation. waiting for David to extend the interpolator with drvts
 
 #include <cstdio>
@@ -29,8 +28,6 @@
 #include "../utils/tensor.hpp"
 #include "../utils/linear_algebra.hpp" // Det, Inv3Metric
 #include "../utils/lagrange_interp.hpp"
-//#include "../coordinates/coordinates.hpp"
-//using namespace utils::tensor;
 
 char const * const WaveExtractRWZ::ArealRadiusMethod[WaveExtractRWZ::NOptRadius] = {
   "areal", "areal_simple", "average_schw","schw_gthth", "schw_gphph",
@@ -103,26 +100,13 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh * pmesh, ParameterInput * pin, int n):
         << "nphi must be even " << Nphi << std::endl;
     ATHENA_ERROR(msg);
   }
-
-  th_grid.NewAthenaArray(Ntheta);
-  for (int i = 0; i < Ntheta; ++i)
-    th_grid(i) = coord_theta(i);
-
-  ph_grid.NewAthenaArray(Nphi);
-  for (int j = 0; j < Nphi; ++j)
-    ph_grid(j) = coord_phi(j);
-
-  //std::string integral_method = pin->GetOrAddString("rwz_extraction", "method_integrals", "sum");
-  weights.NewAthenaArray(Ntheta,Nphi);
-  //SetWeightsIntegral(integral_method);
+  
+  std::string integral_method = pin->GetOrAddString("rwz_extraction",
+						    "method_integrals", "riemann");
+  SetWeightsIntegral(integral_method);
   
   // Flag sphere points belonging to this rank
   havepoint.NewAthenaArray(Ntheta,Nphi);
-  //MeshBlock * pmb = pmesh->pblock;
-  //while (pmb != nullptr) {
-  //  FlagSpherePointsContained(pmb);
-  //  pmb = pmb->next; 
-  //}
   
   // 3+1 metric on the sphere
   gamma_dd.NewAthenaTensor(Ntheta,Nphi);
@@ -213,14 +197,18 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh * pmesh, ParameterInput * pin, int n):
   H_dot.NewAthenaArray(lmpoints,2);
 
   // Gauge-invariant
-  // NB two of these are stored as Tensors ---> not possible
+  // NB two of these are stored as TensorsPointwise ---> not possible
   //kappa_dd.NewTensorPointwise();
+  //kappa_d.NewTensorPointwise();
+  // TODO SB lets not use AthenaArrays:
   kappa_00.NewAthenaArray(lmpoints,2);
   kappa_01.NewAthenaArray(lmpoints,2);
   kappa_11.NewAthenaArray(lmpoints,2);
-  //kappa_d.NewTensorPointwise();
   kappa_0.NewAthenaArray(lmpoints,2);
   kappa_1.NewAthenaArray(lmpoints,2);
+  // but Tensors (see hpp):
+  kappa_dd.NewAthenaTensor(lmpoints,2);
+  kappa_d.NewAthenaTensor(lmpoints,2);
   kappa.NewAthenaArray(lmpoints,2);
   Tr_kappa_dd.NewAthenaArray(lmpoints,2);
   
@@ -356,13 +344,15 @@ WaveExtractRWZ::~WaveExtractRWZ() {
   H_dot.DeleteAthenaArray();
 
   // Gauge-invariant
-  //kappa_dd.DeleteTensorPointwise();
+  // TODO SB: lets not use these:
   kappa_00.DeleteAthenaArray();
   kappa_01.DeleteAthenaArray();
   kappa_11.DeleteAthenaArray();
-  //kappa_d.DeleteTensorPointwise();
   kappa_0.DeleteAthenaArray();
   kappa_1.DeleteAthenaArray();
+  // ... but these:
+  kappa_dd.DeleteAthenaTensor();
+  kappa_d.DeleteAthenaTensor();
   kappa.DeleteAthenaArray();
   Tr_kappa_dd.DeleteAthenaArray();
     
@@ -568,37 +558,6 @@ void WaveExtractRWZ::Write(int iter, Real time) {
   }// for i in Iof_*
 
   data.resize(0);  
-  //data.clear();  
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn Real WaveExtractRWZ::coord_theta(const int i)
-// \brief theta coordinate from index
-Real WaveExtractRWZ::coord_theta(const int i) {
-  Real dtheta = dth_grid();
-  return dtheta*(0.5 + i);
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn Real WaveExtractRWZ::coord_phi(const int i)
-// \brief phi coordinate from index
-Real WaveExtractRWZ::coord_phi(const int j) {
-  Real dphi = dph_grid();
-  return dphi*(0.5 + j);
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn Real WaveExtractRWZ::dth_grid()
-// \brief compute spacing dtheta 
-Real WaveExtractRWZ::dth_grid() {
-  return PI/Ntheta;
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn Real WaveExtractRWZ::dph_grid()
-// \brief compute spacing dphi
-Real WaveExtractRWZ::dph_grid() {
-  return 2.0*PI/Nphi;
 }
 
 //----------------------------------------------------------------------------------------
@@ -609,59 +568,93 @@ int WaveExtractRWZ::TPIndex(const int i, const int j) {
 }
 
 //----------------------------------------------------------------------------------------
+// \!fn int WaveExtractRWZ::GLQuad_Nodes_Weights(Real a, Real b, Real * x, Real * w, const int n)
+// \brief Nodes and weights for Gauss-Legendre quadrature
+void GLQuad_Nodes_Weights(const Real a, const Real b, Real * x, Real * w, const int n)
+{
+  Real z1,z,xm,xl,pp,p3,p2,p1;
+#define SMALL (1e-14)  
+  int m=(n+1)/2;
+  xm=0.5*(b+a);
+  xl=0.5*(b-a);
+  for (int i=1;i<=m;i++) {
+    z=std::cos(PI*(i-0.25)/(n+0.5));
+    do {
+      p1=1.0;
+      p2=0.0;
+      for (int j=1;j<=n;j++) {
+	p3=p2;
+	p2=p1;
+	p1=((2.0*j-1.0)*z*p2-(j-1.0)*p3)/j;
+      }
+      pp=n*(z*p1-p2)/(z*z-1.0);
+      z1=z;
+      z=z1-p1/pp;
+    } while (std::fabs(z-z1) > SMALL);
+    x[i-1]=xm-xl*z;
+    x[n-i]=xm+xl*z;
+    w[i-1]=2.0*xl/((1.0-z*z)*pp*pp);
+    w[n-i]=w[i-1];
+  }
+}
+
+//----------------------------------------------------------------------------------------
 // \!fn int WaveExtractRWZ::SetWeightsIntegral()
-// \brief set the weights for the 2D integrals - UNFINISHED
+// \brief set nodes & weights for the 2D integrals 
 void WaveExtractRWZ::SetWeightsIntegral(std::string method) {
-  if (method == "sum") {
-    
-    weights.Fill(1.0); 
 
-  } else if (method == "simpson") {
-
-    //FIXME: UNFINISHED
-    // here there is some mismatch between grid and indexes, won't work
+  th_grid.NewAthenaArray(Ntheta);
+  ph_grid.NewAthenaArray(Nphi);
+  weights.NewAthenaArray(Ntheta,Nphi);
+  
+  if (method == "riemann") {
     
-    if (Ntheta%2 == 0) {
-      std::stringstream msg;
-      msg << "### FATAL ERROR in WaveExtractRWZ setup" << std::endl
-	  << "Ntheta must be odd for Simpson method " << Ntheta << std::endl;
-      ATHENA_ERROR(msg);
+    const Real dphi = 2.0*PI/Nphi;
+    for (int j = 0; j < Nphi; ++j)
+      ph_grid(j) = dphi*(0.5 + j);
+
+    const Real dtheta = PI/Ntheta;
+    for (int i = 0; i < Ntheta; ++i) {
+      th_grid(i) =  dtheta*(0.5 + i);
     }
     
-    const Real dth = dth_grid();
-    const Real dph = dph_grid();
-
-    Real * coeff_theta = new Real[Ntheta+2];
-    Real * coeff_phi   = new Real[Nphi  +2];
-    
-    // Theta coefficients 
-    for (int i=1; i<=Ntheta-2; i=i+2) {
-      coeff_theta[i] = 2;
-      coeff_theta[i+1] = 1;
-    }
-    coeff_theta[Ntheta] = 2;
-    coeff_theta[Ntheta+1] = 0.5;
-
-    // Phi coefficients 
-    coeff_phi[1] = 0.5;
-    for (int i=2; i<=Nphi; i=i+2) {
-      coeff_phi[i] = 2;
-      coeff_phi[i+1] = 1;
-    }
-    coeff_phi[Nphi+1] = 0.5;
-
-    for (int i = 1; i <= Ntheta+1; i++) {
-      const Real theta = i * dth;
-      const Real sinth = sin(theta);
-      const Real costh = cos(theta);
-      for (int j = 1; j <= Nphi+1; j++) {
-	const Real phi = (j-1)*dph;
-	//weight(i,j) = 4.0/9.0 * coeff_theta[i] * coeff_phi[j];
+    for (int i = 0; i < Ntheta; ++i) {
+      const Real dcosth = std::sin(th_grid(i)) * dtheta;
+      for (int j = 0; j < Nphi; ++j) {
+	weights(i,j) = dcosth * dphi;
       }
     }
 
-    delete [] coeff_theta;
-    delete [] coeff_phi;
+  } else if (method == "gausslegendre") {
+    
+    if (Ntheta != Nphi/2) {
+      std::stringstream msg;
+      msg << "### FATAL ERROR in WaveExtractRWZ setup" << std::endl
+	  << "Ntheta should be Nphi/2 = " << Nphi/2 << std::endl;
+      ATHENA_ERROR(msg);
+    }
+
+    const Real dphi = 2.0*PI/Nphi;
+    for (int j = 0; j < Nphi; ++j)
+      ph_grid(j) = dphi*(0.5 + j);
+
+    gl_weights = new Real[Ntheta];
+    gl_nodes = new Real[Ntheta];
+ 
+    GLQuad_Nodes_Weights(-1.0,1.0, gl_nodes, gl_weights, Ntheta);
+
+    for (int i = 0; i < Nt; ++i) {
+      th_grid(i) =  std::acos(gl_nodes[i]);
+    }
+    
+    for (int i = 0; i < Ntheta; ++i) {
+      for (int j = 0; j < Nphi; ++j) {
+	weights(i,j) = gl_weights[i] * dphi;
+      }
+    }
+    
+    delete gl_weights;
+    delete gl_nodes;
     
   } else {
     std::stringstream msg;
@@ -750,7 +743,7 @@ Real WaveExtractRWZ::RWZnorm(const int l) {
 //----------------------------------------------------------------------------------------
 // \!fn Real WaveExtractRWZ::Factorial(const int n)
 // \brief factorial function
-static const double fact35[] = {
+static const Real fact35[] = {
   1.,
   1.,
   2.,
@@ -821,10 +814,6 @@ Real WaveExtractRWZ::LeviCivitaSymbol(const int a, const int b, const int c) {
 //        m and l are integers satisfying 0 <= m <= l,
 //        while x lies in the range -1 <= x <= 1
 //
-
-//TODO double check! Follow closely the cactus implementation
-// https://bitbucket.org/einsteintoolkit/einsteinanalysis/src/b7d79de8b744005b5513ee6d76822ad7db33a4a8/Extract/src/D2_extract.F#lines-800
-
 Real WaveExtractRWZ::SphHarm_Plm(const int l, const int m, const Real x) {
 
   Real pmm = 1.0;
@@ -874,32 +863,14 @@ Real WaveExtractRWZ::SphHarm_Plm(const int l, const int m, const Real x) {
 // where
 //
 //      a = m/2 (sign(m)+1)  
-
-// TODO double check.  Follow closely the cactus implementation
-// https://bitbucket.org/einsteintoolkit/einsteinanalysis/src/b7d79de8b744005b5513ee6d76822ad7db33a4a8/Extract/src/D2_extract.F#lines-729
-
 void WaveExtractRWZ::SphHarm_Ylm(const int l, const int m, const Real theta, const Real phi,
 				 Real * YlmR, Real * YlmI) {
   
   const int abs_m = std::abs(m);
   const Real fact_norm = Factorial(l+abs_m)/Factorial(l-abs_m);
     
-  //TODO Old code, test and remove -----
-  Real fac = 1.0;  
-  for (int i=(l-abs_m+1); i<=(l+abs_m); ++i) {
-    fac *= (Real)(i);
-  }
-  if (std::fabs(fac - fact_norm) > 1e-10){
-     printf("l = %d, m = %d, theta = %.12e, phi = %.12e \n", l, m, theta, phi);
-     printf("fac = %.12e, fact_norm = %.12e, diff = %.12e \n", fac, fact_norm, fac - fact_norm); 
-  }  
-  //assert(std::fabs(fac - fact_norm)>1e-10);
-  //fac = 1.0/fac //divide once below
-  // -------------
-  
   const Real a = std::sqrt((Real)(2*l+1)/(4.0*PI*fact_norm));
-  const int mfac = (m>0)? std::pow(-1.0,abs_m) : 1.0; //FIXME: this is the original, but it should be:
-  //const int mfac = (m==0)? 1.0 : std::pow(-1.0,m); 
+  const int mfac = (m>0)? std::pow(-1.0,abs_m) : 1.0; 
   const Real Plm = mfac * a * SphHarm_Plm(l,abs_m,std::cos(theta));
 
   *YlmR = Plm * std::cos((Real)(m)*phi);
@@ -912,11 +883,6 @@ void WaveExtractRWZ::SphHarm_Ylm(const int l, const int m, const Real theta, con
 //       				    Real * YthR, Real * YthI, Real * YphR, Real * YphI, 
 //             				    Real * XR, Real * XI, Real * WR, Real * WI)
 // \brief compute vector spherical harmonics basis and functions Xlm and Wlm
-//
-
-//TODO DOUBLE check! e.g. conventions for X = 2 Y4  and W = Y3 ! NB Follow closely the cactus implementation
-// https://bitbucket.org/einsteintoolkit/einsteinanalysis/src/b7d79de8b744005b5513ee6d76822ad7db33a4a8/Extract/src/D2_extract.F#lines-871
-
 void WaveExtractRWZ::SphHarm_Ylm_a(const int l_, const int m_, const Real theta, const Real phi,
 				   Real * YthR, Real * YthI, Real * YphR, Real * YphI,
 				   Real * XR, Real * XI, Real * WR, Real * WI) {
@@ -931,11 +897,9 @@ void WaveExtractRWZ::SphHarm_Ylm_a(const int l_, const int m_, const Real theta,
   const Real b = std::sqrt((SQR(l+1.0)-SQR(m))*(l+0.5)/(l+1.5)) * div_sin_theta;
 
   Real YR,YI; // l,m
-  //SphHarm_Ylm_a(l,m,theta,phi,&YR,&YI);
   SphHarm_Ylm(l,m,theta,phi,&YR,&YI);
   
   Real YplusR,YplusI; // l+1,m
-  //SphHarm_Ylm_a(l+1,m,theta,phi,&YplusR,&YplusI);
   SphHarm_Ylm(l+1,m,theta,phi,&YplusR,&YplusI);
 
   const Real _YthR = a * YR + b * YplusR;
@@ -975,17 +939,11 @@ void WaveExtractRWZ::ComputeSphericalHarmonics() {
   Real WlmR, WlmI;
       
   for(int i=0; i<Ntheta; ++i) {
-    
     const Real theta = th_grid(i);
-    const Real sinth = std::sin(theta);
-    const Real costh = std::cos(theta);
-    
-    for(int j=0; j<Nphi; ++j) {
+     
+    for(int j=0; j<Nphi; ++j) {     
+      const Real phi = ph_grid(j);
       
-      const Real phi   = ph_grid(j);
-      const Real sinph = std::sin(phi);
-      const Real cosph = std::cos(phi);
-
       for(int l=2; l<=lmax; ++l) {
 	for(int m=-l; m<=l; ++m) {
 	  const int lm = MIndex(l,m);
@@ -1055,16 +1013,13 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   adm_g_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
 
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> adm_beta_u;    
-  //adm_beta_u.InitWithShallowSlice(pz4c->storage.Z4c, Z4c::I_Z4c_betax);
   adm_beta_u.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_betax);
   
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> adm_alpha;    
-  //adm_alpha.InitWithShallowSlice(pz4c->storage.Z4c, Z4c::I_Z4c_alpha);
   adm_alpha.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_alpha);
 
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> adm_dg_ddd;      
   adm_dg_ddd.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_dgxx_x); 
-  //printf("dx_gxx = %.12e, dy_gxx = %.12e, dz_gxx = %.12e \n", adm_dg_ddd(0,0,0,0,0,0), adm_dg_ddd(1,0,0,0,0,0), adm_dg_ddd(2,0,0,0,0,0));
 
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 2> adm_dbeta_du; // beta^j,i = d/dx^i beta^j
   adm_dbeta_du.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_dbetax_x); 
@@ -1083,7 +1038,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 
   //SB since we need K_ab for the ADM integral,
   //   we do not need a storage for gamma_dot on the 3D MB.
-  //   we compute it instead directly from the Cartesian comp. on the sphere
+  //   we compute gamma_dot directly from the Cartesian comp. on the sphere
   //TODO rm
   //
   // AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_g_dot_dd;
@@ -1180,27 +1135,19 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   // Zeros ADM integrals
   for (int i=0; i<NVADM; i++) 
     integrals_adm[i] = 0.0;
-
-  const Real dthdph = dth_grid() * dph_grid();
   
   // Cartesian-to-Spherical Jacobian
   utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 2> Jac;
   Jac.NewTensorPointwise();
   
   for (int i=0; i<Ntheta; i++) {
-    
     const Real theta = th_grid(i);
     const Real sinth = std::sin(theta);
     const Real costh = std::cos(theta);
     const Real sinth2 = SQR(sinth);
     const Real costh2 = SQR(costh);
-
-    const Real vol = r2 * dthdph * sinth; 
     
     for(int j=0; j<Nphi; j++){
-
-      //if (!havepoint(i,j)) continue;
-      
       const Real phi   = ph_grid(j);
       const Real sinph = std::sin(phi);
       const Real cosph = std::cos(phi);
@@ -1214,7 +1161,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
       
       if (!pmb->PointContained(x,y,z)) continue;
 
-      // this surface point is in this MB
+      // this surface point is in this rank
       havepoint(i,j) += 1;
 
       coord[0]  = x;
@@ -1419,6 +1366,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
       }
       
       //printf("Interp:  alpha = %.12e, dr_alpha = %.12e, dot_alpha = %.12e \n", alpha(i,j), dr_alpha(i,j), dot_alpha(i,j));
+
       // beta^2 & drvts      
       beta2(i,j) = 0.0;
       for (int a=0; a<NDIM; ++a)
@@ -1448,6 +1396,8 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
       // and will be normalized by 1/(4 Pi) 
       // ----------------------------------------------------------------------
 
+      const Real vol = r2 * weights(i,j);  // TODO: check r^2 : needed?
+      
       Real iMadm = 0.0;
       for (int a = 0; a < NDIM; ++a)
 	for (int b = 0; b < NDIM; ++b) {
@@ -1511,7 +1461,6 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
       Jac(2,0) = costh;
       Jac(2,1) = - r* sinth;
       Jac(2,2) = 0.0;
-
       
       // 3-metric & time drvts  
       for (int a = 0; a < NDIM; ++a)
@@ -1520,7 +1469,6 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 	  dot_gamma_dd(a,b,i,j) = 0.0;
 	  for (int c = 0; c < NDIM; ++c)
 	    for (int d = 0; d < NDIM; ++d) {
-	      //TODO check indexes	  
 	      gamma_dd(a,b,i,j) += Jac(c,a) * Cgamma_dd(c,d) *  Jac(d,b);
 	      dot_gamma_dd(a,b,i,j) += Jac(c,a) * Cgamma_dot_ddd(c,d) *  Jac(d,b);
 	    }
@@ -1531,7 +1479,6 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 	beta_d(a, i,j) = 0.0;
 	dot_beta_d(a, i,j) = 0.0;
 	for (int c = 0; c < NDIM; ++c) {
-	  //TODO check indexes
 	  beta_d(a, i,j) += Jac(c,a) * Cbeta_d(c);
 	  dot_beta_d(a, i,j) += Jac(c,a) * Cbeta_dot_dd(c);
 	}
@@ -1607,7 +1554,9 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
       dr_beta_u(1,i,j) = div_r * beta_u(1,i,j) + r*( costh * ( dr_Cbeta_u(0) + sinph * dr_Cbeta_u(1) )
 						     - sinth * dr_Cbeta_u(2) );
       dr_beta_u(2,i,j) = div_r * beta_u(2,i,j) + r * sinth * ( cosph * dr_Cbeta_u(1)
-							       - sinth * dr_Cbeta_u(0) ); 
+							       - sinth * dr_Cbeta_u(0) );
+
+      // TODO Trasform 2nd drvts
             
     } // phi loop
   } // theta loop
@@ -1621,7 +1570,6 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   adm_dalpha_d.DeleteAthenaTensor();
 
   adm_K_dd.DeleteAthenaTensor();
-  //adm_g_dot_dd.DeleteTensorPointwise();//TODO rm
   adm_beta_dot_u.DeleteAthenaTensor();
   adm_alpha_dot.DeleteAthenaTensor();
     
@@ -1656,9 +1604,9 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 //        performs local sums and then MPI reduce.
 //        reduce also ADM integrals.
 void WaveExtractRWZ::BackgroundReduce() {
-  const Real dthdph = dth_grid() * dph_grid();  
   
-  dr2_gamma_dd.ZeroClear(); // Not yet implemented
+  dr2_gamma_dd.ZeroClear(); // TODO Not yet implemented
+
   // Zeros the integrals
   for (int i=0; i<NVBackground; i++) 
     integrals_background[i] = 0.0;
@@ -1672,8 +1620,7 @@ void WaveExtractRWZ::BackgroundReduce() {
   integrals_background[I_adm_Jx] = integrals_adm[I_ADM_Jx];
   integrals_background[I_adm_Jy] = integrals_adm[I_ADM_Jy];
   integrals_background[I_adm_Jz] = integrals_adm[I_ADM_Jz];
-  
-  
+    
   for (int i=0; i<Ntheta; i++) {
     
     const Real theta = th_grid(i);
@@ -1683,8 +1630,6 @@ void WaveExtractRWZ::BackgroundReduce() {
     const Real costh2 = SQR(costh);
     const Real div_sinth = 1.0/sinth;
     const Real div_sinth2 = SQR(div_sinth);
-    
-    const Real vol = dthdph * sinth;
     
     for(int j=0; j<Nphi; j++){
 
@@ -1696,6 +1641,9 @@ void WaveExtractRWZ::BackgroundReduce() {
       const Real sinph2 = SQR(sinph);
       const Real cosph2 = SQR(cosph);
 
+      //const Real vol = dthdph * sinth; // OLD, now in weights:
+      const Real vol = weights(i,j);
+      
       //FIXME what we store exactly?
       //  beta_d beta_dr_d and beta_dot_d are used in the multipoles, should be stored
       //  perhaphs storing beta2 and drvts is best
@@ -1738,6 +1686,11 @@ void WaveExtractRWZ::BackgroundReduce() {
       Real int_drsch_dri_dot = 0.0; //TODO
       
       // NB These integrals will be all normalized with 1/(4 Pi)
+      // Note some integrals are not in dOmega = sinth dtheta dphi but in dtheta dphi, 
+      // we divide here by sinth:
+      // This should be safe for both set of nodes Riemann and Gauss-Legendre
+      
+      const Real dthdph = vol * div_sinth
       
       if (method_areal_radius==areal) {
 	
@@ -1817,6 +1770,7 @@ void WaveExtractRWZ::BackgroundReduce() {
       // ----------
 
       // Schwarzschild radius & Jacobians
+      // Integral weights have been take care above
       integrals_background[Irsch2] += int_r2;
       integrals_background[Idrsch_dri] += int_drsch_dri;
       integrals_background[Id2rsch_dri2] += int_d2rsch_dri2;
@@ -1949,15 +1903,14 @@ void WaveExtractRWZ::BackgroundReduce() {
     drsch_dri_dot = div_rsch * ( - dot_rsch * drsch_dri + drsch_dri_dot );
     dri_drsch_dot = - SQR(dri_drsch) * drsch_dri_dot;
 
+  } else {
+
+    //TODO implement other cases
     // } else if (method_areal_radius==areal_simple) {}
     // } else if (method_areal_radius==schw_gthth) {}
     //} else if (method_areal_radius==schw_gphph) {}
-  } else {
-
-    //TODO check other cases, implement general formulas or specify case-by-case
     
     dri_drsch = 1.0/drsch_dri; // general
-    
     d2ri_drsch2 = - std::pow(dri_drsch,3) * d2rsch_dri2; //TODO ?
     
   } 
@@ -2084,18 +2037,18 @@ void WaveExtractRWZ::BackgroundReduce() {
   Gamma_dyn_udd(1,0,1) = Gamma_dyn_udd(1,1,0) = Gr0r_dyn;
   Gamma_dyn_udd(1,1,1) = Grrr_dyn;
     
-
-  // We also need to make the transformation of these quantities that are used in the multipoles:
+  // Transform to Schw coordinates other quantities used for multipoles projections:
   
   for (int i=0; i<Ntheta; i++) {
     for(int j=0; j<Nphi; j++){
+      
       if (!havepoint(i,j)) continue;
-
+      
       // dr_beta_i
       dr_beta_d(0,i,j) = d2ri_drsch2 * beta_d(0,i,j) + SQR(dri_drsch) * dr_beta_d(0,i,j);
       for (int a=1; a<3; a++)
         dr_beta_d(a,i,j) *= dri_drsch;
-
+      
       // dot_beta_r
       dot_beta_d(0,i,j) = dri_drsch_dot * beta_d(0,i,j) + dri_drsch * dot_beta_d(0,i,j);
   
@@ -2137,8 +2090,8 @@ void WaveExtractRWZ::BackgroundReduce() {
 // \brief compute the multipoles 
 //        performs local sums and then MPI reduce
 void WaveExtractRWZ::MultipoleReduce() {
+
   const int lmpoints_x2 = lmpoints*2;
-  const Real dthdph = dth_grid() * dph_grid();
   const Real r = Schwarzschild_radius;
   const Real div_r = 1.0/r;
   const Real div_r2 = SQR(div_r);
@@ -2149,7 +2102,6 @@ void WaveExtractRWZ::MultipoleReduce() {
     integrals_multipoles[i] = 0.0;
       
   for (int i=0; i<Ntheta; i++) {
-    
     const Real theta = th_grid(i);
     const Real sinth = std::sin(theta);
     const Real costh = std::cos(theta);
@@ -2157,8 +2109,6 @@ void WaveExtractRWZ::MultipoleReduce() {
     const Real costh2 = SQR(costh);
     const Real div_sinth = 1.0/sinth;
     const Real div_sinth2 = SQR(div_sinth);
-
-    const Real vol = dthdph * sinth;
 
     for(int j=0; j<Nphi; j++){
 
@@ -2170,6 +2120,8 @@ void WaveExtractRWZ::MultipoleReduce() {
       const Real sinph2 = SQR(sinph);
       const Real cosph2 = SQR(cosph);
 
+      const Real vol = weights(i,j);
+      
       beta2(i,j) = 0.0;
       for (int a=0; a<3; ++a)
         beta2(i,j) += beta_u(a,i,j)*beta_d(a,i,j);
@@ -2235,7 +2187,6 @@ void WaveExtractRWZ::MultipoleReduce() {
 	    integrals_multipoles[lmpoints_x2 * Ih1 + 2*lm + c] += 
 	      vol  * div_lambda * (gamma_dd(0,1,i,j) * sYth + gamma_dd(0,2,i,j) * div_sinth2 * sYph );
 	    
-	    
 	    integrals_multipoles[lmpoints_x2 * IK + 2*lm + c] += 
 	      vol * 0.5 * div_r2 * (gamma_dd(1,1,i,j) + gamma_dd(2,2,i,j) * div_sinth2) * sY;
 
@@ -2246,6 +2197,7 @@ void WaveExtractRWZ::MultipoleReduce() {
             
             //printf("alpha2 = %.6f, beta2 = %.6f \n", SQR(alpha(i,j)), beta2(i,j));
             //printf("gamma_rr = %.6f, gamma_tt = %.6f gamma_pp = %.6f \n", gamma_dd(0,0,i,j), gamma_dd(1,1,i,j), gamma_dd(2,2,i,j));
+
 	    
 	    // even parity radial drvts
 	    // -----------------------------
@@ -2327,7 +2279,7 @@ void WaveExtractRWZ::MultipoleReduce() {
 	    integrals_multipoles[lmpoints_x2 * IH + 2*lm + c] += 
 	      vol * div_lambda_lambda_2 
 	      * ( div_sinth * ( - gamma_dd(1,1,i,j) + gamma_dd(2,2,i,j) * div_sinth2 ) *sX
-		  + 2.0* gamma_dd(1,2,i,j) * div_sinth * sW ); //CHECK 1/sin^3 or 1/sin ?
+		  + 2.0* gamma_dd(1,2,i,j) * div_sinth * sW ); // TODO check 1/sin^3 or 1/sin ?
 	    
 	    
 	    // odd parity radial drvts
@@ -2364,7 +2316,7 @@ void WaveExtractRWZ::MultipoleReduce() {
 	    integrals_multipoles[lmpoints_x2 * IH_dot + 2*lm + c] += 
 	      vol * div_lambda_lambda_2 
 	      * ( div_sinth * ( - dot_gamma_dd(1,1,i,j) + dot_gamma_dd(2,2,i,j) * div_sinth2 ) *sX
-		  + 2.0* dot_gamma_dd(1,2,i,j) * div_sinth * sW ); //CHECK 1/sin^3 or 1/sin ?
+		  + 2.0* dot_gamma_dd(1,2,i,j) * div_sinth * sW ); //TODO check 1/sin^3 or 1/sin ?
 	    
 	  }
 	  
@@ -2466,9 +2418,6 @@ void WaveExtractRWZ::MultipoleReduce() {
 //----------------------------------------------------------------------------------------
 // \!fn void WaveExtractRWZ::MasterFuns()
 // \brief compute even and odd parity master functions
-
-// TODO combine multipoles and g^AB, G^C_{AB} to obtain Psi, ...
-
 void WaveExtractRWZ::MasterFuns() {
 
   const Real M = Schwarzschild_mass;
@@ -2580,7 +2529,7 @@ void WaveExtractRWZ::MasterFuns() {
 	  + 2.0*g_uu(0,1)*g_uu(1,1)*g_dot_dd(0,1)
 	  + SQR(g_uu(1,1))*g_dot_dd(1,1);
 	
-	coef_h1_t *= g_uu(0,1); //CHECK notes for factor *div_r
+	coef_h1_t *= g_uu(0,1); //TODO CHECK notes for factor *div_r
 
 	Real coef_G_dr_t = 2.0*g_uu(0,1)*g_uu(1,1)*g_dot_dd(0,1)
 	  + SQR(g_uu(0,1))*g_dot_dd(0,0)
@@ -2593,7 +2542,7 @@ void WaveExtractRWZ::MasterFuns() {
 	  - SQR(g_uu(0,1))*g_uu(0,0)*g_dot_dd(0,0)
 	  + g_uu(1,1)*(g_uu(1,1)*g_uu(0,0)-2.0*SQR(g_uu(0,1)))*g_dot_dd(1,1);
 	
-	coef_G_dot_t *= 0.5*r2; //CHECK again, notes 
+	coef_G_dot_t *= 0.5*r2; //TODO CHECK again, notes 
 		  
 	Psie_dyn(lm,c) = term1_K;
 	Psie_dyn(lm,c) += term1_hG;
@@ -2622,13 +2571,16 @@ void WaveExtractRWZ::MasterFuns() {
 // \brief compute gauge invariant multipoles from most general expression (time-dependent)
 void WaveExtractRWZ::MultipolesGaugeInvariant() {
   
-  //kappa_dd.ZeroClear();
-  kappa_00.ZeroClear();
+  // SB the kappa's tensor have a multipolar index and a Re/Im index,
+  // they were defined with the wrong type, I fixed this, see hpp.
+  kappa_00.ZeroClear(); // TODO SB we should use TensorArrays !
   kappa_01.ZeroClear();
   kappa_11.ZeroClear();
-  //kappa_d.ZeroClear();
   kappa_0.ZeroClear();
   kappa_1.ZeroClear();
+  // this should now work:
+  kappa_dd.ZeroClear();
+  kappa_d.ZeroClear();
   kappa.ZeroClear();
   Tr_kappa_dd.ZeroClear();
   
@@ -2702,26 +2654,32 @@ void WaveExtractRWZ::MultipolesGaugeInvariant() {
   
 }
 
-
+//----------------------------------------------------------------------------------------
+// \!fn void WaveExtractRWZ::SphOrthogonality()
+// \brief Check orthonormality of spherical harmonics
 void WaveExtractRWZ::SphOrthogonality() {
-  const Real dthdph = dth_grid() * dph_grid();
+
+  //TODO SB Lets check more systematically for all modes,
+  // see the python s2integration.py
+  // also
+  // - do a single reduce for all the integrals
+  // - dump results to file (not printf) 
+  
   // Zeros the integrals
   Real integrals_sphl0[2] = {0.0};
   Real integrals_sphl1[6] = {0.0};
   Real integrals_sph[2*lmpoints] = {0.0};
   Real YlmR, YlmI;
  
- //SphHarm_Ylm(l,m, theta,phi, &YlmR, &YlmI);
-
- for (int i=0; i<Ntheta; i++) {
-    
-   const Real theta = th_grid(i);
-   const Real sinth = std::sin(theta);
-   const Real vol = dthdph * sinth;
+  for (int i=0; i<Ntheta; i++) {
+    const Real theta = th_grid(i);
+    //const Real sinth = std::sin(theta);
 
    for(int j=0; j<Nphi; j++){
      const Real phi = ph_grid(j);
 
+     const Real vol = weights(i,j);
+     
      if (!havepoint(i,j)) continue;
  
      SphHarm_Ylm(0,0, theta,phi, &YlmR, &YlmI);     
