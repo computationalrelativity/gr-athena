@@ -215,7 +215,7 @@ Outputs::Outputs(Mesh *pm, ParameterInput *pin) {
 
         // read ghost cell option
         op.include_ghost_zones = pin->GetOrAddBoolean(op.block_name, "ghost_zones",
-                                                      false);
+                                                      true);
         // output data on VC grid
         op.vc = pin->GetOrAddBoolean(op.block_name, "vc",
                                                       false);
