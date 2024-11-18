@@ -458,6 +458,8 @@ static int output_3Dmodes(const int iter/* output iteration */, const char *dir,
 
   snprintf(buff, sizeof buff, "/%d/%s/re", dump_it, name);
   if (!(H5Lexists(file_id, buff, H5P_DEFAULT ) > 0)) {
+    printf("writing cce dump iter = %d\n",dump_it);
+    fflush(stdout);
     HDF5_CALL(dataspace_id =  H5Screate_simple(2, dims, NULL));
     HDF5_CALL(dataset_id =  H5Dcreate(file_id, buff, H5T_NATIVE_DOUBLE,
            dataspace_id, H5P_DEFAULT));

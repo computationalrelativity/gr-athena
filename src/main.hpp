@@ -713,11 +713,19 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
   // only do a CCE dump if NextTime threshold cleared (updated below)
   if (trgs.IsSatisfied(tvar::Z4c_CCE, ovar::user))
   {
+    bool debug_pr = true;
     for (auto cce : pmesh->pcce)
     {
       int freq = static_cast<int>((float)cce->dt/(float)pmesh->dt);
       assert(freq!=0);
       int cce_iter = pmesh->ncycle / freq;
+
+      if (Globals::my_rank == 0 && debug_pr == true)
+      {
+        printf("cce_iter = %d, freq = %d, pmesh->dt = %0.15f, cce->dt = %0.15f\n",
+          cce_iter, freq, (float)pmesh->dt, (float)cce->dt);
+      }
+      debug_pr = false;
       cce->ReduceInterpolation();
       cce->DecomposeAndWrite(cce_iter, pmesh->time);
     }
