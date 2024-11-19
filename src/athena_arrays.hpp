@@ -66,6 +66,27 @@ class AthenaArray {
   // TODO(felker): replace InitWithShallowSlice with ??? and remove shallow_copy enum val
   // TODO(felker): replace raw pointer with std::vector + reshape (if performance is same)
 
+  // slicing ctors
+  template<typename D, typename I, typename N>
+  AthenaArray(AthenaArray<T> &src, const D dim, const I indx, const N nvar)
+    : state_(DataStatus::shallow_slice)
+  {
+    InitWithShallowSlice(src,
+                         static_cast<int>(dim),
+                         static_cast<int>(indx),
+                         static_cast<int>(nvar));
+  }
+
+  template<typename I, typename N>
+  AthenaArray(AthenaArray<T> &src, const I indx, const N nvar)
+    : state_(DataStatus::shallow_slice)
+  {
+    InitWithShallowSlice(src,
+                         src.dim_,
+                         static_cast<int>(indx),
+                         static_cast<int>(nvar));
+  }
+
   // user-provided dtor, "rule of five" applies:
   ~AthenaArray();
   // define copy constructor and overload assignment operator so both do deep copies.
@@ -573,7 +594,10 @@ AthenaArray<T> &AthenaArray<T>::operator= (const AthenaArray<T> &src) {
     for (std::size_t i=0; i<size; ++i) {
       this->pdata_[i] = src.pdata_[i]; // copy data (not just addresses!)
     }
-    state_ = DataStatus::allocated;
+    // BD: Copy assign assumes existence of an appropriately sized (&allocated)
+    //     target.
+    //     It *could* be sliced; therefore, do *not* change internal state!
+    // state_ = DataStatus::allocated;
   }
   return *this;
 }
@@ -929,7 +953,11 @@ template<typename T>
   // empty) AND HAVE THE SAME SIZES (does not explicitly check either condition)
 
   template<typename T>
-    void AthenaArray<T>::SwapAthenaArray(AthenaArray<T>& array2) {
+  void AthenaArray<T>::SwapAthenaArray(AthenaArray<T>& array2)
+  {
+    // Ensure we only swap allocated data; with slices this causes problems
+    assert((this->state_ == DataStatus::allocated) &&
+           (array2->state_ == DataStatus::allocated));
     std::swap(pdata_, array2.pdata_);
     return;
   }
