@@ -784,7 +784,7 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
   {
     for (auto pej : pmesh->pej_extract)
     {
-      pej->Calculate(pmesh->ncycle, pmesh->time);
+      pej->Calculate(time_end_stage);
     }
   }
 #endif
