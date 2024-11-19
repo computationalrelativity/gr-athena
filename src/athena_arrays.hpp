@@ -133,6 +133,7 @@ class AthenaArray {
   int GetDim5() const { return nx5_; }
   int GetDim6() const { return nx6_; }
   int GetDim(int dim) const;
+  int GetNumDim() const { return dim_; }
 
   // function to get the stride used to access the data
   int GetStride1() const { return 1; }
