@@ -957,7 +957,7 @@ template<typename T>
   {
     // Ensure we only swap allocated data; with slices this causes problems
     assert((this->state_ == DataStatus::allocated) &&
-           (array2->state_ == DataStatus::allocated));
+           (array2.state_ == DataStatus::allocated));
     std::swap(pdata_, array2.pdata_);
     return;
   }
