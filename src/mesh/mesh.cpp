@@ -600,7 +600,9 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
 #endif // FFT
   }
 
+#if FLUID_ENABLED
   presc = new gra::hydro::rescaling::Rescaling(this, pin);
+#endif
 
   // storage for Mesh info struct
   M_info.x_min.NewAthenaArray(ndim);
@@ -1037,7 +1039,9 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
 #endif // FFT
   }
 
+#if FLUID_ENABLED
   presc = new gra::hydro::rescaling::Rescaling(this, pin);
+#endif
 
   // storage for Mesh info struct
   M_info.x_min.NewAthenaArray(ndim);
@@ -1118,7 +1122,9 @@ Mesh::~Mesh() {
   if (nint_user_mesh_data_>0) delete [] iuser_mesh_data;
   if (EOS_TABLE_ENABLED) delete peos_table;
 
+#if FLUID_ENABLED
   delete presc;
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -1734,8 +1740,9 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
 void Mesh::InitializePostFirstInitialize(ParameterInput *pin)
 {
   // Initialized any required rescalings
+#if FLUID_ENABLED
   presc->Initialize();
-
+#endif
   // Whenever we initialize the Mesh, we record global properties
   const bool res = GetGlobalGridGeometry(M_info.x_min, M_info.x_max,
                                          M_info.dx_min, M_info.dx_max);
@@ -1746,8 +1753,9 @@ void Mesh::InitializePostFirstInitialize(ParameterInput *pin)
 void Mesh::InitializePostMainUpdatedMesh(ParameterInput *pin)
 {
   // Rescale as required
+#if FLUID_ENABLED
   presc->Apply();
-
+#endif
   // Whenever we initialize the Mesh, we record global properties
   const bool res = GetGlobalGridGeometry(M_info.x_min, M_info.x_max,
                                          M_info.dx_min, M_info.dx_max);

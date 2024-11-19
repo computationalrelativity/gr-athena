@@ -662,6 +662,7 @@ inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
     pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
 
     // Rescale as required
+#if FLUID_ENABLED
     if (pmesh->presc->opt.apply_on_substeps ||
         (stage == ptlc.grmhd_z4c->nstages))
     {
@@ -673,6 +674,7 @@ inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
                                 time_end_stage,
                                 stage);
     }
+#endif
 
 #ifdef DBG_SCATTER_MATTER_GRMHD
     pmesh->ScatterMatter(pmb_array);

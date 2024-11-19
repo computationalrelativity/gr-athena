@@ -97,10 +97,12 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
             Real& u_my = phyd->u(IM2,k,j,i);
             Real& u_mz = phyd->u(IM3,k,j,i);
 
+#if FLUID_ENABLED
             if (pm->presc->opt.rescale_conserved_density)
             {
               ix_cons_dens = isum;
             }
+#endif
 
             hst_data[isum++] += vol(i)*u_d;
             hst_data[isum++] += vol(i)*u_mx;
@@ -127,6 +129,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
             }
 
             // (conserved variable) Passive scalars:
+#if FLUID_ENABLED
             if (NSCALARS > 0)
             {
               if (pm->presc->opt.rescale_conserved_scalars)
@@ -134,6 +137,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
                 ix_cons_scalar = isum;
               }
             }
+#endif
 
             for (int n=0; n<NSCALARS; n++)
             {
@@ -237,6 +241,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   }
 #endif
 
+#if FLUID_ENABLED
   // use also compensated summation when computing hst and adjusting cons. ----
   if (pm->presc->opt.rescale_conserved_density)
   {
@@ -255,6 +260,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
       );
     }
   }
+#endif
   // --------------------------------------------------------------------------
 
   // only the master rank writes the file
