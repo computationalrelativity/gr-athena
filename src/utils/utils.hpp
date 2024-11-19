@@ -14,6 +14,7 @@
 #include <csignal>   // sigset_t POSIX C extension
 #include <cstdint>   // std::int64_t
 #include <iostream>
+#include <vector>
 
 // Athena++ headers
 
@@ -27,6 +28,12 @@ void ShowConfig();
 bool file_exists(const char *fname);
 
 void file_copy(const std::string &from, const std::string &to);
+
+// Tokenize a string
+void tokenize(const std::string & to_tok,
+              const char token,
+              std::vector<std::string> & vs);
+
 //----------------------------------------------------------------------------------------
 //! SignalHandler
 //  \brief static data and functions that implement a simple signal handling system
