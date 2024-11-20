@@ -293,6 +293,9 @@ public:
 
     // Compute aux_extended variables?
     bool extended_aux_adm;
+
+    // For debug
+    bool use_tp_trackers_extrema;
   } opt;
 
   AA empty_flux[3];

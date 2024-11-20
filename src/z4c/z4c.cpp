@@ -393,6 +393,10 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
     SetAuxExtendedAliases(storage.aux_extended, aux_extended);
   }
 
+  // For debug
+  opt.use_tp_trackers_extrema = pin->GetOrAddBoolean(
+    "z4c", "use_tp_trackers_extrema", false);
+
   // Allocate memory for aux 1D vars
   r.NewAthenaTensor(mbi.nn1);
   detg.NewAthenaTensor(mbi.nn1);
