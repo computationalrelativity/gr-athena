@@ -5,7 +5,7 @@
 //========================================================================================
 //! \file ahf.cpp
 //  \brief implementation of the apparent horizon finder class
-//   Fast flow algorithm of Gundlach:1997us and Alcubierre:1998rq
+//         Fast flow algorithm of Gundlach:1997us and Alcubierre:1998rq
 
 #include <cstdio>
 #include <stdexcept>
@@ -504,7 +504,6 @@ void AHF::MetricInterp(MeshBlock * pmb)
       // Associate z -> -z if bitant
       if (bitant) z = std::abs(z);
 
-
       if (!pmb->PointContained(x,y,z)) continue;
 
       // this surface point is in this MB
@@ -877,42 +876,8 @@ void AHF::SurfaceIntegrals()
       // Derivatives of (x,y,z) vs (thetas, phi)
 
       // dr/dtheta, dr/dphi
-#if (1)
-      // Finite diffrencing (assumes evenly spaced grid)
-      const Real dtheta = dth_grid();
-      const Real dphi   = dph_grid();
-      const Real dthdph = dtheta * dphi;
-      const int nphihalf = (int)(nphi/2);
-      Real rtp1,rtm1,rpp1,rpm1;
-      if (i==0){
-        rtp1 = rr(1,j);
-        if (j<nphihalf)  rtm1 = rr(0,j+nphihalf);
-        if (j>=nphihalf) rtm1 = rr(0,j-nphihalf);
-      } else if (i==ntheta-1) {
-        if (j<nphihalf)  rtp1 = rr(ntheta-1,j+nphihalf);
-        if (j>=nphihalf) rtp1 = rr(ntheta-1,j-nphihalf);
-        rtm1 = rr(ntheta-2,j);
-      } else {
-        rtp1 = rr(i+1,j);
-        rtm1 = rr(i-1,j);
-      }
-      if(j==0) {
-        rpp1 = rr(i,1);
-        rpm1 = rr(i,nphi-1);
-      } else if(j==nphi-1) {
-        rpp1 = rr(i,0);
-        rpm1 = rr(i,nphi-2);
-      } else {
-        rpp1 = rr(i,j+1);
-        rpm1 = rr(i,j-1);
-      }
-      Real const drdt = (rtp1-rtm1)/(2.0*dtheta);
-      Real cont drdp = (rpp1-rpm1)/(2.0*dphi);
-#else
-      // Use spectral representation
       Real const drdt = rr_dth(i,j);
       Real const drdp = rr_dph(i,j);
-#endif
       
       // Derivatives of (x,y,z) with respect to theta
       dXdth(0) = (drdt*sinth + rr(i,j)*costh)*cosph;
@@ -994,17 +959,7 @@ void AHF::SurfaceIntegrals()
 
       // Local sums
       // ----------
-
-      //Real dw = dthdph * std::sqrt(deth);
-      //integrals[iarea]   += dw;
-      //integrals[icoarea] += dthdph * sinth * SQR(rr(i,j));
-      //integrals[ihrms]   += dw * SQR(H);
-      //integrals[ihmean]  += dw * H;
-      //integrals[iSx]     += dw * intSx;
-      //integrals[iSy]     += dw * intSy;
-      //integrals[iSz]     += dw * intSz;
-      //TODO Use general weights:
-      
+     
       const Real wght = weights(i,j);
       const Real da = wght * std::sqrt(deth)/sinth;
 
@@ -1178,13 +1133,14 @@ void AHF::FastFlowLoop()
       failed = true;
       break;
     }
-    if (!(std::isfinite(hmean))) {
-      if (verbose && ioproc) {
-        fprintf(pofile_verbose, "Failed, hmean not finite\n");
-      }
-      failed = true;
-      break;
-    }
+ 
+    // if (!(std::isfinite(hmean))) {
+    //   if (verbose && ioproc) {
+    //     fprintf(pofile_verbose, "Failed, hmean not finite\n");
+    //   }
+    //   failed = true;
+    //   break;
+    // }
     
     // Irreducible mass
     mass_prev = mass;
@@ -1279,10 +1235,6 @@ void AHF::UpdateFlowSpectralComponents()
   Real * specc = new Real[lmpoints];
   Real * specs = new Real[lmpoints];
 
-  // const Real dtheta = dth_grid();
-  // const Real dphi   = dph_grid();
-  // const Real dthdph = dtheta*dphi;
-
   // Local sums
   for(int l=0; l<=lmax; l++){
 
@@ -1296,11 +1248,6 @@ void AHF::UpdateFlowSpectralComponents()
       specs[l1] = 0;
 
       for(int i=0; i<ntheta; i++){
-
-	//Real theta = th_grid(i);
-	//Real dw = dthdph * std::sin(theta);
-	//TODO Use general weights
-	
         for(int j=0; j<nphi; j++){
 	  
           if (!havepoint(i,j)) continue;
@@ -1313,7 +1260,7 @@ void AHF::UpdateFlowSpectralComponents()
           specc[l1] += dw * Yc(i,j,l1) * rho(i,j);
           specs[l1] += dw * Ys(i,j,l1) * rho(i,j);
 
-	      }//phi loop
+	}//phi loop
       }//theta loop
 
     }//m loop
@@ -1604,40 +1551,6 @@ int AHF::tpindex(const int i, const int j)
 {
   return i*nphi + j;
 }
-
-//----------------------------------------------------------------------------------------
-// \!fn Real AHF::th_grid(const int i)
-// \brief theta coordinate from index
-// Real AHF::th_grid(const int i)
-// {
-//   Real dtheta = dth_grid();
-//   return dtheta*(0.5 + i);
-// }
-
-//----------------------------------------------------------------------------------------
-// \!fn Real AHF::ph_grid(const int i)
-// \brief phi coordinate from index
-// Real AHF::ph_grid(const int j)
-// {
-//   Real dphi = dph_grid();
-//   return dphi*(0.5 + j);
-// }
-
-//----------------------------------------------------------------------------------------
-// \!fn Real AHF::dth_grid()
-// \brief compute spacing dtheta
-// Real AHF::dth_grid()
-// {
-//   return PI/ntheta;
-// }
-
-//----------------------------------------------------------------------------------------
-// \!fn Real AHF::dph_grid()
-// \brief compute spacing dphi
-// Real AHF::dph_grid()
-// {
-//   return 2.0*PI/nphi;
-// }
 
 //----------------------------------------------------------------------------------------
 // \!fn int AHF::GLQuad_Nodes_Weights(Real a, Real b, Real * x, Real * w, const int n)
