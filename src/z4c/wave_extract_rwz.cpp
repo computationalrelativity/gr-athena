@@ -570,7 +570,7 @@ int WaveExtractRWZ::TPIndex(const int i, const int j) {
 //----------------------------------------------------------------------------------------
 // \!fn int WaveExtractRWZ::GLQuad_Nodes_Weights(Real a, Real b, Real * x, Real * w, const int n)
 // \brief Nodes and weights for Gauss-Legendre quadrature
-void GLQuad_Nodes_Weights(const Real a, const Real b, Real * x, Real * w, const int n)
+void WaveExtractRWZ::GLQuad_Nodes_Weights(const Real a, const Real b, Real * x, Real * w, const int n)
 {
   Real z1,z,xm,xl,pp,p3,p2,p1;
 #define SMALL (1e-14)  
@@ -638,12 +638,12 @@ void WaveExtractRWZ::SetWeightsIntegral(std::string method) {
     for (int j = 0; j < Nphi; ++j)
       ph_grid(j) = dphi*(0.5 + j);
 
-    gl_weights = new Real[Ntheta];
-    gl_nodes = new Real[Ntheta];
+    Real* gl_weights = new Real[Ntheta];
+    Real* gl_nodes = new Real[Ntheta];
  
-    GLQuad_Nodes_Weights(-1.0,1.0, gl_nodes, gl_weights, Ntheta);
+    GLQuad_Nodes_Weights(-1.0, 1.0, gl_nodes, gl_weights, Ntheta);
 
-    for (int i = 0; i < Nt; ++i) {
+    for (int i = 0; i < Ntheta; ++i) {
       th_grid(i) =  std::acos(gl_nodes[i]);
     }
     
@@ -653,8 +653,8 @@ void WaveExtractRWZ::SetWeightsIntegral(std::string method) {
       }
     }
     
-    delete gl_weights;
-    delete gl_nodes;
+    delete[] gl_weights;
+    delete[] gl_nodes;
     
   } else {
     std::stringstream msg;
@@ -1690,7 +1690,7 @@ void WaveExtractRWZ::BackgroundReduce() {
       // we divide here by sinth:
       // This should be safe for both set of nodes Riemann and Gauss-Legendre
       
-      const Real dthdph = vol * div_sinth
+      const Real dthdph = vol * div_sinth;
       
       if (method_areal_radius==areal) {
 	
