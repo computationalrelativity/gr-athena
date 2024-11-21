@@ -168,6 +168,20 @@ class ParameterInput {
     const std::string & name,
     const AthenaArray<std::string> & def_values);
 
+  AthenaArray<Real> GetOrAddRealArray(const std::string & block,
+                                      const std::string & name,
+                                      const Real & def_value);
+  AthenaArray<int> GetOrAddIntegerArray(const std::string & block,
+                                        const std::string & name,
+                                        const int & def_value);
+  AthenaArray<bool> GetOrAddBooleanArray(const std::string & block,
+                                         const std::string & name,
+                                         const bool & def_value);
+  AthenaArray<std::string> GetOrAddStringArray(
+    const std::string & block,
+    const std::string & name,
+    const std::string & def_value);
+
   // --------------------------------------------------------------------------
 
   void RollbackNextTime();

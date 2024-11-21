@@ -89,8 +89,6 @@
 #include <vector>
 
 // Athena++ headers
-#include "../athena.hpp"
-#include "../athena_arrays.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../field/field.hpp"
 #include "../hydro/hydro.hpp"

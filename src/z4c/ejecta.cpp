@@ -26,21 +26,10 @@
 #include "../utils/linear_algebra.hpp"
 #include "../utils/utils.hpp"
 
+#include "../outputs/outputs.hpp"
+
 // External libraries
 // ..
-
-// type alias that allows HDF5 output to be written in either floats or doubles
-#if H5_DOUBLE_PRECISION_ENABLED
-using H5Real = double;
-#if SINGLE_PRECISION_ENABLED
-#error "Cannot create HDF5 output at higher precision than internal representation"
-#endif
-#define H5T_NATIVE_REAL H5T_NATIVE_DOUBLE
-
-#else
-using H5Real = float;
-#define H5T_NATIVE_REAL H5T_NATIVE_FLOAT
-#endif
 
 using namespace utils::tensor;
 
@@ -903,449 +892,151 @@ void Ejecta::SphericalIntegrals()
 
 
 //-----------------------------------------------------------------------------
-// \!fn void Ejecta::Write(const eal time)
+// \!fn void Ejecta::Write(const Real time)
 // \brief Output ejecta quantities
-/*
 void Ejecta::Write(const Real time)
 {
   if (Globals::my_rank == 0)
   {
-    const int iter = file_number;
-
-    std::stringstream ss_i;
-    ss_i << std::setw(6) << std::setfill('0') << iter;
-    std::string s_i = ss_i.str();
-    std::string filename = "ejecta" + std::to_string(nr) + "_" + s_i + ".h5";
-    hid_t file =
-        H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    hid_t prim_id = H5Gcreate1(file, "prim", H5P_DEFAULT);
-    hid_t cons_id = H5Gcreate1(file, "cons", H5P_DEFAULT);
-    hid_t Bcc_id = H5Gcreate1(file, "Bcc", H5P_DEFAULT);
-    hid_t adm_id = H5Gcreate1(file, "adm", H5P_DEFAULT);
-    hid_t z4c_id = H5Gcreate1(file, "z4c", H5P_DEFAULT);
-    hid_t other_id = H5Gcreate1(file, "other", H5P_DEFAULT);
-
-    // Create the data space for the data set//
-    hsize_t dim_1[1], dim_2[2];
-    hid_t dataset, dataspace;
-
-    // Time
-    dim_1[0] = 1;
-    dataspace = H5Screate_simple(1, dim_1, NULL);
-    Real tvec[1] = {time};
-    dataset = H5Dcreate(file, "time", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT,
-                        H5P_DEFAULT, H5P_DEFAULT);
-    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, tvec);
-    H5Dclose(dataset);
-
-    // R
-    dim_1[0] = 1;
-    dataspace = H5Screate_simple(1, dim_1, NULL);
-    Real rvec[1] = {radius};
-    dataset = H5Dcreate(file, "radius", H5T_NATIVE_DOUBLE, dataspace,
-                        H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, rvec);
-    H5Dclose(dataset);
-
-    // Theta
-    dim_1[0] = ntheta;
-    dataspace = H5Screate_simple(1, dim_1, NULL);
-    dataset = H5Dcreate(file, "theta", H5T_NATIVE_DOUBLE, dataspace,
-                        H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-             theta.data());
-    H5Dclose(dataset);
-
-    // Phi
-    dim_1[0] = nphi;
-    dataspace = H5Screate_simple(1, dim_1, NULL);
-    dataset = H5Dcreate(file, "phi", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT,
-                        H5P_DEFAULT, H5P_DEFAULT);
-    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-             phi.data());
-    H5Dclose(dataset);
-
-    // Primitive variables
-    dim_2[0] = ntheta;
-    dim_2[1] = nphi;
-    dataspace = H5Screate_simple(2, dim_2, NULL);
-
-    for (int n = 0; n < NHYDRO; ++n) {
-      dataset = H5Dcreate(file, ("prim/" + prim_names[n] + "/").c_str(),
-                          H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT,
-                          H5P_DEFAULT, H5P_DEFAULT);
-      H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-               prim[n].data());
-      H5Dclose(dataset);
-
-      dataset = H5Dcreate(file, ("cons/" + cons_names[n] + "/").c_str(),
-                          H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT,
-                          H5P_DEFAULT, H5P_DEFAULT);
-      H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-               cons[n].data());
-      H5Dclose(dataset);
-    }
-
-#if USETM
-
-    // T
-    dataset = H5Dcreate(file, "prim/T", H5T_NATIVE_DOUBLE, dataspace,
-                        H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-             T.data());
-    H5Dclose(dataset);
-
-    // Y
-    for (int n = 0; n < NSCALARS; ++n) {
-      dataset = H5Dcreate(file, ("prim/Y_" + std::to_string(n) + "/").c_str(),
-                          H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT,
-                          H5P_DEFAULT, H5P_DEFAULT);
-      H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-               Y[n].data());
-      H5Dclose(dataset);
-    }
+#ifdef HDF5OUTPUT
+    Write_hdf5(time);
 #endif
-
-    for (int n = 0; n < 3; ++n) {
-      dataset = H5Dcreate(
-          file, ("Bcc/B_" + std::to_string(n + 1) + "/").c_str(),
-          H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-      H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-               Bcc[n].data());
-      H5Dclose(dataset);
-    }
-
-    for (int n = 0; n < Z4c::N_ADM; ++n) {
-      dataset = H5Dcreate(file, ("adm/" + adm_names[n] + "/").c_str(),
-                          H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT,
-                          H5P_DEFAULT, H5P_DEFAULT);
-      H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-               adm[n].data());
-      H5Dclose(dataset);
-    }
-    for (int n = 0; n < Z4c::N_Z4c; ++n) {
-      dataset = H5Dcreate(file, ("z4c/" + z4c_names[n] + "/").c_str(),
-                          H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT,
-                          H5P_DEFAULT, H5P_DEFAULT);
-      H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-               z4c[n].data());
-      H5Dclose(dataset);
-    }
-
-    for (int n = 0; n < NOTHER; ++n) {
-      dataset = H5Dcreate(file, ("other/" + other_names[n] + "/").c_str(),
-                          H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT,
-                          H5P_DEFAULT, H5P_DEFAULT);
-      H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-               other[n].data());
-      H5Dclose(dataset);
-    }
-
-    // M
-    dim_1[0] = 1;
-    dataspace = H5Screate_simple(1, dim_1, NULL);
-    Real Mvec[1] = {mass_contained};
-    dataset = H5Dcreate(file, "mass", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT,
-                        H5P_DEFAULT, H5P_DEFAULT);
-    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, Mvec);
-    H5Dclose(dataset);
-
-    // Mdot
-    dim_1[0] = 1;
-    dataspace = H5Screate_simple(1, dim_1, NULL);
-    Real Mdot_vec[1] = {Mdot_total};
-    dataset = H5Dcreate(file, "Mdot_total", H5T_NATIVE_DOUBLE, dataspace,
-                        H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-             Mdot_vec);
-    H5Dclose(dataset);
-
-    H5Sclose(dataspace);
-    H5Gclose(prim_id);
-    H5Gclose(cons_id);
-    H5Gclose(Bcc_id);
-    H5Gclose(adm_id);
-    H5Gclose(z4c_id);
-    H5Gclose(other_id);
-    H5Fclose(file);
-
-    // Summary file
-    for (int n = 0; n < n_unbound; ++n) {
-      fprintf(pofile_unbound[n], "%d %g ", iter, time);
-      fprintf(pofile_unbound[n], "%.15e ", integrals_unbound(n, I_int_mass));
-      for (int m = I_int_entr; m < n_int; m++) {
-        fprintf(
-            pofile_unbound[n], "%.15e ",
-            integrals_unbound(n, m) /
-                integrals_unbound(n, I_int_mass)); // normalise by average mass
-      }
-      fprintf(pofile_unbound[n], "\n");
-      fflush(pofile_unbound[n]);
-    }
-    for (int n = 0; n < n_unbound; ++n) {
-      fprintf(pofile_az_unbound[n], "### Time = %g \n", time);
-      for (int i = 0; i < ntheta; ++i) {
-        fprintf(pofile_az_unbound[n], "%.15e ", theta(i));
-        fprintf(pofile_az_unbound[n], "%.15e ",
-                az_integrals_unbound(n, I_int_mass, i));
-        for (int m = I_int_entr; m < n_int; m++) {
-          fprintf(
-              pofile_az_unbound[n], "%.15e ",
-              az_integrals_unbound(n, m, i) /
-                  az_integrals_unbound(n, I_int_mass, i)); // normalise by mass
-        }
-        fprintf(pofile_az_unbound[n], "\n");
-      }
-      fprintf(pofile_az_unbound[n], "\n");
-      fflush(pofile_az_unbound[n]);
-    }
-    for (int n = 0; n < n_unbound; ++n) {
-      for (int m = 0; m < n_hist; ++m) {
-        fprintf(pofile_hist_unbound[n][m], "### Time = %g \n", time);
-        for (int l = 0; l < n_bins[m]; ++l) {
-          fprintf(pofile_hist_unbound[n][m], "%.15e %.15e \n",
-                  hist_grid[m](l) + delta_hist[m] / 2.0,
-                  hist[m](n, l)); // bin value is centre of bin
-        }
-        fprintf(pofile_hist_unbound[n][m], "\n");
-        fflush(pofile_hist_unbound[n][m]);
-      }
-    }
+    Write_scalars(time);
   }
   file_number++;
   pin->OverwriteParameter("ejecta", "file_number", file_number);
 }
-*/
 
-// hdf5 mumbo-jumbo -----------------------------------------------------------
-void Ejecta::hdf5_get_next_filename(std::string & filename)
+#ifdef HDF5OUTPUT
+void Ejecta::Write_hdf5(const Real time)
 {
   const int iter = file_number;
+  std::string filename;
+  hdf5_get_next_filename(filename);
+  hid_t id_file = hdf5_touch_file(filename);
 
-  std::stringstream ss_i;
-  ss_i << std::setw(6) << std::setfill('0') << iter;
-  std::string s_i = ss_i.str();
-  filename = "ejecta" + std::to_string(nr) + "_" + s_i + ".h5";
-}
+  // scalars [grid] ---------------------------------------------------------
+  hdf5_write_scalar(id_file, "time",   time);
+  hdf5_write_scalar(id_file, "radius", radius);
 
-hid_t Ejecta::hdf5_touch_file(const std::string & filename)
-{
-  return H5Fcreate(filename.c_str(),
-                    H5F_ACC_TRUNC,
-                    H5P_DEFAULT,
-                    H5P_DEFAULT);
-}
-// ----------------------------------------------------------------------------
+  // 1d arrays [grid] -------------------------------------------------------
+  hdf5_write_arr_nd(id_file, "theta", theta);
+  hdf5_write_arr_nd(id_file, "phi",   phi);
 
-void Ejecta::hdf5_write_arr_nd(
-  hid_t & id_file, const std::string & full_path, const AA & arr
-)
-{
-  // Ensure we have any nested group structure
-  _hdf5_prepare_path(id_file, full_path);
-
-  const int ndim = arr.GetNumDim();
-
-  hsize_t dim[ndim];
-  for (int n=0; n<ndim; ++n)
+  // 2d arrays [matter] -----------------------------------------------------
+  for (int n=0; n<NHYDRO; ++n)
   {
-    dim[n] = arr.GetDim(ndim-n);
+    std::string full_path = "/prim/" + prim_names[n];
+    hdf5_write_arr_nd(id_file, full_path, prim[n]);
   }
 
-  hid_t dataset;
-  hid_t dataspace;
-  dataspace = H5Screate_simple(ndim, dim, NULL);
-
-  dataset = H5Dcreate(id_file, full_path.c_str(),
-                      H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT,
-                      H5P_DEFAULT, H5P_DEFAULT);
-  H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-           arr.data());
-  H5Dclose(dataset);
-  H5Sclose(dataspace);
-}
-
-void Ejecta::hdf5_write_scalar(
-  hid_t & id_file, const std::string & full_path, Real scalar
-)
-{
-  AthenaArray<Real> arr(1);
-  arr(0) = scalar;
-  hdf5_write_arr_nd(id_file, full_path, arr);
-}
-
-void Ejecta::_hdf5_prepare_path(
-  hid_t & id_file,
-  const std::string & full_path
-)
-{
-  // extract path
-  std::vector<std::string> vs;
-  tokenize(full_path, '/', vs);
-
-  if (vs.size() == 1)
+  for (int n=0; n<NHYDRO; ++n)
   {
-    // only have file-name
-    return;
+    std::string full_path = "/cons/" + cons_names[n];
+    hdf5_write_arr_nd(id_file, full_path, cons[n]);
   }
-
-  std::string name_dataset { vs.back() };
-  vs.pop_back();
-
-  std::stringstream ss;
-  std::string path_group;
-
-  for (auto grp : vs)
-  {
-    // create group structure if not extant:
-    ss << grp << "/";
-    path_group = ss.str();
-
-    if( !H5Lexists(id_file, path_group.c_str(), H5P_DEFAULT) )
-    {
-      hid_t id_group;
-      id_group = H5Gcreate2(id_file,
-                            path_group.c_str(),
-                            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-      H5Gclose(id_group);
-    }
-  }
-}
-
-void Ejecta::hdf5_close_file(hid_t & id_file)
-{
-  H5Fclose(id_file);
-}
-
-void Ejecta::Write(const Real time)
-{
-  if (Globals::my_rank == 0)
-  {
-    const int iter = file_number;
-    std::string filename;
-    hdf5_get_next_filename(filename);
-    hid_t id_file = hdf5_touch_file(filename);
-
-    // scalars [grid] ---------------------------------------------------------
-    hdf5_write_scalar(id_file, "time",   time);
-    hdf5_write_scalar(id_file, "radius", radius);
-
-    // 1d arrays [grid] -------------------------------------------------------
-    hdf5_write_arr_nd(id_file, "theta", theta);
-    hdf5_write_arr_nd(id_file, "phi",   phi);
-
-    // 2d arrays [matter] -----------------------------------------------------
-    for (int n=0; n<NHYDRO; ++n)
-    {
-      std::string full_path = "/prim/" + prim_names[n];
-      hdf5_write_arr_nd(id_file, full_path, prim[n]);
-    }
-
-    for (int n=0; n<NHYDRO; ++n)
-    {
-      std::string full_path = "/cons/" + cons_names[n];
-      hdf5_write_arr_nd(id_file, full_path, cons[n]);
-    }
 
 #if USETM
-    {
-      std::string full_path = "/prim/T";
-      hdf5_write_arr_nd(id_file, full_path, T);
+  {
+    std::string full_path = "/prim/T";
+    hdf5_write_arr_nd(id_file, full_path, T);
 
-      for (int n=0; n<NSCALARS; ++n)
-      {
-        std::string full_path = "/prim/Y_" + std::to_string(n);
-        hdf5_write_arr_nd(id_file, full_path, Y[n]);
-      }
+    for (int n=0; n<NSCALARS; ++n)
+    {
+      std::string full_path = "/prim/Y_" + std::to_string(n);
+      hdf5_write_arr_nd(id_file, full_path, Y[n]);
     }
+  }
 #endif // USETM
 
 #if MAGNETIC_FIELDS_ENABLED
-      for (int n=0; n<NFIELD; ++n)
-      {
-        std::string full_path = "/Bcc/B_" + std::to_string(n + 1);
-        hdf5_write_arr_nd(id_file, full_path, Bcc[n]);
-      }
+    for (int n=0; n<NFIELD; ++n)
+    {
+      std::string full_path = "/Bcc/B_" + std::to_string(n + 1);
+      hdf5_write_arr_nd(id_file, full_path, Bcc[n]);
+    }
 #endif // MAGNETIC_FIELDS_ENABLED
 
-    // 2d arrays [geometry] ---------------------------------------------------
+  // 2d arrays [geometry] ---------------------------------------------------
 
-    for (int n=0; n<Z4c::N_ADM; ++n)
-    {
-      std::string var_name = Z4c::ADM_names[n];
-      std::string full_path = "/adm/" + var_name;
-      hdf5_write_arr_nd(id_file, full_path, adm[n]);
+  for (int n=0; n<Z4c::N_ADM; ++n)
+  {
+    std::string var_name = Z4c::ADM_names[n];
+    std::string full_path = "/adm/" + var_name;
+    hdf5_write_arr_nd(id_file, full_path, adm[n]);
+  }
+
+  for (int n=0; n<Z4c::N_Z4c; ++n)
+  {
+    std::string var_name = Z4c::Z4c_names[n];
+    std::string full_path = "/z4c/" + var_name;
+    hdf5_write_arr_nd(id_file, full_path, z4c[n]);
+  }
+
+  // 2d arrays [other] ------------------------------------------------------
+  for (int n=0; n<NOTHER; ++n)
+  {
+    std::string full_path = "/other/" + other_names[n];
+    hdf5_write_arr_nd(id_file, full_path, other[n]);
+  }
+
+  // scalars [misc] ---------------------------------------------------------
+  hdf5_write_scalar(id_file, "mass",       mass_contained);
+  hdf5_write_scalar(id_file, "Mdot_total", Mdot_total);
+
+  // Finally close
+  hdf5_close_file(id_file);
+}
+#endif // HDF5OUTPUT
+
+void Ejecta::Write_scalars(const Real time)
+{
+  const int iter = file_number;
+
+  // Summary file
+  for (int n = 0; n < n_unbound; ++n) {
+    fprintf(pofile_unbound[n], "%d %g ", iter, time);
+    fprintf(pofile_unbound[n], "%.15e ", integrals_unbound(n, I_int_mass));
+    for (int m = I_int_entr; m < n_int; m++) {
+      fprintf(
+          pofile_unbound[n], "%.15e ",
+          integrals_unbound(n, m) /
+              integrals_unbound(n, I_int_mass)); // normalise by average mass
     }
-
-    for (int n=0; n<Z4c::N_Z4c; ++n)
-    {
-      std::string var_name = Z4c::Z4c_names[n];
-      std::string full_path = "/z4c/" + var_name;
-      hdf5_write_arr_nd(id_file, full_path, z4c[n]);
-    }
-
-    // 2d arrays [other] ------------------------------------------------------
-    for (int n=0; n<NOTHER; ++n)
-    {
-      std::string full_path = "/other/" + other_names[n];
-      hdf5_write_arr_nd(id_file, full_path, other[n]);
-    }
-
-    // scalars [misc] ---------------------------------------------------------
-    hdf5_write_scalar(id_file, "mass",       mass_contained);
-    hdf5_write_scalar(id_file, "Mdot_total", Mdot_total);
-
-    // Finally close
-    hdf5_close_file(id_file);
-
-    // Scalar outputs ---------------------------------------------------------
-
-    // Summary file
-    for (int n = 0; n < n_unbound; ++n) {
-      fprintf(pofile_unbound[n], "%d %g ", iter, time);
-      fprintf(pofile_unbound[n], "%.15e ", integrals_unbound(n, I_int_mass));
+    fprintf(pofile_unbound[n], "\n");
+    fflush(pofile_unbound[n]);
+  }
+  for (int n = 0; n < n_unbound; ++n) {
+    fprintf(pofile_az_unbound[n], "### Time = %g \n", time);
+    for (int i = 0; i < ntheta; ++i) {
+      fprintf(pofile_az_unbound[n], "%.15e ", theta(i));
+      fprintf(pofile_az_unbound[n], "%.15e ",
+              az_integrals_unbound(n, I_int_mass, i));
       for (int m = I_int_entr; m < n_int; m++) {
         fprintf(
-            pofile_unbound[n], "%.15e ",
-            integrals_unbound(n, m) /
-                integrals_unbound(n, I_int_mass)); // normalise by average mass
-      }
-      fprintf(pofile_unbound[n], "\n");
-      fflush(pofile_unbound[n]);
-    }
-    for (int n = 0; n < n_unbound; ++n) {
-      fprintf(pofile_az_unbound[n], "### Time = %g \n", time);
-      for (int i = 0; i < ntheta; ++i) {
-        fprintf(pofile_az_unbound[n], "%.15e ", theta(i));
-        fprintf(pofile_az_unbound[n], "%.15e ",
-                az_integrals_unbound(n, I_int_mass, i));
-        for (int m = I_int_entr; m < n_int; m++) {
-          fprintf(
-              pofile_az_unbound[n], "%.15e ",
-              az_integrals_unbound(n, m, i) /
-                  az_integrals_unbound(n, I_int_mass, i)); // normalise by mass
-        }
-        fprintf(pofile_az_unbound[n], "\n");
+            pofile_az_unbound[n], "%.15e ",
+            az_integrals_unbound(n, m, i) /
+                az_integrals_unbound(n, I_int_mass, i)); // normalise by mass
       }
       fprintf(pofile_az_unbound[n], "\n");
-      fflush(pofile_az_unbound[n]);
     }
-    for (int n = 0; n < n_unbound; ++n) {
-      for (int m = 0; m < n_hist; ++m) {
-        fprintf(pofile_hist_unbound[n][m], "### Time = %g \n", time);
-        for (int l = 0; l < n_bins[m]; ++l) {
-          fprintf(pofile_hist_unbound[n][m], "%.15e %.15e \n",
-                  hist_grid[m](l) + delta_hist[m] / 2.0,
-                  hist[m](n, l)); // bin value is centre of bin
-        }
-        fprintf(pofile_hist_unbound[n][m], "\n");
-        fflush(pofile_hist_unbound[n][m]);
+    fprintf(pofile_az_unbound[n], "\n");
+    fflush(pofile_az_unbound[n]);
+  }
+  for (int n = 0; n < n_unbound; ++n) {
+    for (int m = 0; m < n_hist; ++m) {
+      fprintf(pofile_hist_unbound[n][m], "### Time = %g \n", time);
+      for (int l = 0; l < n_bins[m]; ++l) {
+        fprintf(pofile_hist_unbound[n][m], "%.15e %.15e \n",
+                hist_grid[m](l) + delta_hist[m] / 2.0,
+                hist[m](n, l)); // bin value is centre of bin
       }
+      fprintf(pofile_hist_unbound[n][m], "\n");
+      fflush(pofile_hist_unbound[n][m]);
     }
   }
-  file_number++;
-  pin->OverwriteParameter("ejecta", "file_number", file_number);
 }
+
 
 //-----------------------------------------------------------------------------
 // \!fn int Ejecta::tpindex(const int i, const int j)

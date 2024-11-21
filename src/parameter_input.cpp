@@ -1035,6 +1035,47 @@ AthenaArray<std::string> ParameterInput::GetOrAddStringArray(
   return GetOrAddArray(block, name, def_values);
 }
 
+// Wrap input type to array
+AthenaArray<Real> ParameterInput::GetOrAddRealArray(
+  const std::string & block,
+  const std::string & name,
+  const Real & def_value)
+{
+  AthenaArray<Real> dv(1);
+  dv(0) = def_value;
+  return GetOrAddArray(block, name, dv);
+}
+
+AthenaArray<int> ParameterInput::GetOrAddIntegerArray(
+  const std::string & block,
+  const std::string & name,
+  const int & def_value)
+{
+  AthenaArray<int> dv(1);
+  dv(0) = def_value;
+  return GetOrAddArray(block, name, dv);
+}
+
+AthenaArray<bool> ParameterInput::GetOrAddBooleanArray(
+  const std::string & block,
+  const std::string & name,
+  const bool & def_value)
+{
+  AthenaArray<bool> dv(1);
+  dv(0) = def_value;
+  return GetOrAddArray(block, name, dv);
+}
+
+AthenaArray<std::string> ParameterInput::GetOrAddStringArray(
+  const std::string & block,
+  const std::string & name,
+  const std::string & def_value)
+{
+  AthenaArray<std::string> dv(1);
+  dv(0) = def_value;
+  return GetOrAddArray(block, name, dv);
+}
+
 // ----------------------------------------------------------------------------
 
 

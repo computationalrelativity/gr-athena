@@ -15,7 +15,7 @@
 #include <string>
 
 // Athena++ headers
-#include "../athena.hpp"
+#include "../athena_aliases.hpp"
 #include "io_wrapper.hpp"
 
 #ifdef HDF5OUTPUT
@@ -205,4 +205,31 @@ class Outputs {
   OutputType *pfirst_type_; // ptr to head OutputType node in singly linked list
   // (not storing a reference to the tail node)
 };
+
+// ----------------------------------------------------------------------------
+#ifdef HDF5OUTPUT
+
+// Create / open a file for R/W; return handle
+hid_t hdf5_touch_file(const std::string & filename);
+
+// Implementation details for groups: -------------------------------------
+// pass in a full path; (nested) groups created automatically
+void _hdf5_prepare_path(hid_t & id_file, const std::string & full_path);
+// ------------------------------------------------------------------------
+
+// wrapped to write_arr_nd
+void hdf5_write_scalar(hid_t & id_file,
+                        const std::string & full_path,
+                        Real scalar);
+
+// write n-dimensional athena array to some path (groups gen. automatic)
+void hdf5_write_arr_nd(hid_t & id_file,
+                        const std::string & full_path,
+                        const AthenaArray<Real> & arr);
+
+// clean up of open handle
+void hdf5_close_file(hid_t & id_file);
+
+#endif  // HDF5OUTPUT
+
 #endif // OUTPUTS_OUTPUTS_HPP_

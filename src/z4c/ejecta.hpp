@@ -14,20 +14,17 @@
 // * combine MPI reduction
 
 // C++ standard headers
+#include <iomanip>
 #include <string>
 
 // Athena++ headers
 #include "../athena_aliases.hpp"
 #include "z4c.hpp"
 
-// External libraries
-#include <hdf5.h>
-
 // Forward declaration
 class Mesh;
 class MeshBlock;
 class ParameterInput;
-
 
 //! \class Ejecta
 //! \brief Ejecta extraction
@@ -120,6 +117,10 @@ private:
   void Interp(MeshBlock *pmb);
   void Mass(MeshBlock *pmb);
 
+  void Write_hdf5(const Real time);
+  void Write_scalars(const Real time);
+
+
   void SphericalIntegrals();
 
   int tpindex(const int i, const int j);
@@ -149,33 +150,17 @@ private:
                      Real const costh, Real const sinph, Real const cosph);
 
 
-  // hdf5 mumbo-jumbo ---------------------------------------------------------
-  public:
-    // BD: TODO - might be useful to shift to outputs/... ?
-
+ public:
     // infer next file-name based on internal state
-    void hdf5_get_next_filename(std::string & filename);
+    void hdf5_get_next_filename(std::string & filename)
+    {
+      const int iter = file_number;
 
-    // Create / open a file for R/W; return handle
-    hid_t hdf5_touch_file(const std::string & filename);
-
-    // Implementation details for groups: -------------------------------------
-    // pass in a full path; (nested) groups created automatically
-    void _hdf5_prepare_path(hid_t & id_file, const std::string & full_path);
-    // ------------------------------------------------------------------------
-
-    // wrapped to write_arr_nd
-    void hdf5_write_scalar(hid_t & id_file,
-                           const std::string & full_path,
-                           Real scalar);
-
-    // write n-dimensional athena array to some path (groups gen. automatic)
-    void hdf5_write_arr_nd(hid_t & id_file,
-                           const std::string & full_path,
-                           const AA & arr);
-
-    // clean up of open handle
-    void hdf5_close_file(hid_t & id_file);
+      std::stringstream ss_i;
+      ss_i << std::setw(6) << std::setfill('0') << iter;
+      std::string s_i = ss_i.str();
+      filename = "ejecta" + std::to_string(nr) + "_" + s_i + ".h5";
+    }
 
 };
 
