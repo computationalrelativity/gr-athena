@@ -174,6 +174,8 @@ class ParameterInput {
   void ForwardNextTime(Real time);
 
  private:
+  const int max_pars_array = 1024;
+
   std::string last_filename_;  // last input file opened, to prevent duplicate reads
 
   InputBlock* FindOrAddBlock(std::string name);

@@ -981,10 +981,15 @@ AthenaArray<T> ParameterInput::GetOrAddArray(
     v_def_values.push_back(def_values(i));
   }
 
-  std::vector<T> v_ret = GetOrAddArray(block, name, v_def_values);
-  ret.NewAthenaArray(v_ret.size());
+  std::vector<T> v_ret {GetOrAddArray(block, name, v_def_values)};
+  // GCC has some issue; limit maximum size explicitly
+  const int v_sz = std::max(
+    std::min(static_cast<int>(v_ret.size()), max_pars_array), 0);
 
-  for (int i=0; i<v_ret.size(); ++i)
+  // const int v_sz = v_ret.size();
+  ret.NewAthenaArray(v_sz);
+
+  for (int i=0; i<v_sz; ++i)
   {
     ret(i) = v_ret[i];
   }
