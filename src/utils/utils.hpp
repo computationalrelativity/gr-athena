@@ -34,6 +34,8 @@ void tokenize(const std::string & to_tok,
               const char token,
               std::vector<std::string> & vs);
 
+long count_char(const std::string & source,
+                const char to_count);
 //----------------------------------------------------------------------------------------
 //! SignalHandler
 //  \brief static data and functions that implement a simple signal handling system

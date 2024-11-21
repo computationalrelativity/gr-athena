@@ -49,9 +49,8 @@
 #include <string>     // string
 
 // Athena++ headers
-#include "athena.hpp"
-#include "defs.hpp"
-#include "globals.hpp"
+#include "athena_aliases.hpp"
+#include "utils/utils.hpp"
 #include "parameter_input.hpp"
 
 // OpenMP header
@@ -711,27 +710,33 @@ void ParameterInput::GetExistingStringArray(
   pb = GetPtrToBlock(block);
   pl = pb->GetPtrToLine(name);
 
-  std::string to_tokenize = pl->param_value;
+  // Check open / close bracket exists; otherwise panic
+  std::stringstream ss_par;
 
-  // Check input is sane:
-  std::string::difference_type nbl = std::count(
-    to_tokenize.begin(),
-    to_tokenize.end(),
-    '['
-  );
+  if (count_char(pl->param_value, '[') == 1)
+  {
+    ss_par << pl->param_value;
 
-  std::string::difference_type nbr = std::count(
-    to_tokenize.begin(),
-    to_tokenize.end(),
-    ']'
-  );
+    while ((pl != nullptr) &&
+           (count_char(pl->param_value, ']') != 1))
+    {
+      pl = pl->pnext;
 
-  if ((nbl != 1) || (nbl != nbr))
+      if (pl != nullptr)
+      {
+        ss_par << pl->param_value;
+      }
+    }
+  }
+
+  if (pl == nullptr)
   {
     std::ostringstream err;
     err << "Malformed parameter: " << block << "/" << name;
     ATHENA_ERROR(err);
   }
+
+  std::string to_tokenize { ss_par.str() };
 
   // strip braces, spaces & split to elements
   for (auto c : {"[", "]", " "})
