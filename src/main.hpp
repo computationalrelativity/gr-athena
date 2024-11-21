@@ -681,7 +681,7 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
   // After state vector propagated, derived diagnostics (i.e. GW, trackers)
   // are at the new time-step ...
   const Real time_end_stage   = pmesh->time+pmesh->dt;
-  const Real ncycle_end_stage = pmesh->ncycle+1;
+  const int ncycle_end_stage  = pmesh->ncycle+1;
 
   // Derivatives of ADM metric and other auxiliary computations needed below
   if (trgs.IsSatisfied(tvar::Z4c_AHF))
@@ -711,24 +711,21 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
 // BD: TODO - CCE needs to be cleaned up & tested
 #if CCE_ENABLED
   // only do a CCE dump if NextTime threshold cleared (updated below)
-  if (trgs.IsSatisfied(tvar::Z4c_CCE, ovar::user))
+  bool debug_pr = true;
+  for (auto cce : pmesh->pcce)
   {
-    bool debug_pr = true;
-    for (auto cce : pmesh->pcce)
-    {
-      int freq = static_cast<int>((float)cce->dt/(float)pmesh->dt);
-      assert(freq!=0);
-      int cce_iter = pmesh->ncycle / freq;
+    if (pmesh->ncycle % cce->freq != 0) continue;
+    
+    int cce_iter = pmesh->ncycle / cce->freq;
 
-      if (Globals::my_rank == 0 && debug_pr == true)
-      {
-        printf("cce_iter = %d, freq = %d, pmesh->dt = %0.15f, cce->dt = %0.15f\n",
-          cce_iter, freq, (float)pmesh->dt, (float)cce->dt);
-      }
-      debug_pr = false;
-      cce->ReduceInterpolation();
-      cce->DecomposeAndWrite(cce_iter, pmesh->time);
+    if (Globals::my_rank == 0 && debug_pr == true)
+    {
+      printf("cce_iter = %d, cce_freq = %d, pmesh->ncycle = %d, pmesh->time = %0.15f\n",
+              cce_iter, cce->freq, pmesh->ncycle, pmesh->time);
     }
+    debug_pr = false;
+    cce->ReduceInterpolation();
+    cce->DecomposeAndWrite(cce_iter, time_end_stage);
   }
 #endif
 

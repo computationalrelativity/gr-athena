@@ -44,7 +44,8 @@ class CCE
     Real *zb; // Cart. z coords. for spherical coords.
     
   public:
-    Real dt; // delta dump time
+    //Real dt; // delta dump time
+    int freq; // freq. of dump
     CCE(Mesh *const pm, ParameterInput *const pin, std::string fname, int rn);
     ~CCE();
     void Interpolate(MeshBlock *const pmb);
