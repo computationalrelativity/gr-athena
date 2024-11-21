@@ -84,6 +84,8 @@ private:
   bool use_stored_metric_drvts;
   //! Number of horizons
   int nstart, nhorizon;
+  //! Arrays for the grid and quadrature weights
+  AthenaArray<Real> th_grid, ph_grid, weights;
   //static const int metric_interp_order = 2;
   static const int metric_interp_order = 2*NGHOST-1;
   int fastflow_iter=0;
@@ -102,7 +104,7 @@ private:
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g;
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> K;
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> dg;
-  AthenaArray<Real> rr;
+  AthenaArray<Real> rr, rr_dth, rr_dph;
   // Array computed in SurfaceIntegrals
   AthenaArray<Real> rho;
   //! Indexes of surface integrals
@@ -144,10 +146,12 @@ private:
   void ComputeLegendre(const Real theta);
   int lmindex(const int l, const int m);
   int tpindex(const int i, const int j);
-  Real th_grid(const int i);
-  Real ph_grid(const int j);
-  Real dth_grid();
-  Real dph_grid();
+  //Real th_grid(const int i);
+  //Real ph_grid(const int j);
+  //Real dth_grid(); 
+  //Real dph_grid(); 
+  void GLQuad_Nodes_Weights(const Real a, const Real b, Real * x, Real * w, const int n);
+  void SetGridWeights(std::string method);
   void factorial_list(Real * fac, const int maxn);
 
   Mesh const * pmesh;
