@@ -2,7 +2,7 @@
 module helm_eos
    use, intrinsic :: iso_c_binding, only: c_char
    implicit none
-   logical :: table_read
+   logical :: table_read = .false.
 ! inverse mass of baryon, replaces avo in the original code
    double precision :: imb
    double precision :: kerg_mb
@@ -1114,6 +1114,10 @@ contains
 
       character(len=str_len) :: fortran_string
       integer :: ii
+
+      if (table_read) then
+         return
+      end if
 
       do ii = 1, str_len
          fortran_string(ii:ii) = helm_table_path(ii)

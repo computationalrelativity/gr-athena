@@ -107,8 +107,7 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     void InitializeTables(std::string fname, std::string helm_fname);
 
     /// Some setters for parameters
-    void SetTemperatureTransition(Real T_start, Real T_end);
-    void SetDensityTransition(Real n_start, Real n_end);
+    void SetTransition(Real n_start, Real n_end, Real T_start, Real T_end);
     void SetMaxIteration(int iter_max);
     void SetTemperatureTolerance(Real tol);
 
@@ -177,22 +176,28 @@ class EOSCompOSETransition : public EOSPolicyInterface {
 
   private:
     // Inverse of table spacing
-    Real m_id_log_nb, m_id_log_t, m_id_yq;
+    static Real m_id_log_nb, m_id_log_t, m_id_yq;
     // Table size
-    int m_nn, m_nt, m_ny;
+    static int m_nn, m_nt, m_ny;
     // Minimum enthalpy per baryon
     Real m_min_h;
 
     // Transitions width
     Real m_trans_T_width, m_trans_ln_width;
 
-    Real * m_log_nb;
-    Real * m_log_t;
-    Real * m_yq;
-    Real * m_table;
+    static Real * m_log_nb;
+    static Real * m_log_t;
+    static Real * m_yq;
+    static Real * m_table;
 
     // bool to protect against access of uninitialised table, and prevent repeated reading of table
     bool m_initialized;
+
+    // bool to read the compose table only once
+    static bool s_compose_table_read;
+
+    // these have to be redistributed to the local member variants because they are defined elsewhere
+    static Real s_mb, s_max_n, s_min_n, s_max_T, s_min_T, s_max_Y[MAX_SPECIES], s_min_Y[MAX_SPECIES];
 };
 
 

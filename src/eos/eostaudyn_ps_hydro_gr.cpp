@@ -121,20 +121,22 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   eos.SetMaximumTemperature(eos.GetMaximumTemperature() * T_max_factor);
 
 #elif defined(USE_COMPOSE_TRANSITION_EOS)
+  eos.SetCodeUnitSystem(&Primitive::GeometricSolar);
   std::string compose_table = pin->GetString("hydro", "compose_table");
   std::string helmholtz_table = pin->GetString("hydro", "helmholtz_table");
 
-  Real mb = eos.GetBaryonMass();
-  eos.InitializeTables(compose_table, helmholtz_table);
-  eos.SetCodeUnitSystem(&Primitive::GeometricSolar);
-
+  Real trans_n_start = pin->GetOrAddReal("hydro", "trans_n_start", 0.0);
+  Real trans_n_end = pin->GetOrAddReal("hydro", "trans_n_end", 0.0);
   Real trans_T_start = pin->GetOrAddReal("hydro", "trans_t_start", 0.0);
   Real trans_T_end = pin->GetOrAddReal("hydro", "trans_t_end", 0.0);
-  eos.SetTemperatureTransition(trans_T_start, trans_T_end);
 
-  Real trans_d_start = pin->GetOrAddReal("hydro", "trans_d_start", 0.0);
-  Real trans_d_end = pin->GetOrAddReal("hydro", "trans_d_end", 0.0);
-  eos.SetDensityTransition(trans_d_start/mb, trans_d_end/mb);
+  if (trans_n_start >= 0.0 &&
+      trans_n_end >= 0.0 &&
+      trans_T_start >= 0.0 &&
+      trans_T_end >= 0.0)
+    eos.SetTransition(trans_T_start, trans_T_end, trans_n_start, trans_n_end);
+
+  eos.InitializeTables(compose_table, helmholtz_table);
 
   Real mb = eos.GetBaryonMass();
   Real n_max_factor = pin->GetOrAddReal("hydro", "n_max_factor", 1.0);
