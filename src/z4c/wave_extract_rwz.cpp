@@ -2455,7 +2455,7 @@ void WaveExtractRWZ::MasterFuns() {
 	// Odd parity in Schwarzschild coordinates
 	// -----------------------------------------
 	
-	const Real Psio_sch_ = ( r*(H1_dot(lm,c) - H0_dr(lm,c)) + 2.0*div_r*H0(lm,c) )*div_lambda_2;
+	const Real Psio_sch_ = r*( H1_dot(lm,c) - H0_dr(lm,c) + 2.0*div_r*H0(lm,c) )*div_lambda_2;
 	Psio_sch(lm,c) = Psio_sch_;	
 	
 	const Real Qstar_ = div_r*S*( H1(lm,c) - H_dr(lm,c)*div_r + 2.0*H(lm,c)*SQR(div_r) );
@@ -2513,7 +2513,7 @@ void WaveExtractRWZ::MasterFuns() {
 	// Odd parity in general coordinates (static)
 	// -----------------------------------------
 	
-	Psio(lm,c) = Psio_sch_ * div_sqrtdetg;
+	Psio(lm,c) = Psio_sch(lm,c) * div_sqrtdetg;
 	
 	// Even parity in general coordinates (dynamic)
 	// -----------------------------------------
@@ -2558,7 +2558,7 @@ void WaveExtractRWZ::MasterFuns() {
 	// -----------------------------------------
 	
 	Psio_dyn(lm,c) = ( r*(H1_dot(lm,c) - H0_dr(lm,c)) + 2.0*(H0(lm,c) - H1(lm,c)*rdot) );
-	Psio_dyn(lm,c) *= div_lambda_2*div_sqrtdetg;	
+	Psio_dyn(lm,c) *= div_lambda_2 * div_sqrtdetg;	
 	
       }// real& imag
     }// for m
