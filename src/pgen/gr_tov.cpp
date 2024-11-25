@@ -73,6 +73,8 @@ namespace {
   Real v_amp; // velocity amplitude for linear perturbations
   Real lambda; // amplitude for pressure perturbations
   Real n_nodes; // number of nodes for the sinusoidal preassure perturbations
+  int l_pert; // l mode for perturbation
+  int m_pert; // m mode for perturbation
 
   // TOV var indexes for ODE integration
   enum{TOV_IRHO,TOV_IMASS,TOV_IPHI,TOV_IINT,TOV_NVAR};
@@ -166,6 +168,8 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   // pressure perturbation
   lambda = pin->GetOrAddReal("problem", "lambda", 0.0);
   n_nodes = pin->GetOrAddInteger("problem", "n_nodes", 1);
+  l_pert = pin->GetOrAddInteger("problem", "l_pert", 2);
+  m_pert = pin->GetOrAddInteger("problem", "m_pert", 0);
   
 #if USETM
   // Initialize cold EOS
@@ -1147,7 +1151,7 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
           if (lambda > 0){
             Real Yr, Yi;
             Real eps = ceos->GetSpecificInternalEnergy(w_rho_(i));
-            SphHarm_Ylm(2, 0, theta, phi, &Yr, &Yi);
+            SphHarm_Ylm(l_pert, m_pert, theta, phi, &Yr, &Yi);
             Real Ylm = Yr;
             Real H0l = lambda * std::sin((n_nodes+1.)*PI*x_kji/2.);
             Real dp  = (w_p_(i) + w_rho_(i) * (1 + eps)) * H0l * Ylm;
