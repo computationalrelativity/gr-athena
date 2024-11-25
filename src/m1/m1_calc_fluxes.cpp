@@ -42,7 +42,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 
   // indicial ranges ----------------------------------------------------------
   const int il = pm1->mbi.il-M1_NGHOST_MIN;
-  const int iu = pm1->mbi.iu-M1_NGHOST_MIN;
+  const int iu = pm1->mbi.iu+M1_NGHOST_MIN;
 
   const bool approximate_speeds = opt.characteristics_variety ==
         opt_characteristics_variety::approximate;
