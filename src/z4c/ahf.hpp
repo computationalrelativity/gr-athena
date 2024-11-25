@@ -22,6 +22,8 @@ class Mesh;
 class MeshBlock;
 class ParameterInput;
 
+#define INTERP_ORDER_2 (0) // Default: 2*NGHOST-1
+
 //! \class AHF
 //! \brief Apparent Horizon Finder
 class AHF {
@@ -86,8 +88,11 @@ private:
   int nstart, nhorizon;
   //! Arrays for the grid and quadrature weights
   AthenaArray<Real> th_grid, ph_grid, weights;
-  //static const int metric_interp_order = 2;
+#if (INTERP_ORDER_2)
+  static const int metric_interp_order = 2;
+#else
   static const int metric_interp_order = 2*NGHOST-1;
+#endif
   int fastflow_iter=0;
   //! Arrays of Legendre polys and drvts
   AthenaArray<Real> P, dPdth, dPdth2;

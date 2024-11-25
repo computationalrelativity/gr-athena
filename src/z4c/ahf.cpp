@@ -861,9 +861,15 @@ void AHF::SurfaceIntegrals()
       }
 
       // Expansion & rho = H * u * sigma (sigma=1)
+#if(0)
       Real divu = (norm>0)? 1.0/u : NAN;
       Real H = (norm>0)? (d2F*divu + dFdadFdbKab*(divu*divu) - dFdadFdbFdadb*(divu*divu*divu) - TrK) : 0.0;
-      rho(i,j) = H * u; //Real rho = H * u;
+#else
+      // Cure divu, not H:
+      Real divu = (norm>0)? 1.0/u : 0.0;
+      Real H = d2F*divu + dFdadFdbKab*(divu*divu) - dFdadFdbFdadb*(divu*divu*divu) - TrK;
+#endif
+      rho(i,j) = H * u; 
 
       // Normal vector
       for (int a = 0; a < NDIM; ++a) {
