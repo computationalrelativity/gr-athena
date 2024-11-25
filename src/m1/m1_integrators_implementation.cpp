@@ -1,5 +1,6 @@
 // C++ standard headers
 // Athena++ headers
+#include "m1.hpp"
 #include "m1_integrators.hpp"
 #include "m1_set_equilibrium.hpp"
 #include "m1_sources.hpp"
@@ -170,7 +171,7 @@ void StepImplicitPrepareInitialGuess(
 
 
     // PrepareMatterSource_E_F_d(pm1, P, S, k, j, i);
-    StepExplicit_E_F_d(pm1, dt, C, P, I, S, k, j, i);
+    // StepExplicit_E_F_d(pm1, dt, C, P, I, S, k, j, i);
     // SetMatterSourceZero(S, k, j, i);
 
     // Compute (pm1 storage) (sp_P_dd, ...) based on (sc_E*, sp_F_d*)
@@ -187,8 +188,10 @@ void StepImplicitPrepareInitialGuess(
     // Compute (pm1 storage) (sp_P_dd, ...) based on implicit appr.
     // CL_C.ClosureThick(k, j, i);
 
+    CL_C.ClosureThick(k, j, i);
+
     // retain values for potential restarts
-    // C.FallbackStore(k, j, i);
+    C.FallbackStore(k, j, i);
 
     // This is done within the system Z functional
     // PrepareMatterSource_E_F_d(pm1, C, S, k, j, i);
@@ -437,6 +440,8 @@ void StepImplicitHybrids(
     }
     while (gsl_status == GSL_CONTINUE && iter < pm1.opt_solver.iter_max);
 
+    bool revert_thick = false;
+
     if ((gsl_status == GSL_ETOL)     ||
         (gsl_status == GSL_EMAXITER) ||
         (iter >= pm1.opt_solver.iter_max))
@@ -448,19 +453,25 @@ void StepImplicitHybrids(
         std::cout << "GSL_ETOL || GSL_EMAXITER\n";
         std::cout << "sc_chi : " << C.sc_chi(k,j,i) << "\n";
       }
+
+      revert_thick = false;
     }
     else if ((gsl_status == GSL_ENOPROG) || (gsl_status == GSL_ENOPROGJ))
     {
       if (pm1.opt_solver.verbose)
       #pragma omp critical
       {
-        std::cout << "Warning: StepImplicitHybrids: ";
-        std::cout << "GSL_ENOPROG || GSL_ENOPROGJ : iter " << iter << " \n";
-        std::cout << "sc_chi : " << C.sc_chi(k,j,i) << " ";
-        std::cout << "@ (k, j, i): " << k << ", " << j << ", " << i << "\n";
+        if (pm1.pmy_block->IsPhysicalIndex_cc(k, j, i))
+        {
+          std::cout << "Warning: StepImplicitHybrids: ";
+          std::cout << "GSL_ENOPROG || GSL_ENOPROGJ : iter " << iter << " \n";
+          std::cout << "sc_chi : " << C.sc_chi(k,j,i) << " ";
+          std::cout << "@ (k, j, i): " << k << ", " << j << ", " << i << "\n";
+          std::cout << "opt_closure.variety = " << static_cast<int>(pm1.opt_closure.variety) << "\n";
+        }
       }
 
-      // C.Fallback(k, j, i);
+      revert_thick = true;
     }
     else if ((gsl_status != GSL_SUCCESS))
     {
@@ -471,6 +482,30 @@ void StepImplicitHybrids(
         std::cout << iter << std::endl;
       }
       pm1.StatePrintPoint(C.ix_g, C.ix_s, k, j, i, true);
+    }
+
+    if (revert_thick &&
+        (pm1.opt_closure.variety != M1::opt_closure_variety::thick))
+    {
+      M1::opt_closure_variety opt_cl = pm1.opt_closure.variety;
+      pm1.opt_closure.variety = M1::opt_closure_variety::thick;
+
+      C.Fallback(k, j, i);
+
+      StepImplicitHybrids(
+        pm1,
+        dt,
+        C,
+        P,
+        I,
+        S,
+        CL_C,
+        k,
+        j,
+        i
+      );
+
+      pm1.opt_closure.variety = opt_cl;
     }
 
     // cleanup ----------------------------------------------------------------
@@ -557,6 +592,8 @@ void StepImplicitHybridsJ(
     }
     while (gsl_status == GSL_CONTINUE && iter < pm1.opt_solver.iter_max);
 
+    bool revert_thick = false;
+
     if ((gsl_status == GSL_ETOL)     ||
         (gsl_status == GSL_EMAXITER) ||
         (iter >= pm1.opt_solver.iter_max))
@@ -568,6 +605,8 @@ void StepImplicitHybridsJ(
         std::cout << "GSL_ETOL || GSL_EMAXITER\n";
         std::cout << "sc_chi : " << C.sc_chi(k,j,i) << "\n";
       }
+
+      revert_thick = false;
     }
     else if ((gsl_status == GSL_ENOPROG) || (gsl_status == GSL_ENOPROGJ))
     {
@@ -580,7 +619,7 @@ void StepImplicitHybridsJ(
         std::cout << "@ (k, j, i): " << k << ", " << j << ", " << i << "\n";
       }
 
-      // C.Fallback(k, j, i);
+      revert_thick = true;
     }
     else if ((gsl_status != GSL_SUCCESS))
     {
@@ -591,6 +630,30 @@ void StepImplicitHybridsJ(
         std::cout << iter << std::endl;
       }
       pm1.StatePrintPoint(C.ix_g, C.ix_s, k, j, i, true);
+    }
+
+    if (revert_thick &&
+        (pm1.opt_closure.variety != M1::opt_closure_variety::thick))
+    {
+      M1::opt_closure_variety opt_cl = pm1.opt_closure.variety;
+      pm1.opt_closure.variety = M1::opt_closure_variety::thick;
+
+      C.Fallback(k, j, i);
+
+      StepImplicitHybridsJ(
+        pm1,
+        dt,
+        C,
+        P,
+        I,
+        S,
+        CL_C,
+        k,
+        j,
+        i
+      );
+
+      pm1.opt_closure.variety = opt_cl;
     }
 
     // cleanup ----------------------------------------------------------------
