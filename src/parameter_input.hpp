@@ -170,17 +170,21 @@ class ParameterInput {
 
   AthenaArray<Real> GetOrAddRealArray(const std::string & block,
                                       const std::string & name,
-                                      const Real & def_value);
+                                      const Real & def_value,
+                                      const int size=1);
   AthenaArray<int> GetOrAddIntegerArray(const std::string & block,
                                         const std::string & name,
-                                        const int & def_value);
+                                        const int & def_value,
+                                        const int size=1);
   AthenaArray<bool> GetOrAddBooleanArray(const std::string & block,
                                          const std::string & name,
-                                         const bool & def_value);
+                                         const bool & def_value,
+                                         const int size=1);
   AthenaArray<std::string> GetOrAddStringArray(
     const std::string & block,
     const std::string & name,
-    const std::string & def_value);
+    const std::string & def_value,
+    const int size=1);
 
   // --------------------------------------------------------------------------
 
