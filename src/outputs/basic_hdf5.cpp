@@ -7,18 +7,42 @@
 
 // External libraries
 
-// ----------------------------------------------------------------------------
 #ifdef HDF5OUTPUT
 
-hid_t hdf5_touch_file(const std::string & filename)
+// ----------------------------------------------------------------------------
+// Create or open file with R/W
+hid_t hdf5_touch_file(const std::string & filename, const bool use_existing)
 {
-  return H5Fcreate(filename.c_str(),
+  // try to open existing file:
+  hid_t res;
+  if (use_existing)
+  {
+    H5E_BEGIN_TRY
+    {
+      res = H5Fopen(filename.c_str(),
+                      H5F_ACC_RDWR,
+                      H5P_DEFAULT);
+    }
+    H5E_END_TRY;
+  }
+  else
+  {
+    res = -1;
+  }
+
+  // create file if it doesn't exist
+  if (res < 0)
+  {
+    res = H5Fcreate(filename.c_str(),
                     H5F_ACC_TRUNC,
                     H5P_DEFAULT,
                     H5P_DEFAULT);
+  }
+
+  return res;
 }
 // ----------------------------------------------------------------------------
-
+// write arrays
 void hdf5_write_arr_nd(
   hid_t & id_file,
   const std::string & full_path,
@@ -41,9 +65,9 @@ void hdf5_write_arr_nd(
   dataspace = H5Screate_simple(ndim, dim, NULL);
 
   dataset = H5Dcreate(id_file, full_path.c_str(),
-                      H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT,
+                      H5T_NATIVE_REAL, dataspace, H5P_DEFAULT,
                       H5P_DEFAULT, H5P_DEFAULT);
-  H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT,
+  H5Dwrite(dataset, H5T_NATIVE_REAL, H5S_ALL, H5S_ALL, H5P_DEFAULT,
            arr.data());
   H5Dclose(dataset);
   H5Sclose(dataspace);
@@ -58,6 +82,83 @@ void hdf5_write_scalar(
   hdf5_write_arr_nd(id_file, full_path, arr);
 }
 
+// ----------------------------------------------------------------------------
+// deal with scalar attributes
+void hdf5_write_attribute(
+  hid_t & id_file,
+  const std::string & name,
+  const int & value)
+{
+  hid_t attribute;
+  hid_t attribute_type;
+  hid_t attribute_id;
+
+  attribute = H5Screate(H5S_SCALAR);
+  attribute_type = H5Tcopy(H5T_NATIVE_INT);
+  // H5Tset_size(attribute_type, 1);
+  attribute_id = H5Acreate(id_file,
+                           name.c_str(),
+                           attribute_type,
+                           attribute,
+                           H5P_DEFAULT,
+                           H5P_DEFAULT);
+  H5Awrite(attribute_id, attribute_type, &value);
+  H5Sclose(attribute);
+  H5Tclose(attribute_type);
+  H5Aclose(attribute_id);
+}
+
+void hdf5_write_attribute(
+  hid_t & id_file,
+  const std::string & name,
+  const std::string & value)
+{
+  hid_t attribute;
+  hid_t attribute_type;
+  hid_t attribute_id;
+
+  attribute = H5Screate(H5S_SCALAR);
+  attribute_type = H5Tcopy(H5T_C_S1);
+  H5Tset_size(attribute_type, value.length());
+  attribute_id = H5Acreate(id_file,
+                           name.c_str(),
+                           attribute_type,
+                           attribute,
+                           H5P_DEFAULT,
+                           H5P_DEFAULT);
+  H5Awrite(attribute_id, attribute_type, value.c_str());
+  H5Sclose(attribute);
+  H5Tclose(attribute_type);
+  H5Aclose(attribute_id);
+}
+
+void hdf5_write_attribute(
+  hid_t & id_file,
+  const std::string & name,
+  const Real & value
+)
+{
+  hid_t attribute;
+  hid_t attribute_type;
+  hid_t attribute_id;
+
+  attribute = H5Screate(H5S_SCALAR);
+  attribute_type = H5Tcopy(H5T_NATIVE_REAL);
+  // H5Tset_size(attribute_type, 1);
+  attribute_id = H5Acreate(id_file,
+                           name.c_str(),
+                           attribute_type,
+                           attribute,
+                           H5P_DEFAULT,
+                           H5P_DEFAULT);
+  H5Awrite(attribute_id, attribute_type, &value);
+  H5Sclose(attribute);
+  H5Tclose(attribute_type);
+  H5Aclose(attribute_id);
+}
+
+// ----------------------------------------------------------------------------
+// group structure
 void _hdf5_prepare_path(
   hid_t & id_file,
   const std::string & full_path
@@ -96,6 +197,8 @@ void _hdf5_prepare_path(
   }
 }
 
+// ----------------------------------------------------------------------------
+// cleanup
 void hdf5_close_file(hid_t & id_file)
 {
   H5Fclose(id_file);

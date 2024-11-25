@@ -36,20 +36,6 @@
 #include <mpi.h>   // MPI_COMM_WORLD, MPI_INFO_NULL
 #endif
 
-// type alias that allows HDF5 output to be written in either floats or doubles
-#if H5_DOUBLE_PRECISION_ENABLED
-using H5Real = double;
-#if SINGLE_PRECISION_ENABLED
-#error "Cannot create HDF5 output at higher precision than internal representation"
-#endif
-#define H5T_NATIVE_REAL H5T_NATIVE_DOUBLE
-
-#else
-using H5Real = float;
-#define H5T_NATIVE_REAL H5T_NATIVE_FLOAT
-#endif
-
-
 //----------------------------------------------------------------------------------------
 //! \fn void ATHDF5Output:::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
 //  \brief Cycles over all MeshBlocks and writes OutputData in the Athena++ HDF5 format,
@@ -574,6 +560,7 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   H5Sclose(dataspace_triple);
   H5Sclose(dataspace_dataset_list);
   H5Sclose(dataspace_variable_list);
+  H5Sclose(dataspace_hash_info_list);
 
   // Prepare global (full) dataspaces for writing datasets
   dims_count[0] = num_blocks_global;
