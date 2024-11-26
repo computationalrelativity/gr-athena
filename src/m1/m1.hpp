@@ -142,6 +142,12 @@ public:
                                         auto_esi_HybridsJMinerbo,
                                         auto_esi_PicardMinerboP};
   enum class opt_fiducial_velocity { fluid, mixed, zero, none };
+
+  enum class opt_flux_variety { HybridizeMinModA,
+                                HybridizeMinModB,
+                                HybridizeMinMod,
+                                LO };
+
   enum class opt_characteristics_variety { approximate,
                                            exact_thin,
                                            exact_thick,
@@ -163,6 +169,9 @@ public:
 
     // Control flux calculation
     opt_characteristics_variety characteristics_variety;
+
+    // Switching between style of flux calculation / limiter
+    opt_flux_variety flux_variety;
 
     // Prescription for fiducial velocity; zero if not {"fluid","mixed"}
     opt_fiducial_velocity fiducial_velocity;

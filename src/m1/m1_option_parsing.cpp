@@ -245,6 +245,31 @@ void M1::PopulateOptions(ParameterInput *pin)
     }
   }
 
+  { // flux style
+    tmp = pin->GetOrAddString("M1", "flux_variety", "HybridizeMinModA");
+    if (tmp == "LO")
+    {
+      opt.flux_variety = opt_flux_variety::LO;
+    }
+    else if (tmp == "HybridizeMinMod")
+    {
+      opt.flux_variety = opt_flux_variety::HybridizeMinMod;
+    }
+    else if (tmp == "HybridizeMinModA")
+    {
+      opt.flux_variety = opt_flux_variety::HybridizeMinModA;
+    }
+    else if (tmp == "HybridizeMinModB")
+    {
+      opt.flux_variety = opt_flux_variety::HybridizeMinModB;
+    }
+    else
+    {
+      msg << "M1/flux_variety unknown" << std::endl;
+      ATHENA_ERROR(msg);
+    }
+  }
+
   { // fiducial
     tmp = pin->GetOrAddString("M1", "fiducial_velocity", "fluid");
     if (tmp == "fluid")

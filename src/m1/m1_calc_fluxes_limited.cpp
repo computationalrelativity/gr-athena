@@ -116,6 +116,98 @@ void ReconstructLimitedFlux(M1 * pm1,
 }
 
 // implementation details =====================================================
+namespace {
+
+static const Real MINMOD_THETA = 1;
+
+Real MinMod2(const Real A, const Real B)
+{
+  return std::min(1.0, MINMOD_THETA * std::min(A, B));
+}
+
+Real FluxLimiter(const M1::opt_flux_variety & flx_var,
+                 const Real & dx,
+                 const Real & kap_avg,
+                 const Real & qm2,
+                 const Real & qm1,
+                 const Real & q0,
+                 const Real & qp1,
+                 const Real & qp2)
+{
+  Real hyb_fac = 1;
+
+  switch (flx_var)
+  {
+    case (M1::opt_flux_variety::LO):
+    {
+      // F = F_HO - hyb_fac * (F_HO - F_LO)
+      // Hybridize to low order flux
+      return 1.0;
+    }
+    case (M1::opt_flux_variety::HybridizeMinMod):
+    {
+      const Real d_ql    = qm1 - qm2;
+      const Real oo_d_qc = OO(q0  - qm1);
+      const Real d_qr    = qp1 - q0;
+
+      const Real Phi = std::max(0.0, MinMod2(d_ql * oo_d_qc, d_qr * oo_d_qc));
+      return 1 - Phi;
+    }
+    case (M1::opt_flux_variety::HybridizeMinModA):
+    {
+      const Real d_ql = qm1 - qm2;
+      const Real d_qc = q0  - qm1;
+      const Real d_qr = qp1 - q0;
+
+      const Real d_qlc = d_ql * d_qc;
+      const Real d_qcr = d_qc * d_qr;
+
+      const Real oo_d_qc = OO(d_qc);
+
+      const Real Phi = std::max(0.0, MinMod2(d_ql * oo_d_qc, d_qr * oo_d_qc));
+
+      const Real kap_fac = (kap_avg > 0) ? kap_avg * dx : 1.0;
+
+      const Real A = (((d_qlc < 0) && (d_qcr < 0)))
+        ? 1.0
+        : std::min(1.0, OO(kap_fac));
+
+      return A * (1 - Phi);
+    }
+    case (M1::opt_flux_variety::HybridizeMinModB):
+    {
+      const Real d_ql = qm1 - qm2;
+      const Real d_qc = q0  - qm1;
+      const Real d_qr = qp1 - q0;
+
+      const Real d_qlc = d_ql * d_qc;
+      const Real d_qcr = d_qc * d_qr;
+
+      const Real oo_d_qc = OO(d_qc);
+
+      const Real Phi = std::max(0.0, MinMod2(d_ql * oo_d_qc, d_qr * oo_d_qc));
+
+      const Real kap_fac = (kap_avg > 0) ? kap_avg * dx : 1.0;
+
+      Real A = std::tanh(OO(kap_fac));
+
+      const Real g_m1 = q0 + qm2 - 2.0 * qm1;
+      const Real g_0  = qp1 + qm1 - 2.0 * q0;
+      const Real g_p1 = qp2 + q0 - 2.0 * qp1;
+
+      A = ((g_0 * g_m1 < 0) && (g_0 * g_p1 < 0)) ? 1.0 : A;
+
+      return A * (1 - Phi);
+    }
+    default:
+    {
+      assert(false);
+    }
+  }
+}
+
+}
+
 void ReconstructLimitedFluxX1(M1 * pm1,
                               const AT_C_sca & q,
                               const AT_C_sca & F,
@@ -136,37 +228,23 @@ void ReconstructLimitedFluxX1(M1 * pm1,
     {
       const Real lam = std::max(lambda(k,j,i-1), lambda(k,j,i));
 
-      const Real d_ql = q(k,j,i-1) - q(k,j,i-2);
-      const Real d_qm = q(k,j,i  ) - q(k,j,i-1);
-      const Real d_qr = q(k,j,i+1) - q(k,j,i  );
+      const Real F_HO = 0.5 * (F(k,j,i-1) + F(k,j,i));
+      const Real F_LO = F_HO - 0.5 * lam * (q(k,j,i) - q(k,j,i-1));
 
-      const Real d_qlm = d_ql * d_qm;
-      const Real d_qmr = d_qm * d_qr;
-
-      Real kap_fac = 0.5 * (
+      const Real kap_avg = 0.5 * (
         kap_a(k,j,i-1) + kap_a(k,j,i) +
         kap_s(k,j,i-1) + kap_s(k,j,i)
       );
 
-      kap_fac = (kap_fac > 0) ? kap_fac * pm1->mbi.dx1(i) : 1.0;
-
-      const Real A = ((d_qlm < 0) && (d_qmr < 0))
-        ? 1.0
-        : std::max(
-            pm1->opt.min_flux_A,
-            std::min(1.0, 1.0 / kap_fac)
-          );
-
-      const Real phi = std::max(
-        std::min(
-          1.0, std::min(d_ql / d_qm, d_qr / d_qm)
-        ), 0.0
+      const Real hyb_fac = FluxLimiter(
+        pm1->opt.flux_variety,
+        pm1->mbi.dx1(i),
+        kap_avg,
+        q(k,j,i-2), q(k,j,i-1), q(k,j,i), q(k,j,i+1), q(k,j,i+2)
       );
 
-      const Real F_HO = 0.5 * (F(k,j,i-1) + F(k,j,i));
-      const Real F_LO = F_HO - 0.5 * lam * d_qm;
-
-      Flux(k,j,i) = F_HO - A * (1.0 - phi) * (F_HO - F_LO);
+      const Real th = std::max(hyb_fac, pm1->opt.min_flux_A);
+      Flux(k,j,i) = F_HO -  th * (F_HO - F_LO);
     }
   }
 }
@@ -187,37 +265,23 @@ void ReconstructLimitedFluxX2(M1 * pm1,
     {
       const Real lam = std::max(lambda(k,j-1,i), lambda(k,j,i));
 
-      const Real d_ql = q(k,j-1,i) - q(k,j-2,i);
-      const Real d_qm = q(k,j,i  ) - q(k,j-1,i);
-      const Real d_qr = q(k,j+1,i) - q(k,j,i  );
+      const Real F_HO = 0.5 * (F(k,j-1,i) + F(k,j,i));
+      const Real F_LO = F_HO - 0.5 * lam * (q(k,j,i) - q(k,j-1,i));
 
-      const Real d_qlm = d_ql * d_qm;
-      const Real d_qmr = d_qm * d_qr;
-
-      Real kap_fac = 0.5 * (
+      const Real kap_avg = 0.5 * (
         kap_a(k,j-1,i) + kap_a(k,j,i) +
         kap_s(k,j-1,i) + kap_s(k,j,i)
       );
 
-      kap_fac = (kap_fac > 0) ? kap_fac * pm1->mbi.dx2(j) : 1.0;
-
-      const Real A = ((d_qlm < 0) && (d_qmr < 0))
-        ? 1.0
-        : std::max(
-            pm1->opt.min_flux_A,
-            std::min(1.0, 1.0 / kap_fac)
-          );
-
-      const Real phi = std::max(
-        std::min(
-          1.0, std::min(d_ql / d_qm, d_qr / d_qm)
-        ), 0.0
+      const Real hyb_fac = FluxLimiter(
+        pm1->opt.flux_variety,
+        pm1->mbi.dx2(j),
+        kap_avg,
+        q(k,j-2,i), q(k,j-1,i), q(k,j,i), q(k,j+1,i), q(k,j+2,i)
       );
 
-      const Real F_HO = 0.5 * (F(k,j-1,i) + F(k,j,i));
-      const Real F_LO = F_HO - 0.5 * lam * d_qm;
-
-      Flux(k,j,i) = F_HO - A * (1.0 - phi) * (F_HO - F_LO);
+      const Real th = std::max(hyb_fac, pm1->opt.min_flux_A);
+      Flux(k,j,i) = F_HO -  th * (F_HO - F_LO);
     }
   }
 }
@@ -238,37 +302,23 @@ void ReconstructLimitedFluxX3(M1 * pm1,
     {
       const Real lam = std::max(lambda(k-1,j,i), lambda(k,j,i));
 
-      const Real d_ql = q(k-1,j,i) - q(k-2,j,i);
-      const Real d_qm = q(k,j,i  ) - q(k-1,j,i);
-      const Real d_qr = q(k+1,j,i) - q(k,j,i  );
+      const Real F_HO = 0.5 * (F(k-1,j,i) + F(k,j,i));
+      const Real F_LO = F_HO - 0.5 * lam * (q(k,j,i) - q(k-1,j,i));
 
-      const Real d_qlm = d_ql * d_qm;
-      const Real d_qmr = d_qm * d_qr;
-
-      Real kap_fac = 0.5 * (
+      const Real kap_avg = 0.5 * (
         kap_a(k-1,j,i) + kap_a(k,j,i) +
         kap_s(k-1,j,i) + kap_s(k,j,i)
       );
 
-      kap_fac = (kap_fac > 0) ? kap_fac * pm1->mbi.dx3(k) : 1.0;
-
-      const Real A = ((d_qlm < 0) && (d_qmr < 0))
-        ? 1.0
-        : std::max(
-            pm1->opt.min_flux_A,
-            std::min(1.0, 1.0 / kap_fac)
-          );
-
-      const Real phi = std::max(
-        std::min(
-          1.0, std::min(d_ql / d_qm, d_qr / d_qm)
-        ), 0.0
+      const Real hyb_fac = FluxLimiter(
+        pm1->opt.flux_variety,
+        pm1->mbi.dx3(k),
+        kap_avg,
+        q(k-2,j,i), q(k-1,j,i), q(k,j,i), q(k+1,j,i), q(k+2,j,i)
       );
 
-      const Real F_HO = 0.5 * (F(k-1,j,i) + F(k,j,i));
-      const Real F_LO = F_HO - 0.5 * lam * d_qm;
-
-      Flux(k,j,i) = F_HO - A * (1.0 - phi) * (F_HO - F_LO);
+      const Real th = std::max(hyb_fac, pm1->opt.min_flux_A);
+      Flux(k,j,i) = F_HO -  th * (F_HO - F_LO);
     }
   }
 }
