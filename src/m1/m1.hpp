@@ -145,6 +145,7 @@ public:
 
   enum class opt_flux_variety { HybridizeMinModA,
                                 HybridizeMinModB,
+                                HybridizeMinModC,
                                 HybridizeMinMod,
                                 LO };
 
@@ -180,6 +181,7 @@ public:
     // Various tolerances / ad-hoc fiddle parameters
     Real fl_E;
     Real fl_J;
+    Real fl_nG;
     Real eps_E;
     Real eps_J;
     bool enforce_causality;
