@@ -145,6 +145,7 @@ private:
   void SurfaceIntegrals();
   void FastFlowLoop();
   void UpdateFlowSpectralComponents();
+  void UpdateFlowSpectralComponents_old();
   void RadiiFromSphericalHarmonics();
   void InitialGuess();
   void ComputeSphericalHarmonics();

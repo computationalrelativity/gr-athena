@@ -144,7 +144,7 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   // * if found, set ah_found to true & store the guess
 
   // Points for sph harm l>=1
-  lmpoints = lmax1*lmax1;
+  lmpoints = lmax1*lmax1; // SB this could/should be lmax^2: check all loop ranges, fix index map before changing.
 
   // Coefficients
   a0.NewAthenaArray(lmax1);
@@ -334,7 +334,7 @@ void AHF::Write(int iter, Real time)
     fflush(pofile_summary);
     
     if (ah_found) {
-      // Shape file
+      // Shape file (coefficients)
       pofile_shape = fopen(ofname_shape.c_str(), "a");
       if (NULL == pofile_shape) {
         std::stringstream msg;
@@ -343,9 +343,10 @@ void AHF::Write(int iter, Real time)
         throw std::runtime_error(msg.str().c_str());
       }
       fprintf(pofile_shape, "# iter = %d, Time = %g\n",iter,time);
-      for(int l=0; l<=lmax; l++){
+      for(int l=0; l<=lmax; l++)
         fprintf(pofile_shape,"%e ", a0(l));
-        for(int m=0; m<=l; m++){
+      for(int l=1; l<=lmax; l++){
+        for(int m=1; m<=l; m++){
           int l1 = lmindex(l,m);
           fprintf(pofile_shape,"%e ",ac(l1));
           fprintf(pofile_shape,"%e ",as(l1));
@@ -1230,7 +1231,10 @@ void AHF::FastFlowLoop()
 //----------------------------------------------------------------------------------------
 // \!fn void AHF::UpdateFlowSpectralComponents(const int n)
 // \brief find new spectral components with fast flow
-void AHF::UpdateFlowSpectralComponents()
+
+
+// Old routine: logic seems strange, changed below
+void AHF::UpdateFlowSpectralComponents_old()
 {
   const Real alpha = flow_alpha_beta_const;
   const Real beta = 0.5 * flow_alpha_beta_const;
@@ -1246,7 +1250,7 @@ void AHF::UpdateFlowSpectralComponents()
 
     spec0[l] = 0;
 
-    for(int m=0; m<=l; m++){
+    for(int m=0; m<=l; m++){ 
 
       int l1 = lmindex(l,m);
 
@@ -1293,6 +1297,88 @@ void AHF::UpdateFlowSpectralComponents()
     }
   }
 
+  delete[] spec0;
+  delete[] specc;
+  delete[] specs;
+
+}
+
+// New routine: inverted angular-lm loops
+// better to take care of special case
+void AHF::UpdateFlowSpectralComponents()
+{
+  const Real alpha = flow_alpha_beta_const;
+  const Real beta = 0.5 * flow_alpha_beta_const;
+  const Real A = alpha/(lmax*lmax1) + beta;
+  const Real B = beta/alpha;
+  
+  Real * ABfac = new Real[lmax1];
+  Real * spec0 = new Real[lmax1];
+  Real * specc = new Real[lmpoints];
+  Real * specs = new Real[lmpoints];
+  
+  // Initialize coefficients to zero
+  for(int l=0; l<=lmax; l++) {
+    spec0[l] = 0;
+    ABfac[l] = A/(1.0+B*l*(l+1));    
+  }
+  for(int l=1; l<=lmax; l++) {
+    for(int m=1; m<=l; m++) {
+      int l1 = lmindex(l,m);
+      specc[l1] = 0;
+      specs[l1] = 0;
+    }
+  }
+  
+  // Local sums
+  for(int i=0; i<ntheta; i++){
+    for(int j=0; j<nphi; j++){
+      
+      if (!havepoint(i,j)) continue;
+      //const Real dw = weights(i,j);
+      const Real drho = weights(i,j) * rho(i,j);
+      
+      for(int l=0; l<=lmax; l++) 
+	//spec0[l] += dw * Y0(i,j,l) * rho(i,j);
+	spec0[l] += drho * Y0(i,j,l) ;
+      
+      for(int l=1; l<=lmax; l++) {
+	for(int m=1; m<=l; m++) { 
+	  int l1 = lmindex(l,m);
+          //specc[l1] += dw * Yc(i,j,l1) * rho(i,j);
+          //specs[l1] += dw * Ys(i,j,l1) * rho(i,j);
+          specc[l1] += drho * Yc(i,j,l1);
+          specs[l1] += drho * Ys(i,j,l1);
+
+	}
+      }
+      
+    }//phi loop
+  }//theta loop
+       
+// MPI reduce
+#ifdef MPI_PARALLEL
+  MPI_Allreduce(MPI_IN_PLACE, spec0, lmax1,    MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, specc, lmpoints, MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, specs, lmpoints, MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
+#endif
+
+  // Update the coefs
+  for(int l=0; l<=lmax; l++) {
+    //const Real ABfact = A/(1.0+B*l*(l+1));    
+    a0(l) -= ABfac[l] * spec0[l];
+  }
+
+  for(int l=1; l<=lmax; l++) {
+    //const Real ABfact = A/(1.0+B*l*(l+1));
+    for(int m=1; m<=l; m++){
+      int l1 = lmindex(l,m);
+      ac(l1) -= ABfac[l] * specc[l1];
+      as(l1) -= ABfac[l] * specs[l1];
+    }
+  }
+
+  delete[] ABfac;
   delete[] spec0;
   delete[] specc;
   delete[] specs;
