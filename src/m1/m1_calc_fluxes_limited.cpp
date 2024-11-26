@@ -266,7 +266,7 @@ void ReconstructLimitedFluxX1(M1 * pm1,
         q(k,j,i-2), q(k,j,i-1), q(k,j,i), q(k,j,i+1), q(k,j,i+2)
       );
 
-      const Real th = std::max(hyb_fac, pm1->opt.min_flux_A);
+      const Real th = std::max(hyb_fac, pm1->opt.min_flux_Theta);
       Flux(k,j,i) = F_HO -  th * (F_HO - F_LO);
     }
   }
@@ -300,7 +300,7 @@ void ReconstructLimitedFluxX2(M1 * pm1,
         q(k,j-2,i), q(k,j-1,i), q(k,j,i), q(k,j+1,i), q(k,j+2,i)
       );
 
-      const Real th = std::max(hyb_fac, pm1->opt.min_flux_A);
+      const Real th = std::max(hyb_fac, pm1->opt.min_flux_Theta);
       Flux(k,j,i) = F_HO -  th * (F_HO - F_LO);
     }
   }
@@ -334,7 +334,7 @@ void ReconstructLimitedFluxX3(M1 * pm1,
         q(k-2,j,i), q(k-1,j,i), q(k,j,i), q(k+1,j,i), q(k+2,j,i)
       );
 
-      const Real th = std::max(hyb_fac, pm1->opt.min_flux_A);
+      const Real th = std::max(hyb_fac, pm1->opt.min_flux_Theta);
       Flux(k,j,i) = F_HO -  th * (F_HO - F_LO);
     }
   }

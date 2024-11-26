@@ -609,7 +609,7 @@ void StepImplicitHybridsJ(
         std::cout << "sc_chi : " << C.sc_chi(k,j,i) << "\n";
       }
 
-      revert_thick = false;
+      revert_thick = pm1.opt_solver.thick_tol;
     }
     else if ((gsl_status == GSL_ENOPROG) || (gsl_status == GSL_ENOPROGJ))
     {
@@ -622,7 +622,7 @@ void StepImplicitHybridsJ(
         std::cout << "@ (k, j, i): " << k << ", " << j << ", " << i << "\n";
       }
 
-      revert_thick = true;
+      revert_thick = pm1.opt_solver.thick_npg;
     }
     else if ((gsl_status != GSL_SUCCESS))
     {

@@ -190,6 +190,9 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
   opt_solver.w_opt_ini   = GoA_Real("w_opt_init",  1.0);
   opt_solver.fac_err_amp = GoA_Real("fac_err_amp", 1.11);
 
+  opt_solver.thick_tol = GoA_bool("thick_tol", false);
+  opt_solver.thick_npg = GoA_bool("thick_npg", false);
+
   opt_solver.iter_max     = GoA_int("iter_max", 128);
   opt_solver.iter_max_rst = GoA_int("iter_max_rst", 10);
 
@@ -312,7 +315,7 @@ void M1::PopulateOptions(ParameterInput *pin)
       "M1", "enforce_causality", true);
     opt.eps_ec_fac = pin->GetOrAddReal("M1", "eps_ec_fac", 1e-15);
 
-    opt.min_flux_A = pin->GetOrAddReal("M1", "min_flux_A", 0);
+    opt.min_flux_Theta = pin->GetOrAddReal("M1", "min_flux_Theta", 0);
   }
 
   { // coupling

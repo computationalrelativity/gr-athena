@@ -186,7 +186,7 @@ public:
     Real eps_J;
     bool enforce_causality;
     Real eps_ec_fac;
-    Real min_flux_A;
+    Real min_flux_Theta;
 
     // Control the couplings
     bool couple_sources_ADM;
@@ -235,6 +235,9 @@ public:
     Real eps_tol;
     Real w_opt_ini;
     Real fac_err_amp;
+
+    bool thick_tol;
+    bool thick_npg;
 
     int iter_max;
     int iter_max_rst;
