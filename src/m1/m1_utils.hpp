@@ -662,6 +662,8 @@ inline Real sc_G__(
   return 1.0;
 }
 
+/*
+// Require floor arg for safety (see below)
 inline Real sc_J__(
   const Real & W2,
   const Real & dotFv,  // F_d v^d
@@ -674,6 +676,22 @@ inline Real sc_J__(
   J += LinearAlgebra::InnerProductVecSym2(
         sp_v_u, sp_P_dd, k, j, i);
   return W2 * J;
+}
+*/
+
+inline Real sc_J__(
+  const Real & W2,
+  const Real & dotFv,  // F_d v^d
+  const AT_C_sca & sc_E,
+  const AT_N_vec & sp_v_u,
+  const AT_N_sym & sp_P_dd,
+  const Real floor_J,
+  const int k, const int j, const int i)
+{
+  Real J = sc_E(k,j,i) - 2.0 * dotFv;
+  J += LinearAlgebra::InnerProductVecSym2(
+        sp_v_u, sp_P_dd, k, j, i);
+  return std::max(J, W2 * floor_J);
 }
 
 inline Real sc_H_t__(

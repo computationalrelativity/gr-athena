@@ -59,6 +59,8 @@ void StepExplicit_nG(
   // C = P + dt * (I + S)
   InPlaceScalarMulAdd_nG(dt, C, I, k, j, i);
   InPlaceScalarMulAdd_nG(dt, C, S, k, j, i);
+
+  EnforcePhysical_nG(pm1, C, k, j, i);
 }
 
 void PrepareApproximateFirstOrder_E_F_d(
@@ -80,6 +82,7 @@ void PrepareApproximateFirstOrder_E_F_d(
   // assemble J
   V.sc_J(k,j,i) = Assemble::sc_J__(
     W2, dotFv, V.sc_E, pm1.fidu.sp_v_u, V.sp_P_dd,
+    pm1.opt.fl_J,
     k, j, i
   );
 
@@ -89,9 +92,12 @@ void PrepareApproximateFirstOrder_E_F_d(
                      k, j, i);
 
   // propagate fiducial frame quantities (hat of [1])
-  V.sc_J(k,j,i) = (
-    (V.sc_J(k,j,i) * W + dt * V.sc_eta(k,j,i)) /
-    (W + dt * V.sc_kap_a(k,j,i))
+  V.sc_J(k,j,i) = std::max(
+    (
+      (V.sc_J(k,j,i) * W + dt * V.sc_eta(k,j,i)) /
+      (W + dt * V.sc_kap_a(k,j,i))
+    ),
+    pm1.opt.fl_J
   );
 
   for (int a=0; a<N; ++a)
@@ -515,9 +521,6 @@ void StepImplicitHybrids(
 
   // Ensure update preserves energy non-negativity
   EnforcePhysical_E_F_d(pm1, C, k, j, i);
-
-  // Deal with neutrinos (nG, n)
-  SolveImplicitNeutrinoCurrent(pm1, dt, C, P, I, S, k, j, i);
 }
 
 void StepImplicitHybridsJ(
@@ -663,9 +666,6 @@ void StepImplicitHybridsJ(
 
   // Ensure update preserves energy non-negativity
   EnforcePhysical_E_F_d(pm1, C, k, j, i);
-
-  // Deal with neutrinos (nG, n)
-  SolveImplicitNeutrinoCurrent(pm1, dt, C, P, I, S, k, j, i);
 }
 
 // ============================================================================
@@ -691,6 +691,7 @@ void SolveImplicitNeutrinoCurrent(
 
   C.sc_J(k,j,i) = Assemble::sc_J__(
     W2, dotFv, C.sc_E, pm1.fidu.sp_v_u, C.sp_P_dd,
+    pm1.opt.fl_J,
     k, j, i
   );
 
@@ -719,6 +720,8 @@ void SolveImplicitNeutrinoCurrent(
     S.sc_nG(k,j,i) = src_term - src_term_2;
   }
 
+  // Ensure update preserves non-negativity
+  EnforcePhysical_nG(pm1, C, k, j, i);
 }
 
 // ============================================================================

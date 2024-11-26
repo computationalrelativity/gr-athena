@@ -106,6 +106,7 @@ void Prepare_n_from_nG(
 
   V.sc_J(k,j,i) = Assemble::sc_J__(
     W2, dotFv, V.sc_E, pm1.fidu.sp_v_u, V.sp_P_dd,
+    pm1.opt.fl_J,
     k, j, i
   );
 
@@ -497,7 +498,7 @@ void Apply(
       Prepare_n_from_nG(*pm1, C, k, j, i);
       */
 
-      // C <- C - dt * S
+      // Subtract off unlimited sources: C <- C - dt * S
       InPlaceScalarMulAdd_nG_E_F_d(-dt, C, S, k, j, i);
 
       // Limit: S <- theta * S for (nG, ) & (E, F_d) components
@@ -506,13 +507,15 @@ void Apply(
       // Updated state with limited sources [C <- C + dt * theta * S]
       InPlaceScalarMulAdd_nG_E_F_d(dt, C, S, k, j, i);
 
-      // We now have nG*, it is useful to immediately construct n*
-      Prepare_n_from_nG(*pm1, C, k, j, i);
-
+      // Require states to be physical
       EnforcePhysical_E_F_d(*pm1, C, k, j, i);
+      EnforcePhysical_nG(*pm1, C, k, j, i);
 
       // Compute (pm1 storage) (sp_P_dd, ...) based on (sc_E*, sp_F_d*)
       CL_C.Closure(k, j, i);
+
+      // We now have nG*, it is useful to immediately construct n*
+      Prepare_n_from_nG(*pm1, C, k, j, i);
     }
   }
 

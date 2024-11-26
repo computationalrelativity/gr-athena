@@ -225,6 +225,7 @@ void M1::CalcFiducialFrame(AthenaArray<Real> & u)
                                        sc_E,
                                        sp_v_u,
                                        sp_P_dd,
+                                       pm1->opt.fl_J,
                                        k, j, i);
       }
 

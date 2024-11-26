@@ -320,6 +320,15 @@ inline void EnforcePhysical_E_F_d(
   EnforceCausality(pm1, V, k, j, i);
 }
 
+// Enforce physicality on (nG, ) components of V
+inline void EnforcePhysical_nG(
+  M1 & pm1,
+  Update::StateMetaVector & V,
+  const int k, const int j, const int i)
+{
+  V.sc_nG(k,j,i) = std::max(V.sc_nG(k,j,i), pm1.opt.fl_nG);
+}
+
 // ============================================================================
 } // namespace M1::Update
 // ============================================================================

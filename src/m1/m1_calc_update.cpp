@@ -402,6 +402,7 @@ void AddSourceMatter(
 
   I.sc_J(k,j,i) = Assemble::sc_J__(
     W2, dotFv, C.sc_E, pm1.fidu.sp_v_u, C.sp_P_dd,
+    pm1.opt.fl_J,
     k, j, i
   );
 
@@ -480,6 +481,7 @@ void AssembleAverages(
 
     C.sc_J(k,j,i) = Assemble::sc_J__(
       W2, dotFv, C.sc_E, pm1.fidu.sp_v_u, C.sp_P_dd,
+      pm1.opt.fl_J,
       k, j, i
     );
 
@@ -514,6 +516,7 @@ void SolveImplicitNeutrinoCurrent(
 
   C.sc_J(k,j,i) = Assemble::sc_J__(
     W2, dotFv, C.sc_E, pm1.fidu.sp_v_u, C.sp_P_dd,
+    pm1.opt.fl_J,
     k, j, i
   );
 
@@ -615,6 +618,7 @@ void StepApproximateFirstOrder(
   // assemble J
   C.sc_J(k,j,i) = Assemble::sc_J__(
     W2, dotFv, C.sc_E, C.pm1.fidu.sp_v_u, C.sp_P_dd,
+    pm1.opt.fl_J,
     k, j, i
   );
 
@@ -624,9 +628,12 @@ void StepApproximateFirstOrder(
                      k, j, i);
 
   // propagate fiducial frame quantities (hat of [1])
-  C.sc_J(k,j,i) = (
-    (C.sc_J(k,j,i) * W + dt * C.sc_eta(k,j,i)) /
-    (W + dt * C.sc_kap_a(k,j,i))
+  C.sc_J(k,j,i) = std::max(
+    (
+      (C.sc_J(k,j,i) * W + dt * C.sc_eta(k,j,i)) /
+      (W + dt * C.sc_kap_a(k,j,i))
+    ),
+    pm1.opt.fl_J
   );
 
   for (int a=0; a<N; ++a)

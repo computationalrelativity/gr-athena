@@ -263,6 +263,10 @@ void M1::PopulateOptions(ParameterInput *pin)
     {
       opt.flux_variety = opt_flux_variety::HybridizeMinModB;
     }
+    else if (tmp == "HybridizeMinModC")
+    {
+      opt.flux_variety = opt_flux_variety::HybridizeMinModC;
+    }
     else
     {
       msg << "M1/flux_variety unknown" << std::endl;
@@ -299,8 +303,9 @@ void M1::PopulateOptions(ParameterInput *pin)
   }
 
   { // tol / ad-hoc
-    opt.fl_E = pin->GetOrAddReal("M1", "fl_E", 1e-15);
-    opt.fl_J = pin->GetOrAddReal("M1", "fl_J", 1e-15);
+    opt.fl_E  = pin->GetOrAddReal("M1", "fl_E",  1e-15);
+    opt.fl_J  = pin->GetOrAddReal("M1", "fl_J",  1e-15);
+    opt.fl_nG = pin->GetOrAddReal("M1", "fl_nG", 1e-50);
     opt.eps_E = pin->GetOrAddReal("M1", "eps_E", 1e-5);
     opt.eps_J = pin->GetOrAddReal("M1", "eps_J", 1e-10);
     opt.enforce_causality = pin->GetOrAddBoolean(

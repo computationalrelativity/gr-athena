@@ -305,6 +305,7 @@ Real Z_xi(
   // assemble J
   C.sc_J(k,j,i) = Assemble::sc_J__(
     W2, dotFv, C.sc_E, C.sp_v_u, C.sp_P_dd,
+    pm1.opt.fl_J,
     k, j, i
   );
 
