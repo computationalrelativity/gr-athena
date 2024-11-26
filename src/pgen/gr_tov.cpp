@@ -106,6 +106,20 @@ namespace {
 
   Real num_c2p_fail(MeshBlock *pmb, int iout);
 
+#if M1_ENABLED
+  Real max_T(MeshBlock *pmb, int iout);
+
+  Real max_sc_nG_00(MeshBlock *pmb, int iout);
+  Real max_sc_E_00(MeshBlock *pmb, int iout);
+
+  Real min_sc_nG_00(MeshBlock *pmb, int iout);
+  Real min_sc_E_00(MeshBlock *pmb, int iout);
+
+
+  Real min_sc_n_00(MeshBlock *pmb, int iout);
+  Real min_sc_J_00(MeshBlock *pmb, int iout);
+#endif
+
 } // namespace
 
 namespace TOV_geom {
@@ -177,26 +191,57 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   if(adaptive==true)
     EnrollUserRefinementCondition(RefinementCondition);
 
-  AllocateUserHistoryOutput(2+MAGNETIC_FIELDS_ENABLED);
+  AllocateUserHistoryOutput(2+MAGNETIC_FIELDS_ENABLED+7*M1_ENABLED);
   EnrollUserHistoryOutput(0, Maxrho, "max-rho", UserHistoryOperation::max);
 #if MAGNETIC_FIELDS_ENABLED
   EnrollUserHistoryOutput(1, DivBface, "divB", UserHistoryOperation::max);
 #endif
   EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED, num_c2p_fail,
                           "num_c2p_fail", UserHistoryOperation::sum);
+
+#if M1_ENABLED
+  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED + 1,
+                          max_T,
+                          "max_T", UserHistoryOperation::max);
+
+  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED + 2,
+                          max_sc_nG_00,
+                          "max_sc_nG_00", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED + 3,
+                          max_sc_E_00,
+                          "max_sc_E_00", UserHistoryOperation::max);
+
+  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED + 4,
+                          min_sc_nG_00,
+                          "min_sc_nG_00", UserHistoryOperation::min);
+  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED + 5,
+                          min_sc_E_00,
+                          "min_sc_E_00", UserHistoryOperation::min);
+
+  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED + 6,
+                          min_sc_n_00,
+                          "min_sc_n_00", UserHistoryOperation::min);
+  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED + 7,
+                          min_sc_J_00,
+                          "min_sc_J_00", UserHistoryOperation::min);
+
+#endif
 }
 
 //----------------------------------------------------------------------------------------
 //! \fn
 // \brief Setup User work
 
-void MeshBlock::InitUserMeshBlockData(ParameterInput *pin) {
+void MeshBlock::InitUserMeshBlockData(ParameterInput *pin)
+{
   // Allocate output arrays for fluxes
-  AllocateUserOutputVariables(15);
+  // AllocateUserOutputVariables(15);
   return;
 }
 
-void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin) {
+void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin)
+{
+  /*
   AthenaArray<Real> &x1flux = phydro->flux[X1DIR];
   AthenaArray<Real> &x2flux = phydro->flux[X2DIR];
   AthenaArray<Real> &x3flux = phydro->flux[X3DIR];
@@ -238,7 +283,7 @@ void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin) {
     user_out_var(13,k,j,i) = x3flux(3,k,j,i);
     user_out_var(14,k,j,i) = x3flux(4,k,j,i);
   }
-
+  */
   return;
 }
 
@@ -1790,6 +1835,95 @@ Real DivBface(MeshBlock *pmb, int iout) {
   }
   return divB;
 }
+#endif
+
+#if M1_ENABLED
+Real max_T(MeshBlock *pmb, int iout)
+{
+  Real max_T = -std::numeric_limits<Real>::infinity();
+  CC_ILOOP3(k, j, i)
+  {
+    max_T = std::max(max_T, pmb->phydro->temperature(k,j,i));
+  }
+  return max_T;
+}
+
+Real max_sc_nG_00(MeshBlock *pmb, int iout)
+{
+  Real max_sc_nG_00 = -std::numeric_limits<Real>::infinity();
+  CC_ILOOP3(k, j, i)
+  {
+    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
+    max_sc_nG_00 = std::max(max_sc_nG_00,
+                            // oo_sc_sqrt_det_g *
+                            pmb->pm1->lab.sc_nG(0,0)(k,j,i));
+  }
+  return max_sc_nG_00;
+}
+
+Real max_sc_E_00(MeshBlock *pmb, int iout)
+{
+  Real max_sc_E_00 = -std::numeric_limits<Real>::infinity();
+  CC_ILOOP3(k, j, i)
+  {
+    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
+    max_sc_E_00 = std::max(max_sc_E_00,
+                          //  oo_sc_sqrt_det_g *
+                           pmb->pm1->lab.sc_E(0,0)(k,j,i));
+  }
+  return max_sc_E_00;
+}
+
+Real min_sc_nG_00(MeshBlock *pmb, int iout)
+{
+  Real min_sc_nG_00 = +std::numeric_limits<Real>::infinity();
+  CC_ILOOP3(k, j, i)
+  {
+    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
+    min_sc_nG_00 = std::min(min_sc_nG_00,
+                           pmb->pm1->lab.sc_nG(0,0)(k,j,i));
+  }
+  return min_sc_nG_00;
+}
+
+Real min_sc_E_00(MeshBlock *pmb, int iout)
+{
+  Real min_sc_E_00 = +std::numeric_limits<Real>::infinity();
+  CC_ILOOP3(k, j, i)
+  {
+    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
+    min_sc_E_00 = std::min(min_sc_E_00,
+                          //  oo_sc_sqrt_det_g *
+                           pmb->pm1->lab.sc_E(0,0)(k,j,i));
+  }
+  return min_sc_E_00;
+}
+
+Real min_sc_n_00(MeshBlock *pmb, int iout)
+{
+  Real min_sc_n_00 = +std::numeric_limits<Real>::infinity();
+  CC_ILOOP3(k, j, i)
+  {
+    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
+    min_sc_n_00 = std::min(min_sc_n_00,
+                           pmb->pm1->rad.sc_n(0,0)(k,j,i));
+  }
+  return min_sc_n_00;
+}
+
+Real min_sc_J_00(MeshBlock *pmb, int iout)
+{
+  Real min_sc_J_00 = +std::numeric_limits<Real>::infinity();
+  CC_ILOOP3(k, j, i)
+  {
+    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
+    min_sc_J_00 = std::min(min_sc_J_00,
+                          //  oo_sc_sqrt_det_g *
+                           pmb->pm1->rad.sc_J(0,0)(k,j,i));
+  }
+  return min_sc_J_00;
+}
+
 #endif
 
 } // namespace
