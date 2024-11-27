@@ -18,6 +18,12 @@
 #endif
 
 #define DEBUG_OUTPUT (0)
+enum{
+  DONOTHING,
+  CURE_DIVU,
+  NCURE,
+};
+#define EXPANSIONFIX (CURE_DIVU)
 
 #include "ahf.hpp"
 #include "../globals.hpp"
@@ -526,7 +532,7 @@ void AHF::MetricInterp(MeshBlock * pmb)
       delta[2]  = pz4c->mbi.dx3(0);
       coord[2]  = z;
 
-      pinterp3 =  new LagrangeInterpND<metric_interp_order, 3>(origin, delta, size, coord);
+      pinterp3 = new LagrangeInterpND<metric_interp_order, 3>(origin, delta, size, coord);
 
       // With bitant wrt z=0, pick a (-) sign every time a z component is
       // encountered.
@@ -862,14 +868,30 @@ void AHF::SurfaceIntegrals()
       }
 
       // Expansion & rho = H * u * sigma (sigma=1)
-#if(0)
-      Real divu = (norm>0)? 1.0/u : NAN;
-      Real H = (norm>0)? (d2F*divu + dFdadFdbKab*(divu*divu) - dFdadFdbFdadb*(divu*divu*divu) - TrK) : 0.0;
-#else
-      // Cure divu, not H:
+#if(EXPANSIONFIX==DONOTHING)
+      Real divu = 1.0/u;
+      Real H = d2F*divu + dFdadFdbKab*(divu*divu) - dFdadFdbFdadb*(divu*divu*divu) - TrK;
+#elif(EXPANSIONFIX==CURE_DIVU)
       Real divu = (norm>0)? 1.0/u : 0.0;
       Real H = d2F*divu + dFdadFdbKab*(divu*divu) - dFdadFdbFdadb*(divu*divu*divu) - TrK;
+#else
+      std::stringstream msg;
+      msg << "### FATAL ERROR in AHF" << std::endl
+	  << " EXPANSIONFIX set incorrectly " << EXPANSIONFIX
+	  << "(0..." << NCURE << ")" << std::endl;
+      ATHENA_ERROR(msg);
 #endif
+      
+#if (DEBUG_OUTPUT)
+      if (!(std::isfinite(H))) {
+	if (verbose && ioproc) {
+	  fprintf(pofile_verbose,"H not finite at i=%d j=%d (norm=%.3e)\n\
+		  divu=%.3e, d2F=%.3e, dFdadFdbKab=%.3e, dFdadFdbFdadb=%.3e,TrK=%.3e\n",i,j,norm,
+		  divu, d2F, dFdadFdbKab, dFdadFdbFdadb, TrK);
+	}
+      }
+#endif
+      
       rho(i,j) = H * u; 
 
       // Normal vector
@@ -968,7 +990,7 @@ void AHF::SurfaceIntegrals()
       // ----------
      
       const Real wght = weights(i,j);
-      const Real da = wght * std::sqrt(deth)/sinth;
+      const Real da = wght * std::sqrt(deth) / sinth;
 
       integrals[iarea]   += da;
       integrals[icoarea] += wght * SQR(rr(i,j));
@@ -1141,13 +1163,13 @@ void AHF::FastFlowLoop()
       break;
     }
  
-    // if (!(std::isfinite(hmean))) {
-    //   if (verbose && ioproc) {
-    //     fprintf(pofile_verbose, "Failed, hmean not finite\n");
-    //   }
-    //   failed = true;
-    //   break;
-    // }
+    if (!(std::isfinite(hmean))) {
+      if (verbose && ioproc) {
+        fprintf(pofile_verbose, "Failed, hmean not finite\n");
+      }
+      failed = true;
+      break;
+    }
     
     // Irreducible mass
     mass_prev = mass;
