@@ -691,7 +691,7 @@ inline Real sc_J__(
   Real J = sc_E(k,j,i) - 2.0 * dotFv;
   J += LinearAlgebra::InnerProductVecSym2(
         sp_v_u, sp_P_dd, k, j, i);
-  return std::max(J, W2 * floor_J);
+  return W2 * std::max(J, floor_J);
 }
 
 inline Real sc_H_t__(
