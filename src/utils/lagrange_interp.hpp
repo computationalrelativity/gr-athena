@@ -113,12 +113,15 @@ class LagrangeInterp1D {
       }
 #endif
       m_calc_coeff_lr(xp, &m_coeff_lr[0]);
+      m_calc_coeff_diff_lr(xp, &m_coeff_lr[0], &m_coeff_diff_rl[0]);
 #ifdef LOCALINTERP_SYMMETRIC
       if(0 == order % 2 && m_mid_flag) {
         m_calc_coeff_rl(&xp[1], &m_coeff_rl[0]);
+        m_calc_coeff_diff_rl(&xp[1], &m_coeff_rl[0], &m_coeff_diff_rl[0]);
       }
       else {
         std::memcpy(m_coeff_rl, m_coeff_lr, sizeof(m_coeff_lr));
+        std::memcpy(m_coeff_diff_rl, m_coeff_diff_lr, sizeof(m_coeff_diff_lr));
       }
 #endif
     }
@@ -140,6 +143,30 @@ class LagrangeInterp1D {
       int shift = static_cast<int>(0 == order % 2 && m_mid_flag);
       for(int i = order; i >= 0; --i) {
         out_rl += static_cast<T>(m_coeff_rl[i]) * vals[(i + shift)*stride];
+      }
+      return T(0.5)*(out_lr + out_rl);
+#else
+      return out_lr;
+#endif
+    }
+
+    //! Evaluates the interpolator
+    template<typename T>
+    T eval_diff(
+        //! [in] must be offset so that vals[0] = vals["point"]
+        T const * const vals,
+        //! [in] stride used to access vals
+        int const stride
+        ) const {
+      T out_lr = 0;
+      for(int i = 0; i <= order; ++i) {
+        out_lr += static_cast<T>(m_coeff_diff_lr[i]) * vals[i*stride];
+      }
+#ifdef LOCALINTERP_SYMMETRIC
+      T out_rl = 0;
+      int shift = static_cast<int>(0 == order % 2 && m_mid_flag);
+      for(int i = order; i >= 0; --i) {
+        out_rl += static_cast<T>(m_coeff_diff_rl[i]) * vals[(i + shift)*stride];
       }
       return T(0.5)*(out_lr + out_rl);
 #else
@@ -174,6 +201,34 @@ class LagrangeInterp1D {
       TYPECASE(order, >=, 0, --)
 #undef TYPECASE
     }
+
+    // Compute the Lagrange derivative coefficients on a given stancil
+    void m_calc_coeff_diff_lr(
+        Real const * const xp,
+        Real const * const coeff,
+        Real * const coeff_diff
+        ) const {
+#define TYPECASE(M0, TEST, M1, OP)                                            \
+      for (int i = 0; i <= order; ++i) {                                      \
+        Real fac = 0.0;                                                       \
+        for (int m = M0; m TEST M1; OP m) {                                   \
+          if (i == m) {                                                       \
+            continue;                                                         \
+          }                                                                   \
+          fac += 1.0/(m_coord - xp[m]);                                       \
+        }                                                                     \
+        coeff_diff[i] = coeff[i]*fac;                                         \
+      }
+      TYPECASE(0, <=, order, ++)
+    }
+    void m_calc_coeff_diff_rl(
+        Real const * const xp,
+        Real const * const coeff,
+        Real * const coeff_diff
+        ) const {
+      TYPECASE(order, >=, 0, --)
+#undef TYPECASE
+    }
   private:
     Real m_origin;
     Real m_delta;
@@ -199,6 +254,12 @@ class LagrangeInterp1D {
 #ifdef LOCALINTERP_SYMMETRIC
     // Interpolation coefficients for interpolation from right to left
     Real m_coeff_rl[order+1];
+#endif
+    // Interpolation coefficients for derivative from left to right
+    Real m_coeff_diff_lr[order+1];
+#ifdef LOCALINTERP_SYMMETRIC
+    // Interpolation coefficients for derivative from right to left
+    Real m_coeff_diff_rl[order+1];
 #endif
   public:
     //! Index of the first point of the interpolation stencil
@@ -254,19 +315,26 @@ class LagrangeInterpND {
       }
     }
 
-    template<typename T>
+    // Evaluate interpolation
+    // der is the derivative direction (-1 for no derivative)
+    template<typename T, int der=-1>
     T eval(
         //! [in] Grid function to interpolate
         T const * const gf
         ) const {
       T vals[ndim][order+2];
       int pos[ndim];
-      m_fill_stencil<T, ndim-1>(gf, pos, vals);
-      return mp_interp[ndim-1]->eval(vals[ndim-1], 1);
+      m_fill_stencil<T, ndim-1, der>(gf, pos, vals);
+      if (ndim - 1 == der) {
+        return mp_interp[ndim-1]->eval_diff(vals[ndim-1], 1);
+      }
+      else {
+        return mp_interp[ndim-1]->eval(vals[ndim-1], 1);
+      }
     }
   private:
     // Recursively fill the stencil used for the interpolation
-    template<typename T, int D>
+    template<typename T, int D, int der>
     void m_fill_stencil(
         T const * const gf,
         int pos[ndim],
@@ -284,8 +352,13 @@ class LagrangeInterpND {
       }
       else {
         for(pos[D] = 0; pos[D] < mp_interp[D]->npoint; ++pos[D]) {
-          m_fill_stencil<T, NextStencil<ndim, D>::value>(gf, pos, vals);
-          vals[D][pos[D]] = mp_interp[D-1]->eval(vals[D-1], 1);
+          m_fill_stencil<T, NextStencil<ndim, D>::value, der>(gf, pos, vals);
+          if (D == der) {
+            vals[D][pos[D]] = mp_interp[D-1]->eval_diff(vals[D-1], 1);
+          }
+          else {
+            vals[D][pos[D]] = mp_interp[D-1]->eval(vals[D-1], 1);
+          }
         }
       }
     }

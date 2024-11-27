@@ -1097,6 +1097,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 1> Cbeta_d;
   utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 0> Calpha;
 
+  utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM22, NDIM, 4> Cgamma_der2_dddd;
   utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, NDIM, 3> Cgamma_der_ddd;
   utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 2> Cbeta_der_du;
   utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 2> Cbeta_der_dd;
@@ -1108,6 +1109,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 0> Calpha_dot_d;
 
   utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, NDIM, 2> dr_Cgamma_dd; // Radial drvts of Cartesian comp.
+  utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, NDIM, 2> dr2_Cgamma_dd; // 2nd Radial drvts of Cartesian comp.
   utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 1> dr_Cbeta_u;
   utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 1> dr_Cbeta_d;  
   
@@ -1119,6 +1121,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   Calpha.NewTensorPointwise();
   
   Cgamma_der_ddd.NewTensorPointwise();
+  Cgamma_der2_dddd.NewTensorPointwise();
   Cbeta_der_du.NewTensorPointwise();
   Cbeta_der_dd.NewTensorPointwise();
   Calpha_der_d.NewTensorPointwise(); 
@@ -1129,6 +1132,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   Calpha_dot_d.NewTensorPointwise(); 
 
   dr_Cgamma_dd.NewTensorPointwise();
+  dr2_Cgamma_dd.NewTensorPointwise();
   dr_Cbeta_u.NewTensorPointwise();
   dr_Cbeta_d.NewTensorPointwise();
 
@@ -1230,16 +1234,29 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
       // NB g_ddd(c,a,b) means d/dx^c g_{ab}
       for(int a = 0; a < NDIM; ++a)
 	for(int b = a; b < NDIM; ++b)
-	  for(int c = 0; c < NDIM; ++c) {
-	    int bitant_z_fac = 1;
-	    if (bitant_sym) {
-	      if (a == 2) bitant_z_fac *= -1;
-	      if (b == 2) bitant_z_fac *= -1;
-	      if (c == 2) bitant_z_fac *= -1;
-	    }
-	    Cgamma_der_ddd(c,a,b) = pinterp3->eval(&(adm_dg_ddd(c,a,b,0,0,0)))*bitant_z_fac;
-	    //TODO get 2nd drvts from interp	    
-	  }
+	  for(int c = 0; c < NDIM; ++c) 
+	    for(int d = c; d < NDIM; ++d) {
+	      int bitant_z_fac = 1;
+	      if (bitant_sym) {
+	        if (a == 2) bitant_z_fac *= -1;
+	        if (b == 2) bitant_z_fac *= -1;
+	        if (c == 2) bitant_z_fac *= -1;
+	      }
+	      Cgamma_der_ddd(c,a,b) = pinterp3->eval(&(adm_dg_ddd(c,a,b,0,0,0)))*bitant_z_fac;
+	      if ((bitant_sym) && (d == 2)) bitant_z_fac *= -1;
+              if (d == 0) {
+                Cgamma_der2_dddd(d,c,a,b) = pinterp3->eval<Real, 0>(&(adm_dg_ddd(c,a,b,0,0,0)))*bitant_z_fac;	     
+              }
+              if (d == 1) {
+                Cgamma_der2_dddd(d,c,a,b) = pinterp3->eval<Real, 1>(&(adm_dg_ddd(c,a,b,0,0,0)))*bitant_z_fac;
+	      }
+              if (d == 2) {
+                Cgamma_der2_dddd(d,c,a,b) = pinterp3->eval<Real, 2>(&(adm_dg_ddd(c,a,b,0,0,0)))*bitant_z_fac;
+	      }
+              if (!std::isfinite(Cgamma_der2_dddd(d,c,a,b)) || Cgamma_der2_dddd(d,c,a,b) > 10) 
+                 printf("Cgamma_der2(d,c,a,b): d = %d, c = %d, a = %d, b = %d, i = %d, j = %d, value = %.8e \n", d, c, a, b, i, j, Cgamma_der2_dddd(d,c,a,b));
+            }
+      
       
       // shift (up) spatial drvts
       for(int a = 0; a < NDIM; ++a) 
@@ -1257,7 +1274,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
       for(int a = 0; a < NDIM; ++a) {
         int bitant_z_fac = 1;
         if ((bitant_sym) && (a == 2)) bitant_z_fac *= -1;
-	Calpha_der_d(a) = pinterp3->eval(&(adm_dalpha_d(a,0,0,0)));
+	Calpha_der_d(a) = pinterp3->eval(&(adm_dalpha_d(a,0,0,0)))*bitant_z_fac;
 	//TODO get 2nd drvts from interp
       }
       
@@ -1334,12 +1351,15 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
       for (int a = 0; a < NDIM; ++a) 
 	for (int b = 0; b < NDIM; ++b) {
 	  dr_Cgamma_dd(a,b) = 0.0;
-	  for (int c = 0; c < NDIM; ++c)
+	  dr2_Cgamma_dd(a,b) = 0.0;
+	  for (int c = 0; c < NDIM; ++c) {
 	    dr_Cgamma_dd(a,b) += n[c] * Cgamma_der_ddd(c,a,b);
+            for (int d = 0; d < NDIM; ++d){
+	      dr2_Cgamma_dd(a,b) += n[d] * n[c] * Cgamma_der2_dddd(d,c,a,b);
+              //if (!std::isfinite(dr2_Cgamma_dd(a,b))) printf("dr2_Cgamma(d,c,a,b): d = %d, c = %d, a = %d, b = %d, i = %d, j = %d, value = %.8e \n", d, c, a, b, i, j, dr2_Cgamma_dd(a,b));
+            }
+          }
         }
-      //printf("dr_gamma_xx = %.12e, dr_gamma_yy = %.12e, dr_gamma_zz = %.12e \n", dr_gamma_dd(0,0), dr_gamma_dd(1,1), dr_gamma_dd(2,2));
-      //printf("dr_gamma_xy = %.12e, dr_gamma_xz = %.12e, dr_gamma_yz = %.12e \n", dr_gamma_dd(0,1), dr_gamma_dd(0,2), dr_gamma_dd(1,2));
-
 
       // Radial drvts of beta^i 
       for (int a = 0; a < NDIM; ++a) {
@@ -1557,7 +1577,51 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 							       - sinth * dr_Cbeta_u(0) );
 
       // TODO Trasform 2nd drvts
-            
+      // Spherical components of radial drvts of gamma_{ij}
+      //FIXME: code the following cleanly (with appropriate Jacobians)
+      dr2_gamma_dd(0,0, i,j) =
+	sinth2 * ( cosph2 * dr2_Cgamma_dd(0,0)
+		   + sinph2 * dr2_Cgamma_dd(1,1) )
+	+ costh2 * dr2_Cgamma_dd(2,2)
+	+ 2.0 * sinth * ( sinth * cosph * sinph * dr2_Cgamma_dd(0,1)
+			  + costh * cosph * dr2_Cgamma_dd(0,2)
+			  + costh * sinph * dr2_Cgamma_dd(1,2) );
+      
+      dr2_gamma_dd(0,1, i,j) = 2.0 * div_r * (dr_gamma_dd(0,1, i,j) - div_r * gamma_dd(0,1, i,j))
+	+ r * ( sinth * cosph2 * costh * dr2_Cgamma_dd(0,0)
+		+ 2.0 * sinth * costh * sinph * cosph * dr2_Cgamma_dd(0,1)
+		+ cosph * (costh2-sinth2) * dr2_Cgamma_dd(0,2)
+		+ sinth * sinph2 * costh * dr2_Cgamma_dd(1,1)
+		+ sinph * (costh2-sinth2) * dr2_Cgamma_dd(1,2)
+		- costh * sinth * dr2_Cgamma_dd(2,2) );
+      
+      dr2_gamma_dd(0,2, i,j) = 2.0 * div_r * (dr_gamma_dd(0,2, i,j) - div_r * gamma_dd(0,2, i,j))
+	+ r * sinth * ( - sinth * sinph * cosph * dr2_Cgamma_dd(0,0)
+			- sinth * (sinph2-cosph2) * dr2_Cgamma_dd(0,1) 
+			- sinph * costh * dr2_Cgamma_dd(0,2) 
+			+ sinth * sinph * cosph * dr2_Cgamma_dd(1,1)
+			+ costh * cosph * dr2_Cgamma_dd(1,2) );
+      
+      dr2_gamma_dd(1,1, i,j) = 2.0*div_r * (2.0*dr_gamma_dd(1,1, i,j) - 3.0*div_r*gamma_dd(1,1, i,j))
+	+ r2 * ( costh2 * ( cosph2 * dr2_Cgamma_dd(0,0)
+			    + sinph2 * dr2_Cgamma_dd(1,1) )
+		 + sinth2 * dr2_Cgamma_dd(2,2)
+		 + 2.0 * costh * ( costh * sinph * cosph * dr2_Cgamma_dd(0,1)
+				 - sinth * cosph * dr2_Cgamma_dd(0,2)
+				 - sinth * sinph * dr2_Cgamma_dd(1,2) ) );
+      
+      dr2_gamma_dd(1,2, i,j) = 2.0*div_r * (2.0*dr_gamma_dd(1,2, i,j) - 3.0*div_r*gamma_dd(1,2, i,j))
+	+ r2 * sinth * ( - cosph * sinph * costh * dr2_Cgamma_dd(0,0)
+			 - costh * (sinph2-cosph2) * dr2_Cgamma_dd(0,1)
+			 + sinth * sinph * dr2_Cgamma_dd(0,2)
+			 + cosph * sinph * costh * dr2_Cgamma_dd(1,1)
+			 - sinth * cosph * dr2_Cgamma_dd(1,2) );
+      
+      dr2_gamma_dd(2,2, i,j) = 2.0*div_r * (2.0*dr_gamma_dd(2,2, i,j) - 3.0*div_r*gamma_dd(2,2, i,j))
+	+ r2 * sinth2 * ( sinph2 * dr2_Cgamma_dd(0,0)
+			  - 2.0 * cosph * sinph * dr2_Cgamma_dd(0,1)
+			  + cosph2 * dr2_Cgamma_dd(1,1) );
+      
     } // phi loop
   } // theta loop
   
@@ -1583,6 +1647,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   Calpha.DeleteTensorPointwise();
   
   Cgamma_der_ddd.DeleteTensorPointwise();
+  Cgamma_der2_dddd.DeleteTensorPointwise();
   Cbeta_der_du.DeleteTensorPointwise();
   Cbeta_der_dd.DeleteTensorPointwise();
   Calpha_der_d.DeleteTensorPointwise(); 
@@ -1593,6 +1658,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   Calpha_dot_d.DeleteTensorPointwise(); 
 
   dr_Cgamma_dd.DeleteTensorPointwise();
+  dr2_Cgamma_dd.DeleteTensorPointwise();
   dr_Cbeta_u.DeleteTensorPointwise();
   dr_Cbeta_d.DeleteTensorPointwise();
   
@@ -1605,7 +1671,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 //        reduce also ADM integrals.
 void WaveExtractRWZ::BackgroundReduce() {
   
-  dr2_gamma_dd.ZeroClear(); // TODO Not yet implemented
+  //dr2_gamma_dd.ZeroClear(); // TODO Not yet implemented
 
   // Zeros the integrals
   for (int i=0; i<NVBackground; i++) 
@@ -1896,8 +1962,8 @@ void WaveExtractRWZ::BackgroundReduce() {
     dri_drsch = 1.0/drsch_dri;
     //printf("R = %.6f, r = %.6f, dr/dR = %.6f dR/dr = %.6f \n", Radius, rsch, drsch_dri, dri_drsch);
     
-    //d2rsch_dri2 = - div_rsch * ( SQR(drsch_dri) + d2rsch_dri2 );
-    d2rsch_dri2 = 0.5*SQR(1.359930452923210)/std::pow(Radius,3);
+    d2rsch_dri2 = - div_rsch * ( SQR(drsch_dri) + d2rsch_dri2 );
+    //d2rsch_dri2 = 0.5*SQR(1.359930452923210)/std::pow(Radius,3);
     d2ri_drsch2 = - std::pow(dri_drsch,3)*d2rsch_dri2;
 
     drsch_dri_dot = div_rsch * ( - dot_rsch * drsch_dri + drsch_dri_dot );
@@ -1999,11 +2065,11 @@ void WaveExtractRWZ::BackgroundReduce() {
   g_dr_dd(1,1) = dr_grr;
 
   const Real Msch = Schwarzschild_mass;
-  //printf("Exrtaction radius = %.1f, Schwarzschild Mass = %.15f \n", Radius, Msch);
+  printf("Exrtaction radius = %.1f, Schwarzschild Mass = %.15f \n", Radius, Msch);
   //printf("dr/dR = %.15f, Analytical = %.15f \n", drsch_dri, (1.0+0.5*Msch/Radius)*(1.0-0.5*Msch/Radius));
-  //printf("d2r/dR2 = %.15f, Analytical = %.15f \n", d2rsch_dri2, 0.5*SQR(Msch)/std::pow(Radius,3));
+  printf("d2r/dR2 = %.15f, Analytical = %.15f \n", d2rsch_dri2, 0.5*SQR(Msch)/std::pow(Radius,3));
   //printf("Iso dR_gRR = %.15f, Analytical = %.15f \n", dR_gRR, (-2.0*Msch/SQR(Radius))*std::pow(1.0+0.5*Msch/Radius, 3));
-  //printf("dr_grr = %.15f, Analytical = %.15f \n", dr_grr, (-2.0*Msch/SQR(rsch))*std::pow(1.0-2.0*Msch/rsch, -2));
+  printf("dr_grr = %.15f, Analytical = %.15f \n", dr_grr, (-2.0*Msch/SQR(rsch))*std::pow(1.0-2.0*Msch/rsch, -2));
 
   g_dot_dd(0,0) = dot_g00; 
   g_dot_dd(0,1) = dot_g0r;
