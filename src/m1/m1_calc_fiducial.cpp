@@ -79,7 +79,6 @@ void M1::CalcFiducialVelocity()
   // Fiducial velocity does not necessarily coincide with hydro, recompute
   // Lorentz factor.
 
-
   M1_GLOOP3(k,j,i)
   {
     const Real norm2_util = InnerProductVecMetric(
@@ -89,40 +88,23 @@ void M1::CalcFiducialVelocity()
     fidu.sc_W(k,j,i) = std::sqrt(1. + norm2_util);
   }
 
-  /*
-  // Lorentz factor (if fid not fluid derived)
-  if (opt.fiducial_velocity == opt_fiducial_velocity::fluid)
-  {
-    M1_GLOOP3(k,j,i)
-    {
-      fidu.sc_W(k,j,i) = hydro.sc_W(k,j,i);
-    }
-  }
-  else
-  {
-    M1_GLOOP2(k,j)
-    {
-      for (int i=mbi.il; i<=mbi.iu; ++i)
-      {
-        const Real norm2_util = InnerProductVecMetric(
-          fidu.sp_v_u, geom.sp_g_dd,
-          k,j,i
-        );
-        fidu.sc_W(k,j,i) = std::sqrt(1. + norm2_util);
-      }
-    }
-  }
-  */
 
   // rescale fluid velocity
+  // If v is spatial then:
+  // v^a = (0, 1 / W u_til^i + 1 / alpha * beta^i)
   M1_GLOOP3(k,j,i)
   {
-    Real const oo_W = 1.0 / fidu.sc_W(k,j,i);
+    Real const oo_W     = OO(fidu.sc_W(k,j,i));
+    Real const oo_alpha = OO(geom.sc_alpha(k,j,i));
+
     for(int a=0; a<N; ++a)
     {
-      fidu.sp_v_u(a,k,j,i) = oo_W * fidu.sp_v_u(a,k,j,i);
+      fidu.sp_v_u(a,k,j,i) = (
+        oo_W * fidu.sp_v_u(a,k,j,i) + oo_alpha * geom.sp_beta_u(a,k,j,i)
+      );
     }
   }
+
 
   // map to form
   fidu.sp_v_d.ZeroClear();

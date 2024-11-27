@@ -231,6 +231,7 @@ public:
     } solvers;
 
     bool solver_reduce_to_common;
+    bool solver_explicit_nG;
 
     Real eps_tol;
     Real w_opt_ini;

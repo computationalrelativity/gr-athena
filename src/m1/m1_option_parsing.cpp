@@ -184,6 +184,11 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
       "solver_reduce_to_common",
       false);
 
+    opt_solver.solver_explicit_nG = pin->GetOrAddBoolean(
+      "M1_solver",
+      "solver_explicit_nG",
+      false);
+
   }
 
   opt_solver.eps_tol     = GoA_Real("eps_tol",     1e-10);

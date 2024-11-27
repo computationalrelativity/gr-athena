@@ -133,20 +133,20 @@ inline void SemiImplicitHybridsIntegration(
                       CL,
                       k, j, i);
 
-  // Evolve (sc_nG, ) -> (sc_nG*, ) with semi-implicit
-  // Prepares also (sc_n*, ) and S
-  SolveImplicitNeutrinoCurrent(pm1_, dt, C, P, I, S, k, j, i);
+  if (!pm1_.opt_solver.solver_explicit_nG)
+  {
+    // Evolve (sc_nG, ) -> (sc_nG*, ) with semi-implicit
+    // Prepares also (sc_n*, ) and S
+    SolveImplicitNeutrinoCurrent(pm1_, dt, C, P, I, S, k, j, i);
+  }
+  else
+  {
+    PrepareMatterSource_nG(pm1_, P, S, k, j, i);
+    StepExplicit_nG(pm1_, dt, C, P, I, S, k, j, i);
 
-  /*
-  // DEBUG WITH EXPLICIT NEUTRINO CURRENT
-  // Evolve (sc_nG, ) -> (sc_nG*, ): sources use (sc_E, sp_F_d)
-  // This needs to use P as C.n is unavailable
-  PrepareMatterSource_nG(pm1_, P, S, k, j, i);
-  StepExplicit_nG(pm1_, dt, C, P, I, S, k, j, i);
-
-  // We now have nG*, it is useful to immediately construct n*
-  Prepare_n_from_nG(pm1_, C, k, j, i);
-  */
+    // We now have nG*, it is useful to immediately construct n*
+    Prepare_n_from_nG(pm1_, C, k, j, i);
+  }
 }
 
 inline void SemiImplicitHybridsJIntegration(
@@ -175,9 +175,20 @@ inline void SemiImplicitHybridsJIntegration(
                        CL,
                        k, j, i);
 
-  // Evolve (sc_nG, ) -> (sc_nG*, ) with semi-implicit
-  // Prepares also (sc_n*, ) and S
-  SolveImplicitNeutrinoCurrent(pm1_, dt, C, P, I, S, k, j, i);
+  if (!pm1_.opt_solver.solver_explicit_nG)
+  {
+    // Evolve (sc_nG, ) -> (sc_nG*, ) with semi-implicit
+    // Prepares also (sc_n*, ) and S
+    SolveImplicitNeutrinoCurrent(pm1_, dt, C, P, I, S, k, j, i);
+  }
+  else
+  {
+    PrepareMatterSource_nG(pm1_, P, S, k, j, i);
+    StepExplicit_nG(pm1_, dt, C, P, I, S, k, j, i);
+
+    // We now have nG*, it is useful to immediately construct n*
+    Prepare_n_from_nG(pm1_, C, k, j, i);
+  }
 }
 
 // ----------------------------------------------------------------------------

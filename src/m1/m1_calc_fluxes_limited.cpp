@@ -267,7 +267,7 @@ void ReconstructLimitedFluxX1(M1 * pm1,
       );
 
       const Real th = std::max(hyb_fac, pm1->opt.min_flux_Theta);
-      Flux(k,j,i) = F_HO -  th * (F_HO - F_LO);
+      Flux(k,j,i) = F_HO - th * (F_HO - F_LO);
     }
   }
 }

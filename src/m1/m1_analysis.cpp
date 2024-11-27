@@ -80,6 +80,7 @@ void CalcNeutrinoDiagnostics(MeshBlock *pmb)
         Y[n] = ps->r(n,k,j,i);
       }
 
+      // BD: this is energy density, not tot?
       Real E_tot = peos->GetEOS().GetEnergy(sc_w_rho(k,j,i) / mb,
                                             ph->temperature(k,j,i),
                                             Y);
@@ -95,7 +96,7 @@ void CalcNeutrinoDiagnostics(MeshBlock *pmb)
 
       M1_ILOOP3(k, j, i)
       {
-        sc_z(k,j,i) = sc_z(k,j,i) / sc_z_sum(k,j,i);
+        sc_z(k,j,i) = sc_z(k,j,i); // / sc_z_sum(k,j,i);
       }
     }
 
