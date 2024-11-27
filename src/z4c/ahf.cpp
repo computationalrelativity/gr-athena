@@ -886,8 +886,9 @@ void AHF::SurfaceIntegrals()
       if (!(std::isfinite(H))) {
 	if (verbose && ioproc) {
 	  fprintf(pofile_verbose,"H not finite at i=%d j=%d (norm=%.3e)\n\
-		  divu=%.3e, d2F=%.3e, dFdadFdbKab=%.3e, dFdadFdbFdadb=%.3e,TrK=%.3e\n",i,j,norm,
-		  divu, d2F, dFdadFdbKab, dFdadFdbFdadb, TrK);
+		  divu=%.3e d2F=%.3e dFdadFdbKab=%.3e dFdadFdbFdadb=%.3e TrK=%.3e detg=%.3e\n",
+		  i,j,norm,
+		  divu, d2F, dFdadFdbKab, dFdadFdbFdadb, TrK, detg);
 	}
       }
 #endif
@@ -1442,12 +1443,12 @@ void AHF::RadiiFromSphericalHarmonics()
 // \!fn void AHF::InitialGuess()
 // \brief initial guess for spectral coefs of horizon n
 void AHF::InitialGuess()
-{
+{  
   // Reset Coefficients to Zero
   a0.ZeroClear();
   ac.ZeroClear();
   as.ZeroClear();
-
+  
   if (use_puncture>=0) {
     // Update the center to the puncture position
     center[0] = pmesh->pz4c_tracker[use_puncture]->GetPos(0);
