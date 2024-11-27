@@ -708,22 +708,13 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
     }
   }
 
-// BD: TODO - CCE needs to be cleaned up & tested
 #if CCE_ENABLED
-  // only do a CCE dump if NextTime threshold cleared (updated below)
-  bool debug_pr = true;
   for (auto cce : pmesh->pcce)
   {
     if (pmesh->ncycle % cce->freq != 0) continue;
     
     int cce_iter = pmesh->ncycle / cce->freq;
 
-    if (Globals::my_rank == 0 && debug_pr == true)
-    {
-      printf("cce_iter = %d, cce_freq = %d, pmesh->ncycle = %d, pmesh->time = %0.15f\n",
-              cce_iter, cce->freq, pmesh->ncycle, pmesh->time);
-    }
-    debug_pr = false;
     cce->ReduceInterpolation();
     cce->DecomposeAndWrite(cce_iter, time_end_stage);
   }

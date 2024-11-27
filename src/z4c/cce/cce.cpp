@@ -66,10 +66,7 @@ CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int rn):
     rn(rn),
     count_interp_pnts(0)
 {
-  // assume the same as Weyl
   freq = pin->GetReal("task_triggers","dt_Z4c_CCE_dump_freq");
-  //freq = static_cast<int>((float)dt/(float)pm->dt);
-  //std::cout << pm->dt << " dt = " << dt << std::endl;
   assert(freq != 0);
   
   bitant     = pin->GetOrAddBoolean("mesh", "bitant", false);
