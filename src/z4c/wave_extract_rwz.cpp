@@ -1099,6 +1099,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 
   utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM22, NDIM, 4> Cgamma_der2_dddd;
   utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, NDIM, 3> Cgamma_der_ddd;
+  utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, NDIM, 3> interp_Cgamma_der_ddd;
   utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 2> Cbeta_der_du;
   utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 2> Cbeta_der_dd;
   utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 1> Calpha_der_d;
@@ -1121,6 +1122,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   Calpha.NewTensorPointwise();
   
   Cgamma_der_ddd.NewTensorPointwise();
+  interp_Cgamma_der_ddd.NewTensorPointwise();
   Cgamma_der2_dddd.NewTensorPointwise();
   Cbeta_der_du.NewTensorPointwise();
   Cbeta_der_dd.NewTensorPointwise();
@@ -1253,11 +1255,35 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
               if (d == 2) {
                 Cgamma_der2_dddd(d,c,a,b) = pinterp3->eval<Real, 2>(&(adm_dg_ddd(c,a,b,0,0,0)))*bitant_z_fac;
 	      }
-              if (!std::isfinite(Cgamma_der2_dddd(d,c,a,b)) || Cgamma_der2_dddd(d,c,a,b) > 10) 
-                 printf("Cgamma_der2(d,c,a,b): d = %d, c = %d, a = %d, b = %d, i = %d, j = %d, value = %.8e \n", d, c, a, b, i, j, Cgamma_der2_dddd(d,c,a,b));
+              //if (!std::isfinite(Cgamma_der2_dddd(d,c,a,b)) || Cgamma_der2_dddd(d,c,a,b) > 10) 
+                 //printf("Cgamma_der2(d,c,a,b): d = %d, c = %d, a = %d, b = %d, i = %d, j = %d, value = %.8e \n", d, c, a, b, i, j, Cgamma_der2_dddd(d,c,a,b));
             }
       
-      
+      for(int a = 0; a < NDIM; ++a)
+	for(int b = a; b < NDIM; ++b)
+	  for(int c = 0; c < NDIM; ++c){ 
+	    int bitant_z_fac = 1;
+	    if (bitant_sym) {
+	      if (a == 2) bitant_z_fac *= -1;
+	      if (b == 2) bitant_z_fac *= -1;
+	    }
+	    if ((bitant_sym) && (c == 2)) bitant_z_fac *= -1;
+            if (c == 0) {
+              interp_Cgamma_der_ddd(c,a,b) = pinterp3->eval<Real, 0>(&(adm_g_dd(c,a,b,0,0,0)))*bitant_z_fac;	     
+            }
+            if (c == 1) {
+              interp_Cgamma_der_ddd(c,a,b) = pinterp3->eval<Real, 1>(&(adm_g_dd(c,a,b,0,0,0)))*bitant_z_fac;
+	    }
+            if (c == 2) {
+              interp_Cgamma_der_ddd(c,a,b) = pinterp3->eval<Real, 2>(&(adm_g_dd(c,a,b,0,0,0)))*bitant_z_fac;
+	    }
+            const Real diff = std::abs(interp_Cgamma_der_ddd(c,a,b) - Cgamma_der_ddd(c,a,b)); 
+            if (!std::isfinite(diff) || diff > 10) 
+                 printf("Interp - Storage: c = %d, a = %d, b = %d, i = %d, j = %d, value = %.8e \n", c, a, b, i, j, diff);
+            }
+    
+
+ 
       // shift (up) spatial drvts
       for(int a = 0; a < NDIM; ++a) 
 	for(int b = 0; b < NDIM; ++b) {
@@ -1647,6 +1673,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   Calpha.DeleteTensorPointwise();
   
   Cgamma_der_ddd.DeleteTensorPointwise();
+  interp_Cgamma_der_ddd.DeleteTensorPointwise();
   Cgamma_der2_dddd.DeleteTensorPointwise();
   Cbeta_der_du.DeleteTensorPointwise();
   Cbeta_der_dd.DeleteTensorPointwise();
