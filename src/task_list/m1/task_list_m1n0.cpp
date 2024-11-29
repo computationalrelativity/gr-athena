@@ -194,10 +194,15 @@ TaskStatus M1N0::CalcOpacity(MeshBlock *pmb, int stage)
   Mesh * pm = pmb->pmy_mesh;
   ::M1::M1 * pm1 = pmb->pm1;
 
-  if (stage <= nstages)
+  // opacities are kept fixed throughout the implicit time integration
+  if (stage == 1)
   {
     Real const dt = pm->dt * dt_fac[stage - 1];
     pm1->CalcOpacity(dt, pm1->storage.u);
+    return TaskStatus::success;
+  }
+  else if (stage <= nstages)
+  {
     return TaskStatus::success;
   }
   return TaskStatus::fail;
@@ -269,7 +274,8 @@ TaskStatus M1N0::AddGRSources(MeshBlock *pmb, int stage)
 
   if (stage <= nstages)
   {
-    pm1->AddSourceGR(pm1->storage.u, pm1->storage.u_rhs);
+    const bool clear_u_inh = true;
+    pm1->AddSourceGR(pm1->storage.u, pm1->storage.u_rhs, clear_u_inh);
     return TaskStatus::success;
   }
   return TaskStatus::fail;
@@ -293,6 +299,7 @@ TaskStatus M1N0::CalcUpdate(MeshBlock *pmb, int stage)
 
     return TaskStatus::next;
   }
+
   return TaskStatus::fail;
 }
 
