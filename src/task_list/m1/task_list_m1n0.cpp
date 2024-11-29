@@ -274,8 +274,7 @@ TaskStatus M1N0::AddGRSources(MeshBlock *pmb, int stage)
 
   if (stage <= nstages)
   {
-    const bool clear_u_inh = true;
-    pm1->AddSourceGR(pm1->storage.u, pm1->storage.u_rhs, clear_u_inh);
+    pm1->AddSourceGR(pm1->storage.u, pm1->storage.u_rhs);
     return TaskStatus::success;
   }
   return TaskStatus::fail;

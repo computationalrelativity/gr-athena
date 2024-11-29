@@ -13,7 +13,7 @@ namespace M1 {
 
 // ----------------------------------------------------------------------------
 // Calculate geometric source contribution based on u, add to u_inh
-void M1::AddSourceGR(AthenaArray<Real> & u, AthenaArray<Real> & u_inh)
+void M1::AddSourceGR(AA & u, AA & u_inh)
 {
   using namespace Update;
 
