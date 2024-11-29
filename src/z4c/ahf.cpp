@@ -48,9 +48,8 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   std::string parname;
   std::string n_str = std::to_string(nh);
 
-  ntheta = pin->GetOrAddInteger("ahf", "ntheta",60);
-
-  nphi = pin->GetOrAddInteger("ahf", "nphi",30);
+  ntheta = pin->GetOrAddInteger("ahf","ntheta",5);
+  nphi = pin->GetOrAddInteger("ahf","nphi",10);
   if ((nphi+1)%2==0) {
     std::stringstream msg;
     msg << "### FATAL ERROR in AHF setup" << std::endl
@@ -58,7 +57,7 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
     ATHENA_ERROR(msg);
   }
 
-  lmax = pin->GetOrAddInteger("ahf", "lmax",10);
+  lmax = pin->GetOrAddInteger("ahf", "lmax",4);
   lmax1 = lmax+1;
 
   parname = "flow_iterations_";
@@ -139,7 +138,7 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   wait_until_punc_are_close = pin->GetOrAddBoolean("ahf", parname, 0);
 
   // Grid and quadrature weights
-  std::string quadrature = pin->GetOrAddString("ahf","quadrature","sums");
+  std::string quadrature = pin->GetOrAddString("ahf","quadrature","gausslegendre");
   SetGridWeights(quadrature);
   
   // Initialize last & found
@@ -715,11 +714,17 @@ void AHF::SurfaceIntegrals()
       Real const rhop = std::sqrt(xp*xp + yp*yp);
 
       if (rp < min_rp) {
+#if(0)	
         std::stringstream msg;
         msg << "### FATAL ERROR in AHF" << std::endl
         << "surface radius cannot be zero (rp=" << rp
         << " < min_rp" << min_rp << ")"  << std::endl;
         ATHENA_ERROR(msg);
+#else
+	// Do not stop the code, just AHF failing
+	// break the loop and catch the nans in AHF later.
+	break;
+#endif
       }
 
       Real const _divrp = 1.0/rp;
