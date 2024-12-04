@@ -35,6 +35,7 @@
 #include "../parameter_input.hpp"          // ParameterInput
 #include "../utils/linear_algebra.hpp"
 #include "../utils/spherical_harmonics.hpp"
+#include "../utils/lagrange_interp.hpp"
 #include "../scalars/scalars.hpp"
 #if M1_ENABLED
 #include "../m1/m1.hpp"
@@ -132,6 +133,75 @@ inline bool Lorentz4Boost(
 
 }
 
+void test_interp() {
+  printf("\n");
+  printf("Testing Interpolator... \n");
+  
+  const int metric_interp_order = 7;
+  const int ndim = 3;
+  const int Nxyz = 100; 
+  const Real dxyz  = 2.0/(Nxyz-1); 
+
+  Real origin[ndim] = {-1.0, -1.0, -1.0};
+  int size[ndim] = {Nxyz, Nxyz, Nxyz};
+  Real delta[ndim] = {dxyz, dxyz, dxyz};
+  Real coord[ndim] = {0.2, -0.1, 0.7};
+
+  LagrangeInterpND<metric_interp_order, 3> * pinterp3 = nullptr;
+  LagrangeInterpND<metric_interp_order, 1> * pinterp1 = nullptr;
+  LagrangeInterpND<metric_interp_order, 2> * pinterp2 = nullptr;
+  
+  Real* func = new Real[Nxyz * Nxyz * Nxyz];
+  Real* func1 = new Real[Nxyz];
+  Real* func2 = new Real[Nxyz*Nxyz];
+
+  pinterp3 = new LagrangeInterpND<metric_interp_order, 3>(origin, delta, size, coord);
+  pinterp1 = new LagrangeInterpND<metric_interp_order, 1>(origin, delta, size, coord);
+  pinterp2 = new LagrangeInterpND<metric_interp_order, 2>(origin, delta, size, coord);
+
+  for (int i=0; i<Nxyz; i++){
+    const Real x = origin[0] + i*delta[0]; 
+    func1[i] = 1.0/x; 
+    for (int j=0; j<Nxyz; j++){
+      int ij = i + Nxyz*j;
+      const Real y = origin[1] + j*delta[1]; 
+      func2[ij] = 1.0/sqrt(x*x + y*y); 
+      for (int k=0; k<Nxyz; k++){
+        int ijk = i + Nxyz*j + Nxyz*Nxyz*k;
+        const Real z = origin[2] + k*delta[2]; 
+        func[ijk] = 1.0/sqrt(x*x + y*y + z*z);   
+      }
+    }
+  }
+
+  Real f = pinterp3->eval(func);
+  Real dx_f = pinterp3->eval<Real, 0>(func);
+  Real dy_f = pinterp3->eval<Real, 1>(func);
+  Real dz_f = pinterp3->eval<Real, 2>(func);
+  printf("f = %.8e, dx_f = %.8e, dy_f = %.8e, dz_f = %.8e \n", f, dx_f, dy_f, dz_f);
+  printf("\n");
+  
+  Real f1 = pinterp1->eval(func1);
+  Real dx_f1 = pinterp1->eval<Real, 0>(func1);
+  printf("f1 = %.8e, dx_f1 = %.8e \n", f1, dx_f1);
+  printf("\n");
+
+  Real f2 = pinterp2->eval(func2);
+  Real dx_f2 = pinterp2->eval<Real, 0>(func2);
+  Real dy_f2 = pinterp2->eval<Real, 1>(func2);
+  printf("f2 = %.8e, dx_f2 = %.8e, dy_f2 = %.8e \n", f2, dx_f2, dy_f2);
+  printf("\n");
+
+  delete pinterp3;
+  delete pinterp1;
+  delete pinterp2;
+  delete[] func;
+  delete[] func1;
+  delete[] func2;
+
+}
+
+
 //----------------------------------------------------------------------------------------
 //! \fn
 // \brief  Function for initializing global mesh properties
@@ -140,6 +210,8 @@ inline bool Lorentz4Boost(
 // Outputs: (none)
 
 void Mesh::InitUserMeshData(ParameterInput *pin) {
+  //test_interp();
+
   // Read problem parameters
 
   // Central value of energy density

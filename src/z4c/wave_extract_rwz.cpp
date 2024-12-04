@@ -1269,17 +1269,17 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 	    }
 	    if ((bitant_sym) && (c == 2)) bitant_z_fac *= -1;
             if (c == 0) {
-              interp_Cgamma_der_ddd(c,a,b) = pinterp3->eval<Real, 0>(&(adm_g_dd(c,a,b,0,0,0)))*bitant_z_fac;	     
+              interp_Cgamma_der_ddd(c,a,b) = pinterp3->eval<Real, 0>(&(adm_g_dd(a,b,0,0,0)))*bitant_z_fac;	     
             }
             if (c == 1) {
-              interp_Cgamma_der_ddd(c,a,b) = pinterp3->eval<Real, 1>(&(adm_g_dd(c,a,b,0,0,0)))*bitant_z_fac;
+              interp_Cgamma_der_ddd(c,a,b) = pinterp3->eval<Real, 1>(&(adm_g_dd(a,b,0,0,0)))*bitant_z_fac;
 	    }
             if (c == 2) {
-              interp_Cgamma_der_ddd(c,a,b) = pinterp3->eval<Real, 2>(&(adm_g_dd(c,a,b,0,0,0)))*bitant_z_fac;
+              interp_Cgamma_der_ddd(c,a,b) = pinterp3->eval<Real, 2>(&(adm_g_dd(a,b,0,0,0)))*bitant_z_fac;
 	    }
             const Real diff = std::abs(interp_Cgamma_der_ddd(c,a,b) - Cgamma_der_ddd(c,a,b)); 
-            if (!std::isfinite(diff) || diff > 10) 
-                 printf("Interp - Storage: c = %d, a = %d, b = %d, i = %d, j = %d, value = %.8e \n", c, a, b, i, j, diff);
+            //if (diff > 1e-8) 
+                //printf("Interp - Storage: c = %d, a = %d, b = %d, i = %d, j = %d, value = %.8e, storage = %.8e, interp = %.8e \n", c, a, b, i, j, diff, Cgamma_der_ddd(c,b,a), interp_Cgamma_der_ddd(c,b,a));
             }
     
 
@@ -1989,7 +1989,7 @@ void WaveExtractRWZ::BackgroundReduce() {
     dri_drsch = 1.0/drsch_dri;
     //printf("R = %.6f, r = %.6f, dr/dR = %.6f dR/dr = %.6f \n", Radius, rsch, drsch_dri, dri_drsch);
     
-    d2rsch_dri2 = - div_rsch * ( SQR(drsch_dri) + d2rsch_dri2 );
+    d2rsch_dri2 = - div_rsch * ( SQR(drsch_dri) - d2rsch_dri2 );
     //d2rsch_dri2 = 0.5*SQR(1.359930452923210)/std::pow(Radius,3);
     d2ri_drsch2 = - std::pow(dri_drsch,3)*d2rsch_dri2;
 
@@ -2092,11 +2092,11 @@ void WaveExtractRWZ::BackgroundReduce() {
   g_dr_dd(1,1) = dr_grr;
 
   const Real Msch = Schwarzschild_mass;
-  printf("Exrtaction radius = %.1f, Schwarzschild Mass = %.15f \n", Radius, Msch);
+  //printf("Exrtaction radius = %.1f, Schwarzschild Mass = %.15f \n", Radius, Msch);
   //printf("dr/dR = %.15f, Analytical = %.15f \n", drsch_dri, (1.0+0.5*Msch/Radius)*(1.0-0.5*Msch/Radius));
-  printf("d2r/dR2 = %.15f, Analytical = %.15f \n", d2rsch_dri2, 0.5*SQR(Msch)/std::pow(Radius,3));
+  //printf("d2r/dR2 = %.15f, Analytical = %.15f \n", d2rsch_dri2, 0.5*SQR(Msch)/std::pow(Radius,3));
   //printf("Iso dR_gRR = %.15f, Analytical = %.15f \n", dR_gRR, (-2.0*Msch/SQR(Radius))*std::pow(1.0+0.5*Msch/Radius, 3));
-  printf("dr_grr = %.15f, Analytical = %.15f \n", dr_grr, (-2.0*Msch/SQR(rsch))*std::pow(1.0-2.0*Msch/rsch, -2));
+  //printf("dr_grr = %.15f, Analytical = %.15f \n", dr_grr, (-2.0*Msch/SQR(rsch))*std::pow(1.0-2.0*Msch/rsch, -2));
 
   g_dot_dd(0,0) = dot_g00; 
   g_dot_dd(0,1) = dot_g0r;

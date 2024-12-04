@@ -113,7 +113,7 @@ class LagrangeInterp1D {
       }
 #endif
       m_calc_coeff_lr(xp, &m_coeff_lr[0]);
-      m_calc_coeff_diff_lr(xp, &m_coeff_lr[0], &m_coeff_diff_rl[0]);
+      m_calc_coeff_diff_lr(xp, &m_coeff_lr[0], &m_coeff_diff_lr[0]);
 #ifdef LOCALINTERP_SYMMETRIC
       if(0 == order % 2 && m_mid_flag) {
         m_calc_coeff_rl(&xp[1], &m_coeff_rl[0]);
@@ -353,7 +353,7 @@ class LagrangeInterpND {
       else {
         for(pos[D] = 0; pos[D] < mp_interp[D]->npoint; ++pos[D]) {
           m_fill_stencil<T, NextStencil<ndim, D>::value, der>(gf, pos, vals);
-          if (D == der) {
+          if (D - 1 == der) {
             vals[D][pos[D]] = mp_interp[D-1]->eval_diff(vals[D-1], 1);
           }
           else {
