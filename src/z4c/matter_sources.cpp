@@ -294,8 +294,8 @@ void Z4c::GetMatter(
   }
 
 #if M1_ENABLED
-
-  if (pmb->pm1->opt.couple_sources_ADM)
+  M1::M1 * pm1 = pmb->pm1;
+  if (pm1->opt.couple_sources_ADM)
   {
 
 #ifndef Z4C_CX_ENABLED
@@ -305,11 +305,10 @@ void Z4c::GetMatter(
       std::exit(0);
     }
 #endif
-    pmb->pm1->CoupleSourcesADM(mat.rho, mat.S_d, mat.S_dd);
+    pm1->CoupleSourcesADM(mat.rho, mat.S_d, mat.S_dd);
   }
 
 #endif // M1_ENABLED
-
 
 #endif // Z4C_WITH_HYDRO_ENABLED
 }

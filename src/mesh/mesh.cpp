@@ -1690,9 +1690,12 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
       // ----------------------------------------------------------------------
 
 #if FLUID_ENABLED && Z4C_ENABLED
-      // Prepare ADM sources
-      // Requires B-field in ghost-zones
-      FinalizeZ4cADM_Matter(pmb_array);
+      if (!res_flag)
+      {
+        // Prepare ADM sources
+        // Requires B-field in ghost-zones
+        FinalizeZ4cADM_Matter(pmb_array);
+      }
 #endif
 
       if (!res_flag && adaptive)

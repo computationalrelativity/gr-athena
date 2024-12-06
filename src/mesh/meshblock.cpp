@@ -356,7 +356,7 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     // load data into register (do not advance)
     load_data(phydro->u,  false);
     // load & advance counter
-    load_data(phydro->u1, true);
+    load_data(phydro->u1);
   }
 
   if (GENERAL_RELATIVITY)
@@ -393,21 +393,12 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   if (Z4C_ENABLED)
   {
     load_data(pz4c->storage.u);
-    load_data(pz4c->storage.adm);
     load_data(pz4c->storage.mat);
   }
 
   if (M1_ENABLED)
   {
     load_data(pm1->storage.u);
-    // load_data(pm1->storage.u1);
-
-    /*
-    std::memcpy(pm1->storage.radmat.data(),
-                &(mbdata[os]),
-                pm1->storage.radmat.GetSizeInBytes());
-    os += pm1->storage.radmat.GetSizeInBytes();
-    */
   }
 
 
@@ -885,7 +876,6 @@ std::size_t MeshBlock::GetBlockSizeInBytes() {
   }
 
   if (Z4C_ENABLED) {
-    // BD: TODO: extend as new data structures added
     size+=pz4c->storage.u.GetSizeInBytes();
     size+=pz4c->storage.mat.GetSizeInBytes();
   }
@@ -893,7 +883,6 @@ std::size_t MeshBlock::GetBlockSizeInBytes() {
   if (M1_ENABLED)
   {
     size += pm1->storage.u.GetSizeInBytes();
-    size += pm1->storage.radmat.GetSizeInBytes();
   }
 
   // calculate user MeshBlock data size
