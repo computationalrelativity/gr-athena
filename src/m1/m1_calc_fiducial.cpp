@@ -64,7 +64,6 @@ void M1::CalcFiducialVelocity()
       fidu.sc_W.Fill(1.);
       fidu.sp_v_u.ZeroClear();
       fidu.sp_v_d.ZeroClear();
-      fidu.st_v_u.ZeroClear();
       return;
     }
     case opt_fiducial_velocity::none:
@@ -100,7 +99,7 @@ void M1::CalcFiducialVelocity()
     for(int a=0; a<N; ++a)
     {
       fidu.sp_v_u(a,k,j,i) = (
-        oo_W * fidu.sp_v_u(a,k,j,i) + oo_alpha * geom.sp_beta_u(a,k,j,i)
+        oo_W * fidu.sp_v_u(a,k,j,i) // + oo_alpha * geom.sp_beta_u(a,k,j,i)
       );
     }
   }
@@ -118,120 +117,87 @@ void M1::CalcFiducialVelocity()
       fidu.sp_v_d(a,k,j,i) += geom.sp_g_dd(a,b,k,j,i) * fidu.sp_v_u(b,k,j,i);
     }
   }
-
-  // space-time extension
-  fidu.st_v_u.ZeroClear();
-
-  AT_D_sym & st_g_uu_ = scratch.st_g_uu_;
-
-  M1_GLOOP2(k,j)
-  {
-    Assemble::st_g_uu_(this, st_g_uu_, k, j, 0, mbi.nn1-1);
-
-    scratch.st_vec_.ZeroClear();
-
-    for(int a=0; a<N; ++a)
-    M1_GLOOP1(i)
-    {
-      scratch.st_vec_(0,i) += fidu.sp_v_u(a,k,j,i) * geom.sp_beta_d(a,k,j,i);
-    }
-
-    for(int a=0; a<N; ++a)
-    for(int b=0; b<N; ++b)
-    M1_GLOOP1(i)
-    {
-      scratch.st_vec_(1+a,i) += geom.sp_g_dd(a,b,k,j,i) * fidu.sp_v_u(b,k,j,i);
-    }
-
-    for(int a=0; a<D; ++a)
-    for(int b=0; b<D; ++b)
-    M1_GLOOP1(i)
-    {
-      fidu.st_v_u(a,k,j,i) += st_g_uu_(a,b,i) * scratch.st_vec_(a,i);
-    }
-  }
-
 }
 
 // ----------------------------------------------------------------------------
-// Map (closed) Eulerian fields (E, F_d, P_dd) to (J, H_d)
-//
-// This isn't needed for the core algorithm but may be for data-dumping
 void M1::CalcFiducialFrame(AthenaArray<Real> & u)
 {
   vars_Lab U_n { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
   SetVarAliasesLab(u, U_n);
 
-  AT_C_sca & sc_W = fidu.sc_W;
-  AT_N_vec & sp_v_u = fidu.sp_v_u;
-  AT_N_vec & sp_v_d = fidu.sp_v_d;
+  // geometric quantities
+  const AT_C_sca & sc_alpha = geom.sc_alpha;
+  const AT_N_vec & sp_beta_u = geom.sp_beta_u;
 
-  // point to scratches
-  AT_C_sca & dotFv_ = scratch.sc_A_;
-  AT_C_sca & sc_W2_ = scratch.sc_B_;
+  // required fiducial quantities
+  AT_C_sca & sc_W   = fidu.sc_W;
+  AT_N_vec & sp_v_u = fidu.sp_v_u;
 
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
   {
     AT_C_sca & sc_E    = U_n.sc_E(  ix_g,ix_s);
     AT_N_vec & sp_F_d  = U_n.sp_F_d(ix_g,ix_s);
-    AT_N_sym & sp_P_dd = lab_aux.sp_P_dd(ix_g,ix_s);
+    AT_C_sca & sc_chi  = lab_aux.sc_chi(ix_g,ix_s);
 
     AT_C_sca & sc_nG   = U_n.sc_nG(ix_g,ix_s);
 
-    AT_C_sca & sc_H_t = rad.sc_H_t(ix_g,ix_s);
-    AT_N_vec & sp_H_d = rad.sp_H_d(ix_g,ix_s);
     AT_C_sca & sc_J   = rad.sc_J(  ix_g,ix_s);
     AT_C_sca & sc_n   = rad.sc_n(  ix_g,ix_s);
 
-    M1_GLOOP2(k,j)
+    AT_D_vec & st_H_u = rad.st_H_u(ix_g, ix_s);
+
+    M1_GLOOP3(k, j, i)
     {
-      dotFv_.ZeroClear();
+      // We write:
+      // sc_J = J_0
+      // st_H = H_n n^alpha + H_v v^alpha + H_F F^alpha
+      Real J_0, H_n, H_v, H_F;
 
-      for (int a=0; a<N; ++a)
-      M1_GLOOP1(i)
-      {
-        dotFv_(i) += sp_F_d(a,k,j,i) * sp_v_u(a,k,j,i);
-      }
+      Assemble::Frames::ToFiducialExpansionCoefficients(
+        *this,
+        J_0, H_n, H_v, H_F,
+        sc_chi, sc_E, sp_F_d,
+        k, j, i
+      );
 
-      M1_GLOOP1(i)
-      {
-        sc_W2_(i) = SQR(sc_W(k,j,i));
-      }
+      /*
+      // Ensure we do not encounter zero-division
+      J_0 = std::max(J_0, this->opt.fl_J);
 
-      // assemble J
-      M1_GLOOP1(i)
-      {
-        sc_J(k,j,i) = Assemble::sc_J__(sc_W2_(i),
-                                       dotFv_(i),
-                                       sc_E,
-                                       sp_v_u,
-                                       sp_P_dd,
-                                       pm1->opt.fl_J,
-                                       k, j, i);
-      }
+      const Real W = sc_W(k,j,i);
+      const Real oo_J_0 = OO(J_0);
 
-      // assemble (H_t, H_d)
-      M1_GLOOP1(i)
-      {
-        const Real W = sc_W(k, j, i);
-        sc_H_t(k,j,i) = Assemble::sc_H_t__(W, dotFv_(i), sc_E, sc_J, k, j, i);
-        Assemble::sp_H_d__(sp_H_d, W, sc_J, sp_F_d, sp_v_d, sp_v_u, sp_P_dd,
-                           k, j, i);
-      }
+      const Real sc_G__ = (
+        W + oo_J_0 * H_n  // note sign switch due to n proj
+      );
 
-      // assemble sc_n
-      M1_GLOOP1(i)
-      {
-        const Real Gamma = Assemble::sc_G__(
-          fidu.sc_W(k,j,i), sc_E(k,j,i), sc_J(k,j,i), dotFv_(i),
-          opt.fl_E, opt.fl_J, opt.eps_E
-        );
+      sc_J(k,j,i) = J_0;
+      sc_n(k,j,i) = sc_nG(k,j,i) / sc_G__;
+      */
 
-        sc_n(k,j,i) = sc_nG(k,j,i) / Gamma;
-      }
+
+      const Real W = sc_W(k,j,i);
+
+      const Real sc_G__ = (J_0 > 0)
+        ? (W + H_n / J_0)
+        : W;
+
+      // J_0 = std::max(J_0, this->opt.fl_J);
+
+      sc_J(k,j,i) = J_0;
+      sc_n(k,j,i) = sc_nG(k,j,i) / sc_G__;
+
+      /*
+      const Real alpha = sc_alpha(k,j,i);
+      const Real oo_alpha = OO(alpha);
+
+      st_H_u(0,k,j,i) = H_n * oo_alpha;
+      */
     }
+
   }
+
 }
 
 // ============================================================================

@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <iostream>
 #include <fstream>
+#include <limits>
 #include <sstream>
 #include <vector>
 
@@ -97,7 +98,6 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   rad{
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
-    {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS}
   },
   radmat{
@@ -176,9 +176,6 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   SetVarAliasesFidu(  storage.intern, fidu);
   SetVarAliasesNet(   storage.intern, net);
 
-  m1_mask.InitWithShallowSlice(storage.intern, ixn_Internal::mask);
-  m1_mask.Fill(true);
-
   // storage for misc. quantities ---------------------------------------------
   if (opt_solver.src_lim >= 0)
   {
@@ -192,6 +189,10 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   ev_strat.masks.source_treatment.NewAthenaArray(
     N_GRPS, N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1);
   ev_strat.masks.source_treatment.Fill(t_src_t::noop);
+
+  ev_strat.masks.excised.NewAthenaArray(
+    N_GRPS, N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1);
+  ev_strat.masks.excised.Fill(false);
 
   // --------------------------------------------------------------------------
   // general setup
@@ -207,13 +208,12 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     }
   }
 
-
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
   {
     lab.sc_E(ix_g,ix_s).Fill(opt.fl_E);
     lab.sp_F_d(ix_g,ix_s).Fill(0);
-    lab_aux.sp_P_dd(ix_g,ix_s).Fill(0);
+    lab_aux.sp_P_dd(ix_g,ix_s).Fill(std::numeric_limits<Real>::infinity());
   }
   */
 
@@ -301,10 +301,9 @@ void M1::SetVarAliasesRad(AthenaArray<Real> & u, vars_Rad & rad)
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
   {
-    SetVarAlias(rad.sc_n,   u, ix_g, ix_s, ixn_Rad::n,   ixn_Rad::N);
-    SetVarAlias(rad.sc_J,   u, ix_g, ix_s, ixn_Rad::J,   ixn_Rad::N);
-    SetVarAlias(rad.sc_H_t, u, ix_g, ix_s, ixn_Rad::H_t, ixn_Rad::N);
-    SetVarAlias(rad.sp_H_d, u, ix_g, ix_s, ixn_Rad::H_x, ixn_Rad::N);
+    SetVarAlias(rad.sc_n,     u, ix_g, ix_s, ixn_Rad::n,     ixn_Rad::N);
+    SetVarAlias(rad.sc_J,     u, ix_g, ix_s, ixn_Rad::J,     ixn_Rad::N);
+    SetVarAlias(rad.st_H_u,   u, ix_g, ix_s, ixn_Rad::st_H_u_t, ixn_Rad::N);
   }
 }
 
@@ -351,7 +350,6 @@ void M1::SetVarAliasesFidu(AthenaArray<Real> & u, vars_Fidu & fidu)
 {
   fidu.sp_v_u.InitWithShallowSlice(u, ixn_Internal::fidu_v_u_x);
   fidu.sp_v_d.InitWithShallowSlice(u, ixn_Internal::fidu_v_d_x);
-  fidu.st_v_u.InitWithShallowSlice(u, ixn_Internal::fidu_st_v_t);
   fidu.sc_W.InitWithShallowSlice(  u, ixn_Internal::fidu_W);
 }
 

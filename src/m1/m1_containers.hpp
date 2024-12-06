@@ -26,6 +26,7 @@ typedef AthenaTensor<Real, TensorSymm::NONE, D, 1> AT_D_vec;
 typedef AthenaTensor<Real, TensorSymm::SYM2, D, 2> AT_D_sym;
 
 // generic bilinear
+typedef AthenaTensor<Real, TensorSymm::NONE, N, 2> AT_N_bil;
 typedef AthenaTensor<Real, TensorSymm::NONE, D, 2> AT_D_bil;
 
 /*

@@ -48,9 +48,7 @@ void M1::PopulateOptionsClosure(ParameterInput *pin)
       { "thin",     opt_closure_variety::thin},
       { "thick",    opt_closure_variety::thick},
       { "Minerbo",  opt_closure_variety::Minerbo},
-      { "MinerboN", opt_closure_variety::MinerboN},
-      { "MinerboP", opt_closure_variety::MinerboP},
-      { "MinerboB", opt_closure_variety::MinerboB},
+      { "Kershaw",  opt_closure_variety::Kershaw}
     };
 
     auto itr = opt_var.find(GoA_str("variety", "thin"));
@@ -65,6 +63,27 @@ void M1::PopulateOptionsClosure(ParameterInput *pin)
     }
   }
 
+  {
+    static const std::map<std::string, opt_closure_method> opt_var {
+      { "none",       opt_closure_method::none},
+      { "gsl_Brent",  opt_closure_method::gsl_Brent},
+      { "gsl_Newton", opt_closure_method::gsl_Newton}
+    };
+
+    auto itr = opt_var.find(GoA_str("method", "gsl_Brent"));
+    if (itr != opt_var.end())
+    {
+      opt_closure.method = itr->second;
+    }
+    else
+    {
+      msg << "M1_closure/method unknown" << std::endl;
+      ATHENA_ERROR(msg);
+    }
+
+  }
+
+  // various settings for methods
   opt_closure.eps_tol     = GoA_Real("eps_tol",     1e-10);
   opt_closure.eps_Z_o_E   = GoA_Real("eps_Z_o_E",   1e-20);
   opt_closure.fac_Z_o_E   = GoA_Real("fac_Z_o_E",   0.01);
@@ -113,43 +132,11 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
   {
     static const std::map<std::string, opt_integration_strategy> opt_strat {
       { "full_explicit", opt_integration_strategy::full_explicit},
-      { "explicit_approximate_semi_implicit",
-        opt_integration_strategy::explicit_approximate_semi_implicit},
-      { "semi_implicit_PicardFrozenP",
-        opt_integration_strategy::semi_implicit_PicardFrozenP},
-      { "semi_implicit_PicardMinerboP",
-        opt_integration_strategy::semi_implicit_PicardMinerboP},
-      { "semi_implicit_PicardMinerboPC",
-        opt_integration_strategy::semi_implicit_PicardMinerboPC},
-      { "semi_implicit_HybridsJFrozenP",
-        opt_integration_strategy::semi_implicit_HybridsJFrozenP},
-      { "semi_implicit_HybridsJMinerbo",
-        opt_integration_strategy::semi_implicit_HybridsJMinerbo},
       { "semi_implicit_Hybrids",
         opt_integration_strategy::semi_implicit_Hybrids},
       { "semi_implicit_HybridsJ",
-        opt_integration_strategy::semi_implicit_HybridsJ},
-      { "auto_esi_Hybrids",
-        opt_integration_strategy::auto_esi_Hybrids},
-      { "auto_esi_HybridsJMinerbo",
-        opt_integration_strategy::auto_esi_HybridsJMinerbo},
-      { "auto_esi_PicardMinerboP",
-        opt_integration_strategy::auto_esi_PicardMinerboP}
+        opt_integration_strategy::semi_implicit_HybridsJ}
     };
-
-    /*
-    // BD: TODO - remove me after refactor
-    auto itr = opt_strat.find(GoA_str("strategy", "full_explicit"));
-    if (itr != opt_strat.end())
-    {
-      opt_solver.strategy = itr->second;
-    }
-    else
-    {
-      msg << "M1_solver/strategy unknown" << std::endl;
-      ATHENA_ERROR(msg);
-    }
-    */
 
     auto get_solver = [&](std::string name, std::string default_method)
     {
@@ -171,9 +158,6 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
 
     std::string default_method = "full_explicit";
 
-    // BD: TODO - remove me after refactor
-    opt_solver.strategy = get_solver("strategy", default_method);
-
     opt_solver.solvers.non_stiff   = get_solver("solver_non_stiff",   default_method);
     opt_solver.solvers.stiff       = get_solver("solver_stiff",       default_method);
     opt_solver.solvers.scattering  = get_solver("solver_scattering",  default_method);
@@ -191,7 +175,8 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
 
   }
 
-  opt_solver.eps_tol     = GoA_Real("eps_tol",     1e-10);
+  opt_solver.eps_a_tol     = GoA_Real("eps_tol",     1e-10);
+  opt_solver.eps_r_tol     = GoA_Real("eps_tol",     1e-10);
   opt_solver.w_opt_ini   = GoA_Real("w_opt_init",  1.0);
   opt_solver.fac_err_amp = GoA_Real("fac_err_amp", 1.11);
 
@@ -234,6 +219,10 @@ void M1::PopulateOptions(ParameterInput *pin)
     {
       opt.characteristics_variety = opt_characteristics_variety::approximate;
     }
+    else if (tmp == "mixed")
+    {
+      opt.characteristics_variety = opt_characteristics_variety::mixed;
+    }
     else if (tmp == "exact_thin")
     {
       opt.characteristics_variety = opt_characteristics_variety::exact_thin;
@@ -242,9 +231,9 @@ void M1::PopulateOptions(ParameterInput *pin)
     {
       opt.characteristics_variety = opt_characteristics_variety::exact_thick;
     }
-    else if (tmp == "exact_Minerbo")
+    else if (tmp == "exact_closure")
     {
-      opt.characteristics_variety = opt_characteristics_variety::exact_Minerbo;
+      opt.characteristics_variety = opt_characteristics_variety::exact_closure;
     }
     else
     {
@@ -258,6 +247,10 @@ void M1::PopulateOptions(ParameterInput *pin)
     if (tmp == "LO")
     {
       opt.flux_variety = opt_flux_variety::LO;
+    }
+    else if (tmp == "HO")
+    {
+      opt.flux_variety = opt_flux_variety::HO;
     }
     else if (tmp == "HybridizeMinMod")
     {

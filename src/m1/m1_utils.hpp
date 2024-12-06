@@ -20,7 +20,7 @@ namespace M1::Assemble {
 // sc: (s)calar-(f)ield
 // sp: (sp)atial
 // st: (s)pace-time
-// Appended "_" indicates scratch (in i)
+// Appended "_" indicates resulting scratch (in i)
 // Appended "__" indicates result at a point
 
 inline void sc_dot_sp_(
@@ -41,27 +41,6 @@ inline void sc_dot_sp_(
   for (int i=il; i<=iu; ++i)
   {
     sc_dot_sp_(i) += sp_V_A(a,k,j,i) * sp_V_B_(a,i);
-  }
-}
-
-inline void sc_dot_st_(
-  AT_C_sca & sc_dot_st_,
-  const AT_D_vec & st_V_A,  // alternative: flip for opposite slice
-  const AT_D_vec & st_V_B_,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    sc_dot_st_(i) = 0.0;
-  }
-
-  for (int a=0; a<D; ++a)
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    sc_dot_st_(i) += st_V_A(a,k,j,i) * st_V_B_(a,i);
   }
 }
 
@@ -122,7 +101,6 @@ inline void sp_beta_d(
   const int k, const int j,
   const int il, const int iu)
 {
-
   LinearAlgebra::VecMetContraction(
     scratch.sp_vec_A_,
     sp_beta_u,
@@ -138,550 +116,12 @@ inline void sp_beta_d(
 
 }
 
-inline void st_beta_u_(
-  AT_D_vec & st_tar_,
-  const AT_N_vec & sp_beta_u,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_(0,i) = 0;
-  }
+// Projections between frames -------------------------------------------------
 
-  for (int b=0; b<D-1; ++b)  // spatial ranges
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_(b+1,i) = sp_beta_u(b,k,j,i);
-  }
-}
-
-inline void st_g_dd_(
-  AT_D_sym & st_tar_,
-  const AT_N_sym & sp_g_dd,
-  const AT_C_sca & sc_alpha,
-  const AT_N_vec & sp_beta_d,
-  const AT_N_vec & sp_beta_u,
-  M1::vars_Scratch & scratch,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  LinearAlgebra::Assemble_ST_Metric_dd(
-    st_tar_, sp_g_dd, sc_alpha, sp_beta_d, sp_beta_u,
-    scratch.sc_A_,
-    k, j, il, iu);
-}
-
-inline void st_g_uu_(
-  AT_D_sym & st_tar_,
-  const AT_N_sym & sp_g_uu,
-  const AT_C_sca & sc_alpha,
-  const AT_N_vec & sp_beta_u,
-  M1::vars_Scratch & scratch,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  LinearAlgebra::Assemble_ST_Metric_uu(
-    st_tar_, sp_g_uu, sc_alpha, sp_beta_u,
-    scratch.sc_A_,
-    k, j, il, iu);
-}
-
-// normal contra / cov
-inline void st_n_u_(
-  AT_D_vec & st_tar_,
-  const AT_C_sca & sc_alpha,
-  const AT_N_vec & sp_beta_u,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_(0,i) = 1.0 / sc_alpha(k,j,i);
-  }
-
-  for (int a=0; a<D-1; ++a)  // spatial ranges
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_(a+1,i) = -sp_beta_u(a,k,j,i) * st_tar_(0,i);
-  }
-}
-
-inline void st_n_d_(
-  AT_D_vec & st_tar_,
-  const AT_C_sca & sc_alpha,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_(0,i) = -sc_alpha(k,j,i);
-  }
-
-  for (int a=0; a<D-1; ++a)  // spatial ranges
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_(a+1,i) = 0;
-  }
-}
-
-// projector
-inline void st_P_ud_(
-  AT_D_bil & st_tar_,
-  const AT_D_vec & st_n_u_,
-  const AT_D_vec & st_n_d_,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  for (int a=0; a<D; ++a)
-  for (int b=0; b<D; ++b)
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_(a,b,i) = (a==b) + st_n_u_(a,i)*st_n_d_(b,i);
-  }
-}
-
-// project: both directions tangent
-inline void st_proj_PP(
-  AT_D_sym & st_tar_dd_,
-  const AT_D_bil & st_P_ud_,
-  const AT_D_sym & st_src_dd_,
-  const int k, const int j,
-  const int il, const int iu)
-{
-
-  for (int a=0; a<D; ++a)
-  for (int b=a; b<D; ++b)
-  {
-    #pragma omp simd
-    for (int i=il; i<=iu; ++i)
-    {
-      st_tar_dd_(a,b,i) = 0;
-    }
-
-    for (int c=0; c<D; ++c)
-    for (int d=0; d<D; ++d)
-    #pragma omp simd
-    for (int i=il; i<=iu; ++i)
-    {
-      st_tar_dd_(a,b,i) += st_P_ud_(c,a,i) * st_P_ud_(d,b,i) *
-                           st_src_dd_(c,d,i);
-    }
-  }
-}
-
-// project: one direction orthogonal
-inline void st_proj_oP(
-  AT_D_vec & st_tar_d_,
-  const AT_D_vec & st_o_u_,
-  const AT_D_bil & st_P_ud_,
-  const AT_D_sym & st_src_dd_,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  for (int a=0; a<D; ++a)
-  {
-    #pragma omp simd
-    for (int i=il; i<=iu; ++i)
-    {
-      st_tar_d_(a,i) = 0;
-    }
-
-    for (int c=0; c<D; ++c)
-    for (int d=0; d<D; ++d)
-    #pragma omp simd
-    for (int i=il; i<=iu; ++i)
-    {
-      st_tar_d_(a,i) += st_P_ud_(c,a,i) * st_o_u_(d,i) *
-                        st_src_dd_(c,d,i);
-    }
-
-  }
-}
-
-inline void st_proj_oo(
-  AT_C_sca & st_tar_,
-  const AT_D_vec & st_o_u_,
-  const AT_D_sym & st_src_dd_,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_(i) = 0;
-  }
-
-  for (int c=0; c<D; ++c)
-  for (int d=0; d<D; ++d)
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_(i) += st_o_u_(c,i) * st_o_u_(d,i) *
-                  st_src_dd_(c,d,i);
-  }
-}
-
-// Hydro ----------------------------------------------------------------------
-inline void st_w_u_u_(
-  AT_D_vec & st_tar_u_,
-  const AT_C_sca & sc_alpha,
-  const AT_C_sca & sc_W,
-  const AT_N_vec & sp_w_util_u,
-  const int k, const int j,
-  const int il, const int iu)
-{
-
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_u_(0,i) = sc_W(k,j,i) / sc_alpha(k,j,i);
-  }
-
-
-  for (int a=0; a<D-1; ++a)  // spatial ranges
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_u_(a+1,i) = sp_w_util_u(a,k,j,i);
-  }
-}
-
-// Radiation ------------------------------------------------------------------
-inline void st_F_d_(
-  AT_D_vec & st_tar_d_,
-  const AT_N_vec & sp_F_d,
-  const AT_N_vec & sp_beta_u,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  // F_0 = g_0i F^i = beta_i F^i = beta^i F_i
-
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_d_(0,i) = 0;
-  }
-
-  for (int a=0; a<D-1; ++a)  // spatial ranges
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_d_(0,i) += sp_beta_u(a,k,j,i) * sp_F_d(a,k,j,i);
-  }
-
-  for (int a=0; a<D-1; ++a)  // spatial ranges
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_d_(a+1,i) = sp_F_d(a,k,j,i);
-  }
-}
-
-inline void st_H_d_(
-  AT_D_vec & st_tar_d_,
-  const AT_C_sca & sc_H_t,
-  const AT_N_vec & sp_H_d,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_d_(0,i) = sc_H_t(k,j,i);
-  }
-
-  for (int a=0; a<D-1; ++a)  // spatial ranges
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_d_(a+1,i) = sp_H_d(a,k,j,i);
-  }
-}
-
-inline void st_P_dd_(
-  AT_D_vec & st_tar_dd_,
-  const AT_N_vec & sp_P_dd,
-  const AT_N_vec & sp_beta_u,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  // P_00 = g_0i g_k0 P^ik = beta^i beta^k P_ik
-  // P_0i = g_0j g_ki P^jk = beta_j P_i^j = beta^j P_ij
-
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_dd_(0,0,i) = 0;
-  }
-
-  for (int a=0; a<N; ++a)  // spatial ranges
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_dd_(a+1,0,i) = 0;
-  }
-
-  for (int a=0; a<N; ++a)  // spatial ranges
-  for (int b=0; b<N; ++b)
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_dd_(0,0,i) += sp_P_dd(a,b,k,j,i) *
-                         sp_beta_u(a,k,j,i) *
-                         sp_beta_u(b,k,j,i);
-  }
-
-  for (int a=0; a<N; ++a)  // spatial ranges
-  for (int b=0; b<N; ++b)
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_dd_(0,a+1,i) += sp_P_dd(a,b,k,j,i) *
-                           sp_beta_u(b,k,j,i);
-  }
-
-  // P_ij
-  for (int a=0; a<N; ++a)  // spatial ranges
-  for (int b=a; b<N; ++b)
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_dd_(a+1,b+1,i) = sp_P_dd(a,b,k,j,i);
-  }
-}
-
-// Eq.(2) of [1]
-inline void st_T_rad_dd_(
-  AT_D_sym & st_tar_dd_,
-  const AT_D_vec & st_u_d_,
-  const AT_C_sca & sc_J,
-  const AT_D_vec & st_H_d_,
-  const AT_D_sym & st_K_dd_,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  for (int a=0; a<D; ++a)
-  for (int b=a; b<D; ++b)
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_dd_(a,b,i) = (
-      sc_J(k,j,i) * st_u_d_(a,i) * st_u_d_(b,i) +
-      st_H_d_(a,i) * st_u_d_(b,i) +
-      st_u_d_(a,i) * st_H_d_(b,i) +
-      st_K_dd_(a,b,i)
-    );
-  }
-}
-
-// K_{alpha beta} is (projected) linear functional of (T_rad)_{alpha beta}
-inline void st_K_o_T_rad_dd_(
-  AT_D_sym & st_tar_dd_,
-  const AT_D_bil & st_P_ud_,  // N.B. use fiducial projector here
-  const AT_D_sym & st_T_rad_,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  st_proj_PP(
-    st_tar_dd_, st_P_ud_, st_T_rad_,
-    k, j, il, iu
-  );
-}
-
-// H_{alpha} is (projected) linear function of (T_rad)_{alpha beta}
-inline void st_H_o_T_rad_d_(
-  AT_D_vec & st_tar_d_,
-  const AT_D_vec & st_u_u_,   // N.B. use suitably mapped fiducial velocity
-  const AT_D_bil & st_P_ud_,  // N.B. use fiducial projector here
-  const AT_D_sym & st_T_rad_,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  st_proj_oP(
-    st_tar_d_, st_u_u_, st_P_ud_, st_T_rad_,
-    k, j, il, iu
-  );
-
-  // convention <u,u> = -1
-  for (int a=0; a<D; ++a)
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_d_(a,i) = -st_tar_d_(a,i);
-  }
-}
-
-// J is (projected) linear function of (T_rad)_{alpha beta}
-inline void st_J_o_T_rad_(
-  AT_C_sca & st_tar_,
-  const AT_D_vec & st_u_u_,   // N.B. use suitably mapped fiducial velocity
-  const AT_D_sym & st_T_rad_,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  st_proj_oo(
-    st_tar_, st_u_u_, st_T_rad_,
-    k, j, il, iu
-  );
-}
-
-// f^alpha in Eq.(21) of [1]
-inline void st_f_u_(
-  AT_D_vec & st_tar_u_,
-  const AT_D_vec & st_u_u_,
-  const AT_D_vec & st_H_u_,
-  const AT_C_sca & sc_J,
-  const AT_C_sca & sc_norm_st_H_,
-  const Real eps_f_J,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  for (int a=0; a<D; ++a)
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_u_(a,i) = (
-      st_u_u_(a,i) +
-      ((sc_J(k,j,i) > eps_f_J * sc_norm_st_H_(i)) ? st_H_u_(a,i) / sc_J(k,j,i)
-                                                  : 0.0)
-    );
-  }
-}
-
-inline void sp_f_u_(
-  AT_N_vec & sp_tar_u_,
-  const AT_C_sca & sc_alpha,
-  const AT_N_vec & sp_beta_u,
-  const AT_C_sca & sc_W,
-  const AT_N_vec & sp_v_u,
-  const AT_N_vec & sp_H_u_,
-  const AT_C_sca & sc_norm_sp_H_,
-  const AT_C_sca & sc_J,
-  const Real eps_J,
-  const int a,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    sp_tar_u_(a,i) = (
-      sc_W(k,j,i) * (sp_v_u(a,k,j,i) - sp_beta_u(a,k,j,i) / sc_alpha(k,j,i)) +
-      ((sc_J(k,j,i) > eps_J * sc_norm_sp_H_(i))
-        ? sp_H_u_(a,i) / sc_J(k,j,i)
-        : 0.0)
-    );
-  }
-}
-
-// Gamma in Eq.(24) of [1]
-inline void sc_G_(
-  AT_C_sca & sc_tar_,
-  const AT_C_sca & sc_W,
-  const AT_C_sca & sc_E,
-  const AT_C_sca & sc_J,
-  const AT_D_vec & st_F_d_,
-  const AT_D_vec & st_v_u,
-  M1::vars_Scratch & scratch,
-  const Real floor_E,
-  const Real floor_J,
-  const Real eps_E,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  // could be rewritten as branchless.. probably not worth it
-
-  sc_dot_st_(scratch.sc_A_, st_v_u, st_F_d_, k, j, il, iu);
-
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    if ((sc_E(k,j,i) > floor_E) && (sc_J(k,j,i) > floor_J))
-    {
-      sc_tar_(i) = sc_W(k,j,i) * sc_E(k,j,i) / sc_J(k,j,i) * (
-        1 - std::min(scratch.sc_A_(i) / sc_E(k,j,i), 1.0-eps_E)
-      );
-    }
-    else
-    {
-      sc_tar_(i) = 1.0;
-    }
-  }
-}
-
-inline void sc_G_(
-  AT_C_sca & sc_tar_,
-  const AT_C_sca & sc_W,
-  const AT_C_sca & sc_E,
-  const AT_C_sca & sc_J,
-  const AT_C_sca & sc_dotFv_,
-  const Real floor_E,
-  const Real floor_J,
-  const Real eps_E,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  // could be rewritten as branchless.. probably not worth it
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    if ((sc_E(k,j,i) > floor_E) && (sc_J(k,j,i) > floor_J))
-    {
-      sc_tar_(i) = sc_W(k,j,i) * sc_E(k,j,i) / sc_J(k,j,i) * (
-        1 - std::min(sc_dotFv_(i) / sc_E(k,j,i), 1.0-eps_E)
-      );
-    }
-    else
-    {
-      sc_tar_(i) = 1.0;
-    }
-  }
-}
-
-inline Real sc_G__(
-  const Real & W,
-  const Real & E,
-  const Real & J,
-  const Real & dotFv_,
-  const Real floor_E,
-  const Real floor_J,
-  const Real eps_E)
-{
-  if ((E > floor_E) && (J > floor_J))
-  {
-    return W * E / J * (
-      1 - std::min(dotFv_ / E, 1.0-eps_E)
-    );
-  }
-  return 1.0;
-}
-
-/*
-// Require floor arg for safety (see below)
+// General projection (sc_E, sp_F_d, sp_P_dd) -> J
 inline Real sc_J__(
   const Real & W2,
-  const Real & dotFv,  // F_d v^d
-  const AT_C_sca & sc_E,
-  const AT_N_vec & sp_v_u,
-  const AT_N_sym & sp_P_dd,
-  const int k, const int j, const int i)
-{
-  Real J = sc_E(k,j,i) - 2.0 * dotFv;
-  J += LinearAlgebra::InnerProductVecSym2(
-        sp_v_u, sp_P_dd, k, j, i);
-  return W2 * J;
-}
-*/
-
-inline Real sc_J__(
-  const Real & W2,
-  const Real & dotFv,  // F_d v^d
+  const Real & dotFv,  // F_i v^i
   const AT_C_sca & sc_E,
   const AT_N_vec & sp_v_u,
   const AT_N_sym & sp_P_dd,
@@ -694,7 +134,22 @@ inline Real sc_J__(
   return W2 * std::max(J, floor_J);
 }
 
-inline Real sc_H_t__(
+
+inline Real sc_J_tk__(
+  const Real & W2,
+  const Real & dotFv,  // F_i v^i
+  const AT_C_sca & sc_E,
+  const Real floor_J,
+  const int k, const int j, const int i)
+{
+  const Real J__ = 3.0 / (2.0 * W2 + 1) * (
+    (2.0 * W2 - 1) * sc_E(k,j,i) -
+    2.0 * W2 * dotFv
+  );
+  return std::max(J__, floor_J);
+}
+
+inline Real sc_H_tk_d_n__(
   const Real & W,
   const Real & dotFv,  // F_d v^d
   const AT_C_sca & sc_E,
@@ -731,36 +186,7 @@ inline void sp_H_d__(
   }
 }
 
-inline Real sc_H2_st__(
-  const AT_C_sca & sc_H_t,
-  const AT_N_vec & sp_H_d,
-  const AT_N_sym & sp_g_uu,
-  const int k, const int j, const int i)
-{
-  Real sc_H2_st = -SQR(sc_H_t(k,j,i));
-  for (int a=0; a<N; ++a)
-  for (int b=0; b<N; ++b)
-  {
-    sc_H2_st += sp_g_uu(a,b,k,j,i) * sp_H_d(a,k,j,i) * sp_H_d(b,k,j,i);
-  }
-  return sc_H2_st;
-}
-
-inline void st_norm2_(
-  AT_C_sca & st_tar_,
-  const AT_D_vec & st_V_d_,  // alternative: _u_ &
-  const AT_D_sym & st_g_uu_, // _dd_
-  const int k, const int j,
-  const int il, const int iu)
-{
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_(i) = LinearAlgebra::InnerProductSlicedVecMetric(
-      st_V_d_, st_g_uu_, i
-    );
-  }
-}
+// ----------------------------------------------------------------------------
 
 inline void sp_norm2_(
   AT_C_sca & sp_tar_,
@@ -788,27 +214,6 @@ inline Real sp_norm2__(
   );
 }
 
-inline void st_vec_from_t_sp(
-  AT_D_vec & st_tar_,
-  const AT_C_sca & cpt_ut,  // alternative: _dt &
-  const AT_N_vec & vec_u,   // _d
-  const int k, const int j,
-  const int il, const int iu)
-{
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_(0,i) = cpt_ut(k,j,i);
-  }
-
-  for (int a=0; a<N; ++a)
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    st_tar_(a+1,i) = vec_u(a,k,j,i);
-  }
-};
-
 // ============================================================================
 // Convenience methods
 inline void sp_d_to_u_(
@@ -829,47 +234,31 @@ inline void sp_d_to_u_(
 inline void sp_dd_to_uu_(
   M1 * pm1,
   AT_N_sym & sp_tar_uu_,
-  const AT_N_sym & sp_src_dd,
+  const AT_N_sym & sp_src_dd_,
   const int k, const int j,
   const int il, const int iu)
 {
-  LinearAlgebra::SymMetContraction(
-    sp_tar_uu_,
-    sp_src_dd,
-    pm1->geom.sp_g_uu,
-    k, j,
-    il, iu);
-}
+  const AT_N_sym & sp_g_uu = pm1->geom.sp_g_uu;
 
-inline void st_g_dd_(
-  M1 * pm1,
-  AT_D_sym & st_tar_dd_,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  LinearAlgebra::Assemble_ST_Metric_dd(
-    st_tar_dd_,
-    pm1->geom.sp_g_dd,
-    pm1->geom.sc_alpha,
-    pm1->geom.sp_beta_d,
-    pm1->geom.sp_beta_u,
-    pm1->scratch.sc_A_,
-    k, j, il, iu);
-}
+  for (int a=0; a<N; ++a)
+  for (int b=a; b<N; ++b)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sp_tar_uu_(a,b,i) = 0;
+  }
 
-inline void st_g_uu_(
-  M1 * pm1,
-  AT_D_sym & st_tar_uu_,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  LinearAlgebra::Assemble_ST_Metric_uu(
-    st_tar_uu_,
-    pm1->geom.sp_g_uu,
-    pm1->geom.sc_alpha,
-    pm1->geom.sp_beta_u,
-    pm1->scratch.sc_A_,
-    k, j, il, iu);
+  for (int a=0; a<N; ++a)
+  for (int b=a; b<N; ++b)
+  for (int c=0; c<N; ++c)
+  for (int d=0; d<N; ++d)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sp_tar_uu_(a,b,i) += sp_g_uu(a,c,k,j,i) *
+                         sp_g_uu(b,d,k,j,i) *
+                         sp_src_dd_(c,d,i);
+  }
 }
 
 inline void sc_norm_sp_H_(
@@ -904,98 +293,6 @@ inline void sc_norm_sp_(
   for (int i=il; i<=iu; ++i)
   {
     sc_norm_sp_(i) += sp_V_d(a,k,j,i) * sp_V_u_(a,i);
-  }
-}
-
-inline void sp_f_u_(
-  M1 * pm1,
-  AT_N_vec & sp_tar_u_,
-  const AT_N_vec & sp_H_u_,
-  const AT_C_sca & sc_norm_sp_H_,
-  const AT_C_sca & sc_J,
-  const int a,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  sp_f_u_(
-    sp_tar_u_,
-    pm1->geom.sc_alpha,
-    pm1->geom.sp_beta_u,
-    pm1->fidu.sc_W,
-    pm1->fidu.sp_v_u,
-    sp_H_u_,
-    sc_norm_sp_H_,
-    sc_J,
-    pm1->opt.eps_J,
-    a,
-    k, j, il, iu
-  );
-}
-
-inline void st_F_d_(
-  M1 * pm1,
-  AT_D_vec & st_tar_d_,
-  const AT_N_vec & sp_F_d,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  st_F_d_(st_tar_d_,
-          sp_F_d,
-          pm1->geom.sp_beta_u,
-          k, j,
-          il, iu);
-}
-
-inline void sc_G_(
-  M1 * pm1,
-  AT_C_sca & sc_tar_,
-  const AT_C_sca & sc_E,
-  const AT_C_sca & sc_J,
-  const AT_D_vec & st_F_d_,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  sc_G_(sc_tar_,
-        pm1->fidu.sc_W,
-        sc_E,
-        sc_J,
-        st_F_d_,
-        pm1->fidu.st_v_u,
-        pm1->scratch,
-        pm1->opt.fl_E,
-        pm1->opt.fl_J,
-        pm1->opt.eps_E,
-        k, j, il, iu);
-}
-
-// given data over an i strip populate compatible dense quantity
-inline void ScratchToDense(
-  AT_N_sym & sp_tar_aa,
-  AT_N_sym & sp_S_aa_,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  for (int a=0; a<N; ++a)
-  for (int b=a; b<N; ++b)
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    sp_tar_aa(a,b,k,j,i) = sp_S_aa_(a,b,i);
-  }
-}
-
-inline void ScratchAddToDense(
-  AT_N_sym & sp_tar_aa,
-  const AT_N_sym & sp_S_aa_,
-  const int k, const int j,
-  const int il, const int iu)
-{
-  for (int a=0; a<N; ++a)
-  for (int b=a; b<N; ++b)
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
-  {
-    sp_tar_aa(a,b,k,j,i) += sp_S_aa_(a,b,i);
   }
 }
 
@@ -1060,6 +357,472 @@ inline void PointAthenaTensorToArray(
     src[a] = sp_tar(a,k,j,i);
   }
 }
+
+inline void CopyDenseToScratch(
+  AT_N_vec & sp_tar_a_,
+  const AT_N_vec & sp_S_a,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  for (int a=0; a<N; ++a)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sp_tar_a_(a,i) = sp_S_a(a,k,j,i);
+  }
+}
+
+inline void CopyScratchToDense(
+  AT_N_vec & sp_tar_a,
+  const AT_N_vec & sp_S_a_,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  for (int a=0; a<N; ++a)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sp_tar_a(a,k,j,i) = sp_S_a_(a,i);
+  }
+}
+
+inline void CopyDenseToScratch(
+  AT_N_sca & st_tar_,
+  const AT_N_sca & st_src,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_(i) = st_src(k,j,i);
+  }
+}
+
+inline void CopyScratchToDense(
+  AT_C_sca & st_tar,
+  const AT_C_sca & st_src_,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar(k,j,i) = st_src_(i);
+  }
+}
+
+inline void CopyScratchToDense(
+  AT_N_sym & sp_tar_a,
+  const AT_N_sym & sp_S_a_,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  for (int a=0; a<N; ++a)
+  for (int b=a; b<N; ++b)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sp_tar_a(a,b,k,j,i) = sp_S_a_(a,b,i);
+  }
+}
+
+// ============================================================================
+namespace Frames {
+// ============================================================================
+
+inline Real d_th(const AT_C_sca & sc_chi,
+                 const int k, const int j, const int i)
+{
+  return 0.5 * (3.0 * sc_chi(k,j,i) - 1.0);
+}
+
+inline Real d_tk(const AT_C_sca & sc_chi,
+                 const int k, const int j, const int i)
+{
+  return 1.0 - d_th(sc_chi, k, j, i);
+}
+
+// We write:
+// sc_J = J_0
+// st_H = H_n n^alpha + H_v v^alpha + H_F F^alpha
+inline void ToFiducialExpansionCoefficients(
+  M1 & pm1,
+  Real & J_0,
+  Real & H_n,
+  Real & H_v,
+  Real & H_F,
+  const AT_C_sca & sc_chi,
+  const AT_C_sca & sc_E,
+  const AT_N_vec & sp_F_d,
+  const int k,
+  const int j,
+  const int i)
+{
+  const AT_N_vec & sp_v_u = pm1.fidu.sp_v_u;
+  const AT_N_vec & sp_v_d = pm1.fidu.sp_v_d;
+  const AT_N_sym & sp_g_uu = pm1.geom.sp_g_uu;
+
+  const Real W  = pm1.fidu.sc_W(k,j,i);
+  const Real W2 = SQR(W);
+
+  const Real E = sc_E(k,j,i);
+  const Real dotFv = sc_dot_dense_sp__(sp_F_d, sp_v_u, k, j, i);
+  const Real dotvv = sc_dot_dense_sp__(sp_v_d, sp_v_u, k, j, i);
+
+  const Real nF2 = sp_norm2__(sp_F_d, sp_g_uu, k, j, i);
+  const Real oo_nF = (nF2 > 0) ? OO(std::sqrt(nF2)) : 0.0;
+  const Real dotFhatv = oo_nF * dotFv;
+
+  const Real d_th = Frames::d_th(sc_chi, k, j, i);
+  const Real d_tk = Frames::d_tk(sc_chi, k, j, i);
+
+  // ------------------------------------------------------------------------
+  const Real B_0 = W2 * (E - 2.0 * dotFv);
+  const Real B_th = W2 * E * SQR(dotFhatv);
+  const Real B_tk = (W2 - 1.0) / (2.0 * W2 + 1.0) * (
+    4.0 * W2 * dotFv + (3.0 - 2.0 * W2) * E
+  );
+
+  // coefficients appearing in vector-expansion of H
+  const Real n_0  = W * B_0 + W * (dotFv - E);
+  const Real n_th = W * B_th;
+  const Real n_tk = W * B_tk;
+
+  const Real v_0  = W * B_0;
+  const Real v_th = n_th;
+  const Real v_tk = W * B_tk + W / (2.0 * W2 + 1.0) * (
+    (3.0 - 2.0 * W2) * E + (2.0 * W2 - 1.0) * dotFv
+  );
+
+  const Real F_0 = -W;
+  const Real F_th = oo_nF * W * E * dotFhatv;
+  const Real F_tk = W * dotvv;
+
+  const Real n_H = (n_0 + d_th * n_th + d_tk * n_tk);
+  const Real v_H = (v_0 + d_th * v_th + d_tk * v_tk);
+  const Real F_H = (F_0 + d_th * F_th + d_tk * F_tk);
+
+  // --------------------------------------------------------------------------
+  // Populate according to comment
+  J_0 = (B_0 + d_th * B_th + d_tk * B_tk);
+  H_n = -n_H;  // Need additional sign: H^mu n_mu = -A in H^mu = A n^mu + B ...
+  H_v = -v_H;
+  H_F = -F_H;
+}
+
+inline void ToFiducial(
+  M1 & pm1,
+  AT_C_sca & sc_J,
+  AT_D_vec & st_H_u,
+  const AT_C_sca & sc_chi,
+  const AT_C_sca & sc_E,
+  const AT_N_vec & sp_F_d,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  // typedef M1::opt_closure_variety ocv;
+  // ocv ocv_cur = pm1.opt_closure.variety;
+
+  const AT_N_vec & sp_v_u = pm1.fidu.sp_v_u;
+  const AT_N_vec & sp_v_d = pm1.fidu.sp_v_d;
+  const AT_N_sym & sp_g_uu = pm1.geom.sp_g_uu;
+  const AT_N_vec & sp_beta_u = pm1.geom.sp_beta_u;
+
+  for (int i=il; i<=iu; ++i)
+  {
+
+    Real J_0, H_n, H_v, H_F;
+
+    ToFiducialExpansionCoefficients(
+      pm1,
+      J_0, H_n, H_v, H_F,
+      sc_chi, sc_E, sp_F_d,
+      k, j, i
+    );
+
+    // populate ---------------------------------------------------------------
+    sc_J(k,j,i) = J_0;
+
+    // n^0 = 1 / alpha
+    // v^0 = 0 (spatial)
+    // F^0 = 0 (spatial)
+
+    const Real alpha = pm1.geom.sc_alpha(k,j,i);
+    const Real oo_alpha = OO(alpha);
+
+    st_H_u(0,k,j,i) = H_n * oo_alpha;
+
+    for (int a=0; a<N; ++a)
+    {
+      Real F_u (0);
+      for (int b=0; b<N; ++b)
+      {
+        F_u += sp_g_uu(a,b,k,j,i) * sp_F_d(b,k,j,i);
+      }
+
+      // n^i = -beta^i / alpha
+      st_H_u(a+1,k,j,i) = (
+        -H_n * oo_alpha * sp_beta_u(a,k,j,i) +
+        H_v * sp_v_u(a,k,j,i) +
+        H_F * F_u
+      );
+    }
+  }
+}
+
+template <bool overwrite_slice>
+inline void sp_P_th_dd_(
+  M1 & pm1,
+  AT_N_sym & sp_P_th_dd_,
+  const AT_C_sca & sc_E,
+  const AT_N_vec & sp_F_d,
+  const int k, const int j,
+  const int il, const int iu)
+{
+
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    const Real nF2 = Assemble::sp_norm2__(sp_F_d, pm1.geom.sp_g_uu, k, j, i);
+    const Real fac = (nF2 > 0) ? sc_E(k,j,i) / nF2
+                               : 0.0;
+
+    for (int a=0; a<N; ++a)
+    for (int b=a; b<N; ++b)
+    {
+      const Real res_dd__ = fac * sp_F_d(a,k,j,i) * sp_F_d(b,k,j,i);
+      if (overwrite_slice)
+      {
+        sp_P_th_dd_(a,b,i) = res_dd__;
+      }
+      else
+      {
+        sp_P_th_dd_(a,b,i) += res_dd__;
+      }
+    }
+  }
+}
+
+template <bool overwrite_slice>
+inline void sp_P_tk_dd_(
+  M1 & pm1,
+  AT_N_sym & sp_P_tk_dd_,
+  const AT_C_sca & sc_E,
+  const AT_N_vec & sp_F_d,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  AT_C_sca & sc_W   = pm1.fidu.sc_W;
+  AT_N_vec & sp_v_d = pm1.fidu.sp_v_d;
+  AT_N_vec & sp_v_u = pm1.fidu.sp_v_u;
+  AT_N_sym & sp_g_dd = pm1.geom.sp_g_dd;
+
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    const Real W    = sc_W(k,j,i);
+    const Real oo_W = 1.0 / W;
+    const Real W2   = SQR(W);
+
+    const Real dotFv = Assemble::sc_dot_dense_sp__(sp_F_d,
+                                                   sp_v_u,
+                                                   k, j, i);
+
+    Real J_tk = 3.0 / (2.0 * W2 + 1.0) * (
+      (2.0 * W2 - 1.0) * sc_E(k,j,i) - 2.0 * W2 * dotFv
+    );
+
+    const Real fac_H_tk = W /  (2.0 * W2 + 1.0) * (
+      (4.0 * W2 + 1.0) * dotFv - 4.0 * W2 * sc_E(k,j,i)
+    );
+
+    for (int a=0; a<N; ++a)
+    {
+      const Real H_a_tk = oo_W * sp_F_d(a,k,j,i) +
+                          fac_H_tk * sp_v_d(a,k,j,i);
+
+      for (int b=a; b<N; ++b)
+      {
+        const Real H_b_tk = oo_W * sp_F_d(b,k,j,i) +
+                            fac_H_tk * sp_v_d(b,k,j,i);
+
+        const Real res_dd__ = (
+          4.0 * ONE_3RD * W2 * J_tk * sp_v_d(a,k,j,i) * sp_v_d(b,k,j,i) +
+          W * (sp_v_d(a,k,j,i) * H_b_tk + sp_v_d(b,k,j,i) * H_a_tk) +
+          ONE_3RD * J_tk * sp_g_dd(a,b,k,j,i)
+        );
+
+        if (overwrite_slice)
+        {
+          sp_P_tk_dd_(a,b,i) = res_dd__;
+        }
+        else
+        {
+          sp_P_tk_dd_(a,b,i) += res_dd__;
+        }
+      }
+
+    }
+  }
+}
+
+inline void sp_P_dd_(
+  M1 & pm1,
+  AT_N_sym & sp_P_dd_,
+  const AT_C_sca & sc_chi,
+  const AT_C_sca & sc_E,
+  const AT_N_vec & sp_F_d,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  // prepare scratches
+  AT_N_sym & sp_P_th_dd_ = pm1.scratch.sp_P_th_dd_;
+  AT_N_sym & sp_P_tk_dd_ = pm1.scratch.sp_P_tk_dd_;
+
+  for (int a=0; a<N; ++a)
+  for (int b=a; b<N; ++b)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    sp_P_dd_(a,b,i) = 0;
+  }
+
+  for (int i=il; i<=iu; ++i)
+  {
+    // chi \in [1/3, 1];
+    // 1/3 is thick limit, 1 is thin limit
+
+    const Real chi__ = sc_chi(k,j,i);
+    const bool tk_cpt = chi__ < 1;
+    const bool th_cpt = chi__ > ONE_3RD;
+
+    const Real d_th__ = th_cpt ? d_th(sc_chi, k, j, i) : 0.0;
+    const Real d_tk__ = tk_cpt ? d_tk(sc_chi, k, j, i) : 0.0;
+
+    if (th_cpt)
+    {
+      Assemble::Frames::sp_P_th_dd_<true>(
+        pm1, sp_P_th_dd_, sc_E, sp_F_d, k, j, i, i
+      );
+
+      for (int a=0; a<N; ++a)
+      for (int b=a; b<N; ++b)
+      {
+        sp_P_dd_(a,b,i) += d_th__ * sp_P_th_dd_(a,b,i);
+      }
+    }
+
+    if (tk_cpt)
+    {
+      Assemble::Frames::sp_P_tk_dd_<true>(
+        pm1, sp_P_tk_dd_, sc_E, sp_F_d, k, j, i, i
+      );
+
+      for (int a=0; a<N; ++a)
+      for (int b=a; b<N; ++b)
+      {
+        sp_P_dd_(a,b,i) += d_tk__ * sp_P_tk_dd_(a,b,i);
+      }
+    }
+  }
+}
+
+// ============================================================================
+} // namespace M1::Assemble::Frames
+// ============================================================================
+
+
+// ============================================================================
+namespace SpaceTime {
+// ============================================================================
+
+inline void st_x_sp_d_(
+  AT_D_vec & st_tar_d_,
+  const AT_N_vec & sp_V_d,
+  const AT_N_vec & sp_beta_u,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  // V_0 = g_0i V^i = beta_i V^i = beta^i V_i
+
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_d_(0,i) = 0;
+  }
+
+  for (int a=0; a<D-1; ++a)  // spatial ranges
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_d_(0,i) += sp_beta_u(a,k,j,i) * sp_V_d(a,k,j,i);
+  }
+
+  for (int a=0; a<D-1; ++a)  // spatial ranges
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_d_(a+1,i) = sp_V_d(a,k,j,i);
+  }
+}
+
+inline void st_x_sp_dd_(
+  AT_D_sym & st_tar_dd_,
+  const AT_N_sym & sp_S_dd,
+  const AT_N_vec & sp_beta_u,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  // S_00 = g_0i g_k0 S^ik = beta^i beta^k S_ik
+  // S_0i = g_0j g_ki S^jk = beta_j S_i^j = beta^j S_ij
+
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_dd_(0,0,i) = 0;
+  }
+
+  for (int a=0; a<N; ++a)  // spatial ranges
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_dd_(a+1,0,i) = 0;
+  }
+
+  for (int a=0; a<N; ++a)  // spatial ranges
+  for (int b=0; b<N; ++b)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_dd_(0,0,i) += sp_S_dd(a,b,k,j,i) *
+                         sp_beta_u(a,k,j,i) *
+                         sp_beta_u(b,k,j,i);
+  }
+
+  for (int a=0; a<N; ++a)  // spatial ranges
+  for (int b=0; b<N; ++b)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_dd_(0,a+1,i) += sp_S_dd(a,b,k,j,i) *
+                           sp_beta_u(b,k,j,i);
+  }
+
+  // S_ij
+  for (int a=0; a<N; ++a)  // spatial ranges
+  for (int b=a; b<N; ++b)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    st_tar_dd_(a+1,b+1,i) = sp_S_dd(a,b,k,j,i);
+  }
+}
+
+// ============================================================================
+} // namespace M1::Assemble::SpaceTime
+// ============================================================================
+
 
 // ============================================================================
 }  // M1::Assemble

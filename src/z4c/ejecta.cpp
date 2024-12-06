@@ -913,7 +913,8 @@ void Ejecta::Write_hdf5(const Real time)
   const int iter = file_number;
   std::string filename;
   hdf5_get_next_filename(filename);
-  hid_t id_file = hdf5_touch_file(filename);
+  static const bool use_existing = false;
+  hid_t id_file = hdf5_touch_file(filename, use_existing);
 
   // scalars [grid] ---------------------------------------------------------
   hdf5_write_scalar(id_file, "time",   time);

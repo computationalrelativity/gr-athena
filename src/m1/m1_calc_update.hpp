@@ -30,8 +30,7 @@ struct StateMetaVector {
   AT_N_sym & sp_P_dd;
 
   AT_C_sca & sc_J;
-  AT_C_sca & sc_H_t;
-  AT_N_vec & sp_H_d;
+  AT_D_vec & st_H_u;
 
   AT_C_sca & sc_eta_0;
   AT_C_sca & sc_kap_a_0;
@@ -44,18 +43,21 @@ struct StateMetaVector {
 
   // Store state prior to iteration (for fallback)
   std::array<Real, 1> U_0_xi;
+  std::array<Real, 1> U_0_chi;
   std::array<Real, 1> U_0_E;
   std::array<Real, N> U_0_F_d;
   std::array<Real, 1> U_0_nG;
 
   // For iteration
   std::array<Real, 1> Z_xi;
+  std::array<Real, 1> Z_chi;
   std::array<Real, 1> Z_E;
   std::array<Real, N> Z_F_d;
 
   void FallbackStore(const int k, const int j, const int i)
   {
-    Assemble::PointAthenaTensorToArray(U_0_xi,  sc_xi,   k, j, i);
+    Assemble::PointAthenaTensorToArray(U_0_xi,  sc_xi,  k, j, i);
+    Assemble::PointAthenaTensorToArray(U_0_chi, sc_chi, k, j, i);
     Assemble::PointAthenaTensorToArray(U_0_E,   sc_E,   k, j, i);
     Assemble::PointAthenaTensorToArray(U_0_F_d, sp_F_d, k, j, i);
     Assemble::PointAthenaTensorToArray(U_0_nG,  sc_nG,  k, j, i);
@@ -64,6 +66,7 @@ struct StateMetaVector {
   void Fallback(const int k, const int j, const int i)
   {
     Assemble::PointArrayToAthenaTensor(sc_xi,  U_0_xi,  k, j, i);
+    Assemble::PointArrayToAthenaTensor(sc_chi, U_0_chi, k, j, i);
     Assemble::PointArrayToAthenaTensor(sc_E,   U_0_E,   k, j, i);
     Assemble::PointArrayToAthenaTensor(sp_F_d, U_0_F_d, k, j, i);
     Assemble::PointArrayToAthenaTensor(sc_nG,  U_0_nG,  k, j, i);
@@ -221,7 +224,7 @@ inline bool NonFiniteToZero(
   const int k, const int j, const int i)
 {
   // Check if finite, faster to sum all values and then check if result
-  Real val = C.sc_E(k,j,i);
+  Real val = C.sc_E(k,j,i) + C.sc_nG(k,j,i);
   for (int a=0; a<N; ++a)
   {
     val += C.sp_F_d(a,k,j,i);
@@ -231,7 +234,7 @@ inline bool NonFiniteToZero(
 
   if (floor_reset)
   {
-    C.sc_E(k,j,i) = 0;
+    C.sc_E(k,j,i) = pm1.opt.fl_E;
     for (int a=0; a<N; ++a)
     {
       C.sp_F_d(a,k,j,i) = 0;
@@ -249,6 +252,14 @@ inline bool ApplyFloors(
   const bool floor_applied = C.sc_E(k,j,i) < pm1.opt.fl_E;
   C.sc_E(k,j,i) = std::max(C.sc_E(k,j,i), pm1.opt.fl_E);
 
+  if (floor_applied)
+  {
+    for (int a=0; a<N; ++a)
+    {
+      C.sp_F_d(a,k,j,i) = 0;
+    }
+  }
+
   return floor_applied;
 }
 
@@ -262,15 +273,14 @@ inline bool EnforceCausality(
   M1 & pm1, V & C,
   const int k, const int j, const int i)
 {
-  /*
   const Real norm2F = Assemble::sp_norm2__(C.sp_F_d, pm1.geom.sp_g_uu,
                                            k, j, i);
 
   if (norm2F > 0)
-  if (SQR(C.sc_E(k,j,i)) > norm2F)
+  if (SQR(C.sc_E(k,j,i)) < norm2F)
   {
     const Real normF = std::sqrt(norm2F);
-    const Real fac = normF / C.sc_E(k,j,i);  // BD: TODO - add eps to this in case |F|=E
+    const Real fac = normF / C.sc_E(k,j,i);
 
     const Real rfac = 1.0 / (fac + pm1.opt.eps_ec_fac);
     for (int a=0; a<N; ++a)
@@ -281,8 +291,8 @@ inline bool EnforceCausality(
   }
 
   return false;
-  */
 
+  /*
   bool rescale = false;
   for (int a=0; a<N; ++a)
   {
@@ -307,6 +317,7 @@ inline bool EnforceCausality(
   }
 
   return rescale;
+  */
 }
 
 // Enforce physicality on (E, F_d) components of V

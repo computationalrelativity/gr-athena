@@ -52,6 +52,19 @@
 // Note:
 // ENABLE_EXCEPTIONS is _always_ assumed
 
+// Diagnostics ----------------------------------------------------------------
+namespace gra::diagnostics {
+
+inline void std_print(const std::string & to_print)
+{
+  if (Globals::my_rank == 0)
+  #pragma omp critical
+  {
+    std::cout << to_print << "\n";
+  }
+}
+}
+
 // MPI/OMP  -------------------------------------------------------------------
 namespace gra::parallelism {
 

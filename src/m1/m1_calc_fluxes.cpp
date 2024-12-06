@@ -5,6 +5,7 @@
 #include "m1_calc_fluxes.hpp"
 #include "m1_macro.hpp"
 #include "m1_utils.hpp"
+#include <limits>
 
 // ============================================================================
 namespace M1 {
@@ -27,18 +28,16 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
   AT_C_sca & lambda = scratch.lambda;
 
   // required geometric quantities
-  AT_C_sca & alpha  = geom.sc_alpha;
-  AT_N_vec & beta_u = geom.sp_beta_u;
-  AT_N_sym & g_uu   = geom.sp_g_uu;
+  AT_C_sca & sc_alpha  = geom.sc_alpha;
+  AT_N_vec & sp_beta_u = geom.sp_beta_u;
+  AT_N_sym & sp_g_uu   = geom.sp_g_uu;
+
+  // required fiducial quantities
+  AT_C_sca & sc_W   = fidu.sc_W;
+  AT_N_vec & sp_v_u = fidu.sp_v_u;
 
   // point to scratches -------------------------------------------------------
-  AT_C_sca & sc_norm_sp_H_ = scratch.sc_norm_sp_H_;
-  AT_C_sca & sc_G_         = scratch.sc_G_;
-
-  AT_N_vec & sp_H_u_       = scratch.sp_H_u_;
-  AT_N_vec & sp_f_u_       = scratch.sp_f_u_;
-
-  AT_D_vec & st_F_d_       = scratch.st_F_d_;
+  AT_N_sym & sp_P_dd_ = scratch.sp_P_dd_;
 
   // indicial ranges ----------------------------------------------------------
   const int il = pm1->mbi.il-M1_NGHOST_MIN;
@@ -64,19 +63,15 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
       AT_N_vec & U_F_d  = U.sp_F_d(ix_g,ix_s);
       AT_C_sca & U_E    = U.sc_E(  ix_g,ix_s);
 
-      AT_N_sym & sp_P_dd = lab_aux.sp_P_dd(ix_g,ix_s);
-
-      AT_C_sca & sc_n   = rad.sc_n(ix_g,ix_s);
-      AT_C_sca & sc_J   = rad.sc_J(ix_g,ix_s);
-      AT_N_vec & sp_H_d = rad.sp_H_d(ix_g,ix_s);
-
       AT_C_sca & sc_kap_a = radmat.sc_kap_a(ix_g,ix_s);
       AT_C_sca & sc_kap_s = radmat.sc_kap_s(ix_g,ix_s);
 
       AT_C_sca & sc_chi = lab_aux.sc_chi(ix_g,ix_s);
 
       if (!approximate_speeds)
+      {
         CalcCharacteristicSpeed(ix_d, U_E, U_F_d, sc_chi, lambda);
+      }
 
       // Flux assembly and reconstruction =====================================
       // See Eq.(28) of [1] (note densitized)
@@ -84,33 +79,56 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
       // nG -------------------------------------------------------------------
       M1_FLOOP2(k,j)
       {
-        Assemble::sp_d_to_u_(this, sp_H_u_, sp_H_d, k, j, il, iu);
-        Assemble::sc_norm_sp_(this, sc_norm_sp_H_, sp_H_u_, sp_H_d,
-                              k, j, il, iu);
-
-        Assemble::sp_f_u_(
-          this, sp_f_u_, sp_H_u_, sc_norm_sp_H_, sc_J,
-          ix_d, k, j, il, iu
-        );
-
+        // Require fiducial frame to prepare flux
         M1_FLOOP1(i)
         {
-          const Real W  = pm1->fidu.sc_W(k,j,i);
-          const Real W2 = SQR(W);
+          // We write:
+          // sc_J = J_0
+          // st_H = H_n n^alpha + H_v v^alpha + H_F F^alpha
+          Real J_0, H_n, H_v, H_F;
 
-          const Real dotFv = Assemble::sc_dot_dense_sp__(
-            U_F_d, pm1->fidu.sp_v_u, k, j, i);
-
-          sc_G_(i) = Assemble::sc_G__(
-            this->fidu.sc_W(k,j,i), U_E(k,j,i), sc_J(k,j,i), dotFv,
-            this->opt.fl_E, this->opt.fl_J, this->opt.eps_E
+          Assemble::Frames::ToFiducialExpansionCoefficients(
+            *this,
+            J_0, H_n, H_v, H_F,
+            sc_chi, U_E, U_F_d,
+            k, j, i
           );
-        }
 
-        M1_FLOOP1(i)
-        {
-          sc_n(k,j,i) = U_nG(k,j,i) / sc_G_(i);
-          F_sca(k,j,i) = alpha(k,j,i) * sc_n(k,j,i) * sp_f_u_(ix_d,i);
+          /*
+          // Ensure we do not encounter zero-division
+          J_0 = std::max(J_0, this->opt.fl_J);
+
+          const Real W = sc_W(k,j,i);
+          const Real oo_J_0 = OO(J_0);
+
+          const Real sc_G__ = (
+            W + oo_J_0 * H_n  // note sign switch due to n proj
+          );
+          */
+
+          const Real W = sc_W(k,j,i);
+          const Real sc_G__ = (J_0 > 0)
+            ? (W + H_n / J_0)
+            : W;
+
+          const Real oo_J_0 = (J_0 > 0) ? OO(J_0) : 0.0;
+
+          const Real alpha = sc_alpha(k,j,i);
+          const Real oo_alpha = OO(alpha);
+          Real F_u (0);
+          for (int a=0; a<N; ++a)
+          {
+            F_u += sp_g_uu(ix_d,a,k,j,i) * U_F_d(a,k,j,i);
+          }
+
+          const Real sp_f_u__ = sc_W(k,j,i) * (
+            sp_v_u(ix_d,k,j,i) - sp_beta_u(ix_d,k,j,i) * oo_alpha
+          ) + oo_J_0 * (
+            H_v * sp_v_u(ix_d,k,j,i) +
+            H_F * F_u
+          );
+
+          F_sca(k,j,i) = sc_alpha(k,j,i) * (U_nG(k,j,i) / sc_G__) * sp_f_u__;
         }
       }
       Fluxes::ReconstructLimitedFlux(this, ix_d, U_nG, F_sca,
@@ -121,13 +139,14 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
       {
         M1_FLOOP1(i)
         {
-          F_sca(k,j,i) = -beta_u(ix_d,k,j,i) * U_E(k,j,i);
+          F_sca(k,j,i) = -sp_beta_u(ix_d,k,j,i) * U_E(k,j,i);
         }
 
         for (int a=0; a<N; ++a)
         M1_FLOOP1(i)
         {
-          F_sca(k,j,i) += alpha(k,j,i) * geom.sp_g_uu(ix_d,a,k,j,i) *
+          F_sca(k,j,i) += sc_alpha(k,j,i) *
+                          sp_g_uu(ix_d,a,k,j,i) *
                           U_F_d(a,k,j,i);
         }
 
@@ -138,18 +157,24 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
       // F_k ------------------------------------------------------------------
       M1_FLOOP2(k,j)
       {
+        Assemble::Frames::sp_P_dd_(
+          *this, sp_P_dd_, sc_chi, U_E, U_F_d,
+          k, j, il, iu
+        );
+
         for (int a=0; a<N; ++a)
         {
           M1_FLOOP1(i)
           {
-            F_vec(a,k,j,i) = -beta_u(ix_d,k,j,i) * U_F_d(a,k,j,i);
+            F_vec(a,k,j,i) = -sp_beta_u(ix_d,k,j,i) * U_F_d(a,k,j,i);
           }
 
           for (int b=0; b<N; ++b)
           M1_FLOOP1(i)
           {
-            F_vec(a,k,j,i) += alpha(k,j,i) *
-                              g_uu(ix_d,b,k,j,i) * sp_P_dd(b,a,k,j,i);
+            F_vec(a,k,j,i) += sc_alpha(k,j,i) *
+                              sp_g_uu(ix_d,b,k,j,i) *
+                              sp_P_dd_(b,a,i);
           }
         }
       }
@@ -157,8 +182,6 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
                                      sc_kap_a, sc_kap_s, lambda, F_F_d);
     }
   }
-
-  return;
 }
 
 // ----------------------------------------------------------------------------
@@ -177,7 +200,8 @@ void M1::CalcCharacteristicSpeedApproximate(const int dir, AT_C_sca & lambda)
   M1_FLOOP3(k,j,i)
   if (pm1->MaskGet(k,j,i))
   {
-    const Real A = alpha(k,j,i) * std::sqrt(g_uu(dir,dir,k,j,i));
+    // Cf. [1] we have ONE_3RD
+    const Real A = alpha(k,j,i) * std::sqrt(g_uu(dir,dir,k,j,i) * ONE_3RD);
     const Real B = beta_u(dir,k,j,i);
     lambda(k,j,i) = AMAX(A+B, A-B);
   }
@@ -198,15 +222,46 @@ void M1::CalcCharacteristicSpeed(const int dir,
   AT_N_vec & v_d = fidu.sp_v_d;
   AT_N_vec & v_u = fidu.sp_v_u;
 
-  AT_C_sca & sc_sqrt_det_g = geom.sc_sqrt_det_g;
-
   auto AMAX = [&](const Real A, const Real B)
   {
     return std::max(std::abs(A), std::abs(B));
   };
 
+  auto lam_mixed = [&](const int k, const int j, const int i)
+  {
+    // See [3]
+    AT_C_sca & alpha  = geom.sc_alpha;
+    AT_N_vec & beta_u = geom.sp_beta_u;
+    AT_N_sym & g_uu   = geom.sp_g_uu;
+
+    Real F_u (0.);
+    Real nF2 (0.);
+    for (int a=0; a<N; ++a)
+    {
+      F_u += g_uu(dir,a,k,j,i) * sp_F_d(a,k,j,i);
+
+      for (int b=0; b<N; ++b)
+      {
+        nF2 += g_uu(a,b,k,j,i) * sp_F_d(a,k,j,i) * sp_F_d(b,k,j,i);
+      }
+    }
+
+    Real A = alpha(k,j,i) * std::sqrt(g_uu(dir,dir,k,j,i) / 3.0);
+    Real B = beta_u(dir,k,j,i);
+    const Real lam_thick = AMAX(A+B, A-B);
+
+    const Real oo_nF2 = (nF2 > 0) ? OO(nF2) : 0;
+    const Real oo_nF  = std::sqrt(oo_nF2);
+
+    A = alpha(k,j,i) * oo_nF * std::abs(F_u);
+    const Real lam_thin = AMAX(A+B, A-B);
+
+    return std::max(lam_thick, lam_thin);
+  };
+
   auto lam_thin = [&](const int k, const int j, const int i)
   {
+    /*
     Real normF2 (0.);
     for (int a=0; a<N; ++a)
     for (int b=0; b<N; ++b)
@@ -233,33 +288,67 @@ void M1::CalcCharacteristicSpeed(const int dir,
     );
 
     return std::max(lam_a, lam_b);
+    */
+
+    // Cf. Shibata '11
+    Real F_u (0.);
+    Real nF2 (0.);
+    for (int a=0; a<N; ++a)
+    {
+      F_u += g_uu(dir,a,k,j,i) * sp_F_d(a,k,j,i);
+
+      for (int b=0; b<N; ++b)
+      {
+        nF2 += g_uu(a,b,k,j,i) * sp_F_d(a,k,j,i) * sp_F_d(b,k,j,i);
+      }
+    }
+
+    const Real oo_nF2 = (nF2 > 0) ? OO(nF2) : 0;
+    const Real oo_nF  = std::sqrt(oo_nF2);
+
+    const Real lfac_a = alpha(k,j,i) * F_u * oo_nF;
+    const Real lam_a = AMAX(
+      -beta_u(dir,k,j,i) - lfac_a,
+      -beta_u(dir,k,j,i) + lfac_a
+    );
+
+    return AMAX(
+      lam_a,
+      -beta_u(dir,k,j,i) + alpha(k,j,i) * sc_E(k,j,i) * F_u * oo_nF2
+    );
   };
 
   auto lam_thick = [&](const int k, const int j, const int i)
   {
-    Real normv2 (0.);
-    for (int a=0; a<N; ++a)
-    {
-      normv2 += v_d(a,k,j,i) * v_u(a,k,j,i);
-    }
-
     const Real W2 = SQR(W(k,j,i));
 
-    const Real fac_sqrt = std::sqrt(
-      (2.0 * W2 + 1.0) * alpha(k,j,i) * g_uu(dir,dir,k,j,i) -
-      2.0 * W2 * normv2
-    ) / (2.0 * W2 + 1);
+    const Real fac_sqrt = alpha(k,j,i) * std::sqrt(
+      (2.0 * W2 + 1.0) * g_uu(dir,dir,k,j,i) -
+      2.0 * SQR(v_u(dir,k,j,i))
+    );
 
-    const Real fac_A = 2.0 * W2 * std::abs(v_d(dir,k,j,i)) / (2.0 * W2 + 1);
+    const Real fac_A = 2.0 * W(k,j,i) * alpha(k,j,i) * v_u(dir,k,j,i);
+    const Real fac_B = OO(2.0 * W2 + 1);
 
-    const Real lam_m = std::abs(beta_d(dir,k,j,i)) + fac_A - fac_sqrt;
-    const Real lam_p = std::abs(beta_d(dir,k,j,i)) + fac_A + fac_sqrt;
+    const Real lam_m = -beta_u(dir,k,j,i) + fac_B * (fac_A - fac_sqrt);
+    const Real lam_p = -beta_u(dir,k,j,i) + fac_B * (fac_A + fac_sqrt);
 
     return AMAX(lam_m, lam_p);
   };
 
   switch (opt.characteristics_variety)
   {
+    case (opt_characteristics_variety::mixed):
+    {
+      // see e.g. [2].
+      M1_FLOOP3(k,j,i)
+      if (pm1->MaskGet(k,j,i))
+      {
+        lambda(k,j,i) = lam_mixed(k,j,i);
+      }
+
+      break;
+    }
     case (opt_characteristics_variety::exact_thin):
     {
       // see e.g. [2].
@@ -282,15 +371,15 @@ void M1::CalcCharacteristicSpeed(const int dir,
 
       break;
     }
-    case (opt_characteristics_variety::exact_Minerbo):
+    case (opt_characteristics_variety::exact_closure):
     {
       // see e.g. [2].
       M1_FLOOP3(k,j,i)
       if (pm1->MaskGet(k,j,i))
       {
         lambda(k,j,i) = (
-          0.5 * (3.0 * sc_chi(k,j,i) - 1.0) * lam_thin(k,j,i) +
-          0.5 * 3.0 * (1.0 - sc_chi(k,j,i)) * lam_thick(k,j,i)
+          Assemble::Frames::d_th(sc_chi, k, j, i) * lam_thin(k,j,i) +
+          Assemble::Frames::d_tk(sc_chi, k, j, i) * lam_thick(k,j,i)
         );
       }
 

@@ -10,6 +10,11 @@
 //      the time evolution of the general relativistic radiation
 //      magneto-hydrodynamics equations." Classical and Quantum Gravity 40.14
 //      (2023): 145014.
+//
+// [3]: Schianchi, Federico, et al. "M1 neutrino transport within the
+//      numerical-relativistic code BAM with application to low mass binary
+//      neutron star mergers." Classical and Quantum Gravity 40.14
+//      (2023)
 
 // c++
 #include <iostream>
@@ -56,18 +61,11 @@ public:
   void CalcClosure(AA & u);
   void CalcFiducialFrame(AA & u);
   void CalcOpacity(Real const dt, AA & u);
-  // BD: TODO - Deprecated.. retain for testing..
   void CalcUpdate(Real const dt,
                   AA & u_pre,
                   AA & u_cur,
 		              AA & u_inh,
                   AA & sources);
-
-  void CalcUpdateNew(Real const dt,
-                     AA & u_pre,
-                     AA & u_cur,
-		                 AA & u_inh,
-                     AA & sources);
 
   void CalcFluxes(AA & u);
   void AddFluxDivergence(AA & u_inh);
@@ -77,10 +75,6 @@ public:
   Real NewBlockTimeStep();
 
   void CoupleSourcesADM(AT_C_sca &A_rho, AT_N_vec &A_S_d, AT_N_sym & A_S_dd);
-  void CoupleSourcesHydro(const Real weight, AA &cons);
-  void CoupleSourcesYe(   const Real weight, const Real mb, AA &ps);
-
-  // `master_m1` style
   void CoupleSourcesHydro(AA &cons);
   void CoupleSourcesYe(const Real mb, AA &ps);
 
@@ -131,37 +125,29 @@ public:
   // BD: TODO - after refactor remove extraneous named..
   enum class opt_integration_strategy { full_explicit,
                                         explicit_approximate_semi_implicit,
-                                        semi_implicit_PicardFrozenP,
-                                        semi_implicit_PicardMinerboP,
-                                        semi_implicit_PicardMinerboPC,
                                         semi_implicit_Hybrids,
-                                        semi_implicit_HybridsJ,
-                                        semi_implicit_HybridsJFrozenP,
-                                        semi_implicit_HybridsJMinerbo,
-                                        auto_esi_Hybrids,
-                                        auto_esi_HybridsJMinerbo,
-                                        auto_esi_PicardMinerboP};
+                                        semi_implicit_HybridsJ};
   enum class opt_fiducial_velocity { fluid, mixed, zero, none };
 
   enum class opt_flux_variety { HybridizeMinModA,
                                 HybridizeMinModB,
                                 HybridizeMinModC,
                                 HybridizeMinMod,
-                                LO };
+                                LO,
+                                HO };
 
   enum class opt_characteristics_variety { approximate,
+                                           mixed,
                                            exact_thin,
                                            exact_thick,
-                                           exact_Minerbo };
+                                           exact_closure };
   enum class opt_closure_variety { thin,
                                    thick,
                                    Minerbo,
-                                   MinerboP,
-                                   MinerboB,
-                                   MinerboN };
+                                   Kershaw };
 
   enum class opt_closure_method {
-    gsl_Brent, Newton, Picard
+    none, gsl_Brent, gsl_Newton
   };
 
   struct
@@ -220,9 +206,6 @@ public:
 
   struct
   {
-    // BD: TODO - remove the following var. after refactor
-    opt_integration_strategy strategy;
-
     struct {
       opt_integration_strategy non_stiff;
       opt_integration_strategy stiff;
@@ -233,7 +216,9 @@ public:
     bool solver_reduce_to_common;
     bool solver_explicit_nG;
 
-    Real eps_tol;
+    Real eps_a_tol;
+    Real eps_r_tol;
+
     Real w_opt_ini;
     Real fac_err_amp;
 
@@ -288,7 +273,7 @@ public:
   struct vars_LabAux {
     // N.B.
     // These quantities should be viewed as \sqrt(\gamma) densitized
-    GroupSpeciesContainer<AT_N_sym> sp_P_dd;
+    GroupSpeciesContainer<AT_N_sym> sp_P_dd;  // retain for output
     // GroupSpeciesContainer<AT_C_sca> sc_n;
 
     // Closure weight - not densitized
@@ -304,8 +289,7 @@ public:
     // These quantities should be viewed as \sqrt(\gamma) densitized
     GroupSpeciesContainer<AT_C_sca> sc_n;
     GroupSpeciesContainer<AT_C_sca> sc_J;
-    GroupSpeciesContainer<AT_C_sca> sc_H_t;
-    GroupSpeciesContainer<AT_N_vec> sp_H_d;
+    GroupSpeciesContainer<AT_D_vec> st_H_u;
   };
   vars_Rad rad;
 
@@ -356,8 +340,6 @@ public:
     AT_N_vec sp_v_u;
     AT_N_vec sp_v_d;
 
-    AT_D_vec st_v_u;
-
     AT_C_sca sc_W;
   };
   vars_Fidu fidu;
@@ -382,6 +364,7 @@ public:
     // derived quantities
     AT_N_vec sp_beta_d;
     AT_C_sca sc_sqrt_det_g;
+    AT_C_sca sc_oo_sqrt_det_g;
     AT_N_sym sp_g_uu;
 
     AT_N_D1sca sp_dalpha_d;
@@ -405,39 +388,19 @@ public:
 
   // various persistent scratch quantities not fitting elsewhere
   struct vars_Scratch {
-    AT_D_sym st_T_rad_;
-    AT_D_vec st_S_u_;
+    // ------------------------------------------------------------------------
+
+    // ------------------------------------------------------------------------
 
     // (sp)atial quantities (scratch: assembled as required)
-    AT_N_vec sp_F_u_;
     AT_N_vec sp_f_u_;
-    AT_N_vec sp_H_u_;
+
+    AT_N_sym sp_P_dd_;
+    AT_N_bil sp_P_ud_;
     AT_N_sym sp_P_uu_;
 
-    // (s)pace-(t)ime quantities (scratch: assembled as required)
-    AT_D_vec st_F_d_;
-    AT_C_sca sc_norm_st_F_;
-    AT_C_sca sc_G_;
-
-    AT_D_sym st_P_dd_;
-
-    AT_C_sca sc_norm_sp_H_;
-    AT_C_sca sc_norm_st_H_;
-    AT_D_vec st_H_d_;
-    AT_D_vec st_H_u_;
-    AT_D_vec st_f_u_;
-
-    AT_D_vec st_n_u_;
-    AT_D_vec st_n_d_;
-
-    AT_D_vec st_beta_u_;
-    AT_D_sym st_g_dd_;
-    AT_D_sym st_g_uu_;
-
-    AT_D_bil st_Phyp_ud_;  // projector (based on hypersurf. normal)
-    AT_D_bil st_Pfid_ud_;  // projector (based on fiducial vel.)
-
-    AT_D_vec st_w_u_u_;
+    AT_N_sym sp_P_th_dd_;
+    AT_N_sym sp_P_tk_dd_;
 
     // For flux calculation (allocated for N-dim grid / not pencil)
     AT_C_sca F_sca;
@@ -465,8 +428,6 @@ public:
   };
   vars_Scratch scratch;
 
-  AT_C_sca m1_mask;  // Excision mask
-
 private:
   // called during ctor for scratch (see descriptions in vars_Scratch)
   void InitializeScratch(vars_Scratch & scratch,
@@ -477,8 +438,6 @@ private:
                          vars_Fidu    & fidu)
   {
     // general scratch --------------------------------------------------------
-    scratch.st_T_rad_.NewAthenaTensor(mbi.nn1);
-    scratch.st_S_u_.NewAthenaTensor(mbi.nn1);
 
     scratch.sc_A_.NewAthenaTensor(mbi.nn1);
     scratch.sc_B_.NewAthenaTensor(mbi.nn1);
@@ -491,16 +450,15 @@ private:
     scratch.sp_sym_C_.NewAthenaTensor(mbi.nn1);
 
     // Lab (Eulerian) frame ---------------------------------------------------
-    scratch.sp_F_u_.NewAthenaTensor(mbi.nn1);
     scratch.sp_f_u_.NewAthenaTensor(mbi.nn1);
 
-    scratch.st_F_d_.NewAthenaTensor(mbi.nn1);
-    scratch.sc_norm_st_F_.NewAthenaTensor(mbi.nn1);
-    scratch.sc_G_.NewAthenaTensor(mbi.nn1);
-
     // Lab (Eulerian) frame auxiliaries ---------------------------------------
+    scratch.sp_P_dd_.NewAthenaTensor(mbi.nn1);
+    scratch.sp_P_ud_.NewAthenaTensor(mbi.nn1);
     scratch.sp_P_uu_.NewAthenaTensor(mbi.nn1);
-    scratch.st_P_dd_.NewAthenaTensor(mbi.nn1);
+
+    scratch.sp_P_th_dd_.NewAthenaTensor(mbi.nn1);
+    scratch.sp_P_tk_dd_.NewAthenaTensor(mbi.nn1);
 
     // flux-related -----------------------------------------------------------
     scratch.F_sca.NewAthenaTensor( mbi.nn3,mbi.nn2,mbi.nn1);
@@ -508,30 +466,6 @@ private:
     scratch.lambda.NewAthenaTensor(mbi.nn3,mbi.nn2,mbi.nn1);
 
     scratch.dflx_.NewAthenaArray(N_GRPS, N_SPCS, ixn_Lab::N, mbi.nn1);
-
-    // Rad (fiducial) frame ---------------------------------------------------
-    scratch.sc_norm_sp_H_.NewAthenaTensor(mbi.nn1);
-    scratch.sc_norm_st_H_.NewAthenaTensor(mbi.nn1);
-    scratch.sp_H_u_.NewAthenaTensor(mbi.nn1);
-    scratch.st_H_d_.NewAthenaTensor(mbi.nn1);
-    scratch.st_H_u_.NewAthenaTensor(mbi.nn1);
-    scratch.st_f_u_.NewAthenaTensor(mbi.nn1);
-
-    // geometric --------------------------------------------------------------
-    scratch.st_n_u_.NewAthenaTensor(mbi.nn1);
-    scratch.st_n_d_.NewAthenaTensor(mbi.nn1);
-
-    scratch.st_beta_u_.NewAthenaTensor(mbi.nn1);
-    scratch.st_g_dd_.NewAthenaTensor(mbi.nn1);
-    scratch.st_g_uu_.NewAthenaTensor(mbi.nn1);
-
-    scratch.st_Phyp_ud_.NewAthenaTensor(mbi.nn1);
-
-    // hydro ------------------------------------------------------------------
-    scratch.st_w_u_u_.NewAthenaTensor(mbi.nn1);
-
-    // fiducial ---------------------------------------------------------------
-    scratch.st_Pfid_ud_.NewAthenaTensor(mbi.nn1);
 
     // generic quantities (dense) ---------------------------------------------
     scratch.sc_A.NewAthenaTensor(mbi.nn3,mbi.nn2,mbi.nn1);
@@ -571,8 +505,7 @@ public:
     {
       n,
       J,
-      H_t,
-      H_x, H_y, H_z,
+      st_H_u_t, st_H_u_x, st_H_u_y, st_H_u_z,
       y,
       z,
       N
@@ -580,7 +513,7 @@ public:
     static constexpr char const * const names[] = {
       "rad.n",
       "rad.J",
-      "rad.Ht", "rad.Hx", "rad.Hy", "rad.Hz",
+      "rad.st_H_u_t", "rad.st_H_u_x", "rad.st_H_u_y", "rad.st_H_u_z",
       "rad.y",
       "rad.z"
     };
@@ -662,21 +595,17 @@ public:
     {
       fidu_v_u_x, fidu_v_u_y, fidu_v_u_z,
       fidu_v_d_x, fidu_v_d_y, fidu_v_d_z,
-      fidu_st_v_t, fidu_st_v_x, fidu_st_v_y, fidu_st_v_z,
       fidu_W,
       netabs,
       netheat,
-      mask,
       N
     };
     static constexpr char const * const names[] = {
       "fidu.v_u_x", "fidu.v_u_y", "fidu.v_u_z",
       "fidu.v_d_x", "fidu.v_d_y", "fidu.v_d_z",
-      "fidu.st_vt", "fidu.st_vx", "fidu.st_vy", "fidu.st_vz",
       "fidu.W",
       "net.abs",
-      "net.heat",
-      "mask",
+      "net.heat"
     };
   };
 
@@ -726,6 +655,7 @@ public:
     struct {
       AthenaArray<opt_solution_regime>  solution_regime;
       AthenaArray<opt_source_treatment> source_treatment;
+      AthenaArray<bool>                 excised;
     } masks;
   } ev_strat;
 
@@ -761,7 +691,7 @@ public:
   inline void MaskSet(const bool is_enabled,
                       const int k, const int j, const int i)
   {
-    m1_mask(k,j,i) = is_enabled;
+    ev_strat.masks.excised(k,j,i) = !is_enabled;
 
     if (!is_enabled)
     for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
@@ -801,7 +731,7 @@ public:
 
   inline bool MaskGet(const int k, const int j, const int i)
   {
-    return m1_mask(k,j,i);
+    return !(ev_strat.masks.excised(k,j,i));
   }
 
 

@@ -11,6 +11,7 @@
 #include <gsl/gsl_roots.h>
 #include <gsl/gsl_multiroots.h>
 #include <gsl/gsl_vector.h>
+#include <limits>
 
 
 // ============================================================================
@@ -69,65 +70,8 @@ void PrepareApproximateFirstOrder_E_F_d(
   Update::StateMetaVector & V, // state to utilize
   const int k, const int j, const int i)
 {
-  // construct fiducial frame quantities (tilde of [1])
-  const Real W  = pm1.fidu.sc_W(k,j,i);
-  const Real W2 = SQR(W);
+  assert(false);
 
-  const Real dotFv = Assemble::sc_dot_dense_sp__(
-    V.sp_F_d,
-    pm1.fidu.sp_v_u,
-    k, j, i
-  );
-
-  // assemble J
-  V.sc_J(k,j,i) = Assemble::sc_J__(
-    W2, dotFv, V.sc_E, pm1.fidu.sp_v_u, V.sp_P_dd,
-    pm1.opt.fl_J,
-    k, j, i
-  );
-
-  // assemble H_d
-  Assemble::sp_H_d__(V.sp_H_d, W, V.sc_J, V.sp_F_d,
-                     pm1.fidu.sp_v_d, pm1.fidu.sp_v_u, V.sp_P_dd,
-                     k, j, i);
-
-  // propagate fiducial frame quantities (hat of [1])
-  V.sc_J(k,j,i) = std::max(
-    (
-      (V.sc_J(k,j,i) * W + dt * V.sc_eta(k,j,i)) /
-      (W + dt * V.sc_kap_a(k,j,i))
-    ),
-    pm1.opt.fl_J
-  );
-
-  for (int a=0; a<N; ++a)
-  {
-    V.sp_H_d(a,k,j,i) = W * V.sp_H_d(a,k,j,i) / (
-      W + dt * (V.sc_kap_a(k,j,i) + V.sc_kap_s(k,j,i))
-    );
-  }
-
-  // transform to Eulerian frame assuming _thick_ limit closure
-  const Real dotHv = Assemble::sc_dot_dense_sp__(
-    V.sp_H_d,
-    pm1.fidu.sp_v_u,
-    k, j, i
-  );
-
-  // assemble initial guess
-  V.sc_E(k,j,i) = ONE_3RD * (
-    4.0 * W2 - 1.0
-  ) * V.sc_J(k,j,i) + 2.0 * W * dotHv;
-
-  for (int a=0; a<N; ++a)
-  {
-    V.sp_F_d(a,k,j,i) = (
-      4.0 * ONE_3RD * W2 * V.sc_J(k,j,i) * pm1.fidu.sp_v_d(a,k,j,i) +
-      W * (V.sp_H_d(a,k,j,i) + dotHv * pm1.fidu.sp_v_d(a,k,j,i))
-    );
-  }
-
-  EnforcePhysical_E_F_d(pm1, V, k, j, i);
 }
 
 // ============================================================================
@@ -151,7 +95,10 @@ void StepImplicitPrepareInitialGuess(
   using namespace Explicit;
   using namespace Sources;
 
- // prepare initial guess for iteration --------------------------------------
+  // Retain values for potential restarts
+  C.FallbackStore(k, j, i);
+
+  // prepare initial guess for iteration --------------------------------------
   // See \S3.2.4 of [1]
 
   // Evolve (sc_E, sp_F_d) -> (sc_E*, sp_F_d*) _without_ matter sources
@@ -159,7 +106,7 @@ void StepImplicitPrepareInitialGuess(
 
   // try a nearest-neighbour guess?
   if (pm1.opt_solver.use_Neighbor &&
-      (i > pm1.mbi.il) && (j > pm1.mbi.jl))
+      (i > pm1.mbi.il))
   {
     C.sc_E(k,j,i) = C.sc_E(k,j,i-1);
     for (int a=0; a<N; ++a)
@@ -168,39 +115,109 @@ void StepImplicitPrepareInitialGuess(
     CL_C.Closure(k, j, i);
 
     // PrepareApproximateFirstOrder_E_F_d(pm1, dt, C, k, j, i);
-    C.FallbackStore(k, j, i);
+    // C.FallbackStore(k, j, i);
   }
   else
   {
+    // ------------------------------------------------------------------------
+    // Evolve (sc_E, sp_F_d) -> (sc_E*, sp_F_d*) _without_ matter sources
+    SetMatterSourceZero(S, k, j, i);
+
     // Explicit step, no sources; applies floors internally
     StepExplicit_E_F_d(pm1, dt, C, P, I, S, k, j, i);
 
-
-    // PrepareMatterSource_E_F_d(pm1, P, S, k, j, i);
-    // StepExplicit_E_F_d(pm1, dt, C, P, I, S, k, j, i);
-    // SetMatterSourceZero(S, k, j, i);
-
-    // Compute (pm1 storage) (sp_P_dd, ...) based on (sc_E*, sp_F_d*)
+    // Compute closure & construct fiducial frame:
     CL_C.Closure(k, j, i);
 
-    // Prepare state as approximate solution of _implicit_ system at O(v)
-    PrepareApproximateFirstOrder_E_F_d(pm1, dt, C, k, j, i);
+    // Evolve fiducial frame; prepare (J, H^alpha):
+    // We write:
+    // sc_J = J_0
+    // st_H = H_n n^alpha + H_v v^alpha + H_F F^alpha
+    const Real W  = pm1.fidu.sc_W(k,j,i);
+    const Real W2 = SQR(W);
 
-    // BD: TODO - use source masking
-    // PrepareMatterSource_E_F_d(pm1, C, S, k, j, i);
+    const AT_N_vec & sp_v_d = pm1.fidu.sp_v_d;
+    const AT_N_vec & sp_v_u = pm1.fidu.sp_v_u;
 
+    const AT_C_sca & sc_alpha  = pm1.geom.sc_alpha;
+    const AT_N_vec & sp_beta_u = pm1.geom.sp_beta_u;
 
-    // BD: TODO - application of this here causes issues?
-    // Compute (pm1 storage) (sp_P_dd, ...) based on implicit appr.
-    // CL_C.ClosureThick(k, j, i);
+    Real J_0, H_n, H_v, H_F;
 
-    CL_C.ClosureThick(k, j, i);
+    Assemble::Frames::ToFiducialExpansionCoefficients(
+      pm1,
+      J_0, H_n, H_v, H_F,
+      C.sc_chi, C.sc_E, C.sp_F_d,
+      k, j, i
+    );
 
-    // retain values for potential restarts
-    C.FallbackStore(k, j, i);
+    // J_0 = std::max(
+    //   (
+    //     (J_0 * W + dt * C.sc_eta(k,j,i)) /
+    //     (W + dt * C.sc_kap_a(k,j,i))
+    //   ),
+    //   pm1.opt.fl_J
+    // );
 
-    // This is done within the system Z functional
-    // PrepareMatterSource_E_F_d(pm1, C, S, k, j, i);
+    J_0 =(J_0 * W + dt * C.sc_eta(k,j,i)) /
+         (W + dt * C.sc_kap_a(k,j,i));
+
+    const Real fac_ev_H = W / (
+      W + dt * (C.sc_kap_a(k,j,i) + C.sc_kap_s(k,j,i))
+    );
+
+    H_n *= fac_ev_H;
+    H_v *= fac_ev_H;
+    H_F *= fac_ev_H;
+
+    // Transform back, assuming thick closure:
+
+    // Contract on ST idx:
+    // v_a H^a = v_i beta^i H^0 + v_i H^i
+    //         = v^a H_a
+    //         = v^i H_i
+    // where:
+    // H^a = H_n n^a + H_v v^a + H_F F^a
+    // H_i = H_n n_i + H_v v_i + H_F F_i
+    //     =    0    + H_v v_i + H_F F_i
+
+    Real dotHv (0);
+    for (int a=0; a<N; ++a)
+    {
+      dotHv += sp_v_u(a,k,j,i) * (
+        H_v * sp_v_d(a,k,j,i) +
+        H_F * C.sp_F_d(a,k,j,i)
+      );
+    }
+
+    const Real dotHn = -H_n;
+
+    C.sc_E(k,j,i) = (
+      4.0 * ONE_3RD * W2 * J_0 +
+      2.0 * W * dotHv -
+      ONE_3RD * J_0
+    );
+
+    for (int a=0; a<N; ++a)
+    {
+      C.sp_F_d(a,k,j,i) = (
+        4.0 * ONE_3RD * W2 * J_0 * sp_v_d(a,k,j,i) +
+        W * (
+          H_v * sp_v_d(a,k,j,i) +
+          H_F * C.sp_F_d(a,k,j,i)
+        ) -
+        W * dotHn * sp_v_d(a,k,j,i)
+      );
+    }
+
+    CL_C.sc_chi(k,j,i) = ONE_3RD;
+    CL_C.sc_xi(k,j,i)  = 0.0;
+
+    // Impose physical state
+    EnforcePhysical_E_F_d(pm1, C, k, j, i);
+
+    // // Retain values for potential restarts
+    // C.FallbackStore(k, j, i);
   }
   // --------------------------------------------------------------------------
 }
@@ -313,7 +330,6 @@ int Z_E_F_d(const gsl_vector *U, void * par_, gsl_vector *Z)
   gsl_V2T_E_F_d(C, U, k, j, i);                   // U->C
 
   Sources::PrepareMatterSource_E_F_d(pm1, C, S, k, j, i);
-
   System::Z_E_F_d(pm1, dt, C, P, I, S, k, j, i);  // updates C.Z_E, C.Z_F_d
 
   gsl_TZ2V_E_F_d(Z, C);                           // C.Z -> Z
@@ -395,6 +411,7 @@ void StepImplicitHybrids(
 
   StepImplicitPrepareInitialGuess(pm1, dt, C, P, I, S, CL_C, k, j, i);
 
+
   // GSL specific -------------------------------------------------------------
   {
     const size_t N_SYS = 1 + N;
@@ -415,12 +432,15 @@ void StepImplicitHybrids(
     int gsl_status = gsl_multiroot_fsolver_set(slv, &mrf, U_i);
 
     // do we even need to iterate or is the estimate sufficient?
-    gsl_status = gsl_multiroot_test_residual(slv->f, pm1.opt_solver.eps_tol);
-
+    // gsl_status = gsl_multiroot_test_residual(slv->f,
+    //                                          pm1.opt_solver.eps_a_tol);
+    // gsl_status = gsl_multiroot_test_delta(slv->dx, slv->x,
+    //                                       pm1.opt_solver.eps_a_tol,
+    //                                       pm1.opt_solver.eps_r_tol);
     // solver loop ------------------------------------------------------------
     int iter = 0;
 
-    if (gsl_status!=GSL_SUCCESS)
+    // if (gsl_status!=GSL_SUCCESS)
     do
     {
       iter++;
@@ -442,7 +462,11 @@ void StepImplicitHybrids(
 
       // Updated iterated vector
       gsl_T2V_E_F_d(slv->x, C, k, j, i);  // C->U_i
-      gsl_status = gsl_multiroot_test_residual(slv->f, pm1.opt_solver.eps_tol);
+      // gsl_status = gsl_multiroot_test_residual(slv->f,
+      //                                          pm1.opt_solver.eps_a_tol);
+      gsl_status = gsl_multiroot_test_delta(slv->dx, slv->x,
+                                            pm1.opt_solver.eps_a_tol,
+                                            pm1.opt_solver.eps_r_tol);
     }
     while (gsl_status == GSL_CONTINUE && iter < pm1.opt_solver.iter_max);
 
@@ -460,7 +484,7 @@ void StepImplicitHybrids(
         std::cout << "sc_chi : " << C.sc_chi(k,j,i) << "\n";
       }
 
-      revert_thick = false;
+      revert_thick = pm1.opt_solver.thick_tol;
     }
     else if ((gsl_status == GSL_ENOPROG) || (gsl_status == GSL_ENOPROGJ))
     {
@@ -477,7 +501,7 @@ void StepImplicitHybrids(
         }
       }
 
-      revert_thick = true;
+      revert_thick = pm1.opt_solver.thick_tol;
     }
     else if ((gsl_status != GSL_SUCCESS))
     {
@@ -564,12 +588,19 @@ void StepImplicitHybridsJ(
     int gsl_status = gsl_multiroot_fdfsolver_set(slv, &mrf, U_i);
 
     // do we even need to iterate or is the estimate sufficient?
-    gsl_status = gsl_multiroot_test_residual(slv->f, pm1.opt_solver.eps_tol);
+    // gsl_status = gsl_multiroot_test_residual(slv->f, pm1.opt_solver.eps_a_tol);
+
+    // gsl_status = gsl_multiroot_test_delta(slv->dx, slv->x,
+    //                                       pm1.opt_solver.eps_a_tol,
+    //                                       pm1.opt_solver.eps_r_tol);
 
     // solver loop ------------------------------------------------------------
     int iter = 0;
 
-    if (gsl_status!=GSL_SUCCESS)
+    Real xi_avg = CL_C.sc_xi(k,j,i);
+    Real xi_min = std::numeric_limits<Real>::infinity();
+
+    // if (gsl_status!=GSL_SUCCESS)
     do
     {
       iter++;
@@ -589,9 +620,31 @@ void StepImplicitHybridsJ(
       // compute closure with updated state
       CL_C.Closure(k,j,i);
 
+      // if ((pm1.opt_closure.variety != M1::opt_closure_variety::thick) &&
+      //     (iter > 2) &&
+      //     (CL_C.sc_chi(k,j,i) < ONE_3RD + 1e-2))
+      // {
+      //   // revert thick
+      //   CL_C.ClosureThick(k,j,i);
+      // }
+      // else
+      // {
+      //   CL_C.Closure(k,j,i);
+      // }
+
       // Updated iterated vector
       gsl_T2V_E_F_d(slv->x, C, k, j, i);  // C->U_i
-      gsl_status = gsl_multiroot_test_residual(slv->f, pm1.opt_solver.eps_tol);
+      // gsl_status = gsl_multiroot_test_residual(slv->f,
+      //                                          pm1.opt_solver.eps_a_tol);
+
+      gsl_status = gsl_multiroot_test_delta(slv->dx, slv->x,
+                                            pm1.opt_solver.eps_a_tol,
+                                            pm1.opt_solver.eps_r_tol);
+
+      xi_avg += CL_C.sc_xi(k,j,i);
+      xi_min = std::min(CL_C.sc_xi(k,j,i), xi_min);
+      // if ((xi_min < 1e-6) && pm1.opt_closure.variety != M1::opt_closure_variety::thick)
+      //   gsl_status = GSL_ENOPROG;
     }
     while (gsl_status == GSL_CONTINUE && iter < pm1.opt_solver.iter_max);
 
@@ -617,8 +670,13 @@ void StepImplicitHybridsJ(
       #pragma omp critical
       {
         std::cout << "Warning: StepImplicitHybridsJ: ";
-        std::cout << "GSL_ENOPROG || GSL_ENOPROGJ : iter " << iter << " \n";
+        std::cout << "GSL_ENOPROG || GSL_ENOPROGJ (" << gsl_status;
+        std::cout << "): iter " << iter << " \n";
         std::cout << "sc_chi : " << C.sc_chi(k,j,i) << " ";
+        std::printf("|.-1/3|=%.3g ", std::abs(C.sc_chi(k,j,i) - ONE_3RD));
+        // std::cout << "xi_avg : " << xi_avg / (iter + 1) << " ";
+        // std::cout << "xi_min : " << xi_min << " ";
+        // std::cout << "xi_min : " << xi_min << " ";
         std::cout << "@ (k, j, i): " << k << ", " << j << ", " << i << "\n";
       }
 
@@ -641,6 +699,8 @@ void StepImplicitHybridsJ(
       M1::opt_closure_variety opt_cl = pm1.opt_closure.variety;
       pm1.opt_closure.variety = M1::opt_closure_variety::thick;
 
+      // BD: TODO - check:
+      // This falls back to already boosted state?
       C.Fallback(k, j, i);
 
       StepImplicitHybridsJ(
@@ -657,7 +717,7 @@ void StepImplicitHybridsJ(
       );
 
       pm1.opt_closure.variety = opt_cl;
-    }
+   }
 
     // cleanup ----------------------------------------------------------------
     gsl_multiroot_fdfsolver_free(slv);
@@ -683,45 +743,52 @@ void SolveImplicitNeutrinoCurrent(
   Update::SourceMetaVector & S,       // carry source contribution
   const int k, const int j, const int i)
 {
-  const Real W  = pm1.fidu.sc_W(k,j,i);
-  const Real W2 = SQR(W);
+  AT_C_sca & sc_alpha = pm1.geom.sc_alpha;
+  AT_C_sca & sc_sqrt_det_g = pm1.geom.sc_sqrt_det_g;
 
-  const Real dotFv = Assemble::sc_dot_dense_sp__(C.sp_F_d, pm1.fidu.sp_v_u,
-                                                 k, j, i);
+  // We write:
+  // sc_J = J_0
+  // st_H = H_n n^alpha + H_v v^alpha + H_F F^alpha
+  Real J_0, H_n, H_v, H_F;
 
-  C.sc_J(k,j,i) = Assemble::sc_J__(
-    W2, dotFv, C.sc_E, pm1.fidu.sp_v_u, C.sp_P_dd,
-    pm1.opt.fl_J,
+  Assemble::Frames::ToFiducialExpansionCoefficients(
+    pm1,
+    J_0, H_n, H_v, H_F,
+    C.sc_chi, C.sc_E, C.sp_F_d,
     k, j, i
   );
 
+  // Ensure we do not encounter zero-division
+  J_0 = std::max(J_0, pm1.opt.fl_J);
+
+  const Real W = pm1.fidu.sc_W(k,j,i);
+  const Real oo_J_0 = OO(J_0);
+
+  const Real sc_G__ = (
+    W + oo_J_0 * H_n  // note sign switch due to n proj
+  );
+
   // BD: I.sc_nG contains flux div, but not \alpha \sqrt \eta^0
-  const Real src_term = pm1.geom.sc_alpha(k,j,i) *
-    pm1.geom.sc_sqrt_det_g(k,j,i) * C.sc_eta_0(k,j,i);
+  const Real src_term = sc_alpha(k,j,i) *
+    sc_sqrt_det_g(k,j,i) * C.sc_eta_0(k,j,i);
 
   const Real WnGam = P.sc_nG(k,j,i) + dt * (src_term + I.sc_nG(k,j,i));
 
-  const Real C_Gam = Assemble::sc_G__(
-    W, C.sc_E(k,j,i), C.sc_J(k,j,i), dotFv,
-    pm1.opt.fl_E, pm1.opt.fl_J, pm1.opt.eps_E
-  );
-
   C.sc_nG(k,j,i) = WnGam / (
-    1.0 + dt * pm1.geom.sc_alpha(k,j,i) * C.sc_kap_a_0(k,j,i) / C_Gam
+    1.0 + dt * sc_alpha(k,j,i) * C.sc_kap_a_0(k,j,i) / sc_G__
   );
 
-  C.sc_n(k,j,i) = C.sc_nG(k,j,i) / C_Gam;
+  // Ensure update preserves non-negativity
+  EnforcePhysical_nG(pm1, C, k, j, i);
 
-  // Retain source information
+  // Derived quantities & source retention
+  C.sc_n(k,j,i) = C.sc_nG(k,j,i) / sc_G__;
   {
-    const Real src_term_2 = pm1.geom.sc_alpha(k,j,i) *
+    const Real src_term_2 = sc_alpha(k,j,i) *
       C.sc_kap_a_0(k,j,i) * C.sc_n(k,j,i);
 
     S.sc_nG(k,j,i) = src_term - src_term_2;
   }
-
-  // Ensure update preserves non-negativity
-  EnforcePhysical_nG(pm1, C, k, j, i);
 }
 
 // ============================================================================

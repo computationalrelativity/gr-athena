@@ -35,15 +35,7 @@ inline void ExplicitIntegration(
   using namespace Explicit;
 
   // Evolve (sc_E, sp_F_d) -> (sc_E*, sp_F_d*)
-  if (pm1_.ev_strat.masks.source_treatment(k,j,i) == M1::evolution_strategy::opt_source_treatment::full)
-  {
-    PrepareMatterSource_E_F_d(pm1_, P, S, k, j, i);
-  }
-  else
-  {
-    SetMatterSourceZero(S, k, j, i);
-  }
-
+  PrepareMatterSource_E_F_d(pm1_, P, S, k, j, i);
   StepExplicit_E_F_d(pm1_, dt, C, P, I, S, k, j, i);
 
   // Compute (pm1 storage) (sp_P_dd, ...) based on (sc_E*, sp_F_d*)
@@ -54,7 +46,9 @@ inline void ExplicitIntegration(
 
   if (pm1_.ev_strat.masks.source_treatment(k,j,i) == M1::evolution_strategy::opt_source_treatment::full)
   {
+    // BD: TODO - This may not give quite the correct matter source...
     PrepareMatterSource_nG(pm1_, P, S, k, j, i);
+    Implicit::SolveImplicitNeutrinoCurrent(pm1_, dt, C, P, I, S, k, j, i);
   }
   else
   {
@@ -290,9 +284,6 @@ void DispatchIntegrationMethod(
     ClosureMetaVector CL_P = ConstructClosureMetaVector(pm1_, U_P_, ix_g, ix_s);
     ClosureMetaVector CL_C = ConstructClosureMetaVector(pm1_, U_C,  ix_g, ix_s);
 
-    // BD: TODO - an initial closure calc. should be shifted to the PGEN
-    //            Then this one should be removed.
-
     M1_ILOOP3(k, j, i)
     {
       // switch to different solver based on solution regime ------------------
@@ -302,7 +293,6 @@ void DispatchIntegrationMethod(
       {
         case M1::t_sln_r::noop:
         {
-          continue;
           break;
         }
         case M1::t_sln_r::non_stiff:
@@ -321,15 +311,15 @@ void DispatchIntegrationMethod(
         }
         case M1::t_sln_r::scattering:
         {
-          // std::printf("DEBUG: scattering @ (%d, %d; %d, %d, %d)\n",
-          //             ix_g, ix_s, k, j, i);
+          std::printf("DEBUG: scattering @ (%d, %d; %d, %d, %d)\n",
+                      ix_g, ix_s, k, j, i);
           opt_is = pm1->opt_solver.solvers.scattering;
           break;
         }
         case M1::t_sln_r::equilibrium:
         {
-          // std::printf("DEBUG: equilibrium @ (%d, %d; %d, %d, %d)\n",
-          //             ix_g, ix_s, k, j, i);
+          std::printf("DEBUG: equilibrium @ (%d, %d; %d, %d, %d)\n",
+                      ix_g, ix_s, k, j, i);
           opt_is = pm1->opt_solver.solvers.equilibrium;
           break;
         }

@@ -25,7 +25,9 @@ void M1::AddSourceGR(AA & u, AA & u_inh)
 
   // scratches
   AT_N_vec & sp_F_u_  = scratch.sp_vec_A_;
-  AT_N_sym & sp_P_uu_ = scratch.sp_sym_A_;
+
+  AT_N_sym & sp_P_dd_ = scratch.sp_P_dd_;
+  AT_N_sym & sp_P_uu_ = scratch.sp_P_uu_;
 
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
@@ -36,8 +38,14 @@ void M1::AddSourceGR(AA & u, AA & u_inh)
     M1_ILOOP3(k,j,i)
     if (MaskGet(k, j, i))
     {
-      Assemble::sp_d_to_u_(  this, sp_F_u_,  C.sp_F_d,  k, j, i, i);
-      Assemble::sp_dd_to_uu_(this, sp_P_uu_, C.sp_P_dd, k, j, i, i);
+
+      Assemble::Frames::sp_P_dd_(
+        *this, sp_P_dd_, C.sc_chi, C.sc_E, C.sp_F_d,
+        k, j, i, i
+      );
+
+      Assemble::sp_d_to_u_(this, sp_F_u_,  C.sp_F_d,  k, j, i, i);
+      Assemble::sp_dd_to_uu_(this, sp_P_uu_, sp_P_dd_, k, j, i, i);
 
       for (int a=0; a<N; ++a)
       {

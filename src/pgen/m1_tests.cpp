@@ -35,6 +35,11 @@ int RefinementCondition(MeshBlock *pmb);
 Real num_c2p_fail(MeshBlock *pmb, int iout);
 #endif
 
+Real min_sc_E_00(MeshBlock *pmb, int iout);
+Real min_sc_J_00(MeshBlock *pmb, int iout);
+
+
+
 void InitM1Advection(MeshBlock *pmb, ParameterInput *pin)
 {
   M1::M1 * pm1 = pmb->pm1;
@@ -462,7 +467,9 @@ void InitM1SphereRadAbs(MeshBlock *pmb, ParameterInput *pin)
 
     M1_GLOOP3(k,j,i)
     {
-      if ((SQR(pm1->mbi.x1(i)) + SQR(pm1->mbi.x2(j))) < R_star)
+      if ((SQR(pm1->mbi.x1(i)) +
+           SQR(pm1->mbi.x2(j)) +
+           SQR(pm1->mbi.x3(k))) <= SQR(R_star))
       {
         sc_E(k,j,i)     = 1.0;
         sc_eta(k,j,i)   = eta;
@@ -889,6 +896,15 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
                           UserHistoryOperation::sum);
 #endif
 
+  static const int NUM_ENROLLED = 2;
+  AllocateUserHistoryOutput(NUM_ENROLLED);
+  EnrollUserHistoryOutput(0,
+                          min_sc_E_00,
+                          "min_sc_E_00", UserHistoryOperation::min);
+  EnrollUserHistoryOutput(1,
+                          min_sc_J_00,
+                          "min_sc_J_00", UserHistoryOperation::min);
+
   return;
 }
 
@@ -1137,6 +1153,33 @@ Real num_c2p_fail(MeshBlock *pmb, int iout)
   return sum_;
 }
 #endif
+
+
+Real min_sc_E_00(MeshBlock *pmb, int iout)
+{
+  Real min_sc_E_00 = +std::numeric_limits<Real>::infinity();
+  CC_ILOOP3(k, j, i)
+  {
+    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
+    min_sc_E_00 = std::min(min_sc_E_00,
+                          //  oo_sc_sqrt_det_g *
+                           pmb->pm1->lab.sc_E(0,0)(k,j,i));
+  }
+  return min_sc_E_00;
+}
+
+Real min_sc_J_00(MeshBlock *pmb, int iout)
+{
+  Real min_sc_J_00 = +std::numeric_limits<Real>::infinity();
+  CC_ILOOP3(k, j, i)
+  {
+    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
+    min_sc_J_00 = std::min(min_sc_J_00,
+                          //  oo_sc_sqrt_det_g *
+                           pmb->pm1->rad.sc_J(0,0)(k,j,i));
+  }
+  return min_sc_J_00;
+}
 
 // ============================================================================
 } // namespace

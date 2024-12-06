@@ -14,6 +14,7 @@
 #include "../../hydro/hydro.hpp"
 #include "../../scalars/scalars.hpp"
 #include "../../m1/m1.hpp"
+#include "../../z4c/z4c.hpp"
 #include "../../trackers/extrema_tracker.hpp"
 #include "../task_list.hpp"
 #include "task_list.hpp"
@@ -139,7 +140,7 @@ TaskStatus M1N0::UpdateBackground(MeshBlock *pmb, int stage)
 
   // Task-list is not interspersed with external field evolution -
   // only need to do this on the first step.
-  if (stage <= 1)
+  if (stage == 1)
   {
     pm1->UpdateGeometry(pm1->geom, pm1->scratch);
     pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
@@ -151,12 +152,13 @@ TaskStatus M1N0::UpdateBackground(MeshBlock *pmb, int stage)
 // Function to Calculate Fiducial Velocity
 TaskStatus M1N0::CalcFiducialVelocity(MeshBlock *pmb, int stage)
 {
-  if (stage <= nstages)
+  // Task-list is not interspersed with external field evolution -
+  // only need to do this on the first step.
+  if (stage == 1)
   {
     pmb->pm1->CalcFiducialVelocity();
-    return TaskStatus::success;
   }
-  return TaskStatus::fail;
+  return TaskStatus::success;
 }
 
 // ----------------------------------------------------------------------------
@@ -175,6 +177,7 @@ TaskStatus M1N0::CalcClosure(MeshBlock *pmb, int stage)
 
 // ----------------------------------------------------------------------------
 // Map (closed) Eulerian fields (E, F_d, P_dd) to (J, H_d)
+// BD: TODO - double check if it ends up being needed (N.B. weak-rates usages)
 TaskStatus M1N0::CalcFiducialFrame(MeshBlock *pmb, int stage)
 {
   ::M1::M1 * pm1 = pmb->pm1;
@@ -197,7 +200,8 @@ TaskStatus M1N0::CalcOpacity(MeshBlock *pmb, int stage)
   // opacities are kept fixed throughout the implicit time integration
   if (stage == 1)
   {
-    Real const dt = pm->dt * dt_fac[stage - 1];
+    // Real const dt = pm->dt * dt_fac[stage - 1];
+    Real const dt = pm->dt;
     pm1->CalcOpacity(dt, pm1->storage.u);
     return TaskStatus::success;
   }
@@ -290,11 +294,11 @@ TaskStatus M1N0::CalcUpdate(MeshBlock *pmb, int stage)
   if (stage <= nstages)
   {
     Real const dt = pm->dt * dt_fac[stage - 1];
-    pm1->CalcUpdateNew(dt,
-                       pm1->storage.u1,
-                       pm1->storage.u,
-                       pm1->storage.u_rhs,
-                       pm1->storage.u_sources);
+    pm1->CalcUpdate(dt,
+                    pm1->storage.u1,
+                    pm1->storage.u,
+                    pm1->storage.u_rhs,
+                    pm1->storage.u_sources);
 
     return TaskStatus::next;
   }

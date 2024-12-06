@@ -126,7 +126,8 @@ Outputs::Outputs(Mesh *pm, ParameterInput *pin) {
   // loop over input block names.  Find those that start with "output", read parameters,
   // and construct singly linked list of OutputTypes.
   while (pib != nullptr) {
-    if (pib->block_name.compare(0, 6, "output") == 0) {
+    if ((pib->block_name.compare(0, 6, "output")  == 0) &&
+        (pib->block_name.compare(0, 7, "output_") != 0)) {
       OutputParameters op;  // define temporary OutputParameters struct
 
       // extract integer number of output block.  Save name and number
@@ -1120,6 +1121,26 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       }
     };
 
+    auto dump_GSC_AT_D_vec = [&](
+      M1::GroupSpeciesContainer<AT_D_vec> & vec_,
+      const int ix_g, const int ix_s,
+      const std::string & name)
+    {
+      idx_GS = std::to_string(ix_g) + std::to_string(ix_s);
+
+      AA & data_ = vec_(ix_g, ix_s).array();
+
+      for (int a = 0; a < D; ++a)
+      {
+        pod = new OutputData;
+        pod->type = "SCALARS";
+        pod->name = name + "_" + idx_GS + "_" + std::to_string(a);
+        pod->data.InitWithShallowSlice(data_, a, 1);
+        AppendOutputDataNode(pod);
+        num_vars_++;
+      }
+    };
+
     // logic for AT_N_X -------------------------------------------------------
     auto dump_AT_C_sca = [&](AT_C_sca & sca_, const std::string & name)
     {
@@ -1214,8 +1235,8 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       {
         dump_GSC_AT_C_sca(pm1->rad.sc_n,   ix_g, ix_s, "M1.rad.sc_n");
         dump_GSC_AT_C_sca(pm1->rad.sc_J,   ix_g, ix_s, "M1.rad.sc_J");
-        dump_GSC_AT_C_sca(pm1->rad.sc_H_t, ix_g, ix_s, "M1.rad.sc_H_t");
-        dump_GSC_AT_N_vec(pm1->rad.sp_H_d, ix_g, ix_s, "M1.rad.sp_H_d");
+
+        dump_GSC_AT_D_vec(pm1->rad.st_H_u, ix_g, ix_s, "M1.rad.st_H_u");
       }
     }
 
@@ -1278,8 +1299,6 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     {
       dump_AT_N_vec(pm1->fidu.sp_v_u, "M1.fidu.sp_v_u");
       dump_AT_N_vec(pm1->fidu.sp_v_d, "M1.fidu.sp_v_d");
-
-      dump_AT_D_vec(pm1->fidu.st_v_u, "M1.fidu.st_v_d");
 
       dump_AT_C_sca(pm1->fidu.sc_W,   "M1.fidu.sc_W");
     }

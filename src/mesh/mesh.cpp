@@ -350,12 +350,22 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     }
 
 #ifdef EJECTA_ENABLED
-    // Ejecta analysis
-    int nejecta = pin->GetOrAddInteger("ejecta", "num_rad", 0);
+    const int nejecta = pin->GetOrAddInteger("ejecta", "num_rad", 0);
     pej_extract.reserve(nejecta);
-    for (int n=0; n<nejecta; ++n) {
+    for (int n=0; n<nejecta; ++n)
+    {
       pej_extract.push_back(new Ejecta(this, pin, n));
     }
+
+    /*
+    // Ejecta analysis
+    const int nejecta = pin->GetOrAddRealArray("ejecta", "R", -1, 0).GetSize();
+    pej_extract.reserve(nejecta);
+    for (int n=0; n<nejecta; ++n)
+    {
+      pej_extract.push_back(new Ejecta(this, pin, n, nejecta));
+    }
+    */
 #endif
 
     // Puncture Trackers
@@ -813,11 +823,21 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     }
 
 #ifdef EJECTA_ENABLED
-    int nejecta = pin->GetOrAddInteger("ejecta", "num_rad", 0);
+    const int nejecta = pin->GetOrAddInteger("ejecta", "num_rad", 0);
     pej_extract.reserve(nejecta);
-    for (int n=0; n<nejecta; ++n) {
+    for (int n=0; n<nejecta; ++n)
+    {
       pej_extract.push_back(new Ejecta(this, pin, n));
     }
+
+    /*
+    const int nejecta = pin->GetOrAddRealArray("ejecta", "R", -1, 0).GetSize();
+    pej_extract.reserve(nejecta);
+    for (int n=0; n<nejecta; ++n)
+    {
+      pej_extract.push_back(new Ejecta(this, pin, n, nejecta));
+    }
+    */
 #endif
 
     int npunct = pin->GetOrAddInteger("z4c", "npunct", 0);
@@ -1588,7 +1608,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
 
     if (res_flag == 0) {
       #pragma omp parallel for num_threads(nthreads)
-      for (int i = 0; i < nmb; ++i) {
+      for (int i = 0; i < nmb; ++i)
+      {
         MeshBlock *pmb = pmb_array[i];
         pmb->ProblemGenerator(pin);
         pmb->pbval->CheckUserBoundaries();
@@ -1597,7 +1618,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
 
     // Create send/recv MPI_Requests for all BoundaryData objects
     #pragma omp parallel for num_threads(nthreads)
-    for (int i = 0; i < nmb; ++i) {
+    for (int i = 0; i < nmb; ++i)
+    {
       MeshBlock *pmb = pmb_array[i];
       // BoundaryVariable objects evolved in main TimeIntegratorTaskList:
       pmb->pbval->SetupPersistentMPI();
@@ -1624,12 +1646,6 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
       // Prolongate wave
       // Apply BC
       FinalizeWave(pmb_array);
-#endif
-
-#if M1_ENABLED
-      // Prolongate m1
-      // Apply BC
-      FinalizeM1(pmb_array);
 #endif
       // ----------------------------------------------------------------------
 
@@ -1662,6 +1678,14 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
       // Initial diffusion coefficients ---------------------------------------
 #if FLUID_ENABLED
       FinalizeDiffusion(pmb_array);
+#endif
+      // ----------------------------------------------------------------------
+
+      // M1 needs to slice into hydro, hence after that R/P -------------------
+#if M1_ENABLED
+      // Prolongate m1
+      // Apply BC
+      FinalizeM1(pmb_array);
 #endif
       // ----------------------------------------------------------------------
 

@@ -83,6 +83,9 @@ void M1::PrepareEvolutionStrategy(const Real dt)
   // Treat species uniformly, if required -------------------------------------
   if (opt_solver.solver_reduce_to_common)
   {
+    // BD: TODO - need to implement reduction
+    assert(false);
+
     auto reduce_all = [&](const int ix_g, const int k, const int j, const int i)
     {
 
@@ -92,16 +95,13 @@ void M1::PrepareEvolutionStrategy(const Real dt)
     {
 
     };
-
-    // BD: TODO - need to implement reduction
-    assert(false);
   }
 
 }
 
 // ----------------------------------------------------------------------------
 // Function to update the state vector
-void M1::CalcUpdateNew(Real const dt,
+void M1::CalcUpdate(Real const dt,
                        AA & u_pre,
                        AA & u_cur,
 		                   AA & u_inh,
