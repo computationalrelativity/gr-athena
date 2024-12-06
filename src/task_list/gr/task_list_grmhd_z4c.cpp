@@ -522,6 +522,7 @@ TaskStatus GRMHD_Z4c::ClearAllBoundary(MeshBlock *pmb, int stage)
 {
   BoundaryValues *pb = pmb->pbval;
   pb->ClearBoundary(BoundaryCommSubset::all);
+
   return TaskStatus::success;
 }
 

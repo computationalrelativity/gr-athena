@@ -85,7 +85,7 @@ public:
 
       Real Y[MAX_SPECIES] = {0.0};
       Y[0] = pm1->hydro.sc_w_Ye(k,j,i);
-      
+
       Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(nb, press, Y);
       Real Y_e = Y[0];
 

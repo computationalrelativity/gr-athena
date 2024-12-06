@@ -1256,6 +1256,7 @@ void ParameterInput::ParameterDump(std::ostream& os) {
   std::size_t len;
 
   os<< "#------------------------- PAR_DUMP -------------------------" << std::endl;
+  os<< "# GR-Athena++ GIT_HASH: " << GIT_HASH << std::endl;
 
   for (pb = pfirst_block; pb != nullptr; pb = pb->pnext) { // loop over InputBlocks
     os<< "<" << pb->block_name << ">" << std::endl;     // write block name

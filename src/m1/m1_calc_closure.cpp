@@ -134,9 +134,7 @@ ClosureMetaVector ConstructClosureMetaVector(
   M1 & pm1, M1::vars_Lab & vlab,
   const int ix_g, const int ix_s)
 {
-  using namespace std::placeholders;
-
-  ClosureMetaVector C {
+  return ClosureMetaVector {
     pm1,
     ix_g,
     ix_s,
@@ -157,8 +155,6 @@ ClosureMetaVector ConstructClosureMetaVector(
     pm1.rad.sc_J(  ix_g,ix_s),
     pm1.rad.st_H_u(ix_g,ix_s),
   };
-
-  return C;
 }
 
 // ============================================================================
@@ -328,7 +324,7 @@ status gsl_Brent(M1 & pm1,
     #pragma omp critical
     {
       std::ostringstream msg;
-      msg << "ClosureMinerboBrent unexpected error: ";
+      msg << "gsl_Brent unexpected error: ";
       msg << status;
       std::cout << msg.str().c_str() << std::endl;
     }
@@ -340,7 +336,7 @@ status gsl_Brent(M1 & pm1,
     #pragma omp critical
     {
       std::ostringstream msg;
-      msg << "ClosureMinerboBrent maxiter=";
+      msg << "gsl_Brent maxiter=";
       msg << pm1.opt_closure.iter_max << " exceeded";
       std::cout << msg.str().c_str() << std::endl;
     }

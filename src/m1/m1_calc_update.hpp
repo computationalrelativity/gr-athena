@@ -209,14 +209,6 @@ inline void InPlaceScalarMul_nG_E_F_d(const Real sca,
   }
 }
 
-void AddSourceMatter(
-  M1 & pm1,
-  const StateMetaVector & C,  // state to utilize
-  StateMetaVector & I,        // add source here
-  SourceMetaVector & S,
-  const int k, const int j, const int i);
-
-
 // If appled return true, otherwise false
 template <class V>
 inline bool NonFiniteToZero(

@@ -381,6 +381,7 @@ void M1::StatePrintPoint(
     std::cout << "sc=================: " << "\n";
     geom.sc_alpha.PrintPoint("geom.sc_alpha", k,j,i);
     geom.sc_sqrt_det_g.PrintPoint("geom.sc_sqrt_det_g", k,j,i);
+    geom.sc_alpha.PrintPoint("geom.sc_alpha", k,j,i);
 
     std::cout << "vec================: " << "\n";
     geom.sp_beta_u.PrintPoint("geom.sp_beta_u", k,j,i);
@@ -439,7 +440,7 @@ void M1::StatePrintPoint(
 
   if (terminate)
   {
-    std::exit(0);
+    assert(false);
   }
 }
 

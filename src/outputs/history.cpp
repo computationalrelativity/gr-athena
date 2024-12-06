@@ -295,7 +295,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
 
       int iout = 1;
       // descriptor + hash is first line ---
-      std::string ver("# Athena++ (");
+      std::string ver("# GR-Athena++ (");
       ver.append(GIT_HASH);
       ver.append(") history data\n");
       std::fprintf(pfile,"%s", ver.c_str());

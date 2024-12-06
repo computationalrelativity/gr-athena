@@ -303,6 +303,7 @@ void M1::InitializeHydro(vars_Hydro & hydro,
     hydro.sp_w_util_u.Fill(0.);
 
     // DR: we should store the temperature and not the pressure
+    // BD: TODO - T slice (also see weak-rates)
     M1_GLOOP3(k,j,i)
     {
       hydro.sc_w_p(k,j,i) = K * std::pow(hydro.sc_w_rho(k,j,i), Gamma);

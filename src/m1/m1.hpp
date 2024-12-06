@@ -70,7 +70,6 @@ public:
   void CalcFluxes(AA & u);
   void AddFluxDivergence(AA & u_inh);
   void AddSourceGR(AA & u, AA & u_inh);
-  void AddSourceMatter(AA & u, AA & u_inh, AA & u_src);
 
   Real NewBlockTimeStep();
 
@@ -506,16 +505,12 @@ public:
       n,
       J,
       st_H_u_t, st_H_u_x, st_H_u_y, st_H_u_z,
-      y,
-      z,
       N
     };
     static constexpr char const * const names[] = {
       "rad.n",
       "rad.J",
-      "rad.st_H_u_t", "rad.st_H_u_x", "rad.st_H_u_y", "rad.st_H_u_z",
-      "rad.y",
-      "rad.z"
+      "rad.st_H_u_t", "rad.st_H_u_x", "rad.st_H_u_y", "rad.st_H_u_z"
     };
   };
 

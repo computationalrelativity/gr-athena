@@ -1,6 +1,7 @@
 // C headers
 
 // C++ headers
+#include <cstdio>
 #include <iostream>   // endl
 #include <sstream>    // sstream
 #include <stdexcept>  // runtime_error
@@ -145,6 +146,7 @@ TaskStatus M1N0::UpdateBackground(MeshBlock *pmb, int stage)
     pm1->UpdateGeometry(pm1->geom, pm1->scratch);
     pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
   }
+
   return TaskStatus::success;
 }
 
@@ -152,12 +154,15 @@ TaskStatus M1N0::UpdateBackground(MeshBlock *pmb, int stage)
 // Function to Calculate Fiducial Velocity
 TaskStatus M1N0::CalcFiducialVelocity(MeshBlock *pmb, int stage)
 {
+  ::M1::M1 * pm1 = pmb->pm1;
+
   // Task-list is not interspersed with external field evolution -
   // only need to do this on the first step.
   if (stage == 1)
   {
-    pmb->pm1->CalcFiducialVelocity();
+    pm1->CalcFiducialVelocity();
   }
+
   return TaskStatus::success;
 }
 

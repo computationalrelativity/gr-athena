@@ -61,6 +61,7 @@ struct OutputParameters {
   bool vc;
   int islice, jslice, kslice;
   Real x1_slice, x2_slice, x3_slice;
+
   // TODO(felker): some of the parameters in this class are not initialized in constructor
   OutputParameters() : block_number(0), next_time(0.0), dt(0.0), file_number(0),
                        output_slicex1(false),output_slicex2(false),output_slicex3(false),
