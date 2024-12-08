@@ -147,7 +147,8 @@ public:
     Z4c_AHF,
     Z4c_RWZ,
     Z4c_CCE,
-    ejecta
+    ejecta,
+    Surfaces
   };
 
   enum class OutputVariant {
@@ -166,7 +167,7 @@ public:
 // For unordered_map: use map instead to avoid hasher, though, it would be
 // slower ...
 public:
-  typedef std::tuple<TriggerVariant, OutputVariant> TriggerMeta;
+  typedef std::tuple<TriggerVariant, OutputVariant, int> TriggerMeta;
 
 private:
   class tm_hash
@@ -176,7 +177,8 @@ private:
       {
         // hash is XOR of standard hash impl. on enum
         return (std::hash<TriggerVariant>()(std::get<0>(tm)) ^
-                std::hash<OutputVariant >()(std::get<1>(tm)));
+                std::hash<OutputVariant >()(std::get<1>(tm)) ^
+                std::hash<int >()(std::get<2>(tm)));
       }
   };
 
@@ -188,14 +190,22 @@ public:
   inline static TriggerMeta MakeTriggerMeta(TriggerVariant tv,
                                             OutputVariant ov)
   {
-    return {tv, ov};
+    return {tv, ov, 0};
+  }
+
+  inline static TriggerMeta MakeTriggerMeta(TriggerVariant tv,
+                                            OutputVariant ov,
+                                            const int index)
+  {
+    return {tv, ov, index};
   }
 
 public:
   void Add(TriggerVariant tvar,
            OutputVariant ovar,
            const bool force_first_iter,
-           const bool allow_rescale_dt)
+           const bool allow_rescale_dt,
+           const int index = 0)
   {
     Trigger tri;
 
@@ -413,6 +423,27 @@ public:
 
         break;
       }
+      case TriggerVariant::Surfaces:
+      {
+        Real dt = 0;
+        switch (ovar)
+        {
+          case (Triggers::OutputVariant::user):
+          {
+            dt = pin->GetOrAddReal("surface" + std::to_string(index),
+                                   "dt", 0.0);
+            break;
+          }
+          default:
+          {
+            assert(false);
+          }
+        }
+
+        PopulateTrigger(tri, force_first_iter, allow_rescale_dt, dt);
+        triggers[MakeTriggerMeta(tvar, ovar, index)] = tri;
+        break;
+      }
       default:
       {
         assert(false);
@@ -424,6 +455,11 @@ public:
   bool IsSatisfied(TriggerVariant tvar, OutputVariant ovar)
   {
     return triggers[MakeTriggerMeta(tvar, ovar)].is_satisfied();
+  }
+
+  bool IsSatisfied(TriggerVariant tvar, OutputVariant ovar, const int index)
+  {
+    return triggers[MakeTriggerMeta(tvar, ovar, index)].is_satisfied();
   }
 
   // Check whether a trigger is satisfied; any output style

@@ -479,9 +479,11 @@ public:
   {
     enum { E, F_x, F_y, F_z, nG, N };
     static constexpr char const * const names[] = {
-      "lab.E",
-      "lab.Fx", "lab.Fy", "lab.Fz",
-      "lab.nG"
+      "M1.lab.E",
+      "M1.lab.F_d_x",
+      "M1.lab.F_d_y",
+      "M1.lab.F_d_z",
+      "M1.lab.nG"
     };
   };
 
@@ -490,10 +492,10 @@ public:
   {
     enum { P_xx, P_xy, P_xz, P_yy, P_yz, P_zz, chi, xi, N };
     static constexpr char const * const names[] = {
-      "lab_aux.Pxx", "lab_aux.Pxy", "lab_aux.Pxz",
-      "lab_aux.Pyy", "lab_aux.Pyz", "lab_aux.Pzz",
-      "lab_aux.chi",
-      "lab_aux.xi",
+      "M1.lab_aux.Pxx", "M1.lab_aux.Pxy", "M1.lab_aux.Pxz",
+      "M1.lab_aux.Pyy", "M1.lab_aux.Pyz", "M1.lab_aux.Pzz",
+      "M1.lab_aux.chi",
+      "M1.lab_aux.xi",
     };
   };
 
@@ -508,9 +510,12 @@ public:
       N
     };
     static constexpr char const * const names[] = {
-      "rad.n",
-      "rad.J",
-      "rad.st_H_u_t", "rad.st_H_u_x", "rad.st_H_u_y", "rad.st_H_u_z"
+      "M1.rad.n",
+      "M1.rad.J",
+      "M1.rad.st_H_u_t",
+      "M1.rad.st_H_u_x",
+      "M1.rad.st_H_u_y",
+      "M1.rad.st_H_u_z"
     };
   };
 
@@ -525,9 +530,11 @@ public:
       N
     };
     static constexpr char const * const names[] = {
-      "src.sc_nG",
-      "src.sc_E",
-      "src.sp_F_0", "src.sp_F_1", "src.sp_F_2"
+      "M1.src.sc_nG",
+      "M1.src.sc_E",
+      "M1.src.sp_F_d_0",
+      "M1.src.sp_F_d_1",
+      "M1.src.sp_F_d_2"
     };
   };
 
@@ -550,12 +557,12 @@ public:
       N
     };
     static constexpr char const * const names[] = {
-      "rmat.eta_0",
-      "rmat.kap_a_0",
-      "rmat.eta",
-      "rmat.kap_a",
-      "rmat.kap_s",
-      "rmat.avg_nrg"
+      "M1.rmat.eta_0",
+      "M1.rmat.kap_a_0",
+      "M1.rmat.eta",
+      "M1.rmat.kap_a",
+      "M1.rmat.kap_s",
+      "M1.rmat.avg_nrg"
       // "rmat.abs_0", "rmat.abs_1",
       // "rmat.eta_0", "rmat.eta_1",
       // "rmat.scat_1",
@@ -576,10 +583,10 @@ public:
       N
     };
     static constexpr char const * const names[] = {
-      "rdia.radial_flux_0",
-      "rdia.radial_flux_1",
-      "rdia.y",
-      "rdia.z",
+      "M1.rdia.radial_flux_0",
+      "M1.rdia.radial_flux_1",
+      "M1.rdia.y",
+      "M1.rdia.z",
     };
   };
 
@@ -596,11 +603,11 @@ public:
       N
     };
     static constexpr char const * const names[] = {
-      "fidu.v_u_x", "fidu.v_u_y", "fidu.v_u_z",
-      "fidu.v_d_x", "fidu.v_d_y", "fidu.v_d_z",
-      "fidu.W",
-      "net.abs",
-      "net.heat"
+      "M1.fidu.v_u_x", "M1.fidu.v_u_y", "M1.fidu.v_u_z",
+      "M1.fidu.v_d_x", "M1.fidu.v_d_y", "M1.fidu.v_d_z",
+      "M1.fidu.W",
+      "M1.net.abs",
+      "M1.net.heat"
     };
   };
 

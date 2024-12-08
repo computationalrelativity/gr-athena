@@ -133,6 +133,8 @@ int main(int argc, char *argv[])
   trgs.Add(tvar::ejecta, ovar::user, true, allow_rescale_dt);
 #endif
 
+  gra::mesh::surfaces::InitSurfaceTriggers(trgs, pmesh->psurfs);
+
   // now populate requisite task-lists
   gra::tasklist::Collection ptlc { trgs };
   gra::tasklist::PopulateCollection(ptlc, pmesh, pinput);
@@ -174,7 +176,7 @@ int main(int argc, char *argv[])
       {
         if (M1_ENABLED)
         {
-            gra::evolve::Z4c_GRMHD_M1N0(ptlc, pmesh);
+          gra::evolve::Z4c_GRMHD_M1N0(ptlc, pmesh);
         }
         else
         {
@@ -194,6 +196,7 @@ int main(int argc, char *argv[])
     }
 
     gra::evolve::TrackerExtrema(ptlc, trgs, pmesh);
+    gra::evolve::SurfaceReductions(ptlc, trgs, pmesh);
 
     //-------------------------------------------------------------------------
     // Update triggers as required

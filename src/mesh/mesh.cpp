@@ -46,11 +46,13 @@
 #include "mesh.hpp"
 #include "mesh_refinement.hpp"
 #include "meshblock_tree.hpp"
+#include "surfaces.hpp"
 
 #include "../z4c/z4c.hpp"
 #include "../z4c/puncture_tracker.hpp"
 #include "../z4c/wave_extract.hpp"
 #include "../z4c/ahf.hpp"
+
 #if CCE_ENABLED
 #include "../z4c/cce/cce.hpp"
 #endif
@@ -314,7 +316,8 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
   } else {
     max_level = 63;
   }
-  if (Z4C_ENABLED) {
+  if (Z4C_ENABLED)
+  {
     int nrad = pin->GetOrAddInteger("psi4_extraction", "num_radii", 0);
     if (nrad > 0) {
       pwave_extr.reserve(nrad);
@@ -619,6 +622,9 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
   M_info.x_max.NewAthenaArray(ndim);
   M_info.dx_min.NewAthenaArray(ndim);
   M_info.dx_max.NewAthenaArray(ndim);
+
+  // Surface init needs to come after MeshBlocks have been initialized
+  gra::mesh::surfaces::InitSurfaces(this, pin);
 }
 
 //----------------------------------------------------------------------------------------
@@ -1068,6 +1074,9 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
   M_info.x_max.NewAthenaArray(ndim);
   M_info.dx_min.NewAthenaArray(ndim);
   M_info.dx_max.NewAthenaArray(ndim);
+
+  // Surface init needs to come after MeshBlocks have been initialized
+  gra::mesh::surfaces::InitSurfaces(this, pin);
 }
 
 //----------------------------------------------------------------------------------------
@@ -1121,6 +1130,11 @@ Mesh::~Mesh() {
   }
 
   delete ptracker_extrema;
+
+  for (auto surf : psurfs) {
+    delete surf;
+  }
+  psurfs.resize(0);
 
   if (adaptive) { // deallocate arrays for AMR
     delete [] nref;
@@ -1694,6 +1708,10 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
       {
         // Prepare ADM sources
         // Requires B-field in ghost-zones
+        //
+        // If M1 is activated then ADM variable coupling requires
+        // (sc_E, sp_F_d) which in turn requires (sc_chi, ) etc..
+        // Therefore this comes after FinalizeM1
         FinalizeZ4cADM_Matter(pmb_array);
       }
 #endif

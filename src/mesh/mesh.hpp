@@ -19,8 +19,7 @@
 #include <vector>
 
 // Athena++ headers
-#include "../athena.hpp"
-#include "../athena_arrays.hpp"
+#include "../athena_aliases.hpp"
 #include "../bvals/bvals.hpp"
 #include "../outputs/io_wrapper.hpp"
 #include "../parameter_input.hpp"
@@ -66,9 +65,12 @@ class WaveExtractLocal;
 class PunctureTracker;
 class ExtremaTracker;
 class ExtremaTrackerLocal;
+namespace gra::mesh::surfaces {
+class Surfaces;
+}
 
 namespace M1 {
-  class M1;
+class M1;
 }
 
 
@@ -461,6 +463,8 @@ class Mesh {
 #endif
   std::vector<PunctureTracker *> pz4c_tracker;
   ExtremaTracker * ptracker_extrema;
+
+  std::vector<gra::mesh::surfaces::Surfaces *> psurfs;
 
   AthenaArray<Real> *ruser_mesh_data;
   AthenaArray<int> *iuser_mesh_data;

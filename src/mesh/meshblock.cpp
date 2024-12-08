@@ -192,7 +192,7 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   if (FLUID_ENABLED) {
     peos = new EquationOfState(this, pin);
   }
-  
+
   if (M1_ENABLED)
   {
     pm1 = new M1::M1(this, pin);

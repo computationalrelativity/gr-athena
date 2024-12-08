@@ -237,7 +237,6 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
     {
       Z4c * pz4c = pmb->pz4c;
       write_data(pz4c->storage.u);
-      write_data(pz4c->storage.adm);
       write_data(pz4c->storage.mat);
     }
 

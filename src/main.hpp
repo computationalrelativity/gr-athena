@@ -28,6 +28,7 @@
 #include "outputs/io_wrapper.hpp"
 #include "outputs/outputs.hpp"
 #include "mesh/mesh.hpp"
+#include "mesh/surfaces.hpp"
 #include "task_list/gr/task_list.hpp"
 #include "task_list/m1/task_list.hpp"
 #include "task_list/wave_equations/task_list.hpp"
@@ -671,6 +672,7 @@ inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
   for (int stage=1; stage<=ptlc.grmhd_z4c->nstages; ++stage)
   {
     ptlc.grmhd_z4c->DoTaskListOneStage(pmesh, stage);
+
     // Iterate bnd comm. as required
     pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
 
@@ -902,6 +904,23 @@ inline void TrackerExtrema(gra::tasklist::Collection &ptlc,
   if (trgs.IsSatisfied(tvar::tracker_extrema, ovar::user))
   {
     pmesh->ptracker_extrema->WriteTracker(ncycle_end_stage, time_end_stage);
+  }
+}
+
+inline void SurfaceReductions(gra::tasklist::Collection &ptlc,
+                              gra::triggers::Triggers &trgs,
+                              Mesh *pmesh)
+{
+  // Extrema tracker is based on propagated state vector
+  const Real time_end_stage   = pmesh->time+pmesh->dt;
+  const Real ncycle_end_stage = pmesh->ncycle+1;
+
+  for (auto psurf : pmesh->psurfs)
+  {
+    if (trgs.IsSatisfied(tvar::Surfaces, ovar::user, psurf->par_ix))
+    {
+      psurf->Reduce(ncycle_end_stage, time_end_stage);
+    }
   }
 }
 
