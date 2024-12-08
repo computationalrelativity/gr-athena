@@ -213,6 +213,10 @@ int main(int argc, char *argv[])
     if (mesh_updated)
     {
       pmesh->InitializePostMainUpdatedMesh(pinput);
+      for (auto psurf : pmesh->psurfs)
+      {
+        psurf->ReinitializeSurfaces();
+      }
     }
 
     // Post AMR hook;
