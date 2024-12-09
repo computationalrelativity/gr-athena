@@ -99,6 +99,17 @@ void PrepareMatterSource_nG(
   Update::SourceMetaVector & S,
   const int k, const int j, const int i)
 {
+  // Extract source mask value for potential short-circuit treatment ----------
+  typedef M1::evolution_strategy::opt_source_treatment ost;
+  ost st = pm1.ev_strat.masks.source_treatment(k,j,i);
+
+  if (st == ost::set_zero)
+  {
+    S.sc_nG(k,j,i) = 0;
+    return;
+  }
+  // --------------------------------------------------------------------------
+
   S.sc_nG(k,j,i) = pm1.geom.sc_alpha(k,j,i) * (
     pm1.geom.sc_sqrt_det_g(k,j,i) * V.sc_eta_0(k,j,i) -
     V.sc_kap_a_0(k,j,i) * V.sc_n(k,j,i)

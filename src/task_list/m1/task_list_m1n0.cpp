@@ -187,12 +187,12 @@ TaskStatus M1N0::CalcFiducialFrame(MeshBlock *pmb, int stage)
 {
   ::M1::M1 * pm1 = pmb->pm1;
 
-  if (stage <= nstages)
+  // if (stage <= nstages)
+  if (stage == 1)
   {
     pm1->CalcFiducialFrame(pm1->storage.u);
-    return TaskStatus::success;
   }
-  return TaskStatus::fail;
+  return TaskStatus::success;
 }
 
 // ----------------------------------------------------------------------------
@@ -203,10 +203,11 @@ TaskStatus M1N0::CalcOpacity(MeshBlock *pmb, int stage)
   ::M1::M1 * pm1 = pmb->pm1;
 
   // opacities are kept fixed throughout the implicit time integration
-  if (stage == 1)
+  // if (stage <= nstages)
+  if (stage == nstages)
   {
-    // Real const dt = pm->dt * dt_fac[stage - 1];
     Real const dt = pm->dt;
+    // Real const dt = pm->dt * dt_fac[stage - 1];
     pm1->CalcOpacity(dt, pm1->storage.u);
     return TaskStatus::success;
   }
@@ -334,6 +335,7 @@ TaskStatus M1N0::UpdateCoupling(MeshBlock *pmb, int stage)
         std::exit(0);
       }
       const Real mb = pmb->peos->GetEOS().GetRawBaryonMass();
+      // const Real mb = pmb->peos->GetEOS().GetBaryonMass();
       pm1->CoupleSourcesYe(mb, pmb->pscalars->s);
     }
 #endif

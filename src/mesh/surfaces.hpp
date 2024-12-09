@@ -42,7 +42,10 @@ class Surfaces
       M1_geom_sc_alpha,
       M1_geom_sp_beta_u,
       M1_geom_sp_g_dd,
-      M1_geom_sp_K_dd
+      M1_geom_sp_K_dd,
+      M1_radmat_sc_avg_nrg_00,
+      M1_radmat_sc_avg_nrg_01,
+      M1_radmat_sc_avg_nrg_02,
     };
 
     // N.B. variables must contain a "."; it is used in dump-naming
@@ -55,6 +58,9 @@ class Surfaces
       {"M1.geom.sp_beta_u",    variety_data::M1_geom_sp_beta_u},
       {"M1.geom.sp_g_dd",      variety_data::M1_geom_sp_g_dd},
       {"M1.geom.sp_K_dd",      variety_data::M1_geom_sp_K_dd},
+      {"M1.radmat.sc_avg_nrg_00", variety_data::M1_radmat_sc_avg_nrg_00},
+      {"M1.radmat.sc_avg_nrg_01", variety_data::M1_radmat_sc_avg_nrg_01},
+      {"M1.radmat.sc_avg_nrg_02", variety_data::M1_radmat_sc_avg_nrg_02},
     };
 
     enum class variety_base_grid {

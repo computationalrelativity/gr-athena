@@ -127,11 +127,11 @@ void M1::CalcFiducialFrame(AthenaArray<Real> & u)
 
   // geometric quantities
   const AT_C_sca & sc_alpha = geom.sc_alpha;
-  const AT_N_vec & sp_beta_u = geom.sp_beta_u;
+  // const AT_N_vec & sp_beta_u = geom.sp_beta_u;
 
   // required fiducial quantities
   AT_C_sca & sc_W   = fidu.sc_W;
-  AT_N_vec & sp_v_u = fidu.sp_v_u;
+  // AT_N_vec & sp_v_u = fidu.sp_v_u;
 
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<N_SPCS; ++ix_s)

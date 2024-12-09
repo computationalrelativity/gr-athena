@@ -2,6 +2,8 @@
 
 // Athena++ headers
 #include "../mesh/mesh.hpp"
+#include "m1_containers.hpp"
+#include "m1_utils.hpp"
 
 #if FLUID_ENABLED
 #include "../hydro/hydro.hpp"
@@ -10,6 +12,7 @@
 
 #include "m1_macro.hpp"
 #include "m1_analysis.hpp"
+#include "m1_calc_closure.hpp"
 
 // ============================================================================
 namespace M1 {
@@ -18,6 +21,7 @@ namespace M1 {
 void M1::PerformAnalysis()
 {
   MeshBlock * pmb = pmy_block;
+  Analysis::CalcEnergyAverages(pmb);
   Analysis::CalcRadFlux(pmb);
   Analysis::CalcNeutrinoDiagnostics(pmb);
 }
@@ -25,6 +29,75 @@ void M1::PerformAnalysis()
 // ============================================================================
 namespace Analysis {
 // ============================================================================
+
+void CalcEnergyAverages(MeshBlock *pmb)
+{
+  using namespace Closures;
+
+  M1 * pm1 = pmb->pm1;
+
+  M1::vars_Lab U { {pm1->N_GRPS,pm1->N_SPCS},
+                   {pm1->N_GRPS,pm1->N_SPCS},
+                   {pm1->N_GRPS,pm1->N_SPCS} };
+  pm1->SetVarAliasesLab(pm1->storage.u, U);
+
+  // geometric quantities
+  const AT_C_sca & sc_alpha = pm1->geom.sc_alpha;
+
+  // required fiducial quantities
+  AT_C_sca & sc_W = pm1->fidu.sc_W;
+
+  // If reduction onto surfaces is required, then we need (n, J) on the whole
+  // MeshBlock. Therefore we need to compute closures on the ghosts using the
+  // communicated cons.
+
+  for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+  {
+    ClosureMetaVector C = ConstructClosureMetaVector(*pm1, U, ix_g, ix_s);
+
+    AT_C_sca & sc_E    = pm1->lab.sc_E(  ix_g,ix_s);
+    AT_N_vec & sp_F_d  = pm1->lab.sp_F_d(ix_g,ix_s);
+    AT_C_sca & sc_nG   = pm1->lab.sc_nG( ix_g,ix_s);
+
+    AT_C_sca & sc_chi  = pm1->lab_aux.sc_chi(ix_g,ix_s);
+
+    AT_C_sca & sc_n = pm1->rad.sc_n(ix_g,ix_s);
+    AT_C_sca & sc_J = pm1->rad.sc_J(ix_g,ix_s);
+    AT_D_vec & st_H_u = pm1->rad.st_H_u(ix_g, ix_s);
+
+    AT_C_sca & sc_avg_nrg = pm1->radmat.sc_avg_nrg(ix_g, ix_s);
+
+    M1_GLOOP3(k, j, i)
+    if (pm1->MaskGet(k,j,i))
+    if (!pmb->IsPhysicalIndex_cc(k, j, i))
+    {
+      C.Closure(k,j,i);
+    }
+
+    // Closures prepared, can map to fiducial frame globally ------------------
+    M1_GLOOP3(k, j, i)
+    if (pm1->MaskGet(k,j,i))
+    {
+      Assemble::Frames::ToFiducial(*pm1, sc_J, st_H_u, sc_chi, sc_E, sp_F_d,
+                                   k, j, i, i);
+
+      const Real J_0 = sc_J(k,j,i);
+      // H^a = H_n n^a + SPATIAL where n^0 = 1 / alpha
+      const Real H_n = st_H_u(0,k,j,i) * sc_alpha(k,j,i);
+      const Real W = sc_W(k,j,i);
+
+      const Real sc_G__ = (J_0 > 0)
+        ? (W + H_n / J_0)
+        : W;
+
+      sc_n(k,j,i) = sc_nG(k,j,i) / sc_G__;
+
+      sc_avg_nrg(k,j,i) = sc_J(k,j,i) / sc_n(k,j,i);
+    }
+
+  }
+}
 
 void CalcRadFlux(MeshBlock *pmb)
 {

@@ -11,6 +11,7 @@
 namespace M1::Analysis {
 // ============================================================================
 
+void CalcEnergyAverages(MeshBlock * pmb);
 void CalcRadFlux(MeshBlock * pmb);
 void CalcNeutrinoDiagnostics(MeshBlock * pmb);
 

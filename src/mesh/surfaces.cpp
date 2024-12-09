@@ -275,6 +275,18 @@ AA * Surface::GetRawData(Surfaces::variety_data vd, MeshBlock * pmb)
     {
       return &pmb->pm1->geom.sp_K_dd.array();
     }
+    case variety_data::M1_radmat_sc_avg_nrg_00:
+    {
+      return &pmb->pm1->radmat.sc_avg_nrg(0,0).array();
+    }
+    case variety_data::M1_radmat_sc_avg_nrg_01:
+    {
+      return &pmb->pm1->radmat.sc_avg_nrg(0,1).array();
+    }
+    case variety_data::M1_radmat_sc_avg_nrg_02:
+    {
+      return &pmb->pm1->radmat.sc_avg_nrg(0,2).array();
+    }
     default:
     {
       assert(false);
@@ -321,6 +333,18 @@ int Surface::GetNumFieldComponents(Surfaces::variety_data vd)
     {
       return 6;
     }
+    case variety_data::M1_radmat_sc_avg_nrg_00:
+    {
+      return 1;
+    }
+    case variety_data::M1_radmat_sc_avg_nrg_01:
+    {
+      return 1;
+    }
+    case variety_data::M1_radmat_sc_avg_nrg_02:
+    {
+      return 1;
+    }
     default:
     {
       assert(false);
@@ -343,46 +367,43 @@ std::string Surface::GetNameFieldComponent(Surfaces::variety_data vd,
   N_VARS = 5
 
   n = 0
-  for v in range(N_VARS):
-    for g in range(N_GRPS):
-      for s in range(N_SPCS):
+  for g in range(N_GRPS):
+    for s in range(N_SPCS):
+      for v in range(N_VARS):
         # Indicial structure:
-        # n_ix = s + N_SPCS * ( g + v * N_GRPS )
-        #        s + g * N_SPCS + v * N_SPCS * N_GRPS
+        # n_ix = v + N_VARS * (s + N_SPCS * g)
+        #        v + s * N_VARS + g * N_VARS * N_SPCS
+
+        # group index
+        g_ix = n // (N_VARS * N_SPCS)
 
         # species index
-        s_ix = (n % (N_SPCS * N_GRPS)) % N_SPCS
-        # group index
-        g_ix = ((n - s_ix * N_SPCS)) % N_GRPS
+        s_ix = (n - g_ix * N_VARS * N_SPCS) // N_VARS
+
         # variable index
-        v_ix = (n - (s + g * N_SPCS) % (N_SPCS * N_GRPS)) % N_VARS
+        v_ix = (n - g_ix * N_VARS * N_SPCS - s_ix * N_VARS)
 
-        ng = n - s_ix
-
-        print(n, s + N_SPCS * (g + N_GRPS * v),
+        print(n, v + N_VARS * (s + N_SPCS * g),
               g_ix - g, s_ix - s, v_ix - v)
         n += 1
   */
 
-  // get % operator consistent with python for this
-  auto rem = [](const int a, const int b)
-  {
-    return std::abs(a%b);
-  };
-
   // flat idx, total num vars, var idx, grp idx, sps idx
   auto m1_vgs_idx = [&](const int n, const int N, int & v, int & g, int & s)
   {
+    // See indicial structure above
     const int N_VARS = N;
     const int N_GRPS = pm->pblock->pm1->N_GRPS;
     const int N_SPCS = pm->pblock->pm1->N_SPCS;
 
-    // species index
-    s = rem(rem(n, (N_SPCS * N_GRPS)), N_SPCS);
     // group index
-    g = rem((n - s * N_SPCS), N_GRPS);
+    g = n / (N_VARS * N_SPCS);
+
+    // species index
+    s = (n - g * N_VARS * N_SPCS) / N_VARS;
+
     // variable index
-    v = rem(n - rem(s + g * N_SPCS, N_SPCS * N_GRPS), N_VARS);
+    v = (n - g * N_VARS * N_SPCS - s * N_VARS);
   };
 
   switch(vd)
@@ -444,6 +465,21 @@ std::string Surface::GetNameFieldComponent(Surfaces::variety_data vd,
         "M1.geom.sp_K_dd_zz"
       };
       ret = names[nix];
+      break;
+    }
+    case variety_data::M1_radmat_sc_avg_nrg_00:
+    {
+      ret = "M1.radmat.sc_avg_nrg_00";
+      break;
+    }
+    case variety_data::M1_radmat_sc_avg_nrg_01:
+    {
+      ret = "M1.radmat.sc_avg_nrg_01";
+      break;
+    }
+    case variety_data::M1_radmat_sc_avg_nrg_02:
+    {
+      ret = "M1.radmat.sc_avg_nrg_02";
       break;
     }
     default:
@@ -529,6 +565,20 @@ void SurfaceSpherical::write_hdf5(const Real T)
         }
       }
       var_type = var_type.substr(0, var_type.find("."));
+
+      // DEBUG
+      /*
+      #pragma omp critical
+      if (vd == Surfaces::variety_data::M1_lab)
+      {
+        for (int n=0; n<N_cpts(v); ++n)
+        {
+          std::string var_name = GetNameFieldComponent(vd, n);
+          std::printf("%d %s \n", n, var_name.c_str());
+        }
+        std::exit(0);
+      }
+      */
 
       for (int n=0; n<N_cpts(v); ++n)
       {
