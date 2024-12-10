@@ -320,7 +320,10 @@ inline void EnforcePhysical_E_F_d(
 {
   NonFiniteToZero(pm1, V, k, j, i);
   ApplyFloors(pm1, V, k, j, i);
-  EnforceCausality(pm1, V, k, j, i);
+  if (pm1.opt.enforce_causality)
+  {
+    EnforceCausality(pm1, V, k, j, i);
+  }
 }
 
 // Enforce physicality on (nG, ) components of V
