@@ -1112,6 +1112,11 @@ Mesh::~Mesh() {
     }
     pwave_extr.resize(0);
 
+   for (auto pwextr_rwz : pwave_extr_rwz) {
+      delete pwextr_rwz;
+    }
+    pwave_extr_rwz.resize(0);
+
 #if CCE_ENABLED
     for (auto cce : pcce) {
       delete cce;

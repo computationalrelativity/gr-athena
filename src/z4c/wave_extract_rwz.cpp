@@ -232,23 +232,23 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh * pmesh, ParameterInput * pin, int n):
   ioproc = true;
 #endif
 
-  outprec = pin->GetOrAddInteger("rwz_extraction", "output_digits", 6);
+  outprec = pin->GetOrAddInteger("rwz_extraction", "output_digits", 16);
   
-  if (ioproc) {
+  //if (ioproc) {
 
-    // Baseline names
-    ofbname[Iof_diagnostic] = pin->GetOrAddString("rwz_extraction", "filename_diagnostic", "diagnostic");
-    ofbname[Iof_adm] = pin->GetOrAddString("rwz_extraction", "filename_adm", "adm");
-    ofbname[Iof_hlm] = pin->GetOrAddString("rwz_extraction", "filename_hlm", "wave_rwz");
-    ofbname[Iof_Psie] = pin->GetOrAddString("rwz_extraction", "filename_psie", "wave_psie");
-    ofbname[Iof_Psio] = pin->GetOrAddString("rwz_extraction", "filename_psio", "wave_psio");      
+  // Baseline names
+  ofbname[Iof_diagnostic] = pin->GetOrAddString("rwz_extraction", "filename_diagnostic", "diagnostic");
+  ofbname[Iof_adm] = pin->GetOrAddString("rwz_extraction", "filename_adm", "adm");
+  ofbname[Iof_hlm] = pin->GetOrAddString("rwz_extraction", "filename_hlm", "wave_rwz");
+  ofbname[Iof_Psie] = pin->GetOrAddString("rwz_extraction", "filename_psie", "wave_psie");
+  ofbname[Iof_Psio] = pin->GetOrAddString("rwz_extraction", "filename_psio", "wave_psio");      
 
-    // These are assigned, given the choice for Psie/o
-    ofbname[Iof_Psie_dyn] = pin->GetOrAddString("rwz_extraction", "filename_psie_dyn", "wave_psie_dyn"); 
-    ofbname[Iof_Psio_dyn] = pin->GetOrAddString("rwz_extraction", "filename_psio_dyn", "wave_psio_dyn"); 
-    ofbname[Iof_Qplus] = pin->GetOrAddString("rwz_extraction", "filename_Qplus", "wave_Qplus");
-    ofbname[Iof_Qstar] = pin->GetOrAddString("rwz_extraction", "filename_Qstar", "wave_Qstar");      
-  }// if (ioproc)
+  // These are assigned, given the choice for Psie/o
+  ofbname[Iof_Psie_dyn] = pin->GetOrAddString("rwz_extraction", "filename_psie_dyn", "wave_psie_dyn"); 
+  ofbname[Iof_Psio_dyn] = pin->GetOrAddString("rwz_extraction", "filename_psio_dyn", "wave_psio_dyn"); 
+  ofbname[Iof_Qplus] = pin->GetOrAddString("rwz_extraction", "filename_Qplus", "wave_Qplus");
+  ofbname[Iof_Qstar] = pin->GetOrAddString("rwz_extraction", "filename_Qstar", "wave_Qstar");      
+ // }// if (ioproc)
 
 }
 
