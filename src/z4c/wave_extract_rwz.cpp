@@ -911,8 +911,8 @@ void WaveExtractRWZ::SphHarm_Ylm_a(const int l_, const int m_, const Real theta,
   *YthR = _YthR;
   *YthI = _YthI;
   
-  *YphR = - m * YR;
-  *YphI =   m * YI;
+  *YphR = - m * YI;
+  *YphI =   m * YR;
 
   *WR =  c * (*YthR) + d * YR;
   *WI =  c * (*YthI) + d * YI;
@@ -2700,7 +2700,7 @@ void WaveExtractRWZ::MultipolesGaugeInvariant() {
 	kappa_00(lm,c) = h00(lm,c);
 	kappa_00(lm,c) += - 2.0*h0_dot(lm,c)
 	  + 2.0*(Gamma_dyn_udd(0,0,0)*h0(lm,c) + Gamma_dyn_udd(1,0,0)*h1(lm,c));
-	kappa_00(lm,c) += - 2.0*r*rdot*G_dot(lm,c)
+	kappa_00(lm,c) += 2.0*r*rdot*G_dot(lm,c)
 	  + r2*(G_dt2 - Gamma_dyn_udd(0,0,0)*G_dot(lm,c) - Gamma_dyn_udd(1,0,0)*G_dr(lm,c));
 	
 	kappa_01(lm,c) = h01(lm,c);
