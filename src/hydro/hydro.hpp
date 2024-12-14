@@ -138,9 +138,9 @@ class Hydro {
 
     static constexpr char const * const names[] = {
 #if USETM
-      "hydro.T",
+      "hydro.aux.T",
 #endif
-      "hydro.c2p_status",
+      "hydro.aux.c2p_status",
     };
   };
 
