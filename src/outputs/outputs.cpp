@@ -331,6 +331,505 @@ Outputs::~Outputs() {
 //! \fn void OutputType::LoadOutputData(MeshBlock *pmb)
 //  \brief Create doubly linked list of OutputData's containing requested variables
 
+namespace {
+
+void LoadOutputDataHydro(
+  MeshBlock * pmb,
+  OutputType *pot,
+  OutputData *pod,
+  int & num_vars_)
+{
+  Hydro *ph = pmb->phydro;
+  OutputParameters & output_params = pot->output_params;
+
+  for (int ix=0; ix<Hydro::ixn_cons::N; ++ix)
+  if (output_params.variable == "hydro" ||
+      output_params.variable == "hydro.cons" ||
+      output_params.variable == Hydro::ixn_cons::names[ix])
+  {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = Hydro::ixn_cons::names[ix];
+    pod->data.InitWithShallowSlice(ph->u, 4, ix, 1);
+    pot->AppendOutputDataNode(pod);
+    num_vars_++;
+  }
+
+  for (int ix=0; ix<Hydro::ixn_prim::N; ++ix)
+  if (output_params.variable == "hydro" ||
+      output_params.variable == "hydro.prim" ||
+      output_params.variable == Hydro::ixn_prim::names[ix])
+  {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = Hydro::ixn_prim::names[ix];
+    pod->data.InitWithShallowSlice(ph->w, 4, ix, 1);
+    pot->AppendOutputDataNode(pod);
+    num_vars_++;
+  }
+
+  if (output_params.variable == "hydro.aux")
+  {
+    // Temperature if we have it:
+#if USETM
+    {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = Hydro::ixn_aux::names[Hydro::ixn_aux::T];
+      pod->data.InitWithShallowSlice(ph->temperature, 0, 1);
+      pot->AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+#endif
+
+    // c2p
+    {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = Hydro::ixn_aux::names[Hydro::ixn_aux::c2p_status];
+      pod->data.InitWithShallowSlice(ph->c2p_status, 0, 1);
+      pot->AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+  }
+}
+
+void LoadOutputDataPassiveScalars(
+  MeshBlock * pmb,
+  OutputType *pot,
+  OutputData *pod,
+  int & num_vars_)
+{
+  PassiveScalars *ps = pmb->pscalars;
+  OutputParameters & output_params = pot->output_params;
+
+  std::string root_name_cons = "passive_scalar.s_";
+  std::string root_name_prim = "passive_scalar.r_";
+
+  if (output_params.variable == "passive_scalars" ||
+      output_params.variable == "passive_scalars.cons")
+  for (int n=0; n<NSCALARS; n++)
+  {
+    const std::string scalar_name_cons = root_name_cons + std::to_string(n);
+
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = scalar_name_cons;
+    pod->data.InitWithShallowSlice(ps->s, 4, n, 1);
+    pot->AppendOutputDataNode(pod);
+    num_vars_++;
+  }
+
+  if (output_params.variable == "passive_scalars" ||
+      output_params.variable == "passive_scalars.prim")
+  for (int n=0; n<NSCALARS; n++)
+  {
+    const std::string scalar_name_prim = root_name_prim + std::to_string(n);
+
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = scalar_name_prim;
+    pod->data.InitWithShallowSlice(ps->r, 4, n, 1);
+    pot->AppendOutputDataNode(pod);
+    num_vars_++;
+  }
+}
+
+void LoadOutputDataMagneticFields(
+  MeshBlock * pmb,
+  OutputType *pot,
+  OutputData *pod,
+  int & num_vars_)
+{
+  Field *pf = pmb->pfield;
+  OutputParameters & output_params = pot->output_params;
+
+  for (int ix=0; ix<Field::ixn_cc::N; ++ix)
+  if (output_params.variable == "B" ||
+      output_params.variable == "B.bcc" ||
+      output_params.variable == Field::ixn_cc::names[ix])
+  {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = Field::ixn_cc::names[ix];
+    pod->data.InitWithShallowSlice(pf->bcc, 4, ix, 1);
+    pot->AppendOutputDataNode(pod);
+    num_vars_++;
+  }
+
+
+  for (int ix=0; ix<Field::ixn_fc::N; ++ix)
+  if (output_params.variable == "B" ||
+      output_params.variable == "B.bfc" ||
+      output_params.variable == Field::ixn_fc::names[ix])
+  {
+    std::vector<AthenaArray<Real> *> b_fc = {
+      &(pf->b.x1f), &(pf->b.x2f), &(pf->b.x3f)
+    };
+
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = Field::ixn_fc::names[ix];
+    pod->data.InitWithShallowSlice(*b_fc[ix], 4, 0, 1);
+    pot->AppendOutputDataNode(pod);
+    num_vars_++;
+  }
+}
+
+void LoadOutputDataM1(
+  MeshBlock * pmb,
+  OutputType *pot,
+  OutputData *pod,
+  int & num_vars_)
+{
+  M1::M1 *pm1 = pmb->pm1;
+  OutputParameters & output_params = pot->output_params;
+
+  std::string idx_GS;
+
+  // logic for GroupSpeciesContainer<...> -----------------------------------
+  auto dump_GSC_AT_C_sca = [&](
+    M1::GroupSpeciesContainer<AT_C_sca> & sca_,
+    const int ix_g, const int ix_s,
+    const std::string & name)
+  {
+    idx_GS = std::to_string(ix_g) + std::to_string(ix_s);
+
+    AA & data_ = sca_(ix_g, ix_s).array();
+
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = name + "_" + idx_GS;
+    pod->data.InitWithShallowSlice(data_, 0, 1);
+    pot->AppendOutputDataNode(pod);
+    num_vars_++;
+  };
+
+  auto dump_GSC_AT_N_vec = [&](
+    M1::GroupSpeciesContainer<AT_N_vec> & vec_,
+    const int ix_g, const int ix_s,
+    const std::string & name)
+  {
+    idx_GS = std::to_string(ix_g) + std::to_string(ix_s);
+
+    AA & data_ = vec_(ix_g, ix_s).array();
+
+    for (int a = 0; a < N; ++a)
+    {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = name + "_" + idx_GS + "_" + std::to_string(a);
+      pod->data.InitWithShallowSlice(data_, a, 1);
+      pot->AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+  };
+
+  auto dump_GSC_AT_N_sym = [&](
+    M1::GroupSpeciesContainer<AT_N_sym> & sym_,
+    const int ix_g, const int ix_s,
+    const std::string & name)
+  {
+    idx_GS = std::to_string(ix_g) + std::to_string(ix_s);
+
+    AA & data_ = sym_(ix_g, ix_s).array();
+
+    for (int a = 0; a < N; ++a)
+    for (int b = a; b < N; ++b)
+    {
+      // Tensor-index to AA super-index reduction
+      const int I = sym_(ix_g, ix_s).idxmap(a,b);
+
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = name + "_" + idx_GS + "_" + std::to_string(a) +
+                  std::to_string(b);
+      pod->data.InitWithShallowSlice(data_, I, 1);
+      pot->AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+  };
+
+  auto dump_GSC_AT_D_vec = [&](
+    M1::GroupSpeciesContainer<AT_D_vec> & vec_,
+    const int ix_g, const int ix_s,
+    const std::string & name)
+  {
+    idx_GS = std::to_string(ix_g) + std::to_string(ix_s);
+
+    AA & data_ = vec_(ix_g, ix_s).array();
+
+    for (int a = 0; a < D; ++a)
+    {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = name + "_" + idx_GS + "_" + std::to_string(a);
+      pod->data.InitWithShallowSlice(data_, a, 1);
+      pot->AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+  };
+
+  // logic for AT_N_X -------------------------------------------------------
+  auto dump_AT_C_sca = [&](AT_C_sca & sca_, const std::string & name)
+  {
+    AA & data_ = sca_.array();
+
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = name;
+    pod->data.InitWithShallowSlice(data_, 0, 1);
+    pot->AppendOutputDataNode(pod);
+    num_vars_++;
+  };
+
+  auto dump_AT_N_vec = [&](AT_N_vec & vec_, const std::string & name)
+  {
+    AA & data_ = vec_.array();
+
+    for (int a = 0; a < N; ++a)
+    {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = name + "_" + std::to_string(a);
+      pod->data.InitWithShallowSlice(data_, a, 1);
+      pot->AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+  };
+
+  auto dump_AT_N_sym = [&](AT_N_sym & sym_, const std::string & name)
+  {
+    AA & data_ = sym_.array();
+
+    for (int a = 0; a < N; ++a)
+    for (int b = a; b < N; ++b)
+    {
+      // Tensor-index to AA super-index reduction
+      const int I = sym_.idxmap(a,b);
+
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = name + "_" + std::to_string(a) + std::to_string(b);
+      pod->data.InitWithShallowSlice(data_, I, 1);
+      pot->AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+  };
+
+  auto dump_AT_D_vec = [&](AT_D_vec & vec_, const std::string & name)
+  {
+    AA & data_ = vec_.array();
+
+    for (int a = 0; a < D; ++a)
+    {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = name + "_" + std::to_string(a);
+      pod->data.InitWithShallowSlice(data_, a, 1);
+      pot->AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+  };
+
+  // dump as desired --------------------------------------------------------
+  if (output_params.variable == "M1" ||
+      output_params.variable == "M1.lab")
+  {
+    for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+    for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+    {
+      dump_GSC_AT_C_sca(pm1->lab.sc_E,   ix_g, ix_s, "M1.lab.sc_E");
+      dump_GSC_AT_N_vec(pm1->lab.sp_F_d, ix_g, ix_s, "M1.lab.sp_F_d");
+      dump_GSC_AT_C_sca(pm1->lab.sc_nG,  ix_g, ix_s, "M1.lab.sc_nG");
+    }
+  }
+
+  if (output_params.variable == "M1" ||
+      output_params.variable == "M1.lab_aux")
+  {
+    for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+    for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+    {
+      dump_GSC_AT_N_sym(pm1->lab_aux.sp_P_dd, ix_g, ix_s,
+                        "M1.lab_aux.sp_P_dd");
+      dump_GSC_AT_C_sca(pm1->lab_aux.sc_chi,  ix_g, ix_s,
+                        "M1.lab_aux.sc_chi");
+      dump_GSC_AT_C_sca(pm1->lab_aux.sc_xi,   ix_g, ix_s, "M1.lab_aux.sc_xi");
+    }
+  }
+
+  if (output_params.variable == "M1" ||
+      output_params.variable == "M1.rad")
+  {
+    for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+    for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+    {
+      dump_GSC_AT_C_sca(pm1->rad.sc_n,   ix_g, ix_s, "M1.rad.sc_n");
+      dump_GSC_AT_C_sca(pm1->rad.sc_J,   ix_g, ix_s, "M1.rad.sc_J");
+
+      dump_GSC_AT_D_vec(pm1->rad.st_H_u, ix_g, ix_s, "M1.rad.st_H_u");
+    }
+  }
+
+  if (output_params.variable == "M1" ||
+      output_params.variable == "M1.radmat")
+  {
+    for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+    for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+    {
+      dump_GSC_AT_C_sca(pm1->radmat.sc_eta_0,   ix_g, ix_s,
+                        "M1.radmat.sc_eta_0");
+      dump_GSC_AT_C_sca(pm1->radmat.sc_kap_a_0, ix_g, ix_s,
+                        "M1.radmat.sc_kap_a_0");
+
+      dump_GSC_AT_C_sca(pm1->radmat.sc_eta,   ix_g, ix_s,
+                        "M1.radmat.sc_eta");
+      dump_GSC_AT_C_sca(pm1->radmat.sc_kap_a, ix_g, ix_s,
+                        "M1.radmat.sc_kap_a");
+      dump_GSC_AT_C_sca(pm1->radmat.sc_kap_s, ix_g, ix_s,
+                        "M1.radmat.sc_kap_s");
+
+      dump_GSC_AT_C_sca(pm1->radmat.sc_avg_nrg, ix_g, ix_s,
+                        "M1.radmat.sc_avg_nrg");
+    }
+  }
+
+  if (output_params.variable == "M1" ||
+      output_params.variable == "M1.sources")
+  {
+    for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+    for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+    {
+      dump_GSC_AT_C_sca(pm1->sources.sc_nG,  ix_g, ix_s, "M1.sources.sc_nG");
+      dump_GSC_AT_C_sca(pm1->sources.sc_E,   ix_g, ix_s, "M1.sources.sc_E");
+      dump_GSC_AT_N_vec(pm1->sources.sp_F_d, ix_g, ix_s,
+                        "M1.sources.sp_F_d");
+
+      if (pm1->opt_solver.src_lim >= 0)
+      {
+        dump_AT_C_sca(pm1->sources.theta, "M1.sources.theta");
+      }
+    }
+  }
+
+  if (output_params.variable == "M1" ||
+      output_params.variable == "M1.rdiag")
+  {
+    for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+    for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+    {
+      dump_GSC_AT_C_sca(pm1->rdiag.sc_radflux_0, ix_g, ix_s,
+                        "M1.rdiag.sc_radflux_0");
+      dump_GSC_AT_C_sca(pm1->rdiag.sc_radflux_1, ix_g, ix_s,
+                        "M1.rdiag.sc_radflux_1");
+      dump_GSC_AT_C_sca(pm1->rdiag.sc_y, ix_g, ix_s,
+                        "M1.rdiag.sc_y");
+      dump_GSC_AT_C_sca(pm1->rdiag.sc_z, ix_g, ix_s,
+                        "M1.rdiag.sc_z");
+    }
+  }
+
+  if (output_params.variable == "M1" ||
+      output_params.variable == "M1.fidu")
+  {
+    dump_AT_N_vec(pm1->fidu.sp_v_u, "M1.fidu.sp_v_u");
+    dump_AT_N_vec(pm1->fidu.sp_v_d, "M1.fidu.sp_v_d");
+
+    dump_AT_C_sca(pm1->fidu.sc_W,   "M1.fidu.sc_W");
+  }
+
+  if (output_params.variable == "M1" ||
+      output_params.variable == "M1.net")
+  {
+    dump_AT_C_sca(pm1->net.abs,  "M1.net.abs");
+    dump_AT_C_sca(pm1->net.heat, "M1.net.heat");
+  }
+
+
+}
+
+void LoadOutputDataZ4c(
+  MeshBlock * pmb,
+  OutputType *pot,
+  OutputData *pod,
+  int & num_vars_)
+{
+  Z4c *pz4c = pmb->pz4c;
+  OutputParameters & output_params = pot->output_params;
+
+  for (int ix=0; ix<Z4c::N_Z4c; ++ix)
+  if (output_params.variable == "geom" ||
+      output_params.variable == "geom.z4c" ||
+      output_params.variable == Z4c::Z4c_names[ix])
+  {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = Z4c::Z4c_names[ix];
+    pod->data.InitWithShallowSlice(pz4c->storage.u,ix,1);
+    pot->AppendOutputDataNode(pod);
+    num_vars_++;
+  }
+
+  for (int ix=0; ix<Z4c::N_ADM; ++ix)
+  if (output_params.variable == "geom" ||
+      output_params.variable == "geom.adm" ||
+      output_params.variable == Z4c::ADM_names[ix])
+  {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = Z4c::ADM_names[ix];
+    pod->data.InitWithShallowSlice(pz4c->storage.adm,ix,1);
+    pot->AppendOutputDataNode(pod);
+    num_vars_++;
+  }
+
+  for (int ix=0; ix<Z4c::N_CON; ++ix)
+  if (output_params.variable == "geom" ||
+      output_params.variable == "geom.con" ||
+      output_params.variable == Z4c::Constraint_names[ix])
+  {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = Z4c::Constraint_names[ix];
+    pod->data.InitWithShallowSlice(pz4c->storage.con,ix,1);
+    pot->AppendOutputDataNode(pod);
+    num_vars_++;
+  }
+
+  for (int ix=0; ix<Z4c::N_MAT; ++ix)
+  if (output_params.variable == "geom" ||
+      output_params.variable == "geom.mat" ||
+      output_params.variable == Z4c::Matter_names[ix])
+  {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = Z4c::Matter_names[ix];
+    pod->data.InitWithShallowSlice(pz4c->storage.mat,ix,1);
+    pot->AppendOutputDataNode(pod);
+    num_vars_++;
+  }
+
+  for (int ix=0; ix<Z4c::N_WEY; ++ix)
+  if (output_params.variable == "geom" ||
+      output_params.variable == "geom.weyl" ||
+      output_params.variable == Z4c::Weyl_names[ix])
+  {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = Z4c::Weyl_names[ix];
+    pod->data.InitWithShallowSlice(pz4c->storage.weyl,ix,1);
+    pot->AppendOutputDataNode(pod);
+    num_vars_++;
+  }
+
+
+}
+
+}
+
+
+// BD: TODO - remove old-style entirely
 void OutputType::LoadOutputData(MeshBlock *pmb) {
   Hydro *phyd = pmb->phydro;
   Field *pfld = pmb->pfield;
@@ -342,199 +841,30 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   num_vars_ = 0;
   OutputData *pod;
 
-  // NEW_OUTPUT_TYPES:
-
-  if (output_params.variable.compare("all") == 0)
+  if (FLUID_ENABLED)
   {
-
-    if (FLUID_ENABLED)
-    {
-      // conserved variables --------------------------------------------------
-      std::vector<std::string> names_con = {
-        "hydro.D", "hydro.S1", "hydro.S2", "hydro.S3", "hydro.tau"
-      };
-
-      std::vector<unsigned int> idx_con = {
-        IDN, IM1, IM2, IM3, IEN
-      };
-
-      for (int ix=0; ix<names_con.size(); ++ix)
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = names_con[ix];
-        pod->data.InitWithShallowSlice(phyd->u, 4, idx_con[ix], 1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-
-      // `PrimitiveSolver` temp -----------------------------------------------
-#if USETM
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = "hydro.T";
-        pod->data.InitWithShallowSlice(phyd->temperature, 0, 1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-#endif
-
-      // primitive variables --------------------------------------------------
-      std::vector<std::string> names_prim = {
-        "hydro.rho", "hydro.util1", "hydro.util2", "hydro.util3",
-        "hydro.p"};
-
-      std::vector<unsigned int> idx_prim = {
-        IDN, IVX, IVY, IVZ, IPR
-      };
-
-      for (int ix=0; ix<names_prim.size(); ++ix)
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = names_prim[ix];
-        pod->data.InitWithShallowSlice(phyd->w, 4, idx_prim[ix], 1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-
-      // c2p ------------------------------------------------------------------
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = "hydro.c2p_status";
-        pod->data.InitWithShallowSlice(phyd->c2p_status, 0, 1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-
-    }
-
-    if (NSCALARS > 0)
-    {
-      std::string root_name_cons = "passive_scalar.s_";
-      std::string root_name_prim = "passive_scalar.r_";
-      for (int n=0; n<NSCALARS; n++)
-      {
-        std::string scalar_name_cons = root_name_cons + std::to_string(n);
-        std::string scalar_name_prim = root_name_prim + std::to_string(n);
-
-        {
-          pod = new OutputData;
-          pod->type = "SCALARS";
-          pod->name = scalar_name_cons;
-          pod->data.InitWithShallowSlice(psclr->s, 4, n, 1);
-          AppendOutputDataNode(pod);
-          num_vars_++;
-        }
-
-        {
-          pod = new OutputData;
-          pod->type = "SCALARS";
-          pod->name = scalar_name_prim;
-          pod->data.InitWithShallowSlice(psclr->r, 4, n, 1);
-          AppendOutputDataNode(pod);
-          num_vars_++;
-        }
-      }
-    }
-
-    if (MAGNETIC_FIELDS_ENABLED)
-    {
-      std::vector<std::string> names_B_cc = {
-        "B.Bcc1", "B.Bcc2", "B.Bcc3"
-      };
-
-      std::vector<unsigned int> idx_B_cc = {
-        IB1, IB2, IB3
-      };
-
-      for (int ix=0; ix<names_B_cc.size(); ++ix)
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = names_B_cc[ix];
-        pod->data.InitWithShallowSlice(pfld->bcc, 4, idx_B_cc[ix], 1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-
-      std::vector<std::string> names_B_fc = {
-        "B.B1", "B.B2", "B.B3"
-      };
-
-      std::vector<AthenaArray<Real> *> b_fc = {
-        &(pfld->b.x1f), &(pfld->b.x2f), &(pfld->b.x3f)
-      };
-
-      for (int ix=0; ix<names_B_fc.size(); ++ix)
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = names_B_fc[ix];
-        pod->data.InitWithShallowSlice(*b_fc[ix], 4, 0, 1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-
-    }
-
-    if (Z4C_ENABLED)
-    {
-      for (int v = 0; v < Z4c::N_Z4c; ++v)
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = Z4c::Z4c_names[v];
-        pod->data.InitWithShallowSlice(pz4c->storage.u,v,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-
-      for (int v = 0; v < Z4c::N_ADM; ++v)
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = Z4c::ADM_names[v];
-        pod->data.InitWithShallowSlice(pz4c->storage.adm,v,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-
-      for (int v = 0; v < Z4c::N_CON; ++v)
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = Z4c::Constraint_names[v];
-        pod->data.InitWithShallowSlice(pz4c->storage.con,v,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-
-      for (int v = 0; v < Z4c::N_MAT; ++v)
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = Z4c::Matter_names[v];
-        pod->data.InitWithShallowSlice(pz4c->storage.mat,v,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-
-      for (int v = 0; v < Z4c::N_WEY; ++v)
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = Z4c::Weyl_names[v];
-        pod->data.InitWithShallowSlice(pz4c->storage.weyl,v,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-    }
-
+    LoadOutputDataHydro(pmb, this, pod, num_vars_);
   }
 
+  if (NSCALARS > 0)
+  {
+    LoadOutputDataPassiveScalars(pmb, this, pod, num_vars_);
+  }
+
+  if (M1_ENABLED)
+  {
+    LoadOutputDataM1(pmb, this, pod, num_vars_);
+  }
+
+  if (Z4C_ENABLED)
+  {
+    LoadOutputDataZ4c(pmb, this, pod, num_vars_);
+  }
+
+  if (MAGNETIC_FIELDS_ENABLED)
+  {
+    LoadOutputDataMagneticFields(pmb, this, pod, num_vars_);
+  }
 
   // (lab-frame) density
   if (output_params.variable.compare("D") == 0 ||
@@ -747,596 +1077,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     }
   }
 
-  if (Z4C_ENABLED) {
-    for (int v = 0; v < Z4c::N_Z4c; ++v) {
-      if (output_params.variable.compare("z4c") == 0 ||
-          output_params.variable.compare(Z4c::Z4c_names[v]) == 0) {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = Z4c::Z4c_names[v];
-        pod->data.InitWithShallowSlice(pz4c->storage.u,v,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-    }
-    for (int v = 0; v < Z4c::N_ADM; ++v) {
-      if (output_params.variable.compare("adm") == 0 ||
-          output_params.variable.compare(Z4c::ADM_names[v]) == 0) {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = Z4c::ADM_names[v];
-        pod->data.InitWithShallowSlice(pz4c->storage.adm,v,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-    }
-    for (int v = 0; v < Z4c::N_CON; ++v) {
-      if (output_params.variable.compare("con") == 0 ||
-          output_params.variable.compare(Z4c::Constraint_names[v]) == 0) {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = Z4c::Constraint_names[v];
-        pod->data.InitWithShallowSlice(pz4c->storage.con,v,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-    }
-    for (int v = 0; v < Z4c::N_MAT; ++v) {
-      if (output_params.variable.compare("mat") == 0 ||
-          output_params.variable.compare(Z4c::Matter_names[v]) == 0) {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = Z4c::Matter_names[v];
-        pod->data.InitWithShallowSlice(pz4c->storage.mat,v,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-    }
-    for (int v = 0; v < Z4c::N_WEY; ++v) {
-      if (output_params.variable.compare("weyl") == 0 ||
-          output_params.variable.compare(Z4c::Weyl_names[v]) == 0) {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = Z4c::Weyl_names[v];
-        pod->data.InitWithShallowSlice(pz4c->storage.weyl,v,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-    }
-  }
 
-  if (M1_ENABLED)
-  {
-    for (int v = 0; v < M1::M1::ixn_Lab::N; ++v)
-    {
-      if (output_params.variable.compare("m1_lab") == 0)
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = M1::M1::ixn_Lab::names[v];
-        pod->data.InitWithShallowSlice(pm1->storage.u,v,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-    }
-  }
-
-  if (M1_ENABLED)
-  {
-    for (int v = 0; v < M1::M1::ixn_Lab_aux::N; ++v)
-    {
-      if (output_params.variable.compare("m1_lab_aux") == 0)
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = M1::M1::ixn_Lab_aux::names[v];
-        pod->data.InitWithShallowSlice(pm1->storage.u_lab_aux,v,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-    }
-  }
-
-  if (M1_ENABLED) {
-    if (output_params.variable.compare("m1_radmat_nue") == 0) {
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = "eta_n";
-        pod->data.InitWithShallowSlice(pm1->radmat.sc_eta_0(0,0).array(),0,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = "kap_n";
-        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_a_0(0,0).array(),0,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = "eta_e";
-        pod->data.InitWithShallowSlice(pm1->radmat.sc_eta(0,0).array(),0,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = "kap_e_a";
-        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_a(0,0).array(),0,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = "kap_e_s";
-        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_s(0,0).array(),0,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-    }
-  }
-
-
-  if (M1_ENABLED) {
-    if (output_params.variable.compare("m1_radmat_nua") == 0) {
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = "eta_n";
-        pod->data.InitWithShallowSlice(pm1->radmat.sc_eta_0(0,1).array(),0,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = "kap_n";
-        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_a_0(0,1).array(),0,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = "eta_e";
-        pod->data.InitWithShallowSlice(pm1->radmat.sc_eta(0,1).array(),0,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = "kap_e_a";
-        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_a(0,1).array(),0,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = "kap_e_s";
-        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_s(0,1).array(),0,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-    }
-  }
-
-
-  if (M1_ENABLED) {
-    if (output_params.variable.compare("m1_radmat_nux") == 0) {
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = "eta_n";
-        pod->data.InitWithShallowSlice(pm1->radmat.sc_eta_0(0,2).array(),0,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = "kap_n";
-        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_a_0(0,2).array(),0,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = "eta_e";
-        pod->data.InitWithShallowSlice(pm1->radmat.sc_eta(0,2).array(),0,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = "kap_e_a";
-        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_a(0,2).array(),0,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = "kap_e_s";
-        pod->data.InitWithShallowSlice(pm1->radmat.sc_kap_s(0,2).array(),0,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-    }
-  }
-
-  if (M1_ENABLED) {
-    if (output_params.variable.compare("m1_radlab_nue") == 0) {
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = "E";
-        pod->data.InitWithShallowSlice(pm1->lab.sc_E(0,0).array(),0,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = "n_dens";
-        pod->data.InitWithShallowSlice(pm1->lab.sc_nG(0,0).array(),0,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-    }
-  }
-
-  if (M1_ENABLED) {
-    if (output_params.variable.compare("m1_radlab_nua") == 0) {
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = "E";
-        pod->data.InitWithShallowSlice(pm1->lab.sc_E(0,1).array(),0,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = "n_dens";
-        pod->data.InitWithShallowSlice(pm1->lab.sc_nG(0,1).array(),0,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-    }
-  }
-
-  if (M1_ENABLED) {
-    if (output_params.variable.compare("m1_radlab_nux") == 0) {
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = "E";
-        pod->data.InitWithShallowSlice(pm1->lab.sc_E(0,2).array(),0,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = "n_dens";
-        pod->data.InitWithShallowSlice(pm1->lab.sc_nG(0,2).array(),0,1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-    }
-  }
-
-  // M1 dumps based on data-structure name ------------------------------------
-  // Output as scalars for convenience in parsing
-  if (M1_ENABLED)
-  {
-    std::string idx_GS;
-
-    // logic for GroupSpeciesContainer<...> -----------------------------------
-    auto dump_GSC_AT_C_sca = [&](
-      M1::GroupSpeciesContainer<AT_C_sca> & sca_,
-      const int ix_g, const int ix_s,
-      const std::string & name)
-    {
-      idx_GS = std::to_string(ix_g) + std::to_string(ix_s);
-
-      AA & data_ = sca_(ix_g, ix_s).array();
-
-      pod = new OutputData;
-      pod->type = "SCALARS";
-      pod->name = name + "_" + idx_GS;
-      pod->data.InitWithShallowSlice(data_, 0, 1);
-      AppendOutputDataNode(pod);
-      num_vars_++;
-    };
-
-    auto dump_GSC_AT_N_vec = [&](
-      M1::GroupSpeciesContainer<AT_N_vec> & vec_,
-      const int ix_g, const int ix_s,
-      const std::string & name)
-    {
-      idx_GS = std::to_string(ix_g) + std::to_string(ix_s);
-
-      AA & data_ = vec_(ix_g, ix_s).array();
-
-      for (int a = 0; a < N; ++a)
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = name + "_" + idx_GS + "_" + std::to_string(a);
-        pod->data.InitWithShallowSlice(data_, a, 1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-    };
-
-    auto dump_GSC_AT_N_sym = [&](
-      M1::GroupSpeciesContainer<AT_N_sym> & sym_,
-      const int ix_g, const int ix_s,
-      const std::string & name)
-    {
-      idx_GS = std::to_string(ix_g) + std::to_string(ix_s);
-
-      AA & data_ = sym_(ix_g, ix_s).array();
-
-      for (int a = 0; a < N; ++a)
-      for (int b = a; b < N; ++b)
-      {
-        // Tensor-index to AA super-index reduction
-        const int I = sym_(ix_g, ix_s).idxmap(a,b);
-
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = name + "_" + idx_GS + "_" + std::to_string(a) +
-                    std::to_string(b);
-        pod->data.InitWithShallowSlice(data_, I, 1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-    };
-
-    auto dump_GSC_AT_D_vec = [&](
-      M1::GroupSpeciesContainer<AT_D_vec> & vec_,
-      const int ix_g, const int ix_s,
-      const std::string & name)
-    {
-      idx_GS = std::to_string(ix_g) + std::to_string(ix_s);
-
-      AA & data_ = vec_(ix_g, ix_s).array();
-
-      for (int a = 0; a < D; ++a)
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = name + "_" + idx_GS + "_" + std::to_string(a);
-        pod->data.InitWithShallowSlice(data_, a, 1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-    };
-
-    // logic for AT_N_X -------------------------------------------------------
-    auto dump_AT_C_sca = [&](AT_C_sca & sca_, const std::string & name)
-    {
-      AA & data_ = sca_.array();
-
-      pod = new OutputData;
-      pod->type = "SCALARS";
-      pod->name = name;
-      pod->data.InitWithShallowSlice(data_, 0, 1);
-      AppendOutputDataNode(pod);
-      num_vars_++;
-    };
-
-    auto dump_AT_N_vec = [&](AT_N_vec & vec_, const std::string & name)
-    {
-      AA & data_ = vec_.array();
-
-      for (int a = 0; a < N; ++a)
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = name + "_" + std::to_string(a);
-        pod->data.InitWithShallowSlice(data_, a, 1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-    };
-
-    auto dump_AT_N_sym = [&](AT_N_sym & sym_, const std::string & name)
-    {
-      AA & data_ = sym_.array();
-
-      for (int a = 0; a < N; ++a)
-      for (int b = a; b < N; ++b)
-      {
-        // Tensor-index to AA super-index reduction
-        const int I = sym_.idxmap(a,b);
-
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = name + "_" + std::to_string(a) + std::to_string(b);
-        pod->data.InitWithShallowSlice(data_, I, 1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-    };
-
-    auto dump_AT_D_vec = [&](AT_D_vec & vec_, const std::string & name)
-    {
-      AA & data_ = vec_.array();
-
-      for (int a = 0; a < D; ++a)
-      {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = name + "_" + std::to_string(a);
-        pod->data.InitWithShallowSlice(data_, a, 1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-    };
-
-    // dump as desired --------------------------------------------------------
-    if (output_params.variable.compare("M1.lab") == 0)
-    {
-      for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
-      for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
-      {
-        dump_GSC_AT_C_sca(pm1->lab.sc_E,   ix_g, ix_s, "M1.lab.sc_E");
-        dump_GSC_AT_N_vec(pm1->lab.sp_F_d, ix_g, ix_s, "M1.lab.sp_F_d");
-        dump_GSC_AT_C_sca(pm1->lab.sc_nG,  ix_g, ix_s, "M1.lab.sc_nG");
-      }
-    }
-
-    if (output_params.variable.compare("M1.lab_aux") == 0)
-    {
-      for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
-      for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
-      {
-        dump_GSC_AT_N_sym(pm1->lab_aux.sp_P_dd, ix_g, ix_s,
-                          "M1.lab_aux.sp_P_dd");
-        dump_GSC_AT_C_sca(pm1->lab_aux.sc_chi,  ix_g, ix_s,
-                          "M1.lab_aux.sc_chi");
-        dump_GSC_AT_C_sca(pm1->lab_aux.sc_xi,   ix_g, ix_s, "M1.lab_aux.sc_xi");
-      }
-    }
-
-    if (output_params.variable.compare("M1.rad") == 0)
-    {
-      for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
-      for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
-      {
-        dump_GSC_AT_C_sca(pm1->rad.sc_n,   ix_g, ix_s, "M1.rad.sc_n");
-        dump_GSC_AT_C_sca(pm1->rad.sc_J,   ix_g, ix_s, "M1.rad.sc_J");
-
-        dump_GSC_AT_D_vec(pm1->rad.st_H_u, ix_g, ix_s, "M1.rad.st_H_u");
-      }
-    }
-
-    if (output_params.variable.compare("M1.radmat") == 0)
-    {
-      for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
-      for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
-      {
-        dump_GSC_AT_C_sca(pm1->radmat.sc_eta_0,   ix_g, ix_s,
-                          "M1.radmat.sc_eta_0");
-        dump_GSC_AT_C_sca(pm1->radmat.sc_kap_a_0, ix_g, ix_s,
-                          "M1.radmat.sc_kap_a_0");
-
-        dump_GSC_AT_C_sca(pm1->radmat.sc_eta,   ix_g, ix_s,
-                          "M1.radmat.sc_eta");
-        dump_GSC_AT_C_sca(pm1->radmat.sc_kap_a, ix_g, ix_s,
-                          "M1.radmat.sc_kap_a");
-        dump_GSC_AT_C_sca(pm1->radmat.sc_kap_s, ix_g, ix_s,
-                          "M1.radmat.sc_kap_s");
-
-        dump_GSC_AT_C_sca(pm1->radmat.sc_avg_nrg, ix_g, ix_s,
-                          "M1.radmat.sc_avg_nrg");
-      }
-    }
-
-    if (output_params.variable.compare("M1.sources") == 0)
-    {
-      for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
-      for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
-      {
-        dump_GSC_AT_C_sca(pm1->sources.sc_nG,  ix_g, ix_s, "M1.sources.sc_nG");
-        dump_GSC_AT_C_sca(pm1->sources.sc_E,   ix_g, ix_s, "M1.sources.sc_E");
-        dump_GSC_AT_N_vec(pm1->sources.sp_F_d, ix_g, ix_s,
-                          "M1.sources.sp_F_d");
-
-        if (pm1->opt_solver.src_lim >= 0)
-        {
-          dump_AT_C_sca(pm1->sources.theta, "M1.sources.theta");
-        }
-      }
-    }
-
-    if (output_params.variable.compare("M1.rdiag") == 0)
-    {
-      for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
-      for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
-      {
-        dump_GSC_AT_C_sca(pm1->rdiag.sc_radflux_0, ix_g, ix_s,
-                          "M1.rdiag.sc_radflux_0");
-        dump_GSC_AT_C_sca(pm1->rdiag.sc_radflux_1, ix_g, ix_s,
-                          "M1.rdiag.sc_radflux_1");
-        dump_GSC_AT_C_sca(pm1->rdiag.sc_y, ix_g, ix_s,
-                          "M1.rdiag.sc_y");
-        dump_GSC_AT_C_sca(pm1->rdiag.sc_z, ix_g, ix_s,
-                          "M1.rdiag.sc_z");
-      }
-    }
-
-    if (output_params.variable.compare("M1.fidu") == 0)
-    {
-      dump_AT_N_vec(pm1->fidu.sp_v_u, "M1.fidu.sp_v_u");
-      dump_AT_N_vec(pm1->fidu.sp_v_d, "M1.fidu.sp_v_d");
-
-      dump_AT_C_sca(pm1->fidu.sc_W,   "M1.fidu.sc_W");
-    }
-
-    if (output_params.variable.compare("M1.net") == 0)
-    {
-      dump_AT_C_sca(pm1->net.abs,  "M1.net.abs");
-      dump_AT_C_sca(pm1->net.heat, "M1.net.heat");
-    }
-  }
-  // --------------------------------------------------------------------------
-
-  if (NSCALARS > 0) {
-    std::string root_name_cons = "s";
-    std::string root_name_prim = "r";
-    for (int n=0; n<NSCALARS; n++) {
-      std::string scalar_name_cons = root_name_cons + std::to_string(n);
-      std::string scalar_name_prim = root_name_prim + std::to_string(n);
-      if (output_params.variable.compare(scalar_name_cons) == 0 ||
-          output_params.variable.compare("cons") == 0) {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = scalar_name_cons;
-        pod->data.InitWithShallowSlice(psclr->s, 4, n, 1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-      if (output_params.variable.compare(scalar_name_prim) == 0 ||
-          output_params.variable.compare("prim") == 0) {
-        pod = new OutputData;
-        pod->type = "SCALARS";
-        pod->name = scalar_name_prim;
-        pod->data.InitWithShallowSlice(psclr->r, 4, n, 1);
-        AppendOutputDataNode(pod);
-        num_vars_++;
-      }
-    }
-  }
   // note, the Bcc variables are stored in a separate HDF5 dataset from the above Output
   // nodes, and it must come after those nodes in the linked list
   if (MAGNETIC_FIELDS_ENABLED) {

@@ -331,7 +331,10 @@ public:
           }
           case (Triggers::OutputVariant::data):
           {
-            dt = pouts->GetMinOutputTimeStepExhaustive("Weyl");
+            dt = std::min(
+              pouts->GetMinOutputTimeStepExhaustive("geom"),
+              pouts->GetMinOutputTimeStepExhaustive("geom.weyl")
+            );
             break;
           }
           default:

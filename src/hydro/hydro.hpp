@@ -66,7 +66,6 @@ class Hydro {
   AthenaArray<bool> mask_reset_u;
   AthenaArray<Real> c2p_status;
 
-
   // for reconstruction failure, should both states be floored?
   bool floor_both_states = false;
   bool flux_reconstruction = false;
@@ -82,6 +81,68 @@ class Hydro {
     Real horizon_factor;   // factor to multiply horizon radius
   } opt_excision;
 
+
+  // --------------------------------------------------------------------------
+  struct ixn_cons
+  {
+    enum
+    {
+      D,     // matches IDN, IM1, IM2, IM3, IEN
+      S_d_1,
+      S_d_2,
+      S_d_3,
+      tau,
+      N
+    };
+
+    static constexpr char const * const names[] = {
+      "hydro.cons.D",
+      "hydro.cons.S_d_1",
+      "hydro.cons.S_d_2",
+      "hydro.cons.S_d_3",
+      "hydro.cons.tau",
+    };
+  };
+
+  struct ixn_prim
+  {
+    enum
+    {
+      rho,   // matches IDN, IVX, IVY, IVZ, IPR
+      util_u_1,
+      util_u_2,
+      util_u_3,
+      p,
+      N
+    };
+
+    static constexpr char const * const names[] = {
+      "hydro.prim.rho",
+      "hydro.prim.util_u_1",
+      "hydro.prim.util_u_2",
+      "hydro.prim.util_u_3",
+      "hydro.prim.p",
+    };
+  };
+
+  struct ixn_aux
+  {
+    enum
+    {
+#if USETM
+      T,
+#endif
+      c2p_status,
+      N
+    };
+
+    static constexpr char const * const names[] = {
+#if USETM
+      "hydro.T",
+#endif
+      "hydro.c2p_status",
+    };
+  };
 
   // scratches ----------------------------------------------------------------
 public:

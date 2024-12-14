@@ -64,6 +64,40 @@ public:
   void ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc);
   void ComputeCornerE_STS();
 
+  struct ixn_cc
+  {
+    enum
+    {
+      bcc1,  // matches IB1, IB2, IB3
+      bcc2,
+      bcc3,
+      N
+    };
+
+    static constexpr char const * const names[] = {
+      "B.Bcc_1",
+      "B.Bcc_2",
+      "B.Bcc_3",
+    };
+  };
+
+  struct ixn_fc
+  {
+    enum
+    {
+      bfc1,
+      bfc2,
+      bfc3,
+      N
+    };
+
+    static constexpr char const * const names[] = {
+      "B.Bfc_1",
+      "B.Bfc_2",
+      "B.Bfc_3",
+    };
+  };
+
 private:
   // scratch space used to compute fluxes
   AthenaArray<Real> cc_e_;
