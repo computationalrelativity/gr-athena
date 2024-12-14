@@ -87,13 +87,17 @@ void M1::PopulateOptionsClosure(ParameterInput *pin)
   opt_closure.eps_tol     = GoA_Real("eps_tol",     1e-10);
   opt_closure.eps_Z_o_E   = GoA_Real("eps_Z_o_E",   1e-20);
   opt_closure.fac_Z_o_E   = GoA_Real("fac_Z_o_E",   0.01);
+
+  opt_closure.fallback_brent = GoA_bool("fallback_brent", true);
+  opt_closure.fallback_thin = GoA_bool("fallback_thin", false);
+
+
   opt_closure.w_opt_ini   = GoA_Real("w_opt_init",  1.0);
   opt_closure.fac_err_amp = GoA_Real("fac_err_amp", 1.11);
 
   opt_closure.iter_max     = GoA_int("iter_max", 32);
   opt_closure.iter_max_rst = GoA_int("iter_max_rst", 5);
 
-  opt_closure.fallback_thin = GoA_bool("fallback_thin", false);
 
   opt_closure.use_Ostrowski = GoA_bool("use_Ostrowski", false);
   opt_closure.use_Neighbor  = GoA_bool("use_Neighbor",  false);

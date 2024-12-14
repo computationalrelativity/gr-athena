@@ -199,6 +199,8 @@ public:
     int iter_max;
     int iter_max_rst;
 
+    bool fallback_brent;
+
     bool fallback_thin;
     bool use_Ostrowski;
     bool use_Neighbor;

@@ -1342,6 +1342,114 @@ inline void Jacobian_sc_E_sp_F_d(
 }
 
 // ============================================================================
+namespace D1 {
+// ============================================================================
+
+// Derivatives with respect to Chi
+
+// First derivatives (wrt. Chi);
+inline Real d_th(const AT_C_sca & sc_chi,
+                 const int k, const int j, const int i)
+{
+  return 1.5;
+}
+
+inline Real d_tk(const AT_C_sca & sc_chi,
+                 const int k, const int j, const int i)
+{
+  return -1.5;
+}
+
+// We write:
+// sc_J = J_0
+// st_H = H_n n^alpha + H_v v^alpha + H_F F^alpha
+inline void ToFiducialExpansionCoefficients(
+  M1 & pm1,
+  Real & J_0,
+  Real & H_n,
+  Real & H_v,
+  Real & H_F,
+  Real & dJ_dchi_0,
+  Real & dH_dchi_n,
+  Real & dH_dchi_v,
+  Real & dH_dchi_F,
+  const AT_C_sca & sc_chi,
+  const AT_C_sca & sc_E,
+  const AT_N_vec & sp_F_d,
+  const int k,
+  const int j,
+  const int i)
+{
+  const AT_N_vec & sp_v_u = pm1.fidu.sp_v_u;
+  const AT_N_vec & sp_v_d = pm1.fidu.sp_v_d;
+  const AT_N_sym & sp_g_uu = pm1.geom.sp_g_uu;
+
+  const Real W  = pm1.fidu.sc_W(k,j,i);
+  const Real W2 = SQR(W);
+
+  const Real E = sc_E(k,j,i);
+  const Real dotFv = sc_dot_dense_sp__(sp_F_d, sp_v_u, k, j, i);
+  const Real dotvv = sc_dot_dense_sp__(sp_v_d, sp_v_u, k, j, i);
+
+  const Real nF2 = sp_norm2__(sp_F_d, sp_g_uu, k, j, i);
+  const Real oo_nF = (nF2 > 0) ? OO(std::sqrt(nF2)) : 0.0;
+  const Real dotFhatv = oo_nF * dotFv;
+
+  const Real d_th = Assemble::Frames::d_th(sc_chi, k, j, i);
+  const Real d_tk = Assemble::Frames::d_tk(sc_chi, k, j, i);
+
+  const Real dd_th_dchi = Assemble::Frames::D1::d_th(sc_chi, k, j, i);
+  const Real dd_tk_dchi = Assemble::Frames::D1::d_tk(sc_chi, k, j, i);
+
+  // ------------------------------------------------------------------------
+  const Real B_0 = W2 * (E - 2.0 * dotFv);
+  const Real B_th = W2 * E * SQR(dotFhatv);
+  const Real B_tk = (W2 - 1.0) / (2.0 * W2 + 1.0) * (
+    4.0 * W2 * dotFv + (3.0 - 2.0 * W2) * E
+  );
+
+  // coefficients appearing in vector-expansion of H
+  const Real v_0  = W * B_0;
+  const Real v_th = W * B_th;
+  const Real v_tk = W * B_tk + W / (2.0 * W2 + 1.0) * (
+    (3.0 - 2.0 * W2) * E + (2.0 * W2 - 1.0) * dotFv
+  );
+
+  const Real F_0 = -W;
+  const Real F_th = oo_nF * W * E * dotFhatv;
+  const Real F_tk = W * dotvv;
+
+  const Real v_H = (v_0 + d_th * v_th + d_tk * v_tk);
+  const Real F_H = (F_0 + d_th * F_th + d_tk * F_tk);
+
+  const Real d_v_H_dchi = (dd_th_dchi * v_th + dd_tk_dchi * v_tk);
+  const Real d_F_H_dchi = (dd_th_dchi * F_th + dd_tk_dchi * F_tk);
+
+  // --------------------------------------------------------------------------
+  // Populate according to comment
+  // J_0 = B_0 + d_th * B_th + d_tk * B_tk;
+  J_0 = std::max(
+    B_0 + d_th * B_th + d_tk * B_tk,
+    pm1.opt.fl_J
+  );
+
+  H_v = -v_H;
+  H_F = -F_H;
+
+  // (from H \perp u)
+  H_n = H_F * dotFv + H_v * dotvv;
+
+  // Derivative terms
+  dJ_dchi_0 = dd_th_dchi * B_th + dd_tk_dchi * B_tk;
+  dH_dchi_v = -d_v_H_dchi;
+  dH_dchi_F = -d_F_H_dchi;
+  dH_dchi_n = dH_dchi_F * dotFv + dH_dchi_v * dotvv;
+}
+// ============================================================================
+} // namespace M1::Assemble::Frames::D1
+// ============================================================================
+
+// ============================================================================
 } // namespace M1::Assemble::Frames
 // ============================================================================
 

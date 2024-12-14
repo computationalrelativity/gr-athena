@@ -107,7 +107,21 @@ void Fallback_Xi_Chi_Limits(M1 & pm1, ClosureMetaVector & C,
 
 // Function to find root of.
 Real Z_xi(
-  const Real xi,
+  const Real xi__,
+  M1 & pm1,
+  ClosureMetaVector & C,
+  const int k, const int j, const int i);
+
+Real dZ_xi(
+  const Real xi__,
+  M1 & pm1,
+  ClosureMetaVector & C,
+  const int k, const int j, const int i);
+
+void ZdZ_xi(
+  Real & Z__,
+  Real & dZ__,
+  const Real xi__,
   M1 & pm1,
   ClosureMetaVector & C,
   const int k, const int j, const int i);
@@ -115,6 +129,10 @@ Real Z_xi(
 status gsl_Brent(M1 & pm1,
                  ClosureMetaVector & C,
                  const int k, const int j, const int i);
+
+status gsl_Newton(M1 & pm1,
+                  ClosureMetaVector & C,
+                  const int k, const int j, const int i);
 
 // ============================================================================
 } // namespace M1::Closures::solvers
@@ -128,6 +146,25 @@ void ThinLimit(Real & xi, Real & chi);
 void ThickLimit(Real & xi, Real & chi);
 void Minerbo(Real & xi, Real & chi);
 void Kershaw(Real & xi, Real & chi);
+
+void Compute(M1 & pm1, Real & xi, Real & chi);
+
+// ============================================================================
+namespace D1 {
+// ============================================================================
+
+// First derivatives (wrt. xi);
+// chi=chi(xi) -> chi'(xi)
+
+void ThinLimit(Real & xi, Real & chi);
+void ThickLimit(Real & xi, Real & chi);
+void Minerbo(Real & xi, Real & chi);
+void Kershaw(Real & xi, Real & chi);
+
+void Compute(M1 & pm1, Real & xi, Real & dchi_dxi);
+// ============================================================================
+} // namespace M1::Closures::EddingtonFactors::D1
+// ============================================================================
 
 // ============================================================================
 } // namespace M1::Closures::EddingtonFactors

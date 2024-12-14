@@ -55,6 +55,108 @@ void Kershaw(Real & xi, Real & chi)
   chi = ONE_3RD * (1.0 + 2.0 * xi2);
 }
 
+// General interface ----------------------------------------------------------
+void Compute(M1 & pm1, Real & xi, Real & chi)
+{
+  typedef M1::opt_closure_variety ocv;
+
+  switch (pm1.opt_closure.variety)
+  {
+    case (ocv::thin):
+    {
+      ThinLimit(xi, chi);
+      break;
+    }
+    case (ocv::thick):
+    {
+      ThickLimit(xi, chi);
+      break;
+    }
+    case (ocv::Minerbo):
+    {
+      Minerbo(xi, chi);
+      break;
+    }
+    case (ocv::Kershaw):
+    {
+      Kershaw(xi, chi);
+      break;
+    }
+    default:
+    {
+      assert(false);
+    }
+  }
+}
+
+// ============================================================================
+namespace D1 {
+// ============================================================================
+
+// First derivatives (wrt. xi);
+// chi=chi(xi) -> chi'(xi)
+
+void ThinLimit(Real & xi, Real & chi)
+{
+  xi = 0.0;
+  chi = 0.0;
+}
+
+void ThickLimit(Real & xi, Real & dchi_dxi)
+{
+  xi = 0.0;
+  dchi_dxi = 0.0;
+}
+
+void Minerbo(Real & xi, Real & dchi_dxi)
+{
+  dchi_dxi = (2.0 / 5.0) * xi * (
+    2.0 + xi * (4.0 * xi - 1.0)
+  );
+}
+
+void Kershaw(Real & xi, Real & dchi_dxi)
+{
+  dchi_dxi = 4.0 * ONE_3RD * xi;
+}
+
+// General interface ----------------------------------------------------------
+void Compute(M1 & pm1, Real & xi, Real & dchi_dxi)
+{
+  typedef M1::opt_closure_variety ocv;
+
+  switch (pm1.opt_closure.variety)
+  {
+    case (ocv::thin):
+    {
+      ThinLimit(xi, dchi_dxi);
+      break;
+    }
+    case (ocv::thick):
+    {
+      ThickLimit(xi, dchi_dxi);
+      break;
+    }
+    case (ocv::Minerbo):
+    {
+      Minerbo(xi, dchi_dxi);
+      break;
+    }
+    case (ocv::Kershaw):
+    {
+      Kershaw(xi, dchi_dxi);
+      break;
+    }
+    default:
+    {
+      assert(false);
+    }
+  }
+}
+// ============================================================================
+} // namespace M1::Closures::EddingtonFactors::D1
+// ============================================================================
+
 // ============================================================================
 } // namespace M1::Closures::EddingtonFactors
 // ============================================================================
@@ -83,8 +185,8 @@ void ClosureMetaVector::Closure(const int k, const int j, const int i)
       }
       case (M1::opt_closure_method::gsl_Newton):
       {
-        // BD: TODO - add me
-        assert(false);
+        ss = solvers::gsl_Newton(pm1, *this, k, j, i);
+        break;
       }
       default:
       {
@@ -101,38 +203,7 @@ void ClosureMetaVector::Closure(const int k, const int j, const int i)
   }
 
   // compute Eddington factor -------------------------------------------------
-  using namespace EddingtonFactors;
-
-  Real &xi__  = sc_xi(k,j,i);
-  Real &chi__ = sc_chi(k,j,i);
-
-  switch (pm1.opt_closure.variety)
-  {
-    case (ocv::thin):
-    {
-      ThinLimit(xi__, chi__);
-      break;
-    }
-    case (ocv::thick):
-    {
-      ThickLimit(xi__, chi__);
-      break;
-    }
-    case (ocv::Minerbo):
-    {
-      Minerbo(xi__, chi__);
-      break;
-    }
-    case (ocv::Kershaw):
-    {
-      Kershaw(xi__, chi__);
-      break;
-    }
-    default:
-    {
-      assert(false);
-    }
-  }
+  EddingtonFactors::Compute(pm1, sc_xi(k,j,i), sc_chi(k,j,i));
 }
 
 ClosureMetaVector ConstructClosureMetaVector(
@@ -168,13 +239,13 @@ namespace solvers {
 
 // functional to find root of
 Real Z_xi(
-  const Real xi,
+  const Real xi__,
   M1 & pm1,
   ClosureMetaVector & C,
   const int k, const int j, const int i)
 {
-  // assemble P_dd
-  C.sc_xi(k,j,i) = xi;
+  C.sc_xi(k,j,i) = xi__;
+  EddingtonFactors::Compute(pm1, C.sc_xi(k,j,i), C.sc_chi(k,j,i));
 
   // Prepare H^alpha
 
@@ -213,18 +284,96 @@ Real Z_xi(
     dotFF * SQR(H_F) - SQR(H_n) + 2 * dotFv * H_F * H_v + SQR(H_v) * dotvv
   );
 
-  // // Functional
-  Real Z_ = (
-    st_H_norm_2__ - SQR(xi * J_0)
-  );
+  // Functional
   // N.B. perform a further rescaling
-  Z_ = Z_ / SQR(std::max(C.sc_E(k,j,i), pm1.opt.eps_E));
+  const Real OO_E2 = OO(SQR(std::max(C.sc_E(k,j,i), pm1.opt.fl_E)));
+  return OO_E2 * (
+    st_H_norm_2__ - SQR(xi__ * J_0)
+  );
+}
 
-  // const Real Z_ = (st_H_norm_2__ > 0) ? (
-  //   1.0 - SQR(xi * J_0) / st_H_norm_2__
-  // ) : 1.0;
+void ZdZ_xi(
+  Real & Z__,
+  Real & dZ__,
+  const Real xi__,
+  M1 & pm1,
+  ClosureMetaVector & C,
+  const int k, const int j, const int i)
+{
+  C.sc_xi(k,j,i) = xi__;
+  EddingtonFactors::Compute(pm1, C.sc_xi(k,j,i), C.sc_chi(k,j,i));
 
-  return Z_;
+  Real loc_xi__ = xi__;
+  Real d_chi_dxi__;
+  EddingtonFactors::D1::Compute(pm1, loc_xi__, d_chi_dxi__);
+
+  // Prepare H^alpha
+
+  // We write:
+  // sc_J = J_0
+  // st_H^alpha = H_n n^alpha + H_v v^alpha + H_F F^alpha
+  Real J_0, H_n, H_v, H_F;
+  Real dJ_dchi_0, dH_dchi_n, dH_dchi_v, dH_dchi_F;
+
+  Assemble::Frames::D1::ToFiducialExpansionCoefficients(
+    pm1,
+    J_0, H_n, H_v, H_F,
+    dJ_dchi_0, dH_dchi_n, dH_dchi_v, dH_dchi_F,
+    C.sc_chi, C.sc_E, C.sp_F_d,
+    k, j, i
+  );
+
+  // Projections
+  const Real dotFv = Assemble::sc_dot_dense_sp__(
+    C.sp_F_d,
+    C.sp_v_u,
+    k, j, i
+  );
+
+  const Real dotFF = Assemble::sp_norm2__(
+    C.sp_F_d,
+    pm1.geom.sp_g_uu,
+    k,j,i
+  );
+
+  const Real dotvv = Assemble::sp_norm2__(
+    pm1.fidu.sp_v_d,
+    pm1.geom.sp_g_uu,
+    k,j,i
+  );
+
+  const Real st_H_norm_2__ = (
+    dotFF * SQR(H_F) - SQR(H_n) + 2 * dotFv * H_F * H_v + SQR(H_v) * dotvv
+  );
+
+  const Real dst_H_norm_2_dxi__ = 2.0 * d_chi_dxi__ * (
+    dotFF * H_F * dH_dchi_F -
+    H_n * dH_dchi_n +
+    dotFv * (dH_dchi_F * H_v + H_F * dH_dchi_v)  +
+    H_v * dH_dchi_v * dotvv
+  );
+
+  // // Functional
+  const Real OO_E2 = OO(SQR(std::max(C.sc_E(k,j,i), pm1.opt.fl_E)));
+  Z__ = OO_E2 * (
+    st_H_norm_2__ - SQR(xi__ * J_0)
+  );
+
+  dZ__ = OO_E2 * (
+    dst_H_norm_2_dxi__ -
+    2.0 * (xi__ * J_0) * (J_0 + xi__ * dJ_dchi_0 * d_chi_dxi__)
+  );
+}
+
+Real dZ_xi(
+  const Real xi__,
+  M1 & pm1,
+  ClosureMetaVector & C,
+  const int k, const int j, const int i)
+{
+  Real Z__, dZ__;
+  ZdZ_xi(Z__, dZ__, xi__, pm1, C, k, j, i);
+  return dZ__;
 }
 
 bool Enforce_Xi_Limits(Real & xi)
@@ -317,6 +466,28 @@ Real gsl_Z_xi(Real xi, void * par_)
   return Z_xi(xi, par->pm1, par->C, k, j, i);
 }
 
+Real gsl_dZ_xi(Real xi, void * par_)
+{
+  gsl_params * par = static_cast<gsl_params*>(par_);
+
+  const int i = par->i;
+  const int j = par->j;
+  const int k = par->k;
+
+  return dZ_xi(xi, par->pm1, par->C, k, j, i);
+}
+
+void gsl_ZdZ_xi(Real xi, void * par_, Real * Z, Real * dZ)
+{
+  gsl_params * par = static_cast<gsl_params*>(par_);
+
+  const int i = par->i;
+  const int j = par->j;
+  const int k = par->k;
+
+  ZdZ_xi(*Z, *dZ, xi, par->pm1, par->C, k, j, i);
+}
+
 status gsl_Brent(M1 & pm1,
                  ClosureMetaVector & C,
                  const int k, const int j, const int i)
@@ -368,11 +539,14 @@ status gsl_Brent(M1 & pm1,
   brent_state_t * state = static_cast<brent_state_t*>(gsl_solver->state);
   */
 
+  status cur_status = status::success;
+
   switch (gsl_status)
   {
     case (GSL_EINVAL):  // bracketing failed
     {
-      return status::fail_bracket;
+      cur_status = status::fail_bracket;
+      break;
     }
     case (0):
     {
@@ -387,18 +561,11 @@ status gsl_Brent(M1 & pm1,
         iter++;
         gsl_status = gsl_root_fsolver_iterate(pm1.gsl_brent_solver);
 
-        /*
-        if (gsl_status != GSL_SUCCESS)
+        if (gsl_status != GSL_CONTINUE)
         {
+          cur_status = status::fail_unknown;
           break;
         }
-        else if (gsl_status)
-        {
-          pm1.StatePrintPoint(C.ix_g, C.ix_s, k, j, i, false);
-
-          gsl_err_kill(gsl_status);
-        }
-        */
 
         loc_xi_min = gsl_root_fsolver_x_lower(pm1.gsl_brent_solver);
         loc_xi_max = gsl_root_fsolver_x_upper(pm1.gsl_brent_solver);
@@ -421,19 +588,116 @@ status gsl_Brent(M1 & pm1,
         {
           gsl_err_warn();
         }
-        return status::fail_tolerance_not_met;
+        cur_status = status::fail_tolerance_not_met;
       }
 
       break;
     }
     default:
     {
-      // unknown status code / generic failure
-      gsl_err_kill(gsl_status);
+      cur_status = status::fail_unknown;
     }
   }
 
-  return status::success;
+  return cur_status;
+}
+
+status gsl_Newton(M1 & pm1,
+                  ClosureMetaVector & C,
+                  const int k, const int j, const int i)
+{
+  // select function & solver -------------------------------------------------
+  struct gsl_params par = {pm1, C, i, j, k};
+
+  gsl_function_fdf Z_;
+  Z_.f   = &gsl_Z_xi;
+  Z_.df  = &gsl_dZ_xi;
+  Z_.fdf = &gsl_ZdZ_xi;
+  Z_.params = &par;
+
+  auto gsl_err_warn = [&]()
+  {
+    #pragma omp critical
+    {
+      std::ostringstream msg;
+      msg << "gsl_Newton maxiter=";
+      msg << pm1.opt_closure.iter_max << " exceeded";
+      std::cout << msg.str().c_str() << std::endl;
+    }
+  };
+  // --------------------------------------------------------------------------
+
+  int gsl_status = gsl_root_fdfsolver_set(pm1.gsl_newton_solver,
+                                          &Z_,
+                                          C.sc_xi(k,j,i));
+
+  status cur_status = status::success;
+
+  switch (gsl_status)
+  {
+    case (GSL_EINVAL):  // bracketing failed
+    {
+      cur_status = status::fail_bracket;
+      break;
+    }
+    case (0):
+    {
+      // root-finding loop
+      Real loc_xim1 = C.sc_xi(k,j,i);
+      Real loc_xi   = C.sc_xi(k,j,i);
+
+      gsl_status = GSL_CONTINUE;
+      int iter = 0;
+      do
+      {
+        iter++;
+        gsl_status = gsl_root_fdfsolver_iterate(pm1.gsl_newton_solver);
+
+        if (gsl_status != GSL_CONTINUE)
+        {
+          cur_status = status::fail_unknown;
+          break;
+        }
+
+        loc_xim1 = loc_xi;
+        loc_xi = gsl_root_fdfsolver_root(pm1.gsl_newton_solver);
+
+        gsl_status = gsl_root_test_delta(
+          loc_xi, loc_xim1,
+          pm1.opt_closure.eps_tol,
+          0
+        );
+
+      } while (iter<=pm1.opt_closure.iter_max &&
+               gsl_status == GSL_CONTINUE);
+
+      C.sc_xi(k,j,i) = pm1.gsl_newton_solver->root;
+      break;
+    }
+    default:
+    {
+      cur_status = status::fail_unknown;
+    }
+  }
+
+  const bool limits_enforced = Enforce_Xi_Limits(C.sc_xi(k,j,i));
+
+  if ((cur_status != status::success) ||
+      limits_enforced)
+  {
+    if (pm1.opt_closure.fallback_brent)
+    {
+      return gsl_Brent(pm1, C, k, j, i);
+    }
+
+    if (pm1.opt_closure.verbose)
+    {
+      gsl_err_warn();
+    }
+    cur_status = status::fail_tolerance_not_met;
+  }
+
+  return cur_status;
 }
 
 // ============================================================================
