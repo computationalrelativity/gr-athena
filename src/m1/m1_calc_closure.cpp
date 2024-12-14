@@ -61,42 +61,47 @@ void Kershaw(Real & xi, Real & chi)
 
 void ClosureMetaVector::Closure(const int k, const int j, const int i)
 {
-  // solve for xi root if required: -------------------------------------------
-  typedef solvers::status status_sol;
-  status_sol ss = status_sol::success;
-
-  switch (pm1.opt_closure.method)
+  // do not call solver for exact prescriptions -------------------------------
+  typedef M1::opt_closure_variety ocv;
+  if ((pm1.opt_closure.variety != ocv::thin) &&
+      (pm1.opt_closure.variety != ocv::thick))
   {
-    case (M1::opt_closure_method::none):
-    {
-      break;
-    }
-    case (M1::opt_closure_method::gsl_Brent):
-    {
-      ss = solvers::gsl_Brent(pm1, *this, k, j, i);
-      break;
-    }
-    case (M1::opt_closure_method::gsl_Newton):
-    {
-      // BD: TODO - add me
-      assert(false);
-    }
-    default:
-    {
-      assert(false);
-    }
-  }
+    // solve for xi root if required: -----------------------------------------
+    typedef solvers::status status_sol;
+    status_sol ss = status_sol::success;
 
-  // deal with failures / reversion -------------------------------------------
-  if (ss != status_sol::success)
-  {
-    solvers::Fallback_Xi_Chi_Limits(pm1, *this, k, j, i);
-    return;
+    switch (pm1.opt_closure.method)
+    {
+      case (M1::opt_closure_method::none):
+      {
+        break;
+      }
+      case (M1::opt_closure_method::gsl_Brent):
+      {
+        ss = solvers::gsl_Brent(pm1, *this, k, j, i);
+        break;
+      }
+      case (M1::opt_closure_method::gsl_Newton):
+      {
+        // BD: TODO - add me
+        assert(false);
+      }
+      default:
+      {
+        assert(false);
+      }
+    }
+
+    // deal with failures / reversion -----------------------------------------
+    if (ss != status_sol::success)
+    {
+      solvers::Fallback_Xi_Chi_Limits(pm1, *this, k, j, i);
+      return;
+    }
   }
 
   // compute Eddington factor -------------------------------------------------
   using namespace EddingtonFactors;
-  typedef M1::opt_closure_variety ocv;
 
   Real &xi__  = sc_xi(k,j,i);
   Real &chi__ = sc_chi(k,j,i);
@@ -169,7 +174,7 @@ Real Z_xi(
   const int k, const int j, const int i)
 {
   // assemble P_dd
-  C.sc_xi( k,j,i) = xi;
+  C.sc_xi(k,j,i) = xi;
 
   // Prepare H^alpha
 
@@ -208,12 +213,16 @@ Real Z_xi(
     dotFF * SQR(H_F) - SQR(H_n) + 2 * dotFv * H_F * H_v + SQR(H_v) * dotvv
   );
 
-  // Functional
-  const Real Z_ = (
+  // // Functional
+  Real Z_ = (
     st_H_norm_2__ - SQR(xi * J_0)
   );
-  // N.B. could perform a further rescaling by an "ad-hoc" factor of
-  // SQR(std::max(C.sc_E(k,j,i), pm1.opt.eps_E));
+  // N.B. perform a further rescaling
+  Z_ = Z_ / SQR(std::max(C.sc_E(k,j,i), pm1.opt.eps_E));
+
+  // const Real Z_ = (st_H_norm_2__ > 0) ? (
+  //   1.0 - SQR(xi * J_0) / st_H_norm_2__
+  // ) : 1.0;
 
   return Z_;
 }
@@ -321,14 +330,14 @@ status gsl_Brent(M1 & pm1,
 
   auto gsl_err_kill = [&](const int status)
   {
-    #pragma omp critical
-    {
-      std::ostringstream msg;
-      msg << "gsl_Brent unexpected error: ";
-      msg << status;
-      std::cout << msg.str().c_str() << std::endl;
-    }
-    pm1.StatePrintPoint(C.ix_g, C.ix_s, k, j, i, true);
+    std::ostringstream msg;
+    msg << "gsl_Brent unexpected error: ";
+    msg << status;
+
+    pm1.StatePrintPoint(
+      msg.str(),
+      C.ix_g, C.ix_s, k, j, i, true
+    );
   };
 
   auto gsl_err_warn = [&]()

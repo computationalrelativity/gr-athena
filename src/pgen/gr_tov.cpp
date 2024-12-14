@@ -37,6 +37,7 @@
 #include "../scalars/scalars.hpp"
 #if M1_ENABLED
 #include "../m1/m1.hpp"
+#include "../m1/m1_set_equilibrium.hpp"
 #endif  // M1_ENABLED
 
 //----------------------------------------------------------------------------------------
@@ -387,6 +388,30 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   pm1->UpdateGeometry(pm1->geom, pm1->scratch);
   pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
   pm1->CalcFiducialVelocity();
+
+  // pm1->CalcClosure(pm1->storage.u);
+  // pm1->CalcFiducialFrame(pm1->storage.u);
+  // pm1->CalcOpacity(0, pm1->storage.u);
+
+  // M1::M1::vars_Lab U_C { {pm1->N_GRPS,pm1->N_SPCS},
+  //                        {pm1->N_GRPS,pm1->N_SPCS},
+  //                        {pm1->N_GRPS,pm1->N_SPCS} };
+
+  // pm1->SetVarAliasesLab(pm1->storage.u, U_C);
+
+  // M1::M1::vars_Source U_S { {pm1->N_GRPS,pm1->N_SPCS},
+  //                           {pm1->N_GRPS,pm1->N_SPCS},
+  //                           {pm1->N_GRPS,pm1->N_SPCS} };
+
+  // pm1->SetVarAliasesSource(pm1->storage.u_sources, U_S);
+
+
+  // M1_ILOOP3(k, j, i)
+  // {
+  //   M1::Equilibrium::SetEquilibrium(*pm1, U_C, U_S, k, j, i);
+  // }
+
+
 #endif  // M1_ENABLED
 
   // // Impose algebraic constraints
@@ -542,12 +567,15 @@ int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts)
   u[TOV_IPHI] = 0.;
   u[TOV_IINT] = 0.;
 
-  printf("TOV_solve: solve TOV star (only once)\n");
-  printf("TOV_solve: dr   = %.16e\n",dr);
-  printf("TOV_solve: npts_max = %d\n",maxsize);
-  printf("TOV_solve: rhoc = %.16e\n",rhoc);
-  printf("TOV_solve: ec   = %.16e\n",ec);
-  printf("TOV_solve: pc   = %.16e\n",pc);
+  if (Globals::my_rank == 0)
+  {
+    printf("TOV_solve: solve TOV star (only once)\n");
+    printf("TOV_solve: dr   = %.16e\n",dr);
+    printf("TOV_solve: npts_max = %d\n",maxsize);
+    printf("TOV_solve: rhoc = %.16e\n",rhoc);
+    printf("TOV_solve: ec   = %.16e\n",ec);
+    printf("TOV_solve: pc   = %.16e\n",pc);
+  }
 
   // Integrate from rmin to R : rho(R) ~ 0
   Real rhoo = rhoc;
@@ -700,7 +728,10 @@ int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts)
 
   }
 
-  printf("TOV_solve: integ. done\n");
+  if (Globals::my_rank == 0)
+  {
+    printf("TOV_solve: integ. done\n");
+  }
   // --------------------------------------------------------------------------
 
   if (n >= maxsize)
@@ -769,17 +800,19 @@ int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts)
   tov->psi4_0 = 1/(C*C);
 
   // Done!
-  printf("TOV_solve: npts = %d\n",tov->npts);
-  printf("TOV_solve: inter_npts = %d\n",tov->interp_npts);
-  printf("TOV_solve: R(sch) = %.16e\n",tov->R);
-  printf("TOV_solve: R(iso) = %.16e\n",tov->Riso);
-  printf("TOV_solve: M = %.16e\n",tov->M);
-  printf("TOV_solve: lapse(0) = %.16e\n",tov->lapse_0);
-  printf("TOV_solve: psi4(0) = %.16e\n",tov->psi4_0);
+  if (Globals::my_rank == 0)
+  {
+    printf("TOV_solve: npts = %d\n",tov->npts);
+    printf("TOV_solve: inter_npts = %d\n",tov->interp_npts);
+    printf("TOV_solve: R(sch) = %.16e\n",tov->R);
+    printf("TOV_solve: R(iso) = %.16e\n",tov->Riso);
+    printf("TOV_solve: M = %.16e\n",tov->M);
+    printf("TOV_solve: lapse(0) = %.16e\n",tov->lapse_0);
+    printf("TOV_solve: psi4(0) = %.16e\n",tov->psi4_0);
 
-  printf("TOV_solve: lapse(R(iso)) = %.16e\n",tov->data[itov_lapse][tov->interp_npts-1]);
-  printf("TOV_solve: psi4(R(iso)) = %.16e\n", tov->data[itov_psi4][tov->interp_npts-1]);
-
+    printf("TOV_solve: lapse(R(iso)) = %.16e\n",tov->data[itov_lapse][tov->interp_npts-1]);
+    printf("TOV_solve: psi4(R(iso)) = %.16e\n", tov->data[itov_psi4][tov->interp_npts-1]);
+  }
   // dump ---------------------------------------------------------------------
   /*
   for (int v = 0; v < itov_nv; v++)

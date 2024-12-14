@@ -42,23 +42,20 @@ inline void ExplicitIntegration(
   CL.Closure(k, j, i);
 
   // Evolve (sc_nG, ) -> (sc_nG*, ): sources use (sc_E, sp_F_d)
-  // This needs to use P as C.n is unavailable
-
-  if (pm1_.ev_strat.masks.source_treatment(k,j,i) == M1::evolution_strategy::opt_source_treatment::full)
+  if (!pm1_.opt_solver.solver_explicit_nG)
   {
-    // BD: TODO - This may not give quite the correct matter source...
-    PrepareMatterSource_nG(pm1_, P, S, k, j, i);
+    // Evolve (sc_nG, ) -> (sc_nG*, ) with semi-implicit
+    // Prepares also (sc_n*, ) and S
     Implicit::SolveImplicitNeutrinoCurrent(pm1_, dt, C, P, I, S, k, j, i);
   }
   else
   {
-    SetMatterSourceZero(S, k, j, i);
+    PrepareMatterSource_nG(pm1_, P, S, k, j, i);
+    StepExplicit_nG(pm1_, dt, C, P, I, S, k, j, i);
+
+    // We now have nG*, it is useful to immediately construct n*
+    Prepare_n_from_nG(pm1_, C, k, j, i);
   }
-
-  StepExplicit_nG(pm1_, dt, C, P, I, S, k, j, i);
-
-  // We now have nG*, it is useful to immediately construct n*
-  Prepare_n_from_nG(pm1_, C, k, j, i);
 }
 
 inline void ExplicitApproximateSemiImplicitIntegration(
@@ -80,25 +77,26 @@ inline void ExplicitApproximateSemiImplicitIntegration(
   using namespace Explicit;
 
   // Evolve (sc_E, sp_F_d) -> (sc_E*, sp_F_d*)
+  // With approximate solution of _implicit_ system at O(v)
+  PrepareApproximateFirstOrder_E_F_d(pm1_, dt, C, P, I, S, CL, k, j, i);
+
+  // Use previous state to construct source
   PrepareMatterSource_E_F_d(pm1_, P, S, k, j, i);
-  StepExplicit_E_F_d(pm1_, dt, C, P, I, S, k, j, i);
 
-  // Compute (pm1 storage) (sp_P_dd, ...) based on (sc_E*, sp_F_d*)
-  CL.Closure(k, j, i);
+  if (!pm1_.opt_solver.solver_explicit_nG)
+  {
+    // Evolve (sc_nG, ) -> (sc_nG*, ) with semi-implicit
+    // Prepares also (sc_n*, ) and S
+    Implicit::SolveImplicitNeutrinoCurrent(pm1_, dt, C, P, I, S, k, j, i);
+  }
+  else
+  {
+    PrepareMatterSource_nG(pm1_, P, S, k, j, i);
+    StepExplicit_nG(pm1_, dt, C, P, I, S, k, j, i);
 
-  // Polish state to approximate solution of _implicit_ system at O(v)
-  PrepareApproximateFirstOrder_E_F_d(pm1_, dt, C, k, j, i);
-
-  // Compute (pm1 storage) (sp_P_dd, ...) based on implicit appr.
-  CL.Closure(k, j, i);
-
-  // Evolve (sc_nG, ) -> (sc_nG*, ): sources use (sc_E, sp_F_d)
-  // This needs to use P as C.n is unavailable
-  PrepareMatterSource_nG(pm1_, P, S, k, j, i);
-  StepExplicit_nG(pm1_, dt, C, P, I, S, k, j, i);
-
-  // We now have nG*, it is useful to immediately construct n*
-  Prepare_n_from_nG(pm1_, C, k, j, i);
+    // We now have nG*, it is useful to immediately construct n*
+    Prepare_n_from_nG(pm1_, C, k, j, i);
+  }
 }
 
 inline void SemiImplicitHybridsIntegration(
@@ -201,6 +199,10 @@ inline void DispatchIntegrationMethodImplementation(
 {
   switch (ois)
   {
+    case (M1::opt_integration_strategy::do_nothing):
+    {
+      break;
+    }
     case (M1::opt_integration_strategy::full_explicit):
     {
       ExplicitIntegration(pm1_, dt, C, P, I, S, CL, k, j, i);
@@ -318,8 +320,8 @@ void DispatchIntegrationMethod(
         }
         case M1::t_sln_r::equilibrium:
         {
-          std::printf("DEBUG: equilibrium @ (%d, %d; %d, %d, %d)\n",
-                      ix_g, ix_s, k, j, i);
+          // std::printf("DEBUG: equilibrium @ (%d, %d; %d, %d, %d)\n",
+          //             ix_g, ix_s, k, j, i);
           opt_is = pm1->opt_solver.solvers.equilibrium;
           break;
         }

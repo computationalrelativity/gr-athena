@@ -10,6 +10,7 @@
 #include "m1_calc_update.hpp"
 #include "m1_sources.hpp"
 #include "m1_integrators.hpp"
+#include "m1_set_equilibrium.hpp"
 
 // External libraries
 #include <gsl/gsl_errno.h>
@@ -28,17 +29,10 @@ void M1::PrepareEvolutionStrategy(const Real dt,
                                   t_sln_r & mask_sln_r,
                                   t_src_t & mask_src_t)
 {
-  // Non-stiff regime
-  if ((dt * kap_a < 1) &&
-      (dt * kap_s < 1))
-  {
-    mask_sln_r = t_sln_r::non_stiff;
-    mask_src_t = t_src_t::full;
-  }
   // equilibrium regime
-  else if((opt_solver.src_lim_thick > 0) &&
-          (SQR(dt) * (kap_a * (kap_a + kap_s)) >
-            SQR(opt_solver.src_lim_thick)))
+  if((opt_solver.src_lim_thick > 0) &&
+     (SQR(dt) * (kap_a * (kap_a + kap_s)) >
+      SQR(opt_solver.src_lim_thick)))
   {
     mask_sln_r = t_sln_r::equilibrium;
     mask_src_t = t_src_t::set_zero;
@@ -49,6 +43,13 @@ void M1::PrepareEvolutionStrategy(const Real dt,
   {
     mask_sln_r = t_sln_r::scattering;
     mask_src_t = t_src_t::set_zero;
+  }
+  // Non-stiff regime
+  else if ((dt * kap_a < 1) &&
+           (dt * kap_s < 1))
+  {
+    mask_sln_r = t_sln_r::non_stiff;
+    mask_src_t = t_src_t::full;
   }
   // stiff refime
   else
@@ -101,11 +102,12 @@ void M1::PrepareEvolutionStrategy(const Real dt)
 
 // ----------------------------------------------------------------------------
 // Function to update the state vector
-void M1::CalcUpdate(Real const dt,
-                       AA & u_pre,
-                       AA & u_cur,
-		                   AA & u_inh,
-                       AA & u_src)
+void M1::CalcUpdate(const int stage,
+                    Real const dt,
+                    AA & u_pre,
+                    AA & u_cur,
+		                AA & u_inh,
+                    AA & u_src)
 {
   using namespace Update;
   using namespace Sources;
@@ -126,7 +128,8 @@ void M1::CalcUpdate(Real const dt,
   SetVarAliasesSource(u_src, U_S);
 
   // evolution strategy / source treatment ------------------------------------
-  PrepareEvolutionStrategy(dt);
+  if (stage == 1)
+    PrepareEvolutionStrategy(dt);
 
   // construct unlimited solution ---------------------------------------------
   // uses ev_strat.masks.{solution_regime, source_treatment} internally
@@ -141,6 +144,34 @@ void M1::CalcUpdate(Real const dt,
 
     // adjust matter sources with theta mask and construct limited solution
     Sources::Limiter::Apply(this, dt, theta, U_C, U_P, U_I, U_S);
+  }
+
+  // should we enforce the equilibirum ? --------------------------------------
+  if (opt_solver.equilibrium_enforce ||
+      (opt_solver.equilibrium_initial && (pmy_mesh->time == 0)))
+  {
+    M1_ILOOP3(k, j, i)
+    if (MaskGet(k, j, i))
+    {
+      bool equilibriate = false;
+      for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+      for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+      {
+        if (ev_strat.masks.solution_regime(ix_g,ix_s,k,j,i) ==
+            evolution_strategy::opt_solution_regime::equilibrium)
+        {
+          equilibriate = true;
+          continue;
+        }
+      }
+
+
+      if (equilibriate)
+      {
+        if (stage == 2)
+          Equilibrium::SetEquilibrium(*this, U_C, U_S, k, j, i);
+      }
+    }
   }
 
   // rescale sources by dt for convenience in M1+N0 -> GR-evo coupling --------
@@ -166,7 +197,7 @@ void M1::CalcUpdate(Real const dt,
     M1_ILOOP3(k, j, i)
     if (MaskGet(k, j, i))
     {
-      // BD: TODO - avg_nrg, net.abs, net.heat
+      // BD: TODO - net.abs, net.heat
     }
   }
 

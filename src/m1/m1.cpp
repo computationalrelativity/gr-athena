@@ -361,6 +361,7 @@ void M1::SetVarAliasesNet(AthenaArray<Real> & u, vars_Net & net)
 
 
 void M1::StatePrintPoint(
+  const std::string & tag,
   const int ix_g, const int ix_s,
   const int k, const int j, const int i,
   const bool terminate)
@@ -368,6 +369,8 @@ void M1::StatePrintPoint(
   #pragma omp critical
   {
     std::cout << "M1::DebugState" << std::endl;
+    std::cout << "Tag: \n";
+    std::cout << tag << "\n";
     std::cout << std::setprecision(14) << std::endl;
     std::cout << "ix_g, ix_s:  " << ix_g << ", " << ix_s << "\n";
     std::cout << "k, j, i:     " << k << ", " << j << ", " << i << "\n";
@@ -379,7 +382,6 @@ void M1::StatePrintPoint(
 
     std::cout << "geometric fields=========================: " << "\n\n";
     std::cout << "sc=================: " << "\n";
-    geom.sc_alpha.PrintPoint("geom.sc_alpha", k,j,i);
     geom.sc_sqrt_det_g.PrintPoint("geom.sc_sqrt_det_g", k,j,i);
     geom.sc_alpha.PrintPoint("geom.sc_alpha", k,j,i);
 
@@ -431,11 +433,21 @@ void M1::StatePrintPoint(
 
     std::cout << "sc=================: " << "\n";
     rad.sc_n(ix_g,ix_s).PrintPoint("rad.sc_n(ix_s,ix_g)", k,j,i);
+    rad.sc_J(ix_g,ix_s).PrintPoint("rad.sc_J(ix_s,ix_g)", k,j,i);
     lab_aux.sc_chi(ix_g,ix_s).PrintPoint("lab_aux.sc_chi(ix_s,ix_g)", k,j,i);
     lab_aux.sc_xi(ix_g,ix_s).PrintPoint("lab_aux.sc_xi(ix_s,ix_g)", k,j,i);
 
     std::cout << "sym2===============: " << "\n";
     lab_aux.sp_P_dd(ix_g,ix_s).PrintPoint("lab_aux.sp_P_dd(ix_s,ix_g)", k,j,i);
+
+    std::cout << "opt_solution_regime: ";
+    std::cout << static_cast<int>(ev_strat.masks.solution_regime(ix_g,ix_s,k,j,i));
+    std::cout << "\n";
+
+    std::cout << "opt_source_treatment: ";
+    std::cout << static_cast<int>(ev_strat.masks.source_treatment(ix_g,ix_s,k,j,i));
+    std::cout << "\n";
+
   }
 
   if (terminate)

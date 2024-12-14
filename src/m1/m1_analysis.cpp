@@ -75,24 +75,24 @@ void CalcEnergyAverages(MeshBlock *pmb)
       C.Closure(k,j,i);
     }
 
-    // Closures prepared, can map to fiducial frame globally ------------------
+    // Closures prepared in ghost layer; can assemble fiducial quantities
+    // globally (important for sph. interp & sync in data-dumps)
     M1_GLOOP3(k, j, i)
     if (pm1->MaskGet(k,j,i))
     {
-      Assemble::Frames::ToFiducial(*pm1, sc_J, st_H_u, sc_chi, sc_E, sp_F_d,
-                                   k, j, i, i);
+      Assemble::Frames::ToFiducial(
+        *pm1,
+        sc_J, st_H_u, sc_n,
+        sc_chi,
+        sc_E, sp_F_d, sc_nG,
+        k, j, i
+      );
+    }
 
-      const Real J_0 = sc_J(k,j,i);
-      // H^a = H_n n^a + SPATIAL where n^0 = 1 / alpha
-      const Real H_n = st_H_u(0,k,j,i) * sc_alpha(k,j,i);
-      const Real W = sc_W(k,j,i);
-
-      const Real sc_G__ = (J_0 > 0)
-        ? (W + H_n / J_0)
-        : W;
-
-      sc_n(k,j,i) = sc_nG(k,j,i) / sc_G__;
-
+    // We have (n, J) on the full MeshBlock; can now assemble averages
+    M1_GLOOP3(k, j, i)
+    if (pm1->MaskGet(k,j,i))
+    {
       sc_avg_nrg(k,j,i) = sc_J(k,j,i) / sc_n(k,j,i);
     }
 
@@ -153,7 +153,7 @@ void CalcNeutrinoDiagnostics(MeshBlock *pmb)
         Y[n] = ps->r(n,k,j,i);
       }
 
-      // BD: this is energy density, not tot?
+      // BD: TODO- fixme; this is energy density, not tot?
       Real E_tot = peos->GetEOS().GetEnergy(sc_w_rho(k,j,i) / mb,
                                             ph->temperature(k,j,i),
                                             Y);

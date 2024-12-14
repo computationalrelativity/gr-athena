@@ -78,7 +78,11 @@ void StepExplicit_nG(
 void PrepareApproximateFirstOrder_E_F_d(
   M1 & pm1,
   const Real dt,
-  Update::StateMetaVector & V, // state to utilize
+  Update::StateMetaVector & C,        // current step
+  const Update::StateMetaVector & P,  // previous step data
+  const Update::StateMetaVector & I,  // inhomogeneity
+  Update::SourceMetaVector & S,       // carry source contribution
+  Closures::ClosureMetaVector & CL_C,
   const int k, const int j, const int i);
 
 // ============================================================================

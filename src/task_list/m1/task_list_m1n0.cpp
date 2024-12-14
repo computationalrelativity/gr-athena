@@ -181,14 +181,15 @@ TaskStatus M1N0::CalcClosure(MeshBlock *pmb, int stage)
 }
 
 // ----------------------------------------------------------------------------
-// Map (closed) Eulerian fields (E, F_d, P_dd) to (J, H_d)
-// BD: TODO - double check if it ends up being needed (N.B. weak-rates usages)
+// Map (closed) Eulerian fields (E, F_d, nG) to (J, H_d, n)
+// Needed on first step for weak-rates
+// Use frame in flux calculation
 TaskStatus M1N0::CalcFiducialFrame(MeshBlock *pmb, int stage)
 {
   ::M1::M1 * pm1 = pmb->pm1;
 
-  // if (stage <= nstages)
-  if (stage == 1)
+  // if (stage == 1)
+  if (stage <= nstages)
   {
     pm1->CalcFiducialFrame(pm1->storage.u);
   }
@@ -204,7 +205,7 @@ TaskStatus M1N0::CalcOpacity(MeshBlock *pmb, int stage)
 
   // opacities are kept fixed throughout the implicit time integration
   // if (stage <= nstages)
-  if (stage == nstages)
+  if (stage == 1)
   {
     Real const dt = pm->dt;
     // Real const dt = pm->dt * dt_fac[stage - 1];
@@ -300,7 +301,8 @@ TaskStatus M1N0::CalcUpdate(MeshBlock *pmb, int stage)
   if (stage <= nstages)
   {
     Real const dt = pm->dt * dt_fac[stage - 1];
-    pm1->CalcUpdate(dt,
+    pm1->CalcUpdate(stage,
+                    dt,
                     pm1->storage.u1,
                     pm1->storage.u,
                     pm1->storage.u_rhs,
@@ -334,8 +336,8 @@ TaskStatus M1N0::UpdateCoupling(MeshBlock *pmb, int stage)
         std::cout << "M1: couple_sources_Y_e supported for 3 species \n";
         std::exit(0);
       }
-      const Real mb = pmb->peos->GetEOS().GetRawBaryonMass();
       // const Real mb = pmb->peos->GetEOS().GetBaryonMass();
+      const Real mb = pmb->peos->GetEOS().GetRawBaryonMass();
       pm1->CoupleSourcesYe(mb, pmb->pscalars->s);
     }
 #endif

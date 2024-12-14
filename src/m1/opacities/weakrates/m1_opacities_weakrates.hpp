@@ -8,6 +8,7 @@
 
 // Weakrates header
 #include "weak_rates.hpp"
+#include <limits>
 
 namespace M1::Opacities::WeakRates {
 
@@ -71,7 +72,7 @@ public:
 
     // Hydro * phydro = pmy_block->phydro;
     // PassiveScalars * pscalars = pmy_block->pscalars;
-    AT_C_sca & sc_sqrt_det_g = pm1->geom.sc_sqrt_det_g; // TODO is this safe to use?
+    AT_C_sca & sc_oo_sqrt_det_g = pm1->geom.sc_oo_sqrt_det_g;
 
     const int NUM_COEFF = 3;
     int ierr[NUM_COEFF];
@@ -121,8 +122,10 @@ public:
         assert(!ierr[r]);
       }
 
+      // Equilibrium logic ----------------------------------------------------
+
       Real tau = std::min(std::sqrt(kap_a_e_nue*(kap_a_e_nue + kap_s_e_nue)), std::sqrt(kap_a_e_nua*(kap_a_e_nua + kap_s_e_nua)))*dt;
-      
+
       // Calculate equilibrium blackbody functions with trapped neutrinos
       Real dens_n_trap[3];
       Real dens_e_trap[3];
@@ -132,7 +135,7 @@ public:
         Real dens_n[3];
         Real dens_e[3];
 
-        Real invsdetg = 1.0/sc_sqrt_det_g(k, j, i);
+        Real invsdetg = sc_oo_sqrt_det_g(k, j, i);
         // FF number density
         dens_n[0] = pm1->rad.sc_n(0,0)(k, j, i)*invsdetg;
         dens_n[1] = pm1->rad.sc_n(0,1)(k, j, i)*invsdetg;
@@ -201,6 +204,8 @@ public:
 
         if (!std::isfinite(corr_fac[s_idx])) {
           corr_fac[s_idx] = 1.0;
+          // should never land here (due to flooring prior to call of opac.)
+          // assert(false);
         }
 
         corr_fac[s_idx] *= corr_fac[s_idx];
@@ -234,8 +239,8 @@ public:
       pm1->radmat.sc_eta_0(0,2)(k,j,i)   = corr_fac[2]*eta_n_nux;
       pm1->radmat.sc_eta(0,2)(k,j,i)     = corr_fac[2]*eta_e_nux;
       
-      pm1->radmat.sc_kap_a_0(0,2)(k,j,i) = (dens_n[2] > 0.0 ? pm1->radmat.sc_eta_0(0,2)(k,j,i)/dens_n[2] : 0.0);
-      pm1->radmat.sc_kap_a(0,2)(k,j,i)   = (dens_e[2] > 0.0 ? pm1->radmat.sc_eta(0,2)(k,j,i)/dens_e[2]   : 0.0);
+      pm1->radmat.sc_kap_a_0(0,2)(k,j,i) = (dens_n[2] > 0 ? pm1->radmat.sc_eta_0(0,2)(k,j,i)/dens_n[2] : 0.0);
+      pm1->radmat.sc_kap_a(0,2)(k,j,i)   = (dens_e[2] > 0 ? pm1->radmat.sc_eta(0,2)(k,j,i)/dens_e[2]   : 0.0);
     }
     
     return 0;

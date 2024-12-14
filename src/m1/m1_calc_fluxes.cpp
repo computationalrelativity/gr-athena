@@ -68,6 +68,10 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 
       AT_C_sca & sc_chi = lab_aux.sc_chi(ix_g,ix_s);
 
+      AT_C_sca & sc_J   = rad.sc_J(  ix_g,ix_s);
+      AT_D_vec & st_H_u = rad.st_H_u(ix_g, ix_s);
+      AT_C_sca & sc_n   = rad.sc_n(  ix_g,ix_s);
+
       if (!approximate_speeds)
       {
         CalcCharacteristicSpeed(ix_d, U_E, U_F_d, sc_chi, lambda);
@@ -82,53 +86,13 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
         // Require fiducial frame to prepare flux
         M1_FLOOP1(i)
         {
-          // We write:
-          // sc_J = J_0
-          // st_H = H_n n^alpha + H_v v^alpha + H_F F^alpha
-          Real J_0, H_n, H_v, H_F;
-
-          Assemble::Frames::ToFiducialExpansionCoefficients(
-            *this,
-            J_0, H_n, H_v, H_F,
-            sc_chi, U_E, U_F_d,
-            k, j, i
+          const Real sp_f_u__ = Assemble::Frames::sp_f_u__(
+            *this, sc_J, st_H_u,
+            ix_d, k, j, i
           );
+          // sc_n needs to be computed in CalcFiducialFrame
+          F_sca(k,j,i) = sc_alpha(k,j,i) * sc_n(k,j,i) * sp_f_u__;
 
-          /*
-          // Ensure we do not encounter zero-division
-          J_0 = std::max(J_0, this->opt.fl_J);
-
-          const Real W = sc_W(k,j,i);
-          const Real oo_J_0 = OO(J_0);
-
-          const Real sc_G__ = (
-            W + oo_J_0 * H_n  // note sign switch due to n proj
-          );
-          */
-
-          const Real W = sc_W(k,j,i);
-          const Real sc_G__ = (J_0 > 0)
-            ? (W + H_n / J_0)
-            : W;
-
-          const Real oo_J_0 = (J_0 > 0) ? OO(J_0) : 0.0;
-
-          const Real alpha = sc_alpha(k,j,i);
-          const Real oo_alpha = OO(alpha);
-          Real F_u (0);
-          for (int a=0; a<N; ++a)
-          {
-            F_u += sp_g_uu(ix_d,a,k,j,i) * U_F_d(a,k,j,i);
-          }
-
-          const Real sp_f_u__ = sc_W(k,j,i) * (
-            sp_v_u(ix_d,k,j,i) - sp_beta_u(ix_d,k,j,i) * oo_alpha
-          ) + oo_J_0 * (
-            H_v * sp_v_u(ix_d,k,j,i) +
-            H_F * F_u
-          );
-
-          F_sca(k,j,i) = sc_alpha(k,j,i) * (U_nG(k,j,i) / sc_G__) * sp_f_u__;
         }
       }
       Fluxes::ReconstructLimitedFlux(this, ix_d, U_nG, F_sca,
@@ -201,7 +165,7 @@ void M1::CalcCharacteristicSpeedApproximate(const int dir, AT_C_sca & lambda)
   if (pm1->MaskGet(k,j,i))
   {
     // Cf. [1] we have ONE_3RD
-    const Real A = alpha(k,j,i) * std::sqrt(g_uu(dir,dir,k,j,i) * ONE_3RD);
+    const Real A = alpha(k,j,i) * std::sqrt(g_uu(dir,dir,k,j,i));
     const Real B = beta_u(dir,k,j,i);
     lambda(k,j,i) = AMAX(A+B, A-B);
   }
@@ -246,12 +210,12 @@ void M1::CalcCharacteristicSpeed(const int dir,
       }
     }
 
-    Real A = alpha(k,j,i) * std::sqrt(g_uu(dir,dir,k,j,i) / 3.0);
+    Real A = alpha(k,j,i) * std::sqrt(g_uu(dir,dir,k,j,i) * ONE_3RD);
     Real B = beta_u(dir,k,j,i);
     const Real lam_thick = AMAX(A+B, A-B);
 
-    const Real oo_nF2 = (nF2 > 0) ? OO(nF2) : 0;
-    const Real oo_nF  = std::sqrt(oo_nF2);
+    const Real oo_nF2 = (nF2 > 0) ? OO(nF2) : 0.0;
+    const Real oo_nF  = (nF2 > 0) ? std::sqrt(oo_nF2) : 0.0;
 
     A = alpha(k,j,i) * oo_nF * std::abs(F_u);
     const Real lam_thin = AMAX(A+B, A-B);

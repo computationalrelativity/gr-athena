@@ -131,7 +131,10 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
 
   {
     static const std::map<std::string, opt_integration_strategy> opt_strat {
+      { "do_nothing", opt_integration_strategy::do_nothing},
       { "full_explicit", opt_integration_strategy::full_explicit},
+      { "explicit_approximate_semi_implicit",
+        opt_integration_strategy::explicit_approximate_semi_implicit},
       { "semi_implicit_Hybrids",
         opt_integration_strategy::semi_implicit_Hybrids},
       { "semi_implicit_HybridsJ",
@@ -196,6 +199,8 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
   opt_solver.src_lim_thick      = GoA_Real("src_lim_thick",      -1.0);
   opt_solver.src_lim_scattering = GoA_Real("src_lim_scattering", -1.0);
 
+  opt_solver.equilibrium_enforce = GoA_bool("equilibrium_enforce", false);
+  opt_solver.equilibrium_initial = GoA_bool("equilibrium_initial", false);
   opt_solver.eql_rho_min = GoA_Real("eql_rho_min", 0.0);
 
   opt_solver.verbose = GoA_bool("verbose", false);
@@ -311,6 +316,8 @@ void M1::PopulateOptions(ParameterInput *pin)
     opt.eps_J = pin->GetOrAddReal("M1", "eps_J", 1e-10);
     opt.enforce_causality = pin->GetOrAddBoolean(
       "M1", "enforce_causality", true);
+    opt.enforce_finite = pin->GetOrAddBoolean(
+      "M1", "enforce_finite", true);
     opt.eps_ec_fac = pin->GetOrAddReal("M1", "eps_ec_fac", 1e-15);
 
     opt.min_flux_Theta = pin->GetOrAddReal("M1", "min_flux_Theta", 0);

@@ -235,6 +235,22 @@ inline bool NonFiniteToZero(
   return floor_reset;
 }
 
+// If appled return true, otherwise false
+template <class V>
+inline bool NonFiniteToZero_nG(
+  M1 & pm1, V & C,
+  const int k, const int j, const int i)
+{
+  const Real val = C.sc_nG(k,j,i);
+  const bool floor_reset = !std::isfinite(val);
+
+  if (floor_reset)
+  {
+    C.sc_nG(k,j,i) = pm1.opt.fl_nG;
+  }
+  return floor_reset;
+}
+
 // If applied return true, otherwise false
 template <class V>
 inline bool ApplyFloors(
@@ -318,7 +334,10 @@ inline void EnforcePhysical_E_F_d(
   Update::StateMetaVector & V,
   const int k, const int j, const int i)
 {
-  NonFiniteToZero(pm1, V, k, j, i);
+  if (pm1.opt.enforce_finite)
+  {
+    NonFiniteToZero(pm1, V, k, j, i);
+  }
   ApplyFloors(pm1, V, k, j, i);
   if (pm1.opt.enforce_causality)
   {
@@ -332,6 +351,10 @@ inline void EnforcePhysical_nG(
   Update::StateMetaVector & V,
   const int k, const int j, const int i)
 {
+  if (pm1.opt.enforce_finite)
+  {
+    NonFiniteToZero_nG(pm1, V, k, j, i);
+  }
   V.sc_nG(k,j,i) = std::max(V.sc_nG(k,j,i), pm1.opt.fl_nG);
 }
 

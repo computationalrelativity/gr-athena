@@ -275,6 +275,10 @@ AA * Surface::GetRawData(Surfaces::variety_data vd, MeshBlock * pmb)
     {
       return &pmb->pm1->geom.sp_K_dd.array();
     }
+    case variety_data::M1_radmat:
+    {
+      return &pmb->pm1->storage.radmat;
+    }
     case variety_data::M1_radmat_sc_avg_nrg_00:
     {
       return &pmb->pm1->radmat.sc_avg_nrg(0,0).array();
@@ -332,6 +336,13 @@ int Surface::GetNumFieldComponents(Surfaces::variety_data vd)
     case variety_data::M1_geom_sp_K_dd:
     {
       return 6;
+    }
+    case variety_data::M1_radmat:
+    {
+      const int N_GRPS = pm->pblock->pm1->N_GRPS;
+      const int N_SPCS = pm->pblock->pm1->N_SPCS;
+      const int N_VARS = M1::M1::ixn_RaM::N;
+      return N_VARS * N_GRPS * N_SPCS;
     }
     case variety_data::M1_radmat_sc_avg_nrg_00:
     {
@@ -465,6 +476,14 @@ std::string Surface::GetNameFieldComponent(Surfaces::variety_data vd,
         "M1.geom.sp_K_dd_zz"
       };
       ret = names[nix];
+      break;
+    }
+    case variety_data::M1_radmat:
+    {
+      int v, g, s;
+      m1_vgs_idx(nix, M1::M1::ixn_RaM::N, v, g, s);
+      ret += M1::M1::ixn_RaM::names[v];
+      ret += "__" + std::to_string(g) + std::to_string(s);
       break;
     }
     case variety_data::M1_radmat_sc_avg_nrg_00:
@@ -796,7 +815,8 @@ SurfaceSpherical::~SurfaceSpherical()
 {
   TearDownInterpolators();
   prepared = false;
-  std::printf("Killed s @ rad=%.3g, N_th=%d, N_ph=%d \n", rad, N_th, N_ph);
+  // DEBUG
+  // std::printf("Killed s @ rad=%.3g, N_th=%d, N_ph=%d \n", rad, N_th, N_ph);
 }
 
 void SurfaceSpherical::PrepareInterpolatorAtPoint(

@@ -61,7 +61,8 @@ public:
   void CalcClosure(AA & u);
   void CalcFiducialFrame(AA & u);
   void CalcOpacity(Real const dt, AA & u);
-  void CalcUpdate(Real const dt,
+  void CalcUpdate(const int stage,
+                  Real const dt,
                   AA & u_pre,
                   AA & u_cur,
 		              AA & u_inh,
@@ -122,7 +123,8 @@ public:
 // configuration ==============================================================
 public:
   // BD: TODO - after refactor remove extraneous named..
-  enum class opt_integration_strategy { full_explicit,
+  enum class opt_integration_strategy { do_nothing,
+                                        full_explicit,
                                         explicit_approximate_semi_implicit,
                                         semi_implicit_Hybrids,
                                         semi_implicit_HybridsJ};
@@ -170,6 +172,7 @@ public:
     Real eps_E;
     Real eps_J;
     bool enforce_causality;
+    bool enforce_finite;
     Real eps_ec_fac;
     Real min_flux_Theta;
 
@@ -237,6 +240,8 @@ public:
     Real src_lim_scattering;
 
     // equilibrium parameters
+    bool equilibrium_enforce;
+    bool equilibrium_initial;
     Real eql_rho_min;
 
     bool verbose;
@@ -401,6 +406,13 @@ public:
     AT_N_sym sp_P_th_dd_;
     AT_N_sym sp_P_tk_dd_;
 
+    // Jacobian-related
+    AT_C_sca sc_dJ_dE_;
+    AT_N_vec sp_dJ_dF_d_;
+    AT_N_vec sp_dH_d_dE_;
+    AT_N_bil sp_dH_d_dF_d_;
+    AT_N_vec sp_F_u_;
+
     // For flux calculation (allocated for N-dim grid / not pencil)
     AT_C_sca F_sca;
     AT_N_vec F_vec;
@@ -458,6 +470,13 @@ private:
 
     scratch.sp_P_th_dd_.NewAthenaTensor(mbi.nn1);
     scratch.sp_P_tk_dd_.NewAthenaTensor(mbi.nn1);
+
+    // Jacobian-related -------------------------------------------------------
+    scratch.sc_dJ_dE_.NewAthenaTensor(mbi.nn1);
+    scratch.sp_dJ_dF_d_.NewAthenaTensor(mbi.nn1);
+    scratch.sp_dH_d_dE_.NewAthenaTensor(mbi.nn1);
+    scratch.sp_dH_d_dF_d_.NewAthenaTensor(mbi.nn1);
+    scratch.sp_F_u_.NewAthenaTensor(mbi.nn1);
 
     // flux-related -----------------------------------------------------------
     scratch.F_sca.NewAthenaTensor( mbi.nn3,mbi.nn2,mbi.nn1);
@@ -557,12 +576,12 @@ public:
       N
     };
     static constexpr char const * const names[] = {
-      "M1.rmat.eta_0",
-      "M1.rmat.kap_a_0",
-      "M1.rmat.eta",
-      "M1.rmat.kap_a",
-      "M1.rmat.kap_s",
-      "M1.rmat.avg_nrg"
+      "M1.radmat.sc_eta_0",
+      "M1.radmat.sc_kap_a_0",
+      "M1.radmat.sc_eta",
+      "M1.radmat.sc_kap_a",
+      "M1.radmat.sc_kap_s",
+      "M1.radmat.sc_avg_nrg"
       // "rmat.abs_0", "rmat.abs_1",
       // "rmat.eta_0", "rmat.eta_1",
       // "rmat.scat_1",
@@ -806,6 +825,7 @@ private:
 // debug ======================================================================
 public:
   void StatePrintPoint(
+    const std::string & tag,
     const int ix_g, const int ix_s,
     const int k, const int j, const int i,
     const bool terminate=true);

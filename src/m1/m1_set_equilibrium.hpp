@@ -18,9 +18,8 @@ namespace M1::Equilibrium {
 
 void SetEquilibrium(
   M1 & pm1,
-  Update::StateMetaVector & C,
-  Update::SourceMetaVector & S,
-  Closures::ClosureMetaVector & CL,
+  M1::vars_Lab & U_C,
+  M1::vars_Source & U_S,
   const int k,
   const int j,
   const int i);
