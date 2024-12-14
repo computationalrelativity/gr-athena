@@ -138,7 +138,9 @@ void Prepare(
 {
   // parameters & aliases------------------------------------------------------
   MeshBlock * pmb = pm1->pmy_block;
+#if FLUID_ENABLED
   const Real mb = pmb->peos->GetEOS().GetRawBaryonMass();
+#endif
 
   const Real par_src_lim = pm1->opt_solver.src_lim;
   const Real par_src_Ye_min = pm1->opt_solver.src_lim_Ye_min;
