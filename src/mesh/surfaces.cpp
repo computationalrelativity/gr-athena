@@ -829,11 +829,13 @@ void SurfaceSpherical::PrepareInterpolatorAtPoint(
       if (mask_pinterp_Lag_cc(i,j) != nullptr)
       {
         delete mask_pinterp_Lag_cc(i,j);
+        mask_pinterp_Lag_cc(i,j) = nullptr;
       }
 
       if (mask_pinterp_Lag_vc(i,j) != nullptr)
       {
         delete mask_pinterp_Lag_vc(i,j);
+        mask_pinterp_Lag_vc(i,j) = nullptr;
       }
 
       // CC vars
@@ -931,11 +933,13 @@ void SurfaceSpherical::TearDownInterpolators()
         if (mask_pinterp_Lag_cc(i,j) != nullptr)
         {
           delete mask_pinterp_Lag_cc(i,j);
+          mask_pinterp_Lag_cc(i,j) = nullptr;
         }
 
         if (mask_pinterp_Lag_vc(i,j) != nullptr)
         {
           delete mask_pinterp_Lag_vc(i,j);
+          mask_pinterp_Lag_vc(i,j) = nullptr;
         }
         break;
       }
@@ -945,6 +949,8 @@ void SurfaceSpherical::TearDownInterpolators()
       }
     }
   }
+
+  prepared = false;
 }
 
 void SurfaceSpherical::ReinitializeSurface()
