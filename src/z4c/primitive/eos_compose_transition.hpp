@@ -172,7 +172,7 @@ class EOSCompOSETransition : public EOSPolicyInterface {
   protected:
     boost::uintmax_t max_iter;  // Maximum iterations for root finding
     Real T_tol;  // Tolerance for temperature root finding
-    Real trans_T_start, trans_T_end, trans_ln_start, trans_ln_end; // Transition parameters
+    static Real trans_T_start, trans_T_end, trans_ln_start, trans_ln_end; // Transition parameters
 
   private:
     // Inverse of table spacing
@@ -180,10 +180,10 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     // Table size
     static int m_nn, m_nt, m_ny;
     // Minimum enthalpy per baryon
-    Real m_min_h;
+    static Real m_min_h;
 
     // Transitions width
-    Real m_trans_T_width, m_trans_ln_width;
+    static Real m_trans_T_width, m_trans_ln_width;
 
     static Real * m_log_nb;
     static Real * m_log_t;
@@ -191,7 +191,7 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     static Real * m_table;
 
     // bool to protect against access of uninitialised table, and prevent repeated reading of table
-    bool m_initialized;
+    static bool m_initialized;
 
     // bool to read the compose table only once
     static bool s_compose_table_read;

@@ -27,25 +27,12 @@ using namespace std;
     throw runtime_error(ss.str().c_str()); \
   }
 
-EOSCompOSETransition::EOSCompOSETransition():
-  // m_id_log_nb(numeric_limits<Real>::quiet_NaN()),
-  // m_id_log_t(numeric_limits<Real>::quiet_NaN()),
-  // m_id_yq(numeric_limits<Real>::quiet_NaN()),
-  // m_nn(0), m_nt(0), m_ny(0),
-  m_min_h(numeric_limits<Real>::max()),
-  m_initialized(false),
-  // s_compose_table_read(false),
-  m_trans_T_width(numeric_limits<Real>::quiet_NaN()),
-  m_trans_ln_width(numeric_limits<Real>::quiet_NaN()) {
+EOSCompOSETransition::EOSCompOSETransition() {
   n_species = 2; // second is abar
   eos_units = &Nuclear;
   max_iter = 50;
   T_tol = 1e-10;
   // set manually or after table read
-  trans_T_start = numeric_limits<Real>::quiet_NaN();
-  trans_T_end = numeric_limits<Real>::quiet_NaN();
-  trans_ln_start = numeric_limits<Real>::quiet_NaN();
-  trans_ln_end = numeric_limits<Real>::quiet_NaN();
   min_Y[1] = 1.0;
   max_Y[1] = 500.0;
 }
@@ -82,6 +69,16 @@ Real EOSCompOSETransition::s_max_T = numeric_limits<Real>::quiet_NaN();
 Real EOSCompOSETransition::s_min_T = numeric_limits<Real>::quiet_NaN();
 Real EOSCompOSETransition::s_max_Y[MAX_SPECIES] = {0};
 Real EOSCompOSETransition::s_min_Y[MAX_SPECIES] = {0};
+
+Real EOSCompOSETransition::m_min_h = numeric_limits<Real>::max();
+Real EOSCompOSETransition::m_trans_T_width = numeric_limits<Real>::quiet_NaN();
+Real EOSCompOSETransition::m_trans_ln_width = numeric_limits<Real>::quiet_NaN();
+Real EOSCompOSETransition::trans_T_start = numeric_limits<Real>::quiet_NaN();
+Real EOSCompOSETransition::trans_T_end = numeric_limits<Real>::quiet_NaN();
+Real EOSCompOSETransition::trans_ln_start = numeric_limits<Real>::quiet_NaN();
+Real EOSCompOSETransition::trans_ln_end = numeric_limits<Real>::quiet_NaN();
+bool EOSCompOSETransition::m_initialized = false;
+
 
 Real EOSCompOSETransition::TemperatureFromEps(Real n, Real eps, Real *Y) {
   assert (m_initialized);
@@ -189,6 +186,12 @@ Real EOSCompOSETransition::MaximumEnergy(Real n, Real *Y) {
 }
 
 void EOSCompOSETransition::SetTransition(Real n_start, Real n_end, Real T_start, Real T_end) {
+  if (m_initialized) {
+    std::stringstream msg;
+    msg << "### EOSCompOSETransition: Transition must be set before initialization." << std::endl;
+    throw std::runtime_error(msg.str());
+  }
+
   if (n_start <= n_end) {
     std::stringstream msg;
     msg << "### EOSCompOSETransition: density transition start: " << n_start <<
@@ -231,10 +234,10 @@ void EOSCompOSETransition::SetTransition(Real n_start, Real n_end, Real T_start,
   m_trans_T_width = T_start - T_end;
 
 
-  if (m_initialized) {
-    update_baryon_mass();
-    update_bounds();
-  }
+  // if (m_initialized) {
+  //   update_baryon_mass();
+  //   update_bounds();
+  // }
 }
 
 void EOSCompOSETransition::SetMaxIteration(int iter_max) {
@@ -281,163 +284,145 @@ void EOSCompOSETransition::PrintParameters() {
 }
 
 void EOSCompOSETransition::read_compose_table(std::string fname) {
-  #pragma omp critical (ReadCompOSETable)
-  {
-  if (not s_compose_table_read) {
-    herr_t ierr;
-    hid_t file_id;
-    hsize_t snb, st, syq;
+  herr_t ierr;
+  hid_t file_id;
+  hsize_t snb, st, syq;
 
-    // Open input file
-    // -------------------------------------------------------------------------
-    file_id = H5Fopen(fname.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
-      MYH5CHECK(file_id);
+  // Open input file
+  // -------------------------------------------------------------------------
+  file_id = H5Fopen(fname.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    MYH5CHECK(file_id);
 
-    // Get dataset sizes
-    // -------------------------------------------------------------------------
-    ierr = H5LTget_dataset_info(file_id, "nb", &snb, NULL, NULL);
-      MYH5CHECK(ierr);
-    ierr = H5LTget_dataset_info(file_id, "t", &st, NULL, NULL);
-      MYH5CHECK(ierr);
-    ierr = H5LTget_dataset_info(file_id, "yq", &syq, NULL, NULL);
-      MYH5CHECK(ierr);
-    m_nn = snb;
-    m_nt = st;
-    m_ny = syq;
+  // Get dataset sizes
+  // -------------------------------------------------------------------------
+  ierr = H5LTget_dataset_info(file_id, "nb", &snb, NULL, NULL);
+    MYH5CHECK(ierr);
+  ierr = H5LTget_dataset_info(file_id, "t", &st, NULL, NULL);
+    MYH5CHECK(ierr);
+  ierr = H5LTget_dataset_info(file_id, "yq", &syq, NULL, NULL);
+    MYH5CHECK(ierr);
+  m_nn = snb;
+  m_nt = st;
+  m_ny = syq;
 
-    // Allocate memory
-    // -------------------------------------------------------------------------
-    m_log_nb = new Real[m_nn];
-    m_log_t = new Real[m_nt];
-    m_yq = new Real[m_ny];
-    m_table = new Real[ECNVARS*m_nn*m_ny*m_nt];
-    double * scratch = new double[m_nn*m_ny*m_nt];
+  // Allocate memory
+  // -------------------------------------------------------------------------
+  m_log_nb = new Real[m_nn];
+  m_log_t = new Real[m_nt];
+  m_yq = new Real[m_ny];
+  m_table = new Real[ECNVARS*m_nn*m_ny*m_nt];
+  double * scratch = new double[m_nn*m_ny*m_nt];
 
-    // Read nb, t, yq
-    // -------------------------------------------------------------------------
-    ierr = H5LTread_dataset_double(file_id, "nb", scratch);
-      MYH5CHECK(ierr);
-    s_min_n = scratch[0];
-    s_max_n = scratch[m_nn-1];
-    for (int in = 0; in < m_nn; ++in) {
-      m_log_nb[in] = log(scratch[in]);
-    }
-    m_id_log_nb = 1.0/(m_log_nb[1] - m_log_nb[0]);
+  // Read nb, t, yq
+  // -------------------------------------------------------------------------
+  ierr = H5LTread_dataset_double(file_id, "nb", scratch);
+    MYH5CHECK(ierr);
+  s_min_n = scratch[0];
+  s_max_n = scratch[m_nn-1];
+  for (int in = 0; in < m_nn; ++in) {
+    m_log_nb[in] = log(scratch[in]);
+  }
+  m_id_log_nb = 1.0/(m_log_nb[1] - m_log_nb[0]);
 
-    ierr = H5LTread_dataset_double(file_id, "t", scratch);
-      MYH5CHECK(ierr);
-    s_min_T = scratch[1];
-    s_max_T = scratch[m_nt-1];
-    for (int it = 0; it < m_nt; ++it) {
-      m_log_t[it] = log(scratch[it]);
-    }
-    m_id_log_t = 1.0/(m_log_t[1] - m_log_t[0]);
+  ierr = H5LTread_dataset_double(file_id, "t", scratch);
+    MYH5CHECK(ierr);
+  s_min_T = scratch[1];
+  s_max_T = scratch[m_nt-1];
+  for (int it = 0; it < m_nt; ++it) {
+    m_log_t[it] = log(scratch[it]);
+  }
+  m_id_log_t = 1.0/(m_log_t[1] - m_log_t[0]);
 
-    ierr = H5LTread_dataset_double(file_id, "yq", scratch);
-      MYH5CHECK(ierr);
-    s_min_Y[0] = scratch[0];
-    s_max_Y[0] = scratch[m_ny-1];
-    for (int iy = 0; iy < m_ny; ++iy) {
-      m_yq[iy] = scratch[iy];
-    }
-    m_id_yq = 1.0/(m_yq[1] - m_yq[0]);
+  ierr = H5LTread_dataset_double(file_id, "yq", scratch);
+    MYH5CHECK(ierr);
+  s_min_Y[0] = scratch[0];
+  s_max_Y[0] = scratch[m_ny-1];
+  for (int iy = 0; iy < m_ny; ++iy) {
+    m_yq[iy] = scratch[iy];
+  }
+  m_id_yq = 1.0/(m_yq[1] - m_yq[0]);
 
-    // the neutron mass is used as the baryon mass in CompOSE
-    ierr = H5LTread_dataset_double(file_id, "mn", scratch);
-      MYH5CHECK(ierr);
-    s_mb = scratch[0];
+  // the neutron mass is used as the baryon mass in CompOSE
+  ierr = H5LTread_dataset_double(file_id, "mn", scratch);
+    MYH5CHECK(ierr);
+  s_mb = scratch[0];
 
-    // Read other thermodynamics quantities
-    // -------------------------------------------------------------------------
-    ierr = H5LTread_dataset_double(file_id, "Q1", scratch);
-      MYH5CHECK(ierr);
-    for (int inb = 0; inb < m_nn; ++inb) {
-    for (int iyq = 0; iyq < m_ny; ++iyq) {
-    for (int it = 0; it < m_nt; ++it) {
-      m_table[index(ECLOGP, inb, iyq, it)] =
-          log(scratch[index(0, inb, iyq, it)]) + m_log_nb[inb];
-    }}}
+  // Read other thermodynamics quantities
+  // -------------------------------------------------------------------------
+  ierr = H5LTread_dataset_double(file_id, "Q1", scratch);
+    MYH5CHECK(ierr);
+  for (int inb = 0; inb < m_nn; ++inb) {
+  for (int iyq = 0; iyq < m_ny; ++iyq) {
+  for (int it = 0; it < m_nt; ++it) {
+    m_table[index(ECLOGP, inb, iyq, it)] =
+        log(scratch[index(0, inb, iyq, it)]) + m_log_nb[inb];
+  }}}
 
-    ierr = H5LTread_dataset_double(file_id, "Q2", scratch);
-      MYH5CHECK(ierr);
-    copy(&scratch[0], &scratch[m_nn*m_ny*m_nt], &m_table[index(ECENT, 0, 0, 0)]);
+  ierr = H5LTread_dataset_double(file_id, "Q2", scratch);
+    MYH5CHECK(ierr);
+  copy(&scratch[0], &scratch[m_nn*m_ny*m_nt], &m_table[index(ECENT, 0, 0, 0)]);
 
-    ierr = H5LTread_dataset_double(file_id, "Q3", scratch);
-      MYH5CHECK(ierr);
-    for (int in = 0; in < m_nn; ++in) {
-    for (int iy = 0; iy < m_ny; ++iy) {
-    for (int it = 0; it < m_nt; ++it) {
-      m_table[index(ECMUB, in, iy, it)] =
-        mb*(scratch[index(0, in, iy, it)] + 1);
-    }}}
+  ierr = H5LTread_dataset_double(file_id, "Q3", scratch);
+    MYH5CHECK(ierr);
+  for (int in = 0; in < m_nn; ++in) {
+  for (int iy = 0; iy < m_ny; ++iy) {
+  for (int it = 0; it < m_nt; ++it) {
+    m_table[index(ECMUB, in, iy, it)] =
+      mb*(scratch[index(0, in, iy, it)] + 1);
+  }}}
 
-    ierr = H5LTread_dataset_double(file_id, "Q4", scratch);
-      MYH5CHECK(ierr);
-    for (int in = 0; in < m_nn; ++in) {
-    for (int iy = 0; iy < m_ny; ++iy) {
-    for (int it = 0; it < m_nt; ++it) {
-      m_table[index(ECMUQ, in, iy, it)] = mb*scratch[index(0, in, iy, it)];
-    }}}
+  ierr = H5LTread_dataset_double(file_id, "Q4", scratch);
+    MYH5CHECK(ierr);
+  for (int in = 0; in < m_nn; ++in) {
+  for (int iy = 0; iy < m_ny; ++iy) {
+  for (int it = 0; it < m_nt; ++it) {
+    m_table[index(ECMUQ, in, iy, it)] = mb*scratch[index(0, in, iy, it)];
+  }}}
 
-    ierr = H5LTread_dataset_double(file_id, "Q5", scratch);
-      MYH5CHECK(ierr);
-    for (int in = 0; in < m_nn; ++in) {
-    for (int iy = 0; iy < m_ny; ++iy) {
-    for (int it = 0; it < m_nt; ++it) {
-      m_table[index(ECMUL, in, iy, it)] = mb*scratch[index(0, in, iy, it)];
-    }}}
+  ierr = H5LTread_dataset_double(file_id, "Q5", scratch);
+    MYH5CHECK(ierr);
+  for (int in = 0; in < m_nn; ++in) {
+  for (int iy = 0; iy < m_ny; ++iy) {
+  for (int it = 0; it < m_nt; ++it) {
+    m_table[index(ECMUL, in, iy, it)] = mb*scratch[index(0, in, iy, it)];
+  }}}
 
-    ierr = H5LTread_dataset_double(file_id, "Q7", scratch);
-      MYH5CHECK(ierr);
-    for (int in = 0; in < m_nn; ++in) {
-    for (int iy = 0; iy < m_ny; ++iy) {
-    for (int it = 0; it < m_nt; ++it) {
-      m_table[index(ECLOGE, in, iy, it)] =
-        scratch[index(0, in, iy, it)]; // Will be converted to log(E) later
-    }}}
+  ierr = H5LTread_dataset_double(file_id, "Q7", scratch);
+    MYH5CHECK(ierr);
+  for (int in = 0; in < m_nn; ++in) {
+  for (int iy = 0; iy < m_ny; ++iy) {
+  for (int it = 0; it < m_nt; ++it) {
+    m_table[index(ECLOGE, in, iy, it)] =
+      scratch[index(0, in, iy, it)]; // Will be converted to log(E) later
+  }}}
 
-    ierr = H5LTread_dataset_double(file_id, "cs2", scratch);
-      MYH5CHECK(ierr);
-    for (int in = 0; in < m_nn; ++in) {
-    for (int iy = 0; iy < m_ny; ++iy) {
-    for (int it = 0; it < m_nt; ++it) {
-      m_table[index(ECCS, in, iy, it)] = sqrt(scratch[index(0, in, iy, it)]);
-    }}}
+  ierr = H5LTread_dataset_double(file_id, "cs2", scratch);
+    MYH5CHECK(ierr);
+  for (int in = 0; in < m_nn; ++in) {
+  for (int iy = 0; iy < m_ny; ++iy) {
+  for (int it = 0; it < m_nt; ++it) {
+    m_table[index(ECCS, in, iy, it)] = sqrt(scratch[index(0, in, iy, it)]);
+  }}}
 
-    ierr = H5LTread_dataset_double(file_id, "Abar", scratch);
-      MYH5CHECK(ierr);
-    copy(&scratch[0], &scratch[m_nn*m_ny*m_nt], &m_table[index(ECABAR, 0, 0, 0)]);
+  ierr = H5LTread_dataset_double(file_id, "Abar", scratch);
+    MYH5CHECK(ierr);
+  copy(&scratch[0], &scratch[m_nn*m_ny*m_nt], &m_table[index(ECABAR, 0, 0, 0)]);
 
-    // Cleanup
-    // -------------------------------------------------------------------------
-    delete[] scratch;
-    H5Fclose(file_id);
-    s_compose_table_read = true;
-  }}
-
-  // in order to keep the definition from the interface these are
-  // not static and need to be populated
-  mb = s_mb;
-  max_n = s_max_n;
-  min_n = s_min_n;
-  max_T = s_max_T;
-  min_T = s_min_T;
-  max_Y[0] = s_max_Y[0];
-  min_Y[0] = s_min_Y[0];
+  // Cleanup
+  // -------------------------------------------------------------------------
+  delete[] scratch;
+  H5Fclose(file_id);
 }
 
 void EOSCompOSETransition::read_helmholtz_table(std::string fname) {
-  #pragma omp single
-  {
-    int str_len = fname.length();
-    read_helm_table(fname.c_str(), &str_len);
-  }
+  int str_len = fname.length();
+  read_helm_table(fname.c_str(), &str_len);
 }
 
 void EOSCompOSETransition::update_baryon_mass() {
   Real Abar = 1.0;
 
-  Real new_mb = mb;
+  Real new_mb = s_mb;
   for (int in = 0; in < m_nn; ++in) {
     Real ln = m_log_nb[in];
     if (ln >= -8) break;
@@ -451,7 +436,7 @@ void EOSCompOSETransition::update_baryon_mass() {
         Real eps_helm =  exp(eval_helm_at_lnty(ECLOGE, ln, lT, ye, Abar));
         // new_mb = min(mb*(1 + eps - eps_helm), new_mb);
         if (mb*(1 + eps - eps_helm) < new_mb) {
-          new_mb = mb*(1 + eps - eps_helm);
+          new_mb = s_mb*(1 + eps - eps_helm);
           printf("ln = %f, lT = %f, ye = %f, eps = %f, eps_helm = %f, mb = %f\n",
                ln, lT, ye, eps, eps_helm, new_mb);
         }
@@ -462,9 +447,9 @@ void EOSCompOSETransition::update_baryon_mass() {
   printf("mb,  new_mb = %f, %f\n", mb, new_mb);
 
   // Update the baryon mass
-  Real mb_ratio = mb/new_mb;
-  mb = new_mb;
-  Real mb_cgs = mb*eos_units->MassConversion(CGS);
+  Real mb_ratio = s_mb/new_mb;
+  s_mb = new_mb;
+  Real mb_cgs = s_mb*eos_units->MassConversion(CGS);
   set_mb(&mb_cgs);
 
   // Update the internal energy
@@ -509,9 +494,9 @@ void EOSCompOSETransition::update_bounds() {
   assert(rho_max >= rho_trans);
   assert(temp_max >= temp_trans);
 
-  min_n = rho_min / (eos_units->DensityConversion(CGS)
+  s_min_n = rho_min / (eos_units->DensityConversion(CGS)
                      * mb * eos_units->MassConversion(CGS));
-  min_T = temp_min / (eos_units->TemperatureConversion(CGS)) * (1 + 1e-5);
+  s_min_T = temp_min / (eos_units->TemperatureConversion(CGS)) * (1 + 1e-5);
   // printf("min_n, min_T = %e, %e\n", min_n, min_T);
   Real min_ln = log(min_n)+1e-9;
   Real min_lT = log(min_T)+1e-9;
@@ -526,31 +511,44 @@ void EOSCompOSETransition::update_bounds() {
 
 
 void EOSCompOSETransition::InitializeTables(std::string fname, std::string helm_fname) {
-  read_compose_table(fname);
-  read_helmholtz_table(helm_fname);
 
-  // Set the baryon mass in the Helmholtz EOS to the current mb
-  Real mb_cgs = mb*eos_units->MassConversion(CGS);
-  set_mb(&mb_cgs);
+  #pragma omp single
+  {
+    read_compose_table(fname);
+    read_helmholtz_table(helm_fname);
 
-  // Initialize the transitions if they have not been initialized
-  // -------------------------------------------------------------------------
-  if (std::isnan(m_trans_T_width)) {
-    m_trans_T_width = 1e9 * CGS.TemperatureConversion(*eos_units); // 1 GK
-    trans_T_end = min_T;
-    trans_T_start = min_T + m_trans_T_width;
+    // Set the baryon mass in the Helmholtz EOS to the current mb
+    Real mb_cgs = mb*eos_units->MassConversion(CGS);
+    set_mb(&mb_cgs);
+
+    // Initialize the transitions if they have not been initialized
+    // -------------------------------------------------------------------------
+    if (std::isnan(m_trans_T_width)) {
+      m_trans_T_width = 1e9 * CGS.TemperatureConversion(*eos_units); // 1 GK
+      trans_T_end = min_T;
+      trans_T_start = min_T + m_trans_T_width;
+    }
+
+    if (std::isnan(m_trans_ln_width)) {
+      m_trans_ln_width = log(5); // start = 5 times end of transition
+      trans_ln_end = log(min_n);
+      trans_ln_start = trans_ln_end + m_trans_ln_width;
+    }
+
+    update_baryon_mass();
+    update_bounds();
+
+    m_initialized = true;
   }
-
-  if (std::isnan(m_trans_ln_width)) {
-    m_trans_ln_width = log(5); // start = 5 times end of transition
-    trans_ln_end = log(min_n);
-    trans_ln_start = trans_ln_end + m_trans_ln_width;
-  }
-
-  update_baryon_mass();
-  update_bounds();
-
-  m_initialized = true;
+  // in order to keep the definition from the interface these are
+  // not static and need to be populated
+  mb = s_mb;
+  max_n = s_max_n;
+  min_n = s_min_n;
+  max_T = s_max_T;
+  min_T = s_min_T;
+  max_Y[0] = s_max_Y[0];
+  min_Y[0] = s_min_Y[0];
 }
 
 Real EOSCompOSETransition::temperature_from_var(int iv, Real var, Real n, Real Yq, Real Abar) const {
