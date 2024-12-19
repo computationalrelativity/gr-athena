@@ -16,7 +16,7 @@ contains
 ! routine helmeos computes the pressure, energy and entropy via tables
 
    subroutine read_table(helm_table_path)
-      include 'implno.dek'
+      implicit none
       include 'helm_table_storage.dek'
 
 ! this routine reads the helmholtz eos file, and
@@ -118,12 +118,17 @@ contains
 !      write(6,*)
 
       return
-      end
+   end subroutine
 
-      subroutine helmeos
-      include 'implno.dek'
+   subroutine helmeos(den, temp, abar, zbar, &
+                         pion, pele, prad, &
+                         eion, eele, erad, &
+                         sion, sele, srad, &
+                         etaele, etaion, sound, &
+                         eosfail)
+      implicit none
       include 'const.dek'
-      include 'vector_eos.dek'
+      ! include 'vector_eos.dek'
       include 'helm_table_storage.dek'
 
 ! given a temperature temp [K], density den [g/cm**3], and a composition
@@ -145,16 +150,21 @@ contains
       ! read (*,*) ferences: cox & giuli chapter 24 ; timmes & swesty apj 1999
 
 ! declare
-      integer          i,j
-      double precision temp,den,abar,zbar,ytot1,ye, &
+      double precision             :: temp,den,abar,zbar
+      double precision, intent(out) :: pion, pele, prad, &
+                                       eion, eele, erad, &
+                                       sion, sele, srad, &
+                                       etaele, etaion, sound
+      logical, intent(out) :: eosfail
+
+      double precision ytot1,ye, &
                        x,y,zz,zzi,deni,tempi,xni,dxnidd,dxnida, &
                        dpepdt,dpepdd,deepdt,deepdd,dsepdd,dsepdt, &
                        dpraddd,dpraddt,deraddd,deraddt,dpiondd,dpiondt, &
                        deiondd,deiondt,dsraddd,dsraddt,dsiondd,dsiondt, &
-                       dse,dpe,dsp,kt,ktinv,prad,erad,srad,pion,eion, &
-                       sion,xnem,pele,eele,sele,pres,ener,entr,dpresdd, &
+                       dse,dpe,dsp,kt,ktinv,xnem,pres,ener,entr,dpresdd, &
                        dpresdt,denerdd,denerdt,dentrdd,dentrdt,cv,cp, &
-                       gam1,gam2,gam3,chit,chid,nabad,sound,etaele, &
+                       gam1,gam2,gam3,chit,chid,nabad, &
                        detadt,detadd,xnefer,dxnedt,dxnedd,s
 
       double precision pgas,dpgasdd,dpgasdt,dpgasda,dpgasdz, &
@@ -235,7 +245,7 @@ contains
       ddpsi2(z) = 0.5d0*(z*( z * (-20.0d0*z + 36.0d0) - 18.0d0) + 2.0d0)
 
 ! biquintic hermite polynomial statement function
-      h5(i,j,w0t,w1t,w2t,w0mt,w1mt,w2mt,w0d,w1d,w2d,w0md,w1md,w2md)= &
+      h5(w0t,w1t,w2t,w0mt,w1mt,w2mt,w0d,w1d,w2d,w0md,w1md,w2md)= &
              fi(1)  *w0d*w0t   + fi(2)  *w0md*w0t &
            + fi(3)  *w0d*w0mt  + fi(4)  *w0md*w0mt &
            + fi(5)  *w0d*w1t   + fi(6)  *w0md*w1t &
@@ -265,7 +275,7 @@ contains
       xdpsi1(z) = z * (3.0d0*z - 4.0d0) + 1.0d0
 
 ! bicubic hermite polynomial statement function
-      h3(i,j,w0t,w1t,w0mt,w1mt,w0d,w1d,w0md,w1md) = &
+      h3(w0t,w1t,w0mt,w1mt,w0d,w1d,w0md,w1md) = &
              fi(1)  *w0d*w0t   +  fi(2)  *w0md*w0t &
            + fi(3)  *w0d*w0mt  +  fi(4)  *w0md*w0mt &
            + fi(5)  *w0d*w1t   +  fi(6)  *w0md*w1t &
@@ -284,15 +294,14 @@ contains
 
 ! start of pipeline loop, normal execution starts here
       eosfail = .false.
-      do j=jlo_eos,jhi_eos
 
 !       if (temp_row(j) .le. 0.0) stop 'temp less than 0 in helmeos'
 !       if (den_row(j)  .le. 0.0) stop 'den less than 0 in helmeos'
 
-       temp  = temp_row(j)
-       den   = den_row(j)
-       abar  = abar_row(j)
-       zbar  = zbar_row(j)
+       ! temp  = temp_row(j)
+       ! den   = den_row(j)
+       ! abar  = abar_row(j)
+       ! zbar  = zbar_row(j)
        ytot1 = 1.0d0/abar
        ye    = max(1.0d-16,ytot1 * zbar)
 
@@ -345,10 +354,11 @@ contains
         z       = x * s * sqrt(s)
         y       = log(z)
 
-!        y       = 1.0d0/(abar*kt)
-!        yy      = y * sqrt(y)
-!        z       = xni * sifac * yy
-!        etaion  = log(z)
+       !y       = 1.0d0/(abar*kt)
+       !yy      = y * sqrt(y)
+       !z       = xni * sifac * yy
+       !etaion  = log(z)
+       etaion = 0
 
         sion    = (pion*deni + eion)*tempi + kerg_mb * ytot1 * y
         dsiondd = (dpiondd*deni - pion*deni*deni + deiondd)*tempi &
@@ -373,32 +383,32 @@ contains
         if (temp .gt. t(jmax)) then
          write(6,01) 'temp=',temp,' t(jmax)=',t(jmax)
          write(6,*) 'temp too hot, off grid'
-         write(6,*) 'setting eosfail to true and returning'
-         eosfail = .true.
+         !write(6,*) 'setting eosfail to true and returning'
+         !eosfail = .true.
          ! return
          temp = t(jmax)
         end if
         if (temp .lt. t(1)) then
          write(6,01) 'temp=',temp,' t(1)=',t(1)
          write(6,*) 'temp too cold, off grid'
-         write(6,*) 'setting eosfail to true and returning'
-         eosfail = .true.
+         !write(6,*) 'setting eosfail to true and returning'
+         !eosfail = .true.
          ! return
           temp = t(1)
         end if
         if (din  .gt. d(imax)) then
          write(6,01) 'den*ye=',din,' d(imax)=',d(imax)
          write(6,*) 'ye*den too big, off grid'
-         write(6,*) 'setting eosfail to true and returning'
-         eosfail = .true.
+         !write(6,*) 'setting eosfail to true and returning'
+         !eosfail = .true.
          ! return
          den = d(imax)/ye
         end if
         if (din  .lt. d(1)) then
          write(6,01) 'ye*den=',din,' d(1)=',d(1)
          write(6,*) 'ye*den too small, off grid'
-         write(6,*) 'setting eosfail to true and returning'
-         eosfail = .true.
+         !write(6,*) 'setting eosfail to true and returning'
+         !eosfail = .true.
          ! return
           den = d(1)/ye
         end if
@@ -505,19 +515,26 @@ contains
 !        ddsi2md =  ddpsi2(mxd)
 
 ! the free energy
-        free  = h5(iat,jat, &
+        free  = h5( &
                 si0t,   si1t,   si2t,   si0mt,   si1mt,   si2mt, &
                 si0d,   si1d,   si2d,   si0md,   si1md,   si2md)
 
 ! derivative with respect to density
-        df_d  = h5(iat,jat, &
+        df_d  = h5( &
                 si0t,   si1t,   si2t,   si0mt,   si1mt,   si2mt, &
                 dsi0d,  dsi1d,  dsi2d,  dsi0md,  dsi1md,  dsi2md)
 
 ! derivative with respect to temperature
-        df_t = h5(iat,jat, &
+        df_t = h5( &
                 dsi0t,  dsi1t,  dsi2t,  dsi0mt,  dsi1mt,  dsi2mt, &
                 si0d,   si1d,   si2d,   si0md,   si1md,   si2md)
+
+        sele    = -df_t * ye
+        sele    = -df_t * ye
+        eele    = ye*free + temp * sele
+        if (eele < 0) then
+           print*, "eele < 0"
+        endif
 
 ! derivative with respect to density**2
 !        df_dd = h5(iat,jat,
@@ -525,12 +542,12 @@ contains
 !     2          ddsi0d, ddsi1d, ddsi2d, ddsi0md, ddsi1md, ddsi2md)
 
 ! derivative with respect to temperature**2
-        df_tt = h5(iat,jat, &
+        df_tt = h5( &
               ddsi0t, ddsi1t, ddsi2t, ddsi0mt, ddsi1mt, ddsi2mt, &
                 si0d,   si1d,   si2d,   si0md,   si1md,   si2md)
 
 ! derivative with respect to temperature and density
-        df_dt = h5(iat,jat, &
+        df_dt = h5( &
                 dsi0t,  dsi1t,  dsi2t,  dsi0mt,  dsi1mt,  dsi2mt, &
                 dsi0d,  dsi1d,  dsi2d,  dsi0md,  dsi1md,  dsi2md)
 
@@ -581,7 +598,7 @@ contains
         fi(16) = dpdfdt(iat+1,jat+1)
 
 ! pressure derivative with density
-        dpepdd  = h3(iat,jat, &
+        dpepdd  = h3( &
                        si0t,   si1t,   si0mt,   si1mt, &
                        si0d,   si1d,   si0md,   si1md)
         dpepdd  = max(ye * dpepdd,1.0d-30)
@@ -605,18 +622,18 @@ contains
         fi(16) = efdt(iat+1,jat+1)
 
 ! electron chemical potential etaele
-        etaele  = h3(iat,jat, &
+        etaele  = h3( &
                      si0t,   si1t,   si0mt,   si1mt, &
                      si0d,   si1d,   si0md,   si1md)
 
 ! derivative with respect to density
-        x       = h3(iat,jat, &
+        x       = h3( &
                      si0t,   si1t,   si0mt,   si1mt, &
                     dsi0d,  dsi1d,  dsi0md,  dsi1md)
         detadd  = ye * x
 
 ! derivative with respect to temperature
-        detadt  = h3(iat,jat, &
+        detadt  = h3( &
                     dsi0t,  dsi1t,  dsi0mt,  dsi1mt, &
                      si0d,   si1d,   si0md,   si1md)
 
@@ -643,19 +660,19 @@ contains
         fi(16) = xfdt(iat+1,jat+1)
 
 ! electron + positron number densities
-       xnefer   = h3(iat,jat, &
+       xnefer   = h3( &
                      si0t,   si1t,   si0mt,   si1mt, &
                      si0d,   si1d,   si0md,   si1md)
 
 ! derivative with respect to density
-       x        = h3(iat,jat, &
+       x        = h3( &
                      si0t,   si1t,   si0mt,   si1mt, &
                     dsi0d,  dsi1d,  dsi0md,  dsi1md)
        x = max(x,1.0d-30)
        dxnedd   = ye * x
 
 ! derivative with respect to temperature
-       dxnedt   = h3(iat,jat, &
+       dxnedt   = h3( &
                     dsi0t,  dsi1t,  dsi0mt,  dsi1mt, &
                      si0d,   si1d,   si0md,   si1md)
 
@@ -689,6 +706,14 @@ contains
         deepdd  = x * df_d + temp * dsepdd
         deepda  = -ye * ytot1 * (free +  df_d * din) + temp * dsepda
         deepdz  = ytot1* (free + ye * df_d * den) + temp * dsepdz
+
+
+        if (eele < 0 .or. pele < 0) then
+           print *, "eele < 0 or pele< 0"
+           print *, "den, temp, abar, zbar",den, temp, abar, zbar
+           print *, "dlo, dhi, iat", dlo, dhi, iat
+           print *, "tlo, thi, jat", tlo, thi, jat
+        end if
 
 ! coulomb section:
 
@@ -890,178 +915,180 @@ contains
        dsp = -dentrdd*x/dpresdt - 1.0d0
 
 ! store this row
-        ptot_row(j)   = pres
-        dpt_row(j)    = dpresdt
-        dpd_row(j)    = dpresdd
-        dpa_row(j)    = dpresda
-        dpz_row(j)    = dpresdz
-
-        etot_row(j)   = ener
-        det_row(j)    = denerdt
-        ded_row(j)    = denerdd
-        dea_row(j)    = denerda
-        dez_row(j)    = denerdz
-
-        stot_row(j)   = entr
-        dst_row(j)    = dentrdt
-        dsd_row(j)    = dentrdd
-        dsa_row(j)    = dentrda
-        dsz_row(j)    = dentrdz
-
-        pgas_row(j)   = pgas
-        dpgast_row(j) = dpgasdt
-        dpgasd_row(j) = dpgasdd
-        dpgasa_row(j) = dpgasda
-        dpgasz_row(j) = dpgasdz
-
-        egas_row(j)   = egas
-        degast_row(j) = degasdt
-        degasd_row(j) = degasdd
-        degasa_row(j) = degasda
-        degasz_row(j) = degasdz
-
-        sgas_row(j)   = sgas
-        dsgast_row(j) = dsgasdt
-        dsgasd_row(j) = dsgasdd
-        dsgasa_row(j) = dsgasda
-        dsgasz_row(j) = dsgasdz
-
-        prad_row(j)   = prad
-        dpradt_row(j) = dpraddt
-        dpradd_row(j) = dpraddd
-        dprada_row(j) = dpradda
-        dpradz_row(j) = dpraddz
-
-        erad_row(j)   = erad
-        deradt_row(j) = deraddt
-        deradd_row(j) = deraddd
-        derada_row(j) = deradda
-        deradz_row(j) = deraddz
-
-        srad_row(j)   = srad
-        dsradt_row(j) = dsraddt
-        dsradd_row(j) = dsraddd
-        dsrada_row(j) = dsradda
-        dsradz_row(j) = dsraddz
-
-        pion_row(j)   = pion
-        dpiont_row(j) = dpiondt
-        dpiond_row(j) = dpiondd
-        dpiona_row(j) = dpionda
-        dpionz_row(j) = dpiondz
-
-        eion_row(j)   = eion
-        deiont_row(j) = deiondt
-        deiond_row(j) = deiondd
-        deiona_row(j) = deionda
-        deionz_row(j) = deiondz
-
-        sion_row(j)   = sion
-        dsiont_row(j) = dsiondt
-        dsiond_row(j) = dsiondd
-        dsiona_row(j) = dsionda
-        dsionz_row(j) = dsiondz
-
-        xni_row(j)    = xni
-
-        pele_row(j)   = pele
-        ppos_row(j)   = 0.0d0
-        dpept_row(j)  = dpepdt
-        dpepd_row(j)  = dpepdd
-        dpepa_row(j)  = dpepda
-        dpepz_row(j)  = dpepdz
-
-        eele_row(j)   = eele
-        epos_row(j)   = 0.0d0
-        deept_row(j)  = deepdt
-        deepd_row(j)  = deepdd
-        deepa_row(j)  = deepda
-        deepz_row(j)  = deepdz
-
-        sele_row(j)   = sele
-        spos_row(j)   = 0.0d0
-        dsept_row(j)  = dsepdt
-        dsepd_row(j)  = dsepdd
-        dsepa_row(j)  = dsepda
-        dsepz_row(j)  = dsepdz
-
-        xnem_row(j)   = xnem
-        xne_row(j)    = xnefer
-        dxnet_row(j)  = dxnedt
-        dxned_row(j)  = dxnedd
-        dxnea_row(j)  = dxneda
-        dxnez_row(j)  = dxnedz
-        xnp_row(j)    = 0.0d0
-        zeff_row(j)   = zbar
-
-        etaele_row(j) = etaele
-        detat_row(j)  = detadt
-        detad_row(j)  = detadd
-        detaa_row(j)  = detada
-        detaz_row(j)  = detadz
-        etapos_row(j) = 0.0d0
-
-        pcou_row(j)   = pcoul
-        dpcout_row(j) = dpcouldt
-        dpcoud_row(j) = dpcouldd
-        dpcoua_row(j) = dpcoulda
-        dpcouz_row(j) = dpcouldz
-
-        ecou_row(j)   = ecoul
-        decout_row(j) = decouldt
-        decoud_row(j) = decouldd
-        decoua_row(j) = decoulda
-        decouz_row(j) = decouldz
-
-        scou_row(j)   = scoul
-        dscout_row(j) = dscouldt
-        dscoud_row(j) = dscouldd
-        dscoua_row(j) = dscoulda
-        dscouz_row(j) = dscouldz
-
-        plasg_row(j)  = plasg
-
-        dse_row(j)    = dse
-        dpe_row(j)    = dpe
-        dsp_row(j)    = dsp
-
-        cv_gas_row(j)    = cv_gas
-        cp_gas_row(j)    = cp_gas
-        gam1_gas_row(j)  = gam1_gas
-        gam2_gas_row(j)  = gam2_gas
-        gam3_gas_row(j)  = gam3_gas
-        nabad_gas_row(j) = nabad_gas
-        cs_gas_row(j)    = sound_gas
-
-        cv_row(j)     = cv
-        cp_row(j)     = cp
-        gam1_row(j)   = gam1
-        gam2_row(j)   = gam2
-        gam3_row(j)   = gam3
-        nabad_row(j)  = nabad
-        cs_row(j)     = sound
+!!$        ptot_row(j)   = pres
+!!$        dpt_row(j)    = dpresdt
+!!$        dpd_row(j)    = dpresdd
+!!$        dpa_row(j)    = dpresda
+!!$        dpz_row(j)    = dpresdz
+!!$
+!!$        etot_row(j)   = ener
+!!$        det_row(j)    = denerdt
+!!$        ded_row(j)    = denerdd
+!!$        dea_row(j)    = denerda
+!!$        dez_row(j)    = denerdz
+!!$
+!!$        stot_row(j)   = entr
+!!$        dst_row(j)    = dentrdt
+!!$        dsd_row(j)    = dentrdd
+!!$        dsa_row(j)    = dentrda
+!!$        dsz_row(j)    = dentrdz
+!!$
+!!$        pgas_row(j)   = pgas
+!!$        dpgast_row(j) = dpgasdt
+!!$        dpgasd_row(j) = dpgasdd
+!!$        dpgasa_row(j) = dpgasda
+!!$        dpgasz_row(j) = dpgasdz
+!!$
+!!$        egas_row(j)   = egas
+!!$        degast_row(j) = degasdt
+!!$        degasd_row(j) = degasdd
+!!$        degasa_row(j) = degasda
+!!$        degasz_row(j) = degasdz
+!!$
+!!$        sgas_row(j)   = sgas
+!!$        dsgast_row(j) = dsgasdt
+!!$        dsgasd_row(j) = dsgasdd
+!!$        dsgasa_row(j) = dsgasda
+!!$        dsgasz_row(j) = dsgasdz
+!!$
+!!$        prad_row(j)   = prad
+!!$        dpradt_row(j) = dpraddt
+!!$        dpradd_row(j) = dpraddd
+!!$        dprada_row(j) = dpradda
+!!$        dpradz_row(j) = dpraddz
+!!$
+!!$        erad_row(j)   = erad
+!!$        deradt_row(j) = deraddt
+!!$        deradd_row(j) = deraddd
+!!$        derada_row(j) = deradda
+!!$        deradz_row(j) = deraddz
+!!$
+!!$        srad_row(j)   = srad
+!!$        dsradt_row(j) = dsraddt
+!!$        dsradd_row(j) = dsraddd
+!!$        dsrada_row(j) = dsradda
+!!$        dsradz_row(j) = dsraddz
+!!$
+!!$        pion_row(j)   = pion
+!!$        dpiont_row(j) = dpiondt
+!!$        dpiond_row(j) = dpiondd
+!!$        dpiona_row(j) = dpionda
+!!$        dpionz_row(j) = dpiondz
+!!$
+!!$        eion_row(j)   = eion
+!!$        deiont_row(j) = deiondt
+!!$        deiond_row(j) = deiondd
+!!$        deiona_row(j) = deionda
+!!$        deionz_row(j) = deiondz
+!!$
+!!$        sion_row(j)   = sion
+!!$        dsiont_row(j) = dsiondt
+!!$        dsiond_row(j) = dsiondd
+!!$        dsiona_row(j) = dsionda
+!!$        dsionz_row(j) = dsiondz
+!!$
+!!$        xni_row(j)    = xni
+!!$
+!!$        pele_row(j)   = pele
+!!$        ppos_row(j)   = 0.0d0
+!!$        dpept_row(j)  = dpepdt
+!!$        dpepd_row(j)  = dpepdd
+!!$        dpepa_row(j)  = dpepda
+!!$        dpepz_row(j)  = dpepdz
+!!$
+!!$        eele_row(j)   = eele
+!!$        epos_row(j)   = 0.0d0
+!!$        deept_row(j)  = deepdt
+!!$        deepd_row(j)  = deepdd
+!!$        deepa_row(j)  = deepda
+!!$        deepz_row(j)  = deepdz
+!!$
+!!$        sele_row(j)   = sele
+!!$        spos_row(j)   = 0.0d0
+!!$        dsept_row(j)  = dsepdt
+!!$        dsepd_row(j)  = dsepdd
+!!$        dsepa_row(j)  = dsepda
+!!$        dsepz_row(j)  = dsepdz
+!!$
+!!$        xnem_row(j)   = xnem
+!!$        xne_row(j)    = xnefer
+!!$        dxnet_row(j)  = dxnedt
+!!$        dxned_row(j)  = dxnedd
+!!$        dxnea_row(j)  = dxneda
+!!$        dxnez_row(j)  = dxnedz
+!!$        xnp_row(j)    = 0.0d0
+!!$        zeff_row(j)   = zbar
+!!$
+!!$        etaele_row(j) = etaele
+!!$        detat_row(j)  = detadt
+!!$        detad_row(j)  = detadd
+!!$        detaa_row(j)  = detada
+!!$        detaz_row(j)  = detadz
+!!$        etapos_row(j) = 0.0d0
+!!$
+!!$        pcou_row(j)   = pcoul
+!!$        dpcout_row(j) = dpcouldt
+!!$        dpcoud_row(j) = dpcouldd
+!!$        dpcoua_row(j) = dpcoulda
+!!$        dpcouz_row(j) = dpcouldz
+!!$
+!!$        ecou_row(j)   = ecoul
+!!$        decout_row(j) = decouldt
+!!$        decoud_row(j) = decouldd
+!!$        decoua_row(j) = decoulda
+!!$        decouz_row(j) = decouldz
+!!$
+!!$        scou_row(j)   = scoul
+!!$        dscout_row(j) = dscouldt
+!!$        dscoud_row(j) = dscouldd
+!!$        dscoua_row(j) = dscoulda
+!!$        dscouz_row(j) = dscouldz
+!!$
+!!$        plasg_row(j)  = plasg
+!!$
+!!$        dse_row(j)    = dse
+!!$        dpe_row(j)    = dpe
+!!$        dsp_row(j)    = dsp
+!!$
+!!$        cv_gas_row(j)    = cv_gas
+!!$        cp_gas_row(j)    = cp_gas
+!!$        gam1_gas_row(j)  = gam1_gas
+!!$        gam2_gas_row(j)  = gam2_gas
+!!$        gam3_gas_row(j)  = gam3_gas
+!!$        nabad_gas_row(j) = nabad_gas
+!!$        cs_gas_row(j)    = sound_gas
+!!$
+!!$        cv_row(j)     = cv
+!!$        cp_row(j)     = cp
+!!$        gam1_row(j)   = gam1
+!!$        gam2_row(j)   = gam2
+!!$        gam3_row(j)   = gam3
+!!$        nabad_row(j)  = nabad
+!!$        cs_row(j)     = sound
 
 ! end of pipeline loop
-      enddo
-      return
-      end
+   end subroutine
 
    subroutine helm_eos_wrap( &
-     w_rho, w_temp, w_Abar, w_Zbar, &
-     w_etot, w_ptot, w_stot, &
-     w_etaele, w_etaion, w_cs, &
-     w_success &
+     rho, temp, Abar, Zbar, &
+     etot, ptot, stot, &
+     etaele, etaion, cs, &
+     success &
     ) bind(C, name="helm_eos_wrap")
 
       implicit none
-      include 'vector_eos.dek'
-      real(8), intent(in) :: w_rho, w_temp, w_abar, w_zbar
-      real(8), intent(out) :: w_etot, w_ptot, w_stot, w_etaele, w_etaion, w_cs
-      logical, intent(out) :: w_success
+      ! include 'vector_eos.dek'
+      real(8), intent(in) :: rho, temp, abar, zbar
+      real(8), intent(out) :: etot, ptot, stot, etaele, etaion, cs
+      logical, intent(out) :: success
 
+      real(8) :: eele, eion, erad
+      real(8) :: pele, pion, prad
+      real(8) :: sele, sion, srad
       real(8) :: ye
+      logical :: eosfail
 
-      w_success = .False.
+      success = .False.
 
       if (.not. table_read) then
          write (6, *) 'must read helm_table.dat before calling Helmholtz EOS'
@@ -1073,34 +1100,48 @@ contains
          return
       end if
 
-      ye = max(1.0d-16, w_zbar/w_abar)
+      ye = max(1.0d-16, zbar/abar)
 
-      jlo_eos = 1
-      jhi_eos = 1
+      ! den_row(1) = rho
+      ! temp_row(1) = temp
+      ! abar_row(1) = abar
+      ! zbar_row(1) = zbar
 
-      den_row(1) = w_rho
-      temp_row(1) = w_temp
-      abar_row(1) = w_abar
-      zbar_row(1) = w_zbar
-
-      call helmeos
+      call helmeos(rho, temp, abar, zbar, &
+          pion, pele, prad, &
+          eion, eele, erad, &
+          sion, sele, srad, &
+          etaele, etaion, cs, &
+          eosfail)
 
       if (eosfail) then
          write (6, *) 'eosfail is true'
+      end if
+      success = .not. eosfail
+
+
+      ! ptot = ptot
+      ! etot = etot
+      ! stot = stot
+      ptot = pion + pele + prad
+      etot = eion + eele + erad
+      stot = sion + sele + srad
+
+      if (ptot < 0.0d0) then
+         write (6, *) 'negative pressure in Helmholtz EOS'
+         write (6, *) 'rho = ', rho, ' temp = ', temp, ' abar = ', abar, ' zbar = ', zbar
+         write (6, *) 'ptot = ', ptot, 'pion = ', pion, 'pele = ', pele, 'prad = ', prad
          return
       end if
 
-      ! w_ptot = ptot_row(1)
-      ! w_etot = etot_row(1)
-      ! w_stot = stot_row(1)
-      w_ptot = pion_row(1) + pele_row(1) + prad_row(1)
-      w_etot = eion_row(1) + eele_row(1) + erad_row(1)
-      w_stot = sion_row(1) + sele_row(1) + srad_row(1)
-      w_etaele = etaele_row(1)
-      w_etaion = etaion_row(1)
-      w_cs = cs_row(1)
+      if (etot < 0.0d0) then
+         write (6, *) 'negative energy in Helmholtz EOS'
+         write (6, *) 'rho = ', rho, ' temp = ', temp, ' abar = ', abar, ' zbar = ', zbar
+         write (6, *) 'etot = ', etot, 'eion = ', eion, 'eele = ', eele, 'erad = ', erad
+         return
+      end if
 
-      w_success = .True.
+      success = .True.
 
    end subroutine helm_eos_wrap
 
@@ -1187,4 +1228,15 @@ contains
       kerg_mb = kerg * imb
       has_mb = .true.
     end subroutine set_mb
+
+   subroutine test_print() bind(C, name="test_print")
+      implicit none
+      include 'helm_table_storage.dek'
+
+      print *, 'table_read = ', table_read
+      print *, 'f(1, 1) = ', f(1, 1)
+      print *, 'f(imax, jmax) = ', f(imax, jmax)
+      print *, 'ft(1, 1) = ', ft(1,1)
+      print *, 'ft(imax, jmax) = ', ft(imax, jmax)
+   end subroutine test_print
 end module helm_eos

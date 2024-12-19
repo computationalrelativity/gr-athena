@@ -657,10 +657,10 @@ class EOS : public EOSPolicy, public ErrorPolicy {
 
     //! \brief Limit the specific internal energy to a specified range at a given density and composition
     inline void ApplySpecificInternalEnergyLimits(Real& eps, Real n, Real* Y) {
-      Real e = (1.0 + eps)*n*mb;
-      Real e_eos = e*code_units->EnergyConversion(*eos_units);
-      EnergyLimits(e_eos, MinimumEnergy(n, Y), MaximumEnergy(n, Y));
-      e = e_eos*eos_units->EnergyConversion(*code_units);
+      Real e = (1.0 + eps)*n*mb; // this is already in eos units
+      Real minE = MinimumEnergy(n, Y);
+      Real maxE = MaximumEnergy(n, Y);
+      EnergyLimits(e, minE, maxE);
       eps = e/n/mb - 1.0;
     }
 

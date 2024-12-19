@@ -32,7 +32,6 @@ EOSCompOSETransition::EOSCompOSETransition() {
   eos_units = &Nuclear;
   max_iter = 50;
   T_tol = 1e-10;
-  // set manually or after table read
   min_Y[1] = 1.0;
   max_Y[1] = 500.0;
 }
@@ -51,7 +50,6 @@ Real * EOSCompOSETransition::m_log_nb = nullptr;
 Real * EOSCompOSETransition::m_log_t = nullptr;
 Real * EOSCompOSETransition::m_yq = nullptr;
 Real * EOSCompOSETransition::m_table = nullptr;
-bool EOSCompOSETransition::s_compose_table_read = false;
 
 Real EOSCompOSETransition::m_id_log_nb = numeric_limits<Real>::quiet_NaN();
 Real EOSCompOSETransition::m_id_log_t = numeric_limits<Real>::quiet_NaN();
@@ -62,13 +60,13 @@ int EOSCompOSETransition::m_nt = 0;
 int EOSCompOSETransition::m_ny = 0;
 
 
-Real EOSCompOSETransition::s_mb = numeric_limits<Real>::quiet_NaN();
-Real EOSCompOSETransition::s_max_n = numeric_limits<Real>::quiet_NaN();
-Real EOSCompOSETransition::s_min_n = numeric_limits<Real>::quiet_NaN();
-Real EOSCompOSETransition::s_max_T = numeric_limits<Real>::quiet_NaN();
-Real EOSCompOSETransition::s_min_T = numeric_limits<Real>::quiet_NaN();
-Real EOSCompOSETransition::s_max_Y[MAX_SPECIES] = {0};
-Real EOSCompOSETransition::s_min_Y[MAX_SPECIES] = {0};
+Real EOSCompOSETransition::mb = numeric_limits<Real>::quiet_NaN();
+Real EOSCompOSETransition::max_n = numeric_limits<Real>::quiet_NaN();
+Real EOSCompOSETransition::min_n = numeric_limits<Real>::quiet_NaN();
+Real EOSCompOSETransition::max_T = numeric_limits<Real>::quiet_NaN();
+Real EOSCompOSETransition::min_T = numeric_limits<Real>::quiet_NaN();
+Real EOSCompOSETransition::max_Y[MAX_SPECIES] = {0};
+Real EOSCompOSETransition::min_Y[MAX_SPECIES] = {0};
 
 Real EOSCompOSETransition::m_min_h = numeric_limits<Real>::max();
 Real EOSCompOSETransition::m_trans_T_width = numeric_limits<Real>::quiet_NaN();
@@ -79,15 +77,20 @@ Real EOSCompOSETransition::trans_ln_start = numeric_limits<Real>::quiet_NaN();
 Real EOSCompOSETransition::trans_ln_end = numeric_limits<Real>::quiet_NaN();
 bool EOSCompOSETransition::m_initialized = false;
 
-
 Real EOSCompOSETransition::TemperatureFromEps(Real n, Real eps, Real *Y) {
   assert (m_initialized);
-  return temperature_from_var(ECLOGE, log(eps), n, Y[0], Y[1]);
+  Real eps_min = MinimumSpecificInternalEnergy(n, Y);
+  Real eps_max = MaximumSpecificInternalEnergy(n, Y);
+  return (eps <= eps_min) ? min_T : (eps >= eps_max) ? max_T : 
+    temperature_from_var(ECLOGE, log(eps), n, Y[0], Y[1]);
 }
 
 Real EOSCompOSETransition::TemperatureFromEps(Real n, Real eps, Real *Y, Real Tguess) {
   assert (m_initialized);
-  return temperature_from_var_with_guess(ECLOGE, log(eps), n, Y[0], Y[1], Tguess);
+  Real eps_min = MinimumSpecificInternalEnergy(n, Y);
+  Real eps_max = MaximumSpecificInternalEnergy(n, Y);
+  return (eps <= eps_min) ? min_T : (eps >= eps_max) ? max_T : 
+    temperature_from_var_with_guess(ECLOGE, log(eps), n, Y[0], Y[1], Tguess);
 }
 
 Real EOSCompOSETransition::TemperatureFromE(Real n, Real e, Real *Y) {
@@ -102,16 +105,20 @@ Real EOSCompOSETransition::TemperatureFromE(Real n, Real e, Real *Y, Real Tguess
 
 Real EOSCompOSETransition::TemperatureFromP(Real n, Real p, Real *Y) {
   assert (m_initialized);
-  if (p <= 0.0) {
-    printf("Pressure is %e\n", p);
-  }
-  assert (p > 0.);
-  return temperature_from_var(ECLOGP, log(p), n, Y[0], Y[1]);
+  Real p_min = MinimumPressure(n, Y);
+  Real p_max = MaximumPressure(n,Y);
+
+  return (p <= p_min) ? min_T : (p >= p_max) ? max_T :
+    temperature_from_var(ECLOGP, log(p), n, Y[0], Y[1]);
 }
 
 Real EOSCompOSETransition::TemperatureFromP(Real n, Real p, Real *Y, Real Tguess) {
   assert (m_initialized);
-  return temperature_from_var_with_guess(ECLOGP, log(p), n, Y[0], Y[1], Tguess);
+  Real p_min = MinimumPressure(n, Y);
+  Real p_max = MaximumPressure(n,Y);
+
+  return (p <= p_min) ? min_T : (p >= p_max) ? max_T :
+    temperature_from_var_with_guess(ECLOGP, log(p), n, Y[0], Y[1], Tguess);
 }
 
 Real EOSCompOSETransition::Energy(Real n, Real T, Real *Y) {
@@ -175,6 +182,14 @@ Real EOSCompOSETransition::MinimumPressure(Real n, Real *Y) {
 
 Real EOSCompOSETransition::MaximumPressure(Real n, Real *Y) {
   return Pressure(n, max_T, Y);
+}
+
+Real EOSCompOSETransition::MinimumSpecificInternalEnergy(Real n, Real *Y) {
+  return SpecificInternalEnergy(n, min_T, Y);
+}
+
+Real EOSCompOSETransition::MaximumSpecificInternalEnergy(Real n, Real *Y) {
+  return SpecificInternalEnergy(n, max_T, Y);
 }
 
 Real EOSCompOSETransition::MinimumEnergy(Real n, Real *Y) {
@@ -261,7 +276,7 @@ void EOSCompOSETransition::SetTemperatureTolerance(Real tol) {
 }
 
 void EOSCompOSETransition::PrintParameters() {
-  printf("EOSCompOSETransition: Initialized\n");
+  printf("EOSCompOSETransition:\n");
   printf("  min_n = %e\n", min_n);
   printf("  max_n = %e\n", max_n);
   printf("  min_T = %e\n", min_T);
@@ -276,11 +291,11 @@ void EOSCompOSETransition::PrintParameters() {
   printf("  T transition end = %e\n", trans_T_end);
   printf("  n transition start = %e\n", exp(trans_ln_start));
   printf("  n transition end = %e\n", exp(trans_ln_end));
-  // printf("  dens conversion = %.15e\n", eos_units->DensityConversion(CGS)*mb*eos_units->MassConversion(CGS));
-  // printf("  temp conversion = %.15e\n", eos_units->TemperatureConversion(CGS));
-  // printf("  pres conversion = %.15e\n", CGS.PressureConversion(*eos_units));
-  // printf("  inte conversion = %.15e\n", CGS.SpecificInternalEnergyConversion(*eos_units));
-  // printf("  entr conversion = %.15e\n", CGS.EntropyConversion(*eos_units)*mb*eos_units->MassConversion(CGS));
+  printf("  dens conversion = %.15e\n", eos_units->DensityConversion(CGS)*mb*eos_units->MassConversion(CGS));
+  printf("  temp conversion = %.15e\n", eos_units->TemperatureConversion(CGS));
+  printf("  pres conversion = %.15e\n", CGS.PressureConversion(*eos_units));
+  printf("  inte conversion = %.15e\n", CGS.SpecificInternalEnergyConversion(*eos_units));
+  printf("  entr conversion = %.15e\n", CGS.EntropyConversion(*eos_units)*mb*eos_units->MassConversion(CGS));
 }
 
 void EOSCompOSETransition::read_compose_table(std::string fname) {
@@ -317,8 +332,8 @@ void EOSCompOSETransition::read_compose_table(std::string fname) {
   // -------------------------------------------------------------------------
   ierr = H5LTread_dataset_double(file_id, "nb", scratch);
     MYH5CHECK(ierr);
-  s_min_n = scratch[0];
-  s_max_n = scratch[m_nn-1];
+  min_n = scratch[0];
+  max_n = scratch[m_nn-1];
   for (int in = 0; in < m_nn; ++in) {
     m_log_nb[in] = log(scratch[in]);
   }
@@ -326,8 +341,8 @@ void EOSCompOSETransition::read_compose_table(std::string fname) {
 
   ierr = H5LTread_dataset_double(file_id, "t", scratch);
     MYH5CHECK(ierr);
-  s_min_T = scratch[1];
-  s_max_T = scratch[m_nt-1];
+  min_T = scratch[1];
+  max_T = scratch[m_nt-1];
   for (int it = 0; it < m_nt; ++it) {
     m_log_t[it] = log(scratch[it]);
   }
@@ -335,8 +350,8 @@ void EOSCompOSETransition::read_compose_table(std::string fname) {
 
   ierr = H5LTread_dataset_double(file_id, "yq", scratch);
     MYH5CHECK(ierr);
-  s_min_Y[0] = scratch[0];
-  s_max_Y[0] = scratch[m_ny-1];
+  min_Y[0] = scratch[0];
+  max_Y[0] = scratch[m_ny-1];
   for (int iy = 0; iy < m_ny; ++iy) {
     m_yq[iy] = scratch[iy];
   }
@@ -345,7 +360,7 @@ void EOSCompOSETransition::read_compose_table(std::string fname) {
   // the neutron mass is used as the baryon mass in CompOSE
   ierr = H5LTread_dataset_double(file_id, "mn", scratch);
     MYH5CHECK(ierr);
-  s_mb = scratch[0];
+  mb = scratch[0];
 
   // Read other thermodynamics quantities
   // -------------------------------------------------------------------------
@@ -393,7 +408,7 @@ void EOSCompOSETransition::read_compose_table(std::string fname) {
   for (int iy = 0; iy < m_ny; ++iy) {
   for (int it = 0; it < m_nt; ++it) {
     m_table[index(ECLOGE, in, iy, it)] =
-      scratch[index(0, in, iy, it)]; // Will be converted to log(E) later
+      scratch[index(0, in, iy, it)]; // Will be converted to log(eps) later
   }}}
 
   ierr = H5LTread_dataset_double(file_id, "cs2", scratch);
@@ -422,34 +437,26 @@ void EOSCompOSETransition::read_helmholtz_table(std::string fname) {
 void EOSCompOSETransition::update_baryon_mass() {
   Real Abar = 1.0;
 
-  Real new_mb = s_mb;
+  Real new_mb = mb;
   for (int in = 0; in < m_nn; ++in) {
     Real ln = m_log_nb[in];
-    if (ln >= -8) break;
+    if (ln > -8) continue;
     for (int it = 0; it < m_nt; ++it) {
       Real lT = m_log_t[it];
-      if (lT >= -1) break;
-      if (ln > trans_ln_start and exp(lT) > trans_T_start) break;
+      if (lT > -2) continue;
       for (int iy = 0; iy < m_ny; ++iy) {
         Real ye = m_yq[iy];
-        Real eps = m_table[index(ECLOGE, in, iy, it)]; // table is not yet log(eps)
-        Real eps_helm =  exp(eval_helm_at_lnty(ECLOGE, ln, lT, ye, Abar));
-        // new_mb = min(mb*(1 + eps - eps_helm), new_mb);
-        if (mb*(1 + eps - eps_helm) < new_mb) {
-          new_mb = s_mb*(1 + eps - eps_helm);
-          printf("ln = %f, lT = %f, ye = %f, eps = %f, eps_helm = %f, mb = %f\n",
-               ln, lT, ye, eps, eps_helm, new_mb);
-        }
+        Real eps = m_table[index(ECLOGE, in, iy, it)]; 
+        Real eps_helm = exp(eval_helm_at_lnty(ECLOGE, ln, lT, ye, Abar));
+        new_mb = min(mb*(1 + eps - eps_helm), new_mb);
       }
     }
   }
 
-  printf("mb,  new_mb = %f, %f\n", mb, new_mb);
-
   // Update the baryon mass
-  Real mb_ratio = s_mb/new_mb;
-  s_mb = new_mb;
-  Real mb_cgs = s_mb*eos_units->MassConversion(CGS);
+  Real mb_ratio = mb/new_mb;
+  mb = new_mb;
+  Real mb_cgs = mb*eos_units->MassConversion(CGS);
   set_mb(&mb_cgs);
 
   // Update the internal energy
@@ -467,11 +474,6 @@ void EOSCompOSETransition::update_baryon_mass() {
       Real y = m_yq[iy];
       Abar = m_table[index(ECABAR, in, iy, it)];
       Real eps_helm =  exp(eval_helm_at_lnty(ECLOGE, ln, lT, y, Abar));
-      if (new_eps < eps_helm) {
-        printf("new_eps < eps_helm: %f < %f\n", new_eps, eps_helm);
-        printf("ln = %f, lT = %f, y = %f, Abar = %f\n", ln, lT, y, Abar);
-        printf("mb_ratio = %f\n", mb_ratio);
-      }
       assert(new_eps >= eps_helm);
     }
   }}}
@@ -494,10 +496,9 @@ void EOSCompOSETransition::update_bounds() {
   assert(rho_max >= rho_trans);
   assert(temp_max >= temp_trans);
 
-  s_min_n = rho_min / (eos_units->DensityConversion(CGS)
+  min_n = rho_min / (eos_units->DensityConversion(CGS)
                      * mb * eos_units->MassConversion(CGS));
-  s_min_T = temp_min / (eos_units->TemperatureConversion(CGS)) * (1 + 1e-5);
-  // printf("min_n, min_T = %e, %e\n", min_n, min_T);
+  min_T = temp_min / (eos_units->TemperatureConversion(CGS)) * (1 + 1e-5);
   Real min_ln = log(min_n)+1e-9;
   Real min_lT = log(min_T)+1e-9;
 
@@ -511,44 +512,38 @@ void EOSCompOSETransition::update_bounds() {
 
 
 void EOSCompOSETransition::InitializeTables(std::string fname, std::string helm_fname) {
-
-  #pragma omp single
+  #pragma omp critical
   {
-    read_compose_table(fname);
-    read_helmholtz_table(helm_fname);
+    if (not m_initialized) {
 
-    // Set the baryon mass in the Helmholtz EOS to the current mb
-    Real mb_cgs = mb*eos_units->MassConversion(CGS);
-    set_mb(&mb_cgs);
+      read_compose_table(fname);
+      read_helmholtz_table(helm_fname);
 
-    // Initialize the transitions if they have not been initialized
-    // -------------------------------------------------------------------------
-    if (std::isnan(m_trans_T_width)) {
-      m_trans_T_width = 1e9 * CGS.TemperatureConversion(*eos_units); // 1 GK
-      trans_T_end = min_T;
-      trans_T_start = min_T + m_trans_T_width;
+      // Set the baryon mass in the Helmholtz EOS to the current mb
+      Real mb_cgs = mb*eos_units->MassConversion(CGS);
+      set_mb(&mb_cgs);
+
+      // Initialize the transitions if they have not been initialized
+      // -------------------------------------------------------------------------
+      if (std::isnan(m_trans_T_width)) {
+        m_trans_T_width = 1e9 * CGS.TemperatureConversion(*eos_units); // 1 GK
+        trans_T_end = min_T;
+        trans_T_start = min_T + m_trans_T_width;
+      }
+
+      if (std::isnan(m_trans_ln_width)) {
+        m_trans_ln_width = log(5); // start = 5 times end of transition
+        trans_ln_end = log(min_n);
+        trans_ln_start = trans_ln_end + m_trans_ln_width;
+      }
+
+      update_baryon_mass();
+      update_bounds();
+
+      m_initialized = true;
+      PrintParameters();
     }
-
-    if (std::isnan(m_trans_ln_width)) {
-      m_trans_ln_width = log(5); // start = 5 times end of transition
-      trans_ln_end = log(min_n);
-      trans_ln_start = trans_ln_end + m_trans_ln_width;
-    }
-
-    update_baryon_mass();
-    update_bounds();
-
-    m_initialized = true;
   }
-  // in order to keep the definition from the interface these are
-  // not static and need to be populated
-  mb = s_mb;
-  max_n = s_max_n;
-  min_n = s_min_n;
-  max_T = s_max_T;
-  min_T = s_min_T;
-  max_Y[0] = s_max_Y[0];
-  min_Y[0] = s_min_Y[0];
 }
 
 Real EOSCompOSETransition::temperature_from_var(int iv, Real var, Real n, Real Yq, Real Abar) const {
@@ -563,15 +558,17 @@ Real EOSCompOSETransition::temperature_from_var(int iv, Real var, Real n, Real Y
     Real res =  eval_at_lnty(iv, ln, lT, Yq, Abar);
     // check nans
     if (std::isnan(res)) {
-      printf("EOSCompOSETransition: temperature_from_var: res is nan\n");
-      printf("  iv = %d\n", iv);
-      printf("  var = %e\n", var);
-      printf("  n = %e\n", n);
-      printf("  Yq = %e\n", Yq);
-      printf("  Abar = %e\n", Abar);
-      printf("  lT = %e\n", lT);
-      printf("  ln = %e\n", ln);
-      printf("  res = %e\n", res);
+      std::stringstream msg;
+      msg << "EOSCompOSETransition: temperature_from_var: res is nan\n"
+          << "  iv = " << iv << "\n"
+          << "  var = " << var << "\n"
+          << "  n = " << n << "\n"
+          << "  Yq = " << Yq << "\n"
+          << "  Abar = " << Abar << "\n"
+          << "  lT = " << lT << "\n"
+          << "  ln = " << ln << "\n"
+          << "  res = " << res;
+        throw std::runtime_error(msg.str());
     }
     return res - var;
   };
@@ -692,9 +689,6 @@ Real EOSCompOSETransition::eval_helm_at_lnty(int iv, Real ln, Real lT, Real Yq, 
 
   bool success_flag;
 
-  // printf("n = %e, T = %e, Ye = %.5f, Abar = %.2f\n", exp(ln), exp(lT), Yq, Abar);
-  // printf("rho = %.15e, temp = %.15e, Yq = %.5f, Abar = %.5f\n", rho, temp, Yq, Abar);
-
   helm_eos_wrap(
     &rho, &temp, &Abar, &Zbar,
     &etot, &ptot, &stot,
@@ -711,6 +705,7 @@ Real EOSCompOSETransition::eval_helm_at_lnty(int iv, Real ln, Real lT, Real Yq, 
     return NAN;
   }
 
+  Real ret;
   switch (iv) {
     case ECLOGE:
       return log(etot*CGS.SpecificInternalEnergyConversion(*eos_units));
@@ -719,17 +714,16 @@ Real EOSCompOSETransition::eval_helm_at_lnty(int iv, Real ln, Real lT, Real Yq, 
     case ECENT:
       return stot*CGS.EntropyConversion(*eos_units)*mb*eos_units->MassConversion(CGS);
     case ECCS:
-      return cs*CGS.c/eos_units->c;
+      return cs/CGS.c*eos_units->c;
     case ECABAR:
       return Abar;
-    // TODO the chemical pots are prob not correct
-    // but are they even needed?
+    // TODO the chemical pots are prob needed?
     case ECMUB:
-      return etaion*exp(lT);
+      return 0.0;
     case ECMUQ:
-      return (etaele + etaion*Yq)*exp(lT);
+      return 0.0;
     case ECMUL:
-      return etaele*exp(lT);
+      return 0.0;
   }
 
   printf("Invalid variable index %d\n", iv);

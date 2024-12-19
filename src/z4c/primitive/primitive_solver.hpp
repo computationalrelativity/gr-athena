@@ -406,6 +406,12 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
   // Apply limits to Y to ensure a physical state
   bool Y_adjusted = peos->ApplySpeciesLimits(Y);
 
+
+  if (D>1) {
+    printf("D=%.5e\n", D);
+    printf("tau=%.5e\n", tau);
+  }
+
   // Check the conserved variables for consistency and do whatever
   // the EOSPolicy wants us to.
   bool floored = peos->ApplyConservedFloor(D, S_d, tau, Y, SquareVector(B_u, g3d));

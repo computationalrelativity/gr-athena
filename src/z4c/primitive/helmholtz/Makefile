@@ -1,5 +1,5 @@
 FC       := gfortran
-FFLAGS   += -O0 -g -Wall -Wpedantic
+FFLAGS   += -O3 -Wall -Wpedantic
 LIB      := ar crs
 FLAGS    :=
 

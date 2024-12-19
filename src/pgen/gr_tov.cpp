@@ -1149,7 +1149,7 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
   AT_N_sym sl_S_dd(pz4c->storage.mat, Z4c::I_MAT_Sxx);
 
 #if USETM
-  Real T_initial = pin->GetReal("hydro","tfloor");
+  Real rho_atm = pin->GetOrAddReal("hydro", "dfloor", std::sqrt(1024*(FLT_MIN)));
   Real Y_atm[MAX_SPECIES] = {0.0};
 #if EOS_POLICY_CODE == 2 || EOS_POLICY_CODE == 4
   Y_atm[0] = pin->GetReal("hydro", "y0_atmosphere");
@@ -1329,13 +1329,18 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
         else
         {
           // Let the EOS decide how to set the atmosphere on the exterior
-          w_rho_(i) = 0.0;
-          w_p_(i)   = 0.0;
+#if USETM
+          w_rho_(i) = ceos->GetDensityFloor();
+          w_p_(i)   = ceos->GetPressure(w_rho_(i));
           up_r      = 0.0;
 #if NSCALARS > 0
           for (int l=0; l<NSCALARS; ++l) {
             prim_scalar(l,i) = Y_atm[l];
           }
+#endif
+#else
+          w_rho_(i) = 0.0; //rho_atm;
+          w_p_(i) = 0.0; //k_adi*pow(w_rho_(i),gamma_adi);
 #endif
         }
 

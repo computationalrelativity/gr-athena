@@ -96,6 +96,12 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     /// Get the maximum pressure at a given density and composition
     Real MaximumPressure(Real n, Real *Y);
 
+    /// Get the minimum specific internal energy at a given density and composition
+    Real MinimumSpecificInternalEnergy(Real n, Real *Y);
+
+    /// Get the maximum specific internal energy at a given density and composition
+    Real MaximumSpecificInternalEnergy(Real n, Real *Y);
+
     /// Get the minimum energy at a given density and composition
     Real MinimumEnergy(Real n, Real *Y);
 
@@ -174,6 +180,9 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     Real T_tol;  // Tolerance for temperature root finding
     static Real trans_T_start, trans_T_end, trans_ln_start, trans_ln_end; // Transition parameters
 
+    // these are redefinitions to static from the eos_policy_interface
+    static Real mb, max_n, min_n, max_T, min_T, max_Y[MAX_SPECIES], min_Y[MAX_SPECIES];
+
   private:
     // Inverse of table spacing
     static Real m_id_log_nb, m_id_log_t, m_id_yq;
@@ -192,12 +201,6 @@ class EOSCompOSETransition : public EOSPolicyInterface {
 
     // bool to protect against access of uninitialised table, and prevent repeated reading of table
     static bool m_initialized;
-
-    // bool to read the compose table only once
-    static bool s_compose_table_read;
-
-    // these have to be redistributed to the local member variants because they are defined elsewhere
-    static Real s_mb, s_max_n, s_min_n, s_max_T, s_min_T, s_max_Y[MAX_SPECIES], s_min_Y[MAX_SPECIES];
 };
 
 
@@ -241,6 +244,8 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     );
 
     void set_mb(Real * const mb);
+
+    void test_print();
   }
 } // namespace Primitive
 
