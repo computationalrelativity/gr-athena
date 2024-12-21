@@ -922,6 +922,8 @@ void SurfaceSpherical::PrepareInterpolators()
 
 void SurfaceSpherical::TearDownInterpolators()
 {
+  // clean up mask containing salient MeshBlock
+  mask_mb.Fill(nullptr);
 
   for (int i=0; i<N_th; ++i)
   for (int j=0; j<N_ph; ++j)
