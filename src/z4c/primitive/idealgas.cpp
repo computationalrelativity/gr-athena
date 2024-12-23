@@ -36,6 +36,10 @@ Real IdealGas::TemperatureFromP(Real n, Real p, Real *Y) {
   return p/n;
 }
 
+Real IdealGas::TemperatureFromEntropy(Real n, Real s, Real *Y) {
+  throw std::logic_error("IdealGas::TemperatureFromEntropy not currently implemented.");
+}
+
 Real IdealGas::Energy(Real n, Real T, Real *Y) {
   return n*(mb + T/gammam1);
 }
