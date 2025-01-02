@@ -254,6 +254,12 @@ private:
     Iof_Psio_dyn,
     Iof_Qplus,
     Iof_Qstar,
+    Iof_H1_dot,
+    Iof_H0_dr,
+    Iof_H0,
+    Iof_H1,
+    Iof_H,
+    Iof_H_dr,
     Iof_hlm, // This should be last!
     Iof_Num, 
   };

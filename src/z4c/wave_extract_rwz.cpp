@@ -247,7 +247,16 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh * pmesh, ParameterInput * pin, int n):
   ofbname[Iof_Psie_dyn] = pin->GetOrAddString("rwz_extraction", "filename_psie_dyn", "wave_psie_dyn"); 
   ofbname[Iof_Psio_dyn] = pin->GetOrAddString("rwz_extraction", "filename_psio_dyn", "wave_psio_dyn"); 
   ofbname[Iof_Qplus] = pin->GetOrAddString("rwz_extraction", "filename_Qplus", "wave_Qplus");
-  ofbname[Iof_Qstar] = pin->GetOrAddString("rwz_extraction", "filename_Qstar", "wave_Qstar");      
+  ofbname[Iof_Qstar] = pin->GetOrAddString("rwz_extraction", "filename_Qstar", "wave_Qstar");
+  
+  // Extra output for debuging
+  ofbname[Iof_H1_dot] = pin->GetOrAddString("rwz_extraction", "filename_H1_dot", "wave_H1dot");
+  ofbname[Iof_H0_dr] = pin->GetOrAddString("rwz_extraction", "filename_H0_dr", "wave_H0dr");
+  ofbname[Iof_H0] = pin->GetOrAddString("rwz_extraction", "filename_H0", "wave_H0");
+  ofbname[Iof_H1] = pin->GetOrAddString("rwz_extraction", "filename_H1", "wave_H1");
+  ofbname[Iof_H] = pin->GetOrAddString("rwz_extraction", "filename_H", "wave_H");
+  ofbname[Iof_H_dr] = pin->GetOrAddString("rwz_extraction", "filename_H_dr", "wave_Hdr");
+
  // }// if (ioproc)
 
 }
@@ -480,14 +489,20 @@ void WaveExtractRWZ::Write(int iter, Real time) {
   // ------------------------------------------------------------------------
   
   std::vector<AthenaArray<Real>*> data;
-  data.reserve(6);
+  data.reserve(12);
   data.push_back(&Psie);
   data.push_back(&Psio);
   data.push_back(&Psie_dyn);
   data.push_back(&Psio_dyn);
   data.push_back(&Qplus);
   data.push_back(&Qstar);
-  
+  data.push_back(&H1_dot);
+  data.push_back(&H0_dr);
+  data.push_back(&H0);
+  data.push_back(&H1);
+  data.push_back(&H);
+  data.push_back(&H_dr);
+
   for (int i = Iof_adm+1; i < Iof_Num; ++i) {
     
     ofname = OutputFileName(ofbname[i]);	 
@@ -2551,7 +2566,7 @@ void WaveExtractRWZ::MasterFuns() {
 	const Real Psio_sch_ = r*( H1_dot(lm,c) - H0_dr(lm,c) + 2.0*div_r*H0(lm,c) )*div_lambda_2;
 	Psio_sch(lm,c) = Psio_sch_;	
 	
-	const Real Qstar_ = div_r*S*( H1(lm,c) - H_dr(lm,c)*div_r + 2.0*H(lm,c)*SQR(div_r) );
+	const Real Qstar_ = div_r*S*( H1(lm,c) - H_dr(lm,c) + 2.0*H(lm,c)*div_r );
 	Qstar(lm,c) = Qstar_;
 	
 	// Even parity in general coordinates (static)
