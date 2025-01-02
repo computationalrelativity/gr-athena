@@ -6,12 +6,12 @@
 
 
 ! math constants
-      real*8, parameter:: pi       = 3.1415926535897932384d0, &
+      real(8), parameter:: pi       = 3.1415926535897932384d0, &
                           eulercon = 0.577215664901532861d0, &
                           a2rad    = pi/180.0d0,  rad2a = 180.0d0/pi
 
 ! physical constants
-      real*8, parameter :: g       = 6.6742867d-8, &
+      real(8), parameter :: g       = 6.6742867d-8, &
                            h       = 6.6260689633d-27, &
                            hbar    = 0.5d0 * h/pi, &
                            qe      = 4.8032042712d-10, &
@@ -35,7 +35,7 @@
 
 
 ! astronomical constants
-      real*8, parameter :: msol    = 1.9892d33, &
+      real(8), parameter :: msol    = 1.9892d33, &
                            rsol    = 6.95997d10, &
                            lsol    = 3.8268d33, &
                            mearth  = 5.9764d27, &

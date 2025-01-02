@@ -207,7 +207,7 @@ class EOSCompOSETransition : public EOSPolicyInterface {
   extern "C" {
     void read_helm_table(const char * helmTablePath, const int * str_len);
 
-    void helm_eos_wrap(
+    void helm_etot(
       const Real * const rho,             // density in g / cm^3
       const Real * const temp,            // temperature in K
       const Real * const Abar,            // average mass number A
@@ -215,13 +215,24 @@ class EOSCompOSETransition : public EOSPolicyInterface {
       // output specific internal electron and photon energy in erg / g
       Real * const etot,
       // output pressure in erg / cm^3
+      bool * const success_flag  // true if succeeded
+    );
+
+    void helm_ptot(
+      const Real * const rho,             // density in g / cm^3
+      const Real * const temp,            // temperature in K
+      const Real * const Abar,            // average mass number A
+      const Real * const Zbar,            // average atomic number Z
+      // output pressure in erg / cm^3
       Real * const ptot,
-      // output entropy in erg / g / K
-      Real * const stot,
-      // output electron degeneracy parameter
-      Real * const etaele,
-      // output ion degeneracy parameter
-      Real * const etaion,
+      bool * const success_flag  // true if succeeded
+    );
+
+    void helm_cs(
+      const Real * const rho,             // density in g / cm^3
+      const Real * const temp,            // temperature in K
+      const Real * const Abar,            // average mass number A
+      const Real * const Zbar,            // average atomic number Z
       // output speed of sound in cm / s
       Real * const cs,
       bool * const success_flag  // true if succeeded
@@ -230,7 +241,6 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     void check_bounds(
       const Real * rho_trans,
       const Real * temp_trans,
-      const Real * ye_min,
       const Real * ye_max,
       bool * success
     );

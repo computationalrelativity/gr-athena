@@ -96,8 +96,8 @@ void ResetFloor::PressureLimits(Real& P, Real P_min, Real P_max) {
 /// Apply energy density limiter
 void ResetFloor::EnergyLimits(Real& e, Real e_min, Real e_max) {
   Real en = std::fmax(e_min, std::fmin(e_max, e));
-  if (en != e)
-    printf("e_new = %.5e, e_old = %.5e", en, e);
+  // if (en != e)
+  //   printf("e_new = %.5e, e_old = %.5e\n", en, e);
   e = en;
 }
 

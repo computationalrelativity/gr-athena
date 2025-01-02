@@ -487,7 +487,7 @@ void EOSCompOSETransition::update_bounds() {
   const Real temp_trans = trans_T_start
     * eos_units->TemperatureConversion(CGS);
   bool success;
-  check_bounds(&rho_trans, &temp_trans, &min_Y[0], &max_Y[0], &success);
+  check_bounds(&rho_trans, &temp_trans, &max_Y[0], &success);
   assert(success);
 
   Real rho_min, rho_max, temp_min, temp_max;
@@ -679,55 +679,61 @@ Real EOSCompOSETransition::eval_helm_at_lnty(int iv, Real ln, Real lT, Real Yq, 
   Real rho = exp(ln) * eos_units->DensityConversion(CGS)*mb*eos_units->MassConversion(CGS);
   Real temp = exp(lT) * eos_units->TemperatureConversion(CGS);
   Real Zbar = Abar*Yq;
+  if (Yq < 1e-2) printf("Yq = %.5f\n", Yq);
 
-  Real etot = 0;
-  Real ptot = 0;
+  Real etot;
+  Real ptot;
+  Real cs;
   Real stot = 0;
   Real etaele = 0;
   Real etaion = 0;
-  Real cs = 0;
+  Real res;
 
-  bool success_flag;
+  bool success_flag = false;
 
-  helm_eos_wrap(
-    &rho, &temp, &Abar, &Zbar,
-    &etot, &ptot, &stot,
-    &etaele, &etaion, &cs,
-    &success_flag
-  );
-
-
-  if (!success_flag) {
-    printf("Failed to evaluate helmholtz EOS\n");
-    printf("ln = %e, lT = %e, Yq = %e\n", ln, lT, Yq);
-    printf("rho = %e, temp = %e, Abar = %e, Zbar = %e\n", rho, temp, Abar, Zbar);
-    printf("etot = %e, ptot = %e, stot = %e\n", etot, ptot, stot);
-    return NAN;
-  }
-
-  Real ret;
   switch (iv) {
     case ECLOGE:
-      return log(etot*CGS.SpecificInternalEnergyConversion(*eos_units));
+      helm_etot(&rho, &temp, &Abar, &Zbar, &etot, &success_flag);
+      res = log(etot*CGS.SpecificInternalEnergyConversion(*eos_units));
+      break;
     case ECLOGP:
-      return log(ptot*CGS.PressureConversion(*eos_units));
-    case ECENT:
-      return stot*CGS.EntropyConversion(*eos_units)*mb*eos_units->MassConversion(CGS);
+      helm_ptot(&rho, &temp, &Abar, &Zbar, &ptot, &success_flag);
+      res = log(ptot*CGS.PressureConversion(*eos_units));
+      break;
     case ECCS:
-      return cs/CGS.c*eos_units->c;
+      helm_cs(&rho, &temp, &Abar, &Zbar, &cs, &success_flag);
+      res = cs/CGS.c*eos_units->c;
+      break;
     case ECABAR:
-      return Abar;
-    // TODO the chemical pots are prob needed?
+      res = Abar;
+      break;
+    // TODO add these but are they even needed?
+    case ECENT:
+      res = 0;
+      break;
     case ECMUB:
-      return 0.0;
+      res = 0;
+      break;
     case ECMUQ:
-      return 0.0;
+      res = 0;
+      break;
     case ECMUL:
-      return 0.0;
+      res = 0;
+      break;
   }
+  return res;
 
-  printf("Invalid variable index %d\n", iv);
-  return NAN;
+  if (not success_flag) {
+    std::ostringstream oss;
+    oss << "Failed to evaluate helmholtz EOS\n";
+    oss << "ln = " << ln << ", lT = " << lT << ", Yq = " << Yq << "\n";
+    oss << "rho = " << rho << ", temp = " << temp << ", Abar = " << Abar << ", Zbar = " << Zbar << "\n";
+    oss << "etot = " << etot << ", ptot = " << ptot << ", stot = " << stot;
+
+    throw std::runtime_error(oss.str());
+  } else {
+    return res;
+  }
 }
 
 
