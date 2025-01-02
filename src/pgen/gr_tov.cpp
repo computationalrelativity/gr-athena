@@ -76,6 +76,7 @@ namespace {
   Real n_nodes; // number of nodes for the sinusoidal preassure perturbations
   int l_pert; // l mode for perturbation
   int m_pert; // m mode for perturbation
+  bool AddMetricPerturbation;
 
   // TOV var indexes for ODE integration
   enum{TOV_IRHO,TOV_IMASS,TOV_IPHI,TOV_IINT,TOV_NVAR};
@@ -243,6 +244,9 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   l_pert = pin->GetOrAddInteger("problem", "l_pert", 2);
   m_pert = pin->GetOrAddInteger("problem", "m_pert", 0);
   
+  // metric perturbation
+  AddMetricPerturbation = pin->GetOrAddBoolean("problem", "metric_pert", false);
+
 #if USETM
   // Initialize cold EOS
   ceos = new Primitive::ColdEOS<Primitive::COLDEOS_POLICY>;
@@ -997,6 +1001,9 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
   AT_N_sym sp_g_uu_(Nx1);
   AT_N_sym sp_K_dd_(Nx1);
 
+  // Spatial Odd perturbation
+  AT_N_sym h_cart(Nx1);   
+
   AT_N_sca alpha_(  Nx1);
   AT_N_sca dralpha_(Nx1);   // radial cpt.
   AT_N_vec d1alpha_(Nx1);   // Cart. cpts.
@@ -1418,6 +1425,53 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
         // Isotropic radius
         r_(i) = std::sqrt(SQR(x_(i))+SQR(y_(i))+SQR(z_(i)));
 
+        // Coordinates and setup for metric perturbation:
+        const Real theta_i = std::acos(z_(i)/r_(i));
+        const Real phi_i = std::acos(x_(i)/std::sqrt(SQR(x_(i))+SQR(y_(i)))) * (y_(i) > 0 ? 1. : -1.);
+        const Real sinth = std::sin(theta_i);
+        const Real costh = std::cos(theta_i);
+        const Real sinph = std::sin(phi_i);
+        const Real cosph = std::cos(phi_i);
+        
+        const Real gaussian_pert = 0.001 * std::exp( - SQR((r_(i) - 10.0*R)/(0.5*R)) );
+        Real Ylm_thR, Ylm_thI, Ylm_phR, Ylm_phI, XlmR, XlmI, WlmR, WlmI;   
+        SphHarm_Ylm_a(2,0, theta_i,phi_i,
+			&Ylm_thR, &Ylm_thI,
+			&Ylm_phR, &Ylm_phI,
+			&XlmR, &XlmI,
+			&WlmR, &WlmI);
+        const Real htt = - 0.5 * gaussian_pert * XlmI / sinth ;
+        const Real htp = 0.5 * gaussian_pert * WlmR * sinth ;
+        const Real hpp =  0.5 * gaussian_pert * XlmI * sinth ;
+        
+        Real Jac[3][3];
+        Real h_sph[3][3];
+
+        h_sph[0][0] = h_sph[1][0] = h_sph[0][1] = h_sph[2][0] = h_sph[0][2] = 0.0;
+        h_sph[1][1] = htt;
+        h_sph[1][2] = h_sph[2][1] = htp;
+        h_sph[2][2] = htt;
+
+        Jac[0][0] = sinth * cosph;
+        Jac[0][1] = r_(i) * costh * cosph;
+        Jac[0][2] = - r_(i) * sinth * sinph;
+        Jac[1][0] = sinth * sinph;
+        Jac[1][1] = r_(i) * costh * sinph;
+        Jac[1][2] = r_(i) * sinth * cosph;
+        Jac[2][0] = costh;
+        Jac[2][1] = - r_(i) * sinth;
+        Jac[2][2] = 0.0;
+
+        for (int a = 0; a < NDIM; ++a)
+	for (int b = 0; b < NDIM; ++b) {
+	  h_cart(a,b,i) = 0.0;
+	  for (int c = 0; c < NDIM; ++c)
+	    for (int d = 0; d < NDIM; ++d) {
+	      h_cart(a,b,i) += Jac[a][c] * h_sph[c][d] *  Jac[b][d] ;
+	    }
+	}
+
+ 
         if (r_(i)<R)
         {
           // Interior metric, lapse and conf.fact.
@@ -1469,6 +1523,18 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
       for (int i=il; i<=iu; ++i)
       {
         sp_g_dd_(a,a,i) = psi4_(i);
+      }
+
+      // Add metric perturbation if used
+      if (AddMetricPerturbation) {
+       
+        for (int a=0; a<N; ++a)
+        for (int b=a; b<N; ++b)
+        for (int i=il; i<=iu; ++i)
+        {
+          sp_g_dd_(a,b,i) -= h_cart(a,b,i);
+        }
+
       }
 
       // Transform if needed (assemble ambient M quantities here)

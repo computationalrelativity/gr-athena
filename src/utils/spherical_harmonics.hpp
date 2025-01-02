@@ -125,3 +125,42 @@ void SphHarm_Ylm(const int l, const int m, const Real theta, const Real phi,
   
 }
 
+// \brief compute vector spherical harmonics basis and functions Xlm and Wlm
+void SphHarm_Ylm_a(const int l_, const int m_, const Real theta, const Real phi,
+				   Real * YthR, Real * YthI, Real * YphR, Real * YphI,
+				   Real * XR, Real * XI, Real * WR, Real * WI) {
+  
+  const Real l = (Real)l_;
+  const Real m = (Real)m_;
+
+  const Real div_sin_theta = 1.0/(std::sin(theta));
+  const Real cot_theta = std::cos(theta) * div_sin_theta;
+  
+  const Real a = -(l+1.0) * cot_theta;
+  const Real b = std::sqrt((SQR(l+1.0)-SQR(m))*(l+0.5)/(l+1.5)) * div_sin_theta;
+
+  Real YR,YI; // l,m
+  SphHarm_Ylm(l,m,theta,phi,&YR,&YI);
+  
+  Real YplusR,YplusI; // l+1,m
+  SphHarm_Ylm(l+1,m,theta,phi,&YplusR,&YplusI);
+
+  const Real _YthR = a * YR + b * YplusR;
+  const Real _YthI = a * YI + b * YplusI;
+
+  const Real c = - 2.0*cot_theta;
+  const Real d = (2.0*SQR(m*div_sin_theta) - l*(l+1.0));
+  
+  *YthR = _YthR;
+  *YthI = _YthI;
+  
+  *YphR = - m * YI;
+  *YphI =   m * YR;
+
+  *WR =  c * (*YthR) + d * YR;
+  *WI =  c * (*YthI) + d * YI;
+
+  *XR = 2.0 * m * (cot_theta*YI - _YthI);
+  *XI = 2.0 * m * (_YthR - cot_theta*YR);    
+}
+
