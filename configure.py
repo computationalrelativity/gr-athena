@@ -598,6 +598,10 @@ parser.add_argument(
   "--elliptica_path", default="", help="path to Elliptica libraries"
 )
 
+## rns_path_argument
+parser.add_argument('--rns_path',
+                    default='',
+                    help='path to rns library')
 # -ccache argument
 parser.add_argument(
   "-ccache", action="store_true", default=False, help="enable caching compiler",
@@ -1702,6 +1706,46 @@ if "Elliptica" in args["prob"]:
       msg
     )
 
+# -rns argument
+if args['prob'] == "gr_rns":
+#    if not args['gsl']:
+#        raise SystemExit('### CONFIGURE ERROR: To compile with two punctures -gsl is required.')
+
+    definitions['RNS_OPTION'] = 'RNS'
+
+    if args['rns_path'] == '':
+        os.system('mkdir -p extern/initial_data')
+        args['rns_path'] = 'extern/initial_data/rns'
+        if os.path.exists('../rnsc'):
+            os.system('rm {}'.format(args['rns_path']))
+            os.system('ln -s ../../../rnsc {}'.format(args['rns_path']))
+        else:
+            raise SystemExit('### CONFIGURE ERROR: To compile with rns, it is necessary to have external initial data rns library ../rnsc.')
+    if args['rns_path'] != '':
+        makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/include'.format(
+            args['rns_path'])
+        makefile_options['LINKER_FLAGS'] += ' -L{0}/obj'.format(
+            args['rns_path'])
+    if (args['cxx'] == 'g++' or args['cxx'] == 'icc' or args['cxx'] == 'cray'
+            or args['cxx'] == 'icc-debug' or args['cxx'] == 'icc-phi'
+            or args['cxx'] == 'clang++' or args['cxx'] == 'clang++-simd'
+            or args['cxx'] == 'bgxl'):
+
+        obj_dir = args['rns_path'] + '/obj/'
+        so_names = ['RNS_equil_util.o', 'RNS_nrutil.o', 'RNS_rnsid_util.o',
+                    'RNS_equil.o', 'RNS_extra.o', 'RNS.o']
+
+
+        ## Check the external library has been compiled
+        for so in so_names:
+            if not os.path.isfile(obj_dir + so):
+                print(obj_dir + so)
+                raise SystemExit('### CONFIGURE ERROR: It appears that library ../rnsc has not been compiled yet: some objects files are missing.')
+
+        for n in so_names:
+            makefile_options['LIBRARY_FLAGS'] += ' ' + obj_dir + n
+else:
+    definitions['RNS_OPTION'] = 'NO_RNS'
 # --cflag=[string] argument
 if args["cflag"] is not None:
   makefile_options["COMPILER_FLAGS"] += " " + args["cflag"]

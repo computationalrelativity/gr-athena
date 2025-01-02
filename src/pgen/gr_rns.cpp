@@ -26,13 +26,13 @@
 
 using namespace std;
 
-static ini_data *data;
+static ini_data *rns_data;
 
 //int RefinementCondition(MeshBlock *pmb);
 
 Real Maxrho(MeshBlock *pmb, int iout);
 Real Minalp(MeshBlock *pmb, int iout);
-Real L1rhodiff(MeshBlock *pmb, int iout);
+//Real L1rhodiff(MeshBlock *pmb, int iout);
 
 //========================================================================================
 //! \fn void Mesh::InitUserMeshData(ParameterInput *pin)
@@ -41,19 +41,19 @@ Real L1rhodiff(MeshBlock *pmb, int iout);
 //  functions in this file.  Called in Mesh constructor.
 //========================================================================================
 
-void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag)
+void Mesh::InitUserMeshData(ParameterInput *pin)
 {
   AllocateUserHistoryOutput(3);
   EnrollUserHistoryOutput(0, Maxrho, "max-rho", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(1, L1rhodiff, "L1rhodiff");
-  EnrollUserHistoryOutput(2, Minalp, "min-alp", UserHistoryOperation::min);
+//  EnrollUserHistoryOutput(1, L1rhodiff, "L1rhodiff");
+  EnrollUserHistoryOutput(1, Minalp, "min-alp", UserHistoryOperation::min);
 
-  if (!res_flag) {     
+  if (!resume_flag) {     
     string set_name = "problem";
     RNS_params_set_default();
     string inputfile = pin->GetOrAddString("problem", "filename", "tovgamma2.par");
     RNS_params_set_inputfile((char *) inputfile.c_str());    
-    data = RNS_make_initial_data();
+    rns_data = RNS_make_initial_data();
   }
 
   //if(adaptive==true)
@@ -62,10 +62,10 @@ void Mesh::InitUserMeshData(ParameterInput *pin, int res_flag)
   return;
 }
 
-void Mesh::UserWorkAfterLoop(ParameterInput *pin, int res_flag)
+void Mesh::UserWorkAfterLoop(ParameterInput *pin)
 {
-  if (!res_flag)
-    RNS_finalise(data);
+  if (!resume_flag)
+    RNS_finalise(rns_data);
   return;
 }
 
@@ -107,12 +107,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   Real k_adi = pin->GetReal("hydro","k_adi");
   Real gamma_adi = pin->GetReal("hydro","gamma");
   Real fatm = pin->GetReal("problem","fatm");
-  Real pres_pert = pin->GeOrAddtReal("problem","pres_pert",0);
+  Real pres_pert = pin->GetOrAddReal("problem","pres_pert",0);
   Real v_pert = pin->GetOrAddReal("problem","v_pert",0);
 
-  MeshBlock * pmb = pmy_block;
-  Coordinates * pco = pmb->pcoord;
-  Z4c * pz4c = pmb->pz4c;
+//  MeshBlock * pmb = pmy_block;
+//  Coordinates * pco = pcoord;
+//  Z4c * pz4c = pmb->pz4c;
 
   // container with idx / grids pertaining z4c
   MB_info* mbi = &(pz4c->mbi);
@@ -156,7 +156,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   // Interpolate geometry
   RNS_Cartesian_interpolation
-    (data, // struct containing the previously calculated solution
+    (rns_data, // struct containing the previously calculated solution
      imin, // min, max idxs of Cartesian Grid in the three directions
      n,    // TODO WC: check this!!!1
      n,    // total number of indices in each direction
@@ -239,10 +239,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u1);
 
   //TODO Needed?
-  pcoord->UpdateMetric();  
-  if(pmy_mesh->multilevel){
-    pmr->pcoarsec->UpdateMetric();
-  }
+//  pcoord->UpdateMetric();  
+//  if(pmy_mesh->multilevel){
+//    pmr->pcoarsec->UpdateMetric();
+//  }
 
   //---------------------------------------------------------------------------  
   // Interpolate primitives
@@ -256,9 +256,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   Real *rho = new Real[sz], *pres = new Real[sz];
   Real *ux = new Real[sz], *uy = new Real[sz], *uz = new Real[sz];
   
-  Real *x = new Real[n[0]];
-  Real *y = new Real[n[1]];
-  Real *z = new Real[n[2]];
+  x = new Real[n[0]];
+  y = new Real[n[1]];
+  z = new Real[n[2]];
 
   // Populate coordinates
   for(int i = 0; i < n[0]; ++i) {
@@ -273,7 +273,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   // Interpolate primitives
   RNS_Cartesian_interpolation
-    (data, // struct containing the previously calculated solution
+    (rns_data, // struct containing the previously calculated solution
      imin, // min, max idxs of Cartesian Grid in the three directions
      n,    // 
      n,    // total number of indices in each direction
@@ -319,27 +319,27 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     int flat_ix = i + n[0]*(j + n[1]*k);
     Real r = std::sqrt(x[i]*x[i]+y[j]*y[j]+z[k]*z[k]);
     
-    phydro->w_init(IDN,k,j,i) = rho[flat_ix];
-    phydro->w_init(IPR,k,j,i) =  pres[flat_ix];
-    phydro->w_init(IVX, k, j, i) = ux[flat_ix];
-    phydro->w_init(IVY, k, j, i) = uy[flat_ix];
-    phydro->w_init(IVZ, k, j, i) = uz[flat_ix];
+    phydro->w(IDN,k,j,i) = rho[flat_ix];
+    phydro->w(IPR,k,j,i) =  pres[flat_ix];
+    phydro->w(IVX, k, j, i) = ux[flat_ix];
+    phydro->w(IVY, k, j, i) = uy[flat_ix];
+    phydro->w(IVZ, k, j, i) = uz[flat_ix];
 
     // Add perturbations
     if (pres_pert) {
-      phydro->w_init(IPR,k,j,i) -= pres_pert * pres[flat_ix];      
+      phydro->w(IPR,k,j,i) -= pres_pert * pres[flat_ix];      
     }
     if (v_pert) {
-      phydro->w_init(IVX, k, j, i) -= v_pert * std::cos(M_PI*r/(2.0*8.0))*x[i]/r;
-      phydro->w_init(IVY, k, j, i) -= v_pert * std::cos(M_PI*r/(2.0*8.0))*y[j]/r;
-      phydro->w_init(IVZ, k, j, i) -= v_pert * std::cos(M_PI*r/(2.0*8.0))*z[k]/r;
+      phydro->w(IVX, k, j, i) -= v_pert * std::cos(M_PI*r/(2.0*8.0))*x[i]/r;
+      phydro->w(IVY, k, j, i) -= v_pert * std::cos(M_PI*r/(2.0*8.0))*y[j]/r;
+      phydro->w(IVZ, k, j, i) -= v_pert * std::cos(M_PI*r/(2.0*8.0))*z[k]/r;
     }
     
-    phydro->w(IDN,k,j,i) = phydro->w1(IDN,k,j,i) = phydro->w_init(IDN,k,j,i);
-    phydro->w(IPR,k,j,i) = phydro->w1(IPR,k,j,i) = phydro->w_init(IPR,k,j,i);
-    phydro->w(IVX,k,j,i) = phydro->w1(IVX,k,j,i) = phydro->w_init(IVX,k,j,i);
-    phydro->w(IVY,k,j,i) = phydro->w1(IVY,k,j,i) = phydro->w_init(IVY,k,j,i);
-    phydro->w(IVZ,k,j,i) = phydro->w1(IVZ,k,j,i) = phydro->w_init(IVZ,k,j,i);
+    phydro->w1(IDN,k,j,i) = phydro->w(IDN,k,j,i); 
+    phydro->w1(IPR,k,j,i) = phydro->w(IPR,k,j,i);
+    phydro->w1(IVX,k,j,i) = phydro->w(IVX,k,j,i);
+    phydro->w1(IVY,k,j,i) = phydro->w(IVY,k,j,i);
+    phydro->w1(IVZ,k,j,i) = phydro->w(IVZ,k,j,i);
     
   }
 
@@ -371,7 +371,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     ku += NGHOST;
   }
 
-  peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord, il, iu, jl, ju, kl, ku);
+  peos->PrimitiveToConserved(phydro->w, 
+		  pscalars->r,
+		  pfield->bcc, phydro->u, 
+		  pscalars->s,
+		  pcoord, il, iu, jl, ju, kl, ku);
 
   //---------------------------------------------------------------------------  
   // Initialise matter & ADM constraints
@@ -425,7 +429,7 @@ Real Minalp(MeshBlock *pmb, int iout) {
   }
   return min_alp;
 }
-
+/*
 Real L1rhodiff(MeshBlock *pmb, int iout) {
   Real L1rho = 0.0;
   Real vol,dx,dy,dz;
@@ -443,3 +447,4 @@ Real L1rhodiff(MeshBlock *pmb, int iout) {
   }
   return L1rho;
 }
+*/
