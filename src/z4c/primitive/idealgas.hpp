@@ -27,6 +27,9 @@ class IdealGas : public EOSPolicyInterface {
     /// Calculate the temperature using the ideal gas law.
     Real TemperatureFromP(Real n, Real p, Real *Y);
 
+    /// Calculate the temperature using the entropy.
+    Real TemperatureFromEntropy(Real n, Real p, Real *Y);
+
     /// Calculate the energy density using the ideal gas law.
     Real Energy(Real n, Real T, Real *Y);
 
