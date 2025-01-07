@@ -52,6 +52,9 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     /// Temperature from specific internal energy
     Real TemperatureFromEps(Real n, Real eps, Real *Y);
     Real TemperatureFromEps(Real n, Real eps, Real *Y, Real Tguess);
+    //
+    /// Temperature from entropy per baryon
+    Real TemperatureFromEntropy(Real n, Real eps, Real *Y);
 
     /// Calculate the temperature using.
     Real TemperatureFromP(Real n, Real p, Real *Y);

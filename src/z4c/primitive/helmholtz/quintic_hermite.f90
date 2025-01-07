@@ -5,62 +5,62 @@ module quintic_hermite
 
 contains
 
-  function psi0(z) result(res)
+  pure function psi0(z) result(res)
     real(8), intent(in) :: z
     real(8) :: res
     res = z**3 * (z * (-6.0d0*z + 15.0d0) - 10.0d0) + 1.0d0
   end function psi0
 
-  function dpsi0(z) result(res)
+  pure function dpsi0(z) result(res)
     real(8), intent(in) :: z
     real(8) :: res
     res = z**2 * (z * (-30.0d0*z + 60.0d0) - 30.0d0)
   end function dpsi0
 
-  function psi1(z) result(res)
+  pure function psi1(z) result(res)
 
     real(8), intent(in) :: z
     real(8) :: res
     res = z * (z**2 * (z * (-3.0d0*z + 8.0d0) - 6.0d0) + 1.0d0)
   end function psi1
 
-  function dpsi1(z) result(res)
+  pure function dpsi1(z) result(res)
     real(8), intent(in) :: z
     real(8) :: res
     res = z*z * (z * (-15.0d0*z + 32.0d0) - 18.0d0) + 1.0d0
   end function dpsi1
 
-  function psi2(z) result(res)
+  pure function psi2(z) result(res)
     real(8), intent(in) :: z
     real(8) :: res
     res = 0.5d0 * z*z * (z * (z * (-z + 3.0d0) - 3.0d0) + 1.0d0)
   end function psi2
 
-  function dpsi2(z) result(res)
+  pure function dpsi2(z) result(res)
     real(8), intent(in) :: z
     real(8) :: res
     res = 0.5d0 * z * (z * (z * (-5.0d0*z + 12.0d0) - 9.0d0) + 2.0d0)
   end function dpsi2
 
-  function ddpsi0(z) result(res)
+  pure function ddpsi0(z) result(res)
     real(8), intent(in) :: z
     real(8) :: res
     res = z* ( z*( -120.0d0*z + 180.0d0) -60.0d0)
   end function ddpsi0
 
-  function ddpsi1(z) result(res)
+  pure function ddpsi1(z) result(res)
     real(8), intent(in) :: z
     real(8) :: res
     res = z * (z * (-60.0d0*z + 96.0d0) -36.0d0)
   end function ddpsi1
 
-  function ddpsi2(z) result(res)
+  pure function ddpsi2(z) result(res)
     real(8), intent(in) :: z
     real(8) :: res
     res = 0.5d0 * (z * (z * (-20.0d0*z + 36.0d0) - 18.0d0) + 2.0d0)
   end function ddpsi2
 
-  function h5(fi, w0t, w1t, w2t, w0mt, w1mt, w2mt, w0d, w1d, w2d, w0md, w1md, w2md) result(res)
+  pure function h5(fi, w0t, w1t, w2t, w0mt, w1mt, w2mt, w0d, w1d, w2d, w0md, w1md, w2md) result(res)
     real(8), intent(in) :: fi(36)
     real(8), intent(in) :: w0t, w1t, w2t, w0mt, w1mt, w2mt
     real(8), intent(in) :: w0d, w1d, w2d, w0md, w1md, w2md
@@ -86,7 +86,7 @@ contains
         + fi(35) * w2d*w2mt  + fi(36) * w2md*w2mt
   end function h5
 
-  function h3(fi, w0t,w1t,w0mt,w1mt,w0d,w1d,w0md,w1md) result(res)
+  pure function h3(fi, w0t,w1t,w0mt,w1mt,w0d,w1d,w0md,w1md) result(res)
     real(8), intent(in) :: fi(36)
     real(8), intent(in) :: w0t, w1t, w0mt, w1mt
     real(8), intent(in) :: w0d, w1d, w0md, w1md

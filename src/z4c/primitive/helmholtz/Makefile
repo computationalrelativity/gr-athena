@@ -1,6 +1,6 @@
 FC       := gfortran
-FFLAGS   += -O0 -g -Wall -Wpedantic
-LIB      := ar crs
+FFLAGS   += -g -Wall -Wpedantic -O0 -pg -gdwarf-2 # -flto -ftree-vectorize -march=native -ffast-math 
+LIB      := gcc-ar crs
 FLAGS    :=
 
 INCLUDE = -I/usr/local/include

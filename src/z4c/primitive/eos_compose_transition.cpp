@@ -93,6 +93,10 @@ Real EOSCompOSETransition::TemperatureFromEps(Real n, Real eps, Real *Y, Real Tg
     temperature_from_var_with_guess(ECLOGE, log(eps), n, Y[0], Y[1], Tguess);
 }
 
+Real EOSCompOSETransition::TemperatureFromEntropy(Real n, Real s, Real *Y) {
+  throw std::logic_error("EOSCompOSETransition::TemperatureFromEntropy not currently implemented.");
+}
+
 Real EOSCompOSETransition::TemperatureFromE(Real n, Real e, Real *Y) {
   assert (m_initialized);
   return TemperatureFromEps(n, e/(mb*n) - 1.0, Y);
