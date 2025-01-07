@@ -48,17 +48,17 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 //  EnrollUserHistoryOutput(1, L1rhodiff, "L1rhodiff");
   EnrollUserHistoryOutput(1, Minalp, "min-alp", UserHistoryOperation::min);
 
-  if (!resume_flag) {     
+  if (!resume_flag) {
     string set_name = "problem";
     RNS_params_set_default();
     string inputfile = pin->GetOrAddString("problem", "filename", "tovgamma2.par");
-    RNS_params_set_inputfile((char *) inputfile.c_str());    
+    RNS_params_set_inputfile((char *) inputfile.c_str());
     rns_data = RNS_make_initial_data();
   }
 
   //if(adaptive==true)
   //EnrollUserRefinementCondition(RefinementCondition);
-  
+
   return;
 }
 
@@ -76,7 +76,7 @@ void Mesh::UserWorkAfterLoop(ParameterInput *pin)
 
 void MeshBlock::ProblemGenerator(ParameterInput *pin)
 {
-  
+
 #ifdef Z4C_ASSERT_FINITE
   // as a sanity check (these should be over-written)
   pz4c->adm.psi4.Fill(NAN);
@@ -103,10 +103,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   bool verbose = pin->GetOrAddBoolean("problem", "verbose", 0);
 
-  Real rhoc = pin->GetReal("problem","rhoc");
-  Real k_adi = pin->GetReal("hydro","k_adi");
-  Real gamma_adi = pin->GetReal("hydro","gamma");
-  Real fatm = pin->GetReal("problem","fatm");
   Real pres_pert = pin->GetOrAddReal("problem","pres_pert",0);
   Real v_pert = pin->GetOrAddReal("problem","v_pert",0);
 
@@ -116,14 +112,14 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   // container with idx / grids pertaining z4c
   MB_info* mbi = &(pz4c->mbi);
-  
-  //---------------------------------------------------------------------------  
+
+  //---------------------------------------------------------------------------
   // Interpolate ADM metric
 
   if(verbose)
     std::cout << "Interpolating ADM metric on current MeshBlock." << std::endl;
-  
-  int imin[3] = {0, 0, 0}; 
+
+  int imin[3] = {0, 0, 0};
   int n[3] = {mbi->nn1, mbi->nn1, mbi->nn3};
   int sz = n[0] * n[1] * n[2];
 
@@ -194,7 +190,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   for (int j=0; j<mbi->nn2; ++j)
   for (int i=0; i<mbi->nn1; ++i)
   {
-  
+
     int flat_ix = i + n[0]*(j + n[1]*k);
 
     pz4c->storage.adm(Z4c::I_ADM_gxx,k,j,i) = gxx[flat_ix];
@@ -203,7 +199,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     pz4c->storage.adm(Z4c::I_ADM_gyy,k,j,i) = gyy[flat_ix];
     pz4c->storage.adm(Z4c::I_ADM_gyz,k,j,i) = gyz[flat_ix];
     pz4c->storage.adm(Z4c::I_ADM_gzz,k,j,i) = gzz[flat_ix];
-    
+
 
     pz4c->storage.adm(Z4c::I_ADM_Kxx,k,j,i) = Kxx[flat_ix];
     pz4c->storage.adm(Z4c::I_ADM_Kxy,k,j,i) = Kxy[flat_ix];
@@ -223,28 +219,28 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   }
 
   delete gxx; delete gxy; delete gxz;
-  delete gyy; delete gyz; delete gzz; 
+  delete gyy; delete gyz; delete gzz;
 
-  delete Kxx; delete Kxy; delete Kxz; 
+  delete Kxx; delete Kxy; delete Kxz;
   delete Kyy; delete Kyz; delete Kzz;
 
   delete alp;
   delete betax; delete betay; delete betaz;
 
   delete x; delete y; delete z;
-  
-  //---------------------------------------------------------------------------  
+
+  //---------------------------------------------------------------------------
   // ADM-to-Z4c
   pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
   pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u1);
 
   //TODO Needed?
-//  pcoord->UpdateMetric();  
+//  pcoord->UpdateMetric();
 //  if(pmy_mesh->multilevel){
 //    pmr->pcoarsec->UpdateMetric();
 //  }
 
-  //---------------------------------------------------------------------------  
+  //---------------------------------------------------------------------------
   // Interpolate primitives
 
   if(verbose)
@@ -275,7 +271,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   RNS_Cartesian_interpolation
     (rns_data, // struct containing the previously calculated solution
      imin, // min, max idxs of Cartesian Grid in the three directions
-     n,    // 
+     n,    //
      n,    // total number of indices in each direction
      x,    // x,         // Cartesian coordinates
      y,    // y,
@@ -306,10 +302,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
      uz, // vz
      pres  // pres
      );
-
-  // Atmosphere levels
-  Real rho_atm = rhoc*fatm;
-  Real pres_atm = k_adi*pow(rho_atm,gamma_adi); //TODO (SB) general EOS call
   
   for (int k=0; k<ncells3; ++k)
   for (int j=0; j<ncells2; ++j)
@@ -327,15 +319,15 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
     // Add perturbations
     if (pres_pert) {
-      phydro->w(IPR,k,j,i) -= pres_pert * pres[flat_ix];      
+      phydro->w(IPR,k,j,i) -= pres_pert * pres[flat_ix];
     }
     if (v_pert) {
       phydro->w(IVX, k, j, i) -= v_pert * std::cos(M_PI*r/(2.0*8.0))*x[i]/r;
       phydro->w(IVY, k, j, i) -= v_pert * std::cos(M_PI*r/(2.0*8.0))*y[j]/r;
       phydro->w(IVZ, k, j, i) -= v_pert * std::cos(M_PI*r/(2.0*8.0))*z[k]/r;
     }
-    
-    phydro->w1(IDN,k,j,i) = phydro->w(IDN,k,j,i); 
+
+    phydro->w1(IDN,k,j,i) = phydro->w(IDN,k,j,i);
     phydro->w1(IPR,k,j,i) = phydro->w(IPR,k,j,i);
     phydro->w1(IVX,k,j,i) = phydro->w(IVX,k,j,i);
     phydro->w1(IVY,k,j,i) = phydro->w(IVY,k,j,i);
@@ -346,15 +338,15 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   delete rho;
   delete pres;
   delete ux; delete uy; delete uz;
-  
+
   delete x; delete y; delete z;
-  
-  //---------------------------------------------------------------------------  
+
+  //---------------------------------------------------------------------------
   // Initialise conserved variables
 
   if(verbose)
     std::cout << "Initializing conservatives on current MeshBlock." << std::endl;
-  
+
   // Prepare index bounds
   int il = is - NGHOST;
   int iu = ie + NGHOST;
@@ -371,16 +363,16 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     ku += NGHOST;
   }
 
-  peos->PrimitiveToConserved(phydro->w, 
+  peos->PrimitiveToConserved(phydro->w,
 		  pscalars->r,
-		  pfield->bcc, phydro->u, 
+		  pfield->bcc, phydro->u,
 		  pscalars->s,
 		  pcoord, il, iu, jl, ju, kl, ku);
 
-  //---------------------------------------------------------------------------  
+  //---------------------------------------------------------------------------
   // Initialise matter & ADM constraints
   //TODO(WC) (don't strictly need this here, will be caught in task list before used
-  
+
   if(verbose)
     std::cout << "Initializing matter and constraints on current MeshBlock." << std::endl;
 
@@ -390,13 +382,13 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                   pscalars->r,
                   pfield->bcc);
   pz4c->ADMConstraints(pz4c->storage.con,pz4c->storage.adm,pz4c->storage.mat,pz4c->storage.u);
-  
+
 #ifdef Z4C_ASSERT_FINITE
   pz4c->assert_is_finite_adm();
   pz4c->assert_is_finite_con();
   pz4c->assert_is_finite_mat();
   pz4c->assert_is_finite_z4c();
-#endif 
+#endif
 
   return;
 }
