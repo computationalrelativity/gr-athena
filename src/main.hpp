@@ -705,7 +705,7 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
   // After state vector propagated, derived diagnostics (i.e. GW, trackers)
   // are at the new time-step ...
   const Real time_end_stage   = pmesh->time+pmesh->dt;
-  const Real ncycle_end_stage = pmesh->ncycle+1;
+  const int ncycle_end_stage  = pmesh->ncycle+1;
 
   // Derivatives of ADM metric and other auxiliary computations needed below
   if (trgs.IsSatisfied(tvar::Z4c_AHF))
@@ -736,32 +736,15 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
     }
   }
 
-// BD: TODO - CCE needs to be cleaned up & tested
 #if CCE_ENABLED
-  // only do a CCE dump if NextTime threshold cleared (updated below)
-  if (trgs.IsSatisfied(tvar::Z4c_CCE, ovar::user))
+  for (auto cce : pmesh->pcce)
   {
-    Real cce_dt = trgs.GetTrigger_dt(tvar::Z4c_CCE, ovar::user);
+    if (pmesh->ncycle % cce->freq != 0) continue;
+    
+    int cce_iter = pmesh->ncycle / cce->freq;
 
-    // gather all interpolation values from all processors to the root proc.
-    for (auto cce : pmesh->pcce)
-    {
-      cce->ReduceInterpolation();
-    }
-    // number of cce iteration(dump)
-    int cce_iter = static_cast<int>(pmesh->time / cce_dt);
-    int w_iter = 0; // write iter
-
-    // update the bookkeeping file to ensure resuming from the correct iter number
-    // after a restart. note: for a duplicated iter, hdf5 writer gives an error!
-    if ((pmesh->pcce.size() > 0) &&
-        CCE::BookKeeping(pmesh->pcce.front()->output_dir, cce_iter,w_iter))
-    {
-      for (auto cce : pmesh->pcce)
-      {
-        cce->DecomposeAndWrite(w_iter);
-      }
-    }
+    cce->ReduceInterpolation();
+    cce->DecomposeAndWrite(cce_iter, time_end_stage);
   }
 #endif
 
