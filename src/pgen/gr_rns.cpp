@@ -342,10 +342,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     if (pres_pert) {
       phydro->w(IPR,k,j,i) -= pres_pert * pres[flat_ix];
     }
-    if (v_pert) {
-      phydro->w(IVX, k, j, i) -= v_pert * std::cos(M_PI*r/(2.0*8.0))*x[i]/r;
-      phydro->w(IVY, k, j, i) -= v_pert * std::cos(M_PI*r/(2.0*8.0))*y[j]/r;
-      phydro->w(IVZ, k, j, i) -= v_pert * std::cos(M_PI*r/(2.0*8.0))*z[k]/r;
+    if (v_pert and r < rns_data->r_e) {
+      phydro->w(IVX, k, j, i) -= v_pert * std::cos(M_PI*r/(2.0*rns_data->r_e))*x[i]/r;
+      phydro->w(IVY, k, j, i) -= v_pert * std::cos(M_PI*r/(2.0*rns_data->r_e))*y[j]/r;
+      phydro->w(IVZ, k, j, i) -= v_pert * std::cos(M_PI*r/(2.0*rns_data->r_e))*z[k]/r;
     }
 
     phydro->w1(IDN,k,j,i) = phydro->w(IDN,k,j,i);
