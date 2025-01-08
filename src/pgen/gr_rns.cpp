@@ -26,7 +26,12 @@
 
 using namespace std;
 
-static ini_data *rns_data;
+namespace {
+  static ini_data *rns_data;
+#if USETM
+  Primitive::ColdEOS<Primitive::COLDEOS_POLICY> * ceos = NULL;
+#endif
+}
 
 //int RefinementCondition(MeshBlock *pmb);
 
@@ -54,6 +59,10 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
     string inputfile = pin->GetOrAddString("problem", "filename", "tovgamma2.par");
     RNS_params_set_inputfile((char *) inputfile.c_str());
     rns_data = RNS_make_initial_data();
+#if USETM
+    ceos = new Primitive::ColdEOS<Primitive::COLDEOS_POLICY>;
+    InitColdEOS(ceos, pin);
+#endif
   }
 
   //if(adaptive==true)
@@ -249,9 +258,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   n[0] = ncells1; n[1] = ncells2; n[2] = ncells3;
   sz = n[0] * n[1] * n[2];
 
-  Real *rho = new Real[sz], *pres = new Real[sz];
+  Real *rho = new Real[sz], *pres = new Real[sz], *ye = new Real[sz];
   Real *ux = new Real[sz], *uy = new Real[sz], *uz = new Real[sz];
-  
+
   x = new Real[n[0]];
   y = new Real[n[1]];
   z = new Real[n[2]];
@@ -302,7 +311,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
      uz, // vz
      pres  // pres
      );
-  
+
+  Real press_diff = 0.0;
+
   for (int k=0; k<ncells3; ++k)
   for (int j=0; j<ncells2; ++j)
   for (int i=0; i<ncells1; ++i)
@@ -310,7 +321,17 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
     int flat_ix = i + n[0]*(j + n[1]*k);
     Real r = std::sqrt(x[i]*x[i]+y[j]*y[j]+z[k]*z[k]);
-    
+
+#if USETM
+    Real press_eos = ceos->GetPressure(rho[flat_ix]);
+    press_diff = max(abs(pres[flat_ix] / press_eos - 1), press_diff);
+
+#if NSCALARS > 0
+    for (int l=0; l<NSCALARS; ++l)
+      pscalars->r(l,k,j,i) = ceos->GetY(rho[flat_ix], l);
+#endif
+#endif
+
     phydro->w(IDN,k,j,i) = rho[flat_ix];
     phydro->w(IPR,k,j,i) =  pres[flat_ix];
     phydro->w(IVX, k, j, i) = ux[flat_ix];
@@ -332,7 +353,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     phydro->w1(IVX,k,j,i) = phydro->w(IVX,k,j,i);
     phydro->w1(IVY,k,j,i) = phydro->w(IVY,k,j,i);
     phydro->w1(IVZ,k,j,i) = phydro->w(IVZ,k,j,i);
-    
+
+  }
+
+  if (press_diff > 1e-3) {
+    std::cout << "WARNING: Interpolated pressure does not match eos. abs. rel. diff = " << press_diff << std::endl;
   }
 
   delete rho;
