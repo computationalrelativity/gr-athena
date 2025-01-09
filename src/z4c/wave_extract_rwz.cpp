@@ -1802,29 +1802,29 @@ void WaveExtractRWZ::BackgroundReduce() {
       
       if (method_areal_radius==areal) {
 	
-	const Real aux_r2 = std::sqrt(gamma_dd(1,1,i,j)*gamma_dd(2,2,i,j) - SQR(gamma_dd(1,0,i,j)));
+	const Real aux_r2 = std::sqrt(gamma_dd(1,1,i,j)*gamma_dd(2,2,i,j) - SQR(gamma_dd(1,2,i,j)));
 	const Real div_aux_r2 = 1.0/ aux_r2;
 	const Real aux_r2_d =
 	  dr_gamma_dd(1,1,i,j) * gamma_dd(2,2,i,j) 
 	  + gamma_dd(1,1,i,j) * dr_gamma_dd(2,2,i,j)
-	  - 2.0*gamma_dd(1,0,i,j) * dr_gamma_dd(1,0,i,j);
+	  - 2.0*gamma_dd(1,2,i,j) * dr_gamma_dd(1,2,i,j);
 	const Real aux_r2_d2 =
 	  dr2_gamma_dd(1,1,i,j) * gamma_dd(2,2,i,j) 
 	  + 2.0*dr_gamma_dd(1,1,i,j) * dr_gamma_dd(2,2,i,j)
 	  + gamma_dd(1,1,i,j) * dr2_gamma_dd(2,2,i,j) 
-	  - 2.0*SQR(dr_gamma_dd(1,0,i,j))
-	  - 2.0*gamma_dd(1,0,i,j) * dr2_gamma_dd(1,0,i,j);
+	  - 2.0*SQR(dr_gamma_dd(1,2,i,j))
+	  - 2.0*gamma_dd(1,2,i,j) * dr2_gamma_dd(1,2,i,j);
 	const Real aux_r2_dot =
 	  dot_gamma_dd(1,1,i,j) * gamma_dd(2,2,i,j) 
 	  + gamma_dd(1,1,i,j) * dot_gamma_dd(2,2,i,j)
-	  - 2.0*gamma_dd(1,0,i,j) * dot_gamma_dd(1,0,i,j);
+	  - 2.0*gamma_dd(1,2,i,j) * dot_gamma_dd(1,2,i,j);
 	
 	int_r2 = aux_r2 * dthdph;
-	int_drsch_dri = 0.5*aux_r2_d * div_aux_r2 * dthdph;
-	int_d2rsch_dri2 = ( 0.5*aux_r2_d2 * div_aux_r2
-			    - 0.25*SQR(aux_r2_d) * std::pow(div_aux_r2,3) ) * dthdph;	
+	int_drsch_dri = 0.25*aux_r2_d * div_aux_r2 * dthdph;
+	int_d2rsch_dri2 = ( 0.25*aux_r2_d2 * div_aux_r2
+			    - 0.125*SQR(aux_r2_d) * std::pow(div_aux_r2,3) ) * dthdph;	
 
-	int_r2dot = aux_r2_dot * div_aux_r2 * dthdph;
+	int_r2dot = 0.25*aux_r2_dot * div_aux_r2 * dthdph;
 	
       } else if (method_areal_radius==areal_simple) {
 
@@ -1842,11 +1842,11 @@ void WaveExtractRWZ::BackgroundReduce() {
 	  + gamma_dd(1,1,i,j) * dot_gamma_dd(2,2,i,j);
 	
 	int_r2 = aux_r2 * dthdph;
-	int_drsch_dri = 0.5*aux_r2_d * div_aux_r2 * dthdph;
-	int_d2rsch_dri2 = ( 0.5*aux_r2_d * div_aux_r2
-			    - 0.25*SQR(aux_r2_d) * std::pow(div_aux_r2,3) ) * dthdph;	
+	int_drsch_dri = 0.25*aux_r2_d * div_aux_r2 * dthdph;
+	int_d2rsch_dri2 = ( 0.25*aux_r2_d * div_aux_r2
+			    - 0.125*SQR(aux_r2_d) * std::pow(div_aux_r2,3) ) * dthdph;	
 
-	int_r2dot = aux_r2_dot * div_aux_r2 * dthdph;
+	int_r2dot = 0.25*aux_r2_dot * div_aux_r2 * dthdph;
 	
       } else if (method_areal_radius==average_schw) {
 
@@ -1859,18 +1859,18 @@ void WaveExtractRWZ::BackgroundReduce() {
       } else if (method_areal_radius==schw_gthth) {
 
 	int_r2 = gamma_dd(1,1,i,j) * vol;
-	int_drsch_dri = dr_gamma_dd(1,1,i,j) * vol;
-	int_d2rsch_dri2 = dr2_gamma_dd(1,1,i,j) * vol;
+	int_drsch_dri = 0.5*dr_gamma_dd(1,1,i,j) * vol;
+	int_d2rsch_dri2 = 0.5*dr2_gamma_dd(1,1,i,j) * vol;
 
-	int_r2dot = dot_gamma_dd(1,1,i,j) * vol;
+	int_r2dot = 0.5*dot_gamma_dd(1,1,i,j) * vol;
 	
       } else if (method_areal_radius==schw_gphph) {
 
 	int_r2 = gamma_dd(2,2,i,j) * div_sinth2 * vol;
-	int_drsch_dri = dr_gamma_dd(2,2,i,j) * div_sinth2 * vol;
-	int_d2rsch_dri2 = dr2_gamma_dd(2,2,i,j) * div_sinth2 * vol;
+	int_drsch_dri = 0.5*dr_gamma_dd(2,2,i,j) * div_sinth2 * vol;
+	int_d2rsch_dri2 = 0.5*dr2_gamma_dd(2,2,i,j) * div_sinth2 * vol;
 
-	int_r2dot = dot_gamma_dd(2,2,i,j) * div_sinth2 * vol;
+	int_r2dot = 0.5*dot_gamma_dd(2,2,i,j) * div_sinth2 * vol;
 	
       }
 	           
@@ -1951,7 +1951,7 @@ void WaveExtractRWZ::BackgroundReduce() {
   d2rsch_dri2 = integrals_background[Id2rsch_dri2];
   
   // dot_rsch = integrals_background[Idot_rsch2];
-  drsch_dri_dot = integrals_background[Idrsch_dri_dot];
+  drsch_dri_dot = integrals_background[Idrsch_dri_dot]; // This is 0 ATM
 
   const Real g00 = integrals_background[Ig00];
   const Real g0R = integrals_background[Ig0R];
@@ -1998,30 +1998,30 @@ void WaveExtractRWZ::BackgroundReduce() {
   // dr_schwarzschild/dr_isotropic & Time derivatives of Schwarzschild radius  
   // Some integrals must be corrected for extra terms
   
-  if (method_areal_radius==average_schw) {
+  //if (method_areal_radius==average_schw) {
 
-    drsch_dri *= div_rsch;
-    dri_drsch = 1.0/drsch_dri;
+  drsch_dri *= div_rsch;
+  dri_drsch = 1.0/drsch_dri;
     //printf("R = %.6f, r = %.6f, dr/dR = %.6f dR/dr = %.6f \n", Radius, rsch, drsch_dri, dri_drsch);
     
-    d2rsch_dri2 = - div_rsch * ( SQR(drsch_dri) - d2rsch_dri2 );
+  d2rsch_dri2 = - div_rsch * ( SQR(drsch_dri) - d2rsch_dri2 );
     //d2rsch_dri2 = 0.5*SQR(1.359930452923210)/std::pow(Radius,3);
-    d2ri_drsch2 = - std::pow(dri_drsch,3)*d2rsch_dri2;
+  d2ri_drsch2 = - std::pow(dri_drsch,3)*d2rsch_dri2;
 
-    drsch_dri_dot = div_rsch * ( - dot_rsch * drsch_dri + drsch_dri_dot );
-    dri_drsch_dot = - SQR(dri_drsch) * drsch_dri_dot;
+  drsch_dri_dot = div_rsch * ( - dot_rsch * drsch_dri + drsch_dri_dot );
+  dri_drsch_dot = - SQR(dri_drsch) * drsch_dri_dot;
 
-  } else {
+  //} else {
 
     //TODO implement other cases
     // } else if (method_areal_radius==areal_simple) {}
     // } else if (method_areal_radius==schw_gthth) {}
     //} else if (method_areal_radius==schw_gphph) {}
     
-    dri_drsch = 1.0/drsch_dri; // general
-    d2ri_drsch2 = - std::pow(dri_drsch,3) * d2rsch_dri2; //TODO ?
+    //dri_drsch = 1.0/drsch_dri; // general
+    //d2ri_drsch2 = - std::pow(dri_drsch,3) * d2rsch_dri2; //TODO ?
     
-  } 
+  //} 
   
   // time derivatives of g0r and grr 
   const Real dot_g0r = dri_drsch_dot * g0R + dri_drsch * dot_g0R;
@@ -2566,7 +2566,7 @@ void WaveExtractRWZ::MasterFuns() {
 	const Real Psio_sch_ = r*( H1_dot(lm,c) - H0_dr(lm,c) + 2.0*div_r*H0(lm,c) )*div_lambda_2;
 	Psio_sch(lm,c) = Psio_sch_;	
 	
-	const Real Qstar_ = div_r*S*( H1(lm,c) - H_dr(lm,c) + 2.0*H(lm,c)*div_r );
+	const Real Qstar_ = div_r*S*( H1(lm,c) - 0.5*H_dr(lm,c) + H(lm,c)*div_r );
 	Qstar(lm,c) = Qstar_;
 	
 	// Even parity in general coordinates (static)
