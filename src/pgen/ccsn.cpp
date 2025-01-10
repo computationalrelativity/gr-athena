@@ -87,6 +87,10 @@ Real opt_rho_cut;
 Real opt_delta_min_m;
 Real opt_delta_max_m;
 
+// additional scalar dumps
+Real Maxrho(MeshBlock *pmb, int iout);
+Real max_T(MeshBlock *pmb, int iout);
+
 int RefinementCondition(MeshBlock *pmb);
 
 }  // namespace
@@ -140,6 +144,11 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
 
   // BD: TODO- cleanup is where?
   pdelept = new Deleptonization(pin);
+
+  // additional scalars dumps
+  AllocateUserHistoryOutput(2);
+  EnrollUserHistoryOutput(0, Maxrho, "max-rho", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(1, max_T, "max_T", UserHistoryOperation::max);
 }
 
 //========================================================================================
@@ -305,9 +314,8 @@ void Mesh::UserWorkInLoop()
           );
 
           if ((mu_nu > E_nu_avg) &&  // MeV units
-              (rho > rho_trap))      // code units
+              (rho < rho_trap))      // code units
           {
-            // BD: double check unit scaling
             s -= delta_Y_e * (mu_nu - E_nu_avg) / T;
           }
 
@@ -414,9 +422,8 @@ void Mesh::UserWorkInLoop()
           ps->r(IYE,k,j,i) = Y_e_bar;
 
           // BD: TODO- need E_nu_avg / MeV_factor
-          assert(false);
           tau -= (alpha_(i) * sqrt_detgamma_(i) * W_(i) * n *
-                  delta_Y_e * E_nu_avg);
+                  delta_Y_e * E_nu_avg) ;
 
           if ((delta_Y_e < 0) && (E_nu_avg > 0))
           {
@@ -602,5 +609,30 @@ int RefinementCondition(MeshBlock *pmb)
 
   return 0;
 }
+
+
+Real Maxrho(MeshBlock *pmb, int iout)
+{
+  Real max_rho = 0.0;
+  AthenaArray<Real> &w = pmb->phydro->w;
+
+  CC_ILOOP3(k, j, i)
+  {
+    max_rho = std::max(std::abs(w(IDN,k,j,i)), max_rho);
+  }
+
+  return max_rho;
+}
+
+Real max_T(MeshBlock *pmb, int iout)
+{
+  Real max_T = -std::numeric_limits<Real>::infinity();
+  CC_ILOOP3(k, j, i)
+  {
+    max_T = std::max(max_T, pmb->phydro->temperature(k,j,i));
+  }
+  return max_T;
+}
+
 
 }  // namespace
