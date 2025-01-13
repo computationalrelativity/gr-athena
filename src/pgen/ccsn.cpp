@@ -40,13 +40,14 @@ class StellarProfile {
   enum vars {
     alp = 0,
     gxx = 1,
-    mass = 2,
+    mass = 2,  // second quantity in table
     vel = 3,
     rho = 4,
     temp = 5,
     ye = 6,
     press = 7,
-    nvars = 8
+    phi = 8,
+    num_vars = 9,
   };
 
  public:
@@ -58,7 +59,7 @@ class StellarProfile {
  private:
   int siz;
   Real *pr;
-  Real *pvars[nvars];
+  Real *pvars[num_vars];
   Real *Phi;
 };
 
@@ -94,6 +95,9 @@ Real max_T(MeshBlock *pmb, int iout);
 
 int RefinementCondition(MeshBlock *pmb);
 
+bool interpolate_Phi;
+int SP_NVARS = StellarProfile::num_vars;
+
 }  // namespace
 
 //========================================================================================
@@ -104,6 +108,13 @@ int RefinementCondition(MeshBlock *pmb);
 //========================================================================================
 void Mesh::InitUserMeshData(ParameterInput *pin) {
   if (adaptive == true) EnrollUserRefinementCondition(RefinementCondition);
+
+  // interpolate Phi? ---------------------------------------------------------
+  interpolate_Phi = pin->GetOrAddBoolean("problem", "interpolate_Phi", false);
+  if (!interpolate_Phi)
+  {
+    SP_NVARS = SP_NVARS - 1;
+  }
 
   // Select deleptonization method --------------------------------------------
   std::ostringstream msg;
@@ -184,18 +195,31 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
         Real const rad = sqrt(xp * xp + yp * yp + zp * zp);
 
         const Real rho = pstar->Eval(StellarProfile::rho, rad);
+ 
         if ((rho > opt_rho_cut))
         {
           phydro->w(IDN, k, j, i) = rho;
 
-          alpha(k, j, i) = pstar->Eval(StellarProfile::alp, rad);
-          Real A = pstar->Eval(StellarProfile::gxx, rad);
+          Real A;
+          if (interpolate_Phi)
+          {
+            const Real Phi = pstar->Eval(StellarProfile::phi, rad);
+            A = 1.0 - 2.0 * Phi;
+            alpha(k, j, i) = std::sqrt(1 + Phi);
+          }
+          else
+          {
+            alpha(k, j, i) = pstar->Eval(StellarProfile::alp, rad);
+            A = pstar->Eval(StellarProfile::gxx, rad);
+          }
+
           g_dd(2, 2, k, j, i) = g_dd(1, 1, k, j, i) = g_dd(0, 0, k, j, i) = A;
 
           Real vr = pstar->Eval(StellarProfile::vel, rad);
           Real vx = vr * xp / rad;
           Real vy = vr * yp / rad;
           Real vz = vr * zp / rad;
+
           Real W = 1.0 / sqrt(1.0 - A * (vx * vx + vy * vy + vz * vz));
           phydro->w(IVX, k, j, i) = W * vx;
           phydro->w(IVY, k, j, i) = W * vy;
@@ -484,56 +508,86 @@ void skipline(FILE *fptr) {
 
 StellarProfile::StellarProfile(ParameterInput *pin) : siz(0) {
   string fname = pin->GetString("problem", "progenitor");
-
-  FILE *starfile = fopen(fname.c_str(), "r");
-  if (NULL == starfile) {
+  // count number of lines in file --------------------------------------------
+  std::ifstream in;
+  in.open(fname.c_str());
+  std::string line;
+  if (!in.is_open())
+  {
     stringstream msg;
     msg << "### FATAL ERROR problem/progenitor: " << string(fname) << " "
         << " could not be accessed.";
     ATHENA_ERROR(msg);
   }
-
-  // Find out how large the profile is
-  skipline(starfile);
-  skipline(starfile);
-  char c;
-  while (EOF != (c = getc(starfile))) {
-    if (c == '\n') {
-      siz++;
+  else
+  {
+    while (std::getline(in, line))
+    {
+      if (line.find("#") < line.length())
+      {
+        // line with comment (ignored)
+      }
+      else
+      {
+        ++siz;
+      }
     }
+    in.close();
   }
-  rewind(starfile);
-  skipline(starfile);
-  skipline(starfile);
 
+  // allocate & parse file ----------------------------------------------------
   pr = new Real[siz];
-  for (int vi = 0; vi < nvars; ++vi) {
+  for (int vi = 0; vi < SP_NVARS; ++vi)
+  {
     pvars[vi] = new Real[siz];
   }
 
-  // Read the profile
-  for (int i = 0; i < siz; ++i) {
-    fscanf(starfile, "%lf %lf %lf %lf %lf %lf %lf", &pr[i], &pvars[mass][i],
-           &pvars[vel][i], &pvars[rho][i], &pvars[temp][i], &pvars[ye][i],
-           &pvars[press][i]);
+  // parse
+  in.open(fname.c_str());
+  int el = 0;
+  while (std::getline(in, line))
+  {
+    if (line.find("#") < line.length())
+    {
+      // comment; pass line
+    }
+    else if (line.find(" ") < line.length())
+    {
+      // process elements#
+      std::vector<std::string> vs;
+      tokenize(line, ' ', vs);
+
+      pr[el] = std::stod(vs[0]);
+
+      for (int ix=mass; ix<SP_NVARS; ++ix)
+      {
+        pvars[ix][el] = std::stod(vs[ix-mass+1]);
+      }
+      el++;
+    }
   }
+  in.close();
+
+  // compute derived quantities -----------------------------------------------
 
   // Compute the metric (Newtonian limit)
   // Following not correct: need to compute integral for interior
   // for (int i = 0; i < siz; ++i) {
-  //   Real Phi = - pvars[mass][i] / pr[i]; 
+  //   Real Phi = - pvars[mass][i] / pr[i];
   //   pvars[alp][i] = sqrt(1. + 2. * Phi);
   //   pvars[gxx][i] = 1. - 2. * Phi;
   // }
 
   // Compute the metric (Newtonian limit)
-  Real massi = 4.0/3.0 * PI * pow(pr[1],3) * pvars[rho][0]; // mass at face 1 (=0 at face 0)
+
+  // mass at face 1 (=0 at face 0)
+  Real massi = 4.0/3.0 * PI * pow(pr[1],3) * pvars[rho][0];
   Phi = new Real[siz];
   Phi[0] = 0.0;
   Phi[1] = massi/pr[1];
   for (int i = 2; i < siz; ++i) {
     Real dr = pr[i] - pr[i-1];
-    massi += ( 4.0 * PI * pow(pr[i-1], 2) * pvars[rho][i-1] )*dr;        
+    massi += ( 4.0 * PI * pow(pr[i-1], 2) * pvars[rho][i-1] )*dr;
     Phi[i] = Phi[i-1] + ( massi /( pow(pr[i], 2) ) ) * dr;
   }
   Real const dPhi = Phi[siz-1] - massi/pr[siz-1];
@@ -542,21 +596,18 @@ StellarProfile::StellarProfile(ParameterInput *pin) : siz(0) {
     pvars[alp][i] = sqrt(1. + 2. * Phi[i]);
     pvars[gxx][i] = 1. - 2. * Phi[i];
    }
-  
-  // Cleanup
-  fclose(starfile);
 }
 
 StellarProfile::~StellarProfile() {
   delete[] pr;
-  for (int vi = 0; vi < nvars; ++vi) {
+  for (int vi = 0; vi < SP_NVARS; ++vi) {
     delete[] pvars[vi];
   }
   delete[] Phi;
 }
 
 Real StellarProfile::Eval(int vi, Real rad) const {
-  assert(vi >= 0 && vi < nvars);
+  assert(vi >= 0 && vi < SP_NVARS);
   if (rad <= pr[0]) {
     return pvars[vi][0];
   }
