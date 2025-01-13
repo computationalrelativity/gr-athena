@@ -59,6 +59,7 @@ class StellarProfile {
   int siz;
   Real *pr;
   Real *pvars[nvars];
+  Real *Phi;
 };
 
 // Deleptonization scheme by astro-ph/0504072, updated fits from 1701.02752
@@ -253,10 +254,6 @@ void Mesh::UserWorkInLoop()
   using namespace LinearAlgebra;
 
   // Triggered during: GRMHD_Z4c::UserWork;
-
-  // TODO: how do we add the deleptonization?
-  // Y_e of rho scheme
-  // tau_dot = - \alpha \sqrt{\gamma} \rho/mb W \dot{Y_e} E_\nu
 
   MeshBlock * pmb = pblock;
   Coordinates * pco;
@@ -522,12 +519,30 @@ StellarProfile::StellarProfile(ParameterInput *pin) : siz(0) {
   }
 
   // Compute the metric (Newtonian limit)
-  for (int i = 0; i < siz; ++i) {
-    Real Phi = pvars[mass][i] / pr[i];
-    pvars[alp][i] = sqrt(1. + 2. * Phi);
-    pvars[gxx][i] = 1. - 2. * Phi;
-  }
+  // Following not correct: need to compute integral for interior
+  // for (int i = 0; i < siz; ++i) {
+  //   Real Phi = - pvars[mass][i] / pr[i]; 
+  //   pvars[alp][i] = sqrt(1. + 2. * Phi);
+  //   pvars[gxx][i] = 1. - 2. * Phi;
+  // }
 
+  // Compute the metric (Newtonian limit)
+  Real massi = 4.0/3.0 * PI * pow(pr[1],3) * pvars[rho][0]; // mass at face 1 (=0 at face 0)
+  Phi = new Real[siz];
+  Phi[0] = 0.0;
+  Phi[1] = massi/pr[1];
+  for (int i = 2; i < siz; ++i) {
+    Real dr = pr[i] - pr[i-1];
+    massi += ( 4.0 * PI * pow(pr[i-1], 2) * pvars[rho][i-1] )*dr;        
+    Phi[i] = Phi[i-1] + ( massi /( pow(pr[i], 2) ) ) * dr;
+  }
+  Real const dPhi = Phi[siz-1] - massi/pr[siz-1];
+  for (int i = 0; i < siz; ++i) {
+    Phi[i] -= dPhi; 
+    pvars[alp][i] = sqrt(1. + 2. * Phi[i]);
+    pvars[gxx][i] = 1. - 2. * Phi[i];
+   }
+  
   // Cleanup
   fclose(starfile);
 }
@@ -537,6 +552,7 @@ StellarProfile::~StellarProfile() {
   for (int vi = 0; vi < nvars; ++vi) {
     delete[] pvars[vi];
   }
+  delete[] Phi;
 }
 
 Real StellarProfile::Eval(int vi, Real rad) const {
