@@ -312,7 +312,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
      pres  // pres
      );
 
-  Real press_diff = 0.0;
+  Real pres_diff = 0.0;
+
+#if USETM
+  Real rho_min = pin->GetReal("hydro", "dfloor");
+#endif
 
   for (int k=0; k<ncells3; ++k)
   for (int j=0; j<ncells2; ++j)
@@ -323,14 +327,18 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     Real r = std::sqrt(x[i]*x[i]+y[j]*y[j]+z[k]*z[k]);
 
 #if USETM
-    Real press_eos = ceos->GetPressure(rho[flat_ix]);
-    press_diff = max(abs(pres[flat_ix] / press_eos - 1), press_diff);
+    if (rho[flat_ix] > rho_min) {
+      Real pres_eos = ceos->GetPressure(rho[flat_ix]);
+      Real pres_diff = max(abs(pres[flat_ix] / pres_eos - 1), pres_diff);
+      pres[flat_ix] = pres_eos;
+    }
 
 #if NSCALARS > 0
     for (int l=0; l<NSCALARS; ++l)
       pscalars->r(l,k,j,i) = ceos->GetY(rho[flat_ix], l);
 #endif
 #endif
+
 
     phydro->w(IDN,k,j,i) = rho[flat_ix];
     phydro->w(IPR,k,j,i) =  pres[flat_ix];
@@ -339,7 +347,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     phydro->w(IVZ, k, j, i) = uz[flat_ix];
 
     // Add perturbations
-    if (pres_pert) {
+    if (pres_pert and r < rns_data->r_e) {
       phydro->w(IPR,k,j,i) -= pres_pert * pres[flat_ix];
     }
     if (v_pert and r < rns_data->r_e) {
@@ -356,9 +364,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   }
 
-  if (press_diff > 1e-3) {
-    std::cout << "WARNING: Interpolated pressure does not match eos. abs. rel. diff = " << press_diff << std::endl;
-  }
+  if (pres_diff > 1e-3)
+    std::cout << "WARNING: Interpolated pressure does not match eos. abs. rel. diff = " << pres_diff << std::endl;
 
   delete rho;
   delete pres;
