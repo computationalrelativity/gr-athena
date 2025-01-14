@@ -264,6 +264,8 @@ void EquationOfState::ConservedToPrimitive(
         Real horizon_radius;
         for (auto pah_f : pmy_block_->pmy_mesh->pah_finder)
         {
+          if (not pah_f->ah_found)
+            continue;
           horizon_radius = pah_f->GetHorizonRadius();
           horizon_radius *= pmb->phydro->opt_excision.horizon_factor;
           const Real r_2 = SQR(pco->x1v(i)) +
