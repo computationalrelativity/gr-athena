@@ -26,9 +26,11 @@
 #include "m1_containers.hpp"
 
 // External libraries
+#if defined(GSL)
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_math.h>
 #include <gsl/gsl_roots.h>
+#endif // defined(GSL)
 
 // Forward declarations
 namespace M1::Opacities {
@@ -49,8 +51,10 @@ class M1
 
 // internal solver data =======================================================
 public:
+#if defined(GSL)
   gsl_root_fsolver   * gsl_brent_solver;
   gsl_root_fdfsolver * gsl_newton_solver;
+#endif // defined(GSL)
 
 // methods ====================================================================
 public:
