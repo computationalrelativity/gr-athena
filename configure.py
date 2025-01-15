@@ -632,6 +632,7 @@ cxx_choices = [
   "icpc",
   "icpc-debug",
   "icpc-phi",
+  "cray-old",
   "cray",
   "bgxlc++",
   "clang++",
@@ -1270,16 +1271,27 @@ if args["cxx"] == "icpc-phi":
   makefile_options["LINKER_FLAGS"] = ""
   makefile_options["LIBRARY_FLAGS"] = ""
 
-if args["cxx"] == "cray":
+if args["cxx"] == "cray-old":
   # Cray Compiling Environment 8.4 (2015-09-24) introduces C++11 feature completeness
   # (except "alignas"). v8.6 is C++14 feature-complete
-  definitions["COMPILER_CHOICE"] = "cray"
+  definitions["COMPILER_CHOICE"] = "cray-old"
   definitions["COMPILER_COMMAND"] = makefile_options["COMPILER_COMMAND"] = "CC"
   makefile_options["PREPROCESSOR_FLAGS"] = ""
   makefile_options["COMPILER_FLAGS"] = (
     "-O3 -h std=c++17 -h aggress -h vector3 -hfp3"
   )
   makefile_options["LINKER_FLAGS"] = "-hwp -hpl=obj/lib"
+  makefile_options["LIBRARY_FLAGS"] = "-lm"
+
+if args["cxx"] == "cray":
+  # Cray (clang++ based)
+  definitions["COMPILER_CHOICE"] = "cray"
+  definitions["COMPILER_COMMAND"] = makefile_options["COMPILER_COMMAND"] = "CC"
+  makefile_options["PREPROCESSOR_FLAGS"] = ""
+  makefile_options["COMPILER_FLAGS"] = (
+    "-O3 -std=c++17 "
+  )
+  makefile_options["LINKER_FLAGS"] = "-flto=auto "
   makefile_options["LIBRARY_FLAGS"] = "-lm"
 
 if args["cxx"] == "bgxlc++":
@@ -1326,7 +1338,7 @@ if args["cxx"] == "clang++-simd":
   )
   makefile_options["PREPROCESSOR_FLAGS"] = ""
   makefile_options["COMPILER_FLAGS"] = (
-    "-O3 -std=c++17 -fopenmp-simd -flto=auto -march=native "
+    "-O3 -std=c++17 -fopenmp-simd -march=native "
   )
   makefile_options["LINKER_FLAGS"] = "-flto=auto "
   makefile_options["LIBRARY_FLAGS"] = ""
@@ -1366,6 +1378,8 @@ if args["debug"]:
     makefile_options["COMPILER_FLAGS"] = "-Og --std=c++17 -g3"  # -Og
     makefile_options["LINKER_FLAGS"] = "-rdynamic"
   if args["cxx"] == "cray":
+    makefile_options["COMPILER_FLAGS"] = "-O0 --std=c++17"
+  if args["cxx"] == "cray-old":
     makefile_options["COMPILER_FLAGS"] = "-O0 -h std=c++17"
   if args["cxx"] == "bgxlc++":
     makefile_options["COMPILER_FLAGS"] = "-O0 -g -qlanglvl=extended0x"
@@ -1403,7 +1417,7 @@ if args["coverage"]:
     )
   if args["cxx"] == "cray" or args["cxx"] == "bgxlc++":
     msg = (
-      "### CONFIGURE ERROR: No code coverage avaialbe for selected compiler!"
+      "### CONFIGURE ERROR: No code coverage available for selected compiler!"
     )
     raise SystemExit(msg)
 else:
@@ -1440,7 +1454,7 @@ if args["mpi"]:
     definitions["COMPILER_COMMAND"] = makefile_options["COMPILER_COMMAND"] = (
       "mpicxx"
     )
-  if args["cxx"] == "cray":
+  if args["cxx"] == "cray-old":
     makefile_options["COMPILER_FLAGS"] += " -h mpi1"
   if args["cxx"] == "bgxlc++":
     definitions["COMPILER_COMMAND"] = makefile_options["COMPILER_COMMAND"] = (
@@ -1462,6 +1476,7 @@ if args["omp"]:
     or args["cxx"] == "g++-simd"
     or args["cxx"] == "clang++"
     or args["cxx"] == "clang++-simd"
+    or args["cxx"] == "cray"
   ):
     makefile_options["COMPILER_FLAGS"] += " -fopenmp"
   if args["cxx"] == "clang++-apple":
@@ -1475,7 +1490,7 @@ if args["omp"]:
     or args["cxx"] == "icpc-phi"
   ):
     makefile_options["COMPILER_FLAGS"] += " -qopenmp"
-  if args["cxx"] == "cray":
+  if args["cxx"] == "cray-old":
     makefile_options["COMPILER_FLAGS"] += " -homp"
   if args["cxx"] == "bgxlc++":
     # use thread-safe version of compiler
@@ -1484,7 +1499,7 @@ if args["omp"]:
     makefile_options["COMPILER_FLAGS"] += " -qsmp"
 else:
   definitions["OPENMP_OPTION"] = "NOT_OPENMP_PARALLEL"
-  if args["cxx"] == "cray":
+  if args["cxx"] == "cray-old":
     makefile_options["COMPILER_FLAGS"] += " -hnoomp"
   if (
     args["cxx"] == "icpc"
