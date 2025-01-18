@@ -17,11 +17,14 @@
 namespace M1::Fluxes {
 // ============================================================================
 
+// Flux reconstruction technology ---------------------------------------------
+
 // Build the HO/LO limited fluxes for scalar fields
 void ReconstructLimitedFlux(M1 * pm1,
                             const int dir,
                             const AT_C_sca & q,
                             const AT_C_sca & F,
+                            const AT_C_sca & chi,
                             const AT_C_sca & kap_a,
                             const AT_C_sca & kap_s,
                             const AT_C_sca & lambda,
@@ -32,6 +35,7 @@ void ReconstructLimitedFlux(M1 * pm1,
                             const int dir,
                             const AT_N_vec & q,
                             const AT_N_vec & F,
+                            const AT_C_sca & chi,
                             const AT_C_sca & kap_a,
                             const AT_C_sca & kap_s,
                             const AT_C_sca & lambda,
@@ -41,6 +45,7 @@ void ReconstructLimitedFlux(M1 * pm1,
 void ReconstructLimitedFluxX1(M1 * pm1,
                               const AT_C_sca & q,
                               const AT_C_sca & F,
+                              const AT_C_sca & chi,
                               const AT_C_sca & kap_a,
                               const AT_C_sca & kap_s,
                               const AT_C_sca & lambda,
@@ -49,6 +54,7 @@ void ReconstructLimitedFluxX1(M1 * pm1,
 void ReconstructLimitedFluxX2(M1 * pm1,
                               const AT_C_sca & q,
                               const AT_C_sca & F,
+                              const AT_C_sca & chi,
                               const AT_C_sca & kap_a,
                               const AT_C_sca & kap_s,
                               const AT_C_sca & lambda,
@@ -57,10 +63,15 @@ void ReconstructLimitedFluxX2(M1 * pm1,
 void ReconstructLimitedFluxX3(M1 * pm1,
                               const AT_C_sca & q,
                               const AT_C_sca & F,
+                              const AT_C_sca & chi,
                               const AT_C_sca & kap_a,
                               const AT_C_sca & kap_s,
                               const AT_C_sca & lambda,
                               AT_C_sca & Flux);
+
+// Riemann solver technology --------------------------------------------------
+
+// ...
 
 // ============================================================================
 } // namespace M1::Fluxes

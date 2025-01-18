@@ -96,6 +96,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
         }
       }
       Fluxes::ReconstructLimitedFlux(this, ix_d, U_nG, F_sca,
+                                     sc_chi,
                                      sc_kap_a, sc_kap_s, lambda, F_nG);
 
       // E --------------------------------------------------------------------
@@ -116,6 +117,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
 
       }
       Fluxes::ReconstructLimitedFlux(this, ix_d, U_E, F_sca,
+                                     sc_chi,
                                      sc_kap_a, sc_kap_s, lambda, F_E);
 
       // F_k ------------------------------------------------------------------
@@ -143,6 +145,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
         }
       }
       Fluxes::ReconstructLimitedFlux(this, ix_d, U_F_d, F_vec,
+                                     sc_chi,
                                      sc_kap_a, sc_kap_s, lambda, F_F_d);
     }
   }
