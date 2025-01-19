@@ -525,7 +525,7 @@ class Root {
           a = b;
 
         // return boost::math::make_pair(a, b);
-        return 0.5 * (b - a);
+        return a + 0.5 * (b - a);
     }
 
     if(sign(fa) * sign(fb) > 0)
@@ -661,7 +661,7 @@ class Root {
     }
 
     // return boost::math::make_pair(a, b);
-    const Real root = 0.5 * (b - a);
+    const Real root = a + 0.5 * (b - a);
     f(root, args...);
     return root;
   }

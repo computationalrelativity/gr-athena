@@ -80,6 +80,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   ps.SetRootfinderTol(pin->GetOrAddReal("hydro", "c2p_acc", 1e-15));
   ps.SetRootfinderMaxIter(pin->GetOrAddInteger("hydro", "max_iter", 30));
   ps.SetValidateDensity(pin->GetOrAddBoolean("hydro", "c2p_validate_density", true));
+  ps.SetValidateDensity(pin->GetOrAddBoolean("hydro", "use_toms_748", false));
 
   // BD: TODO - clean up
   int ncells1 = pmb->block_size.nx1 + 2*NGHOST;
@@ -697,6 +698,7 @@ void EquationOfState::SoundSpeedsGR(Real n, Real T, Real vi, Real v2, Real alpha
   }
 
   Real cs = ps.GetEOS()->GetSoundSpeed(n, T, Y);
+
   Real cs_sq = cs*cs;
 
   Real root_1 = alpha*(vi*(1.0-cs_sq) + cs*std::sqrt( (1-v2)*(gammaii*(1.0-v2*cs_sq) - vi*vi*(1.0-cs_sq))))/(1.0-v2*cs_sq) - betai;
