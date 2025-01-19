@@ -199,22 +199,25 @@ void Prepare(
       const Real DE = C.sc_E(ix_g,ix_s)(k,j,i)  - Estar;
       const Real DN = C.sc_nG(ix_g,ix_s)(k,j,i) - Nstar;
 
-      if (DE < 0)
+      if (pm1->opt_solver.limit_src_radiation)
       {
-        theta__ = std::min(
-          -par_src_lim * std::max(
-            Estar, 0.0
-          ) / DE, theta__
-        );
-      }
+        if (DE < 0)
+        {
+          theta__ = std::min(
+            -par_src_lim * std::max(
+              Estar, 0.0
+            ) / DE, theta__
+          );
+        }
 
-      if (DN < 0)
-      {
-        theta__ = std::min(
-          -par_src_lim * std::max(
-            Nstar, 0.0
-          ) / DN, theta__
-        );
+        if (DN < 0)
+        {
+          theta__ = std::min(
+            -par_src_lim * std::max(
+              Nstar, 0.0
+            ) / DN, theta__
+          );
+        }
       }
 
 #if FLUID_ENABLED
@@ -226,7 +229,13 @@ void Prepare(
     }
 
     // limiting based on sums -------------------------------------------------
+    // BD: TODO - double check factors in the following
 #if FLUID_ENABLED
+    if (!pm1->opt_solver.limit_src_fluid)
+    {
+      continue;
+    }
+
     if (Dtau_sum < 0)
     {
       theta__ = std::min(
@@ -266,220 +275,6 @@ void Prepare(
   {
     theta(k, j, i) = std::max(0.0, theta(k, j, i));
   }
-}
-
-
-// old implementation
-void _Prepare(
-  M1 * pm1,
-  const Real dt,
-  AT_C_sca & theta,
-  const M1::vars_Lab & U_C,
-  const M1::vars_Lab & U_P,
-  const M1::vars_Lab & U_I,
-  const M1::vars_Source & U_S)
-{
-  using namespace Update;
-
-  theta.Fill(1.0);
-
-  const Real par_src_lim = pm1->opt_solver.src_lim;
-
-#if FLUID_ENABLED
-    MeshBlock * pmb = pm1->pmy_block;
-    PassiveScalars * ps = pmb->pscalars;
-
-    const Real mb = pmb->peos->GetEOS().GetRawBaryonMass();
-
-    // Note _dense_ (not sliced) scratch array
-    AT_C_sca & dt_S_tau = pm1->scratch.sc_A;
-    dt_S_tau.Fill(0.0);
-
-    AT_C_sca & dt_xp_sum = pm1->scratch.sc_B;
-    if (pm1->N_SPCS > 1)
-    {
-      dt_xp_sum.Fill(0.0);
-    }
-#endif // FLUID_ENABLED
-
-  for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
-  for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
-  {
-    StateMetaVector C = ConstructStateMetaVector(
-      *pm1, const_cast<M1::vars_Lab&>(U_C), ix_g, ix_s
-    );
-    StateMetaVector P = ConstructStateMetaVector(
-      *pm1, const_cast<M1::vars_Lab&>(U_P), ix_g, ix_s
-    );
-    StateMetaVector I = ConstructStateMetaVector(
-      *pm1, const_cast<M1::vars_Lab&>(U_I), ix_g, ix_s
-    );
-
-    SourceMetaVector S = ConstructSourceMetaVector(
-      *pm1, const_cast<M1::vars_Source&>(U_S), ix_g, ix_s
-    );
-
-    if (1)
-    M1_ILOOP3(k, j, i)
-    if (pm1->MaskGet(k, j, i))
-    {
-      // C = P + dt (I + S[C])
-      // => dt S[C] = C - (P + dt I)
-      //
-      // N.B.
-      // We take the difference rather than value directly from the sources;
-      // This is because values may differ based on solution regime selected
-
-      // Approximate update (without matter source)
-      const Real appr_sc_E_star = P.sc_E(k,j,i) + dt * I.sc_E(k,j,i);
-      const Real dt_S_sc_E = C.sc_E(k, j, i) - appr_sc_E_star;
-      // const Real dt_S_sc_E = dt * S.sc_E(k,j,i);
-
-      if (0)
-      if (dt_S_sc_E < 0)
-      {
-        theta(k, j, i) = std::min(
-          -par_src_lim * std::max(appr_sc_E_star, 0.0) / dt_S_sc_E,
-          theta(k, j, i));
-      }
-
-#if FLUID_ENABLED
-      dt_S_tau(k, j, i) -= dt_S_sc_E;
-#endif // FLUID_ENABLED
-    }
-
-    // Now deal with Neutrino number densities (if we have multiple species)
-    if (pm1->N_SPCS > 1)
-    M1_ILOOP3(k, j, i)
-    if (pm1->MaskGet(k, j, i))
-    {
-      // Approximate update (without matter source)
-      const Real appr_sc_nG_star = P.sc_nG(k,j,i) + dt * I.sc_nG(k,j,i);
-      const Real dt_S_sc_nG = C.sc_nG(k, j, i) - appr_sc_nG_star;
-      // const Real dt_S_sc_nG = dt * S.sc_nG(k,j,i);
-
-      if (dt_S_sc_nG < 0)
-      {
-        theta(k, j, i) = std::min(
-          -par_src_lim *
-          std::max(appr_sc_nG_star, 0.0) / dt_S_sc_nG,
-          theta(k, j, i));
-      }
-
-#if FLUID_ENABLED
-      // Fluid lepton sources
-      const Real dt_xp = -mb * dt_S_sc_nG * ( + (ix_s == 0)
-                                              - (ix_s == 1));
-
-      dt_xp_sum(k, j, i) += dt_xp;
-#endif // FLUID_ENABLED
-    }
-  }
-
-#if FLUID_ENABLED
-  M1_ILOOP3(k, j, i)
-  if (pm1->MaskGet(k, j, i))
-  {
-    if (dt_S_tau(k, j, i) < 0)
-    {
-      // Note that tau is densitized, as is sc_E
-      const Real tau = pmb->phydro->u(IEN, k, j, i);
-      // const Real D = (
-      //   pm1->hydro.sc_W(k,j,i) *
-      //   pm1->hydro.sc_w_rho(k,j,i) *
-      //   pm1->geom.sc_sqrt_det_g(k,j,i)
-      // );
-
-      theta(k, j, i) = std::min(
-        -par_src_lim * std::max(
-          0.0, tau
-        ) / dt_S_tau(k, j, i), theta(k, j, i)
-      );
-    }
-  }
-
-  if (0)
-  if (pm1->N_SPCS > 1)
-  if ((pm1->opt_solver.src_lim_Ye_min >= 0) &&
-      (pm1->opt_solver.src_lim_Ye_max >= 0))
-  {
-    AT_C_sca & sc_oo_sqrt_det_g = pm1->geom.sc_oo_sqrt_det_g;
-
-    M1_ILOOP3(k, j, i)
-    if (pm1->MaskGet(k, j, i))
-    {
-      /*
-      // DY_e is sqrt(gamma) * D * Y_e
-      const Real DY_e = ps->s(0, k, j, i);
-
-      // Note that dt_xp_sum is sqrt(gamma) densitized, as is D
-      const Real oo_sqrt_det_g = sc_oo_sqrt_det_g(k, j, i);
-      const Real D = pmb->phydro->u(IDN, k, j, i);
-      const Real dt_DY_e = oo_sqrt_det_g * D * dt_xp_sum(k, j, i);
-
-      if (dt_DY_e > 0)
-      {
-        const Real par_src_lim_Ye_max = pm1->opt_solver.src_lim_Ye_max;
-
-        theta(k, j, i) = std::min(
-            par_src_lim *
-            std::max(D * par_src_lim_Ye_max - DY_e,
-                     0.0) / dt_DY_e,
-            theta(k, j, i)
-        );
-      }
-      else if (dt_DY_e < 0)
-      {
-        const Real par_src_lim_Ye_min = pm1->opt_solver.src_lim_Ye_min;
-
-        theta(k, j, i) = std::min(
-            par_src_lim *
-            std::min(D * par_src_lim_Ye_min - DY_e,
-                    0.0) / dt_DY_e,
-            theta(k, j, i)
-        );
-      }
-      */
-
-      // DY_e is sqrt(gamma) * D * Y_e
-      const Real w_Y_e = pm1->hydro.sc_w_Ye(0, k, j, i);
-      const Real w_rho = pm1->hydro.sc_w_rho(k, j, i);
-
-      const Real D = pmb->phydro->u(IDN, k, j, i);
-
-      // Note that dt_xp_sum is sqrt(gamma) densitized, as is D
-      const Real oo_sqrt_det_g = sc_oo_sqrt_det_g(k, j, i);
-      const Real dt_Y_e = oo_sqrt_det_g * dt_xp_sum(k, j, i) / D;
-      // const Real dt_Y_e = dt_xp_sum(k, j, i) / D;
-
-      if (dt_Y_e > 0)
-      {
-        const Real par_src_lim_Ye_max = pm1->opt_solver.src_lim_Ye_max;
-
-        theta(k, j, i) = std::min(
-            par_src_lim *
-            std::max(par_src_lim_Ye_max - w_Y_e,
-                     0.0) / dt_Y_e,
-            theta(k, j, i)
-        );
-      }
-      else if (dt_Y_e < 0)
-      {
-        const Real par_src_lim_Ye_min = pm1->opt_solver.src_lim_Ye_min;
-
-        theta(k, j, i) = std::min(
-            par_src_lim *
-            std::min(par_src_lim_Ye_min - w_Y_e,
-                    0.0) / dt_Y_e,
-            theta(k, j, i)
-        );
-      }
-
-
-    }
-  }
-
-#endif // FLUID_ENABLED
 }
 
 void Apply(

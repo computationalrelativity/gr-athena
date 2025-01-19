@@ -23,13 +23,28 @@
 namespace M1 {
 // ============================================================================
 
+void M1::ResetEvolutionStrategy()
+{
+  AthenaArray<t_sln_r> & mask_sln_r = pm1->ev_strat.masks.solution_regime;
+  AthenaArray<t_src_t> & mask_src_t = pm1->ev_strat.masks.source_treatment;
+  mask_sln_r.Fill(t_sln_r::noop);
+  mask_src_t.Fill(t_src_t::noop);
+}
+
 void M1::PrepareEvolutionStrategy(const Real dt,
                                   const Real kap_a,
                                   const Real kap_s,
                                   t_sln_r & mask_sln_r,
                                   t_src_t & mask_src_t)
 {
-  // equilibrium regime
+  // Equilibrium detected in Weak-rates; short-circuit
+  if (mask_sln_r == t_sln_r::equilibrium)
+  {
+    mask_src_t = t_src_t::set_zero;
+    return;
+  }
+
+  // equilibrium regime (additional thick limiter)
   if((opt_solver.src_lim_thick > 0) &&
      (SQR(dt) * (kap_a * (kap_a + kap_s)) >
       SQR(opt_solver.src_lim_thick)))
@@ -63,9 +78,6 @@ void M1::PrepareEvolutionStrategy(const Real dt)
 {
   AthenaArray<t_sln_r> & mask_sln_r = pm1->ev_strat.masks.solution_regime;
   AthenaArray<t_src_t> & mask_src_t = pm1->ev_strat.masks.source_treatment;
-
-  mask_sln_r.Fill(t_sln_r::noop);
-  mask_src_t.Fill(t_src_t::noop);
 
   // Revert to stiff / kill sources, as required ------------------------------
   for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
@@ -199,6 +211,12 @@ void M1::CalcUpdate(const int stage,
     {
       // BD: TODO - net.abs, net.heat
     }
+  }
+
+  // reset evolution strategy for next time-step ------------------------------
+  if (stage == 2)
+  {
+    ResetEvolutionStrategy();
   }
 
 

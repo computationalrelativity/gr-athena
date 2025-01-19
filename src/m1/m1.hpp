@@ -239,6 +239,9 @@ public:
     bool use_Neighbor;
 
     // source settings
+    bool limit_src_fluid;
+    bool limit_src_radiation;
+
     Real src_lim;
     Real src_lim_Ye_min;
     Real src_lim_Ye_max;
@@ -692,6 +695,7 @@ public:
   // Different solution techniques are employed point-wise according to the
   // current structure of the fields etc. This function sets internal masks
   // that account for that.
+  void ResetEvolutionStrategy();
   void PrepareEvolutionStrategy(const Real dt,
                                 const Real kap_a,
                                 const Real kap_s,

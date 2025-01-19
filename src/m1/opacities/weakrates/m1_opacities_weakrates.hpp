@@ -129,7 +129,22 @@ public:
       // Calculate equilibrium blackbody functions with trapped neutrinos
       Real dens_n_trap[3];
       Real dens_e_trap[3];
-      if (opacity_tau_trap >= 0.0 && tau > opacity_tau_trap) {
+      if (opacity_tau_trap >= 0.0 && tau > opacity_tau_trap)
+      {
+        // Ensure evolution method delegated based on here detected equilibrium
+        const static int ix_g = 0;
+        typedef M1::evolution_strategy::opt_solution_regime osr_r;
+        typedef M1::evolution_strategy::opt_source_treatment ost_r;
+        AthenaArray<osr_r> & sol_r = pm1->ev_strat.masks.solution_regime;
+        AthenaArray<ost_r> & src_r = pm1->ev_strat.masks.source_treatment;
+
+        for (int ix_s=0; ix_s<3; ++ix_s)
+        {
+          sol_r(ix_g,ix_s,k,j,i) = osr_r::equilibrium;
+          src_r(ix_g,ix_s,k,j,i) = ost_r::set_zero;
+        }
+        // --------------------------------------------------------------------
+
         Real T_star;
         Real Y_e_star;
         Real dens_n[3];
