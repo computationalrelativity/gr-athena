@@ -57,6 +57,7 @@ namespace {
 #endif
 
   Real max_rho(      MeshBlock *pmb, int iout);
+  Real max_T(        MeshBlock *pmb, int iout);
   Real min_alpha(    MeshBlock *pmb, int iout);
   Real max_abs_con_H(MeshBlock *pmb, int iout);
   Real num_c2p_fail(MeshBlock *pmb, int iout);
@@ -258,20 +259,22 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
     EnrollUserRefinementCondition(RefinementCondition);
 
 
-  AllocateUserHistoryOutput(4+MAGNETIC_FIELDS_ENABLED);
+  AllocateUserHistoryOutput(5+MAGNETIC_FIELDS_ENABLED);
 
-  EnrollUserHistoryOutput(0, max_rho,   "max-rho",
+  EnrollUserHistoryOutput(0, max_rho, "max-rho",
     UserHistoryOperation::max);
-  EnrollUserHistoryOutput(1, min_alpha, "min-alpha",
+  EnrollUserHistoryOutput(1, max_T, "max-T",
+    UserHistoryOperation::max);
+  EnrollUserHistoryOutput(2, min_alpha, "min-alpha",
     UserHistoryOperation::min);
-  EnrollUserHistoryOutput(2, max_abs_con_H, "max-abs-con.H",
+  EnrollUserHistoryOutput(3, max_abs_con_H, "max-abs-con.H",
     UserHistoryOperation::max);
 
 #if MAGNETIC_FIELDS_ENABLED
-  EnrollUserHistoryOutput(3, DivBface, "divBface", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(4, DivBface, "divBface", UserHistoryOperation::max);
 #endif
 
-  EnrollUserHistoryOutput(3 + MAGNETIC_FIELDS_ENABLED, num_c2p_fail,
+  EnrollUserHistoryOutput(4 + MAGNETIC_FIELDS_ENABLED, num_c2p_fail,
                           "num_c2p_fail", UserHistoryOperation::sum);
 
   if (resume_flag)
@@ -1016,6 +1019,24 @@ Real max_rho(MeshBlock *pmb, int iout)
   }
 
   return max_rho;
+}
+
+Real max_T(MeshBlock *pmb, int iout)
+{
+  Real max_T = -std::numeric_limits<Real>::infinity();
+  int is = pmb->is, ie = pmb->ie;
+  int js = pmb->js, je = pmb->je;
+  int ks = pmb->ks, ke = pmb->ke;
+
+  AthenaArray<Real> &T = pmb->phydro->temperature;
+  for (int k=ks; k<=ke; k++)
+  for (int j=js; j<=je; j++)
+  for (int i=is; i<=ie; i++)
+  {
+    max_T = std::max(std::abs(T(k,j,i)), max_T);
+  }
+
+  return max_T;
 }
 
 Real min_alpha(MeshBlock *pmb, int iout)
