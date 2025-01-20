@@ -1433,24 +1433,28 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
         const Real sinph = std::sin(phi_i);
         const Real cosph = std::cos(phi_i);
         
-        const Real gaussian_pert = 0.001 * std::exp( - SQR((r_(i) - 10.0*R)/(0.5*R)) );
+        const Real gaussian_pert = 0.0001 * std::exp( - SQR((r_(i) - 10.0*R)/(0.25*R)) );
         Real Ylm_thR, Ylm_thI, Ylm_phR, Ylm_phI, XlmR, XlmI, WlmR, WlmI;   
         SphHarm_Ylm_a(2,0, theta_i,phi_i,
 			&Ylm_thR, &Ylm_thI,
 			&Ylm_phR, &Ylm_phI,
 			&XlmR, &XlmI,
 			&WlmR, &WlmI);
-        const Real htt = - 0.5 * gaussian_pert * XlmI / sinth ;
-        const Real htp = 0.5 * gaussian_pert * WlmR * sinth ;
+        const Real htt = -0.5 * gaussian_pert * XlmI / sinth ;
+        const Real htp =  0.5 * gaussian_pert * WlmR * sinth ;
         const Real hpp =  0.5 * gaussian_pert * XlmI * sinth ;
+        const Real hrt =  - gaussian_pert * Ylm_phR / sinth ;
+        const Real hrp =  gaussian_pert * Ylm_thR * sinth ;
         
         Real Jac[3][3];
         Real h_sph[3][3];
 
-        h_sph[0][0] = h_sph[1][0] = h_sph[0][1] = h_sph[2][0] = h_sph[0][2] = 0.0;
-        h_sph[1][1] = htt;
-        h_sph[1][2] = h_sph[2][1] = htp;
-        h_sph[2][2] = htt;
+        h_sph[0][0] = 0.0;
+        h_sph[1][0] = h_sph[0][1] = hrt;
+        h_sph[2][0] = h_sph[0][2] = hrp;
+        h_sph[1][1] = 0.0;
+        h_sph[1][2] = h_sph[2][1] = 0.0;
+        h_sph[2][2] = 0.0;
 
         Jac[0][0] = sinth * cosph;
         Jac[0][1] = r_(i) * costh * cosph;
@@ -1510,7 +1514,7 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
           dralpha_(i) = M/((0.5*M+r_(i))*(0.5*M+r_(i)));
           psi4_(i)    = std::pow((1.+0.5*M/r_(i)),4.);
           drpsi4_(i)  = -2.*M*std::pow(1.+0.5*M/r_(i),3)/(r_(i)*r_(i));
-        }
+        } 
       }
 
       // Untransformed shift is taken as 0 initially
@@ -1532,6 +1536,7 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
         for (int b=a; b<N; ++b)
         for (int i=il; i<=iu; ++i)
         {
+          Real rschw = r_(i) * SQR(psi4_(i));
           sp_g_dd_(a,b,i) -= h_cart(a,b,i);
         }
 
