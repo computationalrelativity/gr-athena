@@ -21,9 +21,9 @@
 #include "task_list.hpp"
 #include "task_names.hpp"
 
-#if M1_ENABLED
-#include "../../m1/m1.hpp"
-#endif
+// #if M1_ENABLED
+// #include "../../m1/m1.hpp"
+// #endif
 
 // ----------------------------------------------------------------------------
 using namespace TaskLists::GeneralRelativity;
@@ -522,6 +522,7 @@ TaskStatus GRMHD_Z4c::ClearAllBoundary(MeshBlock *pmb, int stage)
 {
   BoundaryValues *pb = pmb->pbval;
   pb->ClearBoundary(BoundaryCommSubset::all);
+
   return TaskStatus::success;
 }
 

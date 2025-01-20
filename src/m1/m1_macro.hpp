@@ -7,7 +7,7 @@ namespace M1 {
 
 // Various constants ----------------------------------------------------------
 
-// TODO: move to sane place with all units
+// BD: TODO - move to sane place with all units
 #ifndef M1_UNITS_CGS_GCC
 #define M1_UNITS_CGS_GCC (1.619100425158886e-18)  // CGS density conv. fact
 #endif
@@ -16,8 +16,9 @@ namespace M1 {
 #define M1_NDIM 3
 #endif
 
+// BD: TODO - reduce ranges elsewhere to reduce this?
 #ifndef M1_NGHOST_MIN
-#define M1_NGHOST_MIN 2
+#define M1_NGHOST_MIN 3
 #endif
 
 // Indicial magic -------------------------------------------------------------

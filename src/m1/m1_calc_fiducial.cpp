@@ -64,7 +64,6 @@ void M1::CalcFiducialVelocity()
       fidu.sc_W.Fill(1.);
       fidu.sp_v_u.ZeroClear();
       fidu.sp_v_d.ZeroClear();
-      fidu.st_v_u.ZeroClear();
       return;
     }
     case opt_fiducial_velocity::none:
@@ -79,7 +78,6 @@ void M1::CalcFiducialVelocity()
   // Fiducial velocity does not necessarily coincide with hydro, recompute
   // Lorentz factor.
 
-
   M1_GLOOP3(k,j,i)
   {
     const Real norm2_util = InnerProductVecMetric(
@@ -89,40 +87,21 @@ void M1::CalcFiducialVelocity()
     fidu.sc_W(k,j,i) = std::sqrt(1. + norm2_util);
   }
 
-  /*
-  // Lorentz factor (if fid not fluid derived)
-  if (opt.fiducial_velocity == opt_fiducial_velocity::fluid)
-  {
-    M1_GLOOP3(k,j,i)
-    {
-      fidu.sc_W(k,j,i) = hydro.sc_W(k,j,i);
-    }
-  }
-  else
-  {
-    M1_GLOOP2(k,j)
-    {
-      for (int i=mbi.il; i<=mbi.iu; ++i)
-      {
-        const Real norm2_util = InnerProductVecMetric(
-          fidu.sp_v_u, geom.sp_g_dd,
-          k,j,i
-        );
-        fidu.sc_W(k,j,i) = std::sqrt(1. + norm2_util);
-      }
-    }
-  }
-  */
 
   // rescale fluid velocity
   M1_GLOOP3(k,j,i)
   {
-    Real const oo_W = 1.0 / fidu.sc_W(k,j,i);
+    Real const oo_W = OO(fidu.sc_W(k,j,i));
+    // Real const oo_alpha = OO(geom.sc_alpha(k,j,i));
+
     for(int a=0; a<N; ++a)
     {
-      fidu.sp_v_u(a,k,j,i) = oo_W * fidu.sp_v_u(a,k,j,i);
+      fidu.sp_v_u(a,k,j,i) = (
+        oo_W * fidu.sp_v_u(a,k,j,i) //  + oo_alpha * geom.sp_beta_u(a,k,j,i)
+      );
     }
   }
+
 
   // map to form
   fidu.sp_v_d.ZeroClear();
@@ -136,37 +115,38 @@ void M1::CalcFiducialVelocity()
       fidu.sp_v_d(a,k,j,i) += geom.sp_g_dd(a,b,k,j,i) * fidu.sp_v_u(b,k,j,i);
     }
   }
+}
 
-  // space-time extension
-  fidu.st_v_u.ZeroClear();
+// ----------------------------------------------------------------------------
+void M1::CalcFiducialFrame(AthenaArray<Real> & u)
+{
+  vars_Lab U_n { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
+  SetVarAliasesLab(u, U_n);
 
-  AT_D_sym & st_g_uu_ = scratch.st_g_uu_;
-
-  M1_GLOOP2(k,j)
+  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
   {
-    Assemble::st_g_uu_(this, st_g_uu_, k, j, 0, mbi.nn1-1);
+    AT_C_sca & sc_E    = U_n.sc_E(  ix_g,ix_s);
+    AT_N_vec & sp_F_d  = U_n.sp_F_d(ix_g,ix_s);
+    AT_C_sca & sc_chi  = lab_aux.sc_chi(ix_g,ix_s);
 
-    scratch.st_vec_.ZeroClear();
+    AT_C_sca & sc_nG   = U_n.sc_nG(ix_g,ix_s);
 
-    for(int a=0; a<N; ++a)
-    M1_GLOOP1(i)
+    AT_C_sca & sc_J   = rad.sc_J(  ix_g,ix_s);
+    AT_D_vec & st_H_u = rad.st_H_u(ix_g, ix_s);
+    AT_C_sca & sc_n   = rad.sc_n(  ix_g,ix_s);
+
+    M1_GLOOP3(k, j, i)
     {
-      scratch.st_vec_(0,i) += fidu.sp_v_u(a,k,j,i) * geom.sp_beta_d(a,k,j,i);
+      Assemble::Frames::ToFiducial(
+        *pm1,
+        sc_J, st_H_u, sc_n,
+        sc_chi,
+        sc_E, sp_F_d, sc_nG,
+        k, j, i
+      );
     }
 
-    for(int a=0; a<N; ++a)
-    for(int b=0; b<N; ++b)
-    M1_GLOOP1(i)
-    {
-      scratch.st_vec_(1+a,i) += geom.sp_g_dd(a,b,k,j,i) * fidu.sp_v_u(b,k,j,i);
-    }
-
-    for(int a=0; a<D; ++a)
-    for(int b=0; b<D; ++b)
-    M1_GLOOP1(i)
-    {
-      fidu.st_v_u(a,k,j,i) += st_g_uu_(a,b,i) * scratch.st_vec_(a,i);
-    }
   }
 
 }

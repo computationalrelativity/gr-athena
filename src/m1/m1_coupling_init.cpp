@@ -36,6 +36,7 @@ void M1::InitializeGeometry(vars_Geom & geom, vars_Scratch & scratch)
   geom.sp_beta_d.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
 
   geom.sc_sqrt_det_g.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
+  geom.sc_oo_sqrt_det_g.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
 
   geom.sp_g_uu.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
 
@@ -241,6 +242,7 @@ void M1::DerivedGeometry(vars_Geom & geom, vars_Scratch & scratch)
     {
       oo_detgamma_(i) = 1.0 / detgamma_(i);
       geom.sc_sqrt_det_g(k,j,i) = std::sqrt(detgamma_(i));
+      geom.sc_oo_sqrt_det_g(k,j,i) = OO(geom.sc_sqrt_det_g(k,j,i));
     }
 
     Inv3Metric(oo_detgamma_, geom.sp_g_dd, sp_g_uu_,
@@ -278,8 +280,9 @@ void M1::InitializeHydro(vars_Hydro & hydro,
 
     // slice primitives
     hydro.sc_w_rho.InitWithShallowSlice(   phydro->w, IDN);
-    if (NSCALARS > 0) {
-      hydro.sc_w_Ye.InitWithShallowSlice(   pscalars->r, 0);
+    if (NSCALARS > 0)
+    {
+      hydro.sc_w_Ye.InitWithShallowSlice(  pscalars->r, 0);
     }
     hydro.sp_w_util_u.InitWithShallowSlice(phydro->w, IVX);
     hydro.sc_w_p.InitWithShallowSlice(     phydro->w, IPR);
@@ -288,7 +291,7 @@ void M1::InitializeHydro(vars_Hydro & hydro,
   {
     // Fixed hydro background
     hydro.sc_w_rho.NewAthenaTensor(   mbi.nn3, mbi.nn2, mbi.nn1);
-    hydro.sc_w_Ye.NewAthenaTensor(     mbi.nn3, mbi.nn2, mbi.nn1);
+    hydro.sc_w_Ye.NewAthenaTensor(    mbi.nn3, mbi.nn2, mbi.nn1);
     hydro.sp_w_util_u.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
     hydro.sc_w_p.NewAthenaTensor(     mbi.nn3, mbi.nn2, mbi.nn1);
 
@@ -300,6 +303,7 @@ void M1::InitializeHydro(vars_Hydro & hydro,
     hydro.sp_w_util_u.Fill(0.);
 
     // DR: we should store the temperature and not the pressure
+    // BD: TODO - T slice (also see weak-rates)
     M1_GLOOP3(k,j,i)
     {
       hydro.sc_w_p(k,j,i) = K * std::pow(hydro.sc_w_rho(k,j,i), Gamma);

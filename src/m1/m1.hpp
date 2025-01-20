@@ -10,6 +10,11 @@
 //      the time evolution of the general relativistic radiation
 //      magneto-hydrodynamics equations." Classical and Quantum Gravity 40.14
 //      (2023): 145014.
+//
+// [3]: Schianchi, Federico, et al. "M1 neutrino transport within the
+//      numerical-relativistic code BAM with application to low mass binary
+//      neutron star mergers." Classical and Quantum Gravity 40.14
+//      (2023)
 
 // c++
 #include <iostream>
@@ -21,9 +26,11 @@
 #include "m1_containers.hpp"
 
 // External libraries
+#if defined(GSL)
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_math.h>
 #include <gsl/gsl_roots.h>
+#endif // defined(GSL)
 
 // Forward declarations
 namespace M1::Opacities {
@@ -44,8 +51,10 @@ class M1
 
 // internal solver data =======================================================
 public:
+#if defined(GSL)
   gsl_root_fsolver   * gsl_brent_solver;
   gsl_root_fdfsolver * gsl_newton_solver;
+#endif // defined(GSL)
 
 // methods ====================================================================
 public:
@@ -56,26 +65,24 @@ public:
   void CalcClosure(AA & u);
   void CalcFiducialFrame(AA & u);
   void CalcOpacity(Real const dt, AA & u);
-  void CalcUpdate(Real const dt,
+  void CalcUpdate(const int stage,
+                  Real const dt,
                   AA & u_pre,
                   AA & u_cur,
 		              AA & u_inh,
                   AA & sources);
+
   void CalcFluxes(AA & u);
   void AddFluxDivergence(AA & u_inh);
   void AddSourceGR(AA & u, AA & u_inh);
-  void AddSourceMatter(AA & u, AA & u_inh, AA & u_src);
 
   Real NewBlockTimeStep();
 
   void CoupleSourcesADM(AT_C_sca &A_rho, AT_N_vec &A_S_d, AT_N_sym & A_S_dd);
-  void CoupleSourcesHydro(const Real weight, AA &cons);
-  void CoupleSourcesYe(   const Real weight, const Real mb, AA &ps);
-
-  // `master_m1` style
   void CoupleSourcesHydro(AA &cons);
   void CoupleSourcesYe(const Real mb, AA &ps);
 
+  void PerformAnalysis();
 
 // data =======================================================================
 public:
@@ -119,26 +126,34 @@ public:
 
 // configuration ==============================================================
 public:
-  enum class opt_integration_strategy { full_explicit,
-                                        semi_implicit_PicardFrozenP,
-                                        semi_implicit_PicardMinerboP,
-                                        semi_implicit_PicardMinerboPC,
+  // BD: TODO - after refactor remove extraneous named..
+  enum class opt_integration_strategy { do_nothing,
+                                        full_explicit,
+                                        explicit_approximate_semi_implicit,
                                         semi_implicit_Hybrids,
-                                        semi_implicit_HybridsJFrozenP,
-                                        semi_implicit_HybridsJMinerbo,
-                                        auto_esi_HybridsJMinerbo,
-                                        auto_esi_PicardMinerboP};
+                                        semi_implicit_HybridsJ};
   enum class opt_fiducial_velocity { fluid, mixed, zero, none };
+
+  enum class opt_flux_variety { HybridizeMinModA,
+                                HybridizeMinModB,
+                                HybridizeMinModC,
+                                HybridizeMinMod,
+                                LO,
+                                HO };
+
   enum class opt_characteristics_variety { approximate,
+                                           mixed,
                                            exact_thin,
                                            exact_thick,
-                                           exact_Minerbo };
+                                           exact_closure };
   enum class opt_closure_variety { thin,
                                    thick,
                                    Minerbo,
-                                   MinerboP,
-                                   MinerboB,
-                                   MinerboN };
+                                   Kershaw };
+
+  enum class opt_closure_method {
+    none, gsl_Brent, gsl_Newton
+  };
 
   struct
   {
@@ -147,6 +162,9 @@ public:
     // Control flux calculation
     opt_characteristics_variety characteristics_variety;
 
+    // Switching between style of flux calculation / limiter
+    opt_flux_variety flux_variety;
+
     // Prescription for fiducial velocity; zero if not {"fluid","mixed"}
     opt_fiducial_velocity fiducial_velocity;
     Real fiducial_velocity_rho_fluid;
@@ -154,18 +172,18 @@ public:
     // Various tolerances / ad-hoc fiddle parameters
     Real fl_E;
     Real fl_J;
+    Real fl_nG;
     Real eps_E;
     Real eps_J;
     bool enforce_causality;
+    bool enforce_finite;
     Real eps_ec_fac;
-    Real min_flux_A;
+    Real min_flux_Theta;
 
     // Control the couplings
     bool couple_sources_ADM;
     bool couple_sources_hydro;
     bool couple_sources_Y_e;
-
-    Real source_limiter;
 
     // debugging:
     bool value_inject;
@@ -174,6 +192,7 @@ public:
   struct
   {
     opt_closure_variety variety;
+    opt_closure_method method;
 
     Real eps_tol;
     Real eps_Z_o_E;
@@ -184,6 +203,8 @@ public:
     int iter_max;
     int iter_max_rst;
 
+    bool fallback_brent;
+
     bool fallback_thin;
     bool use_Ostrowski;
     bool use_Neighbor;
@@ -193,16 +214,44 @@ public:
 
   struct
   {
-    opt_integration_strategy strategy;
+    struct {
+      opt_integration_strategy non_stiff;
+      opt_integration_strategy stiff;
+      opt_integration_strategy scattering;
+      opt_integration_strategy equilibrium;
+    } solvers;
 
-    Real eps_tol;
+    bool solver_reduce_to_common;
+    bool solver_explicit_nG;
+
+    Real eps_a_tol;
+    Real eps_r_tol;
+
     Real w_opt_ini;
     Real fac_err_amp;
+
+    bool thick_tol;
+    bool thick_npg;
 
     int iter_max;
     int iter_max_rst;
 
     bool use_Neighbor;
+
+    // source settings
+    bool limit_src_fluid;
+    bool limit_src_radiation;
+
+    Real src_lim;
+    Real src_lim_Ye_min;
+    Real src_lim_Ye_max;
+    Real src_lim_thick;
+    Real src_lim_scattering;
+
+    // equilibrium parameters
+    bool equilibrium_enforce;
+    bool equilibrium_initial;
+    Real eql_rho_min;
 
     bool verbose;
   } opt_solver;
@@ -237,8 +286,8 @@ public:
   struct vars_LabAux {
     // N.B.
     // These quantities should be viewed as \sqrt(\gamma) densitized
-    GroupSpeciesContainer<AT_N_sym> sp_P_dd;
-    GroupSpeciesContainer<AT_C_sca> sc_n;
+    GroupSpeciesContainer<AT_N_sym> sp_P_dd;  // retain for output
+    // GroupSpeciesContainer<AT_C_sca> sc_n;
 
     // Closure weight - not densitized
     GroupSpeciesContainer<AT_C_sca> sc_chi;
@@ -247,20 +296,19 @@ public:
   vars_LabAux lab_aux;
 
   // Lagrangian (Rad) fiducial frame
-  struct vars_Rad {
+  struct vars_Rad
+  {
     // N.B.
     // These quantities should be viewed as \sqrt(\gamma) densitized
-    GroupSpeciesContainer<AT_C_sca> sc_nnu;
+    GroupSpeciesContainer<AT_C_sca> sc_n;
     GroupSpeciesContainer<AT_C_sca> sc_J;
-    GroupSpeciesContainer<AT_C_sca> sc_H_t;
-    GroupSpeciesContainer<AT_N_vec> sp_H_d;
-    GroupSpeciesContainer<AT_C_sca> sc_ynu;
-    GroupSpeciesContainer<AT_C_sca> sc_znu;
+    GroupSpeciesContainer<AT_D_vec> st_H_u;
   };
   vars_Rad rad;
 
   // radiation-matter variables
-  struct vars_RadMat {
+  struct vars_RadMat
+  {
     GroupSpeciesContainer<AT_C_sca> sc_eta_0;
     GroupSpeciesContainer<AT_C_sca> sc_kap_a_0;
 
@@ -279,28 +327,31 @@ public:
   };
   vars_RadMat radmat;
 
-  struct vars_Source {
-    GroupSpeciesContainer<AT_C_sca> sc_S0;   // src: sc_NG
-    GroupSpeciesContainer<AT_C_sca> sc_S1;   // src: sc_E
-    GroupSpeciesContainer<AT_N_vec> sp_S1_d; // src: sp_F_d
+  struct vars_Source
+  {
+    GroupSpeciesContainer<AT_C_sca> sc_nG;
+    GroupSpeciesContainer<AT_C_sca> sc_E;
+    GroupSpeciesContainer<AT_N_vec> sp_F_d;
+
+    // For source limiting
+    AT_C_sca theta;
   };
   vars_Source sources;
 
   // diagnostic variables
-  struct vars_Diag {
-    AT_C_sca radflux_0;
-    AT_C_sca radflux_1;
-    AT_C_sca ynu;
-    AT_C_sca znu;
+  struct vars_Diag
+  {
+    GroupSpeciesContainer<AT_C_sca> sc_radflux_0;
+    GroupSpeciesContainer<AT_C_sca> sc_radflux_1;
+    GroupSpeciesContainer<AT_C_sca> sc_y;        // neutrino fractions
+    GroupSpeciesContainer<AT_C_sca> sc_z;        // neutrino energies
   };
-  vars_Diag rdia;
+  vars_Diag rdiag;
 
   // fiducial vel. variables (no group dependency)
   struct vars_Fidu {
     AT_N_vec sp_v_u;
     AT_N_vec sp_v_d;
-
-    AT_D_vec st_v_u;
 
     AT_C_sca sc_W;
   };
@@ -326,6 +377,7 @@ public:
     // derived quantities
     AT_N_vec sp_beta_d;
     AT_C_sca sc_sqrt_det_g;
+    AT_C_sca sc_oo_sqrt_det_g;
     AT_N_sym sp_g_uu;
 
     AT_N_D1sca sp_dalpha_d;
@@ -349,39 +401,26 @@ public:
 
   // various persistent scratch quantities not fitting elsewhere
   struct vars_Scratch {
-    AT_D_sym st_T_rad_;
-    AT_D_vec st_S_u_;
+    // ------------------------------------------------------------------------
+
+    // ------------------------------------------------------------------------
 
     // (sp)atial quantities (scratch: assembled as required)
-    AT_N_vec sp_F_u_;
     AT_N_vec sp_f_u_;
-    AT_N_vec sp_H_u_;
+
+    AT_N_sym sp_P_dd_;
+    AT_N_bil sp_P_ud_;
     AT_N_sym sp_P_uu_;
 
-    // (s)pace-(t)ime quantities (scratch: assembled as required)
-    AT_D_vec st_F_d_;
-    AT_C_sca sc_norm_st_F_;
-    AT_C_sca sc_G_;
+    AT_N_sym sp_P_th_dd_;
+    AT_N_sym sp_P_tk_dd_;
 
-    AT_D_sym st_P_dd_;
-
-    AT_C_sca sc_norm_sp_H_;
-    AT_C_sca sc_norm_st_H_;
-    AT_D_vec st_H_d_;
-    AT_D_vec st_H_u_;
-    AT_D_vec st_f_u_;
-
-    AT_D_vec st_n_u_;
-    AT_D_vec st_n_d_;
-
-    AT_D_vec st_beta_u_;
-    AT_D_sym st_g_dd_;
-    AT_D_sym st_g_uu_;
-
-    AT_D_bil st_Phyp_ud_;  // projector (based on hypersurf. normal)
-    AT_D_bil st_Pfid_ud_;  // projector (based on fiducial vel.)
-
-    AT_D_vec st_w_u_u_;
+    // Jacobian-related
+    AT_C_sca sc_dJ_dE_;
+    AT_N_vec sp_dJ_dF_d_;
+    AT_N_vec sp_dH_d_dE_;
+    AT_N_bil sp_dH_d_dF_d_;
+    AT_N_vec sp_F_u_;
 
     // For flux calculation (allocated for N-dim grid / not pencil)
     AT_C_sca F_sca;
@@ -402,10 +441,12 @@ public:
     AT_N_sym sp_sym_A_;
     AT_N_sym sp_sym_B_;
     AT_N_sym sp_sym_C_;
+
+    // Generic dense (dim = N) quantities of specific valence
+    AT_C_sca sc_A;
+    AT_C_sca sc_B;
   };
   vars_Scratch scratch;
-
-  AT_C_sca m1_mask;  // Excision mask
 
 private:
   // called during ctor for scratch (see descriptions in vars_Scratch)
@@ -417,8 +458,6 @@ private:
                          vars_Fidu    & fidu)
   {
     // general scratch --------------------------------------------------------
-    scratch.st_T_rad_.NewAthenaTensor(mbi.nn1);
-    scratch.st_S_u_.NewAthenaTensor(mbi.nn1);
 
     scratch.sc_A_.NewAthenaTensor(mbi.nn1);
     scratch.sc_B_.NewAthenaTensor(mbi.nn1);
@@ -431,16 +470,22 @@ private:
     scratch.sp_sym_C_.NewAthenaTensor(mbi.nn1);
 
     // Lab (Eulerian) frame ---------------------------------------------------
-    scratch.sp_F_u_.NewAthenaTensor(mbi.nn1);
     scratch.sp_f_u_.NewAthenaTensor(mbi.nn1);
 
-    scratch.st_F_d_.NewAthenaTensor(mbi.nn1);
-    scratch.sc_norm_st_F_.NewAthenaTensor(mbi.nn1);
-    scratch.sc_G_.NewAthenaTensor(mbi.nn1);
-
     // Lab (Eulerian) frame auxiliaries ---------------------------------------
+    scratch.sp_P_dd_.NewAthenaTensor(mbi.nn1);
+    scratch.sp_P_ud_.NewAthenaTensor(mbi.nn1);
     scratch.sp_P_uu_.NewAthenaTensor(mbi.nn1);
-    scratch.st_P_dd_.NewAthenaTensor(mbi.nn1);
+
+    scratch.sp_P_th_dd_.NewAthenaTensor(mbi.nn1);
+    scratch.sp_P_tk_dd_.NewAthenaTensor(mbi.nn1);
+
+    // Jacobian-related -------------------------------------------------------
+    scratch.sc_dJ_dE_.NewAthenaTensor(mbi.nn1);
+    scratch.sp_dJ_dF_d_.NewAthenaTensor(mbi.nn1);
+    scratch.sp_dH_d_dE_.NewAthenaTensor(mbi.nn1);
+    scratch.sp_dH_d_dF_d_.NewAthenaTensor(mbi.nn1);
+    scratch.sp_F_u_.NewAthenaTensor(mbi.nn1);
 
     // flux-related -----------------------------------------------------------
     scratch.F_sca.NewAthenaTensor( mbi.nn3,mbi.nn2,mbi.nn1);
@@ -449,29 +494,9 @@ private:
 
     scratch.dflx_.NewAthenaArray(N_GRPS, N_SPCS, ixn_Lab::N, mbi.nn1);
 
-    // Rad (fiducial) frame ---------------------------------------------------
-    scratch.sc_norm_sp_H_.NewAthenaTensor(mbi.nn1);
-    scratch.sc_norm_st_H_.NewAthenaTensor(mbi.nn1);
-    scratch.sp_H_u_.NewAthenaTensor(mbi.nn1);
-    scratch.st_H_d_.NewAthenaTensor(mbi.nn1);
-    scratch.st_H_u_.NewAthenaTensor(mbi.nn1);
-    scratch.st_f_u_.NewAthenaTensor(mbi.nn1);
-
-    // geometric --------------------------------------------------------------
-    scratch.st_n_u_.NewAthenaTensor(mbi.nn1);
-    scratch.st_n_d_.NewAthenaTensor(mbi.nn1);
-
-    scratch.st_beta_u_.NewAthenaTensor(mbi.nn1);
-    scratch.st_g_dd_.NewAthenaTensor(mbi.nn1);
-    scratch.st_g_uu_.NewAthenaTensor(mbi.nn1);
-
-    scratch.st_Phyp_ud_.NewAthenaTensor(mbi.nn1);
-
-    // hydro ------------------------------------------------------------------
-    scratch.st_w_u_u_.NewAthenaTensor(mbi.nn1);
-
-    // fiducial ---------------------------------------------------------------
-    scratch.st_Pfid_ud_.NewAthenaTensor(mbi.nn1);
+    // generic quantities (dense) ---------------------------------------------
+    scratch.sc_A.NewAthenaTensor(mbi.nn3,mbi.nn2,mbi.nn1);
+    scratch.sc_B.NewAthenaTensor(mbi.nn3,mbi.nn2,mbi.nn1);
   }
 
 // idx & constants ============================================================
@@ -482,22 +507,23 @@ public:
   {
     enum { E, F_x, F_y, F_z, nG, N };
     static constexpr char const * const names[] = {
-      "lab.E",
-      "lab.Fx", "lab.Fy", "lab.Fz",
-      "lab.nG"
+      "M1.lab.E",
+      "M1.lab.F_d_x",
+      "M1.lab.F_d_y",
+      "M1.lab.F_d_z",
+      "M1.lab.nG"
     };
   };
 
   // Lab frame variables
   struct ixn_Lab_aux
   {
-    enum { P_xx, P_xy, P_xz, P_yy, P_yz, P_zz, n, chi, xi, N };
+    enum { P_xx, P_xy, P_xz, P_yy, P_yz, P_zz, chi, xi, N };
     static constexpr char const * const names[] = {
-      "lab_aux.Pxx", "lab_aux.Pxy", "lab_aux.Pxz",
-      "lab_aux.Pyy", "lab_aux.Pyz", "lab_aux.Pzz",
-      "lab_aux.n",
-      "lab_aux.chi",
-      "lab_aux.xi",
+      "M1.lab_aux.Pxx", "M1.lab_aux.Pxy", "M1.lab_aux.Pxz",
+      "M1.lab_aux.Pyy", "M1.lab_aux.Pyz", "M1.lab_aux.Pzz",
+      "M1.lab_aux.chi",
+      "M1.lab_aux.xi",
     };
   };
 
@@ -506,20 +532,18 @@ public:
   {
     enum
     {
-      nnu,
+      n,
       J,
-      H_t,
-      H_x, H_y, H_z,
-      ynu,
-      znu,
+      st_H_u_t, st_H_u_x, st_H_u_y, st_H_u_z,
       N
     };
     static constexpr char const * const names[] = {
-      "rad.nnu",
-      "rad.J",
-      "rad.Ht", "rad.Hx", "rad.Hy", "rad.Hz",
-      "rad.ynu",
-      "rad.znu"
+      "M1.rad.n",
+      "M1.rad.J",
+      "M1.rad.st_H_u_t",
+      "M1.rad.st_H_u_x",
+      "M1.rad.st_H_u_y",
+      "M1.rad.st_H_u_z"
     };
   };
 
@@ -528,15 +552,17 @@ public:
   {
     enum
     {
-      S0,
-      S1,
-      S1_x, S1_y, S1_z,
+      sc_nG,
+      sc_E,
+      sp_F_0, sp_F_1, sp_F_2,
       N
     };
     static constexpr char const * const names[] = {
-      "src.S0",
-      "src.S1",
-      "src.S1x", "src.S1y", "src.S1z"
+      "M1.src.sc_nG",
+      "M1.src.sc_E",
+      "M1.src.sp_F_d_0",
+      "M1.src.sp_F_d_1",
+      "M1.src.sp_F_d_2"
     };
   };
 
@@ -559,12 +585,12 @@ public:
       N
     };
     static constexpr char const * const names[] = {
-      "rmat.eta_0",
-      "rmat.kap_a_0",
-      "rmat.eta",
-      "rmat.kap_a",
-      "rmat.kap_s"
-      "rmat.avg_nrg"
+      "M1.radmat.sc_eta_0",
+      "M1.radmat.sc_kap_a_0",
+      "M1.radmat.sc_eta",
+      "M1.radmat.sc_kap_a",
+      "M1.radmat.sc_kap_s",
+      "M1.radmat.sc_avg_nrg"
       // "rmat.abs_0", "rmat.abs_1",
       // "rmat.eta_0", "rmat.eta_1",
       // "rmat.scat_1",
@@ -580,15 +606,15 @@ public:
     {
       radflux_0,
       radflux_1,
-      ynu,
-      znu,
+      y,
+      z,
       N
     };
     static constexpr char const * const names[] = {
-      "rdia.radial_flux_0",
-      "rdia.radial_flux_1",
-      "rdia.ynu",
-      "rdia.znu",
+      "M1.rdia.radial_flux_0",
+      "M1.rdia.radial_flux_1",
+      "M1.rdia.y",
+      "M1.rdia.z",
     };
   };
 
@@ -599,25 +625,23 @@ public:
     {
       fidu_v_u_x, fidu_v_u_y, fidu_v_u_z,
       fidu_v_d_x, fidu_v_d_y, fidu_v_d_z,
-      fidu_st_v_t, fidu_st_v_x, fidu_st_v_y, fidu_st_v_z,
       fidu_W,
       netabs,
       netheat,
-      mask,
       N
     };
     static constexpr char const * const names[] = {
-      "fidu.v_u_x", "fidu.v_u_y", "fidu.v_u_z",
-      "fidu.v_d_x", "fidu.v_d_y", "fidu.v_d_z",
-      "fidu.st_vt", "fidu.st_vx", "fidu.st_vy", "fidu.st_vz",
-      "fidu.W",
-      "net.abs",
-      "net.heat",
-      "mask",
+      "M1.fidu.v_u_x", "M1.fidu.v_u_y", "M1.fidu.v_u_z",
+      "M1.fidu.v_d_x", "M1.fidu.v_d_y", "M1.fidu.v_d_z",
+      "M1.fidu.W",
+      "M1.net.abs",
+      "M1.net.heat"
     };
   };
 
+  // BD: TODO - have solvers (including closures) return status codes
   // Source update results
+  /*
   struct ixn_Status
   {
     enum
@@ -639,10 +663,45 @@ public:
       "failed",
     };
   };
+  */
 
 // opacities ==================================================================
 public:
   Opacities::Opacities * popac;
+
+// solver / source treatment dispatch =========================================
+public:
+  struct evolution_strategy {
+    enum class opt_solution_regime {noop,
+                                    non_stiff,
+                                    stiff,
+                                    scattering,
+                                    equilibrium,
+                                    N};
+    enum class opt_source_treatment {noop,
+                                     full,
+                                     set_zero,
+                                     N};
+    struct {
+      AthenaArray<opt_solution_regime>  solution_regime;
+      AthenaArray<opt_source_treatment> source_treatment;
+      AthenaArray<bool>                 excised;
+    } masks;
+  } ev_strat;
+
+  typedef evolution_strategy::opt_solution_regime  t_sln_r;
+  typedef evolution_strategy::opt_source_treatment t_src_t;
+
+  // Different solution techniques are employed point-wise according to the
+  // current structure of the fields etc. This function sets internal masks
+  // that account for that.
+  void ResetEvolutionStrategy();
+  void PrepareEvolutionStrategy(const Real dt,
+                                const Real kap_a,
+                                const Real kap_s,
+                                t_sln_r & mask_sln_r,
+                                t_src_t & mask_src_t);
+  void PrepareEvolutionStrategy(const Real dt);
 
 // additional methods =========================================================
 public:
@@ -663,7 +722,7 @@ public:
   inline void MaskSet(const bool is_enabled,
                       const int k, const int j, const int i)
   {
-    m1_mask(k,j,i) = is_enabled;
+    ev_strat.masks.excised(k,j,i) = !is_enabled;
 
     if (!is_enabled)
     for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
@@ -680,7 +739,7 @@ public:
 
   inline void MaskThreshold(const int k, const int j, const int i)
   {
-    // TODO:
+    // BD: TODO - add threshold
     //
     // Use nearest-neighbour values & threshold to determine whether
     // anything needs to avoid M1 calculations pointwise in ~0 regions.
@@ -703,7 +762,7 @@ public:
 
   inline bool MaskGet(const int k, const int j, const int i)
   {
-    return m1_mask(k,j,i);
+    return !(ev_strat.masks.excised(k,j,i));
   }
 
 
@@ -757,7 +816,7 @@ public:
   void SetVarAliasesLabAux(AA  &u,                  vars_LabAux & lab_aux);
   void SetVarAliasesRad(   AA  &r,                  vars_Rad    & rad);
   void SetVarAliasesRadMat(AA  &radmat,             vars_RadMat & rmat);
-  void SetVarAliasesDiagno(AA  &diagno,             vars_Diag   & rdia);
+  void SetVarAliasesDiag(  AA  &diagno,             vars_Diag   & rdia);
   void SetVarAliasesFidu(  AA  &intern,             vars_Fidu   & fid);
   void SetVarAliasesNet(   AA  &intern,             vars_Net    & net);
 
@@ -776,10 +835,10 @@ private:
 // debug ======================================================================
 public:
   void StatePrintPoint(
+    const std::string & tag,
     const int ix_g, const int ix_s,
     const int k, const int j, const int i,
     const bool terminate=true);
-
 
 };
 

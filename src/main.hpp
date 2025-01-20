@@ -28,6 +28,7 @@
 #include "outputs/io_wrapper.hpp"
 #include "outputs/outputs.hpp"
 #include "mesh/mesh.hpp"
+#include "mesh/surfaces.hpp"
 #include "task_list/gr/task_list.hpp"
 #include "task_list/m1/task_list.hpp"
 #include "task_list/wave_equations/task_list.hpp"
@@ -52,6 +53,19 @@
 
 // Note:
 // ENABLE_EXCEPTIONS is _always_ assumed
+
+// Diagnostics ----------------------------------------------------------------
+namespace gra::diagnostics {
+
+inline void std_print(const std::string & to_print)
+{
+  if (Globals::my_rank == 0)
+  #pragma omp critical
+  {
+    std::cout << to_print << "\n";
+  }
+}
+}
 
 // MPI/OMP  -------------------------------------------------------------------
 namespace gra::parallelism {
@@ -659,14 +673,24 @@ inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
   for (int stage=1; stage<=ptlc.grmhd_z4c->nstages; ++stage)
   {
     ptlc.grmhd_z4c->DoTaskListOneStage(pmesh, stage);
+
     // Iterate bnd comm. as required
     pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
 
-    if (stage == ptlc.grmhd_z4c->nstages)
+    // Rescale as required
+#if FLUID_ENABLED
+    if (pmesh->presc->opt.apply_on_substeps ||
+        (stage == ptlc.grmhd_z4c->nstages))
     {
-      // Rescale as required
-      pmesh->Rescale_Conserved();
+      const Real time_end_stage   = pmesh->time+pmesh->dt;
+      const Real ncycle_end_stage = pmesh->ncycle+1;
+
+      pmesh->presc->Apply();
+      pmesh->presc->OutputWrite(ncycle_end_stage,
+                                time_end_stage,
+                                stage);
     }
+#endif
 
 #ifdef DBG_SCATTER_MATTER_GRMHD
     pmesh->ScatterMatter(pmb_array);
@@ -682,7 +706,7 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
   // After state vector propagated, derived diagnostics (i.e. GW, trackers)
   // are at the new time-step ...
   const Real time_end_stage   = pmesh->time+pmesh->dt;
-  const Real ncycle_end_stage = pmesh->ncycle+1;
+  const int ncycle_end_stage  = pmesh->ncycle+1;
 
   // Derivatives of ADM metric and other auxiliary computations needed below
   if (trgs.IsSatisfied(tvar::Z4c_AHF) or trgs.IsSatisfied(tvar::Z4c_RWZ))
@@ -713,32 +737,15 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
     }
   }
 
-// BD: TODO - CCE needs to be cleaned up & tested
 #if CCE_ENABLED
-  // only do a CCE dump if NextTime threshold cleared (updated below)
-  if (trgs.IsSatisfied(tvar::Z4c_CCE, ovar::user))
+  for (auto cce : pmesh->pcce)
   {
-    Real cce_dt = trgs.GetTrigger_dt(tvar::Z4c_CCE, ovar::user);
+    if (pmesh->ncycle % cce->freq != 0) continue;
+    
+    int cce_iter = pmesh->ncycle / cce->freq;
 
-    // gather all interpolation values from all processors to the root proc.
-    for (auto cce : pmesh->pcce)
-    {
-      cce->ReduceInterpolation();
-    }
-    // number of cce iteration(dump)
-    int cce_iter = static_cast<int>(pmesh->time / cce_dt);
-    int w_iter = 0; // write iter
-
-    // update the bookkeeping file to ensure resuming from the correct iter number
-    // after a restart. note: for a duplicated iter, hdf5 writer gives an error!
-    if ((pmesh->pcce.size() > 0) &&
-        CCE::BookKeeping(pmesh->pcce.front()->output_dir, cce_iter,w_iter))
-    {
-      for (auto cce : pmesh->pcce)
-      {
-        cce->DecomposeAndWrite(w_iter);
-      }
-    }
+    cce->ReduceInterpolation();
+    cce->DecomposeAndWrite(cce_iter, time_end_stage);
   }
 #endif
 
@@ -785,8 +792,12 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
 
 #ifdef EJECTA_ENABLED
   // Ejecta analysis
-  for (auto pej : pmesh->pej_extract) {
-    pej->Calculate(pmesh->ncycle, pmesh->time);
+  if (trgs.IsSatisfied(tvar::ejecta))
+  {
+    for (auto pej : pmesh->pej_extract)
+    {
+      pej->Calculate(time_end_stage);
+    }
   }
 #endif
 
@@ -888,6 +899,23 @@ inline void TrackerExtrema(gra::tasklist::Collection &ptlc,
   if (trgs.IsSatisfied(tvar::tracker_extrema, ovar::user))
   {
     pmesh->ptracker_extrema->WriteTracker(ncycle_end_stage, time_end_stage);
+  }
+}
+
+inline void SurfaceReductions(gra::tasklist::Collection &ptlc,
+                              gra::triggers::Triggers &trgs,
+                              Mesh *pmesh)
+{
+  // Extrema tracker is based on propagated state vector
+  const Real time_end_stage   = pmesh->time+pmesh->dt;
+  const Real ncycle_end_stage = pmesh->ncycle+1;
+
+  for (auto psurf : pmesh->psurfs)
+  {
+    if (trgs.IsSatisfied(tvar::Surfaces, ovar::user, psurf->par_ix))
+    {
+      psurf->Reduce(ncycle_end_stage, time_end_stage);
+    }
   }
 }
 

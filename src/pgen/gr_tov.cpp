@@ -39,6 +39,7 @@
 #include "../scalars/scalars.hpp"
 #if M1_ENABLED
 #include "../m1/m1.hpp"
+#include "../m1/m1_set_equilibrium.hpp"
 #endif  // M1_ENABLED
 
 //----------------------------------------------------------------------------------------
@@ -112,6 +113,20 @@ namespace {
 #endif
 
   Real num_c2p_fail(MeshBlock *pmb, int iout);
+
+#if M1_ENABLED
+  Real max_T(MeshBlock *pmb, int iout);
+
+  Real max_sc_nG_00(MeshBlock *pmb, int iout);
+  Real max_sc_E_00(MeshBlock *pmb, int iout);
+
+  Real min_sc_nG_00(MeshBlock *pmb, int iout);
+  Real min_sc_E_00(MeshBlock *pmb, int iout);
+
+
+  Real min_sc_n_00(MeshBlock *pmb, int iout);
+  Real min_sc_J_00(MeshBlock *pmb, int iout);
+#endif
 
 } // namespace
 
@@ -267,26 +282,57 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   if(adaptive==true)
     EnrollUserRefinementCondition(RefinementCondition);
 
-  AllocateUserHistoryOutput(2+MAGNETIC_FIELDS_ENABLED);
+  AllocateUserHistoryOutput(2+MAGNETIC_FIELDS_ENABLED+7*M1_ENABLED);
   EnrollUserHistoryOutput(0, Maxrho, "max-rho", UserHistoryOperation::max);
 #if MAGNETIC_FIELDS_ENABLED
   EnrollUserHistoryOutput(1, DivBface, "divB", UserHistoryOperation::max);
 #endif
   EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED, num_c2p_fail,
                           "num_c2p_fail", UserHistoryOperation::sum);
+
+#if M1_ENABLED
+  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED + 1,
+                          max_T,
+                          "max_T", UserHistoryOperation::max);
+
+  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED + 2,
+                          max_sc_nG_00,
+                          "max_sc_nG_00", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED + 3,
+                          max_sc_E_00,
+                          "max_sc_E_00", UserHistoryOperation::max);
+
+  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED + 4,
+                          min_sc_nG_00,
+                          "min_sc_nG_00", UserHistoryOperation::min);
+  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED + 5,
+                          min_sc_E_00,
+                          "min_sc_E_00", UserHistoryOperation::min);
+
+  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED + 6,
+                          min_sc_n_00,
+                          "min_sc_n_00", UserHistoryOperation::min);
+  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED + 7,
+                          min_sc_J_00,
+                          "min_sc_J_00", UserHistoryOperation::min);
+
+#endif
 }
 
 //----------------------------------------------------------------------------------------
 //! \fn
 // \brief Setup User work
 
-void MeshBlock::InitUserMeshBlockData(ParameterInput *pin) {
+void MeshBlock::InitUserMeshBlockData(ParameterInput *pin)
+{
   // Allocate output arrays for fluxes
-  AllocateUserOutputVariables(15);
+  // AllocateUserOutputVariables(15);
   return;
 }
 
-void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin) {
+void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin)
+{
+  /*
   AthenaArray<Real> &x1flux = phydro->flux[X1DIR];
   AthenaArray<Real> &x2flux = phydro->flux[X2DIR];
   AthenaArray<Real> &x3flux = phydro->flux[X3DIR];
@@ -328,7 +374,7 @@ void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin) {
     user_out_var(13,k,j,i) = x3flux(3,k,j,i);
     user_out_var(14,k,j,i) = x3flux(4,k,j,i);
   }
-
+  */
   return;
 }
 
@@ -432,6 +478,30 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   pm1->UpdateGeometry(pm1->geom, pm1->scratch);
   pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
   pm1->CalcFiducialVelocity();
+
+  // pm1->CalcClosure(pm1->storage.u);
+  // pm1->CalcFiducialFrame(pm1->storage.u);
+  // pm1->CalcOpacity(0, pm1->storage.u);
+
+  // M1::M1::vars_Lab U_C { {pm1->N_GRPS,pm1->N_SPCS},
+  //                        {pm1->N_GRPS,pm1->N_SPCS},
+  //                        {pm1->N_GRPS,pm1->N_SPCS} };
+
+  // pm1->SetVarAliasesLab(pm1->storage.u, U_C);
+
+  // M1::M1::vars_Source U_S { {pm1->N_GRPS,pm1->N_SPCS},
+  //                           {pm1->N_GRPS,pm1->N_SPCS},
+  //                           {pm1->N_GRPS,pm1->N_SPCS} };
+
+  // pm1->SetVarAliasesSource(pm1->storage.u_sources, U_S);
+
+
+  // M1_ILOOP3(k, j, i)
+  // {
+  //   M1::Equilibrium::SetEquilibrium(*pm1, U_C, U_S, k, j, i);
+  // }
+
+
 #endif  // M1_ENABLED
 
   // // Impose algebraic constraints
@@ -587,12 +657,15 @@ int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts)
   u[TOV_IPHI] = 0.;
   u[TOV_IINT] = 0.;
 
-  printf("TOV_solve: solve TOV star (only once)\n");
-  printf("TOV_solve: dr   = %.16e\n",dr);
-  printf("TOV_solve: npts_max = %d\n",maxsize);
-  printf("TOV_solve: rhoc = %.16e\n",rhoc);
-  printf("TOV_solve: ec   = %.16e\n",ec);
-  printf("TOV_solve: pc   = %.16e\n",pc);
+  if (Globals::my_rank == 0)
+  {
+    printf("TOV_solve: solve TOV star (only once)\n");
+    printf("TOV_solve: dr   = %.16e\n",dr);
+    printf("TOV_solve: npts_max = %d\n",maxsize);
+    printf("TOV_solve: rhoc = %.16e\n",rhoc);
+    printf("TOV_solve: ec   = %.16e\n",ec);
+    printf("TOV_solve: pc   = %.16e\n",pc);
+  }
 
   // Integrate from rmin to R : rho(R) ~ 0
   Real rhoo = rhoc;
@@ -745,7 +818,10 @@ int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts)
 
   }
 
-  printf("TOV_solve: integ. done\n");
+  if (Globals::my_rank == 0)
+  {
+    printf("TOV_solve: integ. done\n");
+  }
   // --------------------------------------------------------------------------
 
   if (n >= maxsize)
@@ -814,17 +890,19 @@ int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts)
   tov->psi4_0 = 1/(C*C);
 
   // Done!
-  printf("TOV_solve: npts = %d\n",tov->npts);
-  printf("TOV_solve: inter_npts = %d\n",tov->interp_npts);
-  printf("TOV_solve: R(sch) = %.16e\n",tov->R);
-  printf("TOV_solve: R(iso) = %.16e\n",tov->Riso);
-  printf("TOV_solve: M = %.16e\n",tov->M);
-  printf("TOV_solve: lapse(0) = %.16e\n",tov->lapse_0);
-  printf("TOV_solve: psi4(0) = %.16e\n",tov->psi4_0);
+  if (Globals::my_rank == 0)
+  {
+    printf("TOV_solve: npts = %d\n",tov->npts);
+    printf("TOV_solve: inter_npts = %d\n",tov->interp_npts);
+    printf("TOV_solve: R(sch) = %.16e\n",tov->R);
+    printf("TOV_solve: R(iso) = %.16e\n",tov->Riso);
+    printf("TOV_solve: M = %.16e\n",tov->M);
+    printf("TOV_solve: lapse(0) = %.16e\n",tov->lapse_0);
+    printf("TOV_solve: psi4(0) = %.16e\n",tov->psi4_0);
 
-  printf("TOV_solve: lapse(R(iso)) = %.16e\n",tov->data[itov_lapse][tov->interp_npts-1]);
-  printf("TOV_solve: psi4(R(iso)) = %.16e\n", tov->data[itov_psi4][tov->interp_npts-1]);
-
+    printf("TOV_solve: lapse(R(iso)) = %.16e\n",tov->data[itov_lapse][tov->interp_npts-1]);
+    printf("TOV_solve: psi4(R(iso)) = %.16e\n", tov->data[itov_psi4][tov->interp_npts-1]);
+  }
   // dump ---------------------------------------------------------------------
   /*
   for (int v = 0; v < itov_nv; v++)
@@ -1970,6 +2048,95 @@ Real DivBface(MeshBlock *pmb, int iout) {
   }
   return divB;
 }
+#endif
+
+#if M1_ENABLED
+Real max_T(MeshBlock *pmb, int iout)
+{
+  Real max_T = -std::numeric_limits<Real>::infinity();
+  CC_ILOOP3(k, j, i)
+  {
+    max_T = std::max(max_T, pmb->phydro->temperature(k,j,i));
+  }
+  return max_T;
+}
+
+Real max_sc_nG_00(MeshBlock *pmb, int iout)
+{
+  Real max_sc_nG_00 = -std::numeric_limits<Real>::infinity();
+  CC_ILOOP3(k, j, i)
+  {
+    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
+    max_sc_nG_00 = std::max(max_sc_nG_00,
+                            // oo_sc_sqrt_det_g *
+                            pmb->pm1->lab.sc_nG(0,0)(k,j,i));
+  }
+  return max_sc_nG_00;
+}
+
+Real max_sc_E_00(MeshBlock *pmb, int iout)
+{
+  Real max_sc_E_00 = -std::numeric_limits<Real>::infinity();
+  CC_ILOOP3(k, j, i)
+  {
+    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
+    max_sc_E_00 = std::max(max_sc_E_00,
+                          //  oo_sc_sqrt_det_g *
+                           pmb->pm1->lab.sc_E(0,0)(k,j,i));
+  }
+  return max_sc_E_00;
+}
+
+Real min_sc_nG_00(MeshBlock *pmb, int iout)
+{
+  Real min_sc_nG_00 = +std::numeric_limits<Real>::infinity();
+  CC_ILOOP3(k, j, i)
+  {
+    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
+    min_sc_nG_00 = std::min(min_sc_nG_00,
+                           pmb->pm1->lab.sc_nG(0,0)(k,j,i));
+  }
+  return min_sc_nG_00;
+}
+
+Real min_sc_E_00(MeshBlock *pmb, int iout)
+{
+  Real min_sc_E_00 = +std::numeric_limits<Real>::infinity();
+  CC_ILOOP3(k, j, i)
+  {
+    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
+    min_sc_E_00 = std::min(min_sc_E_00,
+                          //  oo_sc_sqrt_det_g *
+                           pmb->pm1->lab.sc_E(0,0)(k,j,i));
+  }
+  return min_sc_E_00;
+}
+
+Real min_sc_n_00(MeshBlock *pmb, int iout)
+{
+  Real min_sc_n_00 = +std::numeric_limits<Real>::infinity();
+  CC_ILOOP3(k, j, i)
+  {
+    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
+    min_sc_n_00 = std::min(min_sc_n_00,
+                           pmb->pm1->rad.sc_n(0,0)(k,j,i));
+  }
+  return min_sc_n_00;
+}
+
+Real min_sc_J_00(MeshBlock *pmb, int iout)
+{
+  Real min_sc_J_00 = +std::numeric_limits<Real>::infinity();
+  CC_ILOOP3(k, j, i)
+  {
+    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
+    min_sc_J_00 = std::min(min_sc_J_00,
+                          //  oo_sc_sqrt_det_g *
+                           pmb->pm1->rad.sc_J(0,0)(k,j,i));
+  }
+  return min_sc_J_00;
+}
+
 #endif
 
 } // namespace

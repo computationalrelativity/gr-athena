@@ -22,6 +22,8 @@ class Mesh;
 class MeshBlock;
 class ParameterInput;
 
+#define INTERP_ORDER_2 (0) // Default: 2*NGHOST-1
+
 //! \class AHF
 //! \brief Apparent Horizon Finder
 class AHF {
@@ -60,9 +62,9 @@ public:
   //! Grid points
   int ntheta, nphi;
 
-  //! n surface follows the puncture tracker if use_puncture[n] > 0 
+  //! n surface follows the puncture tracker if use_puncture[n] > 0
   int use_puncture;
-  //! n surface uses the punctures' mass-weighted center 
+  //! n surface uses the punctures' mass-weighted center
   //bool use_puncture_massweighted_center[NHORIZON];
   bool use_puncture_massweighted_center;
   //! Distance in M at which BHs are considered as merged
@@ -73,7 +75,7 @@ public:
   Real stop_time;
   //! compute every n iterations
   int compute_every_iter;
-  
+
 private:
   int npunct;
   int lmax1;
@@ -84,8 +86,13 @@ private:
   bool use_stored_metric_drvts;
   //! Number of horizons
   int nstart, nhorizon;
-  //static const int metric_interp_order = 2;
-  static const int metric_interp_order = 2*NGHOST-1;  
+  //! Arrays for the grid and quadrature weights
+  AthenaArray<Real> th_grid, ph_grid, weights;
+#if (INTERP_ORDER_2)
+  static const int metric_interp_order = 2;
+#else
+  static const int metric_interp_order = 2*NGHOST-1;
+#endif
   int fastflow_iter=0;
   //! Arrays of Legendre polys and drvts
   AthenaArray<Real> P, dPdth, dPdth2;
@@ -93,16 +100,16 @@ private:
   AthenaArray<Real> Y0, Yc, Ys;
   AthenaArray<Real> dY0dth, dYcdth, dYsdth, dYcdph, dYsdph;
   AthenaArray<Real> dY0dth2, dYcdth2, dYcdthdph, dYsdth2, dYsdthdph, dYcdph2, dYsdph2;
-  //! Arrays for spectral coefs 
-  AthenaArray<Real> a0; 
-  AthenaArray<Real> ac; 
-  AthenaArray<Real> as; 
+  //! Arrays for spectral coefs
+  AthenaArray<Real> a0;
+  AthenaArray<Real> ac;
+  AthenaArray<Real> as;
   Real last_a0;
   //! Arrays for the various fields on the sphere
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g;
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> K;
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> dg; 
-  AthenaArray<Real> rr;
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> dg;
+  AthenaArray<Real> rr, rr_dth, rr_dph;
   // Array computed in SurfaceIntegrals
   AthenaArray<Real> rho;
   //! Indexes of surface integrals
@@ -138,17 +145,16 @@ private:
   void SurfaceIntegrals();
   void FastFlowLoop();
   void UpdateFlowSpectralComponents();
+  void UpdateFlowSpectralComponents_old();
   void RadiiFromSphericalHarmonics();
   void InitialGuess();
   void ComputeSphericalHarmonics();
   void ComputeLegendre(const Real theta);
   int lmindex(const int l, const int m);
   int tpindex(const int i, const int j);
-  Real th_grid(const int i);
-  Real ph_grid(const int j);
-  Real dth_grid();
-  Real dph_grid();
-  void factorial_list(Real * fac, const int maxn); 
+  void GLQuad_Nodes_Weights(const Real a, const Real b, Real * x, Real * w, const int n);
+  void SetGridWeights(std::string method);
+  void factorial_list(Real * fac, const int maxn);
 
   Mesh const * pmesh;
 
@@ -156,8 +162,10 @@ private:
   int ioproc;
   std::string ofname_summary;
   std::string ofname_shape;
+  std::string ofname_verbose;
   FILE * pofile_summary;
   FILE * pofile_shape;
+  FILE * pofile_verbose;
 
   // Functions to interface with puncture tracker
   Real PuncMaxDistance();

@@ -192,7 +192,7 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   if (FLUID_ENABLED) {
     peos = new EquationOfState(this, pin);
   }
-  
+
   if (M1_ENABLED)
   {
     pm1 = new M1::M1(this, pin);
@@ -325,7 +325,7 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   if (FLUID_ENABLED) {
     peos = new EquationOfState(this, pin);
   }
-  
+
   if (M1_ENABLED)
   {
     pm1 = new M1::M1(this, pin);
@@ -341,71 +341,76 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   std::size_t os = 0;
   // NEW_OUTPUT_TYPES:
 
-  if (FLUID_ENABLED) {
-    // load hydro and field data
-    std::memcpy(phydro->u.data(), &(mbdata[os]), phydro->u.GetSizeInBytes());
-    // load it into the other memory register(s) too
-    std::memcpy(phydro->u1.data(), &(mbdata[os]), phydro->u1.GetSizeInBytes());
-    os += phydro->u.GetSizeInBytes();
+  auto load_data = [&](const AA & data, const bool advance_position=true)
+  {
+    std::memcpy(const_cast<AA&>(data).data(), &(mbdata[os]), data.GetSizeInBytes());
+
+    if (advance_position)
+    {
+      os += data.GetSizeInBytes();
+    }
+  };
+
+  if (FLUID_ENABLED)
+  {
+    // load data into register (do not advance)
+    load_data(phydro->u,  false);
+    // load & advance counter
+    load_data(phydro->u1);
   }
 
-  if (GENERAL_RELATIVITY) {
-    std::memcpy(phydro->w.data(), &(mbdata[os]), phydro->w.GetSizeInBytes());
-    os += phydro->w.GetSizeInBytes();
-    std::memcpy(phydro->w1.data(), &(mbdata[os]), phydro->w1.GetSizeInBytes());
-    os += phydro->w1.GetSizeInBytes();
+  if (GENERAL_RELATIVITY)
+  {
+    load_data(phydro->w);
+    load_data(phydro->w1);
   }
-  if (MAGNETIC_FIELDS_ENABLED) {
-    std::memcpy(pfield->b.x1f.data(), &(mbdata[os]), pfield->b.x1f.GetSizeInBytes());
-    std::memcpy(pfield->b1.x1f.data(), &(mbdata[os]), pfield->b1.x1f.GetSizeInBytes());
-    os += pfield->b.x1f.GetSizeInBytes();
-    std::memcpy(pfield->b.x2f.data(), &(mbdata[os]), pfield->b.x2f.GetSizeInBytes());
-    std::memcpy(pfield->b1.x2f.data(), &(mbdata[os]), pfield->b1.x2f.GetSizeInBytes());
-    os += pfield->b.x2f.GetSizeInBytes();
-    std::memcpy(pfield->b.x3f.data(), &(mbdata[os]), pfield->b.x3f.GetSizeInBytes());
-    std::memcpy(pfield->b1.x3f.data(), &(mbdata[os]), pfield->b1.x3f.GetSizeInBytes());
-    os += pfield->b.x3f.GetSizeInBytes();
+  if (MAGNETIC_FIELDS_ENABLED)
+  {
+    load_data(pfield->b.x1f, false);
+    load_data(pfield->b1.x1f);
+
+    load_data(pfield->b.x2f, false);
+    load_data(pfield->b1.x2f);
+
+    load_data(pfield->b.x3f, false);
+    load_data(pfield->b1.x3f);
   }
 
   // (conserved variable) Passive scalars:
-  if (NSCALARS > 0) {
-    std::memcpy(pscalars->s.data(), &(mbdata[os]), pscalars->s.GetSizeInBytes());
-    // load it into the other memory register(s) too
-    std::memcpy(pscalars->s1.data(), &(mbdata[os]), pscalars->s1.GetSizeInBytes());
-    os += pscalars->s.GetSizeInBytes();
+  if (NSCALARS > 0)
+  {
+    // load data into multiple registers (do not advance)
+    load_data(pscalars->s, false);
+    // load & advance counter
+    load_data(pscalars->s1);
   }
 
-  if (WAVE_ENABLED) {
-    std::memcpy(pwave->u.data(), &(mbdata[os]), pwave->u.GetSizeInBytes());
-    os += pwave->u.GetSizeInBytes();
+  if (WAVE_ENABLED)
+  {
+    load_data(pwave->u);
   }
 
-  if (Z4C_ENABLED) {
-    std::memcpy(pz4c->storage.u.data(), &(mbdata[os]), pz4c->storage.u.GetSizeInBytes());
-    os += pz4c->storage.u.GetSizeInBytes();
-
-    // BD: TODO: extend as new data structures added
-    std::memcpy(pz4c->storage.mat.data(), &(mbdata[os]), pz4c->storage.mat.GetSizeInBytes());
-    os += pz4c->storage.mat.GetSizeInBytes();
+  if (Z4C_ENABLED)
+  {
+    load_data(pz4c->storage.u);
+    load_data(pz4c->storage.mat);
   }
 
   if (M1_ENABLED)
   {
-    std::memcpy(pm1->storage.u.data(), &(mbdata[os]), pm1->storage.u.GetSizeInBytes());
-    os += pm1->storage.u.GetSizeInBytes();
-
-    std::memcpy(pm1->storage.radmat.data(), &(mbdata[os]), pm1->storage.radmat.GetSizeInBytes());
-    os += pm1->storage.radmat.GetSizeInBytes();
+    load_data(pm1->storage.u);
   }
 
 
   // load user MeshBlock data
-  for (int n=0; n<nint_user_meshblock_data_; n++) {
+  for (int n=0; n<nint_user_meshblock_data_; n++)
+  {
     std::memcpy(iuser_meshblock_data[n].data(), &(mbdata[os]),
                 iuser_meshblock_data[n].GetSizeInBytes());
     os += iuser_meshblock_data[n].GetSizeInBytes();
   }
-  for (int n=0; n<nreal_user_meshblock_data_; n++) {
+  for (int n=0; n<nreal_user_meshblock_data_; n++)
+  {
     std::memcpy(ruser_meshblock_data[n].data(), &(mbdata[os]),
                 ruser_meshblock_data[n].GetSizeInBytes());
     os += ruser_meshblock_data[n].GetSizeInBytes();
@@ -871,7 +876,6 @@ std::size_t MeshBlock::GetBlockSizeInBytes() {
   }
 
   if (Z4C_ENABLED) {
-    // BD: TODO: extend as new data structures added
     size+=pz4c->storage.u.GetSizeInBytes();
     size+=pz4c->storage.mat.GetSizeInBytes();
   }
@@ -879,7 +883,6 @@ std::size_t MeshBlock::GetBlockSizeInBytes() {
   if (M1_ENABLED)
   {
     size += pm1->storage.u.GetSizeInBytes();
-    size += pm1->storage.radmat.GetSizeInBytes();
   }
 
   // calculate user MeshBlock data size

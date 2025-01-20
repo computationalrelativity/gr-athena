@@ -21,6 +21,9 @@
 #include "../z4c/z4c_amr.hpp"
 #include "../z4c/puncture_tracker.hpp"
 
+// For debug
+#include "../trackers/extrema_tracker.hpp"
+
 // twopuncturesc: Stand-alone library ripped from Cactus
 #include "TwoPunctures.h"
 
@@ -211,12 +214,74 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 // 1: refines, -1: de-refines, 0: does nothing
 static int RefinementCondition(MeshBlock *pmb)
 {
-  Z4c_AMR *const pz4c_amr = pmb->pz4c->pz4c_amr;
+  // BD: TODO - should coalesce the refinement logic
+  if (!pmb->pz4c->opt.use_tp_trackers_extrema)
+  {
+    Z4c_AMR *const pz4c_amr = pmb->pz4c->pz4c_amr;
 
-  // make sure we have 2 punctures
-  if (pmb->pmy_mesh->pz4c_tracker.size() != 2) {
-    return 0;
+    // make sure we have 2 punctures
+    if (pmb->pmy_mesh->pz4c_tracker.size() != 2) {
+      return 0;
+    }
+
+    return pz4c_amr->ShouldIRefine(pmb);
   }
 
-  return pz4c_amr->ShouldIRefine(pmb);
+  {
+    Mesh * pmesh = pmb->pmy_mesh;
+    ExtremaTracker * ptracker_extrema = pmesh->ptracker_extrema;
+
+    int root_level = ptracker_extrema->root_level;
+    int mb_physical_level = pmb->loc.level - root_level;
+
+
+    // Iterate over refinement levels offered by trackers.
+    //
+    // By default if a point is not in any sphere, completely de-refine.
+    int req_level = 0;
+
+    for (int n=1; n<=ptracker_extrema->N_tracker; ++n)
+    {
+      bool is_contained = false;
+      int cur_req_level = ptracker_extrema->ref_level(n-1);
+
+      {
+        if (ptracker_extrema->ref_type(n-1) == 0)
+        {
+          is_contained = pmb->PointContained(
+            ptracker_extrema->c_x1(n-1),
+            ptracker_extrema->c_x2(n-1),
+            ptracker_extrema->c_x3(n-1)
+          );
+        }
+        else if (ptracker_extrema->ref_type(n-1) == 1)
+        {
+          is_contained = pmb->SphereIntersects(
+            ptracker_extrema->c_x1(n-1),
+            ptracker_extrema->c_x2(n-1),
+            ptracker_extrema->c_x3(n-1),
+            ptracker_extrema->ref_zone_radius(n-1)
+          );
+        }
+      }
+
+      if (is_contained)
+      {
+        req_level = std::max(cur_req_level, req_level);
+      }
+
+    }
+
+    if (req_level > mb_physical_level)
+    {
+      return 1;  // currently too coarse, refine
+    }
+    else if (req_level == mb_physical_level)
+    {
+      return 0;  // level satisfied, do nothing
+    }
+
+    // otherwise de-refine
+    return -1;
+  }
 }

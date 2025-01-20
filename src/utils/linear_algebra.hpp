@@ -8,9 +8,9 @@
 // C++ headers
 
 // Athena++ headers
-#include "../athena.hpp"
-#include "../athena_arrays.hpp"
-#include "../athena_tensor.hpp"
+#include "../athena_aliases.hpp"
+
+using namespace gra::aliases;
 
 // ----------------------------------------------------------------------------
 // New impl. here; leverage polymorphism to make this more readable elsewhere
@@ -252,6 +252,15 @@ inline Real InnerProductVecMetric(
   );
 }
 
+// inner product of dense vec, SYM2
+inline Real InnerProductVecSym2(
+  AthenaTensor<Real, TensorSymm::NONE, 3, 1> const & u,
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & S,
+  int const k, int const j, int const i)
+{
+  return InnerProductVecMetric(u, S, k, j, i);
+}
+
 inline Real InnerProductSlicedVecMetric(
   AthenaTensor<Real, TensorSymm::NONE, 3, 1> const & u_,
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & g_,
@@ -380,6 +389,31 @@ inline void SymMetContraction(
   }
 }
 
+// indicial manipulations
+template<typename T, int D>
+inline void VecMetDenseContraction(
+  AthenaTensor<T, TensorSymm::NONE, D, 1> & tar_v,
+  AthenaTensor<T, TensorSymm::NONE, D, 1> const & v,
+  AthenaTensor<T, TensorSymm::SYM2, D, 2> const & met,
+  const int k, const int j,
+  const int il, const int iu)
+{
+  for (int a=0; a<D; ++a)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    tar_v(a,k,j,i) = 0;
+  }
+
+  for (int a=0; a<D; ++a)
+  for (int b=0; b<D; ++b)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    tar_v(a,k,j,i) += v(b,k,j,i) * met(a,b,k,j,i);
+  }
+}
+
 inline void SlicedVecMet3Contraction(
   AthenaTensor<Real, TensorSymm::NONE, 3, 1> & v_dst,
   AthenaTensor<Real, TensorSymm::NONE, 3, 1> const & v_src,
@@ -411,6 +445,73 @@ inline void SlicedVecMet3Contraction(
                     v_src(2,i)*met3_src(a,2,i));
     }
   }
+}
+
+template<typename T, int D>
+inline void SlicedVecMetContraction(
+  AthenaTensor<T, TensorSymm::NONE, D, 1> & tar_v_,
+  AthenaTensor<T, TensorSymm::NONE, D, 1> const & v_,
+  AthenaTensor<T, TensorSymm::SYM2, D, 2> const & met_,
+  const int il, const int iu)
+{
+  for (int a=0; a<D; ++a)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    tar_v_(a, i) = 0;
+  }
+
+  for (int a=0; a<D; ++a)
+  for (int b=0; b<D; ++b)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    tar_v_(a, i) += v_(b,i) * met_(a,b,i);
+  }
+}
+
+inline Real InnerProductOfAmbientCovariantWithADM(
+  const AT_D_vec & st_vec_u,
+  const AT_C_sca & sc_alpha,
+  const AT_N_vec & sp_beta_d,
+  const AT_N_vec & sp_beta_u,
+  const AT_N_sym & sp_gamma_dd,
+  const int k, const int j, const int i)
+{
+  Real norm2_beta (0);
+  for (int a=0; a<N; ++a)
+  {
+    norm2_beta += sp_beta_d(a,k,j,i) * sp_beta_u(a,k,j,i);
+  }
+
+  // g_00 V^0 V^0
+  Real out = (
+    (-SQR(sc_alpha(k,j,i)) + norm2_beta) *
+    SQR(st_vec_u(0,k,j,i))
+  );
+
+  // g_i0 V^i V^0
+  for (int a=0; a<N; ++a)
+  {
+    out += sp_beta_d(a,k,j,i) * st_vec_u(1+a,k,j,i) * st_vec_u(0,k,j,i);
+  }
+
+  // g_0i V^0 V^i
+  for (int a=0; a<N; ++a)
+  {
+    out += sp_beta_d(a,k,j,i) * st_vec_u(0,k,j,i) * st_vec_u(1+a,k,j,i);
+  }
+
+  // g_ij V^i V^j
+  for (int a=0; a<N; ++a)
+  for (int b=0; b<N; ++b)
+  {
+    out += (
+      sp_gamma_dd(a,b,k,j,i) * st_vec_u(a+1,k,j,i) * st_vec_u(b+1,k,j,i)
+    );
+  }
+
+  return out;
 }
 
 template<typename T>
@@ -655,11 +756,13 @@ void Assemble_ST_Metric_uu(
   const int k, const int j,
   const int il, const int iu)
 {
+  #pragma omp simd
   for (int i=il; i<=iu; ++i)
   {
-    sc_oo_alpha2_(i) = 1. / SQR(sc_alpha(k,j,i));
+    sc_oo_alpha2_(i) = OO(SQR(sc_alpha(k,j,i)));
   }
 
+  #pragma omp simd
   for (int i=il; i<=iu; ++i)
   {
     st_g_uu_(0,0,i) = -sc_oo_alpha2_(i);
@@ -668,6 +771,7 @@ void Assemble_ST_Metric_uu(
   for (int b=0; b<D-1; ++b)  // spatial ranges
   {
     for (int a=0; a<=b; ++a)
+    #pragma omp simd
     for (int i=il; i<=iu; ++i)
     {
       st_g_uu_(a+1,b+1,i) = (sp_g_uu(a,b,k,j,i) -
@@ -675,6 +779,7 @@ void Assemble_ST_Metric_uu(
                              sp_beta_u(a,k,j,i)*sp_beta_u(b,k,j,i));
     }
 
+    #pragma omp simd
     for (int i=il; i<=iu; ++i)
     {
       st_g_uu_(0,b+1,i) = sp_beta_u(b,k,j,i) * sc_oo_alpha2_(i);

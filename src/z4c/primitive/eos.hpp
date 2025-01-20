@@ -33,7 +33,7 @@
 //    bool ConservedFloor(Real& D, Real& Sd[3], Real& tau, Real& Bu[3])
 //    void DensityLimits(Real& n, Real n_min, Real n_max);
 //    void TemperatureLimits(Real& T, Real T_min, Real T_max);
-//    void SpeciesLimits(Real* Y, Real* Y_min, Real* Y_max, int n_species);
+//    bool SpeciesLimits(Real* Y, Real* Y_min, Real* Y_max, int n_species);
 //    void PressureLimits(Real& P, Real P_min, Real P_max);
 //    void EnergyLimits(Real& e, Real e_min, Real e_max);
 //    void FailureResponse(Real prim[NPRIM])
@@ -63,6 +63,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
   private:
     // EOSPolicy member functions
     using EOSPolicy::TemperatureFromE;
+    using EOSPolicy::TemperatureFromEntropy;
     using EOSPolicy::TemperatureFromP;
     using EOSPolicy::Energy;
     using EOSPolicy::Pressure;
@@ -168,6 +169,19 @@ class EOS : public EOSPolicy, public ErrorPolicy {
         return TemperatureFromP(n, p*code_units->PressureConversion(*eos_units), Y) *
                eos_units->TemperatureConversion(*code_units);
       }
+    }
+
+    //! \fn Real GetTemperatureFromEntropy(Real n, Real s, Real *Y)
+    //  \brief Calculate the temperature from number density, entropy, and
+    //         particle fractions.
+    //
+    //  \param[in] n  The number density
+    //  \param[in] s The entropy per baryon
+    //  \param[in] Y  An array of particle fractions, expected to be of size n_species.
+    //  \return The temperature according to the EOS.
+    inline Real GetTemperatureFromEntropy(Real n, Real s, Real *Y) {
+      return TemperatureFromEntropy(n, s*code_units->EntropyConversion(*eos_units), Y) *
+             eos_units->TemperatureConversion(*code_units);
     }
 
     //! \fn Real GetEnergy(Real n, Real T, Real *Y)
@@ -525,8 +539,8 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     }
 
     //! \brief Limit Y to a specified range
-    inline void ApplySpeciesLimits(Real *Y) {
-      SpeciesLimits(Y, min_Y, max_Y, n_species);
+    bool ApplySpeciesLimits(Real *Y) {
+      return SpeciesLimits(Y, min_Y, max_Y, n_species);
     }
 
     //! \brief Limit the pressure to a specified range at a given density and composition

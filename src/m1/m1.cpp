@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <iostream>
 #include <fstream>
+#include <limits>
 #include <sstream>
 #include <vector>
 
@@ -92,13 +93,9 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   lab_aux{
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
-    {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS}
   },
   rad{
-    {N_GRPS,N_SPCS},
-    {N_GRPS,N_SPCS},
-    {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS}
@@ -112,6 +109,12 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     {N_GRPS,N_SPCS}
   },
   sources{
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS}
+  },
+  rdiag{
+    {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS}
@@ -169,12 +172,27 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   SetVarAliasesRad(   storage.u_rad,     rad);
 
   SetVarAliasesRadMat(storage.radmat, radmat);
-  // SetVarAliasesDiagno(storage.diagno, rdia);
-  SetVarAliasesFidu(storage.intern, fidu);
-  // SetVarAliasesNet(storage.intern, net);
+  SetVarAliasesDiag(  storage.diagno, rdiag);
+  SetVarAliasesFidu(  storage.intern, fidu);
+  SetVarAliasesNet(   storage.intern, net);
 
-  m1_mask.InitWithShallowSlice(storage.intern, ixn_Internal::mask);
-  m1_mask.Fill(true);
+  // storage for misc. quantities ---------------------------------------------
+  if (opt_solver.src_lim >= 0)
+  {
+    sources.theta.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
+  }
+
+  ev_strat.masks.solution_regime.NewAthenaArray(
+    N_GRPS, N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1);
+  ev_strat.masks.solution_regime.Fill(t_sln_r::noop);
+
+  ev_strat.masks.source_treatment.NewAthenaArray(
+    N_GRPS, N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1);
+  ev_strat.masks.source_treatment.Fill(t_src_t::noop);
+
+  ev_strat.masks.excised.NewAthenaArray(
+    N_GRPS, N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1);
+  ev_strat.masks.excised.Fill(false);
 
   // --------------------------------------------------------------------------
   // general setup
@@ -190,13 +208,12 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     }
   }
 
-
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
   {
     lab.sc_E(ix_g,ix_s).Fill(opt.fl_E);
     lab.sp_F_d(ix_g,ix_s).Fill(0);
-    lab_aux.sp_P_dd(ix_g,ix_s).Fill(0);
+    lab_aux.sp_P_dd(ix_g,ix_s).Fill(std::numeric_limits<Real>::infinity());
   }
   */
 
@@ -259,9 +276,9 @@ void M1::SetVarAliasesSource(AthenaArray<Real> & sources, vars_Source & src)
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
   {
-    SetVarAlias(src.sc_S0,   sources, ix_g, ix_s, ixn_Src::S0,   ixn_Src::N);
-    SetVarAlias(src.sc_S1,   sources, ix_g, ix_s, ixn_Src::S1,   ixn_Src::N);
-    SetVarAlias(src.sp_S1_d, sources, ix_g, ix_s, ixn_Src::S1_x, ixn_Src::N);
+    SetVarAlias(src.sc_nG,  sources, ix_g, ix_s, ixn_Src::sc_nG,  ixn_Src::N);
+    SetVarAlias(src.sc_E,   sources, ix_g, ix_s, ixn_Src::sc_E,   ixn_Src::N);
+    SetVarAlias(src.sp_F_d, sources, ix_g, ix_s, ixn_Src::sp_F_0, ixn_Src::N);
   }
 }
 
@@ -272,8 +289,6 @@ void M1::SetVarAliasesLabAux(AthenaArray<Real> & u, vars_LabAux & lab_aux)
   {
     SetVarAlias(lab_aux.sp_P_dd, u, ix_g, ix_s,
                 ixn_Lab_aux::P_xx, ixn_Lab_aux::N);
-    SetVarAlias(lab_aux.sc_n,    u, ix_g, ix_s,
-                ixn_Lab_aux::n,    ixn_Lab_aux::N);
     SetVarAlias(lab_aux.sc_chi,  u, ix_g, ix_s,
                 ixn_Lab_aux::chi,  ixn_Lab_aux::N);
     SetVarAlias(lab_aux.sc_xi,   u, ix_g, ix_s,
@@ -286,12 +301,9 @@ void M1::SetVarAliasesRad(AthenaArray<Real> & u, vars_Rad & rad)
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
   {
-    SetVarAlias(rad.sc_nnu,  u, ix_g, ix_s, ixn_Rad::nnu,  ixn_Rad::N);
-    SetVarAlias(rad.sc_J,    u, ix_g, ix_s, ixn_Rad::J,    ixn_Rad::N);
-    SetVarAlias(rad.sc_H_t,  u, ix_g, ix_s, ixn_Rad::H_t,  ixn_Rad::N);
-    SetVarAlias(rad.sp_H_d,  u, ix_g, ix_s, ixn_Rad::H_x,  ixn_Rad::N);
-    SetVarAlias(rad.sc_ynu,  u, ix_g, ix_s, ixn_Rad::ynu,  ixn_Rad::N);
-    SetVarAlias(rad.sc_znu,  u, ix_g, ix_s, ixn_Rad::znu,  ixn_Rad::N);
+    SetVarAlias(rad.sc_n,     u, ix_g, ix_s, ixn_Rad::n,     ixn_Rad::N);
+    SetVarAlias(rad.sc_J,     u, ix_g, ix_s, ixn_Rad::J,     ixn_Rad::N);
+    SetVarAlias(rad.st_H_u,   u, ix_g, ix_s, ixn_Rad::st_H_u_t, ixn_Rad::N);
   }
 }
 
@@ -317,19 +329,27 @@ void M1::SetVarAliasesRadMat(AthenaArray<Real> & u, vars_RadMat & radmat)
   }
 }
 
-void M1::SetVarAliasesDiagno(AthenaArray<Real> & u, vars_Diag & rdia)
+void M1::SetVarAliasesDiag(AthenaArray<Real> & u, vars_Diag & rdiag)
 {
-  // rdia.radflux_0.InitWithShallowSlice(u, I_Diagno_radflux_0);
-  // rdia.radflux_1.InitWithShallowSlice(u, I_Diagno_radflux_1);
-  // rdia.ynu.InitWithShallowSlice(u, I_Diagno_ynu);
-  // rdia.znu.InitWithShallowSlice(u, I_Diagno_znu);
+  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  {
+    SetVarAlias(rdiag.sc_radflux_0,  u, ix_g, ix_s,
+                ixn_Diag::radflux_0, ixn_Diag::N);
+    SetVarAlias(rdiag.sc_radflux_1,  u, ix_g, ix_s,
+                ixn_Diag::radflux_1, ixn_Diag::N);
+
+    SetVarAlias(rdiag.sc_y, u, ix_g, ix_s,
+                ixn_Diag::y, ixn_Diag::N);
+    SetVarAlias(rdiag.sc_z, u, ix_g, ix_s,
+                ixn_Diag::z, ixn_Diag::N);
+  }
 }
 
 void M1::SetVarAliasesFidu(AthenaArray<Real> & u, vars_Fidu & fidu)
 {
   fidu.sp_v_u.InitWithShallowSlice(u, ixn_Internal::fidu_v_u_x);
   fidu.sp_v_d.InitWithShallowSlice(u, ixn_Internal::fidu_v_d_x);
-  fidu.st_v_u.InitWithShallowSlice(u, ixn_Internal::fidu_st_v_t);
   fidu.sc_W.InitWithShallowSlice(  u, ixn_Internal::fidu_W);
 }
 
@@ -341,6 +361,7 @@ void M1::SetVarAliasesNet(AthenaArray<Real> & u, vars_Net & net)
 
 
 void M1::StatePrintPoint(
+  const std::string & tag,
   const int ix_g, const int ix_s,
   const int k, const int j, const int i,
   const bool terminate)
@@ -348,6 +369,8 @@ void M1::StatePrintPoint(
   #pragma omp critical
   {
     std::cout << "M1::DebugState" << std::endl;
+    std::cout << "Tag: \n";
+    std::cout << tag << "\n";
     std::cout << std::setprecision(14) << std::endl;
     std::cout << "ix_g, ix_s:  " << ix_g << ", " << ix_s << "\n";
     std::cout << "k, j, i:     " << k << ", " << j << ", " << i << "\n";
@@ -359,8 +382,8 @@ void M1::StatePrintPoint(
 
     std::cout << "geometric fields=========================: " << "\n\n";
     std::cout << "sc=================: " << "\n";
-    geom.sc_alpha.PrintPoint("geom.sc_alpha", k,j,i);
     geom.sc_sqrt_det_g.PrintPoint("geom.sc_sqrt_det_g", k,j,i);
+    geom.sc_alpha.PrintPoint("geom.sc_alpha", k,j,i);
 
     std::cout << "vec================: " << "\n";
     geom.sp_beta_u.PrintPoint("geom.sp_beta_u", k,j,i);
@@ -409,17 +432,27 @@ void M1::StatePrintPoint(
     lab.sp_F_d(ix_g,ix_s).PrintPoint("lab.sp_F_d(ix_s,ix_g)", k,j,i);
 
     std::cout << "sc=================: " << "\n";
-    lab_aux.sc_n(ix_g,ix_s).PrintPoint("lab_aux.sc_n(ix_s,ix_g)", k,j,i);
+    rad.sc_n(ix_g,ix_s).PrintPoint("rad.sc_n(ix_s,ix_g)", k,j,i);
+    rad.sc_J(ix_g,ix_s).PrintPoint("rad.sc_J(ix_s,ix_g)", k,j,i);
     lab_aux.sc_chi(ix_g,ix_s).PrintPoint("lab_aux.sc_chi(ix_s,ix_g)", k,j,i);
     lab_aux.sc_xi(ix_g,ix_s).PrintPoint("lab_aux.sc_xi(ix_s,ix_g)", k,j,i);
 
     std::cout << "sym2===============: " << "\n";
     lab_aux.sp_P_dd(ix_g,ix_s).PrintPoint("lab_aux.sp_P_dd(ix_s,ix_g)", k,j,i);
+
+    std::cout << "opt_solution_regime: ";
+    std::cout << static_cast<int>(ev_strat.masks.solution_regime(ix_g,ix_s,k,j,i));
+    std::cout << "\n";
+
+    std::cout << "opt_source_treatment: ";
+    std::cout << static_cast<int>(ev_strat.masks.source_treatment(ix_g,ix_s,k,j,i));
+    std::cout << "\n";
+
   }
 
   if (terminate)
   {
-    std::exit(0);
+    assert(false);
   }
 }
 

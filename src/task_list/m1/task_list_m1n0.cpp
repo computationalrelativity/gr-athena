@@ -1,6 +1,7 @@
 // C headers
 
 // C++ headers
+#include <cstdio>
 #include <iostream>   // endl
 #include <sstream>    // sstream
 #include <stdexcept>  // runtime_error
@@ -14,6 +15,7 @@
 #include "../../hydro/hydro.hpp"
 #include "../../scalars/scalars.hpp"
 #include "../../m1/m1.hpp"
+#include "../../z4c/z4c.hpp"
 #include "../../trackers/extrema_tracker.hpp"
 #include "../task_list.hpp"
 #include "task_list.hpp"
@@ -45,10 +47,11 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
     Add(CALC_FIDU,    UPDATE_BG, &M1N0::CalcFiducialVelocity);
     Add(CALC_CLOSURE, CALC_FIDU, &M1N0::CalcClosure);
 
-    // FIDU_FRAME is computed on-the-fly during the updates
-    // Add(CALC_FIDU_FRAME, CALC_CLOSURE, &M1N0::CalcClosure);
-    // Add(CALC_OPAC, CALC_FIDU_FRAME, &M1N0::CalcFiducialFrame);
-    Add(CALC_OPAC, CALC_CLOSURE, &M1N0::CalcOpacity);
+    // Closure is not guaranteed to compute fiducial frame quantities;
+    // these are required for e.g. rad.sc_n from lab.sc_nG after closure.
+    // This example enters weak-rates in opacities.
+    Add(CALC_FIDU_FRAME, CALC_CLOSURE, &M1N0::CalcFiducialFrame);
+    Add(CALC_OPAC, CALC_FIDU_FRAME, &M1N0::CalcOpacity);
 
     Add(CALC_FLUX, CALC_OPAC, &M1N0::CalcFlux);
 
@@ -86,7 +89,9 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
       Add(PHY_BVAL, SETB, &M1N0::PhysicalBoundary);
     }
 
-    Add(USERWORK, (PHY_BVAL|CALC_UPDATE), &M1N0::UserWork);
+    Add(ANALYSIS, (PHY_BVAL|CALC_UPDATE), &M1N0::Analysis);
+
+    Add(USERWORK, ANALYSIS, &M1N0::UserWork);
     Add(NEW_DT,   USERWORK,               &M1N0::NewBlockTimeStep);
 
     if (adaptive)
@@ -136,11 +141,12 @@ TaskStatus M1N0::UpdateBackground(MeshBlock *pmb, int stage)
 
   // Task-list is not interspersed with external field evolution -
   // only need to do this on the first step.
-  if (stage <= 1)
+  if (stage == 1)
   {
     pm1->UpdateGeometry(pm1->geom, pm1->scratch);
     pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
   }
+
   return TaskStatus::success;
 }
 
@@ -148,12 +154,16 @@ TaskStatus M1N0::UpdateBackground(MeshBlock *pmb, int stage)
 // Function to Calculate Fiducial Velocity
 TaskStatus M1N0::CalcFiducialVelocity(MeshBlock *pmb, int stage)
 {
-  if (stage <= nstages)
+  ::M1::M1 * pm1 = pmb->pm1;
+
+  // Task-list is not interspersed with external field evolution -
+  // only need to do this on the first step.
+  if (stage == 1)
   {
-    pmb->pm1->CalcFiducialVelocity();
-    return TaskStatus::success;
+    pm1->CalcFiducialVelocity();
   }
-  return TaskStatus::fail;
+
+  return TaskStatus::success;
 }
 
 // ----------------------------------------------------------------------------
@@ -171,17 +181,19 @@ TaskStatus M1N0::CalcClosure(MeshBlock *pmb, int stage)
 }
 
 // ----------------------------------------------------------------------------
-// Map (closed) Eulerian fields (E, F_d, P_dd) to (J, H_d)
+// Map (closed) Eulerian fields (E, F_d, nG) to (J, H_d, n)
+// Needed on first step for weak-rates
+// Use frame in flux calculation
 TaskStatus M1N0::CalcFiducialFrame(MeshBlock *pmb, int stage)
 {
   ::M1::M1 * pm1 = pmb->pm1;
 
+  // if (stage == 1)
   if (stage <= nstages)
   {
     pm1->CalcFiducialFrame(pm1->storage.u);
-    return TaskStatus::success;
   }
-  return TaskStatus::fail;
+  return TaskStatus::success;
 }
 
 // ----------------------------------------------------------------------------
@@ -191,10 +203,17 @@ TaskStatus M1N0::CalcOpacity(MeshBlock *pmb, int stage)
   Mesh * pm = pmb->pmy_mesh;
   ::M1::M1 * pm1 = pmb->pm1;
 
-  if (stage <= nstages)
+  // opacities are kept fixed throughout the implicit time integration
+  // if (stage <= nstages)
+  if (stage == 1)
   {
-    Real const dt = pm->dt * dt_fac[stage - 1];
+    Real const dt = pm->dt;
+    // Real const dt = pm->dt * dt_fac[stage - 1];
     pm1->CalcOpacity(dt, pm1->storage.u);
+    return TaskStatus::success;
+  }
+  else if (stage <= nstages)
+  {
     return TaskStatus::success;
   }
   return TaskStatus::fail;
@@ -282,12 +301,16 @@ TaskStatus M1N0::CalcUpdate(MeshBlock *pmb, int stage)
   if (stage <= nstages)
   {
     Real const dt = pm->dt * dt_fac[stage - 1];
-    pm1->CalcUpdate(dt,
-                    pm1->storage.u1, pm1->storage.u,
-                    pm1->storage.u_rhs, pm1->storage.u_sources);
+    pm1->CalcUpdate(stage,
+                    dt,
+                    pm1->storage.u1,
+                    pm1->storage.u,
+                    pm1->storage.u_rhs,
+                    pm1->storage.u_sources);
 
     return TaskStatus::next;
   }
+
   return TaskStatus::fail;
 }
 
@@ -313,6 +336,7 @@ TaskStatus M1N0::UpdateCoupling(MeshBlock *pmb, int stage)
         std::cout << "M1: couple_sources_Y_e supported for 3 species \n";
         std::exit(0);
       }
+      // const Real mb = pmb->peos->GetEOS().GetBaryonMass();
       const Real mb = pmb->peos->GetEOS().GetRawBaryonMass();
       pm1->CoupleSourcesYe(mb, pmb->pscalars->s);
     }
@@ -428,6 +452,16 @@ TaskStatus M1N0::PhysicalBoundary(MeshBlock *pmb, int stage)
   }
 
   return TaskStatus::fail;
+}
+
+// ----------------------------------------------------------------------------
+TaskStatus M1N0::Analysis(MeshBlock *pmb, int stage)
+{
+  if (stage != nstages) return TaskStatus::success; // only do on last stage
+
+  pmb->pm1->PerformAnalysis();
+
+  return TaskStatus::success;
 }
 
 // ----------------------------------------------------------------------------

@@ -38,7 +38,7 @@ class ResetFloor : public ErrorPolicyInterface {
     void TemperatureLimits(Real& T, Real T_min, Real T_max);
 
     /// Policy for resetting species fractions
-    void SpeciesLimits(Real* Y, Real* Y_min, Real* Y_max, int n_species);
+    bool SpeciesLimits(Real* Y, Real* Y_min, Real* Y_max, int n_species);
 
     /// Policy for resetting pressure
     void PressureLimits(Real& P, Real P_min, Real P_max);

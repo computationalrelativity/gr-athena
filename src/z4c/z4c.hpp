@@ -51,6 +51,19 @@ class Z4c {
 friend class Z4c_AMR;
 friend class AHF;
 public:
+  // Names of Z4c variables
+  static constexpr char const * const Z4c_names[] = {
+    "geom.z4c.chi",
+    "geom.z4c.gxx", "geom.z4c.gxy", "geom.z4c.gxz",
+    "geom.z4c.gyy", "geom.z4c.gyz", "geom.z4c.gzz",
+    "geom.z4c.Khat",
+    "geom.z4c.Axx", "geom.z4c.Axy", "geom.z4c.Axz",
+    "geom.z4c.Ayy", "geom.z4c.Ayz", "geom.z4c.Azz",
+    "geom.z4c.Gamx", "geom.z4c.Gamy", "geom.z4c.Gamz",
+    "geom.z4c.Theta",
+    "geom.z4c.alpha",
+    "geom.z4c.betax", "geom.z4c.betay", "geom.z4c.betaz",
+  };
   // Indexes of evolved variables
   enum {
     I_Z4c_chi,
@@ -63,8 +76,17 @@ public:
     I_Z4c_betax, I_Z4c_betay, I_Z4c_betaz,
     N_Z4c
   };
-  // Names of Z4c variables
-  static char const * const Z4c_names[N_Z4c];
+
+  // Names of ADM variables
+  static constexpr char const * const ADM_names[] = {
+    "geom.adm.alpha",
+    "geom.adm.betax", "geom.adm.betay", "geom.adm.betaz",
+    "geom.adm.gxx", "geom.adm.gxy", "geom.adm.gxz",
+    "geom.adm.gyy", "geom.adm.gyz", "geom.adm.gzz",
+    "geom.adm.Kxx", "geom.adm.Kxy", "geom.adm.Kxz",
+    "geom.adm.Kyy", "geom.adm.Kyz", "geom.adm.Kzz",
+    "geom.adm.psi4"
+  };
   // Indexes of ADM variables
   enum {
     I_ADM_alpha,
@@ -74,8 +96,15 @@ public:
     I_ADM_psi4,
     N_ADM
   };
-  // Names of ADM variables
-  static char const * const ADM_names[N_ADM];
+
+  // Names of contraint variables
+  static constexpr char const * const Constraint_names[] = {
+    "geom.con.C",
+    "geom.con.H",
+    "geom.con.M",
+    "geom.con.Z",
+    "geom.con.Mx", "geom.con.My", "geom.con.Mz",
+  };
   // Indexes of Constraint variables
   enum {
     I_CON_C,
@@ -85,8 +114,15 @@ public:
     I_CON_Mx, I_CON_My, I_CON_Mz,
     N_CON,
   };
-  // Names of costraint variables
-  static char const * const Constraint_names[N_CON];
+
+
+  // Names of matter variables
+  static constexpr char const * const Matter_names[] = {
+    "geom.mat.rho",
+    "geom.mat.Sx", "geom.mat.Sy", "geom.mat.Sz",
+    "geom.mat.Sxx", "geom.mat.Sxy", "geom.mat.Sxz",
+    "geom.mat.Syy", "geom.mat.Syz", "geom.mat.Szz",
+  };
   // Indexes of matter fields
   enum {
     I_MAT_rho,
@@ -94,15 +130,27 @@ public:
     I_MAT_Sxx, I_MAT_Sxy, I_MAT_Sxz, I_MAT_Syy, I_MAT_Syz, I_MAT_S_zz,
     N_MAT
   };
-  // Names of matter variables
-  static char const * const Matter_names[N_MAT];
+
+  // Names of Weyl scalars
+  static constexpr char const * const Weyl_names[] = {
+    "geom.weyl.rpsi4", "geom.weyl.ipsi4",
+  };
   // Indexes of Weyl scalars
   enum {
     I_WEY_rpsi4, I_WEY_ipsi4,
     N_WEY
   };
-  // Names of Weyl scalars
-  static char const * const Weyl_names[N_WEY];
+
+  // Names of auxiliary variables
+  static constexpr char const * const Aux_names[] = {
+    "aux.dalpha_x", "aux.dalpha_y", "aux.dalpha_z",
+    "aux.dbetax_x", "aux.dbetay_x", "aux.dbetaz_x",
+    "aux.dbetax_y", "aux.dbetay_y", "aux.dbetaz_y",
+    "aux.dbetax_z", "aux.dbetay_z", "aux.dbetaz_z",
+    "aux.dgxx_x", "aux.dgxy_x", "aux.dgxz_x", "aux.dgyy_x", "aux.dgyz_x", "aux.dgzz_x",
+    "aux.dgxx_y", "aux.dgxy_y", "aux.dgxz_y", "aux.dgyy_y", "aux.dgyz_y", "aux.dgzz_y",
+    "aux.dgxx_z", "aux.dgxy_z", "aux.dgxz_z", "aux.dgyy_z", "aux.dgyz_z", "aux.dgzz_z",
+  };
   // Indexes of auxiliary variables for 3D ADM metric drvts
   enum {
     I_AUX_dalpha_x, I_AUX_dalpha_y, I_AUX_dalpha_z,
@@ -114,8 +162,13 @@ public:
     I_AUX_dgxx_z, I_AUX_dgxy_z, I_AUX_dgxz_z, I_AUX_dgyy_z, I_AUX_dgyz_z, I_AUX_dgzz_z,
     N_AUX
   };
+
+  enum {
+    I_AUX_EXTENDED_cc_sqrt_detgamma,
+    N_AUX_EXTENDED
+  };
   // Names of auxiliary variables
-  static char const * const Aux_names[N_AUX];
+  static char const * const Aux_Extended_names[N_AUX_EXTENDED];
 
 public:
   Z4c(MeshBlock *pmb, ParameterInput *pin);
@@ -140,6 +193,7 @@ public:
     AA mat;   // matter variables
     AA weyl;  // weyl scalars
     AA aux;   // aux quantities such as derivatives
+    AA aux_extended;  // further aux quantities (non-communicated)
   } storage;
 
   // aliases for variables and RHS
@@ -204,6 +258,12 @@ public:
   // this is alternative to the aux. storage,
   // used when 'store_metric_drvts' if off
   AT_N_VS2 aux_g_ddd;
+
+  // aliases for auxiliary variables for metric derivatives
+  struct Aux_extended_vars {
+    AT_N_sca cc_sqrt_detgamma;  // adm gamma on cc
+  };
+  Aux_extended_vars aux_extended;
 
   // BD: this should be refactored
   // user settings and options
@@ -276,6 +336,12 @@ public:
     bool store_metric_drvts;
     // control whether ^ is communicated
     bool communicate_aux_adm;
+
+    // Compute aux_extended variables?
+    bool extended_aux_adm;
+
+    // For debug
+    bool use_tp_trackers_extrema;
   } opt;
 
   AA empty_flux[3];
@@ -341,6 +407,8 @@ public:
   void ADMDerivatives(AthenaArray<Real> &u, AthenaArray<Real> &u_adm,
                       AthenaArray<Real> &u_aux);
 
+  void PrepareAuxExtended(AA &u_aux_extended, AA &u_adm);
+
   // Conformal factor conversions
   // Floor applied: std::max(chi, opt.chi_div_floor)
   //
@@ -399,6 +467,9 @@ public:
   static void SetWeylAliases(AA & u_weyl, Weyl_vars & weyl);
   // set auxiliary variable aliases
   static void SetAuxAliases(AA & u, Aux_vars & aux);
+  // set auxiliary (extended) variable aliases
+  static void SetAuxExtendedAliases(AA & u_adm,
+                                    Aux_extended_vars & aux_extended);
 
   // additional global functions
 

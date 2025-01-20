@@ -36,6 +36,7 @@ SRC_FILES := \
 		$(wildcard src/coordinates/*.cpp) \
 		@HYDRO_DEPENDENT_SRC@ \
 		@EOS_BASE_SRC@ \
+		src/eos/eos_utils.cpp \
 		@FFT_SRC@ \
 		$(wildcard src/inputs/*.cpp) \
 		$(wildcard src/mesh/*.cpp) \

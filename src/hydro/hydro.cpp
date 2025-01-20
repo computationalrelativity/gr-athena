@@ -48,7 +48,7 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
     coarse_prim_(NHYDRO, pmb->ncc3, pmb->ncc2, pmb->ncc1,
                  (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
                   AthenaArray<Real>::DataStatus::empty)),
-    q_reset_mask(pmb->ncells3, pmb->ncells2, pmb->ncells1),
+    mask_reset_u(pmb->ncells3, pmb->ncells2, pmb->ncells1),
     c2p_status(pmb->ncells3, pmb->ncells2, pmb->ncells1),
     hbvar(pmb, &u, &coarse_cons_, flux, HydroBoundaryQuantity::cons),
     hsrc(this, pin),
@@ -71,6 +71,8 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
       pin->GetOrAddReal("excision", "alpha_threshold", 0.0);
   opt_excision.horizon_based =
       pin->GetOrAddBoolean("excision", "horizon_based", 0.0);
+  opt_excision.horizon_factor =
+      pin->GetOrAddBoolean("excision", "horizon_factor", 1.0);
 
   // If user-requested time integrator is type 3S*, allocate additional memory registers
   std::string integrator = pin->GetOrAddString("time", "integrator", "vl2");

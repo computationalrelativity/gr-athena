@@ -139,6 +139,15 @@ void Mesh::FinalizeM1(std::vector<MeshBlock*> & pmb_array)
       pm1->mbi.kl, pm1->mbi.ku,
       pm1->mbi.ng);
 
+#if M1_ENABLED
+    // Conserved variables are now available globally;
+    // Ensure that geometric & hydro terms are available
+    pm1->UpdateGeometry(pm1->geom, pm1->scratch);
+    pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
+    // Need the reference velocity & closure
+    pm1->CalcFiducialVelocity();
+    pm1->CalcClosure(pm1->storage.u);
+#endif // M1_ENABLED
   }
 }
 

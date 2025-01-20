@@ -42,15 +42,15 @@
 #include <cmath>      // std::fmod()
 #include <cstdlib>    // atoi(), atof(), nullptr, std::size_t
 #include <fstream>    // ifstream
+#include <iomanip>
 #include <iostream>   // endl, ostream
 #include <sstream>    // stringstream
 #include <stdexcept>  // runtime_error
 #include <string>     // string
 
 // Athena++ headers
-#include "athena.hpp"
-#include "defs.hpp"
-#include "globals.hpp"
+#include "athena_aliases.hpp"
+#include "utils/utils.hpp"
 #include "parameter_input.hpp"
 
 // OpenMP header
@@ -665,6 +665,441 @@ std::string ParameterInput::GetOrAddString(std::string block, std::string name,
   return ret;
 }
 
+// ----------------------------------------------------------------------------
+// Implement some convenience functions
+namespace {
+template <typename T>
+std::string str_join(const T& v, const std::string& delim)
+{
+  std::ostringstream s;
+  for (const auto& i : v)
+  {
+    if (&i != &v[0]) {
+      s << delim;
+    }
+    s << i;
+  }
+  return s.str();
+}
+
+void str_replace(std::string & str,
+                 const std::string &from,
+                 const std::string &to)
+{
+  size_t start_pos = 0;
+  while ((start_pos = str.find(from, start_pos)) != std::string::npos)
+  {
+    str.replace(start_pos, from.length(), to);
+    start_pos +=
+        to.length(); // Handles case where 'to' is a substring of 'from'
+  }
+}
+
+} // namespace
+
+
+// Assuming block/name exists, return string array
+void ParameterInput::GetExistingStringArray(
+  const std::string & block,
+  const std::string & name,
+  t_vec_str & vec)
+{
+  InputBlock* pb;
+  InputLine *pl;
+
+  pb = GetPtrToBlock(block);
+  pl = pb->GetPtrToLine(name);
+
+  // Check open / close bracket exists; otherwise panic
+  std::stringstream ss_par;
+
+  if (count_char(pl->param_value, '[') == 1)
+  {
+    ss_par << pl->param_value;
+
+    while ((pl != nullptr) &&
+           (count_char(pl->param_value, ']') != 1))
+    {
+      pl = pl->pnext;
+
+      if (pl != nullptr)
+      {
+        ss_par << pl->param_value;
+      }
+    }
+  }
+  else
+  {
+    // No open bracket? try extraction as flat scalar
+    ss_par << "[" << pl->param_value << "]";
+  }
+
+  if (pl == nullptr)
+  {
+    std::ostringstream err;
+    err << "Malformed parameter: " << block << "/" << name;
+    ATHENA_ERROR(err);
+  }
+
+  std::string to_tokenize { ss_par.str() };
+
+  // strip braces, spaces & split to elements
+  for (auto c : {"[", "]", " "})
+  {
+    str_replace(to_tokenize, c, "");
+  }
+
+  std::istringstream iss(to_tokenize);
+  std::string s;
+
+  while (std::getline(iss, s, ','))
+  {
+    vec.push_back(s);
+  }
+}
+
+void ParameterInput::AddParameterStringArray(
+  const std::string & block,
+  const std::string & name,
+  const t_vec_str & values)
+{
+  InputBlock* pb;
+  pb = FindOrAddBlock(block);
+  std::stringstream ss_def_value;
+  ss_def_value << "[" << str_join(values, ",") << "]";
+  AddParameter(pb,
+               name,
+               ss_def_value.str(),
+               "# Default value added at run time");
+}
+
+ParameterInput::t_vec_str ParameterInput::GetOrAddStringArray(
+  std::string block,
+  std::string name,
+  t_vec_str def_values)
+{
+  InputBlock* pb;
+  InputLine *pl;
+  std::stringstream ss_value;
+  t_vec_str ret;
+
+  Lock();
+  if (DoesParameterExist(block, name))
+  {
+    GetExistingStringArray(block, name, ret);
+  }
+  else
+  {
+    AddParameterStringArray(block, name, def_values);
+
+    // copy input default to return
+    for (const auto& dval : def_values)
+    {
+      ret.push_back(dval);
+    }
+  }
+  Unlock();
+
+  return ret;
+}
+
+ParameterInput::t_vec_Real ParameterInput::GetOrAddRealArray(
+  std::string block,
+  std::string name,
+  t_vec_Real def_values)
+{
+  InputBlock* pb;
+  InputLine *pl;
+  t_vec_Real ret;
+
+  // Convert def_values to string representation for internal storage
+  t_vec_str s_irep_def_values;
+  for (auto el : def_values)
+  {
+    s_irep_def_values.push_back(std::to_string(el));
+  }
+
+  Lock();
+  if (DoesParameterExist(block, name))
+  {
+    t_vec_str s_ret;
+    GetExistingStringArray(block, name, s_ret);
+    for (const auto& sval : s_ret)
+    {
+      ret.push_back(static_cast<Real>(atof(sval.c_str())));
+    }
+  }
+  else
+  {
+    AddParameterStringArray(block, name, s_irep_def_values);
+
+    // copy input default to return
+    for (const auto& dval : def_values)
+    {
+      ret.push_back(dval);
+    }
+  }
+  Unlock();
+
+  return ret;
+}
+
+ParameterInput::t_vec_int ParameterInput::GetOrAddIntegerArray(
+  std::string block,
+  std::string name,
+  t_vec_int def_values)
+{
+  InputBlock* pb;
+  InputLine *pl;
+  t_vec_int ret;
+
+  // Convert def_values to string representation for internal storage
+  t_vec_str s_irep_def_values;
+  for (auto el : def_values)
+  {
+    s_irep_def_values.push_back(std::to_string(el));
+  }
+
+  Lock();
+  if (DoesParameterExist(block, name))
+  {
+    t_vec_str s_ret;
+    GetExistingStringArray(block, name, s_ret);
+    for (const auto& sval : s_ret)
+    {
+      ret.push_back(static_cast<int>(atoi(sval.c_str())));
+    }
+  }
+  else
+  {
+    AddParameterStringArray(block, name, s_irep_def_values);
+
+    // copy input default to return
+    for (const auto& dval : def_values)
+    {
+      ret.push_back(dval);
+    }
+  }
+  Unlock();
+
+  return ret;
+}
+
+ParameterInput::t_vec_bool ParameterInput::GetOrAddBooleanArray(
+  std::string block,
+  std::string name,
+  t_vec_bool def_values)
+{
+  InputBlock* pb;
+  InputLine *pl;
+  t_vec_bool ret;
+
+  // Convert def_values to string representation for internal storage
+  t_vec_str s_irep_def_values;
+  for (auto el : def_values)
+  {
+    s_irep_def_values.push_back(std::to_string(el));
+  }
+
+  Lock();
+  if (DoesParameterExist(block, name))
+  {
+    t_vec_str s_ret;
+    GetExistingStringArray(block, name, s_ret);
+    for (auto& sval : s_ret)
+    {
+      bool bval;
+
+      if (sval.compare(0, 1, "0")==0 || sval.compare(0, 1, "1")==0)
+      {
+        bval = static_cast<bool>(atoi(sval.c_str()));
+      }
+      else
+      {
+        std::transform(sval.begin(), sval.end(), sval.begin(), ::tolower);
+        std::istringstream is(sval);
+        is >> std::boolalpha >> bval;
+      }
+
+      ret.push_back(bval);
+    }
+  }
+  else
+  {
+    AddParameterStringArray(block, name, s_irep_def_values);
+
+    // copy input default to return
+    for (const auto& dval : def_values)
+    {
+      ret.push_back(dval);
+    }
+  }
+  Unlock();
+
+  return ret;
+}
+
+template<>
+ParameterInput::t_vec_Real ParameterInput::GetOrAddArray
+  <ParameterInput::t_vec_Real>(
+    std::string block, std::string name, ParameterInput::t_vec_Real def_values
+  )
+{
+  return GetOrAddRealArray(block, name, def_values);
+}
+
+template<>
+ParameterInput::t_vec_int ParameterInput::GetOrAddArray
+  <ParameterInput::t_vec_int>(
+    std::string block, std::string name, ParameterInput::t_vec_int def_values
+  )
+{
+  return GetOrAddIntegerArray(block, name, def_values);
+}
+
+template<>
+ParameterInput::t_vec_bool ParameterInput::GetOrAddArray
+  <ParameterInput::t_vec_bool>(
+    std::string block, std::string name, ParameterInput::t_vec_bool def_values
+  )
+{
+  return GetOrAddBooleanArray(block, name, def_values);
+}
+
+template<>
+ParameterInput::t_vec_str ParameterInput::GetOrAddArray
+  <ParameterInput::t_vec_str>(
+    std::string block, std::string name, ParameterInput::t_vec_str def_values
+  )
+{
+  return GetOrAddStringArray(block, name, def_values);
+}
+
+// Convenience functions for direct usage with AthenaArray
+template<class T>
+AthenaArray<T> ParameterInput::GetOrAddArray(
+  const std::string & block,
+  const std::string & name,
+  const AthenaArray<T> & def_values)
+{
+  const int sz = def_values.GetDim1();
+  AthenaArray<T> ret;
+
+  std::vector<T> v_def_values;
+  for (int i=0; i<sz; ++i)
+  {
+    v_def_values.push_back(def_values(i));
+  }
+
+  std::vector<T> v_ret {GetOrAddArray(block, name, v_def_values)};
+  // GCC has some issue; limit maximum size explicitly
+  const int v_sz = std::max(
+    std::min(static_cast<int>(v_ret.size()), max_pars_array), 0);
+
+  // const int v_sz = v_ret.size();
+  ret.NewAthenaArray(v_sz);
+
+  for (int i=0; i<v_sz; ++i)
+  {
+    ret(i) = v_ret[i];
+  }
+
+  return ret;
+}
+
+// Main interfaces
+AthenaArray<Real> ParameterInput::GetOrAddRealArray(
+  const std::string & block,
+  const std::string & name,
+  const AthenaArray<Real> & def_values)
+{
+  return GetOrAddArray(block, name, def_values);
+}
+
+AthenaArray<int> ParameterInput::GetOrAddIntegerArray(
+  const std::string & block,
+  const std::string & name,
+  const AthenaArray<int> & def_values)
+{
+  return GetOrAddArray(block, name, def_values);
+}
+
+AthenaArray<bool> ParameterInput::GetOrAddBooleanArray(
+  const std::string & block,
+  const std::string & name,
+  const AthenaArray<bool> & def_values)
+{
+  return GetOrAddArray(block, name, def_values);
+}
+
+AthenaArray<std::string> ParameterInput::GetOrAddStringArray(
+  const std::string & block,
+  const std::string & name,
+  const AthenaArray<std::string> & def_values)
+{
+  return GetOrAddArray(block, name, def_values);
+}
+
+// Wrap input type to array
+AthenaArray<Real> ParameterInput::GetOrAddRealArray(
+  const std::string & block,
+  const std::string & name,
+  const Real & def_value,
+  const int size)
+{
+  AthenaArray<Real> dv(size);
+  for (int n=0; n<size; ++n)
+  {
+    dv(n) = def_value;
+  }
+  return GetOrAddArray(block, name, dv);
+}
+
+AthenaArray<int> ParameterInput::GetOrAddIntegerArray(
+  const std::string & block,
+  const std::string & name,
+  const int & def_value,
+  const int size)
+{
+  AthenaArray<int> dv(size);
+  for (int n=0; n<size; ++n)
+  {
+    dv(n) = def_value;
+  }
+  return GetOrAddArray(block, name, dv);
+}
+
+AthenaArray<bool> ParameterInput::GetOrAddBooleanArray(
+  const std::string & block,
+  const std::string & name,
+  const bool & def_value,
+  const int size)
+{
+  AthenaArray<bool> dv(size);
+  for (int n=0; n<size; ++n)
+  {
+    dv(n) = def_value;
+  }
+  return GetOrAddArray(block, name, dv);
+}
+
+AthenaArray<std::string> ParameterInput::GetOrAddStringArray(
+  const std::string & block,
+  const std::string & name,
+  const std::string & def_value,
+  const int size)
+{
+  AthenaArray<std::string> dv(size);
+  for (int n=0; n<size; ++n)
+  {
+    dv(n) = def_value;
+  }
+  return GetOrAddArray(block, name, dv);
+}
+
+// ----------------------------------------------------------------------------
+
+
 //----------------------------------------------------------------------------------------
 //! \fn int ParameterInput::SetInteger(std::string block, std::string name, int value)
 //  \brief updates an integer parameter; creates it if it does not exist
@@ -821,6 +1256,7 @@ void ParameterInput::ParameterDump(std::ostream& os) {
   std::size_t len;
 
   os<< "#------------------------- PAR_DUMP -------------------------" << std::endl;
+  os<< "# GR-Athena++ GIT_HASH: " << GIT_HASH << std::endl;
 
   for (pb = pfirst_block; pb != nullptr; pb = pb->pnext) { // loop over InputBlocks
     os<< "<" << pb->block_name << ">" << std::endl;     // write block name

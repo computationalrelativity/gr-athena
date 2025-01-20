@@ -21,54 +21,7 @@
 #include "../hydro/hydro.hpp"
 #include "../utils/linear_algebra.hpp"
 
-// constructor, initializes data structures and parameters
-char const * const Z4c::Z4c_names[Z4c::N_Z4c] = {
-  "z4c.chi",
-  "z4c.gxx", "z4c.gxy", "z4c.gxz", "z4c.gyy", "z4c.gyz", "z4c.gzz",
-  "z4c.Khat",
-  "z4c.Axx", "z4c.Axy", "z4c.Axz", "z4c.Ayy", "z4c.Ayz", "z4c.Azz",
-  "z4c.Gamx", "z4c.Gamy", "z4c.Gamz",
-  "z4c.Theta",
-  "z4c.alpha",
-  "z4c.betax", "z4c.betay", "z4c.betaz",
-};
-
-char const * const Z4c::ADM_names[Z4c::N_ADM] = {
-  "adm.alpha",
-  "adm.betax", "adm.betay", "adm.betaz",
-  "adm.gxx", "adm.gxy", "adm.gxz", "adm.gyy", "adm.gyz", "adm.gzz",
-  "adm.Kxx", "adm.Kxy", "adm.Kxz", "adm.Kyy", "adm.Kyz", "adm.Kzz",
-  "adm.psi4",
-};
-
-char const * const Z4c::Constraint_names[Z4c::N_CON] = {
-  "con.C",
-  "con.H",
-  "con.M",
-  "con.Z",
-  "con.Mx", "con.My", "con.Mz",
-};
-
-char const * const Z4c::Matter_names[Z4c::N_MAT] = {
-  "mat.rho",
-  "mat.Sx", "mat.Sy", "mat.Sz",
-  "mat.Sxx", "mat.Sxy", "mat.Sxz", "mat.Syy", "mat.Syz", "mat.Szz",
-};
-
-char const * const Z4c::Weyl_names[Z4c::N_WEY] = {
-  "weyl.rpsi4", "weyl.ipsi4",
-};
-
-char const * const Z4c::Aux_names[Z4c::N_AUX] = {
-  "aux.dalpha_x", "aux.dalpha_y", "aux.dalpha_z",
-  "aux.dbetax_x", "aux.dbetay_x", "aux.dbetaz_x",
-  "aux.dbetax_y", "aux.dbetay_y", "aux.dbetaz_y",
-  "aux.dbetax_z", "aux.dbetay_z", "aux.dbetaz_z",
-  "aux.dgxx_x", "aux.dgxy_x", "aux.dgxz_x", "aux.dgyy_x", "aux.dgyz_x", "aux.dgzz_x",
-  "aux.dgxx_y", "aux.dgxy_y", "aux.dgxz_y", "aux.dgyy_y", "aux.dgyz_y", "aux.dgzz_y",
-  "aux.dgxx_z", "aux.dgxy_z", "aux.dgxz_z", "aux.dgyy_z", "aux.dgyz_z", "aux.dgzz_z",
-};
-
+// ----------------------------------------------------------------------------
 Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   pz4c(this),
   pmy_mesh(pmb->pmy_mesh),
@@ -106,7 +59,8 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
           {N_CON, mbi.nn3, mbi.nn2, mbi.nn1},              // con
           {N_MAT, mbi.nn3, mbi.nn2, mbi.nn1},              // mat
           {N_WEY, mbi.nn3, mbi.nn2, mbi.nn1},              // weyl
-	        {}                                               // aux
+	        {},                                              // aux
+	        {},                                              // aux_extended
   },
   empty_flux{AthenaArray<Real>(), AthenaArray<Real>(), AthenaArray<Real>()},
   coarse_u_(N_Z4c, mbi.cnn3, mbi.cnn2, mbi.cnn1,
@@ -285,6 +239,9 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   opt.communicate_aux_adm =
       pin->GetOrAddBoolean("z4c", "communicate_aux_adm", false);
 
+  opt.extended_aux_adm =
+      pin->GetOrAddBoolean("z4c", "extended_aux_adm", false);
+
   // Matter parameters
   opt.cowling = pin->GetOrAddInteger("z4c", "cowling_true", 0);
   opt.bssn = pin->GetOrAddInteger("z4c", "bssn", 0);
@@ -381,6 +338,17 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
       pmb->pbval->bvars_aux_adm.push_back(adm_abvar);
     }
   }
+
+  if (opt.extended_aux_adm)
+  {
+    storage.aux_extended.NewAthenaArray(N_AUX_EXTENDED,
+                                        mbi.nn3, mbi.nn2, mbi.nn1);
+    SetAuxExtendedAliases(storage.aux_extended, aux_extended);
+  }
+
+  // For debug
+  opt.use_tp_trackers_extrema = pin->GetOrAddBoolean(
+    "z4c", "use_tp_trackers_extrema", false);
 
   // Allocate memory for aux 1D vars
   r.NewAthenaTensor(mbi.nn1);
@@ -564,6 +532,13 @@ void Z4c::SetAuxAliases(AthenaArray<Real> & u, Z4c::Aux_vars & aux)
   aux.dg_ddd.InitWithShallowSlice(u, I_AUX_dgxx_x);
 }
 
+void Z4c::SetAuxExtendedAliases(AthenaArray<Real> & u_adm,
+                                Z4c::Aux_extended_vars & aux_extended)
+{
+  aux_extended.cc_sqrt_detgamma.InitWithShallowSlice(
+    u_adm, I_AUX_EXTENDED_cc_sqrt_detgamma
+  );
+}
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::AlgConstr(AthenaArray<Real> & u)
 // \brief algebraic constraints projection

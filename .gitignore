@@ -93,3 +93,8 @@ src/tags
 
 ## quick compile config
 /myconfig.sh
+
+
+# temporaries
+*.bak
+*.old

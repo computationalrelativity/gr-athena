@@ -189,6 +189,7 @@ class PrimitiveSolver {
   public:
     Real tol;
     bool validate_density;
+    bool use_toms_748;
 
     /// Constructor
     PrimitiveSolver(EOS<EOSPolicy, ErrorPolicy> *eos) : peos(eos) {
@@ -210,6 +211,11 @@ class PrimitiveSolver {
     inline void SetValidateDensity(const bool validate_density)
     {
       this->validate_density = validate_density;
+    }
+
+    inline void SetToms748(const bool use_toms_748)
+    {
+      this->use_toms_748 = use_toms_748;
     }
 
     /// Destructor
@@ -371,7 +377,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
     Y[s] = cons[IYD + s]/cons[IDN];
   }
   // Apply limits to Y to ensure a physical state
-  peos->ApplySpeciesLimits(Y);
+  bool Y_adjusted = peos->ApplySpeciesLimits(Y);
 
   // Check the conserved variables for consistency and do whatever
   // the EOSPolicy wants us to.
@@ -381,6 +387,15 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
     HandleFailure(prim, cons, b, g3d);
     solver_result.error = Error::CONS_FLOOR;
     return solver_result;
+  }
+  // If a floor is applied or Y is adjusted, we need to propagate the changes back to
+  // DYe.
+  if (floored || Y_adjusted)
+  if (peos->KeepPrimAndConConsistent())
+  {
+    for (int s = 0; s < n_species; s++) {
+      cons[IYD + s] = D*Y[s];
+    }
   }
 
   // Calculate some utility quantities.
@@ -500,11 +515,16 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
   // TODO: This should be done with something like TOMS748 once it's
   // available.
   Real n, P, T, mu;
-  bool result = root.FalsePosition(RootFunction, mul, muh, mu, tol, D, q, bsqr, rsqr, rbsqr, Y, peos, &n, &T, &P);
-
-  // debug with toms748
-  // mu = root.toms748_solve(RootFunction, mul, muh, tol, D, q, bsqr, rsqr, rbsqr, Y, peos, &n, &T, &P);
-  // bool result = true;
+  bool result;
+  if (use_toms_748)
+  {
+    mu = root.toms748_solve(RootFunction, mul, muh, tol, D, q, bsqr, rsqr, rbsqr, Y, peos, &n, &T, &P);
+    result = true;
+  }
+  else
+  {
+    result = root.FalsePosition(RootFunction, mul, muh, mu, tol, D, q, bsqr, rsqr, rbsqr, Y, peos, &n, &T, &P);
+  }
 
   // WARNING: the reported number of iterations is not thread-safe and should only be trusted
   // on single-thread benchmarks.

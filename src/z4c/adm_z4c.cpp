@@ -196,6 +196,11 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm) {
       }
     }
   }
+
+  if (opt.extended_aux_adm)
+  {
+    PrepareAuxExtended(storage.aux_extended, u_adm);
+  }
 }
 
 //----------------------------------------------------------------------------------------
@@ -613,4 +618,30 @@ void Z4c::ADMDerivatives(AthenaArray<Real> & u, AthenaArray<Real> & u_adm, Athen
     
   }
 
+}
+
+
+void Z4c::PrepareAuxExtended(AA &u_aux_extended, AA &u_adm)
+{
+#if !(defined(Z4C_CC_ENABLED) || defined(Z4C_CX_ENABLED))
+  // Interp from VC to CC not implemented
+  assert(false);
+#endif
+
+  using namespace LinearAlgebra;
+
+  ADM_vars adm;
+  SetADMAliases(u_adm, adm);
+
+  Aux_extended_vars aux_extended;
+  SetAuxExtendedAliases(u_aux_extended, aux_extended);
+
+  MeshBlock * pmb = pmy_block;
+
+  GLOOP3(k, j, i)
+  {
+    aux_extended.cc_sqrt_detgamma(k,j,i) = std::sqrt(
+      Det3Metric(adm.g_dd,k,j,i)
+    );
+  }
 }

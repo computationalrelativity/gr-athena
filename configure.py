@@ -598,6 +598,10 @@ parser.add_argument(
   "--elliptica_path", default="", help="path to Elliptica libraries"
 )
 
+## rns_path_argument
+parser.add_argument('--rns_path',
+                    default='',
+                    help='path to rns library')
 # -ccache argument
 parser.add_argument(
   "-ccache", action="store_true", default=False, help="enable caching compiler",
@@ -628,6 +632,7 @@ cxx_choices = [
   "icpc",
   "icpc-debug",
   "icpc-phi",
+  "cray-old",
   "cray",
   "bgxlc++",
   "clang++",
@@ -1266,16 +1271,27 @@ if args["cxx"] == "icpc-phi":
   makefile_options["LINKER_FLAGS"] = ""
   makefile_options["LIBRARY_FLAGS"] = ""
 
-if args["cxx"] == "cray":
+if args["cxx"] == "cray-old":
   # Cray Compiling Environment 8.4 (2015-09-24) introduces C++11 feature completeness
   # (except "alignas"). v8.6 is C++14 feature-complete
-  definitions["COMPILER_CHOICE"] = "cray"
+  definitions["COMPILER_CHOICE"] = "cray-old"
   definitions["COMPILER_COMMAND"] = makefile_options["COMPILER_COMMAND"] = "CC"
   makefile_options["PREPROCESSOR_FLAGS"] = ""
   makefile_options["COMPILER_FLAGS"] = (
     "-O3 -h std=c++17 -h aggress -h vector3 -hfp3"
   )
   makefile_options["LINKER_FLAGS"] = "-hwp -hpl=obj/lib"
+  makefile_options["LIBRARY_FLAGS"] = "-lm"
+
+if args["cxx"] == "cray":
+  # Cray (clang++ based)
+  definitions["COMPILER_CHOICE"] = "cray"
+  definitions["COMPILER_COMMAND"] = makefile_options["COMPILER_COMMAND"] = "CC"
+  makefile_options["PREPROCESSOR_FLAGS"] = ""
+  makefile_options["COMPILER_FLAGS"] = (
+    "-O3 -std=c++17 "
+  )
+  makefile_options["LINKER_FLAGS"] = "-flto=auto "
   makefile_options["LIBRARY_FLAGS"] = "-lm"
 
 if args["cxx"] == "bgxlc++":
@@ -1322,7 +1338,7 @@ if args["cxx"] == "clang++-simd":
   )
   makefile_options["PREPROCESSOR_FLAGS"] = ""
   makefile_options["COMPILER_FLAGS"] = (
-    "-O3 -std=c++17 -fopenmp-simd -flto=auto -march=native "
+    "-O3 -std=c++17 -fopenmp-simd -march=native "
   )
   makefile_options["LINKER_FLAGS"] = "-flto=auto "
   makefile_options["LIBRARY_FLAGS"] = ""
@@ -1362,6 +1378,8 @@ if args["debug"]:
     makefile_options["COMPILER_FLAGS"] = "-Og --std=c++17 -g3"  # -Og
     makefile_options["LINKER_FLAGS"] = "-rdynamic"
   if args["cxx"] == "cray":
+    makefile_options["COMPILER_FLAGS"] = "-O0 --std=c++17"
+  if args["cxx"] == "cray-old":
     makefile_options["COMPILER_FLAGS"] = "-O0 -h std=c++17"
   if args["cxx"] == "bgxlc++":
     makefile_options["COMPILER_FLAGS"] = "-O0 -g -qlanglvl=extended0x"
@@ -1399,7 +1417,7 @@ if args["coverage"]:
     )
   if args["cxx"] == "cray" or args["cxx"] == "bgxlc++":
     msg = (
-      "### CONFIGURE ERROR: No code coverage avaialbe for selected compiler!"
+      "### CONFIGURE ERROR: No code coverage available for selected compiler!"
     )
     raise SystemExit(msg)
 else:
@@ -1436,7 +1454,7 @@ if args["mpi"]:
     definitions["COMPILER_COMMAND"] = makefile_options["COMPILER_COMMAND"] = (
       "mpicxx"
     )
-  if args["cxx"] == "cray":
+  if args["cxx"] == "cray-old":
     makefile_options["COMPILER_FLAGS"] += " -h mpi1"
   if args["cxx"] == "bgxlc++":
     definitions["COMPILER_COMMAND"] = makefile_options["COMPILER_COMMAND"] = (
@@ -1458,6 +1476,7 @@ if args["omp"]:
     or args["cxx"] == "g++-simd"
     or args["cxx"] == "clang++"
     or args["cxx"] == "clang++-simd"
+    or args["cxx"] == "cray"
   ):
     makefile_options["COMPILER_FLAGS"] += " -fopenmp"
   if args["cxx"] == "clang++-apple":
@@ -1471,7 +1490,7 @@ if args["omp"]:
     or args["cxx"] == "icpc-phi"
   ):
     makefile_options["COMPILER_FLAGS"] += " -qopenmp"
-  if args["cxx"] == "cray":
+  if args["cxx"] == "cray-old":
     makefile_options["COMPILER_FLAGS"] += " -homp"
   if args["cxx"] == "bgxlc++":
     # use thread-safe version of compiler
@@ -1480,7 +1499,7 @@ if args["omp"]:
     makefile_options["COMPILER_FLAGS"] += " -qsmp"
 else:
   definitions["OPENMP_OPTION"] = "NOT_OPENMP_PARALLEL"
-  if args["cxx"] == "cray":
+  if args["cxx"] == "cray-old":
     makefile_options["COMPILER_FLAGS"] += " -hnoomp"
   if (
     args["cxx"] == "icpc"
@@ -1702,6 +1721,46 @@ if "Elliptica" in args["prob"]:
       msg
     )
 
+# -rns argument
+if args['prob'] == "gr_rns":
+#    if not args['gsl']:
+#        raise SystemExit('### CONFIGURE ERROR: To compile with two punctures -gsl is required.')
+
+    definitions['RNS_OPTION'] = 'RNS'
+
+    if args['rns_path'] == '':
+        os.system('mkdir -p extern/initial_data')
+        args['rns_path'] = 'extern/initial_data/rns'
+        if os.path.exists('../rnsc'):
+            os.system('rm {}'.format(args['rns_path']))
+            os.system('ln -s ../../../rnsc {}'.format(args['rns_path']))
+        else:
+            raise SystemExit('### CONFIGURE ERROR: To compile with rns, it is necessary to have external initial data rns library ../rnsc.')
+    if args['rns_path'] != '':
+        makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/include'.format(
+            args['rns_path'])
+        makefile_options['LINKER_FLAGS'] += ' -L{0}/obj'.format(
+            args['rns_path'])
+    if (args['cxx'] == 'g++' or args['cxx'] == 'icc' or args['cxx'] == 'cray'
+            or args['cxx'] == 'icc-debug' or args['cxx'] == 'icc-phi'
+            or args['cxx'] == 'clang++' or args['cxx'] == 'clang++-simd'
+            or args['cxx'] == 'bgxl'):
+
+        obj_dir = args['rns_path'] + '/obj/'
+        so_names = ['RNS_equil_util.o', 'RNS_nrutil.o', 'RNS_rnsid_util.o',
+                    'RNS_equil.o', 'RNS_extra.o', 'RNS.o']
+
+
+        ## Check the external library has been compiled
+        for so in so_names:
+            if not os.path.isfile(obj_dir + so):
+                print(obj_dir + so)
+                raise SystemExit('### CONFIGURE ERROR: It appears that library ../rnsc has not been compiled yet: some objects files are missing.')
+
+        for n in so_names:
+            makefile_options['LIBRARY_FLAGS'] += ' ' + obj_dir + n
+else:
+    definitions['RNS_OPTION'] = 'NO_RNS'
 # --cflag=[string] argument
 if args["cflag"] is not None:
   makefile_options["COMPILER_FLAGS"] += " " + args["cflag"]

@@ -31,6 +31,9 @@
 #include "../trackers/extrema_tracker.hpp"
 #include "../utils/linear_algebra.hpp"
 #include "../utils/utils.hpp"
+#if M1_ENABLED
+#include "../m1/m1.hpp"
+#endif  // M1_ENABLED
 
 // https://lorene.obspm.fr/
 #include <bin_ns.h>
@@ -54,6 +57,7 @@ namespace {
 #endif
 
   Real max_rho(      MeshBlock *pmb, int iout);
+  Real max_T(        MeshBlock *pmb, int iout);
   Real min_alpha(    MeshBlock *pmb, int iout);
   Real max_abs_con_H(MeshBlock *pmb, int iout);
   Real num_c2p_fail(MeshBlock *pmb, int iout);
@@ -255,20 +259,22 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
     EnrollUserRefinementCondition(RefinementCondition);
 
 
-  AllocateUserHistoryOutput(4+MAGNETIC_FIELDS_ENABLED);
+  AllocateUserHistoryOutput(5+MAGNETIC_FIELDS_ENABLED);
 
-  EnrollUserHistoryOutput(0, max_rho,   "max-rho",
+  EnrollUserHistoryOutput(0, max_rho, "max-rho",
     UserHistoryOperation::max);
-  EnrollUserHistoryOutput(1, min_alpha, "min-alpha",
+  EnrollUserHistoryOutput(1, max_T, "max-T",
+    UserHistoryOperation::max);
+  EnrollUserHistoryOutput(2, min_alpha, "min-alpha",
     UserHistoryOperation::min);
-  EnrollUserHistoryOutput(2, max_abs_con_H, "max-abs-con.H",
+  EnrollUserHistoryOutput(3, max_abs_con_H, "max-abs-con.H",
     UserHistoryOperation::max);
 
 #if MAGNETIC_FIELDS_ENABLED
-  EnrollUserHistoryOutput(3, DivBface, "divBface", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(4, DivBface, "divBface", UserHistoryOperation::max);
 #endif
 
-  EnrollUserHistoryOutput(3 + MAGNETIC_FIELDS_ENABLED, num_c2p_fail,
+  EnrollUserHistoryOutput(4 + MAGNETIC_FIELDS_ENABLED, num_c2p_fail,
                           "num_c2p_fail", UserHistoryOperation::sum);
 
   if (resume_flag)
@@ -281,10 +287,11 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 
 #if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
   // Dump Lorene eos file
+  int n_cut_lorene_table = pin->GetOrAddInteger("problem", "n_cut_lorene_table", 0);
   if (Globals::my_rank == 0) {
     std::string run_dir;
     GetRunDir(run_dir);
-    ceos->DumpLoreneEOSFile(run_dir + "/eos_akmalpr.d");
+    ceos->DumpLoreneEOSFile(run_dir + "/eos_akmalpr.d", n_cut_lorene_table);
   }
 #ifdef MPI_PARALLEL
   // wait for rank_0 to finish writing the eos file
@@ -360,6 +367,36 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   pgasmax_1 = k_adi * pow(rho_1, gamma_adi);
   pgasmax_2 = k_adi * pow(rho_2, gamma_adi);
 #endif
+
+  // sanity check if the internal energy matches the eos
+  Real eps_1 = bns->ener_spec[0];
+#if defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS)
+  eps_1 = m_u_mev/ceos->mb * (eps_1 + 1) - 1; // convert eos baryon mass
+#endif
+
+#if USETM
+  Real eps_ceos = ceos->GetSpecificInternalEnergy(rho_1);
+#else
+  Real eps_ceos = k_adi * pow(w_rho, gamma_adi -1 )/(gamma_adi - 1);
+#endif
+  Real eps_err = std::abs(eps_ceos/eps_1 - 1);
+
+#ifdef MPI_PARALLEL
+  int rank;
+  int root = pin->GetOrAddInteger("problem", "mpi_root", 0);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  bool ioproc = (root == rank);
+#else
+  bool ioproc = true;
+#endif
+
+  if (ioproc && (eps_err > 1.0e-5))
+  {
+    printf("Warning: Internal energy in Lorene data and eos do not match "
+           "in the center of star 1!\n");
+    printf("rho=%.16e, eps_lorene=%.16e, eps_eos=%.16e, rel. err.=%.16e\n",
+           rho_1, eps_1, eps_ceos, eps_err);
+  }
 
   return;
 }
@@ -611,11 +648,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     s.Fill(0.0);
 #endif
 
-    Real max_eps_err = 0.0;
-    Real rho_max = 0.0;
-    Real eps_max = 0.0;
-    Real eps_eos_max = 0.0;
-
     for (int k=kl; k<=ku; ++k)
     for (int j=jl; j<=ju; ++j)
     for (int i=il; i<=iu; ++i)
@@ -627,30 +659,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 #else
       Real w_rho = bns->nbar[I] / rho_unit;
 #endif
-
-      // Sanity check if eps matches EOS
-      if (w_rho > 1e-5)
-      {
-        Real eps = bns->ener_spec[I];
-#if defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS)
-        eps = m_u_mev/ceos->mb * (eps + 1) - 1; // convert eos baryon mass
-#endif
-
-#if USETM
-        Real eps_ceos = ceos->GetSpecificInternalEnergy(w_rho);
-#else
-        Real eps_ceos = k_adi * pow(w_rho, gamma_adi -1 )/(gamma_adi - 1);
-#endif
-        Real eps_err = std::abs(eps_ceos/eps - 1);
-
-        if (eps_err > max_eps_err)
-        {
-          max_eps_err = eps_err;
-          rho_max = w_rho;
-          eps_max = eps;
-          eps_eos_max = eps_ceos;
-        }
-      }
 
       // Unused, retain for reference:
       //
@@ -687,13 +695,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
       // ----------------------------------------------------------------------
       ++I;
-    }
-
-    if (max_eps_err > 1.0e-4)
-    {
-      printf("Warning: Internal energy in Lorene data and eos do not match!\n");
-      printf("rho=%.16e, eps_lorene=%.16e, eps_eos=%.16e, rel. err.=%.16e\n",
-             rho_max, eps_max, eps_eos_max, max_eps_err);
     }
 
     // clean up
@@ -829,6 +830,13 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     pz4c->GaugePreCollapsedLapse(pz4c->storage.adm, pz4c->storage.u);
   }
   // --------------------------------------------------------------------------
+
+  // Have geom & primitive hydro
+#if M1_ENABLED
+  pm1->UpdateGeometry(pm1->geom, pm1->scratch);
+  pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
+  pm1->CalcFiducialVelocity();
+#endif  // M1_ENABLED
 
   // consistent pressure atmosphere -------------------------------------------
   bool id_floor_primitives = pin->GetOrAddBoolean(
@@ -1011,6 +1019,24 @@ Real max_rho(MeshBlock *pmb, int iout)
   }
 
   return max_rho;
+}
+
+Real max_T(MeshBlock *pmb, int iout)
+{
+  Real max_T = -std::numeric_limits<Real>::infinity();
+  int is = pmb->is, ie = pmb->ie;
+  int js = pmb->js, je = pmb->je;
+  int ks = pmb->ks, ke = pmb->ke;
+
+  AthenaArray<Real> &T = pmb->phydro->temperature;
+  for (int k=ks; k<=ke; k++)
+  for (int j=js; j<=je; j++)
+  for (int i=is; i<=ie; i++)
+  {
+    max_T = std::max(std::abs(T(k,j,i)), max_T);
+  }
+
+  return max_T;
 }
 
 Real min_alpha(MeshBlock *pmb, int iout)

@@ -100,6 +100,15 @@ Real EOSCompOSE::TemperatureFromP(Real n, Real p, Real *Y) {
 	       temperature_from_var(ECLOGP, log(p), n, Y[0]);
 }
 
+Real EOSCompOSE::TemperatureFromEntropy(Real n, Real s, Real *Y) {
+  assert (m_initialized);
+  Real s_min = MinimumEntropy(n, Y);
+  Real s_max = MaximumEntropy(n,Y);
+
+  return (s <= s_min) ? min_T : (s >= s_max) ? max_T :
+	       temperature_from_var(ECENT, s, n, Y[0]);
+}
+
 Real EOSCompOSE::Energy(Real n, Real T, Real *Y) {
   assert (m_initialized);
   return exp(eval_at_nty(ECLOGE, n, T, Y[0]));
@@ -164,6 +173,15 @@ Real EOSCompOSE::MinimumEnergy(Real n, Real *Y) {
 
 Real EOSCompOSE::MaximumEnergy(Real n, Real *Y) {
   return Energy(n, max_T, Y);
+}
+
+
+Real EOSCompOSE::MinimumEntropy(Real n, Real *Y) {
+  return Entropy(n, min_T, Y);
+}
+
+Real EOSCompOSE::MaximumEntropy(Real n, Real *Y) {
+  return Entropy(n, max_T, Y);
 }
 
 void EOSCompOSE::ReadTableFromFile(std::string fname) {

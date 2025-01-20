@@ -15,6 +15,8 @@ namespace M1::Opacities::Photon {
 
 class Photon {
 
+friend class ::M1::Opacities::Opacities;
+
 public:
   Photon(MeshBlock *pmb, M1 * pm1, ParameterInput *pin) :
     pm1(pm1),

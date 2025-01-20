@@ -8,10 +8,13 @@
 
 // Weakrates header
 #include "weak_rates.hpp"
+#include <limits>
 
 namespace M1::Opacities::WeakRates {
 
 class WeakRates {
+
+friend class ::M1::Opacities::Opacities;
 
 public:
   WeakRates(MeshBlock *pmb, M1 * pm1, ParameterInput *pin) :
@@ -69,7 +72,7 @@ public:
 
     // Hydro * phydro = pmy_block->phydro;
     // PassiveScalars * pscalars = pmy_block->pscalars;
-    AT_C_sca & sc_sqrt_det_g = pm1->geom.sc_sqrt_det_g; // TODO is this safe to use?
+    AT_C_sca & sc_oo_sqrt_det_g = pm1->geom.sc_oo_sqrt_det_g;
 
     const int NUM_COEFF = 3;
     int ierr[NUM_COEFF];
@@ -83,7 +86,7 @@ public:
 
       Real Y[MAX_SPECIES] = {0.0};
       Y[0] = pm1->hydro.sc_w_Ye(k,j,i);
-      
+
       Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(nb, press, Y);
       Real Y_e = Y[0];
 
@@ -119,22 +122,39 @@ public:
         assert(!ierr[r]);
       }
 
+      // Equilibrium logic ----------------------------------------------------
+
       Real tau = std::min(std::sqrt(kap_a_e_nue*(kap_a_e_nue + kap_s_e_nue)), std::sqrt(kap_a_e_nua*(kap_a_e_nua + kap_s_e_nua)))*dt;
-      
+
       // Calculate equilibrium blackbody functions with trapped neutrinos
       Real dens_n_trap[3];
       Real dens_e_trap[3];
-      if (opacity_tau_trap >= 0.0 && tau > opacity_tau_trap) {
+      if (opacity_tau_trap >= 0.0 && tau > opacity_tau_trap)
+      {
+        // Ensure evolution method delegated based on here detected equilibrium
+        const static int ix_g = 0;
+        typedef M1::evolution_strategy::opt_solution_regime osr_r;
+        typedef M1::evolution_strategy::opt_source_treatment ost_r;
+        AthenaArray<osr_r> & sol_r = pm1->ev_strat.masks.solution_regime;
+        AthenaArray<ost_r> & src_r = pm1->ev_strat.masks.source_treatment;
+
+        for (int ix_s=0; ix_s<3; ++ix_s)
+        {
+          sol_r(ix_g,ix_s,k,j,i) = osr_r::equilibrium;
+          src_r(ix_g,ix_s,k,j,i) = ost_r::set_zero;
+        }
+        // --------------------------------------------------------------------
+
         Real T_star;
         Real Y_e_star;
         Real dens_n[3];
         Real dens_e[3];
 
-        Real invsdetg = 1.0/sc_sqrt_det_g(k, j, i);
+        Real invsdetg = sc_oo_sqrt_det_g(k, j, i);
         // FF number density
-        dens_n[0] = pm1->rad.sc_nnu(0,0)(k, j, i)*invsdetg;
-        dens_n[1] = pm1->rad.sc_nnu(0,1)(k, j, i)*invsdetg;
-        dens_n[2] = pm1->rad.sc_nnu(0,2)(k, j, i)*invsdetg;
+        dens_n[0] = pm1->rad.sc_n(0,0)(k, j, i)*invsdetg;
+        dens_n[1] = pm1->rad.sc_n(0,1)(k, j, i)*invsdetg;
+        dens_n[2] = pm1->rad.sc_n(0,2)(k, j, i)*invsdetg;
         
         // FF energy density
         dens_e[0] = pm1->rad.sc_J(0,0)(k, j, i)*invsdetg;
@@ -195,10 +215,12 @@ public:
       Real corr_fac[3];
       for (int s_idx=0; s_idx<N_SPCS; ++s_idx) {
         pm1->radmat.sc_avg_nrg(0,s_idx)(k, j, i) = dens_e[s_idx]/dens_n[s_idx];
-        corr_fac[s_idx] = pm1->rad.sc_J(0,s_idx)(k, j, i) / (pm1->rad.sc_nnu(0,s_idx)(k, j, i)*pm1->radmat.sc_avg_nrg(0,s_idx)(k, j, i));
+        corr_fac[s_idx] = pm1->rad.sc_J(0,s_idx)(k, j, i) / (pm1->rad.sc_n(0,s_idx)(k, j, i)*pm1->radmat.sc_avg_nrg(0,s_idx)(k, j, i));
 
         if (!std::isfinite(corr_fac[s_idx])) {
           corr_fac[s_idx] = 1.0;
+          // should never land here (due to flooring prior to call of opac.)
+          // assert(false);
         }
 
         corr_fac[s_idx] *= corr_fac[s_idx];
@@ -232,8 +254,8 @@ public:
       pm1->radmat.sc_eta_0(0,2)(k,j,i)   = corr_fac[2]*eta_n_nux;
       pm1->radmat.sc_eta(0,2)(k,j,i)     = corr_fac[2]*eta_e_nux;
       
-      pm1->radmat.sc_kap_a_0(0,2)(k,j,i) = (dens_n[2] > 0.0 ? pm1->radmat.sc_eta_0(0,2)(k,j,i)/dens_n[2] : 0.0);
-      pm1->radmat.sc_kap_a(0,2)(k,j,i)   = (dens_e[2] > 0.0 ? pm1->radmat.sc_eta(0,2)(k,j,i)/dens_e[2]   : 0.0);
+      pm1->radmat.sc_kap_a_0(0,2)(k,j,i) = (dens_n[2] > 0 ? pm1->radmat.sc_eta_0(0,2)(k,j,i)/dens_n[2] : 0.0);
+      pm1->radmat.sc_kap_a(0,2)(k,j,i)   = (dens_e[2] > 0 ? pm1->radmat.sc_eta(0,2)(k,j,i)/dens_e[2]   : 0.0);
     }
     
     return 0;

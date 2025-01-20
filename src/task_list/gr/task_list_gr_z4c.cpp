@@ -386,9 +386,9 @@ TaskStatus GR_Z4c::CCEDump(MeshBlock *pmb, int stage)
 
   Mesh *pm = pmb->pmy_mesh;
 
-  if (trgs.IsSatisfied(TriggerVariant::Z4c_CCE))
+  for (auto cce : pm->pcce)
   {
-    for (auto cce : pm->pcce)
+    if (pm->ncycle % cce->freq == 0)
     {
       cce->Interpolate(pmb);
     }

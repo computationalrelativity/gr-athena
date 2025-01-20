@@ -60,12 +60,11 @@ class Hydro {
   int refinement_idx{-1};
 
   // BD: TODO - make the mask more useful
-  // prim: w, cons: q
-  // q<->w can fail; in this situation values need to be reset
+  // prim: w, cons: u
+  // u<->w can fail; in this situation values need to be reset
   // It is helpful to make a mask to this end
-  AthenaArray<bool> q_reset_mask;
+  AthenaArray<bool> mask_reset_u;
   AthenaArray<Real> c2p_status;
-
 
   // for reconstruction failure, should both states be floored?
   bool floor_both_states = false;
@@ -79,8 +78,71 @@ class Hydro {
   struct {
     Real alpha_threshold;  // excise hydro if alpha < alpha_excision
     bool horizon_based;    // use horizon for excise
+    Real horizon_factor;   // factor to multiply horizon radius
   } opt_excision;
 
+
+  // --------------------------------------------------------------------------
+  struct ixn_cons
+  {
+    enum
+    {
+      D,     // matches IDN, IM1, IM2, IM3, IEN
+      S_d_1,
+      S_d_2,
+      S_d_3,
+      tau,
+      N
+    };
+
+    static constexpr char const * const names[] = {
+      "hydro.cons.D",
+      "hydro.cons.S_d_1",
+      "hydro.cons.S_d_2",
+      "hydro.cons.S_d_3",
+      "hydro.cons.tau",
+    };
+  };
+
+  struct ixn_prim
+  {
+    enum
+    {
+      rho,   // matches IDN, IVX, IVY, IVZ, IPR
+      util_u_1,
+      util_u_2,
+      util_u_3,
+      p,
+      N
+    };
+
+    static constexpr char const * const names[] = {
+      "hydro.prim.rho",
+      "hydro.prim.util_u_1",
+      "hydro.prim.util_u_2",
+      "hydro.prim.util_u_3",
+      "hydro.prim.p",
+    };
+  };
+
+  struct ixn_aux
+  {
+    enum
+    {
+#if USETM
+      T,
+#endif
+      c2p_status,
+      N
+    };
+
+    static constexpr char const * const names[] = {
+#if USETM
+      "hydro.aux.T",
+#endif
+      "hydro.aux.c2p_status",
+    };
+  };
 
   // scratches ----------------------------------------------------------------
 public:
@@ -177,6 +239,21 @@ public:
       const int ivx,
       AthenaArray<Real> &wl, AthenaArray<Real> &wr, AthenaArray<Real> &flx,
       const AthenaArray<Real> &dxw);
+
+  void RiemannSolver(
+    const int k, const int j,
+    const int il, const int iu,
+    const int ivx,
+    AthenaArray<Real> &prim_l,
+    AthenaArray<Real> &prim_r,
+    AthenaArray<Real> &pscalars_l,
+    AthenaArray<Real> &pscalars_r,
+    AT_N_sca & alpha_,
+    AT_N_vec & beta_u_,
+    AT_N_sym & gamma_dd_,
+    AthenaArray<Real> &flux,
+    const AthenaArray<Real> &dxw,
+    const Real lambda_rescaling);
 #else  // MHD:
   void RiemannSolver(
       const int k, const int j, const int il, const int iu,
@@ -184,6 +261,24 @@ public:
       AthenaArray<Real> &wl, AthenaArray<Real> &wr, AthenaArray<Real> &flx,
       AthenaArray<Real> &ey, AthenaArray<Real> &ez,
       AthenaArray<Real> &wct, const AthenaArray<Real> &dxw);
+
+  void RiemannSolver(
+    const int k, const int j,
+    const int il, const int iu,
+    const int ivx,
+    const AthenaArray<Real> &B,
+    AthenaArray<Real> &prim_l,
+    AthenaArray<Real> &prim_r,
+    AthenaArray<Real> &pscalars_l,
+    AthenaArray<Real> &pscalars_r,
+    AT_N_sca & alpha_,
+    AT_N_vec & beta_u_,
+    AT_N_sym & gamma_dd_,
+    AthenaArray<Real> &flux,
+    AthenaArray<Real> &ey,
+    AthenaArray<Real> &ez,
+    AthenaArray<Real> &wct,
+    const AthenaArray<Real> &dxw);
 #endif
 
   inline void FallbackInadmissiblePrimitiveX_(

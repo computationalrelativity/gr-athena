@@ -183,35 +183,41 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
     // NEW_OUTPUT_TYPES: add output of additional physics to restarts here also update
     // MeshBlock::GetBlockSizeInBytes accordingly and MeshBlock constructor for restarts.
 
+    auto write_data = [&](AA & data)
+    {
+      std::memcpy(pdata, data.data(), data.GetSizeInBytes());
+      pdata += data.GetSizeInBytes();
+    };
+
     // Hydro conserved variables:
-    if (FLUID_ENABLED) {
-      std::memcpy(pdata, pmb->phydro->u.data(), pmb->phydro->u.GetSizeInBytes());
-      pdata += pmb->phydro->u.GetSizeInBytes();
+    if (FLUID_ENABLED)
+    {
+      Hydro * phydro = pmb->phydro;
+      write_data(phydro->u);
     }
 
     // Hydro primitive variables (at current and previous step):
-    if (GENERAL_RELATIVITY) {
-      std::memcpy(pdata, pmb->phydro->w.data(), pmb->phydro->w.GetSizeInBytes());
-      pdata += pmb->phydro->w.GetSizeInBytes();
-      std::memcpy(pdata, pmb->phydro->w1.data(), pmb->phydro->w1.GetSizeInBytes());
-      pdata += pmb->phydro->w1.GetSizeInBytes();
+    if (GENERAL_RELATIVITY)
+    {
+      Hydro * phydro = pmb->phydro;
+      write_data(phydro->w);
+      write_data(phydro->w1);
     }
 
     // Longitudinal, face-centered magnetic field components:
-    if (MAGNETIC_FIELDS_ENABLED) {
-      std::memcpy(pdata, pmb->pfield->b.x1f.data(), pmb->pfield->b.x1f.GetSizeInBytes());
-      pdata += pmb->pfield->b.x1f.GetSizeInBytes();
-      std::memcpy(pdata, pmb->pfield->b.x2f.data(), pmb->pfield->b.x2f.GetSizeInBytes());
-      pdata += pmb->pfield->b.x2f.GetSizeInBytes();
-      std::memcpy(pdata, pmb->pfield->b.x3f.data(), pmb->pfield->b.x3f.GetSizeInBytes());
-      pdata += pmb->pfield->b.x3f.GetSizeInBytes();
+    if (MAGNETIC_FIELDS_ENABLED)
+    {
+      Field * pfield = pmb->pfield;
+      write_data(pfield->b.x1f);
+      write_data(pfield->b.x2f);
+      write_data(pfield->b.x3f);
     }
 
     // (conserved variable) Passive scalars:
-    if (NSCALARS > 0) {
-      AthenaArray<Real> &s = pmb->pscalars->s;
-      std::memcpy(pdata, s.data(), s.GetSizeInBytes());
-      pdata += s.GetSizeInBytes();
+    if (NSCALARS > 0)
+    {
+      PassiveScalars * pscalars = pmb->pscalars;
+      write_data(pscalars->s);
     }
     // (primitive variable) density-normalized passive scalar concentrations
     // if ???
@@ -221,31 +227,23 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
     //   pdata += r.GetSizeInBytes();
     // }
 
-    if (WAVE_ENABLED) {
-      std::memcpy(pdata, pmb->pwave->u.data(), pmb->pwave->u.GetSizeInBytes());
-      pdata += pmb->pwave->u.GetSizeInBytes();
+    if (WAVE_ENABLED)
+    {
+      Wave * pwave = pmb->pwave;
+      write_data(pwave->u);
     }
 
-    if (Z4C_ENABLED) {
-      std::memcpy(pdata, pmb->pz4c->storage.u.data(),
-                  pmb->pz4c->storage.u.GetSizeInBytes());
-      pdata += pmb->pz4c->storage.u.GetSizeInBytes();
-
-      // BD: TODO: extend as new data structures added
-      std::memcpy(pdata, pmb->pz4c->storage.mat.data(),
-                  pmb->pz4c->storage.mat.GetSizeInBytes());
-      pdata += pmb->pz4c->storage.mat.GetSizeInBytes();
+    if (Z4C_ENABLED)
+    {
+      Z4c * pz4c = pmb->pz4c;
+      write_data(pz4c->storage.u);
+      write_data(pz4c->storage.mat);
     }
 
     if (M1_ENABLED)
     {
-      std::memcpy(pdata, pmb->pm1->storage.u.data(),
-                         pmb->pm1->storage.u.GetSizeInBytes());
-      pdata += pmb->pm1->storage.u.GetSizeInBytes();
-
-      std::memcpy(pdata, pmb->pm1->storage.radmat.data(),
-                         pmb->pm1->storage.radmat.GetSizeInBytes());
-      pdata += pmb->pm1->storage.radmat.GetSizeInBytes();
+      M1::M1 * pm1 = pmb->pm1;
+      write_data(pm1->storage.u);
     }
 
     // User MeshBlock data:

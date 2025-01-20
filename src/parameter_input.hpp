@@ -17,6 +17,7 @@
 #include <cstddef>  // std::size_t
 #include <ostream>  // ostream
 #include <string>   // string
+#include <vector>
 
 // Athena++ headers
 #include "athena.hpp"
@@ -94,10 +95,105 @@ class ParameterInput {
   std::string GetString(std::string block, std::string name);
   std::string GetOrAddString(std::string block, std::string name, std::string value);
   std::string SetString(std::string block, std::string name, std::string value);
+
+  // Overwrite a parameter; useful if some state is achieve and a toggle in
+  // behaviour needs to be set thereafter (including with restarts)
+  template<class T>
+  void OverwriteParameter(
+    const std::string & block,
+    const std::string & name,
+    T value)
+  {
+    InputBlock* pb;
+    InputLine *pl;
+
+    pb = GetPtrToBlock(block);
+    pl = pb->GetPtrToLine(name);
+
+    Lock();
+
+    if (DoesParameterExist(block, name))
+    {
+      pb = GetPtrToBlock(block);
+      pl = pb->GetPtrToLine(name);
+      pl->param_value = std::to_string(value);
+    }
+    else
+    {
+      pb = FindOrAddBlock(block);
+      AddParameter(pb,
+                   name,
+                   std::to_string(value),
+                   "# Value inject during run time");
+    }
+
+    Unlock();
+  }
+
+  // Convenience functions for dealing with array-like parameters -------------
+  typedef std::vector<std::string> t_vec_str;
+  typedef std::vector<Real> t_vec_Real;
+  typedef std::vector<int> t_vec_int;
+  typedef std::vector<bool> t_vec_bool;
+
+  // std::vector varieties
+  t_vec_str GetOrAddStringArray(std::string block,
+                                std::string name,
+                                t_vec_str def_values);
+
+  t_vec_Real GetOrAddRealArray(std::string block,
+                               std::string name,
+                               t_vec_Real def_values);
+
+  t_vec_int GetOrAddIntegerArray(std::string block,
+                                 std::string name,
+                                 t_vec_int def_values);
+
+  t_vec_bool GetOrAddBooleanArray(std::string block,
+                                  std::string name,
+                                  t_vec_bool def_values);
+
+  // AthenaArray<type> varieties
+  AthenaArray<Real> GetOrAddRealArray(const std::string & block,
+                                      const std::string & name,
+                                      const AthenaArray<Real> & def_values);
+  AthenaArray<int> GetOrAddIntegerArray(const std::string & block,
+                                        const std::string & name,
+                                        const AthenaArray<int> & def_values);
+  AthenaArray<bool> GetOrAddBooleanArray(const std::string & block,
+                                         const std::string & name,
+                                         const AthenaArray<bool> & def_values);
+  AthenaArray<std::string> GetOrAddStringArray(
+    const std::string & block,
+    const std::string & name,
+    const AthenaArray<std::string> & def_values);
+
+  AthenaArray<Real> GetOrAddRealArray(const std::string & block,
+                                      const std::string & name,
+                                      const Real & def_value,
+                                      const int size=1);
+  AthenaArray<int> GetOrAddIntegerArray(const std::string & block,
+                                        const std::string & name,
+                                        const int & def_value,
+                                        const int size=1);
+  AthenaArray<bool> GetOrAddBooleanArray(const std::string & block,
+                                         const std::string & name,
+                                         const bool & def_value,
+                                         const int size=1);
+  AthenaArray<std::string> GetOrAddStringArray(
+    const std::string & block,
+    const std::string & name,
+    const std::string & def_value,
+    const int size=1);
+
+  // --------------------------------------------------------------------------
+
   void RollbackNextTime();
   void ForwardNextTime(Real time);
 
  private:
+  const int max_pars_array = 1024;
+
   std::string last_filename_;  // last input file opened, to prevent duplicate reads
 
   InputBlock* FindOrAddBlock(std::string name);
@@ -114,5 +210,22 @@ class ParameterInput {
 
   void Lock();
   void Unlock();
+
+  void GetExistingStringArray(const std::string & block,
+                              const std::string & name,
+                              t_vec_str & vec);
+
+  void AddParameterStringArray(const std::string & block,
+                               const std::string & name,
+                               const t_vec_str & values);
+
+  template <class T>
+  T GetOrAddArray(std::string block, std::string name, T def_values);
+
+  template <class T>
+  AthenaArray<T> GetOrAddArray(const std::string & block,
+                               const std::string & name,
+                               const AthenaArray<T> & def_values);
+
 };
 #endif // PARAMETER_INPUT_HPP_

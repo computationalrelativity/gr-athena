@@ -29,7 +29,10 @@ PostAMR_M1N0::PostAMR_M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
     Add(UPDATE_BG, NONE, &PostAMR_M1N0::UpdateBackground);
     Add(CALC_FIDU, UPDATE_BG, &PostAMR_M1N0::CalcFiducialVelocity);
     Add(CALC_CLOSURE, CALC_FIDU, &PostAMR_M1N0::CalcClosure);
-    Add(CALC_OPAC, CALC_CLOSURE, &PostAMR_M1N0::CalcOpacity);
+    Add(CALC_FIDU_FRAME, CALC_CLOSURE, &PostAMR_M1N0::CalcFiducialFrame);
+    Add(CALC_OPAC, CALC_FIDU_FRAME, &PostAMR_M1N0::CalcOpacity);
+    Add(ANALYSIS, CALC_OPAC, &PostAMR_M1N0::Analysis);
+
   } // end of using namespace block
 
 }
@@ -69,6 +72,16 @@ TaskStatus PostAMR_M1N0::CalcClosure(MeshBlock *pmb, int stage)
 }
 
 // ----------------------------------------------------------------------------
+// Map (closed) Eulerian fields (E, F_d, P_dd) to (J, H_d)
+TaskStatus PostAMR_M1N0::CalcFiducialFrame(MeshBlock *pmb, int stage)
+{
+  ::M1::M1 * pm1 = pmb->pm1;
+
+  pm1->CalcFiducialFrame(pm1->storage.u);
+  return TaskStatus::success;
+}
+
+// ----------------------------------------------------------------------------
 // Function to calculate Opacities
 TaskStatus PostAMR_M1N0::CalcOpacity(MeshBlock *pmb, int stage)
 {
@@ -85,6 +98,20 @@ TaskStatus PostAMR_M1N0::CalcOpacity(MeshBlock *pmb, int stage)
   return TaskStatus::success;
 }
 
+// ----------------------------------------------------------------------------
+TaskStatus PostAMR_M1N0::Analysis(MeshBlock *pmb, int stage)
+{
+  ::M1::M1 * pm1 = pmb->pm1;
+
+  if (!pmb->IsNewFromAMR())
+  {
+    return TaskStatus::success;
+  }
+
+  pm1->PerformAnalysis();
+
+  return TaskStatus::success;
+}
 
 //
 // :D

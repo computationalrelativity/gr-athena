@@ -82,6 +82,10 @@ Real PiecewisePolytrope::TemperatureFromP(Real n, Real p, Real *Y) {
   return (p - p_cold)/n;
 }
 
+Real PiecewisePolytrope::TemperatureFromEntropy(Real n, Real s, Real *Y) {
+  throw std::logic_error("PiecewisePolytrope::TemperatureFromEntropy not currently implemented.");
+}
+
 Real PiecewisePolytrope::Energy(Real n, Real T, Real *Y) {
   int p = FindPiece(n);
 

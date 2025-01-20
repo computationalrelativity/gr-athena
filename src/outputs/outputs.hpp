@@ -15,11 +15,25 @@
 #include <string>
 
 // Athena++ headers
-#include "../athena.hpp"
+#include "../athena_aliases.hpp"
 #include "io_wrapper.hpp"
 
 #ifdef HDF5OUTPUT
 #include <hdf5.h>
+
+// type alias that allows HDF5 output to be written in either floats or doubles
+#if H5_DOUBLE_PRECISION_ENABLED
+using H5Real = double;
+#if SINGLE_PRECISION_ENABLED
+#error "Cannot create HDF5 output at higher precision than internal representation"
+#endif
+#define H5T_NATIVE_REAL H5T_NATIVE_DOUBLE
+
+#else
+using H5Real = float;
+#define H5T_NATIVE_REAL H5T_NATIVE_FLOAT
+#endif
+
 #endif
 
 // forward declarations
@@ -47,6 +61,7 @@ struct OutputParameters {
   bool vc;
   int islice, jslice, kslice;
   Real x1_slice, x2_slice, x3_slice;
+
   // TODO(felker): some of the parameters in this class are not initialized in constructor
   OutputParameters() : block_number(0), next_time(0.0), dt(0.0), file_number(0),
                        output_slicex1(false),output_slicex2(false),output_slicex3(false),
@@ -205,4 +220,50 @@ class Outputs {
   OutputType *pfirst_type_; // ptr to head OutputType node in singly linked list
   // (not storing a reference to the tail node)
 };
+
+// ----------------------------------------------------------------------------
+#ifdef HDF5OUTPUT
+
+// Create / open a file for R/W; return handle
+hid_t hdf5_touch_file(const std::string & filename, const bool use_existing);
+
+// Implementation details for groups: -----------------------------------------
+// pass in a full path; (nested) groups created automatically
+void _hdf5_prepare_path(hid_t & id_file, const std::string & full_path);
+// ----------------------------------------------------------------------------
+
+// wrapped to write_arr_nd
+void hdf5_write_scalar(hid_t & id_file,
+                       const std::string & full_path,
+                       Real scalar);
+
+// write n-dimensional athena array to some path (groups gen. automatic)
+void hdf5_write_arr_nd(hid_t & id_file,
+                       const std::string & full_path,
+                       const AthenaArray<Real> & arr);
+
+// attribute writing
+void hdf5_write_attribute(
+  hid_t & id_file,
+  const std::string & name,
+  const int & value
+);
+
+void hdf5_write_attribute(
+  hid_t & id_file,
+  const std::string & name,
+  const std::string & value
+);
+
+void hdf5_write_attribute(
+  hid_t & id_file,
+  const std::string & name,
+  const Real & value
+);
+
+// clean up of open handle
+void hdf5_close_file(hid_t & id_file);
+
+#endif  // HDF5OUTPUT
+
 #endif // OUTPUTS_OUTPUTS_HPP_

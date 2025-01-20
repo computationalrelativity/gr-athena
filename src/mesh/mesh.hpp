@@ -19,8 +19,7 @@
 #include <vector>
 
 // Athena++ headers
-#include "../athena.hpp"
-#include "../athena_arrays.hpp"
+#include "../athena_aliases.hpp"
 #include "../bvals/bvals.hpp"
 #include "../outputs/io_wrapper.hpp"
 #include "../parameter_input.hpp"
@@ -29,6 +28,7 @@
 #include "mesh_refinement.hpp"
 #include "meshblock_tree.hpp"
 #include "../scalars/scalars.hpp"
+#include "../hydro/rescaling.hpp"
 
 // Forward declarations
 class ParameterInput;
@@ -66,9 +66,12 @@ class WaveExtractLocal;
 class PunctureTracker;
 class ExtremaTracker;
 class ExtremaTrackerLocal;
+namespace gra::mesh::surfaces {
+class Surfaces;
+}
 
 namespace M1 {
-  class M1;
+class M1;
 }
 
 
@@ -463,8 +466,12 @@ class Mesh {
   std::vector<PunctureTracker *> pz4c_tracker;
   ExtremaTracker * ptracker_extrema;
 
+  std::vector<gra::mesh::surfaces::Surfaces *> psurfs;
+
   AthenaArray<Real> *ruser_mesh_data;
   AthenaArray<int> *iuser_mesh_data;
+
+  gra::hydro::rescaling::Rescaling * presc;
 
   // functions ----------------------------------------------------------------
 
@@ -548,38 +555,6 @@ class Mesh {
 
   // General post-AMR procedures
   void FinalizePostAMR();
-
-  // Compensated summation of quantities over owned Meshblock
-  enum class variety_cs { conserved_density, conserved_scalar };
-
-  Real CompensatedSummation(
-    variety_cs v_cs,
-    const int n,
-    const int kl, const int ku,
-    const int jl, const int ju,
-    const int il, const int iu,
-    const bool volume_weighted
-  );
-
-  // convenience functions for compensated summation
-  void CS_ConservedDensity(Real & Mass);
-  void CS_ConservedScalars(AthenaArray<Real> & S);
-
-  // rescaling of evolved variables
-  void Rescale_Conserved();
-
-  // associated data
-  Real rs_ini_D, rs_fin_D;
-  AthenaArray<Real> rs_ini_s, rs_fin_s;
-
-  struct {
-    bool verbose;
-    bool initialized;
-    bool conserved_hydro;
-    bool conserved_scalars;
-    Real err_rel_hydro;
-    Real err_rel_scalars;
-  } opt_rescaling;
 
   // for convenience store some global geometric quantities
   struct {

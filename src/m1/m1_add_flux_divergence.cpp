@@ -31,7 +31,6 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_inh)
 
   AA & dflx_ = scratch.dflx_;
 
-  // TODO: fix loop ranges..
   M1_FLOOP2(k,j)
   {
     dflx_.ZeroClear();
@@ -153,9 +152,7 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_inh)
 
 
   }
-  return;
 }
-
 
 // ============================================================================
 } // namespace M1

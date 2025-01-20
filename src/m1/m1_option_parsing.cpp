@@ -33,7 +33,7 @@ void M1::PopulateOptionsClosure(ParameterInput *pin)
 
   auto GoA_bool = [&](const std::string & name, const int default_value)
   {
-    return pin->GetOrAddInteger(option_block, name, default_value);
+    return pin->GetOrAddBoolean(option_block, name, default_value);
   };
 
   auto GoA_str = [&](const std::string & name,
@@ -48,9 +48,7 @@ void M1::PopulateOptionsClosure(ParameterInput *pin)
       { "thin",     opt_closure_variety::thin},
       { "thick",    opt_closure_variety::thick},
       { "Minerbo",  opt_closure_variety::Minerbo},
-      { "MinerboN", opt_closure_variety::MinerboN},
-      { "MinerboP", opt_closure_variety::MinerboP},
-      { "MinerboB", opt_closure_variety::MinerboB},
+      { "Kershaw",  opt_closure_variety::Kershaw}
     };
 
     auto itr = opt_var.find(GoA_str("variety", "thin"));
@@ -65,16 +63,41 @@ void M1::PopulateOptionsClosure(ParameterInput *pin)
     }
   }
 
+  {
+    static const std::map<std::string, opt_closure_method> opt_var {
+      { "none",       opt_closure_method::none},
+      { "gsl_Brent",  opt_closure_method::gsl_Brent},
+      { "gsl_Newton", opt_closure_method::gsl_Newton}
+    };
+
+    auto itr = opt_var.find(GoA_str("method", "gsl_Brent"));
+    if (itr != opt_var.end())
+    {
+      opt_closure.method = itr->second;
+    }
+    else
+    {
+      msg << "M1_closure/method unknown" << std::endl;
+      ATHENA_ERROR(msg);
+    }
+
+  }
+
+  // various settings for methods
   opt_closure.eps_tol     = GoA_Real("eps_tol",     1e-10);
   opt_closure.eps_Z_o_E   = GoA_Real("eps_Z_o_E",   1e-20);
   opt_closure.fac_Z_o_E   = GoA_Real("fac_Z_o_E",   0.01);
+
+  opt_closure.fallback_brent = GoA_bool("fallback_brent", true);
+  opt_closure.fallback_thin = GoA_bool("fallback_thin", false);
+
+
   opt_closure.w_opt_ini   = GoA_Real("w_opt_init",  1.0);
   opt_closure.fac_err_amp = GoA_Real("fac_err_amp", 1.11);
 
   opt_closure.iter_max     = GoA_int("iter_max", 32);
   opt_closure.iter_max_rst = GoA_int("iter_max_rst", 5);
 
-  opt_closure.fallback_thin = GoA_bool("fallback_thin", false);
 
   opt_closure.use_Ostrowski = GoA_bool("use_Ostrowski", false);
   opt_closure.use_Neighbor  = GoA_bool("use_Neighbor",  false);
@@ -100,7 +123,7 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
 
   auto GoA_bool = [&](const std::string & name, const int default_value)
   {
-    return pin->GetOrAddInteger(option_block, name, default_value);
+    return pin->GetOrAddBoolean(option_block, name, default_value);
   };
 
   auto GoA_str = [&](const std::string & name,
@@ -112,45 +135,82 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
 
   {
     static const std::map<std::string, opt_integration_strategy> opt_strat {
+      { "do_nothing", opt_integration_strategy::do_nothing},
       { "full_explicit", opt_integration_strategy::full_explicit},
-      { "semi_implicit_PicardFrozenP",
-        opt_integration_strategy::semi_implicit_PicardFrozenP},
-      { "semi_implicit_PicardMinerboP",
-        opt_integration_strategy::semi_implicit_PicardMinerboP},
-      { "semi_implicit_PicardMinerboPC",
-        opt_integration_strategy::semi_implicit_PicardMinerboPC},
-      { "semi_implicit_HybridsJFrozenP",
-        opt_integration_strategy::semi_implicit_HybridsJFrozenP},
-      { "semi_implicit_HybridsJMinerbo",
-        opt_integration_strategy::semi_implicit_HybridsJMinerbo},
+      { "explicit_approximate_semi_implicit",
+        opt_integration_strategy::explicit_approximate_semi_implicit},
       { "semi_implicit_Hybrids",
         opt_integration_strategy::semi_implicit_Hybrids},
-      { "auto_esi_HybridsJMinerbo",
-        opt_integration_strategy::auto_esi_HybridsJMinerbo},
-      { "auto_esi_PicardMinerboP",
-        opt_integration_strategy::auto_esi_PicardMinerboP}
+      { "semi_implicit_HybridsJ",
+        opt_integration_strategy::semi_implicit_HybridsJ}
     };
 
-    auto itr = opt_strat.find(GoA_str("strategy", "full_explicit"));
-    if (itr != opt_strat.end())
+    auto get_solver = [&](std::string name, std::string default_method)
     {
-      opt_solver.strategy = itr->second;
-    }
-    else
-    {
-      msg << "M1_solver/strategy unknown" << std::endl;
-      ATHENA_ERROR(msg);
-    }
+      opt_integration_strategy ret;
+
+      auto itr = opt_strat.find(GoA_str(name, default_method));
+      if (itr != opt_strat.end())
+      {
+        ret = itr->second;
+      }
+      else
+      {
+        msg << "M1_solver/" << name << " unknown" << std::endl;
+        ATHENA_ERROR(msg);
+      }
+
+      return ret;
+    };
+
+    std::string default_method = "full_explicit";
+
+    opt_solver.solvers.non_stiff   = get_solver("solver_non_stiff",   default_method);
+    opt_solver.solvers.stiff       = get_solver("solver_stiff",       default_method);
+    opt_solver.solvers.scattering  = get_solver("solver_scattering",  default_method);
+    opt_solver.solvers.equilibrium = get_solver("solver_equilibrium", default_method);
+
+    opt_solver.solver_reduce_to_common = pin->GetOrAddBoolean(
+      "M1_solver",
+      "solver_reduce_to_common",
+      false);
+
+    opt_solver.solver_explicit_nG = pin->GetOrAddBoolean(
+      "M1_solver",
+      "solver_explicit_nG",
+      false);
+
   }
 
-  opt_solver.eps_tol     = GoA_Real("eps_tol",     1e-10);
+  opt_solver.eps_a_tol     = GoA_Real("eps_tol",     1e-10);
+  opt_solver.eps_r_tol     = GoA_Real("eps_tol",     1e-10);
   opt_solver.w_opt_ini   = GoA_Real("w_opt_init",  1.0);
   opt_solver.fac_err_amp = GoA_Real("fac_err_amp", 1.11);
+
+  opt_solver.thick_tol = GoA_bool("thick_tol", false);
+  opt_solver.thick_npg = GoA_bool("thick_npg", false);
 
   opt_solver.iter_max     = GoA_int("iter_max", 128);
   opt_solver.iter_max_rst = GoA_int("iter_max_rst", 10);
 
   opt_solver.use_Neighbor = GoA_bool("use_Neighbor",  false);
+
+  opt_solver.src_lim = GoA_Real("src_lim", -1.0);
+
+  opt_solver.limit_src_fluid = GoA_bool("limit_src_fluid",  false);
+  opt_solver.limit_src_radiation = GoA_bool("limit_src_radiation",  false);
+
+  opt_solver.use_Neighbor = GoA_bool("use_Neighbor",  false);
+
+  opt_solver.src_lim_Ye_min = GoA_Real("src_lim_Ye_min", -1.0);
+  opt_solver.src_lim_Ye_max = GoA_Real("src_lim_Ye_max", -1.0);
+
+  opt_solver.src_lim_thick      = GoA_Real("src_lim_thick",      -1.0);
+  opt_solver.src_lim_scattering = GoA_Real("src_lim_scattering", -1.0);
+
+  opt_solver.equilibrium_enforce = GoA_bool("equilibrium_enforce", false);
+  opt_solver.equilibrium_initial = GoA_bool("equilibrium_initial", false);
+  opt_solver.eql_rho_min = GoA_Real("eql_rho_min", 0.0);
 
   opt_solver.verbose = GoA_bool("verbose", false);
 }
@@ -173,6 +233,10 @@ void M1::PopulateOptions(ParameterInput *pin)
     {
       opt.characteristics_variety = opt_characteristics_variety::approximate;
     }
+    else if (tmp == "mixed")
+    {
+      opt.characteristics_variety = opt_characteristics_variety::mixed;
+    }
     else if (tmp == "exact_thin")
     {
       opt.characteristics_variety = opt_characteristics_variety::exact_thin;
@@ -181,13 +245,46 @@ void M1::PopulateOptions(ParameterInput *pin)
     {
       opt.characteristics_variety = opt_characteristics_variety::exact_thick;
     }
-    else if (tmp == "exact_Minerbo")
+    else if (tmp == "exact_closure")
     {
-      opt.characteristics_variety = opt_characteristics_variety::exact_Minerbo;
+      opt.characteristics_variety = opt_characteristics_variety::exact_closure;
     }
     else
     {
       msg << "M1/characteristics_variety unknown" << std::endl;
+      ATHENA_ERROR(msg);
+    }
+  }
+
+  { // flux style
+    tmp = pin->GetOrAddString("M1", "flux_variety", "HybridizeMinModA");
+    if (tmp == "LO")
+    {
+      opt.flux_variety = opt_flux_variety::LO;
+    }
+    else if (tmp == "HO")
+    {
+      opt.flux_variety = opt_flux_variety::HO;
+    }
+    else if (tmp == "HybridizeMinMod")
+    {
+      opt.flux_variety = opt_flux_variety::HybridizeMinMod;
+    }
+    else if (tmp == "HybridizeMinModA")
+    {
+      opt.flux_variety = opt_flux_variety::HybridizeMinModA;
+    }
+    else if (tmp == "HybridizeMinModB")
+    {
+      opt.flux_variety = opt_flux_variety::HybridizeMinModB;
+    }
+    else if (tmp == "HybridizeMinModC")
+    {
+      opt.flux_variety = opt_flux_variety::HybridizeMinModC;
+    }
+    else
+    {
+      msg << "M1/flux_variety unknown" << std::endl;
       ATHENA_ERROR(msg);
     }
   }
@@ -221,15 +318,18 @@ void M1::PopulateOptions(ParameterInput *pin)
   }
 
   { // tol / ad-hoc
-    opt.fl_E = pin->GetOrAddReal("M1", "fl_E", 1e-15);
-    opt.fl_J = pin->GetOrAddReal("M1", "fl_J", 1e-15);
+    opt.fl_E  = pin->GetOrAddReal("M1", "fl_E",  1e-15);
+    opt.fl_J  = pin->GetOrAddReal("M1", "fl_J",  1e-15);
+    opt.fl_nG = pin->GetOrAddReal("M1", "fl_nG", 1e-50);
     opt.eps_E = pin->GetOrAddReal("M1", "eps_E", 1e-5);
     opt.eps_J = pin->GetOrAddReal("M1", "eps_J", 1e-10);
     opt.enforce_causality = pin->GetOrAddBoolean(
       "M1", "enforce_causality", true);
+    opt.enforce_finite = pin->GetOrAddBoolean(
+      "M1", "enforce_finite", true);
     opt.eps_ec_fac = pin->GetOrAddReal("M1", "eps_ec_fac", 1e-15);
 
-    opt.min_flux_A = pin->GetOrAddReal("M1", "min_flux_A", 0);
+    opt.min_flux_Theta = pin->GetOrAddReal("M1", "min_flux_Theta", 0);
   }
 
   { // coupling
