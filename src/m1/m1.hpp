@@ -137,6 +137,7 @@ public:
   enum class opt_flux_variety { HybridizeMinModA,
                                 HybridizeMinModB,
                                 HybridizeMinModC,
+                                HybridizeMinModD,
                                 HybridizeMinMod,
                                 LO,
                                 HO };

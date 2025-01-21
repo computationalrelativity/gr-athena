@@ -67,6 +67,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
       AT_C_sca & sc_kap_s = radmat.sc_kap_s(ix_g,ix_s);
 
       AT_C_sca & sc_chi = lab_aux.sc_chi(ix_g,ix_s);
+      AT_C_sca & sc_xi  = lab_aux.sc_xi(ix_g,ix_s);
 
       AT_C_sca & sc_J   = rad.sc_J(  ix_g,ix_s);
       AT_D_vec & st_H_u = rad.st_H_u(ix_g, ix_s);
@@ -92,11 +93,10 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
           );
           // sc_n needs to be computed in CalcFiducialFrame
           F_sca(k,j,i) = sc_alpha(k,j,i) * sc_n(k,j,i) * sp_f_u__;
-
         }
       }
       Fluxes::ReconstructLimitedFlux(this, ix_d, U_nG, F_sca,
-                                     sc_chi,
+                                     sc_xi,
                                      sc_kap_a, sc_kap_s, lambda, F_nG);
 
       // E --------------------------------------------------------------------
@@ -114,7 +114,6 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
                           sp_g_uu(ix_d,a,k,j,i) *
                           U_F_d(a,k,j,i);
         }
-
       }
       Fluxes::ReconstructLimitedFlux(this, ix_d, U_E, F_sca,
                                      sc_chi,

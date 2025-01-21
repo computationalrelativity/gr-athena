@@ -282,6 +282,10 @@ void M1::PopulateOptions(ParameterInput *pin)
     {
       opt.flux_variety = opt_flux_variety::HybridizeMinModC;
     }
+    else if (tmp == "HybridizeMinModD")
+    {
+      opt.flux_variety = opt_flux_variety::HybridizeMinModD;
+    }
     else
     {
       msg << "M1/flux_variety unknown" << std::endl;
