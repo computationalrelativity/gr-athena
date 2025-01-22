@@ -163,6 +163,35 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   EnrollUserHistoryOutput(1, max_T, "max_T", UserHistoryOperation::max);
 }
 
+void MeshBlock::InitUserMeshBlockData(ParameterInput *pin)
+{
+  AllocateUserOutputVariables(1);
+  return;
+}
+
+void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin)
+{
+  // accumulate on all physical cells
+  int N_tot  = 0;
+  Real M_loc = 0;
+  MeshBlock * pmb = this;
+  CC_ILOOP3(k,j,i)
+  {
+    const Real vol = pcoord->GetCellVolume(k,j,i);
+    M_loc += phydro->u(IDN,k,j,i) * vol;
+    ++N_tot;
+  }
+
+  for (int k=0; k<ncells3; ++k)
+  for (int j=0; j<ncells2; ++j)
+  for (int i=0; i<ncells1; ++i)
+  {
+    user_out_var(0,k,j,i) = M_loc / N_tot;
+  }
+
+
+}
+
 //========================================================================================
 //! \fn void MeshBlock::ProblemGenerator(ParameterInput *pin)
 //  \brief Sets the initial conditions.
@@ -196,47 +225,52 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 
         const Real rho = pstar->Eval(StellarProfile::rho, rad);
  
-        if ((rho > opt_rho_cut))
+        phydro->w(IDN, k, j, i) = rho;
+
+        Real A;
+        if (interpolate_Phi)
         {
-          phydro->w(IDN, k, j, i) = rho;
+          const Real Phi = pstar->Eval(StellarProfile::phi, rad);
+          A = 1.0 - 2.0 * Phi;
+          alpha(k, j, i) = std::sqrt(1 + Phi);
+        }
+        else
+        {
+          alpha(k, j, i) = pstar->Eval(StellarProfile::alp, rad);
+          A = pstar->Eval(StellarProfile::gxx, rad);
+        }
 
-          Real A;
-          if (interpolate_Phi)
-          {
-            const Real Phi = pstar->Eval(StellarProfile::phi, rad);
-            A = 1.0 - 2.0 * Phi;
-            alpha(k, j, i) = std::sqrt(1 + Phi);
-          }
-          else
-          {
-            alpha(k, j, i) = pstar->Eval(StellarProfile::alp, rad);
-            A = pstar->Eval(StellarProfile::gxx, rad);
-          }
+        g_dd(2, 2, k, j, i) = g_dd(1, 1, k, j, i) = g_dd(0, 0, k, j, i) = A;
 
-          g_dd(2, 2, k, j, i) = g_dd(1, 1, k, j, i) = g_dd(0, 0, k, j, i) = A;
+        Real vr = pstar->Eval(StellarProfile::vel, rad);
+        Real vx = vr * xp / rad;
+        Real vy = vr * yp / rad;
+        Real vz = vr * zp / rad;
 
-          Real vr = pstar->Eval(StellarProfile::vel, rad);
-          Real vx = vr * xp / rad;
-          Real vy = vr * yp / rad;
-          Real vz = vr * zp / rad;
+        Real W = 1.0 / sqrt(1.0 - A * (vx * vx + vy * vy + vz * vz));
+        phydro->w(IVX, k, j, i) = W * vx;
+        phydro->w(IVY, k, j, i) = W * vy;
+        phydro->w(IVZ, k, j, i) = W * vz;
 
-          Real W = 1.0 / sqrt(1.0 - A * (vx * vx + vy * vy + vz * vz));
-          phydro->w(IVX, k, j, i) = W * vx;
-          phydro->w(IVY, k, j, i) = W * vy;
-          phydro->w(IVZ, k, j, i) = W * vz;
+        phydro->w(IPR, k, j, i) = pstar->Eval(StellarProfile::press, rad);
 
-          phydro->w(IPR, k, j, i) = pstar->Eval(StellarProfile::press, rad);
+        // BD: enforce max species limits? (Cf. tabulated EoS)
+        // std::printf(
+        //   "%.3g\n",
+        //   peos->GetEOS().GetMaximumSpeciesFraction(IYE)
+        // );
+        // std::exit(0);
+        pscalars->r(IYE,k,j,i) = std::min(
+          peos->GetEOS().GetMaximumSpeciesFraction(IYE),
+          pstar->Eval(StellarProfile::ye, rad)
+        );
 
-          // BD: enforce max species limits? (Cf. tabulated EoS)
-          // std::printf(
-          //   "%.3g\n",
-          //   peos->GetEOS().GetMaximumSpeciesFraction(IYE)
-          // );
-          // std::exit(0);
-          pscalars->r(IYE,k,j,i) = std::min(
-            peos->GetEOS().GetMaximumSpeciesFraction(IYE),
-            pstar->Eval(StellarProfile::ye, rad)
-          );
+        // introduce cutoff at low density:
+        // This relies on primitive flooring procedure
+        if ((opt_rho_cut > 0) &&  // ensure we have a non-trivial cut
+            (rho < opt_rho_cut))
+        {
+          phydro->w(IDN,k,j,i) = 0;
         }
 
       }
@@ -244,6 +278,23 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   }
 
   pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
+
+  bool id_floor_primitives = pin->GetOrAddBoolean(
+    "problem", "id_floor_primitives", true);
+
+  if (id_floor_primitives)
+  {
+    for (int k = 0; k < ncells3; ++k)
+    for (int j = 0; j < ncells2; ++j)
+    for (int i = 0; i < ncells1; ++i)
+    {
+#if USETM
+      peos->ApplyPrimitiveFloors(phydro->w, pscalars->r, k, j, i);
+#else
+      peos->ApplyPrimitiveFloors(phydro->w, k, j, i);
+#endif
+    }
+  }
 
   peos->PrimitiveToConserved(phydro->w,
                              pscalars->r,
@@ -655,21 +706,21 @@ int RefinementCondition(MeshBlock *pmb)
   Coordinates *pco = pmb->pcoord;
 
   // accumulate on all physical cells
-  int N_tot  = 0;
+  // int N_tot  = 0;
   Real M_loc = 0;
   CC_ILOOP3(k,j,i)
   {
     const Real vol = pco->GetCellVolume(k,j,i);
     M_loc += ph->u(IDN,k,j,i) * vol;
-    ++N_tot;
+    // ++N_tot;
   }
 
-  // compare local integral to threshold * num physical points
-  if (M_loc > N_tot * opt_delta_max_m)
+  // mass per cell exceed refinement par
+  if (M_loc >= opt_delta_max_m)
   {
     return 1;
   }
-  else if (M_loc < N_tot * opt_delta_min_m)
+  else if (M_loc < opt_delta_min_m)
   {
     return -1;
   }
