@@ -73,6 +73,7 @@ public:
                   AA & sources);
 
   void CalcFluxes(AA & u);
+  void CalcFluxLimiter(AA & u);
   void AddFluxDivergence(AA & u_inh);
   void AddSourceGR(AA & u, AA & u_inh);
 
@@ -180,6 +181,10 @@ public:
     bool enforce_finite;
     Real eps_ec_fac;
     Real min_flux_Theta;
+
+    bool flux_limiter_use_mask;
+    bool flux_limiter_nn;
+    bool flux_limiter_multicomponent;
 
     // Control the couplings
     bool couple_sources_ADM;
@@ -687,6 +692,7 @@ public:
       AthenaArray<opt_solution_regime>  solution_regime;
       AthenaArray<opt_source_treatment> source_treatment;
       AthenaArray<bool>                 excised;
+      AA                                flux_limiter;
     } masks;
   } ev_strat;
 

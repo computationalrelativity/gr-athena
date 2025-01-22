@@ -53,9 +53,10 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
     Add(CALC_FIDU_FRAME, CALC_CLOSURE, &M1N0::CalcFiducialFrame);
     Add(CALC_OPAC, CALC_FIDU_FRAME, &M1N0::CalcOpacity);
 
-    Add(CALC_FLUX, CALC_OPAC, &M1N0::CalcFlux);
 
     Add(ADD_GRSRC,   CALC_CLOSURE, &M1N0::AddGRSources);
+    Add(CALC_FLUX, (CALC_OPAC|ADD_GRSRC), &M1N0::CalcFlux);
+
     Add(ADD_FLX_DIV, (CALC_FLUX|ADD_GRSRC),
                      &M1N0::AddFluxDivergence);
 
@@ -226,6 +227,11 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
 
   if (stage <= nstages)
   {
+    if (pm1->opt.flux_limiter_multicomponent)
+    {
+      pm1->CalcFluxLimiter(pm1->storage.u);
+    }
+
     pm1->CalcFluxes(pm1->storage.u);
     return TaskStatus::next;
   }

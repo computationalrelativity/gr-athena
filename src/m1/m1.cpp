@@ -194,6 +194,14 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     N_GRPS, N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1);
   ev_strat.masks.excised.Fill(false);
 
+
+  if (opt.flux_limiter_use_mask)
+  {
+    ev_strat.masks.flux_limiter.NewAthenaArray(
+      N, mbi.nn3, mbi.nn2, mbi.nn1);
+    ev_strat.masks.flux_limiter.Fill(0);
+  }
+
   // --------------------------------------------------------------------------
   // general setup
   /*

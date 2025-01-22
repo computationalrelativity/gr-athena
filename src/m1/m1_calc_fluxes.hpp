@@ -49,6 +49,7 @@ void ReconstructLimitedFluxX1(M1 * pm1,
                               const AT_C_sca & kap_a,
                               const AT_C_sca & kap_s,
                               const AT_C_sca & lambda,
+                              AA & flux_limiter,
                               AT_C_sca & Flux);
 
 void ReconstructLimitedFluxX2(M1 * pm1,
@@ -58,6 +59,7 @@ void ReconstructLimitedFluxX2(M1 * pm1,
                               const AT_C_sca & kap_a,
                               const AT_C_sca & kap_s,
                               const AT_C_sca & lambda,
+                              AA & flux_limiter,
                               AT_C_sca & Flux);
 
 void ReconstructLimitedFluxX3(M1 * pm1,
@@ -67,7 +69,31 @@ void ReconstructLimitedFluxX3(M1 * pm1,
                               const AT_C_sca & kap_a,
                               const AT_C_sca & kap_s,
                               const AT_C_sca & lambda,
+                              AA & flux_limiter,
                               AT_C_sca & Flux);
+
+
+// Directional scalar field (or vector cpt.) reconstruction
+void LimiterMaskX1(M1 * pm1,
+                   AA & flux_limiter,
+                   const AT_C_sca & q,
+                   const AT_C_sca & xi,
+                   const AT_C_sca & kap_a,
+                   const AT_C_sca & kap_s);
+
+void LimiterMaskX2(M1 * pm1,
+                   AA & flux_limiter,
+                   const AT_C_sca & q,
+                   const AT_C_sca & xi,
+                   const AT_C_sca & kap_a,
+                   const AT_C_sca & kap_s);
+
+void LimiterMaskX3(M1 * pm1,
+                   AA & flux_limiter,
+                   const AT_C_sca & q,
+                   const AT_C_sca & xi,
+                   const AT_C_sca & kap_a,
+                   const AT_C_sca & kap_s);
 
 // Riemann solver technology --------------------------------------------------
 
