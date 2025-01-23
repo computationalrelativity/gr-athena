@@ -57,7 +57,7 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
     Add(ADD_GRSRC,   CALC_CLOSURE, &M1N0::AddGRSources);
     Add(CALC_FLUX, (CALC_OPAC|ADD_GRSRC), &M1N0::CalcFlux);
 
-    Add(ADD_FLX_DIV, (CALC_FLUX|ADD_GRSRC),
+    Add(ADD_FLX_DIV, CALC_FLUX,
                      &M1N0::AddFluxDivergence);
 
     if (multilevel)
@@ -90,10 +90,10 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
       Add(PHY_BVAL, SETB, &M1N0::PhysicalBoundary);
     }
 
-    Add(ANALYSIS, (PHY_BVAL|CALC_UPDATE), &M1N0::Analysis);
+    Add(ANALYSIS, PHY_BVAL, &M1N0::Analysis);
 
     Add(USERWORK, ANALYSIS, &M1N0::UserWork);
-    Add(NEW_DT,   USERWORK,               &M1N0::NewBlockTimeStep);
+    Add(NEW_DT,   USERWORK, &M1N0::NewBlockTimeStep);
 
     if (adaptive)
     {
