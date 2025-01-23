@@ -35,46 +35,49 @@ static const int IYE = 0;  // species IDX in pscalars->r/s
 
 void skipline(FILE *fptr);
 
-class StellarProfile {
+class StellarProfile
+{
   public:
-  enum vars {
-    alp = 0,
-    gxx = 1,
-    mass = 2,  // second quantity in table
-    vel = 3,
-    rho = 4,
-    temp = 5,
-    ye = 6,
-    press = 7,
-    phi = 8,
-    num_vars = 9,
-  };
+    enum vars
+    {
+      alp = 0,
+      gxx = 1,
+      mass = 2,  // second quantity in table
+      vel = 3,
+      rho = 4,
+      temp = 5,
+      ye = 6,
+      press = 7,
+      phi = 8,
+      num_vars = 9,
+    };
 
- public:
-  StellarProfile(ParameterInput *pin);
-  ~StellarProfile();
+  public:
+    StellarProfile(ParameterInput *pin);
+    ~StellarProfile();
 
-  Real Eval(int var, Real r) const;
+    Real Eval(int var, Real r) const;
 
- private:
-  int siz;
-  Real *pr;
-  Real *pvars[num_vars];
-  Real *Phi;
+  private:
+    int siz;
+    Real *pr;
+    Real *pvars[num_vars];
+    Real *Phi;
 };
 
 // Deleptonization scheme by astro-ph/0504072, updated fits from 1701.02752
-class Deleptonization {
- public:
-  Deleptonization(ParameterInput *pin);
-  Real Ye_of_rho(Real rho) const;
+class Deleptonization
+{
+  public:
+    Deleptonization(ParameterInput *pin);
+    Real Ye_of_rho(Real rho) const;
 
- private:
-  Real log10_rho1;
-  Real log10_rho2;
-  Real Ye_2;
-  Real Ye_c;
-  Real Ye_H;
+  private:
+    Real log10_rho1;
+    Real log10_rho2;
+    Real Ye_2;
+    Real Ye_c;
+    Real Ye_H;
 };
 
 Deleptonization *pdelept = nullptr;
@@ -86,12 +89,16 @@ Real opt_E_nu_avg;
 Real opt_rho_trap;
 Real opt_rho_cut;
 
-Real opt_delta_min_m;
-Real opt_delta_max_m;
-
 // additional scalar dumps
 Real Maxrho(MeshBlock *pmb, int iout);
 Real max_T(MeshBlock *pmb, int iout);
+
+// refinement
+Real opt_delta_min_m;
+Real opt_delta_max_m;
+
+enum class opt_refinement_method { none, MassPerMeshBlock, MaxMassInCell };
+opt_refinement_method opt_refm_;
 
 int RefinementCondition(MeshBlock *pmb);
 
@@ -123,17 +130,17 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
     "deleptonization_method",
     "Simple");
 
-  static const std::map<std::string, opt_deleptonization_method> opt_var
+  static const std::map<std::string, opt_deleptonization_method> opt_lep
   {
     { "Liebendoerfer", opt_deleptonization_method::Liebendoerfer},
     { "Simple",        opt_deleptonization_method::Simple}
   };
 
-  auto itr = opt_var.find(pin->GetOrAddString("problem",
+  auto itr = opt_lep.find(pin->GetOrAddString("problem",
                                               "deleptonization_method",
                                               "Simple"));
 
-  if (itr != opt_var.end())
+  if (itr != opt_lep.end())
   {
     opt_dlp_mtd_ = itr->second;
   }
@@ -151,8 +158,32 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   opt_rho_trap = pin->GetOrAddReal("problem", "rho_trap", 1e12) / UDENS;
   opt_rho_cut = pin->GetOrAddReal("problem", "rho_cut", -INF);
 
+  // refinement strategy ------------------------------------------------------
+
+  static const std::map<std::string, opt_refinement_method> opt_ref
+  {
+    { "none",             opt_refinement_method::none},
+    { "MassPerMeshBlock", opt_refinement_method::MassPerMeshBlock},
+    { "MaxMassInCell",      opt_refinement_method::MaxMassInCell}
+  };
+
+  auto itr_ref = opt_ref.find(pin->GetOrAddString("problem",
+                                                  "refinement_method",
+                                                  "none"));
+
+  if (itr_ref != opt_ref.end())
+  {
+    opt_refm_ = itr_ref->second;
+  }
+  else
+  {
+    msg << "problem/refinement_method unknown" << std::endl;
+    ATHENA_ERROR(msg);
+  }
+
   opt_delta_min_m = pin->GetOrAddReal("problem", "delta_min_m", -INF);
   opt_delta_max_m = pin->GetOrAddReal("problem", "delta_max_m", INF);
+  // --------------------------------------------------------------------------
 
   // BD: TODO- cleanup is where?
   pdelept = new Deleptonization(pin);
@@ -171,24 +202,52 @@ void MeshBlock::InitUserMeshBlockData(ParameterInput *pin)
 
 void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin)
 {
-  // accumulate on all physical cells
-  int N_tot  = 0;
-  Real M_loc = 0;
   MeshBlock * pmb = this;
-  CC_ILOOP3(k,j,i)
-  {
-    const Real vol = pcoord->GetCellVolume(k,j,i);
-    M_loc += phydro->u(IDN,k,j,i) * vol;
-    ++N_tot;
-  }
+  Hydro *ph = pmb->phydro;
+  Coordinates *pco = pmb->pcoord;
 
-  for (int k=0; k<ncells3; ++k)
-  for (int j=0; j<ncells2; ++j)
-  for (int i=0; i<ncells1; ++i)
+  switch (opt_refm_)
   {
-    user_out_var(0,k,j,i) = M_loc / N_tot;
-  }
+    case opt_refinement_method::MassPerMeshBlock:
+    {
+      // accumulate on all physical cells
+      Real M_loc = 0;
+      CC_ILOOP3(k,j,i)
+      {
+        const Real vol = pco->GetCellVolume(k,j,i);
+        M_loc += ph->u(IDN,k,j,i) * vol;
+      }
 
+      // dump on all cells
+      CC_GLOOP3(k, j, i)
+      {
+        user_out_var(0,k,j,i) = M_loc;
+      }
+
+      break;
+    }
+    case opt_refinement_method::MaxMassInCell:
+    {
+      // look in ghost layer also as this affects dynamics on the
+      // current MB
+      CC_GLOOP3(k, j, i)
+      {
+        const Real cell_vol  = pco->GetCellVolume(k,j,i);
+        const Real cell_mass = ph->u(IDN,k,j,i) * cell_vol;
+
+        user_out_var(0,k,j,i) = cell_mass;
+      }
+      break;
+    }
+    case opt_refinement_method::none:
+    {
+      break;
+    }
+    default:
+    {
+      assert(false);
+    }
+  }
 
 }
 
@@ -698,31 +757,64 @@ Real Deleptonization::Ye_of_rho(Real rho) const {
 
 int RefinementCondition(MeshBlock *pmb)
 {
-  // TODO: implement this
-  // We probably want a refinement condition based on the rest mass in
-  // each cell
-
   Hydro *ph = pmb->phydro;
   Coordinates *pco = pmb->pcoord;
 
-  // accumulate on all physical cells
-  // int N_tot  = 0;
-  Real M_loc = 0;
-  CC_ILOOP3(k,j,i)
+  switch (opt_refm_)
   {
-    const Real vol = pco->GetCellVolume(k,j,i);
-    M_loc += ph->u(IDN,k,j,i) * vol;
-    // ++N_tot;
-  }
+    case opt_refinement_method::MassPerMeshBlock:
+    {
+      // accumulate on all physical cells
+      Real M_loc = 0;
+      CC_ILOOP3(k,j,i)
+      {
+        const Real vol = pco->GetCellVolume(k,j,i);
+        M_loc += ph->u(IDN,k,j,i) * vol;
+      }
 
-  // mass per cell exceed refinement par
-  if (M_loc >= opt_delta_max_m)
-  {
-    return 1;
-  }
-  else if (M_loc < opt_delta_min_m)
-  {
-    return -1;
+      // mass per MeshBlock exceed refinement par
+      if (M_loc > opt_delta_max_m)
+      {
+        return 1;
+      }
+      else if (M_loc < opt_delta_min_m)
+      {
+        return -1;
+      }
+
+      break;
+    }
+    case opt_refinement_method::MaxMassInCell:
+    {
+      Real max_mass = -std::numeric_limits<Real>::infinity();
+
+      CC_GLOOP3(k, j, i)
+      {
+        const Real cell_vol  = pco->GetCellVolume(k,j,i);
+        const Real cell_mass = ph->u(IDN,k,j,i) * cell_vol;
+
+        max_mass = std::max(max_mass, cell_mass);
+      }
+
+      if (max_mass > opt_delta_max_m)
+      {
+        return 1;
+      }
+      else if (max_mass < opt_delta_min_m)
+      {
+        return -1;
+      }
+
+      break;
+    }
+    case opt_refinement_method::none:
+    {
+      break;
+    }
+    default:
+    {
+      assert(false);
+    }
   }
 
   return 0;
