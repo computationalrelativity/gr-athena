@@ -105,6 +105,13 @@ int RefinementCondition(MeshBlock *pmb);
 bool interpolate_Phi;
 int SP_NVARS = StellarProfile::num_vars;
 
+
+// field data dumped (as user_out)
+struct user_dumps
+{
+  enum {RefinementCondition, EntropyPerbaryon, N};
+};
+
 }  // namespace
 
 //========================================================================================
@@ -196,16 +203,19 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
 
 void MeshBlock::InitUserMeshBlockData(ParameterInput *pin)
 {
-  AllocateUserOutputVariables(1);
+  AllocateUserOutputVariables(user_dumps::N);
   return;
 }
 
 void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin)
 {
   MeshBlock * pmb = this;
-  Hydro *ph = pmb->phydro;
   Coordinates *pco = pmb->pcoord;
+  EquationOfState * peos = pmb->peos;
+  Hydro *ph = pmb->phydro;
+  PassiveScalars *ps = pmb->pscalars;
 
+  // refinement condition -----------------------------------------------------
   switch (opt_refm_)
   {
     case opt_refinement_method::MassPerMeshBlock:
@@ -221,7 +231,7 @@ void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin)
       // dump on all cells
       CC_GLOOP3(k, j, i)
       {
-        user_out_var(0,k,j,i) = M_loc;
+        user_out_var(user_dumps::RefinementCondition,k,j,i) = M_loc;
       }
 
       break;
@@ -235,7 +245,7 @@ void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin)
         const Real cell_vol  = pco->GetCellVolume(k,j,i);
         const Real cell_mass = ph->u(IDN,k,j,i) * cell_vol;
 
-        user_out_var(0,k,j,i) = cell_mass;
+        user_out_var(user_dumps::RefinementCondition,k,j,i) = cell_mass;
       }
       break;
     }
@@ -249,6 +259,24 @@ void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin)
     }
   }
 
+  // EntropyPerBaryon ---------------------------------------------------------
+  const Real mb = peos->GetEOS().GetBaryonMass();
+  Real Y[MAX_SPECIES] { 0 };
+
+  CC_GLOOP3(k, j, i)
+  {
+    const Real rho = ph->w(IDN,k,j,i);
+    const Real Y_e = ps->r(IYE,k,j,i);
+    Y[IYE] = Y_e;
+
+    const Real n = rho / mb;
+    const Real p = ph->w(IPR,k,j,i);
+    const Real T = peos->GetEOS().GetTemperatureFromP(n, p, Y);
+
+    user_out_var(user_dumps::EntropyPerbaryon,k,j,i) = (
+      peos->GetEOS().GetEntropyPerBaryon(n, T, Y)
+    );
+  }
 }
 
 //========================================================================================
