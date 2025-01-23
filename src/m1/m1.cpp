@@ -197,7 +197,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   ev_strat.masks.source_treatment.Fill(t_src_t::noop);
 
   ev_strat.masks.excised.NewAthenaArray(
-    N_GRPS, N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1);
+    mbi.nn3, mbi.nn2, mbi.nn1);
   ev_strat.masks.excised.Fill(false);
 
 

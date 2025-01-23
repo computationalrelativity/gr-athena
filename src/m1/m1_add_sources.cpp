@@ -35,7 +35,7 @@ void M1::AddSourceGR(AA & u, AA & u_inh)
     StateMetaVector C = ConstructStateMetaVector(*this, U_C, ix_g, ix_s);
     StateMetaVector I = ConstructStateMetaVector(*this, U_I, ix_g, ix_s);
 
-    M1_ILOOP3(k,j,i)
+    M1_MLOOP3(k,j,i)
     if (MaskGet(k, j, i))
     {
 

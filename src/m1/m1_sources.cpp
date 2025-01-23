@@ -153,8 +153,9 @@ void Prepare(
   theta.Fill(1.0);
   // --------------------------------------------------------------------------
 
-  M1_ILOOP3(k, j, i)
+  M1_MLOOP3(k, j, i)
   if (pm1->MaskGet(k, j, i))
+  if (pm1->MaskGetHybridize(k,j,i))
   {
     Real & theta__ = theta(k,j,i);
 
@@ -270,8 +271,9 @@ void Prepare(
   }
 
   // Finally enforce mask to be non-negative ----------------------------------
-  M1_ILOOP3(k, j, i)
+  M1_MLOOP3(k, j, i)
   if (pm1->MaskGet(k, j, i))
+  if (pm1->MaskGetHybridize(k,j,i))
   {
     theta(k, j, i) = std::max(0.0, theta(k, j, i));
   }
@@ -304,8 +306,9 @@ void Apply(
 
     ClosureMetaVector CL_C = ConstructClosureMetaVector(*pm1, U_C, ix_g, ix_s);
 
-    M1_ILOOP3(k, j, i)
+    M1_MLOOP3(k, j, i)
     if (pm1->MaskGet(k, j, i))
+    if (pm1->MaskGetHybridize(k,j,i))
     {
       // Subtract off unlimited sources: C <- C - dt * S
       InPlaceScalarMulAdd_nG_E_F_d(-dt, C, S, k, j, i);

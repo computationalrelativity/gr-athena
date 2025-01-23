@@ -405,178 +405,15 @@ void ReconstructLimitedFluxX1(M1 * pm1,
   // flux(i) with i = pm1->mbi.il stores \hat{F}_{i-1/2}
   // Range required (for divergence along X1) is (il, ... iu+1)
 
-  for (int k=pm1->mbi.kl; k<=pm1->mbi.ku; ++k)
-  for (int j=pm1->mbi.jl; j<=pm1->mbi.ju; ++j)
+  M1_RLOOP3_1(k,j,i)
   {
+    const Real lam = std::max(lambda(k,j,i-1+Z), lambda(k,j,i+Z));
 
-    #pragma omp simd
-    for (int i=pm1->mbi.il; i<=pm1->mbi.iu+1; ++i)  // flux_idx : i-1/2
-    {
-      const Real lam = std::max(lambda(k,j,i-1+Z), lambda(k,j,i+Z));
+    const Real F_HO = 0.5 * (F(k,j,i-1+Z) + F(k,j,i+Z));
+    const Real F_LO = F_HO - 0.5 * lam * (q(k,j,i+Z) - q(k,j,i-1+Z));
 
-      const Real F_HO = 0.5 * (F(k,j,i-1+Z) + F(k,j,i+Z));
-      const Real F_LO = F_HO - 0.5 * lam * (q(k,j,i+Z) - q(k,j,i-1+Z));
-
-      Real th;
-      if (!pm1->opt.flux_limiter_use_mask)
-      {
-        const Real hyb_fac = FluxLimiter(
-          pm1->opt.flux_variety,
-          pm1->mbi.dx1(i),
-          xi(k,j,i-1+Z),
-          xi(k,j,i+0+Z),
-          xi(k,j,i+1+Z),
-          (kap_a(k,j,i-1+Z) + kap_s(k,j,i-1+Z)),
-          (kap_a(k,j,i+0+Z) + kap_s(k,j,i+0+Z)),
-          (kap_a(k,j,i+1+Z) + kap_s(k,j,i+1+Z)),
-          q(k,j,i-2+Z), q(k,j,i-1+Z), q(k,j,i+Z), q(k,j,i+1+Z), q(k,j,i+2+Z)
-        );
-
-        th = std::max(hyb_fac, pm1->opt.min_flux_Theta);
-      }
-      else
-      {
-        if (pm1->opt.flux_limiter_nn)
-        {
-        th = std::max(flux_limiter(0,k,j,i-1), flux_limiter(0,k,j,i));
-        }
-        else
-        {
-          th = flux_limiter(0,k,j,i);
-        }
-      }
-
-      Flux(k,j,i) = F_HO - th * (F_HO - F_LO);
-    }
-  }
-}
-
-void ReconstructLimitedFluxX2(M1 * pm1,
-                              const AT_C_sca & q,
-                              const AT_C_sca & F,
-                              const AT_C_sca & xi,
-                              const AT_C_sca & kap_a,
-                              const AT_C_sca & kap_s,
-                              const AT_C_sca & lambda,
-                              AA & flux_limiter,
-                              AT_C_sca & Flux)
-{
-  for (int k=pm1->mbi.kl; k<=pm1->mbi.ku; ++k)
-  for (int j=pm1->mbi.jl; j<=pm1->mbi.ju+1; ++j) // flux_idx : j-1/2
-  {
-    #pragma omp simd
-    for (int i=pm1->mbi.il; i<=pm1->mbi.iu; ++i)
-    {
-      const Real lam = std::max(lambda(k,j-1+Z,i), lambda(k,j+Z,i));
-
-      const Real F_HO = 0.5 * (F(k,j-1+Z,i) + F(k,j+Z,i));
-      const Real F_LO = F_HO - 0.5 * lam * (q(k,j+Z,i) - q(k,j-1+Z,i));
-
-      Real th;
-      if (!pm1->opt.flux_limiter_use_mask)
-      {
-        const Real hyb_fac = FluxLimiter(
-          pm1->opt.flux_variety,
-          pm1->mbi.dx2(j),
-          xi(k,j-1+Z,i),
-          xi(k,j+0+Z,i),
-          xi(k,j+1+Z,i),
-          (kap_a(k,j-1+Z,i) + kap_s(k,j-1+Z,i)),
-          (kap_a(k,j+0+Z,i) + kap_s(k,j+0+Z,i)),
-          (kap_a(k,j+1+Z,i) + kap_s(k,j+1+Z,i)),
-          q(k,j-2+Z,i), q(k,j-1+Z,i), q(k,j+Z,i), q(k,j+1+Z,i), q(k,j+2+Z,i)
-        );
-
-        th = std::max(hyb_fac, pm1->opt.min_flux_Theta);
-      }
-      else
-      {
-        if (pm1->opt.flux_limiter_nn)
-        {
-        th = std::max(flux_limiter(1,k,j-1,i), flux_limiter(1,k,j,i));
-        }
-        else
-        {
-          th = flux_limiter(1,k,j,i);
-        }
-      }
-
-      Flux(k,j,i) = F_HO -  th * (F_HO - F_LO);
-    }
-  }
-}
-
-void ReconstructLimitedFluxX3(M1 * pm1,
-                              const AT_C_sca & q,
-                              const AT_C_sca & F,
-                              const AT_C_sca & xi,
-                              const AT_C_sca & kap_a,
-                              const AT_C_sca & kap_s,
-                              const AT_C_sca & lambda,
-                              AA & flux_limiter,
-                              AT_C_sca & Flux)
-{
-  for (int k=pm1->mbi.kl; k<=pm1->mbi.ku+1; ++k) // flux_idx : k-1/2
-  for (int j=pm1->mbi.jl; j<=pm1->mbi.ju; ++j)
-  {
-    #pragma omp simd
-    for (int i=pm1->mbi.il; i<=pm1->mbi.iu; ++i)
-    {
-      const Real lam = std::max(lambda(k-1+Z,j,i), lambda(k+Z,j,i));
-
-      const Real F_HO = 0.5 * (F(k-1+Z,j,i) + F(k+Z,j,i));
-      const Real F_LO = F_HO - 0.5 * lam * (q(k+Z,j,i) - q(k-1+Z,j,i));
-
-      Real th;
-      if (!pm1->opt.flux_limiter_use_mask)
-      {
-        const Real hyb_fac = FluxLimiter(
-          pm1->opt.flux_variety,
-          pm1->mbi.dx3(k),
-          xi(k-1+Z,j,i),
-          xi(k+0+Z,j,i),
-          xi(k+1+Z,j,i),
-          (kap_a(k-1+Z,j,i) + kap_s(k-1+Z,j,i)),
-          (kap_a(k+0+Z,j,i) + kap_s(k+0+Z,j,i)),
-          (kap_a(k+1+Z,j,i) + kap_s(k+1+Z,j,i)),
-          q(k-2+Z,j,i), q(k-1+Z,j,i), q(k+Z,j,i), q(k+1+Z,j,i), q(k+2+Z,j,i)
-        );
-
-        th = std::max(hyb_fac, pm1->opt.min_flux_Theta);
-      }
-      else
-      {
-        if (pm1->opt.flux_limiter_nn)
-        {
-        th = std::max(flux_limiter(2,k-1,j,i), flux_limiter(2,k,j,i));
-        }
-        else
-        {
-          th = flux_limiter(2,k,j,i);
-        }
-      }
-
-      Flux(k,j,i) = F_HO -  th * (F_HO - F_LO);
-    }
-  }
-}
-
-void LimiterMaskX1(M1 * pm1,
-                   AA & flux_limiter,
-                   const AT_C_sca & q,
-                   const AT_C_sca & xi,
-                   const AT_C_sca & kap_a,
-                   const AT_C_sca & kap_s)
-{
-
-  // flux(i) with i = pm1->mbi.il stores \hat{F}_{i-1/2}
-  // Range required (for divergence along X1) is (il, ... iu+1)
-
-  for (int k=pm1->mbi.kl; k<=pm1->mbi.ku; ++k)
-  for (int j=pm1->mbi.jl; j<=pm1->mbi.ju; ++j)
-  {
-    #pragma omp simd
-    for (int i=pm1->mbi.il-1; i<=pm1->mbi.iu+1+1; ++i)  // flux_idx : i-1/2
+    Real th;
+    if (!pm1->opt.flux_limiter_use_mask)
     {
       const Real hyb_fac = FluxLimiter(
         pm1->opt.flux_variety,
@@ -590,29 +427,43 @@ void LimiterMaskX1(M1 * pm1,
         q(k,j,i-2+Z), q(k,j,i-1+Z), q(k,j,i+Z), q(k,j,i+1+Z), q(k,j,i+2+Z)
       );
 
-      const Real th_imh = std::max(hyb_fac, pm1->opt.min_flux_Theta);
-
+      th = std::max(hyb_fac, pm1->opt.min_flux_Theta);
+    }
+    else
+    {
       if (pm1->opt.flux_limiter_nn)
       {
-        flux_limiter(0,k,j,i-1) = std::max(th_imh, flux_limiter(0,k,j,i-1));
+      th = std::max(flux_limiter(0,k,j,i-1), flux_limiter(0,k,j,i));
       }
-      flux_limiter(0,k,j,i+0) = std::max(th_imh, flux_limiter(0,k,j,i+0));
+      else
+      {
+        th = flux_limiter(0,k,j,i);
+      }
     }
+
+    Flux(k,j,i) = F_HO - th * (F_HO - F_LO);
   }
 }
 
-void LimiterMaskX2(M1 * pm1,
-                   AA & flux_limiter,
-                   const AT_C_sca & q,
-                   const AT_C_sca & xi,
-                   const AT_C_sca & kap_a,
-                   const AT_C_sca & kap_s)
+void ReconstructLimitedFluxX2(M1 * pm1,
+                              const AT_C_sca & q,
+                              const AT_C_sca & F,
+                              const AT_C_sca & xi,
+                              const AT_C_sca & kap_a,
+                              const AT_C_sca & kap_s,
+                              const AT_C_sca & lambda,
+                              AA & flux_limiter,
+                              AT_C_sca & Flux)
 {
-  for (int k=pm1->mbi.kl; k<=pm1->mbi.ku; ++k)
-  for (int j=pm1->mbi.jl-1; j<=pm1->mbi.ju+1+1; ++j) // flux_idx : j-1/2
+  M1_RLOOP3_2(k,j,i)
   {
-    #pragma omp simd
-    for (int i=pm1->mbi.il; i<=pm1->mbi.iu; ++i)
+    const Real lam = std::max(lambda(k,j-1+Z,i), lambda(k,j+Z,i));
+
+    const Real F_HO = 0.5 * (F(k,j-1+Z,i) + F(k,j+Z,i));
+    const Real F_LO = F_HO - 0.5 * lam * (q(k,j+Z,i) - q(k,j-1+Z,i));
+
+    Real th;
+    if (!pm1->opt.flux_limiter_use_mask)
     {
       const Real hyb_fac = FluxLimiter(
         pm1->opt.flux_variety,
@@ -626,29 +477,43 @@ void LimiterMaskX2(M1 * pm1,
         q(k,j-2+Z,i), q(k,j-1+Z,i), q(k,j+Z,i), q(k,j+1+Z,i), q(k,j+2+Z,i)
       );
 
-      const Real th_jmh = std::max(hyb_fac, pm1->opt.min_flux_Theta);
-
+      th = std::max(hyb_fac, pm1->opt.min_flux_Theta);
+    }
+    else
+    {
       if (pm1->opt.flux_limiter_nn)
       {
-        flux_limiter(1,k,j-1,i) = std::max(th_jmh, flux_limiter(1,k,j-1,i));
+      th = std::max(flux_limiter(1,k,j-1,i), flux_limiter(1,k,j,i));
       }
-      flux_limiter(1,k,j+0,i) = std::max(th_jmh, flux_limiter(1,k,j+0,i));
+      else
+      {
+        th = flux_limiter(1,k,j,i);
+      }
     }
+
+    Flux(k,j,i) = F_HO -  th * (F_HO - F_LO);
   }
 }
 
-void LimiterMaskX3(M1 * pm1,
-                   AA & flux_limiter,
-                   const AT_C_sca & q,
-                   const AT_C_sca & xi,
-                   const AT_C_sca & kap_a,
-                   const AT_C_sca & kap_s)
+void ReconstructLimitedFluxX3(M1 * pm1,
+                              const AT_C_sca & q,
+                              const AT_C_sca & F,
+                              const AT_C_sca & xi,
+                              const AT_C_sca & kap_a,
+                              const AT_C_sca & kap_s,
+                              const AT_C_sca & lambda,
+                              AA & flux_limiter,
+                              AT_C_sca & Flux)
 {
-  for (int k=pm1->mbi.kl-1; k<=pm1->mbi.ku+1+1; ++k) // flux_idx : k-1/2
-  for (int j=pm1->mbi.jl; j<=pm1->mbi.ju; ++j)
+  M1_RLOOP3_3(k,j,i)
   {
-    #pragma omp simd
-    for (int i=pm1->mbi.il; i<=pm1->mbi.iu; ++i)
+    const Real lam = std::max(lambda(k-1+Z,j,i), lambda(k+Z,j,i));
+
+    const Real F_HO = 0.5 * (F(k-1+Z,j,i) + F(k+Z,j,i));
+    const Real F_LO = F_HO - 0.5 * lam * (q(k+Z,j,i) - q(k-1+Z,j,i));
+
+    Real th;
+    if (!pm1->opt.flux_limiter_use_mask)
     {
       const Real hyb_fac = FluxLimiter(
         pm1->opt.flux_variety,
@@ -662,14 +527,114 @@ void LimiterMaskX3(M1 * pm1,
         q(k-2+Z,j,i), q(k-1+Z,j,i), q(k+Z,j,i), q(k+1+Z,j,i), q(k+2+Z,j,i)
       );
 
-      const Real th_kmh = std::max(hyb_fac, pm1->opt.min_flux_Theta);
-
+      th = std::max(hyb_fac, pm1->opt.min_flux_Theta);
+    }
+    else
+    {
       if (pm1->opt.flux_limiter_nn)
       {
-        flux_limiter(2,k-1,j,i) = std::max(th_kmh, flux_limiter(2,k-1,j,i));
+      th = std::max(flux_limiter(2,k-1,j,i), flux_limiter(2,k,j,i));
       }
-      flux_limiter(2,k+0,j,i) = std::max(th_kmh, flux_limiter(2,k+0,j,i));
+      else
+      {
+        th = flux_limiter(2,k,j,i);
+      }
     }
+
+    Flux(k,j,i) = F_HO -  th * (F_HO - F_LO);
+  }
+}
+
+void LimiterMaskX1(M1 * pm1,
+                   AA & flux_limiter,
+                   const AT_C_sca & q,
+                   const AT_C_sca & xi,
+                   const AT_C_sca & kap_a,
+                   const AT_C_sca & kap_s)
+{
+  M1_LLOOP3_1(k,j,i)
+  {
+    const Real hyb_fac = FluxLimiter(
+      pm1->opt.flux_variety,
+      pm1->mbi.dx1(i),
+      xi(k,j,i-1+Z),
+      xi(k,j,i+0+Z),
+      xi(k,j,i+1+Z),
+      (kap_a(k,j,i-1+Z) + kap_s(k,j,i-1+Z)),
+      (kap_a(k,j,i+0+Z) + kap_s(k,j,i+0+Z)),
+      (kap_a(k,j,i+1+Z) + kap_s(k,j,i+1+Z)),
+      q(k,j,i-2+Z), q(k,j,i-1+Z), q(k,j,i+Z), q(k,j,i+1+Z), q(k,j,i+2+Z)
+    );
+
+    const Real th_imh = std::max(hyb_fac, pm1->opt.min_flux_Theta);
+
+    if (pm1->opt.flux_limiter_nn)
+    {
+      flux_limiter(0,k,j,i-1) = std::max(th_imh, flux_limiter(0,k,j,i-1));
+    }
+    flux_limiter(0,k,j,i+0) = std::max(th_imh, flux_limiter(0,k,j,i+0));
+  }
+}
+
+void LimiterMaskX2(M1 * pm1,
+                   AA & flux_limiter,
+                   const AT_C_sca & q,
+                   const AT_C_sca & xi,
+                   const AT_C_sca & kap_a,
+                   const AT_C_sca & kap_s)
+{
+  M1_LLOOP3_2(k,j,i)
+  {
+    const Real hyb_fac = FluxLimiter(
+      pm1->opt.flux_variety,
+      pm1->mbi.dx2(j),
+      xi(k,j-1+Z,i),
+      xi(k,j+0+Z,i),
+      xi(k,j+1+Z,i),
+      (kap_a(k,j-1+Z,i) + kap_s(k,j-1+Z,i)),
+      (kap_a(k,j+0+Z,i) + kap_s(k,j+0+Z,i)),
+      (kap_a(k,j+1+Z,i) + kap_s(k,j+1+Z,i)),
+      q(k,j-2+Z,i), q(k,j-1+Z,i), q(k,j+Z,i), q(k,j+1+Z,i), q(k,j+2+Z,i)
+    );
+
+    const Real th_jmh = std::max(hyb_fac, pm1->opt.min_flux_Theta);
+
+    if (pm1->opt.flux_limiter_nn)
+    {
+      flux_limiter(1,k,j-1,i) = std::max(th_jmh, flux_limiter(1,k,j-1,i));
+    }
+    flux_limiter(1,k,j+0,i) = std::max(th_jmh, flux_limiter(1,k,j+0,i));
+  }
+}
+
+void LimiterMaskX3(M1 * pm1,
+                   AA & flux_limiter,
+                   const AT_C_sca & q,
+                   const AT_C_sca & xi,
+                   const AT_C_sca & kap_a,
+                   const AT_C_sca & kap_s)
+{
+  M1_LLOOP3_3(k,j,i)
+  {
+    const Real hyb_fac = FluxLimiter(
+      pm1->opt.flux_variety,
+      pm1->mbi.dx3(k),
+      xi(k-1+Z,j,i),
+      xi(k+0+Z,j,i),
+      xi(k+1+Z,j,i),
+      (kap_a(k-1+Z,j,i) + kap_s(k-1+Z,j,i)),
+      (kap_a(k+0+Z,j,i) + kap_s(k+0+Z,j,i)),
+      (kap_a(k+1+Z,j,i) + kap_s(k+1+Z,j,i)),
+      q(k-2+Z,j,i), q(k-1+Z,j,i), q(k+Z,j,i), q(k+1+Z,j,i), q(k+2+Z,j,i)
+    );
+
+    const Real th_kmh = std::max(hyb_fac, pm1->opt.min_flux_Theta);
+
+    if (pm1->opt.flux_limiter_nn)
+    {
+      flux_limiter(2,k-1,j,i) = std::max(th_kmh, flux_limiter(2,k-1,j,i));
+    }
+    flux_limiter(2,k+0,j,i) = std::max(th_kmh, flux_limiter(2,k+0,j,i));
   }
 }
 

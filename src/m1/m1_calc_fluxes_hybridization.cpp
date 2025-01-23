@@ -3,6 +3,7 @@
 
 // Athena++ headers
 #include "m1.hpp"
+#include "m1_macro.hpp"
 
 // ============================================================================
 namespace M1 {
@@ -16,26 +17,9 @@ void M1::HybridizeLOFlux(AA & u_cur)
                             {pm1->N_GRPS,pm1->N_SPCS} };
   pm1->SetVarAliasesLab(pm1->storage.u, U_C);
 
-  /*
-  for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
-  for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
-  M1_ILOOP3(k, j, i)
-  if (pm1->MaskGet(k, j, i))
-  {
-    // if (!(U_C.sc_E(ix_g,ix_s)(k,j,i)  > pm1->opt.fl_E) ||
-    //     (!(U_C.sc_nG(ix_g,ix_s)(k,j,i)  > pm1->opt.fl_nG )))
-    if (!(U_C.sc_E(ix_g,ix_s)(k,j,i)  > pm1->opt.fl_E) )
-    {
-      // update CC mask
-      pm1->ev_strat.masks.pp(k,j,i) = std::max(
-        pm1->ev_strat.masks.pp(k,j,i),
-        1.0
-      );
-    }
-  }
-  */
-
   // hybridize (into ho) pp corrected fluxes
+  AA & mask_pp = pm1->ev_strat.masks.pp;
+
   for (int ix_d=0; ix_d<N; ++ix_d)
   {
     const int IO = ix_d == 0;
@@ -53,11 +37,11 @@ void M1::HybridizeLOFlux(AA & u_cur)
       AT_C_sca & lo_F_E   = pm1->fluxes_lo.sc_E(  ix_g,ix_s,ix_d);
       AT_N_vec & lo_F_f_d = pm1->fluxes_lo.sp_F_d(ix_g,ix_s,ix_d);
 
-      M1_ILOOP3(k, j, i)
+      M1_MLOOP3(k, j, i)
       {
         const Real Theta = std::max(
-          pm1->ev_strat.masks.pp(k,j,i),
-          pm1->ev_strat.masks.pp(k-KO,j-JO,i-IO)
+          mask_pp(k,j,i),
+          mask_pp(k-KO,j-JO,i-IO)
         );
 
         F_E(k,j,i) = F_E(k,j,i) - Theta * (F_E(k,j,i) - lo_F_E(k,j,i));
@@ -70,9 +54,34 @@ void M1::HybridizeLOFlux(AA & u_cur)
         }
       }
     }
+  }
+}
 
+void M1::AdjustMaskPropertyPreservation()
+{
+  AA & mask_pp = pm1->ev_strat.masks.pp;
+  M1_MLOOP3(k,j,i)
+  {
+    // Hybridization done, flip mask to execute on LO points
+    mask_pp(k,j,i) = (mask_pp(k,j,i) < 1.0) ? 1.0 : 0.0;
   }
 
+  if (!pmy_block->NeighborBlocksSameLevel())
+  M1_MLOOP3(k,j,i)
+  {
+    // Execute on outermost physical cells to take into account flux corr.
+    const bool boundary_cell = (
+        (i==mbi.il || i==mbi.iu) ||
+        (j==mbi.jl || j==mbi.ju) ||
+        (k==mbi.kl || k==mbi.ku)
+    );
+    if (!boundary_cell)
+    {
+      continue;
+    }
+
+    mask_pp(k,j,i) = 0.0;
+  }
 }
 
 

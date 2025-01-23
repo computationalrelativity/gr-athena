@@ -82,7 +82,7 @@ void M1::PrepareEvolutionStrategy(const Real dt)
   // Revert to stiff / kill sources, as required ------------------------------
   for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
-  M1_ILOOP3(k, j, i)
+  M1_MLOOP3(k, j, i)
   if (pm1->MaskGet(k, j, i))
   {
     const Real kap_a = pm1->radmat.sc_kap_a(ix_g,ix_s)(k,j,i);
@@ -117,8 +117,7 @@ void M1::CalcUpdate(const int stage,
                     AA & u_pre,
                     AA & u_cur,
 		                AA & u_inh,
-                    AA & u_src,
-                    const bool boundary_cells)
+                    AA & u_src)
 {
   using namespace Update;
   using namespace Sources;
@@ -140,7 +139,7 @@ void M1::CalcUpdate(const int stage,
 
   // construct unlimited solution ---------------------------------------------
   // uses ev_strat.masks.{solution_regime, source_treatment} internally
-  DispatchIntegrationMethod(*this, dt, U_C, U_P, U_I, U_S, boundary_cells);
+  DispatchIntegrationMethod(*this, dt, U_C, U_P, U_I, U_S);
 
   // prepare source limiting mask ---------------------------------------------
   if (opt_solver.src_lim >= 0)
@@ -157,8 +156,9 @@ void M1::CalcUpdate(const int stage,
   if (opt_solver.equilibrium_enforce ||
       (opt_solver.equilibrium_initial && (pmy_mesh->time == 0)))
   {
-    M1_ILOOP3(k, j, i)
+    M1_MLOOP3(k, j, i)
     if (MaskGet(k, j, i))
+    if (MaskGetHybridize(k,j,i))
     {
       bool equilibriate = false;
       for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
@@ -186,8 +186,9 @@ void M1::CalcUpdate(const int stage,
   {
     SourceMetaVector S = ConstructSourceMetaVector(*this, U_S, ix_g, ix_s);
 
-    M1_ILOOP3(k, j, i)
+    M1_MLOOP3(k, j, i)
     if (MaskGet(k, j, i))
+    if (MaskGetHybridize(k,j,i))
     {
       // S -> dt * S for (nG, E, F_d) components
       InPlaceScalarMul_nG_E_F_d(dt, S, k, j, i);

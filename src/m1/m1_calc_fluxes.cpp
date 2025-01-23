@@ -49,10 +49,6 @@ void M1::CalcFluxes(AthenaArray<Real> & u, const bool use_lo)
   // point to flux storage ----------------------------------------------------
   vars_Flux & flx = (use_lo) ? fluxes_lo : fluxes;
 
-  // indicial ranges ----------------------------------------------------------
-  const int il = pm1->mbi.il-M1_NGHOST_MIN;
-  const int iu = pm1->mbi.iu+M1_NGHOST_MIN;
-
   const bool approximate_speeds = opt.characteristics_variety ==
         opt_characteristics_variety::approximate;
 
@@ -145,7 +141,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u, const bool use_lo)
       {
         Assemble::Frames::sp_P_dd_(
           *this, sp_P_dd_, sc_chi, U_E, U_F_d,
-          k, j, il, iu
+          k, j,
+          M1_IX_IL-M1_FSIZEI, M1_IX_IU+M1_FSIZEI+(ix_d==0)
         );
 
         for (int a=0; a<N; ++a)

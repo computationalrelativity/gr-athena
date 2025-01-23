@@ -70,13 +70,15 @@ public:
                   AA & u_pre,
                   AA & u_cur,
 		              AA & u_inh,
-                  AA & sources,
-                  const bool boundary_cells);
+                  AA & sources);
 
   void CalcFluxes(AA & u, const bool use_lo);
   void CalcFluxLimiter(AA & u);
 
   void HybridizeLOFlux(AA & u_cur);
+
+  // Used to adjust evolution mask in second CalcUpdate call in a substep
+  void AdjustMaskPropertyPreservation();
 
   void MulAddFluxDivergence(AA & u_inh, const Real fac);
   void SubFluxDivergence(AA & u_inh);
@@ -787,6 +789,13 @@ public:
     return !(ev_strat.masks.excised(k,j,i));
   }
 
+  inline bool MaskGetHybridize(const int k, const int j, const int i)
+  {
+    if (!opt.flux_lo_fallback)
+      return true;
+
+    return (ev_strat.masks.pp(k,j,i) == 0);
+  }
 
 public:
   // These manipulate internal M1 mem-state; don't call external to class

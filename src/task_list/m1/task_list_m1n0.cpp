@@ -241,7 +241,7 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
 
       // Zero property preservation mask
       // Do prior to evo. as mask is modified on pp enforcement.
-      pm1->ev_strat.masks.pp.Fill(0);
+      pm1->ev_strat.masks.pp.Fill(0.0);
 
       // construct candidate solution -----------------------------------------
       // need to add divF to inhomogeneity; subtract off after solution known
@@ -249,7 +249,6 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
       pm1->AddFluxDivergence(pm1->storage.u_rhs);
 
       Real const dt = pm->dt * dt_fac[stage - 1];
-      const bool boundary_cells = false;  // not just boundary points
 
       if (stage == 1)
       {
@@ -262,14 +261,15 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
                       pm1->storage.u1,
                       pm1->storage.u,
                       pm1->storage.u_rhs,
-                      pm1->storage.u_sources,
-                      boundary_cells);
+                      pm1->storage.u_sources);
 
       // Revert inhomogeneity
       pm1->SubFluxDivergence(pm1->storage.u_rhs);
 
       // hybridize fluxes based on pp mask ------------------------------------
       pm1->HybridizeLOFlux(pm1->storage.u);
+      // Flip mask to execute next CalcUpdate on LO points
+      pm1->AdjustMaskPropertyPreservation();
     }
 
     return TaskStatus::next;
@@ -346,7 +346,6 @@ TaskStatus M1N0::CalcUpdate(MeshBlock *pmb, int stage)
   if (stage <= nstages)
   {
     Real const dt = pm->dt * dt_fac[stage - 1];
-    bool boundary_cells = (pm1->opt.flux_lo_fallback) ? true : false;
 
     if ((stage == 1) && (!pm1->opt.flux_lo_fallback))
     {
@@ -358,8 +357,7 @@ TaskStatus M1N0::CalcUpdate(MeshBlock *pmb, int stage)
                     pm1->storage.u1,
                     pm1->storage.u,
                     pm1->storage.u_rhs,
-                    pm1->storage.u_sources,
-                    boundary_cells);
+                    pm1->storage.u_sources);
 
     if (stage == 2)
     {

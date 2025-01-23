@@ -242,8 +242,7 @@ void DispatchIntegrationMethod(
   M1::vars_Lab & U_C,        // current (target) step
   const M1::vars_Lab & U_P,  // previous step data
   const M1::vars_Lab & U_I,  // inhomogeneity
-  M1::vars_Source & U_S,     // carries matter source contribution
-  const bool boundary_cells  // restrict calculation to boundary cells
+  M1::vars_Source & U_S      // carries matter source contribution
 )
 {
   using namespace Update;
@@ -287,7 +286,9 @@ void DispatchIntegrationMethod(
     ClosureMetaVector CL_P = ConstructClosureMetaVector(pm1_, U_P_, ix_g, ix_s);
     ClosureMetaVector CL_C = ConstructClosureMetaVector(pm1_, U_C,  ix_g, ix_s);
 
-    M1_ILOOP3(k, j, i)
+    M1_MLOOP3(k, j, i)
+    if (pm1->MaskGet(k, j, i))
+    if (pm1->MaskGetHybridize(k,j,i))
     {
       // switch to different solver based on solution regime ------------------
       M1::opt_integration_strategy opt_is;
@@ -333,17 +334,6 @@ void DispatchIntegrationMethod(
       }
 
       // call suitable solver -------------------------------------------------
-      // have we restricted to boundary cells?
-      if (boundary_cells)
-      {
-        if (!((i==pm1->mbi.il) || (i==pm1->mbi.iu)))
-          continue;
-        if (!((j==pm1->mbi.jl) || (j==pm1->mbi.ju)))
-          continue;
-        if (!((k==pm1->mbi.kl) || (k==pm1->mbi.ku)))
-          continue;
-      }
-
       DispatchIntegrationMethodImplementation(
         pm1_, dt, opt_is,
         k, j, i,
