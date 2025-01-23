@@ -31,7 +31,8 @@ void DispatchIntegrationMethod(
   M1::vars_Lab & U_C,        // current (target) step
   const M1::vars_Lab & U_P,  // previous step data
   const M1::vars_Lab & U_I,  // inhomogeneity
-  M1::vars_Source & U_S      // for construction of matter source contribution
+  M1::vars_Source & U_S,     // for construction of matter source contribution
+  const bool boundary_cells  // restrict calculation to boundary cells?
 );
 
 // ============================================================================

@@ -242,7 +242,8 @@ void DispatchIntegrationMethod(
   M1::vars_Lab & U_C,        // current (target) step
   const M1::vars_Lab & U_P,  // previous step data
   const M1::vars_Lab & U_I,  // inhomogeneity
-  M1::vars_Source & U_S      // carries matter source contribution
+  M1::vars_Source & U_S,     // carries matter source contribution
+  const bool boundary_cells  // restrict calculation to boundary cells
 )
 {
   using namespace Update;
@@ -332,6 +333,17 @@ void DispatchIntegrationMethod(
       }
 
       // call suitable solver -------------------------------------------------
+      // have we restricted to boundary cells?
+      if (boundary_cells)
+      {
+        if (!((i==pm1->mbi.il) || (i==pm1->mbi.iu)))
+          continue;
+        if (!((j==pm1->mbi.jl) || (j==pm1->mbi.ju)))
+          continue;
+        if (!((k==pm1->mbi.kl) || (k==pm1->mbi.ku)))
+          continue;
+      }
+
       DispatchIntegrationMethodImplementation(
         pm1_, dt, opt_is,
         k, j, i,

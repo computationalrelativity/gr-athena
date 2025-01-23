@@ -112,14 +112,13 @@ void M1::PrepareEvolutionStrategy(const Real dt)
 
 }
 
-// ----------------------------------------------------------------------------
-// Function to update the state vector
 void M1::CalcUpdate(const int stage,
                     Real const dt,
                     AA & u_pre,
                     AA & u_cur,
 		                AA & u_inh,
-                    AA & u_src)
+                    AA & u_src,
+                    const bool boundary_cells)
 {
   using namespace Update;
   using namespace Sources;
@@ -139,13 +138,9 @@ void M1::CalcUpdate(const int stage,
   vars_Source U_S { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
   SetVarAliasesSource(u_src, U_S);
 
-  // evolution strategy / source treatment ------------------------------------
-  if (stage == 1)
-    PrepareEvolutionStrategy(dt);
-
   // construct unlimited solution ---------------------------------------------
   // uses ev_strat.masks.{solution_regime, source_treatment} internally
-  DispatchIntegrationMethod(*this, dt, U_C, U_P, U_I, U_S);
+  DispatchIntegrationMethod(*this, dt, U_C, U_P, U_I, U_S, boundary_cells);
 
   // prepare source limiting mask ---------------------------------------------
   if (opt_solver.src_lim >= 0)
@@ -177,10 +172,9 @@ void M1::CalcUpdate(const int stage,
         }
       }
 
-
       if (equilibriate)
       {
-        if (stage == 2)
+        // if (stage == 2)
           Equilibrium::SetEquilibrium(*this, U_C, U_S, k, j, i);
       }
     }
@@ -201,25 +195,18 @@ void M1::CalcUpdate(const int stage,
   }
 
   // assemble remaining auxiliary quantities ----------------------------------
-  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
-  {
-    StateMetaVector C = ConstructStateMetaVector(*this, U_C, ix_g, ix_s);
+  // BD: TODO - shift elsewhere
+  // for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  // for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  // {
+  //   StateMetaVector C = ConstructStateMetaVector(*this, U_C, ix_g, ix_s);
 
-    M1_ILOOP3(k, j, i)
-    if (MaskGet(k, j, i))
-    {
-      // BD: TODO - net.abs, net.heat
-    }
-  }
-
-  // reset evolution strategy for next time-step ------------------------------
-  if (stage == 2)
-  {
-    ResetEvolutionStrategy();
-  }
-
-
+  //   M1_ILOOP3(k, j, i)
+  //   if (MaskGet(k, j, i))
+  //   {
+  //     // BD: TODO - net.abs, net.heat
+  //   }
+  // }
 }
 
 // ============================================================================

@@ -57,11 +57,12 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   storage{
     { ixn_Lab::N*N_GS, mbi.nn3, mbi.nn2, mbi.nn1 },  // u
     { ixn_Lab::N*N_GS, mbi.nn3, mbi.nn2, mbi.nn1 },  // u1
-    { // flux
+    {   // flux
      { ixn_Lab::N*N_GS, mbi.nn3, mbi.nn2, mbi.nn1 + 1 },
      { ixn_Lab::N*N_GS, mbi.nn3, mbi.nn2 + 1, mbi.nn1 },
      { ixn_Lab::N*N_GS, mbi.nn3 + 1, mbi.nn2, mbi.nn1 },
     },
+    {}, // flux_lo
     { ixn_Lab::N*N_GS,     mbi.nn3, mbi.nn2, mbi.nn1 },     // u_rhs
     { ixn_Lab_aux::N*N_GS, mbi.nn3, mbi.nn2, mbi.nn1 },     // u_lab_aux
     { ixn_Rad::N*N_GS,     mbi.nn3, mbi.nn2, mbi.nn1 },     // u_rad
@@ -76,6 +77,11 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   ubvar(pmb, &storage.u, &coarse_u_, storage.flux),
   // alias storage (size specs. must match number of containers in struct)
   fluxes{
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS}
+  },
+  fluxes_lo{
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS}
@@ -200,6 +206,19 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     ev_strat.masks.flux_limiter.NewAthenaArray(
       N, mbi.nn3, mbi.nn2, mbi.nn1);
     ev_strat.masks.flux_limiter.Fill(0);
+  }
+
+  if (opt.flux_lo_fallback)
+  {
+    storage.flux_lo[0].NewAthenaArray(ixn_Lab::N*N_GS,
+                                      mbi.nn3, mbi.nn2, mbi.nn1 + 1);
+    storage.flux_lo[1].NewAthenaArray(ixn_Lab::N*N_GS,
+                                      mbi.nn3, mbi.nn2 + 1, mbi.nn1);
+    storage.flux_lo[2].NewAthenaArray(ixn_Lab::N*N_GS,
+                                      mbi.nn3 + 1, mbi.nn2, mbi.nn1);
+
+    SetVarAliasesFluxes(storage.flux_lo, fluxes_lo);
+    ev_strat.masks.pp.NewAthenaArray(mbi.nn3, mbi.nn2, mbi.nn1);
   }
 
   // --------------------------------------------------------------------------

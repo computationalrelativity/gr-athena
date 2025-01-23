@@ -223,6 +223,7 @@ TaskStatus M1N0::CalcOpacity(MeshBlock *pmb, int stage)
 // ----------------------------------------------------------------------------
 TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
 {
+  Mesh * pm = pmb->pmy_mesh;
   ::M1::M1 * pm1 = pmb->pm1;
 
   if (stage <= nstages)
@@ -232,7 +233,45 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
       pm1->CalcFluxLimiter(pm1->storage.u);
     }
 
-    pm1->CalcFluxes(pm1->storage.u);
+    pm1->CalcFluxes(pm1->storage.u, false);
+
+    if (pm1->opt.flux_lo_fallback)
+    {
+      pm1->CalcFluxes(pm1->storage.u, true);
+
+      // Zero property preservation mask
+      // Do prior to evo. as mask is modified on pp enforcement.
+      pm1->ev_strat.masks.pp.Fill(0);
+
+      // construct candidate solution -----------------------------------------
+      // need to add divF to inhomogeneity; subtract off after solution known
+
+      pm1->AddFluxDivergence(pm1->storage.u_rhs);
+
+      Real const dt = pm->dt * dt_fac[stage - 1];
+      const bool boundary_cells = false;  // not just boundary points
+
+      if (stage == 1)
+      {
+        pm1->PrepareEvolutionStrategy(dt);
+      }
+
+      // Construct candidate state
+      pm1->CalcUpdate(stage,
+                      dt,
+                      pm1->storage.u1,
+                      pm1->storage.u,
+                      pm1->storage.u_rhs,
+                      pm1->storage.u_sources,
+                      boundary_cells);
+
+      // Revert inhomogeneity
+      pm1->SubFluxDivergence(pm1->storage.u_rhs);
+
+      // hybridize fluxes based on pp mask ------------------------------------
+      pm1->HybridizeLOFlux(pm1->storage.u);
+    }
+
     return TaskStatus::next;
   }
   return TaskStatus::fail;
@@ -307,12 +346,25 @@ TaskStatus M1N0::CalcUpdate(MeshBlock *pmb, int stage)
   if (stage <= nstages)
   {
     Real const dt = pm->dt * dt_fac[stage - 1];
+    bool boundary_cells = (pm1->opt.flux_lo_fallback) ? true : false;
+
+    if ((stage == 1) && (!pm1->opt.flux_lo_fallback))
+    {
+      pm1->PrepareEvolutionStrategy(dt);
+    }
+
     pm1->CalcUpdate(stage,
                     dt,
                     pm1->storage.u1,
                     pm1->storage.u,
                     pm1->storage.u_rhs,
-                    pm1->storage.u_sources);
+                    pm1->storage.u_sources,
+                    boundary_cells);
+
+    if (stage == 2)
+    {
+      pm1->ResetEvolutionStrategy();
+    }
 
     return TaskStatus::next;
   }

@@ -16,8 +16,15 @@ namespace M1 {
 // subsequently reconstructed using a limiter.
 //
 // Method is 2nd order with high-Peclet limit fix
-void M1::CalcFluxes(AthenaArray<Real> & u)
+void M1::CalcFluxes(AthenaArray<Real> & u, const bool use_lo)
 {
+  // retain then overwrite setting if we want to force lo flux
+  opt_flux_variety ofv = opt.flux_variety;
+  if (use_lo)
+  {
+    opt.flux_variety = opt_flux_variety::LO;
+  }
+
   vars_Lab U { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
   SetVarAliasesLab(u, U);
 
@@ -39,6 +46,9 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
   // point to scratches -------------------------------------------------------
   AT_N_sym & sp_P_dd_ = scratch.sp_P_dd_;
 
+  // point to flux storage ----------------------------------------------------
+  vars_Flux & flx = (use_lo) ? fluxes_lo : fluxes;
+
   // indicial ranges ----------------------------------------------------------
   const int il = pm1->mbi.il-M1_NGHOST_MIN;
   const int iu = pm1->mbi.iu+M1_NGHOST_MIN;
@@ -55,9 +65,9 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
     for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
     {
 
-      AT_C_sca & F_nG  = fluxes.sc_nG( ix_g,ix_s,ix_d);
-      AT_C_sca & F_E   = fluxes.sc_E(  ix_g,ix_s,ix_d);
-      AT_N_vec & F_F_d = fluxes.sp_F_d(ix_g,ix_s,ix_d);
+      AT_C_sca & F_nG  = flx.sc_nG( ix_g,ix_s,ix_d);
+      AT_C_sca & F_E   = flx.sc_E(  ix_g,ix_s,ix_d);
+      AT_N_vec & F_F_d = flx.sp_F_d(ix_g,ix_s,ix_d);
 
       AT_C_sca & U_nG   = U.sc_nG( ix_g,ix_s);
       AT_N_vec & U_F_d  = U.sp_F_d(ix_g,ix_s);
@@ -159,6 +169,10 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
                                      sc_kap_a, sc_kap_s, lambda, F_F_d);
     }
   }
+
+  // revert if lo overwrite used
+  if (use_lo)
+    opt.flux_variety = ofv;
 }
 
 // ----------------------------------------------------------------------------

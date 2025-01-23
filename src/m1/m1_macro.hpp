@@ -18,7 +18,7 @@ namespace M1 {
 
 // BD: TODO - reduce ranges elsewhere to reduce this?
 #ifndef M1_NGHOST_MIN
-#define M1_NGHOST_MIN 3
+#define M1_NGHOST_MIN 4
 #endif
 
 // Indicial magic -------------------------------------------------------------
@@ -61,8 +61,8 @@ namespace M1 {
 
 // 2D loop over k and j in the interior of the block
 #define M1_ILOOP2(k,j)                                                        \
-  for(int k = M1_IX_KL; k <= M1_IX_KU; ++k)                                   \
-  for(int j = M1_IX_JL; j <= M1_IX_JU; ++j)
+  for(int k = M1_IX_KL-1; k <= M1_IX_KU+1; ++k)                                   \
+  for(int j = M1_IX_JL-1; j <= M1_IX_JU+1; ++j)
 
 // 2D loop over k and j over flux-salient nodes
 #define M1_FLOOP2(k,j)                                                        \
@@ -77,7 +77,7 @@ namespace M1 {
 // 1D loop over i in the interior of the block
 #define M1_ILOOP1(i)                                                          \
   _Pragma("omp simd")                                                         \
-  for(int i = M1_IX_IL; i <= M1_IX_IU; ++i)
+  for(int i = M1_IX_IL-1; i <= M1_IX_IU+1; ++i)
 
 // 1D loop over i over flux-salient nodes
 #define M1_FLOOP1(i)                                                          \
