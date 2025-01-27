@@ -21,6 +21,7 @@
 // Athena++ headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
+#include "../defs.hpp"
 #include "../field/field.hpp"
 #include "../globals.hpp"
 #include "../hydro/hydro.hpp"
@@ -97,6 +98,13 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
   int nbtotal = pm->nbtotal;
   int myns = pm->nslist[Globals::my_rank];
   int mynb = pm->nblist[Globals::my_rank];
+#if defined (DBG_RST_WRITE_PER_MB)
+  int nbmin = pm->nblist[0];
+  for (int n = 1; n < Globals::nranks; ++n) {
+    if (nbmin > pm->nblist[n])
+      nbmin = pm->nblist[n];
+  }
+#endif // DBG_RST_WRITE_PER_MB
 
   // write the header; this part is serial
   if (Globals::my_rank == 0) {
@@ -155,7 +163,12 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
 
   // allocate memory for the ID list and the data
   char *idlist = new char[listsize*mynb];
+
+#if !defined(DBG_RST_WRITE_PER_MB)
   char *data = new char[mynb*datasize];
+#else
+  char *data = new char[datasize];
+#endif // DBG_RST_WRITE_PER_MB
 
   // Loop over MeshBlocks and pack the meta data
   pmb = pm->pblock;
@@ -177,9 +190,13 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
 
   // Loop over MeshBlocks and pack the data
   pmb = pm->pblock;
+  int b = 0;
   while (pmb != nullptr) {
+#if !defined(DBG_RST_WRITE_PER_MB)
     char *pdata = &(data[pmb->lid*datasize]);
-
+#else
+    char *pdata = data;
+#endif // DBG_RST_WRITE_PER_MB
     // NEW_OUTPUT_TYPES: add output of additional physics to restarts here also update
     // MeshBlock::GetBlockSizeInBytes accordingly and MeshBlock constructor for restarts.
 
@@ -260,11 +277,25 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
       pdata += pmb->ruser_meshblock_data[n].GetSizeInBytes();
     }
     pmb = pmb->next;
+
+#if defined (DBG_RST_WRITE_PER_MB)
+    myoffset = headeroffset + listsize*nbtotal + datasize*(myns+b);
+    if (b < nbmin)
+      resfile.Write_at_all(data, datasize, 1, myoffset);
+    else
+      resfile.Write_at(data, datasize, 1, myoffset);
+#endif // DBG_RST_WRITE_PER_MB
+
+    b++;
   }
 
+
+
+#if !defined (DBG_RST_WRITE_PER_MB)
   // now write restart data in parallel
   myoffset = headeroffset + listsize*nbtotal + datasize*myns;
   resfile.Write_at_all(data, datasize, mynb, myoffset);
+#endif // DBG_RST_WRITE_PER_MB
   resfile.Close();
   delete [] data;
 }

@@ -1010,6 +1010,8 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
   int nb = nblist[Globals::my_rank];
   int nbs = nslist[Globals::my_rank];
   int nbe = nbs + nb - 1;
+
+#if !defined(DBG_RST_WRITE_PER_MB)
   char *mbdata = new char[datasize*nb];
   // load MeshBlocks (parallel)
   if (resfile.Read_at_all(mbdata, datasize, nb, headeroffset+nbs*datasize) !=
@@ -1043,6 +1045,58 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
 
     pblock->pbval->SearchAndSetNeighbors(tree, ranklist, nslist);
   }
+#else
+  int nbmin = nblist[0];
+  for (int n = 1; n < Globals::nranks; ++n) {
+    if (nbmin > nblist[n])
+      nbmin = nblist[n];
+  }
+
+  char *mbdata = new char[datasize];
+
+  for (int i=nbs; i<=nbe; i++) {
+
+    if (i - nbs < nbmin) {
+      // load MeshBlock (parallel)
+      if (resfile.Read_at_all(mbdata, datasize, 1, headeroffset+i*datasize) != 1) {
+        msg << "### FATAL ERROR in Mesh constructor" << std::endl
+            << "The restart file is broken or input parameters are inconsistent."
+            << std::endl;
+        ATHENA_ERROR(msg);
+      }
+    } else {
+      // load MeshBlock (serial)
+      if (resfile.Read_at(mbdata, datasize, 1, headeroffset+i*datasize) != 1) {
+        msg << "### FATAL ERROR in Mesh constructor" << std::endl
+            << "The restart file is broken or input parameters are inconsistent."
+            << std::endl;
+        ATHENA_ERROR(msg);
+      }
+    }
+
+    SetBlockSizeAndBoundaries(loclist[i], block_size, block_bcs);
+    // create a block and add into the link list
+    if (i == nbs) {
+      pblock = new MeshBlock(i, i-nbs, this, pin, loclist[i], block_size,
+                             block_bcs, costlist[i], mbdata, gflag);
+      pfirst = pblock;
+    } else {
+      pblock->next = new MeshBlock(i, i-nbs, this, pin, loclist[i], block_size,
+                                   block_bcs, costlist[i], mbdata, gflag);
+      pblock->next->prev = pblock;
+      pblock = pblock->next;
+    }
+
+    // BD: needed for cons<->prim after restart
+    if(Z4C_ENABLED && FLUID_ENABLED)
+    {
+      pblock->pz4c->Z4cToADM(pblock->pz4c->storage.u, pblock->pz4c->storage.adm);
+    }
+
+    pblock->pbval->SearchAndSetNeighbors(tree, ranklist, nslist);
+  }
+#endif // DBG_RST_WRITE_PER_MB
+
   pblock = pfirst;
   delete [] mbdata;
   // check consistency
