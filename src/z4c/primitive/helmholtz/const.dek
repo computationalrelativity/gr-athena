@@ -8,7 +8,9 @@
 ! math constants
       real(8), parameter:: pi       = 3.1415926535897932384d0, &
                           eulercon = 0.577215664901532861d0, &
-                          a2rad    = pi/180.0d0,  rad2a = 180.0d0/pi
+                          a2rad    = pi/180.0d0,  rad2a = 180.0d0/pi, &
+                          fivethirds = 5.d0/3.d0, &
+                          fourthirds = 4.d0/3.d0
 
 ! physical constants
       real(8), parameter :: g       = 6.6742867d-8, &
@@ -26,12 +28,15 @@
                            me      = 9.1093821545d-28, &
                            rbohr   = hbar*hbar/(me * qe * qe), &
                            fine    = qe*qe/(hbar*clight), &
-                           hion    = 13.605698140d0, & 
+                           hion    = 13.605698140d0, &
                            ssol    = 5.6704d-5, &
                            asol    = 4.0d0 * ssol / clight, &
                            weinlam = h*clight/(kerg * 4.965114232d0), &
                            weinfre = 2.821439372d0*kerg/h, &
-                            rhonuc  = 2.342d14
+                           rhonuc  = 2.342d14, &
+                           kdnr = 9.91d12, & !degenerate electron gas(non-relativistic)
+                           kdr = 1.231d15, & !degenerate electron gas(relativistic)
+                           ybar = 2 ! number of free electrons per atom (approximated as 2, probably wrong)
 
 
 ! astronomical constants

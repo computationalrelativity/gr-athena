@@ -19,6 +19,17 @@
 using namespace Primitive;
 using namespace std;
 
+# define USE_PACZYNSKI
+
+#ifdef USE_PACZYNSKI
+#define PH_ETOT pacz_etot
+#define PH_PTOT pacz_ptot
+#define PH_CS pacz_cs
+#else
+#define PH_ETOT helm_etot
+#define PH_PTOT helm_ptot
+#define PH_CS helm_cs
+#endif
 
 #define MYH5CHECK(ierr) \
   if(ierr < 0) { \
@@ -81,7 +92,7 @@ Real EOSCompOSETransition::TemperatureFromEps(Real n, Real eps, Real *Y) {
   assert (m_initialized);
   Real eps_min = MinimumSpecificInternalEnergy(n, Y);
   Real eps_max = MaximumSpecificInternalEnergy(n, Y);
-  return (eps <= eps_min) ? min_T : (eps >= eps_max) ? max_T : 
+  return (eps <= eps_min) ? min_T : (eps >= eps_max) ? max_T :
     temperature_from_var(ECLOGE, log(eps), n, Y[0], Y[1]);
 }
 
@@ -89,7 +100,7 @@ Real EOSCompOSETransition::TemperatureFromEps(Real n, Real eps, Real *Y, Real Tg
   assert (m_initialized);
   Real eps_min = MinimumSpecificInternalEnergy(n, Y);
   Real eps_max = MaximumSpecificInternalEnergy(n, Y);
-  return (eps <= eps_min) ? min_T : (eps >= eps_max) ? max_T : 
+  return (eps <= eps_min) ? min_T : (eps >= eps_max) ? max_T :
     temperature_from_var_with_guess(ECLOGE, log(eps), n, Y[0], Y[1], Tguess);
 }
 
@@ -450,7 +461,7 @@ void EOSCompOSETransition::update_baryon_mass() {
       if (lT > -2) continue;
       for (int iy = 0; iy < m_ny; ++iy) {
         Real ye = m_yq[iy];
-        Real eps = m_table[index(ECLOGE, in, iy, it)]; 
+        Real eps = m_table[index(ECLOGE, in, iy, it)];
         Real eps_helm = exp(eval_helm_at_lnty(ECLOGE, ln, lT, ye, Abar));
         new_mb = min(mb*(1 + eps - eps_helm), new_mb);
       }
@@ -697,15 +708,15 @@ Real EOSCompOSETransition::eval_helm_at_lnty(int iv, Real ln, Real lT, Real Yq, 
 
   switch (iv) {
     case ECLOGE:
-      helm_etot(&rho, &temp, &Abar, &Zbar, &etot, &success_flag);
+      PH_ETOT(&rho, &temp, &Abar, &Zbar, &etot, &success_flag);
       res = log(etot*CGS.SpecificInternalEnergyConversion(*eos_units));
       break;
     case ECLOGP:
-      helm_ptot(&rho, &temp, &Abar, &Zbar, &ptot, &success_flag);
+      PH_PTOT(&rho, &temp, &Abar, &Zbar, &ptot, &success_flag);
       res = log(ptot*CGS.PressureConversion(*eos_units));
       break;
     case ECCS:
-      helm_cs(&rho, &temp, &Abar, &Zbar, &cs, &success_flag);
+      PH_CS(&rho, &temp, &Abar, &Zbar, &cs, &success_flag);
       res = cs/CGS.c*eos_units->c;
       break;
     case ECABAR:

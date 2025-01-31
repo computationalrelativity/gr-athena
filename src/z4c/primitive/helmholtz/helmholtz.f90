@@ -1075,6 +1075,104 @@ contains
       end if
    end subroutine bombproof
 
+   subroutine paczynski_eos(den, temp, Abar, Zbar, &
+     etot, ptot, cs)
+      include 'implno.dek'
+      include 'const.dek'
+
+      real(c_double), intent(inout) :: den, temp
+      real(c_double), intent(in)  :: Abar, Zbar
+      real(c_double), intent(out) :: etot, ptot, cs
+
+      real(8) :: ye, din, deni, kt, prad, pion
+      real(8) :: pend, pedr, pednr, ped, pele
+      real(8) :: dpdt, dedt, chi_T, chi_rho, Gamma1, N
+      real(8) :: ffactor !Factor to switch between degenerate and nondegenerate cases
+
+      ye = max(1.0d-16, zbar/abar)
+      din  = ye*den
+      deni = 1.0d0/den
+      kt = kerg * temp
+      N = imb/abar
+
+      prad = asol/3.0d0 * temp * temp * temp * temp
+      pion = imb * den * kt / abar
+      pend = ybar * pion
+      pednr = kdnr * din**(fivethirds)
+      pedr = kdr * din**(fourthirds)
+      ped = (1.0d0/(pednr*pednr)+1.0d0/(pedr*pedr))**(-0.5d0)
+      pele = (pend*pend + ped*ped)**(0.5d0)
+
+      ffactor = (fivethirds)*ped*ped/(pednr*pednr) &
+                +(fourthirds)*ped*ped/(pedr*pedr)
+
+      ptot = prad + pion + pele
+
+      !Total specific internal energy
+      etot = 1.5d0 * pion * deni + 3.0d0 * prad * deni  &
+                + pele / (den * (ffactor - 1.0d0))
+
+      dpdt = pion / temp + 4.0d0 * prad / temp + pend*pend / (pele * temp)
+
+      dedt = 1.5d0 * N * kerg + 4.0d0 * asol * temp**3 * deni    &
+            + pend*pend / (pele * temp * den * (ffactor - 1.0d0))
+
+      chi_T = temp * dpdt / ptot
+
+      chi_rho = den / ptot * ( N * kerg * temp   &
+         + (ybar * pend*pend /ybar + ffactor * ped*ped )/(pele * den))
+
+      Gamma1 = chi_T*chi_T * ptot / (dedt * den * temp) + chi_rho
+
+      cs = sqrt(Gamma1 * ptot * deni)
+
+   end subroutine paczynski_eos
+
+   subroutine pacz_etot(den, temp, Abar, Zbar, &
+     etot, success) bind(C, name="pacz_etot")
+      include 'implno.dek'
+
+      real(c_double), intent(inout) :: den, temp
+      real(c_double), intent(in)  :: Abar, Zbar
+      real(c_double), intent(out) :: etot
+      logical(c_bool), intent(out) :: success
+
+      real(8) :: dummy1, dummy2
+
+      call paczynski_eos(den, temp, Abar, Zbar, etot, dummy1, dummy2)
+      success = .true.
+   end subroutine pacz_etot
+
+   subroutine pacz_ptot(den, temp, Abar, Zbar, &
+     ptot, success) bind(C, name="pacz_ptot")
+      include 'implno.dek'
+
+      real(c_double), intent(inout) :: den, temp
+      real(c_double), intent(in)  :: Abar, Zbar
+      real(c_double), intent(out) :: ptot
+      logical(c_bool), intent(out) :: success
+
+      real(8) :: dummy1, dummy2
+
+      call paczynski_eos(den, temp, Abar, Zbar, dummy1, ptot, dummy2)
+      success = .true.
+   end subroutine pacz_ptot
+
+   subroutine pacz_cs(den, temp, Abar, Zbar, &
+     cs, success) bind(C, name="pacz_cs")
+      include 'implno.dek'
+
+      real(c_double), intent(inout) :: den, temp
+      real(c_double), intent(in)  :: Abar, Zbar
+      real(c_double), intent(out) :: cs
+      logical(c_bool), intent(out) :: success
+
+      real(8) :: dummy1, dummy2
+
+      call paczynski_eos(den, temp, Abar, Zbar, dummy1, dummy2, cs)
+      success = .true.
+   end subroutine pacz_cs
+
    subroutine helm_etot(den, temp, Abar, Zbar, &
      etot, success) bind(C, name="helm_etot")
       include 'implno.dek'

@@ -241,6 +241,33 @@ class EOSCompOSETransition : public EOSPolicyInterface {
       bool * const success_flag  // true if succeeded
     );
 
+    void pacz_etot(
+      const Real * const rho,             // density in g / cm^3
+      const Real * const temp,            // temperature in K
+      const Real * const Abar,            // average mass number A
+      const Real * const Zbar,            // average atomic number Z
+      Real * const etot,
+      bool * const success_flag  // true if succeeded
+    );
+
+    void pacz_ptot(
+      const Real * const rho,             // density in g / cm^3
+      const Real * const temp,            // temperature in K
+      const Real * const Abar,            // average mass number A
+      const Real * const Zbar,            // average atomic number Z
+      Real * const ptot,
+      bool * const success_flag  // true if succeeded
+    );
+
+    void pacz_cs(
+      const Real * const rho,             // density in g / cm^3
+      const Real * const temp,            // temperature in K
+      const Real * const Abar,            // average mass number A
+      const Real * const Zbar,            // average atomic number Z
+      Real * const cs,
+      bool * const success_flag  // true if succeeded
+    );
+
     void check_bounds(
       const Real * rho_trans,
       const Real * temp_trans,
