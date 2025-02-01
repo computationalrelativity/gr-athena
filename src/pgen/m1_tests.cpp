@@ -240,7 +240,6 @@ void InitM1HomogenousMedium(MeshBlock *pmb, ParameterInput *pin)
     phydro->w(IVZ,k,j,i) = W*velz;
   }
 
-  phydro->w1 = phydro->w;
 #endif // FLUID_ENABLED
 
   // Start with zero radiation density

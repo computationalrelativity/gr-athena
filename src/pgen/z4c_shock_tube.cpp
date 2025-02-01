@@ -164,11 +164,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 
 
         // Set primitives
-        phydro->w(IDN,k,j,i) = phydro->w1(IDN,k,j,i) = rho;
-        phydro->w(IPR,k,j,i) = phydro->w1(IPR,k,j,i) = pgas;
-        phydro->w(IVX,k,j,i) = phydro->w1(IVX,k,j,i) = utilde_x; 
-        phydro->w(IVY,k,j,i) = phydro->w1(IVY,k,j,i) = utilde_y; 
-        phydro->w(IVZ,k,j,i) = phydro->w1(IVZ,k,j,i) = utilde_z; 
+        phydro->w(IDN,k,j,i) = rho;
+        phydro->w(IPR,k,j,i) = pgas;
+        phydro->w(IVX,k,j,i) = utilde_x;
+        phydro->w(IVY,k,j,i) = utilde_y;
+        phydro->w(IVZ,k,j,i) = utilde_z;
         // Set magnetic fields
         bb(IB1,k,j,i) = bbx;
         bb(IB2,k,j,i) = bby;

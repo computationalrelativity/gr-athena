@@ -346,7 +346,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 {
   // Parameters - prefilled as TOV is added to these quantities
   phydro->w.Fill(        0);
-  phydro->w1.Fill(       0);
 #if NSCALARS > 0
   pscalars->r.Fill(      0);
 #endif
@@ -1352,9 +1351,6 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
 
 
   }
-
-  // Populate hydro registers with the initial data
-  phydro->w1 = phydro->w;
 
   // Initialise metric variables on geometric grid ----------------------------
   // Sets alpha, beta, g_ij, K_ij

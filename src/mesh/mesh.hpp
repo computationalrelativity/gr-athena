@@ -532,6 +532,8 @@ class Mesh {
 
   void FinalizeM1(std::vector<MeshBlock*> & pmb_array);
 
+  void FinalizeHydro_pgen(std::vector<MeshBlock*> & pmb_array);
+
   void FinalizeHydroPrimRP(std::vector<MeshBlock*> & pmb_array);
   void FinalizeHydroConsRP(std::vector<MeshBlock*> & pmb_array);
 

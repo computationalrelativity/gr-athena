@@ -25,8 +25,10 @@
 class MeshBlock;
 class ParameterInput;
 
+using namespace gra::aliases;
+
 // TODO(felker): consider adding a struct FaceFlux w/ overloaded ctor in athena.hpp, or:
-// using FaceFlux = AthenaArray<Real>[3];
+// using FaceFlux = AA[3];
 
 //! \class Hydro
 //  \brief hydro data and functions
@@ -42,21 +44,21 @@ class Hydro {
   MeshBlock* pmy_block;    // ptr to MeshBlock containing this Hydro
 
   // conserved and primitive variables
-  AthenaArray<Real> u, w; // time-integrator memory register #1
-  AthenaArray<Real> u1, w1;       // time-integrator memory register #2
-  AthenaArray<Real> u2;           // time-integrator memory register #3
+  AA u, w; // time-integrator memory register #1
+  AA u1, w1;       // time-integrator memory register #2
+  AA u2;           // time-integrator memory register #3
   // (no more than MAX_NREGISTER allowed)
 
 #if USETM
 // Storage for temperature output
-  AthenaArray<Real> temperature;
+  AA temperature;
 #endif
 
-  AthenaArray<Real> flux[3];  // face-averaged flux vector
+  AA flux[3];  // face-averaged flux vector
 
   // storage for SMR/AMR
   // TODO(KGF): remove trailing underscore or revert to private:
-  AthenaArray<Real> coarse_cons_, coarse_prim_;
+  AA coarse_cons_, coarse_prim_;
   int refinement_idx{-1};
 
   // BD: TODO - make the mask more useful
@@ -64,7 +66,7 @@ class Hydro {
   // u<->w can fail; in this situation values need to be reset
   // It is helpful to make a mask to this end
   AthenaArray<bool> mask_reset_u;
-  AthenaArray<Real> c2p_status;
+  AA c2p_status;
 
   // for reconstruction failure, should both states be floored?
   bool floor_both_states = false;
@@ -218,18 +220,18 @@ public:
 public:
   // functions ----------------------------------------------------------------
   void NewBlockTimeStep();    // computes new timestep on a MeshBlock
-  void AddFluxDivergence(const Real wght, AthenaArray<Real> &u_out);
-  void CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
-                       AthenaArray<Real> &bcc, const int order);
+  void AddFluxDivergence(const Real wght, AA &u_out);
+  void CalculateFluxes(AA &w, FaceField &b,
+                       AA &bcc, const int order);
 
   void CalculateFluxes_FluxReconstruction(
-    AthenaArray<Real> &w, FaceField &b,
-    AthenaArray<Real> &bcc, const int order);
+    AA &w, FaceField &b,
+    AA &bcc, const int order);
 
 
   // debug join hydro+passive scalar recon.
-  void CalculateFluxesCombined(AthenaArray<Real> &w, FaceField &b,
-                               AthenaArray<Real> &bcc, const int order);
+  void CalculateFluxesCombined(AA &w, FaceField &b,
+                               AA &bcc, const int order);
 
   void CalculateFluxes_STS();
 
@@ -237,55 +239,72 @@ public:
   void RiemannSolver(
       const int k, const int j, const int il, const int iu,
       const int ivx,
-      AthenaArray<Real> &wl, AthenaArray<Real> &wr, AthenaArray<Real> &flx,
-      const AthenaArray<Real> &dxw);
+      AA &wl, AA &wr, AA &flx,
+      const AA &dxw);
 
   void RiemannSolver(
     const int k, const int j,
     const int il, const int iu,
     const int ivx,
-    AthenaArray<Real> &prim_l,
-    AthenaArray<Real> &prim_r,
-    AthenaArray<Real> &pscalars_l,
-    AthenaArray<Real> &pscalars_r,
+    AA &prim_l,
+    AA &prim_r,
+    AA &pscalars_l,
+    AA &pscalars_r,
     AT_N_sca & alpha_,
     AT_N_vec & beta_u_,
     AT_N_sym & gamma_dd_,
-    AthenaArray<Real> &flux,
-    const AthenaArray<Real> &dxw,
+    AA &flux,
+    const AA &dxw,
     const Real lambda_rescaling);
 #else  // MHD:
   void RiemannSolver(
       const int k, const int j, const int il, const int iu,
-      const int ivx, const AthenaArray<Real> &bx,
-      AthenaArray<Real> &wl, AthenaArray<Real> &wr, AthenaArray<Real> &flx,
-      AthenaArray<Real> &ey, AthenaArray<Real> &ez,
-      AthenaArray<Real> &wct, const AthenaArray<Real> &dxw);
+      const int ivx, const AA &bx,
+      AA &wl, AA &wr, AA &flx,
+      AA &ey, AA &ez,
+      AA &wct, const AA &dxw);
 
   void RiemannSolver(
     const int k, const int j,
     const int il, const int iu,
     const int ivx,
-    const AthenaArray<Real> &B,
-    AthenaArray<Real> &prim_l,
-    AthenaArray<Real> &prim_r,
-    AthenaArray<Real> &pscalars_l,
-    AthenaArray<Real> &pscalars_r,
+    const AA &B,
+    AA &prim_l,
+    AA &prim_r,
+    AA &pscalars_l,
+    AA &pscalars_r,
     AT_N_sca & alpha_,
     AT_N_vec & beta_u_,
     AT_N_sym & gamma_dd_,
-    AthenaArray<Real> &flux,
-    AthenaArray<Real> &ey,
-    AthenaArray<Real> &ez,
-    AthenaArray<Real> &wct,
-    const AthenaArray<Real> &dxw);
+    AA &flux,
+    AA &ey,
+    AA &ez,
+    AA &wct,
+    const AA &dxw);
 #endif
 
+  inline void RetainState(
+    AA & w1,
+    const AA & w,
+    const int il, const int iu,
+    const int jl, const int ju,
+    const int kl, const int ku
+  )
+  {
+    for (int n=0; n<NHYDRO; ++n)
+    for (int k=kl; k<=ku; ++k)
+    for (int j=jl; j<=ju; ++j)
+    for (int i=il; i<=iu; ++i)
+    {
+      w1(n,k,j,i) = w(n,k,j,i);
+    }
+  }
+
   inline void FallbackInadmissiblePrimitiveX_(
-    AthenaArray<Real> & zl_,
-    AthenaArray<Real> & zr_,
-    AthenaArray<Real> & f_zl_,
-    AthenaArray<Real> & f_zr_,
+    AA & zl_,
+    AA & zr_,
+    AA & f_zl_,
+    AA & f_zr_,
     const int il, const int iu, const int I)
   {
     if (!split_lr_fallback)
@@ -382,10 +401,10 @@ public:
   }
 
   inline void FallbackInadmissiblePrimitiveX1_(
-    AthenaArray<Real> & zl_,
-    AthenaArray<Real> & zr_,
-    AthenaArray<Real> & f_zl_,
-    AthenaArray<Real> & f_zr_,
+    AA & zl_,
+    AA & zr_,
+    AA & f_zl_,
+    AA & f_zr_,
     const int il, const int iu)
   {
     // Either 0 or 1, depending on l/r convention
@@ -394,8 +413,8 @@ public:
   }
 
   inline bool CheckInadmissiblePrimitiveX1_(
-    AthenaArray<Real> & zl_,
-    AthenaArray<Real> & zr_,
+    AA & zl_,
+    AA & zr_,
     const int il, const int iu)
   {
     // Either 0 or 1, depending on l/r convention
@@ -420,10 +439,10 @@ public:
   }
 
   inline void FallbackInadmissiblePrimitiveX2_(
-    AthenaArray<Real> & zl_,
-    AthenaArray<Real> & zr_,
-    AthenaArray<Real> & f_zl_,
-    AthenaArray<Real> & f_zr_,
+    AA & zl_,
+    AA & zr_,
+    AA & f_zl_,
+    AA & f_zr_,
     const int il, const int iu)
   {
     static const int I = 0;
@@ -431,10 +450,10 @@ public:
   }
 
   inline void FallbackInadmissiblePrimitiveX3_(
-    AthenaArray<Real> & zl_,
-    AthenaArray<Real> & zr_,
-    AthenaArray<Real> & f_zl_,
-    AthenaArray<Real> & f_zr_,
+    AA & zl_,
+    AA & zr_,
+    AA & f_zl_,
+    AA & f_zr_,
     const int il, const int iu)
   {
     static const int I = 0;
@@ -443,10 +462,10 @@ public:
 
 #if USETM
   inline void FloorPrimitiveX1_(
-    AthenaArray<Real> & wl_,
-    AthenaArray<Real> & wr_,
-    AthenaArray<Real> & rl_,
-    AthenaArray<Real> & rr_,
+    AA & wl_,
+    AA & wr_,
+    AA & rl_,
+    AA & rr_,
     const int k,
     const int j,
     const int il, const int iu)
@@ -467,8 +486,8 @@ public:
   }
 #else
   inline void FloorPrimitiveX1_(
-    AthenaArray<Real> & zl_,
-    AthenaArray<Real> & zr_,
+    AA & zl_,
+    AA & zr_,
     const int k,
     const int j,
     const int il, const int iu)
@@ -499,10 +518,10 @@ public:
 
 #if USETM
   inline void FloorPrimitiveX2_(
-    AthenaArray<Real> & wl_,
-    AthenaArray<Real> & wr_,
-    AthenaArray<Real> & rl_,
-    AthenaArray<Real> & rr_,
+    AA & wl_,
+    AA & wr_,
+    AA & rl_,
+    AA & rr_,
     const int k,
     const int j,
     const int il, const int iu)
@@ -518,8 +537,8 @@ public:
   }
 #else
   inline void FloorPrimitiveX2_(
-    AthenaArray<Real> & zl_,
-    AthenaArray<Real> & zr_,
+    AA & zl_,
+    AA & zr_,
     const int k,
     const int j,
     const int il, const int iu)
@@ -547,10 +566,10 @@ public:
 
 #if USETM
   inline void FloorPrimitiveX3_(
-    AthenaArray<Real> & wl_,
-    AthenaArray<Real> & wr_,
-    AthenaArray<Real> & rl_,
-    AthenaArray<Real> & rr_,
+    AA & wl_,
+    AA & wr_,
+    AA & rl_,
+    AA & rr_,
     const int k,
     const int j,
     const int il, const int iu)
@@ -566,8 +585,8 @@ public:
   }
 #else
   inline void FloorPrimitiveX3_(
-    AthenaArray<Real> & zl_,
-    AthenaArray<Real> & zr_,
+    AA & zl_,
+    AA & zr_,
     const int k,
     const int j,
     const int il, const int iu)
@@ -592,15 +611,15 @@ public:
 #endif
 
  private:
-  AthenaArray<Real> dt1_, dt2_, dt3_;  // scratch arrays used in NewTimeStep
+  AA dt1_, dt2_, dt3_;  // scratch arrays used in NewTimeStep
   // scratch space used to compute fluxes
-  AthenaArray<Real> dxw_;
+  AA dxw_;
   // 2D
-  AthenaArray<Real> wl_, wr_, wlb_;
-  AthenaArray<Real> r_wl_, r_wr_, r_wlb_;
-  AthenaArray<Real> rl_, rr_, rlb_;
+  AA wl_, wr_, wlb_;
+  AA r_wl_, r_wr_, r_wlb_;
+  AA rl_, rr_, rlb_;
 
-  AthenaArray<Real> dflx_;
+  AA dflx_;
 
   TimeStepFunc UserTimeStep_;
 
@@ -617,11 +636,11 @@ void SplitFluxLLFMax(MeshBlock * pmb,
                      const int k, const int j,
                      const int il, const int iu,
                      const int ivx,
-                     AthenaArray<Real> &u,
-                     AthenaArray<Real> &flux,
-                     AthenaArray<Real> &lambda,
-                     AthenaArray<Real> &flux_m,
-                     AthenaArray<Real> &flux_p);
+                     AA &u,
+                     AA &flux,
+                     AA &lambda,
+                     AA &flux_m,
+                     AA &flux_p);
 
 }  // namespace fluxes
 
@@ -632,9 +651,9 @@ void AssembleFluxes(MeshBlock * pmb,
                     const int k, const int j,
                     const int il, const int iu,
                     const int ivx,
-                    AthenaArray<Real> &f,
-                    AthenaArray<Real> &w,
-                    AthenaArray<Real> &u);
+                    AA &f,
+                    AA &w,
+                    AA &u);
 
 }  // namespace fluxes::grhd
 
@@ -645,9 +664,9 @@ void AssembleEigenvalues(MeshBlock * pmb,
                          const int k, const int j,
                          const int il, const int iu,
                          const int ivx,
-                         AthenaArray<Real> &lambda,
-                         AthenaArray<Real> &w,
-                         AthenaArray<Real> &u);
+                         AA &lambda,
+                         AA &w,
+                         AA &u);
 
 }  // namespace characteristic::grhd
 

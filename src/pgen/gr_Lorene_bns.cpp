@@ -714,7 +714,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     // PrimitiveSolver (useful for physics) & Reprimand (useful for debug)
 
     AthenaArray<Real> & w  = phydro->w;
-    AthenaArray<Real> & w1 = phydro->w1;
 #if NSCALARS > 0
     AthenaArray<Real> & r = pscalars->r;
     r.Fill(0.0);
@@ -728,11 +727,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int i=il; i<=iu; ++i)
     {
       w(IPR,k,j,i) = k_adi*std::pow(w(IDN,k,j,i),gamma_adi);
-
-      for (int n=0; n<NHYDRO; ++n)
-      {
-        w1(n,k,j,i) = w(n,k,j,i);
-      }
     }
 
 #else
@@ -778,12 +772,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
         // Assume that we always have (IVX, IVY, IVZ)
         for (int ix=0; ix<3; ++ix)
           w(IVX+ix,k,j,i) = 0;
-      }
-
-      // This is useless with USETM (w1 is old state for e.g. rootfinder)
-      for (int n=0; n<NHYDRO; ++n)
-      {
-        w1(n,k,j,i) = w(n,k,j,i);
       }
     }
 

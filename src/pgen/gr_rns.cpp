@@ -355,13 +355,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       phydro->w(IVY, k, j, i) -= v_pert * std::cos(M_PI*r/(2.0*rns_data->r_e))*y[j]/r;
       phydro->w(IVZ, k, j, i) -= v_pert * std::cos(M_PI*r/(2.0*rns_data->r_e))*z[k]/r;
     }
-
-    phydro->w1(IDN,k,j,i) = phydro->w(IDN,k,j,i);
-    phydro->w1(IPR,k,j,i) = phydro->w(IPR,k,j,i);
-    phydro->w1(IVX,k,j,i) = phydro->w(IVX,k,j,i);
-    phydro->w1(IVY,k,j,i) = phydro->w(IVY,k,j,i);
-    phydro->w1(IVZ,k,j,i) = phydro->w(IVZ,k,j,i);
-
   }
 
   if (pres_diff > 1e-3)

@@ -1674,7 +1674,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
     GetMeshBlocksMyRank(pmb_array);
     nmb = pmb_array.size();
 
-    if (res_flag == 0) {
+    if (res_flag == 0)
+    {
       #pragma omp parallel for num_threads(nthreads)
       for (int i = 0; i < nmb; ++i)
       {
@@ -1714,6 +1715,16 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
       // Prolongate wave
       // Apply BC
       FinalizeWave(pmb_array);
+#endif
+      // ----------------------------------------------------------------------
+
+      // ----------------------------------------------------------------------
+      // Deal with retention of old prim state of fluid in case of rootfinder
+#if FLUID_ENABLED
+      if (res_flag == 0)
+      {
+        FinalizeHydro_pgen(pmb_array);
+      }
 #endif
       // ----------------------------------------------------------------------
 
