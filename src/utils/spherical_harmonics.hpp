@@ -54,7 +54,7 @@ Real Factorial(const int n) {
   } else if (n <= 35){
     return fact35[n];
   } else {
-    return ((Real)n) * fact35[n-1];
+    return ((Real)n) * Factorial(n-1);
   }
 }
 
