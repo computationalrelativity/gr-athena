@@ -64,6 +64,8 @@ public:
   AthenaArray<Real> Psie_dyn,Psio_dyn;
   AthenaArray<Real> Psie_sch,Psio_sch;
   AthenaArray<Real> Qplus, Qstar;
+  AthenaArray<Real> Psie_dr,Psio_dr;
+  AthenaArray<Real> Qplus_dr, Qstar_dr;
   
 private:
   
@@ -105,8 +107,8 @@ private:
   //! Schwarzschild radius, its time drvt, 
   //  the (dr_schwarzschild/dr_isotropic) Jacobians and its time drvt
   Real rsch, dot_rsch, dot2_rsch;
-  Real drsch_dri, d2rsch_dri2, drsch_dri_dot;
-  Real dri_drsch, d2ri_drsch2, dri_drsch_dot;
+  Real drsch_dri, d2rsch_dri2, drsch_dri_dot, d3rsch_dri3;
+  Real dri_drsch, d2ri_drsch2, dri_drsch_dot, d3ri_drsch3;
     
   //! Grid points in theta and phi
   AthenaArray<Real> th_grid, ph_grid;
@@ -122,21 +124,26 @@ private:
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> dr_gamma_dd;
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> dr2_gamma_dd; //TODO 2nd dvtrs not yet implemented
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> dot_gamma_dd;
+  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> dr_dot_gamma_dd;
   
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_d;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dr_beta_d;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dr2_beta_d;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dot_beta_d;
   
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> beta_u;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dr_beta_u;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dr2_beta_u;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> dot_beta_u;
 
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> beta2;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> dr_beta2;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> dr2_beta2;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> dot_beta2;
   
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> alpha;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> dr_alpha;
+  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> dr2_alpha;
   AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> dot_alpha;
   
   //! Spherical harmonics on the sphere (complex -> 2 components)
@@ -146,8 +153,10 @@ private:
   utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, MDIM, 2> g_dd;
   utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, MDIM, 2> g_uu;
   utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, MDIM, 2> g_dr_dd; //d/dr g_AB
+  utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, MDIM, 2> g_dr2_dd; //d2/dr2 g_AB
   utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, MDIM, 2> g_dot_dd; //d/dt g_AB
   utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, MDIM, 2> g_dr_uu; //d/dr g^AB
+  utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, MDIM, 2> g_dr2_uu; //d2/dr2 g^AB
   utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, MDIM, 2> g_dot_uu; //d/dt g^AB
   //TODO 2nd drvts
   utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2, MDIM, 3> Gamma_udd; // Christoffels (time-independent)
@@ -157,10 +166,14 @@ private:
   //! Multipoles (complex)
   AthenaArray<Real> h00, h01, h11, h0, h1, G, K; // even
   AthenaArray<Real> h00_dr, h01_dr, h11_dr, h0_dr, h1_dr, G_dr, K_dr; // d/dr drvts
+  AthenaArray<Real> G_dr2, K_dr2; // d2/dr2 drvts
+  AthenaArray<Real> G_dr_dot, K_dr_dot; // d/dr d/dt drvts
   AthenaArray<Real> h00_dot, h01_dot, h11_dot, h0_dot, h1_dot, G_dot, K_dot; // d/dt drvts
   AthenaArray<Real> H0, H01, H, H1; // odd
   AthenaArray<Real> H0_dr, H01_dr, H_dr, H1_dr; // d/dr drvts
   AthenaArray<Real> H0_dot, H01_dot, H_dot, H1_dot; // d/dt drvts
+  AthenaArray<Real> H0_dr2, H_dr2; // d2/dr2 drvts
+  AthenaArray<Real> H1_dr_dot; // d/dr d/dt drvts
 
   //! Gauge-invariant multipoles
   AthenaArray<Real> kappa_00, kappa_01, kappa_11, kappa_0, kappa_1; // SB lets not use this!
@@ -196,6 +209,7 @@ private:
     Ig00, Ig0R, IgRR, // g_AB on M^2
     IgRt, Igtt, Igpp,
     IdR_g00,  IdR_g0R, IdR_gRR, // dg_AB/dr 
+    IdR2_g00,  IdR2_g0R, IdR2_gRR, // d2g_AB/dr2 
     IdR_gtt,
     Idot_g00, Idot_g0R, Idot_gRR, // dg_AB/dt
     //TODO 2nd drvts
@@ -211,6 +225,8 @@ private:
     Ih00_dr, Ih01_dr, Ih11_dr, // even d/dr drvts
     Ih0_dr, Ih1_dr,
     IG_dr, IK_dr,
+    IG_dr2, IK_dr2,  // even d2/dr2 drvts
+    IG_dr_dot, IK_dr_dot, // even mixed drvts
     Ih00_dot, Ih01_dot, Ih11_dot, // even d/dt drvts
     Ih0_dot, Ih1_dot,
     IG_dot, IK_dot,
@@ -219,7 +235,8 @@ private:
     IH0_dr, IH1_dr, // odd d/dr drvts
     IH_dr,
     IH0_dot, IH1_dot, // odd d/dt drvts
-    IH_dot,    
+    IH_dot,
+    IH0_dr2, IH_dr2, IH1_dr_dot, // odd second drvts    
     NVMultipoles,
   };
 
@@ -260,6 +277,10 @@ private:
     Iof_H1,
     Iof_H,
     Iof_H_dr,
+    Iof_Psie_dr, 
+    Iof_Psio_dr, 
+    Iof_Qplus_dr,
+    Iof_Qstar_dr,
     Iof_hlm, // This should be last!
     Iof_Num, 
   };
