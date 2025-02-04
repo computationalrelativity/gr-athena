@@ -1061,7 +1061,7 @@ contains
       end if
       if (din  .gt. d(imax)) then
        write(6,'(1x, 5(a, 1pe18.10))') 'den=',den,' ye=',ye
-       write(6,'(1x, 5(a, 1pe18.10))') 'ye*den=',din,' d(1)=',d(1)
+       write(6,'(1x, 5(a, 1pe18.10))') 'ye*den=',din,' d(imax)=',d(imax)
        write(6,*) 'ye*den too big, off grid'
        !success = .false.
        den = d(imax)/ye
@@ -1470,7 +1470,7 @@ contains
       dpiondd = imb / abar * kt
       dpiondt = imb / abar * den * kerg
 
-      eion = 1.5d0 * pion * deni 
+      eion = 1.5d0 * pion * deni
       deiondt = 1.5d0 * dpiondt * deni
 
       ! hash locate this temperature and density

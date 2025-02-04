@@ -19,7 +19,7 @@
 using namespace Primitive;
 using namespace std;
 
-# define USE_PACZYNSKI
+#define USE_PACZYNSKI
 
 #ifdef USE_PACZYNSKI
 #define PH_ETOT pacz_etot
@@ -501,6 +501,13 @@ void EOSCompOSETransition::update_bounds() {
     * eos_units->DensityConversion(CGS)*mb*eos_units->MassConversion(CGS);
   const Real temp_trans = trans_T_start
     * eos_units->TemperatureConversion(CGS);
+
+#ifdef USE_PACZYNSKI
+  // there are no constraints on the lower bounds
+  min_n = 1e-35;
+  min_T = 1e-10;
+  helm_ln_max = log(max_n);
+#else
   bool success;
   check_bounds(&rho_trans, &temp_trans, &max_Y[0], &success);
   assert(success);
@@ -511,9 +518,15 @@ void EOSCompOSETransition::update_bounds() {
   assert(rho_max >= rho_trans);
   assert(temp_max >= temp_trans);
 
+  helm_ln_max = log(rho_max
+                    *CGS.DensityConversion(*eos_units)
+                    *CGS.MassConversion(*eos_units)/mb);
+
   min_n = rho_min / (eos_units->DensityConversion(CGS)
                      * mb * eos_units->MassConversion(CGS));
   min_T = temp_min / (eos_units->TemperatureConversion(CGS)) * (1 + 1e-5);
+#endif
+
   Real min_ln = log(min_n)+1e-9;
   Real min_lT = log(min_T)+1e-9;
 
@@ -532,7 +545,9 @@ void EOSCompOSETransition::InitializeTables(std::string fname, std::string helm_
     if (not m_initialized) {
 
       read_compose_table(fname);
+#ifndef USE_PACZYNSKI
       read_helmholtz_table(helm_fname);
+#endif
 
       // Set the baryon mass in the Helmholtz EOS to the current mb
       Real mb_cgs = mb*eos_units->MassConversion(CGS);
@@ -650,7 +665,8 @@ Real EOSCompOSETransition::eval_at_nty(int iv, Real n, Real T, Real Yq, Real Aba
 Real EOSCompOSETransition::eval_at_lnty(int iv, Real ln, Real lT, Real Yq, Real Abar) const {
   Real T = exp(lT);
 
-  if ((ln > trans_ln_start) and (T > trans_T_start)) {
+  if (((ln > trans_ln_start) and (T > trans_T_start))
+      or ln > helm_ln_max){
     return eval_compose_at_lnty(iv, ln, lT, Yq);
   }
   if ((ln < trans_ln_end) or (T < trans_T_end)) {
