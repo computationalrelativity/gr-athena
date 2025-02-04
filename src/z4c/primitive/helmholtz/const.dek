@@ -35,8 +35,7 @@
                            weinfre = 2.821439372d0*kerg/h, &
                            rhonuc  = 2.342d14, &
                            kdnr = 9.91d12, & !degenerate electron gas(non-relativistic)
-                           kdr = 1.231d15, & !degenerate electron gas(relativistic)
-                           ybar = 2 ! number of free electrons per atom (approximated as 2, probably wrong)
+                           kdr = 1.231d15 !degenerate electron gas(relativistic)
 
 
 ! astronomical constants

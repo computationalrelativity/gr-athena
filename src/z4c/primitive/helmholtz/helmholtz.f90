@@ -1087,13 +1087,15 @@ contains
       real(8) :: ye, din, deni, kt, prad, pion
       real(8) :: pend, pedr, pednr, ped, pele
       real(8) :: dpdt, dedt, chi_T, chi_rho, Gamma1, N
-      real(8) :: ffactor !Factor to switch between degenerate and nondegenerate cases
+      real(8) :: ffactor ! Factor to switch between degenerate and nondegenerate cases
+      real(8) :: ybar ! number of free electrons per atom
 
       ye = max(1.0d-16, zbar/abar)
       din  = ye*den
       deni = 1.0d0/den
       kt = kerg * temp
       N = imb/abar
+      ybar = zbar ! assume full ionization
 
       prad = asol/3.0d0 * temp * temp * temp * temp
       pion = imb * den * kt / abar
