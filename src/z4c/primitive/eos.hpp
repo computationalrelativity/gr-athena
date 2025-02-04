@@ -71,6 +71,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     using EOSPolicy::Entropy;
     using EOSPolicy::Enthalpy;
     using EOSPolicy::SoundSpeed;
+    using EOSPolicy::Abar;
     using EOSPolicy::SpecificInternalEnergy;
     using EOSPolicy::BaryonChemicalPotential;
     using EOSPolicy::ChargeChemicalPotential;
@@ -413,6 +414,18 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     inline Real GetElectronLeptonChemicalPotential(Real n, Real T, Real *Y) {
       return ElectronLeptonChemicalPotential(n, T*code_units->TemperatureConversion(*eos_units), Y) *
              eos_units->ChemicalPotentialConversion(*code_units);
+    }
+
+    //! \fn Real GetAbar(Real n, Real T, Real *Y)
+    //  \brief Get the average mass number from the number density, temperature, and
+    //         particle fractions.
+    //
+    //  \param[in] n  The number density
+    //  \param[in] T  The temperature
+    //  \param[in] Y  An array of size n_species of the particle fractions.
+    //  \return The average mass number according to the EOS.
+    inline Real GetAbar(Real n, Real T, Real *Y) {
+      return Abar(n, T*code_units->TemperatureConversion(*eos_units), Y);
     }
 
     //! \fn int Getn_species() const

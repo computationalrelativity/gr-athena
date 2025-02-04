@@ -139,6 +139,14 @@ class EOSCompOSETransition : public EOSPolicyInterface {
       return m_table;
     }
 
+    Real const GetTempTransStart() const {
+      return trans_T_start;
+    }
+
+    Real const GetDensTransStart() const {
+      return exp(trans_ln_start);
+    }
+
     // Indexing used to access the data
     inline ptrdiff_t index(int iv, int in, int iy, int it) const {
       return it + m_nt*(iy + m_ny*(in + m_nn*iv));
