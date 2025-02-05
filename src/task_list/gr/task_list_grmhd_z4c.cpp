@@ -20,6 +20,9 @@
 #include "../../scalars/scalars.hpp"
 #include "task_list.hpp"
 #include "task_names.hpp"
+#if CCE_ENABLED
+#include "../../z4c/cce/cce.hpp"
+#endif
 
 // #if M1_ENABLED
 // #include "../../m1/m1.hpp"
@@ -451,6 +454,10 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin,
     Add(ADM_CONSTR, UPDATE_SRC, &GRMHD_Z4c::ADM_Constraints);
 
     Add(Z4C_WEYL,  Z4C_TO_ADM, &GRMHD_Z4c::Z4c_Weyl);
+
+#if CCE_ENABLED
+    Add(CCE_DUMP, Z4C_TO_ADM, &GRMHD_Z4c::CCEDump);
+#endif
 
     Add(USERWORK, ADM_CONSTR, &GRMHD_Z4c::UserWork);
     Add(NEW_DT,   USERWORK,   &GRMHD_Z4c::NewBlockTimeStep);
@@ -1360,6 +1367,26 @@ TaskStatus GRMHD_Z4c::Z4c_Weyl(MeshBlock *pmb, int stage)
 
   return TaskStatus::success;
 }
+
+#if CCE_ENABLED
+TaskStatus GRMHD_Z4c::CCEDump(MeshBlock *pmb, int stage)
+{
+  // only do on last stage
+  if (stage != nstages) return TaskStatus::success;
+
+  Mesh *pm = pmb->pmy_mesh;
+
+  for (auto cce : pm->pcce)
+  {
+    if (pm->ncycle % cce->freq == 0)
+    {
+      cce->Interpolate(pmb);
+    }
+  }
+
+  return TaskStatus::success;
+}
+#endif
 
 TaskStatus GRMHD_Z4c::ADM_Constraints(MeshBlock *pmb, int stage)
 {
