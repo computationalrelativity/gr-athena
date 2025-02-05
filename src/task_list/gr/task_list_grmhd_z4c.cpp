@@ -264,6 +264,10 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin,
 
     Add(Z4C_WEYL,  Z4C_TO_ADM, &GRMHD_Z4c::Z4c_Weyl);
 
+#if CCE_ENABLED
+    Add(CCE_DUMP, Z4C_TO_ADM, &GRMHD_Z4c::CCEDump);
+#endif
+
     Add(USERWORK, ADM_CONSTR, &GRMHD_Z4c::UserWork);
     Add(NEW_DT,   USERWORK,   &GRMHD_Z4c::NewBlockTimeStep);
 
