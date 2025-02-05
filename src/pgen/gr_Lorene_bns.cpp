@@ -287,11 +287,10 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 
 #if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
   // Dump Lorene eos file
-  int n_cut_lorene_table = pin->GetOrAddInteger("problem", "n_cut_lorene_table", 0);
   if (Globals::my_rank == 0) {
     std::string run_dir;
     GetRunDir(run_dir);
-    ceos->DumpLoreneEOSFile(run_dir + "/eos_akmalpr.d", n_cut_lorene_table);
+    ceos->DumpLoreneEOSFile(run_dir + "/eos_akmalpr.d");
   }
 #ifdef MPI_PARALLEL
   // wait for rank_0 to finish writing the eos file

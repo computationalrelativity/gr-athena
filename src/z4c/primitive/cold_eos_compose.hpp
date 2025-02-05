@@ -76,7 +76,7 @@ class ColdEOSCompOSE {
     void ReadColdSliceFromFile(std::string fname, std::string species_names[NSCALARS]);
 
     /// Dumps the eos_akmalpr.d file that lorene routines expect
-    void DumpLoreneEOSFile(std::string fname, int n_cut_lorene_table);
+    void DumpLoreneEOSFile(std::string fname);
 
     // Indexing used to access the data
     inline ptrdiff_t index(int iv, int ix) const {
@@ -117,6 +117,8 @@ class ColdEOSCompOSE {
     bool m_initialized;
 
     Real m_id_log_nb;
+
+    int i_lorene_cut;
 
 };
 
