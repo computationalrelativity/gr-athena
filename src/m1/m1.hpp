@@ -72,8 +72,18 @@ public:
 		              AA & u_inh,
                   AA & sources);
 
-  void CalcFluxes(AA & u);
+  void CalcFluxes(AA & u, const bool use_lo);
+  void CalcFluxLimiter(AA & u);
+
+  void HybridizeLOFlux(AA & u_cur);
+
+  // Used to adjust evolution mask in second CalcUpdate call in a substep
+  void AdjustMaskPropertyPreservation();
+
+  void MulAddFluxDivergence(AA & u_inh, const Real fac);
+  void SubFluxDivergence(AA & u_inh);
   void AddFluxDivergence(AA & u_inh);
+
   void AddSourceGR(AA & u, AA & u_inh);
 
   Real NewBlockTimeStep();
@@ -105,15 +115,16 @@ public:
 
   struct
   {
-    AA u;         // solution of M1 evolution system
-    AA u1;        // solution at intermediate steps
-    AA flux[3];   // flux in the 3 directions
-    AA u_rhs;     // M1 rhs
-    AA u_lab_aux; // lab frame auxiliaries
-    AA u_rad;     // fluid frame variables
+    AA u;          // solution of M1 evolution system
+    AA u1;         // solution at intermediate steps
+    AA flux[3];    // flux in the 3 directions
+    AA flux_lo[3]; // flux in the 3 directions
+    AA u_rhs;      // M1 rhs
+    AA u_lab_aux;  // lab frame auxiliaries
+    AA u_rad;      // fluid frame variables
     AA u_sources;
-    AA radmat;    // radiation-matter fields
-    AA diagno;    // analysis buffers
+    AA radmat;     // radiation-matter fields
+    AA diagno;     // analysis buffers
     // "internals": fiducial velocity, netabs, ..
     // N.B. these do not have group dimension!
     AA intern;
@@ -137,6 +148,7 @@ public:
   enum class opt_flux_variety { HybridizeMinModA,
                                 HybridizeMinModB,
                                 HybridizeMinModC,
+                                HybridizeMinModD,
                                 HybridizeMinMod,
                                 LO,
                                 HO };
@@ -179,6 +191,16 @@ public:
     bool enforce_finite;
     Real eps_ec_fac;
     Real min_flux_Theta;
+
+    bool flux_limiter_use_mask;
+    bool flux_limiter_nn;
+    bool flux_limiter_multicomponent;
+    bool flux_lo_fallback_E;
+    bool flux_lo_fallback_nG;
+
+    // N.B. The following is controlled implicitly based on:
+    // flux_lo_fallback_E, flux_lo_fallback_nG
+    bool flux_lo_fallback;
 
     // Control the couplings
     bool couple_sources_ADM;
@@ -270,7 +292,7 @@ public:
     GroupSpeciesFluxContainer<AT_N_vec> sp_F_d;
     GroupSpeciesFluxContainer<AT_C_sca> sc_nG;
   };
-  vars_Flux fluxes;
+  vars_Flux fluxes, fluxes_lo;
 
   // Eulerian (Lab) variables and RHS
   struct vars_Lab {
@@ -686,6 +708,8 @@ public:
       AthenaArray<opt_solution_regime>  solution_regime;
       AthenaArray<opt_source_treatment> source_treatment;
       AthenaArray<bool>                 excised;
+      AA                                flux_limiter;
+      AA                                pp;
     } masks;
   } ev_strat;
 
@@ -765,6 +789,13 @@ public:
     return !(ev_strat.masks.excised(k,j,i));
   }
 
+  inline bool MaskGetHybridize(const int k, const int j, const int i)
+  {
+    if (!opt.flux_lo_fallback)
+      return true;
+
+    return (ev_strat.masks.pp(k,j,i) == 0);
+  }
 
 public:
   // These manipulate internal M1 mem-state; don't call external to class

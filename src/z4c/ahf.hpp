@@ -48,6 +48,8 @@ public:
   bool ah_found;
   //! Initial guess
   Real initial_radius;
+  //! Minimum radius
+  Real rr_min;
   Real expand_guess;
   //! Center
   Real center[3];
@@ -132,6 +134,7 @@ private:
     hSx, hSy, hSz, hS,
     hmass,
     hmeanradius,
+    hminradius,
     hnvar
   };
   //! Array of horizon quantities

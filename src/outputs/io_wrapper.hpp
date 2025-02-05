@@ -45,7 +45,14 @@ class IOWrapper {
                           IOWrapperSizeT count, IOWrapperSizeT offset);
   std::size_t Write(const void *buf, IOWrapperSizeT size, IOWrapperSizeT count);
   std::size_t Write_at_all(const void *buf, IOWrapperSizeT size,
-                           IOWrapperSizeT cnt, IOWrapperSizeT offset);
+                           IOWrapperSizeT count, IOWrapperSizeT offset);
+#if defined(DBG_RST_WRITE_PER_MB)
+  std::size_t Read_at(void *buf, IOWrapperSizeT size,
+                      IOWrapperSizeT count, IOWrapperSizeT offset);
+  std::size_t Write_at(const void *buf, IOWrapperSizeT size,
+                       IOWrapperSizeT count, IOWrapperSizeT offset);
+#endif // DBG_RST_WRITE_PER_MB
+
   int Close();
   int Seek(IOWrapperSizeT offset);
   IOWrapperSizeT GetPosition();

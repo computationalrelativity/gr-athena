@@ -70,6 +70,10 @@
 // BD: If enabled, allow for idempotency check in C2P
 #define NO_DBG_IDEMPOTENT_C2P
 
+// Write restarts by MeshBlock instead of in one hit; should avoid spurious
+// dumps
+#define NO_DBG_RST_WRITE_PER_MB
+
 // For N+1 NR problems, fix N
 #define NDIM 3
 //----------------------------------------------------------------------------------------

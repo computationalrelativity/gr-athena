@@ -282,6 +282,10 @@ void M1::PopulateOptions(ParameterInput *pin)
     {
       opt.flux_variety = opt_flux_variety::HybridizeMinModC;
     }
+    else if (tmp == "HybridizeMinModD")
+    {
+      opt.flux_variety = opt_flux_variety::HybridizeMinModD;
+    }
     else
     {
       msg << "M1/flux_variety unknown" << std::endl;
@@ -330,6 +334,32 @@ void M1::PopulateOptions(ParameterInput *pin)
     opt.eps_ec_fac = pin->GetOrAddReal("M1", "eps_ec_fac", 1e-15);
 
     opt.min_flux_Theta = pin->GetOrAddReal("M1", "min_flux_Theta", 0);
+  }
+
+  { // flux limiter / hybridization settings
+    opt.flux_limiter_use_mask = pin->GetOrAddBoolean(
+      "M1", "flux_limiter_use_mask", false);
+    opt.flux_limiter_nn = pin->GetOrAddBoolean(
+      "M1", "flux_limiter_nn", false);
+    opt.flux_limiter_multicomponent = pin->GetOrAddBoolean(
+      "M1", "flux_limiter_multicomponent", false);
+
+    if (!opt.flux_limiter_use_mask)
+    {
+      if (opt.flux_limiter_multicomponent || opt.flux_limiter_nn)
+      {
+        msg << "M1/flux_limiter_multicomponent &  M1/flux_limiter_nn require";
+        msg << "M1/flux_limiter_use_mask=true" << std::endl;
+        ATHENA_ERROR(msg);
+      }
+    }
+
+    opt.flux_lo_fallback_E = pin->GetOrAddBoolean(
+      "M1", "flux_lo_fallback_E", false);
+    opt.flux_lo_fallback_nG = pin->GetOrAddBoolean(
+      "M1", "flux_lo_fallback_nG", false);
+
+    opt.flux_lo_fallback = (opt.flux_lo_fallback_E || opt.flux_lo_fallback_nG);
   }
 
   { // coupling

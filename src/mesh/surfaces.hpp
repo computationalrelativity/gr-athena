@@ -51,8 +51,11 @@ class Surfaces
 
     // N.B. variables must contain a "."; it is used in dump-naming
     const std::map<std::string, variety_data> map_to_variety_data {
+#if Z4C_ENABLED
       {"geom.Z4c",   variety_data::geom_Z4c},
       {"geom.ADM",   variety_data::geom_ADM},
+#endif
+#if M1_ENABLED
       {"M1.lab",     variety_data::M1_lab},
       // non-contiguous arrays
       {"M1.geom.sc_alpha",     variety_data::M1_geom_sc_alpha},
@@ -63,6 +66,7 @@ class Surfaces
       {"M1.radmat.sc_avg_nrg_00", variety_data::M1_radmat_sc_avg_nrg_00},
       {"M1.radmat.sc_avg_nrg_01", variety_data::M1_radmat_sc_avg_nrg_01},
       {"M1.radmat.sc_avg_nrg_02", variety_data::M1_radmat_sc_avg_nrg_02},
+#endif
     };
 
     enum class variety_base_grid {

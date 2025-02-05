@@ -16,8 +16,15 @@ namespace M1 {
 // subsequently reconstructed using a limiter.
 //
 // Method is 2nd order with high-Peclet limit fix
-void M1::CalcFluxes(AthenaArray<Real> & u)
+void M1::CalcFluxes(AthenaArray<Real> & u, const bool use_lo)
 {
+  // retain then overwrite setting if we want to force lo flux
+  opt_flux_variety ofv = opt.flux_variety;
+  if (use_lo)
+  {
+    opt.flux_variety = opt_flux_variety::LO;
+  }
+
   vars_Lab U { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
   SetVarAliasesLab(u, U);
 
@@ -39,9 +46,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
   // point to scratches -------------------------------------------------------
   AT_N_sym & sp_P_dd_ = scratch.sp_P_dd_;
 
-  // indicial ranges ----------------------------------------------------------
-  const int il = pm1->mbi.il-M1_NGHOST_MIN;
-  const int iu = pm1->mbi.iu+M1_NGHOST_MIN;
+  // point to flux storage ----------------------------------------------------
+  vars_Flux & flx = (use_lo) ? fluxes_lo : fluxes;
 
   const bool approximate_speeds = opt.characteristics_variety ==
         opt_characteristics_variety::approximate;
@@ -55,9 +61,9 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
     for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
     {
 
-      AT_C_sca & F_nG  = fluxes.sc_nG( ix_g,ix_s,ix_d);
-      AT_C_sca & F_E   = fluxes.sc_E(  ix_g,ix_s,ix_d);
-      AT_N_vec & F_F_d = fluxes.sp_F_d(ix_g,ix_s,ix_d);
+      AT_C_sca & F_nG  = flx.sc_nG( ix_g,ix_s,ix_d);
+      AT_C_sca & F_E   = flx.sc_E(  ix_g,ix_s,ix_d);
+      AT_N_vec & F_F_d = flx.sp_F_d(ix_g,ix_s,ix_d);
 
       AT_C_sca & U_nG   = U.sc_nG( ix_g,ix_s);
       AT_N_vec & U_F_d  = U.sp_F_d(ix_g,ix_s);
@@ -67,6 +73,7 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
       AT_C_sca & sc_kap_s = radmat.sc_kap_s(ix_g,ix_s);
 
       AT_C_sca & sc_chi = lab_aux.sc_chi(ix_g,ix_s);
+      AT_C_sca & sc_xi  = lab_aux.sc_xi(ix_g,ix_s);
 
       AT_C_sca & sc_J   = rad.sc_J(  ix_g,ix_s);
       AT_D_vec & st_H_u = rad.st_H_u(ix_g, ix_s);
@@ -76,6 +83,16 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
       {
         CalcCharacteristicSpeed(ix_d, U_E, U_F_d, sc_chi, lambda);
       }
+
+      // M1_FLOOP3(k,j,i)
+      // {
+      //   if (lambda(k,j,i) > 1)
+      //   {
+      //     lambda(k,j,i) = 1.0;
+      //     std::printf("lam>1\n");
+      //   }
+      // }
+
 
       // Flux assembly and reconstruction =====================================
       // See Eq.(28) of [1] (note densitized)
@@ -92,11 +109,10 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
           );
           // sc_n needs to be computed in CalcFiducialFrame
           F_sca(k,j,i) = sc_alpha(k,j,i) * sc_n(k,j,i) * sp_f_u__;
-
         }
       }
       Fluxes::ReconstructLimitedFlux(this, ix_d, U_nG, F_sca,
-                                     sc_chi,
+                                     sc_xi,
                                      sc_kap_a, sc_kap_s, lambda, F_nG);
 
       // E --------------------------------------------------------------------
@@ -114,10 +130,10 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
                           sp_g_uu(ix_d,a,k,j,i) *
                           U_F_d(a,k,j,i);
         }
-
       }
+
       Fluxes::ReconstructLimitedFlux(this, ix_d, U_E, F_sca,
-                                     sc_chi,
+                                     sc_xi,
                                      sc_kap_a, sc_kap_s, lambda, F_E);
 
       // F_k ------------------------------------------------------------------
@@ -125,7 +141,8 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
       {
         Assemble::Frames::sp_P_dd_(
           *this, sp_P_dd_, sc_chi, U_E, U_F_d,
-          k, j, il, iu
+          k, j,
+          M1_IX_IL-M1_FSIZEI, M1_IX_IU+M1_FSIZEI+(ix_d==0)
         );
 
         for (int a=0; a<N; ++a)
@@ -145,11 +162,98 @@ void M1::CalcFluxes(AthenaArray<Real> & u)
         }
       }
       Fluxes::ReconstructLimitedFlux(this, ix_d, U_F_d, F_vec,
-                                     sc_chi,
+                                     sc_xi,
                                      sc_kap_a, sc_kap_s, lambda, F_F_d);
     }
   }
+
+  // revert if lo overwrite used
+  if (use_lo)
+    opt.flux_variety = ofv;
 }
+
+// ----------------------------------------------------------------------------
+// Build flux limiter over multiple function components
+void M1::CalcFluxLimiter(AthenaArray<Real> & u)
+{
+  using namespace Fluxes;
+
+  vars_Lab U { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
+  SetVarAliasesLab(u, U);
+
+  AA & flux_limiter = pm1->ev_strat.masks.flux_limiter;
+  flux_limiter.Fill(0.0);
+
+
+  AT_C_sca U_sl;
+
+  // indicial ranges ----------------------------------------------------------
+  for (int ix_d=0; ix_d<N; ++ix_d)
+  {
+    for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+    for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+    {
+      AT_C_sca & U_nG   = U.sc_nG( ix_g,ix_s);
+      AT_N_vec & U_F_d  = U.sp_F_d(ix_g,ix_s);
+      AT_C_sca & U_E    = U.sc_E(  ix_g,ix_s);
+
+      AT_C_sca & sc_kap_a = radmat.sc_kap_a(ix_g,ix_s);
+      AT_C_sca & sc_kap_s = radmat.sc_kap_s(ix_g,ix_s);
+
+      AT_C_sca & sc_xi = lab_aux.sc_xi(ix_g,ix_s);
+
+      switch (ix_d)
+      {
+        case 0:
+        {
+          LimiterMaskX1(this, flux_limiter, U_E, sc_xi, sc_kap_a, sc_kap_s);
+          LimiterMaskX1(this, flux_limiter, U_nG, sc_xi, sc_kap_a, sc_kap_s);
+
+          for (int a=0; a<N; ++a)
+          {
+            U_F_d.slice(a, U_sl);
+            LimiterMaskX1(this, flux_limiter, U_sl, sc_xi, sc_kap_a, sc_kap_s);
+          }
+
+          break;
+        }
+        case 1:
+        {
+          LimiterMaskX2(this, flux_limiter, U_E, sc_xi, sc_kap_a, sc_kap_s);
+          LimiterMaskX2(this, flux_limiter, U_nG, sc_xi, sc_kap_a, sc_kap_s);
+
+          for (int a=0; a<N; ++a)
+          {
+            U_F_d.slice(a, U_sl);
+            LimiterMaskX2(this, flux_limiter, U_sl, sc_xi, sc_kap_a, sc_kap_s);
+          }
+
+          break;
+        }
+        case 2:
+        {
+          LimiterMaskX3(this, flux_limiter, U_E, sc_xi, sc_kap_a, sc_kap_s);
+          LimiterMaskX3(this, flux_limiter, U_nG, sc_xi, sc_kap_a, sc_kap_s);
+
+          for (int a=0; a<N; ++a)
+          {
+            U_F_d.slice(a, U_sl);
+            LimiterMaskX3(this, flux_limiter, U_sl, sc_xi, sc_kap_a, sc_kap_s);
+          }
+
+          break;
+        }
+        default:
+        {
+          break;
+        }
+      }
+
+    }
+  }
+
+}
+
 
 // ----------------------------------------------------------------------------
 // Characteristic speeds on CC

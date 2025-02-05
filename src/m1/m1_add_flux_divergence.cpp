@@ -9,9 +9,7 @@
 namespace M1 {
 // ============================================================================
 
-//-----------------------------------------------------------------------------
-// Add the flux divergence to the RHS (see analogous Hydro method)
-void M1::AddFluxDivergence(AthenaArray<Real> & u_inh)
+void M1::MulAddFluxDivergence(AthenaArray<Real> & u_inh, const Real fac)
 {
   /*
   More compact with something like
@@ -31,7 +29,7 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_inh)
 
   AA & dflx_ = scratch.dflx_;
 
-  M1_FLOOP2(k,j)
+  M1_MLOOP2(k,j)
   {
     dflx_.ZeroClear();
 
@@ -45,7 +43,9 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_inh)
         AT_C_sca & F_E   = fluxes.sc_E(  ix_g,ix_s,ix_d);
         AT_N_vec & F_f_d = fluxes.sp_F_d(ix_g,ix_s,ix_d);
 
-        M1_FLOOP1(i)
+        M1_MLOOP1(i)
+        if (MaskGet(k, j, i))
+        if (MaskGetHybridize(k,j,i))
         {
           dflx_(ix_g,ix_s,ixn_Lab::nG,i) += (
             F_nG(k,j,i+1) - F_nG(k,j,i)
@@ -57,7 +57,9 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_inh)
         }
 
         for (int a=0; a<N; ++a)
-        M1_FLOOP1(i)
+        M1_MLOOP1(i)
+        if (MaskGet(k, j, i))
+        if (MaskGetHybridize(k,j,i))
         {
           dflx_(ix_g,ix_s,ixn_Lab::F_x+a,i) += (
             F_f_d(a,k,j,i+1) - F_f_d(a,k,j,i)
@@ -77,7 +79,9 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_inh)
         AT_C_sca & F_E   = fluxes.sc_E(  ix_g,ix_s,ix_d);
         AT_N_vec & F_f_d = fluxes.sp_F_d(ix_g,ix_s,ix_d);
 
-        M1_FLOOP1(i)
+        M1_MLOOP1(i)
+        if (MaskGet(k, j, i))
+        if (MaskGetHybridize(k,j,i))
         {
           dflx_(ix_g,ix_s,ixn_Lab::nG,i) += (
             F_nG(k,j+1,i) - F_nG(k,j,i)
@@ -89,7 +93,9 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_inh)
         }
 
         for (int a=0; a<N; ++a)
-        M1_FLOOP1(i)
+        M1_MLOOP1(i)
+        if (MaskGet(k, j, i))
+        if (MaskGetHybridize(k,j,i))
         {
           dflx_(ix_g,ix_s,ixn_Lab::F_x+a,i) += (
             F_f_d(a,k,j+1,i) - F_f_d(a,k,j,i)
@@ -109,7 +115,9 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_inh)
         AT_C_sca & F_E   = fluxes.sc_E(  ix_g,ix_s,ix_d);
         AT_N_vec & F_f_d = fluxes.sp_F_d(ix_g,ix_s,ix_d);
 
-        M1_FLOOP1(i)
+        M1_MLOOP1(i)
+        if (MaskGet(k, j, i))
+        if (MaskGetHybridize(k,j,i))
         {
           dflx_(ix_g,ix_s,ixn_Lab::nG,i) += (
             F_nG(k+1,j,i) - F_nG(k,j,i)
@@ -121,7 +129,9 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_inh)
         }
 
         for (int a=0; a<N; ++a)
-        M1_FLOOP1(i)
+        M1_MLOOP1(i)
+        if (MaskGet(k, j, i))
+        if (MaskGetHybridize(k,j,i))
         {
           dflx_(ix_g,ix_s,ixn_Lab::F_x+a,i) += (
             F_f_d(a,k+1,j,i) - F_f_d(a,k,j,i)
@@ -134,24 +144,38 @@ void M1::AddFluxDivergence(AthenaArray<Real> & u_inh)
     for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
     for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
     {
-      M1_FLOOP1(i)
-      if (pm1->MaskGet(k, j, i))
+      M1_MLOOP1(i)
+      if (MaskGet(k, j, i))
+      if (MaskGetHybridize(k,j,i))
       {
-        I.sc_nG(ix_g,ix_s)(k,j,i) -= dflx_(ix_g,ix_s,ixn_Lab::nG,i);
-        I.sc_E(ix_g,ix_s)(k,j,i)  -= dflx_(ix_g,ix_s,ixn_Lab::E,i);
+        I.sc_nG(ix_g,ix_s)(k,j,i) -= fac * dflx_(ix_g,ix_s,ixn_Lab::nG,i);
+        I.sc_E(ix_g,ix_s)(k,j,i)  -= fac * dflx_(ix_g,ix_s,ixn_Lab::E,i);
       }
 
       for (int a=0; a<N; ++a)
-      M1_FLOOP1(i)
-      if (pm1->MaskGet(k, j, i))
+      M1_MLOOP1(i)
+      if (MaskGet(k, j, i))
+      if (MaskGetHybridize(k,j,i))
       {
-        I.sp_F_d(ix_g,ix_s)(a,k,j,i) -= dflx_(ix_g,ix_s,
-                                              ixn_Lab::F_x+a,i);
+        I.sp_F_d(ix_g,ix_s)(a,k,j,i) -= fac * dflx_(ix_g,ix_s,
+                                                    ixn_Lab::F_x+a,i);
       }
     }
 
 
   }
+}
+
+void M1::SubFluxDivergence(AthenaArray<Real> & u_inh)
+{
+  MulAddFluxDivergence(u_inh, -1.0);
+}
+
+//-----------------------------------------------------------------------------
+// Add the flux divergence to the RHS (see analogous Hydro method)
+void M1::AddFluxDivergence(AthenaArray<Real> & u_inh)
+{
+  MulAddFluxDivergence(u_inh, 1.0);
 }
 
 // ============================================================================

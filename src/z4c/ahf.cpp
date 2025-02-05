@@ -76,7 +76,7 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   parname += n_str;
   mass_tol = pin->GetOrAddReal("ahf", parname, 1e-2);
   
-  verbose = pin->GetOrAddBoolean("ahf", "verbose", 0);
+  verbose = pin->GetOrAddBoolean("ahf", "verbose", false);
   root = pin->GetOrAddInteger("ahf", "mpi_root", 0);
   merger_distance = pin->GetOrAddReal("ahf", "merger_distance", 0.1);
   bitant = pin->GetOrAddBoolean("mesh", "bitant", false);
@@ -86,8 +86,9 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   parname = "initial_radius_";
   parname += n_str;
   initial_radius = pin->GetOrAddReal("ahf", parname, 1.0);
+  rr_min = -1.0;
 
-  expand_guess = pin->GetOrAddReal("ahf", "expand_guess",1.1);
+  expand_guess = pin->GetOrAddReal("ahf", "expand_guess",1.0);
   npunct = pin->GetOrAddInteger("z4c", "npunct", 0);
 
   // Center
@@ -240,7 +241,7 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
       throw std::runtime_error(msg.str().c_str());
     }
     if (new_file) {
-      fprintf(pofile_summary, "# 1:iter 2:time 3:mass 4:Sx 5:Sy 6:Sz 7:S 8:area 9:hrms 10:hmean 11:meanradius\n");
+      fprintf(pofile_summary, "# 1:iter 2:time 3:mass 4:Sx 5:Sy 6:Sz 7:S 8:area 9:hrms 10:hmean 11:meanradius 12:minradius\n");
       fflush(pofile_summary);
     }
     
@@ -325,7 +326,7 @@ void AHF::Write(int iter, Real time)
 
     // Summary file
     fprintf(pofile_summary, "%d %g ", iter, time);
-    fprintf(pofile_summary, "%.15e %.15e %.15e %.15e %.15e %.15e %.15e %.15e %.15e",
+    fprintf(pofile_summary, "%.15e %.15e %.15e %.15e %.15e %.15e %.15e %.15e %.15e %.15e",
         ah_prop[hmass],
         ah_prop[hSx],
         ah_prop[hSy],
@@ -334,7 +335,8 @@ void AHF::Write(int iter, Real time)
         ah_prop[harea],
         ah_prop[hhrms],
         ah_prop[hhmean],
-        ah_prop[hmeanradius]);
+        ah_prop[hmeanradius],
+        ah_prop[hminradius]);
     fprintf(pofile_summary, "\n");
     fflush(pofile_summary);
     
@@ -894,6 +896,7 @@ void AHF::SurfaceIntegrals()
 		  divu=%.3e d2F=%.3e dFdadFdbKab=%.3e dFdadFdbFdadb=%.3e TrK=%.3e detg=%.3e\n",
 		  i,j,norm,
 		  divu, d2F, dFdadFdbKab, dFdadFdbFdadb, TrK, detg);
+          fflush(pofile_verbose);
 	}
       }
 #endif
@@ -1074,8 +1077,9 @@ void AHF::Find(int iter, Real time)
   if((time < start_time) || (time > stop_time)) return;
   if (wait_until_punc_are_close && !(PuncAreClose())) return;
   if (iter % compute_every_iter != 0) return;
-  if (verbose && ioproc)
+  if (verbose && ioproc) {
     fprintf(pofile_verbose, "time=%.4f, cycle=%d\n", time, iter);
+  }
   InitialGuess();
   FastFlowLoop();
 }
@@ -1122,7 +1126,7 @@ void AHF::FastFlowLoop()
     fprintf(pofile_verbose, "\nSearching for horizon %d\n", nh);
     fprintf(pofile_verbose, "center = (%f, %f, %f)\n", center[0], center[1], center[2]);
     fprintf(pofile_verbose, "r_mean = %f\n", meanradius);
-    fprintf(pofile_verbose, " iter      area            mass         meanradius        hmean            Sx              Sy              Sz             S\n");
+    fprintf(pofile_verbose, " iter      area            mass         meanradius       minradius        hmean            Sx              Sy              Sz             S\n");
   }
 
   for(int k=0; k<flow_iterations; k++){
@@ -1164,6 +1168,7 @@ void AHF::FastFlowLoop()
     if (!(std::isfinite(area))) {
       if (verbose && ioproc) {
         fprintf(pofile_verbose, "Failed, Area not finite\n");
+        fflush(pofile_verbose);
       }
       failed = true;
       break;
@@ -1172,6 +1177,7 @@ void AHF::FastFlowLoop()
     if (!(std::isfinite(hmean))) {
       if (verbose && ioproc) {
         fprintf(pofile_verbose, "Failed, hmean not finite\n");
+        fflush(pofile_verbose);
       }
       failed = true;
       break;
@@ -1182,13 +1188,15 @@ void AHF::FastFlowLoop()
     mass = std::sqrt(area/(16.0*PI));
 
     if (verbose && ioproc) {
-      fprintf(pofile_verbose, "%3d %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e\n",
-              k, area, mass, meanradius, hmean, Sx, Sy, Sz, S);
+      fprintf(pofile_verbose, "%3d %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e\n",
+              k, area, mass, meanradius, rr_min, hmean, Sx, Sy, Sz, S);
+      fflush(pofile_verbose);
     }
 
     if (std::fabs(hmean) > hmean_tol) {
       if (verbose && ioproc) {
         fprintf(pofile_verbose, "Failed, hmean > %f\n", hmean_tol);
+        fflush(pofile_verbose);
       }
       failed = true;
       break;
@@ -1196,7 +1204,8 @@ void AHF::FastFlowLoop()
 
     if (meanradius < 0.) {
       if (verbose && ioproc) {
-       fprintf(pofile_verbose, "Failed, meanradius < 0\n");
+        fprintf(pofile_verbose, "Failed, meanradius < 0\n");
+        fflush(pofile_verbose);
       }
       failed = true;
       break;
@@ -1205,7 +1214,8 @@ void AHF::FastFlowLoop()
     // Check to prevent horizon radius blow up and mass = 0
     if (mass < 1.0e-10) {
       if (verbose && ioproc) {
-       fprintf(pofile_verbose, "Failed mass < 1e-10\n");
+        fprintf(pofile_verbose, "Failed mass < 1e-10\n");
+        fflush(pofile_verbose);
       }
       failed = true;
       break;
@@ -1230,6 +1240,7 @@ void AHF::FastFlowLoop()
     ah_prop[hhrms] = hrms;
     ah_prop[hhmean] = hmean;
     ah_prop[hmeanradius] = meanradius;
+    ah_prop[hminradius] = rr_min;
     ah_prop[hSx] = Sx;
     ah_prop[hSy] = Sy;
     ah_prop[hSz] = Sz;
@@ -1244,6 +1255,7 @@ void AHF::FastFlowLoop()
       fprintf(pofile_verbose, "Found horizon %d\n", nh);
       fprintf(pofile_verbose, " mass_irr = %f\n", mass);
       fprintf(pofile_verbose, " meanradius = %f\n", meanradius);
+      fprintf(pofile_verbose, " minradius = %f\n", rr_min);
       fprintf(pofile_verbose, " hrms = %f\n", hrms);
       fprintf(pofile_verbose, " hmean = %f\n", hmean);
       fprintf(pofile_verbose, " Sx = %f\n", Sx);
@@ -1253,6 +1265,7 @@ void AHF::FastFlowLoop()
     } else if (!failed && !ah_found) {
       fprintf(pofile_verbose, "Failed, reached max iterations %d\n", flow_iterations);
     }
+    fflush(pofile_verbose);
   }
 }
 
@@ -1422,6 +1435,8 @@ void AHF::RadiiFromSphericalHarmonics()
   rr_dth.ZeroClear();
   rr_dph.ZeroClear();
   
+
+  rr_min = std::numeric_limits<Real>::infinity();
   for(int i=0; i<ntheta; i++){
     for(int j=0; j<nphi; j++){
 
@@ -1439,7 +1454,7 @@ void AHF::RadiiFromSphericalHarmonics()
 	  rr_dph(i,j) += ac(l1) * dYcdph(i,j,l1) + as(l1) * dYsdph(i,j,l1);
         }
       }
-      
+      rr_min = std::min(rr_min, rr(i,j));
     } // phi loop
   } // theta loop
 }

@@ -53,10 +53,11 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
     Add(CALC_FIDU_FRAME, CALC_CLOSURE, &M1N0::CalcFiducialFrame);
     Add(CALC_OPAC, CALC_FIDU_FRAME, &M1N0::CalcOpacity);
 
-    Add(CALC_FLUX, CALC_OPAC, &M1N0::CalcFlux);
 
     Add(ADD_GRSRC,   CALC_CLOSURE, &M1N0::AddGRSources);
-    Add(ADD_FLX_DIV, (CALC_FLUX|ADD_GRSRC),
+    Add(CALC_FLUX, (CALC_OPAC|ADD_GRSRC), &M1N0::CalcFlux);
+
+    Add(ADD_FLX_DIV, CALC_FLUX,
                      &M1N0::AddFluxDivergence);
 
     if (multilevel)
@@ -89,10 +90,10 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
       Add(PHY_BVAL, SETB, &M1N0::PhysicalBoundary);
     }
 
-    Add(ANALYSIS, (PHY_BVAL|CALC_UPDATE), &M1N0::Analysis);
+    Add(ANALYSIS, PHY_BVAL, &M1N0::Analysis);
 
     Add(USERWORK, ANALYSIS, &M1N0::UserWork);
-    Add(NEW_DT,   USERWORK,               &M1N0::NewBlockTimeStep);
+    Add(NEW_DT,   USERWORK, &M1N0::NewBlockTimeStep);
 
     if (adaptive)
     {
@@ -222,11 +223,55 @@ TaskStatus M1N0::CalcOpacity(MeshBlock *pmb, int stage)
 // ----------------------------------------------------------------------------
 TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
 {
+  Mesh * pm = pmb->pmy_mesh;
   ::M1::M1 * pm1 = pmb->pm1;
 
   if (stage <= nstages)
   {
-    pm1->CalcFluxes(pm1->storage.u);
+    if (pm1->opt.flux_limiter_multicomponent)
+    {
+      pm1->CalcFluxLimiter(pm1->storage.u);
+    }
+
+    pm1->CalcFluxes(pm1->storage.u, false);
+
+    if (pm1->opt.flux_lo_fallback)
+    {
+      pm1->CalcFluxes(pm1->storage.u, true);
+
+      // Zero property preservation mask
+      // Do prior to evo. as mask is modified on pp enforcement.
+      pm1->ev_strat.masks.pp.Fill(0.0);
+
+      // construct candidate solution -----------------------------------------
+      // need to add divF to inhomogeneity; subtract off after solution known
+
+      pm1->AddFluxDivergence(pm1->storage.u_rhs);
+
+      Real const dt = pm->dt * dt_fac[stage - 1];
+
+      if (stage == 1)
+      {
+        pm1->PrepareEvolutionStrategy(dt);
+      }
+
+      // Construct candidate state
+      pm1->CalcUpdate(stage,
+                      dt,
+                      pm1->storage.u1,
+                      pm1->storage.u,
+                      pm1->storage.u_rhs,
+                      pm1->storage.u_sources);
+
+      // Revert inhomogeneity
+      pm1->SubFluxDivergence(pm1->storage.u_rhs);
+
+      // hybridize fluxes based on pp mask ------------------------------------
+      pm1->HybridizeLOFlux(pm1->storage.u);
+      // Flip mask to execute next CalcUpdate on LO points
+      pm1->AdjustMaskPropertyPreservation();
+    }
+
     return TaskStatus::next;
   }
   return TaskStatus::fail;
@@ -301,12 +346,23 @@ TaskStatus M1N0::CalcUpdate(MeshBlock *pmb, int stage)
   if (stage <= nstages)
   {
     Real const dt = pm->dt * dt_fac[stage - 1];
+
+    if ((stage == 1) && (!pm1->opt.flux_lo_fallback))
+    {
+      pm1->PrepareEvolutionStrategy(dt);
+    }
+
     pm1->CalcUpdate(stage,
                     dt,
                     pm1->storage.u1,
                     pm1->storage.u,
                     pm1->storage.u_rhs,
                     pm1->storage.u_sources);
+
+    if (stage == 2)
+    {
+      pm1->ResetEvolutionStrategy();
+    }
 
     return TaskStatus::next;
   }

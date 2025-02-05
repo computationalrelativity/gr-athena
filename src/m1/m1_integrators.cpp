@@ -286,7 +286,9 @@ void DispatchIntegrationMethod(
     ClosureMetaVector CL_P = ConstructClosureMetaVector(pm1_, U_P_, ix_g, ix_s);
     ClosureMetaVector CL_C = ConstructClosureMetaVector(pm1_, U_C,  ix_g, ix_s);
 
-    M1_ILOOP3(k, j, i)
+    M1_MLOOP3(k, j, i)
+    if (pm1->MaskGet(k, j, i))
+    if (pm1->MaskGetHybridize(k,j,i))
     {
       // switch to different solver based on solution regime ------------------
       M1::opt_integration_strategy opt_is;

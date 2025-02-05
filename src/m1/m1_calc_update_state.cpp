@@ -82,7 +82,7 @@ void M1::PrepareEvolutionStrategy(const Real dt)
   // Revert to stiff / kill sources, as required ------------------------------
   for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
-  M1_ILOOP3(k, j, i)
+  M1_MLOOP3(k, j, i)
   if (pm1->MaskGet(k, j, i))
   {
     const Real kap_a = pm1->radmat.sc_kap_a(ix_g,ix_s)(k,j,i);
@@ -112,8 +112,6 @@ void M1::PrepareEvolutionStrategy(const Real dt)
 
 }
 
-// ----------------------------------------------------------------------------
-// Function to update the state vector
 void M1::CalcUpdate(const int stage,
                     Real const dt,
                     AA & u_pre,
@@ -139,10 +137,6 @@ void M1::CalcUpdate(const int stage,
   vars_Source U_S { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
   SetVarAliasesSource(u_src, U_S);
 
-  // evolution strategy / source treatment ------------------------------------
-  if (stage == 1)
-    PrepareEvolutionStrategy(dt);
-
   // construct unlimited solution ---------------------------------------------
   // uses ev_strat.masks.{solution_regime, source_treatment} internally
   DispatchIntegrationMethod(*this, dt, U_C, U_P, U_I, U_S);
@@ -162,8 +156,9 @@ void M1::CalcUpdate(const int stage,
   if (opt_solver.equilibrium_enforce ||
       (opt_solver.equilibrium_initial && (pmy_mesh->time == 0)))
   {
-    M1_ILOOP3(k, j, i)
+    M1_MLOOP3(k, j, i)
     if (MaskGet(k, j, i))
+    if (MaskGetHybridize(k,j,i))
     {
       bool equilibriate = false;
       for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
@@ -177,10 +172,9 @@ void M1::CalcUpdate(const int stage,
         }
       }
 
-
       if (equilibriate)
       {
-        if (stage == 2)
+        // if (stage == 2)
           Equilibrium::SetEquilibrium(*this, U_C, U_S, k, j, i);
       }
     }
@@ -192,8 +186,9 @@ void M1::CalcUpdate(const int stage,
   {
     SourceMetaVector S = ConstructSourceMetaVector(*this, U_S, ix_g, ix_s);
 
-    M1_ILOOP3(k, j, i)
+    M1_MLOOP3(k, j, i)
     if (MaskGet(k, j, i))
+    if (MaskGetHybridize(k,j,i))
     {
       // S -> dt * S for (nG, E, F_d) components
       InPlaceScalarMul_nG_E_F_d(dt, S, k, j, i);
@@ -201,25 +196,18 @@ void M1::CalcUpdate(const int stage,
   }
 
   // assemble remaining auxiliary quantities ----------------------------------
-  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
-  {
-    StateMetaVector C = ConstructStateMetaVector(*this, U_C, ix_g, ix_s);
+  // BD: TODO - shift elsewhere
+  // for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  // for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  // {
+  //   StateMetaVector C = ConstructStateMetaVector(*this, U_C, ix_g, ix_s);
 
-    M1_ILOOP3(k, j, i)
-    if (MaskGet(k, j, i))
-    {
-      // BD: TODO - net.abs, net.heat
-    }
-  }
-
-  // reset evolution strategy for next time-step ------------------------------
-  if (stage == 2)
-  {
-    ResetEvolutionStrategy();
-  }
-
-
+  //   M1_ILOOP3(k, j, i)
+  //   if (MaskGet(k, j, i))
+  //   {
+  //     // BD: TODO - net.abs, net.heat
+  //   }
+  // }
 }
 
 // ============================================================================

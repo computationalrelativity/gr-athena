@@ -334,14 +334,36 @@ inline void EnforcePhysical_E_F_d(
   Update::StateMetaVector & V,
   const int k, const int j, const int i)
 {
-  if (pm1.opt.enforce_finite)
+  if (pm1.opt.flux_lo_fallback_E)
   {
-    NonFiniteToZero(pm1, V, k, j, i);
+    bool enforced = false;
+
+    if (pm1.opt.enforce_finite)
+    {
+      enforced = enforced or NonFiniteToZero(pm1, V, k, j, i);
+    }
+    enforced = enforced or ApplyFloors(pm1, V, k, j, i);
+
+    if (pm1.opt.enforce_causality)
+    {
+      enforced = enforced or EnforceCausality(pm1, V, k, j, i);
+    }
+
+    if (enforced && pm1.opt.flux_lo_fallback)
+      pm1.ev_strat.masks.pp(k,j,i) = 1.0;
   }
-  ApplyFloors(pm1, V, k, j, i);
-  if (pm1.opt.enforce_causality)
+  else
   {
-    EnforceCausality(pm1, V, k, j, i);
+    if (pm1.opt.enforce_finite)
+    {
+      NonFiniteToZero(pm1, V, k, j, i);
+    }
+    ApplyFloors(pm1, V, k, j, i);
+
+    if (pm1.opt.enforce_causality)
+    {
+      EnforceCausality(pm1, V, k, j, i);
+    }
   }
 }
 
@@ -351,11 +373,34 @@ inline void EnforcePhysical_nG(
   Update::StateMetaVector & V,
   const int k, const int j, const int i)
 {
-  if (pm1.opt.enforce_finite)
+  if (pm1.opt.flux_lo_fallback_nG)
   {
-    NonFiniteToZero_nG(pm1, V, k, j, i);
+    bool enforced = false;
+
+    if (pm1.opt.enforce_finite)
+    {
+      enforced = enforced or NonFiniteToZero_nG(pm1, V, k, j, i);
+    }
+
+    if (V.sc_nG(k,j,i) < pm1.opt.fl_nG)
+    {
+      enforced = true;
+    }
+
+    V.sc_nG(k,j,i) = std::max(V.sc_nG(k,j,i), pm1.opt.fl_nG);
+
+    if (enforced && pm1.opt.flux_lo_fallback)
+      pm1.ev_strat.masks.pp(k,j,i) = 1.0;
+
   }
-  V.sc_nG(k,j,i) = std::max(V.sc_nG(k,j,i), pm1.opt.fl_nG);
+  else
+  {
+    if (pm1.opt.enforce_finite)
+    {
+      NonFiniteToZero_nG(pm1, V, k, j, i);
+    }
+    V.sc_nG(k,j,i) = std::max(V.sc_nG(k,j,i), pm1.opt.fl_nG);
+  }
 }
 
 // ============================================================================

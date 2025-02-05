@@ -57,11 +57,12 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   storage{
     { ixn_Lab::N*N_GS, mbi.nn3, mbi.nn2, mbi.nn1 },  // u
     { ixn_Lab::N*N_GS, mbi.nn3, mbi.nn2, mbi.nn1 },  // u1
-    { // flux
+    {   // flux
      { ixn_Lab::N*N_GS, mbi.nn3, mbi.nn2, mbi.nn1 + 1 },
      { ixn_Lab::N*N_GS, mbi.nn3, mbi.nn2 + 1, mbi.nn1 },
      { ixn_Lab::N*N_GS, mbi.nn3 + 1, mbi.nn2, mbi.nn1 },
     },
+    {}, // flux_lo
     { ixn_Lab::N*N_GS,     mbi.nn3, mbi.nn2, mbi.nn1 },     // u_rhs
     { ixn_Lab_aux::N*N_GS, mbi.nn3, mbi.nn2, mbi.nn1 },     // u_lab_aux
     { ixn_Rad::N*N_GS,     mbi.nn3, mbi.nn2, mbi.nn1 },     // u_rad
@@ -76,6 +77,11 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   ubvar(pmb, &storage.u, &coarse_u_, storage.flux),
   // alias storage (size specs. must match number of containers in struct)
   fluxes{
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS}
+  },
+  fluxes_lo{
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS}
@@ -191,8 +197,29 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   ev_strat.masks.source_treatment.Fill(t_src_t::noop);
 
   ev_strat.masks.excised.NewAthenaArray(
-    N_GRPS, N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1);
+    mbi.nn3, mbi.nn2, mbi.nn1);
   ev_strat.masks.excised.Fill(false);
+
+
+  if (opt.flux_limiter_use_mask)
+  {
+    ev_strat.masks.flux_limiter.NewAthenaArray(
+      N, mbi.nn3, mbi.nn2, mbi.nn1);
+    ev_strat.masks.flux_limiter.Fill(0);
+  }
+
+  if (opt.flux_lo_fallback)
+  {
+    storage.flux_lo[0].NewAthenaArray(ixn_Lab::N*N_GS,
+                                      mbi.nn3, mbi.nn2, mbi.nn1 + 1);
+    storage.flux_lo[1].NewAthenaArray(ixn_Lab::N*N_GS,
+                                      mbi.nn3, mbi.nn2 + 1, mbi.nn1);
+    storage.flux_lo[2].NewAthenaArray(ixn_Lab::N*N_GS,
+                                      mbi.nn3 + 1, mbi.nn2, mbi.nn1);
+
+    SetVarAliasesFluxes(storage.flux_lo, fluxes_lo);
+    ev_strat.masks.pp.NewAthenaArray(mbi.nn3, mbi.nn2, mbi.nn1);
+  }
 
   // --------------------------------------------------------------------------
   // general setup
@@ -425,20 +452,37 @@ void M1::StatePrintPoint(
     std::cout << "radiation fields========================: " << "\n\n";
 
     std::cout << "sc=================: " << "\n";
-    lab.sc_nG(ix_g,ix_s).PrintPoint("lab.sc_nG(ix_s,ix_g)", k,j,i);
-    lab.sc_E(ix_g,ix_s).PrintPoint("lab.sc_E(ix_s,ix_g)", k,j,i);
+    lab.sc_nG(ix_g,ix_s).PrintPoint("lab.sc_nG(ix_g,ix_s)", k,j,i);
+    lab.sc_E(ix_g,ix_s).PrintPoint("lab.sc_E(ix_g,ix_s)", k,j,i);
 
     std::cout << "vec================: " << "\n";
-    lab.sp_F_d(ix_g,ix_s).PrintPoint("lab.sp_F_d(ix_s,ix_g)", k,j,i);
+    lab.sp_F_d(ix_g,ix_s).PrintPoint("lab.sp_F_d(ix_g,ix_s)", k,j,i);
 
     std::cout << "sc=================: " << "\n";
-    rad.sc_n(ix_g,ix_s).PrintPoint("rad.sc_n(ix_s,ix_g)", k,j,i);
-    rad.sc_J(ix_g,ix_s).PrintPoint("rad.sc_J(ix_s,ix_g)", k,j,i);
-    lab_aux.sc_chi(ix_g,ix_s).PrintPoint("lab_aux.sc_chi(ix_s,ix_g)", k,j,i);
-    lab_aux.sc_xi(ix_g,ix_s).PrintPoint("lab_aux.sc_xi(ix_s,ix_g)", k,j,i);
+    rad.sc_n(ix_g,ix_s).PrintPoint("rad.sc_n(ix_g,ix_s)", k,j,i);
+    rad.sc_J(ix_g,ix_s).PrintPoint("rad.sc_J(ix_g,ix_s)", k,j,i);
+    lab_aux.sc_chi(ix_g,ix_s).PrintPoint("lab_aux.sc_chi(ix_g,ix_s)", k,j,i);
+    lab_aux.sc_xi(ix_g,ix_s).PrintPoint("lab_aux.sc_xi(ix_g,ix_s)", k,j,i);
 
     std::cout << "sym2===============: " << "\n";
-    lab_aux.sp_P_dd(ix_g,ix_s).PrintPoint("lab_aux.sp_P_dd(ix_s,ix_g)", k,j,i);
+    lab_aux.sp_P_dd(ix_g,ix_s).PrintPoint("lab_aux.sp_P_dd(ix_g,ix_s)", k,j,i);
+
+    std::cout << "src=================: " << "\n";
+    sources.sc_nG(ix_g,ix_s).PrintPoint("sources.sc_nG", k, j, i);
+    sources.sc_E(ix_g,ix_s).PrintPoint("sources.sc_E", k, j, i);
+    sources.sp_F_d(ix_g,ix_s).PrintPoint("sources.sp_F_d", k, j, i);
+    radmat.sc_eta(ix_g,ix_s).PrintPoint("radmat.sc_eta", k, j, i);
+    radmat.sc_kap_a(ix_g,ix_s).PrintPoint("radmat.sc_kap_a", k, j, i);
+    radmat.sc_kap_s(ix_g,ix_s).PrintPoint("radmat.sc_kap_s", k, j, i);
+
+    const Real kap_as = (
+      radmat.sc_kap_a(ix_g,ix_s)(k,j,i) +
+      radmat.sc_kap_s(ix_g,ix_s)(k,j,i)
+    );
+
+    std::printf("OO(kap_as * dx1) = %.3g\n", OO(kap_as) * mbi.dx1(i));
+    std::printf("OO(kap_as * dx2) = %.3g\n", OO(kap_as) * mbi.dx2(j));
+    std::printf("OO(kap_as * dx3) = %.3g\n", OO(kap_as) * mbi.dx3(k));
 
     std::cout << "opt_solution_regime: ";
     std::cout << static_cast<int>(ev_strat.masks.solution_regime(ix_g,ix_s,k,j,i));
