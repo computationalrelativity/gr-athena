@@ -741,7 +741,8 @@ void CellCenteredBoundaryVariable::StartReceiving(BoundaryCommSubset phase) {
       {
         const bool phase_comm_fc = (
           (phase == BoundaryCommSubset::all) ||
-          (phase == BoundaryCommSubset::m1)
+          (phase == BoundaryCommSubset::m1) ||
+          (phase == BoundaryCommSubset::matter_flux_corrected)
         );
 
         if (phase_comm_fc &&
@@ -783,7 +784,8 @@ void CellCenteredBoundaryVariable::ClearBoundary(BoundaryCommSubset phase) {
       {
         const bool phase_comm_fc = (
           (phase == BoundaryCommSubset::all) ||
-          (phase == BoundaryCommSubset::m1)
+          (phase == BoundaryCommSubset::m1) ||
+          (phase == BoundaryCommSubset::matter_flux_corrected)
         );
         if (phase_comm_fc &&
             nb.ni.type == NeighborConnect::face &&
