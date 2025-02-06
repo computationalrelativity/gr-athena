@@ -1038,10 +1038,10 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     }
 
     // BD: needed for cons<->prim after restart
-    if(Z4C_ENABLED && FLUID_ENABLED)
-    {
-      pblock->pz4c->Z4cToADM(pblock->pz4c->storage.u, pblock->pz4c->storage.adm);
-    }
+    // if(Z4C_ENABLED && FLUID_ENABLED)
+    // {
+    //   pblock->pz4c->Z4cToADM(pblock->pz4c->storage.u, pblock->pz4c->storage.adm);
+    // }
 
     pblock->pbval->SearchAndSetNeighbors(tree, ranklist, nslist);
   }
@@ -1088,10 +1088,10 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     }
 
     // BD: needed for cons<->prim after restart
-    if(Z4C_ENABLED && FLUID_ENABLED)
-    {
-      pblock->pz4c->Z4cToADM(pblock->pz4c->storage.u, pblock->pz4c->storage.adm);
-    }
+    // if(Z4C_ENABLED && FLUID_ENABLED)
+    // {
+    //   pblock->pz4c->Z4cToADM(pblock->pz4c->storage.u, pblock->pz4c->storage.adm);
+    // }
 
     pblock->pbval->SearchAndSetNeighbors(tree, ranklist, nslist);
   }
@@ -1658,7 +1658,7 @@ void Mesh::ApplyUserWorkMeshUpdatedPrePostAMRHooks(ParameterInput *pin) {
 // \!fn void Mesh::Initialize(int res_flag, ParameterInput *pin)
 // \brief  initialization before the main loop
 
-void Mesh::Initialize(int res_flag, ParameterInput *pin)
+void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
 {
   bool iflag = true;
   int inb = nbtotal;
@@ -1674,7 +1674,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
     GetMeshBlocksMyRank(pmb_array);
     nmb = pmb_array.size();
 
-    if (res_flag == 0)
+    if (init_style == initialize_style::pgen)
     {
       #pragma omp parallel for num_threads(nthreads)
       for (int i = 0; i < nmb; ++i)
@@ -1699,7 +1699,11 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
       MeshBlock *pmb;
       BoundaryValues *pbval;
 
-      CommunicateConserved(pmb_array);
+      if ((init_style == initialize_style::pgen) ||
+          (init_style == initialize_style::regrid))
+      {
+        CommunicateConserved(pmb_array);
+      }
 
       // Finalize sub-systems that only need conserved vars -------------------
 #if Z4C_ENABLED
@@ -1708,20 +1712,29 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
       // Apply BC [CC,CX,VC]
       // Enforce alg. constraints
       // Prepare ADM variables
-      FinalizeZ4cADM(pmb_array);
+      if ((init_style == initialize_style::pgen) ||
+          (init_style == initialize_style::regrid))
+      {
+        FinalizeZ4cADM(pmb_array);
+      }
 #endif
 
 #if WAVE_ENABLED
       // Prolongate wave
       // Apply BC
-      FinalizeWave(pmb_array);
+      if ((init_style == initialize_style::pgen) ||
+          (init_style == initialize_style::regrid))
+      {
+        FinalizeWave(pmb_array);
+      }
 #endif
       // ----------------------------------------------------------------------
 
       // ----------------------------------------------------------------------
       // Deal with retention of old prim state of fluid in case of rootfinder
 #if FLUID_ENABLED
-      if (res_flag == 0)
+      if ((init_style == initialize_style::pgen) ||
+          (init_style == initialize_style::regrid))
       {
         FinalizeHydro_pgen(pmb_array);
       }
@@ -1735,6 +1748,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
       // - communication of primitives
 #if FLUID_ENABLED && GENERAL_RELATIVITY && !defined(DBG_USE_CONS_BC)
       if (multilevel)
+      if ((init_style == initialize_style::pgen) ||
+          (init_style == initialize_style::regrid))
       {
         const bool interior_only = true;
         PreparePrimitives(pmb_array, interior_only);
@@ -1745,12 +1760,22 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
 
       // Deal with matter prol. & BC ------------------------------------------
 #if FLUID_ENABLED && !defined(DBG_USE_CONS_BC)
-      FinalizeHydroPrimRP(pmb_array);
+      if (multilevel)
+      if ((init_style == initialize_style::pgen) ||
+          (init_style == initialize_style::regrid))
+      {
+        FinalizeHydroPrimRP(pmb_array);
+      }
 #elif FLUID_ENABLED && defined(DBG_USE_CONS_BC)
-      FinalizeHydroConsRP(pmb_array);
+      if (multilevel)
+      if ((init_style == initialize_style::pgen) ||
+          (init_style == initialize_style::regrid))
+      {
+        FinalizeHydroConsRP(pmb_array);
 
-      const bool interior_only = false;
-      PreparePrimitives(pmb_array, interior_only);
+        const bool interior_only = false;
+        PreparePrimitives(pmb_array, interior_only);
+      }
 #endif
       // ----------------------------------------------------------------------
 
@@ -1764,12 +1789,14 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
 #if M1_ENABLED
       // Prolongate m1
       // Apply BC
+      // Not all registers are reloaded from rst, do this on all init calls
       FinalizeM1(pmb_array);
 #endif
       // ----------------------------------------------------------------------
 
 #if FLUID_ENABLED && Z4C_ENABLED
-      if (!res_flag)
+      if ((init_style == initialize_style::pgen) ||
+          (init_style == initialize_style::regrid))
       {
         // Prepare ADM sources
         // Requires B-field in ghost-zones
@@ -1781,7 +1808,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
       }
 #endif
 
-      if (!res_flag && adaptive)
+      if (adaptive)
+      if (init_style == initialize_style::pgen)
       {
         #pragma omp for
         for (int i = 0; i < nmb; ++i) {
@@ -1791,7 +1819,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
     } // omp parallel
 
     // Further re-gridding as required ----------------------------------------
-    if (!res_flag && adaptive)
+    if (adaptive)
+    if (init_style == initialize_style::pgen)
     {
       iflag = false;
       int onb = nbtotal;

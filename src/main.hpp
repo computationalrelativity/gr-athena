@@ -397,7 +397,10 @@ inline void InitMeshData(Flags *pfl, ParameterInput *pin, Mesh *pm)
 {
   try
   {
-    pm->Initialize(pfl->res, pin);
+    typedef Mesh::initialize_style tinit;
+    tinit init_style = (pfl->res == 0) ? tinit::pgen : tinit::restart;
+
+    pm->Initialize(init_style, pin);
     pm->InitializePostFirstInitialize(pin);
     pm->DeleteTemporaryUserMeshData();
   }

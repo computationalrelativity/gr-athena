@@ -235,14 +235,8 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
     {
       PassiveScalars * pscalars = pmb->pscalars;
       write_data(pscalars->s);
+      write_data(pscalars->r);
     }
-    // (primitive variable) density-normalized passive scalar concentrations
-    // if ???
-    // for (int n=0; n<NSCALARS; n++) {
-    //   AthenaArray<Real> &r = pmb->pscalars->r;
-    //   std::memcpy(pdata, r.data(), r.GetSizeInBytes());
-    //   pdata += r.GetSizeInBytes();
-    // }
 
     if (WAVE_ENABLED)
     {
@@ -254,6 +248,7 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
     {
       Z4c * pz4c = pmb->pz4c;
       write_data(pz4c->storage.u);
+      write_data(pz4c->storage.adm);
       write_data(pz4c->storage.mat);
     }
 

@@ -354,9 +354,11 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   if (FLUID_ENABLED)
   {
     // load data into register (do not advance)
-    load_data(phydro->u,  false);
+    // load_data(phydro->u,  false);
     // load & advance counter
-    load_data(phydro->u1);
+    // load_data(phydro->u1);
+
+    load_data(phydro->u);
   }
 
   if (GENERAL_RELATIVITY)
@@ -366,23 +368,31 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   }
   if (MAGNETIC_FIELDS_ENABLED)
   {
-    load_data(pfield->b.x1f, false);
-    load_data(pfield->b1.x1f);
+    // load_data(pfield->b.x1f, false);
+    // load_data(pfield->b1.x1f);
 
-    load_data(pfield->b.x2f, false);
-    load_data(pfield->b1.x2f);
+    // load_data(pfield->b.x2f, false);
+    // load_data(pfield->b1.x2f);
 
-    load_data(pfield->b.x3f, false);
-    load_data(pfield->b1.x3f);
+    // load_data(pfield->b.x3f, false);
+    // load_data(pfield->b1.x3f);
+
+    load_data(pfield->b.x1f);
+    load_data(pfield->b.x2f);
+    load_data(pfield->b.x3f);
   }
 
   // (conserved variable) Passive scalars:
   if (NSCALARS > 0)
   {
     // load data into multiple registers (do not advance)
-    load_data(pscalars->s, false);
+    // load_data(pscalars->s, false);
     // load & advance counter
-    load_data(pscalars->s1);
+    // load_data(pscalars->s1);
+
+    load_data(pscalars->s);
+    load_data(pscalars->r);
+
   }
 
   if (WAVE_ENABLED)
@@ -393,11 +403,15 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   if (Z4C_ENABLED)
   {
     load_data(pz4c->storage.u);
+    // load_data(pz4c->storage.u1);
+    load_data(pz4c->storage.adm);
     load_data(pz4c->storage.mat);
   }
 
   if (M1_ENABLED)
   {
+    // load_data(pm1->storage.u, false);
+    // load_data(pm1->storage.u1);
     load_data(pm1->storage.u);
   }
 
@@ -861,15 +875,22 @@ std::size_t MeshBlock::GetBlockSizeInBytes() {
   if (FLUID_ENABLED)
     size += phydro->u.GetSizeInBytes();
 
-  if (GENERAL_RELATIVITY) {
+  if (GENERAL_RELATIVITY)
+  {
     size += phydro->w.GetSizeInBytes();
     size += phydro->w1.GetSizeInBytes();
   }
   if (MAGNETIC_FIELDS_ENABLED)
-    size += (pfield->b.x1f.GetSizeInBytes() + pfield->b.x2f.GetSizeInBytes()
-             + pfield->b.x3f.GetSizeInBytes());
+  {
+    size += pfield->b.x1f.GetSizeInBytes();
+    size += pfield->b.x2f.GetSizeInBytes();
+    size += pfield->b.x3f.GetSizeInBytes();
+  }
   if (NSCALARS > 0)
+  {
     size += pscalars->s.GetSizeInBytes();
+    size += pscalars->r.GetSizeInBytes();
+  }
 
   if (WAVE_ENABLED) {
     size += pwave->u.GetSizeInBytes();
@@ -877,6 +898,7 @@ std::size_t MeshBlock::GetBlockSizeInBytes() {
 
   if (Z4C_ENABLED) {
     size+=pz4c->storage.u.GetSizeInBytes();
+    size+=pz4c->storage.adm.GetSizeInBytes();
     size+=pz4c->storage.mat.GetSizeInBytes();
   }
 

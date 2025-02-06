@@ -475,7 +475,8 @@ class Mesh {
 
   void GetMeshBlocksMyRank(std::vector<MeshBlock*> & pmb_array);
 
-  void Initialize(int res_flag, ParameterInput *pin);
+  enum class initialize_style { pgen, regrid, restart };
+  void Initialize(initialize_style init_style, ParameterInput *pin);
 
   // Additional initialization logic:
   // This is called after "Initialize" in the InitMeshData call
