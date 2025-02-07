@@ -162,6 +162,10 @@ int main(int argc, char *argv[])
 
     if (Globals::my_rank == 0)
     {
+      pmesh->evo_rate = (
+        pmesh->time - pmesh->start_time
+      ) / pclk->Elapsed_hours();
+
       pmesh->OutputCycleDiagnostics();
     }
 

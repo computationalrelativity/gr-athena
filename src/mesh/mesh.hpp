@@ -443,6 +443,7 @@ class Mesh {
   const bool use_split_grmhd_z4c;
   const FluidFormulation fluid_setup;
   Real start_time, time, tlim, dt, dt_hyperbolic, dt_parabolic, dt_user, cfl_number;
+  Real evo_rate;
   int nlim, ncycle, ncycle_out, dt_diagnostics;
   Real muj, nuj, muj_tilde;
   int nbtotal, nbnew, nbdel; // note: nbnew and nbdel are accumulative quantities

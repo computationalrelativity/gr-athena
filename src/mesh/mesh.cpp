@@ -2125,9 +2125,19 @@ void Mesh::OutputCycleDiagnostics() {
   const int ratio_precision = 3;
   if (ncycle_out != 0) {
     if (ncycle % ncycle_out == 0) {
+      // std::cout << "cycle=" << ncycle << std::scientific
+      //           << std::setprecision(dt_precision)
+      //           << " time=" << time << " dt=" << dt;
+
       std::cout << "cycle=" << ncycle << std::scientific
                 << std::setprecision(dt_precision)
                 << " time=" << time << " dt=" << dt;
+      std::printf(" dtime[hr^-1]=%.2e", evo_rate);
+
+      int nthreads = GetNumMeshThreads();
+      std::printf(" MB/thr~=%d",
+        nbtotal / (Globals::nranks * GetNumMeshThreads())
+      );
 
       if (step_since_lb == 0)
       {

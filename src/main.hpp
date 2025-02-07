@@ -167,6 +167,19 @@ class Clocks
 #endif
     }
 
+    inline Real Elapsed_seconds()
+    {
+      clock_t ctstop = clock();
+      Real t_elapsed = static_cast<double>(ctstop - tstart) / CLOCKS_PER_SEC;
+
+      return t_elapsed;
+    }
+
+    inline Real Elapsed_hours()
+    {
+      return Elapsed_seconds() / 3600.0;
+    }
+
   public:
     clock_t tstart, tstop;
     double omp_start_time;

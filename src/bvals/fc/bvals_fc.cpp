@@ -1570,18 +1570,36 @@ void FaceCenteredBoundaryVariable::SetupPersistentMPI() {
 }
 
 
-void FaceCenteredBoundaryVariable::StartReceiving(BoundaryCommSubset phase) {
-  if (phase == BoundaryCommSubset::all)
+void FaceCenteredBoundaryVariable::StartReceiving(BoundaryCommSubset phase)
+{
+  if ((phase == BoundaryCommSubset::all) ||
+      (phase == BoundaryCommSubset::matter_flux_corrected))
+  {
     recv_flx_same_lvl_ = true;
+  }
+  else
+  {
+    recv_flx_same_lvl_ = false;
+  }
+
 #ifdef MPI_PARALLEL
   MeshBlock *pmb = pmy_block_;
   int mylevel = pmb->loc.level;
-  for (int n=0; n<pbval_->nneighbor; n++) {
+  for (int n=0; n<pbval_->nneighbor; n++)
+  {
     NeighborBlock& nb = pbval_->neighbor[n];
-    if (nb.snb.rank != Globals::my_rank && phase != BoundaryCommSubset::matter_primitives) {
-      MPI_Start(&(bd_var_.req_recv[nb.bufid]));
-      if (phase == BoundaryCommSubset::all &&
-          (nb.ni.type == NeighborConnect::face || nb.ni.type == NeighborConnect::edge)) {
+    if (nb.snb.rank != Globals::my_rank &&
+        phase != BoundaryCommSubset::matter_primitives)
+    {
+
+      if (phase != BoundaryCommSubset::matter_flux_corrected)
+        MPI_Start(&(bd_var_.req_recv[nb.bufid]));
+
+      // Deal with flux correction
+      if (((phase == BoundaryCommSubset::all) ||
+           (phase == BoundaryCommSubset::matter_flux_corrected)) &&
+          (nb.ni.type == NeighborConnect::face || nb.ni.type == NeighborConnect::edge))
+      {
         if ((nb.snb.level > mylevel) ||
             ((nb.snb.level == mylevel) && ((nb.ni.type == NeighborConnect::face)
                                            || ((nb.ni.type == NeighborConnect::edge)
@@ -1612,23 +1630,35 @@ void FaceCenteredBoundaryVariable::StartReceiving(BoundaryCommSubset phase) {
 
 void FaceCenteredBoundaryVariable::ClearBoundary(BoundaryCommSubset phase) {
   // Clear non-polar boundary communications
-  for (int n=0; n<pbval_->nneighbor; n++) {
+  for (int n=0; n<pbval_->nneighbor; n++)
+  {
     NeighborBlock& nb = pbval_->neighbor[n];
     bd_var_.flag[nb.bufid] = BoundaryStatus::waiting;
     bd_var_.sflag[nb.bufid] = BoundaryStatus::waiting;
-    if (((nb.ni.type == NeighborConnect::face) || (nb.ni.type == NeighborConnect::edge))
-        && phase == BoundaryCommSubset::all) {
+
+    if (((nb.ni.type == NeighborConnect::face) ||
+         (nb.ni.type == NeighborConnect::edge))
+        && ((phase == BoundaryCommSubset::all) ||
+            (phase == BoundaryCommSubset::matter_flux_corrected)))
+    {
       bd_var_flcor_.flag[nb.bufid] = BoundaryStatus::waiting;
       bd_var_flcor_.sflag[nb.bufid] = BoundaryStatus::waiting;
     }
+
 #ifdef MPI_PARALLEL
     MeshBlock *pmb = pmy_block_;
     int mylevel = pmb->loc.level;
-    if (nb.snb.rank != Globals::my_rank && phase != BoundaryCommSubset::matter_primitives) {
+    if (nb.snb.rank != Globals::my_rank &&
+        phase != BoundaryCommSubset::matter_primitives)
+    {
       // Wait for Isend
-      MPI_Wait(&(bd_var_.req_send[nb.bufid]), MPI_STATUS_IGNORE);
+      if (phase != BoundaryCommSubset::matter_flux_corrected)
+        MPI_Wait(&(bd_var_.req_send[nb.bufid]), MPI_STATUS_IGNORE);
 
-      if (phase == BoundaryCommSubset::all) {
+      // Deal with flux correction
+      if ((phase == BoundaryCommSubset::all) ||
+          (phase == BoundaryCommSubset::matter_flux_corrected))
+      {
         if (nb.ni.type == NeighborConnect::face || nb.ni.type == NeighborConnect::edge) {
           if (nb.snb.level < mylevel)
             MPI_Wait(&(bd_var_flcor_.req_send[nb.bufid]), MPI_STATUS_IGNORE);
