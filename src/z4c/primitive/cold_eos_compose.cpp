@@ -111,6 +111,10 @@ void ColdEOSCompOSE::ReadColdSliceFromFile(std::string fname, std::string specie
     MYH5CHECK(ierr);
   mb = scratch[0];
 
+  // Read the density index to cut lorene table
+  ierr = H5LTread_dataset_int(grp_id, "lorene_cut", &i_lorene_cut);
+    MYH5CHECK(ierr);
+
   // Read other thermodynamics quantities
   // -------------------------------------------------------------------------
   ierr = H5LTread_dataset_double(grp_id, "Q1", scratch);
@@ -156,7 +160,7 @@ void ColdEOSCompOSE::ReadColdSliceFromFile(std::string fname, std::string specie
   m_initialized = true;
 }
 
-void ColdEOSCompOSE::DumpLoreneEOSFile(std::string fname, int n_cut_lorene_table) {
+void ColdEOSCompOSE::DumpLoreneEOSFile(std::string fname) {
   // Dump the eos_akmalpr.d file that lorene routines expect
   // Lorene units are n [fm^-3], e [g/cm^3], p [erg/cm^3]
   Real n_conv = eos_units->DensityConversion(Nuclear);
@@ -166,13 +170,13 @@ void ColdEOSCompOSE::DumpLoreneEOSFile(std::string fname, int n_cut_lorene_table
   std::ofstream lorenefile(fname.c_str());
   lorenefile << std::scientific << std::setprecision(15);
 
-  lorenefile << "#\n#\n#\n#\n#\n" << m_np - n_cut_lorene_table << "\n#\n#\n#\n";
+  lorenefile << "#\n#\n#\n#\n#\n" << m_np - i_lorene_cut << "\n#\n#\n#\n";
 
-  for (int i = n_cut_lorene_table; i < m_np; ++i) {
+  for (int i = i_lorene_cut; i < m_np; ++i) {
     Real nb = n_conv * exp(m_table[index(ECLOGN, i)]);
     Real e = e_conv * exp(m_table[index(ECLOGE, i)]);
     Real p = p_conv * exp(m_table[index(ECLOGP, i)]);
-    lorenefile << i - n_cut_lorene_table + 1 << " " << nb << " " << e << " " << p << std::endl;
+    lorenefile << i - i_lorene_cut + 1 << " " << nb << " " << e << " " << p << std::endl;
   }
 }
 

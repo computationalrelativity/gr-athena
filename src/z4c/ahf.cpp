@@ -88,7 +88,7 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   initial_radius = pin->GetOrAddReal("ahf", parname, 1.0);
   rr_min = -1.0;
 
-  expand_guess = pin->GetOrAddReal("ahf", "expand_guess",1.1);
+  expand_guess = pin->GetOrAddReal("ahf", "expand_guess",1.0);
   npunct = pin->GetOrAddInteger("z4c", "npunct", 0);
 
   // Center
