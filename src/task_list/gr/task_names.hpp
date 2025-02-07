@@ -110,10 +110,6 @@ const TaskID RECV_HYDFLX(1);
 const TaskID RECV_FLDFLX(2);
 const TaskID RECV_SCLRFLX(3);
 
-const TaskID RECV_HYD(5);
-const TaskID RECV_FLD(6);
-const TaskID RECV_SCLR(7);
-
 const TaskID CALC_HYDFLX(10);
 const TaskID CALC_FLDFLX(11);
 const TaskID CALC_RADFLX(12);
@@ -193,7 +189,6 @@ const TaskID UPDATE_SRC(4);
 const TaskID ADM_CONSTR(15);
 const TaskID ASSERT_FIN(16);
 const TaskID Z4C_WEYL(17);
-
 
 const TaskID USERWORK(37);
 const TaskID NEW_DT(38);
