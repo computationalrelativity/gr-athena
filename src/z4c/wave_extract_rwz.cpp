@@ -435,7 +435,10 @@ WaveExtractRWZ::~WaveExtractRWZ() {
 //! \fn std::string WaveExtractRWZ::OutputFileName(std::string base)
 //  \brief compute filenames from a basename and adding extraction radius index
 std::string WaveExtractRWZ::OutputFileName(std::string base) {
-  std::string fname = base +  "_r" + std::to_string(Nrad) + ".txt";
+  std::stringstream strObj3;
+  strObj3 << std::setfill('0') << std::setw(5) << std::fixed << std::setprecision(2) << Radius;
+  std::string fname = base +  "_r" + strObj3.str() + ".txt";
+  //std::string fname = base +  "_r" + std::to_string(Nrad) + ".txt";
   return fname;
   //return move(fname);
 }
