@@ -91,7 +91,6 @@ void ColdEOSCompOSE::ReadColdSliceFromFile(std::string fname, std::string specie
   // -------------------------------------------------------------------------
   m_table = new Real[ECNVARS*m_np];
   double * scratch = new double[m_np];
-  int * i_scratch = new int[1];
 
   // Read nb, t, yq
   // -------------------------------------------------------------------------
@@ -113,9 +112,8 @@ void ColdEOSCompOSE::ReadColdSliceFromFile(std::string fname, std::string specie
   mb = scratch[0];
 
   // Read the density index to cut lorene table
-  ierr = H5LTread_dataset_int(grp_id, "lorene_cut", i_scratch);
+  ierr = H5LTread_dataset_int(grp_id, "lorene_cut", &i_lorene_cut);
     MYH5CHECK(ierr);
-  i_lorene_cut = scratch[0];
 
   // Read other thermodynamics quantities
   // -------------------------------------------------------------------------
