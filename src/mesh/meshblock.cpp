@@ -1184,6 +1184,37 @@ void MeshBlock::SetBoundaryVariablesPrimitive()
 
 }
 
+void MeshBlock::DebugMeshBlock(
+  const Real x, const Real y, const Real z,
+  const int ix, const int iy, const int iz,
+  std::string txt_head, std::string txt_tail)
+{
+  if (PointContainedExclusive(x,y,z))
+  {
+    std::printf("%s", txt_head.c_str());
+
+    for (int n=0; n<NHYDRO; ++n)
+    {
+      std::printf("%.8g, ", phydro->u(n,iz,iy,ix));
+    }
+    std::printf("\n");
+
+    for (int n=0; n<NHYDRO; ++n)
+    {
+      std::printf("%.8g, ", phydro->w(n,iz,iy,ix));
+    }
+    std::printf("\n");
+
+    for (int n=0; n<Z4c::N_ADM; ++n)
+    {
+      std::printf("%.8g ", pz4c->storage.adm(n,iz,iy,ix));
+    }
+    std::printf("\n");
+
+    std::printf("%s", txt_tail.c_str());
+  }
+}
+
 //
 // :D
 //

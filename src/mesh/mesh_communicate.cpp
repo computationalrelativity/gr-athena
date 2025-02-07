@@ -107,6 +107,9 @@ void Mesh::FinalizeZ4cADM_Matter(std::vector<MeshBlock*> & pmb_array)
     pz = pmb->pz4c;
 
     pz->GetMatter(pz->storage.mat, pz->storage.adm, ph->w, ps->r, pf->bcc);
+
+    // pmb->DebugMeshBlock(-15,-15,-15, 2, 20, 3, "@S:Sc\n", "@E:Sc\n");
+
   }
 }
 

@@ -1,5 +1,6 @@
 // C/C++ headers
 #include <iostream>   // endl
+#include <limits>
 #include <sstream>    // sstream
 #include <stdexcept>  // runtime_error
 #include <string>     // c_str()
@@ -299,9 +300,9 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin,
 
     Add(SRCTERM_HYD, INT_HYD,     &GRMHD_Z4c::AddSourceTermsHydro);
     Add(SEND_HYD,    SRCTERM_HYD, &GRMHD_Z4c::SendHydro);
-    Add(RECV_HYD,    NONE,     &GRMHD_Z4c::ReceiveHydro);
+    Add(RECV_HYD,    SEND_HYD,     &GRMHD_Z4c::ReceiveHydro);
 
-    Add(SETB_HYD, (RECV_HYD | SRCTERM_HYD), &GRMHD_Z4c::SetBoundariesHydro);
+    Add(SETB_HYD, (SEND_HYD | RECV_HYD | SRCTERM_HYD), &GRMHD_Z4c::SetBoundariesHydro);
 
     if (NSCALARS > 0)
     {
@@ -523,6 +524,7 @@ TaskStatus GRMHD_Z4c::ClearAllBoundary(MeshBlock *pmb, int stage)
   BoundaryValues *pb = pmb->pbval;
   pb->ClearBoundary(BoundaryCommSubset::all);
 
+  // pmb->DebugMeshBlock(-15,-15,-15, 2, 20, 3, "@T:Z4c\n", "@E:Z4c\n");
   return TaskStatus::success;
 }
 
@@ -867,7 +869,6 @@ TaskStatus GRMHD_Z4c::Primitives(MeshBlock *pmb, int stage)
 
     // Update w1 to have the state of w
     ph->RetainState(ph->w1, ph->w, il, iu, jl, ju, kl, ku);
-
     return TaskStatus::success;
   }
 

@@ -96,6 +96,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
              ? true : false),
     multilevel((adaptive || pin->GetOrAddString("mesh", "refinement", "none") == "static")
                ? true : false),
+    use_split_grmhd_z4c(pin->GetOrAddBoolean("hydro", "use_split_grmhd_z4c", false)),
     fluid_setup(GetFluidFormulation(pin->GetOrAddString("hydro", "active", "true"))),
     start_time(pin->GetOrAddReal("time", "start_time", 0.0)), time(start_time),
     tlim(pin->GetReal("time", "tlim")), dt(std::numeric_limits<Real>::max()),
@@ -316,6 +317,17 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
   } else {
     max_level = 63;
   }
+
+  if (use_split_grmhd_z4c)
+  {
+#if !defined(USETM)
+      msg << "### FATAL ERROR " << std::endl
+          << "hydro/use_split_grmhd_z4c can only be used with PrimitiveSolver"
+          << std::endl;
+      ATHENA_ERROR(msg);
+#endif
+  }
+
   if (Z4C_ENABLED)
   {
     int nrad = pin->GetOrAddInteger("psi4_extraction", "num_radii", 0);
@@ -654,6 +666,7 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
              ? true : false),
     multilevel((adaptive || pin->GetOrAddString("mesh", "refinement", "none") == "static")
                ? true : false),
+    use_split_grmhd_z4c(pin->GetOrAddBoolean("hydro", "use_split_grmhd_z4c", false)),
     fluid_setup(GetFluidFormulation(pin->GetOrAddString("hydro", "active", "true"))),
     start_time(pin->GetOrAddReal("time", "start_time", 0.0)), time(start_time),
     tlim(pin->GetReal("time", "tlim")), dt(std::numeric_limits<Real>::max()),
@@ -793,6 +806,16 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     }
   } else {
     max_level = 63;
+  }
+
+  if (use_split_grmhd_z4c)
+  {
+#if !defined(USETM)
+      msg << "### FATAL ERROR " << std::endl
+          << "hydro/use_split_grmhd_z4c can only be used with PrimitiveSolver"
+          << std::endl;
+      ATHENA_ERROR(msg);
+#endif
   }
 
   if (Z4C_ENABLED) {

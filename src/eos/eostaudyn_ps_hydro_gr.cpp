@@ -225,7 +225,8 @@ void EquationOfState::ConservedToPrimitive(
   AA &prim, AA &cons_scalar,
   AA &prim_scalar, AA &bb_cc, Coordinates *pco,
   int il, int iu, int jl, int ju, int kl, int ku,
-  int coarse_flag)
+  int coarse_flag,
+  bool skip_physical)
 {
   MeshBlock* pmb = pmy_block_;
   Hydro * ph     = pmb->phydro;
@@ -253,6 +254,14 @@ void EquationOfState::ConservedToPrimitive(
     #pragma omp simd
     for (int i = IL; i <= IU; ++i)
     {
+      if (skip_physical &&
+          (pmb->is <= i) && (i <= pmb->ie) &&
+          (pmb->js <= j) && (j <= pmb->je) &&
+          (pmb->ks <= k) && (k <= pmb->ke))
+      {
+        continue;
+      }
+
       // Check if the state is admissible; if not we reset to atmo.
       bool is_admissible = IsAdmissiblePoint(cons, prim, det_gamma_, k, j, i);
 

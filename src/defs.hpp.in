@@ -74,6 +74,9 @@
 // dumps
 #define DBG_RST_WRITE_PER_MB
 
+// Additional scattering operation within GRMHD?
+#define NO_DBG_SCATTER_MATTER_GRMHD
+
 // For N+1 NR problems, fix N
 #define NDIM 3
 //----------------------------------------------------------------------------------------
