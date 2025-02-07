@@ -61,7 +61,10 @@ GRMHD_Z4c_Phase_Finalize::GRMHD_Z4c_Phase_Finalize(ParameterInput *pin,
   Add(Z4C_WEYL, UPDATE_SRC, &GRMHD_Z4c_Phase_Finalize::Z4c_Weyl);
 
   Add(USERWORK, UPDATE_SRC, &GRMHD_Z4c_Phase_Finalize::UserWork);
-  Add(NEW_DT,   USERWORK,   &GRMHD_Z4c_Phase_Finalize::NewBlockTimeStep);
+
+  // only depend on geometry, which isn't affected by the above
+  Add(NEW_DT,   NONE, &GRMHD_Z4c_Phase_Finalize::NewBlockTimeStep);
+  Add(FLAG_AMR, NONE, &GRMHD_Z4c_Phase_Finalize::CheckRefinement);
 }
 
 // ----------------------------------------------------------------------------
