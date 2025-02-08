@@ -287,9 +287,9 @@ void EquationOfState::ConservedToPrimitive(
         SetEuclideanCC(gamma_dd_, i);
         PrimitiveToConservedSingle(prim,
                                    prim_scalar,
+                                   bb_cc,
                                    cons,
                                    cons_scalar,
-                                   bb_cc,
                                    gamma_dd_,
                                    k, j, i,
                                    ps);
