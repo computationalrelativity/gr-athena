@@ -69,8 +69,6 @@ void VertexCenteredBoundaryVariable::ExtrapolateOutflowOuterX1(
           (*var_vc)(n,k,j,i) = 0.;
 
           for (int ix_e=0; ix_e < NEXTRAPOLATE; ++ix_e) {
-            // Real const extr_coeff = \
-            //   InterpolateLagrangeUniformBiasR<NEXTRAPOLATE>::coeff[ix_e];
             Real const extr_coeff = \
               InterpolateLagrangeUniformBiasL<NEXTRAPOLATE>::coeff[NEXTRAPOLATE-ix_e-1];
             (*var_vc)(n,k,j,i) += extr_coeff * (*var_vc)(n,k,j,i-ix_e-1);

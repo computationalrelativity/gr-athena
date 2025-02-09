@@ -244,18 +244,25 @@ void Hydro::RiemannSolver(
             R2 = (
               SQR(pco_gr->x1f(i)) + SQR(pco_gr->x2v(j)) + SQR(pco_gr->x3v(k))
             );
+            break;
           }
           case IVY:
           {
             R2 = (
               SQR(pco_gr->x1v(i)) + SQR(pco_gr->x2f(j)) + SQR(pco_gr->x3v(k))
             );
+            break;
           }
           case IVZ:
           {
             R2 = (
               SQR(pco_gr->x1v(i)) + SQR(pco_gr->x2v(j)) + SQR(pco_gr->x3f(k))
             );
+            break;
+          }
+          default:
+          {
+            assert(false);
           }
         }
 

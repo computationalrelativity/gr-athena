@@ -105,12 +105,12 @@ void InitSurfaceTriggers(gra::triggers::Triggers & trgs,
 
 // Surface collection classes -------------------------------------------------
 Surfaces::Surfaces(Mesh *pm, ParameterInput *pin, const int par_ix)
-  : par_ix(par_ix),
+  : pmesh(pm),
+    pin(pin),
+    par_ix(par_ix),
     par_block_name{"surface" + std::to_string(par_ix)},
     file_basename{pin->GetString("job", "problem_id")},
-    file_number(pin->GetOrAddInteger(par_block_name, "file_number", 0)),
-    pmesh(pm),
-    pin(pin)
+    file_number(pin->GetOrAddInteger(par_block_name, "file_number", 0))
 {
   dt = pin->GetReal(par_block_name, "dt");
   adjust_mesh_dt = pin->GetOrAddBoolean(par_block_name,
