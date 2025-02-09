@@ -79,6 +79,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   // control PrimitiveSolver tolerances / iterates
   ps.SetRootfinderTol(pin->GetOrAddReal("hydro", "c2p_acc", 1e-15));
   ps.SetRootfinderMaxIter(pin->GetOrAddInteger("hydro", "max_iter", 30));
+  ps.SetTightenBracket(pin->GetOrAddBoolean("hydro", "tighten_bracket", true));
   ps.SetValidateDensity(pin->GetOrAddBoolean("hydro", "c2p_validate_density", true));
   ps.SetToms748(pin->GetOrAddBoolean("hydro", "use_toms_748", false));
 

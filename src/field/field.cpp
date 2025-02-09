@@ -48,6 +48,7 @@ Field::Field(MeshBlock *pmb, ParameterInput *pin) :
 
   pmb->RegisterMeshBlockDataFC(b);
 
+
   // If user-requested time integrator is type 3S*, allocate additional memory registers
   // Note the extra cell in each longitudinal direction for interface fields
   std::string integrator = pin->GetOrAddString("time","integrator","vl2");
@@ -90,7 +91,8 @@ Field::Field(MeshBlock *pmb, ParameterInput *pin) :
 
 void Field::CalculateCellCenteredField(
     const FaceField &bf, AthenaArray<Real> &bc, Coordinates *pco,
-    int il, int iu, int jl, int ju, int kl, int ku) {
+    int il, int iu, int jl, int ju, int kl, int ku)
+{
   // Defer to Reconstruction class to check if uniform Cartesian formula can be used
   // (unweighted average)
   const bool uniform_ave_x1 = pmy_block->precon->uniform[X1DIR];
