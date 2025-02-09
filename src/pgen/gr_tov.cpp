@@ -236,12 +236,35 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
 void MeshBlock::InitUserMeshBlockData(ParameterInput *pin)
 {
   // Allocate output arrays for fluxes
-  // AllocateUserOutputVariables(15);
+#if M1_ENABLED
+  AllocateUserOutputVariables(4);
+#endif // M1_ENABLED
   return;
 }
 
 void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin)
 {
+#if M1_ENABLED
+  AA & fl = pm1->ev_strat.masks.flux_limiter;
+
+  int il = pm1->mbi.nn1;
+  int jl = pm1->mbi.nn2;
+  int kl = pm1->mbi.nn3;
+
+  if (pm1->opt.flux_limiter_use_mask)
+  M1_ILOOP3(k, j, i)
+  {
+    user_out_var(0,k,j,i) = fl(0,k,j,i);
+    user_out_var(1,k,j,i) = fl(1,k,j,i);
+    user_out_var(2,k,j,i) = fl(2,k,j,i);
+  }
+
+  if (pm1->opt.flux_lo_fallback)
+  M1_ILOOP3(k, j, i)
+  {
+    user_out_var(3,k,j,i) = pm1->ev_strat.masks.pp(k,j,i);
+  }
+
   /*
   AthenaArray<Real> &x1flux = phydro->flux[X1DIR];
   AthenaArray<Real> &x2flux = phydro->flux[X2DIR];
@@ -285,6 +308,7 @@ void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin)
     user_out_var(14,k,j,i) = x3flux(4,k,j,i);
   }
   */
+#endif // M1_ENABLED
   return;
 }
 
@@ -388,27 +412,29 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
   pm1->CalcFiducialVelocity();
 
-  // pm1->CalcClosure(pm1->storage.u);
-  // pm1->CalcFiducialFrame(pm1->storage.u);
-  // pm1->CalcOpacity(0, pm1->storage.u);
+  /*
+  pm1->CalcClosure(pm1->storage.u);
+  pm1->CalcFiducialFrame(pm1->storage.u);
+  pm1->CalcOpacity(pmy_mesh->dt, pm1->storage.u);
 
-  // M1::M1::vars_Lab U_C { {pm1->N_GRPS,pm1->N_SPCS},
-  //                        {pm1->N_GRPS,pm1->N_SPCS},
-  //                        {pm1->N_GRPS,pm1->N_SPCS} };
+  M1::M1::vars_Lab U_C { {pm1->N_GRPS,pm1->N_SPCS},
+                         {pm1->N_GRPS,pm1->N_SPCS},
+                         {pm1->N_GRPS,pm1->N_SPCS} };
 
-  // pm1->SetVarAliasesLab(pm1->storage.u, U_C);
+  pm1->SetVarAliasesLab(pm1->storage.u, U_C);
 
-  // M1::M1::vars_Source U_S { {pm1->N_GRPS,pm1->N_SPCS},
-  //                           {pm1->N_GRPS,pm1->N_SPCS},
-  //                           {pm1->N_GRPS,pm1->N_SPCS} };
+  M1::M1::vars_Source U_S { {pm1->N_GRPS,pm1->N_SPCS},
+                            {pm1->N_GRPS,pm1->N_SPCS},
+                            {pm1->N_GRPS,pm1->N_SPCS} };
 
-  // pm1->SetVarAliasesSource(pm1->storage.u_sources, U_S);
+  pm1->SetVarAliasesSource(pm1->storage.u_sources, U_S);
 
 
-  // M1_ILOOP3(k, j, i)
-  // {
-  //   M1::Equilibrium::SetEquilibrium(*pm1, U_C, U_S, k, j, i);
-  // }
+  M1_ILOOP3(k, j, i)
+  {
+    M1::Equilibrium::SetEquilibrium(*pm1, U_C, U_S, k, j, i);
+  }
+  */
 
 
 #endif  // M1_ENABLED
