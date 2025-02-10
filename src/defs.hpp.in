@@ -77,6 +77,9 @@
 // Additional scattering operation within GRMHD?
 #define NO_DBG_SCATTER_MATTER_GRMHD
 
+// Disable Lorene cut (for debugging only)
+#define @DBG_PS_NO_LORENE_CUT@
+
 // For N+1 NR problems, fix N
 #define NDIM 3
 //----------------------------------------------------------------------------------------

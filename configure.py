@@ -64,6 +64,7 @@
 # Hydro/passive scalars:
 #   -recon_cmb_hydpa    reconstruct hydro & passive sca. at same time
 #   -DBG_FALLBACK_NO_TABLE_LIMITS: employ fallback with Y<0 check instead
+#   -DBG_PS_NO_LORENE_CUT:         ignore lorene cut in primitivesolve for coldeos
 #
 # z4c settings:
 #
@@ -291,6 +292,13 @@ parser.add_argument(
   action="store_true",
   default=False,
   help="DBG_FALLBACK_NO_TABLE_LIMITS",
+)
+
+parser.add_argument(
+  "-DBG_PS_NO_LORENE_CUT",
+  action="store_true",
+  default=False,
+  help="DBG_PS_NO_LORENE_CUT",
 )
 
 # -f argument
@@ -1176,6 +1184,14 @@ if args["DBG_FALLBACK_NO_TABLE_LIMITS"]:
 else:
   definitions["DBG_FALLBACK_NO_TABLE_LIMITS"] = (
     "NO_DBG_FALLBACK_NO_TABLE_LIMITS"
+  )
+
+# -DBG_PS_NO_LORENE_CUT argument
+if args["DBG_PS_NO_LORENE_CUT"]:
+  definitions["DBG_PS_NO_LORENE_CUT"] = "DBG_PS_NO_LORENE_CUT"
+else:
+  definitions["DBG_PS_NO_LORENE_CUT"] = (
+    "NO_DBG_PS_NO_LORENE_CUT"
   )
 
 # -shear argument
