@@ -791,8 +791,8 @@ public:
 
   inline bool MaskGetHybridize(const int k, const int j, const int i)
   {
-    if (!opt.flux_lo_fallback)
-      return true;
+    // if (!opt.flux_lo_fallback)
+    //   return true;
 
     return (ev_strat.masks.pp(k,j,i) == 0);
   }

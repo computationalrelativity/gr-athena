@@ -288,7 +288,7 @@ void DispatchIntegrationMethod(
 
     M1_MLOOP3(k, j, i)
     if (pm1->MaskGet(k, j, i))
-    if (pm1->MaskGetHybridize(k,j,i))
+    // if (pm1->MaskGetHybridize(k,j,i))
     {
       // switch to different solver based on solution regime ------------------
       M1::opt_integration_strategy opt_is;
