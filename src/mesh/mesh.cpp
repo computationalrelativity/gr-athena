@@ -2135,8 +2135,8 @@ void Mesh::OutputCycleDiagnostics() {
       std::printf(" dtime[hr^-1]=%.2e", evo_rate);
 
       int nthreads = GetNumMeshThreads();
-      std::printf(" MB/thr~=%d",
-        nbtotal / (Globals::nranks * GetNumMeshThreads())
+      std::printf(" MB/thr~=%.1f",
+        nbtotal / static_cast<Real>(Globals::nranks * GetNumMeshThreads())
       );
 
       if (step_since_lb == 0)

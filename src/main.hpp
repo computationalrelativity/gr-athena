@@ -895,7 +895,12 @@ inline void M1N0(gra::tasklist::Collection &ptlc,
     // Last stage performs Con2Prim, scatter this, call GetMatter
     if (stage == ptlc.m1n0->nstages)
     {
-      pmesh->ScatterMatter(pmb_array);
+      // monolithic send
+      // pmesh->ScatterMatter(pmb_array);
+
+      // recycle the matter task-based send
+      static const int stage_dummy = 0; // only a comm. so irrelevant
+      ptlc.grmhd_z4c_MHD_com->DoTaskListOneStage(pmesh, stage_dummy);
     }
   }
 }
