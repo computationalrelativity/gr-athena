@@ -158,7 +158,7 @@ void M1::CalcUpdate(const int stage,
   {
     M1_MLOOP3(k, j, i)
     if (MaskGet(k, j, i))
-    if (MaskGetHybridize(k,j,i))
+    // if (MaskGetHybridize(k,j,i))
     {
       bool equilibriate = false;
       for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
@@ -188,7 +188,7 @@ void M1::CalcUpdate(const int stage,
 
     M1_MLOOP3(k, j, i)
     if (MaskGet(k, j, i))
-    if (MaskGetHybridize(k,j,i))
+    // if (MaskGetHybridize(k,j,i))
     {
       // S -> dt * S for (nG, E, F_d) components
       InPlaceScalarMul_nG_E_F_d(dt, S, k, j, i);
