@@ -893,7 +893,7 @@ inline void M1N0(gra::tasklist::Collection &ptlc,
     ptlc.m1n0->DoTaskListOneStage(pmesh, stage);
 
     // Last stage performs Con2Prim, scatter this, call GetMatter
-    if (stage == ptlc.m1n0->nstages)
+    if (Z4C_ENABLED && FLUID_ENABLED && (stage == ptlc.m1n0->nstages))
     {
       // monolithic send
       // pmesh->ScatterMatter(pmb_array);
