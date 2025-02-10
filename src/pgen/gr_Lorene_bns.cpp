@@ -176,8 +176,6 @@ void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin)
   pfield->b.x3f.ZeroClear();
   pfield->bcc.ZeroClear();
 
-  std::printf("A_amp_1,A_amp_2=%.3e,%.3e\n", A_amp_1, A_amp_2);
-
   AthenaArray<Real> Acc(NFIELD,pmb->ncells3,pmb->ncells2,pmb->ncells1);
 
   // Initialize cell centred potential
