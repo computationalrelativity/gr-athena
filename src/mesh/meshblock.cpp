@@ -364,7 +364,9 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   if (GENERAL_RELATIVITY)
   {
     load_data(phydro->w);
-    load_data(phydro->w1);
+
+    if (!Z4C_ENABLED)
+      load_data(phydro->w1);
   }
   if (MAGNETIC_FIELDS_ENABLED)
   {
@@ -404,8 +406,8 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   {
     load_data(pz4c->storage.u);
     // load_data(pz4c->storage.u1);
-    load_data(pz4c->storage.adm);
-    load_data(pz4c->storage.mat);
+    // load_data(pz4c->storage.adm);
+    // load_data(pz4c->storage.mat);
   }
 
   if (M1_ENABLED)
@@ -414,7 +416,6 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     // load_data(pm1->storage.u1);
     load_data(pm1->storage.u);
   }
-
 
   // load user MeshBlock data
   for (int n=0; n<nint_user_meshblock_data_; n++)
@@ -430,6 +431,21 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     os += ruser_meshblock_data[n].GetSizeInBytes();
   }
 
+
+  // Loading complete; derived:
+  if (Z4C_ENABLED)
+  {
+    pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
+
+    if (FLUID_ENABLED)
+    {
+      // Update w1 to have the state of w
+      phydro->RetainState(phydro->w1, phydro->w,
+                          0, ncells1-1,
+                          0, ncells2-1,
+                          0, ncells3-1);
+    }
+  }
   return;
 }
 
@@ -878,7 +894,8 @@ std::size_t MeshBlock::GetBlockSizeInBytes() {
   if (GENERAL_RELATIVITY)
   {
     size += phydro->w.GetSizeInBytes();
-    size += phydro->w1.GetSizeInBytes();
+    if (!Z4C_ENABLED)  // We don't need this; reduce storage
+      size += phydro->w1.GetSizeInBytes();
   }
   if (MAGNETIC_FIELDS_ENABLED)
   {
@@ -898,8 +915,8 @@ std::size_t MeshBlock::GetBlockSizeInBytes() {
 
   if (Z4C_ENABLED) {
     size+=pz4c->storage.u.GetSizeInBytes();
-    size+=pz4c->storage.adm.GetSizeInBytes();
-    size+=pz4c->storage.mat.GetSizeInBytes();
+    // size+=pz4c->storage.adm.GetSizeInBytes();
+    // size+=pz4c->storage.mat.GetSizeInBytes();
   }
 
   if (M1_ENABLED)

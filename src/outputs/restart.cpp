@@ -218,7 +218,8 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
     {
       Hydro * phydro = pmb->phydro;
       write_data(phydro->w);
-      write_data(phydro->w1);
+      if (!Z4C_ENABLED)  // We don't need this; reduce storage
+        write_data(phydro->w1);
     }
 
     // Longitudinal, face-centered magnetic field components:
@@ -248,8 +249,8 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
     {
       Z4c * pz4c = pmb->pz4c;
       write_data(pz4c->storage.u);
-      write_data(pz4c->storage.adm);
-      write_data(pz4c->storage.mat);
+      // write_data(pz4c->storage.adm);
+      // write_data(pz4c->storage.mat);
     }
 
     if (M1_ENABLED)
