@@ -73,50 +73,29 @@ GRMHD_Z4c_Phase_MHD_com::GRMHD_Z4c_Phase_MHD_com(ParameterInput *pin,
     Add(SEND_FLD, CONS2PRIMP, &GRMHD_Z4c_Phase_MHD_com::SendField);
     Add(RECV_FLD, NONE,       &GRMHD_Z4c_Phase_MHD_com::ReceiveField);
     Add(SETB_FLD, RECV_FLD,   &GRMHD_Z4c_Phase_MHD_com::SetBoundariesField);
-
-    // prolongate, compute new primitives
-    if (multilevel)
-    {
-      if (NSCALARS > 0)
-      {
-        Add(PROLONG_HYD, (SETB_HYD | SETB_FLD | SETB_SCLR),
-            &GRMHD_Z4c_Phase_MHD_com::Prolongation_Hyd);
-      }
-      else
-      {
-        Add(PROLONG_HYD, (SETB_HYD | SETB_FLD),
-            &GRMHD_Z4c_Phase_MHD_com::Prolongation_Hyd);
-      }
-      Add(PHY_BVAL_HYD, PROLONG_HYD,
-          &GRMHD_Z4c_Phase_MHD_com::PhysicalBoundary_Hyd);
-    }
-    else
-    {
-      Add(PHY_BVAL_HYD, (SETB_HYD | SETB_FLD),
-          &GRMHD_Z4c_Phase_MHD_com::PhysicalBoundary_Hyd);
-    }
   }
-  else  // otherwise GRHD
+
+  // ensure all boundary buffers are set --------------------------------------
+  TaskID BLOCK_SETB = SETB_HYD;
+
+  if (NSCALARS > 0)
+    BLOCK_SETB = BLOCK_SETB | SETB_SCLR;
+
+  if (MAGNETIC_FIELDS_ENABLED)
+    BLOCK_SETB = SETB_FLD;
+  // --------------------------------------------------------------------------
+
+  if (multilevel)
   {
-    // prolongate, compute new primitives
-    if (multilevel)
-    {
-      if (NSCALARS > 0)
-      {
-        Add(PROLONG_HYD, (SETB_HYD | SETB_SCLR),
-            &GRMHD_Z4c_Phase_MHD_com::Prolongation_Hyd);
-      }
-      else
-      {
-        Add(PROLONG_HYD, SETB_HYD, &GRMHD_Z4c_Phase_MHD_com::Prolongation_Hyd);
-      }
-      Add(PHY_BVAL_HYD, PROLONG_HYD,
-          &GRMHD_Z4c_Phase_MHD_com::PhysicalBoundary_Hyd);
-    }
-    else
-    {
-      Add(PHY_BVAL_HYD, SETB_HYD, &GRMHD_Z4c_Phase_MHD_com::PhysicalBoundary_Hyd);
-    }
+    Add(PROLONG_HYD,  BLOCK_SETB,
+        &GRMHD_Z4c_Phase_MHD_com::Prolongation_Hyd);
+    Add(PHY_BVAL_HYD, PROLONG_HYD,
+        &GRMHD_Z4c_Phase_MHD_com::PhysicalBoundary_Hyd);
+  }
+  else
+  {
+    Add(PHY_BVAL_HYD, BLOCK_SETB,
+        &GRMHD_Z4c_Phase_MHD_com::PhysicalBoundary_Hyd);
   }
 
   // We are done for the (M)HD phase
