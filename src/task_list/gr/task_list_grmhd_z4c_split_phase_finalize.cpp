@@ -51,9 +51,6 @@ GRMHD_Z4c_Phase_Finalize::GRMHD_Z4c_Phase_Finalize(ParameterInput *pin,
   const bool adaptive   = pm->adaptive;    // AMR
 
   // Finalization logic -------------------------------------------------------
-  // Force all matter requiring ADM at old step to complete first
-  // Add(Z4C_TO_ADM, NONE, &GRMHD_Z4c_Phase_Finalize::Z4cToADM);
-
   Add(CONS2PRIMG, NONE, &GRMHD_Z4c_Phase_Finalize::PrimitivesGhosts);
   Add(UPDATE_SRC, CONS2PRIMG, &GRMHD_Z4c_Phase_Finalize::UpdateSource);
 
@@ -64,7 +61,9 @@ GRMHD_Z4c_Phase_Finalize::GRMHD_Z4c_Phase_Finalize(ParameterInput *pin,
 
   // only depend on geometry, which isn't affected by the above
   Add(NEW_DT,   NONE, &GRMHD_Z4c_Phase_Finalize::NewBlockTimeStep);
-  Add(FLAG_AMR, NONE, &GRMHD_Z4c_Phase_Finalize::CheckRefinement);
+
+  if (adaptive)
+    Add(FLAG_AMR, NONE, &GRMHD_Z4c_Phase_Finalize::CheckRefinement);
 }
 
 // ----------------------------------------------------------------------------
