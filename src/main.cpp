@@ -165,6 +165,7 @@ int main(int argc, char *argv[])
       pmesh->evo_rate = (
         pmesh->time - pmesh->start_time
       ) / pclk->Elapsed_hours();
+      pmesh->evo_rate = std::isfinite(pmesh->evo_rate) ? pmesh->evo_rate : 0;
 
       pmesh->OutputCycleDiagnostics();
     }

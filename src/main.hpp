@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <iostream>   // cout, endl
 #include <thread>
+#include <chrono>
 
 // External libraries
 
@@ -148,6 +149,34 @@ inline void Barrier()
 // Runtime stuff --------------------------------------------------------------
 namespace gra::timing {
 
+// basic real-world [non-cpu] timer based on chrono for e.g. t-evo / hr
+// based on SO. 2808398
+template <class DT = std::chrono::milliseconds,
+          class ClockT = std::chrono::steady_clock>
+class Timer
+{
+  using timep_t = typename ClockT::time_point;
+  timep_t _start = ClockT::now(), _end = {};
+
+  public:
+    void tick()
+    {
+      _end = timep_t{};
+      _start = ClockT::now();
+    }
+
+    void tock()
+    {
+       _end = ClockT::now();
+    }
+
+    template <class T = DT>
+    auto duration() const
+    {
+      return std::chrono::duration_cast<T>(_end - _start);
+    }
+};
+
 class Clocks
 {
   public:
@@ -157,6 +186,8 @@ class Clocks
 #ifdef OPENMP_PARALLEL
       omp_start_time = omp_get_wtime();
 #endif
+
+      wtime.tick();
     };
 
     inline void Stop()
@@ -167,12 +198,11 @@ class Clocks
 #endif
     }
 
+    // N.B. non-cpu time
     inline Real Elapsed_seconds()
     {
-      clock_t ctstop = clock();
-      Real t_elapsed = static_cast<double>(ctstop - tstart) / CLOCKS_PER_SEC;
-
-      return t_elapsed;
+      wtime.tock();
+      return wtime.duration().count();
     }
 
     inline Real Elapsed_hours()
@@ -181,6 +211,8 @@ class Clocks
     }
 
   public:
+    Timer<std::chrono::seconds, std::chrono::steady_clock> wtime;
+
     clock_t tstart, tstop;
     double omp_start_time;
     double omp_time;
