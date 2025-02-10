@@ -1819,7 +1819,8 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
 
 #if FLUID_ENABLED && Z4C_ENABLED
       if ((init_style == initialize_style::pgen) ||
-          (init_style == initialize_style::regrid))
+          (init_style == initialize_style::regrid) ||
+          (init_style == initialize_style::restart))
       {
         // Prepare ADM sources
         // Requires B-field in ghost-zones
