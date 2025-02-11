@@ -77,6 +77,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   temperature_floor_ = pin->GetOrAddReal("hydro", "tfloor", std::sqrt(1024*(FLT_MIN)));
   scalar_floor_ = pin->GetOrAddReal("hydro", "sfloor", std::sqrt(1024*FLT_MIN));
   Real bsq_max = pin->GetOrAddReal("hydro", "bsq_max", 1e6);
+  verbose = pin->GetOrAddBoolean("hydro", "verbose", true);
 
   // control PrimitiveSolver tolerances / iterates
   ps.SetRootfinderTol(pin->GetOrAddReal("hydro", "c2p_acc", 1e-15));
@@ -349,7 +350,8 @@ void EquationOfState::ConservedToPrimitive(
         pmb->phydro->c2p_status(k,j,i) = static_cast<int>(result.error);
       }
 
-      if (result.error != Primitive::Error::SUCCESS) {
+      if (verbose && (result.error != Primitive::Error::SUCCESS && (detgamma > 0)))
+      {
         std::cerr << "There was an error during the primitive solve!\n";
         std::cerr << "  Iteration: " << pmy_block_->pmy_mesh->ncycle << "\n";
         std::cerr << "  Error: " << Primitive::ErrorString[(int)result.error] << "\n";

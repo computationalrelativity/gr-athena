@@ -75,6 +75,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   density_floor_ = pin->GetOrAddReal("hydro", "dfloor", std::sqrt(1024*(FLT_MIN)));
   temperature_floor_ = pin->GetOrAddReal("hydro", "tfloor", std::sqrt(1024*(FLT_MIN)));
   scalar_floor_ = pin->GetOrAddReal("hydro", "sfloor", std::sqrt(1024*FLT_MIN));
+  verbose = pin->GetOrAddBoolean("hydro", "verbose", true);
 
   // control PrimitiveSolver tolerances / iterates
   ps.SetRootfinderTol(pin->GetOrAddReal("hydro", "c2p_acc", 1e-15));
@@ -350,7 +351,8 @@ void EquationOfState::ConservedToPrimitive(
       // If the lapse or metric determinant fall below zero, we're probably in an
       // unphysical regime for a fluid, like a black hole or something. Primitive
       // failure is expected and will just result in a floor being applied.
-      if(result.error != Primitive::Error::SUCCESS && detgamma > 0) {
+      if (verbose && (result.error != Primitive::Error::SUCCESS && (detgamma > 0)))
+      {
         std::cerr << "There was an error during the primitive solve!\n";
         std::cerr << "  Iteration: " << pmy_block_->pmy_mesh->ncycle << "\n";
         std::cerr << "  Error: " << Primitive::ErrorString[(int)result.error] << "\n";

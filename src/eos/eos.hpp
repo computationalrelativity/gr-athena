@@ -41,6 +41,8 @@ class EquationOfState {
  public:
   EquationOfState(MeshBlock *pmb, ParameterInput *pin);
 
+  bool verbose = true;
+
   // BD: Avoid messy macro pollution with some polymorphism & interfaces ------
   void PassiveScalarConservedToPrimitive(AthenaArray<Real> &s,
                                          const AthenaArray<Real> &w,
