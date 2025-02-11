@@ -15,7 +15,7 @@
 #include <string>
 
 #include "../../athena.hpp"
-#include "../../defs.hpp"
+#include "../../globals.hpp"
 #include "unit_system.hpp"
 
 namespace Primitive {

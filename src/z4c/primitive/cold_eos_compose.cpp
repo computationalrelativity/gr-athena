@@ -112,12 +112,26 @@ void ColdEOSCompOSE::ReadColdSliceFromFile(std::string fname, std::string specie
   mb = scratch[0];
 
   // Read the density index to cut lorene table
-#if !defined(DBG_PS_NO_LORENE_CUT)
-  // ierr = H5LTread_dataset_int(grp_id, "lorene_cut", &i_lorene_cut);
-  //   MYH5CHECK(ierr);
-#else
-  i_lorene_cut = 0;
-#endif
+// #if !defined(DBG_PS_NO_LORENE_CUT)
+//   // ierr = H5LTread_dataset_int(grp_id, "lorene_cut", &i_lorene_cut);
+//   //   MYH5CHECK(ierr);
+// #else
+//   i_lorene_cut = 0;
+// #endif
+
+  if (H5LTfind_dataset(grp_id, "lorene_cut"))
+  {
+    ierr = H5LTread_dataset_int(grp_id, "lorene_cut", &i_lorene_cut);
+    MYH5CHECK(ierr);
+  }
+  else
+  {
+    if (Globals::my_rank == 0)
+    {
+      std::printf("lorene_cut dataset not found; setting i_lorene_cut=0\n");
+    }
+    i_lorene_cut = 0;
+  }
 
   // Read other thermodynamics quantities
   // -------------------------------------------------------------------------
