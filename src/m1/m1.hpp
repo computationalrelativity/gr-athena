@@ -308,7 +308,7 @@ public:
   struct vars_LabAux {
     // N.B.
     // These quantities should be viewed as \sqrt(\gamma) densitized
-    GroupSpeciesContainer<AT_N_sym> sp_P_dd;  // retain for output
+    // GroupSpeciesContainer<AT_N_sym> sp_P_dd;  // retain for output
     // GroupSpeciesContainer<AT_C_sca> sc_n;
 
     // Closure weight - not densitized
@@ -540,10 +540,11 @@ public:
   // Lab frame variables
   struct ixn_Lab_aux
   {
-    enum { P_xx, P_xy, P_xz, P_yy, P_yz, P_zz, chi, xi, N };
+    // enum { P_xx, P_xy, P_xz, P_yy, P_yz, P_zz, chi, xi, N };
+    enum { chi, xi, N };
     static constexpr char const * const names[] = {
-      "M1.lab_aux.Pxx", "M1.lab_aux.Pxy", "M1.lab_aux.Pxz",
-      "M1.lab_aux.Pyy", "M1.lab_aux.Pyz", "M1.lab_aux.Pzz",
+      // "M1.lab_aux.Pxx", "M1.lab_aux.Pxy", "M1.lab_aux.Pxz",
+      // "M1.lab_aux.Pyy", "M1.lab_aux.Pyz", "M1.lab_aux.Pzz",
       "M1.lab_aux.chi",
       "M1.lab_aux.xi",
     };

@@ -651,8 +651,8 @@ void LoadOutputDataM1(
     for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
     for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
     {
-      dump_GSC_AT_N_sym(pm1->lab_aux.sp_P_dd, ix_g, ix_s,
-                        "M1.lab_aux.sp_P_dd");
+      // dump_GSC_AT_N_sym(pm1->lab_aux.sp_P_dd, ix_g, ix_s,
+      //                   "M1.lab_aux.sp_P_dd");
       dump_GSC_AT_C_sca(pm1->lab_aux.sc_chi,  ix_g, ix_s,
                         "M1.lab_aux.sc_chi");
       dump_GSC_AT_C_sca(pm1->lab_aux.sc_xi,   ix_g, ix_s, "M1.lab_aux.sc_xi");

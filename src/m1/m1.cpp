@@ -97,7 +97,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     {N_GRPS,N_SPCS}
   },
   lab_aux{
-    {N_GRPS,N_SPCS},
+    // {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS}
   },
@@ -314,8 +314,8 @@ void M1::SetVarAliasesLabAux(AthenaArray<Real> & u, vars_LabAux & lab_aux)
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
   {
-    SetVarAlias(lab_aux.sp_P_dd, u, ix_g, ix_s,
-                ixn_Lab_aux::P_xx, ixn_Lab_aux::N);
+    // SetVarAlias(lab_aux.sp_P_dd, u, ix_g, ix_s,
+    //             ixn_Lab_aux::P_xx, ixn_Lab_aux::N);
     SetVarAlias(lab_aux.sc_chi,  u, ix_g, ix_s,
                 ixn_Lab_aux::chi,  ixn_Lab_aux::N);
     SetVarAlias(lab_aux.sc_xi,   u, ix_g, ix_s,
@@ -464,8 +464,8 @@ void M1::StatePrintPoint(
     lab_aux.sc_chi(ix_g,ix_s).PrintPoint("lab_aux.sc_chi(ix_g,ix_s)", k,j,i);
     lab_aux.sc_xi(ix_g,ix_s).PrintPoint("lab_aux.sc_xi(ix_g,ix_s)", k,j,i);
 
-    std::cout << "sym2===============: " << "\n";
-    lab_aux.sp_P_dd(ix_g,ix_s).PrintPoint("lab_aux.sp_P_dd(ix_g,ix_s)", k,j,i);
+    // std::cout << "sym2===============: " << "\n";
+    // lab_aux.sp_P_dd(ix_g,ix_s).PrintPoint("lab_aux.sp_P_dd(ix_g,ix_s)", k,j,i);
 
     std::cout << "src=================: " << "\n";
     sources.sc_nG(ix_g,ix_s).PrintPoint("sources.sc_nG", k, j, i);
