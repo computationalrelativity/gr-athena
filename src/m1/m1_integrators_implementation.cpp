@@ -498,6 +498,7 @@ void StepImplicitHybrids(
     }
     else if ((gsl_status == GSL_ENOPROG) || (gsl_status == GSL_ENOPROGJ))
     {
+      // Iteration stagnated; revert to thick-limit
       if (pm1.opt_solver.verbose)
       #pragma omp critical
       {
@@ -511,6 +512,7 @@ void StepImplicitHybrids(
         }
       }
 
+      if (pm1.opt_solver.verbose)
       if (pm1.opt_closure.variety == M1::opt_closure_variety::thick)
       {
         C.Fallback(k, j, i);
@@ -526,6 +528,7 @@ void StepImplicitHybrids(
     }
     else if ((gsl_status != GSL_SUCCESS))
     {
+      // Failure on thick-limit reversion; print & kill
       std::ostringstream msg;
       msg << "StepImplicitHybrids failure: ";
       msg << gsl_status << " " << iter;
@@ -704,6 +707,7 @@ void StepImplicitHybridsJ(
     }
     else if ((gsl_status == GSL_ENOPROG) || (gsl_status == GSL_ENOPROGJ))
     {
+      // Iteration stagnated; revert to thick-limit
       if (pm1.opt_solver.verbose)
       #pragma omp critical
       {
@@ -718,6 +722,7 @@ void StepImplicitHybridsJ(
         std::cout << "@ (k, j, i): " << k << ", " << j << ", " << i << "\n";
       }
 
+      if (pm1.opt_solver.verbose)
       if (pm1.opt_closure.variety == M1::opt_closure_variety::thick)
       {
         /*
@@ -753,6 +758,7 @@ void StepImplicitHybridsJ(
     }
     else if ((gsl_status != GSL_SUCCESS))
     {
+      // Failure on thick-limit reversion; print & kill
       std::ostringstream msg;
       msg << "StepImplicitHybridsJ failure: ";
       msg << gsl_status << " " << iter;
