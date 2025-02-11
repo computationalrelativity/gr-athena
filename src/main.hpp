@@ -152,42 +152,62 @@ namespace gra::timing {
 // basic real-world [non-cpu] timer based on chrono for e.g. t-evo / hr
 // based on SO. 2808398
 template <class DT = std::chrono::milliseconds,
-          class ClockT = std::chrono::steady_clock>
+          class ClockT = std::chrono::steady_clock,
+          class TimePoint = std::chrono::steady_clock::time_point,
+          class Duration = std::chrono::steady_clock::duration>
 class Timer
 {
-  using timep_t = typename ClockT::time_point;
-  timep_t _start = ClockT::now(), _end = {};
-
   public:
-    void tick()
-    {
-      _end = timep_t{};
-      _start = ClockT::now();
-    }
+    Timer()
+      : time_start_(ClockT::now()),
+        time_paused_(time_start_),
+        duration_ignored_(Duration::zero()),
+        is_paused_(false)
+    { }
 
-    void tock()
+  void pause()
+  {
+    if (is_paused_)
     {
-       _end = ClockT::now();
+      time_paused_ = ClockT::now();
+      is_paused_ = true;
     }
+  }
 
-    template <class T = DT>
-    auto duration() const
+  void resume()
+  {
+    if (is_paused_)
     {
-      return std::chrono::duration_cast<T>(_end - _start);
+      duration_ignored_ += ClockT::now() - time_paused_;
+      is_paused_ = false;
     }
+  }
+
+  Real elapsed() const
+  {
+    auto time_end_ = (is_paused_) ? time_paused_ : ClockT::now();
+    auto time_diff_ = time_end_ - time_start_ - duration_ignored_;
+    return std::chrono::duration<Real>(time_diff_).count();
+  }
+
+  private:
+    TimePoint time_start_;
+    TimePoint time_paused_;
+    Duration duration_ignored_;
+    bool is_paused_;
 };
 
 class Clocks
 {
   public:
-    Clocks()
+    Clocks(Mesh * pmesh)
+    : pmesh(pmesh),
+      wtime()
     {
       tstart = clock();
 #ifdef OPENMP_PARALLEL
       omp_start_time = omp_get_wtime();
 #endif
-
-      wtime.tick();
     };
 
     inline void Stop()
@@ -201,8 +221,7 @@ class Clocks
     // N.B. non-cpu time
     inline Real Elapsed_seconds()
     {
-      wtime.tock();
-      return wtime.duration().count();
+      return wtime.elapsed();
     }
 
     inline Real Elapsed_hours()
@@ -210,12 +229,40 @@ class Clocks
       return Elapsed_seconds() / 3600.0;
     }
 
+    // allow pause & resume of real-time clock
+    inline void Elapsed_pause()
+    {
+      wtime.pause();
+    }
+
+    inline void Elapsed_resume()
+    {
+      wtime.resume();
+    }
+
+    // measured evolution rate in T/hr
+    inline Real evo_rate()
+    {
+      Real er = (
+        pmesh->time - evo_clock_time_start
+      ) / Elapsed_hours();
+
+      return std::isfinite(er) ? er : 0;
+    }
+
   public:
-    Timer<std::chrono::seconds, std::chrono::steady_clock> wtime;
+    Mesh * pmesh;
+    Timer<std::chrono::seconds,
+          std::chrono::steady_clock,
+          std::chrono::steady_clock::time_point,
+          std::chrono::steady_clock::duration> wtime;
 
     clock_t tstart, tstop;
     double omp_start_time;
     double omp_time;
+
+    // start time for `Elapsed_seconds` & `Elapsed_hours`
+    Real evo_clock_time_start;
 };
 
 }  // namespace gra::timing
