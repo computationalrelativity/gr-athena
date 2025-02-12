@@ -1511,7 +1511,7 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
         const Real sinph = std::sin(phi_i);
         const Real cosph = std::cos(phi_i);
         
-        const Real gaussian_pert = 0.0001 * std::exp( - SQR((r_(i) - 10.0*R)/(0.2*R)) );
+        const Real gaussian_pert = 0.0001 * std::exp( - SQR((r_(i) - 10.0*R)/(0.15*R)) );
         Real Ylm_thR, Ylm_thI, Ylm_phR, Ylm_phI, XlmR, XlmI, WlmR, WlmI;   
         SphHarm_Ylm_a(2,0, theta_i,phi_i,
 			&Ylm_thR, &Ylm_thI,
