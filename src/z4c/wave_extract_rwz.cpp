@@ -1058,6 +1058,10 @@ void WaveExtractRWZ::ComputeSphericalHarmonics() {
 // \!fn void WaveExtractRWZ::MetricToSphere()
 // \brief run over MBs of this rank and get the ADM metric in spherical coordinates on the sphere
 void WaveExtractRWZ::MetricToSphere() {
+  // Zeros ADM integrals
+  for (int i=0; i<NVADM; i++) 
+    integrals_adm[i] = 0.0;
+
   havepoint.ZeroClear();
   MeshBlock * pmb = pmesh->pblock;
   while (pmb != nullptr) {
@@ -1230,10 +1234,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   dr_Cbeta_d.NewTensorPointwise();
   dr2_Cbeta_d.NewTensorPointwise();
 
-  // Zeros ADM integrals
-  for (int i=0; i<NVADM; i++) 
-    integrals_adm[i] = 0.0;
-  
+   
   // Cartesian-to-Spherical Jacobian
   utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 2> Jac;
   Jac.NewTensorPointwise();
@@ -1661,7 +1662,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
       const Real vol = r2 * weights(i,j);  // TODO: check r^2 : needed?
       
       Real iMadm = 0.0;
-      for (int a = 0; a < NDIM; ++a)
+      for (int a = 0; a < NDIM; ++a) {
 	for (int b = 0; b < NDIM; ++b) {
 	  Real deltag_n_ab = 0.0;
 	  for (int c = 0; c < NDIM; ++c) {
@@ -1669,6 +1670,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
 	  }
 	  iMadm += Cgamma_uu(a,b) * deltag_n_ab;
 	}
+      }
       
       integrals_adm[I_ADM_M] += 0.25 * iMadm * sqrt_det * vol;
       
@@ -1930,6 +1932,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
     } // phi loop
   } // theta loop
   
+
   adm_g_dd.DeleteAthenaTensor();
   adm_beta_u.DeleteAthenaTensor();
   adm_alpha.DeleteAthenaTensor();
