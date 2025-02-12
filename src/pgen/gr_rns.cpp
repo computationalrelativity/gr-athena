@@ -30,6 +30,7 @@ namespace {
   static ini_data *rns_data;
 #if USETM
   Primitive::ColdEOS<Primitive::COLDEOS_POLICY> * ceos = NULL;
+  Real mb_rnsc = 931.191715903434; // RNSC uses this mass factor
 #endif
 }
 
@@ -324,6 +325,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   {
 
     int flat_ix = i + n[0]*(j + n[1]*k);
+    rho[flat_ix] *= ceos->mb/mb_rnsc; // adjust for rns baryon mass
     Real r = std::sqrt(x[i]*x[i]+y[j]*y[j]+z[k]*z[k]);
 
 #if USETM
