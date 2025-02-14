@@ -112,8 +112,6 @@ const TaskID RECV_SCLRFLX(3);
 
 const TaskID CALC_HYDFLX(10);
 const TaskID CALC_FLDFLX(11);
-const TaskID CALC_RADFLX(12);
-const TaskID CALC_CHMFLX(13);
 const TaskID CALC_SCLRFLX(14);
 
 const TaskID SEND_HYDFLX(20);

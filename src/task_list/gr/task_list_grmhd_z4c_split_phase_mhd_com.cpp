@@ -76,13 +76,13 @@ GRMHD_Z4c_Phase_MHD_com::GRMHD_Z4c_Phase_MHD_com(ParameterInput *pin,
   }
 
   // ensure all boundary buffers are set --------------------------------------
-  TaskID BLOCK_SETB = SETB_HYD;
+  TaskID BLOCK_SETB = SETB_HYD | SEND_HYD;
 
   if (NSCALARS > 0)
-    BLOCK_SETB = BLOCK_SETB | SETB_SCLR;
+    BLOCK_SETB = BLOCK_SETB | SETB_SCLR | SEND_SCLR;
 
   if (MAGNETIC_FIELDS_ENABLED)
-    BLOCK_SETB = SETB_FLD;
+    BLOCK_SETB = BLOCK_SETB | SETB_FLD | SEND_FLD;
   // --------------------------------------------------------------------------
 
   if (multilevel)
