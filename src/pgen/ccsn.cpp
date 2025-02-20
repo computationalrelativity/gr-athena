@@ -517,12 +517,11 @@ void Mesh::UserWorkInLoop()
     AT_N_vec w_util_u_(     pblock->ncells1);
     AT_C_sca W_(pblock->ncells1);
 
-    Primitive::UnitSystem *us_gs  = &Primitive::GeometricSolar;
-    Primitive::UnitSystem *us_cgs = &Primitive::CGS;
+    Primitive::UnitSystem *us_gs = &Primitive::GeometricSolar;
+    Primitive::UnitSystem *us_nu = &Primitive::Nuclear;
 
     const Real us_fac_MeV2Msun = (
-      us_gs->ChemicalPotentialConversion(*us_cgs) * // MeV->erg
-      us_cgs->EnergyConversion(*us_gs)              // erg->Msun
+      us_nu->EnergyConversion(*us_gs) // MeV->Msun
     );
 
     while (pmb != nullptr)
