@@ -81,7 +81,7 @@ class Deleptonization
 };
 
 Deleptonization *pdelept = nullptr;
-enum class opt_deleptonization_method { Liebendoerfer, Simple };
+enum class opt_deleptonization_method { Liebendoerfer, Simple, None };
 opt_deleptonization_method opt_dlp_mtd_;
 
 // various parameters seeded from input file
@@ -140,7 +140,8 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   static const std::map<std::string, opt_deleptonization_method> opt_lep
   {
     { "Liebendoerfer", opt_deleptonization_method::Liebendoerfer},
-    { "Simple",        opt_deleptonization_method::Simple}
+    { "Simple",        opt_deleptonization_method::Simple},
+    { "None",          opt_deleptonization_method::None}
   };
 
   auto itr = opt_lep.find(pin->GetOrAddString("problem",
@@ -516,6 +517,13 @@ void Mesh::UserWorkInLoop()
     AT_N_vec w_util_u_(     pblock->ncells1);
     AT_C_sca W_(pblock->ncells1);
 
+    Primitive::UnitSystem *us_gs  = &Primitive::GeometricSolar;
+    Primitive::UnitSystem *us_cgs = &Primitive::CGS;
+
+    const Real us_fac_MeV2Msun = (
+      us_gs->ChemicalPotentialConversion(*us_cgs) * // MeV->erg
+      us_cgs->EnergyConversion(*us_gs)              // erg->Msun
+    );
 
     while (pmb != nullptr)
     {
@@ -580,10 +588,11 @@ void Mesh::UserWorkInLoop()
           // reset electron fraction & update tau variable ----------------------
           ps->r(IYE,k,j,i) = Y_e_bar;
 
-          // BD: TODO- need E_nu_avg / MeV_factor
+          // E_nu_avg [MeV] -> [Msun]
           tau -= (alpha_(i) * sqrt_detgamma_(i) * W_(i) * n *
-                  delta_Y_e * E_nu_avg) ;
+                  delta_Y_e * (us_fac_MeV2Msun * E_nu_avg));
 
+          // double check (simple-simple)
           if ((delta_Y_e < 0) && (E_nu_avg > 0))
           {
             static const int coarse_flag = 0;
@@ -623,6 +632,10 @@ void Mesh::UserWorkInLoop()
     {
       // etc...
       method_Simple();
+      break;
+    }
+    case opt_deleptonization_method::None:
+    {
       break;
     }
     default:
