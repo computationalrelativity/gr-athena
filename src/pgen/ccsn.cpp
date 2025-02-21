@@ -19,6 +19,10 @@
 #include "../utils/utils.hpp"
 #include "../utils/linear_algebra.hpp"
 #include "../z4c/z4c.hpp"
+#if M1_ENABLED
+#include "../m1/m1.hpp"
+#include "../m1/m1_set_equilibrium.hpp"
+#endif  // M1_ENABLED
 
 // BD: TODO- use internal factor (from EoS)
 #define UDENS (6.1762691458861632e+17)
@@ -384,6 +388,39 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     }
   }
 
+  // Have geom & primitive hydro
+#if M1_ENABLED
+  pm1->UpdateGeometry(pm1->geom, pm1->scratch);
+  pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
+  pm1->CalcFiducialVelocity();
+
+  /*
+  pm1->CalcClosure(pm1->storage.u);
+  pm1->CalcFiducialFrame(pm1->storage.u);
+  pm1->CalcOpacity(pmy_mesh->dt, pm1->storage.u);
+
+  M1::M1::vars_Lab U_C { {pm1->N_GRPS,pm1->N_SPCS},
+                         {pm1->N_GRPS,pm1->N_SPCS},
+                         {pm1->N_GRPS,pm1->N_SPCS} };
+
+  pm1->SetVarAliasesLab(pm1->storage.u, U_C);
+
+  M1::M1::vars_Source U_S { {pm1->N_GRPS,pm1->N_SPCS},
+                            {pm1->N_GRPS,pm1->N_SPCS},
+                            {pm1->N_GRPS,pm1->N_SPCS} };
+
+  pm1->SetVarAliasesSource(pm1->storage.u_sources, U_S);
+
+
+  M1_ILOOP3(k, j, i)
+  {
+    M1::Equilibrium::SetEquilibrium(*pm1, U_C, U_S, k, j, i);
+  }
+  */
+
+
+#endif  // M1_ENABLED
+
   peos->PrimitiveToConserved(phydro->w,
                              pscalars->r,
                              pfield->bcc,
@@ -400,10 +437,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
                   pscalars->r,
                   pfield->bcc);
 
+  /*
   pz4c->ADMConstraints(pz4c->storage.con,
                        pz4c->storage.adm,
                        pz4c->storage.mat,
                        pz4c->storage.u);
+  */
   // Cleanup
   delete pstar;
 }
