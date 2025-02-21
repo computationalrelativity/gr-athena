@@ -88,10 +88,18 @@ opt_deleptonization_method opt_dlp_mtd_;
 Real opt_E_nu_avg;
 Real opt_rho_trap;
 Real opt_rho_cut;
+Real opt_Omega_0;
+Real opt_Omega_A;
 
 // additional scalar dumps
-Real Maxrho(MeshBlock *pmb, int iout);
-Real max_T(MeshBlock *pmb, int iout);
+Real MaxRho(MeshBlock *pmb, int iout);
+Real MaxTemp(MeshBlock *pmb, int iout);
+
+// rotation laws for progenitor
+Real OmegaLaw(Real rad, Real Omega_0, Real Omega_A);
+Real OmegaGRB_lam(Real rad, Real drtrans, Real rfe);
+Real OmegaGRB(Real rad, Real Omega_0, Real Omega_A,
+	      Real rfe,Real drtrans, Real dropfac);
 
 // refinement
 Real opt_delta_min_m;
@@ -104,7 +112,6 @@ int RefinementCondition(MeshBlock *pmb);
 
 bool interpolate_Phi;
 int SP_NVARS = StellarProfile::num_vars;
-
 
 // field data dumped (as user_out)
 struct user_dumps
@@ -165,6 +172,8 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   opt_E_nu_avg = pin->GetOrAddReal("problem", "E_nu_avg", 10.0);
   opt_rho_trap = pin->GetOrAddReal("problem", "rho_trap", 1e12) / UDENS;
   opt_rho_cut = pin->GetOrAddReal("problem", "rho_cut", -INF);
+  opt_Omega_0 = pin->GetOrAddReal("problem", "Omega_0", 0.0);
+  opt_Omega_A = pin->GetOrAddReal("problem", "Omega_A", 0.0);
 
   // refinement strategy ------------------------------------------------------
 
@@ -172,7 +181,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   {
     { "none",             opt_refinement_method::none},
     { "MassPerMeshBlock", opt_refinement_method::MassPerMeshBlock},
-    { "MaxMassInCell",      opt_refinement_method::MaxMassInCell}
+    { "MaxMassInCell",    opt_refinement_method::MaxMassInCell}
   };
 
   auto itr_ref = opt_ref.find(pin->GetOrAddString("problem",
@@ -198,8 +207,8 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
 
   // additional scalars dumps
   AllocateUserHistoryOutput(2);
-  EnrollUserHistoryOutput(0, Maxrho, "max-rho", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(1, max_T, "max_T", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(0, MaxRho, "max-rho", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(1, MaxTemp, "max-temp", UserHistoryOperation::max);
 }
 
 void MeshBlock::InitUserMeshBlockData(ParameterInput *pin)
@@ -300,7 +309,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   AT_N_sym g_dd(  pz4c->storage.adm, Z4c::I_ADM_gxx);
   AT_N_sym K_dd(  pz4c->storage.adm, Z4c::I_ADM_Kxx);
 
-  // BD: TODO - rotation law; magnetic field (Cf. how this is injected in TOV/BNS)
+  // BD: TODO - magnetic field (Cf. how this is injected in TOV/BNS)
 
   // Interpolate quantities to the grid
   for (int k = 0; k < mbi->nn3; ++k) {
@@ -310,7 +319,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
         Real const yp = mbi->x2(j);
         Real const zp = mbi->x3(k);
         Real const rad = sqrt(xp * xp + yp * yp + zp * zp);
-
+	Real const rad_cyl = sqrt(xp * xp + yp * yp);
+	  
         const Real rho = pstar->Eval(StellarProfile::rho, rad);
  
         phydro->w(IDN, k, j, i) = rho;
@@ -335,6 +345,13 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
         Real vy = vr * yp / rad;
         Real vz = vr * zp / rad;
 
+	// Add rotation
+	if (opt_Omega_0 > 0.0 && opt_Omega_A > 0.0) {
+	  Real const Omega = OmegaLaw(rad_cyl, opt_Omega_0, opt_Omega_A); 
+	  vx -= Omega * yp; // rad_cyl * sinphi;
+	  vy += Omega * xp; // rad_cyl * cosphi;
+	}
+	
         Real W = 1.0 / sqrt(1.0 - A * (vx * vx + vy * vy + vz * vz));
         phydro->w(IVX, k, j, i) = W * vx;
         phydro->w(IVY, k, j, i) = W * vy;
@@ -629,7 +646,7 @@ void Mesh::UserWorkInLoop()
     }
     case opt_deleptonization_method::Simple:
     {
-      // etc...
+      // reset Y_e, update Tau, ContoPrim
       method_Simple();
       break;
     }
@@ -719,14 +736,6 @@ StellarProfile::StellarProfile(ParameterInput *pin) : siz(0) {
   in.close();
 
   // compute derived quantities -----------------------------------------------
-
-  // Compute the metric (Newtonian limit)
-  // Following not correct: need to compute integral for interior
-  // for (int i = 0; i < siz; ++i) {
-  //   Real Phi = - pvars[mass][i] / pr[i];
-  //   pvars[alp][i] = sqrt(1. + 2. * Phi);
-  //   pvars[gxx][i] = 1. - 2. * Phi;
-  // }
 
   // Compute the metric (Newtonian limit)
 
@@ -860,8 +869,7 @@ int RefinementCondition(MeshBlock *pmb)
   return 0;
 }
 
-
-Real Maxrho(MeshBlock *pmb, int iout)
+Real MaxRho(MeshBlock *pmb, int iout)
 {
   Real max_rho = 0.0;
   AthenaArray<Real> &w = pmb->phydro->w;
@@ -874,7 +882,7 @@ Real Maxrho(MeshBlock *pmb, int iout)
   return max_rho;
 }
 
-Real max_T(MeshBlock *pmb, int iout)
+Real MaxTemp(MeshBlock *pmb, int iout)
 {
   Real max_T = -std::numeric_limits<Real>::infinity();
   CC_ILOOP3(k, j, i)
@@ -884,5 +892,30 @@ Real max_T(MeshBlock *pmb, int iout)
   return max_T;
 }
 
+Real OmegaLaw(Real rad, Real Omega_0, Real Omega_A)
+{
+  return Omega_0/(1.0 + SQR(rad/Omega_A));
+}
+
+// Rotation law motivated by GRB progenitor
+// https://arxiv.org/abs/1012.1853
+// https://arxiv.org/abs/astro-ph/0508175
+// This implementation is taken from Zelmani:
+// https://bitbucket.org/zelmani/zelmani/
+//   src/master/ZelmaniStarMapper/src/StarMapper_Map1D3D.F90
+Real OmegaGRB_lam(Real rad, Real drtrans, Real rfe)
+{
+  return 0.5*(1.0 + tanh((rad - rfe)/drtrans));
+}
+
+Real OmegaGRB(Real rad, Real Omega_0, Real Omega_A,
+	      Real rfe,Real drtrans, Real dropfac)
+{ 
+  Real const lam = OmegaGRB_lam(rad, drtrans, rfe);
+  Real const Omega_r = OmegaLaw(rad, Omega_0, Omega_A);
+  Real const Omega_rfe = OmegaLaw(rfe, Omega_0, Omega_A);
+  Real const fac = dropfac/(1 + pow(abs(r-rfe)/Omega_A, 1.0/3.0));  
+  return ( (1.0-lam) * Omega_r + lam* Omega_rfe/fac );
+}
 
 }  // namespace
