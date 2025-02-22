@@ -171,7 +171,7 @@ void ParameterInput::LoadFromStream(std::istream &is) {
 
 void ParameterInput::LoadFromFile(IOWrapper &input) {
   std::stringstream par, msg;
-  constexpr int kBufSize = 4096;
+  constexpr int kBufSize = 40960;
   char buf[kBufSize];
   IOWrapperSizeT header = 0, ret, loc;
 
@@ -194,7 +194,7 @@ void ParameterInput::LoadFromFile(IOWrapper &input) {
     }
     if (header > kBufSize*10) {
       msg << "### FATAL ERROR in function [ParameterInput::LoadFromFile]"
-          << "<par_end> is not found in the first 40KBytes." << std::endl
+          << "<par_end> is not found in the first 400KBytes." << std::endl
           << "Probably the file is broken or a wrong file is specified" << std::endl;
       ATHENA_ERROR(msg);
     }
