@@ -953,7 +953,7 @@ Real OmegaGRB(Real rad, Real Omega_0, Real Omega_A,
   Real const lam = OmegaGRB_lam(rad, drtrans, rfe);
   Real const Omega_r = OmegaLaw(rad, Omega_0, Omega_A);
   Real const Omega_rfe = OmegaLaw(rfe, Omega_0, Omega_A);
-  Real const fac = dropfac/(1 + pow(abs(r-rfe)/Omega_A, 1.0/3.0));  
+  Real const fac = dropfac/(1 + pow(abs(rad-rfe)/Omega_A, 1.0/3.0));  
   return ( (1.0-lam) * Omega_r + lam* Omega_rfe/fac );
 }
 
