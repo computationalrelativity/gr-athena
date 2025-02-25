@@ -94,6 +94,8 @@ Real opt_rho_trap;
 Real opt_rho_cut;
 Real opt_Omega_0;
 Real opt_Omega_A;
+Real opt_B0_amp;
+Real opt_B0_rad;
 
 // additional scalar dumps
 Real MaxRho(MeshBlock *pmb, int iout);
@@ -104,6 +106,14 @@ Real OmegaLaw(Real rad, Real Omega_0, Real Omega_A);
 Real OmegaGRB_lam(Real rad, Real drtrans, Real rfe);
 Real OmegaGRB(Real rad, Real Omega_0, Real Omega_A,
 	      Real rfe,Real drtrans, Real dropfac);
+
+#if MAGNETIC_FIELDS_ENABLED
+// Initialize magnetic field
+void InitMagneticFields(MeshBlock *pmb, ParameterInput *pin);
+
+// additional scalar dumps for MHD
+Real DivBface(MeshBlock *pmb, int iout);
+#endif
 
 // refinement
 Real opt_delta_min_m;
@@ -178,6 +188,8 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   opt_rho_cut = pin->GetOrAddReal("problem", "rho_cut", -INF);
   opt_Omega_0 = pin->GetOrAddReal("problem", "Omega_0", 0.0);
   opt_Omega_A = pin->GetOrAddReal("problem", "Omega_A", 0.0);
+  opt_B0_amp = pin->GetOrAddReal("problem", "B0_amp", 0.0);
+  opt_B0_rad = pin->GetOrAddReal("problem", "B0_rad", 0.0);
 
   // refinement strategy ------------------------------------------------------
 
@@ -210,9 +222,15 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   pdelept = new Deleptonization(pin);
 
   // additional scalars dumps
-  AllocateUserHistoryOutput(2);
+  AllocateUserHistoryOutput(2 + MAGNETIC_FIELDS_ENABLED);
+
   EnrollUserHistoryOutput(0, MaxRho, "max-rho", UserHistoryOperation::max);
   EnrollUserHistoryOutput(1, MaxTemp, "max-temp", UserHistoryOperation::max);
+
+#if MAGNETIC_FIELDS_ENABLED
+  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED1, DivBface, "divB", UserHistoryOperation::max);
+#endif
+
 }
 
 void MeshBlock::InitUserMeshBlockData(ParameterInput *pin)
@@ -298,7 +316,6 @@ void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin)
 //  \brief Sets the initial conditions.
 //========================================================================================
 void MeshBlock::ProblemGenerator(ParameterInput *pin) {
-
 
   // Read stellar profile
   StellarProfile *pstar = new StellarProfile(pin);
@@ -405,7 +422,13 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     }
   }
 
-  // Have geom & primitive hydro
+  // here we wave geom & primitive hydro
+  // do magnetic and radiation fields, as required:
+
+#if MAGNETIC_FIELDS_ENABLED
+  InitMagneticFields(this, pin);
+#endif
+
 #if M1_ENABLED
   pm1->UpdateGeometry(pm1->geom, pm1->scratch);
   pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
@@ -438,6 +461,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 
 #endif  // M1_ENABLED
 
+  // Finalize: init geom and (M)HD evolution variables
+
   peos->PrimitiveToConserved(phydro->w,
                              pscalars->r,
                              pfield->bcc,
@@ -460,6 +485,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
                        pz4c->storage.mat,
                        pz4c->storage.u);
   */
+
   // Cleanup
   delete pstar;
 }
@@ -956,5 +982,142 @@ Real OmegaGRB(Real rad, Real Omega_0, Real Omega_A,
   Real const fac = dropfac/(1 + pow(abs(rad-rfe)/Omega_A, 1.0/3.0));  
   return ( (1.0-lam) * Omega_r + lam* Omega_rfe/fac );
 }
+
+
+#if MAGNETIC_FIELDS_ENABLED
+
+void InitMagneticFields(MeshBlock *pmb, ParameterInput *pin)
+{
+  GRDynamical * pcoord { static_cast<GRDynamical*>(pmb->pcoord) };
+  Field * pfield { pmb->pfield };
+
+  // Prepare CC index bounds
+  const int il = 0;
+  const int iu = (pmb->ncells1>1)? pmb->ncells1-1: 0;
+
+  const int jl = 0;
+  const int ju = (pmb->ncells2>1)? pmb->ncells2-1: 0;
+
+  const int kl = 0;
+  const int ku = (pmb->ncells3>1)? pmb->ncells3-1: 0;
+
+  // Initialize magnetic field
+  // No metric weighting here
+  pfield->b.x1f.ZeroClear();
+  pfield->b.x2f.ZeroClear();
+  pfield->b.x3f.ZeroClear();
+  pfield->bcc.ZeroClear();
+
+  AthenaArray<Real> Acc(NFIELD,pmb->ncells3,pmb->ncells2,pmb->ncells1);
+
+  // Initialize cell centred potential
+  for (int k=0; k<pmb->ncells3; k++)
+  for (int j=0; j<pmb->ncells2; j++)
+  for (int i=0; i<pmb->ncells1; i++) {
+    const Real zp = pcoord->x3v(k);
+    const Real yp = pcoord->x2v(j);
+    const Real xp = pcoord->x1v(i);
+
+    const Real rad_cyl_sqr = SQR(xp) + SQR(yp);
+    const Real rad_cyl = sqrt(rad_cyl);
+    const Real oo_rad_cyl = 1.0/rad_cyl;
+
+    const Real rad = sqrt( rad_cyl_sqr + SQR(zp) );
+    const Real oo_rad = 1.0/rad;
+
+    // Sph2Cart Jacobian
+    const Real drdx = xp * oo_rad;
+    const Real drdy = yp * oo_rad;
+    const Real drdz = zp * oo_rad;
+
+    const Real dthdx = (xp * zp) * SQR(oo_rad) * oo_rad_cyl;
+    const Real dthdy = (yp * zp) * SQR(oo_rad) * oo_rad_cyl;
+    const Real dthdz = - rad_cyl * SQR(oo_rad);
+
+    const Real dphdx = - yp * SQR(oo_rad_cyl);
+    const Real dphdy = xp * SQR(oo_rad_cyl);
+    const Real dphdz = 0.0;
+
+    // A_i model of e.g.
+    // https://arxiv.org/abs/1004.2896
+    // https://arxiv.org/abs/1403.1230
+    Real Ar = 0.0;
+    Real Ath = 0.0;
+    Real Aph = 0.0;
+    if (opt_B0_amp > 0.0 && opt_B0_rad > 0.0) {
+      Aph = opt_B0_amp * rad_cyl /( pow(rad,3) + pow(opt_B0_rad,3) );
+    }
+
+    Acc(0,k,j,i) = drdx * Ar + dthdx * Ath + dphdx * Aph;
+    Acc(1,k,j,i) = drdy * Ar + dthdy * Ath + dphdy * Aph;
+    Acc(2,k,j,i) = drdz * Ar + dthdz * Ath + dphdz * Aph;
+
+  }
+
+  // Construct cell centred B field from cell centred potential
+  for(int k=pmb->ks-1; k<=pmb->ke+1; k++)
+  for(int j=pmb->js-1; j<=pmb->je+1; j++)
+  for(int i=pmb->is-1; i<=pmb->ie+1; i++)
+  {
+    const Real dx1 = pcoord->dx1v(i);
+    const Real dx2 = pcoord->dx2v(j);
+    const Real dx3 = pcoord->dx3v(k);
+
+    pfield->bcc(0,k,j,i) = -((Acc(1,k+1,j,i) - Acc(1,k-1,j,i))/(2.0*dx3));
+    pfield->bcc(1,k,j,i) =  ((Acc(0,k+1,j,i) - Acc(0,k-1,j,i))/(2.0*dx3));
+    pfield->bcc(2,k,j,i) =  ((Acc(1,k,j,i+1) - Acc(1,k,j,i-1))/(2.0*dx1) -
+                             (Acc(0,k,j+1,i) - Acc(0,k,j-1,i))/(2.0*dx2));
+
+  }
+
+  // Initialise face centred field by averaging cc field
+  for(int k=pmb->ks; k<=pmb->ke;   k++)
+  for(int j=pmb->js; j<=pmb->je;   j++)
+  for(int i=pmb->is; i<=pmb->ie+1; i++)
+  {
+    pfield->b.x1f(k,j,i) = 0.5*(pfield->bcc(0,k,j,i-1) +
+                                pfield->bcc(0,k,j,i));
+  }
+
+  for(int k=pmb->ks; k<=pmb->ke;   k++)
+  for(int j=pmb->js; j<=pmb->je+1; j++)
+  for(int i=pmb->is; i<=pmb->ie;   i++)
+  {
+    pfield->b.x2f(k,j,i) = 0.5*(pfield->bcc(1,k,j-1,i) +
+                                pfield->bcc(1,k,j,i));
+  }
+
+  for(int k=pmb->ks; k<=pmb->ke+1; k++)
+  for(int j=pmb->js; j<=pmb->je;   j++)
+  for(int i=pmb->is; i<=pmb->ie;   i++)
+  {
+    pfield->b.x3f(k,j,i) = 0.5*(pfield->bcc(2,k-1,j,i) +
+                                pfield->bcc(2,k,j,i));
+  }
+}
+
+
+Real DivBface(MeshBlock *pmb, int iout) {
+  Real divB = 0.0;
+  Real vol,dx,dy,dz;
+  int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
+
+  for (int k=ks; k<=ke; k++) {
+    for (int j=js; j<=je; j++) {
+      for (int i=is; i<=ie; i++) {
+        dx = pmb->pcoord->dx1v(i);
+        dy = pmb->pcoord->dx2v(j);
+        dz = pmb->pcoord->dx3v(k);
+        vol = dx*dy*dz;
+        divB += ((pmb->pfield->b.x1f(k,j,i+1) - pmb->pfield->b.x1f(k,j,i))/ dx +
+                 (pmb->pfield->b.x2f(k,j+1,i) - pmb->pfield->b.x2f(k,j,i))/ dy +
+                 (pmb->pfield->b.x3f(k+1,j,i) - pmb->pfield->b.x3f(k,j,i))/ dz) * vol;
+      }
+    }
+  }
+  return divB;
+}
+
+#endif
 
 }  // namespace
