@@ -130,6 +130,14 @@ class EOSCompOSE : public EOSPolicyInterface {
     /// the number of species is invalid.
     void SetNSpecies(int n);
 
+    /// Set the maxium density.
+    /// Values higher than the max of the table will lead to extrapolation
+    void SetMaximumDensity(Real n_max) {
+      if (n_max > max_n)
+        printf("Increasing maximum density by factor %.2f\n", n_max/max_n);
+      max_n = n_max;
+    }
+
   private:
     /// Low level function, not intended for outside use
     Real temperature_from_var(int vi, Real var, Real n, Real Yq) const;
