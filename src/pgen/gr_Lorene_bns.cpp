@@ -361,8 +361,8 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   Real rho_1 = bns->nbar[0] / m_u_si * 1e-45 * ceos->GetBaryonMass();
   Real rho_2 = bns->nbar[1] / m_u_si * 1e-45 * ceos->GetBaryonMass();
 #else
-  Real rho_1 = bns->nbar[0];
-  Real rho_2 = bns->nbar[1];
+  Real rho_1 = bns->nbar[0] / rho_unit;
+  Real rho_2 = bns->nbar[1] / rho_unit;
 #endif
 
 #if USETM
