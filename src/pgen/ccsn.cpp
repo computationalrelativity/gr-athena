@@ -228,7 +228,8 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   EnrollUserHistoryOutput(1, MaxTemp, "max-temp", UserHistoryOperation::max);
 
 #if MAGNETIC_FIELDS_ENABLED
-  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED1, DivBface, "divB", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED,
+                          DivBface, "divB", UserHistoryOperation::max);
 #endif
 
 }
@@ -991,16 +992,6 @@ void InitMagneticFields(MeshBlock *pmb, ParameterInput *pin)
   GRDynamical * pcoord { static_cast<GRDynamical*>(pmb->pcoord) };
   Field * pfield { pmb->pfield };
 
-  // Prepare CC index bounds
-  const int il = 0;
-  const int iu = (pmb->ncells1>1)? pmb->ncells1-1: 0;
-
-  const int jl = 0;
-  const int ju = (pmb->ncells2>1)? pmb->ncells2-1: 0;
-
-  const int kl = 0;
-  const int ku = (pmb->ncells3>1)? pmb->ncells3-1: 0;
-
   // Initialize magnetic field
   // No metric weighting here
   pfield->b.x1f.ZeroClear();
@@ -1019,7 +1010,7 @@ void InitMagneticFields(MeshBlock *pmb, ParameterInput *pin)
     const Real xp = pcoord->x1v(i);
 
     const Real rad_cyl_sqr = SQR(xp) + SQR(yp);
-    const Real rad_cyl = sqrt(rad_cyl);
+    const Real rad_cyl = sqrt(rad_cyl_sqr);
     const Real oo_rad_cyl = 1.0/rad_cyl;
 
     const Real rad = sqrt( rad_cyl_sqr + SQR(zp) );
@@ -1063,11 +1054,29 @@ void InitMagneticFields(MeshBlock *pmb, ParameterInput *pin)
     const Real dx2 = pcoord->dx2v(j);
     const Real dx3 = pcoord->dx3v(k);
 
+    /*
     pfield->bcc(0,k,j,i) = -((Acc(1,k+1,j,i) - Acc(1,k-1,j,i))/(2.0*dx3));
     pfield->bcc(1,k,j,i) =  ((Acc(0,k+1,j,i) - Acc(0,k-1,j,i))/(2.0*dx3));
     pfield->bcc(2,k,j,i) =  ((Acc(1,k,j,i+1) - Acc(1,k,j,i-1))/(2.0*dx1) -
                              (Acc(0,k,j+1,i) - Acc(0,k,j-1,i))/(2.0*dx2));
+    */
 
+    const Real F0 = 1.0 / (2.0 * dx1);
+    const Real F1 = 1.0 / (2.0 * dx2);
+    const Real F2 = 1.0 / (2.0 * dx3);
+
+    const Real d1A0 = F0 * (Acc(0,k,j+1,i)-Acc(0,k,j-1,i));
+    const Real d2A0 = F2 * (Acc(0,k+1,j,i)-Acc(0,k-1,j,i));
+
+    const Real d0A1 = F0 * (Acc(1,k,j,i+1)-Acc(1,k,j,i-1));
+    const Real d2A1 = F2 * (Acc(1,k+1,j,i)-Acc(1,k-1,j,i));
+
+    const Real d0A2 = F0 * (Acc(2,k,j,i+1)-Acc(2,k,j,i-1));
+    const Real d1A2 = F1 * (Acc(2,k,j+1,i)-Acc(2,k,j-1,i));
+
+    pfield->bcc(0,k,j,i) = d1A2-d2A1;
+    pfield->bcc(1,k,j,i) = d2A0-d0A2;
+    pfield->bcc(2,k,j,i) = d0A1-d1A0;
   }
 
   // Initialise face centred field by averaging cc field
