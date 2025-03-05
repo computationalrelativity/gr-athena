@@ -43,7 +43,7 @@ class WeakEquilibriumMod {
     const Real eps_lim  = 1.e-7; // standard tollerance in 2D NR
     const int n_cut_max = 8;     // number of bisections of dx
     const int n_max     = 100;   // Newton-Raphson max number of iterations
-    const int n_at      = 16;    // number of independent initial guesses
+    static const int n_at      = 16;    // number of independent initial guesses
 
     //.....deltas to compute numerical derivatives in the EOS tables.........
     const Real delta_ye = 0.005;
