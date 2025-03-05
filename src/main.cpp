@@ -145,7 +145,7 @@ int main(int argc, char *argv[])
   // For performance, there is no error handler protecting this step
   // (except outputs)
   gra::PrintRankZero("Step 08: Entering main integration loop...");
-  gra::timing::Clocks * pclk = new gra::timing::Clocks();
+  gra::timing::Clocks * pclk = new gra::timing::Clocks(pmesh);
 
   const bool trgs_can_adjust_mesh_dt = pinput->GetOrAddBoolean(
     "task_triggers", "adjust_mesh_dt", true
@@ -164,6 +164,12 @@ int main(int argc, char *argv[])
 
     if (Globals::my_rank == 0)
     {
+      // pmesh->evo_rate = (
+      //   pmesh->time - pmesh->start_time
+      // ) / pclk->Elapsed_hours();
+      // pmesh->evo_rate = std::isfinite(pmesh->evo_rate) ? pmesh->evo_rate : 0;
+
+      pmesh->evo_rate = pclk->evo_rate();
       pmesh->OutputCycleDiagnostics();
     }
 
@@ -211,6 +217,8 @@ int main(int argc, char *argv[])
     mbcnt += pmesh->nbtotal;
     pmesh->step_since_lb++;   // steps since load-balance
 
+    pclk->Elapsed_pause(); // ignore regrid time in evo/hr estimate
+
     bool mesh_updated = pmesh->LoadBalancingAndAdaptiveMeshRefinement(pinput);
     if (mesh_updated)
     {
@@ -249,7 +257,12 @@ int main(int argc, char *argv[])
       }
 
       pmesh->FinalizePostAMR();
+
+      // reset the timer to exclude recent regridding
+      // pclk->evo_rate_reset();
     }
+
+    pclk->Elapsed_resume(); // finish timer suspension
 
     // If a trigger adjusted pmesh->dt then do not limit dt rescaling
     pmesh->NewTimeStep(!mesh_dt_adjusted);

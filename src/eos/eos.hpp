@@ -41,6 +41,8 @@ class EquationOfState {
  public:
   EquationOfState(MeshBlock *pmb, ParameterInput *pin);
 
+  bool verbose = true;
+
   // BD: Avoid messy macro pollution with some polymorphism & interfaces ------
   void PassiveScalarConservedToPrimitive(AthenaArray<Real> &s,
                                          const AthenaArray<Real> &w,
@@ -61,7 +63,24 @@ class EquationOfState {
                             int il, int iu,
                             int jl, int ju,
                             int kl, int ku,
-                            int coarseflag);
+                            int coarseflag,
+                            bool skip_physical);
+
+  void ConservedToPrimitive(AthenaArray<Real> &cons,
+                            const AthenaArray<Real> &prim_old,
+                            AthenaArray<Real> &prim,
+                            AthenaArray<Real> &cons_scalar,
+                            AthenaArray<Real> &prim_scalar,
+                            AthenaArray<Real> &bcc, Coordinates *pco,
+                            int il, int iu,
+                            int jl, int ju,
+                            int kl, int ku,
+                            int coarseflag)
+  {
+    ConservedToPrimitive(cons, prim_old, prim, cons_scalar, prim_scalar,
+                         bcc, pco,
+                         il, iu, jl, ju, kl, ku, coarseflag, false);
+  }
 #else
   void ConservedToPrimitive(AthenaArray<Real> &cons,
                             const AthenaArray<Real> &prim_old,

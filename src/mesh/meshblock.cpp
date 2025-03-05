@@ -354,35 +354,47 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   if (FLUID_ENABLED)
   {
     // load data into register (do not advance)
-    load_data(phydro->u,  false);
+    // load_data(phydro->u,  false);
     // load & advance counter
-    load_data(phydro->u1);
+    // load_data(phydro->u1);
+
+    load_data(phydro->u);
   }
 
   if (GENERAL_RELATIVITY)
   {
     load_data(phydro->w);
-    load_data(phydro->w1);
+
+    if (!Z4C_ENABLED)
+      load_data(phydro->w1);
   }
   if (MAGNETIC_FIELDS_ENABLED)
   {
-    load_data(pfield->b.x1f, false);
-    load_data(pfield->b1.x1f);
+    // load_data(pfield->b.x1f, false);
+    // load_data(pfield->b1.x1f);
 
-    load_data(pfield->b.x2f, false);
-    load_data(pfield->b1.x2f);
+    // load_data(pfield->b.x2f, false);
+    // load_data(pfield->b1.x2f);
 
-    load_data(pfield->b.x3f, false);
-    load_data(pfield->b1.x3f);
+    // load_data(pfield->b.x3f, false);
+    // load_data(pfield->b1.x3f);
+
+    load_data(pfield->b.x1f);
+    load_data(pfield->b.x2f);
+    load_data(pfield->b.x3f);
   }
 
   // (conserved variable) Passive scalars:
   if (NSCALARS > 0)
   {
     // load data into multiple registers (do not advance)
-    load_data(pscalars->s, false);
+    // load_data(pscalars->s, false);
     // load & advance counter
-    load_data(pscalars->s1);
+    // load_data(pscalars->s1);
+
+    load_data(pscalars->s);
+    load_data(pscalars->r);
+
   }
 
   if (WAVE_ENABLED)
@@ -393,14 +405,17 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   if (Z4C_ENABLED)
   {
     load_data(pz4c->storage.u);
-    load_data(pz4c->storage.mat);
+    // load_data(pz4c->storage.u1);
+    // load_data(pz4c->storage.adm);
+    // load_data(pz4c->storage.mat);
   }
 
   if (M1_ENABLED)
   {
+    // load_data(pm1->storage.u, false);
+    // load_data(pm1->storage.u1);
     load_data(pm1->storage.u);
   }
-
 
   // load user MeshBlock data
   for (int n=0; n<nint_user_meshblock_data_; n++)
@@ -416,6 +431,21 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     os += ruser_meshblock_data[n].GetSizeInBytes();
   }
 
+
+  // Loading complete; derived:
+  if (Z4C_ENABLED)
+  {
+    pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
+
+    if (FLUID_ENABLED)
+    {
+      // Update w1 to have the state of w
+      phydro->RetainState(phydro->w1, phydro->w,
+                          0, ncells1-1,
+                          0, ncells2-1,
+                          0, ncells3-1);
+    }
+  }
   return;
 }
 
@@ -861,15 +891,23 @@ std::size_t MeshBlock::GetBlockSizeInBytes() {
   if (FLUID_ENABLED)
     size += phydro->u.GetSizeInBytes();
 
-  if (GENERAL_RELATIVITY) {
+  if (GENERAL_RELATIVITY)
+  {
     size += phydro->w.GetSizeInBytes();
-    size += phydro->w1.GetSizeInBytes();
+    if (!Z4C_ENABLED)  // We don't need this; reduce storage
+      size += phydro->w1.GetSizeInBytes();
   }
   if (MAGNETIC_FIELDS_ENABLED)
-    size += (pfield->b.x1f.GetSizeInBytes() + pfield->b.x2f.GetSizeInBytes()
-             + pfield->b.x3f.GetSizeInBytes());
+  {
+    size += pfield->b.x1f.GetSizeInBytes();
+    size += pfield->b.x2f.GetSizeInBytes();
+    size += pfield->b.x3f.GetSizeInBytes();
+  }
   if (NSCALARS > 0)
+  {
     size += pscalars->s.GetSizeInBytes();
+    size += pscalars->r.GetSizeInBytes();
+  }
 
   if (WAVE_ENABLED) {
     size += pwave->u.GetSizeInBytes();
@@ -877,7 +915,8 @@ std::size_t MeshBlock::GetBlockSizeInBytes() {
 
   if (Z4C_ENABLED) {
     size+=pz4c->storage.u.GetSizeInBytes();
-    size+=pz4c->storage.mat.GetSizeInBytes();
+    // size+=pz4c->storage.adm.GetSizeInBytes();
+    // size+=pz4c->storage.mat.GetSizeInBytes();
   }
 
   if (M1_ENABLED)
@@ -1160,6 +1199,37 @@ void MeshBlock::SetBoundaryVariablesPrimitive()
   pscalars->sbvar.coarse_buf = &(pscalars->coarse_r_);
 #endif
 
+}
+
+void MeshBlock::DebugMeshBlock(
+  const Real x, const Real y, const Real z,
+  const int ix, const int iy, const int iz,
+  std::string txt_head, std::string txt_tail)
+{
+  if (PointContainedExclusive(x,y,z))
+  {
+    std::printf("%s", txt_head.c_str());
+
+    for (int n=0; n<NHYDRO; ++n)
+    {
+      std::printf("%.8g, ", phydro->u(n,iz,iy,ix));
+    }
+    std::printf("\n");
+
+    for (int n=0; n<NHYDRO; ++n)
+    {
+      std::printf("%.8g, ", phydro->w(n,iz,iy,ix));
+    }
+    std::printf("\n");
+
+    for (int n=0; n<Z4c::N_ADM; ++n)
+    {
+      std::printf("%.8g ", pz4c->storage.adm(n,iz,iy,ix));
+    }
+    std::printf("\n");
+
+    std::printf("%s", txt_tail.c_str());
+  }
 }
 
 //

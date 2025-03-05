@@ -330,6 +330,11 @@ public:
   void SetBoundaryVariablesConserved();
   void SetBoundaryVariablesPrimitive();
 
+  void DebugMeshBlock(
+    const Real x, const Real y, const Real z,
+    const int ix, const int iy, const int iz,
+    std::string txt_head, std::string txt_tail);
+
 private:
   // if AMR *just* created this block, useful to know.
   bool new_from_amr = false;
@@ -436,8 +441,10 @@ class Mesh {
   const bool f2, f3; // flags indicating (at least) 2D or 3D Mesh
   const int ndim;     // number of dimensions
   const bool adaptive, multilevel;
+  const bool use_split_grmhd_z4c;
   const FluidFormulation fluid_setup;
   Real start_time, time, tlim, dt, dt_hyperbolic, dt_parabolic, dt_user, cfl_number;
+  Real evo_rate;
   int nlim, ncycle, ncycle_out, dt_diagnostics;
   Real muj, nuj, muj_tilde;
   int nbtotal, nbnew, nbdel; // note: nbnew and nbdel are accumulative quantities
@@ -477,7 +484,8 @@ class Mesh {
 
   void GetMeshBlocksMyRank(std::vector<MeshBlock*> & pmb_array);
 
-  void Initialize(int res_flag, ParameterInput *pin);
+  enum class initialize_style { pgen, regrid, restart };
+  void Initialize(initialize_style init_style, ParameterInput *pin);
 
   // Additional initialization logic:
   // This is called after "Initialize" in the InitMeshData call
@@ -534,6 +542,8 @@ class Mesh {
 
   void FinalizeM1(std::vector<MeshBlock*> & pmb_array);
 
+  void FinalizeHydro_pgen(std::vector<MeshBlock*> & pmb_array);
+
   void FinalizeHydroPrimRP(std::vector<MeshBlock*> & pmb_array);
   void FinalizeHydroConsRP(std::vector<MeshBlock*> & pmb_array);
 
@@ -564,6 +574,9 @@ class Mesh {
     AthenaArray<Real> dx_max;
   } M_info;
   bool diagnostic_grid_updated; // set to false in  OutputCycleDiagnostics
+
+  void DebugMesh(
+    const Real x3__, const Real x2__, const Real x1__);
 
  private:
   // data

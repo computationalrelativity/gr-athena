@@ -1,5 +1,6 @@
 // C/C++ headers
 #include <iostream>   // endl
+#include <limits>
 #include <sstream>    // sstream
 #include <stdexcept>  // runtime_error
 #include <string>     // c_str()
@@ -306,9 +307,9 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin,
 
     Add(SRCTERM_HYD, INT_HYD,     &GRMHD_Z4c::AddSourceTermsHydro);
     Add(SEND_HYD,    SRCTERM_HYD, &GRMHD_Z4c::SendHydro);
-    Add(RECV_HYD,    NONE,     &GRMHD_Z4c::ReceiveHydro);
+    Add(RECV_HYD,    SEND_HYD,     &GRMHD_Z4c::ReceiveHydro);
 
-    Add(SETB_HYD, (RECV_HYD | SRCTERM_HYD), &GRMHD_Z4c::SetBoundariesHydro);
+    Add(SETB_HYD, (SEND_HYD | RECV_HYD | SRCTERM_HYD), &GRMHD_Z4c::SetBoundariesHydro);
 
     if (NSCALARS > 0)
     {
@@ -534,6 +535,7 @@ TaskStatus GRMHD_Z4c::ClearAllBoundary(MeshBlock *pmb, int stage)
   BoundaryValues *pb = pmb->pbval;
   pb->ClearBoundary(BoundaryCommSubset::all);
 
+  // pmb->DebugMeshBlock(-15,-15,-15, 2, 20, 3, "@T:Z4c\n", "@E:Z4c\n");
   return TaskStatus::success;
 }
 
@@ -641,14 +643,7 @@ TaskStatus GRMHD_Z4c::IntegrateHydro(MeshBlock *pmb, int stage)
     ave_wghts[1] = stage_wghts[stage-1].gamma_2;
     ave_wghts[2] = stage_wghts[stage-1].gamma_3;
 
-    if (ave_wghts[0] == 0.0 && ave_wghts[1] == 1.0 && ave_wghts[2] == 0.0)
-    {
-      ph->u.SwapAthenaArray(ph->u1);
-    }
-    else
-    {
-      pmb->WeightedAveCC(ph->u, ph->u1, ph->u2, ave_wghts);
-    }
+    pmb->WeightedAveCC(ph->u, ph->u1, ph->u2, ave_wghts);
 
     const Real dt_scaled = this->dt_scaled(stage, pmb);
     ph->AddFluxDivergence(dt_scaled, ph->u);
@@ -675,16 +670,7 @@ TaskStatus GRMHD_Z4c::IntegrateField(MeshBlock *pmb, int stage)
     ave_wghts[1] = stage_wghts[stage-1].gamma_2;
     ave_wghts[2] = stage_wghts[stage-1].gamma_3;
 
-    if (ave_wghts[0] == 0.0 && ave_wghts[1] == 1.0 && ave_wghts[2] == 0.0)
-    {
-      pf->b.x1f.SwapAthenaArray(pf->b1.x1f);
-      pf->b.x2f.SwapAthenaArray(pf->b1.x2f);
-      pf->b.x3f.SwapAthenaArray(pf->b1.x3f);
-    }
-    else
-    {
-      pmb->WeightedAveFC(pf->b, pf->b1, pf->b2, ave_wghts);
-    }
+    pmb->WeightedAveFC(pf->b, pf->b1, pf->b2, ave_wghts);
 
     const Real dt_scaled = this->dt_scaled(stage, pmb);
     pf->CT(dt_scaled, pf->b);
@@ -863,17 +849,11 @@ TaskStatus GRMHD_Z4c::Primitives(MeshBlock *pmb, int stage)
     Field *pf = pmb->pfield;
     PassiveScalars *ps = pmb->pscalars;
     BoundaryValues *pb = pmb->pbval;
+    EquationOfState *peos = pmb->peos;
 
     int il = pmb->is, iu = pmb->ie;
     int jl = pmb->js, ju = pmb->je;
     int kl = pmb->ks, ku = pmb->ke;
-
-    if (pb->nblevel[1][1][0] != -1) il -= NGHOST;
-    if (pb->nblevel[1][1][2] != -1) iu += NGHOST;
-    if (pb->nblevel[1][0][1] != -1) jl -= NGHOST;
-    if (pb->nblevel[1][2][1] != -1) ju += NGHOST;
-    if (pb->nblevel[0][1][1] != -1) kl -= NGHOST;
-    if (pb->nblevel[2][1][1] != -1) ku += NGHOST;
 
 #ifdef DBG_USE_CONS_BC
     il = 0;
@@ -882,33 +862,24 @@ TaskStatus GRMHD_Z4c::Primitives(MeshBlock *pmb, int stage)
     ju = pmb->ncells2-1;
     kl = 0;
     ku = pmb->ncells3-1;
+#else
+    if (pb->nblevel[1][1][0] != -1) il -= NGHOST;
+    if (pb->nblevel[1][1][2] != -1) iu += NGHOST;
+    if (pb->nblevel[1][0][1] != -1) jl -= NGHOST;
+    if (pb->nblevel[1][2][1] != -1) ju += NGHOST;
+    if (pb->nblevel[0][1][1] != -1) kl -= NGHOST;
+    if (pb->nblevel[2][1][1] != -1) ku += NGHOST;
 #endif // DBG_USE_CONS_BC
 
-    // At beginning of this task, ph->w contains previous stage's W(U) output
-    // and ph->w1 is used as a register to store the current stage's output.
-    // For the second order integrators VL2 and RK2, the prim_old initial guess for the
-    // Newton-Raphson solver in GR EOS uses the following abscissae:
-    // stage=1: W at t^n and
-    // stage=2: W at t^{n+1/2} (VL2) or t^{n+1} (RK2)
-
     static const int coarseflag = 0;
-    pmb->peos->ConservedToPrimitive(ph->u, ph->w, ph->w1,
-                                    ps->s, ps->r,
-                                    pf->bcc, pmb->pcoord,
-                                    il, iu, jl, ju, kl, ku,
-                                    coarseflag);
+    peos->ConservedToPrimitive(ph->u, ph->w1, ph->w,
+                               ps->s, ps->r,
+                               pf->bcc, pmb->pcoord,
+                               il, iu, jl, ju, kl, ku,
+                               coarseflag);
 
-    // swap AthenaArray data pointers so that w now contains the updated w_out
-    // ph->w.SwapAthenaArray(ph->w1);
-    // r1/r_old for GR is currently unused:
-    // ps->r.SwapAthenaArray(ps->r1);
-
-    // Fill old prim with NAN as a precaution (solver does not use it)
-    // ph->w1.Fill(NAN);
-
-    // Ensure both primitive vectors contain updated state
-    ph->w = ph->w1;
-
+    // Update w1 to have the state of w
+    ph->RetainState(ph->w1, ph->w, il, iu, jl, ju, kl, ku);
     return TaskStatus::success;
   }
 
@@ -1052,14 +1023,7 @@ TaskStatus GRMHD_Z4c::IntegrateScalars(MeshBlock *pmb, int stage)
     ave_wghts[1] = stage_wghts[stage-1].gamma_2;
     ave_wghts[2] = stage_wghts[stage-1].gamma_3;
 
-    if (ave_wghts[0] == 0.0 && ave_wghts[1] == 1.0 && ave_wghts[2] == 0.0)
-    {
-      ps->s.SwapAthenaArray(ps->s1);
-    }
-    else
-    {
-      pmb->WeightedAveCC(ps->s, ps->s1, ps->s2, ave_wghts);
-    }
+    pmb->WeightedAveCC(ps->s, ps->s1, ps->s2, ave_wghts);
 
     const Real dt_scaled = this->dt_scaled(stage, pmb);
     ps->AddFluxDivergence(dt_scaled, ps->s);
@@ -1203,19 +1167,6 @@ TaskStatus GRMHD_Z4c::IntegrateZ4c(MeshBlock *pmb, int stage)
     ave_wghts[1] = stage_wghts[stage-1].gamma_2;
     ave_wghts[2] = stage_wghts[stage-1].gamma_3;
 
-    // BD: TODO - why does this give a slightly different result?
-    // if (ave_wghts[0] == 0.0 && ave_wghts[1] == 1.0 && ave_wghts[2] == 0.0)
-    // {
-    //   // pz4c->storage.u.SwapAthenaArray(pz4c->storage.u1);
-    //   std::swap(pz4c->storage.u, pz4c->storage.u1);
-    // }
-    // else
-    // {
-    //   pz4c->WeightedAve(pz4c->storage.u,
-    //                     pz4c->storage.u1,
-    //                     pz4c->storage.u2,
-    //                     ave_wghts);
-    // }
     pz4c->WeightedAve(pz4c->storage.u,
                       pz4c->storage.u1,
                       pz4c->storage.u2,

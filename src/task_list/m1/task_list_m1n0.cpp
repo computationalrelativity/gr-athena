@@ -264,6 +264,9 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
                       pm1->storage.u_sources);
 
       // Revert inhomogeneity
+      // WARNING: masks have been adjusted within CalcUpdate; to properly
+      // compensate flux addition we should not use the hybridization mask
+      // there.
       pm1->SubFluxDivergence(pm1->storage.u_rhs);
 
       // hybridize fluxes based on pp mask ------------------------------------
@@ -352,12 +355,16 @@ TaskStatus M1N0::CalcUpdate(MeshBlock *pmb, int stage)
       pm1->PrepareEvolutionStrategy(dt);
     }
 
+
+    // pm1->opt.flux_lo_fallback = false;
     pm1->CalcUpdate(stage,
                     dt,
                     pm1->storage.u1,
                     pm1->storage.u,
                     pm1->storage.u_rhs,
                     pm1->storage.u_sources);
+
+    // pm1->opt.flux_lo_fallback = true;
 
     if (stage == 2)
     {

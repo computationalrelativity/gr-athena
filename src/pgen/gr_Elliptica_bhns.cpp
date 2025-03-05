@@ -294,8 +294,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       ++I;
     }
 
-    phydro->w1 = phydro->w;
-
     // clean up
     delete[] xx_cc;
     delete[] yy_cc;

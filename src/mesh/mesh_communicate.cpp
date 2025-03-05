@@ -107,6 +107,9 @@ void Mesh::FinalizeZ4cADM_Matter(std::vector<MeshBlock*> & pmb_array)
     pz = pmb->pz4c;
 
     pz->GetMatter(pz->storage.mat, pz->storage.adm, ph->w, ps->r, pf->bcc);
+
+    // pmb->DebugMeshBlock(-15,-15,-15, 2, 20, 3, "@S:Sc\n", "@E:Sc\n");
+
   }
 }
 
@@ -176,6 +179,30 @@ void Mesh::FinalizeDiffusion(std::vector<MeshBlock*> & pmb_array)
         pf->fdif.SetDiffusivity(ph->w, pf->bcc);
     }
   }
+}
+
+void Mesh::FinalizeHydro_pgen(std::vector<MeshBlock*> & pmb_array)
+{
+#if FLUID_ENABLED
+  MeshBlock *pmb;
+
+  const int nmb = pmb_array.size();
+
+  Hydro *ph = nullptr;
+
+  #pragma omp for private(pmb, ph)
+  for (int i = 0; i < nmb; ++i)
+  {
+    pmb = pmb_array[i];
+    ph = pmb->phydro;
+
+    const int il = 0, iu = (pmb->ncells1 > 1)? pmb->ncells1 - 1 : 0;
+    const int jl = 0, ju = (pmb->ncells2 > 1)? pmb->ncells2 - 1 : 0;
+    const int kl = 0, ku = (pmb->ncells3 > 1)? pmb->ncells3 - 1 : 0;
+
+    ph->RetainState(ph->w1, ph->w, il, iu, jl, ju, kl, ku);
+  }
+#endif // FLUID_ENABLED
 }
 
 void Mesh::FinalizeHydroPrimRP(std::vector<MeshBlock*> & pmb_array)
@@ -324,6 +351,9 @@ void Mesh::PreparePrimitives(std::vector<MeshBlock*> & pmb_array,
                                     pf->bcc, pmb->pcoord,
                                     il, iu, jl, ju, kl, ku,
                                     coarseflag);
+
+    // Update w1 to have the state of w
+    ph->RetainState(ph->w1, ph->w, il, iu, jl, ju, kl, ku);
   }
 
 #endif // FLUID_ENABLED

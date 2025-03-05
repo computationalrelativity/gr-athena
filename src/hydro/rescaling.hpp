@@ -26,6 +26,10 @@ class Rescaling
     };
 
   // storage ------------------------------------------------------------------
+  private:
+    Mesh * pm;
+    ParameterInput * pin;
+
   public:
     // for storage of initial values
     struct {
@@ -78,10 +82,6 @@ class Rescaling
       Real err_rel_hydro;
       Real err_rel_scalars;
     } opt;
-
-  private:
-    Mesh * pm;
-    ParameterInput * pin;
 
   // methods ------------------------------------------------------------------
   public:

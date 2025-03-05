@@ -309,11 +309,8 @@ void BoundaryValues::StartReceiving(BoundaryCommSubset phase)
       break;
     }
     case BoundaryCommSubset::matter:
-    {
-      AllStartReceiving_(phase, bvars_main_int);
-      break;
-    }
     case BoundaryCommSubset::matter_primitives:
+    case BoundaryCommSubset::matter_flux_corrected:
     {
       AllStartReceiving_(phase, bvars_main_int);
       break;
@@ -321,6 +318,16 @@ void BoundaryValues::StartReceiving(BoundaryCommSubset phase)
     case BoundaryCommSubset::m1:
     {
       AllStartReceiving_(phase, bvars_m1);
+      break;
+    }
+    case BoundaryCommSubset::z4c:
+    {
+      AllStartReceiving_(
+        phase,
+        FCN_CC_CX_VC(bvars_main_int,
+                     bvars_main_int_cx,
+                     bvars_main_int_vc)
+      );
       break;
     }
     case BoundaryCommSubset::all:
@@ -421,11 +428,8 @@ void BoundaryValues::ClearBoundary(BoundaryCommSubset phase) {
       break;
     }
     case BoundaryCommSubset::matter:
-    {
-      AllClearBoundary_(phase, bvars_main_int);
-      break;
-    }
     case BoundaryCommSubset::matter_primitives:
+    case BoundaryCommSubset::matter_flux_corrected:
     {
       AllClearBoundary_(phase, bvars_main_int);
       break;
@@ -433,6 +437,16 @@ void BoundaryValues::ClearBoundary(BoundaryCommSubset phase) {
     case BoundaryCommSubset::m1:
     {
       AllClearBoundary_(phase, bvars_m1);
+      break;
+    }
+    case BoundaryCommSubset::z4c:
+    {
+      AllClearBoundary_(
+        phase,
+        FCN_CC_CX_VC(bvars_main_int,
+                     bvars_main_int_cx,
+                     bvars_main_int_vc)
+      );
       break;
     }
     case BoundaryCommSubset::all:

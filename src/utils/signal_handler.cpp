@@ -157,7 +157,7 @@ void BackTraceHandler(int s) {
   void * array[512];
   size_t btsize = backtrace(&array[0], 512);
   char ** btstr = backtrace_symbols(array, btsize);
-  for (int i = 0; i < btsize; ++i) {
+  for (size_t i = 0; i < btsize; ++i) {
     fprintf(ofile, "%s\n", btstr[i]);
   }
   fprintf(ofile, "\n\nThe hexadecimal addresses in this backtrace ");

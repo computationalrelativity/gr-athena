@@ -218,7 +218,8 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
     {
       Hydro * phydro = pmb->phydro;
       write_data(phydro->w);
-      write_data(phydro->w1);
+      if (!Z4C_ENABLED)  // We don't need this; reduce storage
+        write_data(phydro->w1);
     }
 
     // Longitudinal, face-centered magnetic field components:
@@ -235,14 +236,8 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
     {
       PassiveScalars * pscalars = pmb->pscalars;
       write_data(pscalars->s);
+      write_data(pscalars->r);
     }
-    // (primitive variable) density-normalized passive scalar concentrations
-    // if ???
-    // for (int n=0; n<NSCALARS; n++) {
-    //   AthenaArray<Real> &r = pmb->pscalars->r;
-    //   std::memcpy(pdata, r.data(), r.GetSizeInBytes());
-    //   pdata += r.GetSizeInBytes();
-    // }
 
     if (WAVE_ENABLED)
     {
@@ -254,7 +249,8 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
     {
       Z4c * pz4c = pmb->pz4c;
       write_data(pz4c->storage.u);
-      write_data(pz4c->storage.mat);
+      // write_data(pz4c->storage.adm);
+      // write_data(pz4c->storage.mat);
     }
 
     if (M1_ENABLED)

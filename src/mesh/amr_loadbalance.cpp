@@ -752,7 +752,7 @@ void Mesh::RedistributeAndRefineMeshBlocks(ParameterInput *pin, int ntot) {
     pmb->pbval->SearchAndSetNeighbors(tree, ranklist, nslist);
     pmb = pmb->next;
   }
-  Initialize(2, pin);
+  Initialize(initialize_style::regrid, pin);
 
   ResetLoadBalanceVariables();
 

@@ -135,7 +135,7 @@ void BoundaryValues::ProlongateBoundariesZ4c(const Real time, const Real dt)
   // BD: TODO - opt- if nn all same level not required?
   MeshBlock *pmb = pmy_block_;
   BoundaryValues *pbval = pmb->pbval;
-  Z4c *pz4c = pz4c = pmb->pz4c;
+  Z4c *pz4c = pmb->pz4c;
 
   std::vector<BoundaryVariable *> ubvar_ { &pz4c->ubvar };
 

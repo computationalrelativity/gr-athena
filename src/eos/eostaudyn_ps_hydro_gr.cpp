@@ -75,12 +75,14 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   density_floor_ = pin->GetOrAddReal("hydro", "dfloor", std::sqrt(1024*(FLT_MIN)));
   temperature_floor_ = pin->GetOrAddReal("hydro", "tfloor", std::sqrt(1024*(FLT_MIN)));
   scalar_floor_ = pin->GetOrAddReal("hydro", "sfloor", std::sqrt(1024*FLT_MIN));
+  verbose = pin->GetOrAddBoolean("hydro", "verbose", true);
 
   // control PrimitiveSolver tolerances / iterates
   ps.SetRootfinderTol(pin->GetOrAddReal("hydro", "c2p_acc", 1e-15));
   ps.SetRootfinderMaxIter(pin->GetOrAddInteger("hydro", "max_iter", 30));
+  ps.SetTightenBracket(pin->GetOrAddBoolean("hydro", "tighten_bracket", true));
   ps.SetValidateDensity(pin->GetOrAddBoolean("hydro", "c2p_validate_density", true));
-  ps.SetValidateDensity(pin->GetOrAddBoolean("hydro", "use_toms_748", false));
+  ps.SetToms748(pin->GetOrAddBoolean("hydro", "use_toms_748", false));
 
   // BD: TODO - clean up
   int ncells1 = pmb->block_size.nx1 + 2*NGHOST;
@@ -96,6 +98,8 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   eos.SetCodeUnitSystem(&Primitive::GeometricSolar);
   eos.ReadTableFromFile(table);
   Real mb = eos.GetBaryonMass();
+  Real n_max_factor = pin->GetOrAddReal("hydro", "n_max_factor", 1.0);
+  eos.SetMaximumDensity(eos.GetMaximumDensity() * n_max_factor);
 
 #elif defined(USE_IDEAL_GAS)
   // Baryon mass
@@ -225,7 +229,8 @@ void EquationOfState::ConservedToPrimitive(
   AA &prim, AA &cons_scalar,
   AA &prim_scalar, AA &bb_cc, Coordinates *pco,
   int il, int iu, int jl, int ju, int kl, int ku,
-  int coarse_flag)
+  int coarse_flag,
+  bool skip_physical)
 {
   MeshBlock* pmb = pmy_block_;
   Hydro * ph     = pmb->phydro;
@@ -253,6 +258,14 @@ void EquationOfState::ConservedToPrimitive(
     #pragma omp simd
     for (int i = IL; i <= IU; ++i)
     {
+      if (skip_physical &&
+          (pmb->is <= i) && (i <= pmb->ie) &&
+          (pmb->js <= j) && (j <= pmb->je) &&
+          (pmb->ks <= k) && (k <= pmb->ke))
+      {
+        continue;
+      }
+
       // Check if the state is admissible; if not we reset to atmo.
       bool is_admissible = IsAdmissiblePoint(cons, prim, det_gamma_, k, j, i);
 
@@ -340,7 +353,8 @@ void EquationOfState::ConservedToPrimitive(
       // If the lapse or metric determinant fall below zero, we're probably in an
       // unphysical regime for a fluid, like a black hole or something. Primitive
       // failure is expected and will just result in a floor being applied.
-      if(result.error != Primitive::Error::SUCCESS && detgamma > 0) {
+      if (verbose && (result.error != Primitive::Error::SUCCESS && (detgamma > 0)))
+      {
         std::cerr << "There was an error during the primitive solve!\n";
         std::cerr << "  Iteration: " << pmy_block_->pmy_mesh->ncycle << "\n";
         std::cerr << "  Error: " << Primitive::ErrorString[(int)result.error] << "\n";

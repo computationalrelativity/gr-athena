@@ -27,7 +27,7 @@ struct StateMetaVector {
   AT_C_sca & sc_n;
   AT_C_sca & sc_chi;
   AT_C_sca & sc_xi;
-  AT_N_sym & sp_P_dd;
+  // AT_N_sym & sp_P_dd;
 
   AT_C_sca & sc_J;
   AT_D_vec & st_H_u;

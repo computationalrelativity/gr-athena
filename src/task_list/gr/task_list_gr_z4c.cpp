@@ -120,7 +120,7 @@ void GR_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
     }
   }
 
-  pb->StartReceiving(BoundaryCommSubset::all);
+  pb->StartReceiving(BoundaryCommSubset::z4c);
   return;
 }
 
@@ -129,7 +129,8 @@ void GR_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
 TaskStatus GR_Z4c::ClearAllBoundary(MeshBlock *pmb, int stage)
 {
   BoundaryValues *pb = pmb->pbval;
-  pb->ClearBoundary(BoundaryCommSubset::all);
+  pb->ClearBoundary(BoundaryCommSubset::z4c);
+
   return TaskStatus::success;
 }
 
@@ -184,20 +185,6 @@ TaskStatus GR_Z4c::IntegrateZ4c(MeshBlock *pmb, int stage)
       ave_wghts[0] = ls->stage_wghts[stage-1].gamma_1;
       ave_wghts[1] = ls->stage_wghts[stage-1].gamma_2;
       ave_wghts[2] = ls->stage_wghts[stage-1].gamma_3;
-
-      // BD: TODO - why does this give a slightly different result?
-      // if (ave_wghts[0] == 0.0 && ave_wghts[1] == 1.0 && ave_wghts[2] == 0.0)
-      // {
-      //   // pz4c->storage.u.SwapAthenaArray(pz4c->storage.u1);
-      //   std::swap(pz4c->storage.u, pz4c->storage.u1);
-      // }
-      // else
-      // {
-      //   pz4c->WeightedAve(pz4c->storage.u,
-      //                     pz4c->storage.u1,
-      //                     pz4c->storage.u2,
-      //                     ave_wghts);
-      // }
 
       pz4c->WeightedAve(pz4c->storage.u,
                         pz4c->storage.u1,

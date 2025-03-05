@@ -176,8 +176,10 @@ enum class BoundaryCommSubset {
   iterated_z4c,
   aux_adm,
   m1,
+  z4c,
   matter,
-  matter_primitives,
+  matter_flux_corrected,
+  matter_primitives
 };
 // TODO(felker): consider generalizing/renaming to QuantityFormulation
 enum class FluidFormulation {evolve, background, disabled}; // rename background -> fixed?

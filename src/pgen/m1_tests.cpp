@@ -240,7 +240,6 @@ void InitM1HomogenousMedium(MeshBlock *pmb, ParameterInput *pin)
     phydro->w(IVZ,k,j,i) = W*velz;
   }
 
-  phydro->w1 = phydro->w;
 #endif // FLUID_ENABLED
 
   // Start with zero radiation density
@@ -868,6 +867,14 @@ void InitM1FixedBackgroundBeam(MeshBlock *pmb, ParameterInput *pin)
 
 void Mesh::InitUserMeshData(ParameterInput *pin)
 {
+  if (resume_flag && Globals::my_rank == 0)
+  {
+    std::stringstream msg;
+    msg << "Warning: restarting m1_tests pgen may give unexpected results "
+        << "as opacities are stored in RST\n";
+    std::cout << msg.str();
+  }
+
   std::string m1_test = pin->GetOrAddString("problem", "test", "advection");
 
   if (m1_test == "shadow")
@@ -908,6 +915,39 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   return;
 }
 
+
+void MeshBlock::InitUserMeshBlockData(ParameterInput *pin)
+{
+  AllocateUserOutputVariables(4);
+  return;
+}
+
+void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin)
+{
+  AA & fl = pm1->ev_strat.masks.flux_limiter;
+  int ix_d = 0;
+  AT_C_sca & F_E = pm1->fluxes.sc_E(0,0,ix_d);
+
+  int il = pm1->mbi.nn1;
+  int jl = pm1->mbi.nn2;
+  int kl = pm1->mbi.nn3;
+
+  if (pm1->opt.flux_limiter_use_mask)
+  M1_ILOOP3(k, j, i)
+  {
+    user_out_var(0,k,j,i) = fl(0,k,j,i);
+    user_out_var(1,k,j,i) = F_E(k,j,i);
+    // user_out_var(2,k,j,i) = fl(2,k,j,i);
+  }
+
+  if (pm1->opt.flux_lo_fallback)
+  M1_ILOOP3(k, j, i)
+  {
+    user_out_var(3,k,j,i) = pm1->ev_strat.masks.pp(k,j,i);
+  }
+
+  return;
+}
 
 void MeshBlock::ProblemGenerator(ParameterInput *pin)
 {

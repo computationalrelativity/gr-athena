@@ -30,6 +30,7 @@ namespace {
   static ini_data *rns_data;
 #if USETM
   Primitive::ColdEOS<Primitive::COLDEOS_POLICY> * ceos = NULL;
+  Real mb_rnsc = 931.191715903434; // RNSC uses this mass factor
 #endif
 }
 
@@ -324,6 +325,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   {
 
     int flat_ix = i + n[0]*(j + n[1]*k);
+    rho[flat_ix] *= ceos->mb/mb_rnsc; // adjust for rns baryon mass
     Real r = std::sqrt(x[i]*x[i]+y[j]*y[j]+z[k]*z[k]);
 
 #if USETM
@@ -355,13 +357,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       phydro->w(IVY, k, j, i) -= v_pert * std::cos(M_PI*r/(2.0*rns_data->r_e))*y[j]/r;
       phydro->w(IVZ, k, j, i) -= v_pert * std::cos(M_PI*r/(2.0*rns_data->r_e))*z[k]/r;
     }
-
-    phydro->w1(IDN,k,j,i) = phydro->w(IDN,k,j,i);
-    phydro->w1(IPR,k,j,i) = phydro->w(IPR,k,j,i);
-    phydro->w1(IVX,k,j,i) = phydro->w(IVX,k,j,i);
-    phydro->w1(IVY,k,j,i) = phydro->w(IVY,k,j,i);
-    phydro->w1(IVZ,k,j,i) = phydro->w(IVZ,k,j,i);
-
   }
 
   if (pres_diff > 1e-3)

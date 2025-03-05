@@ -164,13 +164,13 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
   inline std::vector<BoundaryVariable *> & GetBvarsWave()
   {
     return WAVE_SW_CC_CX_VC(
-      bvars_main_int, bvars_main_int_cx, bvars_main_int
+      bvars_main_int, bvars_main_int_cx, bvars_main_int_vc
     );
   };
   inline std::vector<BoundaryVariable *> & GetBvarsZ4c()
   {
     return SW_CC_CX_VC(
-      bvars_main_int, bvars_main_int_cx, bvars_main_int
+      bvars_main_int, bvars_main_int_cx, bvars_main_int_vc
     );
   };
   inline std::vector<BoundaryVariable *> & GetBvarsMatter()

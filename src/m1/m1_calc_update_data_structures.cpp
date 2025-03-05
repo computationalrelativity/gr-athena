@@ -25,7 +25,7 @@ StateMetaVector ConstructStateMetaVector(
     pm1.rad.sc_n(       ix_g,ix_s),
     pm1.lab_aux.sc_chi( ix_g,ix_s),
     pm1.lab_aux.sc_xi(  ix_g,ix_s),
-    pm1.lab_aux.sp_P_dd(ix_g,ix_s),
+    // pm1.lab_aux.sp_P_dd(ix_g,ix_s),
     // Lagrangian frame
     pm1.rad.sc_J(  ix_g,ix_s),
     pm1.rad.st_H_u(ix_g,ix_s),

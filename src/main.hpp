@@ -7,6 +7,8 @@
 #include <ctime>      // clock(), CLOCKS_PER_SEC, clock_t
 #include <iomanip>
 #include <iostream>   // cout, endl
+#include <thread>
+#include <chrono>
 
 // External libraries
 
@@ -148,10 +150,60 @@ inline void Barrier()
 // Runtime stuff --------------------------------------------------------------
 namespace gra::timing {
 
+// basic real-world [non-cpu] timer based on chrono for e.g. t-evo / hr
+// based on SO. 2808398
+template <class DT = std::chrono::milliseconds,
+          class ClockT = std::chrono::steady_clock,
+          class TimePoint = std::chrono::steady_clock::time_point,
+          class Duration = std::chrono::steady_clock::duration>
+class Timer
+{
+  public:
+    Timer()
+      : time_start_(ClockT::now()),
+        time_paused_(time_start_),
+        duration_ignored_(Duration::zero()),
+        is_paused_(false)
+    { }
+
+  void pause()
+  {
+    if (is_paused_)
+    {
+      time_paused_ = ClockT::now();
+      is_paused_ = true;
+    }
+  }
+
+  void resume()
+  {
+    if (is_paused_)
+    {
+      duration_ignored_ += ClockT::now() - time_paused_;
+      is_paused_ = false;
+    }
+  }
+
+  Real elapsed() const
+  {
+    auto time_end_ = (is_paused_) ? time_paused_ : ClockT::now();
+    auto time_diff_ = time_end_ - time_start_ - duration_ignored_;
+    return std::chrono::duration<Real>(time_diff_).count();
+  }
+
+  private:
+    TimePoint time_start_;
+    TimePoint time_paused_;
+    Duration duration_ignored_;
+    bool is_paused_;
+};
+
 class Clocks
 {
   public:
-    Clocks()
+    Clocks(Mesh * pmesh)
+    : pmesh(pmesh),
+      wtime()
     {
       tstart = clock();
 #ifdef OPENMP_PARALLEL
@@ -167,10 +219,51 @@ class Clocks
 #endif
     }
 
+    // N.B. non-cpu time
+    inline Real Elapsed_seconds()
+    {
+      return wtime.elapsed();
+    }
+
+    inline Real Elapsed_hours()
+    {
+      return Elapsed_seconds() / 3600.0;
+    }
+
+    // allow pause & resume of real-time clock
+    inline void Elapsed_pause()
+    {
+      wtime.pause();
+    }
+
+    inline void Elapsed_resume()
+    {
+      wtime.resume();
+    }
+
+    // measured evolution rate in T/hr
+    inline Real evo_rate()
+    {
+      Real er = (
+        pmesh->time - evo_clock_time_start
+      ) / Elapsed_hours();
+
+      return std::isfinite(er) ? er : 0;
+    }
+
   public:
+    Mesh * pmesh;
+    Timer<std::chrono::seconds,
+          std::chrono::steady_clock,
+          std::chrono::steady_clock::time_point,
+          std::chrono::steady_clock::duration> wtime;
+
     clock_t tstart, tstop;
     double omp_start_time;
     double omp_time;
+
+    // start time for `Elapsed_seconds` & `Elapsed_hours`
+    Real evo_clock_time_start;
 };
 
 }  // namespace gra::timing
@@ -398,7 +491,10 @@ inline void InitMeshData(Flags *pfl, ParameterInput *pin, Mesh *pm)
 {
   try
   {
-    pm->Initialize(pfl->res, pin);
+    typedef Mesh::initialize_style tinit;
+    tinit init_style = (pfl->res == 0) ? tinit::pgen : tinit::restart;
+
+    pm->Initialize(init_style, pin);
     pm->InitializePostFirstInitialize(pin);
     pm->DeleteTemporaryUserMeshData();
   }
@@ -552,6 +648,11 @@ struct Collection
   TaskLists::GeneralRelativity::GR_Z4c      * gr_z4c       = nullptr;
   TaskLists::GeneralRelativity::GRMHD_Z4c   * grmhd_z4c    = nullptr;
 
+  TaskLists::GeneralRelativity::GRMHD_Z4c_Phase_MHD   * grmhd_z4c_MHD;
+  TaskLists::GeneralRelativity::GRMHD_Z4c_Phase_MHD_com   * grmhd_z4c_MHD_com;
+  TaskLists::GeneralRelativity::GRMHD_Z4c_Phase_Z4c   * grmhd_z4c_Z4c;
+  TaskLists::GeneralRelativity::GRMHD_Z4c_Phase_Finalize   * grmhd_z4c_Fin;
+
   TaskLists::GeneralRelativity::Aux_Z4c     * aux_z4c      = nullptr;
   TaskLists::GeneralRelativity::PostAMR_Z4c * postamr_z4c  = nullptr;
 
@@ -573,8 +674,14 @@ inline void PopulateCollection(Collection &ptlc,
 
       if (FLUID_ENABLED)
       {
-        // GR(M)HD
+        // GR(M)HD [monolithic]
         ptlc.grmhd_z4c = new GRMHD_Z4c(pin, pm, ptlc.trgs);
+
+        // GR(M)HD [split]
+        ptlc.grmhd_z4c_MHD = new GRMHD_Z4c_Phase_MHD(pin, pm, ptlc.trgs);
+        ptlc.grmhd_z4c_MHD_com = new GRMHD_Z4c_Phase_MHD_com(pin, pm, ptlc.trgs);
+        ptlc.grmhd_z4c_Z4c = new GRMHD_Z4c_Phase_Z4c(pin, pm, ptlc.trgs);
+        ptlc.grmhd_z4c_Fin = new GRMHD_Z4c_Phase_Finalize(pin, pm, ptlc.trgs);
       }
       else
       {
@@ -618,6 +725,12 @@ inline void TearDown(Collection &ptlc)
     {
       // GR(M)HD
       delete ptlc.grmhd_z4c;
+
+      // GR(M)HD [split]
+      delete ptlc.grmhd_z4c_MHD;
+      delete ptlc.grmhd_z4c_MHD_com;
+      delete ptlc.grmhd_z4c_Z4c;
+      delete ptlc.grmhd_z4c_Fin;
     }
     else
     {
@@ -672,10 +785,23 @@ inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
 
   for (int stage=1; stage<=ptlc.grmhd_z4c->nstages; ++stage)
   {
-    ptlc.grmhd_z4c->DoTaskListOneStage(pmesh, stage);
+    if (pmesh->use_split_grmhd_z4c)
+    {
+      ptlc.grmhd_z4c_MHD->DoTaskListOneStage(pmesh, stage);
+      ptlc.grmhd_z4c_Z4c->DoTaskListOneStage(pmesh, stage);
 
-    // Iterate bnd comm. as required
-    pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
+      // Iterate bnd comm. as required
+      pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
+
+      ptlc.grmhd_z4c_MHD_com->DoTaskListOneStage(pmesh, stage);
+      ptlc.grmhd_z4c_Fin->DoTaskListOneStage(pmesh, stage);
+    }
+    else
+    {
+      ptlc.grmhd_z4c->DoTaskListOneStage(pmesh, stage);
+      // Iterate bnd comm. as required
+      pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
+    }
 
     // Rescale as required
 #if FLUID_ENABLED
@@ -741,7 +867,7 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
   for (auto cce : pmesh->pcce)
   {
     if (pmesh->ncycle % cce->freq != 0) continue;
-    
+
     int cce_iter = pmesh->ncycle / cce->freq;
 
     cce->ReduceInterpolation();
@@ -826,9 +952,14 @@ inline void M1N0(gra::tasklist::Collection &ptlc,
     ptlc.m1n0->DoTaskListOneStage(pmesh, stage);
 
     // Last stage performs Con2Prim, scatter this, call GetMatter
-    if (stage == ptlc.m1n0->nstages)
+    if (Z4C_ENABLED && FLUID_ENABLED && (stage == ptlc.m1n0->nstages))
     {
-      pmesh->ScatterMatter(pmb_array);
+      // monolithic send
+      // pmesh->ScatterMatter(pmb_array);
+
+      // recycle the matter task-based send
+      static const int stage_dummy = 0; // only a comm. so irrelevant
+      ptlc.grmhd_z4c_MHD_com->DoTaskListOneStage(pmesh, stage_dummy);
     }
   }
 }

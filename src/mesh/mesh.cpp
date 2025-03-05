@@ -97,6 +97,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
              ? true : false),
     multilevel((adaptive || pin->GetOrAddString("mesh", "refinement", "none") == "static")
                ? true : false),
+    use_split_grmhd_z4c(pin->GetOrAddBoolean("hydro", "use_split_grmhd_z4c", false)),
     fluid_setup(GetFluidFormulation(pin->GetOrAddString("hydro", "active", "true"))),
     start_time(pin->GetOrAddReal("time", "start_time", 0.0)), time(start_time),
     tlim(pin->GetReal("time", "tlim")), dt(std::numeric_limits<Real>::max()),
@@ -317,6 +318,17 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
   } else {
     max_level = 63;
   }
+
+  if (use_split_grmhd_z4c)
+  {
+#if !defined(USETM)
+      msg << "### FATAL ERROR " << std::endl
+          << "hydro/use_split_grmhd_z4c can only be used with PrimitiveSolver"
+          << std::endl;
+      ATHENA_ERROR(msg);
+#endif
+  }
+
   if (Z4C_ENABLED)
   {
     int nrad = pin->GetOrAddInteger("psi4_extraction", "num_radii", 0);
@@ -663,6 +675,7 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
              ? true : false),
     multilevel((adaptive || pin->GetOrAddString("mesh", "refinement", "none") == "static")
                ? true : false),
+    use_split_grmhd_z4c(pin->GetOrAddBoolean("hydro", "use_split_grmhd_z4c", false)),
     fluid_setup(GetFluidFormulation(pin->GetOrAddString("hydro", "active", "true"))),
     start_time(pin->GetOrAddReal("time", "start_time", 0.0)), time(start_time),
     tlim(pin->GetReal("time", "tlim")), dt(std::numeric_limits<Real>::max()),
@@ -802,6 +815,16 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     }
   } else {
     max_level = 63;
+  }
+
+  if (use_split_grmhd_z4c)
+  {
+#if !defined(USETM)
+      msg << "### FATAL ERROR " << std::endl
+          << "hydro/use_split_grmhd_z4c can only be used with PrimitiveSolver"
+          << std::endl;
+      ATHENA_ERROR(msg);
+#endif
   }
 
   if (Z4C_ENABLED) {
@@ -1055,10 +1078,10 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     }
 
     // BD: needed for cons<->prim after restart
-    if(Z4C_ENABLED && FLUID_ENABLED)
-    {
-      pblock->pz4c->Z4cToADM(pblock->pz4c->storage.u, pblock->pz4c->storage.adm);
-    }
+    // if(Z4C_ENABLED && FLUID_ENABLED)
+    // {
+    //   pblock->pz4c->Z4cToADM(pblock->pz4c->storage.u, pblock->pz4c->storage.adm);
+    // }
 
     pblock->pbval->SearchAndSetNeighbors(tree, ranklist, nslist);
   }
@@ -1105,10 +1128,10 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     }
 
     // BD: needed for cons<->prim after restart
-    if(Z4C_ENABLED && FLUID_ENABLED)
-    {
-      pblock->pz4c->Z4cToADM(pblock->pz4c->storage.u, pblock->pz4c->storage.adm);
-    }
+    // if(Z4C_ENABLED && FLUID_ENABLED)
+    // {
+    //   pblock->pz4c->Z4cToADM(pblock->pz4c->storage.u, pblock->pz4c->storage.adm);
+    // }
 
     pblock->pbval->SearchAndSetNeighbors(tree, ranklist, nslist);
   }
@@ -1680,7 +1703,7 @@ void Mesh::ApplyUserWorkMeshUpdatedPrePostAMRHooks(ParameterInput *pin) {
 // \!fn void Mesh::Initialize(int res_flag, ParameterInput *pin)
 // \brief  initialization before the main loop
 
-void Mesh::Initialize(int res_flag, ParameterInput *pin)
+void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
 {
   bool iflag = true;
   int inb = nbtotal;
@@ -1696,7 +1719,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
     GetMeshBlocksMyRank(pmb_array);
     nmb = pmb_array.size();
 
-    if (res_flag == 0) {
+    if (init_style == initialize_style::pgen)
+    {
       #pragma omp parallel for num_threads(nthreads)
       for (int i = 0; i < nmb; ++i)
       {
@@ -1720,7 +1744,11 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
       MeshBlock *pmb;
       BoundaryValues *pbval;
 
-      CommunicateConserved(pmb_array);
+      if ((init_style == initialize_style::pgen) ||
+          (init_style == initialize_style::regrid))
+      {
+        CommunicateConserved(pmb_array);
+      }
 
       // Finalize sub-systems that only need conserved vars -------------------
 #if Z4C_ENABLED
@@ -1729,13 +1757,32 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
       // Apply BC [CC,CX,VC]
       // Enforce alg. constraints
       // Prepare ADM variables
-      FinalizeZ4cADM(pmb_array);
+      if ((init_style == initialize_style::pgen) ||
+          (init_style == initialize_style::regrid))
+      {
+        FinalizeZ4cADM(pmb_array);
+      }
 #endif
 
 #if WAVE_ENABLED
       // Prolongate wave
       // Apply BC
-      FinalizeWave(pmb_array);
+      if ((init_style == initialize_style::pgen) ||
+          (init_style == initialize_style::regrid))
+      {
+        FinalizeWave(pmb_array);
+      }
+#endif
+      // ----------------------------------------------------------------------
+
+      // ----------------------------------------------------------------------
+      // Deal with retention of old prim state of fluid in case of rootfinder
+#if FLUID_ENABLED
+      if ((init_style == initialize_style::pgen) ||
+          (init_style == initialize_style::regrid))
+      {
+        FinalizeHydro_pgen(pmb_array);
+      }
 #endif
       // ----------------------------------------------------------------------
 
@@ -1746,6 +1793,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
       // - communication of primitives
 #if FLUID_ENABLED && GENERAL_RELATIVITY && !defined(DBG_USE_CONS_BC)
       if (multilevel)
+      if ((init_style == initialize_style::pgen) ||
+          (init_style == initialize_style::regrid))
       {
         const bool interior_only = true;
         PreparePrimitives(pmb_array, interior_only);
@@ -1756,12 +1805,22 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
 
       // Deal with matter prol. & BC ------------------------------------------
 #if FLUID_ENABLED && !defined(DBG_USE_CONS_BC)
-      FinalizeHydroPrimRP(pmb_array);
+      if (multilevel)
+      if ((init_style == initialize_style::pgen) ||
+          (init_style == initialize_style::regrid))
+      {
+        FinalizeHydroPrimRP(pmb_array);
+      }
 #elif FLUID_ENABLED && defined(DBG_USE_CONS_BC)
-      FinalizeHydroConsRP(pmb_array);
+      if (multilevel)
+      if ((init_style == initialize_style::pgen) ||
+          (init_style == initialize_style::regrid))
+      {
+        FinalizeHydroConsRP(pmb_array);
 
-      const bool interior_only = false;
-      PreparePrimitives(pmb_array, interior_only);
+        const bool interior_only = false;
+        PreparePrimitives(pmb_array, interior_only);
+      }
 #endif
       // ----------------------------------------------------------------------
 
@@ -1775,12 +1834,15 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
 #if M1_ENABLED
       // Prolongate m1
       // Apply BC
+      // Not all registers are reloaded from rst, do this on all init calls
       FinalizeM1(pmb_array);
 #endif
       // ----------------------------------------------------------------------
 
 #if FLUID_ENABLED && Z4C_ENABLED
-      if (!res_flag)
+      if ((init_style == initialize_style::pgen) ||
+          (init_style == initialize_style::regrid) ||
+          (init_style == initialize_style::restart))
       {
         // Prepare ADM sources
         // Requires B-field in ghost-zones
@@ -1792,7 +1854,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
       }
 #endif
 
-      if (!res_flag && adaptive)
+      if (adaptive)
+      if (init_style == initialize_style::pgen)
       {
         #pragma omp for
         for (int i = 0; i < nmb; ++i) {
@@ -1802,7 +1865,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin)
     } // omp parallel
 
     // Further re-gridding as required ----------------------------------------
-    if (!res_flag && adaptive)
+    if (adaptive)
+    if (init_style == initialize_style::pgen)
     {
       iflag = false;
       int onb = nbtotal;
@@ -2084,9 +2148,19 @@ void Mesh::OutputCycleDiagnostics() {
   const int ratio_precision = 3;
   if (ncycle_out != 0) {
     if (ncycle % ncycle_out == 0) {
+      // std::cout << "cycle=" << ncycle << std::scientific
+      //           << std::setprecision(dt_precision)
+      //           << " time=" << time << " dt=" << dt;
+
       std::cout << "cycle=" << ncycle << std::scientific
                 << std::setprecision(dt_precision)
                 << " time=" << time << " dt=" << dt;
+      std::printf(" dtime[hr^-1]=%.2e", evo_rate);
+
+      int nthreads = GetNumMeshThreads();
+      std::printf(" MB/thr~=%.1f",
+        nbtotal / static_cast<Real>(Globals::nranks * GetNumMeshThreads())
+      );
 
       if (step_since_lb == 0)
       {

@@ -234,7 +234,9 @@ void Hydro::RiemannSolver(
       Real horizon_radius;
       for (auto pah_f : pmy_block->pmy_mesh->pah_finder)
       {
-        horizon_radius = pah_f->GetHorizonRadius();
+        if (not pah_f->ah_found)
+          continue;
+        horizon_radius = pah_f->rr_min;
         horizon_radius *= pmb->phydro->opt_excision.horizon_factor;
         Real R2;
         switch (ivx)
@@ -244,18 +246,25 @@ void Hydro::RiemannSolver(
             R2 = (
               SQR(pco_gr->x1f(i)) + SQR(pco_gr->x2v(j)) + SQR(pco_gr->x3v(k))
             );
+            break;
           }
           case IVY:
           {
             R2 = (
               SQR(pco_gr->x1v(i)) + SQR(pco_gr->x2f(j)) + SQR(pco_gr->x3v(k))
             );
+            break;
           }
           case IVZ:
           {
             R2 = (
               SQR(pco_gr->x1v(i)) + SQR(pco_gr->x2v(j)) + SQR(pco_gr->x3f(k))
             );
+            break;
+          }
+          default:
+          {
+            assert(false);
           }
         }
 

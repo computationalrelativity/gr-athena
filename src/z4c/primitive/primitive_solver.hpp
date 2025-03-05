@@ -189,6 +189,7 @@ class PrimitiveSolver {
   public:
     Real tol;
     bool validate_density;
+    bool tighten_bracket;
     bool use_toms_748;
 
     /// Constructor
@@ -211,6 +212,11 @@ class PrimitiveSolver {
     inline void SetValidateDensity(const bool validate_density)
     {
       this->validate_density = validate_density;
+    }
+
+    inline void SetTightenBracket(const bool tighten_bracket)
+    {
+      this->tighten_bracket = tighten_bracket;
     }
 
     inline void SetToms748(const bool use_toms_748)
@@ -475,26 +481,30 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
   Real min_h = peos->GetMinimumEnthalpy();
   Real mul = 0.0;
   Real muh = 1.0/min_h;
-  // Check if a tighter upper bound exists.
-  if (rsqr > min_h*min_h) {
-    Real mu = 0.0;
-    // We don't need the bound to be that tight, so we reduce
-    // the accuracy of the root solve for speed reasons.
-    Real mulc = mul;
-    Real mulh = muh;
-    bool result = root.NewtonSafe(UpperRoot, mulc, mulh, mu, 1e-10,
-                                  bsqr, rsqr, rbsqr, min_h);
-    // Scream if the bracketing failed.
-    if (!result) {
-      HandleFailure(prim, cons, b, g3d);
-      solver_result.error = Error::BRACKETING_FAILED;
-      return solver_result;
-    }
-    else {
-      // To avoid problems with the case where the root and the upper bound collide,
-      // we will perturb the bound slightly upward.
-      // TODO: Is there a more rigorous way of treating this?
-      muh = mu*(1. + 1e-10);
+
+  if (tighten_bracket)
+  {
+    // Check if a tighter upper bound exists.
+    if (rsqr > min_h*min_h) {
+      Real mu = 0.0;
+      // We don't need the bound to be that tight, so we reduce
+      // the accuracy of the root solve for speed reasons.
+      Real mulc = mul;
+      Real mulh = muh;
+      bool result = root.NewtonSafe(UpperRoot, mulc, mulh, mu, 1e-10,
+                                    bsqr, rsqr, rbsqr, min_h);
+      // Scream if the bracketing failed.
+      if (!result) {
+        HandleFailure(prim, cons, b, g3d);
+        solver_result.error = Error::BRACKETING_FAILED;
+        return solver_result;
+      }
+      else {
+        // To avoid problems with the case where the root and the upper bound collide,
+        // we will perturb the bound slightly upward.
+        // TODO: Is there a more rigorous way of treating this?
+        muh = mu*(1. + 1e-10);
+      }
     }
   }
 

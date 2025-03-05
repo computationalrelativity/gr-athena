@@ -9,6 +9,7 @@
 //         https://lorene.obspm.fr/
 
 #include <algorithm>
+#include <cstring> // strcmp()
 #include <cassert>
 #include <iomanip>
 #include <iostream>
@@ -138,23 +139,19 @@ namespace {
 
 void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin)
 {
-  Field * pf { pmb->pfield };
-  Hydro * ph { pmb->phydro };
+  GRDynamical * pcoord { static_cast<GRDynamical*>(pmb->pcoord) };
+  Field * pfield { pmb->pfield };
+  Hydro * phydro { pmb->phydro };
 
-  GRDynamical * pco { static_cast<GRDynamical*>(pmb->pcoord) };
-
-  const int ncells1 = pmb->ncells1;
-  const int ncells2 = pmb->ncells2;
-  const int ncells3 = pmb->ncells3;
-
+  // Prepare CC index bounds
   const int il = 0;
-  const int iu = ncells1-1;
+  const int iu = (pmb->ncells1>1)? pmb->ncells1-1: 0;
 
   const int jl = 0;
-  const int ju = ncells2-1;
+  const int ju = (pmb->ncells2>1)? pmb->ncells2-1: 0;
 
   const int kl = 0;
-  const int ku = ncells3-1;
+  const int ku = (pmb->ncells3>1)? pmb->ncells3-1: 0;
 
 
   // B field ------------------------------------------------------------------
@@ -174,72 +171,81 @@ void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin)
   Real A_amp_2 = pin->GetReal("problem","b_amp_2") *
     0.5/std::pow(pgasmax_2-pcut_2, ns_2)/B_unit;
 
-  pf->b.x1f.ZeroClear();
-  pf->b.x2f.ZeroClear();
-  pf->b.x3f.ZeroClear();
-  pf->bcc.ZeroClear();
+  pfield->b.x1f.ZeroClear();
+  pfield->b.x2f.ZeroClear();
+  pfield->b.x3f.ZeroClear();
+  pfield->bcc.ZeroClear();
 
-  AthenaArray<Real> bxcc,bycc,bzcc;
-  bxcc.NewAthenaArray(ncells3,ncells2,ncells1);
-  bycc.NewAthenaArray(ncells3,ncells2,ncells1);
-  bzcc.NewAthenaArray(ncells3,ncells2,ncells1);
-
-  AthenaArray<Real> Atot(3,ncells3,ncells2,ncells1);
+  AthenaArray<Real> Acc(NFIELD,pmb->ncells3,pmb->ncells2,pmb->ncells1);
 
   // Initialize cell centred potential
   for (int k=0; k<pmb->ncells3; k++)
   for (int j=0; j<pmb->ncells2; j++)
   for (int i=0; i<pmb->ncells1; i++)
   {
-    if(pco->x1v(i) > 0)
+    const Real x1 = pcoord->x1v(i);
+    const Real x2 = pcoord->x2v(j);
+
+    const Real w_p   = phydro->w(IPR,k,j,i);
+    const Real w_rho = phydro->w(IDN,k,j,i);
+
+    if(x1 > 0)
     {
       Real A_amp =
-          A_amp_2 * std::max(std::pow(ph->w(IPR, k, j, i) - pcut_2, ns_2), 0.0);
-      Atot(0,k,j,i) = -pco->x2v(j) * A_amp;
-      Atot(1,k,j,i) = (pco->x1v(i) - 0.5*sep) * A_amp;
-      Atot(2,k,j,i) = 0.0;
+          A_amp_2 * std::max(std::pow(w_p - pcut_2, ns_2), 0.0);
+      Acc(0,k,j,i) = -x2 * A_amp;
+      Acc(1,k,j,i) = (x1 - 0.5*sep) * A_amp;
+      Acc(2,k,j,i) = 0.0;
     }
     else
     {
       Real A_amp =
-          A_amp_1 * std::max(std::pow(ph->w(IPR, k, j, i) - pcut_1, ns_1), 0.0);
-      Atot(0,k,j,i) = -pco->x2v(j) * A_amp;
-      Atot(1,k,j,i) = (pco->x1v(i) + 0.5*sep) * A_amp;
-      Atot(2,k,j,i) = 0.0;
+          A_amp_1 * std::max(std::pow(w_p - pcut_1, ns_1), 0.0);
+      Acc(0,k,j,i) = -x2 * A_amp;
+      Acc(1,k,j,i) = (x1 + 0.5*sep) * A_amp;
+      Acc(2,k,j,i) = 0.0;
     }
   }
 
   // Construct cell centred B field from cell centred potential
-  for (int k=pmb->ks-1; k<=pmb->ke+1; k++)
-  for (int j=pmb->js-1; j<=pmb->je+1; j++)
-  for (int i=pmb->is-1; i<=pmb->ie+1; i++)
+  for(int k=pmb->ks-1; k<=pmb->ke+1; k++)
+  for(int j=pmb->js-1; j<=pmb->je+1; j++)
+  for(int i=pmb->is-1; i<=pmb->ie+1; i++)
   {
-    bxcc(k,j,i) = - ((Atot(1,k+1,j,i) - Atot(1,k-1,j,i))/(2.0*pco->dx3v(k)));
-    bycc(k,j,i) =  ((Atot(0,k+1,j,i) - Atot(0,k-1,j,i))/(2.0*pco->dx3v(k)));
-    bzcc(k,j,i) = ( (Atot(1,k,j,i+1) - Atot(1,k,j,i-1))/(2.0*pco->dx1v(i))
-                  - (Atot(0,k,j+1,i) - Atot(0,k,j-1,i))/(2.0*pco->dx2v(j)));
+    const Real dx1 = pcoord->dx1v(i);
+    const Real dx2 = pcoord->dx2v(j);
+    const Real dx3 = pcoord->dx3v(k);
+
+    pfield->bcc(0,k,j,i) = -((Acc(1,k+1,j,i) - Acc(1,k-1,j,i))/(2.0*dx3));
+    pfield->bcc(1,k,j,i) =  ((Acc(0,k+1,j,i) - Acc(0,k-1,j,i))/(2.0*dx3));
+    pfield->bcc(2,k,j,i) =  ((Acc(1,k,j,i+1) - Acc(1,k,j,i-1))/(2.0*dx1) -
+                             (Acc(0,k,j+1,i) - Acc(0,k,j-1,i))/(2.0*dx2));
+
   }
 
   // Initialise face centred field by averaging cc field
-  for (int k=pmb->ks; k<=pmb->ke;   k++)
-  for (int j=pmb->js; j<=pmb->je;   j++)
-  for (int i=pmb->is; i<=pmb->ie+1; i++)
+  for(int k=pmb->ks; k<=pmb->ke;   k++)
+  for(int j=pmb->js; j<=pmb->je;   j++)
+  for(int i=pmb->is; i<=pmb->ie+1; i++)
   {
-    pf->b.x1f(k,j,i) = 0.5*(bxcc(k,j,i-1) + bxcc(k,j,i));
+  	pfield->b.x1f(k,j,i) = 0.5*(pfield->bcc(0,k,j,i-1) +
+                                pfield->bcc(0,k,j,i));
   }
 
-  for (int k=pmb->ks; k<=pmb->ke;   k++)
-  for (int j=pmb->js; j<=pmb->je+1; j++)
-  for (int i=pmb->is; i<=pmb->ie;   i++)
+  for(int k=pmb->ks; k<=pmb->ke;   k++)
+  for(int j=pmb->js; j<=pmb->je+1; j++)
+  for(int i=pmb->is; i<=pmb->ie;   i++)
   {
-    pf->b.x2f(k,j,i) = 0.5*(bycc(k,j-1,i) + bycc(k,j,i));
+  	pfield->b.x2f(k,j,i) = 0.5*(pfield->bcc(1,k,j-1,i) +
+                                pfield->bcc(1,k,j,i));
   }
 
-  for (int k=pmb->ks; k<=pmb->ke+1; k++)
-  for (int j=pmb->js; j<=pmb->je;   j++)
-  for (int i=pmb->is; i<=pmb->ie;   i++)
+  for(int k=pmb->ks; k<=pmb->ke+1; k++)
+  for(int j=pmb->js; j<=pmb->je;   j++)
+  for(int i=pmb->is; i<=pmb->ie;   i++)
   {
-    pf->b.x3f(k,j,i) = 0.5*(bzcc(k-1,j,i) + bzcc(k,j,i));
+	  pfield->b.x3f(k,j,i) = 0.5*(pfield->bcc(2,k-1,j,i) +
+                                pfield->bcc(2,k,j,i));
   }
 
 }
@@ -287,11 +293,10 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 
 #if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
   // Dump Lorene eos file
-  int n_cut_lorene_table = pin->GetOrAddInteger("problem", "n_cut_lorene_table", 0);
   if (Globals::my_rank == 0) {
     std::string run_dir;
     GetRunDir(run_dir);
-    ceos->DumpLoreneEOSFile(run_dir + "/eos_akmalpr.d", n_cut_lorene_table);
+    ceos->DumpLoreneEOSFile(run_dir + "/eos_akmalpr.d");
   }
 #ifdef MPI_PARALLEL
   // wait for rank_0 to finish writing the eos file
@@ -356,8 +361,8 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   Real rho_1 = bns->nbar[0] / m_u_si * 1e-45 * ceos->GetBaryonMass();
   Real rho_2 = bns->nbar[1] / m_u_si * 1e-45 * ceos->GetBaryonMass();
 #else
-  Real rho_1 = bns->nbar[0];
-  Real rho_2 = bns->nbar[1];
+  Real rho_1 = bns->nbar[0] / rho_unit;
+  Real rho_2 = bns->nbar[1] / rho_unit;
 #endif
 
 #if USETM
@@ -714,7 +719,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     // PrimitiveSolver (useful for physics) & Reprimand (useful for debug)
 
     AthenaArray<Real> & w  = phydro->w;
-    AthenaArray<Real> & w1 = phydro->w1;
 #if NSCALARS > 0
     AthenaArray<Real> & r = pscalars->r;
     r.Fill(0.0);
@@ -728,11 +732,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int i=il; i<=iu; ++i)
     {
       w(IPR,k,j,i) = k_adi*std::pow(w(IDN,k,j,i),gamma_adi);
-
-      for (int n=0; n<NHYDRO; ++n)
-      {
-        w1(n,k,j,i) = w(n,k,j,i);
-      }
     }
 
 #else
@@ -778,12 +777,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
         // Assume that we always have (IVX, IVY, IVZ)
         for (int ix=0; ix<3; ++ix)
           w(IVX+ix,k,j,i) = 0;
-      }
-
-      // This is useless with USETM (w1 is old state for e.g. rootfinder)
-      for (int n=0; n<NHYDRO; ++n)
-      {
-        w1(n,k,j,i) = w(n,k,j,i);
       }
     }
 
