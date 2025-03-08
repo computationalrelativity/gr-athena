@@ -510,23 +510,34 @@ void Mesh::UserWorkBeforeLoop(ParameterInput *pin)
   typedef gra::hydro::rescaling::variety_cs variety_cs;
   variety_cs v_cs = variety_cs::conserved_hydro;
   // don't bother with densitized, it is just to detect extrema
-  const Real D_max = presc->GlobalMaximum(v_cs, IDN, true, false);
+  const Real D_max = presc->GlobalMaximum(v_cs, IDN, true, true);
 
-  if (D_max > D_max_last)
+  const Real rat_D_max_threshold = pin->GetOrAddReal(
+    "problem", "rat_D_max_threshold", 0.001
+  );
+  const bool do_check = std::abs(1-D_max_last / D_max) > rat_D_max_threshold;
+
+  if (do_check)
   {
-    D_max_steps_inc++;
+    if (D_max > D_max_last)
+    {
+      D_max_steps_inc++;
+      D_max_steps_dec = 0;
+    }
+    else
+    {
+      D_max_steps_inc = 0;
+      D_max_steps_dec++;
+    }
+    D_max_last = D_max;
   }
-  else
-  {
-    D_max_steps_dec++;
-  }
-  D_max_last = D_max;
 
   if (Globals::my_rank==0)
   {
-    std::printf("D_max_steps_inc %d\n", D_max_steps_inc);
-    std::printf("D_max_steps_dec %d\n", D_max_steps_dec);
-    std::printf("D_max %.3e\n", D_max);
+    std::printf("do_check %d; ", do_check);
+    std::printf("D_max_steps_inc %d; ", D_max_steps_inc);
+    std::printf("D_max_steps_dec %d; ", D_max_steps_dec);
+    std::printf("D_max %.17e\n", D_max);
   }
 
   const int par_D_max_steps_dec = pin->GetOrAddInteger(
