@@ -605,6 +605,9 @@ void Mesh::UserWorkBeforeLoop(ParameterInput *pin)
 
     // Flag post-bounce short-circuit (unflagged in main for restart)
     pin->SetBoolean("problem", "post_bounce_short_circuit", true);
+
+    // Disable future detection
+    pin->SetBoolean("problem", "detect_bounce", false);
   }
 }
 
