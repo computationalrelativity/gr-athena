@@ -636,8 +636,11 @@ Real Rescaling::GlobalMaximum(const variety_cs v_cs,
     Z4c * pz4c = pmb->pz4c;
 
     Z4c::Aux_extended_vars aux_extended;
-    pz4c->SetAuxExtendedAliases(pz4c->storage.aux_extended,
-                                aux_extended);
+    if (use_densitized)
+    {
+      pz4c->SetAuxExtendedAliases(pz4c->storage.aux_extended,
+        aux_extended);
+    }
 
     AA arr;
 
@@ -698,19 +701,22 @@ Real Rescaling::GlobalMaximum(const variety_cs v_cs,
     max_V = -std::numeric_limits<Real>::infinity();
   }
 
-  if (Globals::my_rank == 0)
-  {
-    MPI_Reduce(MPI_IN_PLACE, &max_V, 1, MPI_ATHENA_REAL, MPI_MAX, 0,
-               MPI_COMM_WORLD);
-  }
-  else
-  {
-    MPI_Reduce(&max_V, &max_V, 1, MPI_ATHENA_REAL, MPI_MAX, 0,
-               MPI_COMM_WORLD);
-  }
+  Real max_all_V;
+  MPI_Allreduce(&max_V, &max_all_V, 1,
+                MPI_ATHENA_REAL, MPI_MAX, MPI_COMM_WORLD);
+  // if (Globals::my_rank == 0)
+  // {
+  //   MPI_Reduce(MPI_IN_PLACE, &max_V, 1, MPI_ATHENA_REAL, MPI_MAX, 0,
+  //              MPI_COMM_WORLD);
+  // }
+  // else
+  // {
+  //   MPI_Reduce(&max_V, &max_V, 1, MPI_ATHENA_REAL, MPI_MAX, 0,
+  //              MPI_COMM_WORLD);
+  // }
 #endif
 
-  return max_V;
+  return max_all_V;
 
 }
 
