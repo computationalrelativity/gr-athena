@@ -160,6 +160,9 @@ int main(int argc, char *argv[])
       ? trgs.AdjustFromAny_mesh_dt()
       : false;
 
+    // Any Mesh-level logic to be called prior to next iter of integration loop
+    pmesh->UserWorkBeforeLoop(pinput);
+
     if (Globals::my_rank == 0)
     {
       // pmesh->evo_rate = (
