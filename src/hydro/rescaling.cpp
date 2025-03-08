@@ -609,6 +609,111 @@ Real Rescaling::GlobalMinimum(const variety_cs v_cs,
   return min_V;
 }
 
+// Extract global minimum over physical points
+Real Rescaling::GlobalMaximum(const variety_cs v_cs,
+                              const int n,
+                              const bool require_positive,
+                              const bool use_densitized)
+{
+
+  using namespace LinearAlgebra;
+
+  Real max_V = -std::numeric_limits<Real>::infinity();
+
+  int nthreads = pm->GetNumMeshThreads();
+  (void)nthreads;
+
+  int nmb = -1;
+  std::vector<MeshBlock*> pmb_array;
+
+  pm->GetMeshBlocksMyRank(pmb_array);
+  nmb = pmb_array.size();
+
+  #pragma omp parallel for num_threads(nthreads) reduction(max:max_V)
+  for (int ix = 0; ix < nmb; ++ix)
+  {
+    MeshBlock *pmb = pmb_array[ix];
+    Z4c * pz4c = pmb->pz4c;
+
+    Z4c::Aux_extended_vars aux_extended;
+    pz4c->SetAuxExtendedAliases(pz4c->storage.aux_extended,
+                                aux_extended);
+
+    AA arr;
+
+    CC_ILOOP2(k, j)
+    #pragma omp simd reduction(max:max_V)
+    for (int i=pmb->is; i<=pmb->ie; ++i)
+    {
+
+      switch (v_cs)
+      {
+        case variety_cs::conserved_hydro:
+        {
+          arr.InitWithShallowSlice(pmb->phydro->u, 4, n, 1);
+          break;
+        }
+        case variety_cs::conserved_scalar:
+        {
+          arr.InitWithShallowSlice(pmb->pscalars->s, 4, n, 1);
+          break;
+        }
+        default:
+        {
+          assert(false);
+        }
+      }
+
+      Real V;
+      if (use_densitized)
+      {
+        const Real oo_sqrt_detgamma = OO(
+          aux_extended.cc_sqrt_detgamma(k,j,i)
+        );
+        V = oo_sqrt_detgamma * arr(k,j,i);
+      }
+      else
+      {
+        V = arr(k,j,i);
+      }
+
+      if (require_positive)
+      {
+        max_V = (V > 0) ? std::max(V, max_V) : max_V;
+      }
+      else
+      {
+        max_V = std::max(V, max_V);
+      }
+    }
+  }
+
+#ifdef MPI_PARALLEL
+  int rank;
+
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  if (require_positive && max_V <= 0)
+  {
+    max_V = -std::numeric_limits<Real>::infinity();
+  }
+
+  if (Globals::my_rank == 0)
+  {
+    MPI_Reduce(MPI_IN_PLACE, &max_V, 1, MPI_ATHENA_REAL, MPI_MAX, 0,
+               MPI_COMM_WORLD);
+  }
+  else
+  {
+    MPI_Reduce(&max_V, &max_V, 1, MPI_ATHENA_REAL, MPI_MAX, 0,
+               MPI_COMM_WORLD);
+  }
+#endif
+
+  return max_V;
+
+}
+
 // I/O ------------------------------------------------------------------------
 void Rescaling::OutputPrepare()
 {

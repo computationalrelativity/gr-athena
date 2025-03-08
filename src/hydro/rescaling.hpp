@@ -105,6 +105,11 @@ class Rescaling
                        const int n,
                        const bool require_positive);
 
+    Real GlobalMaximum(const variety_cs v_cs,
+                       const int n,
+                       const bool require_positive,
+                       const bool use_densitized);
+
   // I/O methods --------------------------------------------------------------
   private:
     std::string filename;
