@@ -129,6 +129,14 @@ void Z4c::GetMatter(
         }
 
         peos->GetEOS().ApplyPrimitiveFloor(n, Wvu, w_p(i), T, Y);
+        // propagate floors back
+        w_rho(i) = n * mb;
+#if NSCALARS>0
+        for (int l=0; l<NSCALARS; l++)
+        {
+          w_r(l,i) = Y[l];
+        }
+#endif
 
         w_hrho(i) = w_rho(i)*peos->GetEOS().GetEnthalpy(n, T, Y);
 #else

@@ -60,6 +60,16 @@ void __attribute__((weak)) Mesh::DeleteTemporaryUserMeshData() {
 //  \brief Function called once every time step for user-defined work.
 //========================================================================================
 
+void __attribute__((weak)) Mesh::UserWorkBeforeLoop(ParameterInput *pin) {
+  // do nothing
+  return;
+}
+
+//========================================================================================
+//! \fn void Mesh::UserWorkInLoop()
+//  \brief Function called once every time step for user-defined work.
+//========================================================================================
+
 void __attribute__((weak)) Mesh::UserWorkInLoop() {
   // do nothing
   return;

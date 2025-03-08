@@ -262,7 +262,7 @@ void GRDynamical::AddCoordTermsDivergence(
   AT_N_vec w_util_u(ccprim, IVX);
 #if NSCALARS > 0
   AA & ccprim_scalar = const_cast<AthenaArray<Real>&>(prim_scalar);
-  AT_N_vec w_r(ccprim_scalar, 0);
+  AT_S_vec w_r(ccprim_scalar, 0);
 #endif
 
   // --------------------------------------------------------------------------

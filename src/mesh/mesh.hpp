@@ -516,6 +516,8 @@ class Mesh {
 
   // called in main loop
   void UserWorkAfterLoop(ParameterInput *pin);
+  // called in main before each cycle, after potential trigger dt adjustment
+  void UserWorkBeforeLoop(ParameterInput *pin);
   // called in main after each cycle
   void UserWorkInLoop();
   // Apply at level of MeshBlock
