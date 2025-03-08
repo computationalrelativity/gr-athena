@@ -133,6 +133,14 @@ struct user_dumps
   enum {RefinementCondition, EntropyPerbaryon, N};
 };
 
+
+// use for maxima computation
+gra::hydro::rescaling::Rescaling * presc;
+
+Real D_max_last = -std::numeric_limits<Real>::infinity();
+int D_max_steps_inc = 0;
+int D_max_steps_dec = 0;
+
 }  // namespace
 
 //========================================================================================
@@ -489,6 +497,62 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 
   // Cleanup
   delete pstar;
+}
+
+void Mesh::UserWorkBeforeLoop(ParameterInput *pin)
+{
+  if (!pin->GetOrAddBoolean("problem", "detect_bounce", false))
+  {
+    return;
+  }
+
+  // monitor how extrema is changing during evolution
+  typedef gra::hydro::rescaling::variety_cs variety_cs;
+  variety_cs v_cs = variety_cs::conserved_hydro;
+  // don't bother with densitized, it is just to detect extrema
+  const Real D_max = presc->GlobalMaximum(v_cs, IDN, true, false);
+
+  if (D_max > D_max_last)
+  {
+    D_max_steps_inc++;
+  }
+  else
+  {
+    D_max_steps_dec++;
+  }
+  D_max_last = D_max;
+
+  if (Globals::my_rank==0)
+  {
+    std::printf("D_max_steps_inc %d\n", D_max_steps_inc);
+    std::printf("D_max_steps_dec %d\n", D_max_steps_dec);
+    std::printf("D_max %.3e\n", D_max);
+  }
+
+  const int par_D_max_steps_dec = pin->GetOrAddInteger(
+    "problem", "D_max_steps_dec", 3
+  );
+
+  if (D_max_steps_dec >= par_D_max_steps_dec)
+  {
+    // Enforce M1 equilibrium globally
+#if M1_ENABLED
+    // ...
+#endif
+
+    // Enable M1 evolution
+    pin->SetBoolean("problem", "M1_enabled", true);
+
+    // Disable deleptonization
+    opt_dlp_mtd_ = opt_deleptonization_method::None;
+    pin->SetString("problem", "deleptonization_method", "None");
+
+    // Flag post-bounce phase
+    pin->SetBoolean("problem", "post_bounce", true);
+
+    // Flag post-bounce short-circuit (unflagged in main for restart)
+    pin->SetBoolean("problem", "post_bounce_short_circuit", true);
+  }
 }
 
 //========================================================================================

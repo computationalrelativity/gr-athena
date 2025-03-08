@@ -163,6 +163,19 @@ int main(int argc, char *argv[])
     // Any Mesh-level logic to be called prior to next iter of integration loop
     pmesh->UserWorkBeforeLoop(pinput);
 
+    // ccsn specific break-out logic to drop out once bounce achieved ---------
+    const bool post_bounce_short_circuit = pinput->GetOrAddBoolean(
+      "problem", "post_bounce_short_circuit", false
+    );
+    if (post_bounce_short_circuit)
+    {
+      // Reset short-circuit for next restart
+      pinput->SetBoolean("problem", "post_bounce_short_circuit", false);
+      // Break-out to final write of outputs
+      break;
+    }
+    // ------------------------------------------------------------------------
+
     if (Globals::my_rank == 0)
     {
       // pmesh->evo_rate = (
@@ -183,7 +196,8 @@ int main(int argc, char *argv[])
     {
       if (FLUID_ENABLED)
       {
-        if (M1_ENABLED)
+        if (M1_ENABLED &&
+            pinput->GetOrAddBoolean("problem", "M1_enabled", false))
         {
           gra::evolve::Z4c_GRMHD_M1N0(ptlc, pmesh);
         }
