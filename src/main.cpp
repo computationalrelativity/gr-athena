@@ -164,21 +164,32 @@ int main(int argc, char *argv[])
     pmesh->UserWorkBeforeLoop(pinput);
 
     // ccsn specific break-out logic to drop out once bounce achieved ---------
-    if (pinput->GetOrAddBoolean("problem", "detect_bounce", false))
+    auto bounce_check = [&]()
     {
-
-      const bool post_bounce_short_circuit = pinput->GetOrAddBoolean(
-        "problem", "post_bounce_short_circuit", false
-      );
-      if (post_bounce_short_circuit)
+      if (pinput->GetOrAddBoolean("problem", "detect_bounce", false))
       {
-        // Reset short-circuit for next restart
-        pinput->SetBoolean("problem", "post_bounce_short_circuit", false);
-        // Break-out to final write of outputs
-        break;
-      }
 
-      // gra::parallelism::Barrier();
+        const bool post_bounce_short_circuit = pinput->GetOrAddBoolean(
+          "problem", "post_bounce_short_circuit", false
+        );
+        if (post_bounce_short_circuit)
+        {
+          // Reset short-circuit for next restart
+          pinput->SetBoolean("problem", "post_bounce_short_circuit", false);
+          // Break-out to final write of outputs
+          return true;
+        }
+
+        // gra::parallelism::Barrier();
+      }
+      return false;
+    };
+
+    if (bounce_check())
+    {
+      // Disable future detection
+      pinput->SetBoolean("problem", "detect_bounce", false);
+      break;
     }
 
     // ------------------------------------------------------------------------

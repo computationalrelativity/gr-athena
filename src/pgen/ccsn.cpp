@@ -549,6 +549,11 @@ void Mesh::UserWorkBeforeLoop(ParameterInput *pin)
     // Enforce M1 equilibrium globally
 #if M1_ENABLED
     {
+      if (Globals::my_rank==0)
+      {
+        std::printf("Imposing M1 equilibrium...\n");
+      }
+
       int nthreads = GetNumMeshThreads();
       (void)nthreads;
 
@@ -618,7 +623,7 @@ void Mesh::UserWorkBeforeLoop(ParameterInput *pin)
     pin->SetBoolean("problem", "post_bounce_short_circuit", true);
 
     // Disable future detection
-    pin->SetBoolean("problem", "detect_bounce", false);
+    // pin->SetBoolean("problem", "detect_bounce", false);
   }
 }
 
