@@ -3153,7 +3153,7 @@ void WaveExtractRWZ::MasterFuns() {
 	coef_h0_t *= div_r;
 
   Real coef_h0_rdot = r*rdot*pow(g_uu(0,0),3)*g_dot_dd(0,0) + 2.0*r*g_uu(1,1)*g_dr_uu(0,0)
-                    + 2.0*r*g_uu(0,1)( g_dr_uu(0,1) + g_dot_uu(0,0) + rdot*g_dr_uu(0,0) )
+                    + 2.0*r*g_uu(0,1)*( g_dr_uu(0,1) + g_dot_uu(0,0) + rdot*g_dr_uu(0,0) )
                     + r*pow(g_uu(0,1),3)*( 2.0*g_dot_dd(1,1) + rdot*g_dr_dd(1,1) ) 
                     + 2.0*SQR(g_uu(0,1))*( -2.0 + r*g_uu(1,1)*g_dr_dd(1,1) )
                     + SQR(g_uu(0,0)) * ( -2.0*SQR(rdot) + r*rdot*g_uu(0,1)*( g_dr_dd(0,0) + 2.0*g_dot_dd(0,1) ) 
@@ -3215,7 +3215,7 @@ void WaveExtractRWZ::MasterFuns() {
 	coef_G_dot_t *= 0.5*r2; //TODO CHECK again, notes 
 
   Real coef_G_dot_rdot = r*rdot*pow(g_uu(0,0),3)*g_dot_dd(0,0) + 2.0*r*g_uu(1,1)*g_dr_uu(0,0)
-                       + 2.0*r*g_uu(0,1)( g_dr_uu(0,1) + g_dot_uu(0,0) + rdot*g_dr_uu(0,0) )
+                       + 2.0*r*g_uu(0,1)*( g_dr_uu(0,1) + g_dot_uu(0,0) + rdot*g_dr_uu(0,0) )
                        + r*pow(g_uu(0,1),3)*( 2.0*g_dot_dd(1,1) + rdot*g_dr_dd(1,1) ) 
                        + 2.0*SQR(g_uu(0,1))*( -2.0 + r*g_uu(1,1)*g_dr_dd(1,1) )
                        + SQR(g_uu(0,0)) * ( -2.0*SQR(rdot) + r*rdot*g_uu(0,1)*( g_dr_dd(0,0) + 2.0*g_dot_dd(0,1) ) 
