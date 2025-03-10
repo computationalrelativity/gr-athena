@@ -594,16 +594,20 @@ Real Rescaling::GlobalMinimum(const variety_cs v_cs,
     min_V = std::numeric_limits<Real>::infinity();
   }
 
-  if (Globals::my_rank == 0)
-  {
-    MPI_Reduce(MPI_IN_PLACE, &min_V, 1, MPI_ATHENA_REAL, MPI_MIN, 0,
-               MPI_COMM_WORLD);
-  }
-  else
-  {
-    MPI_Reduce(&min_V, &min_V, 1, MPI_ATHENA_REAL, MPI_MIN, 0,
-               MPI_COMM_WORLD);
-  }
+  // if (Globals::my_rank == 0)
+  // {
+  //   MPI_Reduce(MPI_IN_PLACE, &min_V, 1, MPI_ATHENA_REAL, MPI_MIN, 0,
+  //              MPI_COMM_WORLD);
+  // }
+  // else
+  // {
+  //   MPI_Reduce(&min_V, &min_V, 1, MPI_ATHENA_REAL, MPI_MIN, 0,
+  //              MPI_COMM_WORLD);
+  // }
+
+  Real min_all_V;
+  MPI_Allreduce(&min_V, &min_all_V, 1,
+    MPI_ATHENA_REAL, MPI_MIN, MPI_COMM_WORLD);
 #endif
 
   return min_V;
