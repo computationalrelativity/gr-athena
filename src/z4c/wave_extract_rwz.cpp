@@ -3137,6 +3137,13 @@ void WaveExtractRWZ::MasterFuns() {
 	
 	// Even parity in general coordinates (dynamic)
 	// -----------------------------------------
+
+  const Real term2_hG = (- 2.0*rdot*div_r)*( g_uu(0,0)*( h0(lm,c) - 0.5*r2*G_dot(lm,c) )
+					      + g_uu(0,1)*( h1(lm,c) - 0.5*r2*G_dr(lm,c) ) );
+
+  const Real term_hAB_rdot = rdot*h00(lm,c)*( rdot*SQR(g_uu(0,0)) + 2.0*g_uu(0,0)*g_uu(0,1) ) 
+                           +  2.0*rdot*h01(lm,c)*( rdot*g_uu(0,0)*g_uu(0,1)+ SQR(g_uu(0,1)) + g_uu(0,0)*g_uu(1,1) )
+                           + rdot*h11(lm,c)*( rdot*SQR(g_uu(0,1)) + 2.0*g_uu(0,1)*g_uu(1,1) );
 	
 	Real coef_h0_t = 2.0*r*std::pow(g_uu(0,1),3)*g_dot_dd(0,1)
 	  + 2.0*r*g_uu(0,1)*g_dot_uu(0,1) //CHECK g_dot_uu(0,1) in the notes, but eq full of typos
@@ -3144,18 +3151,61 @@ void WaveExtractRWZ::MasterFuns() {
 	  + r*SQR(g_uu(0,1))*g_uu(0,0)*g_dot_dd(0,0);
 	
 	coef_h0_t *= div_r;
+
+  Real coef_h0_rdot = r*rdot*pow(g_uu(0,0),3)*g_dot_dd(0,0) + 2.0*r*g_uu(1,1)*g_dr_uu(0,0)
+                    + 2.0*r*g_uu(0,1)( g_dr_uu(0,1) + g_dot_uu(0,0) + rdot*g_dr_uu(0,0) )
+                    + r*pow(g_uu(0,1),3)*( 2.0*g_dot_dd(1,1) + rdot*g_dr_dd(1,1) ) 
+                    + 2.0*SQR(g_uu(0,1))*( -2.0 + r*g_uu(1,1)*g_dr_dd(1,1) )
+                    + SQR(g_uu(0,0)) * ( -2.0*SQR(rdot) + r*rdot*g_uu(0,1)*( g_dr_dd(0,0) + 2.0*g_dot_dd(0,1) ) 
+                                       + 2.0*r*( g_uu(0,1)*g_dot_dd(0,0) + g_uu(1,1)*g_dr_dd(0,0) ) )
+                    + 2.0*r*g_uu(0,0)*g_dot_uu(0,1) - 2.0*g_uu(0,0)*g_uu(1,1)
+                    + rdot*g_uu(0,0)*( 2.0*r*g_dot_uu(0,0) - 6.0*g_uu(0,1) 
+                                     + r*SQR(g_uu(0,1))*( 2.0*g_dr_dd(0,1) + g_dot_dd(1,1) ) )
+                    + 4.0*r*g_uu(0,0)*g_uu(0,1)*( g_uu(0,1)*g_dot_dd(0,1) + g_uu(1,1)*g_dr_dd(0,1) );
+
+  coef_h0_rdot *= rdot*div_r;
 	
 	Real coef_h1_t = SQR(g_uu(0,1))*g_dot_dd(0,0)
 	  + 2.0*g_uu(0,1)*g_uu(1,1)*g_dot_dd(0,1)
 	  + SQR(g_uu(1,1))*g_dot_dd(1,1);
-	
-	coef_h1_t *= g_uu(0,1); //TODO CHECK notes for factor *div_r
+
+  coef_h1_t *= g_uu(0,1); //TODO CHECK notes for factor *div_r
+
+  Real coef_h1_rdot = -2.0*SQR(rdot)*g_uu(0,0)*g_uu(0,1) + 2.0*r*pow(g_uu(0,1),3)*g_dr_dd(0,0) 
+                    + 2.0*r*SQR(g_uu(0,1))*( g_uu(0,0)*g_dot_dd(0,0) + 2.0*g_uu(1,1)*g_dr_dd(0,1) )
+                    + 2.0*r*g_uu(1,1)*( g_dr_uu(0,1) + g_uu(0,0)*g_uu(1,1)*g_dot_dd(1,1) )
+                    + 2.0*g_uu(0,1)*( r*( g_dr_uu(1,1) + g_dot_uu(0,1) ) 
+                                    + g_uu(1,1)*( -3.0 + 2.0*r*g_uu(0,0)*g_dot_dd(0,1) ) 
+                                    + r*SQR(g_uu(1,1))*g_dr_dd(1,1) )
+                    + r*rdot*SQR(g_uu(0,0))*( g_uu(0,1)*g_dot_dd(0,0) - g_uu(1,1)*( g_dr_dd(0,0) - 2.0*g_dot_dd(0,1) ) )
+                    + 2.0*rdot*g_uu(0,0)*( r*g_dot_uu(0,1) + r*SQR(g_uu(0,1))*g_dr_dd(0,0) - g_uu(1,1)
+                                         + r*g_uu(0,1)*g_uu(1,1)*g_dot_dd(1,1))
+                    + 2.0*r*rdot*g_uu(0,1)*g_dr_uu(0,1)
+                    + r*rdot*pow(g_uu(0,1),3)*( 2.0*g_dr_dd(0,1) - g_dot_dd(1,1) )
+                    + rdot*SQR(g_uu(0,1))*( -4.0 + r*g_uu(1,1)*g_dr_dd(1,1) );
+
+  coef_h1_rdot *= rdot*div_r;
 
 	Real coef_G_dr_t = 2.0*g_uu(0,1)*g_uu(1,1)*g_dot_dd(0,1)
 	  + SQR(g_uu(0,1))*g_dot_dd(0,0)
 	  + SQR(g_uu(1,1))*g_dot_dd(1,1);
 	  
 	coef_G_dr_t *= r*g_uu(0,1);
+
+  Real coef_G_dr_rdot = -2.0*SQR(rdot)*g_uu(0,0)*g_uu(0,1) + 2.0*r*pow(g_uu(0,1),3)*g_dr_dd(0,0)
+                      + 2.0*r*SQR(g_uu(0,1))*( g_uu(0,0)*g_dot_dd(0,0) + 2.0*g_uu(1,1)*g_dr_dd(0,1) )
+                      + 2.0*r*g_uu(1,1)*( g_dr_uu(0,1) + g_uu(0,0)*g_uu(1,1)*g_dot_dd(1,1) )
+                      + 2.0*r*g_uu(0,1)*( g_dr_uu(1,1) + g_dot_uu(0,1) )
+                      + 2.0*g_uu(0,1)*g_uu(1,1)*( -3.0 + 2.0*r*g_uu(0,0)*g_dot_dd(0,1) )
+                      + 2.0*r*g_uu(0,1)*SQR(g_uu(1,1))*g_dr_dd(1,1)
+                      + r*rdot*SQR(g_uu(0,0))*( g_uu(0,1)*g_dot_dd(0,0) - g_uu(1,1)*( g_dr_dd(0,0) - 2.0*g_dot_dd(0,1) ) )
+                      + 2.0*rdot*g_uu(0,0)*( r*g_dot_uu(0,1) + r*SQR(g_uu(0,1))*g_dr_dd(0,0) 
+                                           - g_uu(1,1) + r*g_uu(0,1)*g_uu(1,1)*g_dot_dd(1,1))
+                      + 2.0*r*rdot*g_uu(0,1)*g_dr_uu(0,1) 
+                      + r*rdot*pow(g_uu(0,1),3)*( 2.0*g_dr_dd(0,1) - g_dot_dd(1,1) )
+                      + rdot*SQR(g_uu(0,1))*( -4.0 + r*g_uu(1,1)*g_dr_dd(1,1) );
+
+  coef_G_dr_rdot *= -0.5*r*rdot;
 	
 	Real coef_G_dot_t = -2.0*r*std::pow(g_uu(0,1),3)*g_dot_dd(0,1)
 	  - 2.0*g_uu(0,1)*g_dot_uu(0,1) //CHECK in the notes
@@ -3163,15 +3213,30 @@ void WaveExtractRWZ::MasterFuns() {
 	  + g_uu(1,1)*(g_uu(1,1)*g_uu(0,0)-2.0*SQR(g_uu(0,1)))*g_dot_dd(1,1);
 	
 	coef_G_dot_t *= 0.5*r2; //TODO CHECK again, notes 
+
+  Real coef_G_dot_rdot = r*rdot*pow(g_uu(0,0),3)*g_dot_dd(0,0) + 2.0*r*g_uu(1,1)*g_dr_uu(0,0)
+                       + 2.0*r*g_uu(0,1)( g_dr_uu(0,1) + g_dot_uu(0,0) + rdot*g_dr_uu(0,0) )
+                       + r*pow(g_uu(0,1),3)*( 2.0*g_dot_dd(1,1) + rdot*g_dr_dd(1,1) ) 
+                       + 2.0*SQR(g_uu(0,1))*( -2.0 + r*g_uu(1,1)*g_dr_dd(1,1) )
+                       + SQR(g_uu(0,0)) * ( -2.0*SQR(rdot) + r*rdot*g_uu(0,1)*( g_dr_dd(0,0) + 2.0*g_dot_dd(0,1) ) 
+                                          + 2.0*r*( g_uu(0,1)*g_dot_dd(0,0) + g_uu(1,1)*g_dr_dd(0,0) ) )
+                       + 2.0*r*g_uu(0,0)*g_dot_uu(0,1) - 2.0*g_uu(0,0)*g_uu(1,1)
+                       + rdot*g_uu(0,0)*( 2.0*r*g_dot_uu(0,0) - 6.0*g_uu(0,1) 
+                                        + r*SQR(g_uu(0,1))*( 2.0*g_dr_dd(0,1) + g_dot_dd(1,1) ) )
+                       + 4.0*r*g_uu(0,0)*g_uu(0,1)*( g_uu(0,1)*g_dot_dd(0,1) + g_uu(1,1)*g_dr_dd(0,1) );
+
+  coef_G_dot_rdot *= -0.5*r*rdot;
+
+  const Real term2_K_rdot = - r*rdot*( g_uu(0,0)*K_dot(lm,c) + g_uu(0,1)*K_dr(lm,c));
 		  
 	Psie_dyn(lm,c) = term1_K;
-	Psie_dyn(lm,c) += term1_hG;
-	Psie_dyn(lm,c) += fac_Psie*( term_hAB +
-				     (coef_h0 + coef_h0_t) * h0(lm,c) +
-				     (coef_h1 + coef_h1_t) * h1(lm,c) +
-				     (coef_G_dr + coef_G_dr_t) * G_dr(lm,c) +
-				     (coef_G_dot + coef_G_dot_t) * G_dot(lm,c) +
-				     term2_K );
+	Psie_dyn(lm,c) += term1_hG + term2_hG;
+	Psie_dyn(lm,c) += fac_Psie*( term_hAB + term_hAB_rdot +
+				     (coef_h0 + coef_h0_t + coef_h0_rdot) * h0(lm,c) +
+				     (coef_h1 + coef_h1_t + coef_h1_rdot) * h1(lm,c) +
+				     (coef_G_dr + coef_G_dr_t + coef_G_dr_rdot) * G_dr(lm,c) +
+				     (coef_G_dot + coef_G_dot_t + coef_G_dot_rdot) * G_dot(lm,c) +
+				     term2_K + term2_K_rdot);
 	Psie_dyn(lm,c) *= r_div_lambda;
 	
 	// Odd parity in general coordinates (dynamic)
