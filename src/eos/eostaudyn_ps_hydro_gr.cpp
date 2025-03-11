@@ -766,8 +766,12 @@ void EquationOfState::SoundSpeedsGR(Real n, Real T, Real vi, Real v2, Real alpha
     cs_sq = std::min(cs_sq, 1.0);
   }
 
-  Real root_1 = alpha*(vi*(1.0-cs_sq) + cs*std::sqrt( (1-v2)*(gammaii*(1.0-v2*cs_sq) - vi*vi*(1.0-cs_sq))))/(1.0-v2*cs_sq) - betai;
-  Real root_2 = alpha*(vi*(1.0-cs_sq) - cs*std::sqrt( (1-v2)*(gammaii*(1.0-v2*cs_sq) - vi*vi*(1.0-cs_sq))))/(1.0-v2*cs_sq) - betai;
+  const Real sqrt_term = std::sqrt(
+    (1-v2)*(gammaii*(1.0-v2*cs_sq) - vi*vi*(1.0-cs_sq))
+  );
+
+  Real root_1 = alpha*(vi*(1.0-cs_sq) + cs*sqrt_term)/(1.0-v2*cs_sq) - betai;
+  Real root_2 = alpha*(vi*(1.0-cs_sq) - cs*sqrt_term)/(1.0-v2*cs_sq) - betai;
 
   bool collapse = true;
   if (collapse) {

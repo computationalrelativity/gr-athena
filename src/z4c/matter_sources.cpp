@@ -156,10 +156,14 @@ void Z4c::GetMatter(
 #endif
 
         // compute Lorenz factors
+#if defined(Z4C_CX_ENABLED) || defined(Z4C_CC_ENABLED)
+        W(i) = pmb->phydro->derived_ms(IX_LOR,k,j,i);
+#else
         Real const norm2_utilde = InnerProductSlicedVec3Metric(w_utilde_u,
                                                                adm.g_dd,
                                                                k, j, i);
         W(i) = std::sqrt(1.0 + norm2_utilde);
+#endif
         detgamma(i) = Det3Metric(adm.g_dd, k, j, i);
       }
 

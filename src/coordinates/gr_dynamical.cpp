@@ -330,11 +330,14 @@ void GRDynamical::AddCoordTermsDivergence(
     // Lorentz factors
     CC_PCO_ILOOP1(i)
     {
+      /*
       const Real norm2_utilde_ = InnerProductSlicedVec3Metric(
         w_util_d_, gamma_uu_, i
       );
 
       W_(i) = std::sqrt(1. + norm2_utilde_);
+      */
+      W_(i) = pmb->phydro->derived_ms(IX_LOR,k,j,i);
     }
 
     // Calculate enthalpy (rho*h) NB EOS specific!

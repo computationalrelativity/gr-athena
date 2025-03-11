@@ -133,8 +133,6 @@ class EOSCompOSE : public EOSPolicyInterface {
     /// Set the maxium density.
     /// Values higher than the max of the table will lead to extrapolation
     void SetMaximumDensity(Real n_max) {
-      if (n_max > max_n)
-        printf("Increasing maximum density by factor %.2f\n", n_max/max_n);
       max_n = n_max;
     }
 
