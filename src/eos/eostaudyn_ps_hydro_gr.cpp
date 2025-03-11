@@ -387,6 +387,11 @@ void EquationOfState::ConservedToPrimitive(
       prim(IPR, k, j, i) = prim_pt[IPR];
       ph->derived_ms(IX_T,k,j,i) = prim_pt[ITM];
 
+      // as in `PrimitiveSolver`
+      ph->derived_ms(IX_LOR,k,j,i) = (prim(IDN,k,j,i) > 0)
+        ? cons(IDN,k,j,i) / prim(IDN,k,j,i) * oo_sqrt_detgamma
+        : 1;
+
       for(int n=0; n<NSCALARS; n++)
       {
         prim_scalar(n, k, j, i) = prim_pt[IYF + n];
