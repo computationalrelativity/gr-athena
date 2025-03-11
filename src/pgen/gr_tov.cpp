@@ -411,9 +411,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   // Have geom & primitive hydro
 #if M1_ENABLED
-  pm1->UpdateGeometry(pm1->geom, pm1->scratch);
-  pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
-  pm1->CalcFiducialVelocity();
+  // Mesh::Initialize calls FinalizeM1 which contains the following 3 lines
+  // pm1->UpdateGeometry(pm1->geom, pm1->scratch);
+  // pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
+  // pm1->CalcFiducialVelocity();
 
   /*
   M1::M1::vars_Lab U_C { {pm1->N_GRPS,pm1->N_SPCS},

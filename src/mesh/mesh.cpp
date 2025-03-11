@@ -1722,7 +1722,7 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
       MeshBlock *pmb;
       BoundaryValues *pbval;
 
-#ifdef DBG_EARLY_INIT_CONSTOPRIM
+#if defined(DBG_EARLY_INIT_CONSTOPRIM) && FLUID_ENABLED && Z4C_ENABLED
       if ((init_style == initialize_style::pgen) ||
           (init_style == initialize_style::regrid))
       {
@@ -1815,7 +1815,7 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
       {
         FinalizeHydroConsRP(pmb_array);
 
-#ifdef DBG_EARLY_INIT_CONSTOPRIM
+#if defined(DBG_EARLY_INIT_CONSTOPRIM) && FLUID_ENABLED && Z4C_ENABLED
         PreparePrimitivesGhosts(pmb_array);
 #else
         const bool interior_only = false;

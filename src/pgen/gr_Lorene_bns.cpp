@@ -828,9 +828,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   // Have geom & primitive hydro
 #if M1_ENABLED
-  pm1->UpdateGeometry(pm1->geom, pm1->scratch);
-  pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
-  pm1->CalcFiducialVelocity();
+  // Mesh::Initialize calls FinalizeM1 which contains the following 3 lines
+  // pm1->UpdateGeometry(pm1->geom, pm1->scratch);
+  // pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
+  // pm1->CalcFiducialVelocity();
 #endif  // M1_ENABLED
 
   // consistent pressure atmosphere -------------------------------------------

@@ -242,6 +242,8 @@ void EquationOfState::ConservedToPrimitive(
   AA temperature;
   temperature.InitWithShallowSlice(ph->derived_ms, IX_T, 1);
 
+  const Real mb = ps.GetEOS()->GetBaryonMass();
+
   // sanitize loop limits (coarse / fine auto-switched)
   int IL = il; int IU = iu;
   int JL = jl; int JU = ju;
@@ -382,22 +384,17 @@ void EquationOfState::ConservedToPrimitive(
                                   << bb_cc(IB3, k, j, i) << "]\n";
       }
       // Update the primitive variables.
-      prim(IDN, k, j, i) = prim_pt[IDN]*ps.GetEOS()->GetBaryonMass();
+      prim(IDN, k, j, i) = prim_pt[IDN] * mb;
       prim(IVX, k, j, i) = prim_pt[IVX];
       prim(IVY, k, j, i) = prim_pt[IVY];
       prim(IVZ, k, j, i) = prim_pt[IVZ];
       prim(IPR, k, j, i) = prim_pt[IPR];
-      ph->derived_ms(IX_T,k,j,i) = prim_pt[ITM];
-
-      // as in `PrimitiveSolver`
-      ph->derived_ms(IX_LOR,k,j,i) = (prim(IDN,k,j,i) > 0)
-        ? cons(IDN,k,j,i) / prim(IDN,k,j,i) * oo_sqrt_detgamma
-        : 1;
 
       for(int n=0; n<NSCALARS; n++)
       {
         prim_scalar(n, k, j, i) = prim_pt[IYF + n];
       }
+
       // Because the conserved variables may have changed, we update those, too.
       cons(IDN, k, j, i) = cons_pt[IDN]*sqrt_detgamma;
       cons(IM1, k, j, i) = cons_pt[IM1]*sqrt_detgamma;
@@ -408,6 +405,18 @@ void EquationOfState::ConservedToPrimitive(
       {
         cons_scalar(n, k, j, i) = cons_pt[IYD + n]*sqrt_detgamma;
       }
+
+      // BD: not clear why these behave differently?
+      // ph->derived_ms(IX_T,k,j,i) = prim_pt[ITM];
+      ph->derived_ms(IX_T,k,j,i) = ps.GetEOS()->GetTemperatureFromP(
+        prim_pt[IDN], prim_pt[IPR], &prim_pt[IYF]
+      );
+
+      // as in `PrimitiveSolver`
+      ph->derived_ms(IX_LOR,k,j,i) = std::max(
+        1.0,
+        cons_pt[IDN] / (prim_pt[IDN] * mb)
+      );
     }
   }
 
