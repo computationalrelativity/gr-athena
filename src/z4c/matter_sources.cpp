@@ -120,7 +120,12 @@ void Z4c::GetMatter(
           Y[l] = w_r(l,i);
         }
 #endif
+
+#if defined(Z4C_CX_ENABLED) || defined(Z4C_CC_ENABLED)
+        Real T = phydro->derived_ms(IX_T,k,j,i);
+#else
         Real T = peos->GetEOS().GetTemperatureFromP(n, w_p(i), Y);
+#endif
 
         Real Wvu[3] = { };
         for (int ix=0; ix<3; ++ix)
@@ -138,7 +143,14 @@ void Z4c::GetMatter(
         }
 #endif
 
-        w_hrho(i) = w_rho(i)*peos->GetEOS().GetEnthalpy(n, T, Y);
+#if defined(Z4C_CX_ENABLED) || defined(Z4C_CC_ENABLED)
+        Real h = pmb->phydro->derived_ms(IX_ETH,k,j,i);
+#else
+        Real h = peos->GetEOS().GetEnthalpy(n, T, Y);
+#endif
+
+
+        w_hrho(i) = w_rho(i) * h;
 #else
         w_hrho(i) = w_rho(i) + gamma_adi/(gamma_adi-1.0) * w_p(i);
 #endif

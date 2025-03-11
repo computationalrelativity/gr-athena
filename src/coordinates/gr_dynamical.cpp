@@ -352,8 +352,15 @@ void GRDynamical::AddCoordTermsDivergence(
       }
 #endif
 
+#if defined(Z4C_CX_ENABLED) || defined(Z4C_CC_ENABLED)
+      Real T = pmb->phydro->derived_ms(IX_T,k,j,i);
+      Real h = pmb->phydro->derived_ms(IX_ETH,k,j,i);
+#else
       Real T = peos->GetEOS().GetTemperatureFromP(n, w_p(k,j,i), Y);
-      w_hrho_(i) = w_rho(k,j,i)*peos->GetEOS().GetEnthalpy(n, T, Y);
+      Real h = peos->GetEOS().GetEnthalpy(n, T, Y);
+#endif
+
+      w_hrho_(i) = w_rho(k,j,i) * h;
 #else
       const Real gamma_adi = peos->GetGamma();
     	w_hrho_(i) = w_rho(k,j,i) + gamma_adi/(gamma_adi-1.0) * w_p(k,j,i);

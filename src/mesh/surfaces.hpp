@@ -37,7 +37,18 @@ class Surfaces
 
     // Data that can be reduced to surface
     enum class variety_data {
-      geom_Z4c, geom_ADM,
+      geom_Z4c,
+      geom_ADM,
+      // fluid
+      hydro_cons,
+      hydro_prim,
+      hydro_aux,
+      // // scalars
+      // passive_scalars_cons,
+      // passive_scalars_prim,
+      // // magnetic fields
+      // B,
+      // radiation
       M1_lab,
       M1_geom_sc_alpha,
       M1_geom_sp_beta_u,
@@ -54,6 +65,11 @@ class Surfaces
 #if Z4C_ENABLED
       {"geom.Z4c",   variety_data::geom_Z4c},
       {"geom.ADM",   variety_data::geom_ADM},
+#endif
+#if FLUID_ENABLED
+      {"hydro.cons", variety_data::hydro_cons},
+      {"hydro.prim", variety_data::hydro_prim},
+      {"hydro.aux",  variety_data::hydro_aux},
 #endif
 #if M1_ENABLED
       {"M1.lab",     variety_data::M1_lab},

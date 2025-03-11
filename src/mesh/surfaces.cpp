@@ -10,6 +10,7 @@
 #include "../utils/utils.hpp"
 
 #include "../m1/m1.hpp"
+#include "../hydro/hydro.hpp"
 #include "../z4c/z4c.hpp"
 
 // hdf5 / mpi macros
@@ -255,6 +256,18 @@ AA * Surface::GetRawData(Surfaces::variety_data vd, MeshBlock * pmb)
     {
       return &pmb->pz4c->storage.adm;
     }
+    case variety_data::hydro_cons:
+    {
+      return &pmb->phydro->u;
+    }
+    case variety_data::hydro_prim:
+    {
+      return &pmb->phydro->w;
+    }
+    case variety_data::hydro_aux:
+    {
+      return &pmb->phydro->derived_ms;
+    }
     case variety_data::M1_lab:
     {
       return &pmb->pm1->storage.u;
@@ -312,6 +325,18 @@ int Surface::GetNumFieldComponents(Surfaces::variety_data vd)
     case variety_data::geom_ADM:
     {
       return Z4c::N_ADM;
+    }
+    case variety_data::hydro_cons:
+    {
+      return NHYDRO;
+    }
+    case variety_data::hydro_prim:
+    {
+      return NHYDRO;
+    }
+    case variety_data::hydro_aux:
+    {
+      return NDRV_HYDRO;
     }
     case variety_data::M1_lab:
     {
@@ -427,6 +452,21 @@ std::string Surface::GetNameFieldComponent(Surfaces::variety_data vd,
     case variety_data::geom_ADM:
     {
       ret = Z4c::ADM_names[nix];
+      break;
+    }
+    case variety_data::hydro_cons:
+    {
+      ret = Hydro::ixn_cons::names[nix];
+      break;
+    }
+    case variety_data::hydro_prim:
+    {
+      ret = Hydro::ixn_prim::names[nix];
+      break;
+    }
+    case variety_data::hydro_aux:
+    {
+      ret = Hydro::ixn_derived_ms::names[nix];
       break;
     }
     case variety_data::M1_lab:

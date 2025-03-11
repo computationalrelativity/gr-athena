@@ -404,6 +404,17 @@ void EquationOfState::ConservedToPrimitive(
     }
   }
 
+  // BD: TODO - probably better to move outside this
+  AA derived_gs;
+  DerivedQuantities(
+    ph->derived_ms, derived_gs,
+    cons, cons_scalar,
+    prim, prim_scalar,
+    bb_cc,
+    pmb->pcoord,
+    IL, IU, JL, JU, KL, KU,
+    coarse_flag, skip_physical);
+
 #if defined(DBG_IDEMPOTENT_C2P)
   // Debug whether: Id_x = c2p o p2c ------------------------------------------
   if (dbg_err_tol_abs == 0)
