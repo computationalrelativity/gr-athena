@@ -349,8 +349,9 @@ void M1::DerivedHydro(vars_Hydro & hydro,
   using namespace LinearAlgebra;
 
   // Lorentz factor
-  if ((opt.fiducial_velocity != opt_fiducial_velocity::fluid) &&
-      FLUID_ENABLED)
+
+  if (!((opt.fiducial_velocity == opt_fiducial_velocity::fluid) &&
+        FLUID_ENABLED))
   {
     M1_GLOOP3(k,j,i)
     {
