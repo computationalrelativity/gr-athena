@@ -286,6 +286,8 @@ void M1::InitializeHydro(vars_Hydro & hydro,
     }
     hydro.sp_w_util_u.InitWithShallowSlice(phydro->w, IVX);
     hydro.sc_w_p.InitWithShallowSlice(     phydro->w, IPR);
+
+    hydro.sc_T.InitWithShallowSlice(phydro->derived_ms, IX_T);
   }
   else
   {
@@ -294,6 +296,8 @@ void M1::InitializeHydro(vars_Hydro & hydro,
     hydro.sc_w_Ye.NewAthenaTensor(    mbi.nn3, mbi.nn2, mbi.nn1);
     hydro.sp_w_util_u.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
     hydro.sc_w_p.NewAthenaTensor(     mbi.nn3, mbi.nn2, mbi.nn1);
+
+    hydro.sc_T.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
 
     // set constant Gamma=2 EoS with K=1 for debug
     const Real K = 1;
@@ -347,6 +351,19 @@ void M1::DerivedHydro(vars_Hydro & hydro,
         k,j,i
       );
       hydro.sc_W(k,j,i) = std::sqrt(1. + norm2_util);
+
+#if USETM
+      const Real mb = pmy_block->peos->GetEOS().GetBaryonMass();
+      const Real nb = hydro.sc_w_rho(k,j,i) / mb;
+      const Real w_p = hydro.sc_w_p(k,j,i);
+      Real Y[MAX_SPECIES] = {0.0};
+      Y[0] = pm1->hydro.sc_w_Ye(k, j, i);
+
+      hydro.sc_T(k,j,i) = pmy_block->peos->GetEOS().GetTemperatureFromP(
+        nb, w_p, Y
+      );
+#endif // USETM
+
     }
   }
 

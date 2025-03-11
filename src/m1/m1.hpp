@@ -415,6 +415,7 @@ public:
     AT_C_sca sc_w_Ye;
     AT_C_sca sc_w_p;
     AT_C_sca sc_W;
+    AT_C_sca sc_T;
 
     // (sp)atial quantities
     AT_N_vec sp_w_util_u;
