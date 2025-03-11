@@ -1547,9 +1547,9 @@ void Mesh::EnrollUserTimeStepFunction(TimeStepFunc my_func) {
 void Mesh::EnrollUserHistoryOutput(HistoryOutputFunc my_func, const char *name,
                                    UserHistoryOperation op)
 {
-  user_history_output_names_.push_back(name);
-  user_history_func_.push_back(my_func);
-  user_history_ops_.push_back(op);
+  user_history_output_names_.push_back(std::move(name));
+  user_history_func_.push_back(std::move(my_func));
+  user_history_ops_.push_back(std::move(op));
 }
 
 //----------------------------------------------------------------------------------------
