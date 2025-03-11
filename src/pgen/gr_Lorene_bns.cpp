@@ -410,6 +410,7 @@ void MeshBlock::UserWorkAfterOutput(ParameterInput *pin) {
   // Reset the status
   AA c2p_status;
   c2p_status.InitWithShallowSlice(phydro->derived_ms, IX_C2P, 1);
+  c2p_status.Fill(0);
   return;
 }
 
