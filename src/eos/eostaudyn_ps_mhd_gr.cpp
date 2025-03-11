@@ -79,6 +79,10 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   scalar_floor_ = pin->GetOrAddReal("hydro", "sfloor", std::sqrt(1024*FLT_MIN));
   Real bsq_max = pin->GetOrAddReal("hydro", "bsq_max", 1e6);
   verbose = pin->GetOrAddBoolean("hydro", "verbose", true);
+  restrict_cs2 = pin->GetOrAddBoolean("hydro", "restrict_cs2", false);
+  warn_unrestricted_cs2 = pin->GetOrAddBoolean(
+    "hydro", "warn_unrestricted_cs2", false
+  );
 
   // control PrimitiveSolver tolerances / iterates
   ps.SetRootfinderTol(pin->GetOrAddReal("hydro", "c2p_acc", 1e-15));
@@ -419,6 +423,11 @@ void EquationOfState::ConservedToPrimitive(
         1.0,
         cons_pt[IDN] / (prim_pt[IDN] * mb)
       );
+
+      // u^a = (W/alpha, util^i)
+      ph->derived_ms(IX_U_U_0,k,j,i) = (
+        ph->derived_ms(IX_LOR,k,j,i) / alpha_(i)
+      );
     }
   }
 
@@ -516,6 +525,17 @@ void EquationOfState::FastMagnetosonicSpeedsGR(Real n, Real T, Real bsq,
 
   Real cs = ps.GetEOS()->GetSoundSpeed(n, T, Y);
   Real cs_sq = cs * cs;
+
+  if ((cs_sq > 1.0) && warn_unrestricted_cs2)
+  {
+    std::printf("Warning: cs_sq unphysical!");
+  }
+
+  if (restrict_cs2)
+  {
+    cs_sq = std::min(cs_sq, 1.0);
+  }
+
   Real mb = ps.GetEOS()->GetBaryonMass();
   Real va_sq = bsq / (bsq + n * mb * ps.GetEOS()->GetEnthalpy(n, T, Y));
   Real cms_sq = cs_sq + va_sq - cs_sq * va_sq;

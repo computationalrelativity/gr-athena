@@ -103,6 +103,10 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin)
   fatm = pin -> GetReal("problem","fatm");
   k_adi = pin -> GetReal("hydro","k_adi");
   gamma_adi = pin -> GetReal("hydro","gamma");
+  restrict_cs2 = pin->GetOrAddBoolean("hydro", "restrict_cs2", false);
+  warn_unrestricted_cs2 = pin->GetOrAddBoolean(
+    "hydro", "warn_unrestricted_cs2", false
+  );
 
   // Reprimand
   using namespace EOS_Toolkit;
@@ -556,6 +560,12 @@ void EquationOfState::FastMagnetosonicSpeedsGR(
   Real g11 = gammaii - betai*betai/(alpha*alpha);
   // Calculate comoving fast magnetosonic speed
   Real cs_sq = gamma_adi * pgas / rho_h;
+
+  if ((cs_sq > 1.0) && warn_unrestricted_cs2)
+  {
+    cs_sq = std::min(std::max(cs_sq, 0.0), 1.0);
+  }
+
   Real va_sq = b_sq / (b_sq + rho_h);
   Real cms_sq = cs_sq + va_sq - cs_sq * va_sq;
 

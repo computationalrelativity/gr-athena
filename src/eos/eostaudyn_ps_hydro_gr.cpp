@@ -77,6 +77,10 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   temperature_floor_ = pin->GetOrAddReal("hydro", "tfloor", std::sqrt(1024*(FLT_MIN)));
   scalar_floor_ = pin->GetOrAddReal("hydro", "sfloor", std::sqrt(1024*FLT_MIN));
   verbose = pin->GetOrAddBoolean("hydro", "verbose", true);
+  restrict_cs2 = pin->GetOrAddBoolean("hydro", "restrict_cs2", false);
+  warn_unrestricted_cs2 = pin->GetOrAddBoolean(
+    "hydro", "warn_unrestricted_cs2", false
+  );
 
   // control PrimitiveSolver tolerances / iterates
   ps.SetRootfinderTol(pin->GetOrAddReal("hydro", "c2p_acc", 1e-15));
@@ -416,6 +420,11 @@ void EquationOfState::ConservedToPrimitive(
         1.0,
         cons_pt[IDN] / (prim_pt[IDN] * mb)
       );
+
+      // u^a = (W/alpha, util^i)
+      ph->derived_ms(IX_U_U_0,k,j,i) = (
+        ph->derived_ms(IX_LOR,k,j,i) / alpha_(i)
+      );
     }
   }
 
@@ -746,6 +755,16 @@ void EquationOfState::SoundSpeedsGR(Real n, Real T, Real vi, Real v2, Real alpha
   Real cs = ps.GetEOS()->GetSoundSpeed(n, T, Y);
 
   Real cs_sq = cs*cs;
+
+  if ((cs_sq > 1.0) && warn_unrestricted_cs2)
+  {
+    std::printf("Warning: cs_sq unphysical!");
+  }
+
+  if (restrict_cs2)
+  {
+    cs_sq = std::min(cs_sq, 1.0);
+  }
 
   Real root_1 = alpha*(vi*(1.0-cs_sq) + cs*std::sqrt( (1-v2)*(gammaii*(1.0-v2*cs_sq) - vi*vi*(1.0-cs_sq))))/(1.0-v2*cs_sq) - betai;
   Real root_2 = alpha*(vi*(1.0-cs_sq) - cs*std::sqrt( (1-v2)*(gammaii*(1.0-v2*cs_sq) - vi*vi*(1.0-cs_sq))))/(1.0-v2*cs_sq) - betai;

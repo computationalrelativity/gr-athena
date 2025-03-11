@@ -102,6 +102,10 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin)
   fatm = pin -> GetReal("problem","fatm");
   k_adi = pin -> GetReal("hydro","k_adi");
   gamma_adi = pin -> GetReal("hydro","gamma");
+  restrict_cs2 = pin->GetOrAddBoolean("hydro", "restrict_cs2", false);
+  warn_unrestricted_cs2 = pin->GetOrAddBoolean(
+    "hydro", "warn_unrestricted_cs2", false
+  );
 
   // Reprimand
   using namespace EOS_Toolkit;
@@ -491,6 +495,17 @@ void EquationOfState::SoundSpeedsGR(
 
   // Calculate comoving sound speed
   const Real cs_sq = (pgas > 0) ? gamma_adi * pgas / rho_h : 0;
+
+  if ((cs_sq > 1.0) && warn_unrestricted_cs2)
+  {
+    std::printf("Warning: cs_sq unphysical!");
+  }
+
+  if (restrict_cs2)
+  {
+    cs_sq = std::min(std::max(cs_sq, 0.0), 1.0);
+  }
+
   const Real cs = std::sqrt(cs_sq);
 
   const Real fac_sqrt = cs * std::sqrt(

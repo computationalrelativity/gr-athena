@@ -164,7 +164,7 @@ enum HydroDerivedIndex {
   IX_ETH=3,   // enthalpy
   IX_SPB=4,   // entropy per baryon
   IX_SEN=5,   // specific internal energy
-  IX_U_D_0=6, // u_t (downstairs)
+  IX_U_U_0=6, // u^t (upstairs)
   NDRV_HYDRO=7};
 
 // enumerator types that are used for variables and function parameters:
