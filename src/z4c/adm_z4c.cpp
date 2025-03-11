@@ -203,6 +203,96 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm) {
   }
 }
 
+
+void Z4c::Z4cToADM(AA & u, AA & u_adm,
+  const int il, const int iu,
+  const int jl, const int ju,
+  const int kl, const int ku,
+  bool skip_physical)
+{
+  ADM_vars adm;
+  SetADMAliases(u_adm, adm);
+  Z4c_vars z4c;
+  SetZ4cAliases(u, z4c);
+
+  for (int k = kl; k <= ku; ++k)
+  for (int j = jl; j <= ju; ++j)
+  {
+    const bool sp_kj = (
+      skip_physical &&
+      (mbi.jl <= j) && (j <= mbi.ju) &&
+      (mbi.kl <= k) && (k <= mbi.ku)
+    );
+
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+      adm.alpha(k,j,i) = z4c.alpha(k,j,i);
+    }
+
+    for(int a = 0; a < NDIM; ++a)
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+      adm.beta_u(a,k,j,i) = z4c.beta_u(a,k,j,i);
+    }
+
+    // psi4
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+      adm.psi4(k,j,i) = std::pow(z4c.chi(k,j,i), 4./opt.chi_psi_power);
+    }
+
+    // g_ab
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b)
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+
+      adm.g_dd(a,b,k,j,i) = adm.psi4(k,j,i) * z4c.g_dd(a,b,k,j,i);
+    }
+    // K_ab
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b)
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+
+      adm.K_dd(a,b,k,j,i) = adm.psi4(k,j,i) * z4c.A_dd(a,b,k,j,i) +
+          (1./3.) * (z4c.Khat(k,j,i) + 2.*z4c.Theta(k,j,i)) * adm.g_dd(a,b,k,j,i);
+    }
+  }
+
+  if (opt.extended_aux_adm)
+  {
+    PrepareAuxExtended(storage.aux_extended,
+                       u_adm,
+                       il, iu, jl, ju, kl, ku, skip_physical);
+  }
+}
+
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::ADMConstraints(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat)
 // \brief compute constraints ADM vars
@@ -643,5 +733,51 @@ void Z4c::PrepareAuxExtended(AA &u_aux_extended, AA &u_adm)
     aux_extended.cc_sqrt_detgamma(k,j,i) = std::sqrt(
       Det3Metric(adm.g_dd,k,j,i)
     );
+  }
+}
+
+void Z4c::PrepareAuxExtended(
+  AA &u_aux_extended, AA & u_adm,
+  const int il, const int iu,
+  const int jl, const int ju,
+  const int kl, const int ku,
+  bool skip_physical)
+{
+#if !(defined(Z4C_CC_ENABLED) || defined(Z4C_CX_ENABLED))
+  // Interp from VC to CC not implemented
+  assert(false);
+#endif
+
+  using namespace LinearAlgebra;
+
+  ADM_vars adm;
+  SetADMAliases(u_adm, adm);
+
+  Aux_extended_vars aux_extended;
+  SetAuxExtendedAliases(u_aux_extended, aux_extended);
+
+  MeshBlock * pmb = pmy_block;
+
+  for (int k = kl; k <= ku; ++k)
+  for (int j = jl; j <= ju; ++j)
+  {
+    const bool sp_kj = (
+      skip_physical &&
+      (mbi.jl <= j) && (j <= mbi.ju) &&
+      (mbi.kl <= k) && (k <= mbi.ku)
+    );
+
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+
+      aux_extended.cc_sqrt_detgamma(k,j,i) = std::sqrt(
+        Det3Metric(adm.g_dd,k,j,i)
+      );
+    }
   }
 }

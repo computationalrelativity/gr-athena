@@ -588,3 +588,86 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
     }
   }
 }
+
+void Z4c::AlgConstr(AA & u,
+  const int il, const int iu,
+  const int jl, const int ju,
+  const int kl, const int ku,
+  bool skip_physical)
+{
+  using namespace LinearAlgebra;
+
+  Z4c_vars z4c;
+  SetZ4cAliases(u, z4c);
+
+  for (int k = kl; k <= ku; ++k)
+  for (int j = jl; j <= ju; ++j)
+  {
+    const bool sp_kj = (
+      skip_physical &&
+      (mbi.jl <= j) && (j <= mbi.ju) &&
+      (mbi.kl <= k) && (k <= mbi.ku)
+    );
+
+    // compute determinant and "conformal conformal factor"
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+
+      detg(i) = Det3Metric(z4c.g_dd,k,j,i);
+      detg(i) = detg(i) > 0. ? detg(i) : 1.;
+      Real eps = detg(i) - 1.;
+      // oopsi4(i) = (eps < opt.eps_floor) ? (1. - opt.eps_floor/3.) : (pow(1./detg(i), 1./3.));
+      oopsi4(i) = std::cbrt(1./detg(i));
+    }
+
+    // enforce unitary determinant for conformal metric
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b)
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+
+      z4c.g_dd(a,b,k,j,i) *= oopsi4(i);
+    }
+
+    // compute trace of A
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+
+      // note: here we are assuming that det g = 1, which we enforced above
+      A(i) = TraceRank2(1.0,
+          z4c.g_dd(0,0,k,j,i), z4c.g_dd(0,1,k,j,i), z4c.g_dd(0,2,k,j,i),
+          z4c.g_dd(1,1,k,j,i), z4c.g_dd(1,2,k,j,i), z4c.g_dd(2,2,k,j,i),
+          z4c.A_dd(0,0,k,j,i), z4c.A_dd(0,1,k,j,i), z4c.A_dd(0,2,k,j,i),
+          z4c.A_dd(1,1,k,j,i), z4c.A_dd(1,2,k,j,i), z4c.A_dd(2,2,k,j,i));
+    }
+
+    // enforce trace of A to be zero
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b)
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+
+      z4c.A_dd(a,b,k,j,i) -= (1.0/3.0) * A(i) * z4c.g_dd(a,b,k,j,i);
+    }
+  }
+}

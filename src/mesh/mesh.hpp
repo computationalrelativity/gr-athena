@@ -537,6 +537,9 @@ class Mesh {
 
   void FinalizeWave(std::vector<MeshBlock*> & pmb_array);
 
+  void FinalizeZ4cADMPhysical(std::vector<MeshBlock*> & pmb_array);
+  void FinalizeZ4cADMGhosts(std::vector<MeshBlock*> & pmb_array);
+
   void FinalizeZ4cADM(std::vector<MeshBlock*> & pmb_array);
   void FinalizeZ4cADM_Matter(std::vector<MeshBlock*> & pmb_array);
 
@@ -552,6 +555,8 @@ class Mesh {
 
   void PreparePrimitives(std::vector<MeshBlock*> & pmb_array,
                          const bool interior_only);
+
+  void PreparePrimitivesGhosts(std::vector<MeshBlock*> & pmb_array);
 
   // Dedicated function to communicate matter-fields
   void ScatterMatter(std::vector<MeshBlock*> & pmb_array);

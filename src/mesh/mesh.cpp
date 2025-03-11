@@ -1722,6 +1722,20 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
       MeshBlock *pmb;
       BoundaryValues *pbval;
 
+#ifdef DBG_EARLY_INIT_CONSTOPRIM
+      if ((init_style == initialize_style::pgen) ||
+          (init_style == initialize_style::regrid))
+      {
+        // ADM on physical
+        FinalizeZ4cADMPhysical(pmb_array);
+
+        // reset_floor with PrimitiveSolver adjusts the conserved
+        // Put this here to further polish values after global regridding
+        static const bool interior_only = true;
+        PreparePrimitives(pmb_array, interior_only);
+      }
+#endif // DBG_EARLY_INIT_CONSTOPRIM
+
       if ((init_style == initialize_style::pgen) ||
           (init_style == initialize_style::regrid))
       {
@@ -1738,7 +1752,12 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
       if ((init_style == initialize_style::pgen) ||
           (init_style == initialize_style::regrid))
       {
+
+#ifdef DBG_EARLY_INIT_CONSTOPRIM
+        FinalizeZ4cADMGhosts(pmb_array);
+#else
         FinalizeZ4cADM(pmb_array);
+#endif // DBG_EARLY_INIT_CONSTOPRIM
       }
 #endif
 
@@ -1796,8 +1815,12 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
       {
         FinalizeHydroConsRP(pmb_array);
 
+#ifdef DBG_EARLY_INIT_CONSTOPRIM
+        PreparePrimitivesGhosts(pmb_array);
+#else
         const bool interior_only = false;
         PreparePrimitives(pmb_array, interior_only);
+#endif // DBG_EARLY_INIT_CONSTOPRIM
       }
 #endif
       // ----------------------------------------------------------------------

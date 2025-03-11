@@ -48,6 +48,89 @@ void Mesh::FinalizeWave(std::vector<MeshBlock*> & pmb_array)
   }
 }
 
+void Mesh::FinalizeZ4cADMPhysical(std::vector<MeshBlock*> & pmb_array)
+{
+  MeshBlock *pmb;
+  BoundaryValues *pbval;
+
+  const int nmb = pmb_array.size();
+
+  Z4c *pz = nullptr;
+
+  #pragma omp for private(pmb, pbval, pz)
+  for (int i = 0; i < nmb; ++i) {
+    pmb = pmb_array[i];
+    pbval = pmb->pbval;
+
+    pz = pmb->pz4c;
+
+    const bool skip_physical = false;
+
+    // Enforce the algebraic constraints
+    pz->AlgConstr(pz->storage.u,
+                  pz->mbi.il, pz->mbi.iu,
+                  pz->mbi.jl, pz->mbi.ju,
+                  pz->mbi.kl, pz->mbi.ku,
+                  skip_physical);
+
+    // Need ADM variables for con2prim
+    pz->Z4cToADM(pz->storage.u,
+                 pz->storage.adm,
+                 pz->mbi.il, pz->mbi.iu,
+                 pz->mbi.jl, pz->mbi.ju,
+                 pz->mbi.kl, pz->mbi.ku,
+                 skip_physical);
+  }
+}
+
+void Mesh::FinalizeZ4cADMGhosts(std::vector<MeshBlock*> & pmb_array)
+{
+  MeshBlock *pmb;
+  BoundaryValues *pbval;
+
+  const int nmb = pmb_array.size();
+
+  Z4c *pz = nullptr;
+
+  #pragma omp for private(pmb, pbval, pz)
+  for (int i = 0; i < nmb; ++i) {
+    pmb = pmb_array[i];
+    pbval = pmb->pbval;
+
+    pz = pmb->pz4c;
+
+    if (multilevel)
+    {
+      pbval->ProlongateBoundariesZ4c(time, 0.0);
+    }
+
+    pbval->ApplyPhysicalBoundaries(
+      time, 0.0,
+      pbval->GetBvarsZ4c(),
+      pz->mbi.il, pz->mbi.iu,
+      pz->mbi.jl, pz->mbi.ju,
+      pz->mbi.kl, pz->mbi.ku,
+      pz->mbi.ng);
+
+    const bool skip_physical = true;
+
+    // Enforce the algebraic constraints
+    pz->AlgConstr(pz->storage.u,
+      0, pz->mbi.nn1-1,
+      0, pz->mbi.nn2-1,
+      0, pz->mbi.nn3-1,
+      skip_physical);
+
+    // Need ADM variables for con2prim
+    pz->Z4cToADM(pz->storage.u,
+      pz->storage.adm,
+      0, pz->mbi.nn1-1,
+      0, pz->mbi.nn2-1,
+      0, pz->mbi.nn3-1,
+      skip_physical);
+  }
+}
+
 void Mesh::FinalizeZ4cADM(std::vector<MeshBlock*> & pmb_array)
 {
   MeshBlock *pmb;
@@ -351,6 +434,47 @@ void Mesh::PreparePrimitives(std::vector<MeshBlock*> & pmb_array,
                                     pf->bcc, pmb->pcoord,
                                     il, iu, jl, ju, kl, ku,
                                     coarseflag);
+
+    // Update w1 to have the state of w
+    ph->RetainState(ph->w1, ph->w, il, iu, jl, ju, kl, ku);
+  }
+
+#endif // FLUID_ENABLED
+}
+
+void Mesh::PreparePrimitivesGhosts(std::vector<MeshBlock*> & pmb_array)
+{
+#if FLUID_ENABLED
+  MeshBlock *pmb;
+  BoundaryValues *pbval;
+
+  const int nmb = pmb_array.size();
+
+  Field *pf = nullptr;
+  Hydro *ph = nullptr;
+  PassiveScalars *ps = nullptr;
+
+  #pragma omp for private(pmb, pbval, pf, ph, ps)
+  for (int i = 0; i < nmb; ++i)
+  {
+    pmb = pmb_array[i];
+    pbval = pmb->pbval;
+
+    ph = pmb->phydro;
+    pf = pmb->pfield;
+    ps = pmb->pscalars;
+
+    int il = 0, iu = pmb->ncells1 - 1,
+        jl = 0, ju = pmb->ncells2 - 1,
+        kl = 0, ku = pmb->ncells3 - 1;
+
+    static const int coarseflag = 0;
+    static const bool skip_physical = true;
+    pmb->peos->ConservedToPrimitive(ph->u, ph->w1, ph->w,
+                                    ps->s, ps->r,
+                                    pf->bcc, pmb->pcoord,
+                                    il, iu, jl, ju, kl, ku,
+                                    coarseflag, skip_physical);
 
     // Update w1 to have the state of w
     ph->RetainState(ph->w1, ph->w, il, iu, jl, ju, kl, ku);

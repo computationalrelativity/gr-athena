@@ -409,6 +409,18 @@ public:
 
   void PrepareAuxExtended(AA &u_aux_extended, AA &u_adm);
 
+  void Z4cToADM(AA & u, AA & u_adm,
+    const int il, const int iu,
+    const int jl, const int ju,
+    const int kl, const int ku,
+    bool skip_physical);
+
+  void PrepareAuxExtended(AA &u_aux_extended, AA & u_adm,
+    const int il, const int iu,
+    const int jl, const int ju,
+    const int kl, const int ku,
+    bool skip_physical);
+
   // Conformal factor conversions
   // Floor applied: std::max(chi, opt.chi_div_floor)
   //
@@ -439,6 +451,13 @@ public:
 
   // enforce algebraic constraints on the solution
   void AlgConstr(AA & u);
+
+  // allow to skip physical nodes (i.e. only apply on ghosts)
+  void AlgConstr(AA & u,
+                 const int il, const int iu,
+                 const int jl, const int ju,
+                 const int kl, const int ku,
+                 bool skip_physical);
 
   // compute ADM constraints
   void ADMConstraints(AA & u_con, AA & u_adm, AA & u_mat, AA & u_z4c);
