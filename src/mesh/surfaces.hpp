@@ -43,11 +43,11 @@ class Surfaces
       hydro_cons,
       hydro_prim,
       hydro_aux,
-      // // scalars
-      // passive_scalars_cons,
-      // passive_scalars_prim,
-      // // magnetic fields
-      // B,
+      // scalars
+      passive_scalars_cons,
+      passive_scalars_prim,
+      // magnetic fields
+      B,
       // radiation
       M1_lab,
       M1_geom_sc_alpha,
@@ -70,6 +70,13 @@ class Surfaces
       {"hydro.cons", variety_data::hydro_cons},
       {"hydro.prim", variety_data::hydro_prim},
       {"hydro.aux",  variety_data::hydro_aux},
+#endif
+#if NSCALARS > 0
+      {"passive_scalars.cons",  variety_data::passive_scalars_cons},
+      {"passive_scalars.prim",  variety_data::passive_scalars_prim},
+#endif
+#if MAGNETIC_FIELDS_ENABLED
+      {"B",  variety_data::B},
 #endif
 #if M1_ENABLED
       {"M1.lab",     variety_data::M1_lab},

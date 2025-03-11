@@ -10,7 +10,9 @@
 #include "../utils/utils.hpp"
 
 #include "../m1/m1.hpp"
+#include "../field/field.hpp"
 #include "../hydro/hydro.hpp"
+#include "../scalars/scalars.hpp"
 #include "../z4c/z4c.hpp"
 
 // hdf5 / mpi macros
@@ -268,6 +270,18 @@ AA * Surface::GetRawData(Surfaces::variety_data vd, MeshBlock * pmb)
     {
       return &pmb->phydro->derived_ms;
     }
+    case variety_data::passive_scalars_cons:
+    {
+      return &pmb->pscalars->s;
+    }
+    case variety_data::passive_scalars_prim:
+    {
+      return &pmb->pscalars->r;
+    }
+    case variety_data::B:
+    {
+      return &pmb->pfield->bcc;
+    }
     case variety_data::M1_lab:
     {
       return &pmb->pm1->storage.u;
@@ -337,6 +351,18 @@ int Surface::GetNumFieldComponents(Surfaces::variety_data vd)
     case variety_data::hydro_aux:
     {
       return NDRV_HYDRO;
+    }
+    case variety_data::passive_scalars_cons:
+    {
+      return NSCALARS;
+    }
+    case variety_data::passive_scalars_prim:
+    {
+      return NSCALARS;
+    }
+    case variety_data::B:
+    {
+      return NFIELD;
     }
     case variety_data::M1_lab:
     {
@@ -467,6 +493,21 @@ std::string Surface::GetNameFieldComponent(Surfaces::variety_data vd,
     case variety_data::hydro_aux:
     {
       ret = Hydro::ixn_derived_ms::names[nix];
+      break;
+    }
+    case variety_data::passive_scalars_cons:
+    {
+      ret = "passive_scalars.s_" + std::to_string(nix);
+      break;
+    }
+    case variety_data::passive_scalars_prim:
+    {
+      ret = "passive_scalars.r_" + std::to_string(nix);
+      break;
+    }
+    case variety_data::B:
+    {
+      ret = Field::ixn_cc::names[nix];
       break;
     }
     case variety_data::M1_lab:
