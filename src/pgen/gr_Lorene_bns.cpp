@@ -408,7 +408,8 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 
 void MeshBlock::UserWorkAfterOutput(ParameterInput *pin) {
   // Reset the status
-  phydro->c2p_status.Fill(0);
+  AA c2p_status;
+  c2p_status.InitWithShallowSlice(phydro->derived_ms, IX_C2P, 1);
   return;
 }
 
