@@ -6,6 +6,7 @@
 #include "../athena_aliases.hpp"
 #include "../coordinates/coordinates.hpp"
 // #include "../utils/linear_algebra.hpp"
+#include "../hydro/hydro.hpp"
 #include "../z4c/z4c.hpp"
 #include "../utils/linear_algebra.hpp"     // Det. & friends
 #include "eos.hpp"
@@ -195,6 +196,67 @@ void EquationOfState::SetEuclideanCC(AT_N_sym & gamma_dd_, const int i)
   for (int b=a; b<N; ++b)
   {
     gamma_dd_(a,b,i) = (a==b);
+  }
+}
+
+void EquationOfState::DerivedQuantities(
+  AA &derived_ms,
+  AA &derived_gs,
+  AA &cons, AA &cons_scalar,
+  AA &prim, AA &prim_scalar,
+  AA &bcc, Coordinates *pco,
+  int il, int iu,
+  int jl, int ju,
+  int kl, int ku,
+  int coarseflag,
+  bool skip_physical)
+{
+  // BD: TODO - wrap this all in USETM
+  MeshBlock* pmb = pmy_block_;
+  Hydro * ph     = pmb->phydro;
+
+  AA c2p_status;
+  c2p_status.InitWithShallowSlice(ph->derived_ms, IX_C2P, 1);
+
+  const Real oo_mb = OO(GetEOS().GetBaryonMass());
+  Real Y[MAX_SPECIES] = {0.0};
+
+
+  for (int k=kl; k<=ku; ++k)
+  for (int j=jl; j<=ju; ++j)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    if (skip_physical &&
+      (pmb->is <= i) && (i <= pmb->ie) &&
+      (pmb->js <= j) && (j <= pmb->je) &&
+      (pmb->ks <= k) && (k <= pmb->ke))
+    {
+      continue;
+    }
+
+/*
+    if (ph->mask_reset_u(k,j,i))
+    {
+      derived_ms(IX_ETH,k,j,i) = 0.0;
+      derived_ms(IX_SPB,k,j,i) = 0.0;
+      derived_ms(IX_SPB,k,j,i) = 0.0;
+    }
+    else
+    {
+      const Real T = derived_ms(IX_T,k,j,i);
+#if NSCALARS > 0
+      for (int l=0; l<NSCALARS; ++l)
+      {
+        Y[l] = pmy_block_->pscalars->r(l,k,j,i);
+      }
+#endif
+      Real n = oo_mb * prim(IDN,k,j,i);
+      derived_ms(IX_ETH,k,j,i) = GetEOS().GetEnthalpy(n, T, Y);
+      derived_ms(IX_SPB,k,j,i) = GetEOS().GetEntropyPerBaryon(n, T, Y);
+      derived_ms(IX_SPB,k,j,i) = GetEOS().GetSpecificInternalEnergy(n, T, Y);
+    }
+*/
   }
 }
 

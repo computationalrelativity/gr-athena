@@ -1017,18 +1017,13 @@ Real max_rho(MeshBlock *pmb, int iout)
 Real max_T(MeshBlock *pmb, int iout)
 {
   Real max_T = -std::numeric_limits<Real>::infinity();
-  int is = pmb->is, ie = pmb->ie;
-  int js = pmb->js, je = pmb->je;
-  int ks = pmb->ks, ke = pmb->ke;
+  AA temperature;
+  temperature.InitWithShallowSlice(pmb->phydro->derived_ms, IX_T, 1);
 
-  AthenaArray<Real> &T = pmb->phydro->temperature;
-  for (int k=ks; k<=ke; k++)
-  for (int j=js; j<=je; j++)
-  for (int i=is; i<=ie; i++)
+  CC_ILOOP3(k, j, i)
   {
-    max_T = std::max(std::abs(T(k,j,i)), max_T);
+    max_T = std::max(max_T, temperature(k,j,i));
   }
-
   return max_T;
 }
 

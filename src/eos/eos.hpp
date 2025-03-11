@@ -169,6 +169,35 @@ class EquationOfState {
 
 #endif
 
+  // Various derived quantities -----------------------------------------------
+  void DerivedQuantities(
+    AA &derived_ms, AA &derived_gs,
+    AA &cons, AA &cons_scalar,
+    AA &prim, AA &prim_scalar,
+    AA &bcc, Coordinates *pco,
+    int il, int iu,
+    int jl, int ju,
+    int kl, int ku,
+    int coarseflag,
+    bool skip_physical);
+
+  void DerivedQuantities(
+    AA &derived_ms, AA &derived_gs,
+    AA &cons, AA &cons_scalar,
+    AA &prim, AA &prim_scalar,
+    AA &bcc, Coordinates *pco,
+    int il, int iu,
+    int jl, int ju,
+    int kl, int ku,
+    int coarseflag)
+  {
+    DerivedQuantities(derived_ms, derived_gs,
+                      cons, cons_scalar,
+                      prim, prim_scalar,
+                      bcc, pco,
+                      il, iu, jl, ju, kl, ku, coarseflag, false);
+  }
+
   // --------------------------------------------------------------------------
   // Check state vector at a point makes sense & we are not
   bool IsAdmissiblePoint(

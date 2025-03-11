@@ -115,10 +115,6 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
 
   dflx_.NewAthenaArray(NHYDRO, nc1);
 
-#if USETM
-    temperature.NewAthenaArray(nc3, nc2, nc1);
-#endif
-
   UserTimeStep_ = pmb->pmy_mesh->UserTimeStep_;
 
   // scratches for rsolver ----------------------------------------------------

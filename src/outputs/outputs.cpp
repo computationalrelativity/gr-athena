@@ -898,20 +898,6 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       AppendOutputDataNode(pod);
       num_vars_++;
     }
-
-    // temperature
-#if USETM
-    if (output_params.variable.compare("t") == 0 ||
-        output_params.variable.compare("temp") == 0) {
-      pod = new OutputData;
-      pod->type = "SCALARS";
-      pod->name = "temp";
-      pod->data.InitWithShallowSlice(phyd->temperature, 0, 1);
-      AppendOutputDataNode(pod);
-      num_vars_++;
-    }
-#endif
-
   }
 
   // momentum vector

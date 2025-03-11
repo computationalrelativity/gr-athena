@@ -115,6 +115,9 @@ void CalcNeutrinoDiagnostics(MeshBlock *pmb)
   AT_C_sca & sc_w_rho = pm1->hydro.sc_w_rho;
   AT_C_sca & sc_sqrt_det_g = pm1->geom.sc_sqrt_det_g;
 
+  AA temperature;
+  temperature.InitWithShallowSlice(ph->derived_ms, IX_T, 1);
+
   if ((pm1->N_GRPS == 1) && pm1->N_SPCS == 3)
   {
     // BD: TODO - raw or not?
@@ -155,7 +158,7 @@ void CalcNeutrinoDiagnostics(MeshBlock *pmb)
 
       // BD: TODO- fixme; this is energy density, not tot?
       Real E_tot = peos->GetEOS().GetEnergy(sc_w_rho(k,j,i) / mb,
-                                            ph->temperature(k,j,i),
+                                            temperature(k,j,i),
                                             Y);
 
       sc_z_sum(k,j,i) += E_tot;

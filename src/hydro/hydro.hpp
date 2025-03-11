@@ -52,11 +52,6 @@ class Hydro {
   // storage for derived quantities (HydroDerivedIndex); matter-sampling
   AA derived_ms;
 
-#if USETM
-// Storage for temperature output
-  AA temperature;
-#endif
-
   AA flux[3];  // face-averaged flux vector
 
   // storage for SMR/AMR

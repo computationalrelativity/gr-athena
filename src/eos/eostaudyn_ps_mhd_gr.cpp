@@ -239,6 +239,9 @@ void EquationOfState::ConservedToPrimitive(
   AA c2p_status;
   c2p_status.InitWithShallowSlice(ph->derived_ms, IX_C2P, 1);
 
+  AA temperature;
+  temperature.InitWithShallowSlice(ph->derived_ms, IX_T, 1);
+
   // sanitize loop limits (coarse / fine auto-switched)
   int IL = il; int IU = iu;
   int JL = jl; int JU = ju;
@@ -288,7 +291,7 @@ void EquationOfState::ConservedToPrimitive(
 
       if (!is_admissible)
       {
-        SetPrimAtmo(ph->temperature, prim, prim_scalar, k, j, i, ps);
+        SetPrimAtmo(temperature, prim, prim_scalar, k, j, i, ps);
         SetEuclideanCC(gamma_dd_, i);
         PrimitiveToConservedSingle(prim,
                                    prim_scalar,

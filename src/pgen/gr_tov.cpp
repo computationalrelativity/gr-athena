@@ -1927,9 +1927,12 @@ Real DivBface(MeshBlock *pmb, int iout) {
 Real max_T(MeshBlock *pmb, int iout)
 {
   Real max_T = -std::numeric_limits<Real>::infinity();
+  AA temperature;
+  temperature.InitWithShallowSlice(pmb->phydro->derived_ms, IX_T, 1);
+
   CC_ILOOP3(k, j, i)
   {
-    max_T = std::max(max_T, pmb->phydro->temperature(k,j,i));
+    max_T = std::max(max_T, temperature(k,j,i));
   }
   return max_T;
 }
