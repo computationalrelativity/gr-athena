@@ -31,6 +31,7 @@
 #include "../trackers/extrema_tracker.hpp"
 #include "../field/field.hpp"              // Field
 #include "../hydro/hydro.hpp"              // Hydro
+#include "../hydro/rescaling.hpp"              // Hydro
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"          // ParameterInput
 #include "../utils/linear_algebra.hpp"
@@ -413,10 +414,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   pm1->CalcFiducialVelocity();
 
   /*
-  pm1->CalcClosure(pm1->storage.u);
-  pm1->CalcFiducialFrame(pm1->storage.u);
-  pm1->CalcOpacity(pmy_mesh->dt, pm1->storage.u);
-
   M1::M1::vars_Lab U_C { {pm1->N_GRPS,pm1->N_SPCS},
                          {pm1->N_GRPS,pm1->N_SPCS},
                          {pm1->N_GRPS,pm1->N_SPCS} };
@@ -1594,7 +1591,6 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
         K_dd_init(a,b,k,j,i) += sp_K_dd_(a,b,i);
       }
 
-
       // Check regular --------------------------------------------------------
       const bool geom_fin = (alpha_.is_finite() and
                              psi4_.is_finite()  and
@@ -1699,6 +1695,11 @@ void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin)
     Acc(1,k,j,i) =  x1 * b_amp * std::max(w_p-pcut, 0.0) *
                     std::pow((1.0 - w_rho/rhomax), magindex);
     Acc(2,k,j,i) =  0.0;
+
+    // Acc(0,k,j,i) = -x2 * b_amp;
+    // Acc(1,k,j,i) =  x1 * b_amp;
+    // Acc(2,k,j,i) =  0.0;
+
   }
 
   // Construct cell centred B field from cell centred potential
@@ -1715,6 +1716,32 @@ void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin)
     pfield->bcc(2,k,j,i) =  ((Acc(1,k,j,i+1) - Acc(1,k,j,i-1))/(2.0*dx1) -
                              (Acc(0,k,j+1,i) - Acc(0,k,j-1,i))/(2.0*dx2));
 
+    // const Real x1 = pcoord->x1v(i);
+    // const Real x2 = pcoord->x2v(j);
+    // const Real x3 = pcoord->x3v(j);
+
+    // pfield->bcc(0,k,j,i) = x1 * x2;
+    // pfield->bcc(1,k,j,i) = x2 * x2;
+    // pfield->bcc(2,k,j,i) = x3 * x2;
+
+    /*
+    const Real F0 = 1.0 / (2.0 * dx1);
+    const Real F1 = 1.0 / (2.0 * dx2);
+    const Real F2 = 1.0 / (2.0 * dx3);
+
+    const Real d1A0 = F0 * (Acc(0,k,j+1,i)-Acc(0,k,j-1,i));
+    const Real d2A0 = F2 * (Acc(0,k+1,j,i)-Acc(0,k-1,j,i));
+
+    const Real d0A1 = F0 * (Acc(1,k,j,i+1)-Acc(1,k,j,i-1));
+    const Real d2A1 = F2 * (Acc(1,k+1,j,i)-Acc(1,k-1,j,i));
+
+    const Real d0A2 = F0 * (Acc(2,k,j,i+1)-Acc(2,k,j,i-1));
+    const Real d1A2 = F1 * (Acc(2,k,j+1,i)-Acc(2,k,j-1,i));
+
+    pfield->bcc(0,k,j,i) = d1A2-d2A1;
+    pfield->bcc(1,k,j,i) = d2A0-d0A2;
+    pfield->bcc(2,k,j,i) = d0A1-d1A0;
+    */
   }
 
   // Initialise face centred field by averaging cc field
