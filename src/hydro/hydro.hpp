@@ -49,6 +49,9 @@ class Hydro {
   AA u2;           // time-integrator memory register #3
   // (no more than MAX_NREGISTER allowed)
 
+  // storage for derived quantities (HydroDerivedIndex); matter-sampling
+  AA derived_ms;
+
 #if USETM
 // Storage for temperature output
   AA temperature;
@@ -60,13 +63,6 @@ class Hydro {
   // TODO(KGF): remove trailing underscore or revert to private:
   AA coarse_cons_, coarse_prim_;
   int refinement_idx{-1};
-
-  // BD: TODO - make the mask more useful
-  // prim: w, cons: u
-  // u<->w can fail; in this situation values need to be reset
-  // It is helpful to make a mask to this end
-  AthenaArray<bool> mask_reset_u;
-  AA c2p_status;
 
   // for reconstruction failure, should both states be floored?
   bool floor_both_states = false;
@@ -124,6 +120,20 @@ class Hydro {
       "hydro.prim.util_u_2",
       "hydro.prim.util_u_3",
       "hydro.prim.p",
+    };
+  };
+
+  struct ixn_derived_ms
+  {
+    // Uses "HydroDerivedIndex"
+    static constexpr char const * const names[] = {
+      "hydro.aux.c2p_status",
+      "hydro.aux.W",
+      "hydro.aux.T",
+      "hydro.aux.h",
+      "hydro.aux.s",
+      "hydro.aux.e",
+      "hydro.aux.u_t",
     };
   };
 

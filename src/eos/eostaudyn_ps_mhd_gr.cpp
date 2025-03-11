@@ -236,6 +236,9 @@ void EquationOfState::ConservedToPrimitive(
   AT_N_sym & gamma_uu_    = gsc.gamma_uu_;
   AT_N_sca & det_gamma_   = gsc.det_gamma_;
 
+  AA c2p_status;
+  c2p_status.InitWithShallowSlice(ph->derived_ms, IX_C2P, 1);
+
   // sanitize loop limits (coarse / fine auto-switched)
   int IL = il; int IU = iu;
   int JL = jl; int JU = ju;
@@ -283,9 +286,7 @@ void EquationOfState::ConservedToPrimitive(
         }
       }
 
-      ph->mask_reset_u(k,j,i) = !is_admissible;
-
-      if (ph->mask_reset_u(k,j,i))
+      if (!is_admissible)
       {
         SetPrimAtmo(ph->temperature, prim, prim_scalar, k, j, i, ps);
         SetEuclideanCC(gamma_dd_, i);
@@ -298,8 +299,8 @@ void EquationOfState::ConservedToPrimitive(
                                    k, j, i,
                                    ps);
 
-        if (pmb->phydro->c2p_status(k,j,i) == 0)
-          pmb->phydro->c2p_status(k,j,i) = static_cast<int>(Primitive::Error::EXCISED);
+        if (c2p_status(k,j,i) == 0)
+          c2p_status(k,j,i) = static_cast<int>(Primitive::Error::EXCISED);
         continue;
       }
 
@@ -347,9 +348,9 @@ void EquationOfState::ConservedToPrimitive(
           ps.ConToPrim(prim_pt, cons_pt, b3u, g3d, g3u);
 
       // retain result of c2p
-      if (pmb->phydro->c2p_status(k,j,i) == 0)
+      if (c2p_status(k,j,i) == 0)
       {
-        pmb->phydro->c2p_status(k,j,i) = static_cast<int>(result.error);
+        c2p_status(k,j,i) = static_cast<int>(result.error);
       }
 
       if (verbose && (result.error != Primitive::Error::SUCCESS && (detgamma > 0)))
@@ -383,7 +384,8 @@ void EquationOfState::ConservedToPrimitive(
       prim(IVY, k, j, i) = prim_pt[IVY];
       prim(IVZ, k, j, i) = prim_pt[IVZ];
       prim(IPR, k, j, i) = prim_pt[IPR];
-      pmy_block_->phydro->temperature(k,j,i) = prim_pt[ITM];
+      ph->derived_ms(IX_T,k,j,i) = prim_pt[ITM];
+
       for(int n=0; n<NSCALARS; n++)
       {
         prim_scalar(n, k, j, i) = prim_pt[IYF + n];

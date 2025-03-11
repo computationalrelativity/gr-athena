@@ -156,6 +156,17 @@ enum TriangleIndex {T00=0, T10=1, T11=2, T20=3, T21=4, T22=5, T30=6, T31=7, T32=
 enum SpatialMetricIndex {S11=0, S12=1, S13=2, S22=3, S23=4, S33=5,
   NSPMETRIC=6};
 
+// Hydro-derived quantities:
+enum HydroDerivedIndex {
+  IX_C2P=0,   // c2p status
+  IX_LOR=1,   // Lorentz factor
+  IX_T=2,     // temperature
+  IX_ETH=3,   // enthalpy
+  IX_SPB=4,   // entropy per baryon
+  IX_SEN=5,   // specific internal energy
+  IX_U_D_0=6, // u_t (downstairs)
+  NDRV_HYDRO=7};
+
 // enumerator types that are used for variables and function parameters:
 
 // needed for arrays dimensioned over grid directions

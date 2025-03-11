@@ -315,7 +315,9 @@ void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin)
 
 void MeshBlock::UserWorkAfterOutput(ParameterInput *pin) {
   // Reset the status
-  phydro->c2p_status.Fill(0);
+  AA c2p_status;
+  c2p_status.InitWithShallowSlice(phydro->derived_ms, IX_C2P, 1);
+  c2p_status.Fill(0);
   return;
 }
 
@@ -1883,13 +1885,15 @@ Real num_c2p_fail(MeshBlock *pmb, int iout)
   int js = pmb->js, je = pmb->je;
   int ks = pmb->ks, ke = pmb->ke;
 
-  AthenaArray<Real> &cstat = pmb->phydro->c2p_status;
+  // Reset the status
+  AA c2p_status;
+  c2p_status.InitWithShallowSlice(pmb->phydro->derived_ms, IX_C2P, 1);
 
   for (int k=ks; k<=ke; k++)
   for (int j=js; j<=je; j++)
   for (int i=is; i<=ie; i++)
   {
-    if (pmb->phydro->c2p_status(k,j,i) > 0)
+    if (c2p_status(k,j,i) > 0)
       sum_++;
   }
 
