@@ -60,18 +60,15 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   if(adaptive==true)
     EnrollUserRefinementCondition(RefinementCondition);
 
-
-  AllocateUserHistoryOutput(4);
-  EnrollUserHistoryOutput(0, max_rho,   "max-rho",
+  EnrollUserHistoryOutput(max_rho,   "max-rho",
     UserHistoryOperation::max);
-  EnrollUserHistoryOutput(1, min_alpha, "min-alpha",
+  EnrollUserHistoryOutput(min_alpha, "min-alpha",
     UserHistoryOperation::min);
-  EnrollUserHistoryOutput(2, max_abs_con_H, "max-abs-con.H",
+  EnrollUserHistoryOutput(max_abs_con_H, "max-abs-con.H",
     UserHistoryOperation::max);
 
 #if MAGNETIC_FIELDS_ENABLED
-  // AllocateUserHistoryOutput(1);
-  EnrollUserHistoryOutput(3, DivBface, "divBface");
+  EnrollUserHistoryOutput(DivBface, "divBface");
 #endif
 
   checkpoint_file = pin->GetOrAddString("problem", "filename", "checkpoint.dat");

@@ -46,17 +46,21 @@
 //----------------------------------------------------------------------------------------
 //! \fn void OutputType::HistoryFile()
 //  \brief Writes a history file
-void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
+void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
+{
   MeshBlock *pmb = pm->pblock;
   Real real_max = std::numeric_limits<Real>::max();
   Real real_min = std::numeric_limits<Real>::min();
   AthenaArray<Real> vol(pmb->ncells1);
-  const int nhistory_output = NHISTORY_VARS + pm->nuser_history_output_;
+
+  const int nuser_history_output_ = pm->user_history_func_.size();
+  const int nhistory_output = NHISTORY_VARS + nuser_history_output_;
+
   std::unique_ptr<Real[]> hst_data(new Real[nhistory_output]);
   // initialize built-in variable sums to 0.0
   for (int n=0; n<NHISTORY_VARS; ++n) hst_data[n] = 0.0;
   // initialize user-defined history outputs depending on the requested operation
-  for (int n=0; n<pm->nuser_history_output_; n++) {
+  for (int n=0; n<nuser_history_output_; n++) {
     switch (pm->user_history_ops_[n]) {
       case UserHistoryOperation::sum:
         hst_data[NHISTORY_VARS+n] = 0.0;
@@ -185,23 +189,23 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     }
 
 
-    for (int n=0; n<pm->nuser_history_output_; n++) { // user-defined history outputs
-      if (pm->user_history_func_[n] != nullptr) {
-        Real usr_val = pm->user_history_func_[n](pmb, n);
-        switch (pm->user_history_ops_[n]) {
-          case UserHistoryOperation::sum:
-            // TODO(felker): this should automatically volume-weight the sum, like the
-            // built-in variables. But existing user-defined .hst fns are currently
-            // weighting their returned values.
-            hst_data[NHISTORY_VARS+n] += usr_val;
-            break;
-          case UserHistoryOperation::max:
-            hst_data[NHISTORY_VARS+n] = std::max(usr_val, hst_data[NHISTORY_VARS+n]);
-            break;
-          case UserHistoryOperation::min:
-            hst_data[NHISTORY_VARS+n] = std::min(usr_val, hst_data[NHISTORY_VARS+n]);
-            break;
-        }
+    for (int n=0; n<nuser_history_output_; ++n)
+    {
+      Real usr_val = pm->user_history_func_[n](pmb, n);
+      switch (pm->user_history_ops_[n])
+      {
+        case UserHistoryOperation::sum:
+          // TODO(felker): this should automatically volume-weight the sum, like the
+          // built-in variables. But existing user-defined .hst fns are currently
+          // weighting their returned values.
+          hst_data[NHISTORY_VARS+n] += usr_val;
+          break;
+        case UserHistoryOperation::max:
+          hst_data[NHISTORY_VARS+n] = std::max(usr_val, hst_data[NHISTORY_VARS+n]);
+          break;
+        case UserHistoryOperation::min:
+          hst_data[NHISTORY_VARS+n] = std::min(usr_val, hst_data[NHISTORY_VARS+n]);
+          break;
       }
     }
     pmb = pmb->next;
@@ -217,7 +221,8 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
                0, MPI_COMM_WORLD);
   }
   // apply separate chosen operations to each user-defined history output
-  for (int n=0; n<pm->nuser_history_output_; n++) {
+  for (int n=0; n<nuser_history_output_; n++)
+  {
     Real *usr_hst_data = hst_data.get() + NHISTORY_VARS + n;
     MPI_Op usr_op(MPI_SUM);
     switch (pm->user_history_ops_[n]) {
@@ -340,7 +345,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         std::fprintf(pfile,"[%d]=C-norm2 ",     iout++);
       }
 
-      for (int n=0; n<pm->nuser_history_output_; n++)
+      for (int n=0; n<nuser_history_output_; n++)
         std::fprintf(pfile,"[%d]=%s ", iout++,
                      pm->user_history_output_names_[n].c_str());
       std::fprintf(pfile,"\n");                              // terminate line

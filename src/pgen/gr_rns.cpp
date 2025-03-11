@@ -49,10 +49,8 @@ Real Minalp(MeshBlock *pmb, int iout);
 
 void Mesh::InitUserMeshData(ParameterInput *pin)
 {
-  AllocateUserHistoryOutput(3);
-  EnrollUserHistoryOutput(0, Maxrho, "max-rho", UserHistoryOperation::max);
-//  EnrollUserHistoryOutput(1, L1rhodiff, "L1rhodiff");
-  EnrollUserHistoryOutput(1, Minalp, "min-alp", UserHistoryOperation::min);
+  EnrollUserHistoryOutput(Maxrho, "max-rho", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(Minalp, "min-alp", UserHistoryOperation::min);
 
   if (!resume_flag) {
     string set_name = "problem";

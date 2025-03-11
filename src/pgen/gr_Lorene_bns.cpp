@@ -264,23 +264,20 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   if(adaptive==true)
     EnrollUserRefinementCondition(RefinementCondition);
 
-
-  AllocateUserHistoryOutput(5+MAGNETIC_FIELDS_ENABLED);
-
-  EnrollUserHistoryOutput(0, max_rho, "max-rho",
+  EnrollUserHistoryOutput(max_rho, "max-rho",
     UserHistoryOperation::max);
-  EnrollUserHistoryOutput(1, max_T, "max-T",
+  EnrollUserHistoryOutput(max_T, "max-T",
     UserHistoryOperation::max);
-  EnrollUserHistoryOutput(2, min_alpha, "min-alpha",
+  EnrollUserHistoryOutput(min_alpha, "min-alpha",
     UserHistoryOperation::min);
-  EnrollUserHistoryOutput(3, max_abs_con_H, "max-abs-con.H",
+  EnrollUserHistoryOutput(max_abs_con_H, "max-abs-con.H",
     UserHistoryOperation::max);
 
 #if MAGNETIC_FIELDS_ENABLED
-  EnrollUserHistoryOutput(4, DivBface, "divBface", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(DivBface, "divBface", UserHistoryOperation::max);
 #endif
 
-  EnrollUserHistoryOutput(4 + MAGNETIC_FIELDS_ENABLED, num_c2p_fail,
+  EnrollUserHistoryOutput(num_c2p_fail,
                           "num_c2p_fail", UserHistoryOperation::sum);
 
   if (resume_flag)

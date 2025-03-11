@@ -193,38 +193,30 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   if(adaptive==true)
     EnrollUserRefinementCondition(RefinementCondition);
 
-  AllocateUserHistoryOutput(2+MAGNETIC_FIELDS_ENABLED+7*M1_ENABLED);
-  EnrollUserHistoryOutput(0, Maxrho, "max-rho", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(Maxrho, "max-rho", UserHistoryOperation::max);
 #if MAGNETIC_FIELDS_ENABLED
-  EnrollUserHistoryOutput(1, DivBface, "divB", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(DivBface, "divB", UserHistoryOperation::max);
 #endif
-  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED, num_c2p_fail,
-                          "num_c2p_fail", UserHistoryOperation::sum);
+  EnrollUserHistoryOutput(num_c2p_fail, "num_c2p_fail",
+                          UserHistoryOperation::sum);
 
 #if M1_ENABLED
-  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED + 1,
-                          max_T,
+  EnrollUserHistoryOutput(max_T,
                           "max_T", UserHistoryOperation::max);
 
-  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED + 2,
-                          max_sc_nG_00,
+  EnrollUserHistoryOutput(max_sc_nG_00,
                           "max_sc_nG_00", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED + 3,
-                          max_sc_E_00,
+  EnrollUserHistoryOutput(max_sc_E_00,
                           "max_sc_E_00", UserHistoryOperation::max);
 
-  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED + 4,
-                          min_sc_nG_00,
+  EnrollUserHistoryOutput(min_sc_nG_00,
                           "min_sc_nG_00", UserHistoryOperation::min);
-  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED + 5,
-                          min_sc_E_00,
+  EnrollUserHistoryOutput(min_sc_E_00,
                           "min_sc_E_00", UserHistoryOperation::min);
 
-  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED + 6,
-                          min_sc_n_00,
+  EnrollUserHistoryOutput(min_sc_n_00,
                           "min_sc_n_00", UserHistoryOperation::min);
-  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED + 7,
-                          min_sc_J_00,
+  EnrollUserHistoryOutput(min_sc_J_00,
                           "min_sc_J_00", UserHistoryOperation::min);
 
 #endif

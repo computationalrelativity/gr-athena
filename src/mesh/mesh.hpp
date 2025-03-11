@@ -609,9 +609,8 @@ class Mesh {
   bool use_uniform_meshgen_fn_[3];
   int nreal_user_mesh_data_, nint_user_mesh_data_;
 
-  int nuser_history_output_;
-  std::string *user_history_output_names_;
-  UserHistoryOperation *user_history_ops_;
+  std::vector<std::string> user_history_output_names_;
+  std::vector<UserHistoryOperation> user_history_ops_;
 
   // global constants
   Real four_pi_G_, grav_eps_, grav_mean_rho_;
@@ -627,7 +626,7 @@ class Mesh {
   AMRFlagFunc AMRFlag_;
   SrcTermFunc UserSourceTerm_;
   TimeStepFunc UserTimeStep_;
-  HistoryOutputFunc *user_history_func_;
+  std::vector<HistoryOutputFunc> user_history_func_;
   MetricFunc UserMetric_;
   ViscosityCoeffFunc ViscosityCoeff_;
   ConductionCoeffFunc ConductionCoeff_;
@@ -672,8 +671,7 @@ class Mesh {
   void EnrollUserMeshGenerator(CoordinateDirection dir, MeshGenFunc my_mg);
   void EnrollUserExplicitSourceFunction(SrcTermFunc my_func);
   void EnrollUserTimeStepFunction(TimeStepFunc my_func);
-  void AllocateUserHistoryOutput(int n);
-  void EnrollUserHistoryOutput(int i, HistoryOutputFunc my_func, const char *name,
+  void EnrollUserHistoryOutput(HistoryOutputFunc my_func, const char *name,
                                UserHistoryOperation op=UserHistoryOperation::sum);
   void EnrollUserMetric(MetricFunc my_func);
   void EnrollViscosityCoefficient(ViscosityCoeffFunc my_func);

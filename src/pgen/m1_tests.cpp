@@ -900,18 +900,13 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 
 
 #if FLUID_ENABLED
-  AllocateUserHistoryOutput(1);
-  EnrollUserHistoryOutput(0, num_c2p_fail, "num_c2p_fail",
+  EnrollUserHistoryOutput(num_c2p_fail, "num_c2p_fail",
                           UserHistoryOperation::sum);
 #endif
 
-  static const int NUM_ENROLLED = 2;
-  AllocateUserHistoryOutput(NUM_ENROLLED);
-  EnrollUserHistoryOutput(0,
-                          min_sc_E_00,
+  EnrollUserHistoryOutput(min_sc_E_00,
                           "min_sc_E_00", UserHistoryOperation::min);
-  EnrollUserHistoryOutput(1,
-                          min_sc_J_00,
+  EnrollUserHistoryOutput(min_sc_J_00,
                           "min_sc_J_00", UserHistoryOperation::min);
 
   return;

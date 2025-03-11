@@ -112,7 +112,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     next_phys_id_(), num_mesh_threads_(pin->GetOrAddInteger("mesh", "num_threads", 1)),
     tree(this),
     use_uniform_meshgen_fn_{true, true, true},
-    nreal_user_mesh_data_(), nint_user_mesh_data_(), nuser_history_output_(),
+    nreal_user_mesh_data_(), nint_user_mesh_data_(),
     four_pi_G_(), grav_eps_(-1.0), grav_mean_rho_(-1.0),
     lb_flag_(true), lb_automatic_(), lb_manual_(),
     MeshGenerator_{UniformMeshGeneratorX1, UniformMeshGeneratorX2,
@@ -682,7 +682,7 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     next_phys_id_(), num_mesh_threads_(pin->GetOrAddInteger("mesh", "num_threads", 1)),
     tree(this),
     use_uniform_meshgen_fn_{true, true, true},
-    nreal_user_mesh_data_(), nint_user_mesh_data_(), nuser_history_output_(),
+    nreal_user_mesh_data_(), nint_user_mesh_data_(),
     four_pi_G_(), grav_eps_(-1.0), grav_mean_rho_(-1.0),
     lb_flag_(true), lb_automatic_(), lb_manual_(),
     MeshGenerator_{UniformMeshGeneratorX1, UniformMeshGeneratorX2,
@@ -1225,11 +1225,6 @@ Mesh::~Mesh() {
   }
   // delete user Mesh data
   if (nreal_user_mesh_data_>0) delete [] ruser_mesh_data;
-  if (nuser_history_output_ > 0) {
-    delete [] user_history_output_names_;
-    delete [] user_history_func_;
-    delete [] user_history_ops_;
-  }
   if (nint_user_mesh_data_>0) delete [] iuser_mesh_data;
   if (EOS_TABLE_ENABLED) delete peos_table;
 
@@ -1545,34 +1540,16 @@ void Mesh::EnrollUserTimeStepFunction(TimeStepFunc my_func) {
 }
 
 //----------------------------------------------------------------------------------------
-//! \fn void Mesh::AllocateUserHistoryOutput(int n)
-//  \brief set the number of user-defined history outputs
-
-void Mesh::AllocateUserHistoryOutput(int n) {
-  nuser_history_output_ = n;
-  user_history_output_names_ = new std::string[n];
-  user_history_func_ = new HistoryOutputFunc[n];
-  user_history_ops_ = new UserHistoryOperation[n];
-  for (int i=0; i<n; i++) user_history_func_[i] = nullptr;
-}
-
-//----------------------------------------------------------------------------------------
 //! \fn void Mesh::EnrollUserHistoryOutput(int i, HistoryOutputFunc my_func,
 //                                         const char *name, UserHistoryOperation op)
 //  \brief Enroll a user-defined history output function and set its name
 
-void Mesh::EnrollUserHistoryOutput(int i, HistoryOutputFunc my_func, const char *name,
-                                   UserHistoryOperation op) {
-  std::stringstream msg;
-  if (i >= nuser_history_output_) {
-    msg << "### FATAL ERROR in EnrollUserHistoryOutput function" << std::endl
-        << "The number of the user-defined history output (" << i << ") "
-        << "exceeds the declared number (" << nuser_history_output_ << ")." << std::endl;
-    ATHENA_ERROR(msg);
-  }
-  user_history_output_names_[i] = name;
-  user_history_func_[i] = my_func;
-  user_history_ops_[i] = op;
+void Mesh::EnrollUserHistoryOutput(HistoryOutputFunc my_func, const char *name,
+                                   UserHistoryOperation op)
+{
+  user_history_output_names_.push_back(name);
+  user_history_func_.push_back(my_func);
+  user_history_ops_.push_back(op);
 }
 
 //----------------------------------------------------------------------------------------
