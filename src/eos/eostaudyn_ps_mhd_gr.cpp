@@ -52,6 +52,7 @@ static void PrimitiveToConservedSingle(
   AA &bb_cc,
   AA &cons,
   AA &cons_scalar,
+  AA &derived_ms,
   const AT_N_sym & gamma_dd,
   int k, int j, int i,
   PS& ps);
@@ -300,6 +301,7 @@ void EquationOfState::ConservedToPrimitive(
                                    bb_cc,
                                    cons,
                                    cons_scalar,
+                                   pmy_block_->phydro->derived_ms,
                                    gamma_dd_,
                                    k, j, i,
                                    ps);
@@ -481,6 +483,7 @@ void EquationOfState::PrimitiveToConserved(
                                  bb_cc,
                                  cons,
                                  cons_scalar,
+                                 pmy_block_->phydro->derived_ms,
                                  adm_gamma_dd_,
                                  k, j, i,
                                  ps);
@@ -629,6 +632,7 @@ static void PrimitiveToConservedSingle(
   AA &bb_cc,
   AA &cons,
   AA &cons_scalar,
+  AA &derived_ms,
   const AT_N_sym & adm_gamma_dd_,
   int k, int j, int i,
   PS& ps)
@@ -700,6 +704,9 @@ static void PrimitiveToConservedSingle(
     for (int n=0; n<NSCALARS; n++) {
       prim_scalar(n,k,j,i) = prim_pt[IYF + n];
     }
+
+    derived_ms(IX_LOR,k,j,i) = 1;
+    derived_ms(IX_T,k,j,i) = prim_pt[ITM];
   }
 }
 
