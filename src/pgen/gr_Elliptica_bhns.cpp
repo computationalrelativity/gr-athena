@@ -34,17 +34,8 @@ using namespace gra::aliases;
 namespace {
   int RefinementCondition(MeshBlock *pmb);
 
-#if MAGNETIC_FIELDS_ENABLED
-  Real DivBface(MeshBlock *pmb, int iout);
-#endif
-
-  Real max_rho(      MeshBlock *pmb, int iout);
-  Real min_alpha(    MeshBlock *pmb, int iout);
-  Real max_abs_con_H(MeshBlock *pmb, int iout);
-
-std::string checkpoint_file;
-Elliptica_ID_Reader_T *idr;
-
+  std::string checkpoint_file;
+  Elliptica_ID_Reader_T *idr;
 }
 
 
@@ -60,16 +51,10 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   if(adaptive==true)
     EnrollUserRefinementCondition(RefinementCondition);
 
-  EnrollUserHistoryOutput(max_rho,   "max-rho",
-    UserHistoryOperation::max);
-  EnrollUserHistoryOutput(min_alpha, "min-alpha",
-    UserHistoryOperation::min);
-  EnrollUserHistoryOutput(max_abs_con_H, "max-abs-con.H",
-    UserHistoryOperation::max);
-
-#if MAGNETIC_FIELDS_ENABLED
-  EnrollUserHistoryOutput(DivBface, "divBface");
-#endif
+  EnrollUserStandardHydro();
+  EnrollUserStandardField();
+  EnrollUserStandardZ4c();
+  EnrollUserStandardM1();
 
   checkpoint_file = pin->GetOrAddString("problem", "filename", "checkpoint.dat");
   idr = elliptica_id_reader_init(checkpoint_file.c_str(),"generic_MT_safe");
@@ -533,89 +518,6 @@ int RefinementCondition(MeshBlock *pmb)
   // otherwise de-refine
   return -1;
 
-}
-
-#if MAGNETIC_FIELDS_ENABLED
-Real DivBface(MeshBlock *pmb, int iout) {
-  Real divB = 0.0;
-  Real vol,dx,dy,dz;
-  int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
-
-  for (int k=ks; k<=ke; k++) {
-    for (int j=js; j<=je; j++) {
-      for (int i=is; i<=ie; i++) {
-        dx = pmb->pcoord->dx1v(i);
-        dy = pmb->pcoord->dx2v(j);
-        dz = pmb->pcoord->dx3v(k);
-        vol = dx*dy*dz;
-        divB += ((pmb->pfield->b.x1f(k,j,i+1) - pmb->pfield->b.x1f(k,j,i))/ dx +
-                 (pmb->pfield->b.x2f(k,j+1,i) - pmb->pfield->b.x2f(k,j,i))/ dy +
-                 (pmb->pfield->b.x3f(k+1,j,i) - pmb->pfield->b.x3f(k,j,i))/ dz) * vol;
-      }
-    }
-  }
-  return divB;
-}
-#endif
-
-Real max_rho(MeshBlock *pmb, int iout)
-{
-  Real max_rho = -std::numeric_limits<Real>::infinity();
-  int is = pmb->is, ie = pmb->ie;
-  int js = pmb->js, je = pmb->je;
-  int ks = pmb->ks, ke = pmb->ke;
-
-  AthenaArray<Real> &w = pmb->phydro->w;
-  for (int k=ks; k<=ke; k++)
-  for (int j=js; j<=je; j++)
-  for (int i=is; i<=ie; i++)
-  {
-    max_rho = std::max(std::abs(w(IDN,k,j,i)), max_rho);
-  }
-
-  return max_rho;
-}
-
-Real min_alpha(MeshBlock *pmb, int iout)
-{
-  // --------------------------------------------------------------------------
-  // Set some aliases for the variables.
-  AT_N_sca alpha(pmb->pz4c->storage.u, Z4c::I_Z4c_alpha);
-
-  // container with idx / grids pertaining z4c
-  MB_info* mbi = &(pmb->pz4c->mbi);
-
-  Real m_alpha = std::numeric_limits<Real>::infinity();
-
-  for (int k=mbi->kl; k<=mbi->ku; k++)
-  for (int j=mbi->jl; j<=mbi->ju; j++)
-  for (int i=mbi->il; i<=mbi->iu; i++)
-  {
-    m_alpha = std::min(alpha(k,j,i), m_alpha);
-  }
-
-  return m_alpha;
-}
-
-Real max_abs_con_H(MeshBlock *pmb, int iout)
-{
-  // --------------------------------------------------------------------------
-  // Set some aliases for the variables.
-  AT_N_sca con_H(pmb->pz4c->storage.con, Z4c::I_CON_H);
-
-  // container with idx / grids pertaining z4c
-  MB_info* mbi = &(pmb->pz4c->mbi);
-
-  Real m_abs_con_H = -std::numeric_limits<Real>::infinity();
-
-  for (int k=mbi->kl; k<=mbi->ku; k++)
-  for (int j=mbi->jl; j<=mbi->ju; j++)
-  for (int i=mbi->il; i<=mbi->iu; i++)
-  {
-    m_abs_con_H = std::max(std::abs(con_H(k,j,i)), m_abs_con_H);
-  }
-
-  return m_abs_con_H;
 }
 
 }

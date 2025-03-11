@@ -100,28 +100,6 @@ namespace {
 #endif
   Real rho_zero; // TOV surface density
 
-
-  Real Maxrho(MeshBlock *pmb, int iout);
-#if MAGNETIC_FIELDS_ENABLED
-  Real DivBface(MeshBlock *pmb, int iout);
-#endif
-
-  Real num_c2p_fail(MeshBlock *pmb, int iout);
-
-#if M1_ENABLED
-  Real max_T(MeshBlock *pmb, int iout);
-
-  Real max_sc_nG_00(MeshBlock *pmb, int iout);
-  Real max_sc_E_00(MeshBlock *pmb, int iout);
-
-  Real min_sc_nG_00(MeshBlock *pmb, int iout);
-  Real min_sc_E_00(MeshBlock *pmb, int iout);
-
-
-  Real min_sc_n_00(MeshBlock *pmb, int iout);
-  Real min_sc_J_00(MeshBlock *pmb, int iout);
-#endif
-
 } // namespace
 
 namespace TOV_geom {
@@ -193,33 +171,10 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   if(adaptive==true)
     EnrollUserRefinementCondition(RefinementCondition);
 
-  EnrollUserHistoryOutput(Maxrho, "max-rho", UserHistoryOperation::max);
-#if MAGNETIC_FIELDS_ENABLED
-  EnrollUserHistoryOutput(DivBface, "divB", UserHistoryOperation::max);
-#endif
-  EnrollUserHistoryOutput(num_c2p_fail, "num_c2p_fail",
-                          UserHistoryOperation::sum);
-
-#if M1_ENABLED
-  EnrollUserHistoryOutput(max_T,
-                          "max_T", UserHistoryOperation::max);
-
-  EnrollUserHistoryOutput(max_sc_nG_00,
-                          "max_sc_nG_00", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(max_sc_E_00,
-                          "max_sc_E_00", UserHistoryOperation::max);
-
-  EnrollUserHistoryOutput(min_sc_nG_00,
-                          "min_sc_nG_00", UserHistoryOperation::min);
-  EnrollUserHistoryOutput(min_sc_E_00,
-                          "min_sc_E_00", UserHistoryOperation::min);
-
-  EnrollUserHistoryOutput(min_sc_n_00,
-                          "min_sc_n_00", UserHistoryOperation::min);
-  EnrollUserHistoryOutput(min_sc_J_00,
-                          "min_sc_J_00", UserHistoryOperation::min);
-
-#endif
+  EnrollUserStandardHydro();
+  EnrollUserStandardField();
+  EnrollUserStandardZ4c();
+  EnrollUserStandardM1();
 }
 
 //----------------------------------------------------------------------------------------
@@ -1852,161 +1807,6 @@ int RefinementCondition(MeshBlock *pmb)
   // Nothing satisfied - flag for de-refinement
   return -1;
 }
-
-Real Maxrho(MeshBlock *pmb, int iout)
-{
-  Real max_rho = 0.0;
-  int is = pmb->is, ie = pmb->ie;
-  int js = pmb->js, je = pmb->je;
-  int ks = pmb->ks, ke = pmb->ke;
-
-  AthenaArray<Real> &w = pmb->phydro->w;
-  for (int k=ks; k<=ke; k++)
-  for (int j=js; j<=je; j++)
-  for (int i=is; i<=ie; i++)
-  {
-    max_rho = std::max(std::abs(w(IDN,k,j,i)), max_rho);
-  }
-
-  return max_rho;
-}
-
-Real num_c2p_fail(MeshBlock *pmb, int iout)
-{
-  Real sum_ = 0;
-  int is = pmb->is, ie = pmb->ie;
-  int js = pmb->js, je = pmb->je;
-  int ks = pmb->ks, ke = pmb->ke;
-
-  // Reset the status
-  AA c2p_status;
-  c2p_status.InitWithShallowSlice(pmb->phydro->derived_ms, IX_C2P, 1);
-
-  for (int k=ks; k<=ke; k++)
-  for (int j=js; j<=je; j++)
-  for (int i=is; i<=ie; i++)
-  {
-    if (c2p_status(k,j,i) > 0)
-      sum_++;
-  }
-
-  return sum_;
-}
-
-#if MAGNETIC_FIELDS_ENABLED
-Real DivBface(MeshBlock *pmb, int iout) {
-  Real divB = 0.0;
-  Real vol,dx,dy,dz;
-  int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
-
-  for (int k=ks; k<=ke; k++) {
-    for (int j=js; j<=je; j++) {
-      for (int i=is; i<=ie; i++) {
-        dx = pmb->pcoord->dx1v(i);
-        dy = pmb->pcoord->dx2v(j);
-        dz = pmb->pcoord->dx3v(k);
-        vol = dx*dy*dz;
-        divB += ((pmb->pfield->b.x1f(k,j,i+1) - pmb->pfield->b.x1f(k,j,i))/ dx +
-                 (pmb->pfield->b.x2f(k,j+1,i) - pmb->pfield->b.x2f(k,j,i))/ dy +
-                 (pmb->pfield->b.x3f(k+1,j,i) - pmb->pfield->b.x3f(k,j,i))/ dz) * vol;
-      }
-    }
-  }
-  return divB;
-}
-#endif
-
-#if M1_ENABLED
-Real max_T(MeshBlock *pmb, int iout)
-{
-  Real max_T = -std::numeric_limits<Real>::infinity();
-  AA temperature;
-  temperature.InitWithShallowSlice(pmb->phydro->derived_ms, IX_T, 1);
-
-  CC_ILOOP3(k, j, i)
-  {
-    max_T = std::max(max_T, temperature(k,j,i));
-  }
-  return max_T;
-}
-
-Real max_sc_nG_00(MeshBlock *pmb, int iout)
-{
-  Real max_sc_nG_00 = -std::numeric_limits<Real>::infinity();
-  CC_ILOOP3(k, j, i)
-  {
-    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
-    max_sc_nG_00 = std::max(max_sc_nG_00,
-                            // oo_sc_sqrt_det_g *
-                            pmb->pm1->lab.sc_nG(0,0)(k,j,i));
-  }
-  return max_sc_nG_00;
-}
-
-Real max_sc_E_00(MeshBlock *pmb, int iout)
-{
-  Real max_sc_E_00 = -std::numeric_limits<Real>::infinity();
-  CC_ILOOP3(k, j, i)
-  {
-    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
-    max_sc_E_00 = std::max(max_sc_E_00,
-                          //  oo_sc_sqrt_det_g *
-                           pmb->pm1->lab.sc_E(0,0)(k,j,i));
-  }
-  return max_sc_E_00;
-}
-
-Real min_sc_nG_00(MeshBlock *pmb, int iout)
-{
-  Real min_sc_nG_00 = +std::numeric_limits<Real>::infinity();
-  CC_ILOOP3(k, j, i)
-  {
-    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
-    min_sc_nG_00 = std::min(min_sc_nG_00,
-                           pmb->pm1->lab.sc_nG(0,0)(k,j,i));
-  }
-  return min_sc_nG_00;
-}
-
-Real min_sc_E_00(MeshBlock *pmb, int iout)
-{
-  Real min_sc_E_00 = +std::numeric_limits<Real>::infinity();
-  CC_ILOOP3(k, j, i)
-  {
-    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
-    min_sc_E_00 = std::min(min_sc_E_00,
-                          //  oo_sc_sqrt_det_g *
-                           pmb->pm1->lab.sc_E(0,0)(k,j,i));
-  }
-  return min_sc_E_00;
-}
-
-Real min_sc_n_00(MeshBlock *pmb, int iout)
-{
-  Real min_sc_n_00 = +std::numeric_limits<Real>::infinity();
-  CC_ILOOP3(k, j, i)
-  {
-    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
-    min_sc_n_00 = std::min(min_sc_n_00,
-                           pmb->pm1->rad.sc_n(0,0)(k,j,i));
-  }
-  return min_sc_n_00;
-}
-
-Real min_sc_J_00(MeshBlock *pmb, int iout)
-{
-  Real min_sc_J_00 = +std::numeric_limits<Real>::infinity();
-  CC_ILOOP3(k, j, i)
-  {
-    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
-    min_sc_J_00 = std::min(min_sc_J_00,
-                          //  oo_sc_sqrt_det_g *
-                           pmb->pm1->rad.sc_J(0,0)(k,j,i));
-  }
-  return min_sc_J_00;
-}
-
-#endif
 
 } // namespace
 

@@ -36,10 +36,6 @@ namespace {
 
 //int RefinementCondition(MeshBlock *pmb);
 
-Real Maxrho(MeshBlock *pmb, int iout);
-Real Minalp(MeshBlock *pmb, int iout);
-//Real L1rhodiff(MeshBlock *pmb, int iout);
-
 //========================================================================================
 //! \fn void Mesh::InitUserMeshData(ParameterInput *pin)
 //  \brief Function to initialize problem-specific data in mesh class.  Can also be used
@@ -49,8 +45,10 @@ Real Minalp(MeshBlock *pmb, int iout);
 
 void Mesh::InitUserMeshData(ParameterInput *pin)
 {
-  EnrollUserHistoryOutput(Maxrho, "max-rho", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(Minalp, "min-alp", UserHistoryOperation::min);
+  EnrollUserStandardHydro();
+  EnrollUserStandardField();
+  EnrollUserStandardZ4c();
+  EnrollUserStandardM1();
 
   if (!resume_flag) {
     string set_name = "problem";
@@ -418,34 +416,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   return;
 }
 
-Real Maxrho(MeshBlock *pmb, int iout) {
-  Real max_rho = 0.0;
-  int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
-  AthenaArray<Real> &w = pmb->phydro->w;
-  for (int k=ks; k<=ke; k++) {
-    for (int j=js; j<=je; j++) {
-      for (int i=is; i<=ie; i++) {
-        max_rho = std::max(std::abs(w(IDN,k,j,i)), max_rho);
-      }
-    }
-  }
-  return max_rho;
-}
-
-Real Minalp(MeshBlock *pmb, int iout) {
-  Real min_alp = 1.0e100;
-  int is = pmb->is, ie = pmb->ie+1, js = pmb->js, je = pmb->je+1, ks = pmb->ks, ke = pmb->ke+1;
-  AthenaArray<Real> alpha;
-  alpha.InitWithShallowSlice(pmb->pz4c->storage.u,Z4c::I_Z4c_alpha,1);
-  for (int k=ks; k<=ke; k++) {
-    for (int j=js; j<=je; j++) {
-      for (int i=is; i<=ie; i++) {
-        min_alp = std::min(std::abs(alpha(k,j,i)), min_alp);
-      }
-    }
-  }
-  return min_alp;
-}
 /*
 Real L1rhodiff(MeshBlock *pmb, int iout) {
   Real L1rho = 0.0;

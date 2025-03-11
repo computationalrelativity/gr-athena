@@ -674,6 +674,12 @@ class Mesh {
   void EnrollUserHistoryOutput(HistoryOutputFunc my_func, const char *name,
                                UserHistoryOperation op=UserHistoryOperation::sum);
   void EnrollUserMetric(MetricFunc my_func);
+
+  void EnrollUserStandardHydro();
+  void EnrollUserStandardField();
+  void EnrollUserStandardZ4c();
+  void EnrollUserStandardM1();
+
   void EnrollViscosityCoefficient(ViscosityCoeffFunc my_func);
   void EnrollConductionCoefficient(ConductionCoeffFunc my_func);
   void EnrollFieldDiffusivity(FieldDiffusionCoeffFunc my_func);
