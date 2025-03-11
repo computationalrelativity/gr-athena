@@ -249,7 +249,7 @@ void EquationOfState::DerivedQuantities(
       Real n = oo_mb * prim(IDN,k,j,i);
       derived_ms(IX_ETH,k,j,i) = GetEOS().GetEnthalpy(n, T, Y);
       derived_ms(IX_SPB,k,j,i) = GetEOS().GetEntropyPerBaryon(n, T, Y);
-      derived_ms(IX_SPB,k,j,i) = GetEOS().GetSpecificInternalEnergy(n, T, Y);
+      derived_ms(IX_SEN,k,j,i) = GetEOS().GetSpecificInternalEnergy(n, T, Y);
     }
 
   }
