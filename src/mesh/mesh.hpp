@@ -537,10 +537,13 @@ class Mesh {
 
   void FinalizeWave(std::vector<MeshBlock*> & pmb_array);
 
-  void FinalizeZ4cADMPhysical(std::vector<MeshBlock*> & pmb_array);
-  void FinalizeZ4cADMGhosts(std::vector<MeshBlock*> & pmb_array);
+  void FinalizeZ4cADMPhysical(std::vector<MeshBlock*> & pmb_array,
+                              const bool enforce_alg);
+  void FinalizeZ4cADMGhosts(std::vector<MeshBlock*> & pmb_array,
+                            const bool enforce_alg);
 
-  void FinalizeZ4cADM(std::vector<MeshBlock*> & pmb_array);
+  void FinalizeZ4cADM(std::vector<MeshBlock*> & pmb_array,
+                      const bool enforce_alg);
   void FinalizeZ4cADM_Matter(std::vector<MeshBlock*> & pmb_array);
 
   void FinalizeM1(std::vector<MeshBlock*> & pmb_array);

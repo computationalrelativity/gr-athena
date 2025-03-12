@@ -48,7 +48,8 @@ void Mesh::FinalizeWave(std::vector<MeshBlock*> & pmb_array)
   }
 }
 
-void Mesh::FinalizeZ4cADMPhysical(std::vector<MeshBlock*> & pmb_array)
+void Mesh::FinalizeZ4cADMPhysical(std::vector<MeshBlock*> & pmb_array,
+                                  const bool enforce_alg)
 {
   MeshBlock *pmb;
   BoundaryValues *pbval;
@@ -67,11 +68,14 @@ void Mesh::FinalizeZ4cADMPhysical(std::vector<MeshBlock*> & pmb_array)
     const bool skip_physical = false;
 
     // Enforce the algebraic constraints
-    pz->AlgConstr(pz->storage.u,
-                  pz->mbi.il, pz->mbi.iu,
-                  pz->mbi.jl, pz->mbi.ju,
-                  pz->mbi.kl, pz->mbi.ku,
-                  skip_physical);
+    if (enforce_alg)
+    {
+      pz->AlgConstr(pz->storage.u,
+                    pz->mbi.il, pz->mbi.iu,
+                    pz->mbi.jl, pz->mbi.ju,
+                    pz->mbi.kl, pz->mbi.ku,
+                    skip_physical);
+    }
 
     // Need ADM variables for con2prim
     pz->Z4cToADM(pz->storage.u,
@@ -83,7 +87,8 @@ void Mesh::FinalizeZ4cADMPhysical(std::vector<MeshBlock*> & pmb_array)
   }
 }
 
-void Mesh::FinalizeZ4cADMGhosts(std::vector<MeshBlock*> & pmb_array)
+void Mesh::FinalizeZ4cADMGhosts(std::vector<MeshBlock*> & pmb_array,
+                                const bool enforce_alg)
 {
   MeshBlock *pmb;
   BoundaryValues *pbval;
@@ -115,11 +120,14 @@ void Mesh::FinalizeZ4cADMGhosts(std::vector<MeshBlock*> & pmb_array)
     const bool skip_physical = true;
 
     // Enforce the algebraic constraints
-    pz->AlgConstr(pz->storage.u,
-      0, pz->mbi.nn1-1,
-      0, pz->mbi.nn2-1,
-      0, pz->mbi.nn3-1,
-      skip_physical);
+    if (enforce_alg)
+    {
+      pz->AlgConstr(pz->storage.u,
+        0, pz->mbi.nn1-1,
+        0, pz->mbi.nn2-1,
+        0, pz->mbi.nn3-1,
+        skip_physical);
+    }
 
     // Need ADM variables for con2prim
     pz->Z4cToADM(pz->storage.u,
@@ -131,7 +139,8 @@ void Mesh::FinalizeZ4cADMGhosts(std::vector<MeshBlock*> & pmb_array)
   }
 }
 
-void Mesh::FinalizeZ4cADM(std::vector<MeshBlock*> & pmb_array)
+void Mesh::FinalizeZ4cADM(std::vector<MeshBlock*> & pmb_array,
+                          const bool enforce_alg)
 {
   MeshBlock *pmb;
   BoundaryValues *pbval;
@@ -161,7 +170,11 @@ void Mesh::FinalizeZ4cADM(std::vector<MeshBlock*> & pmb_array)
       pz->mbi.ng);
 
     // Enforce the algebraic constraints
-    pz->AlgConstr(pz->storage.u);
+    if (enforce_alg)
+    {
+      pz->AlgConstr(pz->storage.u);
+    }
+
     // Need ADM variables for con2prim
     pz->Z4cToADM(pz->storage.u, pz->storage.adm);
   }

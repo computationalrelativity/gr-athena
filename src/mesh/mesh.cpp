@@ -1710,11 +1710,13 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
       BoundaryValues *pbval;
 
 #if defined(DBG_EARLY_INIT_CONSTOPRIM) && FLUID_ENABLED && Z4C_ENABLED
-      if ((init_style == initialize_style::pgen) ||
-          (init_style == initialize_style::regrid))
+      if ((init_style == initialize_style::pgen)   ||
+          (init_style == initialize_style::regrid) ||
+          (init_style == initialize_style::restart))
       {
         // ADM on physical
-        FinalizeZ4cADMPhysical(pmb_array);
+        const bool enforce_alg = init_style != initialize_style::restart;
+        FinalizeZ4cADMPhysical(pmb_array, enforce_alg);
 
         // reset_floor with PrimitiveSolver adjusts the conserved
         // Put this here to further polish values after global regridding
@@ -1723,8 +1725,9 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
       }
 #endif // DBG_EARLY_INIT_CONSTOPRIM
 
-      if ((init_style == initialize_style::pgen) ||
-          (init_style == initialize_style::regrid))
+      if ((init_style == initialize_style::pgen)   ||
+          (init_style == initialize_style::regrid) ||
+          (init_style == initialize_style::restart))
       {
         CommunicateConserved(pmb_array);
       }
@@ -1736,14 +1739,17 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
       // Apply BC [CC,CX,VC]
       // Enforce alg. constraints
       // Prepare ADM variables
-      if ((init_style == initialize_style::pgen) ||
-          (init_style == initialize_style::regrid))
+      if ((init_style == initialize_style::pgen)   ||
+          (init_style == initialize_style::regrid) ||
+          (init_style == initialize_style::restart))
       {
 
 #ifdef DBG_EARLY_INIT_CONSTOPRIM
-        FinalizeZ4cADMGhosts(pmb_array);
+        const bool enforce_alg = init_style != initialize_style::restart;
+        FinalizeZ4cADMGhosts(pmb_array, enforce_alg);
 #else
-        FinalizeZ4cADM(pmb_array);
+        const bool enforce_alg = init_style != initialize_style::restart;
+        FinalizeZ4cADM(pmb_array, enforce_alg);
 #endif // DBG_EARLY_INIT_CONSTOPRIM
       }
 #endif
@@ -1751,8 +1757,9 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
 #if WAVE_ENABLED
       // Prolongate wave
       // Apply BC
-      if ((init_style == initialize_style::pgen) ||
-          (init_style == initialize_style::regrid))
+      if ((init_style == initialize_style::pgen)   ||
+          (init_style == initialize_style::regrid) ||
+          (init_style == initialize_style::restart))
       {
         FinalizeWave(pmb_array);
       }
@@ -1762,8 +1769,9 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
       // ----------------------------------------------------------------------
       // Deal with retention of old prim state of fluid in case of rootfinder
 #if FLUID_ENABLED
-      if ((init_style == initialize_style::pgen) ||
-          (init_style == initialize_style::regrid))
+      if ((init_style == initialize_style::pgen)   ||
+          (init_style == initialize_style::regrid) ||
+          (init_style == initialize_style::restart))
       {
         FinalizeHydro_pgen(pmb_array);
       }
@@ -1777,8 +1785,9 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
       // - communication of primitives
 #if FLUID_ENABLED && GENERAL_RELATIVITY && !defined(DBG_USE_CONS_BC)
       if (multilevel)
-      if ((init_style == initialize_style::pgen) ||
-          (init_style == initialize_style::regrid))
+      if ((init_style == initialize_style::pgen)   ||
+          (init_style == initialize_style::regrid) ||
+          (init_style == initialize_style::restart))
       {
         const bool interior_only = true;
         PreparePrimitives(pmb_array, interior_only);
@@ -1790,15 +1799,17 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
       // Deal with matter prol. & BC ------------------------------------------
 #if FLUID_ENABLED && !defined(DBG_USE_CONS_BC)
       if (multilevel)
-      if ((init_style == initialize_style::pgen) ||
-          (init_style == initialize_style::regrid))
+      if ((init_style == initialize_style::pgen)   ||
+          (init_style == initialize_style::regrid) ||
+          (init_style == initialize_style::restart))
       {
         FinalizeHydroPrimRP(pmb_array);
       }
 #elif FLUID_ENABLED && defined(DBG_USE_CONS_BC)
       if (multilevel)
-      if ((init_style == initialize_style::pgen) ||
-          (init_style == initialize_style::regrid))
+      if ((init_style == initialize_style::pgen)   ||
+          (init_style == initialize_style::regrid) ||
+          (init_style == initialize_style::restart))
       {
         FinalizeHydroConsRP(pmb_array);
 
@@ -1813,9 +1824,9 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
       // ----------------------------------------------------------------------
 
       // Initial diffusion coefficients ---------------------------------------
-#if FLUID_ENABLED
-      FinalizeDiffusion(pmb_array);
-#endif
+// #if FLUID_ENABLED
+//       FinalizeDiffusion(pmb_array);
+// #endif
       // ----------------------------------------------------------------------
 
       // M1 needs to slice into hydro, hence after that R/P -------------------
@@ -1823,12 +1834,17 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
       // Prolongate m1
       // Apply BC
       // Not all registers are reloaded from rst, do this on all init calls
-      FinalizeM1(pmb_array);
+      if ((init_style == initialize_style::pgen)   ||
+          (init_style == initialize_style::regrid) ||
+          (init_style == initialize_style::restart))
+      {
+        FinalizeM1(pmb_array);
+      }
 #endif
       // ----------------------------------------------------------------------
 
 #if FLUID_ENABLED && Z4C_ENABLED
-      if ((init_style == initialize_style::pgen) ||
+      if ((init_style == initialize_style::pgen)   ||
           (init_style == initialize_style::regrid) ||
           (init_style == initialize_style::restart))
       {
