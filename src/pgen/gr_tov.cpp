@@ -175,6 +175,16 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   EnrollUserStandardField(pin);
   EnrollUserStandardZ4c(pin);
   EnrollUserStandardM1(pin);
+
+  /*
+  // New outputs can now be specified with the form:
+  EnrollUserHistoryOutput(
+    [&](MeshBlock *pmb, int iout){ return 1.0; },
+    "some_name",
+    UserHistoryOperation::min
+  );
+  */
+
 }
 
 //----------------------------------------------------------------------------------------
