@@ -1552,6 +1552,15 @@ void Mesh::EnrollUserHistoryOutput(HistoryOutputFunc my_func, const char *name,
   user_history_ops_.push_back(std::move(op));
 }
 
+void Mesh::EnrollUserHistoryOutput(std::function<Real(MeshBlock*, int)> my_func,
+                                   const char *name,
+                                   UserHistoryOperation op)
+{
+  user_history_output_names_.push_back(std::move(name));
+  user_history_func_.push_back(my_func);
+  user_history_ops_.push_back(std::move(op));
+}
+
 //----------------------------------------------------------------------------------------
 //! \fn void Mesh::EnrollUserMetric(MetricFunc my_func)
 //  \brief Enroll a user-defined metric for arbitrary GR coordinates

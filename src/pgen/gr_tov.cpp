@@ -171,10 +171,10 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   if(adaptive==true)
     EnrollUserRefinementCondition(RefinementCondition);
 
-  EnrollUserStandardHydro();
-  EnrollUserStandardField();
-  EnrollUserStandardZ4c();
-  EnrollUserStandardM1();
+  EnrollUserStandardHydro(pin);
+  EnrollUserStandardField(pin);
+  EnrollUserStandardZ4c(pin);
+  EnrollUserStandardM1(pin);
 }
 
 //----------------------------------------------------------------------------------------

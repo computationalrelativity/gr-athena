@@ -626,7 +626,7 @@ class Mesh {
   AMRFlagFunc AMRFlag_;
   SrcTermFunc UserSourceTerm_;
   TimeStepFunc UserTimeStep_;
-  std::vector<HistoryOutputFunc> user_history_func_;
+  std::vector<std::function<Real(MeshBlock*, int)>> user_history_func_;
   MetricFunc UserMetric_;
   ViscosityCoeffFunc ViscosityCoeff_;
   ConductionCoeffFunc ConductionCoeff_;
@@ -673,12 +673,15 @@ class Mesh {
   void EnrollUserTimeStepFunction(TimeStepFunc my_func);
   void EnrollUserHistoryOutput(HistoryOutputFunc my_func, const char *name,
                                UserHistoryOperation op=UserHistoryOperation::sum);
+  void EnrollUserHistoryOutput(std::function<Real(MeshBlock*, int)> my_func,
+                               const char *name,
+                               UserHistoryOperation op=UserHistoryOperation::sum);
   void EnrollUserMetric(MetricFunc my_func);
 
-  void EnrollUserStandardHydro();
-  void EnrollUserStandardField();
-  void EnrollUserStandardZ4c();
-  void EnrollUserStandardM1();
+  void EnrollUserStandardHydro(ParameterInput * pin);
+  void EnrollUserStandardField(ParameterInput * pin);
+  void EnrollUserStandardZ4c(ParameterInput * pin);
+  void EnrollUserStandardM1(ParameterInput * pin);
 
   void EnrollViscosityCoefficient(ViscosityCoeffFunc my_func);
   void EnrollConductionCoefficient(ConductionCoeffFunc my_func);

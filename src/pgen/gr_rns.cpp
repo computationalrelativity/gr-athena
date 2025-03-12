@@ -45,10 +45,10 @@ namespace {
 
 void Mesh::InitUserMeshData(ParameterInput *pin)
 {
-  EnrollUserStandardHydro();
-  EnrollUserStandardField();
-  EnrollUserStandardZ4c();
-  EnrollUserStandardM1();
+  EnrollUserStandardHydro(pin);
+  EnrollUserStandardField(pin);
+  EnrollUserStandardZ4c(pin);
+  EnrollUserStandardM1(pin);
 
   if (!resume_flag) {
     string set_name = "problem";

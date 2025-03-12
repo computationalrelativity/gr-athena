@@ -25,6 +25,8 @@
 #include <string>     // c_str()
 #include <vector>
 
+#include <functional>
+
 // Athena++ headers
 #include "../athena_aliases.hpp"
 #include "../eos/eos.hpp"
@@ -101,7 +103,7 @@ Real num_c2p_fail(MeshBlock *pmb, int iout)
 }
 #endif // FLUID_ENABLED
 
-void Mesh::EnrollUserStandardHydro()
+void Mesh::EnrollUserStandardHydro(ParameterInput * pin)
 {
 #if FLUID_ENABLED
   EnrollUserHistoryOutput(max_rho, "max_rho",
@@ -147,7 +149,7 @@ Real DivBface(MeshBlock *pmb, int iout)
 }
 #endif // MAGNETIC_FIELDS_ENABLED
 
-void Mesh::EnrollUserStandardField()
+void Mesh::EnrollUserStandardField(ParameterInput * pin)
 {
 #if MAGNETIC_FIELDS_ENABLED
   EnrollUserHistoryOutput(DivBface, "div_B",
@@ -205,7 +207,7 @@ Real max_abs_con_H(MeshBlock *pmb, int iout)
 }
 #endif // Z4C_ENABLED
 
-void Mesh::EnrollUserStandardZ4c()
+void Mesh::EnrollUserStandardZ4c(ParameterInput * pin)
 {
 #if Z4C_ENABLED
   EnrollUserHistoryOutput(min_alpha, "min_alpha",
@@ -219,101 +221,143 @@ void Mesh::EnrollUserStandardZ4c()
 #if M1_ENABLED
 namespace {
 
-Real max_sc_nG_00(MeshBlock *pmb, int iout)
+Real min_sc_nG(const int ix_g, const int ix_s, MeshBlock *pmb, int iout)
 {
-  Real max_sc_nG_00 = -std::numeric_limits<Real>::infinity();
+  Real min_sc_nG_ = -std::numeric_limits<Real>::infinity();
   CC_ILOOP3(k, j, i)
   {
-    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
-    max_sc_nG_00 = std::max(max_sc_nG_00,
-                            // oo_sc_sqrt_det_g *
-                            pmb->pm1->lab.sc_nG(0,0)(k,j,i));
+    min_sc_nG_ = std::min(min_sc_nG_, pmb->pm1->lab.sc_nG(ix_g,ix_s)(k,j,i));
   }
-  return max_sc_nG_00;
+  return min_sc_nG_;
 }
 
-Real max_sc_E_00(MeshBlock *pmb, int iout)
+Real max_sc_nG(const int ix_g, const int ix_s, MeshBlock *pmb, int iout)
 {
-  Real max_sc_E_00 = -std::numeric_limits<Real>::infinity();
+  Real max_sc_nG_ = -std::numeric_limits<Real>::infinity();
   CC_ILOOP3(k, j, i)
   {
-    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
-    max_sc_E_00 = std::max(max_sc_E_00,
-                          //  oo_sc_sqrt_det_g *
-                            pmb->pm1->lab.sc_E(0,0)(k,j,i));
+    max_sc_nG_ = std::max(max_sc_nG_, pmb->pm1->lab.sc_nG(ix_g,ix_s)(k,j,i));
   }
-  return max_sc_E_00;
+  return max_sc_nG_;
 }
 
-Real min_sc_nG_00(MeshBlock *pmb, int iout)
+Real min_sc_E(const int ix_g, const int ix_s, MeshBlock *pmb, int iout)
 {
-  Real min_sc_nG_00 = +std::numeric_limits<Real>::infinity();
+  Real min_sc_E_ = -std::numeric_limits<Real>::infinity();
   CC_ILOOP3(k, j, i)
   {
-    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
-    min_sc_nG_00 = std::min(min_sc_nG_00,
-                            pmb->pm1->lab.sc_nG(0,0)(k,j,i));
+    min_sc_E_ = std::min(min_sc_E_, pmb->pm1->lab.sc_E(ix_g,ix_s)(k,j,i));
   }
-  return min_sc_nG_00;
+  return min_sc_E_;
 }
 
-Real min_sc_E_00(MeshBlock *pmb, int iout)
+Real max_sc_E(const int ix_g, const int ix_s, MeshBlock *pmb, int iout)
 {
-  Real min_sc_E_00 = +std::numeric_limits<Real>::infinity();
+  Real max_sc_E_ = -std::numeric_limits<Real>::infinity();
   CC_ILOOP3(k, j, i)
   {
-    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
-    min_sc_E_00 = std::min(min_sc_E_00,
-                          //  oo_sc_sqrt_det_g *
-                            pmb->pm1->lab.sc_E(0,0)(k,j,i));
+    max_sc_E_ = std::max(max_sc_E_, pmb->pm1->lab.sc_E(ix_g,ix_s)(k,j,i));
   }
-  return min_sc_E_00;
+  return max_sc_E_;
 }
 
-Real min_sc_n_00(MeshBlock *pmb, int iout)
+Real min_sc_J(const int ix_g, const int ix_s, MeshBlock *pmb, int iout)
 {
-  Real min_sc_n_00 = +std::numeric_limits<Real>::infinity();
+  Real min_sc_J_ = -std::numeric_limits<Real>::infinity();
   CC_ILOOP3(k, j, i)
   {
-    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
-    min_sc_n_00 = std::min(min_sc_n_00,
-                            pmb->pm1->rad.sc_n(0,0)(k,j,i));
+    min_sc_J_ = std::min(min_sc_J_, pmb->pm1->rad.sc_J(ix_g,ix_s)(k,j,i));
   }
-  return min_sc_n_00;
+  return min_sc_J_;
 }
 
-Real min_sc_J_00(MeshBlock *pmb, int iout)
+Real max_sc_J(const int ix_g, const int ix_s, MeshBlock *pmb, int iout)
 {
-  Real min_sc_J_00 = +std::numeric_limits<Real>::infinity();
+  Real max_sc_J_ = -std::numeric_limits<Real>::infinity();
   CC_ILOOP3(k, j, i)
   {
-    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
-    min_sc_J_00 = std::min(min_sc_J_00,
-                          //  oo_sc_sqrt_det_g *
-                            pmb->pm1->rad.sc_J(0,0)(k,j,i));
+    max_sc_J_ = std::max(max_sc_J_, pmb->pm1->rad.sc_J(ix_g,ix_s)(k,j,i));
   }
-  return min_sc_J_00;
+  return max_sc_J_;
 }
+
+Real min_sc_n(const int ix_g, const int ix_s, MeshBlock *pmb, int iout)
+{
+  Real min_sc_n_ = -std::numeric_limits<Real>::infinity();
+  CC_ILOOP3(k, j, i)
+  {
+    min_sc_n_ = std::min(min_sc_n_, pmb->pm1->rad.sc_n(ix_g,ix_s)(k,j,i));
+  }
+  return min_sc_n_;
+}
+
+Real max_sc_n(const int ix_g, const int ix_s, MeshBlock *pmb, int iout)
+{
+  Real max_sc_n_ = -std::numeric_limits<Real>::infinity();
+  CC_ILOOP3(k, j, i)
+  {
+    max_sc_n_ = std::max(max_sc_n_, pmb->pm1->rad.sc_n(ix_g,ix_s)(k,j,i));
+  }
+  return max_sc_n_;
+}
+
 }
 #endif
 
-void Mesh::EnrollUserStandardM1()
+void Mesh::EnrollUserStandardM1(ParameterInput * pin)
 {
 #if M1_ENABLED
-  EnrollUserHistoryOutput(max_sc_nG_00,
-                          "max_sc_nG_00", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(max_sc_E_00,
-                          "max_sc_E_00", UserHistoryOperation::max);
+  const int N_GRPS = pin->GetOrAddInteger("M1", "ngroups",  1);
+  const int N_SPCS = pin->GetOrAddInteger("M1", "nspecies", 1);
 
-  EnrollUserHistoryOutput(min_sc_nG_00,
-                          "min_sc_nG_00", UserHistoryOperation::min);
-  EnrollUserHistoryOutput(min_sc_E_00,
-                          "min_sc_E_00", UserHistoryOperation::min);
+  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  {
+    auto max_sc_nG_ix_gs = [ig=ix_g, is=ix_s](MeshBlock *pmb, int iout)
+    {
+      return max_sc_nG(ig, is, pmb, iout);
+    };
 
-  EnrollUserHistoryOutput(min_sc_n_00,
-                          "min_sc_n_00", UserHistoryOperation::min);
-  EnrollUserHistoryOutput(min_sc_J_00,
-                          "min_sc_J_00", UserHistoryOperation::min);
+    auto max_sc_E_ix_gs = [ig=ix_g, is=ix_s](MeshBlock *pmb, int iout)
+    {
+      return max_sc_E(ig, is, pmb, iout);
+    };
+
+    EnrollUserHistoryOutput(
+      max_sc_nG_ix_gs,
+      ("max_sc_nG_" + std::to_string(ix_g) + std::to_string(ix_s)).c_str(),
+      UserHistoryOperation::max
+    );
+
+    EnrollUserHistoryOutput(
+      max_sc_E_ix_gs,
+      ("max_sc_E_" + std::to_string(ix_g) + std::to_string(ix_s)).c_str(),
+      UserHistoryOperation::max
+    );
+
+    auto min_sc_nG_ix_gs = [ig=ix_g, is=ix_s](MeshBlock *pmb, int iout)
+    {
+      return min_sc_nG(ig, is, pmb, iout);
+    };
+
+    auto min_sc_E_ix_gs = [ig=ix_g, is=ix_s](MeshBlock *pmb, int iout)
+    {
+      return min_sc_E(ig, is, pmb, iout);
+    };
+
+    EnrollUserHistoryOutput(
+      min_sc_nG_ix_gs,
+      ("min_sc_nG_" + std::to_string(ix_g) + std::to_string(ix_s)).c_str(),
+      UserHistoryOperation::min
+    );
+
+    EnrollUserHistoryOutput(
+      min_sc_E_ix_gs,
+      ("min_sc_E_" + std::to_string(ix_g) + std::to_string(ix_s)).c_str(),
+      UserHistoryOperation::min
+    );
+
+  }
 
 #endif // M1_ENABLED
 }
