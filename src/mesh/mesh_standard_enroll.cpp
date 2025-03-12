@@ -223,7 +223,7 @@ namespace {
 
 Real min_sc_nG(const int ix_g, const int ix_s, MeshBlock *pmb, int iout)
 {
-  Real min_sc_nG_ = -std::numeric_limits<Real>::infinity();
+  Real min_sc_nG_ = std::numeric_limits<Real>::infinity();
   CC_ILOOP3(k, j, i)
   {
     min_sc_nG_ = std::min(min_sc_nG_, pmb->pm1->lab.sc_nG(ix_g,ix_s)(k,j,i));
@@ -243,7 +243,7 @@ Real max_sc_nG(const int ix_g, const int ix_s, MeshBlock *pmb, int iout)
 
 Real min_sc_E(const int ix_g, const int ix_s, MeshBlock *pmb, int iout)
 {
-  Real min_sc_E_ = -std::numeric_limits<Real>::infinity();
+  Real min_sc_E_ = std::numeric_limits<Real>::infinity();
   CC_ILOOP3(k, j, i)
   {
     min_sc_E_ = std::min(min_sc_E_, pmb->pm1->lab.sc_E(ix_g,ix_s)(k,j,i));
@@ -263,7 +263,7 @@ Real max_sc_E(const int ix_g, const int ix_s, MeshBlock *pmb, int iout)
 
 Real min_sc_J(const int ix_g, const int ix_s, MeshBlock *pmb, int iout)
 {
-  Real min_sc_J_ = -std::numeric_limits<Real>::infinity();
+  Real min_sc_J_ = std::numeric_limits<Real>::infinity();
   CC_ILOOP3(k, j, i)
   {
     min_sc_J_ = std::min(min_sc_J_, pmb->pm1->rad.sc_J(ix_g,ix_s)(k,j,i));
@@ -283,7 +283,7 @@ Real max_sc_J(const int ix_g, const int ix_s, MeshBlock *pmb, int iout)
 
 Real min_sc_n(const int ix_g, const int ix_s, MeshBlock *pmb, int iout)
 {
-  Real min_sc_n_ = -std::numeric_limits<Real>::infinity();
+  Real min_sc_n_ = std::numeric_limits<Real>::infinity();
   CC_ILOOP3(k, j, i)
   {
     min_sc_n_ = std::min(min_sc_n_, pmb->pm1->rad.sc_n(ix_g,ix_s)(k,j,i));
