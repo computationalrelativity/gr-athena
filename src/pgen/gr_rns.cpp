@@ -330,10 +330,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   {
 
     int flat_ix = i + n[0]*(j + n[1]*k);
-    rho[flat_ix] *= ceos->mb/mb_rnsc; // adjust for rns baryon mass
     Real r = std::sqrt(x[i]*x[i]+y[j]*y[j]+z[k]*z[k]);
 
 #if USETM
+#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
+    rho[flat_ix] *= ceos->mb/mb_rnsc; // adjust for rns baryon mass
+#endif
     if (rho[flat_ix] > rho_min) {
       Real pres_eos = ceos->GetPressure(rho[flat_ix]);
       Real pres_diff = max(abs(pres[flat_ix] / pres_eos - 1), pres_diff);
