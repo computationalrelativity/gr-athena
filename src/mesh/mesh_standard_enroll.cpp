@@ -166,7 +166,7 @@ Real min_alpha(MeshBlock *pmb, int iout)
 {
   // --------------------------------------------------------------------------
   // Set some aliases for the variables.
-  AT_N_sca alpha(pmb->pz4c->storage.u, Z4c::I_Z4c_alpha);
+  AT_N_sca alpha(pmb->pz4c->storage.adm, Z4c::I_ADM_alpha);
 
   // container with idx / grids pertaining z4c
   MB_info* mbi = &(pmb->pz4c->mbi);
