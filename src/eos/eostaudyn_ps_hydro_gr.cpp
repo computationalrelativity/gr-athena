@@ -81,6 +81,9 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   warn_unrestricted_cs2 = pin->GetOrAddBoolean(
     "hydro", "warn_unrestricted_cs2", false
   );
+  recompute_temperature = pin->GetOrAddBoolean(
+    "hydro", "recompute_temperature", true
+  );
 
   // control PrimitiveSolver tolerances / iterates
   ps.SetRootfinderTol(pin->GetOrAddReal("hydro", "c2p_acc", 1e-15));
@@ -409,11 +412,17 @@ void EquationOfState::ConservedToPrimitive(
         cons_scalar(n, k, j, i) = cons_pt[IYD + n]*sqrt_detgamma;
       }
 
-      // BD: not clear why these behave differently?
-      // ph->derived_ms(IX_T,k,j,i) = prim_pt[ITM];
-      ph->derived_ms(IX_T,k,j,i) = ps.GetEOS()->GetTemperatureFromP(
-        prim_pt[IDN], prim_pt[IPR], &prim_pt[IYF]
-      );
+      // BD: not clear why these behave differently (limiting)?
+      if (recompute_temperature)
+      {
+        ph->derived_ms(IX_T,k,j,i) = ps.GetEOS()->GetTemperatureFromP(
+          prim_pt[IDN], prim_pt[IPR], &prim_pt[IYF]
+        );
+      }
+      else
+      {
+        ph->derived_ms(IX_T,k,j,i) = prim_pt[ITM];
+      }
 
       // as in `PrimitiveSolver`
       ph->derived_ms(IX_LOR,k,j,i) = std::max(
