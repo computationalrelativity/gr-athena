@@ -202,7 +202,8 @@ class Clocks
   public:
     Clocks(Mesh * pmesh)
     : pmesh(pmesh),
-      wtime()
+      wtime()//,
+      // evo_clock_time_start(pmesh->start_time)
     {
       tstart = clock();
 #ifdef OPENMP_PARALLEL
@@ -555,24 +556,27 @@ inline void MakeOutputs(const bool is_final,
                         Mesh *pm,
                         Outputs *pouts)
 {
-    try
-    {
-      pouts->MakeOutputs(pm, pin, is_final);
-    }
-    catch(std::bad_alloc& ba)
-    {
-      std::cout << "### FATAL ERROR in main" << std::endl
-                << "memory allocation failed during output: ";
-      std::cout << ba.what() <<std::endl;
-      gra::parallelism::Teardown();
-      std::exit(0);
-    }
-    catch(std::exception const& ex)
-    {
-      std::cout << ex.what() << std::endl;
-      gra::parallelism::Teardown();
-      std::exit(0);
-    }
+  // Record final time as start_time for any restarts
+  pin->SetReal("mesh", "start_time", pm->time);
+
+  try
+  {
+    pouts->MakeOutputs(pm, pin, is_final);
+  }
+  catch(std::bad_alloc& ba)
+  {
+    std::cout << "### FATAL ERROR in main" << std::endl
+              << "memory allocation failed during output: ";
+    std::cout << ba.what() <<std::endl;
+    gra::parallelism::Teardown();
+    std::exit(0);
+  }
+  catch(std::exception const& ex)
+  {
+    std::cout << ex.what() << std::endl;
+    gra::parallelism::Teardown();
+    std::exit(0);
+  }
 }
 
 // General info
