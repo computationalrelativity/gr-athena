@@ -54,8 +54,11 @@ class PiecewisePolytrope : public EOSPolicyInterface {
     Real Pressure(Real n, Real T, Real *Y);
 
     /// Calculate the entropy per baryon using the ideal gas law.
-    [[ noreturn ]]
-    Real Entropy(Real n, Real T, Real *Y);
+    // MJ: TODO
+    Real Entropy(Real n, Real T, Real *Y)
+    {
+      return NAN;
+    }
 
     /// Calculate the enthalpy per baryon using the ideal gas law.
     Real Enthalpy(Real n, Real T, Real *Y);

@@ -98,10 +98,6 @@ Real PiecewisePolytrope::Pressure(Real n, Real T, Real *Y) {
   return GetColdPressure(n, p) + n*T;
 }
 
-Real PiecewisePolytrope::Entropy(Real n, Real T, Real *Y) {
-  throw std::logic_error("PiecewisePolytrope::Entropy not currently implemented.");
-}
-
 Real PiecewisePolytrope::Enthalpy(Real n, Real T, Real *Y) {
   int p = FindPiece(n);
   return (GetColdEnergy(n, p) + GetColdPressure(n, p))/n + gamma_thermal/(gamma_thermal - 1.0)*T;
