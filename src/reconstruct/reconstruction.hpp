@@ -44,6 +44,10 @@ class Reconstruction {
   bool xorder_use_fb;                     // try order reduction
   bool xorder_use_fb_unphysical = false;  // try energy conditions
 
+  bool xorder_use_auxiliaries;            // reconstruct derived quantities?
+  bool xorder_use_aux_T;                  // reconstruct temperature?
+  bool xorder_use_aux_h;                  // reconstruct enthalpy?
+
   bool characteristic_projection; // reconstruct on characteristic or primitive hydro vars
   bool uniform[3], curvilinear[2];
   // (Cartesian reconstruction formulas are used for x3 azimuthal coordinate in both
@@ -212,6 +216,22 @@ class Reconstruction {
     }
   }
 
+  inline void ReconstructHydroAuxiliariesX1_(
+    ReconstructionVariant rv,
+    AthenaArray<Real> & z,
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    const int k, const int j, const int il, const int iu)
+  {
+    // wl_ populated at i+1 on Recon. call
+    for (int n=0; n<NDRV_HYDRO; ++n)
+    {
+      if (((n == IX_T) && xorder_use_aux_T) ||
+           (n == IX_ETH && xorder_use_aux_h))
+        ReconstructFieldX1(rv, z, zl_, zr_, n, n, k, j, il-1, iu);
+    }
+  }
+
   inline void ReconstructPrimitivesX2_(
     ReconstructionVariant rv,
     AthenaArray<Real> & z,
@@ -251,6 +271,21 @@ class Reconstruction {
     }
   }
 
+  inline void ReconstructHydroAuxiliariesX2_(
+    ReconstructionVariant rv,
+    AthenaArray<Real> & z,
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    const int k, const int j, const int il, const int iu)
+  {
+    for (int n=0; n<NDRV_HYDRO; ++n)
+    {
+      if (((n == IX_T) && xorder_use_aux_T) ||
+           (n == IX_ETH && xorder_use_aux_h))
+        ReconstructFieldX2(rv, z, zl_, zr_, n, n, k, j, il, iu);
+    }
+  }
+
   inline void ReconstructPrimitivesX3_(
     ReconstructionVariant rv,
     AthenaArray<Real> & z,
@@ -287,6 +322,21 @@ class Reconstruction {
     for (int n=0; n<NSCALARS; ++n)
     {
       ReconstructFieldX3(rv, z, zl_, zr_, n, n, k, j, il, iu);
+    }
+  }
+
+  inline void ReconstructHydroAuxiliariesX3_(
+    ReconstructionVariant rv,
+    AthenaArray<Real> & z,
+    AthenaArray<Real> & zl_,
+    AthenaArray<Real> & zr_,
+    const int k, const int j, const int il, const int iu)
+  {
+    for (int n=0; n<NDRV_HYDRO; ++n)
+    {
+      if (((n == IX_T) && xorder_use_aux_T) ||
+           (n == IX_ETH && xorder_use_aux_h))
+        ReconstructFieldX3(rv, z, zl_, zr_, n, n, k, j, il, iu);
     }
   }
 

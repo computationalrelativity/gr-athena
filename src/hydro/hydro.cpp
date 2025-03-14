@@ -97,11 +97,25 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   wr_.NewAthenaArray(NWAVE, nc1);
   wlb_.NewAthenaArray(NWAVE, nc1);
 
+  if (pmy_block->precon->xorder_use_auxiliaries)
+  {
+    al_.NewAthenaArray(NDRV_HYDRO, nc1);
+    ar_.NewAthenaArray(NDRV_HYDRO, nc1);
+    alb_.NewAthenaArray(NDRV_HYDRO, nc1);
+  }
+
   if (pmy_block->precon->xorder_use_fb)
   {
     r_wl_.NewAthenaArray(NWAVE, nc1);
     r_wr_.NewAthenaArray(NWAVE, nc1);
     r_wlb_.NewAthenaArray(NWAVE, nc1);
+
+    if (pmy_block->precon->xorder_use_auxiliaries)
+    {
+      r_al_.NewAthenaArray(NDRV_HYDRO, nc1);
+      r_ar_.NewAthenaArray(NDRV_HYDRO, nc1);
+      r_alb_.NewAthenaArray(NDRV_HYDRO, nc1);
+    }
   }
   else
   {

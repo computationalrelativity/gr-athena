@@ -372,6 +372,13 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
                                      ps->rl_, ps->rr_,
                                      k, j, il, iu);
 
+    if (pr->xorder_use_auxiliaries)
+    {
+      pr->ReconstructHydroAuxiliariesX1_(rv, derived_ms,
+                                         al_, ar_,
+                                         k, j, il, iu);
+    }
+
     if (pr->xorder_use_fb)
     {
       pr->ReconstructPrimitivesX1_(r_rv, w, r_wl_, r_wr_,
@@ -382,6 +389,13 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
                                        ps->r_rl_, ps->r_rr_,
                                        k, j, il, iu);
 
+      if (pr->xorder_use_auxiliaries)
+      {
+        pr->ReconstructHydroAuxiliariesX1_(r_rv, derived_ms,
+                                           r_al_, r_ar_,
+                                           k, j, il, iu);
+      }
+
       FallbackInadmissiblePrimitiveX1_(wl_, wr_,
                                        r_wl_, r_wr_,
                                        il, iu);
@@ -389,9 +403,11 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
                                         ps->r_rl_, ps->r_rr_,
                                         il, iu);
 
+      // TODO:
+      // need fallback for auxiliaries...
+
       // ps->ApplySpeciesLimits(ps->rl_, il, iu);
       // ps->ApplySpeciesLimits(ps->rr_, il, iu);
-
     }
     else
     {
@@ -406,6 +422,10 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
       FloorPrimitiveX1_(wl_, wr_,
                         k, j, il, iu);
 #endif
+
+      if (pr->xorder_use_auxiliaries)
+        LimitAuxiliariesX1_(al_, ar_, il, iu);
+
     }
 
     pmb->pcoord->CenterWidth1(k, j, il, iu, dxw_);
@@ -447,6 +467,13 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
                                        ps->rl_, ps->rr_,
                                        k, jl-1, il, iu);
 
+      if (pr->xorder_use_auxiliaries)
+      {
+        pr->ReconstructHydroAuxiliariesX2_(rv, derived_ms,
+                                           al_, ar_,
+                                           k, jl-1, il, iu);
+      }
+
       if (pr->xorder_use_fb)
       {
         pr->ReconstructPrimitivesX2_(r_rv, w,
@@ -458,6 +485,13 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
         pr->ReconstructPassiveScalarsX2_(r_rv, r,
                                          ps->r_rl_, ps->r_rr_,
                                          k, jl-1, il, iu);
+
+        if (pr->xorder_use_auxiliaries)
+        {
+          pr->ReconstructHydroAuxiliariesX2_(r_rv, derived_ms,
+                                             r_al_, r_ar_,
+                                             k, jl-1, il, iu);
+        }
 
         FallbackInadmissiblePrimitiveX2_(wl_, wr_,
                                          r_wl_, r_wr_,
@@ -483,6 +517,10 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
         FloorPrimitiveX2_(wl_, wr_,
                           k, jl-1, il, iu);
 #endif
+
+        if (pr->xorder_use_auxiliaries)
+          LimitAuxiliariesX2_(al_, ar_, il, iu);
+
       }
 
 
@@ -499,6 +537,13 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
                                          ps->rlb_, ps->rr_,
                                          k, j, il, iu);
 
+        if (pr->xorder_use_auxiliaries)
+        {
+          pr->ReconstructHydroAuxiliariesX2_(rv, derived_ms,
+                                             alb_, ar_,
+                                             k, j, il, iu);
+        }
+
         if (pr->xorder_use_fb)
         {
           pr->ReconstructPrimitivesX2_(r_rv, w,
@@ -510,6 +555,13 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
           pr->ReconstructPassiveScalarsX2_(r_rv, r,
                                            ps->r_rlb_, ps->r_rr_,
                                            k, j, il, iu);
+
+          if (pr->xorder_use_auxiliaries)
+          {
+            pr->ReconstructHydroAuxiliariesX2_(r_rv, derived_ms,
+                                               r_alb_, r_ar_,
+                                               k, j, il, iu);
+          }
 
           FallbackInadmissiblePrimitiveX2_(wlb_, wr_,
                                            r_wlb_, r_wr_,
@@ -534,6 +586,10 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
 #else
           FloorPrimitiveX2_(wlb_, wr_, k, j, il, iu);
 #endif
+
+          if (pr->xorder_use_auxiliaries)
+            LimitAuxiliariesX2_(alb_, ar_, il, iu);
+
         }
 
         pmb->pcoord->CenterWidth2(k, j, il, iu, dxw_);
@@ -556,12 +612,23 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
 #if NSCALARS > 0
         ps->rl_.SwapAthenaArray(ps->rlb_);
 #endif
+
+        if (pr->xorder_use_auxiliaries)
+        {
+          al_.SwapAthenaArray(alb_);
+        }
+
         if (pr->xorder_use_fb)
         {
           r_wl_.SwapAthenaArray(r_wlb_);
 #if NSCALARS > 0
           ps->r_rl_.SwapAthenaArray(ps->r_rlb_);
 #endif
+
+          if (pr->xorder_use_auxiliaries)
+          {
+            r_al_.SwapAthenaArray(r_alb_);
+          }
         }
       }
     }
@@ -589,6 +656,13 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
                                        ps->rl_, ps->rr_,
                                        kl-1, j, il, iu);
 
+      if (pr->xorder_use_auxiliaries)
+      {
+        pr->ReconstructHydroAuxiliariesX3_(rv, derived_ms,
+                                           al_, ar_,
+                                           kl-1, j, il, iu);
+      }
+
       if (pr->xorder_use_fb)
       {
         pr->ReconstructPrimitivesX3_(r_rv, w,
@@ -600,6 +674,13 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
         pr->ReconstructPassiveScalarsX3_(r_rv, r,
                                          ps->r_rl_, ps->r_rr_,
                                          kl-1, j, il, iu);
+
+        if (pr->xorder_use_auxiliaries)
+        {
+          pr->ReconstructHydroAuxiliariesX3_(r_rv, derived_ms,
+                                             r_al_, r_ar_,
+                                             kl-1, j, il, iu);
+        }
 
         FallbackInadmissiblePrimitiveX3_(wl_, wr_,
                                          r_wl_, r_wr_,
@@ -624,6 +705,10 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
 #else
         FloorPrimitiveX3_(wl_, wr_, kl-1, j, il, iu);
 #endif
+
+        if (pr->xorder_use_auxiliaries)
+          LimitAuxiliariesX3_(al_, ar_, il, iu);
+
       }
 
 
@@ -639,6 +724,13 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
                                          ps->rlb_, ps->rr_,
                                          k, j, il, iu);
 
+        if (pr->xorder_use_auxiliaries)
+        {
+          pr->ReconstructHydroAuxiliariesX3_(rv, derived_ms,
+                                             alb_, ar_,
+                                             k, j, il, iu);
+        }
+
         if (pr->xorder_use_fb)
         {
           pr->ReconstructPrimitivesX3_(r_rv, w,
@@ -650,6 +742,13 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
           pr->ReconstructPassiveScalarsX3_(r_rv, r,
                                            ps->r_rlb_, ps->r_rr_,
                                            k, j, il, iu);
+
+          if (pr->xorder_use_auxiliaries)
+          {
+            pr->ReconstructHydroAuxiliariesX3_(r_rv, derived_ms,
+                                               r_alb_, r_ar_,
+                                               k, j, il, iu);
+          }
 
           FallbackInadmissiblePrimitiveX3_(wlb_, wr_,
                                            r_wlb_, r_wr_,
@@ -675,6 +774,10 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
           FloorPrimitiveX3_(wlb_, wr_,
                             k, j, il, iu);
 #endif
+
+          if (pr->xorder_use_auxiliaries)
+            LimitAuxiliariesX3_(alb_, ar_, il, iu);
+
         }
 
         pmb->pcoord->CenterWidth3(k, j, il, iu, dxw_);
@@ -697,12 +800,22 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
 #if NSCALARS > 0
         ps->rl_.SwapAthenaArray(ps->rlb_);
 #endif
+
+        if (pr->xorder_use_auxiliaries)
+        {
+          al_.SwapAthenaArray(alb_);
+        }
+
         if (pr->xorder_use_fb)
         {
           r_wl_.SwapAthenaArray(r_wlb_);
 #if NSCALARS > 0
           ps->r_rl_.SwapAthenaArray(ps->r_rlb_);
 #endif
+          if (pr->xorder_use_auxiliaries)
+          {
+            r_al_.SwapAthenaArray(r_alb_);
+          }
         }
       }
     }

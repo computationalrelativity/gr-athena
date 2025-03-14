@@ -322,10 +322,47 @@ void Hydro::RiemannSolver(
     }
 #endif // DBG_COMBINED_HYDPA
 
-    Real Tl = pmy_block->peos->GetEOS().GetTemperatureFromP(nl, w_p_l_(i), Yl);
-    Real Tr = pmy_block->peos->GetEOS().GetTemperatureFromP(nr, w_p_r_(i), Yr);
-    w_hrho_l_(i) = w_rho_l_(i)*pmy_block->peos->GetEOS().GetEnthalpy(nl, Tl, Yl);
-    w_hrho_r_(i) = w_rho_r_(i)*pmy_block->peos->GetEOS().GetEnthalpy(nr, Tr, Yr);
+    Real Tl, Tr;
+    Real hl, hr;
+
+    if (pmy_block->precon->xorder_use_auxiliaries)
+    {
+      if (pmy_block->precon->xorder_use_aux_T)
+      {
+        Tl = pmy_block->phydro->al_(IX_T,i);
+        Tr = pmy_block->phydro->ar_(IX_T,i);
+      }
+      else
+      {
+        Tl = pmy_block->peos->GetEOS().GetTemperatureFromP(nl, w_p_l_(i), Yl);
+        Tr = pmy_block->peos->GetEOS().GetTemperatureFromP(nr, w_p_r_(i), Yr);
+      }
+
+      if (pmy_block->precon->xorder_use_aux_h)
+      {
+        hl = pmy_block->phydro->al_(IX_ETH,i);
+        hr = pmy_block->phydro->ar_(IX_ETH,i);
+      }
+      else
+      {
+        hl = pmy_block->peos->GetEOS().GetEnthalpy(nl, Tl, Yl);
+        hr = pmy_block->peos->GetEOS().GetEnthalpy(nr, Tr, Yr);
+      }
+
+      w_hrho_l_(i) = w_rho_l_(i) * hl;
+      w_hrho_r_(i) = w_rho_r_(i) * hr;
+    }
+    else
+    {
+      Tl = pmy_block->peos->GetEOS().GetTemperatureFromP(nl, w_p_l_(i), Yl);
+      Tr = pmy_block->peos->GetEOS().GetTemperatureFromP(nr, w_p_r_(i), Yr);
+
+      hl = pmy_block->peos->GetEOS().GetEnthalpy(nl, Tl, Yl);
+      hr = pmy_block->peos->GetEOS().GetEnthalpy(nr, Tr, Yr);
+
+      w_hrho_l_(i) = w_rho_l_(i) * hl;
+      w_hrho_r_(i) = w_rho_r_(i) * hr;
+    }
 
     // Calculate the sound speeds
     pmy_block->peos->SoundSpeedsGR(nl, Tl, w_v_u_l_(ivx-1,i), w_norm2_v_l_(i),

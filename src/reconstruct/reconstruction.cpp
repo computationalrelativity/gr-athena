@@ -137,6 +137,17 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin)
       "time", "xorder_use_fb_unphysical", false);
   }
 
+  xorder_use_auxiliaries = pin->GetOrAddBoolean(
+    "time", "xorder_use_auxiliaries", false
+  );
+
+  xorder_use_aux_T = pin->GetOrAddBoolean(
+    "time", "xorder_use_aux_T", false
+  );
+
+  xorder_use_aux_h = pin->GetOrAddBoolean(
+    "time", "xorder_use_aux_h", false
+  );
 
   // Check for incompatible choices with broader solver configuration
   // --------------------------------

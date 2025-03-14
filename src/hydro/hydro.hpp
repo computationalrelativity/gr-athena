@@ -615,6 +615,102 @@ public:
   }
 #endif
 
+  inline void LimitAuxiliariesX1_(
+    AA & al_,
+    AA & ar_,
+    const int il, const int iu)
+  {
+    // Either 0 or 1, depending on l/r convention
+    static const int I = DGB_RECON_X1_OFFSET;
+
+    EquationOfState *peos = pmy_block->peos;
+    Reconstruction  *precon = pmy_block->precon;
+
+    // N.B. indicial range is bumped left to account for reconstruction
+    // convention in X1
+#if USETM
+    if (precon->xorder_use_aux_T)
+    #pragma omp simd
+    for (int i=il-1; i<=iu; ++i)
+    {
+      peos->GetEOS().ApplyTemperatureLimits(al_(IX_T,i+I));
+      peos->GetEOS().ApplyTemperatureLimits(ar_(IX_T,i));
+    }
+
+    if (precon->xorder_use_aux_h)
+    {
+      const Real min_ETH = peos->GetEOS().GetMinimumEnthalpy();
+      #pragma omp simd
+      for (int i=il-1; i<=iu; ++i)
+      {
+        al_(IX_ETH,i+I) = std::max(al_(IX_ETH,i+I), min_ETH);
+        ar_(IX_ETH,i  ) = std::max(ar_(IX_ETH,i  ), min_ETH);
+      }
+    }
+#endif // USETM
+  }
+
+  inline void LimitAuxiliariesX2_(
+    AA & al_,
+    AA & ar_,
+    const int il, const int iu)
+  {
+    EquationOfState *peos = pmy_block->peos;
+    Reconstruction  *precon = pmy_block->precon;
+
+#if USETM
+    if (precon->xorder_use_aux_T)
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      peos->GetEOS().ApplyTemperatureLimits(al_(IX_T,i));
+      peos->GetEOS().ApplyTemperatureLimits(ar_(IX_T,i));
+    }
+
+    if (precon->xorder_use_aux_h)
+    {
+      const Real min_ETH = peos->GetEOS().GetMinimumEnthalpy();
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i)
+      {
+        al_(IX_ETH,i) = std::max(al_(IX_ETH,i), min_ETH);
+        ar_(IX_ETH,i) = std::max(ar_(IX_ETH,i), min_ETH);
+      }
+    }
+#endif // USETM
+  }
+
+  inline void LimitAuxiliariesX3_(
+    AA & al_,
+    AA & ar_,
+    const int il, const int iu)
+  {
+    EquationOfState *peos = pmy_block->peos;
+    Reconstruction  *precon = pmy_block->precon;
+
+#if USETM
+    if (precon->xorder_use_aux_T)
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      peos->GetEOS().ApplyTemperatureLimits(al_(IX_T,i));
+      peos->GetEOS().ApplyTemperatureLimits(ar_(IX_T,i));
+    }
+
+    if (precon->xorder_use_aux_h)
+    {
+      const Real min_ETH = peos->GetEOS().GetMinimumEnthalpy();
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i)
+      {
+        al_(IX_ETH,i) = std::max(al_(IX_ETH,i), min_ETH);
+        ar_(IX_ETH,i) = std::max(ar_(IX_ETH,i), min_ETH);
+      }
+    }
+
+#endif // USETM
+  }
+
  private:
   AA dt1_, dt2_, dt3_;  // scratch arrays used in NewTimeStep
   // scratch space used to compute fluxes
@@ -623,6 +719,10 @@ public:
   AA wl_, wr_, wlb_;
   AA r_wl_, r_wr_, r_wlb_;
   AA rl_, rr_, rlb_;
+
+  // reconstruction for auxiliaries
+  AA al_, ar_, alb_;
+  AA r_al_, r_ar_, r_alb_;
 
   AA dflx_;
 
