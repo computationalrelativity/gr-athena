@@ -46,7 +46,7 @@ SRC_FILES := \
 		@TASK_LIST_SRC@ \
 		$(wildcard src/trackers/*.cpp) \
 		$(wildcard src/utils/*.cpp) \
-		$(filter-out src/z4c/ejecta.cpp,$(wildcard src/z4c/*.cpp)) \
+		@Z4C_FILES@ \
 		@EOS_FILES@ \
 		$(CCE_FILE) \
 		@WAVE_SRC@ \

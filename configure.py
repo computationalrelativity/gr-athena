@@ -1869,6 +1869,13 @@ src_aux = [
 ]
 
 if args["z"]:
+  str_ej = "src/z4c/ejecta.cpp"
+  str_filt = f"$(filter-out {str_ej},$(wildcard src/z4c/*.cpp))"
+  makefile_options["Z4C_FILES"] = str_filt
+else:
+  makefile_options["Z4C_FILES"] = ""
+
+if args["z"]:
   str_stem = "filter-out src/task_list"
 
   # task_list/gr
