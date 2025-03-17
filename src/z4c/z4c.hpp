@@ -164,7 +164,10 @@ public:
   };
 
   enum {
-    I_AUX_EXTENDED_cc_sqrt_detgamma,
+    I_AUX_EXTENDED_gs_sqrt_detgamma,
+#if FLUID_ENABLED
+    I_AUX_EXTENDED_ms_sqrt_detgamma,
+#endif // FLUID_ENABLED
     N_AUX_EXTENDED
   };
   // Names of auxiliary variables
@@ -261,7 +264,10 @@ public:
 
   // aliases for auxiliary variables for metric derivatives
   struct Aux_extended_vars {
-    AT_N_sca cc_sqrt_detgamma;  // adm gamma on cc
+    AT_N_sca gs_sqrt_detgamma;  // adm gamma on geometric sampling
+#if FLUID_ENABLED
+    AT_N_sca ms_sqrt_detgamma;  // matter sampling
+#endif  // FLUID_ENABLED
   };
   Aux_extended_vars aux_extended;
 
@@ -336,9 +342,6 @@ public:
     bool store_metric_drvts;
     // control whether ^ is communicated
     bool communicate_aux_adm;
-
-    // Compute aux_extended variables?
-    bool extended_aux_adm;
 
     // For debug
     bool use_tp_trackers_extrema;
@@ -629,6 +632,7 @@ private:
   AT_N_T2  Riemm4_dd;   // 4D Riemann *n^a*n^c
 
   // Aux vars handling cx/vc matter interpolation
+  AT_N_sca ms_detgamma_;
   AT_N_sca w_rho;
   AT_N_sca w_p;
   AT_N_vec w_utilde_u;

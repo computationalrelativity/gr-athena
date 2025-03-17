@@ -84,14 +84,14 @@ Rescaling::Rescaling(Mesh *pm, ParameterInput *pin) :
     cur.rsc_s.NewAthenaArray(NSCALARS);
   }
 
-  if ((opt.rescale_conserved_density || opt.rescale_conserved_scalars) &&
-      !pin->GetOrAddBoolean("z4c", "extended_aux_adm", false))
+  if ((opt.rescale_conserved_density || opt.rescale_conserved_scalars))
   {
+#if !defined(Z4C_CX_ENABLED)
     std::stringstream msg;
-    msg << "### FATAL ERROR: Rescaling activation requires" << std::endl
-        << "z4c/extended_aux_adm = true";
-
+    msg << "### FATAL ERROR: Rescaling activation requires " << std::endl
+        << "z4c on CX";
     ATHENA_ERROR(msg);
+#endif
   }
 }
 
@@ -252,7 +252,7 @@ void Rescaling::Apply()
         CC_GLOOP1(i)
         {
           const Real oo_sqrt_detgamma = OO(
-            aux_extended.cc_sqrt_detgamma(k,j,i)
+            aux_extended.ms_sqrt_detgamma(k,j,i)
           );
 
           const Real fac = ((oo_sqrt_detgamma * ph->u(IDN,k,j,i)) <=
@@ -344,7 +344,7 @@ void Rescaling::Apply()
           CC_GLOOP1(i)
           {
             const Real oo_sqrt_detgamma = OO(
-              aux_extended.cc_sqrt_detgamma(k,j,i)
+              aux_extended.ms_sqrt_detgamma(k,j,i)
             );
 
             const Real fac = ((oo_sqrt_detgamma * ps->s(n,k,j,i)) <=
@@ -470,7 +470,7 @@ Real Rescaling::CompensatedSummation(const variety_cs v_cs,
     CC_ILOOP3(k, j, i)
     {
       const Real oo_sqrt_detgamma = OO(
-        aux_extended.cc_sqrt_detgamma(k,j,i)
+        aux_extended.ms_sqrt_detgamma(k,j,i)
       );
       const Real v = oo_sqrt_detgamma * arr(0,k,j,i);
       const Real vol = pmb->pcoord->GetCellVolume(k,j,i);
@@ -568,7 +568,7 @@ Real Rescaling::GlobalMinimum(const variety_cs v_cs,
       }
 
       const Real oo_sqrt_detgamma = OO(
-        aux_extended.cc_sqrt_detgamma(k,j,i)
+        aux_extended.ms_sqrt_detgamma(k,j,i)
       );
 
       const Real V = oo_sqrt_detgamma * arr(k,j,i);

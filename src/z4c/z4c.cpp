@@ -239,9 +239,6 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   opt.communicate_aux_adm =
       pin->GetOrAddBoolean("z4c", "communicate_aux_adm", false);
 
-  opt.extended_aux_adm =
-      pin->GetOrAddBoolean("z4c", "extended_aux_adm", false);
-
   // Matter parameters
   opt.cowling = pin->GetOrAddInteger("z4c", "cowling_true", 0);
   opt.bssn = pin->GetOrAddInteger("z4c", "bssn", 0);
@@ -339,12 +336,10 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
     }
   }
 
-  if (opt.extended_aux_adm)
-  {
-    storage.aux_extended.NewAthenaArray(N_AUX_EXTENDED,
-                                        mbi.nn3, mbi.nn2, mbi.nn1);
-    SetAuxExtendedAliases(storage.aux_extended, aux_extended);
-  }
+
+  storage.aux_extended.NewAthenaArray(N_AUX_EXTENDED,
+                                      mbi.nn3, mbi.nn2, mbi.nn1);
+  SetAuxExtendedAliases(storage.aux_extended, aux_extended);
 
   // For debug
   opt.use_tp_trackers_extrema = pin->GetOrAddBoolean(
@@ -425,6 +420,8 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   // To handle inter-grid interpolation ---------------------------------------
   if (Z4C_ENABLED && FLUID_ENABLED)
   {
+    ms_detgamma_.NewAthenaTensor(mbi.nn1);
+
     w_rho.NewAthenaTensor(     mbi.nn1);
     w_p.NewAthenaTensor(       mbi.nn1);
     w_utilde_u.NewAthenaTensor(mbi.nn1);
@@ -535,9 +532,14 @@ void Z4c::SetAuxAliases(AthenaArray<Real> & u, Z4c::Aux_vars & aux)
 void Z4c::SetAuxExtendedAliases(AthenaArray<Real> & u_adm,
                                 Z4c::Aux_extended_vars & aux_extended)
 {
-  aux_extended.cc_sqrt_detgamma.InitWithShallowSlice(
-    u_adm, I_AUX_EXTENDED_cc_sqrt_detgamma
+  aux_extended.gs_sqrt_detgamma.InitWithShallowSlice(
+    u_adm, I_AUX_EXTENDED_gs_sqrt_detgamma
   );
+#if FLUID_ENABLED
+  aux_extended.ms_sqrt_detgamma.InitWithShallowSlice(
+    u_adm, I_AUX_EXTENDED_ms_sqrt_detgamma
+  );
+#endif
 }
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::AlgConstr(AthenaArray<Real> & u)

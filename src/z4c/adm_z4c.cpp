@@ -12,6 +12,7 @@
 #include <fstream>
 
 // Athena++ headers
+#include "../coordinates/coordinates.hpp"
 #include "z4c.hpp"
 #include "z4c_macro.hpp"
 #include "../mesh/mesh.hpp"
@@ -197,10 +198,7 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm) {
     }
   }
 
-  if (opt.extended_aux_adm)
-  {
-    PrepareAuxExtended(storage.aux_extended, u_adm);
-  }
+  PrepareAuxExtended(storage.aux_extended, u_adm);
 }
 
 
@@ -285,12 +283,9 @@ void Z4c::Z4cToADM(AA & u, AA & u_adm,
     }
   }
 
-  if (opt.extended_aux_adm)
-  {
-    PrepareAuxExtended(storage.aux_extended,
-                       u_adm,
-                       il, iu, jl, ju, kl, ku, skip_physical);
-  }
+  PrepareAuxExtended(storage.aux_extended,
+                     u_adm,
+                     il, iu, jl, ju, kl, ku, skip_physical);
 }
 
 //----------------------------------------------------------------------------------------
@@ -713,12 +708,10 @@ void Z4c::ADMDerivatives(AthenaArray<Real> & u, AthenaArray<Real> & u_adm, Athen
 
 void Z4c::PrepareAuxExtended(AA &u_aux_extended, AA &u_adm)
 {
-#if !(defined(Z4C_CC_ENABLED) || defined(Z4C_CX_ENABLED))
-  // Interp from VC to CC not implemented
-  assert(false);
-#endif
-
   using namespace LinearAlgebra;
+
+  MeshBlock * pmb = pmy_block;
+  GRDynamical* pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
 
   ADM_vars adm;
   SetADMAliases(u_adm, adm);
@@ -726,14 +719,36 @@ void Z4c::PrepareAuxExtended(AA &u_aux_extended, AA &u_adm)
   Aux_extended_vars aux_extended;
   SetAuxExtendedAliases(u_aux_extended, aux_extended);
 
-  MeshBlock * pmb = pmy_block;
-
   GLOOP3(k, j, i)
   {
-    aux_extended.cc_sqrt_detgamma(k,j,i) = std::sqrt(
+    aux_extended.gs_sqrt_detgamma(k,j,i) = std::sqrt(
       Det3Metric(adm.g_dd,k,j,i)
     );
   }
+
+#if FLUID_ENABLED
+
+#if defined(Z4C_VC_ENABLED)
+  ILOOP2(k,j)
+  {
+    pco_gr->GetMatterField(ms_detgamma_, aux_extended.gs_sqrt_detgamma, k, j);
+    ILOOP1(i)
+    {
+      aux_extended.ms_sqrt_detgamma(k,j,i) = ms_detgamma_(i);
+    }
+  }
+#else
+
+  GLOOP3(k, j, i)
+  {
+    aux_extended.ms_sqrt_detgamma(k,j,i) = (
+      aux_extended.gs_sqrt_detgamma(k,j,i)
+    );
+  }
+#endif
+
+#endif // FLUID_ENABLED
+
 }
 
 void Z4c::PrepareAuxExtended(
@@ -743,11 +758,6 @@ void Z4c::PrepareAuxExtended(
   const int kl, const int ku,
   bool skip_physical)
 {
-#if !(defined(Z4C_CC_ENABLED) || defined(Z4C_CX_ENABLED))
-  // Interp from VC to CC not implemented
-  assert(false);
-#endif
-
   using namespace LinearAlgebra;
 
   ADM_vars adm;
@@ -775,9 +785,60 @@ void Z4c::PrepareAuxExtended(
         continue;
       }
 
-      aux_extended.cc_sqrt_detgamma(k,j,i) = std::sqrt(
+      aux_extended.gs_sqrt_detgamma(k,j,i) = std::sqrt(
         Det3Metric(adm.g_dd,k,j,i)
       );
     }
   }
+
+#if FLUID_ENABLED
+
+#if defined(Z4C_VC_ENABLED)
+  ILOOP2(k,j)
+  {
+    const bool sp_kj = (
+      skip_physical &&
+      (mbi.jl <= j) && (j <= mbi.ju) &&
+      (mbi.kl <= k) && (k <= mbi.ku)
+    );
+
+    pco_gr->GetMatterField(ms_detgamma_, aux_extended.gs_sqrt_detgamma, k, j);
+
+    ILOOP1(i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+
+      aux_extended.ms_sqrt_detgamma(k,j,i) = ms_detgamma_(i);
+    }
+  }
+#else
+  for (int k = kl; k <= ku; ++k)
+  for (int j = jl; j <= ju; ++j)
+  {
+    const bool sp_kj = (
+      skip_physical &&
+      (mbi.jl <= j) && (j <= mbi.ju) &&
+      (mbi.kl <= k) && (k <= mbi.ku)
+    );
+
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+
+      aux_extended.ms_sqrt_detgamma(k,j,i) = (
+        aux_extended.gs_sqrt_detgamma(k,j,i)
+      );
+    }
+  }
+
+#endif
+
+#endif // FLUID_ENABLED
 }
