@@ -89,5 +89,13 @@ namespace FloatingPoint {
     return sum;
   }
 
+  template<typename T>
+  inline T regularize_near_zero(T value, T value_eps)
+  {
+    return (value >= 0)
+    ? ((value < value_eps)  ?  value_eps : value)
+    : ((value > -value_eps) ? -value_eps : value);
+  }
+
 } // namespace FloatingPoint
 #endif // FLOATING_POINT_HPP_
