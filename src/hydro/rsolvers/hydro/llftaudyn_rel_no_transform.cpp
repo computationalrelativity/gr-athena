@@ -59,7 +59,12 @@ void Hydro::RiemannSolver(
   using namespace LinearAlgebra;
 
   MeshBlock * pmb = pmy_block;
+  Hydro * ph = pmb->phydro;
+  PassiveScalars * ps = pmb->pscalars;
   EquationOfState * peos = pmb->peos;
+  Reconstruction * precon = pmb->precon;
+
+  GRDynamical* pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
 
   // perform variable resampling when required
   Z4c * pz4c = pmb->pz4c;
@@ -75,7 +80,6 @@ void Hydro::RiemannSolver(
   AT_N_sca sl_z4c_chi(pz4c->storage.u, Z4c::I_Z4c_chi);
 
   // Reconstruction to FC -----------------------------------------------------
-  GRDynamical* pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
   pco_gr->GetGeometricFieldFC(gamma_dd_, sl_adm_gamma_dd, ivx-1, k, j);
   pco_gr->GetGeometricFieldFC(alpha_,    sl_adm_alpha,    ivx-1, k, j);
   pco_gr->GetGeometricFieldFC(beta_u_,   sl_adm_beta_u,   ivx-1, k, j);
@@ -95,8 +99,8 @@ void Hydro::RiemannSolver(
   }
 
 #ifdef DBG_COMBINED_HYDPA
-  AA & pscalars_l = pmy_block->pscalars->rl_;
-  AA & pscalars_r = pmy_block->pscalars->rr_;
+  AA & pscalars_l = ps->rl_;
+  AA & pscalars_r = ps->rr_;
 
 #else
   AA pscalars_l;
@@ -130,7 +134,11 @@ void Hydro::RiemannSolver(
   using namespace FloatingPoint;
 
   MeshBlock * pmb = pmy_block;
+  Hydro * ph = pmb->phydro;
+  PassiveScalars * ps = pmb->pscalars;
   EquationOfState * peos = pmb->peos;
+  Reconstruction * precon = pmb->precon;
+
   GRDynamical* pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
 
   // Calculate cyclic permutations of indices
@@ -180,7 +188,7 @@ void Hydro::RiemannSolver(
         if (not pah_f->ah_found)
           continue;
         horizon_radius = pah_f->rr_min;
-        horizon_radius *= pmb->phydro->opt_excision.horizon_factor;
+        horizon_radius *= ph->opt_excision.horizon_factor;
         Real R2;
         switch (ivx)
         {
@@ -263,13 +271,13 @@ void Hydro::RiemannSolver(
   );
 
   // Lorentz factors
-  if (pmy_block->precon->xorder_use_aux_W)
+  if (precon->xorder_use_aux_W)
   {
     #pragma omp simd
     for (int i=il; i<=iu; ++i)
     {
-      W_l_(i) = pmy_block->phydro->al_(IX_LOR,i);
-      W_r_(i) = pmy_block->phydro->ar_(IX_LOR,i);
+      W_l_(i) = ph->al_(IX_LOR,i);
+      W_r_(i) = ph->ar_(IX_LOR,i);
     }
   }
   else
@@ -327,7 +335,7 @@ void Hydro::RiemannSolver(
 #else
     for (int n=0; n<NSCALARS; n++)
     {
-      Yr[n] = pmy_block->pscalars->r(n,k,j,i);
+      Yr[n] = ps->r(n,k,j,i);
     }
     switch (ivx)
     {
@@ -335,7 +343,7 @@ void Hydro::RiemannSolver(
       {
         for (int n=0; n<NSCALARS; n++)
         {
-          Yl[n] = pmy_block->pscalars->r(n,k,j,i-1);
+          Yl[n] = ps->r(n,k,j,i-1);
         }
         break;
       }
@@ -343,7 +351,7 @@ void Hydro::RiemannSolver(
       {
         for (int n=0; n<NSCALARS; n++)
         {
-          Yl[n] = pmy_block->pscalars->r(n,k,j-1,i);
+          Yl[n] = ps->r(n,k,j-1,i);
         }
         break;
       }
@@ -351,7 +359,7 @@ void Hydro::RiemannSolver(
       {
         for (int n=0; n<NSCALARS; n++)
         {
-          Yl[n] = pmy_block->pscalars->r(n,k-1,j,i);
+          Yl[n] = ps->r(n,k-1,j,i);
         }
         break;
       }
@@ -365,26 +373,26 @@ void Hydro::RiemannSolver(
     Real Tl, Tr;
     Real hl, hr;
 
-    if (pmy_block->precon->xorder_use_aux_T)
+    if (precon->xorder_use_aux_T)
     {
-      Tl = pmy_block->phydro->al_(IX_T,i);
-      Tr = pmy_block->phydro->ar_(IX_T,i);
+      Tl = ph->al_(IX_T,i);
+      Tr = ph->ar_(IX_T,i);
     }
     else
     {
-      Tl = pmy_block->peos->GetEOS().GetTemperatureFromP(nl, w_p_l_(i), Yl);
-      Tr = pmy_block->peos->GetEOS().GetTemperatureFromP(nr, w_p_r_(i), Yr);
+      Tl = peos->GetEOS().GetTemperatureFromP(nl, w_p_l_(i), Yl);
+      Tr = peos->GetEOS().GetTemperatureFromP(nr, w_p_r_(i), Yr);
     }
 
-    if (pmy_block->precon->xorder_use_aux_h)
+    if (precon->xorder_use_aux_h)
     {
-      hl = pmy_block->phydro->al_(IX_ETH,i);
-      hr = pmy_block->phydro->ar_(IX_ETH,i);
+      hl = ph->al_(IX_ETH,i);
+      hr = ph->ar_(IX_ETH,i);
     }
     else
     {
-      hl = pmy_block->peos->GetEOS().GetEnthalpy(nl, Tl, Yl);
-      hr = pmy_block->peos->GetEOS().GetEnthalpy(nr, Tr, Yr);
+      hl = peos->GetEOS().GetEnthalpy(nl, Tl, Yl);
+      hr = peos->GetEOS().GetEnthalpy(nr, Tr, Yr);
     }
 
     if (flux_table_limiter)
@@ -399,8 +407,8 @@ void Hydro::RiemannSolver(
         Tr = hr = -1;
       }
 
-      pmy_block->peos->GetEOS().ApplyTemperatureLimits(Tl);
-      pmy_block->peos->GetEOS().ApplyTemperatureLimits(Tr);
+      peos->GetEOS().ApplyTemperatureLimits(Tl);
+      peos->GetEOS().ApplyTemperatureLimits(Tr);
 
       const Real min_ETH = peos->GetEOS().GetMinimumEnthalpy();
 
@@ -412,47 +420,47 @@ void Hydro::RiemannSolver(
     w_hrho_r_(i) = w_rho_r_(i) * hr;
 
     // Calculate the sound speeds
-    if (pmy_block->precon->xorder_use_aux_cs2)
+    if (precon->xorder_use_aux_cs2)
     {
-      Real cs2l = pmy_block->phydro->al_(IX_CS2,i);
-      Real cs2r = pmy_block->phydro->ar_(IX_CS2,i);
+      Real cs2l = ph->al_(IX_CS2,i);
+      Real cs2r = ph->ar_(IX_CS2,i);
 
-      pmy_block->peos->SoundSpeedsGR(cs2l, nl, Tl, w_v_u_l_(ivx-1,i),
-                                     w_norm2_v_l_(i),
-                                     alpha_(i), beta_u_(ivx-1,i),
-                                     gamma_uu_(ivx-1,ivx-1,i),
-                                     &lambda_p_l(i), &lambda_m_l(i), Yl);
-      pmy_block->peos->SoundSpeedsGR(cs2r, nr, Tr, w_v_u_r_(ivx-1,i),
-                                     w_norm2_v_r_(i),
-                                     alpha_(i), beta_u_(ivx-1,i),
-                                     gamma_uu_(ivx-1,ivx-1,i),
-                                     &lambda_p_r(i), &lambda_m_r(i), Yr);
+      peos->SoundSpeedsGR(cs2l, nl, Tl, w_v_u_l_(ivx-1,i),
+                          w_norm2_v_l_(i),
+                          alpha_(i), beta_u_(ivx-1,i),
+                          gamma_uu_(ivx-1,ivx-1,i),
+                          &lambda_p_l(i), &lambda_m_l(i), Yl);
+      peos->SoundSpeedsGR(cs2r, nr, Tr, w_v_u_r_(ivx-1,i),
+                          w_norm2_v_r_(i),
+                          alpha_(i), beta_u_(ivx-1,i),
+                          gamma_uu_(ivx-1,ivx-1,i),
+                          &lambda_p_r(i), &lambda_m_r(i), Yr);
     }
     else
     {
-      pmy_block->peos->SoundSpeedsGR(nl, Tl, w_v_u_l_(ivx-1,i), w_norm2_v_l_(i),
-                                     alpha_(i), beta_u_(ivx-1,i),
-                                     gamma_uu_(ivx-1,ivx-1,i),
-                                     &lambda_p_l(i), &lambda_m_l(i), Yl);
-      pmy_block->peos->SoundSpeedsGR(nr, Tr, w_v_u_r_(ivx-1,i), w_norm2_v_r_(i),
-                                     alpha_(i), beta_u_(ivx-1,i),
-                                     gamma_uu_(ivx-1,ivx-1,i),
-                                     &lambda_p_r(i), &lambda_m_r(i), Yr);
+      peos->SoundSpeedsGR(nl, Tl, w_v_u_l_(ivx-1,i), w_norm2_v_l_(i),
+                          alpha_(i), beta_u_(ivx-1,i),
+                          gamma_uu_(ivx-1,ivx-1,i),
+                          &lambda_p_l(i), &lambda_m_l(i), Yl);
+      peos->SoundSpeedsGR(nr, Tr, w_v_u_r_(ivx-1,i), w_norm2_v_r_(i),
+                          alpha_(i), beta_u_(ivx-1,i),
+                          gamma_uu_(ivx-1,ivx-1,i),
+                          &lambda_p_r(i), &lambda_m_r(i), Yr);
     }
 #else
     w_hrho_l_(i) = w_rho_l_(i) + Eos_Gamma_ratio * w_p_l_(i);
     w_hrho_r_(i) = w_rho_r_(i) + Eos_Gamma_ratio * w_p_r_(i);
 
-    pmy_block->peos->SoundSpeedsGR(w_hrho_l_(i), w_p_l_(i), w_v_u_l_(ivx-1,i),
-                                   w_norm2_v_l_(i),
-                                   alpha_(i), beta_u_(ivx-1,i),
-                                   gamma_uu_(ivx-1,ivx-1,i),
-                                   &lambda_p_l(i), &lambda_m_l(i));
-    pmy_block->peos->SoundSpeedsGR(w_hrho_r_(i), w_p_r_(i), w_v_u_r_(ivx-1,i),
-                                   w_norm2_v_r_(i),
-                                   alpha_(i), beta_u_(ivx-1,i),
-                                   gamma_uu_(ivx-1,ivx-1,i),
-                                   &lambda_p_r(i), &lambda_m_r(i));
+    peos->SoundSpeedsGR(w_hrho_l_(i), w_p_l_(i), w_v_u_l_(ivx-1,i),
+                        w_norm2_v_l_(i),
+                        alpha_(i), beta_u_(ivx-1,i),
+                        gamma_uu_(ivx-1,ivx-1,i),
+                        &lambda_p_l(i), &lambda_m_l(i));
+    peos->SoundSpeedsGR(w_hrho_r_(i), w_p_r_(i), w_v_u_r_(ivx-1,i),
+                        w_norm2_v_r_(i),
+                        alpha_(i), beta_u_(ivx-1,i),
+                        gamma_uu_(ivx-1,ivx-1,i),
+                        &lambda_p_r(i), &lambda_m_r(i));
 #endif
 }
 
