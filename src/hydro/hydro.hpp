@@ -63,6 +63,7 @@ class Hydro {
   bool floor_both_states = false;
   bool flux_reconstruction = false;
   bool split_lr_fallback = false;
+  bool flux_table_limiter = false;
 
   HydroBoundaryVariable hbvar;
   HydroSourceTerms hsrc;
@@ -129,6 +130,7 @@ class Hydro {
       "hydro.aux.s",
       "hydro.aux.e",
       "hydro.aux.u_t",
+      "hydro.aux.cs2",
     };
   };
 
@@ -158,6 +160,7 @@ public:
   AT_N_sca oo_detgamma_;  // 1 / spatial met det
 
   AT_N_sca alpha_;
+  AT_N_sca oo_alpha_;     // 1 / alpha
   AT_N_vec beta_u_;
   AT_N_sym gamma_dd_;
   AT_N_sym gamma_uu_;
@@ -647,6 +650,27 @@ public:
         ar_(IX_ETH,i  ) = std::max(ar_(IX_ETH,i  ), min_ETH);
       }
     }
+
+    if (precon->xorder_use_aux_W)
+    {
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i)
+      {
+        al_(IX_LOR,i+I) = std::max(al_(IX_LOR,i+I), 1.0);
+        ar_(IX_LOR,i  ) = std::max(ar_(IX_LOR,i  ), 1.0);
+      }
+    }
+
+    if (precon->xorder_use_aux_cs2)
+    {
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i)
+      {
+        al_(IX_CS2,i+I) = std::max(0.0, std::min(al_(IX_CS2,i+I), 1.0-1e-5));
+        ar_(IX_CS2,i  ) = std::max(0.0, std::min(ar_(IX_CS2,i  ), 1.0-1e-5));
+      }
+    }
+
 #endif // USETM
   }
 
@@ -675,6 +699,26 @@ public:
       {
         al_(IX_ETH,i) = std::max(al_(IX_ETH,i), min_ETH);
         ar_(IX_ETH,i) = std::max(ar_(IX_ETH,i), min_ETH);
+      }
+    }
+
+    if (precon->xorder_use_aux_W)
+    {
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i)
+      {
+        al_(IX_LOR,i) = std::max(al_(IX_LOR,i), 1.0);
+        ar_(IX_LOR,i) = std::max(ar_(IX_LOR,i), 1.0);
+      }
+    }
+
+    if (precon->xorder_use_aux_cs2)
+    {
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i)
+      {
+        al_(IX_CS2,i) = std::max(0.0, std::min(al_(IX_CS2,i), 1.0-1e-5));
+        ar_(IX_CS2,i) = std::max(0.0, std::min(ar_(IX_CS2,i), 1.0-1e-5));
       }
     }
 #endif // USETM
@@ -708,6 +752,25 @@ public:
       }
     }
 
+    if (precon->xorder_use_aux_W)
+    {
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i)
+      {
+        al_(IX_LOR,i) = std::max(al_(IX_LOR,i), 1.0);
+        ar_(IX_LOR,i) = std::max(ar_(IX_LOR,i), 1.0);
+      }
+    }
+
+    if (precon->xorder_use_aux_cs2)
+    {
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i)
+      {
+        al_(IX_CS2,i) = std::max(0.0, std::min(al_(IX_CS2,i), 1.0-1e-5));
+        ar_(IX_CS2,i) = std::max(0.0, std::min(ar_(IX_CS2,i), 1.0-1e-5));
+      }
+    }
 #endif // USETM
   }
 

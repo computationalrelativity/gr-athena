@@ -64,6 +64,9 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   split_lr_fallback = pin->GetOrAddBoolean(
     "hydro", "split_lr_fallback", false);
 
+  flux_table_limiter = pin->GetOrAddBoolean(
+    "hydro", "flux_table_limiter", false);
+
   opt_excision.alpha_threshold =
       pin->GetOrAddReal("excision", "alpha_threshold", -1.0);
   opt_excision.horizon_based =
@@ -140,6 +143,7 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   oo_detgamma_.NewAthenaTensor(  nn1);
 
   alpha_.NewAthenaTensor(   nn1);
+  oo_alpha_.NewAthenaTensor(nn1);
   beta_u_.NewAthenaTensor(  nn1);
   gamma_dd_.NewAthenaTensor(nn1);
   gamma_uu_.NewAthenaTensor(nn1);
