@@ -55,13 +55,6 @@ static void PrimitiveToConservedSingle(
   int k, int j, int i,
   PS& ps);
 
-static void SetPrimAtmo(
-  AA &temperature,
-  AA &prim,
-  AA &prim_scalar,
-  const int k, const int j, const int i,
-  PS & ps);
-
 }
 
 //----------------------------------------------------------------------------------------
@@ -306,7 +299,7 @@ void EquationOfState::ConservedToPrimitive(
 
       if (!is_admissible)
       {
-        SetPrimAtmo(temperature, prim, prim_scalar, k, j, i, ps);
+        SetPrimAtmo(temperature, prim, prim_scalar, k, j, i);
         SetEuclideanCC(gamma_dd_, i);
         PrimitiveToConservedSingle(prim,
                                    prim_scalar,
@@ -980,28 +973,6 @@ static void PrimitiveToConservedSingle(
 
     derived_ms(IX_LOR,k,j,i) = 1;
     derived_ms(IX_T,k,j,i) = prim_pt[ITM];
-  }
-}
-
-static void SetPrimAtmo(
-  AA &temperature,
-  AA &prim,
-  AA &prim_scalar,
-  const int k, const int j, const int i,
-  PS & ps)
-{
-  Real prim_pt[NPRIM] = {0.0};
-  ps.GetEOS()->DoFailureResponse(prim_pt);
-
-  // Update the primitive variables.
-  prim(IDN, k, j, i) = prim_pt[IDN]*ps.GetEOS()->GetBaryonMass();
-  prim(IVX, k, j, i) = prim_pt[IVX];
-  prim(IVY, k, j, i) = prim_pt[IVY];
-  prim(IVZ, k, j, i) = prim_pt[IVZ];
-  prim(IPR, k, j, i) = prim_pt[IPR];
-  temperature(k,j,i) = prim_pt[ITM];
-  for(int n=0; n<NSCALARS; n++){
-    prim_scalar(n, k, j, i) = prim_pt[IYF + n];
   }
 }
 
