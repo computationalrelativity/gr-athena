@@ -278,6 +278,9 @@ void EquationOfState::DerivedQuantities(
       derived_ms(IX_SPB,k,j,i) = GetEOS().GetEntropyPerBaryon(n, T, Y);
       derived_ms(IX_SEN,k,j,i) = GetEOS().GetSpecificInternalEnergy(n, T, Y);
       derived_ms(IX_CS2,k,j,i) = SQR(GetEOS().GetSoundSpeed(n, T, Y));
+      derived_ms(IX_CS2,k,j,i) = std::min(
+        derived_ms(IX_CS2,k,j,i), max_cs2
+      );
     }
 
   }

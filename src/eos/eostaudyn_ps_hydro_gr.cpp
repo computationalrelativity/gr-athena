@@ -70,7 +70,13 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   temperature_floor_ = pin->GetOrAddReal("hydro", "tfloor", std::sqrt(1024*(FLT_MIN)));
   scalar_floor_ = pin->GetOrAddReal("hydro", "sfloor", std::sqrt(1024*FLT_MIN));
   verbose = pin->GetOrAddBoolean("hydro", "verbose", true);
+
+  // BD: TODO - dead parameter
   restrict_cs2 = pin->GetOrAddBoolean("hydro", "restrict_cs2", false);
+
+  max_cs_W = pin->GetOrAddReal("hydro", "max_cs_W", 10.0);
+  max_cs2 = 1.0 - SQR(1.0 / max_cs_W);
+
   warn_unrestricted_cs2 = pin->GetOrAddBoolean(
     "hydro", "warn_unrestricted_cs2", false
   );
@@ -747,8 +753,11 @@ void EquationOfState::SoundSpeedsSR(Real n, Real T, Real vx, Real gamma_lorentz_
 //   variables are named as though 1 is normal direction
 
 // BD: TODO - eigenvalues, _not_ the speed; should be refactored
-void EquationOfState::SoundSpeedsGR(Real n, Real T, Real vi, Real v2, Real alpha,
-    Real betai, Real gammaii, Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]) {
+void EquationOfState::SoundSpeedsGR(
+  Real n, Real T, Real vi, Real v2, Real alpha,
+  Real betai, Real gammaii, Real *plambda_plus, Real *plambda_minus,
+  Real prim_scalar[NSCALARS])
+{
   // Calculate comoving sound speed
   // FIXME: Need to update to work with particle fractions.
   Real Y[MAX_SPECIES] = {0.0};
@@ -760,15 +769,13 @@ void EquationOfState::SoundSpeedsGR(Real n, Real T, Real vi, Real v2, Real alpha
 
   Real cs_sq = cs*cs;
 
-  if ((cs_sq > 1.0) && warn_unrestricted_cs2)
+  if ((cs_sq > max_cs2) && warn_unrestricted_cs2)
   {
-    std::printf("Warning: cs_sq unphysical!");
+    std::printf("Warning: cs_sq exceeds max_cs2");
   }
 
-  if (restrict_cs2)
-  {
-    cs_sq = std::min(cs_sq, 1.0);
-  }
+  cs_sq = std::min(cs_sq, max_cs2);
+  cs = std::sqrt(cs_sq);
 
   const Real sqrt_term = std::sqrt(
     (1-v2)*(gammaii*(1.0-v2*cs_sq) - vi*vi*(1.0-cs_sq))
@@ -783,6 +790,48 @@ void EquationOfState::SoundSpeedsGR(Real n, Real T, Real vi, Real v2, Real alpha
       root_1 = 1.0;
       root_2 = 1.0;
     }
+  }
+
+  if (root_1 > root_2) {
+    *plambda_plus = root_1;
+    *plambda_minus = root_2;
+  } else {
+    *plambda_plus = root_2;
+    *plambda_minus = root_1;
+  }
+  return;
+}
+
+void EquationOfState::SoundSpeedsGR(
+  Real cs_2, Real n, Real T, Real vi, Real v2, Real alpha,
+  Real betai, Real gammaii, Real *plambda_plus, Real *plambda_minus,
+  Real prim_scalar[NSCALARS])
+{
+  // Calculate comoving sound speed
+  // FIXME: Need to update to work with particle fractions.
+  Real Y[MAX_SPECIES] = {0.0};
+  for (int l=0; l<NSCALARS; l++) {
+    Y[l] = prim_scalar[l];
+  }
+
+  if ((cs_2 > max_cs2) && warn_unrestricted_cs2)
+  {
+    std::printf("Warning: cs_sq exceeds max_cs2");
+  }
+
+  cs_2 = std::min(cs_2, max_cs2);
+  const Real cs = std::sqrt(cs_2);
+
+  const Real sqrt_term = std::sqrt(
+    (1-v2)*(gammaii*(1.0-v2*cs_2) - vi*vi*(1.0-cs_2))
+  );
+
+  Real root_1 = alpha*(vi*(1.0-cs_2) + cs*sqrt_term)/(1.0-v2*cs_2) - betai;
+  Real root_2 = alpha*(vi*(1.0-cs_2) - cs*sqrt_term)/(1.0-v2*cs_2) - betai;
+
+  if (!std::isfinite(root_1 + root_2)) {
+    root_1 = 1.0;
+    root_2 = 1.0;
   }
 
   if (root_1 > root_2) {

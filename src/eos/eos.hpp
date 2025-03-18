@@ -43,6 +43,8 @@ class EquationOfState {
 
   bool verbose = true;
   bool restrict_cs2 = false;
+  Real max_cs_W = 10;  // 0.99c
+  Real max_cs2  = 1.0 - SQR(1.0 / SQR(max_cs_W));
   bool warn_unrestricted_cs2 = false;
   bool recompute_temperature = true;
 
@@ -482,6 +484,10 @@ class EquationOfState {
   void SoundSpeedsGR(Real rho_h, Real pgas, Real u0, Real u1,
                      Real g00, Real g01, Real g11,
                      Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]);
+
+  void SoundSpeedsGR(Real cs_2, Real rho_h, Real pgas, Real u0, Real u1,
+                     Real g00, Real g01, Real g11,
+                     Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]);
 #else
   void SoundSpeedsGR(Real rho_h, Real pgas, Real u0, Real u1,
                      Real g00, Real g01, Real g11,
@@ -500,6 +506,9 @@ class EquationOfState {
 #if USETM
 #pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this)
   void FastMagnetosonicSpeedsGR(Real rho_h, Real pgas, Real u0, Real u1, Real b_sq,
+                                Real g00, Real g01, Real g11,
+                                Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]);
+  void FastMagnetosonicSpeedsGR(Real cs_2, Real rho_h, Real pgas, Real u0, Real u1, Real b_sq,
                                 Real g00, Real g01, Real g11,
                                 Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]);
 #else

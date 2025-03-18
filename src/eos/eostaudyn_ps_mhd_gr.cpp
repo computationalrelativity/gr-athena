@@ -71,7 +71,13 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   scalar_floor_ = pin->GetOrAddReal("hydro", "sfloor", std::sqrt(1024*FLT_MIN));
   Real bsq_max = pin->GetOrAddReal("hydro", "bsq_max", 1e6);
   verbose = pin->GetOrAddBoolean("hydro", "verbose", true);
+
+  // BD: TODO - dead parameter
   restrict_cs2 = pin->GetOrAddBoolean("hydro", "restrict_cs2", false);
+
+  max_cs_W = pin->GetOrAddReal("hydro", "max_cs_W", 10.0);
+  max_cs2 = 1.0 - SQR(1.0 / max_cs_W);
+
   warn_unrestricted_cs2 = pin->GetOrAddBoolean(
     "hydro", "warn_unrestricted_cs2", false
   );
@@ -532,15 +538,13 @@ void EquationOfState::FastMagnetosonicSpeedsGR(Real n, Real T, Real bsq,
   Real cs = ps.GetEOS()->GetSoundSpeed(n, T, Y);
   Real cs_sq = cs * cs;
 
-  if ((cs_sq > 1.0) && warn_unrestricted_cs2)
+  if ((cs_sq > max_cs2) && warn_unrestricted_cs2)
   {
-    std::printf("Warning: cs_sq unphysical!");
+    std::printf("Warning: cs_sq exceeds max_cs2");
   }
 
-  if (restrict_cs2)
-  {
-    cs_sq = std::min(cs_sq, 1.0);
-  }
+  cs_sq = std::min(cs_sq, max_cs2);
+  cs = std::sqrt(cs_sq);
 
   Real mb = ps.GetEOS()->GetBaryonMass();
   Real va_sq = bsq / (bsq + n * mb * ps.GetEOS()->GetEnthalpy(n, T, Y));
@@ -563,6 +567,68 @@ void EquationOfState::FastMagnetosonicSpeedsGR(Real n, Real T, Real bsq,
   }
 
   if (root_1 > root_2) {
+    *plambda_plus = root_1;
+    *plambda_minus = root_2;
+  } else {
+    *plambda_plus = root_2;
+    *plambda_minus = root_1;
+  }
+  return;
+}
+
+void EquationOfState::FastMagnetosonicSpeedsGR(Real cs_2, Real n, Real T, Real bsq,
+                                               Real vi, Real v2, Real alpha,
+                                               Real betai, Real gammaii,
+                                               Real *plambda_plus,
+                                               Real *plambda_minus,
+                                               Real prim_scalar[NSCALARS])
+{
+  // Constants and stuff
+  Real Wlor = std::sqrt(1.0 - v2);
+  Wlor = 1.0 / Wlor;
+  Real u0 = Wlor / alpha;
+  Real g00 = -1.0 / (alpha * alpha);
+  Real g01 = betai / (alpha * alpha);
+  Real u1 = (vi - betai / alpha) * Wlor;
+  Real g11 = gammaii - betai * betai / (alpha * alpha);
+  // Calculate comoving fast magnetosonic speed
+  // FIXME: Need to update to work with particle fractions.
+  Real Y[MAX_SPECIES] = {0.0};
+  for (int l = 0; l < NSCALARS; l++)
+    Y[l] = prim_scalar[l];
+
+  if ((cs_2 > max_cs2) && warn_unrestricted_cs2)
+  {
+    std::printf("Warning: cs_sq exceeds max_cs2");
+  }
+
+  if (restrict_cs2)
+  {
+    cs_2 = std::min(cs_2, max_cs2);
+  }
+
+  Real mb = ps.GetEOS()->GetBaryonMass();
+  Real va_sq = bsq / (bsq + n * mb * ps.GetEOS()->GetEnthalpy(n, T, Y));
+  Real cms_sq = cs_2 + va_sq - cs_2 * va_sq;
+
+  // Set fast magnetosonic speeds in appropriate coordinates
+  Real a = SQR(u0) - (g00 + SQR(u0)) * cms_sq;
+  Real b = -2.0 * (u0 * u1 - (g01 + u0 * u1) * cms_sq);
+  Real c = SQR(u1) - (g11 + SQR(u1)) * cms_sq;
+  Real d = std::max(SQR(b) - 4.0 * a * c, 0.0);
+  Real d_sqrt = std::sqrt(d);
+  Real root_1 = (-b + d_sqrt) / (2.0 * a);
+  Real root_2 = (-b - d_sqrt) / (2.0 * a);
+
+  // BD: TODO - should we use this or enforce zero?
+  if (!std::isfinite(root_1 + root_2))
+  {
+    root_1 = 1.0;
+    root_2 = 1.0;
+  }
+
+  if (root_1 > root_2)
+  {
     *plambda_plus = root_1;
     *plambda_minus = root_2;
   } else {

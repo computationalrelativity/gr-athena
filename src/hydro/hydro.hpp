@@ -663,11 +663,13 @@ public:
 
     if (precon->xorder_use_aux_cs2)
     {
+      const Real max_cs2 = peos->max_cs2;
+
       #pragma omp simd
       for (int i=il; i<=iu; ++i)
       {
-        al_(IX_CS2,i+I) = std::max(0.0, std::min(al_(IX_CS2,i+I), 1.0-1e-5));
-        ar_(IX_CS2,i  ) = std::max(0.0, std::min(ar_(IX_CS2,i  ), 1.0-1e-5));
+        al_(IX_CS2,i+I) = std::max(0.0, std::min(al_(IX_CS2,i+I), max_cs2));
+        ar_(IX_CS2,i  ) = std::max(0.0, std::min(ar_(IX_CS2,i  ), max_cs2));
       }
     }
 
@@ -714,11 +716,13 @@ public:
 
     if (precon->xorder_use_aux_cs2)
     {
+      const Real max_cs2 = peos->max_cs2;
+
       #pragma omp simd
       for (int i=il; i<=iu; ++i)
       {
-        al_(IX_CS2,i) = std::max(0.0, std::min(al_(IX_CS2,i), 1.0-1e-5));
-        ar_(IX_CS2,i) = std::max(0.0, std::min(ar_(IX_CS2,i), 1.0-1e-5));
+        al_(IX_CS2,i) = std::max(0.0, std::min(al_(IX_CS2,i), max_cs2));
+        ar_(IX_CS2,i) = std::max(0.0, std::min(ar_(IX_CS2,i), max_cs2));
       }
     }
 #endif // USETM
@@ -764,11 +768,13 @@ public:
 
     if (precon->xorder_use_aux_cs2)
     {
+      const Real max_cs2 = peos->max_cs2;
+
       #pragma omp simd
       for (int i=il; i<=iu; ++i)
       {
-        al_(IX_CS2,i) = std::max(0.0, std::min(al_(IX_CS2,i), 1.0-1e-5));
-        ar_(IX_CS2,i) = std::max(0.0, std::min(ar_(IX_CS2,i), 1.0-1e-5));
+        al_(IX_CS2,i) = std::max(0.0, std::min(al_(IX_CS2,i), max_cs2));
+        ar_(IX_CS2,i) = std::max(0.0, std::min(ar_(IX_CS2,i), max_cs2));
       }
     }
 #endif // USETM
