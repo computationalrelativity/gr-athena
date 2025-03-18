@@ -367,6 +367,46 @@ class EquationOfState {
       prim_scalar(n, k, j, i) = prim_pt[IYF + n];
     }
   }
+
+  void SetPrimAtmo(
+    AA &prim_,
+    AA &prim_scalar_,
+    const int i)
+  {
+    Real prim_pt[NPRIM] = {0.0};
+    ps.GetEOS()->DoFailureResponse(prim_pt);
+
+    // Update the primitive variables.
+    prim_(IDN, i) = prim_pt[IDN]*ps.GetEOS()->GetBaryonMass();
+    prim_(IVX, i) = prim_pt[IVX];
+    prim_(IVY, i) = prim_pt[IVY];
+    prim_(IVZ, i) = prim_pt[IVZ];
+    prim_(IPR, i) = prim_pt[IPR];
+    for(int n=0; n<NSCALARS; n++){
+      prim_scalar_(n, i) = prim_pt[IYF + n];
+    }
+  }
+
+  void SetPrimAtmo(
+    AA &temperature_,
+    AA &prim_,
+    AA &prim_scalar_,
+    const int i)
+  {
+    Real prim_pt[NPRIM] = {0.0};
+    ps.GetEOS()->DoFailureResponse(prim_pt);
+
+    // Update the primitive variables.
+    prim_(IDN, i) = prim_pt[IDN]*ps.GetEOS()->GetBaryonMass();
+    prim_(IVX, i) = prim_pt[IVX];
+    prim_(IVY, i) = prim_pt[IVY];
+    prim_(IVZ, i) = prim_pt[IVZ];
+    prim_(IPR, i) = prim_pt[IPR];
+    temperature_(i) = prim_pt[ITM];
+    for(int n=0; n<NSCALARS; n++){
+      prim_scalar_(n, i) = prim_pt[IYF + n];
+    }
+  }
 #else
   void SetPrimAtmo(
     AA &temperature,
@@ -385,6 +425,22 @@ class EquationOfState {
     assert(false);
   }
 
+  void SetPrimAtmo(
+    AA &temperature,
+    AA &prim,
+    AA &prim_scalar,
+    const int i)
+  {
+    assert(false);
+  }
+
+  void SetPrimAtmo(
+    AA &prim,
+    AA &prim_scalar,
+    const int i)
+  {
+    assert(false);
+  }
 #endif // USETM
 
 
