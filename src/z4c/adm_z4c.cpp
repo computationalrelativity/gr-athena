@@ -152,6 +152,9 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u) {
   // Algebraic constraints enforcement
   //
   AlgConstr(u);
+
+  // compute derived ADM
+  PrepareAuxExtended(storage.aux_extended, u, u_adm);
 }
 
 //----------------------------------------------------------------------------------------

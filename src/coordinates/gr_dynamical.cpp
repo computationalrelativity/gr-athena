@@ -13,6 +13,7 @@
 #include "../z4c/z4c_macro.hpp"
 #include "coordinates.hpp"
 #include "../utils/linear_algebra.hpp"
+#include "../utils/floating_point.hpp"
 
 //-----------------------------------------------------------------------------
 using namespace gra::aliases;
@@ -176,6 +177,7 @@ GRDynamical::GRDynamical(MeshBlock *pmb, ParameterInput *pin, bool coarse_flag)
     oo_detgamma_.NewAthenaTensor(nc1);
 
     alpha_.NewAthenaTensor(nc1);
+    oo_alpha_.NewAthenaTensor(nc1);
     beta_u_.NewAthenaTensor(nc1);
     gamma_dd_.NewAthenaTensor(nc1);
     gamma_uu_.NewAthenaTensor(nc1);
@@ -242,9 +244,13 @@ void GRDynamical::AddCoordTermsDivergence(
   AthenaArray<Real> &cons)
 {
   using namespace LinearAlgebra;
+  using namespace FloatingPoint;
 
   MeshBlock * pmb = pmy_block;
   EquationOfState * peos = pmb->peos;
+
+  // regularization factor
+  const Real eps_alpha__ = pmb->pz4c->opt.eps_floor;
 
   // perform variable resampling when required
   Z4c * pz4c = pmy_block->pz4c;
@@ -254,6 +260,9 @@ void GRDynamical::AddCoordTermsDivergence(
   AT_N_vec adm_beta_u(  pz4c->storage.adm, Z4c::I_ADM_betax);
   AT_N_sym adm_gamma_dd(pz4c->storage.adm, Z4c::I_ADM_gxx);
   AT_N_sym adm_K_dd(    pz4c->storage.adm, Z4c::I_ADM_Kxx);
+
+  AT_N_sca adm_sqrt_detgamma(pz4c->storage.aux_extended,
+                             Z4c::I_AUX_EXTENDED_ms_sqrt_detgamma);
 
   // Slice matter -------------------------------------------------------------
   AA & ccprim = const_cast<AthenaArray<Real>&>(prim);
@@ -273,6 +282,12 @@ void GRDynamical::AddCoordTermsDivergence(
     GetGeometricFieldCC(K_dd_,     adm_K_dd,     k, j);
     GetGeometricFieldCC(alpha_,    adm_alpha,    k, j);
     GetGeometricFieldCC(beta_u_,   adm_beta_u,   k, j);
+
+    CC_PCO_ILOOP1(i)
+    {
+      Real alpha__ = regularize_near_zero(alpha_(i), eps_alpha__);
+      oo_alpha_(i) = OO(alpha__);
+    }
 
 #if !defined(DBG_FD_CX_COORDDIV) || !defined(Z4C_CX_ENABLED)
     for (int a=0; a<NDIM; ++a)
@@ -307,8 +322,10 @@ void GRDynamical::AddCoordTermsDivergence(
     // Prepare determinant-like
     CC_PCO_ILOOP1(i)
     {
-      detgamma_(i)      = Det3Metric(gamma_dd_, i);
-      sqrt_detgamma_(i) = std::sqrt(detgamma_(i));
+      // detgamma_(i)      = Det3Metric(gamma_dd_, i);
+      // sqrt_detgamma_(i) = std::sqrt(detgamma_(i));
+      sqrt_detgamma_(i) = adm_sqrt_detgamma(k,j,i);
+      detgamma_(i)      = SQR(sqrt_detgamma_(i));
 
       oo_detgamma_(i)      = OO(detgamma_(i));
 #if MAGNETIC_FIELDS_ENABLED
@@ -389,7 +406,7 @@ void GRDynamical::AddCoordTermsDivergence(
       {
         CC_PCO_ILOOP1(i)
         {
-          b0_(i) += q_scB_u_(a, i) * w_util_d_(a, i) / alpha_(i);
+          b0_(i) += q_scB_u_(a, i) * w_util_d_(a, i) * oo_alpha_(i);
         }
       }
 
@@ -398,7 +415,7 @@ void GRDynamical::AddCoordTermsDivergence(
         bi_u_(a, i) = (
           q_scB_u_(a, i) +
           alpha_(i) * b0_(i) * (w_util_u_(a, i) / W_(i) -
-                                beta_u_(a, i) / alpha_(i))
+                                beta_u_(a, i) * oo_alpha_(i))
         );
       }
 
@@ -437,8 +454,8 @@ void GRDynamical::AddCoordTermsDivergence(
       // T_dd (space-time) components -----------------------------------------
       CC_PCO_ILOOP1(i)
       {
-        T00(i) = ((w_hrho_(i) + b2_(i)) * SQR(W_(i) / alpha_(i)) +
-                  (w_p(k, j, i) + b2_(i) / 2.0) * (-1.0 / SQR(alpha_(i))) -
+        T00(i) = ((w_hrho_(i) + b2_(i)) * SQR(W_(i) * oo_alpha_(i)) +
+                  (w_p(k, j, i) + b2_(i) / 2.0) * (-1.0 * SQR(oo_alpha_(i))) -
                   b0_(i) * b0_(i));
       }
 
@@ -447,9 +464,9 @@ void GRDynamical::AddCoordTermsDivergence(
         CC_PCO_ILOOP1(i)
         {
           T0i_u(a, i) =
-              ((w_hrho_(i) + b2_(i)) * W_(i) / alpha_(i) *
-                   (w_util_u_(a, i) - W_(i) * beta_u_(a, i) / alpha_(i)) +
-               (w_p(k, j, i) + b2_(i) / 2.0) * beta_u_(a, i) / SQR(alpha_(i)) -
+              ((w_hrho_(i) + b2_(i)) * W_(i) * oo_alpha_(i) *
+                   (w_util_u_(a, i) - W_(i) * beta_u_(a, i) * oo_alpha_(i)) +
+               (w_p(k, j, i) + b2_(i) / 2.0) * beta_u_(a, i) * SQR(oo_alpha_(i)) -
                b0_(i) * bi_u_(a, i));
         }
       }
@@ -461,7 +478,7 @@ void GRDynamical::AddCoordTermsDivergence(
         CC_PCO_ILOOP1(i)
         {
           T0i_d(a, i) =
-              (((w_hrho_(i) + b2_(i)) * W_(i) * w_util_d_(a, i)) / alpha_(i) -
+              (((w_hrho_(i) + b2_(i)) * W_(i) * w_util_d_(a, i)) * oo_alpha_(i) -
                b0_(i) * bi_d_(a, i));
         }
       }
@@ -473,11 +490,11 @@ void GRDynamical::AddCoordTermsDivergence(
         {
           Tij_uu(a, b, i) =
               ((w_hrho_(i) + b2_(i)) *
-                   (w_util_u_(a, i) - W_(i) * beta_u_(a, i) / alpha_(i)) *
-                   (w_util_u_(b, i) - W_(i) * beta_u_(b, i) / alpha_(i)) +
+                   (w_util_u_(a, i) - W_(i) * beta_u_(a, i) * oo_alpha_(i)) *
+                   (w_util_u_(b, i) - W_(i) * beta_u_(b, i) * oo_alpha_(i)) +
                (w_p(k, j, i) + b2_(i) / 2.0) *
                    (gamma_uu_(a, b, i) -
-                    beta_u_(a, i) * beta_u_(b, i) / SQR(alpha_(i))) -
+                    beta_u_(a, i) * beta_u_(b, i) * SQR(oo_alpha_(i))) -
                bi_u_(a, i) * bi_u_(b, i));
         }
       }
@@ -542,8 +559,8 @@ void GRDynamical::AddCoordTermsDivergence(
       {
         CC_PCO_ILOOP1(i)
         {
-          Stau_(i) -= w_hrho_(i) * W_(i) * w_util_u_(a, i) * dalpha_d_(a, i) /
-                     alpha_(i);
+          Stau_(i) -= w_hrho_(i) * W_(i) * w_util_u_(a, i) * dalpha_d_(a, i) *
+            oo_alpha_(i);
 
         }
 
@@ -564,7 +581,7 @@ void GRDynamical::AddCoordTermsDivergence(
         CC_PCO_ILOOP1(i)
         {
           SS_d_(a, i) = -(w_hrho_(i) * SQR(W_(i)) - w_p(k, j, i)) *
-                       dalpha_d_(a, i) / alpha_(i);
+                       dalpha_d_(a, i) * oo_alpha_(i);
         }
 
         for (int b=0; b<NDIM; ++b)
@@ -572,7 +589,7 @@ void GRDynamical::AddCoordTermsDivergence(
           CC_PCO_ILOOP1(i)
           {
             SS_d_(a, i) += w_hrho_(i) * W_(i) * w_util_d_(b, i) *
-                           dbeta_du_(a, b, i) / alpha_(i);
+                           dbeta_du_(a, b, i) * oo_alpha_(i);
           }
 
           for (int c=0; c<NDIM; ++c)

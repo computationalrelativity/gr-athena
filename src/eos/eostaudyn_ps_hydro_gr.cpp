@@ -51,7 +51,7 @@ static void PrimitiveToConservedSingle(
   AA &cons,
   AA &cons_scalar,
   AA &derived_ms,
-  const AT_N_sym & adm_gamma_dd_,
+  EquationOfState::geom_sliced_cc & gsc,
   int k, int j, int i,
   PS& ps);
 
@@ -241,6 +241,7 @@ void EquationOfState::ConservedToPrimitive(
   AT_N_sca & alpha_    = gsc.alpha_;
   AT_N_sym & gamma_dd_ = gsc.gamma_dd_;
   AT_N_sym & gamma_uu_    = gsc.gamma_uu_;
+  AT_N_sca & sqrt_det_gamma_  = gsc.sqrt_det_gamma_;
   AT_N_sca & det_gamma_   = gsc.det_gamma_;
 
   AA c2p_status;
@@ -300,13 +301,13 @@ void EquationOfState::ConservedToPrimitive(
       if (!is_admissible)
       {
         SetPrimAtmo(temperature, prim, prim_scalar, k, j, i);
-        SetEuclideanCC(gamma_dd_, i);
+        SetEuclideanCC(gsc, i);
         PrimitiveToConservedSingle(prim,
                                    prim_scalar,
                                    cons,
                                    cons_scalar,
                                    pmy_block_->phydro->derived_ms,
-                                   gamma_dd_,
+                                   gsc,
                                    k, j, i,
                                    ps);
 
@@ -323,7 +324,7 @@ void EquationOfState::ConservedToPrimitive(
                              gamma_dd_(1,2,i),
                              gamma_dd_(2,2,i)};
       const Real detgamma = det_gamma_(i);
-      const Real sqrt_detgamma = std::sqrt(detgamma);
+      const Real sqrt_detgamma = sqrt_det_gamma_(i);
       const Real oo_sqrt_detgamma = OO(sqrt_detgamma);
       Real g3u[NSPMETRIC] = {gamma_uu_(0,0,i),
                              gamma_uu_(0,1,i),
@@ -567,12 +568,13 @@ void EquationOfState::PrimitiveToConserved(
   int jl, int ju,
   int kl, int ku)
 {
+  geom_sliced_cc gsc;
 
-  GRDynamical* pco_gr = static_cast<GRDynamical*>(pmy_block_->pcoord);
-  MeshBlock * pmb = pmy_block_;
-
-  AT_N_sym gamma_dd_(pmb->nverts1);
-  AT_N_sym sl_adm_gamma_dd(pmb->pz4c->storage.adm, Z4c::I_ADM_gxx);
+  AT_N_sca & alpha_    = gsc.alpha_;
+  AT_N_sym & gamma_dd_ = gsc.gamma_dd_;
+  AT_N_sym & gamma_uu_ = gsc.gamma_uu_;
+  AT_N_sca & sqrt_det_gamma_   = gsc.sqrt_det_gamma_;
+  AT_N_sca & det_gamma_        = gsc.det_gamma_;
 
   // sanitize loop limits (coarse / fine auto-switched)
   const bool coarse_flag = false;
@@ -584,7 +586,7 @@ void EquationOfState::PrimitiveToConserved(
   for (int k=KL; k<=KU; ++k)
   for (int j=JL; j<=JU; ++j)
   {
-    pco_gr->GetGeometricFieldCC(gamma_dd_, sl_adm_gamma_dd, k, j);
+    GeometryToSlicedCC(gsc, k, j, IL, IU, coarse_flag, pco);
     // Calculate the conserved variables at every point.
     for (int i=IL; i<=IU; ++i)
     {
@@ -593,7 +595,7 @@ void EquationOfState::PrimitiveToConserved(
                                  cons,
                                  cons_scalar,
                                  pmy_block_->phydro->derived_ms,
-                                 gamma_dd_,
+                                 gsc,
                                  k, j, i,
                                  ps);
     }
@@ -880,10 +882,14 @@ static void PrimitiveToConservedSingle(
   AA &cons,
   AA &cons_scalar,
   AA &derived_ms,
-  const AT_N_sym & adm_gamma_dd_,
+  EquationOfState::geom_sliced_cc & gsc,
   int k, int j, int i,
   PS& ps)
 {
+  AT_N_sym & gamma_dd_ = gsc.gamma_dd_;
+  AT_N_sca & sqrt_det_gamma_ = gsc.sqrt_det_gamma_;
+  AT_N_sca & det_gamma_      = gsc.det_gamma_;
+
   // Extract the primitive variables
   Real prim_pt[NPRIM] = {0.0};
   Real Y[MAX_SPECIES] = {0.0};
@@ -912,15 +918,15 @@ static void PrimitiveToConservedSingle(
     prim_pt[IYF + n] = Y[n];
   }
 
-  // Extract the metric and calculate the determinant.
-  Real g3d[NSPMETRIC] = {adm_gamma_dd_(0,0,i),
-                         adm_gamma_dd_(0,1,i),
-                         adm_gamma_dd_(0,2,i),
-                         adm_gamma_dd_(1,1,i),
-                         adm_gamma_dd_(1,2,i),
-                         adm_gamma_dd_(2,2,i)};
-  Real detg = Primitive::GetDeterminant(g3d);
-  Real sdetg = std::sqrt(detg);
+  // Extract the metric and calculate the determinant..
+  Real g3d[NSPMETRIC] = {gamma_dd_(0,0,i),
+                         gamma_dd_(0,1,i),
+                         gamma_dd_(0,2,i),
+                         gamma_dd_(1,1,i),
+                         gamma_dd_(1,2,i),
+                         gamma_dd_(2,2,i)};
+  Real detg = det_gamma_(i);
+  Real sdetg = sqrt_det_gamma_(i);
 
   // Perform the primitive solve.
   Real cons_pt[NCONS];

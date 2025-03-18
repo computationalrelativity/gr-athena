@@ -10,6 +10,7 @@
 #include "../hydro/hydro.hpp"
 #include "../scalars/scalars.hpp"
 #include "../utils/linear_algebra.hpp"
+#include "../utils/floating_point.hpp"
 #if M1_ENABLED
 #include "../m1/m1.hpp"
 #endif // M1_ENABLED
@@ -29,6 +30,7 @@ void Z4c::GetMatter(
 #if defined(Z4C_WITH_HYDRO_ENABLED)
 
   using namespace LinearAlgebra;
+  using namespace FloatingPoint;
 
   MeshBlock * pmb = pmy_block;
   Hydro * phydro = pmb->phydro;
@@ -48,6 +50,9 @@ void Z4c::GetMatter(
 
   SetZ4cAliases(storage.u,   z4c);
   SetADMAliases(storage.adm, adm);
+
+  // regularization factor
+  const Real eps_alpha__ = opt.eps_floor;
 
   // set up some parameters ---------------------------------------------------
 #if USETM
@@ -164,7 +169,8 @@ void Z4c::GetMatter(
                                                                k, j, i);
         W(i) = std::sqrt(1.0 + norm2_utilde);
 #endif
-        detgamma(i) = Det3Metric(adm.g_dd, k, j, i);
+        // detgamma(i) = Det3Metric(adm.g_dd, k, j, i);
+        detgamma(i) = SQR(aux_extended.gs_sqrt_detgamma(k,j,i));
       }
 
       // extract 3-velocity
@@ -181,7 +187,9 @@ void Z4c::GetMatter(
         SlicedVecMet3Contraction(v_d, v_u, adm.g_dd, k, j, i);
 
 #if MAGNETIC_FIELDS_ENABLED
-        Real const r_sqrt_detgamma_i = 1.0/std::sqrt(detgamma(i));
+        Real const r_sqrt_detgamma_i = OO(
+          aux_extended.gs_sqrt_detgamma(k,j,i)
+        );
         bb_u(0,i) = bb(0,i)*r_sqrt_detgamma_i;
         bb_u(1,i) = bb(1,i)*r_sqrt_detgamma_i;
         bb_u(2,i) = bb(2,i)*r_sqrt_detgamma_i;
@@ -194,7 +202,8 @@ void Z4c::GetMatter(
       {
         ILOOP1(i)
         {
-          b0_u(i) += W(i)*bb_u(a,i)*v_d(a,i)/adm.alpha(k,j,i);
+          Real alpha__ = regularize_near_zero(adm.alpha(k,j,i), eps_alpha__);
+          b0_u(i) += W(i)*bb_u(a,i)*v_d(a,i) * OO(alpha__);
         }
       }
 
@@ -214,8 +223,9 @@ void Z4c::GetMatter(
       {
         ILOOP1(i)
         {
+          Real alpha__ = regularize_near_zero(adm.alpha(k,j,i), eps_alpha__);
           bi_u(a,i) = (bb_u(a,i)+adm.alpha(k,j,i)*b0_u(i)*W(i)*(v_u(a,i)-
-                       adm.beta_u(a,k,j,i)/adm.alpha(k,j,i)))/W(i);
+                       adm.beta_u(a,k,j,i)*OO(alpha__)))/W(i);
         }
       }
 

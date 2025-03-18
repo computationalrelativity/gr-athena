@@ -222,12 +222,14 @@ class EquationOfState {
     AT_N_sym sl_adm_gamma_dd;
     AT_N_sca sl_alpha;
     AT_N_sca sl_chi;
+    AT_N_sca sl_adm_sqrt_detgamma;
     // interpolated to CC
     AT_N_sca alpha_;
     AT_N_sca rchi_;
     AT_N_sym gamma_dd_;
     // derived on CC
     AT_N_sym gamma_uu_;
+    AT_N_sca sqrt_det_gamma_;
     AT_N_sca det_gamma_;
     AT_N_sca oo_det_gamma_;
     // start false to get first alloc. then it prevents later realloc
@@ -242,7 +244,7 @@ class EquationOfState {
   );
 
   // To handle excision / collapse
-  void SetEuclideanCC(AT_N_sym & gamma_dd_, const int i);
+  void SetEuclideanCC(geom_sliced_cc & gsc, const int i);
 
   // BD: TODO - clean up this mess ---v
 

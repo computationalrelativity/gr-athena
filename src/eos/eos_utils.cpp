@@ -113,9 +113,10 @@ void EquationOfState::GeometryToSlicedCC(
   }
 
   // Full 3D metric quantities
-  AT_N_sym & sl_adm_gamma_dd = gsc.sl_adm_gamma_dd;
-  AT_N_sca & sl_alpha        = gsc.sl_alpha;
-  AT_N_sca & sl_chi          = gsc.sl_chi;
+  AT_N_sym & sl_adm_gamma_dd      = gsc.sl_adm_gamma_dd;
+  AT_N_sca & sl_alpha             = gsc.sl_alpha;
+  AT_N_sca & sl_chi               = gsc.sl_chi;
+  AT_N_sca & sl_adm_sqrt_detgamma = gsc.sl_adm_sqrt_detgamma;
 
   // Sliced quantities
   AT_N_sca & alpha_    = gsc.alpha_;
@@ -124,6 +125,7 @@ void EquationOfState::GeometryToSlicedCC(
 
   // Prepare inverse + det
   AT_N_sym & gamma_uu_    = gsc.gamma_uu_;
+  AT_N_sca & sqrt_det_gamma_ = gsc.sqrt_det_gamma_;
   AT_N_sca & det_gamma_   = gsc.det_gamma_;
   AT_N_sca & oo_det_gamma_= gsc.oo_det_gamma_;
 
@@ -133,6 +135,8 @@ void EquationOfState::GeometryToSlicedCC(
     gamma_dd_.NewAthenaTensor(nn1);
 
     gamma_uu_.NewAthenaTensor(nn1);
+
+    sqrt_det_gamma_.NewAthenaTensor(nn1);
     det_gamma_.NewAthenaTensor(nn1);
     oo_det_gamma_.NewAthenaTensor(nn1);
   }
@@ -152,6 +156,10 @@ void EquationOfState::GeometryToSlicedCC(
   {
     sl_adm_gamma_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
     sl_alpha.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_alpha);
+    sl_adm_sqrt_detgamma.InitWithShallowSlice(
+      pz4c->storage.aux_extended,
+      Z4c::I_AUX_EXTENDED_ms_sqrt_detgamma
+    );
   }
 
   // do the required interp. / calculation of derived quantities: -------------
@@ -178,25 +186,44 @@ void EquationOfState::GeometryToSlicedCC(
 
   }
 
-  #pragma omp simd
-  for (int i=il; i<=iu; ++i)
+  if (!coarse_flag)
   {
-    det_gamma_(i) = LinearAlgebra::Det3Metric(gamma_dd_, i);
-    oo_det_gamma_(i) = 1. / det_gamma_(i);
-    LinearAlgebra::Inv3Metric(oo_det_gamma_, gamma_dd_, gamma_uu_, i);
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      sqrt_det_gamma_(i) = sl_adm_sqrt_detgamma(k,j,i);
+      det_gamma_(i) = SQR(sqrt_det_gamma_(i));
+      oo_det_gamma_(i) = 1. / det_gamma_(i);
+      LinearAlgebra::Inv3Metric(oo_det_gamma_, gamma_dd_, gamma_uu_, i);
+    }
+  }
+  else
+  {
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      det_gamma_(i) = LinearAlgebra::Det3Metric(gamma_dd_, i);
+      sqrt_det_gamma_(i) = std::sqrt(det_gamma_(i));
+      oo_det_gamma_(i) = 1. / det_gamma_(i);
+      LinearAlgebra::Inv3Metric(oo_det_gamma_, gamma_dd_, gamma_uu_, i);
+    }
   }
 
   // recycle scratch alloc. on next call
   gsc.is_scratch_allocated = true;
 }
 
-void EquationOfState::SetEuclideanCC(AT_N_sym & gamma_dd_, const int i)
+void EquationOfState::SetEuclideanCC(geom_sliced_cc & gsc, const int i)
 {
   for (int a=0; a<N; ++a)
   for (int b=a; b<N; ++b)
   {
-    gamma_dd_(a,b,i) = (a==b);
+    gsc.gamma_dd_(a,b,i) = (a==b);
   }
+
+  gsc.sqrt_det_gamma_(i) = 1;
+  gsc.det_gamma_(i) = 1;
+  gsc.oo_det_gamma_(i) = 1;
 }
 
 void EquationOfState::DerivedQuantities(
