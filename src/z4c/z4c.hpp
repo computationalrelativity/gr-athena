@@ -410,7 +410,7 @@ public:
   void ADMDerivatives(AthenaArray<Real> &u, AthenaArray<Real> &u_adm,
                       AthenaArray<Real> &u_aux);
 
-  void PrepareAuxExtended(AA &u_aux_extended, AA &u_adm);
+  void PrepareAuxExtended(AA &u_aux_extended, AA & u, AA &u_adm);
 
   void Z4cToADM(AA & u, AA & u_adm,
     const int il, const int iu,
@@ -418,7 +418,7 @@ public:
     const int kl, const int ku,
     bool skip_physical);
 
-  void PrepareAuxExtended(AA &u_aux_extended, AA & u_adm,
+  void PrepareAuxExtended(AA &u_aux_extended, AA & u, AA & u_adm,
     const int il, const int iu,
     const int jl, const int ju,
     const int kl, const int ku,

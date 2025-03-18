@@ -198,7 +198,7 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm) {
     }
   }
 
-  PrepareAuxExtended(storage.aux_extended, u_adm);
+  PrepareAuxExtended(storage.aux_extended, u, u_adm);
 }
 
 
@@ -284,7 +284,7 @@ void Z4c::Z4cToADM(AA & u, AA & u_adm,
   }
 
   PrepareAuxExtended(storage.aux_extended,
-                     u_adm,
+                     u, u_adm,
                      il, iu, jl, ju, kl, ku, skip_physical);
 }
 
@@ -706,12 +706,15 @@ void Z4c::ADMDerivatives(AthenaArray<Real> & u, AthenaArray<Real> & u_adm, Athen
 }
 
 
-void Z4c::PrepareAuxExtended(AA &u_aux_extended, AA &u_adm)
+void Z4c::PrepareAuxExtended(AA &u_aux_extended, AA & u, AA &u_adm)
 {
   using namespace LinearAlgebra;
 
   MeshBlock * pmb = pmy_block;
   GRDynamical* pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
+
+  Z4c_vars z4c;
+  SetZ4cAliases(u, z4c);
 
   ADM_vars adm;
   SetADMAliases(u_adm, adm);
@@ -719,11 +722,23 @@ void Z4c::PrepareAuxExtended(AA &u_aux_extended, AA &u_adm)
   Aux_extended_vars aux_extended;
   SetAuxExtendedAliases(u_aux_extended, aux_extended);
 
+  // direct method
+  /*
   GLOOP3(k, j, i)
   {
     aux_extended.gs_sqrt_detgamma(k,j,i) = std::sqrt(
       Det3Metric(adm.g_dd,k,j,i)
     );
+  }
+  */
+  // conformal factor based
+  const Real chi_pow = 12.0 / pz4c->opt.chi_psi_power;
+  GLOOP3(k, j, i)
+  {
+    const Real chi = std::abs(z4c.chi(k,j,i));
+    const Real chi_guarded = std::max(chi, pz4c->opt.chi_div_floor);
+    aux_extended.gs_sqrt_detgamma(k,j,i) = std::pow(chi_guarded,
+                                                    chi_pow / 2.0);
   }
 
 #if FLUID_ENABLED
@@ -734,7 +749,7 @@ void Z4c::PrepareAuxExtended(AA &u_aux_extended, AA &u_adm)
     pco_gr->GetMatterField(ms_detgamma_, aux_extended.gs_sqrt_detgamma, k, j);
     ILOOP1(i)
     {
-      aux_extended.ms_sqrt_detgamma(k,j,i) = ms_detgamma_(i);
+      aux_extended.ms_sqrt_detgamma(k,j,i) = std::abs(ms_detgamma_(i));
     }
   }
 #else
@@ -752,13 +767,16 @@ void Z4c::PrepareAuxExtended(AA &u_aux_extended, AA &u_adm)
 }
 
 void Z4c::PrepareAuxExtended(
-  AA &u_aux_extended, AA & u_adm,
+  AA &u_aux_extended, AA & u, AA & u_adm,
   const int il, const int iu,
   const int jl, const int ju,
   const int kl, const int ku,
   bool skip_physical)
 {
   using namespace LinearAlgebra;
+
+  Z4c_vars z4c;
+  SetZ4cAliases(u, z4c);
 
   ADM_vars adm;
   SetADMAliases(u_adm, adm);
@@ -785,9 +803,19 @@ void Z4c::PrepareAuxExtended(
         continue;
       }
 
+      // direct method
+      /*
       aux_extended.gs_sqrt_detgamma(k,j,i) = std::sqrt(
         Det3Metric(adm.g_dd,k,j,i)
       );
+      */
+      // conformal factor based
+      const Real chi_pow = 12.0 / pz4c->opt.chi_psi_power;
+      const Real chi = std::abs(z4c.chi(k,j,i));
+      const Real chi_guarded = std::max(chi, pz4c->opt.chi_div_floor);
+      aux_extended.gs_sqrt_detgamma(k,j,i) = std::pow(chi_guarded,
+                                                      chi_pow / 2.0);
+
     }
   }
 
@@ -811,7 +839,7 @@ void Z4c::PrepareAuxExtended(
         continue;
       }
 
-      aux_extended.ms_sqrt_detgamma(k,j,i) = ms_detgamma_(i);
+      aux_extended.ms_sqrt_detgamma(k,j,i) = std::abs(ms_detgamma_(i));
     }
   }
 #else
