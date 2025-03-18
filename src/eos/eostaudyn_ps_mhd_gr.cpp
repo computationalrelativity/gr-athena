@@ -301,7 +301,7 @@ void EquationOfState::ConservedToPrimitive(
       if (!is_admissible)
       {
         SetPrimAtmo(temperature, prim, prim_scalar, k, j, i);
-        SetEuclideanCC(gsc, i);
+        // SetEuclideanCC(gsc, i);
         PrimitiveToConservedSingle(prim,
                                    prim_scalar,
                                    bb_cc,
