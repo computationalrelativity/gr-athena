@@ -319,7 +319,6 @@ void EquationOfState::ConservedToPrimitive(
 
         if (c2p_status(k,j,i) == 0)
           c2p_status(k,j,i) = static_cast<int>(Primitive::Error::EXCISED);
-        continue;
       }
 
       // Deal with PrimitiveSolver interface
@@ -349,67 +348,93 @@ void EquationOfState::ConservedToPrimitive(
       cons_pt[IEN] = cons_old_pt[IEN] = cons(IEN, k, j, i) * oo_sqrt_detgamma;
 
       // Extract the scalars
-      for(int n=0; n<NSCALARS; n++){
+      for(int n=0; n<NSCALARS; n++)
+      {
         cons_pt[IYD + n] = cons_old_pt[IYD + n] = cons_scalar(n,k,j,i) * oo_sqrt_detgamma;
       }
 
       // Find the primitive variables.
       Real prim_pt[NPRIM] = {0.0};
       Real b3u[NMAG] = {0.0}; // Assume no magnetic field.
-      Primitive::SolverResult result = ps.ConToPrim(prim_pt, cons_pt, b3u, g3d, g3u);
 
-      // retain result of c2p
-      if (c2p_status(k,j,i) == 0)
+      if (is_admissible)
       {
-        c2p_status(k,j,i) = static_cast<int>(result.error);
-      }
+        Primitive::SolverResult result = ps.ConToPrim(
+          prim_pt, cons_pt, b3u, g3d, g3u
+        );
 
-      // If the lapse or metric determinant fall below zero, we're probably in an
-      // unphysical regime for a fluid, like a black hole or something. Primitive
-      // failure is expected and will just result in a floor being applied.
-      if (verbose && (result.error != Primitive::Error::SUCCESS && (detgamma > 0)))
+        // retain result of c2p
+        if (c2p_status(k,j,i) == 0)
+        {
+          c2p_status(k,j,i) = static_cast<int>(result.error);
+        }
+
+        // If the lapse or metric determinant fall below zero, we're probably in an
+        // unphysical regime for a fluid, like a black hole or something. Primitive
+        // failure is expected and will just result in a floor being applied.
+        if (verbose && (result.error != Primitive::Error::SUCCESS && (detgamma > 0)))
+        {
+          std::cerr << "There was an error during the primitive solve!\n";
+          std::cerr << "  Iteration: " << pmy_block_->pmy_mesh->ncycle << "\n";
+          std::cerr << "  Error: " << Primitive::ErrorString[(int)result.error] << "\n";
+          //printf("i=%d, j=%d, k=%d\n",i,j,k);
+          std::cerr << "  i=" << i << ", j=" << j << ", k=" << k << "\n";
+          const Real x1 = pmy_block_->pcoord->x1v(i);
+          const Real x2 = pmy_block_->pcoord->x2v(j);
+          const Real x3 = pmy_block_->pcoord->x3v(k);
+          std::cerr << "  (x1,x2,x3) " << x1 << "," << x2 << "," << x3 << "\n";
+          std::cerr << "  g3d = [" << g3d[S11] << ", " << g3d[S12] << ", " << g3d[S13] << ", "
+                    << g3d[S22] << ", " << g3d[S23] << ", " << g3d[S33] << "\n";
+          std::cerr << "  g3u = [" << g3u[S11] << ", " << g3u[S12] << ", " << g3u[S13] << ", "
+                    << g3u[S22] << ", " << g3u[S23] << ", " << g3u[S33] << "\n";
+          std::cerr << "  detgamma  = " << detgamma << "\n";
+          std::cerr << "  sqrt_detgamma = " << sqrt_detgamma << "\n";
+          std::cerr << "  D = " << cons_old_pt[IDN] << "\n";
+          std::cerr << "  S_1 = " << cons_old_pt[IM1] << "\n";
+          std::cerr << "  S_2 = " << cons_old_pt[IM2] << "\n";
+          std::cerr << "  S_3 = " << cons_old_pt[IM3] << "\n";
+          std::cerr << "  tau = " << cons_old_pt[IEN] << "\n";
+        }
+
+        // Update the primitive variables.
+        prim(IDN, k, j, i) = prim_pt[IDN] * mb;
+        prim(IVX, k, j, i) = prim_pt[IVX];
+        prim(IVY, k, j, i) = prim_pt[IVY];
+        prim(IVZ, k, j, i) = prim_pt[IVZ];
+        prim(IPR, k, j, i) = prim_pt[IPR];
+
+        for(int n=0; n<NSCALARS; n++)
+        {
+          prim_scalar(n, k, j, i) = prim_pt[IYF + n];
+        }
+
+        // Because the conserved variables may have changed, we update those, too.
+        cons(IDN, k, j, i) = cons_pt[IDN]*sqrt_detgamma;
+        cons(IM1, k, j, i) = cons_pt[IM1]*sqrt_detgamma;
+        cons(IM2, k, j, i) = cons_pt[IM2]*sqrt_detgamma;
+        cons(IM3, k, j, i) = cons_pt[IM3]*sqrt_detgamma;
+        cons(IEN, k, j, i) = cons_pt[IEN]*sqrt_detgamma;
+
+        for(int n=0; n<NSCALARS; n++){
+          cons_scalar(n, k, j, i) = cons_pt[IYD + n]*sqrt_detgamma;
+        }
+
+      }
+      else
       {
-        std::cerr << "There was an error during the primitive solve!\n";
-        std::cerr << "  Iteration: " << pmy_block_->pmy_mesh->ncycle << "\n";
-        std::cerr << "  Error: " << Primitive::ErrorString[(int)result.error] << "\n";
-        //printf("i=%d, j=%d, k=%d\n",i,j,k);
-        std::cerr << "  i=" << i << ", j=" << j << ", k=" << k << "\n";
-        const Real x1 = pmy_block_->pcoord->x1v(i);
-        const Real x2 = pmy_block_->pcoord->x2v(j);
-        const Real x3 = pmy_block_->pcoord->x3v(k);
-        std::cerr << "  (x1,x2,x3) " << x1 << "," << x2 << "," << x3 << "\n";
-        std::cerr << "  g3d = [" << g3d[S11] << ", " << g3d[S12] << ", " << g3d[S13] << ", "
-                  << g3d[S22] << ", " << g3d[S23] << ", " << g3d[S33] << "\n";
-        std::cerr << "  g3u = [" << g3u[S11] << ", " << g3u[S12] << ", " << g3u[S13] << ", "
-                  << g3u[S22] << ", " << g3u[S23] << ", " << g3u[S33] << "\n";
-        std::cerr << "  detgamma  = " << detgamma << "\n";
-        std::cerr << "  sqrt_detgamma = " << sqrt_detgamma << "\n";
-        std::cerr << "  D = " << cons_old_pt[IDN] << "\n";
-        std::cerr << "  S_1 = " << cons_old_pt[IM1] << "\n";
-        std::cerr << "  S_2 = " << cons_old_pt[IM2] << "\n";
-        std::cerr << "  S_3 = " << cons_old_pt[IM3] << "\n";
-        std::cerr << "  tau = " << cons_old_pt[IEN] << "\n";
-      }
-      // Update the primitive variables.
-      prim(IDN, k, j, i) = prim_pt[IDN] * mb;
-      prim(IVX, k, j, i) = prim_pt[IVX];
-      prim(IVY, k, j, i) = prim_pt[IVY];
-      prim(IVZ, k, j, i) = prim_pt[IVZ];
-      prim(IPR, k, j, i) = prim_pt[IPR];
+        // didn't need to run, but do need to extract variables
+        // (see derived below)
 
-      for(int n=0; n<NSCALARS; n++)
-      {
-        prim_scalar(n, k, j, i) = prim_pt[IYF + n];
-      }
+        prim_pt[IDN] = prim(IDN, k, j, i) / mb;
+        prim_pt[IVX] = prim(IVX, k, j, i);
+        prim_pt[IVY] = prim(IVY, k, j, i);
+        prim_pt[IVZ] = prim(IVZ, k, j, i);
+        prim_pt[IPR] = prim(IPR, k, j, i);
+        prim_pt[ITM] = temperature(k,j,i);
 
-      // Because the conserved variables may have changed, we update those, too.
-      cons(IDN, k, j, i) = cons_pt[IDN]*sqrt_detgamma;
-      cons(IM1, k, j, i) = cons_pt[IM1]*sqrt_detgamma;
-      cons(IM2, k, j, i) = cons_pt[IM2]*sqrt_detgamma;
-      cons(IM3, k, j, i) = cons_pt[IM3]*sqrt_detgamma;
-      cons(IEN, k, j, i) = cons_pt[IEN]*sqrt_detgamma;
-      for(int n=0; n<NSCALARS; n++){
-        cons_scalar(n, k, j, i) = cons_pt[IYD + n]*sqrt_detgamma;
+        for(int n=0; n<NSCALARS; n++){
+          prim_pt[IYF + n] = prim_scalar(n, k, j, i);
+        }
       }
 
       // BD: not clear why these behave differently (limiting)?
@@ -784,12 +809,10 @@ void EquationOfState::SoundSpeedsGR(
   Real root_1 = alpha*(vi*(1.0-cs_sq) + cs*sqrt_term)/(1.0-v2*cs_sq) - betai;
   Real root_2 = alpha*(vi*(1.0-cs_sq) - cs*sqrt_term)/(1.0-v2*cs_sq) - betai;
 
-  bool collapse = true;
-  if (collapse) {
-    if (std::isnan(root_1) || std::isnan(root_2)) {
-      root_1 = 1.0;
-      root_2 = 1.0;
-    }
+  if (!std::isfinite(root_1 + root_2))
+  {
+    root_1 = 1.0;
+    root_2 = 1.0;
   }
 
   if (root_1 > root_2) {
@@ -1027,8 +1050,9 @@ static void PrimitiveToConservedSingle(
     }
 
     derived_ms(IX_LOR,k,j,i) = 1;
-    derived_ms(IX_T,k,j,i) = prim_pt[ITM];
   }
+
+  derived_ms(IX_T,k,j,i) = prim_pt[ITM];
 }
 
 } // namespace
