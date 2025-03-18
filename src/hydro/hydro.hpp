@@ -165,6 +165,8 @@ public:
   AT_N_sym gamma_dd_;
   AT_N_sym gamma_uu_;
 
+  AT_N_sca chi_;
+
   AT_N_vec w_v_u_l_;
   AT_N_vec w_v_u_r_;
 
@@ -261,6 +263,7 @@ public:
     AT_N_sca & alpha_,
     AT_N_vec & beta_u_,
     AT_N_sym & gamma_dd_,
+    AT_N_sca & sqrt_detgamma_,
     AA &flux,
     const AA &dxw,
     const Real lambda_rescaling);
@@ -284,6 +287,7 @@ public:
     AT_N_sca & alpha_,
     AT_N_vec & beta_u_,
     AT_N_sym & gamma_dd_,
+    AT_N_sca & sqrt_detgamma_,
     AA &flux,
     AA &ey,
     AA &ez,

@@ -148,6 +148,8 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   gamma_dd_.NewAthenaTensor(nn1);
   gamma_uu_.NewAthenaTensor(nn1);
 
+  chi_.NewAthenaTensor(nn1);
+
   w_v_u_l_.NewAthenaTensor(nn1);
   w_v_u_r_.NewAthenaTensor(nn1);
 
