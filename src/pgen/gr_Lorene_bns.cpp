@@ -13,6 +13,7 @@
 #include <cassert>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <streambuf>
 #include <cmath>
@@ -22,6 +23,7 @@
 #include "../athena_aliases.hpp"
 #include "../parameter_input.hpp"
 #include "../coordinates/coordinates.hpp"
+#include "../z4c/ahf.hpp"
 #include "../z4c/z4c.hpp"
 #include "../eos/eos.hpp"
 #include "../field/field.hpp"
@@ -32,6 +34,7 @@
 #include "../trackers/extrema_tracker.hpp"
 #include "../utils/linear_algebra.hpp"
 #include "../utils/utils.hpp"
+
 #if M1_ENABLED
 #include "../m1/m1.hpp"
 #endif  // M1_ENABLED
@@ -937,6 +940,49 @@ int RefinementCondition(MeshBlock *pmb)
           ptracker_extrema->c_x3(n-1),
           ptracker_extrema->ref_zone_radius(n-1)
         );
+      }
+      else if (ptracker_extrema->ref_type(n-1) == 2)
+      {
+        // If any excision; activate this refinement
+        bool use = false;
+
+        // Get the minimal radius over all apparent horizons
+        Real horizon_radius = -std::numeric_limits<Real>::infinity();
+
+        for (auto pah_f : pmesh->pah_finder)
+        {
+          if (not pah_f->ah_found)
+            continue;
+
+          if (pah_f->rr_min < horizon_radius)
+          {
+            horizon_radius = pah_f->rr_min;
+          }
+          else
+          {
+            continue;
+          }
+
+          // populate the tracker with AHF based information
+          ptracker_extrema->c_x1(n-1) = pah_f->center[0];
+          ptracker_extrema->c_x2(n-1) = pah_f->center[1];
+          ptracker_extrema->c_x3(n-1) = pah_f->center[2];
+          ptracker_extrema->ref_zone_radius(n-1) = (
+            pah_f->rr_min
+          );
+
+          use = true;
+        }
+
+        if (use)
+        {
+          is_contained = pmb->SphereIntersects(
+            ptracker_extrema->c_x1(n-1),
+            ptracker_extrema->c_x2(n-1),
+            ptracker_extrema->c_x3(n-1),
+            ptracker_extrema->ref_zone_radius(n-1)
+          );
+        }
       }
     }
 
