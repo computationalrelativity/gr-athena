@@ -529,7 +529,8 @@ class Mesh {
   bool GetGlobalGridGeometry(AthenaArray<Real> & x_min,
                              AthenaArray<Real> & x_max,
                              AthenaArray<Real> & dx_min,
-                             AthenaArray<Real> & dx_max);
+                             AthenaArray<Real> & dx_max,
+                             int & max_level);
 
   void CommunicateConserved(std::vector<MeshBlock*> & pmb_array);
   void CommunicatePrimitives(std::vector<MeshBlock*> & pmb_array);
@@ -581,6 +582,7 @@ class Mesh {
     AthenaArray<Real> x_max;
     AthenaArray<Real> dx_min;
     AthenaArray<Real> dx_max;
+    int max_level;
   } M_info;
   bool diagnostic_grid_updated; // set to false in  OutputCycleDiagnostics
 

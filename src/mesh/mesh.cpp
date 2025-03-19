@@ -637,6 +637,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
   M_info.x_max.NewAthenaArray(ndim);
   M_info.dx_min.NewAthenaArray(ndim);
   M_info.dx_max.NewAthenaArray(ndim);
+  M_info.max_level = 0;
 
   // Surface init needs to come after MeshBlocks have been initialized
   gra::mesh::surfaces::InitSurfaces(this, pin);
@@ -1940,7 +1941,8 @@ void Mesh::InitializePostFirstInitialize(ParameterInput *pin)
 #endif
   // Whenever we initialize the Mesh, we record global properties
   const bool res = GetGlobalGridGeometry(M_info.x_min, M_info.x_max,
-                                         M_info.dx_min, M_info.dx_max);
+                                         M_info.dx_min, M_info.dx_max,
+                                         M_info.max_level);
 
   diagnostic_grid_updated = res || diagnostic_grid_updated;
 }
@@ -1953,7 +1955,8 @@ void Mesh::InitializePostMainUpdatedMesh(ParameterInput *pin)
 #endif
   // Whenever we initialize the Mesh, we record global properties
   const bool res = GetGlobalGridGeometry(M_info.x_min, M_info.x_max,
-                                         M_info.dx_min, M_info.dx_max);
+                                         M_info.dx_min, M_info.dx_max,
+                                         M_info.max_level);
 
   diagnostic_grid_updated = res || diagnostic_grid_updated;
 }
@@ -2196,6 +2199,8 @@ void Mesh::OutputCycleDiagnostics() {
             std::cout << "\ndx_min(" << n << "); " << M_info.dx_min(n);
             std::cout << "\ndx_max(" << n << "); " << M_info.dx_max(n);
           }
+
+          std::cout << "\nmax_level: " << M_info.max_level;
           diagnostic_grid_updated = false;
         }
       }
@@ -2264,7 +2269,8 @@ void Mesh::CalculateStoreMetricDerivatives()
 bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
                                  AthenaArray<Real> & x_max,
                                  AthenaArray<Real> & dx_min,
-                                 AthenaArray<Real> & dx_max)
+                                 AthenaArray<Real> & dx_max,
+                                 int & max_level)
 {
   int nmb = -1;
   std::vector<MeshBlock*> pmb_array;
@@ -2276,8 +2282,10 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
 
   AthenaArray<Real> dx_min_old(ndim);
   AthenaArray<Real> dx_max_old(ndim);
+  int max_level_old = max_level;
 
-  AA dx(2*ndim);
+  AA dx;
+  dx.NewAthenaArray(2*ndim);
 
   for (int n=0; n<ndim; ++n)
   {
@@ -2285,10 +2293,7 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
     dx_max_old(n) = dx_max(n);
   }
 
-  for (int n=0; n<2*ndim; ++n)
-  {
-    dx(n) = std::numeric_limits<Real>::infinity();
-  }
+  dx.Fill(std::numeric_limits<Real>::infinity());
 
   switch (ndim)
   {
@@ -2303,9 +2308,6 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
 
         for (int ix=0; ix<pmb->ncells3-1; ++ix)
         {
-          dx_min(2) = std::min(dx_min(2), pmb->pcoord->dx3v(ix));
-          dx_max(2) = std::max(dx_max(2), pmb->pcoord->dx3v(ix));
-
           dx(2)      = std::min(dx(2),       pmb->pcoord->dx3v(ix));
           dx(ndim+2) = std::min(dx(ndim+2), -pmb->pcoord->dx3v(ix));
         }
@@ -2352,19 +2354,31 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
     }
   }
 
+  for (int nix = 0; nix < nmb; ++nix)
+  {
+    MeshBlock *pmb = pmb_array[nix];
+    max_level = std::max(
+      max_level,
+      pmb->loc.level - root_level
+    );
+  }
+
+
 #ifdef MPI_PARALLEL
   int rank;
 
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Allreduce(MPI_IN_PLACE, dx.data(), 2*ndim,
                 MPI_ATHENA_REAL, MPI_MIN, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &max_level, 1,
+                MPI_INT, MPI_MAX, MPI_COMM_WORLD);
 
 #endif
 
   for (int n=0; n<ndim; ++n)
   {
-    dx_min(n)      =  dx(n);
-    dx_max(ndim+n) = -dx(n);
+    dx_min(n) =  dx(n);
+    dx_max(n) = -dx(ndim+n);
   }
 
   for (int n=0; n<ndim; ++n)
@@ -2373,5 +2387,5 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
     grid_updated = grid_updated || (dx_max(n) != dx_max_old(n));
   }
 
-  return grid_updated;
+  return grid_updated || (max_level != max_level_old);
 }
