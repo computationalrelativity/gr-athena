@@ -947,7 +947,7 @@ int RefinementCondition(MeshBlock *pmb)
         bool use = false;
 
         // Get the minimal radius over all apparent horizons
-        Real horizon_radius = -std::numeric_limits<Real>::infinity();
+        Real horizon_radius = std::numeric_limits<Real>::infinity();
 
         for (auto pah_f : pmesh->pah_finder)
         {
