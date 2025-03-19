@@ -2,6 +2,7 @@
 
 // C++ headers
 #include <iostream>
+#include <limits>
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -1032,6 +1033,136 @@ void Mesh::ScatterMatter(std::vector<MeshBlock*> & pmb_array)
   } // omp parallel
 
 
+}
+
+// Compute global minima of various quantities
+void Mesh::GlobalExtrema()
+{
+  enum vars_min {
+    IX_min_adm_alpha,
+    IX_min_hydro_cons_D,
+    N_vars_min
+  };
+
+  enum vars_max {
+    IX_max_adm_alpha=N_vars_min,
+    IX_max_hydro_cons_D,
+    N_vars
+  };
+
+  AA res_V;
+  res_V.NewAthenaArray(N_vars);
+  res_V.Fill(std::numeric_limits<Real>::infinity());
+
+  int nthreads = GetNumMeshThreads();
+  (void)nthreads;
+
+  int nmb = -1;
+  std::vector<MeshBlock*> pmb_array;
+
+  GetMeshBlocksMyRank(pmb_array);
+  nmb = pmb_array.size();
+
+  // minima-per-MeshBlock and then reduce
+  AA res_V_mb;
+  res_V_mb.NewAthenaArray(N_vars, nmb);
+  res_V_mb.Fill(std::numeric_limits<Real>::infinity());
+
+  // Per-MeshBlock parallism
+  #pragma omp parallel for num_threads(nthreads)
+  for (int nix = 0; nix < nmb; ++nix)
+  {
+    MeshBlock *pmb = pmb_array[nix];
+    Hydro * ph = pmb->phydro;
+
+    Z4c * pz4c = pmb->pz4c;
+
+#if Z4C_ENABLED
+    AA adm_alpha;
+    adm_alpha.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_alpha, 1);
+
+    AA ms_adm_sqrt_det_gamma;
+    ms_adm_sqrt_det_gamma.InitWithShallowSlice(
+      pz4c->storage.aux_extended, Z4c::I_AUX_EXTENDED_ms_sqrt_detgamma, 1
+    );
+#endif // Z4C_ENABLED
+
+#if FLUID_ENABLED && Z4C_ENABLED
+    AA hydro_cons_D;
+    hydro_cons_D.InitWithShallowSlice(
+      ph->u, IDN, 1
+    );
+#endif // FLUID_ENABLED
+
+#if Z4C_ENABLED
+    ILOOP2(k, j)
+    for (int i=pz4c->mbi.il; i<=pz4c->mbi.iu; ++i)
+    {
+      res_V_mb(vars_min::IX_min_adm_alpha, nix) = std::min(
+        res_V_mb(vars_min::IX_min_adm_alpha, nix),
+        adm_alpha(k,j,i)
+      );
+
+      res_V_mb(vars_max::IX_max_adm_alpha, nix) = std::min(
+        res_V_mb(vars_max::IX_max_adm_alpha, nix),
+        -adm_alpha(k,j,i)
+      );
+    }
+#endif // Z4C_ENABLED
+
+#if FLUID_ENABLED && Z4C_ENABLED
+    CC_ILOOP2(k, j)
+    for (int i=pmb->is; i<=pmb->ie; ++i)
+    {
+      const Real oo_sqrt_detgamma = OO(
+        ms_adm_sqrt_det_gamma(k,j,i)
+      );
+      const Real hydro_cons_D__ = hydro_cons_D(k,j,i) * oo_sqrt_detgamma;
+
+      res_V_mb(vars_min::IX_min_hydro_cons_D, nix) = std::min(
+        res_V_mb(vars_min::IX_min_hydro_cons_D, nix),
+        hydro_cons_D__
+      );
+
+      res_V_mb(vars_max::IX_max_hydro_cons_D, nix) = std::min(
+        res_V_mb(vars_max::IX_max_hydro_cons_D, nix),
+        -hydro_cons_D__
+      );
+    }
+#endif // FLUID_ENABLED && Z4C_ENABLED
+
+  }
+
+  // reduce over MeshBlock
+  for (int vix = 0; vix < N_vars; ++vix)
+  for (int nix = 0; nix < nmb; ++nix)
+  {
+    res_V(vix) = std::min(
+      res_V(vix), res_V_mb(vix, nix)
+    );
+  }
+
+#ifdef MPI_PARALLEL
+  int rank;
+
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  MPI_Allreduce(MPI_IN_PLACE, res_V.data(),
+    N_vars,
+    MPI_ATHENA_REAL, MPI_MIN, MPI_COMM_WORLD);
+#endif
+
+  // flip sign to get max for salient variables
+  for (int vix=0; vix < N_vars-N_vars_min; ++vix)
+  {
+    res_V(vix+N_vars_min) = -res_V(vix+N_vars_min);
+  }
+
+  global_extrema.min_adm_alpha = res_V(vars_min::IX_min_adm_alpha);
+  global_extrema.max_adm_alpha = res_V(vars_max::IX_max_adm_alpha);
+
+  global_extrema.min_hydro_cons_D = res_V(vars_min::IX_min_hydro_cons_D);
+  global_extrema.max_hydro_cons_D = res_V(vars_max::IX_max_hydro_cons_D);
 }
 
 //

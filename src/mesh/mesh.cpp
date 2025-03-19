@@ -108,6 +108,9 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     muj(), nuj(), muj_tilde(),
     nbnew(), nbdel(),
     step_since_lb(), gflag(), turb_flag(),
+    global_extrema_on_substeps(
+      pin->GetOrAddBoolean("mesh", "global_extrema_on_substeps", true)
+    ),
     // private members:
     next_phys_id_(), num_mesh_threads_(pin->GetOrAddInteger("mesh", "num_threads", 1)),
     tree(this),
@@ -678,6 +681,9 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     muj(), nuj(), muj_tilde(),
     nbnew(), nbdel(),
     step_since_lb(), gflag(), turb_flag(),
+    global_extrema_on_substeps(
+      pin->GetOrAddBoolean("mesh", "global_extrema_on_substeps", true)
+    ),
     // private members:
     next_phys_id_(), num_mesh_threads_(pin->GetOrAddInteger("mesh", "num_threads", 1)),
     tree(this),
@@ -2271,16 +2277,17 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
   AthenaArray<Real> dx_min_old(ndim);
   AthenaArray<Real> dx_max_old(ndim);
 
+  AA dx(2*ndim);
+
   for (int n=0; n<ndim; ++n)
   {
     dx_min_old(n) = dx_min(n);
     dx_max_old(n) = dx_max(n);
   }
 
-  for (int n=0; n<ndim; ++n)
+  for (int n=0; n<2*ndim; ++n)
   {
-    dx_min(n) = std::numeric_limits<Real>::infinity();
-    dx_max(n) = -dx_min(n);
+    dx(n) = std::numeric_limits<Real>::infinity();
   }
 
   switch (ndim)
@@ -2298,6 +2305,9 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
         {
           dx_min(2) = std::min(dx_min(2), pmb->pcoord->dx3v(ix));
           dx_max(2) = std::max(dx_max(2), pmb->pcoord->dx3v(ix));
+
+          dx(2)      = std::min(dx(2),       pmb->pcoord->dx3v(ix));
+          dx(ndim+2) = std::min(dx(ndim+2), -pmb->pcoord->dx3v(ix));
         }
       }
     }
@@ -2312,8 +2322,8 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
 
         for (int ix=0; ix<pmb->ncells2-1; ++ix)
         {
-          dx_min(1) = std::min(dx_min(1), pmb->pcoord->dx2v(ix));
-          dx_max(1) = std::max(dx_max(1), pmb->pcoord->dx2v(ix));
+          dx(1)      = std::min(dx(1),       pmb->pcoord->dx2v(ix));
+          dx(ndim+1) = std::min(dx(ndim+1), -pmb->pcoord->dx2v(ix));
         }
       }
 
@@ -2329,8 +2339,8 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
 
         for (int ix=0; ix<pmb->ncells1-1; ++ix)
         {
-          dx_min(0) = std::min(dx_min(0), pmb->pcoord->dx1v(ix));
-          dx_max(0) = std::max(dx_max(0), pmb->pcoord->dx1v(ix));
+          dx(0)      = std::min(dx(0),       pmb->pcoord->dx1v(ix));
+          dx(ndim+0) = std::min(dx(ndim+0), -pmb->pcoord->dx1v(ix));
         }
       }
 
@@ -2346,22 +2356,16 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
   int rank;
 
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Allreduce(MPI_IN_PLACE, dx.data(), 2*ndim,
+                MPI_ATHENA_REAL, MPI_MIN, MPI_COMM_WORLD);
 
-  if (Globals::my_rank == 0)
-  {
-    MPI_Reduce(MPI_IN_PLACE, dx_min.data(), ndim, MPI_ATHENA_REAL, MPI_MIN, 0,
-               MPI_COMM_WORLD);
-    MPI_Reduce(MPI_IN_PLACE, dx_max.data(), ndim, MPI_ATHENA_REAL, MPI_MAX, 0,
-               MPI_COMM_WORLD);
-  }
-  else
-  {
-    MPI_Reduce(dx_min.data(), dx_min.data(), ndim, MPI_ATHENA_REAL, MPI_MIN, 0,
-               MPI_COMM_WORLD);
-    MPI_Reduce(dx_max.data(), dx_max.data(), ndim, MPI_ATHENA_REAL, MPI_MAX, 0,
-               MPI_COMM_WORLD);
-  }
 #endif
+
+  for (int n=0; n<ndim; ++n)
+  {
+    dx_min(n)      =  dx(n);
+    dx_max(ndim+n) = -dx(n);
+  }
 
   for (int n=0; n<ndim; ++n)
   {

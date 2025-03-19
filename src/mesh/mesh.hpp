@@ -15,6 +15,7 @@
 // C++ headers
 #include <cstdint>     // int64_t
 #include <functional>  // reference_wrapper
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -585,6 +586,17 @@ class Mesh {
 
   void DebugMesh(
     const Real x3__, const Real x2__, const Real x1__);
+
+  struct {
+    Real min_adm_alpha    = std::numeric_limits<Real>::quiet_NaN();
+    Real max_adm_alpha    = std::numeric_limits<Real>::quiet_NaN();
+    Real min_hydro_cons_D = std::numeric_limits<Real>::quiet_NaN();
+    Real max_hydro_cons_D = std::numeric_limits<Real>::quiet_NaN();
+  } global_extrema;
+  bool global_extrema_on_substeps;
+
+  // compute entries of the global_extrema struct
+  void GlobalExtrema();
 
  private:
   // data
