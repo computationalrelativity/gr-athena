@@ -177,8 +177,6 @@ void Hydro::RiemannSolver(
     #pragma omp simd
     for (int i = il; i <= iu; ++i)
     {
-      // TODO: read in centre of each horizon and shift origin - not needed for
-      // now if collapse is at origin
       Real horizon_radius;
       for (auto pah_f : pmy_block->pmy_mesh->pah_finder)
       {
@@ -192,21 +190,27 @@ void Hydro::RiemannSolver(
           case IVX:
           {
             R2 = (
-              SQR(pco_gr->x1f(i)) + SQR(pco_gr->x2v(j)) + SQR(pco_gr->x3v(k))
+              SQR(pco_gr->x1f(i)-pah_f->center[0]) +
+              SQR(pco_gr->x2v(j)-pah_f->center[1]) +
+              SQR(pco_gr->x3v(k)-pah_f->center[2])
             );
             break;
           }
           case IVY:
           {
             R2 = (
-              SQR(pco_gr->x1v(i)) + SQR(pco_gr->x2f(j)) + SQR(pco_gr->x3v(k))
+              SQR(pco_gr->x1v(i)-pah_f->center[0]) +
+              SQR(pco_gr->x2f(j)-pah_f->center[1]) +
+              SQR(pco_gr->x3v(k)-pah_f->center[2])
             );
             break;
           }
           case IVZ:
           {
             R2 = (
-              SQR(pco_gr->x1v(i)) + SQR(pco_gr->x2v(j)) + SQR(pco_gr->x3f(k))
+              SQR(pco_gr->x1v(i)-pah_f->center[0]) +
+              SQR(pco_gr->x2v(j)-pah_f->center[1]) +
+              SQR(pco_gr->x3f(k)-pah_f->center[2])
             );
             break;
           }

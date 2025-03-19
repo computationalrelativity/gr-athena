@@ -304,8 +304,8 @@ void EquationOfState::ConservedToPrimitive(
           horizon_radius = pah_f->rr_min;
           horizon_radius *= ph->opt_excision.horizon_factor;
           const Real r_2 = SQR(pco->x1v(i) - pah_f->center[0]) +
-                            SQR(pco->x2v(j) - pah_f->center[1]) +
-                            SQR(pco->x3v(k) - pah_f->center[2]);
+                           SQR(pco->x2v(j) - pah_f->center[1]) +
+                           SQR(pco->x3v(k) - pah_f->center[2]);
           is_admissible = is_admissible && (r_2 > SQR(horizon_radius));
         }
       }
