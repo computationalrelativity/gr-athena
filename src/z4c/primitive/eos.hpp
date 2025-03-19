@@ -454,6 +454,12 @@ class EOS : public EOSPolicy, public ErrorPolicy {
       v_max = (v >= 0) ? ((v <= 1.0-1e-15) ? v : 1.0e-15) : 0.0;
     }
 
+    // Maximum velocity will be set according to Lorentz factor W
+    inline void SetMaxVelocityLorentz(Real W)
+    {
+      v_max = std::sqrt(1.0 - SQR(1.0 / W));
+    }
+
     //! \brief Get the maximum number density (in EOS units) permitted by the EOS.
     inline Real GetMaximumDensity() const {
       return max_n;

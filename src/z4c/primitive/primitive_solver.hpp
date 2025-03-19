@@ -224,6 +224,11 @@ class PrimitiveSolver {
       this->use_toms_748 = use_toms_748;
     }
 
+    inline void SetMaxVelocityLorentz(const Real W)
+    {
+      GetEOS()->SetMaxVelocityLorentz(W);
+    }
+
     /// Destructor
     ~PrimitiveSolver() = default;
 

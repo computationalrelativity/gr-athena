@@ -91,6 +91,10 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   ps.SetValidateDensity(pin->GetOrAddBoolean("hydro", "c2p_validate_density", true));
   ps.SetToms748(pin->GetOrAddBoolean("hydro", "use_toms_748", false));
 
+  ps.SetMaxVelocityLorentz(
+    pin->GetOrAddReal("hydro", "max_W", 1000.0)
+  );
+
   // BD: TODO - clean up
   int ncells1 = pmb->block_size.nx1 + 2*NGHOST;
   g_.NewAthenaArray(NMETRIC, ncells1);
@@ -257,6 +261,8 @@ void EquationOfState::ConservedToPrimitive(
   temperature.InitWithShallowSlice(ph->derived_ms, IX_T, 1);
 
   const Real mb = ps.GetEOS()->GetBaryonMass();
+  const Real max_v = ps.GetEOS()->GetMaxVelocity();
+  const Real max_W = OO(std::sqrt(1 - SQR(max_v)));
 
   // sanitize loop limits (coarse / fine auto-switched)
   int IL = il; int IU = iu;
@@ -453,6 +459,11 @@ void EquationOfState::ConservedToPrimitive(
       ph->derived_ms(IX_LOR,k,j,i) = std::max(
         1.0,
         cons_pt[IDN] / (prim_pt[IDN] * mb)
+      );
+
+      ph->derived_ms(IX_LOR,k,j,i) = std::min(
+        max_W,
+        ph->derived_ms(IX_LOR,k,j,i)
       );
 
       // u^a = (W/alpha, util^i)
