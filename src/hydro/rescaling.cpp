@@ -605,9 +605,11 @@ Real Rescaling::GlobalMinimum(const variety_cs v_cs,
   //              MPI_COMM_WORLD);
   // }
 
-  Real min_all_V;
-  MPI_Allreduce(&min_V, &min_all_V, 1,
-    MPI_ATHENA_REAL, MPI_MIN, MPI_COMM_WORLD);
+  // Real min_all_V;
+  // MPI_Allreduce(&min_V, &min_all_V, 1,
+  //   MPI_ATHENA_REAL, MPI_MIN, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &min_V, 1,
+      MPI_INT, MPI_MAX, MPI_COMM_WORLD);
 #endif
 
   return min_V;
