@@ -52,6 +52,8 @@ class ExtremaTracker
     int update_strategy;
 
     enum class control_fields {
+      // do nothing
+      none,
       // wave eqn.
       wave_auxiliary_ref,
       // Z4c.
@@ -63,7 +65,7 @@ class ExtremaTracker
 #endif
     };
 
-    control_fields control_field;
+    AthenaArray<control_fields> control_field;
 
   private:
     Mesh const * pmesh;
@@ -132,8 +134,8 @@ class ExtremaTrackerLocal
     AthenaArray<Real> loc_c_dx3;
 
     // Field for which we interrogate extrema
-    AthenaArray<Real> * control_field;
-    AthenaArray<Real> control_field_slicer;  // Work-around
+    std::vector<AthenaArray<Real>> control_fields;
+    // AthenaArray<Real> control_field_slicer;  // Work-around
 
   private:
     MeshBlock * pmy_block;
