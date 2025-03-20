@@ -466,23 +466,22 @@ void ParameterInput::ModifyFromCmdline(int argc, char *argv[]) {
     name  = input_text.substr(slash_posn+1, (equal_posn - slash_posn - 1));
     value = input_text.substr(equal_posn+1, std::string::npos);
 
-    // get pointer to node with same block name in singly linked list of InputBlocks
-    pb = GetPtrToBlock(block);
-    if (pb == nullptr) {
-      msg << "### FATAL ERROR in function [ParameterInput::ModifyFromCmdline]"
-          << std::endl << "Block name '" << block << "' on command line not found";
-      ATHENA_ERROR(msg);
-    }
+    // Attempt to inject missing blocks / parameters if they do not exist -----
+    pb = FindOrAddBlock(block);
 
-    // get pointer to node with same parameter name in singly linked list of InputLines
-    pl = pb->GetPtrToLine(name);
-    if (pl == nullptr) {
-      msg << "### FATAL ERROR in function [ParameterInput::ModifyFromCmdline]"
-          << std::endl << "Parameter '" << name << "' in block '" << block
-          << "' on command line not found";
-      ATHENA_ERROR(msg);
+    if(!DoesParameterExist(block, name))
+    {
+      std::string comment {"# Added from cmd-line."};
+      AddParameter(pb, name, value, comment);
     }
-    pl->param_value.assign(value);   // replace existing value
+    else
+    {
+      // get pointer to node with same parameter name in singly linked list of
+      // InputLines
+      pl = pb->GetPtrToLine(name);
+      pl->param_value.assign(value);   // replace existing value
+    }
+    // ------------------------------------------------------------------------
 
     if (value.length() > pb->max_len_parvalue) pb->max_len_parvalue = value.length();
   }
