@@ -292,9 +292,8 @@ void EquationOfState::ConservedToPrimitive(
       bool is_admissible = IsAdmissiblePoint(cons, prim, det_gamma_, k, j, i);
 
       // Deal with pure-alpha based excision (if relevant)
-      is_admissible = is_admissible && ((alpha_(i) >
-                                         ph->opt_excision.alpha_threshold) &&
-                                         !ph->opt_excision.hybrid_hydro);
+      is_admissible = is_admissible && (alpha_(i) >
+                                        ph->opt_excision.alpha_threshold);
 
       if(ph->opt_excision.horizon_based || ph->opt_excision.hybrid_hydro)
       {
