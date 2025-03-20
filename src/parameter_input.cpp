@@ -268,7 +268,6 @@ void ParameterInput::LoadFromStream(std::istream &is) {
       }
 
       lines << comment_lines.str();
-      std::cout << lines.str() << std::endl;
 
       // we have the concatenated line
       line.assign(lines.str());
