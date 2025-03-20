@@ -50,6 +50,7 @@
 
 // Athena++ headers
 #include "athena_aliases.hpp"
+#include "athena_arrays.hpp"
 #include "utils/utils.hpp"
 #include "parameter_input.hpp"
 
@@ -62,6 +63,7 @@
 // ----------------------------------------------------------------------------
 // Implement some convenience functions
 namespace {
+
 template <typename T>
 std::string str_join(const T& v, const std::string& delim)
 {
@@ -1261,6 +1263,29 @@ std::string ParameterInput::SetString(std::string block, std::string name,
   AddParameter(pb, name, value, "# Updated during run time");
   Unlock();
   return value;
+}
+
+//----------------------------------------------------------------------------------------
+//  \brief updates a real parameter; creates it if it does not exist
+
+void ParameterInput::SetRealArray(
+  std::string block, std::string name, AthenaArray<Real> & arr
+)
+{
+  InputBlock* pb;
+
+  Lock();
+  pb = FindOrAddBlock(block);
+  std::vector<std::string> s_arr;
+  for (int n=0; n<arr.GetSize(); ++n)
+  {
+    s_arr.push_back(str_from_numeric(arr(n)));
+  }
+
+  std::stringstream ss;
+  ss << "[" << str_join(s_arr, ",") << "]";
+  AddParameter(pb, name, ss.str(), "# Updated during run time");
+  Unlock();
 }
 
 //----------------------------------------------------------------------------------------
