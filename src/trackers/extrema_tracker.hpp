@@ -35,6 +35,7 @@ class ExtremaTracker
     void PrepareTrackerFiles();
 
   public:
+    bool use_new_style = false;
     int N_tracker;
 
     AthenaArray<int> ref_level;

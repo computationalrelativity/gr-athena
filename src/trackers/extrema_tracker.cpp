@@ -33,6 +33,28 @@ ExtremaTracker::ExtremaTracker(Mesh * pmesh, ParameterInput * pin,
 {
   N_tracker = pin->GetOrAddInteger("trackers_extrema", "N_tracker", 0);
 
+  // New-style specification
+  AthenaArray<std::string> ns_control_fields;
+
+  if (N_tracker == 0)
+  {
+    ns_control_fields = pin->GetOrAddStringArray(
+      "trackers_extrema", "control_field", "", 0
+    );
+    if (ns_control_fields.GetSize() > 0)
+    {
+      use_new_style = true;
+      N_tracker = ns_control_fields.GetSize();
+    }
+  }
+
+  // bool use_ns = false;
+  // if ((N_tracker == 0) && (ns_control_fields.GetSize() > 0))
+  // {
+  //   use_ns = true;
+  //   N_tracker = ns_control_fields.GetSize();
+  // }
+
   if (N_tracker > 0)
   {
 #ifdef MPI_PARALLEL
@@ -51,9 +73,16 @@ ExtremaTracker::ExtremaTracker(Mesh * pmesh, ParameterInput * pin,
                                             "filename",
                                             "trackers_extrema");
 
-      control_field_name = pin->GetOrAddString("trackers_extrema",
-                                               "control_field",
-                                               "none");
+      if (use_new_style)
+      {
+        control_field_name = ns_control_fields(n);
+      }
+      else
+      {
+        control_field_name = pin->GetOrAddString("trackers_extrema",
+                                                 "control_field",
+                                                 "none");
+      }
 
       if (control_field_name == "none")
       {
@@ -130,47 +159,147 @@ void ExtremaTracker::InitializeFromParFile(ParameterInput * pin)
   update_strategy = pin->GetOrAddInteger("trackers_extrema",
                                          "update_strategy", 0);
 
-  for(int n=1; n<=N_tracker; ++n)
+
+  if (use_new_style)
   {
+    bool param_well_formed = true;
 
-    std::string n_str = std::to_string(n);
-
-    ref_level(n-1) = pin->GetOrAddInteger(
-      "trackers_extrema", "ref_level_" + n_str, 1
+    AthenaArray<int> ref_level_ = pin->GetOrAddIntegerArray(
+      "trackers_extrema", "ref_level", 1
+    );
+    AthenaArray<int> ref_type_ = pin->GetOrAddIntegerArray(
+      "trackers_extrema", "ref_type", 0
+    );
+    AthenaArray<Real> ref_zone_radius_ = pin->GetOrAddRealArray(
+      "trackers_extrema", "ref_zone_radius", 1
+    );
+    AthenaArray<Real> minima_ = pin->GetOrAddRealArray(
+      "trackers_extrema", "ref_zone_radius", 1
     );
 
-    ref_type(n-1) = pin->GetOrAddInteger(
-      "trackers_extrema", "ref_type_" + n_str, 0
-    );
+    AthenaArray<Real> c_x3_;
+    AthenaArray<Real> c_x2_;
+    AthenaArray<Real> c_x1_;
 
-    if (ref_type(n-1) == 1)
+    if ((ref_level_.GetSize() != N_tracker) ||
+        (ref_type_.GetSize() != N_tracker)  ||
+        (ref_zone_radius_.GetSize() != N_tracker)  ||
+        (minima_.GetSize() != N_tracker))
     {
-      ref_zone_radius(n-1) = pin->GetOrAddReal(
-        "trackers_extrema", "ref_zone_radius_" + n_str, 1
-      );
+      param_well_formed = false;
     }
-
-    // minima / maxima? by default min.
-    minima(n-1) = pin->GetOrAddBoolean(
-      "trackers_extrema", "minima_" + n_str, true);
 
     switch (pmesh->ndim)
     {
       case 3:
-        c_x3(n-1) = pin->GetOrAddReal(
-          "trackers_extrema", "ini_" + n_str + "_x3", 0
+      {
+        c_x3_ = pin->GetOrAddRealArray(
+          "trackers_extrema", "ini_x3", 0
         );
+        param_well_formed = param_well_formed && (
+          c_x3_.GetSize() == N_tracker
+        );
+      }
       case 2:
-        c_x2(n-1) = pin->GetOrAddReal(
-          "trackers_extrema", "ini_" + n_str + "_x2", 0
+      {
+        c_x2_ = pin->GetOrAddRealArray(
+          "trackers_extrema", "ini_x2", 0
         );
+        param_well_formed = param_well_formed && (
+          c_x2_.GetSize() == N_tracker
+        );
+      }
       case 1:
-        c_x1(n-1) = pin->GetOrAddReal(
-          "trackers_extrema", "ini_" + n_str + "_x1", 0
+      {
+        c_x1_ = pin->GetOrAddRealArray(
+          "trackers_extrema", "ini_x1", 0
+        );
+        param_well_formed = param_well_formed && (
+          c_x1_.GetSize() == N_tracker
         );
         break;
+      }
       default:
-        std::cout << "tracker_extrema requires 1<=pmesh->ndim<=3" << std::endl;
+      {
+        std::cout << "tracker_extrema requires 1<=pmesh->ndim<=3"
+                  << std::endl;
+      }
+    }
+
+    if (!param_well_formed)
+    {
+      std::ostringstream err;
+      err << "Malformed parameters in trackers_extrema";
+      ATHENA_ERROR(err);
+    }
+
+    for(int n=1; n<=N_tracker; ++n)
+    {
+      ref_level(n-1) = ref_level_(n-1);
+      ref_type(n-1) = ref_type_(n-1);
+      ref_zone_radius(n-1) = ref_zone_radius_(n-1);
+      minima(n-1) = minima_(n-1);
+
+      switch (pmesh->ndim)
+      {
+        case 3:
+          c_x3(n-1) = c_x3_(n-1);
+        case 2:
+          c_x2(n-1) = c_x2_(n-1);
+        case 1:
+          c_x1(n-1) = c_x1_(n-1);
+          break;
+        default:
+          assert(false);
+      }
+    }
+  }
+  else
+  {
+    for(int n=1; n<=N_tracker; ++n)
+    {
+
+      std::string n_str = std::to_string(n);
+
+      ref_level(n-1) = pin->GetOrAddInteger(
+        "trackers_extrema", "ref_level_" + n_str, 1
+      );
+
+      ref_type(n-1) = pin->GetOrAddInteger(
+        "trackers_extrema", "ref_type_" + n_str, 0
+      );
+
+      // 0: to the point; values larger take radii
+      if (ref_type(n-1) >= 1)
+      {
+        ref_zone_radius(n-1) = pin->GetOrAddReal(
+          "trackers_extrema", "ref_zone_radius_" + n_str, 1
+        );
+      }
+
+      // minima / maxima? by default min.
+      minima(n-1) = pin->GetOrAddBoolean(
+        "trackers_extrema", "minima_" + n_str, true);
+
+      switch (pmesh->ndim)
+      {
+        case 3:
+          c_x3(n-1) = pin->GetOrAddReal(
+            "trackers_extrema", "ini_" + n_str + "_x3", 0
+          );
+        case 2:
+          c_x2(n-1) = pin->GetOrAddReal(
+            "trackers_extrema", "ini_" + n_str + "_x2", 0
+          );
+        case 1:
+          c_x1(n-1) = pin->GetOrAddReal(
+            "trackers_extrema", "ini_" + n_str + "_x1", 0
+          );
+          break;
+        default:
+          std::cout << "tracker_extrema requires 1<=pmesh->ndim<=3"
+                    << std::endl;
+      }
     }
   }
 }
@@ -387,7 +516,7 @@ ExtremaTrackerLocal::ExtremaTrackerLocal(
   ),
   ndim(pmy_block->pmy_mesh->ndim)
 {
-  N_tracker = pin->GetOrAddInteger("trackers_extrema", "N_tracker", 0);
+  N_tracker = ptracker_extrema->N_tracker;
   iter_max = pin->GetOrAddInteger("trackers_extrema", "iter_max", 100);
   tol_ds = pin->GetOrAddReal("trackers_extrema", "tol_ds", 1e-12);
   interp_ds_fac = pin->GetOrAddReal("trackers_extrema", "interp_ds_fac", 10.);
