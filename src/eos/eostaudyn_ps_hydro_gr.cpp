@@ -122,7 +122,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
 
 #elif defined(USE_COMPOSE_TRANSITION_EOS)
   eos.SetCodeUnitSystem(&Primitive::GeometricSolar);
-  std::string compose_table = pin->GetString("hydro", "compose_table");
+  std::string compose_table = pin->GetString("hydro", "table");
   std::string helmholtz_table = pin->GetString("hydro", "helmholtz_table");
 
   Real trans_n_start = pin->GetOrAddReal("hydro", "trans_n_start", 0.0);

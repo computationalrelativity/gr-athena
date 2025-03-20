@@ -710,7 +710,6 @@ Real EOSCompOSETransition::eval_helm_at_lnty(int iv, Real ln, Real lT, Real Yq, 
   Real rho = exp(ln) * eos_units->DensityConversion(CGS)*mb*eos_units->MassConversion(CGS);
   Real temp = exp(lT) * eos_units->TemperatureConversion(CGS);
   Real Zbar = Abar*Yq;
-  if (Yq < 1e-2) printf("Yq = %.5f\n", Yq);
 
   Real etot;
   Real ptot;

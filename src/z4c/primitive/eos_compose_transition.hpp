@@ -161,6 +161,12 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     /// the number of species is invalid.
     void SetNSpecies(int n);
 
+    /// Set the maxium density.
+    /// Values higher than the max of the table will lead to extrapolation
+    void SetMaximumDensity(Real n_max) {
+      max_n = n_max;
+    }
+
   private:
     /// Reads the compose table.
     void read_compose_table(std::string fname);
