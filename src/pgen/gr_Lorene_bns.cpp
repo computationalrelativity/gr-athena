@@ -964,9 +964,9 @@ int RefinementCondition(MeshBlock *pmb)
           }
 
           // populate the tracker with AHF based information
-          ptracker_extrema->c_x1(n-1) = pah_f->center[0];
-          ptracker_extrema->c_x2(n-1) = pah_f->center[1];
-          ptracker_extrema->c_x3(n-1) = pah_f->center[2];
+          // ptracker_extrema->c_x1(n-1) = pah_f->center[0];
+          // ptracker_extrema->c_x2(n-1) = pah_f->center[1];
+          // ptracker_extrema->c_x3(n-1) = pah_f->center[2];
           ptracker_extrema->ref_zone_radius(n-1) = (
             pah_f->rr_min
           );
