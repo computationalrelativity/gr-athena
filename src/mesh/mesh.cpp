@@ -360,13 +360,6 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     }
 #endif
 
-    // AHF (0 is restart flag for restart)
-    int nhorizon = pin->GetOrAddInteger("ahf", "num_horizons",0);
-    pah_finder.reserve(nhorizon);
-    for (int n = 0; n < nhorizon; ++n) {
-      pah_finder.push_back(new AHF(this, pin, n));
-    }
-
 #ifdef EJECTA_ENABLED
     const int nejecta = pin->GetOrAddInteger("ejecta", "num_rad", 0);
     pej_extract.reserve(nejecta);
@@ -398,6 +391,16 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
 
   // Last entry says if it is restart run or not
   ptracker_extrema = new ExtremaTracker(this, pin, 0);
+
+  if (Z4C_ENABLED)
+  {
+    // AHF (0 is restart flag for restart)
+    int nhorizon = pin->GetOrAddInteger("ahf", "num_horizons",0);
+    pah_finder.reserve(nhorizon);
+    for (int n = 0; n < nhorizon; ++n) {
+      pah_finder.push_back(new AHF(this, pin, n));
+    }
+  }
 
   if (EOS_TABLE_ENABLED) peos_table = new EosTable(pin);
   InitUserMeshData(pin);
@@ -851,12 +854,6 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
       pcce.push_back(new CCE(this, pin, "alp",n));
     }
 #endif
-    // BD: By default do not add any horizon searching
-    int nhorizon = pin->GetOrAddInteger("ahf", "num_horizons",0);
-    pah_finder.reserve(nhorizon);
-    for (int n = 0; n < nhorizon; ++n) {
-      pah_finder.push_back(new AHF(this, pin, n));
-    }
 
 #ifdef EJECTA_ENABLED
     const int nejecta = pin->GetOrAddInteger("ejecta", "num_rad", 0);
@@ -887,6 +884,16 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
 
   // Last entry says if it is restart run or not
   ptracker_extrema = new ExtremaTracker(this, pin, 1);
+
+  if (Z4C_ENABLED)
+  {
+    // BD: By default do not add any horizon searching
+    int nhorizon = pin->GetOrAddInteger("ahf", "num_horizons",0);
+    pah_finder.reserve(nhorizon);
+    for (int n = 0; n < nhorizon; ++n) {
+      pah_finder.push_back(new AHF(this, pin, n));
+    }
+  }
 
   if (EOS_TABLE_ENABLED) peos_table = new EosTable(pin);
   InitUserMeshData(pin);
