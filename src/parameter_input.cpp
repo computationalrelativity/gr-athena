@@ -58,6 +58,73 @@
 #include <omp.h>
 #endif
 
+
+// ----------------------------------------------------------------------------
+// Implement some convenience functions
+namespace {
+template <typename T>
+std::string str_join(const T& v, const std::string& delim)
+{
+  std::ostringstream s;
+  for (const auto& i : v)
+  {
+    if (&i != &v[0]) {
+      s << delim;
+    }
+    s << i;
+  }
+  return s.str();
+}
+
+void str_replace(std::string & str,
+                 const std::string &from,
+                 const std::string &to)
+{
+  size_t start_pos = 0;
+  while ((start_pos = str.find(from, start_pos)) != std::string::npos)
+  {
+    str.replace(start_pos, from.length(), to);
+    start_pos +=
+        to.length(); // Handles case where 'to' is a substring of 'from'
+  }
+}
+
+
+// any lines with only leading spaces should be dropped
+bool is_line_empty(const std::string& str)
+{
+  return !str.empty() && std::all_of(str.begin(), str.end(), [](char c)
+  {
+      return c == '\n' || c == '\r' || c == ' ' || c == '\t';
+  });
+}
+
+void line_to_var_comment(
+  const std::string& input,
+  std::string& content,
+  std::string& comment)
+{
+  size_t pos = input.find('#'); // Find the first occurrence of '#'
+
+  if (pos != std::string::npos)
+  {
+    content = input.substr(0, pos);  // Extract everything before '#'
+    comment = input.substr(pos);     // Extract the comment including '#'
+  } else {
+      content = input;  // No comment found, so full string is content
+      comment = "";     // No comment
+  }
+
+  size_t end = content.find_last_not_of(" \t");
+  if (end != std::string::npos) {
+      content = content.substr(0, end + 1);
+  } else {
+      content.clear(); // If it's all spaces, clear it
+  }
+}
+
+} // namespace
+
 //----------------------------------------------------------------------------------------
 // ParameterInput constructor
 
@@ -108,11 +175,12 @@ void ParameterInput::LoadFromStream(std::istream &is) {
   std::size_t first_char, last_char;
   std::stringstream msg;
   InputBlock *pib{};
-  int line_num{-1}, blocks_found{0};
+  // int line_num{-1};
+  int blocks_found{0};
 
   while (is.good()) {
     std::getline(is, line);
-    line_num++;
+    // line_num++;
     if (line.find('\t') != std::string::npos) {
       line.erase(std::remove(line.begin(), line.end(), '\t'), line.end());
       // msg << "### FATAL ERROR in function [ParameterInput::LoadFromStream]"
@@ -157,6 +225,55 @@ void ParameterInput::LoadFromStream(std::istream &is) {
             << " parameter = value line";
         ATHENA_ERROR(msg);
     }
+
+    // If we have a '[' but no ']' then we have a multi-line specification of a param
+    // Concatenate following lines to this one
+    if ((count_char(line, '[') == 1) && (count_char(line, ']') == 0))
+    {
+      // we concatenate until '[' and ']' live on a single line
+      std::stringstream lines;
+      std::stringstream comment_lines;
+
+      bool skip_first = true;
+      while ((count_char(line, ']') == 0) && is.good())
+      {
+        std::string line_var, line_comment;
+
+        if (!skip_first)
+          std::getline(is, line);
+        skip_first = false;
+
+        if (line.size() == 0) continue;
+
+        // size_t pos_com = line.find_first_of('#');
+        first_char = line.find_first_not_of(" ");
+
+        if (is_line_empty(line)) continue;
+        if (line.compare(first_char, 1, "#") == 0) continue;
+
+        if ((line.compare(first_char, 1, "<") == 0) ||
+            (line.compare(first_char, 9, "<par_end>") == 0))
+        {
+          std::ostringstream err;
+          err << "Malformed multi-line parameter in: " << block_name;
+          ATHENA_ERROR(err);
+        }
+
+        line_to_var_comment(line, line_var, line_comment);
+        str_replace(line_var, " ", "");
+        lines << line_var;
+
+        if (line_comment.size() > 0)
+          comment_lines << line_comment << " ";
+      }
+
+      lines << comment_lines.str();
+      std::cout << lines.str() << std::endl;
+
+      // we have the concatenated line
+      line.assign(lines.str());
+    }
+
     // parse line and add name/value/comment strings (if found) to current block name
     ParseLine(pib, line, param_name, param_value, param_comment);
     AddParameter(pib, param_name, param_value, param_comment);
@@ -569,7 +686,7 @@ int ParameterInput::GetOrAddInteger(std::string block, std::string name, int def
   } else {
     pb = FindOrAddBlock(block);
     ss_value << def_value;
-    AddParameter(pb, name, ss_value.str(), "# Default value added at run time");
+    AddParameter(pb, name, ss_value.str(), "# Default");
     ret = def_value;
   }
   Unlock();
@@ -597,7 +714,7 @@ Real ParameterInput::GetOrAddReal(std::string block, std::string name, Real def_
   } else {
     pb = FindOrAddBlock(block);
     ss_value << def_value;
-    AddParameter(pb, name, ss_value.str(), "# Default value added at run time");
+    AddParameter(pb, name, ss_value.str(), "# Default");
     ret = def_value;
   }
   Unlock();
@@ -631,7 +748,7 @@ bool ParameterInput::GetOrAddBoolean(std::string block,std::string name, bool de
   } else {
     pb = FindOrAddBlock(block);
     ss_value << def_value;
-    AddParameter(pb, name, ss_value.str(), "# Default value added at run time");
+    AddParameter(pb, name, ss_value.str(), "# Default");
     ret = def_value;
   }
   Unlock();
@@ -658,45 +775,12 @@ std::string ParameterInput::GetOrAddString(std::string block, std::string name,
     ret = pl->param_value;
   } else {
     pb = FindOrAddBlock(block);
-    AddParameter(pb, name, def_value, "# Default value added at run time");
+    AddParameter(pb, name, def_value, "# Default");
     ret = def_value;
   }
   Unlock();
   return ret;
 }
-
-// ----------------------------------------------------------------------------
-// Implement some convenience functions
-namespace {
-template <typename T>
-std::string str_join(const T& v, const std::string& delim)
-{
-  std::ostringstream s;
-  for (const auto& i : v)
-  {
-    if (&i != &v[0]) {
-      s << delim;
-    }
-    s << i;
-  }
-  return s.str();
-}
-
-void str_replace(std::string & str,
-                 const std::string &from,
-                 const std::string &to)
-{
-  size_t start_pos = 0;
-  while ((start_pos = str.find(from, start_pos)) != std::string::npos)
-  {
-    str.replace(start_pos, from.length(), to);
-    start_pos +=
-        to.length(); // Handles case where 'to' is a substring of 'from'
-  }
-}
-
-} // namespace
-
 
 // Assuming block/name exists, return string array
 void ParameterInput::GetExistingStringArray(
@@ -770,7 +854,7 @@ void ParameterInput::AddParameterStringArray(
   AddParameter(pb,
                name,
                ss_def_value.str(),
-               "# Default value added at run time");
+               "# Default");
 }
 
 ParameterInput::t_vec_str ParameterInput::GetOrAddStringArray(
@@ -1259,6 +1343,7 @@ void ParameterInput::ParameterDump(std::ostream& os) {
   os<< "# GR-Athena++ GIT_HASH: " << GIT_HASH << std::endl;
 
   for (pb = pfirst_block; pb != nullptr; pb = pb->pnext) { // loop over InputBlocks
+    os<< "\n# =========================================================" << std::endl;
     os<< "<" << pb->block_name << ">" << std::endl;     // write block name
     for (pl = pb->pline; pl != nullptr; pl = pl->pnext) {   // loop over InputLines
       param_name.assign(pl->param_name);
