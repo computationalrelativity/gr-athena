@@ -70,9 +70,11 @@ class Hydro {
   HydroDiffusion hdif;
 
   struct {
-    Real alpha_threshold;  // excise hydro if alpha < alpha_excision
-    bool horizon_based;    // use horizon for excise
-    Real horizon_factor;   // factor to multiply horizon radius
+    Real alpha_threshold;   // excise hydro if alpha < alpha_excision
+    bool horizon_based;     // use horizon for excise
+    Real horizon_factor;    // factor to multiply horizon radius
+    bool hybrid_hydro;      // control whether to use ahf+hydro excision
+    Real hybrid_fac_min_alpha;  // cut values below this * min_alpha
   } opt_excision;
 
 

@@ -128,6 +128,7 @@ void Hydro::RiemannSolver(
   using namespace FloatingPoint;
 
   MeshBlock * pmb = pmy_block;
+  Mesh * pm = pmb->pmy_mesh;
   Hydro * ph = pmb->phydro;
   PassiveScalars * ps = pmb->pscalars;
   EquationOfState * peos = pmb->peos;
@@ -172,7 +173,7 @@ void Hydro::RiemannSolver(
     peos->SetPrimAtmo(prim_r, pscalars_r, i);
   };
 
-  if (opt_excision.horizon_based)
+  if (opt_excision.horizon_based || ph->opt_excision.hybrid_hydro)
   {
     #pragma omp simd
     for (int i = il; i <= iu; ++i)
@@ -220,8 +221,22 @@ void Hydro::RiemannSolver(
           }
         }
 
-        if ((R2 < SQR(horizon_radius)) ||
-            (alpha_(i) < opt_excision.alpha_threshold))
+        bool can_excise = false;
+        if (ph->opt_excision.hybrid_hydro)
+        {
+          const Real alpha_min__ = (
+            ph->opt_excision.hybrid_fac_min_alpha *
+            pm->global_extrema.min_adm_alpha
+          );
+          can_excise = can_excise || (alpha_(i) < alpha_min__);
+        }
+
+        if (opt_excision.horizon_based)
+        {
+          can_excise = can_excise || (R2 < SQR(horizon_radius));
+        }
+
+        if (can_excise)
         {
           excise(i);
         }

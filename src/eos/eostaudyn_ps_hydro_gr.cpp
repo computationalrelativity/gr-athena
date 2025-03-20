@@ -244,6 +244,7 @@ void EquationOfState::ConservedToPrimitive(
   bool skip_physical)
 {
   MeshBlock* pmb = pmy_block_;
+  Mesh* pm = pmb->pmy_mesh;
   Hydro * ph     = pmb->phydro;
 
   geom_sliced_cc gsc;
@@ -290,14 +291,15 @@ void EquationOfState::ConservedToPrimitive(
       // Check if the state is admissible; if not we reset to atmo.
       bool is_admissible = IsAdmissiblePoint(cons, prim, det_gamma_, k, j, i);
 
-      // Deal with alpha based excision (if relevant)
-      is_admissible = is_admissible && (alpha_(i) >
-                                        ph->opt_excision.alpha_threshold);
+      // Deal with pure-alpha based excision (if relevant)
+      is_admissible = is_admissible && ((alpha_(i) >
+                                         ph->opt_excision.alpha_threshold) &&
+                                         !ph->opt_excision.hybrid_hydro);
 
-      if(pmb->phydro->opt_excision.horizon_based)
+      if(ph->opt_excision.horizon_based || ph->opt_excision.hybrid_hydro)
       {
         Real horizon_radius;
-        for (auto pah_f : pmy_block_->pmy_mesh->pah_finder)
+        for (auto pah_f : pm->pah_finder)
         {
           if (not pah_f->ah_found)
             continue;
@@ -306,7 +308,25 @@ void EquationOfState::ConservedToPrimitive(
           const Real r_2 = SQR(pco->x1v(i) - pah_f->center[0]) +
                            SQR(pco->x2v(j) - pah_f->center[1]) +
                            SQR(pco->x3v(k) - pah_f->center[2]);
-          is_admissible = is_admissible && (r_2 > SQR(horizon_radius));
+
+          if (ph->opt_excision.hybrid_hydro)
+          {
+            const Real alpha_min__ = (
+              ph->opt_excision.hybrid_fac_min_alpha *
+              pm->global_extrema.min_adm_alpha
+            );
+
+            const bool can_excise = (
+              (r_2 < SQR(horizon_radius)) &&
+              (alpha_(i) < alpha_min__)
+            );
+
+            is_admissible = is_admissible && !(can_excise);
+          }
+          else
+          {
+            is_admissible = is_admissible && (r_2 > SQR(horizon_radius));
+          }
         }
       }
 

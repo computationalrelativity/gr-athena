@@ -70,9 +70,15 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   opt_excision.alpha_threshold =
       pin->GetOrAddReal("excision", "alpha_threshold", -1.0);
   opt_excision.horizon_based =
-      pin->GetOrAddBoolean("excision", "horizon_based", 0.0);
+      pin->GetOrAddBoolean("excision", "horizon_based", false);
   opt_excision.horizon_factor =
       pin->GetOrAddReal("excision", "horizon_factor", 1.0);
+
+  opt_excision.hybrid_hydro =
+      pin->GetOrAddBoolean("excision", "hybrid_hydro", false);
+
+  opt_excision.hybrid_fac_min_alpha =
+      pin->GetOrAddReal("excision", "hybrid_fac_min_alpha", 1.5);
 
   // If user-requested time integrator is type 3S*, allocate additional memory registers
   std::string integrator = pin->GetOrAddString("time", "integrator", "vl2");
