@@ -40,7 +40,7 @@
 // C++ headers
 #include <algorithm>  // transform
 #include <cmath>      // std::fmod()
-#include <cstdlib>    // atoi(), atof(), nullptr, std::size_t
+#include <cstdlib>    // atoi(), nullptr, std::size_t
 #include <fstream>    // ifstream
 #include <iomanip>
 #include <iostream>   // endl, ostream
@@ -121,6 +121,24 @@ void line_to_var_comment(
   } else {
       content.clear(); // If it's all spaces, clear it
   }
+}
+
+template<typename T>
+T numeric_from_str(const std::string & to_parse)
+{
+  std::istringstream iss(to_parse);
+  T val;
+  iss >> val;
+  return val;
+}
+
+template<typename T>
+std::string str_from_numeric(T to_parse)
+{
+  std::ostringstream oss;
+  oss.precision(std::numeric_limits<T>::digits10);
+  oss << std::scientific << to_parse;
+  return oss.str();
 }
 
 } // namespace
@@ -579,7 +597,7 @@ Real ParameterInput::GetReal(std::string block, std::string name) {
   Unlock();
 
   // Convert string to real and return value
-  return static_cast<Real>(atof(val.c_str()));
+  return numeric_from_str<Real>(val.c_str());
 }
 
 //----------------------------------------------------------------------------------------
@@ -708,7 +726,7 @@ Real ParameterInput::GetOrAddReal(std::string block, std::string name, Real def_
     pb = GetPtrToBlock(block);
     pl = pb->GetPtrToLine(name);
     std::string val = pl->param_value;
-    ret = static_cast<Real>(atof(val.c_str()));
+    ret = numeric_from_str<Real>(val.c_str());
   } else {
     pb = FindOrAddBlock(block);
     ss_value << def_value;
@@ -908,7 +926,7 @@ ParameterInput::t_vec_Real ParameterInput::GetOrAddRealArray(
     GetExistingStringArray(block, name, s_ret);
     for (const auto& sval : s_ret)
     {
-      ret.push_back(static_cast<Real>(atof(sval.c_str())));
+      ret.push_back(numeric_from_str<Real>(sval.c_str()));
     }
   }
   else
@@ -1204,12 +1222,11 @@ int ParameterInput::SetInteger(std::string block, std::string name, int value) {
 
 Real ParameterInput::SetReal(std::string block, std::string name, Real value) {
   InputBlock* pb;
-  std::stringstream ss_value;
 
   Lock();
   pb = FindOrAddBlock(block);
-  ss_value << value;
-  AddParameter(pb, name, ss_value.str(), "# Updated during run time");
+  std::string s_value {str_from_numeric(value)};
+  AddParameter(pb, name, s_value, "# Updated during run time");
   Unlock();
   return value;
 }
@@ -1265,7 +1282,7 @@ void ParameterInput::RollbackNextTime() {
             << pb->block_name << "'";
         ATHENA_ERROR(msg);
       }
-      next_time = static_cast<Real>(atof(pl->param_value.c_str()));
+      next_time = numeric_from_str<Real>(pl->param_value.c_str());
       pl = pb->GetPtrToLine("dt");
       if (pl == nullptr) {
         msg << "### FATAL ERROR in function [ParameterInput::RollbackNextTime]"
@@ -1273,7 +1290,7 @@ void ParameterInput::RollbackNextTime() {
             << pb->block_name << "'";
         ATHENA_ERROR(msg);
       }
-      next_time -= static_cast<Real>(atof(pl->param_value.c_str()));
+      next_time -= numeric_from_str<Real>(pl->param_value.c_str());
       msg << next_time;
       //AddParameter(pb, "next_time", msg.str().c_str(), "# Updated during run time");
       SetReal(pb->block_name, "next_time", next_time);
@@ -1302,7 +1319,7 @@ void ParameterInput::ForwardNextTime(Real mesh_time) {
         // This is a freshly added output
         fresh = true;
       } else {
-        next_time = static_cast<Real>(atof(pl->param_value.c_str()));
+        next_time = numeric_from_str<Real>(pl->param_value.c_str());
       }
       pl = pb->GetPtrToLine("dt");
       if (pl == nullptr) {
@@ -1311,7 +1328,7 @@ void ParameterInput::ForwardNextTime(Real mesh_time) {
             << pb->block_name << "'";
         ATHENA_ERROR(msg);
       }
-      dt0 = static_cast<Real>(atof(pl->param_value.c_str()));
+      dt0 = numeric_from_str<Real>(pl->param_value.c_str());
       dt = dt0 * static_cast<int>((mesh_time - next_time) / dt0) + dt0;
       if (dt > 0) {
         next_time += dt;
