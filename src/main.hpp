@@ -530,6 +530,9 @@ inline Outputs * InitOutputs(Flags *pfl,
 
     if (pfl->res == 0)
     {
+#if FLUID_ENABLED
+      pm->presc->FinalizePreOutput();
+#endif
       pouts->MakeOutputs(pm, pin);
     }
 
@@ -557,7 +560,11 @@ inline void MakeOutputs(const bool is_final,
                         Outputs *pouts)
 {
   // Record final time as start_time for any restarts
-  pin->SetReal("mesh", "start_time", pm->time);
+  pin->SetReal("time", "start_time", pm->time);
+
+#if FLUID_ENABLED
+  pm->presc->FinalizePreOutput();
+#endif
 
   try
   {
@@ -806,6 +813,9 @@ inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
       pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
     }
 
+    if (pmesh->global_extrema_on_substeps)
+      pmesh->GlobalExtrema();
+
     // Rescale as required
 #if FLUID_ENABLED
     if (pmesh->presc->opt.apply_on_substeps ||
@@ -825,6 +835,9 @@ inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
     pmesh->ScatterMatter(pmb_array);
 #endif
   }
+
+  if (!pmesh->global_extrema_on_substeps)
+    pmesh->GlobalExtrema();
 
 }
 

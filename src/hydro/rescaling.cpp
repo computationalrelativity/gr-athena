@@ -105,20 +105,52 @@ void Rescaling::Initialize()
   if (opt.rescale_conserved_density)
   {
     const Real D_cut = 0;
-    ini.m = IntegrateField(variety_cs::conserved_hydro, IDN, D_cut);
+    ini.m = pin->GetOrAddReal(
+      "rescaling", "ini_m",
+      IntegrateField(variety_cs::conserved_hydro, IDN, D_cut)
+    );
     cur.m = ini.m;
   }
 
-  if (opt.rescale_conserved_scalars)
+  if (opt.rescale_conserved_scalars && (NSCALARS > 0))
   {
     const Real s_cut = 0;
     ini.S.NewAthenaArray(NSCALARS);
     cur.S.NewAthenaArray(NSCALARS);
     cur.err_rel_S.NewAthenaArray(NSCALARS);
 
+    if (pin->DoesParameterExist("rescaling", "ini_S"))
+    {
+      AA ini_S_inp = pin->GetOrAddRealArray(
+        "rescaling", "ini_S", 0, 0
+      );
+
+      if (ini_S_inp.GetSize() != NSCALARS)
+      {
+        std::stringstream msg;
+        msg << "### FATAL ERROR in function [Rescaling::Initialize]\n";
+        msg << "Parameter ini_S is malformed";
+        ATHENA_ERROR(msg);
+      }
+      else
+      {
+        for (int n=0; n<NSCALARS; ++n)
+        {
+          ini.S(n) = ini_S_inp(n);
+        }
+      }
+
+    }
+    else
+    {
+      for (int n=0; n<NSCALARS; ++n)
+      {
+        ini.S(n) = IntegrateField(variety_cs::conserved_scalar, n, s_cut);
+      }
+    }
+
     for (int n=0; n<NSCALARS; ++n)
     {
-      ini.S(n) = IntegrateField(variety_cs::conserved_scalar, n, s_cut);
       cur.S(n) = ini.S(n);
     }
   }
@@ -731,6 +763,26 @@ void Rescaling::OutputFinalize()
   if (Globals::my_rank == 0)
   {
     fclose(pofile);
+  }
+}
+
+// retain conserved quantity values within parameter file
+void Rescaling::FinalizePreOutput()
+{
+  if (opt.rescale_conserved_density)
+  {
+    pin->SetReal("rescaling", "ini_m", ini.m);
+  }
+
+  if (opt.rescale_conserved_scalars &&
+      (NSCALARS > 0))
+  {
+    AA ini_S(NSCALARS);
+    for (int n=0; n<NSCALARS; ++n)
+    {
+      ini_S(n) = ini.S(n);
+    }
+    pin->SetRealArray("rescaling", "ini_S", ini_S);
   }
 }
 
