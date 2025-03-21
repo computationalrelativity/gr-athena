@@ -218,10 +218,14 @@ void EquationOfState::GeometryToSlicedCC(
   {
     sl_adm_gamma_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
     sl_alpha.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_alpha);
+
+    // BD: TODO - clean this up
+#if FLUID_ENABLED
     sl_adm_sqrt_detgamma.InitWithShallowSlice(
       pz4c->storage.aux_extended,
       Z4c::I_AUX_EXTENDED_ms_sqrt_detgamma
     );
+#endif // FLUID_ENABLED
   }
 
   // do the required interp. / calculation of derived quantities: -------------

@@ -261,8 +261,14 @@ void GRDynamical::AddCoordTermsDivergence(
   AT_N_sym adm_gamma_dd(pz4c->storage.adm, Z4c::I_ADM_gxx);
   AT_N_sym adm_K_dd(    pz4c->storage.adm, Z4c::I_ADM_Kxx);
 
-  AT_N_sca adm_sqrt_detgamma(pz4c->storage.aux_extended,
-                             Z4c::I_AUX_EXTENDED_ms_sqrt_detgamma);
+  // BD: TODO - clean this up
+  AT_N_sca adm_sqrt_detgamma;
+#if FLUID_ENABLED
+  adm_sqrt_detgamma.InitWithShallowSlice(
+    pz4c->storage.aux_extended,
+    Z4c::I_AUX_EXTENDED_ms_sqrt_detgamma
+  );
+#endif // FLUID_ENABLED
 
   // Slice matter -------------------------------------------------------------
   AA & ccprim = const_cast<AthenaArray<Real>&>(prim);

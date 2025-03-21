@@ -541,15 +541,15 @@ void Z4c::SetAuxAliases(AthenaArray<Real> & u, Z4c::Aux_vars & aux)
   aux.dg_ddd.InitWithShallowSlice(u, I_AUX_dgxx_x);
 }
 
-void Z4c::SetAuxExtendedAliases(AthenaArray<Real> & u_adm,
+void Z4c::SetAuxExtendedAliases(AthenaArray<Real> & u_aux_extended,
                                 Z4c::Aux_extended_vars & aux_extended)
 {
   aux_extended.gs_sqrt_detgamma.InitWithShallowSlice(
-    u_adm, I_AUX_EXTENDED_gs_sqrt_detgamma
+    u_aux_extended, I_AUX_EXTENDED_gs_sqrt_detgamma
   );
 #if FLUID_ENABLED
   aux_extended.ms_sqrt_detgamma.InitWithShallowSlice(
-    u_adm, I_AUX_EXTENDED_ms_sqrt_detgamma
+    u_aux_extended, I_AUX_EXTENDED_ms_sqrt_detgamma
   );
 #endif
 }

@@ -500,7 +500,7 @@ public:
   // set auxiliary variable aliases
   static void SetAuxAliases(AA & u, Aux_vars & aux);
   // set auxiliary (extended) variable aliases
-  static void SetAuxExtendedAliases(AA & u_adm,
+  static void SetAuxExtendedAliases(AA & u_aux_extended,
                                     Aux_extended_vars & aux_extended);
 
   // additional global functions

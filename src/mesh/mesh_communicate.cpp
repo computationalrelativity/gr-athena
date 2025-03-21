@@ -1080,14 +1080,14 @@ void Mesh::GlobalExtrema()
 #if Z4C_ENABLED
     AA adm_alpha;
     adm_alpha.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_alpha, 1);
+#endif // Z4C_ENABLED
 
+#if FLUID_ENABLED && Z4C_ENABLED
     AA ms_adm_sqrt_det_gamma;
     ms_adm_sqrt_det_gamma.InitWithShallowSlice(
       pz4c->storage.aux_extended, Z4c::I_AUX_EXTENDED_ms_sqrt_detgamma, 1
     );
-#endif // Z4C_ENABLED
 
-#if FLUID_ENABLED && Z4C_ENABLED
     AA hydro_cons_D;
     hydro_cons_D.InitWithShallowSlice(
       ph->u, IDN, 1
