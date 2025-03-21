@@ -346,8 +346,9 @@ public:
     // For debug
     bool use_tp_trackers_extrema;
 
-    // Excision of matter sources?
+    // Excision of matter sources / evolution?
     bool excise_z4c_matter_sources;
+    bool excise_z4c_freeze_evo;
   } opt;
 
   AA empty_flux[3];
@@ -397,6 +398,8 @@ public:
   // compute the RHS given the Z4c and matter variables
   void Z4cRHS(AA & u, AA & mat, AA & rhs);
   void Z4cRHS_(AA & u, AA & mat, AA & rhs);
+
+  void Z4cRHSExciseFreeze(AA & u, AA & mat, AA & rhs);
 
   // compute the boundary RHS given the Z4c and matter variables
   void Z4cBoundaryRHS(AA & u, AA & mat, AA & rhs);

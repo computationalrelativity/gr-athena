@@ -10,6 +10,7 @@
 #include "z4c_macro.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
+#include "../eos/eos.hpp"
 #include "../utils/linear_algebra.hpp"
 
 // External libraries
@@ -21,12 +22,11 @@
 
 
 //----------------------------------------------------------------------------------------
-// \!fn void Z4c::Z4cRHS(AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<Real> & u_rhs)
+// \!fn void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
 // \brief compute the RHS given the state vector and matter state
 //
 // This function operates only on the interior points of the MeshBlock
-void Z4c::Z4cRHS(
-  AthenaArray<Real> & u, AthenaArray<Real> & u_mat, AthenaArray<Real> & u_rhs)
+void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
 {
   using namespace LinearAlgebra;
 
@@ -624,4 +624,33 @@ void Z4c::Z4cRHS(
     }
   }
 
+  // Optionally freeze rhs during excision
+  if (opt.excise_z4c_freeze_evo)
+  {
+    Z4cRHSExciseFreeze(u, u_mat, u_rhs);
+  }
+}
+
+void Z4c::Z4cRHSExciseFreeze(AA & u, AA & u_mat, AA & u_rhs)
+{
+  MeshBlock * pmb = pmy_block;
+  EquationOfState * peos = pmb->peos;
+
+  Z4c_vars z4c, rhs;
+  SetZ4cAliases(u, z4c);
+  SetZ4cAliases(u_rhs, rhs);
+
+  AT_N_sca & alpha = z4c.alpha;
+
+  ILOOP3(k,j,i)
+  {
+    bool can_excise = peos->CanExcisePoint(
+      false, alpha, mbi.x1, mbi.x2, mbi.x3, i, j, k);
+
+    for(int n = 0; n < N_Z4c; ++n)
+    for(int a = 0; a < NDIM; ++a)
+    {
+      u_rhs(n,k,j,i) = 0;
+    }
+  }
 }
