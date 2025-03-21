@@ -345,8 +345,14 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   opt.use_tp_trackers_extrema = pin->GetOrAddBoolean(
     "z4c", "use_tp_trackers_extrema", false);
 
+  opt.force_regularization = pin->GetOrAddBoolean(
+    "z4c", "force_regularization", false);
+
   opt.excise_z4c_freeze_evo = pin->GetOrAddBoolean(
     "excision", "excise_z4c_freeze_evo", false);
+
+  opt.excise_z4c_freeze_evo_rat = pin->GetOrAddReal(
+    "excision", "excise_z4c_freeze_evo_rat", -1);
 
   opt.excise_z4c_matter_sources = pin->GetOrAddBoolean(
     "excision", "excise_z4c_matter_sources", false);
@@ -555,6 +561,7 @@ void Z4c::SetAuxExtendedAliases(AthenaArray<Real> & u_adm,
 
 void Z4c::AlgConstr(AthenaArray<Real> & u)
 {
+  using namespace FloatingPoint;
   using namespace LinearAlgebra;
 
   Z4c_vars z4c;
@@ -564,12 +571,18 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
 
     // compute determinant and "conformal conformal factor"
     GLOOP1(i) {
-      detg(i) = Det3Metric(z4c.g_dd,k,j,i);
-      detg(i) = detg(i) > 0. ? detg(i) : 1.;
-      Real eps = detg(i) - 1.;
+      // detg(i) = Det3Metric(z4c.g_dd,k,j,i);
+      // detg(i) = detg(i) > 0. ? detg(i) : 1.;
+      // Real eps = detg(i) - 1.;
       // oopsi4(i) = (eps < opt.eps_floor) ? (1. - opt.eps_floor/3.) : (pow(1./detg(i), 1./3.));
-      oopsi4(i) = std::cbrt(1./detg(i));
+      // oopsi4(i) = std::cbrt(1./detg(i));
+
+      detg(i) = Det3Metric(z4c.g_dd,k,j,i);
+      oopsi4(i) = regularize_nth_root(
+        detg(i), 1.0, opt.eps_floor, -3.0
+      );
     }
+
     // enforce unitary determinant for conformal metric
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b) {
@@ -594,6 +607,17 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
         z4c.A_dd(a,b,k,j,i) -= (1.0/3.0) * A(i) * z4c.g_dd(a,b,k,j,i);
       }
     }
+
+
+    // regularization of quantities
+    if (opt.force_regularization)
+    GLOOP1(i)
+    {
+      // strictly non-negative
+      z4c.chi(k,j,i)   = std::max(z4c.chi(k,j,i), opt.eps_floor);
+      // keep away from zero
+      z4c.alpha(k,j,i) = regularize_near_zero(z4c.alpha(k,j,i), opt.eps_floor);
+    }
   }
 }
 
@@ -603,6 +627,7 @@ void Z4c::AlgConstr(AA & u,
   const int kl, const int ku,
   bool skip_physical)
 {
+  using namespace FloatingPoint;
   using namespace LinearAlgebra;
 
   Z4c_vars z4c;
@@ -627,10 +652,13 @@ void Z4c::AlgConstr(AA & u,
       }
 
       detg(i) = Det3Metric(z4c.g_dd,k,j,i);
-      detg(i) = detg(i) > 0. ? detg(i) : 1.;
-      Real eps = detg(i) - 1.;
+      // // oopsi4(i) = std::cbrt(1./detg(i));
+      // detg(i) = detg(i) > 0. ? detg(i) : 1.;
+      // Real eps = detg(i) - 1.;
       // oopsi4(i) = (eps < opt.eps_floor) ? (1. - opt.eps_floor/3.) : (pow(1./detg(i), 1./3.));
-      oopsi4(i) = std::cbrt(1./detg(i));
+      oopsi4(i) = regularize_nth_root(
+        detg(i), 1.0, opt.eps_floor, -3.0
+      );
     }
 
     // enforce unitary determinant for conformal metric
@@ -677,5 +705,22 @@ void Z4c::AlgConstr(AA & u,
 
       z4c.A_dd(a,b,k,j,i) -= (1.0/3.0) * A(i) * z4c.g_dd(a,b,k,j,i);
     }
+
+    // regularization of quantities
+    if (opt.force_regularization)
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+
+      // strictly non-negative
+      z4c.chi(k,j,i)   = std::max(z4c.chi(k,j,i), opt.eps_floor);
+      // keep away from zero
+      z4c.alpha(k,j,i) = regularize_near_zero(z4c.alpha(k,j,i), opt.eps_floor);
+    }
   }
+
 }

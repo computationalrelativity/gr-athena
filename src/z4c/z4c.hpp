@@ -346,9 +346,13 @@ public:
     // For debug
     bool use_tp_trackers_extrema;
 
+    // Impose global regularization on conf / alpha
+    bool force_regularization;
+
     // Excision of matter sources / evolution?
     bool excise_z4c_matter_sources;
     bool excise_z4c_freeze_evo;
+    Real excise_z4c_freeze_evo_rat;
   } opt;
 
   AA empty_flux[3];

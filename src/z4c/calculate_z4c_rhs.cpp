@@ -9,6 +9,7 @@
 #include "z4c.hpp"
 #include "z4c_macro.hpp"
 #include "../coordinates/coordinates.hpp"
+#include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
 #include "../eos/eos.hpp"
 #include "../utils/linear_algebra.hpp"
@@ -634,6 +635,7 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
 void Z4c::Z4cRHSExciseFreeze(AA & u, AA & u_mat, AA & u_rhs)
 {
   MeshBlock * pmb = pmy_block;
+  Hydro * ph = pmb->phydro;
   EquationOfState * peos = pmb->peos;
 
   Z4c_vars z4c, rhs;
@@ -642,15 +644,24 @@ void Z4c::Z4cRHSExciseFreeze(AA & u, AA & u_mat, AA & u_rhs)
 
   AT_N_sca & alpha = z4c.alpha;
 
+  Real horizon_factor = ph->opt_excision.horizon_factor;
+  if (opt.excise_z4c_freeze_evo_rat > 0)
+    ph->opt_excision.horizon_factor = opt.excise_z4c_freeze_evo_rat;
+
   ILOOP3(k,j,i)
   {
     bool can_excise = peos->CanExcisePoint(
       false, alpha, mbi.x1, mbi.x2, mbi.x3, i, j, k);
 
+    if (can_excise)
     for(int n = 0; n < N_Z4c; ++n)
     for(int a = 0; a < NDIM; ++a)
     {
       u_rhs(n,k,j,i) = 0;
     }
   }
+
+  if (opt.excise_z4c_freeze_evo_rat > 0)
+    ph->opt_excision.horizon_factor = horizon_factor;
+
 }
