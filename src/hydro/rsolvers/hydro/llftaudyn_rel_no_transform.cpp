@@ -176,85 +176,42 @@ void Hydro::RiemannSolver(
     peos->SetPrimAtmo(prim_r, pscalars_r, i);
   };
 
-  if (opt_excision.horizon_based || ph->opt_excision.hybrid_hydro)
+  AA *x1, *x2, *x3;
+
+  switch (ivx)
   {
-    #pragma omp simd
-    for (int i = il; i <= iu; ++i)
+    case IVX:
     {
-      Real horizon_radius;
-      for (auto pah_f : pmy_block->pmy_mesh->pah_finder)
-      {
-        if (not pah_f->ah_found)
-          continue;
-        horizon_radius = pah_f->rr_min;
-        horizon_radius *= ph->opt_excision.horizon_factor;
-        Real R2;
-        switch (ivx)
-        {
-          case IVX:
-          {
-            R2 = (
-              SQR(pco_gr->x1f(i)-pah_f->center[0]) +
-              SQR(pco_gr->x2v(j)-pah_f->center[1]) +
-              SQR(pco_gr->x3v(k)-pah_f->center[2])
-            );
-            break;
-          }
-          case IVY:
-          {
-            R2 = (
-              SQR(pco_gr->x1v(i)-pah_f->center[0]) +
-              SQR(pco_gr->x2f(j)-pah_f->center[1]) +
-              SQR(pco_gr->x3v(k)-pah_f->center[2])
-            );
-            break;
-          }
-          case IVZ:
-          {
-            R2 = (
-              SQR(pco_gr->x1v(i)-pah_f->center[0]) +
-              SQR(pco_gr->x2v(j)-pah_f->center[1]) +
-              SQR(pco_gr->x3f(k)-pah_f->center[2])
-            );
-            break;
-          }
-          default:
-          {
-            assert(false);
-          }
-        }
-
-        bool can_excise = false;
-        if (ph->opt_excision.hybrid_hydro)
-        {
-          const Real alpha_min__ = (
-            ph->opt_excision.hybrid_fac_min_alpha *
-            pm->global_extrema.min_adm_alpha
-          );
-          can_excise = can_excise || (alpha_(i) < alpha_min__);
-        }
-
-        if (opt_excision.horizon_based)
-        {
-          can_excise = can_excise || (R2 < SQR(horizon_radius));
-        }
-
-        if (can_excise)
-        {
-          excise(i);
-        }
-      }
+      x1 = &pco_gr->x1f;
+      x2 = &pco_gr->x2v;
+      x3 = &pco_gr->x3v;
+      break;
+    }
+    case IVY:
+    {
+      x1 = &pco_gr->x1v;
+      x2 = &pco_gr->x2f;
+      x3 = &pco_gr->x3v;
+      break;
+    }
+    case IVZ:
+    {
+      x1 = &pco_gr->x1v;
+      x2 = &pco_gr->x2v;
+      x3 = &pco_gr->x3f;
+      break;
     }
   }
-  else if (opt_excision.alpha_threshold > 0)  // by default disabled (i.e. 0)
+
+  #pragma omp simd
+  for (int i = il; i <= iu; ++i)
   {
-    #pragma omp simd
-    for (int i = il; i <= iu; ++i)
+    const bool can_excise = peos->CanExcisePoint(
+      true, alpha_, *x1, *x2, *x3, i, j, k);
+
+    if (can_excise)
     {
-      if (alpha_(i) < opt_excision.alpha_threshold)
-      {
-        excise(i);
-      }
+      excise(i);
     }
   }
   // --------------------------------------------------------------------------

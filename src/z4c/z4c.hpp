@@ -345,6 +345,9 @@ public:
 
     // For debug
     bool use_tp_trackers_extrema;
+
+    // Excision of matter sources?
+    bool excise_z4c_matter_sources;
   } opt;
 
   AA empty_flux[3];

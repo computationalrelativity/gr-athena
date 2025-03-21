@@ -211,6 +211,14 @@ class EquationOfState {
     const AT_N_sca & adm_detgamma_,
     const int k, const int j, const int i);
 
+  bool CanExcisePoint(
+    const bool is_slice,
+    AT_N_sca & alpha,
+    AA & x1,
+    AA & x2,
+    AA & x3,
+    const int i, const int j, const int k);
+
   void SanitizeLoopLimits(
     int & il, int & iu,
     int & jl, int & ju,

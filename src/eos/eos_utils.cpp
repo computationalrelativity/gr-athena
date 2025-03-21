@@ -7,6 +7,7 @@
 #include "../coordinates/coordinates.hpp"
 // #include "../utils/linear_algebra.hpp"
 #include "../hydro/hydro.hpp"
+#include "../z4c/ahf.hpp"
 #include "../z4c/z4c.hpp"
 #include "../utils/linear_algebra.hpp"     // Det. & friends
 #include "eos.hpp"
@@ -55,6 +56,67 @@ bool EquationOfState::IsAdmissiblePoint(
   return is_admissible;
 }
 
+bool EquationOfState::CanExcisePoint(
+  const bool is_slice,
+  AT_N_sca & alpha,
+  AA & x1,
+  AA & x2,
+  AA & x3,
+  const int i, const int j, const int k)
+{
+  MeshBlock* pmb = pmy_block_;
+  Mesh* pm = pmb->pmy_mesh;
+  Hydro * ph = pmb->phydro;
+
+  bool is_admissible = true;
+
+  const bool alpha__ = (is_slice) ? alpha(i) : alpha(k,j,i);
+
+  if(ph->opt_excision.horizon_based || ph->opt_excision.hybrid_hydro)
+  {
+    Real horizon_radius;
+    for (auto pah_f : pm->pah_finder)
+    {
+      if (not pah_f->ah_found)
+        continue;
+      horizon_radius = pah_f->rr_min;
+      horizon_radius *= ph->opt_excision.horizon_factor;
+      const Real r_2 = SQR(x1(i) - pah_f->center[0]) +
+                       SQR(x2(j) - pah_f->center[1]) +
+                       SQR(x3(k) - pah_f->center[2]);
+
+      if (ph->opt_excision.hybrid_hydro)
+      {
+        const Real alpha_min__ = (
+          ph->opt_excision.hybrid_fac_min_alpha *
+          pm->global_extrema.min_adm_alpha
+        );
+
+
+        const bool can_excise = (
+          (r_2 < SQR(horizon_radius)) &&
+          (alpha__ < alpha_min__)
+        );
+
+        is_admissible = is_admissible && !(can_excise);
+      }
+      else
+      {
+        // specify alpha cut confined within horzon
+        is_admissible = is_admissible && (r_2 > SQR(horizon_radius)) &&
+                        (alpha__ > ph->opt_excision.alpha_threshold);
+      }
+    }
+  }
+  else if (alpha__ < ph->opt_excision.alpha_threshold)
+  {
+    // Deal with pure-alpha based excision (if relevant)
+    is_admissible = false;
+  }
+
+  // "can excise" => !is_admissible
+  return !is_admissible;
+}
 
 void EquationOfState::SanitizeLoopLimits(
   int & il, int & iu,

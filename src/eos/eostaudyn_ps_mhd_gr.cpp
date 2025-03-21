@@ -285,43 +285,9 @@ void EquationOfState::ConservedToPrimitive(
       // Check if the state is admissible; if not we reset to atmo.
       bool is_admissible = IsAdmissiblePoint(cons, prim, det_gamma_, k, j, i);
 
-      // Deal with pure-alpha based excision (if relevant)
-      is_admissible = is_admissible && (alpha_(i) >
-                                        ph->opt_excision.alpha_threshold);
-
-      if(ph->opt_excision.horizon_based || ph->opt_excision.hybrid_hydro)
-      {
-        Real horizon_radius;
-        for (auto pah_f : pm->pah_finder)
-        {
-          if (not pah_f->ah_found)
-            continue;
-          horizon_radius = pah_f->rr_min;
-          horizon_radius *= ph->opt_excision.horizon_factor;
-          const Real r_2 = SQR(pco->x1v(i) - pah_f->center[0]) +
-                           SQR(pco->x2v(j) - pah_f->center[1]) +
-                           SQR(pco->x3v(k) - pah_f->center[2]);
-
-          if (ph->opt_excision.hybrid_hydro)
-          {
-            const Real alpha_min__ = (
-              ph->opt_excision.hybrid_fac_min_alpha *
-              pm->global_extrema.min_adm_alpha
-            );
-
-            const bool can_excise = (
-              (r_2 < SQR(horizon_radius)) &&
-              (alpha_(i) < alpha_min__)
-            );
-
-            is_admissible = is_admissible && !(can_excise);
-          }
-          else
-          {
-            is_admissible = is_admissible && (r_2 > SQR(horizon_radius));
-          }
-        }
-      }
+      bool can_excise = CanExcisePoint(
+        true, alpha_, pco->x1v, pco->x2v, pco->x3v, i, j, k);
+      is_admissible = is_admissible && !can_excise;
 
       if (!is_admissible)
       {

@@ -4,6 +4,7 @@
 // Athena++ headers
 #include "z4c.hpp"
 #include "z4c_macro.hpp"
+#include "ahf.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
 #include "../eos/eos.hpp"
@@ -32,8 +33,9 @@ void Z4c::GetMatter(
   using namespace LinearAlgebra;
   using namespace FloatingPoint;
 
+  Mesh * pm       = pmy_mesh;
   MeshBlock * pmb = pmy_block;
-  Hydro * phydro = pmb->phydro;
+  Hydro * ph      = pmb->phydro;
 #if USETM
   PassiveScalars * pscalars = pmb->pscalars;
 #endif
@@ -127,7 +129,7 @@ void Z4c::GetMatter(
 #endif
 
 #if defined(Z4C_CX_ENABLED) || defined(Z4C_CC_ENABLED)
-        Real T = phydro->derived_ms(IX_T,k,j,i);
+        Real T = ph->derived_ms(IX_T,k,j,i);
 #else
         Real T = peos->GetEOS().GetTemperatureFromP(n, w_p(i), Y);
 #endif
@@ -149,7 +151,7 @@ void Z4c::GetMatter(
 #endif
 
 #if defined(Z4C_CX_ENABLED) || defined(Z4C_CC_ENABLED)
-        Real h = pmb->phydro->derived_ms(IX_ETH,k,j,i);
+        Real h = ph->derived_ms(IX_ETH,k,j,i);
 #else
         Real h = peos->GetEOS().GetEnthalpy(n, T, Y);
 #endif
@@ -162,7 +164,7 @@ void Z4c::GetMatter(
 
         // compute Lorenz factors
 #if defined(Z4C_CX_ENABLED) || defined(Z4C_CC_ENABLED)
-        W(i) = pmb->phydro->derived_ms(IX_LOR,k,j,i);
+        W(i) = ph->derived_ms(IX_LOR,k,j,i);
 #else
         Real const norm2_utilde = InnerProductSlicedVec3Metric(w_utilde_u,
                                                                adm.g_dd,
@@ -296,8 +298,8 @@ void Z4c::GetMatter(
         mat.rho(k,j,i) = w_hrho(i)*SQR(W(i)) - w_p(i);
 
         // Real oo_sqrtdg = 1.0 / std::sqrt(detgamma(i));
-        // Real D   = phydro->u(IDN,k,j,i);
-        // Real tau = phydro->u(IEN,k,j,i);
+        // Real D   = ph->u(IDN,k,j,i);
+        // Real tau = ph->u(IEN,k,j,i);
         // mat.rho(k,j,i) = oo_sqrtdg * (D + tau);
       }
       for (int a=0; a<NDIM; ++a)
@@ -306,7 +308,7 @@ void Z4c::GetMatter(
         {
           mat.S_d(a,k,j,i) = w_hrho(i)*SQR(W(i))*v_d(a,i);
           // Real oo_sqrtdg = 1.0 / std::sqrt(detgamma(i));
-          // mat.S_d(a,k,j,i) = phydro->u(IM1+a,k,j,i) *oo_sqrtdg;
+          // mat.S_d(a,k,j,i) = ph->u(IM1+a,k,j,i) *oo_sqrtdg;
         }
         for (int b=a; b<NDIM; ++b)
         {
@@ -343,6 +345,35 @@ void Z4c::GetMatter(
   }
 
 #endif // M1_ENABLED
+
+  // If excision is activated; optionally remove matter from the coupling
+  if (opt.excise_z4c_matter_sources)
+  {
+    AT_N_sca & alpha = adm.alpha;
+
+    ILOOP3(k,j,i)
+    {
+      bool can_excise = peos->CanExcisePoint(
+        false, alpha, mbi.x1, mbi.x2, mbi.x3, i, j, k);
+
+      if (can_excise)
+      {
+        mat.rho(k,j,i) = 0;
+        for (int a=0; a<NDIM; ++a)
+        {
+          mat.S_d(a,k,j,i) = 0;
+
+          for (int b=a; b<NDIM; ++b)
+          {
+            mat.S_dd(a,b,k,j,i) = 0;
+          }
+        }
+
+      }
+    }
+
+  }
+
 
 #endif // Z4C_WITH_HYDRO_ENABLED
 }
