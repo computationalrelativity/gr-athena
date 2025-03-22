@@ -906,10 +906,13 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
 
   udsize += 2*NDIM*sizeof(Real)*pz4c_tracker.size();
 
-  // c_x1, c_x2, c_x3
-  udsize += ptracker_extrema->c_x1.GetSizeInBytes();
-  udsize += ptracker_extrema->c_x2.GetSizeInBytes();
-  udsize += ptracker_extrema->c_x3.GetSizeInBytes();
+  if (!ptracker_extrema->use_new_style)
+  {
+    // c_x1, c_x2, c_x3
+    udsize += ptracker_extrema->c_x1.GetSizeInBytes();
+    udsize += ptracker_extrema->c_x2.GetSizeInBytes();
+    udsize += ptracker_extrema->c_x3.GetSizeInBytes();
+  }
 
   if (udsize != 0) {
     char *userdata = new char[udsize];
@@ -943,20 +946,23 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
       udoffset += 3*sizeof(Real);
     }
 
-    std::memcpy(ptracker_extrema->c_x1.data(),
-                &(userdata[udoffset]),
-                ptracker_extrema->c_x1.GetSizeInBytes());
-    udoffset += ptracker_extrema->c_x1.GetSizeInBytes();
+    if (!ptracker_extrema->use_new_style)
+    {
+      std::memcpy(ptracker_extrema->c_x1.data(),
+                  &(userdata[udoffset]),
+                  ptracker_extrema->c_x1.GetSizeInBytes());
+      udoffset += ptracker_extrema->c_x1.GetSizeInBytes();
 
-    std::memcpy(ptracker_extrema->c_x2.data(),
-                &(userdata[udoffset]),
-                ptracker_extrema->c_x2.GetSizeInBytes());
-    udoffset += ptracker_extrema->c_x2.GetSizeInBytes();
+      std::memcpy(ptracker_extrema->c_x2.data(),
+                  &(userdata[udoffset]),
+                  ptracker_extrema->c_x2.GetSizeInBytes());
+      udoffset += ptracker_extrema->c_x2.GetSizeInBytes();
 
-    std::memcpy(ptracker_extrema->c_x3.data(),
-                &(userdata[udoffset]),
-                ptracker_extrema->c_x3.GetSizeInBytes());
-    udoffset += ptracker_extrema->c_x3.GetSizeInBytes();
+      std::memcpy(ptracker_extrema->c_x3.data(),
+                  &(userdata[udoffset]),
+                  ptracker_extrema->c_x3.GetSizeInBytes());
+      udoffset += ptracker_extrema->c_x3.GetSizeInBytes();
+    }
 
     delete [] userdata;
   }
@@ -2364,10 +2370,7 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
   for (int nix = 0; nix < nmb; ++nix)
   {
     MeshBlock *pmb = pmb_array[nix];
-    max_level = std::max(
-      max_level,
-      pmb->loc.level - root_level
-    );
+    max_level = pmb->loc.level - root_level;
   }
 
 

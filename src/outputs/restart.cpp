@@ -71,6 +71,17 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
   }
   resfile.Open(fname.c_str(), IOWrapper::FileMode::write);
 
+  // subset of parameters that are to be injected to par due to update during runtime
+  if (pm->ptracker_extrema->use_new_style)
+  {
+    pin->SetRealArray("trackers_extrema", "ini_x1",
+                      pm->ptracker_extrema->c_x1);
+    pin->SetRealArray("trackers_extrema", "ini_x2",
+                      pm->ptracker_extrema->c_x2);
+    pin->SetRealArray("trackers_extrema", "ini_x3",
+                      pm->ptracker_extrema->c_x3);
+  }
+
   // prepare the input parameters
   std::stringstream ost;
   pin->ParameterDump(ost);
@@ -85,9 +96,12 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
 
   udsize += 2*NDIM*sizeof(Real)*pm->pz4c_tracker.size();
 
-  udsize += pm->ptracker_extrema->c_x1.GetSizeInBytes();
-  udsize += pm->ptracker_extrema->c_x2.GetSizeInBytes();
-  udsize += pm->ptracker_extrema->c_x3.GetSizeInBytes();
+  if (!pm->ptracker_extrema->use_new_style)
+  {
+    udsize += pm->ptracker_extrema->c_x1.GetSizeInBytes();
+    udsize += pm->ptracker_extrema->c_x2.GetSizeInBytes();
+    udsize += pm->ptracker_extrema->c_x3.GetSizeInBytes();
+  }
 
   headeroffset = sbuf.size()*sizeof(char) + 3*sizeof(int)+sizeof(RegionSize)
                  + 2*sizeof(Real)+sizeof(IOWrapperSizeT)+udsize;
@@ -141,20 +155,23 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
         udoffset += NDIM*sizeof(Real);
       }
 
-      std::memcpy(&(ud[udoffset]),
-                  pm->ptracker_extrema->c_x1.data(),
-                  pm->ptracker_extrema->c_x1.GetSizeInBytes());
-      udoffset += pm->ptracker_extrema->c_x1.GetSizeInBytes();
+      if (!pm->ptracker_extrema->use_new_style)
+      {
+        std::memcpy(&(ud[udoffset]),
+                    pm->ptracker_extrema->c_x1.data(),
+                    pm->ptracker_extrema->c_x1.GetSizeInBytes());
+        udoffset += pm->ptracker_extrema->c_x1.GetSizeInBytes();
 
-      std::memcpy(&(ud[udoffset]),
-                  pm->ptracker_extrema->c_x2.data(),
-                  pm->ptracker_extrema->c_x2.GetSizeInBytes());
-      udoffset += pm->ptracker_extrema->c_x2.GetSizeInBytes();
+        std::memcpy(&(ud[udoffset]),
+                    pm->ptracker_extrema->c_x2.data(),
+                    pm->ptracker_extrema->c_x2.GetSizeInBytes());
+        udoffset += pm->ptracker_extrema->c_x2.GetSizeInBytes();
 
-     std::memcpy(&(ud[udoffset]),
-                  pm->ptracker_extrema->c_x3.data(),
-                  pm->ptracker_extrema->c_x3.GetSizeInBytes());
-      udoffset += pm->ptracker_extrema->c_x3.GetSizeInBytes();
+        std::memcpy(&(ud[udoffset]),
+                    pm->ptracker_extrema->c_x3.data(),
+                    pm->ptracker_extrema->c_x3.GetSizeInBytes());
+        udoffset += pm->ptracker_extrema->c_x3.GetSizeInBytes();
+      }
 
       resfile.Write(ud, 1, udsize);
       delete [] ud;

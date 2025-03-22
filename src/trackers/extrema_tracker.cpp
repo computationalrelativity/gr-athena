@@ -34,9 +34,13 @@ ExtremaTracker::ExtremaTracker(Mesh * pmesh, ParameterInput * pin,
   N_tracker = pin->GetOrAddInteger("trackers_extrema", "N_tracker", 0);
 
   // New-style specification
+  use_new_style = pin->GetOrAddBoolean(
+    "trackers_extrema", "use_new_style",
+    false);
+
   AthenaArray<std::string> ns_control_fields;
 
-  if (N_tracker == 0)
+  if (use_new_style || (N_tracker == 0))
   {
     ns_control_fields = pin->GetOrAddStringArray(
       "trackers_extrema", "control_field", "", 0
@@ -45,6 +49,9 @@ ExtremaTracker::ExtremaTracker(Mesh * pmesh, ParameterInput * pin,
     {
       use_new_style = true;
       N_tracker = ns_control_fields.GetSize();
+
+      pin->SetInteger("trackers_extrema", "N_tracker", N_tracker);
+      pin->SetBoolean("trackers_extrema", "use_new_style", true);
     }
   }
 
