@@ -100,6 +100,41 @@ Real num_c2p_fail(MeshBlock *pmb, int iout)
   return sum_;
 }
 
+Real sum_rho_window_npts(MeshBlock *pmb,
+                         const Real rho_min, const Real rho_max, int iout)
+{
+  Real n_pts = 0;
+  AA &w = pmb->phydro->w;
+  CC_ILOOP3(k,j,i)
+  {
+    if ((rho_min <= w(IDN,k,j,i)) &&
+         rho_max >= w(IDN,k,j,i))
+    {
+      n_pts += 1;
+    }
+  }
+  return n_pts;
+}
+
+Real sum_rho_window_quantity(MeshBlock *pmb,
+                             const int IX,
+                             AA & quantity,
+                             const Real rho_min, const Real rho_max, int iout)
+{
+  Real sum_Q = 0;
+  AA &w = pmb->phydro->w;
+
+  CC_ILOOP3(k,j,i)
+  {
+    if ((rho_min <= w(IDN,k,j,i)) &&
+         rho_max >= w(IDN,k,j,i))
+    {
+      sum_Q += quantity(IX,k,j,i);
+    }
+  }
+  return sum_Q;
+}
+
 }
 #endif // FLUID_ENABLED
 
@@ -112,7 +147,68 @@ void Mesh::EnrollUserStandardHydro(ParameterInput * pin)
                           UserHistoryOperation::max);
   EnrollUserHistoryOutput(num_c2p_fail, "num_c2p_fail",
                           UserHistoryOperation::max);
-#endif // FLUID_ENABLED
+
+  // Enroll all average [windowed] quantities ---------------------------------
+  InputBlock *pib = pin->pfirst_block;
+  while (pib != nullptr)
+  {
+    if (pib->block_name.compare(0, 12, "hst_windowed")  == 0)
+    {
+      std::string hstwn = pib->block_name.substr(12); // cnt starts at 0
+      const int par_ix = atoi(hstwn.c_str());
+
+      const std::string str_n_pts = "hw_n_pts_" + hstwn;
+
+      const Real rho_min = pin->GetOrAddReal(
+        pib->block_name,
+        "rho_min", 0.0);
+      const Real rho_max = pin->GetOrAddReal(
+        pib->block_name,
+        "rho_max", 1e99);
+
+      // get number of points that satisfy the density window
+      auto fcn_hw_n_pts = [&](MeshBlock *pmb, int iout)
+      {
+        return sum_rho_window_npts(pmb, rho_min, rho_max, iout);
+      };
+
+      // sum quantities that live in the density window -----------------------
+      auto fcn_hw_sum_T = [&](MeshBlock *pmb, int iout)
+      {
+        return sum_rho_window_quantity(pmb,
+                                       IX_T,
+                                       pmb->phydro->derived_ms,
+                                       rho_min, rho_max, iout);
+      };
+
+      auto fcn_hw_sum_Y = [&](MeshBlock *pmb, int iout)
+      {
+        const int IX_Y = 0;
+        return sum_rho_window_quantity(pmb,
+                                       IX_Y,
+                                       pmb->pscalars->r,
+                                       rho_min, rho_max, iout);
+      };
+
+      EnrollUserHistoryOutput(
+        fcn_hw_n_pts, str_n_pts.c_str(),
+        UserHistoryOperation::sum);
+
+      EnrollUserHistoryOutput(
+        fcn_hw_sum_T, ("hw_T_" + hstwn).c_str(),
+        UserHistoryOperation::sum);
+
+#if NSCALARS > 0
+      EnrollUserHistoryOutput(
+        fcn_hw_sum_Y, ("hw_Y_" + hstwn).c_str(),
+        UserHistoryOperation::sum);
+#endif
+    }
+
+    pib = pib->pnext;
+  }
+  // --------------------------------------------------------------------------
+  #endif // FLUID_ENABLED
 }
 
 // ----------------------------------------------------------------------------
