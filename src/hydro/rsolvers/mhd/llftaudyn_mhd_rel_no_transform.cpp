@@ -165,12 +165,67 @@ void Hydro::RiemannSolver(
   AT_N_vec w_util_u_l_(prim_l, IVX);
   AT_N_vec w_util_u_r_(prim_r, IVX);
 
+  // reset values -------------------------------------------------------------
+  Real T_min = 0;
+  Real h_min = 0;
+
+#if USETM
+  T_min = peos->GetEOS().GetTemperatureFloor();
+  h_min = peos->GetEOS().GetMinimumEnthalpy();
+#endif
+
   // deal with excision -------------------------------------------------------
   auto excise = [&](const int i)
   {
     // Floor primitives during excision.
     peos->SetPrimAtmo(prim_l, pscalars_l, i);
     peos->SetPrimAtmo(prim_r, pscalars_r, i);
+
+    if (precon->xorder_use_aux_T)
+    {
+      ph->al_(IX_T,i) = T_min;
+      ph->ar_(IX_T,i) = T_min;
+    }
+
+    if (precon->xorder_use_aux_h)
+    {
+      ph->al_(IX_ETH,i) = h_min;
+      ph->ar_(IX_ETH,i) = h_min;
+    }
+
+    if (precon->xorder_use_aux_W)
+    {
+      ph->al_(IX_LOR,i) = 1.0;
+      ph->ar_(IX_LOR,i) = 1.0;
+    }
+  };
+
+  auto excise_with_factor = [&](Real excision_factor, const int i)
+  {
+    // Floor primitives during excision.
+    for (int n=0; n<NHYDRO; ++n)
+    {
+      prim_l(n,i) *= ph->excision_mask(k,j,i);
+      prim_r(n,i) *= ph->excision_mask(k,j,i);
+    }
+
+    if (precon->xorder_use_aux_T)
+    {
+      ph->al_(IX_T,i) *= excision_factor;
+      ph->ar_(IX_T,i) *= excision_factor;
+    }
+
+    if (precon->xorder_use_aux_h)
+    {
+      ph->al_(IX_ETH,i) *= excision_factor;
+      ph->ar_(IX_ETH,i) *= excision_factor;
+    }
+
+    if (precon->xorder_use_aux_W)
+    {
+      ph->al_(IX_LOR,i) *= excision_factor;
+      ph->ar_(IX_LOR,i) *= excision_factor;
+    }
   };
 
   AA *x1, *x2, *x3;
@@ -203,12 +258,21 @@ void Hydro::RiemannSolver(
   #pragma omp simd
   for (int i = il; i <= iu; ++i)
   {
+    Real excision_factor = 1;
     const bool can_excise = peos->CanExcisePoint(
+      excision_factor,
       true, alpha_, *x1, *x2, *x3, i, j, k);
 
     if (can_excise)
     {
-      excise(i);
+      if (ph->opt_excision.use_taper)
+      {
+        excise_with_factor(excision_factor,i);
+      }
+      else
+      {
+        excise(i);
+      }
     }
   }
   // --------------------------------------------------------------------------

@@ -248,6 +248,7 @@ void GRDynamical::AddCoordTermsDivergence(
 
   MeshBlock * pmb = pmy_block;
   EquationOfState * peos = pmb->peos;
+  Hydro * ph = pmb->phydro;
 
   // regularization factor
   const Real eps_alpha__ = pmb->pz4c->opt.eps_floor;
@@ -613,15 +614,42 @@ void GRDynamical::AddCoordTermsDivergence(
     } // MAGNETIC_FIELDS_ENABLED
 
     // Add sources
+    if (ph->opt_excision.use_taper && ph->opt_excision.excise_hydro_freeze_evo)
+    {
+      CC_PCO_ILOOP1(i)
+      {
+        const Real w_vol = dt * alpha_(i) * sqrt_detgamma_(i) *
+                           ph->excision_mask(k,j,i);
+        cons(IEN,k,j,i) += w_vol * Stau_(i);
+        cons(IM1,k,j,i) += w_vol * SS_d_(0,i);
+        cons(IM2,k,j,i) += w_vol * SS_d_(1,i);
+        cons(IM3,k,j,i) += w_vol * SS_d_(2,i);
+      }
+    }
+    else
+    {
+      CC_PCO_ILOOP1(i)
+      {
+        // BD: TODO - consider embedded pre-factor to avoid zero-div. if alpha->0
+        const Real w_vol = dt * alpha_(i) * sqrt_detgamma_(i);
+        cons(IEN,k,j,i) += w_vol * Stau_(i);
+        cons(IM1,k,j,i) += w_vol * SS_d_(0,i);
+        cons(IM2,k,j,i) += w_vol * SS_d_(1,i);
+        cons(IM3,k,j,i) += w_vol * SS_d_(2,i);
+      }
+    }
+
+    // DEBUG FULL EXCISION
+    if (ph->opt_excision.use_taper && ph->opt_excision.excise_hydro_taper)
     CC_PCO_ILOOP1(i)
     {
-      // BD: TODO - consider embedded pre-factor to avoid zero-div. if alpha->0
-      const Real w_vol = dt * alpha_(i) * sqrt_detgamma_(i);
-      cons(IEN,k,j,i) += w_vol * Stau_(i);
-      cons(IM1,k,j,i) += w_vol * SS_d_(0,i);
-      cons(IM2,k,j,i) += w_vol * SS_d_(1,i);
-      cons(IM3,k,j,i) += w_vol * SS_d_(2,i);
+      cons(IDN,k,j,i) = ph->excision_mask(k,j,i) * cons(IDN,k,j,i);
+      cons(IM1,k,j,i) = ph->excision_mask(k,j,i) * cons(IM1,k,j,i);
+      cons(IM2,k,j,i) = ph->excision_mask(k,j,i) * cons(IM2,k,j,i);
+      cons(IM3,k,j,i) = ph->excision_mask(k,j,i) * cons(IM3,k,j,i);
+      cons(IEN,k,j,i) = ph->excision_mask(k,j,i) * cons(IEN,k,j,i);
     }
+
   } // j, k
 
 }

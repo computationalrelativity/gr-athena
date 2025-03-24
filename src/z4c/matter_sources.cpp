@@ -347,29 +347,22 @@ void Z4c::GetMatter(
 #endif // M1_ENABLED
 
   // If excision is activated; optionally remove matter from the coupling
-  if (opt.excise_z4c_matter_sources)
+  if (opt.excise_z4c_matter_sources &&
+      ph->opt_excision.use_taper)
   {
-    AT_N_sca & alpha = adm.alpha;
-
     ILOOP3(k,j,i)
     {
-      bool can_excise = peos->CanExcisePoint(
-        false, alpha, mbi.x1, mbi.x2, mbi.x3, i, j, k);
-
-      if (can_excise)
+      mat.rho(k,j,i) = ph->excision_mask(k,j,i) * mat.rho(k,j,i);
+      for (int a=0; a<NDIM; ++a)
       {
-        mat.rho(k,j,i) = 0;
-        for (int a=0; a<NDIM; ++a)
+        mat.S_d(a,k,j,i) = ph->excision_mask(k,j,i) * mat.S_d(a,k,j,i);
+
+        for (int b=a; b<NDIM; ++b)
         {
-          mat.S_d(a,k,j,i) = 0;
-
-          for (int b=a; b<NDIM; ++b)
-          {
-            mat.S_dd(a,b,k,j,i) = 0;
-          }
+          mat.S_dd(a,b,k,j,i) = ph->excision_mask(k,j,i) * mat.S_dd(a,b,k,j,i);
         }
-
       }
+
     }
 
   }

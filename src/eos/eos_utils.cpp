@@ -118,6 +118,136 @@ bool EquationOfState::CanExcisePoint(
   return !is_admissible;
 }
 
+bool EquationOfState::CanExcisePoint(
+  Real & excision_factor,
+  const bool is_slice,
+  AT_N_sca & alpha,
+  AA & x1,
+  AA & x2,
+  AA & x3,
+  const int i, const int j, const int k)
+{
+  MeshBlock* pmb = pmy_block_;
+  Mesh* pm = pmb->pmy_mesh;
+  Hydro * ph = pmb->phydro;
+
+  bool is_admissible = true;
+
+  const bool alpha__ = (is_slice) ? alpha(i) : alpha(k,j,i);
+
+  if(ph->opt_excision.horizon_based || ph->opt_excision.hybrid_hydro)
+  {
+    Real max_horizon_radius = -std::numeric_limits<Real>::infinity();
+    Real horizon_radius;
+
+    for (auto pah_f : pm->pah_finder)
+    {
+      if (not pah_f->ah_found)
+        continue;
+
+      horizon_radius = pah_f->rr_min;
+      horizon_radius *= ph->opt_excision.horizon_factor;
+
+      const Real r_2 = SQR(x1(i) - pah_f->center[0]) +
+                       SQR(x2(j) - pah_f->center[1]) +
+                       SQR(x3(k) - pah_f->center[2]);
+
+      if (ph->opt_excision.hybrid_hydro)
+      {
+        const Real alpha_min__ = (
+          ph->opt_excision.hybrid_fac_min_alpha *
+          pm->global_extrema.min_adm_alpha
+        );
+
+
+        const bool can_excise = (
+          (r_2 < SQR(horizon_radius)) &&
+          (alpha__ < alpha_min__)
+        );
+
+        is_admissible = is_admissible && !(can_excise);
+      }
+      else
+      {
+        // specify alpha cut confined within horzon
+        is_admissible = is_admissible && (r_2 > SQR(horizon_radius)) &&
+                        (alpha__ > ph->opt_excision.alpha_threshold);
+      }
+
+      // excision factor based on mollifier -----------------------------------
+      if (!is_admissible && (horizon_radius > max_horizon_radius))
+      {
+        if (ph->opt_excision.use_taper)
+        {
+          Real dist_ahf = std::sqrt(r_2);
+
+          /*
+          // normalized distance
+          Real d_norm = dist_ahf / horizon_radius;
+
+          // distance factor [0,1]
+          const Real d = (d_norm > 1) ? 1 : d_norm;
+
+          // BD: TODO- add this as par
+          const Real s = 1; // how aggressive is cut [1,inf)
+
+          excision_factor = 0.5 * (
+            1.0 - std::tanh(s * (2.0 * d - 1.0) / (2.0 * (SQR(d) - d)))
+          );
+          */
+
+          // enforce (numerically feasible) range
+          const Real ef = pmb->pz4c->opt.eps_floor;
+          const Real d = std::max(
+            std::min(1.0-ef, dist_ahf / horizon_radius),
+            ef);
+
+          // shift taper
+          const Real a = 0.0;
+          const Real b = 1.0;
+          const Real p = 0.5;
+
+          const Real f_arg = (d - a) / (b - a);
+          const Real f_d = std::exp(-1.0 / d);
+
+          // compute such that range is [0, 1]
+          excision_factor = (f_arg < ef)
+            ? 0.
+            : (f_arg > 1.0 - ef)
+              ? 1.0
+              : std::pow(1.0 / (1.0 + std::exp(1.0 + 2.0 / f_arg)), p);
+        }
+        else
+        {
+          excision_factor = 0;
+        }
+
+        // in-case we have some nested-horizon situation
+        max_horizon_radius = horizon_radius;
+      }
+      else
+      {
+        excision_factor = 1;
+      }
+      // ----------------------------------------------------------------------
+    }
+  }
+  else if (alpha__ < ph->opt_excision.alpha_threshold)
+  {
+    // Deal with pure-alpha based excision (if relevant)
+    is_admissible = false;
+
+    // for a basic threshold we take the cut to 0
+    excision_factor = 0;
+  }
+
+  // "can excise" => !is_admissible
+  if (is_admissible)
+    excision_factor = 1;
+
+  return !is_admissible;
+}
+
 void EquationOfState::SanitizeLoopLimits(
   int & il, int & iu,
   int & jl, int & ju,

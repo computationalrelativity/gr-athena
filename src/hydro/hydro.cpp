@@ -80,6 +80,22 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   opt_excision.hybrid_fac_min_alpha =
       pin->GetOrAddReal("excision", "hybrid_fac_min_alpha", 1.5);
 
+  opt_excision.use_taper =
+      pin->GetOrAddBoolean("excision", "use_taper", false);
+
+  if (opt_excision.use_taper)
+  {
+    excision_mask.NewAthenaArray(nc3,nc2,nc1);
+    excision_mask.Fill(1);
+  }
+
+  opt_excision.excise_hydro_freeze_evo =
+      pin->GetOrAddBoolean("excision", "excise_hydro_freeze_evo", false);
+
+  opt_excision.excise_hydro_taper =
+      pin->GetOrAddBoolean("excision", "excise_hydro_taper", false);
+
+
   // If user-requested time integrator is type 3S*, allocate additional memory registers
   std::string integrator = pin->GetOrAddString("time", "integrator", "vl2");
   if (integrator == "ssprk5_4" || STS_ENABLED) {

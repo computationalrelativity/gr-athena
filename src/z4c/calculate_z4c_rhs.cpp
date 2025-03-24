@@ -635,6 +635,7 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
 void Z4c::Z4cRHSExciseFreeze(AA & u, AA & u_mat, AA & u_rhs)
 {
   MeshBlock * pmb = pmy_block;
+  Mesh * pm = pmb->pmy_mesh;
   Hydro * ph = pmb->phydro;
   EquationOfState * peos = pmb->peos;
 
@@ -650,14 +651,19 @@ void Z4c::Z4cRHSExciseFreeze(AA & u, AA & u_mat, AA & u_rhs)
 
   ILOOP3(k,j,i)
   {
+    Real excision_factor;
+
     bool can_excise = peos->CanExcisePoint(
+      excision_factor,
       false, alpha, mbi.x1, mbi.x2, mbi.x3, i, j, k);
 
     if (can_excise)
-    for(int n = 0; n < N_Z4c; ++n)
-    for(int a = 0; a < NDIM; ++a)
     {
-      u_rhs(n,k,j,i) = 0;
+      for(int n = 0; n < N_Z4c; ++n)
+      for(int a = 0; a < NDIM; ++a)
+      {
+        u_rhs(n,k,j,i) = excision_factor * u_rhs(n,k,j,i);
+      }
     }
   }
 

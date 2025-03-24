@@ -919,6 +919,7 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
       }
     }
 
+    pmesh->CalculateExcisionMask();
   }
 
 #ifdef EJECTA_ENABLED

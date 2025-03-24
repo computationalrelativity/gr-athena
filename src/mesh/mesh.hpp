@@ -600,7 +600,10 @@ class Mesh {
   // compute entries of the global_extrema struct
   void GlobalExtrema();
 
- private:
+  // compute masks as required
+  void CalculateExcisionMask();
+
+private:
   // data
   int next_phys_id_; // next unused value for encoding final component of MPI tag bitfield
   int root_level, max_level, current_level;

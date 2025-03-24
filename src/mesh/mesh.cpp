@@ -2399,3 +2399,60 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
 
   return grid_updated || (max_level != max_level_old);
 }
+
+
+void Mesh::CalculateExcisionMask()
+{
+#if FLUID_ENABLED && Z4C_ENABLED
+  if (pblock->phydro->opt_excision.use_taper)
+  {
+    int inb = nbtotal;
+    int nthreads = GetNumMeshThreads();
+    (void)nthreads;
+    int nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
+    std::vector<MeshBlock*> pmb_array(nmb);
+
+    if (static_cast<unsigned int>(nmb) != pmb_array.size())
+      pmb_array.resize(nmb);
+
+    MeshBlock *pmbl = pblock;
+    for (int i=0; i<nmb; ++i)
+    {
+      pmb_array[i] = pmbl;
+      pmbl = pmbl->next;
+    }
+
+    #pragma omp parallel num_threads(nthreads)
+    {
+      MeshBlock *pmb = nullptr;
+      Hydro *ph = nullptr;
+      EquationOfState * peos = nullptr;
+      Z4c * pz4c = nullptr;
+
+      #pragma omp for private(pmb,ph,peos,pz4c)
+      for (int nix=0; nix<nmb; ++nix)
+      {
+        pmb = pmb_array[nix];
+        ph = pmb->phydro;
+        peos = pmb->peos;
+        pz4c = pmb->pz4c;
+
+        AT_N_sca adm_alpha(pz4c->storage.adm, Z4c::I_ADM_alpha);
+
+        CC_GLOOP3(k, j, i)
+        {
+          Real excision_factor;
+          const bool can_excise = peos->CanExcisePoint(
+            excision_factor,
+            false, adm_alpha,
+            pmb->pcoord->x1v,
+            pmb->pcoord->x2v,
+            pmb->pcoord->x3v, i, j, k);
+          ph->excision_mask(k,j,i) = excision_factor;
+        }
+      }
+    }
+
+  }
+#endif
+}
