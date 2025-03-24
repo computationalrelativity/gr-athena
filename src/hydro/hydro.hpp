@@ -78,6 +78,7 @@ class Hydro {
     Real use_taper;                 // taper instead of hard-cut?
     bool excise_hydro_freeze_evo;   // use with taper
     bool excise_hydro_taper;        // taper (cons) state-vector
+    Real taper_pow;                 // taper(x) ^ taper_pow
   } opt_excision;
 
   AA excision_mask;

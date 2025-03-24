@@ -205,7 +205,7 @@ bool EquationOfState::CanExcisePoint(
           // shift taper
           const Real a = 0.0;
           const Real b = 1.0;
-          const Real p = 0.5;
+          const Real p = ph->opt_excision.taper_pow;
 
           const Real f_arg = (d - a) / (b - a);
           const Real f_d = std::exp(-1.0 / d);
