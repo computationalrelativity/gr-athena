@@ -265,7 +265,8 @@ void Hydro::RiemannSolver(
 
     if (can_excise)
     {
-      if (ph->opt_excision.use_taper)
+      if (ph->opt_excision.use_taper &&
+          !ph->opt_excision.excise_hydro_freeze_evo)
       {
         excise_with_factor(excision_factor,i);
       }
