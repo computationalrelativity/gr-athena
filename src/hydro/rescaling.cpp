@@ -222,7 +222,7 @@ void Rescaling::Apply()
   }
   // --------------------------------------------------------------------------
 
-  bool outside_threshold = false;
+  bool outside_threshold_conserved_density = false;
 
   if (opt.rescale_conserved_density)
   {
@@ -298,9 +298,11 @@ void Rescaling::Apply()
     }
     else
     {
-      outside_threshold = true;
+      outside_threshold_conserved_density = true;
     }
   }
+
+  bool outside_threshold_conserved_scalars = false;
 
   if (opt.rescale_conserved_scalars)
   {
@@ -389,26 +391,33 @@ void Rescaling::Apply()
         }
         else
         {
-          outside_threshold = true;
+          outside_threshold_conserved_scalars = true;
         }
       }
     }
   }
 
-  // optionally disable all future rescalings if any current one failed:
-  if (outside_threshold && opt.disable_on_first_failure)
+  // optionally disable future rescalings of a given class if one fails:
+  if (opt.disable_on_first_failure)
   {
-    opt.rescale_conserved_density = false;
-    opt.rescale_conserved_scalars = false;
+    if (outside_threshold_conserved_density)
+    {
+      opt.rescale_conserved_density = false;
+      // and keep it disabled for future restarts
+      pin->OverwriteParameter("rescaling",
+                              "rescale_conserved_density",
+                              false);
+    }
 
-    // and keep it disabled for future restarts
-    pin->OverwriteParameter("rescaling",
-                            "rescale_conserved_density",
-                            false);
+    if (outside_threshold_conserved_scalars)
+    {
+      opt.rescale_conserved_scalars = false;
+      // and keep it disabled for future restarts
+      pin->OverwriteParameter("rescaling",
+                              "rescale_conserved_scalars",
+                              false);
+    }
 
-    pin->OverwriteParameter("rescaling",
-                            "rescale_conserved_scalars",
-                            false);
   }
 
   // debug info ---------------------------------------------------------------
