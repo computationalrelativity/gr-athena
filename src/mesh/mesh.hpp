@@ -595,7 +595,6 @@ class Mesh {
     Real min_hydro_cons_D = std::numeric_limits<Real>::quiet_NaN();
     Real max_hydro_cons_D = std::numeric_limits<Real>::quiet_NaN();
   } global_extrema;
-  bool global_extrema_on_substeps;
 
   // compute entries of the global_extrema struct
   void GlobalExtrema();

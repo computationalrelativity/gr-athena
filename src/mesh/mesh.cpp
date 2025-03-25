@@ -108,9 +108,6 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     muj(), nuj(), muj_tilde(),
     nbnew(), nbdel(),
     step_since_lb(), gflag(), turb_flag(),
-    global_extrema_on_substeps(
-      pin->GetOrAddBoolean("mesh", "global_extrema_on_substeps", true)
-    ),
     // private members:
     next_phys_id_(), num_mesh_threads_(pin->GetOrAddInteger("mesh", "num_threads", 1)),
     tree(this),
@@ -685,9 +682,6 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     muj(), nuj(), muj_tilde(),
     nbnew(), nbdel(),
     step_since_lb(), gflag(), turb_flag(),
-    global_extrema_on_substeps(
-      pin->GetOrAddBoolean("mesh", "global_extrema_on_substeps", true)
-    ),
     // private members:
     next_phys_id_(), num_mesh_threads_(pin->GetOrAddInteger("mesh", "num_threads", 1)),
     tree(this),

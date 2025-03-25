@@ -133,6 +133,8 @@ int main(int argc, char *argv[])
   trgs.Add(tvar::ejecta, ovar::user, true, allow_rescale_dt);
 #endif
 
+  trgs.Add(tvar::global_extrema, ovar::user, true, allow_rescale_dt);
+
   gra::mesh::surfaces::InitSurfaceTriggers(trgs, pmesh->psurfs);
 
   // now populate requisite task-lists

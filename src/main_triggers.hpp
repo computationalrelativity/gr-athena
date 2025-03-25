@@ -148,7 +148,8 @@ public:
     Z4c_RWZ,
     Z4c_CCE,
     ejecta,
-    Surfaces
+    Surfaces,
+    global_extrema
   };
 
   enum class OutputVariant {
@@ -445,6 +446,14 @@ public:
 
         PopulateTrigger(tri, force_first_iter, allow_rescale_dt, dt);
         triggers[MakeTriggerMeta(tvar, ovar, index)] = tri;
+        break;
+      }
+      case TriggerVariant::global_extrema:
+      {
+        Real dt = pin->GetOrAddReal("task_triggers", "dt_global_extrema", 0.0);
+
+        PopulateTrigger(tri, force_first_iter, allow_rescale_dt, dt);
+        triggers[MakeTriggerMeta(tvar, ovar)] = tri;
         break;
       }
       default:

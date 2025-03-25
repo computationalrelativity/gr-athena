@@ -813,9 +813,6 @@ inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
       pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
     }
 
-    if (pmesh->global_extrema_on_substeps)
-      pmesh->GlobalExtrema();
-
     // Rescale as required
 #if FLUID_ENABLED
     if (pmesh->presc->opt.apply_on_substeps ||
@@ -836,9 +833,6 @@ inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
 #endif
   }
 
-  if (!pmesh->global_extrema_on_substeps)
-    pmesh->GlobalExtrema();
-
 }
 
 inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
@@ -849,6 +843,12 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
   // are at the new time-step ...
   const Real time_end_stage   = pmesh->time+pmesh->dt;
   const int ncycle_end_stage  = pmesh->ncycle+1;
+
+  // Compute global extrema quantities if so desired
+  if (trgs.IsSatisfied(tvar::global_extrema))
+  {
+    pmesh->GlobalExtrema();
+  }
 
   // Derivatives of ADM metric and other auxiliary computations needed below
   if (trgs.IsSatisfied(tvar::Z4c_AHF))
