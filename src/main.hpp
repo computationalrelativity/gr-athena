@@ -837,7 +837,8 @@ inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
 
 inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
                                   gra::triggers::Triggers &trgs,
-                                  Mesh *pmesh)
+                                  Mesh *pmesh,
+                                  Outputs *pouts)
 {
   // After state vector propagated, derived diagnostics (i.e. GW, trackers)
   // are at the new time-step ...
@@ -857,6 +858,15 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
         break;
     }
   }
+
+  // should also check whether needed for athdf:
+  if (!need_derived)
+  if (pouts->TimeExceedsNextOutputTime("hydro.aux", time_end_stage) ||
+      pouts->TimeExceedsNextOutputTime("field.aux", time_end_stage))
+  {
+    need_derived = true;
+  }
+
   if (need_derived)
   {
     pmesh->CalculateHydroFieldDerived();

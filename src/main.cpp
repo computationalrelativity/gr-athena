@@ -202,7 +202,7 @@ int main(int argc, char *argv[])
         gra::evolve::Z4c_Vacuum(ptlc, pmesh);
       }
 
-      gra::evolve::Z4c_DerivedQuantities(ptlc, trgs, pmesh);
+      gra::evolve::Z4c_DerivedQuantities(ptlc, trgs, pmesh, pouts);
     }
     else if (M1_ENABLED)
     {

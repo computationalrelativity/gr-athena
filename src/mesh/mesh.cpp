@@ -1882,6 +1882,17 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
       }
     } // omp parallel
 
+    // Prepare various derived field quantities -------------------------------
+#if FLUID_ENABLED
+    if ((init_style == initialize_style::pgen)   ||
+        (init_style == initialize_style::regrid) ||
+        (init_style == initialize_style::restart))
+    {
+      CalculateHydroFieldDerived();
+    }
+#endif // FLUID_ENABLED
+    // ------------------------------------------------------------------------
+
     // Further re-gridding as required ----------------------------------------
     if (adaptive)
     if (init_style == initialize_style::pgen)

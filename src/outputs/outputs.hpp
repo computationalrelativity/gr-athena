@@ -216,6 +216,8 @@ class Outputs {
   // Full scan; here variable can also be "hst", "rst"
   Real GetMinOutputTimeStepExhaustive(std::string variable);
 
+  bool TimeExceedsNextOutputTime(std::string variable_substring,
+    const Real time);
  private:
   OutputType *pfirst_type_; // ptr to head OutputType node in singly linked list
   // (not storing a reference to the tail node)

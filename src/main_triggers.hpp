@@ -269,7 +269,7 @@ public:
           }
           case (Triggers::OutputVariant::data):
           {
-            dt = pouts->GetMinOutputTimeStepExhaustive("con");
+            dt = pouts->GetMinOutputTimeStepExhaustive("geom.con");
             break;
           }
           default:

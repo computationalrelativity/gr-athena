@@ -1344,6 +1344,27 @@ Real Outputs::GetMinOutputTimeStepExhaustive(std::string variable)
   return dt;
 }
 
+bool Outputs::TimeExceedsNextOutputTime(std::string variable_substring,
+                                        const Real time)
+{
+  OutputType* ptype = pfirst_type_;
+
+  bool ret = false;
+  while (ptype != nullptr)
+  {
+    if (ptype->output_params.variable.find(variable_substring) !=
+        std::string::npos)
+    {
+      ret = ret || (ptype->output_params.next_time <= time);
+    }
+    if (ret)
+      break;
+    // move to next OutputType node in signly linked list
+    ptype = ptype->pnext_type;
+  }
+  return ret;
+}
+
 //----------------------------------------------------------------------------------------
 //! \fn void OutputType::TransformOutputData(MeshBlock *pmb)
 //  \brief Calls sum and slice functions on each direction in turn, in order to allow
