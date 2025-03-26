@@ -431,20 +431,11 @@ int Surface::GetNumFieldComponents(Surfaces::variety_data vd)
       return 1;
     }
     case variety_data::tracer_vel:
-    {
-      return 3;
-    }
     case variety_data::tracer_rho:
-    {
-      return 1;
-    }
     case variety_data::tracer_ye:
-    {
-      return 1;
-    }
     case variety_data::tracer_aux:
     {
-      return 4; // T u_t h/hinf*u_t eps
+      return static_cast<int>(GetFieldComponentIndices(vd).size());
     }
     // case variety_data::tracer_m1:
     // {
