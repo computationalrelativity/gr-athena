@@ -844,6 +844,26 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
   const Real time_end_stage   = pmesh->time+pmesh->dt;
   const int ncycle_end_stage  = pmesh->ncycle+1;
 
+  // All derived hydro/field quantities computed for hst or any surface
+#if FLUID_ENABLED
+  bool need_derived = trgs.IsSatisfied(ovar::hst);
+
+  if (!need_derived)
+  {
+    for (auto psurf : pmesh->psurfs)
+    {
+      need_derived = need_derived || trgs.IsSatisfied(tvar::Surfaces, ovar::user, psurf->par_ix);
+      if (need_derived)
+        break;
+    }
+  }
+  if (need_derived)
+  {
+    pmesh->CalculateHydroFieldDerived();
+  }
+
+#endif // FLUID_ENABLED
+
   // Compute global extrema quantities if so desired
   if (trgs.IsSatisfied(tvar::global_extrema))
   {

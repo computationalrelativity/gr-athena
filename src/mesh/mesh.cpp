@@ -2450,3 +2450,76 @@ void Mesh::CalculateExcisionMask()
   }
 #endif
 }
+
+void Mesh::CalculateHydroFieldDerived()
+{
+#if FLUID_ENABLED && Z4C_ENABLED
+
+  int inb = nbtotal;
+  int nthreads = GetNumMeshThreads();
+  (void)nthreads;
+  int nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
+  std::vector<MeshBlock*> pmb_array(nmb);
+
+  if (static_cast<unsigned int>(nmb) != pmb_array.size())
+    pmb_array.resize(nmb);
+
+  MeshBlock *pmbl = pblock;
+  for (int i=0; i<nmb; ++i)
+  {
+    pmb_array[i] = pmbl;
+    pmbl = pmbl->next;
+  }
+
+  #pragma omp parallel num_threads(nthreads)
+  {
+    #pragma omp for
+    for (int nix=0; nix<nmb; ++nix)
+    {
+      MeshBlock *pmb = pmb_array[nix];
+      Hydro *ph = pmb->phydro;
+      Field *pf = pmb->pfield;
+      PassiveScalars *ps = pmb->pscalars;
+      Z4c * pz4c = pmb->pz4c;
+
+      EquationOfState * peos = pmb->peos;
+
+      EquationOfState::geom_sliced_cc gsc;
+
+      AT_N_sca & alpha_    = gsc.alpha_;
+      AT_N_sym & gamma_dd_ = gsc.gamma_dd_;
+      AT_N_sym & gamma_uu_    = gsc.gamma_uu_;
+      AT_N_sca & sqrt_det_gamma_  = gsc.sqrt_det_gamma_;
+      AT_N_sca & det_gamma_   = gsc.det_gamma_;
+
+      // sanitize loop limits (coarse / fine auto-switched)
+      int IL = 0; int IU = pmb->ncells1-1;
+      int JL = 0; int JU = pmb->ncells2-1;
+      int KL = 0; int KU = pmb->ncells3-1;
+
+      const bool coarse_flag = false;
+      const bool skip_physical = false;
+
+      peos->SanitizeLoopLimits(IL, IU, JL, JU, KL, KU,
+                               coarse_flag, pmb->pcoord);
+
+      for (int k = KL; k <= KU; ++k)
+      for (int j = JL; j <= JU; ++j)
+      {
+        peos->GeometryToSlicedCC(gsc, k, j, IL, IU,
+                                 coarse_flag, pmb->pcoord);
+        peos->DerivedQuantities(
+          ph->derived_ms, ph->derived_int, pf->derived_ms,
+          ph->u, ps->s,
+          ph->w, ps->r,
+          pf->bcc, gsc,
+          pmb->pcoord,
+          k, j, IL, IU,
+          coarse_flag, skip_physical
+        );
+      }
+    }
+  }
+
+#endif
+}

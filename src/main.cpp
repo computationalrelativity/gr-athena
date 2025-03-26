@@ -111,6 +111,9 @@ int main(int argc, char *argv[])
   const bool allow_rescale_dt =
       pinput->GetOrAddBoolean("task_triggers", "adjust_mesh_dt", true);
 
+  // deal uniquely with hst
+  trgs.Add(ovar::hst, true, allow_rescale_dt);
+
   trgs.Add(tvar::tracker_extrema, ovar::user, true, allow_rescale_dt);
 
 #if defined(TWO_PUNCTURES)

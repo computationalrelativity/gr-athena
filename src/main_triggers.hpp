@@ -140,6 +140,7 @@ class Triggers
 {
 public:
   enum class TriggerVariant {
+    none,
     tracker_extrema,
     Z4c_ADM_constraints,
     Z4c_tracker_punctures,
@@ -187,6 +188,11 @@ public:
   // std::unordered_map<TriggerVariant, Trigger> triggers;
   std::unordered_map<TriggerMeta, Trigger, tm_hash> triggers;
 // ----------------------------------------------------------------------------
+
+  inline static TriggerMeta MakeTriggerMeta(OutputVariant ov)
+  {
+    return {TriggerVariant::none, ov, 0};
+  }
 
   inline static TriggerMeta MakeTriggerMeta(TriggerVariant tv,
                                             OutputVariant ov)
@@ -463,6 +469,34 @@ public:
     }
   };
 
+  void Add(OutputVariant ovar,
+           const bool force_first_iter,
+           const bool allow_rescale_dt,
+           const int index = 0)
+  {
+    Trigger tri;
+
+    Real dt = 0;
+    switch (ovar)
+    {
+      case (Triggers::OutputVariant::hst):
+      {
+        dt = pouts->GetMinOutputTimeStepExhaustive("hst");
+        break;
+      }
+      default:
+      {
+        assert(false);
+      }
+    }
+    PopulateTrigger(tri, force_first_iter, allow_rescale_dt, dt);
+    triggers[MakeTriggerMeta(TriggerVariant::none, ovar)] = tri;
+  };
+
+  bool IsSatisfied(OutputVariant ovar)
+  {
+    return triggers[MakeTriggerMeta(TriggerVariant::none, ovar)].is_satisfied();
+  }
   // Check whether a trigger is satisfied; checks all output variants
   bool IsSatisfied(TriggerVariant tvar, OutputVariant ovar)
   {

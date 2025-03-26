@@ -485,16 +485,7 @@ void EquationOfState::ConservedToPrimitive(
     }
 
     // derived quantities -----------------------------------------------------
-    // BD: TODO - probably better to move outside this
-    // BD: TODO - many quantities are not required at each time-step; trigger?
-    DerivedQuantities(
-      ph->derived_ms, ph->derived_int, pf->derived_ms,
-      cons, cons_scalar,
-      prim, prim_scalar,
-      bb_cc, gsc,
-      pmb->pcoord,
-      k, j, IL, IU,
-      coarse_flag, skip_physical);
+    // BD: TODO - some optional reconstructed quantities should perhaps go here
   }
 
 }

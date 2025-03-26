@@ -602,6 +602,9 @@ class Mesh {
   // compute masks as required
   void CalculateExcisionMask();
 
+  // compute all hydro/field derived quantities
+  void CalculateHydroFieldDerived();
+
 private:
   // data
   int next_phys_id_; // next unused value for encoding final component of MPI tag bitfield
