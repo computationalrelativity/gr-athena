@@ -456,13 +456,15 @@ void EquationOfState::ConservedToPrimitive(
     }
   }
 
-  // BD: TODO - probably better to move outside this
+#if defined(Z4C_VC_ENABLED)
+  assert(false); // DerivedQuantities assumes adm variables are cell centered
+#endif
   AA derived_gs;
   DerivedQuantities(
-    ph->derived_ms, derived_gs,
+    ph->derived_ms, derived_gs, ph->derived_int,
     cons, cons_scalar,
     prim, prim_scalar,
-    bb_cc,
+    pmb->pz4c->storage.adm, bb_cc,
     pmb->pcoord,
     IL, IU, JL, JU, KL, KU,
     coarse_flag, skip_physical);
