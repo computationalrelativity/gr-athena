@@ -176,6 +176,12 @@ enum HydroInternalDerivedIndex {
   IX_TR_V3  =3,   // alpha * vel^z - beta^z
   NIDRV_HYDRO=4};
 
+  // Field-derived quantities:
+enum FieldDerivedIndex {
+  IX_B2=0,    // B^iB^j adm_gamma_{ij}
+  NDRV_FIELD=1
+};
+
 // enumerator types that are used for variables and function parameters:
 
 // needed for arrays dimensioned over grid directions

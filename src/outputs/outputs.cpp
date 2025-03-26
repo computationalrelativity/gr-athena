@@ -462,6 +462,19 @@ void LoadOutputDataMagneticFields(
     pot->AppendOutputDataNode(pod);
     num_vars_++;
   }
+
+  for (int ix=0; ix<NDRV_FIELD; ++ix)
+  if (output_params.variable == "field.aux" ||
+      output_params.variable == Field::ixn_derived_ms::names[ix])
+  {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = Field::ixn_derived_ms::names[ix];
+    pod->data.InitWithShallowSlice(pf->derived_ms, 4, ix, 1);
+    pot->AppendOutputDataNode(pod);
+    num_vars_++;
+  }
+
 }
 
 void LoadOutputDataM1(

@@ -5,7 +5,7 @@
 // Athena++ headers
 #include "../athena_aliases.hpp"
 #include "../coordinates/coordinates.hpp"
-// #include "../utils/linear_algebra.hpp"
+#include "../field/field.hpp"
 #include "../hydro/hydro.hpp"
 #include "../z4c/ahf.hpp"
 #include "../z4c/z4c.hpp"
@@ -438,6 +438,7 @@ void EquationOfState::DerivedQuantities(
 {
   MeshBlock* pmb = pmy_block_;
   Hydro * ph     = pmb->phydro;
+  Field * pf     = pmb->pfield;
 
 #if USETM
   AA c2p_status;
@@ -445,6 +446,8 @@ void EquationOfState::DerivedQuantities(
 
   const Real oo_mb = OO(GetEOS().GetBaryonMass());
   Real Y[MAX_SPECIES] = {0.0};
+
+  AT_N_sym adm_gamma(adm, Z4c::I_ADM_gxx);
 
   for (int k=kl; k<=ku; ++k)
   for (int j=jl; j<=ju; ++j)
@@ -506,6 +509,12 @@ void EquationOfState::DerivedQuantities(
       derived_int(IX_TR_V1,k,j,i) = alp*vWx/W + bx;
       derived_int(IX_TR_V2,k,j,i) = alp*vWy/W + by;
       derived_int(IX_TR_V3,k,j,i) = alp*vWz/W + bz;
+
+#if MAGNETIC_FIELDS_ENABLED
+      pf->derived_ms(IX_B2,k,j,i) = LinearAlgebra::InnerProductVecMetric(
+        pf->bcc, adm_gamma, k, j, i
+      );
+#endif // MAGNETIC_FIELDS_ENABLED
     }
 
   }

@@ -334,15 +334,36 @@ Real DivBface(MeshBlock *pmb, int iout)
   return divB;
 }
 
+Real max_B2(MeshBlock *pmb, int iout)
+{
+  Field *pf = pmb->pfield;
+
+  Real max_B2_ = 0.0;
+  int is = pmb->is, ie = pmb->ie;
+  int js = pmb->js, je = pmb->je;
+  int ks = pmb->ks, ke = pmb->ke;
+
+  CC_ILOOP3(k, j, i)
+  {
+    max_B2_ = std::max(
+      std::abs(pf->derived_ms(IX_B2,k,j,i)),
+      max_B2_);
+  }
+
+  return max_B2_;
+}
+
 }
 #endif // MAGNETIC_FIELDS_ENABLED
 
 void Mesh::EnrollUserStandardField(ParameterInput * pin)
 {
 #if MAGNETIC_FIELDS_ENABLED
-  EnrollUserHistoryOutput(DivBface, "div_B",
+  EnrollUserHistoryOutput(max_B2, "max_B2",
                           UserHistoryOperation::max);
 
+  EnrollUserHistoryOutput(DivBface, "div_B",
+                          UserHistoryOperation::max);
 #endif // MAGNETIC_FIELDS_ENABLED
 }
 

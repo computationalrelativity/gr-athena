@@ -472,7 +472,7 @@ void EquationOfState::ConservedToPrimitive(
 
   // BD: TODO - probably better to move outside this
 #if defined(Z4C_VC_ENABLED)
-  assert(false); // DerivedQuantities assumes adm varaibels are cell centered
+  assert(false); // DerivedQuantities assumes adm variables are cell centered
 #endif
   AA derived_gs;
   DerivedQuantities(

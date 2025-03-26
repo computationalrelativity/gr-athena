@@ -143,6 +143,7 @@ class Hydro {
     };
   };
 
+  // BD: TODO- get rid of the following
   struct ixn_aux
   {
     enum
