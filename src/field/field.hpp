@@ -33,13 +33,13 @@ public:
 
   MeshBlock* pmy_block;  // ptr to MeshBlock containing this Field
 
-  // face-centered magnetic fields
+  // [densitized] face-centered magnetic fields B. [B = sqrt(det_gamma)scB]
   FaceField b;       // time-integrator memory register #1
   FaceField b1;      // time-integrator memory register #2
   FaceField b2;      // time-integrator memory register #3
   // (no more than MAX_NREGISTER allowed)
 
-  // cell-centered magnetic fields
+  // [densitized] cell-centered magnetic fields
   AthenaArray<Real> bcc;  // time-integrator memory register #1
 
   EdgeField e;    // edge-centered electric fields used in CT
@@ -106,6 +106,8 @@ public:
     // Uses "FieldDerivedIndex"
     static constexpr char const * const names[] = {
       "field.aux.B2",
+      "field.aux.b0",
+      "field.aux.b2",
     };
   };
 

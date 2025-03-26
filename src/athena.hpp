@@ -170,16 +170,19 @@ enum HydroDerivedIndex {
 
 // Hydro-derived quantities for internal use
 enum HydroInternalDerivedIndex {
-  IX_HU0    =0,   // h u_t
-  IX_TR_V1  =1,   // alpha * vel^x - beta^x
-  IX_TR_V2  =2,   // alpha * vel^y - beta^y
-  IX_TR_V3  =3,   // alpha * vel^z - beta^z
+  IX_HU0    = 0,   // h u_t
+  // alpha vtil^j = alpha * util^j / W + beta^j = alpha v^j + beta^j
+  IX_TR_V1  = 1,
+  IX_TR_V2  = 2,
+  IX_TR_V3  = 3,
   NIDRV_HYDRO=4};
 
   // Field-derived quantities:
 enum FieldDerivedIndex {
   IX_B2=0,    // B^iB^j adm_gamma_{ij}
-  NDRV_FIELD=1
+  IX_b0=1,    // W scB^i v_i / alpha
+  IX_b2=2,    // ((alpha b^0)^2 + (scB^i scB^j) adm_gamma_{ij}) / W^2
+  NDRV_FIELD=3
 };
 
 // enumerator types that are used for variables and function parameters:

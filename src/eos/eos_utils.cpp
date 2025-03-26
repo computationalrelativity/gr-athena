@@ -514,6 +514,32 @@ void EquationOfState::DerivedQuantities(
       pf->derived_ms(IX_B2,k,j,i) = LinearAlgebra::InnerProductVecMetric(
         pf->bcc, adm_gamma, k, j, i
       );
+
+      const Real v_u_x = vWx / W;
+      const Real v_u_y = vWy / W;
+      const Real v_u_z = vWz / W;
+
+      const Real oo_sqrt_det_gamma = pmb->pz4c->aux_extended.ms_sqrt_detgamma(
+        k,j,i
+      );
+
+      pf->derived_ms(IX_b0,k,j,i) = oo_sqrt_det_gamma * (W / alp) * (
+        gxx * pf->bcc(IB1,k,j,i) * v_u_x +
+        gyy * pf->bcc(IB2,k,j,i) * v_u_y +
+        gzz * pf->bcc(IB3,k,j,i) * v_u_z +
+        gxy * (pf->bcc(IB1,k,j,i) * v_u_y +
+               pf->bcc(IB2,k,j,i) * v_u_x) +
+        gxz * (pf->bcc(IB1,k,j,i) * v_u_z +
+               pf->bcc(IB3,k,j,i) * v_u_x) +
+        gyz * (pf->bcc(IB2,k,j,i) * v_u_z +
+               pf->bcc(IB3,k,j,i) * v_u_y)
+      );
+
+      pf->derived_ms(IX_b2,k,j,i) = (
+        SQR(alp * pf->derived_ms(IX_b0,k,j,i)) +
+        SQR(oo_sqrt_det_gamma) * pf->derived_ms(IX_B2,k,j,i)
+      ) / SQR(W);
+
 #endif // MAGNETIC_FIELDS_ENABLED
     }
 
