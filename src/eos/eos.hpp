@@ -176,10 +176,11 @@ class EquationOfState {
 
   // Various derived quantities -----------------------------------------------
   void DerivedQuantities(
-    AA &derived_ms, AA &derived_gs,
+    AA &derived_ms, AA &derived_gs, AA &derived_int,
     AA &cons, AA &cons_scalar,
     AA &prim, AA &prim_scalar,
-    AA &bcc, Coordinates *pco,
+    AA &adm, AA &bcc,
+    Coordinates *pco,
     int il, int iu,
     int jl, int ju,
     int kl, int ku,
@@ -187,19 +188,20 @@ class EquationOfState {
     bool skip_physical);
 
   void DerivedQuantities(
-    AA &derived_ms, AA &derived_gs,
+    AA &derived_ms, AA &derived_gs, AA &derived_int,
     AA &cons, AA &cons_scalar,
     AA &prim, AA &prim_scalar,
-    AA &bcc, Coordinates *pco,
+    AA &adm, AA &bcc,
+    Coordinates *pco,
     int il, int iu,
     int jl, int ju,
     int kl, int ku,
     int coarseflag)
   {
-    DerivedQuantities(derived_ms, derived_gs,
+    DerivedQuantities(derived_ms, derived_gs, derived_int,
                       cons, cons_scalar,
                       prim, prim_scalar,
-                      bcc, pco,
+                      adm, bcc, pco,
                       il, iu, jl, ju, kl, ku, coarseflag, false);
   }
 

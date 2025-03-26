@@ -32,6 +32,7 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
     u1(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
     w1(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
     derived_ms(NDRV_HYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
+    derived_int(NIDRV_HYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
     // C++11: nested brace-init-list in Hydro member initializer list = aggregate init. of
     // flux[3] array --> direct list init. of each array element --> direct init. via
     // constructor overload resolution of non-aggregate class type AthenaArray<Real>

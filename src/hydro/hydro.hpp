@@ -51,6 +51,8 @@ class Hydro {
 
   // storage for derived quantities (HydroDerivedIndex); matter-sampling
   AA derived_ms;
+  // storage for derived quantities for internal usage (HydroInternalDerivedIndex);
+  AA derived_int;
 
   AA flux[3];  // face-averaged flux vector
 

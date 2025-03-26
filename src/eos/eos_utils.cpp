@@ -425,9 +425,11 @@ void EquationOfState::SetEuclideanCC(geom_sliced_cc & gsc, const int i)
 void EquationOfState::DerivedQuantities(
   AA &derived_ms,
   AA &derived_gs,
+  AA &derived_int,
   AA &cons, AA &cons_scalar,
   AA &prim, AA &prim_scalar,
-  AA &bcc, Coordinates *pco,
+  AA &adm, AA &bcc,
+  Coordinates *pco,
   int il, int iu,
   int jl, int ju,
   int kl, int ku,
@@ -461,6 +463,22 @@ void EquationOfState::DerivedQuantities(
         continue;
       }
 
+      // u^a = (W/alpha, util^i)
+      const Real W = ph->derived_ms(IX_LOR,k,j,i);
+      const Real alp = adm(Z4c::I_ADM_alpha,k,j,i);
+      const Real bx = adm(Z4c::I_ADM_betax,k,j,i);
+      const Real by = adm(Z4c::I_ADM_betay,k,j,i);
+      const Real bz = adm(Z4c::I_ADM_betaz,k,j,i);
+      const Real gxx = adm(Z4c::I_ADM_gxx,k,j,i);
+      const Real gxy = adm(Z4c::I_ADM_gxy,k,j,i);
+      const Real gxz = adm(Z4c::I_ADM_gxz,k,j,i);
+      const Real gyy = adm(Z4c::I_ADM_gyy,k,j,i);
+      const Real gyz = adm(Z4c::I_ADM_gyz,k,j,i);
+      const Real gzz = adm(Z4c::I_ADM_gzz,k,j,i);
+      const Real vWx = prim(IVX,k,j,i);
+      const Real vWy = prim(IVY,k,j,i);
+      const Real vWz = prim(IVZ,k,j,i);
+      const Real n = oo_mb * prim(IDN,k,j,i);
       const Real T = derived_ms(IX_T,k,j,i);
 #if NSCALARS > 0
       for (int l=0; l<NSCALARS; ++l)
@@ -469,7 +487,12 @@ void EquationOfState::DerivedQuantities(
       }
 #endif
 
-      Real n = oo_mb * prim(IDN,k,j,i);
+      ph->derived_ms(IX_U_D_0,k,j,i) = - alp * W +
+        bx*vWx*gxx + by*vWy*gyy + bz*vWz*gzz
+        + (bx*vWy + by*vWx)*gxy
+        + (bx*vWz + bz*vWx)*gxz
+        + (by*vWz + bz*vWy)*gyz;
+
       derived_ms(IX_ETH,k,j,i) = GetEOS().GetEnthalpy(n, T, Y);
       derived_ms(IX_SPB,k,j,i) = GetEOS().GetEntropyPerBaryon(n, T, Y);
       derived_ms(IX_SEN,k,j,i) = GetEOS().GetSpecificInternalEnergy(n, T, Y);
@@ -477,6 +500,12 @@ void EquationOfState::DerivedQuantities(
       derived_ms(IX_CS2,k,j,i) = std::min(
         derived_ms(IX_CS2,k,j,i), max_cs2
       );
+
+      const Real h_inf = GetEOS().GetAsymptoticEnthalpy(Y);
+      derived_int(IX_HU0,k,j,i) = derived_ms(IX_ETH,k,j,i)/h_inf*derived_ms(IX_U_D_0,k,j,i);
+      derived_int(IX_TR_V1,k,j,i) = alp*vWx/W + bx;
+      derived_int(IX_TR_V2,k,j,i) = alp*vWy/W + by;
+      derived_int(IX_TR_V3,k,j,i) = alp*vWz/W + bz;
     }
 
   }

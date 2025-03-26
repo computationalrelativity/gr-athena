@@ -254,10 +254,18 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //! \fn Real GetMinimumEnthalpy()
     //  \brief Get the global minimum for enthalpy per mass from the EOS.
     //
-    //  \return the minimum enthalpy per baryon.
+    //  \return the minimum enthalpy per mass.
     inline Real GetMinimumEnthalpy() {
       return MinimumEnthalpy()/mb *
              eos_units->EnergyConversion(*code_units)/eos_units->MassConversion(*code_units);
+    }
+
+    //! \fn Real GetAsymptoticEnthalpy()
+    //  \brief Get the the enthalpy per mass for a given Ye at zero density and temperature
+    //
+    //  \return the asymptotic enthalpy per mass.
+    inline Real GetAsymptoticEnthalpy(Real *Y) {
+      return GetEnthalpy(min_n, min_T, Y);
     }
 
     //! \fn Real GetSoundSpeed(Real n, Real T, Real *Y)

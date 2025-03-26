@@ -467,21 +467,19 @@ void EquationOfState::ConservedToPrimitive(
         max_W,
         ph->derived_ms(IX_LOR,k,j,i)
       );
-
-      // u^a = (W/alpha, util^i)
-      ph->derived_ms(IX_U_U_0,k,j,i) = (
-        ph->derived_ms(IX_LOR,k,j,i) / alpha_(i)
-      );
     }
   }
 
   // BD: TODO - probably better to move outside this
+#if defined(Z4C_VC_ENABLED)
+  assert(false); // DerivedQuantities assumes adm varaibels are cell centered
+#endif
   AA derived_gs;
   DerivedQuantities(
-    ph->derived_ms, derived_gs,
+    ph->derived_ms, derived_gs, ph->derived_int,
     cons, cons_scalar,
     prim, prim_scalar,
-    bb_cc,
+    pmb->pz4c->storage.adm, bb_cc,
     pmb->pcoord,
     IL, IU, JL, JU, KL, KU,
     coarse_flag, skip_physical);
