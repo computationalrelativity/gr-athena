@@ -321,6 +321,26 @@ AA * Surface::GetRawData(Surfaces::variety_data vd, MeshBlock * pmb)
     {
       return &pmb->pm1->radmat.sc_avg_nrg(0,2).array();
     }
+    case variety_data::tracer_vel:
+    {
+      return &pmb->phydro->derived_int;
+    }
+    case variety_data::tracer_rho:
+    {
+      return &pmb->phydro->w;
+    }
+    case variety_data::tracer_ye:
+    {
+      return &pmb->pscalars->r;
+    }
+    case variety_data::tracer_aux:
+    {
+      return &pmb->phydro->derived_ms;
+    }
+    // case variety_data::tracer_m1:
+    // {
+    // return &pmb->pm1->storage.u_rad;
+    // }
     default:
     {
       assert(false);
@@ -410,6 +430,29 @@ int Surface::GetNumFieldComponents(Surfaces::variety_data vd)
     {
       return 1;
     }
+    case variety_data::tracer_vel:
+    {
+      return 3;
+    }
+    case variety_data::tracer_rho:
+    {
+      return 1;
+    }
+    case variety_data::tracer_ye:
+    {
+      return 1;
+    }
+    case variety_data::tracer_aux:
+    {
+      return 4; // T u_t h/hinf*u_t eps
+    }
+    // case variety_data::tracer_m1:
+    // {
+    //   const int N_GRPS = pm->pblock->pm1->N_GRPS;
+    //   const int N_SPCS = pm->pblock->pm1->N_SPCS;
+    //   const int N_VARS = 5; // n, J, Hx, Hy, Hz
+    //   return N_VARS * N_GRPS * N_SPCS;
+    // }
     default:
     {
       assert(false);
@@ -424,6 +467,26 @@ std::vector<int> Surface::GetFieldComponentIndices(Surfaces::variety_data vd)
   typedef Surfaces::variety_data variety_data;
   switch(vd)
   {
+    case variety_data::tracer_vel:
+    {
+      return {IX_TR_V1, IX_TR_V2, IX_TR_V3};
+    }
+    case variety_data::tracer_rho:
+    {
+      return {IDN};
+    }
+    case variety_data::tracer_ye:
+    {
+      return {0};
+    }
+    case variety_data::tracer_aux:
+    {
+      return {IX_T, IX_U_D_0, IX_HU0, IX_SPB};
+    }
+    // case variety_data::tracer_m1:
+    // {
+    //
+    // }
     default:
     {
       const int n_pts = GetNumFieldComponents(vd);
@@ -601,6 +664,35 @@ std::string Surface::GetNameFieldComponent(Surfaces::variety_data vd,
       ret = "M1.radmat.sc_avg_nrg_02";
       break;
     }
+    case variety_data::tracer_vel:
+    {
+      int idx = GetFieldComponentIndices(vd)[nix];
+      return ret = Hydro::ixn_derived_int::names[idx];
+    }
+    case variety_data::tracer_rho:
+    {
+      int idx = GetFieldComponentIndices(vd)[nix];
+      return GetNameFieldComponent(variety_data::hydro_prim, idx);
+    }
+    case variety_data::tracer_ye:
+    {
+      int idx = GetFieldComponentIndices(vd)[nix];
+      return GetNameFieldComponent(variety_data::passive_scalars_prim, idx);
+    }
+    case variety_data::tracer_aux:
+    {
+      int idx = GetFieldComponentIndices(vd)[nix];
+      return GetNameFieldComponent(variety_data::hydro_aux, idx);
+    }
+    // case variety_data::tracer_m1:
+    // {
+    //   int v, g, s;
+    //   m1_vgs_idx(nix, M1::M1::ixn_Rad::N, v, g, s);
+    //   ret += M1::M1::ixn_Rad::names[v];
+    //   ret += "__" + std::to_string(g) + std::to_string(s);
+    //   break;
+    // }
+
     default:
     {
       assert(false);

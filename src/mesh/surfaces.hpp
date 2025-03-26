@@ -44,6 +44,12 @@ class Surfaces
       hydro_cons,
       hydro_prim,
       hydro_aux,
+      // tracer quantities
+      tracer_vel,
+      tracer_rho,
+      tracer_ye,
+      tracer_aux,
+      tracer_m1,
       // scalars
       passive_scalars_cons,
       passive_scalars_prim,
@@ -71,8 +77,12 @@ class Surfaces
       {"hydro.cons", variety_data::hydro_cons},
       {"hydro.prim", variety_data::hydro_prim},
       {"hydro.aux",  variety_data::hydro_aux},
+      {"tracer.vel",  variety_data::tracer_vel},
+      {"tracer.rho",  variety_data::tracer_rho},
+      {"tracer.aux",  variety_data::tracer_aux},
 #endif
 #if NSCALARS > 0
+      {"tracer.ye",  variety_data::tracer_ye},
       {"passive_scalars.cons",  variety_data::passive_scalars_cons},
       {"passive_scalars.prim",  variety_data::passive_scalars_prim},
 #endif
@@ -90,6 +100,7 @@ class Surfaces
       {"M1.radmat.sc_avg_nrg_00", variety_data::M1_radmat_sc_avg_nrg_00},
       {"M1.radmat.sc_avg_nrg_01", variety_data::M1_radmat_sc_avg_nrg_01},
       {"M1.radmat.sc_avg_nrg_02", variety_data::M1_radmat_sc_avg_nrg_02},
+      {"tracer.M1", variety_data::tracer_m1},
 #endif
     };
 
