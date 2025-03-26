@@ -262,23 +262,6 @@ void Field::ComputeCornerE_Z4c_3D(
                     &w_x2f = wght.x2f,
                     &w_x3f = wght.x3f;
 
-  GRDynamical* pco_gr;
-
-  pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
-
-  Z4c * pz4c = pmb->pz4c;
-
-  // Dense slice --------------------------------------------------------------
-  AT_N_sca adm_alpha(pz4c->storage.adm, Z4c::I_ADM_alpha);
-  AT_N_vec adm_beta_u(pz4c->storage.adm, Z4c::I_ADM_betax);
-
-  // Various scratches --------------------------------------------------------
-  AT_N_sca alpha_(nn1);
-  AT_N_vec beta_u_(nn1);
-
-  AT_N_vec bb_(nn1);
-  AT_N_vec v_u_(nn1);
-
   // 3-D updates - cc_e_ is 4D array
   for (int k=ks-1; k<=ke+1; ++k)
   for (int j=js-1; j<=je+1; ++j)
@@ -286,43 +269,24 @@ void Field::ComputeCornerE_Z4c_3D(
     // E1=-(v X B)=VzBy-VyBz
     // E2=-(v X B)=VxBz-VzBx
     // E3=-(v X B)=VyBx-VxBy
-    pco_gr->GetGeometricFieldCC(alpha_,  adm_alpha,  k, j);
-    pco_gr->GetGeometricFieldCC(beta_u_, adm_beta_u, k, j);
 
-    for(int a=0;a<NDIM;++a)
-    {
-      //#pragma omp simd
-      for (int i = is-1; i <= ie+1; ++i)
-      {
-        const Real W = ph->derived_ms(IX_LOR,k,j,i);
-        v_u_(a,i) = ph->w(IVX+a,k,j,i) / W;
-      }
-    }
-
-    //#pragma omp simd
+    // bb is densitised
+    #pragma omp simd
     for (int i = is-1; i <= ie+1; ++i)
     {
-      bb_(0,i) = bcc(IB1,k,j,i);
-      bb_(1,i) = bcc(IB2,k,j,i);
-      bb_(2,i) = bcc(IB3,k,j,i);
+      cc_e_(IB1,k,j,i) = (bcc(IB2,k,j,i) * ph->derived_int(IX_TR_V3,k,j,i) -
+                          bcc(IB3,k,j,i) * ph->derived_int(IX_TR_V2,k,j,i));
+      cc_e_(IB2,k,j,i) = (bcc(IB3,k,j,i) * ph->derived_int(IX_TR_V1,k,j,i) -
+                          bcc(IB1,k,j,i) * ph->derived_int(IX_TR_V3,k,j,i));
+      cc_e_(IB3,k,j,i) = (bcc(IB1,k,j,i) * ph->derived_int(IX_TR_V2,k,j,i) -
+                          bcc(IB2,k,j,i) * ph->derived_int(IX_TR_V1,k,j,i));
     }
-    // make sure bb densitised
-    for (int i = is-1; i <= ie+1; ++i)
-    {
-      cc_e_(IB1,k,j,i) = (bb_(1,i) * (alpha_(i)*v_u_(2,i) - beta_u_(2,i)) -
-                          bb_(2,i) * (alpha_(i)*v_u_(1,i) - beta_u_(1,i)));
-      cc_e_(IB2,k,j,i) = (bb_(2,i) * (alpha_(i)*v_u_(0,i) - beta_u_(0,i)) -
-                          bb_(0,i) * (alpha_(i)*v_u_(2,i) - beta_u_(2,i)));
-      cc_e_(IB3,k,j,i) = (bb_(0,i) * (alpha_(i)*v_u_(1,i) - beta_u_(1,i)) -
-                          bb_(1,i) * (alpha_(i)*v_u_(0,i) - beta_u_(0,i)));
-    }
-
 
   }
 
   for (int k=ks; k<=ke+1; ++k)
   for (int j=js; j<=je+1; ++j)
-#pragma omp simd
+  #pragma omp simd
   for (int i=is; i<=ie+1; ++i)
   {
     // integrate E1,E2,E3 to corner using SG07
