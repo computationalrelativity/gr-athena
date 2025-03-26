@@ -237,10 +237,13 @@ Surface::Surface(
   // Number of field components that we wish to dump for each var
   const int num_vars = psurfs->variables.GetSize();
   N_cpts.NewAthenaArray(num_vars);
+  c_idx = new std::vector<int>*[num_vars];
 
   for (int v=0; v<num_vars; ++v)
   {
     N_cpts(v) = GetNumFieldComponents(psurfs->variables(v));
+    std::vector<int> idx = GetFieldComponentIndices(psurfs->variables(v));
+    c_idx[v] = new std::vector<int>(idx);
   }
 }
 
@@ -415,6 +418,22 @@ int Surface::GetNumFieldComponents(Surfaces::variety_data vd)
 
   return -1;
 }
+
+std::vector<int> Surface::GetFieldComponentIndices(Surfaces::variety_data vd)
+{
+  typedef Surfaces::variety_data variety_data;
+  switch(vd)
+  {
+    default:
+    {
+      const int n_pts = GetNumFieldComponents(vd);
+      std::vector<int> ret(n_pts);
+      std::iota(ret.begin(), ret.end(), 0);
+      return ret;
+    }
+  }
+}
+
 
 std::string Surface::GetNameFieldComponent(Surfaces::variety_data vd,
                                            const int nix)
@@ -1175,7 +1194,7 @@ void SurfaceSpherical::DoInterpolations()
       for (int cix=0; cix<N_cpts(vix); ++cix)
       {
         // slice to current function component for interp
-        AA sl_u(raw_var, cix, 1);
+        AA sl_u(raw_var, c_idx[vix]->at(cix), 1);
 
         // const int ix_dump = cix + vix * N_cpts(vix);
         u_vars(ix_dump,i,j) = InterpolateAtPoint(sl_u, vbg, i, j);

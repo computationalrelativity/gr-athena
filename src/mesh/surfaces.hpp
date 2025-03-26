@@ -5,6 +5,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <numeric>
 
 // Athena++ headers
 #include "../athena_aliases.hpp"
@@ -182,6 +183,9 @@ class Surface
     // Number of field components that we wish to dump for each var
     AthenaArray<int> N_cpts;
 
+    // Indices of the field components
+    std::vector<int>** c_idx;
+
     // collective array storing all interpolated data
     aliases::AA u_vars;
 
@@ -190,6 +194,10 @@ class Surface
 
     // Total number of field components to reduce
     int GetNumFieldComponents(Surfaces::variety_data vd);
+
+    // Indices of field components to reduce
+    std::vector<int> GetFieldComponentIndices(Surfaces::variety_data vd);
+
     // Pointer to array of field component names
     std::string GetNameFieldComponent(Surfaces::variety_data vd,
                                       const int nix);
