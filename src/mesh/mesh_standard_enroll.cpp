@@ -100,15 +100,18 @@ Real num_c2p_fail(MeshBlock *pmb, int iout)
   return sum_;
 }
 
-Real sum_rho_window_npts(MeshBlock *pmb,
-                         const Real rho_min, const Real rho_max, int iout)
+int windowed_npts(MeshBlock *pmb,
+                  const int IWN, AA & window,
+                  const Real win_min,
+                  const Real win_max,
+                  int iout)
 {
-  Real n_pts = 0;
-  AA &w = pmb->phydro->w;
+  int n_pts = 0;
+
   CC_ILOOP3(k,j,i)
   {
-    if ((rho_min <= w(IDN,k,j,i)) &&
-         rho_max >= w(IDN,k,j,i))
+    if ((win_min <= window(IWN,k,j,i)) &&
+         win_max >= window(IWN,k,j,i))
     {
       n_pts += 1;
     }
@@ -116,25 +119,73 @@ Real sum_rho_window_npts(MeshBlock *pmb,
   return n_pts;
 }
 
-Real sum_rho_window_quantity(MeshBlock *pmb,
-                             const int IX,
-                             AA & quantity,
-                             const Real rho_min, const Real rho_max, int iout)
+Real windowed_int(MeshBlock *pmb,
+                  const int IQ, AA & quantity,
+                  const int IWN, AA & window,
+                  const Real win_min,
+                  const Real win_max,
+                  int iout)
 {
   Real sum_Q = 0;
-  AA &w = pmb->phydro->w;
 
   CC_ILOOP3(k,j,i)
   {
-    if ((rho_min <= w(IDN,k,j,i)) &&
-         rho_max >= w(IDN,k,j,i))
+    if ((win_min <= window(IWN,k,j,i)) &&
+         win_max >= window(IWN,k,j,i))
     {
-      sum_Q += quantity(IX,k,j,i);
+
+      const Real dx1 = pmb->pcoord->dx1v(i);
+      const Real dx2 = pmb->pcoord->dx2v(i);
+      const Real dx3 = pmb->pcoord->dx3v(i);
+      const Real w = dx1*dx2*dx3;
+      sum_Q += quantity(IQ,k,j,i)*w;
     }
   }
   return sum_Q;
 }
 
+Real weighted_avg(MeshBlock *pmb,
+                  const int IQ, AA & quantity,
+                  const int IWG, AA & weight,
+                  int iout)
+{
+  Real sum_Q = 0;
+
+  CC_ILOOP3(k,j,i)
+  {
+    const Real dx1 = pmb->pcoord->dx1v(i);
+    const Real dx2 = pmb->pcoord->dx2v(i);
+    const Real dx3 = pmb->pcoord->dx3v(i);
+    const Real w = dx1*dx2*dx3 * weight(IWG,k,j,i);
+    sum_Q += quantity(IQ,k,j,i) * w;
+  }
+  return sum_Q;
+}
+
+Real windowed_weighted_avg(MeshBlock *pmb,
+                  const int IQ, AA & quantity,
+                  const int IWG, AA & weight,
+                  const int IWN, AA & window,
+                  const Real win_min,
+                  const Real win_max,
+                  int iout)
+{
+  Real sum_Q = 0;
+
+  CC_ILOOP3(k,j,i)
+  {
+    if ((win_min <= window(IWN,k,j,i)) &&
+         win_max >= window(IWN,k,j,i))
+    {
+      const Real dx1 = pmb->pcoord->dx1v(i);
+      const Real dx2 = pmb->pcoord->dx2v(i);
+      const Real dx3 = pmb->pcoord->dx3v(i);
+      const Real w = dx1*dx2*dx3 * weight(IWG,k,j,i);
+      sum_Q += quantity(IQ,k,j,i) * w;
+    }
+  }
+  return sum_Q;
+}
 }
 #endif // FLUID_ENABLED
 
@@ -166,32 +217,48 @@ void Mesh::EnrollUserStandardHydro(ParameterInput * pin)
         pib->block_name,
         "rho_max", 1e99);
 
-      // get number of points that satisfy the density window
-      auto fcn_hw_n_pts = [&](MeshBlock *pmb, int iout)
-      {
-        return sum_rho_window_npts(pmb, rho_min, rho_max, iout);
-      };
+       // get number of points that satisfy the density window
+      auto fcn_hw_n_pts = [rho_min,rho_max](MeshBlock *pmb, int iout)
+       {
+         return windowed_npts(pmb,
+                              IDN, pmb->phydro->w,
+                              rho_min, rho_max, iout);
+       };
 
       // sum quantities that live in the density window -----------------------
-      auto fcn_hw_sum_T = [&](MeshBlock *pmb, int iout)
+      auto fcn_hw_sum = [rho_min,rho_max](MeshBlock *pmb, int iout)
       {
-        return sum_rho_window_quantity(pmb,
-                                       IX_T,
-                                       pmb->phydro->derived_ms,
-                                       rho_min, rho_max, iout);
+        return windowed_int(pmb,
+                            IDN, pmb->phydro->u,
+                            IDN, pmb->phydro->w,
+                            rho_min, rho_max, iout);
       };
 
-      auto fcn_hw_sum_Y = [&](MeshBlock *pmb, int iout)
+      auto fcn_hw_sum_T = [rho_min,rho_max](MeshBlock *pmb, int iout)
+      {
+        return windowed_weighted_avg(pmb,
+                                     IX_T, pmb->phydro->derived_ms,
+                                     IDN, pmb->phydro->u,
+                                     IDN, pmb->phydro->w,
+                                     rho_min, rho_max, iout);
+      };
+
+      auto fcn_hw_sum_Y = [rho_min,rho_max](MeshBlock *pmb, int iout)
       {
         const int IX_Y = 0;
-        return sum_rho_window_quantity(pmb,
-                                       IX_Y,
-                                       pmb->pscalars->r,
-                                       rho_min, rho_max, iout);
+        return windowed_weighted_avg(pmb,
+                                     IX_Y, pmb->pscalars->r,
+                                     IDN, pmb->phydro->u,
+                                     IDN, pmb->phydro->w,
+                                     rho_min, rho_max, iout);
       };
 
       EnrollUserHistoryOutput(
         fcn_hw_n_pts, str_n_pts.c_str(),
+        UserHistoryOperation::sum);
+
+      EnrollUserHistoryOutput(
+        fcn_hw_sum, ("hw_M_" + hstwn).c_str(),
         UserHistoryOperation::sum);
 
       EnrollUserHistoryOutput(
@@ -207,6 +274,31 @@ void Mesh::EnrollUserStandardHydro(ParameterInput * pin)
 
     pib = pib->pnext;
   }
+
+  auto fcn_mass_geodesic = [&](MeshBlock *pmb, int iout)
+  {
+    return windowed_int(pmb,
+                        IDN, pmb->phydro->u,
+                        IX_U_D_0, pmb->phydro->derived_ms,
+                        -1e99, -1, iout);
+  };
+
+  EnrollUserHistoryOutput(
+    fcn_mass_geodesic, "m_ej_geod",
+    UserHistoryOperation::sum);
+
+  auto fcn_mass_bernulli = [&](MeshBlock *pmb, int iout)
+  {
+    return windowed_int(pmb,
+                        IDN, pmb->phydro->u,
+                        IX_HU0, pmb->phydro->derived_int,
+                        -1e99, -1, iout);
+  };
+
+  EnrollUserHistoryOutput(
+    fcn_mass_bernulli, "m_ej_bern",
+    UserHistoryOperation::sum);
+
   // --------------------------------------------------------------------------
   #endif // FLUID_ENABLED
 }
