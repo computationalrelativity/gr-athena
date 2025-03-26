@@ -144,6 +144,16 @@ class Hydro {
     };
   };
 
+  struct ixn_derived_int
+  {
+    // Uses "HydroDerivedIndex"
+    static constexpr char const * const names[] = {
+      "hydro.aux.Vx",
+      "hydro.aux.Vy",
+      "hydro.aux.Vz",
+    };
+  };
+
   // BD: TODO- get rid of the following
   struct ixn_aux
   {
