@@ -182,7 +182,10 @@ enum FieldDerivedIndex {
   IX_B2=0,    // B^iB^j adm_gamma_{ij}
   IX_b0=1,    // W scB^i v_i / alpha
   IX_b2=2,    // ((alpha b^0)^2 + (scB^i scB^j) adm_gamma_{ij}) / W^2
-  NDRV_FIELD=3
+  IX_b_U_1=3, // (scB^i + alpha * b^0 * W * vtil^i) / W
+  IX_b_U_2=4,
+  IX_b_U_3=5,
+  NDRV_FIELD=6
 };
 
 // enumerator types that are used for variables and function parameters:

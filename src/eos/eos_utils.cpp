@@ -520,8 +520,8 @@ void EquationOfState::DerivedQuantities(
       const Real v_u_y = vWy / W;
       const Real v_u_z = vWz / W;
 
-      const Real oo_sqrt_det_gamma = pmb->pz4c->aux_extended.ms_sqrt_detgamma(
-        k,j,i
+      const Real oo_sqrt_det_gamma = OO(
+        pmb->pz4c->aux_extended.ms_sqrt_detgamma(k,j,i)
       );
 
       pf->derived_ms(IX_b0,k,j,i) = oo_sqrt_det_gamma * (W / alp) * (
@@ -539,6 +539,25 @@ void EquationOfState::DerivedQuantities(
       pf->derived_ms(IX_b2,k,j,i) = (
         SQR(alp * pf->derived_ms(IX_b0,k,j,i)) +
         SQR(oo_sqrt_det_gamma) * pf->derived_ms(IX_B2,k,j,i)
+      ) / SQR(W);
+
+      const Real vtil_u_x = v_u_x - bx / alp;
+      const Real vtil_u_y = v_u_y - by / alp;
+      const Real vtil_u_z = v_u_z - bz / alp;
+
+      pf->derived_ms(IX_b_U_1,k,j,i) = (
+        oo_sqrt_det_gamma * pf->bcc(IB1,k,j,i) +
+        alp * pf->derived_ms(IX_b0,k,j,i) * W * vtil_u_x
+      ) / SQR(W);
+
+      pf->derived_ms(IX_b_U_2,k,j,i) = (
+        oo_sqrt_det_gamma * pf->bcc(IB2,k,j,i) +
+        alp * pf->derived_ms(IX_b0,k,j,i) * W * vtil_u_y
+      ) / SQR(W);
+
+      pf->derived_ms(IX_b_U_3,k,j,i) = (
+        oo_sqrt_det_gamma * pf->bcc(IB3,k,j,i) +
+        alp * pf->derived_ms(IX_b0,k,j,i) * W * vtil_u_z
       ) / SQR(W);
 
 #endif // MAGNETIC_FIELDS_ENABLED

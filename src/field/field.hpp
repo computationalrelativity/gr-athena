@@ -108,6 +108,9 @@ public:
       "field.aux.B2",
       "field.aux.b0",
       "field.aux.b2",
+      "field.aux.b_u_1",
+      "field.aux.b_u_2",
+      "field.aux.b_u_3",
     };
   };
 

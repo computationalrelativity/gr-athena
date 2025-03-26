@@ -44,62 +44,7 @@
 #endif
 
 // Enroll standard quantities used in multiple pgens --------------------------
-#if FLUID_ENABLED
 namespace {
-
-Real max_rho(MeshBlock *pmb, int iout)
-{
-  Real max_rho_ = 0.0;
-  int is = pmb->is, ie = pmb->ie;
-  int js = pmb->js, je = pmb->je;
-  int ks = pmb->ks, ke = pmb->ke;
-
-  AA &w = pmb->phydro->w;
-  for (int k=ks; k<=ke; k++)
-  for (int j=js; j<=je; j++)
-  for (int i=is; i<=ie; i++)
-  {
-    max_rho_ = std::max(std::abs(w(IDN,k,j,i)), max_rho_);
-  }
-
-  return max_rho_;
-}
-
-Real max_T(MeshBlock *pmb, int iout)
-{
-  Real max_T = -std::numeric_limits<Real>::infinity();
-  AA temperature;
-  temperature.InitWithShallowSlice(pmb->phydro->derived_ms, IX_T, 1);
-
-  CC_ILOOP3(k, j, i)
-  {
-    max_T = std::max(max_T, temperature(k,j,i));
-  }
-  return max_T;
-}
-
-Real num_c2p_fail(MeshBlock *pmb, int iout)
-{
-  Real sum_ = 0;
-  int is = pmb->is, ie = pmb->ie;
-  int js = pmb->js, je = pmb->je;
-  int ks = pmb->ks, ke = pmb->ke;
-
-  // Reset the status
-  AA c2p_status;
-  c2p_status.InitWithShallowSlice(pmb->phydro->derived_ms, IX_C2P, 1);
-
-  for (int k=ks; k<=ke; k++)
-  for (int j=js; j<=je; j++)
-  for (int i=is; i<=ie; i++)
-  {
-    if (c2p_status(k,j,i) > 0)
-      sum_++;
-  }
-
-  return sum_;
-}
-
 int windowed_npts(MeshBlock *pmb,
                   const int IWN, AA & window,
                   const Real win_min,
@@ -186,6 +131,83 @@ Real windowed_weighted_avg(MeshBlock *pmb,
   }
   return sum_Q;
 }
+
+}
+
+#if FLUID_ENABLED
+namespace {
+
+Real max_rho(MeshBlock *pmb, int iout)
+{
+  Real max_rho_ = 0.0;
+  int is = pmb->is, ie = pmb->ie;
+  int js = pmb->js, je = pmb->je;
+  int ks = pmb->ks, ke = pmb->ke;
+
+  AA &w = pmb->phydro->w;
+  for (int k=ks; k<=ke; k++)
+  for (int j=js; j<=je; j++)
+  for (int i=is; i<=ie; i++)
+  {
+    max_rho_ = std::max(std::abs(w(IDN,k,j,i)), max_rho_);
+  }
+
+  return max_rho_;
+}
+
+Real max_T(MeshBlock *pmb, int iout)
+{
+  Real max_T = -std::numeric_limits<Real>::infinity();
+  AA temperature;
+  temperature.InitWithShallowSlice(pmb->phydro->derived_ms, IX_T, 1);
+
+  CC_ILOOP3(k, j, i)
+  {
+    max_T = std::max(max_T, temperature(k,j,i));
+  }
+  return max_T;
+}
+
+Real num_c2p_fail(MeshBlock *pmb, int iout)
+{
+  Real sum_ = 0;
+  int is = pmb->is, ie = pmb->ie;
+  int js = pmb->js, je = pmb->je;
+  int ks = pmb->ks, ke = pmb->ke;
+
+  // Reset the status
+  AA c2p_status;
+  c2p_status.InitWithShallowSlice(pmb->phydro->derived_ms, IX_C2P, 1);
+
+  for (int k=ks; k<=ke; k++)
+  for (int j=js; j<=je; j++)
+  for (int i=is; i<=ie; i++)
+  {
+    if (c2p_status(k,j,i) > 0)
+      sum_++;
+  }
+
+  return sum_;
+}
+
+Real E_int(MeshBlock *pmb, int iout)
+{
+  Real sum_Q = 0;
+
+  CC_ILOOP3(k,j,i)
+  {
+    const Real dx1 = pmb->pcoord->dx1v(i);
+    const Real dx2 = pmb->pcoord->dx2v(i);
+    const Real dx3 = pmb->pcoord->dx3v(i);
+    const Real w = dx1*dx2*dx3;
+
+    const Real D = pmb->phydro->u(IDN,k,j,i);
+    const Real eps = pmb->phydro->derived_ms(IX_SEN,k,j,i);
+    sum_Q += D * eps * w;
+  }
+  return sum_Q;
+}
+
 }
 #endif // FLUID_ENABLED
 
@@ -299,6 +321,68 @@ void Mesh::EnrollUserStandardHydro(ParameterInput * pin)
     fcn_mass_bernulli, "m_ej_bern",
     UserHistoryOperation::sum);
 
+  auto fcn_E_kin = [&](MeshBlock *pmb, int iout)
+  {
+    Real E_kin_ = 0.0;
+
+    AT_N_sca alpha(pmb->pz4c->storage.adm, Z4c::I_ADM_alpha);
+
+    CC_ILOOP3(k,j,i)
+    {
+      const Real sqrt_det_gamma__ = (
+        pmb->pz4c->aux_extended.ms_sqrt_detgamma(k,j,i)
+      );
+
+      const Real w_rho = pmb->phydro->w(IDN,k,j,i);
+      const Real h = pmb->phydro->derived_ms(IX_ETH,k,j,i);
+      const Real W = pmb->phydro->derived_ms(IX_LOR,k,j,i);
+
+      const Real util_u_x = pmb->phydro->w(IVX,k,j,i);
+      const Real util_u_y = pmb->phydro->w(IVY,k,j,i);
+      const Real util_u_z = pmb->phydro->w(IVZ,k,j,i);
+
+      Real S_u_x = w_rho * h * W * util_u_x;
+      Real S_u_y = w_rho * h * W * util_u_y;
+      Real S_u_z = w_rho * h * W * util_u_z;
+
+#if MAGNETIC_FIELDS_ENABLED
+      const Real alpha_b0 = (
+        alpha(k,j,i) * pmb->phydro->derived_ms(IX_b0,k,j,i)
+      );
+
+      S_u_x -= alpha_b0 * pmb->phydro->derived_ms(IX_b_U_1,k,j,i);
+      S_u_y -= alpha_b0 * pmb->phydro->derived_ms(IX_b_U_2,k,j,i);
+      S_u_z -= alpha_b0 * pmb->phydro->derived_ms(IX_b_U_3,k,j,i);
+#endif // MAGNETIC_FIELDS_ENABLED
+
+      S_u_x *= sqrt_det_gamma__;
+      S_u_y *= sqrt_det_gamma__;
+      S_u_z *= sqrt_det_gamma__;
+
+      const Real S_d_x = pmb->phydro->u(IM1,k,j,i);
+      const Real S_d_y = pmb->phydro->u(IM2,k,j,i);
+      const Real S_d_z = pmb->phydro->u(IM3,k,j,i);
+
+      const Real D = pmb->phydro->u(IDN,k,j,i);
+      E_kin_ += (
+        S_u_x * S_d_x + S_u_y * S_d_y + S_u_z * S_d_z
+      ) / D;
+    }
+
+    return 0.5 * E_kin_;
+  };
+
+#if !defined(Z4C_VC_ENABLED)
+  // needs alpha_cc due to eval. of definition
+  EnrollUserHistoryOutput(
+    fcn_E_kin, "E_kin",
+    UserHistoryOperation::sum);
+#endif
+
+  EnrollUserHistoryOutput(
+    E_int, "E_int",
+    UserHistoryOperation::sum);
+
   // --------------------------------------------------------------------------
   #endif // FLUID_ENABLED
 }
@@ -353,6 +437,28 @@ Real max_B2(MeshBlock *pmb, int iout)
   return max_B2_;
 }
 
+Real E_B(MeshBlock *pmb, int iout)
+{
+  Real sum_Q = 0;
+
+  CC_ILOOP3(k,j,i)
+  {
+    const Real dx1 = pmb->pcoord->dx1v(i);
+    const Real dx2 = pmb->pcoord->dx2v(i);
+    const Real dx3 = pmb->pcoord->dx3v(i);
+    const Real w = dx1*dx2*dx3;
+
+    const Real sqrt_det_gamma__ = (
+      pmb->pz4c->aux_extended.ms_sqrt_detgamma(k,j,i)
+    );
+    const Real W = pmb->phydro->derived_ms(IX_LOR,k,j,i);
+    const Real b2 = pmb->pfield->derived_ms(IX_b2,k,j,i);
+
+    sum_Q += sqrt_det_gamma__ * W * b2 * w;
+  }
+  return 0.5 * sum_Q;
+}
+
 }
 #endif // MAGNETIC_FIELDS_ENABLED
 
@@ -364,6 +470,9 @@ void Mesh::EnrollUserStandardField(ParameterInput * pin)
 
   EnrollUserHistoryOutput(DivBface, "div_B",
                           UserHistoryOperation::max);
+
+  EnrollUserHistoryOutput(E_B, "E_B",
+                          UserHistoryOperation::sum);
 #endif // MAGNETIC_FIELDS_ENABLED
 }
 
