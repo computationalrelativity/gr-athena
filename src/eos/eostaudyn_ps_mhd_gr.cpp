@@ -238,7 +238,8 @@ void EquationOfState::ConservedToPrimitive(
 {
   MeshBlock* pmb = pmy_block_;
   Mesh* pm = pmb->pmy_mesh;
-  Hydro * ph     = pmb->phydro;
+  Hydro * ph = pmb->phydro;
+  Field *pf = pmb->pfield;
 
   geom_sliced_cc gsc;
 
@@ -465,22 +466,37 @@ void EquationOfState::ConservedToPrimitive(
         max_W,
         ph->derived_ms(IX_LOR,k,j,i)
       );
+
+      // enthalpy update required at all substeps
+      ph->derived_ms(IX_ETH,k,j,i) = GetEOS().GetEnthalpy(
+        prim_pt[IDN], ph->derived_ms(IX_T,k,j,i), &prim_pt[IYF]
+      );
+
+      // required [CT specifically] on all substeps
+      const Real oo_W = OO(ph->derived_ms(IX_LOR,k,j,i));
+      const Real alpha = gsc.alpha_(i);
+
+      for (int a=0; a<N; ++a)
+      {
+        ph->derived_int(IX_TR_V1+a,k,j,i) = (
+          alpha * oo_W * prim(IVX+a,k,j,i) + gsc.beta_u_(a,i)
+        );
+      }
     }
+
+    // derived quantities -----------------------------------------------------
+    // BD: TODO - probably better to move outside this
+    // BD: TODO - many quantities are not required at each time-step; trigger?
+    DerivedQuantities(
+      ph->derived_ms, ph->derived_int, pf->derived_ms,
+      cons, cons_scalar,
+      prim, prim_scalar,
+      bb_cc, gsc,
+      pmb->pcoord,
+      k, j, IL, IU,
+      coarse_flag, skip_physical);
   }
 
-  // BD: TODO - probably better to move outside this
-#if defined(Z4C_VC_ENABLED)
-  assert(false); // DerivedQuantities assumes adm variables are cell centered
-#endif
-  AA derived_gs;
-  DerivedQuantities(
-    ph->derived_ms, derived_gs, ph->derived_int,
-    cons, cons_scalar,
-    prim, prim_scalar,
-    pmb->pz4c->storage.adm, bb_cc,
-    pmb->pcoord,
-    IL, IU, JL, JU, KL, KU,
-    coarse_flag, skip_physical);
 }
 
 //----------------------------------------------------------------------------------------

@@ -309,10 +309,12 @@ void EquationOfState::GeometryToSlicedCC(
   AT_N_sca & sl_alpha             = gsc.sl_alpha;
   AT_N_sca & sl_chi               = gsc.sl_chi;
   AT_N_sca & sl_adm_sqrt_detgamma = gsc.sl_adm_sqrt_detgamma;
+  AT_N_vec & sl_beta_u            = gsc.sl_beta_u;
 
   // Sliced quantities
   AT_N_sca & alpha_    = gsc.alpha_;
   AT_N_sca & rchi_     = gsc.rchi_;
+  AT_N_vec & beta_u_   = gsc.beta_u_;
   AT_N_sym & gamma_dd_ = gsc.gamma_dd_;
 
   // Prepare inverse + det
@@ -324,6 +326,7 @@ void EquationOfState::GeometryToSlicedCC(
   if (!gsc.is_scratch_allocated)
   {
     alpha_.NewAthenaTensor(nn1);
+    beta_u_.NewAthenaTensor(nn1);
     gamma_dd_.NewAthenaTensor(nn1);
 
     gamma_uu_.NewAthenaTensor(nn1);
@@ -343,11 +346,13 @@ void EquationOfState::GeometryToSlicedCC(
     sl_adm_gamma_dd.InitWithShallowSlice(pz4c->coarse_u_, Z4c::I_Z4c_gxx);
     sl_alpha.InitWithShallowSlice(pz4c->coarse_u_, Z4c::I_Z4c_alpha);
     sl_chi.InitWithShallowSlice(pz4c->coarse_u_, Z4c::I_Z4c_chi);
+    sl_beta_u.InitWithShallowSlice(pz4c->coarse_u_, Z4c::I_Z4c_betax);
   }
   else
   {
     sl_adm_gamma_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
     sl_alpha.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_alpha);
+    sl_beta_u.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_betax);
 
     // BD: TODO - clean this up
 #if FLUID_ENABLED
@@ -361,6 +366,7 @@ void EquationOfState::GeometryToSlicedCC(
   // do the required interp. / calculation of derived quantities: -------------
   pco_gr->GetGeometricFieldCC(gamma_dd_, sl_adm_gamma_dd, k, j);
   pco_gr->GetGeometricFieldCC(alpha_, sl_alpha, k, j);
+  pco_gr->GetGeometricFieldCC(beta_u_, sl_beta_u, k, j);
 
   if (coarse_flag)
   {
@@ -423,16 +429,16 @@ void EquationOfState::SetEuclideanCC(geom_sliced_cc & gsc, const int i)
 }
 
 void EquationOfState::DerivedQuantities(
-  AA &derived_ms,
-  AA &derived_gs,
-  AA &derived_int,
+  AA &hyd_der_ms,
+  AA &hyd_der_int,
+  AA &fld_der_ms,
   AA &cons, AA &cons_scalar,
   AA &prim, AA &prim_scalar,
-  AA &adm, AA &bcc,
+  AA &bcc, geom_sliced_cc & gsc,
   Coordinates *pco,
+  int k,
+  int j,
   int il, int iu,
-  int jl, int ju,
-  int kl, int ku,
   int coarseflag,
   bool skip_physical)
 {
@@ -441,129 +447,118 @@ void EquationOfState::DerivedQuantities(
   Field * pf     = pmb->pfield;
 
 #if USETM
-  AA c2p_status;
-  c2p_status.InitWithShallowSlice(ph->derived_ms, IX_C2P, 1);
-
   const Real oo_mb = OO(GetEOS().GetBaryonMass());
   Real Y[MAX_SPECIES] = {0.0};
 
-  AT_N_sym adm_gamma(adm, Z4c::I_ADM_gxx);
+  const bool sp_kj = (
+    skip_physical &&
+    (pmb->js <= j) && (j <= pmb->je) &&
+    (pmb->ks <= k) && (k <= pmb->ke)
+  );
 
-  for (int k=kl; k<=ku; ++k)
-  for (int j=jl; j<=ju; ++j)
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
   {
-    const bool sp_kj = (
-      skip_physical &&
-      (pmb->js <= j) && (j <= pmb->je) &&
-      (pmb->ks <= k) && (k <= pmb->ke)
-    );
-
-    #pragma omp simd
-    for (int i=il; i<=iu; ++i)
+    if (sp_kj && (pmb->is <= i) && (i <= pmb->ie))
     {
-      if (sp_kj && (pmb->is <= i) && (i <= pmb->ie))
-      {
-        continue;
-      }
-
-      // u^a = (W/alpha, util^i)
-      const Real W = ph->derived_ms(IX_LOR,k,j,i);
-      const Real alp = adm(Z4c::I_ADM_alpha,k,j,i);
-      const Real bx = adm(Z4c::I_ADM_betax,k,j,i);
-      const Real by = adm(Z4c::I_ADM_betay,k,j,i);
-      const Real bz = adm(Z4c::I_ADM_betaz,k,j,i);
-      const Real gxx = adm(Z4c::I_ADM_gxx,k,j,i);
-      const Real gxy = adm(Z4c::I_ADM_gxy,k,j,i);
-      const Real gxz = adm(Z4c::I_ADM_gxz,k,j,i);
-      const Real gyy = adm(Z4c::I_ADM_gyy,k,j,i);
-      const Real gyz = adm(Z4c::I_ADM_gyz,k,j,i);
-      const Real gzz = adm(Z4c::I_ADM_gzz,k,j,i);
-      const Real vWx = prim(IVX,k,j,i);
-      const Real vWy = prim(IVY,k,j,i);
-      const Real vWz = prim(IVZ,k,j,i);
-      const Real n = oo_mb * prim(IDN,k,j,i);
-      const Real T = derived_ms(IX_T,k,j,i);
-      const Real h = GetEOS().GetEnthalpy(n, T, Y);
-      const Real h_inf = GetEOS().GetAsymptoticEnthalpy(Y);
-#if NSCALARS > 0
-      for (int l=0; l<NSCALARS; ++l)
-      {
-        Y[l] = pmy_block_->pscalars->r(l,k,j,i);
-      }
-#endif
-
-      ph->derived_ms(IX_U_D_0,k,j,i) = - alp * W +
-        bx*vWx*gxx + by*vWy*gyy + bz*vWz*gzz
-        + (bx*vWy + by*vWx)*gxy
-        + (bx*vWz + bz*vWx)*gxz
-        + (by*vWz + bz*vWy)*gyz;
-
-      derived_ms(IX_ETH,k,j,i) = h;
-      derived_ms(IX_SPB,k,j,i) = GetEOS().GetEntropyPerBaryon(n, T, Y);
-      derived_ms(IX_SEN,k,j,i) = GetEOS().GetSpecificInternalEnergy(n, T, Y);
-      derived_ms(IX_CS2,k,j,i) = SQR(GetEOS().GetSoundSpeed(n, T, Y));
-      derived_ms(IX_HU0,k,j,i) = h/h_inf * derived_ms(IX_U_D_0,k,j,i);
-      derived_ms(IX_CS2,k,j,i) = std::min(
-        derived_ms(IX_CS2,k,j,i), max_cs2
-      );
-
-      derived_int(IX_TR_V1,k,j,i) = alp*vWx/W + bx;
-      derived_int(IX_TR_V2,k,j,i) = alp*vWy/W + by;
-      derived_int(IX_TR_V3,k,j,i) = alp*vWz/W + bz;
-
-#if MAGNETIC_FIELDS_ENABLED
-      pf->derived_ms(IX_B2,k,j,i) = LinearAlgebra::InnerProductVecMetric(
-        pf->bcc, adm_gamma, k, j, i
-      );
-
-      const Real v_u_x = vWx / W;
-      const Real v_u_y = vWy / W;
-      const Real v_u_z = vWz / W;
-
-      const Real oo_sqrt_det_gamma = OO(
-        pmb->pz4c->aux_extended.ms_sqrt_detgamma(k,j,i)
-      );
-
-      pf->derived_ms(IX_b0,k,j,i) = oo_sqrt_det_gamma * (W / alp) * (
-        gxx * pf->bcc(IB1,k,j,i) * v_u_x +
-        gyy * pf->bcc(IB2,k,j,i) * v_u_y +
-        gzz * pf->bcc(IB3,k,j,i) * v_u_z +
-        gxy * (pf->bcc(IB1,k,j,i) * v_u_y +
-               pf->bcc(IB2,k,j,i) * v_u_x) +
-        gxz * (pf->bcc(IB1,k,j,i) * v_u_z +
-               pf->bcc(IB3,k,j,i) * v_u_x) +
-        gyz * (pf->bcc(IB2,k,j,i) * v_u_z +
-               pf->bcc(IB3,k,j,i) * v_u_y)
-      );
-
-      pf->derived_ms(IX_b2,k,j,i) = (
-        SQR(alp * pf->derived_ms(IX_b0,k,j,i)) +
-        SQR(oo_sqrt_det_gamma) * pf->derived_ms(IX_B2,k,j,i)
-      ) / SQR(W);
-
-      const Real vtil_u_x = v_u_x - bx / alp;
-      const Real vtil_u_y = v_u_y - by / alp;
-      const Real vtil_u_z = v_u_z - bz / alp;
-
-      pf->derived_ms(IX_b_U_1,k,j,i) = (
-        oo_sqrt_det_gamma * pf->bcc(IB1,k,j,i) +
-        alp * pf->derived_ms(IX_b0,k,j,i) * W * vtil_u_x
-      ) / SQR(W);
-
-      pf->derived_ms(IX_b_U_2,k,j,i) = (
-        oo_sqrt_det_gamma * pf->bcc(IB2,k,j,i) +
-        alp * pf->derived_ms(IX_b0,k,j,i) * W * vtil_u_y
-      ) / SQR(W);
-
-      pf->derived_ms(IX_b_U_3,k,j,i) = (
-        oo_sqrt_det_gamma * pf->bcc(IB3,k,j,i) +
-        alp * pf->derived_ms(IX_b0,k,j,i) * W * vtil_u_z
-      ) / SQR(W);
-
-#endif // MAGNETIC_FIELDS_ENABLED
+      continue;
     }
 
+    for (int l=0; l<NSCALARS; ++l)
+    {
+      Y[l] = prim_scalar(l,k,j,i);
+    }
+
+    // u^a = (W/alpha, util^i)
+    const Real W = ph->derived_ms(IX_LOR,k,j,i);
+
+    const Real alp = gsc.alpha_(i);
+    const Real bx = gsc.beta_u_(0,i);
+    const Real by = gsc.beta_u_(1,i);
+    const Real bz = gsc.beta_u_(2,i);
+    const Real gxx = gsc.gamma_dd_(0,0,i);
+    const Real gxy = gsc.gamma_dd_(0,1,i);
+    const Real gxz = gsc.gamma_dd_(0,2,i);
+    const Real gyy = gsc.gamma_dd_(1,1,i);
+    const Real gyz = gsc.gamma_dd_(1,2,i);
+    const Real gzz = gsc.gamma_dd_(2,2,i);
+
+    const Real vWx = prim(IVX,k,j,i);
+    const Real vWy = prim(IVY,k,j,i);
+    const Real vWz = prim(IVZ,k,j,i);
+
+    const Real n = oo_mb * prim(IDN,k,j,i);
+    const Real T = hyd_der_ms(IX_T,k,j,i);
+    const Real h = hyd_der_ms(IX_ETH,k,j,i);
+    const Real h_inf = GetEOS().GetAsymptoticEnthalpy(Y);
+
+    hyd_der_ms(IX_U_D_0,k,j,i) = - alp * W +
+      bx*vWx*gxx + by*vWy*gyy + bz*vWz*gzz
+      + (bx*vWy + by*vWx)*gxy
+      + (bx*vWz + bz*vWx)*gxz
+      + (by*vWz + bz*vWy)*gyz;
+
+    hyd_der_ms(IX_SPB,k,j,i) = GetEOS().GetEntropyPerBaryon(n, T, Y);
+    hyd_der_ms(IX_SEN,k,j,i) = GetEOS().GetSpecificInternalEnergy(n, T, Y);
+    hyd_der_ms(IX_HU0,k,j,i) = h/h_inf * hyd_der_ms(IX_U_D_0,k,j,i);
+
+    hyd_der_ms(IX_CS2,k,j,i) = SQR(GetEOS().GetSoundSpeed(n, T, Y));
+    hyd_der_ms(IX_CS2,k,j,i) = std::min(
+      hyd_der_ms(IX_CS2,k,j,i), max_cs2
+    );
+
+#if MAGNETIC_FIELDS_ENABLED
+    fld_der_ms(IX_B2,k,j,i) = LinearAlgebra::InnerProductVecSlicedMetric(
+      pf->bcc, gsc.gamma_dd_, k, j, i
+    );
+
+    const Real v_u_x = vWx / W;
+    const Real v_u_y = vWy / W;
+    const Real v_u_z = vWz / W;
+
+    const Real oo_sqrt_det_gamma = OO(
+      gsc.sqrt_det_gamma_(i)
+    );
+
+    fld_der_ms(IX_b0,k,j,i) = oo_sqrt_det_gamma * (W / alp) * (
+      gxx * pf->bcc(IB1,k,j,i) * v_u_x +
+      gyy * pf->bcc(IB2,k,j,i) * v_u_y +
+      gzz * pf->bcc(IB3,k,j,i) * v_u_z +
+      gxy * (pf->bcc(IB1,k,j,i) * v_u_y +
+              pf->bcc(IB2,k,j,i) * v_u_x) +
+      gxz * (pf->bcc(IB1,k,j,i) * v_u_z +
+              pf->bcc(IB3,k,j,i) * v_u_x) +
+      gyz * (pf->bcc(IB2,k,j,i) * v_u_z +
+              pf->bcc(IB3,k,j,i) * v_u_y)
+    );
+
+    fld_der_ms(IX_b2,k,j,i) = (
+      SQR(alp * fld_der_ms(IX_b0,k,j,i)) +
+      SQR(oo_sqrt_det_gamma) * fld_der_ms(IX_B2,k,j,i)
+    ) / SQR(W);
+
+    const Real vtil_u_x = v_u_x - bx / alp;
+    const Real vtil_u_y = v_u_y - by / alp;
+    const Real vtil_u_z = v_u_z - bz / alp;
+
+    fld_der_ms(IX_b_U_1,k,j,i) = (
+      oo_sqrt_det_gamma * pf->bcc(IB1,k,j,i) +
+      alp * fld_der_ms(IX_b0,k,j,i) * W * vtil_u_x
+    ) / SQR(W);
+
+    fld_der_ms(IX_b_U_2,k,j,i) = (
+      oo_sqrt_det_gamma * pf->bcc(IB2,k,j,i) +
+      alp * fld_der_ms(IX_b0,k,j,i) * W * vtil_u_y
+    ) / SQR(W);
+
+    fld_der_ms(IX_b_U_3,k,j,i) = (
+      oo_sqrt_det_gamma * pf->bcc(IB3,k,j,i) +
+      alp * fld_der_ms(IX_b0,k,j,i) * W * vtil_u_z
+    ) / SQR(W);
+
+#endif // MAGNETIC_FIELDS_ENABLED
   }
+
 #endif // USETM
 
 }

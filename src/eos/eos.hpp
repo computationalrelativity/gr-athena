@@ -174,37 +174,6 @@ class EquationOfState {
 
 #endif
 
-  // Various derived quantities -----------------------------------------------
-  void DerivedQuantities(
-    AA &derived_ms, AA &derived_gs, AA &derived_int,
-    AA &cons, AA &cons_scalar,
-    AA &prim, AA &prim_scalar,
-    AA &adm, AA &bcc,
-    Coordinates *pco,
-    int il, int iu,
-    int jl, int ju,
-    int kl, int ku,
-    int coarseflag,
-    bool skip_physical);
-
-  void DerivedQuantities(
-    AA &derived_ms, AA &derived_gs, AA &derived_int,
-    AA &cons, AA &cons_scalar,
-    AA &prim, AA &prim_scalar,
-    AA &adm, AA &bcc,
-    Coordinates *pco,
-    int il, int iu,
-    int jl, int ju,
-    int kl, int ku,
-    int coarseflag)
-  {
-    DerivedQuantities(derived_ms, derived_gs, derived_int,
-                      cons, cons_scalar,
-                      prim, prim_scalar,
-                      adm, bcc, pco,
-                      il, iu, jl, ju, kl, ku, coarseflag, false);
-  }
-
   // --------------------------------------------------------------------------
   // Check state vector at a point makes sense & we are not
   bool IsAdmissiblePoint(
@@ -244,9 +213,11 @@ class EquationOfState {
     AT_N_sca sl_alpha;
     AT_N_sca sl_chi;
     AT_N_sca sl_adm_sqrt_detgamma;
+    AT_N_vec sl_beta_u;
     // interpolated to CC
     AT_N_sca alpha_;
     AT_N_sca rchi_;
+    AT_N_vec beta_u_;
     AT_N_sym gamma_dd_;
     // derived on CC
     AT_N_sym gamma_uu_;
@@ -266,6 +237,43 @@ class EquationOfState {
 
   // To handle excision / collapse
   void SetEuclideanCC(geom_sliced_cc & gsc, const int i);
+
+  // Various derived quantities -----------------------------------------------
+  void DerivedQuantities(
+    AA &hyd_der_ms,
+    AA &hyd_der_int,
+    AA &fld_der_ms,
+    AA &cons, AA &cons_scalar,
+    AA &prim, AA &prim_scalar,
+    AA &bcc, geom_sliced_cc & gsc,
+    Coordinates *pco,
+    int k,
+    int j,
+    int il, int iu,
+    int coarseflag,
+    bool skip_physical);
+
+  void DerivedQuantities(
+    AA &hyd_der_ms,
+    AA &hyd_der_int,
+    AA &fld_der_ms,
+    AA &cons, AA &cons_scalar,
+    AA &prim, AA &prim_scalar,
+    AA &bcc, geom_sliced_cc & gsc,
+    Coordinates *pco,
+    int k,
+    int j,
+    int il, int iu,
+    int coarseflag)
+  {
+    DerivedQuantities(hyd_der_ms,
+                      hyd_der_int,
+                      fld_der_ms,
+                      cons, cons_scalar,
+                      prim, prim_scalar,
+                      bcc, gsc, pco,
+                      k, j, il, iu, coarseflag, false);
+  }
 
   // BD: TODO - clean up this mess ---v
 

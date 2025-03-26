@@ -171,7 +171,7 @@ enum HydroDerivedIndex {
 
 // Hydro-derived quantities for internal use
 enum HydroInternalDerivedIndex {
-  // alpha vtil^j = alpha * util^j / W + beta^j = alpha v^j + beta^j
+  // alpha vtil^j = alpha * util^j / W + beta^j = alpha v^j - beta^j
   IX_TR_V1   =0,
   IX_TR_V2   =1,
   IX_TR_V3   =2,

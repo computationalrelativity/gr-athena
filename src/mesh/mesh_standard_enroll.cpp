@@ -341,32 +341,52 @@ void Mesh::EnrollUserStandardHydro(ParameterInput * pin)
       const Real util_u_y = pmb->phydro->w(IVY,k,j,i);
       const Real util_u_z = pmb->phydro->w(IVZ,k,j,i);
 
-      Real S_u_x = w_rho * h * W * util_u_x;
-      Real S_u_y = w_rho * h * W * util_u_y;
-      Real S_u_z = w_rho * h * W * util_u_z;
+      Real S_u_x = 0.0;
+      Real S_u_y = 0.0;
+      Real S_u_z = 0.0;
 
 #if MAGNETIC_FIELDS_ENABLED
+      const Real b2 = pmb->pfield->derived_ms(IX_b0,k,j,i);
+      S_u_x = (w_rho * h + b2) * W * util_u_x;
+      S_u_y = (w_rho * h + b2) * W * util_u_y;
+      S_u_z = (w_rho * h + b2) * W * util_u_z;
+
       const Real alpha_b0 = (
-        alpha(k,j,i) * pmb->phydro->derived_ms(IX_b0,k,j,i)
+        alpha(k,j,i) * pmb->pfield->derived_ms(IX_b0,k,j,i)
       );
 
-      S_u_x -= alpha_b0 * pmb->phydro->derived_ms(IX_b_U_1,k,j,i);
-      S_u_y -= alpha_b0 * pmb->phydro->derived_ms(IX_b_U_2,k,j,i);
-      S_u_z -= alpha_b0 * pmb->phydro->derived_ms(IX_b_U_3,k,j,i);
-#endif // MAGNETIC_FIELDS_ENABLED
+      S_u_x -= alpha_b0 * pmb->pfield->derived_ms(IX_b_U_1,k,j,i);
+      S_u_y -= alpha_b0 * pmb->pfield->derived_ms(IX_b_U_2,k,j,i);
+      S_u_z -= alpha_b0 * pmb->pfield->derived_ms(IX_b_U_3,k,j,i);
 
       S_u_x *= sqrt_det_gamma__;
       S_u_y *= sqrt_det_gamma__;
       S_u_z *= sqrt_det_gamma__;
+#else
+      S_u_x = w_rho * h * W * util_u_x;
+      S_u_y = w_rho * h * W * util_u_y;
+      S_u_z = w_rho * h * W * util_u_z;
+
+      S_u_x *= sqrt_det_gamma__;
+      S_u_y *= sqrt_det_gamma__;
+      S_u_z *= sqrt_det_gamma__;
+#endif // MAGNETIC_FIELDS_ENABLED
 
       const Real S_d_x = pmb->phydro->u(IM1,k,j,i);
       const Real S_d_y = pmb->phydro->u(IM2,k,j,i);
       const Real S_d_z = pmb->phydro->u(IM3,k,j,i);
 
       const Real D = pmb->phydro->u(IDN,k,j,i);
-      E_kin_ += (
+
+      const Real dx1 = pmb->pcoord->dx1v(i);
+      const Real dx2 = pmb->pcoord->dx2v(i);
+      const Real dx3 = pmb->pcoord->dx3v(i);
+      const Real w = dx1*dx2*dx3;
+
+      E_kin_ += w * (
         S_u_x * S_d_x + S_u_y * S_d_y + S_u_z * S_d_z
       ) / D;
+
     }
 
     return 0.5 * E_kin_;
