@@ -154,26 +154,6 @@ class Hydro {
     };
   };
 
-  // BD: TODO- get rid of the following
-  struct ixn_aux
-  {
-    enum
-    {
-#if USETM
-      T,
-#endif
-      c2p_status,
-      N
-    };
-
-    static constexpr char const * const names[] = {
-#if USETM
-      "hydro.aux.T",
-#endif
-      "hydro.aux.c2p_status",
-    };
-  };
-
   // scratches ----------------------------------------------------------------
 public:
   AT_N_sca sqrt_detgamma_;
