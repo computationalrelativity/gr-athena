@@ -250,6 +250,8 @@ void Field::ComputeCornerE_Z4c_3D(
   AthenaArray<Real> &bcc)
 {
   MeshBlock *pmb = pmy_block;
+  Hydro *ph = pmb->phydro;
+
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
 
@@ -265,28 +267,17 @@ void Field::ComputeCornerE_Z4c_3D(
   pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
 
   Z4c * pz4c = pmb->pz4c;
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_gamma_dd;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> adm_alpha;
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> adm_beta_u;
 
   // Dense slice --------------------------------------------------------------
-  adm_gamma_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
-  adm_alpha.InitWithShallowSlice(   pz4c->storage.adm, Z4c::I_ADM_alpha);
-  adm_beta_u.InitWithShallowSlice(  pz4c->storage.adm, Z4c::I_ADM_betax);
+  AT_N_sca adm_alpha(pz4c->storage.adm, Z4c::I_ADM_alpha);
+  AT_N_vec adm_beta_u(pz4c->storage.adm, Z4c::I_ADM_betax);
 
   // Various scratches --------------------------------------------------------
   AT_N_sca alpha_(nn1);
-  AT_N_sca Wlor_(nn1);
-
   AT_N_vec beta_u_(nn1);
-
-  AT_N_sym gamma_dd_(nn1);
 
   AT_N_vec bb_(nn1);
   AT_N_vec v_u_(nn1);
-  AT_N_vec utilde_u_(nn1);
-
-
 
   // 3-D updates - cc_e_ is 4D array
   for (int k=ks-1; k<=ke+1; ++k)
@@ -295,44 +286,16 @@ void Field::ComputeCornerE_Z4c_3D(
     // E1=-(v X B)=VzBy-VyBz
     // E2=-(v X B)=VxBz-VzBx
     // E3=-(v X B)=VyBx-VxBy
-    pco_gr->GetGeometricFieldCC(gamma_dd_, adm_gamma_dd, k, j);
-    pco_gr->GetGeometricFieldCC(alpha_,    adm_alpha,    k, j);
-    pco_gr->GetGeometricFieldCC(beta_u_,   adm_beta_u,   k, j);
+    pco_gr->GetGeometricFieldCC(alpha_,  adm_alpha,  k, j);
+    pco_gr->GetGeometricFieldCC(beta_u_, adm_beta_u, k, j);
 
     for(int a=0;a<NDIM;++a)
     {
       //#pragma omp simd
       for (int i = is-1; i <= ie+1; ++i)
       {
-        utilde_u_(a,i) = w(a+IVX,k,j,i);
-      }
-    }
-
-    Wlor_.ZeroClear();
-    for(int a=0;a<NDIM;++a)
-    {
-      for(int b=0;b<NDIM;++b)
-      {
-        //#pragma omp simd
-        for (int i = is-1; i <= ie+1; ++i)
-        {
-          Wlor_(i) += utilde_u_(a,i)*utilde_u_(b,i)*gamma_dd_(a,b,i);
-        }
-      }
-    }
-
-    //#pragma omp simd
-    for (int i = is-1; i <= ie+1; ++i)
-    {
-      Wlor_(i) = std::sqrt(1.0+Wlor_(i));
-    }
-
-    for(int a=0;a<NDIM;++a)
-    {
-      //#pragma omp simd
-      for (int i = is-1; i <= ie+1; ++i)
-      {
-        v_u_(a,i) = utilde_u_(a,i)/Wlor_(i);
+        const Real W = ph->derived_ms(IX_LOR,k,j,i);
+        v_u_(a,i) = ph->w(IVX+a,k,j,i) / W;
       }
     }
 
