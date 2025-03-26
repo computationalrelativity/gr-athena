@@ -165,17 +165,17 @@ enum HydroDerivedIndex {
   IX_SPB=4,   // entropy per baryon
   IX_SEN=5,   // specific internal energy
   IX_U_D_0=6, // u_t (downstairs)
-  IX_CS2=7,   // cs^2
-  NDRV_HYDRO=8};
+  IX_HU0=7,   // h/h_inf u_t
+  IX_CS2=8,   // cs^2
+  NDRV_HYDRO=9};
 
 // Hydro-derived quantities for internal use
 enum HydroInternalDerivedIndex {
-  IX_HU0    = 0,   // h u_t
   // alpha vtil^j = alpha * util^j / W + beta^j = alpha v^j + beta^j
-  IX_TR_V1  = 1,
-  IX_TR_V2  = 2,
-  IX_TR_V3  = 3,
-  NIDRV_HYDRO=4};
+  IX_TR_V1   =0,
+  IX_TR_V2   =1,
+  IX_TR_V3   =2,
+  NIDRV_HYDRO=3};
 
   // Field-derived quantities:
 enum FieldDerivedIndex {

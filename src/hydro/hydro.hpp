@@ -139,6 +139,7 @@ class Hydro {
       "hydro.aux.s",
       "hydro.aux.e",
       "hydro.aux.u_t",
+      "hydro.aux.hu_t",
       "hydro.aux.cs2",
     };
   };

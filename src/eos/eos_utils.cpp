@@ -483,6 +483,8 @@ void EquationOfState::DerivedQuantities(
       const Real vWz = prim(IVZ,k,j,i);
       const Real n = oo_mb * prim(IDN,k,j,i);
       const Real T = derived_ms(IX_T,k,j,i);
+      const Real h = GetEOS().GetEnthalpy(n, T, Y);
+      const Real h_inf = GetEOS().GetAsymptoticEnthalpy(Y);
 #if NSCALARS > 0
       for (int l=0; l<NSCALARS; ++l)
       {
@@ -496,16 +498,15 @@ void EquationOfState::DerivedQuantities(
         + (bx*vWz + bz*vWx)*gxz
         + (by*vWz + bz*vWy)*gyz;
 
-      derived_ms(IX_ETH,k,j,i) = GetEOS().GetEnthalpy(n, T, Y);
+      derived_ms(IX_ETH,k,j,i) = h;
       derived_ms(IX_SPB,k,j,i) = GetEOS().GetEntropyPerBaryon(n, T, Y);
       derived_ms(IX_SEN,k,j,i) = GetEOS().GetSpecificInternalEnergy(n, T, Y);
       derived_ms(IX_CS2,k,j,i) = SQR(GetEOS().GetSoundSpeed(n, T, Y));
+      derived_ms(IX_HU0,k,j,i) = h/h_inf * derived_ms(IX_U_D_0,k,j,i);
       derived_ms(IX_CS2,k,j,i) = std::min(
         derived_ms(IX_CS2,k,j,i), max_cs2
       );
 
-      const Real h_inf = GetEOS().GetAsymptoticEnthalpy(Y);
-      derived_int(IX_HU0,k,j,i) = derived_ms(IX_ETH,k,j,i)/h_inf*derived_ms(IX_U_D_0,k,j,i);
       derived_int(IX_TR_V1,k,j,i) = alp*vWx/W + bx;
       derived_int(IX_TR_V2,k,j,i) = alp*vWy/W + by;
       derived_int(IX_TR_V3,k,j,i) = alp*vWz/W + bz;
