@@ -110,7 +110,7 @@ ExtremaTracker::ExtremaTracker(Mesh * pmesh, ParameterInput * pin,
 #if M1_ENABLED
       else if (control_field_name == "M1.lab.sc_E_00")
       {
-        control_field = control_fields::M1_lab_sc_E_00;
+        control_field(n) = control_fields::M1_lab_sc_E_00;
       }
 #endif // M1_ENABLED
       else
