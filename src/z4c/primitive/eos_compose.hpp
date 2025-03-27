@@ -136,6 +136,12 @@ class EOSCompOSE : public EOSPolicyInterface {
       max_n = n_max;
     }
 
+    /// Set the maxium termperature.
+    /// Values higher than the max of the table will lead to extrapolation
+    void SetMaximumTemperature(Real T_max) {
+      max_T = T_max;
+    }
+
   private:
     /// Low level function, not intended for outside use
     Real temperature_from_var(int vi, Real var, Real n, Real Yq) const;
