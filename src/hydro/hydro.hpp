@@ -148,9 +148,9 @@ class Hydro {
   {
     // Uses "HydroDerivedIndex"
     static constexpr char const * const names[] = {
-      "hydro.aux.Vx",
-      "hydro.aux.Vy",
-      "hydro.aux.Vz",
+      "hydro.aux.V_u_x",
+      "hydro.aux.V_u_y",
+      "hydro.aux.V_u_z",
     };
   };
 

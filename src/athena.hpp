@@ -164,8 +164,8 @@ enum HydroDerivedIndex {
   IX_ETH=3,   // enthalpy
   IX_SPB=4,   // entropy per baryon
   IX_SEN=5,   // specific internal energy
-  IX_U_D_0=6, // u_t (downstairs)
-  IX_HU0=7,   // h/h_inf u_t
+  IX_U_d_0=6, // u_t (downstairs)
+  IX_HU_d_0=7,   // h/h_inf u_t
   IX_CS2=8,   // cs^2
   NDRV_HYDRO=9};
 

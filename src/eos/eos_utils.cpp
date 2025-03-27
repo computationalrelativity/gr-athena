@@ -492,7 +492,7 @@ void EquationOfState::DerivedQuantities(
     const Real h = hyd_der_ms(IX_ETH,k,j,i);
     const Real h_inf = GetEOS().GetAsymptoticEnthalpy(Y);
 
-    hyd_der_ms(IX_U_D_0,k,j,i) = - alp * W +
+    hyd_der_ms(IX_U_d_0,k,j,i) = - alp * W +
       bx*vWx*gxx + by*vWy*gyy + bz*vWz*gzz
       + (bx*vWy + by*vWx)*gxy
       + (bx*vWz + bz*vWx)*gxz
@@ -500,7 +500,7 @@ void EquationOfState::DerivedQuantities(
 
     hyd_der_ms(IX_SPB,k,j,i) = GetEOS().GetEntropyPerBaryon(n, T, Y);
     hyd_der_ms(IX_SEN,k,j,i) = GetEOS().GetSpecificInternalEnergy(n, T, Y);
-    hyd_der_ms(IX_HU0,k,j,i) = h/h_inf * hyd_der_ms(IX_U_D_0,k,j,i);
+    hyd_der_ms(IX_HU_d_0,k,j,i) = h/h_inf * hyd_der_ms(IX_U_d_0,k,j,i);
 
     hyd_der_ms(IX_CS2,k,j,i) = SQR(GetEOS().GetSoundSpeed(n, T, Y));
     hyd_der_ms(IX_CS2,k,j,i) = std::min(

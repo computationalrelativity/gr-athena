@@ -44,12 +44,16 @@ class Surfaces
       hydro_cons,
       hydro_prim,
       hydro_aux,
+      // B-field [aux]
+      field_aux,
       // tracer quantities
       tracer_vel,
       tracer_rho,
       tracer_ye,
-      tracer_aux,
-      tracer_m1,
+      tracer_aux_T,
+      tracer_aux_U_d_0,
+      tracer_aux_HU_d_0,
+      tracer_aux_SPB,
       // scalars
       passive_scalars_cons,
       passive_scalars_prim,
@@ -61,6 +65,7 @@ class Surfaces
       M1_geom_sp_beta_u,
       M1_geom_sp_g_dd,
       M1_geom_sp_K_dd,
+      M1_rad,
       M1_radmat,
       M1_radmat_sc_avg_nrg_00,
       M1_radmat_sc_avg_nrg_01,
@@ -79,7 +84,10 @@ class Surfaces
       {"hydro.aux",  variety_data::hydro_aux},
       {"tracer.vel",  variety_data::tracer_vel},
       {"tracer.rho",  variety_data::tracer_rho},
-      {"tracer.aux",  variety_data::tracer_aux},
+      {"tracer.aux.T",       variety_data::tracer_aux_T},
+      {"tracer.aux.U_d_0",   variety_data::tracer_aux_U_d_0},
+      {"tracer.aux.HU_d_0",  variety_data::tracer_aux_HU_d_0},
+      {"tracer.aux.SPB",     variety_data::tracer_aux_SPB},
 #endif
 #if NSCALARS > 0
       {"tracer.ye",  variety_data::tracer_ye},
@@ -87,20 +95,21 @@ class Surfaces
       {"passive_scalars.prim",  variety_data::passive_scalars_prim},
 #endif
 #if MAGNETIC_FIELDS_ENABLED
-      {"B",  variety_data::B},
+      {"field.aux",  variety_data::field_aux},
+      {"B",          variety_data::B},
 #endif
 #if M1_ENABLED
-      {"M1.lab",     variety_data::M1_lab},
       // non-contiguous arrays
+      {"M1.lab",               variety_data::M1_lab},
       {"M1.geom.sc_alpha",     variety_data::M1_geom_sc_alpha},
       {"M1.geom.sp_beta_u",    variety_data::M1_geom_sp_beta_u},
       {"M1.geom.sp_g_dd",      variety_data::M1_geom_sp_g_dd},
       {"M1.geom.sp_K_dd",      variety_data::M1_geom_sp_K_dd},
+      {"M1.rad",               variety_data::M1_rad},
       {"M1.radmat",            variety_data::M1_radmat},
       {"M1.radmat.sc_avg_nrg_00", variety_data::M1_radmat_sc_avg_nrg_00},
       {"M1.radmat.sc_avg_nrg_01", variety_data::M1_radmat_sc_avg_nrg_01},
       {"M1.radmat.sc_avg_nrg_02", variety_data::M1_radmat_sc_avg_nrg_02},
-      {"tracer.M1", variety_data::tracer_m1},
 #endif
     };
 
@@ -194,9 +203,6 @@ class Surface
     // Number of field components that we wish to dump for each var
     AthenaArray<int> N_cpts;
 
-    // Indices of the field components
-    std::vector<int>** c_idx;
-
     // collective array storing all interpolated data
     aliases::AA u_vars;
 
@@ -206,8 +212,8 @@ class Surface
     // Total number of field components to reduce
     int GetNumFieldComponents(Surfaces::variety_data vd);
 
-    // Indices of field components to reduce
-    std::vector<int> GetFieldComponentIndices(Surfaces::variety_data vd);
+    // For non-contiguous data remap idx based on variety of data
+    int GetRemappedFieldIndex(Surfaces::variety_data vd, const int nix);
 
     // Pointer to array of field component names
     std::string GetNameFieldComponent(Surfaces::variety_data vd,
