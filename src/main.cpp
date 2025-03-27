@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
   trgs.Add(tvar::Z4c_ADM_constraints, ovar::hst,  true, allow_rescale_dt);
   trgs.Add(tvar::Z4c_ADM_constraints, ovar::data, true, allow_rescale_dt);
 
-  trgs.Add(tvar::Z4c_Weyl, ovar::user, true, allow_rescale_dt);
+  trgs.Add(tvar::Z4c_Weyl, ovar::user, false, allow_rescale_dt);
   trgs.Add(tvar::Z4c_Weyl, ovar::data, true, allow_rescale_dt);
 
   trgs.Add(tvar::Z4c_AHF, ovar::user, true, allow_rescale_dt);
