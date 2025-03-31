@@ -167,7 +167,8 @@ enum HydroDerivedIndex {
   IX_U_d_0=6, // u_t (downstairs)
   IX_HU_d_0=7,   // h/h_inf u_t
   IX_CS2=8,   // cs^2
-  NDRV_HYDRO=9};
+  IX_OM=9,     // Omega = y Wv^x - x Wv^y /(x^2 + y^2)^(1/2) angular velocity
+  NDRV_HYDRO=10};
 
 // Hydro-derived quantities for internal use
 enum HydroInternalDerivedIndex {
@@ -185,7 +186,11 @@ enum FieldDerivedIndex {
   IX_b_U_1=3, // (scB^i + alpha * b^0 * W * vtil^i) / W
   IX_b_U_2=4,
   IX_b_U_3=5,
-  NDRV_FIELD=6
+  IX_MAG=6, // magnetisation B^2/D
+  IX_BET=7, // plasma beta^-1 (2 p / b^2)^-1
+  IX_MRI=8, // fastest growing mode lambda_MRI = b^z / (sqrt(rho) Omega)
+  IX_ALF=9, // Alfven speed v_A = sqrt(B^2 / (4pi rho))
+  NDRV_FIELD=10
 };
 
 // enumerator types that are used for variables and function parameters:

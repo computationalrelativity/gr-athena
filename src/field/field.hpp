@@ -111,6 +111,10 @@ public:
       "field.aux.b_u_1",
       "field.aux.b_u_2",
       "field.aux.b_u_3",
+      "field.aux.mag",
+      "field.aux.plbeta",
+      "field.aux.lambda_mri",
+      "field.aux.Alfven_v",  
     };
   };
 

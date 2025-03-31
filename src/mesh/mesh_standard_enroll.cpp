@@ -12,6 +12,7 @@
 
 // C++ headers
 #include <algorithm>
+#include<cassert>
 #include <cinttypes>  // format macro "PRId64" for fixed-width integer type std::int64_t
 #include <cmath>      // std::abs(), std::pow()
 #include <cstdint>    // std::int64_t fixed-wdith integer type alias
@@ -208,6 +209,55 @@ Real E_int(MeshBlock *pmb, int iout)
   return sum_Q;
 }
 
+Real Etau_int(MeshBlock *pmb, int iout)
+{
+  Real sum_Q = 0;
+
+  CC_ILOOP3(k,j,i)
+  {
+    const Real dx1 = pmb->pcoord->dx1v(i);
+    const Real dx2 = pmb->pcoord->dx2v(i);
+    const Real dx3 = pmb->pcoord->dx3v(i);
+    const Real w = dx1*dx2*dx3;
+
+
+ const Real sqrt_det_gamma__ = (
+        pmb->pz4c->aux_extended.ms_sqrt_detgamma(k,j,i)
+      );
+    const Real W = pmb->phydro->derived_ms(IX_LOR,k,j,i);
+    const Real W2 = SQR(W);
+    const Real rho = pmb->phydro->w(IDN,k,j,i);
+    const Real pres = pmb->phydro->w(IPR,k,j,i);
+    const Real eps = pmb->phydro->derived_ms(IX_SEN,k,j,i);
+    sum_Q += sqrt_det_gamma__ * w * (W2*rho*eps + pres*(W2 - 1.0));
+  }
+  return sum_Q;
+}
+
+Real Etau_kin(MeshBlock *pmb, int iout)
+{
+  Real sum_Q = 0;
+
+  CC_ILOOP3(k,j,i)
+  {
+    const Real dx1 = pmb->pcoord->dx1v(i);
+    const Real dx2 = pmb->pcoord->dx2v(i);
+    const Real dx3 = pmb->pcoord->dx3v(i);
+    const Real w = dx1*dx2*dx3;
+
+
+ const Real sqrt_det_gamma__ = (
+        pmb->pz4c->aux_extended.ms_sqrt_detgamma(k,j,i)
+      );
+    const Real W = pmb->phydro->derived_ms(IX_LOR,k,j,i);
+    const Real rho = pmb->phydro->w(IDN,k,j,i);
+    sum_Q += sqrt_det_gamma__ * w * rho * W * (W - 1.0);
+  }
+  return sum_Q;
+}
+
+
+
 }
 #endif // FLUID_ENABLED
 
@@ -275,6 +325,16 @@ void Mesh::EnrollUserStandardHydro(ParameterInput * pin)
                                      rho_min, rho_max, iout);
       };
 
+           auto fcn_hw_sum_Om = [rho_min,rho_max](MeshBlock *pmb, int iout)
+      {
+        return windowed_weighted_avg(pmb,
+                                     IX_OM, pmb->phydro->derived_ms,
+                                     IDN, pmb->phydro->u,
+                                     IDN, pmb->phydro->w,
+                                     rho_min, rho_max, iout);
+      };
+
+
       EnrollUserHistoryOutput(
         fcn_hw_n_pts, str_n_pts.c_str(),
         UserHistoryOperation::sum);
@@ -285,6 +345,10 @@ void Mesh::EnrollUserStandardHydro(ParameterInput * pin)
 
       EnrollUserHistoryOutput(
         fcn_hw_sum_T, ("hw_T_" + hstwn).c_str(),
+        UserHistoryOperation::sum);
+
+      EnrollUserHistoryOutput(
+        fcn_hw_sum_Om, ("hw_Om_" + hstwn).c_str(),
         UserHistoryOperation::sum);
 
 #if NSCALARS > 0
@@ -403,6 +467,14 @@ void Mesh::EnrollUserStandardHydro(ParameterInput * pin)
     E_int, "E_int",
     UserHistoryOperation::sum);
 
+  EnrollUserHistoryOutput(
+    Etau_int, "Etau_int",
+    UserHistoryOperation::sum);
+
+  EnrollUserHistoryOutput(
+    Etau_kin, "Etau_kin",
+    UserHistoryOperation::sum);
+
   // --------------------------------------------------------------------------
   #endif // FLUID_ENABLED
 }
@@ -479,6 +551,121 @@ Real E_B(MeshBlock *pmb, int iout)
   return 0.5 * sum_Q;
 }
 
+Real Etau_B(MeshBlock *pmb, int iout)
+{
+  Real sum_Q = 0;
+
+  CC_ILOOP3(k,j,i)
+  {
+    const Real dx1 = pmb->pcoord->dx1v(i);
+    const Real dx2 = pmb->pcoord->dx2v(i);
+    const Real dx3 = pmb->pcoord->dx3v(i);
+    const Real w = dx1*dx2*dx3;
+
+    const Real sqrt_det_gamma__ = (
+      pmb->pz4c->aux_extended.ms_sqrt_detgamma(k,j,i)
+    );
+    const Real W = pmb->phydro->derived_ms(IX_LOR,k,j,i);
+    const Real b2 = pmb->pfield->derived_ms(IX_b2,k,j,i);
+    const Real b0 = pmb->pfield->derived_ms(IX_b0,k,j,i);
+    const Real alpha = pmb->pz4c->storage.adm(Z4c::I_ADM_alpha,k,j,i);
+
+    sum_Q += sqrt_det_gamma__ * ( b2*(SQR(W) - 0.5) - SQR(alpha*b0) )* w;
+  }
+  return sum_Q;
+}
+
+
+Real bphisq(MeshBlock *pmb, int iout) 
+{
+  // Integral of b^phi b_phi . For comparison to b^2
+  // b^phi = (y b^x - x b^y)/(sqrt(x^2 + y^2))
+  // b_phi = (y b_x - x b_y)/(sqrt(x^2 + y^2))
+  // b_mu = g_munu b^nu
+  #if defined(Z4C_VC_ENABLED)
+  //hard coded to CC metric sampling
+  assert(false);
+  #endif
+
+  AT_N_vec adm_beta(pmb->pz4c->storage.adm, Z4c::I_ADM_betax);
+  AT_N_sym adm_gamma_dd(pmb->pz4c->storage.adm, Z4c::I_ADM_gxx);
+
+
+
+  Field *pf = pmb->pfield;
+  Real sum_Q = 0;
+  CC_ILOOP3(k,j,i)
+  {
+    const Real dx1 = pmb->pcoord->dx1v(i);
+    const Real dx2 = pmb->pcoord->dx2v(i);
+    const Real dx3 = pmb->pcoord->dx3v(i);
+    const Real w = dx1*dx2*dx3;
+    const Real x = pmb->pcoord->x1v(i); 
+    const Real y = pmb->pcoord->x2v(j); 
+    const Real rho = std::sqrt(SQR(x) + SQR(y));
+
+
+    Real adm_beta_d[3];
+
+
+
+    for (int n = 0; n < NDIM; ++n)
+    {
+      adm_beta_d[n] = 0.0;
+      for (int m = 0; m < NDIM; ++m)
+      {
+        adm_beta_d[n] += adm_gamma_dd(m,n,k,j,i) * adm_beta(m,k,j,i);
+      }
+    }
+
+    const Real sqrt_det_gamma__ = (
+      pmb->pz4c->aux_extended.ms_sqrt_detgamma(k,j,i)
+    );
+    const Real bphi_u = (y*pf->derived_ms(IX_b_U_1,k,j,i) - x*pf->derived_ms(IX_b_U_2,k,j,i)) / rho;
+    Real b_d_x = adm_beta_d[0]*pf->derived_ms(IX_b0);
+    Real b_d_y = adm_beta_d[1]*pf->derived_ms(IX_b0);
+    for (int n = 0; n < NDIM; ++n)
+    {
+      b_d_x += adm_gamma_dd(0,n,k,j,i) * pf->derived_ms(IX_b_U_1+n,k,j,i);    
+      b_d_y += adm_gamma_dd(1,n,k,j,i) * pf->derived_ms(IX_b_U_1+n,k,j,i);    
+
+    }
+    const Real bphi_d = (y*b_d_x - x*b_d_y) / rho;
+
+    const Real bphisq = bphi_d*bphi_u;
+
+    sum_Q += sqrt_det_gamma__ * bphisq * w;
+  }    
+  return sum_Q;
+}
+
+Real max_b2(MeshBlock *pmb, int iout)
+{
+  Field *pf = pmb->pfield;
+
+  Real max_b2_ = 0.0;
+  int is = pmb->is, ie = pmb->ie;
+  int js = pmb->js, je = pmb->je;
+  int ks = pmb->ks, ke = pmb->ke;
+
+  CC_ILOOP3(k, j, i)
+  {
+    max_b2_ = std::max(
+      std::abs(pf->derived_ms(IX_b2,k,j,i)),
+      max_b2_);
+  }
+
+  return max_b2_;
+}
+
+
+
+
+
+
+
+
+
 }
 #endif // MAGNETIC_FIELDS_ENABLED
 
@@ -488,11 +675,114 @@ void Mesh::EnrollUserStandardField(ParameterInput * pin)
   EnrollUserHistoryOutput(max_B2, "max_B2",
                           UserHistoryOperation::max);
 
+  EnrollUserHistoryOutput(max_b2, "max_b2",
+                          UserHistoryOperation::max);
+
+
   EnrollUserHistoryOutput(DivBface, "div_B",
                           UserHistoryOperation::max);
 
   EnrollUserHistoryOutput(E_B, "E_B",
                           UserHistoryOperation::sum);
+
+  EnrollUserHistoryOutput(Etau_B, "Etau_B",
+                          UserHistoryOperation::sum);
+
+  EnrollUserHistoryOutput(bphisq, "bphisq",
+                          UserHistoryOperation::sum);
+
+
+
+
+  InputBlock *pib = pin->pfirst_block;
+  while (pib != nullptr)
+  {
+    if (pib->block_name.compare(0, 12, "hst_windowed")  == 0)
+    {
+      std::string hstwn = pib->block_name.substr(12); // cnt starts at 0
+      const int par_ix = atoi(hstwn.c_str());
+
+      const std::string str_n_pts = "hw_n_pts_" + hstwn;
+
+      const Real rho_min = pin->GetOrAddReal(
+        pib->block_name,
+        "rho_min", 0.0);
+      const Real rho_max = pin->GetOrAddReal(
+        pib->block_name,
+        "rho_max", 1e99);
+
+     auto fcn_hw_sum_beta = [rho_min,rho_max](MeshBlock *pmb, int iout)
+      {
+        return windowed_weighted_avg(pmb,
+                                     IX_BET, pmb->pfield->derived_ms,
+                                     IDN, pmb->phydro->u,
+                                     IDN, pmb->phydro->w,
+                                     rho_min, rho_max, iout);
+      };
+
+     auto fcn_hw_sum_mag = [rho_min,rho_max](MeshBlock *pmb, int iout)
+      {
+        return windowed_weighted_avg(pmb,
+                                     IX_MAG, pmb->pfield->derived_ms,
+                                     IDN, pmb->phydro->u,
+                                     IDN, pmb->phydro->w,
+                                     rho_min, rho_max, iout);
+      };
+
+     auto fcn_hw_sum_mri = [rho_min,rho_max](MeshBlock *pmb, int iout)
+      {
+        return windowed_weighted_avg(pmb,
+                                     IX_MRI, pmb->pfield->derived_ms,
+                                     IDN, pmb->phydro->u,
+                                     IDN, pmb->phydro->w,
+                                     rho_min, rho_max, iout);
+      };
+     auto fcn_hw_sum_alf = [rho_min,rho_max](MeshBlock *pmb, int iout)
+      {
+        return windowed_weighted_avg(pmb,
+                                     IX_ALF, pmb->pfield->derived_ms,
+                                     IDN, pmb->phydro->u,
+                                     IDN, pmb->phydro->w,
+                                     rho_min, rho_max, iout);
+      };
+
+           auto fcn_hw_sum_B2 = [rho_min,rho_max](MeshBlock *pmb, int iout)
+      {
+        return windowed_weighted_avg(pmb,
+                                     IX_B2, pmb->pfield->derived_ms,
+                                     IDN, pmb->phydro->u,
+                                     IDN, pmb->phydro->w,
+                                     rho_min, rho_max, iout);
+      };
+
+
+
+  EnrollUserHistoryOutput(
+        fcn_hw_sum_beta, ("hw_plbeta_" + hstwn).c_str(),
+        UserHistoryOperation::sum);
+
+      EnrollUserHistoryOutput(
+        fcn_hw_sum_mag, ("hw_mag_" + hstwn).c_str(),
+        UserHistoryOperation::sum);
+
+      EnrollUserHistoryOutput(
+        fcn_hw_sum_mri, ("hw_mri_" + hstwn).c_str(),
+        UserHistoryOperation::sum);
+
+      EnrollUserHistoryOutput(
+        fcn_hw_sum_alf, ("hw_alf_" + hstwn).c_str(),
+        UserHistoryOperation::sum);
+
+
+      EnrollUserHistoryOutput(
+        fcn_hw_sum_B2, ("hw_B2_" + hstwn).c_str(),
+        UserHistoryOperation::sum);
+
+    }
+    pib = pib->pnext;
+  }
+
+
 #endif // MAGNETIC_FIELDS_ENABLED
 }
 

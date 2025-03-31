@@ -470,6 +470,9 @@ void EquationOfState::DerivedQuantities(
     }
 
     // u^a = (W/alpha, util^i)
+    const Real x = pco->x1v(i);
+    const Real y = pco->x2v(j);
+
     const Real W = ph->derived_ms(IX_LOR,k,j,i);
 
     const Real alp = gsc.alpha_(i);
@@ -487,6 +490,7 @@ void EquationOfState::DerivedQuantities(
     const Real vWy = prim(IVY,k,j,i);
     const Real vWz = prim(IVZ,k,j,i);
 
+    const Real rho = prim(IDN,k,j,i);
     const Real n = oo_mb * prim(IDN,k,j,i);
     const Real T = hyd_der_ms(IX_T,k,j,i);
     const Real h = hyd_der_ms(IX_ETH,k,j,i);
@@ -506,6 +510,8 @@ void EquationOfState::DerivedQuantities(
     hyd_der_ms(IX_CS2,k,j,i) = std::min(
       hyd_der_ms(IX_CS2,k,j,i), max_cs2
     );
+    hyd_der_ms(IX_OM,k,j,i) = (y*vWx - x*vWy)/std::sqrt(SQR(x) + SQR(y));
+
 
 #if MAGNETIC_FIELDS_ENABLED
     fld_der_ms(IX_B2,k,j,i) = LinearAlgebra::InnerProductVecSlicedMetric(
@@ -555,6 +561,12 @@ void EquationOfState::DerivedQuantities(
       oo_sqrt_det_gamma * pf->bcc(IB3,k,j,i) +
       alp * fld_der_ms(IX_b0,k,j,i) * W * vtil_u_z
     ) / SQR(W);
+
+    fld_der_ms(IX_MAG,k,j,i) = fld_der_ms(IX_B2,k,j,i) / cons(IDN,k,j,i);
+    fld_der_ms(IX_BET,k,j,i) = fld_der_ms(IX_b2) / 2.0 * prim(IPR,k,j,i) ;
+    fld_der_ms(IX_MRI,k,j,i) = fld_der_ms(IX_b_U_3) / (std::sqrt(prim(IDN,k,j,i)) * hyd_der_ms(IX_OM,k,j,i)); 
+    fld_der_ms(IX_ALF,k,j,i) = std::sqrt(fld_der_ms(IX_B2,k,j,i) / (4.0 * M_PI * rho));  
+
 
 #endif // MAGNETIC_FIELDS_ENABLED
   }
