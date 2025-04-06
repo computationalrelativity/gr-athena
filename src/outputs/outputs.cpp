@@ -501,7 +501,7 @@ void LoadOutputDataM1(
     pod = new OutputData;
     pod->type = "SCALARS";
     pod->name = name + "_" + idx_GS;
-    pod->data.InitWithShallowSlice(data_, 0, 1);
+    pod->data.InitWithShallowSlice(data_, 4, 0, 1);
     pot->AppendOutputDataNode(pod);
     num_vars_++;
   };
@@ -520,7 +520,7 @@ void LoadOutputDataM1(
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = name + "_" + idx_GS + "_" + std::to_string(a);
-      pod->data.InitWithShallowSlice(data_, a, 1);
+      pod->data.InitWithShallowSlice(data_, 4, a, 1);
       pot->AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -545,7 +545,7 @@ void LoadOutputDataM1(
       pod->type = "SCALARS";
       pod->name = name + "_" + idx_GS + "_" + std::to_string(a) +
                   std::to_string(b);
-      pod->data.InitWithShallowSlice(data_, I, 1);
+      pod->data.InitWithShallowSlice(data_, 4, I, 1);
       pot->AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -565,7 +565,7 @@ void LoadOutputDataM1(
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = name + "_" + idx_GS + "_" + std::to_string(a);
-      pod->data.InitWithShallowSlice(data_, a, 1);
+      pod->data.InitWithShallowSlice(data_, 4, a, 1);
       pot->AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -579,7 +579,7 @@ void LoadOutputDataM1(
     pod = new OutputData;
     pod->type = "SCALARS";
     pod->name = name;
-    pod->data.InitWithShallowSlice(data_, 0, 1);
+    pod->data.InitWithShallowSlice(data_, 4, 0, 1);
     pot->AppendOutputDataNode(pod);
     num_vars_++;
   };
@@ -593,7 +593,7 @@ void LoadOutputDataM1(
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = name + "_" + std::to_string(a);
-      pod->data.InitWithShallowSlice(data_, a, 1);
+      pod->data.InitWithShallowSlice(data_, 4, a, 1);
       pot->AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -612,7 +612,7 @@ void LoadOutputDataM1(
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = name + "_" + std::to_string(a) + std::to_string(b);
-      pod->data.InitWithShallowSlice(data_, I, 1);
+      pod->data.InitWithShallowSlice(data_, 4, I, 1);
       pot->AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -627,7 +627,7 @@ void LoadOutputDataM1(
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = name + "_" + std::to_string(a);
-      pod->data.InitWithShallowSlice(data_, a, 1);
+      pod->data.InitWithShallowSlice(data_, 4, a, 1);
       pot->AppendOutputDataNode(pod);
       num_vars_++;
     }
