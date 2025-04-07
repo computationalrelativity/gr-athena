@@ -660,7 +660,6 @@ void Z4c::Z4cRHSExciseFreeze(AA & u, AA & u_mat, AA & u_rhs)
     if (can_excise)
     {
       for(int n = 0; n < N_Z4c; ++n)
-      for(int a = 0; a < NDIM; ++a)
       {
         u_rhs(n,k,j,i) = excision_factor * u_rhs(n,k,j,i);
       }
