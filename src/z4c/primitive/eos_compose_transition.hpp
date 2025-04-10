@@ -219,7 +219,7 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     // bool to protect against access of uninitialised table, and prevent repeated reading of table
     static bool m_initialized;
 
-    Real helm_ln_max;
+    static Real helm_ln_max;
 };
 
 
