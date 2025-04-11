@@ -26,6 +26,9 @@ class ParameterInput;
 //#define NDIM (3) // already defined
 #define MDIM (2)
 
+// output extra field (DEBUG)
+#define WAVE_EXTRACT_RWZ_EXTRAOUTPUT (0) //0=false, 1=true
+
 //! \class WaveExtractRWZ
 //! \brief RWZ waveform extraction 
 class WaveExtractRWZ {
@@ -181,7 +184,7 @@ private:
   //utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::NONE, MDIM, 1> kappa_d;
   // SB The above variables are defined at a points, but the kappa's have a multipolar index. These var type was incorrect. They require 1 dimension for the multipolar index and 1 for the Re/Im part, the following should work:
   AthenaTensor<Real, TensorSymm::SYM2, 2, 2> kappa_dd;
-  AthenaTensor<Real, TensorSymm::SYM2, 2, 1> kappa_d;
+  AthenaTensor<Real, TensorSymm::NONE, 2, 1> kappa_d;
   AthenaArray<Real> kappa, Tr_kappa_dd;
   Real norm_Tr_kappa_dd;
   
@@ -262,6 +265,8 @@ private:
   int outprec;
   
   // Indexes for basenames of various output files
+#if(WAVE_EXTRACT_RWZ_EXTRAOUTPUT)
+  // includes indexes of various extra output files
   enum {
     Iof_diagnostic,// This should be first!
     Iof_adm, // This should be second!
@@ -271,6 +276,7 @@ private:
     Iof_Psio_dyn,
     Iof_Qplus,
     Iof_Qstar,
+    //
     Iof_H1_dot,
     Iof_H0_dr,
     Iof_H0,
@@ -281,14 +287,29 @@ private:
     Iof_Psio_dr, 
     Iof_Qplus_dr,
     Iof_Qstar_dr,
+    //
     Iof_hlm, // This should be last!
     Iof_Num, 
   };
+#else
+  enum {
+    Iof_diagnostic,// This should be first!
+    Iof_adm, // This should be second!
+    Iof_Psie, 
+    Iof_Psio, 
+    Iof_Psie_dyn, 
+    Iof_Psio_dyn,
+    Iof_Qplus,
+    Iof_Qstar,
+    Iof_hlm, // This should be last!
+    Iof_Num, 
+  };
+#endif
   std::string ofbname[Iof_Num];
   std::string ofname;
   FILE * pofile;
   std::ofstream outfile;
-
+  
 };
 
 #endif
