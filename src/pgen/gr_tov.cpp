@@ -78,6 +78,9 @@ namespace {
   int l_pert; // l mode for perturbation
   int m_pert; // m mode for perturbation
   bool AddMetricPerturbation;
+  int l_pert_odd; // l mode for perturbation
+  int m_pert_odd; // m mode for perturbation
+
 
   // TOV var indexes for ODE integration
   enum{TOV_IRHO,TOV_IMASS,TOV_IPHI,TOV_IINT,TOV_NVAR};
@@ -261,6 +264,8 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   
   // metric perturbation
   AddMetricPerturbation = pin->GetOrAddBoolean("problem", "metric_pert", false);
+  l_pert_odd = pin->GetOrAddInteger("problem", "l_pert_odd", 2);
+  m_pert_odd = pin->GetOrAddInteger("problem", "m_pert_odd", 0);
 
 #if USETM
   // Initialize cold EOS
@@ -1535,14 +1540,14 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
         
         const Real gaussian_pert = 0.0001 * std::exp( - SQR((r_(i) - 10.0*R)/(0.15*R)) );
         Real Ylm_thR, Ylm_thI, Ylm_phR, Ylm_phI, XlmR, XlmI, WlmR, WlmI;   
-        SphHarm_Ylm_a(2,0, theta_i,phi_i,
+        SphHarm_Ylm_a(l_pert_odd,m_pert_odd, theta_i,phi_i,
 			&Ylm_thR, &Ylm_thI,
 			&Ylm_phR, &Ylm_phI,
 			&XlmR, &XlmI,
 			&WlmR, &WlmI);
-        const Real htt = -0.5 * gaussian_pert * XlmI / sinth ;
-        const Real htp =  0.5 * gaussian_pert * WlmR * sinth ;
-        const Real hpp =  0.5 * gaussian_pert * XlmI * sinth ;
+        //const Real htt = -0.5 * gaussian_pert * XlmI / sinth ;
+        //const Real htp =  0.5 * gaussian_pert * WlmR * sinth ;
+        //const Real hpp =  0.5 * gaussian_pert * XlmI * sinth ;
         const Real hrt =  - gaussian_pert * Ylm_phR / sinth ;
         const Real hrp =  gaussian_pert * Ylm_thR * sinth ;
         
