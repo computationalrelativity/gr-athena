@@ -42,6 +42,8 @@
 #   -mkl                enable mkl
 #   -elliptica          enable Elliptica
 #   --elliptica_path=path  path to Elliptica (requires the Elliptica_ID_Reader)
+#   -sgrid             enable SGRID
+#   --sgrid_path=path  path to SGRID (requires SGRID library)
 #   --grav=xxx          use xxx as the self-gravity solver
 #   --cxx=xxx           use xxx as the C++ compiler
 #   --ccmd=name         use name as the command to call the (non-MPI) C++ compiler
@@ -602,6 +604,17 @@ parser.add_argument(
 parser.add_argument('--rns_path',
                     default='',
                     help='path to rns library')
+# -sgrid argument
+parser.add_argument('-sgrid',
+                    action='store_true',
+                    default=False,
+                    help='enable GNU scientific library')
+
+# --sgrid_path argument
+parser.add_argument('--sgrid_path',
+                    default='',
+                    help='path to SGRID libraries')
+
 # -ccache argument
 parser.add_argument(
   "-ccache", action="store_true", default=False, help="enable caching compiler",
@@ -1799,6 +1812,41 @@ if args['prob'] == "gr_rns":
             makefile_options['LIBRARY_FLAGS'] += ' ' + obj_dir + n
 else:
     definitions['RNS_OPTION'] = 'NO_RNS'
+
+if args['sgrid']:
+    definitions['SGRID_OPTION'] = 'SGRID'
+
+    makefile_options['LIBRARY_FLAGS'] += ' -lsgrid -llapack -lblas'
+
+    # this can be specified as sgrid_path _or_ directly
+    if args['sgrid_path'] != '':
+        definitions['SGRID_OPTION'] = 'SGRID'
+
+        ##makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/Export/C++/Include'.format(args['sgrid_path'])
+        ##makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/C++/Include'.format(args['sgrid_path'])
+        makefile_options['LINKER_FLAGS'] += ' -L{0}/lib'.format(args['sgrid_path'])
+
+else:
+    definitions['SGRID_OPTION'] = 'NO_SGRID'
+
+if 'Sgrid' in args['prob']:
+    if not args['f'] or not args['g'] or not args['z']:
+        raise SystemExit(
+            '### CONFIGURE ERROR: The pgen "{name}" requires flags '
+            '-f -g -z.'.format(
+                name=args['prob']
+            )
+        )
+
+    if not args['sgrid']:
+        raise SystemExit(
+            '### CONFIGURE ERROR: The pgen "{name}" requires flags '
+            '-sgrid.'.format(
+                name=args['prob']
+            )
+        )
+
+
 # --cflag=[string] argument
 if args["cflag"] is not None:
   makefile_options["COMPILER_FLAGS"] += " " + args["cflag"]
