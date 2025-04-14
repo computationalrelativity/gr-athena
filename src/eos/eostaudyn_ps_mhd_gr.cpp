@@ -121,6 +121,30 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   Real T_max_factor = pin->GetOrAddReal("hydro", "T_max_factor", 1.0);
   eos.SetMaximumTemperature(eos.GetMaximumTemperature() * T_max_factor);
 
+#elif defined(USE_COMPOSE_TRANSITION_EOS)
+  eos.SetCodeUnitSystem(&Primitive::GeometricSolar);
+  std::string compose_table = pin->GetString("hydro", "table");
+  std::string helmholtz_table = pin->GetString("hydro", "helmholtz_table");
+
+  Real trans_n_start = pin->GetOrAddReal("hydro", "trans_n_start", 0.0);
+  Real trans_n_end = pin->GetOrAddReal("hydro", "trans_n_end", 0.0);
+  Real trans_T_start = pin->GetOrAddReal("hydro", "trans_t_start", 0.0);
+  Real trans_T_end = pin->GetOrAddReal("hydro", "trans_t_end", 0.0);
+
+  if (trans_n_start >= 0.0 &&
+      trans_n_end >= 0.0 &&
+      trans_T_start >= 0.0 &&
+      trans_T_end >= 0.0) {
+    if (not eos.IsInitialized())
+      eos.SetTransition(trans_n_start, trans_n_end, trans_T_start, trans_T_end);
+  }
+
+  eos.InitializeTables(compose_table, helmholtz_table);
+
+  Real mb = eos.GetBaryonMass();
+  Real n_max_factor = pin->GetOrAddReal("hydro", "n_max_factor", 1.0);
+  eos.SetMaximumDensity(eos.GetMaximumDensity() * n_max_factor);
+
 #elif defined(USE_IDEAL_GAS)
   // Baryon mass
   Real mb = pin->GetOrAddReal("hydro", "bmass", 1.0);
@@ -175,7 +199,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
 void InitColdEOS(Primitive::ColdEOS<Primitive::COLDEOS_POLICY> *eos,
                  ParameterInput *pin) {
 
-#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
+#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS) || defined(USE_COMPOSE_TRANSITION_EOS)
   std::string table = pin->GetString("hydro", "table");
 
   // read in species names
@@ -378,6 +402,21 @@ void EquationOfState::ConservedToPrimitive(
 
       // Find the primitive variables.
       Real prim_pt[NPRIM] = {0.0};
+
+      // Point to the old primitive variables for the initial guess.
+      prim_pt[IDN] = prim(IDN, k, j, i)/ps.GetEOS()->GetBaryonMass();
+      prim_pt[IVX] = prim(IVX, k, j, i);
+      prim_pt[IVY] = prim(IVY, k, j, i);
+      prim_pt[IVZ] = prim(IVZ, k, j, i);
+      prim_pt[IPR] = prim(IPR, k, j, i);
+      AA temperature;
+      temperature.InitWithShallowSlice(pmy_block_->phydro->derived_ms, IX_T, 1);
+      prim_pt[ITM] = temperature(k,j,i) ;
+
+      for(int n=0; n<NSCALARS; n++){
+        prim_pt[IYF + n] = prim_scalar(n, k, j, i) ;
+      }
+
 
       if (is_admissible)
       {
