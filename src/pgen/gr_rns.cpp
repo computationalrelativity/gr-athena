@@ -423,7 +423,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     Real r = std::sqrt(x[i]*x[i]+y[j]*y[j]+z[k]*z[k]);
 
 #if USETM
-#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
+#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS) || defined(USE_COMPOSE_TRANSITION_EOS)
     rho[flat_ix] *= ceos->mb/mb_rnsc; // adjust for rns baryon mass
 #endif
     if (rho[flat_ix] > rho_min) {

@@ -281,7 +281,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   ceos = new ColdEOS<COLDEOS_POLICY>();
   InitColdEOS(ceos, pin);
 
-#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
+#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS) || defined(USE_COMPOSE_TRANSITION_EOS)
   // Dump Lorene eos file
   if (Globals::my_rank == 0) {
     std::string run_dir;
@@ -345,7 +345,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   Real * xcrd_p, *xcrd_m, *ycrd, *zcrd;
 
   // Interpolation grid with dx of 10m by default.
-  Real dx_interp = pin->GetOrAddReal("problem","dx_interp_maximum",0.01); 
+  Real dx_interp = pin->GetOrAddReal("problem","dx_interp_maximum",0.01);
 
   dx_interp = dx_interp;
   int npt_interp = static_cast<int>(std::round(sep / dx_interp));
@@ -369,7 +369,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
     xcrd_m[npt_interp-i-1] = xcrd_m[npt_interp-i] - dx_interp;
     ycrd[i] = 0.0;
     zcrd[i] = 0.0;
-  } 
+  }
 
 
 
@@ -412,7 +412,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
       max_nbar_i = i;
     }
   }
-  
+
   centre_m = xcrd_m[max_nbar_i] / coord_unit;
   nbar1 = max_nbar;
 
@@ -421,15 +421,10 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
     std::cout.rdbuf(cur_buf);
   }
 
-  // for energy testing against cold slice
-  Real eps_1 = bns->ener_spec[max_nbar_i];
-  Real rho_1,rho_2;
-
-
-  // for tabulated EOS need to convert baryon mass
-#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
-  rho_1 = nbar1 / m_u_si * 1e-45 * ceos->GetBaryonMass();
-  rho_2 = nbar2 / m_u_si * 1e-45 * ceos->GetBaryonMass();
+  // forr tabulated EOS need to convert baryon mass
+#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS) || defined(USE_COMPOSE_TRANSITION_EOS)
+  Real rho_1 = bns->nbar[0] / m_u_si * 1e-45 * ceos->GetBaryonMass();
+  Real rho_2 = bns->nbar[1] / m_u_si * 1e-45 * ceos->GetBaryonMass();
 #else
   rho_1 = nbar1 / rho_unit;
   rho_2 = nbar2 / rho_unit;
@@ -444,7 +439,8 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 #endif
 
   // sanity check if the internal energy matches the eos
-#if defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS)
+  Real eps_1 = bns->ener_spec[0];
+#if defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS) || defined(USE_COMPOSE_TRANSITION_EOS)
   eps_1 = m_u_mev/ceos->mb * (eps_1 + 1) - 1; // convert eos baryon mass
 #endif
 
@@ -464,7 +460,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
            rho_1, eps_1, eps_ceos, eps_err);
   }
   delete bns;
-  delete[] xcrd_p; 
+  delete[] xcrd_p;
   delete[] xcrd_m;
   delete[]  ycrd;
   delete[]  zcrd;
@@ -744,7 +740,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int j=jl; j<=ju; ++j)
     for (int i=il; i<=iu; ++i)
     {
-#if defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS)
+#if defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS) || defined(USE_COMPOSE_TRANSITION_EOS)
       // Lorene is using the atomic mass unit as reference mass so the density has to be converted
       Real nb = bns->nbar[I] / m_u_si * 1e-45; // kg/m^3 -> fm^-3
       Real w_rho = nb * ceos->GetBaryonMass(); // fm^-3 -> code units
