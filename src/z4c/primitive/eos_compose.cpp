@@ -401,21 +401,27 @@ Real EOSCompOSE::temperature_from_var(int iv, Real var, Real n, Real Yq) const {
       flo = f(ilo);
     }
   }
-  if (!(flo*fhi <= 0)) {
-
-    Real flo_ = f(0);
-    Real fhi_ = f(m_nt-1);
-
-    std::cout<<"iv: "<<iv<<std::endl;
-    std::cout<<"var: "<<var<<std::endl;
-    std::cout<<"n: "<<n<<std::endl;
-    std::cout<<"Yq: "<<Yq<<std::endl;
-    std::cout<<"flo: "<<flo<<std::endl;
-    std::cout<<"fhi: "<<fhi<<std::endl;
-    std::cout<<"varlo: "<<var - flo<<std::endl;
-    std::cout<<"varhi: "<<var - fhi<<std::endl;
+  if (flo*fhi>0.0 && (iv==ECLOGP || iv==ECLOGE)) {
+    if (f(0) <= 0) {
+      return min_T;
+    }
+    else if (f(m_nt-1) >= 0) {
+      return max_T;
+    }
   }
-  assert(flo*fhi <= 0);
+
+  if (flo*fhi > 0) {
+    printf("There's a problem with temperature bracketing!\n"
+           "  iv = %i\n"
+           "  var = %20.17g\n"
+           "  n = %20.17g\n"
+           "  Yq = %20.17g\n"
+           "  ilo = %i\n"
+           "  ihi = %i\n"
+           "  flo = %20.17g\n"
+           "  fhigh = %20.17g\n", iv, var, n , Yq, ilo, ihi, flo, fhi);
+    assert(flo*fhi <= 0);
+  }
   while (ihi - ilo > 1) {
     int ip = ilo + (ihi - ilo)/2;
     Real fp = f(ip);
@@ -431,13 +437,6 @@ Real EOSCompOSE::temperature_from_var(int iv, Real var, Real n, Real Yq) const {
   assert(ihi - ilo == 1);
   Real lthi = m_log_t[ihi];
   Real ltlo = m_log_t[ilo];
-
-  if (flo == 0) {
-    return exp(ltlo);
-  }
-  if (fhi == 0) {
-    return exp(lthi);
-  }
 
   Real lt = m_log_t[ilo] - flo*(lthi - ltlo)/(fhi - flo);
   return exp(lt);

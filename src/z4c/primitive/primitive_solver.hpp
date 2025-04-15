@@ -323,24 +323,24 @@ inline Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::CheckDensityValid(Real& mu
       // W is not physical, so rho must be larger than rho_max.
       return Error::RHO_TOO_BIG;
     }
-    else {
-      MuFromW(f, df, mul, bsq, rsq, rbsq, W);
-      if (f < 0) {
-        Real mu;
-        Real mulc = mul;
-        Real muhc = muh;
-        // We can tighten up the bounds for mul.
-        // The derivative is zero at mu = 0, so we perturb it slightly.
-        /*if (mu <= root.tol) {
-          mu += root.tol;
-        }*/
-        bool result = root.NewtonSafe(MuFromW, mulc, muhc, mu, 1e-10, bsq, rsq, rbsq, W);
-        if (!result) {
-          return Error::BRACKETING_FAILED;
-        }
-        mul = (mu > mul) ? mu : mul;
-      }
-    }
+    // else {
+    //   MuFromW(f, df, mul, bsq, rsq, rbsq, W);
+    //   if (f < 0) {
+    //     Real mu;
+    //     Real mulc = mul;
+    //     Real muhc = muh;
+    //     // We can tighten up the bounds for mul.
+    //     // The derivative is zero at mu = 0, so we perturb it slightly.
+    //     /*if (mu <= root.tol) {
+    //       mu += root.tol;
+    //     }*/
+    //     bool result = root.NewtonSafe(MuFromW, mulc, muhc, mu, 1e-10, bsq, rsq, rbsq, W);
+    //     if (!result) {
+    //       return Error::BRACKETING_FAILED;
+    //     }
+    //     mul = (mu > mul) ? mu : mul;
+    //   }
+    // }
   }
   if (D < W_max*rho_min) {
     Real W = D/rho_min;
@@ -350,20 +350,20 @@ inline Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::CheckDensityValid(Real& mu
       // W is not physical, so rho must be smaller than rho_min.
       return Error::RHO_TOO_SMALL;
     }
-    else {
-      MuFromW(f, df, muh, bsq, rsq, rbsq, W);
-      if (f > 0) {
-        Real mu = muh;
-        Real mulc = mul;
-        Real muhc = muh;
-        // We can tighten up the bounds for muh.
-        bool result = root.NewtonSafe(MuFromW, mulc, muhc, mu, 1e-10, bsq, rsq, rbsq, W);
-        if (!result) {
-          return Error::BRACKETING_FAILED;
-        }
-        muh = (mu < muh) ? mu : muh;
-      }
-    }
+    // else {
+    //   MuFromW(f, df, muh, bsq, rsq, rbsq, W);
+    //   if (f > 0) {
+    //     Real mu = muh;
+    //     Real mulc = mul;
+    //     Real muhc = muh;
+    //     // We can tighten up the bounds for muh.
+    //     bool result = root.NewtonSafe(MuFromW, mulc, muhc, mu, 1e-10, bsq, rsq, rbsq, W);
+    //     if (!result) {
+    //       return Error::BRACKETING_FAILED;
+    //     }
+    //     muh = (mu < muh) ? mu : muh;
+    //   }
+    // }
   }
   return Error::SUCCESS;
 }
