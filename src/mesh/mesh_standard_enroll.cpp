@@ -377,7 +377,7 @@ void Mesh::EnrollUserStandardHydro(ParameterInput * pin)
   {
     return windowed_int(pmb,
                         IDN, pmb->phydro->u,
-                        IX_HU_d_0, pmb->phydro->derived_int,
+                        IX_HU_d_0, pmb->phydro->derived_ms,
                         -1e99, -1, iout);
   };
 
