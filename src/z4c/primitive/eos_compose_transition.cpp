@@ -86,6 +86,7 @@ Real EOSCompOSETransition::trans_T_start = numeric_limits<Real>::quiet_NaN();
 Real EOSCompOSETransition::trans_T_end = numeric_limits<Real>::quiet_NaN();
 Real EOSCompOSETransition::trans_ln_start = numeric_limits<Real>::quiet_NaN();
 Real EOSCompOSETransition::trans_ln_end = numeric_limits<Real>::quiet_NaN();
+Real EOSCompOSETransition::helm_ln_max = numeric_limits<Real>::quiet_NaN();
 bool EOSCompOSETransition::m_initialized = false;
 
 Real EOSCompOSETransition::TemperatureFromEps(Real n, Real eps, Real *Y) {
