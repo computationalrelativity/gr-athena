@@ -156,8 +156,7 @@ void ColdEOSCompOSE::ReadColdSliceFromFile(std::string fname, std::string specie
 
   for (int iy = 0; iy < n_species; ++iy) {
     std::stringstream ss;
-    ss << "Y[" << species_names[iy] << "]";
-    ierr = H5LTread_dataset_double(grp_id, ss.str().c_str(), scratch);
+    ierr = H5LTread_dataset_double(grp_id, species_names[iy].c_str(), scratch);
       MYH5CHECK(ierr);
     for (int in = 0; in < m_np; ++in) {
       m_table[index(ECY+iy, in)] = scratch[in];
