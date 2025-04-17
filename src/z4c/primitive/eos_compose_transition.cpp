@@ -216,6 +216,15 @@ Real EOSCompOSETransition::MaximumEnergy(Real n, Real *Y) {
   return Energy(n, max_T, Y);
 }
 
+void EOSCompOSETransition::SetHelmMaximumDensity(Real n_max) {
+  if (! m_initialized) {
+    std::stringstream msg;
+    msg << "### EOSCompOSETransition: SetHelmMaximumDensity must be called after initialization." << std::endl;
+    throw std::runtime_error(msg.str());
+  }
+  helm_ln_max = log(n_max);
+}
+
 void EOSCompOSETransition::SetTransition(Real n_start, Real n_end, Real T_start, Real T_end) {
   if (m_initialized) {
     std::stringstream msg;
