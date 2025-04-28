@@ -47,6 +47,9 @@
 #elif ERROR_POLICY_CODE == 1
   //#pragma message("ERROR_POLICY is ResetFloor")
   #include "../z4c/primitive/reset_floor.hpp"
+#elif ERROR_POLICY_CODE == 2
+  //#pragma message("ERROR_POLICY is ResetFloorTransition")
+  #include "../z4c/primitive/reset_floor_transition.hpp"
 #else
   #error ERROR_POLICY_CODE not recognized.
 #endif

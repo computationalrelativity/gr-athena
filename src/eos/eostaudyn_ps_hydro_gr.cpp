@@ -144,8 +144,11 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   Real n_max_factor = pin->GetOrAddReal("hydro", "n_max_factor", 1.0);
   eos.SetMaximumDensity(eos.GetMaximumDensity() * n_max_factor);
 
-  Real n_helm_max = pin->GetOrAddReal("hydro", "n_helm_max", 6e-4);
-  eos.SetHelmMaximumDensity(n_helm_max);
+  Real ld_n_max = pin->GetOrAddReal("hydro", "ld_n_max", 6e-4);
+  Real hd_n_min = pin->GetOrAddReal("hydro", "hd_n_min", 1e-12);
+  Real ld_t_max = pin->GetOrAddReal("hydro", "ld_T_max", 800);
+  Real hd_t_min = pin->GetOrAddReal("hydro", "hd_T_min", 0.1);
+  eos.SetTableBoundaries(ld_n_max, hd_n_min, ld_t_max, hd_t_min);
 
 #elif defined(USE_IDEAL_GAS)
   // Baryon mass

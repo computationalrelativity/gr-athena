@@ -116,7 +116,6 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     void InitializeTables(std::string fname, std::string helm_fname);
 
     /// Some setters for parameters
-    void SetHelmMaximumDensity(Real n_max);
     void SetTransition(Real n_start, Real n_end, Real T_start, Real T_end);
     void SetMaxIteration(int iter_max);
     void SetTemperatureTolerance(Real tol);
