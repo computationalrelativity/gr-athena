@@ -98,8 +98,11 @@ Real opt_B0_amp;
 Real opt_B0_rad;
 
 // additional scalar dumps
-Real MaxRho(MeshBlock *pmb, int iout);
-Real MaxTemp(MeshBlock *pmb, int iout);
+Real MassPerMeshBlock(MeshBlock *pmb, int iout);
+Real MaxMassInCell(MeshBlock *pmb, int iout);
+
+// purely for convenience (avoid parsing sim out logs)
+Real MaxLevel(MeshBlock *pmb, int iout);
 
 // rotation laws for progenitor
 Real OmegaLaw(Real rad, Real Omega_0, Real Omega_A);
@@ -229,16 +232,32 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   // BD: TODO- cleanup is where?
   pdelept = new Deleptonization(pin);
 
-  // additional scalars dumps
-  AllocateUserHistoryOutput(2 + MAGNETIC_FIELDS_ENABLED);
+  EnrollUserStandardHydro(pin);
+  EnrollUserStandardField(pin);
+  EnrollUserStandardZ4c(pin);
+  EnrollUserStandardM1(pin);
 
-  EnrollUserHistoryOutput(0, MaxRho, "max-rho", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(1, MaxTemp, "max-temp", UserHistoryOperation::max);
+  /*
+  // New outputs can now be specified with the form:
+  EnrollUserHistoryOutput(
+    [&](MeshBlock *pmb, int iout){ return 1.0; },
+    "some_name",
+    UserHistoryOperation::min
+  );
+  */
 
-#if MAGNETIC_FIELDS_ENABLED
-  EnrollUserHistoryOutput(1 + MAGNETIC_FIELDS_ENABLED,
-                          DivBface, "divB", UserHistoryOperation::max);
-#endif
+  // New outputs can now be specified with the form:
+  EnrollUserHistoryOutput(
+    MaxMassInCell,
+    "max_MassInCell",
+    UserHistoryOperation::max
+  );
+
+  EnrollUserHistoryOutput(
+    MaxLevel,
+    "max_level",
+    UserHistoryOperation::max
+  );
 
 }
 
@@ -659,6 +678,9 @@ void Mesh::UserWorkInLoop()
       pf = pmb->pfield;
       pco = pmb->pcoord;
 
+      AA temperature;
+      temperature.InitWithShallowSlice(ph->derived_ms, IX_T, 1);
+
       CC_GLOOP3(k, j, i)
       {
         const Real rho = ph->w(IDN,k,j,i);
@@ -706,7 +728,7 @@ void Mesh::UserWorkInLoop()
 
           // push back to prim state vector:
           ph->w(IPR,k,j,i) = pnew;
-          ph->temperature(k,j,i) = Tnew;
+          temperature(k,j,i) = Tnew;
 
           peos->PrimitiveToConserved(
             ph->w,
@@ -1006,22 +1028,51 @@ Real Deleptonization::Ye_of_rho(Real rho) const {
   }
 }
 
-int RefinementCondition(MeshBlock *pmb)
+Real MassPerMeshBlock(MeshBlock *pmb, int iout)
 {
   Hydro *ph = pmb->phydro;
   Coordinates *pco = pmb->pcoord;
 
+  // accumulate on all physical cells
+  Real M_loc = 0;
+  CC_ILOOP3(k,j,i)
+  {
+    const Real vol = pco->GetCellVolume(k,j,i);
+    M_loc += ph->u(IDN,k,j,i) * vol;
+  }
+  return M_loc;
+}
+
+Real MaxMassInCell(MeshBlock *pmb, int iout)
+{
+  Hydro *ph = pmb->phydro;
+  Coordinates *pco = pmb->pcoord;
+
+  Real max_mass = -std::numeric_limits<Real>::infinity();
+
+  CC_GLOOP3(k, j, i)
+  {
+    const Real cell_vol  = pco->GetCellVolume(k,j,i);
+    const Real cell_mass = ph->u(IDN,k,j,i) * cell_vol;
+
+    max_mass = std::max(max_mass, cell_mass);
+  }
+  return max_mass;
+}
+
+Real MaxLevel(MeshBlock *pmb, int iout)
+{
+  return pmb->pmy_mesh->M_info.max_level;
+}
+
+int RefinementCondition(MeshBlock *pmb)
+{
   switch (opt_refm_)
   {
     case opt_refinement_method::MassPerMeshBlock:
     {
       // accumulate on all physical cells
-      Real M_loc = 0;
-      CC_ILOOP3(k,j,i)
-      {
-        const Real vol = pco->GetCellVolume(k,j,i);
-        M_loc += ph->u(IDN,k,j,i) * vol;
-      }
+      Real M_loc = MassPerMeshBlock(pmb, 0);
 
       // mass per MeshBlock exceed refinement par
       if (M_loc > opt_delta_max_m)
@@ -1037,15 +1088,7 @@ int RefinementCondition(MeshBlock *pmb)
     }
     case opt_refinement_method::MaxMassInCell:
     {
-      Real max_mass = -std::numeric_limits<Real>::infinity();
-
-      CC_GLOOP3(k, j, i)
-      {
-        const Real cell_vol  = pco->GetCellVolume(k,j,i);
-        const Real cell_mass = ph->u(IDN,k,j,i) * cell_vol;
-
-        max_mass = std::max(max_mass, cell_mass);
-      }
+      Real max_mass = MaxMassInCell(pmb, 0);
 
       if (max_mass > opt_delta_max_m)
       {
@@ -1069,29 +1112,6 @@ int RefinementCondition(MeshBlock *pmb)
   }
 
   return 0;
-}
-
-Real MaxRho(MeshBlock *pmb, int iout)
-{
-  Real max_rho = 0.0;
-  AthenaArray<Real> &w = pmb->phydro->w;
-
-  CC_ILOOP3(k, j, i)
-  {
-    max_rho = std::max(std::abs(w(IDN,k,j,i)), max_rho);
-  }
-
-  return max_rho;
-}
-
-Real MaxTemp(MeshBlock *pmb, int iout)
-{
-  Real max_T = -std::numeric_limits<Real>::infinity();
-  CC_ILOOP3(k, j, i)
-  {
-    max_T = std::max(max_T, pmb->phydro->temperature(k,j,i));
-  }
-  return max_T;
 }
 
 Real OmegaLaw(Real rad, Real Omega_0, Real Omega_A)
